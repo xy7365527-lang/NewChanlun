@@ -2151,6 +2151,48 @@ fn restore_ancestor_chain_from_registry(
     }
 }
 
+/// ★票#267（#247 缺口二同类位点）：held 腿占位元素（LivePresent/LiveDetached 分支）角色输入重建。
+///
+/// 占位元素携已知 `parent_id`（`leg.op_parent`，anc.pdf §15：LiveDetached 的 parent 仍是 op_parent(L)），
+/// 修复前写死 `parent:None, attached_dir:None`。AncOK 按 parent_id 结构映射判（不看 parent 索引）⟹
+/// 占位元素可存活进 next_idx；`strategy_target_legs` 角色计算消费 parent/attached_dir
+/// （depth=沿 parent 链 / V=σ_{p(g)} / G=ℓ_p）⟹ 写死 None 使 depth=0、V=Ambient、G=SameLevel——
+/// 角色输入丢失进 depth_weight/dir_weight/w_grade/units/p̃，承重缺口（测试坐实：
+/// `held_leg_live_detached_placeholder_rebuilds_parent_attached_dir`）。
+///
+/// 用已知 parent_id 解析真父 idx 重建：`parent=Some(父idx)`、`attached_dir=Some(父eps)`
+/// （σ_{p(g)}=父元素 eps，与 `push_element_tree` 压子元素传 `Some(父eps)` / 票#247 restore 修补
+/// 同口径）。解析序同 #247：id_idx（base 段）→ overlay_seen（candidate+restore 段）→ raw 扫
+/// （先前 push 的 held 占位元素不在两张查表，扫 raw 兜底，raw 有界）。
+///
+/// 边界语义（皆为正确语义，非「防御分支」兜底，与 #247 裁定一致）：
+/// - `parent_id=None`（真边界胚元 ∂）：保持 None/None——σ_{p(∂)}=0 ⟹ V=Ambient 是去根化正解
+///   （测试坐实：`held_leg_placeholder_boundary_germ_keeps_parent_none`）。
+/// - 父无法解析（断链 `restore_break_registry_lost` / LivePresent 父不在场）：保持 None/None，
+///   **不伪造**——占位元素的 parent_id 不在 raw ⟹ `ancestor_close_by_id`（AncOK：Anc(e)⊆raw 才
+///   保留）恒剪除 ⟹ 不进 next_idx，到不了角色计算（角色/p̃ 无影响）。
+///   测试坐实：`held_leg_placeholder_broken_chain_pruned_by_ancok`。
+fn rebuild_placeholder_parent_attached(
+    work: &mut ElementView,
+    idx: usize,
+    parent_id: Option<ElementId>,
+    id_idx: &std::collections::HashMap<ElementId, usize>,
+    overlay_seen: &std::collections::HashMap<ElementId, usize>,
+    raw: &[usize],
+) {
+    if let Some(pid) = parent_id {
+        let pidx = id_idx
+            .get(&pid)
+            .copied()
+            .or_else(|| overlay_seen.get(&pid).copied())
+            .or_else(|| raw.iter().copied().find(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false)));
+        if let Some(pidx) = pidx {
+            let p_eps = work[pidx].eps;
+            work.set_parent_attached(idx, pidx, p_eps);
+        }
+    }
+}
+
 /// [`coverage_step_from_buckets`] 的净额兼容出口（22 处旧调用点保持二元返回，bit-exact）。
 /// 委托 [`coverage_step_from_buckets_sep`] 丢弃第三分量 `sep_legs`（M5 声部执行层暴露，纯只读，
 /// 不进决策路径）——单源无平行状态机。
@@ -2257,6 +2299,11 @@ pub(crate) fn coverage_step_from_buckets_sep(
                             id: leg.id,
                             parent_id: leg.op_parent,
                         });
+                        // ★票#267：占位元素角色输入重建（parent_id=op_parent 已知真父，同 #247 口径；
+                        // ∂/父不可解析保持 None 不伪造——后者恒被 AncOK 剪除，见 helper doc）。
+                        rebuild_placeholder_parent_attached(
+                            &mut work, idx, leg.op_parent, &id_idx, &overlay_seen, &raw,
+                        );
                         raw.push(idx);
                     }
                     super::persistent::HeldLegState::LiveDetached => {
@@ -2283,6 +2330,12 @@ pub(crate) fn coverage_step_from_buckets_sep(
                             id: leg.id,
                             parent_id: leg.op_parent,
                         });
+                        // ★票#267：占位元素角色输入重建（#247 缺口二同类位点）——restore 已把 op_parent
+                        // 祖先链物化入 work（上方），op_parent 可经 id_idx/overlay_seen/raw 解析；
+                        // ∂/断链不可解析保持 None 不伪造（断链者恒被 AncOK 剪除，见 helper doc）。
+                        rebuild_placeholder_parent_attached(
+                            &mut work, idx, leg.op_parent, &id_idx, &overlay_seen, &raw,
+                        );
                         raw.push(idx);
                     }
                     super::persistent::HeldLegState::Closed | super::persistent::HeldLegState::Invalidated => {
@@ -4914,6 +4967,183 @@ mod tests {
             "σ_{{p(∂)}}=0 ⟹ V=Ambient（去根化正解）");
         assert!((legs[0].units - 600.0).abs() < 1e-9,
             "depth=0 ⟹ units=600；实得 {}", legs[0].units);
+    }
+
+    /// ★票#267（#247 同类位点）：held 腿 **LiveDetached 占位元素**角色输入重建。
+    ///
+    /// LiveDetached 分支 restore 祖先链后 push 的占位元素携 `parent_id=leg.op_parent`（已知真父），
+    /// 修复前写死 `parent:None, attached_dir:None`。AncOK 按 **parent_id 结构映射**判（不看 parent
+    /// 索引）⟹ 链完整时占位元素**存活进 next_idx**（不被剪）；`strategy_target_legs` 对其算角色：
+    /// `element_depth` 沿 parent 索引链（None⟹depth=0）、V 由 attached_dir（None⟹σ_p=0⟹Ambient）、
+    /// G 由 parent（None⟹SameLevel）⟹ **角色输入丢失进 depth_weight/dir_weight/w_grade/units/p̃**——
+    /// 承重缺口，与 #247 缺口二同类。
+    ///
+    /// **RED（修复前）**：占位腿 V=Ambient + depth=0 ⟹ q_units=600，p̃=+300。
+    /// **GREEN（修复后）**：parent=Some(恢复父 idx)、attached_dir=Some(父 eps) ⟹ V=ShortDiff
+    /// （δ=−σ_p）+ G=SubLevel + depth=2 ⟹ q_units=100，p̃=+800。
+    ///
+    /// 定义依据：anc.pdf §10/§15（LiveDetached 的 parent 仍是 op_parent(L)）；spec §7.2（V 相对
+    /// σ_{p(g)}）；`push_element_tree`（子的 attached_dir=Some(父 eps)）；票#247 缺口二同口径。
+    #[test]
+    fn held_leg_live_detached_placeholder_rebuilds_parent_attached_dir() {
+        // 祖父（level 2 容器，Long，parent_id=None=∂）+ 父（level 1，Long，parent_id=祖父）。
+        let grand = CoverageElement {
+            lambda: 0, rho: 12, eps: VoiceSide::Long, level: 2,
+            parent: None, attached_dir: None, id: eid(2, 0), parent_id: None,
+        };
+        let parent = CoverageElement {
+            lambda: 0, rho: 8, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: eid(1, 0), parent_id: Some(eid(2, 0)),
+        };
+        // held 子腿（level 0，Short）：id 不在当前树（Stale）+ registry LiveDetached
+        // （or_insert snapshot_present=false）+ op_parent=父（已知真父，可解析）。
+        let child_leg = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 4, lambda: 0,
+            id: eid(0, 0), parent_id: Some(eid(1, 0)), is_boundary_root: false, op_parent: Some(eid(1, 0)),
+        };
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&[parent, grand], &[child_leg]);
+        let base: Vec<CoverageElement> = Vec::new();
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+
+        let (next_active, p_tilde, sep_legs) = coverage_step_from_buckets_sep(
+            ElementView::new(&base), &[child_leg], &buckets, 1000.0, &cfg(), None, &reg,
+        );
+
+        // 承重坐实①：占位元素不被 AncOK 剪除（restore 完整 ⟹ parent_id 祖先全在 raw）⟹ 进 next_idx。
+        assert!(
+            next_active.iter().any(|l| l.id == eid(0, 0)),
+            "LiveDetached 占位元素 restore 完整 ⟹ 存活进 next_idx（承重前提）；实得 {next_active:?}"
+        );
+        // 承重坐实②：占位腿角色被 strategy_target_legs 消费（sep_legs 只读暴露 role_v/q_units）。
+        let sep_child = sep_legs.iter().find(|s| s.id == eid(0, 0))
+            .expect("占位腿须在 sep_legs（legs 重打包）");
+        assert_eq!(sep_child.role_v, Vertical::ShortDiff,
+            "δ=−σ_p（Short vs 父 Long）⟹ V=ShortDiff（修复前写死 None ⟹ 恒定 Ambient）");
+        assert!((sep_child.q_units - 100.0).abs() < 1e-9,
+            "depth=2（子→父→祖父）⟹ q=1000×0.10=100（修复前 depth=0 ⟹ 600）；实得 {}", sep_child.q_units);
+        // restore 链两条腿不受本修复影响（#247 已重建，bit-exact 锚）。
+        let sep_parent = sep_legs.iter().find(|s| s.id == eid(1, 0)).expect("父腿须在");
+        assert_eq!(sep_parent.role_v, Vertical::FollowParent, "父 Long vs 祖父 Long ⟹ FollowParent");
+        assert!((sep_parent.q_units - 300.0).abs() < 1e-9, "父 depth=1 ⟹ 300；实得 {}", sep_parent.q_units);
+        // p̃：GREEN = +300(父) + 600(祖父) − 100(子 ShortDiff) = +800；RED = 300+600−600 = +300。
+        assert!((p_tilde - 800.0).abs() < 1e-9,
+            "p̃=+800（修复前占位腿 depth0/Ambient 600 ⟹ p̃=+300）；实得 {p_tilde}");
+    }
+
+    /// ★票#267：held 腿 **LivePresent 占位元素**角色输入重建（同 LiveDetached 同口径）。
+    ///
+    /// LivePresent 分支（理论不可达防御臂：Exact 未命中但 registry snapshot_present=true = snapshot
+    /// 不一致）**不做 restore**，占位元素存活条件是 op_parent 经其他路径在 raw（本测试：父作另一
+    /// 持仓腿 Exact 对位入 raw）。占位元素同样携 `parent_id=leg.op_parent` 却写死 None/None ⟹
+    /// 同类角色输入丢失。
+    ///
+    /// **RED（修复前）**：占位腿 V=Ambient + depth=0 ⟹ q_units=600，p̃=0。
+    /// **GREEN（修复后）**：parent=Some(base 父 idx)、attached_dir=Some(父 eps) ⟹ V=ShortDiff +
+    /// depth=1 ⟹ q_units=300，p̃=+300。
+    #[test]
+    fn held_leg_live_present_placeholder_rebuilds_parent_attached_dir() {
+        // base 树含父 carrier（level 1，Long，∂ 根）。
+        let parent = CoverageElement {
+            lambda: 0, rho: 8, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: eid(1, 0), parent_id: None,
+        };
+        let base = vec![parent];
+        // 父作持仓腿 Exact 对位入 raw（占位的 op_parent 因此在 raw，占位存活 AncOK）。
+        let parent_leg = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 8, lambda: 0,
+            id: eid(1, 0), parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        // 子腿：id 不在当前树（Stale）+ registry snapshot_present=true（LivePresent）。
+        let child_leg = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 4, lambda: 0,
+            id: eid(99, 99), parent_id: Some(eid(1, 0)), is_boundary_root: false, op_parent: Some(eid(1, 0)),
+        };
+        let child_cov = CoverageElement {
+            lambda: 0, rho: 4, eps: VoiceSide::Short, level: 0,
+            parent: None, attached_dir: None, id: eid(99, 99), parent_id: Some(eid(1, 0)),
+        };
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&[child_cov], &[]);
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+
+        let (next_active, p_tilde, sep_legs) = coverage_step_from_buckets_sep(
+            ElementView::new(&base), &[parent_leg, child_leg], &buckets, 1000.0, &cfg(), None, &reg,
+        );
+
+        // 承重坐实①：LivePresent 占位元素 op_parent 在 raw ⟹ 存活进 next_idx。
+        assert!(
+            next_active.iter().any(|l| l.id == eid(99, 99)),
+            "LivePresent 占位元素 op_parent 在 raw ⟹ 存活进 next_idx（承重前提）；实得 {next_active:?}"
+        );
+        // 承重坐实②：角色被消费。
+        let sep_child = sep_legs.iter().find(|s| s.id == eid(99, 99))
+            .expect("占位腿须在 sep_legs");
+        assert_eq!(sep_child.role_v, Vertical::ShortDiff,
+            "δ=−σ_p（Short vs 父 Long）⟹ V=ShortDiff（修复前恒定 Ambient）");
+        assert!((sep_child.q_units - 300.0).abs() < 1e-9,
+            "depth=1 ⟹ q=300（修复前 depth=0 ⟹ 600）；实得 {}", sep_child.q_units);
+        // p̃：GREEN = +600(父根) − 300(子) = +300；RED = 600−600 = 0。
+        assert!((p_tilde - 300.0).abs() < 1e-9,
+            "p̃=+300（修复前 0）；实得 {p_tilde}");
+    }
+
+    /// ★票#267·断链语义坐实（同 #247 裁定 (a) 口径）：LiveDetached 占位元素的 op_parent **无法解析**
+    /// （restore 断链：祖父不在 registry）时，**不伪造** parent/attached_dir——占位元素的 parent_id
+    /// 链顶端不在 raw ⟹ `ancestor_close_by_id`（AncOK：Anc(e)⊆raw 才保留）恒剪除 ⟹ 不进 next_idx，
+    /// 到不了角色计算。这不是「防御分支兜底」，是 AncOK 结构判据的正规剪枝（修复前后行为一致）。
+    #[test]
+    fn held_leg_placeholder_broken_chain_pruned_by_ancok() {
+        // 父在 registry 但其父（祖父 eid(2,0)）不在 ⟹ restore 上溯断链（restore_break_registry_lost）。
+        let parent = CoverageElement {
+            lambda: 0, rho: 8, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: eid(1, 0), parent_id: Some(eid(2, 0)),
+        };
+        let child_leg = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 4, lambda: 0,
+            id: eid(0, 0), parent_id: Some(eid(1, 0)), is_boundary_root: false, op_parent: Some(eid(1, 0)),
+        };
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&[parent], &[child_leg]);
+        let base: Vec<CoverageElement> = Vec::new();
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+
+        let (next_active, p_tilde, sep_legs) = coverage_step_from_buckets_sep(
+            ElementView::new(&base), &[child_leg], &buckets, 1000.0, &cfg(), None, &reg,
+        );
+
+        assert!(
+            !next_active.iter().any(|l| l.id == eid(0, 0)),
+            "断链 ⟹ 占位元素 parent_id 链顶端（祖父）不在 raw ⟹ AncOK 剪除；实得 {next_active:?}"
+        );
+        assert!(sep_legs.is_empty(), "断链 ⟹ 全链剪除 ⟹ 无腿（不伪造角色输入，到不了角色计算）");
+        assert_eq!(p_tilde, 0.0, "断链 ⟹ p̃=0");
+    }
+
+    /// ★票#267·∂ 语义保持：`op_parent=None` 的 LiveDetached held 腿（真边界胚元 ∂ 根声部）保持
+    /// `parent=None, attached_dir=None`——σ_{p(∂)}=0 ⟹ V=Ambient 是去根化正解，非防御分支
+    /// （修复只重建已知 parent_id，parent_id=None 无可重建；修复前后行为一致）。
+    #[test]
+    fn held_leg_placeholder_boundary_germ_keeps_parent_none() {
+        let root_leg = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 8, lambda: 0,
+            id: eid(1, 0), parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&[], &[root_leg]);
+        let base: Vec<CoverageElement> = Vec::new();
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+
+        let (next_active, p_tilde, sep_legs) = coverage_step_from_buckets_sep(
+            ElementView::new(&base), &[root_leg], &buckets, 1000.0, &cfg(), None, &reg,
+        );
+
+        assert!(
+            next_active.iter().any(|l| l.id == eid(1, 0)),
+            "∂ 根 LiveDetached 占位（parent_id=None）无祖先要求 ⟹ AncOK 恒等准入；实得 {next_active:?}"
+        );
+        let sep_root = sep_legs.iter().find(|s| s.id == eid(1, 0)).expect("∂ 根腿须在");
+        assert_eq!(sep_root.role_v, Vertical::Ambient, "σ_{{p(∂)}}=0 ⟹ V=Ambient（去根化正解）");
+        assert_eq!(sep_root.parent_id, None, "∂ 根保持 parent_id=None");
+        assert!((sep_root.q_units - 600.0).abs() < 1e-9,
+            "depth=0 ⟹ q=600（∂ 语义修复前后不变）；实得 {}", sep_root.q_units);
+        assert!((p_tilde - 600.0).abs() < 1e-9, "p̃=+600；实得 {p_tilde}");
     }
 
     /// ★(I-1) open 父注入非膨胀守卫：父 carrier **不在 registry**（既非持仓又非 registry-live）⟹ 子腿
