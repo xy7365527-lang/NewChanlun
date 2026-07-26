@@ -931,7 +931,7 @@ pub enum Horizontal {
 /// commit 67d20d292f 把 V 改四分类（加 SameReverse）违反 living authority（重定义 V 而非保守扩展）；
 /// 本实装回滚三分类 + 新增 G 轴细化（定理1：z'=(H,V,δ,G) 投影 π(H,V,δ,G)=(H,V,δ) 保留原像划分）。
 ///
-/// ★更名（#281 裁定，#283 实装）：`ReverseOpen` 原 `ReverseOpen`——ADR 0001 修正案一·补充一
+/// ★更名（#281 裁定，#283 实装）：`ReverseOpen` 原 `ShortDiff`——ADR 0001 修正案一·补充一
 /// 词汇对齐，S6「短差」名随修1 废止退役，V 轴反父方向重读为修4「（次级别）首开反向」。
 /// 语义=AgainstParent 不动（δ=−σ_p），级别区分独立到 [`GradeRel`]；判据/行为零改动。
 /// 谱系：历史上 `ShortDiff` 在代码库三义——`TwEvent::ShortDiff`（TW 划转，修1 合法减补链，
