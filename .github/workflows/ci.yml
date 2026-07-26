@@ -20,11 +20,58 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+          # #297：nautilus_trader 的 manylinux wheel 单体 182.5 MB，冷装占安装段大头。
+          #   pip 的 HTTP cache 兜住它 ⟹ 二次跑起该 wheel 不再走网络。
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # #297：newchan_rust 是本仓 rust/ 的 PyO3 扩展（maturin backend，
+      #   rust/Cargo.toml crate-type = ["cdylib","rlib"]）。默认 feature 的依赖树只有
+      #   28 个 crate（nautilus-* 全是 optional，仅 nautilus/backtest_bin feature 才拉），
+      #   本机 macOS arm64 实测冷编译（registry 已暖）11.7s、target 产物 92 MB。
+      #   ⟹ 缓存 registry + target 后二次跑接近零成本；CI ubuntu 2 核未实测，
+      #   照实预估首跑 1.5–3 min（含 crates.io 下载 + maturin wheel 拉取）。
+      #   前提：GitHub 托管 ubuntu runner 镜像自带 Rust 工具链（cargo/rustc stable），
+      #   本步不另装；若某天镜像去掉 Rust，这里需补 rust-toolchain 安装步。
+      - name: Cache cargo (registry + newchan_rust target)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cache/newchan-rust-target
+          key: cargo-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
 
       - name: Install dependencies
+        # #297 collection error 双真因（票体误并为一因，这里分列）：
+        #   (1) tests/test_trading_system_skeleton.py
+        #       → trading_system/execution/__init__.py → lmt_executor.py:18 顶层
+        #         `from nautilus_trader.model.enums import ...` ⟹ 需 nautilus_trader。
+        #       nautilus_trader **不在本仓**（.gitignore:93 明写 /nautilus_trader/ 是上游
+        #       独立克隆，不作子模块入库），必须从 PyPI 装。
+        #   (2) tests/test_topology/test_cross_national_pipeline.py
+        #       → src/newchan/topology/cross_national_pipeline.py:39 顶层 `import newchan_rust`
+        #       ⟹ 需本仓 rust/ 的 PyO3 扩展，与 nautilus 无关。
+        #
+        # 装法取舍（两案，取 A）：
+        #   A. 预编 wheel（本步采用）——PyPI 已发 cp313 manylinux_2_35_x86_64 wheel
+        #      （1.229.0，182.5 MB；ubuntu-latest glibc ≥ 2.35 满足），一行 pip install
+        #      即可，**完全绕开 nautilus 的 Rust 源码编译**。
+        #   B. 源码编译（未采用）——sdist 9 MB，但要拉 nautilus 全 Rust workspace，
+        #      CI 上分钟级到十分钟级，无收益。
+        #   版本锁 1.229.0：对齐本机上游克隆 ~/Projects/NewChanlun/nautilus_trader 的版本，
+        #   避免 CI 随 PyPI 最新版（现 1.230.0）漂移。requires-python <3.15,>=3.12 与本 job 的 3.13 相容。
+        #
+        # 本机实测耗时（macOS arm64 / Python 3.13.9 / pip cache 暖；CI ubuntu 2 核会更慢）：
+        #   pip install -e ".[test]"            1m16s
+        #   pip install nautilus_trader==1.229  17.7s（含 156 MB macOS wheel 下载）
+        #   pip install ./rust（maturin 冷编）   11.7s
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[test]"
+          pip install "nautilus_trader==1.229.0"
+          CARGO_TARGET_DIR="$HOME/.cache/newchan-rust-target" pip install ./rust
 
       - name: Run tests with coverage
         run: pytest -m "not slow" --tb=short -q --cov=newchan --cov-report=term-missing --cov-report=xml:coverage.xml
