@@ -1733,6 +1733,553 @@ fn center_lifecycle_wf8_events_replay() {
     );
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+//  #327 真覆盖见证锁：#321 从严判据（单点核心 ZD==ZG 不成立）落在中枢级联变动块上的命中断言
+// ════════════════════════════════════════════════════════════════════════════
+//
+// ## 为什么要这把锁（#323 影子评审 Critical-2）
+//
+// #321/#323 把中枢核心非空判据从弱口径（`zd<=zg`，单点核心成立）改严为 `zd<zg`。原实施复跑的
+// 四把 BTC 见证锁（`btc_type2_open_short_channel_witness` / `btc_prune_leg_exit_type_matches_account_identity`
+// / `btc_type2_residual_correction_witness` / `typed_ledger_btc_smoke`）全部零翻动——但影子评审查证
+// 出：**四把锁的窗口（BTC OOS 前 16000 bar）内 `zd==zg` 命中 0 次**。零翻动是**零覆盖**的结果，
+// 不构成安全证据（`.chanlun/review-results/center-strict-single-point-impl-20260726.md` §3.2/§3.3）。
+//
+// 本节两把锁交付「真覆盖」：**先证明判据分支真的开火（命中>0）**，再断言开火处的行为符合新口径
+// （单点不成立），最后把级联重排计数固化为 GOLDEN。
+//
+// ## 反事实是锁自身的一部分（先红后绿内建）
+//
+// 两把锁都同时跑**双口径**级联：生产（严格）+ 旧弱口径本地副本。逐命中点断言
+// `strict==None ∧ weak==Some ∧ zd==zg` —— 这一对断言若把生产判据退回弱口径立刻红（strict 侧
+// 变 Some），若把本地副本写错也立刻红。锁不依赖「跑过一次记住数字」，它自带对照臂。
+//
+// ## 复算路径（`classify_impl` 中枢级联的只读复刻，非新算法）
+//
+// [`cascade_dual`] 复刻 `classifier::classify_impl` 的**中枢级联**：`units → detect_centers_windowed_resume
+// → decompose → LeveledMove::compose → project_to_units → 下一级 units`。BSP/背驰/投影层不复刻——
+// 它们**不回流**中枢级联（`classify_impl` 里 bsp/pan_div/level_projection 只写 `LevelState`，
+// 不参与下一级 units 的构造）。复刻的忠实性由 [`cascade_dual`] 严格臂与生产 `classify` 的逐级中枢
+// 序列**逐字段相等**守恒断言证（见 `assert_cascade_faithful`），不是口头声明。
+
+use super::super::classifier::center as classifier_center;
+use super::super::classifier::center::UnitRange;
+use super::super::parser::ParseLayer;
+use crate::theta_v0::types::{Center, Segment, Tick};
+
+/// L0 线段 → 走势单元（`classifier::mod` 私有 `segment_to_unit` 的本地镜像，`p89_dual_core_audit`
+/// 同款先例——私有函数不为测试放开可见性，本地镜像逐字段复刻并由守恒断言兜底）。
+fn c327_seg_to_unit(seg: &Segment) -> UnitRange {
+    let (lo, hi) = if seg.start_price <= seg.end_price {
+        (seg.start_price, seg.end_price)
+    } else {
+        (seg.end_price, seg.start_price)
+    };
+    UnitRange { start_index: seg.start_index, end_index: seg.end_index, direction: seg.direction, lo, hi }
+}
+
+/// 核心上沿 `computeZG` = min(三段 hi)（`center::compute_zg` 私有，本地镜像，口径 B 全三段）。
+fn c327_zg(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
+    a.hi.min(b.hi).min(c.hi)
+}
+/// 核心下沿 `computeZD` = max(三段 lo)（`center::compute_zd` 私有，本地镜像，口径 B 全三段）。
+fn c327_zd(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
+    a.lo.max(b.lo).max(c.lo)
+}
+
+/// ★旧弱口径（#321 **前**）完整判据副本——反事实臂，**不是**生产路径。
+///
+/// 与 `center::center_from_segments` 逐字同构，唯一差别 = 支2 用弱口径 `zd > zg` 才拒
+/// （⟹ 单点核心 `zd==zg` **成立**）。这正是 #321 改掉的那一行。
+fn c327_weak_center_from_segments(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Option<Center> {
+    if !classifier_center::dir_alternates(a, b, c) {
+        return None;
+    }
+    let (zd, zg) = (c327_zd(a, b, c), c327_zg(a, b, c));
+    if zd > zg {
+        return None;
+    }
+    Some(Center {
+        zd,
+        zg,
+        dd: a.lo.min(b.lo.min(c.lo)),
+        gg: a.hi.max(b.hi.max(c.hi)),
+        start_index: a.start_index,
+        end_index: c.end_index,
+    })
+}
+
+/// ★旧弱口径（#321 **前**）几何判据副本——反事实臂（上级递归层，无方向交替支）。
+fn c327_weak_center_from_window(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Option<Center> {
+    let (zd, zg) = (c327_zd(a, b, c), c327_zg(a, b, c));
+    if zd > zg {
+        return None;
+    }
+    Some(Center {
+        zd,
+        zg,
+        dd: a.lo.min(b.lo.min(c.lo)),
+        gg: a.hi.max(b.hi.max(c.hi)),
+        start_index: a.start_index,
+        end_index: c.end_index,
+    })
+}
+
+/// 一个 `zd==zg` 判据命中点（本票的「真覆盖」原子）——携三元组本体，供逐点双口径复判。
+#[derive(Debug, Clone, Copy)]
+struct C327Hit {
+    /// 命中三元组在本级 `units` 中的起点下标。
+    unit_i: usize,
+    /// 单点核心价位（`zd==zg` 的公共值，tick）。
+    core: Tick,
+    /// 三元组首单元的 merged-bar 起点（供日期定位）。
+    merged_start: usize,
+    /// 命中所在的检测级（0 = #323 报告口径的 L0；决定复判走完整判据还是几何判据）。
+    level: usize,
+    /// 命中三元组本体（逐点复判的输入，不再回查 units ⟹ 断言与枚举同源）。
+    triple: [UnitRange; 3],
+}
+
+impl C327Hit {
+    /// 逐点见证：**新口径判不成立 ∧ 旧弱口径判成立 ∧ 核心确为单点**。
+    ///
+    /// 三条一起断言才是「真覆盖」——只断言 `strict.is_none()` 无法区分「因单点被拒」与「本来
+    /// 就不是中枢（方向不交替/核心真空）」；补上弱臂 `Some` 才锁死「这一步的差异恰由 #321 改动
+    /// 产生」。生产判据若退回弱口径，`strict.is_none()` 立刻红。
+    fn assert_single_point_rejected(&self) {
+        let [a, b, c] = &self.triple;
+        assert_eq!(
+            c327_zd(a, b, c),
+            c327_zg(a, b, c),
+            "L{} unit_i={} 命中枚举自洽：核心须为单点 zd==zg",
+            self.level,
+            self.unit_i
+        );
+        let (strict, weak) = if self.level == 0 {
+            (
+                classifier_center::center_from_segments(a, b, c),
+                c327_weak_center_from_segments(a, b, c),
+            )
+        } else {
+            (
+                classifier_center::center_from_window(a, b, c),
+                c327_weak_center_from_window(a, b, c),
+            )
+        };
+        assert!(
+            strict.is_none(),
+            "#321 从严：L{} unit_i={} 单点核心 [{},{}] 须判**不成立**（生产判据返回 Some ⟹ \
+             口径倒退回弱口径）",
+            self.level,
+            self.unit_i,
+            self.core,
+            self.core
+        );
+        let w = weak.unwrap_or_else(|| {
+            panic!(
+                "反事实臂失效：L{} unit_i={} 旧弱口径应判**成立**（单点核心闭区间合法）——\
+                 弱臂返回 None ⟹ 本命中点不构成 #321 改动的覆盖证据",
+                self.level, self.unit_i
+            )
+        });
+        assert_eq!(
+            (w.zd, w.zg),
+            (self.core, self.core),
+            "L{} unit_i={} 旧弱口径产出的中枢核心须恰为该单点",
+            self.level,
+            self.unit_i
+        );
+    }
+}
+
+/// 一条口径臂的级联产出。
+#[derive(Debug, Default)]
+struct C327Arm {
+    /// `centers[k]` = 第 k 级检测产出的中枢序列（k=0 即 #323 报告口径的 L0）。
+    centers: Vec<Vec<Center>>,
+    /// `hits[k]` = 第 k 级 `units` 上 `zd==zg` 的三元组（L0 另需方向交替成立——支1 不成立时
+    /// 支2 根本不被求值，计进去就是伪覆盖）。
+    hits: Vec<Vec<C327Hit>>,
+}
+
+/// 双口径中枢级联复算（严格臂 = 生产判据，弱臂 = #321 前旧口径副本）。
+///
+/// 复刻 `classify_impl` 的中枢级联（见本节模块注释「复算路径」）：逐级
+/// `detect_centers_windowed_resume(units, build, 0)` → `decompose` → `LeveledMove::compose`
+/// → `project_to_units` → 下一级 units；自然终止条件（`units.len() < min_parts` / `units` 空 /
+/// `l_max` 上界）与生产同源读 `config.level`。
+fn cascade_dual(l0: &ParseLayer, config: &ThetaConfig, weak: bool) -> C327Arm {
+    use super::super::classifier::decompose::decompose;
+    use super::super::classifier::recursive_tower::{
+        detect_centers_windowed_resume, project_to_units, ElementId, LeveledMove,
+    };
+
+    let min_parts = config.level.min_parts_per_level as usize;
+    let l_max = config.level.l_max as usize;
+    let mut units: Vec<UnitRange> = l0.segments.iter().map(c327_seg_to_unit).collect();
+    let mut arm = C327Arm::default();
+    if units.is_empty() {
+        return arm;
+    }
+    let mut tower: Vec<LeveledMove> = units
+        .iter()
+        .enumerate()
+        .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
+        .collect();
+
+    for level_idx in 0..=l_max {
+        if units.len() < min_parts {
+            break;
+        }
+        let is_l0 = level_idx == 0;
+        let build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center> = match (is_l0, weak) {
+            (true, false) => classifier_center::center_from_segments,
+            (false, false) => classifier_center::center_from_window,
+            (true, true) => c327_weak_center_from_segments,
+            (false, true) => c327_weak_center_from_window,
+        };
+
+        // 判据命中枚举：本级 units 上**全部**连续三元组（扫描游标只走其中一部分，但「判据在此
+        // 数据上是否有 ZD==ZG 落点」是 units 的性质，与游标路径无关——覆盖度问题问的正是这个）。
+        let mut hits: Vec<C327Hit> = Vec::new();
+        for i in 0..units.len().saturating_sub(2) {
+            let (a, b, c) = (&units[i], &units[i + 1], &units[i + 2]);
+            if is_l0 && !classifier_center::dir_alternates(a, b, c) {
+                continue;
+            }
+            let (zd, zg) = (c327_zd(a, b, c), c327_zg(a, b, c));
+            if zd == zg {
+                hits.push(C327Hit {
+                    unit_i: i,
+                    core: zd,
+                    merged_start: a.start_index,
+                    level: level_idx,
+                    triple: [*a, *b, *c],
+                });
+            }
+        }
+
+        let (windowed, _metas, _cursor) = detect_centers_windowed_resume(&units, build, 0);
+        let centers: Vec<Center> = windowed.iter().map(|(c, _)| *c).collect();
+        let blocks = decompose(&centers);
+        let upper: Vec<LeveledMove> = windowed
+            .iter()
+            .enumerate()
+            .map(|(i, (c, win))| {
+                LeveledMove::compose(
+                    &tower[win.0..=win.1],
+                    *c,
+                    level_idx as u32 + 1,
+                    ElementId { level: level_idx as u32 + 1, ordinal: i as u64 },
+                )
+            })
+            .collect();
+
+        arm.centers.push(centers);
+        arm.hits.push(hits);
+        units = project_to_units(&upper, &blocks);
+        tower = upper;
+        if units.is_empty() {
+            break;
+        }
+    }
+    arm
+}
+
+/// 守恒：[`cascade_dual`] 严格臂 == 生产 `classify` 逐级中枢序列（复刻忠实性的机检，非声明）。
+fn assert_cascade_faithful(strict: &C327Arm, l0: &ParseLayer, config: &ThetaConfig) {
+    let prod = super::super::classifier::classify(l0, config);
+    assert_eq!(
+        strict.centers.len(),
+        prod.levels.len(),
+        "复刻级数须 == 生产级数（否则自然终止条件漂移，级联计数不可信）"
+    );
+    for (k, lv) in prod.levels.iter().enumerate() {
+        assert_eq!(
+            strict.centers[k].as_slice(),
+            lv.centers.as_slice(),
+            "L{k} 复刻严格臂中枢序列须与生产 classify 逐字段相等（复刻忠实性守恒）"
+        );
+    }
+}
+
+/// LCS 长度（`Center` 逐字段相等为「同一元素」）。序列长度 ≤ 万量级，O(n·m) DP 可行。
+fn c327_lcs_len(a: &[Center], b: &[Center]) -> usize {
+    let m = b.len();
+    let mut prev = vec![0usize; m + 1];
+    let mut cur = vec![0usize; m + 1];
+    for x in a {
+        for j in 1..=m {
+            cur[j] = if *x == b[j - 1] { prev[j - 1] + 1 } else { prev[j].max(cur[j - 1]) };
+        }
+        std::mem::swap(&mut prev, &mut cur);
+        cur.iter_mut().for_each(|v| *v = 0);
+    }
+    prev[m]
+}
+
+/// 一级的双臂对照读数（严格臂中枢数 / 弱臂中枢数 / LCS 长度）。
+///
+/// **级联重排计数** = `strict + weak - 2·lcs`（对称差：严格臂里被换掉的 + 弱臂里被换掉的）。
+/// #323 报告 §2.1 的 `L0 26 / L1 18 / L2 8 / L3 3 / L4 2` 就是这个量——本锁的独立复算把它拆成
+/// 三元读数固化，任一分量漂移都点名到级。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct C327LevelReading {
+    strict: usize,
+    weak: usize,
+    lcs: usize,
+}
+
+impl C327LevelReading {
+    const fn new(strict: usize, weak: usize, lcs: usize) -> Self {
+        Self { strict, weak, lcs }
+    }
+    /// 级联重排数（对称差）。
+    fn rearranged(&self) -> usize {
+        self.strict + self.weak - 2 * self.lcs
+    }
+}
+
+/// ★GOLDEN（#327 首次实测，2026-07-26 在案）：BTC 全量 `btc_1m_full.json` 数据身份。
+/// 数据换版 ⟹ 本锁点名报数据面变化，而不是把 GOLDEN 漂移伪装成口径回归。
+const C327_FULL_BTC_DATA_ID: (usize, usize, usize) = (4_613_599, 3_037_868, 40_003);
+
+/// ★GOLDEN（#327 首次实测）：全量 BTC 逐级 (严格臂中枢数, 弱臂中枢数, LCS)。
+/// L5 为空级（自然终止后的零中枢级，`classify` 同产 6 级）。
+const C327_FULL_BTC_LEVELS: [C327LevelReading; 6] = [
+    C327LevelReading::new(9260, 9266, 9250),
+    C327LevelReading::new(2086, 2088, 2078),
+    C327LevelReading::new(446, 446, 442),
+    C327LevelReading::new(85, 84, 83),
+    C327LevelReading::new(13, 13, 12),
+    C327LevelReading::new(0, 0, 0),
+];
+
+/// ★#323 报告 §2.1 转录的级联重排计数（L0..L4）——本锁**独立复算**后与之对账。
+/// #323 §2.4 明记该表「转录自实施方自旗读数，本次返工未独立重跑复现」；本锁即那次缺失的复现。
+const C327_CASCADE_REARRANGE_323: [usize; 5] = [26, 18, 8, 3, 2];
+
+/// ★GOLDEN（#327 首次实测）：全量 BTC 逐级 `zd==zg` 判据命中数。
+/// #321 commit message 自旗「BTC L0 23 次 / L1 2 次」——本锁独立复现同读数（L2+ 为 0）。
+const C327_FULL_BTC_HITS: [usize; 6] = [23, 2, 0, 0, 0, 0];
+
+/// 一把见证锁的公共主体：双臂级联 → 复刻忠实性守恒 → 逐级读数对 GOLDEN → 逐命中点单点见证
+/// → 真覆盖硬门。返回逐级（严格臂）命中点，供窗专属断言（如「命中确实落在 2022-02」）。
+fn c327_run_witness(
+    tag: &str,
+    ds: &data::Dataset,
+    cfg: &ThetaConfig,
+    expect_levels: &[C327LevelReading],
+    expect_hits: &[usize],
+) -> Vec<Vec<C327Hit>> {
+    let layer = super::super::parser::parse_layer(&ds.bars, cfg);
+    eprintln!(
+        "[#327/{tag}] bars={} merged={} segments={} 日期={}..{}",
+        ds.bars.len(),
+        layer.merged_bars.len(),
+        layer.segments.len(),
+        ds.dates.first().map(String::as_str).unwrap_or(""),
+        ds.dates.last().map(String::as_str).unwrap_or(""),
+    );
+
+    let strict = cascade_dual(&layer, cfg, false);
+    let weak = cascade_dual(&layer, cfg, true);
+    // 复刻忠实性守恒：严格臂 == 生产 `classify` 逐级中枢序列（否则下面的计数全部不可信）。
+    assert_cascade_faithful(&strict, &layer, cfg);
+
+    // `Segment.start_index`（及其上级投影）是**原始 bar 序**下标（`map_src_to_close_idx` 同口径），
+    // 非 merged 序 ⟹ 直接查 `ds.dates`。
+    let date_of = |si: usize| -> String { ds.dates.get(si).cloned().unwrap_or_default() };
+
+    let n_levels = strict.centers.len().max(weak.centers.len());
+    assert_eq!(n_levels, expect_levels.len(), "[{tag}] 级数须与 GOLDEN 同");
+    assert_eq!(n_levels, expect_hits.len(), "[{tag}] 命中表长度须与级数同");
+
+    let mut total_hits = 0usize;
+    for k in 0..n_levels {
+        let sc: &[Center] = strict.centers.get(k).map(|v| &v[..]).unwrap_or(&[]);
+        let wc: &[Center] = weak.centers.get(k).map(|v| &v[..]).unwrap_or(&[]);
+        let sh = strict.hits.get(k).map(|v| &v[..]).unwrap_or(&[]);
+        let reading = C327LevelReading::new(sc.len(), wc.len(), c327_lcs_len(sc, wc));
+        eprintln!(
+            "[#327/{tag}] L{k}: strict={} weak={} lcs={} 级联重排={} 命中={} 命中区间={}..{}",
+            reading.strict,
+            reading.weak,
+            reading.lcs,
+            reading.rearranged(),
+            sh.len(),
+            sh.first().map(|h| date_of(h.merged_start)).unwrap_or_default(),
+            sh.last().map(|h| date_of(h.merged_start)).unwrap_or_default(),
+        );
+        for h in sh {
+            eprintln!(
+                "[#327/{tag}]   命中 L{k} unit_i={} 单点核心={} src={} date={}",
+                h.unit_i,
+                h.core,
+                h.merged_start,
+                date_of(h.merged_start)
+            );
+            // 逐点见证：新口径不成立 ∧ 旧弱口径成立 ∧ 核心确为单点（反事实内建，见方法 doc）。
+            h.assert_single_point_rejected();
+        }
+        assert_eq!(
+            sh.len(),
+            expect_hits[k],
+            "[{tag}] L{k} `zd==zg` 判据命中数偏离 GOLDEN（覆盖面变化须逐点对账后更新，禁静默）"
+        );
+        assert_eq!(
+            reading, expect_levels[k],
+            "[{tag}] L{k} 双臂中枢序列读数偏离 GOLDEN（strict/weak/lcs 任一分量变 ⟹ 级联重排计数不再是在案值）"
+        );
+        total_hits += sh.len();
+    }
+
+    // ★真覆盖硬门（本票存在的理由）：命中 0 ⟹ 这把锁与四把旧锁一样是零覆盖，不构成证据。
+    assert!(
+        total_hits > 0,
+        "[{tag}] `zd==zg` 判据命中 0 次 ⟹ 本窗零覆盖，锁不构成 #321 改动的安全证据\
+         （#323 §3.3：零翻动是零覆盖的结果）"
+    );
+    eprintln!("[#327/{tag}] 真覆盖：`zd==zg` 判据命中合计 {total_hits} 次（>0 即本锁覆盖成立）");
+
+    // 逐级命中回给调用方（读数已在上面对完 GOLDEN；命中点本体供窗口/日期一类的窗专属断言）。
+    strict.hits
+}
+
+/// ★#327 真覆盖见证锁 ①（全量对账臂）：BTC 全量数据上的 `zd==zg` 判据命中 + 级联重排计数
+/// 与 #323 报告 §2.1 逐级对账。
+///
+/// 断言：
+/// - **真覆盖**：`zd==zg` 命中合计 > 0（实测 L0 23 / L1 2，合计 25）——四把旧锁窗内为 0，本锁坐实覆盖；
+/// - **单点不成立**：25 个命中点逐点断言生产判据返回 `None` ∧ 旧弱口径副本返回 `Some` 且核心
+///   恰为该单点（反事实内建：生产判据退回弱口径立刻红）；
+/// - **级联重排计数对账**：逐级 (strict, weak, lcs) 固化为 GOLDEN，其对称差与 #323 报告
+///   `L0 26 / L1 18 / L2 8 / L3 3 / L4 2` **逐级相等**；
+/// - **复刻忠实性守恒**：严格臂逐级中枢序列 == 生产 `classify`（[`assert_cascade_faithful`]）。
+///
+/// #323 §2.4 声明该表未经独立复现——本锁即那次缺失的复现，且**独立复算成立**（六级读数见
+/// [`C327_FULL_BTC_LEVELS`]，对称差 26/18/8/3/2 与转录值逐级一致）。
+///
+/// `#[ignore]`：需 BTC 全量数据（DATA BLOCKER 不伪造）。实测耗时 ~5s（release）。
+/// `cargo test --release --lib theta_v0::backtest::wverify_run::center_strict_zd_eq_zg_full_btc_cascade_witness -- --ignored --nocapture`
+#[test]
+#[ignore = "#327 真覆盖见证锁（全量级联对账）；需 BTC 数据（DATA BLOCKER 不伪造）"]
+fn center_strict_zd_eq_zg_full_btc_cascade_witness() {
+    let cfg = ThetaConfig::default();
+    let ds = data::load_by_symbol("BTC", &cfg).expect("BTC 数据加载（btc_1m_full.json）");
+    let layer = super::super::parser::parse_layer(&ds.bars, &cfg);
+    assert_eq!(
+        (ds.bars.len(), layer.merged_bars.len(), layer.segments.len()),
+        C327_FULL_BTC_DATA_ID,
+        "BTC 全量数据身份偏离 GOLDEN（数据换版 ⟹ 下方计数全部须重定，非口径回归）"
+    );
+    drop(layer);
+
+    c327_run_witness("full", &ds, &cfg, &C327_FULL_BTC_LEVELS, &C327_FULL_BTC_HITS);
+
+    // ── #323 §2.1 级联重排计数逐级对账（L0..L4；L5 空级不在报告表内）──
+    for (k, expect) in C327_CASCADE_REARRANGE_323.iter().enumerate() {
+        assert_eq!(
+            C327_FULL_BTC_LEVELS[k].rearranged(),
+            *expect,
+            "L{k} 级联重排计数 {} ≠ #323 报告 §2.1 转录值 {expect}——两者必须一致，\
+             否则 #323 的爆炸半径披露与本锁的独立复算有一方不实",
+            C327_FULL_BTC_LEVELS[k].rearranged()
+        );
+    }
+    eprintln!(
+        "[#327/full] #323 §2.1 级联重排对账通过：逐级 {:?} == 报告 {:?}",
+        C327_FULL_BTC_LEVELS[..5].iter().map(|r| r.rearranged()).collect::<Vec<_>>(),
+        C327_CASCADE_REARRANGE_323,
+    );
+}
+
+/// #323 报告点名的变动块窗（「如 2022-02 段」）——`slice_date_window` 闭区间日窗。
+/// 起点取 2022-01-01 是给 parser 留前置历史（切片重解析，窗首若紧贴命中点则命中随边界效应漂移）。
+const C327_BLOCK_WINDOW: (&str, &str) = ("2022-01-01", "2022-02-28");
+
+/// ★GOLDEN（#327 首次实测）：变动块窗数据身份 (bars, merged, segments)。
+const C327_BLOCK_DATA_ID: (usize, usize, usize) = (84_960, 61_011, 710);
+
+/// ★GOLDEN（#327 首次实测）：变动块窗逐级 (严格臂中枢数, 弱臂中枢数, LCS)。
+const C327_BLOCK_LEVELS: [C327LevelReading; 4] = [
+    C327LevelReading::new(153, 155, 151),
+    C327LevelReading::new(34, 34, 33),
+    C327LevelReading::new(8, 8, 8),
+    C327LevelReading::new(2, 2, 2),
+];
+
+/// ★GOLDEN（#327 首次实测）：变动块窗逐级 `zd==zg` 判据命中数（两处命中都在 2022-02-01）。
+const C327_BLOCK_HITS: [usize; 4] = [2, 0, 0, 0];
+
+/// ★GOLDEN（#327 首次实测）：变动块窗逐级级联重排数（= [`C327_BLOCK_LEVELS`] 的对称差）。
+/// L0 两处单点核心被拒 ⟹ L0 重排 6 个中枢 + 级联上传到 L1 再重排 2 个；L2/L3 该窗内已重新对齐。
+const C327_BLOCK_REARRANGE: [usize; 4] = [6, 2, 0, 0];
+
+/// ★GOLDEN（#327 首次实测）：变动块窗两处命中的日期前缀——票面「落在 2022-02 变动块」的字面见证。
+const C327_BLOCK_HIT_DAY: &str = "2022-02-01";
+
+/// ★#327 真覆盖见证锁 ②（变动块臂，**本票主交付**）：锁直接落在 #323 报告点名的 2022-02 变动块。
+///
+/// 与锁①（全量）的分工：①证明「全量口径下 #323 的级联重排计数复算成立」，②证明「**在报告点名的
+/// 那个变动块上**判据真的开火、且开火处行为符合新口径」。②是票面要求的「落在变动块的见证锁」，
+/// 窗小（两个月）跑得快，可作为改判据时的第一道快门。
+///
+/// 断言与①同构（真覆盖 >0 / 逐点单点不成立 + 反事实 / 逐级读数 GOLDEN / 复刻忠实性守恒），
+/// 差别只在数据窗 = [`C327_BLOCK_WINDOW`]。
+///
+/// ⚠有效域：窗内数据经 `slice_date_window` **重新解析**（parser 无窗外历史），故本窗的中枢序列
+/// **不等于**全量跑批在同区间的切片——两把锁的读数各自独立，不可互推。
+///
+/// `#[ignore]`：需 BTC 数据（DATA BLOCKER 不伪造）。
+/// `cargo test --release --lib theta_v0::backtest::wverify_run::center_strict_zd_eq_zg_change_block_witness -- --ignored --nocapture`
+#[test]
+#[ignore = "#327 真覆盖见证锁（2022-02 变动块）；需 BTC 数据（DATA BLOCKER 不伪造）"]
+fn center_strict_zd_eq_zg_change_block_witness() {
+    let cfg = ThetaConfig::default();
+    let full = data::load_by_symbol("BTC", &cfg).expect("BTC 数据加载（btc_1m_full.json）");
+    let ds = full.slice_date_window(C327_BLOCK_WINDOW.0, C327_BLOCK_WINDOW.1);
+    assert!(!ds.bars.is_empty(), "变动块窗非空（否则测试空转）");
+    let layer = super::super::parser::parse_layer(&ds.bars, &cfg);
+    assert_eq!(
+        (ds.bars.len(), layer.merged_bars.len(), layer.segments.len()),
+        C327_BLOCK_DATA_ID,
+        "变动块窗数据身份偏离 GOLDEN（数据换版 ⟹ 下方计数全部须重定，非口径回归）"
+    );
+    drop(layer);
+
+    let hits = c327_run_witness("block", &ds, &cfg, &C327_BLOCK_LEVELS, &C327_BLOCK_HITS);
+
+    // ── 窗专属①：级联重排逐级 GOLDEN（本窗自有读数，与 #323 全量表不同源，不可互推）──
+    for (k, expect) in C327_BLOCK_REARRANGE.iter().enumerate() {
+        assert_eq!(
+            C327_BLOCK_LEVELS[k].rearranged(),
+            *expect,
+            "变动块窗 L{k} 级联重排计数偏离 GOLDEN"
+        );
+    }
+
+    // ── 窗专属②：命中确实落在 2022-02（票面「落在变动块」的字面见证，防窗漂移后锁自欺）──
+    let l0_hits = &hits[0];
+    assert_eq!(l0_hits.len(), 2, "变动块窗 L0 命中数（GOLDEN 2 处）");
+    for h in l0_hits {
+        let date = ds.dates.get(h.merged_start).map(String::as_str).unwrap_or("");
+        assert!(
+            date.starts_with(C327_BLOCK_HIT_DAY),
+            "命中点 src={} 日期 `{date}` 未落在 #323 点名的 {C327_BLOCK_HIT_DAY} 变动块——\
+             锁若飘出变动块就不再是本票要的『真覆盖见证』",
+            h.merged_start
+        );
+    }
+    eprintln!(
+        "[#327/block] 变动块见证成立：{C327_BLOCK_HIT_DAY} 两处单点核心（{}）判不成立，\
+         L0 重排 {} 个中枢并级联至 L1 重排 {} 个",
+        l0_hits[0].core,
+        C327_BLOCK_REARRANGE[0],
+        C327_BLOCK_REARRANGE[1],
+    );
+}
+
 /// 从 δ-free dump（[`dump_deltafree_pertrade`] 落盘）逐行重建 `ResidualTrade`（Task #186 离线重算入口）。
 /// resid_base/cost/d 由 `f64::from_bits`（十六进制 round-trip）逐字节还原内存值 ⟹ 与在线 records bit-exact。
 /// A1/A6：force_state（第 8 维，code 编码）+ d（μ_R 分母）随 dump 还原——force_state 进 δ-free 主裁决基。
