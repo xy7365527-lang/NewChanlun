@@ -832,6 +832,22 @@ pub fn margin_inputs(
 //  严格分解（自有 min(|N|,E) → 机会成本、借入 max(0,|N|−E) → 借币利息）是**费率标定（L2）时**
 //  与 datum 一并落的待办，不在本票。故三项之和读作持有成本上界，非精确分科。
 //
+//  ★交易成本一侧的同类落差照实登记（#326 评审 MED-1 浮出，#340 补登，**登记不改**）：spot 裁定
+//  同样适用于 `ExecConfig`（`theta_v0::config::ExecConfig`）的 commission 1bp + slippage
+//  2bp = **3bp/side**，而 #285 报告 §2.1 记的一手数字是 Binance 现货 VIP0 taker **10bp/side**——
+//  差 ≈3.3 倍（`tax_bps` 默认 0，不参与该和），且方向与持有成本相反（交易成本一侧是**低估**，
+//  不保守）。此处**不改值**：这两个参数均未按 venue 标定
+//  （`commission_bps` doc 标 `[设计选择;L3经验待标定]`，`slippage_bps` 标 L3），标定连同 venue
+//  档位、maker/taker 分档一并归 **venue 费率实装票（#285 后继标定票）**；本票只登记落差、不动
+//  数值（改值 ⟹ 改全部在册数值结论，须独立裁定）。**同性质**（非同处理）的 Python maker 落差见
+//  `analysis/btc_2week_1s_backtest.py` 模块 docstring：那侧除登记外还做了**有效域悬置**（其数值
+//  结论不作任何等级依据），本侧只登记不改——rust 这三通道 + fee_rate 的数值结论仍照常在册。
+//
+//  ★牵连面（#326 评审 LOW-1 浮出，#340 补登）：spot 裁定使 `backtest::dual_ledger` 模块头 §诚实
+//  有效域第一条的**触发前提成立**——`q_short` 是真空头（期货/永续域），现货标的须部署层 gate=0。
+//  #303 判该文件「本已 venue 分叉正确」无误（代码无需改），但该下游推论此前未进牵连面清单；
+//  gate 的部署层落实归 #62 / 部署层清单，非本票。
+//
 //  存在论：Commission/Slippage 已由 ExecConfig fee_rate 进 apply_fill；本模型补上验收公式剩余
 //  三项。**有效域声明（231号 / formalization-validity-domain）**：v0 用**参数化常费率**——真实
 //  现货借贷利率曲线 / 机会成本基准（以及将来真永续的资金费历史）是**外部数据源缺口**（L2），

@@ -214,6 +214,10 @@ impl Default for RiskConfig {
 }
 
 /// Θ_exec 参数（reference-theta-v0.md:49-54）。
+///
+/// ★venue 口径（#303 裁定 = **spot**）与默认费率落差（3bp/side vs 现货 VIP0 taker 10bp/side，
+/// **登记不改**、标定归 venue 费率实装票）：唯一权威登记见
+/// [`CostModel`](super::strategy::risk::CostModel) 节头，此处不复制结论。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExecConfig {
     /// 信号确认后延迟成交的基础 K 根数。default 1（reference-theta-v0.md:50）。

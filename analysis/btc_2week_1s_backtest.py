@@ -28,6 +28,9 @@ a0 = 1s K线（与在册 1min 口径不同——级别塔整体下移，见报�
   maker 0.02%/侧 口径 = **有效域悬置**（#303 起）：其 venue 假设（永续）与
   本仓已裁定的现货口径不一致，费率来源与数据来源不同 venue ⟹ 该口径的
   数值结论**不作任何等级的结论依据**，直到 venue 假设与费率一并重裁。
+  该悬置自 #340 起**随产物落地**（不再只在本 docstring）：JSON
+  `friction.maker_side_validity` / `modes[*].maker_face.validity` + 终端
+  maker 行尾 `[有效域悬置#303]`；数值一字未改。
 
 用法：PYTHONPATH=src .venv/bin/python analysis/btc_2week_1s_backtest.py
 输出：data_cache/btc_1s_2week_result.json（含全部交易明细）
@@ -56,6 +59,9 @@ OUT = ROOT / "analysis" / "data_cache" / "btc_1s_2week_result.json"
 MODES = ["hold26", "fusion_t", "fusion_tr"]
 MAKER_SIDE = 0.0002   # Binance USDⓈ-M 永续 VIP0 maker（venue 落差见模块 docstring，#303 未改）
 BOOK_SIDE = 0.0005    # 在册摩擦面（analyze 内部常数，此处仅作文档对照）
+# maker 口径的有效域悬置标注（#303 裁定，#340 落到产物）：数值照常算出、一字未改，
+# 但 JSON 与终端都随数值带上此标签——只读产物的下游不必回溯 docstring 才知道悬置。
+MAKER_VALIDITY = "suspended(#303): venue 假设=永续 maker，与本仓已裁定的现货口径不一致，不作结论依据"
 INIT = 100_000.0
 
 
@@ -131,13 +137,15 @@ def main() -> None:
            "bh_pct": round(bh_pct, 2),
            "bh_mdd_pct": round(bh_mdd(closes) * 100, 2),
            "structures": structs,
-           "friction": {"book_side": BOOK_SIDE, "maker_side": MAKER_SIDE},
+           "friction": {"book_side": BOOK_SIDE, "maker_side": MAKER_SIDE,
+                        "maker_side_validity": MAKER_VALIDITY},
            "modes": {}}
     for mode in MODES:
         t1 = time.time()
         res = nr.run_positional_rust(rtape, floor_ladder=LADDER_SEG, mode=mode)
         a = analyze(res, closes, years)
-        a["maker_face"] = friction_face(res["trades"], closes, MAKER_SIDE)
+        a["maker_face"] = {**friction_face(res["trades"], closes, MAKER_SIDE),
+                           "validity": MAKER_VALIDITY}
         a["trades_detail"] = [
             {"ladder": lad, "entry_ts": dates[eb], "entry_px": ep,
              "exit_ts": dates[xb] if xb < n else dates[-1], "exit_px": xp,
@@ -150,7 +158,7 @@ def main() -> None:
         out["modes"][mode] = a
         print(f"[BTC-1s][{mode}] {time.time() - t1:.1f}s "
               f"strat={a['strat_pct']:+.2f}% fa(0.05%)={a['fa_strat_pct']:+.2f}% "
-              f"maker(0.02%)={a['maker_face']['strat_pct']:+.2f}% "
+              f"maker(0.02%)={a['maker_face']['strat_pct']:+.2f}%[有效域悬置#303] "
               f"trades={a['n_trades']} mdd={a['mdd_pct']}% "
               f"reasons={a['exit_reasons']}", flush=True)
 
