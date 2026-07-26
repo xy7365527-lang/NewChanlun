@@ -83,8 +83,9 @@ struct ParityFixture {
 }
 
 /// #246 相切=重合裁定（ticket #248）fixture 段：单区间对的 Lean 机器见证
-/// （`decide (HasGap ..)` / `decide (¬ HasGap ..)` 真求值；后者经已证 `gap_iff_not_overlap`
-/// 与 Overlaps 严格互推——Overlaps 缺 Decidable 实例，补实例属证明项改动，ESCALATE 登记）。
+/// （`decide (HasGap ..)` / `decide (Overlaps ..)` 真求值——Overlaps 已补 Decidable
+/// instance（#296，SegmentFeatureSeq.lean:114，与 :105 HasGap 同范式）直接求值；
+/// 历史：#248 落地时无 instance，曾经已证 `gap_iff_not_overlap`（:118）严格互推绕道）。
 #[derive(Deserialize)]
 struct GapOverlapSection {
     tangent_a_high_eq_b_low: GapOverlapCase,
@@ -422,15 +423,16 @@ fn lean_continuation_hold_bit_exact() {
 //     chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md）
 //
 //  裁定：相切（两区间只有一个公共端点）算「有重合区间」⟹ 无缺口，全域生效。
-//  Lean 侧 `HasGap`（严格 `<`，SegmentFeatureSeq.lean:102）与 `Overlaps`（`≤`，:111）
-//  本已符合裁定且 `gap_iff_not_overlap`（:115）已证互补；rust 侧 `Interval::overlaps`（≤）
+//  Lean 侧 `HasGap`（严格 `<`，SegmentFeatureSeq.lean:102）与 `Overlaps`（`≤`，:112）
+//  本已符合裁定且 `gap_iff_not_overlap`（:118）已证互补；rust 侧 `Interval::overlaps`（≤）
 //  与 `Interval::gap`（!overlaps）与之逐字对齐。本测试断言：对同一批区间对用例，
 //  rust 既有原语计算 == fixture 中 Lean `decide` 机器导出值。
 //
 //  用例区间端点为双侧镜像的**用例输入**（与 §1 SellEndpoint 手编码输入同性质）；
 //  期望值（has_gap/overlaps）全部从 fixture 读（Lean #eval 机器产，禁手填）。
-//  Overlaps 真值经 `decide (¬ HasGap ..)` 读出（Overlaps 缺 Decidable 实例；补实例属
-//  证明项级改动，ESCALATE 登记于 tangency-impact-quantification-20260725.md §8）。
+//  Overlaps 真值经 `decide (Overlaps ..)` 直接读出（#296 已补 Decidable instance，
+//  SegmentFeatureSeq.lean:114；历史：#248 时经 `decide (¬ HasGap ..)` 由
+//  `gap_iff_not_overlap`（:118）互推，090 留痕）。
 //  三笔形态（max(lows)==min(highs)）不适用：Lean 无三笔重合谓词，其相切语义与两区间
 //  形态同构；rust 三笔谓词相切行为由 segment.rs 单测 three_stroke_overlap_tangent_counts 覆盖。
 // ════════════════════════════════════════════════════════════════════════════

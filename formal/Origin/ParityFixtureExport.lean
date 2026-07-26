@@ -82,14 +82,15 @@ def baseAccount (baseA : Int) : ChanlunAccount := { ledger := mkLedger 0 baseA 0
     `chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`，ticket #248）
     单区间对的 HasGap/Overlaps 机器见证导出。字段值全部来自 `decide` 机器求值（禁手填）。
 
-    ★Overlaps 缺 Decidable 实例（SegmentFeatureSeq.lean 只为 HasGap 派生 :105）——**不补**
-    （补 instance 属证明项级改动，按 SPEC 指示 ESCALATE 登记，不直接加）。Overlaps 真值由
-    `decide (¬ HasGap a b)` 读出：`gap_iff_not_overlap`（SegmentFeatureSeq.lean:115，已证）
-    给出 `HasGap a b ↔ ¬ Overlaps a b`，即 `Overlaps a b ↔ ¬ HasGap a b`——严格互推，非绕道近似。 -/
+    ★Overlaps 直化（ticket #296）：`Overlaps` 已补 `Decidable` instance
+    （SegmentFeatureSeq.lean:114，与 :105 HasGap 同范式），本字段直接 `decide (Overlaps a b)`
+    求值。历史（090 留痕）：#248 落地时 Overlaps 无 instance，曾绕道 `decide (¬ HasGap a b)`
+    ——经已证 `gap_iff_not_overlap`（SegmentFeatureSeq.lean:118，`HasGap ↔ ¬ Overlaps`）
+    严格互推，数学等价零 gap；本票是直化不是补缺，导出值不变。 -/
 def gapOverlapJson (a b : FeatureElem) : Json :=
   Json.mkObj [
     ("has_gap",  Json.bool (decide (HasGap a b))),
-    ("overlaps", Json.bool (decide (¬ HasGap a b)))
+    ("overlaps", Json.bool (decide (Overlaps a b)))
   ]
 
 /-- gap/overlap 用例区间构造（`valid` 由 omega 直推；区间端点是用例输入，与

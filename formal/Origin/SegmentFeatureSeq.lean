@@ -111,6 +111,9 @@ instance (a b : FeatureElem) : Decidable (HasGap a b) := by
 def Overlaps (a b : FeatureElem) : Prop :=
   a.low ≤ b.high ∧ b.low ≤ a.high
 
+instance (a b : FeatureElem) : Decidable (Overlaps a b) := by
+  unfold Overlaps; exact inferInstanceAs (Decidable (_ ∧ _))
+
 /-- 缺口与重合互斥穷尽（L0，决定第一/第二种情况的二歧）。 -/
 theorem gap_iff_not_overlap (a b : FeatureElem) :
     HasGap a b ↔ ¬ Overlaps a b := by
