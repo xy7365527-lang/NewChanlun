@@ -1,5 +1,56 @@
 //! 中枢生命周期事件机（#291 / SPEC #274 T1，ADR 0001 修正案一·补充二「中枢=事件」裁定；
-//! ★**#336 R3 事件源改造：消费塔链，单一真相源**——用户裁定 2026-07-26）。
+//! ★**#336 R3 事件源改造：消费塔链，单一真相源** + ★**#337 容读法 / 取代=在场终结**
+//! ——用户裁定 2026-07-26）。
+//!
+//! ## ★#337 容读法（裁定①）：「场」= 链尾 ∨ 链尾前一格
+//!
+//! R3 交付态把「场」定死在**链游标 = 链尾**，代价是 wf8 全窗 683 条死亡请求被判 stale，其中
+//! **680 条（99.6%）的 Δidx 恰为 −1**——载体指的是紧邻上一格。归因已坐实（不是接线错误）：
+//! 三类点的载体是「所离开回抽的中枢」，而「离开旧中枢的那段走势完成」既是三类点可确认的条件、
+//! 也是塔新中枢成交的条件，二者结构上几乎同时 ⟹ 点确认时链已推进一格。
+//!
+//! **用户裁定（容读法）**：**「被取代」就是旧中枢的死亡方式，死亡通知晚一格到不是错杀。**
+//! 故在场判定含链尾前一格（下称**容读格**）：
+//!
+//! | 载体落点 | 判据 | 处置 |
+//! |---|---|---|
+//! | 链尾（**主格**，未收教义死亡） | `target == alive` | 放行，杀在场实例（口径不变） |
+//! | 链尾**前一格**且退场方式 = 被取代 | `target == prev_slot` | ★**放行**，杀载体所指的那一个实例（链尾**不动**） |
+//! | Δidx ≤ −2（容读窗外） | `target ∈ 已消费前缀` | 陈旧请求（不杀，不计误杀） |
+//! | 载体不在本级链上（含 `None`） | `target ∉ 链` | **误杀拒绝**（显式失败，状态一动不动） |
+//!
+//! **三条边界如实登记**（都是本机的口径选择，不是裁定原文，写在这里不藏进报告）：
+//!
+//! 1. **只杀载体所指的那一个**：容读放行**不连坐链尾**——连坐 = 在没有载体证据的情况下杀第二个
+//!    中枢，违「拒杀优先于错杀」（#292 要把死亡翻译成真金白银的减补动作）。
+//! 2. **容读格一次性**：该实例一旦收到教义死亡事件，容读格即置空 ⟹ 再有请求指它一律 stale
+//!    （已死实例不得二次死亡）。同理，链尾若是**被教义死亡杀掉后**才被链推进换下的，它**不进**
+//!    容读格（退场方式不是「被取代」）。
+//! 3. **主格不在场 ⟹ 容读窗关闭**：链尾已被杀（场为空）时校验整体不介入（口径不变，见
+//!    [`CenterMisKill`]「场为空 ⟹ 不猜」）。开第二格等于场为空还开火。
+//!
+//! ## ★#337 取代 = 在场终结（裁定②）：两种死亡登记，同走「终结」出口
+//!
+//! 中枢下场有且只有两种登记（[`DeathForm`]），**二者同走 #292 挂起短差的「终结」出口**；
+//! 在场终结**不新增出口**（挂起仍只有「回补 / 终结」两个）：
+//!
+//! - **教义死亡**（[`DeathForm::Doctrinal`]）= 本级三类点破坏 / 一类点同死 ⟹
+//!   [`CenterLifecycleEvent::Broken`] / [`CenterLifecycleEvent::Reset`]；
+//! - **在场终结**（[`DeathForm::ArenaTermination`]）= 被链推进**取代** ⟹ ★新事件
+//!   [`CenterLifecycleEvent::Superseded`]（R3 下只是个计数，#337 升为逐实例事件，带身份+链下标）。
+//!
+//! 同一实例**可以两登记都收到**（先被取代终结，其死亡通知晚一格到 ⟹ 容读放行成教义死亡）——
+//! 这不是重复计数，是两个问题的两个答案：「它什么时候不在场了」与「它是怎么死的」。
+//! 判据与事件形态在本模块立；**动作（#292 减补/挂起）本票不接**（[`CenterLifecycleEvent::terminates_suspension`]
+//! 当前无生产调用者）。
+//!
+//! ## ★#337 举证锚（评审 MAJOR-A）：锁死解除挂在「出生身份多样性」上，不挂在 miskill=0 上
+//!
+//! `miskill 888 → 0` 是**口径收窄后的不可比读数**（R3 把「载体命中链上已退场实例」从 miskill
+//! 移出，见 [`CenterMisKill`] 文档），拿它当「病治好了」的举证是错的。真正的直接反证是
+//! **出生身份的多样性**：#331 交付态的复锁形态是「51 次 born 只有 2 个身份」，R3 实测 L0 出生
+//! 覆盖 550 个不同身份。该举证已固化为机检断言（`wverify_run.rs`
+//! `center_lifecycle_wf8_events_replay`：L0 born 身份数 ≥ 100）。
 //!
 //! ## ★R3 单一真相源（#336，本机现行口径）
 //!
@@ -80,7 +131,14 @@
 //!   `no_exclusive_trichotomy` 结构下理论不同位；防御性规定，照实标注）。
 //! - **链前缀分叉**（该级塔缓存全量重置 / 链回缩）⟹ 工程**重基**（[`ChainConsumed::Rebased`]），
 //!   不伪造出生/死亡；重基把场重置到链尾实例——若该实例此前已被死亡事件杀掉，重基会让它
-//!   重新在场（重基是工程再同步，非教义生死，条数如实计数）。
+//!   重新在场（重基是工程再同步，非教义生死）。★**#337（MINOR 补查）：该复活不再靠推断**——
+//!   [`ChainConsumed::Rebased::revived`] 逐次判定并计数（[`CenterEventMachine::revivals`]），
+//!   产物行带 `revived` 字段。wf8 实测 **81 条 chain_sync（76 rebase）中复活 0 次** ⟹ #336
+//!   未能判定项 4 在本窗关闭（跨窗普适性仍未判）。
+//! - ★**#337 重基的另一面（如实登记，不掩盖）**：重基同样把**容读格**按当前链重置 ⟹ 一个此前
+//!   已收过教义死亡的实例可能**重新进入容读格**，从而收到第二次教义死亡登记。wf8 实测
+//!   400 条教义死亡覆盖 388 个不同实例，多出的 **12 条全部**夹在同级 rebase 之后（逐条归因坐实，
+//!   零未归因）。这是「重基不撤销、也不记忆教义死亡」的直接代价，与「复活」同源。
 
 use super::super::types::{BspBits, Center, Side, Tick};
 
@@ -183,8 +241,27 @@ pub struct StaleKillRequest {
     pub alive_chain_index: usize,
 }
 
-/// 中枢生命周期事件（#291 三类：born/broken/reset）。★#336 R3：出生序号口径由「段号」
-/// 改为**链下标**（`levels[level].centers` 的 0-based 下标）。
+/// ★**中枢的死亡登记形态**（#337 裁定②，用户 2026-07-26）：中枢下场有且只有两种登记，
+/// 二者**同走「终结」出口**（#292 挂起短差的两个出口之一；在场终结**不新增出口**）。
+///
+/// | 形态 | 触发 | 事件 |
+/// |---|---|---|
+/// | [`DeathForm::Doctrinal`]（教义死亡） | 本级三类点破坏 / 一类点同死 | [`CenterLifecycleEvent::Broken`] / [`CenterLifecycleEvent::Reset`]（died 非空） |
+/// | [`DeathForm::ArenaTermination`]（在场终结） | 被链推进**取代**（新中枢成交 ⟹ 旧中枢失去在场身份） | [`CenterLifecycleEvent::Superseded`] |
+///
+/// 同一实例**可以两登记都收到**（先被取代终结、其死亡通知晚一格到 ⟹ 容读放行成教义死亡）——
+/// 这正是 #337 裁定①「容读法」的形态。两条登记不是重复计数，是两个不同的问题的答案：
+/// 「它什么时候不在场了」（取代）与「它是怎么死的」（三类点破坏）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeathForm {
+    /// 教义死亡：本级确认的一类/三类买卖点（唯一教义触发）。
+    Doctrinal,
+    /// 在场终结：被链推进取代（塔结构事件；塔无破坏概念 ⟹ 不伪造 Broken）。
+    ArenaTermination,
+}
+
+/// 中枢生命周期事件（#291 三类：born/broken/reset；★#337 增第四类 `superseded` = 在场终结）。
+/// ★#336 R3：出生序号口径由「段号」改为**链下标**（`levels[level].centers` 的 0-based 下标）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CenterLifecycleEvent {
     /// 出生：本级塔链尾部新增该中枢（塔窗口扫描成交 ⟹ 结构事件）。
@@ -206,6 +283,18 @@ pub enum CenterLifecycleEvent {
         breaker_source_index: usize,
         /// 三类点方向（buy3 ⟹ Long / sell3 ⟹ Short，types::Side 买卖语境）。
         breaker_side: Side,
+    },
+    /// ★**在场终结**（#337 裁定②）：该实例被链推进**取代**（新中枢在链尾成交）⟹ 失去在场
+    /// 身份。**不是**教义破坏（塔无破坏概念，三类点是死亡的唯一教义触发）——但按裁定②它与
+    /// 三类点破坏**同走「终结」出口**（[`DeathForm::ArenaTermination`]）。
+    Superseded {
+        level: u32,
+        /// 被取代的实例（出生时刻快照）。
+        center: Center,
+        /// 该实例的链下标。
+        chain_index: usize,
+        /// 取代它的新实例的链下标（恒 = `chain_index + 1`）。
+        by_chain_index: usize,
     },
     /// 一类点同死：本级一类点 ⟹ 在场实例（若有）死亡。★R3：「段序列清零」面已作废
     /// （本机无段序列——新走势类型的中枢边界由塔链自身给出，见模块头）。
@@ -233,17 +322,23 @@ pub enum ChainConsumed {
     /// 与 `tower_events` 同款纪律（旁路层首个活跃 bar 亦不重播既有 Compose）。
     Adopted { adopted: usize },
     /// **前缀分叉**（该级塔缓存全量重置 / 链回缩）⟹ 工程重基：静默采纳当前链，游标落链尾，
-    /// 不伪造出生/死亡。`at` = 检出分叉的链下标；`len` = 重基后链长。
-    Rebased { at: usize, len: usize },
+    /// 不伪造出生/死亡。`at` = 检出分叉的链下标；`len` = 重基后链长；
+    /// ★#337 `revived` = 本次重基是否让**此前已被教义死亡事件杀掉的链尾实例重新在场**
+    /// （#336 未能判定项 4 的可机检形式；重基是工程再同步、非教义生死，故不撤销那次死亡登记，
+    /// 只把复活如实计数）。
+    Rebased { at: usize, len: usize, revived: bool },
 }
 
-/// 死亡请求对链解析的内部三态（[`CenterEventMachine::resolve_kill_target`]）。
+/// 死亡请求对链解析的内部四态（[`CenterEventMachine::resolve_kill_target`]）。
 enum KillResolution {
     /// 场为空：无可杀对象（校验不介入）。
     ArenaEmpty,
-    /// 载体 == 在场身份：放行。
+    /// 载体 == 链尾（在场主格）身份：放行，杀在场实例。
     Alive,
-    /// 载体命中链上已退场实例：陈旧请求（不杀，不计误杀）。
+    /// ★#337 容读法：载体 == **容读格**（链尾前一格，退场方式 = 被取代）⟹ 放行，杀该实例
+    /// （链尾不动）。载荷 = 该实例出生快照 + 链下标。
+    Tolerated(Center, usize),
+    /// 载体命中链上已退场实例（且不在容读格）：陈旧请求（不杀，不计误杀）。
     Stale(StaleKillRequest),
 }
 
@@ -266,8 +361,12 @@ pub struct CenterEventMachine {
     consumed: Vec<CenterId>,
     /// 是否已与链同步过（`false` ⟹ 下次消费走静默采纳，见 [`ChainConsumed::Adopted`]）。
     synced: bool,
-    /// 在场实例（「场」）：(出生快照, 链下标)。None = 链空 或 在场实例已被死亡事件杀掉。
+    /// 在场实例（「场」的**主格** = 链尾）：(出生快照, 链下标)。None = 链空 或 链尾已被教义
+    /// 死亡事件杀掉。
     alive: Option<(Center, usize)>,
+    /// ★#337 容读法「场」的**第二格**：链尾**前一格**实例 (出生快照, 链下标)，**仅当**其退场
+    /// 方式 = 被链推进取代（从未收到教义死亡事件）时非空。收到教义死亡 ⟹ 置空（不得二次死亡）。
+    prev_slot: Option<(Center, usize)>,
     born_total: usize,
     broken_total: usize,
     reset_total: usize,
@@ -277,6 +376,14 @@ pub struct CenterEventMachine {
     stale_total: usize,
     /// ★R3：被链推进取代（从未收到死亡事件）的在场实例累计。
     superseded_total: usize,
+    /// ★#337：落在**容读格**（链尾前一格）的死亡放行累计（分桶读数：放行 = 链尾 + 容读格）。
+    tolerated_total: usize,
+    /// ★#337（MINOR 补查）：最近一次被**教义死亡事件**杀掉的链尾身份（`alive` 转 None 那一刻
+    /// 记下）。唯一用途 = 重基复活判据（见 [`CenterEventMachine::adopt`]）。
+    dead_tail: Option<CenterId>,
+    /// ★#337（MINOR 补查）：重基把**已被杀的链尾实例**重新扶上场的累计次数（#336 未能判定项 4
+    /// 的实证读数）。
+    revived_total: usize,
 }
 
 impl CenterLifecycleEvent {
@@ -288,8 +395,33 @@ impl CenterLifecycleEvent {
         match self {
             CenterLifecycleEvent::Born { .. } => None,
             CenterLifecycleEvent::Broken { center, .. } => Some(CenterId::of(center)),
+            CenterLifecycleEvent::Superseded { center, .. } => Some(CenterId::of(center)),
             CenterLifecycleEvent::Reset { died_center, .. } => died_center.as_ref().map(CenterId::of),
         }
+    }
+
+    /// ★#337 裁定②：本事件的**死亡登记形态**（两形态分桶的唯一判据）；`None` = 本事件不登记
+    /// 任何中枢下场（出生；或场为空的一类点边界记录）。
+    ///
+    /// 不变量：`death_form().is_some() ⟺ killed_center_id().is_some()`（有形态必有身份）。
+    pub fn death_form(&self) -> Option<DeathForm> {
+        match self {
+            CenterLifecycleEvent::Born { .. } => None,
+            CenterLifecycleEvent::Superseded { .. } => Some(DeathForm::ArenaTermination),
+            CenterLifecycleEvent::Broken { .. } => Some(DeathForm::Doctrinal),
+            CenterLifecycleEvent::Reset { died_center, .. } => {
+                died_center.as_ref().map(|_| DeathForm::Doctrinal)
+            }
+        }
+    }
+
+    /// ★#337 裁定②（#292 前置口径）：本事件是否走**挂起短差的「终结」出口**。
+    ///
+    /// 两死亡登记形态**同走终结**：教义死亡（三类点破坏 / 一类点同死）与在场终结（被取代）。
+    /// 在场终结**不新增出口**——挂起仍只有「回补 / 终结」两个出口，取代只是又一条走终结的路。
+    /// **本票只立判据与事件形态，不接 #292 动作**（本方法当前无生产调用者，见票面边界）。
+    pub fn terminates_suspension(&self) -> bool {
+        self.death_form().is_some()
     }
 }
 
@@ -301,12 +433,16 @@ impl CenterEventMachine {
             consumed: Vec::new(),
             synced: false,
             alive: None,
+            prev_slot: None,
             born_total: 0,
             broken_total: 0,
             reset_total: 0,
             miskill_total: 0,
             stale_total: 0,
             superseded_total: 0,
+            tolerated_total: 0,
+            dead_tail: None,
+            revived_total: 0,
         }
     }
 
@@ -318,7 +454,7 @@ impl CenterEventMachine {
         // ① 首次消费：静默采纳既有链前缀（这些中枢在本机开机前就在链上，不伪造出生 bar）。
         if !self.synced {
             self.synced = true;
-            self.adopt(chain);
+            let _ = self.adopt(chain); // 首次消费不可能复活（本机此前未杀过任何实例）。
             return ChainConsumed::Adopted { adopted: chain.len() };
         }
         // ② 前缀分叉守卫（O(1)/bar/级）：链回缩 或 已消费末条身份被改写 ⟹ 工程重基。
@@ -327,8 +463,16 @@ impl CenterEventMachine {
         // 是 O(链长)/bar/级（wf8 26 万 bar × 5 级 ⟹ 数量级 1e9 次比较，不可接受）。依据：
         // `LevelCache.centers` 文档「前缀不可变，尾部经 Rc::make_mut 追加」，唯一的前缀变异源是
         // 该级缓存**全量重置**（frontier 变异检测触发，见 `mod.rs` `cached_units` 文档），而全量
-        // 重置几乎必然改写末条（frontier 就在末端）。**比这更深的前缀改写本守卫检不出**，如实
-        // 登记为已知限。延伸不改核心 ⟹ [`CenterId`] 对延伸稳定 ⟹ 本守卫不会被延伸误触发。
+        // 重置几乎必然改写末条（frontier 就在末端）。延伸不改核心 ⟹ [`CenterId`] 对延伸稳定
+        // ⟹ 本守卫不会被延伸误触发。
+        //
+        // ★**已知限登记（#337 评审 MAJOR-B「盲区入码」）**：本守卫的**盲区** =「链长不变或增长，
+        // 且已消费末条身份未变，但**更深的前缀**被改写」。这类分叉本守卫**检不出** ⟹ 之后的
+        // `consumed` 前缀与真实链不符，后果是 `stale`/`miskill` 的链上查找基于过期身份、容读格
+        // 可能指向已不存在的实例。**本窗没有该盲区的证据不等于没有该盲区**（无检出即无观测，
+        // 检不出的东西也无从计数）——这是本守卫的有效域声明，不是安全证据。要闭合只能上全前缀
+        // 比对（O(链长)/bar/级，wf8 量级 1e9 次比较，已按成本否决）或由 `LevelCache` 侧给出
+        // 前缀不可变的机检保证（另一票）。
         let k = self.consumed.len();
         if k > 0 {
             let tail_same = chain
@@ -337,8 +481,8 @@ impl CenterEventMachine {
                 .unwrap_or(false);
             if chain.len() < k || !tail_same {
                 let at = if chain.len() < k { chain.len() } else { k - 1 };
-                self.adopt(chain);
-                return ChainConsumed::Rebased { at, len: chain.len() };
+                let revived = self.adopt(chain);
+                return ChainConsumed::Rebased { at, len: chain.len(), revived };
             }
         }
         // ③ 正常推进（尾部追加）⟹ 逐个新中枢产 Born，游标落链尾。
@@ -346,11 +490,23 @@ impl CenterEventMachine {
         let mut superseded = 0usize;
         for (idx, c) in chain.iter().enumerate().skip(k) {
             // 前一实例从未收到死亡事件 ⟹ 被链推进取代（不伪造 Broken——三类点是死亡的唯一
-            // 教义触发，塔无破坏概念，见模块头）。
-            if self.alive.is_some() {
-                superseded += 1;
-                self.superseded_total += 1;
-            }
+            // 教义触发，塔无破坏概念，见模块头）。★#337 裁定②：这就是「在场终结」，产
+            // [`CenterLifecycleEvent::Superseded`]（两死亡登记形态之一），并把该实例落进容读格。
+            self.prev_slot = match self.alive {
+                Some((pc, pidx)) => {
+                    superseded += 1;
+                    self.superseded_total += 1;
+                    events.push(CenterLifecycleEvent::Superseded {
+                        level: self.level,
+                        center: pc,
+                        chain_index: pidx,
+                        by_chain_index: idx,
+                    });
+                    Some((pc, pidx))
+                }
+                // 链尾已收教义死亡（或链空）⟹ 容读格关闭（已死实例不得二次死亡）。
+                None => None,
+            };
             self.consumed.push(CenterId::of(c));
             self.alive = Some((*c, idx));
             self.born_total += 1;
@@ -364,9 +520,29 @@ impl CenterEventMachine {
     }
 
     /// 静默采纳当前链为已消费前缀（首次消费 / 前缀分叉重基共用）：游标落链尾，不产任何事件。
-    fn adopt(&mut self, chain: &[Center]) {
+    ///
+    /// 返回 `revived` = ★#337（MINOR「rebase 复活实证」）：本次采纳是否让**此前已被教义死亡
+    /// 事件杀掉的那个链尾实例重新在场**（#336 未能判定项 4 的可机检形式）。判据 = 采纳前场为空
+    /// （链尾已被杀）∧ 采纳后的链尾身份 == 被杀那条的身份。
+    ///
+    /// ★#337 容读格的采纳口径：采纳后容读格 = 当前链倒数第二条（结构性——链上存在后继 ⟹ 该
+    /// 实例已被取代）。它在采纳**之前**是否收过教义死亡，重基后无从得知 ⟹ 与「重基让被杀实例
+    /// 重新在场」同属工程再同步的已知代价（见模块头），如实登记不掩盖。
+    fn adopt(&mut self, chain: &[Center]) -> bool {
+        let revived = self.alive.is_none()
+            && self.dead_tail.is_some()
+            && chain.last().map(CenterId::of) == self.dead_tail;
         self.consumed = chain.iter().map(CenterId::of).collect();
         self.alive = chain.last().map(|c| (*c, chain.len() - 1));
+        self.prev_slot = if chain.len() >= 2 {
+            Some((chain[chain.len() - 2], chain.len() - 2))
+        } else {
+            None
+        };
+        if revived {
+            self.revived_total += 1;
+        }
+        revived
     }
 
     /// 喂入一个**已确认**买卖点（修6：只消费已确认的点）。
@@ -388,13 +564,21 @@ impl CenterEventMachine {
             None
         };
         if let Some(trigger_side) = first {
-            match self.resolve_kill_target(KillTrigger::FirstClass, source_index, trigger_side, target)? {
+            let (died_center, died_chain_index) = match self
+                .resolve_kill_target(KillTrigger::FirstClass, source_index, trigger_side, target)?
+            {
                 KillResolution::Stale(st) => return Ok(PointOutcome::Stale(st)),
-                KillResolution::ArenaEmpty | KillResolution::Alive => {}
-            }
-            let (died_center, died_chain_index) = match self.alive.take() {
-                Some((c, idx)) => (Some(c), Some(idx)),
-                None => (None, None),
+                // ★#337 容读放行：同死的是**载体所指**的容读格实例，链尾一动不动（连坐 = 在无
+                // 载体证据下杀第二个中枢，违「拒杀优先于错杀」）。
+                KillResolution::Tolerated(c, idx) => {
+                    self.prev_slot = None; // 容读格一次性：已收教义死亡 ⟹ 不得二次死亡。
+                    self.tolerated_total += 1;
+                    (Some(c), Some(idx))
+                }
+                KillResolution::ArenaEmpty | KillResolution::Alive => match self.take_alive() {
+                    Some((c, idx)) => (Some(c), Some(idx)),
+                    None => (None, None),
+                },
             };
             self.reset_total += 1;
             return Ok(PointOutcome::Event(CenterLifecycleEvent::Reset {
@@ -413,13 +597,20 @@ impl CenterEventMachine {
             None
         };
         if let Some(breaker_side) = third {
-            match self.resolve_kill_target(KillTrigger::ThirdClass, source_index, breaker_side, target)? {
+            let (center, chain_index) = match self
+                .resolve_kill_target(KillTrigger::ThirdClass, source_index, breaker_side, target)?
+            {
                 KillResolution::Stale(st) => return Ok(PointOutcome::Stale(st)),
                 // 场为空 ⟹ 诚实 no-op（不杀不存在的中枢）。
                 KillResolution::ArenaEmpty => return Ok(PointOutcome::Silent),
-                KillResolution::Alive => {}
-            }
-            let (center, chain_index) = self.alive.take().expect("Alive 分支蕴含场非空");
+                // ★#337 容读放行：破坏的是**载体所指**的容读格实例，链尾一动不动。
+                KillResolution::Tolerated(c, idx) => {
+                    self.prev_slot = None; // 容读格一次性。
+                    self.tolerated_total += 1;
+                    (c, idx)
+                }
+                KillResolution::Alive => self.take_alive().expect("Alive 分支蕴含场非空"),
+            };
             self.broken_total += 1;
             return Ok(PointOutcome::Event(CenterLifecycleEvent::Broken {
                 level: self.level,
@@ -433,10 +624,23 @@ impl CenterEventMachine {
         Ok(PointOutcome::Silent)
     }
 
+    /// 教义死亡落在**链尾主格**时的场清空：取走在场实例并记下其身份（★#337：`dead_tail` 是
+    /// 重基复活判据的唯一输入，见 [`CenterEventMachine::adopt`]）。
+    fn take_alive(&mut self) -> Option<(Center, usize)> {
+        let taken = self.alive.take();
+        if let Some((c, _)) = taken {
+            self.dead_tail = Some(CenterId::of(&c));
+        }
+        taken
+    }
+
     /// 死亡请求对链解析（★#329 校验的 R3 口径，见 [`CenterMisKill`] / [`StaleKillRequest`]）。
     ///
-    /// - **场为空** ⟹ [`KillResolution::ArenaEmpty`]：无可杀对象，谈不上误杀（口径不变）。
-    /// - 载体 == 在场身份 ⟹ [`KillResolution::Alive`]：放行。
+    /// - **场为空** ⟹ [`KillResolution::ArenaEmpty`]：无可杀对象，谈不上误杀（口径不变；
+    ///   ★#337：主格不在场时容读格**随之关闭**，见模块头「容读窗的边界」）。
+    /// - 载体 == 链尾（主格）身份 ⟹ [`KillResolution::Alive`]：放行。
+    /// - ★#337 载体 == 容读格（链尾前一格，退场方式 = 被取代）⟹ [`KillResolution::Tolerated`]：
+    ///   放行，杀载体所指的那一个实例（链尾不动）。
     /// - 载体命中**已消费链前缀里的其它实例** ⟹ [`KillResolution::Stale`]：时序滞后，不计误杀。
     /// - 其余（载体不在本级链上，含 `None`）⟹ [`Err(CenterMisKill)`](CenterMisKill)，状态不动。
     fn resolve_kill_target(
@@ -454,6 +658,17 @@ impl CenterEventMachine {
             return Ok(KillResolution::Alive);
         }
         if let Some(t) = target {
+            // ★#337 容读法：容读格（链尾前一格且退场方式=被取代）的死亡通知合法放行。
+            if let Some((prev_center, prev_chain_index)) = self.prev_slot {
+                if CenterId::of(&prev_center) == t {
+                    debug_assert_eq!(
+                        prev_chain_index + 1,
+                        alive_chain_index,
+                        "容读格恒为链尾前一格（Δidx=−1）"
+                    );
+                    return Ok(KillResolution::Tolerated(prev_center, prev_chain_index));
+                }
+            }
             // 链上线性查找（自尾向头——陈旧请求多命中靠近游标处）。
             if let Some(target_chain_index) = self.consumed.iter().rposition(|c| *c == t) {
                 self.stale_total += 1;
@@ -508,6 +723,18 @@ impl CenterEventMachine {
     /// ★R3：被链推进取代（从未收到死亡事件）的在场实例累计。
     pub fn superseded(&self) -> usize {
         self.superseded_total
+    }
+
+    /// ★#337：落在**容读格**（链尾前一格）的死亡放行累计。放行总数 = (broken+reset 中 died 非空)，
+    /// 其中本计数落在容读格、其余落在链尾 ⟹ 放行的两格分桶读数。
+    pub fn tolerated_kills(&self) -> usize {
+        self.tolerated_total
+    }
+
+    /// ★#337（MINOR 补查）：重基把已被教义死亡杀掉的链尾实例重新扶上场的累计次数
+    /// （#336 未能判定项 4 的实证读数；0 ⟹ 本窗无复活）。
+    pub fn revivals(&self) -> usize {
+        self.revived_total
     }
 }
 
@@ -582,7 +809,8 @@ mod tests {
 
     /// ★「一中枢一场」按构造成立（非抑制规则）：一次消费喂入 3 个新中枢 ⟹ 3 个 born 按链序
     /// 产出，场恒为链尾单点；前两个实例从未收到死亡事件 ⟹ 被链推进**取代**（`superseded=2`），
-    /// 本机**不伪造** Broken。
+    /// 本机**不伪造** Broken。★#337：取代升为逐实例 [`CenterLifecycleEvent::Superseded`] 事件
+    /// （在场终结形态），按「旧下场 → 新上场」序交织在 born 之间。
     #[test]
     fn one_arena_holds_by_chain_cursor_and_undead_predecessors_are_superseded() {
         let mut m = CenterEventMachine::new(0);
@@ -594,12 +822,24 @@ mod tests {
             ChainConsumed::Advanced {
                 events: vec![
                     CenterLifecycleEvent::Born { level: 0, center: c0, chain_index: 0 },
+                    CenterLifecycleEvent::Superseded {
+                        level: 0,
+                        center: c0,
+                        chain_index: 0,
+                        by_chain_index: 1,
+                    },
                     CenterLifecycleEvent::Born { level: 0, center: c1, chain_index: 1 },
+                    CenterLifecycleEvent::Superseded {
+                        level: 0,
+                        center: c1,
+                        chain_index: 1,
+                        by_chain_index: 2,
+                    },
                     CenterLifecycleEvent::Born { level: 0, center: c2, chain_index: 2 },
                 ],
                 superseded: 2,
             },
-            "3 个新中枢 ⟹ 3 born（按链序），前 2 个未收死亡事件 ⟹ superseded=2"
+            "3 个新中枢 ⟹ 3 born（按链序）+ 2 条在场终结（取代）"
         );
         assert_eq!(m.counts(), (3, 0, 0), "取代不计 broken（无三类点即无教义破坏）");
         assert_eq!(m.superseded(), 2);
@@ -731,33 +971,12 @@ mod tests {
     //  ★R3 片三：stale（时序滞后）与 miskill（真错位）的分野——#329 校验口径收窄
     // ──────────────────────────────────────────────────────────────────────
 
-    /// ★陈旧请求①「载体命中被链推进取代的实例」：链 [c0,c1]、场 = c1，点声明 c0
-    /// ⟹ 陈旧（不杀 c1，不计误杀），携双方链下标（Δidx = target−alive 为负 = 滞后深度）。
-    #[test]
-    fn stale_request_when_target_is_superseded_chain_instance() {
-        let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
-        let mut m = machine_on_chain(&[c0, c1]);
-        assert_eq!(m.alive_center(), Some((c1, 1)), "前置：场 = 链尾 c1");
-        let got = m.push_point(bits_3s(), 500, Some(CenterId::of(&c0)));
-        assert_eq!(
-            got,
-            Ok(PointOutcome::Stale(StaleKillRequest {
-                level: 0,
-                trigger: KillTrigger::ThirdClass,
-                trigger_source_index: 500,
-                trigger_side: Side::Short,
-                alive: CenterId::of(&c1),
-                target: CenterId::of(&c0),
-                target_chain_index: 0,
-                alive_chain_index: 1,
-            })),
-            "载体命中链上已退场实例 ⟹ 陈旧请求（时序滞后，非错位）"
-        );
-        assert_eq!(m.alive_center(), Some((c1, 1)), "陈旧请求不动在场实例（拒杀优先）");
-        assert_eq!(m.counts(), (2, 0, 0), "陈旧请求不计 broken/reset");
-        assert_eq!(m.stale_requests(), 1);
-        assert_eq!(m.mis_kills(), 0, "★口径收窄：陈旧请求**不**计误杀");
-    }
+    // ★**#337 口径改判（tombstone 原位）**：原 `stale_request_when_target_is_superseded_chain_instance`
+    // 固化的正是「链 [c0,c1]、场 = c1、点声明 c0 ⟹ **stale**」这一读数——#337 裁定① 容读法把
+    // 它改判为**合法放行**（被取代就是旧中枢的死亡方式，死亡通知晚一格到不是错杀）。该测试随
+    // 口径消失而**删除**（不是回归，是被裁掉的那个口径本身）。其位置由两条新测试接管：
+    // - 放行面：[`tolerated_kill_when_target_is_chain_tail_predecessor`]（Δidx=−1 ⟹ Broken）；
+    // - 拒绝面：[`stale_kept_when_target_is_two_or_more_slots_upstream`]（Δidx≤−2 ⟹ 仍 stale）。
 
     /// ★陈旧请求②「载体命中已被死亡事件合法杀掉的实例」：c0 被三类点杀 → 链推进出生 c1
     /// ⟹ 再有点声明 c0 也是陈旧（已死实例不复活）。
@@ -843,8 +1062,8 @@ mod tests {
         let got = m.consume_chain(&[c0, c1]);
         assert_eq!(
             got,
-            ChainConsumed::Rebased { at: 2, len: 2 },
-            "链回缩 ⟹ 重基（at = 首个缺失下标）"
+            ChainConsumed::Rebased { at: 2, len: 2, revived: false },
+            "链回缩 ⟹ 重基（at = 首个缺失下标）；在场实例未被杀过 ⟹ 不是复活"
         );
         assert_eq!(m.counts(), (3, 0, 0), "重基不伪造 born/broken");
         assert_eq!(m.chain_len(), 2);
@@ -862,11 +1081,273 @@ mod tests {
         let got = m.consume_chain(&[c0, c1_recut]);
         assert_eq!(
             got,
-            ChainConsumed::Rebased { at: 1, len: 2 },
+            ChainConsumed::Rebased { at: 1, len: 2, revived: false },
             "已消费末条身份被改写 ⟹ 重基（at = 检出分叉的下标）"
         );
         assert_eq!(m.counts(), (2, 0, 0), "重基不伪造 born");
         assert_eq!(m.alive_center(), Some((c1_recut, 1)));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★#337 片五：容读法放行判据（场 = 链尾 ∨ 链尾前一格）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★容读格放行①（三类点）：链 [c0,c1]、场 = c1，点声明 **c0**（Δidx=−1，c0 是被 c1 取代的
+    /// 旧中枢）⟹ **合法破坏**（不再是 stale）。杀的是**载体所指的 c0**，链尾 c1 一动不动
+    /// （连坐 = 在无载体证据下杀第二个中枢，违「拒杀优先于错杀」）。
+    #[test]
+    fn tolerated_kill_when_target_is_chain_tail_predecessor() {
+        let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
+        let mut m = machine_on_chain(&[c0, c1]);
+        assert_eq!(m.alive_center(), Some((c1, 1)), "前置：场 = 链尾 c1，c0 已被取代");
+        let got = m.push_point(bits_3s(), 500, Some(CenterId::of(&c0)));
+        assert_eq!(
+            got,
+            Ok(PointOutcome::Event(CenterLifecycleEvent::Broken {
+                level: 0,
+                center: c0,
+                chain_index: 0,
+                breaker_source_index: 500,
+                breaker_side: Side::Short,
+            })),
+            "★#337 容读法：链尾前一格（被取代）的死亡通知合法放行 ⟹ 破坏 c0"
+        );
+        assert_eq!(m.alive_center(), Some((c1, 1)), "容读放行不动链尾（只杀载体所指实例）");
+        assert_eq!(m.counts(), (2, 1, 0), "容读放行计入 broken");
+        assert_eq!(m.tolerated_kills(), 1, "放行落在容读格 ⟹ 单独分桶");
+        assert_eq!(m.stale_requests(), 0, "★口径改判：Δidx=−1 不再是 stale");
+        assert_eq!(m.mis_kills(), 0);
+    }
+
+    /// ★容读格放行②（一类点同死）：同一判据对一类点成立——Reset 的 died 是**载体所指**的
+    /// 容读格实例（不是链尾）。
+    #[test]
+    fn tolerated_kill_first_class_on_chain_tail_predecessor() {
+        let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
+        let mut m = machine_on_chain(&[c0, c1]);
+        let got = m.push_point(bits_1b(), 640, Some(CenterId::of(&c0)));
+        assert_eq!(
+            got,
+            Ok(PointOutcome::Event(CenterLifecycleEvent::Reset {
+                level: 0,
+                died_center: Some(c0),
+                died_chain_index: Some(0),
+                trigger_source_index: 640,
+                trigger_side: Side::Long,
+            })),
+            "一类点载体落容读格 ⟹ 同死放行（died = c0）"
+        );
+        assert_eq!(m.alive_center(), Some((c1, 1)), "容读放行不动链尾");
+        assert_eq!(m.counts(), (2, 0, 1));
+        assert_eq!(m.tolerated_kills(), 1);
+        assert_eq!(m.stale_requests(), 0);
+    }
+
+    /// ★Δidx ≤ −2 仍是 stale（容读窗只有一格；再远的滞后不放行）。
+    #[test]
+    fn stale_kept_when_target_is_two_or_more_slots_upstream() {
+        let (c0, c1, c2) =
+            (center(5, 260, 100, 200), center(300, 600, 150, 250), center(700, 900, 180, 280));
+        let mut m = machine_on_chain(&[c0, c1, c2]);
+        assert_eq!(m.alive_center(), Some((c2, 2)), "前置：场 = 链尾 c2");
+        let got = m.push_point(bits_3b(), 950, Some(CenterId::of(&c0)));
+        assert_eq!(
+            got,
+            Ok(PointOutcome::Stale(StaleKillRequest {
+                level: 0,
+                trigger: KillTrigger::ThirdClass,
+                trigger_source_index: 950,
+                trigger_side: Side::Long,
+                alive: CenterId::of(&c2),
+                target: CenterId::of(&c0),
+                target_chain_index: 0,
+                alive_chain_index: 2,
+            })),
+            "Δidx=−2 ⟹ 仍拒（容读窗只含链尾前一格）"
+        );
+        assert_eq!(m.alive_center(), Some((c2, 2)), "拒后场不动");
+        assert_eq!(m.counts(), (3, 0, 0));
+        assert_eq!(m.stale_requests(), 1);
+        assert_eq!(m.tolerated_kills(), 0);
+    }
+
+    /// ★容读格一次性：容读放行后该格实例已收教义死亡 ⟹ 再有点声明它一律 stale（不得二次死亡）。
+    #[test]
+    fn tolerated_slot_consumed_after_first_doctrinal_death() {
+        let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
+        let mut m = machine_on_chain(&[c0, c1]);
+        assert!(m.push_point(bits_3s(), 500, Some(CenterId::of(&c0))).is_ok(), "首次容读放行");
+        assert_eq!(m.tolerated_kills(), 1);
+        let again = m.push_point(bits_3b(), 700, Some(CenterId::of(&c0)));
+        assert!(
+            matches!(again, Ok(PointOutcome::Stale(StaleKillRequest { target_chain_index: 0, .. }))),
+            "已收教义死亡的容读格实例不得二次死亡 ⟹ 陈旧，实得 {again:?}"
+        );
+        assert_eq!(m.counts(), (2, 1, 0), "第二次不计 broken");
+        assert_eq!(m.tolerated_kills(), 1);
+        assert_eq!(m.stale_requests(), 1);
+    }
+
+    /// ★容读格只对**被取代**的实例开：链尾若是被死亡事件合法杀掉后由链推进换下的，
+    /// 该实例不进容读窗（已死实例不复活）——固化既有口径不被容读法冲垮。
+    #[test]
+    fn tolerated_slot_closed_for_already_killed_predecessor() {
+        let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
+        let mut m = machine_on_chain(&[c0]);
+        assert!(m.push_point(bits_3b(), 100, Some(CenterId::of(&c0))).is_ok(), "c0 被合法破坏");
+        m.consume_chain(&[c0, c1]);
+        assert_eq!(m.alive_center(), Some((c1, 1)));
+        let got = m.push_point(bits_3s(), 700, Some(CenterId::of(&c0)));
+        assert!(
+            matches!(got, Ok(PointOutcome::Stale(StaleKillRequest { target_chain_index: 0, .. }))),
+            "c0 的退场方式是教义死亡（非被取代）⟹ 容读窗不开，实得 {got:?}"
+        );
+        assert_eq!(m.tolerated_kills(), 0);
+        assert_eq!(m.stale_requests(), 1);
+    }
+
+    /// ★容读窗的边界（如实登记）：链尾被杀 ⟹ 场为空，容读窗**随之关闭**（校验不介入，
+    /// 三类点诚实 no-op）。理由：主格不在场时开第二格 = 场为空还开火，违「拒杀优先于错杀」。
+    #[test]
+    fn tolerated_window_closed_when_arena_empty() {
+        let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
+        let mut m = machine_on_chain(&[c0, c1]);
+        assert!(m.push_point(bits_3b(), 620, Some(CenterId::of(&c1))).is_ok(), "链尾 c1 被合法破坏");
+        assert_eq!(m.alive_center(), None, "前置：场为空");
+        assert_eq!(
+            m.push_point(bits_3s(), 800, Some(CenterId::of(&c0))),
+            Ok(PointOutcome::Silent),
+            "场为空 ⟹ 容读窗关闭，三类点诚实 no-op"
+        );
+        assert_eq!(m.tolerated_kills(), 0);
+        assert_eq!(m.stale_requests(), 0, "场为空不计陈旧");
+        assert_eq!(m.mis_kills(), 0, "场为空不计误杀（口径不变）");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★#337 片六：两死亡登记形态（教义死亡 / 在场终结）分桶 + 同走「终结」出口
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★两形态分桶（裁定②）：教义死亡（broken/reset）与在场终结（superseded）各自归桶，
+    /// 且**同走「终结」出口**；出生与「场为空的一类点边界记录」不登记任何死亡。
+    /// 不变量：`death_form().is_some() ⟺ killed_center_id().is_some()`。
+    #[test]
+    fn death_forms_bucket_doctrinal_versus_arena_termination() {
+        let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
+        let born = CenterLifecycleEvent::Born { level: 0, center: c0, chain_index: 0 };
+        let superseded = CenterLifecycleEvent::Superseded {
+            level: 0,
+            center: c0,
+            chain_index: 0,
+            by_chain_index: 1,
+        };
+        let broken = CenterLifecycleEvent::Broken {
+            level: 0,
+            center: c1,
+            chain_index: 1,
+            breaker_source_index: 700,
+            breaker_side: Side::Long,
+        };
+        let reset_died = CenterLifecycleEvent::Reset {
+            level: 0,
+            died_center: Some(c1),
+            died_chain_index: Some(1),
+            trigger_source_index: 800,
+            trigger_side: Side::Short,
+        };
+        let reset_empty = CenterLifecycleEvent::Reset {
+            level: 0,
+            died_center: None,
+            died_chain_index: None,
+            trigger_source_index: 900,
+            trigger_side: Side::Short,
+        };
+        for (label, ev, form) in [
+            ("出生不死人", born, None),
+            ("被取代 ⟹ 在场终结", superseded, Some(DeathForm::ArenaTermination)),
+            ("三类破坏 ⟹ 教义死亡", broken, Some(DeathForm::Doctrinal)),
+            ("一类同死 ⟹ 教义死亡", reset_died, Some(DeathForm::Doctrinal)),
+            ("场为空的一类点边界 ⟹ 不死人", reset_empty, None),
+        ] {
+            assert_eq!(ev.death_form(), form, "{label}：死亡登记形态分桶");
+            assert_eq!(
+                ev.terminates_suspension(),
+                form.is_some(),
+                "{label}：两形态同走「终结」出口（在场终结不新增出口）"
+            );
+            assert_eq!(
+                ev.death_form().is_some(),
+                ev.killed_center_id().is_some(),
+                "{label}：有形态 ⟺ 有身份"
+            );
+        }
+    }
+
+    /// ★同一实例可**两登记都收到**：先被取代（在场终结），其死亡通知晚一格到 ⟹ 容读放行成
+    /// 教义死亡。这正是 #337 裁定①+② 合起来的形态（不是重复计数，是两个问题的两个答案）。
+    #[test]
+    fn superseded_instance_can_still_receive_doctrinal_death() {
+        let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
+        let mut m = CenterEventMachine::new(0);
+        m.consume_chain(&[]);
+        m.consume_chain(&[c0]);
+        let advanced = m.consume_chain(&[c0, c1]);
+        let arena_end = match &advanced {
+            ChainConsumed::Advanced { events, .. } => events
+                .iter()
+                .find(|e| e.death_form() == Some(DeathForm::ArenaTermination))
+                .copied()
+                .expect("链推进取代 ⟹ 产在场终结事件"),
+            other => panic!("应为链推进，实得 {other:?}"),
+        };
+        assert_eq!(arena_end.killed_center_id(), Some(CenterId::of(&c0)), "在场终结登记 c0");
+
+        let doctrinal = match m.push_point(bits_3s(), 900, Some(CenterId::of(&c0))) {
+            Ok(PointOutcome::Event(ev)) => ev,
+            other => panic!("容读放行应产教义死亡，实得 {other:?}"),
+        };
+        assert_eq!(doctrinal.death_form(), Some(DeathForm::Doctrinal));
+        assert_eq!(doctrinal.killed_center_id(), Some(CenterId::of(&c0)), "教义死亡也登记 c0");
+        assert_eq!(m.superseded(), 1);
+        assert_eq!(m.tolerated_kills(), 1);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★#337 片七：重基复活实证（#336 未能判定项 4 的可机检形式）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★重基复活：链尾被教义死亡杀掉后场为空；随后前缀分叉重基把**同一身份**重新扶上链尾
+    /// ⟹ `revived=true`（重基是工程再同步、非教义生死 ⟹ 不撤销那次死亡登记，只如实计数）。
+    #[test]
+    fn rebase_flags_revival_of_doctrinally_killed_tail() {
+        let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
+        let mut m = machine_on_chain(&[c0, c1]);
+        assert!(m.push_point(bits_3b(), 620, Some(CenterId::of(&c1))).is_ok(), "链尾 c1 被合法破坏");
+        assert_eq!(m.alive_center(), None, "前置：场为空");
+        let got = m.consume_chain(&[c1]);
+        assert_eq!(
+            got,
+            ChainConsumed::Rebased { at: 1, len: 1, revived: true },
+            "重基后链尾 == 被杀身份 ⟹ 复活如实登记"
+        );
+        assert_eq!(m.alive_center(), Some((c1, 0)), "复活 = 被杀实例重新在场");
+        assert_eq!(m.revivals(), 1);
+        assert_eq!(m.counts(), (2, 1, 0), "重基不撤销已登记的教义死亡");
+    }
+
+    /// ★重基非复活：场为空但重基后的链尾是**另一个身份** ⟹ `revived=false`（不误报）。
+    #[test]
+    fn rebase_not_flagged_when_reseated_tail_is_a_different_instance() {
+        let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
+        let mut m = machine_on_chain(&[c0, c1]);
+        assert!(m.push_point(bits_3b(), 620, Some(CenterId::of(&c1))).is_ok());
+        let got = m.consume_chain(&[c0]);
+        assert_eq!(
+            got,
+            ChainConsumed::Rebased { at: 1, len: 1, revived: false },
+            "重基后链尾是别的实例 ⟹ 不是复活"
+        );
+        assert_eq!(m.revivals(), 0);
     }
 
     /// ★事件自带中枢身份（票面「破坏/重置事件携带中枢身份」）：下游（#292 减补动作）直读。

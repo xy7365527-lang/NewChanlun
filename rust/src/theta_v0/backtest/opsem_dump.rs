@@ -485,10 +485,21 @@ impl OpsemDump {
     //    `.chanlun/review-results/center-death-identity-rootcause-20260726.md` §2.3）。
     //  - **前缀分叉 → 重基**：该级塔缓存全量重置/链回缩 ⟹ `kind:"chain_sync" reason:"rebase"`
     //    诊断行（静默采纳当前链，不伪造出生/死亡）。级消失仍走 `kind:"resync"`。
-    //  - **链推进取代**：链前进时前一实例从未收到死亡事件 ⟹ `kind:"superseded"` 诊断行
+    //  - **链推进取代**：链前进时前一实例从未收到死亡事件 ⟹ `kind:"superseded"`
     //    （**不伪造** broken——塔无破坏概念，三类点是死亡的唯一教义触发）。
-    //  - **陈旧死亡请求**：载体命中链上已退场实例 ⟹ `kind:"stale"` 诊断行，不计 miskill
-    //    （时序滞后，非错位；口径见 `center_lifecycle.rs` [`StaleKillRequest`]）。
+    //  - **陈旧死亡请求**：载体落在**在场窗之外**（Δidx≤−2）或指向已收过教义死亡的实例 ⟹
+    //    `kind:"stale"` 诊断行，不计 miskill（口径见 `center_lifecycle.rs` [`StaleKillRequest`]）。
+    //
+    //  ★**#337 dump schema 变更（GOLDEN 先例登记，不静默）**——`center_lifecycle.jsonl` 三处：
+    //  1. `kind:"superseded"` 由「每 bar 每级**一行带 `count`**」改为**逐实例事件行**：
+    //     `{si,zd,zg,dd,gg,ei,chain_idx,by_chain_idx,death_form:"arena_termination"}`。
+    //     理由 = 裁定②把「取代」升为**在场终结**（死亡登记形态之一），#292 要按**实例**终结
+    //     挂起短差，聚合 count 不带身份，接不上。
+    //  2. `broken`/`reset` 增 `death_form`（`doctrinal`）与 `slot`（`tail` / `tail_prev` =
+    //     放行落在链尾主格还是容读格）。died 为空的 `reset` 二者写 null（没死人，不编造）。
+    //  3. `chain_sync` 增身份字段 `tail_si/zd/zg`、`prev_si/zd/zg` 与 `revived` 布尔
+    //     （评审 MAJOR-B：采纳/重基把「场」落到谁身上此前无产物级证据）。
+    //  轨迹产物 `trades.jsonl`/`tower_events.jsonl` **不受影响**（本旁路只读，逐字节不变已实证）。
     //
     //  ★**已作废（谱系注记，#336 R3）**：旧口径整节（L0 喂 `tower[0][..confirmed_lens[0]]` +
     //  ℓ≥1 喂 `project_to_units_resume(tower[ℓ][..w], levels[ℓ-1].moves)` + 方向冻结水线推导 +
@@ -534,19 +545,20 @@ impl OpsemDump {
             // ── ★R3 事件源：消费本级塔链（唯一真相源；born 由链推进直接推出）──
             let chain: &[super::super::types::Center] = &classification.levels[lvl].centers;
             match self.cl_machines[lvl].consume_chain(chain) {
-                ChainConsumed::Advanced { events, superseded } => {
+                // ★#337：`superseded`（在场终结）已升为**逐实例事件**（带身份+链下标），随
+                // `events` 一并落行 ⟹ 旧的「每 bar 每级一行带 count」聚合行**退役**。
+                ChainConsumed::Advanced { events, superseded: _ } => {
                     for ev in events.iter() {
                         let _ = self.write_cl_event(bar, ev);
                     }
-                    if superseded > 0 {
-                        let _ = self.write_cl_superseded(bar, lvl as u32, superseded);
-                    }
                 }
                 ChainConsumed::Adopted { adopted } => {
-                    let _ = self.write_cl_chain_sync(bar, lvl as u32, "adopt", adopted, adopted);
+                    let _ = self
+                        .write_cl_chain_sync(bar, lvl as u32, "adopt", adopted, chain, false);
                 }
-                ChainConsumed::Rebased { at, len } => {
-                    let _ = self.write_cl_chain_sync(bar, lvl as u32, "rebase", at, len);
+                ChainConsumed::Rebased { at, len: _, revived } => {
+                    let _ =
+                        self.write_cl_chain_sync(bar, lvl as u32, "rebase", at, chain, revived);
                     self.cl_resync_total += 1;
                 }
             }
@@ -584,28 +596,35 @@ impl OpsemDump {
 
     /// ★#336 R3：链同步诊断行（`adopt` = 首次消费静默采纳既有链前缀；`rebase` = 前缀分叉后
     /// 工程重基）。二者都**不伪造**出生/死亡事件，对账时单列。
+    ///
+    /// ★**#337（评审 MAJOR-B）身份字段补齐**：旧行只有 `at`/`chain_len` ⟹ 采纳/重基把「场」
+    /// 落到**谁**身上无从产物级核查（#336 未能判定项 4 只能靠推断）。本行补：
+    /// - `tail_si/tail_zd/tail_zg` = 采纳后的在场实例（链尾）身份，链空写 null；
+    /// - `prev_si/prev_zd/prev_zg` = 容读格（链尾前一格）身份，链长 < 2 写 null；
+    /// - `revived` = 本次重基是否让**此前已被教义死亡杀掉的链尾实例重新在场**（复活实证）。
     fn write_cl_chain_sync(
         &mut self,
         bar: usize,
         level: u32,
         reason: &str,
         at: usize,
-        len: usize,
+        chain: &[super::super::types::Center],
+        revived: bool,
     ) -> std::io::Result<()> {
         use std::io::Write;
+        let id_or_null = |c: Option<&super::super::types::Center>| match c {
+            Some(c) => (c.start_index.to_string(), c.zd.to_string(), c.zg.to_string()),
+            None => ("null".into(), "null".into(), "null".into()),
+        };
+        let (tsi, tzd, tzg) = id_or_null(chain.last());
+        let (psi, pzd, pzg) =
+            id_or_null(if chain.len() >= 2 { chain.get(chain.len() - 2) } else { None });
+        let len = chain.len();
         let json = format!(
             "{{\"bar\":{bar},\"level\":{level},\"kind\":\"chain_sync\",\"reason\":\"{reason}\",\
-             \"at\":{at},\"chain_len\":{len}}}\n"
-        );
-        self.center_lifecycle_buf.write_all(json.as_bytes())
-    }
-
-    /// ★#336 R3：链推进取代诊断行——前一在场实例从未收到死亡事件即被链推进换下。
-    /// **不伪造 broken**（塔无破坏概念，三类点是死亡的唯一教义触发），只如实登记条数。
-    fn write_cl_superseded(&mut self, bar: usize, level: u32, count: usize) -> std::io::Result<()> {
-        use std::io::Write;
-        let json = format!(
-            "{{\"bar\":{bar},\"level\":{level},\"kind\":\"superseded\",\"count\":{count}}}\n"
+             \"at\":{at},\"chain_len\":{len},\"tail_si\":{tsi},\"tail_zd\":{tzd},\
+             \"tail_zg\":{tzg},\"prev_si\":{psi},\"prev_zd\":{pzd},\"prev_zg\":{pzg},\
+             \"revived\":{revived}}}\n"
         );
         self.center_lifecycle_buf.write_all(json.as_bytes())
     }
@@ -698,7 +717,15 @@ impl OpsemDump {
         self.center_lifecycle_buf.write_all(json.as_bytes())
     }
 
-    /// #291：中枢生命周期事件 JSONL 行（born/broken/reset 三类，事件含级别/ZD/ZG/出生段号）。
+    /// #291：中枢生命周期事件 JSONL 行（born/broken/reset；★#337 增 `superseded` = 在场终结）。
+    ///
+    /// ★**#337 两形态分桶登记**（裁定②）：每条**登记了中枢下场**的行都带
+    /// `"death_form":"doctrinal"|"arena_termination"`——教义死亡（三类点破坏 / 一类点同死）
+    /// vs 在场终结（被链推进取代）。`born` 与 died 为空的 `reset` 无该字段（没死人）。
+    /// 二者同走 #292 的「终结」出口（口径见 `center_lifecycle.rs` [`DeathForm`]）。
+    ///
+    /// ★**#337 容读格标记**：`broken`/`reset` 增 `"slot":"tail"|"tail_prev"`——放行落在链尾
+    /// （主格）还是容读格（链尾前一格，被取代的合法死亡）。分桶读数由此可直接从产物统计。
     fn write_cl_event(
         &mut self,
         bar: usize,
@@ -706,6 +733,15 @@ impl OpsemDump {
     ) -> std::io::Result<()> {
         use classifier::center_lifecycle::CenterLifecycleEvent as E;
         use std::io::Write;
+        // 容读格标记：死亡落在链尾（主格）⟹ "tail"；落在链尾前一格 ⟹ "tail_prev"。
+        // 判据 = 该实例链下标 + 1 == 本机当前链长（链尾）。机器侧的 `alive` 已在事件产出时被
+        // 取走 ⟹ 这里用链长而非 alive 判定（链长在死亡事件不变）。
+        let slot_str = |lvl: u32, chain_index: usize| -> &'static str {
+            match self.cl_machines.get(lvl as usize) {
+                Some(m) if chain_index + 1 == m.chain_len() => "tail",
+                _ => "tail_prev",
+            }
+        };
         let side_str = |s: super::super::types::Side| match s {
             super::super::types::Side::Long => "Long",
             super::super::types::Side::Short => "Short",
@@ -717,10 +753,18 @@ impl OpsemDump {
                 gg = center.gg, si = center.start_index, ei = center.end_index, idx = chain_index,
             ),
             E::Broken { level, center, chain_index, breaker_source_index, breaker_side } => format!(
-                "{{\"bar\":{bar},\"level\":{level},\"kind\":\"broken\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"chain_idx\":{idx},\"breaker_src\":{src},\"breaker_side\":\"{side}\"}}\n",
-                bar = bar, level = level, zd = center.zd, zg = center.zg, dd = center.dd,
+                "{{\"bar\":{bar},\"level\":{level},\"kind\":\"broken\",\"death_form\":\"doctrinal\",\"slot\":\"{slot}\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"chain_idx\":{idx},\"breaker_src\":{src},\"breaker_side\":\"{side}\"}}\n",
+                bar = bar, level = level, slot = slot_str(*level, *chain_index),
+                zd = center.zd, zg = center.zg, dd = center.dd,
                 gg = center.gg, si = center.start_index, ei = center.end_index, idx = chain_index,
                 src = breaker_source_index, side = side_str(*breaker_side),
+            ),
+            // ★#337 在场终结（被链推进取代）：与教义死亡分桶，同走「终结」出口。
+            E::Superseded { level, center, chain_index, by_chain_index } => format!(
+                "{{\"bar\":{bar},\"level\":{level},\"kind\":\"superseded\",\"death_form\":\"arena_termination\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"chain_idx\":{idx},\"by_chain_idx\":{by}}}\n",
+                bar = bar, level = level, zd = center.zd, zg = center.zg, dd = center.dd,
+                gg = center.gg, si = center.start_index, ei = center.end_index, idx = chain_index,
+                by = by_chain_index,
             ),
             E::Reset { level, died_center, died_chain_index, trigger_source_index, trigger_side } => {
                 // died 缺席写 null（与 trades.jsonl 缺席字段同款纪律，不编造）。
@@ -734,9 +778,15 @@ impl OpsemDump {
                 // ★#336 R3：`died_born_seg`（段号）→ `died_chain_idx`（链下标）；`cleared_segs`
                 // 随段序列删除而**去掉**（本机无段序列，写 0 会是编造）。
                 let didx = died_chain_index.map_or("null".into(), |o: usize| o.to_string());
+                // ★#337：场为空的一类点边界记录**没死人** ⟹ death_form/slot 一律 null（不编造）。
+                let (dform, slot) = match died_chain_index {
+                    Some(idx) => ("\"doctrinal\"".to_string(), format!("\"{}\"", slot_str(*level, *idx))),
+                    None => ("null".to_string(), "null".to_string()),
+                };
                 format!(
-                    "{{\"bar\":{bar},\"level\":{level},\"kind\":\"reset\",\"died_zd\":{dzd},\"died_zg\":{dzg},\"died_dd\":{ddd},\"died_gg\":{dgg},\"died_si\":{dsi},\"died_ei\":{dei},\"died_chain_idx\":{didx},\"trigger_src\":{src},\"trigger_side\":\"{side}\"}}\n",
-                    bar = bar, level = level, dzd = dzd, dzg = dzg, ddd = ddd, dgg = dgg,
+                    "{{\"bar\":{bar},\"level\":{level},\"kind\":\"reset\",\"death_form\":{dform},\"slot\":{slot},\"died_zd\":{dzd},\"died_zg\":{dzg},\"died_dd\":{ddd},\"died_gg\":{dgg},\"died_si\":{dsi},\"died_ei\":{dei},\"died_chain_idx\":{didx},\"trigger_src\":{src},\"trigger_side\":\"{side}\"}}\n",
+                    bar = bar, level = level, dform = dform, slot = slot,
+                    dzd = dzd, dzg = dzg, ddd = ddd, dgg = dgg,
                     dsi = dsi, dei = dei, didx = didx,
                     src = trigger_source_index, side = side_str(*trigger_side),
                 )
