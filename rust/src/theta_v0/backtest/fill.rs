@@ -1069,7 +1069,7 @@ where
             // center_lifecycle.jsonl）。opsem env 未设 ⟹ None ⟹ 零开销，生产路径 bit-exact 不变；
             // 事件只外化落盘，不回馈任何决策（票面边界：结构地基，动作 = #292）。
             if let Some(dump) = opsem.as_mut() {
-                dump.feed_center_lifecycle(i, &classification_i, &tower_i, &confirmed_lens, &classification_step);
+                dump.feed_center_lifecycle(i, &classification_i, &classification_step);
             }
             let base_units = equity_nav / px; // U_ℓ：NAV/价 = 可建名义手数（方案A协变）
             // 风控门也用**前缀因果分类**（leg 止损 bsp 因果查得，非全窗非因果——与 σ_p 同因果口径）。

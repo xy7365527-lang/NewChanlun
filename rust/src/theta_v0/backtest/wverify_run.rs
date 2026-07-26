@@ -1549,13 +1549,23 @@ fn flip_guard_wf8_onebar_prune_replay() {
 /// bit-exact 中性——零行为变化的实证 = 同目录 trades.jsonl/tower_events.jsonl 与基线逐字段一致，
 /// 该对拍在命令行臂 `M8_WIN_FILTER=wf8 OPSEM_DUMP_DIR=/tmp/center_lifecycle_dump` 下另跑，见票面）。
 ///
+/// ★**#336 R3 口径重写**（旧断言随独立复算路径作废）：事件源已改为消费塔链
+/// （`classification.levels[ℓ].centers`），`born_seg`（段号）→ `chain_idx`（链下标），
+/// `cleared_segs`（段序列清零证据）**已删除**（本机无段序列）。新增诊断行类
+/// `chain_sync`（adopt/rebase）/ `superseded`（链推进取代）/ `stale`（陈旧死亡请求）。
+///
 /// 断言（结构性不变量 + 计数合理性，均不涉轨迹数值——轨迹不变由对拍臂证）：
-/// - 每 born：`zd ≤ zg`（核心非空 = 中枢成立判据，机检不变量）；
-/// - 每 broken：`zd ≤ zg` 且其 born_seg ≥ 3（出生至少 3 段）；
-/// - 每 reset：`cleared_segs ≥ 0`；died 非 null 时 `died_zd ≤ died_zg`；
-/// - 计数：`born ≥ 1`（L0 必现）∧ `broken ≥ 1`（wf8 有三类点）∧ 逐级 `broken ≤ born`
-///   （破坏必先有出生）∧ 逐级 `reset含died ≤ born`；
-/// - resync 诊断行计数如实打印（塔 cascade/级消失的工程再同步，非教义生死）。
+/// - 每 born：`zd ≤ zg`（核心非空 = 中枢成立判据，机检不变量）+ 含 `chain_idx`；
+/// - 每 broken：`zd ≤ zg` + 含 `chain_idx`；
+/// - 每 reset：died 非 null 时 `died_zd ≤ died_zg`；
+/// - 每 stale：`target_idx < alive_idx`（陈旧 = 载体落在游标**上游**，这是 stale 与 miskill
+///   分野的可机检判据）；
+/// - 计数：`born ≥ 1`（L0 必现）∧ 逐级 `broken ≤ born`（破坏必先有出生）；
+/// - 诊断行计数（resync / chain_sync / superseded / stale / miskill）如实打印。
+///
+/// ⚠️ 旧断言「broken ≥ 1（wf8 有三类点 ⟹ 破坏必现）」**改为如实打印不再硬断言**：R3 下三类点
+/// 能否成为 broken 取决于其载体是否恰为链游标处实例，载体落上游 ⟹ 陈旧请求（不是破坏）。
+/// 「wf8 有三类点」不再蕴含「必有 broken」，硬断言会把口径变化伪装成回归。
 ///
 /// `#[ignore]`：需 BTC 数据（DATA BLOCKER 不伪造）；wf8 全窗重放。
 /// `cargo test --release --lib theta_v0::backtest::wverify_run::center_lifecycle_wf8_events_replay -- --ignored --nocapture`
@@ -1617,6 +1627,11 @@ fn center_lifecycle_wf8_events_replay() {
     let mut n_resync = 0usize;
     let mut n_miskill = 0usize;
     let mut n_lines = 0usize;
+    // ★#336 R3 新诊断行类。
+    let mut n_chain_sync = 0usize;
+    let mut n_superseded_rows = 0usize;
+    let mut n_superseded = 0usize;
+    let mut n_stale = 0usize;
     for line in text.lines() {
         if line.is_empty() {
             continue;
@@ -1632,18 +1647,17 @@ fn center_lifecycle_wf8_events_replay() {
                 let zd = v["zd"].as_i64().expect("zd");
                 let zg = v["zg"].as_i64().expect("zg");
                 assert!(zd <= zg, "born 核心非空不变量：zd={zd} ≤ zg={zg}");
-                assert!(v["born_seg"].as_u64().expect("born_seg") >= 3, "出生至少 3 段");
+                assert!(v["chain_idx"].as_u64().is_some(), "★R3：born 含链下标 chain_idx");
                 e.0 += 1;
             }
             "broken" => {
                 let zd = v["zd"].as_i64().expect("zd");
                 let zg = v["zg"].as_i64().expect("zg");
                 assert!(zd <= zg, "broken 死中枢核心非空：zd={zd} ≤ zg={zg}");
-                assert!(v["born_seg"].as_u64().expect("born_seg") >= 3, "死中枢出生至少 3 段");
+                assert!(v["chain_idx"].as_u64().is_some(), "★R3：broken 含链下标 chain_idx");
                 e.1 += 1;
             }
             "reset" => {
-                assert!(v["cleared_segs"].as_u64().is_some(), "reset 含 cleared_segs");
                 if !v["died_zd"].is_null() {
                     let zd = v["died_zd"].as_i64().expect("died_zd");
                     let zg = v["died_zg"].as_i64().expect("died_zg");
@@ -1664,12 +1678,44 @@ fn center_lifecycle_wf8_events_replay() {
                 );
                 n_miskill += 1;
             }
+            // ★#336 R3 诊断行：链同步（adopt/rebase）——静默采纳，不伪造出生/死亡。
+            "chain_sync" => {
+                assert!(
+                    matches!(v["reason"].as_str(), Some("adopt") | Some("rebase")),
+                    "chain_sync reason ∈ {{adopt,rebase}}"
+                );
+                assert!(v["chain_len"].as_u64().is_some(), "chain_sync 含 chain_len");
+                n_chain_sync += 1;
+            }
+            // ★#336 R3 诊断行：链推进取代（前一实例从未收到死亡事件）。
+            "superseded" => {
+                let c = v["count"].as_u64().expect("superseded 含 count");
+                assert!(c >= 1, "superseded 行 count ≥ 1（不写空行）");
+                n_superseded_rows += 1;
+                n_superseded += c as usize;
+            }
+            // ★#336 R3 诊断行：陈旧死亡请求（载体命中链上已退场实例）。
+            "stale" => {
+                let ai = v["alive_idx"].as_u64().expect("stale 含 alive_idx");
+                let ti = v["target_idx"].as_u64().expect("stale 含 target_idx");
+                assert!(
+                    ti < ai,
+                    "★R3 stale 判据：载体落游标上游（target_idx={ti} < alive_idx={ai}）——\
+                     否则不该被判陈旧（miskill/broken 的域）"
+                );
+                assert!(
+                    matches!(v["trigger"].as_str(), Some("first") | Some("third")),
+                    "stale 触发类 ∈ {{first,third}}"
+                );
+                n_stale += 1;
+            }
             other => panic!("未知事件类：{other}"),
         }
     }
     assert!(n_lines > 0, "wf8 事件流非空（否则测试空转）");
 
-    // 计数合理性：L0 born ≥ 1；全局 broken ≥ 1；逐级 broken ≤ born（破坏必先有出生）。
+    // 计数合理性：L0 born ≥ 1；逐级 broken ≤ born（破坏必先有出生）。
+    // ★R3：不再硬断言 `broken ≥ 1`（见头注——三类点能否成为 broken 取决于载体是否在游标处）。
     let l0 = counts.get(&0).copied().unwrap_or((0, 0, 0));
     assert!(l0.0 >= 1, "L0 中枢出生必现（wf8 26 万 bar 段数以千计）");
     let (mut tb, mut tk, mut tr) = (0usize, 0usize, 0usize);
@@ -1679,10 +1725,11 @@ fn center_lifecycle_wf8_events_replay() {
         tk += k;
         tr += r;
     }
-    assert!(tk >= 1, "wf8 有三类买卖点 ⟹ 破坏事件必现");
     eprintln!(
-        "[#291] wf8 中枢生命周期：born={tb} broken={tk} reset={tr} resync={n_resync} \
-         miskill={n_miskill}（#329 身份校验拒杀）；逐级 {counts:?}"
+        "[#291/#336 R3] wf8 中枢生命周期（塔链消费）：born={tb} broken={tk} reset={tr} \
+         miskill={n_miskill}（载体不在链上）stale={n_stale}（载体在链上但已退场）\
+         superseded={n_superseded}（{n_superseded_rows} 行）chain_sync={n_chain_sync} \
+         resync={n_resync}；逐级 {counts:?}"
     );
 }
 

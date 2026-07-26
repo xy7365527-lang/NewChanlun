@@ -179,11 +179,12 @@ pub(super) struct OpsemDump {
     active_end: Option<usize>,
     /// 上一 bar 的塔（仅交易活跃区间内 diff，O(n) per bar）。
     prev_tower: Option<Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>>,
-    /// ★#291：每级一台中枢生命周期事件机（下标=级别）。
+    /// ★#291：每级一台中枢生命周期事件机（下标=级别）。★#336 R3：机器改为塔链消费器 ⟹
+    /// 旧的 `cl_fed_units`（每级 units 投影缓存）随独立复算路径一并删除（谱系注记见
+    /// `feed_center_lifecycle` 模块头「已作废」节）。
     cl_machines: Vec<classifier::center_lifecycle::CenterEventMachine>,
-    /// ★#291：每级已喂事件机的 units 投影缓存（长度 = 该级已喂段数 fed；前缀含水线内稳定段）。
-    cl_fed_units: Vec<Vec<classifier::center::UnitRange>>,
-    /// ★#291：工程再同步累计（塔 cascade/水线回缩/级消失 ⟹ 该级 resync；非教义生死，照实单列）。
+    /// ★#291：工程再同步累计（级消失 / ★#336 R3 链前缀分叉重基 ⟹ 该级重同步；非教义生死，
+    /// 照实单列）。
     cl_resync_total: u64,
     /// ★#329：误杀拒绝累计（触发点载体身份 ≠ 在场中枢身份 ⟹ 事件机拒杀，落 `kind:"miskill"`）。
     cl_miskill_total: u64,
@@ -230,7 +231,6 @@ impl OpsemDump {
             active_end: None,
             prev_tower: None,
             cl_machines: Vec::new(),
-            cl_fed_units: Vec::new(),
             cl_resync_total: 0,
             cl_miskill_total: 0,
         })
@@ -466,71 +466,45 @@ impl OpsemDump {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    //  ★#291（SPEC #274 T1）中枢生命周期事件机只读旁路（ADR 0001 修正案一·补充二
-    //  「中枢=事件」：出生=第三段重叠完成；破坏=三类买卖点；本级一类点 ⟹ 段序列与在场
-    //  中枢同死）。事件落 `center_lifecycle.jsonl`，**只外化不回馈决策**（票面边界：
+    //  ★#291（SPEC #274 T1）中枢生命周期事件机只读旁路；★**#336 R3：事件源改为消费塔链**
+    //  （单一真相源）。事件落 `center_lifecycle.jsonl`，**只外化不回馈决策**（票面边界：
     //  结构地基，狭义短差动作 = #292；默认零行为变化——env 未设本方法不被调用）。
     //
-    //  喂数口径（因果，禁第二判据源——构造算子/投影函数全部复用分类器单一来源）：
-    //  - **段序列**：只喂**确认前缀**内的段。L0 段 = `tower[0][..confirmed_lens[0]]`
-    //    （parser `segments_confirmed_len` 证书，跨 bar bit-stable，`LeveledMove::from_unit`
-    //    逆恢复 `UnitRange`）；ℓ≥1 段 = `project_to_units_resume(tower[ℓ][..w], blocks)`
-    //    增量投影（`blocks` = `levels[ℓ-1].moves`，分类器内部唯一正确配对
-    //    `units_j = project_to_units_resume(tower[j], levels[j-1].moves)`，`mod.rs:2158-2171`）。
-    //
-    //    ★#331/R8（旧口径作废，见下）：旧式喂 `tower[ℓ-1]` 是塔层错一级——事件机 level ℓ 本应
-    //    吃 `tower[ℓ]`（与 `classification.levels[ℓ].centers` 同层输入，见
-    //    `.chanlun/review-results/center-death-identity-rootcause-20260726.md` §2.3），旧式
-    //    `blocks=levels[ℓ-1].moves` 恰与 `tower[ℓ-1]` 不配对（该 `blocks` 本应配 `tower[ℓ]`）。
-    //    改后一次同时修好塔层对齐与 blocks 配对。
-    //
-    //    ℓ≥1 水线（新层重推，#331/#330 裁定一）：确认前缀改用 `confirmed_lens[ℓ]`
-    //    （`incremental.rs:105-113`：`out[ℓ] = tower[ℓ][..out[ℓ]]` 跨 bar bit-stable 下界，
-    //    直接以塔层下标索引，非 `ℓ-1`）；方向冻结界随投影源换层重导——单元 i 方向 =
-    //    `center_own_dir_at(levels[ℓ-1].moves, i)`，i 是**中枢下标**（`decompose.rs:180-188`），
-    //    中枢序列 = `levels[ℓ-1].centers`，与 `tower[ℓ]` 1:1（`recursive_tower.rs` 「与
-    //    upper_moves 1:1 的 centers」）⟹ m = `tower[ℓ].len()`；关系 R(i-1,i) 冻结 ⟺
-    //    i-1 < m-2 ⟺ i < m-1 ⟹ 只能喂到 i ≤ m-2 ⟹ `w ≤ tower[ℓ].len()-1`。故
-    //    `w = min(confirmed_lens[ℓ], tower[ℓ].len().saturating_sub(1))`（旧式
-    //    `w = min(confirmed_lens[ℓ-1], parent_len-1)` 绑在旧层上，已作废，不再适用）。
-    //    frontier（未确认尾段/临时尾关系）不喂——事件机比塔更保守（塔中枢可含 frontier
-    //    段），born 时点可能**晚于**塔 new_center（对账口径差异，如实列出）。
+    //  喂数口径（R3 后，禁第二判据源 ⟹ 禁第二复算）：
+    //  - **在场中枢（出生源）**：本级塔链 `classification.levels[ℓ].centers` 的**当前全量**，
+    //    经 [`classifier::center_lifecycle::CenterEventMachine::consume_chain`] 逐 bar 消费。
+    //    这**恰是死亡请求载体的源表**（`mod.rs` BSP 提取喂给 level ℓ 的 centers）⟹ 在场与
+    //    载体同表同层，级别对齐按定义成立。
     //  - **买卖点**：`step`（`newly_confirmed_step` append-only diff）的本 bar 新确认点，
     //    修6「定账只消费已确认的点」。
-    //  - **事件域**：仅交易活跃区间（与 tower_events 同门）——机器自首个活跃 bar 起从空
-    //    段序列开始喂（born_seg_ordinal 是活跃窗内序号，对账口径写明）。
-    //  - **resync（工程再同步，非教义生死）**：水线回缩（塔 cascade 失效传播）或级消失
-    //    ⟹ 该级机器 `resync()`（清段序列+在场中枢，不产生死事件）+ 落 `kind:"resync"`
-    //    诊断行 + `cl_resync_total` 计数。对账时排除该行。R2（#331）逃逸阀 resync 同款计数
-    //    （见下 `MISKILL_ESCAPE_N`）。
-    //  - **R0′（#331/#330 裁定二，center_lifecycle.rs 侧）**：三类破坏后已消费段（旧中枢出生
-    //    窗口及其之前）随之丢弃，不再参与新中枢计数——`born_seg_ordinal` 的分母口径随之变化
-    //    （相对「已消费段丢弃后的当前段序列」计数），旧 wf8 对账读数（假设不清零/ordinal 偏移）
-    //    据此作废。
+    //  - **事件域**：仅交易活跃区间（与 tower_events 同门）。首个活跃 bar 链上已有的中枢走
+    //    **静默采纳**（`kind:"chain_sync" reason:"adopt"` 诊断行，不伪造出生 bar）——与
+    //    `write_tower_event` 同款纪律（该处 `prev_tower` 在非活跃 bar 也持续更新 ⟹ 首个活跃
+    //    bar 不重播既有 Compose）。故 **born 计数应与 `tower_events` 的 `new_center` 逐级对账**：
+    //    机器 level ℓ ⟺ 塔 `new_center level=ℓ+1`（塔 L(k) ≡ `levels[k-1].centers`，见
+    //    `.chanlun/review-results/center-death-identity-rootcause-20260726.md` §2.3）。
+    //  - **前缀分叉 → 重基**：该级塔缓存全量重置/链回缩 ⟹ `kind:"chain_sync" reason:"rebase"`
+    //    诊断行（静默采纳当前链，不伪造出生/死亡）。级消失仍走 `kind:"resync"`。
+    //  - **链推进取代**：链前进时前一实例从未收到死亡事件 ⟹ `kind:"superseded"` 诊断行
+    //    （**不伪造** broken——塔无破坏概念，三类点是死亡的唯一教义触发）。
+    //  - **陈旧死亡请求**：载体命中链上已退场实例 ⟹ `kind:"stale"` 诊断行，不计 miskill
+    //    （时序滞后，非错位；口径见 `center_lifecycle.rs` [`StaleKillRequest`]）。
+    //
+    //  ★**已作废（谱系注记，#336 R3）**：旧口径整节（L0 喂 `tower[0][..confirmed_lens[0]]` +
+    //  ℓ≥1 喂 `project_to_units_resume(tower[ℓ][..w], levels[ℓ-1].moves)` + 方向冻结水线推导 +
+    //  `cl_fed_units` 投影缓存 + `watermark_shrink` resync + #331 R8 层对齐 + #331 R0′ 段游标 +
+    //  #331 R2 `MISKILL_ESCAPE_N` 逃逸阀）**全部删除**：那条路径是把塔既有的中枢构造重实现了
+    //  一遍（建造错误 = 重造没接生产，同型事故），产出塔链外的第二条中枢链。R3 废止之。
+    //  **#291 wf8 对账基线（255/711、83/751、763 born/733 broken/59 reset 等）随之全部作废**。
     // ─────────────────────────────────────────────────────────────────────
-
-    /// ★#331 R2：拒杀逃逸阀阈值——**同一在场中枢实例上**累计拒杀（[`CenterEventMachine::
-    /// alive_mis_kills`](classifier::center_lifecycle::CenterEventMachine::alive_mis_kills)）达此值
-    /// ⟹ 工程 `resync()`，止血 R8/R0′ 修不到的残余结构性锁死（报告 §5 R2 原文即「**累积**拒杀
-    /// N 次 ⟹ 该机 resync()」；同节警告「R2 单独上无效，必须配 R8/R0′」——本次三件套同批落地，
-    /// 此值不是替代修法，是兜底止血）。
-    ///
-    /// 选值理由：D6（点乱序投递）实测陈旧请求仅 4/888 ≈ 0.45%（根因报告 §4.4）——阈值须显著
-    /// 高于该噪声水平，避免把偶发乱序误判成结构性锁死而过早 resync；16 次累计拒杀在 wf8 实测
-    /// 锁死规模（792/51/18/27 条，§4.1）下仍能在有限步内触发逃逸，不放任无限吸收。
-    const MISKILL_ESCAPE_N: usize = 16;
 
     pub(super) fn feed_center_lifecycle(
         &mut self,
         bar: usize,
         classification: &classifier::Classification,
-        tower: &[std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>],
-        confirmed_lens: &[usize],
         step: &classifier::Classification,
     ) {
-        use classifier::center::UnitRange;
-        use classifier::center_lifecycle::{CenterEventMachine, CenterId, CenterLifecycleEvent};
-        use classifier::descend::RMove;
+        use classifier::center_lifecycle::{CenterEventMachine, CenterId, ChainConsumed, PointOutcome};
 
         // 事件域 = 交易活跃区间（与 write_tower_event 同门）。
         let active = match (self.active_start, self.active_end) {
@@ -543,11 +517,10 @@ impl OpsemDump {
         }
 
         // 级数对齐：新级涌现 ⟹ 补建事件机；级消失 ⟹ 截断（工程 resync，照实计数+诊断行）。
-        let n_levels = classification.levels.len().min(tower.len());
+        let n_levels = classification.levels.len();
         while self.cl_machines.len() < n_levels {
             let lvl = self.cl_machines.len() as u32;
             self.cl_machines.push(CenterEventMachine::new(lvl));
-            self.cl_fed_units.push(Vec::new());
         }
         if self.cl_machines.len() > n_levels {
             for lvl in n_levels..self.cl_machines.len() {
@@ -555,109 +528,125 @@ impl OpsemDump {
                 self.cl_resync_total += 1;
             }
             self.cl_machines.truncate(n_levels);
-            self.cl_fed_units.truncate(n_levels);
         }
 
         for lvl in 0..n_levels {
-            // ── 段水线（确认前缀；ℓ≥1 再按 ownership 方向冻结界收窄）──
-            // ★#331 R8：投影源换层（tower[ℓ-1]→tower[ℓ]）后水线随之重推，见模块头新层推导。
-            let w = if lvl == 0 {
-                confirmed_lens.first().copied().unwrap_or(0).min(tower[0].len())
-            } else {
-                confirmed_lens
-                    .get(lvl)
-                    .copied()
-                    .unwrap_or(0)
-                    .min(tower[lvl].len().saturating_sub(1))
-            };
-            // ── 水线回缩（cascade 传播）⟹ 该级工程 resync，重喂新前缀 ──
-            if w < self.cl_fed_units[lvl].len() {
-                self.cl_machines[lvl].resync();
-                self.cl_fed_units[lvl].clear();
-                let _ = self.write_cl_resync(bar, lvl as u32, "watermark_shrink");
-                self.cl_resync_total += 1;
-            }
-            // ── 喂新确认段（投影增量，摊还 O(新增)/bar）──
-            let fed = self.cl_fed_units[lvl].len();
-            if w > fed {
-                if lvl == 0 {
-                    for m in tower[0][fed..w].iter() {
-                        if let RMove::Segment { direction, lo, hi } = &m.rmove {
-                            self.cl_fed_units[lvl].push(UnitRange {
-                                start_index: m.start_index,
-                                end_index: m.end_index,
-                                direction: *direction,
-                                lo: *lo,
-                                hi: *hi,
-                            });
-                        }
+            // ── ★R3 事件源：消费本级塔链（唯一真相源；born 由链推进直接推出）──
+            let chain: &[super::super::types::Center] = &classification.levels[lvl].centers;
+            match self.cl_machines[lvl].consume_chain(chain) {
+                ChainConsumed::Advanced { events, superseded } => {
+                    for ev in events.iter() {
+                        let _ = self.write_cl_event(bar, ev);
                     }
-                } else {
-                    // ★#331 R8 配对守卫：`levels[lvl-1].centers` 与 `tower[lvl]` 1:1（塔
-                    // `new_center level=k` 恰为 `levels[k-1].centers`，见根因报告 §2.3/§3
-                    // 「塔 L(k) ≡ classification.levels[k-1].centers」）——锁住本次修的配对，
-                    // 若该不变量被打破需先查 compose_level/compose_level_resume 是否仍保持
-                    // 「每中枢一个 Compose」1:1 产出（recursive_tower.rs:297-336）。
-                    debug_assert_eq!(
-                        classification.levels[lvl - 1].centers.len(),
-                        tower[lvl].len(),
-                        "#331 R8：levels[{}].centers 与 tower[{}] 应 1:1（塔层配对不变量）",
-                        lvl - 1,
-                        lvl
-                    );
-                    // 单一来源增量投影（mod.rs A3 §2.5 同款调用形；投影源 = tower[lvl]（本级
-                    // 输入塔，#331 R8 换层——旧式 tower[lvl-1] 已作废），blocks = levels[lvl-1].moves
-                    // （唯一正确配对，mod.rs:2158-2171）。已喂段方向由水线收窄保证冻结 ⟹ resume
-                    // 契约「前缀一致」成立。
-                    classifier::recursive_tower::project_to_units_resume(
-                        &tower[lvl][..w],
-                        &classification.levels[lvl - 1].moves,
-                        &mut self.cl_fed_units[lvl],
-                    );
+                    if superseded > 0 {
+                        let _ = self.write_cl_superseded(bar, lvl as u32, superseded);
+                    }
                 }
-                let new_units = self.cl_fed_units[lvl][fed..].to_vec();
-                for u in new_units {
-                    if let Some(ev) = self.cl_machines[lvl].push_segment(u) {
-                        let _ = self.write_cl_event(bar, &ev);
-                    }
+                ChainConsumed::Adopted { adopted } => {
+                    let _ = self.write_cl_chain_sync(bar, lvl as u32, "adopt", adopted, adopted);
+                }
+                ChainConsumed::Rebased { at, len } => {
+                    let _ = self.write_cl_chain_sync(bar, lvl as u32, "rebase", at, len);
+                    self.cl_resync_total += 1;
                 }
             }
             // ── 喂本 bar 新确认买卖点（修6：只消费已确认的点）──
             //
-            // ★#329 H1：破坏/重置必须校验「杀的是哪个中枢」——触发点自带载体
+            // ★#329 H1（R3 后口径收窄）：破坏/重置必须指名道姓——触发点自带载体
             // （`BspPoint.center`：一类 = 被破的最后中枢、三类 = 所离开回抽的中枢）⟹ 取其
-            // [`CenterId`]（si,zd,zg）作 target 传入。身份不符 ⟹ 事件机拒杀并返回误杀证据，
-            // 本层落 `kind:"miskill"` 诊断行（不静默吞——诊断可见性同 resync 先例）。
+            // [`CenterId`]（si,zd,zg）作 target 传入。载体不在本级链上 ⟹ 事件机拒杀并返回误杀
+            // 证据（`kind:"miskill"`）；载体命中链上已退场实例 ⟹ 陈旧请求（`kind:"stale"`）。
             if let Some(step_level) = step.levels.get(lvl) {
                 for p in step_level.bsp.iter() {
                     let target = match p.center {
                         Some(classifier::bsp::OwnerRef::Center(c)) => Some(CenterId::of(&c)),
-                        // 二类锚（`Type1Anchor`）/ 载体缺席 ⟹ 无中枢身份可声明（None ⟹ 有在场
-                        // 中枢时必拒杀；二类点本就不产事件，实测 wf8 零命中）。
+                        // 二类锚（`Type1Anchor`）/ 载体缺席 ⟹ 无中枢身份可声明（None ⟹ 场非空
+                        // 时必拒杀；二类点本就不产事件，实测 wf8 零命中）。
                         _ => None,
                     };
                     match self.cl_machines[lvl].push_point(p.bits, p.source_index, target) {
-                        Ok(Some(ev)) => {
+                        Ok(PointOutcome::Event(ev)) => {
                             let _ = self.write_cl_event(bar, &ev);
                         }
-                        Ok(None) => {}
+                        Ok(PointOutcome::Stale(st)) => {
+                            let _ = self.write_cl_stale(bar, &st);
+                        }
+                        Ok(PointOutcome::Silent) => {}
                         Err(mk) => {
                             let _ = self.write_cl_miskill(bar, &mk);
                             self.cl_miskill_total += 1;
-                            // ★#331 R2：拒杀逃逸阀——同一在场实例上累计拒杀达阈值 ⟹ 该级工程
-                            // resync，止血 R8/R0′ 修不到的残余结构性锁死（报告 §5：R2 单独上
-                            // 无效，必须配 R8/R0′；本次三件套同批落地，此处非替代修法，是兜底）。
-                            if self.cl_machines[lvl].alive_mis_kills() >= Self::MISKILL_ESCAPE_N {
-                                self.cl_machines[lvl].resync();
-                                self.cl_fed_units[lvl].clear();
-                                let _ = self.write_cl_resync(bar, lvl as u32, "miskill_escape_valve");
-                                self.cl_resync_total += 1;
-                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    /// ★#336 R3：链同步诊断行（`adopt` = 首次消费静默采纳既有链前缀；`rebase` = 前缀分叉后
+    /// 工程重基）。二者都**不伪造**出生/死亡事件，对账时单列。
+    fn write_cl_chain_sync(
+        &mut self,
+        bar: usize,
+        level: u32,
+        reason: &str,
+        at: usize,
+        len: usize,
+    ) -> std::io::Result<()> {
+        use std::io::Write;
+        let json = format!(
+            "{{\"bar\":{bar},\"level\":{level},\"kind\":\"chain_sync\",\"reason\":\"{reason}\",\
+             \"at\":{at},\"chain_len\":{len}}}\n"
+        );
+        self.center_lifecycle_buf.write_all(json.as_bytes())
+    }
+
+    /// ★#336 R3：链推进取代诊断行——前一在场实例从未收到死亡事件即被链推进换下。
+    /// **不伪造 broken**（塔无破坏概念，三类点是死亡的唯一教义触发），只如实登记条数。
+    fn write_cl_superseded(&mut self, bar: usize, level: u32, count: usize) -> std::io::Result<()> {
+        use std::io::Write;
+        let json = format!(
+            "{{\"bar\":{bar},\"level\":{level},\"kind\":\"superseded\",\"count\":{count}}}\n"
+        );
+        self.center_lifecycle_buf.write_all(json.as_bytes())
+    }
+
+    /// ★#336 R3：陈旧死亡请求诊断行——载体命中链上**已退场**实例（时序滞后，非错位）。
+    /// 与 `miskill` 严格分列：`Δidx = target_idx - alive_idx` 是滞后深度（应为负）。
+    fn write_cl_stale(
+        &mut self,
+        bar: usize,
+        st: &classifier::center_lifecycle::StaleKillRequest,
+    ) -> std::io::Result<()> {
+        use classifier::center_lifecycle::KillTrigger;
+        use std::io::Write;
+        let trigger = match st.trigger {
+            KillTrigger::FirstClass => "first",
+            KillTrigger::ThirdClass => "third",
+        };
+        let side = match st.trigger_side {
+            super::super::types::Side::Long => "Long",
+            super::super::types::Side::Short => "Short",
+        };
+        let json = format!(
+            "{{\"bar\":{bar},\"level\":{lvl},\"kind\":\"stale\",\"trigger\":\"{trigger}\",\
+             \"src\":{src},\"side\":\"{side}\",\"alive_si\":{asi},\"alive_zd\":{azd},\
+             \"alive_zg\":{azg},\"alive_idx\":{aidx},\"target_si\":{tsi},\"target_zd\":{tzd},\
+             \"target_zg\":{tzg},\"target_idx\":{tidx}}}\n",
+            bar = bar,
+            lvl = st.level,
+            trigger = trigger,
+            src = st.trigger_source_index,
+            side = side,
+            asi = st.alive.start_index,
+            azd = st.alive.zd,
+            azg = st.alive.zg,
+            aidx = st.alive_chain_index,
+            tsi = st.target.start_index,
+            tzd = st.target.zd,
+            tzg = st.target.zg,
+            tidx = st.target_chain_index,
+        );
+        self.center_lifecycle_buf.write_all(json.as_bytes())
     }
 
     /// #291：工程再同步诊断行（非教义生死；对账排除）。
@@ -722,18 +711,18 @@ impl OpsemDump {
             super::super::types::Side::Short => "Short",
         };
         let json = match ev {
-            E::Born { level, center, born_seg_ordinal } => format!(
-                "{{\"bar\":{bar},\"level\":{level},\"kind\":\"born\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"born_seg\":{ord}}}\n",
+            E::Born { level, center, chain_index } => format!(
+                "{{\"bar\":{bar},\"level\":{level},\"kind\":\"born\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"chain_idx\":{idx}}}\n",
                 bar = bar, level = level, zd = center.zd, zg = center.zg, dd = center.dd,
-                gg = center.gg, si = center.start_index, ei = center.end_index, ord = born_seg_ordinal,
+                gg = center.gg, si = center.start_index, ei = center.end_index, idx = chain_index,
             ),
-            E::Broken { level, center, born_seg_ordinal, breaker_source_index, breaker_side } => format!(
-                "{{\"bar\":{bar},\"level\":{level},\"kind\":\"broken\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"born_seg\":{ord},\"breaker_src\":{src},\"breaker_side\":\"{side}\"}}\n",
+            E::Broken { level, center, chain_index, breaker_source_index, breaker_side } => format!(
+                "{{\"bar\":{bar},\"level\":{level},\"kind\":\"broken\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"chain_idx\":{idx},\"breaker_src\":{src},\"breaker_side\":\"{side}\"}}\n",
                 bar = bar, level = level, zd = center.zd, zg = center.zg, dd = center.dd,
-                gg = center.gg, si = center.start_index, ei = center.end_index, ord = born_seg_ordinal,
+                gg = center.gg, si = center.start_index, ei = center.end_index, idx = chain_index,
                 src = breaker_source_index, side = side_str(*breaker_side),
             ),
-            E::Reset { level, died_center, died_born_seg_ordinal, cleared_segments, trigger_source_index, trigger_side } => {
+            E::Reset { level, died_center, died_chain_index, trigger_source_index, trigger_side } => {
                 // died 缺席写 null（与 trades.jsonl 缺席字段同款纪律，不编造）。
                 let (dzd, dzg, ddd, dgg, dsi, dei) = match died_center {
                     Some(c) => (
@@ -742,11 +731,13 @@ impl OpsemDump {
                     ),
                     None => ("null".into(), "null".into(), "null".into(), "null".into(), "null".into(), "null".into()),
                 };
-                let dord = died_born_seg_ordinal.map_or("null".into(), |o| o.to_string());
+                // ★#336 R3：`died_born_seg`（段号）→ `died_chain_idx`（链下标）；`cleared_segs`
+                // 随段序列删除而**去掉**（本机无段序列，写 0 会是编造）。
+                let didx = died_chain_index.map_or("null".into(), |o: usize| o.to_string());
                 format!(
-                    "{{\"bar\":{bar},\"level\":{level},\"kind\":\"reset\",\"died_zd\":{dzd},\"died_zg\":{dzg},\"died_dd\":{ddd},\"died_gg\":{dgg},\"died_si\":{dsi},\"died_ei\":{dei},\"died_born_seg\":{dord},\"cleared_segs\":{cleared},\"trigger_src\":{src},\"trigger_side\":\"{side}\"}}\n",
+                    "{{\"bar\":{bar},\"level\":{level},\"kind\":\"reset\",\"died_zd\":{dzd},\"died_zg\":{dzg},\"died_dd\":{ddd},\"died_gg\":{dgg},\"died_si\":{dsi},\"died_ei\":{dei},\"died_chain_idx\":{didx},\"trigger_src\":{src},\"trigger_side\":\"{side}\"}}\n",
                     bar = bar, level = level, dzd = dzd, dzg = dzg, ddd = ddd, dgg = dgg,
-                    dsi = dsi, dei = dei, dord = dord, cleared = cleared_segments,
+                    dsi = dsi, dei = dei, didx = didx,
                     src = trigger_source_index, side = side_str(*trigger_side),
                 )
             }
