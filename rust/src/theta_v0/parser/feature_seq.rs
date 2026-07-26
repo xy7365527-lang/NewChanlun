@@ -465,10 +465,10 @@ mod tests {
 
     #[test]
     fn is_fractal_and_gap_up_top_with_gap() {
-        // 向上段：b_h 最高 → 顶分型；b_l >= a_h → 缺口。
+        // 向上段：b_h 最高 → 顶分型；b_l > a_h → 缺口（#246 严格）。
         let (f, g) = is_fractal_and_gap(10, 5, 20, 12, 8, 3, Direction::Up);
         assert!(f); // 20 > 10 && 20 > 8
-        assert!(g); // b_l=12 >= a_h=10
+        assert!(g); // b_l=12 > a_h=10（严格）
     }
 
     #[test]
@@ -481,10 +481,10 @@ mod tests {
 
     #[test]
     fn is_fractal_and_gap_down_bottom() {
-        // 向下段：b_l 最低 → 底分型；a_l >= b_h → 缺口。
+        // 向下段：b_l 最低 → 底分型；a_l > b_h → 缺口（#246 严格）。
         let (f, g) = is_fractal_and_gap(15, 12, 8, 3, 18, 14, Direction::Down);
         assert!(f); // 3 < 12 && 3 < 14
-        assert!(g); // a_l=12 >= b_h=8
+        assert!(g); // a_l=12 > b_h=8（严格）
     }
 
     /// ★#312 主缝：`is_fractal_and_gap` 的缺口真值 == Lean `decide (HasGap a b)`（fixture 机器导出）。
