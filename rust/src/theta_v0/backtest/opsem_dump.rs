@@ -169,12 +169,22 @@ pub(super) fn strict_nest_sidecar_enabled() -> bool {
 pub(super) struct OpsemDump {
     trades_buf: std::io::BufWriter<std::fs::File>,
     tower_buf: std::io::BufWriter<std::fs::File>,
+    /// ★#291（SPEC #274 T1）：中枢生命周期事件流 `center_lifecycle.jsonl`（born/broken/reset +
+    /// resync 工程诊断行）。与 trades/tower_events 并列第三产物——同一 env 门（OPSEM_DUMP_DIR
+    /// 未设 ⟹ 本写入器不存在，feed 不执行，生产路径 bit-exact 不变）；事件只外化不回馈决策。
+    center_lifecycle_buf: std::io::BufWriter<std::fs::File>,
     trade_id_counter: u64,
     /// 交易活跃区间（首入场 bar .. 末离场 bar）；None=尚未见入场。
     active_start: Option<usize>,
     active_end: Option<usize>,
     /// 上一 bar 的塔（仅交易活跃区间内 diff，O(n) per bar）。
     prev_tower: Option<Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>>,
+    /// ★#291：每级一台中枢生命周期事件机（下标=级别）。
+    cl_machines: Vec<classifier::center_lifecycle::CenterEventMachine>,
+    /// ★#291：每级已喂事件机的 units 投影缓存（长度 = 该级已喂段数 fed；前缀含水线内稳定段）。
+    cl_fed_units: Vec<Vec<classifier::center::UnitRange>>,
+    /// ★#291：工程再同步累计（塔 cascade/水线回缩/级消失 ⟹ 该级 resync；非教义生死，照实单列）。
+    cl_resync_total: u64,
 }
 
 #[cfg(test)]
@@ -207,13 +217,19 @@ impl OpsemDump {
         std::fs::create_dir_all(dir_path).ok()?;
         let trades_file = std::fs::File::create(dir_path.join("trades.jsonl")).ok()?;
         let tower_file = std::fs::File::create(dir_path.join("tower_events.jsonl")).ok()?;
+        // ★#291：第三产物（同截断语义——每次回测重写）。
+        let cl_file = std::fs::File::create(dir_path.join("center_lifecycle.jsonl")).ok()?;
         Some(Self {
             trades_buf: std::io::BufWriter::new(trades_file),
             tower_buf: std::io::BufWriter::new(tower_file),
+            center_lifecycle_buf: std::io::BufWriter::new(cl_file),
             trade_id_counter: 0,
             active_start: None,
             active_end: None,
             prev_tower: None,
+            cl_machines: Vec::new(),
+            cl_fed_units: Vec::new(),
+            cl_resync_total: 0,
         })
     }
 
@@ -443,6 +459,184 @@ impl OpsemDump {
         use std::io::Write;
         let _ = self.trades_buf.flush();
         let _ = self.tower_buf.flush();
+        let _ = self.center_lifecycle_buf.flush();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  ★#291（SPEC #274 T1）中枢生命周期事件机只读旁路（ADR 0001 修正案一·补充二
+    //  「中枢=事件」：出生=第三段重叠完成；破坏=三类买卖点；本级一类点 ⟹ 段序列与在场
+    //  中枢同死）。事件落 `center_lifecycle.jsonl`，**只外化不回馈决策**（票面边界：
+    //  结构地基，狭义短差动作 = #292；默认零行为变化——env 未设本方法不被调用）。
+    //
+    //  喂数口径（因果，禁第二判据源——构造算子/投影函数全部复用分类器单一来源）：
+    //  - **段序列**：只喂**确认前缀**内的段。L0 段 = `tower[0][..confirmed_lens[0]]`
+    //    （parser `segments_confirmed_len` 证书，跨 bar bit-stable，`LeveledMove::from_unit`
+    //    逆恢复 `UnitRange`）；ℓ≥1 段 = `project_to_units_resume(tower[ℓ-1][..w], blocks)`
+    //    增量投影（`blocks` = `levels[ℓ-1].moves`，与分类器内部同函数同输入）。ℓ≥1 水线
+    //    `w = min(confirmed_lens[ℓ-1], parent_len-1)`：单元 i 方向由 ownership 关系 R(i-1)
+    //    定，R(i-1) 冻结 ⟺ i ≤ m-2（decompose 模块头：R_j 冻结 ⟺ j < m-2）⟹ 喂到
+    //    i < m-1 保证已喂段方向永冻、前缀一致。frontier（未确认尾段/临时尾关系）不喂——
+    //    事件机比塔更保守（塔中枢可含 frontier 段），born 时点可能**晚于**塔 new_center
+    //    （对账口径差异，如实列出）。
+    //  - **买卖点**：`step`（`newly_confirmed_step` append-only diff）的本 bar 新确认点，
+    //    修6「定账只消费已确认的点」。
+    //  - **事件域**：仅交易活跃区间（与 tower_events 同门）——机器自首个活跃 bar 起从空
+    //    段序列开始喂（born_seg_ordinal 是活跃窗内序号，对账口径写明）。
+    //  - **resync（工程再同步，非教义生死）**：水线回缩（塔 cascade 失效传播）或级消失
+    //    ⟹ 该级机器 `resync()`（清段序列+在场中枢，不产生死事件）+ 落 `kind:"resync"`
+    //    诊断行 + `cl_resync_total` 计数。对账时排除该行。
+    // ─────────────────────────────────────────────────────────────────────
+    pub(super) fn feed_center_lifecycle(
+        &mut self,
+        bar: usize,
+        classification: &classifier::Classification,
+        tower: &[std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>],
+        confirmed_lens: &[usize],
+        step: &classifier::Classification,
+    ) {
+        use classifier::center::UnitRange;
+        use classifier::center_lifecycle::{CenterEventMachine, CenterLifecycleEvent};
+        use classifier::descend::RMove;
+
+        // 事件域 = 交易活跃区间（与 write_tower_event 同门）。
+        let active = match (self.active_start, self.active_end) {
+            (Some(s), _) if bar < s => false,
+            (_, Some(_)) => true,
+            _ => false,
+        };
+        if !active {
+            return;
+        }
+
+        // 级数对齐：新级涌现 ⟹ 补建事件机；级消失 ⟹ 截断（工程 resync，照实计数+诊断行）。
+        let n_levels = classification.levels.len().min(tower.len());
+        while self.cl_machines.len() < n_levels {
+            let lvl = self.cl_machines.len() as u32;
+            self.cl_machines.push(CenterEventMachine::new(lvl));
+            self.cl_fed_units.push(Vec::new());
+        }
+        if self.cl_machines.len() > n_levels {
+            for lvl in n_levels..self.cl_machines.len() {
+                let _ = self.write_cl_resync(bar, lvl as u32, "level_vanished");
+                self.cl_resync_total += 1;
+            }
+            self.cl_machines.truncate(n_levels);
+            self.cl_fed_units.truncate(n_levels);
+        }
+
+        for lvl in 0..n_levels {
+            // ── 段水线（确认前缀；ℓ≥1 再按 ownership 方向冻结界收窄）──
+            let w = if lvl == 0 {
+                confirmed_lens.first().copied().unwrap_or(0).min(tower[0].len())
+            } else {
+                let parent_len = tower[lvl - 1].len();
+                confirmed_lens
+                    .get(lvl - 1)
+                    .copied()
+                    .unwrap_or(0)
+                    .min(parent_len.saturating_sub(1))
+                    .min(parent_len)
+            };
+            // ── 水线回缩（cascade 传播）⟹ 该级工程 resync，重喂新前缀 ──
+            if w < self.cl_fed_units[lvl].len() {
+                self.cl_machines[lvl].resync();
+                self.cl_fed_units[lvl].clear();
+                let _ = self.write_cl_resync(bar, lvl as u32, "watermark_shrink");
+                self.cl_resync_total += 1;
+            }
+            // ── 喂新确认段（投影增量，摊还 O(新增)/bar）──
+            let fed = self.cl_fed_units[lvl].len();
+            if w > fed {
+                if lvl == 0 {
+                    for m in tower[0][fed..w].iter() {
+                        if let RMove::Segment { direction, lo, hi } = &m.rmove {
+                            self.cl_fed_units[lvl].push(UnitRange {
+                                start_index: m.start_index,
+                                end_index: m.end_index,
+                                direction: *direction,
+                                lo: *lo,
+                                hi: *hi,
+                            });
+                        }
+                    }
+                } else {
+                    // 单一来源增量投影（mod.rs A3 §2.5 同款调用形；blocks=当前 moves，已喂段
+                    // 方向由水线收窄保证冻结 ⟹ resume 契约「前缀一致」成立）。
+                    classifier::recursive_tower::project_to_units_resume(
+                        &tower[lvl - 1][..w],
+                        &classification.levels[lvl - 1].moves,
+                        &mut self.cl_fed_units[lvl],
+                    );
+                }
+                let new_units = self.cl_fed_units[lvl][fed..].to_vec();
+                for u in new_units {
+                    if let Some(ev) = self.cl_machines[lvl].push_segment(u) {
+                        let _ = self.write_cl_event(bar, &ev);
+                    }
+                }
+            }
+            // ── 喂本 bar 新确认买卖点（修6：只消费已确认的点）──
+            if let Some(step_level) = step.levels.get(lvl) {
+                for p in step_level.bsp.iter() {
+                    if let Some(ev) = self.cl_machines[lvl].push_point(p.bits, p.source_index) {
+                        let _ = self.write_cl_event(bar, &ev);
+                    }
+                }
+            }
+        }
+    }
+
+    /// #291：工程再同步诊断行（非教义生死；对账排除）。
+    fn write_cl_resync(&mut self, bar: usize, level: u32, reason: &str) -> std::io::Result<()> {
+        use std::io::Write;
+        let json =
+            format!("{{\"bar\":{bar},\"level\":{level},\"kind\":\"resync\",\"reason\":\"{reason}\"}}\n");
+        self.center_lifecycle_buf.write_all(json.as_bytes())
+    }
+
+    /// #291：中枢生命周期事件 JSONL 行（born/broken/reset 三类，事件含级别/ZD/ZG/出生段号）。
+    fn write_cl_event(
+        &mut self,
+        bar: usize,
+        ev: &classifier::center_lifecycle::CenterLifecycleEvent,
+    ) -> std::io::Result<()> {
+        use classifier::center_lifecycle::CenterLifecycleEvent as E;
+        use std::io::Write;
+        let side_str = |s: super::super::types::Side| match s {
+            super::super::types::Side::Long => "Long",
+            super::super::types::Side::Short => "Short",
+        };
+        let json = match ev {
+            E::Born { level, center, born_seg_ordinal } => format!(
+                "{{\"bar\":{bar},\"level\":{level},\"kind\":\"born\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"born_seg\":{ord}}}\n",
+                bar = bar, level = level, zd = center.zd, zg = center.zg, dd = center.dd,
+                gg = center.gg, si = center.start_index, ei = center.end_index, ord = born_seg_ordinal,
+            ),
+            E::Broken { level, center, born_seg_ordinal, breaker_source_index, breaker_side } => format!(
+                "{{\"bar\":{bar},\"level\":{level},\"kind\":\"broken\",\"zd\":{zd},\"zg\":{zg},\"dd\":{dd},\"gg\":{gg},\"si\":{si},\"ei\":{ei},\"born_seg\":{ord},\"breaker_src\":{src},\"breaker_side\":\"{side}\"}}\n",
+                bar = bar, level = level, zd = center.zd, zg = center.zg, dd = center.dd,
+                gg = center.gg, si = center.start_index, ei = center.end_index, ord = born_seg_ordinal,
+                src = breaker_source_index, side = side_str(*breaker_side),
+            ),
+            E::Reset { level, died_center, died_born_seg_ordinal, cleared_segments, trigger_source_index, trigger_side } => {
+                // died 缺席写 null（与 trades.jsonl 缺席字段同款纪律，不编造）。
+                let (dzd, dzg, ddd, dgg, dsi, dei) = match died_center {
+                    Some(c) => (
+                        c.zd.to_string(), c.zg.to_string(), c.dd.to_string(),
+                        c.gg.to_string(), c.start_index.to_string(), c.end_index.to_string(),
+                    ),
+                    None => ("null".into(), "null".into(), "null".into(), "null".into(), "null".into(), "null".into()),
+                };
+                let dord = died_born_seg_ordinal.map_or("null".into(), |o| o.to_string());
+                format!(
+                    "{{\"bar\":{bar},\"level\":{level},\"kind\":\"reset\",\"died_zd\":{dzd},\"died_zg\":{dzg},\"died_dd\":{ddd},\"died_gg\":{dgg},\"died_si\":{dsi},\"died_ei\":{dei},\"died_born_seg\":{dord},\"cleared_segs\":{cleared},\"trigger_src\":{src},\"trigger_side\":\"{side}\"}}\n",
+                    bar = bar, level = level, dzd = dzd, dzg = dzg, ddd = ddd, dgg = dgg,
+                    dsi = dsi, dei = dei, dord = dord, cleared = cleared_segments,
+                    src = trigger_source_index, side = side_str(*trigger_side),
+                )
+            }
+        };
+        self.center_lifecycle_buf.write_all(json.as_bytes())
     }
 }
 

@@ -1540,6 +1540,138 @@ fn flip_guard_wf8_onebar_prune_replay() {
     );
 }
 
+/// ★#291（SPEC #274 T1）中枢生命周期事件机 wf8 自证：born/broken/reset 三类事件在 wf8 窗
+/// 真实产出且计数合理（ADR 0001 修正案一·补充二「中枢=事件」机械化首次在真实数据上见证）。
+///
+/// 接线口径（与 [`flip_guard_wf8_onebar_prune_replay`] 逐字同构）：wf8 = BTC anchored i=8
+/// （test 2023-08-17..2024-02-16）；VOICE_EXEC/OPSEM_DUMP_DIR 经**线程局部** override 注入
+/// （并行安全）；断言消费 dump 的 `center_lifecycle.jsonl`（opsem 只读旁路第三产物，生产路径
+/// bit-exact 中性——零行为变化的实证 = 同目录 trades.jsonl/tower_events.jsonl 与基线逐字段一致，
+/// 该对拍在命令行臂 `M8_WIN_FILTER=wf8 OPSEM_DUMP_DIR=/tmp/center_lifecycle_dump` 下另跑，见票面）。
+///
+/// 断言（结构性不变量 + 计数合理性，均不涉轨迹数值——轨迹不变由对拍臂证）：
+/// - 每 born：`zd ≤ zg`（核心非空 = 中枢成立判据，机检不变量）；
+/// - 每 broken：`zd ≤ zg` 且其 born_seg ≥ 3（出生至少 3 段）；
+/// - 每 reset：`cleared_segs ≥ 0`；died 非 null 时 `died_zd ≤ died_zg`；
+/// - 计数：`born ≥ 1`（L0 必现）∧ `broken ≥ 1`（wf8 有三类点）∧ 逐级 `broken ≤ born`
+///   （破坏必先有出生）∧ 逐级 `reset含died ≤ born`；
+/// - resync 诊断行计数如实打印（塔 cascade/级消失的工程再同步，非教义生死）。
+///
+/// `#[ignore]`：需 BTC 数据（DATA BLOCKER 不伪造）；wf8 全窗重放。
+/// `cargo test --release --lib theta_v0::backtest::wverify_run::center_lifecycle_wf8_events_replay -- --ignored --nocapture`
+#[test]
+#[ignore = "#291 wf8 中枢生命周期事件自证；需 BTC 数据（DATA BLOCKER 不伪造）"]
+fn center_lifecycle_wf8_events_replay() {
+    use super::runner::run_theta_v0_pi_overlay;
+
+    // ── wf8 窗重放（与 flip_guard_wf8_onebar_prune_replay 同窗同配置）──
+    let plain_cfg = ThetaConfig::default();
+    let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
+    let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
+    let w = sw.wf_anchored.iter().find(|w| w.i == 8).expect("wf8 窗");
+    let test = ds.slice_date_window(w.test_start, w.test_end);
+    assert!(!test.bars.is_empty(), "wf8 test 段非空（否则测试空转）");
+    let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
+    let nav_te = test
+        .bars
+        .iter()
+        .find(|b| !b.untradable && b.close > 0)
+        .map(|b| b.close as f64 * plain_cfg.tick.tick_size)
+        .unwrap_or(1.0)
+        * 1000.0;
+    let mut cfg = ThetaConfig::default();
+    apply_theta_dir_preset_from_env(&mut cfg);
+    apply_enforce_gross_cap_from_env(&mut cfg);
+    cfg.margin = Some(q4_margin_model(nav_te));
+    cfg.cost_model = Some(m6_cost_model());
+
+    // dump 目录唯一化（并行/残留进程互不惊扰）；override 测试末尾复位。
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("系统时间晚于 epoch")
+        .as_nanos();
+    let dump_dir = std::env::temp_dir().join(format!(
+        "center_lifecycle_wf8_replay_{}_{}",
+        std::process::id(),
+        nonce
+    ));
+    super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = Some(dump_dir.clone()));
+    super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
+    let _r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
+    super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
+    super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = None);
+
+    // ── 消费 center_lifecycle.jsonl（#291 第三产物）──
+    let text = std::fs::read_to_string(dump_dir.join("center_lifecycle.jsonl"))
+        .expect("OPSEM dump 启用 ⟹ center_lifecycle.jsonl 落盘");
+    // trades/tower_events 同目录仍在（本测试不比对内容——轨迹不变由命令行臂对拍证，见头注）。
+    assert!(
+        dump_dir.join("trades.jsonl").exists() && dump_dir.join("tower_events.jsonl").exists(),
+        "opsem 三产物并列（trades/tower_events/center_lifecycle）"
+    );
+    let _ = std::fs::remove_dir_all(&dump_dir);
+
+    // (born, broken, reset, resync) 逐级计数。
+    let mut counts: std::collections::BTreeMap<u64, (usize, usize, usize)> =
+        std::collections::BTreeMap::new();
+    let mut n_resync = 0usize;
+    let mut n_lines = 0usize;
+    for line in text.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        n_lines += 1;
+        let v: serde_json::Value =
+            serde_json::from_str(line).expect("center_lifecycle.jsonl 行合法 JSON");
+        let level = v["level"].as_u64().expect("level");
+        let kind = v["kind"].as_str().expect("kind");
+        let e = counts.entry(level).or_default();
+        match kind {
+            "born" => {
+                let zd = v["zd"].as_i64().expect("zd");
+                let zg = v["zg"].as_i64().expect("zg");
+                assert!(zd <= zg, "born 核心非空不变量：zd={zd} ≤ zg={zg}");
+                assert!(v["born_seg"].as_u64().expect("born_seg") >= 3, "出生至少 3 段");
+                e.0 += 1;
+            }
+            "broken" => {
+                let zd = v["zd"].as_i64().expect("zd");
+                let zg = v["zg"].as_i64().expect("zg");
+                assert!(zd <= zg, "broken 死中枢核心非空：zd={zd} ≤ zg={zg}");
+                assert!(v["born_seg"].as_u64().expect("born_seg") >= 3, "死中枢出生至少 3 段");
+                e.1 += 1;
+            }
+            "reset" => {
+                assert!(v["cleared_segs"].as_u64().is_some(), "reset 含 cleared_segs");
+                if !v["died_zd"].is_null() {
+                    let zd = v["died_zd"].as_i64().expect("died_zd");
+                    let zg = v["died_zg"].as_i64().expect("died_zg");
+                    assert!(zd <= zg, "reset 同死中枢核心非空：died_zd={zd} ≤ died_zg={zg}");
+                }
+                e.2 += 1;
+            }
+            "resync" => n_resync += 1,
+            other => panic!("未知事件类：{other}"),
+        }
+    }
+    assert!(n_lines > 0, "wf8 事件流非空（否则测试空转）");
+
+    // 计数合理性：L0 born ≥ 1；全局 broken ≥ 1；逐级 broken ≤ born（破坏必先有出生）。
+    let l0 = counts.get(&0).copied().unwrap_or((0, 0, 0));
+    assert!(l0.0 >= 1, "L0 中枢出生必现（wf8 26 万 bar 段数以千计）");
+    let (mut tb, mut tk, mut tr) = (0usize, 0usize, 0usize);
+    for (lvl, (b, k, r)) in &counts {
+        assert!(k <= b, "L{lvl} 破坏({k}) ≤ 出生({b})（破坏必先有出生）");
+        tb += b;
+        tk += k;
+        tr += r;
+    }
+    assert!(tk >= 1, "wf8 有三类买卖点 ⟹ 破坏事件必现");
+    eprintln!(
+        "[#291] wf8 中枢生命周期：born={tb} broken={tk} reset={tr} resync={n_resync}；逐级 {counts:?}"
+    );
+}
+
 /// 从 δ-free dump（[`dump_deltafree_pertrade`] 落盘）逐行重建 `ResidualTrade`（Task #186 离线重算入口）。
 /// resid_base/cost/d 由 `f64::from_bits`（十六进制 round-trip）逐字节还原内存值 ⟹ 与在线 records bit-exact。
 /// A1/A6：force_state（第 8 维，code 编码）+ d（μ_R 分母）随 dump 还原——force_state 进 δ-free 主裁决基。

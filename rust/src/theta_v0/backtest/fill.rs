@@ -1065,6 +1065,12 @@ where
             // 部署）——非 source_index==i 切片（买卖点回溯确认，其触发点常在更晚 bar 才入前缀塔 ⟹
             // source_index==i 切恒空 ⟹ 零订单）。买卖点在被确认那根 bar（source_index≤i）部署=因果。
             let classification_step = newly_confirmed_step(&classification_i, &mut seen_bsps);
+            // ★#291（SPEC #274 T1）：中枢生命周期事件机只读旁路（born/broken/reset →
+            // center_lifecycle.jsonl）。opsem env 未设 ⟹ None ⟹ 零开销，生产路径 bit-exact 不变；
+            // 事件只外化落盘，不回馈任何决策（票面边界：结构地基，动作 = #292）。
+            if let Some(dump) = opsem.as_mut() {
+                dump.feed_center_lifecycle(i, &classification_i, &tower_i, &confirmed_lens, &classification_step);
+            }
             let base_units = equity_nav / px; // U_ℓ：NAV/价 = 可建名义手数（方案A协变）
             // 风控门也用**前缀因果分类**（leg 止损 bsp 因果查得，非全窗非因果——与 σ_p 同因果口径）。
             let (gate, risk_mode_i) = k_theta_risk_gate(&prev_active, &open_trades, bar, equity_nav, p_t, px, config.margin.as_ref());

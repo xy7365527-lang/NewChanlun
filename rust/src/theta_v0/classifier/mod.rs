@@ -63,6 +63,9 @@ static CASCADE_EPROBE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 static CASCADE_FULLCLEAR: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 pub mod center;
+/// #291（SPEC #274 T1）：中枢生命周期事件机（born/broken/reset，ADR 0001 修正案一·补充二
+/// 「中枢=事件」）。只产事件不产动作；wf8 经 opsem 只读旁路外化，默认零行为变化。
+pub mod center_lifecycle;
 pub mod ref_v1;
 pub mod decompose;
 pub mod level_state;
