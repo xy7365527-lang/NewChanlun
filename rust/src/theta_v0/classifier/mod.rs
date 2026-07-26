@@ -302,6 +302,13 @@ fn extract_first_third_for_level(
 /// 吸收（中心定理一：后续段区间触及 [ZD,ZG] ⟹ 同一中枢延伸，task #142），仅 non-extension
 /// （`d_j>ZG ∨ g_j<ZD`）终止；seed 不成立则前进一段继续找。算法单一来源 = `recursive_tower::
 /// detect_centers_windowed_resume`（全量/增量同一扫描，bit-exact 定义性）。
+///
+/// ⚠边界声明作废：本函数契约锚 `Origin.CenterComplete.CenterConfirmedComplete` 在 Lean 侧核心
+/// 非空支仍是 `ZD≤ZG`（弱，单点核心成立）；`center_from_segments` 本身已于 #321（2026-07-26
+/// 用户裁决）从严为 `ZD<ZG`（单点不成立）——**该落点（成立谓词端点分支）的 Lean↔Rust 对齐声明
+/// 在本边界上作废，此边界不作机械锁用**（不得据本实装断言 Lean 侧行为，亦不得据 Lean 契约锚反推
+/// 本实装期望值）；其余落点对齐声明不受影响。Lean 侧跟进留对方线。详见 `center.rs`
+/// `center_from_segments` doc 同一登记。
 fn detect_centers_complete(units: &[UnitRange]) -> Vec<Center> {
     detect_centers_with(units, center::center_from_segments)
 }
@@ -314,6 +321,13 @@ fn detect_centers_complete(units: &[UnitRange]) -> Vec<Center> {
 /// 延伸吸收与 L0 同一几何判据（区间触及 [ZD,ZG]，task #142）。上级发展裁决用
 /// `Origin.CenterStates.classifyDevelopment`（外缘判据，无方向交替要求）——见 `center.rs`
 /// 诚实有效域声明。
+///
+/// ⚠边界声明作废：本函数契约锚 `Origin.centerHolds`（`Origin.CenterConstruction.centerHolds`）
+/// 在 Lean 侧是 `ZD≤ZG`（弱，单点核心成立）；`center_from_window` 本身已于 #321（2026-07-26
+/// 用户裁决）从严为 `ZD<ZG`（单点不成立）——**该落点（成立谓词端点分支）的 Lean↔Rust 对齐声明
+/// 在本边界上作废，此边界不作机械锁用**（不得据本实装断言 Lean 侧行为，亦不得据 Lean 契约锚反推
+/// 本实装期望值）；其余落点对齐声明不受影响。Lean 侧跟进留对方线。详见 `center.rs`
+/// `center_from_window` doc 同一登记。
 fn detect_centers_geometric(units: &[UnitRange]) -> Vec<Center> {
     detect_centers_with(units, center::center_from_window)
 }

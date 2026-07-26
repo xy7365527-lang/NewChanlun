@@ -96,7 +96,8 @@ rust 对博文忠实但非 Lean bit-exact（设计边界，非遗漏）。
 `ChanlunElements.Center.valid`），Python 全家族（`a_zhongshu_v1._scan_zhongshu`、`a_center_v0._try_init_center`）为**严格**
 （`zg <= zd` 跳过 ⟹ 单点**不**成立）。**该落点的 Lean↔Python 对齐声明在本边界上作废**——两侧语义相反，
 **此边界不作机械锁用**（B1 的「位置态有 parity」不覆盖成立谓词的端点分支）。依据：原文对单点中枢
-**未涉及**（17 课定义/20 课公式无端点口径；22 课 Q&A `022-第22课.md:514` 被缠师回避），不擅自发明 ⟹
+**未涉及**（17 课定义/20 课公式无端点口径；22 课 Q&A `022-第22课.md:514` 缠师答的是级别谬误，未答
+单点之问），不擅自发明 ⟹
 维持 Python 严格口径。下游真空照实：单点中枢若成立，其下游（定理二分支/三类买卖点/092 监视器 Z 值）全落原文真空。
 **输入域实测（ZG==ZD 输入，落码口径）**：OKLO **0 次**、BZ2024 **2 次**（均在 L1）；Python 两版
 （v0 `a_center_v0._try_init_center` / v1 `a_zhongshu_v1._scan_zhongshu`）**均判不成立** ⟹ 单点中枢
@@ -118,7 +119,7 @@ rust 对博文忠实但非 Lean bit-exact（设计边界，非遗漏）。
 `if zd >= zg { return None }`（单点 `zd==zg` 不再通过），`types.rs` `Center` doc 同步更正。理由：原弱
 口径本是实现者自选、无教义依据（#290 裁定 B 是首个教义裁定，Lean/Rust 此前均只是实现者自选未经裁定
 的弱口径），原文（17 课定义/20 课公式）未涉及端点口径，22 课 Q&A（`022-第22课.md:514`）单点中枢之问
-被缠师回避在案，不擅自发明 ⟹ 统一向严格看齐。
+缠师答的是级别谬误（未答单点之问）在案，不擅自发明 ⟹ 统一向严格看齐。
 
 ⚠边界声明作废：中枢**成立**落点 ZD==ZG —— Lean `centerHolds` 为 `ZD ≤ ZG`（弱，单点成立）/ Rust
 `center_from_segments`/`center_from_window` 严格（不成立，#321 裁定）；**该落点的 Lean↔Rust 对齐声明
