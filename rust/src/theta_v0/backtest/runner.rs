@@ -149,7 +149,9 @@ pub struct RunResult {
     /// 非 path-dependent 的 E_{t−1}）。区别于 [`daily_returns`]（百分比收益，喂 metrics 算 Sharpe）。
     pub equity_curve: Vec<f64>,
     /// ★M6 R 分解表（路线.pdf p16 第十一关：R=ΣN_tΔP_t−Commission−Slippage−Funding−Borrow−
-    /// LiquidationLoss + 守恒残差）。生产 π 路径（[`run_theta_v0_pi`] 系列）产出；旧 recognize
+    /// LiquidationLoss + 守恒残差；`Funding` 项的 **spot 口径**＝资金占用机会成本，见
+    /// [`RDecomposition`](super::super::strategy::risk::RDecomposition)，#303）。
+    /// 生产 π 路径（[`run_theta_v0_pi`] 系列）产出；旧 recognize
     /// 路径（[`run_theta_v0`]）为 `None`（诚实——R 分解只接生产 π fill loop）。
     pub r_decomp: Option<super::super::strategy::risk::RDecomposition>,
     /// 严格区间套证书 sidecar 汇总。默认 `None`；仅 `THETA_STRICT_NEST_SIDECAR=1/true/yes/on`
@@ -4591,7 +4593,7 @@ mod tests {
         );
         if a10 {
             report.push_str(&format!(
-                "**成本口径：A10 注入（M7_WITNESS_A10=1）——margin=CME-simple + cost=三常费率（{}）；TW桥列=r_decomp.tw_holding_cost_bridge（⌊funding+borrow+liq⌋）。**\n\n",
+                "**成本口径：A10 注入（M7_WITNESS_A10=1）——margin=CME-simple + cost=三常费率（{}；venue=spot，#303：Funding 项＝资金占用机会成本非资金费，三项和读作持有成本上界）；TW桥列=r_decomp.tw_holding_cost_bridge（⌊funding+borrow+liq⌋）。**\n\n",
                 super::super::super::strategy::risk::RATE_UNCALIBRATED_LABEL,
             ));
         }

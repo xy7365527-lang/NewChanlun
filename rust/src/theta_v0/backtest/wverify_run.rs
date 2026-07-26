@@ -1065,21 +1065,39 @@ fn q4_fullpi_policy() {
     eprintln!("[q4] 报告落盘 /tmp/q4_fullpi_policy.md");
 }
 
-/// M6 成本模型口径（参数化常费率，有效域 L1）：Binance 永续近似——funding 8h 周期 = 480 根
-/// 1分钟 bar，费率 1bp/周期（业界常见量级）；borrow 每 bar 极低（无杠杆则不 binding）；强平罚金
-/// 0.5%（清算费+滑点近似）。**有效域声明（231号 / A10 waiver）**：真实 funding 历史/借贷曲线是
-/// **外部数据源缺口**（L2），waiver 豁免的是外部数据，机制在此真实装、费率待外部标定。
+/// M6 成本模型口径（参数化常费率，有效域 L1）：**Binance 现货（spot）近似**——#303 编排者裁定
+/// 2026-07-26 切 spot。venue 依据：本函数服务的 BTC 数据 = `btc_1m_full.json` ←
+/// `data.binance.vision/data/**spot**/monthly/klines/BTCUSDT/1m`（`scripts/download_btc_binance.py:38-40`）。
+/// 现货**无资金费（funding）**，三通道的现货语义（数值 = 切 spot 前原值，未动，见票 #303 行为面）：
+///
+/// - 周期通道（[`CostModel::funding_accrual`]）= **资金占用机会成本**：每 480 根 1 分钟 bar
+///   （= 8h 记账周期）按 |净名义| 收 1bp ⟹ ≈ 0.03%/日 ≈ **10.95%/年**；**非**永续资金费；
+/// - `borrow` 每 bar 0.01bp = **现货杠杆借币利息**（只对借入名义 max(0,|N|−E) 计，无杠杆则不
+///   binding）⟹ 1m bar 下 ≈ 0.144%/日 ≈ **52.6%/年**；
+/// - `liq` 0.5% = **现货杠杆强平罚金**（清算费+滑点近似）。
+///
+/// 两个年化数是本注释按 bar 频率做的换算（≈，非 venue 原文）。**照实（090）：现货借币利率的
+/// 一手数字本仓未取到**（`venue-fee-source-research-20260726.md` §2.1 记 Binance 现货借贷利率
+/// 需认证端点、§4 列为未核项）——故这两个保底值**不声称对齐任何真实档位**；borrow 的 52.6%/年
+/// 明显高于常见现货借币档，方向是**高估成本**（保守，不美化回测）。两通道基数重叠（借入部分被
+/// 双计）见 [`CostModel`](super::super::strategy::risk::CostModel) 节头：三项之和读作**持有成本
+/// 上界**，非精确分科。
+///
+/// **有效域声明（231号 / A10 waiver）**：真实现货借贷利率曲线 / 机会成本基准是**外部数据源缺口**
+/// （L2），waiver 豁免的是外部数据，机制在此真实装、费率待外部标定（口径标签
+/// [`RATE_UNCALIBRATED_LABEL`](super::super::strategy::risk::RATE_UNCALIBRATED_LABEL) 强制）。
+/// 真永续（真 funding datum + perp 费率）接入是**另票**（#62 数据源 + datum 版本管理），本票不做。
 /// ★pub(crate)：阶段 3a 前置实装（M7_WITNESS_A10 env gate，p126 runbook §2.1）同 q4_margin_model。
 pub(crate) fn m6_cost_model() -> super::super::strategy::risk::CostModel {
     use super::super::strategy::risk::CostModel;
-    // funding 8h=480bar、1bp/周期；borrow 每 bar 0.01bp；liq 罚金 0.5%。
+    // 机会成本 8h=480bar、1bp/周期；现货杠杆借币每 bar 0.01bp；强平罚金 0.5%。
     CostModel::new(0.0001, 480, 0.000001, 0.005).expect("M6 常费率参数合法（冻结近似值）")
 }
 
 /// ★M6 BTC OOS R 分解跑批（TARGET_STRATEGY_MAXFULL.md M6 / 路线.pdf p16 第十一关）：
-/// 在真实 BTC OOS 窗跑带 margin（CME-simple）+ cost_model（参数化 funding/borrow/liq）的 π^full
-/// 臂，落盘 R 分解表（ΣN_tΔP_t / Commission+Slippage / Funding / Borrow / LiquidationLoss / net_r
-/// / 守恒残差）。
+/// 在真实 BTC OOS 窗跑带 margin（CME-simple）+ cost_model（参数化持有成本三项，**spot 口径**见
+/// [`m6_cost_model`]）的 π^full 臂，落盘 R 分解表（ΣN_tΔP_t / Commission+Slippage / Funding /
+/// Borrow / LiquidationLoss / net_r / 守恒残差）。
 ///
 /// **认识论（照实）**：预期成本拖累（net_r < gross）——这是**成本真实化**（M6 关卡把三项成本纳入
 /// PnL），**不是** alpha 声明。守恒残差 ≈0 是「资金无泄漏」物证。有效域 L1（机制正确性 + 参数化
@@ -1101,8 +1119,10 @@ fn m6_btc_oos_r_decomposition() {
     let mut report = String::from(
         "# M6 BTC OOS R 分解（TARGET_STRATEGY_MAXFULL.md M6 / 路线.pdf p16 第十一关）\n\n\
          R = Σ N_t ΔP_t − Commission − Slippage − Funding − Borrow − LiquidationLoss\n\n\
-         口径：margin=CME-simple 单段近似；cost=参数化常费率（funding 1bp/8h、borrow 0.01bp/bar、\
-         liq 0.5%）。**有效域 L1**：机制真装 + 参数化费率，真实 funding/借贷历史是外部数据缺口（A10 \
+         venue 口径（#303 裁定）：数据 = Binance **现货** BTCUSDT 1m ⟹ **无资金费**；`Funding` 列记的是\
+         **资金占用机会成本**（1bp/8h 记账周期），`Borrow` = 现货杠杆借币利息（0.01bp/bar，仅借入名义），\
+         `Liq` = 现货杠杆强平罚金（0.5%）。margin=CME-simple 单段近似。\n\n\
+         **有效域 L1**：机制真装 + 参数化常费率，真实现货借贷/机会成本利率曲线是外部数据缺口（A10 \
          waiver 豁免外部数据源，不豁免机制）。**照实：预期成本拖累 net_r<gross，成本真实化非 alpha 声明。**\n\n",
     );
     // A10 附则B 裁决2（090 措辞纪律）：一切带成本 R 数值报告强制口径标签——费率未标定，
@@ -1224,7 +1244,8 @@ fn m8_e2e_all_systems_oos() {
 
     let mut report = String::from(
         "# M8 端到端全策略 OOS（TARGET_STRATEGY_MAXFULL.md M8 / 路线.pdf p17,p20-21）\n\n\
-         三系统同开：M5 overlay 声部执行臂 + M6 cost_model（参数化 funding/borrow/liq）+ M7 三阶段 TW 账本。\n\
+         三系统同开：M5 overlay 声部执行臂 + M6 cost_model（参数化持有成本三项，**spot 口径**：Funding 列＝\
+         资金占用机会成本、Borrow＝现货杠杆借币、Liq＝强平罚金；#303）+ M7 三阶段 TW 账本。\n\
          口径：margin=CME-simple 单段；cost=参数化常费率；κ=0 冻结（M7 c3 裁定，正 κ 推迟 M8 后 L3）。\n\
          **认识论 L2**：真实 BTC OOS 假设检验；signal 层无 alpha ⟹ 端到端负/INCONCLUSIVE 照实（否定性结果合法）。\n\n",
     );

@@ -630,7 +630,8 @@ where
             }
         }
 
-        // ── M6 ①⁺ Funding + Borrow 持仓期成本计提（本 bar 成交后持仓的持有成本；px>0 才计——
+        // ── M6 ①⁺ Funding + Borrow 持仓期成本计提（本 bar 成交后持仓的持有成本；venue 口径
+        //    #303=spot，两通道语义与基数重叠声明见 `strategy::risk::CostModel` 节头；px>0 才计——
         //    untradable bar（px=0）无有效 mark ⟹ 跳过计提，与 cum_price_pnl 的 px>0 累计口径
         //    一致，守恒才成立）。从 cash 扣除 ⟹ equity_curve 反映拖累。cost_model=None ⟹ 恒 0
         //    （bit-exact）。──

@@ -39,7 +39,8 @@
 //! 首轮 BTC OOS 跑数产的净值/归因表是执行层**首次真实化**的物证——**不声明 alpha**（预期亏损/
 //! 空转均合法，PDF §9 判定：depth>0 active 是声部生成层验收，净值 alpha 是经济有效层，须
 //! `Π^overlay/IR/回撤` 另证，本模块只兑现前两层：声部生成 + 净额可见 ΔN）。成本（fee/funding/
-//! borrow/liquidation）是 M6 范畴，**不入**本模块的价格 PnL 对账（PDF §11 对账是"价格 PnL"净口径）。
+//! borrow/liquidation）是 M6 范畴，**不入**本模块的价格 PnL 对账（PDF §11 对账是"价格 PnL"净口径）；
+//! 三项成本科目的 venue 口径（#303=spot）见 `strategy::risk::CostModel` 节头。
 
 use std::collections::HashMap;
 
@@ -639,8 +640,9 @@ impl VoiceExecBook {
         out
     }
 
-    /// 持仓成本/罚金扣款（funding/borrow/liq；runner 镜像净额臂口径对 N_derived 计费后经此
-    /// 扣声部账户现金——守恒断言要求 cash 真扣）。cost_model=None ⟹ 永不调用（bit-exact）。
+    /// 持仓成本/罚金扣款（funding/borrow/liq，venue 口径 #303=spot 见 `super::risk::CostModel`
+    /// 节头；runner 镜像净额臂口径对 N_derived 计费后经此扣声部账户现金——守恒断言要求 cash
+    /// 真扣）。cost_model=None ⟹ 永不调用（bit-exact）。
     pub fn debit_cash(&mut self, amount: f64) {
         self.cash -= amount;
     }
