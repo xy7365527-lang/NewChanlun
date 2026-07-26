@@ -409,6 +409,75 @@ class TestOverlapUtil:
     def test_overlap_false(self):
         assert overlap(10, 20, 25, 30) is False
 
-    def test_overlap_touching_false(self):
-        """端点相触不算重叠（strict <）。"""
-        assert overlap(10, 20, 20, 30) is False
+    def test_overlap_touching_true(self):
+        """端点相触**算**重叠（含端点 `<=`）。
+
+        ★重锚（原 `test_overlap_touching_false`，旧锁「端点相触不算重叠
+        （strict `<`）」被 #290 裁定 A 翻转，#314 落码 2026-07-26）。
+        原文锚：中心定理一 `docs/chanlun/text/blog/020-第20课.md:56`——
+        「走势中枢的延伸等价于任意区间[dn，gn]与[ZD，ZG]有重叠。换言之，若有Zn，
+        使得dn>ZG或gn<ZD，则必然产生高级别的走势中枢或趋势及延续。」脱离条件用
+        **严格**不等 ⟹ `dn == ZG`（相切）不满足脱离 ⟹ 仍属有重叠 ⟹ 延伸。
+        旧口径与该方向相反，非附带损伤，是本裁定要翻的那把锁本身。
+        """
+        assert overlap(10, 20, 20, 30) is True
+
+
+# =====================================================================
+# J) 相切=重叠（#290 裁定 A，中心定理一 020:56）— 三锚翻转
+# =====================================================================
+
+class TestTangencyAnchors:
+    """段与核区间只共一个端点（相切）时，三锚均按「仍在核内」处理。
+
+    原文锚：`docs/chanlun/text/blog/020-第20课.md:56` 中心定理一——脱离条件
+    用严格不等（`dn>ZG` / `gn<ZD`）⟹ 端点相等不构成脱离 ⟹ 仍属有重叠。
+    裁定：#290 裁定 A（2026-07-26 用户裁决）；实施票 #314。
+    调研：`chanlun/review-results/center-tangency-doctrine-20260726.md` §2.1；
+    爆炸半径：`.chanlun/review-results/center-tangency-blast-radius-20260726.md` §3.3。
+    """
+
+    def test_settle_anchor_cur_seg_tangent(self):
+        """结算锚（:184）：当前段下沿 == 核上沿 → 仍判中枢内。"""
+        segs = [
+            _seg(0, 2, 0, 10, "up",    20.0, 10.0),
+            _seg(2, 4, 10, 20, "down", 18.0, 12.0),
+            _seg(4, 6, 20, 30, "up",   22.0, 11.0),
+            _seg(6, 8, 30, 40, "down", 19.0, 13.0),
+            _seg(8, 10, 40, 50, "up",  22.0, 18.0),   # idx=4：low == core.high == 18
+        ]
+        c = _make_center_settled(seg1=4)
+        ac = classify_center_practical_newchan(c, 0, segs, last_price=25.0)
+        assert ac.is_alive is True
+        assert ac.regime == Regime.SETTLE_ANCHOR_IN_CORE
+
+    def test_run_anchor_exit_seg_tangent(self):
+        """运行锚（:203）：离开段下沿 == 核上沿 → 判仍在核内，未真正离开。
+
+        翻转点 (b)：`_determine_exit_side` 对相切段变为不可达。
+        """
+        segs = _make_segments(5) + [
+            _seg(10, 12, 50, 60, "up", 25.0, 18.0),   # idx=5：low == core.high == 18
+        ]
+        c = _make_center_settled(seg1=4)
+        ac = classify_center_practical_newchan(c, 0, segs, last_price=25.0)
+        assert ac.is_alive is True
+        assert ac.regime == Regime.SETTLE_ANCHOR_IN_CORE
+        assert ac.anchors.run_exit_idx == 5
+        assert ac.anchors.run_exit_side is None
+
+    def test_event_anchor_tangent_touch_is_pullback(self):
+        """事件锚（:152）：离开后同向段触及核上沿（相切）→ 记为第一次回抽。
+
+        翻转点 (c)：相切触核置 `seen_pullback=True`。
+        """
+        segs = _make_segments(5) + [
+            _seg(10, 12, 50, 60, "up", 25.0, 20.0),   # idx=5：严格离开 ABOVE
+            _seg(12, 14, 60, 70, "up", 19.0, 18.0),   # idx=6：同向，low == core.high == 18
+        ]
+        c = _make_center_settled(seg1=4)
+        ac = classify_center_practical_newchan(c, 0, segs, last_price=25.0)
+        assert ac.is_alive is True
+        assert ac.regime == Regime.EVENT_ANCHOR_FIRST_PULLBACK
+        assert ac.anchors.event_seen_pullback is True
+        assert ac.anchors.event_pullback_settled is False

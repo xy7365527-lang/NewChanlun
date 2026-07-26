@@ -11,6 +11,31 @@
   8. 突破后形成新中枢（续进 break_seg_idx - 2）
   9. 每个 settle 前有 candidate（I12）
   10. 通过 ZhongshuEngine 接口 end-to-end
+
+## ⚠边界声明作废：中枢**成立**落点 ZG==ZD（#290 裁定 B，#314 登记 2026-07-26）
+
+本文件用例 3（`TestBoundaryZgEqZd`）锁的是**中枢成立**判定（`a_zhongshu_v1.py:145`
+`if zg <= zd: continue`，严格 ⟹ 单点交集不成立）。该口径在此边界上与 Lean
+**语义不同**：Lean `Origin.CenterConstruction.centerHolds` 为 `ZD ≤ ZG`（弱，单点
+中枢**成立**；同 `ChanlunElements.Center.valid`）。
+
+**声明作废**：Lean↔Python 在**中枢成立落点（ZG==ZD）**的对齐声明，在**本边界上
+作废**——两实现在此语义相反，此边界**不作机械锁用**（不得据本文件断言 Lean 侧
+行为，亦不得据 Lean `centerHolds` 反推本文件期望值）。其余落点的对齐声明不受影响。
+
+依据：原文对单点中枢**未涉及**——17 课定义、20 课公式均无端点口径，22 课 Q&A
+（`docs/chanlun/text/blog/022-第22课.md:514`）单点中枢之问被缠师回避（答的是级别
+谬误）。不擅自发明 ⟹ 维持 Python 严格口径（#290 裁定 B）。下游真空照实标注：
+单点中枢若成立，其下游（三类买卖点/破坏/监视器 Z 值）全落原文真空——本裁定使该
+输入域在生产不可达（实测 OKLO 0 次、BZ2024 3 次，两版均判不成立），真空不激活。
+若未来原文/新证据出现，另立票重议。
+
+**与裁定 A 无交集**：裁定 A（相切=重叠，#314 同批落码 `a_center_v0.py`/
+`a_level_fsm_newchan.py` 两谓词）改的是**重叠/延伸**判定，不是成立判定；本文件走
+独立的 `a_zhongshu_v1` 链，实测不受波及（弱版环境下本文件 23 passed 全绿）。
+裁定：#290 裁定 A/B（2026-07-26）；登记模板：#249/#288 先例。
+调研：`chanlun/review-results/center-tangency-doctrine-20260726.md` §2.4/§3.1；
+爆炸半径：`.chanlun/review-results/center-tangency-blast-radius-20260726.md` §5。
 """
 
 from __future__ import annotations

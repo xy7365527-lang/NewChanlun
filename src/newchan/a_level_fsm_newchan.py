@@ -87,8 +87,19 @@ class LStar:
 
 def overlap(seg_low: float, seg_high: float,
             zlow: float, zhigh: float) -> bool:
-    """交集非空判定。"""
-    return max(seg_low, zlow) < min(seg_high, zhigh)
+    """交集非空判定（闭区间）。
+
+    ★口径（#290 裁定 A，2026-07-26 用户裁决；#314 落码）：含端点 `<=`
+    ——相切（`seg_low == zhigh` 或 `seg_high == zlow`）**算重叠 ⟹ 仍在核内**。
+    原文锚：中心定理一（`docs/chanlun/text/blog/020-第20课.md:56`）脱离条件
+    用**严格**不等（`dn>ZG` / `gn<ZD`）⟹ 端点相等不构成脱离。
+    对齐 Lean `Origin.CenterStates.CenterExtension`（弱）/`CenterBroken`（严格）、
+    v0 `a_center_v0._has_overlap`（同批切）、#246 相切=重合全域口径。
+    三处消费点随之翻转：结算锚 `:184`、运行锚 `:203`（相切段不再进
+    `_determine_exit_side`）、事件锚 `:152`（相切触核置 `seen_pullback`）。
+    调研：`chanlun/review-results/center-tangency-doctrine-20260726.md` §2.1。
+    """
+    return max(seg_low, zlow) <= min(seg_high, zhigh)
 
 
 def _make_result(

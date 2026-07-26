@@ -462,3 +462,71 @@ class TestBackwardCompat:
         assert c.dd == 0.0
         assert c.g == 0.0
         assert c.d == 0.0
+
+
+# =====================================================================
+# J) 相切=重叠（#290 裁定 A，中心定理一 020:56）
+# =====================================================================
+
+class TestTangencyIsOverlap:
+    """段与中枢核区间只共一个端点（相切）时，仍算重叠 → 延伸，不算离开。
+
+    原文锚：`docs/chanlun/text/blog/020-第20课.md:56` 中心定理一——
+    「走势中枢的延伸等价于任意区间[dn，gn]与[ZD，ZG]有重叠。换言之，
+    若有Zn，使得dn>ZG或gn<ZD，则必然产生高级别的走势中枢或趋势及延续。」
+    脱离条件用**严格**不等 ⟹ `dn == ZG` / `gn == ZD`（相切）不满足脱离
+    ⟹ 仍属「有重叠」⟹ 延伸继续。
+
+    裁定：#290 裁定 A（2026-07-26 用户裁决）；实施票 #314。
+    调研：`chanlun/review-results/center-tangency-doctrine-20260726.md` §2.1。
+    """
+
+    def _make_tangent_extension(self) -> list[Segment]:
+        """前三段成核 [ZD=11, ZG=20]，seg3 下沿恰好 == ZG（相切），seg4 远离。
+
+        seg0(up)  h=20 l=10  ┐
+        seg1(down)h=18 l=12  ├ ZD_all=12 < ZG_all=18 → 成立
+        seg2(up)  h=22 l=11  ┘ Z走势段(s0,s2)：ZD=max(10,11)=11, ZG=min(20,22)=20
+        seg3(down)h=25 l=20  → seg.low == ZG == 20：相切
+        seg4(up)  h=30 l=26  → 与 [11,20] 完全分离（回抽失败）
+        """
+        return [
+            _seg(0, 2, 0, 10, "up",    20.0, 10.0),
+            _seg(2, 4, 10, 20, "down", 18.0, 12.0),
+            _seg(4, 6, 20, 30, "up",   22.0, 11.0),
+            _seg(6, 8, 30, 40, "down", 25.0, 20.0),
+            _seg(8, 10, 40, 50, "up",  30.0, 26.0),
+        ]
+
+    def test_tangent_segment_extends_center(self):
+        """相切段 → 延伸（seg1 推进到 3，sustain=1），不判破坏。"""
+        centers = centers_from_segments_v0(self._make_tangent_extension())
+        assert len(centers) == 1
+        c = centers[0]
+        assert c.seg1 == 3
+        assert c.sustain == 1
+        assert c.terminated is False
+        assert c.termination_side == ""
+
+    def _make_tangent_pullback(self) -> list[Segment]:
+        """seg3 严格离开，seg4 上沿恰好 == ZD（相切回抽）→ 回抽确认成立。
+
+        seg3(up)   h=30 l=25 → 与 [11,20] 完全分离（离开中枢，above）
+        seg4(down) h=11 l=5  → seg.high == ZD == 11：相切
+        """
+        return [
+            _seg(0, 2, 0, 10, "up",    20.0, 10.0),
+            _seg(2, 4, 10, 20, "down", 18.0, 12.0),
+            _seg(4, 6, 20, 30, "up",   22.0, 11.0),
+            _seg(6, 8, 30, 40, "up",   30.0, 25.0),
+            _seg(8, 10, 40, 50, "down", 11.0, 5.0),
+        ]
+
+    def test_tangent_pullback_confirms_center(self):
+        """相切回抽 = 回到中枢 → 中枢未破坏（seg1=4, sustain=2）。"""
+        centers = centers_from_segments_v0(self._make_tangent_pullback())
+        assert len(centers) == 1
+        c = centers[0]
+        assert c.seg1 == 4
+        assert c.sustain == 2
+        assert c.terminated is False

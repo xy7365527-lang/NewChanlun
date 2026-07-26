@@ -122,8 +122,19 @@ class Center:
 # ====================================================================
 
 def _has_overlap(low: float, high: float, seg) -> bool:
-    """判断 segment 的 [seg.low, seg.high] 与 [low, high] 是否有严格交集。"""
-    return max(low, seg.low) < min(high, seg.high)
+    """判断 segment 的 [seg.low, seg.high] 与 [low, high] 是否有交集（闭区间）。
+
+    ★口径（#290 裁定 A，2026-07-26 用户裁决；#314 落码）：含端点 `<=`
+    ——相切（`seg.low == high` 或 `seg.high == low`）**算重叠 ⟹ 延伸**。
+    原文锚：中心定理一（`docs/chanlun/text/blog/020-第20课.md:56`）
+    「走势中枢的延伸等价于任意区间[dn，gn]与[ZD，ZG]有重叠。换言之，若有Zn，
+    使得dn>ZG或gn<ZD，则必然产生高级别的走势中枢或趋势及延续。」——脱离条件
+    用**严格**不等 ⟹ 端点相等不构成脱离 ⟹ 仍属有重叠。
+    对齐 Lean `Origin.CenterStates.CenterExtension`（弱）/`CenterBroken`（严格）、
+    v1 `a_zhongshu_v1._extend_zhongshu`（`:104` 已弱）、#246 相切=重合全域口径。
+    调研：`chanlun/review-results/center-tangency-doctrine-20260726.md` §2.1。
+    """
+    return max(low, seg.low) <= min(high, seg.high)
 
 
 def _three_seg_overlap_all(s1, s2, s3) -> tuple[float, float]:
