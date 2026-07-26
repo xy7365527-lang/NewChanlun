@@ -77,7 +77,7 @@ fn main() -> std::process::ExitCode {
     println!("--- ★M5 overlay 逐声部账本（多空对冲.pdf p16 关卡10）---");
     println!("活动声部数      : {}", r.overlay.active_voices().count());
     println!("已离场声部数    : {}", r.overlay.closed_voices().len());
-    println!("overlay 声部总数: {}", r.n_overlay_voices);
+    println!("overlay 声部总数: {}", r.n_overlay_voices); // (#295 修字段名；#305 评审 LOW-1 口径注：本值≡活动+已离场声部数，恰与上两行之和相等；gap4/FIX §4.3 双字段方案（n_overlay_fill_events+补行）未采用——数值影响为零，选择单字段直观口径，登记在案）
     println!("终态净敞口 N    : {}", r.overlay.net());
     println!("--- ★M7 treasury 层（三阶段 TW 账本终态，overlay 臂主 loop 内建）---");
     match &r.tw_final {
