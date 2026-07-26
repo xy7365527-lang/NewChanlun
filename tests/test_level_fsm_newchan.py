@@ -438,7 +438,7 @@ class TestTangencyAnchors:
     """
 
     def test_settle_anchor_cur_seg_tangent(self):
-        """结算锚（:184）：当前段下沿 == 核上沿 → 仍判中枢内。"""
+        """结算锚（`_classify_settle_anchor`）：当前段下沿 == 核上沿 → 仍判中枢内。"""
         segs = [
             _seg(0, 2, 0, 10, "up",    20.0, 10.0),
             _seg(2, 4, 10, 20, "down", 18.0, 12.0),
@@ -452,7 +452,7 @@ class TestTangencyAnchors:
         assert ac.regime == Regime.SETTLE_ANCHOR_IN_CORE
 
     def test_run_anchor_exit_seg_tangent(self):
-        """运行锚（:203）：离开段下沿 == 核上沿 → 判仍在核内，未真正离开。
+        """运行锚（`_classify_run_anchor`）：离开段下沿 == 核上沿 → 判仍在核内，未真正离开。
 
         翻转点 (b)：`_determine_exit_side` 对相切段变为不可达。
         """
@@ -467,7 +467,7 @@ class TestTangencyAnchors:
         assert ac.anchors.run_exit_side is None
 
     def test_event_anchor_tangent_touch_is_pullback(self):
-        """事件锚（:152）：离开后同向段触及核上沿（相切）→ 记为第一次回抽。
+        """事件锚（`_scan_event_anchor`）：离开后同向段触及核上沿（相切）→ 记为第一次回抽。
 
         翻转点 (c)：相切触核置 `seen_pullback=True`。
         """

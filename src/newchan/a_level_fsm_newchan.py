@@ -95,8 +95,9 @@ def overlap(seg_low: float, seg_high: float,
     用**严格**不等（`dn>ZG` / `gn<ZD`）⟹ 端点相等不构成脱离。
     对齐 Lean `Origin.CenterStates.CenterExtension`（弱）/`CenterBroken`（严格）、
     v0 `a_center_v0._has_overlap`（同批切）、#246 相切=重合全域口径。
-    三处消费点随之翻转：结算锚 `:184`、运行锚 `:203`（相切段不再进
-    `_determine_exit_side`）、事件锚 `:152`（相切触核置 `seen_pullback`）。
+    三处消费点随之翻转：结算锚 `_classify_settle_anchor`、运行锚 `_classify_run_anchor`
+    （相切段不再进 `_determine_exit_side`）、事件锚 `_scan_event_anchor`（相切触核置
+    `seen_pullback`）。
     调研：`chanlun/review-results/center-tangency-doctrine-20260726.md` §2.1。
     """
     return max(seg_low, zlow) <= min(seg_high, zhigh)

@@ -93,13 +93,20 @@ rust 对博文忠实但非 Lean bit-exact（设计边界，非遗漏）。
 
 **⚠边界声明作废（B1 `centerHolds` parity——中枢成立落点 ZG==ZD）**：#290 裁定 B（2026-07-26 用户裁决，
 #314 登记）。Lean `Origin.CenterConstruction.centerHolds` 为 `ZD ≤ ZG`（**弱**，单点交集成立；同
-`ChanlunElements.Center.valid`），Python 全家族（`a_zhongshu_v1.py:145`、`a_center_v0.py:238`）为**严格**
+`ChanlunElements.Center.valid`），Python 全家族（`a_zhongshu_v1._scan_zhongshu`、`a_center_v0._try_init_center`）为**严格**
 （`zg <= zd` 跳过 ⟹ 单点**不**成立）。**该落点的 Lean↔Python 对齐声明在本边界上作废**——两侧语义相反，
 **此边界不作机械锁用**（B1 的「位置态有 parity」不覆盖成立谓词的端点分支）。依据：原文对单点中枢
 **未涉及**（17 课定义/20 课公式无端点口径；22 课 Q&A `022-第22课.md:514` 被缠师回避），不擅自发明 ⟹
-维持 Python 严格口径。下游真空照实：单点中枢若成立，其下游（定理二分支/三类买卖点/092 监视器 Z 值）
-全落原文真空——本裁定使该输入域在生产不可达（实测 OKLO 0 次、BZ2024 3 次，两版均判不成立），真空不
-激活。**与 #290 裁定 A 无交集**（裁定 A 改的是重叠/延伸判定：`a_center_v0._has_overlap`、
+维持 Python 严格口径。下游真空照实：单点中枢若成立，其下游（定理二分支/三类买卖点/092 监视器 Z 值）全落原文真空。
+**输入域实测（ZG==ZD 输入，落码口径）**：OKLO **0 次**、BZ2024 **2 次**（均在 L1）；Python 两版
+（v0 `a_center_v0._try_init_center` / v1 `a_zhongshu_v1._scan_zhongshu`）**均判不成立** ⟹ 单点中枢
+成立分支及其下游真空**在 Python 链上不激活**。
+⚠**不可推广到 Rust**：Rust θ v0 **生产链是弱口径**——`rust/src/theta_v0/classifier/center.rs` 的
+`center_from_segments` / `center_from_window` 两处均为 `if zd > zg { return None }`（单点 `zd==zg`
+通过），同文件 doc 明写「`ZD_B=ZG_B` 单点核心合法」。故该分支在 Rust 生产链上**可达且判成立**，
+下游真空是**激活的**。此矛盾（Lean 弱 / Python 严格 / Rust 弱）**超出 #290 裁定 B 的有效域**，
+已另立票 **#321**（成立口径三方矛盾，grilling）。
+**与 #290 裁定 A 无交集**（裁定 A 改的是重叠/延伸判定：`a_center_v0._has_overlap`、
 `a_level_fsm_newchan.overlap` 两谓词严格 `<` → 含端点 `<=`，对齐中心定理一 `020-第20课.md:56` 与 Lean
 `CenterExtension`/`CenterBroken`；实测 golden 锁不波及）。登记模板：#249/#288 先例。裁定书链：
 `chanlun/review-results/center-tangency-doctrine-20260726.md`、

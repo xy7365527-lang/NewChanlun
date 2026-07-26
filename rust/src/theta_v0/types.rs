@@ -108,6 +108,8 @@ pub struct Segment {
 ///
 /// `zd=max(low_A,low_B,low_C)`，`zg=min(high_A,high_B,high_C)`；闭区间 `[zd,zg]`，
 /// `zd<=zg` 成立即中枢成立。`gg=max(highs)`/`dd=min(lows)` 外包络。
+/// ⚠作废注：与 Python 侧严格口径**不一致**（Python 单点**不**成立）：见 #290 裁定 B（该落点
+/// Lean↔Python 对齐声明已作废）与新票 #321（成立口径三方矛盾 Lean/Python/Rust）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Center {
     /// 核心区间下沿 ZD（闭区间）。

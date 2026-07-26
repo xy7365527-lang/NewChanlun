@@ -150,6 +150,8 @@ pub fn third_spans_core(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> bool {
 /// `[compute_zd(a,b,c), compute_zg(a,b,c)]`，外缘取**三段** dd/gg。
 ///
 /// 边界条件（结论翻转）：方向交替用严格异向；全三段核心非空用闭区间（`ZD_B=ZG_B` 单点核心合法）；
+/// ⚠作废注：与 Python 侧严格口径**不一致**（Python 单点**不**成立）：见 #290 裁定 B（该落点
+/// Lean↔Python 对齐声明已作废）与新票 #321（成立口径三方矛盾 Lean/Python/Rust）。
 /// 缺方向维度（上级无方向单元）则方向交替不可判——见 `center_from_window`。
 pub fn center_from_segments(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Option<Center> {
     // 支1：方向交替（§6.1，DirAlternates）。
