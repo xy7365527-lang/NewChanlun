@@ -29,9 +29,6 @@ use super::types::{Unit, Zhongshu};
 /// `a_level_fsm_newchan.overlap`（#314 已弱）、#246「相切=重合」全域口径。本处是第四实现
 /// （#322 票面「第四实现分歧」），改弱后四实现同口径。
 ///
-/// 调研：`chanlun/review-results/center-tangency-doctrine-20260726.md` §2.1；爆炸半径
-/// `.chanlun/review-results/center-tangency-blast-radius-20260726.md` §79 行。
-///
 /// **不改的两处严格**（同属定理一，方向相反）：`detect_type3` 的离开判据
 /// （`leave.low > c.high`）与 `same_direction_step` 的外缘分离判据（`next.dd > prev.gg`）
 /// ——脱离/分离在原文即严格不等，相切在这两处应判「未脱离/未分离」，现状已符合。
@@ -258,6 +255,41 @@ mod tests {
         assert_eq!(centers.len(), 2);
         let step = same_direction_step(&centers[0], &centers[1]);
         assert_eq!(step, Some(Direction::Up));
+    }
+
+    // ================================================================
+    // #338（#322 评审尾巴）：成立条件 `zg > zd` 严格性机器锁
+    // ================================================================
+
+    /// #321/#323 裁定（成立条件严格 `zg > zd`）：核心区间恰相切（单端点相接）退化为
+    /// 单点时不成立中枢——防止该判据日后被顺手改弱为 `>=`。
+    #[test]
+    fn 核心区间恰相切不成立中枢() {
+        // 三段 [10,15] [15,25] [5,20]：ZD=max(10,15,5)=15，ZG=min(15,25,20)=15。
+        // 第0段 high 与第1段 low 恰在 15 相接（单端点相切）→ ZD==ZG，单点核心。
+        let units = vec![
+            bi(10.0, 15.0, 0, 1, Direction::Up),
+            bi(15.0, 25.0, 1, 2, Direction::Down),
+            bi(5.0, 20.0, 2, 3, Direction::Up),
+        ];
+        let centers = find_centers(&units, 1);
+        assert!(centers.is_empty());
+    }
+
+    /// 与上例对照：同一构造下核心区间刚越过退化点（`ZG` 比 `ZD` 大一个极小量），
+    /// 严格 `>` 判成立——证明边界是真实分岔点，不是 `>` / `>=` 的巧合。
+    #[test]
+    fn 核心区间刚过相切成立中枢() {
+        // 第1段 low 由 15.0 微降至 14.999：ZD=max(10,14.999,5)=14.999 < ZG=15。
+        let units = vec![
+            bi(10.0, 15.0, 0, 1, Direction::Up),
+            bi(14.999, 25.0, 1, 2, Direction::Down),
+            bi(5.0, 20.0, 2, 3, Direction::Up),
+        ];
+        let centers = find_centers(&units, 1);
+        assert_eq!(centers.len(), 1);
+        assert_eq!(centers[0].low, 14.999);
+        assert_eq!(centers[0].high, 15.0);
     }
 
     // ================================================================

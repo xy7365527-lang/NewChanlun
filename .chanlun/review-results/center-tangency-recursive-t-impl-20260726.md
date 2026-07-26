@@ -163,7 +163,7 @@ test result: ok. 7 passed; 0 failed; 1 ignored
 test result: ok. 1913 passed; 0 failed; 139 ignored; 0 measured; 0 filtered out
 ```
 
-基线 1910 + 3 条新用例 = 1913；ignored 138 + 1 探针 = 139。**既有用例零翻动**（0 failed，且新增前后既有 5 条 center 用例逐条绿）。
+基线 1910 + 3 条新用例 = 1913；ignored 138 + 1 探针 = 139。**既有用例零翻动**（0 failed，且新增前后既有 4 条 center 用例逐条绿）。
 
 ### 4.2 四把锁（`--ignored`，BTC 数据）
 
