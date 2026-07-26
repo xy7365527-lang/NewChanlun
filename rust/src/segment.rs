@@ -4,6 +4,15 @@
 //! `segments_from_strokes_v1` 的输出与 Python `segments_from_strokes_v1(strokes,
 //! min_seg_strokes, extend_mode, _resume=None)` 逐字段相等。
 //!
+//! ⚠口径变更（#246 裁定，supersede Lead #84 点3；#277 裁路①、#288 落码 2026-07-26）：
+//! 相切边界两谓词切换——`three_stroke_overlap` 改含端点 `<=`（相切=重合）、
+//! `is_fractal_and_gap` 缺口谓词改严格 `>`（相切=重合 ⟹ 无缺口），对齐 Lean
+//! `Overlaps`/`HasGap`；Python 参考 `a_segment_v1.py` 同批切换，上述逐字段相等
+//! 声明在**新口径**下继续成立，但在相切边界**不再 bit-exact 对齐 2026-07-26 前
+//! 旧口径的历史输出/基线**（实测段端点零变化，仅 `break_evidence.gap_type`
+//! 标签级翻转）。裁定书：`chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`。
+//! 本模块其余声明不受影响。
+//!
 //! ## 逐位等价要点
 //!
 //! 1. 线段构造**不做任何浮点算术**——只有比较与 min/max **选择**。故无浮点约简顺序
@@ -108,11 +117,18 @@ pub struct Segment {
 // ════════════════════════════════════════════════════════════
 
 /// 三笔交集重叠判定。移植自 `_three_stroke_overlap`。
+///
+/// ★口径（#246 裁定，supersede Lead #84 点3；#277 裁路①、#288 落码）：含端点 `<=`
+/// （相切=重合 ⟹ `max(lows) == min(highs)` 时判 true），对齐 Lean
+/// `Origin.SegmentFeatureSeq.Overlaps`（闭区间；一维 Helly：两两相交 ⟺ 公共交集
+/// 非空），与 theta_v0 `Interval::overlaps` 同形。Python 参考 `a_segment_v1.py`
+/// 同批切换，Rust↔Python 逐位等价在新口径下继续成立。
+/// 裁定书：`chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`。
 #[inline]
 fn three_stroke_overlap(s1: &Stroke, s2: &Stroke, s3: &Stroke) -> bool {
     let lo = s1.low.max(s2.low).max(s3.low);
     let hi = s1.high.min(s2.high).min(s3.high);
-    lo < hi
+    lo <= hi
 }
 
 /// 从 from_s 开始找第一个三笔交集重叠的起点。移植自 `_find_overlap_start`。
@@ -341,6 +357,12 @@ fn has_any_fractal(elements: &[(f64, f64)]) -> bool {
 }
 
 /// 检测 (a,b,c) 是否构成目标分型，及 a-b 间是否有缺口。移植自 `_is_fractal_and_gap`。
+///
+/// ★口径（#246 裁定，supersede Lead #84 点3；#277 裁路①、#288 落码）：相切（仅公共端点，
+/// 如 `b_l == a_h`）**不算缺口**——相切=重合 ⟹ 无缺口，缺口谓词为严格 `>`，
+/// 对齐 Lean `Origin.SegmentFeatureSeq.HasGap`（严格 `<`）及 `gap_iff_not_overlap`。
+/// Python 参考 `a_segment_v1.py` 同批切换，Rust↔Python 逐位等价在新口径下继续成立。
+/// 裁定书：`chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`。
 #[inline]
 fn is_fractal_and_gap(
     a_h: f64,
@@ -353,11 +375,11 @@ fn is_fractal_and_gap(
 ) -> (bool, bool) {
     if seg_direction == Direction::Up {
         let is_fractal = b_h > a_h && b_h > c_h;
-        let has_gap = if is_fractal { b_l >= a_h } else { false };
+        let has_gap = if is_fractal { b_l > a_h } else { false };
         (is_fractal, has_gap)
     } else {
         let is_fractal = b_l < a_l && b_l < c_l;
-        let has_gap = if is_fractal { a_l >= b_h } else { false };
+        let has_gap = if is_fractal { a_l > b_h } else { false };
         (is_fractal, has_gap)
     }
 }

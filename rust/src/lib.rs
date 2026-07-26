@@ -4,6 +4,12 @@
 //! Phase 3 范围：segment 引擎（线段，特征序列法）+ zhongshu 引擎（中枢，三段重叠法）+
 //! move 引擎（走势类型）。批量等价于 Python `segments_from_strokes_v1` /
 //! `zhongshu_from_segments` / `zhongshu_from_strokes` / `moves_from_zhongshus`。
+//!
+//! ⚠口径变更（#246 裁定，supersede Lead #84 点3；#277 裁路①、#288 落码 2026-07-26）：
+//! legacy 段引擎相切边界（三笔重叠含端点 `<=`、缺口谓词严格 `>`）与 Python 参考
+//! 同批切换，Rust↔Python 批量等价在**新口径**下继续成立，相切边界不再 bit-exact
+//! 对齐旧口径历史基线。裁定书：`chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`。
+//! 其余 Phase 声明不受影响。
 //! Phase 4 范围：背驰（divergence）+ 买卖点（buysellpoint，type1/2/3 + 2B3B 重合）。
 //! 批量等价于 Python `divergences_from_moves_v1` / `buysellpoints_from_level`。
 //! Phase 7 范围：MACD 力度层（macd）——EMA → DIF/DEA/hist → area/peak。逐位等价于
@@ -145,6 +151,12 @@ impl PyBiEngine {
 
 /// 线段 v1 批量构造（特征序列法）。逐位等价于 Python
 /// `segments_from_strokes_v1(strokes, min_seg_strokes, extend_mode)`。
+///
+/// ⚠口径变更（#246 裁定，supersede Lead #84 点3；#277 裁路①、#288 落码 2026-07-26）：
+/// 相切边界（三笔重叠含端点 `<=`、缺口谓词严格 `>`）两侧同批切换，逐位等价在
+/// **新口径**下继续成立，相切边界不再 bit-exact 对齐旧口径历史基线（实测段端点
+/// 零变化，仅 `break_evidence.gap_type` 标签级翻转）。
+/// 裁定书：`chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`。
 ///
 /// 用法（Python）：
 ///
