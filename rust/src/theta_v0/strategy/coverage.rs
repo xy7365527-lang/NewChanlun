@@ -15,7 +15,7 @@
 //! | 步 | Lean 规格 | rust 实装 |
 //! |----|----------|----------|
 //! | 1 元素集 E | `SyntaxElement`(§二 C27 四元组 `(I_e,ε_e,ℓ_e,par)`) | [`CoverageElement`]（从 classifier levels + `RMove::Compose` 塔提取）|
-//! | 2 活动集 | M16 `A_t`/`B_t`/`D_t` + `AncOK[(A_t∖D_t)∪B_t∪RegistryRestore]` | [`active_set_step`]（先关后开 + 祖先闭合；RegistryRestore=registry 持久祖先物化，anc.pdf §11 第三来源，非新数学来源）|
+//! | 2 活动集 | M16 `A_t`/`B_t`/`D_t` + `AncOK[(A_t∖D_t)∪B_t∪RegistryRestore]` | 生产路径 [`coverage_step_from_buckets_sep`]（第三来源由 #247 [`restore_ancestor_chain_from_registry`] 物化：registry 持久祖先，anc.pdf §11，非新数学来源）；[`active_set_step`] 为 M16 理想式原语（先关后开 + 祖先闭合，**不含**第三来源）|
 //! | 3 角色 R(g) | spec §8 `R(g)=(H(g),V(g),δ_g)` 24 类（3×4×2） | [`operation_role`]（H 水平 × V 垂直 × δ 方向三轴）|
 //! | 4 LegTarget | M17/M28 每活动元素一腿（方向 ε_e，单位 s_e） | [`leg_target`]（role/depth 权重 `w_depth`）|
 //! | 5 净额执行 | Nautilus 净额兼容（毛账本 → 净持仓） | [`net_target_units`]（所有腿合并为净 `units:f64`）|
@@ -1579,7 +1579,7 @@ fn leg_target_two_segment(
 }
 
 /// 元素的真嵌套深度（沿 parent 链长度，根=0；铁律：真父子，非级别差）。
-/// parent（usize 索引）指向 base 段 carrier（< candidate_start ≤ base.len），链全在 base，bit-exact == ancestors().len()。
+/// parent（usize 索引）多指向 base 段 carrier（< candidate_start ≤ base.len）；#247/#267 后恢复元素与 held 腿占位的 parent **可指 overlay 段**（全局 idx，`ElementView::get` 透明）——链不再恒在 base（影子评审 #266 MED-3 订正）。bit-exact == ancestors().len()。
 fn element_depth(elements: &ElementView, e_idx: usize) -> u32 {
     let mut depth = 0u32;
     let mut cur = elements.get(e_idx).and_then(|e| e.parent);
