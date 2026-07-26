@@ -21,7 +21,7 @@
 //! | P1 | 风险强平 | `Exit(RiskExit)` | 真实装（`force_flat` 注入，与 `KThetaRiskGate.force_flat` 同源） |
 //! | P2 | 本级证书平仓·S2→根清仓 | `Exit(CloseRoot)` | 真实装（[`reverse_exit_type`] 单源） |
 //! | P3 | 本级证书平仓·S2→减核心 | `Exit(ReduceCore)` | 真实装（同上） |
-//! | P4 | 短差平仓 | `Exit(CloseShortDiff)` | #149 真实装（顺父 child cert + parent projection） |
+//! | P4 | 首开反向平仓 | `Exit(CloseReverseOpen)` | #149 真实装（顺父 child cert + parent projection）；原「短差平仓 `Exit(CloseShortDiff)`」，#281 更名（#283 实装） |
 //! | P5 | 短差开启 | ~~`OpenShortDiff`~~ | **已删（#282，#280 裁定）**：S6 开空腿账面形态（修1 废止）的 shadow 槽位；槽号退役原位保留，优先级编号冻结 |
 //! | P6 | 开仓 | `Open` | 真实装 |
 //! | P7 | 记录 | `Record` | 真实装（#150 T7：次级别完整走势检测器 + P7 记录桶，只写账本不动仓位） |
@@ -83,8 +83,9 @@ pub struct ChannelPredicates {
     pub cert_close_root: bool,
     /// P3：本级证书平仓·S2 二分→ReduceCore（三类反向 = 核心仓减仓）。
     pub cert_reduce_core: bool,
-    /// P4：短差平仓（在册短差腿 + 顺父 confirmed child cert + sound parent projection）。
-    pub short_diff_close: bool,
+    /// P4：首开反向平仓（在册首开反向腿 + 顺父 confirmed child cert + sound parent projection）。
+    /// 原 `short_diff_close`，#281 更名（#283 实装）。
+    pub reverse_open_close: bool,
     /// P6：开仓（本声部 slot 空 ∧ 存在本级可交易候选）。
     pub open_entry: bool,
     /// P7：记录（#150 T7 真实装：本级持仓期间次级别走势类型完整走完 ∧ 全程无证书投影
@@ -101,7 +102,7 @@ impl ChannelPredicates {
             1 => self.risk_exit,
             2 => self.cert_close_root,
             3 => self.cert_reduce_core,
-            4 => self.short_diff_close,
+            4 => self.reverse_open_close,
             // #282：P5 短差开启槽已删（#280 裁定，S6 开空腿形态废止）；槽号原位退役
             // （恒 false），P6..P8 优先级编号冻结不动。
             5 => false,
@@ -127,7 +128,7 @@ pub enum ChannelId {
 /// （#282：第四个非出场动作 `OpenShortDiff` 随 P5 槽删除。）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChannelDecision {
-    /// 出场/持有裁决（C1→RiskExit、C2→CloseRoot、C3→ReduceCore、C4→CloseShortDiff、
+    /// 出场/持有裁决（C1→RiskExit、C2→CloseRoot、C3→ReduceCore、C4→CloseReverseOpen、
     /// C0→Hold；单源 [`ExitType`]）。
     Exit(ExitType),
     /// C6：开仓。
@@ -158,7 +159,7 @@ pub fn decision_of(c: ChannelId) -> ChannelDecision {
         ChannelId::Cj(1) => ChannelDecision::Exit(ExitType::RiskExit),
         ChannelId::Cj(2) => ChannelDecision::Exit(ExitType::CloseRoot),
         ChannelId::Cj(3) => ChannelDecision::Exit(ExitType::ReduceCore),
-        ChannelId::Cj(4) => ChannelDecision::Exit(ExitType::CloseShortDiff),
+        ChannelId::Cj(4) => ChannelDecision::Exit(ExitType::CloseReverseOpen),
         // #282：P5 槽已删（p(5) 恒 false），first_match 不再产出 C5。
         ChannelId::Cj(5) => unreachable!("#282：P5 短差开启槽已删，C5 不可达"),
         ChannelId::Cj(6) => ChannelDecision::Open,
@@ -168,14 +169,16 @@ pub fn decision_of(c: ChannelId) -> ChannelDecision {
     }
 }
 
-/// #149 在册 ShortDiff 子声部。字段私有；构造路径（P5 sound projection）已随 #282 P5 槽
-/// 删除退役——类型保留供 P4 槽读/清（生产 shadow 下该槽恒 `None`，shadow.rs 模块 doc）。
+/// #149 在册首开反向（ReverseOpen）子声部——原 `ShortDiffVoice`，#281 更名（#283 实装；
+/// 改名而非删除的理由：P4 槽读/清路径仍引用本类型，删除需动 `VoiceState` 结构与 P4 判据
+/// 逻辑，超出词汇对齐的行为零改动边界）。字段私有；构造路径（P5 sound projection）已随
+/// #282 P5 槽删除退役——类型保留供 P4 槽读/清（生产 shadow 下该槽恒 `None`，shadow.rs 模块 doc）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ShortDiffVoice {
+pub struct ReverseOpenVoice {
     leg: ActiveLeg,
 }
 
-impl ShortDiffVoice {
+impl ReverseOpenVoice {
     pub fn leg(&self) -> ActiveLeg {
         self.leg
     }
@@ -185,7 +188,7 @@ impl ShortDiffVoice {
     }
 }
 
-/// 父声部状态（parent slot + 至多一个 ShortDiff child slot）。
+/// 父声部状态（parent slot + 至多一个首开反向 child slot）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VoiceState {
     /// 本声部级别 ℓ（谓词只消费本级候选——「本级证书平仓」）。
@@ -198,9 +201,10 @@ pub struct VoiceState {
     pub step: usize,
     /// #150 T7：次级别完整走势检测器状态（仅本级持仓期间武装，持仓边界重置）。
     pub sub_cycle: SubCycleTracker,
-    /// #149 独立短差子声部；P4 只清此槽。写入路径（P5）已随 #282 删除——槽恒 `None`，
+    /// #149 独立首开反向子声部（原 `short_diff` 槽，#281 更名 #283 实装）；P4 只清此槽。
+    /// 写入路径（P5）已随 #282 删除——槽恒 `None`，
     /// P4 域事实不可达（同 shadow.rs「P4 恒不触发」既有状态），父 `leg` 保持不动。
-    pub short_diff: Option<ShortDiffVoice>,
+    pub reverse_open: Option<ReverseOpenVoice>,
 }
 
 /// 单时刻声部输入（事件）。
@@ -396,12 +400,12 @@ pub fn shadow_observe(state: &VoiceState, input: &VoiceStepInput) -> VoiceState 
 ///   单源，#202：[`find_reverse`] ≺_Θ 序首个命中，含 `nest_confirmed` 证书门——对齐
 ///   interp 规则2），经 [`reverse_exit_type`]`(entry_v, trigger_class)` S2 二分：
 ///   CloseRoot→P2、ReduceCore→P3。
-/// - P4 = 短差在册 ∧ 存在同 child level 的顺父 confirmed certificate，其真父投影匹配当前父腿；
-///   该证书相对短差腿为反向，故只关闭短差子声部。
+/// - P4 = 首开反向在册 ∧ 存在同 child level 的顺父 confirmed certificate，其真父投影匹配当前父腿；
+///   该证书相对首开反向腿为反向，故只关闭首开反向子声部。
 /// - P6 = 空仓 ∧ 存在本级可交易候选（dir≠Flat ∧ 有类）。
 ///
 /// #282：P5（短差开启）判据与 `find_short_diff_open` 已删——反父 SubLevel ShortDiff
-/// confirmed certificate + sound parent projection 的开空腿通道属 S6 废止形态。
+/// confirmed certificate + sound parent projection 的开空腿通道属 S6 废止形态（谱系保留旧名）。
 pub fn voice_predicates(state: &VoiceState, input: &VoiceStepInput) -> ChannelPredicates {
     let mut p = ChannelPredicates { risk_exit: input.force_flat, ..ChannelPredicates::default() };
     // P2/P3：本级证书平仓——持仓 ∧ ≺_Θ 序首个本级反向已确认证书候选（[`cert_close_trigger`]
@@ -413,25 +417,25 @@ pub fn voice_predicates(state: &VoiceState, input: &VoiceStepInput) -> ChannelPr
             match exit {
                 ExitType::CloseRoot => p.cert_close_root = true, // P2
                 ExitType::ReduceCore => p.cert_reduce_core = true, // P3
-                // 父腿本级反向不可能按入场角色归 ShortDiff；防御性不把它误写 P4，P4 单独按
+                // 父腿本级反向不可能按入场角色归 ReverseOpen；防御性不把它误写 P4，P4 单独按
                 // 在册 child + sound parent projection 推导。
-                ExitType::CloseShortDiff => {}
+                ExitType::CloseReverseOpen => {}
                 ExitType::RiskExit | ExitType::Hold => {
                     unreachable!("reverse_exit_type 只产三 close 枚举")
                 }
             }
         }
     }
-    if find_short_diff_close(state, input).is_some() {
-        p.short_diff_close = true; // P4（字段位置/优先级不动）
+    if find_reverse_open_close(state, input).is_some() {
+        p.reverse_open_close = true; // P4（字段位置/优先级不动）
     }
     if state.leg.is_none() && find_open(state.level, &input.candidates).is_some() {
-        // P6：开仓——空仓 slot ∧ 存在本级可交易非 ShortDiff 角色候选（ShortDiff 角色候选
+        // P6：开仓——空仓 slot ∧ 存在本级可交易非 ReverseOpen 角色候选（ReverseOpen 角色候选
         // 在本模块无通道：P5 槽 #282 已删，生产开启由散装域 interp fold 规则3 承担）。
         p.open_entry = true;
     }
     // P7（#150 T7）：本级持仓期间次级别走势类型完整走完 ∧ 全程无证书投影 ⟹ 记录桶。
-    // 有投影的子周期属 #149 短差域，不置位 P7——互斥由谓词自身语义保证，
+    // 有投影的子周期属 #149 首开反向域，不置位 P7——互斥由谓词自身语义保证，
     // first-match 排序不动（P7 谓词允许与 P1 重叠，互斥化在 first_match 层）。
     if let Some(cc) = observe_sub_cycle(state, input).completed {
         p.record = !cc.projected;
@@ -452,19 +456,19 @@ fn has_sound_parent_projection(
         .any(|projection| trigger_projection_sound(parent, child, projection))
 }
 
-/// P4：首个可关闭当前短差腿的顺父 child certificate。
-fn find_short_diff_close<'a>(
+/// P4：首个可关闭当前首开反向腿的顺父 child certificate。原 `find_short_diff_close`（#281 更名）。
+fn find_reverse_open_close<'a>(
     state: &VoiceState,
     input: &'a VoiceStepInput,
 ) -> Option<&'a Candidate> {
     let parent = state.leg.as_ref()?;
-    let short_diff = state.short_diff.as_ref()?;
+    let reverse_open = state.reverse_open.as_ref()?;
     theta_ordered(&input.candidates).into_iter().find(|c| {
-        c.level == short_diff.leg.level
+        c.level == reverse_open.leg.level
             && c.dir == parent.dir
             && c.role.v == Vertical::FollowParent
             && c.role.grade == super::coverage::GradeRel::SubLevel
-            && reverse_signal(short_diff.leg.dir, &c.bits)
+            && reverse_signal(reverse_open.leg.dir, &c.bits)
             && has_sound_parent_projection(parent, c, input)
     })
 }
@@ -491,7 +495,7 @@ fn find_reverse(level: u32, leg_dir: VoiceSide, cands: &[Candidate]) -> Option<&
 /// 本判据点——不镜像（interp fold 文档「不在外部重放配对」同款纪律）。
 ///
 /// 返回 `None` = P2/P3 域不成立（无持仓反向命中/无已确认证书）；`Some((trigger, exit))`
-/// 中 `exit` 可为 [`ExitType::CloseShortDiff`]（entry_v==ShortDiff 的父腿本级反向——P4 域
+/// 中 `exit` 可为 [`ExitType::CloseReverseOpen`]（entry_v==ReverseOpen 的父腿本级反向——P4 域
 /// 原料，谓词层不置位 P2/P3，由调用方按账户域分流）。
 pub(crate) fn cert_close_trigger(
     level: u32,
@@ -503,14 +507,14 @@ pub(crate) fn cert_close_trigger(
     Some((c, reverse_exit_type(entry_v, c.bsp_class)))
 }
 
-/// ≺_Θ 序首个本级普通开仓候选（可交易 ∧ 非 ShortDiff 角色；ShortDiff 角色候选在本模块
+/// ≺_Θ 序首个本级普通开仓候选（可交易 ∧ 非 ReverseOpen 角色；ReverseOpen 角色候选在本模块
 /// 无通道——P5 槽 #282 已删，生产开启由散装域 interp fold 规则3 承担）。
 fn find_open(level: u32, cands: &[Candidate]) -> Option<&Candidate> {
     theta_ordered(cands).into_iter().find(|c| {
         c.level == level
             && c.dir != VoiceSide::Flat
             && c.bsp_class != u8::MAX
-            && c.role.v != Vertical::ShortDiff
+            && c.role.v != Vertical::ReverseOpen
     })
 }
 
@@ -531,7 +535,7 @@ pub fn step_voice(state: &VoiceState, input: &VoiceStepInput) -> (ChannelId, Cha
 /// 含显式 Hold）。状态转移（不可变，逐步产新 state）：
 /// - `Exit(RiskExit|CloseRoot|ReduceCore)` ⟹ 父腿关闭（对齐 interp 规则2：被反向命中的腿
 ///   入 𝒟_x；ReduceCore 减核心在腿粒度同为关闭——本票腿即最小持仓单元）。
-/// - `Exit(CloseShortDiff)` ⟹ **只清短差子槽，父腿不动**。
+/// - `Exit(CloseReverseOpen)` ⟹ **只清首开反向子槽，父腿不动**。
 /// - `Open` ⟹ 以触发候选建腿（entry_v = 候选角色垂直轴，入场固定）。
 /// - `Exit(Hold)` ⟹ 状态不变。P7/P8 仍不可达。
 /// （#282：`OpenShortDiff` 转移分支随 P5 槽删除。）
@@ -596,8 +600,8 @@ fn advance(state: VoiceState, input: &VoiceStepInput, dec: ChannelDecision) -> V
         }
         // #149 P4：只关闭 hedge voice；parent leg/entry_v 逐字段保持
         // （父持仓期未结束 ⟹ #150 检测器续武装）。
-        ChannelDecision::Exit(ExitType::CloseShortDiff) => {
-            VoiceState { short_diff: None, step, sub_cycle, ..state }
+        ChannelDecision::Exit(ExitType::CloseReverseOpen) => {
+            VoiceState { reverse_open: None, step, sub_cycle, ..state }
         }
         // 显式 Hold / P7 记录（仓位零变动，只推进检测器）。
         ChannelDecision::Exit(ExitType::Hold) | ChannelDecision::Record => {
@@ -719,7 +723,7 @@ mod tests {
             entry_v,
             step: 0,
             sub_cycle: SubCycleTracker::default(),
-            short_diff: None,
+            reverse_open: None,
         }
     }
     fn empty_voice(level: u32) -> VoiceState {
@@ -729,7 +733,7 @@ mod tests {
             entry_v: Vertical::Ambient,
             step: 0,
             sub_cycle: SubCycleTracker::default(),
-            short_diff: None,
+            reverse_open: None,
         }
     }
 
@@ -806,7 +810,7 @@ mod tests {
             risk_exit: b(1),
             cert_close_root: b(2),
             cert_reduce_core: b(3),
-            short_diff_close: b(4),
+            reverse_open_close: b(4),
             open_entry: b(6),
             record: b(7),
             add_position: b(8),
@@ -857,7 +861,7 @@ mod tests {
         assert_eq!(decision_of(ChannelId::Cj(1)), ChannelDecision::Exit(ExitType::RiskExit));
         assert_eq!(decision_of(ChannelId::Cj(2)), ChannelDecision::Exit(ExitType::CloseRoot));
         assert_eq!(decision_of(ChannelId::Cj(3)), ChannelDecision::Exit(ExitType::ReduceCore));
-        assert_eq!(decision_of(ChannelId::Cj(4)), ChannelDecision::Exit(ExitType::CloseShortDiff));
+        assert_eq!(decision_of(ChannelId::Cj(4)), ChannelDecision::Exit(ExitType::CloseReverseOpen));
         assert_eq!(decision_of(ChannelId::Cj(6)), ChannelDecision::Open);
         assert_eq!(decision_of(ChannelId::Cj(7)), ChannelDecision::Record);
         assert_eq!(decision_of(ChannelId::Cj(8)), ChannelDecision::AddPosition);
@@ -935,11 +939,11 @@ mod tests {
         let mut unconfirmed = cand(0, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient);
         unconfirmed.nest_confirmed = false;
         assert!(cert_close_trigger(0, VoiceSide::Long, Vertical::Ambient, &[unconfirmed]).is_none());
-        // ShortDiff 入场角色的本级反向：reverse_exit_type 产 CloseShortDiff（P4 域原料，
+        // ReverseOpen 入场角色的本级反向：reverse_exit_type 产 CloseReverseOpen（P4 域原料，
         // 谓词层不置位 P2/P3）——单源如实产出，由调用方按账户域分流。
         let sd_cands = [cand(0, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient)];
-        let got_sd = cert_close_trigger(0, VoiceSide::Long, Vertical::ShortDiff, &sd_cands);
-        assert_eq!(got_sd.map(|(_, e)| e), Some(ExitType::CloseShortDiff));
+        let got_sd = cert_close_trigger(0, VoiceSide::Long, Vertical::ReverseOpen, &sd_cands);
+        assert_eq!(got_sd.map(|(_, e)| e), Some(ExitType::CloseReverseOpen));
     }
 
     /// RiskExit 与结构性谓词同刻同时为真 ⟹ RiskExit 恒最先命中（声部级）。
@@ -1253,12 +1257,13 @@ mod tests {
     }
 
     /// #282 改写：原测试断言 ShortDiff 角色候选经 P5 开启、绝不落 P6；P5 槽删除后，
-    /// 护栏收缩为「ShortDiff 角色候选绝不落 P6 开普通根仓」（即使有 sound 父投影也
-    /// 无通道可裁，兜底 C0 Hold——生产 ShortDiff 腿开启由散装域 interp fold 规则3 承担，
+    /// 护栏收缩为「ReverseOpen 角色候选绝不落 P6 开普通根仓」（即使有 sound 父投影也
+    /// 无通道可裁，兜底 C0 Hold——生产 ReverseOpen 腿开启由散装域 interp fold 规则3 承担，
     /// 不经 channel）。原「无父投影不得触发 P5/P4」反例测试随 P5 一并删除（P4 的
-    /// 在册前提——short_diff 槽非 None——已无可构造路径，见模块 doc）。
+    /// 在册前提——reverse_open 槽非 None——已无可构造路径，见模块 doc）。
+    /// 原 `short_diff_role_candidate_never_routes_via_p6`（#281 更名，#283 实装）。
     #[test]
-    fn short_diff_role_candidate_never_routes_via_p6() {
+    fn reverse_open_role_candidate_never_routes_via_p6() {
         let parent = holding(1, VoiceSide::Long, Vertical::Ambient);
         let child = child_cand(
             0,
@@ -1266,20 +1271,20 @@ mod tests {
             VoiceSide::Short,
             1,
             sell(1),
-            Vertical::ShortDiff,
+            Vertical::ReverseOpen,
         );
         let input = projected_step(parent.leg.unwrap(), child);
         let p = voice_predicates(&parent, &input);
-        assert!(!p.open_entry, "ShortDiff 角色候选不得漏入 P6");
+        assert!(!p.open_entry, "ReverseOpen 角色候选不得漏入 P6");
         assert_eq!(
             step_voice(&parent, &input),
             (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold)),
-            "P5 槽已删：sound 父投影 + 反父 ShortDiff 候选不再产任何通道裁决"
+            "P5 槽已删：sound 父投影 + 反父 ReverseOpen 候选不再产任何通道裁决"
         );
-        // 空仓侧同样不得经 P6 开 ShortDiff 角色仓。
+        // 空仓侧同样不得经 P6 开 ReverseOpen 角色仓。
         let empty_input = step(false, vec![child]);
         let p_empty = voice_predicates(&empty_voice(1), &empty_input);
-        assert!(!p_empty.open_entry, "空仓 slot：ShortDiff 角色候选不得触发 P6");
+        assert!(!p_empty.open_entry, "空仓 slot：ReverseOpen 角色候选不得触发 P6");
         assert_eq!(
             step_voice(&empty_voice(1), &empty_input),
             (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold))

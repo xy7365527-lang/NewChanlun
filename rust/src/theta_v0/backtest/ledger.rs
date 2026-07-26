@@ -25,7 +25,7 @@ use super::metrics;
 ///
 /// **RiskExit 通道**（#124 P1 已落地）：`force_flat` ⟹ 组合层上游短路清活动腿，经
 /// `StepTrace.risk_exits` 产 `RiskExit`（幽灵腿堵口）。**CloseOverlay 通道**（#124 裁定4）：
-/// TW StageII 重叠腿经 `StepTrace.overlay_closes` 产 `CloseShortDiff`（生产触发可达性受
+/// TW StageII 重叠腿经 `StepTrace.overlay_closes` 产 `CloseReverseOpen`（生产触发可达性受
 /// 账本语义约束，见 fill loop TW 初始化注释）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TypedTrade {
@@ -355,7 +355,7 @@ impl TwLedgerThread {
         }
     }
 
-    /// TW 腿计数（#124）：legacy ShortDiff 腿开仓（OQ-9 守卫 `is_legal_from` 内化——
+    /// TW 腿计数（#124）：legacy ReverseOpen 腿开仓（OQ-9 守卫 `is_legal_from` 内化——
     /// EarningShares 阶段开 legacy 腿 PDF 定义为非法 ⟹ 不计，合法性语义非掩盖）。
     pub(super) fn open_share_leg(&mut self) {
         if TwEvent::OpenShareLeg.is_legal_from(&self.tw) {

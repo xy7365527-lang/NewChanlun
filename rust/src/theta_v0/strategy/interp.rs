@@ -215,8 +215,8 @@ pub fn parent_certificate_projection(
     }
     let expected_v = if cand.dir == parent.eps {
         Vertical::FollowParent
-    } else if super::voice::short_diff_side(parent.eps) == Some(cand.dir) {
-        Vertical::ShortDiff
+    } else if super::voice::reverse_open_side(parent.eps) == Some(cand.dir) {
+        Vertical::ReverseOpen
     } else {
         return None;
     };
@@ -329,7 +329,9 @@ pub struct Buckets {
 
 /// 正规出场类型 `Exit_Θ`（《完整的策略.pdf》§9 typed exit）——close 桶的类型化出场理由。
 ///
-/// `Exit_Θ(v,x_t) ∈ {CloseRoot, ReduceCore, CloseShortDiff, RiskExit, Hold}`。这是 G4（统计层
+/// `Exit_Θ(v,x_t) ∈ {CloseRoot, ReduceCore, CloseReverseOpen, RiskExit, Hold}`（原第四枚
+/// `CloseShortDiff`，#281 更名 `CloseReverseOpen`，#283 实装——ADR 0001 修正案一·补充一
+/// 词汇对齐：S6「短差」名随修1 废止退役，重读为修4「次级别首开反向」）。这是 G4（统计层
 /// typed exit：生产 π loop 输出 `TypedTradeLedger.exit_type`）与 G5（解释器 P5/P6/P7/P1 typed
 /// close 拆分）的**单一来源**枚举（team-lead 2026-07-03 裁定：由 interp.rs 定义，G4 工位复用），
 /// 避免两权威镜像（codex-q2-d1 删 `closed_loop/mutex_interp.rs` 同款矛盾）。P1..P10↔ExitType
@@ -352,8 +354,9 @@ pub enum ExitType {
     CloseRoot,
     /// P6 ReduceCore：减核心仓（三类反向点=核心仓减仓）。
     ReduceCore,
-    /// P7 CloseShortDiff：关 ShortDiff carrier 子声部（短差反向确认）。
-    CloseShortDiff,
+    /// P7 CloseReverseOpen：关首开反向（ReverseOpen）carrier 子声部（次级别首开反向确认关闭）。
+    /// 原 `CloseShortDiff`，#281 更名（#283 实装）。
+    CloseReverseOpen,
     /// P1 RiskExit：保证金/强平（`KThetaRiskGate.force_flat`/stop）。
     RiskExit,
     /// P0 Hold：无出场。
@@ -365,7 +368,7 @@ pub enum ExitType {
 ///
 /// 输入 = 被关腿的**入场角色垂直轴** `entry_v`（腿声部身份在入场时固定，不随塔演化漂移）+
 /// 触发关闭的反向候选的 `bsp_class`（[`interpret`] 规则2 的触发者，最小成立类 1<2<3）：
-/// - `entry_v == ShortDiff` ⟹ [`ExitType::CloseShortDiff`]（P7：短差子声部反向确认关闭，
+/// - `entry_v == ReverseOpen` ⟹ [`ExitType::CloseReverseOpen`]（P7：首开反向子声部反向确认关闭，
 ///   优先于触发类判定——子声部关闭语义压过触发信号语义）。
 /// - 否则 `trigger_class == 3` ⟹ [`ExitType::ReduceCore`]（P6：三类反向点=核心仓减仓）。
 /// - 否则 ⟹ [`ExitType::CloseRoot`]（P5：一类反向点=根清仓；**二类反向归 CloseRoot**——
@@ -376,10 +379,10 @@ pub enum ExitType {
 ///   [`reason_of_reverse_close`](crate::theta_v0::strategy::account::reason_of_reverse_close)），
 ///   账户身份与退出理由正交。
 ///
-/// `FollowParent` 子腿被反向关闭按触发类走 P5/P6（跟随父方向的级联核心仓，非短差对冲腿）。
+/// `FollowParent` 子腿被反向关闭按触发类走 P5/P6（跟随父方向的级联核心仓，非首开反向对冲腿）。
 pub fn reverse_exit_type(entry_v: Vertical, trigger_class: u8) -> ExitType {
-    if entry_v == Vertical::ShortDiff {
-        ExitType::CloseShortDiff
+    if entry_v == Vertical::ReverseOpen {
+        ExitType::CloseReverseOpen
     } else if trigger_class == 3 {
         ExitType::ReduceCore
     } else {
@@ -580,7 +583,7 @@ pub(crate) fn nest_confirm(level: u32, source_index: usize, bits: &BspBits, dir:
 /// `elements[candidate_start..]` 是附着候选（**按 `classification.levels` 层序 × 每层 `bsp` 序追加**
 /// ——与 [`assemble_gamma_with_tower`] 候选序 1:1 对齐，这是 ci 索引对齐的不变量契约）。
 /// 候选 i 的真父索引指向 `tree`（< candidate_start），其 [`coverage::operation_role`] 的 V 由真
-/// σ_{p(g)} 派生（FollowParent/ShortDiff 真出，非恒 Ambient）；[`coverage::ancestor_close`]（经
+/// σ_{p(g)} 派生（FollowParent/ReverseOpen 真出，非恒 Ambient）；[`coverage::ancestor_close`]（经
 /// [`coverage::active_set_step`]）在 `elements` 上对附着候选**真剪枝**（祖先=hostOf 父链，非空）。
 ///
 /// **边界条件**：`tower.len()<2`（仅 L0）或候选 hostOf 是根 ⟹ σ_{p(g)}=0 ⟹ 候选 parent=None
@@ -603,12 +606,12 @@ pub fn coverage_elements_with_tower(
 }
 
 /// 组装候选集 Γ（环3）**接真嵌套塔**——候选 [`Candidate`] 的角色 R(g)=(H,V,δ) 由 638 附着的真父子
-/// 元素派生（**V 真出 FollowParent/ShortDiff**，非扁平 [`assemble_gamma`] 的恒 Ambient）。
+/// 元素派生（**V 真出 FollowParent/ReverseOpen**，非扁平 [`assemble_gamma`] 的恒 Ambient）。
 ///
 /// 与 [`assemble_gamma`] 同产候选序（每个 `BspPoint` 1:1，含 Flat 候选，`gamma_index`=遍历序），
 /// 唯一差异：`role` 从 [`coverage_elements_with_tower`] 的**真父子组合元素数组**取
 /// （[`coverage::operation_role`] 在附着候选索引 `ci` 上读真 `attached_dir`=σ_{p(g)}）——hostOf
-/// 有真 Compose 父的候选 V≠Ambient：FollowParent（δ_g=σ_{p(g)} 顺父）/ ShortDiff（δ_g=−σ_{p(g)}
+/// 有真 Compose 父的候选 V≠Ambient：FollowParent（δ_g=σ_{p(g)} 顺父）/ ReverseOpen（δ_g=−σ_{p(g)}
 /// 反向子声部对冲腿，spec §9）。`ci` 与候选追加序对齐（见 [`coverage_elements_with_tower`] 契约）。
 ///
 /// **边界条件**：`tower.len()<2`（缺塔）或候选 hostOf 是根 ⟹ σ_{p(g)}=0 ⟹ V=Ambient（与
@@ -1221,7 +1224,7 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
 //  ★删除的错口径（639，no-patch 删不留 fallback）：`parent_dir_from_active`（活动持仓父腿方向）
 //  + `assemble_gamma_active_parent`（σ_p=持仓父腿）。错口径把 §7.2「σ 来源=父容器方向」与 §13
 //  「AncOK 持仓准入=父腿在 A_t」两个正交机制混为一谈：父有向但未持仓的逆向次级点，错口径判
-//  Ambient（→建 naked 逆势仓 garbage trades），正确口径判 ShortDiff（→AncOK 未持父时剔除不开仓）。
+//  Ambient（→建 naked 逆势仓 garbage trades），正确口径判 ReverseOpen（→AncOK 未持父时剔除不开仓）。
 //  Lean 落地 `Origin/ParentDirContainer.lean`（parentDirOfContainer 无持仓门控，struct_only 零公理）。
 //  谱系：639（σ_p 来源修正）；638（hostOf 附着，σ_p 来源）；547（主力锚删除确认）。
 // ════════════════════════════════════════════════════════════════════════════
@@ -1270,7 +1273,7 @@ fn v_code(v: Vertical) -> u8 {
     match v {
         Vertical::Ambient => 0,
         Vertical::FollowParent => 1,
-        Vertical::ShortDiff => 2,
+        Vertical::ReverseOpen => 2,
     }
 }
 
@@ -1450,7 +1453,7 @@ pub fn interpret_with_close_triggers(
 
 /// ★#202 阶段 C：规则2 **外部化**的 fold 变体（spec WP-3 阶段 C「仅替换 P2/P3」）。
 ///
-/// 本级证书平仓域（channel 口径 P2/P3 = entry_v≠ShortDiff 腿的 CloseRoot/ReduceCore）
+/// 本级证书平仓域（channel 口径 P2/P3 = entry_v≠ReverseOpen 腿的 CloseRoot/ReduceCore）
 /// 由 channel 判据 [`super::channel::cert_close_trigger`] 逐腿裁决后**喂入**
 /// （`external_closes: (active_idx, trigger)`——「每声部每步一枚」的 channel 裁决替代
 /// 散装 fold 规则2 的候选消费粒度）；组合层 coverage `pi_theta_step_traced` 正常路径
@@ -1458,7 +1461,7 @@ pub fn interpret_with_close_triggers(
 ///
 /// 语义边界（票面「其余通道维持现状」）：
 /// - 预置关闭标记后 fold 原逻辑零改：`!was_closed` 检查自动跳过 external 腿 ⟹ 规则2
-///   候选驱动语义只作用于剩余腿（entry_v==ShortDiff 的 S 组——P4 域维持散装现状）。
+///   候选驱动语义只作用于剩余腿（entry_v==ReverseOpen 的 S 组——P4 域维持散装现状）。
 /// - external 触发候选计入 `closed_any`：一类 ⟹ 消费即止（不入 open）；二类 ⟹
 ///   「先平后开」dual-effect 照常（#200 OpenShort 通道在 channel 判据下等价成立）。
 /// - close 归因序 = `(≺_Θ(trigger), active_idx)` 稳定序——与原 fold 归因序（候选 ≺_Θ
@@ -1731,11 +1734,11 @@ mod tests {
     }
 
     /// ★A12（648 裁决 D / P1-3 / 676）生产组装线子声部激活见证：orphan frontier 上的反向 bsp
-    /// 经 host^op（K_i 宇宙）在 **生产候选组装线**（assemble_gamma_with_tower）判 V=ShortDiff
+    /// 经 host^op（K_i 宇宙）在 **生产候选组装线**（assemble_gamma_with_tower）判 V=ReverseOpen
     /// ——「子声部结构性恒零」在生产路径解除。旧 T_i 宇宙此 bsp host-miss ⟹ ∂ 根 Ambient
     /// （676 根因），本测试在切换前红、切换后绿（可证伪断言）。
     #[test]
-    fn a12_orphan_frontier_bsp_enters_production_line_as_shortdiff() {
+    fn a12_orphan_frontier_bsp_enters_production_line_as_reverse_open() {
         use super::super::coverage::Vertical;
         let tower = a12_orphan_tower();
         // L0 卖点 @ s1.ρ=8（orphan c1 的中间子；δ_g=Short = −σ_{p(g)}，父 c1=Long）。
@@ -1743,8 +1746,8 @@ mod tests {
         assert_eq!(gamma.len(), 1);
         assert_eq!(
             gamma[0].role.v,
-            Vertical::ShortDiff,
-            "host^op(K_i) 命中 s1 真父 c1(Long)，Short=−σ_p ⟹ ShortDiff（子声部对冲腿）"
+            Vertical::ReverseOpen,
+            "host^op(K_i) 命中 s1 真父 c1(Long)，Short=−σ_p ⟹ ReverseOpen（子声部对冲腿）"
         );
         // 同向（Long）bsp ⟹ FollowParent（顺父）——V 轴两个非 Ambient 值都可达。
         let gamma_b = assemble_gamma_with_tower(&classification(vec![vec![buy_point(8, 3)]]), &tower);
@@ -2006,13 +2009,13 @@ mod tests {
     }
 
     /// ★G4/G5 单源判据 [`reverse_exit_type`]（PDF §9 / G5 映射 §6.1）：
-    /// ShortDiff 腿→P7；三类反向→P6；一/二类反向→P5（二类归 CloseRoot 读法）。
+    /// ReverseOpen 腿→P7；三类反向→P6；一/二类反向→P5（二类归 CloseRoot 读法）。
     #[test]
     fn reverse_exit_type_criteria_table() {
         use ExitType::*;
-        // ShortDiff 腿：任何触发类都是 CloseShortDiff（子声部关闭语义压过触发类）。
-        assert_eq!(reverse_exit_type(Vertical::ShortDiff, 1), CloseShortDiff);
-        assert_eq!(reverse_exit_type(Vertical::ShortDiff, 3), CloseShortDiff);
+        // ReverseOpen 腿：任何触发类都是 CloseReverseOpen（子声部关闭语义压过触发类）。
+        assert_eq!(reverse_exit_type(Vertical::ReverseOpen, 1), CloseReverseOpen);
+        assert_eq!(reverse_exit_type(Vertical::ReverseOpen, 3), CloseReverseOpen);
         // 根腿（Ambient）：三类反向 → ReduceCore；一/二类 → CloseRoot。
         assert_eq!(reverse_exit_type(Vertical::Ambient, 3), ReduceCore);
         assert_eq!(reverse_exit_type(Vertical::Ambient, 1), CloseRoot);
@@ -2158,7 +2161,7 @@ mod tests {
         );
     }
 
-    // ── 环3b 塔导出桥 (ii) 喂入段：638 附着 → 真父子候选（V 真出 FollowParent/ShortDiff）──
+    // ── 环3b 塔导出桥 (ii) 喂入段：638 附着 → 真父子候选（V 真出 FollowParent/ReverseOpen）──
 
     use super::super::super::classifier::center::UnitRange;
     use super::super::super::classifier::recursive_tower::LeveledMove as LM;
@@ -2274,17 +2277,17 @@ mod tests {
         );
     }
 
-    /// ★关键测试：卖候选在 Long 父走势下 ⟹ V=ShortDiff（反向子声部对冲腿，spec §9，真出非空跑）。
+    /// ★关键测试：卖候选在 Long 父走势下 ⟹ V=ReverseOpen（反向子声部对冲腿，spec §9，真出非空跑）。
     #[test]
-    fn gamma_with_tower_sell_under_long_parent_is_short_diff() {
+    fn gamma_with_tower_sell_under_long_parent_is_reverse_open() {
         let tower = long_parent_tower();
         let c = classification(vec![vec![sell_point(8, 1)]]); // level 0, src=8 ⟹ host=s1(父Long)
         let gamma = assemble_gamma_with_tower(&c, &tower);
         assert_eq!(gamma[0].dir, VoiceSide::Short);
         assert_eq!(
             gamma[0].role.v,
-            Vertical::ShortDiff,
-            "卖候选 δ=Short = −σ_{{p}}=−Long ⟹ ShortDiff（反向子声部对冲腿，真出）"
+            Vertical::ReverseOpen,
+            "卖候选 δ=Short = −σ_{{p}}=−Long ⟹ ReverseOpen（反向子声部对冲腿，真出）"
         );
     }
 
@@ -2304,9 +2307,9 @@ mod tests {
     #[test]
     fn gamma_with_tower_ordinal_identity_struct_equal_hosts() {
         let tower = two_parent_tower();
-        // src=12 → a2(父 Long)：卖 ⟹ ShortDiff。
+        // src=12 → a2(父 Long)：卖 ⟹ ReverseOpen。
         let g12 = assemble_gamma_with_tower(&classification(vec![vec![sell_point(12, 1)]]), &tower);
-        assert_eq!(g12[0].role.v, Vertical::ShortDiff, "host=a2(Long父) 卖 ⟹ ShortDiff");
+        assert_eq!(g12[0].role.v, Vertical::ReverseOpen, "host=a2(Long父) 卖 ⟹ ReverseOpen");
         // src=16 → b0(父 Short，与 a2 结构全等)：卖 ⟹ FollowParent。
         let g16 = assemble_gamma_with_tower(&classification(vec![vec![sell_point(16, 1)]]), &tower);
         assert_eq!(g16[0].role.v, Vertical::FollowParent, "host=b0(Short父) 卖 ⟹ FollowParent（ordinal 区分）");
@@ -2374,16 +2377,16 @@ mod tests {
         assert!(kept.contains(&cstart), "祖先 compose 在场 ⟹ 附着候选保留");
     }
 
-    /// ★ShortDiff 对冲腿结构产生（非空跑）：真嵌套深度≥1 ⟹ 深度权重 w[1]=0.30，方向反父声部。
+    /// ★ReverseOpen 对冲腿结构产生（非空跑）：真嵌套深度≥1 ⟹ 深度权重 w[1]=0.30，方向反父声部。
     #[test]
-    fn coverage_elements_with_tower_shortdiff_hedge_leg_produced() {
+    fn coverage_elements_with_tower_reverse_open_hedge_leg_produced() {
         let tower = long_parent_tower();
-        let c = classification(vec![vec![sell_point(8, 1)]]); // 卖 under Long 父 ⟹ ShortDiff
+        let c = classification(vec![vec![sell_point(8, 1)]]); // 卖 under Long 父 ⟹ ReverseOpen
         let (elements, cstart) = coverage_elements_with_tower(&c, &tower);
-        assert_eq!(coverage::operation_role(&elements, cstart).v, Vertical::ShortDiff);
+        assert_eq!(coverage::operation_role(&elements, cstart).v, Vertical::ReverseOpen);
         let leg = coverage::leg_target(&elements, cstart, 100.0, &VoiceConfig::default());
-        assert_eq!(leg.side, VoiceSide::Short, "ShortDiff 对冲腿方向 Short（反 Long 父声部）");
-        assert_eq!(leg.role.v, Vertical::ShortDiff);
+        assert_eq!(leg.side, VoiceSide::Short, "ReverseOpen 对冲腿方向 Short（反 Long 父声部）");
+        assert_eq!(leg.role.v, Vertical::ReverseOpen);
         assert!(
             (leg.units - 30.0).abs() < 1e-9,
             "真嵌套深度 1（沿真父链）⟹ w[1]=0.30 × 100 = 30（真深度权重，非空跑）"
@@ -2393,20 +2396,20 @@ mod tests {
     // ── 环3c 执行层 σ_p = 父容器方向（639 settle；σ 来源与持仓正交，非活动父腿）────────────
 
     /// ★639 口径修正坐实（旧错测试 `gamma_active_parent_no_position_is_ambient` 的精确反转）：
-    /// 有向父容器（前缀因果塔 L1 Long 走势）+ 逆向次级卖候选 ⟹ V=**ShortDiff**（来自父容器方向）。
+    /// 有向父容器（前缀因果塔 L1 Long 走势）+ 逆向次级卖候选 ⟹ V=**ReverseOpen**（来自父容器方向）。
     /// 旧"活动父腿"错口径：未持仓 ⟹ Ambient（→建 naked 逆势仓 garbage trades）。正确口径：σ 来源是
     /// 结构对象（父容器方向），与持仓无关——`assemble_gamma_with_tower` **不接受** active 参数
     /// （σ_p 不可能依赖持仓，与 Lean `parentDirOfContainer_struct_only` 同构）。
     #[test]
-    fn gamma_with_tower_shortdiff_from_container_not_position() {
+    fn gamma_with_tower_reverse_open_from_container_not_position() {
         let tower = long_parent_tower(); // L1 Long 父走势（结构对象，非持仓）
         let c = classification(vec![vec![sell_point(8, 1)]]); // L0 卖候选，host=s1（真父 L1 Long）
         let gamma = assemble_gamma_with_tower(&c, &tower);
         assert_eq!(gamma[0].dir, VoiceSide::Short);
         assert_eq!(
             gamma[0].role.v,
-            Vertical::ShortDiff,
-            "有向父容器 + 未持仓 ⟹ ShortDiff（639：σ_p=父容器方向，非持仓父腿；旧错口径误判 Ambient）"
+            Vertical::ReverseOpen,
+            "有向父容器 + 未持仓 ⟹ ReverseOpen（639：σ_p=父容器方向，非持仓父腿；旧错口径误判 Ambient）"
         );
     }
 

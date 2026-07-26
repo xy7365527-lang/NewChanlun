@@ -504,12 +504,14 @@ fn opt_pair_str(o: Option<(u32, u64)>) -> String {
 }
 
 /// 辅助：ExitType → 字符串。
+/// #283（#281 词汇对齐）：`CloseReverseOpen` 序列化名随枚举更名——dump 文本口径变化
+/// （原 "CloseShortDiff"），GOLDEN 先例如实登记；数值/计数零改动。
 fn exit_type_str(e: super::super::strategy::interp::ExitType) -> &'static str {
     use super::super::strategy::interp::ExitType;
     match e {
         ExitType::CloseRoot => "CloseRoot",
         ExitType::ReduceCore => "ReduceCore",
-        ExitType::CloseShortDiff => "CloseShortDiff",
+        ExitType::CloseReverseOpen => "CloseReverseOpen",
         ExitType::RiskExit => "RiskExit",
         ExitType::Hold => "Hold",
     }
@@ -536,12 +538,14 @@ pub(super) fn voice_side_str(v: super::super::strategy::voice::VoiceSide) -> &'s
 }
 
 /// 辅助：Vertical → 字符串（声部角色垂直轴）。
+/// #283（#281 词汇对齐）：`ReverseOpen` 序列化名随枚举更名（原 "ShortDiff"）——dump
+/// `certificate.role` 文本口径变化，GOLDEN 先例如实登记；分类判据零改动。
 fn vertical_str(v: super::super::strategy::coverage::Vertical) -> &'static str {
     use super::super::strategy::coverage::Vertical;
     match v {
         Vertical::Ambient => "Ambient",
         Vertical::FollowParent => "FollowParent",
-        Vertical::ShortDiff => "ShortDiff",
+        Vertical::ReverseOpen => "ReverseOpen",
     }
 }
 

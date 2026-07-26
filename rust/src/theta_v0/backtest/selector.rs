@@ -212,7 +212,7 @@ pub(super) fn sigma_higher_at(tower: &[Rc<Vec<LeveledMove>>], bars: &[Bar], leve
 /// 推导口径一致）：
 /// - `Ambient`（σ_p=0，去根化无父）⟹ `position=Root`，`parent_dir=0`。
 /// - `FollowParent`（δ_g=σ_p，顺父）⟹ `position=Child`，`parent_dir=δ_g`（同向）。
-/// - `ShortDiff`（δ_g=−σ_p，短差）⟹ `position=Child`，`parent_dir=−δ_g`（反向）。
+/// - `ReverseOpen`（δ_g=−σ_p，首开反向）⟹ `position=Child`，`parent_dir=−δ_g`（反向）。
 ///
 /// `tower`/`bars`（codex-q1 G2 护航点）：σ_higher 第 9 维从塔真值取（[`sigma_higher_at`]，按
 /// `c.level`）——**签名强制**携塔，使"训练表填真值/生产查询无塔填 None"的静默退化在类型层不可
@@ -244,9 +244,9 @@ pub fn z_of_candidate(
     let (parent_dir, position) = match c.role.v {
         Vertical::Ambient => (0, PositionState::Root),
         Vertical::FollowParent => (delta, PositionState::Child), // σ_p = δ_g
-        // GPT 命名冲突裁决：ShortDiff = δ_g=−σ_p（商映射 AgainstParent，含同级别+次级别反父）。
+        // GPT 命名冲突裁决：ReverseOpen = δ_g=−σ_p（商映射 AgainstParent，含同级别+次级别反父；原 ShortDiff，#281 更名）。
         // σ_p=−δ_g（反向腿）；同级别/次级别区分在独立 G 轴 c.role.grade，不进 MuClass 此投影（商映射同桶）。
-        Vertical::ShortDiff => (-delta, PositionState::Child), // σ_p = −δ_g（反父方向，GPT AgainstParent）
+        Vertical::ReverseOpen => (-delta, PositionState::Child), // σ_p = −δ_g（反父方向，GPT AgainstParent）
     };
     // G3 恒等式护栏（§6 ℓ=e+Ndepth，Nest 通道）：链顶 ℓ 与深度同时给出时必须自洽。
     if let (Some(ol), Some(d)) = (ext.origin_level, ext.nest_depth) {

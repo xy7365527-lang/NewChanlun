@@ -135,7 +135,7 @@ impl ThetaCore {
         let decisions = self.recognize_current();
         // ★关⑤：groups 只收**根域开仓决策**（exit=false ∧ depth==0）——§9 反向项信号池：
         // interpret 规则2 已消费的反向触发（close 决策携入场快照 bsp，非当 bar 信号）与
-        // ShortDiff 子决策的反父 bits 均不入池（M13：父仓穿越次级反向信号持有，短差由子腿
+        // ReverseOpen 子决策的反父 bits 均不入池（M13：父仓穿越次级反向信号持有，短差由子腿
         // 承担，非父平仓触发）——与 runner 双账路径（plan_and_fill_mtm_dual）同口径。
         self.groups
             .push(decisions.iter().filter(|d| !d.exit && d.depth == 0).copied().collect());
@@ -233,7 +233,7 @@ impl ThetaCore {
     ///
     /// ★关⑤接线（施工图 §4.6）：`classify` 切 [`classifier::classify_with_tower`]
     /// （Classification **bit-identical**，classifier/mod.rs:482 契约——分类层零漂移）+
-    /// [`strategy::recognize_nested`]（候选源换真嵌套塔取真 ShortDiff 角色 + held 活动投影
+    /// [`strategy::recognize_nested`]（候选源换真嵌套塔取真 ReverseOpen 角色 + held 活动投影
     /// 喂 interpret ⟹ 角色门四合取产 **depth>0 子声部**，root_side 继承树根）。
     /// venue 侧 hedge-mode 账户前提（q⁺/q⁻ 双腿共存）列部署裁定（施工图 §7 L7）——
     /// 本适配层只产决策/意图，venue 撮合语义不变。

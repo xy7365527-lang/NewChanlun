@@ -350,40 +350,41 @@ use super::admission::{VOICE_EXEC_OVERRIDE, NEST_CERT_GATE_OVERRIDE};
 // reset/count 与 silent_drop_exit_type 升格 pub(super) 经 runner 门面供既有测试消费）。
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ── ★#198 断言4「短差隔离」探针（coverage.rs ancok_probe 同款 thread_local 模式）──
+// ── ★#198 断言4「首开反向隔离」探针（coverage.rs ancok_probe 同款 thread_local 模式）──
+// （原「短差隔离」/shortdiff_isolation 系列，#281 更名 #283 实装。）
 thread_local! {
-    static SHORTDIFF_ISOLATION_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    static REVERSE_OPEN_ISOLATION_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
-fn shortdiff_isolation_probe_bump() {
-    SHORTDIFF_ISOLATION_PROBE.with(|c| c.set(c.get() + 1));
+fn reverse_open_isolation_probe_bump() {
+    REVERSE_OPEN_ISOLATION_PROBE.with(|c| c.set(c.get() + 1));
 }
 
-/// 归零短差隔离探针（见证测试 run 前调用；仅本模块测试消费，比照 coverage.rs
+/// 归零首开反向隔离探针（见证测试 run 前调用；仅本模块测试消费，比照 coverage.rs
 /// ancok_probe 三件套但无跨模块消费者 ⟹ 不 pub）。
-pub(super) fn shortdiff_isolation_probe_reset() {
-    SHORTDIFF_ISOLATION_PROBE.with(|c| c.set(0));
+pub(super) fn reverse_open_isolation_probe_reset() {
+    REVERSE_OPEN_ISOLATION_PROBE.with(|c| c.set(0));
 }
 
-/// 读取短差隔离探针快照（ShortDiff fill 隔离断言在生产路径的触发笔数）。
-pub(super) fn shortdiff_isolation_probe_count() -> u64 {
-    SHORTDIFF_ISOLATION_PROBE.with(std::cell::Cell::get)
+/// 读取首开反向隔离探针快照（ReverseOpen fill 隔离断言在生产路径的触发笔数）。
+pub(super) fn reverse_open_isolation_probe_count() -> u64 {
+    REVERSE_OPEN_ISOLATION_PROBE.with(std::cell::Cell::get)
 }
 
-/// ★#198 断言4 前置快照：全部非 ShortDiff（Core{*}/Short{*}）分实例的 (key, qty)。
+/// ★#198 断言4 前置快照：全部非 ReverseOpen（Core{*}/Short{*}）分实例的 (key, qty)。
 #[cfg(debug_assertions)]
-fn non_shortdiff_qty_snapshot(
+fn non_reverse_open_qty_snapshot(
     view: &strategy::account::ParallelAccountLedger,
 ) -> std::collections::HashMap<strategy::account::AccountKey, f64> {
     view.instances()
         .iter()
-        .filter(|(k, _)| !matches!(k.account, strategy::account::AccountIdentity::ShortDiff))
+        .filter(|(k, _)| !matches!(k.account, strategy::account::AccountIdentity::ReverseOpen { .. }))
         .map(|(k, i)| (*k, i.qty))
         .collect()
 }
 
-/// ★#198 断言4（#185「建议断言」4 的生产执行层同款）：`fill.account == ShortDiff ⟹
-/// Δqty(Core{*})==0 且 Δqty(Short{*})==0`——短差过账不得碰本仓/空仓任何分实例
+/// ★#198 断言4（#185「建议断言」4 的生产执行层同款）：`fill.account == ReverseOpen ⟹
+/// Δqty(Core{*})==0 且 Δqty(Short{*})==0`——首开反向过账不得碰本仓/空仓任何分实例
 /// （模型层「父仓不动」曾有 SplitLegLedger 等价保证——该机已随 #282 删除，本断言
 /// 守生产执行层同款）。
 ///
@@ -394,29 +395,29 @@ fn non_shortdiff_qty_snapshot(
 /// 净额 `units` 无账户键，并行记账视图（#197 expand）是当前唯一账户投影层——断言
 /// 只能落此；净额出口行为不受本断言影响（debug 构建逐笔核对，release 编译消除）。
 #[cfg(debug_assertions)]
-fn debug_assert_shortdiff_isolation(
+fn debug_assert_reverse_open_isolation(
     view: &strategy::account::ParallelAccountLedger,
     pre: &std::collections::HashMap<strategy::account::AccountKey, f64>,
 ) {
     for (k, inst) in view
         .instances()
         .iter()
-        .filter(|(k, _)| !matches!(k.account, strategy::account::AccountIdentity::ShortDiff))
+        .filter(|(k, _)| !matches!(k.account, strategy::account::AccountIdentity::ReverseOpen { .. }))
     {
         let before = pre.get(k).copied().unwrap_or(0.0);
         debug_assert_eq!(
             inst.qty, before,
-            "#198 断言4 短差隔离违例：ShortDiff fill 改动 {:?} 分实例 qty（{} → {}）",
+            "#198 断言4 首开反向隔离违例：ReverseOpen fill 改动 {:?} 分实例 qty（{} → {}）",
             k.account, before, inst.qty
         );
     }
     debug_assert_eq!(
         view.instances()
             .keys()
-            .filter(|k| !matches!(k.account, strategy::account::AccountIdentity::ShortDiff))
+            .filter(|k| !matches!(k.account, strategy::account::AccountIdentity::ReverseOpen { .. }))
             .count(),
         pre.len(),
-        "#198 断言4 短差隔离违例：ShortDiff fill 新增 Core/Short 分实例"
+        "#198 断言4 首开反向隔离违例：ReverseOpen fill 新增 Core/Short 分实例"
     );
 }
 
@@ -479,7 +480,7 @@ pub(super) fn type2_sell_guard_probe_count() -> u64 {
 }
 
 /// ★#199 断言③后半宽读法歧义测量（Spec 轴评审发现，待裁决）：二类卖
-/// （ReverseType2，ShortDiff/Short 身份）过账时**同级 Core{level} 残余非零**笔数。
+/// （ReverseType2，ReverseOpen/Short 身份）过账时**同级 Core{level} 残余非零**笔数。
 /// 票面「qty(Core{L})>0 时必须另发 CoreResidualCorrection{L}」若按宽读法（二类卖
 /// 发生时 Core 有残余即须另发纠错单），本探针即该场景的实测发生率：0 笔 = 该场景
 /// 生产不存在（歧义消解）；>0 笔 = 待裁决是否另发（#185 存疑区 1：B/C 撞车裁决
@@ -533,24 +534,24 @@ fn account_mirror_post(
     let Some(account_id) = strategy::account::identity_of(entry_v, side, level) else {
         return;
     };
-    // ★#198 断言4 探针（恒在计数）：ShortDiff fill 笔数（生产路径见证——
-    // 「短差隔离断言真实触发」以探针 >0 为凭，断言本体见下方 debug 构建逐笔核对）。
-    if account_id == strategy::account::AccountIdentity::ShortDiff {
-        shortdiff_isolation_probe_bump();
+    // ★#198 断言4 探针（恒在计数）：ReverseOpen fill 笔数（生产路径见证——
+    // 「首开反向隔离断言真实触发」以探针 >0 为凭，断言本体见下方 debug 构建逐笔核对）。
+    if matches!(account_id, strategy::account::AccountIdentity::ReverseOpen { .. }) {
+        reverse_open_isolation_probe_bump();
     }
-    // 断言4 前置快照（仅 ShortDiff 过账时；debug 构建，release 编译消除）。
+    // 断言4 前置快照（仅 ReverseOpen 过账时；debug 构建，release 编译消除）。
     #[cfg(debug_assertions)]
-    let pre_non_shortdiff = (account_id == strategy::account::AccountIdentity::ShortDiff)
-        .then(|| non_shortdiff_qty_snapshot(view));
+    let pre_non_reverse_open = matches!(account_id, strategy::account::AccountIdentity::ReverseOpen { .. })
+        .then(|| non_reverse_open_qty_snapshot(view));
     // ★#199 断言③探针（恒在计数）+ 硬门（debug 逐笔核对，release 编译消除）：
-    // - 前半「二类卖身份」：ReverseType2 仅落 ShortDiff/Short 两身份，永不落 Core 账；
+    // - 前半「二类卖身份」：ReverseType2 仅落 ReverseOpen/Short 两身份，永不落 Core 账；
     // - 后半「仅残余才纠错」：CoreResidualCorrection 仅在核心残余实测非零时触发
     //   （post 前余额含被关腿在册量；与 runner 分流点 `balance != 0.0` 同口径）。
     if reason == strategy::account::ActionReason::ReverseType2 {
         type2_sell_guard_probe_bump();
         debug_assert!(
             !matches!(account_id, strategy::account::AccountIdentity::Core { .. }),
-            "#199 断言③违例：二类卖（ReverseType2）落 {:?}——合法二类卖出仅 ShortDiff/Short 两身份",
+            "#199 断言③违例：二类卖（ReverseType2）落 {:?}——合法二类卖出仅 ReverseOpen/Short 两身份",
             account_id
         );
         // ★#199 断言③后半宽读法歧义测量（不置断言，待裁决）：二类卖过账时同级
@@ -578,10 +579,10 @@ fn account_mirror_post(
         px,
         bar,
     );
-    // ★#198 断言4 逐笔核对：ShortDiff fill 后 Core{*}/Short{*} 分实例数量零变动。
+    // ★#198 断言4 逐笔核对：ReverseOpen fill 后 Core{*}/Short{*} 分实例数量零变动。
     #[cfg(debug_assertions)]
-    if let Some(pre) = pre_non_shortdiff {
-        debug_assert_shortdiff_isolation(view, &pre);
+    if let Some(pre) = pre_non_reverse_open {
+        debug_assert_reverse_open_isolation(view, &pre);
     }
     // ★#199 断言②评估探针（恒在计数）：一类 Core 平仓评估笔数（#185 断言2：
     // filled(T1CoreClose{L}) ⟹ execution_ledger.qty(Core{L})==0）。
@@ -676,21 +677,21 @@ fn account_mirror_close(
 /// `TypedTrade::via_structural_prune` / `ActionReason::StructuralPrune` 表达——不再用
 /// `ExitType` 同时表达两者（同类错桶的根源）。
 ///
-/// 判据：仅 `entry_v == ShortDiff` 的短差腿记 `CloseShortDiff`；其余（Ambient 根 /
+/// 判据：仅 `entry_v == ReverseOpen` 的首开反向腿记 `CloseReverseOpen`；其余（Ambient 根 /
 /// FollowParent 级联核心仓）归 `CloseRoot`（core structural exit，account=`Core{level}`、
 /// reason=`StructuralPrune`，经 #197 account 层映射）。
 ///
 /// μ 分桶统计口径（随本判据更新，2026-07-23）：`ExitType` 诊断切片维持 #180 冻结铁律
 /// （不进 `MuClass` 桶键、不进 χ_t 门控、不进 δ-free 主裁决聚合基），代码零改动；变化的是
-/// 桶的**生产语义**——`CloseShortDiff` 桶自此只含真短差腿（FollowParent 级联核心仓的
+/// 桶的**生产语义**——`CloseReverseOpen` 桶自此只含真首开反向腿（FollowParent 级联核心仓的
 /// 结构剪枝归 `CloseRoot`），W-VERIFY 5 变体拆解与 `typed_ledger_btc_smoke` 分桶计数按
-/// 新口径阅读（BTC train 窗实证翻动：CloseRoot 6→8、CloseShortDiff 10→8，五枚举总数
+/// 新口径阅读（BTC train 窗实证翻动：CloseRoot 6→8、CloseReverseOpen 10→8，五枚举总数
 /// 25 不变，见 `btc_prune_leg_exit_type_matches_account_identity` 见证注释）。
 pub(super) fn silent_drop_exit_type(entry_v: strategy::coverage::Vertical) -> strategy::interp::ExitType {
-    // ★#198 新口径（#185 修复 a）：仅短差腿记 CloseShortDiff；Ambient/FollowParent 归
+    // ★#198 新口径（#185 修复 a）：仅首开反向腿记 CloseReverseOpen；Ambient/FollowParent 归
     // CloseRoot（core structural exit——账户侧 Core{level}+StructuralPrune，经 #197 映射）。
-    if entry_v == strategy::coverage::Vertical::ShortDiff {
-        strategy::interp::ExitType::CloseShortDiff
+    if entry_v == strategy::coverage::Vertical::ReverseOpen {
+        strategy::interp::ExitType::CloseReverseOpen
     } else {
         strategy::interp::ExitType::CloseRoot
     }
@@ -1239,7 +1240,7 @@ where
             // ── #124 裁定4 TW 谓词 ctx（P2/P3/P4 进 fold）：在飞腿 entry_v 映射从 typed ledger
             //    在飞表取（entry_v 入场固定，与 TW open_legacy_legs 计数同源）。#145 T1：由原
             //    ShortDiff id 半镜像升级为全量 entry_v 映射——P2 过滤在组合层按
-            //    `== ShortDiff` 判（语义 bit-exact），且兼作反向关闭 typed 裁决的
+            //    `== ReverseOpen` 判（语义 bit-exact），且兼作反向关闭 typed 裁决的
             //    reverse_exit_type 原料（组合层单点，本处不再结算补算）；risk_mode 从
             //    strategy::risk 五态投影到 closed_loop::state 五态（两枚举同锚 Origin 五构造子，
             //    此处只读逐变体映射，非第二权威源——判定仍单源 k_theta_risk_gate）。 ──
@@ -1375,7 +1376,7 @@ where
                         "#145 T1：trace.closed 腿 {:?} 不在本步 entry_v 映射（裁决为回退值）",
                         leg.id
                     );
-                    if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff {
+                    if open.entry_v == super::super::strategy::coverage::Vertical::ReverseOpen {
                         tw_thread.close_share_leg(); // TW 腿计数（#124）
                     }
                     let pushed = TypedTrade {
@@ -1401,7 +1402,7 @@ where
                     // #197/#199：关闭镜像——账户=entry_v×方向（与理由正交）；理由按账户分流
                     // （#199「仅残余才纠错」：核心腿二类 ⟹ 核心残余实测非零（并行视图
                     // balance(Core{level})≠0）才发 CoreResidualCorrection，否则二类不生
-                    // 本仓卖单（None 不镜像）；ShortDiff/Short 腿二类 ⟹ ReverseType2
+                    // 本仓卖单（None 不镜像）；ReverseOpen/Short 腿二类 ⟹ ReverseType2
                     // 合法二类卖；一/三类委托 reason_of_reverse 单源）。
                     // 触发类 1/2/3 外不镜像，与 open 侧 None 口径对称，不伪造理由。
                     let account_id = strategy::account::identity_of(
@@ -1457,12 +1458,12 @@ where
                 );
             }
             // 静默离场（§13 AncOK 连带剪/Stale prune，无触发信号）：归属判据抽为
-            // [`silent_drop_exit_type`]（#198：仅短差腿记 CloseShortDiff，其余归 core structural
+            // [`silent_drop_exit_type`]（#198：仅首开反向腿记 CloseReverseOpen，其余归 core structural
             // exit；账户=entry_v×方向经 #197 account 层映射，剪枝理由=via_structural_prune 轴）。
             for leg in &step_trace.silent_drops {
                 if let Some(open) = open_trades.remove(&leg.id) {
                     use super::super::strategy::coverage::Vertical;
-                    if open.entry_v == Vertical::ShortDiff {
+                    if open.entry_v == Vertical::ReverseOpen {
                         tw_thread.close_share_leg(); // TW 腿计数（#124）
                     }
                     let exit_type = silent_drop_exit_type(open.entry_v);
@@ -1502,7 +1503,7 @@ where
             // （无触发候选；pi_theta_step_traced 上游短路清空 next_active，见 StepTrace.risk_exits）。
             for leg in &step_trace.risk_exits {
                 if let Some(open) = open_trades.remove(&leg.id) {
-                    if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff {
+                    if open.entry_v == super::super::strategy::coverage::Vertical::ReverseOpen {
                         tw_thread.close_share_leg();
                     }
                     let pushed = TypedTrade {
@@ -1538,11 +1539,11 @@ where
                 }
             }
             // P2 CloseOverlay（#124 裁定4，PDF §7 C_2）：TW StageII 重叠腿关闭——真实订单已经
-            // 同一 schedule/fill（组合层合成 close 桶复用 𝒟_x 通道）；typed 归 CloseShortDiff
-            // （关的正是 legacy ShortDiff 重叠腿，PDF §9 五枚举内最近语义）。
+            // 同一 schedule/fill（组合层合成 close 桶复用 𝒟_x 通道）；typed 归 CloseReverseOpen
+            // （关的正是 legacy ReverseOpen 重叠腿，PDF §9 五枚举内最近语义）。
             for leg in &step_trace.overlay_closes {
                 if let Some(open) = open_trades.remove(&leg.id) {
-                    if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff {
+                    if open.entry_v == super::super::strategy::coverage::Vertical::ReverseOpen {
                         tw_thread.close_share_leg();
                     }
                     let pushed = TypedTrade {
@@ -1550,7 +1551,7 @@ where
                         voice_id: leg.id,
                         entry_bar: open.entry_bar,
                         exit_bar: i,
-                        exit_type: super::super::strategy::interp::ExitType::CloseShortDiff,
+                        exit_type: super::super::strategy::interp::ExitType::CloseReverseOpen,
                         entry_px: open.entry_px,
                         exit_px: px,
                         via_structural_prune: false, // TW 账本谓词驱动的真实平仓，非结构剪枝
@@ -1719,7 +1720,7 @@ where
                 // #197 并行记账视图：开腿镜像（只读旁路，不改净额路径；账户身份 = entry_v × 方向）。
                 account_mirror_open(&mut account_view, c, leg.id.level, position_node_id, leg_units, px, i);
             }
-            // TW 腿事件（#124）：legacy ShortDiff 腿开仓驱动 open_legacy_legs 计数（P2 的 H
+            // TW 腿事件（#124）：legacy ReverseOpen 腿开仓驱动 open_legacy_legs 计数（P2 的 H
             // 判据与生产腿同源同步；关侧在上方四个消费循环内经 open.entry_v 判定派
             // CloseShareLeg）。CloseShareLeg(0) 口径声明：净额架构无腿级损益分账 ⟹ profit
             // 口径量 0 承载（cum_net_cash 非承重分量——P2/P3/P4 谓词不消费它；唯一承重 =
@@ -1728,7 +1729,7 @@ where
             // A' 后该 stage 生产可达（已实现利润入账，见 TW 初始化注释）；达 earning 后此腿
             // 不计 legacy 计数，关侧 legs>=1 守卫对称跳过（合法性语义，非掩盖）。
             for (c, _leg) in &step_trace.opened {
-                if c.role.v == super::super::strategy::coverage::Vertical::ShortDiff {
+                if c.role.v == super::super::strategy::coverage::Vertical::ReverseOpen {
                     tw_thread.open_share_leg();
                 }
             }
@@ -2535,7 +2536,7 @@ pub(super) fn apply_voice_fill_dual(
 /// - **账本态**：`DualLedger{cash,q⁺,q⁻,cost⁺,cost⁻}`（M14 `P^sep` 账户层兑现）——分腿
 ///   不先净额（M13 父仓保持：持多腿时开空腿，多腿不动）；realized 只出平仓腿（A' 保留）。
 /// - **识别**：开仓循环 per-bar 喂 [`strategy::recognize_nested`]（§3.2）——held 台账投影
-///   活动集 + 真 ShortDiff 角色门 ⟹ depth>0 子声部**运行时产出**（非纸面声部）。
+///   活动集 + 真 ReverseOpen 角色门 ⟹ depth>0 子声部**运行时产出**（非纸面声部）。
 ///   每 bar 以**当 bar 活动集**重识别全窗候选、只执行 `exec_index==i` 的决策（候选的
 ///   根/子归属由其 exec bar 的活动集定——与净额路径的静态预分组语义差异如实声明；
 ///   v1 全窗口径的前视有效域与 `run_theta_v0` 同源标注）。
@@ -2547,7 +2548,7 @@ pub(super) fn apply_voice_fill_dual(
 ///   （`risk::gross_units_ok` 单源，coverage.rs:1687 同一 predicate）；超限 ⟹ 拒当步边际
 ///   子开仓（fail-closed；不缩放既有腿——缩放规则属另一裁定）。
 /// - **§9 反向项信号池**：`groups[i]` 只收**根域开仓决策**（exit=false ∧ depth==0）——
-///   ShortDiff 子决策的反父 bits 不喂反向项（M13：父仓穿越次级反向信号持有，短差由子腿
+///   ReverseOpen 子决策的反父 bits 不喂反向项（M13：父仓穿越次级反向信号持有，短差由子腿
 ///   承担，非父平仓触发）；同级别反向平仓由 interpret 规则2 承载（close 决策携入场快照
 ///   bsp，非当 bar 信号，不入池）。exit_decision_for_nested 的 stop/risk/parent_invalid
 ///   与级联覆盖其余关闭通道。
@@ -2566,7 +2567,7 @@ pub(super) fn apply_voice_fill_dual(
 /// - **②'' Realize 平仓腿入账**：平仓腿费后 PnL 累计（`FillOutcomeDual.realized`，A'
 ///   结算源）量化差分派 `TwEvent::Realize(d_pi)`（同 :1576-1591）——**强平 PnL 不入**
 ///   （trade_pnls_with_forced 口径同净额路径，TW 快照取强平前）。
-/// - **legacy 腿计数**（#124 同语义）：ShortDiff 角色（depth>0 子声部）开仓派
+/// - **legacy 腿计数**（#124 同语义）：ReverseOpen 角色（depth>0 子声部）开仓派
 ///   `OpenShareLeg`、全平派 `CloseShareLeg(0)`（profit 口径量 0 承载，同 :2191-2194 声明）。
 /// - **未接（诚实边界，非缺陷）**：stage 推进机构（`coverage::TwStepCtx` + κ policy +
 ///   `stage_progression`，π loop :1750/:2205 消费侧机构）——dual 路径无 P2/P3/P4 消费方，
@@ -2677,7 +2678,7 @@ pub(super) fn plan_and_fill_mtm_dual(
                         if let Some(slot) = held.get_mut(depth) {
                             *slot = None;
                         }
-                        // #68② TW 腿计数（#124 同语义）：ShortDiff 子声部全平 ⟹ CloseShareLeg(0)。
+                        // #68② TW 腿计数（#124 同语义）：ReverseOpen 子声部全平 ⟹ CloseShareLeg(0)。
                         if depth > 0 {
                             tw_thread.close_share_leg();
                         }
@@ -2689,7 +2690,7 @@ pub(super) fn plan_and_fill_mtm_dual(
             }
         }
 
-        // ── 2. 开仓循环：per-bar recognize_nested（held 活动投影 + 真 ShortDiff 角色门）。 ──
+        // ── 2. 开仓循环：per-bar recognize_nested（held 活动投影 + 真 ReverseOpen 角色门）。 ──
         if !bar.untradable && px > 0.0 {
             let active = strategy::held_voice_projection(&held);
             let recog = strategy::recognize_nested(classification, tower, &active, bars, config);
@@ -2755,7 +2756,7 @@ pub(super) fn plan_and_fill_mtm_dual(
                     // 平仓成交到手数 0 ⟹ 清台账（recognize 产 close 决策的成交后处理）。
                     if fill.opened_qty() > 0.0 && !lo.close {
                         record_held_voice(&mut held, d);
-                        // #68② TW 腿计数（#124 同语义，:2196-2204 镜像）：ShortDiff 角色
+                        // #68② TW 腿计数（#124 同语义，:2196-2204 镜像）：ReverseOpen 角色
                         // （depth>0 子声部）开仓 ⟹ OpenShareLeg（OQ-9 守卫：EarningShares
                         // 阶段开 legacy 腿非法——本路径无 stage 推进机构，恒 CostReduction，
                         // is_legal_from 恒真；保留守卫调用与 π loop 同形）。
@@ -2766,7 +2767,7 @@ pub(super) fn plan_and_fill_mtm_dual(
                         if let Some(slot) = held.get_mut(depth) {
                             *slot = None;
                         }
-                        // #68② TW 腿计数：ShortDiff 子声部全平 ⟹ CloseShareLeg(0)。
+                        // #68② TW 腿计数：ReverseOpen 子声部全平 ⟹ CloseShareLeg(0)。
                         if depth > 0 {
                             tw_thread.close_share_leg();
                         }
@@ -2942,7 +2943,7 @@ pub(super) fn plan_and_fill_mtm_dual(
             n_orders: n_orders_executed,
             typed_ledger: Vec::new(), // 无腿级台账（诚实空，同 v1 净额路径）
             voice_verdicts: Vec::new(), // 无腿级裁决（诚实空，同 typed_ledger 先例）
-            tw_final: Some(tw_thread.finish()),       // #68② TW 已接线（ShortDiff 成本划转 + Realize 平仓入账 + ShortDiff 腿计数；快照取强平前，强平 PnL 不入 TW）
+            tw_final: Some(tw_thread.finish()),       // #68② TW 已接线（ShortDiff 成本划转 + Realize 平仓入账 + ReverseOpen 腿计数；快照取强平前，强平 PnL 不入 TW）
             r_decomp: None,
             account_view: strategy::account::ParallelAccountLedger::new(), // 无腿级生命周期（诚实空，#197）
         },

@@ -114,7 +114,7 @@ fn exit_type_code(et: ExitType) -> u8 {
     match et {
         ExitType::CloseRoot => 0,
         ExitType::ReduceCore => 1,
-        ExitType::CloseShortDiff => 2,
+        ExitType::CloseReverseOpen => 2,
         ExitType::RiskExit => 3,
         ExitType::Hold => 4,
     }
@@ -125,7 +125,7 @@ fn exit_type_decode(code: u8) -> ExitType {
     match code {
         0 => ExitType::CloseRoot,
         1 => ExitType::ReduceCore,
-        2 => ExitType::CloseShortDiff,
+        2 => ExitType::CloseReverseOpen,
         3 => ExitType::RiskExit,
         _ => ExitType::Hold,
     }
@@ -136,7 +136,7 @@ fn exit_type_label(et: ExitType) -> &'static str {
     match et {
         ExitType::CloseRoot => "CloseRoot(P5)",
         ExitType::ReduceCore => "ReduceCore(P6)",
-        ExitType::CloseShortDiff => "CloseShortDiff(P7)",
+        ExitType::CloseReverseOpen => "CloseReverseOpen(P7)",
         ExitType::RiskExit => "RiskExit(P1)",
         ExitType::Hold => "Hold(P0)",
     }
@@ -358,11 +358,11 @@ fn deltafree_verdict(
 /// 决策点 t 不可观测（post-treatment），故只作事后诊断，绝不进 μ 桶键/χ_t 门控/δ-free 主裁决基。
 fn exit_type_breakdown(records: &[ResidualTrade]) -> String {
     let n_total = records.len();
-    // 5 变体固定序（CloseRoot/ReduceCore/CloseShortDiff/RiskExit/Hold）——即使某变体 0 笔也列出（穷尽）。
+    // 5 变体固定序（CloseRoot/ReduceCore/CloseReverseOpen/RiskExit/Hold）——即使某变体 0 笔也列出（穷尽）。
     let variants = [
         ExitType::CloseRoot,
         ExitType::ReduceCore,
-        ExitType::CloseShortDiff,
+        ExitType::CloseReverseOpen,
         ExitType::RiskExit,
         ExitType::Hold,
     ];
@@ -873,9 +873,9 @@ fn policy_backtest() {
 
         let chi_r = run_theta_v0_pi_chi(&test_ds, &chi_cfg, years, nav, &est, false);
         let base_r = run_theta_v0_pi(&test_ds, &base_cfg, years, nav);
-        // f3-C 多重赋格反事实：剔 ShortDiff 声部（同 no-χ 口径，margin=None 默认），测对冲增量价值。
+        // f3-C 多重赋格反事实：剔 ReverseOpen 声部（同 no-χ 口径，margin=None 默认），测对冲增量价值。
         let mut sd_off_cfg = base_cfg.clone();
-        sd_off_cfg.voice.disable_shortdiff = true;
+        sd_off_cfg.voice.disable_reverse_open = true;
         let sd_off_r = run_theta_v0_pi(&test_ds, &sd_off_cfg, years, nav);
         let sum = |v: &[f64]| v.iter().sum::<f64>();
         let (chi_pnl, base_pnl, sd_off_pnl) = (sum(&chi_r.trade_pnls_with_forced), sum(&base_r.trade_pnls_with_forced), sum(&sd_off_r.trade_pnls_with_forced));
@@ -884,10 +884,10 @@ fn policy_backtest() {
              - χ门 μ̂  : Σpnl={chi_pnl:+.2} max_dd={:.4} n_orders={} n_trades={} strat_return={:+.4}\n\
              - 无χ基线: Σpnl={base_pnl:+.2} max_dd={:.4} n_orders={} n_trades={} strat_return={:+.4}\n\
              - 差分   : ΔΣpnl={:+.2} Δmax_dd={:+.4} Δn_orders={}（μ̂ 门增量价值）\n\
-             - **f3-C 反事实**（全赋格 vs 剔 ShortDiff，同 no-χ 口径）:\n\
+             - **f3-C 反事实**（全赋格 vs 剔 ReverseOpen，同 no-χ 口径）:\n\
              &nbsp;&nbsp;全赋格(=无χ基线): Σpnl={base_pnl:+.2} max_dd={:.4} n_orders={}\n\
-             &nbsp;&nbsp;剔 ShortDiff    : Σpnl={sd_off_pnl:+.2} max_dd={:.4} n_orders={}\n\
-             &nbsp;&nbsp;ShortDiff 增量  : ΔΣpnl={:+.2} Δmax_dd={:+.4} Δn_orders={}（多重赋格对冲声部的组合级增量价值）\n\n",
+             &nbsp;&nbsp;剔 ReverseOpen  : Σpnl={sd_off_pnl:+.2} max_dd={:.4} n_orders={}\n\
+             &nbsp;&nbsp;ReverseOpen 增量: ΔΣpnl={:+.2} Δmax_dd={:+.4} Δn_orders={}（多重赋格对冲声部的组合级增量价值）\n\n",
             est.n_classes(), test_ds.bars.len(),
             chi_r.metrics.max_drawdown, chi_r.n_orders, chi_r.trade_pnls_with_forced.len(), chi_r.metrics.strat_return,
             base_r.metrics.max_drawdown, base_r.n_orders, base_r.trade_pnls_with_forced.len(), base_r.metrics.strat_return,
@@ -898,7 +898,7 @@ fn policy_backtest() {
             base_pnl - sd_off_pnl, base_r.metrics.max_drawdown - sd_off_r.metrics.max_drawdown,
             base_r.n_orders as i64 - sd_off_r.n_orders as i64,
         ));
-        eprintln!("POLICY {sym}: χ Σpnl={chi_pnl:+.2} dd={:.4} ord={} | base Σpnl={base_pnl:+.2} dd={:.4} ord={} | ΔΣpnl={:+.2} || f3C ShortDiff 增量 ΔΣpnl={:+.2} (剔后 Σpnl={sd_off_pnl:+.2} ord={})",
+        eprintln!("POLICY {sym}: χ Σpnl={chi_pnl:+.2} dd={:.4} ord={} | base Σpnl={base_pnl:+.2} dd={:.4} ord={} | ΔΣpnl={:+.2} || f3C ReverseOpen 增量 ΔΣpnl={:+.2} (剔后 Σpnl={sd_off_pnl:+.2} ord={})",
             chi_r.metrics.max_drawdown, chi_r.n_orders, base_r.metrics.max_drawdown, base_r.n_orders, chi_pnl - base_pnl,
             base_pnl - sd_off_pnl, sd_off_r.n_orders);
     }
@@ -1283,7 +1283,7 @@ fn m8_e2e_all_systems_oos() {
         for c in r.overlay.closed_voices() {
             match c.role_v {
                 Vertical::Ambient => n_amb += 1,
-                Vertical::ShortDiff => n_short += 1,
+                Vertical::ReverseOpen => n_short += 1,
                 Vertical::FollowParent => n_follow += 1,
             }
         }
@@ -1681,7 +1681,7 @@ mod tests {
             ResidualTrade { class, resid_base: resid, cost: 0.1, h_bucket: 0, time_block: tb, d: 1.0, exit_type: et }
         };
         // exit_type 循环覆盖 5 变体 ⟹ round-trip 实际穿过新诊断列（否则该列是死代码）。
-        let ets = [ExitType::CloseRoot, ExitType::ReduceCore, ExitType::CloseShortDiff, ExitType::RiskExit, ExitType::Hold];
+        let ets = [ExitType::CloseRoot, ExitType::ReduceCore, ExitType::CloseReverseOpen, ExitType::RiskExit, ExitType::Hold];
         let recs: Vec<ResidualTrade> = (0..40)
             .map(|i| mk(if i % 2 == 0 { 1 } else { -1 }, 3.14159_f64 * (i as f64 + 1.0), (i % 2) as u32, ets[i % 5]))
             .collect();

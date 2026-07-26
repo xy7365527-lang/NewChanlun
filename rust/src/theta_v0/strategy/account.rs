@@ -2,13 +2,15 @@
 //!
 //! 出处：spec `chanlun/plans/spec-accounting-layer-alignment-20260723.md` ID-2 WP-2
 //! （#185 审计推荐路线）＋ 归属键粒度用户裁定（2026-07-23）：**不用每级总余额**——
-//! 短差、头寸（Core）、次级别做空（Short）三账分清；余额按（账户, 级别, 仓位节点）
+//! 首开反向（ReverseOpen）、头寸（Core）、次级别做空（Short）三账分清；余额按（账户, 级别, 仓位节点）
 //! 分实例记账，聚合值仅作派生视图（可求和呈现，不作 canonical 存储）。
 //!
 //! 三身份与六动作映射（#194 动作分类考证 §三/§五，互斥完备）：
 //! 开多/平多 → [`AccountIdentity::Core`]（本仓账，按级别分层）；
 //! 开空/平空 → [`AccountIdentity::Short`]（空仓账 = CONTEXT.md「反向根」：无父反向声部）；
-//! 短差开/平 → [`AccountIdentity::ShortDiff`]（短差账，父仓不动＋次级别反向双开）。
+//! 次级别首开反向开/平 → [`AccountIdentity::ReverseOpen`]（首开反向账，父仓不动＋次级别反向双开；
+//! 原 `ShortDiff` 短差账——#281 裁定更名（#283 实装），并按 ADR 0001 修正案一 修4「每级一本账」
+//! 把级别维度落进身份类型：`ReverseOpen{level}`，与 `Core{level}` 同形）。
 //!
 //! **expand 模式纪律**：本模块只新增类型与只读旁路视图，不替换任何既有调用点语义
 //! （`ExitType`/`Order`/净额 `units` 路径零行为变化）；消费这些类型修复四处现病是
@@ -35,11 +37,13 @@ pub enum AccountIdentity {
     /// 本仓账（按级别分层）：ambient 多根与 FollowParent 级联核心仓（含其空向级联——
     /// 方向由数量符号表达，身份不变）。一类点后 `Core(level)=0` 须成为可强断言的账本事实。
     Core { level: u32 },
-    /// 短差账：父声部 active 期间的次级别反向对冲声部（σ_u = −σ_p，父仓不动）。
-    /// 方向两态皆合法（父空时短差做多，CONTEXT.md 短差条款）。
-    ShortDiff,
+    /// 首开反向账（每级一本，修4）：父声部 active 期间的次级别反向对冲声部（σ_u = −σ_p，父仓不动）。
+    /// 方向两态皆合法（父空时首开反向做多，CONTEXT.md 短差条款）。
+    /// 原 `ShortDiff`（短差账）——#281 裁定更名（#283 实装）；`level` = 该反向声部自身级别
+    /// （修4「每级一本账」级别维度落进身份类型，与 `Core{level}` 同形）。
+    ReverseOpen { level: u32 },
     /// 空仓账 = CONTEXT.md「反向根」：**无父反向声部**（ambient 空根）。
-    /// 与短差互斥且完备：任一反向声部，有父即短差、无父即反向根（CONTEXT.md:93）。
+    /// 与首开反向互斥且完备：任一反向声部，有父即首开反向、无父即反向根（CONTEXT.md:93）。
     Short,
 }
 
@@ -52,7 +56,7 @@ pub enum ActionReason {
     Open,
     /// 一类反向证书（本级确认反转；`ExitType::CloseRoot` 在账户轴上的理由侧）。
     ReverseType1,
-    /// 二类反向证书的**合法**卖出（#199 分流后仅 ShortDiff 短差平 / Short 平空两身份；
+    /// 二类反向证书的**合法**卖出（#199 分流后仅 ReverseOpen 首开反向平 / Short 平空两身份；
     /// 核心腿二类已分流 [`ActionReason::CoreResidualCorrection`]——本仓对二类封闭，
     /// ID-3「二类点合法卖出仅短差、开空」）。`ExitType` 侧一/二类仍坍缩 CloseRoot
     /// （五枚举不动），本字段保留一类/二类之分的正交信息。
@@ -75,11 +79,11 @@ pub enum ActionReason {
     CoreResidualCorrection,
     /// 二类开空通道（#200，spec WP-2 修复 c / #185 审计发现 2）：二类反向候选开
     /// **空仓账**（[`AccountIdentity::Short`] = CONTEXT.md 反向根——无 active 父的反向
-    /// 声部，ambient 守卫读法：父 active⇒短差账、无父⇒空仓账）。票面形状
+    /// 声部，ambient 守卫读法：父 active⇒首开反向账、无父⇒空仓账）。票面形状
     /// `OpenShort{level, certificate}`：level 与入场证书由 [`AccountKey`] 携带
     /// （`key.level` + `key.position.entry_certificate`），理由轴只标通道名。
     /// 与 [`ActionReason::Open`] 的区别：OpenShort 专指二类候选触发的 C 账户开仓
-    /// （一类首开/加仓开、短差开均保留 Open——通道归属经 [`reason_of_open`] 单源）。
+    /// （一类首开/加仓开、首开反向开均保留 Open——通道归属经 [`reason_of_open`] 单源）。
     OpenShort,
 }
 
@@ -92,8 +96,8 @@ pub fn identity_of(entry_v: Vertical, side: VoiceSide, level: u32) -> Option<Acc
     match (entry_v, side) {
         // Flat = 无方向声部不开仓 ⟹ 无归属（全域一致，非仅 Ambient 臂）。
         (_, VoiceSide::Flat) => None,
-        // 反父方向子声部 = 短差（方向两态皆短差）。
-        (Vertical::ShortDiff, _) => Some(AccountIdentity::ShortDiff),
+        // 反父方向子声部 = 首开反向（方向两态皆首开反向）。
+        (Vertical::ReverseOpen, _) => Some(AccountIdentity::ReverseOpen { level }),
         // 无父容器：多根 = 本仓；空根 = 反向根（无父反向声部）。
         (Vertical::Ambient, VoiceSide::Long) => Some(AccountIdentity::Core { level }),
         (Vertical::Ambient, VoiceSide::Short) => Some(AccountIdentity::Short),
@@ -117,8 +121,8 @@ pub fn reason_of_reverse(trigger_class: u8) -> Option<ActionReason> {
 /// - `Core{level}` × 二类 ⟹ `core_residual=true` 时 [`ActionReason::CoreResidualCorrection`]
 ///   （残余纠错）；`false` 时 `None`——二类不得生成本仓卖单（ID-3：二类清本仓只能是
 ///   残余纠错，实测残余非零才触发）。
-/// - `ShortDiff`/`Short` × 二类 ⟹ [`ActionReason::ReverseType2`]（合法二类卖：
-///   短差平/平空，ID-3「二类点合法卖出仅两身份」）。
+/// - `ReverseOpen`/`Short` × 二类 ⟹ [`ActionReason::ReverseType2`]（合法二类卖：
+///   首开反向平/平空，ID-3「二类点合法卖出仅两身份」）。
 /// - 其余（账户, 触发类）⟹ 委托 [`reason_of_reverse`]（一/三类账户中立，不镜像判据）。
 ///
 /// `core_residual` 由调用侧实测喂入（生产 = 并行记账视图 `balance(Core{level}) != 0`，
@@ -133,7 +137,7 @@ pub fn reason_of_reverse_close(
             AccountIdentity::Core { .. } => {
                 core_residual.then_some(ActionReason::CoreResidualCorrection)
             }
-            AccountIdentity::ShortDiff | AccountIdentity::Short => reason_of_reverse(2),
+            AccountIdentity::ReverseOpen { .. } | AccountIdentity::Short => reason_of_reverse(2),
         };
     }
     reason_of_reverse(trigger_class)
@@ -143,7 +147,7 @@ pub fn reason_of_reverse_close(
 ///
 /// - `Short` × 二类触发 ⟹ [`ActionReason::OpenShort`]（二类开空：无父反向声部经
 ///   [`identity_of`] 归空仓账——ambient 守卫读法在此落成理由标注，不另立归属判据）。
-/// - 其余（账户, 触发类）⟹ [`ActionReason::Open`]（一类首开/加仓、短差开、
+/// - 其余（账户, 触发类）⟹ [`ActionReason::Open`]（一类首开/加仓、首开反向开、
 ///   FollowParent 级联开均保留既有口径——OpenShort 只标二类 × 空仓账这一通道）。
 ///
 /// 账户身份由调用侧经 [`identity_of`] 单源解析喂入（与关闭侧
@@ -172,9 +176,10 @@ impl AccountKey {
         debug_assert!(
             match account {
                 AccountIdentity::Core { level: l } => l == level,
+                AccountIdentity::ReverseOpen { level: l } => l == level,
                 _ => true,
             },
-            "#197 构造不变量：Core{{level}} 的 level 与键 level 一致（{:?} vs {})",
+            "#197 构造不变量：Core{{level}}/ReverseOpen{{level}} 的 level 与键 level 一致（{:?} vs {})",
             account,
             level
         );
@@ -334,7 +339,7 @@ impl ParallelAccountLedger {
     }
 
     /// 按身份读余额（**派生视图**：现算投影，非存储）。
-    /// `Core{level}` 精确到该级；`ShortDiff`/`Short` 为该身份全部实例之和。
+    /// `Core{level}`/`ReverseOpen{level}` 精确到该级；`Short` 为该身份全部实例之和。
     pub fn balance(&self, account: AccountIdentity) -> f64 {
         self.instances
             .values()
@@ -409,14 +414,14 @@ mod tests {
                 assert_eq!(level, 1);
                 "core"
             }
-            AccountIdentity::ShortDiff => "shortdiff",
+            AccountIdentity::ReverseOpen { .. } => "reverse_open",
             AccountIdentity::Short => "short",
         };
         assert_eq!(tag, "core");
     }
 
     /// ★#194 完备性：六动作 → 三身份互斥完备映射。
-    /// 开多/平多→Core、开空/平空→Short（无父反向声部，CONTEXT.md 反向根）、短差开/平→ShortDiff。
+    /// 开多/平多→Core、开空/平空→Short（无父反向声部，CONTEXT.md 反向根）、首开反向开/平→ReverseOpen。
     #[test]
     fn identity_of_covers_six_action_classes() {
         // 开多/平多：ambient 多根、顺父级联核心（FollowParent 两方向皆级联核心仓，#185 修复 a）。
@@ -437,18 +442,18 @@ mod tests {
             identity_of(Vertical::Ambient, VoiceSide::Short, 2),
             Some(AccountIdentity::Short)
         );
-        // 短差开/平：反父子声部（两方向皆短差——父空时短差做多，CONTEXT.md）。
+        // 首开反向开/平：反父子声部（两方向皆首开反向——父空时首开反向做多，CONTEXT.md）。
         assert_eq!(
-            identity_of(Vertical::ShortDiff, VoiceSide::Short, 0),
-            Some(AccountIdentity::ShortDiff)
+            identity_of(Vertical::ReverseOpen, VoiceSide::Short, 0),
+            Some(AccountIdentity::ReverseOpen { level: 0 })
         );
         assert_eq!(
-            identity_of(Vertical::ShortDiff, VoiceSide::Long, 0),
-            Some(AccountIdentity::ShortDiff)
+            identity_of(Vertical::ReverseOpen, VoiceSide::Long, 0),
+            Some(AccountIdentity::ReverseOpen { level: 0 })
         );
         // Flat 方向候选归 𝒦 记录不开腿 ⟹ 任何 entry_v × Flat 皆无账户身份（诚实 None，不伪造归属）。
         assert_eq!(identity_of(Vertical::Ambient, VoiceSide::Flat, 0), None);
-        assert_eq!(identity_of(Vertical::ShortDiff, VoiceSide::Flat, 0), None);
+        assert_eq!(identity_of(Vertical::ReverseOpen, VoiceSide::Flat, 0), None);
         assert_eq!(identity_of(Vertical::FollowParent, VoiceSide::Flat, 0), None);
     }
 
@@ -464,7 +469,7 @@ mod tests {
             -5.0,
             3,
         );
-        let sd_prune = order(AccountIdentity::ShortDiff, 0, VoiceSide::Short, ActionReason::StructuralPrune, 5.0, 3);
+        let sd_prune = order(AccountIdentity::ReverseOpen { level: 0 }, 0, VoiceSide::Short, ActionReason::StructuralPrune, 5.0, 3);
         assert_eq!(core_prune.reason, sd_prune.reason, "同一理由（结构剪枝）");
         assert_ne!(core_prune.account(), sd_prune.account(), "不同账户（正交）");
         // 反向触发类 → 理由（保留 ExitType 在 CloseRoot 下坍缩的一类/二类之分）。
@@ -522,23 +527,23 @@ mod tests {
     #[test]
     fn view_posts_per_instance_and_reads_three_identities() {
         let mut book = ParallelAccountLedger::new();
-        // Core{1} 多根（父仓）、ShortDiff 空子腿（父多在册）、Short 空根（无父反向声部）。
+        // Core{1} 多根（父仓）、ReverseOpen 空子腿（父多在册）、Short 空根（无父反向声部）。
         let core_open = order(AccountIdentity::Core { level: 1 }, 1, VoiceSide::Long, ActionReason::Open, 10.0, 0);
-        let sd_open = order(AccountIdentity::ShortDiff, 0, VoiceSide::Short, ActionReason::Open, -4.0, 1);
+        let sd_open = order(AccountIdentity::ReverseOpen { level: 0 }, 0, VoiceSide::Short, ActionReason::Open, -4.0, 1);
         let short_open = order(AccountIdentity::Short, 0, VoiceSide::Short, ActionReason::Open, -6.0, 2);
         book.post(core_open, 100.0, 0);
         book.post(sd_open, 100.0, 1);
         book.post(short_open, 100.0, 2);
         // 三身份余额（派生读数：多正空负）。
         assert_eq!(book.balance(AccountIdentity::Core { level: 1 }), 10.0);
-        assert_eq!(book.balance(AccountIdentity::ShortDiff), -4.0);
+        assert_eq!(book.balance(AccountIdentity::ReverseOpen { level: 0 }), -4.0);
         assert_eq!(book.balance(AccountIdentity::Short), -6.0);
         // 分实例：同身份不同仓位节点各记各账。
-        let sd_open2 = order(AccountIdentity::ShortDiff, 0, VoiceSide::Short, ActionReason::Open, -2.0, 3);
-        let sd_key2 = AccountKey::new(AccountIdentity::ShortDiff, 0, pos(0, 1, VoiceSide::Short, 0));
+        let sd_open2 = order(AccountIdentity::ReverseOpen { level: 0 }, 0, VoiceSide::Short, ActionReason::Open, -2.0, 3);
+        let sd_key2 = AccountKey::new(AccountIdentity::ReverseOpen { level: 0 }, 0, pos(0, 1, VoiceSide::Short, 0));
         let sd_open2 = AccountOrder { key: sd_key2, ..sd_open2 };
         book.post(sd_open2, 100.0, 3);
-        assert_eq!(book.balance(AccountIdentity::ShortDiff), -6.0, "聚合 = 两实例之和（派生）");
+        assert_eq!(book.balance(AccountIdentity::ReverseOpen { level: 0 }), -6.0, "聚合 = 两实例之和（派生）");
         assert_eq!(book.instance(&sd_open.key).unwrap().qty, -4.0, "实例一不被实例二污染");
         assert_eq!(book.instance(&sd_key2).unwrap().qty, -2.0);
     }
@@ -573,7 +578,8 @@ mod tests {
 
     /// ★#199 分流单源（红→绿）：二类反向理由按账户分流——核心腿「仅残余才纠错」
     /// （CoreResidualCorrection 仅在核心残余实测非零时触发，否则二类不得生成本仓卖单）；
-    /// 短差/空根腿保留 ReverseType2（ID-3：二类合法卖出仅短差、开空两身份）。
+    /// 首开反向/空根腿保留 ReverseType2（ID-3：二类合法卖出仅短差、开空两身份——短差名
+    /// 随修1 废止，#281 更名首开反向（#283 实装）；ID-3 为教义引用保留原词）。
     #[test]
     fn reason_of_reverse_close_splits_type2_by_account() {
         // Core{level} × 二类：残余实测非零 ⟹ CoreResidualCorrection；残余零 ⟹ None（不生本仓卖单）。
@@ -586,9 +592,9 @@ mod tests {
             None,
             "二类 + 核心残余为零 ⟹ 不得生成本仓卖单（ID-3 行为口径）"
         );
-        // ShortDiff/Short × 二类 ⟹ ReverseType2（合法二类卖：短差平/平空）。
+        // ReverseOpen/Short × 二类 ⟹ ReverseType2（合法二类卖：首开反向平/平空）。
         assert_eq!(
-            reason_of_reverse_close(AccountIdentity::ShortDiff, 2, true),
+            reason_of_reverse_close(AccountIdentity::ReverseOpen { level: 0 }, 2, true),
             Some(ActionReason::ReverseType2)
         );
         assert_eq!(
@@ -602,7 +608,7 @@ mod tests {
             Some(ActionReason::ReverseType1)
         );
         assert_eq!(
-            reason_of_reverse_close(AccountIdentity::ShortDiff, 3, true),
+            reason_of_reverse_close(AccountIdentity::ReverseOpen { level: 0 }, 3, true),
             Some(ActionReason::ReverseType3)
         );
         assert_eq!(
@@ -615,13 +621,13 @@ mod tests {
     }
 
     /// ★#199 断言③的分流层形态：二类产物账户约束——`ReverseType2` 永不落 Core 账
-    /// （二类卖仅 ShortDiff/Short 两身份）；Core 账的二类产物仅 CoreResidualCorrection。
+    /// （二类卖仅 ReverseOpen/Short 两身份）；Core 账的二类产物仅 CoreResidualCorrection。
     #[test]
     fn type2_reason_never_lands_on_core_as_reverse_type2() {
         for account in [
             AccountIdentity::Core { level: 0 },
             AccountIdentity::Core { level: 2 },
-            AccountIdentity::ShortDiff,
+            AccountIdentity::ReverseOpen { level: 0 },
             AccountIdentity::Short,
         ] {
             for residual in [true, false] {
@@ -654,8 +660,8 @@ mod tests {
         // 一/三类 × Short ⟹ Open（一类首开反向仓标准位、三类不构成开空通道）。
         assert_eq!(reason_of_open(AccountIdentity::Short, 1), ActionReason::Open);
         assert_eq!(reason_of_open(AccountIdentity::Short, 3), ActionReason::Open);
-        // 二类 × ShortDiff ⟹ Open（短差开是 B 账户既有通道，非 OpenShort）。
-        assert_eq!(reason_of_open(AccountIdentity::ShortDiff, 2), ActionReason::Open);
+        // 二类 × ReverseOpen ⟹ Open（首开反向开是 B 账户既有通道，非 OpenShort）。
+        assert_eq!(reason_of_open(AccountIdentity::ReverseOpen { level: 0 }, 2), ActionReason::Open);
         // 二类 × Core ⟹ Open（FollowParent 级联加仓 / Ambient 多根第二入场，非 C 账户）。
         assert_eq!(reason_of_open(AccountIdentity::Core { level: 0 }, 2), ActionReason::Open);
         assert_eq!(reason_of_open(AccountIdentity::Core { level: 1 }, 2), ActionReason::Open);

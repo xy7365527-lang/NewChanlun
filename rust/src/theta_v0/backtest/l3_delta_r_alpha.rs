@@ -2001,7 +2001,7 @@ mod tests {
         eprintln!("ledger 总腿数        : {}", ledger.len());
         eprintln!("CloseRoot (P5)       : {}", count(ExitType::CloseRoot));
         eprintln!("ReduceCore (P6)      : {}", count(ExitType::ReduceCore));
-        eprintln!("CloseShortDiff (P7)  : {}", count(ExitType::CloseShortDiff));
+        eprintln!("CloseReverseOpen (P7): {}", count(ExitType::CloseReverseOpen));
         eprintln!("RiskExit (P1)        : {}（#124 P1 短路已落地——Insolvent/Liquidation 触发才非零）", count(ExitType::RiskExit));
         eprintln!("Hold censored (P0)   : {}", count(ExitType::Hold));
         eprintln!(
@@ -2015,7 +2015,7 @@ mod tests {
         assert!(est.n_classes() > 0, "μ 表非空（开腿信号真实兑现）");
         // 全分类完备：五枚举计数守恒。
         assert_eq!(
-            count(ExitType::CloseRoot) + count(ExitType::ReduceCore) + count(ExitType::CloseShortDiff)
+            count(ExitType::CloseRoot) + count(ExitType::ReduceCore) + count(ExitType::CloseReverseOpen)
                 + count(ExitType::RiskExit) + count(ExitType::Hold),
             ledger.len(),
             "exit_type 五枚举全分类守恒"

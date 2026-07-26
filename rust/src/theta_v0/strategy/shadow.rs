@@ -24,7 +24,8 @@
 //! - channel 只出裁决不建腿：声部腿槽每 bar 由生产活动集镜像覆写，[`channel::step_voice`]
 //!   只读；[`channel::shadow_observe`] 只推进 P7 检测器/步计数（Hold 转移语义），
 //!   `advance` 不进生产路径；生产侧建腿/清腿原样保留。
-//! - `VoiceState.short_diff` 槽恒 `None`：生产短差由 TW/PanDiv 链独立承担（channel 8 槽
+//! - `VoiceState.reverse_open` 槽恒 `None`（原 `short_diff` 槽，#281 更名 #283 实装）：
+//!   生产短差由 TW/PanDiv 链独立承担（channel 8 槽
 //!   无 TW 通道，备忘 §2）——P4 恒不触发；P7 裁决无生产对应语义，记入
 //!   [`DivergenceKind::ChannelOnly`]（预期内分歧，非缺陷）。#282：P5 短差开启槽已删
 //!   （#280 裁定，S6 开空腿形态废止），channel 不再产 `OpenShortDiff` 裁决。
@@ -81,12 +82,12 @@ pub(crate) enum DivergenceKind {
     ExitTypedMismatch,
     /// channel 裁出场，生产腿延续（TW 屏蔽/AncOK 幸存/多候选 fold 结构差）。
     ChannelExitProductionHold,
-    /// channel 裁 Hold，生产腿离场（ShortDiff entry_v 已知缺口/TW overlay/证书门差）。
+    /// channel 裁 Hold，生产腿离场（ReverseOpen entry_v 已知缺口/TW overlay/证书门差）。
     ChannelHoldProductionExit,
     /// channel 裁开仓，生产未开（§13 AncOK 准入门剪 / 候选被散装 fold 规则2 消费为关闭
     /// 触发——channel 声部独立互斥 vs fold 消费语义的结构差，预期缺口）。
     ChannelOpenProductionIdle,
-    /// channel 裁 Hold，生产本 slot 开新腿（channel 排除 ShortDiff 角色候选开仓，interp
+    /// channel 裁 Hold，生产本 slot 开新腿（channel 排除 ReverseOpen 角色候选开仓，interp
     /// 规则3 不排除——已知语义差；或同 bar 先关后开的 fold/声部互斥结构差）。
     ChannelHoldProductionOpen,
     /// channel 独有裁决，生产无对应语义（Record/AddPosition——P7/P8 生产落点不在
@@ -194,7 +195,7 @@ impl ShadowVoiceBook {
         }
 
         // 生产事实索引（#201 阶段 B：持仓声部由 `StepTrace.verdicts` 显式裁决序列单源推导——
-        // trace/裁决层统一；CloseShortDiff 源头区分查 `overlay_closes` 保留桶、空仓声部查
+        // trace/裁决层统一；CloseReverseOpen 源头区分查 `overlay_closes` 保留桶、空仓声部查
         // `opened` 保留桶——加轨不减轨，五桶全部保留）。
         let verdicts: HashMap<ElementId, ExitType> =
             trace.verdicts.iter().map(|v| (v.leg.id, v.exit)).collect();
@@ -237,7 +238,7 @@ impl ShadowVoiceBook {
                         .unwrap_or(Vertical::Ambient),
                     step: 0,
                     sub_cycle: channel::SubCycleTracker::default(),
-                    short_diff: None, // v1：生产短差由 TW/PanDiv 链承担（模块 doc 降级声明）。
+                    reverse_open: None, // v1：生产首开反向由散装域/TW 链承担（模块 doc 降级声明）。
                 },
             };
             let (cid, dec) = channel::step_voice(&state, &input);
@@ -310,7 +311,7 @@ impl ShadowVoiceBook {
 
 /// 生产事实推导（#201 阶段 B：持仓声部由 `StepTrace.verdicts` 显式裁决序列**单源**推导——
 /// trace/裁决层统一，与旧五桶推导恒等：closed→其 typed、risk_exits→RiskExit、延续→Hold）。
-/// `CloseShortDiff` 的源头区分（TW P2 overlay vs 规则2 短差关闭）仍查 `overlay_closes` 保留桶
+/// `CloseReverseOpen` 的源头区分（TW P2 overlay vs 规则2 首开反向关闭）仍查 `overlay_closes` 保留桶
 /// （与 typed ledger 粒度一致）；空仓声部按 slot 查 `opened` 保留桶。裁决序列无记录 = §13
 /// 结构剪除（silent_drops 轨，非裁决——组合层不变量 `prev_active = verdicts ⊎ silent_drops`）
 /// 或序列缺口（防御：不吞异常，如实归 SilentDropped 落分歧）。
@@ -325,7 +326,7 @@ fn production_fact(
         Some(l) => match verdicts.get(&l.id) {
             Some(ExitType::Hold) => ProductionFact::Held,
             Some(ExitType::RiskExit) => ProductionFact::RiskExited,
-            Some(ExitType::CloseShortDiff) if overlay.contains(&l.id) => {
+            Some(ExitType::CloseReverseOpen) if overlay.contains(&l.id) => {
                 ProductionFact::OverlayClosed
             }
             Some(e) => ProductionFact::Closed(*e),
@@ -350,7 +351,7 @@ fn classify(dec: ChannelDecision, fact: ProductionFact) -> DivergenceKind {
         // 证书出场：typed 一致 Match，不一致 ExitTypedMismatch（单源 reverse_exit_type 下
         // 正常数据不应出现——出现即两链 S2 二分/entry_v 口径裂口的见证）。
         (D::Exit(a), F::Closed(b))
-            if matches!(a, ExitType::CloseRoot | ExitType::ReduceCore | ExitType::CloseShortDiff) =>
+            if matches!(a, ExitType::CloseRoot | ExitType::ReduceCore | ExitType::CloseReverseOpen) =>
         {
             if a == b {
                 K::Match
@@ -361,8 +362,8 @@ fn classify(dec: ChannelDecision, fact: ProductionFact) -> DivergenceKind {
         (D::Exit(ExitType::RiskExit), F::RiskExited) => K::Match,
         // P1 对空仓 slot：无仓可平，裁决与 Idle 事实同效。
         (D::Exit(ExitType::RiskExit), F::Idle) => K::Match,
-        // TW overlay 关短差（channel 无 TW 槽的防御对齐；当前谓词结构下不可达）。
-        (D::Exit(ExitType::CloseShortDiff), F::OverlayClosed) => K::Match,
+        // TW overlay 关首开反向（channel 无 TW 槽的防御对齐；当前谓词结构下不可达）。
+        (D::Exit(ExitType::CloseReverseOpen), F::OverlayClosed) => K::Match,
         (D::Exit(ExitType::Hold), F::Held | F::Idle) => K::Match,
         (D::Exit(ExitType::Hold), F::Closed(_) | F::RiskExited | F::OverlayClosed) => {
             K::ChannelHoldProductionExit
@@ -522,7 +523,7 @@ mod tests {
             (D::Exit(ExitType::CloseRoot), F::Closed(ExitType::CloseRoot), K::Match),
             (D::Exit(ExitType::ReduceCore), F::Closed(ExitType::ReduceCore), K::Match),
             (D::Exit(ExitType::CloseRoot), F::Closed(ExitType::ReduceCore), K::ExitTypedMismatch),
-            (D::Exit(ExitType::CloseShortDiff), F::Closed(ExitType::CloseShortDiff), K::Match),
+            (D::Exit(ExitType::CloseReverseOpen), F::Closed(ExitType::CloseReverseOpen), K::Match),
             // P1。
             (D::Exit(ExitType::RiskExit), F::RiskExited, K::Match),
             (D::Exit(ExitType::RiskExit), F::Idle, K::Match),
@@ -537,7 +538,7 @@ mod tests {
             // 出场 vs 持有/剪除。
             (D::Exit(ExitType::CloseRoot), F::Held, K::ChannelExitProductionHold),
             (D::Exit(ExitType::CloseRoot), F::SilentDropped, K::ProductionSilentDrop),
-            (D::Exit(ExitType::CloseShortDiff), F::OverlayClosed, K::Match),
+            (D::Exit(ExitType::CloseReverseOpen), F::OverlayClosed, K::Match),
             (D::Exit(ExitType::ReduceCore), F::RiskExited, K::ExitTypedMismatch),
             // 开仓。
             (D::Open, F::Opened, K::Match),

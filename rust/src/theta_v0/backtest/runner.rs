@@ -97,7 +97,7 @@ use super::admission::{VOICE_EXEC_OVERRIDE, NEST_CERT_GATE_OVERRIDE};
 #[cfg(test)]
 use super::fill::{
     residual_correction_probe_count, residual_correction_probe_reset,
-    shortdiff_isolation_probe_count, shortdiff_isolation_probe_reset,
+    reverse_open_isolation_probe_count, reverse_open_isolation_probe_reset,
     silent_drop_exit_type, t1_core_residual_probe_count, t1_core_zero_probe_count,
     t1_core_zero_probe_reset, type2_sell_guard_probe_count, type2_sell_guard_probe_reset,
     type2_with_core_residual_probe_count, SHADOW_DIVERGENCE_PATH_OVERRIDE,
@@ -269,7 +269,7 @@ pub fn run_theta_v0(
 ///
 /// 管线与 [`run_theta_v0`] 同骨架，两处替换：
 /// 1. `classify` → [`classifier::classify_with_tower`]（Classification **bit-identical**，
-///    classifier/mod.rs:482 契约；第二返回值 = 逐级塔快照，供真 ShortDiff 角色）。
+///    classifier/mod.rs:482 契约；第二返回值 = 逐级塔快照，供真 ReverseOpen 角色）。
 /// 2. `recognize + plan_and_fill_mtm` → [`plan_and_fill_mtm_dual`]（per-bar
 ///    [`strategy::recognize_nested`] + DualLedger 分腿成交 + cascade 退出 + 毛闸门）。
 ///
@@ -386,7 +386,7 @@ pub fn run_theta_v0_dual(
 /// ★σ_p 来源 + §13 AncOK 持仓准入双机制（639，两正交机制均就位）：① σ_p **来源** = 父容器方向
 /// （`assemble_gamma_with_tower` 从因果塔查，与持仓无关）；② **§13 AncOK 持仓准入**
 /// （`coverage_step_from_buckets` 经 `prev_active` 对位真树元素 + `ancestor_close`）**未持父则剔除
-/// ShortDiff 子腿**——故本 runner **不开 naked 逆势仓**（639(c) 兑现）。两机制正交：σ_p 用因果塔
+/// ReverseOpen 子腿**——故本 runner **不开 naked 逆势仓**（639(c) 兑现）。两机制正交：σ_p 用因果塔
 /// （结构对象），准入用持仓台账（A_t 父容器腿在场判据）。
 ///
 /// > **结果包六要素**
@@ -839,7 +839,7 @@ pub(super) fn typed_ledger_from_bars(bars: &[Bar], config: &ThetaConfig) -> Vec<
 /// **每 bar 真更新喂回的物证**（与开环单帧对比）：
 /// - `micro_state.bar_count` / `bars_seen` 每 bar +1（推进到 = 可交易 bar 数）。
 /// - `ledger_state`（R=Π-A-W）每 bar 经 ledger_step 更新（开仓侧 Allocate / 平仓侧 Realize）。
-/// - `tw_state`（TW 守恒 + stage 单向）每 bar 经 tw_step 更新（ShortDiff / RecoverCapital）。
+/// - `tw_state`（TW 守恒 + stage 单向）每 bar 经 tw_step 更新（ReverseOpen / RecoverCapital）。
 /// - `orders` 每 bar +1（订单计数推进）。
 /// 闭环每步保持双账本不变量（见 closed_loop::transition 的 hybrid_step_preserves_* 测试）。
 ///
@@ -1231,16 +1231,16 @@ mod tests {
     /// loop 真实过账——余额按（账户, 级别, 仓位节点）分实例可读，并与既有账（G4 typed
     /// ledger）逐笔对账。expand 模式：视图只读旁路，不改净额路径（三把 bit-exact 锁为界）。
     ///
-    /// 场景一（E 组夹具）：父 L1 Long 根（Core{1}）→ 子 L0 Short 短差（ShortDiff）→
-    /// 子腿一类反向平（reason=ReverseType1，账户=ShortDiff——正交见证）→ 父仓窗口终点
+    /// 场景一（E 组夹具）：父 L1 Long 根（Core{1}）→ 子 L0 Short 短差（ReverseOpen）→
+    /// 子腿一类反向平（reason=ReverseType1，账户=ReverseOpen——正交见证）→ 父仓窗口终点
     /// censored（reason=WindowEnd）。场景二（sell-first）：ambient 空根（Short=无父反向
     /// 声部）→ 一类反向平。
     #[test]
     fn account_view_witness_three_identities_in_pi_loop() {
         use super::super::super::strategy::account::{AccountIdentity, ActionReason};
 
-        // ── 场景一：Core{1} + ShortDiff 两身份（E 组夹具，同
-        //    typed_ledger_shortdiff_close_overrides_trigger_class 的腿生命周期）。 ──
+        // ── 场景一：Core{1} + ReverseOpen 两身份（E 组夹具，同
+        //    typed_ledger_reverse_open_close_overrides_trigger_class 的腿生命周期）。 ──
         let mut config = ThetaConfig::default();
         config.tick.tick_size = 1.0;
         let bars = e1_bars();
@@ -1277,7 +1277,7 @@ mod tests {
             .typed_ledger
             .iter()
             .find(|t| t.entry_z.delta == -1)
-            .expect("子 L0 ShortDiff typed 交易存在");
+            .expect("子 L0 ReverseOpen typed 交易存在");
         assert_eq!(fill.typed_ledger.len(), 2, "父 + 子恰两条 typed 交易");
 
         // 对账 1（逐笔）：每条 typed 交易 ↔ 视图恰一分实例（position_node_id 严格身份），
@@ -1306,9 +1306,9 @@ mod tests {
             "每开一腿恰平一次 ⟹ 平仓成交数 = typed 交易数"
         );
         assert_eq!(
-            close_fills.iter().filter(|f| f.order.account() == AccountIdentity::ShortDiff).count(),
+            close_fills.iter().filter(|f| f.order.account() == AccountIdentity::ReverseOpen { level: 0 }).count(),
             1,
-            "子腿平仓归 ShortDiff 账（exit_type=CloseShortDiff 的账户侧）"
+            "子腿平仓归 ReverseOpen 账（exit_type=CloseReverseOpen 的账户侧）"
         );
         assert_eq!(
             close_fills.iter().filter(|f| f.order.account() == AccountIdentity::Core { level: 1 }).count(),
@@ -1321,11 +1321,11 @@ mod tests {
             "本场景无 ambient 空根 ⟹ Short 账零平仓（与 typed 账无 ambient 空腿一致）"
         );
 
-        // 正交见证：子腿平仓 账户=ShortDiff、理由=ReverseType1（一类触发）——
-        // ExitType::CloseShortDiff 同时表达两者，AccountOrder 拆开。
+        // 正交见证：子腿平仓 账户=ReverseOpen、理由=ReverseType1（一类触发）——
+        // ExitType::CloseReverseOpen 同时表达两者，AccountOrder 拆开。
         let child_close = close_fills
             .iter()
-            .find(|f| f.order.account() == AccountIdentity::ShortDiff)
+            .find(|f| f.order.account() == AccountIdentity::ReverseOpen { level: 0 })
             .expect("短差平仓成交存在");
         assert_eq!(child_close.order.reason, ActionReason::ReverseType1, "一类反向触发（正交理由轴）");
         // 父仓窗口终点 censored：理由=WindowEnd（账户=Core{1}）。
@@ -1336,7 +1336,7 @@ mod tests {
         assert_eq!(parent_close.order.reason, ActionReason::WindowEnd);
 
         // 三身份余额读出（派生视图）+ 分实例时点对账：
-        // 子腿在飞期间（开后、平前），Core{1} 余额 = 父仓手数、ShortDiff 余额 = −子仓手数。
+        // 子腿在飞期间（开后、平前），Core{1} 余额 = 父仓手数、ReverseOpen 余额 = −子仓手数。
         let mid_bar = child_row.exit_bar - 1;
         assert!(child_row.exit_bar > child_row.entry_bar, "子腿开早于平");
         assert_eq!(
@@ -1345,18 +1345,18 @@ mod tests {
             "子在飞时父仓全额在册（G4 账 units 对账）"
         );
         assert_eq!(
-            view.balance_as_of(AccountIdentity::ShortDiff, mid_bar),
+            view.balance_as_of(AccountIdentity::ReverseOpen { level: 0 }, mid_bar),
             -child_row.units,
             "短差空向在册（父仓不动，毛暴露 ≠ 净额——分腿可见）"
         );
         assert_eq!(
-            view.balance_as_of(AccountIdentity::ShortDiff, bars.len() - 1),
+            view.balance_as_of(AccountIdentity::ReverseOpen { level: 0 }, bars.len() - 1),
             0.0,
-            "子腿一类点后 ShortDiff 余额归零"
+            "子腿一类点后 ReverseOpen 余额归零"
         );
         // 窗口终点后：全部实例全平 ⟹ 三身份余额皆 0（聚合仅派生，实例仍留档）。
         assert_eq!(view.balance(AccountIdentity::Core { level: 1 }), 0.0);
-        assert_eq!(view.balance(AccountIdentity::ShortDiff), 0.0);
+        assert_eq!(view.balance(AccountIdentity::ReverseOpen { level: 0 }), 0.0);
         assert_eq!(view.balance(AccountIdentity::Short), 0.0);
         // 聚合=派生：balance 现算 = 分实例 qty 手工求和（非 canonical 存储）。
         let manual_core: f64 = view
@@ -1409,7 +1409,7 @@ mod tests {
             "一类点后 Short 余额归零"
         );
         assert_eq!(view2.balance(AccountIdentity::Short), 0.0);
-        assert_eq!(view2.balance(AccountIdentity::ShortDiff), 0.0, "无父场景不得记短差（互斥完备：无父即反向根）");
+        assert_eq!(view2.balance(AccountIdentity::ReverseOpen { level: 0 }), 0.0, "无父场景不得记短差（互斥完备：无父即反向根）");
         // 平仓理由 = ReverseType1（正交：账户=Short、理由=一类反向）。
         let short_close = view2
             .fills()
@@ -1472,7 +1472,7 @@ mod tests {
             ActionReason::CoreResidualCorrection,
             "二类反向关核心腿 ⟹ 残余纠错理由（仅残余才纠错，非 ReverseType2）"
         );
-        // 断言③：ReverseType2 永不落 Core 账（二类合法卖出仅 ShortDiff/Short 两身份）。
+        // 断言③：ReverseType2 永不落 Core 账（二类合法卖出仅 ReverseOpen/Short 两身份）。
         assert!(
             view.fills().iter().all(|f| {
                 !(matches!(f.order.account(), AccountIdentity::Core { .. })
@@ -1724,13 +1724,13 @@ mod tests {
     }
 
     /// ★#199 断言③前半（二类卖身份）生产路径见证 + 回归锁：短差腿**二类**平 ⟹
-    /// 账户=ShortDiff、理由保留 `ReverseType2`（合法二类卖——分流不伤合法身份）；
-    /// typed 归 `CloseShortDiff`（五枚举不动）。探针=1：每笔 ReverseType2 过账均经
+    /// 账户=ReverseOpen、理由保留 `ReverseType2`（合法二类卖——分流不伤合法身份）；
+    /// typed 归 `CloseReverseOpen`（五枚举不动）。探针=1：每笔 ReverseType2 过账均经
     /// 「不落 Core 账」约束核对（断言③前半真实触发为凭）。
     ///
     /// 场景 = E 组夹具（父 L1 Long 根 + 子 L0 Short 短差），子平触发换 buy2@18。
     #[test]
-    fn type2_shortdiff_close_keeps_reverse_type2_and_fires_guard() {
+    fn type2_reverse_open_close_keeps_reverse_type2_and_fires_guard() {
         use super::super::super::strategy::account::{AccountIdentity, ActionReason};
         use super::super::super::strategy::interp::ExitType;
         type2_sell_guard_probe_reset();
@@ -1759,15 +1759,15 @@ mod tests {
         };
         let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
         // ★#200 翻动核对（OpenShort 通道新订单，#179 程序）：typed 2→3——buy2@18 先平
-        // （子 ShortDiff CloseShortDiff）后开（顺父级联 Long @19，窗口终点 censored Hold，
+        // （子 ReverseOpen CloseReverseOpen）后开（顺父级联 Long @19，窗口终点 censored Hold，
         // 落 Core{0} 账 = 二类「加仓」侧；账户非 Short ⟹ 理由保留 Open，非 OpenShort）。
         assert_eq!(fill.typed_ledger.len(), 3, "#200 新基线：父 + 子 + 级联加仓腿恰三条 typed");
         let child_row = fill
             .typed_ledger
             .iter()
             .find(|t| t.entry_z.delta == -1)
-            .expect("子 L0 ShortDiff typed 交易存在");
-        assert_eq!(child_row.exit_type, ExitType::CloseShortDiff);
+            .expect("子 L0 ReverseOpen typed 交易存在");
+        assert_eq!(child_row.exit_type, ExitType::CloseReverseOpen);
         // 新开级联腿（先平后开加仓侧）：δ=+1、censored；账户 = Core{0}、理由 = Open。
         let cascade_row = fill
             .typed_ledger
@@ -1782,20 +1782,20 @@ mod tests {
             }),
             "级联加仓腿落 Core{{0}} 账 × Open（二类加仓侧，非 OpenShort）"
         );
-        // 子腿平仓：账户=ShortDiff、理由=ReverseType2（二类触发的合法二类卖）。
+        // 子腿平仓：账户=ReverseOpen、理由=ReverseType2（二类触发的合法二类卖）。
         let child_close = fill
             .account_view
             .fills()
             .iter()
             .find(|f| {
-                f.order.account() == AccountIdentity::ShortDiff
+                f.order.account() == AccountIdentity::ReverseOpen { level: 0 }
                     && f.order.reason != ActionReason::Open
             })
             .expect("短差平仓成交存在");
         assert_eq!(
             child_close.order.reason,
             ActionReason::ReverseType2,
-            "短差腿二类平 ⟹ 合法二类卖身份保留（断言③前半：ShortDiff ∈ 合法集）"
+            "短差腿二类平 ⟹ 合法二类卖身份保留（断言③前半：ReverseOpen ∈ 合法集）"
         );
         // 探针 = 1：该笔 ReverseType2 过账经「不落 Core 账」约束核对（生产路径真实触发）。
         assert_eq!(
@@ -1825,12 +1825,12 @@ mod tests {
     /// **子树清仓**：短差子腿同刻（exit=20）清除（短差腿无豁免，ADR 0001 条目4）。
     ///
     /// 见证（2026-07-24 本票实跑）：typed 恰 2 条——父 CloseRoot（interpret close 桶，
-    /// prune=false）+ 子 CloseShortDiff（via_structural_prune=true，子树清仓经结构剪枝外化
+    /// prune=false）+ 子 CloseReverseOpen（via_structural_prune=true，子树清仓经结构剪枝外化
     /// 路径落 typed，与旧 AncOK 被动剪同一路径 ⟹ typed 层新旧同构）；账户流 父 Core{1}×
-    /// ReverseType1（一类口径）、子 ShortDiff×StructuralPrune（exit_type==CloseShortDiff ⟺
-    /// account==ShortDiff，#198 跨账一致）；终态 Core{1}=ShortDiff=0（无孤儿）。
+    /// ReverseType1（一类口径）、子 ReverseOpen×StructuralPrune（exit_type==CloseReverseOpen ⟺
+    /// account==ReverseOpen，#198 跨账一致）；终态 Core{1}=ReverseOpen=0（无孤儿）。
     #[test]
-    fn t4_pi_loop_parent_type1_close_liquidates_shortdiff_child_subtree() {
+    fn t4_pi_loop_parent_type1_close_liquidates_reverse_open_child_subtree() {
         use super::super::super::strategy::account::{AccountIdentity, ActionReason};
         use super::super::super::strategy::interp::ExitType;
         let mut config = ThetaConfig::default();
@@ -1883,14 +1883,14 @@ mod tests {
             .typed_ledger
             .iter()
             .find(|t| t.entry_z.delta == -1)
-            .expect("子 L0 ShortDiff typed 交易存在");
-        assert_eq!(child_row.exit_type, ExitType::CloseShortDiff, "短差子腿关闭归 CloseShortDiff");
+            .expect("子 L0 ReverseOpen typed 交易存在");
+        assert_eq!(child_row.exit_type, ExitType::CloseReverseOpen, "短差子腿关闭归 CloseReverseOpen");
         assert!(child_row.via_structural_prune, "子 = 子树清仓（结构剪枝外化路径落 typed）");
         assert_eq!(
             child_row.exit_bar, parent_row.exit_bar,
             "父终结⟹子树全清同一 bar（同刻清仓，无次刻孤儿窗口）"
         );
-        // 账户流：父 Core{1}×ReverseType1（一类口径）；子 ShortDiff×StructuralPrune（跨账一致 #198）。
+        // 账户流：父 Core{1}×ReverseType1（一类口径）；子 ReverseOpen×StructuralPrune（跨账一致 #198）。
         let view = &fill.account_view;
         assert!(
             view.fills().iter().any(|f| {
@@ -1901,14 +1901,14 @@ mod tests {
         );
         assert!(
             view.fills().iter().any(|f| {
-                f.order.account() == AccountIdentity::ShortDiff
+                f.order.account() == AccountIdentity::ReverseOpen { level: 0 }
                     && f.order.reason == ActionReason::StructuralPrune
             }),
-            "子树清仓短差腿 ⟹ ShortDiff×StructuralPrune（exit_type==CloseShortDiff ⟺ account==ShortDiff）"
+            "子树清仓短差腿 ⟹ ReverseOpen×StructuralPrune（exit_type==CloseReverseOpen ⟺ account==ReverseOpen）"
         );
         // 无孤儿声部存活：终态父子余额皆零。
         assert_eq!(view.balance(AccountIdentity::Core { level: 1 }), 0.0, "父 Core{{1}} 余额归零");
-        assert_eq!(view.balance(AccountIdentity::ShortDiff), 0.0, "子 ShortDiff 余额归零（无孤儿）");
+        assert_eq!(view.balance(AccountIdentity::ReverseOpen { level: 0 }), 0.0, "子 ReverseOpen 余额归零（无孤儿）");
     }
 
     /// ★#200 生产路径见证（红→绿，spec WP-2 修复 c / issue #200 验收一）：二类开空通道——
@@ -1963,7 +1963,7 @@ mod tests {
         );
         // ambient 守卫互斥：无父 ⟹ 空仓账——短差账零成交（不存在同时双记，CONTEXT.md:93）。
         assert!(
-            view.fills().iter().all(|f| f.order.account() != AccountIdentity::ShortDiff),
+            view.fills().iter().all(|f| !matches!(f.order.account(), AccountIdentity::ReverseOpen { .. })),
             "无父场景不得记短差账（互斥完备：无父即反向根）"
         );
         // spec 新增断言 3（二类合法卖出只剩短差、开空两身份）：本场景二类产物 =
@@ -2008,18 +2008,18 @@ mod tests {
     }
 
     /// ★#200 ambient 守卫读法（红→绿，issue #200 验收一括号项）：二类反向候选归属——
-    /// **父声部 active ⟹ 短差账（ShortDiff）**；与「无父 ⟹ 空仓账」（见
+    /// **父声部 active ⟹ 短差账（ReverseOpen）**；与「无父 ⟹ 空仓账」（见
     /// [`type2_open_short_channel_no_parent_lands_short_account`]）互斥且完备
     /// （CONTEXT.md:93 反向根条款；action-taxonomy §5.2：有父⇒短差 P4、无父⇒开空 P6，
     /// first-match P4≻P6）。
     ///
     /// 场景 = E 组塔变体：父 L1 buy1@12 开 Core{{1}} Long 根（bar 13）→ L0 buy1@13 顺父
-    /// 级联 Core{{0}} Long（bar 15）→ L0 sell2@16（ShortDiff 角色，同 e_classification
+    /// 级联 Core{{0}} Long（bar 15）→ L0 sell2@16（ReverseOpen 角色，同 e_classification
     /// sell_child@16 的 host=sub(12,16)）二类反向（bar 17）：级联残余纠错
     /// （Core{{0}}×CoreResidualCorrection）＋ **先平后开**短差空腿（父 L1 active ⟹
-    /// ShortDiff 账，非 Short）。红（修复前）：候选被 close 分支消费，短差空腿从未建仓。
+    /// ReverseOpen 账，非 Short）。红（修复前）：候选被 close 分支消费，短差空腿从未建仓。
     #[test]
-    fn type2_open_short_channel_active_parent_lands_shortdiff_account() {
+    fn type2_open_short_channel_active_parent_lands_reverse_open_account() {
         use super::super::super::strategy::account::{AccountIdentity, ActionReason};
         use super::super::super::strategy::interp::ExitType;
         let mut config = ThetaConfig::default();
@@ -2047,7 +2047,7 @@ mod tests {
             struct_break_dir: None,
             force: None,
         };
-        // L0 二类卖点（ShortDiff 角色——同 e_classification sell_child@16 的附着坐标，class 换 2）。
+        // L0 二类卖点（ReverseOpen 角色——同 e_classification sell_child@16 的附着坐标，class 换 2）。
         let sell2_child = BspPoint {
             source_index: 16,
             level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
@@ -2096,13 +2096,13 @@ mod tests {
             .find(|t| t.exit_type == ExitType::Hold && t.entry_z.delta == -1)
             .expect("新开短差空腿 typed 存在（censored）");
         let view = &fill.account_view;
-        // ★ambient 守卫核心见证：父 active ⟹ 新开反向腿落**短差账**（ShortDiff），
+        // ★ambient 守卫核心见证：父 active ⟹ 新开反向腿落**短差账**（ReverseOpen），
         // **不**落空仓账——Short 账零成交（互斥完备：有父即短差，不存在同时双记）。
         let sd_open = view
             .fills()
             .iter()
-            .find(|f| f.order.account() == AccountIdentity::ShortDiff && f.order.reason == ActionReason::Open)
-            .expect("短差空腿开仓成交存在（父 active ⟹ ShortDiff 账）");
+            .find(|f| f.order.account() == AccountIdentity::ReverseOpen { level: 0 } && f.order.reason == ActionReason::Open)
+            .expect("短差空腿开仓成交存在（父 active ⟹ ReverseOpen 账）");
         assert!(sd_open.order.qty_delta < 0.0, "反父方向 = 空向短差（父多⟹短差做空）");
         assert_eq!(sd_open.order.key.level, 0, "短差腿 = L0 次级别声部");
         assert!(
@@ -2138,13 +2138,13 @@ mod tests {
             })
             .expect("父仓平仓成交存在");
         assert_eq!(parent_close.order.reason, ActionReason::WindowEnd);
-        // 短差生命周期：在飞期间 ShortDiff 余额 = −手数；窗口终点归零。
+        // 短差生命周期：在飞期间 ReverseOpen 余额 = −手数；窗口终点归零。
         assert_eq!(
-            view.balance_as_of(AccountIdentity::ShortDiff, sd_row.exit_bar - 1),
+            view.balance_as_of(AccountIdentity::ReverseOpen { level: 0 }, sd_row.exit_bar - 1),
             -sd_row.units,
             "短差空腿在飞（父仓不动，毛暴露分腿可见）"
         );
-        assert_eq!(view.balance(AccountIdentity::ShortDiff), 0.0, "窗口终点后短差账归零");
+        assert_eq!(view.balance(AccountIdentity::ReverseOpen { level: 0 }), 0.0, "窗口终点后短差账归零");
     }
 
     /// ★#200 风险强平展开（spec WP-2 修复 d / issue #200 验收二 / #185 断言5）：
@@ -2153,7 +2153,7 @@ mod tests {
     /// 三账户先原子过账；aggregation **可逆**（`balance_as_of` 事件重放对账：强平单恰
     /// 抵消在飞余额）。
     ///
-    /// 场景 = E 组（父 Core{{1}} Long + 子 ShortDiff Short 在飞）+ 分段保证金簿：
+    /// 场景 = E 组（父 Core{{1}} Long + 子 ReverseOpen Short 在飞）+ 分段保证金簿：
     /// bar<18 温和（MM=1%×净名义）⟹ 两腿正常开；bar≥18 punitive（MM=10⁹×净名义）⟹
     /// Liquidation ⟹ force_flat，两腿在飞被强平（bar 18）。
     ///
@@ -2229,11 +2229,11 @@ mod tests {
         for f in &risk_fills {
             let _tag: &str = match f.order.account() {
                 AccountIdentity::Core { .. } => "core",
-                AccountIdentity::ShortDiff => "shortdiff",
+                AccountIdentity::ReverseOpen { .. } => "reverse_open",
                 AccountIdentity::Short => "short",
             };
         }
-        // 每条单账户单落在**该腿自己的账户**：父 ⟹ Core{1}、子 ⟹ ShortDiff；
+        // 每条单账户单落在**该腿自己的账户**：父 ⟹ Core{1}、子 ⟹ ReverseOpen；
         // 数量 = 反向等量（平多 −units / 平空 +units）。
         let parent_liq = risk_fills
             .iter()
@@ -2242,17 +2242,17 @@ mod tests {
         assert_eq!(parent_liq.order.qty_delta, -parent_row.units, "平多 = 反向等量");
         let child_liq = risk_fills
             .iter()
-            .find(|f| f.order.account() == AccountIdentity::ShortDiff)
-            .expect("子腿强平单落 ShortDiff（恰一账户）");
+            .find(|f| f.order.account() == AccountIdentity::ReverseOpen { level: 0 })
+            .expect("子腿强平单落 ReverseOpen（恰一账户）");
         assert_eq!(child_liq.order.qty_delta, child_row.units, "平空 = 反向等量");
         // 原子过账 + 可逆 reconciliation：强平单恰好抵消在飞余额（事件重放对账）——
         // 强平前（bar 17）两账在飞；强平后（bar 18 起）两账归零；终态余额归零。
         assert_eq!(view.balance_as_of(AccountIdentity::Core { level: 1 }, 17), parent_row.units);
-        assert_eq!(view.balance_as_of(AccountIdentity::ShortDiff, 17), -child_row.units);
+        assert_eq!(view.balance_as_of(AccountIdentity::ReverseOpen { level: 0 }, 17), -child_row.units);
         assert_eq!(view.balance_as_of(AccountIdentity::Core { level: 1 }, 18), 0.0);
-        assert_eq!(view.balance_as_of(AccountIdentity::ShortDiff, 18), 0.0);
+        assert_eq!(view.balance_as_of(AccountIdentity::ReverseOpen { level: 0 }, 18), 0.0);
         assert_eq!(view.balance(AccountIdentity::Core { level: 1 }), 0.0);
-        assert_eq!(view.balance(AccountIdentity::ShortDiff), 0.0);
+        assert_eq!(view.balance(AccountIdentity::ReverseOpen { level: 0 }), 0.0);
         // venue 侧只允许最外层净额投影：全窗净额执行订单恰 3 笔（父开 + 子开 + **一笔**
         // 净额平仓）——强平在 venue 侧不展开（展开只发生在内部账户过账层）。
         assert_eq!(fill.n_orders, 3, "venue 净额投影：父开+子开+一笔净额强平（最外层才净额化）");
@@ -2278,7 +2278,7 @@ mod tests {
     /// - 开空单标注约束形态：`Short×OpenShort` 逐笔核对（qty<0、入场证书在键、level 一致）。
     ///
     /// 诚实声明：本窗 `Short×OpenShort` 笔数 = **0**（2026-07-24 实跑）——二类 × 无父空根
-    /// 形态在本窗**样本缺席**（11 笔二类开仓全落 Core/ShortDiff/Ambient-Long），非机制缺席：
+    /// 形态在本窗**样本缺席**（11 笔二类开仓全落 Core/ReverseOpen/Ambient-Long），非机制缺席：
     /// 「开空单真实产生（含账户/理由标注）」由合成驱动见证
     /// `type2_open_short_channel_no_parent_lands_short_account`（红→绿，生产 π loop）承担。
     /// 不伪造（DATA BLOCKER 纪律）。
@@ -2356,12 +2356,12 @@ mod tests {
             "断言③：BTC 全窗无二类 Core 卖单"
         );
         // 订单轨基线锁（#179 程序核对）：#198 基线 25 笔 → #200 新基线 26 笔 → ★#233 新基线
-        // **50 笔**（五枚举实名分布 CloseRoot=32 / CloseShortDiff=17 / ReduceCore=1 / Hold=0 /
+        // **50 笔**（五枚举实名分布 CloseRoot=32 / CloseReverseOpen=17 / ReduceCore=1 / Hold=0 /
         // RiskExit=0；2026-07-25 本票实跑，debug-assertions on/off 双口径逐位一致，同窗
         // `btc_type2_residual_correction_witness`/`typed_ledger_btc_smoke` 复核一致）。
         // ★#233 翻动逐条对账（方向翻转显式化为声部终结事件，#227 裁决蓝图两步形）：
         // - typed 26→50（+24）：翻向终结的旧世代腿经 silent_drops 入轨（via_structural_prune）
-        //   ——非 ShortDiff 归 CloseRoot（8→32，+24 含连清）、ShortDiff 归 CloseShortDiff
+        //   ——非 ReverseOpen 归 CloseRoot（8→32，+24 含连清）、ReverseOpen 归 CloseReverseOpen
         //   （9→17，+8）。train 窗内「开仓后被树静默翻向续命」的持仓腿（大量 1-bar 持有，
         //   与 (2,98) gen 0..9 同形态）自此在翻向 bar 终结入轨，不再方向突变续命至后续信号。
         // - prune 腿 6→47（+41）：基线 6 笔 prune 腿全部同 entry/同 exit_type/同 account、
@@ -2371,7 +2371,7 @@ mod tests {
         //   终结 + 子树连清（𝒟_x^† 现成机制，exit.rs subtree_close 数济判据）。
         // - ReduceCore 7→1（−6）：二类减仓对象核心腿在二类信号出现前已翻向终结，减仓触发面
         //   消失；Hold 2→0（−2）：窗尾 censored 持仓在窗尾前已翻向终结。
-        // - 开空单 Short×OpenShort 0→2 + 开仓分布 Core{0}×Open 10→22 / ShortDiff×Open 10→17 /
+        // - 开空单 Short×OpenShort 0→2 + 开仓分布 Core{0}×Open 10→22 / ReverseOpen×Open 10→17 /
         //   Short×Open 3→6：翻向终结释放 carrier 后**新世代重登记**（蓝图两步形②）——旧轨
         //   候选被旧世代腿「持仓身份优先」（#216 规则①）让位，新轨旧世代已终结 ⟹ 候选
         //   准入开仓（A9 generation+1 新 posId/generation）。
@@ -2380,7 +2380,7 @@ mod tests {
         //   prune 腿跨账一致性（exit_type⟺account）47 笔逐笔成立
         //   （`btc_prune_leg_exit_type_matches_account_identity`）。
         // ★#270（SPEC #268 T2）基线诚实重算（GOLDEN 先例）：#269 翻向守卫事件化（出生对立
-        //   无事件不再触发）使本窗基线 **50 → 51 笔**（五枚举 CloseRoot=27 / CloseShortDiff=14
+        //   无事件不再触发）使本窗基线 **50 → 51 笔**（五枚举 CloseRoot=27 / CloseReverseOpen=14
         //   / ReduceCore=9 / Hold=1 / RiskExit=0，prune 腿 47→33；2026-07-26 本票实跑，
         //   debug/release 双口径逐位一致；基线对拍 = `git checkout ff7b52026e --
         //   strategy/{coverage,persistent}.rs` 复跑，50 笔/47 腿/旧分布与 #233 在案逐位一致）。
@@ -2391,10 +2391,10 @@ mod tests {
         //   腿存活到真实结构事件/子树连清的合法 prune（(0,128) 15355→15625 持 270 bar、
         //   (0,51) 5869→6306 持 437 bar、(1,6) 4424→6306、(1,20) 10422→11070）+ 新世代
         //   再入场（(1,2)/(1,26) 系）；两轨同在 16 笔逐位一致（同 id/entry/exit/型/账户）。
-        // - CloseRoot 32→27（−5）/ CloseShortDiff 17→14（−3）：1-bar 误杀入轨消失。
+        // - CloseRoot 32→27（−5）/ CloseReverseOpen 17→14（−3）：1-bar 误杀入轨消失。
         // - ReduceCore 1→9（+8）：核心腿不再 t+1 被剪 ⟹ 存活至二类减仓触发面恢复（#233
         //   「减仓对象在信号前已翻向终结」面收窄）；Hold 0→1（+1）：窗尾 censored 恢复。
-        // - 开仓分布 Core{0}×Open 22→20 / Core{1}×Open 3→7 / ShortDiff×Open 17→14 /
+        // - 开仓分布 Core{0}×Open 22→20 / Core{1}×Open 3→7 / ReverseOpen×Open 17→14 /
         //   Short×Open 6→7 / Short×OpenShort 2→3：误杀释放 carrier 的时点迁移 + 世代重
         //   登记形态随事件口径迁移；typed 净 +1（存活腿自有信号出场入轨 > 误杀入轨消失）。
         // - 断言①②③ 全程违例=0 保持（`btc_type2_residual_correction_witness`：断言①
@@ -2531,20 +2531,20 @@ mod tests {
 
 
     /// ★#198 跨账一致性见证（BTC 真实数据，生产路径）：§13 结构剪枝腿的 typed 归属
-    /// 必须与 #197 账户身份一致——`exit_type == CloseShortDiff` ⟺ `account == ShortDiff`。
+    /// 必须与 #197 账户身份一致——`exit_type == CloseReverseOpen` ⟺ `account == ReverseOpen`。
     ///
     /// 见证记录（修复前红，2026-07-23 本测试实跑）：train 16000 bars 共 25 笔 typed、6 笔
     /// 结构剪枝腿，其中 2 笔 `account=Core{0}`（FollowParent 级联核心仓）被旧判据
-    /// （`!= Ambient`）错标 `CloseShortDiff`——(0,61) entry=7010 exit=8366 与
+    /// （`!= Ambient`）错标 `CloseReverseOpen`——(0,61) entry=7010 exit=8366 与
     /// (0,114) entry=13549 exit=14692；修复后归 `CloseRoot`（core structural exit），
-    /// 全 6 笔跨账一致（CloseRoot 6→8、CloseShortDiff 10→8，五枚举总数 25 不变）。
+    /// 全 6 笔跨账一致（CloseRoot 6→8、CloseReverseOpen 10→8，五枚举总数 25 不变）。
     ///
     /// 相关断言按新口径逐条核对记录（#198 验收③；结论 = 零翻动、全部与新口径一致）：
     /// 1. `interp.rs` `reverse_exit_type` 冻结测试（1662-1666）：closed 桶判据
-    ///    （ShortDiff 腿任何触发类 ⟹ CloseShortDiff），不涉 silent_drops 判据 ⟹ 不动。
-    /// 2. `coverage.rs:5248-5283` ShortDiff 一类派 P7（双链同构见证）：同 1，closed 桶。
-    /// 3. `runner.rs` `typed_ledger_shortdiff_close_overrides_trigger_class`（5506+）：
-    ///    ShortDiff 腿一类反向 ⟹ CloseShortDiff（closed 桶）⟹ 不动。
+    ///    （ReverseOpen 腿任何触发类 ⟹ CloseReverseOpen），不涉 silent_drops 判据 ⟹ 不动。
+    /// 2. `coverage.rs:5248-5283` ReverseOpen 一类派 P7（双链同构见证）：同 1，closed 桶。
+    /// 3. `runner.rs` `typed_ledger_reverse_open_close_overrides_trigger_class`（5506+）：
+    ///    ReverseOpen 腿一类反向 ⟹ CloseReverseOpen（closed 桶）⟹ 不动。
     /// 4. `runner.rs` `typed_ledger_reverse_close_root`：根腿一类 ⟹ CloseRoot（closed 桶）⟹ 不动。
     /// 5. `l3_delta_r_alpha.rs:2016-2021` 五枚举全分类守恒：总数守恒（修复后 8+7+8+0+2=25），
     ///    无硬编码分桶计数 ⟹ 不翻（本测试同窗实跑复核通过）。
@@ -2552,7 +2552,7 @@ mod tests {
     /// 7. `wverify_run.rs` exit_type_code/decode/label：枚举编码与标签不变；W-VERIFY 5 变体
     ///    拆解为纯描述性诊断（裁定甲：不进桶键/门控/裁决基），桶语义按新口径阅读。
     /// 8. `mu_estimator.rs:326-330` ExitType 诊断切片：#180 冻结（不进 MuClass 桶键）⟹
-    ///    代码零改动；μ 分桶统计口径更新 = 桶的生产语义收紧（CloseShortDiff 只含真短差腿），
+    ///    代码零改动；μ 分桶统计口径更新 = 桶的生产语义收紧（CloseReverseOpen 只含真短差腿），
     ///    已记录于 `silent_drop_exit_type` 文档。
     #[test]
     #[ignore = "G4 typed ledger BTC 见证；需 BTC 数据（DATA BLOCKER 不伪造）"]
@@ -2605,11 +2605,11 @@ mod tests {
                 "  id={:?} entry={} exit={} exit_type={:?} account={:?}",
                 t.voice_id, t.entry_bar, t.exit_bar, t.exit_type, account
             );
-            // ★跨账一致性（#198 新口径）：剪枝腿标 CloseShortDiff ⟺ 账户身份为 ShortDiff。
+            // ★跨账一致性（#198 新口径）：剪枝腿标 CloseReverseOpen ⟺ 账户身份为 ReverseOpen。
             // FollowParent 级联核心仓（account=Core{level}）归 CloseRoot（core structural exit）。
             assert_eq!(
-                t.exit_type == ExitType::CloseShortDiff,
-                account == Some(AccountIdentity::ShortDiff),
+                t.exit_type == ExitType::CloseReverseOpen,
+                matches!(account, Some(AccountIdentity::ReverseOpen { .. })),
                 "§13 剪枝腿 {:?} 跨账不一致：exit_type={:?} vs account={:?}（#185 修复 a）",
                 t.voice_id, t.exit_type, account
             );
@@ -2632,7 +2632,7 @@ mod tests {
     ///   违例=**0**（#199 测量态实测违例=1 作对照——fold 一类全平修复后全窗归零，
     ///   S7 级别内全平在真实数据坐实）；
     /// - 二类关核心腿笔数 = fills 中 `CoreResidualCorrection`（残余硬门逐笔构造恒真）；
-    /// - 二类卖身份合法集：`ReverseType2` 仅落 ShortDiff/Short（断言③前半逐笔构造恒真）；
+    /// - 二类卖身份合法集：`ReverseType2` 仅落 ReverseOpen/Short（断言③前半逐笔构造恒真）；
     /// - 全窗扫描：无 `{Core, ReverseType2}` 单（断言③账户约束）。
     ///
     /// ★#209 翻动核对（#179 程序，2026-07-24 实跑）：typed 订单轨 **26 笔零翻动**
@@ -2701,7 +2701,7 @@ mod tests {
             .count();
         eprintln!("=== BTC #199 二类残余纠错见证（{} 笔 typed）===", fill.typed_ledger.len());
         eprintln!(
-            "  一类关核心腿(ReverseType1×Core)={n_t1_core}；二类残余纠错(CoreResidualCorrection)={n_residual}；二类卖(ReverseType2→ShortDiff/Short)={n_t2_legal}"
+            "  一类关核心腿(ReverseType1×Core)={n_t1_core}；二类残余纠错(CoreResidualCorrection)={n_residual}；二类卖(ReverseType2→ReverseOpen/Short)={n_t2_legal}"
         );
         eprintln!(
             "  探针：断言②评估={} 级余额违例={}；断言③前半={}（其中同级Core残余={}）；残余硬门={}",
@@ -2763,17 +2763,17 @@ mod tests {
         );
     }
 
-    /// ★#198 断言4 生产路径见证（#185「短差隔离」落生产执行层）：ShortDiff fill 逐笔
-    /// 触发隔离断言（`fill.account == ShortDiff ⟹ Δqty(Core{*})==0 且 Δqty(Short{*})==0`），
+    /// ★#198 断言4 生产路径见证（#185「短差隔离」落生产执行层）：ReverseOpen fill 逐笔
+    /// 触发隔离断言（`fill.account == ReverseOpen ⟹ Δqty(Core{*})==0 且 Δqty(Short{*})==0`），
     /// 探针计数为凭。
     ///
     /// 场景 = `account_view_witness_three_identities_in_pi_loop` 场景一（E 组：父
-    /// Core{1} + 子 ShortDiff 一类平）——子腿开/平各一笔 ShortDiff fill ⟹ 探针 = 2；
+    /// Core{1} + 子 ReverseOpen 一类平）——子腿开/平各一笔 ReverseOpen fill ⟹ 探针 = 2；
     /// 本测试跑通无 `#198 断言4` panic ⟹ 两笔均满足隔离（debug 构建逐笔核对，
-    /// 断言非空转——若 ShortDiff 过账碰了父 Core{1} 分实例，断言以 #198 panic 炸掉）。
+    /// 断言非空转——若 ReverseOpen 过账碰了父 Core{1} 分实例，断言以 #198 panic 炸掉）。
     #[test]
-    fn shortdiff_isolation_assertion_fires_in_pi_loop() {
-        shortdiff_isolation_probe_reset();
+    fn reverse_open_isolation_assertion_fires_in_pi_loop() {
+        reverse_open_isolation_probe_reset();
         let mut config = ThetaConfig::default();
         config.tick.tick_size = 1.0;
         let bars = e1_bars();
@@ -2798,33 +2798,33 @@ mod tests {
             (cls, tower.clone(), tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(), i as u64, i as u64) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
         };
         let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
-        // 既有账锚点：父 + 子各一条 typed（子 = ShortDiff 一类平），场景真实含短差生命周期。
+        // 既有账锚点：父 + 子各一条 typed（子 = ReverseOpen 一类平），场景真实含短差生命周期。
         assert_eq!(fill.typed_ledger.len(), 2, "父 + 子恰两条 typed 交易");
-        // ★生产路径真实触发：子 ShortDiff 开（Open）+ 平（ReverseType1）各一笔 fill ⟹ 探针 = 2。
+        // ★生产路径真实触发：子 ReverseOpen 开（Open）+ 平（ReverseType1）各一笔 fill ⟹ 探针 = 2。
         assert_eq!(
-            shortdiff_isolation_probe_count(),
+            reverse_open_isolation_probe_count(),
             2,
-            "子 ShortDiff 开/平各一笔 fill ⟹ 断言4 在生产路径真实触发 2 笔（探针为凭）"
+            "子 ReverseOpen 开/平各一笔 fill ⟹ 断言4 在生产路径真实触发 2 笔（探针为凭）"
         );
         // 跑通无 `#198 断言4` panic ⟹ 两笔 fill 均未改 Core{*}/Short{*} 分实例（隔离成立）。
     }
 
-    /// ★#198 判据回归（红→绿）：silent drop 的 typed 归属判据——**仅** `entry_v == ShortDiff`
-    /// 的短差腿记 `CloseShortDiff`；FollowParent 级联核心仓与 Ambient 根归 `CloseRoot`
+    /// ★#198 判据回归（红→绿）：silent drop 的 typed 归属判据——**仅** `entry_v == ReverseOpen`
+    /// 的短差腿记 `CloseReverseOpen`；FollowParent 级联核心仓与 Ambient 根归 `CloseRoot`
     /// （core structural exit）。
     ///
-    /// 修复前红：旧判据 `!= Ambient` 把 FollowParent 错标 `CloseShortDiff`（#185 发现 a：
+    /// 修复前红：旧判据 `!= Ambient` 把 FollowParent 错标 `CloseReverseOpen`（#185 发现 a：
     /// 核心腿退出污染短差桶与 μ 分桶）。账户身份与退出理由正交：账户由 #197
     /// `identity_of(entry_v × 方向)` 映射（FollowParent ⟹ `Core{level}`），剪枝理由由
     /// `via_structural_prune` / `ActionReason::StructuralPrune` 轴表达。
     #[test]
-    fn silent_drop_exit_type_attributes_non_shortdiff_to_core_structural_exit() {
+    fn silent_drop_exit_type_attributes_non_reverse_open_to_core_structural_exit() {
         use super::super::super::strategy::coverage::Vertical;
         use super::super::super::strategy::interp::ExitType;
         assert_eq!(
-            silent_drop_exit_type(Vertical::ShortDiff),
-            ExitType::CloseShortDiff,
-            "短差腿结构剪枝 ⟹ CloseShortDiff（唯一合法 CloseShortDiff 身份）"
+            silent_drop_exit_type(Vertical::ReverseOpen),
+            ExitType::CloseReverseOpen,
+            "短差腿结构剪枝 ⟹ CloseReverseOpen（唯一合法 CloseReverseOpen 身份）"
         );
         assert_eq!(
             silent_drop_exit_type(Vertical::FollowParent),
@@ -2839,8 +2839,8 @@ mod tests {
     }
 
     /// ★#198 身份见证（生产 π loop）：FollowParent 核心级联子腿开仓 ⟹ `account ==
-    /// Core{level}`（**非** ShortDiff）——#198 验收①「错标不再发生」的账户侧防回归锁
-    /// （场景口径：FollowParent 核心级联场景，断言 account==Core{level} 而非 ShortDiff）。
+    /// Core{level}`（**非** ReverseOpen）——#198 验收①「错标不再发生」的账户侧防回归锁
+    /// （场景口径：FollowParent 核心级联场景，断言 account==Core{level} 而非 ReverseOpen）。
     ///
     /// 场景（E 组夹具变体）：父 L1 buy1@12（host 查 (1,12) 落空 ⟹ Ambient 根）→ 子 L0
     /// buy1@16（638 附着 s3(0,3)，顺父方向 Long ⟹ **FollowParent** 级联核心仓）→ 候选
@@ -2854,7 +2854,7 @@ mod tests {
     /// matches_account_identity`：6 笔剪枝腿 2 笔 FollowParent 错标）承担，本测试锁
     /// 「FollowParent 腿 ⟹ Core 账户」的身份映射防回归。
     #[test]
-    fn followparent_child_in_pi_loop_belongs_to_core_account_not_shortdiff() {
+    fn followparent_child_in_pi_loop_belongs_to_core_account_not_reverse_open() {
         use super::super::super::strategy::account::AccountIdentity;
         // 父 L1 buy1@12（Ambient）；子 L0 buy1@16（顺父 Long ⟹ FollowParent）。
         let fp_buy_child = BspPoint {
@@ -2915,7 +2915,7 @@ mod tests {
             .expect("子腿（carrier=s3(0,3)）typed 交易存在");
         // 子腿顺父方向（Long，δ=+1）：638 附着 s3（真父 A(1,0) 外缘 Long）⟹ FollowParent。
         assert_eq!(child_row.entry_z.delta, 1, "子腿顺父方向（级联核心仓）");
-        // ★票面断言：account == Core{level}（子腿级别 0），**非** ShortDiff。
+        // ★票面断言：account == Core{level}（子腿级别 0），**非** ReverseOpen。
         let child_inst = fill
             .account_view
             .instances()
@@ -2927,10 +2927,9 @@ mod tests {
             AccountIdentity::Core { level: 0 },
             "FollowParent 级联核心仓 ⟹ Core{{0}} 账（#197 identity_of 映射）"
         );
-        assert_ne!(
-            child_inst.key.account,
-            AccountIdentity::ShortDiff,
-            "FollowParent 不得落短差账（#185 修复 a 的账户侧）"
+        assert!(
+            !matches!(child_inst.key.account, AccountIdentity::ReverseOpen { .. }),
+            "FollowParent 不得落首开反向账（#185 修复 a 的账户侧）"
         );
         // 父腿对照：Ambient 多根 ⟹ Core{1}。
         let parent_row = fill
@@ -2945,13 +2944,13 @@ mod tests {
             .find(|i| i.key.position == parent_row.position_node_id)
             .expect("父腿分实例存在");
         assert_eq!(parent_inst.key.account, AccountIdentity::Core { level: 1 }, "Ambient 多根 ⟹ Core{{1}} 账");
-        // 本场景无短差腿 ⟹ ShortDiff 账零实例（隔离性反面印证）。
+        // 本场景无短差腿 ⟹ ReverseOpen 账零实例（隔离性反面印证）。
         assert!(
             fill.account_view
                 .instances()
                 .values()
-                .all(|i| i.key.account != AccountIdentity::ShortDiff),
-            "无短差腿场景 ⟹ ShortDiff 账零实例"
+                .all(|i| !matches!(i.key.account, AccountIdentity::ReverseOpen { .. })),
+            "无短差腿场景 ⟹ ReverseOpen 账零实例"
         );
     }
 
@@ -3779,7 +3778,7 @@ mod tests {
         // stage 不推进（可达性需足额利润，见 pi_loop_realized_profit_reaches_earning_shares）。
         assert_eq!(tw.stage, TStage::CostReduction, "小额利润不足退本金门（照实）");
         assert_eq!(tw.withdrawn, 0, "无退本金事件");
-        assert_eq!(tw.open_legacy_legs, 0, "本场景无 ShortDiff 腿 ⟹ legacy 计数 0");
+        assert_eq!(tw.open_legacy_legs, 0, "本场景无 ReverseOpen 腿 ⟹ legacy 计数 0");
         assert!(tw.free > 0, "成本基回流 + 利润入账后 free>0");
     }
 
@@ -3871,12 +3870,12 @@ mod tests {
         assert_eq!(fill.typed_ledger[0].exit_type, ExitType::ReduceCore, "根腿 + 三类反向 ⟹ P6 ReduceCore");
     }
 
-    /// ★#145 T1：entry_v=ShortDiff 腿被**一类**反向候选关闭 ⟹ CloseShortDiff（P7 子声部
+    /// ★#145 T1：entry_v=ReverseOpen 腿被**一类**反向候选关闭 ⟹ CloseReverseOpen（P7 子声部
     /// 关闭语义**压过触发类**——同触发类下根腿会派 CloseRoot）。端到端：父根 L1 Long 持仓 →
-    /// 子 L0 Short（真父容器 Long ⟹ ShortDiff，AncOK 持父准入）→ L0 buy1@18（class=1）平子腿。
+    /// 子 L0 Short（真父容器 Long ⟹ ReverseOpen，AncOK 持父准入）→ L0 buy1@18（class=1）平子腿。
     /// typed 裁决由组合层 `StepTrace.closed` 携带（#145 前移），runner 只消费不补算。
     #[test]
-    fn typed_ledger_shortdiff_close_overrides_trigger_class() {
+    fn typed_ledger_reverse_open_close_overrides_trigger_class() {
         use super::super::super::strategy::interp::ExitType;
         let mut config = ThetaConfig::default();
         config.tick.tick_size = 1.0;
@@ -3910,8 +3909,8 @@ mod tests {
         assert_eq!(child.len(), 1, "恰一条子 Short 腿 typed 交易，ledger={:?}", fill.typed_ledger);
         assert_eq!(
             child[0].exit_type,
-            ExitType::CloseShortDiff,
-            "entry_v=ShortDiff + 一类反向触发 ⟹ P7 CloseShortDiff（压过触发类）"
+            ExitType::CloseReverseOpen,
+            "entry_v=ReverseOpen + 一类反向触发 ⟹ P7 CloseReverseOpen（压过触发类）"
         );
         assert!(!child[0].via_structural_prune, "真信号平仓（反向候选触发），非结构剪枝");
     }
@@ -3987,10 +3986,10 @@ mod tests {
     }
 
     /// ★执行层 σ_p = 父容器方向（639，runner [A] 适配器 wiring）：切片当步卖候选 + per-bar 因果塔
-    /// （有向 L1 Long 父走势）→ `assemble_gamma_with_tower` ⟹ V=ShortDiff（来自**父容器方向**，
+    /// （有向 L1 Long 父走势）→ `assemble_gamma_with_tower` ⟹ V=ReverseOpen（来自**父容器方向**，
     /// **与持仓无关**——`assemble_gamma_with_tower` 不接受 active 参数）。取代旧"活动父腿"错口径 loop 见证。
     #[test]
-    fn run_theta_v0_pi_loop_shortdiff_from_parent_container() {
+    fn run_theta_v0_pi_loop_reverse_open_from_parent_container() {
         use super::super::super::strategy::interp::assemble_gamma_with_tower;
         use super::super::super::strategy::voice::VoiceSide;
         use super::super::super::strategy::coverage::Vertical;
@@ -4021,13 +4020,13 @@ mod tests {
         };
         // 单候选分类（bsp@12，moves/centers 空）——直接作当步候选喂 σ_p 派生（与确认-bar 部署产物同形）。
         let sliced = classification.clone();
-        // ★639：未持仓（assemble_gamma_with_tower 不接受 active）仍 ShortDiff（σ_p=父容器方向）。
+        // ★639：未持仓（assemble_gamma_with_tower 不接受 active）仍 ReverseOpen（σ_p=父容器方向）。
         let gamma = assemble_gamma_with_tower(&sliced, &tower);
         assert_eq!(gamma[0].dir, VoiceSide::Short);
         assert_eq!(
             gamma[0].role.v,
-            Vertical::ShortDiff,
-            "L0 卖 under L1 Long 父容器 ⟹ ShortDiff（639：来自父容器方向，非持仓父腿）"
+            Vertical::ReverseOpen,
+            "L0 卖 under L1 Long 父容器 ⟹ ReverseOpen（639：来自父容器方向，非持仓父腿）"
         );
     }
 
@@ -6652,7 +6651,7 @@ mod tests {
                 entry_z: MuClass::from_certificate(0, -1, BspBits::default(), 0, PositionState::Root),
                 entry_stop_dist: Some(100.0),
                 entry_stop: Some(200),
-                entry_v: Vertical::ShortDiff,
+                entry_v: Vertical::ReverseOpen,
                 position_node_id: PositionNodeId {
                     carrier: ElementId { level: 0, ordinal: 0 },
                     entry_certificate: Some(EntryCertificate { level: 0, source_index: 5 }),
@@ -8377,7 +8376,7 @@ mod tests {
     }
 
     /// E 组分类夹具：L1 buy1@12（父根开仓：host 查 (1,12) 落空——A 已延伸 ρ=20 ⟹ Ambient 根）；
-    /// L0 sell1@16（子 ShortDiff：host=sub(12,16) ⟹ 真父 A (level=1, ρ=20)；附着一致经
+    /// L0 sell1@16（子 ReverseOpen：host=sub(12,16) ⟹ 真父 A (level=1, ρ=20)；附着一致经
     /// span 包含重建 ⟺ A.id）；可选 L0 buy1@18（子腿反向关闭触发，interpret 规则2 同级）。
     fn e_classification(with_child_close_trigger: bool) -> Classification {
         let buy_parent = BspPoint {
@@ -8525,7 +8524,7 @@ mod tests {
     }
 
     /// E2（G5 双层记账同数锁）：E1 中子空腿 realized == TW ShortDiff 事件的父降成本金额。
-    /// #68② 后 TW 物证已接线（tw_final=Some：ShortDiff **分腿成本基划转** + Realize 平仓入账
+    /// #68② 后 TW 物证已接线（tw_final=Some：ReverseOpen **分腿成本基划转** + Realize 平仓入账
     /// + 腿计数）——但 G5 断言的「ShortDiff(d_cash) 金额 ≡ 子腿 realized」是**另一会计身份**
     /// （T37 child.P&L≡parent.cost_reduction 的双层记账同数），本接线的 ShortDiff 承载成本基
     /// 划转、子腿 realized 走 `Realize` 通道入账，二者不经同一事件 ⟹ G5 同数锁是**独立会计
@@ -8590,7 +8589,7 @@ mod tests {
         assert!((dual.ledger.cash - (1_000_000.0 + sum)).abs() < 1e-6, "现金守恒");
     }
 
-    /// E4（嵌套关闭 bit-exact 锁）：无 ShortDiff 触发数据（缺塔 ⟹ 全 Ambient）⟹
+    /// E4（嵌套关闭 bit-exact 锁）：无 ReverseOpen 触发数据（缺塔 ⟹ 全 Ambient）⟹
     /// `plan_and_fill_mtm_dual` 输出 == `plan_and_fill_mtm`（§4.4 兼容嵌入的链路级对拍）。
     #[test]
     fn e2e_nested_disabled_bitexact() {
@@ -8637,7 +8636,7 @@ mod tests {
         assert!(dual.r_decomp.is_none() && old.r_decomp.is_none());
     }
 
-    /// #68②/④-b TW 接线守恒（E1 夹具：父多腿 + 子 ShortDiff 空腿共存 → 子平 → 父终点强平）：
+    /// #68②/④-b TW 接线守恒（E1 夹具：父多腿 + 子 ReverseOpen 空腿共存 → 子平 → 父终点强平）：
     /// 1. tw_final=Some；2. TW 漂移不变量 `tw()−注资 == ⌊Σ平仓腿 realized⌋`（Realize 唯一漂移
     ///    构造子；强平 PnL 不入——父腿强平盈亏若入账此式即破，本断言同锁「强平排除」口径）；
     /// 3. holding>0（快照取强平前，父腿在飞）；4. legacy 腿计数开合平衡归 0；5. stage 恒
@@ -8661,11 +8660,11 @@ mod tests {
         );
         assert!(tw.holding > 0, "强平前快照：父腿成本基在 holding");
         assert_eq!(tw.withdrawn, 0, "无退本金事件（stage 推进机构未接）");
-        assert_eq!(tw.open_legacy_legs, 0, "ShortDiff 子腿开合平衡（腿计数通道已接）");
+        assert_eq!(tw.open_legacy_legs, 0, "ReverseOpen 子腿开合平衡（腿计数通道已接）");
         assert_eq!(tw.stage, TStage::CostReduction, "无推进机构 ⟹ stage 恒 CostReduction（诚实镜像）");
     }
 
-    /// #68②/④-b TW 腿计数在飞态（截窗到子 ShortDiff 开仓 bar：子腿终点仍在飞）：
+    /// #68②/④-b TW 腿计数在飞态（截窗到子 ReverseOpen 开仓 bar：子腿终点仍在飞）：
     /// open_legacy_legs==1；无平仓 ⟹ 无 Realize 事件 ⟹ ShortDiff 保 TW 守恒（tw()==注资）；
     /// holding 承载双腿成本基（q⁺·cost⁺+q⁻·cost⁻ > 0）。
     #[test]
@@ -8674,12 +8673,12 @@ mod tests {
         cfg.tick.tick_size = 1.0;
         let classification = e_classification(false);
         let tower = e_tower();
-        // 截窗到 bar 17（子 ShortDiff 开仓 bar）——子腿尚无退出触发，强平前快照在飞。
+        // 截窗到 bar 17（子 ReverseOpen 开仓 bar）——子腿尚无退出触发，强平前快照在飞。
         // （E1 全窗下子腿 @19 另有退出通道平仓——引擎既有行为，非本测试目标。）
         let bars: Vec<Bar> = e1_bars().into_iter().take(18).collect();
         let dual = plan_and_fill_mtm_dual(&classification, &tower, &bars, 1_000_000.0, &cfg);
         let tw = dual.fill.tw_final.expect("#68②：dual 路径 TW 已接线");
-        assert_eq!(tw.open_legacy_legs, 1, "子 ShortDiff 腿在飞 ⟹ legacy 腿计数=1");
+        assert_eq!(tw.open_legacy_legs, 1, "子 ReverseOpen 腿在飞 ⟹ legacy 腿计数=1");
         assert!(dual.fill.trade_pnls_realized.is_empty(), "无平仓（强平不计 realized 口径）");
         assert_eq!(tw.tw(), 1_000_000, "无 Realize 事件 ⟹ ShortDiff 保 TW 守恒");
         assert!(tw.holding > 0, "双腿成本基在 holding（q⁺·cost⁺+q⁻·cost⁻）");

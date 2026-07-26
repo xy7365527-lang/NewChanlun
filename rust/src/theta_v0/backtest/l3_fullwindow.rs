@@ -277,7 +277,7 @@ struct DepthDiag {
     bars_with_empty_tree: u64,
     open_ambient: u64,
     open_followparent: u64,
-    open_shortdiff: u64,
+    open_reverse_open: u64,
     open_total: u64,
     close_total: u64,
     record_total: u64,
@@ -340,14 +340,14 @@ struct DepthDiag {
     bsp_lvl1: u64,
     bsp_lvl_ge2: u64,
     n_levels: u64,
-    /// ★工位 H 根因区分：ShortDiff 子候选的真 Compose 父（parent_id）是否在 prev_active（已持仓）。
+    /// ★工位 H 根因区分：ReverseOpen 子候选的真 Compose 父（parent_id）是否在 prev_active（已持仓）。
     /// child_parent_held>0 ⟹ 父确实持仓但子仍被剪 = 真注入/对位 bug；
     /// child_parent_held=0 ⟹ 父从不持仓（容器 BSP 太稀疏）= 639(c) 正确剪枝（非 bug，是经验稀疏）。
     sd_parent_held: u64,
-    /// ShortDiff 子候选的真父在 registry 中 live（含 LiveDetached，跨 bar 持久身份）。
+    /// ReverseOpen 子候选的真父在 registry 中 live（含 LiveDetached，跨 bar 持久身份）。
     sd_parent_registry_alive: u64,
-    /// ShortDiff 子候选总数（分母）。
-    sd_total: u64,
+    /// ReverseOpen 子候选总数（分母）。
+    reverse_open_total: u64,
     // ════════════════════════════════════════════════════════════════════════
     // ★工位 P（ChatGPT§5定理2+§11三层判据）：‖ΔN‖₁ 净头寸位移测量。
     // N_t = 生产净头寸 = Σ_legs sign(dir)·base_units·depth_weight(d)（= net_target_units 在
@@ -502,10 +502,10 @@ fn instrument_bar(
             match role.v {
                 Vertical::Ambient => diag.open_ambient += 1,
                 Vertical::FollowParent => diag.open_followparent += 1,
-                Vertical::ShortDiff => {
-                    diag.open_shortdiff += 1;
-                    // ★根因区分：ShortDiff 子的真 Compose 父（parent_id）是否已持仓 / registry live。
-                    diag.sd_total += 1;
+                Vertical::ReverseOpen => {
+                    diag.open_reverse_open += 1;
+                    // ★根因区分：ReverseOpen 子的真 Compose 父（parent_id）是否已持仓 / registry live。
+                    diag.reverse_open_total += 1;
                     if let Some(pid) = elements[ci].parent_id {
                         if held_ids.contains(&pid) {
                             diag.sd_parent_held += 1;
@@ -776,7 +776,7 @@ fn l3_pi_depth_diag_cl_btc() {
     const MAX_BARS: usize = 32_000;
 
     eprintln!("\n===== #5 深度贡献根因诊断：max_depth=3 七链 depth>0 腿为何 ΔSharpe=0 =====");
-    eprintln!("★区分 (a) ρ漂移保守剪枝（CoordDrift 计数应低=修复未生效）vs (b) 结构不产（tower depth>=2 少/ShortDiff=0）");
+    eprintln!("★区分 (a) ρ漂移保守剪枝（CoordDrift 计数应低=修复未生效）vs (b) 结构不产（tower depth>=2 少/ReverseOpen=0）");
     eprintln!("★诚实标注：open_*/active_* 是 per-bar 全量候选/活动角色（非新增订单 diff），结构诊断用。");
 
     for w in PREREG_WINDOWS.iter().filter(|w| w.symbol == "CL" || w.symbol == "BTC") {
@@ -815,12 +815,12 @@ fn l3_pi_depth_diag_cl_btc() {
         eprintln!("  tower_depth2 (孙)      : {}", diag.tower_depth2);
         eprintln!("  tower_depth_ge3        : {}", diag.tower_depth_ge3);
         eprintln!();
-        eprintln!("  ── (2) 候选角色（open 桶各 V，#5 alpha 源=ShortDiff）──");
+        eprintln!("  ── (2) 候选角色（open 桶各 V，#5 alpha 源=ReverseOpen）──");
         eprintln!("  bars_with_any_open     : {}", diag.bars_with_any_open);
         eprintln!("  open_total             : {}", diag.open_total);
         eprintln!("  open_ambient           : {}", diag.open_ambient);
         eprintln!("  open_followparent      : {}", diag.open_followparent);
-        eprintln!("  ★open_shortdiff        : {}  (反向对冲腿源)", diag.open_shortdiff);
+        eprintln!("  ★open_reverse_open     : {}  (反向对冲腿源)", diag.open_reverse_open);
         eprintln!("  close_total            : {}", diag.close_total);
         eprintln!("  record_total           : {}", diag.record_total);
         eprintln!();
@@ -874,8 +874,8 @@ fn l3_pi_depth_diag_cl_btc() {
         eprintln!("        open_cert_with_carrier>0 但 accepted_cert=0 ⟹ 区间套生成证书但 AncOK 全剪(查父持仓)；");
         eprintln!("        raw_bsp_lvl(ℓ+1)>0 但 open_cert_with_carrier=0 ⟹ 解释器未包装成 parent-carrier cert(可修缺口)。");
         eprintln!();
-        eprintln!("  ── (7) ★工位 H 根因区分：ShortDiff 子的真父是否已持仓 ──");
-        eprintln!("  sd_total               : {}  (ShortDiff 子候选总数)", diag.sd_total);
+        eprintln!("  ── (7) ★工位 H 根因区分：ReverseOpen 子的真父是否已持仓 ──");
+        eprintln!("  reverse_open_total     : {}  (ReverseOpen 子候选总数)", diag.reverse_open_total);
         eprintln!("  ★sd_parent_held       : {}  (>0=父持仓但子被剪=真bug；=0=父从不持仓=639(c)正确剪枝)", diag.sd_parent_held);
         eprintln!("  sd_parent_registry_alive: {}  (父在 registry live，含 LiveDetached)", diag.sd_parent_registry_alive);
         eprintln!("  [{:.1}s]", elapsed);
@@ -899,12 +899,12 @@ fn l3_pi_depth_diag_cl_btc() {
         eprintln!("  ── 裁定 ──");
         let depth_active = diag.active_depth1 + diag.active_depth2 + diag.active_depth_ge3;
         let pruned_depth_gt0 = diag.pruned_depth1 + diag.pruned_depth_ge2;
-        if diag.open_shortdiff == 0 && depth_active == 0 {
-            eprintln!("  → (b) 结构不产：open_shortdiff=0 + active depth>0=0。ShortDiff 候选根本不产生（塔缺真 Compose 父 / hostOf 恒根 / V 恒 Ambient）。");
-        } else if diag.open_shortdiff > 0 && depth_active == 0 && pruned_depth_gt0 > 0 {
-            eprintln!("  → (a) AncOK 剪枝：ShortDiff 产生但 depth>0 腿全剪。查 CoordDrift={}（低=ρ漂移未根治致父不在 raw）。", diag.held_coord_drift);
-        } else if diag.open_shortdiff > 0 && depth_active == 0 && pruned_depth_gt0 == 0 {
-            eprintln!("  → (b/候选未入桶) ShortDiff 产生 + 未被 AncOK 剪 + 但 active depth>0=0：候选未入 open 桶（interpret record/close）或 prev_active 未持父。");
+        if diag.open_reverse_open == 0 && depth_active == 0 {
+            eprintln!("  → (b) 结构不产：open_reverse_open=0 + active depth>0=0。ReverseOpen 候选根本不产生（塔缺真 Compose 父 / hostOf 恒根 / V 恒 Ambient）。");
+        } else if diag.open_reverse_open > 0 && depth_active == 0 && pruned_depth_gt0 > 0 {
+            eprintln!("  → (a) AncOK 剪枝：ReverseOpen 产生但 depth>0 腿全剪。查 CoordDrift={}（低=ρ漂移未根治致父不在 raw）。", diag.held_coord_drift);
+        } else if diag.open_reverse_open > 0 && depth_active == 0 && pruned_depth_gt0 == 0 {
+            eprintln!("  → (b/候选未入桶) ReverseOpen 产生 + 未被 AncOK 剪 + 但 active depth>0=0：候选未入 open 桶（interpret record/close）或 prev_active 未持父。");
         } else if depth_active > 0 {
             // ★codex 复审 N 报告 bug 修复：本分支原打印 "(net-cancel)"，忽略上方 (8)
             // 已基于 delta_n_l1 判出的 b1/b2，与 line 877-881 自相矛盾（工位 N 误采信此行）。

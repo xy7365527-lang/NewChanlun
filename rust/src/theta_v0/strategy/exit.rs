@@ -642,7 +642,7 @@ mod tests {
             (ChannelId::Cj(1), ChannelDecision::Exit(ExitType::RiskExit)),
             (ChannelId::Cj(2), ChannelDecision::Exit(ExitType::CloseRoot)),
             (ChannelId::Cj(3), ChannelDecision::Exit(ExitType::ReduceCore)),
-            (ChannelId::Cj(4), ChannelDecision::Exit(ExitType::CloseShortDiff)),
+            (ChannelId::Cj(4), ChannelDecision::Exit(ExitType::CloseReverseOpen)),
             (ChannelId::Cj(6), ChannelDecision::Open),
             (ChannelId::Cj(7), ChannelDecision::Record),
             (ChannelId::Cj(8), ChannelDecision::AddPosition),

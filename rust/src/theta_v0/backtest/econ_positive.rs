@@ -656,9 +656,9 @@ pub(super) fn exit_decision_from_bits(exit_bsp_class: u8, delta: i8) -> ExitDeci
         // Hold（无 type1/type3）：命中 type2 则诚实标注闭环缺口，否则真 Hold。
         ExitType::Hold if is_type2 => ExitDecision::Type2Missing,
         ExitType::Hold => ExitDecision::Hold,
-        // exit_type_of_classes 只产 CloseRoot/ReduceCore/Hold——CloseShortDiff/RiskExit 由
+        // exit_type_of_classes 只产 CloseRoot/ReduceCore/Hold——CloseReverseOpen/RiskExit 由
         // entry_v/risk 通道产出（reverse_exit_type / 风控门），bits 入口不可达。
-        ExitType::CloseShortDiff | ExitType::RiskExit => {
+        ExitType::CloseReverseOpen | ExitType::RiskExit => {
             unreachable!("exit_type_of_classes 只产 CloseRoot/ReduceCore/Hold")
         }
     }

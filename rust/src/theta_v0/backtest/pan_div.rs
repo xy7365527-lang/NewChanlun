@@ -196,8 +196,8 @@ mod tests {
         use crate::theta_v0::strategy::coverage::KThetaRiskGate;
 
         let standard_parent_target = 100.0;
-        let live_shortdiff = -40.0;
-        let composed_anchor = standard_parent_target + live_shortdiff;
+        let live_reverse_open = -40.0;
+        let composed_anchor = standard_parent_target + live_reverse_open;
         assert_eq!(
             KThetaRiskGate::open().delta_capacity_units(
                 100.0,

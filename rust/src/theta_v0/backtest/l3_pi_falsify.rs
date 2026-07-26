@@ -29,7 +29,7 @@
 //! ## ρ 漂移 caveat（前序 AncOK 工位披露，诚实标注）
 //!
 //! per-bar 重分类下父容器走势延展 ⟹ 持仓父腿坐标漂移 ⟹ hedge 子腿被**保守剪枝** ⟹ 策略是
-//! **保守欠对冲版**（安全方向，不开 naked，但少 ShortDiff 腿）。本检验测此保守版，非完整对冲七链。
+//! **保守欠对冲版**（安全方向，不开 naked，但少 ReverseOpen 腿）。本检验测此保守版，非完整对冲七链。
 //!
 //! 跑法：`cargo test --release --lib theta_v0::backtest::l3_pi_falsify -- --ignored --nocapture`
 

@@ -103,7 +103,7 @@ fn main() -> std::process::ExitCode {
         let key = match c.role_v {
             Vertical::Ambient => "Ambient(根声部)",
             Vertical::FollowParent => "FollowParent(顺父)",
-            Vertical::ShortDiff => "ShortDiff(反向子/对冲)",
+            Vertical::ReverseOpen => "ReverseOpen(首开反向/反父对冲)",
         };
         let e = by_role.entry(key).or_insert((0, 0.0));
         e.0 += 1;

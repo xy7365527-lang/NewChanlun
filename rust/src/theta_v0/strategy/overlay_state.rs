@@ -66,7 +66,7 @@ pub struct VoiceBook {
     pub side: VoiceSide,
     /// q_v：当前持有整数手数（≥0；646号取整自 `SepLeg.q_units`，lot 对齐）。
     pub q: i64,
-    /// role(v)：垂直角色（`ShortDiff`=反向子声部对冲腿，PDF §8 overlay H_t 载体）。
+    /// role(v)：垂直角色（`ReverseOpen`=反向子声部对冲腿，PDF §8 overlay H_t 载体；原 ShortDiff，#281 更名）。
     pub role_v: Vertical,
     /// parent(v)：真 Compose 父容器身份（None=边界胚元∂根声部）。
     pub parent_id: Option<ElementId>,
@@ -679,7 +679,7 @@ mod tests {
         assert_eq!(ov.closed_voices().len(), 1, "根声部离场记 1 行");
     }
 
-    /// ★双开非零 + ΔN（PDF §10.2 hedge-mode）：父多头 10 + 子空头 10（ShortDiff）⟹ 净 N=0（双开
+    /// ★双开非零 + ΔN（PDF §10.2 hedge-mode）：父多头 10 + 子空头 10（ReverseOpen）⟹ 净 N=0（双开
     /// 净额退化 C26），但 P^sep 有两条腿（active_voices=2）——净额账户 order=0 但账本记两声部。
     #[test]
     fn hedged_two_voices_net_zero_but_book_nonzero() {
@@ -689,7 +689,7 @@ mod tests {
         let s = ov.step(
             &[
                 leg(parent, VoiceSide::Long, 10.0, Vertical::FollowParent),
-                leg(child, VoiceSide::Short, 10.0, Vertical::ShortDiff),
+                leg(child, VoiceSide::Short, 10.0, Vertical::ReverseOpen),
             ],
             100.0,
             0,
@@ -709,7 +709,7 @@ mod tests {
         let child = eid(1, 0);
         let target = [
             leg(parent, VoiceSide::Long, 10.0, Vertical::FollowParent),
-            leg(child, VoiceSide::Short, 6.0, Vertical::ShortDiff),
+            leg(child, VoiceSide::Short, 6.0, Vertical::ReverseOpen),
         ];
         ov.step(&target, 100.0, 0, 1); // 开仓，N=10−6=4
         assert_eq!(ov.net(), 4);

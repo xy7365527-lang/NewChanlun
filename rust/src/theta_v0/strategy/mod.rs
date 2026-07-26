@@ -41,7 +41,7 @@
 /// 互斥全定义策略 element-coverage 执行引擎（M29 三结论合一的 rust 兑现，与买卖点 v1 正交的
 /// 新路径——在每个语法元素 λ_e 入场、ρ_e 平腿，覆盖每个笔/线段/走势，非离散择时）。
 /// #147 T3 出场通道 P1–P8 全互斥通道解释器（first-match + C0 兜底；#149 已填 P4/P5
-/// ShortDiff 显式机制，#150 的 P7/P8 仍为占位槽）。
+/// ReverseOpen 显式机制（原 ShortDiff，#281 更名 #283 实装），#150 的 P7/P8 仍为占位槽）。
 pub mod channel;
 pub mod coverage;
 /// #196 阶段 A：shadow 双链比对（零行为变更）——组合层裁决点之后并行跑 channel 适配层，
@@ -71,7 +71,7 @@ pub mod persistent;
 pub mod overlay_state;
 /// #197 执行账归属键与并行记账视图（AccountIdentity 三身份 + AccountOrder + 分实例账本）。
 pub mod account;
-/// 中枢震荡独立候选与有身份 ShortDiff 配对子腿契约（组合 R：DB-B / DB-O3 / DB-S5）。
+/// 中枢震荡独立候选与有身份 ReverseOpen 配对子腿契约（组合 R：DB-B / DB-O3 / DB-S5）。
 pub mod oscillation;
 /// 盘整/趋势在线协议状态机与 DA-Q2 协议事件轨（订单 P1..P10 的正交积因子）。
 pub mod protocol;
@@ -644,7 +644,7 @@ pub fn held_voice_projection(held: &[Option<exit::HeldVoice>]) -> Vec<ActiveVoic
         .collect()
 }
 
-/// recog 嵌套版（关⑤方案 A）：候选源换**真嵌套塔**（真 ShortDiff 角色）+ 真活动集喂
+/// recog 嵌套版（关⑤方案 A）：候选源换**真嵌套塔**（真 ReverseOpen 角色）+ 真活动集喂
 /// [`interp::interpret`]，角色门四合取产 depth>0 子声部。**与 [`recognize`] 并列（本体零改）**；
 /// 形态 = **单脊柱赋格树**（depth 索引账户零改动；多孩子分叉树列 v1 边界外，施工图 §7 L3）。
 ///
@@ -652,14 +652,14 @@ pub fn held_voice_projection(held: &[Option<exit::HeldVoice>]) -> Vec<ActiveVoic
 ///
 /// 1. **环3 组装**：[`interp::coverage_elements_and_gamma_with_tower`] 单建（H2 合并版——
 ///    与 [`interp::assemble_gamma_with_tower`] 候选序 **bit-exact 相同**（该函数契约注释），
-///    唯一差异 = `role` 从真父子塔派生，V 真出 FollowParent/ShortDiff）。取单建变体是为
+///    唯一差异 = `role` 从真父子塔派生，V 真出 FollowParent/ReverseOpen）。取单建变体是为
 ///    附着一致判据同时取回候选元素的真父容器（**角色单源** = `coverage::operation_role`，
 ///    recognize 侧不另写角色判据，090/单一来源纪律）。
 /// 2. **环5 ℛ_Θ**：`interpret_with_close_triggers(&gamma_x, active)` 传真活动集
 ///    （[`recognize`] 恒传 `&[]`，mod.rs:493）——𝒟_x 反向关闭桶自此非空（级联之外的
 ///    **常规反向关闭**由 interpret 规则2 产，exit=true 决策，复用入场快照）。
 /// 3. **桶 → 决策**（ℬ_x 每候选，`cand.dir != Flat` 已由规则1 保证）：
-///    - **子声部门（四合取，施工图 §3.2）**：`role.v == ShortDiff`（δ_g=−σ_{p(g)}）∧
+///    - **子声部门（四合取，施工图 §3.2）**：`role.v == ReverseOpen`（δ_g=−σ_{p(g)}）∧
 ///      **活父存在**（depth_p 槽有腿，side 非 Flat）∧ **方向对偶**（`cand.dir == flip(side_p)`，
 ///      M27 `Side(e)=−σ_{α_e}` 的运行时校验）∧ **深度余量**（`depth_p+1 < max_depth`）∧
 ///      **附着一致**（见 [`live_parent_for`]，D1 零字段案）
@@ -729,7 +729,7 @@ pub fn recognize_nested(
 
         // ℬ_x(open)：角色门四合取 → depth>0 子声部；否则 depth=0 独立根（build_decision 零改）。
         for cand in &buckets.open {
-            let child = if cand.role.v == Vertical::ShortDiff {
+            let child = if cand.role.v == Vertical::ReverseOpen {
                 live_parent_for(cand, &cand_elems, &tree, active, config).and_then(|av| {
                     build_child_decision(
                         cand,
@@ -778,7 +778,7 @@ fn live_parent_for<'a>(
         if av.leg.dir == VoiceSide::Flat {
             return false;
         }
-        // 方向对偶：候选绝对方向 = 父侧翻转（ShortDiff δ_g=−σ_{p(g)} 的运行时校验）。
+        // 方向对偶：候选绝对方向 = 父侧翻转（ReverseOpen δ_g=−σ_{p(g)} 的运行时校验）。
         if cand.dir != av.leg.dir.flip() {
             return false;
         }
@@ -1692,7 +1692,7 @@ mod tests {
         vec![Rc::new(Vec::new()), Rc::new(vec![l1])]
     }
 
-    /// L0 sell1 候选（src=si；host=sub(4,8) 当 si=8 ⟹ 真父 L1 Long ⟹ role ShortDiff）。
+    /// L0 sell1 候选（src=si；host=sub(4,8) 当 si=8 ⟹ 真父 L1 Long ⟹ role ReverseOpen）。
     fn classification_with_sell1(source_index: usize) -> Classification {
         let bsp = vec![BspPoint { level_origin: 0,
             source_index,
@@ -1749,10 +1749,10 @@ mod tests {
     }
 
     /// A1（σ 交替代数锁）：Long 根活父（depth 0）+ 其真子容器上的 sell1 候选
-    /// （role.v=ShortDiff）⟹ 产 1 决策：depth==1、root_side==Long（继承）、
+    /// （role.v=ReverseOpen）⟹ 产 1 决策：depth==1、root_side==Long（继承）、
     /// voice_side(root,1)==Short==cand.dir（σ_child=−σ_parent）。
     #[test]
-    fn nested_shortdiff_child_depth1_side_flipped() {
+    fn nested_reverse_open_child_depth1_side_flipped() {
         let cfg = ThetaConfig::default();
         let tower = long_parent_tower_nested();
         let classification = classification_with_sell1(8);
@@ -1788,7 +1788,7 @@ mod tests {
         assert_eq!(via_nested[0].depth, 0, "Ambient ⟹ depth=0 独立根");
     }
 
-    /// A3（方向对偶门）：ShortDiff 角色但 cand.dir≠flip(父侧)（父 Short、候选 sell）⟹
+    /// A3（方向对偶门）：ReverseOpen 角色但 cand.dir≠flip(父侧)（父 Short、候选 sell）⟹
     /// 不产子（落 depth=0 根域）。
     #[test]
     fn nested_direction_mismatch_no_child() {
@@ -1827,7 +1827,7 @@ mod tests {
     }
 
     /// A5（active=∅ 坍缩锁）：无活动集 ⟹ 输出 == `recognize`（单帧等价）——
-    /// 含 ShortDiff 塔候选也落根域（活父门第 2 合取项拒）。
+    /// 含 ReverseOpen 塔候选也落根域（活父门第 2 合取项拒）。
     #[test]
     fn nested_no_live_parent_no_child() {
         let cfg = ThetaConfig::default();

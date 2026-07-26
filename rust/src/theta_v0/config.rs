@@ -112,7 +112,7 @@ impl Default for MacdConfig {
 /// 关于背驰.pdf §9.2「不能先看结果再选」）。w_dir 函数形式见 coverage.rs [`super::strategy::coverage::dir_weight`]。
 ///
 /// ★认识论等级（231号）：
-/// - **L0**（结构）：三套结构（follow/neutral/adversary）+ ShortDiff 豁免 + 根级豁免是 formal-chain 推论
+/// - **L0**（结构）：三套结构（follow/neutral/adversary）+ ReverseOpen 豁免 + 根级豁免是 formal-chain 推论
 ///   （买卖点.pdf §7.5 `s_g=s_α` 定理 1 + 完整的策略.pdf page4 禁一刀切）。
 /// - **L2**（数值）：`η_adv[ℓ]`/`η_same[ℓ]` 具体数值须 g3 跑数前冻结（135号），本枚举只冻结构。
 #[derive(Debug, Clone, PartialEq)]
@@ -135,9 +135,10 @@ pub struct VoiceConfig {
     pub max_depth: u32,
     /// 深度资金权重 `w=[0.60,0.30,0.10]`。未用部分保留现金不重分配。
     pub depth_weights: Vec<f64>,
-    /// f3 反事实开关：剔除 ShortDiff（多空对冲）子声部腿对净头寸的贡献（多重赋格增量价值测量）。
+    /// f3 反事实开关：剔除 ReverseOpen（首开反向/多空对冲）子声部腿对净头寸的贡献（多重赋格增量价值测量）。
     /// default `false`=全赋格生产口径（bit-exact 不变）。`true` 仅用于 policy_backtest 反事实对照。
-    pub disable_shortdiff: bool,
+    /// 原 `disable_shortdiff`，#281 更名（#283 实装）。
+    pub disable_reverse_open: bool,
     /// q_Θ v1 σ_higher 分级符号权重 w_dir 预注册套（prereg-rev4 §4.3）。default `Neutral`
     /// （w_dir≡1.0，frozen Θ v0 bit-exact 不变）。选 Follow/Adversary 启用 σ_higher 分级 sizing。
     pub theta_dir: ThetaDirPreset,
@@ -154,7 +155,7 @@ impl Default for VoiceConfig {
         VoiceConfig {
             max_depth: 3,
             depth_weights: vec![0.60, 0.30, 0.10],
-            disable_shortdiff: false,
+            disable_reverse_open: false,
             theta_dir: ThetaDirPreset::Neutral,
             w_grade: [1.0, 1.0],
         }

@@ -5,21 +5,21 @@
 //!
 //! 原始谓词 `P_1..P_m`（m=10）**可重叠**（同一时刻多个 P_j 同时成立）：
 //! - `P1` = 风险强平（force_flat ⟹ K_Θ={0} + 活动腿全 RiskExit）
-//! - `P2` = TW StageII ∧ H>0，CloseOverlay（关 legacy ShortDiff 重叠腿，真产订单）
+//! - `P2` = TW StageII ∧ H>0，CloseOverlay（关 legacy ReverseOpen 重叠腿，真产订单）
 //! - `P3` = TW 可退本金，Withdraw（无订单账本事件 RecoverCapital）
 //! - `P4` = TW EnterEarning（无订单相变事件）
 //! - `P5` = 正规 CloseRoot（一/二类反向 ⟹ 根清仓）
 //! - `P6` = 正规 ReduceCore（三类反向 ⟹ 核心仓减仓）
-//! - `P7` = Close ShortDiff（短差子声部反向确认关闭）
+//! - `P7` = Close ReverseOpen（首开反向子声部反向确认关闭；原 Close ShortDiff，#281 更名 #283 实装）
 //! - `P8` = Open Root（Ambient/root 候选，slot 空）
-//! - `P9` = Open ShortDiff（ShortDiff 角色候选，父声部 active）
+//! - `P9` = Open ReverseOpen（ReverseOpen 角色候选，父声部 active；原 Open ShortDiff，#281 更名 #283 实装）
 //! - `P10` = Record StructBreak（Flat/无类/slot 冲突 ⟹ 记录不执行）
 //! - `P0` = Hold（无谓词命中，C_0 兜底）
 //!
 //! **历史**：本模块原锚 alpha2 §5 的 P1..P8 分解（P2/P3=close_long/close_short 未 typed、
 //! 无 TW 谓词）。#124 裁定4「真统一」后按 PDF §7 重分解——不是「加两谓词」，是 close 桶
 //! typed 拆（P5/P6/P7 经 [`reverse_exit_type`] 单源）+ TW 三阶段进链（P2/P3/P4）+ open
-//! 拆 root/shortdiff（P8/P9）。alpha2 定理 1 的互斥化构造形式不变。
+//! 拆 root/reverse_open（P8/P9，原 root/shortdiff）。alpha2 定理 1 的互斥化构造形式不变。
 //!
 //! **固定优先级互斥化**（alpha2 Doc3 §6 构造，PDF §7 同型）：
 //! ```text
@@ -90,7 +90,7 @@ pub enum MutexClass {
 pub struct Predicates {
     /// P1：风险强平（`KThetaRiskGate.force_flat`——同一 RiskState 派生，裁定4 单权威源）。
     pub risk_liquidate: bool,
-    /// P2：TW StageII ∧ H>0 ⟹ CloseOverlay（关 legacy ShortDiff 重叠腿，真产订单）。
+    /// P2：TW StageII ∧ H>0 ⟹ CloseOverlay（关 legacy ReverseOpen 重叠腿，真产订单）。
     pub close_overlay: bool,
     /// P3：TW 退本金 Withdraw（`stage_progression` → RecoverCapital，无订单账本事件）。
     pub tw_withdraw: bool,
@@ -100,12 +100,14 @@ pub struct Predicates {
     pub close_root: bool,
     /// P6：正规 ReduceCore（三类反向 ⟹ 核心仓减仓）。
     pub reduce_core: bool,
-    /// P7：Close ShortDiff（短差子声部反向确认关闭——入场角色压过触发类）。
-    pub close_short_diff: bool,
-    /// P8：Open Root（非 ShortDiff 角色候选，slot 空 ⟹ 开根/级联腿）。
+    /// P7：Close ReverseOpen（首开反向子声部反向确认关闭——入场角色压过触发类）。
+    /// 原 `close_short_diff`，#281 更名（#283 实装）。
+    pub close_reverse_open: bool,
+    /// P8：Open Root（非 ReverseOpen 角色候选，slot 空 ⟹ 开根/级联腿）。
     pub open_root: bool,
-    /// P9：Open ShortDiff（ShortDiff 角色候选，slot 空 ⟹ 开短差子声部）。
-    pub open_short_diff: bool,
+    /// P9：Open ReverseOpen（ReverseOpen 角色候选，slot 空 ⟹ 开首开反向子声部）。
+    /// 原 `open_short_diff`，#281 更名（#283 实装）。
+    pub open_reverse_open: bool,
     /// P10：Record StructBreak——**诚实口径**：覆盖 interp record 桶全部三源（Flat 无向 /
     /// 无类 / slot 冲突「记录不加仓」，codex-q2-d1 §4 加仓子动作不存在的声明沿袭）。
     pub record_struct_break: bool,
@@ -121,9 +123,9 @@ impl Predicates {
             4 => self.tw_enter_earning,
             5 => self.close_root,
             6 => self.reduce_core,
-            7 => self.close_short_diff,
+            7 => self.close_reverse_open,
             8 => self.open_root,
-            9 => self.open_short_diff,
+            9 => self.open_reverse_open,
             10 => self.record_struct_break,
             _ => unreachable!("谓词索引 j={j} 越界（合法 1..={M}）"),
         }
@@ -153,7 +155,7 @@ pub fn mutex_class(p: &Predicates) -> MutexClass {
 ///
 /// 生产对应物（裁定4 真统一，f9333e21b2）：
 /// - `force_flat` ↔ `KThetaRiskGate.force_flat`（组合层上游短路，StepTrace.risk_exits）。
-/// - `tw_close_overlay` ↔ 组合层 P2 分支（`stage==CapitalRecovered ∧ shortdiff 活动腿非空`）。
+/// - `tw_close_overlay` ↔ 组合层 P2 分支（`stage==CapitalRecovered ∧ reverse_open 活动腿非空`）。
 /// - `tw_withdraw`/`tw_enter_earning` ↔ `stage_progression` 派生事件的 pattern match。
 ///
 /// [`StepPredicateCtx::from_tw`] 把判据从 TW 账本态显式重推导（oracle 独立性——与组合层
@@ -162,7 +164,7 @@ pub fn mutex_class(p: &Predicates) -> MutexClass {
 pub struct StepPredicateCtx {
     /// P1：风险强平。
     pub force_flat: bool,
-    /// P2：TW StageII ∧ H>0（legacy ShortDiff 重叠腿仍开）。
+    /// P2：TW StageII ∧ H>0（legacy ReverseOpen 重叠腿仍开）。
     pub tw_close_overlay: bool,
     /// P3：TW 退本金 ready（CostReduction ∧ holding≥notional_in ∧ free 足额）。
     pub tw_withdraw: bool,
@@ -173,7 +175,7 @@ pub struct StepPredicateCtx {
 impl StepPredicateCtx {
     /// 从 TW 账本态独立重推导 bar 级谓词（PDF §7 语义显式化，oracle 第二实现）。
     ///
-    /// - P2 = `stage==CapitalRecovered ∧ has_overlay_legs`（H>0 = 生产 legacy ShortDiff
+    /// - P2 = `stage==CapitalRecovered ∧ has_overlay_legs`（H>0 = 生产 legacy ReverseOpen
     ///   活动腿非空，与 `TwState.open_legacy_legs` 计数同源）。
     /// - P3/P4 = [`stage_progression`](super::super::closed_loop::transition::stage_progression)
     ///   派生事件（单源判据——此处不重写阶段推进逻辑，只做事件→谓词投影）。
@@ -257,7 +259,7 @@ pub fn predicates_of(
         .map(|(l, _)| l);
     if let Some(leg) = closed_leg {
         match reverse_exit_type(entry_v_of(leg), c.bsp_class) {
-            ExitType::CloseShortDiff => p.close_short_diff = true, // P7
+            ExitType::CloseReverseOpen => p.close_reverse_open = true, // P7
             ExitType::ReduceCore => p.reduce_core = true,          // P6
             ExitType::CloseRoot => p.close_root = true,            // P5
             ExitType::RiskExit | ExitType::Hold => {
@@ -275,9 +277,9 @@ pub fn predicates_of(
         p.record_struct_break = true;
         return p;
     }
-    // slot 空 ⟹ 开仓：P9 Open ShortDiff（ShortDiff 角色）/ P8 Open Root（其余）。
+    // slot 空 ⟹ 开仓：P9 Open ReverseOpen（ReverseOpen 角色）/ P8 Open Root（其余）。
     match c.role.v {
-        Vertical::ShortDiff => p.open_short_diff = true, // P9
+        Vertical::ReverseOpen => p.open_reverse_open = true, // P9
         _ => p.open_root = true,                         // P8
     }
     p
@@ -363,7 +365,7 @@ mod tests {
     fn priority_min_index() {
         let p = Predicates {
             reduce_core: true,      // P6
-            open_short_diff: true,  // P9
+            open_reverse_open: true,  // P9
             record_struct_break: true, // P10
             ..Default::default()
         };
@@ -380,9 +382,9 @@ mod tests {
             tw_enter_earning: b(4),
             close_root: b(5),
             reduce_core: b(6),
-            close_short_diff: b(7),
+            close_reverse_open: b(7),
             open_root: b(8),
-            open_short_diff: b(9),
+            open_reverse_open: b(9),
             record_struct_break: b(10),
         }
     }
@@ -602,11 +604,11 @@ mod tests {
         Vertical::Ambient
     }
 
-    /// ★D1 桶级等价（生成域覆盖：空/同级同向/同级反向/双向腿/跨级/fold内重复slot/ShortDiff/
+    /// ★D1 桶级等价（生成域覆盖：空/同级同向/同级反向/双向腿/跨级/fold内重复slot/ReverseOpen/
     /// 无类无向）+ typed close 精确类号（P5 一类反向根清仓）。
     #[test]
     fn shadow_fold_bucket_equivalence() {
-        use Vertical::{Ambient, ShortDiff};
+        use Vertical::{Ambient, ReverseOpen};
         let l = VoiceSide::Long;
         let s = VoiceSide::Short;
         let f = VoiceSide::Flat;
@@ -646,9 +648,9 @@ mod tests {
             &ambient,
             &[(0, 10)],
         );
-        // S6 ShortDiff 角色开仓 ⟹ open，typed=P9 Open ShortDiff。
+        // S6 ShortDiff 角色开仓 ⟹ open，typed=P9 Open ReverseOpen（谱系：S6 名随修1 废止，#281 更名）。
         assert_bucket_equiv_typed(
-            &[cand(0, 0, 20, s, 1, sell(1), ShortDiff)],
+            &[cand(0, 0, 20, s, 1, sell(1), ReverseOpen)],
             &[],
             &ambient,
             &[(0, 9)],
@@ -685,12 +687,12 @@ mod tests {
             &ambient,
             &[(0, 6)],
         );
-        // S11 ShortDiff 入场腿被反向关 ⟹ P7 CloseShortDiff（入场角色压过触发类——
+        // S11 ReverseOpen 入场腿被反向关 ⟹ P7 CloseReverseOpen（入场角色压过触发类——
         //     即使一类触发也归 P7，reverse_exit_type 单源语义）。
         assert_bucket_equiv_typed(
             &[cand(0, 0, 20, l, 1, buy(1), Ambient)],
             &[leg(0, s, 5)],
-            &|_| Vertical::ShortDiff,
+            &|_| Vertical::ReverseOpen,
             &[(0, 7)],
         );
         // S12 二类反向 ⟹ P5 CloseRoot（二类是一类的次级确认，同属根反转——G4 判据表）。

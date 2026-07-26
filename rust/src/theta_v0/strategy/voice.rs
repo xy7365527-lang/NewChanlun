@@ -45,12 +45,13 @@ impl VoiceSide {
     }
 }
 
-/// #149 ShortDiff 子声部的绝对方向构造器：`σ_u = -σ_parent`。
+/// #149 首开反向（ReverseOpen）子声部的绝对方向构造器：`σ_u = -σ_parent`。
+/// 原 `short_diff_side`（S6「短差」名随修1 废止，#281 更名，#283 实装）。
 ///
 /// 只在父声部已持有有向仓位（Long/Short）时有定义；`Flat` 不是可对冲方向，返回 `None`，
-/// 防止调用方把空仓的 `Flat.flip()==Flat` 误当成合法短差方向。P5 开短差与 split-leg 账本
-/// 共用本函数，方向不变量由构造而非事后修正保证。
-pub fn short_diff_side(parent: VoiceSide) -> Option<VoiceSide> {
+/// 防止调用方把空仓的 `Flat.flip()==Flat` 误当成合法首开反向方向。散装域 interp 候选
+/// 垂直分类（δ_g=−σ_p ⟹ `Vertical::ReverseOpen`）共用本函数，方向不变量由构造而非事后修正保证。
+pub fn reverse_open_side(parent: VoiceSide) -> Option<VoiceSide> {
     match parent {
         VoiceSide::Long | VoiceSide::Short => Some(parent.flip()),
         VoiceSide::Flat => None,
@@ -316,16 +317,16 @@ mod tests {
         }
     }
 
-    /// #149 验收 4：显式 ShortDiff 构造只接受有向父声部，且两种父方向都严格满足
+    /// #149 验收 4：显式首开反向构造只接受有向父声部，且两种父方向都严格满足
     /// `σ_u = -σ_parent`；Flat 没有可构造的 hedge 方向。
     #[test]
-    fn short_diff_side_is_always_negative_parent_direction() {
+    fn reverse_open_side_is_always_negative_parent_direction() {
         for parent in [VoiceSide::Long, VoiceSide::Short] {
-            let child = short_diff_side(parent).expect("有向父声部应有短差方向");
+            let child = reverse_open_side(parent).expect("有向父声部应有首开反向方向");
             assert_eq!(child, parent.flip());
             assert_ne!(child, parent);
         }
-        assert_eq!(short_diff_side(VoiceSide::Flat), None);
+        assert_eq!(reverse_open_side(VoiceSide::Flat), None);
     }
 
     /// flip 对合（对齐 Origin.VoiceTree `flipDir_flipDir`）：Long/Short 翻两次还原；Flat 不变。
