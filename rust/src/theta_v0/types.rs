@@ -107,9 +107,16 @@ pub struct Segment {
 /// 中枢（reference-theta-v0.md:23,33）。前三连续完成次级别走势 A,B,C。
 ///
 /// `zd=max(low_A,low_B,low_C)`，`zg=min(high_A,high_B,high_C)`；闭区间 `[zd,zg]`，
-/// `zd<=zg` 成立即中枢成立。`gg=max(highs)`/`dd=min(lows)` 外包络。
-/// ⚠作废注：与 Python 侧严格口径**不一致**（Python 单点**不**成立）：见 #290 裁定 B（该落点
-/// Lean↔Python 对齐声明已作废）与新票 #321（成立口径三方矛盾 Lean/Python/Rust）。
+/// `zd<zg`（**严格**）成立即中枢成立——单点核心 `zd==zg` **不**成立（#321 裁定，2026-07-26
+/// 用户裁决：与 #290 裁定 B / Python 严格口径三方对齐，Lean/Python/Rust 统一向严格看齐；原弱
+/// 口径为实现者自选、无教义依据，原文 17 课定义/20 课公式未涉及端点口径，22 课 Q&A
+/// `docs/chanlun/text/blog/022-第22课.md:514` 单点中枢之问被缠师回避在案）。`gg=max(highs)`/
+/// `dd=min(lows)` 外包络。
+///
+/// ⚠边界声明作废：中枢**成立**落点 ZD==ZG —— Lean `centerHolds` 为 `ZD ≤ ZG`（弱，单点成立）/
+/// Rust 本实装严格（不成立，#321 裁定）；**该落点的 Lean↔Rust 对齐声明在本边界上作废，此边界不作
+/// 机械锁用**（不得据本实装断言 Lean 侧行为，亦不得据 Lean `centerHolds` 反推本实装期望值）；
+/// 其余落点对齐声明不受影响。Lean 侧跟进留对方线。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Center {
     /// 核心区间下沿 ZD（闭区间）。

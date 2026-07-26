@@ -112,6 +112,20 @@ rust 对博文忠实但非 Lean bit-exact（设计边界，非遗漏）。
 `chanlun/review-results/center-tangency-doctrine-20260726.md`、
 `.chanlun/review-results/center-tangency-blast-radius-20260726.md`。
 
+**#321 后续裁定（2026-07-26 用户裁决，落码）**：上段「Rust 生产链是弱口径」的悬案已裁决——**从严**，
+与 #290 裁定 B / Python 严格口径三方对齐。`rust/src/theta_v0/classifier/center.rs` 的
+`center_from_segments` / `center_from_window` 两处判据均由 `if zd > zg { return None }` 改为
+`if zd >= zg { return None }`（单点 `zd==zg` 不再通过），`types.rs` `Center` doc 同步更正。理由：原弱
+口径本是实现者自选、无教义依据（#290 裁定 B 是首个教义裁定，Lean/Rust 此前均只是实现者自选未经裁定
+的弱口径），原文（17 课定义/20 课公式）未涉及端点口径，22 课 Q&A（`022-第22课.md:514`）单点中枢之问
+被缠师回避在案，不擅自发明 ⟹ 统一向严格看齐。
+
+⚠边界声明作废：中枢**成立**落点 ZD==ZG —— Lean `centerHolds` 为 `ZD ≤ ZG`（弱，单点成立）/ Rust
+`center_from_segments`/`center_from_window` 严格（不成立，#321 裁定）；**该落点的 Lean↔Rust 对齐声明
+在本边界上作废，此边界不作机械锁用**（不得据本实装断言 Lean 侧行为，亦不得据 Lean `centerHolds`
+反推本实装期望值）；其余落点对齐声明不受影响。Lean 侧仍弱（对方线地盘）——跟进留对方线。裁定书：
+GitHub issue #321（2026-07-26 用户裁决）。
+
 **反膨胀核（B4 三类买卖点完整性——编排者最关心）**：
 - **bit-vector 6 位结构完整**（`BspBits` 每位独立可置，2B/3B 可共存，符合 `no_exclusive_trichotomy`）。
 - **但 v0 实际只产第三类**（`signal.rs:9-26` 诚实声明）：`extract_third_for_center` 只判第三类（confirmed

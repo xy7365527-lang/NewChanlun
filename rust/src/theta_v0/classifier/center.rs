@@ -6,8 +6,11 @@
 //!   三段次级别走势构成真中枢 ⟺ 两条**全部**成立——
 //!   1. **方向交替** `DirAlternates`：`s1.dir≠s2.dir ∧ s2.dir≠s3.dir`（§6.1 典型形态
 //!      下-上-下/上-下-上）。
-//!   2. **全三段核心非空** `computeZD s1 s2 s3 ≤ computeZG s1 s2 s3`（口径 B，§6.3/§6.4：核心 =
-//!      前三段重叠部分 `[max(三段低), min(三段高)]`，非空即三段有共同重叠区间）。
+//!   2. **全三段核心非空** `computeZD s1 s2 s3 < computeZG s1 s2 s3`（**严格**，#321 裁定
+//!      2026-07-26；口径 B，§6.3/§6.4：核心 = 前三段重叠部分 `[max(三段低), min(三段高)]`，
+//!      **严格**非空 ⟹ 单点核心 `computeZD==computeZG` 不成立）。★与 Lean `Origin.CenterComplete`
+//!      / `Origin.CenterConstruction.centerHolds` 的 `≤`（弱，单点核心成立）在**端点分支**上
+//!      不一致——Lean 侧未随 #321 跟进，此处口径分歧登记见 `center_from_segments` doc。
 //! - 核心/外缘构造 ↔ `Origin.CenterConstruction`：`computeZG s1 s2 s3 = min(三段 hi)`、
 //!   `computeZD s1 s2 s3 = max(三段 lo)`（**口径 B 全三段核心**，637号）；`computeGG/computeDD` 三段
 //!   聚合外缘 `gg=max(三段hi)`、`dd=min(三段lo)`。
@@ -149,19 +152,28 @@ pub fn third_spans_core(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> bool {
 /// 任一支不成立 ⟹ 返回 `None`（非中枢，不静默造退化中枢）。成立 ⟹ 核心取**全三段**
 /// `[compute_zd(a,b,c), compute_zg(a,b,c)]`，外缘取**三段** dd/gg。
 ///
-/// 边界条件（结论翻转）：方向交替用严格异向；全三段核心非空用闭区间（`ZD_B=ZG_B` 单点核心合法）；
-/// ⚠作废注：与 Python 侧严格口径**不一致**（Python 单点**不**成立）：见 #290 裁定 B（该落点
-/// Lean↔Python 对齐声明已作废）与新票 #321（成立口径三方矛盾 Lean/Python/Rust）。
+/// 边界条件（结论翻转）：方向交替用严格异向；全三段核心非空用**严格**开口径（`ZD_B<ZG_B` 才成立，
+/// `ZD_B==ZG_B` 单点核心**不**成立）——#321 裁定（2026-07-26 用户裁决）：原弱口径（闭区间含单点）
+/// 为实现者自选、无教义依据，原文（17 课定义、20 课公式）未涉及端点口径，22 课 Q&A
+/// （`docs/chanlun/text/blog/022-第22课.md:514`）单点中枢之问被缠师回避在案，故统一向 #290 裁定 B
+/// （Python 严格口径）看齐，三实现（Lean/Python/Rust）向严格统一。
+///
+/// ⚠边界声明作废：中枢**成立**落点 ZD==ZG —— Lean `centerHolds` 为 `ZD ≤ ZG`（弱，单点成立）/
+/// Rust 本函数严格（不成立，#321 裁定）；**该落点的 Lean↔Rust 对齐声明在本边界上作废，此边界不作
+/// 机械锁用**（不得据本实装断言 Lean 侧行为，亦不得据 Lean `centerHolds` 反推本实装期望值）；
+/// 其余落点对齐声明不受影响。Lean 侧跟进留对方线。
+///
 /// 缺方向维度（上级无方向单元）则方向交替不可判——见 `center_from_window`。
 pub fn center_from_segments(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Option<Center> {
     // 支1：方向交替（§6.1，DirAlternates）。
     if !dir_alternates(a, b, c) {
         return None;
     }
-    // 支2：全三段核心非空（口径 B，§6.3/§6.4——已含第三段贯穿，637号）。
+    // 支2：全三段核心非空（口径 B，§6.3/§6.4——已含第三段贯穿，637号）。★#321 裁定（2026-07-26）：
+    // 从严——单点核心 `zd==zg` 不成立，须严格 `zd<zg`（与 #290 裁定 B / Python 三方对齐）。
     let zd = compute_zd(a, b, c);
     let zg = compute_zg(a, b, c);
-    if zd > zg {
+    if zd >= zg {
         return None;
     }
     // 两支全成立 ⟹ 真中枢。核心 = 全三段 [zd,zg]（口径 B）；外缘 = 三段 dd/gg。
@@ -186,12 +198,20 @@ pub fn center_from_segments(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Opti
 /// 非省略完整判据：上级单元根本无 §6.1 意义的方向交替维度。
 ///
 /// 核心 = 全三段 `[compute_zd(a,b,c), compute_zg(a,b,c)]`（口径 B，637号——全三段重叠部分非空 ⟺
-/// 三段有共同重叠，第三段贯穿已吸收进核心非空）；外缘 = 三段 dd/gg。核心空（`ZD_B>ZG_B`）⟹ `None`。
+/// 三段有共同重叠，第三段贯穿已吸收进核心非空）；外缘 = 三段 dd/gg。核心非空须**严格** `ZD_B<ZG_B`
+/// ——核心空或单点（`ZD_B>=ZG_B`）⟹ `None`（#321 裁定，2026-07-26 用户裁决：单点核心不成立，与
+/// #290 裁定 B / Python 严格口径三方对齐；原弱口径为实现者自选、原文未涉及端点口径）。
+///
+/// ⚠边界声明作废：中枢**成立**落点 ZD==ZG —— Lean `centerHolds` 为 `ZD ≤ ZG`（弱，单点成立）/
+/// Rust 本函数严格（不成立，#321 裁定）；**该落点的 Lean↔Rust 对齐声明在本边界上作废，此边界不作
+/// 机械锁用**（不得据本实装断言 Lean 侧行为，亦不得据 Lean `centerHolds` 反推本实装期望值）；
+/// 其余落点对齐声明不受影响。Lean 侧跟进留对方线。
 pub fn center_from_window(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Option<Center> {
-    // 全三段核心非空（口径 B——已含第三段贯穿，637号 codex L0 等价）。
+    // 全三段核心非空（口径 B——已含第三段贯穿，637号 codex L0 等价）。★#321 裁定（2026-07-26）：
+    // 从严——单点核心 `zd==zg` 不成立，须严格 `zd<zg`（与 #290 裁定 B / Python 三方对齐）。
     let zd = compute_zd(a, b, c);
     let zg = compute_zg(a, b, c);
-    if zd > zg {
+    if zd >= zg {
         return None;
     }
     Some(Center {
@@ -335,6 +355,31 @@ mod tests {
         assert_eq!(center_from_segments(&a, &b, &c), None, "完整判据拒绝同向（查方向交替）");
     }
 
+    /// ★#321 裁定新增（先红后绿）：完整判据 `center_from_segments` 单点核心 `ZD==ZG` **不成立**。
+    ///
+    /// 旧口径（本文件迁移前）：闭区间核心非空含单点 `zd==zg`，判**成立**（返回 `Some`）。
+    /// #321 裁定后（2026-07-26 用户裁决，与 #290 裁定 B / Python 严格口径三方对齐）：支2
+    /// 全三段核心非空须**严格** `zd<zg`，`zd==zg` 单点核心判**不成立**（返回 `None`）。理由：
+    /// 原文（17 课定义、20 课公式）未涉及端点口径，22 课 Q&A（`022-第22课.md:514`）单点中枢
+    /// 之问被缠师回避；原弱口径为实现者自选、无教义依据，统一向 #290 裁定 B 严格口径看齐。
+    /// 用例直接复用 `geometric_window_rejects_boundary_zd_eq_zg` 的同一组单元（up-down-up
+    /// 恰好方向交替，支1 天然成立）——让支2（核心非空判据）成为本用例唯一判据来源。
+    #[test]
+    fn complete_center_rejects_boundary_zd_eq_zg() {
+        // a=[0,5]up, b=[5,10]down, c=[3,5]up：方向交替（支1 成立）；
+        // zd=max(0,5,3)=5, zg=min(5,10,5)=5 ⟹ 单点核心 [5,5]（支2 zd==zg）。
+        let a = unit(0, 4, up(), 0, 5);
+        let b = unit(4, 8, down(), 5, 10);
+        let c = unit(8, 12, up(), 3, 5);
+        assert!(dir_alternates(&a, &b, &c), "支1（方向交替）预先成立，排除干扰");
+        assert_eq!(compute_zd(&a, &b, &c), 5);
+        assert_eq!(compute_zg(&a, &b, &c), 5);
+        assert!(
+            center_from_segments(&a, &b, &c).is_none(),
+            "#321 裁定：单点核心 zd==zg ⟹ 完整判据不成立（从严，旧口径判成立已作废）"
+        );
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     //  几何路径 center_from_window（上级递归层，契约锚 Origin.centerHolds + 三段共同重叠）
     // ──────────────────────────────────────────────────────────────────────
@@ -371,15 +416,23 @@ mod tests {
         assert_eq!(center_from_window(&a, &b, &c), None, "全三段核心空（第三段不贯穿）⟹ 非中枢");
     }
 
+    /// ★本用例固化的是旧弱口径（zd==zg 单点核心闭区间合法 ⟹ 成立）；#321 裁定后期望翻转：
+    /// 单点核心不成立，返回 `None`（2026-07-26 用户裁决，与 #290 裁定 B / Python 严格口径三方
+    /// 对齐；原弱口径为实现者自选、原文未涉及端点口径，见 `022-第22课.md:514`）。原断言
+    /// （`center_from_window(...).expect(...)` 判 `Some((5,5))`）已作废，不得据旧读数反推。
     #[test]
-    fn geometric_window_boundary_zd_eq_zg_is_center() {
-        // 退化但合法（口径 B 单点核心）：a=[0,5], b=[5,10], c=[3,5]。
-        // zd=max(0,5,3)=5, zg=min(5,10,5)=5 ⟹ 全三段核心 [5,5]（单点，闭区间合法）。
+    fn geometric_window_rejects_boundary_zd_eq_zg() {
+        // a=[0,5], b=[5,10], c=[3,5]：zd=max(0,5,3)=5, zg=min(5,10,5)=5 ⟹ 单点核心 [5,5]。
+        // #321 从严：zd==zg 不再判核心非空 ⟹ center_from_window 返回 None。
         let a = unit(0, 4, up(), 0, 5);
         let b = unit(4, 8, down(), 5, 10);
         let c = unit(8, 12, up(), 3, 5);
-        let center = center_from_window(&a, &b, &c).expect("全三段单点核心 zd==zg ⟹ 闭区间中枢成立");
-        assert_eq!((center.zd, center.zg), (5, 5));
+        assert_eq!(compute_zd(&a, &b, &c), 5);
+        assert_eq!(compute_zg(&a, &b, &c), 5);
+        assert!(
+            center_from_window(&a, &b, &c).is_none(),
+            "#321 裁定：单点核心 zd==zg ⟹ 几何路径不成立（从严，旧口径判成立已作废）"
+        );
     }
 
     fn center(dd: Tick, zd: Tick, zg: Tick, gg: Tick) -> Center {

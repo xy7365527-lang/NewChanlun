@@ -244,6 +244,12 @@ mod tests {
     }
 
     /// ★滑窗出生：前 3 段核心空不出生，第 2/3/4…段窗口滑动后成交 ⟹ born（出生段号 = 完成段序号）。
+    ///
+    /// ★#321 裁定后重算（本用例固化的 (c,d,e) 分支曾是旧弱口径）：原版本在 (c,d,e) 处
+    /// `zd=max(5,8,9)=9 ≤ zg=min(9,12,13)=9`（单点核心 `[9,9]`）判**成立**（born_seg_ordinal=5）。
+    /// #321 裁定（2026-07-26 用户裁决，与 #290 裁定 B / Python 严格口径三方对齐）后单点核心
+    /// `zd==zg` **不成立**——旧读数（born 于第 5 段）已作废：(c,d,e) 现判不出生，滑窗需再推进一段
+    /// 到 (d,e,f) 才遇到真正非退化核心（`zd=9<zg=12`）成交，born_seg_ordinal 由 5 变为 6。
     #[test]
     fn born_sliding_window_after_empty_core() {
         let mut m = CenterEventMachine::new(0);
@@ -253,13 +259,21 @@ mod tests {
         assert_eq!(m.push_segment(unit(8, 12, up(), 5, 9)), None, "前 3 段核心空 ⟹ 无 born");
         // (b,c,d)：zd=max(10,5,8)=10 > zg=min(14,9,12)=9 ⟹ 仍空。
         assert_eq!(m.push_segment(unit(12, 16, down(), 8, 12)), None, "滑窗 (b,c,d) 核心空 ⟹ 无 born");
-        // (c,d,e)：zd=max(5,8,9)=9 ≤ zg=min(9,12,13)=9 ⟹ 单点核心 [9,9] 成交（闭区间合法）。
-        let ev = m.push_segment(unit(16, 20, up(), 9, 13));
-        let center = Center { zd: 9, zg: 9, dd: 5, gg: 13, start_index: 8, end_index: 20 };
+        // (c,d,e)：zd=max(5,8,9)=9，zg=min(9,12,13)=9 ⟹ 单点核心 [9,9]。#321 从严：zd==zg 不成立
+        // ⟹ 无 born（旧口径判成立于此，已作废——见上方用例 docstring）。
+        assert_eq!(
+            m.push_segment(unit(16, 20, up(), 9, 13)),
+            None,
+            "#321 从严：(c,d,e) 单点核心 zd==zg ⟹ 不成立，无 born（旧读数已作废）"
+        );
+        // (d,e,f)：zd=max(8,9,9)=9 < zg=min(12,13,20)=12 ⟹ 非退化核心 [9,12] ⟹ 成交 born，
+        // 出生段号 = 第 6 段（完成段，滑窗多推进一段才遇到真正非空核心）。
+        let ev = m.push_segment(unit(20, 24, down(), 9, 20));
+        let center = Center { zd: 9, zg: 12, dd: 8, gg: 20, start_index: 12, end_index: 24 };
         assert_eq!(
             ev,
-            Some(CenterLifecycleEvent::Born { level: 0, center, born_seg_ordinal: 5 }),
-            "滑窗 (c,d,e) 成交 ⟹ born，出生段号 = 第 5 段（完成段）"
+            Some(CenterLifecycleEvent::Born { level: 0, center, born_seg_ordinal: 6 }),
+            "滑窗 (d,e,f) 成交 ⟹ born，出生段号 = 第 6 段（完成段，#321 从严后需多滑一段）"
         );
         assert_eq!(m.counts(), (1, 0, 0));
     }
