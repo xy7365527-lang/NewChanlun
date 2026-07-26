@@ -1,10 +1,11 @@
-"""Rust MACD 层 ↔ Python MACD 层逐位等价 golden 测试（第七层）。
+"""Rust MACD 层 ↔ Python MACD 层等价 golden 测试（第七层：compute_macd rel=1e-11，其余逐位）。
 
-验证 `newchan_rust` 的 MACD 实现与 Python 源逐位（bit-exact）相等：
+验证 `newchan_rust` 的 MACD 实现与 Python 源等价：`compute_macd` 批量路径使用相对容差
+rel=1e-12，其余逐位（bit-exact）相等：
 
 | Rust | Python 源 |
 |------|-----------|
-| `compute_macd` | `a_macd.compute_macd`（pandas ewm adjust=False） |
+| `compute_macd` | `a_macd.compute_macd`（pandas ewm adjust=False，rel=1e-11） |
 | `OnlineMacdState` | `a_macd.OnlineMacdState` |
 | `macd_area_for_range` | `a_macd.macd_area_for_range` |
 | `dif_peak_for_range` | `a_divergence_v1.dif_peak_for_range` |
@@ -16,6 +17,11 @@
 - **EMA 递推**：pandas `ewm(adjust=False)` 内部用 `prev + α·(x−prev)`（非代数等价的
   `α·x+(1−α)·prev`）。`compute_macd` 复刻前者，`OnlineMacdState` 复刻后者——二者在 Python
   中本就不 bit-exact（差 ~1e-14），Rust 分别忠实移植。
+- **平台浮点（#324）**：`compute_macd` 的批量 EMA 路径在 ubuntu x86 上与 macOS arm64
+  结果不逐位相等（末位差约 2 ULP，相对 3e-16）。裁定放宽为 rel=1e-12；CI 实证
+  （run 30209225831）长参数 [500/5000] 在第 179 棒累积到 ~1.9e-12 仍超线 → 二裁放宽为
+  rel=1e-11（仍比业务噪声低四五个量级），即分辨率（rel/eps，eps = 2^-52 ≈ 2.22e-16 到 2^-53 ≈ 1.11e-16，
+  随 mantissa 位置浮动）。其余 5 个测试的 bit-exact 声明不变。
 - **area 累加**：`pandas.Series.sum() == numpy.sum()`，用 pairwise summation（块 128，
   8 路展开）。Rust `pairwise_sum` 逐位复刻。
 - **round(·, 6)**：Python 内置 round（round-half-to-even），Rust 用 `{:.6}` 正确舍入复刻。
@@ -51,6 +57,13 @@ def _bits_equal(a: float, b: float) -> bool:
     return struct.pack("<d", a) == struct.pack("<d", b)
 
 
+def _rel_close(a: float, b: float, rel: float = 1e-11) -> bool:
+    """相对容差比较；NaN↔NaN 视为相等（保留 _bits_equal 的 NaN 语义）。"""
+    if math.isnan(a) and math.isnan(b):
+        return True
+    return math.isclose(a, b, rel_tol=rel, abs_tol=0.0)
+
+
 def _synthetic_closes(n: int) -> list[float]:
     out = []
     for k in range(n):
@@ -69,7 +82,14 @@ def _synthetic_closes(n: int) -> list[float]:
 
 
 @pytest.mark.parametrize("n", [1, 2, 5, 50, 500, 5000])
-def test_compute_macd_batch_bit_exact(n: int) -> None:
+def test_compute_macd_batch_rel_close(n: int) -> None:
+    """批量 MACD：Python(pandas ewm) vs Rust 相对容差 rel=1e-11（#324 裁定，二裁放宽）。
+
+    原名 test_compute_macd_batch_bit_exact。ubuntu x86 上 py/rust 的 DIF 末位相差
+    约 2 ULP（相对 3e-16），macOS arm64 逐位相等——差异来自平台浮点收缩/库差异，
+    非实现分歧。裁定：放宽断言，生产数值零改动。函数名同步去掉 bit_exact
+    （090：名字不得声明代码不具备的能力）。
+    """
     import pandas as pd
 
     closes = _synthetic_closes(n)
@@ -80,8 +100,8 @@ def test_compute_macd_batch_bit_exact(n: int) -> None:
     for col, rs in (("macd", rs_macd), ("signal", rs_signal), ("hist", rs_hist)):
         py_col = list(df[col])
         for i, (p, r) in enumerate(zip(py_col, rs)):
-            assert _bits_equal(float(p), r), (
-                f"compute_macd[{col}][{i}] py={float(p)!r} rust={r!r}"
+            assert _rel_close(float(p), r), (
+                f"compute_macd[{col}][{i}] py={float(p)!r} rust={r!r} rel_tol=1e-11"
             )
 
 

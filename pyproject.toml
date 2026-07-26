@@ -28,6 +28,7 @@ dependencies = [
     "akshare>=1.14",
     "ccxt>=4.0",
     "ripser>=0.6.14",
+    "scipy>=1.10",
 ]
 
 [project.scripts]

@@ -28,9 +28,12 @@ Extended PH 和 Zigzag PH 在中枢的区间分解意义下等价（模块同构
 
 ### TDA 桥接层
 本模块是 A 系统和 TDA 库之间的桥接层。
-接口隔离：TDA 计算封装在 _bottleneck_distance() / _wasserstein_distance() 中。
-当前后端：persim（bottleneck 基于 Hera 库，数学上正确）。
-将来换库（gudhi/scikit-tda）只改这两个桥接函数，不改 A 系统。
+接口隔离：bottleneck 计算封装在 _bottleneck_distance() 中，当前后端 persim
+（基于 Hera 库，数学上正确）；将来换库（gudhi/scikit-tda）只改这个桥接函数，
+不改 A 系统。
+Wasserstein-1 不走外部库——自实装匹配在 a_wasserstein.wasserstein_1()
+（persim 的 sklearn 平方展开代价矩阵在零距离处留平台相关残差，#324 裁定改
+scipy cdist）。
 
 ### 映射的边界
 管线 P_m 是单向的确定性算子，不可逆。
@@ -62,20 +65,6 @@ def _bottleneck_distance(
     if dgm_a.shape[0] == 0 and dgm_b.shape[0] == 0:
         return 0.0
     return float(bottleneck(dgm_a, dgm_b))
-
-
-def _wasserstein_distance(
-    dgm_a: np.ndarray, dgm_b: np.ndarray, order: int = 1,
-) -> float:
-    """计算两个持续图之间的 Wasserstein-p 距离。
-
-    默认 p=1（用于 T8 背驰检测——Layer 2）。
-    """
-    from persim import wasserstein
-
-    if dgm_a.shape[0] == 0 and dgm_b.shape[0] == 0:
-        return 0.0
-    return float(wasserstein(dgm_a, dgm_b, order=order))
 
 
 def centers_to_barcode(centers) -> tuple[tuple[float, float], ...]:

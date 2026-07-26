@@ -147,15 +147,12 @@ class TestSyntheticData:
 # 真实数据测试
 # ---------------------------------------------------------------------------
 
-REAL_RELATIONS = Path(".chanlun/block-topology/relations.jsonl")
-
-
-@pytest.mark.skipif(not REAL_RELATIONS.exists(), reason="真实数据文件不存在")
 class TestRealData:
-    def test_real_data_hard_constraint(self):
+    @pytest.mark.integration
+    def test_real_data_hard_constraint(self, real_relations):
         """在真实 relations.jsonl 上运行，验证 862 硬约束。"""
         landscape = build_morse_landscape(
-            relations_path=REAL_RELATIONS,
+            relations_path=real_relations,
             cache_path=None,
         )
         assert landscape.stats["nodes"] == 427

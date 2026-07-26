@@ -12,6 +12,26 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        # #324：LFS 对象**不在** checkout 里拉（不写 lfs: true）。
+        #   .chanlun/block-topology/relations.jsonl 是 125 MB 的 LFS 对象；
+        #   GitHub 免费额度 = 1 GB/月 LFS 流量 ⟹ lfs: true 每 run 必下 125 MB，
+        #   约 8 run 就把整月额度打爆，且 checkout 发生在 cache 恢复之前，
+        #   缓存永不命中。改成 checkout(不拉) → 恢复 .git/lfs 缓存 → git lfs pull：
+        #   缓存命中时 pull 零下载，仅缓存 miss（LFS 指针变更）时才走一次 125 MB。
+
+      - name: Cache Git LFS objects
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          # 指针内容变了才重下：relations.jsonl 的 LFS pointer 哈希即对象身份。
+          key: lfs-${{ runner.os }}-${{ hashFiles('.gitattributes') }}-${{ hashFiles('.chanlun/block-topology/relations.jsonl') }}
+          restore-keys: lfs-${{ runner.os }}-
+
+      - name: Fetch LFS objects
+        # pull 失败时 relations.jsonl 停留为 pointer；tests/conftest.py 的
+        # real_relations_usable 守卫会显式 skip 并打印原因，不会静默通过。
+        continue-on-error: true
+        run: git lfs pull
 
       - name: Grep gate — window-binding artifacts banned (G1)
         run: '! grep -rn "P101_TAG\|P101_MULTI\|cert_bsp_tag" rust/src/theta_v0/'
@@ -74,7 +94,8 @@ jobs:
           CARGO_TARGET_DIR="$HOME/.cache/newchan-rust-target" pip install ./rust
 
       - name: Run tests with coverage
-        run: pytest -m "not slow" --tb=short -q --cov=newchan --cov-report=term-missing --cov-report=xml:coverage.xml
+        # -rs 是 #324 的 090 要求：显式打印 skip 原因。
+        run: pytest -m "not slow" --tb=short -q -rs --cov=newchan --cov-report=term-missing --cov-report=xml:coverage.xml
 
       - name: Upload coverage report
         if: always()
