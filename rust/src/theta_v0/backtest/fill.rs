@@ -757,6 +757,212 @@ where
     pi_theta_fill_loop_overlay(classify_at, bars, initial_nav, config, chi, None, Some(voice))
 }
 
+/// #292（T2 落点门控接线）：单 bar 内驱动中枢生命周期事件（born/broken/reset/superseded，
+/// 与 `opsem_dump::feed_center_lifecycle` 同款 `consume_chain`/`push_point` 驱动方式，状态
+/// 独立不交叉——同一张塔链表的两个只读消费者）+ `PanDivTrigger` → `CenterOscillationTrigger`
+/// 转换与 `on_trigger` 消费（A 裁定：中枢身份取本级 `alive_center()`，不复用 pan_div 坐标
+/// 投影）。纯函数化——不依赖 `tower_i`/pan_div 门内部（门后 `pan_div_triggers` 由调用方产出），
+/// 可脱离完整 fill 循环直接单测。顺序：先喂本 bar 生命周期事件（使 `alive_center()` 反映
+/// 本 bar 内已发生的死亡），再消费本 bar 的 pan_div 触发（与 `opsem_dump.rs` 同序）。
+fn step_center_oscillation(
+    bar: usize,
+    classification_i: &classifier::Classification,
+    classification_step: &classifier::Classification,
+    pan_div_triggers: &[(usize, super::super::strategy::oscillation::PanDivTrigger)],
+    cl_machines: &mut Vec<classifier::center_lifecycle::CenterEventMachine>,
+    osc_books: &mut Vec<super::super::strategy::center_oscillation_trade::CenterOscillationBook>,
+) -> Vec<super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord> {
+    use classifier::center_lifecycle::{CenterEventMachine, CenterId, ChainConsumed, PointOutcome};
+    use super::super::strategy::center_oscillation_trade::{
+        CenterOscillationActionRecord, CenterOscillationBook, CenterOscillationTrigger,
+    };
+
+    let mut actions = Vec::new();
+    let n_levels = classification_i.levels.len();
+    while cl_machines.len() < n_levels {
+        let lvl = cl_machines.len() as u32;
+        cl_machines.push(CenterEventMachine::new(lvl));
+        osc_books.push(CenterOscillationBook::new(lvl));
+    }
+    for lvl in 0..n_levels {
+        let chain: &[super::super::types::Center] = &classification_i.levels[lvl].centers;
+        if let ChainConsumed::Advanced { events, .. } = cl_machines[lvl].consume_chain(chain) {
+            for ev in events.iter() {
+                for outcome in osc_books[lvl].on_lifecycle_event(ev) {
+                    if let Some(action) = outcome.cover_action {
+                        actions.push(CenterOscillationActionRecord {
+                            bar,
+                            level: lvl as u32,
+                            center: outcome.center,
+                            action,
+                        });
+                    }
+                }
+            }
+        }
+        if let Some(step_level) = classification_step.levels.get(lvl) {
+            for p in step_level.bsp.iter() {
+                let target = match p.center {
+                    Some(classifier::bsp::OwnerRef::Center(c)) => Some(CenterId::of(&c)),
+                    _ => None,
+                };
+                if let Ok(PointOutcome::Event(ev)) = cl_machines[lvl].push_point(p.bits, p.source_index, target) {
+                    for outcome in osc_books[lvl].on_lifecycle_event(&ev) {
+                        if let Some(action) = outcome.cover_action {
+                            actions.push(CenterOscillationActionRecord {
+                                bar,
+                                level: lvl as u32,
+                                center: outcome.center,
+                                action,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for &(lvl, trigger) in pan_div_triggers {
+        let alive = cl_machines.get(lvl).and_then(|m| m.alive_center()).map(|(c, _)| CenterId::of(&c));
+        if let Ok(osc_trigger) = CenterOscillationTrigger::from_pan_div_trigger(trigger, alive) {
+            if let Some(action) = osc_books[lvl].on_trigger(osc_trigger) {
+                actions.push(CenterOscillationActionRecord {
+                    bar,
+                    level: lvl as u32,
+                    center: osc_trigger.center(),
+                    action,
+                });
+            }
+        }
+    }
+    actions
+}
+
+#[cfg(test)]
+mod center_oscillation_wiring_tests {
+    //! #292 T2 落点门控接线单测：`step_center_oscillation` 纯函数化后可脱离完整 fill 循环
+    //! 直接单测（不依赖 tower_i/gate/真实市场数据）。覆盖验收两项：
+    //! - 门控开启臂：中枢链推进+确认三类点 ⟹ 生命周期终结动作可见；PanDivTrigger 消费
+    //!   ⟹ 减补动作可见。
+    //! - 门控关闭臂：fill.rs 主循环里本函数整段不被调用（`pan_div_hist=None` 分支跳过），
+    //!   `FillOutput.center_oscillation_actions` 恒空——由 v1/dual 路径的诚实空 Vec 字面量
+    //!   保证（编译期可见，见 `FillOutput` 三处构造点），本测试补运行期证据。
+    use super::*;
+    use classifier::center_lifecycle::CenterId;
+    use classifier::{bsp::BspPoint, bsp::OwnerRef, Classification, LevelState};
+    use super::super::super::strategy::center_oscillation_trade::{CenterOscillationAction, CenterOscillationBook};
+    use super::super::super::strategy::oscillation::{
+        ConsolidationDivergenceEvidence, OscillationCenterRef, OscillationEvidenceRef, PanDivTrigger,
+    };
+    use super::super::super::strategy::voice::VoiceSide;
+    use super::super::super::types::{BspBits, Center};
+    use std::rc::Rc;
+
+    fn center(start_index: usize, end_index: usize, zd: i64, zg: i64) -> Center {
+        Center { zd, zg, dd: zd - 2, gg: zg + 2, start_index, end_index }
+    }
+
+    fn level_with_centers(centers: Vec<Center>) -> LevelState {
+        LevelState { centers: Rc::new(centers), ..LevelState::default() }
+    }
+
+    fn level_with_bsp(points: Vec<BspPoint>) -> LevelState {
+        LevelState { bsp: Rc::new(points), ..LevelState::default() }
+    }
+
+    fn third_class_buy_break(source_index: usize, owner: Center) -> BspPoint {
+        BspPoint {
+            source_index,
+            level_origin: 0,
+            bits: BspBits { buy3: true, ..BspBits::default() },
+            pivot_low: 0,
+            pivot_high: 0,
+            center: Some(OwnerRef::Center(owner)),
+            struct_break_dir: None,
+            force: None,
+        }
+    }
+
+    fn pan_div_trigger(level: u32, signal_side: VoiceSide, source_index: usize) -> PanDivTrigger {
+        PanDivTrigger::from_gated_pan_div(
+            level,
+            signal_side,
+            OscillationCenterRef::new(0, 0),
+            ConsolidationDivergenceEvidence::new(OscillationEvidenceRef::new(source_index, 0)),
+        )
+        .unwrap()
+    }
+
+    /// 门控开启臂 · 触发通路：本级在场（born 由 consume_chain 推出）+ PanDivTrigger（Short
+    /// 信号=上沿高抛试探）⟹ `Reduce` 动作可见，且身份=本级 `alive_center()`（非 pan_div 坐标）。
+    #[test]
+    fn gate_on_pan_div_trigger_produces_visible_reduce_action() {
+        let c0 = center(5, 10, 100, 200);
+        let classification = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let step = Classification { levels: vec![LevelState::default()] };
+        let mut cl_machines = Vec::new();
+        let mut osc_books = Vec::new();
+        let triggers = vec![(0usize, pan_div_trigger(0, VoiceSide::Short, 11))];
+        let actions = step_center_oscillation(7, &classification, &step, &triggers, &mut cl_machines, &mut osc_books);
+        assert_eq!(actions.len(), 1, "门开+在场+触发 ⟹ 恰一条动作可见");
+        assert_eq!(actions[0].bar, 7);
+        assert_eq!(actions[0].level, 0);
+        assert_eq!(actions[0].center, CenterId::of(&c0), "身份=alive_center()，非 pan_div 坐标投影");
+        assert_eq!(actions[0].action, CenterOscillationAction::Reduce);
+        assert!(osc_books[0].is_suspended(CenterId::of(&c0)));
+    }
+
+    /// 门控开启臂 · 终结通路：先触发挂起，再喂本级三类买点破坏（`buy3`，载体=在场中枢）⟹
+    /// 生命周期终结事件产出 `Replenish` 收手回补动作，经 `step_center_oscillation` 可见。
+    #[test]
+    fn gate_on_lifecycle_broken_event_produces_visible_replenish_action() {
+        let c0 = center(5, 10, 100, 200);
+        let classification = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let mut cl_machines = Vec::new();
+        let mut osc_books = Vec::new();
+        // 先驱动一次空 step 让链同步（Adopted）+ 触发一次高抛挂起（不经本函数：直接摆状态）。
+        let no_triggers: Vec<(usize, PanDivTrigger)> = Vec::new();
+        let empty_step = Classification { levels: vec![LevelState::default()] };
+        let _ = step_center_oscillation(0, &classification, &empty_step, &no_triggers, &mut cl_machines, &mut osc_books);
+        osc_books[0].on_trigger(
+            super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
+                0,
+                Some(CenterId::of(&c0)),
+                VoiceSide::Short,
+                5,
+            )
+            .unwrap(),
+        );
+        assert!(osc_books[0].is_suspended(CenterId::of(&c0)));
+
+        // 本 bar 喂一枚三类买点破坏（buy3=Long 破坏），载体=在场实例 c0。
+        let step_with_bsp =
+            Classification { levels: vec![level_with_bsp(vec![third_class_buy_break(20, c0)])] };
+        let actions =
+            step_center_oscillation(1, &classification, &step_with_bsp, &no_triggers, &mut cl_machines, &mut osc_books);
+        assert_eq!(actions.len(), 1, "三类买点破坏终结 ⟹ 收手回补动作可见");
+        assert_eq!(actions[0].action, CenterOscillationAction::Replenish);
+        assert_eq!(actions[0].center, CenterId::of(&c0));
+        assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "终结=挂起清空");
+    }
+
+    /// 门控关闭臂：`pi_theta_fill_loop` 生产入口在默认配置（`center_oscillation.enabled=false`）
+    /// 下跑完整循环（空 bars，闭包不应被调用）——`center_oscillation_actions` 必须恒空，
+    /// 证明本接线整段零调用零影响。
+    #[test]
+    fn gate_off_center_oscillation_actions_stays_empty() {
+        let config = super::super::super::config::ThetaConfig::default();
+        assert!(!config.center_oscillation.enabled, "默认门关（回归锁前提）");
+        let out = pi_theta_fill_loop(
+            |_i| panic!("门关+空 bars ⟹ classify_at 不应被调用"),
+            &[],
+            1.0,
+            &config,
+            None,
+        );
+        assert!(out.center_oscillation_actions.is_empty(), "门关 ⟹ #292 接线零调用零影响");
+    }
+}
+
 pub(super) fn pi_theta_fill_loop_overlay<F>(
     mut classify_at: F,
     bars: &[Bar],
@@ -809,6 +1015,16 @@ where
     // 开启时首见证书只经 econ_positive 的 Nest/XZD 单一门产触发事件（#282：账面形态已删，
     // 门内不产订单、不写子腿簿——触发链保留为 #274 原料）。
     let mut pan_div_state = super::pan_div::PanDivProductionState::default();
+    // #292（T2 落点门控接线）：中枢生命周期事件机（每级别一台，T1 单一真相源，与
+    // opsem_dump::feed_center_lifecycle 同款 consume_chain/push_point 驱动方式，状态独立不
+    // 交叉——同一张塔链表的两个只读消费者）+ 中枢震荡挂起账（每级别一台）。惰性按级增长
+    // （新级涌现补建）；门关（`config.center_oscillation.enabled=false`）⟹ 本段整体不构造
+    // 不驱动，零开销，订单轨逐字节不变（bit-exact 不破）。
+    let mut cl_machines: Vec<classifier::center_lifecycle::CenterEventMachine> = Vec::new();
+    let mut osc_books: Vec<super::super::strategy::center_oscillation_trade::CenterOscillationBook> =
+        Vec::new();
+    let mut osc_actions: Vec<super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord> =
+        Vec::new();
     let pan_div_hist = if config.center_oscillation.enabled && !bars.is_empty() {
         let closes: Vec<f64> = bars
             .iter()
@@ -1278,6 +1494,11 @@ where
             // 产触发事件上协议轨（#274 原料）。父腿快照/sync、候选路由、P10 Record、
             // 账面 apply 与净额叠加出口全部随 S6 账面形态删除。
             let mut protocol_events = super::super::strategy::protocol::ProtocolEventSet::hold(0);
+            // #292（T2 接线点一）：本 bar 门后 PanDivTrigger 收集（level, trigger）——消费仍留在
+            // 本函数（依赖 tower_i/hist/gate，不可抽离）；产出交给下方纯函数 `step_center_oscillation`
+            // 做中枢生命周期驱动 + 触发转换（无 tower/gate 依赖，可直接单测）。
+            let mut pan_div_triggers: Vec<(usize, super::super::strategy::oscillation::PanDivTrigger)> =
+                Vec::new();
             if let Some(hist) = pan_div_hist.as_deref() {
                 for (lvl, ls) in classification_i.levels.iter().enumerate() {
                     for cert in ls.pan_div.iter() {
@@ -1311,8 +1532,21 @@ where
                         // DA-Q2：PanDiv 触发证据留在协议轨（#274 消费点；本层不产订单）。
                         let trigger = pan_div_state.prepare(gated);
                         protocol_events = protocol_events.with_center_oscillation(trigger);
+                        pan_div_triggers.push((lvl, trigger));
                     }
                 }
+                // #292（T2 接线点一+二）：级数对齐 + 逐级驱动本 bar 中枢生命周期事件（born/broken/
+                // reset/superseded）+ PanDivTrigger→CenterOscillationTrigger 转换消费（A 裁定：
+                // 中枢身份取本级 `alive_center()`，非 pan_div 坐标投影）→ 挂起账减补动作上
+                // osc_actions（接线可见性证据；真实记账是 T3/#293 职责，本层不动订单/账本）。
+                osc_actions.extend(step_center_oscillation(
+                    i,
+                    &classification_i,
+                    &classification_step,
+                    &pan_div_triggers,
+                    &mut cl_machines,
+                    &mut osc_books,
+                ));
             }
             let (next_active, standard_p_star, (mut order, _protocol_event), step_trace) = coverage::pi_theta_step_traced(
                 step_work,
@@ -2141,6 +2375,7 @@ where
         tw_final: Some(tw_thread.finish()),
         r_decomp: Some(r_decomp),
         account_view,
+        center_oscillation_actions: osc_actions,
     }
 }
 
@@ -2176,6 +2411,12 @@ pub(super) struct FillOutput {
     /// （账户, 级别, 仓位节点）分实例账本；v1/dual 路径无腿级生命周期事件 ⟹ 恒空
     /// （诚实不伪造，同 `typed_ledger` 先例）。不改净额路径任何语义。
     pub(super) account_view: strategy::account::ParallelAccountLedger,
+    /// #292（T2 门控接线可见性证据）：逐条「触发→减补动作」记录。π overlay 路径
+    /// [`pi_theta_fill_loop_overlay`] 在 `config.center_oscillation.enabled` 时产出；v1/dual
+    /// 路径未接线 ⟹ 恒空（诚实不伪造，同 `typed_ledger` 先例）。真实记账是 T3（#293）职责，
+    /// 本轨不改任何既有订单/账本语义。
+    pub(super) center_oscillation_actions:
+        Vec<super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord>,
 }
 
 /// ★ mark-to-market 闭环 plan+fill（Task A，消除开环单帧）。
@@ -2484,6 +2725,7 @@ pub(super) fn plan_and_fill_mtm(
         tw_final: None,           // v1 无 TW 接线（#124 只接 π 路径，诚实 None）
         r_decomp: None,           // v1 无 R 分解（M6 只接生产 π 路径，诚实 None）
         account_view: strategy::account::ParallelAccountLedger::new(), // v1 无腿级生命周期（诚实空，#197）
+        center_oscillation_actions: Vec::new(), // v1 无 #292 门控接线（诚实空，同 typed_ledger 先例）
     }
 }
 
@@ -2952,6 +3194,7 @@ pub(super) fn plan_and_fill_mtm_dual(
             tw_final: Some(tw_thread.finish()),       // #68② TW 已接线（ShortDiff 成本划转 + Realize 平仓入账 + ReverseOpen 腿计数；快照取强平前，强平 PnL 不入 TW）
             r_decomp: None,
             account_view: strategy::account::ParallelAccountLedger::new(), // 无腿级生命周期（诚实空，#197）
+            center_oscillation_actions: Vec::new(), // dual 路径无 #292 门控接线（诚实空，同 typed_ledger 先例）
         },
         ledger,
         leg_log,

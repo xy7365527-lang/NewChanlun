@@ -27,9 +27,9 @@
 
 use super::super::classifier::center_lifecycle::{CenterId, CenterLifecycleEvent};
 use super::super::types::Side;
-use super::oscillation::BoundarySide;
+use super::oscillation::{BoundarySide, PanDivTrigger};
 use super::voice::VoiceSide;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 /// 触发构造的 typed 拒绝（无静默兜底）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,6 +74,32 @@ impl CenterOscillationTrigger {
         Ok(Self { level, center, boundary_side, signal_side, source_index })
     }
 
+    /// #292 接线点二：`oscillation::PanDivTrigger`（#282 保留触发链）→ 本触发的转换（票面
+    /// 「五要素映射」：级别/信号方向/中枢身份/边界侧/盘背证据 → 本触发的四项构造输入）。
+    ///
+    /// - **级别**：`pan_div.level()` 原样传入。
+    /// - **信号方向**：`pan_div.signal_side()` 原样传入——内部按 `new` 同一映射重派生
+    ///   `boundary_side`（`Long→Below`/`Short→Above`），故结果与来源 `pan_div.boundary_side()`
+    ///   **必然相等**（两处同口径，非巧合；见 `pan_div_conversion_boundary_side_matches_source`）。
+    /// - **中枢身份**：**不**取 `pan_div.center()`（那只是 `OscillationCenterRef` 坐标投影，
+    ///   缺 zd/zg 核心区间，不是 `CenterId`）——按 A 裁定，身份唯一源 = 调用方传入的本级
+    ///   `alive_center()`（经 `CenterId::of` 投影），不复用 PanDiv 自带坐标另立第二套「在场」
+    ///   判据。`alive=None` ⟹ `Err(CenterNotAlive)`（与 `new` 同一失败面）。
+    /// - **盘背证据**：`pan_div.evidence()` 降格为 `source_index`（`reference().source_index()`）
+    ///   ——本触发类型面不携证据类型本身，只留可追溯坐标（B 裁定：盘背是触发主信号源之一，
+    ///   非本触发的必要账面字段）。
+    pub fn from_pan_div_trigger(
+        pan_div: PanDivTrigger,
+        alive: Option<CenterId>,
+    ) -> Result<Self, TriggerError> {
+        Self::new(
+            pan_div.level(),
+            alive,
+            pan_div.signal_side(),
+            pan_div.evidence().reference().source_index(),
+        )
+    }
+
     pub const fn level(self) -> u32 {
         self.level
     }
@@ -104,6 +130,17 @@ impl CenterOscillationTrigger {
 pub enum CenterOscillationAction {
     Reduce,
     Replenish,
+}
+
+/// #292 门控接线可观测轨迹（fill.rs 开启臂产出）：一条「触发 → 减补动作」的可见记录。
+/// 只是接线验收证据——真实记账（本仓成本基/短差盈亏标签桶）是 T3（#293）的职责，本记录
+/// 不携任何账面语义。门关（`center_oscillation.enabled=false`）⟹ 本类型全程不构造（诚实空）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CenterOscillationActionRecord {
+    pub bar: usize,
+    pub level: u32,
+    pub center: CenterId,
+    pub action: CenterOscillationAction,
 }
 
 /// 挂起短差的终结来源（ADR 补充二 + #292 前置约束五条）。四源同走「终结」出口，互不重叠。
@@ -139,15 +176,22 @@ pub struct SuspensionOutcome {
 /// 身份 → 是否挂起：只存 `Suspended` 身份；不存在于表中 = 未挂起（含「从未挂起过」与
 /// 「已终结」两种情形——两者对外行为相同：回补请求一律拒绝，终结信号一律 no-op，天然满足
 /// C 裁定的幂等要求，无需额外的 `Terminated` 哨兵态）。
+///
+/// ★#292 H1（域层评审）：`BTreeMap` 非 `HashMap`——`on_lifecycle_event` 的 `Reset` 分支需要
+/// 把「当前挂起的全部身份」投影成 `Vec` 输出（清空整场，票面项 8），`HashMap::keys()` 迭代序
+/// 依赖默认哈希（跨进程/跨版本不确定）；`BTreeMap` 按 `CenterId` 派生序确定性迭代，wf8
+/// bit-exact 回归不受哈希实现变化影响（exit.rs `step_active_set_with_subtree_close` 的
+/// `HashSet` 反例：那里只做 `.contains()` membership 查询、从不迭代输出，故哈希序无关；
+/// 本处迭代序直接进产出 `Vec` 顺序，二者边界正在于「迭代是否进输出」）。
 #[derive(Debug, Default)]
 pub struct CenterOscillationBook {
     level: u32,
-    suspended: HashMap<CenterId, ()>,
+    suspended: BTreeMap<CenterId, ()>,
 }
 
 impl CenterOscillationBook {
     pub fn new(level: u32) -> Self {
-        Self { level, suspended: HashMap::new() }
+        Self { level, suspended: BTreeMap::new() }
     }
 
     pub const fn level(&self) -> u32 {
@@ -547,5 +591,82 @@ mod tests {
         let mut book = CenterOscillationBook::new(1);
         let t = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, 10).unwrap();
         book.on_trigger(t);
+    }
+
+    // ── #292 接线点二：PanDivTrigger → CenterOscillationTrigger 转换 ─────────
+
+    use super::super::oscillation::{ConsolidationDivergenceEvidence, OscillationCenterRef, OscillationEvidenceRef};
+
+    fn pan_div(level: u32, signal_side: VoiceSide, source_index: usize) -> PanDivTrigger {
+        PanDivTrigger::from_gated_pan_div(
+            level,
+            signal_side,
+            OscillationCenterRef::new(10, 30), // 坐标投影：与 CenterId 无关（A 裁定不复用它）
+            ConsolidationDivergenceEvidence::new(OscillationEvidenceRef::new(source_index, 0)),
+        )
+        .unwrap()
+    }
+
+    /// 五要素映射：级别/信号方向/盘背证据(source_index) 原样传导；中枢身份取调用方传入的
+    /// `alive`（不取 `pan_div.center()` 坐标投影——A 裁定单一在场判据）。
+    #[test]
+    fn pan_div_conversion_maps_five_elements() {
+        let alive = cid(5, 100, 200);
+        let pd = pan_div(3, VoiceSide::Short, 777);
+        let t = CenterOscillationTrigger::from_pan_div_trigger(pd, Some(alive)).unwrap();
+        assert_eq!(t.level(), 3, "级别原样传导");
+        assert_eq!(t.signal_side(), VoiceSide::Short, "信号方向原样传导");
+        assert_eq!(t.center(), alive, "中枢身份=调用方传入的 alive，非 pan_div 坐标投影");
+        assert_eq!(t.source_index(), 777, "盘背证据降格为 source_index 原样传导");
+    }
+
+    /// 边界侧核对：转换产出的 boundary_side 与来源 `PanDivTrigger.boundary_side()` 必然相等
+    /// （两处同一映射：Long→Below / Short→Above）。
+    #[test]
+    fn pan_div_conversion_boundary_side_matches_source() {
+        let alive = cid(5, 100, 200);
+        let buy = pan_div(1, VoiceSide::Long, 10);
+        let buy_source_boundary = buy.boundary_side();
+        let mapped_buy = CenterOscillationTrigger::from_pan_div_trigger(buy, Some(alive)).unwrap();
+        assert_eq!(mapped_buy.boundary_side(), buy_source_boundary);
+        assert_eq!(mapped_buy.boundary_side(), BoundarySide::Below);
+
+        let sell = pan_div(1, VoiceSide::Short, 11);
+        let sell_source_boundary = sell.boundary_side();
+        let mapped_sell = CenterOscillationTrigger::from_pan_div_trigger(sell, Some(alive)).unwrap();
+        assert_eq!(mapped_sell.boundary_side(), sell_source_boundary);
+        assert_eq!(mapped_sell.boundary_side(), BoundarySide::Above);
+    }
+
+    /// A 裁定：本级无在场中枢（`alive=None`）⟹ 转换拒绝，与 `new` 同一失败面，不新增静默兜底。
+    #[test]
+    fn pan_div_conversion_rejects_when_no_alive_center() {
+        let pd = pan_div(2, VoiceSide::Long, 20);
+        assert_eq!(
+            CenterOscillationTrigger::from_pan_div_trigger(pd, None),
+            Err(TriggerError::CenterNotAlive)
+        );
+    }
+
+    // ── H1 确定性回归：BTreeMap 迭代序 ────────────────────────────────────
+
+    /// Reset「清空整场」的多身份终结产出必须按 `CenterId` 派生序确定性排列（BTreeMap 键序），
+    /// 不依赖 HashMap 默认哈希（跨进程/跨版本不确定）。三身份刻意按乱序插入，产出必须升序。
+    #[test]
+    fn reset_multi_suspension_outcomes_are_deterministically_ordered_by_center_id() {
+        let mid = cid(50, 100, 200);
+        let low = cid(5, 10, 20);
+        let high = cid(900, 500, 600);
+        let mut book = CenterOscillationBook::new(0);
+        // 刻意乱序插入（mid → high → low），核对输出与插入序无关，只与 CenterId 派生序有关。
+        for (id, seed) in [(mid, 10usize), (high, 20), (low, 30)] {
+            book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, seed).unwrap());
+        }
+        let outcomes = book.on_lifecycle_event(&reset_with(None));
+        let ids: Vec<CenterId> = outcomes.iter().map(|o| o.center).collect();
+        assert_eq!(ids, vec![low, mid, high], "产出必须按 CenterId 升序（BTreeMap 派生序），非插入序");
+        let mut sorted = ids.clone();
+        sorted.sort();
+        assert_eq!(ids, sorted, "确定性排序自证：与显式排序结果一致");
     }
 }

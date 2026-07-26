@@ -154,7 +154,10 @@ use super::super::types::{BspBits, Center, Side, Tick};
 ///
 /// 外缘 `dd/gg` 与 `end_index` **不进**身份：二者随延伸/窗口推进而变，进身份会把「同一中枢被
 /// 延伸」误判成「不同中枢」。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// ★#292 H1（域层评审）：新增 `PartialOrd`/`Ord`——#292 挂起短差账（`CenterOscillationBook`）
+/// 需要按身份确定性排序遍历（BTreeMap 键），禁 HashMap 默认哈希序（跨进程/跨版本不确定，
+/// 破坏 wf8 bit-exact 回归）。字段序 `(start_index, zd, zg)` 即派生序，无额外语义。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CenterId {
     /// 中枢首单元在 L0 原始 K 序的起点。
     pub start_index: usize,
