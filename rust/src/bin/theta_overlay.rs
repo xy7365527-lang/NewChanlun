@@ -77,7 +77,7 @@ fn main() -> std::process::ExitCode {
     println!("--- ★M5 overlay 逐声部账本（多空对冲.pdf p16 关卡10）---");
     println!("活动声部数      : {}", r.overlay.active_voices().count());
     println!("已离场声部数    : {}", r.overlay.closed_voices().len());
-    println!("overlay 订单数  : {}", r.n_overlay_orders);
+    println!("overlay 声部总数: {}", r.n_overlay_voices);
     println!("终态净敞口 N    : {}", r.overlay.net());
     println!("--- ★M7 treasury 层（三阶段 TW 账本终态，overlay 臂主 loop 内建）---");
     match &r.tw_final {
