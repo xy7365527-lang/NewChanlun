@@ -9,6 +9,25 @@ Always respond in Chinese-simplified (简体中文).
 
 本项目的顶层路线图见 [`docs/ROADMAP.md`](docs/ROADMAP.md)，定义四大支柱（缠论引擎 / PH 拓扑 / K4 选股 / IBKR 执行）和五个里程碑（M1 回测验证 → M2 选股正则化 → M3 全市场实时信号 → M4 风控与执行 → M5 生产加固），包含每个支柱的当前状态、代码映射和技术依赖图。
 
+## 形式化验证节拍（fixture 漂移 gate，issue #263 / #245 裁定）
+
+凡改动 `formal/` 的 session，**收尾必跑 fixture 漂移检查**（两个机器导出 fixture ↔ Lean 源一致性）：
+
+```bash
+python3 scripts/check_fixture_drift.py
+# 或（cargo 入口，#[ignore] 默认不跑）：
+cd rust && cargo test --release --test theta_v0_fixture_drift -- --ignored --nocapture
+```
+
+- exit=0 无漂移；exit=1 真漂移（打出字段级差异——regen 重落 fixture 或回退 Lean 改动）；
+  exit=3/4/5 为工具链/构建问题（**非漂移**：3=lake 不在 PATH，4=lake build 失败，5=导出器运行失败）。
+- 冷环境（`formal/.lake/build` 缺失/为空）脚本先 `lake build` 全量构建（自包含无外部依赖；
+  实测耗时见 `scripts/check_fixture_drift.py` docstring）。
+- 覆盖 fixture：`rust/tests/fixtures/theta_v0_parity.json`（导出器 `formal/Origin/ParityFixtureExport.lean`）、
+  `rust/tests/fixtures/theta_v0_center_parity.json`（导出器 `formal/Origin/CenterConstruct.lean:634`）。
+  改动这两个 fixture 对应的 Lean 源后，用 `cd formal && lake env lean <导出器> > ../rust/tests/fixtures/<fixture>`
+  重落盘（机器导出，禁手编）。
+
 ## 缠论资料入口（本仓库）
 
 - **速查/可编码定义**：`缠论知识库.md`
