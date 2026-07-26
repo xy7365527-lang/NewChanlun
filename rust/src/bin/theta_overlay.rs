@@ -70,8 +70,16 @@ fn main() -> std::process::ExitCode {
         None => println!("日期窗          : 全量"),
     }
     println!("bar 数          : {}", r.n_bars);
-    println!("--- 净额执行层（net_result，与 run_theta_v0_pi bit-exact）---");
-    println!("净额订单数      : {}", r.net_result.n_orders);
+    // #313（#305 评审 LOW-2）：`net_result` 的口径随 env `VOICE_EXEC` 分叉——backtest/runner.rs 的
+    // `net_result`/`voice_exec` 字段注释明载：VOICE_EXEC=1 时本结构承载**声部执行投影**
+    // （n_orders = 声部 fill 事件数 ≡ `voice_exec.n_voice_fills`，equity/trade_pnls/r_decomp =
+    // 声部账户），决策层（typed_ledger/TW/sep_legs）仍与净额臂逐字节一致；VOICE_EXEC=0（默认）
+    // 时本段读数逐字节即净额执行层，与 run_theta_v0_pi bit-exact（该路径语义声明不变）。
+    // 标签照实分列，两读数禁互相冒充（090 声明=能力）。
+    println!(
+        "--- 执行层读数（net_result：VOICE_EXEC=0 默认=净额执行层，与 run_theta_v0_pi bit-exact；=1 时为声部执行投影）---"
+    );
+    println!("净额/声部订单数 : {}", r.net_result.n_orders);
     println!("成交交易笔数    : {}", r.net_result.metrics.n_trades);
     println!("strat_return    : {:.6}", r.net_result.metrics.strat_return);
     println!("--- ★M5 overlay 逐声部账本（多空对冲.pdf p16 关卡10）---");
