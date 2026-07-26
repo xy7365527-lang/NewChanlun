@@ -3,6 +3,15 @@
 验证 `newchan_rust.segments_from_strokes_v1` 与 Python
 `newchan.a_segment_v1.segments_from_strokes_v1` 在**同一笔列表**上输出逐字段相等。
 
+## ⚠口径变更（#246 裁定，supersede Lead #84 点3；#277 落码 2026-07-26）
+
+相切边界（三笔重叠含端点 `<=`、缺口谓词严格 `>`，对齐 Lean Overlaps/HasGap）
+两侧同批切换——本 golden 契约在**新口径**下继续成立，相切边界不再 bit-exact
+对齐 2026-07-26 前旧口径的历史输出/基线（实测段端点零变化，仅
+`break_evidence.gap_type` 标签级翻转）。裁定书：
+`chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`。
+本文件其余声明不受影响。
+
 ## 契约：批量等价
 
 segment 是笔列表 → 线段列表的批量函数。本测试的契约是：给定同一 `list[Stroke]`，

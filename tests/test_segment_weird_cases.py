@@ -17,7 +17,11 @@ import pytest
 
 from newchan.a_stroke import Stroke
 from newchan.a_segment_v0 import Segment
-from newchan.a_segment_v1 import segments_from_strokes_v1
+from newchan.a_segment_v1 import (
+    _is_fractal_and_gap,
+    _three_stroke_overlap,
+    segments_from_strokes_v1,
+)
 from newchan.a_assertions import assert_segment_theorem_v1
 
 
@@ -370,3 +374,42 @@ class TestAssertIntegrationV1:
         segs = segments_from_strokes_v1(strokes)
         result = assert_segment_theorem_v1(strokes, segs, enable=False)
         assert result.ok, f"Unexpected failure: {result.message}"
+
+
+# =====================================================================
+# C) 三笔重叠边界情况（相切 vs 重叠）— #246 裁定：相切=重合
+# =====================================================================
+
+class TestTangencyCaliber:
+    """相切=重合口径单元测试（#246 裁定，supersede Lead #84 点3；#277 落码）。
+
+    相切（仅公共端点）视为重合：
+    - 三笔重叠：max(lows) == min(highs) → 有重叠（闭区间 <=，对齐 Lean Overlaps）
+    - 缺口判定：b_l == a_h / a_l == b_h → 无缺口（严格 >，对齐 Lean HasGap）
+
+    既有 golden/parity 构造全为严格不等，对本口径不敏感（测试真空注记属实）；
+    本组相切用例是口径保障。裁定书：
+    chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md
+    """
+
+    def test_three_stroke_overlap_tangent_counts_as_overlap(self):
+        """三笔区间 [5,10]、[8,12]、[10,14]：max(lows)==min(highs)==10（相切）→ 有重叠。"""
+        a = _s(0, 4, "up", 10, 5)
+        b = _s(4, 8, "down", 12, 8)
+        c = _s(8, 12, "up", 14, 10)
+        assert _three_stroke_overlap(a, b, c) is True
+        # 对照：严格分离（无公共端点）仍无重叠
+        d = _s(8, 12, "up", 14, 11)
+        assert _three_stroke_overlap(a, b, d) is False  # max_lo=11 > min_hi=10
+
+    def test_is_fractal_and_gap_tangent_up_no_gap(self):
+        """向上段顶分型，b_l == a_h（相切）→ 无缺口。"""
+        is_fractal, has_gap = _is_fractal_and_gap(10, 5, 20, 10, 8, 3, "up")
+        assert is_fractal is True  # 20 > 10 and 20 > 8
+        assert has_gap is False  # b_l=10 相切 a_h=10 → 有重合 → 无缺口
+
+    def test_is_fractal_and_gap_tangent_down_no_gap(self):
+        """向下段底分型，a_l == b_h（相切）→ 无缺口。"""
+        is_fractal, has_gap = _is_fractal_and_gap(15, 10, 10, 3, 18, 14, "down")
+        assert is_fractal is True  # 3 < 10 and 3 < 14
+        assert has_gap is False  # a_l=10 相切 b_h=10 → 有重合 → 无缺口

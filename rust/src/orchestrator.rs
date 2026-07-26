@@ -9,6 +9,13 @@
 //! `RecursiveOrchestrator.process_bar(bar)` 返回的 `RecursiveOrchestratorSnapshot`
 //! 中的**结构化列表**字段。
 //!
+//! ⚠口径变更（#246 裁定，supersede Lead #84 点3；#277 落码 2026-07-26）：段层
+//! 相切边界（三笔重叠含端点 `<=`、缺口谓词严格 `>`）与 Python 参考同批切换，
+//! 逐位等价在**新口径**下继续成立，相切边界不再 bit-exact 对齐旧口径历史基线
+//! （实测段端点零变化，仅 `break_evidence.gap_type` 标签级翻转，下游中枢/走势/
+//! BSP 链不读 gap_type）。
+//! 裁定书：`chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`。
+//!
 //! **DomainEvent 流不在范围内**（与 bi_engine.rs 同款声明）：events 是 diff 的纯
 //! 副产物，不参与状态递归——下游引擎只读 `snapshot.moves` 不读 `.events`（已核查
 //! recursive_stack.py / recursive_level_engine.py / *_engine.py）。故"逐位等价"

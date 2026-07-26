@@ -46,6 +46,10 @@ for _p in (str(ROOT), str(ROOT / "src")):
         sys.path.insert(0, _p)
 
 import newchan_rust  # Rust 引擎（逐位等价于 Python orchestrator）
+# ⚠口径变更（#246 裁定 supersede #84 点3；#277 落码 2026-07-26）：段层相切边界
+# （三笔重叠含端点、缺口严格 >）两侧同批切，等价在新口径下成立，相切边界不再
+# bit-exact 对齐旧口径基线。裁定书：
+# chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md
 
 # 纯数据函数复用（与引擎无关）：加载 / 对数包络比价 / σ dataclass
 from analysis.k4_1min_lib import (  # noqa: E402

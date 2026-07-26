@@ -47,8 +47,15 @@ logger = logging.getLogger(__name__)
 # ====================================================================
 
 def _three_stroke_overlap(s1: Stroke, s2: Stroke, s3: Stroke) -> bool:
-    """三笔交集重叠判定。"""
-    return max(s1.low, s2.low, s3.low) < min(s1.high, s2.high, s3.high)
+    """三笔交集重叠判定。
+
+    ★口径（#246 裁定，supersede Lead #84 点3；#277 落码）：含端点 `<=`
+    （相切=重合 ⟹ `max(lows) == min(highs)` 时判 True），对齐 Lean
+    `Origin.SegmentFeatureSeq.Overlaps`（闭区间；一维 Helly：两两相交 ⟺
+    公共交集非空），与 theta_v0 `Interval::overlaps` 同形。
+    裁定书：chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md
+    """
+    return max(s1.low, s2.low, s3.low) <= min(s1.high, s2.high, s3.high)
 
 
 def _find_overlap_start(strokes: list[Stroke], from_s: int) -> int | None:
@@ -256,13 +263,18 @@ def _is_fractal_and_gap(
     仍是转折信号。
 
     Returns (is_fractal, has_gap).
+
+    ★口径（#246 裁定，supersede Lead #84 点3；#277 落码）：相切（仅公共端点，
+    如 b_l == a_h）**不算缺口**——相切=重合 ⟹ 无缺口，缺口谓词为严格 `>`，
+    对齐 Lean `Origin.SegmentFeatureSeq.HasGap`（严格 `<`）及 gap_iff_not_overlap。
+    裁定书：chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md
     """
     if seg_direction == "up":
         is_fractal = b_h > a_h and b_h > c_h
-        has_gap = b_l >= a_h if is_fractal else False
+        has_gap = b_l > a_h if is_fractal else False
     else:
         is_fractal = b_l < a_l and b_l < c_l
-        has_gap = a_l >= b_h if is_fractal else False
+        has_gap = a_l > b_h if is_fractal else False
     return is_fractal, has_gap
 
 

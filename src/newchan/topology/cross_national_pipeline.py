@@ -191,7 +191,10 @@ class EdgeReading:
 def _run_recursive(name: str, s: _Series) -> EdgeReading:
     """对一条边序列跑 Rust RecursiveOrchestrator，提取最高级别走势 → EdgeReading。
 
-    引擎为 ``newchan_rust.RecursiveOrchestrator``（逐位等价 Python 版，~23×）。
+    引擎为 ``newchan_rust.RecursiveOrchestrator``（逐位等价 Python 版，~23×；
+    段层相切边界 2026-07-26 起按 #246 裁定/#277 落码两侧同批切，等价在新口径下
+    成立，相切边界不再 bit-exact 对齐旧口径基线——裁定书
+    chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md）。
     Python O(N²) 流式引擎对 1min 量级（852k bar）不可行，故 1min 跨国管线必须用
     Rust 引擎。Rust 接口为查询式：``process_bar(o,h,l,c)`` 逐 bar 驱动，
     ``current_moves()`` / ``current_recursive()`` 读出结构化结果。
