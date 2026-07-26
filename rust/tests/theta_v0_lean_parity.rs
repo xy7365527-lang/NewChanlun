@@ -95,10 +95,32 @@ struct GapOverlapSection {
     strict_overlap: GapOverlapCase,
 }
 
+/// 一条用例：四个输入端点 + 两个真值，**全部**由 Lean 机器导出（端点自 #319 起入 fixture，
+/// 此前是本文件与 `parser::gap_overlap_fixture` 各誊写一份的人工对照）。
 #[derive(Deserialize)]
 struct GapOverlapCase {
+    a_low: i64,
+    a_high: i64,
+    b_low: i64,
+    b_high: i64,
     has_gap: bool,
     overlaps: bool,
+}
+
+impl GapOverlapCase {
+    /// fixture 端点 → rust `Interval` 对（`lo`/`hi` 直取导出值，禁手填）。
+    fn intervals(&self) -> (Interval, Interval) {
+        (
+            Interval {
+                lo: self.a_low,
+                hi: self.a_high,
+            },
+            Interval {
+                lo: self.b_low,
+                hi: self.b_high,
+            },
+        )
+    }
 }
 
 #[derive(Deserialize)]
@@ -428,8 +450,9 @@ fn lean_continuation_hold_bit_exact() {
 //  与 `Interval::gap`（!overlaps）与之逐字对齐。本测试断言：对同一批区间对用例，
 //  rust 既有原语计算 == fixture 中 Lean `decide` 机器导出值。
 //
-//  用例区间端点为双侧镜像的**用例输入**（与 §1 SellEndpoint 手编码输入同性质）；
-//  期望值（has_gap/overlaps）全部从 fixture 读（Lean #eval 机器产，禁手填）。
+//  用例区间端点与期望值（has_gap/overlaps）**全部**从 fixture 读（Lean #eval 机器产，禁手填）
+//  ——端点自 #319（#316 影子评审 MED-1）起由 `gapOverlapJson` 读 `FeatureElem` 字段导出，
+//  本文件不再誊写。
 //  Overlaps 真值经 `decide (Overlaps ..)` 直接读出（#296 已补 Decidable instance，
 //  SegmentFeatureSeq.lean:114；历史：#248 时经 `decide (¬ HasGap ..)` 由
 //  `gap_iff_not_overlap`（:118）互推，090 留痕）。
@@ -443,49 +466,41 @@ fn lean_continuation_hold_bit_exact() {
 //  `parser::gap_overlap_fixture`（读同一份 fixture）+ 两模块的
 //  `*_lean_fixture_bit_exact` 单测（`cargo test --lib`）。本测试绿 ≠ 那两个谓词的口径已锁。
 //
-//  ⚠端点镜像存在于两处（本文件下方 5 组 + `parser::gap_overlap_fixture::gap_overlap_cases`），
-//  且两处都是人工对照（fixture 只导出真值、不导出输入端点）。导出器 `:186-190` 的端点若改，
-//  **必须同改两处**——任一处漏改都不会红。
+//  ★端点转录漂移已消（#319）：端点唯一权威源是导出器 `:204-208` 的 `feOf` 参数，经
+//  `gapOverlapJson` 机器导出进 fixture；本文件与 `parser::gap_overlap_fixture::gap_overlap_cases`
+//  都改读 fixture 端点，rust 侧零誊写。Lean 端点改 ⟹ fixture 变 ⟹ 两处用例输入同步变，
+//  与导出真值不符即红（此前两处各誊写一份，任一处漏改都不会红）。
 // ════════════════════════════════════════════════════════════════════════════
 
 /// rust `Interval::overlaps`/`gap` == Lean `decide(HasGap)`/`decide(¬HasGap)` 逐用例 bit-exact。
 #[test]
 fn lean_gap_overlap_tangent_bit_exact() {
     let fx = load_fixture();
-    // (a, b, Lean 机器导出期望, 用例名)——区间端点与 ParityFixtureExport gap_overlap 段逐一镜像。
-    let cases: [(Interval, Interval, &GapOverlapCase, &str); 5] = [
+    // (Lean 机器导出用例, 用例名)——区间端点与真值同源于 fixture 的 gap_overlap 段（#319）。
+    let cases: [(&GapOverlapCase, &str); 5] = [
         (
-            Interval { lo: 5, hi: 10 },
-            Interval { lo: 10, hi: 20 },
             &fx.gap_overlap.tangent_a_high_eq_b_low,
-            "tangent_a_high_eq_b_low（[5,10] 与 [10,20] 相切）",
+            "tangent_a_high_eq_b_low（a.high == b.low 相切）",
         ),
         (
-            Interval { lo: 10, hi: 20 },
-            Interval { lo: 5, hi: 10 },
             &fx.gap_overlap.tangent_b_high_eq_a_low,
             "tangent_b_high_eq_a_low（反向相切）",
         ),
+        (&fx.gap_overlap.strict_disjoint, "strict_disjoint（严格分离）"),
         (
-            Interval { lo: 5, hi: 10 },
-            Interval { lo: 11, hi: 20 },
-            &fx.gap_overlap.strict_disjoint,
-            "strict_disjoint（严格分离）",
-        ),
-        (
-            Interval { lo: 11, hi: 20 },
-            Interval { lo: 5, hi: 10 },
             &fx.gap_overlap.strict_disjoint_rev,
             "strict_disjoint_rev（反向严格分离）",
         ),
         (
-            Interval { lo: 5, hi: 12 },
-            Interval { lo: 8, hi: 20 },
             &fx.gap_overlap.strict_overlap,
             "strict_overlap（严格重叠对照）",
         ),
     ];
-    for (a, b, expected, name) in cases {
+    for (expected, name) in cases {
+        // 端点侧不变量（`FeatureElem.valid`：low ≤ high）不在本文件重复断言——
+        // crate 内 `parser::gap_overlap_fixture::tests::fixture_endpoints_are_valid_intervals`
+        // 已守同一条不变量（同一份 fixture）；此处接反端点仍会被下面的谓词失配捕获。
+        let (a, b) = expected.intervals();
         assert_eq!(
             a.gap(&b),
             expected.has_gap,

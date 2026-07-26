@@ -12,19 +12,22 @@
 //!
 //! 修法取票 #312 的 (b)：**不扩谓词可见性**，把两模块内既有的手填期望值单测改读**同一份** Lean
 //! 机器导出 fixture（`rust/tests/fixtures/theta_v0_parity.json` 的 `gap_overlap` 段，导出器
-//! `formal/Origin/ParityFixtureExport.lean:186-190`）。本模块是这条耦合链的唯一读取点，供
+//! `formal/Origin/ParityFixtureExport.lean:204-208`）。本模块是这条耦合链的唯一读取点，供
 //! `feature_seq::tests` 与 `segment::tests` 共用（避免两处重复 JSON 解析）。
 //!
 //! ## 手填 vs 机器耦合的分界（090 诚实边界，逐项登记）
 //!
 //! - **两谓词单测的期望值**（`has_gap` / `overlaps`）：全部从 fixture 反序列化，**禁手填**——
 //!   Lean `decide` 求值产物，是本模块存在的理由；
-//! - **用例区间端点**：逐字镜像导出器 `:186-190` 的 `feOf` 参数（fixture 只导出真值、不导出输入
-//!   端点），与主缝 `theta_v0_lean_parity.rs` §7 的镜像同性质。端点若与 Lean 侧漂移，本缝
-//!   **不会红**——这一段是人工对照，如实登记，不冒充机器耦合。同一组端点因此存在于两处（本文件
-//!   与主缝文件），Lean 端点改动须同改两处；
+//! - **用例区间端点**（`a` / `b`）：自 **#319**（#316 影子评审 MED-1）起同样从 fixture 读
+//!   （导出器 `gapOverlapJson` 增导 `a_low`/`a_high`/`b_low`/`b_high`，读 `FeatureElem` 字段求值）。
+//!   此前是逐字誊写导出器 `feOf` 参数的人工对照，且同一组端点存在于本文件与主缝
+//!   `theta_v0_lean_parity.rs` §7 两处，Lean 端点改而 rust 漏改**两侧都不会红**；现端点唯一权威源
+//!   在导出器，rust 侧零誊写，漂移沿「Lean 改端点 ⟹ fixture 变 ⟹ 用例输入变 ⟹ 谓词结果与导出真值
+//!   不符」即红；
 //! - **本模块自身的 `tests`**：`GapOverlapKind` 与 fixture 真值的对应关系是 **#246 裁定口径的人工
 //!   编码**（相切⟹无缺口 / 严格分离⟹有缺口），不是机器导出。裁定若翻转，该守卫须同步改。
+//!   `kind` 本身仍是人工归类，但其与端点的相符性由 `tests::fixture_endpoints_match_kind` 核实。
 //!
 //! ## 有效域（自动化层缺一腿，如实登记）
 //!
@@ -40,20 +43,26 @@
 
 use super::super::types::Tick;
 
-/// Lean 侧对一对特征序列元素求值出的两个真值（`decide (HasGap a b)` / `decide (Overlaps a b)`）。
+/// Lean 侧一条用例的机器导出：四个输入端点（`FeatureElem` 字段求值）+ 两个真值
+/// （`decide (HasGap a b)` / `decide (Overlaps a b)`）。端点自 #319 起随 fixture 导出，
+/// rust 侧不再誊写。
 #[derive(serde::Deserialize, Clone, Copy)]
-struct LeanTruth {
+struct LeanCase {
+    a_low: Tick,
+    a_high: Tick,
+    b_low: Tick,
+    b_high: Tick,
     has_gap: bool,
     overlaps: bool,
 }
 
 #[derive(serde::Deserialize)]
 struct GapOverlapExport {
-    tangent_a_high_eq_b_low: LeanTruth,
-    tangent_b_high_eq_a_low: LeanTruth,
-    strict_disjoint: LeanTruth,
-    strict_disjoint_rev: LeanTruth,
-    strict_overlap: LeanTruth,
+    tangent_a_high_eq_b_low: LeanCase,
+    tangent_b_high_eq_a_low: LeanCase,
+    strict_disjoint: LeanCase,
+    strict_disjoint_rev: LeanCase,
+    strict_overlap: LeanCase,
 }
 
 #[derive(serde::Deserialize)]
@@ -72,16 +81,16 @@ pub(super) enum GapOverlapKind {
     StrictOverlap,
 }
 
-/// 一条 Lean 导出用例：镜像输入端点 + 机器导出真值。
+/// 一条 Lean 导出用例：机器导出端点 + 机器导出真值（两者同源，#319 后 rust 侧零手填）。
 #[derive(Clone, Copy)]
 pub(super) struct GapOverlapCase {
     /// 用例名（与 fixture / 导出器同名，失败信息里指认到具体形态）。
     pub name: &'static str,
-    /// 几何形态（人工归类，由 `tests::mirrored_endpoints_match_kind` 对端点核实）。
+    /// 几何形态（人工归类，由 `tests::fixture_endpoints_match_kind` 对端点核实）。
     pub kind: GapOverlapKind,
-    /// 区间 a `[lo, hi]`（镜像 `ParityFixtureExport.lean` 的 `feOf` 参数）。
+    /// 区间 a `[lo, hi]`（fixture 读出 `a_low`/`a_high`，禁手填）。
     pub a: (Tick, Tick),
-    /// 区间 b `[lo, hi]`。
+    /// 区间 b `[lo, hi]`（fixture 读出 `b_low`/`b_high`，禁手填）。
     pub b: (Tick, Tick),
     /// Lean `decide (HasGap a b)`（fixture 读出，禁手填）。
     pub has_gap: bool,
@@ -108,62 +117,84 @@ impl GapOverlapCase {
     }
 }
 
+/// 把 fixture 的一条导出用例接成 `GapOverlapCase`（端点与真值同源，唯一人工输入是 `name`/`kind`）。
+fn from_lean(name: &'static str, kind: GapOverlapKind, l: LeanCase) -> GapOverlapCase {
+    GapOverlapCase {
+        name,
+        kind,
+        a: (l.a_low, l.a_high),
+        b: (l.b_low, l.b_high),
+        has_gap: l.has_gap,
+        overlaps: l.overlaps,
+    }
+}
+
 /// 读 fixture，返回 5 条 Lean 导出用例（相切正/反向 + 严格分离正/反向 + 严格重叠对照）。
 ///
-/// fixture 路径与主缝 `theta_v0_lean_parity.rs:132` 指向**同一个文件**（`include_str!` 编译期内联，
+/// 端点与真值**全部**来自 fixture（#319）；用例名不含具体端点数字——端点已非本文件所有，写进名字
+/// 就是重新引入手抄面。失败信息需要端点时由消费方打印 `case.a` / `case.b`。
+///
+/// fixture 路径与主缝 `theta_v0_lean_parity.rs:148` 指向**同一个文件**（`include_str!` 编译期内联，
 /// 文件被 `scripts/check_fixture_drift.py` / CI `fixture-drift` job 守护，漂移即红）。
+///
+/// ★「端点不符即红」沿哪段传（#319 诚实登记，090）：这条链是**两段**接起来的——
+/// Lean 源 ↔ fixture 一段由 drift gate 守（Lean 改端点不再生 fixture ⟹ `check_fixture_drift.py` 红）；
+/// fixture ↔ rust 一段由本文件的单源读取消解（rust 无第二份端点，结构上不存在「漏改」）。
+/// 再生后端点若改变了用例形态或真值，`fixture_endpoints_match_kind` 与两个消费方谓词单测即红；
+/// 若端点变动既不改形态也不改真值（如 `strict_disjoint` 的 `b_low` 11→12），rust 侧**不红也不该红**
+/// ——两侧同源，此时不存在不一致。
 pub(super) fn gap_overlap_cases() -> [GapOverlapCase; 5] {
     let raw = include_str!("../../../tests/fixtures/theta_v0_parity.json");
     let fx: FixtureRoot =
         serde_json::from_str(raw).expect("fixture 必须是 Lean #eval 导出的合法 JSON");
     let g = fx.gap_overlap;
     [
-        GapOverlapCase {
-            name: "tangent_a_high_eq_b_low（[5,10] 与 [10,20] 相切于 10）",
-            kind: GapOverlapKind::Tangent,
-            a: (5, 10),
-            b: (10, 20),
-            has_gap: g.tangent_a_high_eq_b_low.has_gap,
-            overlaps: g.tangent_a_high_eq_b_low.overlaps,
-        },
-        GapOverlapCase {
-            name: "tangent_b_high_eq_a_low（反向相切）",
-            kind: GapOverlapKind::Tangent,
-            a: (10, 20),
-            b: (5, 10),
-            has_gap: g.tangent_b_high_eq_a_low.has_gap,
-            overlaps: g.tangent_b_high_eq_a_low.overlaps,
-        },
-        GapOverlapCase {
-            name: "strict_disjoint（[5,10] 与 [11,20] 严格分离）",
-            kind: GapOverlapKind::StrictDisjoint,
-            a: (5, 10),
-            b: (11, 20),
-            has_gap: g.strict_disjoint.has_gap,
-            overlaps: g.strict_disjoint.overlaps,
-        },
-        GapOverlapCase {
-            name: "strict_disjoint_rev（反向严格分离）",
-            kind: GapOverlapKind::StrictDisjoint,
-            a: (11, 20),
-            b: (5, 10),
-            has_gap: g.strict_disjoint_rev.has_gap,
-            overlaps: g.strict_disjoint_rev.overlaps,
-        },
-        GapOverlapCase {
-            name: "strict_overlap（[5,12] 与 [8,20] 严格重叠对照）",
-            kind: GapOverlapKind::StrictOverlap,
-            a: (5, 12),
-            b: (8, 20),
-            has_gap: g.strict_overlap.has_gap,
-            overlaps: g.strict_overlap.overlaps,
-        },
+        from_lean(
+            "tangent_a_high_eq_b_low（a.high == b.low 相切）",
+            GapOverlapKind::Tangent,
+            g.tangent_a_high_eq_b_low,
+        ),
+        from_lean(
+            "tangent_b_high_eq_a_low（反向相切）",
+            GapOverlapKind::Tangent,
+            g.tangent_b_high_eq_a_low,
+        ),
+        from_lean(
+            "strict_disjoint（严格分离）",
+            GapOverlapKind::StrictDisjoint,
+            g.strict_disjoint,
+        ),
+        from_lean(
+            "strict_disjoint_rev（反向严格分离）",
+            GapOverlapKind::StrictDisjoint,
+            g.strict_disjoint_rev,
+        ),
+        from_lean(
+            "strict_overlap（严格重叠对照）",
+            GapOverlapKind::StrictOverlap,
+            g.strict_overlap,
+        ),
     ]
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// fixture 端点自身须满足 `FeatureElem.valid`（`low ≤ high`）——Lean 侧类型不变量的导出侧确认。
+    /// 防的是导出器把 low/high 接反（`a_low`/`a_high` 字段写串），这类漂移不改真值、只改端点。
+    #[test]
+    fn fixture_endpoints_are_valid_intervals() {
+        for c in gap_overlap_cases() {
+            assert!(
+                c.a.0 <= c.a.1 && c.b.0 <= c.b.1,
+                "{}: fixture 端点违反 FeatureElem.valid（low ≤ high）：a={:?} b={:?}",
+                c.name,
+                c.a,
+                c.b
+            );
+        }
+    }
 
     /// fixture 自身须满足 Lean **已证定理** `gap_iff_not_overlap`（`HasGap ↔ ¬Overlaps`）。
     /// 防的是 Lean 侧定义漂移（导出值互补性破裂），与两个 rust 谓词的实装无关；判据来自已证
@@ -179,15 +210,16 @@ mod tests {
         }
     }
 
-    /// 镜像端点 ↔ `kind` ↔ fixture 真值 三者自洽。
+    /// fixture 端点 ↔ `kind` ↔ fixture 真值 三者自洽。
     ///
-    /// 防的是「镜像端点抄错但真值恰好对得上」的静默失配（见模块头「手填 vs 机器耦合的分界」）。
+    /// #319 后端点与真值同源于 fixture，本测试防的是**人工归类的 `kind` 与机器端点脱节**——
+    /// Lean 侧把某用例端点改成另一形态（如 `strict_disjoint` 改到相切）而此处 `kind` 未跟，即红。
     /// ⚠本测试的「形态 → 真值」映射是 **#246 裁定口径的人工编码**（相切⟹无缺口），不是机器导出：
     /// 裁定书 `chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md` §1。若裁定按其
     /// §3.1 已登记的重议触发条件翻转，**本测试须同步改**——届时它红的含义是「裁定已变」，不是
     /// 「Lean 漂移」。
     #[test]
-    fn mirrored_endpoints_match_kind() {
+    fn fixture_endpoints_match_kind() {
         for c in gap_overlap_cases() {
             let (lower, upper) = c.ordered();
             let geometric = if upper.0 == lower.1 {
@@ -199,7 +231,7 @@ mod tests {
             };
             assert_eq!(
                 geometric, c.kind,
-                "{}: 镜像端点的几何形态与登记的 kind 不符（端点抄错，或 Lean 侧端点已改）",
+                "{}: fixture 端点的几何形态与登记的 kind 不符（Lean 侧端点已改，此处 kind 未跟）",
                 c.name
             );
             let expected_gap = c.kind == GapOverlapKind::StrictDisjoint;
