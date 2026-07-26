@@ -631,18 +631,18 @@ mod tests {
 
     // ── #148 T4 验收3：子树清仓不占通道谓词槽位（P1–P8 冻结） ────────────
 
-    /// 验收3：T4 不进通道谓词序列——CHANNEL_M 仍为 8，9 通道裁决映射与 #147 T3
-    /// 冻结版逐条相同（不存在「子树清仓」通道/裁决变体）。
+    /// 验收3：T4 不进通道谓词序列——CHANNEL_M 仍为 8，通道裁决映射与 #147 T3 冻结版
+    /// 逐条相同（不存在「子树清仓」通道/裁决变体）。
+    /// （#282：C5 `OpenShortDiff` 随 P5 槽删除——`decision_of(Cj(5))` 不可达，本表不含 C5 行。）
     #[test]
     fn t4_subtree_close_takes_no_channel_predicate_slot() {
         assert_eq!(CHANNEL_M, 8, "#148 不增通道谓词槽位");
-        let frozen: [(ChannelId, ChannelDecision); 9] = [
+        let frozen: [(ChannelId, ChannelDecision); 8] = [
             (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold)),
             (ChannelId::Cj(1), ChannelDecision::Exit(ExitType::RiskExit)),
             (ChannelId::Cj(2), ChannelDecision::Exit(ExitType::CloseRoot)),
             (ChannelId::Cj(3), ChannelDecision::Exit(ExitType::ReduceCore)),
             (ChannelId::Cj(4), ChannelDecision::Exit(ExitType::CloseShortDiff)),
-            (ChannelId::Cj(5), ChannelDecision::OpenShortDiff),
             (ChannelId::Cj(6), ChannelDecision::Open),
             (ChannelId::Cj(7), ChannelDecision::Record),
             (ChannelId::Cj(8), ChannelDecision::AddPosition),

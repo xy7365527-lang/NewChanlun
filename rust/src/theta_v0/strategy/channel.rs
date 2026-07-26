@@ -11,7 +11,7 @@
 //! **每声部每时刻恰命中一条通道、恰产出一枚显式裁决**——Hold 也是显式裁决
 //! （[`ChannelDecision::Exit`]([`ExitType::Hold`])），不存在无裁决时刻。
 //!
-//! ## 槽位定型（排序冻结；#149 只填 P4/P5，不动字段顺序/优先级）
+//! ## 槽位定型（排序冻结；#149 只填 P4/P5，不动字段顺序/优先级；#282 删 P5）
 //!
 //! 票面优先级链「风险强平 ≻ 本级证书平仓（S2 二分 CloseRoot/ReduceCore）≻ 短差开启 ≻ 开仓
 //! ≻ 记录/加仓 ≻ Hold」展开为 8 槽：
@@ -22,7 +22,7 @@
 //! | P2 | 本级证书平仓·S2→根清仓 | `Exit(CloseRoot)` | 真实装（[`reverse_exit_type`] 单源） |
 //! | P3 | 本级证书平仓·S2→减核心 | `Exit(ReduceCore)` | 真实装（同上） |
 //! | P4 | 短差平仓 | `Exit(CloseShortDiff)` | #149 真实装（顺父 child cert + parent projection） |
-//! | P5 | 短差开启 | `OpenShortDiff` | #149 真实装（反父 child cert + parent projection） |
+//! | P5 | 短差开启 | ~~`OpenShortDiff`~~ | **已删（#282，#280 裁定）**：S6 开空腿账面形态（修1 废止）的 shadow 槽位；槽号退役原位保留，优先级编号冻结 |
 //! | P6 | 开仓 | `Open` | 真实装 |
 //! | P7 | 记录 | `Record` | 真实装（#150 T7：次级别完整走势检测器 + P7 记录桶，只写账本不动仓位） |
 //! | P8 | 加仓 | `AddPosition` | **占位恒 false**（后续加仓票） |
@@ -54,8 +54,8 @@
 //! ## 与 mutex.rs 的关系（非重复）
 //!
 //! [`super::mutex`] 是 PDF §7 P1..P10 链（含 TW 谓词 P2–P4）的 **D1 测试 oracle**（零生产
-//! 消费者）；本模块是 #147 出场通道链（P1–P8；#149 已填 P4/P5，#150 仍占 P7/P8）的
-//! **声部级解释器**，
+//! 消费者）；本模块是 #147 出场通道链（P1–P8；#149 已填 P4，P5 槽 #282 删除，#150 仍占
+//! P7/P8）的**声部级解释器**，
 //! 两链谓词编号语义不同，各锚各的契约，不互为镜像。
 
 use super::super::classifier::recursive_tower::ElementId;
@@ -65,16 +65,16 @@ use super::interp::{
     reverse_exit_type, theta_key, trigger_projection_sound, ActiveLeg, Candidate, ExitType,
     ParentCertificateProjection,
 };
-use super::ledger::{SplitLegError, SplitLegEvent, SplitLegLedger};
-use super::voice::{short_diff_side, VoiceSide};
+use super::voice::VoiceSide;
 
 /// 通道谓词数 m=8（P_1..P_8，issue #147 槽位定型）。
 pub const CHANNEL_M: usize = 8;
 
 /// 通道谓词向量 `P ∈ {0,1}^8`（可重叠——多分量可同时为 true）。
 ///
-/// 字段序 = 优先级序（P1 最先），#149 **不得重排**。P4/P5 已填真实谓词；P7/P8 仍为 #150
-/// 占位槽，仅互斥化层（[`first_match`]）全域定义。
+/// 字段序 = 优先级序（P1 最先），#149 **不得重排**。P4 已填真实谓词；P5 槽已删
+/// （#282，`p(5)` 恒 false 原位退役）；P7/P8 仍为 #150 占位槽，仅互斥化层
+/// （[`first_match`]）全域定义。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ChannelPredicates {
     /// P1：风险强平 RiskExit（`KThetaRiskGate.force_flat` 同源注入）。
@@ -85,8 +85,6 @@ pub struct ChannelPredicates {
     pub cert_reduce_core: bool,
     /// P4：短差平仓（在册短差腿 + 顺父 confirmed child cert + sound parent projection）。
     pub short_diff_close: bool,
-    /// P5：短差开启（父持仓 + 无短差腿 + 反父 confirmed child cert + sound parent projection）。
-    pub short_diff_open: bool,
     /// P6：开仓（本声部 slot 空 ∧ 存在本级可交易候选）。
     pub open_entry: bool,
     /// P7：记录（#150 T7 真实装：本级持仓期间次级别走势类型完整走完 ∧ 全程无证书投影
@@ -104,7 +102,9 @@ impl ChannelPredicates {
             2 => self.cert_close_root,
             3 => self.cert_reduce_core,
             4 => self.short_diff_close,
-            5 => self.short_diff_open,
+            // #282：P5 短差开启槽已删（#280 裁定，S6 开空腿形态废止）；槽号原位退役
+            // （恒 false），P6..P8 优先级编号冻结不动。
+            5 => false,
             6 => self.open_entry,
             7 => self.record,
             8 => self.add_position,
@@ -123,14 +123,13 @@ pub enum ChannelId {
 }
 
 /// 显式裁决（每声部每时刻恰一枚）。出场语义**复用单源 [`ExitType`]**（含显式 Hold），
-/// 仅补开仓/短差开启/记录/加仓四个非 `ExitType` 动作——不镜像出场枚举。
+/// 仅补开仓/记录/加仓三个非 `ExitType` 动作——不镜像出场枚举。
+/// （#282：第四个非出场动作 `OpenShortDiff` 随 P5 槽删除。）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChannelDecision {
     /// 出场/持有裁决（C1→RiskExit、C2→CloseRoot、C3→ReduceCore、C4→CloseShortDiff、
     /// C0→Hold；单源 [`ExitType`]）。
     Exit(ExitType),
-    /// C5：短差开启（#149 实装）。
-    OpenShortDiff,
     /// C6：开仓。
     Open,
     /// C7：记录（#150 T7 实装：P7 记录桶命中——只写账本 [`P7Record`]，仓位零变动）。
@@ -160,7 +159,8 @@ pub fn decision_of(c: ChannelId) -> ChannelDecision {
         ChannelId::Cj(2) => ChannelDecision::Exit(ExitType::CloseRoot),
         ChannelId::Cj(3) => ChannelDecision::Exit(ExitType::ReduceCore),
         ChannelId::Cj(4) => ChannelDecision::Exit(ExitType::CloseShortDiff),
-        ChannelId::Cj(5) => ChannelDecision::OpenShortDiff,
+        // #282：P5 槽已删（p(5) 恒 false），first_match 不再产出 C5。
+        ChannelId::Cj(5) => unreachable!("#282：P5 短差开启槽已删，C5 不可达"),
         ChannelId::Cj(6) => ChannelDecision::Open,
         ChannelId::Cj(7) => ChannelDecision::Record,
         ChannelId::Cj(8) => ChannelDecision::AddPosition,
@@ -168,7 +168,8 @@ pub fn decision_of(c: ChannelId) -> ChannelDecision {
     }
 }
 
-/// #149 在册 ShortDiff 子声部。字段私有，只有 P5 的 sound projection 路径能构造。
+/// #149 在册 ShortDiff 子声部。字段私有；构造路径（P5 sound projection）已随 #282 P5 槽
+/// 删除退役——类型保留供 P4 槽读/清（生产 shadow 下该槽恒 `None`，shadow.rs 模块 doc）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ShortDiffVoice {
     leg: ActiveLeg,
@@ -197,7 +198,8 @@ pub struct VoiceState {
     pub step: usize,
     /// #150 T7：次级别完整走势检测器状态（仅本级持仓期间武装，持仓边界重置）。
     pub sub_cycle: SubCycleTracker,
-    /// #149 独立短差子声部；P4 只清此槽，P5 只写此槽，父 `leg` 保持不动。
+    /// #149 独立短差子声部；P4 只清此槽。写入路径（P5）已随 #282 删除——槽恒 `None`，
+    /// P4 域事实不可达（同 shadow.rs「P4 恒不触发」既有状态），父 `leg` 保持不动。
     pub short_diff: Option<ShortDiffVoice>,
 }
 
@@ -212,8 +214,9 @@ pub struct VoiceStepInput {
     /// #150：当步父级中枢语境 κ（lean #144 文档「中枢内/中枢上/三买后/三卖后等结构位置」）。
     /// 与 `force_flat` 同为外源注入——本模块不重推中枢几何，语境由上游中枢检测口径单源提供。
     pub parent_kappa: ParentKappa,
-    /// #149：从真塔父子边构造的 parent-level certificate projections。P4/P5 必须逐候选通过
+    /// #149：从真塔父子边构造的 parent-level certificate projections。P4 必须逐候选通过
     /// [`trigger_projection_sound`]；空表即 child signal 无父投影，严格不得触发短差动作。
+    /// （#282：P5 槽已删，本字段的 P5 消费面随之退役。）
     pub parent_projections: Vec<ParentCertificateProjection>,
 }
 
@@ -395,9 +398,10 @@ pub fn shadow_observe(state: &VoiceState, input: &VoiceStepInput) -> VoiceState 
 ///   CloseRoot→P2、ReduceCore→P3。
 /// - P4 = 短差在册 ∧ 存在同 child level 的顺父 confirmed certificate，其真父投影匹配当前父腿；
 ///   该证书相对短差腿为反向，故只关闭短差子声部。
-/// - P5 = 父腿在册 ∧ 短差槽空 ∧ 存在反父 SubLevel ShortDiff confirmed certificate，其真父
-///   投影匹配当前父腿；子方向由 [`short_diff_side`] 强制 `sigma_u=-sigma_parent`。
 /// - P6 = 空仓 ∧ 存在本级可交易候选（dir≠Flat ∧ 有类）。
+///
+/// #282：P5（短差开启）判据与 `find_short_diff_open` 已删——反父 SubLevel ShortDiff
+/// confirmed certificate + sound parent projection 的开空腿通道属 S6 废止形态。
 pub fn voice_predicates(state: &VoiceState, input: &VoiceStepInput) -> ChannelPredicates {
     let mut p = ChannelPredicates { risk_exit: input.force_flat, ..ChannelPredicates::default() };
     // P2/P3：本级证书平仓——持仓 ∧ ≺_Θ 序首个本级反向已确认证书候选（[`cert_close_trigger`]
@@ -421,11 +425,9 @@ pub fn voice_predicates(state: &VoiceState, input: &VoiceStepInput) -> ChannelPr
     if find_short_diff_close(state, input).is_some() {
         p.short_diff_close = true; // P4（字段位置/优先级不动）
     }
-    if find_short_diff_open(state, input).is_some() {
-        p.short_diff_open = true; // P5（字段位置/优先级不动）
-    }
     if state.leg.is_none() && find_open(state.level, &input.candidates).is_some() {
-        // P6：开仓——空仓 slot ∧ 存在本级可交易非 ShortDiff 角色候选（ShortDiff 角色只走 P5）。
+        // P6：开仓——空仓 slot ∧ 存在本级可交易非 ShortDiff 角色候选（ShortDiff 角色候选
+        // 在本模块无通道：P5 槽 #282 已删，生产开启由散装域 interp fold 规则3 承担）。
         p.open_entry = true;
     }
     // P7（#150 T7）：本级持仓期间次级别走势类型完整走完 ∧ 全程无证书投影 ⟹ 记录桶。
@@ -448,24 +450,6 @@ fn has_sound_parent_projection(
         .parent_projections
         .iter()
         .any(|projection| trigger_projection_sound(parent, child, projection))
-}
-
-/// P5：首个可开启短差的真实 child certificate。
-fn find_short_diff_open<'a>(
-    state: &VoiceState,
-    input: &'a VoiceStepInput,
-) -> Option<&'a Candidate> {
-    if state.short_diff.is_some() {
-        return None;
-    }
-    let parent = state.leg.as_ref()?;
-    let child_side = short_diff_side(parent.dir)?;
-    theta_ordered(&input.candidates).into_iter().find(|c| {
-        c.role.is_sub_level_short_diff()
-            && c.dir == child_side
-            && reverse_signal(parent.dir, &c.bits)
-            && has_sound_parent_projection(parent, c, input)
-    })
 }
 
 /// P4：首个可关闭当前短差腿的顺父 child certificate。
@@ -519,7 +503,8 @@ pub(crate) fn cert_close_trigger(
     Some((c, reverse_exit_type(entry_v, c.bsp_class)))
 }
 
-/// ≺_Θ 序首个本级普通开仓候选（可交易 ∧ 非 ShortDiff 角色；短差开启只属 P5）。
+/// ≺_Θ 序首个本级普通开仓候选（可交易 ∧ 非 ShortDiff 角色；ShortDiff 角色候选在本模块
+/// 无通道——P5 槽 #282 已删，生产开启由散装域 interp fold 规则3 承担）。
 fn find_open(level: u32, cands: &[Candidate]) -> Option<&Candidate> {
     theta_ordered(cands).into_iter().find(|c| {
         c.level == level
@@ -547,9 +532,9 @@ pub fn step_voice(state: &VoiceState, input: &VoiceStepInput) -> (ChannelId, Cha
 /// - `Exit(RiskExit|CloseRoot|ReduceCore)` ⟹ 父腿关闭（对齐 interp 规则2：被反向命中的腿
 ///   入 𝒟_x；ReduceCore 减核心在腿粒度同为关闭——本票腿即最小持仓单元）。
 /// - `Exit(CloseShortDiff)` ⟹ **只清短差子槽，父腿不动**。
-/// - `OpenShortDiff` ⟹ 写入独立 child slot，方向由 `short_diff_side(parent)` 构造。
 /// - `Open` ⟹ 以触发候选建腿（entry_v = 候选角色垂直轴，入场固定）。
 /// - `Exit(Hold)` ⟹ 状态不变。P7/P8 仍不可达。
+/// （#282：`OpenShortDiff` 转移分支随 P5 槽删除。）
 pub fn run_voice(
     initial: VoiceState,
     steps: &[VoiceStepInput],
@@ -631,17 +616,6 @@ fn advance(state: VoiceState, input: &VoiceStepInput, dec: ChannelDecision) -> V
                 ..state
             }
         }
-        // #149 P5：只开启 child hedge；parent leg/entry_v 逐字段保持。
-        ChannelDecision::OpenShortDiff => {
-            let parent = state
-                .leg
-                .expect("C5 命中 ⟹ P5 真 ⟹ parent voice 在册");
-            let c = find_short_diff_open(&state, input)
-                .expect("C5 命中 ⟹ P5 真 ⟹ sound ShortDiff child certificate 存在");
-            let short_diff = short_diff_voice_from_candidate(&parent, c)
-                .expect("P5 判据已保证 child direction = -parent direction");
-            VoiceState { short_diff: Some(short_diff), step, sub_cycle, ..state }
-        }
         // 占位通道（加仓票实装真转移）：仓位不变。
         ChannelDecision::AddPosition => {
             VoiceState { step, sub_cycle, ..state }
@@ -649,75 +623,12 @@ fn advance(state: VoiceState, input: &VoiceStepInput, dec: ChannelDecision) -> V
     }
 }
 
-/// P5 child candidate → 独立 ShortDiff voice；构造时钉死 `sigma_u=-sigma_parent` 与父身份。
-fn short_diff_voice_from_candidate(
-    parent: &ActiveLeg,
-    c: &Candidate,
-) -> Option<ShortDiffVoice> {
-    if short_diff_side(parent.dir) != Some(c.dir) {
-        return None;
-    }
-    Some(ShortDiffVoice {
-        leg: ActiveLeg {
-            level: c.level,
-            dir: c.dir,
-            source_index: c.source_index,
-            lambda: c.source_index,
-            id: ElementId { level: c.level, ordinal: c.source_index as u64 },
-            parent_id: Some(parent.id),
-            is_boundary_root: false,
-            op_parent: Some(parent.id),
-        },
-    })
-}
-
-/// #149 P4/P5 端到端回放状态：结构声部树 + 独立数量账本同步推进。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ShortDiffReplayState {
-    pub voice: VoiceState,
-    pub ledger: SplitLegLedger,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ShortDiffReplayFrame {
-    pub channel: ChannelId,
-    pub decision: ChannelDecision,
-    pub state: ShortDiffReplayState,
-}
-
-/// 回放 #149 短差子链：P5 同步开启结构 child 与 split leg；P4 同步只关闭这两处的 hedge 槽。
-/// 其他通道沿用 [`advance`]，本函数不为其制造新的账本事件，因此现有 TwEvent/父腿会计语义不变。
-pub fn run_short_diff_replay(
-    initial: ShortDiffReplayState,
-    steps: &[VoiceStepInput],
-    short_diff_qty: u64,
-) -> Result<Vec<ShortDiffReplayFrame>, SplitLegError> {
-    let mut state = initial;
-    let mut out = Vec::with_capacity(steps.len());
-    for input in steps {
-        let (channel, decision) = step_voice(&state.voice, input);
-        let voice = advance(state.voice, input, decision);
-        let ledger = match decision {
-            ChannelDecision::OpenShortDiff => {
-                let side = voice
-                    .short_diff
-                    .expect("OpenShortDiff 转移后 child voice 必在册")
-                    .side();
-                state.ledger.apply(SplitLegEvent::OpenShortDiff {
-                    side,
-                    qty: short_diff_qty,
-                })?
-            }
-            ChannelDecision::Exit(ExitType::CloseShortDiff) => {
-                state.ledger.apply(SplitLegEvent::CloseShortDiff)?
-            }
-            _ => state.ledger,
-        };
-        state = ShortDiffReplayState { voice, ledger };
-        out.push(ShortDiffReplayFrame { channel, decision, state });
-    }
-    Ok(out)
-}
+/// #282（#280 裁定）两处删除原位标注：
+/// - `short_diff_voice_from_candidate`（P5 child candidate → ShortDiff voice 构造器）随
+///   P5 槽删除——`ShortDiffVoice` 构造路径退役（类型保留供 P4 读，槽恒 `None`）。
+/// - #149 P4/P5 端到端回放（`ShortDiffReplayState`/`ShortDiffReplayFrame`/
+///   `run_short_diff_replay`）随 SplitLegLedger 删除——账本回放属 S6 开空腿账面形态，
+///   通道裁决语义不由其承载。
 
 /// 开仓候选 → 活动腿（候选腿 λ==ρ==source_index，坐 hostOf 右端点；本票独立根边界胚元 ∂）。
 fn leg_from_candidate(c: &Candidate) -> ActiveLeg {
@@ -738,7 +649,6 @@ mod tests {
     use super::*;
     use super::super::coverage::{CoverageElement, Dir, GradeRel, Horizontal, OperationRole};
     use super::super::interp::{parent_certificate_projection, ParentCertificateProjection};
-    use super::super::ledger::SplitLegLedger;
     use super::super::super::types::BspBits;
 
     // ── 构造器 ────────────────────────────────────────────────────────────
@@ -889,7 +799,7 @@ mod tests {
         }
     }
 
-    /// bits → 谓词向量解码（bit j-1 ↔ P_j）。
+    /// bits → 谓词向量解码（bit j-1 ↔ P_j；bit4/P5 槽已删 #282，解码无对应字段）。
     fn decode(bits: u32) -> ChannelPredicates {
         let b = |j: usize| (bits >> (j - 1)) & 1 == 1;
         ChannelPredicates {
@@ -897,7 +807,6 @@ mod tests {
             cert_close_root: b(2),
             cert_reduce_core: b(3),
             short_diff_close: b(4),
-            short_diff_open: b(5),
             open_entry: b(6),
             record: b(7),
             add_position: b(8),
@@ -941,6 +850,7 @@ mod tests {
     }
 
     /// 通道→裁决全定义：9 条通道各恰一枚显式裁决（含 C0 显式 Hold），出场语义单源 ExitType。
+    /// （#282：C5 裁决随 P5 槽删除——`decision_of(Cj(5))` 不可达，不在本表断言。）
     #[test]
     fn decision_total_and_exit_type_single_source() {
         assert_eq!(decision_of(ChannelId::C0), ChannelDecision::Exit(ExitType::Hold));
@@ -948,7 +858,6 @@ mod tests {
         assert_eq!(decision_of(ChannelId::Cj(2)), ChannelDecision::Exit(ExitType::CloseRoot));
         assert_eq!(decision_of(ChannelId::Cj(3)), ChannelDecision::Exit(ExitType::ReduceCore));
         assert_eq!(decision_of(ChannelId::Cj(4)), ChannelDecision::Exit(ExitType::CloseShortDiff));
-        assert_eq!(decision_of(ChannelId::Cj(5)), ChannelDecision::OpenShortDiff);
         assert_eq!(decision_of(ChannelId::Cj(6)), ChannelDecision::Open);
         assert_eq!(decision_of(ChannelId::Cj(7)), ChannelDecision::Record);
         assert_eq!(decision_of(ChannelId::Cj(8)), ChannelDecision::AddPosition);
@@ -1069,41 +978,6 @@ mod tests {
         assert_eq!(step_voice(&empty_voice(0), &flat), hold);
     }
 
-    /// #149 改写说明：原护栏锁死 P4/P5 恒 false；本票填入真实短差谓词后，改锁「P5 真开、
-    /// P4 真关，且 #150 的 P8 仍恒 false」。保留原测试位置与护栏职责，不删除历史覆盖面。
-    #[test]
-    fn p4_p5_real_predicates_while_p8_remains_placeholder() {
-        let parent = holding(1, VoiceSide::Long, Vertical::Ambient);
-        let parent_leg = parent.leg.expect("parent held");
-        let open_child = child_cand(
-            0,
-            0,
-            VoiceSide::Short,
-            1,
-            sell(1),
-            Vertical::ShortDiff,
-        );
-        let open_input = projected_step(parent_leg, open_child);
-        let p5 = voice_predicates(&parent, &open_input);
-        assert!(p5.short_diff_open, "真实父投影 + 反父 confirmed child cert ⟹ P5");
-        assert!(!p5.open_entry, "ShortDiffEntry 只能走 P5，不能漏入 P6");
-        assert!(!p5.add_position, "P8 仍是占位槽");
-
-        let hedged = advance(parent, &open_input, ChannelDecision::OpenShortDiff);
-        let close_child = child_cand(
-            0,
-            0,
-            VoiceSide::Long,
-            1,
-            buy(1),
-            Vertical::FollowParent,
-        );
-        let close_input = projected_step(parent_leg, close_child);
-        let p4 = voice_predicates(&hedged, &close_input);
-        assert!(p4.short_diff_close, "真实父投影 + 顺父 confirmed child cert ⟹ P4");
-        assert!(!p4.add_position, "P8 仍是占位槽");
-    }
-
     // ── #150 T7：P7 记录桶 + 次级别完整走势检测器 ─────────────────────────
 
     /// 次级别（递归意义 ℓ−1）证书候选构造器。
@@ -1138,11 +1012,6 @@ mod tests {
                 (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold)),
             ],
             "端到端裁决序列：开仓 → 子周期开端点 Hold → Hold → P7 记录 → Hold"
-        );
-        // 无短差声部被开启（验收1 + 验收2 互斥断言的通道面）。
-        assert!(
-            out.iter().all(|(_, d)| *d != ChannelDecision::OpenShortDiff),
-            "P7 记录桶不开启任何短差声部"
         );
         // 账本恰一条 P7 记录，schema 三要素齐备。
         assert_eq!(ledger.p7.len(), 1, "恰一条 P7 记录");
@@ -1215,8 +1084,8 @@ mod tests {
             let (out, ledger) = run_voice_ledgered(empty_voice(1), &steps);
             assert!(ledger.p7.is_empty(), "{name}：有投影子周期不落 P7 记录桶");
             assert!(
-                out.iter().all(|(cid, _)| !matches!(cid, ChannelId::Cj(4 | 5 | 7))),
-                "{name}：互斥断言——投影子周期不命中 P7，也不产短差通道裁决（P4/P5 #149 占位）"
+                out.iter().all(|(cid, _)| !matches!(cid, ChannelId::Cj(4 | 7))),
+                "{name}：互斥断言——投影子周期不命中 P7，也不产短差平仓裁决（P4）"
             );
         }
     }
@@ -1383,10 +1252,13 @@ mod tests {
         assert_eq!(run_voice(empty_voice(1), &steps), out_l, "run_voice ≡ run_voice_ledgered 裁决面");
     }
 
-    /// #149 改写说明：原测试只断言 ShortDiff 候选不落 P6 并 Hold；现在补上真实 P5 正路，
-    /// 同时继续锁死「绝不经 P6 开普通根仓」。
+    /// #282 改写：原测试断言 ShortDiff 角色候选经 P5 开启、绝不落 P6；P5 槽删除后，
+    /// 护栏收缩为「ShortDiff 角色候选绝不落 P6 开普通根仓」（即使有 sound 父投影也
+    /// 无通道可裁，兜底 C0 Hold——生产 ShortDiff 腿开启由散装域 interp fold 规则3 承担，
+    /// 不经 channel）。原「无父投影不得触发 P5/P4」反例测试随 P5 一并删除（P4 的
+    /// 在册前提——short_diff 槽非 None——已无可构造路径，见模块 doc）。
     #[test]
-    fn short_diff_role_candidate_routes_via_p5_never_p6() {
+    fn short_diff_role_candidate_never_routes_via_p6() {
         let parent = holding(1, VoiceSide::Long, Vertical::Ambient);
         let child = child_cand(
             0,
@@ -1398,160 +1270,24 @@ mod tests {
         );
         let input = projected_step(parent.leg.unwrap(), child);
         let p = voice_predicates(&parent, &input);
-        assert!(p.short_diff_open && !p.open_entry, "P5=true 且 P6=false");
+        assert!(!p.open_entry, "ShortDiff 角色候选不得漏入 P6");
         assert_eq!(
             step_voice(&parent, &input),
-            (ChannelId::Cj(5), ChannelDecision::OpenShortDiff)
+            (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold)),
+            "P5 槽已删：sound 父投影 + 反父 ShortDiff 候选不再产任何通道裁决"
         );
-    }
-
-    /// TriggerProjectionSound 反例：即使 child 自称已确认且角色/方向正确，没有父级投影 token
-    /// 也不得触发 ShortDiffEntry 或 ShortDiffExit。
-    #[test]
-    fn trigger_projection_sound_rejects_child_without_parent_projection() {
-        let parent = holding(1, VoiceSide::Long, Vertical::Ambient);
-        let child = child_cand(
-            0,
-            0,
-            VoiceSide::Short,
-            1,
-            sell(1),
-            Vertical::ShortDiff,
-        );
-        let input = step(false, vec![child]); // 故意没有 parent_projections
-        let p = voice_predicates(&parent, &input);
-        assert!(!p.short_diff_open, "无父投影不得触发 P5");
-        assert!(!p.open_entry, "无父投影的 ShortDiff 候选也不得降级走 P6");
+        // 空仓侧同样不得经 P6 开 ShortDiff 角色仓。
+        let empty_input = step(false, vec![child]);
+        let p_empty = voice_predicates(&empty_voice(1), &empty_input);
+        assert!(!p_empty.open_entry, "空仓 slot：ShortDiff 角色候选不得触发 P6");
         assert_eq!(
-            step_voice(&parent, &input),
-            (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold))
-        );
-
-        // 先用 sound projection 建立 hedge，再拿掉顺父 close child 的 projection：P4 也必须拒绝。
-        let valid_open = child_cand(
-            0,
-            0,
-            VoiceSide::Short,
-            1,
-            sell(1),
-            Vertical::ShortDiff,
-        );
-        let open_input = projected_step(parent.leg.unwrap(), valid_open);
-        let hedged = advance(parent, &open_input, ChannelDecision::OpenShortDiff);
-        let close_without_projection = step(
-            false,
-            vec![child_cand(
-                0,
-                0,
-                VoiceSide::Long,
-                1,
-                buy(1),
-                Vertical::FollowParent,
-            )],
-        );
-        let close_p = voice_predicates(&hedged, &close_without_projection);
-        assert!(!close_p.short_diff_close, "无父投影不得触发 P4");
-        assert_eq!(
-            step_voice(&hedged, &close_without_projection),
+            step_voice(&empty_voice(1), &empty_input),
             (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold))
         );
     }
 
-    /// #149 验收 1/2/4 端到端：父多腿 100 保持 → 次级反父证书开空短差 40 → 次级顺父证书
-    /// CloseShortDiff；全程父腿结构与数量不动，短差腿独立记账，毛敞口=两腿和，σ_u=-σ_parent。
-    #[test]
-    fn end_to_end_short_diff_open_close_preserves_parent_split_leg() {
-        let parent = holding(1, VoiceSide::Long, Vertical::Ambient);
-        let parent_leg = parent.leg.unwrap();
-        let open_child = child_cand(
-            0,
-            0,
-            VoiceSide::Short,
-            1,
-            sell(1),
-            Vertical::ShortDiff,
-        );
-        let close_child = child_cand(
-            0,
-            0,
-            VoiceSide::Long,
-            1,
-            buy(1),
-            Vertical::FollowParent,
-        );
-        let steps = vec![
-            projected_step(parent_leg, open_child),
-            projected_step(parent_leg, close_child),
-        ];
-        let initial = ShortDiffReplayState {
-            voice: parent,
-            ledger: SplitLegLedger::parent_only(VoiceSide::Long, 100).unwrap(),
-        };
-        let frames = run_short_diff_replay(initial, &steps, 40).unwrap();
-
-        assert_eq!(frames.len(), 2);
-        assert_eq!(frames[0].channel, ChannelId::Cj(5));
-        assert_eq!(frames[0].decision, ChannelDecision::OpenShortDiff);
-        assert_eq!(frames[1].channel, ChannelId::Cj(4));
-        assert_eq!(frames[1].decision, ChannelDecision::Exit(ExitType::CloseShortDiff));
-
-        for frame in &frames {
-            assert_eq!(frame.state.voice.leg, Some(parent_leg), "P4/P5 不得触父腿结构");
-            assert_eq!(frame.state.ledger.split_legs().parent.qty, 100, "父腿数量全程恒定");
-        }
-        let during = frames[0].state.ledger.net_view();
-        let hedge = during.split_legs().short_diff.expect("P5 后短差腿在册");
-        assert_eq!(hedge.side, VoiceSide::Short);
-        assert_eq!(hedge.side, VoiceSide::Long.flip(), "σ_u = -σ_parent");
-        assert_eq!(hedge.qty, 40);
-        assert_eq!(during.split_legs().long_qty(), 100);
-        assert_eq!(during.split_legs().short_qty(), 40);
-        assert_eq!(during.gross_qty(), 140, "gross = parent + short-diff");
-        assert_eq!(during.net_qty(), 60);
-
-        let after = frames[1].state.ledger.net_view();
-        assert!(after.split_legs().short_diff.is_none(), "P4 只关闭短差腿");
-        assert_eq!(after.split_legs().parent.qty, 100, "CloseShortDiff 不触父腿");
-        assert_eq!(after.gross_qty(), 100);
-        assert_eq!(after.net_qty(), 100);
-    }
-
-    /// #135 T6 验收 1 端到端：父多腿 100（短差额度默认 = 100）→ 次级反父证书请求开空
-    /// 短差 150 超出父级短差额度 ⟹ 开启被拒绝：裁决面命中 C5（OpenShortDiff），账本面
-    /// 走 typed 拒绝（GrossExposureExceeded），原账本不变——拒绝路径显式可断言，非静默跳过。
-    #[test]
-    fn end_to_end_short_diff_open_rejected_when_exceeding_parent_quota() {
-        let parent = holding(1, VoiceSide::Long, Vertical::Ambient);
-        let parent_leg = parent.leg.unwrap();
-        let open_child = child_cand(0, 0, VoiceSide::Short, 1, sell(1), Vertical::ShortDiff);
-        let open_input = projected_step(parent_leg, open_child);
-
-        // 裁决面：该时刻命中 C5 OpenShortDiff（拒绝发生在资金约束层，不篡改通道语义）。
-        assert_eq!(
-            step_voice(&parent, &open_input),
-            (ChannelId::Cj(5), ChannelDecision::OpenShortDiff)
-        );
-
-        let ledger = SplitLegLedger::parent_only(VoiceSide::Long, 100).unwrap();
-        let initial = ShortDiffReplayState { voice: parent, ledger };
-        // 请求 150 > 父级短差额度 100 ⟹ 端到端回放以 typed 拒绝终止。
-        assert_eq!(
-            run_short_diff_replay(initial, std::slice::from_ref(&open_input), 150),
-            Err(SplitLegError::GrossExposureExceeded { requested: 150, available: 100 }),
-            "超额子对冲请求走显式 typed 拒绝路径"
-        );
-        // 账本可断言拒绝不落账：原账本仍是纯父腿（不可变单步，拒绝无副作用）。
-        assert_eq!(ledger.split_legs().parent.qty, 100);
-        assert!(ledger.split_legs().short_diff.is_none(), "拒绝后无短差腿落账");
-        // 同一请求在额度内（100）则照常放行——约束只裁超额，不改既有开启语义。
-        let ok = run_short_diff_replay(
-            ShortDiffReplayState { voice: parent, ledger },
-            std::slice::from_ref(&open_input),
-            100,
-        )
-        .unwrap();
-        assert_eq!(ok[0].state.ledger.net_view().gross_qty(), 200);
-    }
+    // ── #282（#280 裁定）：#149/#135 端到端 SplitLegLedger 回放测试（开/关短差保父腿、
+    // 毛暴露额度 typed 拒绝）随账本机删除一并删除——账面形态测试不遗留。
 
     // ── 端到端：事件序列 → 完整裁决序列（含显式 Hold）────────────────────
 

@@ -1295,6 +1295,12 @@ impl GatedPanDivCert {
     pub(super) const fn cert(self) -> PanDivCert {
         self.cert
     }
+
+    /// 测试构造门后证书（绕过门——生产唯一构造点仍是 [`gate_pan_div_for_production`]）。
+    #[cfg(test)]
+    pub(super) const fn gated_for_test(level: u32, cert: PanDivCert) -> Self {
+        Self { level, cert }
+    }
 }
 
 /// DC-E 唯一生产门：严格复用统计路径的 Nest/XZD 首见时点判据；任一通过才产一个候选引用。

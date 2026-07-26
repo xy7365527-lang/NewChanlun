@@ -25,8 +25,9 @@
 //!   只读；[`channel::shadow_observe`] 只推进 P7 检测器/步计数（Hold 转移语义），
 //!   `advance` 不进生产路径；生产侧建腿/清腿原样保留。
 //! - `VoiceState.short_diff` 槽恒 `None`：生产短差由 TW/PanDiv 链独立承担（channel 8 槽
-//!   无 TW 通道，备忘 §2）——P4 恒不触发；P5/P7 裁决无生产对应语义，记入
-//!   [`DivergenceKind::ChannelOnly`]（预期内分歧，非缺陷）。
+//!   无 TW 通道，备忘 §2）——P4 恒不触发；P7 裁决无生产对应语义，记入
+//!   [`DivergenceKind::ChannelOnly`]（预期内分歧，非缺陷）。#282：P5 短差开启槽已删
+//!   （#280 裁定，S6 开空腿形态废止），channel 不再产 `OpenShortDiff` 裁决。
 //! - 本模块不持有/不修改任何生产状态；分歧只进 [`ShadowStepRecord`] 内存累积 +
 //!   env 门控（`THETA_V0_SHADOW_DIVERGENCE_PATH`）落盘，不进 opsem dump、不进订单轨。
 //!
@@ -88,8 +89,8 @@ pub(crate) enum DivergenceKind {
     /// channel 裁 Hold，生产本 slot 开新腿（channel 排除 ShortDiff 角色候选开仓，interp
     /// 规则3 不排除——已知语义差；或同 bar 先关后开的 fold/声部互斥结构差）。
     ChannelHoldProductionOpen,
-    /// channel 独有裁决，生产无对应语义（OpenShortDiff/Record/AddPosition——P5/P7/P8
-    /// 生产落点不在 channel 域，票面明知）。
+    /// channel 独有裁决，生产无对应语义（Record/AddPosition——P7/P8 生产落点不在
+    /// channel 域，票面明知；P5 `OpenShortDiff` 已随 #282 删除）。
     ChannelOnly,
     /// 生产 silent drop（AncOK/Stale），channel 无此语义（预期缺口）。
     ProductionSilentDrop,
@@ -209,14 +210,15 @@ impl ShadowVoiceBook {
                 candidates: gamma.to_vec(), // 按声部分发 clone；谓词自带级别过滤。
                 parent_kappa: ParentKappa::Unknown, // 票面降级（fog 在册，模块 doc）。
                 parent_projections: match &leg {
-                    // P4/P5/P7 只消费「以本声部腿为父」的投影（trigger_projection_sound 逐字段
-                    // 匹配 parent_id；P7 projection_now 口径 = 本声部父投影非空）。
+                    // P4/P7 只消费「以本声部腿为父」的投影（trigger_projection_sound 逐字段
+                    // 匹配 parent_id；P7 projection_now 口径 = 本声部父投影非空；#282：P5
+                    // 消费面随槽删除）。
                     Some(l) => parent_projections
                         .iter()
                         .filter(|p| p.parent_id() == l.id)
                         .copied()
                         .collect(),
-                    None => Vec::new(), // 空仓声部无父腿 ⟹ 无投影（P5/P7 域护栏外）。
+                    None => Vec::new(), // 空仓声部无父腿 ⟹ 无投影（P7 域护栏外）。
                 },
             };
             // voice 状态：同 id 腿延续 ⟹ 检测器/步计数持久（腿槽覆写为生产真腿——
@@ -377,9 +379,9 @@ fn classify(dec: ChannelDecision, fact: ProductionFact) -> DivergenceKind {
         (D::Open, F::Idle) => K::ChannelOpenProductionIdle,
         // 持仓声部裁 Open 不可达（P6 护栏 leg.is_none()），防御归 ChannelOnly。
         (D::Open, _) => K::ChannelOnly,
-        // OpenShortDiff/Record/AddPosition：生产落点不在 channel 域（TW/PanDiv 链承担短差，
-        // P7 记录桶生产无落点，P8 占位不可达）——票面明知的语义缺口。
-        (D::OpenShortDiff | D::Record | D::AddPosition, _) => K::ChannelOnly,
+        // Record/AddPosition：生产落点不在 channel 域（P7 记录桶生产无落点，P8 占位
+        // 不可达）——票面明知的语义缺口。P5 `OpenShortDiff` 已随 #282 删除，不再出现于本臂。
+        (D::Record | D::AddPosition, _) => K::ChannelOnly,
     }
 }
 
@@ -541,8 +543,7 @@ mod tests {
             (D::Open, F::Opened, K::Match),
             (D::Open, F::Idle, K::ChannelOpenProductionIdle),
             (D::Open, F::Held, K::ChannelOnly), // 防御不可达分支
-            // channel 独有裁决。
-            (D::OpenShortDiff, F::Held, K::ChannelOnly),
+            // channel 独有裁决（P5 `OpenShortDiff` 已随 #282 删除，不在本表）。
             (D::Record, F::Held, K::ChannelOnly),
             (D::AddPosition, F::Held, K::ChannelOnly),
         ];

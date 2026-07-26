@@ -7619,12 +7619,12 @@ mod tests {
     }
 
     /// ★#81 DB-B/D-7：默认不激活时，即使事件轨携 CenterOscillation，订单轨仍逐字段 bit-exact。
+    /// （#282：事件轨载体自 candidate 改为 [`PanDivTrigger`] 触发事件；开关 frozen 纪律不变。）
     #[test]
     fn center_oscillation_default_inactive_order_track_bitexact() {
         use super::super::oscillation::{
-            BoundarySide, CenterOscillationCandidate, ConsolidationDivergenceEvidence,
-            OscillationCenterRef, OscillationEvidence, OscillationEvidenceRef, OscillationId,
-            OscillationParentLeg,
+            ConsolidationDivergenceEvidence, OscillationCenterRef, OscillationEvidenceRef,
+            PanDivTrigger,
         };
 
         let (classification, tower) = buy_gamma();
@@ -7648,24 +7648,14 @@ mod tests {
             &registry,
         );
 
-        let parent_id = ElementId {
-            level: 0,
-            ordinal: 7,
-        };
-        let parent = OscillationParentLeg::new(parent_id, 0, VoiceSide::Long, 600).unwrap();
-        let center = OscillationCenterRef::new(0, 10);
-        let candidate = CenterOscillationCandidate::open(
-            center,
+        let trigger = PanDivTrigger::from_gated_pan_div(
             0,
-            parent,
-            OscillationId::new(parent_id, center, 1),
-            BoundarySide::Above,
-            OscillationEvidence::ConsolidationDivergence(
-                ConsolidationDivergenceEvidence::new(OscillationEvidenceRef::new(11, 0)),
-            ),
+            VoiceSide::Long,
+            OscillationCenterRef::new(0, 10),
+            ConsolidationDivergenceEvidence::new(OscillationEvidenceRef::new(11, 0)),
         )
         .unwrap();
-        let protocol = ProtocolEventSet::hold(0).with_center_oscillation(candidate);
+        let protocol = ProtocolEventSet::hold(0).with_center_oscillation(trigger);
         let observed = pi_theta_step(
             &classification,
             &tower,
@@ -7683,7 +7673,7 @@ mod tests {
         assert_eq!(observed.0, baseline.0);
         assert_eq!(observed.1, baseline.1);
         assert_eq!(observed.2.0, baseline.2.0);
-        assert_eq!(protocol.center_oscillation_candidate(), Some(candidate));
+        assert_eq!(protocol.center_oscillation_trigger(), Some(trigger));
     }
 
     /// ★#80 L0/O-8：无方向、无候选、无订单也仍返回 `(OrderDecision, ProtocolEvent)` 的两个显式值。

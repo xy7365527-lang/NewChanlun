@@ -7,10 +7,8 @@
 
 use super::super::classifier::center::{classify_relation, CenterRelation};
 use super::super::types::{Center, Direction};
-use super::oscillation::{
-    CenterOscillationCandidate, CenterOscillationConfig, OscillationApplyResult, OscillationBook,
-    OscillationEvidence, OscillationIntent, SizeKThetaProjection,
-};
+use super::oscillation::{ConsolidationDivergenceEvidence, PanDivTrigger};
+use super::voice::VoiceSide;
 
 /// 稳定证据引用。`source_index` 是因果确认坐标，`generation` 区分同坐标重启/重放实例。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -227,32 +225,27 @@ struct SettledRelationEvidence {
     relation: CenterRelation,
 }
 
-/// DB-B 事件轨投影：只保留稳定、可排序的候选证据，不把 B1/B2/B3 bits 混入协议。
+/// DB-B 事件轨投影：只保留稳定、可排序的触发证据，不把 B1/B2/B3 bits 混入协议。
+/// （#282：载体自 candidate 改为 [`PanDivTrigger`] 触发事件——父腿身份/sequence/开平
+/// 意向随 S6 账面形态删除；余下字段 = 触发事实：级别、中枢坐标、信号方向、盘背证据。）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct CenterOscillationEventEvidence {
     level: u32,
     center_start: usize,
     center_end: usize,
-    parent_level: u32,
-    parent_ordinal: u64,
-    sequence: u32,
-    evidence: OscillationEvidence,
-    close: bool,
+    signal_side: VoiceSide,
+    evidence: ConsolidationDivergenceEvidence,
 }
 
 impl CenterOscillationEventEvidence {
-    const fn from_candidate(candidate: CenterOscillationCandidate) -> Self {
-        let center = candidate.center();
-        let parent = candidate.parent_leg_id();
+    const fn from_trigger(trigger: PanDivTrigger) -> Self {
+        let center = trigger.center();
         Self {
-            level: candidate.level(),
+            level: trigger.level(),
             center_start: center.start_index(),
             center_end: center.end_index(),
-            parent_level: parent.level,
-            parent_ordinal: parent.ordinal,
-            sequence: candidate.oscillation_id().sequence(),
-            evidence: candidate.evidence(),
-            close: matches!(candidate.intent(), OscillationIntent::Close),
+            signal_side: trigger.signal_side(),
+            evidence: trigger.evidence(),
         }
     }
 }
@@ -325,10 +318,10 @@ impl ProtocolEvent {
         }
     }
 
-    const fn center_oscillation(candidate: CenterOscillationCandidate) -> Self {
+    const fn center_oscillation(trigger: PanDivTrigger) -> Self {
         Self {
             payload: EventPayload::CenterOscillation(
-                CenterOscillationEventEvidence::from_candidate(candidate),
+                CenterOscillationEventEvidence::from_trigger(trigger),
             ),
             reasons: ReasonSet::CENTER_OSCILLATION,
         }
@@ -341,14 +334,9 @@ impl ProtocolEvent {
             EventPayload::CompletedRetraceReentry(_) => ProtocolMaturity::CompletedRetraceReentry,
             EventPayload::CompletedMoveEvidence(_) => ProtocolMaturity::CompletedMoveEvidence,
             EventPayload::SettledCenterRelation(_) => ProtocolMaturity::SettledCenterRelation,
-            EventPayload::CenterOscillation(evidence) => match evidence.evidence {
-                OscillationEvidence::ConsolidationDivergence(_) => {
-                    ProtocolMaturity::CompletedMoveEvidence
-                }
-                OscillationEvidence::LowerLevelBsp(_) => {
-                    ProtocolMaturity::CompletedRetraceReentry
-                }
-            },
+            // #282：触发链只携盘背证据（LowerLevelBsp 证据类随账面形态删除）——
+            // 单臂映射：盘整背驰 = 完成走势证据桶。
+            EventPayload::CenterOscillation(_) => ProtocolMaturity::CompletedMoveEvidence,
         }
     }
 
@@ -388,7 +376,7 @@ impl ProtocolEvent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProtocolEventSet {
     selected: ProtocolEvent,
-    center_oscillation: Option<CenterOscillationCandidate>,
+    center_oscillation: Option<PanDivTrigger>,
 }
 
 impl ProtocolEventSet {
@@ -406,11 +394,12 @@ impl ProtocolEventSet {
         }
     }
 
-    /// 将独立震荡 reason 接入协议轨；同一折叠集内按稳定键确定唯一候选。
-    pub fn with_center_oscillation(self, candidate: CenterOscillationCandidate) -> Self {
+    /// 将独立震荡触发接入协议轨；同一折叠集内按派生全序确定唯一触发
+    /// （全序合并交换、结合、幂等）。
+    pub fn with_center_oscillation(self, trigger: PanDivTrigger) -> Self {
         let retained = match self.center_oscillation {
-            Some(current) if current.stable_key() >= candidate.stable_key() => current,
-            _ => candidate,
+            Some(current) if current >= trigger => current,
+            _ => trigger,
         };
         Self {
             selected: self
@@ -424,19 +413,8 @@ impl ProtocolEventSet {
         self.selected
     }
 
-    pub const fn center_oscillation_candidate(self) -> Option<CenterOscillationCandidate> {
+    pub const fn center_oscillation_trigger(self) -> Option<PanDivTrigger> {
         self.center_oscillation
-    }
-
-    /// 协议事件轨到既有 P7/P9/P10 动作通道的唯一桥；默认开关关闭时账本不变。
-    pub fn apply_center_oscillation(
-        self,
-        book: &mut OscillationBook,
-        config: CenterOscillationConfig,
-        projection: SizeKThetaProjection,
-    ) -> Option<OscillationApplyResult> {
-        self.center_oscillation
-            .map(|candidate| book.apply(candidate, config, projection))
     }
 }
 
@@ -523,10 +501,9 @@ impl ProtocolState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::super::classifier::recursive_tower::ElementId;
     use super::super::oscillation::{
-        BoundarySide, ConsolidationDivergenceEvidence, LowerLevelBspEvidence,
-        OscillationCenterRef, OscillationEvidenceRef, OscillationId, OscillationParentLeg,
+        ConsolidationDivergenceEvidence, OscillationCenterRef, OscillationEvidenceRef,
+        PanDivTrigger,
     };
     use super::super::voice::VoiceSide;
 
@@ -570,23 +547,13 @@ mod tests {
         ))
     }
 
-    fn oscillation_candidate(
-        evidence: OscillationEvidence,
-        sequence: u32,
-    ) -> CenterOscillationCandidate {
-        let parent_id = ElementId {
-            level: 2,
-            ordinal: 7,
-        };
-        let parent = OscillationParentLeg::new(parent_id, 2, VoiceSide::Long, 40).unwrap();
-        let center = OscillationCenterRef::new(100, 130);
-        CenterOscillationCandidate::open(
-            center,
+    /// #282：触发链测试烤料——门后盘背触发（级别 2、Long 信号、中枢 [100,130]）。
+    fn pan_div_trigger(seed: usize) -> PanDivTrigger {
+        PanDivTrigger::from_gated_pan_div(
             2,
-            parent,
-            OscillationId::new(parent_id, center, sequence),
-            BoundarySide::Above,
-            evidence,
+            VoiceSide::Long,
+            OscillationCenterRef::new(100, 130),
+            ConsolidationDivergenceEvidence::new(OscillationEvidenceRef::new(seed, 0)),
         )
         .unwrap()
     }
@@ -814,54 +781,26 @@ mod tests {
 
     #[test]
     fn center_oscillation_uses_existing_maturity_buckets_without_mode_transition() {
-        let pan = oscillation_candidate(
-            OscillationEvidence::ConsolidationDivergence(
-                ConsolidationDivergenceEvidence::new(OscillationEvidenceRef::new(200, 0)),
-            ),
-            1,
-        );
         let pan_event = ProtocolEventSet::hold(2)
-            .with_center_oscillation(pan)
+            .with_center_oscillation(pan_div_trigger(200))
             .selected();
         assert_eq!(pan_event.maturity(), ProtocolMaturity::CompletedMoveEvidence);
         assert!(pan_event.reasons().contains(ReasonSet::CENTER_OSCILLATION));
         assert_eq!(
             ProtocolState::initial(2).transition(pan_event).mode(),
             ProtocolMode::Consolidation,
-            "震荡动作证据不得伪造协议趋势转移",
+            "震荡触发证据不得伪造协议趋势转移",
         );
-
-        let lower = oscillation_candidate(
-            OscillationEvidence::LowerLevelBsp(
-                LowerLevelBspEvidence::new(2, 1, OscillationEvidenceRef::new(201, 0)).unwrap(),
-            ),
-            2,
-        );
-        let lower_event = ProtocolEventSet::hold(2)
-            .with_center_oscillation(lower)
-            .selected();
-        assert_eq!(
-            lower_event.maturity(),
-            ProtocolMaturity::CompletedRetraceReentry
-        );
-        assert_eq!(
-            ProtocolState::initial(2).transition(lower_event).mode(),
-            ProtocolMode::Consolidation,
-        );
+        // #282：LowerLevelBsp 证据臂（CompletedRetraceReentry 映射）随账面形态删除——
+        // 触发链只携盘背证据，maturity 单臂映射 CompletedMoveEvidence。
     }
 
     #[test]
     fn settled_protocol_event_does_not_drop_center_oscillation_action_reason() {
         let previous = center(0, 10, 90, 120);
         let successor = center(20, 30, 125, 145);
-        let candidate = oscillation_candidate(
-            OscillationEvidence::ConsolidationDivergence(
-                ConsolidationDivergenceEvidence::new(OscillationEvidenceRef::new(202, 0)),
-            ),
-            3,
-        );
         let selected = ProtocolEventSet::hold(2)
-            .with_center_oscillation(candidate)
+            .with_center_oscillation(pan_div_trigger(202))
             .with(ProtocolEvent::settled_center_relation(
                 2,
                 &previous,
@@ -873,33 +812,18 @@ mod tests {
         assert!(selected.reasons().contains(ReasonSet::SETTLED_RELATION));
     }
 
+    /// #282：触发上协议轨后原地可取（折叠集内唯一触发按派生全序保留）。
     #[test]
-    fn center_oscillation_protocol_bridge_emits_existing_p9_channel_when_enabled() {
-        let parent_id = ElementId {
-            level: 2,
-            ordinal: 7,
-        };
-        let parent = OscillationParentLeg::new(parent_id, 2, VoiceSide::Long, 40).unwrap();
-        let candidate = oscillation_candidate(
-            OscillationEvidence::ConsolidationDivergence(
-                ConsolidationDivergenceEvidence::new(OscillationEvidenceRef::new(203, 0)),
-            ),
-            4,
+    fn center_oscillation_trigger_retained_in_protocol_set() {
+        let t200 = pan_div_trigger(200);
+        let t201 = pan_div_trigger(201);
+        let set = ProtocolEventSet::hold(2)
+            .with_center_oscillation(t200)
+            .with_center_oscillation(t201);
+        assert_eq!(
+            set.center_oscillation_trigger(),
+            Some(t201.max(t200)),
+            "同折叠集按派生全序取最大（确定性合并）"
         );
-        let mut book = OscillationBook::with_parents(vec![parent]);
-        let result = ProtocolEventSet::hold(2)
-            .with_center_oscillation(candidate)
-            .apply_center_oscillation(
-                &mut book,
-                CenterOscillationConfig { enabled: true },
-                SizeKThetaProjection {
-                    size_theta_units: 40,
-                    k_theta_units: 40,
-                },
-            )
-            .unwrap();
-        assert_eq!(result.mutex_class(), Some(super::super::mutex::MutexClass::Cj(9)));
-        assert_eq!(book.parent(parent_id), Some(parent));
-        assert_eq!(book.live_child_units(), 40);
     }
 }

@@ -384,7 +384,8 @@ fn non_shortdiff_qty_snapshot(
 
 /// ★#198 断言4（#185「建议断言」4 的生产执行层同款）：`fill.account == ShortDiff ⟹
 /// Δqty(Core{*})==0 且 Δqty(Short{*})==0`——短差过账不得碰本仓/空仓任何分实例
-/// （模型层 SplitLegLedger「父仓不动」已有等价保证，本断言补生产执行层同款）。
+/// （模型层「父仓不动」曾有 SplitLegLedger 等价保证——该机已随 #282 删除，本断言
+/// 守生产执行层同款）。
 ///
 /// 度量方式 = 账本状态**差分**（post 前快照 vs post 后逐实例比对，独立度量，非重算
 /// `post` 的过账逻辑）；定位 = **回归锁**（与 #145 T1 同款纪律）：`post` 当前按单 key
@@ -803,8 +804,9 @@ where
     // ★工位 4f：上一 bar merge 用的 tree Rc——`Rc::ptr_eq` 命中（同一 Rc::clone）⟹ tree 逐字节不变
     // ⟹ merge tree 段跳过 step 1'/2'（confirmed prefix 增量维护，消 O(tree)/bar）。
     let mut prev_merge_tree: Option<std::rc::Rc<Vec<coverage::CoverageElement>>> = None;
-    // #82 DC-E：默认关闭时整段惰性（不算 MACD、不评生产门、不写子腿簿），订单轨 frozen。
-    // 开启时首见证书只经 econ_positive 的 Nest/XZD 单一门，再写 #81 OscillationBook。
+    // #82 DC-E：默认关闭时整段惰性（不算 MACD、不评生产门、不上触发轨），订单轨 frozen。
+    // 开启时首见证书只经 econ_positive 的 Nest/XZD 单一门产触发事件（#282：账面形态已删，
+    // 门内不产订单、不写子腿簿——触发链保留为 #274 原料）。
     let mut pan_div_state = super::pan_div::PanDivProductionState::default();
     let pan_div_hist = if config.center_oscillation.enabled && !bars.is_empty() {
         let closes: Vec<f64> = bars
@@ -1265,25 +1267,11 @@ where
                 // cum_holding_cost 变量，F4）；0 ⟹ 历史判据 bit-exact（cost_model=None 回归锁）。
                 eta_correction: cum_holding_cost,
             };
-            // #82 DC-E：只从真实在飞 campaign 建父腿快照；结构 carrier、身份不明或零单位不冒充父腿。
-            // sync 只替换 OscillationBook 的只读 parents 表，lots 原位保留（路由/生命周期无平行账本；
-            // #195 档A split_ledgers 数量镜像层随本 sync 全量对账，见 pan_div.rs）。
-            let mut pan_candidates = Vec::new();
+            // #82 DC-E（#282 收缩）：门内段 = 触发链——首见 PanDivCert 经 Nest/XZD 单一门
+            // 产触发事件上协议轨（#274 原料）。父腿快照/sync、候选路由、P10 Record、
+            // 账面 apply 与净额叠加出口全部随 S6 账面形态删除。
             let mut protocol_events = super::super::strategy::protocol::ProtocolEventSet::hold(0);
             if let Some(hist) = pan_div_hist.as_deref() {
-                use super::super::strategy::oscillation::OscillationParentLeg;
-                let parents = prev_active
-                    .iter()
-                    .filter_map(|leg| {
-                        let open = open_trades.get(&leg.id)?;
-                        if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff {
-                            return None;
-                        }
-                        let units = open.units.round().max(0.0) as u64;
-                        OscillationParentLeg::new(leg.id, leg.level, leg.dir, units).ok()
-                    })
-                    .collect();
-                pan_div_state.sync_live_parents(parents);
                 for (lvl, ls) in classification_i.levels.iter().enumerate() {
                     for cert in ls.pan_div.iter() {
                         // 首见先落 seen；门闭也终局，后续 bar 不重试（与统计通道 τin 同时序）。
@@ -1313,16 +1301,9 @@ where
                             pan_div_state.note_gate_rejected();
                             continue;
                         };
-                        match pan_div_state.prepare(gated) {
-                            super::pan_div::PreparedPanDiv::Candidate(candidate) => {
-                                // DA-Q2：即使订单槽稍后被 BSP/P1-P4 占用，PanDiv 证据仍留在协议轨。
-                                protocol_events = protocol_events.with_center_oscillation(candidate);
-                                pan_candidates.push(candidate);
-                            }
-                            super::pan_div::PreparedPanDiv::Record(_reason) => {
-                                // P10 已在生产状态统计；无合法 parent/lot identity 时不伪造候选。
-                            }
-                        }
+                        // DA-Q2：PanDiv 触发证据留在协议轨（#274 消费点；本层不产订单）。
+                        let trigger = pan_div_state.prepare(gated);
+                        protocol_events = protocol_events.with_center_oscillation(trigger);
                     }
                 }
             }
@@ -1353,84 +1334,10 @@ where
                 &step_parent_projections,
                 &step_trace,
             );
-            if pan_div_hist.is_some() {
-                use super::super::strategy::oscillation::{
-                    OscillationAction, OscillationApplyResult, OscillationIntent,
-                    SizeKThetaProjection,
-                };
-                use super::super::strategy::voice::VoiceSide;
-
-                // 真 BSP（非 struct_break 零 bits）与 P1-P4/标准腿生命周期优先；PanDiv 仅留上方
-                // protocol confirmation，不重复占订单槽。
-                let standard_bsp = classification_step.levels.iter().any(|level| {
-                    level.bsp.iter().any(|point| point.bits.class_index() != 0)
-                });
-                let standard_lifecycle = !step_trace.opened.is_empty()
-                    || !step_trace.closed.is_empty()
-                    || !step_trace.silent_drops.is_empty()
-                    || !step_trace.risk_exits.is_empty()
-                    || !step_trace.overlay_closes.is_empty()
-                    || step_trace.tw_event.is_some();
-                let higher_priority = standard_bsp || standard_lifecycle;
-                let mut actionable_pan = pan_div_state.pending_candidates().to_vec();
-                actionable_pan.extend_from_slice(&pan_candidates);
-                let selected = pan_div_state.select_for_bar(&actionable_pan, higher_priority);
-                let cap = base_units.abs() * config.risk.gamma.abs();
-                if let Some(candidate) = selected {
-                    // KΘ 从“标准父腿目标 + 当前 live 子腿”这一实际组合目标算剩余空间；若从
-                    // standard_p_star 单独算，父腿已在上限时会错误阻塞 P7 回补。
-                    let pan_anchor = standard_p_star
-                        + pan_div_state.signed_live_child_units() as f64;
-                    let mut k_theta_units = gate.delta_capacity_units(
-                        cap,
-                        pan_anchor,
-                        candidate.action_side(),
-                    );
-                    if candidate.intent() == OscillationIntent::Open {
-                        // P9 必须是经济减仓：只允许把标准目标向 0 移动，不穿零反向净加仓。
-                        let reduces = matches!(
-                            (pan_anchor.is_sign_positive(), candidate.action_side()),
-                            (true, VoiceSide::Short) | (false, VoiceSide::Long)
-                        ) && pan_anchor != 0.0;
-                        k_theta_units = if reduces {
-                            k_theta_units.min(pan_anchor.abs().floor() as u64)
-                        } else {
-                            0
-                        };
-                    }
-                    let applied = pan_div_state.apply(
-                        candidate,
-                        super::super::strategy::oscillation::CenterOscillationConfig {
-                            enabled: true,
-                        },
-                        SizeKThetaProjection {
-                            size_theta_units: candidate.target_units(),
-                            k_theta_units,
-                        },
-                    );
-                    if matches!(
-                        applied,
-                        OscillationApplyResult::Applied {
-                            action: OscillationAction::OpenShortDiff | OscillationAction::CloseShortDiff,
-                            ..
-                        }
-                    ) {
-                        let target = gate.clamp_position(
-                            cap,
-                            standard_p_star + pan_div_state.signed_live_child_units() as f64,
-                        );
-                        order = coverage::schedule_order(target, p_t, exec_index.unwrap_or(i));
-                    }
-                } else if !higher_priority && pan_div_state.signed_live_child_units() != 0 {
-                    // 无新 cert 的持有 bar：把 live ShortDiff 投影叠回标准目标，避免下一 bar 被基础 π
-                    // 当作偏差自动回补；仍经同一 KΘ 区间 clamp 和 ScheduleΘ 单一订单出口。
-                    let target = gate.clamp_position(
-                        cap,
-                        standard_p_star + pan_div_state.signed_live_child_units() as f64,
-                    );
-                    order = coverage::schedule_order(target, p_t, exec_index.unwrap_or(i));
-                }
-            }
+            // #282（#280 裁定）：门内执行段（select_for_bar 优先级、KΘ 容量/P9 经济减仓
+            // 门、pan_div_state.apply 账面写入、signed_live_child_units 净额叠加出口）已随
+            // S6 开空腿账面形态删除——门内只余触发链（上方 protocol_events 上轨），
+            // 订单轨在门开启臂也不再被子腿叠加改写。
             // ── ★M5 overlay 簿步进（多空对冲.pdf p16 关卡10）：sep_legs=P^sep_{t+1} 目标 → hedge-mode
             //    逐声部账本 → ΔN 订单 + 逐声部 pnl_v 累计。只读旁路（不改净额 fill 的 cash/units/
             //    trade_pnls ⟹ 现有臂 bit-exact）。overlay=None（现有臂）⟹ 整段跳过。 ──

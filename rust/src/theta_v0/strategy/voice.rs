@@ -23,7 +23,7 @@ use super::super::config::VoiceConfig;
 ///
 /// `Long=+1` / `Short=-1` 是 Origin.VoiceTree `σ` 的两态（赋格交替域）；`Flat=0` 是 spec:41 的
 /// 空仓极性（声部不开仓时的方向，Origin.VoiceTree 用 `q_v=0` 表达，本 Rust 域显式 `Flat`）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum VoiceSide {
     Long,
     Short,
