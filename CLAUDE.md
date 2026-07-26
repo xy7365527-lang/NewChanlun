@@ -27,6 +27,8 @@ cd rust && cargo test --release --test theta_v0_fixture_drift -- --ignored --noc
   `rust/tests/fixtures/theta_v0_center_parity.json`（导出器 `formal/Origin/CenterConstruct.lean:634`）。
   改动这两个 fixture 对应的 Lean 源后，用 `cd formal && lake env lean <导出器> > ../rust/tests/fixtures/<fixture>`
   重落盘（机器导出，禁手编）。
+- CI 闭环（#265）：`.github/workflows/ci.yml` 的 `fixture-drift` job（push/PR 到 main 触发，与现有 job 一致）
+  跑同一脚本，漂移即红并打出再生命令。
 
 ## 缠论资料入口（本仓库）
 

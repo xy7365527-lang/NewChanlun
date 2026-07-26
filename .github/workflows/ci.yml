@@ -35,3 +35,35 @@ jobs:
         with:
           name: coverage-report
           path: coverage.xml
+
+  fixture-drift:
+    # #265（#245 裁定）：Lean 源 → parity fixture 双向闭环的 CI 腿。
+    # 锁的漂移窗口：Lean 源改了值、fixture 未重落盘时 parity 测试静默全绿。
+    # 核心件 = #263 的 scripts/check_fixture_drift.py（本 job 只是把它包进 CI）。
+    # formal 无 Mathlib（lakefile.toml packages=[]），构建轻：本机 macOS arm64 实测
+    # 冷启动 lake build 12.2s（090 照实：CI ubuntu 未实测，预期分钟级，大头是
+    # elan 工具链下载，已由 cache 兜住；若实测超 10 分钟需加 formal/.lake/build 缓存）。
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache elan toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ hashFiles('formal/lean-toolchain') }}
+
+      - name: Install elan
+        run: |
+          curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | bash -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Build formal (lake build)
+        # formal/lean-toolchain 固定 leanprover/lean4:v4.31.0，elan 首次调用自动装该工具链
+        run: lake build
+        working-directory: formal
+
+      - name: Fixture drift check (Lean → fixtures)
+        # 红时脚本自身打出字段级 diff + 每个漂移 fixture 的再生（重落盘）命令
+        run: python3 scripts/check_fixture_drift.py

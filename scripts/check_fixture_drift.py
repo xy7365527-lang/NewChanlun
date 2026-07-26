@@ -212,14 +212,18 @@ def main() -> int:
 
     tmp_dir = Path(tempfile.mkdtemp(prefix="fixture_drift_"))
     print(f"regen 临时目录：{tmp_dir}（保留不删，绝不写 rust/tests/fixtures/）")
-    ok = True
+    drifted: list = []
     for name in names:
         if not check_one(name, tmp_dir):
-            ok = False
-    if ok:
+            drifted.append(name)
+    if not drifted:
         print("✓ fixture 漂移检查：全部无漂移（绿）")
         return 0
     print("✗ fixture 漂移检查：发现漂移（红）——regen 重落 fixture 或回退 Lean 改动")
+    print("再生（重落盘）命令（逐漂移 fixture；#265 要求红时给出再生指引）：")
+    for name in drifted:
+        spec = FIXTURES[name]
+        print(f"  cd formal && lake env lean {spec['exporter']} > ../{spec['fixture']}")
     return EXIT_DRIFT
 
 
