@@ -1359,6 +1359,187 @@ fn m8_e2e_all_systems_oos() {
     eprintln!("[m8] 端到端四层报告落盘 /tmp/m8_e2e_all_systems_oos.md");
 }
 
+/// ★#270（SPEC #268 T2）翻向守卫修复回归固化：wf8 单窗重放红环 + 40 笔真翻向保护集断言。
+///
+/// 本测试是 #264 反馈环（`/tmp/bug264_red_loop.sh` + `/tmp/bug264_assert.py`，人类记忆里的
+/// /tmp 脚本）的**仓内永久版**——「1-bar 误杀」缺陷（#233 守卫把出生即恒真的 σ=−ε 两轴对立
+/// 误判为父翻向，t+1 必剪；wf8 92.3% 交易持仓恰好 1 bar）今后任何人再犯立刻变红。
+/// #269（commit 09e4307239）事件化修复后本测试转绿。
+///
+/// **① 红环断言**（与 /tmp 环同一病理线）：wf8 窗 L1/L3 各自的 **1-bar prune 占比 ≤ 50%**
+/// （>50% = 多数仓秒死 = 病态；阈值 50% 为编排者选定的病理线，#261 终裁可调）。
+/// #269 修复后读数（2026-07-25 在案，本测试 2026-07-26 复跑复核一致）：
+/// L1 51/123 = 41.5%、L3 10/37 = 27.0%，持仓中位 L1 38 / L3 132 bar（修复前 74.5%/94.4%、
+/// 中位 1/1）。
+///
+/// **② 40 笔真翻向保护集断言**（票面「事件口径下仍判 prune」逐笔锁定）：保护集 = bug 态产物
+/// （`/tmp/v4_C5_rerun_20260725`，#233 状态轴守卫轨，856 笔）中 hold>1 且 via_structural_prune
+/// 的 40 笔（#264 实证 95% 出场 bar 有塔结构事件——真正该杀的笔）。#269 复核
+/// （`/tmp/bug264_review_40.py`）：**仍杀 37 / 放过 0 / 判不出 3**。
+/// - 仍杀 37 笔：键 (level, ordinal, entry_bar) 硬编码于 [`FLIP_GUARD_PROT_STILL_37`]——
+///   断言每键在新轨迹**入场复现且全部候选仍 via_structural_prune**（误伤真翻向判定立刻红）；
+/// - 判不出 3 笔（如实登记，不静默放过也不静默杀）：`L0#101 entry=11761`（旧 hold=537
+///   CloseRoot）、`L1#51 entry=25893`（旧 hold=172 CloseRoot）、`L0#664 entry=75926`
+///   （旧 hold=464 CloseShortDiff）——#269 轨迹下同 (voice,entry_bar) 入场未复现（轨迹分叉：
+///   载体被前序存活腿占用/候选湮灭，入场侧零改前提下的合法分叉），事件口径下无从判定，
+///   交编排者。断言口径：键**若复现则必须仍判 prune**（永不静默放过）；缺席为在案状态。
+///
+/// 接线口径（与红环逐字同构）：wf8 = BTC anchored i=8（test 2023-08-17..2024-02-16）；
+/// VOICE_EXEC/OPSEM_DUMP_DIR 经**线程局部** override 注入（并行安全——进程级 env 会被并行
+/// 测试的 fill loop 读到并 truncate 同一 trades.jsonl，2026-07-13 竞态实录同型规避）；
+/// 断言消费 dump 的 trades.jsonl（opsem 只读旁路，生产路径 bit-exact 中性）。
+///
+/// `#[ignore]`: `cargo test --release --lib theta_v0::backtest::wverify_run::flip_guard_wf8_onebar_prune_replay -- --ignored --nocapture`
+#[test]
+#[ignore = "#270 wf8 翻向守卫回归；需 BTC 数据（DATA BLOCKER 不伪造）"]
+fn flip_guard_wf8_onebar_prune_replay() {
+    use super::runner::run_theta_v0_pi_overlay;
+
+    /// 40 笔保护集中 #269 复核「仍杀」的 37 笔键（level, ordinal, entry_bar）——
+    /// 旧轨（bug 态）hold>1 真翻向笔，事件口径下必须仍判 prune。
+    const FLIP_GUARD_PROT_STILL_37: [(u32, u64, i64); 37] = [
+        (1, 21, 11520), (3, 2, 18252), (0, 163, 20309), (0, 193, 23249),
+        (0, 236, 28030), (0, 242, 28532), (1, 75, 35531), (0, 363, 42241),
+        (0, 397, 45517), (0, 399, 45688), (1, 99, 45938), (0, 476, 54875),
+        (1, 127, 59416), (1, 127, 59966), (0, 643, 73841), (1, 161, 75428),
+        (1, 245, 117139), (1, 262, 126454), (1, 271, 131111), (0, 1218, 138803),
+        (0, 1227, 139741), (1, 315, 149455), (0, 1334, 151638), (1, 328, 154603),
+        (0, 1459, 165520), (3, 21, 177410), (0, 1632, 185949), (1, 387, 186470),
+        (1, 421, 204718), (0, 1783, 204945), (1, 423, 205795), (0, 2009, 233150),
+        (1, 487, 235755), (0, 2081, 241132), (2, 122, 243225), (1, 542, 259968),
+        (1, 548, 263584),
+    ];
+    /// 判不出 3 笔（#269 §5 如实列出交编排者）：若复现必须仍判 prune；缺席为在案状态。
+    const FLIP_GUARD_PROT_UNKNOWN_3: [(u32, u64, i64); 3] = [
+        (0, 101, 11761), (1, 51, 25893), (0, 664, 75926),
+    ];
+
+    // ── wf8 窗重放（与 m8_e2e_all_systems_oos 的 M8_WIN_FILTER=wf8 臂同窗同配置）──
+    let plain_cfg = ThetaConfig::default();
+    let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
+    let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
+    let w = sw.wf_anchored.iter().find(|w| w.i == 8).expect("wf8 窗（#264 症状窗）");
+    let test = ds.slice_date_window(w.test_start, w.test_end);
+    assert!(!test.bars.is_empty(), "wf8 test 段非空（否则测试空转）");
+    let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
+    let nav_te = test
+        .bars
+        .iter()
+        .find(|b| !b.untradable && b.close > 0)
+        .map(|b| b.close as f64 * plain_cfg.tick.tick_size)
+        .unwrap_or(1.0)
+        * 1000.0;
+    let mut cfg = ThetaConfig::default();
+    apply_theta_dir_preset_from_env(&mut cfg);
+    apply_enforce_gross_cap_from_env(&mut cfg);
+    cfg.margin = Some(q4_margin_model(nav_te));
+    cfg.cost_model = Some(m6_cost_model());
+
+    // dump 目录唯一化（并行/残留进程互不惊扰）；override 测试末尾复位。
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("系统时间晚于 epoch")
+        .as_nanos();
+    let dump_dir = std::env::temp_dir().join(format!(
+        "flip_guard_wf8_replay_{}_{}",
+        std::process::id(),
+        nonce
+    ));
+    super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = Some(dump_dir.clone()));
+    super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
+    let _r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
+    super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
+    super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = None);
+
+    // ── 消费 dump（红环同一数据源）：voice_id/entry/exit/prune 四字段即可。 ──
+    let text = std::fs::read_to_string(dump_dir.join("trades.jsonl"))
+        .expect("OPSEM dump 启用 ⟹ trades.jsonl 落盘");
+    let _ = std::fs::remove_dir_all(&dump_dir);
+    struct Row {
+        level: u32,
+        ordinal: u64,
+        entry_bar: i64,
+        exit_bar: i64,
+        prune: bool,
+    }
+    let mut rows: Vec<Row> = Vec::new();
+    for line in text.lines() {
+        let v: serde_json::Value = serde_json::from_str(line).expect("trades.jsonl 行合法 JSON");
+        rows.push(Row {
+            level: v["voice_id"]["level"].as_u64().expect("level") as u32,
+            ordinal: v["voice_id"]["ordinal"].as_u64().expect("ordinal"),
+            entry_bar: v["entry_bar"].as_i64().expect("entry_bar"),
+            exit_bar: v["exit_bar"].as_i64().expect("exit_bar"),
+            prune: v["via_structural_prune"].as_bool().expect("via_structural_prune"),
+        });
+    }
+    assert!(!rows.is_empty(), "wf8 dump 非空（否则测试空转）");
+
+    // ── ① 红环断言：L1/L3 1-bar prune 占比 ≤ 50% 病理线（>50% = RED）──
+    for lv in [1u32, 3u32] {
+        let ts: Vec<&Row> = rows.iter().filter(|r| r.level == lv).collect();
+        assert!(!ts.is_empty(), "wf8 L{lv} 笔集非空（否则断言空转）");
+        let one = ts.iter().filter(|r| r.prune && r.exit_bar - r.entry_bar <= 1).count();
+        let share = one as f64 / ts.len() as f64;
+        let mut holds: Vec<i64> = ts.iter().map(|r| r.exit_bar - r.entry_bar).collect();
+        holds.sort_unstable();
+        let med = holds[holds.len() / 2];
+        eprintln!(
+            "[#270] L{lv}: {} 笔, 1-bar prune {} ({:.1}%), 持仓中位 {med} bar -> {}",
+            ts.len(),
+            one,
+            share * 100.0,
+            if share > 0.5 { "RED" } else { "ok" },
+        );
+        assert!(
+            share <= 0.5,
+            "#264 症状回归：wf8 L{lv} 1-bar prune 占比 {:.1}% 越 50% 病理线\
+             （多数仓秒死=病态；翻向守卫须只在真翻向事件时开火，#268）",
+            share * 100.0,
+        );
+    }
+
+    // ── ② 40 笔真翻向保护集：37 笔仍杀逐键锁定 + 3 笔判不出登记口径 ──
+    let mut n_still = 0usize;
+    for &(level, ordinal, entry_bar) in &FLIP_GUARD_PROT_STILL_37 {
+        let cands: Vec<&Row> = rows
+            .iter()
+            .filter(|r| r.level == level && r.ordinal == ordinal && r.entry_bar == entry_bar)
+            .collect();
+        assert!(
+            !cands.is_empty(),
+            "保护集键 L{level}#{ordinal} entry={entry_bar} 入场未复现——\
+             #269 在案为仍杀键（复现态偏移须逐笔对账后更新本表，禁静默）"
+        );
+        assert!(
+            cands.iter().all(|r| r.prune),
+            "真翻向保护集键 L{level}#{ordinal} entry={entry_bar} 出现非 prune 候选——\
+             误伤真翻向判定（#233 已结算条款倒退），事件口径下必须仍判 prune"
+        );
+        n_still += 1;
+    }
+    let mut n_unknown_absent = 0usize;
+    for &(level, ordinal, entry_bar) in &FLIP_GUARD_PROT_UNKNOWN_3 {
+        let cands: Vec<&Row> = rows
+            .iter()
+            .filter(|r| r.level == level && r.ordinal == ordinal && r.entry_bar == entry_bar)
+            .collect();
+        if cands.is_empty() {
+            n_unknown_absent += 1; // #269 在案状态：入场未复现（轨迹分叉合法），如实计数。
+        } else {
+            assert!(
+                cands.iter().all(|r| r.prune),
+                "判不出登记键 L{level}#{ordinal} entry={entry_bar} 复现且非 prune——\
+                 永不静默放过（若复现须仍判 prune；语义变化须逐笔对账后更新登记）"
+            );
+        }
+    }
+    eprintln!(
+        "[#270] 40 笔保护集：仍杀键锁定 {n_still}/37 全绿；判不出登记键缺席 {n_unknown_absent}/3\
+         （#269 在案 3 笔全缺席：L0#101/11761、L1#51/25893、L0#664/75926）"
+    );
+}
+
 /// 从 δ-free dump（[`dump_deltafree_pertrade`] 落盘）逐行重建 `ResidualTrade`（Task #186 离线重算入口）。
 /// resid_base/cost/d 由 `f64::from_bits`（十六进制 round-trip）逐字节还原内存值 ⟹ 与在线 records bit-exact。
 /// A1/A6：force_state（第 8 维，code 编码）+ d（μ_R 分母）随 dump 还原——force_state 进 δ-free 主裁决基。
