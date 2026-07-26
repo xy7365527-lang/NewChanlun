@@ -54,6 +54,7 @@ use newchan_rust::theta_v0::closed_loop::sell::{
     SellDecision, SellEndpoint,
 };
 use newchan_rust::theta_v0::closed_loop::state::AssemblyState;
+use newchan_rust::theta_v0::parser::segment::Interval;
 use newchan_rust::theta_v0::strategy::ledger::LedgerComp;
 use newchan_rust::theta_v0::types::Side;
 use serde::Deserialize;
@@ -78,6 +79,25 @@ struct ParityFixture {
     sell_ledger_delta: SellLedgerDelta,
     sell_recog: SellRecog,
     sell_transition: SellTransition,
+    gap_overlap: GapOverlapSection,
+}
+
+/// #246 相切=重合裁定（ticket #248）fixture 段：单区间对的 Lean 机器见证
+/// （`decide (HasGap ..)` / `decide (¬ HasGap ..)` 真求值；后者经已证 `gap_iff_not_overlap`
+/// 与 Overlaps 严格互推——Overlaps 缺 Decidable 实例，补实例属证明项改动，ESCALATE 登记）。
+#[derive(Deserialize)]
+struct GapOverlapSection {
+    tangent_a_high_eq_b_low: GapOverlapCase,
+    tangent_b_high_eq_a_low: GapOverlapCase,
+    strict_disjoint: GapOverlapCase,
+    strict_disjoint_rev: GapOverlapCase,
+    strict_overlap: GapOverlapCase,
+}
+
+#[derive(Deserialize)]
+struct GapOverlapCase {
+    has_gap: bool,
+    overlaps: bool,
 }
 
 #[derive(Deserialize)]
@@ -395,4 +415,78 @@ fn lean_continuation_hold_bit_exact() {
     };
     let x1 = sell_transition(&x0, &cont);
     assert_eq!(x1.ledger_state, x0.ledger_state, "hold 闭环不改 ledger（bit-exact (0,0,0)）");
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  §7 #246 相切=重合裁定机器见证（ticket #248，2026-07-25 裁定书
+//     chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md）
+//
+//  裁定：相切（两区间只有一个公共端点）算「有重合区间」⟹ 无缺口，全域生效。
+//  Lean 侧 `HasGap`（严格 `<`，SegmentFeatureSeq.lean:102）与 `Overlaps`（`≤`，:111）
+//  本已符合裁定且 `gap_iff_not_overlap`（:115）已证互补；rust 侧 `Interval::overlaps`（≤）
+//  与 `Interval::gap`（!overlaps）与之逐字对齐。本测试断言：对同一批区间对用例，
+//  rust 既有原语计算 == fixture 中 Lean `decide` 机器导出值。
+//
+//  用例区间端点为双侧镜像的**用例输入**（与 §1 SellEndpoint 手编码输入同性质）；
+//  期望值（has_gap/overlaps）全部从 fixture 读（Lean #eval 机器产，禁手填）。
+//  Overlaps 真值经 `decide (¬ HasGap ..)` 读出（Overlaps 缺 Decidable 实例；补实例属
+//  证明项级改动，ESCALATE 登记于 tangency-impact-quantification-20260725.md §8）。
+//  三笔形态（max(lows)==min(highs)）不适用：Lean 无三笔重合谓词，其相切语义与两区间
+//  形态同构；rust 三笔谓词相切行为由 segment.rs 单测 three_stroke_overlap_tangent_counts 覆盖。
+// ════════════════════════════════════════════════════════════════════════════
+
+/// rust `Interval::overlaps`/`gap` == Lean `decide(HasGap)`/`decide(¬HasGap)` 逐用例 bit-exact。
+#[test]
+fn lean_gap_overlap_tangent_bit_exact() {
+    let fx = load_fixture();
+    // (a, b, Lean 机器导出期望, 用例名)——区间端点与 ParityFixtureExport gap_overlap 段逐一镜像。
+    let cases: [(Interval, Interval, &GapOverlapCase, &str); 5] = [
+        (
+            Interval { lo: 5, hi: 10 },
+            Interval { lo: 10, hi: 20 },
+            &fx.gap_overlap.tangent_a_high_eq_b_low,
+            "tangent_a_high_eq_b_low（[5,10] 与 [10,20] 相切）",
+        ),
+        (
+            Interval { lo: 10, hi: 20 },
+            Interval { lo: 5, hi: 10 },
+            &fx.gap_overlap.tangent_b_high_eq_a_low,
+            "tangent_b_high_eq_a_low（反向相切）",
+        ),
+        (
+            Interval { lo: 5, hi: 10 },
+            Interval { lo: 11, hi: 20 },
+            &fx.gap_overlap.strict_disjoint,
+            "strict_disjoint（严格分离）",
+        ),
+        (
+            Interval { lo: 11, hi: 20 },
+            Interval { lo: 5, hi: 10 },
+            &fx.gap_overlap.strict_disjoint_rev,
+            "strict_disjoint_rev（反向严格分离）",
+        ),
+        (
+            Interval { lo: 5, hi: 12 },
+            Interval { lo: 8, hi: 20 },
+            &fx.gap_overlap.strict_overlap,
+            "strict_overlap（严格重叠对照）",
+        ),
+    ];
+    for (a, b, expected, name) in cases {
+        assert_eq!(
+            a.gap(&b),
+            expected.has_gap,
+            "{name}: rust Interval::gap == Lean decide(HasGap)（bit-exact）"
+        );
+        assert_eq!(
+            a.overlaps(&b),
+            expected.overlaps,
+            "{name}: rust Interval::overlaps == Lean decide(¬HasGap)（经 gap_iff_not_overlap ↔ Overlaps）"
+        );
+        // 互补性在 Bool 层自证：fixture 导出值自身须满足 has_gap == !overlaps。
+        assert_eq!(
+            expected.has_gap, !expected.overlaps,
+            "{name}: fixture 导出值违反 gap_iff_not_overlap 互补（Lean 侧漂移）"
+        );
+    }
 }

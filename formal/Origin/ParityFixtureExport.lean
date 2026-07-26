@@ -42,6 +42,7 @@ import Origin.CenterStates
 import Origin.BspClassification
 import Origin.SellPointRecog
 import Origin.SellClosedLoop
+import Origin.SegmentFeatureSeq
 import Lean.Data.Json
 
 open NewChanlun.Origin
@@ -76,6 +77,25 @@ def positionStr : CenterPosition → String
 
 /-- 标准初始账户态（base A，Π=W=0；transition 见证用，与 rust parity 测试同口径）。 -/
 def baseAccount (baseA : Int) : ChanlunAccount := { ledger := mkLedger 0 baseA 0 }
+
+/-- #246 相切=重合裁定（2026-07-25，编排者裁定书
+    `chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`，ticket #248）
+    单区间对的 HasGap/Overlaps 机器见证导出。字段值全部来自 `decide` 机器求值（禁手填）。
+
+    ★Overlaps 缺 Decidable 实例（SegmentFeatureSeq.lean 只为 HasGap 派生 :105）——**不补**
+    （补 instance 属证明项级改动，按 SPEC 指示 ESCALATE 登记，不直接加）。Overlaps 真值由
+    `decide (¬ HasGap a b)` 读出：`gap_iff_not_overlap`（SegmentFeatureSeq.lean:115，已证）
+    给出 `HasGap a b ↔ ¬ Overlaps a b`，即 `Overlaps a b ↔ ¬ HasGap a b`——严格互推，非绕道近似。 -/
+def gapOverlapJson (a b : FeatureElem) : Json :=
+  Json.mkObj [
+    ("has_gap",  Json.bool (decide (HasGap a b))),
+    ("overlaps", Json.bool (decide (¬ HasGap a b)))
+  ]
+
+/-- gap/overlap 用例区间构造（`valid` 由 omega 直推；区间端点是用例输入，与
+    `classifyPosition sampleCenter.core 5` 的 `5` 同性质——期望值只有 has_gap/overlaps，
+    全部机器求值）。 -/
+def feOf (lo hi : Int) (h : lo ≤ hi) : FeatureElem := { low := lo, high := hi, valid := h }
 
 /--
   ★完整 parity fixture（所有字段来自真函数求值，机器产，非手填）。
@@ -157,6 +177,18 @@ def fixtureJson : Json :=
       ("at_30", Json.str (positionStr (classifyPosition sampleCenter.core 30))),
       ("zd",    Json.num sampleCenter.core.zd),
       ("zg",    Json.num sampleCenter.core.zg)
+    ]),
+    -- #246 相切=重合裁定机器见证（ticket #248，gapOverlapJson 全字段 decide 真求值）。
+    -- 用例：相切两形态（a.high==b.low / b.high==a.low）+ 严格分离（正/反向）+ 严格重叠对照。
+    -- 三笔形态（max(lows)==min(highs)）不适用：Lean 形式化层无三笔重合谓词（Overlaps 为两区间版），
+    -- 其三笔相切语义与两区间形态 a.high==b.low 同构，已由 tangent_a_high_eq_b_low 覆盖；
+    -- rust 侧 three_stroke_overlap 的相切行为由 rust 单测 three_stroke_overlap_tangent_counts 覆盖。
+    ("gap_overlap", Json.mkObj [
+      ("tangent_a_high_eq_b_low", gapOverlapJson (feOf 5 10 (by omega)) (feOf 10 20 (by omega))),
+      ("tangent_b_high_eq_a_low", gapOverlapJson (feOf 10 20 (by omega)) (feOf 5 10 (by omega))),
+      ("strict_disjoint",         gapOverlapJson (feOf 5 10 (by omega)) (feOf 11 20 (by omega))),
+      ("strict_disjoint_rev",     gapOverlapJson (feOf 11 20 (by omega)) (feOf 5 10 (by omega))),
+      ("strict_overlap",          gapOverlapJson (feOf 5 12 (by omega)) (feOf 8 20 (by omega)))
     ])
   ]
 

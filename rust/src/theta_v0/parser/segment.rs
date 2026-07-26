@@ -36,6 +36,41 @@ use super::feature_seq::{ExtendMode, FeatureSeqState};
 use super::second_kind;
 use std::rc::Rc;
 
+// ════════════════════════════════════════════════════════════
+// #246 相切探针（票 #248 裁定影响量化）——thread_local 计数器
+// ════════════════════════════════════════════════════════════
+//
+// 与 `feature_seq.rs` 缺口谓词探针同批埋点（裁定书 §6：两处必须同批改、必须带影响量化）。
+// 计数语义与谓词新旧口径无关（只记「max_lo == min_hi」数据事实），改前/改后可对比。
+
+/// #246 相切探针计数（`three_stroke_overlap` 三笔重合谓词）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct OverlapTangentProbe {
+    /// 三笔重叠谓词调用次数。
+    pub calls: u64,
+    /// `max_lo == min_hi`（三笔区间边界相切）：旧口径（<）判无重合 / 新口径（<=）判有重合。
+    pub tangent: u64,
+}
+
+thread_local! {
+    static OVERLAP_TANGENT_PROBE: std::cell::RefCell<OverlapTangentProbe> =
+        std::cell::RefCell::new(OverlapTangentProbe::default());
+}
+
+fn overlap_probe_bump(f: impl FnOnce(&mut OverlapTangentProbe)) {
+    OVERLAP_TANGENT_PROBE.with(|p| f(&mut p.borrow_mut()));
+}
+
+/// 相切探针清零（probe binary / 测试用）。
+pub fn overlap_tangent_probe_reset() {
+    overlap_probe_bump(|p| *p = OverlapTangentProbe::default());
+}
+
+/// 相切探针快照（probe binary / 测试用）。
+pub fn overlap_tangent_probe_snapshot() -> OverlapTangentProbe {
+    OVERLAP_TANGENT_PROBE.with(|p| *p.borrow())
+}
+
 /// 尾窗大小（对齐 Python `_FeatureSeqState.TAIL_WINDOW=7`）。
 ///
 /// ★L2 实测（OKLO 2000 笔，analysis/segment_refsem_cert.py）：窗口从 7 扩到 ∞ 输出不变
@@ -78,18 +113,31 @@ pub(super) fn stroke_interval(s: &Stroke) -> Interval {
 
 /// 三笔重叠判定（第77课:64 "线段开始的那三笔必须有重合"，对齐 `Origin.SegmentFeatureSeq.Overlaps` 三笔版）。
 ///
-/// 三笔几何区间公共交集非空：`max(lows) < min(highs)`。
+/// 三笔几何区间公共交集非空：`max(lows) <= min(highs)`（含边界相切）。
 ///
-/// ★口径（`≤`/`<` 差异）：本实装用**严格 `<`**（开区间），对齐 Python
-/// `a_segment_v1._three_stroke_overlap`（交叉验证基准）+ frozen 第77课"必须重合"
-/// （边界相切=零测度重合，从严不算）。`Origin.SegmentFeatureSeq.Overlaps` 用 `≤`（闭区间）是较宽
-/// 口径——二者在边界相切（max(lows)==min(highs)）时分歧；本工位站 Python `<` 侧（少产边界假段，
-/// 第77课"必须有重合的部分"更倾向实质重合）。这是 Lead #84 点3 的口径裁定（追溯第77课博文）。
+/// ★口径（#246 裁定，2026-07-25）：**相切（max(lows)==min(highs)）算「有重合区间」**，用含等号
+/// `<=`，对齐 `Origin.SegmentFeatureSeq.Overlaps`（`≤` 闭区间）。裁定书：
+/// `chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`。强制性依据：Lean 已证
+/// `gap_iff_not_overlap`（缺口与重合严格互补），本谓词与 `feature_seq.rs::is_fractal_and_gap`
+/// 必须同口径、同批改。
+/// ⚠ supersede 登记：本处原注释记录的 Lead #84 点3 口径（「边界相切=零测度重合，从严不算」，站
+/// Python `a_segment_v1._three_stroke_overlap` 严格 `<` 侧）已被 #246 裁定 **supersede**——考据证实
+/// 其援引的 frozen 第77课并非原文直述（与 #246 同属解读）。原「bit-exact 对齐 Python
+/// `_three_stroke_overlap`」声明在**本谓词边界上作废**：Python 参考实现不再是该谓词的权威基线；
+/// #84 其余条款（方案一 + 五 seam 拆分等）不受影响。
+/// ★与既有原语 [`Interval::overlaps`]（本文件 :90-93，闭区间 `≤`）**同口径**（相切算重合）；保留
+/// 独立实现仅为避免构造三个 `Interval` 的开销，非另起口径（#249 SPEC「优先复用既有原语」条）。
 fn three_stroke_overlap(a: &Stroke, b: &Stroke, c: &Stroke) -> bool {
     let (ia, ib, ic) = (stroke_interval(a), stroke_interval(b), stroke_interval(c));
     let max_lo = ia.lo.max(ib.lo).max(ic.lo);
     let min_hi = ia.hi.min(ib.hi).min(ic.hi);
-    max_lo < min_hi
+    overlap_probe_bump(|p| {
+        p.calls += 1;
+        if max_lo == min_hi {
+            p.tangent += 1;
+        }
+    });
+    max_lo <= min_hi
 }
 
 /// 从 `from` 起找首个三笔重叠的起点（第77课 H4，对齐 Python `_find_overlap_start`）。
@@ -746,6 +794,27 @@ mod tests {
         let b = Interval { lo: 5, hi: 18 };
         assert!(a.contains(&b));
         assert!(!b.contains(&a));
+    }
+
+    #[test]
+    fn three_stroke_overlap_tangent_counts() {
+        // ★#246 相切口径：max(lows) == min(highs) 算「有重合区间」（旧 #84 点3 从严不算，已 supersede）。
+        // 三笔区间 [5,10]、[8,12]、[10,15]：max_lo=10, min_hi=10 → 相切于 10。
+        let a = stroke(Direction::Up, 0, 4, 5, 10);
+        let b = stroke(Direction::Up, 4, 8, 8, 12);
+        let c = stroke(Direction::Down, 8, 12, 15, 10);
+        assert!(three_stroke_overlap(&a, &b, &c)); // 相切 ⟹ 有重合（新口径，`<=`）
+    }
+
+    #[test]
+    fn three_stroke_overlap_strict_cases_unchanged() {
+        // 严格内含（max_lo < min_hi）仍算重叠、严格分离（max_lo > min_hi）仍不算——新旧口径一致。
+        let a = stroke(Direction::Up, 0, 4, 5, 10);
+        let b = stroke(Direction::Up, 4, 8, 8, 12);
+        let c_in = stroke(Direction::Down, 8, 12, 11, 9); // [9,11]：max_lo=9 < min_hi=10 → 重叠
+        assert!(three_stroke_overlap(&a, &b, &c_in));
+        let c_out = stroke(Direction::Up, 8, 12, 13, 20); // [13,20]：max_lo=13 > min_hi=10 → 无重叠
+        assert!(!three_stroke_overlap(&a, &b, &c_out));
     }
 
     #[test]
