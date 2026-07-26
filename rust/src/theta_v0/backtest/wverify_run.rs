@@ -1554,17 +1554,31 @@ fn flip_guard_wf8_onebar_prune_replay() {
 /// `cleared_segs`（段序列清零证据）**已删除**（本机无段序列）。新增诊断行类
 /// `chain_sync`（adopt/rebase）/ `superseded`（链推进取代）/ `stale`（陈旧死亡请求）。
 ///
+/// ★**#337 口径再修**（容读法 + 两形态分桶，用户裁定 2026-07-26）：
+/// - Δidx=−1（被取代的旧中枢，其死亡通知晚一格到）已改判**合法放行**，落进 `broken`/`reset`
+///   且带 `slot:"tail_prev"`。**可机检锚**：产物里若还剩 Δidx=−1 的 `stale`，它**只可能**是
+///   「该身份此前已收过教义死亡」的二次死亡请求（容读格一次性）——测试逐行累积教义死亡身份集
+///   并对每条 Δidx=−1 的 stale 反查；查不到即容读判据没接上（真回归）。
+/// - 每条登记了中枢下场的行带 `death_form`（`doctrinal` = 三类破坏/一类同死；
+///   `arena_termination` = 被链推进取代）⟹ 两形态分桶可直接从产物统计。
+/// - `superseded` 由「每 bar 每级一行带 count」改为**逐实例事件行**（带身份 + `chain_idx` +
+///   `by_chain_idx`）；`chain_sync` 行补 `tail_*`/`prev_*` 身份与 `revived` 复活标志。
+///
 /// 断言（结构性不变量 + 计数合理性，均不涉轨迹数值——轨迹不变由对拍臂证）：
 /// - 每 born：`zd ≤ zg`（核心非空 = 中枢成立判据，机检不变量）+ 含 `chain_idx`；
-/// - 每 broken：`zd ≤ zg` + 含 `chain_idx`；
-/// - 每 reset：died 非 null 时 `died_zd ≤ died_zg`；
-/// - 每 stale：`target_idx < alive_idx`（陈旧 = 载体落在游标**上游**，这是 stale 与 miskill
-///   分野的可机检判据）；
+/// - 每 broken：`zd ≤ zg` + 含 `chain_idx` + `death_form=="doctrinal"` + `slot ∈ {tail,tail_prev}`；
+/// - 每 reset：died 非 null 时 `died_zd ≤ died_zg` 且带 doctrinal/slot，died 为 null 时二者皆 null；
+/// - 每 superseded：`death_form=="arena_termination"` ∧ `by_chain_idx == chain_idx + 1`；
+/// - 每 stale：`target_idx < alive_idx`，且 Δidx=−1 者须已在此前收过教义死亡（★#337 锚）；
 /// - 计数：`born ≥ 1`（L0 必现）∧ 逐级 `broken ≤ born`（破坏必先有出生）；
-/// - 诊断行计数（resync / chain_sync / superseded / stale / miskill）如实打印。
+/// - ★**MAJOR-A 举证换锚**：锁死解除的举证**不再挂在「miskill=0」上**（那是口径收窄后的
+///   不可比读数，见 `center_lifecycle.rs` [`CenterMisKill`] 文档），改挂在**出生身份的多样性**
+///   上——断言 L0 born 覆盖 ≥100 个**不同** `(si,zd,zg)` 身份（#331 交付态是「51 次 born 只
+///   2 个身份」的复锁；R3 实测 550 个）。这条才是「吸收态锁死已消灭」的直接反证。
+/// - 诊断行计数（resync / chain_sync / superseded / stale / miskill / revived）如实打印。
 ///
 /// ⚠️ 旧断言「broken ≥ 1（wf8 有三类点 ⟹ 破坏必现）」**改为如实打印不再硬断言**：R3 下三类点
-/// 能否成为 broken 取决于其载体是否恰为链游标处实例，载体落上游 ⟹ 陈旧请求（不是破坏）。
+/// 能否成为 broken 取决于其载体是否落在在场窗内，落更上游 ⟹ 陈旧请求（不是破坏）。
 /// 「wf8 有三类点」不再蕴含「必有 broken」，硬断言会把口径变化伪装成回归。
 ///
 /// `#[ignore]`：需 BTC 数据（DATA BLOCKER 不伪造）；wf8 全窗重放。
@@ -1629,9 +1643,17 @@ fn center_lifecycle_wf8_events_replay() {
     let mut n_lines = 0usize;
     // ★#336 R3 新诊断行类。
     let mut n_chain_sync = 0usize;
-    let mut n_superseded_rows = 0usize;
     let mut n_superseded = 0usize;
     let mut n_stale = 0usize;
+    // ★#337：容读格分桶（放行落在链尾 vs 链尾前一格）+ 重基复活实证 + 锁死解除举证。
+    let mut n_slot_tail = 0usize;
+    let mut n_slot_tail_prev = 0usize;
+    let mut n_revived = 0usize;
+    let mut born_ids: std::collections::BTreeMap<u64, std::collections::BTreeSet<(i64, i64, i64)>> =
+        std::collections::BTreeMap::new();
+    // 已收过教义死亡登记的实例身份（按行序累积；容读格一次性判据的机检输入）。
+    let mut doctrinally_dead: std::collections::BTreeSet<(u64, i64, i64, i64)> =
+        std::collections::BTreeSet::new();
     for line in text.lines() {
         if line.is_empty() {
             continue;
@@ -1648,6 +1670,11 @@ fn center_lifecycle_wf8_events_replay() {
                 let zg = v["zg"].as_i64().expect("zg");
                 assert!(zd <= zg, "born 核心非空不变量：zd={zd} ≤ zg={zg}");
                 assert!(v["chain_idx"].as_u64().is_some(), "★R3：born 含链下标 chain_idx");
+                // ★#337 MAJOR-A：出生**身份**入集合（锁死解除的举证锚，见头注）。
+                born_ids
+                    .entry(level)
+                    .or_default()
+                    .insert((v["si"].as_i64().expect("born 含 si"), zd, zg));
                 e.0 += 1;
             }
             "broken" => {
@@ -1655,6 +1682,17 @@ fn center_lifecycle_wf8_events_replay() {
                 let zg = v["zg"].as_i64().expect("zg");
                 assert!(zd <= zg, "broken 死中枢核心非空：zd={zd} ≤ zg={zg}");
                 assert!(v["chain_idx"].as_u64().is_some(), "★R3：broken 含链下标 chain_idx");
+                assert_eq!(
+                    v["death_form"].as_str(),
+                    Some("doctrinal"),
+                    "★#337：三类点破坏 = 教义死亡形态"
+                );
+                match v["slot"].as_str() {
+                    Some("tail") => n_slot_tail += 1,
+                    Some("tail_prev") => n_slot_tail_prev += 1,
+                    other => panic!("★#337：broken slot ∈ {{tail,tail_prev}}，实得 {other:?}"),
+                }
+                doctrinally_dead.insert((level, v["si"].as_i64().expect("broken 含 si"), zd, zg));
                 e.1 += 1;
             }
             "reset" => {
@@ -1662,6 +1700,24 @@ fn center_lifecycle_wf8_events_replay() {
                     let zd = v["died_zd"].as_i64().expect("died_zd");
                     let zg = v["died_zg"].as_i64().expect("died_zg");
                     assert!(zd <= zg, "reset 同死中枢核心非空：died_zd={zd} ≤ died_zg={zg}");
+                    assert_eq!(
+                        v["death_form"].as_str(),
+                        Some("doctrinal"),
+                        "★#337：一类点同死 = 教义死亡形态"
+                    );
+                    match v["slot"].as_str() {
+                        Some("tail") => n_slot_tail += 1,
+                        Some("tail_prev") => n_slot_tail_prev += 1,
+                        other => panic!("★#337：reset slot ∈ {{tail,tail_prev}}，实得 {other:?}"),
+                    }
+                    doctrinally_dead
+                        .insert((level, v["died_si"].as_i64().expect("reset 含 died_si"), zd, zg));
+                } else {
+                    // 场为空的一类点边界记录：没死人 ⟹ 形态/格位一律 null（不编造）。
+                    assert!(
+                        v["death_form"].is_null() && v["slot"].is_null(),
+                        "★#337：died 为空的 reset 不得带死亡形态/格位"
+                    );
                 }
                 e.2 += 1;
             }
@@ -1685,14 +1741,39 @@ fn center_lifecycle_wf8_events_replay() {
                     "chain_sync reason ∈ {{adopt,rebase}}"
                 );
                 assert!(v["chain_len"].as_u64().is_some(), "chain_sync 含 chain_len");
+                // ★#337 MAJOR-B：身份字段 + 复活标志（链空时 tail_* 为 null，故只校字段在场）。
+                let chain_len = v["chain_len"].as_u64().expect("chain_sync 含 chain_len");
+                if chain_len >= 1 {
+                    assert!(
+                        v["tail_si"].as_i64().is_some(),
+                        "★#337：非空链的 chain_sync 须带在场实例身份 tail_si"
+                    );
+                }
+                if chain_len >= 2 {
+                    assert!(
+                        v["prev_si"].as_i64().is_some(),
+                        "★#337：链长≥2 的 chain_sync 须带容读格身份 prev_si"
+                    );
+                }
+                match v["revived"].as_bool() {
+                    Some(true) => n_revived += 1,
+                    Some(false) => {}
+                    None => panic!("★#337：chain_sync 须带 revived 布尔（重基复活实证）"),
+                }
                 n_chain_sync += 1;
             }
-            // ★#336 R3 诊断行：链推进取代（前一实例从未收到死亡事件）。
+            // ★#337：在场终结事件行（被链推进取代）——由 #336 的「每 bar 每级一行带 count」
+            // 聚合诊断行升为**逐实例事件行**（带身份 + 链下标），与教义死亡分桶。
             "superseded" => {
-                let c = v["count"].as_u64().expect("superseded 含 count");
-                assert!(c >= 1, "superseded 行 count ≥ 1（不写空行）");
-                n_superseded_rows += 1;
-                n_superseded += c as usize;
+                assert_eq!(
+                    v["death_form"].as_str(),
+                    Some("arena_termination"),
+                    "★#337：被取代 = 在场终结形态"
+                );
+                let idx = v["chain_idx"].as_u64().expect("superseded 含 chain_idx");
+                let by = v["by_chain_idx"].as_u64().expect("superseded 含 by_chain_idx");
+                assert_eq!(by, idx + 1, "取代者恒为链上紧邻后一格（idx={idx} by={by}）");
+                n_superseded += 1;
             }
             // ★#336 R3 诊断行：陈旧死亡请求（载体命中链上已退场实例）。
             "stale" => {
@@ -1700,9 +1781,24 @@ fn center_lifecycle_wf8_events_replay() {
                 let ti = v["target_idx"].as_u64().expect("stale 含 target_idx");
                 assert!(
                     ti < ai,
-                    "★R3 stale 判据：载体落游标上游（target_idx={ti} < alive_idx={ai}）——\
-                     否则不该被判陈旧（miskill/broken 的域）"
+                    "stale = 载体落游标上游（target_idx={ti} < alive_idx={ai}）"
                 );
+                // ★#337 容读法的可机检锚：Δidx=−1（容读格）**只可能**因「该实例此前已收过教义
+                // 死亡」而被拒（容读格一次性 / 已死实例不得二次死亡）。若出现一条 Δidx=−1 而
+                // 该身份此前**没有**任何教义死亡登记，就是容读判据没接上（真回归）。
+                if ai - ti == 1 {
+                    let id = (
+                        level,
+                        v["target_si"].as_i64().expect("stale 含 target_si"),
+                        v["target_zd"].as_i64().expect("stale 含 target_zd"),
+                        v["target_zg"].as_i64().expect("stale 含 target_zg"),
+                    );
+                    assert!(
+                        doctrinally_dead.contains(&id),
+                        "★#337 容读法回归：Δidx=−1 的死亡请求被判 stale，但该身份 {id:?} \
+                         此前无任何教义死亡登记 ⟹ 容读格本应放行"
+                    );
+                }
                 assert!(
                     matches!(v["trigger"].as_str(), Some("first") | Some("third")),
                     "stale 触发类 ∈ {{first,third}}"
@@ -1725,11 +1821,22 @@ fn center_lifecycle_wf8_events_replay() {
         tk += k;
         tr += r;
     }
+    // ★#337 MAJOR-A：锁死解除的举证锚 = 出生**身份**的多样性（不是 miskill=0——那是口径收窄
+    // 后的不可比读数）。#331 交付态的复锁形态是「51 次 born 只 2 个身份」。
+    let l0_ids = born_ids.get(&0).map(|s| s.len()).unwrap_or(0);
+    assert!(
+        l0_ids >= 100,
+        "★MAJOR-A：L0 出生须覆盖 ≥100 个不同中枢身份（吸收态锁死已消灭的直接反证），实得 {l0_ids}"
+    );
+    let ids_per_level: Vec<(u64, usize)> = born_ids.iter().map(|(l, s)| (*l, s.len())).collect();
     eprintln!(
-        "[#291/#336 R3] wf8 中枢生命周期（塔链消费）：born={tb} broken={tk} reset={tr} \
-         miskill={n_miskill}（载体不在链上）stale={n_stale}（载体在链上但已退场）\
-         superseded={n_superseded}（{n_superseded_rows} 行）chain_sync={n_chain_sync} \
-         resync={n_resync}；逐级 {counts:?}"
+        "[#291/#336 R3/#337 容读法] wf8 中枢生命周期（塔链消费）：born={tb} broken={tk} reset={tr} \
+         miskill={n_miskill}（载体不在链上）stale={n_stale}（容读窗外 或 二次死亡请求）\
+         superseded={n_superseded}（在场终结事件行）chain_sync={n_chain_sync} \
+         revived={n_revived}（重基复活）resync={n_resync}；\
+         ★两形态分桶：教义死亡 {}（其中链尾 {n_slot_tail} / 容读格 {n_slot_tail_prev}）\
+         + 在场终结 {n_superseded}；★出生身份数/级 {ids_per_level:?}；逐级 {counts:?}",
+        n_slot_tail + n_slot_tail_prev,
     );
 }
 
