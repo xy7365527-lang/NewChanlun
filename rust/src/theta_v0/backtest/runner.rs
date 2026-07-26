@@ -69,15 +69,24 @@ use super::fill::{bar_returns, simulate_fills};
 // 自 runner.rs 纯移动；对外经 `pub use` 门面保持原路径。
 pub(super) use super::fill::{
     FillOutput, FillOutputDual, LegFillRec,
-    pi_theta_fill_loop, pi_theta_fill_loop_voice, pi_theta_fill_loop_overlay,
+    pi_theta_fill_loop, pi_theta_fill_loop_overlay,
     plan_and_fill_mtm, plan_and_fill_mtm_dual,
     apply_voice_fill, apply_voice_fill_dual,
 };
+// ★#295：声部独立执行臂 wrapper 本体在 fill.rs 即 #[cfg(test)]（生产接入走
+// run_theta_v0_pi_overlay 的 VOICE_EXEC=1 gate 直调 pi_theta_fill_loop_overlay）——
+// re-export 同门控，bin（非 test）构建不引 test-only 符号。
+#[cfg(test)]
+pub(super) use super::fill::pi_theta_fill_loop_voice;
 use super::opsem_dump::{
     eta_bucket_str, force_state_str, operation_role_str, risk_mode_str,
     strict_nest_sidecar_enabled, summarize_strict_nest_certificates, t_stage_str, voice_side_str,
-    OpsemDump, StrictNestSidecarCollector, OPSEM_DUMP_DIR_OVERRIDE,
+    OpsemDump, StrictNestSidecarCollector,
 };
+// ★#295：OPSEM_DUMP_DIR_OVERRIDE 为 #[cfg(test)] thread_local 注入点（opsem_dump.rs:180，
+// 消费面仅 tests::opsem_dump_env_gated_bit_exact）——import 同门控，同 VOICE_EXEC_OVERRIDE 惯例。
+#[cfg(test)]
+use super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE;
 // ★B-M2（#89）准入门 seam：χ/nest/k_Θ 三门 + κ 解析自 runner.rs 纯移动。
 use super::admission::{
     voice_exec_gate, nest_cert_gate_enabled,

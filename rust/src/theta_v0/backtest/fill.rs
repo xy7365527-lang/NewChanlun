@@ -325,7 +325,7 @@ use super::signal::{entry_structural_stop, newly_confirmed_step};
 use super::opsem_dump::{
     eta_bucket_str, force_state_str, operation_role_str, risk_mode_str,
     strict_nest_sidecar_enabled, summarize_strict_nest_certificates, t_stage_str, voice_side_str,
-    OpsemDump, StrictNestSidecarCollector, OPSEM_DUMP_DIR_OVERRIDE,
+    OpsemDump, StrictNestSidecarCollector,
 };
 use super::admission::{
     voice_exec_gate, nest_cert_gate_enabled,
