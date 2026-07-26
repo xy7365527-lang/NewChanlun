@@ -11,6 +11,12 @@
 //!   不按当前在场——链已推进换代后，终结事件仍须命中它所指的那个挂起实例。
 //! - **E**：接住首次教义死亡——即便某实例从未被记录过在场终结（无前置 Superseded），一旦
 //!   收到教义死亡（Broken/Reset）也要正确终结，不依赖「先 superseded 才能终结」的隐含前提。
+//! - **F**（issue #292 续修，二轮评审浮出）：链**重基**（[`center_lifecycle::ChainConsumed::Rebased`]）
+//!   到达时，挂起按身份三元组核对重基后的新链——身份仍在链上⟹**跟随迁移**（挂起状态原样保留；
+//!   本机挂起表键本身就是身份，不含链下标侧车，故迁移是保状态的 no-op）；身份从新链上消失⟹
+//!   **终结**（[`SuspensionTerminationSource::RebaseVanished`]，与 `Superseded` 同形态：不回补，
+//!   承诺作废）。禁悬空——[`CenterOscillationBook::on_chain_rebase`] 尾部机检断言：处理后任何
+//!   仍挂起的身份都必须在新链上，不留「既非迁移又非终结」的第三态。
 //!
 //! ## 范围边界（与 T3/#293、T4/#294 分工）
 //!
@@ -26,10 +32,10 @@
 //! 禁止任何形式复用「ShortDiff」作类型/字段命名（S6 已废止形态的名字不得回魂）。
 
 use super::super::classifier::center_lifecycle::{CenterId, CenterLifecycleEvent};
-use super::super::types::Side;
+use super::super::types::{Center, Side};
 use super::oscillation::{BoundarySide, PanDivTrigger};
 use super::voice::VoiceSide;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// 触发构造的 typed 拒绝（无静默兜底）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -143,7 +149,8 @@ pub struct CenterOscillationActionRecord {
     pub action: CenterOscillationAction,
 }
 
-/// 挂起短差的终结来源（ADR 补充二 + #292 前置约束五条）。四源同走「终结」出口，互不重叠。
+/// 挂起短差的终结来源（ADR 补充二 + #292 前置约束五条 + #292 续修）。五源同走「终结」出口，
+/// 互不重叠。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SuspensionTerminationSource {
     /// 本级三类**买**点破坏（`Broken{breaker_side: Long}`）：终结伴随一次收手回补——
@@ -160,6 +167,11 @@ pub enum SuspensionTerminationSource {
     /// 被链推进取代（[`center_lifecycle::DeathForm::ArenaTermination`]，B 裁定）：终结不回补
     /// ——承诺作废，禁任何形式复活（无本级买点证书不得开仓）。
     Superseded,
+    /// ★#292 续修（二轮评审浮出的挂起悬空泄漏修复）：链重基（[`center_lifecycle::ChainConsumed::Rebased`]）
+    /// 后，挂起对应的中枢身份已不在新链上——该实例连「被取代」的记录都没有，是工程重基这一
+    /// 侧信道的失踪，与 `Superseded` 同形态终结：不回补，承诺作废，禁任何形式复活。判据 =
+    /// [`CenterOscillationBook::on_chain_rebase`] 逐挂起身份核对重基后的新链。
+    RebaseVanished,
 }
 
 /// 一次终结的产出：身份 + 来源 + 是否伴随一次收手回补动作（仅 [`SuspensionTerminationSource::BrokenByThirdClassBuy`]
@@ -278,6 +290,44 @@ impl CenterOscillationBook {
         let cover_action = matches!(source, SuspensionTerminationSource::BrokenByThirdClassBuy)
             .then_some(CenterOscillationAction::Replenish);
         vec![SuspensionOutcome { center: id, source, cover_action }]
+    }
+
+    /// 消费一次链**重基**（[`center_lifecycle::ChainConsumed::Rebased`]）⟹ 0 或多条终结产出
+    /// （F 裁定，issue #292 续修）。
+    ///
+    /// 重基是工程再同步（前缀分叉/该级塔缓存全量重置），不是教义生死——本机不产 `Reset`/`Broken`/
+    /// `Superseded` 之外的第三种教义事件，只按**身份**核对新链：
+    /// - 挂起身份仍在新链上（任意下标，不要求仍是链尾/容读格）⟹ **跟随迁移**：挂起状态原样
+    ///   保留（本机挂起表的键本身就是身份三元组，不含链下标侧车，迁移不改变任何字段，是
+    ///   保状态的 no-op，故本函数不为它产出任何 `SuspensionOutcome`）。
+    /// - 挂起身份不在新链上 ⟹ **终结**：与 `Superseded` 同形态（[`SuspensionTerminationSource::RebaseVanished`]），
+    ///   不回补，承诺作废。
+    ///
+    /// **禁悬空（机检断言）**：处理后仍挂起的身份必须全部在新链上——不留「既非迁移又非终结」
+    /// 的第三态；这是本函数的构造性不变量（逐身份要么留要么删），断言只是把它显式钉死。
+    pub fn on_chain_rebase(&mut self, chain: &[Center]) -> Vec<SuspensionOutcome> {
+        if self.suspended.is_empty() {
+            return Vec::new();
+        }
+        let chain_ids: BTreeSet<CenterId> = chain.iter().map(CenterId::of).collect();
+        let vanished: Vec<CenterId> =
+            self.suspended.keys().copied().filter(|id| !chain_ids.contains(id)).collect();
+        for id in &vanished {
+            self.suspended.remove(id);
+        }
+        let outcomes: Vec<SuspensionOutcome> = vanished
+            .into_iter()
+            .map(|center| SuspensionOutcome {
+                center,
+                source: SuspensionTerminationSource::RebaseVanished,
+                cover_action: None,
+            })
+            .collect();
+        debug_assert!(
+            self.suspended.keys().all(|id| chain_ids.contains(id)),
+            "禁悬空：重基核对后任何仍挂起的身份都必须在新链上（迁移分支的机检不变量）"
+        );
+        outcomes
     }
 }
 
@@ -567,6 +617,98 @@ mod tests {
         let outcomes = book.on_lifecycle_event(&broken(id, Side::Short));
         assert_eq!(outcomes.len(), 1);
         assert!(!book.is_suspended(id));
+    }
+
+    // ── 链重基（F 裁定，issue #292 续修：禁悬空） ────────────────────────────
+
+    fn center_of(id: CenterId) -> Center {
+        Center {
+            zd: id.zd,
+            zg: id.zg,
+            dd: id.zd - 2,
+            gg: id.zg + 2,
+            start_index: id.start_index,
+            end_index: id.start_index + 50,
+        }
+    }
+
+    /// 状态①跟随迁移：重基后新链仍含该挂起身份（哪怕不再是链尾/容读格，只要任意下标命中）
+    /// ⟹ 挂起状态原样保留，不产任何终结。
+    #[test]
+    fn rebase_migrates_suspension_when_identity_still_on_new_chain() {
+        let id = cid(5, 100, 200);
+        let other = cid(700, 300, 400);
+        let mut book = CenterOscillationBook::new(0);
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, 10).unwrap());
+        assert!(book.is_suspended(id));
+        let new_chain = vec![center_of(id), center_of(other)];
+        let outcomes = book.on_chain_rebase(&new_chain);
+        assert!(outcomes.is_empty(), "身份仍在新链上⟹跟随迁移，不产终结");
+        assert!(book.is_suspended(id), "迁移=挂起状态原样保留");
+    }
+
+    /// 状态②终结：重基后新链不再含该挂起身份 ⟹ 与 Superseded 同形态终结，不回补。
+    #[test]
+    fn rebase_terminates_suspension_when_identity_vanishes_from_new_chain() {
+        let id = cid(5, 100, 200);
+        let survivor = cid(700, 300, 400);
+        let mut book = CenterOscillationBook::new(0);
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, 10).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(survivor), VoiceSide::Short, 20).unwrap());
+        assert_eq!(book.suspended_count(), 2);
+        let new_chain = vec![center_of(survivor)];
+        let outcomes = book.on_chain_rebase(&new_chain);
+        assert_eq!(outcomes.len(), 1);
+        assert_eq!(outcomes[0].center, id);
+        assert_eq!(outcomes[0].source, SuspensionTerminationSource::RebaseVanished);
+        assert_eq!(outcomes[0].cover_action, None, "重基悬空终结不回补，承诺作废");
+        assert!(!book.is_suspended(id), "终结=挂起清空");
+        assert!(book.is_suspended(survivor), "存活身份不受连坐");
+    }
+
+    /// 状态③禁悬空机检：混合场景（多身份，部分迁移/部分终结）——处理后任何仍挂起的身份都
+    /// 必须在新链上，逐一核对不留第三态；同时验证终结产出恰好覆盖消失的那些身份，不多不少。
+    #[test]
+    fn rebase_reconciliation_leaves_no_dangling_identity() {
+        let stays = cid(5, 100, 200);
+        let vanishes_a = cid(50, 150, 250);
+        let vanishes_b = cid(80, 160, 260);
+        let new_arrival = cid(900, 500, 600);
+        let mut book = CenterOscillationBook::new(0);
+        for (id, seed) in [(stays, 10usize), (vanishes_a, 20), (vanishes_b, 30)] {
+            book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, seed).unwrap());
+        }
+        assert_eq!(book.suspended_count(), 3);
+        let new_chain = vec![center_of(stays), center_of(new_arrival)];
+        let outcomes = book.on_chain_rebase(&new_chain);
+        let terminated: std::collections::BTreeSet<CenterId> =
+            outcomes.iter().map(|o| o.center).collect();
+        assert_eq!(
+            terminated,
+            [vanishes_a, vanishes_b].into_iter().collect(),
+            "终结产出恰好=消失的身份集合，不多不少"
+        );
+        for o in &outcomes {
+            assert_eq!(o.source, SuspensionTerminationSource::RebaseVanished);
+            assert_eq!(o.cover_action, None);
+        }
+        let chain_ids: std::collections::BTreeSet<CenterId> =
+            new_chain.iter().map(CenterId::of).collect();
+        assert!(book.is_suspended(stays));
+        assert!(!book.is_suspended(vanishes_a));
+        assert!(!book.is_suspended(vanishes_b));
+        assert_eq!(book.suspended_count(), 1, "只剩迁移的那一个");
+        assert!(chain_ids.contains(&stays), "迁移身份必须在新链上（否则是第三态：悬空未归因）");
+    }
+
+    /// 空挂起表上的重基是 no-op（不 panic，不产任何终结）——防御性边界。
+    #[test]
+    fn rebase_on_empty_suspension_book_is_noop() {
+        let mut book = CenterOscillationBook::new(0);
+        let new_chain = vec![center_of(cid(5, 100, 200))];
+        let outcomes = book.on_chain_rebase(&new_chain);
+        assert!(outcomes.is_empty());
+        assert_eq!(book.suspended_count(), 0);
     }
 
     // ── 无门（机械断言） ──────────────────────────────────────────────────

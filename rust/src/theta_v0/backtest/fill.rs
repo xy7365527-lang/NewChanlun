@@ -764,6 +764,9 @@ where
 /// 投影）。纯函数化——不依赖 `tower_i`/pan_div 门内部（门后 `pan_div_triggers` 由调用方产出），
 /// 可脱离完整 fill 循环直接单测。顺序：先喂本 bar 生命周期事件（使 `alive_center()` 反映
 /// 本 bar 内已发生的死亡），再消费本 bar 的 pan_div 触发（与 `opsem_dump.rs` 同序）。
+///
+/// ★#292 续修（二轮评审浮出的挂起悬空泄漏）：`ChainConsumed::Rebased` 分支接入
+/// `osc_books[lvl].on_chain_rebase`——重基后挂起按身份核对新链，迁移/终结二分，禁悬空。
 fn step_center_oscillation(
     bar: usize,
     classification_i: &classifier::Classification,
@@ -786,9 +789,25 @@ fn step_center_oscillation(
     }
     for lvl in 0..n_levels {
         let chain: &[super::super::types::Center] = &classification_i.levels[lvl].centers;
-        if let ChainConsumed::Advanced { events, .. } = cl_machines[lvl].consume_chain(chain) {
-            for ev in events.iter() {
-                for outcome in osc_books[lvl].on_lifecycle_event(ev) {
+        // #292 续修：重基（`ChainConsumed::Rebased`）到达时按身份核对新链——挂起对该级的
+        // 处置见 `CenterOscillationBook::on_chain_rebase`（F 裁定：迁移/终结二分，禁悬空）。
+        match cl_machines[lvl].consume_chain(chain) {
+            ChainConsumed::Advanced { events, .. } => {
+                for ev in events.iter() {
+                    for outcome in osc_books[lvl].on_lifecycle_event(ev) {
+                        if let Some(action) = outcome.cover_action {
+                            actions.push(CenterOscillationActionRecord {
+                                bar,
+                                level: lvl as u32,
+                                center: outcome.center,
+                                action,
+                            });
+                        }
+                    }
+                }
+            }
+            ChainConsumed::Rebased { .. } => {
+                for outcome in osc_books[lvl].on_chain_rebase(chain) {
                     if let Some(action) = outcome.cover_action {
                         actions.push(CenterOscillationActionRecord {
                             bar,
@@ -799,6 +818,7 @@ fn step_center_oscillation(
                     }
                 }
             }
+            ChainConsumed::Adopted { .. } => {}
         }
         if let Some(step_level) = classification_step.levels.get(lvl) {
             for p in step_level.bsp.iter() {
@@ -840,12 +860,15 @@ fn step_center_oscillation(
 #[cfg(test)]
 mod center_oscillation_wiring_tests {
     //! #292 T2 落点门控接线单测：`step_center_oscillation` 纯函数化后可脱离完整 fill 循环
-    //! 直接单测（不依赖 tower_i/gate/真实市场数据）。覆盖验收两项：
+    //! 直接单测（不依赖 tower_i/gate/真实市场数据）。覆盖验收三项：
     //! - 门控开启臂：中枢链推进+确认三类点 ⟹ 生命周期终结动作可见；PanDivTrigger 消费
     //!   ⟹ 减补动作可见。
     //! - 门控关闭臂：fill.rs 主循环里本函数整段不被调用（`pan_div_hist=None` 分支跳过），
     //!   `FillOutput.center_oscillation_actions` 恒空——由 v1/dual 路径的诚实空 Vec 字面量
     //!   保证（编译期可见，见 `FillOutput` 三处构造点），本测试补运行期证据。
+    //! - #292 续修（二轮评审）：链重基（`ChainConsumed::Rebased`）到达时挂起按身份核对新链——
+    //!   仍在链上⟹跟随迁移，从新链消失⟹终结，端到端经 `step_center_oscillation` 可见（见
+    //!   `gate_on_chain_rebase_migrates_survivor_and_terminates_vanished_suspension`）。
     use super::*;
     use classifier::center_lifecycle::CenterId;
     use classifier::{bsp::BspPoint, bsp::OwnerRef, Classification, LevelState};
@@ -943,6 +966,55 @@ mod center_oscillation_wiring_tests {
         assert_eq!(actions[0].action, CenterOscillationAction::Replenish);
         assert_eq!(actions[0].center, CenterId::of(&c0));
         assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "终结=挂起清空");
+    }
+
+    /// #292 续修（issue #292 二轮评审：挂起悬空泄漏）端到端接线证据：`step_center_oscillation`
+    /// 在遇到 `ChainConsumed::Rebased` 时正确接入 `on_chain_rebase`——重基后仍在新链上的挂起
+    /// 身份跟随迁移（原样保留），从新链消失的挂起身份终结（不回补，故本 bar 无 cover_action
+    /// 可见动作，只能从挂起表状态验证）。
+    #[test]
+    fn gate_on_chain_rebase_migrates_survivor_and_terminates_vanished_suspension() {
+        let c0 = center(5, 10, 100, 200);
+        let c1 = center(20, 25, 300, 400);
+        let c2 = center(22, 27, 500, 600);
+        let mut cl_machines = Vec::new();
+        let mut osc_books = Vec::new();
+
+        // bar0：链=[c0]，首次消费（Adopted），不产生任何生命周期事件。
+        let bar0_classification = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let empty_step = Classification { levels: vec![LevelState::default()] };
+        let no_triggers: Vec<(usize, PanDivTrigger)> = Vec::new();
+        let _ = step_center_oscillation(0, &bar0_classification, &empty_step, &no_triggers, &mut cl_machines, &mut osc_books);
+
+        // 直接摆两笔挂起（c0 已在场；c1 尚未在链上——挂起按身份匹配，不要求当前在场，D 裁定）。
+        osc_books[0].on_trigger(
+            super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
+                0,
+                Some(CenterId::of(&c0)),
+                VoiceSide::Short,
+                1,
+            )
+            .unwrap(),
+        );
+        osc_books[0].on_trigger(
+            super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
+                0,
+                Some(CenterId::of(&c1)),
+                VoiceSide::Short,
+                2,
+            )
+            .unwrap(),
+        );
+        assert!(osc_books[0].is_suspended(CenterId::of(&c0)));
+        assert!(osc_books[0].is_suspended(CenterId::of(&c1)));
+
+        // bar1：链前缀分叉为 [c1, c2]（已消费的第 0 格身份从 c0 改写为 c1）⟹ Rebased。
+        // 新链含 c1、不含 c0。
+        let bar1_classification = Classification { levels: vec![level_with_centers(vec![c1, c2])] };
+        let actions = step_center_oscillation(1, &bar1_classification, &empty_step, &no_triggers, &mut cl_machines, &mut osc_books);
+        assert!(actions.is_empty(), "RebaseVanished 终结不回补，本 bar 无 cover_action 可见动作");
+        assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "c0 已从新链消失⟹终结，不再悬空");
+        assert!(osc_books[0].is_suspended(CenterId::of(&c1)), "c1 仍在新链上⟹跟随迁移，挂起原样保留");
     }
 
     /// 门控关闭臂：`pi_theta_fill_loop` 生产入口在默认配置（`center_oscillation.enabled=false`）
