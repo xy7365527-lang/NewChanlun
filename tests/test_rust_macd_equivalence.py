@@ -57,11 +57,16 @@ def _bits_equal(a: float, b: float) -> bool:
     return struct.pack("<d", a) == struct.pack("<d", b)
 
 
-def _rel_close(a: float, b: float, rel: float = 1e-11) -> bool:
-    """相对容差比较；NaN↔NaN 视为相等（保留 _bits_equal 的 NaN 语义）。"""
+def _rel_close(a: float, b: float, rel: float = 1e-11, abs_tol: float = 1e-13) -> bool:
+    """abs+rel 混合容差比较；NaN↔NaN 视为相等（保留 _bits_equal 的 NaN 语义）。
+
+    #324 三裁（CI 二轮实证）：rel=1e-11 在 DIF/hist 过零附近失效——递推舍入噪声有
+    绝对地板（~3e-14），值过零时相对误差被放大到 ~3e-11，纯 rel 放多大都没用。
+    abs_tol=1e-13（噪声地板 3 倍）兜过零段，rel=1e-11 管正常区间（numpy allclose 同型）。
+    """
     if math.isnan(a) and math.isnan(b):
         return True
-    return math.isclose(a, b, rel_tol=rel, abs_tol=0.0)
+    return math.isclose(a, b, rel_tol=rel, abs_tol=abs_tol)
 
 
 def _synthetic_closes(n: int) -> list[float]:
