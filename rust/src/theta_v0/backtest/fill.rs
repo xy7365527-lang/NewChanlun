@@ -351,7 +351,8 @@ where
 {
     // ★M5 wrapper：overlay=None ⟹ 现有净额路径逐字节不变（bit-exact）。overlay 簿接线走
     // [`pi_theta_fill_loop_overlay`]（run_theta_v0_pi_overlay arm 传 Some）。
-    pi_theta_fill_loop_overlay(classify_at, bars, initial_nav, config, chi, None, None)
+    // ★LEE M1：level_ledger=None ⟹ 级别账本镜像整段跳过（bit-exact 回归锁）。
+    pi_theta_fill_loop_overlay(classify_at, bars, initial_nav, config, chi, None, None, None)
 }
 
 /// ★W1 声部独立执行臂（churn 修复，netting-vs-voice-execution-audit-20260719 §7）：与
@@ -374,7 +375,7 @@ pub(super) fn pi_theta_fill_loop_voice<F>(
 where
     F: FnMut(usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, Vec<usize>, u64, u64),
 {
-    pi_theta_fill_loop_overlay(classify_at, bars, initial_nav, config, chi, None, Some(voice))
+    pi_theta_fill_loop_overlay(classify_at, bars, initial_nav, config, chi, None, None, Some(voice))
 }
 
 /// ★M5 声部执行层 fill loop（多空对冲.pdf p16 关卡10）：与 [`pi_theta_fill_loop`] **同一决策路径**
@@ -383,6 +384,12 @@ where
 ///
 /// `overlay=None` ⟹ 净额路径 bit-exact（所有现有臂）；`Some(&mut ov)` ⟹ 逐 bar 决策点把 sep_legs
 /// 步进 overlay（**只读旁路**，不改净额 fill 的 cash/units/trade_pnls ⟹ 现有数字不动）。
+///
+/// ★LEE M1 `level_ledger`（multi-level-native-execution-design-20260719 §D M1）：与 overlay 并列的
+/// 第二重只读旁路——同一决策点同一 `sep_legs` 按 `id.level`≡formation_level 分桶步进
+/// [`LevelLedgerMirror`](super::super::strategy::level_ledger::LevelLedgerMirror)，逐 bar
+/// debug_assert **LEE-Net 恒等** `Σ_ℓ net_ℓ == overlay.net()`（加性细化，设计文档 §C.2）。
+/// `None` ⟹ 整段跳过，逐字节不变（bit-exact 回归锁）。
 ///
 /// ★W1 `voice_exec=Some`（声部独立执行臂，审计 §7）：净额影子账本（cash/units/entry_cost）
 /// **原样跑**——决策层（typed_ledger/TW/sep_legs/gate/base_units）全部读影子真值 ⟹ 与净额臂
@@ -396,6 +403,7 @@ pub(super) fn pi_theta_fill_loop_overlay<F>(
     config: &ThetaConfig,
     chi: Option<ChiFilterCtx>,
     mut overlay: Option<&mut super::super::strategy::overlay_state::OverlayState>,
+    mut level_ledger: Option<&mut super::super::strategy::level_ledger::LevelLedgerMirror>,
     mut voice_exec: Option<&mut super::super::strategy::overlay_state::VoiceExecBook>,
 ) -> FillOutput
 where
@@ -1043,6 +1051,22 @@ where
                     ostep.order, ostep.net_after, ostep.net_before
                 );
             }
+            // ── ★LEE M1 级别账本镜像步进（multi-level-native-execution-design-20260719 §D M1）：
+            //    同一决策点同一 sep_legs 按 id.level≡formation_level 分桶重放（与 overlay 并列的
+            //    只读旁路，不改净额 fill 任何状态）。level_ledger=None ⟹ 整段跳过（bit-exact 回归锁）。 ──
+            if let Some(ll) = level_ledger.as_deref_mut() {
+                let lstep = ll.step(&step_trace.sep_legs, px, i, config.risk.default_lot.max(1) as i64);
+                // ★LEE-Net 恒等（M1 验收断言，设计文档 §C.2）：Σ_ℓ net_ℓ 恒 = overlay 净敞口 N——
+                // 逐级分解是 Net 的加性细化（整数手数求和，精确成立非 eps 容差）。
+                if let Some(ov) = overlay.as_deref() {
+                    debug_assert_eq!(
+                        lstep.total_net,
+                        ov.net(),
+                        "LEE-Net 恒等违例（M1 加性细化）：Σ_ℓ net_ℓ={} ≠ N={} @bar{}",
+                        lstep.total_net, ov.net(), i
+                    );
+                }
+            }
             // ── ③'' G4 typed ledger（#134）：消费 StepTrace 腿级生命周期事件。 ──
             // 开腿：准入信号腿登记（z 塔真值，与生产 χ 查询同经 z_of_candidate——训练/查询同口径）。
             // A6（#159）：z_of_candidate 内读 c.force（Candidate 透传 BspPoint.force）填 force_state
@@ -1431,6 +1455,13 @@ where
         if let Some(last_i) = (0..n).rev().find(|&j| !bars[j].untradable && bars[j].close > 0) {
             let last_px = bars[last_i].close as f64 * config.tick.tick_size;
             ov.force_flat(last_px, last_i);
+        }
+    }
+    // ── ★LEE M1 镜像窗口终点强平：与 overlay 同价同 bar 按级重排（各级簿清空、closed 分区落账）。 ──
+    if let Some(ll) = level_ledger.as_deref_mut() {
+        if let Some(last_i) = (0..n).rev().find(|&j| !bars[j].untradable && bars[j].close > 0) {
+            let last_px = bars[last_i].close as f64 * config.tick.tick_size;
+            ll.force_flat(last_px, last_i);
         }
     }
 

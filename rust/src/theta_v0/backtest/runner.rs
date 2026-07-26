@@ -583,6 +583,10 @@ pub struct OverlayRunResult {
     pub reconcile_residual: f64,
     /// 终态 overlay 账本（活动 + 已离场声部归因，逐声部 entry_v/exit_v/parent(v)/role(v)/pnl_v）。
     pub overlay: super::super::strategy::overlay_state::OverlayState,
+    /// ★LEE M1：终态级别账本镜像（multi-level-native-execution-design-20260719 §D M1）——与
+    /// overlay 并列的只读旁路，同一 `sep_legs` 按 `id.level`≡formation_level 分桶重放；
+    /// LEE-Net 恒等 `Σ_ℓ net_ℓ ≡ N`（`pi_theta_fill_loop_overlay` 内逐 bar debug_assert 同锚）。
+    pub level_ledger: super::super::strategy::level_ledger::LevelLedgerMirror,
     /// 净额执行层 RunResult（同 `run_theta_v0_pi`，净额订单/权益——overlay 是其只读旁路，数字不变）。
     /// ★W1 例外：env `VOICE_EXEC=1` 时本字段承载**声部执行投影**口径（见 `voice_exec` 字段
     /// 注释——fill.n_orders=声部 fill 事件数、equity/trade_pnls/r_decomp=声部账户），
@@ -629,6 +633,11 @@ pub struct VoiceExecRunSummary {
 /// （χ≡1 全覆盖），额外驱动 [`OverlayState`](super::super::strategy::overlay_state) hedge-mode 逐声部
 /// 账本 P^sep → N=Net(P^sep) → Order_t=ΔN → 逐声部 pnl_v 归因。
 ///
+/// ★LEE M1（multi-level-native-execution-design-20260719 §D M1）：与 overlay 并列驱动
+/// [`LevelLedgerMirror`](super::super::strategy::level_ledger) 级别账本只读旁路——同一
+/// `sep_legs` 按 `id.level`≡formation_level 分桶重放，LEE-Net 恒等 `Σ_ℓ net_ℓ ≡ N` 逐 bar
+/// debug_assert（fill loop 内）；**M1 不做**：不拆 clock_ℓ（M3）、不改 sizing（M4）、不产订单。
+///
 /// **净额路径 bit-exact**：overlay 是 `pi_theta_fill_loop_overlay` 内 sep_legs 的只读旁路——不改
 /// cash/units/trade_pnls/equity ⟹ `net_result` 与 `run_theta_v0_pi` 逐字节一致（现有臂不污染）。
 ///
@@ -651,6 +660,8 @@ pub fn run_theta_v0_pi_overlay(
 ) -> OverlayRunResult {
     let bars = &dataset.bars;
     let mut overlay = super::super::strategy::overlay_state::OverlayState::new();
+    // ★LEE M1：与 overlay 并列的级别账本只读旁路镜像（同一 sep_legs 按 id.level 分桶）。
+    let mut level_ledger = super::super::strategy::level_ledger::LevelLedgerMirror::new();
     // ★W1 env gate：VOICE_EXEC=1 ⟹ 声部独立执行臂；未设/非"1" ⟹ 净额臂（bit-exact）。
     let voice_exec_on = voice_exec_gate();
     let mut voice_book = if voice_exec_on {
@@ -677,6 +688,7 @@ pub fn run_theta_v0_pi_overlay(
         &config,
         None, // χ≡1 全覆盖（与 run_theta_v0_pi 同信号路径）
         Some(&mut overlay),
+        Some(&mut level_ledger),
         voice_book.as_mut(),
     );
 
@@ -761,6 +773,7 @@ pub fn run_theta_v0_pi_overlay(
         total_voice_pnl,
         reconcile_residual,
         overlay,
+        level_ledger,
         net_result,
         tw_final,
         voice_exec,
@@ -2130,6 +2143,106 @@ mod tests {
             "逐声部 pnl_v 有限"
         );
         assert!(ov.account_price_pnl.is_finite(), "账户净额价格 PnL 有限");
+    }
+
+    /// ★LEE M1 级别账本只读旁路（multi-level-native-execution-design-20260719 §D M1 验收）：
+    /// ① 净额路径 bit-exact（镜像旁挂不改 n_orders/typed_ledger/tw_final/equity_curve）；
+    /// ② LEE-Net 恒等：Σ_ℓ net_ℓ == overlay N（终态锚；逐 bar 锚 = loop 内 debug_assert）；
+    /// ③ 级别封闭：每桶只含 id.level==桶级别的行；
+    /// ④ 分区完备 + 行级 bit-equal：镜像 closed 行与 overlay closed 行逐字段对拍（D8 协议模板）。
+    #[test]
+    fn level_ledger_mirror_bit_exact_bypass_and_lee_net_identity() {
+        use super::super::super::strategy::level_ledger::LevelLedgerMirror;
+        use super::super::super::strategy::overlay_state::OverlayState;
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let baseline = pi_theta_fill_loop(buy_then_sell(1), &bars, 1.0e6, &config, None);
+        let mut ov = OverlayState::new();
+        let mut ll = LevelLedgerMirror::new();
+        let fill = pi_theta_fill_loop_overlay(
+            buy_then_sell(1),
+            &bars,
+            1.0e6,
+            &config,
+            None,
+            Some(&mut ov),
+            Some(&mut ll),
+            None,
+        );
+        // ① 净额路径 bit-exact（只读旁路回归锁——镜像接入后净额臂逐字节不变）。
+        assert_eq!(fill.n_orders, baseline.n_orders, "镜像旁挂 ⟹ 净额订单数 bit-exact");
+        assert_eq!(fill.typed_ledger, baseline.typed_ledger, "决策层 bit-exact");
+        assert_eq!(fill.tw_final, baseline.tw_final, "TW 终态 bit-exact");
+        assert_eq!(fill.equity_curve, baseline.equity_curve, "权益曲线 bit-exact");
+        // 非空前置（防真空断言）：本信号恰 1 声部开+平（与 G4 typed_ledger 同信号）⟹ 镜像非空。
+        assert_eq!(ov.closed_voices().len(), 1, "前置：overlay 恰 1 离场声部");
+        // ④ 分区完备 + 行级 bit-equal（D8 逐字节对拍协议，dual_ledger.rs:440-525 模板）。
+        assert_eq!(ll.n_closed(), ov.closed_voices().len(), "closed 按级分区完备");
+        for c in ov.closed_voices() {
+            let rows = ll.closed_voices(c.id.level);
+            assert_eq!(rows.len(), 1, "单声部 ⟹ 其级别桶恰 1 行");
+            let m = &rows[0];
+            assert_eq!(m.id.level, c.id.level, "③ 级别封闭：桶级别 == id.level");
+            assert_eq!(m.entry_px.to_bits(), c.entry_px.to_bits(), "entry_px bit-equal");
+            assert_eq!(m.exit_px.to_bits(), c.exit_px.to_bits(), "exit_px bit-equal");
+            assert_eq!(m.pnl_v.to_bits(), c.pnl_v.to_bits(), "pnl_v bit-equal（同式同序重放）");
+            assert_eq!(m.entry_bar, c.entry_bar);
+            assert_eq!(m.exit_bar, c.exit_bar);
+        }
+        // ② LEE-Net 恒等（终态归零；逐 bar 恒等锚 = `pi_theta_fill_loop_overlay` 内 debug_assert）。
+        assert_eq!(ll.total_net(), ov.net(), "Σ_ℓ net_ℓ == N（M1 加性细化）");
+        assert_eq!(ll.n_active(), ov.active_voices().count(), "active 按级分区完备");
+    }
+
+    /// ★LEE M1 结果包接线（公开 API 面）：`run_theta_v0_pi_overlay` 装配的 `level_ledger`
+    /// 与 overlay 同跑终态一致（分区完备 + LEE-Net 恒等 + 级别封闭），净额路径 bit-exact 不变。
+    #[test]
+    fn run_theta_v0_pi_overlay_level_ledger_wired() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..60)
+            .map(|i| {
+                let up = ((i / 4) % 2) == 0;
+                let base = 10_000_000_000i64;
+                let step = 250_000_000i64 * ((i % 4) as i64);
+                mk_bar(i, if up { base + step } else { base + 1_000_000_000 - step }, false)
+            })
+            .collect();
+        let ds = Dataset {
+            symbol: "ZZ60OV".to_string(),
+            bars,
+            dates: (0..60).map(|i| format!("2024-02-{:02} 00:00:00", (i % 28) + 1)).collect(),
+            bar_seconds: 60,
+        };
+        let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+        // 净额路径 bit-exact（镜像接入后公开 API 面仍与纯净额臂一致）。
+        assert_eq!(ov.net_result.n_orders, baseline.n_orders, "净额订单数 bit-exact");
+        assert_eq!(
+            ov.net_result.metrics.strat_return, baseline.metrics.strat_return,
+            "净额 strat_return bit-exact（镜像不改 cash/units/equity）"
+        );
+        // 结果包终态一致：分区完备 + LEE-Net 恒等 + 级别封闭。
+        assert_eq!(
+            ov.level_ledger.n_closed(),
+            ov.overlay.closed_voices().len(),
+            "closed 按级分区完备"
+        );
+        assert_eq!(
+            ov.level_ledger.n_active(),
+            ov.overlay.active_voices().count(),
+            "active 按级分区完备"
+        );
+        assert_eq!(
+            ov.level_ledger.total_net(),
+            ov.overlay.net(),
+            "LEE-Net 恒等：Σ_ℓ net_ℓ == overlay N（终态）"
+        );
+        for lvl in ov.level_ledger.levels() {
+            assert!(
+                ov.level_ledger.active_voices(lvl).all(|b| b.id.level == lvl),
+                "级别封闭：active[{lvl}] 只含 id.level=={lvl}"
+            );
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────
