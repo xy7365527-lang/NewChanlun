@@ -1,5 +1,11 @@
 //! 增量特征序列状态机（第67/71课）——bit-exact 移植 Python `a_segment_v1._FeatureSeqState`。
 //!
+//! ⚠口径例外（#246 裁定，supersede Lead #84 点3）：缺口谓词 `is_fractal_and_gap` 的
+//! 「相切」边界自 2026-07-25 起为**严格** `>`（相切=重合 ⟹ 无缺口），对齐 Lean
+//! `Origin.SegmentFeatureSeq.HasGap`，**不再 bit-exact 对齐 Python** `_is_fractal_and_gap`。
+//! 裁定书：`chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`。
+//! 本文件其余部分的 Python bit-exact 对齐声明不受影响。
+//!
 //! ## 认识论等级（formalization-validity-domain，强制标注）
 //!
 //! **本文件 = L1（忠实于 v1 spec `a_segment_v1.py`，**非** L2 经验验证 / **非** 对 Lean
@@ -57,11 +63,16 @@ fn stroke_high_low(s: &Stroke) -> (Tick, Tick) {
     }
 }
 
-/// 分型 + 缺口判定（bit-exact 对齐 Python `_is_fractal_and_gap`，:242-266）。
+/// 分型 + 缺口判定（bit-exact 对齐 Python `_is_fractal_and_gap`，:242-266——**相切边界除外**）。
 ///
-/// 向上段顶分型：`b_h > a_h && b_h > c_h`（只看 high）；缺口 `b_l >= a_h`（b 完全在 a 上方）。
-/// 向下段底分型：`b_l < a_l && b_l < c_l`（只看 low）；缺口 `a_l >= b_h`（a 完全在 b 上方）。
+/// 向上段顶分型：`b_h > a_h && b_h > c_h`（只看 high）；缺口 `b_l > a_h`（b 严格在 a 上方）。
+/// 向下段底分型：`b_l < a_l && b_l < c_l`（只看 low）；缺口 `a_l > b_h`（a 严格在 b 上方）。
 /// 返回 `(is_fractal, has_gap)`。
+///
+/// ★口径（#246 裁定，supersede Lead #84 点3）：相切（仅公共端点，如 `b_l == a_h`）**不算
+/// 缺口**——相切=有重合 ⟹ 无缺口，与 Lean `HasGap`（严格 `<`）及 `gap_iff_not_overlap`
+/// 一致；Python 参考实现在本口径上不再是权威基线（对齐声明此处作废）。
+/// 裁定书：`chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`。
 fn is_fractal_and_gap(
     a_h: Tick,
     a_l: Tick,
@@ -74,12 +85,12 @@ fn is_fractal_and_gap(
     match seg_dir {
         Direction::Up => {
             let is_fractal = b_h > a_h && b_h > c_h;
-            let has_gap = if is_fractal { b_l >= a_h } else { false };
+            let has_gap = if is_fractal { b_l > a_h } else { false };
             (is_fractal, has_gap)
         }
         Direction::Down => {
             let is_fractal = b_l < a_l && b_l < c_l;
-            let has_gap = if is_fractal { a_l >= b_h } else { false };
+            let has_gap = if is_fractal { a_l > b_h } else { false };
             (is_fractal, has_gap)
         }
     }
@@ -417,6 +428,27 @@ mod tests {
         let (f, g) = is_fractal_and_gap(15, 12, 8, 3, 18, 14, Direction::Down);
         assert!(f); // 3 < 12 && 3 < 14
         assert!(g); // a_l=12 >= b_h=8
+    }
+
+    // ★相切用例（#246 裁定：相切=重合 ⟹ 无缺口，supersede Lead #84 点3）。
+    // 注意：上述既有用例全是严格不等构造，对本口径变化不敏感；以下相切用例才是本次口径的保障。
+
+    #[test]
+    fn is_fractal_and_gap_tangent_up_no_gap() {
+        // 向上段顶分型，b 与 a 仅公共端点（b_l == a_h == 10，相切）。
+        // 相切=重合 ⟹ 无缺口：has_gap 必须为 false。
+        let (f, g) = is_fractal_and_gap(10, 5, 20, 10, 8, 3, Direction::Up);
+        assert!(f); // 20 > 10 && 20 > 8
+        assert!(!g); // b_l=10 相切 a_h=10 → 有重合 → 无缺口
+    }
+
+    #[test]
+    fn is_fractal_and_gap_tangent_down_no_gap() {
+        // 向下段底分型，a 与 b 仅公共端点（a_l == b_h == 10，相切）。
+        // 相切=重合 ⟹ 无缺口：has_gap 必须为 false。
+        let (f, g) = is_fractal_and_gap(15, 10, 10, 3, 18, 14, Direction::Down);
+        assert!(f); // 3 < 10 && 3 < 14
+        assert!(!g); // a_l=10 相切 b_h=10 → 有重合 → 无缺口
     }
 
     #[test]
