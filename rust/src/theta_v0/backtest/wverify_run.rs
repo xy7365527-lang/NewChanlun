@@ -1939,8 +1939,8 @@ struct C327Hit {
     unit_i: usize,
     /// 单点核心价位（`zd==zg` 的公共值，tick）。
     core: Tick,
-    /// 三元组首单元的 merged-bar 起点（供日期定位）。
-    merged_start: usize,
+    /// 三元组首单元的**原始 bar 序**起点（`Segment.start_index` 同口径，非 merged 序，供日期定位）。
+    src_start: usize,
     /// 命中所在的检测级（0 = #323 报告口径的 L0；决定复判走完整判据还是几何判据）。
     level: usize,
     /// 命中三元组本体（逐点复判的输入，不再回查 units ⟹ 断言与枚举同源）。
@@ -2059,7 +2059,7 @@ fn cascade_dual(l0: &ParseLayer, config: &ThetaConfig, weak: bool) -> C327Arm {
                 hits.push(C327Hit {
                     unit_i: i,
                     core: zd,
-                    merged_start: a.start_index,
+                    src_start: a.start_index,
                     level: level_idx,
                     triple: [*a, *b, *c],
                 });
@@ -2215,16 +2215,16 @@ fn c327_run_witness(
             reading.lcs,
             reading.rearranged(),
             sh.len(),
-            sh.first().map(|h| date_of(h.merged_start)).unwrap_or_default(),
-            sh.last().map(|h| date_of(h.merged_start)).unwrap_or_default(),
+            sh.first().map(|h| date_of(h.src_start)).unwrap_or_default(),
+            sh.last().map(|h| date_of(h.src_start)).unwrap_or_default(),
         );
         for h in sh {
             eprintln!(
                 "[#327/{tag}]   命中 L{k} unit_i={} 单点核心={} src={} date={}",
                 h.unit_i,
                 h.core,
-                h.merged_start,
-                date_of(h.merged_start)
+                h.src_start,
+                date_of(h.src_start)
             );
             // 逐点见证：新口径不成立 ∧ 旧弱口径成立 ∧ 核心确为单点（反事实内建，见方法 doc）。
             h.assert_single_point_rejected();
@@ -2238,6 +2238,17 @@ fn c327_run_witness(
             reading, expect_levels[k],
             "[{tag}] L{k} 双臂中枢序列读数偏离 GOLDEN（strict/weak/lcs 任一分量变 ⟹ 级联重排计数不再是在案值）"
         );
+        // ★生产真被打到的独立坐实：命中不为空 ⟹ 该级级联重排数须 >0（枚举口径命中与生产路径口径
+        // 是两件事，见 docs/canonical-coverage-rust-impl.md B1 「①覆盖口径边界」；重排数 >0 才证明
+        // 生产 `detect_centers_windowed_resume` 在这一级真的产出了不同的中枢序列，不只是枚举命中）。
+        if !sh.is_empty() {
+            assert!(
+                reading.rearranged() > 0,
+                "[{tag}] L{k} 命中 {} 次但级联重排数为 0——生产判据未被真实打到，覆盖仅是枚举口径上的\
+                 名义命中，不构成 #321 改动的安全证据",
+                sh.len()
+            );
+        }
         total_hits += sh.len();
     }
 
@@ -2326,6 +2337,9 @@ const C327_BLOCK_REARRANGE: [usize; 4] = [6, 2, 0, 0];
 /// ★GOLDEN（#327 首次实测）：变动块窗两处命中的日期前缀——票面「落在 2022-02 变动块」的字面见证。
 const C327_BLOCK_HIT_DAY: &str = "2022-02-01";
 
+/// ★GOLDEN（#327 首次实测）：变动块窗两处命中共享的单点核心价位（tick）。
+const C327_BLOCK_HIT_CORE: Tick = 3_830_000_000_000;
+
 /// ★#327 真覆盖见证锁 ②（变动块臂，**本票主交付**）：锁直接落在 #323 报告点名的 2022-02 变动块。
 ///
 /// 与锁①（全量）的分工：①证明「全量口径下 #323 的级联重排计数复算成立」，②证明「**在报告点名的
@@ -2370,12 +2384,17 @@ fn center_strict_zd_eq_zg_change_block_witness() {
     let l0_hits = &hits[0];
     assert_eq!(l0_hits.len(), 2, "变动块窗 L0 命中数（GOLDEN 2 处）");
     for h in l0_hits {
-        let date = ds.dates.get(h.merged_start).map(String::as_str).unwrap_or("");
+        let date = ds.dates.get(h.src_start).map(String::as_str).unwrap_or("");
         assert!(
             date.starts_with(C327_BLOCK_HIT_DAY),
             "命中点 src={} 日期 `{date}` 未落在 #323 点名的 {C327_BLOCK_HIT_DAY} 变动块——\
              锁若飘出变动块就不再是本票要的『真覆盖见证』",
-            h.merged_start
+            h.src_start
+        );
+        assert_eq!(
+            h.core, C327_BLOCK_HIT_CORE,
+            "命中点 src={} 单点核心价位偏离 GOLDEN（覆盖面变化须逐点对账后更新，禁静默）",
+            h.src_start
         );
     }
     eprintln!(

@@ -145,6 +145,22 @@ GitHub issue #321（2026-07-26 用户裁决）。
   得 **L0 26 / L1 18 / L2 8 / L3 3 / L4 2**，与转录值逐级一致 ⟹ #323 的爆炸半径披露经独立复现坐实。
 - **GOLDEN 口径**：逐级 `(严格臂中枢数, 弱臂中枢数, LCS 长度)` 三元读数 + 数据身份 `(bars, merged,
   segments)` 全部固化为常量（`C327_*`），任一分量漂移都点名到级；复现性实测**连续两次读数逐位一致**。
+- **①覆盖口径边界**：上表「真覆盖」命中数是**全三元组枚举口径**（`cascade_dual` 对本级 `units` 上
+  全部连续三元组求 `zd==zg`），**不是**生产扫描游标实际走过的路径——生产游标只考察其中一部分
+  （`detect_centers_windowed_resume` 的路径依赖跳跃），枚举口径是路径口径的**超集**。「生产判据
+  真被打到」由**级联重排数 ≠0**独立坐实（重排数变化只能来自 `detect_centers_windowed_resume`
+  在生产路径上实际产出了不同的中枢序列，不依赖枚举口径），二者互为交叉证据，不是同一件事。
+- **②两窗读数不可互推**：全量臂（BTC 4 613 599 bar）与变动块臂（2022-01-01…2022-02-28）是**两次
+  独立的 `parse_layer` 重新解析**（变动块窗内数据经 `slice_date_window` 后无窗外历史），二者的
+  中枢序列、级联重排计数**互相独立**，不可用一窗读数反推或校验另一窗——两把锁分别对各自的 GOLDEN
+  常量表负责。
+- **③复算触发命令 + 输出摘要 sha256**（连续两次 `--nocapture` 全量输出逐位一致，验证复现性用）：
+  ```bash
+  cd /Users/silencehan/Projects/NewChanlun/rust
+  cargo test --release --lib theta_v0::backtest::wverify_run::center_strict_zd_eq_zg -- --ignored --nocapture
+  ```
+  两把锁 `[#327/...]` 前缀输出行合计 sha256（`grep '^\[#327'` 后取 hash）：
+  `f5b8b989e8a7b54f1210fac5c5c5c1d1e239251d706e77ca52c722cc7daeef68`
 
 **反膨胀核（B4 三类买卖点完整性——编排者最关心）**：
 - **bit-vector 6 位结构完整**（`BspBits` 每位独立可置，2B/3B 可共存，符合 `no_exclusive_trichotomy`）。
