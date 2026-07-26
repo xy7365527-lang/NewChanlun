@@ -396,56 +396,145 @@ where
 /// 逐字节一致；真实执行投影走声部簿（pending_voice 队列 + 事件驱动 fill + 开仓冻结 sizing），
 /// 输出层（equity/trade_pnls/trades/n_orders/r_decomp）换为声部账户口径（设计性改变，非回归）。
 /// `voice_exec=None` ⟹ 下列声部分支全部跳过，净额路径逐字节不变（bit-exact 回归锁）。
-/// ★LEE M2 单决策点级别归因（`pi_theta_fill_loop_overlay` 的订单量出口，§D M2）。
+/// ★★LEE M3 单决策点级别归因 + **事件门控**（`pi_theta_fill_loop_overlay` 的订单出口，§D M3）。
 ///
-/// 输入本决策点的目标腿 `sep_legs`、账户层物理净目标 `p_star_final`、当前净持仓 `p_t`，
-/// 输出该订单的级别增量 `Δq_ℓ`，并**就地把 `order` 的量换成 `Σ_ℓ Δq_ℓ`**（动作分类不变）。
+/// M2 版每 bar 用当前 `sep_legs` 重估各级目标；M3 起**只在 `clock_ℓ` 事件时点重估，无事件 bar
+/// 目标=前值**（设计文档 §D M3 逐字）。事件集定义与 `LevelState` 逐字段对齐见
+/// [`level_clock`](super::super::strategy::level_clock) 模块头。
 ///
-/// - 结构基准 `net_ℓ`：`sep_legs` 按 `id.level`≡formation_level 折叠
-///   （[`level_nets`](super::super::strategy::level_ledger::level_nets) 与 M1 镜像 `nets()`
-///   构造性同源，禁第二裁决源）。
-/// - 物理整数目标 `T = p_t + Schedule_Θ 的有符号手数`：p\* 常态落在 lot 网格上
-///   （`feasible_candidates` 全 lot 对齐）⟹ `T ≡ p\*`；仅 pan_div 的账户层
-///   `clamp_position(cap,…)`（cap 非 lot 对齐）可产非网格 p\*，此时 T = 其 lot 可实现化值
-///   ——**照实声明**：这是「lot 可实现物理净目标」，不是 p\* 本身。
-/// - `Δq_ℓ = q_ℓ − held_ℓ`，订单量 `qty = |Σ_ℓ Δq_ℓ|`（i64 求和，**无浮点结合律重排**）。
-/// - 动作分类沿用净额 `Schedule_Θ`（§C.2 伪码末行逐字「沿用 Schedule_Θ 单出口」）。
+/// 三段，域分明（§F③ 风控/门控优先级形式化的实装落点）：
 ///
-/// **能力边界**：`T` 由账户层 `qty_M0` 锚定 ⟹ `|Σ_ℓ Δq_ℓ| ≡ qty_M0` 是**构造性同义反复
-/// （L0）**，不是可证伪结论；真正被数据检验的是 `Σ_ℓ held_ℓ ≡ p_t`（L1，跨延迟/部分/拒单）
-/// 与 `Σ_ℓ net_ℓ` vs `T` 的分歧读数（L2）。详见
-/// [`level_order`](super::super::strategy::level_order) 模块头的证据等级表。
-fn plan_level_attributed_order(
-    level_order: &mut super::super::strategy::level_order::LevelOrderLedger,
-    sep_legs: &[super::super::strategy::coverage::SepLeg],
-    p_star_final: f64,
+/// 1. **门控重估**（结构域）：`basis^gated = regate(net_ℓ, ticked)`——有 tick 的级别取本 bar
+///    `net_ℓ`（[`level_nets`](super::super::strategy::level_ledger::level_nets)，与 M1 镜像
+///    `nets()` 构造性同源，禁第二裁决源），无 tick 的级别取 `q_ℓ^plan` 前值。
+/// 2. **账户层/风控投影**（风控域，**每 bar 无条件**）：`p̃_lee = Σ_ℓ basis^gated_ℓ` 经
+///    [`pi_theta_position`](super::super::strategy::coverage::pi_theta_position) 投影到 `𝒦_Θ`
+///    ——`gate.force_flat ⟹ {0}`、`stop_long ⟹ 禁净多`、`stop_short ⟹ 禁净空`，加上
+///    `cap = γ̄·U_ℓ` 帽。事件门控**不**参与这一步：无事件 bar 上风控照样把目标收窄，平仓单照出。
+/// 3. **`order_raw` → `K_Θ_gate` → `Schedule_Θ` 单出口**（§C.2 伪码末两行逐字：
+///    `order = K_Θ_gate(order_raw, account, margin, γ̄)` 然后 `schedule(order, exec_index)`）：
+///
+///    - `order_raw = Σ_ℓ Δq_ℓ = T_lee − T_prev`（**计划态**增量）决定**是否**发单——`==0` ⟹
+///      本 bar 无结构意图 ⟹ Hold/Wait。稀疏性由这一步保证：无 tick 且风控/帽未动 ⟹
+///      `T_lee == T_prev` ⟹ 恒不发单。
+///    - `K_Θ_gate`（账户层可行性）把结构意图投影到**实际持仓**上：发单时物理量
+///      `= |T_lee − p_t|`，即 `schedule_order(T_lee, p_t)`。
+///
+///    **两个锚各司其职，不可合并**（这是本函数最容易写错的地方）：
+///
+///    | 问题 | 锚 | 理由 |
+///    |---|---|---|
+///    | 发不发单 | 计划态 `T_prev` | 稀疏性——拒单后的无事件 bar 不得自动重试（§C.2 `continue`） |
+///    | 发多少手 | 实际持仓 `p_t` | 物理可行性——订单作用于真实仓位，不是作用于计划 |
+///
+///    若两问都锚计划态（早期实装如此），在 `T_prev ≠ p_t`（拒单/部分成交）**且** `T_lee` 与
+///    `T_prev` 反号时，`schedule_order` 的「反号穿零」分支产 `Sell/Buy`（`close_only=false`，
+///    见 [`apply_order`]）⟹ 按计划差发量会**超开反向仓**（planned=100/held=37/T_lee=−50 ⟹
+///    应开空 50，误发 150 手 ⟹ 净空 −113）。锚 `p_t` 后该路径构造上不可达。
+///
+/// 返回该订单的级别增量 `Δq_ℓ`（成交侧按此比例落 `held_ℓ`，L1 恒等 `Σ_ℓ held_ℓ ≡ units` 不变）。
+///
+/// **能力边界（090 反声明膨胀）**：`Σ_ℓ Δq_ℓ ≡ T_lee − T_prev` 是构造性恒等（L0）；订单**物理
+/// 量**因 `K_Θ_gate` 锚 `p_t` 而**不**恒等于它——差额 = 计划/成交缺口，由
+/// `max_abs_plan_fill_gap` 如实登记，**不**声称订单量由级别增量之和逐手承载。M3 的信息增量在
+/// **门控本身**——可证伪的是稀疏性（无结构钟点的 bar 不产结构订单，认识论 **L1**：读数产自
+/// 合成 fixture）与门控前后的订单流分叉幅度（**L1**，只登记不判优劣）。**M3 起订单流与 M0
+/// 分叉，不得借 M2 的 bit-exact 蒙混**（设计文档 §D M3 逐字）。
+/// [`plan_level_gated_order`] 的**账户层投影上下文**（§F③ 风控域的全部输入）。
+///
+/// 这五项恒同进同出（`pi_theta_position` 的完整签名尾部 + lot 网格），单独传是 Data Clumps；
+/// 打包后「风控域输入」在类型层可见——门控（结构域）不得读它们之外的东西，反之亦然。
+#[derive(Clone, Copy)]
+struct AccountProjectionCtx<'a> {
+    /// 当前净持仓（订单物理量的锚，见 `plan_level_gated_order` ③）。
     p_t: f64,
-    lot: i64,
+    /// `U_ℓ = NAV/px` 协变资本单位。
+    base_units: f64,
+    /// `𝒦_Θ` 帽与 lot 网格参数。
+    risk: &'a crate::theta_v0::config::RiskConfig,
+    /// `J_Θ` 三键权重。
+    weights: super::super::strategy::coverage::PiThetaWeights,
+    /// 当 bar 风控门真值（`k_theta_risk_gate` 输出，**每 bar 无条件**施加）。
+    gate: super::super::strategy::coverage::KThetaRiskGate,
+}
+
+fn plan_level_gated_order(
+    level_order: &mut super::super::strategy::level_order::LevelOrderLedger,
+    ticks: &super::super::strategy::level_clock::LevelClockTicks,
+    sep_legs: &[super::super::strategy::coverage::SepLeg],
+    pan_div_child_units: i64,
+    qty_m0: i64,
+    acct: AccountProjectionCtx<'_>,
     exec_index: usize,
     bar: usize,
     order: &mut Order,
 ) -> super::super::strategy::level_order::LevelUnits {
-    // p_t/p\* 均为整数手（apply_fill 只按整数增减 units；𝒦_Θ 全 lot 对齐）。
-    let p_t_i = p_t.round() as i64;
-    let signed_qty_m0 = if p_star_final - p_t >= 0.0 { order.qty } else { -order.qty };
-    let target_total = p_t_i + signed_qty_m0;
+    let AccountProjectionCtx { p_t, base_units, risk, weights, gate } = acct;
+    let lot = risk.default_lot.max(1) as i64;
+    use super::super::strategy::coverage::{pi_theta_position, schedule_order};
+    // ① 门控重估（结构域）：clock_ℓ 有 tick 的级别才读本 bar net_ℓ。
     let basis = super::super::strategy::level_ledger::level_nets(sep_legs, lot);
-    let plan = level_order.plan(&basis, target_total);
-    // 恒等护栏：debug 立即失败 + release 累计残差（#289 MED ① 同款纪律——只有 debug_assert
-    // 的恒等在 release 跑批里零执行，等于没有证据）。
+    let ticked_levels = ticks.ticked_levels();
+    let gated = level_order.regate(&basis, &ticked_levels);
+    // 结构净目标 = 各级门控计划之和 + **账户层 pan_div 在飞子腿**。后者是 P7/P9 中枢震荡的
+    // 净目标分量，载体是 `pan_div_state` 的 lot 账本而**不是** `sep_legs` ⟹ 不经 `net_ℓ`；
+    // M2 时它经 `p_star_final` 改写进目标（`schedule_order(target, p_t)` 两分支），M3 必须
+    // 显式接回，否则该子系统在门控后**再也到不了订单出口**（目标来源被删 ≠ 目标重估被门控，
+    // 后者才是 M3 的范围）。其生灭时点已是 clock 事件 [`LevelEventKind::PanDivCert`]，
+    // 故此加项不破坏稀疏性（默认 config 下 pan_div 惰性 ⟹ 恒 0，bit-exact 无影响）。
+    let p_tilde_lee = (gated.iter().map(|&(_, q)| q).sum::<i64>() + pan_div_child_units) as f64;
+    // ② 账户层/风控投影（风控域，每 bar 无条件；gate 直接是 k_theta_risk_gate 的当 bar 真值）。
+    let t_prev = level_order.planned_total();
+    let p_star_lee = pi_theta_position(p_tilde_lee, t_prev as f64, base_units, risk, weights, gate);
+    let t_lee = p_star_lee.round() as i64;
+    // ③ order_raw（计划态增量，决定**是否**发单）→ K_Θ_gate（账户层可行性，锚**实际持仓**决定
+    //    **发多少手**）→ Schedule_Θ 单出口。两锚分工与「合并即穿仓」的构造见函数文档表。
+    let plan = level_order.plan_gated(&gated, t_lee);
+    let p_t_i = p_t.round() as i64;
+    let scheduled = if plan.order_units == 0 {
+        // 无结构意图 ⟹ 不发单（稀疏性）。持仓判据取**实际**持仓（订单语义面向真实仓位）。
+        Order {
+            action: if p_t_i != 0 { StrictAction::Hold } else { StrictAction::Wait },
+            qty: 0,
+            exec_index,
+        }
+    } else {
+        schedule_order(t_lee as f64, p_t, exec_index)
+    };
     debug_assert_eq!(
-        plan.order_units.abs(), order.qty,
-        "M2 订单量构造违例：|Σ_ℓ Δq_ℓ|={} ≠ Schedule_Θ qty={} @bar{}",
-        plan.order_units.abs(), order.qty, bar
+        level_order.held_total(),
+        p_t_i,
+        "M2/M3 归因完备违例（L1）：Σ_ℓ held_ℓ={} ≠ p_t={} @bar{}",
+        level_order.held_total(),
+        p_t_i,
+        bar
     );
-    debug_assert_eq!(
-        level_order.held_total(), p_t_i,
-        "M2 归因完备违例（L1）：Σ_ℓ held_ℓ={} ≠ p_t={} @bar{}",
-        level_order.held_total(), p_t_i, bar
+    // 稀疏性的构造性护栏：无结构意图 ⟹ 必不发单（qty==0）。这是「订单时点 ⊆ 事件时点并集」
+    // 在单决策点上的局部形式，debug 立即失败 + release 由 `n_orders_off_structural_clock` 累计。
+    debug_assert!(
+        plan.order_units != 0 || scheduled.qty == 0,
+        "M3 稀疏性违例：Σ_ℓ Δq_ℓ==0 却发出 qty={} @bar{}",
+        scheduled.qty,
+        bar
     );
-    level_order.observe_decision(&plan, p_t_i, order.qty);
-    // 空仓判据 `p_t_i != 0` ≡ `schedule_order` 的 `!(|p_t|<FLAT_EPS)`（p_t 整数手）。
-    *order = plan.into_order(order.action, p_t_i != 0, exec_index);
+    // 稀疏性反例的解释项：风控门非全开、或帽/量化使投影目标偏离结构目标（§F③ 合法例外）。
+    // 两项分开算：`risk_gate_active` 是**纯风控**求值面证据，`risk_or_cap_active` 额外含帽 binding。
+    let risk_gate_active = gate.force_flat || gate.stop_long || gate.stop_short;
+    let risk_or_cap_active = risk_gate_active || (p_star_lee - p_tilde_lee).abs() >= 0.5;
+    level_order.observe_decision(
+        &plan,
+        super::super::strategy::level_order::DecisionObs {
+            p_t: p_t_i,
+            qty_m0,
+            has_structural_tick: ticks.has_structural(),
+            risk_or_cap_active,
+            risk_gate_active,
+            ticked: &ticked_levels,
+        },
+    );
+    // 订单 = K_Θ_gate 的物理量（锚 p_t），动作分类沿用 Schedule_Θ 单出口。
+    *order = scheduled;
+    level_order.commit_planned(&plan.targets);
     plan.deltas
 }
 
@@ -497,6 +586,9 @@ where
     let mut level_order = super::super::strategy::level_order::LevelOrderLedger::new();
     let mut pending_attrib: Vec<Vec<super::super::strategy::level_order::LevelUnits>> =
         vec![Vec::new(); n];
+    // ★LEE M3（§D M3）：clock_ℓ 钟点的逐决策点累计读数（**release 可见**——「稀疏」若只有定义
+    //   没有读数等于没有证据）。稀疏度 = `n_bars_with_structural_tick / n_decisions`。
+    let mut level_clock_stats = super::super::strategy::level_clock::LevelClockStats::default();
     // 工位 K 性能：tree-prefix 缓存（§16 confirmed prefix immutable；跨 bar 复用 extract_elements）。
     let mut tree_cache = interp::TreeCache::new();
     // ★工位 4h：candidate 段前缀缓存（源(b) O(n²) 真修；caller B merge 路径 gamma-free + 前缀复用）。
@@ -1118,16 +1210,72 @@ where
                     order = coverage::schedule_order(target, p_t, exec_index.unwrap_or(i));
                 }
             }
-            // ★★LEE M2 订单归因（§D M2）：订单量出口换成 `Σ_ℓ Δq_ℓ`（动作分类仍走净额
-            //    `Schedule_Θ`）。口径、能力边界与三类读数的证据等级见
-            //    [`plan_level_attributed_order`] 与 `strategy::level_order` 模块头——
-            //    **不在此重复**（单源）。M3（clock_ℓ 事件门控）/M4（级别 sizing w_ℓ）本步不做。
-            let order_attrib = plan_level_attributed_order(
+            // ── ★★LEE M3 clock_ℓ 事件钟（§C.2 变化部分① / §D M3）：本 bar 各级事件集。 ──
+            //    七通道全部取自**已有**产出（禁第二查法、禁重算结构）：新确认 BSP 走
+            //    `classification_step`（`newly_confirmed_step` 的 append-only diff），腿生命周期
+            //    五通道走 `step_trace`，盘整背驰走本 bar 首见并过门的 `pan_candidates`。
+            //    事件集的最小完备定义、与 `LevelState` 的逐字段对齐、以及照实登记的三项缺口
+            //    （段完成/中枢生灭不可观测、BSP「灭」无载体、五钟只实装 1/5）见
+            //    `strategy::level_clock` 模块头——**不在此重复**（单源）。
+            let clock_ticks = {
+                use super::super::strategy::level_clock::collect_ticks;
+                let bsp_levels: Vec<u32> = classification_step
+                    .levels
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, ls)| !ls.bsp.is_empty())
+                    .map(|(lvl, _)| lvl as u32)
+                    .collect();
+                let closed_levels: Vec<u32> =
+                    step_trace.closed.iter().map(|(leg, _)| leg.level).collect();
+                let opened_levels: Vec<u32> =
+                    step_trace.opened.iter().map(|(_, leg)| leg.level).collect();
+                let silent_levels: Vec<u32> =
+                    step_trace.silent_drops.iter().map(|leg| leg.level).collect();
+                let overlay_levels: Vec<u32> =
+                    step_trace.overlay_closes.iter().map(|leg| leg.level).collect();
+                let risk_levels: Vec<u32> =
+                    step_trace.risk_exits.iter().map(|leg| leg.level).collect();
+                let pan_levels: Vec<u32> = pan_candidates.iter().map(|c| c.level()).collect();
+                collect_ticks(
+                    &bsp_levels,
+                    &closed_levels,
+                    &opened_levels,
+                    &silent_levels,
+                    &overlay_levels,
+                    &risk_levels,
+                    &pan_levels,
+                )
+            };
+            level_clock_stats.observe(&clock_ticks);
+            // ★★LEE M3 事件门控订单（§D M3）：目标只在 clock_ℓ 时点重估，风控每 bar 无条件生效。
+            //    三段（门控重估 / 账户层-风控投影 / Schedule_Θ 单出口）与能力边界见
+            //    [`plan_level_gated_order`] 与 `strategy::level_order` 模块头——**不在此重复**。
+            //    `p_star_final`（M0/M2 的每 bar 净额目标）在 M3 **不再**决定订单量，只作分叉幅度
+            //    读数的对照量（`qty_m0`）——M3 起订单流与 M0 分叉是契约本身。M4（级别 sizing
+            //    w_ℓ）本步不做。
+            //    `p_star_final`（M0/M2 的每 bar 净额目标）在 M3 **不再**决定订单量，只作分叉幅度
+            //    读数的对照量 `qty_m0`——其 pan_div 改写分量则经 `pan_div_child_units` 显式接回
+            //    结构目标（见 `plan_level_gated_order` ①，目标来源不得被门控删掉）。
+            let qty_m0 = coverage::schedule_order(p_star_final, p_t, exec_index.unwrap_or(i)).qty;
+            let pan_div_child_units = if pan_div_hist.is_some() {
+                pan_div_state.signed_live_child_units() as i64
+            } else {
+                0 // pan_div 未启用 ⟹ 无在飞子腿（bit-exact：加项恒 0）
+            };
+            let order_attrib = plan_level_gated_order(
                 &mut level_order,
+                &clock_ticks,
                 &step_trace.sep_legs,
-                p_star_final,
-                p_t,
-                config.risk.default_lot.max(1) as i64,
+                pan_div_child_units,
+                qty_m0,
+                AccountProjectionCtx {
+                    p_t,
+                    base_units,
+                    risk: &config.risk,
+                    weights,
+                    gate,
+                },
                 exec_index.unwrap_or(i),
                 i,
                 &mut order,
@@ -1832,6 +1980,7 @@ where
         tw_final: Some(tw_thread.finish()),
         r_decomp: Some(r_decomp),
         level_order: level_order.stats(),
+        level_clock: level_clock_stats,
     }
 }
 
@@ -1863,6 +2012,10 @@ pub(super) struct FillOutput {
     /// [`pi_theta_fill_loop_overlay`] 产真值；v1 路径 [`plan_and_fill_mtm`] 无级别归因台账
     /// ⟹ 全零默认（`identity_witnessed()==false`，诚实不伪造——零决策不是恒等成立的证据）。
     pub(super) level_order: super::super::strategy::level_order::LevelOrderStats,
+    /// ★LEE M3 clock_ℓ 钟点见证读数（稀疏度的 **release 可见**证据）。π 路径
+    /// [`pi_theta_fill_loop_overlay`] 产真值；v1 / 关⑤双账本路径无事件钟 ⟹ 全零默认
+    /// （`sparsity_witnessed()==false`，诚实不伪造——零决策不是稀疏性成立的证据）。
+    pub(super) level_clock: super::super::strategy::level_clock::LevelClockStats,
 }
 
 /// ★ mark-to-market 闭环 plan+fill（Task A，消除开环单帧）。
@@ -2172,6 +2325,8 @@ pub(super) fn plan_and_fill_mtm(
         // ★LEE M2：v1 recognize 路径无级别归因台账 ⟹ 全零默认（`identity_witnessed()==false`，
         // 诚实不伪造——零决策不构成恒等成立的证据，同 typed_ledger/tw_final 的诚实空口径）。
         level_order: Default::default(),
+        // ★LEE M3：同理无事件钟 ⟹ 全零（`sparsity_witnessed()==false`）。
+        level_clock: Default::default(),
     }
 }
 
@@ -2638,6 +2793,8 @@ pub(super) fn plan_and_fill_mtm_dual(
             r_decomp: None,
             // ★LEE M2：关⑤双账本路径无级别归因台账 ⟹ 全零默认（诚实不伪造）。
             level_order: Default::default(),
+            // ★LEE M3：同理无事件钟 ⟹ 全零默认（诚实不伪造）。
+            level_clock: Default::default(),
         },
         ledger,
         leg_log,

@@ -67,11 +67,24 @@ pub mod overlay_state;
 /// OverlayState 的同一份 SepLeg 暴露按 `id.level`≡formation_level 分桶的只读镜像账本 Ledger_ℓ；
 /// LEE-Net 恒等 `Σ_ℓ net_ℓ ≡ N`（加性细化，认识论 L1）；不改净额主路径，bit-exact。
 pub mod level_ledger;
-/// **LEE M2 订单归因改造 LevelOrderLedger**（multi-level-native-execution-design-20260719 §D M2）。
+/// **LEE 级别归因算子层**（无状态整数算子；从 [`level_order`] 抽出）。
 ///
-/// 物理订单的**量**改由 `Σ_ℓ Δq_ℓ` 生成（各级目标仍每 bar 重估）；`Σ_ℓ Δq_ℓ ≡ ΔN` 整数精确
-/// （无浮点重排）⟹ 订单流与 M0 逐 bar bit-exact，仅归因维度增加。
+/// `attribute_total` 把物理总量按结构基准确定性划分到各级（`Σ_ℓ out_ℓ ≡ total` 整数精确，
+/// 最大余数法，无浮点重排）+ 逐级归并原语。认识论 L0（全构造性，零信息增量）。
+pub mod level_attrib;
+/// **LEE M2/M3 级别订单台账 LevelOrderLedger**（multi-level-native-execution-design-20260719
+/// §D M2、M3）。
+///
+/// M2：物理订单的**量**改由 `Σ_ℓ Δq_ℓ` 生成，订单流与 M0 逐 bar bit-exact。
+/// **M3 起口径反转**：台账持**两个**级别态（已成交 `held_ℓ` / 结构计划 `q_ℓ^plan`），目标只在
+/// [`level_clock`] 事件时点重估，**订单流与 M0 分叉**（契约本身，非缺陷）。
 pub mod level_order;
+/// **LEE M3 级别事件钟 clock_ℓ**（multi-level-native-execution-design-20260719 §C.2 变化部分① / §D M3）。
+///
+/// 定义「哪些时点是级别 ℓ 的钟点」——`Ledger_ℓ` 只在 clock_ℓ 事件时点重估目标，无事件 bar
+/// 目标=前值。事件集的最小完备定义与 `classifier::LevelState` 的逐字段对齐（§F 未决项②）
+/// 落档在该模块头；结构钟 / 风控钟的域分离是 §F③ 的落点。
+pub mod level_clock;
 /// 中枢震荡独立候选与有身份 ShortDiff 配对子腿契约（组合 R：DB-B / DB-O3 / DB-S5）。
 pub mod oscillation;
 /// 盘整/趋势在线协议状态机与 DA-Q2 协议事件轨（订单 P1..P10 的正交积因子）。

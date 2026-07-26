@@ -598,11 +598,20 @@ pub struct OverlayRunResult {
     /// overlay 并列的只读旁路，同一 `sep_legs` 按 `id.level`≡formation_level 分桶重放；
     /// LEE-Net 恒等 `Σ_ℓ net_ℓ ≡ N`（`pi_theta_fill_loop_overlay` 内逐 bar debug_assert 同锚）。
     pub level_ledger: super::super::strategy::level_ledger::LevelLedgerMirror,
-    /// ★LEE M2：级别归因见证读数（multi-level-native-execution-design-20260719 §D M2）——
-    /// 物理订单的量由 `Σ_ℓ Δq_ℓ` 生成，本读数是该恒等的 **release 可见**证据：
-    /// `max_abs_order_residual`/`max_abs_held_residual` 恒 0（订单流与 M0 bit-exact + 归因完备）
-    /// **且** `max_abs_order_units`/`max_abs_net_units` > 0（非平凡，非空转）。
+    /// ★LEE M2/M3：级别订单台账见证读数（multi-level-native-execution-design-20260719 §D M2、M3）。
+    ///
+    /// **release 可见**证据，M3 起分两类（勿再按 M2 文案当作「全部恒 0」）：
+    /// - **仍恒 0**：`max_abs_held_residual`（归因完备 `Σ_ℓ held_ℓ ≡ p_t`，L1 可证伪）；
+    /// - **M3 起恒 >0**：`max_abs_order_residual`（与 M0 净额目标的**分叉幅度**——M3 契约就是
+    ///   订单流分叉，`==0` 反而说明事件门控没接上）。
+    ///
+    /// 非平凡前置同 M2：`max_abs_order_units`/`max_abs_net_units` > 0（非空转）。
     pub level_order: super::super::strategy::level_order::LevelOrderStats,
+    /// ★LEE M3：clock_ℓ 钟点见证读数（multi-level-native-execution-design-20260719 §D M3）——
+    /// 目标只在事件时点重估，本读数是稀疏度的 **release 可见**证据：
+    /// `n_bars_with_structural_tick` 严格介于 0 与 `n_decisions` 之间（既非空转、亦非退化回
+    /// 每 bar 重估）。事件集定义见 `strategy::level_clock` 模块头。
+    pub level_clock: super::super::strategy::level_clock::LevelClockStats,
     /// 净额执行层 RunResult（同 `run_theta_v0_pi`，净额订单/权益——overlay 是其只读旁路，数字不变）。
     /// ★W1 例外：env `VOICE_EXEC=1` 时本字段承载**声部执行投影**口径（见 `voice_exec` 字段
     /// 注释——fill.n_orders=声部 fill 事件数、equity/trade_pnls/r_decomp=声部账户），
@@ -751,6 +760,8 @@ pub fn run_theta_v0_pi_overlay(
     let tw_final = fill.tw_final;
     // ★LEE M2 见证读数（Copy；fill 其余字段已在上方 RunResult 装配中移动）。
     let level_order = fill.level_order;
+    // ★LEE M3 钟点见证读数（Copy，同 M2 口径）。
+    let level_clock = fill.level_clock;
     let account_price_pnl = overlay.account_price_pnl();
     let total_voice_pnl = overlay.total_voice_pnl();
     let reconcile_residual = (account_price_pnl - total_voice_pnl).abs();
@@ -793,6 +804,7 @@ pub fn run_theta_v0_pi_overlay(
         overlay,
         level_ledger,
         level_order,
+        level_clock,
         net_result,
         tw_final,
         voice_exec,
@@ -2344,131 +2356,330 @@ mod tests {
         }
     }
 
-    /// ★★LEE M2 订单归因改造验收（multi-level-native-execution-design-20260719 §D M2）：
-    /// ① **订单流与 M0 逐 bar 相等**——物理订单的量改由 `Σ_ℓ Δq_ℓ` 生成后，与净额臂
-    ///    `run_theta_v0_pi` 的成交序列 bit-exact（n_orders / trades 逐笔 / trade_pnls 逐位 /
-    ///    equity_curve 逐位 / typed_ledger 逐字段）；
-    /// ② **`Σ_ℓ Δq_ℓ == ΔN` 逐决策点**——`max_abs_order_residual == 0`（与 M1 LEE-Net 同锚：
-    ///    两者都在 fill loop 内逐决策点累计，release 同样执行）；
-    /// ③ **归因完备**——`max_abs_held_residual == 0`（`Σ_ℓ held_ℓ ≡ units`，含拒单/部分成交）；
-    /// ④ **非平凡**（#289 MED ① 同款纪律）——`max_abs_order_units > 0` 且 `max_abs_net_units > 0`，
-    ///    否则「残差恒 0」只是空账的平凡通过。
+    use super::super::super::strategy::level_clock::LevelEventKind;
+
+    /// ★★LEE M3 事件门控验收①：**稀疏性**（multi-level-native-execution-design-20260719 §D M3）。
+    ///
+    /// 票体验收逐字：「订单时点集合 ⊆ 事件时点并集」。§F③ 域分离后的**可证伪**形式：
+    ///
+    /// ```text
+    /// {i : order_units(i) ≠ 0} ⊆ (∪_ℓ clock_ℓ^struct) ∪ RiskTick ∪ CapTick
+    /// ```
+    ///
+    /// 断言四项（缺一即平凡通过）：
+    /// ① **钟真的响过且严格稀疏**——`0 < n_bars_with_structural_tick < n_decisions`
+    ///    （恒不响 = 门控空转；每 bar 都响 = 退化回 M0 bar tick，两者都不是 M3）；
+    /// ② **门控真的挡下过重估**——`n_levels_held_by_clock > 0` 且 `n_levels_regated > 0`；
+    /// ③ **无未解释违例**——无结构钟点却产订单的决策点，全部由风控/帽 binding 解释；
+    /// ④ **非平凡**——本 fixture 真的下过单、真的持过仓。
+    ///
+    /// **不**借 M2 的 bit-exact（设计文档 §D M3 逐字禁止）——本测与净额臂无任何逐位比较。
     #[test]
-    fn lee_m2_order_units_from_level_deltas_bitexact_vs_netting_arm() {
+    fn lee_m3_order_ticks_are_sparse_subset_of_clock_events() {
         let config = ThetaConfig::default();
-        // 规模边界**照实登记**（no silent cap）：本 fixture 取 3000 bar。4000 bar 起会触发
-        // `coverage.rs:2458` 的**既有** debug_assert「next_active 含重复 ElementId（restore 未复用
-        // 现有 idx）」——该缺陷与 M2 无关（停用 M2 订单替换的剥离对照下同样触发），属 persistent
-        // registry restore 路径的既有实现缺口——**本票不修、也未挂票**（跨票域，须由主控挂 ticket 后处理）；
-        // 此处不降低断言强度，只声明覆盖上界。
-        let ds = random_walk_dataset("RW3000M2", 3000, 40_000_000);
-        let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        // 规模边界**照实登记**（no silent cap，承自 M2 票）：本 fixture 取 3000 bar。4000 bar 起
+        // 触发 `coverage.rs` 既有 debug_assert「next_active 含重复 ElementId（restore 未复用现有
+        // idx）」——该缺陷与 M2/M3 无关（M2 票已证：停用级别订单出口的剥离对照下同样触发），
+        // 属 persistent registry restore 路径的既有实现缺口，**本票不修**（跨票域）。
+        let ds = random_walk_dataset("RW3000M3", 3000, 40_000_000);
         let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
-        // ④ 非平凡前置（先钉死，否则下面的 bit-exact 与残差断言在空账上平凡通过）。
+        let c = ov.level_clock;
         let s = ov.level_order;
         eprintln!(
-            "LEE_M2_WITNESS decisions={} orders={} max|Σ_ℓΔq_ℓ|={} max|p_t|={} \
-             L0_order_resid={} L1_held_resid={} | L2 max|Σ_ℓnet_ℓ−T|={} rescaled={}/{} residual_bucket={} \
-             | m0_orders={} m0_trades={}",
-            s.n_decisions, s.n_orders_generated, s.max_abs_order_units, s.max_abs_net_units,
-            s.max_abs_order_residual, s.max_abs_held_residual,
-            s.max_abs_struct_gap, s.n_rescaled, s.n_decisions, s.n_residual_bucket,
-            baseline.n_orders, baseline.trades.len(),
+            "LEE_M3_CLOCK decisions={} struct_tick_bars={} risk_tick_bars={} ticks={} \
+             | bsp={} opened={} closed={} silent={} overlay={} pandiv={} riskexit={}",
+            c.n_decisions,
+            c.n_bars_with_structural_tick,
+            c.n_bars_with_risk_tick,
+            c.n_ticks_total,
+            c.kind_count(LevelEventKind::BspConfirmed),
+            c.kind_count(LevelEventKind::LegOpened),
+            c.kind_count(LevelEventKind::LegClosed),
+            c.kind_count(LevelEventKind::LegSilentDrop),
+            c.kind_count(LevelEventKind::LegOverlayClose),
+            c.kind_count(LevelEventKind::PanDivCert),
+            c.kind_count(LevelEventKind::LegRiskExit),
         );
-        assert!(s.n_decisions > 0, "非空前置：逐决策点归因跑过");
+        eprintln!(
+            "LEE_M3_GATE regated={} held_by_clock={} | orders={} off_clock={} off_clock_explained={} \
+             | risk_gate_active={} risk_gate_with_order={} | L1 plan_fill_gap={} struct_gap={} \
+             | L1 divergence_vs_m0={} rescaled={}/{}",
+            s.n_levels_regated,
+            s.n_levels_held_by_clock,
+            s.n_orders_generated,
+            s.n_orders_off_structural_clock,
+            s.n_orders_off_structural_clock_risk_explained,
+            s.n_risk_gate_active,
+            s.n_risk_gate_active_with_order,
+            s.max_abs_plan_fill_gap,
+            s.max_abs_struct_gap,
+            s.max_abs_order_residual,
+            s.n_rescaled,
+            s.n_decisions,
+        );
+        // ★★剥离对照（**门控关 = M2 每 bar 重估口径**，同 fixture 同种子实测；复现方式：把
+        //   `fill.rs::plan_level_gated_order` 的 `ticks.ticked_levels()` 换成 basis∪planned 全级别
+        //   集，其余不动）——这条对照是本票「订单流分叉独立验收」的实证核心，因为 pre-M2
+        //   golden 只是摘要、不可反解为计数：
+        //
+        //   | 读数 | 门控关（M2 口径） | 门控开（M3 交付态） |
+        //   |---|---|---|
+        //   | 结构订单数 | 495 | **6** |
+        //   | off_clock / 其中可解释 | 491 / 12（2.4%） | 1 / 1（100%） |
+        //   | regated / held_by_clock | 1936 / 0 | 6 / 1930 |
+        //   | `n_rescaled` | 1190/3000（**= #308 登记值**） | 2/3000 |
+        //   | `max_abs_struct_gap` | 5654（**= #308 登记值**） | 5401 |
+        //   | `max_abs_plan_fill_gap` | 278 | 0 |
+        //
+        //   剥离态下**本测失败**（491 次违例仅 12 次可解释）⟹ 本测是**可证伪**的，不是恒真
+        //   空断言。剥离态的 `n_rescaled`/`struct_gap` 与 #308 登记值逐值一致 ⟹ 剥离对照确实
+        //   复现了 M2 口径（对照有效性证据）。L2 分歧的相交点分析见 `level_order` 模块头。
+        //
+        // ★覆盖度缺口照实登记（no silent cap）：本 fixture 上 `LegSilentDrop`/`LegOverlayClose`/
+        //   `PanDivCert`/`LegRiskExit` 四通道**零命中**（默认 config 下 pan_div 惰性、无 force_flat、
+        //   无 AncOK 连带剪、无 P2 CloseOverlay）。四者的 kind 映射由
+        //   `strategy::level_clock::tests::collect_ticks_maps_each_channel_to_its_kind` 在单元层覆盖，
+        //   但**生产接线未被本跑批执行到**——不降低本测断言强度，只声明覆盖上界。
+        //
+        // ④ 非平凡前置（先钉死，否则下面全部平凡通过）。
+        assert!(c.n_decisions > 0, "非空前置：逐决策点钟点观测跑过");
         assert!(s.n_orders_generated > 0, "非空前置：由 Σ_ℓ Δq_ℓ 生成过非零订单");
-        assert!(s.max_abs_order_units > 0, "非平凡：max|Σ_ℓ Δq_ℓ| > 0");
         assert!(s.max_abs_net_units > 0, "非平凡：max|p_t| > 0（持仓归因非空账）");
-        assert!(baseline.n_orders > 0, "非空前置：净额臂本 fixture 真下过单");
-        // ② Σ_ℓ Δq_ℓ == ΔN 逐决策点（release 可见残差，非 debug_assert）。
-        assert_eq!(
-            s.max_abs_order_residual, 0,
-            "M2 恒等：max| |Σ_ℓ Δq_ℓ| − Schedule_Θ qty | == 0（{s:?}）"
-        );
-        // ③ 归因完备：Σ_ℓ held_ℓ ≡ units（拒单/部分成交按计划比例回缩，不失配）。
-        assert_eq!(s.max_abs_held_residual, 0, "M2 归因完备：max|Σ_ℓ held_ℓ − p_t| == 0（{s:?}）");
-        assert!(s.identity_witnessed(), "M2 恒等见证成立（残差 0 且量级 >0）");
-        // ★L2 结构分歧**只登记不断言**（formalization-validity-domain：不把经验读数写成不变量）。
-        // `Σ_ℓ net_ℓ ≠ T` 在本 fixture 上约四成决策点成立（逐腿 q_units 取整 vs p̃ 聚合 lot 量化
-        // 口径不同）。M2 用结构比例缩放吸收它并登记幅度；**这是待裁决口径，不是已解决问题**——
-        // M3（事件门控）/M4（级别 sizing）必须正面处理，届时本读数是其输入。
+        // ① 结构钟响过且严格稀疏于 bar 全集。
         assert!(
-            s.max_abs_struct_gap >= 0 && s.n_rescaled <= s.n_decisions,
-            "L2 读数自洽（只登记口径，不对分歧幅度设阈）"
+            c.sparsity_witnessed(),
+            "结构钟稀疏度见证：0 < {} < {}（恒不响=空转，每 bar 响=退化回 bar tick）",
+            c.n_bars_with_structural_tick,
+            c.n_decisions
         );
-        // ① 订单流与 M0 逐 bar 相等（bit-exact：成交序列不变，仅归因维度增加）。
-        assert_eq!(ov.net_result.n_orders, baseline.n_orders, "M2：执行订单数 bit-exact");
-        assert_eq!(ov.net_result.trades.len(), baseline.trades.len(), "M2：成交笔数 bit-exact");
-        for (a, b) in ov.net_result.trades.iter().zip(baseline.trades.iter()) {
-            assert_eq!(a.entry_bar, b.entry_bar, "M2：成交 entry_bar 逐笔相等");
-            assert_eq!(a.exit_bar, b.exit_bar, "M2：成交 exit_bar 逐笔相等");
-            assert_eq!(a.qty.to_bits(), b.qty.to_bits(), "M2：成交手数逐位相等");
-            assert_eq!(a.long, b.long, "M2：成交方向逐笔相等");
-            assert_eq!(a.forced_close, b.forced_close);
-        }
+        // ② 门控双向都发生过（挡下过重估，也放行过重估）。
+        assert!(
+            s.gating_witnessed(),
+            "门控见证：held_by_clock={} > 0 且 regated={} > 0",
+            s.n_levels_held_by_clock,
+            s.n_levels_regated
+        );
+        // ③a bar 级稀疏性无未解释违例（§F③ 域分离下的形式）。
+        assert!(
+            s.sparsity_has_no_unexplained_violation(),
+            "bar 级稀疏性违例：无结构钟点却产订单 {} 次，其中仅 {} 次可由风控/帽解释",
+            s.n_orders_off_structural_clock,
+            s.n_orders_off_structural_clock_risk_explained
+        );
+        // ③b **逐级**稀疏性（设计文档不变量的逐字形式「bar i 无 ℓ 级事件 ⟹ Δq_ℓ(i)=0」，
+        //    比 ③a 严格更强）：无 tick 的级别若 Δq_ℓ≠0，只应源自 `attribute_total` 的帽/风控
+        //    比例缩放（§F③ CapTick/RiskTick 例外）；不可解释者恒 0。
+        eprintln!(
+            "LEE_M3_PERLEVEL off_clock_delta={} unexplained={}",
+            s.n_levels_off_clock_delta, s.n_levels_off_clock_delta_unexplained
+        );
+        assert!(
+            s.per_level_sparsity_has_no_unexplained_violation(),
+            "逐级稀疏性违例：无 tick 级别 Δq_ℓ≠0 共 {} 次，其中 {} 次无缩放可解释",
+            s.n_levels_off_clock_delta,
+            s.n_levels_off_clock_delta_unexplained
+        );
+        // 归因完备（L1）在 M3 仍成立——门控只改计划侧，成交归因不动。
         assert_eq!(
-            ov.net_result.trade_pnls_with_forced.len(),
-            baseline.trade_pnls_with_forced.len(),
-            "M2：PnL 行数 bit-exact"
+            s.max_abs_held_residual, 0,
+            "M2→M3 归因完备不回退：max|Σ_ℓ held_ℓ − p_t| == 0（{s:?}）"
         );
-        for (a, b) in ov
-            .net_result
-            .trade_pnls_with_forced
-            .iter()
-            .zip(baseline.trade_pnls_with_forced.iter())
-        {
-            assert_eq!(a.to_bits(), b.to_bits(), "M2：逐笔 PnL 逐位相等（浮点无重排）");
-        }
-        assert_eq!(
-            ov.net_result.equity_curve.len(), baseline.equity_curve.len(),
-            "M2：权益曲线长度一致"
-        );
-        for (a, b) in ov.net_result.equity_curve.iter().zip(baseline.equity_curve.iter()) {
-            assert_eq!(a.to_bits(), b.to_bits(), "M2：逐 bar 权益逐位相等");
-        }
-        assert_eq!(
-            ov.net_result.metrics.strat_return.to_bits(),
-            baseline.metrics.strat_return.to_bits(),
-            "M2：strat_return 逐位相等"
-        );
+        assert!(s.identity_witnessed(), "归因完备见证成立（残差 0 且量级 >0）");
     }
 
-    /// ★★LEE M2 订单流 **pre-M2 golden 冻结**（对照臂污染的修复）。
+    /// ★★LEE M3 事件门控验收②：**订单流与 M0 分叉的独立验收**（§D M3「本步起订单流与 M0
+    /// 分叉，必须独立评审，不得借 M2 的 bit-exact 蒙混」）。
     ///
-    /// 为什么需要冻结 golden：M2 的归因出口**无 env gate、无 Option**（契约就是「物理订单改由
-    /// Σ_ℓ Δq_ℓ 生成」，旁挂式接法不兑现），而 `run_theta_v0_pi` 与 overlay 臂共用同一个
-    /// `pi_theta_fill_loop_overlay` ⟹ 拿 `run_theta_v0_pi` 当 M0 对照臂是**自比**，构造上不可能
-    /// 失败。真正的 M0 参照必须来自**接入 M2 之前**的代码。
+    /// M2 的 `lee_m2_order_stream_matches_frozen_pre_m2_golden` 冻结了 pre-M2 成交序列摘要，
+    /// 并在其文档中预先声明：「**M3 起订单流本就分叉，届时本 golden 应随票废止而非放宽**」。
+    /// 本测就是那次废止的**替代物**——把同一个 golden 反用为**分叉见证**：
     ///
-    /// golden 取得方式（可复现的剥离对照）：在 `fill.rs::plan_level_attributed_order` 内把
-    /// `*order = plan.into_order(…)` 这一行改为丢弃（保留其余全部计算），此时订单量回落为净额
-    /// `Schedule_Θ` 的量 = M0 行为；跑本 fixture 取 [`order_stream_digest`]，即下方常量。
-    /// 复核/再生同法。摘要不符 ⟹ M2 改动了成交序列（M2 契约破，须回票；**M3 起订单流本就
-    /// 分叉，届时本 golden 应随票废止而非放宽**——设计文档 §D M3「不得借 M2 的 bit-exact 蒙混」）。
+    /// - M2 阶段：`digest == PRE_M2_ORDER_STREAM_DIGEST`（订单流不变，仅归因维度增加）；
+    /// - M3 阶段：`digest != PRE_M2_ORDER_STREAM_DIGEST`（**必须**分叉——若仍相等，说明事件
+    ///   门控根本没接到订单出口上，是接线失败而非「M3 恰好不改变行为」）。
+    ///
+    /// 这条断言的方向性是本票不可省的：它把「门控接上了」变成可证伪命题，而不是靠读代码相信。
+    /// 同时**不**对分叉的方向/幅度作任何优劣判断（v3 硬禁令：不以回测定优劣，只验不变量与
+    /// 结构一致性；设计文档 §F.2 同）。
     #[test]
-    fn lee_m2_order_stream_matches_frozen_pre_m2_golden() {
+    fn lee_m3_order_stream_diverges_from_frozen_pre_m2_golden() {
         /// pre-M2（`*order` 赋值剥离）在 `random_walk_dataset("RW3000M2", 3000, 40_000_000)`
-        /// 上的成交序列摘要。见本测试文档的取得方式。
+        /// 上的成交序列摘要（M2 票冻结，取得方式见该票测试文档；M3 起转为分叉见证的参照）。
         const PRE_M2_ORDER_STREAM_DIGEST: u64 = 0x92f7_a2f6_5ed5_5862;
         let config = ThetaConfig::default();
         let ds = random_walk_dataset("RW3000M2", 3000, 40_000_000);
         let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
         let digest = order_stream_digest(&ov.net_result);
-        eprintln!("LEE_M2_ORDER_STREAM_DIGEST 0x{digest:016x}");
-        // 非平凡前置：空跑批的摘要是常数，冻结它等于没冻结。
+        eprintln!(
+            "LEE_M3_ORDER_STREAM_DIGEST 0x{digest:016x} (pre-M2 golden 0x{PRE_M2_ORDER_STREAM_DIGEST:016x})"
+        );
+        // 非平凡前置：空跑批的摘要是常数，拿它比对等于没比对。
         assert!(ov.net_result.n_orders > 0, "非空前置：本 fixture 真下过单");
         assert!(!ov.net_result.trades.is_empty(), "非空前置：真有成交笔");
-        assert_eq!(
+        // 门控真的接到了订单出口（接线失败会让摘要退回 pre-M2 值）。
+        assert_ne!(
             digest, PRE_M2_ORDER_STREAM_DIGEST,
-            "M2 成交序列与 pre-M2 golden 不符（M2 契约 = 仅归因维度增加，成交序列不变）"
+            "M3 事件门控未接到订单出口：成交序列仍与 pre-M2 golden 逐位相同"
+        );
+        // 分叉幅度**只登记不判优劣**（L2）。
+        let s = ov.level_order;
+        assert!(
+            s.max_abs_order_residual > 0,
+            "分叉幅度读数非平凡：max||Σ_ℓΔq_ℓ|−qty_M0| = {}（M3 契约要求 >0）",
+            s.max_abs_order_residual
         );
     }
 
-    /// ★LEE M2 归因维度可读（「仅归因维度增加」的正面证据，非只证「什么都没变」）：
-    /// 由 `Σ_ℓ Δq_ℓ` 生成订单的同一跑批里，级别归因台账确实按级别分了桶，且
-    /// **不动用** [`LEVEL_ACCOUNT_RESIDUAL`] 残差桶（默认配置下 pan_div 惰性 ⟹ 结构基准恒可归因）。
+    /// ★★LEE M3 事件门控验收③：**风控门每 bar 生效**（票体硬约束「事件门控只门控结构交易，
+    /// 不门控风控」；§F③ 域分离）。
+    ///
+    /// 两段证据，缺一不可：
+    ///
+    /// - **求值面（构造性）**：`plan_level_gated_order` 的账户层投影段无条件调用
+    ///   `pi_theta_position(..., gate)`，**不读** clock ticks——本测由 `n_risk_gate_active`
+    ///   在真实跑批上 >0 坐实门确实 binding 过，而不是「门在但从未触发」的平凡通过；
+    /// - **作用面（实证）**：风控 binding 的决策点上确实产生了订单（`n_risk_gate_active_with_order`），
+    ///   且这些订单即使落在**无结构钟点**的 bar 上也照出——由 `n_orders_off_structural_clock`
+    ///   与其风控解释项的配对坐实（同 `..._are_sparse_subset_of_clock_events` 的 ③）。
+    ///
+    /// 单元层的对拍在 `strategy::level_order::tests::risk_flatten_fires_on_bar_with_no_clock_tick`
+    /// （无 tick + `force_flat` ⟹ 平仓单照出，各级目标按比例归零）。
+    ///
+    /// **覆盖度照实登记**：默认 `ThetaConfig` 下 `margin=None` ⟹ `k_theta_risk_gate` 只经
+    /// Insolvent/止损通道 binding。若本 fixture 上 `n_risk_gate_active == 0`，本测**不**降级为
+    /// 通过——改用高波动 fixture 逼出强平；仍为 0 则说明风控通道在本配置下不可达，须照实上浮
+    /// 而非放宽断言。
     #[test]
-    fn lee_m2_attribution_dimension_is_readable_and_not_residual_only() {
+    fn lee_m3_risk_gate_stays_per_bar_under_event_gating() {
+        let config = ThetaConfig::default();
+        // 高波动 + 低初始 NAV：逼出 Insolvent/止损通道（默认 margin=None 下唯一可达的风控面）。
+        let ds = random_walk_dataset("RW3000M3R", 3000, 400_000_000);
+        let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e4);
+        let s = ov.level_order;
+        let c = ov.level_clock;
+        eprintln!(
+            "LEE_M3_RISK decisions={} risk_gate_active={} with_order={} risk_exit_ticks={} \
+             | off_clock={} explained={}",
+            s.n_decisions,
+            s.n_risk_gate_active,
+            s.n_risk_gate_active_with_order,
+            c.kind_count(LevelEventKind::LegRiskExit),
+            s.n_orders_off_structural_clock,
+            s.n_orders_off_structural_clock_risk_explained,
+        );
+        assert!(s.n_decisions > 0, "非空前置：决策点跑过");
+        // 求值面：风控门在事件门控之下仍逐 bar 求值并 binding 过。
+        assert!(
+            s.n_risk_gate_active > 0,
+            "风控门在本 fixture 上从未 binding ⟹ 无法坐实「每 bar 生效」（覆盖度缺口，须上浮而非放宽）"
+        );
+        // ★★「门控前后风控触发面不变」的对拍（票体逐字要求的证据）。
+        //   风控触发面 = `k_theta_risk_gate` 非全开的决策点数。它的输入是
+        //   `(prev_active, open_trades, bar, equity_nav, p_t, px, margin)`——**不含** clock ticks，
+        //   故门控开关不改变它，这是构造性的。实测坐实（RW3000M3 fixture，同种子）：
+        //     门控关（剥离对照）：`risk_gate_active = 1191`
+        //     门控开（交付态）  ：`risk_gate_active = 1191`   ⟹ **触发面逐值不变**
+        //   （剥离对照的复现方式见 `..._are_sparse_subset_of_clock_events` 的对照表注释。）
+        //   下面在**同一 fixture** 上锁住这个值，使「触发面不变」成为可回归的断言而非一句话。
+        {
+            let ds_m3 = random_walk_dataset("RW3000M3", 3000, 40_000_000);
+            let ov_m3 = run_theta_v0_pi_overlay(&ds_m3, &config, 1.0, 1.0e6);
+            const RISK_FACE_BOTH_ARMS: u64 = 1191;
+            assert_eq!(
+                ov_m3.level_order.n_risk_gate_active, RISK_FACE_BOTH_ARMS,
+                "门控开态风控触发面 ≠ 剥离对照（门控关）实测值 {RISK_FACE_BOTH_ARMS}                  ⟹ 事件门控污染了风控域（票体硬约束「事件门控只门控结构交易，不门控风控」破）"
+            );
+        }
+        // 作用面：风控 binding 真的落到订单上（不是只改可行集而无出口）。
+        assert!(
+            s.n_risk_gate_active_with_order > 0,
+            "风控 binding {} 次却从未产订单 ⟹ 收窄未落到订单出口",
+            s.n_risk_gate_active
+        );
+        // 域分离：风控引发的订单若落在无结构钟点的 bar 上，必须被解释项覆盖（不留未解释违例）。
+        assert!(
+            s.sparsity_has_no_unexplained_violation(),
+            "风控订单未被解释项覆盖：off_clock={} explained={}",
+            s.n_orders_off_structural_clock,
+            s.n_orders_off_structural_clock_risk_explained
+        );
+    }
+
+    /// ★★LEE M3 事件门控验收④（**部分兑现，缺口照实登记**）：clock_ℓ 的**首次观察纪律**。
+    ///
+    /// ## 本测**不是**「与 E2E 五钟的时点一致性实证」——那一条未兑现
+    ///
+    /// 票体验收第二项要「与 E2E 五钟（roadmap:75）的时点一致性实证」。两重障碍使它在本票
+    /// 无法兑现，两条都照实登记而**不**用弱证据冒充：
+    ///
+    /// 1. 五钟 `observed/first_provable/structure_end/confirmed/invalidated` 在 rust 侧
+    ///    **只实装 1/5**（仅 `judge_at` 一钟多职，`classifier/level_view.rs:489`、
+    ///    `classifier/nest.rs:419`；盘点 `e2e-existing-implementation-synthesis-20260720.md:24`
+    ///    「缺 4/5」，同文 :51「BSP Invalidated 结构事件不存在」）；
+    /// 2. 仅存的 `judge_at` 载体挂在 **nest 证书门**（`backtest/admission.rs::events_by_level`，
+    ///    `THETA_NEST_CERT_GATE` **默认关**）⟹ 生产默认路径上没有 `judge_at` 实例可供逐点对拍。
+    ///
+    /// 本测交付的是弱一级、但**真的被验证**的命题：clock_ℓ 满足与 `judge_at` **同一条**首次
+    /// 观察纪律（prefix 首次确认写入、不回填、不改判），两条可证伪性质：
+    ///
+    /// ① **因果**：clock_ℓ 在 bar `i` 响的 BSP 事件，其 `source_index ≤ i`——不使用 `> i` 的数据；
+    /// ② **首次唯一**：同一 `(ℓ, source_index)` 身份全跑批**至多响一次**
+    ///    （`newly_confirmed_step` 的 append-only `seen` 去重 ↔ `judge_at`「首次观察钟不后移」）
+    ///    ——重复响会让稀疏性统计虚高。
+    ///
+    /// 兑现真正的一致性实证需先落 E2E-N5 四钟载体（跨票域），或把 nest 门纳入默认路径
+    /// （改变 M0 语义，M3 明确不做）。
+    #[test]
+    fn lee_m3_clock_obeys_first_observation_discipline() {
+        use super::super::signal::newly_confirmed_step;
+        let config = ThetaConfig::default();
+        let ds = random_walk_dataset("RW1500M3C", 1500, 40_000_000);
+        // 直接重放 π loop 的候选 diff 口径（与 fill.rs 的 clock_ℓ BSP 通道同一函数，禁第二查法）。
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+        let mut fired: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
+        let mut n_bsp_ticks = 0usize;
+        let mut n_causal_violations = 0usize;
+        let mut n_duplicate_ticks = 0usize;
+        let bars = ds.bars.clone();
+        for i in 0..bars.len() {
+            let l0_prefix = parser::parse_layer(&bars[..=i], &config);
+            let cls = classifier::classify_with_tower(&l0_prefix, &config).0;
+            let step = newly_confirmed_step(&cls, &mut seen);
+            for (lvl, ls) in step.levels.iter().enumerate() {
+                for pt in ls.bsp.iter() {
+                    n_bsp_ticks += 1;
+                    // ① 因果：确认 bar i ≥ 结构成立点 source_index。
+                    if pt.source_index > i {
+                        n_causal_violations += 1;
+                    }
+                    // ② 首次唯一：同一 (ℓ, source_index) 身份不得重复响。
+                    if !fired.insert((lvl, pt.source_index)) {
+                        n_duplicate_ticks += 1;
+                    }
+                }
+            }
+        }
+        eprintln!(
+            "LEE_M3_FIVECLOCK bars={} bsp_ticks={} causal_violations={} duplicate_ticks={} \
+             | 交付=首次观察纪律（因果+首次唯一）；五钟一致性实证**未兑现**（judge_at 挂 nest 门默认关，余四钟无 rust 载体）",
+            bars.len(),
+            n_bsp_ticks,
+            n_causal_violations,
+            n_duplicate_ticks,
+        );
+        // 非平凡前置：钟没响过就谈不上一致性。
+        assert!(n_bsp_ticks > 0, "非空前置：本 fixture 须产生过 BSP 确认钟点");
+        // ① 因果（与 judge_at 的 prefix 首次观察同纪律）。
+        assert_eq!(n_causal_violations, 0, "clock_ℓ 因果违例：BSP 在其 source_index 之前就响");
+        // ② 首次唯一（append-only seen 去重；judge_at「首次观察钟不后移」同款）。
+        assert_eq!(n_duplicate_ticks, 0, "clock_ℓ 同身份重复响 ⟹ 稀疏性统计虚高");
+    }
+
+    /// ★LEE M2→M3 归因维度可读（承自 M2 票，门控后仍成立）：由 `Σ_ℓ Δq_ℓ` 生成订单的同一
+    /// 跑批里，级别归因台账确实按级别分了桶，且**不动用** [`LEVEL_ACCOUNT_RESIDUAL`] 残差桶
+    /// （默认配置下 pan_div 惰性 ⟹ 结构基准恒可归因）。
+    #[test]
+    fn lee_m3_attribution_dimension_is_readable_and_not_residual_only() {
         use super::super::super::strategy::level_order::LEVEL_ACCOUNT_RESIDUAL;
         let config = ThetaConfig::default();
         let ds = random_walk_dataset("RW3000M2D", 3000, 40_000_000);
@@ -2481,8 +2692,7 @@ mod tests {
         );
         // 级别身份真的贯穿到订单层：曾出现过至少一个真实级别（非残差桶）承载归因。
         assert!(
-            ov.level_ledger.levels().next().is_some()
-                || ov.level_ledger.n_closed() > 0,
+            ov.level_ledger.levels().next().is_some() || ov.level_ledger.n_closed() > 0,
             "级别桶非空（归因维度可读）"
         );
         assert_ne!(LEVEL_ACCOUNT_RESIDUAL, 0, "残差桶键与真实级别 0 不冲突");
