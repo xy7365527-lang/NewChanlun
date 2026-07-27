@@ -843,21 +843,23 @@ fn step_center_oscillation(
         }
     }
     // #292 触发源改码（B 裁定）：开启臂生产触发的唯一驱动源 = 次级别（lvl-1）本 bar 已确认
-    // 买卖点——本级中枢在场（`alive_center()`，A 裁定）+ 次级别信号方向 ⟹ 边界侧映射（买点=
-    // 下沿回补试探，卖点=上沿高抛试探），`CenterOscillationTrigger::new` 同口径。level 0 无
-    // 次级别（L0 是递归底），故从 lvl=1 起。盘背证据不参与（B 裁定：非必要条件）。
+    // 买卖点——本级中枢在场（`alive_center()`，A 裁定）+ 次级别信号方向 + 该点价格 ⟹ 边界侧
+    // 独立价格判据（`CenterOscillationTrigger::new` 同口径：卖点价=`pivot_high`、买点价=
+    // `pivot_low`，与 `signal.rs::entry_structural_stop` 的 Long→pivot_low/Short→pivot_high
+    // 同一读法）。level 0 无次级别（L0 是递归底），故从 lvl=1 起。盘背证据不参与（B 裁定：
+    // 非必要条件）。
     for lvl in 1..n_levels {
         let Some(sub_level) = classification_step.levels.get(lvl - 1) else { continue };
         let alive = cl_machines[lvl].alive_center().map(|(c, _)| CenterId::of(&c));
         for p in sub_level.bsp.iter() {
-            let signal_side = if p.bits.conf_plus() {
-                VoiceSide::Long
+            let (signal_side, price) = if p.bits.conf_plus() {
+                (VoiceSide::Long, p.pivot_low)
             } else if p.bits.conf_minus() {
-                VoiceSide::Short
+                (VoiceSide::Short, p.pivot_high)
             } else {
                 continue; // 无买/卖侧确认 bit（不应出现在 bsp 列表中）——防御性跳过，不构造。
             };
-            if let Ok(trigger) = CenterOscillationTrigger::new(lvl as u32, alive, signal_side, p.source_index) {
+            if let Ok(trigger) = CenterOscillationTrigger::new(lvl as u32, alive, signal_side, price, p.source_index) {
                 if let Some(action) = osc_books[lvl].on_trigger(trigger) {
                     actions.push(CenterOscillationActionRecord {
                         bar,
@@ -893,7 +895,7 @@ mod center_oscillation_wiring_tests {
     use classifier::{bsp::BspPoint, bsp::OwnerRef, Classification, LevelState};
     use super::super::super::strategy::center_oscillation_trade::{CenterOscillationAction, CenterOscillationBook};
     use super::super::super::strategy::voice::VoiceSide;
-    use super::super::super::types::{BspBits, Center};
+    use super::super::super::types::{BspBits, Center, Tick};
     use std::rc::Rc;
 
     fn center(start_index: usize, end_index: usize, zd: i64, zg: i64) -> Center {
@@ -921,21 +923,23 @@ mod center_oscillation_wiring_tests {
         }
     }
 
-    /// 次级别（lvl-1）已确认买卖点：`side=Long` ⟹ buy1 bit（次级别买点），`side=Short` ⟹
-    /// sell1 bit（次级别卖点）——无载体（次级别买卖点触发不读次级别中枢，A/B 裁定只认本级
+    /// 次级别（lvl-1）已确认买卖点：`side=Long` ⟹ buy1 bit（次级别买点，价格落 `pivot_low`），
+    /// `side=Short` ⟹ sell1 bit（次级别卖点，价格落 `pivot_high`）——与生产读法
+    /// （`step_center_oscillation`：Long→pivot_low/Short→pivot_high）同口径，供 #292 B 裁定
+    /// 独立价格判据消费。无载体（次级别买卖点触发不读次级别中枢，A/B 裁定只认本级
     /// `alive_center()` + 次级别信号方向，`center: None` 即证无门读取次级别账户/结构状态）。
-    fn sub_level_bsp_point(source_index: usize, side: VoiceSide) -> BspPoint {
-        let bits = match side {
-            VoiceSide::Long => BspBits { buy1: true, ..BspBits::default() },
-            VoiceSide::Short => BspBits { sell1: true, ..BspBits::default() },
-            VoiceSide::Flat => BspBits::default(),
+    fn sub_level_bsp_point(source_index: usize, side: VoiceSide, price: Tick) -> BspPoint {
+        let (bits, pivot_low, pivot_high) = match side {
+            VoiceSide::Long => (BspBits { buy1: true, ..BspBits::default() }, price, 0),
+            VoiceSide::Short => (BspBits { sell1: true, ..BspBits::default() }, 0, price),
+            VoiceSide::Flat => (BspBits::default(), 0, 0),
         };
         BspPoint {
             source_index,
             level_origin: 0,
             bits,
-            pivot_low: 0,
-            pivot_high: 0,
+            pivot_low,
+            pivot_high,
             center: None,
             struct_break_dir: None,
             force: None,
@@ -956,7 +960,7 @@ mod center_oscillation_wiring_tests {
         let c0 = center(5, 10, 100, 200);
         let classification =
             Classification { levels: vec![LevelState::default(), level_with_centers(vec![c0])] };
-        let step = two_level_step(vec![sub_level_bsp_point(11, VoiceSide::Short)]);
+        let step = two_level_step(vec![sub_level_bsp_point(11, VoiceSide::Short, 200)]); // 中轴150，200≥中轴=上半区
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
         let actions = step_center_oscillation(7, &classification, &step, &mut cl_machines, &mut osc_books);
@@ -978,14 +982,14 @@ mod center_oscillation_wiring_tests {
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
         let empty_step = two_level_step(Vec::new());
-        let reduce_step = two_level_step(vec![sub_level_bsp_point(10, VoiceSide::Short)]);
+        let reduce_step = two_level_step(vec![sub_level_bsp_point(10, VoiceSide::Short, 200)]);
         let _ = step_center_oscillation(0, &classification, &empty_step, &mut cl_machines, &mut osc_books);
         let reduce_actions =
             step_center_oscillation(1, &classification, &reduce_step, &mut cl_machines, &mut osc_books);
         assert_eq!(reduce_actions[0].action, CenterOscillationAction::Reduce);
         assert!(osc_books[1].is_suspended(CenterId::of(&c0)));
 
-        let cover_step = two_level_step(vec![sub_level_bsp_point(20, VoiceSide::Long)]);
+        let cover_step = two_level_step(vec![sub_level_bsp_point(20, VoiceSide::Long, 100)]); // 100≤中轴150=下半区
         let actions = step_center_oscillation(2, &classification, &cover_step, &mut cl_machines, &mut osc_books);
         assert_eq!(actions.len(), 1, "门开+挂起+次级别买点 ⟹ 恰一条回补动作可见");
         assert_eq!(actions[0].action, CenterOscillationAction::Replenish, "次级别买点=下沿回补");
@@ -1009,6 +1013,7 @@ mod center_oscillation_wiring_tests {
                 0,
                 Some(CenterId::of(&c0)),
                 VoiceSide::Short,
+                200, // 中轴150，200≥中轴=上半区
                 5,
             )
             .unwrap(),
@@ -1049,6 +1054,7 @@ mod center_oscillation_wiring_tests {
                 0,
                 Some(CenterId::of(&c0)),
                 VoiceSide::Short,
+                200, // c0 中轴150，200≥中轴=上半区
                 1,
             )
             .unwrap(),
@@ -1058,6 +1064,7 @@ mod center_oscillation_wiring_tests {
                 0,
                 Some(CenterId::of(&c1)),
                 VoiceSide::Short,
+                400, // c1 中轴350，400≥中轴=上半区
                 2,
             )
             .unwrap(),
@@ -1074,21 +1081,69 @@ mod center_oscillation_wiring_tests {
         assert!(osc_books[0].is_suspended(CenterId::of(&c1)), "c1 仍在新链上⟹跟随迁移，挂起原样保留");
     }
 
-    /// 门控关闭臂：`pi_theta_fill_loop` 生产入口在默认配置（`center_oscillation.enabled=false`）
-    /// 下跑完整循环（空 bars，闭包不应被调用）——`center_oscillation_actions` 必须恒空，
-    /// 证明本接线整段零调用零影响。
+    /// 门控双轨（#292 项目二）：原测试用空 bars——`bars.is_empty()` 本身已让 `pan_div_hist=None`，
+    /// 恒真无判别力（门控是否真生效根本没被触达）。改为非空 bars + 真实触发条件（本级中枢
+    /// 在场 + 次级别已确认卖点，价格落中枢上半区）上的 `enabled=false`/`enabled=true` 对照：
+    /// 门关时零动作（真实门控生效，非"从未触达"的假阴性）、门开时动作可见（真判别力）。
     #[test]
-    fn gate_off_center_oscillation_actions_stays_empty() {
-        let config = super::super::super::config::ThetaConfig::default();
-        assert!(!config.center_oscillation.enabled, "默认门关（回归锁前提）");
-        let out = pi_theta_fill_loop(
-            |_i| panic!("门关+空 bars ⟹ classify_at 不应被调用"),
-            &[],
+    fn gate_dual_track_nonempty_bars_off_zero_on_visible() {
+        fn mk_bar(idx: usize) -> super::super::super::types::Bar {
+            super::super::super::types::Bar {
+                source_index: idx,
+                timestamp: idx as i64,
+                open: 10_000_000_000,
+                high: 10_000_000_000,
+                low: 10_000_000_000,
+                close: 10_000_000_000,
+                volume: 1,
+                untradable: false,
+            }
+        }
+        let bars: Vec<super::super::super::types::Bar> = (0..3).map(mk_bar).collect();
+
+        let c0 = center(5, 10, 100, 200); // 中轴 = 150
+        let sell_point = sub_level_bsp_point(3, VoiceSide::Short, 200); // 200≥中轴=上半区
+        let classification = Classification {
+            levels: vec![level_with_bsp(vec![sell_point]), level_with_centers(vec![c0])],
+        };
+
+        let config_off = super::super::super::config::ThetaConfig::default();
+        assert!(!config_off.center_oscillation.enabled, "默认门关（回归锁前提）");
+        let cls_off = classification.clone();
+        let out_off = pi_theta_fill_loop(
+            move |i| {
+                let cls = if i == 0 { cls_off.clone() } else { Classification::default() };
+                (cls, Vec::new(), Vec::new(), i as u64, i as u64)
+            },
+            &bars,
             1.0,
-            &config,
+            &config_off,
             None,
         );
-        assert!(out.center_oscillation_actions.is_empty(), "门关 ⟹ #292 接线零调用零影响");
+        assert!(
+            out_off.center_oscillation_actions.is_empty(),
+            "门关：非空 bars + 真实触发条件下仍零动作（真实门控生效，非从未触达的假阴性）"
+        );
+
+        let mut config_on = config_off.clone();
+        config_on.center_oscillation.enabled = true;
+        let cls_on = classification;
+        let out_on = pi_theta_fill_loop(
+            move |i| {
+                let cls = if i == 0 { cls_on.clone() } else { Classification::default() };
+                (cls, Vec::new(), Vec::new(), i as u64, i as u64)
+            },
+            &bars,
+            1.0,
+            &config_on,
+            None,
+        );
+        assert_eq!(
+            out_on.center_oscillation_actions.len(),
+            1,
+            "门开：同一非空 bars + 同一触发条件 ⟹ 恰一条可见动作（真判别力）"
+        );
+        assert_eq!(out_on.center_oscillation_actions[0].action, CenterOscillationAction::Reduce);
     }
 }
 
