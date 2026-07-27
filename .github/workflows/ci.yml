@@ -35,3 +35,44 @@ jobs:
         with:
           name: coverage-report
           path: coverage.xml
+
+  # #438：`cargo check --all-targets` 对 `required-features = ["backtest_bin"]`
+  # 的 9 个 bin 是静默跳过（不报错不警告），曾造成合并后终态验证"全绿"却掩盖
+  # 3×E0432 真实编译错误（#295 修复从未到达 main 即为一例）。本 job 补上被跳过
+  # 的那一半验收面，使"required-features 的 bin 未被任何标准命令编译过"这类
+  # 假绿在结构上不可再发生——无需人记得多带一个 flag。
+  #
+  # 覆盖边界（诚实披露，非本 job 职责）：
+  #   - 本 job 只保证「会被编译」，不保证「编译通过」。截至 #438 落地时，
+  #     `--features backtest_bin` 已知至少两处独立阻断，均不属于 #438 修复范围：
+  #     1) `pure_bsp_timing.rs:119` 既存 E0277（API 漂移，归另一工作线，#438 票内已登记）。
+  #     2) `fill.rs:2529` 用到的 `coverage::TwStepCtx` 被 #398 可见性收紧
+  #        （commit 1529207cb4）误标 `#[cfg(test)]`，导致非 test 生产路径 E0422
+  #        （新发现，已另开 issue，不在本票范围内修）。
+  #   - 因此本 job 落地时预期为红——这是有意为之：把已经存在的破损从"静默跳过"
+  #     变成"可见地失败"，而不是先修好再接线（那样会重新掩盖下一次同类回归）。
+  rust-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache cargo registry + target（backtest_bin 拉 nautilus 系依赖较重）
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: cargo check — default targets（required-features 未启用的 bin 不在内）
+        run: cargo check --all-targets
+
+      - name: cargo check — backtest_bin feature（#438：闭合 required-features 盲区）
+        run: cargo check --all-targets --features backtest_bin
