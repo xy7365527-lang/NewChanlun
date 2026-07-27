@@ -85,6 +85,13 @@ pub mod level_order;
 /// 目标=前值。事件集的最小完备定义与 `classifier::LevelState` 的逐字段对齐（§F 未决项②）
 /// 落档在该模块头；结构钟 / 风控钟的域分离是 §F③ 的落点。
 pub mod level_clock;
+/// **LEE M4 级别资金权 w_ℓ + 级别级风险帽**（multi-level-native-execution-design-20260719
+/// §D M4）。
+///
+/// 定义每个塔级别的资金权重 `w_ℓ`（`Σw_ℓ≤1` 机器断言）与其取值方式；与 `voice.rs`
+/// `depth_weights` 的对偶统一声明（谁主谁从，禁双重定价）落档在该模块头。帽的实际裁剪在
+/// `coverage.rs::clamp_levels_to_weighted_cap`（账户/风控域，§F③ 同纪律）。
+pub mod level_risk;
 /// 中枢震荡独立候选与有身份 ShortDiff 配对子腿契约（组合 R：DB-B / DB-O3 / DB-S5）。
 pub mod oscillation;
 /// 盘整/趋势在线协议状态机与 DA-Q2 协议事件轨（订单 P1..P10 的正交积因子）。

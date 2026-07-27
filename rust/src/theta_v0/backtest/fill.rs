@@ -420,14 +420,26 @@ where
 ///    - `K_Θ_gate`（账户层可行性）把结构意图投影到**实际持仓**上：发单时物理量
 ///      `= |T_lee − p_t|`，即 `schedule_order(T_lee, p_t)`。
 ///
-///    **两个锚各司其职，不可合并**（这是本函数最容易写错的地方）：
+///    **三个锚各司其职，不可合并**（这是本函数最容易写错的地方；★#309 MED-3 补课新增第③行——
+///    旧文档只讲了①②，第②步 `pi_theta_position` 的投影**输入**锚同样被换过且未登记，见下）：
 ///
 ///    | 问题 | 锚 | 理由 |
 ///    |---|---|---|
 ///    | 发不发单 | 计划态 `T_prev` | 稀疏性——拒单后的无事件 bar 不得自动重试（§C.2 `continue`） |
 ///    | 发多少手 | 实际持仓 `p_t` | 物理可行性——订单作用于真实仓位，不是作用于计划 |
+///    | ③ `pi_theta_position` 第二参（投影目标定位） | 计划态 `T_prev`（**非** `p_t`） | 稀疏性——`pi_theta_position` 的 `p_t` 参数同时喂 [`j_theta_key`] 的 `trade_cost=λ\|p−p_t\|`（次键）与 [`feasible_candidates`] 的 `anchor_pt` 候选（「保持现仓」候选点）。若锚**真实**持仓 `p_t`，则 `T_prev≠p_t`（拒单/部分成交后）时无 tick 的 bar 上 `p̃_lee` 虽然=`T_prev`（门控保前值），换手成本却按 `\|p−p_t\|` 而非 `\|p−T_prev\|` 计——若 `p_t≠T_prev` 恰使某个偏离 `T_prev` 的候选点换手成本反而更低，`LexArgmin` 可能选中它，产生 `p*≠T_prev` 从而 `order_raw≠0`，**破坏稀疏性构造**（②③ 步都必须锚 `T_prev` 才能保证「无 tick 且风控/帽未动 ⟹ `T_lee==T_prev` ⟹ 恒不发单」）。 |
 ///
-///    若两问都锚计划态（早期实装如此），在 `T_prev ≠ p_t`（拒单/部分成交）**且** `T_lee` 与
+///    ③ 的直接后果（照实登记，不冒充无副作用）：`trade_cost` 与 `anchor_pt` 候选点在计划态与
+///    实际持仓分歧期间是按**虚拟**（计划）位置估的，不是按真实持仓——「保持当前真实持仓不动」
+///    这一候选可能不在 [`feasible_candidates`] 代表集内。该分歧的幅度由
+///    [`super::super::strategy::level_order::LevelOrderStats::max_abs_plan_fill_gap`]
+///    （`Σ_ℓ q_ℓ^plan − p_t`）承载，但旧 3000-bar 验收 fixture 上该缺口恒为 0 ⟹ ③ 这条分歧
+///    路径在旧验收上**完全不可观测**——`runner.rs` 的
+///    `lee_m3_attribution_dimension_is_readable_and_not_residual_only`（#309 MED-3 补课）换
+///    9000-bar fixture 后实测非零，使其从「理论上存在」变为「实测可读」（**不**断言具体数值，
+///    只坐实非零，同该字段既有「只登记不判优劣」纪律）。
+///
+///    若①②都锚计划态（早期实装如此），在 `T_prev ≠ p_t`（拒单/部分成交）**且** `T_lee` 与
 ///    `T_prev` 反号时，`schedule_order` 的「反号穿零」分支产 `Sell/Buy`（`close_only=false`，
 ///    见 [`apply_order`]）⟹ 按计划差发量会**超开反向仓**（planned=100/held=37/T_lee=−50 ⟹
 ///    应开空 50，误发 150 手 ⟹ 净空 −113）。锚 `p_t` 后该路径构造上不可达。
@@ -476,6 +488,15 @@ fn plan_level_gated_order(
     let basis = super::super::strategy::level_ledger::level_nets(sep_legs, lot);
     let ticked_levels = ticks.ticked_levels();
     let gated = level_order.regate(&basis, &ticked_levels);
+    // ★M4 级别级风险帽（design doc §D M4；`risk.enforce_level_cap` 默认关，M0–M3 bit-exact
+    // 不变）：裁剪后的 `gated` 同时喂下面的 `p_tilde_lee` 与后续 `plan_gated` 的归因基准——
+    // 级别帽在结构基准进入账户层之前统一生效，不留一条未裁剪的旁路（`level_risk` 模块头
+    // 「禁双重定价」纪律：本步只读已聚合的 `net_ℓ`，不拆解 leg 内部的 depth_weight 构成）。
+    let gated = if risk.enforce_level_cap {
+        super::super::strategy::coverage::clamp_levels_to_weighted_cap(&gated, base_units, risk)
+    } else {
+        gated
+    };
     // 结构净目标 = 各级门控计划之和 + **账户层 pan_div 在飞子腿**。后者是 P7/P9 中枢震荡的
     // 净目标分量，载体是 `pan_div_state` 的 lot 账本而**不是** `sep_legs` ⟹ 不经 `net_ℓ`；
     // M2 时它经 `p_star_final` 改写进目标（`schedule_order(target, p_t)` 两分支），M3 必须

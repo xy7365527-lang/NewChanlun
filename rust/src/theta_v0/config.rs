@@ -162,7 +162,7 @@ impl Default for VoiceConfig {
 }
 
 /// Θ_risk 参数（reference-theta-v0.md:44-47）。全部 [设计选择,默认值;L3经验待标定]。
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RiskConfig {
     /// 单声部风险 `ρ=0.005 NAV`。L3。
     pub rho: f64,
@@ -196,6 +196,21 @@ pub struct RiskConfig {
     /// 逐根子树 KKT 投影，见 coverage.rs `apply_gross_cap`）。毛 cap **复用** `gamma`（与净 cap
     /// 共用同一 Θ_risk 参数，#122 裁定暂不拆 gross_gamma/net_gamma）。
     pub enforce_gross_cap: bool,
+    /// ★M4 级别资金权 `w_ℓ`（multi-level-native-execution-design-20260719 §D M4）。**Θ_risk
+    /// 参数，非缠论可导**（090/v3 纪律：级别之间怎么分钱是风险配置选择，不是缠论结构推导）。
+    ///
+    /// 按 level 索引取权重（对齐 [`super::strategy::voice::depth_weight`] 的取值方式：
+    /// `level_weights.get(level as usize)`，越界或空表 ⟹ 0.0，未用部分保留现金不重分配，
+    /// 同 `depth_weights` 纪律）。**default 空表**——`enforce_level_cap=false` 时空表不参与
+    /// 任何路径（M0–M3 bit-exact 不变）；启用后须满足 `Σ w_ℓ ≤ 1`（见
+    /// [`super::strategy::level_risk::level_weights_sum_le_one`]，机器断言，非文档承诺）。
+    pub level_weights: Vec<f64>,
+    /// ★M4 级别级风险帽开关（G7 `enforce_gross_cap` 同款模式）。`false`（default）⟹ 不激活，
+    /// LEE 结构基准不经级别帽裁剪（frozen M0–M3 bit-exact 不变）；`true` ⟹
+    /// `fill.rs::plan_level_gated_order` 在门控重估后、账户层投影前，对每个真实级别 ℓ 的
+    /// 结构基准施加 `cap_ℓ = w_ℓ·γ̄·U_ℓ`（[`super::strategy::level_risk::level_cap`]，𝒦_Θ
+    /// 协变 cap `γ̄·U_ℓ` 按级别用 w_ℓ 分解，见该函数文档「协变分解守恒」）。
+    pub enforce_level_cap: bool,
 }
 
 impl Default for RiskConfig {
@@ -209,6 +224,8 @@ impl Default for RiskConfig {
             chi_theta: None,
             chi_z_alpha: 0.0,
             enforce_gross_cap: false,
+            level_weights: Vec::new(),
+            enforce_level_cap: false,
         }
     }
 }

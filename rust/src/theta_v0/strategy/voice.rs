@@ -185,6 +185,11 @@ pub fn target_pos(v: &VoiceState) -> u32 {
 ///
 /// 边界条件：`config.voice.max_depth` 应 ≤ `depth_weights.len()`（spec:40 默认 3 层对应
 /// 3 个权重）；若 max_depth 超出权重表则超出层 w=0（自然不开仓，非错误）。
+///
+/// ★与 LEE `w_ℓ`（[`super::level_risk::level_weight`]）的对偶统一（multi-level-native-
+/// execution-design-20260719 §D M4，票体强制声明）：本函数管**声部深度**轴（同一根信号内的
+/// 嵌套对冲层），`level_weight` 管**塔级别**轴（跨根的独立递归层）——正交、不重复定价，谁主
+/// 谁从与禁双重定价的完整论证见 [`super::level_risk`] 模块头。
 pub fn depth_weight(depth: u32, config: &VoiceConfig) -> f64 {
     config
         .depth_weights

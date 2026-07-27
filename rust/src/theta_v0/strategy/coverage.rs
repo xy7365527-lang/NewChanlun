@@ -2661,6 +2661,50 @@ fn feasible_net_cap(risk: &RiskConfig) -> f64 {
     risk.gamma.abs()
 }
 
+/// ★M4 级别级协变 cap `cap_ℓ = w_ℓ·γ̄·U_ℓ`（multi-level-native-execution-design-20260719
+/// §D M4；`level_risk` 模块头「对偶统一声明」）。
+///
+/// **协变分解守恒**（票体验收「𝒦_Θ 协变 cap 按级别分解后仍满足」的机器判据）：账户层总 cap
+/// `= γ̄·U_ℓ`（[`feasible_net_cap`]×`base_units`，同 [`feasible_lex_candidates`] 用的量）；
+/// 本函数只多乘一个 `w_ℓ∈[0,1]` 因子——`cap_ℓ` 与总 cap 共用同一 `U_ℓ` 协变缩放（方案A，
+/// `feasible_net_cap` 文档同纪律），故 `cap_ℓ` 本身**逐级协变**：`a_k` 缩放资本时
+/// `cap_ℓ(S_k x) = a_k·cap_ℓ(x)`，与总 cap 的协变律同构，非另立一套。
+///
+/// `Σ_ℓ cap_ℓ = (Σ_ℓ w_ℓ)·γ̄·U_ℓ ≤ γ̄·U_ℓ`（由
+/// [`super::level_risk::level_weights_sum_le_one`] 保证 `Σw_ℓ≤1`）——分解后的级别帽之和
+/// **不超过**未分解的账户层总 cap，这正是「分解后仍满足」的代数内容（L0，见测试
+/// `level_cap_decomposition_never_exceeds_account_cap`）。
+pub(crate) fn level_cap(level: u32, base_units: f64, risk: &RiskConfig) -> f64 {
+    feasible_net_cap(risk) * super::level_risk::level_weight(level, risk) * base_units.abs()
+}
+
+/// ★M4 级别级风险帽实际施加点（`risk.enforce_level_cap` 门禁，G7 `apply_gross_cap` 同款
+/// 模式）：把 [`super::level_order::LevelOrderLedger::regate`] 产出的门控结构基准
+/// `gated_ℓ` 逐级 clamp 到 `[-cap_ℓ, +cap_ℓ]`（[`level_cap`]）。
+///
+/// 施加点纪律（§F③ 域分离 + `level_risk` 模块头「禁双重定价」）：本函数只读**已经**按级别
+/// 聚合完成的 `gated`（`net_ℓ` 之和，depth_weight 早已沉淀在其中），**不**拆解单条 leg 的深度
+/// 构成——level_weight 与 depth_weight 因此不会对同一块资金重复定价。零项保留（级别封闭
+/// 可读，与 [`super::level_order::LevelOrderPlan::deltas`] 同纪律）。
+///
+/// `risk.enforce_level_cap=false`（default）⟹ 调用方**不得**调用本函数（应直接跳过），
+/// 而不是传入空 `level_weights` 期望本函数自然退化——空表会把 `cap_ℓ` 恒裁到 0，那是「全部
+/// 级别禁止持仓」而非「级别帽未启用」，两者语义相反，门禁必须在调用方（`fill.rs`）而非本函数。
+pub(crate) fn clamp_levels_to_weighted_cap(
+    gated: &[(u32, i64)],
+    base_units: f64,
+    risk: &RiskConfig,
+) -> Vec<(u32, i64)> {
+    gated
+        .iter()
+        .map(|&(lvl, q)| {
+            let cap = level_cap(lvl, base_units, risk);
+            let cap_units = cap.floor().max(0.0) as i64;
+            (lvl, q.clamp(-cap_units, cap_units))
+        })
+        .collect()
+}
+
 /// **𝒦_Θ 风控约束门（close_pred 折入可行集，非第二决策出口，§16 单一决策出口）**。
 ///
 /// ## Q2 编排者裁定（close_pred 风控折进 𝒦_Θ）
@@ -5364,6 +5408,55 @@ mod tests {
 
     fn rcfg() -> RiskConfig {
         RiskConfig::default() // rho=0.005, beta=0.5, gamma=1.0, kappa=2.0, default_lot=1
+    }
+
+    // ── ★M4 级别级风险帽：level_cap / clamp_levels_to_weighted_cap ──────────
+
+    /// ★协变分解守恒（票体验收「𝒦_Θ 协变 cap 按级别分解后仍满足」）：`Σ_ℓ cap_ℓ ≤ γ̄·U_ℓ`
+    /// （账户层总 cap），由 `Σw_ℓ≤1` 代数保证——不依赖跑批数据，L0。
+    #[test]
+    fn level_cap_decomposition_never_exceeds_account_cap() {
+        let risk = RiskConfig { level_weights: vec![0.5, 0.3, 0.2], ..rcfg() };
+        let base_units: f64 = 1000.0;
+        let account_cap = feasible_net_cap(&risk) * base_units.abs();
+        let sum_level_caps: f64 =
+            (0u32..3).map(|lvl| level_cap(lvl, base_units, &risk)).sum();
+        assert!(
+            sum_level_caps <= account_cap + 1e-6,
+            "Σcap_ℓ={sum_level_caps} 必须 ≤ 账户层总 cap={account_cap}"
+        );
+        // Σw_ℓ=1.0（边界）⟹ 分解**恰好**覆盖账户层总 cap，非严格小于（1.0 是上确界而非余量）。
+        assert!((sum_level_caps - account_cap).abs() < 1e-6, "Σw_ℓ=1 ⟹ 分解恰好覆盖总 cap");
+    }
+
+    /// ★level_cap 协变缩放：`base_units`（`U_ℓ`）翻倍 ⟹ `cap_ℓ` 同比翻倍（方案A协变律，与
+    /// `feasible_net_cap` 文档同构，非另立一套缩放规则）。
+    #[test]
+    fn level_cap_is_covariant_with_base_units() {
+        let risk = RiskConfig { level_weights: vec![0.4], ..rcfg() };
+        let cap_1x = level_cap(0, 1000.0, &risk);
+        let cap_2x = level_cap(0, 2000.0, &risk);
+        assert!((cap_2x - 2.0 * cap_1x).abs() < 1e-9, "cap_ℓ 随 U_ℓ 协变缩放");
+    }
+
+    /// ★level_cap 未配置该级别权重 ⟹ 0（表外级别帽=0，同 `level_weight` 纪律，非错误）。
+    #[test]
+    fn level_cap_zero_for_unweighted_level() {
+        let risk = RiskConfig { level_weights: vec![0.5], ..rcfg() };
+        assert_eq!(level_cap(1, 1000.0, &risk), 0.0, "level 1 未配权重 ⟹ cap=0");
+    }
+
+    /// ★clamp_levels_to_weighted_cap：超帽级别被裁到 ±cap_ℓ，未超帽级别原样透传，零项保留。
+    #[test]
+    fn clamp_levels_to_weighted_cap_clips_only_binding_levels() {
+        let risk = RiskConfig { level_weights: vec![0.5, 0.1], ..rcfg() };
+        let base_units = 100.0; // cap_0=0.5*1.0*100=50, cap_1=0.1*1.0*100=10
+        let gated = vec![(0u32, 80i64), (1, 3), (2, 0)];
+        let clamped = clamp_levels_to_weighted_cap(&gated, base_units, &risk);
+        assert_eq!(clamped, vec![(0, 50), (1, 3), (2, 0)], "level0 超帽裁到 50，level1 未超帽原样，level2 零项保留");
+        // 负向对称裁剪。
+        let gated_neg = vec![(0u32, -80i64)];
+        assert_eq!(clamp_levels_to_weighted_cap(&gated_neg, base_units, &risk), vec![(0, -50)]);
     }
 
     /// PiThetaWeights::from_risk 复用 κ/ρ（不引新参数）。

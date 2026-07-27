@@ -29,6 +29,16 @@
 /// 语义：该手数**没有**任何级别的结构净额作依据（如 pan_div 子腿投影经账户层 clamp 后的
 /// 净目标、或全部腿不足最小手数被剔除后残留的网格化目标）。落显式残差桶而非摊给某个真实
 /// 级别——伪造级别身份是明确禁止的（设计文档 §C.3「跨级授权走谱系显式边」同纪律）。
+///
+/// ★#309 影子评审 LOW-1（**照实登记，不在本票内改语义**）：本桶不产生任何
+/// [`super::level_clock::LevelEventKind`] 事件——一旦经 `LevelOrderLedger::commit_planned`
+/// 写入 `planned`，`regate` 因 `ticked.contains(&LEVEL_ACCOUNT_RESIDUAL)` 恒假而永远走
+/// 保前值分支（不会因新的结构事件被重估/清零）；它仍可能被 `attribute_total` 的比例缩放
+/// （帽/风控 binding 触发，见 `level_order.rs` `CapTick`/`RiskTick` 例外）间接改动，但没有
+/// 任何**结构**路径能主动清零它。默认 `ThetaConfig`（pan_div 惰性）下 `Σ basis_ℓ==total==0`
+/// 恒走恒等分支，本桶实测零动用（`n_residual_bucket==0`）⟹ 该缺口当前不可达，**这是设计
+/// 决定还是漏门未经裁决**——若后续启用 pan_div/center_oscillation 等使本桶非零动用，需先
+/// 决定「残差桶要不要有自己的 clock 事件类」，本文件不擅自新增该事件类。
 pub const LEVEL_ACCOUNT_RESIDUAL: u32 = u32::MAX;
 
 /// 按级归因表（level 升序、level 无重复；级别数常态 ≤ 6 ⟹ 用 `Vec` 而非 `BTreeMap`，

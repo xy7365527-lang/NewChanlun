@@ -2580,14 +2580,39 @@ mod tests {
         //     门控关（剥离对照）：`risk_gate_active = 1191`
         //     门控开（交付态）  ：`risk_gate_active = 1191`   ⟹ **触发面逐值不变**
         //   （剥离对照的复现方式见 `..._are_sparse_subset_of_clock_events` 的对照表注释。）
-        //   下面在**同一 fixture** 上锁住这个值，使「触发面不变」成为可回归的断言而非一句话。
+        //
+        //   ★#309 MED-1 补课（RISK_FACE_BOTH_ARMS 处置）：下面这个常量**不是**两臂对拍——剥离臂
+        //   不在本测内重算，锁的是单个历史快照数字。旧版失败措辞「⟹ 事件门控污染了风控域」把
+        //   「数值漂移」直接等同于「门控污染风控域」，但触发面漂移还有一个同样常见的成因：
+        //   上游分类器/风控参数的合法变更（k_theta_risk_gate 的输入链路任何一环改了，这个数字
+        //   都会变，且与事件门控毫无关系）。旧措辞在后一种情形下必定误导——已照实改写为二选一
+        //   诊断指引，不再单方面断定诱因。
+        //
+        //   ★golden 再生机制（#308 MED「M3 落地时一并处理再生机制」补课，本常量同款处置）：
+        //   1. 临时把 `fill.rs::plan_level_gated_order` 里 `ticks.ticked_levels()` 换成
+        //      `basis` 与 `self.planned`（`level_order.planned()`）两者级别的并集（即让 `regate`
+        //      对全部级别都当作有 tick——等价于关闭事件门控，退化回 M2 每 bar 重估口径）；
+        //   2. 在同一 fixture（`RW3000M3`，seed 固定于 `random_walk_dataset`）上单独重跑本测，
+        //      读 `ov_m3.level_order.n_risk_gate_active` 的新值；
+        //   3. 撤销步骤 1 的临时改动（`git diff` 应回到零）；
+        //   4. 若新值与本轮门控开态实测值一致 ⟹ 触发面确未被事件门控污染，把
+        //      `RISK_FACE_BOTH_ARMS` 更新为该新值即完成再生；若不一致 ⟹ 这才是真违例，不得
+        //      静默改常量。**不得**仅因断言变红就机械调大/调小常量而不跑上述 1-3 步剥离对照。
         {
             let ds_m3 = random_walk_dataset("RW3000M3", 3000, 40_000_000);
             let ov_m3 = run_theta_v0_pi_overlay(&ds_m3, &config, 1.0, 1.0e6);
-            const RISK_FACE_BOTH_ARMS: u64 = 1191;
+            /// 剥离对照（门控关，M2 口径）一次性测出的历史快照——**不是**本测内重算的两臂对拍。
+            /// 再生步骤见上方注释「★golden 再生机制」。
+            const RISK_TRIGGER_SURFACE_GATE_OFF_SNAPSHOT: u64 = 1191;
             assert_eq!(
-                ov_m3.level_order.n_risk_gate_active, RISK_FACE_BOTH_ARMS,
-                "门控开态风控触发面 ≠ 剥离对照（门控关）实测值 {RISK_FACE_BOTH_ARMS}                  ⟹ 事件门控污染了风控域（票体硬约束「事件门控只门控结构交易，不门控风控」破）"
+                ov_m3.level_order.n_risk_gate_active, RISK_TRIGGER_SURFACE_GATE_OFF_SNAPSHOT,
+                "风控触发面 golden 漂移：门控开态实测 {} ≠ 剥离对照历史快照 {}。这不能自动判定诱因——\
+                 请先按本函数上方「★golden 再生机制」跑剥离对照复算：(a) 复算值与本次实测一致 ⟹ \
+                 只是历史快照过期，按注释步骤 4 更新常量即可；(b) 复算值与本次实测不一致 ⟹ 事件门控\
+                 真的污染了风控域（票体硬约束破），须回查 plan_level_gated_order 第②段风控投影是否\
+                 误读了 clock ticks。不得跳过复算直接改常量。",
+                ov_m3.level_order.n_risk_gate_active,
+                RISK_TRIGGER_SURFACE_GATE_OFF_SNAPSHOT
             );
         }
         // 作用面：风控 binding 真的落到订单上（不是只改可行集而无出口）。
@@ -2633,7 +2658,13 @@ mod tests {
     fn lee_m3_clock_obeys_first_observation_discipline() {
         use super::super::signal::newly_confirmed_step;
         let config = ThetaConfig::default();
-        let ds = random_walk_dataset("RW1500M3C", 1500, 40_000_000);
+        // ★#309 MED-4 补课：原 1500-bar fixture 只产 1 个 bsp tick——「同身份至多响一次」在单元素
+        // 集合下构造上不可失败（非平凡前置只要求 `>0` 恰被最弱情形满足）。3000-bar fixture 产
+        // 6 个 tick，跨多个身份真实检验「至多响一次」。**照实登记**：继续加大到 3500+ 会暴露
+        // `newly_confirmed_step` 对同一 `(level, source_index)` 在 `bits` 变化（分类由弱变强的
+        // 渐进重分类）时的**多次**确认——这是否算「重复响」取决于 `bits` 变化是否算新事件，
+        // 与 M4 无关，本票不擅自扩大范围裁决，见交付说明登记为独立发现。
+        let ds = random_walk_dataset("RW3000M3C", 3000, 40_000_000);
         // 直接重放 π loop 的候选 diff 口径（与 fill.rs 的 clock_ℓ BSP 通道同一函数，禁第二查法）。
         let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
         let mut fired: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
@@ -2678,13 +2709,23 @@ mod tests {
     /// ★LEE M2→M3 归因维度可读（承自 M2 票，门控后仍成立）：由 `Σ_ℓ Δq_ℓ` 生成订单的同一
     /// 跑批里，级别归因台账确实按级别分了桶，且**不动用** [`LEVEL_ACCOUNT_RESIDUAL`] 残差桶
     /// （默认配置下 pan_div 惰性 ⟹ 结构基准恒可归因）。
+    ///
+    /// ★#309 MED-1 补课（多级 fixture 真实 ≥2 级别分配）：旧断言只要求「至少一个真实级别」
+    /// （`levels().next().is_some()`）——这对「多级分配」零区分力，单级独占同样能通过。3000-bar
+    /// fixture（`RW3000M2D`）实测 `max_concurrent_real_levels=1`（照实登记于 #309 影子评审），
+    /// 换 9000-bar fixture 后同一决策点内**同时**出现 2 个非残差真实级别持有非零目标——
+    /// `max_concurrent_real_levels` ≥2 是这一点的直接见证（见 `LevelOrderStats` 字段文档）。
     #[test]
     fn lee_m3_attribution_dimension_is_readable_and_not_residual_only() {
         use super::super::super::strategy::level_order::LEVEL_ACCOUNT_RESIDUAL;
         let config = ThetaConfig::default();
-        let ds = random_walk_dataset("RW3000M2D", 3000, 40_000_000);
+        let ds = random_walk_dataset("RW9000M2D", 9000, 40_000_000);
         let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
         let s = ov.level_order;
+        eprintln!(
+            "LEE_M3_ATTRIB n_orders={} n_residual_bucket={} max_concurrent_real_levels={}",
+            s.n_orders_generated, s.n_residual_bucket, s.max_concurrent_real_levels
+        );
         assert!(s.n_orders_generated > 0, "非空前置：有订单可归因");
         assert_eq!(
             s.n_residual_bucket, 0,
@@ -2695,7 +2736,79 @@ mod tests {
             ov.level_ledger.levels().next().is_some() || ov.level_ledger.n_closed() > 0,
             "级别桶非空（归因维度可读）"
         );
+        // ★多级分配（非单级独占）：至少一个决策点同时有 ≥2 个真实级别持非零目标。
+        assert!(
+            s.max_concurrent_real_levels >= 2,
+            "多级分配未触达：max_concurrent_real_levels={}（旧 3000-bar fixture 上恒 1，须换密度更高\
+             fixture 而非放宽断言，{s:?}）",
+            s.max_concurrent_real_levels
+        );
         assert_ne!(LEVEL_ACCOUNT_RESIDUAL, 0, "残差桶键与真实级别 0 不冲突");
+        // ★#309 MED-3 补课：`plan_fill_gap` 分歧路径可观测性。3000-bar fixture 上该读数恒 0
+        // （fill.rs `pi_theta_position` 投影输入锚 p_t→T_prev 的副作用完全不可观测，见 fill.rs
+        // 「两锚分工」表新增第③行）；换到本测同一 9000-bar fixture 后，拒单/部分成交/close_only
+        // 上限的真实累积使其非平凡非零——**不断言具体数值**（该读数纪律是「只登记不判优劣」），
+        // 只坐实分歧路径在本验收上确实可读，而非恒 0 空转。
+        assert!(
+            s.max_abs_plan_fill_gap > 0,
+            "plan_fill_gap 恒 0 ⟹ 计划态/成交态分歧路径不可观测（{s:?}）"
+        );
+    }
+
+    /// ★★LEE M4 级别级风险帽验收：**关闭时 bit-exact，开启时真实收窄**
+    /// （multi-level-native-execution-design-20260719 §D M4）。
+    ///
+    /// 两段证据，缺一不可（同 M3 风控门验收的求值面/作用面二段结构）：
+    ///
+    /// - **不激活时 bit-exact**：`RiskConfig::default()`（`enforce_level_cap=false`）下
+    ///   本模块全部 M0–M3 既有测试逐字节不变——本文件顶部 `cargo test --release --lib` 全量
+    ///   基线已覆盖此项（M4 新增字段/函数不改变任何默认路径的求值结果），此处不重复断言。
+    /// - **激活时真实收窄（非退化）**：把全部级别 `w_ℓ` 压到 0.05（Σw_ℓ=0.3≤1 仍合规）后，
+    ///   级别级风险帽在本 fixture 上真实 binding——持仓幅度必须**测出**下降。刻意**不**选压到
+    ///   0（全平退化，订单数归零同样能通过「变小」断言但是平凡case）——0.05 使 `n_orders_generated`
+    ///   两侧都非零（baseline 48 / capped 169，帽收紧反而逼出更多再平衡订单，`max_abs_net_units`
+    ///   8055→761），坐实这是「持仓幅度真收窄」而非「交易完全停摆」。
+    #[test]
+    fn lee_m4_level_cap_narrows_position_when_enabled() {
+        let config = ThetaConfig::default();
+        let ds = random_walk_dataset("RW9000M2D", 9000, 40_000_000);
+        let baseline = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+        let b = baseline.level_order;
+        assert!(b.max_abs_net_units > 0, "非空前置（基线）：持仓非空账");
+        assert!(b.n_orders_generated > 0, "非空前置（基线）：真下过单");
+
+        // Σw_ℓ ≤ 1 机器断言（票体逐字要求）：6 级各 0.05，Σ=0.3≤1，合规且严格收窄（非退化，
+        // 见上方函数文档「刻意不选压到 0」的理由）。
+        use super::super::super::config::RiskConfig;
+        use super::super::super::strategy::level_risk::level_weights_sum_le_one;
+        let tight_weights = vec![0.05; 6];
+        let risk = RiskConfig {
+            level_weights: tight_weights.clone(),
+            enforce_level_cap: true,
+            ..RiskConfig::default()
+        };
+        assert!(
+            level_weights_sum_le_one(&risk),
+            "配置违反 Σw_ℓ≤1（本测配置错误，非产品缺陷）"
+        );
+        let config_capped = ThetaConfig { risk, ..ThetaConfig::default() };
+        let capped = run_theta_v0_pi_overlay(&ds, &config_capped, 1.0, 1.0e6);
+        let c = capped.level_order;
+        eprintln!(
+            "LEE_M4_CAP baseline: max_abs_net_units={} n_orders={} | capped: max_abs_net_units={} n_orders={}",
+            b.max_abs_net_units, b.n_orders_generated, c.max_abs_net_units, c.n_orders_generated
+        );
+        assert!(
+            c.max_abs_net_units < b.max_abs_net_units,
+            "级别级风险帽未 binding：capped max|p_t|={} 应严格小于 baseline {}",
+            c.max_abs_net_units,
+            b.max_abs_net_units
+        );
+        // 非退化：帽收窄的是持仓幅度，不是「交易完全停摆」——capped 侧仍真实下过单。
+        assert!(
+            c.n_orders_generated > 0,
+            "级别级风险帽把交易压到全平（n_orders=0）⟹ 本例退化，未证明「收窄」只证明「关闭」"
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────

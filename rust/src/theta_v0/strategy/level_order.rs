@@ -88,7 +88,8 @@
 //!
 //! 二者的差 `Σ_ℓ q_ℓ^plan − p_t` 是**在途/未兑现缺口**（拒单、部分成交、`close_only` 上限）
 //! ——M3 **不**自动补单（见下「为什么不锚 `p_t`」），因此这个缺口是真实的欠达。它是
-//! [`LevelOrderStats::max_abs_plan_fill_gap`]（**L2 经验读数**，只登记不断言）。
+//! [`LevelOrderStats::max_abs_plan_fill_gap`]（**L1 经验读数**，只登记不断言；读数产自合成
+//! `random_walk_dataset`，按 `formalization-validity-domain` 表不得标 L2——L2 需真实行情数据）。
 //!
 //! ## 为什么增量锚在 `q_ℓ^plan` 而不是 `held_ℓ`（M2 的锚）
 //!
@@ -111,10 +112,12 @@
 //! [`super::coverage::pi_theta_position`] **每 bar 无条件**施加 ⟹ 事件门控不门控风控
 //! （票体硬约束）。本模块只接受投影后的 `T_lee` 作 [`LevelOrderLedger::plan_gated`] 入参。
 //!
-//! ## ★与 #308「L2 结构分歧 40%」待裁输入的**相交点**（照实登记，**不擅自裁决**）
+//! ## ★与 #308「结构分歧 40%」待裁输入的**相交点**（照实登记，**不擅自裁决**）
 //!
-//! #308 浮出并登记为 M3/M4 待裁输入的 L2 分歧是：「逐腿 `q_units` 取整口径 vs `p̃` 聚合 lot
-//! 量化口径不同」，在 `random_walk_dataset("RW3000M2", 3000, 40_000_000)` 上实测
+//! #308 浮出并登记为 M3/M4 待裁输入的分歧是：「逐腿 `q_units` 取整口径 vs `p̃` 聚合 lot
+//! 量化口径不同」（读数即下表 `n_rescaled`/`max_abs_struct_gap`，**L1 经验读数**——按
+//! `formalization-validity-domain` 与本文件其余处一致，非 L2），在
+//! `random_walk_dataset("RW3000M2", 3000, 40_000_000)` 上实测
 //! `n_rescaled = 1190/3000`（≈40%）、`max|Σ_ℓ net_ℓ − T| = 5654`。
 //!
 //! M3 与该分歧**确有相交**——门控改变了它的**发生频率**（同一 fixture、同一读数口径，剥离
@@ -132,14 +135,16 @@
 //!    与「账户层能下的仓位」的口径差依然存在，只是被门控问得少了。
 //!
 //! 因此：**M3 不裁决该分歧**，只把它的取值口径迁移到门控后的读数上，并如实登记两组数字。
-//! 取整/量化口径究竟在哪一层统一（逐腿 vs 聚合）仍是 M4（级别 sizing `w_ℓ`）落定时必须
-//! 正面裁决的输入，主控裁定前不得视作已解决（#308 待裁输入原文纪律）。
+//! 取整/量化口径究竟在哪一层统一（逐腿 vs 聚合）**M4 落地（本仓库 `level_risk.rs` w_ℓ/
+//! 级别帽）未触及此项**——w_ℓ 只裁剪已聚合的 `net_ℓ` 总量，不改变逐腿取整与聚合量化之间的
+//! 口径关系，故该分歧**依然待裁**，不得视作已随 M4 解决（#308 待裁输入原文纪律）。
 //!
 //! ## M3 起 `max_abs_order_residual` 的等级迁移（**不再是恒 0 护栏**）
 //!
 //! M2 时它是 L0 同义反复（构造上 `|Σ_ℓ Δq_ℓ| ≡ qty_M0`）。M3 起订单流与 M0 分叉
 //! （设计文档 §D M3 逐字「本步起订单流与 M0 分叉，必须独立评审，不得借 M2 的 bit-exact
-//! 蒙混」）⟹ 该读数变为 **L2 分叉幅度**：`> 0` 是契约本身而非缺陷，`== 0` 反而说明门控
+//! 蒙混」）⟹ 该读数变为 **L1 分叉幅度**（合成 fixture 上可证伪，非真实行情故不标 L2）：
+//! `> 0` 是契约本身而非缺陷，`== 0` 反而说明门控
 //! 没接上。M3 的验收因此**不**断言它为 0，改断言分叉见证（见 `runner.rs`）。
 
 use std::collections::BTreeSet;
@@ -154,10 +159,12 @@ use crate::theta_v0::types::{Order, StrictAction};
 /// 的恒等在 release 跑批里零执行，等于没有证据。「残差恒 0」必须配「量级 > 0」才成对
 /// （残差 0 而量级也 0 = 空转）。
 ///
-/// **等级分层**（见模块头「三类读数的证据等级」表，勿混用）：`max_abs_order_residual` 是
-/// **L0 同义反复**（构造性，不可证伪，仅作实装护栏）；`max_abs_held_residual` 是 **L1 可证伪**
-/// （跨延迟/部分/拒单的实际成交归因）；`n_rescaled`/`max_abs_struct_gap` 是 **L2 经验读数**
-/// （结构目标与账户物理目标的分歧，纯观测无断言）。
+/// **等级分层**（现行 M3 口径；M2 时的等级见模块头「三类读数的证据等级」历史表，勿混用）：
+/// `max_abs_order_residual` **M3 起是 L1 分叉幅度**（合成 fixture 可证伪，M2 时是 L0 同义反复
+/// 恒 0 护栏——见下方字段文档「等级迁移」段，本条概述不得单独引用为 L0）；
+/// `max_abs_held_residual` 是 **L1 可证伪**（跨延迟/部分/拒单的实际成交归因）；
+/// `n_rescaled`/`max_abs_struct_gap` 是 **L1 经验读数**（结构目标与账户物理目标的分歧，纯观测
+/// 无断言；读数产自合成 fixture，按 `formalization-validity-domain` 不得标 L2）。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct LevelOrderStats {
     /// 决策点数（分母；非平凡性前置）。
@@ -179,7 +186,7 @@ pub struct LevelOrderStats {
     pub max_abs_net_units: i64,
     /// 落 [`LEVEL_ACCOUNT_RESIDUAL`] 桶的决策点数（诚实缺口计数）。
     pub n_residual_bucket: u64,
-    /// 需比例缩放（`Σ_ℓ net_ℓ ≠ T`）的决策点数（**L2 经验读数**，无断言——实测在默认配置的
+    /// 需比例缩放（`Σ_ℓ net_ℓ ≠ T`）的决策点数（**L1 经验读数**，无断言——实测在默认配置的
     /// 随机游走 fixture 上约占决策点四成，因 p̃ 的**聚合** lot 量化与逐腿 `q_units` 取整口径
     /// 不同；这是真实分歧，不是缺陷，M2 按比例吸收并在此登记，M3/M4 须正面裁决。**M3 门控后
     /// 同一 fixture 降至 2/3000**——频率降而根因未除，相交点分析见模块头 §M3）。
@@ -238,6 +245,14 @@ pub struct LevelOrderStats {
     pub n_risk_gate_active: u64,
     /// ★M3 上一条中**同时产生了订单**的决策点数（风控收窄真的落到订单上，非只改可行集）。
     pub n_risk_gate_active_with_order: u64,
+    /// ★#309 MED-1 补课：单决策点内**同时**持有非零目标的真实级别数（不含
+    /// [`LEVEL_ACCOUNT_RESIDUAL`] 桶）的历史最大值——「多级 fixture 真实 ≥2 级别分配」的
+    /// 直接见证。`n_residual_bucket==0`（恒可归因）本身不能证明分配跨了多个级别：所有权重
+    /// 可能仍集中在单一级别上。本读数按 [`LevelOrderPlan::targets`] 逐决策点数非零真实级别
+    /// 数取历史最大，`>=2` 才说明账本真的同时承载了跨级别的并行结构，而非「归因维度可读但
+    /// 实际单级独占」（#309 MED-1 指出的缺口：旧测只断言「至少一个真实级别」，对多级分配
+    /// 零区分力）。
+    pub max_concurrent_real_levels: u64,
 }
 
 impl LevelOrderStats {
@@ -246,7 +261,7 @@ impl LevelOrderStats {
     /// 单看「残差 0」不构成证据——空账下残差平凡为 0（#289 MED 指出的正是这一类平凡通过）。
     ///
     /// **M3 变更**：不再合取 `max_abs_order_residual == 0`。M2 时它是 L0 构造护栏（对本谓词
-    /// 本就零信息增量，见 M2 版注释）；M3 起订单流与 M0 分叉 ⟹ 它是 L2 分叉幅度，合取它
+    /// 本就零信息增量，见 M2 版注释）；M3 起订单流与 M0 分叉 ⟹ 它是 L1 分叉幅度，合取它
     /// 等于要求「M3 没有分叉」，与 M3 契约直接矛盾（设计文档 §D M3）。本谓词因此收敛为
     /// 它唯一真正见证过的东西：**跨延迟/部分/拒单的实际成交归因完备**。
     pub fn identity_witnessed(&self) -> bool {
@@ -292,7 +307,7 @@ pub struct LevelOrderPlan {
     pub used_residual_bucket: bool,
     /// 本计划是否经比例缩放（`Σ_ℓ basis_ℓ ≠ 物理目标`）。
     pub rescaled: bool,
-    /// `Σ_ℓ net_ℓ − T`（结构净额与账户层物理目标的**有符号分歧**；L2 经验读数，见
+    /// `Σ_ℓ net_ℓ − T`（结构净额与账户层物理目标的**有符号分歧**；L1 经验读数，见
     /// [`LevelOrderStats::max_abs_struct_gap`]）。
     pub struct_gap: i64,
 }
@@ -432,7 +447,7 @@ impl LevelOrderLedger {
     /// - `force_flat` ⟹ `T_lee == 0` ⟹ 各级目标按比例归零 ⟹ 平仓单照出（**风控每 bar 生效**）。
     ///
     /// `struct_gap` 在 M3 语义下 = `Σ_ℓ basis^gated_ℓ − T_lee`（门控后的结构计划与投影后物理
-    /// 目标的分歧，即帽/风控吃掉的部分）——仍是 L2 经验读数，不断言为 0。
+    /// 目标的分歧，即帽/风控吃掉的部分）——仍是 L1 经验读数，不断言为 0。
     pub fn plan_gated(&self, gated_basis: &[(u32, i64)], target_total: i64) -> LevelOrderPlan {
         let (targets, used_residual_bucket, rescaled) = attribute_total(gated_basis, target_total);
         let deltas = sub_levels(&targets, &self.planned);
@@ -474,7 +489,14 @@ impl LevelOrderLedger {
                 off_clock_delta += 1;
             }
         }
+        // ★#309 MED-1 补课：本决策点同时持有非零目标的真实级别数（残差桶不算）。
+        let concurrent_real_levels = plan
+            .targets
+            .iter()
+            .filter(|&&(lvl, q)| q != 0 && lvl != LEVEL_ACCOUNT_RESIDUAL)
+            .count() as u64;
         let s = &mut self.stats;
+        s.max_concurrent_real_levels = s.max_concurrent_real_levels.max(concurrent_real_levels);
         s.n_levels_off_clock_delta += off_clock_delta;
         if !plan.rescaled {
             s.n_levels_off_clock_delta_unexplained += off_clock_delta;
