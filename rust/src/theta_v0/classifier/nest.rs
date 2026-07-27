@@ -24,6 +24,10 @@
 //! 全部 L0：选择器是确定字典序，区间套是确定整数比较，确认是 bit-vector 非空判定。
 //! 唯一性是纯结构归纳（同义反复，不冒充 L1+）。`Sel_Θ` 规则由 Θ_signal 给出（reference:24
 //! canonical 分解 tie-break：最早确认时间 → 最低递归层 → 最早原始 index）。
+//!
+//! GUARD-ROLE: nest-pipeline
+//! （#451；tests/nest_isolation_guard.rs 认上面这一整行豁免，不认文件名——
+//! 独立对照实现本体，见 #449 §2 裁定）
 
 use super::super::types::{BspBits, Center, Side, Tick};
 use super::bsp::{BspPoint, OwnerRef};

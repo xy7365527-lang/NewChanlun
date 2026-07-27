@@ -25,6 +25,11 @@
 //!
 //! ## 认识论等级
 //! 纯结构检查（塔内对象间关系），不依赖经验数据（formalization-validity-domain）。
+//!
+//! GUARD-ROLE: judge
+//! （#451；显式声明判据身份——本行不产生豁免，仅作自述记录；
+//! tests/nest_isolation_guard.rs 只对逐字 `//! GUARD-ROLE: nest-pipeline` 整行放行，
+//! 本文件继续被拦，见 #449 §2 裁定）
 
 use super::super::types::Side;
 use super::Classification;

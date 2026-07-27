@@ -50,6 +50,10 @@
 //!   `TURN_CLASS ids=<单事件身份 level:turn_source:start-end> class=DeferOrphan confirmed_vec=0`。
 //! - 每证 / 每个 c 破极值未确认 Trend 事件**恰一行**（partition）；分类是旁挂派生，
 //!   证书集合三栏对照（存续=全/失证=0/新增=0）不受本信道影响。
+//!
+//! GUARD-ROLE: nest-pipeline
+//! （#451；tests/nest_isolation_guard.rs 认上面这一整行豁免，不认文件名——
+//! 对账本只读派生件，消费者 admission.rs + p92/p124，见 #449 §2 裁定）
 
 use super::super::types::{Center, Side};
 use super::level_view::{NestCandidateEvent, NestDivergenceKind};

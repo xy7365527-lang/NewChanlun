@@ -11,6 +11,10 @@
 //!
 //! 判定谓词唯一来源不变（`cert.certificate().n_delta()`，nest.rs 递归核）；
 //! 本模块只做生产装配与查表，不持判定。
+//!
+//! GUARD-ROLE: nest-pipeline
+//! （#451；tests/nest_isolation_guard.rs 认上面这一整行豁免，不认文件名——
+//! nest 管线本体的生产装配件，见 #449 §2 裁定）
 
 use std::collections::HashMap;
 
