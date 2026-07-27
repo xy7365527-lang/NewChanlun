@@ -531,32 +531,14 @@ pub fn recognize(
     decisions
 }
 
-/// 单个开/平候选 → [`VoiceDecision`]（recog 逐桶映射，single source 零重算）。
+/// `stop_in` 构造（#397：`build_decision`/`build_child_decision` 22 行重复收敛为一个函数）。
 ///
-/// `cand`：[`interp::Candidate`]（携级别/方向/类号/角色）。`point`：原始 [`classifier::bsp::BspPoint`]
-/// （携 pivot/center 结构止损源，`cand.gamma_index` 索引回，零重算）。`is_exit`：分桶推导的退出标志
-/// （ℬ_x→false 开仓侧 / 𝒟_x→true 平仓侧）——**replaces 旧 `exit: false` 硬编码**（no-patch）。
-///
-/// 返回 `None` 当：无可交易成交 bar（信号作废，spec:50）/ 含 3 类 bit 但 center=None（classifier
-/// 不变量违反，显式拒绝不静默）。这两道判据逐字保留旧 recognize_point 语义（runner 诊断
-/// `recog_reject_*` 对照同序：bits→fill→center）。
-fn build_decision(
-    cand: &interp::Candidate,
-    point: &classifier::bsp::BspPoint,
-    is_exit: bool,
-    bars: &[Bar],
-    config: &ThetaConfig,
-) -> Option<VoiceDecision> {
-    // 方向 σ_root：候选已由 `interp::candidate_dir`（root_sel 镜像反对称消歧）定方向；ℬ_x/𝒟_x
-    // 候选必非 Flat（Flat 已归 𝒦 不入此函数）。独立根 depth=0 ⟹ voice_side(root_side,0)=root_side。
-    let root_side = cand.dir;
-
-    // entry = 信号确认后下一可交易 bar 的 open（spec:50 延迟成交基准）。无成交 bar ⟹ 信号作废。
-    let fill_index = exec::fill_bar_index(point.source_index, bars, &config.exec)?;
-    let entry = bars[fill_index].open;
-
-    // stop_in：从 BspPoint 直接构造（single source，零重算）。含 3 类 bit ⟹ center 必 Some
-    // （classifier 不变量）；违反则显式返回 None（不用零 Center 静默产 zg=0 错误止损价）。
+/// 从 [`classifier::bsp::BspPoint`] 直接构造 [`StopInput`]（single source，零重算）。携带一条
+/// 不变量：**含 3 类 bit 必须有 Center 载体**——`Type1Anchor` + 3 类 bit ⟹ 拒（`Type1Anchor` 是
+/// 二类点载体，3 类止损须读中枢 zg/zd，二者矛盾）；`None` + 3 类 bit ⟹ 拒（3 类判据要求离开
+/// 中枢，蕴含 center 必 `Some(Center(_))`，`None` 即不变量违反）。违反时显式返回 `None`（不用
+/// 零 Center 静默产 `zg=0` 错误止损价）。无 3 类 bit 时 center 不被 `structural_stop` 读，零占位无害。
+fn build_stop_in(point: &classifier::bsp::BspPoint) -> Option<StopInput> {
     let has_third = point.bits.buy3 || point.bits.sell3;
     let center = match point.center {
         Some(super::classifier::bsp::OwnerRef::Center(c)) => c,
@@ -581,11 +563,38 @@ fn build_decision(
             end_index: 0,
         }, // 无 3 类 bit：center 不被 structural_stop 读，零占位无害
     };
-    let stop_in = StopInput {
+    Some(StopInput {
         pivot_low: point.pivot_low,
         pivot_high: point.pivot_high,
         center,
-    };
+    })
+}
+
+/// 单个开/平候选 → [`VoiceDecision`]（recog 逐桶映射，single source 零重算）。
+///
+/// `cand`：[`interp::Candidate`]（携级别/方向/类号/角色）。`point`：原始 [`classifier::bsp::BspPoint`]
+/// （携 pivot/center 结构止损源，`cand.gamma_index` 索引回，零重算）。`is_exit`：分桶推导的退出标志
+/// （ℬ_x→false 开仓侧 / 𝒟_x→true 平仓侧）——**replaces 旧 `exit: false` 硬编码**（no-patch）。
+///
+/// 返回 `None` 当：无可交易成交 bar（信号作废，spec:50）/ 含 3 类 bit 但 center=None（[`build_stop_in`]
+/// 不变量违反，显式拒绝不静默）。这两道判据逐字保留旧 recognize_point 语义（runner 诊断
+/// `recog_reject_*` 对照同序：bits→fill→center）。
+fn build_decision(
+    cand: &interp::Candidate,
+    point: &classifier::bsp::BspPoint,
+    is_exit: bool,
+    bars: &[Bar],
+    config: &ThetaConfig,
+) -> Option<VoiceDecision> {
+    // 方向 σ_root：候选已由 `interp::candidate_dir`（root_sel 镜像反对称消歧）定方向；ℬ_x/𝒟_x
+    // 候选必非 Flat（Flat 已归 𝒦 不入此函数）。独立根 depth=0 ⟹ voice_side(root_side,0)=root_side。
+    let root_side = cand.dir;
+
+    // entry = 信号确认后下一可交易 bar 的 open（spec:50 延迟成交基准）。无成交 bar ⟹ 信号作废。
+    let fill_index = exec::fill_bar_index(point.source_index, bars, &config.exec)?;
+    let entry = bars[fill_index].open;
+
+    let stop_in = build_stop_in(point)?;
 
     Some(VoiceDecision {
         depth: 0, // §5 独立根
@@ -843,7 +852,7 @@ fn carrier_of_entry(
 /// `voice_side(cand.dir, d_p+1)` 多翻一次 ⟹ 绝对方向错（§3.3 反例）。
 ///
 /// `stop_in`/`entry`/`signal_index`/`bsp`/`level` 同法从 `BspPoint` 零重算读出（同骨架）；
-/// 返回 `None` 的两道判据（无成交 bar / 含 3 类 bit 但 center=None）逐字保留。
+/// 返回 `None` 的两道判据（无成交 bar / 含 3 类 bit 但 center=None，见 [`build_stop_in`]）逐字保留。
 fn build_child_decision(
     cand: &interp::Candidate,
     point: &classifier::bsp::BspPoint,
@@ -856,36 +865,7 @@ fn build_child_decision(
     let fill_index = exec::fill_bar_index(point.source_index, bars, &config.exec)?;
     let entry = bars[fill_index].open;
 
-    // stop_in：从 BspPoint 直接构造（single source，零重算）；3 类 bit 不变量校验同 build_decision。
-    let has_third = point.bits.buy3 || point.bits.sell3;
-    let center = match point.center {
-        Some(super::classifier::bsp::OwnerRef::Center(c)) => c,
-        // #218 面 A：二类点载体 = 一类点锚（Type1Anchor）——1/2 类止损只读 pivot，center
-        // 不入判；含 3 类 bit 恒 Center 载体（生产构造不变量），Type1Anchor+3 类 = 不变量违反。
-        Some(super::classifier::bsp::OwnerRef::Type1Anchor(_)) if has_third => return None,
-        Some(super::classifier::bsp::OwnerRef::Type1Anchor(_)) => super::types::Center {
-            zd: 0,
-            zg: 0,
-            dd: 0,
-            gg: 0,
-            start_index: 0,
-            end_index: 0,
-        },
-        None if has_third => return None, // 不变量违反：含 3 类 bit 但无 center（显式拒绝）
-        None => super::types::Center {
-            zd: 0,
-            zg: 0,
-            dd: 0,
-            gg: 0,
-            start_index: 0,
-            end_index: 0,
-        },
-    };
-    let stop_in = StopInput {
-        pivot_low: point.pivot_low,
-        pivot_high: point.pivot_high,
-        center,
-    };
+    let stop_in = build_stop_in(point)?;
 
     Some(VoiceDecision {
         depth, // 父 depth+1（单脊柱赋格树）
@@ -1346,6 +1326,62 @@ mod tests {
 
     use super::super::classifier::{Classification, LevelState};
     use super::super::classifier::bsp::BspPoint;
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  build_stop_in（#397）：含 3 类 bit 必须有 Center 载体——不变量单测
+    //
+    //  抽出前该不变量只能经完整 decision 构造间接触及（build_decision/build_child_decision
+    //  各写一遍）；抽出后可直接对 build_stop_in 单独断言，回归锁 = 抽取前后行为零变化。
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// 最小 BspPoint 构造器（仅填 build_stop_in 读取的字段：bits/pivot_low/pivot_high/center）。
+    fn bsp_point_with_center(
+        bits: BspBits,
+        center: Option<crate::theta_v0::classifier::bsp::OwnerRef>,
+    ) -> BspPoint {
+        BspPoint {
+            level_origin: 0,
+            source_index: 0,
+            bits,
+            pivot_low: 90,
+            pivot_high: 210,
+            center,
+            struct_break_dir: None,
+            force: None,
+        }
+    }
+
+    /// 不变量：含 3 类 bit + `Type1Anchor` 载体 ⟹ `None`（二类点载体与 3 类止损矛盾，显式拒绝）。
+    #[test]
+    fn build_stop_in_rejects_type1_anchor_with_third_bit() {
+        let point = bsp_point_with_center(
+            BspBits { buy3: true, ..Default::default() },
+            Some(crate::theta_v0::classifier::bsp::OwnerRef::Type1Anchor(5)),
+        );
+        assert!(build_stop_in(&point).is_none());
+    }
+
+    /// 不变量：含 3 类 bit + `center=None` ⟹ `None`（3 类判据蕴含离开中枢，center 必 `Some`，
+    /// 违反则显式拒绝，不静默产 `zg=0` 错误止损价）。
+    #[test]
+    fn build_stop_in_rejects_none_center_with_third_bit() {
+        let point = bsp_point_with_center(BspBits { sell3: true, ..Default::default() }, None);
+        assert!(build_stop_in(&point).is_none());
+    }
+
+    /// 正例：`Center` 载体 ⟹ 取带（`stop_in.center` 精确回填该 Center；pivot 逐字透传）。
+    #[test]
+    fn build_stop_in_takes_center_when_present() {
+        let center = mk_center(100, 200, 3);
+        let point = bsp_point_with_center(
+            BspBits { buy3: true, ..Default::default() },
+            Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(center)),
+        );
+        let stop_in = build_stop_in(&point).expect("Center 载体应产出 Some(StopInput)");
+        assert_eq!(stop_in.center, center);
+        assert_eq!(stop_in.pivot_low, 90);
+        assert_eq!(stop_in.pivot_high, 210);
+    }
 
     /// 构造含一个第三类买点的单级 Classification（L0 = L*，single source BspPoint）。
     fn classification_with_buy3(source_index: usize) -> Classification {
