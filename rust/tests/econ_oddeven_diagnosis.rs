@@ -122,14 +122,18 @@ fn collect_signals(ds: &Dataset, config: &ThetaConfig) -> Vec<Signal> {
         if bar.untradable || bar.close <= 0 { continue; }
         let (cls_i, tower_i) = incr.classify_at(i);
         for (lvl, ls) in cls_i.levels.iter().enumerate() {
-            for p in &ls.bsp {
+            for p in ls.bsp.iter() {
                 if !seen.insert((lvl, p.source_index, bsp_disc(&p.bits))) { continue; }
                 let pivot_bar = p.source_index;
                 let single = Classification {
                     levels: cls_i.levels.iter().enumerate()
                         .map(|(l2, _)| LevelState {
-                            moves: Vec::new(), centers: Vec::new(),
-                            bsp: if l2 == lvl { vec![p.clone()] } else { Vec::new() },
+                            moves: Vec::new(),
+                            centers: Vec::new().into(),
+                            cp_ownership: Vec::new().into(),
+                            bsp: (if l2 == lvl { vec![p.clone()] } else { Vec::new() }).into(),
+                            pan_div: Vec::new().into(),
+                            level_projection: None,
                         }).collect(),
                 };
                 for c in &assemble_gamma_with_tower(&single, &tower_i) {

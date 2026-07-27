@@ -42,22 +42,23 @@ jobs:
   # 的那一半验收面，使"required-features 的 bin 未被任何标准命令编译过"这类
   # 假绿在结构上不可再发生——无需人记得多带一个 flag。
   #
-  # 覆盖边界（诚实披露，非本 job 职责；#458 于 2026-07-27 复验）：
+  # 覆盖边界（诚实披露，非本 job 职责；#471 于 2026-07-27 终态复验）：
   #   - 本 job 只保证「会被编译」，不保证「编译通过」。
-  #   - 当前实测阻断：
-  #     1) `p108_interval_probe::main` 读取 `OwnerRef::{start_index,end_index}`，
-  #        但当前类型无这两个字段，产生 2×E0609（#470）。
-  #     2) `econ_oddeven_diagnosis::collect_signals` 沿用旧 `LevelState` 初始化与
-  #        `Rc<Vec<_>>` 访问方式，产生 E0277、2×E0308、E0063（#471）。
-  #     3) `pi_bsp_timing_cli_args_tests` 被当作独立 bin crate 编译，crate 根的
-  #        `use super::{parse_cli_args, CliArgs}` 产生 E0433，且缺 `main` 产生 E0601；
-  #        这是 default-targets 级阻断（#468）。
+  #   - 当前实测阻断：零。
   #   - 历史阻断（仍列出以闭合披露谱系，当前已修复）：
+  #     1) `p108_interval_probe::main` 曾按结构字段读取枚举化后的 `OwnerRef`，
+  #        产生 2×E0609（#470，af4d864c02，已修复，复验不再出现）。
+  #     2) `econ_oddeven_diagnosis::collect_signals` 曾沿用旧 `LevelState` 初始化与
+  #        `Rc<Vec<_>>` 访问方式，产生 E0277、2×E0308、E0063
+  #        （#471，已修复，复验不再出现）。
+  #     3) `pi_bsp_timing_cli_args_tests` 曾被当作独立 bin crate 编译，crate 根的
+  #        `use super::{parse_cli_args, CliArgs}` 产生 E0433，且缺 `main` 产生 E0601；
+  #        这是 default-targets 级阻断（#468，44a20222c4，已修复，复验不再出现）。
   #     4) `pure_bsp_timing::main` 对 `LevelState::bsp` 的旧迭代方式曾产生 E0277
   #        （#311，已修复，复验不再出现）。
   #     5) `pi_theta_fill_loop_overlay` 消费的 `coverage::TwStepCtx` re-export
   #        曾被误标 `#[cfg(test)]`，产生 E0422（#452，已修复，复验不再出现）。
-  #   - 因此当前本 job 预期仅因 #470、#471、#468 为红：把已经存在的破损从
+  #   - 因此当前本 job 预期全绿；若 required-features 面再漂移，将从
   #     "静默跳过"变成"可见地失败"，并让修复状态随复验同步更新。
   rust-check:
     runs-on: ubuntu-latest
