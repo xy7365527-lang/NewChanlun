@@ -688,4 +688,61 @@ mod tests {
             );
         }
     }
+
+    /// #394 接线：`chi_open_gate_lcb` 在 `pi_bsp_timing.rs:439` 固定调用口径
+    /// （`risk_ok=conflict_ok=treat_empty_as_pass=true`）下的四类边界场景**具体真值**断言。
+    ///
+    /// ★评审 #406 MEDIUM 订正：此前版本断言的是
+    /// `chi_open_gate_lcb(..) == chi_t(est.mu_lcb(..), ..)`——右边就是 [`chi_open_gate_lcb`] 的
+    /// 函数体本身，对任何实现都恒真，**测不出任何回归**（结构性重言式）。现改为断言具体
+    /// true/false 期望值——真正锁定 `chi_open_gate_lcb` 未来重构时的行为不变。
+    ///
+    /// 调用点接线正确性（参数顺序/引用传对了没有）不由本测试兜底，而由端到端二进制
+    /// bit-exact witness 证明：OKLO `2026-06-01~2026-06-24`（12128 bar，χ 门产生真实分歧
+    /// ΔN=10521/12128，非退化 trivial case）在接线前（父 commit `b7dc9b544d`，内联
+    /// `chi_t(est.mu_lcb(..), theta, true, true, true)`）与接线后（本 commit，改调
+    /// `chi_open_gate_lcb`）两次独立 release 构建运行，全量 stdout 逐字节 diff 为空——见
+    /// commit message 记录的复现步骤与结果。
+    #[test]
+    fn chi_open_gate_lcb_reference_cases_pi_bsp_timing_call_site_semantics() {
+        let z = buy_z();
+        let theta = 5.0;
+        let z_alpha = 1.645;
+
+        // 案例1：高方差 n=2 类——裸 μ=15>θ=5 但 LCB≈−141<θ ⟹ 拒绝。
+        let mut est_high_var = MuEstimator::new();
+        est_high_var.observe(MuObservation { class: z, x_gamma: 110.0 });
+        est_high_var.observe(MuObservation { class: z, x_gamma: -80.0 });
+        assert!(
+            !chi_open_gate_lcb(&est_high_var, &z, theta, z_alpha, true, true, true),
+            "高方差 n=2：LCB<θ ⟹ 调用点口径下拒绝"
+        );
+
+        // 案例2：n<2 单样本——mu_lcb=None，调用点固定 treat_empty_as_pass=true ⟹ 放行。
+        let mut est_single = MuEstimator::new();
+        est_single.observe(MuObservation { class: z, x_gamma: 100.0 });
+        assert_eq!(est_single.mu_lcb(&z, z_alpha), None, "n=1 ⟹ mu_lcb None（前提核对）");
+        assert!(
+            chi_open_gate_lcb(&est_single, &z, theta, z_alpha, true, true, true),
+            "n<2 空证据 + treat_empty_as_pass=true ⟹ 放行（Pass 2 ⊆ Pass 1 不变量）"
+        );
+
+        // 案例3：大样本收敛——LCB→mean≈10>θ=5 ⟹ 准入。
+        let mut est_large_n = MuEstimator::new();
+        for i in 0..2000 {
+            let x = if i % 2 == 0 { 10.5 } else { 9.5 };
+            est_large_n.observe(MuObservation { class: z, x_gamma: x });
+        }
+        assert!(
+            chi_open_gate_lcb(&est_large_n, &z, theta, z_alpha, true, true, true),
+            "大样本：LCB→mean≈10>θ=5 ⟹ 准入"
+        );
+
+        // 案例4：空类（未见过 z）——treat_empty_as_pass=true ⟹ 放行。
+        let empty = MuEstimator::new();
+        assert!(
+            chi_open_gate_lcb(&empty, &z, theta, z_alpha, true, true, true),
+            "空类 + treat_empty_as_pass=true ⟹ 放行"
+        );
+    }
 }
