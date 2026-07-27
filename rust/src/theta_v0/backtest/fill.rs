@@ -6,10 +6,10 @@
 use super::super::config::ThetaConfig;
 use super::super::types::{Bar, Order, StrictAction};
 use super::super::strategy::exec::FillSide;
-// ★#423 第二阶段 C 线：本文件生产区段**不** import `LiquidityRole`——成交报价走
-// `FeeQuoter::production_rate_or_fallback`（无角色参数，角色单一来源 =
+// ★#423 第二阶段 C 线：本文件生产区段**不** import `LiquidityRole`——成交报价只走
+// `FeeQuoter` 的无角色门面（费率或逐科目 quote；角色单一来源 =
 // `venue_fee::PRODUCTION_LIQUIDITY_ROLE`）。测试区段按需自行 import（见 `mod tests`）。
-use super::super::venue_fee::FeeQuoter;
+use super::super::venue_fee::{FeeQuote, FeeQuoter};
 
 /// fill 模拟（Θ_exec 基础形态，reference-theta-v0.md:49-54）。
 ///
@@ -134,7 +134,7 @@ pub(crate) fn order_delta_close_only(action: StrictAction, units: f64) -> Option
     }
 }
 
-/// ★#360 venue 费率解析（生产成交回路的唯一费率取值方式）。
+/// ★#360/#419 venue 费率解析（生产成交回路的无角色报价入口）。
 ///
 /// 未标定档（`ExecConfig::fee_schedule = None`）⟹ 恒为三常数合成率，与改动前**逐位相同**；
 /// 标定档 ⟹ 按本笔 (qty, px, 成交方向) 解析 datum + 未被 datum 覆盖的滑点（`FeeQuoter`）。
@@ -142,8 +142,9 @@ pub(crate) fn order_delta_close_only(action: StrictAction, units: f64) -> Option
 /// **流动性角色恒 [`PRODUCTION_LIQUIDITY_ROLE`](super::super::venue_fee::PRODUCTION_LIQUIDITY_ROLE)
 /// （= Taker）**：本引擎全部成交按 bar close 市价撮合，无挂单语义 ⟹ 取 maker 档是声明膨胀
 /// （090）。datum 里的 maker 档留给真限价执行模型（报告 §3.1）。★#423 第二阶段 C 线起本文件
-/// 三个成交点**不传角色**——走 [`FeeQuoter::production_rate_or_fallback`]，角色在 quoter 内部
-/// 取那个常量（单一来源；在此写角色字面量已是编译错误，无参可传）。
+/// 成交点**不传角色**——只需费率的路径走 [`FeeQuoter::production_rate_or_fallback`]，生产 π
+/// treasury 审计路径走 [`FeeQuoter::production_quote_or_fallback`]；角色均在 quoter 内部取
+/// 同一常量（在此写角色字面量已是编译错误，无参可传）。
 ///
 /// **询价量 = 本笔可成交量的上界，且已扣掉可预知的裁量**：纯平仓单按
 /// `min(qty, |units|)` 询价（[`apply_fill`] 段 1 的同一 clamp）。剩余唯一偏差源是**开仓段
@@ -151,13 +152,30 @@ pub(crate) fn order_delta_close_only(action: StrictAction, units: f64) -> Option
 /// 同时发生**且**用 per-share 档时，最低佣金按偏大的量摊薄 ⟹ **低估成本**。彻底消除需两趟
 /// 成交（先定量再询价），属订单层改造，不在 #360；per-notional 档与未标定档无此偏差。
 fn order_fee_rate(fees: &FeeQuoter, o: &Order, px: f64, units: f64) -> f64 {
+    order_fee_quote(fees, o, px, units).rate
+}
+
+/// [`order_fee_rate`] 的逐科目同源形态（★#419）。无成交动作返回 fallback rate 的空 quote；
+/// 真实 fill 消费方须在 `executed_qty>0` 后才累计。
+fn order_fee_quote(fees: &FeeQuoter, o: &Order, px: f64, units: f64) -> FeeQuote {
     let Some((delta, close_only)) = order_delta_close_only(o.action, units) else {
-        return fees.fallback_rate(); // 不成交 ⟹ 费率不进算术
+        return FeeQuote {
+            rate: fees.fallback_rate(),
+            ..Default::default()
+        };
     };
     let qty = o.qty as f64;
-    let qty = if close_only { qty.min(units.abs()) } else { qty };
-    let side = if delta > 0.0 { FillSide::Buy } else { FillSide::Sell };
-    fees.production_rate_or_fallback(qty, px, side)
+    let qty = if close_only {
+        qty.min(units.abs())
+    } else {
+        qty
+    };
+    let side = if delta > 0.0 {
+        FillSide::Buy
+    } else {
+        FillSide::Sell
+    };
+    fees.production_quote_or_fallback(qty, px, side)
 }
 
 /// 双腿账本 [`LegOrder`](super::super::strategy::LegOrder) 的成交费率：(腿方向, 开/平) ⟹ 买卖
@@ -978,6 +996,7 @@ where
     //    （bit-exact——不改 units/cash，只多算三个恒 0 累计），commission_slippage 仍如实累计
     //    （守恒断言用，不改现金流）。──
     let mut cum_fee: f64 = 0.0; // Commission+Slippage+Tax（apply_fill 独立测得，非从 net 反推）
+    let mut fee_audit = super::treasury::FeeAudit::default(); // ★#419：同一真实 fill 的逐科目审计
     let mut cum_funding: f64 = 0.0;
     let mut cum_borrow: f64 = 0.0;
     let mut cum_liq_loss: f64 = 0.0;
@@ -1019,8 +1038,16 @@ where
                 if o.qty > 0 {
                     let units_before = units;
                     // A'（清单③）：累加本 fill 的费后已实现 PnL（多 fill 同 bar 聚合——推导链第 9 条）。
-                    let fee_rate = order_fee_rate(&fees, o, px, units);
-                    let fill = apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+                    let fee_quote = order_fee_quote(&fees, o, px, units);
+                    let fill = apply_order(
+                        o,
+                        px,
+                        fee_quote.rate,
+                        &mut cash,
+                        &mut units,
+                        &mut entry_cost,
+                        &mut trade_pnls,
+                    );
                     tw_thread.add_realized(fill.realized);
                     cum_fee += fill.fee;
                     // ★LEE M2 归因落账：**实际**成交有符号手数（拒单/close_only 上限 ⟹ 可小于
@@ -1029,6 +1056,7 @@ where
                     let executed_signed = (units - units_before).round() as i64;
                     level_order.on_fill(&attribs[oi], executed_signed);
                     if fill.executed_qty > 0.0 {
+                        fee_audit.record_executed(fee_quote, fill.fee);
                         // 轨迹与执行计数只消费真实成交；全拒单不再伪造 L2 执行事实。
                         track_position_transition(&mut trades, &mut pos_entry_bar, units_before, units, i, false);
                         n_orders_executed += 1;
@@ -2249,6 +2277,7 @@ where
         typed_ledger,
         tw_final: Some(tw_thread.finish()),
         r_decomp: Some(r_decomp),
+        fee_audit,
         level_order: level_order.stats(),
         level_clock: level_clock_stats,
     }
@@ -2278,6 +2307,8 @@ pub(super) struct FillOutput {
     /// LiquidationLoss + 账目守恒残差）。π 路径 [`pi_theta_fill_loop`] 产出；v1 路径
     /// [`plan_and_fill_mtm`] 未接 R 分解 ⟹ `None`（诚实不伪造，v1 是 recognize 旧路径非生产 π）。
     pub(super) r_decomp: Option<super::super::strategy::risk::RDecomposition>,
+    /// ★#419：真实执行 fill 的 treasury 原生费率科目累计；非 π 路径诚实为空。
+    pub(super) fee_audit: super::treasury::FeeAudit,
     /// ★LEE M2 级别归因见证读数（`Σ_ℓ Δq_ℓ ≡ ΔN` 的 **release 可见**证据）。π 路径
     /// [`pi_theta_fill_loop_overlay`] 产真值；v1 路径 [`plan_and_fill_mtm`] 无级别归因台账
     /// ⟹ 全零默认（`identity_witnessed()==false`，诚实不伪造——零决策不是恒等成立的证据）。
@@ -2595,6 +2626,7 @@ pub(super) fn plan_and_fill_mtm(
         typed_ledger: Vec::new(), // v1 无腿级台账（诚实空，非 π 路径）
         tw_final: None,           // v1 无 TW 接线（#124 只接 π 路径，诚实 None）
         r_decomp: None,           // v1 无 R 分解（M6 只接生产 π 路径，诚实 None）
+        fee_audit: Default::default(), // v1 无 #419 treasury 科目审计接线，诚实空
         // ★LEE M2：v1 recognize 路径无级别归因台账 ⟹ 全零默认（`identity_witnessed()==false`，
         // 诚实不伪造——零决策不构成恒等成立的证据，同 typed_ledger/tw_final 的诚实空口径）。
         level_order: Default::default(),
@@ -3068,6 +3100,7 @@ pub(super) fn plan_and_fill_mtm_dual(
             typed_ledger: Vec::new(), // 无腿级台账（诚实空，同 v1 净额路径）
             tw_final: Some(tw_thread.finish()),       // #68② TW 已接线（ShortDiff 成本划转 + Realize 平仓入账 + ShortDiff 腿计数；快照取强平前，强平 PnL 不入 TW）
             r_decomp: None,
+            fee_audit: Default::default(), // 关⑤非生产 π 路径无 #419 审计接线
             // ★LEE M2：关⑤双账本路径无级别归因台账 ⟹ 全零默认（诚实不伪造）。
             level_order: Default::default(),
             // ★LEE M3：同理无事件钟 ⟹ 全零默认（诚实不伪造）。

@@ -87,15 +87,16 @@ impl LiquidityRole {
 /// 上方 [`LiquidityRole`] 的"生产恒 Taker"此前只是**文档声明**，各成交点各写一个
 /// `LiquidityRole::Taker` 字面量。本常量把该事实变成一个可被机器消费的取值：
 /// [`VenueFeeSchedule::constant_effective_rate`] 的良定义判定与
-/// [`FeeQuoter::production_rate_or_fallback`] 的成交报价都引用它选角色，
+/// [`FeeQuoter::production_quote_or_fallback`] 的成交报价都引用它选角色，
 /// 于是"角色固定"不再是人工声明而是编译期事实。
 ///
 /// **本常量锁住什么**（★#423 第二阶段 C 线收口后的实际强度）：
 /// - `FeeQuoter` **没有任何接收 [`LiquidityRole`] 的 `pub` 方法**（角色版
 ///   `rate_with_role` 已收为私有）⟹ 生产成交点（`backtest::fill` 的 `order_fee_rate` /
 ///   `leg_fee_rate` / `forced_flatten_fee_rate`、`strategy::overlay_state::quote`）只能调
-///   无角色参数的 [`FeeQuoter::production_rate_or_fallback`]。在这些位点写角色字面量
-///   **无参可传 ⟹ 编译错误**（不是测试失败，是编不过）；
+///   两个无角色参数门面：只需费率时调 [`FeeQuoter::production_rate_or_fallback`]，需要
+///   treasury 科目时调 [`FeeQuoter::production_quote_or_fallback`]。在这些位点写角色
+///   字面量**无参可传 ⟹ 编译错误**（不是测试失败，是编不过）；
 /// - 那两个文件已不再 `use` [`LiquidityRole`]（生产区段），路径 `LiquidityRole::Taker`
 ///   本身即未解析符号；
 /// - 单标量成本口径的分叉判定（[`VenueFeeSchedule::constant_effective_rate`]）取角色亦只经此处。
@@ -138,6 +139,58 @@ pub struct PerShareFees {
     pub passthru_finra_frac_of_commission: f64,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+struct PerShareFeeBreakdown {
+    commission: f64,
+    passthru: f64,
+    clearing_cat: f64,
+    sec: f64,
+    taf: f64,
+    min_commission_hit: bool,
+    notional_cap_hit: bool,
+    taf_cap_hit: bool,
+}
+
+impl PerShareFeeBreakdown {
+    fn total(self) -> f64 {
+        self.commission + self.passthru + self.clearing_cat + self.sec + self.taf
+    }
+}
+
+impl PerShareFees {
+    /// per-share 费则的单一算术真源；绝对费用与 treasury 科目报价共同消费本分解。
+    fn breakdown(self, qty: f64, notional: f64, side: FillSide) -> PerShareFeeBreakdown {
+        let raw = self.commission_per_share_usd * qty;
+        let cap = notional * self.max_commission_frac_of_notional;
+        let commission = raw.max(self.min_commission_usd).min(cap);
+        let passthru = commission
+            * (self.passthru_exchange_frac_of_commission
+                + self.passthru_finra_frac_of_commission);
+        let clearing_cat = (self.clearing_per_share_usd + self.cat_per_share_usd) * qty;
+        let (sec, taf, taf_cap_hit) = if side == FillSide::Sell {
+            let taf_raw = self.sell_taf_per_share_usd * qty;
+            (
+                notional * self.sell_sec_fee_frac,
+                taf_raw.min(self.sell_taf_cap_usd),
+                taf_raw > self.sell_taf_cap_usd,
+            )
+        } else {
+            (0.0, 0.0, false)
+        };
+        PerShareFeeBreakdown {
+            commission,
+            passthru,
+            clearing_cat,
+            sec,
+            taf,
+            min_commission_hit: raw < self.min_commission_usd
+                && self.min_commission_usd <= cap,
+            notional_cap_hit: cap < raw.max(self.min_commission_usd),
+            taf_cap_hit,
+        }
+    }
+}
+
 /// 计费单位——venue 费率表的两种原生形态（报告 §3.1：两种单位都要能表达）。
 #[derive(Debug, Clone, PartialEq)]
 pub enum FeeUnit {
@@ -175,24 +228,7 @@ impl VenueFeeSchedule {
             FeeUnit::Notional { maker_bps, taker_bps } => {
                 notional * role.pick_bps(*maker_bps, *taker_bps) / 10_000.0
             }
-            FeeUnit::PerShare(f) => {
-                // 佣金：per-share 起，每单最低佣金托底，成交额比例封顶（IBKR 三段口径）。
-                let commission = (f.commission_per_share_usd * qty)
-                    .max(f.min_commission_usd)
-                    .min(notional * f.max_commission_frac_of_notional);
-                let passthru = commission
-                    * (f.passthru_exchange_frac_of_commission + f.passthru_finra_frac_of_commission);
-                let per_share_both_sides =
-                    (f.clearing_per_share_usd + f.cat_per_share_usd) * qty;
-                let sell_reg = match side {
-                    FillSide::Sell => {
-                        notional * f.sell_sec_fee_frac
-                            + (f.sell_taf_per_share_usd * qty).min(f.sell_taf_cap_usd)
-                    }
-                    FillSide::Buy => 0.0,
-                };
-                commission + passthru + per_share_both_sides + sell_reg
-            }
+            FeeUnit::PerShare(f) => f.breakdown(qty, notional, side).total(),
         }
     }
 
@@ -286,6 +322,28 @@ pub struct FeeQuoter<'a> {
     schedule: Option<&'a VenueFeeSchedule>,
 }
 
+/// 单笔生产成交的 treasury 费率科目报价（★#419）。
+///
+/// `total = rate × notional` 是生产账本实际消费的总摩擦；per-share 标定档下，其余字段把
+/// venue datum 与未标定滑点 addon 拆到原生科目。未标定档及 per-notional 档没有更细的
+/// datum 科目定义，分别落 `unclassified_venue`（不得伪造佣金/监管费拆分）。
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct FeeQuote {
+    pub rate: f64,
+    pub total: f64,
+    pub notional: f64,
+    pub commission: f64,
+    pub passthru: f64,
+    pub clearing_cat: f64,
+    pub sec: f64,
+    pub taf: f64,
+    pub slippage: f64,
+    pub unclassified_venue: f64,
+    pub min_commission_hit: bool,
+    pub notional_cap_hit: bool,
+    pub taf_cap_hit: bool,
+}
+
 impl<'a> FeeQuoter<'a> {
     /// `fallback_rate` = 未标定三常数合成率（唯一来源 = `backtest::treasury::fee_rate`）；
     /// `uncalibrated_addon` = datum 不覆盖、须与 datum 费率**相加**的科目（滑点）。
@@ -305,10 +363,11 @@ impl<'a> FeeQuoter<'a> {
     /// 本笔成交的单边费率（**私有**：角色维只在本类型内部存在）。未标定档忽略
     /// `qty/px/side/role`（常率，与改动前逐位相同）。
     ///
-    /// 不对外暴露的理由（★#423 第二阶段 C 线）：`FeeQuoter` 是生产成交点的唯一费率入口，
+    /// 不对外暴露的理由（★#423 第二阶段 C 线）：`FeeQuoter` 是生产成交点的唯一报价入口，
     /// 而生产撮合角色只有一个合法取值 [`PRODUCTION_LIQUIDITY_ROLE`]。若本方法 `pub`，
     /// 调用方就能在成交点写一个角色字面量 ⟹ "角色单一来源"退回文档声明。故对外只留
-    /// [`Self::production_rate_or_fallback`]（无角色参数），角色在此处内部取常量。
+    /// [`Self::production_rate_or_fallback`] / [`Self::production_quote_or_fallback`] 两个
+    /// 无角色参数门面，角色在此处内部取常量。
     fn rate_with_role(&self, qty: f64, px: f64, side: FillSide, role: LiquidityRole) -> f64 {
         match self.schedule {
             None => self.fallback_rate,
@@ -316,8 +375,8 @@ impl<'a> FeeQuoter<'a> {
         }
     }
 
-    /// **生产成交点的唯一费率取值方式**（★#423 第二阶段 C 线）——撮合角色不由调用方传入，
-    /// 而是在本方法体内取 [`PRODUCTION_LIQUIDITY_ROLE`]。
+    /// **生产成交点的无角色费率兼容门面**（★#423 第二阶段 C 线）——完整报价由
+    /// [`Self::production_quote_or_fallback`] 生成，本方法只返回其中 `rate`。
     ///
     /// 成交量/价合法才询价，否则返回未标定常率占位——该 fill 是 noop/拒单，费率不进算术。
     /// （`fill.rs` 与 `overlay_state.rs` 的成交点共用此一处判定，不各写一份。）
@@ -329,11 +388,52 @@ impl<'a> FeeQuoter<'a> {
     /// maker/taker 维参数化是其定义的一部分（测试与逐笔对拍需要），故保留角色参数。
     /// 见 [`PRODUCTION_LIQUIDITY_ROLE`] 文档的逐条登记。
     pub fn production_rate_or_fallback(&self, qty: f64, px: f64, side: FillSide) -> f64 {
-        if qty > 0.0 && px > 0.0 {
-            self.rate_with_role(qty, px, side, PRODUCTION_LIQUIDITY_ROLE)
-        } else {
-            self.fallback_rate
+        self.production_quote_or_fallback(qty, px, side).rate
+    }
+
+    /// 生产账本逐笔报价 + 原生科目拆分（★#419）。
+    ///
+    /// 费率 `rate` 仍由既有 [`Self::rate_with_role`] 唯一计算，故旧成交现金流不换公式；
+    /// 科目字段只提供同一报价的可审计分解。非法量/价沿用旧 API 的 fallback rate，但没有真实
+    /// notional/费用（这些位点是 noop/拒单，报价不进账）。
+    pub fn production_quote_or_fallback(&self, qty: f64, px: f64, side: FillSide) -> FeeQuote {
+        if !(qty > 0.0 && px > 0.0 && qty.is_finite() && px.is_finite()) {
+            return FeeQuote {
+                rate: self.fallback_rate,
+                ..Default::default()
+            };
         }
+        let notional = qty * px;
+        let rate = self.rate_with_role(qty, px, side, PRODUCTION_LIQUIDITY_ROLE);
+        let total = notional * rate;
+        let mut quote = FeeQuote {
+            rate,
+            total,
+            notional,
+            ..Default::default()
+        };
+        match self.schedule.map(|s| &s.unit) {
+            Some(FeeUnit::PerShare(f)) => {
+                let fees = f.breakdown(qty, notional, side);
+                quote.commission = fees.commission;
+                quote.passthru = fees.passthru;
+                quote.clearing_cat = fees.clearing_cat;
+                quote.sec = fees.sec;
+                quote.taf = fees.taf;
+                quote.slippage = notional * self.uncalibrated_addon;
+                quote.min_commission_hit = fees.min_commission_hit;
+                quote.notional_cap_hit = fees.notional_cap_hit;
+                quote.taf_cap_hit = fees.taf_cap_hit;
+            }
+            Some(FeeUnit::Notional { .. }) => {
+                quote.slippage = notional * self.uncalibrated_addon;
+                quote.unclassified_venue = total - quote.slippage;
+            }
+            None => {
+                quote.unclassified_venue = total;
+            }
+        }
+        quote
     }
 
     /// 未标定 fallback 常率（`ExecConfig` 三常数合成）。**非成交量/价的占位取值**用它——
@@ -717,6 +817,53 @@ mod tests {
             2.156295e-4,
             "addon=0 ⟹ 纯 venue 档",
         );
+    }
+
+    /// ★#419 RED：生产报价须把 OKLO per-share venue 费拆成 treasury 可累计的原生科目，
+    /// 同时保留未标定滑点 addon；触达布尔值与 IBKR 三段佣金/TAF 上限口径同源。
+    /// **认识论 L1**（费用算术与公开报价 seam，不主张 alpha）。
+    #[test]
+    fn production_quote_exposes_oklo_treasury_components_and_triggers() {
+        let oklo = ibkr()
+            .resolve("OKLO", "PRO_TIERED_LE_300K_SHARES")
+            .expect("OKLO 档在册");
+        let q = FeeQuoter::new(3e-4, 2e-4, Some(&oklo));
+
+        let small = q.production_quote_or_fallback(50.0, 20.0, FillSide::Sell);
+        approx(small.commission, 0.35, "50 股最低佣金");
+        approx(small.passthru, 0.35 * 0.00074, "pass-through");
+        approx(small.clearing_cat, 50.0 * 0.000203, "清算+CAT");
+        approx(small.sec, 1_000.0 * 0.0000206, "卖出 SEC");
+        approx(small.taf, 50.0 * 0.000195, "卖出 TAF");
+        approx(small.slippage, 1_000.0 * 2e-4, "未标定滑点 addon");
+        assert!(small.min_commission_hit);
+        assert!(!small.notional_cap_hit);
+        assert!(!small.taf_cap_hit);
+        approx(
+            small.total,
+            small.commission
+                + small.passthru
+                + small.clearing_cat
+                + small.sec
+                + small.taf
+                + small.slippage,
+            "逐科目和 = treasury 实付总费",
+        );
+        approx(
+            small.rate,
+            q.production_rate_or_fallback(50.0, 20.0, FillSide::Sell),
+            "旧费率 API 与新 quote 同源",
+        );
+
+        let capped = q.production_quote_or_fallback(1.0, 20.0, FillSide::Buy);
+        assert!(
+            !capped.min_commission_hit,
+            "1% 上限压过最低佣金时只记上限触达"
+        );
+        assert!(capped.notional_cap_hit);
+
+        let taf_capped = q.production_quote_or_fallback(100_000.0, 20.0, FillSide::Sell);
+        assert!(taf_capped.taf_cap_hit);
     }
 
     // ── ★#423：常数等效费率的结构判定 ──────────────────────────────────────────

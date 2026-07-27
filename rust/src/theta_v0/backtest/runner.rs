@@ -179,6 +179,8 @@ pub struct RunResult {
     /// 生产 π 路径（[`run_theta_v0_pi`] 系列）产出；旧 recognize
     /// 路径（[`run_theta_v0`]）为 `None`（诚实——R 分解只接生产 π fill loop）。
     pub r_decomp: Option<super::super::strategy::risk::RDecomposition>,
+    /// ★#419：与生产 treasury/R 分解同一批真实 fill 的逐科目费率审计。
+    pub fee_audit: super::treasury::FeeAudit,
     /// 严格区间套证书 sidecar 汇总。默认 `None`；仅 `THETA_STRICT_NEST_SIDECAR=1/true/yes/on`
     /// 时在生产 π 重放同帧旁路产出，不参与订单、候选、风控、账本。
     pub strict_nest_sidecar: Option<StrictNestSidecarSummary>,
@@ -286,6 +288,7 @@ pub fn run_theta_v0(
         daily_returns: fill.daily_returns,
         equity_curve: fill.equity_curve,
         r_decomp: fill.r_decomp, // v1 路径为 None（plan_and_fill_mtm 不产 R 分解）
+        fee_audit: fill.fee_audit,
         strict_nest_sidecar: None,
     }
 }
@@ -362,6 +365,7 @@ pub fn run_theta_v0_dual(
         daily_returns: fill.daily_returns,
         equity_curve: fill.equity_curve,
         r_decomp: fill.r_decomp,
+        fee_audit: fill.fee_audit,
         strict_nest_sidecar: None,
     }
 }
@@ -589,6 +593,7 @@ fn run_theta_v0_pi_inner(
         daily_returns: fill.daily_returns,
         equity_curve: fill.equity_curve,
         r_decomp: fill.r_decomp, // 生产 π 路径 R 分解（cost_model=None ⟹ 三项 0，仍产分解表）
+        fee_audit: fill.fee_audit,
         strict_nest_sidecar,
     }
 }
@@ -779,6 +784,7 @@ pub fn run_theta_v0_pi_overlay(
         daily_returns: fill.daily_returns,
         equity_curve: fill.equity_curve,
         r_decomp: fill.r_decomp,
+        fee_audit: fill.fee_audit,
         strict_nest_sidecar: None,
     };
 
@@ -1292,6 +1298,13 @@ mod tests {
         assert!(fill.n_orders > 0, "π_Θ 确认-bar 部署买点 ⟹ 产订单（n_orders>0），实得 {}", fill.n_orders);
         assert!(!fill.trades.is_empty(), "开仓 + 窗口终点强平 ⟹ ≥1 笔交易轨迹，实得 {}", fill.trades.len());
         assert!(fill.trade_pnls_with_forced.iter().all(|p| p.is_finite()), "PnL 有限");
+        assert_eq!(fill.fee_audit.n_fills, fill.n_orders, "★#419 每个真实净额 fill 恰落一笔 treasury 费审计");
+        assert!(
+            (fill.fee_audit.total_fee - fill.r_decomp.expect("π loop 有 R 分解").commission_slippage)
+                .abs()
+                < 1e-9,
+            "★#419 fee_audit 总费须与 R 分解 Commission+Slippage 对账"
+        );
     }
 
     /// ★#82 DC-E：默认关闭时，即使分类轨携原始 PanDivCert，生产订单轨逐字段冻结。

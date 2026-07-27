@@ -21,6 +21,7 @@
 
 use super::super::config::ExecConfig;
 use super::super::strategy::ledger::{tw_step, TwEvent, TwState};
+use super::super::venue_fee::FeeQuote;
 
 /// **未标定 fallback 单边费率**（分数）。`ExecConfig::default()` 下恰为 `3e-4`（1+2+0 bps）。
 ///
@@ -187,6 +188,78 @@ pub fn fee_quoter(exec: &ExecConfig) -> super::super::venue_fee::FeeQuoter<'_> {
         exec.slippage_bps / 10_000.0,
         exec.fee_schedule.as_ref(),
     )
+}
+
+/// treasury 生产成交费逐科目累计（★#419）。
+///
+/// 只由真实 `executed_qty>0` 的 fill 调 [`Self::record_executed`]。金额按账本实际实扣总费相对
+/// 报价总费缩放，处理纯平仓 clamp / 拒开余量时仍与现有现金流逐位同口径；触达计数按真实 fill
+/// 计，不把拒单报价冒充触达。
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct FeeAudit {
+    pub n_fills: usize,
+    pub notional: f64,
+    pub commission: f64,
+    pub passthru: f64,
+    pub clearing_cat: f64,
+    pub sec: f64,
+    pub taf: f64,
+    pub slippage: f64,
+    pub unclassified_venue: f64,
+    pub total_fee: f64,
+    pub min_commission_hits: usize,
+    pub notional_cap_hits: usize,
+    pub taf_cap_hits: usize,
+}
+
+impl FeeAudit {
+    /// 累计一笔已成交报价。`executed_fee` 必须是同一 fill 返回的实扣费用。
+    pub fn record_executed(&mut self, quote: FeeQuote, executed_fee: f64) {
+        assert!(
+            executed_fee >= 0.0 && executed_fee.is_finite(),
+            "treasury 费率审计要求实扣费用非负有限，实得 {executed_fee}"
+        );
+        let scale = if quote.total > 0.0 {
+            executed_fee / quote.total
+        } else {
+            assert_eq!(executed_fee, 0.0, "零报价不得产生非零实扣费用");
+            0.0
+        };
+        self.n_fills += 1;
+        self.notional += quote.notional * scale;
+        self.commission += quote.commission * scale;
+        self.passthru += quote.passthru * scale;
+        self.clearing_cat += quote.clearing_cat * scale;
+        self.sec += quote.sec * scale;
+        self.taf += quote.taf * scale;
+        self.slippage += quote.slippage * scale;
+        self.unclassified_venue += quote.unclassified_venue * scale;
+        self.total_fee += executed_fee;
+        self.min_commission_hits += usize::from(quote.min_commission_hit);
+        self.notional_cap_hits += usize::from(quote.notional_cap_hit);
+        self.taf_cap_hits += usize::from(quote.taf_cap_hit);
+    }
+
+    /// 可解释科目和；应在浮点容差内等于 [`Self::total_fee`]。
+    pub fn component_total(&self) -> f64 {
+        self.commission
+            + self.passthru
+            + self.clearing_cat
+            + self.sec
+            + self.taf
+            + self.slippage
+            + self.unclassified_venue
+    }
+
+    /// datum 覆盖的 venue 费用（排除未标定滑点 addon）。
+    pub fn venue_total(&self) -> f64 {
+        self.commission
+            + self.passthru
+            + self.clearing_cat
+            + self.sec
+            + self.taf
+            + self.unclassified_venue
+    }
 }
 
 /// μ 层转发的一笔已兑现摆动：在 `high` 卖出 `units`、在 `low` 买回。
@@ -491,6 +564,40 @@ mod tests {
         );
         // fallback 仍可读（noop 位点占位），但已不是本档的成交费率。
         assert_eq!(q.fallback_rate(), 3e-4);
+    }
+
+    /// ★#419 RED：treasury 科目审计只累计**真实成交**；若账本只成交报价量的一部分，
+    /// 各金额/名义按账本实扣比例缩放，但触达按该真实 fill 计一次。分项和须与实扣总费对账。
+    /// **认识论 L1**（账本审计算术，不主张 alpha）。
+    #[test]
+    fn fee_audit_accumulates_executed_quote_at_ledger_caliber() {
+        use super::super::super::strategy::exec::FillSide;
+        let exec = exec_with(synth_per_share());
+        let q = fee_quoter(&exec);
+        let quote = q.production_quote_or_fallback(50.0, 20.0, FillSide::Sell);
+        assert!(quote.min_commission_hit);
+
+        let mut audit = FeeAudit::default();
+        audit.record_executed(quote, quote.total);
+        audit.record_executed(quote, quote.total * 0.5);
+
+        assert_eq!(audit.n_fills, 2);
+        assert_eq!(audit.min_commission_hits, 2);
+        assert_eq!(audit.notional_cap_hits, 0);
+        assert_eq!(audit.taf_cap_hits, 0);
+        let scale = 1.5;
+        assert!((audit.commission - quote.commission * scale).abs() < 1e-12);
+        assert!((audit.passthru - quote.passthru * scale).abs() < 1e-12);
+        assert!((audit.clearing_cat - quote.clearing_cat * scale).abs() < 1e-12);
+        assert!((audit.sec - quote.sec * scale).abs() < 1e-12);
+        assert!((audit.taf - quote.taf * scale).abs() < 1e-12);
+        assert!((audit.slippage - quote.slippage * scale).abs() < 1e-12);
+        assert!((audit.notional - quote.notional * scale).abs() < 1e-12);
+        assert!((audit.total_fee - quote.total * scale).abs() < 1e-12);
+        assert!(
+            (audit.component_total() - audit.total_fee).abs() < 1e-9,
+            "逐科目和须与账本实扣总费对账"
+        );
     }
 
     /// 守恒（S1 验收项）：空信号流下 treasury 恒等于初始值，严格相等。

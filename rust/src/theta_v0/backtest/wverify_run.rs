@@ -1496,6 +1496,73 @@ fn m6_btc_oos_r_decomposition() {
 /// 前缀重分类，全 461万 bar 不可行，有界多窗，诚实声明覆盖范围）。
 ///
 /// `#[ignore]`: `cargo test --release --lib theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos -- --ignored --nocapture`。
+fn resolve_m8_symbol(spec: Option<&str>) -> String {
+    let symbol = spec.unwrap_or("BTC").trim().to_ascii_uppercase();
+    assert!(!symbol.is_empty(), "M8_SYMBOL 不得为空");
+    assert!(
+        data::SYMBOLS.iter().any(|(s, _, _)| *s == symbol)
+            && PREREG_WINDOWS.iter().any(|w| w.symbol == symbol),
+        "M8_SYMBOL={symbol:?} 必须同时在 data::SYMBOLS 与 PREREG_WINDOWS 登记（禁静默回退 BTC）"
+    );
+    symbol
+}
+
+/// m8 的已登记跑批窗。OKLO §2.4 明确无 walk-forward，故只消费它的单段 OOS；其余品种保留
+/// 原 m8 的 p3 单折 + OOS 内前两个 anchored 窗。
+fn m8_windows(symbol: &str) -> Vec<(String, String, String)> {
+    let sw = PREREG_WINDOWS
+        .iter()
+        .find(|w| w.symbol == symbol)
+        .unwrap_or_else(|| panic!("M8_SYMBOL={symbol:?} 不在 PREREG_WINDOWS"));
+    if sw.wf_anchored.is_empty() {
+        return vec![("oklo_oos".into(), sw.oos.0.into(), sw.oos.1.into())];
+    }
+    let mut wins = vec![("p3fold".into(), "2023-01-01".into(), "2023-06-30".into())];
+    for w in sw.wf_anchored.iter().filter(|w| w.test_start >= OOS_START).take(2) {
+        wins.push((format!("wf{}", w.i), w.test_start.into(), w.test_end.into()));
+    }
+    wins
+}
+
+fn resolve_m8_report_path(spec: Option<&str>) -> String {
+    let path = spec.unwrap_or("/tmp/m8_e2e_all_systems_oos.md").trim();
+    assert!(!path.is_empty(), "M8_REPORT_PATH 不得为空");
+    path.to_string()
+}
+
+fn m8_layer23_settlement(
+    symbol: &str,
+    rows: &[(String, f64, super::super::strategy::ledger::TStage)],
+) -> (String, String) {
+    let execution = rows
+        .iter()
+        .map(|(tag, net_r, _)| format!("`{tag}` net_r={net_r:+.0}"))
+        .collect::<Vec<_>>()
+        .join("；");
+    let treasury = rows
+        .iter()
+        .map(|(tag, _, stage)| {
+            let stage = match stage {
+                super::super::strategy::ledger::TStage::CostReduction => "I(降成本)",
+                super::super::strategy::ledger::TStage::CapitalRecovered => "II(已回本)",
+                super::super::strategy::ledger::TStage::EarningShares => "III(赚份额)",
+            };
+            format!("`{tag}`={stage}")
+        })
+        .collect::<Vec<_>>()
+        .join("；");
+    (
+        format!(
+            "- **层2 execution** `E[R(Π_exec)]>0`：{execution}。\
+             {symbol} 本窗读数仅作 execution/treasury 路径与费用算术审计，禁作 alpha 论据或策略择优输入。"
+        ),
+        format!(
+            "- **层3 treasury** `Reach(StageIII)>0`：{treasury}；\
+             终态按本次真实窗 TW 账本逐窗登记，不由 signal 层结论静态推断。"
+        ),
+    )
+}
+
 #[test]
 #[ignore]
 fn m8_e2e_all_systems_oos() {
@@ -1516,33 +1583,33 @@ fn m8_e2e_all_systems_oos() {
         apply_m8_level_cap_from_env(&mut c);
         c
     };
-    let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
+    let symbol = resolve_m8_symbol(std::env::var("M8_SYMBOL").ok().as_deref());
+    let ds = data::load_by_symbol(&symbol, &plain_cfg)
+        .unwrap_or_else(|e| panic!("{symbol} 数据加载失败：{e}"));
     let nav_of = |d: &data::Dataset| {
         d.bars.iter().find(|b| !b.untradable && b.close > 0)
             .map(|b| b.close as f64 * plain_cfg.tick.tick_size).unwrap_or(1.0) * 1000.0
     };
 
     // OOS 窗清单：p3 单折 + 前两个 anchored walk-forward（与 M6 跑批同窗，可差分对照）。
-    let mut wins: Vec<(String, String, String)> = vec![
-        ("p3fold".into(), "2023-01-01".into(), "2023-06-30".into()),
-    ];
-    if let Some(sw) = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC") {
-        for w in sw.wf_anchored.iter().filter(|w| w.test_start >= OOS_START).take(2) {
-            wins.push((format!("wf{}", w.i), w.test_start.into(), w.test_end.into()));
-        }
-    }
+    let mut wins = m8_windows(&symbol);
     // ★T3 (#172)/#164 复现副本同款先例：`M8_WIN_FILTER=<tag>` ⟹ 只跑指定窗（逐窗重放/shadow
     // dump 分窗落盘需要；未设 = 全窗清单不变，bit-exact 中性——只跳过其他窗，窗内行为逐字节同）。
     if let Ok(filter) = std::env::var("M8_WIN_FILTER") {
         wins.retain(|(tag, _, _)| tag == &filter);
     }
 
-    let mut report = String::from(
+    let epistemology = if symbol == "BTC" {
+        "**认识论 L2**：真实 BTC OOS 假设检验；signal 层无 alpha ⟹ 端到端负/INCONCLUSIVE照实（否定性结果合法）。"
+    } else {
+        "**认识论 L1**：真实 OKLO 观察池窗口的 treasury 路径、费用算术与触达审计；严格遵守 v3，读数不作 alpha 论据、不作策略择优输入。"
+    };
+    let mut report = format!(
         "# M8 端到端全策略 OOS（TARGET_STRATEGY_MAXFULL.md M8 / 路线.pdf p17,p20-21）\n\n\
          三系统同开：M5 overlay 声部执行臂 + M6 cost_model（参数化持有成本三项，**spot 口径**：Funding 列＝\
          资金占用机会成本、Borrow＝现货杠杆借币、Liq＝强平罚金；#303）+ M7 三阶段 TW 账本。\n\
          口径：margin=CME-simple 单段；cost=参数化常费率；κ=0 冻结（M7 c3 裁定，正 κ 推迟 M8 后 L3）。\n\
-         **认识论 L2**：真实 BTC OOS 假设检验；signal 层无 alpha ⟹ 端到端负/INCONCLUSIVE 照实（否定性结果合法）。\n\n",
+         品种：**{symbol}**；窗口由 `PREREG_WINDOWS` 登记消费。{epistemology}\n\n",
     );
     // A10 附则B 裁决2（090 措辞纪律）：带成本 R 数值报告强制口径标签（费率未标定，禁作 alpha 论据）。
     // ★#360：成交费率标签随 `ExecConfig::fee_schedule` 升降级；持有成本三项独立保持 L1。
@@ -1595,6 +1662,8 @@ fn m8_e2e_all_systems_oos() {
     let policy = RiskPolicy::baseline(); // κ=0（M7 冻结口径）
     let i0: i64 = 1_000_000; // I_0 基线（TwState notional_in 同源 = ⌊nav0⌋，此处报告门槛用 1e6 名义）
     let mut lee_rows: Vec<String> = Vec::new(); // ★#389 T3：帽臂 LEE 稀疏性逐窗读数（帽关时恒空）
+    let mut fee_rows: Vec<String> = Vec::new(); // ★#419：逐窗 treasury 原生费率科目审计
+    let mut layer23_rows = Vec::new(); // ★#419：结算文案与逐窗真实 net_r / Stage 同源
     for (tag, te_lo, te_hi) in &wins {
         let test = ds.slice_date_window(te_lo, te_hi);
         if test.bars.is_empty() {
@@ -1615,7 +1684,7 @@ fn m8_e2e_all_systems_oos() {
         apply_m8_level_cap_from_env(&mut cfg); // ★#389 T3 帽臂（未设 = 臂R/臂D 逐位不变）
         cfg.margin = Some(q4_margin_model(nav_te));
         cfg.cost_model = Some(m6_cost_model());
-        eprintln!("[m8] BTC {tag} test={te_lo}..{te_hi}({}) 三系统同开 run…", test.bars.len());
+        eprintln!("[m8] {symbol} {tag} test={te_lo}..{te_hi}({}) 三系统同开 run…", test.bars.len());
         // ★T5a (#207) shadow dump 分窗接线（T3_SHADOW_DUMP 同型）：env T5A_CHAIN_DUMP_DIR
         // 设置时逐窗开 `<dir>/t5a_chain_dump_<tag>.jsonl`；未设 = no-op（bit-exact 中性）。
         super::admission::t5a_chain_dump::open_for_window(&tag);
@@ -1624,6 +1693,54 @@ fn m8_e2e_all_systems_oos() {
 
         // 层2 execution：R 分解 + MaxDD + 逐声部归因。
         let d = r.net_result.r_decomp.expect("overlay 臂经生产 π loop ⟹ 产 R 分解");
+        assert!(
+            r.voice_exec.is_none(),
+            "#419 treasury 费率科目审计验收的是净额 overlay 臂；VOICE_EXEC=1 属另一执行投影，须另票接审计"
+        );
+        let fee = r.net_result.fee_audit;
+        assert_eq!(
+            fee.n_fills, r.net_result.n_orders,
+            "#419 每个真实净额 fill 恰落一笔 treasury 费审计（窗 {tag}）"
+        );
+        let fee_tol = 1e-9 * d.commission_slippage.abs().max(1.0);
+        assert!(
+            (fee.total_fee - d.commission_slippage).abs() <= fee_tol,
+            "#419 {tag} treasury 科目总费 {} != R 分解 Commission+Slippage {}（tol={fee_tol}）",
+            fee.total_fee,
+            d.commission_slippage,
+        );
+        assert!(
+            (fee.component_total() - fee.total_fee).abs() <= fee_tol,
+            "#419 {tag} treasury 分项和 {} != 实扣总费 {}（tol={fee_tol}）",
+            fee.component_total(),
+            fee.total_fee,
+        );
+        let effective_venue_rate = if fee.notional > 0.0 {
+            fee.venue_total() / fee.notional
+        } else {
+            0.0
+        };
+        fee_rows.push(format!(
+            "| {tag} | {} | {} | {} | {:.6} | {:.6} | {:.6} | {:.6} | {:.6} | {:.6} | {:.6} | \
+             {}/{} | {}/{} | {}/{} | {:.6e} |\n",
+            r.net_result.trades.len(),
+            fee.n_fills,
+            fee.notional,
+            fee.commission,
+            fee.passthru,
+            fee.clearing_cat,
+            fee.sec,
+            fee.taf,
+            fee.slippage,
+            fee.total_fee,
+            fee.min_commission_hits,
+            fee.n_fills,
+            fee.notional_cap_hits,
+            fee.n_fills,
+            fee.taf_cap_hits,
+            fee.n_fills,
+            effective_venue_rate,
+        ));
         let maxdd = r.net_result.metrics.max_drawdown;
         let (mut n_amb, mut n_short, mut n_follow) = (0usize, 0usize, 0usize);
         for c in r.overlay.closed_voices() {
@@ -1641,6 +1758,7 @@ fn m8_e2e_all_systems_oos() {
             TStage::CapitalRecovered => "II(已回本)",
             TStage::EarningShares => "III(赚份额)",
         };
+        layer23_rows.push((tag.clone(), d.net_r, tw.stage));
         let eta_t = tw.tw();
         let eta_star = policy.eta_star(&tw);
         // ★p128 裁定 (i)（A10 C5 口径，additive）：η_corrected = tw() − cum_holding_cost，
@@ -1741,12 +1859,12 @@ fn m8_e2e_all_systems_oos() {
     // ★#423 第二阶段：层4 结算措辞随**标量可得性**分叉（不是随 `fee_schedule.is_some()`）——
     //   与声明段/两格同一个真值。分叉正文见 `layer4_verdict_line`。
     let layer4_line = layer4_verdict_line(scalar_rate);
+    let (layer2_line, layer3_line) = m8_layer23_settlement(&symbol, &layer23_rows);
     report.push_str(&format!(
         "\n## 判据结算（M8:163-168）\n\n\
          - **层1 signal**：INCONCLUSIVE（转引，无方向 alpha）。\n\
-         - **层2 execution** `E[R(Π_exec)]>0`：见 net_r 列（成本真实化后极负 = 高频费主导，非机制缺陷）。\n\
-         - **层3 treasury** `Reach(StageIII)>0`：见终Stage 列（signal 无 alpha ⟹ 已实现 PnL 无正累积 ⟹ \
-           三阶段停 CostReduction，与 M7 c3 witness 一致）。\n\
+         {layer2_line}\n\
+         {layer3_line}\n\
          {layer4_line}\n\
          I_0 报告门槛 = {i0}（notional_in 同源 ⌊nav0⌋，各窗 nav 不同 ⟹ 门槛按 notional_in 列读）。\n",
     ));
@@ -1768,8 +1886,23 @@ fn m8_e2e_all_systems_oos() {
              #376 LOW-1 纪律）；该列若为 0，本窗的逐级绿是空断言，须照此读。\n",
         );
     }
-    std::fs::write("/tmp/m8_e2e_all_systems_oos.md", &report).ok();
-    eprintln!("[m8] 端到端四层报告落盘 /tmp/m8_e2e_all_systems_oos.md");
+    report.push_str(
+        "\n## Treasury 真实 fill 费率科目与触达（#419，层1-3审计）\n\n\
+         本表与上方同一 `run_theta_v0_pi_overlay` 返回值同源；`n_fills == n_orders`、逐科目和 \
+         `== RDecomposition.commission_slippage` 已逐窗硬断言。`Σ总费` 含未标定滑点 addon，\
+         有效 venue 费率排除该 addon。所有读数只作账本/费用审计，禁作 alpha 或择优输入。\n\n\
+         | 窗 | trades | 真实fill | Σ名义 | Σ佣金 | Σpass-through | Σ清算+CAT | Σ卖出SEC | Σ卖出TAF | \
+         Σ滑点addon | Σ总费 | 最低佣金触达 | 1%上限触达 | TAF上限触达 | venue有效费率 |\n\
+         |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
+    );
+    for row in &fee_rows {
+        report.push_str(row);
+    }
+    let report_path =
+        resolve_m8_report_path(std::env::var("M8_REPORT_PATH").ok().as_deref());
+    std::fs::write(&report_path, &report)
+        .unwrap_or_else(|e| panic!("m8 报告落盘失败 {report_path}：{e}"));
+    eprintln!("[m8] 端到端四层报告落盘 {report_path}");
 }
 
 /// 从 δ-free dump（[`dump_deltafree_pertrade`] 落盘）逐行重建 `ResidualTrade`（Task #186 离线重算入口）。
@@ -1898,6 +2031,60 @@ fn m3_partition_btc_fullhistory() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ★#419 RED：OKLO 不伪造 walk-forward；m8 只消费 PREREG_WINDOWS 已冻结的 §2.4 单段 OOS。
+    /// BTC 未设路径仍保留原 p3fold + 前两个 OOS anchored 窗。**认识论 L0**（路由契约）。
+    #[test]
+    fn m8_symbol_routes_oklo_to_preregistered_single_oos() {
+        assert_eq!(resolve_m8_symbol(None), "BTC");
+        let btc = m8_windows("BTC");
+        assert_eq!(btc.first().map(|w| w.0.as_str()), Some("p3fold"));
+
+        assert_eq!(resolve_m8_symbol(Some("oklo")), "OKLO");
+        let oklo_reg = PREREG_WINDOWS.iter().find(|w| w.symbol == "OKLO").unwrap();
+        let oklo = m8_windows("OKLO");
+        assert_eq!(
+            oklo,
+            vec![(
+                "oklo_oos".to_string(),
+                oklo_reg.oos.0.to_string(),
+                oklo_reg.oos.1.to_string(),
+            )]
+        );
+        assert!(oklo_reg.wf_anchored.is_empty(), "OKLO 明确无 walk-forward");
+    }
+
+    /// ★#419：未知 symbol fail-loud，禁止静默退回 BTC 后给报告打 OKLO 标签。
+    #[test]
+    #[should_panic(expected = "M8_SYMBOL")]
+    fn m8_symbol_unknown_fails_loud() {
+        let _ = resolve_m8_symbol(Some("NOPE"));
+    }
+
+    /// ★#419：产物路径默认兼容旧值；本票可显式隔离到 `/tmp/419_*`。
+    #[test]
+    fn m8_report_path_default_and_override() {
+        assert_eq!(resolve_m8_report_path(None), "/tmp/m8_e2e_all_systems_oos.md");
+        assert_eq!(
+            resolve_m8_report_path(Some("/tmp/419_m8_oklo_treasury.md")),
+            "/tmp/419_m8_oklo_treasury.md"
+        );
+    }
+
+    /// ★#419 RED：OKLO 层2/3结算必须按真实逐窗值渲染，禁止复用 BTC 静态“极负 /
+    /// CostReduction”模板与数据行自相矛盾。**认识论 L0**（报告一致性契约）。
+    #[test]
+    fn m8_oklo_layer23_settlement_tracks_actual_positive_stage_ii() {
+        use super::super::super::strategy::ledger::TStage;
+        let (l2, l3) = m8_layer23_settlement(
+            "OKLO",
+            &[("oklo_oos".to_string(), 46_635.0, TStage::CapitalRecovered)],
+        );
+        assert!(l2.contains("+46635"), "层2须落真实 net_r：{l2}");
+        assert!(l3.contains("II(已回本)"), "层3须落真实 Stage：{l3}");
+        assert!(!l2.contains("极负"), "正值不得渲染成极负：{l2}");
+        assert!(!l3.contains("CostReduction"), "Stage II 不得渲染成 Stage I：{l3}");
+    }
 
     /// ★#388 T2：**标量可得档**的层4 两格（LCB_OOS(R) / 三态）渲染与降级前**逐字符相同**——
     /// 臂R（`fee_schedule=None`）产物不因本次改造漂移一个字节。三分支全覆盖
