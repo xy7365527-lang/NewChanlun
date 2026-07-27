@@ -1897,7 +1897,8 @@ pub fn overlay_net_delta(legs: &[LegTarget]) -> f64 {
 //  多级角色/嵌套对冲，**非每元素覆盖**。删除 λ_e 入场组装层，保留 §3 区间递归原语作 Lean 对齐。）
 // ════════════════════════════════════════════════════════════════════════════
 //  §8 环6：解释器三桶 → 活动集 A_{t+1}=AncOK[(A_t∖𝒟_x^†)∪ℬ_x∪ℛ_x] → 目标头寸 p̃_{t+1}
-//  （★#247 缺口一：ℛ_x = RegistryRestore = **第三来源**，见 [`coverage_step_from_buckets_sep`] doc）
+//  （★#247 缺口一：ℛ_x = RegistryRestore = **第三来源**。正文落点：本 §8 抬头之后的连续 doc 块在
+//   rustdoc 上挂在 [`restore_ancestor_chain_from_registry`]，**不在** [`coverage_step_from_buckets_sep`] doc）
 //        （spec §13 line 1172 活动集 + §14 line 1243 头寸，七链 **环6** rust 兑现）
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -2099,7 +2100,11 @@ fn close_indices(prev_active: &[ActiveLeg], close: &[ActiveLeg]) -> Vec<usize> {
 /// [`element_depth`] 上溯步数 `> elements.len()` ⟹ 显式 panic + 探针
 /// [`AncokProbe::element_depth_fuel_exhausted`]（不静默钳制）。
 ///
-/// ### ★#247 C3：两条**限定声明**（宣称行为影响时必须同时给出）
+/// ### ★#247 C3：两条**限定声明** + 一条深链行为面（宣称行为影响时必须同时给出）
+/// **落点如实**：下列三条在 rustdoc 上属 [`restore_ancestor_chain_from_registry`] 的 doc（本 doc 块
+/// 自 §8 抬头起连续，物理位置在该函数之前），**不是** [`coverage_step_from_buckets_sep`] doc 的 C3
+/// 小节——那里没有 C3 条目。测试侧标号对应：C3-1=深链（本节 3）/ C3-2=Neutral（本节 1）/
+/// C3-3=gross cap（本节 2）。
 /// 1. **「units 差异全部来自 `depth`」只在 `ThetaDirPreset::Neutral` + `w_grade=[1,1]` 下成立。**
 ///    `w = depth_weight(d) × dir_weight(role,d) × w_grade(role)`。Neutral 下 `dir_weight≡1.0`、
 ///    default `w_grade≡1.0`，故 #247 的对拍读数差异确实只由 `depth_weight` 产生。但
@@ -2338,7 +2343,12 @@ fn held_stale_reregister_idx(
         _ => {
             let idx = work.len();
             // ★#247 C2：角色输入 (σ_p, ℓ_p) 由 op_parent 解析（见函数 doc）。push 前解析——
-            // work 此刻尚不含本元素，且 op_parent 必是**已在 work 的祖先**（restore 先行 push）。
+            // work 此刻尚不含本元素。op_parent **是否已在 work 依调用点而异**：
+            // - `LiveDetached` 调用点：`restore_ancestor_chain_from_registry` 先行 push 整条操作
+            //   祖先链 ⟹ op_parent 常态已在 work（链断/被关种子中断时仍可缺）；
+            // - `LivePresent` 调用点：**无 restore 先行** ⟹ op_parent 完全可能不在 work。
+            // 故此处不假定祖先在场：`and_then` 未命中即 resolved=None，parent/attached_dir 留 None
+            // （计 `restore_parent_unresolved`，语义裁定见函数 doc「父不在 work」一节）。
             let resolved = leg
                 .op_parent
                 .and_then(|pid| id_idx.get(&pid).or_else(|| overlay_seen.get(&pid)).copied());
@@ -2396,6 +2406,9 @@ pub(crate) fn coverage_step_from_buckets(
 /// 同 id 的 restore 在场腿误配给被 #216 规则①/③ 让位/湮灭的候选，一腿双登记 ⟹ 账面孤儿，
 /// 勘察报告 assertion2-restore-balance-scope-20260724「炸点实证」）。gross 零化剔除在 idx 层
 /// 完成（与 next_active 同一 filter），纯透出、决策路径不变。
+///
+/// ★#247 契约指针（**本 doc 不含 C1/C2/C3 正文**，别在这里找）：第三来源 `ℛ_x`、C1 环路硬门、
+/// C3 三条声明见 [`restore_ancestor_chain_from_registry`] doc；C2 见 [`held_stale_reregister_idx`] doc。
 pub(crate) fn coverage_step_from_buckets_sep(
     mut work: ElementView,
     prev_active: &[ActiveLeg],
