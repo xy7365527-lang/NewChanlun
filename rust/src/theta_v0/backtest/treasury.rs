@@ -27,10 +27,37 @@ use super::super::strategy::ledger::{tw_step, TwEvent, TwState};
 /// ★#360 后语义收窄：本函数给的是 `fee_schedule = None` 档的常率（口径标签
 /// [`RATE_UNCALIBRATED_LABEL`](super::super::strategy::risk::RATE_UNCALIBRATED_LABEL)）。
 /// **生产成交点不再直接调它**——改调 [`fee_quoter`]（None 档解析结果与本函数逐位相同）。
-/// 仍直接调本函数的位点（`runner::RunResult::fee_rate` 随机对照成本口径、研究 bin/诊断跑批）
-/// 一律是"未标定常率"语义，不消费 datum 档（见 `ExecConfig::fee_schedule` 文档的消费面登记）。
+/// 仍直接调本函数的位点（研究 bin/诊断跑批）一律是"未标定常率"语义，不消费 datum 档
+/// （见 `ExecConfig::fee_schedule` 文档的消费面登记）。★#374 起 `runner::RunResult::fee_rate`
+/// 改经 [`scalar_cost_rate`]（同值，但标定档下 fail-loud），不再直接调本函数。
 pub fn fee_rate(exec: &ExecConfig) -> f64 {
     (exec.commission_bps + exec.slippage_bps + exec.tax_bps) / 10_000.0
+}
+
+/// **单标量成本口径的取值方式**（#374 MED-A）——供"把成本当作一个常数费率"的下游用：
+/// `runner::RunResult::fee_rate`（→ `metrics::random_entry_controls` 的随机对照成本、
+/// `l3_delta_r_alpha::rebuild_cost_series` 的鞅守卫成本剥离）。
+///
+/// **有效域严格小于定义域**（231号）：单标量费率只在 `fee_schedule = None`（per-notional 常率）
+/// 档上良定义。标定档下 per-share 费率是 (qty, px, side) 的**非线性**函数（最低佣金托底、
+/// 名义额上限、卖出监管费）⟹ 不存在一个使消费面成立的常数：
+///
+/// - 随机对照在**反事实**入场点上重执行（qty 同、px 不同）⟹ 逐笔正确费率与 Θ 实际路径的费率
+///   不同；任何取自实际路径的标量（含 Σfee/Σnotional 实际有效费率）对反事实臂仍是错的，
+///   把它写进"随机对照含同等成本"的断言只是把不对称藏进一个更贵的常数（090 声明膨胀）；
+/// - 成本剥离要的是**逐 bar** 成本分布，标量只能保总额、保不住分布。
+///
+/// 故此处**不做近似**，改作 fail-loud 锁：标定档下 panic，与同类"口径双源"问题
+/// （`tax_bps` 与 datum 重复计，见 [`fee_quoter`]）**同级处置**（090 一致性）。
+/// 解锁路径 = 给这两个消费面接 (qty, px, side) 缝、改用 [`fee_quoter`] 逐笔解析（另票）。
+pub fn scalar_cost_rate(exec: &ExecConfig) -> f64 {
+    assert!(
+        exec.fee_schedule.is_none(),
+        "venue 标定档下取单标量成本费率：随机对照/成本剥离的常数口径在 per-share 档无良定义\
+         （逐笔费率随 qty/px/side 变）——这两个消费面须先接 (qty, px, side) 缝改用 fee_quoter，\
+         否则策略臂按 datum 扣费、对照臂按未标定常率 ⟹ 口径不对称，读数无意义"
+    );
+    fee_rate(exec)
 }
 
 /// **成交费率单源门面**（#360，报告 §3.1 item 3）：把 `ExecConfig` 的 None/Some 分叉收口成
@@ -123,6 +150,33 @@ mod tests {
     fn default_fee_rate_is_3e4() {
         let exec = ExecConfig::default();
         assert_eq!(fee_rate(&exec), 3e-4);
+    }
+
+    /// ★#374 MED-A：未标定档下单标量成本口径 = [`fee_rate`] 逐位（现状不动）。
+    /// **认识论 L0**（纯定义/算术，零数据依赖）。
+    #[test]
+    fn scalar_cost_rate_uncalibrated_is_bit_exact_fee_rate() {
+        let exec = ExecConfig::default();
+        assert_eq!(scalar_cost_rate(&exec), fee_rate(&exec));
+    }
+
+    /// ★#374 MED-A：**标定档下 fail-loud**——不静默产一个对随机对照/成本剥离无效的常数。
+    /// 与 `tax_bps` 双计（[`fee_quoter`] 的 assert）同级处置（090 一致性）。
+    /// **认识论 L0**（纯定义/契约，零数据依赖——故用**合成**档，不读磁盘 datum：被测的是
+    /// "`Some` 即挡"这条契约，与具体费率表无关，挂钩真实文件只会引入轮换连坐）。
+    #[test]
+    #[should_panic(expected = "无良定义")]
+    fn scalar_cost_rate_calibrated_panics() {
+        use super::super::super::venue_fee::{FeeUnit, VenueFeeSchedule};
+        let mut exec = ExecConfig::default();
+        exec.fee_schedule = Some(VenueFeeSchedule {
+            venue: "SYNTH".into(),
+            symbol: "X".into(),
+            tier: "T".into(),
+            unit: FeeUnit::Notional { maker_bps: 10.0, taker_bps: 10.0 },
+            datum_sha256: "0".repeat(64),
+        });
+        let _ = scalar_cost_rate(&exec);
     }
 
     /// ★#360 单源门面：`fee_schedule = None` ⟹ quoter 对**任意** (qty, px, side, role)

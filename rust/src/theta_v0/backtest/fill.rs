@@ -3653,6 +3653,59 @@ mod venue_fee_wiring_tests {
         approx(paid - (0.370559 + 0.4), 0.0607, "卖出监管费增量");
     }
 
+    /// ★#374 LOW-E：**开仓段现金拒单 ⟹ per-share 档低估成本**——把 `order_fee_rate` 文档里
+    /// 登记的偏差**方向与量级**锁进测试（无测试的登记会被后续重构悄悄放大）。
+    ///
+    /// 构造：NAV 小 ⟹ bar0 开空 10 股（询价量 10，正确），bar1 下 Buy 1000 触发翻转——段 1
+    /// 平掉 10 股空头成交，段 2 开多 990 股因现金不足**整段拒单**。但费率在两段之前按整单
+    /// `qty=1000` 询过一次价 ⟹ 最低佣金 $0.35 摊到 1000 股（而非实际成交的 10 股）⟹ 平仓那
+    /// 10 股按**偏低**费率扣费。断言方向（低估，非高估）+ 量级（总费率 ≈5×；datum 科目本身
+    /// ≈9.5×，被与量无关的滑点分量摊薄）。
+    ///
+    /// **认识论 L1**（合成 bar 上的费用算术；不主张任何 alpha）。
+    #[test]
+    fn per_share_cash_rejected_open_underestimates_fee() {
+        const SMALL_NAV: f64 = 500.0; // 开空收 ~$200 ⟹ cash ~$700 ≪ 990 股 @ $20 = $19,800
+        let mut c = cfg();
+        c.exec.fee_schedule = Some(oklo());
+        let orders = vec![
+            Order { action: StrictAction::Sell, qty: 10, exec_index: 0 },
+            Order { action: StrictAction::Buy, qty: 1_000, exec_index: 1 },
+        ];
+        let (eq, _, pnls) = simulate_fills(&bars(3), &orders, SMALL_NAV, &c);
+        assert_eq!(pnls.len(), 1, "只应有 1 笔平仓（开多段被现金拒单）");
+
+        // 末点持仓归零 ⟹ 权益缺口 = 两次成交的实付费用总额（价格恒定，无 PnL 分量）。
+        let paid = (1.0 - *eq.last().unwrap()) * SMALL_NAV;
+
+        let q = super::super::treasury::fee_quoter(&c.exec);
+        let rate = |qty: f64, side| q.rate_or_fallback(qty, PX, side, LiquidityRole::Taker);
+        let fee_open = 10.0 * PX * rate(10.0, FillSide::Sell); // 开空段：询价量 = 实际成交量
+        let fee_close_quoted = 10.0 * PX * rate(1_000.0, FillSide::Buy); // 实扣：按整单量询价
+        let fee_close_correct = 10.0 * PX * rate(10.0, FillSide::Buy); // 应扣：按实际成交量
+
+        approx(paid, fee_open + fee_close_quoted, "实付 = 开空段 + 平仓段（按整单量询价）");
+        assert!(
+            fee_close_quoted < fee_close_correct,
+            "偏差方向须为低估（实扣 {fee_close_quoted:.6} 应 < 应扣 {fee_close_correct:.6}）"
+        );
+        // 量级：总费率实测 ≈5.1× 低估。**不是** 9.5×——datum 科目本身确实差 9.5 倍
+        // （$0.352289 vs $0.037056，最低佣金摊到 100 倍的量），但费率里还含**与量无关**的
+        // 滑点 2bp（两侧同为 $0.04），它把比值压回 5 倍档。照实标（090）。
+        assert!(
+            fee_close_correct > fee_close_quoted * 5.0,
+            "本构造下低估约 5 倍（datum 科目 9.5×，被与量无关的滑点分量摊薄）：\
+             实扣 {fee_close_quoted:.6} vs 应扣 {fee_close_correct:.6}"
+        );
+        // ★有效域（090 照实）：低估只在 **per-share 档 + 开仓段整段拒单** 同时发生时出现。
+        // per-notional 与未标定档费率与 qty 无关 ⟹ 无此偏差，下面用同一 orders 反证。
+        let paid_flat = {
+            let (eq, _, _) = simulate_fills(&bars(3), &orders, SMALL_NAV, &cfg());
+            (1.0 - *eq.last().unwrap()) * SMALL_NAV
+        };
+        approx(paid_flat, 2.0 * 10.0 * PX * 3e-4, "未标定档：两段各 10 股 × 3bp，与询价量无关");
+    }
+
     /// ★票体 Acceptance② 「Some(datum) 时费用计算对拍（**BTC/OKLO 窗口**，与报告 §2 一手数字
     /// 对账）」：在**真实数据窗**上跑两遍（None / Some），把账本实付差与**独立重算**的 Σ 费用差
     /// 对上——重算侧的费率**不调 datum 对象**，而是把报告 §2 的一手数字逐项手写成公式

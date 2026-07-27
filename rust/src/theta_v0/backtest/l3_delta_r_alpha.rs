@@ -856,6 +856,11 @@ fn crossfit_l2() {
 /// 成本在 entry/exit bar 离散发生：每条 trade 在 `entry_bar` 扣 `qty·entry_px·fee_rate`、在
 /// `exit_bar` 扣 `qty·exit_px·fee_rate`（双边费，与 [`marginal_return`] 同口径）。返回长度
 /// `n_bars` 的逐 bar 成本序列（nav0 归一化），`cost[t]` = 第 t bar 发生的成交费用 / nav0。
+///
+/// **有效域（#374 MED-A / 231号）**：`res.fee_rate` 是**未标定常率**口径的单标量，标定档
+/// （`exec.fee_schedule = Some`）下该字段在 `RunResult` 构造期即 fail-loud
+/// （`treasury::scalar_cost_rate`）⟹ 本函数只在未标定档被喂到。标定档要接鞅守卫，须把成本
+/// 改由成交侧逐笔实付累计（或 `treasury::fee_quoter` 逐笔重算）供给，不是换一个常数。
 fn rebuild_cost_series(res: &super::runner::RunResult, n_bars: usize, nav0: f64) -> Vec<f64> {
     let mut cost = vec![0.0f64; n_bars];
     let fee = res.fee_rate;

@@ -234,9 +234,15 @@ impl Default for RiskConfig {
 ///
 /// ★venue 口径（#303 裁定 = **spot**）与默认费率落差（3bp/side vs 现货 VIP0 taker 10bp/side）：
 /// 结论的唯一权威登记见 [`CostModel`](super::strategy::risk::CostModel) 节头，此处不复制。
-/// **落差的可执行出口（#360）= [`fee_schedule`](ExecConfig::fee_schedule)**：`None` 保持三常数
+/// **落差的建模出口（#360）= [`fee_schedule`](ExecConfig::fee_schedule)**：`None` 保持三常数
 /// 未标定 fallback（现状逐位），`Some(datum)` 走 venue 真实费率表（BTC 档 = Binance **现货**
 /// VIP0，与 #303 的 spot 裁定同口径；perp 费率表未核，报告 §4.1，不入簿）。
+///
+/// ★**尚不是端到端可执行出口**（#374 MED-B，090 照实）：全仓 `Some(...)` 赋值点**只在测试内**
+/// ——`ExecConfig::default()` 恒 `None`，CLI（`bin::theta_backtest`）无 datum 注入参数 ⟹ 生产
+/// 口径上 datum/quoter/标签构造子三件等价 no-op，`rate_calibration_label` 永输
+/// [`RATE_UNCALIBRATED_LABEL`](super::strategy::risk::RATE_UNCALIBRATED_LABEL)。注入通道
+/// （CLI/配置面接 datum 路径 + 档位）**是 #360/#374 票体外的独立工作，此处仅登记不实装**。
 ///
 /// **`Copy` 已移除（#360）**：`fee_schedule` 持 datum 字符串（venue/symbol/tier/sha256），
 /// 无法 `Copy`。`ExecConfig` 仍 `Clone`——按值传递处改 `.clone()` 或借用。
@@ -277,7 +283,9 @@ pub struct ExecConfig {
     /// （它们都用 `ExecConfig::default()` ⟹ `None` ⟹ 与改动前逐位相同）：
     ///
     /// - `backtest::runner::RunResult::fee_rate`：随机对照的成本口径是单标量，per-share 档下
-    ///   无良定义 ⟹ 登记缺口，随滑点/价差 datum 一并收编（报告 §1.6 裂缝 3 同族）；
+    ///   无良定义 ⟹ 随滑点/价差 datum 一并收编（报告 §1.6 裂缝 3 同族）。**#374 MED-A 起，
+    ///   该缺口从文字登记升级为代码锁**：取值走 `backtest::treasury::scalar_cost_rate`，标定档
+    ///   下 `assert!` fail-loud（与 `tax_bps` 双计同级处置），不再静默产不对称口径；
     /// - `strategy::exec::apply_fees`：tick 域价格偏移变体，无成交量/方向上下文，且当前
     ///   **无生产调用方**（仅其自身单测）；
     /// - 研究跑批与诊断：`backtest::econ_positive` / `backtest::l3_delta_r_alpha` /

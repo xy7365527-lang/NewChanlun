@@ -133,6 +133,11 @@ pub struct RunResult {
     /// 原始价格序列（close 口径，与账本侧 `apply_order` 成交价一致）——随机对照在其上重执行。
     pub prices: Vec<f64>,
     /// 单边费用率（commission+slippage+tax 比率）——随机对照含同等成本。
+    ///
+    /// **有效域（231号 / #374 MED-A）：仅 `exec.fee_schedule = None`（未标定常率）档**。取值经
+    /// [`treasury::scalar_cost_rate`](super::treasury::scalar_cost_rate)，标定档下**构造期即
+    /// panic**（不静默产一个对消费面无效的常数）。per-share 档的逐笔费率随 (qty, px, side) 变，
+    /// 没有使「随机对照含同等成本」成真的标量——消费面须先接缝改用 `treasury::fee_quoter`。
     pub fee_rate: f64,
     /// Θ MtM 复利口径 total_return（= `metrics.strat_return`）——**仅作 significance 报告参考**
     /// （`theta_return_mtm`），**不是**随机对照比较基准。实际比较用 significance 内部算的
@@ -238,8 +243,7 @@ pub fn run_theta_v0(
         .iter()
         .map(|b| b.close as f64 * config.tick.tick_size)
         .collect();
-    let fee_rate =
-        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    let fee_rate = super::treasury::scalar_cost_rate(&config.exec); // #374 MED-A：标定档 fail-loud
     // Θ MtM 复利口径 total_return（权益曲线）——仅 significance 报告参考，非比较基准
     // （比较用 significance 内部同口径值；先取，m 随后 move）。
     let theta_return_mtm = m.strat_return;
@@ -316,8 +320,7 @@ pub fn run_theta_v0_dual(
         .iter()
         .map(|b| b.close as f64 * config.tick.tick_size)
         .collect();
-    let fee_rate =
-        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    let fee_rate = super::treasury::scalar_cost_rate(&config.exec); // #374 MED-A：标定档 fail-loud
     let theta_return_mtm = m.strat_return;
 
     RunResult {
@@ -542,8 +545,7 @@ fn run_theta_v0_pi_inner(
         .iter()
         .map(|b| b.close as f64 * config.tick.tick_size)
         .collect();
-    let fee_rate =
-        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    let fee_rate = super::treasury::scalar_cost_rate(&config.exec); // #374 MED-A：标定档 fail-loud
     let theta_return_mtm = m.strat_return;
     let strict_nest_sidecar = strict_nest_sidecar.finish();
 
@@ -733,8 +735,7 @@ pub fn run_theta_v0_pi_overlay(
         .iter()
         .map(|b| b.close as f64 * config.tick.tick_size)
         .collect();
-    let fee_rate =
-        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    let fee_rate = super::treasury::scalar_cost_rate(&config.exec); // #374 MED-A：标定档 fail-loud
     let theta_return_mtm = m.strat_return;
     let closed_loop_final = run_closed_loop(bars, initial_nav);
     let net_result = RunResult {
@@ -5404,8 +5405,13 @@ mod tests {
         );
         if a10 {
             report.push_str(&format!(
-                "**成本口径：A10 注入（M7_WITNESS_A10=1）——margin=CME-simple + cost=三常费率（{}；venue=spot，#303：Funding 项＝资金占用机会成本非资金费，三项和读作持有成本上界）；TW桥列=r_decomp.tw_holding_cost_bridge（⌊funding+borrow+liq⌋）。**\n\n",
+                "**成本口径：A10 注入（M7_WITNESS_A10=1）——margin=CME-simple + cost=三常费率（{}；venue=spot，#303：Funding 项＝资金占用机会成本非资金费，三项和读作持有成本上界）；成交费率科目 {}；TW桥列=r_decomp.tw_holding_cost_bridge（⌊funding+borrow+liq⌋）。**\n\n",
+                // ★#374 LOW-C：**双标签**（与 wverify_run:1132/1258 同法，不得跳级）——
+                // 持有成本三项（funding/borrow/liq）永远是常费率保底 ⟹ 恒 L1；只有成交费率
+                // 科目随 `fee_schedule` 升档。硬编单一常量会让成交费率标签与实际运行档脱钩，
+                // 而共用一个构造子则会把未标定的持有成本一起标成 L2（跳级）。
                 super::super::super::strategy::risk::RATE_UNCALIBRATED_LABEL,
+                super::super::super::strategy::risk::rate_calibration_label(&config.exec),
             ));
         }
         report.push_str(

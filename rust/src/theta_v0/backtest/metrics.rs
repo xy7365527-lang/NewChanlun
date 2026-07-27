@@ -314,6 +314,10 @@ pub struct Significance {
 /// - `trades`：Θ 的交易执行轨迹（[`TradeRecord`]，操作语义随机对照的输入）。
 /// - `prices`：原始价格序列（close 口径，与 Θ 账本侧 `apply_order` 的 `px=bar.close` 一致）。
 /// - `fee_rate`：单边费用率（commission+slippage+tax，比率）。随机对照含同等成本。
+///   **有效域（#374 MED-A）**：该"同等成本"只在**未标定常率**档成立（`fee_schedule = None`）。
+///   venue 标定档下逐笔费率随 (qty, px, side) 变，单标量口径无良定义 ⟹ 上游
+///   [`runner::RunResult::fee_rate`](super::runner::RunResult::fee_rate) 已由
+///   `treasury::scalar_cost_rate` fail-loud 挡住，本函数不会收到标定档的成本口径。
 /// - `theta_return_for_control`：Θ 含浮盈 total_return（MtM/终点强平口径）——随机对照的比较基准。
 ///
 /// **block bootstrap**（§3.4，backtest-protocol-v0.md:127）：以 [`TRADE_BLOCK_LEN`]=5 笔为块长
