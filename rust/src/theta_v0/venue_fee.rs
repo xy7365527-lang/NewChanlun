@@ -153,7 +153,7 @@ struct PerShareFeeBreakdown {
 
 impl PerShareFeeBreakdown {
     fn total(self) -> f64 {
-        self.commission + self.passthru + self.clearing_cat + self.sec + self.taf
+        (self.commission + self.passthru + self.clearing_cat) + (self.sec + self.taf)
     }
 }
 
@@ -164,8 +164,7 @@ impl PerShareFees {
         let cap = notional * self.max_commission_frac_of_notional;
         let commission = raw.max(self.min_commission_usd).min(cap);
         let passthru = commission
-            * (self.passthru_exchange_frac_of_commission
-                + self.passthru_finra_frac_of_commission);
+            * (self.passthru_exchange_frac_of_commission + self.passthru_finra_frac_of_commission);
         let clearing_cat = (self.clearing_per_share_usd + self.cat_per_share_usd) * qty;
         let (sec, taf, taf_cap_hit) = if side == FillSide::Sell {
             let taf_raw = self.sell_taf_per_share_usd * qty;
@@ -183,8 +182,7 @@ impl PerShareFees {
             clearing_cat,
             sec,
             taf,
-            min_commission_hit: raw < self.min_commission_usd
-                && self.min_commission_usd <= cap,
+            min_commission_hit: raw < self.min_commission_usd && self.min_commission_usd <= cap,
             notional_cap_hit: cap < raw.max(self.min_commission_usd),
             taf_cap_hit,
         }
@@ -525,6 +523,48 @@ mod tests {
 
     fn ibkr() -> VenueFeeBook {
         load_datum(&datum_dir().join(IBKR_DATUM)).expect("IBKR datum 可加载且哈希相符")
+    }
+
+    /// ★#484 / #481 HIGH-1：`total()` 必须逐位复现被替换前的 fee_usd 结合序：
+    /// `(commission + passthru + clearing_cat) + (sec + taf)`。
+    #[test]
+    fn per_share_breakdown_total_is_bit_exact_with_legacy_formula() {
+        let assert_legacy_bits = |commission, passthru, clearing_cat, sec, taf| {
+            let breakdown = PerShareFeeBreakdown {
+                commission,
+                passthru,
+                clearing_cat,
+                sec,
+                taf,
+                ..Default::default()
+            };
+            let legacy = (commission + passthru + clearing_cat) + (sec + taf);
+            assert_eq!(
+                breakdown.total().to_bits(),
+                legacy.to_bits(),
+                "逐位漂移：c={commission:?} p={passthru:?} cc={clearing_cat:?} s={sec:?} t={taf:?}"
+            );
+        };
+
+        for commission in [0.0, 0.35, 1.8558223564742051] {
+            for passthru in [0.0, 0.000259, 0.0013733085437909118] {
+                for clearing_cat in [0.0, 0.0203, 0.15169832475057743] {
+                    for sec in [0.0, 0.0412, 1.9562940743891628] {
+                        for taf in [0.0, 0.0195, 0.037145707047103835] {
+                            assert_legacy_bits(commission, passthru, clearing_cat, sec, taf);
+                        }
+                    }
+                }
+            }
+        }
+
+        assert_legacy_bits(
+            1.8558223564742051,
+            0.0013733085437909118,
+            0.15169832475057743,
+            1.9562940743891628,
+            0.037145707047103835,
+        );
     }
 
     // ── datum 装载与 sha256 接线 ──────────────────────────────────────────────

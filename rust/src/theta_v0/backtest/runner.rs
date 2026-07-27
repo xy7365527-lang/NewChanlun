@@ -1298,12 +1298,18 @@ mod tests {
         assert!(fill.n_orders > 0, "π_Θ 确认-bar 部署买点 ⟹ 产订单（n_orders>0），实得 {}", fill.n_orders);
         assert!(!fill.trades.is_empty(), "开仓 + 窗口终点强平 ⟹ ≥1 笔交易轨迹，实得 {}", fill.trades.len());
         assert!(fill.trade_pnls_with_forced.iter().all(|p| p.is_finite()), "PnL 有限");
-        assert_eq!(fill.fee_audit.n_fills, fill.n_orders, "★#419 每个真实净额 fill 恰落一笔 treasury 费审计");
+        assert_eq!(
+            fill.fee_audit.n_fills, fill.n_orders,
+            "★#419 每个真实净额 fill 恰落一笔 treasury 费审计"
+        );
+        let commission_slippage = fill.r_decomp.expect("π loop 有 R 分解").commission_slippage;
         assert!(
-            (fill.fee_audit.total_fee - fill.r_decomp.expect("π loop 有 R 分解").commission_slippage)
-                .abs()
-                < 1e-9,
+            (fill.fee_audit.total_fee - commission_slippage).abs() < 1e-9,
             "★#419 fee_audit 总费须与 R 分解 Commission+Slippage 对账"
+        );
+        assert!(
+            (fill.fee_audit.component_total() - fill.fee_audit.total_fee).abs() < 1e-9,
+            "★#484 / #481 MED-1：fee_audit 分项和须与审计总费对账"
         );
     }
 

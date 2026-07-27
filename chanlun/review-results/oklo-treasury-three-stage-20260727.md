@@ -164,6 +164,15 @@ M8_SYMBOL=OKLO M8_WIN_FILTER=oklo_oos M8_FEE_DATUM=venue_fee_ibkr_pro_20260726.j
 | execution `net_r` | `+46,635` |
 | TW 终态 | `II(已回本)` |
 
+`RunResult.trades=953` 与 opsem dump 的 `trades.jsonl=482` 不在同一计数域，不能按行数
+互相对账：`fill.rs` 的 `TradeRecord` 有六个 push 出口
+（1082/2039/2062/2605/3033/3068），覆盖声部/净额投影及窗口终点
+`forced_close=true`；opsem dump 则只有五个 typed-ledger `write_trade` 出口
+（1771/1809/1838/1868/2103），记录 `TypedTrade` 生命周期（其中 2103 是窗口边界
+`ExitType::Hold` 的 censored 外化）。因此前者是执行投影的交易统计轨，后者是 typed-ledger
+生命周期证据；953/482 的差值来自出口集合与边界语义不同，不是 dump 丢行，也不能用一方
+反推另一方。
+
 逐窗硬断言已经验证：
 
 - `fee_audit.n_fills == n_orders`；
@@ -234,3 +243,13 @@ M8_SYMBOL=OKLO M8_WIN_FILTER=oklo_oos M8_FEE_DATUM=venue_fee_ibkr_pro_20260726.j
 
 并读取当前仓 `.claude/skills/test-driven-development/SKILL.md`。`implement` skill 的 commit
 步骤被本票“禁一切 git mutation”硬禁令覆盖；全部改动按要求留在共享工作区未提交。
+
+### 2.9 订正（#481 回归计数）
+
+§2.6 保留 #419 当时的历史计数，不静默改写。本票 #484 开工实跑为
+`1972 passed / 4 failed / 135 ignored`；修复后为
+`1976 passed / 4 failed / 135 ignored`，新增 4 个通过项。failed 集未扩大，仍为
+#446 三项（`lee_m3_attribution_dimension_is_readable_and_not_residual_only`、
+`lee_m4_cap_on_sparsity_has_no_unexplained_violation`、
+`lee_m4_level_cap_narrows_position_when_enabled`）与 #115 一项
+（`extract_signals_bit_exact_digest_guard`）。
