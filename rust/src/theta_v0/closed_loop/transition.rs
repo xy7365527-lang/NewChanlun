@@ -282,6 +282,21 @@ fn oq9_legal(tw_state: &TwState, tw_event: TwEvent) -> bool {
     tw_event.is_legal_from(tw_state)
 }
 
+/// 现金-sound gate（契约锚同 [`transition_adapter`] 出口检查，issue #354 P2-E 抽出为独立可复用
+/// chokepoint）：TW 三量非负则放行，否则返回 [`TransitionError::CashUnsound`]（不静默落盘，
+/// 裁定清单②）。
+///
+/// ★纯抽取（no-workaround）：逻辑与判据逐字节等同 `transition_adapter` 原内联检查（本次抽出前
+/// 该检查只在本函数体内联一处），抽出目的是让 `strategy::short_diff_bucket`（#293/#352/#353 的
+/// TW 桥）复用**同一个** chokepoint，而非另起一套等效实现（P2-E 合并裁定：一套实现，一处真相）。
+pub(crate) fn cash_sound_gate(s: TwState) -> Result<TwState, TransitionError> {
+    if s.free < 0 || s.holding < 0 || s.withdrawn < 0 {
+        Err(TransitionError::CashUnsound { free: s.free, holding: s.holding, withdrawn: s.withdrawn })
+    } else {
+        Ok(s)
+    }
+}
+
 /// ★三阶段推进算子 `stage_progression`（GAP3 根因修复：schedule_adapter 从不派 EnterEarning ⟹
 /// stage 恒 CostReduction ⟹ EarningShares 不可达）。契约锚 PDF §10 步骤2/3 + `Origin.TotalWealth`
 /// 单向阶段迁移（CostReduction→CapitalRecovered→EarningShares）。
@@ -496,13 +511,7 @@ pub fn transition_adapter(
     // §9.3：release 语义），而非 panic 或静默写负 free/holding。生产路径（schedule cash-约束 +
     // stage_progression w≤free）恒过 ⟹ 生产恒 Ok。这使「free≥0 全路径」成为 transition_adapter 出口
     // 不变量（返回 Ok(x) ⟹ x 的 TW 三量非负；否则 Err，不产出非法态）。
-    if tw_next.free < 0 || tw_next.holding < 0 || tw_next.withdrawn < 0 {
-        return Err(TransitionError::CashUnsound {
-            free: tw_next.free,
-            holding: tw_next.holding,
-            withdrawn: tw_next.withdrawn,
-        });
-    }
+    let tw_next = cash_sound_gate(tw_next)?;
     Ok(AssemblyState {
         micro_state: micro_delta(&x.micro_state, e.parse_event),
         // R=Π-A-W 账本：成本基事件（Allocate/Noop）后，同一成交的利润分量以 LedgerEvent::Realize
