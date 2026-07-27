@@ -1860,9 +1860,9 @@ mod center_oscillation_wiring_tests {
     /// #292 续修（issue #292 二轮评审：挂起悬空泄漏）端到端接线证据：`step_center_oscillation`
     /// 在遇到 `ChainConsumed::Rebased` 时正确接入 `on_chain_rebase`——重基后仍在新链上的挂起
     /// 身份跟随迁移（原样保留），从新链消失的挂起身份终结（不回补，故本 bar 无 cover_action
-    /// 可见动作，只能从挂起表状态验证）。
+    /// 可见动作），并产出未闭合减出核销请求。
     #[test]
-    fn gate_on_chain_rebase_migrates_survivor_and_terminates_vanished_suspension() {
+    fn gate_on_chain_rebase_migrates_survivor_and_writes_off_vanished_suspension() {
         let c0 = center(5, 10, 100, 200);
         let c1 = center(20, 25, 300, 400);
         let c2 = center(22, 27, 500, 600);
@@ -1902,8 +1902,20 @@ mod center_oscillation_wiring_tests {
         // bar1：链前缀分叉为 [c1, c2]（已消费的第 0 格身份从 c0 改写为 c1）⟹ Rebased。
         // 新链含 c1、不含 c0。
         let bar1_classification = Classification { levels: vec![level_with_centers(vec![c1, c2])] };
-        let actions = step_center_oscillation(1, &bar1_classification, &empty_step, &mut cl_machines, &mut osc_books, &mut witness).actions;
-        assert!(actions.is_empty(), "RebaseVanished 终结不回补，本 bar 无 cover_action 可见动作");
+        let out = step_center_oscillation(
+            1,
+            &bar1_classification,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+        assert!(out.actions.is_empty(), "RebaseVanished 终结不回补，本 bar 无 cover_action 可见动作");
+        assert_eq!(out.write_offs.len(), 1, "Rebased 路径必须产出一条未闭合减出核销请求");
+        assert_eq!(out.write_offs[0].bar, 1);
+        assert_eq!(out.write_offs[0].level, 0);
+        assert_eq!(out.write_offs[0].center, CenterId::of(&c0));
+        assert_eq!(out.write_offs[0].side, VoiceSide::Long);
         assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "c0 已从新链消失⟹终结，不再悬空");
         assert!(osc_books[0].is_suspended(CenterId::of(&c1)), "c1 仍在新链上⟹跟随迁移，挂起原样保留");
     }
