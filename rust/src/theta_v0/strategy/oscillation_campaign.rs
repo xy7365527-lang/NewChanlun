@@ -519,7 +519,9 @@ pub struct CampaignWiringWitness {
     /// [`TransitionError`] 内层错误下划线丢弃——本路径 OQ-9 恒真（`ShortDiff`/`Realize` 的
     /// `is_legal_from` 恒真），故必为 `CashUnsound`；但 `CashUnsound` 有两条含义完全不同的
     /// 成因：`holding<0`（本字段，连续 Reduce 打穿冻结预算）与 `free<0`
-    /// （[`Self::resource_exhausted_free_negative_count`]，回补价高于卖出价的亏损往返）。
+    /// （回补价高于卖出价的亏损往返——★#380 项一后该族改为放行入账，原
+    /// `resource_exhausted_free_negative_count` 桶退役，接替它的正面读数见
+    /// [`Self::loss_round_trip_accounted_count`]）。
     /// 拆桶后归因才可从读数上直接判定，不再靠推断。
     pub resource_exhausted_holding_negative_count: usize,
     /// ★#380 项一（ADR 补充七，#367 项四 A 裁）：**亏损往返如实入账**的计数——`Reduce` 使

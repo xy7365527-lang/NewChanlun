@@ -171,7 +171,10 @@ pub enum ShortDiffViolation {
     /// #354 评审尾巴 High-1：`units` 超过本仓实际持有份数——当场非法，不静默钳制到「只记账
     /// 实际可用的那部分」。★#380 项二：`held` 改读**当时真实持仓**（调用方现读的分侧余额
     /// `current_units`），不再读开局冻结快照 `self.cost_basis.units()`（基准管算量、防线管校验，
-    /// ADR 补充七 #367 项一 C 裁）；只卡卖出侧（`Reduce`）。与 [`Self::OverReplenish`] 同规格
+    /// ADR 补充七 #367 项一 C 裁）；只卡卖出侧（`Reduce`）。★#380 影子评审硬条件：判据是
+    /// **累计**口径 `open_units + units <= current_units`（在途挂起量 + 当笔 ≤ 当时真实持仓），
+    /// 逐笔口径下连续 Reduce 未收口可累计超卖；`attempted` 因此报累计需求（`open_units + units`）
+    /// 而非当笔量。与 [`Self::OverReplenish`] 同规格
     /// 但是独立的一条防线：`OverReplenish` 卡「买回超过本轮挂起在途量」（短差账本内部状态），
     /// 本变体卡「记账超过本仓真实持仓」（外部成本基状态）——两条边界互不覆盖，缺一漏一。
     UnitsExceedCostBasis { held: i64, attempted: i64 },
@@ -393,6 +396,10 @@ impl ShortDiffAccount {
         if units <= 0 {
             return Err(ShortDiffViolation::NonPositiveUnits(units));
         }
+        // `price` 无校验：生产侧 price 来自成交价（`CenterOscillationTrigger` 的中枢边沿价 /
+        // 撮合成交价）恒 >0，故 `price<=0` 无生产路径。理论缺口（`price<=0` 可让 `free` 无害
+        // 转负、被 `short_diff_cash_gate` 当作真实亏损往返放行）见 #380 评审 QUESTION——如实
+        // 标注，本票不新增防线（无生产可达路径的检查是发明防线，非修复）。
         // ★#380 项二（ADR 补充七「sizing 基准冻结 + 防线读当前」，#367 项一 C 裁）：本防线读
         // **当时真实持仓**（`current_units`，生产侧=`balance_side(Core{level}, Long)` 现读的分侧
         // 余额），不再读开局冻结快照 `self.cost_basis.units()`——教义（恒仓「同股数进出」）与诚实
@@ -400,11 +407,21 @@ impl ShortDiffAccount {
         // [`super::oscillation_campaign::OscillationCampaign::reduce_units`]），**防线管校验**。
         // 只卡卖出侧（`Reduce`）：「不卖没有的货」是卖方向的约束，`Replenish`（买回）不消耗持仓，
         // 其上界是挂起在途量（[`ShortDiffViolation::OverReplenish`]，另一条独立防线）。
-        if matches!(action, CenterOscillationAction::Reduce) && units > current_units {
-            return Err(ShortDiffViolation::UnitsExceedCostBasis {
-                held: current_units,
-                attempted: units,
-            });
+        //
+        // ★#380 影子评审硬条件（累计判据）：判据是 `open_units + units <= current_units`——
+        // **在途挂起量 + 当笔** ≤ 当时真实持仓，不是逐笔 `units <= current_units`。短差是旁路
+        // 账本，自身卖出不扣减 `current_units`，逐笔口径下连续 Reduce 未收口可累计超卖（评审
+        // 实例：冻结 300 ⟹ sizing 恒 100，主仓其间减到 150，两笔 Reduce 各 100 逐笔都过，
+        // 累计卖出 200 > 150 ⟹「不卖没有的货」被绕过）。`attempted` 报的是累计需求
+        // （`open_units + units`）而非当笔量——被拒的是累计口径，读数须与判据同口径。
+        if matches!(action, CenterOscillationAction::Reduce) {
+            let cumulative = self.bucket.open_units + units;
+            if cumulative > current_units {
+                return Err(ShortDiffViolation::UnitsExceedCostBasis {
+                    held: current_units,
+                    attempted: cumulative,
+                });
+            }
         }
         let avg_cost = if self.cost_basis.units() > 0 {
             self.cost_basis.cost_basis() / self.cost_basis.units()
@@ -752,6 +769,47 @@ mod tests {
         assert_eq!(events.short_diff, TwEvent::ShortDiff(150 * 10), "avg_cost 仍按冻结快照现算=10");
         assert_eq!(events.realize, Some(TwEvent::Realize(150 * 2)));
         assert_eq!(acct.bucket.open_units(), 150, "当时真实持仓(400)足够 ⟹ 放行入账");
+    }
+
+    /// ★#380 影子评审硬条件核心用例（累计判据）：冻结快照 300 股（sizing 恒 100），主仓其间被
+    /// 减到 150——第一笔 Reduce(100) 过（0+100 ≤ 150），第二笔 Reduce(100) 被**累计**判据拒绝
+    /// （100+100=200 > 150），`attempted` 报累计需求 200 而非当笔 100。逐笔口径（旧版
+    /// `units > current_units`）下第二笔同样 100 ≤ 150 会放行 ⟹ 累计卖出 200 > 真实持仓 150，
+    /// 「不卖没有的货」被绕过（评审给的实例，本用例是它的回归锁）。
+    #[test]
+    fn cumulative_defense_rejects_second_reduce_when_open_units_plus_units_exceeds_current() {
+        let mut acct = ShortDiffAccount::new(snapshot(300, 3_000)); // 冻结 300 股，均价 10
+        acct.record_action(CenterOscillationAction::Reduce, 100, 12, 150)
+            .expect("第一笔：0+100 ≤ 150 ⟹ 过");
+        assert_eq!(acct.bucket.open_units(), 100, "第一笔落笔 ⟹ 在途 100");
+
+        let before = acct;
+        let second = acct.record_action(CenterOscillationAction::Reduce, 100, 12, 150);
+        assert_eq!(
+            second,
+            Err(ShortDiffViolation::UnitsExceedCostBasis { held: 150, attempted: 200 }),
+            "第二笔：在途(100)+当笔(100)=200 > 当时真实持仓(150) ⟹ 累计判据显式拒绝"
+        );
+        assert_eq!(acct, before, "拒绝的调用不改任何状态（桶/在途量均不落笔）");
+    }
+
+    /// ★#380 影子评审硬条件对偶：挂起被 `Replenish` 回补后在途量释放 ⟹ 累计需求回落，同一笔
+    /// Reduce 重新可行（累计判据只卡「在途未收口」的部分，不是把持仓永久性锁死）。
+    #[test]
+    fn cumulative_defense_releases_in_flight_units_after_replenish() {
+        let mut acct = ShortDiffAccount::new(snapshot(300, 3_000));
+        acct.record_action(CenterOscillationAction::Reduce, 100, 12, 150).unwrap();
+        assert_eq!(
+            acct.record_action(CenterOscillationAction::Reduce, 100, 12, 150),
+            Err(ShortDiffViolation::UnitsExceedCostBasis { held: 150, attempted: 200 }),
+            "在途 100 未收口 ⟹ 累计拒绝"
+        );
+
+        acct.record_action(CenterOscillationAction::Replenish, 100, 9, 150).unwrap(); // 回补收口
+        assert_eq!(acct.bucket.open_units(), 0, "回补后在途量释放归零");
+        acct.record_action(CenterOscillationAction::Reduce, 100, 12, 150)
+            .expect("在途已释放 ⟹ 0+100 ≤ 150 ⟹ 同一笔重新放行");
+        assert_eq!(acct.bucket.open_units(), 100);
     }
 
     /// ★#380 项二边界：`Replenish`（买回）不消耗持仓 ⟹ **不**受「当时真实持仓」防线约束
