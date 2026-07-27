@@ -160,7 +160,7 @@ first-match 互斥化（`C_1=P_1，C_j = P_j ∧ ⋀_{k<j}¬P_k`，兜底为显�
 - **容读法**：在场 = 链尾 ∨ 链尾前一格；被取代的中枢按合法死亡放行（不报警）。
 - **取代 = 在场终结**：挂起随之中枢死而终结；`superseded` 与三类破坏同走终结出口，不作警报。
 - **边界侧判据（本补充作废补充五的中轴二分，改由 #366 承接）**：research 考证（2026-07-27，博文全库 108 课+解盘+答疑）：「上半区/下半区」原文 0 命中；「震荡中轴 Z」是 92 课的强弱监视器（Zn 在 Z 上偏强/下偏弱），且 92 课明示 Z 之下介入风险大——与「价<中轴才回补」方向冲突。裁定（A 方案）：废中轴二分，改回原文形式——**高抛 = 向上离开中枢（冲上沿 ZG 方向）+ 次级别上涨背驰**（80/89 课）；**回补 = 向下离开中枢（跌向下沿 ZD）+ 次级别底背驰 + 中枢不下移**（89/33 课）；收手不对称：**三卖 → 停止回补、等下跌完成/更大级别中枢买点**（49/59/68 课），**三买 → 回补后转持股、中途不再短差直到新中枢形成**（49/73 课）。实装票 = #366。
-- **本仓 = Core{level}**（#357 裁定 A）：修4「每级一本双向账」的账户轴实现。#357 关票修复细化为**分侧口径**：取数只读多头侧（`balance_side`/`cost_basis_side`，VoiceSide::Long）；本级持空头仓的动作尝试单独计 `unsupported_short_position_count`（wf8 实测 20），不与真空仓的 `no_active_campaign_count`（303）混计；空头 campaign 支持（键形状 (level,side)）架构级搁置，登记 #367 项五。
+- **本仓 = Core{level}**（#357 裁定 A）：修4「每级一本双向账」的账户轴实现。#357 关票修复细化为**分侧口径**：取数只读多头侧（`balance_side`/`cost_basis_side`，VoiceSide::Long）；本级持空头仓的动作尝试单独计 `unsupported_short_position_count`（wf8 实测 20），不与真空仓的 `no_active_campaign_count`（303）混计；空头 campaign 支持（键形状 (level,side)）架构级搁置，登记 #367 项五。**★#381 已实装，本段的「只读多头侧」与「架构级搁置」两处口径就此作废**——见下方补充九。
 - **P2-E 合并**：TW 事件统一经 closed_loop 带门通道（OQ-9 + cash_sound_gate），新桶收窄为报告层+挂起状态。
 - **系统性上偏披露（wf8 实测）**：亏损往返（买回价>卖出价，free<0）被 cash_sound_gate 拒绝后整笔回滚、账本不留痕（wf8 实测 2/9）——`realized_cash` 只收录被放行的往返，报告层短差盈亏偏乐观。处置（强制记账 vs 接受+披露）登记 #367 项四，待裁。
 
@@ -179,3 +179,16 @@ first-match 互斥化（`C_1=P_1，C_j = P_j ∧ ⋀_{k<j}¬P_k`，兜底为显�
 - **题一（等金额回补 sizing，A）**：回补股数=floor(抛出所得现金÷回补价)，现金不透支；零头留桶累计；高抛侧维持持仓 1/3（与阶段一同尺，阶段变化只改回补侧：等量→等金额）。依据 31 课答疑/43 课。
 - **题二（恒仓阶段三判据，A）**：机检不变量=桶现金永不为负（唯一硬门，floor 取整保证）；股数不设门（阶段三目的即挣股数），改作观测读数（每往返净增股数进 witness）。阶段一看住股，阶段三看住钱。
 - **题三（切换接线，A）**：次 bar 换模式（事件 bar 收盘后确认，同 bar 不换——与「取数时点=前 bar 收盘」口径一致）；旧账按卖出时锁定（每笔往返模式在卖出时锁死：阶段一卖出回补永远等量，阶段三卖出才等金额，中途不变规矩）。
+
+### 补充九：空头 campaign 支持 —— 键形状 (level, side) 与多空镜像（2026-07-27，#381 实装）
+
+补充六「本仓 = Core{level}」中 #357 关票时登记的「只读多头侧 + 空头 campaign 架构级搁置」自本票起作废。落地口径：
+
+- **键形状**：`CampaignBook` 键由 `level` 改 `(level, side)`；`CenterOscillationActionRecord` / `SuspensionOutcome` / `CampaignLifecycleEvent` / witness 的动作分桶与阶段事件明细一律带 `side`。同级两侧各一本独立 campaign，生死/sizing/notional_in 各按各侧（`balance_side`/`cost_basis_side` 分侧取数，空头侧按侧翻符号折成持有份数，成本基读在险市值口径恒正）。
+- **触发镜像**：挂起表键改 `(side, center)`，两侧挂起互不覆盖。开局腿边沿相反——多头「减」在上沿（高抛卖出），空头「减」在**下沿**（回补空头，跌了才获利了结）；收口腿对偶，且各自受各自侧的挂起门约束（禁幽灵回补/幽灵加空）。同一次触发对两侧各产一条镜像动作。
+- **记账镜像**：`ShortDiff`（成本基划转）两侧逐字节相同（与方向无关，往返相消）；分歧只在 `Realize` —— 空头「减」记 `units·(avg_cost − price)`，「补」记 `units·(price − avg_cost)`，恰为多头侧的对偶。整轮收口后桶累计 = 该侧真实盈利（多头 `units·(p_减−p_补)`，空头 `units·(p_补−p_减)`）；恒仓断言、TW 漂移 = ΣRealize 两侧同定理。`realized_cash` 的**单腿**读数在空头侧不等于单笔成交现金（定义恒为「本次调用产出全部 TwEvent 金额之和」），收口后的累计口径两侧同构——报告层读累计值。
+- **收手镜像**：多头侧于三类**买**点收手回补（补充二既有口径，不动），空头侧于三类**卖**点收手加回空头；反向的那类点各自只终结不回补。其余终结来源（Reset/Superseded/RebaseVanished）两侧一律不回补。**范围声明**：本条只是把补充二的既有收手规则**对称套用**到新增的空头侧（不套用则空头挂起会被「三买回补」这一多头规则错误收口）；收手**判据本身**的改写（补充六「三卖→停止回补 / 三买→回补后转持股」的实装）仍属 #366，本票未动。
+- **观测面分侧**：#380 四项的 witness 读数（亏损入账 / 防线超卖 / 触发但货满 / 冲抵归属同异中枢）连同 `no_active_campaign` / 资源耗尽 / `other_violation_by_kind` 一律按持仓侧分桶，**两侧不得相加**——空头侧的单腿桶现金不等于单笔成交现金（见上条 `realized_cash` 口径），`loss_round_trip_accounted` 两侧同名不同义。
+- **触发面对称扇出**：同一次触发无条件对两侧各跑一次判据（该侧无仓也照跑），这是补充二「无门」设计（结构机不读、也无法读账户状态）的逐字对称延伸，非新增门控——无仓侧的动作在 `drive_campaign_wiring` 落 `NoActiveCampaign`（分侧计），空仓期落下的挂起若日后遇收口腿则落 `ReplenishWhileFull`，均如实分桶。
+- **桶退役**：`unsupported_short_position_count` 随本票退役——「有仓但认不出」的形态不复存在，两侧的 `NoActiveCampaign` 同义（该侧真空仓的预期经济场景），归入 `no_active_campaign_count`。
+- **wf8 实测对照（enabled=true，2026-07-27 亲跑）**：`action_by_level` 多头侧 344 条与 #357 旧读数**逐条相同**（198/35/93/8/8/2，零漂移）；空头侧新增 303 条正常记账（reduce 257 / replenish 46）。`unsupported_short_position_count=20` 桶退役，其 20 次拒绝归并回多头侧真空仓桶——`no_active_campaign={"long":323,"short":288}`，303+20=323 与旧读数精确对齐。其余分侧读数：`loss_round_trip_accounted={"long":2,"short":1}`（多头 2 与 #380 旧读数同）、`defense_units_exceed_current_holding={"long":4,"short":7}`、`replenish_triggered_but_full={"short":1}`、`cover_by_side={("long","same_center"):2,("long","other_center"):3,("short","same_center"):3}`（多头 2/3 与 #380 旧读数同）、`resource_exhausted_holding_negative={}`、`other_violation_count=0`。`lifecycle_opened=309 / died=308`，`stage_events=[]`（本窗无 campaign 到达 II，照实零读数）。execR=+4040483 / R=+4417092 / MaxDD=0.0917 与关臂**逐位相同**（短差仍是自包含旁路账本）；默认关双锚 `trades.jsonl`(948340B)/`tower_events.jsonl`(354946B) 与 `/tmp/vocab_align_dump` 逐字节一致。

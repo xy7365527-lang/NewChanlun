@@ -120,6 +120,7 @@
 use super::super::closed_loop::transition::{cash_sound_gate, TransitionError};
 use super::center_oscillation_trade::CenterOscillationAction;
 use super::ledger::{ledger_step, tw_step, LedgerComp, LedgerEvent, TwEvent, TwState};
+use super::voice::VoiceSide;
 
 /// ★#380 项一（ADR 补充七「亏损往返如实入账」，#367 项四 A 裁）：短差通道的现金门**分两族**。
 ///
@@ -218,6 +219,14 @@ impl CoreCostBasisSnapshot {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ShortDiffBucket {
     /// 报告层读数：短差往返累计净现金（= Σ d_cash，缠师口径「现金积累=成本」的载体）。
+    ///
+    /// ★#381 空头侧口径注记：本字段的定义恒为「本次调用产出全部 TwEvent 金额之和」（禁双写
+    /// 口径，不分侧）。多头侧该和恰等于成交现金（`±units·price`）；空头侧因 `Realize` 镜像，
+    /// **单腿**读数为 `units·(2·avg_cost − price)`（回补空头：释放在险成本基 `units·avg_cost`
+    /// ＋ 已实现盈亏 `units·(avg_cost−price)`）与 `units·(price − avg_cost) − units·avg_cost`
+    /// （加回空头），非单笔成交现金——但**整轮往返闭合后**两侧同构：累计
+    /// = Σ Realize = 该侧真实盈利（`ShortDiff` 两腿相消）。报告层读的是收口后的累计值，故
+    /// 「现金积累=成本」口径对两侧同样成立。
     realized_cash: i64,
     /// 挂起在途 units（本轮 `Reduce` 卖出、尚未被 `Replenish` 买回的部分）——恒仓断言状态。
     open_units: i64,
@@ -336,15 +345,32 @@ impl ShortDiffEvents {
 /// [`Self::bucket`]），与 `cost_basis` 同规格。外部整体移植（唯一仍可能引入 `avg_cost`
 /// 两腿不一致的路径，见 [`ShortDiffViolation::AvgCostMismatch`] 附加守卫）现只能发生在本模块
 /// 内部（同文件测试，私有字段对子模块可见）——附加守卫仍保留，作为该内部路径的防御性核验。
+///
+/// ★#381：新增 `side`（本账所属持仓侧）——空头侧短差是多头侧的**镜像**，见
+/// [`Self::record_action`] 的 `Realize` 分侧表。`side` 与 `cost_basis` 同规格（构造时定，
+/// 只读无 setter），一本账不跨侧。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ShortDiffAccount {
     bucket: ShortDiffBucket,
     cost_basis: CoreCostBasisSnapshot,
+    /// 本账所属持仓侧（`Long`=多头仓短差，`Short`=空头仓短差）。
+    side: VoiceSide,
 }
 
 impl ShortDiffAccount {
+    /// 多头侧账（#381 前既有语义；空头侧走 [`Self::new_side`]）。
     pub fn new(cost_basis: CoreCostBasisSnapshot) -> Self {
-        Self { bucket: ShortDiffBucket::new(), cost_basis }
+        Self::new_side(cost_basis, VoiceSide::Long)
+    }
+
+    /// ★#381：分侧构造。
+    pub fn new_side(cost_basis: CoreCostBasisSnapshot, side: VoiceSide) -> Self {
+        Self { bucket: ShortDiffBucket::new(), cost_basis, side }
+    }
+
+    /// 本账所属持仓侧（只读）。
+    pub fn side(&self) -> VoiceSide {
+        self.side
     }
 
     /// 短差盈亏桶（只读访问，High-3 处置）：报告层累计读数 + 挂起在途状态。
@@ -433,13 +459,22 @@ impl ShortDiffAccount {
                 return Err(ShortDiffViolation::AvgCostMismatch { recorded, derived: avg_cost });
             }
         }
+        // ★#381 空头镜像：`ShortDiff`（成本基划转）两侧逐字节相同——`Reduce` 恒释放
+        // `units·avg_cost` 的在险成本基（holding→free），`Replenish` 恒按原均价划回，往返相消，
+        // 与方向无关。分歧只在 `Realize`（已实现盈亏）的符号：多头「减=卖出」赚 `price−avg_cost`，
+        // 空头「减=回补空头（买回）」赚 `avg_cost−price`（跌了才赚）；`Replenish` 侧对偶。
+        // 全往返 Σ Realize：多头 = units·(p_reduce − p_replenish)（高抛低吸），
+        // 空头 = units·(p_replenish − p_reduce)（低吸高抛回加），两侧均恰为该侧真实盈利口径。
+        let short_side = matches!(self.side, VoiceSide::Short);
         let events = match action {
             CenterOscillationAction::Reduce => {
                 self.bucket.open_units += units;
                 self.bucket.open_avg_cost = Some(avg_cost);
+                let realize =
+                    if short_side { units * (avg_cost - price) } else { units * (price - avg_cost) };
                 ShortDiffEvents {
                     short_diff: TwEvent::ShortDiff(units * avg_cost),
-                    realize: Some(TwEvent::Realize(units * (price - avg_cost))),
+                    realize: Some(TwEvent::Realize(realize)),
                 }
             }
             CenterOscillationAction::Replenish => {
@@ -452,9 +487,11 @@ impl ShortDiffAccount {
                 }
                 self.bucket.open_units = remaining;
                 self.bucket.open_avg_cost = if remaining == 0 { None } else { Some(avg_cost) };
+                let realize =
+                    if short_side { units * (price - avg_cost) } else { units * (avg_cost - price) };
                 ShortDiffEvents {
                     short_diff: TwEvent::ShortDiff(-(units * avg_cost)),
-                    realize: Some(TwEvent::Realize(units * (avg_cost - price))),
+                    realize: Some(TwEvent::Realize(realize)),
                 }
             }
         };
@@ -1096,5 +1133,86 @@ mod tests {
         );
         assert_eq!(acct.cost_basis(), snapshot(500, 20_000), "本仓成本基全程不动");
         assert!(!book.is_suspended(id), "回补出口=挂起清空（#292 既有语义不受影响）");
+    }
+
+    // ── #381：空头侧镜像记账 ─────────────────────────────────────────────
+
+    /// ★#381 核心用例（桶层）：空头账的 `Realize` 与多头账**对偶互换**——`Reduce`（回补空头）
+    /// 记 `units·(avg_cost−price)`（跌了才赚），`Replenish`（加回空头）记 `units·(price−avg_cost)`；
+    /// `ShortDiff`（成本基划转）两侧逐字节相同（与方向无关，往返相消）。
+    #[test]
+    fn short_side_realize_is_dual_to_long_side_while_short_diff_leg_is_identical() {
+        let mut short_acct = ShortDiffAccount::new_side(avg_cost_snapshot(10), VoiceSide::Short);
+        assert_eq!(short_acct.side(), VoiceSide::Short);
+        let reduce = short_acct
+            .record_action(CenterOscillationAction::Reduce, 10, 8, short_acct.cost_basis().units())
+            .unwrap();
+        assert_eq!(reduce.short_diff, TwEvent::ShortDiff(100), "成本基划转=units·avg_cost=100（与多头侧同）");
+        assert_eq!(
+            reduce.realize,
+            Some(TwEvent::Realize(20)),
+            "空头减 Realize=units·(avg_cost−price)=10·(10−8)=+20（买回便宜=赚）"
+        );
+
+        let replenish = short_acct
+            .record_action(CenterOscillationAction::Replenish, 10, 12, short_acct.cost_basis().units())
+            .unwrap();
+        assert_eq!(replenish.short_diff, TwEvent::ShortDiff(-100), "按原均价划回（与多头侧同）");
+        assert_eq!(
+            replenish.realize,
+            Some(TwEvent::Realize(20)),
+            "空头补 Realize=units·(price−avg_cost)=10·(12−10)=+20（卖得更高=赚）"
+        );
+
+        // 多头账同一对价格：符号恰好相反（对偶的直接对照）。
+        let mut long_acct = ShortDiffAccount::new(avg_cost_snapshot(10));
+        let l_reduce = long_acct
+            .record_action(CenterOscillationAction::Reduce, 10, 8, long_acct.cost_basis().units())
+            .unwrap();
+        let l_replenish = long_acct
+            .record_action(CenterOscillationAction::Replenish, 10, 12, long_acct.cost_basis().units())
+            .unwrap();
+        assert_eq!(l_reduce.realize, Some(TwEvent::Realize(-20)), "多头减在低价=亏（空头侧的镜像）");
+        assert_eq!(l_replenish.realize, Some(TwEvent::Realize(-20)), "多头补在高价=亏");
+        assert_eq!(l_reduce.short_diff, reduce.short_diff, "ShortDiff 腿两侧逐字节相同");
+        assert_eq!(l_replenish.short_diff, replenish.short_diff, "ShortDiff 腿两侧逐字节相同");
+    }
+
+    /// ★#381：整轮往返收口后，两侧的桶累计各自等于该侧真实盈利——多头 `units·(p_减−p_补)`
+    /// （高抛低吸），空头 `units·(p_补−p_减)`（低吸高抛回加）；恒仓断言两侧同样成立。
+    #[test]
+    fn round_trip_bucket_accumulates_side_specific_profit() {
+        let mut short_acct = ShortDiffAccount::new_side(avg_cost_snapshot(10), VoiceSide::Short);
+        short_acct
+            .record_action(CenterOscillationAction::Reduce, 10, 8, short_acct.cost_basis().units())
+            .unwrap();
+        short_acct
+            .record_action(CenterOscillationAction::Replenish, 10, 12, short_acct.cost_basis().units())
+            .unwrap();
+        assert_eq!(short_acct.bucket().realized_cash(), 10 * (12 - 8), "空头累计=units·(p_补−p_减)=+40");
+        assert!(short_acct.assert_conserved().is_ok(), "同股数进出 ⟹ 恒仓断言过（两侧同规格）");
+
+        let mut long_acct = ShortDiffAccount::new(avg_cost_snapshot(10));
+        long_acct.record_action(CenterOscillationAction::Reduce, 10, 12, long_acct.cost_basis().units()).unwrap();
+        long_acct.record_action(CenterOscillationAction::Replenish, 10, 8, long_acct.cost_basis().units()).unwrap();
+        assert_eq!(long_acct.bucket().realized_cash(), 10 * (12 - 8), "多头累计=units·(p_减−p_补)=+40（同构）");
+    }
+
+    /// ★#381：`ShortDiffEvents::apply` 后 TW 漂移 = Σ Realize 的桥接定理对空头侧同样成立
+    /// （`ledger.rs::tw_step_realize_drift_equals_dpi` 在镜像口径下不变）。
+    #[test]
+    fn short_side_tw_drift_equals_sum_of_realize() {
+        let mut acct = ShortDiffAccount::new_side(avg_cost_snapshot(10), VoiceSide::Short);
+        let tw0 = TwState { holding: 100, ..TwState::initial() };
+        let reduce = acct
+            .record_action(CenterOscillationAction::Reduce, 10, 8, acct.cost_basis().units())
+            .unwrap();
+        let tw1 = reduce.apply(&tw0).unwrap();
+        let replenish = acct
+            .record_action(CenterOscillationAction::Replenish, 10, 12, acct.cost_basis().units())
+            .unwrap();
+        let tw2 = replenish.apply(&tw1).unwrap();
+        assert_eq!(tw2.tw() - tw0.tw(), 40, "TW 漂移=Σ Realize=20+20（空头侧同定理）");
+        assert_eq!(tw2.holding, tw0.holding, "ShortDiff 两腿相消 ⟹ 在险成本基回原值");
     }
 }

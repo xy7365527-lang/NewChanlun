@@ -1347,12 +1347,12 @@ fn m8_e2e_all_systems_oos() {
                 "[m8][#357] {tag}: center_oscillation.enabled={} trigger_attempts={} \
                  dropped_center_not_alive={} ({:.1}%) dropped_other={} action_by_level={:?} \
                  suspension_by_source={:?} lifecycle_opened={} lifecycle_died={} \
-                 no_active_campaign_count={} unsupported_short_position_count={} \
-                 resource_exhausted_holding_negative_count={} \
-                 loss_round_trip_accounted_count={} defense_units_exceed_current_holding_count={} \
-                 replenish_triggered_but_full_count={} \
+                 no_active_campaign_count={:?} \
+                 resource_exhausted_holding_negative_count={:?} \
+                 loss_round_trip_accounted_count={:?} defense_units_exceed_current_holding_count={:?} \
+                 replenish_triggered_but_full_count={:?} \
                  stage_recover_capital_count={} stage_enter_earning_count={} stage_events={:?} \
-                 cover_same_center_count={} cover_other_center_count={} \
+                 cover_by_side={:?} \
                  other_violation_count={} other_violation_by_kind={:?} campaign_active_end={}",
                 cfg.center_oscillation.enabled,
                 w.trigger_attempts,
@@ -1364,7 +1364,6 @@ fn m8_e2e_all_systems_oos() {
                 w.lifecycle_opened,
                 w.lifecycle_died,
                 w.no_active_campaign_count,
-                w.unsupported_short_position_count,
                 w.resource_exhausted_holding_negative_count,
                 w.loss_round_trip_accounted_count,
                 w.defense_units_exceed_current_holding_count,
@@ -1372,8 +1371,7 @@ fn m8_e2e_all_systems_oos() {
                 w.stage_recover_capital_count,
                 w.stage_enter_earning_count,
                 w.stage_events,
-                w.cover_same_center_count,
-                w.cover_other_center_count,
+                w.cover_by_side,
                 w.other_violation_count,
                 w.other_violation_by_kind,
                 r.campaign_book.active_count(),
@@ -1383,15 +1381,16 @@ fn m8_e2e_all_systems_oos() {
             // 设计），后者是 campaign 按级别（非按中枢）聚合共享同一份冻结 sizing 预算、连续同向
             // 触发耗尽 holding 时 cash_sound_gate 的显式拒绝（真实资源约束，见 CampaignWiringWitness
             // 字段文档）；两者均不断言恒 0。`unsupported_short_position_count`（issue #357 关票
-            // 条件 C：本接线只支持多头侧 campaign，空头持仓落此桶，非本票范围内修复）同样是
-            // 产物级见证，不断言恒 0——`other_violation_count` 才是真正的接线/记账逻辑错误警报，
-            // 必须恒 0。
+            // 条件 C）★#381 已退役：空头侧现有自己的 `(level, Short)` campaign 正常记账，
+            // 该桶所指的「有仓但认不出」形态不复存在，读数改由 `action_by_level` 的 `"short"`
+            // 侧分桶与 `lifecycle_*` 呈现。`other_violation_count` 才是真正的接线/记账逻辑
+            // 错误警报，必须恒 0。
             //
             // ★#380 四项读数（ADR 补充七）：`loss_round_trip_accounted_count`（项一，亏损往返
             // 如实入账——接替退役的 `resource_exhausted_free_negative_count` 拒绝桶）、
             // `defense_units_exceed_current_holding_count`（项二，防线读当时真实持仓的超卖拒绝）、
             // `stage_*`/`stage_events`（项三，阶段推进事件见证：级别+开局以来 bar 数+金额）、
-            // `cover_*_center_count` 与 `replenish_triggered_but_full_count`（项四，挂起归属冲抵
+            // `cover_by_side` 与 `replenish_triggered_but_full_count`（项四，挂起归属冲抵
             // 顺序与「触发但货满」）——四者均为预期读数，照实呈现，不断言恒 0。
             assert_eq!(
                 w.other_violation_count, 0,

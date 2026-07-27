@@ -191,6 +191,11 @@ pub struct CenterOscillationActionRecord {
     pub level: u32,
     pub center: CenterId,
     pub action: CenterOscillationAction,
+    /// ★#381：本条动作归属的**持仓侧**（`Long`=多头 campaign，`Short`=空头 campaign）——
+    /// 同一次触发对两侧产出**镜像**动作（上沿：多头减/空头补；下沿：多头补/空头减），故
+    /// 「级别」不再足以定位记账对象，须与 [`super::oscillation_campaign::CampaignBook`] 的
+    /// `(level, side)` 键同形状。`Flat` 不构造（空仓无 campaign 可记）。
+    pub side: VoiceSide,
 }
 
 /// 挂起短差的终结来源（ADR 补充二 + #292 前置约束五条 + #292 续修）。五源同走「终结」出口，
@@ -225,6 +230,29 @@ pub struct SuspensionOutcome {
     pub center: CenterId,
     pub source: SuspensionTerminationSource,
     pub cover_action: Option<CenterOscillationAction>,
+    /// ★#381：本条终结归属的持仓侧——挂起表分侧独立（同一中枢可两侧各自挂起），终结须逐侧
+    /// 产出。收手回补的镜像口径见 [`CenterOscillationBook::on_lifecycle_event`]。
+    pub side: VoiceSide,
+}
+
+/// ★#381：某一持仓侧遇某一终结来源时是否伴随一次收手回补——多空**镜像**。
+///
+/// - 多头侧：三类**买**点破坏 ⟹ 收手回补（「高抛后出三类买点则于三类买点处回补」049/068）；
+///   三类卖点只终结不回补（既有口径，SPEC Out of Scope 已如实标注）。
+/// - 空头侧：三类**卖**点破坏 ⟹ 收手加回空头（结构续跌，空头敞口须补回）；三类买点只终结
+///   不加回（多头侧「三卖不回补」的逐字镜像）。
+/// - 其余来源（`Reset`/`Superseded`/`RebaseVanished`）两侧一律不回补（承诺作废，既有口径）。
+fn cover_action_for(
+    side: VoiceSide,
+    source: SuspensionTerminationSource,
+) -> Option<CenterOscillationAction> {
+    let covers = match side {
+        VoiceSide::Short => matches!(source, SuspensionTerminationSource::BrokenByThirdClassSell),
+        VoiceSide::Long | VoiceSide::Flat => {
+            matches!(source, SuspensionTerminationSource::BrokenByThirdClassBuy)
+        }
+    };
+    covers.then_some(CenterOscillationAction::Replenish)
 }
 
 /// 挂起短差状态机（每级别一台，与 T1 [`center_lifecycle::CenterEventMachine`] 同粒度）。
@@ -239,10 +267,14 @@ pub struct SuspensionOutcome {
 /// bit-exact 回归不受哈希实现变化影响（exit.rs `step_active_set_with_subtree_close` 的
 /// `HashSet` 反例：那里只做 `.contains()` membership 查询、从不迭代输出，故哈希序无关；
 /// 本处迭代序直接进产出 `Vec` 顺序，二者边界正在于「迭代是否进输出」）。
+///
+/// ★#381：挂起表键改 `(VoiceSide, CenterId)`——多空并存时同一中枢可在两侧各自挂起，各按
+/// 各自的边沿开局/收口（镜像口径见 [`Self::on_trigger_side`]），两侧互不覆盖、互不污染。
+/// `VoiceSide` 在前保证同侧条目在 `BTreeMap` 中相邻（迭代序仍确定性，H1 理由不变）。
 #[derive(Debug, Default)]
 pub struct CenterOscillationBook {
     level: u32,
-    suspended: BTreeMap<CenterId, ()>,
+    suspended: BTreeMap<(VoiceSide, CenterId), ()>,
 }
 
 impl CenterOscillationBook {
@@ -259,8 +291,14 @@ impl CenterOscillationBook {
         self.suspended.len()
     }
 
+    /// 多头侧挂起查询（#381 前既有语义；分侧查询见 [`Self::is_suspended_side`]）。
     pub fn is_suspended(&self, center: CenterId) -> bool {
-        self.suspended.contains_key(&center)
+        self.is_suspended_side(VoiceSide::Long, center)
+    }
+
+    /// ★#381：分侧挂起查询。
+    pub fn is_suspended_side(&self, side: VoiceSide, center: CenterId) -> bool {
+        self.suspended.contains_key(&(side, center))
     }
 
     /// 处理一次触发 ⟹ 减/补动作二选一，或幽灵回补拒绝（`None`）。
@@ -271,24 +309,49 @@ impl CenterOscillationBook {
     ///   ——否则返回 `None`（P6 反例锚：全平/毁中枢后无本级买点证书不许回补，即「幽灵回补」）。
     ///
     /// **无门**：本函数不读取、也无法读取任何次级别账户状态——签名唯一输入是触发事实本身。
+    ///
+    /// ★#381：本方法=多头侧入口（语义逐字节不变），空头侧走 [`Self::on_trigger_side`]。
     pub fn on_trigger(&mut self, trigger: CenterOscillationTrigger) -> Option<CenterOscillationAction> {
+        self.on_trigger_side(VoiceSide::Long, trigger)
+    }
+
+    /// ★#381：分侧触发处理——空头侧是多头侧的**镜像**（票面「减=回补空头、补=加回空头」）。
+    ///
+    /// | 持仓侧 | 开局腿（`Reduce`） | 收口腿（`Replenish`，受挂起门） |
+    /// |---|---|---|
+    /// | `Long` | 上沿高抛卖出 | 下沿回补买入 |
+    /// | `Short` | **下沿**回补空头（买回，空头获利了结） | **上沿**加回空头（重新卖空） |
+    ///
+    /// 两侧共用同一条判据结构（开局腿无门恒放行并置位挂起；收口腿仅当该侧该身份在挂起中才
+    /// 放行，禁「幽灵回补/幽灵加空」），只是开局边沿相反——`Flat` 无 campaign 可记，视同
+    /// 多头侧不构造（调用方 `fill.rs::step_center_oscillation` 只喂 `Long`/`Short`）。
+    pub fn on_trigger_side(
+        &mut self,
+        side: VoiceSide,
+        trigger: CenterOscillationTrigger,
+    ) -> Option<CenterOscillationAction> {
         assert_eq!(
             trigger.level(),
             self.level,
             "触发级别必须匹配本机级别（跨级误喂是接线错误，不是本机决策范围）"
         );
-        match trigger.boundary_side() {
-            BoundarySide::Above => {
-                self.suspended.insert(trigger.center(), ());
-                Some(CenterOscillationAction::Reduce)
-            }
-            BoundarySide::Below => {
-                if self.suspended.remove(&trigger.center()).is_some() {
-                    Some(CenterOscillationAction::Replenish)
-                } else {
-                    None
-                }
-            }
+        debug_assert!(
+            !matches!(side, VoiceSide::Flat),
+            "★#381：`Flat` 无 campaign 可记，不是本机的合法输入侧——调用方只喂 Long/Short。\
+             此处显式钉死，避免「静默按多头处理」把接线错误伪装成正常多头行为"
+        );
+        // 开局边沿：多头=上沿（高抛），空头=下沿（回补空头）——镜像的唯一分歧点。
+        let open_edge = match side {
+            VoiceSide::Short => BoundarySide::Below,
+            VoiceSide::Long | VoiceSide::Flat => BoundarySide::Above,
+        };
+        if trigger.boundary_side() == open_edge {
+            self.suspended.insert((side, trigger.center()), ());
+            Some(CenterOscillationAction::Reduce)
+        } else if self.suspended.remove(&(side, trigger.center())).is_some() {
+            Some(CenterOscillationAction::Replenish)
+        } else {
+            None
         }
     }
 
@@ -297,19 +360,25 @@ impl CenterOscillationBook {
     ///
     /// 身份匹配走 `event.killed_center_id()`（D 裁定：按身份，不按当前在场）；`Born` 事件与
     /// 未挂起的身份均 no-op（C 裁定：幂等——目标身份不在挂起表中，天然产出空 Vec）。
+    ///
+    /// ★#381：挂起表分侧后，同一事件可同时终结两侧的挂起——逐侧各产一条
+    /// [`SuspensionOutcome`]（带 `side`）。收手回补按侧**镜像**：多头侧于三类**买**点收手回补
+    /// （结构续涨须补回货，既有口径不动），空头侧于三类**卖**点收手加回空头（结构续跌须补回
+    /// 空头）；反向的那类点各自只终结不回补（多头「三卖不回补」的镜像）。
     pub fn on_lifecycle_event(&mut self, event: &CenterLifecycleEvent) -> Vec<SuspensionOutcome> {
         if matches!(event, CenterLifecycleEvent::Reset { .. }) {
             if self.suspended.is_empty() {
                 return Vec::new();
             }
-            let ids: Vec<CenterId> = self.suspended.keys().copied().collect();
+            let keys: Vec<(VoiceSide, CenterId)> = self.suspended.keys().copied().collect();
             self.suspended.clear();
-            return ids
+            return keys
                 .into_iter()
-                .map(|center| SuspensionOutcome {
+                .map(|(side, center)| SuspensionOutcome {
                     center,
                     source: SuspensionTerminationSource::Reset,
                     cover_action: None,
+                    side,
                 })
                 .collect();
         }
@@ -328,12 +397,18 @@ impl CenterOscillationBook {
                 return Vec::new();
             }
         };
-        if self.suspended.remove(&id).is_none() {
-            return Vec::new(); // 该身份未挂起（从未挂起 / 已终结过）⟹ 幂等 no-op。
-        }
-        let cover_action = matches!(source, SuspensionTerminationSource::BrokenByThirdClassBuy)
-            .then_some(CenterOscillationAction::Replenish);
-        vec![SuspensionOutcome { center: id, source, cover_action }]
+        // 逐侧终结（该身份在某侧未挂起 ⟹ 该侧幂等 no-op，不产出）。侧序固定 Long→Short，
+        // 与挂起表的 `BTreeMap` 迭代序同锚（确定性，H1 理由不变）。
+        [VoiceSide::Long, VoiceSide::Short]
+            .into_iter()
+            .filter(|side| self.suspended.remove(&(*side, id)).is_some())
+            .map(|side| SuspensionOutcome {
+                center: id,
+                source,
+                cover_action: cover_action_for(side, source),
+                side,
+            })
+            .collect()
     }
 
     /// 消费一次链**重基**（[`center_lifecycle::ChainConsumed::Rebased`]）⟹ 0 或多条终结产出
@@ -354,21 +429,23 @@ impl CenterOscillationBook {
             return Vec::new();
         }
         let chain_ids: BTreeSet<CenterId> = chain.iter().map(CenterId::of).collect();
-        let vanished: Vec<CenterId> =
-            self.suspended.keys().copied().filter(|id| !chain_ids.contains(id)).collect();
-        for id in &vanished {
-            self.suspended.remove(id);
+        // ★#381：逐（侧, 身份）核对——两侧各自迁移/终结，判据（身份是否在新链上）不分侧。
+        let vanished: Vec<(VoiceSide, CenterId)> =
+            self.suspended.keys().copied().filter(|(_, id)| !chain_ids.contains(id)).collect();
+        for key in &vanished {
+            self.suspended.remove(key);
         }
         let outcomes: Vec<SuspensionOutcome> = vanished
             .into_iter()
-            .map(|center| SuspensionOutcome {
+            .map(|(side, center)| SuspensionOutcome {
                 center,
                 source: SuspensionTerminationSource::RebaseVanished,
                 cover_action: None,
+                side,
             })
             .collect();
         debug_assert!(
-            self.suspended.keys().all(|id| chain_ids.contains(id)),
+            self.suspended.keys().all(|(_, id)| chain_ids.contains(id)),
             "禁悬空：重基核对后任何仍挂起的身份都必须在新链上（迁移分支的机检不变量）"
         );
         outcomes
@@ -904,5 +981,97 @@ mod tests {
         let mut sorted = ids.clone();
         sorted.sort();
         assert_eq!(ids, sorted, "确定性排序自证：与显式排序结果一致");
+    }
+
+    // ── #381：空头侧镜像触发（减=回补空头、补=加回空头） ─────────────────
+
+    /// ★#381 核心用例：空头侧触发是多头侧的**镜像**——开局腿（`Reduce`=回补空头）落在
+    /// **下沿**（`Below`，价格跌向 ZD 时空头获利了结），收口腿（`Replenish`=加回空头）落在
+    /// **上沿**（`Above`）且同样受挂起门约束（未挂起的上沿触碰 ⟹ `None`，禁「幽灵加空」）。
+    #[test]
+    fn short_side_trigger_is_mirror_of_long_side() {
+        let mut book = CenterOscillationBook::new(0);
+        let c = cid(0, 100, 200);
+
+        // 空头侧：上沿在未挂起时不放行（镜像多头侧「下沿未挂起不回补」的幽灵门）。
+        let above = CenterOscillationTrigger::from_parts(0, c, BoundarySide::Above, VoiceSide::Short, 1);
+        assert_eq!(book.on_trigger_side(VoiceSide::Short, above), None, "空头侧未挂起 ⟹ 上沿不放行加空");
+
+        // 空头侧开局腿=下沿 Reduce（回补空头）。
+        let below = CenterOscillationTrigger::from_parts(0, c, BoundarySide::Below, VoiceSide::Long, 2);
+        assert_eq!(
+            book.on_trigger_side(VoiceSide::Short, below),
+            Some(CenterOscillationAction::Reduce),
+            "空头侧下沿=减（回补空头），镜像多头侧上沿=减（高抛）"
+        );
+        assert!(book.is_suspended_side(VoiceSide::Short, c), "空头侧挂起置位");
+        assert!(!book.is_suspended(c), "多头侧挂起表不受空头侧触发污染（分侧独立）");
+
+        // 空头侧收口腿=上沿 Replenish（加回空头）。
+        assert_eq!(
+            book.on_trigger_side(VoiceSide::Short, above),
+            Some(CenterOscillationAction::Replenish),
+            "空头侧上沿=补（加回空头）"
+        );
+        assert!(!book.is_suspended_side(VoiceSide::Short, c), "收口后挂起清除");
+    }
+
+    /// ★#381：多空并存时两侧挂起表互不污染——同一中枢可同时在多头侧与空头侧各自挂起，
+    /// 各自按各自的边沿收口。
+    #[test]
+    fn long_and_short_suspensions_are_independent_per_side() {
+        let mut book = CenterOscillationBook::new(0);
+        let c = cid(0, 100, 200);
+        let above = CenterOscillationTrigger::from_parts(0, c, BoundarySide::Above, VoiceSide::Short, 1);
+        let below = CenterOscillationTrigger::from_parts(0, c, BoundarySide::Below, VoiceSide::Long, 2);
+
+        assert_eq!(book.on_trigger_side(VoiceSide::Long, above), Some(CenterOscillationAction::Reduce));
+        assert_eq!(book.on_trigger_side(VoiceSide::Short, below), Some(CenterOscillationAction::Reduce));
+        assert_eq!(book.suspended_count(), 2, "两侧各一条挂起（键含侧，不相互覆盖）");
+
+        assert_eq!(
+            book.on_trigger_side(VoiceSide::Long, below),
+            Some(CenterOscillationAction::Replenish),
+            "多头侧下沿收口"
+        );
+        assert_eq!(book.suspended_count(), 1, "只收多头侧那条");
+        assert!(book.is_suspended_side(VoiceSide::Short, c), "空头侧挂起仍在");
+    }
+
+    /// ★#381：终结的收手回补对两侧**镜像**——多头侧收手于三类**买**点（结构续涨须补回货），
+    /// 空头侧收手于三类**卖**点（结构续跌须加回空头）；反向的那类点各自只终结不回补。
+    #[test]
+    fn termination_cover_action_mirrors_by_side() {
+        let mut book = CenterOscillationBook::new(0);
+        let c = cid(0, 100, 200);
+        let above = CenterOscillationTrigger::from_parts(0, c, BoundarySide::Above, VoiceSide::Short, 1);
+        let below = CenterOscillationTrigger::from_parts(0, c, BoundarySide::Below, VoiceSide::Long, 2);
+        book.on_trigger_side(VoiceSide::Long, above);
+        book.on_trigger_side(VoiceSide::Short, below);
+
+        let outcomes = book.on_lifecycle_event(&broken(c, Side::Long)); // 三类买点破坏
+        assert_eq!(outcomes.len(), 2, "两侧挂起同时终结");
+        let long_out = outcomes.iter().find(|o| o.side == VoiceSide::Long).expect("多头侧产出");
+        let short_out = outcomes.iter().find(|o| o.side == VoiceSide::Short).expect("空头侧产出");
+        assert_eq!(
+            long_out.cover_action,
+            Some(CenterOscillationAction::Replenish),
+            "多头侧三类买点收手回补（既有口径不变）"
+        );
+        assert_eq!(short_out.cover_action, None, "空头侧遇三类买点只终结不加回（镜像「三卖不回补」）");
+
+        // 镜像方向：三类卖点 ⟹ 空头侧收手加回、多头侧只终结。
+        let mut book2 = CenterOscillationBook::new(0);
+        book2.on_trigger_side(VoiceSide::Long, above);
+        book2.on_trigger_side(VoiceSide::Short, below);
+        let outcomes2 = book2.on_lifecycle_event(&broken(c, Side::Short));
+        let long2 = outcomes2.iter().find(|o| o.side == VoiceSide::Long).expect("多头侧产出");
+        let short2 = outcomes2.iter().find(|o| o.side == VoiceSide::Short).expect("空头侧产出");
+        assert_eq!(long2.cover_action, None, "多头侧三类卖点不回补（既有口径不变）");
+        assert_eq!(
+            short2.cover_action,
+            Some(CenterOscillationAction::Replenish),
+            "空头侧三类卖点收手加回空头（镜像）"
+        );
     }
 }
