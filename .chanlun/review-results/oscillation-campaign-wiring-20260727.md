@@ -132,7 +132,9 @@ cmp /tmp/fix357_dump/tower_events.jsonl          /tmp/fix357_default_dump/tower_
 - **空头 campaign 支持**（`unsupported_short_position_count=20`，本票选方案 2 明确搁置）——若后续需要支持空头侧短差 campaign，需改 `CampaignBook` 键形状为 `(level, side)` 并给 `CenterOscillationActionRecord` 补齐 side 语义，属架构级改动，非本票「接线」范围。
 - `resource_exhausted_holding_negative_count`/`no_active_campaign_count`/`unsupported_short_position_count` 的真实发生率是否在其他窗口（非 wf8）同样稳定——本票只验收 wf8 单窗，多窗读数未跑（慢锁纪律）。
 
-## 附：改动文件清单（issue #357 关票修复，2026-07-27）
+## 附：改动文件清单（issue #357 关票修复，2026-07-27，commit 5ead707194）
+
+> 首版接线（commit cb826e0542）另改动 `rust/src/theta_v0/backtest/runner.rs`（`OverlayRunResult` 转发 `campaign_book`/`campaign_witness` 字段，同 `tw_final` 先例）与 `rust/src/theta_v0/strategy/account.rs`（+`cost_basis` 净额聚合读数）——首版五文件为 account/oscillation_campaign/fill/runner/wverify_run；本轮修复后净额版 `cost_basis` 生产路径已无调用点（复审观察，残留为死 API，清理进 #367 后续）。
 
 - `rust/src/theta_v0/strategy/account.rs`（+`cost_basis_side` 分侧聚合读数 + 1 单测，关票条件 C）
 - `rust/src/theta_v0/strategy/oscillation_campaign.rs`（`CampaignWiringWitness` 新增 `unsupported_short_position_count` 字段 + `resource_exhausted_count` 拆分为 `resource_exhausted_holding_negative_count`/`resource_exhausted_free_negative_count` 两字段；`record_violation` 签名新增 `is_short_side_held` 参数；+3 单测，关票条件 B/C）
