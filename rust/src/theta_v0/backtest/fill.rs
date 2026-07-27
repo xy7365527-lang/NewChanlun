@@ -757,13 +757,14 @@ where
     pi_theta_fill_loop_overlay(classify_at, bars, initial_nav, config, chi, None, Some(voice))
 }
 
-/// #292（T2 落点门控接线）：单 bar 内驱动中枢生命周期事件（born/broken/reset/superseded，
-/// 与 `opsem_dump::feed_center_lifecycle` 同款 `consume_chain`/`push_point` 驱动方式，状态
-/// 独立不交叉——同一张塔链表的两个只读消费者）+ `PanDivTrigger` → `CenterOscillationTrigger`
-/// 转换与 `on_trigger` 消费（A 裁定：中枢身份取本级 `alive_center()`，不复用 pan_div 坐标
-/// 投影）。纯函数化——不依赖 `tower_i`/pan_div 门内部（门后 `pan_div_triggers` 由调用方产出），
-/// 可脱离完整 fill 循环直接单测。顺序：先喂本 bar 生命周期事件（使 `alive_center()` 反映
-/// 本 bar 内已发生的死亡），再消费本 bar 的 pan_div 触发（与 `opsem_dump.rs` 同序）。
+/// #292（T2 落点门控接线；★★触发源改码，用户裁定 2026-07-26）：单 bar 内驱动中枢生命周期
+/// 事件（born/broken/reset/superseded，与 `opsem_dump::feed_center_lifecycle` 同款
+/// `consume_chain`/`push_point` 驱动方式，状态独立不交叉——同一张塔链表的两个只读消费者）
+/// + **次级别买卖点** → `CenterOscillationTrigger` 构造与 `on_trigger` 消费（A 裁定：中枢身份取
+/// 本级 `alive_center()`；B 裁定：触发主信号源 = 次级别已确认买卖点，盘背非必要条件——
+/// `PanDivTrigger` 降格为可选辅助，本函数不再消费它，见 `oscillation` 模块头）。纯函数化——
+/// 不依赖 `tower_i`/pan_div 门内部，可脱离完整 fill 循环直接单测。顺序：先喂本 bar 生命周期
+/// 事件（使 `alive_center()` 反映本 bar 内已发生的死亡），再消费本 bar 次级别买卖点触发。
 ///
 /// ★#292 续修（二轮评审浮出的挂起悬空泄漏）：`ChainConsumed::Rebased` 分支接入
 /// `osc_books[lvl].on_chain_rebase`——重基后挂起按身份核对新链，迁移/终结二分，禁悬空。
@@ -771,7 +772,6 @@ fn step_center_oscillation(
     bar: usize,
     classification_i: &classifier::Classification,
     classification_step: &classifier::Classification,
-    pan_div_triggers: &[(usize, super::super::strategy::oscillation::PanDivTrigger)],
     cl_machines: &mut Vec<classifier::center_lifecycle::CenterEventMachine>,
     osc_books: &mut Vec<super::super::strategy::center_oscillation_trade::CenterOscillationBook>,
 ) -> Vec<super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord> {
@@ -779,6 +779,7 @@ fn step_center_oscillation(
     use super::super::strategy::center_oscillation_trade::{
         CenterOscillationActionRecord, CenterOscillationBook, CenterOscillationTrigger,
     };
+    use super::super::strategy::voice::VoiceSide;
 
     let mut actions = Vec::new();
     let n_levels = classification_i.levels.len();
@@ -841,16 +842,30 @@ fn step_center_oscillation(
             }
         }
     }
-    for &(lvl, trigger) in pan_div_triggers {
-        let alive = cl_machines.get(lvl).and_then(|m| m.alive_center()).map(|(c, _)| CenterId::of(&c));
-        if let Ok(osc_trigger) = CenterOscillationTrigger::from_pan_div_trigger(trigger, alive) {
-            if let Some(action) = osc_books[lvl].on_trigger(osc_trigger) {
-                actions.push(CenterOscillationActionRecord {
-                    bar,
-                    level: lvl as u32,
-                    center: osc_trigger.center(),
-                    action,
-                });
+    // #292 触发源改码（B 裁定）：开启臂生产触发的唯一驱动源 = 次级别（lvl-1）本 bar 已确认
+    // 买卖点——本级中枢在场（`alive_center()`，A 裁定）+ 次级别信号方向 ⟹ 边界侧映射（买点=
+    // 下沿回补试探，卖点=上沿高抛试探），`CenterOscillationTrigger::new` 同口径。level 0 无
+    // 次级别（L0 是递归底），故从 lvl=1 起。盘背证据不参与（B 裁定：非必要条件）。
+    for lvl in 1..n_levels {
+        let Some(sub_level) = classification_step.levels.get(lvl - 1) else { continue };
+        let alive = cl_machines[lvl].alive_center().map(|(c, _)| CenterId::of(&c));
+        for p in sub_level.bsp.iter() {
+            let signal_side = if p.bits.conf_plus() {
+                VoiceSide::Long
+            } else if p.bits.conf_minus() {
+                VoiceSide::Short
+            } else {
+                continue; // 无买/卖侧确认 bit（不应出现在 bsp 列表中）——防御性跳过，不构造。
+            };
+            if let Ok(trigger) = CenterOscillationTrigger::new(lvl as u32, alive, signal_side, p.source_index) {
+                if let Some(action) = osc_books[lvl].on_trigger(trigger) {
+                    actions.push(CenterOscillationActionRecord {
+                        bar,
+                        level: lvl as u32,
+                        center: trigger.center(),
+                        action,
+                    });
+                }
             }
         }
     }
@@ -859,10 +874,14 @@ fn step_center_oscillation(
 
 #[cfg(test)]
 mod center_oscillation_wiring_tests {
-    //! #292 T2 落点门控接线单测：`step_center_oscillation` 纯函数化后可脱离完整 fill 循环
-    //! 直接单测（不依赖 tower_i/gate/真实市场数据）。覆盖验收三项：
-    //! - 门控开启臂：中枢链推进+确认三类点 ⟹ 生命周期终结动作可见；PanDivTrigger 消费
-    //!   ⟹ 减补动作可见。
+    //! #292 T2 落点门控接线单测（★★触发源改码，用户裁定 2026-07-26）：`step_center_oscillation`
+    //! 纯函数化后可脱离完整 fill 循环直接单测（不依赖 tower_i/gate/pan_div/真实市场数据）。
+    //! 覆盖验收各项：
+    //! - 门控开启臂 · 触发通路：次级别（lvl-1）已确认买卖点驱动 `CenterOscillationTrigger`，
+    //!   两边界侧（次级别卖点=上沿高抛 `Reduce`、次级别买点=下沿回补 `Replenish`）均可见；
+    //!   **无盘背证据**（本测试模块自 #292 触发源改码后已不再构造任何 `PanDivTrigger`）仍可
+    //!   触发——盘背非必要条件（B 裁定）的最强证据即本模块编译期已不存在该依赖。
+    //! - 门控开启臂 · 终结通路：中枢链推进+确认三类点 ⟹ 生命周期终结动作可见。
     //! - 门控关闭臂：fill.rs 主循环里本函数整段不被调用（`pan_div_hist=None` 分支跳过），
     //!   `FillOutput.center_oscillation_actions` 恒空——由 v1/dual 路径的诚实空 Vec 字面量
     //!   保证（编译期可见，见 `FillOutput` 三处构造点），本测试补运行期证据。
@@ -873,9 +892,6 @@ mod center_oscillation_wiring_tests {
     use classifier::center_lifecycle::CenterId;
     use classifier::{bsp::BspPoint, bsp::OwnerRef, Classification, LevelState};
     use super::super::super::strategy::center_oscillation_trade::{CenterOscillationAction, CenterOscillationBook};
-    use super::super::super::strategy::oscillation::{
-        ConsolidationDivergenceEvidence, OscillationCenterRef, OscillationEvidenceRef, PanDivTrigger,
-    };
     use super::super::super::strategy::voice::VoiceSide;
     use super::super::super::types::{BspBits, Center};
     use std::rc::Rc;
@@ -905,33 +921,76 @@ mod center_oscillation_wiring_tests {
         }
     }
 
-    fn pan_div_trigger(level: u32, signal_side: VoiceSide, source_index: usize) -> PanDivTrigger {
-        PanDivTrigger::from_gated_pan_div(
-            level,
-            signal_side,
-            OscillationCenterRef::new(0, 0),
-            ConsolidationDivergenceEvidence::new(OscillationEvidenceRef::new(source_index, 0)),
-        )
-        .unwrap()
+    /// 次级别（lvl-1）已确认买卖点：`side=Long` ⟹ buy1 bit（次级别买点），`side=Short` ⟹
+    /// sell1 bit（次级别卖点）——无载体（次级别买卖点触发不读次级别中枢，A/B 裁定只认本级
+    /// `alive_center()` + 次级别信号方向，`center: None` 即证无门读取次级别账户/结构状态）。
+    fn sub_level_bsp_point(source_index: usize, side: VoiceSide) -> BspPoint {
+        let bits = match side {
+            VoiceSide::Long => BspBits { buy1: true, ..BspBits::default() },
+            VoiceSide::Short => BspBits { sell1: true, ..BspBits::default() },
+            VoiceSide::Flat => BspBits::default(),
+        };
+        BspPoint {
+            source_index,
+            level_origin: 0,
+            bits,
+            pivot_low: 0,
+            pivot_high: 0,
+            center: None,
+            struct_break_dir: None,
+            force: None,
+        }
     }
 
-    /// 门控开启臂 · 触发通路：本级在场（born 由 consume_chain 推出）+ PanDivTrigger（Short
-    /// 信号=上沿高抛试探）⟹ `Reduce` 动作可见，且身份=本级 `alive_center()`（非 pan_div 坐标）。
+    /// 两级 Classification：level 0（次级别，仅本 bar bsp）+ level 1（本级中枢在场）。
+    fn two_level_step(sub_bsp: Vec<BspPoint>) -> Classification {
+        Classification { levels: vec![level_with_bsp(sub_bsp), LevelState::default()] }
+    }
+
+    /// 门控开启臂 · 触发通路（B 裁定）：本级（level 1）中枢在场（born 由 consume_chain 推出）
+    /// + 次级别（level 0）已确认卖点（`Short`=上沿高抛试探）⟹ `Reduce` 动作可见，身份=本级
+    /// `alive_center()`。本测试**不构造任何 `PanDivTrigger`**——`step_center_oscillation` 签名
+    /// 已不接受盘背触发参数，编译期即证盘背非必要（B 裁定最强形式）。
     #[test]
-    fn gate_on_pan_div_trigger_produces_visible_reduce_action() {
+    fn gate_on_sub_level_sell_point_produces_visible_reduce_action() {
         let c0 = center(5, 10, 100, 200);
-        let classification = Classification { levels: vec![level_with_centers(vec![c0])] };
-        let step = Classification { levels: vec![LevelState::default()] };
+        let classification =
+            Classification { levels: vec![LevelState::default(), level_with_centers(vec![c0])] };
+        let step = two_level_step(vec![sub_level_bsp_point(11, VoiceSide::Short)]);
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
-        let triggers = vec![(0usize, pan_div_trigger(0, VoiceSide::Short, 11))];
-        let actions = step_center_oscillation(7, &classification, &step, &triggers, &mut cl_machines, &mut osc_books);
-        assert_eq!(actions.len(), 1, "门开+在场+触发 ⟹ 恰一条动作可见");
+        let actions = step_center_oscillation(7, &classification, &step, &mut cl_machines, &mut osc_books);
+        assert_eq!(actions.len(), 1, "门开+在场+次级别卖点 ⟹ 恰一条动作可见");
         assert_eq!(actions[0].bar, 7);
-        assert_eq!(actions[0].level, 0);
-        assert_eq!(actions[0].center, CenterId::of(&c0), "身份=alive_center()，非 pan_div 坐标投影");
-        assert_eq!(actions[0].action, CenterOscillationAction::Reduce);
-        assert!(osc_books[0].is_suspended(CenterId::of(&c0)));
+        assert_eq!(actions[0].level, 1, "触发落在本级（level 1），非次级别（level 0）");
+        assert_eq!(actions[0].center, CenterId::of(&c0), "身份=alive_center()");
+        assert_eq!(actions[0].action, CenterOscillationAction::Reduce, "次级别卖点=上沿高抛");
+        assert!(osc_books[1].is_suspended(CenterId::of(&c0)));
+    }
+
+    /// 门控开启臂 · 触发通路（B 裁定，另一边界侧）：次级别（level 0）已确认买点（`Long`=下沿
+    /// 回补试探）——先高抛挂起，再喂次级别买点 ⟹ `Replenish` 动作可见，挂起清空。
+    #[test]
+    fn gate_on_sub_level_buy_point_produces_visible_replenish_action() {
+        let c0 = center(5, 10, 100, 200);
+        let classification =
+            Classification { levels: vec![LevelState::default(), level_with_centers(vec![c0])] };
+        let mut cl_machines = Vec::new();
+        let mut osc_books = Vec::new();
+        let empty_step = two_level_step(Vec::new());
+        let reduce_step = two_level_step(vec![sub_level_bsp_point(10, VoiceSide::Short)]);
+        let _ = step_center_oscillation(0, &classification, &empty_step, &mut cl_machines, &mut osc_books);
+        let reduce_actions =
+            step_center_oscillation(1, &classification, &reduce_step, &mut cl_machines, &mut osc_books);
+        assert_eq!(reduce_actions[0].action, CenterOscillationAction::Reduce);
+        assert!(osc_books[1].is_suspended(CenterId::of(&c0)));
+
+        let cover_step = two_level_step(vec![sub_level_bsp_point(20, VoiceSide::Long)]);
+        let actions = step_center_oscillation(2, &classification, &cover_step, &mut cl_machines, &mut osc_books);
+        assert_eq!(actions.len(), 1, "门开+挂起+次级别买点 ⟹ 恰一条回补动作可见");
+        assert_eq!(actions[0].action, CenterOscillationAction::Replenish, "次级别买点=下沿回补");
+        assert_eq!(actions[0].center, CenterId::of(&c0));
+        assert!(!osc_books[1].is_suspended(CenterId::of(&c0)), "回补出口=挂起清空");
     }
 
     /// 门控开启臂 · 终结通路：先触发挂起，再喂本级三类买点破坏（`buy3`，载体=在场中枢）⟹
@@ -943,9 +1002,8 @@ mod center_oscillation_wiring_tests {
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
         // 先驱动一次空 step 让链同步（Adopted）+ 触发一次高抛挂起（不经本函数：直接摆状态）。
-        let no_triggers: Vec<(usize, PanDivTrigger)> = Vec::new();
         let empty_step = Classification { levels: vec![LevelState::default()] };
-        let _ = step_center_oscillation(0, &classification, &empty_step, &no_triggers, &mut cl_machines, &mut osc_books);
+        let _ = step_center_oscillation(0, &classification, &empty_step, &mut cl_machines, &mut osc_books);
         osc_books[0].on_trigger(
             super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
                 0,
@@ -961,7 +1019,7 @@ mod center_oscillation_wiring_tests {
         let step_with_bsp =
             Classification { levels: vec![level_with_bsp(vec![third_class_buy_break(20, c0)])] };
         let actions =
-            step_center_oscillation(1, &classification, &step_with_bsp, &no_triggers, &mut cl_machines, &mut osc_books);
+            step_center_oscillation(1, &classification, &step_with_bsp, &mut cl_machines, &mut osc_books);
         assert_eq!(actions.len(), 1, "三类买点破坏终结 ⟹ 收手回补动作可见");
         assert_eq!(actions[0].action, CenterOscillationAction::Replenish);
         assert_eq!(actions[0].center, CenterId::of(&c0));
@@ -983,8 +1041,7 @@ mod center_oscillation_wiring_tests {
         // bar0：链=[c0]，首次消费（Adopted），不产生任何生命周期事件。
         let bar0_classification = Classification { levels: vec![level_with_centers(vec![c0])] };
         let empty_step = Classification { levels: vec![LevelState::default()] };
-        let no_triggers: Vec<(usize, PanDivTrigger)> = Vec::new();
-        let _ = step_center_oscillation(0, &bar0_classification, &empty_step, &no_triggers, &mut cl_machines, &mut osc_books);
+        let _ = step_center_oscillation(0, &bar0_classification, &empty_step, &mut cl_machines, &mut osc_books);
 
         // 直接摆两笔挂起（c0 已在场；c1 尚未在链上——挂起按身份匹配，不要求当前在场，D 裁定）。
         osc_books[0].on_trigger(
@@ -1011,7 +1068,7 @@ mod center_oscillation_wiring_tests {
         // bar1：链前缀分叉为 [c1, c2]（已消费的第 0 格身份从 c0 改写为 c1）⟹ Rebased。
         // 新链含 c1、不含 c0。
         let bar1_classification = Classification { levels: vec![level_with_centers(vec![c1, c2])] };
-        let actions = step_center_oscillation(1, &bar1_classification, &empty_step, &no_triggers, &mut cl_machines, &mut osc_books);
+        let actions = step_center_oscillation(1, &bar1_classification, &empty_step, &mut cl_machines, &mut osc_books);
         assert!(actions.is_empty(), "RebaseVanished 终结不回补，本 bar 无 cover_action 可见动作");
         assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "c0 已从新链消失⟹终结，不再悬空");
         assert!(osc_books[0].is_suspended(CenterId::of(&c1)), "c1 仍在新链上⟹跟随迁移，挂起原样保留");
@@ -1566,11 +1623,9 @@ where
             // 产触发事件上协议轨（#274 原料）。父腿快照/sync、候选路由、P10 Record、
             // 账面 apply 与净额叠加出口全部随 S6 账面形态删除。
             let mut protocol_events = super::super::strategy::protocol::ProtocolEventSet::hold(0);
-            // #292（T2 接线点一）：本 bar 门后 PanDivTrigger 收集（level, trigger）——消费仍留在
-            // 本函数（依赖 tower_i/hist/gate，不可抽离）；产出交给下方纯函数 `step_center_oscillation`
-            // 做中枢生命周期驱动 + 触发转换（无 tower/gate 依赖，可直接单测）。
-            let mut pan_div_triggers: Vec<(usize, super::super::strategy::oscillation::PanDivTrigger)> =
-                Vec::new();
+            // #292（B 裁定，用户 2026-07-26）：PanDivTrigger 降格为可选辅助——不再驱动开启臂
+            // 生产触发（驱动源已改为次级别买卖点，见下方 `step_center_oscillation` 调用）。本段
+            // 仍保留盘背证据上协议轨（#274 原料，与 #292 触发源解耦，不喂 `step_center_oscillation`）。
             if let Some(hist) = pan_div_hist.as_deref() {
                 for (lvl, ls) in classification_i.levels.iter().enumerate() {
                     for cert in ls.pan_div.iter() {
@@ -1604,18 +1659,17 @@ where
                         // DA-Q2：PanDiv 触发证据留在协议轨（#274 消费点；本层不产订单）。
                         let trigger = pan_div_state.prepare(gated);
                         protocol_events = protocol_events.with_center_oscillation(trigger);
-                        pan_div_triggers.push((lvl, trigger));
                     }
                 }
-                // #292（T2 接线点一+二）：级数对齐 + 逐级驱动本 bar 中枢生命周期事件（born/broken/
-                // reset/superseded）+ PanDivTrigger→CenterOscillationTrigger 转换消费（A 裁定：
-                // 中枢身份取本级 `alive_center()`，非 pan_div 坐标投影）→ 挂起账减补动作上
-                // osc_actions（接线可见性证据；真实记账是 T3/#293 职责，本层不动订单/账本）。
+                // #292（T2 接线点二，触发源改码）：级数对齐 + 逐级驱动本 bar 中枢生命周期事件
+                // （born/broken/reset/superseded）+ 次级别买卖点 → `CenterOscillationTrigger` 构造
+                // 消费（A 裁定：中枢身份取本级 `alive_center()`；B 裁定：触发源=次级别买卖点，
+                // 不依赖上面的 pan_div_hist/gate）→ 挂起账减补动作上 osc_actions（接线可见性证据；
+                // 真实记账是 T3/#293 职责，本层不动订单/账本）。
                 osc_actions.extend(step_center_oscillation(
                     i,
                     &classification_i,
                     &classification_step,
-                    &pan_div_triggers,
                     &mut cl_machines,
                     &mut osc_books,
                 ));

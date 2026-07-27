@@ -92,8 +92,12 @@ impl CenterOscillationTrigger {
     ///   `alive_center()`（经 `CenterId::of` 投影），不复用 PanDiv 自带坐标另立第二套「在场」
     ///   判据。`alive=None` ⟹ `Err(CenterNotAlive)`（与 `new` 同一失败面）。
     /// - **盘背证据**：`pan_div.evidence()` 降格为 `source_index`（`reference().source_index()`）
-    ///   ——本触发类型面不携证据类型本身，只留可追溯坐标（B 裁定：盘背是触发主信号源之一，
-    ///   非本触发的必要账面字段）。
+    ///   ——本触发类型面不携证据类型本身，只留可追溯坐标。
+    ///
+    /// ★★#292 触发源改码（用户裁定 2026-07-26，票面 B）：生产开启臂的触发主信号源已改为
+    /// **次级别买卖点**（`CenterOscillationTrigger::new` 直收次级别信号方向，见上）——盘背
+    /// **非必要条件**，本方法降格为**可选辅助转换**（保留 API，供未来盘背过滤/标注等辅助用途；
+    /// `fill.rs::step_center_oscillation` 生产驱动路径已不再调用它，唯一驱动源是次级别买卖点）。
     pub fn from_pan_div_trigger(
         pan_div: PanDivTrigger,
         alive: Option<CenterId>,

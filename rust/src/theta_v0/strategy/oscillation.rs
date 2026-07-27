@@ -17,6 +17,11 @@
 //!    不携任何账面/动作语义（无父数量、无父翻转、无开平仓意向）——账面动作待 #274
 //!    按修2/修4（该级账内减仓回补）重新设计。
 //!
+//! ★★#292 触发源改码（用户裁定 2026-07-26）：生产开启臂的触发主信号源已改为**次级别买卖点**
+//! （`center_oscillation_trade::CenterOscillationTrigger::new`）——盘背**非必要条件**，本模块
+//! `PanDivTrigger` 降格为**可选辅助**：转换 API（`CenterOscillationTrigger::from_pan_div_trigger`）
+//! 保留，但生产驱动路径（`backtest::fill::step_center_oscillation`）已不再消费它。
+//!
 //! `CenterOscillationConfig` 开关本体保留（默认关，#274 落点门控 seam）。
 
 use super::voice::VoiceSide;
