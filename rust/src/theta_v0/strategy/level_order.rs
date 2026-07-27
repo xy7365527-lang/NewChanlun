@@ -191,6 +191,18 @@ pub struct LevelOrderStats {
     /// 不同；这是真实分歧，不是缺陷，M2 按比例吸收并在此登记，M3/M4 须正面裁决。**M3 门控后
     /// 同一 fixture 降至 2/3000**——频率降而根因未除，相交点分析见模块头 §M3）。
     pub n_rescaled: u64,
+    /// ★#363（#355 MED-C）M4 级别帽至少裁到一级（[`LevelOrderPlan::cap_narrowed_levels`] 非空）
+    /// 的决策点数（**L1 经验读数**，无断言）。
+    ///
+    /// 与 [`Self::n_rescaled`] 配对读：二者是逐级 off-clock 增量的两条**合法**解释路径，本读数
+    /// 给出帽这一条的频率。`enforce_level_cap=false`（default）⟹ 恒 0。
+    ///
+    /// 用途是 cap-on 场景的**非平凡前置**：`per_level_sparsity_has_no_unexplained_violation()`
+    /// 在 `n_cap_narrowed==0` 时可能只是「帽从未 binding」的平凡通过（#289 MED 同类纪律）。
+    /// **当前消费者仅** `fill.rs::level_cap_reclamp_tests` 的三个单测——跑批验收侧
+    /// （`runner.rs` 的 cap-on 验收、`bin/theta_overlay.rs` 的读数打印）**尚未接入**本读数，
+    /// 本 doc 不声明它已在跑批上把关（090：不声明代码不具备的能力）。
+    pub n_cap_narrowed: u64,
     /// `max |Σ_ℓ basis^gated_ℓ − T_lee|`（**L1 经验读数**）：级别结构目标与账户层投影后物理
     /// 目标的**分歧幅度**。纯观测，**不断言其为 0**——它不为 0 正是「结构说的仓位 ≠ 账户能下
     /// 的仓位」的量化。
@@ -224,18 +236,26 @@ pub struct LevelOrderStats {
     /// ★M3 **逐级**稀疏性反例：本决策点无 tick 却 `Δq_ℓ ≠ 0` 的 `(决策点, 级别)` 计数。
     ///
     /// 设计文档不变量的**逐级**形式是「bar i 无 ℓ 级事件 ⟹ `Δq_ℓ(i)=0`」，比 bar 级形式
-    /// （「无任何级别事件 ⟹ 不发单」）**严格更强**。二者不等价的唯一路径是
-    /// [`attribute_total`] 的**比例缩放**：`T_lee ≠ Σ basis^gated` 时它按比例改写**所有**级别
-    /// （含无 tick 的），此时无 tick 级别也会有非零 `Δq_ℓ`。
+    /// （「无任何级别事件 ⟹ 不发单」）**严格更强**。二者不等价的路径有**两条**（#363 补课：
+    /// M4 起不再只有缩放一条）：
     ///
-    /// 这不是缺陷而是 §F③ 域分离的必然：缩放只由账户层帽/风控 binding 触发（结构域不会让
-    /// `Σ basis^gated` 与 `T_lee` 分离），属 `CapTick`/`RiskTick` 例外。**但必须逐级计数**，
+    /// 1. [`attribute_total`] 的**比例缩放**：`T_lee ≠ Σ basis^gated` 时它按比例改写**所有**
+    ///    级别（含无 tick 的）——判据 [`LevelOrderPlan::rescaled`]；
+    /// 2. **M4 级别帽**（`enforce_level_cap=true`）对越界级别的直接 clamp：它不经 `attribute_total`
+    ///    而直接改写 `gated`/`targets`，只动越界的那几级——判据
+    ///    [`LevelOrderPlan::cap_narrowed_levels`]（逐级）。
+    ///
+    /// 这不是缺陷而是 §F③ 域分离的必然：两条路径都只由账户层帽/风控 binding 触发（结构域不会让
+    /// `Σ basis^gated` 与 `T_lee` 分离，也不会施加 `cap_ℓ`），属 `CapTick`/`RiskTick` 例外。**但必须逐级计数**，
     /// 否则「逐级稀疏性」只是没被测到，而不是成立——与
     /// [`Self::n_levels_off_clock_delta_unexplained`] 配对读。
     pub n_levels_off_clock_delta: u64,
-    /// ★M3 上一条中**无法**由缩放（帽/风控 binding）解释的 `(决策点, 级别)` 计数——真实违例。
+    /// ★M3 上一条中**无法**由上述两条路径（比例缩放 / 该级被 M4 级别帽裁剪）解释的
+    /// `(决策点, 级别)` 计数——真实违例。
     ///
-    /// 恒 0 才说明逐级稀疏性成立。非 0 = 存在「无 tick、无缩放，却动了该级目标」的路径。
+    /// 恒 0 才说明逐级稀疏性成立。非 0 = 存在「无 tick、无缩放、该级也没被帽裁，却动了该级
+    /// 目标」的路径。**帽这一条按级别逐个判**（#363）：同决策点内某级被裁**不**解释另一级的
+    /// off-clock 增量，否则本读数退化到 bar 级鉴别力。
     pub n_levels_off_clock_delta_unexplained: u64,
     /// ★M3 风控门**非全开**（`force_flat || stop_long || stop_short`）的决策点数。
     ///
@@ -285,7 +305,9 @@ impl LevelOrderStats {
     }
 
     /// ★M3 **逐级**稀疏性无未解释违例（比 bar 级严格更强）：无 tick 的级别若 `Δq_ℓ ≠ 0`，
-    /// 必须全部由 [`attribute_total`] 的帽/风控缩放解释。
+    /// 必须由 [`attribute_total`] 的帽/风控**比例缩放**（[`LevelOrderPlan::rescaled`]）或
+    /// **该级**被 M4 级别帽裁剪（[`LevelOrderPlan::cap_narrowed_levels`]，#363）解释——
+    /// 逐级判，一级 binding 不赦免同决策点的其他级别。
     ///
     /// 对应设计文档不变量逐字「bar i 无 ℓ 级事件 ⟹ `Δq_ℓ(i)=0`」与「级别封闭：`Ledger_ℓ` 的
     /// 持仓只由 `formation_level=ℓ` 的事件改变」。
@@ -307,6 +329,27 @@ pub struct LevelOrderPlan {
     pub used_residual_bucket: bool,
     /// 本计划是否经比例缩放（`Σ_ℓ basis_ℓ ≠ 物理目标`）。
     pub rescaled: bool,
+    /// ★#363（#355 MED-C）本计划中被 **M4 级别帽**真实裁剪过的级别（升序、去重；`𝒦_Θ` 帽
+    /// binding 的**逐级**判据）。
+    ///
+    /// 与 [`Self::rescaled`] 同为「无 tick 级别的 `Δq_ℓ` 为何非零」的合法解释项（§F③ 域分离的
+    /// `CapTick` 例外），供 [`LevelOrderStats::n_levels_off_clock_delta_unexplained`] 消费——但
+    /// **粒度不同**且必须不同：`rescaled` 的比例缩放按定义改写**所有**级别，故 bar 级 bool 即
+    /// 足；帽是**逐级**施加的（`cap_ℓ` 逐级不同，clamp 只动越界的那几级），用 bar 级 bool 会让
+    /// 「某一级被裁」赦免同决策点**全部** off-clock 级别，把本谓词削弱到与 bar 级同鉴别力——
+    /// 而它的全部意义正是「比 bar 级严格更强」（见
+    /// [`LevelOrderStats::per_level_sparsity_has_no_unexplained_violation`]）。
+    ///
+    /// 由施加点（`fill.rs::plan_level_gated_order`）填入，取**两处**帽施加点逐级差集之并：
+    /// ①`regate` 后对 `gated` 的裁剪、②归因缩放后对 `targets` 的二次裁剪。本结构自身不施加帽
+    /// （[`LevelOrderLedger::plan_gated`] 恒置空表，级别帽的唯一施加入口是
+    /// [`super::coverage::clamp_levels_to_weighted_cap`]，见 `level_risk` 模块头「施加点严格限定」）。
+    /// `enforce_level_cap=false`（default）⟹ 恒空（零分配）。
+    ///
+    /// 为何不复用 `rescaled`：`rescaled` 的语义是 [`super::level_attrib::attribute_total`] 的
+    /// **比例缩放**（`Σbasis ≠ 物理目标`），帽裁剪不经该路径；把帽写进 `rescaled` 会同时污染
+    /// [`LevelOrderStats::n_rescaled`] 的读数语义（090 严格性：声明与实际一一对应）。
+    pub cap_narrowed_levels: Vec<u32>,
     /// `Σ_ℓ net_ℓ − T`（结构净额与账户层物理目标的**有符号分歧**；L1 经验读数，见
     /// [`LevelOrderStats::max_abs_struct_gap`]）。
     pub struct_gap: i64,
@@ -453,7 +496,17 @@ impl LevelOrderLedger {
         let deltas = sub_levels(&targets, &self.planned);
         let order_units = deltas.iter().map(|&(_, q)| q).sum();
         let struct_gap = gated_basis.iter().map(|&(_, q)| q).sum::<i64>() - target_total;
-        LevelOrderPlan { targets, deltas, order_units, used_residual_bucket, rescaled, struct_gap }
+        // `cap_narrowed_levels` 空表：本函数不施加级别帽（唯一施加入口在 `coverage`，见字段
+        // doc）；帽裁到了哪几级由施加点 `fill.rs` 在此计划上填入。
+        LevelOrderPlan {
+            targets,
+            deltas,
+            order_units,
+            used_residual_bucket,
+            rescaled,
+            cap_narrowed_levels: Vec::new(),
+            struct_gap,
+        }
     }
 
     /// ★M3 下单后把计划态推进到本决策点的实际目标（`q_ℓ^plan := q_ℓ`）。
@@ -482,11 +535,18 @@ impl LevelOrderLedger {
         let held_total = self.held_total();
         let planned_total = self.planned_total();
         // ★逐级稀疏性核对（比 bar 级严格更强）：无 tick 的级别若 Δq_ℓ≠0，只应源自
-        //   `attribute_total` 的帽/风控比例缩放（`plan.rescaled`）；否则是真实违例。
+        //   `attribute_total` 的帽/风控比例缩放（`plan.rescaled`，按定义改写全部级别）或
+        //   M4 级别帽对**该级**的直接裁剪（`plan.cap_narrowed_levels`，#363 补课）；否则是
+        //   真实违例。两条解释项按各自的**施加粒度**判定——帽逐级判，不许一级 binding 赦免
+        //   全决策点（那会把本判据削弱到 bar 级鉴别力，见 `cap_narrowed_levels` 字段 doc）。
         let mut off_clock_delta = 0u64;
+        let mut off_clock_unexplained = 0u64;
         for &(lvl, d) in plan.deltas.iter() {
             if d != 0 && !ticked.contains(&lvl) {
                 off_clock_delta += 1;
+                if !plan.rescaled && !plan.cap_narrowed_levels.contains(&lvl) {
+                    off_clock_unexplained += 1;
+                }
             }
         }
         // ★#309 MED-1 补课：本决策点同时持有非零目标的真实级别数（残差桶不算）。
@@ -498,9 +558,11 @@ impl LevelOrderLedger {
         let s = &mut self.stats;
         s.max_concurrent_real_levels = s.max_concurrent_real_levels.max(concurrent_real_levels);
         s.n_levels_off_clock_delta += off_clock_delta;
-        if !plan.rescaled {
-            s.n_levels_off_clock_delta_unexplained += off_clock_delta;
-        }
+        // ★#363（#355 MED-C）：`cap_narrowed_levels` 与 `rescaled` 是**孪生**解释项——帽驱动的
+        // 逐级偏离不经 `attribute_total` 缩放（帽直接改写 `gated`/`targets`），`rescaled` 对它
+        // 结构性不可见（同 bar 级 `risk_or_cap_active` 的 #351 MED-3 修复形状）。只并入一半
+        // ⟹ cap-on 下帽收紧逼出的 off-clock 逐级增量被误计为未解释违例。
+        s.n_levels_off_clock_delta_unexplained += off_clock_unexplained;
         s.n_decisions += 1;
         if plan.order_units != 0 {
             s.n_orders_generated += 1;
@@ -528,6 +590,9 @@ impl LevelOrderLedger {
         }
         if plan.rescaled {
             s.n_rescaled += 1;
+        }
+        if !plan.cap_narrowed_levels.is_empty() {
+            s.n_cap_narrowed += 1;
         }
         s.max_abs_struct_gap = s.max_abs_struct_gap.max(plan.struct_gap.abs());
     }

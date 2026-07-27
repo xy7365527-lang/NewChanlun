@@ -470,6 +470,37 @@ struct AccountProjectionCtx<'a> {
     gate: super::super::strategy::coverage::KThetaRiskGate,
 }
 
+/// ★#363（#355 MED-C）M4 级别帽的**逐级** binding 判据：clamp 前后逐位比较，取值被真正改过的
+/// 级别（升序，继承输入的 level 升序）。
+///
+/// [`super::super::strategy::coverage::clamp_levels_to_weighted_cap`] 保序等长（逐级 `map`，零项
+/// 保留、残差桶透传），故逐位比较即逐级比较——不需要按 level 归并。
+fn levels_narrowed_by_cap(before: &[(u32, i64)], after: &[(u32, i64)]) -> Vec<u32> {
+    debug_assert_eq!(before.len(), after.len(), "clamp 保序等长契约破：{before:?} vs {after:?}");
+    before
+        .iter()
+        .zip(after.iter())
+        .filter(|(b, a)| b.0 == a.0 && b.1 != a.1)
+        .map(|(b, _)| b.0)
+        .collect()
+}
+
+/// 两张升序级别表的并（去重）。任一侧为空 ⟹ 零分配返回另一侧（default 路径与帽未 binding 的
+/// 常态都走这条）。
+fn union_sorted_levels(a: Vec<u32>, b: Vec<u32>) -> Vec<u32> {
+    if b.is_empty() {
+        return a;
+    }
+    if a.is_empty() {
+        return b;
+    }
+    let mut out = a;
+    out.extend(b);
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
 fn plan_level_gated_order(
     level_order: &mut super::super::strategy::level_order::LevelOrderLedger,
     ticks: &super::super::strategy::level_clock::LevelClockTicks,
@@ -510,7 +541,10 @@ fn plan_level_gated_order(
     } else {
         gated
     };
-    let cap_narrowed = gated != gated_pre_cap;
+    // ★#363（#355 MED-C）帽 binding 的**逐级**判据：clamp 前后逐位比较取被真正裁过的级别集。
+    // bar 级 `cap_narrowed`（下方 `risk_or_cap_active` 用）由它派生 ⟹ 两个判据同源，不再是
+    // 「bar 级一个口径、逐级另一个口径」的孪生半修（MED-C 的根因形状）。
+    let cap_narrowed_levels = levels_narrowed_by_cap(&gated_pre_cap, &gated);
     // 结构净目标 = 各级门控计划之和 + **账户层 pan_div 在飞子腿**。后者是 P7/P9 中枢震荡的
     // 净目标分量，载体是 `pan_div_state` 的 lot 账本而**不是** `sep_legs` ⟹ 不经 `net_ℓ`；
     // M2 时它经 `p_star_final` 改写进目标（`schedule_order(target, p_t)` 两分支），M3 必须
@@ -532,29 +566,47 @@ fn plan_level_gated_order(
     // 把 `plan.targets` 放大回 cap 之上，用同一 `clamp_levels_to_weighted_cap` 再裁一次
     // （该函数对 `LEVEL_ACCOUNT_RESIDUAL` 残差桶安全透传，见其 doc）。未越界时 `reclamped ==
     // plan.targets`，零开销分支不改变任何现有行为（含 `enforce_level_cap=false` 的默认路径）。
-    let (plan, cap_narrowed) = if risk.enforce_level_cap {
+    //
+    // ★#363（#355 MED-C）判据同步：本段同时把「帽裁到了**哪几级**」写进计划
+    // （`cap_narrowed_levels` = ①②两处施加点逐级差集之并），供逐级稀疏性判据
+    // （`observe_decision` 的 `n_levels_off_clock_delta_unexplained`）读。#351 只把帽并进了
+    // bar 级 `risk_or_cap_active`（下方），逐级解释项仍只有 `plan.rescaled`——而帽不经
+    // `attribute_total` 缩放（它直接改写 `gated`/`targets`），`rescaled` 对帽驱动的逐级偏离
+    // **结构性不可见**（与 #351 MED-3 对 bar 级判据的诊断同形）。孪生判据必须同源同粒度：
+    // 缩放按定义改写全部级别 ⟹ bar 级 bool 足够；帽逐级施加 ⟹ 必须逐级记，否则「某级被裁」
+    // 会赦免同决策点全部 off-clock 级别，把逐级判据削回 bar 级鉴别力。
+    //
+    // `enforce_level_cap=false`（default）⟹ 本 if 整体跳过 ⟹ `plan` 保持 `plan_gated` 的产出
+    // （`cap_narrowed_levels` 空表，零分配），判据逐字节退化为修改前的 `!plan.rescaled`。
+    let plan = if risk.enforce_level_cap {
         let reclamped = super::super::strategy::coverage::clamp_levels_to_weighted_cap(
             &plan.targets,
             base_units,
             risk,
         );
+        let cap_narrowed_levels = union_sorted_levels(
+            cap_narrowed_levels,
+            levels_narrowed_by_cap(&plan.targets, &reclamped),
+        );
         if reclamped == plan.targets {
-            (plan, cap_narrowed)
+            super::super::strategy::level_order::LevelOrderPlan { cap_narrowed_levels, ..plan }
         } else {
             let deltas =
                 super::super::strategy::level_attrib::sub_levels(&reclamped, level_order.planned());
             let order_units = deltas.iter().map(|&(_, q)| q).sum();
-            let plan = super::super::strategy::level_order::LevelOrderPlan {
+            super::super::strategy::level_order::LevelOrderPlan {
                 targets: reclamped,
                 deltas,
                 order_units,
+                cap_narrowed_levels, // MED-3：二次裁剪同样是帽驱动偏离，并入同一判据
                 ..plan
-            };
-            (plan, true) // MED-3：二次裁剪同样是帽驱动偏离，并入同一判据
+            }
         }
     } else {
-        (plan, cap_narrowed)
+        plan
     };
+    // bar 级判据由逐级判据派生（#363：单一来源）。
+    let cap_narrowed = !plan.cap_narrowed_levels.is_empty();
     // ★#356 修复（编排者裁定：下单量走二次裁剪后的 t_lee'，裁剪点统一）：上面①②两次
     // `clamp_levels_to_weighted_cap` 已经把 `plan.targets`（归因账本）裁到位，但发单时若仍用
     // 裁剪**前**的 `t_lee_raw`——账本说「已裁」，`schedule_order` 收到的却是未裁的目标，物理
@@ -3019,6 +3071,309 @@ mod level_cap_reclamp_tests {
             physical_position_after <= cap_0 + cap_1,
             "物理下单量 {physical_position_after} 突破 Σcap_ℓ={}",
             cap_0 + cap_1
+        );
+    }
+
+    /// 建两级 `sep_legs`（level0/level1 各一条多头腿，深度角色中性）。
+    fn two_level_legs(q0: f64, q1: f64) -> Vec<SepLeg> {
+        vec![
+            SepLeg {
+                id: ElementId { level: 0, ordinal: 0 },
+                side: VoiceSide::Long,
+                q_units: q0,
+                role_v: Vertical::FollowParent,
+                parent_id: None,
+            },
+            SepLeg {
+                id: ElementId { level: 1, ordinal: 0 },
+                side: VoiceSide::Long,
+                q_units: q1,
+                role_v: Vertical::FollowParent,
+                parent_id: None,
+            },
+        ]
+    }
+
+    /// ★★#363（#355 MED-C）端到端红绿：**逐级**稀疏性判据的帽驱动解释项。
+    ///
+    /// #351 把 `cap_narrowed` 只并入了 **bar 级** `risk_or_cap_active`；**逐级**
+    /// [`LevelOrderStats::per_level_sparsity_has_no_unexplained_violation`] 的解释项仍只有
+    /// `plan.rescaled`（`level_order.rs::observe_decision`）。孪生判据只修了一半 ⟹ 帽驱动的
+    /// 逐级 `Δq_ℓ≠0` 被记为**未解释违例**。
+    ///
+    /// 场景（两决策点，直接调生产出口 `plan_level_gated_order`，非纯函数）：
+    /// - t0：两级 tick，`base_units=100` ⟹ `cap_0=50/cap_1=10`，`Σgated=60` 恰压在帽上（帽不
+    ///   binding）⟹ 建仓 60，`planned=[(0,50),(1,10)]`；
+    /// - t1：**无任何 tick**（`gated` 取前值），`base_units` 腰斩到 50 ⟹ `cap_0=25/cap_1=5`
+    ///   ⟹ 帽在 `regate` 后的施加点真实裁剪（`cap_narrowed=true`），`Σgated=30`；账户层投影
+    ///   `t_lee_raw==Σgated` ⟹ `attribute_total` 走**恒等分支** ⟹ `plan.rescaled=false`。
+    ///   两级都无 tick 而 `Δq_ℓ≠0`（50→25、10→5）——修前唯一解释项 `rescaled` 为假 ⟹
+    ///   `n_levels_off_clock_delta_unexplained=2`，逐级判据破（红）；修后 `plan.cap_narrowed`
+    ///   同为解释项 ⟹ 判据成立（绿）。
+    ///
+    /// `base_units = NAV/px` 逐 bar 漂移是生产常态（见 `level_clock` 模块头对齐表末行），故
+    /// 「无结构事件而帽随资本单位收紧」不是构造出来的人工场景，而是 cap-on 下的常规路径。
+    #[test]
+    fn cap_narrowed_explains_per_level_off_clock_delta() {
+        let risk = RiskConfig {
+            level_weights: vec![0.5, 0.1],
+            enforce_level_cap: true,
+            ..RiskConfig::default()
+        };
+        let weights = PiThetaWeights::from_risk(&risk);
+        let gate = KThetaRiskGate::open();
+        let sep_legs = two_level_legs(50.0, 10.0);
+
+        let mut ticks = LevelClockTicks::empty();
+        ticks.insert(0, LevelEventKind::BspConfirmed);
+        ticks.insert(1, LevelEventKind::BspConfirmed);
+
+        let mut level_order = LevelOrderLedger::new();
+        let mut order = Order { action: StrictAction::Wait, qty: 0, exec_index: 0 };
+        // t0：帽不 binding 的建仓（base_units=100 ⟹ cap_0=50/cap_1=10，Σgated=60 恰在帽内）。
+        let d0 = plan_level_gated_order(
+            &mut level_order,
+            &ticks,
+            &sep_legs,
+            0,
+            0,
+            AccountProjectionCtx { p_t: 0.0, base_units: 100.0, risk: &risk, weights, gate },
+            0,
+            0,
+            &mut order,
+        );
+        let filled0: i64 = d0.iter().map(|&(_, q)| q).sum();
+        level_order.on_fill(&d0, filled0); // 全额成交 ⟹ held 与 p_t 同步（归因完备护栏前提）
+        assert_eq!(
+            level_order.planned(),
+            &[(0u32, 50i64), (1, 10)],
+            "t0 前置：帽未 binding ⟹ 两级目标 = 结构净额"
+        );
+        let s0 = level_order.stats();
+        assert_eq!(
+            s0.n_levels_off_clock_delta, 0,
+            "t0 前置：两级均有 tick ⟹ 无 off-clock 增量"
+        );
+
+        // t1：无任何 tick + base_units 腰斩 ⟹ 帽在 regate 后施加点真实裁剪。
+        let no_ticks = LevelClockTicks::empty();
+        plan_level_gated_order(
+            &mut level_order,
+            &no_ticks,
+            &sep_legs,
+            0,
+            0,
+            AccountProjectionCtx {
+                p_t: filled0 as f64,
+                base_units: 50.0,
+                risk: &risk,
+                weights,
+                gate,
+            },
+            1,
+            1,
+            &mut order,
+        );
+        let s = level_order.stats();
+        eprintln!(
+            "MED_C off_clock={} unexplained={} n_rescaled={} planned={:?}",
+            s.n_levels_off_clock_delta,
+            s.n_levels_off_clock_delta_unexplained,
+            s.n_rescaled,
+            level_order.planned()
+        );
+        // 非平凡前置①：本决策点确有「无 tick 却 Δq_ℓ≠0」的级别（否则判据平凡通过）。
+        assert!(
+            s.n_levels_off_clock_delta > 0,
+            "非平凡前置：t1 须产生 off-clock 逐级增量（帽收紧把两级目标从 50/10 压到 25/5）"
+        );
+        // 非平凡前置②：这些增量**不**来自 `attribute_total` 比例缩放——`rescaled` 恒假 ⟹ 修前
+        // 它们全部落进 unexplained（若此处 rescaled 为真，本测将退化为平凡绿，红点被绕开）。
+        assert_eq!(
+            s.n_rescaled, 0,
+            "非平凡前置：t1 走 attribute_total 恒等分支（rescaled=false），红点才在帽解释项上"
+        );
+        // 非平凡前置③：帽真的 binding 过（否则「无未解释违例」可能只是帽从未裁剪的平凡通过）。
+        assert_eq!(s.n_cap_narrowed, 1, "非平凡前置：恰 t1 一个决策点的帽 binding");
+        // 绿（#363 修复核心）：帽驱动的逐级偏离进解释项 ⟹ 逐级稀疏性无未解释违例。
+        assert!(
+            s.per_level_sparsity_has_no_unexplained_violation(),
+            "逐级稀疏性硬约束破：off_clock={} 中有 {} 个未被帽解释的违例（#355 MED-C：`cap_narrowed` \
+             只并入 bar 级 `risk_or_cap_active`，逐级解释项仍只有 `plan.rescaled`）",
+            s.n_levels_off_clock_delta,
+            s.n_levels_off_clock_delta_unexplained
+        );
+    }
+
+    /// ★★#363 解释项的**粒度**（两轴评审 MED：票体原文是「**该级**被二次裁剪」）：帽解释项按
+    /// 级别逐个判，同决策点内某级被帽裁**不**赦免另一级的 off-clock 增量。
+    ///
+    /// 判据层直测（喂手造 `LevelOrderPlan` 给 `observe_decision`）：两级都无 tick 且 `Δq_ℓ≠0`，
+    /// 只有 level0 在 `cap_narrowed_levels` 内 ⟹ 未解释违例恰 1（level1），逐级谓词为假。
+    /// 若解释项退回 plan 级 bool（本票初版形状），此处会是 0 ⟹ 判据被削回 bar 级鉴别力，
+    /// 真实违例被帽的存在顺带赦免。
+    ///
+    /// 为什么必须直测判据层：在当前生产路径上二者对计数**恰好等价**——`rescaled=false` ⟺
+    /// `attribute_total` 恒等分支 ⟺ `targets == gated`，此时无 tick 级别的
+    /// `Δq_ℓ = gated_ℓ − planned_ℓ ≠ 0` ⟺ 该级被帽裁过，故「非零 off-clock 增量」与「该级在
+    /// 差集内」一一对应。等价性依赖那条构造性事实，判据本身不该依赖它（一旦上游新增改写
+    /// `targets` 的路径，plan 级 bool 就开始误赦免）。本测把逐级语义钉死在判据层。
+    #[test]
+    fn per_level_explanation_is_level_scoped_not_plan_scoped() {
+        use super::super::super::strategy::level_order::{DecisionObs, LevelOrderPlan};
+        use std::collections::BTreeSet;
+
+        let mut led = LevelOrderLedger::new();
+        led.commit_planned(&[(0u32, 50i64), (1, 10)]); // 前一决策点已提交的目标
+        let plan = LevelOrderPlan {
+            targets: vec![(0, 25), (1, 5)],
+            deltas: vec![(0, -25), (1, -5)],
+            order_units: -30,
+            used_residual_bucket: false,
+            rescaled: false,                 // 恒等分支：缩放不构成解释
+            cap_narrowed_levels: vec![0],    // 帽只裁了 level0
+            struct_gap: 0,
+        };
+        led.observe_decision(
+            &plan,
+            DecisionObs {
+                p_t: 60,
+                qty_m0: 0,
+                has_structural_tick: false,
+                risk_or_cap_active: true,
+                risk_gate_active: false,
+                ticked: &BTreeSet::new(), // 无任何 tick ⟹ 两级都是 off-clock
+            },
+        );
+        let s = led.stats();
+        assert_eq!(s.n_levels_off_clock_delta, 2, "两级都无 tick 且 Δq_ℓ≠0");
+        assert_eq!(
+            s.n_levels_off_clock_delta_unexplained, 1,
+            "只有被帽裁过的 level0 被解释；level1 是真实违例（plan 级 bool 会误记为 0）"
+        );
+        assert!(
+            !s.per_level_sparsity_has_no_unexplained_violation(),
+            "存在未被任何解释项覆盖的逐级违例时，谓词必须为假"
+        );
+    }
+
+    /// ★#363 default 路径零行为变化（票体任务③）：`enforce_level_cap=false`（`RiskConfig`
+    /// default）下，帽的两处施加点都不执行 ⟹ `plan.cap_narrowed` 恒假 ⟹ 逐级判据
+    /// `!rescaled && !cap_narrowed` **逐字节**退化为修改前的 `!rescaled`，`n_cap_narrowed` 恒 0。
+    ///
+    /// 场景与 [`cap_narrowed_explains_per_level_off_clock_delta`] 逐字相同（同样的两决策点、
+    /// 同样的 `base_units` 腰斩），只改帽开关。**照实记录**：t1 的目标在 default 下同样收窄
+    /// （50/10 → 42/8），但那是**账户层总 cap**（`feasible_net_cap·base_units=50 < Σgated=60`）
+    /// 经 `attribute_total` 比例缩放的结果——`rescaled=true`，与级别帽无关。两条路径因此干净
+    /// 分离：cap-on 走 `cap_narrowed`（上一测，`rescaled=0`），cap-off 走 `rescaled`（本测，
+    /// `n_cap_narrowed=0`），逐级判据在 default 下的取值**只由 `rescaled` 决定**，与本票修改
+    /// 前逐字同值。
+    #[test]
+    fn default_no_cap_path_is_unchanged() {
+        let risk = RiskConfig::default(); // enforce_level_cap=false
+        assert!(!risk.enforce_level_cap, "前置：default 关帽");
+        let weights = PiThetaWeights::from_risk(&risk);
+        let gate = KThetaRiskGate::open();
+        let sep_legs = two_level_legs(50.0, 10.0);
+        let mut ticks = LevelClockTicks::empty();
+        ticks.insert(0, LevelEventKind::BspConfirmed);
+        ticks.insert(1, LevelEventKind::BspConfirmed);
+
+        let mut level_order = LevelOrderLedger::new();
+        let mut order = Order { action: StrictAction::Wait, qty: 0, exec_index: 0 };
+        let d0 = plan_level_gated_order(
+            &mut level_order,
+            &ticks,
+            &sep_legs,
+            0,
+            0,
+            AccountProjectionCtx { p_t: 0.0, base_units: 100.0, risk: &risk, weights, gate },
+            0,
+            0,
+            &mut order,
+        );
+        let filled0: i64 = d0.iter().map(|&(_, q)| q).sum();
+        level_order.on_fill(&d0, filled0);
+        let no_ticks = LevelClockTicks::empty();
+        plan_level_gated_order(
+            &mut level_order,
+            &no_ticks,
+            &sep_legs,
+            0,
+            0,
+            AccountProjectionCtx {
+                p_t: filled0 as f64,
+                base_units: 50.0, // 同上一测的资本单位腰斩：关帽 ⟹ 对目标零影响
+                risk: &risk,
+                weights,
+                gate,
+            },
+            1,
+            1,
+            &mut order,
+        );
+        let s = level_order.stats();
+        assert_eq!(s.n_cap_narrowed, 0, "default 路径不得触达任何级别帽施加点");
+        assert_eq!(
+            level_order.planned(),
+            &[(0u32, 42i64), (1, 8)],
+            "default 路径：收窄来自账户层总 cap（50<Σgated=60）+ 最大余数法归因，非级别帽"
+        );
+        assert_eq!(s.n_rescaled, 1, "default 路径：该收窄经 attribute_total 比例缩放登记");
+        assert!(
+            s.per_level_sparsity_has_no_unexplained_violation(),
+            "default 路径的逐级判据只由 rescaled 解释（与本票修改前逐字同值）"
+        );
+    }
+
+    /// ★#363 第二施加点见证（票体任务①字面「二次裁剪路径」）：归因缩放后的二次裁剪同样把
+    /// 「帽 binding」写进计划（`plan.cap_narrowed` ⟹ `n_cap_narrowed`），而不是随 `..plan`
+    /// 静默继承 `false`。场景复用 #356 的「60→100 缩放突破」（见
+    /// [`physical_order_shares_same_reclamped_target_as_ledger`]）。
+    ///
+    /// **照实记录**（本票边界条件）：该路径下 `rescaled` 恒为真——二次裁剪的触发前提是
+    /// `attribute_total` 把 `targets` 放大出 cap，而第一施加点已保证 `gated_ℓ ≤ cap_ℓ`，故
+    /// `targets ≠ gated` ⟹ `Σgated ≠ t_lee_raw` ⟹ 走非恒等分支（`attribute_total` 的
+    /// `rescaled` 语义即 `Σbasis ≠ total`）。**逐级判据在这条路径上修前即成立**，MED-C 的
+    /// 可触达红点在第一施加点（见上一测）。本测钉住的是两处施加点的判据**同形同源**：
+    /// 若日后有别的路径让 `rescaled=false` 与二次裁剪共存，解释项已就位而不是重新缺一半。
+    #[test]
+    fn reclamp_path_records_cap_narrowed_in_plan() {
+        let risk = RiskConfig {
+            level_weights: vec![0.5, 0.1],
+            enforce_level_cap: true,
+            ..RiskConfig::default()
+        };
+        let weights = PiThetaWeights::from_risk(&risk);
+        let gate = KThetaRiskGate::open();
+        let sep_legs = two_level_legs(50.0, 10.0);
+        let mut ticks = LevelClockTicks::empty();
+        ticks.insert(0, LevelEventKind::BspConfirmed);
+        ticks.insert(1, LevelEventKind::BspConfirmed);
+
+        let mut level_order = LevelOrderLedger::new();
+        let mut order = Order { action: StrictAction::Wait, qty: 0, exec_index: 0 };
+        plan_level_gated_order(
+            &mut level_order,
+            &ticks,
+            &sep_legs,
+            40, // pan_div_child_units：Σgated=60 → 账户层目标 100（触发缩放后重越 cap_0）
+            0,
+            AccountProjectionCtx { p_t: 0.0, base_units: 100.0, risk: &risk, weights, gate },
+            0,
+            0,
+            &mut order,
+        );
+        let s = level_order.stats();
+        assert_eq!(s.n_rescaled, 1, "前置：本场景经 attribute_total 比例缩放（60→100）");
+        assert_eq!(
+            s.n_cap_narrowed, 1,
+            "二次裁剪路径未把帽 binding 写进计划（`..plan` 静默继承 cap_narrowed=false）"
+        );
+        assert!(
+            s.per_level_sparsity_has_no_unexplained_violation(),
+            "逐级稀疏性无未解释违例（本路径两级均有 tick，off_clock={}）",
+            s.n_levels_off_clock_delta
         );
     }
 }
