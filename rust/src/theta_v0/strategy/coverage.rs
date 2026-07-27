@@ -84,9 +84,17 @@ pub type PiThetaDecision = (OrderDecision, ProtocolEvent);
 /// 执行）仍能正确接线（测试坐实：
 /// `restore_chain_ancestor_unresolved_when_shared_ancestor_only_materializes_via_later_boundary_root_push`）。
 /// 声部树是否真非严格，须看 [`placeholder_parent_unresolved`] 与 [`placeholder_pruned_by_ancok`]
-/// 的**差值**（unresolved 但未被 AncOK 剪除 = 被 admit 却接线不上，该差值 #350 修复后结构性恒为 0；
-/// 若真实数据观测到 >0，才是 697 ceiling 应处理的真实暴露面）——`restore_break_registry_lost`
-/// 本身只是 registry 命中率的旁路诊断，非 ceiling 判据。
+/// 的**差值**（unresolved 但未被 AncOK 剪除 = 被 admit 却接线不上，**非环形 `parent_id` 数据下**
+/// 该差值 #350 修复后结构性恒为 0；若真实数据观测到 >0，才是 697 ceiling 应处理的真实暴露面）——
+/// `restore_break_registry_lost` 本身只是 registry 命中率的旁路诊断，非 ceiling 判据。
+///
+/// ★#358 影子评审订正：上述"恒为 0"不覆盖环形 `parent_id`（`op_parent`/`leg.parent_id` 自环或短环，
+/// 见 [`rebuild_placeholder_parent_attached`] 头部 #347 LOW-1 订正）——环形数据下
+/// `rebuild_placeholder_parent_attached` 的 `r != idx` 守卫仍可能记 `placeholder_parent_unresolved`，
+/// 而 [`ancestors_by_id_lookup`] 的环检测在自环场景令 `chain=[自身]`，自身 id 必然 `⊆ raw_ids`
+/// （e_idx 本就在 raw 中），[`ancestor_close_by_id`]（AncOK）因此**不剪除**该元素——即差值可能 >0。
+/// 本节"恒为 0"的报警判据本身成立，但直接接生产 `assert!` 会在环形输入下误伤（090 严格性：
+/// 声明域需与验证域一致，见 formalization-validity-domain）。
 ///
 /// [`placeholder_parent_unresolved`]: AncokProbe::placeholder_parent_unresolved
 /// [`placeholder_pruned_by_ancok`]: AncokProbe::placeholder_pruned_by_ancok
@@ -120,6 +128,10 @@ pub struct AncokProbe {
     /// 含真断链与"永不物化"两种成因）——[`rebuild_placeholder_parent_attached`] 保持 None/None
     /// 不伪造。>0 ⟹ 该路径在生产窗口被命中，可与 [`placeholder_pruned_by_ancok`] 交叉核对。
     /// 纯只读计数，不改 work/raw 控制流。
+    ///
+    /// ★#358 影子评审注记：本字段语义已随 #350 从"仅 held 腿占位"扩到"held 腿占位 + restore 链
+    /// 恢复元素"共用同一统计口径——历史窗口（#350 前）读数与新读数不可直接比较（090 声明膨胀
+    /// 禁令：同一字段名下统计口径变化须显式标注，不可默认可比）。
     ///
     /// [`placeholder_pruned_by_ancok`]: AncokProbe::placeholder_pruned_by_ancok
     pub placeholder_parent_unresolved: u64,
@@ -3633,22 +3645,6 @@ mod tests {
         }
     }
 
-    /// ★票#350：`restore_ancestor_chain_from_registry` 不再在函数内自行修补 parent/attached_dir
-    /// （改为把 idx 追加进调用方 `pending`，由调用方统一延后 fixup，见函数头文档）——单元测试
-    /// 直接调用该函数后，用本 helper 补跑与生产路径同一个 [`resolve_pending_parent_fixups`]，
-    /// 使测试断言仍能观测到修补后的 `parent`/`attached_dir`（生产/测试共用同一 fixup 实现，
-    /// code-review Standards 轴浮出：此前测试 helper 与生产循环各自维护，逐字段同构但存在漂移
-    /// 风险——现测试直接调用生产函数，不再复制逻辑）。
-    fn resolve_pending_parent_fixup(
-        work: &mut ElementView,
-        pending: &[usize],
-        id_idx: &std::collections::HashMap<ElementId, usize>,
-        overlay_seen: &std::collections::HashMap<ElementId, usize>,
-        raw: &[usize],
-    ) {
-        resolve_pending_parent_fixups(work, pending, id_idx, overlay_seen, raw);
-    }
-
     // ── §1/§2 元素提取（真嵌套父子，铁律守护）─────────────────────────────────
 
     /// 元素提取：L1 走势 + 3 个真嵌套 L0 子声部 = 4 个元素（1 根 + 3 子，真父子）。
@@ -5064,7 +5060,7 @@ mod tests {
         // 后调：P2 链——GP 已在场（already_in_raw 提前收敛），复用而非重复 push。
         restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, p2, &id_idx, &mut overlay_seen, &mut pending);
         // 票#350：两次调用各自的 idx 已汇入 pending，统一延后 fixup（模拟生产路径的调用方统一修补）。
-        resolve_pending_parent_fixup(&mut work, &pending, &id_idx, &overlay_seen, &raw);
+        resolve_pending_parent_fixups(&mut work, &pending, &id_idx, &overlay_seen, &raw);
 
         assert_eq!(work.len(), 3, "GP 只应物化一次（P1 链物化，P2 链复用），work 应恰好 3 元素；实得 {}", work.len());
         let gp_count = (0..work.len()).filter(|&i| work[i].id == gp).count();
@@ -5221,7 +5217,7 @@ mod tests {
         let mut pending = Vec::new();
 
         restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(1, 0), &id_idx, &mut overlay_seen, &mut pending);
-        resolve_pending_parent_fixup(&mut work, &pending, &id_idx, &overlay_seen, &raw);
+        resolve_pending_parent_fixups(&mut work, &pending, &id_idx, &overlay_seen, &raw);
 
         assert_eq!(work.len(), 2, "完整链恢复：父 + 祖父均 push 入 work");
         assert_eq!(raw, vec![0, 1], "恢复序 = 子先父后上溯");
@@ -5274,7 +5270,7 @@ mod tests {
         let mut pending = Vec::new();
 
         restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(1, 0), &id_idx, &mut overlay_seen, &mut pending);
-        resolve_pending_parent_fixup(&mut work, &pending, &id_idx, &overlay_seen, &raw);
+        resolve_pending_parent_fixups(&mut work, &pending, &id_idx, &overlay_seen, &raw);
 
         assert_eq!(work.len(), 2, "祖父已在 base ⟹ 仅 push 父（overlay idx=1）");
         assert_eq!(raw, vec![1, 0], "父 push 入 raw 后上溯复用祖父现有 idx 0");
@@ -5322,7 +5318,7 @@ mod tests {
         let mut pending = Vec::new();
 
         restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(0, 0), &id_idx, &mut overlay_seen, &mut pending);
-        resolve_pending_parent_fixup(&mut work, &pending, &id_idx, &overlay_seen, &raw);
+        resolve_pending_parent_fixups(&mut work, &pending, &id_idx, &overlay_seen, &raw);
 
         assert_eq!(work.len(), 1, "子已 push；父 registry 丢失 ⟹ 断链停止");
         assert_eq!(raw, vec![0], "断链子元素留在 raw（剪除归 AncOK，不在 restore 内）");
@@ -5354,7 +5350,7 @@ mod tests {
         let mut pending = Vec::new();
 
         restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(2, 0), &id_idx, &mut overlay_seen, &mut pending);
-        resolve_pending_parent_fixup(&mut work, &pending, &id_idx, &overlay_seen, &raw);
+        resolve_pending_parent_fixups(&mut work, &pending, &id_idx, &overlay_seen, &raw);
 
         assert_eq!(work.len(), 1, "单元素（∂）恢复");
         assert_eq!(work[0].parent, None, "parent_id=None（∂）保持 parent=None");

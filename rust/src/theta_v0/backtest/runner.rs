@@ -5102,15 +5102,18 @@ mod tests {
         // 697 ceiling 的真实判据（票#350 订正，见函数头文档）。
         eprintln!("父不可解析（占位+restore 链，unresolved）: {}", p.placeholder_parent_unresolved);
         eprintln!("  └ 其中被 AncOK 剪除      : {}", p.placeholder_pruned_by_ancok);
-        eprintln!(
-            "  └ ★697 ceiling 真实暴露面（unresolved−pruned，被 admit 却接线不上）: {}",
-            p.placeholder_parent_unresolved - p.placeholder_pruned_by_ancok
-        );
+        // ★#358 影子评审订正：assert 上移到 eprintln 之前——release 关溢出检查，记账不封闭
+        // （pruned > unresolved，环形 parent_id 数据下可能发生，见 coverage.rs 头部订正）时
+        // 若先 eprintln 减法会静默 wrap 成 u64 巨值，assert 反而排在误导性输出之后。
         assert!(
             p.placeholder_pruned_by_ancok <= p.placeholder_parent_unresolved,
             "剪除数({})不应超过未解析总数({})——探针记账不封闭",
             p.placeholder_pruned_by_ancok,
             p.placeholder_parent_unresolved
+        );
+        eprintln!(
+            "  └ ★697 ceiling 真实暴露面（unresolved−pruned，被 admit 却接线不上）: {}",
+            p.placeholder_parent_unresolved - p.placeholder_pruned_by_ancok
         );
         eprintln!("═══════════════════════════════════════════════");
     }
