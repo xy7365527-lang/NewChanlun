@@ -852,6 +852,11 @@ struct LevelCache {
     cached_first_third_pan: Vec<signal::PanDivCert>,
     /// `cached_first_third{,_pan}` 已覆盖的 confirmed 段前缀数（推进锚 = 上次冻结边界 stable_seg）。
     cached_first_third_count: usize,
+    /// #69 5b：本级最近一次一/三类扫描使用的 e_src（source_index 量纲）。
+    ///
+    /// 每个实际分类到的 level 无条件覆写，公式只在 [`signal::freeze_boundary_src`]；
+    /// 不能与 `confirmed_watermark`（tower 元素个数量纲）互换。0 表示稳定集为空。
+    last_freeze_boundary: usize,
     /// ★on2w2-cascade 读域侧车（设计 §4.1 解 A）：与 `centers`/`upper_moves` 1:1 对齐的每 center
     /// 窗口读域元数据（`WinMeta.read_end_src` 停止哨兵源坐标 + win_start/win_exit/emitted）。cascade
     /// 增量失效按 `read_end_src < e` 取保留前缀 P，用 `win_meta[P-1]` 重建 cursor（把 P-1 窗口当
@@ -1005,6 +1010,16 @@ impl TowerCache {
                 .get(level - 1)
                 .map_or(0, |lc| lc.confirmed_watermark)
         }
+    }
+
+    /// #69 5b：classifier level 最近一次使用的 e_src（source_index 量纲）。
+    ///
+    /// p123 的 target level `L` 以 `L-1` 的 lower legs 判 pan，因此读取
+    /// `freeze_boundary(L - 1)`。缺级返回 `None`；调用方须按稳定集为空处理，禁止猜值。
+    pub fn freeze_boundary(&self, level: usize) -> Option<usize> {
+        self.levels
+            .get(level)
+            .map(|level_cache| level_cache.last_freeze_boundary)
     }
 
     /// #92 因果 prefix provider 的只读 MACD/坐标快照。
@@ -2021,6 +2036,9 @@ pub fn classify_with_tower_incremental(
             &mut lc.decompose_state,
             lc.scan_cursor.last_window_emitted.max(1),
         );
+        // #69 5b：无条件登记本级一/三类所用 source 水位；不得挂在 BSP memo miss 分支，
+        // 否则 hit bar 会暴露陈旧 e_src。公式与 signal resume 单一同源。
+        lc.last_freeze_boundary = signal::freeze_boundary_src(&lc.centers, prefix_count, dirty_e);
 
         // BSP 提取（同 classify_impl：L0 线段层 + 递归组装层）。
         // ★增量接入：传预计算 hist（从 cache 增量产出），避免 extract_signals 内部全量 compute_macd。

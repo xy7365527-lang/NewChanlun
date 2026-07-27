@@ -84,6 +84,13 @@
 //! `assemble_level_view_resident` 一次生成 pair confirmation sidecar，move completion 与
 //! provider 同读该 sidecar，不再重复调用 trend_confirm。
 //!
+//! ── pan run memo（#69 5b，090 能力声明）──
+//! `RunEntry` 按 run 持有 `PanMemo`；dirty 评估显式传入，forced shadow 显式传 `None`。
+//! 写入/复用只在 source 水位严格封口与目标 block 已有两个后继块两链合取时成立；
+//! segment/center/block/run 身份回缩或重折逐项失效，MACD 映射未到齐不写负缓存，动态字段
+//! 每次重物化。R1 已接受的 TURN 末窗多子中枢残余不在本实现加第三门，仍由 V0、shadow 与
+//! 双跑 diff 拦截。
+//!
 //! ── 验收面（设计 §5）与白名单 ──
 //! 必须逐位：stdout 门行全套（INPUT/RULE/PROBE/YIELD/CERT/D3/BASELINE/PROVIDER/SNAPSHOT/
 //! BIT_EXACT/R7/MISSED(+EVENT)，与慢版对拍时先做 `sed 's/^P116_/P123_/'` 正规化）+ dump 的
@@ -143,9 +150,10 @@ use newchan_rust::theta_v0::classifier::bsp::BspPoint;
 use newchan_rust::theta_v0::classifier::decompose;
 use newchan_rust::theta_v0::classifier::level_view::{
     assemble_level_view, assemble_level_view_resident, lower_legs_from,
-    project_extended_windows_carried_only, provide_nest_candidate_events, C2LevelViewConfig,
-    C2VersionTuple, ConfirmCursorStore, ConfirmResidence, CoordinateWindow, LevelViewMaterial,
-    LevelViewQuery, LowerLeg, NestCandidateEvent, NestDivergenceKind, ProjectionError,
+    project_extended_windows_carried_only, provide_nest_candidate_events,
+    provide_nest_candidate_events_resident, C2LevelViewConfig, C2VersionTuple, ConfirmCursorStore,
+    ConfirmResidence, CoordinateWindow, LevelViewMaterial, LevelViewQuery, LowerLeg,
+    NestCandidateEvent, NestDivergenceKind, PanMemo, PanResidence, ProjectionError,
     ProjectionMaterial,
 };
 use newchan_rust::theta_v0::classifier::nest::{
@@ -386,6 +394,38 @@ struct RunEntry {
     /// 上次评估产出 ∩ 评估时 pending（provide 输出原序）。judge_at 字段为评估时 as_of，
     /// 应用侧不消费（钟位取 trigger bar，与慢版 or_insert(index) 同口径）。
     events: Vec<NestCandidateEvent>,
+    /// #69 5b：严格 run-local；dirty 更新不得替换，forced shadow 不得借用。
+    pan_memo: PanMemo,
+}
+
+impl RunEntry {
+    fn new(
+        self_gen: u64,
+        lower_gen: u64,
+        last_as_of: usize,
+        events: Vec<NestCandidateEvent>,
+    ) -> Self {
+        Self {
+            self_gen,
+            lower_gen,
+            last_as_of,
+            events,
+            pan_memo: PanMemo::default(),
+        }
+    }
+
+    fn update(
+        &mut self,
+        self_gen: u64,
+        lower_gen: u64,
+        last_as_of: usize,
+        events: Vec<NestCandidateEvent>,
+    ) {
+        self.self_gen = self_gen;
+        self.lower_gen = lower_gen;
+        self.last_as_of = last_as_of;
+        self.events = events;
+    }
 }
 
 /// 稀疏化计数（stderr 专用，不进验收面）：判据触发/重估/复用/TERM 反查现场。
@@ -405,6 +445,12 @@ struct SparseStats {
     shadow_checks: usize,
     shadow_mismatches: usize,
     shadow_term_mismatches: usize,
+    /// #69 5b run-local pan memo 的终态驻留/累计诊断；只进 stderr。
+    pan_entries: usize,
+    pan_hits: usize,
+    pan_misses: usize,
+    pan_writes: usize,
+    pan_invalidations: usize,
     per_level_reevals: BTreeMap<usize, usize>,
     per_level_views_slow_would: BTreeMap<usize, usize>,
 }
@@ -467,7 +513,7 @@ fn main() -> Result<(), String> {
     audit.views += prefix_views;
     audit.snapshots += book.candidates.len();
     eprintln!(
-        "P123_SPARSE_SUMMARY triggers={} reevals={} reuses={} syncs_self={} syncs_lower={} wm_cross_with_lower={} wm_cross_without_lower={} term_rechecks={} term_skips={} shadow_checks={} shadow_mismatches={} shadow_term_mismatches={} prefix_s={:.3}",
+        "P123_SPARSE_SUMMARY triggers={} reevals={} reuses={} syncs_self={} syncs_lower={} wm_cross_with_lower={} wm_cross_without_lower={} term_rechecks={} term_skips={} shadow_checks={} shadow_mismatches={} shadow_term_mismatches={} pan_entries={} pan_hits={} pan_misses={} pan_writes={} pan_invalidations={} prefix_s={:.3}",
         stats.triggers,
         stats.reevals,
         stats.reuses,
@@ -480,6 +526,11 @@ fn main() -> Result<(), String> {
         stats.shadow_checks,
         stats.shadow_mismatches,
         stats.shadow_term_mismatches,
+        stats.pan_entries,
+        stats.pan_hits,
+        stats.pan_misses,
+        stats.pan_writes,
+        stats.pan_invalidations,
         prefix_elapsed.as_secs_f64(),
     );
     for (level, reevals) in &stats.per_level_reevals {
@@ -884,6 +935,7 @@ fn run_targeted_prefix_pass(
                     .confirm_cursors
                     .retain_run_starts(level as u32, active_run_starts);
                 let stable_lower_len = cache.tower_confirmed_len(level - 1);
+                let pan_freeze_boundary = cache.freeze_boundary(level - 1).unwrap_or(0);
                 for run_source_start in run_sources {
                     // 慢版：run 不在当前分区 ⟹ 本 trigger 无产出（continue）。条目保留不应用——
                     // run 重现时代次差（分区已随内容变同步过）⟹ dirty ⟹ 重估，无陈旧复用。
@@ -922,23 +974,35 @@ fn run_targeted_prefix_pass(
                     };
                     if dirty {
                         let structure_generation = level_derived.self_gen;
+                        let entry = entries.entry((level, run_source_start)).or_insert_with(|| {
+                            RunEntry::new(
+                                level_derived.self_gen,
+                                level_derived.lower_gen,
+                                index,
+                                Vec::new(),
+                            )
+                        });
                         let events = {
                             let lower_legs = &level_derived.lower_legs;
                             let confirm_cursors = &mut level_derived.confirm_cursors;
                             evaluate_run(
-                            level,
-                            &tower[level],
-                            (start, end),
+                                level,
+                                &tower[level],
+                                (start, end),
                                 lower_legs,
-                            index,
-                            hist,
-                            dif,
-                            close_src,
-                            &pending,
+                                index,
+                                hist,
+                                dif,
+                                close_src,
+                                &pending,
                                 Some(ConfirmResidence {
                                     store: confirm_cursors,
                                     stable_lower_len,
                                     structure_generation,
+                                }),
+                                Some(PanResidence {
+                                    memo: &mut entry.pan_memo,
+                                    freeze_boundary_src: pan_freeze_boundary,
                                 }),
                             )
                         }?;
@@ -946,14 +1010,11 @@ fn run_targeted_prefix_pass(
                         stats.reevals += 1;
                         *stats.per_level_reevals.entry(level).or_default() += 1;
                         fresh_levels.insert(level);
-                        entries.insert(
-                            (level, run_source_start),
-                            RunEntry {
-                                self_gen: level_derived.self_gen,
-                                lower_gen: level_derived.lower_gen,
-                                last_as_of: index,
-                                events,
-                            },
+                        entry.update(
+                            level_derived.self_gen,
+                            level_derived.lower_gen,
+                            index,
+                            events,
                         );
                     } else {
                         stats.reuses += 1;
@@ -984,6 +1045,7 @@ fn run_targeted_prefix_pass(
                             dif,
                             close_src,
                             &pending,
+                            None,
                             None,
                         )?;
                         stats.shadow_checks += 1;
@@ -1098,6 +1160,14 @@ fn run_targeted_prefix_pass(
             );
         }
     }
+    for entry in entries.values() {
+        let pan = entry.pan_memo.stats();
+        stats.pan_entries += entry.pan_memo.len();
+        stats.pan_hits += pan.hits;
+        stats.pan_misses += pan.misses;
+        stats.pan_writes += pan.writes;
+        stats.pan_invalidations += pan.invalidations;
+    }
     Ok((book, views, pending.len(), stats))
 }
 
@@ -1145,6 +1215,7 @@ fn evaluate_run(
     close_src: &[usize],
     pending: &BTreeSet<EventKey>,
     confirm_residence: Option<ConfirmResidence<'_>>,
+    pan_residence: Option<PanResidence<'_>>,
 ) -> Result<Vec<NestCandidateEvent>, String> {
     let (start, end) = run;
     let projection = project_extended_windows_carried_only(&windows[start..end])
@@ -1174,7 +1245,7 @@ fn evaluate_run(
         confirm_residence,
     )
     .map_err(|error| format!("L{level} targeted C2 assemble 失败: {error:?}"))?;
-    Ok(provide_nest_candidate_events(
+    Ok(provide_nest_candidate_events_resident(
         level as u32,
         &projection,
         &blocks,
@@ -1183,6 +1254,7 @@ fn evaluate_run(
         hist,
         dif,
         close_src,
+        pan_residence,
     )
     .into_iter()
     .filter(|event| pending.contains(&EventKey::from(event)))
@@ -1676,4 +1748,21 @@ fn date_to_timestamp(date: &str) -> Timestamp {
         }
     }
     digits.parse().unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// #69 5b / T5：dirty 更新只替换代次/事件载荷，run-local pan memo 的持有地址不变。
+    #[test]
+    fn run_entry_update_preserves_pan_memo_residence() {
+        let mut entry = RunEntry::new(1, 2, 3, Vec::new());
+        let memo_address = std::ptr::addr_of!(entry.pan_memo);
+        entry.update(4, 5, 6, Vec::new());
+        assert_eq!(entry.self_gen, 4);
+        assert_eq!(entry.lower_gen, 5);
+        assert_eq!(entry.last_as_of, 6);
+        assert_eq!(std::ptr::addr_of!(entry.pan_memo), memo_address);
+    }
 }

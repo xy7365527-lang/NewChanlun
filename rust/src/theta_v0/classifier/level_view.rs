@@ -949,6 +949,267 @@ fn trend_confirm_time(
     .as_option()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct PanSegmentIdentity {
+    up: bool,
+    start_index: usize,
+    end_index: usize,
+    start_price: Tick,
+    end_price: Tick,
+}
+
+impl From<&Segment> for PanSegmentIdentity {
+    fn from(segment: &Segment) -> Self {
+        Self {
+            up: segment.direction == Direction::Up,
+            start_index: segment.start_index,
+            end_index: segment.end_index,
+            start_price: segment.start_price,
+            end_price: segment.end_price,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct PanCenterIdentity {
+    zd: Tick,
+    zg: Tick,
+    dd: Tick,
+    gg: Tick,
+    start_index: usize,
+    end_index: usize,
+}
+
+impl From<&Center> for PanCenterIdentity {
+    fn from(center: &Center) -> Self {
+        Self {
+            zd: center.zd,
+            zg: center.zg,
+            dd: center.dd,
+            gg: center.gg,
+            start_index: center.start_index,
+            end_index: center.end_index,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct PanBlockIdentity {
+    start_center: usize,
+    end_center: usize,
+    trend: bool,
+    direction: i8,
+    completed: bool,
+    start_source: usize,
+    end_source: usize,
+}
+
+fn pan_block_identity(
+    projection: &ExactThreeProjection,
+    block: &MoveBlock,
+    reads_status: bool,
+) -> Option<PanBlockIdentity> {
+    Some(PanBlockIdentity {
+        start_center: block.start_center,
+        end_center: block.end_center,
+        trend: block.kind == MoveKind::Trend,
+        direction: match block.dir {
+            Some(Direction::Up) => 1,
+            Some(Direction::Down) => -1,
+            None => 0,
+        },
+        // target/第一后继的 status 进入 structural_pair_span；第二后继只作存在性封口门。
+        // 忽略第二后继的 Active→Completed，保证纯追加第四块不清已证目标。
+        completed: reads_status && block.status == MoveStatus::Completed,
+        start_source: projection.seeds.get(block.start_center)?.start_index,
+        end_source: projection.seeds.get(block.end_center)?.end_index,
+    })
+}
+
+fn pan_owner_block_index(blocks: &[MoveBlock], center_index: usize) -> Option<usize> {
+    if center_index == 0 {
+        return (!blocks.is_empty()).then_some(0);
+    }
+    blocks
+        .iter()
+        .position(|block| block.start_center < center_index && center_index <= block.end_center)
+}
+
+fn pan_block_triple(
+    projection: &ExactThreeProjection,
+    blocks: &[MoveBlock],
+    block_index: usize,
+) -> Option<[PanBlockIdentity; 3]> {
+    // 链②唯一门：目标块之后至少两个完整身份槽；不足时稳定资格不存在。
+    (block_index + 2 < blocks.len()).then_some(())?;
+    Some([
+        pan_block_identity(projection, blocks.get(block_index)?, true)?,
+        pan_block_identity(projection, blocks.get(block_index + 1)?, true)?,
+        pan_block_identity(projection, blocks.get(block_index + 2)?, false)?,
+    ])
+}
+
+/// run 语境键：level/window/version + segment/center + ownership block 与两个后继块。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct PanMemoKey {
+    level: u32,
+    provider_window: (usize, usize),
+    projection_version: ProviderVersion,
+    segment_index: usize,
+    segment: PanSegmentIdentity,
+    center_index: usize,
+    center: PanCenterIdentity,
+    block_index: usize,
+    blocks: [PanBlockIdentity; 3],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PanEventCore {
+    structure: super::signal::PanDivStructure,
+    interval_a: (usize, usize),
+    intake_fallback: bool,
+    divergence_confirmed: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PanMemoValue {
+    NoEvent,
+    Event(PanEventCore),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PanMemoEntry {
+    /// 本 entry 实际读取的最大 source_index；复用要求严格 `< e_src`。
+    read_end_src: usize,
+    /// 定位窄锚/front-anchor/Extreme 实际可见的段前缀长度。
+    read_segment_count: usize,
+    value: PanMemoValue,
+}
+
+/// #69 5b memo 诊断计数；只描述 memo 行为，不参与事件语义。
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct PanMemoStats {
+    pub hits: usize,
+    pub misses: usize,
+    pub writes: usize,
+    pub invalidations: usize,
+}
+
+/// #69 5b：由调用方按 run 持有的盘整背驰 memo。
+///
+/// 状态只经显式 [`PanResidence`] 进入 provider；默认入口与 `None` 始终走真冷路径。
+#[derive(Debug, Default)]
+pub struct PanMemo {
+    entries: HashMap<PanMemoKey, PanMemoEntry>,
+    /// run 的逐项精确 lower-segment 快照；entry 只存读前缀长度，避免每项复制整段前缀。
+    segment_snapshot: Vec<PanSegmentIdentity>,
+    stats: PanMemoStats,
+}
+
+impl PanMemo {
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn stats(&self) -> PanMemoStats {
+        self.stats
+    }
+
+    fn prepare(
+        &mut self,
+        level: u32,
+        provider_window: (usize, usize),
+        projection_version: ProviderVersion,
+        projection: &ExactThreeProjection,
+        blocks: &[MoveBlock],
+        segments: &[Segment],
+        centers: &[Center],
+        freeze_boundary_src: usize,
+    ) {
+        let current_segments: Vec<_> = segments.iter().map(PanSegmentIdentity::from).collect();
+        let common_segment_prefix = self
+            .segment_snapshot
+            .iter()
+            .zip(&current_segments)
+            .take_while(|(old, current)| old == current)
+            .count();
+        let before = self.entries.len();
+        self.entries.retain(|key, entry| {
+            key.level == level
+                && key.provider_window == provider_window
+                && key.projection_version == projection_version
+                && entry.read_end_src < freeze_boundary_src
+                && entry.read_segment_count <= common_segment_prefix
+                && segments
+                    .get(key.segment_index)
+                    .is_some_and(|segment| PanSegmentIdentity::from(segment) == key.segment)
+                && centers
+                    .get(key.center_index)
+                    .is_some_and(|center| PanCenterIdentity::from(center) == key.center)
+                && pan_block_triple(projection, blocks, key.block_index)
+                    .is_some_and(|blocks| blocks == key.blocks)
+        });
+        self.stats.invalidations += before - self.entries.len();
+        self.segment_snapshot = current_segments;
+    }
+
+    fn lookup(&mut self, key: &PanMemoKey) -> Option<PanMemoValue> {
+        match self.entries.get(key).map(|entry| entry.value) {
+            Some(entry) => {
+                self.stats.hits += 1;
+                Some(entry)
+            }
+            None => {
+                self.stats.misses += 1;
+                None
+            }
+        }
+    }
+
+    fn insert(
+        &mut self,
+        key: PanMemoKey,
+        read_end_src: usize,
+        read_segment_count: usize,
+        value: PanMemoValue,
+    ) {
+        self.entries.insert(
+            key,
+            PanMemoEntry {
+                read_end_src,
+                read_segment_count,
+                value,
+            },
+        );
+        self.stats.writes += 1;
+    }
+
+    #[cfg(test)]
+    fn poison_for_test(&mut self) {
+        let entry = self
+            .entries
+            .values_mut()
+            .find(|entry| matches!(entry.value, PanMemoValue::Event(_)))
+            .expect("测试夹具须已有 event memo");
+        let PanMemoValue::Event(mut core) = entry.value else {
+            unreachable!("上方已筛 Event");
+        };
+        core.divergence_confirmed = !core.divergence_confirmed;
+        entry.value = PanMemoValue::Event(core);
+    }
+}
+
+/// #69 5b：pan memo 的显式 resident seam。`freeze_boundary_src` 是 source_index 量纲；
+/// `None` 表示完全绕过 memo 的真冷路径。
+pub struct PanResidence<'a> {
+    pub memo: &'a mut PanMemo,
+    pub freeze_boundary_src: usize,
+}
+
 /// #92 typed provider：把 strict C2 pair 映射为宽结构 Cand，并把力度确认留在独立字段。
 ///
 /// Trend 与 Consolidation 共用同一输出类型但保留 `kind`；后者来自纯结构
@@ -974,7 +1235,26 @@ pub fn provide_nest_candidate_events(
     dif: &[f64],
     close_src: &[usize],
 ) -> Vec<NestCandidateEvent> {
-    provide_nest_candidate_events_ext(
+    provide_nest_candidate_events_resident(
+        level, projection, blocks, legs, view, hist, dif, close_src, None,
+    )
+}
+
+/// #69 5b resident 事件视图入口。当前与旧入口共用同一 provider 核；显式 `None`
+/// 是 shadow/legacy 的真冷 oracle。
+#[allow(clippy::too_many_arguments)]
+pub fn provide_nest_candidate_events_resident(
+    level: u32,
+    projection: &ExactThreeProjection,
+    blocks: &[MoveBlock],
+    legs: &[LowerLeg],
+    view: &LevelAsOfView,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+    residence: Option<PanResidence<'_>>,
+) -> Vec<NestCandidateEvent> {
+    provide_nest_candidate_events_ext_resident(
         level,
         projection,
         blocks,
@@ -985,10 +1265,11 @@ pub fn provide_nest_candidate_events(
         close_src,
         &[],
         &[],
+        residence,
     )
-        .into_iter()
-        .map(|ext| ext.event)
-        .collect()
+    .into_iter()
+    .map(|ext| ext.event)
+    .collect()
 }
 
 /// 事件 + T1 (#170) 锚 sidecar：事件本体不变（[`NestCandidateEvent`] 口径不动）。
@@ -1038,6 +1319,54 @@ fn resolve_triple_anchor(
     (price, anchor)
 }
 
+/// A/C source 闭区间到 MACD 前缀的完整映射。仅“有交集”不足以写 memo：
+/// source 尾尚未到达或 hist/dif 未覆盖映射终点时返回 `None`。
+fn complete_pan_span(
+    close_src: &[usize],
+    hist: &[f64],
+    dif: &[f64],
+    span: (usize, usize),
+) -> Option<(usize, usize)> {
+    if close_src.first().copied()? > span.0 || close_src.last().copied()? < span.1 {
+        return None;
+    }
+    let mapped = map_src_to_close_idx(close_src, span.0, span.1)?;
+    (mapped.1 < hist.len() && mapped.1 < dif.len()).then_some(mapped)
+}
+
+fn materialize_pan_event(
+    level: u32,
+    core: PanEventCore,
+    view: &LevelAsOfView,
+    fractals: &[Fractal],
+    merged_bars: &[Bar],
+) -> NestCandidateEventExt {
+    let event = NestCandidateEvent {
+        level,
+        side: core.structure.side,
+        kind: NestDivergenceKind::Consolidation,
+        seg_a: core.structure.seg_a,
+        interval_b: core.structure.seg_c,
+        interval_a: core.interval_a,
+        divergence_confirmed: core.divergence_confirmed,
+        turn_source: core.structure.source_index,
+        judge_at: view.query.as_of,
+        provider_window: (
+            view.query.coordinate_window.start,
+            view.query.coordinate_window.end,
+        ),
+        intake_fallback: core.intake_fallback,
+        b_center_start: core.structure.center.start_index,
+    };
+    let (extreme_price, group_anchor) =
+        resolve_triple_anchor(core.structure.seg_c.1, fractals, merged_bars);
+    NestCandidateEventExt {
+        event,
+        extreme_price,
+        group_anchor,
+    }
+}
+
 /// [`provide_nest_candidate_events`] 的 ext 形态（同一扫描核，事件集/排序逐字节同；
 /// 仅额外携带 T1 (#170) 锚 sidecar（T5a 起两元：极值价, 组锚））。消费方：gate 派生
 /// （`derive_level_events`）。
@@ -1057,6 +1386,37 @@ pub fn provide_nest_candidate_events_ext(
     fractals: &[Fractal],
     merged_bars: &[Bar],
 ) -> Vec<NestCandidateEventExt> {
+    provide_nest_candidate_events_ext_resident(
+        level,
+        projection,
+        blocks,
+        legs,
+        view,
+        hist,
+        dif,
+        close_src,
+        fractals,
+        merged_bars,
+        None,
+    )
+}
+
+/// #69 5b resident ext 入口；trend 分支保持冷核，只有 pan 分支可消费显式 run memo。
+#[allow(clippy::too_many_arguments)]
+pub fn provide_nest_candidate_events_ext_resident(
+    level: u32,
+    projection: &ExactThreeProjection,
+    blocks: &[MoveBlock],
+    legs: &[LowerLeg],
+    view: &LevelAsOfView,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+    fractals: &[Fractal],
+    merged_bars: &[Bar],
+    residence: Option<PanResidence<'_>>,
+) -> Vec<NestCandidateEventExt> {
+    let mut residence = residence;
     let segments: Vec<_> = legs.iter().map(leg_as_segment).collect();
     let anchors_self: Vec<_> = segments
         .iter()
@@ -1141,9 +1501,26 @@ pub fn provide_nest_candidate_events_ext(
 
     let centers: Vec<_> = projection.seeds.iter().map(|seed| seed.center).collect();
     let kinds = center_block_kind(centers.len(), blocks);
-    for segment in segments
+    let provider_window = (
+        view.query.coordinate_window.start,
+        view.query.coordinate_window.end,
+    );
+    if let Some(residence) = residence.as_mut() {
+        residence.memo.prepare(
+            level,
+            provider_window,
+            projection.version,
+            projection,
+            blocks,
+            &segments,
+            &centers,
+            residence.freeze_boundary_src,
+        );
+    }
+    for (segment_index, segment) in segments
         .iter()
-        .filter(|segment| segment.end_index <= view.query.as_of)
+        .enumerate()
+        .filter(|(_, segment)| segment.end_index <= view.query.as_of)
     {
         let Some(center_index) = nearest_confirmed_center_idx(&centers, segment.start_index) else {
             continue;
@@ -1151,28 +1528,75 @@ pub fn provide_nest_candidate_events_ext(
         if kinds.get(center_index) != Some(&Some(MoveKind::Consolidation)) {
             continue;
         }
+        let Some(leave_index) = pan_owner_block_index(blocks, center_index) else {
+            continue;
+        };
+        let memo_key =
+            pan_block_triple(projection, blocks, leave_index).map(|block_triple| PanMemoKey {
+                level,
+                provider_window,
+                projection_version: projection.version,
+                segment_index,
+                segment: PanSegmentIdentity::from(segment),
+                center_index,
+                center: PanCenterIdentity::from(&centers[center_index]),
+                block_index: leave_index,
+                blocks: block_triple,
+            });
+        let segment_is_stable = residence.as_ref().is_some_and(|residence| {
+            segments[..=segment_index]
+                .iter()
+                .all(|read| read.end_index < residence.freeze_boundary_src)
+                && centers[center_index].end_index < residence.freeze_boundary_src
+        });
+        let cached = if segment_is_stable {
+            memo_key.and_then(|memo_key| {
+                residence
+                    .as_mut()
+                    .and_then(|residence| residence.memo.lookup(&memo_key))
+            })
+        } else {
+            None
+        };
+        if let Some(value) = cached {
+            match value {
+                PanMemoValue::NoEvent => continue,
+                PanMemoValue::Event(core) => {
+                    let ext = materialize_pan_event(level, core, view, fractals, merged_bars);
+                    if !out.iter().any(|candidate| candidate.event == ext.event) {
+                        out.push(ext);
+                    }
+                    continue;
+                }
+            }
+        }
         // ★R3：窄锚（中枢后前次同向破核心段）locate∧Extreme 优先；任一失败回退 A′（中枢前
         // 最近同向段，061:28 中枢两头比较，回中枢要件由中枢本身满足）重判 Extreme（044:234 维持）。
         let Some(structure) =
             locate_pan_div_structure(&centers[center_index], segment, &segments, &anchors_self)
-        .filter(|structure| pan_div_structure_extreme(structure, &segments))
-        .or_else(|| {
-            locate_pan_div_structure_front_anchor(
+                .filter(|structure| pan_div_structure_extreme(structure, &segments))
+                .or_else(|| {
+                    locate_pan_div_structure_front_anchor(
                         &centers[center_index],
                         segment,
                         &segments,
                         &anchors_self,
-            )
-            .filter(|structure| pan_div_structure_extreme(structure, &segments))
+                    )
+                    .filter(|structure| pan_div_structure_extreme(structure, &segments))
                 })
         else {
-            continue;
-        };
-        let Some(leave_index) = blocks.iter().position(|block| {
-            block.kind == MoveKind::Consolidation
-                && block.start_center <= center_index
-                && block.end_center >= center_index
-        }) else {
+            if let Some(memo_key) = memo_key.filter(|_| segment_is_stable) {
+                residence
+                    .as_mut()
+                    .expect("stable 资格来自 resident")
+                    .memo
+                    .insert(
+                        memo_key,
+                        segment.end_index.max(centers[center_index].end_index),
+                        segment_index + 1,
+                        PanMemoValue::NoEvent,
+                    );
+            }
             continue;
         };
         // #97 进料口（⑤「盘背入链」落地缺口补齐）：leave→retest 对不可用（如盘整块为末块、
@@ -1180,62 +1604,65 @@ pub fn provide_nest_candidate_events_ext(
         // 结构跨度（再兜底 seg_a.0..seg_c.1），B 生产口径（interval_b）不受影响。
         let (interval_a, intake_fallback) =
             match structural_pair_span(projection, blocks, leave_index) {
-            Some(span) => (span, false),
-            None => (
-                blocks
-                    .get(leave_index)
-                    .and_then(|block| structural_block_span(projection, block))
-                    .unwrap_or((structure.seg_a.0, structure.seg_c.1)),
-                true,
-            ),
-        };
+                Some(span) => (span, false),
+                None => (
+                    blocks
+                        .get(leave_index)
+                        .and_then(|block| structural_block_span(projection, block))
+                        .unwrap_or((structure.seg_a.0, structure.seg_c.1)),
+                    true,
+                ),
+            };
         // ★R2：力度或关系（027:32「只要其中一个符合就可以」）——同色柱面积 ∨ 黄白线峰 ∨
         // 同向柱峰，替代旧混合柱面积单通道必要门（p113 实测 30.4% 聋度）。
-        let divergence_confirmed = match (
-            map_src_to_close_idx(close_src, structure.seg_a.0, structure.seg_a.1),
-            map_src_to_close_idx(close_src, structure.seg_c.0, structure.seg_c.1),
-        ) {
-            (Some(a), Some(c)) => segments_diverge_or(hist, dif, structure.side, a, c),
-            _ => false,
-        };
-        let event = NestCandidateEvent {
-            level,
-            side: structure.side,
-            kind: NestDivergenceKind::Consolidation,
-            seg_a: structure.seg_a,
-            interval_b: structure.seg_c,
+        let mapped_spans = complete_pan_span(close_src, hist, dif, structure.seg_a)
+            .zip(complete_pan_span(close_src, hist, dif, structure.seg_c));
+        let divergence_confirmed = mapped_spans
+            .map(|(a, c)| segments_diverge_or(hist, dif, structure.side, a, c))
+            .unwrap_or(false);
+        let core = PanEventCore {
+            structure,
             interval_a,
-            divergence_confirmed,
-            turn_source: structure.source_index,
-            judge_at: view.query.as_of,
-            provider_window: (
-                view.query.coordinate_window.start,
-                view.query.coordinate_window.end,
-            ),
             intake_fallback,
-            // 关③ P3：B = 盘背结构所对的最近确认中枢（locate_pan_div_structure 同一中枢
-            // 入参）——同写归因用途，不作门（P2 盘背域无需 owner 合取）。
-            b_center_start: centers[center_index].start_index,
+            divergence_confirmed,
         };
+        let ext = materialize_pan_event(level, core, view, fractals, merged_bars);
+        let read_end_src = segment
+            .end_index
+            .max(centers[center_index].end_index)
+            .max(structure.seg_a.1)
+            .max(structure.seg_c.1);
+        if segment_is_stable
+            && memo_key.is_some()
+            && read_end_src
+                < residence
+                    .as_ref()
+                    .expect("stable 资格来自 resident")
+                    .freeze_boundary_src
+            && mapped_spans.is_some()
+        {
+            residence
+                .as_mut()
+                .expect("stable 资格来自 resident")
+                .memo
+                .insert(
+                    memo_key.expect("链②资格已核"),
+                    read_end_src,
+                    segment_index + 1,
+                    PanMemoValue::Event(core),
+                );
+        }
         // 去重键 = 事件本体（与旧 `out.contains(&event)` 逐字同语义；锚 sidecar 不进键）。
-        if !out.iter().any(|ext| ext.event == event) {
-            // T1 (#170)：两元锚（极值价, 组锚）在事件构造点解析（单一查法；方向分量
-            // 已随 T5a (#207) 退役，#206 Q1 裁定）。
-            let (extreme_price, group_anchor) =
-                resolve_triple_anchor(structure.seg_c.1, fractals, merged_bars);
-            out.push(NestCandidateEventExt {
-                event,
-                extreme_price,
-                group_anchor,
-            });
+        if !out.iter().any(|candidate| candidate.event == ext.event) {
+            out.push(ext);
         }
     }
     out.sort_by_key(|ext| {
         (
-        ext.event.turn_source,
-        ext.event.interval_b,
-        ext.event.kind,
-        matches!(ext.event.side, Side::Short),
+            ext.event.turn_source,
+            ext.event.interval_b,
+            ext.event.kind,
+            matches!(ext.event.side, Side::Short),
         )
     });
     out
@@ -1549,13 +1976,13 @@ fn assemble_level_view_impl(
                         // 旧面积单通道（segments_diverge on seg_c）随 seg_c 全离开段化废止。
                         let mappable =
                             map_src_to_close_idx(material.close_src, pair.seg_a.0, pair.seg_a.1)
-                        .is_some()
-                            && map_src_to_close_idx(
-                                material.close_src,
-                                pair.seg_c.0,
-                                pair.seg_c.1,
-                            )
-                            .is_some();
+                                .is_some()
+                                && map_src_to_close_idx(
+                                    material.close_src,
+                                    pair.seg_c.0,
+                                    pair.seg_c.1,
+                                )
+                                .is_some();
                         if !mappable {
                             CompletionStatus::Pending {
                                 as_of: query.as_of,
@@ -1575,8 +2002,8 @@ fn assemble_level_view_impl(
                                 },
                                 ConfirmState::TerminalFalse | ConfirmState::Scanning => {
                                     CompletionStatus::Pending {
-                                    as_of: query.as_of,
-                                    reason: PendingReason::TerminalLegNotDivergent,
+                                        as_of: query.as_of,
+                                        reason: PendingReason::TerminalLegNotDivergent,
                                     }
                                 }
                             }
@@ -2614,5 +3041,886 @@ mod tests {
             stream_a, stream_b,
             "freeze event stream key 必须跨 as_of 稳定"
         );
+    }
+
+    struct PanProviderFixture {
+        projection: ExactThreeProjection,
+        blocks: Vec<MoveBlock>,
+        legs: Vec<LowerLeg>,
+        view: LevelAsOfView,
+        hist: Vec<f64>,
+        dif: Vec<f64>,
+        close_src: Vec<usize>,
+    }
+
+    fn pan_seed(index: usize, center: Center) -> ExactThreeSeed {
+        ExactThreeSeed {
+            source_id: ElementId {
+                level: 1,
+                ordinal: index as u64,
+            },
+            source_sub_count: 3,
+            start_index: center.start_index,
+            end_index: center.end_index,
+            center,
+            core_provenance: SeedCoreProvenance::SelfConsistent,
+        }
+    }
+
+    fn pan_provider_fixture() -> PanProviderFixture {
+        let centers = [
+            Center {
+                zd: 100,
+                zg: 200,
+                dd: 90,
+                gg: 210,
+                start_index: 0,
+                end_index: 2,
+            },
+            Center {
+                zd: 300,
+                zg: 400,
+                dd: 290,
+                gg: 410,
+                start_index: 3,
+                end_index: 5,
+            },
+            Center {
+                zd: 350,
+                zg: 450,
+                dd: 250,
+                gg: 460,
+                start_index: 4,
+                end_index: 8,
+            },
+            Center {
+                zd: 500,
+                zg: 550,
+                dd: 490,
+                gg: 560,
+                start_index: 12,
+                end_index: 14,
+            },
+            Center {
+                zd: 600,
+                zg: 650,
+                dd: 590,
+                gg: 660,
+                start_index: 15,
+                end_index: 17,
+            },
+            Center {
+                zd: 580,
+                zg: 640,
+                dd: 570,
+                gg: 670,
+                start_index: 18,
+                end_index: 20,
+            },
+            Center {
+                zd: 700,
+                zg: 750,
+                dd: 690,
+                gg: 760,
+                start_index: 21,
+                end_index: 23,
+            },
+        ];
+        let projection = ExactThreeProjection {
+            version: ProviderVersion::EXTENDED_TO_EXACT_THREE_V3,
+            seeds: centers
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(index, center)| pan_seed(index, center))
+                .collect(),
+        };
+        let blocks = vec![
+            MoveBlock {
+                start_center: 0,
+                end_center: 2,
+                kind: MoveKind::Consolidation,
+                dir: None,
+                status: MoveStatus::Completed,
+            },
+            MoveBlock {
+                start_center: 2,
+                end_center: 4,
+                kind: MoveKind::Trend,
+                dir: Some(Direction::Up),
+                status: MoveStatus::Completed,
+            },
+            MoveBlock {
+                start_center: 4,
+                end_center: 6,
+                kind: MoveKind::Consolidation,
+                dir: None,
+                status: MoveStatus::Active,
+            },
+        ];
+        let legs = vec![
+            LowerLeg {
+                id: ElementId {
+                    level: 0,
+                    ordinal: 0,
+                },
+                direction: Direction::Down,
+                start_index: 1,
+                end_index: 3,
+                lo: 360,
+                hi: 460,
+            },
+            LowerLeg {
+                id: ElementId {
+                    level: 0,
+                    ordinal: 1,
+                },
+                direction: Direction::Down,
+                start_index: 9,
+                end_index: 11,
+                lo: 300,
+                hi: 380,
+            },
+        ];
+        let mut hist = vec![0.0; 32];
+        hist[1..=3].fill(-5.0);
+        hist[9] = -1.0;
+        hist[10] = 20.0;
+        hist[11] = -1.0;
+        let dif = vec![0.0; 32];
+        let close_src: Vec<_> = (0..32).collect();
+        let query = LevelViewQuery {
+            level: 1,
+            coordinate_window: CoordinateWindow { start: 0, end: 23 },
+            as_of: 31,
+            version: C2VersionTuple::auto_pairing(),
+        };
+        let view = LevelAsOfView {
+            query,
+            cache_key: C2CacheKey::from_query(&query).unwrap(),
+            moves: Vec::new(),
+            pairs: Vec::new(),
+            pair_confirmations: Vec::new(),
+        };
+        PanProviderFixture {
+            projection,
+            blocks,
+            legs,
+            view,
+            hist,
+            dif,
+            close_src,
+        }
+    }
+
+    /// #69 5b / T0：先锁冷路径盘背事件的全部物理字段；resident `None` 必须逐字段等于旧入口。
+    #[test]
+    fn pan_memo_cold_path_characterization() {
+        let fixture = pan_provider_fixture();
+        let cold = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        let resident_none = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            None,
+        );
+        assert_eq!(resident_none, cold, "None 必须是真冷旧核");
+        let event = cold
+            .iter()
+            .find(|event| event.kind == NestDivergenceKind::Consolidation)
+            .expect("夹具必须产真实盘背事件");
+        assert_eq!(event.side, Side::Long);
+        assert_eq!(event.seg_a, (1, 3));
+        assert_eq!(event.interval_b, (9, 11));
+        assert_eq!(event.interval_a, (0, 17));
+        assert!(event.divergence_confirmed);
+        assert_eq!(event.turn_source, 11);
+        assert_eq!(event.judge_at, 31);
+        assert_eq!(event.provider_window, (0, 23));
+        assert!(!event.intake_fallback);
+        assert_eq!(event.b_center_start, 4);
+    }
+
+    /// #69 5b / T0 补格：锁定窄锚优先、Extreme 淘汰、span fallback 与事件去重；
+    /// 坐标未到格由 `pan_memo_incomplete_macd_does_not_negative_cache` 同时覆盖。
+    #[test]
+    fn pan_cold_path_narrow_extreme_fallback_and_dedup_grid() {
+        let fixture = pan_provider_fixture();
+
+        let mut narrow_legs = fixture.legs.clone();
+        narrow_legs.push(LowerLeg {
+            id: ElementId {
+                level: 0,
+                ordinal: 2,
+            },
+            direction: Direction::Up,
+            start_index: 11,
+            end_index: 13,
+            lo: 300,
+            hi: 430,
+        });
+        narrow_legs.push(LowerLeg {
+            id: ElementId {
+                level: 0,
+                ordinal: 3,
+            },
+            direction: Direction::Down,
+            start_index: 13,
+            end_index: 15,
+            lo: 280,
+            hi: 430,
+        });
+        let narrow = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &narrow_legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        assert!(
+            narrow.iter().any(|event| {
+                event.kind == NestDivergenceKind::Consolidation
+                    && event.seg_a == (9, 11)
+                    && event.interval_b == (13, 15)
+            }),
+            "同一中枢第二次离开必须优先命中窄锚 A"
+        );
+
+        let mut no_extreme_legs = fixture.legs.clone();
+        no_extreme_legs[1].lo = 370;
+        let no_extreme = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &no_extreme_legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        assert!(no_extreme
+            .iter()
+            .all(|event| event.kind != NestDivergenceKind::Consolidation));
+
+        let mut fallback_blocks = fixture.blocks.clone();
+        fallback_blocks[1].status = MoveStatus::Active;
+        let fallback = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fallback_blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        let fallback_event = fallback
+            .iter()
+            .find(|event| event.kind == NestDivergenceKind::Consolidation)
+            .expect("span 不可用时结构候选不得丢失");
+        assert!(fallback_event.intake_fallback);
+        assert_eq!(fallback_event.interval_a, (0, 8));
+
+        let mut duplicate_legs = fixture.legs.clone();
+        let mut duplicate = duplicate_legs[1];
+        duplicate.id.ordinal += 10;
+        duplicate_legs.push(duplicate);
+        let deduped = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &duplicate_legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        assert_eq!(
+            deduped
+                .iter()
+                .filter(|event| event.kind == NestDivergenceKind::Consolidation)
+                .count(),
+            1,
+            "重复候选仍按事件本体去重"
+        );
+    }
+
+    /// #69 5b / T2（链①）：水位增长后稳定 entry 一生一算；回退及严格等号边界立即失效。
+    #[test]
+    fn pan_memo_e_src_growth_rollback_and_equal_boundary() {
+        let fixture = pan_provider_fixture();
+        let cold = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        let mut memo = PanMemo::default();
+
+        let first = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        assert_eq!(first, cold);
+        assert_eq!(memo.len(), 1);
+        assert_eq!(memo.stats().writes, 1);
+        assert_eq!(memo.stats().hits, 0);
+
+        let grown = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        assert_eq!(grown, cold);
+        assert_eq!(memo.len(), 1, "水位增长不得清已证前缀");
+        assert_eq!(memo.stats().writes, 1, "已证 entry 不得重算回写");
+        assert_eq!(memo.stats().hits, 1);
+
+        let rolled = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 11,
+            }),
+        );
+        assert_eq!(rolled, cold, "失效后必须退化为真冷同案同果");
+        assert_eq!(memo.len(), 0, "segment.end == e_src 不得留 stable memo");
+        assert_eq!(memo.stats().writes, 1, "可变尾冷算不得回写");
+        assert!(memo.stats().invalidations >= 1);
+    }
+
+    /// #69 5b / T2（链①c）：坐标/MACD 前缀未覆盖 A/C 时只冷算，不得写入假阴性；
+    /// 输入到齐后同一调用可产事件并开始缓存。
+    #[test]
+    fn pan_memo_incomplete_macd_does_not_negative_cache() {
+        let fixture = pan_provider_fixture();
+        let mut memo = PanMemo::default();
+        let incomplete_src = &fixture.close_src[..10];
+        let incomplete = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist[..10],
+            &fixture.dif[..10],
+            incomplete_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        let incomplete_pan = incomplete
+            .iter()
+            .find(|event| event.kind == NestDivergenceKind::Consolidation)
+            .expect("结构候选仍须按冷路返回");
+        assert!(!incomplete_pan.divergence_confirmed);
+        assert_eq!(memo.len(), 0);
+        assert_eq!(memo.stats().writes, 0);
+
+        let complete = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        let complete_pan = complete
+            .iter()
+            .find(|event| event.kind == NestDivergenceKind::Consolidation)
+            .expect("输入到齐后必须保留盘背事件");
+        assert!(
+            complete_pan.divergence_confirmed,
+            "不得复用未到齐时的假阴性"
+        );
+        assert_eq!(memo.len(), 1);
+        assert_eq!(memo.stats().writes, 1);
+        assert_eq!(memo.stats().hits, 0);
+    }
+
+    /// #69 5b / T3（链②a）：目标 block 后 0/1 块仍属可变尾；恰有两个后继块才可驻留。
+    #[test]
+    fn pan_memo_requires_two_successor_blocks() {
+        let fixture = pan_provider_fixture();
+        for successor_count in 0..=2 {
+            let blocks = &fixture.blocks[..=successor_count];
+            let cold = provide_nest_candidate_events(
+                1,
+                &fixture.projection,
+                blocks,
+                &fixture.legs,
+                &fixture.view,
+                &fixture.hist,
+                &fixture.dif,
+                &fixture.close_src,
+            );
+            let mut memo = PanMemo::default();
+            let resident = provide_nest_candidate_events_resident(
+                1,
+                &fixture.projection,
+                blocks,
+                &fixture.legs,
+                &fixture.view,
+                &fixture.hist,
+                &fixture.dif,
+                &fixture.close_src,
+                Some(PanResidence {
+                    memo: &mut memo,
+                    freeze_boundary_src: 12,
+                }),
+            );
+            assert_eq!(resident, cold);
+            assert_eq!(
+                memo.len(),
+                usize::from(successor_count == 2),
+                "{successor_count} 个后继块的驻留资格错误"
+            );
+        }
+    }
+
+    /// #69 5b / T3（链②b）：追加第四块不清已证三块；后继消失或身份重折须立即失效。
+    #[test]
+    fn pan_memo_block_shrink_rewrite_and_append_discipline() {
+        let fixture = pan_provider_fixture();
+        let mut memo = PanMemo::default();
+        let first = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        assert_eq!(memo.len(), 1);
+
+        let mut appended = fixture.blocks.clone();
+        appended[2].status = MoveStatus::Completed;
+        appended.push(MoveBlock {
+            start_center: 6,
+            end_center: 6,
+            kind: MoveKind::Consolidation,
+            dir: None,
+            status: MoveStatus::Active,
+        });
+        let appended_out = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &appended,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        assert_eq!(appended_out, first);
+        assert_eq!(memo.stats().hits, 1, "追加尾块不得清已证目标三块");
+        assert_eq!(memo.stats().invalidations, 0);
+
+        let shrunk = &fixture.blocks[..2];
+        let cold_shrunk = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            shrunk,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        let resident_shrunk = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            shrunk,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        assert_eq!(resident_shrunk, cold_shrunk);
+        assert!(memo.is_empty(), "两个后继块门消失后不得残留 entry");
+        assert_eq!(memo.stats().writes, 1, "回缩后的冷算不得回写");
+        assert!(memo.stats().invalidations >= 1);
+
+        let mut memo = PanMemo::default();
+        let _ = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        let mut rewritten = fixture.blocks.clone();
+        rewritten[1].kind = MoveKind::Consolidation;
+        rewritten[1].dir = None;
+        let cold_rewritten = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &rewritten,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        let resident_rewritten = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &rewritten,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        assert_eq!(resident_rewritten, cold_rewritten);
+        assert!(memo.stats().invalidations >= 1, "后继块身份重折必须失效");
+        assert_eq!(memo.stats().writes, 2, "重折后须按新身份冷算回写");
+    }
+
+    /// #69 5b / T4：`judge_at` 每次按当前调用物化；pan 核所读 segment 前缀改写时，
+    /// 即便候选末段身份未变也不得命中旧值。
+    #[test]
+    fn pan_memo_rematerializes_dynamic_fields_and_invalidates_read_prefix() {
+        let fixture = pan_provider_fixture();
+        let mut memo = PanMemo::default();
+        let _ = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+
+        let mut later_view = fixture.view.clone();
+        later_view.query.as_of = 40;
+        let later = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &later_view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        assert_eq!(memo.stats().hits, 1);
+        assert_eq!(memo.stats().writes, 1);
+        assert_eq!(
+            later
+                .iter()
+                .find(|event| event.kind == NestDivergenceKind::Consolidation)
+                .expect("缓存事件仍须按当前调用物化")
+                .judge_at,
+            40
+        );
+
+        let mut rewritten_legs = fixture.legs.clone();
+        rewritten_legs[0].lo -= 10;
+        let cold_rewritten = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &rewritten_legs,
+            &later_view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        let resident_rewritten = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &rewritten_legs,
+            &later_view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        assert_eq!(resident_rewritten, cold_rewritten);
+        assert!(memo.stats().invalidations >= 1, "A/C 读前缀改写必须失效");
+        assert_eq!(memo.stats().writes, 2);
+    }
+
+    /// #69 5b / T4：锚 sidecar 命中时按当前供给重解；provider window 改变即视为另一 run
+    /// 语境，不得共享旧 entry。
+    #[test]
+    fn pan_memo_rematerializes_anchor_and_separates_run_window() {
+        let fixture = pan_provider_fixture();
+        let mut memo = PanMemo::default();
+        let first = provide_nest_candidate_events_ext_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            &[],
+            &[],
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        let first_pan = first
+            .iter()
+            .find(|ext| ext.event.kind == NestDivergenceKind::Consolidation)
+            .expect("夹具必须产 pan");
+        assert_eq!((first_pan.extreme_price, first_pan.group_anchor), (None, None));
+
+        let fractals = [Fractal {
+            kind: FractalKind::Bottom,
+            source_index: 11,
+            timestamp: 11,
+            price: 300,
+        }];
+        let merged: Vec<_> = (0..32).map(mbar).collect();
+        let anchored = provide_nest_candidate_events_ext_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            &fractals,
+            &merged,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        let anchored_pan = anchored
+            .iter()
+            .find(|ext| ext.event.kind == NestDivergenceKind::Consolidation)
+            .expect("命中后事件仍须存在");
+        assert_eq!(
+            (anchored_pan.extreme_price, anchored_pan.group_anchor),
+            (Some(300), Some(11))
+        );
+        assert_eq!(memo.stats().hits, 1);
+        assert_eq!(memo.stats().writes, 1);
+
+        let mut other_run_view = fixture.view.clone();
+        other_run_view.query.coordinate_window.end += 1;
+        other_run_view.cache_key = C2CacheKey::from_query(&other_run_view.query).unwrap();
+        let other_run = provide_nest_candidate_events_ext_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &other_run_view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            &fractals,
+            &merged,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        assert!(other_run.iter().any(|ext| {
+            ext.event.kind == NestDivergenceKind::Consolidation
+                && ext.event.provider_window == (0, 24)
+        }));
+        assert!(memo.stats().invalidations >= 1);
+        assert_eq!(memo.stats().writes, 2, "新 run 语境须冷算后独立回写");
+    }
+
+    /// #69 5b / T4：完整执行后的稳定 force-false 可缓存；命中不得把 false 改写为猜测值。
+    #[test]
+    fn pan_memo_caches_complete_stable_force_false() {
+        let fixture = pan_provider_fixture();
+        let mut non_divergent_hist = fixture.hist.clone();
+        non_divergent_hist[9] = -10.0;
+        non_divergent_hist[10] = 20.0;
+        non_divergent_hist[11] = -10.0;
+        let mut memo = PanMemo::default();
+        for expected_hits in 0..=1 {
+            let events = provide_nest_candidate_events_resident(
+                1,
+                &fixture.projection,
+                &fixture.blocks,
+                &fixture.legs,
+                &fixture.view,
+                &non_divergent_hist,
+                &fixture.dif,
+                &fixture.close_src,
+                Some(PanResidence {
+                    memo: &mut memo,
+                    freeze_boundary_src: 12,
+                }),
+            );
+            let event = events
+                .iter()
+                .find(|event| event.kind == NestDivergenceKind::Consolidation)
+                .expect("结构事件仍应存在");
+            assert!(!event.divergence_confirmed);
+            assert_eq!(memo.stats().hits, expected_hits);
+        }
+        assert_eq!(memo.stats().writes, 1);
+        assert_eq!(memo.len(), 1);
+    }
+
+    /// #69 5b / T6：人为污染 resident 后热路必须显出差异，而显式 `None` 仍返回真冷 oracle，
+    /// 且 forced 调用不读写该 memo。
+    #[test]
+    fn pan_memo_forced_none_is_true_cold_oracle() {
+        let fixture = pan_provider_fixture();
+        let cold = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        let mut memo = PanMemo::default();
+        let _ = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        memo.poison_for_test();
+        let poisoned = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        assert_ne!(poisoned, cold, "污染须能被 shadow 比对观察到");
+        let stats_before_forced = memo.stats();
+        let len_before_forced = memo.len();
+        let forced = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            None,
+        );
+        assert_eq!(forced, cold);
+        assert_eq!(memo.stats(), stats_before_forced);
+        assert_eq!(memo.len(), len_before_forced);
     }
 }
