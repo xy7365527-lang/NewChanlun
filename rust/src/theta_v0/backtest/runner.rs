@@ -1138,7 +1138,6 @@ mod tests {
     fn buy1_at(si: usize) -> BspPoint {
         BspPoint {
             source_index: si,
-            level_origin: 0,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 9_000_000_000, // px 90 < 入场 100 ⟹ 止损在下方不触及
             pivot_high: 0,
@@ -1868,7 +1867,6 @@ mod tests {
             let mut l1 = c.levels[1].bsp.as_ref().clone();
             l1.push(BspPoint {
                 source_index: 18,
-                level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
                 bits: BspBits { sell1: true, ..Default::default() },
                 pivot_low: 0,
                 pivot_high: 210,
@@ -2048,7 +2046,6 @@ mod tests {
         // L1 父根买点（同 e_classification buy_parent@12）。
         let buy_parent = BspPoint {
             source_index: 12,
-            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
@@ -2059,7 +2056,6 @@ mod tests {
         // L0 顺父级联买点（FollowParent Long 级联核心仓，Core{0}）。
         let buy_cascade = BspPoint {
             source_index: 13,
-            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 120,
             pivot_high: 0,
@@ -2070,7 +2066,6 @@ mod tests {
         // L0 二类卖点（ReverseOpen 角色——同 e_classification sell_child@16 的附着坐标，class 换 2）。
         let sell2_child = BspPoint {
             source_index: 16,
-            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits: BspBits { sell2: true, ..Default::default() },
             pivot_low: 0,
             pivot_high: 210,
@@ -2879,7 +2874,6 @@ mod tests {
         // 父 L1 buy1@12（Ambient）；子 L0 buy1@16（顺父 Long ⟹ FollowParent）。
         let fp_buy_child = BspPoint {
             source_index: 16,
-            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 120,
             pivot_high: 0,
@@ -2889,7 +2883,6 @@ mod tests {
         };
         let fp_buy_parent = BspPoint {
             source_index: 12,
-            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
@@ -3535,7 +3528,6 @@ mod tests {
         };
         BspPoint {
             source_index: si,
-            level_origin: 0,
             bits,
             pivot_low: 0,
             pivot_high: 20_000_000_000, // px 200 ≫ 100 ⟹ 不触及
@@ -4331,7 +4323,6 @@ mod tests {
                 cp_ownership: std::rc::Rc::new(Vec::new()),
                 bsp: std::rc::Rc::new(vec![BspPoint {
                     source_index: 19,
-                    level_origin: 0,
                     bits,
                     pivot_low: 0,
                     pivot_high: 0,
@@ -4697,7 +4688,6 @@ mod tests {
             use super::super::super::types::Center;
             BspPoint {
                 source_index: 40, // owner 中枢 start=20（nc_event b_center_start=20 配套）
-                level_origin: 0,
                 bits: buy1,
                 pivot_low: 0,
                 pivot_high: 0,
@@ -4806,7 +4796,6 @@ mod tests {
         let buy3 = BspBits { buy3: true, ..Default::default() };
         let mk_pt = |src: usize| super::super::super::classifier::bsp::BspPoint {
             source_index: src,
-            level_origin: 0,
             bits: buy3,
             pivot_low: 0,
             pivot_high: 0,
@@ -4859,7 +4848,6 @@ mod tests {
         let buy3 = BspBits { buy3: true, ..Default::default() };
         let mk_pt = |src: usize| super::super::super::classifier::bsp::BspPoint {
             source_index: src,
-            level_origin: 0,
             bits: buy3,
             pivot_low: 0,
             pivot_high: 0,
@@ -4964,7 +4952,6 @@ mod tests {
         let buy1 = BspBits { buy1: true, ..Default::default() };
         let mk_pt = |src: usize| BspPoint {
             source_index: src,
-            level_origin: 0,
             bits: buy1,
             pivot_low: 0,
             pivot_high: 0,
@@ -5203,7 +5190,6 @@ mod tests {
         let buy1 = BspBits { buy1: true, ..Default::default() };
         let mk_pt = |src: usize, bits: BspBits| BspPoint {
             source_index: src,
-            level_origin: 0,
             bits,
             pivot_low: 0,
             pivot_high: 0,
@@ -5542,7 +5528,6 @@ mod tests {
         let sell1 = BspBits { sell1: true, ..Default::default() };
         let mk_pt = |src: usize| BspPoint {
             source_index: src,
-            level_origin: 0,
             bits: sell1,
             pivot_low: 0,
             pivot_high: 0,
@@ -8401,7 +8386,6 @@ mod tests {
     fn e_classification(with_child_close_trigger: bool) -> Classification {
         let buy_parent = BspPoint {
             source_index: 12,
-            level_origin: 0,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
@@ -8411,7 +8395,6 @@ mod tests {
         };
         let sell_child = BspPoint {
             source_index: 16,
-            level_origin: 0,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0,
             pivot_high: 210,
@@ -8423,7 +8406,6 @@ mod tests {
         if with_child_close_trigger {
             l0.push(BspPoint {
                 source_index: 18,
-                level_origin: 0,
                 bits: BspBits { buy1: true, ..Default::default() },
                 pivot_low: 120,
                 pivot_high: 0,
@@ -8446,7 +8428,6 @@ mod tests {
         let mut c = e_classification(false);
         let buy2_child_close = BspPoint {
             source_index: 18,
-            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits: BspBits { buy2: true, ..Default::default() },
             pivot_low: 120,
             pivot_high: 0,
@@ -8620,7 +8601,6 @@ mod tests {
             levels: vec![LevelState {
                 bsp: Rc::new(vec![BspPoint {
                     source_index: 0,
-                    level_origin: 0,
                     bits: BspBits { buy1: true, ..Default::default() },
                     pivot_low: 90,
                     pivot_high: 0,

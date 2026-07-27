@@ -159,7 +159,6 @@ mod tests {
     fn pt(src: usize, buy: bool) -> BspPoint {
         BspPoint {
             source_index: src,
-            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits: BspBits {
                 buy1: buy,
                 sell1: !buy,

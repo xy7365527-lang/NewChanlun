@@ -8,8 +8,7 @@ use super::super::super::interp::ActiveLeg;
     /// ★G4 组合层 [`StepTrace`]：opened=准入信号腿；traced 决策三分量 == prebuilt（委托 bit-exact 见证）。
     #[test]
     fn pi_theta_step_traced_opened_and_bitexact() {
-        let bsp = BspPoint { level_origin: 0,
-            source_index: 4,
+        let bsp = BspPoint { source_index: 4,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
@@ -51,8 +50,7 @@ use super::super::super::interp::ActiveLeg;
     /// 被关腿不入 next_active、不入 silent_drops（close 认领互斥于静默离场）。
     #[test]
     fn pi_theta_step_traced_reverse_close_attribution() {
-        let sell = BspPoint { level_origin: 0,
-            source_index: 10,
+        let sell = BspPoint { source_index: 10,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0,
             pivot_high: 210,

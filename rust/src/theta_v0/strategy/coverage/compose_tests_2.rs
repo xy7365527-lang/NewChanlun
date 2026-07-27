@@ -9,8 +9,7 @@ use crate::theta_v0::classifier::bsp::BspPoint;
     /// ⟹ 均被 P1 屏蔽，open 不入 next_active（否则跨 bar 幽灵腿）。
     #[test]
     fn pi_theta_step_traced_p1_force_flat_risk_exits_all() {
-        let buy = BspPoint { level_origin: 0,
-            source_index: 4,
+        let buy = BspPoint { source_index: 4,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,

@@ -1579,8 +1579,7 @@ mod tests {
             2 => BspBits { buy2: true, ..Default::default() },
             _ => BspBits { buy3: true, ..Default::default() },
         };
-        BspPoint { level_origin: 0,
-            source_index,
+        BspPoint { source_index,
             bits,
             pivot_low: 90,
             pivot_high: 0,
@@ -1596,8 +1595,7 @@ mod tests {
             2 => BspBits { sell2: true, ..Default::default() },
             _ => BspBits { sell3: true, ..Default::default() },
         };
-        BspPoint { level_origin: 0,
-            source_index,
+        BspPoint { source_index,
             bits,
             pivot_low: 0,
             pivot_high: 210,
@@ -1618,7 +1616,7 @@ mod tests {
 
     /// BspPoint 构造：给定 bits + struct_break_dir（P2-R2 守卫测试用）。
     fn pt(bits: BspBits, sbd: Option<Side>) -> BspPoint {
-        BspPoint { level_origin: 0, source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: None, struct_break_dir: sbd, force: None }
+        BspPoint { source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: None, struct_break_dir: sbd, force: None }
     }
 
     /// ★P2-R2 护栏2（codex-review-20260701-2251 [guard]）：struct_break_dir 恢复方向**只改
@@ -1804,8 +1802,7 @@ mod tests {
     /// 环3：Flat 方向候选（双侧 bits 经 root_sel 镜像反对称消歧为 0）仍入 Γ（下游归 𝒦）。
     #[test]
     fn assemble_gamma_includes_flat_dir_candidate() {
-        let both = BspPoint { level_origin: 0,
-            source_index: 0,
+        let both = BspPoint { source_index: 0,
             bits: BspBits { buy1: true, sell1: true, ..Default::default() }, // (1,1) → root_sel=Flat
             pivot_low: 90,
             pivot_high: 210,
@@ -2167,8 +2164,7 @@ mod tests {
     /// 环5 非方向候选（Flat）⟹ 𝒦_x。
     #[test]
     fn interpret_flat_candidate_records() {
-        let both = BspPoint { level_origin: 0,
-            source_index: 0,
+        let both = BspPoint { source_index: 0,
             bits: BspBits { buy1: true, sell1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 210,
@@ -2664,7 +2660,7 @@ mod candidate_profile {
     #[test]
     fn candidate_cache_fallback_ordinal_prefix_shift() {
         fn buy3(si: usize) -> BspPoint {
-            BspPoint { level_origin: 0, source_index: si, bits: BspBits { buy3: true, ..Default::default() },
+            BspPoint { source_index: si, bits: BspBits { buy3: true, ..Default::default() },
                 pivot_low: 1, pivot_high: 0, center: None, struct_break_dir: None, force: None }
         }
         let cls = |l0: Vec<usize>, l1: Vec<usize>| Classification {

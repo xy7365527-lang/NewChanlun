@@ -1673,7 +1673,7 @@ mod tests {
 
     fn xzd_bsp(source_index: usize, bits: BspBits, center: Option<Center>) -> BspPoint {
         // #218 面 A 载体形态机械适配：Center 变体包装。
-        BspPoint { level_origin: 0, source_index, bits, pivot_low: 0, pivot_high: 0, center: center.map(crate::theta_v0::classifier::bsp::OwnerRef::Center), struct_break_dir: None, force: None }
+        BspPoint { source_index, bits, pivot_low: 0, pivot_high: 0, center: center.map(crate::theta_v0::classifier::bsp::OwnerRef::Center), struct_break_dir: None, force: None }
     }
 
     fn xzd_center(zd: i64, zg: i64, s: usize, e: usize) -> Center {

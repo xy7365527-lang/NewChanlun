@@ -67,7 +67,11 @@ impl LevelProjectionConfig {
 /// 级别身份（#110 第一票：仅 `level`；源级别链/方向 #111 补齐）。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct LevelIdentity {
-    /// 所属级别 ℓ（与 `Classification.levels` 索引、`BspPoint.level_origin` 同源）。
+    /// 所属级别 ℓ（与 `Classification.levels` 索引同源）。
+    ///
+    /// ★#455 诚实更新（#434 grilling 交棒件）：本字段是级别身份的**唯一**存储事实——
+    /// 曾在 `BspPoint` 存在的同形拷贝字段（恒为 0、无消费者）已删除
+    /// （`CONTEXT.md`「级别身份」词条）。
     pub level: u32,
 }
 
@@ -214,7 +218,6 @@ mod tests {
     fn point(source_index: usize, bits: BspBits) -> BspPoint {
         BspPoint {
             source_index,
-            level_origin: 0,
             bits,
             pivot_low: 0,
             pivot_high: 0,

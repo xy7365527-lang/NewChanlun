@@ -547,8 +547,7 @@ fn make_first_point(
     struct_break_dir: Option<Side>,
     force: Option<ForceProxies>,
 ) -> BspPoint {
-    BspPoint { level_origin: 0,
-        source_index,
+    BspPoint { source_index,
         bits,
         // 1 买止损源 pivot_low（破中枢低点）；1 卖止损源 pivot_high（破中枢高点）。
         pivot_low: if bits.buy1 { pivot_price } else { 0 },
@@ -567,8 +566,7 @@ fn make_first_point(
 /// 3 类止损取 `center.zg`(买)/`zd`(卖)，故 center 必 `Some`（不变量：含 3 类 bit ⟹ center
 /// 有值）。pivot_low/pivot_high 取回试端点价（买点回试低点 = pivot_low，卖点 = pivot_high）。
 fn make_third_point(source_index: usize, bits: BspBits, retest_price: Tick, c: &Center) -> BspPoint {
-    BspPoint { level_origin: 0,
-        source_index,
+    BspPoint { source_index,
         bits,
         // 买点回试低点 → pivot_low；卖点回抽高点 → pivot_high。按 bit 方向填，另一侧 0。
         pivot_low: if bits.buy3 { retest_price } else { 0 },
@@ -593,8 +591,7 @@ fn make_third_point(source_index: usize, bits: BspBits, retest_price: Tick, c: &
 /// 锚 =（极值价, 合并组锚）由 nest 核内经 T1 oracle 判定时解析（本层只载坐标），
 /// **不进止损判据**（止损仍 pivot，语义不变）。
 fn make_second_point(source_index: usize, bits: BspBits, second_point: Tick, type1_src: usize) -> BspPoint {
-    BspPoint { level_origin: 0,
-        source_index,
+    BspPoint { source_index,
         bits,
         // 2 买止损源 pivot_low（回拉低点）；2 卖止损源 pivot_high（回拉高点）。
         pivot_low: if bits.buy2 { second_point } else { 0 },
@@ -3375,18 +3372,26 @@ fn diag_first_buy() {
         // per-case 对拍（oracle 同步填载，「同步非快照」先例）继续逐字段锁定（center 在 PartialEq 内，
         // bsp.rs:170）。若未来电池纳入一/二类路径点致摘要翻转，按上方先例诚实重算并更新本段。
         // ★#110/#218 诚实更新（kimi-nest-mainline-20260717 三方合并浮出，同 struct_break_dir/force
-        // 先例）：`BspPoint` 新增 `level_origin: u32` 字段（#110 级别身份标签）且 `center` 载体
-        // `Option<Center>` 升为 `Option<OwnerRef>`（#218 OwnerRef 包装）——二者均在
-        // `#[derive(Debug)]` 内 ⟹ 每点 Debug 串多 `level_origin: 0, ` 且 Some(Center{..}) 变
-        // Some(Center(Center{..})) ⟹ FNV 摘要翻转。**不**自定义 Debug 隐藏新字段（护栏4 禁止）。
-        // 六 bit + pivot + center + struct_break_dir 逐字段语义不变由
-        // `extract_signals_bit_exact_vs_orig_per_case`（oracle 同步填载，PartialEq 含 level_origin/
+        // 先例）：`BspPoint` 新增 `u32` 级别身份标签字段（#110 塔级别下标标注，字段名从略——
+        // 该字段已在 #455 删除，详见下条）且 `center` 载体 `Option<Center>` 升为 `Option<OwnerRef>`
+        // （#218 OwnerRef 包装）——二者均在 `#[derive(Debug)]` 内 ⟹ 每点 Debug 串多一枚该字段的默认值
+        // 串且 Some(Center{..}) 变 Some(Center(Center{..})) ⟹ FNV 摘要翻转。**不**自定义 Debug
+        // 隐藏新字段（护栏4 禁止）。六 bit + pivot + center + struct_break_dir 逐字段语义不变由
+        // `extract_signals_bit_exact_vs_orig_per_case`（oracle 同步填载，PartialEq 含该字段/
         // OwnerRef 新口径）继续锁定——翻转**仅**因 Debug 形态变化，非语义变化。
-        // 历史值：`0x90c7_9ee6_17e1_1392`（level_origin/OwnerRef 引入前）；
+        // ★#455 诚实更新（#434 grilling 交棒件）：上条引入的塔级别下标标注字段**删除**——全仓 62 处
+        // 硬编码常值 0、classify_impl/classify_with_tower_incremental 从未写过，正主
+        // `LevelProjectionLayer.identity.level` 已实填，同信息两份拷贝其一恒空——删除零损失，见
+        // SPEC #455 D1。字段退出 `#[derive(Debug)]` ⟹ 每点 Debug 串少一枚该字段的默认值串 ⟹ FNV
+        // 摘要再翻转。同上方先例：**诚实、可证**（PartialEq 同步摘掉该分量，
+        // `extract_signals_bit_exact_vs_orig_per_case` 逐 case 对拍口径同步收窄，六 bit + pivot +
+        // center + struct_break_dir 仍逐字段锁定），**不**自定义 Debug 补回假字段掩盖翻转。
+        // 历史值：`0xe6a2_63e3_43e4_3845`（该字段删除前，#455 之前最后一版）；
+        //         `0x90c7_9ee6_17e1_1392`（该字段/OwnerRef 引入前）；
         //         `0x56ed_dd65_1c59_5733`（force 引入前，struct_break_dir 后）；
         //         `0x37d2_45a7_cdc5_505a`（P2-R2 前，struct_break_dir 引入前）；
         //         `0x06b3_7c2f_3a5e_9d41`（更早，与 git HEAD oracle 不一致的历史电池状态）。
-        const GOLDEN: u64 = 0xe6a2_63e3_43e4_3845;
+        const GOLDEN: u64 = 0xe371_3897_d9bf_978c;
         let digest = bit_exact_battery_digest();
         assert_eq!(
             digest, GOLDEN,

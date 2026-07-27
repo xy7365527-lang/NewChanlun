@@ -110,8 +110,7 @@ use crate::theta_v0::classifier::bsp::BspPoint;
     /// ★全链 π_Θ（GAP-5）：买点 Γ 入场 → π_Θ → Buy；入场源=买卖点 source_index（非走势边界）。
     #[test]
     fn pi_theta_step_buy_point_entry_gap5() {
-        let bsp = BspPoint { level_origin: 0,
-            source_index: 4,
+        let bsp = BspPoint { source_index: 4,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,

@@ -8,8 +8,7 @@ use super::super::super::interp::ActiveLeg;
     /// ★∀x ∃! O_{t+1}（spec §16）：同输入 ⟹ 同订单 + 同 p*（确定唯一）。
     #[test]
     fn pi_theta_step_deterministic_unique_order() {
-        let bsp = BspPoint { level_origin: 0,
-            source_index: 0,
+        let bsp = BspPoint { source_index: 0,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
@@ -316,8 +315,7 @@ use super::super::super::interp::ActiveLeg;
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
         ]);
         // L0 卖候选 source_index=12 ⟹ host=sub(8,12)（ρ=12）⟹ 真父 L1 Long ⟹ σ_p=Long。
-        let sell = BspPoint { level_origin: 0,
-            source_index: 12,
+        let sell = BspPoint { source_index: 12,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0, pivot_high: 210,
             center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 })),

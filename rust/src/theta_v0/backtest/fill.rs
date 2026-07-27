@@ -1643,7 +1643,6 @@ mod center_oscillation_wiring_tests {
     fn third_class_buy_break(source_index: usize, owner: Center) -> BspPoint {
         BspPoint {
             source_index,
-            level_origin: 0,
             bits: BspBits { buy3: true, ..BspBits::default() },
             pivot_low: 0,
             pivot_high: 0,
@@ -1658,7 +1657,6 @@ mod center_oscillation_wiring_tests {
     fn third_class_sell_break(source_index: usize, owner: Center) -> BspPoint {
         BspPoint {
             source_index,
-            level_origin: 0,
             bits: BspBits { sell3: true, ..BspBits::default() },
             pivot_low: 0,
             pivot_high: 0,
@@ -1681,7 +1679,6 @@ mod center_oscillation_wiring_tests {
         };
         BspPoint {
             source_index,
-            level_origin: 0,
             bits,
             pivot_low,
             pivot_high,

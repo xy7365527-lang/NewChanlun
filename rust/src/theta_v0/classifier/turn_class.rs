@@ -310,8 +310,7 @@ mod tests {
     /// `BspPoint` 夹具：`center` 按 `make_third_point` 契约填（3 类点必 `Some`，bsp.rs 不变量；
     /// #218 面 A 载体形态：Center 变体包装）。
     fn pt(source_index: usize, bits: BspBits, center: Option<Center>) -> BspPoint {
-        BspPoint { level_origin: 0,
-            source_index,
+        BspPoint { source_index,
             bits,
             pivot_low: 0,
             pivot_high: 0,
