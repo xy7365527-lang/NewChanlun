@@ -3839,6 +3839,195 @@ mod venue_fee_wiring_tests {
         }
     }
 
+    /// ★#388 T2「OKLO 真实窗单跑」：per-share 档（IBKR Pro Tiered）在**真实 OKLO 价格序列**上的
+    /// **触达读数**——最低佣金 $0.35 托底、1% 名义额封顶、卖出监管费（SEC Section 31 / FINRA TAF
+    /// 及其 $9.79 上限）各自在多少笔上生效。
+    ///
+    /// 与 [`real_window_datum_reconciliation`] 的分工：那一测证明「datum 路径与手写公式对得上」
+    /// （一个 Σ 对拍）；本测答的是票体 #388 的问题「per-share 档的**非线性拐点**在真实数据上到底
+    /// 触没触达」——这是单标量费率口径在标定档失效的**经验证据**（#374 有效域收窄的实证面）：
+    /// 若最低佣金/上限在真实单量上频繁生效，逐笔有效费率就不是常数，任何单标量近似都失真。
+    ///
+    /// **单量分组**（同款构造、只改每单股数）：50 / 100 / 500 股 —— 50 股 raw 佣金 $0.175 < $0.35
+    /// ⟹ 必触底；100 股恰 $0.35（边界，不触底）；500 股 $1.75 ⟹ 不触底。三组一起跑才能看出
+    /// 有效费率**不是单量的常数**：触底组被最低佣金抬高，未触底组落在同一线性档上（100/500 股
+    /// 有效费率相同 —— per-share 佣金与按股监管费都与名义额同比，只有托底/封顶两个拐点破线性）。
+    ///
+    /// **独立重算**：分项（佣金/pass-through/清算+CAT/卖出 SEC/卖出 TAF）由报告 §2 的一手数字
+    /// **手写公式**算，与 datum 对象 `fee_usd` 的总额逐笔对拍 ⟹ 两条独立路径，不是同义反复。
+    ///
+    /// **认识论 L1**（费用算术在真实价格序列上的一致性 + 触达计数；不主张任何 alpha）。
+    ///
+    /// `#[ignore]`：需真实数据（`analysis/data_cache/oklo_1m.json` 等）。跑法：
+    /// `cargo test --release --lib oklo_real_window_per_share_readings -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn oklo_real_window_per_share_readings() {
+        use super::super::super::venue_fee::LiquidityRole;
+        use super::super::data;
+        const BIG_NAV: f64 = 1e9; // 足够大 ⟹ 无现金拒单 ⟹ 各组 units 轨迹相同
+        // 读数落盘路径（与 m8 跑批 `/tmp/m8_e2e_all_systems_oos.md` 同惯例：`#[ignore]` 手动跑批
+        // 的产物落 /tmp，由跑批记录引用；不进仓，避免验收产物与源码同轴漂移）。
+        const OKLO_READINGS_PATH: &str = "/tmp/388_oklo_per_share_readings.md";
+
+        let base = ThetaConfig::default();
+        let sched = oklo();
+        let f = match &sched.unit {
+            super::super::super::venue_fee::FeeUnit::PerShare(f) => *f,
+            _ => panic!("OKLO 档须是 per_share 单位"),
+        };
+        let ds = data::load_by_symbol("OKLO", &base).expect("OKLO 数据加载");
+        let win: Vec<Bar> = ds
+            .bars
+            .iter()
+            .rev()
+            .filter(|b| !b.untradable && b.close > 0)
+            .take(2000)
+            .cloned()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        assert!(win.len() >= 500, "OKLO 窗口 bar 数不足（{}）", win.len());
+
+        let mut md = String::from(
+            "# OKLO 真实窗 per-share 档读数（#388 T2；IBKR Pro Tiered ≤300K shares）\n\n\
+             口径标签：`[L2费率标定: datum <前12位>]`（成交费率科目）。**认识论 L1**\
+             （费用算术 + 触达计数；不作 alpha 论据）。\n\n\
+             | 每单股数 | 成交腿数 | Σ佣金 | Σpass-thru | Σ清算+CAT | Σ卖出SEC | Σ卖出TAF | Σ总费用 | \
+             最低佣金触达 | 1%上限触达 | TAF上限触达 | 有效费率(Σ费用/Σ名义) |\n\
+             |---|---|---|---|---|---|---|---|---|---|---|---|\n",
+        );
+        for lots in [50i64, 100, 500] {
+            let mut orders: Vec<Order> = Vec::new();
+            let mut i = 0usize;
+            while i + 50 < win.len() {
+                orders.push(Order { action: StrictAction::Buy, qty: lots, exec_index: i });
+                orders.push(Order { action: StrictAction::Close, qty: lots, exec_index: i + 50 });
+                i += 100;
+            }
+            assert!(orders.len() >= 10, "订单数不足");
+
+            let mut cal = base.clone();
+            cal.exec.fee_schedule = Some(sched.clone());
+            let (eq_none, _, _) = simulate_fills(&win, &orders, BIG_NAV, &base);
+            let (eq_cal, _, _) = simulate_fills(&win, &orders, BIG_NAV, &cal);
+
+            let slip = base.exec.slippage_bps / 10_000.0;
+            let none_rate =
+                (base.exec.commission_bps + base.exec.slippage_bps + base.exec.tax_bps) / 10_000.0;
+            let (mut s_comm, mut s_pass, mut s_ps, mut s_sec, mut s_taf) = (0.0, 0.0, 0.0, 0.0, 0.0);
+            let (mut n_min, mut n_cap, mut n_taf_cap, mut n_legs) = (0usize, 0usize, 0usize, 0usize);
+            let (mut s_notional, mut sum_none, mut sum_cal_total) = (0.0, 0.0, 0.0);
+            let mut units = 0.0f64;
+            let mut sorted = orders.clone();
+            sorted.sort_by_key(|o| o.exec_index);
+            for o in &sorted {
+                let px = win[o.exec_index].close as f64 * base.tick.tick_size;
+                let (delta, _) = order_delta_close_only(o.action, units).expect("本流无 noop 单");
+                let qty = o.qty as f64;
+                let notional = qty * px;
+                let sell = delta < 0.0;
+                // ── 独立重算（报告 §2.3/§2.5 一手数字手写，不调 datum 对象）──
+                let raw = 0.0035 * qty;
+                let cap = notional * 0.01;
+                let commission = raw.max(0.35).min(cap);
+                if raw < 0.35 && 0.35 <= cap {
+                    n_min += 1;
+                }
+                if cap < raw.max(0.35) {
+                    n_cap += 1;
+                }
+                let passthru = commission * (0.000175 + 0.000565);
+                let per_share = (0.0002 + 0.000003) * qty;
+                let (sec, taf) = if sell {
+                    let taf_raw = 0.000195 * qty;
+                    if taf_raw > 9.79 {
+                        n_taf_cap += 1;
+                    }
+                    (notional * 0.0000206, taf_raw.min(9.79))
+                } else {
+                    (0.0, 0.0)
+                };
+                let recomputed = commission + passthru + per_share + sec + taf;
+                // datum 对象路径（第二条独立路径）——逐笔对拍，容差 = f64 求和自由度。
+                let side = if sell {
+                    super::super::super::strategy::exec::FillSide::Sell
+                } else {
+                    super::super::super::strategy::exec::FillSide::Buy
+                };
+                let via_datum = sched.fee_usd(qty, px, side, LiquidityRole::Taker);
+                assert!(
+                    (via_datum - recomputed).abs() <= 1e-9 * recomputed.abs().max(1.0),
+                    "OKLO lots={lots} 逐笔对拍失败：datum {via_datum:.12} ≠ 手写 {recomputed:.12}"
+                );
+                s_comm += commission;
+                s_pass += passthru;
+                s_ps += per_share;
+                s_sec += sec;
+                s_taf += taf;
+                s_notional += notional;
+                sum_none += notional * none_rate;
+                sum_cal_total += recomputed + notional * slip; // 账本口径含未标定滑点 addon
+                n_legs += 1;
+                units += delta * qty;
+            }
+            assert_eq!(units, 0.0, "订单流应收平");
+
+            // 账本实付差 = 独立重算差（两遍 units 轨迹相同 ⟹ 唯一差别是费用现金流）。
+            let ledger_diff = (eq_none.last().unwrap() - eq_cal.last().unwrap()) * BIG_NAV;
+            let recomputed_diff = sum_cal_total - sum_none;
+            assert!(
+                (ledger_diff - recomputed_diff).abs() <= 1e-6 * recomputed_diff.abs().max(1.0),
+                "OKLO lots={lots}: 账本实付差 {ledger_diff:.6} ≠ 独立重算差 {recomputed_diff:.6}"
+            );
+            // 分项之和 = 总额（分解无遗漏科目）。
+            let parts = s_comm + s_pass + s_ps + s_sec + s_taf;
+            let total_datum = sum_cal_total - s_notional * slip;
+            assert!(
+                (parts - total_datum).abs() <= 1e-9 * total_datum.abs().max(1.0),
+                "OKLO lots={lots}: 科目分项和 {parts:.12} ≠ datum 总额 {total_datum:.12}"
+            );
+
+            md.push_str(&format!(
+                "| {lots} | {n_legs} | {s_comm:.4} | {s_pass:.6} | {s_ps:.4} | {s_sec:.4} | \
+                 {s_taf:.4} | {total_datum:.4} | {n_min}/{n_legs} | {n_cap}/{n_legs} | \
+                 {n_taf_cap}/{n_legs} | {:.6e} |\n",
+                total_datum / s_notional,
+            ));
+            eprintln!(
+                "[#388 OKLO] lots={lots} legs={n_legs} Σfee={total_datum:.4} \
+                 有效费率={:.6e} 最低佣金触达={n_min} 1%上限触达={n_cap} TAF上限触达={n_taf_cap}",
+                total_datum / s_notional,
+            );
+        }
+        md.push_str(&format!(
+            "\n- 窗口 = OKLO 末 {} 根可交易 bar（真实价格序列，非合成）；订单流 = 每 100 bar 买入、\
+             其后第 50 bar 平仓（确定性，与 `real_window_datum_reconciliation` 同款构造）。\n\
+             - datum：`venue_fee_ibkr_pro_20260726.json` / OKLO / `PRO_TIERED_LE_300K_SHARES`，\
+               sha256 前 12 位 = `{}`（sidecar 已校验）。\n\
+             - 「有效费率」= Σ总费用 / Σ名义额，**不含**未标定滑点 addon（{:.1} bp/腿，datum 不覆盖）。\n\
+             - 最低佣金判定：`0.0035×股数 < $0.35 ≤ 1%×名义额`；1% 上限判定：`1%×名义额 < max(raw, $0.35)`。\n\
+             - per-share 参数：commission {}/股、min {}、cap {}、clearing {}/股、CAT {}/股、\
+               SEC {} × 卖出名义、TAF {}/股 cap {}。\n",
+            win.len(),
+            &sched.datum_sha256[..12],
+            base.exec.slippage_bps,
+            f.commission_per_share_usd,
+            f.min_commission_usd,
+            f.max_commission_frac_of_notional,
+            f.clearing_per_share_usd,
+            f.cat_per_share_usd,
+            f.sell_sec_fee_frac,
+            f.sell_taf_per_share_usd,
+            f.sell_taf_cap_usd,
+        ));
+        // 落盘失败即测试失败（不 `.ok()` 吞错）：本测的产出**就是**这份读数，写不出去 = 没有交付物。
+        std::fs::write(OKLO_READINGS_PATH, &md)
+            .unwrap_or_else(|e| panic!("OKLO 读数落盘失败 {OKLO_READINGS_PATH}：{e}"));
+        eprintln!("[#388 OKLO] 读数落盘 {OKLO_READINGS_PATH}");
+    }
+
     /// 口径标签契约（risk.rs:709）：None ⟹ L1 未标定；Some ⟹ `[L2费率标定: datum <前12位>]`。
     #[test]
     fn calibration_label_follows_schedule() {

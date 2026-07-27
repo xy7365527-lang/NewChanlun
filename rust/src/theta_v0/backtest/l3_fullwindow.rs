@@ -134,7 +134,7 @@ fn l3_fullwindow_multi_symbol_significance() {
             &res.daily_returns,
             &res.trades,
             &res.prices,
-            res.fee_rate,
+            res.fee_rate.expect(super::treasury::SCALAR_COST_RATE_UNDEFINED),
             res.theta_return_mtm,
         );
         if sig.theta_beats_random {

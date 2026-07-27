@@ -863,7 +863,9 @@ fn crossfit_l2() {
 /// 改由成交侧逐笔实付累计（或 `treasury::fee_quoter` 逐笔重算）供给，不是换一个常数。
 fn rebuild_cost_series(res: &super::runner::RunResult, n_bars: usize, nav0: f64) -> Vec<f64> {
     let mut cost = vec![0.0f64; n_bars];
-    let fee = res.fee_rate;
+    // ★#388 T2：标定档 `fee_rate=None` ⟹ 此处 fail-loud（原口径 = 构造期 panic，语义等价，
+    //   位点移到消费期）。鞅守卫要接标定档须改逐笔实付累计，不是换一个常数（见本函数有效域节）。
+    let fee = res.fee_rate.expect(super::treasury::SCALAR_COST_RATE_UNDEFINED);
     for tr in &res.trades {
         // 成交价从 RunResult.prices（与账本 apply_order 成交价一致，close 口径）取。
         let entry_px = res.prices.get(tr.entry_bar).copied().unwrap_or(0.0);

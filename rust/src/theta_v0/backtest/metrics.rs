@@ -316,8 +316,10 @@ pub struct Significance {
 /// - `fee_rate`：单边费用率（commission+slippage+tax，比率）。随机对照含同等成本。
 ///   **有效域（#374 MED-A）**：该"同等成本"只在**未标定常率**档成立（`fee_schedule = None`）。
 ///   venue 标定档下逐笔费率随 (qty, px, side) 变，单标量口径无良定义 ⟹ 上游
-///   [`runner::RunResult::fee_rate`](super::runner::RunResult::fee_rate) 已由
-///   `treasury::scalar_cost_rate` fail-loud 挡住，本函数不会收到标定档的成本口径。
+///   [`runner::RunResult::fee_rate`](super::runner::RunResult::fee_rate) 在标定档下是 `None`
+///   （`treasury::scalar_cost_rate_opt`，#388 T2 起由类型承载）⟹ 调用方要么
+///   `expect(treasury::SCALAR_COST_RATE_UNDEFINED)` fail-loud，要么按 #385 裁定把该读数标注
+///   不可用（m8 跑批取后者，标定档下**不调用本函数**）。两条路都不会把标定档的成本口径喂进来。
 /// - `theta_return_for_control`：Θ 含浮盈 total_return（MtM/终点强平口径）——随机对照的比较基准。
 ///
 /// **block bootstrap**（§3.4，backtest-protocol-v0.md:127）：以 [`TRADE_BLOCK_LEN`]=5 笔为块长

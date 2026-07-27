@@ -284,8 +284,9 @@ pub struct ExecConfig {
     ///
     /// - `backtest::runner::RunResult::fee_rate`：随机对照的成本口径是单标量，per-share 档下
     ///   无良定义 ⟹ 随滑点/价差 datum 一并收编（报告 §1.6 裂缝 3 同族）。**#374 MED-A 起，
-    ///   该缺口从文字登记升级为代码锁**：取值走 `backtest::treasury::scalar_cost_rate`，标定档
-    ///   下 `assert!` fail-loud（与 `tax_bps` 双计同级处置），不再静默产不对称口径；
+    ///   该缺口从文字登记升级为代码锁**：取值走 `backtest::treasury::scalar_cost_rate_opt`
+    ///   （#388 T2 起；此前是 `scalar_cost_rate`），标定档下给 `None` 而非一个不对称口径的常数，
+    ///   消费面须 fail-loud（同一条 `SCALAR_COST_RATE_UNDEFINED`）或标注读数不可用；
     /// - `strategy::exec::apply_fees`：tick 域价格偏移变体，无成交量/方向上下文，且当前
     ///   **无生产调用方**（仅其自身单测）；
     /// - 研究跑批与诊断：`backtest::econ_positive` / `backtest::l3_delta_r_alpha` /

@@ -135,10 +135,15 @@ pub struct RunResult {
     /// 单边费用率（commission+slippage+tax 比率）——随机对照含同等成本。
     ///
     /// **有效域（231号 / #374 MED-A）：仅 `exec.fee_schedule = None`（未标定常率）档**。取值经
-    /// [`treasury::scalar_cost_rate`](super::treasury::scalar_cost_rate)，标定档下**构造期即
-    /// panic**（不静默产一个对消费面无效的常数）。per-share 档的逐笔费率随 (qty, px, side) 变，
-    /// 没有使「随机对照含同等成本」成真的标量——消费面须先接缝改用 `treasury::fee_quoter`。
-    pub fee_rate: f64,
+    /// [`treasury::scalar_cost_rate_opt`](super::treasury::scalar_cost_rate_opt)：未标定档
+    /// `Some(常率)`；**标定档 `None`**——per-share 档的逐笔费率随 (qty, px, side) 变，没有使
+    /// 「随机对照含同等成本」成真的标量，消费面须先接缝改用 `treasury::fee_quoter`。
+    ///
+    /// ★#388 T2：`None` 由**类型**承载有效域收窄（此前是构造期 panic）。防线等价不减弱——
+    /// 消费面要么 `expect(treasury::SCALAR_COST_RATE_UNDEFINED)`（原 fail-loud 语义，位点移到
+    /// 消费期），要么按 #385 裁定把该读数标注不可用。改动理由：构造期 panic 会用一个消费面的
+    /// 有效域锁死与它无关的**全部**跑批读数（execR/费用科目/TW 三态/门控统计）。
+    pub fee_rate: Option<f64>,
     /// Θ MtM 复利口径 total_return（= `metrics.strat_return`）——**仅作 significance 报告参考**
     /// （`theta_return_mtm`），**不是**随机对照比较基准。实际比较用 significance 内部算的
     /// `theta_return_same_caliber`（逐笔无复利同口径）——消除复利偏置（codex 实现审查缺陷①②）。
@@ -243,7 +248,8 @@ pub fn run_theta_v0(
         .iter()
         .map(|b| b.close as f64 * config.tick.tick_size)
         .collect();
-    let fee_rate = super::treasury::scalar_cost_rate(&config.exec); // #374 MED-A：标定档 fail-loud
+    // #374 MED-A 有效域 + #388 T2 类型承载：未标定档 Some(常率)；标定档 None（消费面显式处置）。
+    let fee_rate = super::treasury::scalar_cost_rate_opt(&config.exec);
     // Θ MtM 复利口径 total_return（权益曲线）——仅 significance 报告参考，非比较基准
     // （比较用 significance 内部同口径值；先取，m 随后 move）。
     let theta_return_mtm = m.strat_return;
@@ -320,7 +326,8 @@ pub fn run_theta_v0_dual(
         .iter()
         .map(|b| b.close as f64 * config.tick.tick_size)
         .collect();
-    let fee_rate = super::treasury::scalar_cost_rate(&config.exec); // #374 MED-A：标定档 fail-loud
+    // #374 MED-A 有效域 + #388 T2 类型承载：未标定档 Some(常率)；标定档 None（消费面显式处置）。
+    let fee_rate = super::treasury::scalar_cost_rate_opt(&config.exec);
     let theta_return_mtm = m.strat_return;
 
     RunResult {
@@ -545,7 +552,8 @@ fn run_theta_v0_pi_inner(
         .iter()
         .map(|b| b.close as f64 * config.tick.tick_size)
         .collect();
-    let fee_rate = super::treasury::scalar_cost_rate(&config.exec); // #374 MED-A：标定档 fail-loud
+    // #374 MED-A 有效域 + #388 T2 类型承载：未标定档 Some(常率)；标定档 None（消费面显式处置）。
+    let fee_rate = super::treasury::scalar_cost_rate_opt(&config.exec);
     let theta_return_mtm = m.strat_return;
     let strict_nest_sidecar = strict_nest_sidecar.finish();
 
@@ -735,7 +743,8 @@ pub fn run_theta_v0_pi_overlay(
         .iter()
         .map(|b| b.close as f64 * config.tick.tick_size)
         .collect();
-    let fee_rate = super::treasury::scalar_cost_rate(&config.exec); // #374 MED-A：标定档 fail-loud
+    // #374 MED-A 有效域 + #388 T2 类型承载：未标定档 Some(常率)；标定档 None（消费面显式处置）。
+    let fee_rate = super::treasury::scalar_cost_rate_opt(&config.exec);
     let theta_return_mtm = m.strat_return;
     let closed_loop_final = run_closed_loop(bars, initial_nav);
     let net_result = RunResult {
@@ -6951,7 +6960,7 @@ mod tests {
             &res.daily_returns,
             &res.trades,
             &res.prices,
-            res.fee_rate,
+            res.fee_rate.expect(crate::theta_v0::backtest::treasury::SCALAR_COST_RATE_UNDEFINED),
             res.theta_return_mtm,
         );
         eprintln!(
@@ -7028,7 +7037,7 @@ mod tests {
             &res.daily_returns,
             &res.trades,
             &res.prices,
-            res.fee_rate,
+            res.fee_rate.expect(crate::theta_v0::backtest::treasury::SCALAR_COST_RATE_UNDEFINED),
             res.theta_return_mtm,
         );
         assert_eq!(sig, sig2, "significance 可复现（seed=20260625 冻结，含操作语义随机对照）");
@@ -7180,7 +7189,7 @@ mod tests {
                 &res.daily_returns,
                 &res.trades,
                 &res.prices,
-                res.fee_rate,
+                res.fee_rate.expect(crate::theta_v0::backtest::treasury::SCALAR_COST_RATE_UNDEFINED),
                 res.theta_return_mtm,
             );
             if sig.theta_beats_random {

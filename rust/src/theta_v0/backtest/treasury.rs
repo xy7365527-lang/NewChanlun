@@ -51,13 +51,33 @@ pub fn fee_rate(exec: &ExecConfig) -> f64 {
 /// （`tax_bps` 与 datum 重复计，见 [`fee_quoter`]）**同级处置**（090 一致性）。
 /// 解锁路径 = 给这两个消费面接 (qty, px, side) 缝、改用 [`fee_quoter`] 逐笔解析（另票）。
 pub fn scalar_cost_rate(exec: &ExecConfig) -> f64 {
-    assert!(
-        exec.fee_schedule.is_none(),
-        "venue 标定档下取单标量成本费率：随机对照/成本剥离的常数口径在 per-share 档无良定义\
-         （逐笔费率随 qty/px/side 变）——这两个消费面须先接 (qty, px, side) 缝改用 fee_quoter，\
-         否则策略臂按 datum 扣费、对照臂按未标定常率 ⟹ 口径不对称，读数无意义"
-    );
-    fee_rate(exec)
+    scalar_cost_rate_opt(exec).expect(SCALAR_COST_RATE_UNDEFINED)
+}
+
+/// [`scalar_cost_rate`] 的 fail-loud 消息**单一来源**——消费点 `expect` 同串，防第二查法。
+pub const SCALAR_COST_RATE_UNDEFINED: &str =
+    "venue 标定档下取单标量成本费率：随机对照/成本剥离的常数口径在 per-share 档无良定义\
+     （逐笔费率随 qty/px/side 变）——这两个消费面须先接 (qty, px, side) 缝改用 fee_quoter，\
+     否则策略臂按 datum 扣费、对照臂按未标定常率 ⟹ 口径不对称，读数无意义";
+
+/// [`scalar_cost_rate`] 的**类型承载版**（#388 T2）：未标定档 `Some(常率)`；标定档 `None`。
+///
+/// 与 [`scalar_cost_rate`] 的关系 = 同一条有效域判定的两种承载方式，**防线等价不减弱**：
+/// - 值层：两者对未标定档给同一个 f64（`scalar_cost_rate` 即本函数 + `expect`）；
+/// - 标定档：本函数给 `None` —— `None` 不能被当费率参与任何算术，消费面要么显式
+///   `expect(SCALAR_COST_RATE_UNDEFINED)`（保持原 fail-loud 语义，只是位点从**构造期**
+///   移到**消费期**），要么按 #385 Implementation Decisions 的裁定把该读数**标注不可用**。
+///
+/// 为什么要移位点（#388）：`RunResult` 的构造期 panic 使**整条跑批**在标定档下不可运行，
+/// 而跑批的绝大多数读数（execR/费用科目/TW 三态/门控统计）与单标量费率**无关**。构造期
+/// 挡住 = 用一个消费面的有效域收窄，锁死与它无关的所有读数。移到消费期后：无关读数照常
+/// 产出，相关读数（随机对照系 LCB/beats_random、l3 鞅守卫成本剥离）按裁定标"不可用"。
+/// **不是**给这些消费面喂近似值——那条路 #374 已明文否决。
+pub fn scalar_cost_rate_opt(exec: &ExecConfig) -> Option<f64> {
+    match exec.fee_schedule {
+        None => Some(fee_rate(exec)),
+        Some(_) => None,
+    }
 }
 
 /// **成交费率单源门面**（#360，报告 §3.1 item 3）：把 `ExecConfig` 的 None/Some 分叉收口成
@@ -158,6 +178,32 @@ mod tests {
     fn scalar_cost_rate_uncalibrated_is_bit_exact_fee_rate() {
         let exec = ExecConfig::default();
         assert_eq!(scalar_cost_rate(&exec), fee_rate(&exec));
+    }
+
+    /// ★#388 T2：`scalar_cost_rate_opt` 未标定档 = [`scalar_cost_rate`] 逐位同值（`Some`）。
+    /// **认识论 L0**（纯定义/契约，零数据依赖）。
+    #[test]
+    fn scalar_cost_rate_opt_uncalibrated_is_some_bit_exact() {
+        let exec = ExecConfig::default();
+        assert_eq!(scalar_cost_rate_opt(&exec), Some(fee_rate(&exec)));
+    }
+
+    /// ★#388 T2：标定档 ⟹ `None`（"无良定义"由类型承载，不 panic 也不产近似值）。
+    /// 这是把 [`scalar_cost_rate`] 的 fail-loud **移到消费点**的前置件——防线不减弱：
+    /// `None` 无法被当作费率使用，消费面须显式 `expect`（同一条错误消息）或降级标注。
+    /// **认识论 L0**（合成档，理由同 [`scalar_cost_rate_calibrated_panics`]）。
+    #[test]
+    fn scalar_cost_rate_opt_calibrated_is_none() {
+        use super::super::super::venue_fee::{FeeUnit, VenueFeeSchedule};
+        let mut exec = ExecConfig::default();
+        exec.fee_schedule = Some(VenueFeeSchedule {
+            venue: "SYNTH".into(),
+            symbol: "X".into(),
+            tier: "T".into(),
+            unit: FeeUnit::Notional { maker_bps: 10.0, taker_bps: 10.0 },
+            datum_sha256: "0".repeat(64),
+        });
+        assert_eq!(scalar_cost_rate_opt(&exec), None);
     }
 
     /// ★#374 MED-A：**标定档下 fail-loud**——不静默产一个对随机对照/成本剥离无效的常数。

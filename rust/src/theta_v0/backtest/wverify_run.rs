@@ -209,6 +209,68 @@ fn apply_enforce_gross_cap_from_env(cfg: &mut ThetaConfig) {
     }
 }
 
+/// ★#388 T2（标定臂）：`M8_FEE_DATUM=<datum 文件名>:<symbol>:<tier>` spec → venue 费率档。
+///
+/// **仓内 datum 文件优先，路径即契约**（#385 Implementation Decisions）：文件名相对
+/// [`datum_dir`](crate::theta_v0::venue_fee::datum_dir)（= `analysis/data_cache`），装载经
+/// `load_datum` 的 sha256 sidecar 校验（未校验的费率表进跑批 = 口径标签谎报 L2）。
+///
+/// **全程 fail-loud**（格式非法 / 文件缺失 / 哈希不符 / (symbol,tier) 未在册）——静默退回未标定档
+/// 会让产物打着 `[L1机制/费率未标定]` 标签冒充标定臂读数。**跨品种借档**由
+/// `data::load_by_symbol` 的 #360 校验在数据加载期承保（本函数不重复实现该判定）。
+fn parse_fee_datum_spec(spec: &str) -> crate::theta_v0::venue_fee::VenueFeeSchedule {
+    use crate::theta_v0::venue_fee::{datum_dir, load_datum};
+    let parts: Vec<&str> = spec.split(':').collect();
+    assert_eq!(
+        parts.len(),
+        3,
+        "M8_FEE_DATUM 格式须为 `<datum 文件名>:<symbol>:<tier>`（三段冒号分隔），实得 {spec:?}"
+    );
+    let path = datum_dir().join(parts[0]);
+    let book = load_datum(&path)
+        .unwrap_or_else(|e| panic!("M8_FEE_DATUM datum 装载失败（{}）：{e}", path.display()));
+    book.resolve(parts[1], parts[2])
+        .unwrap_or_else(|e| panic!("M8_FEE_DATUM 档位解析失败（spec={spec:?}）：{e}"))
+}
+
+/// ★#388 T2：`M8_FEE_DATUM` 未设 ⟹ no-op（臂R 逐位不变，bit-exact 中性——与
+/// [`apply_theta_dir_preset_from_env`] / `M8_WIN_FILTER` 同款 env-gate 先例）；
+/// 设置 ⟹ 注入 [`parse_fee_datum_spec`] 解析出的档，跑批升为**标定臂（臂D）**，
+/// 产物标签自动升 `[L2费率标定: datum <前12位>]`（`risk::rate_calibration_label` 契约）。
+fn apply_m8_fee_datum_from_env(cfg: &mut ThetaConfig) {
+    if let Ok(spec) = std::env::var("M8_FEE_DATUM") {
+        cfg.exec.fee_schedule = Some(parse_fee_datum_spec(&spec));
+    }
+}
+
+/// ★#388 T2 / #374 有效域收窄的**报告层标注**：标定档下随机对照系读数一律标此串。
+///
+/// 「不可用」不是「跑失败」，是**有效域之外**（231号）：单标量费率在 per-share 档无良定义
+/// ⟹ 依赖它的 LCB_OOS(R)（block bootstrap 的成本口径）与三态判据没有合法取值。喂近似值
+/// （实际有效费率等）已由 #374 明文否决——那只是把不对称藏进一个更贵的常数（090 声明膨胀）。
+const CALIBRATED_UNAVAILABLE: &str = "不可用(标定档有效域收窄 #374)";
+
+/// m8 四层报告的**层4 两格**（LCB_OOS(R) / 三态）渲染。
+///
+/// - `lcb = Some(x)`（未标定档）⟹ 与降级改造前**逐字符相同**的原口径（M8:168 三分支）；
+/// - `lcb = None`（标定档，`RunResult::fee_rate = None`）⟹ 两格均 [`CALIBRATED_UNAVAILABLE`]。
+///   三态**不用 R 的正负顶替**：判据是 `LCB>0`，缺 LCB 即无判据（诚实缺席，不降格冒充）。
+fn layer4_cells(lcb: Option<f64>, r_total: f64) -> (String, String) {
+    match lcb {
+        Some(lcb_r) => {
+            let verdict = if lcb_r > 0.0 {
+                "CONFIRMED"
+            } else if r_total > 0.0 {
+                "INCONCLUSIVE"
+            } else {
+                "无(R≤0)"
+            };
+            (format!("{lcb_r:+.0}"), verdict.to_string())
+        }
+        None => (CALIBRATED_UNAVAILABLE.to_string(), CALIBRATED_UNAVAILABLE.to_string()),
+    }
+}
+
 /// walk-forward OOS 残差聚合（G-A4）：取 `symbol` 在 `PREREG_WINDOWS` 冻结 anchored 窗口中
 /// `test_start ≥ OOS_START` 的子集，逐窗对 **test 段** 独立 [`build_mu_from_bars`]（time_block_base
 /// = `win.i·WF_TIME_STRIDE`），聚合残差记录。返回 (全聚合残差, 各窗独立残差 for time block 报告)。
@@ -1223,7 +1285,15 @@ fn m8_e2e_all_systems_oos() {
     use super::super::strategy::coverage::Vertical;
     use super::super::strategy::ledger::{RiskPolicy, TStage};
 
-    let plain_cfg = ThetaConfig::default();
+    // ★#388 T2（标定臂 D）：`M8_FEE_DATUM=<file>:<symbol>:<tier>` ⟹ venue 费率标定；未设 = 臂R
+    //   逐位不变。**此处也注入**（不只循环内的 cfg）的两个理由：① 报告口径标签取自本 cfg，
+    //   不同步就会给标定臂产物打 `[L1机制/费率未标定]`（标签谎报）；② `load_by_symbol` 的 #360
+    //   品种绑定校验读本 cfg ⟹ 跨品种借档（如 OKLO 档配 BTC 数据集）在数据加载期即 fail-loud。
+    let plain_cfg = {
+        let mut c = ThetaConfig::default();
+        apply_m8_fee_datum_from_env(&mut c);
+        c
+    };
     let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
     let nav_of = |d: &data::Dataset| {
         d.bars.iter().find(|b| !b.untradable && b.close > 0)
@@ -1255,11 +1325,33 @@ fn m8_e2e_all_systems_oos() {
     // A10 附则B 裁决2（090 措辞纪律）：带成本 R 数值报告强制口径标签（费率未标定，禁作 alpha 论据）。
     // ★#360：成交费率标签随 `ExecConfig::fee_schedule` 升降级；持有成本三项独立保持 L1。
     report.push_str(&format!(
-        "**口径标签：{}**（成交费率科目）／**{}**（cost 三常费率保底未标定）（A10 附则B 强制；数值禁作 alpha 论据/策略择优输入）\n\n\
-         ## 四层报告\n\n",
+        "**口径标签：{}**（成交费率科目）／**{}**（cost 三常费率保底未标定）（A10 附则B 强制；数值禁作 alpha 论据/策略择优输入）\n\n",
         super::super::strategy::risk::rate_calibration_label(&plain_cfg.exec),
         super::super::strategy::risk::RATE_UNCALIBRATED_LABEL,
     ));
+    // ★#388 T2 / #385 Implementation Decisions：标定臂（臂D）的**有效域收窄声明**随产物走。
+    //   不可用项不是「跑失败」，是 #374 裁定的有效域之外（231号）——喂近似费率已明文否决。
+    if plain_cfg.exec.fee_schedule.is_some() {
+        report.push_str(&format!(
+            "> **标定档有效域收窄声明（#374 / #385）**：本跑批经 `M8_FEE_DATUM` 注入 venue 费率 datum，\
+             单标量成本费率（`RunResult::fee_rate`）在 per-share 档**无良定义** ⟹ 下列读数标\
+             `{CALIBRATED_UNAVAILABLE}`，**不以近似费率顶替**：\n\
+             > - `LCB_OOS(R)`（block bootstrap 的成本口径依赖单标量费率）；\n\
+             > - **三态判据**（判据是 `LCB>0`，缺 LCB 即无判据——不用 R 的正负降格顶替）；\n\
+             > - `metrics::significance` 派生的随机对照系（schedule-shift / independent-entry \
+             p 值、`theta_beats_random`）——本表不列，标定档下一律不产；\n\
+             > - `l3_delta_r_alpha` 鞅守卫的成本剥离（不在本跑批路径内；标定档要接须改逐笔实付累计）。\n\
+             >\n\
+             > **仍然有效**（与单标量费率无关，逐笔实付经 `treasury::fee_quoter` 解析）：n_orders / \
+             ΣN_tΔP_t / Comm+Slip / Funding / Borrow / LiqLoss / net_r(execR) / MaxDD / 声部数 / \
+             终Stage / Q_T / W_T / η 列 / R(含浮盈) / `NEST_GATE_STATS`。\n\
+             >\n\
+             > **对上文抬头的更正**：抬头「signal 层无 alpha ⟹ 端到端负/INCONCLUSIVE 照实」一句\
+             描述的是**未标定档**的三态判读。本臂层4 **无结论**（判据缺输入），该句对本臂不适用——\
+             不得把「不可用」读作「负」或「INCONCLUSIVE」。\n\n"
+        ));
+    }
+    report.push_str("## 四层报告\n\n");
 
     // ── signal 层（转引，不重算）──
     report.push_str(
@@ -1293,6 +1385,7 @@ fn m8_e2e_all_systems_oos() {
         // 从未测 dir_weight 执行层效应；现在 Follow/Adversary 可经 env gate 测 execution R 分解。
         apply_theta_dir_preset_from_env(&mut cfg);
         apply_enforce_gross_cap_from_env(&mut cfg);
+        apply_m8_fee_datum_from_env(&mut cfg); // ★#388 T2 标定臂（未设 = 臂R 逐位不变）
         cfg.margin = Some(q4_margin_model(nav_te));
         cfg.cost_model = Some(m6_cost_model());
         eprintln!("[m8] BTC {tag} test={te_lo}..{te_hi}({}) 三系统同开 run…", test.bars.len());
@@ -1330,35 +1423,34 @@ fn m8_e2e_all_systems_oos() {
         let eta_corrected = eta_t - cum_holding_cost;
 
         // 层4 完整策略：R(含浮盈) + LCB_OOS(R) block bootstrap。
+        // ★#388 T2：`fee_rate` 是 `Option`——标定臂（臂D）为 `None`（#374 有效域收窄）⟹ **不算**
+        //   significance（随机对照的"含同等成本"在 per-share 档无良定义），两格标不可用。
+        //   未标定档（臂R）逐位不变。
         let r_total: f64 = r.net_result.trade_pnls_with_forced.iter().sum();
-        let sig = significance(
-            &r.net_result.trade_pnls, // 已实现口径（bootstrap H0:收益≤0 输入）
-            &r.net_result.daily_returns,
-            &r.net_result.trades,
-            &r.net_result.prices,
-            r.net_result.fee_rate,
-            r.net_result.theta_return_mtm,
-        );
-        let lcb_r = sig.boot_ci95_lo; // LCB_OOS(R) = block bootstrap 总收益 2.5 分位下界
+        let lcb_r = r.net_result.fee_rate.map(|fee| {
+            significance(
+                &r.net_result.trade_pnls, // 已实现口径（bootstrap H0:收益≤0 输入）
+                &r.net_result.daily_returns,
+                &r.net_result.trades,
+                &r.net_result.prices,
+                fee,
+                r.net_result.theta_return_mtm,
+            )
+            .boot_ci95_lo // LCB_OOS(R) = block bootstrap 总收益 2.5 分位下界
+        });
         // 三态（完整策略层，M8:168）：LCB>0 ⟹ confirmed；R>0∧LCB≤0 ⟹ INCONCLUSIVE；R≤0 ⟹ 无（本层）。
-        let verdict = if lcb_r > 0.0 {
-            "CONFIRMED"
-        } else if r_total > 0.0 {
-            "INCONCLUSIVE"
-        } else {
-            "无(R≤0)"
-        };
+        let (lcb_cell, verdict) = layer4_cells(lcb_r, r_total);
 
         report.push_str(&format!(
-            "| {tag} | {} | {:+.0} | {:.0} | {:.0} | {:.0} | {:.0} | {:+.0} | {:.4} | {}/{}/{} | {} | {} | {} | {}/{} | {} | {} | {:+.0} | {:+.0} | {} |\n",
+            "| {tag} | {} | {:+.0} | {:.0} | {:.0} | {:.0} | {:.0} | {:+.0} | {:.4} | {}/{}/{} | {} | {} | {} | {}/{} | {} | {} | {:+.0} | {} | {} |\n",
             r.net_result.n_orders, d.price_pnl_gross, d.commission_slippage, d.funding, d.borrow,
             d.liquidation_loss, d.net_r, maxdd, n_amb, n_short, n_follow,
             stage_str, tw.notional_in, tw.withdrawn, eta_t, eta_star,
-            cum_holding_cost, eta_corrected, r_total, lcb_r, verdict,
+            cum_holding_cost, eta_corrected, r_total, lcb_cell, verdict,
         ));
         eprintln!(
-            "[m8] {tag}: execR={:+.0} MaxDD={:.4} stage={} R={:+.0} LCB(R)={:+.0} → {}",
-            d.net_r, maxdd, stage_str, r_total, lcb_r, verdict,
+            "[m8] {tag}: execR={:+.0} MaxDD={:.4} stage={} R={:+.0} LCB(R)={} → {}",
+            d.net_r, maxdd, stage_str, r_total, lcb_cell, verdict,
         );
 
         // 守恒硬校验（R 分解无泄漏，与 M6 同容差）。
@@ -1371,14 +1463,25 @@ fn m8_e2e_all_systems_oos() {
         assert!(tw.withdrawn <= tw.notional_in, "W_T={} 不得超 notional_in={}", tw.withdrawn, tw.notional_in);
     }
 
+    // ★#388 T2：层4 结算措辞随口径档分叉——标定档下 LCB 不可用 ⟹ **不给层4 结论**
+    //   （不是「未过」也不是「过」，是无判据）。措辞§5.6 的 INCONCLUSIVE 是有 LCB 且 ≤0 的态，
+    //   拿它套「LCB 不存在」是静默越域。
+    let layer4_line = if plain_cfg.exec.fee_schedule.is_some() {
+        "- **层4 完整策略** `LCB_OOS(R)>0`：**本臂无结论**——标定档下 LCB_OOS(R) 不可用\
+         （#374 有效域收窄，见上方声明），判据无输入。**既不宣称 confirmed alpha，也不判 \
+         INCONCLUSIVE**（后者是「有 LCB 且 ≤0」的态，套用于「LCB 不存在」是越域）。\
+         该层要在标定档下有结论，须先给随机对照接 (qty, px, side) 逐笔费率缝（另票）。\n"
+    } else {
+        "- **层4 完整策略** `LCB_OOS(R)>0`：见 LCB_OOS(R) 列——**未过 ⟹ INCONCLUSIVE**，\
+         不宣称 confirmed alpha（措辞§5.6：INCONCLUSIVE≠无 alpha；§5.3：不外推 max-full）。\n"
+    };
     report.push_str(&format!(
         "\n## 判据结算（M8:163-168）\n\n\
          - **层1 signal**：INCONCLUSIVE（转引，无方向 alpha）。\n\
          - **层2 execution** `E[R(Π_exec)]>0`：见 net_r 列（成本真实化后极负 = 高频费主导，非机制缺陷）。\n\
          - **层3 treasury** `Reach(StageIII)>0`：见终Stage 列（signal 无 alpha ⟹ 已实现 PnL 无正累积 ⟹ \
            三阶段停 CostReduction，与 M7 c3 witness 一致）。\n\
-         - **层4 完整策略** `LCB_OOS(R)>0`：见 LCB_OOS(R) 列——**未过 ⟹ INCONCLUSIVE**，\
-           不宣称 confirmed alpha（措辞§5.6：INCONCLUSIVE≠无 alpha；§5.3：不外推 max-full）。\n\n\
+         {layer4_line}\n\
          I_0 报告门槛 = {i0}（notional_in 同源 ⌊nav0⌋，各窗 nav 不同 ⟹ 门槛按 notional_in 列读）。\n",
     ));
     std::fs::write("/tmp/m8_e2e_all_systems_oos.md", &report).ok();
@@ -1511,6 +1614,80 @@ fn m3_partition_btc_fullhistory() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ★#388 T2：**未标定档**的层4 两格（LCB_OOS(R) / 三态）渲染与降级前**逐字符相同**——
+    /// 臂R（`fee_schedule=None`）产物不因本次改造漂移一个字节。三分支全覆盖
+    /// （M8:168：LCB>0 ⟹ CONFIRMED；R>0∧LCB≤0 ⟹ INCONCLUSIVE；R≤0 ⟹ 无）。
+    /// **认识论 L0**（渲染契约，零数据依赖）。
+    #[test]
+    fn layer4_cells_uncalibrated_render_is_unchanged() {
+        assert_eq!(layer4_cells(Some(1234.5), 9000.0), ("+1234".to_string(), "CONFIRMED".to_string()));
+        assert_eq!(layer4_cells(Some(-2105181.0), 6851062.0), ("-2105181".to_string(), "INCONCLUSIVE".to_string()));
+        assert_eq!(layer4_cells(Some(-3550861.0), -1191916.0), ("-3550861".to_string(), "无(R≤0)".to_string()));
+    }
+
+    /// ★#388 T2 / #385 Implementation Decisions（「臂 D/C 的相关读数须标注不可用或改述」）：
+    /// **标定档**（单标量费率无良定义，#374）⟹ 随机对照系派生的两格一律标"不可用"，
+    /// **不喂近似费率**、**不落一个看似有效的数**。**认识论 L0**（契约）。
+    #[test]
+    fn layer4_cells_calibrated_marks_unavailable() {
+        let (lcb, verdict) = layer4_cells(None, 6851062.0);
+        assert_eq!(lcb, CALIBRATED_UNAVAILABLE);
+        assert_eq!(verdict, CALIBRATED_UNAVAILABLE);
+        assert!(CALIBRATED_UNAVAILABLE.contains("不可用"), "标注须自解释");
+        assert!(CALIBRATED_UNAVAILABLE.contains("#374"), "标注须可追溯到有效域收窄票");
+        // R 的正负不影响标定档结论——三态判据本身依赖 LCB，缺 LCB 即无判据（不用 R 顶替）。
+        assert_eq!(layer4_cells(None, -1.0), layer4_cells(None, 1.0));
+    }
+
+    /// ★#388 T2：`M8_FEE_DATUM` spec 解析——仓内 datum 文件（路径即契约）逐字段落地，
+    /// sha256 随 datum 内容而来（口径标签 `[L2费率标定: datum <前12位>]` 的来源）。
+    /// **认识论 L1**（读真实 datum 文件的装载算术；不主张任何 alpha）。
+    #[test]
+    fn fee_datum_spec_resolves_repo_datum() {
+        let s = parse_fee_datum_spec("venue_fee_binance_spot_20260726.json:BTC:VIP0");
+        assert_eq!(s.venue, "BINANCE_SPOT");
+        assert_eq!(s.symbol, "BTC");
+        assert_eq!(s.tier, "VIP0");
+        assert_eq!(s.datum_sha256.len(), 64);
+        let o = parse_fee_datum_spec("venue_fee_ibkr_pro_20260726.json:OKLO:PRO_TIERED_LE_300K_SHARES");
+        assert_eq!(o.venue, "IBKR_PRO_US_EQUITY");
+        assert_eq!(o.symbol, "OKLO");
+    }
+
+    /// ★#388 T2：spec 三段式格式非法 ⟹ fail-loud（禁静默按未标定档跑，那会让报告标签谎报）。
+    #[test]
+    #[should_panic(expected = "M8_FEE_DATUM")]
+    fn fee_datum_spec_malformed_fails_loud() {
+        let _ = parse_fee_datum_spec("venue_fee_binance_spot_20260726.json:BTC");
+    }
+
+    /// ★#388 T2：datum 文件不存在 ⟹ fail-loud（`load_datum` 的 Err 不被吞）。
+    #[test]
+    #[should_panic(expected = "M8_FEE_DATUM")]
+    fn fee_datum_spec_missing_file_fails_loud() {
+        let _ = parse_fee_datum_spec("venue_fee_does_not_exist.json:BTC:VIP0");
+    }
+
+    /// ★#388 T2：(symbol, tier) 未在册 ⟹ fail-loud（`VenueFeeBook::resolve` 的 Err 不被吞，
+    /// 禁静默借别档）。
+    #[test]
+    #[should_panic(expected = "M8_FEE_DATUM")]
+    fn fee_datum_spec_unknown_tier_fails_loud() {
+        let _ = parse_fee_datum_spec("venue_fee_binance_spot_20260726.json:BTC:VIP99");
+    }
+
+    /// ★#388 T2：**品种借档拦截实证**（#360 `data::load_by_symbol` 的 fail-loud 承保本 env 钩子）——
+    /// 把 OKLO 的 per-share 档配给 BTC 数据集 ⟹ `Err`，跑批在数据加载期就停，不会静默产出
+    /// 「按股收费的 BTC」这种无意义费用。**磁盘无关**（品种校验先于文件读取）。
+    #[test]
+    fn fee_datum_cross_symbol_borrow_is_blocked() {
+        let mut cfg = ThetaConfig::default();
+        cfg.exec.fee_schedule =
+            Some(parse_fee_datum_spec("venue_fee_ibkr_pro_20260726.json:OKLO:PRO_TIERED_LE_300K_SHARES"));
+        let err = data::load_by_symbol("BTC", &cfg).expect_err("跨品种借档须被拦截");
+        assert!(err.contains("品种不符"), "错误须点明品种不符，实得：{err}");
+    }
 
     /// δ-free 精确重算自检（Task #186，L1 管线正确性）：round-trip dump→load bit-exact + δ-free
     /// perm_p 池化正确性。合成 records（level0/bsp3/σ+1 两 δ 同号高残差 = beta 漂移签名）：δ-free
