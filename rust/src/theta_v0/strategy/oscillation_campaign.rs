@@ -75,6 +75,26 @@ pub enum CampaignViolation {
     /// 说回补、仓位本就满」的预期经济场景，后者是记账层的量纲异常。该信号对主策略的加仓语义
     /// 不受影响（本模块只观测，不干预）。
     ReplenishWhileFull,
+    /// ★#383（ADR 补充八题二）：**阶段三唯一硬门**——等金额回补腿落账后桶现金为负。
+    ///
+    /// 「阶段一看住股，阶段三看住钱」：阶段三 sizing=`floor(桶现金÷回补价)`，取整已保证
+    /// `回补金额 ≤ 可用现金` ⟹ 桶现金恒不为负；真为负即 sizing/记账被改坏，当场拒绝、整笔不落账
+    /// （生产路径恒不触发，同 [`CampaignViolation::StageTransition`] 的防御性核验定性）。
+    ///
+    /// **有效域**（本票裁量，ADR 补充八未逐字覆盖，如实标注）：两条现金口径按**阶段**分域，
+    /// 非按批次分域——
+    /// - 阶段一/二（`earning_active()==false`）：#380 项一口径不变，`free<0` 的真实亏损往返
+    ///   **放行入账**（旧口径整笔回滚会让亏钱的往返在账本里根本不存在）；
+    /// - 阶段三（`earning_active()==true`）：本门生效，**每一笔**（含题三「按卖出时锁定」仍走
+    ///   等量口径的旧账收口腿）都不得让桶现金转负——补充八题二把它定为阶段三**唯一**硬门，
+    ///   按阶段整体生效比按批次分流更贴「阶段一看住股，阶段三看住钱」的原话。
+    ///   代价：阶段三里一笔亏损的旧账收口会被整笔拒绝、挂起继续挂着（违规显式失败，不静默）。
+    EarningCashUnsound { free: i64 },
+    /// ★#383：阶段三等金额回补触发，但**现金池买不起一股**（`pool < price`，取整到 0）且无
+    /// 阶段一锁定批次可等量收口——预期经济场景（回补价远高于卖出价 / 零头尚未累计够），
+    /// 照实分流计数，不与 [`Self::SizingRoundsToZero`]（持仓过小的量纲异常）或
+    /// [`Self::ReplenishWhileFull`]（货本就满）混计。挂起继续挂着，不静默补齐。
+    EarningSizingRoundsToZero { pool: i64, price: i64 },
 }
 
 impl From<ShortDiffViolation> for CampaignViolation {
@@ -100,6 +120,12 @@ pub struct CampaignOutcome {
     /// 新口径如实入账，此标志是「亏损入账」的产物级见证（替代退役的
     /// `resource_exhausted_free_negative_count` 桶）。
     pub loss_accounted: bool,
+    /// ★#383：本次动作是**等金额回补**（回补量按 `floor(桶现金÷回补价)` 算出，而非等量买回）
+    /// ——阶段三切换后、且本次冲抵的挂起批次里含阶段三锁定批次时为真。
+    pub earning_replenish: bool,
+    /// ★#383：本次回补的**净增股数**（超出挂起在途量、用桶现金新买的那部分；非等金额腿恒 0）
+    /// ——补充八题二「股数不设门，净增股数进 witness 观测」的产物级读数。
+    pub earning_units_gained: i64,
 }
 
 /// ★#380 项四：一次 `Reduce` 产生的挂起批次——在途量 + **来源中枢标签** + 到达序（时间序）。
@@ -123,6 +149,10 @@ pub struct SuspensionBatch {
     ///
     /// 桶只记标量总现金（无分批分解），故该分量随批次记在归属账侧（观测口径，不另立记账）。
     pub cash_booked: i64,
+    /// ★#383（ADR 补充八题三「旧账按卖出时锁定」）：本批**减出那一刻**的 sizing 模式——
+    /// `false`=阶段一（回补等量买回），`true`=阶段三（回补按等金额 `floor(现金÷价)`）。
+    /// 每笔往返的规矩在卖出时锁死，中途不变：切换前挂着的批次即便在阶段三收口也仍走等量口径。
+    pub earning: bool,
 }
 
 /// ★#380 项四：一次 `Replenish` 对某个挂起批次的冲抵明细。
@@ -162,10 +192,25 @@ impl SuspensionAttribution {
         &self.batches
     }
 
-    /// `Reduce` 入队：新批次带来源中枢标签 + 本笔桶实收现金（#366 核销算料），追加在时间序末尾。
-    fn push(&mut self, center: CenterId, units: i64, cash_booked: i64) {
-        self.batches.push(SuspensionBatch { center, units, seq: self.next_seq, cash_booked });
+    /// `Reduce` 入队：新批次带来源中枢标签 + 本笔桶实收现金（#366 核销算料）+ 卖出时锁定的
+    /// sizing 模式（#383 补充八题三），追加在时间序末尾。
+    fn push(&mut self, center: CenterId, units: i64, cash_booked: i64, earning: bool) {
+        self.batches.push(SuspensionBatch {
+            center,
+            units,
+            seq: self.next_seq,
+            cash_booked,
+            earning,
+        });
         self.next_seq += 1;
+    }
+
+    /// ★#383：当前挂起在途量按**卖出时锁定的 sizing 模式**分列 `(阶段一等量, 阶段三等金额)`
+    /// ——回补 sizing 的分流依据（题三「旧账按卖出时锁定，中途不变规矩」）。
+    fn open_units_by_mode(&self) -> (i64, i64) {
+        let earning: i64 = self.batches.iter().filter(|b| b.earning).map(|b| b.units).sum();
+        let legacy: i64 = self.batches.iter().filter(|b| !b.earning).map(|b| b.units).sum();
+        (legacy, earning)
     }
 
     /// ★#366：**未闭合减出核销**——移除该来源中枢的全部挂起批次，返回 `(货缺口, 桶实收现金)`
@@ -188,7 +233,7 @@ impl SuspensionAttribution {
     /// `Replenish` 收口：**同中枢优先**（按到达序遍历该中枢的批次），余量再按**时间序**冲抵
     /// 其余中枢的批次。返回逐批冲抵明细（观测证据）；冲抵完的批次移除。
     ///
-    /// `units` 由调用方保证 ≤ [`Self::open_units`]（生产侧 `replenish_units` 恰取全量，短差桶
+    /// `units` 由调用方保证 ≤ [`Self::open_units`]（生产侧 `replenish_plan` 的 `close_units` 恰取全部待收口量，短差桶
     /// 的 [`ShortDiffViolation::OverReplenish`] 是同一约束的记账层防线）——若仍有余量未冲抵，
     /// 照实返回已冲抵部分，不静默造批次。
     fn cover(&mut self, center: CenterId, units: i64) -> Vec<CoverAssignment> {
@@ -255,6 +300,27 @@ pub struct UnclosedReduction {
     pub cash_booked: i64,
 }
 
+/// ★#383：一次 `Replenish` 的分模式 sizing 方案（[`OscillationCampaign::replenish_plan`] 产出）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ReplenishPlan {
+    /// 冲抵挂起在途量的收口股数（阶段一等量族 + 阶段三等金额族买得起的那部分）。
+    close_units: i64,
+    /// 超出挂起在途量、用桶现金新买的**净增股数**（阶段三挣股数；等量族恒 0）。
+    extra_units: i64,
+    /// 本次从等金额现金池中扣除的金额（`bought · price`；零头留池）。
+    pool_spent: i64,
+    /// 本次等金额腿**实际买到**的股数（`floor(池÷价)`；`0`=池买不起一股 ⟹ 等金额腿未成交）
+    /// ——witness「等金额回补次数」只数真成交的那些，不把「只收口了等量族」的回补计进去。
+    earning_bought: i64,
+}
+
+impl ReplenishPlan {
+    /// `Reduce` 分支的惰性方案（回补侧字段全 0——高抛侧不受阶段影响，补充八题一）。
+    fn inert() -> Self {
+        Self { close_units: 0, extra_units: 0, pool_spent: 0, earning_bought: 0 }
+    }
+}
+
 /// campaign 生命周期事件（[`CampaignBook::sync_position`] 产出，观测/witness 用）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CampaignLifecycleEvent {
@@ -287,6 +353,23 @@ pub struct OscillationCampaign {
     /// ★#381：本 campaign 的持仓侧——空头侧短差为多头镜像（减=回补空头、补=加回空头），
     /// 镜像的记账实现在 [`ShortDiffAccount`]（同侧构造，一本账不跨侧）。
     side: VoiceSide,
+    /// ★#383：本 campaign 的 **bar 时钟**——由 [`CampaignBook::sync_position`] 逐 bar 刷新
+    /// （生产侧 `drive_campaign_wiring` 对每个 (级别, 侧) 每 bar 必调一次，且在消费本 bar 动作
+    /// **之前**）。`apply_action` 不另收 bar 入参，一切「当前 bar」读数取本字段——单一时钟源，
+    /// 避免同一 bar 内两处各传一次 bar 而不一致。
+    last_sync_bar: usize,
+    /// ★#383（ADR 补充八题三）：派发 `EnterEarning` 的那根 bar（`None`=尚未进阶段三）。
+    /// **次 bar 换模式**：`last_sync_bar > earning_event_bar` 才生效（事件 bar 收盘后才确认，
+    /// 同 bar 换会让同一根 bar 用两本尺）——判据见 [`Self::earning_active`]。
+    earning_event_bar: Option<usize>,
+    /// ★#383（补充八题一「零头留桶累计」）：阶段三**等金额回补的现金池**——阶段三锁定的
+    /// `Reduce` 把该笔桶实收现金记入本池，等金额回补按 `floor(池÷回补价)` 取股数并从池中扣
+    /// `股数·回补价`，取整零头**留在池里累计进下次**。
+    ///
+    /// 与 [`short_diff_bucket::ShortDiffBucket::realized_cash`] 的关系同 `suspension` 与
+    /// `open_units`：桶记标量总现金（记账口径），本池只是其中「阶段三待回补」那一份的**算量
+    /// 基准**（sizing 口径），不另立第二套记账。
+    earning_pool: i64,
 }
 
 impl OscillationCampaign {
@@ -306,7 +389,26 @@ impl OscillationCampaign {
             opened_bar: bar,
             suspension: SuspensionAttribution::default(),
             side,
+            last_sync_bar: bar,
+            earning_event_bar: None,
+            earning_pool: 0,
         }
+    }
+
+    /// ★#383（补充八题三）：阶段三等金额 sizing 是否**已生效**——`EnterEarning` 的**次 bar**
+    /// 起为真（同 bar 不换：事件 bar 收盘后才确认，与「取数时点=前 bar 收盘」既有口径一致）。
+    pub fn earning_active(&self) -> bool {
+        self.earning_event_bar.is_some_and(|b| self.last_sync_bar > b)
+    }
+
+    /// 派发 `EnterEarning` 的那根 bar（`None`=尚未进阶段三；观测/见证读）。
+    pub fn earning_event_bar(&self) -> Option<usize> {
+        self.earning_event_bar
+    }
+
+    /// 阶段三等金额回补现金池（含累计零头；观测读数，见字段文档）。
+    pub fn earning_pool(&self) -> i64 {
+        self.earning_pool
     }
 
     /// 本 campaign 的持仓侧（#381 只读观测）。
@@ -352,10 +454,44 @@ impl OscillationCampaign {
         self.short_diff.cost_basis().units() / 3
     }
 
-    /// 阶段一恒仓约束硬（#348 决议「分阶段分域」）：`Replenish` 全额买回当前挂起在途量
-    /// （同股数进出——不留部分敞口，简化为「每次触发即整轮收口」）。
-    fn replenish_units(&self) -> i64 {
-        self.short_diff.bucket().open_units()
+    /// ★#383（ADR 补充八题一/题三）：一次 `Replenish` 的**分模式 sizing 方案**。
+    ///
+    /// 本方法取代 #348 的 `replenish_units`（原口径「全额买回当前挂起在途量」= 本方法在
+    /// 「无阶段三批次」时的取值，回归锁见测试 `replenish_plan_in_stage_one_is_full_open_units`）。
+    ///
+    /// 挂起批次按**卖出时锁定**的模式分两族（题三「中途不变规矩」）：
+    /// - **阶段一锁定族**（`legacy_open`）：等量买回，逐字节沿用 #348 口径（恒仓约束硬——
+    ///   同股数进出，每次触发即整轮收口）；
+    /// - **阶段三锁定族**（`earning_open`）：等金额买回——`bought = floor(现金池 ÷ 回补价)`
+    ///   （题一：抛出所得现金全额回补、现金不透支、零头留桶累计）。
+    ///   `bought > earning_open` ⟹ 多出来的就是**净增股数**（挣股数，[`Self::extra_units`]）；
+    ///   `bought < earning_open`（回补价高于卖出价，同一笔钱买不回同样多的货）⟹ 只收口买得起
+    ///   的那部分，其余照实继续挂着，不静默补齐。
+    ///
+    /// 现金池为 0 或该族无挂起（`earning_open == 0`）⟹ 等金额腿整体不成立（`bought = 0`），
+    /// 避免在「货已满」时凭空拿池里的零头买股（`ReplenishWhileFull` 语义不被绕过）。
+    ///
+    /// **已知口径边界（如实标注）**：本方法按模式**分族算量**，而挂起冲抵
+    /// （[`SuspensionAttribution::cover`]）按「同中枢优先、余按时间序」**不看模式**——当
+    /// `bought < earning_open`（买不回同样多）导致只能部分收口时，实际被冲抵的批次可能落在
+    /// 另一族。总量与现金池扣减恒正确（池是标量，非按批次挂账），下一次回补按彼时**实际
+    /// 剩余**的批次重算，故不会漂移；受影响的只是「哪一批先收口」这一归属观测。
+    /// 现金池不随批次核销（#366 `write_off_unclosed`）归还——核销掉的减出腿其现金已实收进桶，
+    /// 池里的那份留着给后续等金额回补用（不冲销，同 [`UnclosedReduction`] 精神）。
+    fn replenish_plan(&self, price: i64) -> ReplenishPlan {
+        let (legacy_open, earning_open) = self.suspension.open_units_by_mode();
+        let bought = if earning_open > 0 && price > 0 {
+            (self.earning_pool / price).max(0)
+        } else {
+            0
+        };
+        let earning_close = bought.min(earning_open);
+        ReplenishPlan {
+            close_units: legacy_open + earning_close,
+            extra_units: bought - earning_close,
+            pool_spent: bought * price,
+            earning_bought: bought,
+        }
     }
 
     /// 单次动作应用：sizing 现算派生 → 短差盈亏桶记账 + TW/R 双账入口（P2-D）→ 阶段推进
@@ -369,16 +505,31 @@ impl OscillationCampaign {
         risk_mode: RiskMode,
         source_center: CenterId,
     ) -> Result<(Self, CampaignOutcome), CampaignViolation> {
-        let units = match action {
-            CenterOscillationAction::Reduce => self.reduce_units(),
-            CenterOscillationAction::Replenish => self.replenish_units(),
+        // ★#383（补充八题一）：高抛侧维持持仓 1/3（与阶段一同尺，阶段变化只改回补侧）；
+        // 回补侧按挂起批次**卖出时锁定**的模式分流（[`Self::replenish_plan`]）。
+        let (units, plan) = match action {
+            CenterOscillationAction::Reduce => (self.reduce_units(), ReplenishPlan::inert()),
+            CenterOscillationAction::Replenish => {
+                let plan = self.replenish_plan(price);
+                (plan.close_units, plan)
+            }
         };
         // ★#380 项四：「触发但货满」——买点触发回补但挂起在途量=0（仓位本就满），照实分流为
         // 独立 typed 拒绝，不混入 sizing 取整异常。
-        if matches!(action, CenterOscillationAction::Replenish) && units == 0 {
-            return Err(CampaignViolation::ReplenishWhileFull);
+        if matches!(action, CenterOscillationAction::Replenish) {
+            if self.short_diff.bucket().open_units() == 0 {
+                return Err(CampaignViolation::ReplenishWhileFull);
+            }
+            // ★#383：有挂起、但等金额腿的现金池买不起一股且无等量族可收口——照实分流。
+            if units == 0 && plan.extra_units == 0 {
+                return Err(CampaignViolation::EarningSizingRoundsToZero {
+                    pool: self.earning_pool,
+                    price,
+                });
+            }
         }
-        if units <= 0 {
+        // 高抛侧 1/3 取整到 0 的量纲异常（回补侧的三种零量场景已在上方各自分流，不复用本桶）。
+        if matches!(action, CenterOscillationAction::Reduce) && units <= 0 {
             return Err(CampaignViolation::SizingRoundsToZero {
                 held: self.short_diff.cost_basis().units(),
             });
@@ -395,18 +546,37 @@ impl OscillationCampaign {
             &self.ledger,
             action,
             units,
+            plan.extra_units,
             price,
             self.current_units,
         )?;
+        // ★#383（补充八题二）：阶段三唯一硬门——等金额腿落账后桶现金不得为负。放在记账**之后**
+        // 读最终态、拒绝时整笔不落账（`self` 不可变，`short_diff` 是本地副本，返回 Err 即丢弃）。
+        // 有效域见 [`CampaignViolation::EarningCashUnsound`]：**阶段三生效后的每一笔**（含旧账
+        // 收口腿）都受本门约束，阶段一/二 仍走 #380 项一的亏损放行入账——两门按阶段分域。
+        if self.earning_active() && tw_after_action.free < 0 {
+            return Err(CampaignViolation::EarningCashUnsound { free: tw_after_action.free });
+        }
+        let cash_delta = short_diff.bucket().realized_cash() - cash_before;
         // ★#380 项四：记账放行后同步挂起归属账（Reduce 入队带中枢标签；Replenish 同中枢优先
         // 冲抵、余按时间序）——与短差桶标量逐笔同步，不另立第二套记账。
+        // ★#383：Reduce 把**卖出时**的 sizing 模式锁进批次；阶段三锁定的减出把桶实收现金记入
+        // 等金额现金池，回补时按 `floor(池÷价)` 取量并扣 `股数·价`（零头留池累计）。
         let mut suspension = self.suspension.clone();
+        let mut earning_pool = self.earning_pool;
         let cover = match action {
             CenterOscillationAction::Reduce => {
-                suspension.push(source_center, units, short_diff.bucket().realized_cash() - cash_before);
+                let earning = self.earning_active();
+                suspension.push(source_center, units, cash_delta, earning);
+                if earning {
+                    earning_pool += cash_delta;
+                }
                 Vec::new()
             }
-            CenterOscillationAction::Replenish => suspension.cover(source_center, units),
+            CenterOscillationAction::Replenish => {
+                earning_pool -= plan.pool_spent;
+                suspension.cover(source_center, units)
+            }
         };
 
         // ★到 0 转移（issue #294 验收③）：委托单一来源 stage_progression（#124 裁定4）——
@@ -436,15 +606,25 @@ impl OscillationCampaign {
             opened_bar: self.opened_bar,
             suspension,
             side: self.side,
+            last_sync_bar: self.last_sync_bar,
+            // ★#383（题三）：`EnterEarning` 派发即记事件 bar；模式**次 bar** 才生效
+            // （[`Self::earning_active`]）——同 bar 不换尺。
+            earning_event_bar: match stage_event {
+                Some(TwEvent::EnterEarning) => Some(self.last_sync_bar),
+                _ => self.earning_event_bar,
+            },
+            earning_pool,
         };
         let outcome = CampaignOutcome {
-            units,
+            units: units + plan.extra_units,
             tw: tw_final,
             ledger: ledger_after_action,
             stage_event,
             cover,
             // ★#380 项一：本次落账后桶现金为负 ⟹ 亏损往返如实入账（旧口径此笔整笔回滚）。
             loss_accounted: tw_after_action.free < 0,
+            earning_replenish: plan.earning_bought > 0,
+            earning_units_gained: plan.extra_units,
         };
         Ok((next, outcome))
     }
@@ -559,8 +739,11 @@ impl CampaignBook {
             }
             (true, true) => {
                 // 仍持仓：刷新防线基准（当时真实持仓），不产生生死事件、不动冻结快照。
+                // ★#383：同时推进 campaign 的 bar 时钟（`last_sync_bar`）——阶段三「次 bar 换
+                // 模式」的唯一时点来源，见 [`OscillationCampaign::earning_active`]。
                 if let Some(campaign) = self.campaigns.get_mut(&key) {
                     campaign.current_units = snapshot.units();
+                    campaign.last_sync_bar = bar;
                 }
                 None
             }
@@ -661,7 +844,7 @@ pub struct CampaignWiringWitness {
     pub no_active_campaign_count: BTreeMap<&'static str, usize>,
     /// `apply_action` 遇 [`CampaignViolation::ShortDiff`]`(`[`ShortDiffViolation::ChannelRejected`]`(`
     /// [`TransitionError::CashUnsound`]`{ holding<0, .. }`」的计数——★同样非接线错误，而是
-    /// **预算耗尽的真实经济场景**：`OscillationCampaign::reduce_units`/`replenish_units`
+    /// **预算耗尽的真实经济场景**：`OscillationCampaign::reduce_units`/`replenish_plan`
     /// （#294/#348 既有落地代码，本票不改动）按**campaign 开局时冻结的总量**算 sizing（非
     /// 「当前剩余可减仓量」），而 `CampaignBook` 按**级别**（非按中枢）聚合——同级多个中枢各自
     /// 独立触发 `Reduce` 会共享同一份 `holding` 预算；当连续同向触发次数超过冻结总量所能支撑
@@ -707,6 +890,20 @@ pub struct CampaignWiringWitness {
     /// ★#380 项三：阶段推进事件逐条明细（campaign 标识=级别 + 开局以来 bar 数 + 金额）——
     /// `fill.rs` 旧版 `Ok(_outcome) => {}` 把 `stage_event` 整个丢弃，#368 切换开关因此无物可读。
     pub stage_events: Vec<StageEventRecord>,
+    /// ★#383（#383 报告层三项之二）：**等金额回补次数**（分侧）——回补动作中含阶段三锁定批次
+    /// 的次数。与 `action_by_level` 的 `replenish` 桶是包含关系（后者含两种口径），分列呈报。
+    pub earning_replenish_count: BTreeMap<&'static str, usize>,
+    /// ★#383（报告层三项之一，补充八题二「股数不设门 ⟹ 改作观测读数」）：阶段三**累计净增
+    /// 股数**（分侧）——每次等金额回补里超出挂起在途量、用桶现金新买的那部分之和。两侧不得相加。
+    pub earning_units_gained: BTreeMap<&'static str, i64>,
+    /// ★#383（报告层三项之三）：**切换时点读数**——键 `(级别, 侧)`，值 = 等金额 sizing
+    /// **生效**的 bar（= `EnterEarning` 事件 bar + 1，题三「次 bar 换模式」）。
+    pub earning_mode_switch_bar: BTreeMap<(u32, &'static str), usize>,
+    /// ★#383：阶段三硬门（桶现金永不为负）被触发的计数（分侧）——生产路径恒 0
+    /// （`floor` 取整已保证不透支），非 0 = sizing/记账被改坏的真正警报。
+    pub earning_cash_unsound_count: BTreeMap<&'static str, usize>,
+    /// ★#383：等金额回补触发但现金池买不起一股的计数（分侧）——预期经济场景，独立分桶。
+    pub earning_sizing_rounds_to_zero_count: BTreeMap<&'static str, usize>,
     /// ★#380 项四：回补冲抵按「同中枢/异中枢」分桶（同中枢优先的产物级见证）。
     /// ★#381：键增持仓侧维——`(侧, "same_center"|"other_center")`，多空并存时冲抵归属可判读
     /// （SPEC #386 §2「witness 呈现归属与冲抵顺序」对两侧对称适用）。
@@ -783,6 +980,9 @@ impl CampaignWiringWitness {
             // `EnterEarning` 是无载荷变体（相变本身即事件），金额记 0——不编造数值。
             TwEvent::EnterEarning => {
                 self.stage_enter_earning_count += 1;
+                // ★#383 报告层「切换时点读数」：等金额 sizing 的**生效** bar = 事件 bar + 1
+                // （题三「次 bar 换模式」），与 [`OscillationCampaign::earning_active`] 同判据。
+                self.earning_mode_switch_bar.insert((level, side_label(side)), bar + 1);
                 ("enter_earning", 0)
             }
             _ => return,
@@ -800,6 +1000,14 @@ impl CampaignWiringWitness {
     /// ★#380 项一：记一次「亏损往返如实入账」（本次动作落账后桶现金为负）。
     pub fn record_loss_accounted(&mut self, side: VoiceSide) {
         *self.loss_round_trip_accounted_count.entry(side_label(side)).or_insert(0) += 1;
+    }
+
+    /// ★#383：记一次**等金额回补**（次数 + 本次净增股数；`gained` 可为 0——回补价高于卖出价
+    /// 时同一笔钱买不回同样多的货，照实记 0 不编造）。
+    pub fn record_earning_replenish(&mut self, side: VoiceSide, gained: i64) {
+        let sl = side_label(side);
+        *self.earning_replenish_count.entry(sl).or_insert(0) += 1;
+        *self.earning_units_gained.entry(sl).or_insert(0) += gained;
     }
 
     /// ★#380 项四：记一次回补的逐批冲抵明细（同中枢/异中枢分桶，见证「同中枢优先」）。
@@ -900,6 +1108,15 @@ impl CampaignWiringWitness {
             CampaignViolation::ShortDiff(ShortDiffViolation::UnitsExceedCostBasis { .. }) => {
                 *self.defense_units_exceed_current_holding_count.entry(sl).or_insert(0) += 1;
             }
+            // ★#383：阶段三硬门（桶现金永不为负）——生产恒 0，非 0 即警报，但归属明确故独立
+            // 分桶（不埋进 `other_violation_by_kind` 的混合桶里）。
+            CampaignViolation::EarningCashUnsound { .. } => {
+                *self.earning_cash_unsound_count.entry(sl).or_insert(0) += 1;
+            }
+            // ★#383：等金额腿买不起一股——预期经济场景，独立分桶。
+            CampaignViolation::EarningSizingRoundsToZero { .. } => {
+                *self.earning_sizing_rounds_to_zero_count.entry(sl).or_insert(0) += 1;
+            }
             other => {
                 self.other_violation_count += 1;
                 let label = match other {
@@ -944,6 +1161,13 @@ impl CampaignWiringWitness {
                         "short_diff_units_exceed_cost_basis_unreachable"
                     }
                     CampaignViolation::ReplenishWhileFull => "replenish_while_full_unreachable",
+                    // 下两条已在上方分支各自分桶（#383），此处只为穷尽性。
+                    CampaignViolation::EarningCashUnsound { .. } => {
+                        "earning_cash_unsound_unreachable"
+                    }
+                    CampaignViolation::EarningSizingRoundsToZero { .. } => {
+                        "earning_sizing_rounds_to_zero_unreachable"
+                    }
                     // ★#366：核销越界＝归属账与桶标量失同步（两者逐笔同步推进，生产恒不
                     // 触达）——真正的记账错误警报，不得归入任何「预期读数」桶。
                     CampaignViolation::ShortDiff(ShortDiffViolation::WriteOffExceedsOpen {
@@ -1363,6 +1587,11 @@ mod tests {
     /// ★#380 项三核心用例：阶段推进事件（`RecoverCapital`）落 witness——计数 + campaign 标识
     /// （级别）+ 开局以来 bar 数 + 金额。旧版 `fill.rs` 的 `Ok(_outcome) => {}` 把该事件整个
     /// 丢弃，#368 切换开关无物可读。
+    ///
+    /// ★#383 评审挂账（本用例手调 `record_stage_event` 绕过了生产接线）：本用例保留为
+    /// **记录形状**的锁；「生产路径确实会把该事件记进 witness」现由 `fill.rs` 的
+    /// `drive_campaign_wiring_lands_stage_events_and_earning_readings_end_to_end` 端到端覆盖
+    /// （整支经 `drive_campaign_wiring`，无任何 witness 手调）。
     #[test]
     fn stage_event_lands_in_witness_with_level_and_bars_since_open() {
         let mut book = CampaignBook::new();
@@ -1739,5 +1968,311 @@ mod tests {
         assert_eq!(w.cover_by_side.get(&("long", "same_center")), None, "多头侧冲抵桶不被空头污染");
 
         assert_eq!(w.other_violation_count, 0, "以上全为预期读数，非警报");
+    }
+
+    // ── #383：阶段三 EarningShares 等金额回补 ────────────────────────────
+
+    /// 把一本多头 campaign 驱到 `EarningShares`（阶段三）并让模式**生效**（次 bar）。
+    ///
+    /// 场景同 #294 首见证：成本基 3_000（300 股 @10），每轮 `Reduce`@12 / `Replenish`@8 净赚
+    /// 400 ⟹ 第 8 轮触发 `RecoverCapital(3000)`；第 9 轮的 `Reduce` 上 `EnterReady` 成立
+    /// （W≥I0 ∧ legs=0 ∧ RiskNormal ∧ κ=0 基线 η⋆=0）⟹ 派 `EnterEarning`。
+    /// 返回 `(book, 事件 bar, 生效 bar)`——事件 bar 上模式**尚未**生效（题三：同 bar 不换尺）。
+    fn book_at_earning_stage() -> (CampaignBook, usize, usize) {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
+        for round in 1..=8usize {
+            book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), round);
+            book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
+            book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0)).unwrap();
+        }
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().tw().stage,
+            TStage::CapitalRecovered,
+            "前置：8 轮后阶段机在 II"
+        );
+        // 第 9 轮的 Reduce 触发 EnterEarning（事件 bar=9）。
+        let event_bar = 9usize;
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), event_bar);
+        let out = book
+            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0))
+            .unwrap();
+        assert_eq!(out.stage_event, Some(TwEvent::EnterEarning), "第 9 轮 Reduce 上派 EnterEarning");
+        (book, event_bar, event_bar + 1)
+    }
+
+    /// ★题三（切换时点）：`EnterEarning` 的**事件 bar 上不换尺**，次 bar 才换——事件 bar 上
+    /// 落下的挂起批次因此按**阶段一等量**口径收口（旧账按卖出时锁定）。
+    #[test]
+    fn earning_mode_switches_on_next_bar_not_the_event_bar() {
+        let (mut book, event_bar, effective_bar) = book_at_earning_stage();
+        let c = book.campaign(0, VoiceSide::Long).unwrap();
+        assert_eq!(c.earning_event_bar(), Some(event_bar), "事件 bar 已记录");
+        assert!(!c.earning_active(), "★同 bar 不换尺：事件 bar 上等金额 sizing 尚未生效");
+        assert_eq!(c.earning_pool(), 0, "事件 bar 的减出按阶段一锁定 ⟹ 不进等金额现金池");
+
+        // 事件 bar 上落下的挂起（100 股 @12）在同 bar 收口 ⟹ 等量买回 100，无净增股数。
+        let cover = book
+            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0))
+            .unwrap();
+        assert_eq!(cover.units, 100, "旧账按卖出时锁定：阶段一卖出 ⟹ 回补永远等量");
+        assert!(!cover.earning_replenish, "非等金额回补");
+        assert_eq!(cover.earning_units_gained, 0, "等量口径无净增股数");
+
+        // 次 bar：sync 推进 bar 时钟 ⟹ 模式生效。
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar);
+        assert!(book.campaign(0, VoiceSide::Long).unwrap().earning_active(), "★次 bar 换模式");
+    }
+
+    /// ★题一（等金额 sizing）核心用例：阶段三生效后 `Reduce` 100@12 收 1_200 现金，
+    /// `Replenish`@8 ⟹ `floor(1200/8)=150` 股——收口 100 + **净增 50 股**（挣股数）；
+    /// 高抛侧仍是持仓 1/3（100，与阶段一同尺，只改回补侧）。
+    #[test]
+    fn earning_replenish_sizes_by_equal_cash_and_gains_shares() {
+        let (mut book, _event_bar, effective_bar) = book_at_earning_stage();
+        // 先把事件 bar 的旧账（等量口径）收口，避免与等金额族混在同一次回补里。
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0)).unwrap();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar);
+
+        let sell = book
+            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0))
+            .unwrap();
+        assert_eq!(sell.units, 100, "高抛侧维持持仓 1/3（阶段三只改回补侧，补充八题一）");
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().earning_pool(),
+            1_200,
+            "阶段三锁定的减出把桶实收现金(100·12)记入等金额现金池"
+        );
+
+        let free_before = book.campaign(0, VoiceSide::Long).unwrap().tw().free;
+        let cover = book
+            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0))
+            .unwrap();
+        assert_eq!(cover.units, 150, "★等金额回补 floor(1200/8)=150 股（抛出所得现金全额回补）");
+        assert!(cover.earning_replenish, "本次是等金额口径");
+        assert_eq!(cover.earning_units_gained, 50, "★净增 50 股 = 150−100（挣股数）");
+        assert_eq!(cover.tw.free, free_before - 1_200, "桶现金恰扣 150·8=1200（现金不透支）");
+        let c = book.campaign(0, VoiceSide::Long).unwrap();
+        assert_eq!(c.earning_pool(), 0, "整除 ⟹ 无零头");
+        assert!(c.short_diff().assert_conserved().is_ok(), "挂起在途量归零（收口腿等量冲抵）");
+        assert_eq!(
+            c.short_diff().cost_basis(),
+            snapshot(300, 3_000),
+            "本仓成本基（均价口径）仍不动——增股数是旁路账本读数，不改主账本（修7 不变）"
+        );
+    }
+
+    /// ★题一（零头留桶累计）：回补价 7 ⟹ `floor(1200/7)=171` 股、耗 1_197，**零头 3 留桶**，
+    /// 下一轮与新减出的现金合并计算。
+    #[test]
+    fn earning_replenish_leaves_remainder_in_pool_for_next_round() {
+        let (mut book, _event_bar, effective_bar) = book_at_earning_stage();
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0)).unwrap();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar);
+
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
+        let cover = book
+            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 7, RiskMode::Normal, cid(0))
+            .unwrap();
+        assert_eq!(cover.units, 171, "floor(1200/7)=171");
+        assert_eq!(cover.earning_units_gained, 71);
+        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().earning_pool(), 3, "★零头 3 留桶");
+
+        // 下一轮：新减出 1_200 + 零头 3 = 1_203 ⟹ floor(1203/8)=150（零头累计进下次算量）。
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar + 1);
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
+        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().earning_pool(), 1_203, "零头累计进下次");
+        let cover2 = book
+            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0))
+            .unwrap();
+        assert_eq!(cover2.units, 150, "floor(1203/8)=150");
+        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().earning_pool(), 3, "1203−150·8=3 再留桶");
+    }
+
+    /// ★题三（旧账按卖出时锁定）：阶段三生效**前**卖出的挂起 + 生效**后**卖出的挂起并存时，
+    /// 同一次回补里前者走等量、后者走等金额——两族分开算量后合并成交。
+    #[test]
+    fn replenish_splits_legacy_and_earning_batches_by_sell_time_lock() {
+        let (mut book, _event_bar, effective_bar) = book_at_earning_stage();
+        // 事件 bar 的挂起（100 股，阶段一锁定）**不收口**，留到阶段三与新挂起并存。
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar);
+        // 阶段三锁定的第二笔减出：受累计防线约束（open 100 + 本笔 100 ≤ 当前 300）。
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        let c = book.campaign(0, VoiceSide::Long).unwrap();
+        assert_eq!(c.suspension().open_units(), 200, "两族挂起并存");
+        assert_eq!(c.earning_pool(), 1_200, "只有阶段三锁定那笔进池");
+
+        let cover = book
+            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(1))
+            .unwrap();
+        // 等量族 100（旧账锁定）+ 等金额族 floor(1200/8)=150（收口 100 + 净增 50）。
+        assert_eq!(cover.units, 250, "★两族分开算量：100（等量）+150（等金额）");
+        assert_eq!(cover.earning_units_gained, 50);
+        assert!(book.campaign(0, VoiceSide::Long).unwrap().short_diff().assert_conserved().is_ok(), "两族均已收口");
+    }
+
+    /// ★题二（阶段三唯一硬门）：桶现金永不为负——违规显式失败，整笔不落账、状态不变。
+    ///
+    /// 构造：阶段三生效后留着阶段一锁定的挂起（100 股 @12 卖出），在**远高于卖出价**的 900
+    /// 上收口 ⟹ 该等量腿要付 90_000，桶现金转负。阶段一/二 下这是 #380 的「亏损如实入账」，
+    /// 阶段三下被硬门拒绝（两门按阶段分域，见 `CampaignViolation::EarningCashUnsound`）。
+    #[test]
+    fn stage_three_hard_gate_rejects_negative_bucket_cash_without_mutating_state() {
+        let (mut book, _event_bar, effective_bar) = book_at_earning_stage();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar);
+        let before = book.campaign(0, VoiceSide::Long).unwrap().clone();
+
+        let result = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 900, RiskMode::Normal, cid(0));
+        assert!(
+            matches!(result, Err(CampaignViolation::EarningCashUnsound { free }) if free < 0),
+            "★阶段三硬门：桶现金转负 ⟹ 显式失败（实得 {result:?}）"
+        );
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap(),
+            &before,
+            "违规显式失败 ⟹ 整笔不落账，campaign 状态逐字段不变"
+        );
+
+        let mut w = CampaignWiringWitness::new();
+        w.record_violation(VoiceSide::Long, result.unwrap_err());
+        assert_eq!(w.earning_cash_unsound_count.get("long"), Some(&1), "硬门独立分桶");
+        assert_eq!(w.other_violation_count, 0, "归属明确，不落混合警报桶");
+    }
+
+    /// ★#383：等金额腿现金池买不起一股（`pool < price`）且无等量族可收口 ⟹ 独立 typed 拒绝，
+    /// 不与「货已满」/「持仓过小」混计；挂起继续挂着，不静默补齐。
+    #[test]
+    fn earning_replenish_below_one_share_is_its_own_typed_rejection() {
+        let (mut book, _event_bar, effective_bar) = book_at_earning_stage();
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0)).unwrap();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar);
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
+
+        // 池=1_200，回补价 5_000 ⟹ floor(1200/5000)=0 股。
+        let result = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 5_000, RiskMode::Normal, cid(0));
+        assert_eq!(
+            result,
+            Err(CampaignViolation::EarningSizingRoundsToZero { pool: 1_200, price: 5_000 })
+        );
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().suspension().open_units(),
+            100,
+            "挂起继续挂着（不静默补齐、不当作已收口）"
+        );
+
+        let mut w = CampaignWiringWitness::new();
+        w.record_violation(VoiceSide::Long, result.unwrap_err());
+        assert_eq!(w.earning_sizing_rounds_to_zero_count.get("long"), Some(&1));
+        assert_eq!(w.replenish_triggered_but_full_count.get("long"), None, "不与「货已满」混计");
+        assert_eq!(w.other_violation_count, 0, "预期经济场景，非警报");
+    }
+
+    /// ★回归锁：阶段一（无阶段三批次）时回补量 = 全部挂起在途量——#348 口径逐字节不变。
+    #[test]
+    fn replenish_plan_in_stage_one_is_full_open_units() {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        let cover = book
+            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 9, RiskMode::Normal, cid(0))
+            .unwrap();
+        assert_eq!(cover.units, 200, "阶段一：全额买回挂起在途量（同股数进出）");
+        assert!(!cover.earning_replenish);
+        assert_eq!(cover.earning_units_gained, 0);
+    }
+
+    /// ★witness 报告层三项：等金额回补次数 / 累计净增股数 / 切换时点（生效 bar = 事件 bar+1）。
+    #[test]
+    fn witness_reports_earning_counts_gained_units_and_switch_bar() {
+        let mut w = CampaignWiringWitness::new();
+        w.record_stage_event(0, VoiceSide::Long, 9, 9, TwEvent::EnterEarning);
+        assert_eq!(w.stage_enter_earning_count, 1);
+        assert_eq!(
+            w.earning_mode_switch_bar.get(&(0, "long")),
+            Some(&10),
+            "★切换时点读数=事件 bar+1（次 bar 换模式）"
+        );
+
+        w.record_earning_replenish(VoiceSide::Long, 50);
+        w.record_earning_replenish(VoiceSide::Long, 71);
+        w.record_earning_replenish(VoiceSide::Short, 12);
+        assert_eq!(w.earning_replenish_count.get("long"), Some(&2), "等金额回补次数（分侧）");
+        assert_eq!(w.earning_units_gained.get("long"), Some(&121), "累计净增股数=50+71");
+        assert_eq!(w.earning_units_gained.get("short"), Some(&12), "两侧分列，不得相加");
+    }
+
+    // ── #366/#381 评审挂账：空头侧阶段机零覆盖补齐 ────────────────────────
+
+    /// ★评审挂账（空头阶段机零覆盖）：**空头 campaign 推进到阶段 II**（`RecoverCapital`）。
+    ///
+    /// 空头镜像（ADR 补充九）：「减=回补空头（买回）」赚 `avg_cost−price`，「补=加回空头
+    /// （卖出）」赚 `price−avg_cost` ⟹ 整轮 Σ Realize = `units·(p_补 − p_减)`，低吸高抛回加
+    /// 才是空头侧的盈利形态。本仓在险市值 3_000（300 份 @10），每轮减@8 / 补@12 净赚
+    /// `100·4=400` ⟹ 第 8 轮足额退本金（3_200 ≥ 3_000），与多头侧同定理、同轮次。
+    #[test]
+    fn short_side_campaign_reaches_recover_capital_stage_ii() {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 0);
+        assert_eq!(book.campaign(0, VoiceSide::Short).unwrap().tw().stage, TStage::CostReduction);
+
+        let mut recovered_at_round = None;
+        for round in 1..=8usize {
+            let sell = book
+                .apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(0))
+                .unwrap();
+            assert_eq!(sell.units, 100, "空头侧 sizing 同尺：在险份数 300/3");
+            let cover = book
+                .apply_action(0, VoiceSide::Short, CenterOscillationAction::Replenish, 12, RiskMode::Normal, cid(0))
+                .unwrap();
+            assert!(
+                book.campaign(0, VoiceSide::Short).unwrap().short_diff().assert_conserved().is_ok(),
+                "第 {round} 轮往返闭合"
+            );
+            if let Some(TwEvent::RecoverCapital(_)) = cover.stage_event {
+                recovered_at_round = Some(round);
+                break;
+            }
+        }
+        assert_eq!(recovered_at_round, Some(8), "★空头侧同样在第 8 轮足额退本金（与多头侧同定理）");
+        let c = book.campaign(0, VoiceSide::Short).unwrap();
+        assert_eq!(c.tw().stage, TStage::CapitalRecovered, "★空头阶段机第一次到达 II");
+        assert_eq!(c.tw().withdrawn, 3_000, "退本金额=notional_in（足额一次性退回）");
+        assert_eq!(c.tw().l_wc(), 0, "空头侧在险本金同样归零");
+        assert_eq!(c.side(), VoiceSide::Short);
+        assert!(book.campaign(0, VoiceSide::Long).is_none(), "多头侧不因空头侧推进而被凭空开局");
+    }
+
+    /// ★评审挂账续：空头 campaign 继续推进到**阶段 III** 并做等金额回补——空头侧「补=加回
+    /// 空头」的等金额算料同样取**桶实收现金**（ADR 补充九已定的两侧对称符号锚），净增的是
+    /// 空头份数。
+    #[test]
+    fn short_side_campaign_enters_earning_and_gains_short_units() {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 0);
+        for round in 1..=8usize {
+            book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), round);
+            book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(0)).unwrap();
+            book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Replenish, 12, RiskMode::Normal, cid(0)).unwrap();
+        }
+        book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 9);
+        let out = book
+            .apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(0))
+            .unwrap();
+        assert_eq!(out.stage_event, Some(TwEvent::EnterEarning), "★空头阶段机到达 III");
+        book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Replenish, 12, RiskMode::Normal, cid(0)).unwrap();
+
+        book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 10);
+        assert!(book.campaign(0, VoiceSide::Short).unwrap().earning_active(), "次 bar 生效（两侧同规矩）");
+        // 空头侧「减=回补空头@8」的桶实收 = units·avg_cost + units·(avg_cost−price)
+        // = 100·10 + 100·2 = 1_200（补充九口径：单腿桶实收≠单笔成交现金）。
+        book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(0)).unwrap();
+        assert_eq!(book.campaign(0, VoiceSide::Short).unwrap().earning_pool(), 1_200, "空头侧算料=桶实收现金");
+        let cover = book
+            .apply_action(0, VoiceSide::Short, CenterOscillationAction::Replenish, 10, RiskMode::Normal, cid(0))
+            .unwrap();
+        assert_eq!(cover.units, 120, "floor(1200/10)=120 份");
+        assert_eq!(cover.earning_units_gained, 20, "★空头侧净增 20 份（挣的是空头份数）");
+        assert!(cover.earning_replenish);
     }
 }

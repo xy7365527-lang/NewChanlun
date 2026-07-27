@@ -547,6 +547,34 @@ impl ShortDiffAccount {
         }
     }
 
+    /// ★#383（ADR 补充八题一/题二）：阶段三**增股腿**记账——等金额回补中超出挂起在途量的那部分
+    /// 股数。它**没有挂起背书**（不是「买回卖掉的那份货」），而是用桶内现金**新买**的股数：
+    ///
+    /// - 只产一笔 `ShortDiff(-extra_units·price)`（free→holding，按**成交价**入成本基——新买的
+    ///   股其成本就是买价，非老仓均价），**无 `Realize`**（新建仓不产生已实现盈亏；把它记成
+    ///   `Realize` 就是凭空造利润）。
+    /// - **不动 `open_units`**：无挂起可冲抵，恒仓在途量与本腿无关（补充八题二「股数不设门」
+    ///   ——阶段三目的即挣股数，股数改作观测读数）。
+    /// - 桶现金随之减少 `extra_units·price`（`total_d_cash` 口径不变：本次产出全部 TwEvent 之和）。
+    ///
+    /// 两侧对称：空头侧「补=加回空头」的增量同样是「在险市值增加 `extra_units·price`」，
+    /// `ShortDiff` 两侧逐字节相同（与方向无关，同 ADR 补充九记账镜像条）。
+    fn record_extra_shares(
+        &mut self,
+        extra_units: i64,
+        price: i64,
+    ) -> Result<ShortDiffEvents, ShortDiffViolation> {
+        if extra_units <= 0 {
+            return Err(ShortDiffViolation::NonPositiveUnits(extra_units));
+        }
+        let events = ShortDiffEvents {
+            short_diff: TwEvent::ShortDiff(-(extra_units * price)),
+            realize: None,
+        };
+        self.bucket.realized_cash += events.total_d_cash();
+        Ok(events)
+    }
+
     /// 恒仓断言（边界核验），委托 [`ShortDiffBucket::assert_conserved`]。
     ///
     /// ★#366 口径注记：核销（[`Self::write_off_unclosed`]）后 `open_units` 归位，本断言随之
@@ -600,19 +628,41 @@ impl ShortDiffAccount {
     /// 原子回滚同 [`record_and_apply`](Self::record_and_apply)：通道拒绝时账本状态（含 `ledger`
     /// 参数对应的外部账本，本方法不持有 R 账本、只返回新值供调用方替换）不落笔——调用方在
     /// `Err` 分支不得采用返回的旧 `ledger` 参数以外的值（本方法从不返回部分应用的中间态）。
+    /// ★#383：新增 `extra_units`（阶段三等金额回补的**增股腿**，见
+    /// [`record_extra_shares`](Self::record_extra_shares)）——`0` ⟹ 与本票前逐字节相同
+    /// （阶段一/既有全部路径恒传 0，回归锁见测试
+    /// `extra_units_zero_is_byte_identical_to_pre_383_path`）。`>0` 时在收口腿之后追加一笔
+    /// `ShortDiff(-extra_units·price)`，两腿在同一次调用内原子落账（任一腿被通道拒绝即整体回滚）。
     pub fn record_and_apply_dual(
         &mut self,
         tw: &TwState,
         ledger: &LedgerComp,
         action: CenterOscillationAction,
         units: i64,
+        extra_units: i64,
         price: i64,
         current_units: i64,
     ) -> Result<(TwState, LedgerComp), ShortDiffViolation> {
         let before = *self;
         let events = self.record_action(action, units, price, current_units)?;
-        match events.apply(tw) {
+        let extra_events = if extra_units > 0 {
+            match self.record_extra_shares(extra_units, price) {
+                Ok(ev) => Some(ev),
+                Err(violation) => {
+                    *self = before;
+                    return Err(violation);
+                }
+            }
+        } else {
+            None
+        };
+        let applied = events.apply(tw).and_then(|tw_after_close| match extra_events {
+            Some(ex) => ex.apply(&tw_after_close),
+            None => Ok(tw_after_close),
+        });
+        match applied {
             Ok(next_tw) => {
+                // 增股腿无 `Realize`（新建仓不产已实现盈亏）⟹ R 账本只镜像收口腿那一笔。
                 let next_ledger = match events.realize {
                     Some(TwEvent::Realize(d)) => ledger_step(ledger, LedgerEvent::Realize(d)),
                     _ => *ledger,
@@ -1313,5 +1363,69 @@ mod tests {
         let tw2 = replenish.apply(&tw1).unwrap();
         assert_eq!(tw2.tw() - tw0.tw(), 40, "TW 漂移=Σ Realize=20+20（空头侧同定理）");
         assert_eq!(tw2.holding, tw0.holding, "ShortDiff 两腿相消 ⟹ 在险成本基回原值");
+    }
+
+    // ── #383：等金额回补的增股腿（`extra_units`） ───────────────────────
+
+    /// ★回归锁：`extra_units=0` ⟹ [`ShortDiffAccount::record_and_apply_dual`] 与本票前逐字节
+    /// 相同（阶段一/既有全部路径恒传 0）——用同一起手态跑单腿版 `record_and_apply` 对照。
+    #[test]
+    fn extra_units_zero_is_byte_identical_to_pre_383_path() {
+        let tw0 = TwState { holding: 10_000, ..TwState::initial() };
+        let ledger0 = LedgerComp::initial(10_000);
+
+        let mut dual = ShortDiffAccount::new(avg_cost_snapshot(10));
+        let (tw_dual, _) = dual
+            .record_and_apply_dual(&tw0, &ledger0, CenterOscillationAction::Reduce, 100, 0, 12, 10_000)
+            .unwrap();
+
+        let mut single = ShortDiffAccount::new(avg_cost_snapshot(10));
+        let tw_single = single
+            .record_and_apply(&tw0, CenterOscillationAction::Reduce, 100, 12, 10_000)
+            .unwrap();
+
+        assert_eq!(tw_dual, tw_single, "extra_units=0 ⟹ TW 逐字段相同");
+        assert_eq!(dual.bucket(), single.bucket(), "桶状态逐字段相同");
+    }
+
+    /// ★#383 增股腿记账：只产 `ShortDiff(-extra·price)`（free→holding，按**成交价**入成本基），
+    /// **无 `Realize`**（新建仓不产已实现盈亏），且**不动 `open_units`**（无挂起可冲抵）。
+    #[test]
+    fn extra_shares_leg_is_cost_basis_only_no_realize_and_leaves_open_units_alone() {
+        let mut acct = ShortDiffAccount::new(avg_cost_snapshot(10));
+        let events = acct.record_extra_shares(50, 8).unwrap();
+        assert_eq!(events.short_diff, TwEvent::ShortDiff(-400), "-extra·price=-50·8");
+        assert_eq!(events.realize, None, "新买入的股不产生已实现盈亏（记 Realize 就是凭空造利润）");
+        assert_eq!(acct.bucket().open_units(), 0, "增股腿不动挂起在途量（补充八题二「股数不设门」）");
+        assert_eq!(acct.bucket().realized_cash(), -400, "桶现金按成交额支出");
+        assert_eq!(
+            acct.record_extra_shares(0, 8),
+            Err(ShortDiffViolation::NonPositiveUnits(0)),
+            "非正增股数当场拒绝"
+        );
+    }
+
+    /// ★#383 原子性：收口腿 + 增股腿在同一次调用内合并落账——TW 净变动 =
+    /// `-(close+extra)·price`（等金额回补花掉的现金），R 账本只镜像收口腿那一笔 `Realize`。
+    #[test]
+    fn replenish_with_extra_units_applies_both_legs_atomically() {
+        let mut acct = ShortDiffAccount::new(avg_cost_snapshot(10));
+        let tw0 = TwState { holding: 10_000, ..TwState::initial() };
+        let ledger0 = LedgerComp::initial(10_000);
+        let (tw1, ledger1) = acct
+            .record_and_apply_dual(&tw0, &ledger0, CenterOscillationAction::Reduce, 100, 0, 12, 10_000)
+            .unwrap();
+        assert_eq!(tw1.free, 1_200, "减出腿收 100·12");
+
+        let (tw2, ledger2) = acct
+            .record_and_apply_dual(&tw1, &ledger1, CenterOscillationAction::Replenish, 100, 50, 8, 10_000)
+            .unwrap();
+        assert_eq!(tw2.free, 1_200 - 150 * 8, "两腿合计花 150·8（收口 100 + 增股 50）");
+        assert_eq!(acct.bucket().open_units(), 0, "收口腿把挂起归零");
+        assert_eq!(
+            ledger2.pi - ledger1.pi,
+            100 * (10 - 8),
+            "R 账本只镜像收口腿 Realize（增股腿无 Realize）"
+        );
     }
 }

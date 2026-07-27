@@ -1036,6 +1036,10 @@ fn drive_campaign_wiring(
                     witness.record_loss_accounted(rec.side);
                 }
                 witness.record_cover(rec.side, &outcome.cover);
+                // ★#383：阶段三等金额回补的报告层三项之二/之一（次数 + 净增股数）。
+                if outcome.earning_replenish {
+                    witness.record_earning_replenish(rec.side, outcome.earning_units_gained);
+                }
                 if let Some(ev) = outcome.stage_event {
                     let bars_since_open = campaign_book
                         .campaign(rec.level, rec.side)
@@ -1209,6 +1213,73 @@ mod campaign_wiring_tests {
         assert_eq!(witness.unclosed_write_off_nothing_to_settle.get("long"), Some(&1));
         assert!(witness.unclosed_write_off_count.is_empty(), "无核销即无核销读数（不编造）");
         assert_eq!(witness.other_violation_count, 0);
+    }
+
+    /// ★#383 端到端（评审挂账：`record_stage_event` 不再由单测直接手调，改走 campaign 本体
+    /// 路径）：整支 `drive_campaign_wiring` 驱动到阶段三——`RecoverCapital`/`EnterEarning`
+    /// 由生产接线自己落进 witness，切换时点/等金额回补次数/净增股数三项报告读数一并核验。
+    ///
+    /// 每 bar 一个动作（`drive_campaign_wiring` 单 bar 单价）：奇数 bar 高抛@12、偶数 bar
+    /// 回补@8，每轮净赚 100·4=400 ⟹ 第 8 轮（bar 16）足额退本金，bar 17 的高抛上派
+    /// `EnterEarning` ⟹ 等金额 sizing 自 bar 18 生效。
+    #[test]
+    fn drive_campaign_wiring_lands_stage_events_and_earning_readings_end_to_end() {
+        let mut account_view = strategy::account::ParallelAccountLedger::new();
+        account_view.post(
+            AccountOrder { key: core_key(0), reason: ActionReason::Open, qty_delta: 300.0, decision_bar: 0 },
+            10.0,
+            0,
+        );
+        let mut book = CampaignBook::new();
+        let mut witness = CampaignWiringWitness::new();
+        drive_campaign_wiring(0, 1, &account_view, &[], &[], 12, RiskMode::Normal, &mut book, &mut witness);
+
+        let reduce = vec![record(0, CenterOscillationAction::Reduce)];
+        let replenish = vec![record(0, CenterOscillationAction::Replenish)];
+        for round in 1..=8usize {
+            drive_campaign_wiring(2 * round - 1, 1, &account_view, &reduce, &[], 12, RiskMode::Normal, &mut book, &mut witness);
+            drive_campaign_wiring(2 * round, 1, &account_view, &replenish, &[], 8, RiskMode::Normal, &mut book, &mut witness);
+        }
+        // bar 16 的回补上退本金——由生产接线自己记进 witness（非单测手调 record_stage_event）。
+        assert_eq!(witness.stage_recover_capital_count, 1, "★RecoverCapital 经生产路径落 witness");
+        assert_eq!(
+            witness.stage_events[0],
+            super::super::super::strategy::oscillation_campaign::StageEventRecord {
+                level: 0,
+                side: "long",
+                bar: 16,
+                bars_since_open: 16,
+                kind: "recover_capital",
+                amount: 3_000,
+            },
+            "逐条明细：级别/侧/bar/开局以来 bar 数/退本金额"
+        );
+
+        // bar 17 的高抛上进阶段三。
+        drive_campaign_wiring(17, 1, &account_view, &reduce, &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        assert_eq!(witness.stage_enter_earning_count, 1, "★EnterEarning 经生产路径落 witness");
+        assert_eq!(witness.stage_events[1].kind, "enter_earning");
+        assert_eq!(witness.stage_events[1].bar, 17);
+        assert_eq!(
+            witness.earning_mode_switch_bar.get(&(0, "long")),
+            Some(&18),
+            "★切换时点读数=次 bar（18）"
+        );
+        assert!(!book.campaign(0, VoiceSide::Long).unwrap().earning_active(), "事件 bar 上尚未换尺");
+
+        // bar 18：旧账（bar 17 卖出，阶段一锁定）等量收口——按卖出时锁定，不受切换影响。
+        drive_campaign_wiring(18, 1, &account_view, &replenish, &[], 8, RiskMode::Normal, &mut book, &mut witness);
+        assert!(book.campaign(0, VoiceSide::Long).unwrap().earning_active(), "★次 bar 起模式生效");
+        assert!(witness.earning_replenish_count.is_empty(), "旧账收口不算等金额回补（卖出时锁定）");
+
+        // bar 19 高抛@12（阶段三锁定，1_200 进池）→ bar 20 等金额回补@8 = floor(1200/8)=150。
+        drive_campaign_wiring(19, 1, &account_view, &reduce, &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().earning_pool(), 1_200);
+        drive_campaign_wiring(20, 1, &account_view, &replenish, &[], 8, RiskMode::Normal, &mut book, &mut witness);
+        assert_eq!(witness.earning_replenish_count.get("long"), Some(&1), "★等金额回补次数");
+        assert_eq!(witness.earning_units_gained.get("long"), Some(&50), "★阶段三累计净增股数=150−100");
+        assert!(witness.earning_cash_unsound_count.is_empty(), "阶段三硬门未触发（floor 取整保证不透支）");
+        assert_eq!(witness.other_violation_count, 0, "全程接线无记账错误");
     }
 
     /// ★sizing=1/3 落地 + 动作按 (级别, 动作) 归属正确：Core{0} 持仓 300 股，`Reduce` 动作应

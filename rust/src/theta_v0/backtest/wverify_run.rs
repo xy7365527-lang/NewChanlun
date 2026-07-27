@@ -1356,6 +1356,9 @@ fn m8_e2e_all_systems_oos() {
                  loss_round_trip_accounted_count={:?} defense_units_exceed_current_holding_count={:?} \
                  replenish_triggered_but_full_count={:?} \
                  stage_recover_capital_count={} stage_enter_earning_count={} stage_events={:?} \
+                 earning_mode_switch_bar={:?} earning_replenish_count={:?} \
+                 earning_units_gained={:?} earning_cash_unsound_count={:?} \
+                 earning_sizing_rounds_to_zero_count={:?} \
                  cover_by_side={:?} \
                  other_violation_count={} other_violation_by_kind={:?} campaign_active_end={}",
                 cfg.center_oscillation.enabled,
@@ -1381,6 +1384,13 @@ fn m8_e2e_all_systems_oos() {
                 w.stage_recover_capital_count,
                 w.stage_enter_earning_count,
                 w.stage_events,
+                // ★#383：阶段三报告层三项（切换时点=生效 bar / 等金额回补次数 / 累计净增股数）
+                // + 两条分流桶（硬门恒 0；等金额腿买不起一股属预期场景）。
+                w.earning_mode_switch_bar,
+                w.earning_replenish_count,
+                w.earning_units_gained,
+                w.earning_cash_unsound_count,
+                w.earning_sizing_rounds_to_zero_count,
                 w.cover_by_side,
                 w.other_violation_count,
                 w.other_violation_by_kind,
