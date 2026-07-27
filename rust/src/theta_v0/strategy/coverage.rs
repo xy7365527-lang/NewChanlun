@@ -114,6 +114,15 @@ pub struct AncokProbe {
     /// （[`super::exit::step_active_set_with_subtree_close`]）按 id 判祖先不在集 ⟹ **必被剪除**，
     /// 不进 `next_idx`/`strategy_target_legs` ⟹ 其角色从不被消费（见 `restore_broken_chain_*` 测试）。
     pub restore_parent_unresolved: u64,
+    /// ★#247 C1（影子评审阻断级）：[`element_depth`] 的 **fuel 上界硬门**命中次数——沿 `parent` 链
+    /// 上溯步数超过 `elements.len()` ⟹ 该 parent 图**必含环**（简单路径最长 len−1 条边）。
+    /// #247 缺口二回填首次让 restore 元素的 `parent` 可指向 overlay ⟹ 链的无环性转而依赖 registry
+    /// `structural_parent_id` 无环，而写入侧（`persistent.rs` 三处直接赋值、跨 bar 可变更新）**无任何
+    /// 无环校验** ⟹ 环在数据层不可排除。命中即 bump 本探针**并显式 panic**（不静默钳制：钳制会把
+    /// 环化 parent 图伪装成合法深度、静默改 `w_depth` ⟹ 下单权重被脏数据污染而无告警）。
+    /// 与 [`super::exit::step_active_set_with_subtree_close`] 的 AncOK fuel 门同族（那里超限保守剪除
+    /// 一条腿即可降级；此处无降级路径——不设门 = 生产进程挂死）。
+    pub element_depth_fuel_exhausted: u64,
 }
 
 thread_local! {
@@ -131,6 +140,7 @@ thread_local! {
         held_flip_terminated: 0,
         restore_parent_rebound: 0,
         restore_parent_unresolved: 0,
+        element_depth_fuel_exhausted: 0,
     }) };
 }
 
@@ -1589,13 +1599,41 @@ fn leg_target_two_segment(
 
 /// 元素的真嵌套深度（沿 parent 链长度，根=0；铁律：真父子，非级别差）。
 /// parent（usize 索引）指向 base 段 carrier（< candidate_start ≤ base.len）；★#247 起 restore 恢复
-/// 元素的 parent 亦可指向 overlay 段（同一 walk 恢复的更高祖先）——链仍无环（registry
-/// `structural_parent_id` 严格上溯，walk 遇重复即止）。
+/// 元素的 parent 亦可指向 overlay 段（同一 walk 恢复的更高祖先）。
+///
+/// ## ★#247 C1（影子评审阻断级）：环路 fuel 硬门
+///
+/// **订正旧表述**：原注写「链仍无环（registry `structural_parent_id` 严格上溯，walk 遇重复即止）」
+/// —— 这是**错的**。「walk 遇重复即止」（[`restore_ancestor_chain_from_registry`] 的
+/// `already_in_raw` / `overlay_seen` 复用分支）证明的是 **walk 自身终止**，**不**证明回填后的
+/// `parent` 图无环。反例（registry 中 A.parent=B、B.parent=A）：walk(A) push A(0)、push B(1)、
+/// 再遇 A 已在 raw ⟹ 正常 break；回填 A.parent=Some(1)、B.parent=Some(0) ⟹ **环成立**，本函数
+/// 裸 `while let` 无限循环 ⟹ 生产（回测/实盘）挂死。
+///
+/// 无环性**不能白拿**：`persistent.rs` 三处 `structural_parent_id` 赋值均为直接写入、其中一处是
+/// **跨 bar 可变更新**（同一持久元素的父可从 `parent_a` 改成 `parent_b`），写入侧无「父 level >
+/// 子 level」校验、无环检测。
+///
+/// 硬门：上溯步数 `> elements.len()` ⟹ parent 图**必含环**（`elements` 上的简单路径最长
+/// `len−1` 条边，故 `len` 步内不成环的链必已终止）⟹ 计入探针
+/// [`AncokProbe::element_depth_fuel_exhausted`] 后 **显式 panic**。
+/// **不静默钳制**（违规显式失败纪律）：钳制会把环化 parent 图伪装成一个合法深度，静默改
+/// `w_depth` ⟹ 下单权重被脏数据污染且无任何告警面。debug/release 同门（`debug_assert` 在
+/// release 被编译消除 ⟹ 恰好在生产侧失守）。
 fn element_depth(elements: &ElementView, e_idx: usize) -> u32 {
+    let fuel = elements.len();
     let mut depth = 0u32;
     let mut cur = elements.get(e_idx).and_then(|e| e.parent);
     while let Some(p) = cur {
         depth += 1;
+        if depth as usize > fuel {
+            ancok_probe_bump(|pr| pr.element_depth_fuel_exhausted += 1);
+            panic!(
+                "#247 C1 环路硬门：element_depth 自 idx={e_idx} 上溯 {depth} 步超过 fuel 上界 \
+                 {fuel}（=elements.len()）⟹ parent 图含环（registry structural_parent_id 无环性\
+                 无写入侧保障）。显式失败，不静默钳制。"
+            );
+        }
         cur = elements.get(p).and_then(|e| e.parent);
     }
     depth
@@ -2051,7 +2089,33 @@ fn close_indices(prev_active: &[ActiveLeg], close: &[ActiveLeg]) -> Vec<usize> {
 /// **ℛ_x=∅ 限制**，即有效域声明而非等价声称）。
 ///
 /// `ℛ_x` 元素的**角色输入**（`parent` 索引 / `attached_dir`）由 `parent_id` 重建（#247 缺口二），
-/// 不再恒定落 `V=Ambient / G=SameLevel`。
+/// 不再恒定落 `V=Ambient / G=SameLevel`。★#247 C2（issue #371）起，[`held_stale_reregister_idx`]
+/// 新 push 的**持仓腿自身**同口径重建（`op_parent` → work idx），故整条恢复链**口径统一**——
+/// 不再是「祖先真、触发腿伪」的混合态。
+///
+/// ### ★#247 C1：`parent` 图无环性**无写入侧保障** ⟹ [`element_depth`] 带 fuel 硬门
+/// 回填让 `parent` 可指向 overlay ⟹ 无环性依赖 registry `structural_parent_id`，而其写入侧
+/// （`persistent.rs`，含跨 bar 可变更新）无环检测、无「父 level > 子 level」校验。
+/// [`element_depth`] 上溯步数 `> elements.len()` ⟹ 显式 panic + 探针
+/// [`AncokProbe::element_depth_fuel_exhausted`]（不静默钳制）。
+///
+/// ### ★#247 C3：两条**限定声明**（宣称行为影响时必须同时给出）
+/// 1. **「units 差异全部来自 `depth`」只在 `ThetaDirPreset::Neutral` + `w_grade=[1,1]` 下成立。**
+///    `w = depth_weight(d) × dir_weight(role,d) × w_grade(role)`。Neutral 下 `dir_weight≡1.0`、
+///    default `w_grade≡1.0`，故 #247 的对拍读数差异确实只由 `depth_weight` 产生。但
+///    `wverify_run.rs` 有环境变量驱动的 `Follow{eta_adv}` / `Adversary{eta_same}` **生产入口**：
+///    那些运行下 V 从 `Ambient` 变 `FollowParent`/`ReverseOpen` 会打开 `dir_weight` 的查表 CASE
+///    （Ambient 走恒 1.0 的 CASE），G 从 `SameLevel` 变 `SubLevel` 会切 `w_grade` 槽位 ⟹
+///    **units 另有两条独立变化通道**。归因不可外推到非 Neutral 运行。
+/// 2. **「角色重建不改腿集合身份」只在 gross cap 未激活（`risk=None` / `enforce_gross_cap=false`）
+///    下成立。** [`element_as_leg`] 只读 λ/ρ/ε/ℓ/id/parent_id ⟹ AncOK 成员资格确实不受角色影响；
+///    但 cap 激活时 [`apply_gross_cap`] 按 units 求缩放 ⟹ units 变 ⟹ `gross_zeroed` 可能变 ⟹
+///    幽灵腿防护剔除的开仓腿集合可能变 ⟹ **`next_active` 成员资格会变**。
+/// 3. **深链行为面**：default `depth_weights=[0.60,0.30,0.10]` ⟹ **depth ≥ 3 的恢复元素
+///    `w_depth=0`，整条腿 units 归零**（spec:42「权重表外深度不获资金、剩余留现金」，是定义
+///    行为非 bug）。改前它们恒 depth=0 拿满权 0.60 ⟹ 深链上 #247 的量级是 **0.60→0**，
+///    远大于两级链的 0.60→0.30/0.10。见 `restore_deep_chain_depth_ge3_weight_zeroed`。
+///    registry 恢复链长度无上界 ⟹ 深链在数据层可达；真实窗口的 depth 分布仍需运行时 trace。
 ///
 /// ## §13 持仓准入兑现（639 (c)）
 /// 父有向但**未持父仓**的逆向次级候选 = ReverseOpen（σ_p=父容器方向，639；其元素 `parent` 指向真
@@ -2233,8 +2297,38 @@ fn restore_ancestor_chain_from_registry(
 /// 反向）、lambda==rho 点元素、parent_id 非本腿 op_parent；复用会让 element_as_leg 采纳候选属性
 /// （持仓方向静默翻转、I4 op_parent 失真）。候选碰撞由 open 循环 ① 规则让位（id 已在 raw ⟹
 /// 跳过候选拷贝）——持仓身份优先：本腿 push 自身元素（坐标/op_parent 保真）。
+///
+/// ## ★#247 C2（影子评审承重级，承接 issue #371）：角色输入重建同步修
+///
+/// 本函数新 push 的**持仓腿自身**元素原同样写死 `parent:None, attached_dir:None`——与
+/// [`restore_ancestor_chain_from_registry`] 的缺口二**完全同构**，且在 held 路必然**同时命中**：
+/// `HeldLegState::LiveDetached` 分支是 `restore(...)` 紧接本函数，只要 held 路触发 restore，
+/// 触发腿自身就必走重注册。⟹ 只修祖先 = 同一条链上混合口径（祖先真、触发腿伪）。
+///
+/// 数值后果（default `depth_weights=[0.60,0.30,0.10]`）：伪根 ⟹ `element_depth=0 ⟹ w_depth=0.60`
+/// 拿满权，而真嵌套 depth 由 `parent` 链定（对拍场景 child→P1→P2 ⟹ d=2 ⟹ 0.10）。故半修
+/// （仅祖先）在对拍场景把 `p̃` 从 −600 推到 −300，而全重建口径是 −800 —— **半修在数值上离
+/// 真口径更远**（见 `restore_role_rebuild_changes_p_tilde_leg_set_unchanged` 三口径对拍表）。
+///
+/// 修法（与 #247 缺口二**同一口径**，不引入第二套语义）：新 push 后按 `leg.op_parent` 解析
+/// work idx（base `id_idx` 优先、再 `overlay_seen`——与 restore 回填同解析序），命中 ⟹
+/// `parent=Some(idx)`、`attached_dir=Some(父.eps)`，计 `restore_parent_rebound`。
+///
+/// **depth 语义**：按**恢复链深度**——`parent` 链即 `op_parent` 链，与恢复祖先元素同源
+/// （`element_depth` 的定义「沿 parent 链、真父子铁律」对本腿与对祖先是同一把尺）。不另立
+/// 「持仓腿 depth 恒 0」的第二口径。
+///
+/// **父不在 work 的语义裁定**（与 #247 缺口二对齐）：`op_parent=None` ⟹ 真 ∂ 边界胚元，
+/// `parent/attached_dir` 留 None 是**正确**语义（V=Ambient）；`op_parent=Some` 但链断 ⟹
+/// `parent` 留 None、`parent_id` 保持 Some ⟹ `is_boundary_root=false` ⟹ 统一 AncOK 按 id 判
+/// 祖先不在集 ⟹ **必被剪除**，从不进 `next_idx`/`strategy_target_legs` ⟹ 角色从不被打分。
+/// 计 `restore_parent_unresolved`。
+///
+/// **复用分支不回填**：`existing >= overlay_cand_end` 命中的是本 bar restore push 的元素，其
+/// `parent/attached_dir` 已由 restore 回填 ⟹ 不重写（树前缀/候选段属性零改，同 #247 口径）。
 fn held_stale_reregister_idx(
     work: &mut ElementView,
+    id_idx: &std::collections::HashMap<ElementId, usize>,
     overlay_seen: &mut std::collections::HashMap<ElementId, usize>,
     overlay_cand_end: usize,
     leg: &ActiveLeg,
@@ -2243,13 +2337,24 @@ fn held_stale_reregister_idx(
         Some(&existing) if existing >= overlay_cand_end => existing,
         _ => {
             let idx = work.len();
+            // ★#247 C2：角色输入 (σ_p, ℓ_p) 由 op_parent 解析（见函数 doc）。push 前解析——
+            // work 此刻尚不含本元素，且 op_parent 必是**已在 work 的祖先**（restore 先行 push）。
+            let resolved = leg
+                .op_parent
+                .and_then(|pid| id_idx.get(&pid).or_else(|| overlay_seen.get(&pid)).copied());
+            match (leg.op_parent, resolved) {
+                (Some(_), Some(_)) => ancok_probe_bump(|p| p.restore_parent_rebound += 1),
+                (Some(_), None) => ancok_probe_bump(|p| p.restore_parent_unresolved += 1),
+                (None, _) => {} // 真 ∂ 边界胚元：None/None 是正确语义，不计入任一探针。
+            }
+            let attached_dir = resolved.and_then(|pidx| work.get(pidx).map(|e| e.eps));
             work.push(CoverageElement {
                 lambda: leg.lambda,
                 rho: leg.source_index,
                 eps: leg.dir,
                 level: leg.level,
-                parent: None,
-                attached_dir: None,
+                parent: resolved,
+                attached_dir,
                 id: leg.id,
                 parent_id: leg.op_parent,
             });
@@ -2389,7 +2494,7 @@ pub(crate) fn coverage_step_from_buckets_sep(
                         // 按持久身份保留（I1），op_parent 驱动 AncOK。
                         // ★#216：重注册复用 restore push 现有 idx（见 [`held_stale_reregister_idx`]）。
                         let idx =
-                            held_stale_reregister_idx(&mut work, &mut overlay_seen, overlay_cand_end, leg);
+                            held_stale_reregister_idx(&mut work, &id_idx, &mut overlay_seen, overlay_cand_end, leg);
                         if !raw.contains(&idx) {
                             raw.push(idx);
                         }
@@ -2412,7 +2517,7 @@ pub(crate) fn coverage_step_from_buckets_sep(
                         }
                         // ★#216：重注册复用 restore push 现有 idx（见 [`held_stale_reregister_idx`]）。
                         let idx =
-                            held_stale_reregister_idx(&mut work, &mut overlay_seen, overlay_cand_end, leg);
+                            held_stale_reregister_idx(&mut work, &id_idx, &mut overlay_seen, overlay_cand_end, leg);
                         if !raw.contains(&idx) {
                             raw.push(idx);
                         }
@@ -5267,21 +5372,34 @@ mod tests {
     /// ★#247 **p̃ / 腿集合对拍**（缺口二的下单影响，生产函数端到端）：两级 registry 恢复祖先链
     /// （child ← P1 ← P2，全 LiveDetached）经 held 路 restore 注入 ⟹ A_{t+1}={child,P1,P2}。
     ///
-    /// **腿集合（身份）不变**：`element_as_leg` 只读 λ/ρ/ε/ℓ/id/parent_id，角色输入重建不碰这些
-    /// ⟹ AncOK 成员资格与 next_active 逐位不变（改动前后同为三条腿）。
+    /// **腿集合（身份）不变 —— 限定：仅在 gross cap 未激活时成立**（★#247 C3-3）。
+    /// `element_as_leg` 只读 λ/ρ/ε/ℓ/id/parent_id，角色输入重建不碰这些 ⟹ AncOK 成员资格不变。
+    /// 但**成员资格不等于 next_active 成员资格**：`risk=Some(..)` 且 `enforce_gross_cap=true` 时，
+    /// [`apply_gross_cap`] 按 units 求缩放 `c_r`，units 变 ⟹ `gross_zeroed` 可能变 ⟹ 幽灵腿防护
+    /// 剔除的开仓腿集合可能变 ⟹ **`next_active` 成员资格会变**。本测试 `risk=None`，故断言的
+    /// 「身份不变」应读作 **「`enforce_gross_cap=false`/`risk=None` 下身份不变」**，不是无条件命题。
     ///
-    /// **p̃ 变**（这是 #247 缺口二的实际下单影响，照实记录）：
-    /// | 元素 | 改动前 role/depth | 改前 units | 改动后 role/depth | 改后 units |
-    /// |---|---|---|---|---|
-    /// | child L0 Long | Ambient/SameLevel, d=0 | +600 | 同（held 重注册路径，不在本票范围）| +600 |
-    /// | P1 L1 Short | **Ambient**/SameLevel, d=**0** | −600 | **FollowParent**/SameLevel, d=**1** | −300 |
-    /// | P2 L2 Short（真 ∂ 根）| Ambient/SameLevel, d=0 | −600 | 同（parent_id=None 正确语义）| −600 |
+    /// ## p̃ 三口径对拍（★#247 C2 关票条件；default config，`base_units=1000`）
     ///
-    /// ⟹ **p̃: −600（改前，解析值）→ −300（改后，本测试断言）**，Δ=+300（净空目标缩小一半）。
-    /// 方向未翻；恢复祖先 P1 从「根级 0.60 权重」回到「真实 depth 1 的 0.30 权重」（σ_p 可判 ⟹
-    /// FollowParent，Neutral preset 下 dir_weight 仍 1.0，故差异全部来自 depth）。
-    /// 改前 −600 由防御分支恒定命中推出：P1 `parent=None ⟹ σ_p=0 ⟹ V=Ambient`（dir_weight=1.0）、
-    /// `element_depth=0 ⟹ w_depth=0.60` ⟹ 1000×0.60=600（Short 记负）。
+    /// | 元素 | 改前（全 Ambient） | 半修（仅祖先，bc7b8c26dd） | 全修（祖先+持仓腿，本 commit） |
+    /// |---|---|---|---|
+    /// | child L0 Long | d=0, w=0.60 → **+600** | d=0 → +600（未修） | **d=2, w=0.10 → +100** |
+    /// | P1 L1 Short | d=0, w=0.60 → **−600** | **d=1, w=0.30 → −300** | d=1 → −300 |
+    /// | P2 L2 Short（真 ∂ 根）| d=0 → **−600** | d=0 → −600（正确） | d=0 → −600 |
+    /// | **p̃** | **−600** | **−300** | **−800**（本测试断言） |
+    ///
+    /// 半修（只修 restore 祖先、不修 [`held_stale_reregister_idx`]）在本场景把 p̃ 推到 −300，
+    /// **离全重建口径 −800 比改前的 −600 更远** —— 这正是 C2 必须同步修的理由（该形态是 held 路
+    /// 常态：LiveDetached 分支 restore 紧接重注册，触发腿必走伪根路径）。
+    ///
+    /// **「差异全部来自 depth」的限定 —— 仅在 Neutral preset + `w_grade=[1,1]` 下成立**（★#247 C3-2）。
+    /// `w = depth_weight(d) × dir_weight(role,d) × w_grade(role)`。本对拍下 `dir_weight` 恒 1.0
+    /// （`ThetaDirPreset::Neutral`，`config.rs` default）、`w_grade` 恒 1.0（default `[1.0,1.0]`），
+    /// 故三口径差异确实只由 `depth_weight` 产生。但 `wverify_run.rs` 有环境变量驱动的
+    /// `Follow{eta_adv}` / `Adversary{eta_same}` **生产入口**：那些运行下 V 从 `Ambient` 变
+    /// `FollowParent`/`ReverseOpen` 会打开 `dir_weight` 的查表 CASE（Ambient 走恒 1.0 的 CASE），
+    /// `w_grade` 同理随 G 从 `SameLevel` 变 `SubLevel` 切槽位 ⟹ **units 另有两条独立变化通道**。
+    /// 「差异全部来自 depth」**不是本修复的普遍性质**，只是 Neutral 口径下的读数。
     #[test]
     fn restore_role_rebuild_changes_p_tilde_leg_set_unchanged() {
         let child = eid(0, 720);
@@ -5309,14 +5427,19 @@ mod tests {
             coverage_step_from_buckets(view_split(&tree, 0), &prev, &buckets, 1000.0, &cfg(), None, &reg);
         let mut ids: Vec<_> = active.iter().map(|l| l.id).collect();
         ids.sort_by_key(|i| (i.level, i.ordinal));
-        assert_eq!(ids, vec![child, p1, p2], "腿集合（身份）= {{child,P1,P2}}，角色重建不改成员资格");
-        assert!(
-            (p - (-300.0)).abs() < 1e-9,
-            "p̃ 对拍：改前 −600（P1 恒定 Ambient/d=0）→ 改后 −300（P1 FollowParent/d=1）；实得 {p}"
+        assert_eq!(
+            ids, vec![child, p1, p2],
+            "腿集合（身份）= {{child,P1,P2}}，角色重建不改成员资格（限定：risk=None/gross cap 未激活）"
         );
-        // 改前值的**复现**（非口算）：改动前后 work 元素数组的唯一差异 = 恢复元素的
-        // parent/attached_dir。按改前形态（全 None）重建同一元素数组喂同一 p̃ 管线 ⟹ −600。
-        let pre_fix = vec![
+        assert!(
+            (p - (-800.0)).abs() < 1e-9,
+            "p̃ 三口径对拍：改前 −600 / 半修（仅祖先）−300 / 全修（祖先+持仓腿）−800；实得 {p}"
+        );
+        // 三口径中另两口径的**复现**（非口算）：三口径下 work 元素数组的唯一差异 = 各元素的
+        // parent/attached_dir（id/parent_id/λ/ρ/ε/ℓ 逐位相同 ⟹ raw 序与 AncOK 成员资格相同）。
+        // 按各自形态重建同一元素数组、喂同一 p̃ 管线读数。work 序 = [P1(0), P2(1), child(2)]
+        //（restore 先于 held 重注册 push）。
+        let mut pre_fix = vec![
             CoverageElement { lambda: 8, rho: 22, eps: VoiceSide::Short, level: 1,
                 parent: None, attached_dir: None, id: p1, parent_id: Some(p2) },
             CoverageElement { lambda: 5, rho: 30, eps: VoiceSide::Short, level: 2,
@@ -5326,7 +5449,143 @@ mod tests {
         ];
         let pre_view = ElementView::new(&pre_fix);
         let pre_p = net_target_units(&strategy_target_legs(&pre_view, &[0, 1, 2], 1000.0, &cfg()));
-        assert!((pre_p - (-600.0)).abs() < 1e-9, "改前 p̃ 复现 = −600；实得 {pre_p}");
+        assert!((pre_p - (-600.0)).abs() < 1e-9, "口径①改前（全 Ambient）p̃ 复现 = −600；实得 {pre_p}");
+        // 口径②半修（bc7b8c26dd）：只有 restore 祖先 P1 拿到真 parent，持仓腿 child 仍伪根。
+        pre_fix[0].parent = Some(1);
+        pre_fix[0].attached_dir = Some(VoiceSide::Short);
+        let half_view = ElementView::new(&pre_fix);
+        let half_p = net_target_units(&strategy_target_legs(&half_view, &[0, 1, 2], 1000.0, &cfg()));
+        assert!(
+            (half_p - (-300.0)).abs() < 1e-9,
+            "口径②半修（仅祖先）p̃ 复现 = −300 —— 比改前 −600 离全修 −800 **更远**；实得 {half_p}"
+        );
+    }
+
+    /// ★#247 C3-1（影子评审证据级）：**深链 ≥3 级 ⟹ `depth_weight` 越界归零**（0.60 → **0.0**）。
+    ///
+    /// `voice.rs` `depth_weight` = `depth_weights.get(depth).unwrap_or(0.0)`，default 表
+    /// `[0.60, 0.30, 0.10]` 只覆盖 depth 0/1/2 ⟹ **depth ≥ 3 的元素 `w_depth = 0`，整条腿 units 归零**
+    /// （spec:42「权重表外的深度不获得资金，剩余资金留现金、不按比例重分配」——归零是**定义行为**，
+    /// 不是 bug）。改前这些元素恒 `depth=0` 拿满权 0.60，故 #247 在深链上的量级是 **0.60→0**，
+    /// 远大于已对拍的 0.60→0.30 / 0.60→0.10。本测试补上这个量级最大的行为面。
+    ///
+    /// **本测试不改权重表**（`depth_weights` 的表长/语义另裁），只如实呈现「≥3 级链权重归零」。
+    /// registry 恢复链长度**无上界**（walk 只受 registry 链长约束）⟹ 深链在数据层可达；真实窗口
+    /// 里的 depth 分布仍需运行时 trace（未决，见 ⑥）。
+    ///
+    /// 四级链 child(L0) ← P1(L1) ← P2(L2) ← P3(L3，真 ∂ 根)，全 LiveDetached，held 路注入：
+    ///
+    /// | 元素 | 改前（全 Ambient） | 全修（本 commit） |
+    /// |---|---|---|
+    /// | child L0 Long | d=0, w=0.60 → +600 | **d=3, w=0.0 → 0**（越界归零） |
+    /// | P1 L1 Short | d=0 → −600 | d=2, w=0.10 → −100 |
+    /// | P2 L2 Short | d=0 → −600 | d=1, w=0.30 → −300 |
+    /// | P3 L3 Short（∂ 根）| d=0 → −600 | d=0, w=0.60 → −600 |
+    /// | **p̃** | **−1200** | **−1000** |
+    ///
+    /// 同 C3-2 限定：读数成立于 Neutral preset + `w_grade=[1,1]`。
+    #[test]
+    fn restore_deep_chain_depth_ge3_weight_zeroed() {
+        let child = eid(0, 730);
+        let p1 = eid(1, 731);
+        let p2 = eid(2, 732);
+        let p3 = eid(3, 733);
+        let src = vec![
+            CoverageElement { lambda: 12, rho: 20, eps: VoiceSide::Long, level: 0,
+                parent: None, attached_dir: None, id: child, parent_id: Some(p1) },
+            CoverageElement { lambda: 10, rho: 22, eps: VoiceSide::Short, level: 1,
+                parent: None, attached_dir: None, id: p1, parent_id: Some(p2) },
+            CoverageElement { lambda: 8, rho: 26, eps: VoiceSide::Short, level: 2,
+                parent: None, attached_dir: None, id: p2, parent_id: Some(p3) },
+            CoverageElement { lambda: 5, rho: 30, eps: VoiceSide::Short, level: 3,
+                parent: None, attached_dir: None, id: p3, parent_id: None },
+        ];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&src, &[]).merge(&[], &[]);
+        let leg_child = ActiveLeg {
+            level: 0, dir: VoiceSide::Long, source_index: 20, lambda: 12,
+            id: child, parent_id: Some(p1), is_boundary_root: false, op_parent: Some(p1),
+        };
+        let prev = [leg_child];
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+        let tree: Vec<CoverageElement> = vec![];
+        let (active, p) =
+            coverage_step_from_buckets(view_split(&tree, 0), &prev, &buckets, 1000.0, &cfg(), None, &reg);
+        assert_eq!(active.len(), 4, "四级链全部恢复入 A_{{t+1}}（身份不变，限定 risk=None）");
+        assert!(
+            (p - (-1000.0)).abs() < 1e-9,
+            "深链 p̃：改前 −1200 → 全修 −1000（child d=3 越界归零 0.60→0.0）；实得 {p}"
+        );
+        // 单元级直读 depth ≥ 3 那条腿的 units = 0（不经净额抵消遮蔽）。
+        let deep = vec![
+            CoverageElement { lambda: 12, rho: 20, eps: VoiceSide::Long, level: 0,
+                parent: Some(1), attached_dir: Some(VoiceSide::Short), id: child, parent_id: Some(p1) },
+            CoverageElement { lambda: 10, rho: 22, eps: VoiceSide::Short, level: 1,
+                parent: Some(2), attached_dir: Some(VoiceSide::Short), id: p1, parent_id: Some(p2) },
+            CoverageElement { lambda: 8, rho: 26, eps: VoiceSide::Short, level: 2,
+                parent: Some(3), attached_dir: Some(VoiceSide::Short), id: p2, parent_id: Some(p3) },
+            CoverageElement { lambda: 5, rho: 30, eps: VoiceSide::Short, level: 3,
+                parent: None, attached_dir: None, id: p3, parent_id: None },
+        ];
+        let dv = ElementView::new(&deep);
+        assert_eq!(element_depth(&dv, 0), 3, "child 真嵌套 depth = 3（沿 parent 链）");
+        let legs = strategy_target_legs(&dv, &[0, 1, 2, 3], 1000.0, &cfg());
+        assert!(
+            legs[0].units.abs() < 1e-12,
+            "depth=3 ⟹ depth_weight 越界归零 ⟹ 该腿 units = 0（spec:42 未用部分留现金）；实得 {}",
+            legs[0].units
+        );
+        // 改前口径（全 Ambient/d=0）复现：−1200。
+        let pre: Vec<CoverageElement> = deep
+            .iter()
+            .map(|e| CoverageElement { parent: None, attached_dir: None, ..*e })
+            .collect();
+        let pre_p = net_target_units(&strategy_target_legs(
+            &ElementView::new(&pre), &[0, 1, 2, 3], 1000.0, &cfg(),
+        ));
+        assert!((pre_p - (-1200.0)).abs() < 1e-9, "深链改前 p̃ 复现 = −1200；实得 {pre_p}");
+    }
+
+    /// ★#247 C1（影子评审阻断级）：**`element_depth` 环路 fuel 硬门 —— 造环即显式失败 + 探针计数**。
+    ///
+    /// 缺口二回填后 restore 元素的 `parent` 可指向 overlay ⟹ 链的无环性转而依赖 registry
+    /// `structural_parent_id` 无环，而 `persistent.rs` 写入侧（三处直接赋值、其中一处跨 bar 可变
+    /// 更新）**无任何无环校验** ⟹ 环在数据层不可排除。改前恢复元素 `parent` 恒 None ⟹ 恒 depth=0，
+    /// 不具备成环条件；本 commit 起首次具备。
+    ///
+    /// 本测试人为造环（A.parent=B、B.parent=A），断言 [`element_depth`]：
+    /// ① **显式 panic**（不静默钳制成某个合法深度）；② 计入探针 `element_depth_fuel_exhausted`。
+    ///
+    /// 「walk 遇重复即止」只证 walk 终止，**不证** parent 图无环——见 [`element_depth`] doc 的订正。
+    #[test]
+    fn element_depth_cycle_fails_loudly_with_probe() {
+        let a = eid(0, 740);
+        let b = eid(1, 741);
+        // 人为环：A.parent=1(B)、B.parent=0(A)。裸 while let 会无限循环 ⟹ 生产挂死。
+        let cyclic = vec![
+            CoverageElement { lambda: 0, rho: 10, eps: VoiceSide::Long, level: 0,
+                parent: Some(1), attached_dir: Some(VoiceSide::Short), id: a, parent_id: Some(b) },
+            CoverageElement { lambda: 0, rho: 12, eps: VoiceSide::Short, level: 1,
+                parent: Some(0), attached_dir: Some(VoiceSide::Long), id: b, parent_id: Some(a) },
+        ];
+        let view = ElementView::new(&cyclic);
+        ancok_probe_reset();
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| element_depth(&view, 0)));
+        assert!(r.is_err(), "环路必须**显式失败**（不静默钳制成合法深度）");
+        assert_eq!(
+            ancok_probe_snapshot().element_depth_fuel_exhausted, 1,
+            "环路命中须计入探针 element_depth_fuel_exhausted（witness 面）"
+        );
+        // 无环链不受影响（fuel 门不误伤）：A→B(∂根)。
+        let acyclic = vec![
+            CoverageElement { parent: Some(1), ..cyclic[0] },
+            CoverageElement { parent: None, attached_dir: None, ..cyclic[1] },
+        ];
+        ancok_probe_reset();
+        assert_eq!(element_depth(&ElementView::new(&acyclic), 0), 1, "无环链正常返回 depth=1");
+        assert_eq!(
+            ancok_probe_snapshot().element_depth_fuel_exhausted, 0,
+            "fuel 门不误伤合法链（简单路径最长 len−1 条边 < fuel=len）"
+        );
     }
 
     /// ★#247 缺口二**语义裁定见证**：祖先链断裂（registry 丢失祖先）时恢复元素 `parent` 留 None，
