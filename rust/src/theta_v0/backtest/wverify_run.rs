@@ -1558,6 +1558,50 @@ fn resolve_m8_report_path(spec: Option<&str>) -> String {
     path.to_string()
 }
 
+/// ★#490 MED-3：报告 header 的执行域必须与 `OverlayRunResult.voice_exec` 同口径。
+fn m8_execution_projection_label(voice_exec_is_some: bool) -> &'static str {
+    if voice_exec_is_some {
+        "声部执行投影 + 净额影子账本"
+    } else {
+        "净额执行 + overlay 旁路/账本"
+    }
+}
+
+/// ★#490 MED-2：逐窗 treasury 行的单一渲染入口；`unclassified_venue` 是未标定/
+/// per-notional 档的真实 venue 科目，必须与已分类科目并列可见。
+fn format_m8_fee_audit_row(
+    tag: &str,
+    projected_trades: usize,
+    fee: super::treasury::FeeAudit,
+) -> String {
+    let effective_venue_rate = if fee.notional > 0.0 {
+        fee.venue_total() / fee.notional
+    } else {
+        0.0
+    };
+    format!(
+        "| {tag} | {projected_trades} | {} | {} | {:.6} | {:.6} | {:.6} | {:.6} | {:.6} | \
+         {:.6} | {:.6} | {:.6} | {}/{} | {}/{} | {}/{} | {:.6e} |\n",
+        fee.n_fills,
+        fee.notional,
+        fee.commission,
+        fee.passthru,
+        fee.clearing_cat,
+        fee.sec,
+        fee.taf,
+        fee.unclassified_venue,
+        fee.slippage,
+        fee.total_fee,
+        fee.min_commission_hits,
+        fee.n_fills,
+        fee.notional_cap_hits,
+        fee.n_fills,
+        fee.taf_cap_hits,
+        fee.n_fills,
+        effective_venue_rate,
+    )
+}
+
 fn m8_layer23_settlement(
     symbol: &str,
     rows: &[(String, f64, super::super::strategy::ledger::TStage)],
@@ -1629,9 +1673,11 @@ fn m8_e2e_all_systems_oos() {
     }
 
     let (epistemology, layer234_heading) = m8_epistemology(&symbol);
+    let voice_exec_expected = super::admission::voice_exec_gate();
+    let execution_projection = m8_execution_projection_label(voice_exec_expected);
     let mut report = format!(
         "# M8 端到端全策略 OOS（TARGET_STRATEGY_MAXFULL.md M8 / 路线.pdf p17,p20-21）\n\n\
-         三系统同开：M5 净额执行 + overlay 旁路/账本 + M6 cost_model（参数化持有成本三项，**spot 口径**：Funding 列＝\
+         三系统同开：M5 {execution_projection} + M6 cost_model（参数化持有成本三项，**spot 口径**：Funding 列＝\
          资金占用机会成本、Borrow＝现货杠杆借币、Liq＝强平罚金；#303）+ M7 三阶段 TW 账本。\n\
          口径：margin=CME-simple 单段；cost=参数化常费率；κ=0 冻结（M7 c3 裁定，正 κ 推迟 M8 后 L3）。\n\
          品种：**{symbol}**；窗口由 `PREREG_WINDOWS` 登记消费。{epistemology}\n\n",
@@ -1689,7 +1735,6 @@ fn m8_e2e_all_systems_oos() {
     let mut lee_rows: Vec<String> = Vec::new(); // ★#389 T3：帽臂 LEE 稀疏性逐窗读数（帽关时恒空）
     let mut fee_rows: Vec<String> = Vec::new(); // ★#419：逐窗 treasury 原生费率科目审计
     let mut layer23_rows = Vec::new(); // ★#419：结算文案与逐窗真实 net_r / Stage 同源
-    let mut fee_audit_cross_checked_all_windows = true;
     let mut fee_audit_windows_checked = 0_usize;
     for (tag, te_lo, te_hi) in &wins {
         let test = ds.slice_date_window(te_lo, te_hi);
@@ -1720,15 +1765,20 @@ fn m8_e2e_all_systems_oos() {
         super::admission::t5a_chain_dump::open_for_window(&tag);
         let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
         super::admission::t5a_chain_dump::close();
+        assert_eq!(
+            r.voice_exec.is_some(),
+            voice_exec_expected,
+            "#490 m8 header 执行投影与实际 OverlayRunResult.voice_exec 域不一致（窗 {tag}）"
+        );
 
         // 层2 execution：R 分解 + MaxDD + 逐声部归因。
         let d = r.net_result.r_decomp.expect("overlay 臂经生产 π loop ⟹ 产 R 分解");
         // ★#484 / #481 HIGH-2：FeeAudit 只审计生产唯一账本真值——净额账本的真实 fill。
         // `voice_exec` 是独立证据投影，不改净额影子账本；其 env gate 中性由
-        // `voice_exec_env_gate_off_bitexact_on_voice_readings` 逐位锁定。voice 投影接 FeeAudit
-        // 属另票，不能因此阻断 VOICE_EXEC=1 的 BTC 臂 R 基线。
+        // `voice_exec_env_gate_off_bitexact_on_voice_readings` 逐位锁定。★#490 已在 fill 主循环
+        // 用净额 `n_orders_executed` / `cum_fee` 对 FeeAudit 独立硬对账；此处只避免再做跨域伪对账。
         let fee = r.net_result.fee_audit;
-        if r.voice_exec.is_none() {
+        if !voice_exec_expected {
             assert_eq!(
                 fee.n_fills, r.net_result.n_orders,
                 "#419 每个真实净额 fill 恰落一笔 treasury 费审计（窗 {tag}）"
@@ -1740,8 +1790,6 @@ fn m8_e2e_all_systems_oos() {
                 fee.total_fee,
                 d.commission_slippage,
             );
-        } else {
-            fee_audit_cross_checked_all_windows = false;
         }
         let component_tol = 1e-9 * fee.total_fee.abs().max(1.0);
         assert!(
@@ -1751,32 +1799,7 @@ fn m8_e2e_all_systems_oos() {
             fee.total_fee,
         );
         fee_audit_windows_checked += 1;
-        let effective_venue_rate = if fee.notional > 0.0 {
-            fee.venue_total() / fee.notional
-        } else {
-            0.0
-        };
-        fee_rows.push(format!(
-            "| {tag} | {} | {} | {} | {:.6} | {:.6} | {:.6} | {:.6} | {:.6} | {:.6} | {:.6} | \
-             {}/{} | {}/{} | {}/{} | {:.6e} |\n",
-            r.net_result.trades.len(),
-            fee.n_fills,
-            fee.notional,
-            fee.commission,
-            fee.passthru,
-            fee.clearing_cat,
-            fee.sec,
-            fee.taf,
-            fee.slippage,
-            fee.total_fee,
-            fee.min_commission_hits,
-            fee.n_fills,
-            fee.notional_cap_hits,
-            fee.n_fills,
-            fee.taf_cap_hits,
-            fee.n_fills,
-            effective_venue_rate,
-        ));
+        fee_rows.push(format_m8_fee_audit_row(tag, r.net_result.trades.len(), fee));
         let maxdd = r.net_result.metrics.max_drawdown;
         let (mut n_amb, mut n_short, mut n_follow) = (0usize, 0usize, 0usize);
         for c in r.overlay.closed_voices() {
@@ -1923,15 +1946,16 @@ fn m8_e2e_all_systems_oos() {
              #376 LOW-1 纪律）；该列若为 0，本窗的逐级绿是空断言，须照此读。\n",
         );
     }
-    let fee_audit_reconciliation = if fee_audit_cross_checked_all_windows {
+    let fee_audit_reconciliation = if !voice_exec_expected {
         "`n_fills == n_orders`、逐科目和 `== fee_audit.total_fee == \
          RDecomposition.commission_slippage` 已逐窗硬断言。"
     } else {
         "`VOICE_EXEC=1` 时执行投影的 `n_orders/trades/RDecomposition` 与净额 `FeeAudit` \
-         不同域；本跑批只硬断言净额 FeeAudit 逐科目和 `== fee_audit.total_fee`，不作跨域伪对账。\
-         voice 投影接 FeeAudit 属另票。"
+         不同域；fill 主循环已用净额 `n_orders_executed` 与独立 `cum_fee` 对 \
+         `FeeAudit.n_fills/total_fee` 逐窗硬断言，本表再硬断言逐科目和 \
+         `== fee_audit.total_fee`，不作跨域伪对账。"
     };
-    let fee_audit_trades_heading = if fee_audit_cross_checked_all_windows {
+    let fee_audit_trades_heading = if !voice_exec_expected {
         "净额trades"
     } else {
         "声部投影trades"
@@ -1942,8 +1966,8 @@ fn m8_e2e_all_systems_oos() {
          `Σ总费` 含未标定滑点 addon，\
          有效 venue 费率排除该 addon。所有读数只作账本/费用审计，禁作 alpha 或择优输入。\n\n\
          | 窗 | {fee_audit_trades_heading} | 真实fill | Σ名义 | Σ佣金 | Σpass-through | Σ清算+CAT | Σ卖出SEC | Σ卖出TAF | \
-         Σ滑点addon | Σ总费 | 最低佣金触达 | 1%上限触达 | TAF上限触达 | venue有效费率 |\n\
-         |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
+         Σ未分类venue | Σ滑点addon | Σ总费 | 最低佣金触达 | 1%上限触达 | TAF上限触达 | venue有效费率 |\n\
+         |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
     ));
     for row in &fee_rows {
         report.push_str(row);
@@ -2129,6 +2153,39 @@ mod tests {
         assert!(oklo_intro.contains("认识论 L1"));
         assert!(oklo_layers.contains("L1 实测"));
         assert!(!oklo_layers.contains("L2 实测"));
+    }
+
+    /// ★#490 MED-3 RED：报告 header 必须随实际 `voice_exec` 投影动态陈述执行域。
+    #[test]
+    fn m8_execution_projection_header_matches_voice_exec_state() {
+        assert_eq!(
+            m8_execution_projection_label(true),
+            "声部执行投影 + 净额影子账本"
+        );
+        assert_eq!(
+            m8_execution_projection_label(false),
+            "净额执行 + overlay 旁路/账本"
+        );
+    }
+
+    /// ★#490 MED-2 RED：未标定 BTC 费用全落 unclassified_venue 时，审计行必须显式展示，
+    /// 禁止形成“可见科目全 0、Σ总费非 0”的误读面。
+    #[test]
+    fn m8_fee_row_renders_unclassified_venue() {
+        let fee = super::super::treasury::FeeAudit {
+            n_fills: 1,
+            notional: 4_510_009_151.37,
+            unclassified_venue: 1_353_002.745411,
+            total_fee: 1_353_002.745411,
+            ..Default::default()
+        };
+        let row = format_m8_fee_audit_row("wf8", 7, fee);
+        let cells = row.split('|').map(str::trim).collect::<Vec<_>>();
+        assert_eq!(
+            cells[10], "1353002.745411",
+            "第 10 列须为 unclassified_venue"
+        );
+        assert_eq!(cells[12], "1353002.745411", "Σ总费须保持原值");
     }
 
     /// ★#484 复审：过滤零匹配或登记窗为空时不得谎称“已逐窗硬断言”。

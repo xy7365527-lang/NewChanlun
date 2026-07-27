@@ -427,6 +427,29 @@ use super::ledger::{track_position_transition, LedgerOpen, OpsemEntrySnapshot, T
 #[cfg(test)]
 use super::admission::{VOICE_EXEC_OVERRIDE, NEST_CERT_GATE_OVERRIDE};
 
+/// ★#490 / #481 新 MED：净额 `FeeAudit` 的独立同域完整性 oracle。
+///
+/// `n_orders_executed` 与 `cum_fee` 由净额 fill 主循环直接累计；`FeeAudit` 走独立
+/// `record_executed` 影子审计路径。两者在 VOICE_EXEC=1 时仍同属净额影子账本，不能拿后续切换到
+/// 声部账户口径的 `FillOutput.n_orders` / `RDecomposition` 对账。这里用 release 可见硬断言同时
+/// 咬住整笔漏记/重记（fill 数）与金额漏记/重记（总费）；component_total 自洽断言不能替代本 oracle。
+fn assert_net_fee_audit_complete(
+    fee_audit: &super::treasury::FeeAudit,
+    n_orders_executed: usize,
+    cum_fee: f64,
+) {
+    assert_eq!(
+        fee_audit.n_fills, n_orders_executed,
+        "#490 净额 FeeAudit fill 计数 {} != 净额主循环真实 fill 计数 {}（整笔漏记/重记）",
+        fee_audit.n_fills, n_orders_executed,
+    );
+    assert_eq!(
+        fee_audit.total_fee, cum_fee,
+        "#490 净额 FeeAudit 总费 {} != 净额主循环独立 cum_fee {}（费用漏记/重记）",
+        fee_audit.total_fee, cum_fee,
+    );
+}
+
 pub(super) fn pi_theta_fill_loop<F>(
     classify_at: F,
     bars: &[Bar],
@@ -2106,6 +2129,10 @@ where
         }
     }
 
+    // ★#490：必须在 r_decomp 按 VOICE_EXEC 域切换前完成。此处两个 oracle 仍严格属于净额影子
+    // 账本；声部执行投影开启时同样执行，不得再以跨域为由跳过净额 FeeAudit 完整性。
+    assert_net_fee_audit_complete(&fee_audit, n_orders_executed, cum_fee);
+
     // ── M6 R 分解组装（路线.pdf p16 第十一关）+ 账目守恒断言 ──
     // ledger_delta 从**实际账本**（cash/units 经 apply_fill + 成本扣减独立演化）测得的净变动，
     // net_r 从**独立累计器**（cum_price_pnl 在循环顶部按 units·Δpx 累加、cum_fee 由 apply_fill
@@ -3567,9 +3594,19 @@ mod venue_fee_wiring_tests {
     use super::super::super::venue_fee::{
         datum_dir, load_datum, FeeUnit, VenueFeeSchedule,
     };
+    use super::super::treasury::FeeAudit;
 
     const NAV: f64 = 100_000.0;
     const PX: f64 = 20.0;
+
+    /// ★#490 RED：净额 FeeAudit 整笔漏记时，即使其内部 component_total==total_fee 仍会自洽，
+    /// 必须由 fill 主循环独立的净额 fill 计数 / cum_fee oracle 咬住。
+    #[test]
+    #[should_panic(expected = "#490 净额 FeeAudit fill 计数")]
+    fn net_fee_audit_completeness_rejects_an_omitted_fill() {
+        let audit = FeeAudit::default();
+        assert_net_fee_audit_complete(&audit, 1, 12.5);
+    }
 
     /// tick_size=1 ⟹ close tick 与美元价逐位相等（量化不引入误差，费率差别可手算对账）。
     fn cfg() -> ThetaConfig {
