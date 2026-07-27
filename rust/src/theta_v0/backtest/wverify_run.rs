@@ -1345,7 +1345,11 @@ fn m8_e2e_all_systems_oos() {
             };
             eprintln!(
                 "[m8][#357] {tag}: center_oscillation.enabled={} trigger_attempts={} \
-                 dropped_center_not_alive={} ({:.1}%) dropped_other={} action_by_level={:?} \
+                 dropped_center_not_alive={} ({:.1}%) dropped_other={} \
+                 dropped_center_moved_down={} \
+                 unclosed_write_off_count={:?} unclosed_write_off_units_gap={:?} \
+                 unclosed_write_off_cash_surplus={:?} unclosed_write_off_nothing_to_settle={:?} \
+                 action_by_level={:?} \
                  suspension_by_source={:?} lifecycle_opened={:?} lifecycle_died={:?} \
                  no_active_campaign_count={:?} \
                  resource_exhausted_holding_negative_count={:?} \
@@ -1359,6 +1363,12 @@ fn m8_e2e_all_systems_oos() {
                 w.dropped_center_not_alive,
                 drop_rate * 100.0,
                 w.dropped_other_trigger,
+                // ★#366：新判据/新清算的四项本票读数（判据对齐＋两终局分账的产物级见证）。
+                w.dropped_center_moved_down,
+                w.unclosed_write_off_count,
+                w.unclosed_write_off_units_gap,
+                w.unclosed_write_off_cash_surplus,
+                w.unclosed_write_off_nothing_to_settle,
                 w.action_by_level,
                 w.suspension_by_source,
                 w.lifecycle_opened,

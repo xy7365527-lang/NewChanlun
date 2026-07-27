@@ -44,10 +44,34 @@ pub enum TriggerError {
     CenterNotAlive,
     /// 次级别信号方向为 Flat——触发必须有向。
     FlatSignal,
-    /// #292 B 裁定：信号方向圈定的候选边界侧与价格不符——次级别卖点但价格不在本级在场中枢
-    /// 上半区，或次级别买点但价格不在下半区。信号方向不再单独决定边界侧；不满足价格判据
-    /// 即整体拒绝构造（不是"仍构造但方向作废"）。
+    /// ★#366（判据对齐缠师原文，裁定 2026-07-27）：信号方向圈定的候选边界侧与价格不符——
+    /// 次级别卖点但价格**未向上离开中枢**（`price < ZG`），或次级别买点但价格**未向下离开
+    /// 中枢**（`price > ZD`）。桶名沿用（#292 既有读数口径连续），但判据已从「中轴二分
+    /// （上半区/下半区）」换成「离开中枢（ZG/ZD）」——「上半区/下半区」博文全库 0 命中，
+    /// 属自研规则冒充缠论判据（090 纪律），本票废除。依据：80 课「中枢震荡的卖点都是出现在
+    /// 向上离开中枢时」、33 课「每次向下离开中枢只要出现底背驰，那就可以介入」、20 课中枢
+    /// 区间 [ZD, ZG] 定义、49 课「中枢上方减、下方增」。
     PriceOutsideZone,
+    /// ★#366：回补侧的「中枢不下移」前置过滤——价格向下离开中枢且有次级别底背驰，但本级
+    /// 中枢链**已下移**（新中枢整体低于前中枢）⟹ 拒绝回补。依据 89 课「跌下来，如果不形成
+    /// 中枢下移，而最多只是中枢扩展，那么就在次级别下跌的背驰时候买」——下移即趋势延续，
+    /// 不是震荡回补的场景。只约束买点侧（高抛侧无对应原文条件，不臆造对称门）。
+    CenterMovedDown,
+}
+
+/// ★#366：本级中枢链的**位移态**——「中枢不下移」前置过滤（89 课）的唯一输入。
+///
+/// 判据（20/30 课中枢区间口径）：当前在场中枢与其链上前驱**无重叠且整体更低**
+/// （`alive.zg < prev.zd`）⟹ [`Self::MovedDown`]（中枢下移）；有重叠（中枢扩展/延伸）或
+/// 链上无前驱 ⟹ [`Self::NoDownShift`]。判定在调用方（`fill.rs::step_center_oscillation`
+/// 读本级链与 `alive_center()` 的链下标）——本类型只承载已判定的结论，不在本模块重算第二套
+/// 链视图（同 A 裁定「身份唯一源=调用方传入」的精神）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CenterDrift {
+    /// 未下移：中枢扩展/延伸，或链上无前驱可比。
+    NoDownShift,
+    /// 已下移：当前在场中枢整体低于链上前驱（`zg < prev.zd`）。
+    MovedDown,
 }
 
 /// 触发事件：本级中枢在场（主格，A 裁定）+ 次级别买卖点（B 裁定：触发主信号源，盘背降为
@@ -63,25 +87,35 @@ pub struct CenterOscillationTrigger {
 }
 
 impl CenterOscillationTrigger {
-    /// 唯一构造点：本级 `alive_center()` 身份（A 裁定）+ 次级别买卖点信号方向 + 该点价格 →
-    /// 边界侧。★#292 B 裁定：边界侧不再单独由信号方向决定，而是信号方向圈定候选边界后，
-    /// 再由价格相对本级在场中枢（`alive` 的 zd/zg）的半区位置独立判定：
+    /// 唯一构造点：本级 `alive_center()` 身份（A 裁定）+ 次级别买卖点信号方向 + 该点价格
+    /// + 本级中枢链位移态 → 边界侧。
     ///
-    /// - 次级别卖点（`Short`）候选边界=`Above`（上沿高抛试探）——仅当 `price` 落在中枢
-    ///   **上半区**（`price >= 中轴`，中轴=`(zd + zg) / 2`）才放行。
-    /// - 次级别买点（`Long`）候选边界=`Below`（下沿回补试探）——仅当 `price` 落在中枢
-    ///   **下半区**（`price <= 中轴`）才放行。
-    /// - 不满足对应半区 ⟹ `Err(PriceOutsideZone)`，整体拒绝构造（不是"仍构造但方向作废"）。
-    /// - 中轴恰等（`price == 中轴`）两侧均计入（`>=`/`<=` 含端点，非开区间）。
+    /// ★★#366 判据对齐缠师原文（裁定 2026-07-27，A 方案）：**废中轴二分**（「上半区/下半区」
+    /// 博文全库 0 命中，自研规则不得冒充缠论判据，090 纪律），改回「离开中枢」形式——位置
+    /// 参照是**中枢区间 [ZD, ZG] 整体**（20 课定义），不是它的某个内部分界：
     ///
-    /// 中轴取整数除法 `(zd + zg) / 2`（向零截断；price ticks 恒正故等价向下取整——实现决策，
-    /// #292 票面「中轴阈值为实现决策」的落点，可复检）。
+    /// - 次级别卖点（`Short`，即次级别上涨背驰）候选边界=`Above`（高抛减仓）——仅当价格
+    ///   **向上离开中枢**（`price >= ZG`，冲上沿 ZG 方向）才放行。依据：80 课「中枢震荡的
+    ///   卖点都是出现在向上离开中枢时」；89 课「冲不起来，在次级别上涨背驰的时候卖」。
+    /// - 次级别买点（`Long`，即次级别底背驰）候选边界=`Below`（回补）——须同时满足两条：
+    ///   ① 价格**向下离开中枢**（`price <= ZD`，跌向下沿 ZD）；② 本级中枢**不下移**
+    ///   （`drift == NoDownShift`）。依据：89 课「跌下来，如果不形成中枢下移，而最多只是
+    ///   中枢扩展，那么就在次级别下跌的背驰时候买」；33 课「每次向下离开中枢只要出现底背驰，
+    ///   那就可以介入」。
+    /// - 不满足位置判据 ⟹ `Err(PriceOutsideZone)`；位置成立但中枢已下移 ⟹
+    ///   `Err(CenterMovedDown)`。两者整体拒绝构造（不是"仍构造但方向作废"），且**分列**
+    ///   ——先判位置后判下移，使 `CenterMovedDown` 桶只计「本可成立的回补被下移否掉」，
+    ///   读数不被「价格根本不在下沿」的样本污染。
+    /// - 边沿恰等（`price == ZG` / `price == ZD`）计入离开（`>=`/`<=` 含端点，非开区间）
+    ///   ——「冲上沿 ZG 方向」的实现决策，可复检；与 #292 旧判据「中轴恰等两侧均计入」的
+    ///   含端点惯例一致。
     ///
-    /// **无门（机械断言）**：签名唯一输入 = 本级在场身份 + 次级别信号事实（方向+价格+坐标），
-    /// 不接受、也无法接受任何次级别**账户/仓位状态**——编译期即杜绝互斥门的可能。
+    /// **无门（机械断言）**：签名唯一输入 = 本级在场身份 + 链位移态 + 次级别信号事实（方向+
+    /// 价格+坐标），不接受、也无法接受任何次级别**账户/仓位状态**——编译期即杜绝互斥门的可能。
     pub fn new(
         level: u32,
         alive: Option<CenterId>,
+        drift: CenterDrift,
         signal_side: VoiceSide,
         price: Tick,
         source_index: usize,
@@ -92,13 +126,17 @@ impl CenterOscillationTrigger {
             VoiceSide::Short => BoundarySide::Above,
             VoiceSide::Flat => return Err(TriggerError::FlatSignal),
         };
-        let midpoint = (center.zd + center.zg) / 2;
-        let in_zone = match boundary_side {
-            BoundarySide::Above => price >= midpoint,
-            BoundarySide::Below => price <= midpoint,
+        // 位置判据 = 离开中枢区间（20 课 [ZD, ZG] 整体），非中轴二分。
+        let left_center = match boundary_side {
+            BoundarySide::Above => price >= center.zg,
+            BoundarySide::Below => price <= center.zd,
         };
-        if !in_zone {
+        if !left_center {
             return Err(TriggerError::PriceOutsideZone);
+        }
+        // 「中枢不下移」前置过滤（89 课）——只约束回补侧，高抛侧无对应原文条件。
+        if matches!(boundary_side, BoundarySide::Below) && matches!(drift, CenterDrift::MovedDown) {
+            return Err(TriggerError::CenterMovedDown);
         }
         Ok(Self::from_parts(level, center, boundary_side, signal_side, source_index))
     }
@@ -223,8 +261,29 @@ pub enum SuspensionTerminationSource {
     RebaseVanished,
 }
 
-/// 一次终结的产出：身份 + 来源 + 是否伴随一次收手回补动作（仅 [`SuspensionTerminationSource::BrokenByThirdClassBuy`]
-/// 可能非 `None`，且仅当该身份此前确在挂起中）。
+/// ★#366（补充裁定 2026-07-27，用户 grilling）：一次终结的**清算终局**——两终局分账，不煮
+/// 一锅。教义链：中枢唯一定理三终结（次级别离开+回抽不重回=三类买卖点），无第二种死法；
+/// 「高抛不回头」时中枢未死，挂起继续等，直到三类点才终局。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminationSettlement {
+    /// **闭合终局**（多头遇三类买点 / 空头遇三类卖点）：收手回补（哪怕回补价高于卖出价）
+    /// → 亏损如实入账（#380 项一 `short_diff_cash_gate` 通道）→ 往返闭合 → 转持股，中途
+    /// 不再短差直到新中枢形成（73 课：第三买点不回补即可能错过中枢上移；49 课）。
+    CoverAndClose,
+    /// **未闭合减出**（多头遇三类卖点 / 空头遇三类买点）：不回补，挂起**核销**——货缺口与
+    /// 现金盈余**分开呈报，不冲销、不装没发生**（高抛躲过下跌的真实盈亏）。旧实装把它与
+    /// 闭合终局混同为「一律终结放弃回补」，本票分开。核销落点见
+    /// [`super::oscillation_campaign::CampaignBook::write_off_unclosed`]。
+    WriteOffUnclosed,
+    /// **承诺作废**（`Reset`/`Superseded`/`RebaseVanished`）：#292 既有口径，本票未改——
+    /// 前者是本级走势类型终结（仓位随之全平，挂起随仓死），后两者是链推进/工程重基的侧信道
+    /// 失踪，均非教义三类点终局，故不进两终局分账。如实标注：这三源的清算口径**未经**
+    /// #366 补充裁定复核（票面只裁三买/三卖两终局）。
+    Forfeit,
+}
+
+/// 一次终结的产出：身份 + 来源 + 清算终局 + 是否伴随一次收手回补动作（仅 `CoverAndClose`
+/// 终局非 `None`，且仅当该身份此前确在挂起中）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SuspensionOutcome {
     pub center: CenterId,
@@ -233,14 +292,49 @@ pub struct SuspensionOutcome {
     /// ★#381：本条终结归属的持仓侧——挂起表分侧独立（同一中枢可两侧各自挂起），终结须逐侧
     /// 产出。收手回补的镜像口径见 [`CenterOscillationBook::on_lifecycle_event`]。
     pub side: VoiceSide,
+    /// ★#366：本条终结的清算终局（两终局分账，见 [`TerminationSettlement`]）。
+    pub settlement: TerminationSettlement,
+}
+
+/// ★#366：一条「未闭合减出」核销请求——终结产出
+/// （[`TerminationSettlement::WriteOffUnclosed`]）到 campaign 记账层的接线契约。本类型不携
+/// 任何金额（货缺口/现金盈余由 campaign 侧的挂起归属账现算，不在结构侧另立第二套账）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnclosedWriteOffRequest {
+    pub bar: usize,
+    pub level: u32,
+    pub center: CenterId,
+    pub side: VoiceSide,
+}
+
+/// ★#366：某一持仓侧遇某一终结来源时的清算终局——两终局分账（`cover_action_for` 的伴生
+/// 分类：能收手回补的即闭合终局，教义三类点却不回补的即未闭合减出核销）。
+fn settlement_for(
+    side: VoiceSide,
+    source: SuspensionTerminationSource,
+) -> TerminationSettlement {
+    match source {
+        SuspensionTerminationSource::BrokenByThirdClassBuy
+        | SuspensionTerminationSource::BrokenByThirdClassSell => {
+            if cover_action_for(side, source).is_some() {
+                TerminationSettlement::CoverAndClose
+            } else {
+                TerminationSettlement::WriteOffUnclosed
+            }
+        }
+        SuspensionTerminationSource::Reset
+        | SuspensionTerminationSource::Superseded
+        | SuspensionTerminationSource::RebaseVanished => TerminationSettlement::Forfeit,
+    }
 }
 
 /// ★#381：某一持仓侧遇某一终结来源时是否伴随一次收手回补——多空**镜像**。
 ///
 /// - 多头侧：三类**买**点破坏 ⟹ 收手回补（「高抛后出三类买点则于三类买点处回补」049/068）；
-///   三类卖点只终结不回补（既有口径，SPEC Out of Scope 已如实标注）。
-/// - 空头侧：三类**卖**点破坏 ⟹ 收手加回空头（结构续跌，空头敞口须补回）；三类买点只终结
-///   不加回（多头侧「三卖不回补」的逐字镜像）。
+///   三类卖点不回补（★#366：改判为**未闭合减出核销**，见 [`TerminationSettlement`]——「不
+///   回补」不变，但不再是「装没发生」的静默作废）。
+/// - 空头侧：三类**卖**点破坏 ⟹ 收手加回空头（结构续跌，空头敞口须补回）；三类买点不加回
+///   （多头侧「三卖不回补」的逐字镜像，同样走未闭合减出核销）。
 /// - 其余来源（`Reset`/`Superseded`/`RebaseVanished`）两侧一律不回补（承诺作废，既有口径）。
 fn cover_action_for(
     side: VoiceSide,
@@ -379,6 +473,7 @@ impl CenterOscillationBook {
                     source: SuspensionTerminationSource::Reset,
                     cover_action: None,
                     side,
+                    settlement: settlement_for(side, SuspensionTerminationSource::Reset),
                 })
                 .collect();
         }
@@ -407,6 +502,7 @@ impl CenterOscillationBook {
                 source,
                 cover_action: cover_action_for(side, source),
                 side,
+                settlement: settlement_for(side, source),
             })
             .collect()
     }
@@ -442,6 +538,7 @@ impl CenterOscillationBook {
                 source: SuspensionTerminationSource::RebaseVanished,
                 cover_action: None,
                 side,
+                settlement: settlement_for(side, SuspensionTerminationSource::RebaseVanished),
             })
             .collect();
         debug_assert!(
@@ -508,7 +605,7 @@ mod tests {
     #[test]
     fn trigger_rejects_when_center_not_alive() {
         assert_eq!(
-            CenterOscillationTrigger::new(0, None, VoiceSide::Long, 0, 10),
+            CenterOscillationTrigger::new(0, None, CenterDrift::NoDownShift, VoiceSide::Long, 0, 10),
             Err(TriggerError::CenterNotAlive),
             "A 裁定：无主格即无触发"
         );
@@ -518,7 +615,7 @@ mod tests {
     fn trigger_rejects_flat_signal() {
         let id = cid(5, 100, 200);
         assert_eq!(
-            CenterOscillationTrigger::new(0, Some(id), VoiceSide::Flat, 0, 10),
+            CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Flat, 0, 10),
             Err(TriggerError::FlatSignal)
         );
     }
@@ -526,60 +623,117 @@ mod tests {
     #[test]
     fn trigger_maps_signal_side_to_boundary_same_convention_as_pan_div() {
         let id = cid(5, 100, 200);
-        let buy = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Long, id.zd, 10).unwrap();
+        let buy = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Long, id.zd, 10).unwrap();
         assert_eq!(buy.boundary_side(), BoundarySide::Below, "次级别买点=下沿回补试探");
-        let sell = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 11).unwrap();
+        let sell = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 11).unwrap();
         assert_eq!(sell.boundary_side(), BoundarySide::Above, "次级别卖点=上沿高抛试探");
     }
 
-    // ── #292 B 裁定：边界侧独立价格判据（四态 + 中轴恰等） ──────────────────
+    // ── ★#366 判据对齐缠师原文：离开中枢（ZG/ZD）+ 中枢不下移，废中轴二分 ────────
 
-    /// 状态①：上沿区卖点 ⟹ 高抛（`Above`）。
+    /// 状态①：向上离开中枢（`price >= ZG`）的卖点 ⟹ 高抛（`Above`）。80 课「中枢震荡的
+    /// 卖点都是出现在向上离开中枢时」。
     #[test]
-    fn sell_signal_in_upper_half_produces_above_boundary() {
-        let id = cid(5, 100, 200); // 中轴 = 150
-        let t = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, 151, 10).unwrap();
+    fn sell_signal_leaving_center_upward_produces_above_boundary() {
+        let id = cid(5, 100, 200); // 中枢区间 [100, 200]
+        let t = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, 201, 10).unwrap();
         assert_eq!(t.boundary_side(), BoundarySide::Above);
     }
 
-    /// 状态②：非上沿区卖点 ⟹ 整体拒绝（不是"仍构造但方向作废"）。
+    /// ★废中轴二分的行为化断言：中枢**内部**（旧判据的「上半区」，中轴 150 与 ZG 200 之间）
+    /// 的卖点在新判据下**被拒**——旧判据放行 151，新判据要求 `price >= ZG=200`。这条测试就是
+    /// 「上半区/下半区」自研规则被废除的可执行证据（090：自研规则不得冒充缠论判据）。
     #[test]
-    fn sell_signal_below_upper_half_is_rejected() {
-        let id = cid(5, 100, 200); // 中轴 = 150
+    fn sell_signal_inside_center_upper_half_is_rejected_after_366() {
+        let id = cid(5, 100, 200);
         assert_eq!(
-            CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, 149, 10),
+            CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, 151, 10),
             Err(TriggerError::PriceOutsideZone),
-            "卖点但价格在中轴以下 ⟹ 不构成高抛触发"
+            "中轴以上但未离开中枢 ⟹ 新判据拒绝（旧中轴二分会放行）"
         );
     }
 
-    /// 状态③：下沿区买点 ⟹ 回补（`Below`）。
+    /// 状态②：未向上离开中枢的卖点 ⟹ 整体拒绝（不是"仍构造但方向作废"）。
     #[test]
-    fn buy_signal_in_lower_half_produces_below_boundary() {
-        let id = cid(5, 100, 200); // 中轴 = 150
-        let t = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Long, 149, 10).unwrap();
+    fn sell_signal_without_leaving_center_is_rejected() {
+        let id = cid(5, 100, 200);
+        assert_eq!(
+            CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, 99, 10),
+            Err(TriggerError::PriceOutsideZone)
+        );
+    }
+
+    /// 状态③：向下离开中枢（`price <= ZD`）+ 中枢不下移的买点 ⟹ 回补（`Below`）。
+    /// 33 课「每次向下离开中枢只要出现底背驰，那就可以介入」。
+    #[test]
+    fn buy_signal_leaving_center_downward_produces_below_boundary() {
+        let id = cid(5, 100, 200);
+        let t = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Long, 99, 10).unwrap();
         assert_eq!(t.boundary_side(), BoundarySide::Below);
     }
 
-    /// 状态④：非下沿区买点 ⟹ 整体拒绝。
+    /// ★废中轴二分（买侧）：中枢内部的「下半区」买点（中轴 150 与 ZD 100 之间）新判据下被拒。
     #[test]
-    fn buy_signal_above_lower_half_is_rejected() {
-        let id = cid(5, 100, 200); // 中轴 = 150
+    fn buy_signal_inside_center_lower_half_is_rejected_after_366() {
+        let id = cid(5, 100, 200);
         assert_eq!(
-            CenterOscillationTrigger::new(0, Some(id), VoiceSide::Long, 151, 10),
+            CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Long, 149, 10),
             Err(TriggerError::PriceOutsideZone),
-            "买点但价格在中轴以上 ⟹ 不构成回补触发"
+            "中轴以下但未离开中枢 ⟹ 新判据拒绝（旧中轴二分会放行）"
         );
     }
 
-    /// 中轴恰等：`(zd+zg)/2` 本身同时计入两侧（`>=`/`<=` 均含端点，非开区间）。
+    /// 状态④：未向下离开中枢的买点 ⟹ 整体拒绝。
     #[test]
-    fn price_exactly_at_midpoint_counts_as_in_zone_for_both_sides() {
-        let id = cid(5, 100, 200); // 中轴 = 150
-        let sell = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, 150, 10).unwrap();
-        assert_eq!(sell.boundary_side(), BoundarySide::Above, "中轴恰等计入上半区（>=）");
-        let buy = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Long, 150, 11).unwrap();
-        assert_eq!(buy.boundary_side(), BoundarySide::Below, "中轴恰等计入下半区（<=）");
+    fn buy_signal_without_leaving_center_is_rejected() {
+        let id = cid(5, 100, 200);
+        assert_eq!(
+            CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Long, 201, 10),
+            Err(TriggerError::PriceOutsideZone)
+        );
+    }
+
+    /// 边沿恰等（`price == ZG` / `price == ZD`）计入离开（含端点，非开区间——实现决策，可复检）。
+    #[test]
+    fn price_exactly_at_center_edge_counts_as_leaving() {
+        let id = cid(5, 100, 200);
+        let sell = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap();
+        assert_eq!(sell.boundary_side(), BoundarySide::Above, "price == ZG 计入向上离开（>=）");
+        let buy = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Long, id.zd, 11).unwrap();
+        assert_eq!(buy.boundary_side(), BoundarySide::Below, "price == ZD 计入向下离开（<=）");
+    }
+
+    /// ★#366「中枢不下移」前置过滤（89 课）：价格已向下离开中枢、底背驰在，但中枢已下移
+    /// ⟹ 拒绝回补（下移=趋势延续，非震荡回补场景）。
+    #[test]
+    fn buy_signal_is_rejected_when_center_moved_down() {
+        let id = cid(5, 100, 200);
+        assert_eq!(
+            CenterOscillationTrigger::new(0, Some(id), CenterDrift::MovedDown, VoiceSide::Long, 99, 10),
+            Err(TriggerError::CenterMovedDown),
+            "89 课：形成中枢下移则不在次级别底背驰处买"
+        );
+    }
+
+    /// 「中枢不下移」只约束**回补侧**——高抛侧无对应原文条件，不臆造对称门。
+    #[test]
+    fn sell_signal_is_unaffected_by_center_moved_down() {
+        let id = cid(5, 100, 200);
+        let t = CenterOscillationTrigger::new(0, Some(id), CenterDrift::MovedDown, VoiceSide::Short, 201, 10)
+            .expect("下移不约束高抛侧");
+        assert_eq!(t.boundary_side(), BoundarySide::Above);
+    }
+
+    /// 判据顺序（读数纯净性）：价格根本不在下沿的买点即便遇下移，也报 `PriceOutsideZone`
+    /// 而非 `CenterMovedDown`——`CenterMovedDown` 桶只计「本可成立的回补被下移否掉」。
+    #[test]
+    fn position_predicate_precedes_down_shift_filter_in_error_attribution() {
+        let id = cid(5, 100, 200);
+        assert_eq!(
+            CenterOscillationTrigger::new(0, Some(id), CenterDrift::MovedDown, VoiceSide::Long, 150, 10),
+            Err(TriggerError::PriceOutsideZone),
+            "位置不成立优先归因，避免污染下移桶读数"
+        );
     }
 
     // ── 减补动作 ──────────────────────────────────────────────────────────
@@ -588,7 +742,7 @@ mod tests {
     fn upper_boundary_touch_emits_reduce_and_opens_suspension() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
-        let t = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap();
+        let t = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap();
         assert_eq!(book.on_trigger(t), Some(CenterOscillationAction::Reduce));
         assert!(book.is_suspended(id));
     }
@@ -597,8 +751,8 @@ mod tests {
     fn repeated_upper_boundary_touches_keep_emitting_reduce() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
-        let t1 = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap();
-        let t2 = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 20).unwrap();
+        let t1 = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap();
+        let t2 = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 20).unwrap();
         assert_eq!(book.on_trigger(t1), Some(CenterOscillationAction::Reduce));
         assert_eq!(book.on_trigger(t2), Some(CenterOscillationAction::Reduce), "重复触碰上沿=继续高抛");
         assert!(book.is_suspended(id));
@@ -608,8 +762,8 @@ mod tests {
     fn lower_boundary_touch_while_suspended_covers() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
-        let reduce = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap();
-        let cover = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Long, id.zd, 20).unwrap();
+        let reduce = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap();
+        let cover = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Long, id.zd, 20).unwrap();
         book.on_trigger(reduce);
         assert_eq!(book.on_trigger(cover), Some(CenterOscillationAction::Replenish));
         assert!(!book.is_suspended(id), "回补出口=挂起清空");
@@ -620,7 +774,7 @@ mod tests {
     fn ghost_replenish_without_suspension_is_rejected() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
-        let cover = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Long, id.zd, 20).unwrap();
+        let cover = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Long, id.zd, 20).unwrap();
         assert_eq!(book.on_trigger(cover), None, "无挂起证书 ⟹ 禁复活");
         assert_eq!(book.suspended_count(), 0);
     }
@@ -633,8 +787,8 @@ mod tests {
     fn suspension_can_reopen_after_a_full_cover_cycle() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
-        let reduce = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap();
-        let cover = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Long, id.zd, 20).unwrap();
+        let reduce = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap();
+        let cover = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Long, id.zd, 20).unwrap();
         assert_eq!(book.on_trigger(reduce), Some(CenterOscillationAction::Reduce));
         assert_eq!(book.on_trigger(cover), Some(CenterOscillationAction::Replenish));
         assert_eq!(book.on_trigger(reduce), Some(CenterOscillationAction::Reduce), "回补后可再度高抛");
@@ -647,7 +801,7 @@ mod tests {
     fn suspension_exit_third_class_buy_terminates_with_cover() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
         let outcomes = book.on_lifecycle_event(&broken(id, Side::Long));
         assert_eq!(outcomes.len(), 1);
         assert_eq!(outcomes[0].source, SuspensionTerminationSource::BrokenByThirdClassBuy);
@@ -660,7 +814,7 @@ mod tests {
     fn suspension_exit_full_close_reset_terminates_without_cover() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
         let outcomes = book.on_lifecycle_event(&reset_with(Some(id)));
         assert_eq!(outcomes.len(), 1);
         assert_eq!(outcomes[0].source, SuspensionTerminationSource::Reset);
@@ -675,8 +829,8 @@ mod tests {
         let stale_suspended = cid(5, 100, 200); // 早于当前在场的挂起遗留（D 裁定：按身份不按在场）
         let currently_alive = cid(700, 300, 400);
         let mut book = CenterOscillationBook::new(0);
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(stale_suspended), VoiceSide::Short, stale_suspended.zg, 10).unwrap());
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(currently_alive), VoiceSide::Short, currently_alive.zg, 20).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(stale_suspended), CenterDrift::NoDownShift, VoiceSide::Short, stale_suspended.zg, 10).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(currently_alive), CenterDrift::NoDownShift, VoiceSide::Short, currently_alive.zg, 20).unwrap());
         assert_eq!(book.suspended_count(), 2);
         let outcomes = book.on_lifecycle_event(&reset_with(Some(currently_alive)));
         assert_eq!(outcomes.len(), 2, "清空整场=两个挂起身份同时终结，非仅同死的那一个");
@@ -688,7 +842,7 @@ mod tests {
     fn suspension_exit_third_class_sell_terminates_without_cover() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
         let outcomes = book.on_lifecycle_event(&broken(id, Side::Short));
         assert_eq!(outcomes.len(), 1);
         assert_eq!(outcomes[0].source, SuspensionTerminationSource::BrokenByThirdClassSell);
@@ -701,7 +855,7 @@ mod tests {
     fn suspension_exit_superseded_arena_termination_without_cover() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
         let outcomes = book.on_lifecycle_event(&superseded(id));
         assert_eq!(outcomes.len(), 1);
         assert_eq!(outcomes[0].source, SuspensionTerminationSource::Superseded);
@@ -719,11 +873,91 @@ mod tests {
         ] {
             let id = cid(5, 100, 200);
             let mut book = CenterOscillationBook::new(0);
-            book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap());
+            book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
             book.on_lifecycle_event(&event);
-            let cover_attempt = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Long, id.zd, 30).unwrap();
+            let cover_attempt = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Long, id.zd, 30).unwrap();
             assert_eq!(book.on_trigger(cover_attempt), None, "{label}: 终结后必须拒绝幽灵回补");
         }
+    }
+
+
+    // ── ★#366 清算两终局（补充裁定 2026-07-27）：三买闭合 / 三卖未闭合减出，分账不煮一锅 ──
+
+    /// 多头侧：三类**买**点终局 ⟹ `CoverAndClose`（收手回补 → 往返闭合 → 转持股）；
+    /// 三类**卖**点终局 ⟹ `WriteOffUnclosed`（不回补，挂起核销分列呈报）。两终局互斥且穷尽
+    /// 覆盖教义三类点，不再混同为「一律终结放弃回补」。
+    #[test]
+    fn long_side_two_settlements_split_by_third_class_point_kind() {
+        let id = cid(5, 100, 200);
+        let mut book = CenterOscillationBook::new(0);
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
+        let buy_out = book.on_lifecycle_event(&broken(id, Side::Long));
+        assert_eq!(buy_out[0].settlement, TerminationSettlement::CoverAndClose);
+        assert_eq!(buy_out[0].cover_action, Some(CenterOscillationAction::Replenish));
+
+        let mut book2 = CenterOscillationBook::new(0);
+        book2.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
+        let sell_out = book2.on_lifecycle_event(&broken(id, Side::Short));
+        assert_eq!(
+            sell_out[0].settlement,
+            TerminationSettlement::WriteOffUnclosed,
+            "三卖终局=未闭合减出核销，不是静默作废"
+        );
+        assert_eq!(sell_out[0].cover_action, None, "核销不构造回补动作");
+    }
+
+    /// 空头侧镜像：三类**卖**点 ⟹ 闭合（加回空头）；三类**买**点 ⟹ 未闭合减出核销。
+    #[test]
+    fn short_side_two_settlements_are_mirror_of_long_side() {
+        let c = cid(0, 100, 200);
+        let below = CenterOscillationTrigger::from_parts(0, c, BoundarySide::Below, VoiceSide::Long, 2);
+        let mut book = CenterOscillationBook::new(0);
+        book.on_trigger_side(VoiceSide::Short, below);
+        let sell_out = book.on_lifecycle_event(&broken(c, Side::Short));
+        assert_eq!(sell_out[0].settlement, TerminationSettlement::CoverAndClose);
+
+        let mut book2 = CenterOscillationBook::new(0);
+        book2.on_trigger_side(VoiceSide::Short, below);
+        let buy_out = book2.on_lifecycle_event(&broken(c, Side::Long));
+        assert_eq!(buy_out[0].settlement, TerminationSettlement::WriteOffUnclosed);
+    }
+
+    /// 非教义三类点的三源（`Reset`/`Superseded`/`RebaseVanished`）恒 `Forfeit`——#292 既有
+    /// 口径，#366 未改（票面只裁三买/三卖两终局；本条把「未改」钉成可执行事实，防止被误读为
+    /// 也已按新口径核销）。
+    #[test]
+    fn non_doctrinal_termination_sources_stay_forfeit() {
+        let id = cid(5, 100, 200);
+        for (label, event) in [
+            ("reset", reset_with(Some(id))),
+            ("superseded", superseded(id)),
+        ] {
+            let mut book = CenterOscillationBook::new(0);
+            book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
+            let out = book.on_lifecycle_event(&event);
+            assert_eq!(out[0].settlement, TerminationSettlement::Forfeit, "{label}");
+        }
+        let mut book = CenterOscillationBook::new(0);
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
+        let out = book.on_chain_rebase(&[]);
+        assert_eq!(out[0].settlement, TerminationSettlement::Forfeit, "rebase_vanished");
+    }
+
+    /// ★「高抛不回头时中枢未死，挂起继续等」（#366 补充裁定教义链）：无终结事件到达时，挂起
+    /// 既不被回补也不被核销——两终局只在三类点到达才发生。
+    #[test]
+    fn suspension_keeps_waiting_while_center_alive() {
+        let id = cid(5, 100, 200);
+        let mut book = CenterOscillationBook::new(0);
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
+        // Born 事件（中枢未死）——no-op，挂起原样。
+        let out = book.on_lifecycle_event(&CenterLifecycleEvent::Born {
+            level: 0,
+            center: Center { zd: id.zd, zg: id.zg, dd: id.zd - 2, gg: id.zg + 2, start_index: id.start_index, end_index: id.start_index + 50 },
+            chain_index: 0,
+        });
+        assert!(out.is_empty(), "中枢未死 ⟹ 无终局产出");
+        assert!(book.is_suspended(id), "挂起继续等，不提前终局");
     }
 
     // ── 幂等（C 裁定） ────────────────────────────────────────────────────
@@ -734,7 +968,7 @@ mod tests {
     fn termination_is_idempotent_across_duplicate_dual_signals() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
         let first = book.on_lifecycle_event(&superseded(id));
         assert_eq!(first.len(), 1, "第一条信号（在场终结）产出终结");
         let second = book.on_lifecycle_event(&broken(id, Side::Long));
@@ -746,7 +980,7 @@ mod tests {
     fn same_event_fed_twice_is_idempotent() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
         let ev = broken(id, Side::Long);
         let first = book.on_lifecycle_event(&ev);
         assert_eq!(first.len(), 1);
@@ -763,9 +997,9 @@ mod tests {
         let old_id = cid(5, 100, 200);
         let new_id = cid(700, 300, 400);
         let mut book = CenterOscillationBook::new(0);
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(old_id), VoiceSide::Short, old_id.zg, 10).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(old_id), CenterDrift::NoDownShift, VoiceSide::Short, old_id.zg, 10).unwrap());
         // 链推进：新中枢在场，也开一笔挂起。
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(new_id), VoiceSide::Short, new_id.zg, 100).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(new_id), CenterDrift::NoDownShift, VoiceSide::Short, new_id.zg, 100).unwrap());
         assert_eq!(book.suspended_count(), 2);
         // 终结事件声明身份 = old_id（即便当前在场早已是 new_id）。
         let outcomes = book.on_lifecycle_event(&broken(old_id, Side::Short));
@@ -783,7 +1017,7 @@ mod tests {
     fn first_doctrinal_death_without_prior_supersede_terminates_correctly() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
         // 无任何 superseded 事件历史，直接喂教义死亡。
         let outcomes = book.on_lifecycle_event(&broken(id, Side::Short));
         assert_eq!(outcomes.len(), 1);
@@ -810,7 +1044,7 @@ mod tests {
         let id = cid(5, 100, 200);
         let other = cid(700, 300, 400);
         let mut book = CenterOscillationBook::new(0);
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
         assert!(book.is_suspended(id));
         let new_chain = vec![center_of(id), center_of(other)];
         let outcomes = book.on_chain_rebase(&new_chain);
@@ -824,8 +1058,8 @@ mod tests {
         let id = cid(5, 100, 200);
         let survivor = cid(700, 300, 400);
         let mut book = CenterOscillationBook::new(0);
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap());
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(survivor), VoiceSide::Short, survivor.zg, 20).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(survivor), CenterDrift::NoDownShift, VoiceSide::Short, survivor.zg, 20).unwrap());
         assert_eq!(book.suspended_count(), 2);
         let new_chain = vec![center_of(survivor)];
         let outcomes = book.on_chain_rebase(&new_chain);
@@ -847,7 +1081,7 @@ mod tests {
         let new_arrival = cid(900, 500, 600);
         let mut book = CenterOscillationBook::new(0);
         for (id, seed) in [(stays, 10usize), (vanishes_a, 20), (vanishes_b, 30)] {
-            book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, seed).unwrap());
+            book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, seed).unwrap());
         }
         assert_eq!(book.suspended_count(), 3);
         let new_chain = vec![center_of(stays), center_of(new_arrival)];
@@ -892,7 +1126,7 @@ mod tests {
         let id = cid(5, 100, 200);
         let mut book0 = CenterOscillationBook::new(0);
         let mut book1 = CenterOscillationBook::new(1);
-        book0.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap());
+        book0.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
         book0.on_lifecycle_event(&broken(id, Side::Long));
         assert_eq!(book1.suspended_count(), 0, "本级动作对另一级别挂起表零影响");
     }
@@ -902,7 +1136,7 @@ mod tests {
     fn trigger_level_mismatch_is_a_wiring_error_not_silent() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(1);
-        let t = CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap();
+        let t = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap();
         book.on_trigger(t);
     }
 
@@ -973,7 +1207,7 @@ mod tests {
         let mut book = CenterOscillationBook::new(0);
         // 刻意乱序插入（mid → high → low），核对输出与插入序无关，只与 CenterId 派生序有关。
         for (id, seed) in [(mid, 10usize), (high, 20), (low, 30)] {
-            book.on_trigger(CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, seed).unwrap());
+            book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, seed).unwrap());
         }
         let outcomes = book.on_lifecycle_event(&reset_with(None));
         let ids: Vec<CenterId> = outcomes.iter().map(|o| o.center).collect();

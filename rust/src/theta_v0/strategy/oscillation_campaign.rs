@@ -109,6 +109,10 @@ pub struct SuspensionBatch {
     pub units: i64,
     /// 到达序（campaign 内单调递增）——「余按时间序」的确定性载体（非哈希/非中枢序）。
     pub seq: u64,
+    /// ★#366：本批减出的成交价——「未闭合减出」核销时「现金盈余」的唯一算料
+    /// （`Σ units·price`，见 [`UnclosedReduction::cash_surplus`]）。桶只记标量总现金
+    /// （`realized_cash`），无分批分解，故价格随批次记在归属账侧（观测口径，不另立记账）。
+    pub price: i64,
 }
 
 /// ★#380 项四：一次 `Replenish` 对某个挂起批次的冲抵明细。
@@ -148,10 +152,25 @@ impl SuspensionAttribution {
         &self.batches
     }
 
-    /// `Reduce` 入队：新批次带来源中枢标签，追加在时间序末尾。
-    fn push(&mut self, center: CenterId, units: i64) {
-        self.batches.push(SuspensionBatch { center, units, seq: self.next_seq });
+    /// `Reduce` 入队：新批次带来源中枢标签 + 成交价（#366 核销算料），追加在时间序末尾。
+    fn push(&mut self, center: CenterId, units: i64, price: i64) {
+        self.batches.push(SuspensionBatch { center, units, seq: self.next_seq, price });
         self.next_seq += 1;
+    }
+
+    /// ★#366：**未闭合减出核销**——移除该来源中枢的全部挂起批次，返回 `(货缺口, 现金盈余)`
+    /// ＝ `(Σ units, Σ units·price)`。两者**分开返回、不相减**（不冲销，见
+    /// [`UnclosedReduction`]）；无该中枢批次时返回 `(0, 0)`（无事可核销，非错误）。
+    ///
+    /// 核销范围 = **同来源中枢**的批次（与 [`Self::cover`] 的「同中枢优先」同一归属口径）
+    /// ——终结事件按中枢身份到达（#292 D 裁定），只核销它所指的那个中枢的减出，不连坐其他
+    /// 中枢仍在等回补的挂起（那些中枢未死，「挂起继续等」，#366 补充裁定）。
+    fn write_off(&mut self, center: CenterId) -> (i64, i64) {
+        let units: i64 = self.batches.iter().filter(|b| b.center == center).map(|b| b.units).sum();
+        let cash: i64 =
+            self.batches.iter().filter(|b| b.center == center).map(|b| b.units * b.price).sum();
+        self.batches.retain(|b| b.center != center);
+        (units, cash)
     }
 
     /// `Replenish` 收口：**同中枢优先**（按到达序遍历该中枢的批次），余量再按**时间序**冲抵
@@ -186,6 +205,27 @@ impl SuspensionAttribution {
         self.batches.retain(|b| b.units > 0);
         assignments
     }
+}
+
+/// ★#366（补充裁定 2026-07-27）：一次「未闭合减出」核销的呈报——**三卖终结**（多头侧；空头
+/// 侧镜像为三买终结）不回补，挂起核销为两笔**分开呈报、不冲销**的读数：
+///
+/// - [`Self::units_gap`]（货缺口）：已减出、永不回补的股数——账面上 `holding` 里少掉的那份
+///   成本基所对应的货。
+/// - [`Self::cash_surplus`]（现金盈余）：这些减出当时的卖出成交额（`Σ units·price`）——
+///   已在 [`short_diff_bucket::ShortDiffBucket::realized_cash`] 收进桶。
+///
+/// 两笔**不相减**：净额是「高抛躲过下跌的真实盈亏」，只有等价格重新有定义（新中枢/新买点）
+/// 才谈得上，此刻相减等于用当前价给未回补的货记一个虚拟成交＝装没发生。本类型只呈报，不裁决。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnclosedReduction {
+    pub level: u32,
+    pub side: VoiceSide,
+    pub center: CenterId,
+    /// 货缺口（核销掉的挂起在途股数，恒 >0——为 0 时不产出本记录）。
+    pub units_gap: i64,
+    /// 现金盈余（这些减出的卖出成交额之和，不与货缺口冲销）。
+    pub cash_surplus: i64,
 }
 
 /// campaign 生命周期事件（[`CampaignBook::sync_position`] 产出，观测/witness 用）。
@@ -332,7 +372,7 @@ impl OscillationCampaign {
         let mut suspension = self.suspension.clone();
         let cover = match action {
             CenterOscillationAction::Reduce => {
-                suspension.push(source_center, units);
+                suspension.push(source_center, units, price);
                 Vec::new()
             }
             CenterOscillationAction::Replenish => suspension.cover(source_center, units),
@@ -376,6 +416,39 @@ impl OscillationCampaign {
             loss_accounted: tw_after_action.free < 0,
         };
         Ok((next, outcome))
+    }
+
+    /// ★#366（补充裁定 2026-07-27）：**未闭合减出核销**——三卖终局（多头侧；空头侧镜像为
+    /// 三买终局）下不回补，把该来源中枢的挂起批次从在途量核销，产出货缺口/现金盈余两笔分开
+    /// 的呈报（[`UnclosedReduction`]）。不构造任何回补动作、不产任何 `TwEvent`（不冲销，见
+    /// [`ShortDiffAccount::write_off_unclosed`]）。
+    ///
+    /// 该中枢无挂起批次 ⟹ `Ok(None)`（无事可核销，非错误——高抛后已自然收口，或该侧本就
+    /// 没做过短差）。归属账与桶标量恒等（两者逐笔同步推进），故桶层核销恒不越界；越界即
+    /// 记账错误，typed 上报不静默。
+    fn write_off_unclosed(
+        &self,
+        level: u32,
+        center: CenterId,
+    ) -> Result<(Self, Option<UnclosedReduction>), CampaignViolation> {
+        let mut suspension = self.suspension.clone();
+        let (units_gap, cash_surplus) = suspension.write_off(center);
+        if units_gap <= 0 {
+            return Ok((self.clone(), None));
+        }
+        let mut short_diff = self.short_diff;
+        short_diff.write_off_unclosed(units_gap)?;
+        let next = Self { short_diff, suspension, ..self.clone() };
+        Ok((
+            next,
+            Some(UnclosedReduction {
+                level,
+                side: self.side,
+                center,
+                units_gap,
+                cash_surplus,
+            }),
+        ))
     }
 
     /// 全平死：`TwEvent::ClearCampaign`（挂起随死——不核验 `assert_conserved`，全平即终结，
@@ -481,6 +554,27 @@ impl CampaignBook {
         self.campaigns.insert(key, next);
         Ok(outcome)
     }
+
+    /// ★#366（补充裁定 2026-07-27）：**未闭合减出核销**入口——三卖终局（多头侧；空头侧镜像）
+    /// 的清算落点，透传 [`OscillationCampaign::write_off_unclosed`]。
+    ///
+    /// 返回 `Ok(None)` 有两种诚实情形，均非错误、均不新增 typed 拒绝：① 该 (级别, 侧) 当前
+    /// 无 campaign（该侧空仓——结构信号独立于持仓的既有「无门」设计，同
+    /// [`CampaignViolation::NoActiveCampaign`] 的「预期经济场景」定性）；② 有 campaign 但该
+    /// 来源中枢无挂起批次（高抛后已自然收口）。调用方（`fill.rs::drive_campaign_wiring`）把两
+    /// 情形合并计入「无可核销」观测桶，不与真实核销读数混计。
+    pub fn write_off_unclosed(
+        &mut self,
+        level: u32,
+        side: VoiceSide,
+        center: CenterId,
+    ) -> Result<Option<UnclosedReduction>, CampaignViolation> {
+        let key = (level, side);
+        let Some(campaign) = self.campaigns.get(&key) else { return Ok(None) };
+        let (next, reduction) = campaign.write_off_unclosed(level, center)?;
+        self.campaigns.insert(key, next);
+        Ok(reduction)
+    }
 }
 
 /// 生产接线观测统计（issue #357 验收③：enabled=true wf8 真实验收——减补动作出现且归属正确、
@@ -497,7 +591,14 @@ pub struct CampaignWiringWitness {
     pub dropped_center_not_alive: usize,
     /// 其余触发构造拒绝（`FlatSignal`/`PriceOutsideZone`）丢弃数——与 `CenterNotAlive` 分列，
     /// 不混入同一桶（丢弃成因不同，混计会掩盖「中枢不在场」这一验收关注点）。
+    /// ★#366：`PriceOutsideZone` 的**判据**已换（中轴二分 → 离开中枢 ZG/ZD），桶名与归属
+    /// 不变——本桶读数在 #366 前后不可跨版本比较（SPEC #386 §6「PriceOutsideZone 桶读数变化
+    /// 写入报告」的对照对象）。
     pub dropped_other_trigger: usize,
+    /// ★#366：回补侧「中枢不下移」前置过滤（89 课）拒绝数——价格已向下离开中枢、次级别底
+    /// 背驰已在，但本级中枢链已下移 ⟹ 不回补。独立分桶（不并入 `dropped_other_trigger`）：
+    /// 这是本票新增判据的唯一产物级读数，混入既有桶就无法判定新过滤实际拦了多少。
+    pub dropped_center_moved_down: usize,
     /// 减/补动作按 (级别, 持仓侧, 动作) 分桶计数——issue #357 验收「归属正确」的产物级见证。
     /// ★#381：键增持仓侧维（`"long"`/`"short"`）——同一次触发对两侧产出镜像动作，级别+动作
     /// 已不足以定位记账对象。
@@ -579,6 +680,16 @@ pub struct CampaignWiringWitness {
     /// ★#381：键增持仓侧维——`(侧, "same_center"|"other_center")`，多空并存时冲抵归属可判读
     /// （SPEC #386 §2「witness 呈现归属与冲抵顺序」对两侧对称适用）。
     pub cover_by_side: BTreeMap<(&'static str, &'static str), usize>,
+    /// ★#366（补充裁定 2026-07-27）：**未闭合减出**核销的分侧计数（三卖终局条数）。
+    pub unclosed_write_off_count: BTreeMap<&'static str, usize>,
+    /// ★#366：核销的**货缺口**累计（分侧，单位=股数）——与下方现金盈余**分列呈报，不相减**
+    /// （相减＝冲销＝装没发生，见 [`UnclosedReduction`]）。
+    pub unclosed_write_off_units_gap: BTreeMap<&'static str, i64>,
+    /// ★#366：核销的**现金盈余**累计（分侧，单位=成交额）——见上，不与货缺口冲销。
+    pub unclosed_write_off_cash_surplus: BTreeMap<&'static str, i64>,
+    /// ★#366：三卖终局到达但**无可核销**的分侧计数（该侧空仓无 campaign，或该中枢本就没有
+    /// 挂起批次）——照实计数，不与真实核销读数混计（零读数照实亦是 #384 终验的对照项）。
+    pub unclosed_write_off_nothing_to_settle: BTreeMap<&'static str, usize>,
     /// `apply_action` 遇其余 [`CampaignViolation`]（`AvgCostMismatch`/`NonPositiveUnits`/
     /// `OverReplenish`/`UnclosedRoundTrip`/`UnitsExceedCostBasis`/`StageTransition`/
     /// `SizingRoundsToZero`）的计数——诊断用，生产路径正常接线下恒 0（非 0 = 真正的接线/
@@ -669,10 +780,25 @@ impl CampaignWiringWitness {
         match result {
             Ok(_) => {}
             Err(TriggerError::CenterNotAlive) => self.dropped_center_not_alive += 1,
+            // ★#366：新判据的专桶，不并入 `dropped_other_trigger`。
+            Err(TriggerError::CenterMovedDown) => self.dropped_center_moved_down += 1,
             Err(TriggerError::FlatSignal) | Err(TriggerError::PriceOutsideZone) => {
                 self.dropped_other_trigger += 1
             }
         }
+    }
+
+    /// ★#366：记一次「未闭合减出」核销（货缺口与现金盈余**分列**累计，不相减）。
+    pub fn record_write_off(&mut self, reduction: &UnclosedReduction) {
+        let sl = side_label(reduction.side);
+        *self.unclosed_write_off_count.entry(sl).or_insert(0) += 1;
+        *self.unclosed_write_off_units_gap.entry(sl).or_insert(0) += reduction.units_gap;
+        *self.unclosed_write_off_cash_surplus.entry(sl).or_insert(0) += reduction.cash_surplus;
+    }
+
+    /// ★#366：记一次「三卖终局到达但无可核销」（该侧空仓，或该中枢无挂起批次）。
+    pub fn record_write_off_nothing_to_settle(&mut self, side: VoiceSide) {
+        *self.unclosed_write_off_nothing_to_settle.entry(side_label(side)).or_insert(0) += 1;
     }
 
     /// 记一次挂起终结来源（挂起归宿分桶）。★#381 关票修复：按 (持仓侧, 来源) 分桶——
@@ -782,6 +908,11 @@ impl CampaignWiringWitness {
                         "short_diff_units_exceed_cost_basis_unreachable"
                     }
                     CampaignViolation::ReplenishWhileFull => "replenish_while_full_unreachable",
+                    // ★#366：核销越界＝归属账与桶标量失同步（两者逐笔同步推进，生产恒不
+                    // 触达）——真正的记账错误警报，不得归入任何「预期读数」桶。
+                    CampaignViolation::ShortDiff(ShortDiffViolation::WriteOffExceedsOpen {
+                        ..
+                    }) => "short_diff_write_off_exceeds_open",
                     CampaignViolation::StageTransition(_) => "stage_transition",
                 };
                 *self.other_violation_by_kind.entry((sl, label)).or_insert(0) += 1;
@@ -1293,6 +1424,100 @@ mod tests {
         w.record_violation(VoiceSide::Long, CampaignViolation::SizingRoundsToZero { held: 2 });
         assert_eq!(w.other_violation_count, 1, "sizing 取整异常仍是警报，两者不混计");
         assert_eq!(w.replenish_triggered_but_full_count.get("long"), Some(&1), "货满桶不被误增");
+    }
+
+    // ── ★#366 未闭合减出核销（补充裁定 2026-07-27）：货缺口/现金盈余分列，不冲销 ────
+
+    /// 核心用例：cid(1) 高抛两笔 + cid(2) 高抛一笔后，cid(1) 三卖终局 ⟹ 只核销 cid(1) 的两批
+    /// （货缺口 200 股、现金盈余 200·12=2400），cid(2) 的挂起**不连坐**（那个中枢未死，
+    /// 「挂起继续等」）。货缺口与现金盈余**分列返回，不相减**。
+    #[test]
+    fn write_off_settles_only_the_terminated_center_and_reports_gap_and_cash_separately() {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // avg_cost=10，sizing=100
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(2)).unwrap();
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+
+        let reduction = book
+            .write_off_unclosed(0, VoiceSide::Long, cid(1))
+            .expect("核销不应报错")
+            .expect("cid(1) 有两批挂起可核销");
+        assert_eq!(reduction.units_gap, 200, "货缺口=cid(1) 两批减出股数");
+        assert_eq!(reduction.cash_surplus, 2_400, "现金盈余=Σ units·price=200·12（与货缺口分列，不相减）");
+        assert_eq!(reduction.center, cid(1));
+        assert_eq!(reduction.side, VoiceSide::Long);
+
+        let campaign = book.campaign(0, VoiceSide::Long).unwrap();
+        assert_eq!(
+            campaign.suspension().batches().iter().map(|b| (b.center, b.units)).collect::<Vec<_>>(),
+            vec![(cid(2), 100)],
+            "只核销终局中枢那两批，cid(2) 的挂起继续等"
+        );
+        assert_eq!(
+            campaign.suspension().open_units(),
+            campaign.short_diff().bucket().open_units(),
+            "核销后归属账与桶标量仍恒等（同步推进，不失同步）"
+        );
+        assert_eq!(campaign.short_diff().bucket().written_off_units(), 200, "核销量留痕（不装没发生）");
+    }
+
+    /// ★不冲销的行为化断言：核销**不产任何 TW 事件**——TW 三量与 `realized_cash` 在核销前后
+    /// 逐字节不变。冲销（造一笔虚拟回补把货补平）会改动 `holding`/`free`，本测试正是它的反例锚。
+    #[test]
+    fn write_off_does_not_offset_anything_tw_and_cash_are_byte_identical() {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        let before = book.campaign(0, VoiceSide::Long).unwrap().clone();
+
+        book.write_off_unclosed(0, VoiceSide::Long, cid(1)).unwrap().expect("有挂起可核销");
+        let after = book.campaign(0, VoiceSide::Long).unwrap();
+        assert_eq!(after.tw(), before.tw(), "核销不产 TwEvent ⟹ TW 三量不变（货缺口留在账上）");
+        assert_eq!(after.ledger(), before.ledger(), "R 账本同样不动");
+        assert_eq!(
+            after.short_diff().bucket().realized_cash(),
+            before.short_diff().bucket().realized_cash(),
+            "现金盈余照留（卖出腿当时已入账），不被核销冲掉"
+        );
+        assert_eq!(after.short_diff().bucket().open_units(), 0, "在途量归位（承诺已终局，不再等回补）");
+    }
+
+    /// 无挂起可核销的两种诚实情形均返回 `Ok(None)`（非错误）：① 该中枢本就没有挂起批次；
+    /// ② 该 (级别, 侧) 无 campaign（空仓）。
+    #[test]
+    fn write_off_with_nothing_to_settle_is_ok_none_not_an_error() {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
+        assert_eq!(book.write_off_unclosed(0, VoiceSide::Long, cid(1)).unwrap(), None, "该中枢无挂起批次");
+        assert_eq!(book.write_off_unclosed(0, VoiceSide::Short, cid(1)).unwrap(), None, "该侧无 campaign");
+    }
+
+    /// 核销后**同中枢的幽灵回补路径**也随之关闭：在途量已归位 ⟹ 再来一次 `Replenish` 落
+    /// 「触发但货满」桶（`ReplenishWhileFull`），不会凭空补回已核销的货。
+    #[test]
+    fn replenish_after_write_off_is_rejected_as_full_not_resurrected() {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        book.write_off_unclosed(0, VoiceSide::Long, cid(1)).unwrap().unwrap();
+        assert_eq!(
+            book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 9, RiskMode::Normal, cid(1)),
+            Err(CampaignViolation::ReplenishWhileFull),
+            "已核销的货不得被后续回补复活"
+        );
+    }
+
+    /// 空头侧对称：核销口径对两侧同样适用（键含侧，各自独立）。
+    #[test]
+    fn write_off_applies_symmetrically_to_short_side() {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 0);
+        book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(1)).unwrap();
+        let reduction = book.write_off_unclosed(0, VoiceSide::Short, cid(1)).unwrap().expect("空头侧同样可核销");
+        assert_eq!(reduction.side, VoiceSide::Short);
+        assert_eq!(reduction.units_gap, 100);
+        assert_eq!(reduction.cash_surplus, 800, "Σ units·price=100·8");
     }
 
     // ── #381：空头 campaign（键含侧 + 镜像减补 + 多空并存不污染） ──────────

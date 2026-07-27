@@ -179,6 +179,10 @@ pub enum ShortDiffViolation {
     /// 但是独立的一条防线：`OverReplenish` 卡「买回超过本轮挂起在途量」（短差账本内部状态），
     /// 本变体卡「记账超过本仓真实持仓」（外部成本基状态）——两条边界互不覆盖，缺一漏一。
     UnitsExceedCostBasis { held: i64, attempted: i64 },
+    /// ★#366（补充裁定 2026-07-27）：「未闭合减出」核销量超过当前挂起在途量——核销只能核销
+    /// 真实挂起的那部分（归属账与桶标量恒等，生产路径恒不触发），超额即记账错误，当场拒绝，
+    /// 不静默钳制到全部核销。
+    WriteOffExceedsOpen { open_units: i64, attempted: i64 },
 }
 
 /// 本仓成本基快照（均价口径，[`ShortDiffAccount`] 只读传导，绝不写）。
@@ -233,6 +237,14 @@ pub struct ShortDiffBucket {
     /// 挂起批次开仓时派生的 `avg_cost`（`None`=当前无挂起批次）——P2-E 附加守卫状态，见
     /// [`ShortDiffViolation::AvgCostMismatch`]。
     open_avg_cost: Option<i64>,
+    /// ★#366（补充裁定 2026-07-27）：累计**未闭合减出**核销量——三类卖点终局下不回补的挂起
+    /// 减出（多头侧；空头侧镜像为三类买点），由 [`ShortDiffAccount::write_off_unclosed`] 累计。
+    ///
+    /// 这是「不装没发生」的账面载体：核销把 `open_units` 归位（承诺已终局，不再等回补），
+    /// 但**不产任何 `TwEvent`**——卖出腿当时的 `ShortDiff`（成本基 holding→free）与 `Realize`
+    /// 照留在账上，即「货缺口」（`holding` 里少掉的成本基份额）与「现金盈余」（`realized_cash`
+    /// 已收的卖出所得）**分开呈报、不冲销**。冲销才是装没发生。
+    written_off_units: i64,
 }
 
 impl ShortDiffBucket {
@@ -253,6 +265,11 @@ impl ShortDiffBucket {
     /// 当前挂起批次的开仓均价（诊断/测试用只读访问，`None`=无挂起批次）。
     pub fn open_avg_cost(&self) -> Option<i64> {
         self.open_avg_cost
+    }
+
+    /// ★#366：累计未闭合减出核销量（只读呈报——「货缺口」的账面读数）。
+    pub fn written_off_units(&self) -> i64 {
+        self.written_off_units
     }
 
     /// 恒仓断言（边界核验）：往返必须闭合（挂起在途量归零）才算「同股数进出」守恒。
@@ -527,8 +544,41 @@ impl ShortDiffAccount {
     }
 
     /// 恒仓断言（边界核验），委托 [`ShortDiffBucket::assert_conserved`]。
+    ///
+    /// ★#366 口径注记：核销（[`Self::write_off_unclosed`]）后 `open_units` 归位，本断言随之
+    /// 通过——但核销量留痕在 [`ShortDiffBucket::written_off_units`]，「往返闭合」与「未闭合
+    /// 减出后核销」在读数上仍可区分（前者 `written_off_units==0`）。断言语义因此仍是「无
+    /// **悬而未决**的在途量」，不是「所有减出都回补了」。
     pub fn assert_conserved(&self) -> Result<(), ShortDiffViolation> {
         self.bucket.assert_conserved()
+    }
+
+    /// ★#366（补充裁定 2026-07-27）：**未闭合减出核销**——三类卖点终局下不回补的挂起减出，
+    /// 从在途量中核销掉（承诺已终局，不再等回补），**不产任何 `TwEvent`**：
+    ///
+    /// - 卖出腿当时的 `ShortDiff(+units·avg_cost)`（成本基 holding→free）与 `Realize` 照留在
+    ///   账上不动 ⟹ 「货缺口」（`holding` 里少掉的那份成本基）与「现金盈余」
+    ///   （[`ShortDiffBucket::realized_cash`] 已收的卖出所得）**分开呈报、不冲销**。
+    /// - 反面（本方法**不**做的事）：不构造一笔虚拟回补去抵平（那是冲销＝装没发生），也不
+    ///   静默把 `open_units` 丢掉不留痕（核销量累计进 `written_off_units`）。
+    ///
+    /// 违规显式失败：`units<=0` / 超过当前在途量 ⟹ typed `Err`，账本状态不变。
+    pub fn write_off_unclosed(&mut self, units: i64) -> Result<(), ShortDiffViolation> {
+        if units <= 0 {
+            return Err(ShortDiffViolation::NonPositiveUnits(units));
+        }
+        if units > self.bucket.open_units {
+            return Err(ShortDiffViolation::WriteOffExceedsOpen {
+                open_units: self.bucket.open_units,
+                attempted: units,
+            });
+        }
+        self.bucket.open_units -= units;
+        if self.bucket.open_units == 0 {
+            self.bucket.open_avg_cost = None;
+        }
+        self.bucket.written_off_units += units;
+        Ok(())
     }
 
     /// **P2-D 双账入口对齐**（issue #294，[`super::oscillation_campaign`] 消费点）：
@@ -577,7 +627,7 @@ mod tests {
     use super::*;
     use crate::theta_v0::classifier::center_lifecycle::CenterId;
     use crate::theta_v0::strategy::center_oscillation_trade::{
-        CenterOscillationBook, CenterOscillationTrigger,
+        CenterDrift, CenterOscillationBook, CenterOscillationTrigger,
     };
     use crate::theta_v0::strategy::voice::VoiceSide;
     use crate::theta_v0::types::Center;
@@ -711,6 +761,50 @@ mod tests {
             "TW 漂移必须恰等于买回侧已实现盈亏（旧版单笔 ShortDiff(-90) 会让漂移=0，10 的差价被 \
              holding 静默吸收，本仓成本基随之被悄悄下修）"
         );
+    }
+
+    // ── ★#366 未闭合减出核销（桶层：不产 TwEvent、留痕、越界拒绝） ──────────────
+
+    /// 核销把在途量归位并留痕，`realized_cash`（现金盈余）与均价状态照实——不冲销。
+    #[test]
+    fn write_off_unclosed_clears_open_units_and_keeps_cash_intact() {
+        let mut acct = ShortDiffAccount::new(avg_cost_snapshot(10));
+        acct.record_action(CenterOscillationAction::Reduce, 100, 12, acct.cost_basis().units()).unwrap();
+        assert_eq!(acct.bucket().open_units(), 100);
+        let cash_before = acct.bucket().realized_cash();
+
+        acct.write_off_unclosed(100).unwrap();
+        assert_eq!(acct.bucket().open_units(), 0, "在途量归位（承诺已终局）");
+        assert_eq!(acct.bucket().written_off_units(), 100, "核销量留痕（不装没发生）");
+        assert_eq!(acct.bucket().realized_cash(), cash_before, "现金盈余照留，不被核销冲掉");
+        assert_eq!(acct.bucket().open_avg_cost(), None, "无挂起批次 ⟹ 均价守卫状态清空");
+        assert!(acct.assert_conserved().is_ok(), "核销后无悬而未决的在途量");
+    }
+
+    /// 部分核销：只核销给定量，余量仍在途（均价守卫状态保留）。
+    #[test]
+    fn write_off_unclosed_partial_keeps_remaining_open_units() {
+        let mut acct = ShortDiffAccount::new(avg_cost_snapshot(10));
+        acct.record_action(CenterOscillationAction::Reduce, 100, 12, acct.cost_basis().units()).unwrap();
+        acct.write_off_unclosed(40).unwrap();
+        assert_eq!(acct.bucket().open_units(), 60);
+        assert_eq!(acct.bucket().written_off_units(), 40);
+        assert_eq!(acct.bucket().open_avg_cost(), Some(10), "仍有挂起 ⟹ 均价守卫状态保留");
+    }
+
+    /// 违规显式失败：核销量超过在途量 / 非正 ⟹ typed `Err`，账本状态不变（不静默钳制）。
+    #[test]
+    fn write_off_unclosed_rejects_over_and_non_positive_without_mutating() {
+        let mut acct = ShortDiffAccount::new(avg_cost_snapshot(10));
+        acct.record_action(CenterOscillationAction::Reduce, 100, 12, acct.cost_basis().units()).unwrap();
+        let before = acct;
+        assert_eq!(
+            acct.write_off_unclosed(101),
+            Err(ShortDiffViolation::WriteOffExceedsOpen { open_units: 100, attempted: 101 })
+        );
+        assert_eq!(acct, before, "越界拒绝 ⟹ 状态不变");
+        assert_eq!(acct.write_off_unclosed(0), Err(ShortDiffViolation::NonPositiveUnits(0)));
+        assert_eq!(acct, before);
     }
 
     // ── 恒仓断言：守恒过 ──────────────────────────────────────────────────
@@ -1100,7 +1194,7 @@ mod tests {
 
         // 上沿高抛：次级别卖点，价格=中枢上沿 zg（真实 #292 触发构造，非合成值）。
         let reduce_trigger =
-            CenterOscillationTrigger::new(0, Some(id), VoiceSide::Short, id.zg, 10).unwrap();
+            CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap();
         let reduce_action = book.on_trigger(reduce_trigger).expect("上沿触碰产出 Reduce");
         assert_eq!(reduce_action, CenterOscillationAction::Reduce);
         let tw1 = acct.record_and_apply(&tw0, reduce_action, 15, id.zg, acct.cost_basis().units()).unwrap();
@@ -1114,7 +1208,7 @@ mod tests {
         // 下沿回补：次级别买点，价格=中枢下沿 zd；avg_cost 仍是同一持仓的原均价（现算派生，
         // 不因回补而变——本账本 cost_basis 全程不变）。
         let cover_trigger =
-            CenterOscillationTrigger::new(0, Some(id), VoiceSide::Long, id.zd, 20).unwrap();
+            CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Long, id.zd, 20).unwrap();
         let cover_action = book.on_trigger(cover_trigger).expect("挂起中 ⟹ 下沿触碰产出 Replenish");
         assert_eq!(cover_action, CenterOscillationAction::Replenish);
         let tw2 = acct.record_and_apply(&tw1, cover_action, 15, id.zd, acct.cost_basis().units()).unwrap();
