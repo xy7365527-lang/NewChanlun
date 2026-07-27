@@ -19,6 +19,10 @@
                 = Σ_{δ_g=+1} s_g e^+_{ν(g)} + Σ_{δ_g=-1} s_g e^-_{ν(g)}
         ∀x ∃! p̃_{t+1}.
 
+  ★#247 缺口一：rust 生产实装的转移是**三来源** `AncOK[(A_t∖𝒟_x^†)∪ℬ_x∪ℛ_x]`（ℛ_x =
+  RegistryRestore，从 persistent registry 恢复的操作祖先）。本文件的两来源 `rawUpdate` 是其
+  `ℛ_x=∅` 限制——**对应关系与有效域声明见 §5′**。
+
   缺口矩阵 `.chanlun/specs/2026-06-28-lean-existing-vs-20page-gap-matrix.md`（环6a/6b）：
       环6a AncOK 判「已覆盖 → reconcile/复用 `Origin.AncestorClosure`，勿新建闭包」，只建 A^raw 更新；
       环6b p̃ 判「reconcile/补装 → 在 `SeparateLedger.Leg` 上 fold A_{t+1}→p̃，∃! 由 fold 确定性」。
@@ -361,6 +365,38 @@ theorem activeNext_anc_closed (par : Cand → Option Cand) (fuel : Nat)
   exact hrawe c (ancestorsG_trans par fuel hSat fuel e b hb c hc)
 
 /-! ═══════════════════════════════════════════════════════════════════════
+    § 5′. ★rust 生产路径对应关系：**第三来源 `ℛ_x = RegistryRestore`**（#247 缺口一）
+    ═══════════════════════════════════════════════════════════════════════
+
+    **本节是有效域声明，不是定理**（无 Lean 代码——诚实标注 Lean↔rust 的域差，不缝兼容垫片）。
+
+    §13 / 本文件 `rawUpdate` 的转移是**两来源**：
+
+        A^raw_{t+1} = (A_t ∖ 𝒟_x) ∪ ℬ_x
+
+    rust 生产实装（`rust/src/theta_v0/strategy/coverage.rs::coverage_step_from_buckets_sep`）的
+    转移是**三来源**：
+
+        A_{t+1} = AncOK[ (A_t ∖ 𝒟_x^†) ∪ ℬ_x ∪ ℛ_x ]
+        ℛ_x = RegistryRestore(A_t, ℬ_x) ⊆ Pi        （persistent registry 恢复的操作祖先）
+
+    `ℛ_x` 的元素**既不在 A_t 的腿里，也不是 ℛ_Θ(Γ(x)) 落入 ℬ_x/𝒦_x 的候选**——它们由
+    `restore_ancestor_chain_from_registry` 从持久注册表 Pi（anc.pdf §4）沿 `structural_parent_id`
+    链恢复入 A^raw，两条注入路径：(i) held 路——Stale/LiveDetached 持仓腿的 `op_parent` 祖先链；
+    (ii) open 路——open 候选父 carrier 的祖先链（当 bar 关闭种子处中断）。
+    恢复元素**进 A_{t+1} 并生成目标腿计入 p̃**（非仅作祖先在场性判据）。
+
+    ★对应关系（域差方向）：本文件的 `rawUpdate`/`activeNext` 是 rust 三来源转移在
+    **`ℛ_x = ∅` 上的限制**。故本文件全部 L0 定理（`mem_activeNext` / `parent_mem_activeNext` /
+    `activeNext_anc_closed` / 平移不变）对生产路径的适用性以 `ℛ_x=∅` 为前提；`ℛ_x≠∅` 的 bar
+    （rust 探针 `AncokProbe.restore_calls>0`）**在本文件定义域之外**——不是被本文件否证，也不被
+    本文件担保（231号：有效域 ⊊ 定义域，显式声明不静默膨胀）。
+
+    ★形式化 `ℛ_x` 的前提（未做，诚实列出）：Pi 是**跨 bar 持久状态**，`ℛ_x` 依赖 (Pi, A_t, ℬ_x)
+    三者而非仅 (A_t, 三桶) ⟹ 需先把 `Cand` 升格为携持久身份 pid + `par` 升格为 Pi 上的结构父函数
+    （anc.pdf §5/§6 I1-I5），非本文件（纯 List/无 Mathlib）单文件可容。列为 #59 交接项。
+
+    ═══════════════════════════════════════════════════════════════════════
     § 6. 平移不变 S_k AncOK(A) = AncOK(S_k A)（§13 自相似，par 等变下）
     ═══════════════════════════════════════════════════════════════════════
     S_k 作用于活动集 = `List.map (shift k)`（复用环5 `RThetaInterp.shift`：lvl/exec 同加 k）。 -/

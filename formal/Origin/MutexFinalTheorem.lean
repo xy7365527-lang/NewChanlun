@@ -14,6 +14,13 @@
   - **域差注明（#240 终裁第4条，#239 实写）**：Lean 量化域（全语法元素 E）大于 rust 实现域
     （活跃候选子域，`rust/src/theta_v0/strategy/coverage.rs:2145-2238` 在案）；「全域是否承重」
     为 #59 交接待查项。
+  - **★域外承重已坐实 + 第三来源（#244 核查 / #247 实写）**：域外部分在 rust 生产路径**确实承重**
+    （互斥性本身无漏）。具体域差 = 活动集转移的**第三来源** `ℛ_x = RegistryRestore`：rust 实装为
+    `A_{t+1}=AncOK[(A_t∖𝒟_x^†)∪ℬ_x∪ℛ_x]`，而 Lean 侧（`Origin.ActiveSet` `rawUpdate`）只写两来源
+    `(A_t∖𝒟_x)∪ℬ_x`。`ℛ_x` = 从 persistent registry（anc.pdf §4 Pi）恢复的操作祖先，进 A_{t+1}
+    并计入目标头寸 p̃。**对应关系表述见 `Origin/ActiveSet.lean` §5′**（声明 Lean 两来源式 = rust
+    三来源转移在 `ℛ_x=∅` 上的限制，即有效域声明，非等价声称）。恢复元素的角色输入
+    （σ_{p(g)}/ℓ_{p(g)}）由 `parent_id` 重建（#247 缺口二），不再恒定落 Ambient/SameLevel。
   - **直接矛盾点**：M29 集成的分类基底含 `RootDir`/`Root` 特例，与 20页去根化**直接矛盾**。
     本文件保留该基底是 15paradigm 的历史存在。
   - **为何保留**（no-patch 保留契约锚，MEMORY newchanlun-no-patch-keep-primitive）：M29 是

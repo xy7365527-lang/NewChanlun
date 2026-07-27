@@ -105,6 +105,15 @@ pub struct AncokProbe {
     /// 蓝图两步形①；方向盲 ID 对位复活废除）。翻向腿进当 bar 翻向种子，经现成 𝒟_x^†
     /// 子树清仓连清其后代（父不在 A 的后代数济判据，exit.rs subtree_close）。
     pub held_flip_terminated: u64,
+    /// ★#247 缺口二：restore 恢复元素的 `parent` 索引/`attached_dir` **重建成功**次数
+    /// （`parent_id` 解析到 work 内某 idx ⟹ 角色输入 (σ_p, ℓ_p) 真实，不再恒定 Ambient/SameLevel）。
+    pub restore_parent_rebound: u64,
+    /// ★#247 缺口二：restore 恢复元素 `parent_id=Some` 但**祖先链断裂**（registry 丢失 / 当 bar
+    /// 关闭种子中断）⟹ 父不在 work ⟹ `parent` 留 None。**与「真边界胚元 ∂」及 `operation_role`
+    /// 的「父越界防御分支」语义分离**：该元素 `parent_id` 仍为 Some ⟹ 统一 AncOK
+    /// （[`super::exit::step_active_set_with_subtree_close`]）按 id 判祖先不在集 ⟹ **必被剪除**，
+    /// 不进 `next_idx`/`strategy_target_legs` ⟹ 其角色从不被消费（见 `restore_broken_chain_*` 测试）。
+    pub restore_parent_unresolved: u64,
 }
 
 thread_local! {
@@ -120,6 +129,8 @@ thread_local! {
         restore_break_registry_lost: 0,
         restore_break_closed_seed: 0,
         held_flip_terminated: 0,
+        restore_parent_rebound: 0,
+        restore_parent_unresolved: 0,
     }) };
 }
 
@@ -303,6 +314,13 @@ impl<'a> ElementView<'a> {
         let idx = self.len();
         self.overlay.push(e);
         idx
+    }
+
+    /// ★#247：overlay 段元素可变借用（**仅 restore 回填角色输入用**——base 是不可变借用的树前缀，
+    /// 恢复元素恒在 overlay）。idx < base.len() ⟹ None（不越权改树前缀）。
+    fn overlay_mut(&mut self, idx: usize) -> Option<&mut CoverageElement> {
+        let base_len = self.base.len();
+        idx.checked_sub(base_len).and_then(move |i| self.overlay.get_mut(i))
     }
 
     /// 首个满足 `pred` 的元素全局 idx，= 旧 `work.iter().position(pred)`（base 在前 overlay 在后）。
@@ -1570,7 +1588,9 @@ fn leg_target_two_segment(
 }
 
 /// 元素的真嵌套深度（沿 parent 链长度，根=0；铁律：真父子，非级别差）。
-/// parent（usize 索引）指向 base 段 carrier（< candidate_start ≤ base.len），链全在 base，bit-exact == ancestors().len()。
+/// parent（usize 索引）指向 base 段 carrier（< candidate_start ≤ base.len）；★#247 起 restore 恢复
+/// 元素的 parent 亦可指向 overlay 段（同一 walk 恢复的更高祖先）——链仍无环（registry
+/// `structural_parent_id` 严格上溯，walk 遇重复即止）。
 fn element_depth(elements: &ElementView, e_idx: usize) -> u32 {
     let mut depth = 0u32;
     let mut cur = elements.get(e_idx).and_then(|e| e.parent);
@@ -1838,7 +1858,8 @@ pub fn overlay_net_delta(legs: &[LegTarget]) -> f64 {
 //  （框架纠偏 MEMORY coverage-engine-needs-tower-export-bridge：互斥全定义策略=**买卖点入场**+
 //  多级角色/嵌套对冲，**非每元素覆盖**。删除 λ_e 入场组装层，保留 §3 区间递归原语作 Lean 对齐。）
 // ════════════════════════════════════════════════════════════════════════════
-//  §8 环6：解释器三桶 → 活动集 A_{t+1}=AncOK[(A_t∖𝒟_x)∪ℬ_x] → 目标头寸 p̃_{t+1}
+//  §8 环6：解释器三桶 → 活动集 A_{t+1}=AncOK[(A_t∖𝒟_x^†)∪ℬ_x∪ℛ_x] → 目标头寸 p̃_{t+1}
+//  （★#247 缺口一：ℛ_x = RegistryRestore = **第三来源**，见 [`coverage_step_from_buckets_sep`] doc）
 //        （spec §13 line 1172 活动集 + §14 line 1243 头寸，七链 **环6** rust 兑现）
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -2006,6 +2027,32 @@ fn close_indices(prev_active: &[ActiveLeg], close: &[ActiveLeg]) -> Vec<usize> {
 ///    `raw`** 的孤儿子腿——ReverseOpen（及任意子声部）候选**仅当其真 Compose 父容器腿在持仓集 A_t**
 ///    才准入（spec line 671「任何子级短差腿存在时，其父容器也存在」）。
 ///
+/// ## ★#247 缺口一：转移的**第三来源** `ℛ_x = RegistryRestore`（声明与实装对齐）
+///
+/// 生产实装的转移**不是** spec §13 字面的两来源式，而是三来源：
+///
+/// ```text
+///     A_{t+1} = AncOK[ (A_t ∖ 𝒟_x^†) ∪ ℬ_x ∪ ℛ_x ]
+///     ℛ_x = RegistryRestore(A_t, ℬ_x) ⊆ Pi          （persistent registry 恢复的操作祖先）
+/// ```
+///
+/// `ℛ_x` 的元素**既不在输入 `A_t` 的腿里，也不是 `Γ_trade` 落入 ℬ_x/𝒦_x 的候选**，而是
+/// [`restore_ancestor_chain_from_registry`] 从 persistent registry 沿 `structural_parent_id` 链
+/// 恢复入 `work`/`raw` 的祖先元素（anc.pdf §11 归纳：每条未关闭腿的操作父 live ⟹ depth<d 腿通过
+/// persistent AncOK）。两条注入路径：
+/// - **held 路**（A_t 段）：Stale + `HeldLegState::LiveDetached` 持仓腿的 `op_parent` 祖先链；
+/// - **open 路**（ℬ_x 段）：open 候选 `parent_id` 且 `registry_live` 的父 carrier 祖先链
+///   （其中当 bar 关闭种子 ∈𝒟_x 中断，#226）。
+///
+/// `ℛ_x` **确实进 `A_{t+1}`**：恢复元素随 `raw` 进 `next_idx`，[`strategy_target_legs`] 为其生成
+/// 目标腿并计入 `p̃`（≠ 只作 AncOK 的祖先在场性判据）。故声明只写 `AncOK[(A_t∖𝒟)∪ℬ]` 与实装不
+/// 一致——本条即为对齐（#247 缺口一；#244 承重核查）。Lean 侧对应关系表述见
+/// `formal/Origin/ActiveSet.lean` §5′（该处声明 Lean 的两来源 `rawUpdate` 是 rust 三来源转移的
+/// **ℛ_x=∅ 限制**，即有效域声明而非等价声称）。
+///
+/// `ℛ_x` 元素的**角色输入**（`parent` 索引 / `attached_dir`）由 `parent_id` 重建（#247 缺口二），
+/// 不再恒定落 `V=Ambient / G=SameLevel`。
+///
 /// ## §13 持仓准入兑现（639 (c)）
 /// 父有向但**未持父仓**的逆向次级候选 = ReverseOpen（σ_p=父容器方向，639；其元素 `parent` 指向真
 /// Compose 父树元素）。该父树元素**在 `raw` ⟺ 持仓腿对位到它**（[`held_leg_tree_index`]）；未持父
@@ -2079,6 +2126,10 @@ fn restore_ancestor_chain_from_registry(
     ancok_probe_bump(|p| p.restore_calls += 1);
     let mut broke = false;
     let mut cur = Some(start_pid);
+    // ★#247 缺口二：本次 walk **新 push** 的恢复元素 idx（不含复用的现有 idx——那些元素的
+    // parent/attached_dir 由其原产地（树前缀 / 前序 restore）已定，不重写）。walk 自下而上，
+    // 父在子之后 push ⟹ push 时父尚不在 work，故 parent 索引在 walk 结束后统一回填。
+    let mut pushed: Vec<usize> = Vec::new();
     while let Some(pid) = cur {
         // 已在 raw 中？⟹ 闭包满足，停止递归。
         let already_in_raw = raw.iter().any(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false));
@@ -2126,12 +2177,47 @@ fn restore_ancestor_chain_from_registry(
             parent_id: pe.structural_parent_id,
         });
         overlay_seen.entry(pe.pid).or_insert(op_idx); // 记录新 push 的 overlay idx（首次出现序，复用查 O(1)）。
+        pushed.push(op_idx);
         raw.push(op_idx);
         cur = parent_pid; // 上溯祖先链
     }
     if !broke {
         // 自然收敛（cur=None 抵达真根）：整条操作祖先链已恢复/复用完毕。
         ancok_probe_bump(|p| p.restore_complete += 1);
+    }
+    // ★#247 缺口二（角色输入重建）：恢复元素落 work 时 `parent_id` 已知却写死 `parent:None,
+    // attached_dir:None` ⟹ `parent_sign(None)=0 ⟹ V=Ambient`、`ell_p=ell_g ⟹ G=SameLevel`——
+    // 一条自称「不应到达」的防御分支（[`operation_role_two_segment`] 的 `父越界/None` 归并）被
+    // registry 恢复路径恒定命中，角色进 `dir_weight`/`w_grade`/`element_depth` ⟹ 改变下单权重。
+    //
+    // 回填（**只作用本次 walk 新 push 的元素**，复用的现有 idx 不动 ⟹ 树前缀/候选段属性零改）：
+    //   `parent_id` → work idx（与 walk 同一解析序 base `id_idx` 优先、再 overlay_seen——保持与
+    //   「复用现有 idx」判定同源，不引入第二套查表语义），命中 ⟹ `parent=Some(idx)`、
+    //   `attached_dir=Some(work[idx].eps)`（σ_p 取父元素绝对方向，与 638 附着候选同口径）。
+    //
+    // **父不在 work 的语义裁定（与防御分支分离）**：`parent_id=Some` 但链断（registry 丢失 /
+    // 当 bar 关闭种子中断 / fuel 型提前 break）⟹ `parent` 留 None、`parent_id` **保持 Some**。
+    // 该元素**不是** ∂ 边界胚元（`is_boundary_root=parent_id.is_none()=false`），统一 AncOK
+    // （[`super::exit::step_active_set_with_subtree_close`]）按 `parent_id` 判祖先不在集 ⟹ **必被
+    // 剪除**，从不进 `next_idx` ⟹ [`strategy_target_legs`] 从不对它求角色。故防御分支回归
+    // 「不应到达」不是注释宣称，而是「链断 ⟹ AncOK 剪除」这条不变量的推论（见测试
+    // `restore_broken_chain_element_pruned_never_scored`）。计数入 `restore_parent_unresolved`。
+    for &i in &pushed {
+        let pid = match work[i].parent_id {
+            Some(pid) => pid,
+            None => continue, // 真边界胚元 ∂：parent=None/attached_dir=None 是**正确**语义（V=Ambient）。
+        };
+        match id_idx.get(&pid).or_else(|| overlay_seen.get(&pid)) {
+            Some(&pidx) => {
+                let sigma_p = work[pidx].eps;
+                if let Some(e) = work.overlay_mut(i) {
+                    e.parent = Some(pidx);
+                    e.attached_dir = Some(sigma_p);
+                    ancok_probe_bump(|p| p.restore_parent_rebound += 1);
+                }
+            }
+            None => ancok_probe_bump(|p| p.restore_parent_unresolved += 1),
+        }
     }
 }
 
@@ -2360,7 +2446,9 @@ pub(crate) fn coverage_step_from_buckets_sep(
 
     // ★#183 T4 归一分段点：raw[0..a_t_end] = **A_t 段**（held 循环产出：持仓腿对位/Stale 重注册/
     // LiveDetached restore/边界根保留），raw[a_t_end..] = **ℬ_x 段**（open 循环产出：开启候选 +
-    // open 父注入 restore）。spec §13 `A_{t+1}=AncOK[(A_t∖𝒟_x^†)∪ℬ_x]`——子树清仓 𝒟_x^† 的定义域
+    // open 父注入 restore）。★#247 缺口一：两段各自内嵌**第三来源** `ℛ_x`（registry 恢复祖先，
+    // 见函数 doc「转移的第三来源」）⟹ 实装转移 = `AncOK[(A_t∖𝒟_x^†)∪ℬ_x∪ℛ_x]`。
+    // spec §13 字面 `A_{t+1}=AncOK[(A_t∖𝒟_x^†)∪ℬ_x]`——子树清仓 𝒟_x^† 的定义域
     // 是 A_t（持仓腿），ℬ_x 新开腿不经 𝒟_x^†（同 bar 同 carrier 先平后开的反手候选与种子同 id，
     // 误清会禁绝一类/二类反手——#200 基线 typed=2 实证，ID-3「允许当场反手」行为口径）。
     // ★#233/#269：翻向种子（held 循环 Flipped 分派产出）同只作用 A_t 段——ℬ_x 段的新世代候选
@@ -5118,6 +5206,169 @@ mod tests {
         assert_eq!(raw, vec![0], "raw 须复用现有 idx 0，非追加新 idx");
         let dup = raw.iter().filter(|&&r| work[r].id == carrier).count();
         assert_eq!(dup, 1, "carrier 在 raw 中须唯一表示（双计根因守卫）");
+    }
+
+    /// ★#247 缺口二**直测**：restore 恢复元素的**角色输入重建**（`parent` 索引 + `attached_dir`）。
+    ///
+    /// **RED（修复前）**：`restore_ancestor_chain_from_registry` 构造 `CoverageElement` 写死
+    /// `parent:None, attached_dir:None`（只留 `parent_id`）⟹ `parent_sign(None)=0 ⟹ V=Ambient`、
+    /// `ell_p=ell_g ⟹ G=SameLevel`——恢复元素**恒定**命中 `operation_role_*` 自称「防御性（不应
+    /// 到达）」的 `父越界/None` 分支，角色经 `dir_weight`/`w_grade`/`element_depth` 改下单权重。
+    /// **GREEN（修复后）**：walk 结束回填 `parent_id → work idx`，子元素得 `parent=Some(父idx)`、
+    /// `attached_dir=Some(父 eps)` ⟹ V/G 由真实 (σ_p, ℓ_p) 判定（此形态：δ=Long vs σ_p=Short ⟹
+    /// ReverseOpen；ℓ_g=0 < ℓ_p=1 ⟹ SubLevel）。真 ∂ 根（`parent_id=None`）保持 None——那是**正确**
+    /// 语义（Ambient），非防御兜底。
+    ///
+    /// 定义依据：#247 缺口二（#244 承重核查）；spec §7.2 V(g)=分类(σ_{p(g)}, δ_g)；anc.pdf §15
+    /// （LiveDetached 腿的 parent 仍是 op_parent，只是当前 snapshot 未展示）。
+    #[test]
+    fn restore_rebuilds_parent_link_and_attached_dir() {
+        let child = eid(0, 700);
+        let parent = eid(1, 701);
+        // registry 源元素——work 树前缀**不含**它们 ⟹ 真 LiveDetached，须从持久身份恢复。
+        let src = vec![
+            CoverageElement {
+                lambda: 10, rho: 20, eps: VoiceSide::Long, level: 0,
+                parent: None, attached_dir: None, id: child, parent_id: Some(parent),
+            },
+            CoverageElement {
+                lambda: 5, rho: 30, eps: VoiceSide::Short, level: 1,
+                parent: None, attached_dir: None, id: parent, parent_id: None,
+            },
+        ];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&src, &[]);
+        let base: Vec<CoverageElement> = vec![];
+        let mut work = ElementView::new(&base);
+        let mut raw: Vec<usize> = Vec::new();
+        let id_idx = build_tree_id_index(&base);
+        let mut overlay_seen = std::collections::HashMap::new();
+        restore_ancestor_chain_from_registry(
+            &mut work, &mut raw, &reg, child, &id_idx, &mut overlay_seen, &[],
+        );
+        assert_eq!(raw, vec![0, 1], "walk 自下而上恢复 child(0) → parent(1)");
+        assert_eq!(work[0].parent, Some(1), "恢复元素 parent 索引须由 parent_id 重建（#247 缺口二）");
+        assert_eq!(
+            work[0].attached_dir, Some(VoiceSide::Short),
+            "attached_dir 须取父元素绝对方向 σ_p（Short）"
+        );
+        assert_eq!(work[1].parent, None, "真 ∂ 根（parent_id=None）保持 None——正确语义非兜底");
+        assert_eq!(work[1].attached_dir, None, "真 ∂ 根 σ_p=0 ⟹ Ambient（正确）");
+        let flat = work.as_contiguous().into_owned();
+        assert_eq!(
+            vertical_relation(&flat, 0), Vertical::ReverseOpen,
+            "恢复元素不再恒定落 V=Ambient（δ=Long vs σ_p=Short ⟹ ReverseOpen）"
+        );
+        assert_eq!(
+            grade_relation(&flat, 0), GradeRel::SubLevel,
+            "恢复元素不再恒定落 G=SameLevel（ℓ_g=0 < ℓ_p=1 ⟹ SubLevel）"
+        );
+    }
+
+    /// ★#247 **p̃ / 腿集合对拍**（缺口二的下单影响，生产函数端到端）：两级 registry 恢复祖先链
+    /// （child ← P1 ← P2，全 LiveDetached）经 held 路 restore 注入 ⟹ A_{t+1}={child,P1,P2}。
+    ///
+    /// **腿集合（身份）不变**：`element_as_leg` 只读 λ/ρ/ε/ℓ/id/parent_id，角色输入重建不碰这些
+    /// ⟹ AncOK 成员资格与 next_active 逐位不变（改动前后同为三条腿）。
+    ///
+    /// **p̃ 变**（这是 #247 缺口二的实际下单影响，照实记录）：
+    /// | 元素 | 改动前 role/depth | 改前 units | 改动后 role/depth | 改后 units |
+    /// |---|---|---|---|---|
+    /// | child L0 Long | Ambient/SameLevel, d=0 | +600 | 同（held 重注册路径，不在本票范围）| +600 |
+    /// | P1 L1 Short | **Ambient**/SameLevel, d=**0** | −600 | **FollowParent**/SameLevel, d=**1** | −300 |
+    /// | P2 L2 Short（真 ∂ 根）| Ambient/SameLevel, d=0 | −600 | 同（parent_id=None 正确语义）| −600 |
+    ///
+    /// ⟹ **p̃: −600（改前，解析值）→ −300（改后，本测试断言）**，Δ=+300（净空目标缩小一半）。
+    /// 方向未翻；恢复祖先 P1 从「根级 0.60 权重」回到「真实 depth 1 的 0.30 权重」（σ_p 可判 ⟹
+    /// FollowParent，Neutral preset 下 dir_weight 仍 1.0，故差异全部来自 depth）。
+    /// 改前 −600 由防御分支恒定命中推出：P1 `parent=None ⟹ σ_p=0 ⟹ V=Ambient`（dir_weight=1.0）、
+    /// `element_depth=0 ⟹ w_depth=0.60` ⟹ 1000×0.60=600（Short 记负）。
+    #[test]
+    fn restore_role_rebuild_changes_p_tilde_leg_set_unchanged() {
+        let child = eid(0, 720);
+        let p1 = eid(1, 721);
+        let p2 = eid(2, 722);
+        // registry 源：child ← P1 ← P2（P2 真 ∂ 根）。二次 merge（空 snapshot）把三者置
+        // snapshot_present=false ⟹ LiveDetached（restore 路径的前提态）。
+        let src = vec![
+            CoverageElement { lambda: 10, rho: 20, eps: VoiceSide::Long, level: 0,
+                parent: None, attached_dir: None, id: child, parent_id: Some(p1) },
+            CoverageElement { lambda: 8, rho: 22, eps: VoiceSide::Short, level: 1,
+                parent: None, attached_dir: None, id: p1, parent_id: Some(p2) },
+            CoverageElement { lambda: 5, rho: 30, eps: VoiceSide::Short, level: 2,
+                parent: None, attached_dir: None, id: p2, parent_id: None },
+        ];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&src, &[]).merge(&[], &[]);
+        let leg_child = ActiveLeg {
+            level: 0, dir: VoiceSide::Long, source_index: 20, lambda: 10,
+            id: child, parent_id: Some(p1), is_boundary_root: false, op_parent: Some(p1),
+        };
+        let prev = [leg_child];
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+        let tree: Vec<CoverageElement> = vec![];
+        let (active, p) =
+            coverage_step_from_buckets(view_split(&tree, 0), &prev, &buckets, 1000.0, &cfg(), None, &reg);
+        let mut ids: Vec<_> = active.iter().map(|l| l.id).collect();
+        ids.sort_by_key(|i| (i.level, i.ordinal));
+        assert_eq!(ids, vec![child, p1, p2], "腿集合（身份）= {{child,P1,P2}}，角色重建不改成员资格");
+        assert!(
+            (p - (-300.0)).abs() < 1e-9,
+            "p̃ 对拍：改前 −600（P1 恒定 Ambient/d=0）→ 改后 −300（P1 FollowParent/d=1）；实得 {p}"
+        );
+        // 改前值的**复现**（非口算）：改动前后 work 元素数组的唯一差异 = 恢复元素的
+        // parent/attached_dir。按改前形态（全 None）重建同一元素数组喂同一 p̃ 管线 ⟹ −600。
+        let pre_fix = vec![
+            CoverageElement { lambda: 8, rho: 22, eps: VoiceSide::Short, level: 1,
+                parent: None, attached_dir: None, id: p1, parent_id: Some(p2) },
+            CoverageElement { lambda: 5, rho: 30, eps: VoiceSide::Short, level: 2,
+                parent: None, attached_dir: None, id: p2, parent_id: None },
+            CoverageElement { lambda: 10, rho: 20, eps: VoiceSide::Long, level: 0,
+                parent: None, attached_dir: None, id: child, parent_id: Some(p1) },
+        ];
+        let pre_view = ElementView::new(&pre_fix);
+        let pre_p = net_target_units(&strategy_target_legs(&pre_view, &[0, 1, 2], 1000.0, &cfg()));
+        assert!((pre_p - (-600.0)).abs() < 1e-9, "改前 p̃ 复现 = −600；实得 {pre_p}");
+    }
+
+    /// ★#247 缺口二**语义裁定见证**：祖先链断裂（registry 丢失祖先）时恢复元素 `parent` 留 None，
+    /// 但**与「防御分支」/「真 ∂ 根」分离**——`parent_id` 保持 `Some` ⟹ 统一 AncOK
+    /// （[`super::exit::step_active_set_with_subtree_close`]）按 id 判祖先不在集 ⟹ **必被剪除**，
+    /// 从不进 `next_idx` ⟹ [`strategy_target_legs`] 从不对它求角色。
+    ///
+    /// 这是「防御分支回归不应到达」的**不变量论证**（非注释宣称）：能被打分的恢复元素要么
+    /// `parent_id=None`（真 ∂ 根，Ambient 正确），要么 `parent` 已重建（角色真实）——`parent_id=Some`
+    /// 且 `parent=None` 的元素恒被 AncOK 剪除。
+    #[test]
+    fn restore_broken_chain_element_pruned_never_scored() {
+        let child = eid(0, 710);
+        let lost_parent = eid(1, 711);
+        // registry 只有 child，其 structural_parent_id 指向**不在 registry** 的祖先 ⟹ 链断
+        // （`restore_break_registry_lost`）。
+        let src = vec![CoverageElement {
+            lambda: 10, rho: 20, eps: VoiceSide::Long, level: 0,
+            parent: None, attached_dir: None, id: child, parent_id: Some(lost_parent),
+        }];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&src, &[]);
+        let base: Vec<CoverageElement> = vec![];
+        let mut work = ElementView::new(&base);
+        let mut raw: Vec<usize> = Vec::new();
+        let id_idx = build_tree_id_index(&base);
+        let mut overlay_seen = std::collections::HashMap::new();
+        ancok_probe_reset();
+        restore_ancestor_chain_from_registry(
+            &mut work, &mut raw, &reg, child, &id_idx, &mut overlay_seen, &[],
+        );
+        assert_eq!(work[0].parent, None, "链断 ⟹ parent 无法解析，留 None");
+        assert_eq!(work[0].parent_id, Some(lost_parent), "parent_id **保持 Some**（不是 ∂ 根）");
+        let probe = ancok_probe_snapshot();
+        assert_eq!(probe.restore_parent_unresolved, 1, "链断元素计入 restore_parent_unresolved");
+        assert_eq!(probe.restore_break_registry_lost, 1, "链断原因 = registry 丢失祖先");
+        // 不变量：parent_id=Some 且父不在集 ⟹ 统一 AncOK 必剪 ⟹ 该元素从不被 strategy_target_legs 打分。
+        let legs: Vec<ActiveLeg> = raw.iter().map(|&i| element_as_leg(&work[i])).collect();
+        let next = super::super::exit::step_active_set_with_subtree_close(&legs, &[], &[]);
+        assert!(
+            next.is_empty(),
+            "链断恢复元素（parent_id=Some 且父不在集）必被 AncOK 剪除 ⟹ 角色从不被消费；实得 {next:?}"
+        );
     }
 
     /// ★#216 restore 缺口**根因直测**（m3_partition_btc_fullhistory/m6_btc_oos_r_decomposition 炸
