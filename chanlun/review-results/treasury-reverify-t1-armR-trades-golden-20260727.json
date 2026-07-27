@@ -1,0 +1,69 @@
+{
+  "_note": "臂R（VOICE_EXEC=1 THETA_NEST_CERT_GATE=1，fee_schedule=None/enforce_level_cap=false）三窗 trades.jsonl 逐位冻结；issue #387 T1。后向回归锁，非 v4 原件对照。",
+  "_source_head": "c126d4cf69613068404b6ad0a53acf2e4dd9957b",
+  "_run_date": "2026-07-27",
+  "_regen_command": "cd rust && for tag in p3fold wf7 wf8; do M8_WIN_FILTER=$tag VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 OPSEM_DUMP_DIR=/tmp/m8_win_gate/$tag cargo test --release --lib theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos -- --ignored --nocapture; done",
+  "_check_command": "python3 scripts/check_armR_trades_digest.py",
+  "windows": {
+    "p3fold": {
+      "digest_fnv1a64": "0x6bf47daf0aa737cd",
+      "bytes": 206057,
+      "n_trades": 149,
+      "per_dir_n": {
+        "Long": 72,
+        "Short": 77
+      },
+      "per_dir_pnl": {
+        "Long": "3645.7700000000114",
+        "Short": "-15493.57"
+      },
+      "nest_depth_hist": {
+        "0": 1,
+        "1": 56,
+        "2": 48,
+        "3": 39,
+        "4": 5
+      }
+    },
+    "wf7": {
+      "digest_fnv1a64": "0x282c28ca8ca65e16",
+      "bytes": 270684,
+      "n_trades": 196,
+      "per_dir_n": {
+        "Long": 99,
+        "Short": 97
+      },
+      "per_dir_pnl": {
+        "Long": "-2379.330000000009",
+        "Short": "-15131.810000000027"
+      },
+      "nest_depth_hist": {
+        "0": 13,
+        "1": 73,
+        "2": 63,
+        "3": 33,
+        "4": 14
+      }
+    },
+    "wf8": {
+      "digest_fnv1a64": "0xcafa7c4846c762cd",
+      "bytes": 228108,
+      "n_trades": 168,
+      "per_dir_n": {
+        "Long": 88,
+        "Short": 80
+      },
+      "per_dir_pnl": {
+        "Long": "24155.680000000022",
+        "Short": "-7937.1499999999505"
+      },
+      "nest_depth_hist": {
+        "0": 15,
+        "1": 54,
+        "2": 58,
+        "3": 28,
+        "4": 13
+      }
+    }
+  }
+}
