@@ -64,3 +64,17 @@
 4. **下游推论**：level0卖不可单独作 entry——§11 稳健性验收未过（LCB≤0/赢家集中/多窗不稳），下游策略勿基于 +7.87e3 升基座。Q2 消除只证「不是挑赢家产物」，不证「是可交易 alpha」——二者独立。
 5. **谱系引用**：663 econpositive；664-Q3 真实成交口径；codex Q2 BIAS-FATAL（codex-oos-level0sell-audit-20260630.md）；PDF§6/§11（overfit-consult-20260630.txt）；161（务实=留缺口）；formalization-validity-domain（L2 有效域<定义域）。
 6. **影响声明**：新增 acc_walkforward_trainonly 测试 + train_winner_class/neff_autocorr/mean_se_lcb/drop_top_winners/block_bootstrap_pvalue helper（均纯函数，L1 自检 walkforward_helpers_l1）；复用 slice_bar_range/decompose_capturable_spread/class_actual_pnl；不改生产代码/TradeRecord/Order。被否证的 acc_level0sell_oos 保留（谱系：选择偏差的发生史）。
+
+## 口径声明与上界论证（追加订正，2026-07-27，#395 裁定执行）
+
+本节结论**维持不动**，仅补口径声明与上界论证，回应「归档报告未声明用的哪套统计口径」的裁定要求。
+
+**用了哪套口径**：本报告 §11 全篇统计量均出自 `econ_positive.rs` 本地口径——`neff_autocorr`（`econ_positive.rs:3408`，lag_max=20，仅正自相关项全累加，无截断）、`mean_se_lcb`（`econ_positive.rs:3425`，se=σ/√n_eff）、`block_bootstrap_pvalue`（`econ_positive.rs:3447`，固定种子 `0x9E37...`）。**非**冻结口径 `decontam::effective_n`（Geyer 配对 IPS）+ `perm_test`（分层置换）。
+
+**上界论证（口径分歧翻不动本结论）**：两套口径的 n_eff 都被预注册条款 clamp 到 ≤n——`decontam.rs:85` 注释明写「反相关不增有效样本（n_eff≤n）」，`econ_positive.rs:3421` 对应处 `.min(n as f64)`。用本报告已公布的数字反推：μ=7.0330e1、se=2.2496e2、Σρk=1.5261、n=128 ⟹ σ≈1264.3。取最有利于翻转的极端情形 n_eff=n=128（即完全不打折扣）：se 下界=σ/√128=**111.75** ⟹ LCB 上界=μ−1.645·se=70.330−1.645×111.75=**−113.50，仍 ≤0**。要令 LCB>0 需 **n_eff>875**，而 n 只有 128 ⟹ 任何合规口径（n_eff≤n=128）都够不到这个门槛，本报告 LCB≤0 的判定与口径选择无关。
+
+**第二条独立理由（不吃统计口径）**：§11 否证规则三选一（LCB≤0 / 少数大赢家驱动 / 多窗不稳，任一成立即否证）。任务5「剔最大3笔转负（+9.0023e3 → −1.7641e3）」是纯点估计，不涉及 n_eff/se/bootstrap 任何统计口径，自己就能触发否证，与上面 LCB 的口径讨论完全独立。
+
+**能证与不能证的界**：主切分 LCB 的口径无关性已由上面公布数字证死；「赢家集中」（剔最大3/5转负）本就不含统计口径。**多窗那 4 个 LCB 证不了口径无关**——本报告未给每窗的 σ 与 Σρk，无法反推。但这不影响裁定：否证规则是三选一，前两条已独立、口径无关地站住，第三条（多窗）无需再补。
+
+出处：#395 裁定评论 https://github.com/xy7365527-lang/NewChanlun/issues/395#issuecomment-5092844379；审查归档 `.chanlun/review-results/codex-oddeven-permtest-audit-20260727.md`。

@@ -83,3 +83,13 @@ avg持有期 L0=1197 L1=1126 L2=922 L3=1004 L4=639 L5=853 bar —— **非单调
 4. **下游推论**：μ̂不是"级别方向alpha"是"δ×持有窗方向"⟹不能把某(level,δ)正类当独立可交易信号升基座（正是持有窗方向经验分布的产物，winner's curse风险，见econpositive-walkforward-20260630.md）。短差要赚必须先解决确认滞后(减小τin−真顶底)或换非镜像破缺的市场/口径。
 5. **谱系引用**：663 econpositive判据；664对象错配修复(δ=反转腿方向)；formalization-validity-domain(PDF定理有效域<定义域,镜像对称+零滞后域);161(务实=留缺口)。这是**新概念候选**：μ̂符号=δ×持有窗方向的恒等式分解——"级别方向alpha"是持有窗方向经验分布的伪独立表象，建议genealogist评估是否结晶。
 6. **影响声明**：新增tests/econ_oddeven_diagnosis.rs（纯只读诊断，不改核心/TradeRecord/decompose_capturable_spread）；不改bit-exact核心逻辑。异质审查缺席（codex配额429耗尽，见project_heterosource_openai_quota_exhausted）——本成因结论**未经异质否定**，仅同质分析+L2数据，待配额恢复后补codex diagnose。
+
+## 追记：链接 #395 裁定与审查归档（追加，不影响本文结论）
+
+**[追加订正 2026-07-27，见 issues/395#issuecomment-5092844379]**
+
+- **本文恒等式结论不受影响**：`sign(μ̂)=sign(δ×持有窗净涨跌)` 是决定性分解，不吃任何统计口径，继续成立。
+- **要素4「下游推论」中的援引有效，不必删**：该处「winner's curse风险，见econpositive-walkforward-20260630.md」的措辞无需改动——#395 裁定维持 walkforward 结论（其纯点估计的赢家集中 + 已论证口径无关的 LCB≤0，见该文追加订正段）。
+- **相关撤回见该文件**：下游文档 `oddeven-causation-counterfactual-20260701.md` 有判定被撤回，详见其文末撤回段；本文不复述其撤回状态。
+
+出处：#395 裁定评论 https://github.com/xy7365527-lang/NewChanlun/issues/395#issuecomment-5092844379；审查归档 `.chanlun/review-results/codex-oddeven-permtest-audit-20260727.md`。
