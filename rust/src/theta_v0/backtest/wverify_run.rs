@@ -1371,21 +1371,21 @@ fn m8_e2e_all_systems_oos() {
                 w.dropped_center_not_alive,
                 drop_rate * 100.0,
                 w.dropped_other_trigger,
-                // ★#366：新判据/新清算的四项本票读数（判据对齐＋两终局分账的产物级见证）。
+                // ★#366/#472：未闭合减出核销四项读数（货缺口/现金分列的产物级见证）。
                 w.dropped_center_moved_down,
                 w.unclosed_write_off_count,
                 w.unclosed_write_off_units_gap,
                 w.unclosed_write_off_cash_booked,
                 w.unclosed_write_off_nothing_to_settle,
-                // ★#441（ADR 补充十二）：death 吞挂起核销三读数——与上方 #366 三卖桶分列
-                // （中枢死 vs campaign 死，两条清算路径不混计），货缺口与现金不相减。
+                // ★#441（ADR 补充十二）：death 吞挂起核销三读数——与上方 #366/#472
+                // 结构终结核销桶分列（结构终结 vs campaign 死），货缺口与现金不相减。
                 w.death_write_off_count,
                 w.death_write_off_units_gap,
                 w.death_write_off_cash_booked,
                 w.action_by_level,
                 w.suspension_by_source,
-                // ★#414（ADR 补充十一）：延续计数（取代不再终结挂起）/ 清算终局分流（闭合·核销·
-                // 作废分列）/ 异中枢回补被拒（禁静默冲抵的正面读数）。
+                // ★#414/#472：延续计数（取代不再终结挂起）/ 清算终局分流（闭合·核销二分）/
+                // 异中枢回补被拒（禁静默冲抵的正面读数）。
                 w.suspension_continued_count,
                 w.settlement_by_side,
                 w.replenish_foreign_center_count,

@@ -820,7 +820,8 @@ fn step_center_oscillation(
                                 side: outcome.side, // ★#381：收手回补归属该终结所在的持仓侧
                             });
                         }
-                        // ★#366：三卖终局（多头侧；空头侧镜像为三买）不回补 ⟹ 未闭合减出核销。
+                        // ★#366/#472：教义三类点不回补路径或 Reset 止血路径
+                        // ⟹ 未闭合减出核销。
                         if matches!(outcome.settlement, TerminationSettlement::WriteOffUnclosed) {
                             write_offs.push(UnclosedWriteOffRequest {
                                 bar,
@@ -845,8 +846,8 @@ fn step_center_oscillation(
                             side: outcome.side, // ★#381：收手回补归属该终结所在的持仓侧
                         });
                     }
-                    // 重基悬空恒为 `Forfeit`（#292 F 裁定既有口径，#366 未改），此分支恒不触发
-                    // ——留着是穷尽性，不靠「产不出」的隐含前提。
+                    // ★#472：重基悬空改产未闭合减出核销，本分支现为实到达路径；来源仍由
+                    // `suspension_by_source.rebase_vanished` 分列。
                     if matches!(outcome.settlement, TerminationSettlement::WriteOffUnclosed) {
                         write_offs.push(UnclosedWriteOffRequest {
                             bar,
@@ -884,8 +885,8 @@ fn step_center_oscillation(
                                 side: outcome.side, // ★#381：收手回补归属该终结所在的持仓侧
                             });
                         }
-                        // ★#366：两终局分账——本分支是三类买卖点终结的主到达路径（教义死亡
-                        // 由本级买卖点驱动），未闭合减出核销的实际发生地。
+                        // ★#366/#472：本分支接住本级买卖点驱动的三类点终结与 Reset 止血终结；
+                        // 不回补者产出未闭合减出核销请求。
                         if matches!(outcome.settlement, TerminationSettlement::WriteOffUnclosed) {
                             write_offs.push(UnclosedWriteOffRequest {
                                 bar,
@@ -1074,10 +1075,10 @@ fn drive_campaign_wiring(
             }
         }
     }
-    // ★#366（补充裁定 2026-07-27）：**未闭合减出核销**——三卖终局（多头侧；空头侧镜像为
-    // 三买终局）不回补，把该中枢的挂起从在途量核销并分列呈报货缺口/现金盈余。放在减/补动作
-    // **之后**：同一 bar 内若该中枢的收手回补也在（两终局互斥，同侧同中枢不会既回补又核销），
-    // 顺序不影响结果；置后使既有动作路径的时序逐字节不变。
+    // ★#366/#472：**未闭合减出核销**——教义三类点不回补路径与 Reset/RebaseVanished 止血
+    // 路径都把该中枢挂起从在途量核销，并分列呈报货缺口/现金。放在减/补动作**之后**：同一 bar
+    // 内若该中枢的收手回补也在（闭合与核销互斥，同侧同中枢不会重复清算），顺序不影响结果；
+    // 置后使既有动作路径的时序逐字节不变。
     for req in new_write_offs {
         match campaign_book.write_off_unclosed(req.level, req.side, req.center) {
             Ok(Some(reduction)) => witness.record_write_off(&reduction),
@@ -1210,7 +1211,8 @@ mod campaign_wiring_tests {
     }
 
     /// ★#441（ADR 补充十二）端到端：主仓被全平（持仓→空仓）⟹ campaign 死亡时未收口挂起按
-    /// 「未闭合减出」核销，货缺口与桶实收现金分列进 witness 死亡桶（与 #366 三卖桶分列）。
+    /// 「未闭合减出」核销，货缺口与桶实收现金分列进 witness 死亡桶（与 #366/#472
+    /// 结构终结核销桶分列）。
     #[test]
     fn drive_campaign_wiring_writes_off_suspensions_when_campaign_dies() {
         let mut account_view = strategy::account::ParallelAccountLedger::new();
@@ -1247,7 +1249,7 @@ mod campaign_wiring_tests {
             Some(&1_200),
             "多头侧桶实收=units·price=100·12（与货缺口分列，不相减）"
         );
-        assert!(witness.unclosed_write_off_count.is_empty(), "不落 #366 三卖桶（两条清算路径分列）");
+        assert!(witness.unclosed_write_off_count.is_empty(), "不落结构终结核销桶（两条清算路径分列）");
         assert_eq!(witness.other_violation_count, 0, "正常死亡核销路径不落违规桶");
     }
 
@@ -1858,9 +1860,9 @@ mod center_oscillation_wiring_tests {
     /// #292 续修（issue #292 二轮评审：挂起悬空泄漏）端到端接线证据：`step_center_oscillation`
     /// 在遇到 `ChainConsumed::Rebased` 时正确接入 `on_chain_rebase`——重基后仍在新链上的挂起
     /// 身份跟随迁移（原样保留），从新链消失的挂起身份终结（不回补，故本 bar 无 cover_action
-    /// 可见动作，只能从挂起表状态验证）。
+    /// 可见动作），并产出未闭合减出核销请求。
     #[test]
-    fn gate_on_chain_rebase_migrates_survivor_and_terminates_vanished_suspension() {
+    fn gate_on_chain_rebase_migrates_survivor_and_writes_off_vanished_suspension() {
         let c0 = center(5, 10, 100, 200);
         let c1 = center(20, 25, 300, 400);
         let c2 = center(22, 27, 500, 600);
@@ -1900,8 +1902,20 @@ mod center_oscillation_wiring_tests {
         // bar1：链前缀分叉为 [c1, c2]（已消费的第 0 格身份从 c0 改写为 c1）⟹ Rebased。
         // 新链含 c1、不含 c0。
         let bar1_classification = Classification { levels: vec![level_with_centers(vec![c1, c2])] };
-        let actions = step_center_oscillation(1, &bar1_classification, &empty_step, &mut cl_machines, &mut osc_books, &mut witness).actions;
-        assert!(actions.is_empty(), "RebaseVanished 终结不回补，本 bar 无 cover_action 可见动作");
+        let out = step_center_oscillation(
+            1,
+            &bar1_classification,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+        assert!(out.actions.is_empty(), "RebaseVanished 终结不回补，本 bar 无 cover_action 可见动作");
+        assert_eq!(out.write_offs.len(), 1, "Rebased 路径必须产出一条未闭合减出核销请求");
+        assert_eq!(out.write_offs[0].bar, 1);
+        assert_eq!(out.write_offs[0].level, 0);
+        assert_eq!(out.write_offs[0].center, CenterId::of(&c0));
+        assert_eq!(out.write_offs[0].side, VoiceSide::Long);
         assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "c0 已从新链消失⟹终结，不再悬空");
         assert!(osc_books[0].is_suspended(CenterId::of(&c1)), "c1 仍在新链上⟹跟随迁移，挂起原样保留");
     }
@@ -1971,7 +1985,7 @@ mod center_oscillation_wiring_tests {
         assert_eq!(
             witness.settlement_by_side.get(&(0, "long", "cover_and_close")),
             Some(&1),
-            "终局=闭合（与 forfeit/核销分列）"
+            "终局=闭合（与未闭合减出核销分列）"
         );
         assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "清算后挂起离场");
     }

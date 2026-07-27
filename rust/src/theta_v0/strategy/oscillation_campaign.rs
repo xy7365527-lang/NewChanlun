@@ -20,7 +20,7 @@
 //! - **开仓生**：本仓成本基快照从「空仓」（`units()==0`）变为「有持仓」（`units()>0`）——
 //!   campaign 开局注资 `notional_in = holding = cost_basis()`（缠师口径「成本入账」）。
 //! - **全平死**：本仓成本基快照回到「空仓」——`TwEvent::ClearCampaign`（挂起随死：此时短差
-//!   盈亏桶若仍有挂起在途量，不强求先收口，承诺随仓位一起作废——持仓已不存在，往返无从谈起）。
+//!   盈亏桶若仍有挂起在途量，不强求先收口，按未闭合减出核销并分列呈报）。
 //!
 //! ## 到 0 转移（issue #294 验收③，#124 裁定4：单一来源）
 //!
@@ -417,10 +417,8 @@ pub enum CampaignLifecycleEvent {
     /// 全平死：本仓成本基快照回到空仓。
     ///
     /// ★#441（ADR 补充十二）：`settlement`=死亡时未收口挂起的**核销呈报**
-    /// （[`DeathWriteOff`]；`None`=死亡时无挂起，不编造零读数记录）。旧字段
-    /// `suspended_units_forfeited`（只记「作废掉多少股」的标量）**退役**——它与新口径同源
-    /// 同量（=`settlement.units_gap`），但「作废」的定性已被裁定改写为「未闭合减出核销」，
-    /// 且现金那一笔在旧字段里根本无处安放。
+    /// （[`DeathWriteOff`]；`None`=死亡时无挂起，不编造零读数记录）。旧单一股数标量字段已退役：
+    /// 它与 `settlement.units_gap` 同源同量，却没有位置呈报现金，现统一改为未闭合减出核销。
     Died { level: u32, side: VoiceSide, settlement: Option<DeathWriteOff> },
 }
 
@@ -752,10 +750,10 @@ impl OscillationCampaign {
         Ok((next, outcome))
     }
 
-    /// ★#366（补充裁定 2026-07-27）：**未闭合减出核销**——三卖终局（多头侧；空头侧镜像为
-    /// 三买终局）下不回补，把该来源中枢的挂起批次从在途量核销，产出货缺口/桶实收现金两笔分开
-    /// 的呈报（[`UnclosedReduction`]）。不构造任何回补动作、不产任何 `TwEvent`（不冲销，见
-    /// [`ShortDiffAccount::write_off_unclosed`]）。
+    /// ★#366/#472：**未闭合减出核销**——终局不回补时，把该来源中枢的挂起批次从在途量核销，
+    /// 产出货缺口/桶实收现金两笔分开的呈报（[`UnclosedReduction`]）。来源包括教义三类点不回补
+    /// 路径，以及 #472 的 `Reset`/`RebaseVanished` 止血路径。不构造任何回补动作、不产任何
+    /// `TwEvent`（不冲销，见 [`ShortDiffAccount::write_off_unclosed`]）。
     ///
     /// 该中枢无挂起批次 ⟹ `Ok(None)`（无事可核销，非错误——高抛后已自然收口，或该侧本就
     /// 没做过短差）。归属账与桶标量恒等（两者逐笔同步推进），故桶层核销恒不越界；越界即
@@ -928,8 +926,9 @@ impl CampaignBook {
         Ok(outcome)
     }
 
-    /// ★#366（补充裁定 2026-07-27）：**未闭合减出核销**入口——三卖终局（多头侧；空头侧镜像）
-    /// 的清算落点，透传 [`OscillationCampaign::write_off_unclosed`]。
+    /// ★#366/#472：**未闭合减出核销**入口——教义三类点不回补路径与
+    /// `Reset`/`RebaseVanished` 止血路径共用的清算落点，透传
+    /// [`OscillationCampaign::write_off_unclosed`]。
     ///
     /// 返回 `Ok(None)` 有两种诚实情形，均非错误、均不新增 typed 拒绝：① 该 (级别, 侧) 当前
     /// 无 campaign（该侧空仓——结构信号独立于持仓的既有「无门」设计，同
@@ -995,8 +994,8 @@ pub struct CampaignWiringWitness {
     /// 的有效域标注（容读窗口只保链尾前一格）。
     /// ★#442 探针：键增 level 维 `(级别, 侧)`（纯观测）——延续集中在哪个级别是本探针的裁决量。
     pub suspension_continued_count: BTreeMap<(u32, &'static str), usize>,
-    /// ★#414 项三：终结的**清算终局**分流（键 `(侧, "cover_and_close"|"write_off_unclosed"|
-    /// "forfeit")`）——票面「Forfeit 归宿与核销/闭合分列」的产物级读数。与
+    /// ★#414/#472：终结的**清算终局**分流（键
+    /// `(级别, 侧, "cover_and_close"|"write_off_unclosed")`）。与
     /// [`Self::suspension_by_source`] 是同一批终结的两个正交切面（来源 vs 终局），两桶的分侧
     /// 总数恒相等（同一 `SuspensionOutcome` 各记一次），可互为对账。
     /// ★#442 探针：键增 level 维 `(级别, 侧, 终局)`（纯观测）——与 `suspension_by_source` 同步
@@ -1105,7 +1104,7 @@ pub struct CampaignWiringWitness {
     /// ★#381：键增持仓侧维——`(侧, "same_center"|"other_center")`，多空并存时冲抵归属可判读
     /// （SPEC #386 §2「witness 呈现归属与冲抵顺序」对两侧对称适用）。
     pub cover_by_side: BTreeMap<(&'static str, &'static str), usize>,
-    /// ★#366（补充裁定 2026-07-27）：**未闭合减出**核销的分侧计数（三卖终局条数）。
+    /// ★#366/#472：**未闭合减出**实际核销的分侧计数。
     pub unclosed_write_off_count: BTreeMap<&'static str, usize>,
     /// ★#366：核销的**货缺口**累计（分侧，单位=股数）——与下方桶实收现金**分列呈报，不相减**
     /// （相减＝冲销＝装没发生，见 [`UnclosedReduction`]）。
@@ -1121,10 +1120,9 @@ pub struct CampaignWiringWitness {
     /// 全平死亡时名下尚有未收口挂起的次数（[`CampaignLifecycleEvent::Died`] 带
     /// [`DeathWriteOff`] 的那些）。
     ///
-    /// 与上方 #366 三卖核销桶（`unclosed_write_off_*`）**分列、不混计**：两者虽同口径（未闭合
-    /// 减出核销），但归宿成因不同——一条是**中枢**死（三类卖点终局，campaign 尚在，其余中枢的
-    /// 挂起继续等），一条是 **campaign** 死（主仓全平，名下所有中枢的挂起一并灭失）。混桶就读
-    /// 不出「盲区有多大」这一本票的验收关注点。
+    /// 与上方结构终结核销桶（`unclosed_write_off_*`，#366/#472）**分列、不混计**：两者虽同口径
+    /// （未闭合减出核销），但归宿成因不同——上方由中枢三类点或止血来源逐中枢请求核销，本桶由
+    /// **campaign** 死（主仓全平）把名下所有中枢挂起一并灭失。混桶就读不出「盲区有多大」。
     ///
     /// 与 [`Self::lifecycle_died`] 的关系：本桶 ≤ 死亡总数，差额=死时挂起为空的那些（干净死）
     /// ——「无可核销」不另立桶（可由两桶相减读出），不编造零记录。
@@ -1139,8 +1137,8 @@ pub struct CampaignWiringWitness {
     /// [`Self::unclosed_write_off_cash_booked`]（各减出腿记进 `realized_cash` 的增量之和），
     /// 两侧同名不同义（空头侧「减」=买回），报告层分列呈现、不得相加。
     pub death_write_off_cash_booked: BTreeMap<&'static str, i64>,
-    /// ★#366：三卖终局到达但**无可核销**的分侧计数（该侧空仓无 campaign，或该中枢本就没有
-    /// 挂起批次）——照实计数，不与真实核销读数混计（零读数照实亦是 #384 终验的对照项）。
+    /// ★#366/#472：未闭合减出核销请求到达但**无可核销**的分侧计数（该侧空仓无 campaign，
+    /// 或该中枢本就没有挂起批次）——照实计数，不与真实核销读数混计。
     pub unclosed_write_off_nothing_to_settle: BTreeMap<&'static str, usize>,
     /// `apply_action` 遇其余 [`CampaignViolation`]（`AvgCostMismatch`/`NonPositiveUnits`/
     /// `OverReplenish`/`UnclosedRoundTrip`/`UnitsExceedCostBasis`/`StageTransition`/
@@ -1265,7 +1263,7 @@ impl CampaignWiringWitness {
         *self.unclosed_write_off_cash_booked.entry(sl).or_insert(0) += reduction.cash_booked;
     }
 
-    /// ★#366：记一次「三卖终局到达但无可核销」（该侧空仓，或该中枢无挂起批次）。
+    /// ★#366/#472：记一次「核销请求到达但无可核销」（该侧空仓，或该中枢无挂起批次）。
     pub fn record_write_off_nothing_to_settle(&mut self, side: VoiceSide) {
         *self.unclosed_write_off_nothing_to_settle.entry(side_label(side)).or_insert(0) += 1;
     }
@@ -1296,15 +1294,14 @@ impl CampaignWiringWitness {
         *self.suspension_continued_count.entry((level, side_label(side))).or_insert(0) += 1;
     }
 
-    /// ★#414：记一次终结的**清算终局**分流（闭合/核销/作废三分，票面项 3「Forfeit 归宿与
-    /// 核销/闭合分列」）。与 [`Self::suspension_by_source`]（按**来源**分桶）是同一批终结的
-    /// 两个正交切面：来源答「谁杀的」，终局答「账怎么了结」。
+    /// ★#414/#472：记一次终结的**清算终局**分流（闭合/核销二分）。与
+    /// [`Self::suspension_by_source`]（按**来源**分桶）是同一批终结的两个正交切面：
+    /// 来源答「谁杀的」，终局答「账怎么了结」。
     /// ★#442：加 `level`（纯观测）——与来源桶同步加维，保持两切面逐 (级别, 侧) 可对账。
     pub fn record_settlement(&mut self, level: u32, side: VoiceSide, settlement: TerminationSettlement) {
         let label = match settlement {
             TerminationSettlement::CoverAndClose => "cover_and_close",
             TerminationSettlement::WriteOffUnclosed => "write_off_unclosed",
-            TerminationSettlement::Forfeit => "forfeit",
         };
         *self.settlement_by_side.entry((level, side_label(side), label)).or_insert(0) += 1;
     }
@@ -1506,8 +1503,7 @@ mod tests {
     /// ★挂起随死（issue #294 验收②「全平=campaign 终结含挂起随死」）：全平死亡时若短差盈亏桶
     /// 仍有挂起在途量（未及收口的半轮往返），死亡照实记录该量，不强求先 assert_conserved。
     ///
-    /// ★#441 复审建议3：测试名去掉已退役的定性词「forfeit（作废）」——断言体读的是
-    /// [`DeathWriteOff`]（未闭合减出核销），名实须一致。
+    /// ★#441 复审建议3：测试名与 [`DeathWriteOff`]（未闭合减出核销）语义保持一致。
     #[test]
     fn sync_position_death_writes_off_open_suspended_units_without_requiring_conservation() {
         let mut book = CampaignBook::new();
@@ -1522,7 +1518,7 @@ mod tests {
                 side: VoiceSide::Long,
                 settlement: Some(DeathWriteOff { units_gap: 100, cash_booked: 1_200, centers: 1 }),
             }),
-            "★#441 口径改写：挂起不再「随死作废」，而是按未闭合减出核销并分列呈报（货缺口 100 股 / 桶实收 100·12=1200）"
+            "★#441：挂起随死按未闭合减出核销并分列呈报（货缺口 100 股 / 桶实收 100·12=1200）"
         );
         assert!(book.campaign(0, VoiceSide::Long).is_none());
     }
@@ -1736,9 +1732,9 @@ mod tests {
         assert_eq!(w.suspension_continued_count.get(&(0, "long")), Some(&1));
         assert_eq!(w.suspension_continued_count.get(&(2, "long")), Some(&2), "延续按级别独立累计");
         w.record_settlement(0, VoiceSide::Long, TerminationSettlement::CoverAndClose);
-        w.record_settlement(2, VoiceSide::Long, TerminationSettlement::Forfeit);
+        w.record_settlement(2, VoiceSide::Long, TerminationSettlement::WriteOffUnclosed);
         assert_eq!(w.settlement_by_side.get(&(0, "long", "cover_and_close")), Some(&1));
-        assert_eq!(w.settlement_by_side.get(&(2, "long", "forfeit")), Some(&1), "清算终局按级别独立分桶");
+        assert_eq!(w.settlement_by_side.get(&(2, "long", "write_off_unclosed")), Some(&1), "清算终局按级别独立分桶");
 
         w.record_lifecycle(CampaignLifecycleEvent::Opened { level: 0, side: VoiceSide::Long, notional_in: 3_000 });
         w.record_lifecycle(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, settlement: None });
@@ -2205,8 +2201,8 @@ mod tests {
         );
     }
 
-    /// witness：死亡吞挂起的计数+单位量分侧落桶，与 #366 三卖核销桶**分列**（两条清算路径的
-    /// 读数不得混计——归宿不同：一条是中枢死，一条是 campaign 死）。
+    /// witness：死亡吞挂起的计数+单位量分侧落桶，与 #366/#472 结构终结核销桶**分列**
+    /// （两条清算路径的读数不得混计——归宿不同：一条是结构终结，一条是 campaign 死）。
     #[test]
     fn witness_records_death_write_off_count_and_units_separately_from_third_class_bucket() {
         let mut w = CampaignWiringWitness::new();
@@ -2220,7 +2216,7 @@ mod tests {
         assert_eq!(w.death_write_off_count.get("long"), Some(&1), "只有带挂起的那次记核销");
         assert_eq!(w.death_write_off_units_gap.get("long"), Some(&200));
         assert_eq!(w.death_write_off_cash_booked.get("long"), Some(&2_400));
-        assert!(w.unclosed_write_off_count.is_empty(), "死亡核销不落 #366 三卖桶（两路径分列）");
+        assert!(w.unclosed_write_off_count.is_empty(), "死亡核销不落结构终结核销桶（两路径分列）");
     }
 
     // ── #381：空头 campaign（键含侧 + 镜像减补 + 多空并存不污染） ──────────

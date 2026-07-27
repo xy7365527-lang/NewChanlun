@@ -18,9 +18,9 @@
 //! - **F**（issue #292 续修，二轮评审浮出）：链**重基**（[`center_lifecycle::ChainConsumed::Rebased`]）
 //!   到达时，挂起按身份三元组核对重基后的新链——身份仍在链上⟹**跟随迁移**（挂起状态原样保留；
 //!   本机挂起表键本身就是身份，不含链下标侧车，故迁移是保状态的 no-op）；身份从新链上消失⟹
-//!   **终结**（[`SuspensionTerminationSource::RebaseVanished`]，与 `Superseded` 同形态：不回补，
-//!   承诺作废）。禁悬空——[`CenterOscillationBook::on_chain_rebase`] 尾部机检断言：处理后任何
-//!   仍挂起的身份都必须在新链上，不留「既非迁移又非终结」的第三态。
+//!   **终结**（[`SuspensionTerminationSource::RebaseVanished`]，不回补；★#472 按未闭合减出
+//!   核销）。禁悬空——[`CenterOscillationBook::on_chain_rebase`] 尾部机检断言：处理后任何仍
+//!   挂起的身份都必须在新链上，不留「既非迁移又非终结」的第三态。
 //!
 //! ## 范围边界（与 T3/#293、T4/#294 分工）
 //!
@@ -293,39 +293,31 @@ pub enum SuspensionTerminationSource {
     Reset,
     /// ★#292 续修（二轮评审浮出的挂起悬空泄漏修复）：链重基（[`center_lifecycle::ChainConsumed::Rebased`]）
     /// 后，挂起对应的中枢身份已不在新链上——该实例连「被取代」的记录都没有，是工程重基这一
-    /// 侧信道的失踪，与 `Superseded` 同形态终结：不回补，承诺作废，禁任何形式复活。判据 =
-    /// [`CenterOscillationBook::on_chain_rebase`] 逐挂起身份核对重基后的新链。
+    /// 侧信道的失踪。终结不回补，★#472 按未闭合减出核销且禁任何形式复活；本来源是工程警报桶。
+    /// 判据 = [`CenterOscillationBook::on_chain_rebase`] 逐挂起身份核对重基后的新链。
     RebaseVanished,
 }
 
-/// ★#366（补充裁定 2026-07-27，用户 grilling）：一次终结的**清算终局**——两终局分账，不煮
-/// 一锅。教义链：中枢唯一定理三终结（次级别离开+回抽不重回=三类买卖点），无第二种死法；
-/// 「高抛不回头」时中枢未死，挂起继续等，直到三类点才终局。
+/// ★#366/#472：一次终结的**清算终局**——闭合与未闭合减出核销分账，不煮一锅。教义三类点
+/// 按是否收手回补二分；#472 过渡口径把 `Reset` 与 `RebaseVanished` 归入未闭合减出核销。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminationSettlement {
     /// **闭合终局**（多头遇三类买点 / 空头遇三类卖点）：收手回补（哪怕回补价高于卖出价）
     /// → 亏损如实入账（#380 项一 `short_diff_cash_gate` 通道）→ 往返闭合 → 转持股，中途
     /// 不再短差直到新中枢形成（73 课：第三买点不回补即可能错过中枢上移；49 课）。
     CoverAndClose,
-    /// **未闭合减出**（多头遇三类卖点 / 空头遇三类买点）：不回补，挂起**核销**——货缺口与
-    /// 现金盈余**分开呈报，不冲销、不装没发生**（高抛躲过下跌的真实盈亏）。旧实装把它与
-    /// 闭合终局混同为「一律终结放弃回补」，本票分开。核销落点见
+    /// **未闭合减出**：不回补，挂起**核销**——货缺口 `units_gap` 与现金 `cash_booked`
+    /// **分开呈报，不冲销、不装没发生**。教义路径为多头三类卖点 / 空头三类买点；★#472
+    /// 过渡口径还包括 `Reset`，终态保留 `RebaseVanished`。核销落点见
     /// [`super::oscillation_campaign::CampaignBook::write_off_unclosed`]。
     WriteOffUnclosed,
-    /// **承诺作废**（`Reset`/`RebaseVanished`）：#292 既有口径，#366/#414 均未改——前者是本级
-    /// 走势类型终结（仓位随之全平，挂起随仓死），后者是工程重基的侧信道失踪，均非教义三类点
-    /// 终局，故不进两终局分账。如实标注：这两源的清算口径**未经** #366 补充裁定复核（票面只裁
-    /// 三买/三卖两终局），#414 前置裁定亦明示「Reset/RebaseVanished 保留现口径 + 如实呈报，
-    /// 其清算是否同族另议」。★#414：原第三源 `Superseded` 已不再是终结来源（见
-    /// [`SuspensionTerminationSource`] 的桶退役注记）。
-    Forfeit,
 }
 
 /// ★★#414（2026-07-27 用户裁定，ADR 补充十一）：一条「挂起**延续**」记录——`Superseded`
 /// （被链推进取代）命中某侧挂起时的产出。
 ///
 /// 与 [`SuspensionOutcome`] 的分野是教义性的、不是措辞差异：终结产出会把挂起从表里摘掉并进入
-/// 清算（回补/核销/作废），本记录**不动挂起表**——挂起原样留着，等原中枢的三类买卖点到达时
+/// 清算（回补/核销），本记录**不动挂起表**——挂起原样留着，等原中枢的三类买卖点到达时
 /// 才按 #366 两终局清算。故本类型不携 `settlement`/`cover_action`（此刻没有任何清算发生），
 /// 只是可观测证据（witness `suspension_continued_count`），使「81% 的挂起改道延续」在产物级可读。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -360,7 +352,7 @@ pub struct SuspensionOutcome {
     pub settlement: TerminationSettlement,
 }
 
-/// ★#366：一条「未闭合减出」核销请求——终结产出
+/// ★#366/#472：一条「未闭合减出」核销请求——终结产出
 /// （[`TerminationSettlement::WriteOffUnclosed`]）到 campaign 记账层的接线契约。本类型不携
 /// 任何金额（货缺口/现金盈余由 campaign 侧的挂起归属账现算，不在结构侧另立第二套账）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -371,8 +363,8 @@ pub struct UnclosedWriteOffRequest {
     pub side: VoiceSide,
 }
 
-/// ★#366：某一持仓侧遇某一终结来源时的清算终局——两终局分账（`cover_action_for` 的伴生
-/// 分类：能收手回补的即闭合终局，教义三类点却不回补的即未闭合减出核销）。
+/// ★#366/#472：某一持仓侧遇某一终结来源时的清算终局——能收手回补的即闭合终局；教义三类点
+/// 不回补，或命中 #472 两个止血来源的，均为未闭合减出核销。
 fn settlement_for(
     side: VoiceSide,
     source: SuspensionTerminationSource,
@@ -387,7 +379,7 @@ fn settlement_for(
             }
         }
         SuspensionTerminationSource::Reset | SuspensionTerminationSource::RebaseVanished => {
-            TerminationSettlement::Forfeit
+            TerminationSettlement::WriteOffUnclosed
         }
     }
 }
@@ -399,7 +391,7 @@ fn settlement_for(
 ///   回补」不变，但不再是「装没发生」的静默作废）。
 /// - 空头侧：三类**卖**点破坏 ⟹ 收手加回空头（结构续跌，空头敞口须补回）；三类买点不加回
 ///   （多头侧「三卖不回补」的逐字镜像，同样走未闭合减出核销）。
-/// - 其余来源（`Reset`/`Superseded`/`RebaseVanished`）两侧一律不回补（承诺作废，既有口径）。
+/// - 其余终结来源（`Reset`/`RebaseVanished`）两侧一律不回补，并按 #472 走未闭合减出核销。
 fn cover_action_for(
     side: VoiceSide,
     source: SuspensionTerminationSource,
@@ -610,8 +602,8 @@ impl CenterOscillationBook {
     /// - 挂起身份仍在新链上（任意下标，不要求仍是链尾/容读格）⟹ **跟随迁移**：挂起状态原样
     ///   保留（本机挂起表的键本身就是身份三元组，不含链下标侧车，迁移不改变任何字段，是
     ///   保状态的 no-op，故本函数不为它产出任何 `SuspensionOutcome`）。
-    /// - 挂起身份不在新链上 ⟹ **终结**：与 `Superseded` 同形态（[`SuspensionTerminationSource::RebaseVanished`]），
-    ///   不回补，承诺作废。
+    /// - 挂起身份不在新链上 ⟹ **终结**（[`SuspensionTerminationSource::RebaseVanished`]）：
+    ///   不回补，按 #472 未闭合减出核销。
     ///
     /// **禁悬空（机检断言）**：处理后仍挂起的身份必须全部在新链上——不留「既非迁移又非终结」
     /// 的第三态；这是本函数的构造性不变量（逐身份要么留要么删），断言只是把它显式钉死。
@@ -932,7 +924,7 @@ mod tests {
         assert_eq!(book.suspended_count(), 0);
     }
 
-    /// 出口④：三类卖点终结——不回补（承诺作废，「不回补」与「终结」是同一事件的两个描述）。
+    /// 出口④：三类卖点终结——不回补，按未闭合减出核销。
     #[test]
     fn suspension_exit_third_class_sell_terminates_without_cover() {
         let id = cid(5, 100, 200);
@@ -1090,26 +1082,25 @@ mod tests {
         assert_eq!(buy_out[0].settlement, TerminationSettlement::WriteOffUnclosed);
     }
 
-    /// 非教义三类点的两源（`Reset`/`RebaseVanished`）恒 `Forfeit`——#292 既有口径，#366 未改，
-    /// ★#414 亦明示「保留现口径 + 如实呈报」（票面项 4；本条把「未改」钉成可执行事实，防止
-    /// 被误读为也已按新口径核销）。原第三源 `Superseded` 已随 #414 移出终结面。
+    /// ★#472（ADR 补充十三过渡口径）：`Reset`/`RebaseVanished` 均按未闭合减出核销。
+    /// 来源仍由 [`SuspensionTerminationSource`] 分列，终局只改为货缺口与现金分开呈报。
     #[test]
-    fn non_doctrinal_termination_sources_stay_forfeit() {
+    fn reset_and_rebase_vanished_write_off_unclosed() {
         let id = cid(5, 100, 200);
         for (label, event) in [("reset", reset_with(Some(id)))] {
             let mut book = CenterOscillationBook::new(0);
             book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
             let out = book.on_lifecycle_event(&event).terminations;
-            assert_eq!(out[0].settlement, TerminationSettlement::Forfeit, "{label}");
+            assert_eq!(out[0].settlement, TerminationSettlement::WriteOffUnclosed, "{label}");
         }
         let mut book = CenterOscillationBook::new(0);
         book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
         let out = book.on_chain_rebase(&[]);
-        assert_eq!(out[0].settlement, TerminationSettlement::Forfeit, "rebase_vanished");
+        assert_eq!(out[0].settlement, TerminationSettlement::WriteOffUnclosed, "rebase_vanished");
     }
 
     /// ★「高抛不回头时中枢未死，挂起继续等」（#366 补充裁定教义链）：无终结事件到达时，挂起
-    /// 既不被回补也不被核销——两终局只在三类点到达才发生。
+    /// 既不被回补也不被核销；#472 的 `Reset`/`RebaseVanished` 止血终结另行走核销。
     #[test]
     fn suspension_keeps_waiting_while_center_alive() {
         let id = cid(5, 100, 200);
@@ -1238,7 +1229,7 @@ mod tests {
         assert_eq!(outcomes.len(), 1);
         assert_eq!(outcomes[0].center, id);
         assert_eq!(outcomes[0].source, SuspensionTerminationSource::RebaseVanished);
-        assert_eq!(outcomes[0].cover_action, None, "重基悬空终结不回补，承诺作废");
+        assert_eq!(outcomes[0].cover_action, None, "重基悬空终结不回补，按未闭合减出核销");
         assert!(!book.is_suspended(id), "终结=挂起清空");
         assert!(book.is_suspended(survivor), "存活身份不受连坐");
     }
