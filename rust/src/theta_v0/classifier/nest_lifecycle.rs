@@ -38,8 +38,16 @@
 //! - **等力亦失效**：通道谓词为严格 `<`（divergence.rs:331-333，等值不算衰减）——
 //!   「力度反超」本模块口径 = 没有任何一个通道还支持 c 弱于 a。工程口径，与
 //!   `is_divergence` 同 discipline，不冒充教义逐字（卡 §4.3；T2 等力子场景锁定）。
-//! - **完成但不背驰**：pan 完成窗 force 假且从未可证 ⟹ 诚实滞留 Provisional（窗口已冻、
-//!   永不可证），不伪造 Invalidated——反超定义要求「曾可证」（卡 §4.1，实装报告 §5.5）。
+//! - **背驰否证两类分开**（ADR-0003 / 票 #425）：**被反超** = 曾构成、后被否证
+//!   （061:26「一旦力度大于前者，那么就可以断定背驰段不成立」，要求曾写 first_provable）；
+//!   **从未构成** = 根本未构成（061:28「因为背驰如果没有创新高，是不存在的」）——结构完成
+//!   时从未写 first_provable ⟹ 转终态挂 `NeverConstituted`，不再以活假设身份挂账。
+//!   **工程口径登记**：本模块的「从未构成」判据是**力度谓词从未可证**，不是逐字的
+//!   「未创新高」——创新高预滤由产窗侧 `pan_div_structure_extreme` 承担（未创新高的窗根本
+//!   不建仓）。与「等力亦失效」同 discipline：工程口径，不冒充教义逐字。两码
+//!   在 first_provable 上严格互补（`assert_invariants` 逐条钉死），不互相冒充；沿用既有
+//!   终态 `Invalidated`、**不新增第四态** ⟹ 终态互斥/终态吸收/留档不删三条不变量不重写。
+//!   结构未完成期间 force 假而从未可证仍诚实滞留 Provisional（未到结算点，不提前判负）。
 //! - **judge_at 一个 bit 不动**（卡 §5.2）：字段/写入点/回填/CERT 主键/D3 统计全部保持；
 //!   新五钟只活在本模块 entry，`divergence_confirmed` 布尔口径不动。
 //! - **feed 契约**：feed-every-prefix（每 prefix 投喂、同一身份每 prefix 至多一只观察、
@@ -162,10 +170,15 @@ impl NestEventState {
 /// 失效原因码（入 revision 载荷，诊断可查账；裁定 #64 §2(b)）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvalidatedReason {
-    /// 力度反超（061:26「一旦力度大于前者，那么就可以断定背驰段不成立」）。
+    /// 被反超：**曾构成、后被否证**（061:26「一旦力度大于前者，那么就可以断定背驰段不
+    /// 成立」）——要求曾写入 first_provable，是「先成立、再被推翻」。
     ForceOvertake,
     /// 身份消失（上一 prefix 有、本 prefix 不再产出该 key；E2E §1:81）。
     IdentityVanished,
+    /// 从未构成：**根本未构成**（061:28「因为背驰如果没有创新高，是不存在的」）——结构
+    /// 完成时该活假设从未写入 first_provable，与 ForceOvertake 的「曾构成」严格互补
+    /// （两码的 first_provable_at 一有一无，assert_invariants 逐条钉死）。
+    NeverConstituted,
 }
 
 /// 力度不可验原因码（#78 修复 1：「不可验」≠「不再弱」）。
@@ -187,7 +200,8 @@ pub enum ForceCheck {
     Unavailable(UnavailReason),
 }
 
-/// 反超证据载荷（裁定 #64 §4「反超证据（力度对比量）入 revision 载荷」）。
+/// 力度证据载荷（裁定 #64 §4「反超证据（力度对比量）入 revision 载荷」；票 #425 起
+/// `NeverConstituted` 同样现算入载荷——两条力度类否证均可查账）。
 ///
 /// 逐通道现算复用 `same_color_area`/`segment_dif_peak`/`same_dir_hist_peak`
 /// （与 `segments_diverge_or` 同一组原语，禁第二查法）；仅审计载荷，不进真值路径。
@@ -222,7 +236,7 @@ pub enum LifecycleRevisionKind {
     ForceUnavailable { reason: UnavailReason },
     /// Provisional → Confirmed（完成时复核仍弱，024:24）。
     Confirmed,
-    /// Provisional → Invalidated（原因码入载荷，与 ForceOvertake 可区分——T6）。
+    /// Provisional → Invalidated（三个原因码入载荷，逐一可区分——T6 / T17）。
     Invalidated { reason: InvalidatedReason },
 }
 
@@ -234,7 +248,8 @@ pub struct LifecycleRevision {
     pub kind: LifecycleRevisionKind,
     /// 产生该修订的 prefix（一切钟 ≤ 此 as_of，E2E-S5 判据）。
     pub as_of: usize,
-    /// 反超证据（ForceOvertake 且力度序列齐备时现算；IdentityVanished 恒 None）。
+    /// 力度证据（ForceOvertake / NeverConstituted 且力度序列齐备时现算；
+    /// IdentityVanished 恒 None）。
     pub evidence: Option<ForceEvidence>,
 }
 
@@ -258,9 +273,10 @@ pub struct NestLifecycleEntry {
     pub confirmed_at: Option<usize>,
     /// 首次进 Invalidated。
     pub invalidated_at: Option<usize>,
-    /// 失效原因码（ForceOvertake / IdentityVanished 可区分）。
+    /// 失效原因码（ForceOvertake / NeverConstituted / IdentityVanished 三者可区分）。
     pub invalidated_reason: Option<InvalidatedReason>,
-    /// 反超证据终态留档（IdentityVanished 恒 None）。
+    /// 力度证据终态留档（ForceOvertake 与 NeverConstituted 现算，材料缺则诚实 None；
+    /// IdentityVanished 恒 None——无力度语义）。
     pub force_evidence: Option<ForceEvidence>,
     /// 最近一次力度不可验注记 prefix（同 as_of 幂等去重基准；只作去重，不阻塞恢复推进）。
     pub force_unavailable_at: Option<usize>,
@@ -290,6 +306,24 @@ impl NestLifecycleEntry {
         };
         self.revisions.push(revision);
         revision
+    }
+
+    /// 转入终态 `Invalidated` 并留档（三个原因码的**唯一**写入点——原因码与力度证据同写，
+    /// 结构上兑现模块头 090 登记 4「原因码与力度证据入载荷」；无删除路径，禁删除模拟失效）。
+    ///
+    /// `evidence`：ForceOvertake / NeverConstituted 传本 prefix 现算证据（材料缺则诚实
+    /// None）；IdentityVanished 传 None（无力度语义）。
+    fn invalidate(
+        &mut self,
+        reason: InvalidatedReason,
+        as_of: usize,
+        evidence: Option<ForceEvidence>,
+    ) -> LifecycleRevision {
+        self.state = NestEventState::Invalidated;
+        self.invalidated_at = Some(as_of);
+        self.invalidated_reason = Some(reason);
+        self.force_evidence = evidence;
+        self.push_revision(LifecycleRevisionKind::Invalidated { reason }, as_of, evidence)
     }
 }
 
@@ -548,14 +582,16 @@ impl NestLifecycleBook {
 
     /// 推进一 prefix（卡 §2.3 转移表 + #78 修复全量）。返回本 prefix 新产出修订
     /// （终态吸收/幂等/拒绝 = 空）。步骤：
-    /// 1. 建仓 / 白名单桥迁移（Supersedes）/ 终态吸收（含桥匹配到终态）；
-    /// 2. 倒退守卫（per-identity last_as_of，显式拒绝 + 注记）；
+    /// 1. 建仓 / 白名单桥迁移（Supersedes）/ 终态吸收（含桥匹配到终态）；桥匹配分支自带
+    ///    倒退守卫（被拒 key 尚未建仓，T18 锁定）；
+    /// 2. 倒退守卫（per-identity last_as_of，显式拒绝 + 注记；直接匹配分支，T15 锁定）；
     /// 3. 终态吸收（禁复活）；
     /// 4. 力度求值（事件通道恒 Verified；活窗三值化）；
     /// 5. first_provable 首次写入（仅 Verified(true)）；
     /// 6. 反超判负（仅 Verified(false) ⟹ Invalidated(ForceOvertake)）/
     ///    Unavailable 审计注记（不判 Invalidated、不进确认）；
-    /// 7. 完成时复核（本 prefix 现算 force，禁「曾经弱过」冒充，E2E §4.1:151）；
+    /// 7. 完成时复核（本 prefix 现算 force，禁「曾经弱过」冒充，E2E §4.1:151）：曾可证 ∧
+    ///    仍弱 ⟹ Confirmed；从未可证 ⟹ Invalidated(NeverConstituted)（061:28，ADR-0003）；
     /// 8. 身份消失扫描（倒退 prefix 不制造 IdentityVanished）。
     pub fn advance(
         &mut self,
@@ -662,14 +698,8 @@ impl NestLifecycleBook {
                     if entry.first_provable_at.is_some() {
                         // 反超（061:26）：曾可证 ∧ 当前不再弱 ⟹ Invalidated(ForceOvertake)。
                         let evidence = obs.force_evidence(material);
-                        entry.state = NestEventState::Invalidated;
-                        entry.invalidated_at = Some(as_of);
-                        entry.invalidated_reason = Some(InvalidatedReason::ForceOvertake);
-                        entry.force_evidence = evidence;
-                        let revision = entry.push_revision(
-                            LifecycleRevisionKind::Invalidated {
-                                reason: InvalidatedReason::ForceOvertake,
-                            },
+                        let revision = entry.invalidate(
+                            InvalidatedReason::ForceOvertake,
                             as_of,
                             evidence,
                         );
@@ -711,10 +741,28 @@ impl NestLifecycleBook {
                     let revision =
                         entry.push_revision(LifecycleRevisionKind::Confirmed, as_of, None);
                     delta.push(revision);
+                } else if entry.first_provable_at.is_none() {
+                    // 从未构成（061:28「因为背驰如果没有创新高，是不存在的」，ADR-0003）：
+                    // 结构完成时从未写入 first_provable ⟹ 该假设根本未构成，转终态挂
+                    // NeverConstituted，不再以活假设身份挂账。**与 ForceOvertake 严格互补**
+                    // ——后者要求「曾可证」（061:26 曾构成后被否证），此处恒无（T17 分辨）。
+                    // 力度证据同 ForceOvertake 现算入载荷（090 登记 4 可查账）。
+                    // 到达本臂时 force 必为 Verified(false)：Verified(true) 已在第 5 步写入
+                    // first_provable（走上一臂），Unavailable 已在第 6 步 continue。
+                    // **残留登记**（评审 Spec 轴发现，本票不解）：完成 prefix 上力度不可验时
+                    // 第 6 步先 continue ⟹ 本臂不到达、该身份滞留活假设（#78「不可验 ≠ 不再
+                    // 弱」优先——宁可推迟结算，不从缺失数据造否证；T19 锁定）。数据补齐后的
+                    // 完成信号照常结算；始终不补则永久滞留。
+                    let evidence = obs.force_evidence(material);
+                    let revision = entry.invalidate(
+                        InvalidatedReason::NeverConstituted,
+                        as_of,
+                        evidence,
+                    );
+                    delta.push(revision);
                 }
-                // 完成但不背驰（从未可证）⟹ 诚实滞留 Provisional——反超定义要求「曾可证」
-                // （卡 §4.1），不伪造 Invalidated；完成窗已反超者已被第 6 步接住
-                // （Invalidated 而非 Confirmed，confirmed_at 保持 None，T7(b) 锁定）。
+                // 完成窗已反超者已被第 6 步接住（Invalidated(ForceOvertake) 而非 Confirmed，
+                // confirmed_at 保持 None，T7(b) 锁定）——两条否证路径不互相冒充。
             }
         }
         // 第 8 步：身份消失扫描（上一 prefix 有、本 prefix 不再产出该 key ⟹ Invalidated；
@@ -731,17 +779,8 @@ impl NestLifecycleBook {
             .collect();
         for key in vanished {
             let entry = self.entries.get_mut(&key).expect("扫描键存在");
-            entry.state = NestEventState::Invalidated;
-            entry.invalidated_at = Some(as_of);
-            entry.invalidated_reason = Some(InvalidatedReason::IdentityVanished);
-            entry.force_evidence = None; // IdentityVanished 恒 None（无力度语义）
-            let revision = entry.push_revision(
-                LifecycleRevisionKind::Invalidated {
-                    reason: InvalidatedReason::IdentityVanished,
-                },
-                as_of,
-                None,
-            );
+            // 证据传 None：IdentityVanished 无力度语义（invariant 逐条钉死）。
+            let revision = entry.invalidate(InvalidatedReason::IdentityVanished, as_of, None);
             delta.push(revision);
         }
         #[cfg(debug_assertions)]
@@ -754,7 +793,9 @@ impl NestLifecycleBook {
     /// 全列：revision 计数 == 留档长度；observed_at ≤ last_as_of；钟序
     /// observed ≤ first_provable ≤ structure_end ≤ confirmed；一切钟 ≤ last_as_of；
     /// 反超 invalidated ≥ first_provable（身份消失路径独立）；终态互洽
-    /// （state ⟺ 终态钟、终态互斥）；IdentityVanished 恒无力度证据；迁移链两端满足桥身份。
+    /// （state ⟺ 终态钟、终态互斥）；IdentityVanished 恒无力度证据；迁移链两端满足桥身份；
+    /// **被反超与从未构成在 first_provable 上严格互补**（前者恒有、后者恒无），从未构成的
+    /// invalidated_at == structure_end_at（票 #425）。
     pub fn assert_invariants(&self) {
         for entry in self.entries.values() {
             let key = entry.key;
@@ -816,6 +857,25 @@ impl NestLifecycleBook {
                             assert!(first <= invalidated, "反超 invalidated ≥ first_provable：{key:?}");
                             // 反超发生于该身份被投喂的 prefix（last_as_of 已先推进到当 prefix）。
                             assert!(invalidated <= entry.last_as_of, "反超 invalidated ≤ last_as_of：{key:?}");
+                        }
+                        InvalidatedReason::NeverConstituted => {
+                            // 从未构成（061:28）与被反超（061:26）严格互补：前者恒无
+                            // first_provable，后者恒有（上一臂）——两码不可混。
+                            assert!(
+                                entry.first_provable_at.is_none(),
+                                "从未构成 ⟹ 首次可证时点恒空（否则应走 ForceOvertake）：{key:?}"
+                            );
+                            // 结算点 = 结构完成那一刻（advance 第 7 步同 prefix 内结算，
+                            // 终态吸收禁后续改写 ⟹ 两钟恒等）。
+                            assert_eq!(
+                                entry.structure_end_at,
+                                Some(invalidated),
+                                "从未构成 ⟹ invalidated_at == structure_end_at：{key:?}"
+                            );
+                            assert!(
+                                invalidated <= entry.last_as_of,
+                                "从未构成 invalidated ≤ last_as_of：{key:?}"
+                            );
                         }
                         InvalidatedReason::IdentityVanished => {
                             // 身份消失路径 invalidated_at 独立于 first_provable_at（卡 §2.3）；
@@ -1734,6 +1794,354 @@ mod tests {
         assert_eq!(book.lineage_nodes().len(), 1);
         // 全程零 Invalidated（Unavailable 从未假杀身份——#78 修复 1 语义）。
         assert!(book.entries().all(|(_, e)| e.state != NestEventState::Invalidated));
+        book.assert_invariants();
+    }
+
+    /// T16 从未构成（061:28「因为背驰如果没有创新高，是不存在的」）：结构完成时该活假设
+    /// 从未写入首次可证时点 ⟹ 转入终态并挂 NeverConstituted，而非继续以活假设身份挂账。
+    ///
+    /// 反例注入在 (b)：同一夹具把 c 窗换成真弱 ⟹ 结构完成走 Confirmed、原因码不落
+    /// NeverConstituted——(a) 的断言不是构造性恒真（不是「结构完成即挂新码」）。
+    #[test]
+    fn t16_never_constituted_on_structure_completion() {
+        let close_src = identity_close_src(160);
+        // a=[50,59]（Long = 向下离开）：面积 5、柱峰 0.5、黄白线峰 1.0——a 本身就弱。
+        let mut hist = vec![0.0; 160];
+        hist[50..=59].fill(-0.5);
+        let mut dif = vec![0.0; 160];
+        dif[50..=59].fill(-1.0);
+        // c 活窗 [70, as_of] 恒强于 a（面积 ≥ 90、柱峰 3.0、黄白线峰 6.0）⟹ 三通道恒假
+        // ⟹ first_provable 从未写入（「背驰没有创新高就不存在」的机械表达）。
+        hist[70..=159].fill(-3.0);
+        dif[70..=159].fill(-6.0);
+        let m = material(&hist, &dif, &close_src);
+
+        // (a) 结构未完成期间：诚实滞留活假设（只有 Observed，无终态钟）。
+        let mut book = NestLifecycleBook::new();
+        let d = book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 99), false)],
+            99,
+            &m,
+        );
+        assert_eq!(d.len(), 1, "结构未完成 ⟹ 仅 Observed");
+        let alive = book.get(&key_pan((50, 59), (70, 99))).unwrap();
+        assert_eq!(alive.state, NestEventState::Provisional, "结构未完成不提前判负");
+        assert_eq!(alive.first_provable_at, None, "从未可证");
+
+        // 结构完成（ADR-0003：通道切换即完成信号）⟹ 转终态 + NeverConstituted。
+        let d = book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 109), true)],
+            109,
+            &m,
+        );
+        assert_eq!(d.len(), 3, "Supersedes + StructureCompleted + Invalidated");
+        assert!(matches!(
+            d[2].kind,
+            LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::NeverConstituted }
+        ));
+        let key = key_pan((50, 59), (70, 109));
+        let entry = book.get(&key).expect("终态留档不删（谱系保留）");
+        assert_eq!(entry.state, NestEventState::Invalidated);
+        assert_eq!(entry.invalidated_reason, Some(InvalidatedReason::NeverConstituted));
+        assert_eq!(entry.first_provable_at, None, "从未构成 ⟹ 首次可证时点恒空");
+        assert_eq!(entry.structure_end_at, Some(109));
+        assert_eq!(entry.invalidated_at, Some(109), "结构完成即结算，不再挂账");
+        assert_eq!(entry.revisions.len(), 4, "Observed + Supersedes + StructureCompleted + Invalidated");
+        assert!(book.consumable_closed().is_empty(), "终态不进消费侧（Closed-only）");
+        // 力度证据入载荷（模块头 090 登记 4「原因码与力度证据入载荷」）：c 三通道全面强于 a
+        // ——审计者据此复核「从未构成」结论（a 面积 10×0.5、c 面积 40×3.0）。
+        let ev = entry.force_evidence.expect("从未构成留力度证据载荷");
+        assert_eq!((ev.area_a, ev.area_c), (5.0, 120.0));
+        assert_eq!((ev.dif_peak_a, ev.dif_peak_c), (1.0, 6.0));
+        assert_eq!((ev.hist_peak_a, ev.hist_peak_c), (0.5, 3.0));
+
+        // 终态吸收（禁复活）：同身份后续活窗延展零输出。
+        let d = book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 119), true)],
+            119,
+            &m,
+        );
+        assert!(d.is_empty(), "终态吸收零输出");
+        assert_eq!(book.len(), 1, "终态不另立新 key");
+        book.assert_invariants();
+
+        // (b) 反例注入：同一时序、c 窗真弱（面积 2、柱峰 0.05、黄白线峰 0.5）⟹ 结构完成
+        // 走 Confirmed，NeverConstituted 不落——(a) 的断言不是「结构完成即挂新码」的恒真。
+        let mut hist_weak = vec![0.0; 160];
+        hist_weak[50..=59].fill(-0.5);
+        hist_weak[70..=159].fill(-0.05);
+        let mut dif_weak = vec![0.0; 160];
+        dif_weak[50..=59].fill(-1.0);
+        dif_weak[70..=159].fill(-0.5);
+        let m_weak = material(&hist_weak, &dif_weak, &close_src);
+        let mut book_weak = NestLifecycleBook::new();
+        book_weak.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 99), false)],
+            99,
+            &m_weak,
+        );
+        let d = book_weak.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 109), true)],
+            109,
+            &m_weak,
+        );
+        assert!(
+            d.iter().any(|r| matches!(r.kind, LifecycleRevisionKind::Confirmed)),
+            "反例：c 窗真弱 ⟹ 结构完成走 Confirmed"
+        );
+        let entry_weak = book_weak.entries().next().unwrap().1;
+        assert_eq!(entry_weak.state, NestEventState::Confirmed);
+        assert_eq!(entry_weak.invalidated_reason, None, "反例：NeverConstituted 不落");
+        book_weak.assert_invariants();
+    }
+
+    /// T19 力度不可验的结构完成 prefix **不伪造**「从未构成」（#78「不可验 ≠ 不再弱」
+    /// 优先于本票新增的结算路径；090 纪律：照实否定合格，伪造失败）。
+    ///
+    /// 该 prefix 既不写 structure_end_at 也不判负，身份滞留活假设；数据补齐后的完成信号
+    /// 才结算 —— 不可验只**推迟**结算，不制造结论。数据始终不补则永久滞留（已知残留，
+    /// 挂账不在本票范围）。
+    #[test]
+    fn t19_unavailable_force_at_completion_does_not_fabricate_never_constituted() {
+        let close_src = identity_close_src(160);
+        // 同 T16 夹具：a 弱、c 恒强 ⟹ 力度可验时该身份必属「从未构成」。
+        let mut hist = vec![0.0; 160];
+        hist[50..=59].fill(-0.5);
+        hist[70..=159].fill(-3.0);
+        let mut dif = vec![0.0; 160];
+        dif[50..=59].fill(-1.0);
+        dif[70..=159].fill(-6.0);
+
+        let mut book = NestLifecycleBook::new();
+        // as_of=99：结构完成信号已到，但力度序列缺失 ⟹ 只留注记，不结算。
+        let no_force = ForceMaterial::unavailable(&close_src);
+        let d = book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 99), true)],
+            99,
+            &no_force,
+        );
+        assert!(d.iter().any(|r| matches!(
+            r.kind,
+            LifecycleRevisionKind::ForceUnavailable { reason: UnavailReason::MissingForceSeries }
+        )));
+        assert!(
+            d.iter().all(|r| !matches!(r.kind, LifecycleRevisionKind::Invalidated { .. })),
+            "力度不可验 ⟹ 不判负（不伪造从未构成）"
+        );
+        let entry = book.get(&key_pan((50, 59), (70, 99))).unwrap();
+        assert_eq!(entry.state, NestEventState::Provisional, "滞留活假设，诚实存疑");
+        assert_eq!(entry.invalidated_reason, None);
+        assert_eq!(entry.structure_end_at, None, "不可验 prefix 的完成信号不留痕（#78 原语义）");
+
+        // as_of=109：数据补齐 + 完成信号重发 ⟹ 此时才结算为「从未构成」。
+        let m = material(&hist, &dif, &close_src);
+        let d = book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 109), true)],
+            109,
+            &m,
+        );
+        assert!(d.iter().any(|r| matches!(
+            r.kind,
+            LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::NeverConstituted }
+        )));
+        let entry = book.get(&key_pan((50, 59), (70, 109))).unwrap();
+        assert_eq!(entry.invalidated_reason, Some(InvalidatedReason::NeverConstituted));
+        assert_eq!(entry.structure_end_at, Some(109), "结算推迟到数据补齐的那一 prefix");
+        book.assert_invariants();
+    }
+
+    /// T18 桥匹配分支的时点倒退拒绝（票 #425 补既有覆盖缺口）：T15 走的是**直接匹配**
+    /// 分支——被拒 key 已在 book 内（advance 第 2 步）；本测试走**桥匹配**分支——被拒 key
+    /// 尚未建仓、经白名单桥匹配到既有身份后在第 1 步内被拒（右端不同 ⟹ 新 key）。
+    /// 「新 key 未建仓」这条断言把分支钉死在桥匹配上：直接匹配分支要求 key 已存在。
+    #[test]
+    fn t18_retrograde_rejected_on_bridge_match_branch() {
+        let close_src = identity_close_src(140);
+        let mut hist = vec![0.0; 140];
+        hist[50..=59].fill(-2.0);
+        hist[70..=139].fill(-0.25);
+        let mut dif = vec![0.0; 140];
+        dif[50..=59].fill(-5.0);
+        dif[70..=139].fill(-1.0);
+        let m = material(&hist, &dif, &close_src);
+        let mut book = NestLifecycleBook::new();
+
+        // as_of=100 建仓（三通道成立 ⟹ 同 prefix 写 first_provable）。
+        book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 100), false)],
+            100,
+            &m,
+        );
+        let established = key_pan((50, 59), (70, 100));
+        let before = book.get(&established).unwrap().clone();
+
+        // 倒退 as_of=90 喂**右端不同**的同身份窗 (70,110)：该 key 不在 book 内 ⟹ 走桥匹配
+        // 分支 ⟹ 显式拒绝（不迁移、不建仓、零 revision）。
+        let bridged = key_pan((50, 59), (70, 110));
+        let d = book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 110), false)],
+            90,
+            &m,
+        );
+        assert!(d.is_empty(), "桥匹配分支倒退 prefix 零 revision");
+        assert!(
+            book.get(&bridged).is_none(),
+            "被拒 key 未建仓——本例确实走桥匹配分支（直接匹配分支要求 key 已存在）"
+        );
+        assert_eq!(book.len(), 1, "桥匹配倒退不另立新 key");
+        assert_eq!(
+            book.get(&established).unwrap(),
+            &before,
+            "既有 entry 零改动（含钟与 last_as_of）"
+        );
+        assert_eq!(
+            book.retrograde_rejections(),
+            &[RetrogradeRejection {
+                key: bridged,
+                last_as_of: 100,
+                rejected_as_of: 90
+            }],
+            "注记记被拒的新 key 与既有身份的 last_as_of"
+        );
+        assert_eq!(
+            book.get(&established).unwrap().state,
+            NestEventState::Provisional,
+            "桥匹配倒退不制造 IdentityVanished"
+        );
+
+        // 合法前进照常：同一窗 as_of=110 ⟹ 桥迁移 Supersedes（拒绝不留残疾）。
+        let d = book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 110), false)],
+            110,
+            &m,
+        );
+        assert_eq!(d.len(), 1);
+        assert!(
+            matches!(d[0].kind, LifecycleRevisionKind::Supersedes { from } if from == established)
+        );
+        assert_eq!(book.retrograde_rejections().len(), 1, "合法前进无新注记");
+        book.assert_invariants();
+    }
+
+    /// T17 两类背驰否证在同一 book 内可分辨（票 #425 验收：不得靠同一断言蒙混）：
+    /// **被反超**（061:26 曾构成、后被否证）与**从未构成**（061:28 根本未构成）并存，
+    /// 各自的原因码、首次可证时点、结构完成时点三项两两相反。
+    ///
+    /// 两身份取不同级别 + 互不重叠的力度窗（level 1 / level 2），彼此不经白名单桥判同。
+    #[test]
+    fn t17_never_constituted_distinguishable_from_force_overtake() {
+        let close_src = identity_close_src(200);
+        let mut hist = vec![0.0; 200];
+        let mut dif = vec![0.0; 200];
+        // 身份 A（level 1，被反超）：a=[10,19] 面积 20/柱峰 2.0/黄白线峰 5.0；
+        // c 先弱（[30,49] 面积 5/柱峰 0.25/黄白线峰 1.0），延展段 [50,69] 全面反超。
+        hist[10..=19].fill(-2.0);
+        dif[10..=19].fill(-5.0);
+        hist[30..=49].fill(-0.25);
+        dif[30..=49].fill(-1.0);
+        hist[50..=69].fill(-3.0);
+        dif[50..=69].fill(-6.0);
+        // 身份 B（level 2，从未构成）：a=[110,119] 面积 5/柱峰 0.5/黄白线峰 1.0；
+        // c=[130,…] 恒强于 a ⟹ 三通道恒假 ⟹ first_provable 从未写入。
+        hist[110..=119].fill(-0.5);
+        dif[110..=119].fill(-1.0);
+        hist[130..=159].fill(-3.0);
+        dif[130..=159].fill(-6.0);
+        let m = material(&hist, &dif, &close_src);
+
+        let win_a = |live_end: usize| PanLiveWindow {
+            level: 1,
+            side: Side::Long,
+            seg_a: (10, 19),
+            seg_c_live: (30, live_end),
+            b_center_start: 5,
+        };
+        let win_b = |live_end: usize| PanLiveWindow {
+            level: 2,
+            side: Side::Long,
+            seg_a: (110, 119),
+            seg_c_live: (130, live_end),
+            b_center_start: 105,
+        };
+        let key_of = |w: PanLiveWindow| LifecycleKey {
+            level: w.level,
+            side: w.side,
+            kind: NestDivergenceKind::Consolidation,
+            seg_a: w.seg_a,
+            seg_c_full: w.seg_c_live,
+            b_center_start: w.b_center_start,
+        };
+
+        // as_of=160：A 三通道成立 ⟹ first_provable；B 恒假 ⟹ 仅 Observed。
+        let mut book = NestLifecycleBook::new();
+        let d = book.advance(
+            &[
+                LifecycleObservation::pan_live(win_a(49), false),
+                LifecycleObservation::pan_live(win_b(149), false),
+            ],
+            160,
+            &m,
+        );
+        assert_eq!(d.len(), 3, "A: Observed + FirstProvable；B: Observed");
+
+        // as_of=170：A 活窗延展被反超（结构未完成）；B 结构完成而从未可证。
+        let d = book.advance(
+            &[
+                LifecycleObservation::pan_live(win_a(69), false),
+                LifecycleObservation::pan_live(win_b(159), true),
+            ],
+            170,
+            &m,
+        );
+        assert_eq!(
+            d.iter()
+                .filter(|r| matches!(r.kind, LifecycleRevisionKind::Invalidated { .. }))
+                .count(),
+            2,
+            "两条否证各产一条终态修订"
+        );
+
+        let a = book.get(&key_of(win_a(69))).expect("被反超身份留档不删");
+        let b = book.get(&key_of(win_b(159))).expect("从未构成身份留档不删");
+        assert_ne!(a.key, b.key, "两身份不同 key");
+        assert_eq!(a.state, NestEventState::Invalidated);
+        assert_eq!(b.state, NestEventState::Invalidated);
+
+        // ① 原因码相反。
+        assert_eq!(a.invalidated_reason, Some(InvalidatedReason::ForceOvertake));
+        assert_eq!(b.invalidated_reason, Some(InvalidatedReason::NeverConstituted));
+        assert_ne!(
+            a.invalidated_reason, b.invalidated_reason,
+            "两类否证不得共用一个原因码"
+        );
+        // ② 首次可证时点相反（教义分界：曾构成 vs 根本未构成）。
+        assert_eq!(a.first_provable_at, Some(160), "被反超 = 曾构成（061:26）");
+        assert_eq!(b.first_provable_at, None, "从未构成 = 根本未构成（061:28）");
+        // ③ 结构完成时点相反（被反超无须等结构完成；从未构成恰在结构完成时结算）。
+        assert_eq!(a.structure_end_at, None);
+        assert_eq!(b.structure_end_at, Some(170));
+
+        // 修订载荷同样可分辨（诊断查账走 revisions，不只走 entry 字段）。
+        assert!(matches!(
+            a.revisions.last().unwrap().kind,
+            LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::ForceOvertake }
+        ));
+        assert!(matches!(
+            b.revisions.last().unwrap().kind,
+            LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::NeverConstituted }
+        ));
+
+        // 分桶恰好一对一（不是「两条都落进同一桶」的蒙混）。
+        let by_reason = |reason: InvalidatedReason| {
+            book.entries()
+                .filter(|(_, e)| e.invalidated_reason == Some(reason))
+                .count()
+        };
+        assert_eq!(by_reason(InvalidatedReason::ForceOvertake), 1);
+        assert_eq!(by_reason(InvalidatedReason::NeverConstituted), 1);
+        assert_eq!(by_reason(InvalidatedReason::IdentityVanished), 0, "两者都不是身份消失");
+        assert_eq!(book.len(), 2, "终态留档不删");
+        assert!(book.consumable_closed().is_empty(), "终态一律不进消费侧");
         book.assert_invariants();
     }
 
