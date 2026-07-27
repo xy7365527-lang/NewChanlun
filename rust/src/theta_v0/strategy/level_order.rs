@@ -207,6 +207,11 @@ pub struct LevelOrderStats {
     /// 目标的**分歧幅度**。纯观测，**不断言其为 0**——它不为 0 正是「结构说的仓位 ≠ 账户能下
     /// 的仓位」的量化。
     ///
+    /// ★#376 MED-1（#362 MED-3 补齐）：此处 `T_lee` 锚的是 **`t_lee_raw`**——账户层投影后、
+    /// **二次裁剪前**的目标（逐决策点取自 [`LevelOrderPlan::struct_gap`] 的绝对值，锚定语义与
+    /// 论证见该字段 doc）。在 M4 级别帽 binding 的决策点上，「账户层投影后物理目标」已经历二次
+    /// 裁剪变为 `t_lee'`，本读数量的**不是它**；裁剪量单列于 [`LevelOrderPlan::cap_narrowed_levels`]。
+    ///
     /// **等级订正**：M2 文案标 L2，但读数产自合成 `random_walk_dataset` ⟹ 按
     /// `formalization-validity-domain` 表应为 **L1**（L2 需真实数据）。「L2」在 M2 文案中被
     /// 当作「经验/可证伪」用，与该规则的等级轴混用了；本文件新增读数一律标 L1 并说明可证伪性。
@@ -329,8 +334,13 @@ pub struct LevelOrderPlan {
     pub used_residual_bucket: bool,
     /// 本计划是否经比例缩放（`Σ_ℓ basis_ℓ ≠ 物理目标`）。
     pub rescaled: bool,
-    /// ★#363（#355 MED-C）本计划中被 **M4 级别帽**真实裁剪过的级别（升序、去重；`𝒦_Θ` 帽
-    /// binding 的**逐级**判据）。
+    /// ★#363（#355 MED-C）本计划中被 **M4 级别帽**真实裁剪过的级别（去重；**顺序不承诺**；
+    /// `𝒦_Θ` 帽 binding 的**逐级**判据）。
+    ///
+    /// ★#376 MED-2：原文首行曾写「升序」——但其生产者 `fill.rs::union_sorted_levels` 已按
+    /// #365 条 8 显式删掉输入/输出升序承诺（无校验、无消费者），在此再写一遍就是把删掉的声明
+    /// 膨胀换个位置声明（090）。唯一消费者 [`LevelOrderStats::n_levels_off_clock_delta_unexplained`]
+    /// 用 `contains` 查表，与顺序无关。实际取值当下确为升序，但那是未声明的实现巧合，不入 doc。
     ///
     /// 与 [`Self::rescaled`] 同为「无 tick 级别的 `Δq_ℓ` 为何非零」的合法解释项（§F③ 域分离的
     /// `CapTick` 例外），供 [`LevelOrderStats::n_levels_off_clock_delta_unexplained`] 消费——但
@@ -352,7 +362,12 @@ pub struct LevelOrderPlan {
     /// 严格小于 [`LevelOrderStats::n_levels_off_clock_delta_unexplained`] 的定义域（全分支）
     /// ——缩放分支由 `rescaled` 这一项单独承担，本证明不覆盖它。设某级 ℓ 本 bar 无 tick：
     ///
-    /// - （⟸ 充分）ℓ 被帽裁 ⟹ `targets_ℓ` 被改写离开 `planned_ℓ` ⟹ `Δq_ℓ` 可非零。
+    /// - （⟸ 充分）ℓ 被帽裁 ⟹ `targets_ℓ` 被改写离开 `planned_ℓ` ⟹ `Δq_ℓ` **必**非零。
+    ///   ★#376 LOW-3（措辞补全，原文写「可非零」弱于 ⟺ 所需）：无 tick ⟹ `gated_ℓ = planned_ℓ`
+    ///   （`regate` 取前值）；恒等分支 ⟹ 帽施加**前** `targets_ℓ = gated_ℓ = planned_ℓ`；帽真实
+    ///   裁到该级（即 ℓ ∈ 本表）按定义即改写了这个值 ⟹ `targets_ℓ ≠ planned_ℓ` ⟹ 由 ⟹ 项同一
+    ///   等式 `Δq_ℓ = targets_ℓ − planned_ℓ` 得 `Δq_ℓ ≠ 0`。（两处施加点中，第二处在恒等分支下
+    ///   因 clamp 幂等不可能再裁，故本向只需对第一处论证。）
     /// - （⟹ 必要）[`LevelOrderLedger::regate`] 对无 tick 级别取 `planned` 的**前值**（不读本
     ///   bar `net_ℓ`），故 `gated_ℓ = planned_ℓ`；若 `attribute_total` 走恒等分支
     ///   （`rescaled == false` ⟹ `targets == gated` 逐级），则 `targets_ℓ = planned_ℓ` ⟹
