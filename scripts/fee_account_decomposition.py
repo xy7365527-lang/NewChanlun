@@ -19,7 +19,7 @@
   （taker_bps；sha256 sidecar 已由 Rust 侧 `load_datum` 校验）+ 未标定滑点 addon
   `ExecConfig::slippage_bps`（datum 不覆盖滑点，`venue_fee.rs` FeeQuoter 明文相加）。
   Binance 现货 datum **无监管/清算科目** ⟹ 该两列恒 0（不是「没算」，是该 venue 无此科目）。
-- 臂R：`ExecConfig::default()` 三常数（`rust/src/theta_v0/config.rs:301-303`：
+- 臂R：`ExecConfig::default()` 三常数（`rust/src/theta_v0/config.rs:302-304`：
   commission 1bp / slippage 2bp / tax 0bp），无监管/清算科目。
   **这三个数在本脚本内是常量（手抄），不是从文件读的**——三常数档按定义**没有 datum**
   （未标定就是它的性质），无文件可读。Rust 侧改默认值而未同步本脚本 ⟹ 本表会静默漂移；
@@ -50,7 +50,7 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATUM_PATH = REPO_ROOT / "analysis" / "data_cache" / "venue_fee_binance_spot_20260726.json"
 WINDOWS = ("p3fold", "wf7", "wf8")
 
-# 臂R 三常数（rust/src/theta_v0/config.rs:301-303，ExecConfig::default()）。
+# 臂R 三常数（rust/src/theta_v0/config.rs:302-304，ExecConfig::default()）。
 ARM_R_COMMISSION_BPS = 1.0
 ARM_R_SLIPPAGE_BPS = 2.0
 ARM_R_TAX_BPS = 0.0
@@ -159,7 +159,7 @@ def main() -> int:
     md = "\n".join(
         [
             f"费率口径：臂D commission={taker_bps:.1f}bp（datum {DATUM_PATH.name} / BTC / VIP0 taker）；"
-            f"臂R commission={ARM_R_COMMISSION_BPS:.1f}bp、tax={ARM_R_TAX_BPS:.1f}bp（config.rs:301-303）；"
+            f"臂R commission={ARM_R_COMMISSION_BPS:.1f}bp、tax={ARM_R_TAX_BPS:.1f}bp（config.rs:302-304）；"
             f"臂C commission 与臂D 同源（同 datum 同档位，唯一差异 = `enforce_level_cap`）；"
             f"三臂 slippage={SLIPPAGE_BPS:.1f}bp（datum 不覆盖，未标定 addon）。",
             "",
