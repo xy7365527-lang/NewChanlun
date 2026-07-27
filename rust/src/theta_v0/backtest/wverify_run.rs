@@ -1360,6 +1360,7 @@ fn m8_e2e_all_systems_oos() {
                  loss_round_trip_accounted_count={:?} defense_units_exceed_current_holding_count={:?} \
                  replenish_triggered_but_full_count={:?} \
                  stage_recover_capital_count={} stage_enter_earning_count={} stage_events={:?} \
+                 profit_ready_but_suspended={:?} \
                  earning_mode_switch_bar={:?} earning_replenish_count={:?} \
                  earning_units_gained={:?} earning_cash_unsound_count={:?} \
                  earning_sizing_rounds_to_zero_count={:?} \
@@ -1398,6 +1399,10 @@ fn m8_e2e_all_systems_oos() {
                 w.stage_recover_capital_count,
                 w.stage_enter_earning_count,
                 w.stage_events,
+                // ★#384 终验补列：阶段推进的第四项读数——「够本可推进但仍有挂起未收口」的正面
+                // 计数（`profit_ready_but_suspended`，ADR 补充十的到 0 判据「挂起空 ∧ free≥本金」
+                // 的另一半）。该桶此前只有单测覆盖、从未进 wf8 报告行 ⟹ 真实窗口读数不可见。
+                w.profit_ready_but_suspended,
                 // ★#383：阶段三报告层三项（切换时点=生效 bar / 等金额回补次数 / 累计净增股数）
                 // + 两条分流桶（硬门恒 0；等金额腿买不起一股属预期场景）。
                 w.earning_mode_switch_bar,
