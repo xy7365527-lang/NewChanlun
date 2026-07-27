@@ -610,6 +610,13 @@ pub struct OverlayRunResult {
     /// 口径（fill.n_orders = 声部 fill 事件数，equity/trade_pnls/r_decomp = 声部账户）——与净额臂
     /// 语义不同，两读数经本字段分列，禁互相冒充（090）。未设 env ⟹ `None`，全部净额读数逐字节不变。
     pub voice_exec: Option<VoiceExecRunSummary>,
+    /// issue #357（T4/#294 生产实例化）：每仓 campaign 账簿终态——同 `tw_final`，`net_result:
+    /// RunResult` 无此字段，`pi_theta_fill_loop_overlay` 内建的 `fill.campaign_book` 装配丢弃，
+    /// 由本字段单独转发。
+    pub campaign_book: super::super::strategy::oscillation_campaign::CampaignBook,
+    /// issue #357 验收③：enabled=true wf8 产物级见证读数（减补动作归属分桶/`CenterNotAlive`
+    /// 丢弃率/挂起归宿/campaign 生死事件）。
+    pub campaign_witness: super::super::strategy::oscillation_campaign::CampaignWiringWitness,
 }
 
 /// ★W1 声部独立执行跑批读数（VOICE_EXEC=1 时装配；验收量见审计 §7.4）。
@@ -731,6 +738,8 @@ pub fn run_theta_v0_pi_overlay(
     };
 
     let tw_final = fill.tw_final;
+    let campaign_book = fill.campaign_book;
+    let campaign_witness = fill.campaign_witness;
     let account_price_pnl = overlay.account_price_pnl();
     let total_voice_pnl = overlay.total_voice_pnl();
     let reconcile_residual = (account_price_pnl - total_voice_pnl).abs();
@@ -774,6 +783,8 @@ pub fn run_theta_v0_pi_overlay(
         net_result,
         tw_final,
         voice_exec,
+        campaign_book,
+        campaign_witness,
     }
 }
 

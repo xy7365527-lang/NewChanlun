@@ -209,6 +209,15 @@ fn apply_enforce_gross_cap_from_env(cfg: &mut ThetaConfig) {
     }
 }
 
+/// issue #357 验收③：`THETA_CENTER_OSCILLATION=1` 激活中枢震荡短差门（`config.center_oscillation
+/// .enabled`）——跑批入口同 [`apply_theta_dir_preset_from_env`] 先例。无 env/非 "1" = default
+/// false 不变（既有 `m8_e2e_all_systems_oos` 默认关轨迹逐字节不变，bit-exact 回归锁）。
+fn apply_center_oscillation_from_env(cfg: &mut ThetaConfig) {
+    if std::env::var("THETA_CENTER_OSCILLATION").as_deref() == Ok("1") {
+        cfg.center_oscillation.enabled = true;
+    }
+}
+
 /// walk-forward OOS 残差聚合（G-A4）：取 `symbol` 在 `PREREG_WINDOWS` 冻结 anchored 窗口中
 /// `test_start ≥ OOS_START` 的子集，逐窗对 **test 段** 独立 [`build_mu_from_bars`]（time_block_base
 /// = `win.i·WF_TIME_STRIDE`），聚合残差记录。返回 (全聚合残差, 各窗独立残差 for time block 报告)。
@@ -1267,6 +1276,7 @@ fn m8_e2e_all_systems_oos() {
         // 从未测 dir_weight 执行层效应；现在 Follow/Adversary 可经 env gate 测 execution R 分解。
         apply_theta_dir_preset_from_env(&mut cfg);
         apply_enforce_gross_cap_from_env(&mut cfg);
+        apply_center_oscillation_from_env(&mut cfg); // issue #357 验收③：THETA_CENTER_OSCILLATION=1 覆盖
         cfg.margin = Some(q4_margin_model(nav_te));
         cfg.cost_model = Some(m6_cost_model());
         eprintln!("[m8] BTC {tag} test={te_lo}..{te_hi}({}) 三系统同开 run…", test.bars.len());
@@ -1322,6 +1332,49 @@ fn m8_e2e_all_systems_oos() {
         } else {
             "无(R≤0)"
         };
+
+        // ★issue #357 验收③：enabled=true 时 campaign 生产接线产物级见证（减补动作归属分桶/
+        // CenterNotAlive 丢弃率/挂起归宿/campaign 生死事件）；enabled=false 时 witness 恒空，
+        // 本段照实打印零读数（非省略——证明门关时确实零覆盖，非未触达的假阴性）。
+        {
+            let w = &r.campaign_witness;
+            let drop_rate = if w.trigger_attempts > 0 {
+                w.dropped_center_not_alive as f64 / w.trigger_attempts as f64
+            } else {
+                0.0
+            };
+            eprintln!(
+                "[m8][#357] {tag}: center_oscillation.enabled={} trigger_attempts={} \
+                 dropped_center_not_alive={} ({:.1}%) dropped_other={} action_by_level={:?} \
+                 suspension_by_source={:?} lifecycle_opened={} lifecycle_died={} \
+                 no_active_campaign_count={} resource_exhausted_count={} \
+                 other_violation_count={} other_violation_by_kind={:?} campaign_active_end={}",
+                cfg.center_oscillation.enabled,
+                w.trigger_attempts,
+                w.dropped_center_not_alive,
+                drop_rate * 100.0,
+                w.dropped_other_trigger,
+                w.action_by_level,
+                w.suspension_by_source,
+                w.lifecycle_opened,
+                w.lifecycle_died,
+                w.no_active_campaign_count,
+                w.resource_exhausted_count,
+                w.other_violation_count,
+                w.other_violation_by_kind,
+                r.campaign_book.active_count(),
+            );
+            // ★no_active_campaign_count/resource_exhausted_count 非 bug——前者是结构信号独立于
+            // 本级持仓状态的预期空仓触发（#292 CenterOscillationBook「无门」设计），后者是
+            // campaign 按级别（非按中枢）聚合共享同一份冻结 sizing 预算、连续同向触发耗尽
+            // holding 时 cash_sound_gate 的显式拒绝（真实资源约束，见 CampaignWiringWitness
+            // 字段文档）；两者均不断言恒 0。`other_violation_count` 才是真正的接线/记账逻辑
+            // 错误警报，必须恒 0。
+            assert_eq!(
+                w.other_violation_count, 0,
+                "接线/记账逻辑错误计数必须恒 0（NoActiveCampaign/资源耗尽除外，见对应分桶字段）"
+            );
+        }
 
         report.push_str(&format!(
             "| {tag} | {} | {:+.0} | {:.0} | {:.0} | {:.0} | {:.0} | {:+.0} | {:.4} | {}/{}/{} | {} | {} | {} | {}/{} | {} | {} | {:+.0} | {:+.0} | {} |\n",

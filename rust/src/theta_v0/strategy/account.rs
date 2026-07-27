@@ -348,6 +348,18 @@ impl ParallelAccountLedger {
             .sum()
     }
 
+    /// 按身份读成本基聚合（**派生视图**：现算投影，非存储，与 [`balance`](Self::balance) 同规格）
+    /// ——issue #357：本仓口径落地（编排者裁定 A，`Core{level}` 身份账户）取数入口，喂
+    /// [`super::short_diff_bucket::CoreCostBasisSnapshot`] 构造。同身份多仓位节点分实例成本基
+    /// 求和（同 `balance` 聚合口径，仅作派生呈现，非 canonical 存储）。
+    pub fn cost_basis(&self, account: AccountIdentity) -> f64 {
+        self.instances
+            .values()
+            .filter(|i| i.key.account == account)
+            .map(|i| i.cost_basis)
+            .sum()
+    }
+
     /// 按身份 × 声部方向读分量余额（**派生视图**：现算投影，非存储）——★#237 断言门
     /// 按方向拆查（#234 蓝图依据：分侧账禁净额 P_sep，「多头腿和空头腿先作为两个独立
     /// 坐标存在」；用户裁 2026-07-24）：一类卖批查**多侧**分量、一类买批查**空侧**分量。
@@ -546,6 +558,38 @@ mod tests {
         assert_eq!(book.balance(AccountIdentity::ReverseOpen { level: 0 }), -6.0, "聚合 = 两实例之和（派生）");
         assert_eq!(book.instance(&sd_open.key).unwrap().qty, -4.0, "实例一不被实例二污染");
         assert_eq!(book.instance(&sd_key2).unwrap().qty, -2.0);
+    }
+
+    /// ★issue #357：`cost_basis` 聚合读数与 `balance` 同规格——同身份多实例求和，
+    /// 减仓按均价法释放后聚合值同步下修（本仓口径落地取数入口的正确性证据）。
+    #[test]
+    fn cost_basis_aggregates_per_identity_like_balance() {
+        let mut book = ParallelAccountLedger::new();
+        let open = order(AccountIdentity::Core { level: 3 }, 3, VoiceSide::Long, ActionReason::Open, 300.0, 0);
+        book.post(open, 10.0, 0); // 300 股 @10 ⟹ cost_basis=3000
+        assert_eq!(book.cost_basis(AccountIdentity::Core { level: 3 }), 3_000.0);
+        assert_eq!(book.balance(AccountIdentity::Core { level: 3 }), 300.0);
+
+        // 第二仓位节点同身份加总：另一个 carrier 的 Core{3} 仓，聚合求和（同 balance 口径）。
+        let open2_key = AccountKey::new(AccountIdentity::Core { level: 3 }, 3, pos(3, 1, VoiceSide::Long, 0));
+        let open2 = AccountOrder { key: open2_key, reason: ActionReason::Open, qty_delta: 100.0, decision_bar: 1 };
+        book.post(open2, 20.0, 1); // 100 股 @20 ⟹ cost_basis=2000
+        assert_eq!(book.cost_basis(AccountIdentity::Core { level: 3 }), 5_000.0, "两实例成本基求和=3000+2000");
+        assert_eq!(book.balance(AccountIdentity::Core { level: 3 }), 400.0);
+
+        // 部分平仓按均价法释放成本基：第一仓位节点减 100 股（均价10）⟹ 成本基降 1000。
+        let half_close = AccountOrder {
+            reason: ActionReason::ReverseType1,
+            qty_delta: -100.0,
+            decision_bar: 2,
+            ..open
+        };
+        book.post(half_close, 15.0, 2);
+        assert_eq!(
+            book.cost_basis(AccountIdentity::Core { level: 3 }),
+            4_000.0,
+            "部分平仓释放成本基=1000（100股×均价10），聚合读数随之同步下修=5000-1000"
+        );
     }
 
     /// ★聚合仅派生视图（用户裁定 2026-07-23）：余额是现算投影，不是 canonical 存储；

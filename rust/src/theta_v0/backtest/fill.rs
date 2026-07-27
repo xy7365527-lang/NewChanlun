@@ -768,12 +768,18 @@ where
 ///
 /// ★#292 续修（二轮评审浮出的挂起悬空泄漏）：`ChainConsumed::Rebased` 分支接入
 /// `osc_books[lvl].on_chain_rebase`——重基后挂起按身份核对新链，迁移/终结二分，禁悬空。
+///
+/// ★issue #357：新增 `witness` 观测参数（[`oscillation_campaign::CampaignWiringWitness`]）——
+/// 逐挂起终结来源（挂起归宿）+ 逐触发构造结果（`CenterNotAlive` 丢弃率分母/分子）落账，
+/// 纯观测不改变本函数既有决策（动作产出逻辑逐字节不变，同 `CenterOscillationActionRecord`
+/// 既有先例）。
 fn step_center_oscillation(
     bar: usize,
     classification_i: &classifier::Classification,
     classification_step: &classifier::Classification,
     cl_machines: &mut Vec<classifier::center_lifecycle::CenterEventMachine>,
     osc_books: &mut Vec<super::super::strategy::center_oscillation_trade::CenterOscillationBook>,
+    witness: &mut super::super::strategy::oscillation_campaign::CampaignWiringWitness,
 ) -> Vec<super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord> {
     use classifier::center_lifecycle::{CenterEventMachine, CenterId, ChainConsumed, PointOutcome};
     use super::super::strategy::center_oscillation_trade::{
@@ -796,6 +802,7 @@ fn step_center_oscillation(
             ChainConsumed::Advanced { events, .. } => {
                 for ev in events.iter() {
                     for outcome in osc_books[lvl].on_lifecycle_event(ev) {
+                        witness.record_suspension_source(outcome.source);
                         if let Some(action) = outcome.cover_action {
                             actions.push(CenterOscillationActionRecord {
                                 bar,
@@ -809,6 +816,7 @@ fn step_center_oscillation(
             }
             ChainConsumed::Rebased { .. } => {
                 for outcome in osc_books[lvl].on_chain_rebase(chain) {
+                    witness.record_suspension_source(outcome.source);
                     if let Some(action) = outcome.cover_action {
                         actions.push(CenterOscillationActionRecord {
                             bar,
@@ -829,6 +837,7 @@ fn step_center_oscillation(
                 };
                 if let Ok(PointOutcome::Event(ev)) = cl_machines[lvl].push_point(p.bits, p.source_index, target) {
                     for outcome in osc_books[lvl].on_lifecycle_event(&ev) {
+                        witness.record_suspension_source(outcome.source);
                         if let Some(action) = outcome.cover_action {
                             actions.push(CenterOscillationActionRecord {
                                 bar,
@@ -859,7 +868,10 @@ fn step_center_oscillation(
             } else {
                 continue; // 无买/卖侧确认 bit（不应出现在 bsp 列表中）——防御性跳过，不构造。
             };
-            if let Ok(trigger) = CenterOscillationTrigger::new(lvl as u32, alive, signal_side, price, p.source_index) {
+            let trigger_result =
+                CenterOscillationTrigger::new(lvl as u32, alive, signal_side, price, p.source_index);
+            witness.record_trigger_result(&trigger_result);
+            if let Ok(trigger) = trigger_result {
                 if let Some(action) = osc_books[lvl].on_trigger(trigger) {
                     actions.push(CenterOscillationActionRecord {
                         bar,
@@ -872,6 +884,200 @@ fn step_center_oscillation(
         }
     }
     actions
+}
+
+/// issue #357（T4/#294 生产实例化）：`step_center_oscillation` 产出的减/补动作 → 每仓
+/// campaign 生死驱动 + 对偶事件记账（ShortDiff 成本基 + Realize 盈亏，经 closed_loop 带门
+/// 通道）的接线点。纯函数化——可脱离完整 fill 循环直接单测（同 `step_center_oscillation`
+/// 先例），不读取 `tower_i`/pan_div 门内部。
+///
+/// 顺序：先按本仓口径（编排者裁定 A：`Core{level}` 身份账户）逐级 `sync_position`（本级持仓
+/// 空⟺持仓生死判据），再逐条消费本 bar 新产出的减/补动作（`apply_action`）——与生产调用点
+/// `pi_theta_fill_loop_overlay` 的既有顺序一致。
+fn drive_campaign_wiring(
+    n_levels: u32,
+    account_view: &strategy::account::ParallelAccountLedger,
+    new_osc_actions: &[super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord],
+    price: i64,
+    risk_mode: super::super::closed_loop::state::RiskMode,
+    campaign_book: &mut super::super::strategy::oscillation_campaign::CampaignBook,
+    witness: &mut super::super::strategy::oscillation_campaign::CampaignWiringWitness,
+) {
+    for lvl in 0..n_levels {
+        let account = strategy::account::AccountIdentity::Core { level: lvl };
+        // ★money 字段口径统一 `as i64`（同 `backtest::ledger::TwLedgerThread::sync_basis_raw`
+        // 的 `nav0 as i64`/`(units.abs()*entry_cost.abs()) as i64` 截断惯例，非本票新引入）。
+        let snapshot = super::super::strategy::short_diff_bucket::CoreCostBasisSnapshot::new(
+            account_view.balance(account) as i64,
+            account_view.cost_basis(account) as i64,
+        );
+        if let Some(event) = campaign_book.sync_position(lvl, snapshot) {
+            witness.record_lifecycle(event);
+        }
+    }
+    for rec in new_osc_actions {
+        witness.record_action(rec.level, rec.action);
+        match campaign_book.apply_action(rec.level, rec.action, price, risk_mode) {
+            Ok(_outcome) => {}
+            Err(violation) => witness.record_violation(violation),
+        }
+    }
+}
+
+#[cfg(test)]
+mod campaign_wiring_tests {
+    //! issue #357 单测：本仓取数（`Core{level}` 身份账户）→ campaign 生死 + 减/补动作真实
+    //! 记账。覆盖：① 本仓口径落地（account_view 取数正确）；② sizing=1/3 落地（经
+    //! `oscillation_campaign::OscillationCampaign::reduce_units` 间接见证）；③ campaign
+    //! sync_position 随真实持仓事件流生死；④ witness 计数正确。
+    use super::*;
+    use super::super::super::strategy::account::{AccountIdentity, AccountKey, AccountOrder, ActionReason};
+    use super::super::super::strategy::center_oscillation_trade::{
+        CenterOscillationAction, CenterOscillationActionRecord,
+    };
+    use super::super::super::strategy::interp::{EntryCertificate, PositionNodeId};
+    use super::super::super::strategy::ledger::TStage;
+    use super::super::super::strategy::oscillation_campaign::{CampaignBook, CampaignWiringWitness};
+    use super::super::super::strategy::voice::VoiceSide;
+    use super::super::super::classifier::recursive_tower::ElementId;
+    use super::super::super::closed_loop::state::RiskMode;
+
+    fn core_key(level: u32) -> AccountKey {
+        AccountKey::new(
+            AccountIdentity::Core { level },
+            level,
+            PositionNodeId {
+                carrier: ElementId { level, ordinal: 0 },
+                entry_certificate: Some(EntryCertificate { level, source_index: 0 }),
+                side: VoiceSide::Long,
+                generation: 0,
+            },
+        )
+    }
+
+    fn record(level: u32, action: CenterOscillationAction) -> CenterOscillationActionRecord {
+        CenterOscillationActionRecord {
+            bar: 0,
+            level,
+            center: classifier::center_lifecycle::CenterId::of(&super::super::super::types::Center {
+                zd: 100,
+                zg: 200,
+                dd: 98,
+                gg: 202,
+                start_index: 0,
+                end_index: 10,
+            }),
+            action,
+        }
+    }
+
+    /// ★本仓取数正确：`account_view` 开仓 300 股 @10（cost_basis=3000）后，`drive_campaign_wiring`
+    /// 应据此对 level 0 开局 campaign（notional_in/holding=3000，与 #197 account 层 `Core{0}`
+    /// 取数一致），非编造/写死值。
+    #[test]
+    fn drive_campaign_wiring_reads_core_account_and_opens_campaign() {
+        let mut account_view = strategy::account::ParallelAccountLedger::new();
+        let open = AccountOrder {
+            key: core_key(0),
+            reason: ActionReason::Open,
+            qty_delta: 300.0,
+            decision_bar: 0,
+        };
+        account_view.post(open, 10.0, 0); // 300 股 @10 ⟹ Core{0} balance=300, cost_basis=3000
+
+        let mut book = CampaignBook::new();
+        let mut witness = CampaignWiringWitness::new();
+        drive_campaign_wiring(1, &account_view, &[], 12, RiskMode::Normal, &mut book, &mut witness);
+
+        let campaign = book.campaign(0).expect("Core{0} 持仓非空 ⟹ 应已开局 campaign");
+        assert_eq!(campaign.tw().notional_in, 3_000, "notional_in=本仓口径取数 cost_basis（非编造）");
+        assert_eq!(campaign.tw().holding, 3_000);
+        assert_eq!(campaign.tw().stage, TStage::CostReduction);
+        assert_eq!(witness.lifecycle_opened, 1, "witness 记录一次开仓生事件");
+    }
+
+    /// ★sizing=1/3 落地 + 动作按 (级别, 动作) 归属正确：Core{0} 持仓 300 股，`Reduce` 动作应
+    /// 卖出 100（300/3，#348 裁定），witness 归属分桶恰记一次 (0, reduce)。
+    #[test]
+    fn drive_campaign_wiring_sizes_reduce_to_one_third_and_tallies_action_by_level() {
+        let mut account_view = strategy::account::ParallelAccountLedger::new();
+        let open = AccountOrder {
+            key: core_key(0),
+            reason: ActionReason::Open,
+            qty_delta: 300.0,
+            decision_bar: 0,
+        };
+        account_view.post(open, 10.0, 0);
+
+        let mut book = CampaignBook::new();
+        let mut witness = CampaignWiringWitness::new();
+        // 先开局（无动作），再喂一条 Reduce。
+        drive_campaign_wiring(1, &account_view, &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        let actions = vec![record(0, CenterOscillationAction::Reduce)];
+        drive_campaign_wiring(1, &account_view, &actions, 12, RiskMode::Normal, &mut book, &mut witness);
+
+        let campaign = book.campaign(0).unwrap();
+        assert_eq!(
+            campaign.short_diff().bucket().open_units(),
+            100,
+            "sizing=当时持仓(300)/3=100（#348 裁定，整数除法）落地"
+        );
+        assert_eq!(witness.action_by_level.get(&(0, "reduce")), Some(&1), "归属分桶：level 0 Reduce 恰一次");
+        assert_eq!(witness.no_active_campaign_count, 0, "campaign 已开局 ⟹ 无 NoActiveCampaign 拒绝");
+        assert_eq!(witness.other_violation_count, 0, "接线正常路径下其余通道拒绝恒 0");
+    }
+
+    /// ★campaign 随真实事件流生死：Core{0} 从空仓→持仓→全平，`drive_campaign_wiring` 逐 bar
+    /// 消费 `account_view` 真实状态（非模拟快照），campaign 应恰好随之开局/终结。
+    #[test]
+    fn drive_campaign_wiring_lifecycle_follows_real_account_event_stream() {
+        let mut account_view = strategy::account::ParallelAccountLedger::new();
+        let mut book = CampaignBook::new();
+        let mut witness = CampaignWiringWitness::new();
+
+        // bar0：仍空仓——no-op。
+        drive_campaign_wiring(1, &account_view, &[], 10, RiskMode::Normal, &mut book, &mut witness);
+        assert!(book.campaign(0).is_none());
+
+        // bar1：真实开仓 fill（200 股 @15）——campaign 应开局。
+        let open = AccountOrder {
+            key: core_key(0),
+            reason: ActionReason::Open,
+            qty_delta: 200.0,
+            decision_bar: 1,
+        };
+        account_view.post(open, 15.0, 1);
+        drive_campaign_wiring(1, &account_view, &[], 15, RiskMode::Normal, &mut book, &mut witness);
+        assert!(book.campaign(0).is_some(), "真实持仓事件流 ⟹ campaign 开局");
+        assert_eq!(witness.lifecycle_opened, 1);
+
+        // bar2：真实全平 fill——campaign 应终结。
+        let close = AccountOrder {
+            key: core_key(0),
+            reason: ActionReason::ReverseType1,
+            qty_delta: -200.0,
+            decision_bar: 2,
+        };
+        account_view.post(close, 18.0, 2);
+        drive_campaign_wiring(1, &account_view, &[], 18, RiskMode::Normal, &mut book, &mut witness);
+        assert!(book.campaign(0).is_none(), "真实全平事件流 ⟹ campaign 终结");
+        assert_eq!(witness.lifecycle_died, 1);
+    }
+
+    /// ★`NoActiveCampaign` 分桶：向未开局的级别喂动作，`apply_action` 返回 `NoActiveCampaign`——
+    /// 本仓无持仓时结构信号仍可能触发（#292 CenterOscillationBook「无门」设计，独立于本级
+    /// Core 持仓状态），这是**预期经济场景**而非接线错误，故计入 `no_active_campaign_count`
+    /// 而非 `other_violation_count`（真正的接线/记账错误警报，本用例应恒 0）。
+    #[test]
+    fn drive_campaign_wiring_tallies_no_active_campaign_separately_from_other_violations() {
+        let account_view = strategy::account::ParallelAccountLedger::new(); // 空仓——无 campaign
+        let mut book = CampaignBook::new();
+        let mut witness = CampaignWiringWitness::new();
+        let actions = vec![record(0, CenterOscillationAction::Reduce)];
+        drive_campaign_wiring(1, &account_view, &actions, 12, RiskMode::Normal, &mut book, &mut witness);
+        assert_eq!(witness.no_active_campaign_count, 1, "空仓级别喂动作 ⟹ NoActiveCampaign 分桶计数（预期读数）");
+        assert_eq!(witness.other_violation_count, 0, "非 NoActiveCampaign 的其余违规恒 0（本用例不触发）");
+    }
 }
 
 #[cfg(test)]
@@ -963,13 +1169,16 @@ mod center_oscillation_wiring_tests {
         let step = two_level_step(vec![sub_level_bsp_point(11, VoiceSide::Short, 200)]); // 中轴150，200≥中轴=上半区
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
-        let actions = step_center_oscillation(7, &classification, &step, &mut cl_machines, &mut osc_books);
+        let mut witness = super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let actions = step_center_oscillation(7, &classification, &step, &mut cl_machines, &mut osc_books, &mut witness);
         assert_eq!(actions.len(), 1, "门开+在场+次级别卖点 ⟹ 恰一条动作可见");
         assert_eq!(actions[0].bar, 7);
         assert_eq!(actions[0].level, 1, "触发落在本级（level 1），非次级别（level 0）");
         assert_eq!(actions[0].center, CenterId::of(&c0), "身份=alive_center()");
         assert_eq!(actions[0].action, CenterOscillationAction::Reduce, "次级别卖点=上沿高抛");
         assert!(osc_books[1].is_suspended(CenterId::of(&c0)));
+        assert_eq!(witness.trigger_attempts, 1, "★issue #357：触发构造尝试计入 witness");
+        assert_eq!(witness.dropped_center_not_alive, 0, "本级在场 ⟹ 不丢弃");
     }
 
     /// 门控开启臂 · 触发通路（B 裁定，另一边界侧）：次级别（level 0）已确认买点（`Long`=下沿
@@ -981,16 +1190,17 @@ mod center_oscillation_wiring_tests {
             Classification { levels: vec![LevelState::default(), level_with_centers(vec![c0])] };
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
+        let mut witness = super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
         let empty_step = two_level_step(Vec::new());
         let reduce_step = two_level_step(vec![sub_level_bsp_point(10, VoiceSide::Short, 200)]);
-        let _ = step_center_oscillation(0, &classification, &empty_step, &mut cl_machines, &mut osc_books);
+        let _ = step_center_oscillation(0, &classification, &empty_step, &mut cl_machines, &mut osc_books, &mut witness);
         let reduce_actions =
-            step_center_oscillation(1, &classification, &reduce_step, &mut cl_machines, &mut osc_books);
+            step_center_oscillation(1, &classification, &reduce_step, &mut cl_machines, &mut osc_books, &mut witness);
         assert_eq!(reduce_actions[0].action, CenterOscillationAction::Reduce);
         assert!(osc_books[1].is_suspended(CenterId::of(&c0)));
 
         let cover_step = two_level_step(vec![sub_level_bsp_point(20, VoiceSide::Long, 100)]); // 100≤中轴150=下半区
-        let actions = step_center_oscillation(2, &classification, &cover_step, &mut cl_machines, &mut osc_books);
+        let actions = step_center_oscillation(2, &classification, &cover_step, &mut cl_machines, &mut osc_books, &mut witness);
         assert_eq!(actions.len(), 1, "门开+挂起+次级别买点 ⟹ 恰一条回补动作可见");
         assert_eq!(actions[0].action, CenterOscillationAction::Replenish, "次级别买点=下沿回补");
         assert_eq!(actions[0].center, CenterId::of(&c0));
@@ -1005,9 +1215,10 @@ mod center_oscillation_wiring_tests {
         let classification = Classification { levels: vec![level_with_centers(vec![c0])] };
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
+        let mut witness = super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
         // 先驱动一次空 step 让链同步（Adopted）+ 触发一次高抛挂起（不经本函数：直接摆状态）。
         let empty_step = Classification { levels: vec![LevelState::default()] };
-        let _ = step_center_oscillation(0, &classification, &empty_step, &mut cl_machines, &mut osc_books);
+        let _ = step_center_oscillation(0, &classification, &empty_step, &mut cl_machines, &mut osc_books, &mut witness);
         osc_books[0].on_trigger(
             super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
                 0,
@@ -1024,10 +1235,15 @@ mod center_oscillation_wiring_tests {
         let step_with_bsp =
             Classification { levels: vec![level_with_bsp(vec![third_class_buy_break(20, c0)])] };
         let actions =
-            step_center_oscillation(1, &classification, &step_with_bsp, &mut cl_machines, &mut osc_books);
+            step_center_oscillation(1, &classification, &step_with_bsp, &mut cl_machines, &mut osc_books, &mut witness);
         assert_eq!(actions.len(), 1, "三类买点破坏终结 ⟹ 收手回补动作可见");
         assert_eq!(actions[0].action, CenterOscillationAction::Replenish);
         assert_eq!(actions[0].center, CenterId::of(&c0));
+        assert_eq!(
+            witness.suspension_by_source.get("broken_by_third_class_buy"),
+            Some(&1),
+            "★issue #357：挂起归宿分桶记录三类买点破坏终结来源"
+        );
         assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "终结=挂起清空");
     }
 
@@ -1042,11 +1258,12 @@ mod center_oscillation_wiring_tests {
         let c2 = center(22, 27, 500, 600);
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
+        let mut witness = super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
 
         // bar0：链=[c0]，首次消费（Adopted），不产生任何生命周期事件。
         let bar0_classification = Classification { levels: vec![level_with_centers(vec![c0])] };
         let empty_step = Classification { levels: vec![LevelState::default()] };
-        let _ = step_center_oscillation(0, &bar0_classification, &empty_step, &mut cl_machines, &mut osc_books);
+        let _ = step_center_oscillation(0, &bar0_classification, &empty_step, &mut cl_machines, &mut osc_books, &mut witness);
 
         // 直接摆两笔挂起（c0 已在场；c1 尚未在链上——挂起按身份匹配，不要求当前在场，D 裁定）。
         osc_books[0].on_trigger(
@@ -1075,7 +1292,7 @@ mod center_oscillation_wiring_tests {
         // bar1：链前缀分叉为 [c1, c2]（已消费的第 0 格身份从 c0 改写为 c1）⟹ Rebased。
         // 新链含 c1、不含 c0。
         let bar1_classification = Classification { levels: vec![level_with_centers(vec![c1, c2])] };
-        let actions = step_center_oscillation(1, &bar1_classification, &empty_step, &mut cl_machines, &mut osc_books);
+        let actions = step_center_oscillation(1, &bar1_classification, &empty_step, &mut cl_machines, &mut osc_books, &mut witness);
         assert!(actions.is_empty(), "RebaseVanished 终结不回补，本 bar 无 cover_action 可见动作");
         assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "c0 已从新链消失⟹终结，不再悬空");
         assert!(osc_books[0].is_suspended(CenterId::of(&c1)), "c1 仍在新链上⟹跟随迁移，挂起原样保留");
@@ -1209,6 +1426,11 @@ where
         Vec::new();
     let mut osc_actions: Vec<super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord> =
         Vec::new();
+    // ★issue #357（#294/#278 生产接线最后一公里）：每仓 campaign 账簿（每级别一台，惰性按级
+    // 增长，同 osc_books 粒度）+ 生产接线观测统计。门关 ⟹ 本段整体不驱动（下方消费点全在
+    // `pan_div_hist` 门内），二者恒 default/空，零开销，订单轨逐字节不变（bit-exact 不破）。
+    let mut campaign_book = super::super::strategy::oscillation_campaign::CampaignBook::new();
+    let mut campaign_witness = super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
     let pan_div_hist = if config.center_oscillation.enabled && !bars.is_empty() {
         let closes: Vec<f64> = bars
             .iter()
@@ -1719,15 +1941,37 @@ where
                 // #292（T2 接线点二，触发源改码）：级数对齐 + 逐级驱动本 bar 中枢生命周期事件
                 // （born/broken/reset/superseded）+ 次级别买卖点 → `CenterOscillationTrigger` 构造
                 // 消费（A 裁定：中枢身份取本级 `alive_center()`；B 裁定：触发源=次级别买卖点，
-                // 不依赖上面的 pan_div_hist/gate）→ 挂起账减补动作上 osc_actions（接线可见性证据；
-                // 真实记账是 T3/#293 职责，本层不动订单/账本）。
-                osc_actions.extend(step_center_oscillation(
+                // 不依赖上面的 pan_div_hist/gate）→ 挂起账减补动作（接线可见性证据）。
+                let new_osc_actions = step_center_oscillation(
                     i,
                     &classification_i,
                     &classification_step,
                     &mut cl_machines,
                     &mut osc_books,
-                ));
+                    &mut campaign_witness,
+                );
+                // ★issue #357（T4/#294 生产实例化，编排者裁定 A：本仓=`Core{level}` 身份账户）：
+                // 每仓 campaign 生死驱动 + 减/补动作落成对偶事件（ShortDiff 成本基 + Realize
+                // 盈亏）经 closed_loop 带门通道（OQ-9 + CashUnsound）入 TW——独立抽为
+                // `drive_campaign_wiring`（可脱离完整 fill 循环直接单测，同 `step_center_oscillation`
+                // 先例）。
+                //
+                // 取数时点（可复检）：`account_view` 反映的是**本 bar 尚未过账前**（前 bar 收盘）
+                // 的 Core{level} 持仓——本段落在本 bar 主策略核心仓开/平仓镜像（下方「关闭消费
+                // 循环」/「开腿：准入信号腿登记」段）之前执行，与 `step_center_oscillation`
+                // 本身的调用时点一致（次级别信号驱动的震荡短差决策，读的是「进入本 bar 时」的
+                // 本仓持仓，非本 bar 内主策略自身信号造成的仓位变化——两者是同 bar 内正交的
+                // 两条独立决策源，不应互相以未定义的执行顺序静默耦合）。
+                drive_campaign_wiring(
+                    classification_i.levels.len() as u32,
+                    &account_view,
+                    &new_osc_actions,
+                    px as i64,
+                    tw_risk_mode,
+                    &mut campaign_book,
+                    &mut campaign_witness,
+                );
+                osc_actions.extend(new_osc_actions);
             }
             let (next_active, standard_p_star, (mut order, _protocol_event), step_trace) = coverage::pi_theta_step_traced(
                 step_work,
@@ -2557,6 +2801,8 @@ where
         r_decomp: Some(r_decomp),
         account_view,
         center_oscillation_actions: osc_actions,
+        campaign_book,
+        campaign_witness,
     }
 }
 
@@ -2598,6 +2844,13 @@ pub(super) struct FillOutput {
     /// 本轨不改任何既有订单/账本语义。
     pub(super) center_oscillation_actions:
         Vec<super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord>,
+    /// issue #357（T4/#294 生产实例化）：每仓 campaign 账簿终态——π overlay 路径逐 bar
+    /// `sync_position`/`apply_action` 驱动；v1/dual 路径未接线 ⟹ 恒空账簿（诚实不伪造，
+    /// 同 `center_oscillation_actions` 先例）。
+    pub(super) campaign_book: super::super::strategy::oscillation_campaign::CampaignBook,
+    /// issue #357 验收③：enabled=true wf8 产物级见证读数（减补动作归属分桶/`CenterNotAlive`
+    /// 丢弃率/挂起归宿/campaign 生死事件）。v1/dual 路径未接线 ⟹ 恒 `default()`。
+    pub(super) campaign_witness: super::super::strategy::oscillation_campaign::CampaignWiringWitness,
 }
 
 /// ★ mark-to-market 闭环 plan+fill（Task A，消除开环单帧）。
@@ -2907,6 +3160,8 @@ pub(super) fn plan_and_fill_mtm(
         r_decomp: None,           // v1 无 R 分解（M6 只接生产 π 路径，诚实 None）
         account_view: strategy::account::ParallelAccountLedger::new(), // v1 无腿级生命周期（诚实空，#197）
         center_oscillation_actions: Vec::new(), // v1 无 #292 门控接线（诚实空，同 typed_ledger 先例）
+        campaign_book: super::super::strategy::oscillation_campaign::CampaignBook::new(), // v1 无 #357 接线（诚实空）
+        campaign_witness: super::super::strategy::oscillation_campaign::CampaignWiringWitness::new(),
     }
 }
 
@@ -3376,6 +3631,8 @@ pub(super) fn plan_and_fill_mtm_dual(
             r_decomp: None,
             account_view: strategy::account::ParallelAccountLedger::new(), // 无腿级生命周期（诚实空，#197）
             center_oscillation_actions: Vec::new(), // dual 路径无 #292 门控接线（诚实空，同 typed_ledger 先例）
+            campaign_book: super::super::strategy::oscillation_campaign::CampaignBook::new(), // dual 路径无 #357 接线（诚实空）
+            campaign_witness: super::super::strategy::oscillation_campaign::CampaignWiringWitness::new(),
         },
         ledger,
         leg_log,

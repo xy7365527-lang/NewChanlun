@@ -47,7 +47,7 @@
 
 use super::super::closed_loop::state::RiskMode;
 use super::super::closed_loop::transition::{cash_sound_gate, stage_progression, TransitionError};
-use super::center_oscillation_trade::CenterOscillationAction;
+use super::center_oscillation_trade::{CenterOscillationAction, SuspensionTerminationSource, TriggerError};
 use super::ledger::{tw_step, LedgerComp, RiskPolicy, TwEvent, TwState};
 use super::short_diff_bucket::{CoreCostBasisSnapshot, ShortDiffAccount, ShortDiffViolation};
 use std::collections::BTreeMap;
@@ -276,6 +276,145 @@ impl CampaignBook {
     }
 }
 
+/// 生产接线观测统计（issue #357 验收③：enabled=true wf8 真实验收——减补动作出现且归属正确、
+/// `CenterNotAlive` 丢弃率、挂起归宿、campaign 生死事件均须产物级可见）。
+///
+/// 门关（`center_oscillation.enabled=false`）⟹ 本结构全程不构造/不喂入，恒 `default()`
+/// （诚实空，同 [`super::center_oscillation_trade::CenterOscillationActionRecord`] 先例）——
+/// 累计只是**观测读数**，不参与任何裁决/门控，接入/移除不改变生产行为。
+#[derive(Debug, Default, Clone)]
+pub struct CampaignWiringWitness {
+    /// 次级别买卖点触发候选构造尝试总数（`Ok`+`Err` 之和，丢弃率分母）。
+    pub trigger_attempts: usize,
+    /// `TriggerError::CenterNotAlive` 丢弃数（A 裁定：本级中枢不在场，丢弃率分子）。
+    pub dropped_center_not_alive: usize,
+    /// 其余触发构造拒绝（`FlatSignal`/`PriceOutsideZone`）丢弃数——与 `CenterNotAlive` 分列，
+    /// 不混入同一桶（丢弃成因不同，混计会掩盖「中枢不在场」这一验收关注点）。
+    pub dropped_other_trigger: usize,
+    /// 减/补动作按 (级别, 动作) 分桶计数——issue #357 验收「归属正确」的产物级见证。
+    pub action_by_level: BTreeMap<(u32, &'static str), usize>,
+    /// 挂起终结来源分桶（挂起归宿：`BrokenByThirdClassBuy`/`.._Sell`/`Reset`/`Superseded`/
+    /// `RebaseVanished` 五源，见 [`super::center_oscillation_trade::SuspensionTerminationSource`]）。
+    pub suspension_by_source: BTreeMap<&'static str, usize>,
+    /// campaign 开仓生事件计数（[`CampaignLifecycleEvent::Opened`]）。
+    pub lifecycle_opened: usize,
+    /// campaign 全平死事件计数（[`CampaignLifecycleEvent::Died`]）。
+    pub lifecycle_died: usize,
+    /// `apply_action` 遇 [`CampaignViolation::NoActiveCampaign`] 的计数——★非接线错误：
+    /// `CenterOscillationBook`（#292 T2）的减/补决策独立于本级 Core 持仓状态（「无门」设计，
+    /// 见该模块文档），故结构信号在本级空仓时触发是**真实经济场景**（结构说做、但当前无仓可
+    /// 操作），非 bug。真实生产数据（wf8 实测）此项非零属预期读数，报告层照实呈现即可，
+    /// 不得断言恒 0（`other_violation_count` 才是真正的接线错误警报）。
+    pub no_active_campaign_count: usize,
+    /// `apply_action` 遇 [`CampaignViolation::ShortDiff`]`(`[`ShortDiffViolation::ChannelRejected`]`)`
+    /// 的计数——★同样非接线错误，而是**资源耗尽的真实经济场景**（wf8 实测坐实，2026-07-27）：
+    /// `OscillationCampaign::reduce_units`/`replenish_units`（#294/#348 既有落地代码，本票不
+    /// 改动）按**campaign 开局时冻结的总量**算 sizing（非「当前剩余可减仓量」），而
+    /// `CampaignBook` 按**级别**（非按中枢）聚合——同级多个中枢各自独立触发 `Reduce` 会共享
+    /// 同一份 `holding` 预算；当连续同向触发次数超过冻结总量所能支撑的轮次（如原始持仓
+    /// 3 等分后再遇第 4 次 `Reduce`），`cash_sound_gate` 显式拒绝（`holding` 将变负）——这正是
+    /// 「违规显式失败」设计纪律的产物级见证（非静默钳制/吸收），资源约束下的诚实拒绝，非本票
+    /// 引入的接线缺陷。非 0 属预期读数，报告层照实呈现；`other_violation_count` 才是真正的
+    /// 接线/记账错误警报。
+    pub resource_exhausted_count: usize,
+    /// `apply_action` 遇其余 [`CampaignViolation`]（`AvgCostMismatch`/`NonPositiveUnits`/
+    /// `OverReplenish`/`UnclosedRoundTrip`/`UnitsExceedCostBasis`/`StageTransition`/
+    /// `SizingRoundsToZero`）的计数——诊断用，生产路径正常接线下恒 0（非 0 = 真正的接线/
+    /// 记账逻辑错误，与 `no_active_campaign_count`/`resource_exhausted_count` 的「预期读数」
+    /// 性质不同，不得混桶）。
+    pub other_violation_count: usize,
+    /// `other_violation_count` 的细分诊断分桶（变体名标签，如 `sizing_rounds_to_zero`/
+    /// `short_diff_units_exceed_cost_basis` 等）——定位非 0 读数的具体成因用。
+    pub other_violation_by_kind: BTreeMap<&'static str, usize>,
+}
+
+impl CampaignWiringWitness {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 记一次触发构造尝试的结果（`Ok`/`Err` 分布，丢弃率分母+分子）。
+    pub fn record_trigger_result<T>(&mut self, result: &Result<T, TriggerError>) {
+        self.trigger_attempts += 1;
+        match result {
+            Ok(_) => {}
+            Err(TriggerError::CenterNotAlive) => self.dropped_center_not_alive += 1,
+            Err(TriggerError::FlatSignal) | Err(TriggerError::PriceOutsideZone) => {
+                self.dropped_other_trigger += 1
+            }
+        }
+    }
+
+    /// 记一次挂起终结来源（挂起归宿分桶）。
+    pub fn record_suspension_source(&mut self, source: SuspensionTerminationSource) {
+        let label = match source {
+            SuspensionTerminationSource::BrokenByThirdClassBuy => "broken_by_third_class_buy",
+            SuspensionTerminationSource::BrokenByThirdClassSell => "broken_by_third_class_sell",
+            SuspensionTerminationSource::Reset => "reset",
+            SuspensionTerminationSource::Superseded => "superseded",
+            SuspensionTerminationSource::RebaseVanished => "rebase_vanished",
+        };
+        *self.suspension_by_source.entry(label).or_insert(0) += 1;
+    }
+
+    /// 记一次动作按 (级别, 动作) 分桶（归属正确性见证）。
+    pub fn record_action(&mut self, level: u32, action: CenterOscillationAction) {
+        let label = match action {
+            CenterOscillationAction::Reduce => "reduce",
+            CenterOscillationAction::Replenish => "replenish",
+        };
+        *self.action_by_level.entry((level, label)).or_insert(0) += 1;
+    }
+
+    /// 记一次 campaign 生死事件。
+    pub fn record_lifecycle(&mut self, event: CampaignLifecycleEvent) {
+        match event {
+            CampaignLifecycleEvent::Opened { .. } => self.lifecycle_opened += 1,
+            CampaignLifecycleEvent::Died { .. } => self.lifecycle_died += 1,
+        }
+    }
+
+    /// 记一次 `apply_action` 拒绝——按变体分桶（`NoActiveCampaign`/`ShortDiff(ChannelRejected)`
+    /// 是预期经济场景，其余是真正的接线/记账错误警报，见字段文档，不得混桶）。
+    pub fn record_violation(&mut self, violation: CampaignViolation) {
+        match violation {
+            CampaignViolation::NoActiveCampaign => {
+                self.no_active_campaign_count += 1;
+            }
+            CampaignViolation::ShortDiff(ShortDiffViolation::ChannelRejected(_)) => {
+                self.resource_exhausted_count += 1;
+            }
+            other => {
+                self.other_violation_count += 1;
+                let label = match other {
+                    CampaignViolation::NoActiveCampaign
+                    | CampaignViolation::ShortDiff(ShortDiffViolation::ChannelRejected(_)) => {
+                        unreachable!("上方分支已处理")
+                    }
+                    CampaignViolation::SizingRoundsToZero { .. } => "sizing_rounds_to_zero",
+                    CampaignViolation::ShortDiff(ShortDiffViolation::NonPositiveUnits(_)) => {
+                        "short_diff_non_positive_units"
+                    }
+                    CampaignViolation::ShortDiff(ShortDiffViolation::OverReplenish { .. }) => {
+                        "short_diff_over_replenish"
+                    }
+                    CampaignViolation::ShortDiff(ShortDiffViolation::UnclosedRoundTrip { .. }) => {
+                        "short_diff_unclosed_round_trip"
+                    }
+                    CampaignViolation::ShortDiff(ShortDiffViolation::AvgCostMismatch { .. }) => {
+                        "short_diff_avg_cost_mismatch"
+                    }
+                    CampaignViolation::ShortDiff(ShortDiffViolation::UnitsExceedCostBasis { .. }) => {
+                        "short_diff_units_exceed_cost_basis"
+                    }
+                    CampaignViolation::StageTransition(_) => "stage_transition",
+                };
+                *self.other_violation_by_kind.entry(label).or_insert(0) += 1;
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -494,5 +633,50 @@ mod tests {
             assert_eq!(cover.stage_event, None, "同价往返净 Realize=0 ⟹ free 不积累 ⟹ 不推进");
         }
         assert_eq!(book.campaign(0).unwrap().tw().stage, TStage::CostReduction, "趋势单边同价窗：诚实停留在 I，非硬凑到 0");
+    }
+
+    // ── CampaignWiringWitness（issue #357 验收③：产物级见证读数） ──────────
+
+    #[test]
+    fn witness_tallies_trigger_drop_rate_by_error_kind() {
+        use super::super::center_oscillation_trade::TriggerError;
+        let mut w = CampaignWiringWitness::new();
+        w.record_trigger_result::<()>(&Ok(()));
+        w.record_trigger_result::<()>(&Err(TriggerError::CenterNotAlive));
+        w.record_trigger_result::<()>(&Err(TriggerError::CenterNotAlive));
+        w.record_trigger_result::<()>(&Err(TriggerError::FlatSignal));
+        w.record_trigger_result::<()>(&Err(TriggerError::PriceOutsideZone));
+        assert_eq!(w.trigger_attempts, 5, "丢弃率分母=全部尝试次数");
+        assert_eq!(w.dropped_center_not_alive, 2, "CenterNotAlive 单独分桶（丢弃率分子）");
+        assert_eq!(w.dropped_other_trigger, 2, "FlatSignal/PriceOutsideZone 合桶（非 CenterNotAlive 关注点）");
+    }
+
+    #[test]
+    fn witness_tallies_action_by_level_and_suspension_source_and_lifecycle() {
+        let mut w = CampaignWiringWitness::new();
+        w.record_action(0, CenterOscillationAction::Reduce);
+        w.record_action(0, CenterOscillationAction::Reduce);
+        w.record_action(1, CenterOscillationAction::Replenish);
+        assert_eq!(w.action_by_level.get(&(0, "reduce")), Some(&2), "归属正确：level 0 两次 Reduce 分桶计数");
+        assert_eq!(w.action_by_level.get(&(1, "replenish")), Some(&1), "level 1 Replenish 独立分桶，不与 level 0 混计");
+
+        w.record_suspension_source(SuspensionTerminationSource::BrokenByThirdClassBuy);
+        w.record_suspension_source(SuspensionTerminationSource::Superseded);
+        w.record_suspension_source(SuspensionTerminationSource::Superseded);
+        assert_eq!(w.suspension_by_source.get("broken_by_third_class_buy"), Some(&1));
+        assert_eq!(w.suspension_by_source.get("superseded"), Some(&2), "挂起归宿分桶按来源独立累计");
+
+        w.record_lifecycle(CampaignLifecycleEvent::Opened { level: 0, notional_in: 3_000 });
+        w.record_lifecycle(CampaignLifecycleEvent::Died { level: 0, suspended_units_forfeited: 0 });
+        assert_eq!(w.lifecycle_opened, 1);
+        assert_eq!(w.lifecycle_died, 1);
+
+        assert_eq!(w.no_active_campaign_count, 0);
+        assert_eq!(w.other_violation_count, 0, "接线正常路径下其余通道拒绝计数恒 0");
+        w.record_violation(CampaignViolation::NoActiveCampaign);
+        assert_eq!(w.no_active_campaign_count, 1, "NoActiveCampaign 是预期经济场景，单独分桶");
+        assert_eq!(w.other_violation_count, 0, "不误落入其余违规桶");
+        w.record_violation(CampaignViolation::SizingRoundsToZero { held: 2 });
+        assert_eq!(w.other_violation_count, 1, "SizingRoundsToZero 是真正的记账异常，落其余桶");
     }
 }
