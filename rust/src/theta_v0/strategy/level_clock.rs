@@ -62,8 +62,14 @@
 //!    生产默认路径上**根本没有** `judge_at` 实例可与 clock_ℓ 逐点对拍。
 //!
 //!    因此本票交付的**不是**「clock_ℓ 与五钟的时点一致性」，而是弱一级的
-//!    **「clock_ℓ 满足与 `judge_at` 同一条首次观察纪律」**（因果 + 首次唯一，见 `runner.rs`
-//!    的 `lee_m3_clock_obeys_first_observation_discipline`）。「一致性实证」这一条**未兑现**，
+//!    **「clock_ℓ 满足与 `judge_at` 同一条首次观察纪律」**（因果 + 首次唯一 + 钟点不虚高，
+//!    见 `runner.rs` 的 `lee_m3_clock_obeys_first_observation_discipline`）。「首次唯一」的
+//!    **有效域是类型化身份** `(ℓ, source_index, bits_disc)`（上表第 1 行的 diff 键），**不是**
+//!    锚点 `(ℓ, source_index)`——同一锚点上 1/2/3 类点可共存（`signal.rs::bsp_bits_disc` 文档），
+//!    #361 在 3500-bar 上实测坐实（同 bar 一锚三类，无跨 bar 渐进重分类）。锚点级多响
+//!    **不**使钟点虚高：BSP 通道按级别取（`fill.rs` 的 `!ls.bsp.is_empty()`）再经
+//!    [`LevelClockTicks`] 的 `(level, kind)` BTreeSet 去重 ⟹ 同级同 bar n 点恒塌缩为 1 tick。
+//!    「一致性实证」这一条**未兑现**，
 //!    照实登记为缺口：兑现它需要先落 E2E-N5 的四钟载体（跨票域），或把 nest 门纳入默认路径
 //!    （改变 M0 语义，M3 明确不做）。
 //!
