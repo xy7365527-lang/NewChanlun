@@ -1,5 +1,12 @@
-//! ★准入门 seam（B-M2，#89）：χ/nest/k_Θ 三门 + κ 解析，自 runner.rs 纯移动
+//! ★准入门 seam（B-M2，#89）：χ/nest/k_Θ 三门 + κ 解析
 //!（设计 chanlun/plans/runner-rs-seam-designs-20260721.md §M2）。
+//!
+//! **溯源订正（#439，2026-07-27）**：本文件由 commit ec728bf6cf（#112 进场门消费
+//! 多级投影）新增；`NestChainGate` / `admit` / `typed_lookup` 一整套业务逻辑
+//! （约 900+ 行）在该提交之前的任何可达历史中都不存在，是**净新增代码**，并非
+//! 自 runner.rs 移动——旧版「纯移动」表述有误。对照同一 commit 的 `fill.rs`
+//! 才是真实纯移动（runner.rs diff 有对应删除行佐证）；本模块对应的 runner.rs
+//! 改动仅为 import/`pub use` 调整。
 //!
 //! 三道门共用一个 seam 语义——「候选/组合 → 放行或收窄 𝒦_Θ」。κ 优先序
 //!（env > config > baseline，A10 附则A 裁定接口冻结）藏在本模块内，fill loop
