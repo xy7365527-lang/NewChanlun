@@ -385,6 +385,22 @@ impl ParallelAccountLedger {
             .sum()
     }
 
+    /// 清零判据容差（#400）：`balance` 是派生视图（对 `instances`——一个
+    /// `HashMap`——逐实例 `qty` 求和），HashMap 遍历顺序不定，求和顺序不同
+    /// 可在浮点末位产生抖动；容差取值对齐本仓库既有 qty 级判据惯例
+    /// （如 `backtest/fill.rs` 用 `(closed_qty - closed as f64).abs() < 1e-9`
+    /// 核对腿级 qty，同量纲同数量级）。
+    const RESIDUAL_EPS: f64 = 1e-9;
+
+    /// 是否有残余（**清零判据**，非精确相等）：`|balance(account)| > RESIDUAL_EPS`。
+    /// 收拢调用点原本手写的 `balance(..) != 0.0` 精确浮点比较——语义不变（真实
+    /// 未清仓头寸远超 1e-9 量级，仍判 true），仅把「浮点末位抖动是否算清零」
+    /// 这一判据常量收进 account 模块（接口归属，见 #400；未证实该抖动已在生产
+    /// 发生，本方法不改变现有行为，只是给判据一个显式的、非精确相等的定义）。
+    pub fn has_residual(&self, account: AccountIdentity) -> bool {
+        self.balance(account).abs() > Self::RESIDUAL_EPS
+    }
+
     /// 历史时点余额（**派生视图**：自成交事件日志重放，无快照存储）。
     pub fn balance_as_of(&self, account: AccountIdentity, bar: usize) -> f64 {
         self.fills

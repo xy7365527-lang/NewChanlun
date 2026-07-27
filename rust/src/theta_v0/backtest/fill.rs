@@ -556,7 +556,7 @@ fn account_mirror_post(
         );
         // ★#199 断言③后半宽读法歧义测量（不置断言，待裁决）：二类卖过账时同级
         // Core{level} 残余非零则计数（post 前余额含在飞腿；宽读法场景实测发生率）。
-        if view.balance(strategy::account::AccountIdentity::Core { level }) != 0.0 {
+        if view.has_residual(strategy::account::AccountIdentity::Core { level }) {
             type2_with_core_residual_probe_bump();
         }
     }
@@ -2185,7 +2185,7 @@ where
                         leg.id.level,
                     );
                     let core_residual =
-                        account_id.is_some_and(|a| account_view.balance(a) != 0.0);
+                        account_id.is_some_and(|a| account_view.has_residual(a));
                     if let Some(reason) = account_id.and_then(|a| {
                         strategy::account::reason_of_reverse_close(a, trig.bsp_class, core_residual)
                     }) {
