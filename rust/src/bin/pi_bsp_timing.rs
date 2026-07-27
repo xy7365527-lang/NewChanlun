@@ -796,5 +796,5 @@ fn main() -> std::process::ExitCode {
 // #412 回归测试拆到独立文件（避免把本文件推过 coding-style.md 800 行硬顶；
 // 测试逻辑仍完全属于本 bin，未违反「只动 pi_bsp_timing.rs（及其测试）」的范围）。
 #[cfg(test)]
-#[path = "pi_bsp_timing_cli_args_tests.rs"]
+#[path = "pi_bsp_timing/cli_args_tests.rs"]
 mod cli_args_tests;

@@ -1,6 +1,6 @@
 //! #412 回归测试：`pi_bsp_timing` CLI 参数解析（`parse_cli_args`）。
 //!
-//! 拆到独立文件（`#[path]` 引入，见 `pi_bsp_timing.rs` 尾部）是为了不把主文件推过
+//! 拆到子目录文件（`#[path]` 引入，见 `pi_bsp_timing.rs` 尾部）是为了不把主文件推过
 //! coding-style.md 的 800 行硬顶——测试逻辑本身仍完全属于 `pi_bsp_timing` 这一个 bin，
 //! 不违反「只动 `pi_bsp_timing.rs`（及其测试）」的改动范围。
 use super::{parse_cli_args, CliArgs};
