@@ -31,6 +31,10 @@ anyhow = { version = "1", optional = true }
 rust_decimal = { version = "1", optional = true }
 rust_decimal_macros = { version = "1", optional = true }
 nautilus-core = { version = "0.60.0", default-features = false, optional = true }
+# venue 费率 datum 的 sha256 版本哈希（#360，theta_v0::venue_fee::load_datum）。optional：
+#   与 backtest 同门控（test 走 dev-dependency；CLI 走 backtest_bin feature）⟹ 默认 cdylib
+#   （Python 扩展）构建不含，零依赖膨胀。纯 Rust 标准实现（sidecar 可用 `shasum -a 256 -c` 复核）。
+sha2 = { version = "0.10", optional = true }
 
 [features]
 default = []
@@ -39,7 +43,7 @@ extension-module = ["pyo3/extension-module"]
 nautilus = ["dep:nautilus-model", "dep:nautilus-common", "dep:nautilus-trading", "dep:nautilus-backtest", "dep:nautilus-core", "dep:anyhow", "dep:rust_decimal", "dep:rust_decimal_macros"]
 # CLI 生产入口：解 theta_v0::backtest 的 #[cfg(test)] 门控为公开 API，链接 run_theta_v0_pi/load_by_symbol。
 #   含 nautilus：CLI ⑥ 用真实 BacktestEngine（task#8 acceptance[5]）。
-backtest_bin = ["nautilus"]
+backtest_bin = ["nautilus", "dep:sha2"]
 
 # ── CLI 生产入口（goal acceptance[5]：CLI 能驱动 S_Θ 产回测结果）。 ──
 # required-features：默认 cargo build 不编译它（cdylib 构建不受影响）。
@@ -91,6 +95,8 @@ required-features = ["backtest_bin"]
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# venue 费率 datum 的 sha256 校验（#360）：cargo test 下 `cfg(test)` 解 venue_fee::datum_io 门控。
+sha2 = "0.10"
 
 [profile.release]
 # 逐位等价硬约束：禁止任何会改变浮点约简顺序的优化。

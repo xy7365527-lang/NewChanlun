@@ -60,6 +60,12 @@
 pub mod config;
 pub mod types;
 
+/// venue 真实费率标定 datum（#360；规格 = `venue-fee-source-research-20260726.md` §3）——
+/// per-notional（Binance 现货 maker/taker）与 per-share + 最低佣金 + 卖出监管费（IBKR Pro 美股）
+/// 两种计费单位的原生表达 + datum 文件 sha256 版本哈希。[`config::ExecConfig::fee_schedule`]
+/// `None` ⟹ 三常数未标定 fallback（**逐位现状**），`Some` ⟹ L2 标定档。
+pub mod venue_fee;
+
 pub mod classifier;
 pub mod parser;
 pub mod strategy;

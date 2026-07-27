@@ -1126,10 +1126,14 @@ fn m6_btc_oos_r_decomposition() {
     );
     // A10 附则B 裁决2（090 措辞纪律）：一切带成本 R 数值报告强制口径标签——费率未标定，
     // 常费率数值禁作 alpha 论据/策略择优输入；datum 注入后升 [L2费率标定: datum 版本哈希]。
+    // ★#360：标签由 `ExecConfig::fee_schedule` 决定——None ⟹ L1 未标定（现状），
+    //   Some(datum) ⟹ `[L2费率标定: datum <sha256 前12位>]`（成交费率科目已 venue 标定；
+    //   持有成本三项 funding/borrow/liq 仍是常费率保底，见下行括注，不得跳级）。
     report.push_str(&format!(
-        "**口径标签：{}**（A10 附则B 强制；TW桥列＝A10 C5 对账行 ⌊funding+borrow+liq⌋——TW 账本不经构造子见持盾成本，η=tw() 高估在险权益恰此量）\n\n\
+        "**口径标签：{}**（成交费率科目；持有成本三项仍 {}）（A10 附则B 强制；TW桥列＝A10 C5 对账行 ⌊funding+borrow+liq⌋——TW 账本不经构造子见持盾成本，η=tw() 高估在险权益恰此量）\n\n\
          | 窗 | 臂 | ΣN_tΔP_t | Comm+Slip | Funding | Borrow | LiqLoss | net_r | 守恒残差 | TW桥 | n_orders |\n\
          |---|---|---|---|---|---|---|---|---|---|---|\n",
+        super::super::strategy::risk::rate_calibration_label(&plain_cfg.exec),
         super::super::strategy::risk::RATE_UNCALIBRATED_LABEL,
     ));
 
@@ -1249,9 +1253,11 @@ fn m8_e2e_all_systems_oos() {
          **认识论 L2**：真实 BTC OOS 假设检验；signal 层无 alpha ⟹ 端到端负/INCONCLUSIVE 照实（否定性结果合法）。\n\n",
     );
     // A10 附则B 裁决2（090 措辞纪律）：带成本 R 数值报告强制口径标签（费率未标定，禁作 alpha 论据）。
+    // ★#360：成交费率标签随 `ExecConfig::fee_schedule` 升降级；持有成本三项独立保持 L1。
     report.push_str(&format!(
-        "**口径标签：{}**（A10 附则B 强制，cost 三常费率保底未标定；数值禁作 alpha 论据/策略择优输入）\n\n\
+        "**口径标签：{}**（成交费率科目）／**{}**（cost 三常费率保底未标定）（A10 附则B 强制；数值禁作 alpha 论据/策略择优输入）\n\n\
          ## 四层报告\n\n",
+        super::super::strategy::risk::rate_calibration_label(&plain_cfg.exec),
         super::super::strategy::risk::RATE_UNCALIBRATED_LABEL,
     ));
 

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "venue": "BINANCE_SPOT",
+  "source_url": "https://www.binance.com/en/fee/trading",
+  "retrieved_at_utc": "2026-07-26",
+  "note": "Binance 现货（Spot & Margin）挂单/吃单费率表一手数字，见 chanlun/review-results/venue-fee-source-research-20260726.md 2.1。venue 口径 = spot（#303 裁定：本仓 BTC 数据 = data.binance.vision/data/spot/monthly/klines/BTCUSDT/1m），与 perp 费率表（未核，报告 4.1）不混用。未列品种一律不在本簿——resolve 失败即 fail-loud，禁静默退化。",
+  "entries": [
+    {
+      "symbol": "BTC",
+      "tier": "VIP0",
+      "unit": "notional",
+      "maker_bps": 10.0,
+      "taker_bps": 10.0,
+      "note": "Regular User（30 日成交额 < $1M）0.1000%/0.1000%。"
+    },
+    {
+      "symbol": "BTC",
+      "tier": "VIP0_BNB25",
+      "unit": "notional",
+      "maker_bps": 7.5,
+      "taker_bps": 7.5,
+      "note": "同档 BNB 抵扣 25% 后 0.075%/0.075%。"
+    }
+  ]
+}

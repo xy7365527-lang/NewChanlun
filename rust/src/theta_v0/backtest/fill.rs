@@ -5,6 +5,8 @@
 
 use super::super::config::ThetaConfig;
 use super::super::types::{Bar, Order, StrictAction};
+use super::super::strategy::exec::FillSide;
+use super::super::venue_fee::{FeeQuoter, LiquidityRole};
 
 /// fill 模拟（Θ_exec 基础形态，reference-theta-v0.md:49-54）。
 ///
@@ -43,9 +45,8 @@ pub(super) fn simulate_fills(
     let mut equity_curve = Vec::with_capacity(n);
     let mut trade_pnls = Vec::new();
 
-    // 费用率（bp/side → 比率）。commission + slippage（tax=0 默认）。
-    let fee_rate =
-        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    // 费率解析器（#360 单源门面）：未标定档 = 三常数合成率（逐位现状），标定档按 datum 逐笔解析。
+    let fees = super::treasury::fee_quoter(&config.exec);
 
     // 按 exec_index 建索引（同 bar 多订单按出现顺序）。
     // 简单线性扫描：订单按 exec_index 排序后与 bar 主循环对齐。
@@ -70,6 +71,7 @@ pub(super) fn simulate_fills(
             if bar.untradable || px <= 0.0 || o.qty <= 0 {
                 continue; // 不可交易 / 非法 qty ⇒ 跳过（reference:47 qty<=0 不交易）。
             }
+            let fee_rate = order_fee_rate(&fees, o, px, units);
             apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
         }
 
@@ -107,6 +109,77 @@ pub(super) fn simulate_fills(
 /// ★现金约束（多空对称）：开多需 `cash ≥ 含费 cost`（现金买入）；开空收到卖出 proceeds（cash+），
 /// 无需预付现金（保证金约束属 canonical §11/§14 K_Θ 风险可行集，v0 未建模——诚实有效域 L0：
 /// 做空保证金/借券成本未建模，标注非全 canonical §11，是 σ 双向 + TW 账本的最小兑现）。
+/// **订单 → (有符号成交方向 δ, 是否纯平仓)** 的**唯一**判定表。
+///
+/// `None` ⟹ 本订单不产生任何成交（Hold/Wait，或空仓收到纯平仓单）。抽出的理由（#360）：
+/// [`apply_order`] 的账本算术与 [`order_fee_rate`] 的费率解析**必须同源**——两份手抄的 match
+/// 会在任一侧改动时静默分叉（费率走买入档、现金流走卖出档，没有断言拦得住）。
+pub(crate) fn order_delta_close_only(action: StrictAction, units: f64) -> Option<(f64, bool)> {
+    match action {
+        StrictAction::Buy | StrictAction::Add => Some((1.0, false)),
+        StrictAction::Sell => Some((-1.0, false)),
+        StrictAction::Reduce | StrictAction::Close => {
+            if units > 0.0 {
+                Some((-1.0, true)) // 持多 ⟹ 卖出平多
+            } else if units < 0.0 {
+                Some((1.0, true)) // 持空 ⟹ 买回平空
+            } else {
+                None // 空仓无仓可平
+            }
+        }
+        StrictAction::Hold | StrictAction::Wait => None, // 不动
+    }
+}
+
+/// ★#360 venue 费率解析（生产成交回路的唯一费率取值方式）。
+///
+/// 未标定档（`ExecConfig::fee_schedule = None`）⟹ 恒为三常数合成率，与改动前**逐位相同**；
+/// 标定档 ⟹ 按本笔 (qty, px, 成交方向) 解析 datum + 未被 datum 覆盖的滑点（`FeeQuoter`）。
+///
+/// **流动性角色恒 [`LiquidityRole::Taker`]**：本引擎全部成交按 bar close 市价撮合，无挂单
+/// 语义 ⟹ 取 maker 档是声明膨胀（090）。datum 里的 maker 档留给真限价执行模型（报告 §3.1）。
+///
+/// **询价量 = 本笔可成交量的上界，且已扣掉可预知的裁量**：纯平仓单按
+/// `min(qty, |units|)` 询价（[`apply_fill`] 段 1 的同一 clamp）。剩余唯一偏差源是**开仓段
+/// 现金不足拒单**——该分支拒的是整段余量（非部分成交），故仅当"平反向段成交 + 开新仓段被拒"
+/// 同时发生**且**用 per-share 档时，最低佣金按偏大的量摊薄 ⟹ **低估成本**。彻底消除需两趟
+/// 成交（先定量再询价），属订单层改造，不在 #360；per-notional 档与未标定档无此偏差。
+fn order_fee_rate(fees: &FeeQuoter, o: &Order, px: f64, units: f64) -> f64 {
+    let Some((delta, close_only)) = order_delta_close_only(o.action, units) else {
+        return fees.fallback_rate(); // 不成交 ⟹ 费率不进算术
+    };
+    let qty = o.qty as f64;
+    let qty = if close_only { qty.min(units.abs()) } else { qty };
+    let side = if delta > 0.0 { FillSide::Buy } else { FillSide::Sell };
+    fees.rate_or_fallback(qty, px, side, LiquidityRole::Taker)
+}
+
+/// 双腿账本 [`LegOrder`](super::super::strategy::LegOrder) 的成交费率：(腿方向, 开/平) ⟹ 买卖
+/// 方向；平仓腿按 `min(qty, 该腿持仓)` 询价（`dual_ledger::apply_fill_dual` 的同一 clamp）。
+fn leg_fee_rate(
+    fees: &FeeQuoter,
+    lo: &super::super::strategy::LegOrder,
+    px: f64,
+    ledger: &dual_ledger::DualLedger,
+) -> f64 {
+    use super::super::strategy::voice::VoiceSide;
+    let (side, qty) = match (lo.leg, lo.close) {
+        (VoiceSide::Long, false) => (FillSide::Buy, lo.order.qty as f64),
+        (VoiceSide::Short, false) => (FillSide::Sell, lo.order.qty as f64),
+        (VoiceSide::Long, true) => (FillSide::Sell, (lo.order.qty as f64).min(ledger.q_long)),
+        (VoiceSide::Short, true) => (FillSide::Buy, (lo.order.qty as f64).min(ledger.q_short)),
+        (VoiceSide::Flat, _) => return fees.fallback_rate(), // Flat 腿不成交
+    };
+    fees.rate_or_fallback(qty, px, side, LiquidityRole::Taker)
+}
+
+/// 账户净持仓在窗口终点强平（含浮盈口径）的成交费率：持多 ⟹ 卖出，持空 ⟹ 买回。
+/// 询价量 = `|units|`（强平量确定，无裁量偏差）。
+fn forced_flatten_fee_rate(fees: &FeeQuoter, units: f64, px: f64) -> f64 {
+    let side = if units > 0.0 { FillSide::Sell } else { FillSide::Buy };
+    fees.rate_or_fallback(units.abs(), px, side, LiquidityRole::Taker)
+}
+
 pub(crate) fn apply_order(
     o: &Order,
     px: f64,
@@ -124,19 +197,10 @@ pub(crate) fn apply_order(
     //   多空两腿都产 `StrictAction::Close`（不带方向），故成交方向由**当前持仓符号**决定；空仓 ⟹ 无操作。
     // ★A'（codex GAP3 裁定清单③）：返回本次 fill 的费后已实现 PnL（透传 [`apply_fill`]，
     //   无平仓分量 = 0.0）——TW 账本 Realize 的唯一合法资金源。
-    let (delta, close_only): (f64, bool) = match o.action {
-        StrictAction::Buy | StrictAction::Add => (1.0, false),
-        StrictAction::Sell => (-1.0, false),
-        StrictAction::Reduce | StrictAction::Close => {
-            if *units > 0.0 {
-                (-1.0, true) // 持多 ⟹ 卖出平多
-            } else if *units < 0.0 {
-                (1.0, true) // 持空 ⟹ 买回平空
-            } else {
-                return FillOutcome::noop(); // 空仓无仓可平
-            }
-        }
-        StrictAction::Hold | StrictAction::Wait => return FillOutcome::noop(), // 不动
+    // ★#360：判定表已抽成 [`order_delta_close_only`]（与 `order_fee_rate` 的费率解析同源，
+    //   杜绝两份手抄 match 静默分叉）。语义逐字不变。
+    let Some((delta, close_only)) = order_delta_close_only(o.action, *units) else {
+        return FillOutcome::noop();
     };
     apply_fill(delta, qty, close_only, px, fee_rate, cash, units, entry_cost, trade_pnls)
 }
@@ -713,8 +777,8 @@ where
 
     let n = bars.len();
     let nav0 = if initial_nav > 0.0 { initial_nav } else { 1.0 };
-    let fee_rate =
-        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    // 费率解析器（#360 单源门面）：未标定档 = 三常数合成率（逐位现状），标定档按 datum 逐笔解析。
+    let fees = super::treasury::fee_quoter(&config.exec);
     let weights = PiThetaWeights::from_risk(&config.risk);
 
     let mut cash: f64 = nav0;
@@ -904,6 +968,7 @@ where
                 if o.qty > 0 {
                     let units_before = units;
                     // A'（清单③）：累加本 fill 的费后已实现 PnL（多 fill 同 bar 聚合——推导链第 9 条）。
+                    let fee_rate = order_fee_rate(&fees, o, px, units);
                     let fill = apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
                     tw_thread.add_realized(fill.realized);
                     cum_fee += fill.fee;
@@ -927,8 +992,8 @@ where
             let vb = voice_exec.as_deref_mut().expect("voice_enabled ⟹ Some");
             for vo in &vos {
                 let out = match vo.kind {
-                    VoiceOrderKind::Open => vb.apply_open(vo.voice, vo.side, vo.qty, px, i, fee_rate),
-                    VoiceOrderKind::Close => vb.apply_close(vo.voice, px, i, fee_rate),
+                    VoiceOrderKind::Open => vb.apply_open(vo.voice, vo.side, vo.qty, px, i, &fees),
+                    VoiceOrderKind::Close => vb.apply_close(vo.voice, px, i, &fees),
                 };
                 if out.executed_qty > 0.0 {
                     n_voice_fills += 1;
@@ -1890,7 +1955,7 @@ where
             if last_px > 0.0 {
                 let exit_bar = n.saturating_sub(1);
                 let vb = voice_exec.as_deref_mut().expect("voice_enabled ⟹ Some");
-                for cinfo in vb.settle_forced_virtual(last_px, exit_bar, fee_rate) {
+                for cinfo in vb.settle_forced_virtual(last_px, exit_bar, &fees) {
                     trade_pnls_with_forced.push(cinfo.pnl);
                     voice_trades.push(metrics::TradeRecord {
                         entry_bar: cinfo.entry_bar,
@@ -1908,6 +1973,7 @@ where
             let last_px = last_bar.close as f64 * config.tick.tick_size;
             if last_px > 0.0 {
                 let pos_sign = units.signum();
+                let fee_rate = forced_flatten_fee_rate(&fees, units, last_px);
                 let px_exit_net = last_px * (1.0 - pos_sign * fee_rate);
                 let forced_pnl = pos_sign * (px_exit_net - entry_cost) * units.abs();
                 trade_pnls_with_forced.push(forced_pnl);
@@ -2209,8 +2275,8 @@ pub(super) fn plan_and_fill_mtm(
 
     let n = bars.len();
     let nav0 = if initial_nav > 0.0 { initial_nav } else { 1.0 };
-    let fee_rate =
-        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    // 费率解析器（#360 单源门面）：未标定档 = 三常数合成率（逐位现状），标定档按 datum 逐笔解析。
+    let fees = super::treasury::fee_quoter(&config.exec);
 
     // decisions 按 exec_index 分组（开仓侧延迟成交，spec:50）。
     // exec_index = fill_bar_index(signal_index, bars, config)，
@@ -2281,6 +2347,7 @@ pub(super) fn plan_and_fill_mtm(
                 if o.qty > 0 && matches!(o.action, StrictAction::Close) {
                     let depth = d.depth as usize;
                     let units_before = units;
+                    let fee_rate = order_fee_rate(&fees, o, px, units);
                     let fill = apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
                     if fill.executed_qty <= 0.0 {
                         continue;
@@ -2335,6 +2402,7 @@ pub(super) fn plan_and_fill_mtm(
                     });
                     let depth = matched.map(|d| d.depth as usize).unwrap_or(0);
                     let units_before = units;
+                    let fee_rate = order_fee_rate(&fees, o, px, units);
                     let fill = apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
                     if fill.executed_qty <= 0.0 {
                         continue;
@@ -2444,6 +2512,7 @@ pub(super) fn plan_and_fill_mtm(
                 // 强平 PnL（成本对称，多空统一）：pos_sign=units.signum()。
                 // 平仓净价 px_exit_net：多 px(1−fee)，空 px(1+fee)。PnL = sign×(px_exit_net−entry_cost)×|units|。
                 let pos_sign = units.signum();
+                let fee_rate = forced_flatten_fee_rate(&fees, units, last_px);
                 let px_exit_net = last_px * (1.0 - pos_sign * fee_rate);
                 let forced_pnl = pos_sign * (px_exit_net - entry_cost) * units.abs();
                 trade_pnls_with_forced.push(forced_pnl);
@@ -2593,8 +2662,8 @@ pub(super) fn plan_and_fill_mtm_dual(
 
     let n = bars.len();
     let nav0 = if initial_nav > 0.0 { initial_nav } else { 1.0 };
-    let fee_rate =
-        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    // 费率解析器（#360 单源门面）：未标定档 = 三常数合成率（逐位现状），标定档按 datum 逐笔解析。
+    let fees = super::treasury::fee_quoter(&config.exec);
 
     // 账本态（M14 P^sep）：DualLedger 分腿；voice_qty/held 与净额路径同构（depth 索引单槽）。
     let mut ledger = dual_ledger::DualLedger::new(nav0);
@@ -2652,6 +2721,7 @@ pub(super) fn plan_and_fill_mtm_dual(
                 if lo.order.qty > 0 && matches!(lo.order.action, StrictAction::Close) {
                     let depth = d.depth as usize;
                     let (ql_b, qs_b) = (ledger.q_long, ledger.q_short);
+                    let fee_rate = leg_fee_rate(&fees, lo, px, &ledger);
                     let fill =
                         dual_ledger::apply_fill_dual(lo, px, fee_rate, &mut ledger, &mut trade_pnls);
                     if fill.executed_qty <= 0.0 {
@@ -2731,6 +2801,7 @@ pub(super) fn plan_and_fill_mtm_dual(
                     }
                     let depth = d.depth as usize;
                     let (ql_b, qs_b) = (ledger.q_long, ledger.q_short);
+                    let fee_rate = leg_fee_rate(&fees, lo, px, &ledger);
                     let fill =
                         dual_ledger::apply_fill_dual(lo, px, fee_rate, &mut ledger, &mut trade_pnls);
                     if fill.executed_qty <= 0.0 {
@@ -2871,6 +2942,7 @@ pub(super) fn plan_and_fill_mtm_dual(
                     leg: VoiceSide::Long,
                     close: true,
                 };
+                let fee_rate = leg_fee_rate(&fees, &lo, last_px, &ledger);
                 let fill = dual_ledger::apply_fill_dual(
                     &lo, last_px, fee_rate, &mut ledger, &mut trade_pnls_with_forced,
                 );
@@ -2905,6 +2977,7 @@ pub(super) fn plan_and_fill_mtm_dual(
                     leg: VoiceSide::Short,
                     close: true,
                 };
+                let fee_rate = leg_fee_rate(&fees, &lo, last_px, &ledger);
                 let fill = dual_ledger::apply_fill_dual(
                     &lo, last_px, fee_rate, &mut ledger, &mut trade_pnls_with_forced,
                 );
@@ -3374,6 +3447,295 @@ mod level_cap_reclamp_tests {
             s.per_level_sparsity_has_no_unexplained_violation(),
             "逐级稀疏性无未解释违例（本路径两级均有 tick，off_clock={}）",
             s.n_levels_off_clock_delta
+        );
+    }
+}
+
+/// ★#360 venue 费率标定接线测试：`ExecConfig::fee_schedule` 的 None/Some 两支在**生产成交
+/// 回路**上的可观测差别（模块内单测只验算术，本组验的是"账本确实用了 datum 费率"）。
+///
+/// **认识论等级（231号强制）**：除 `real_window_datum_reconciliation`（真实价格序列，仍是
+/// **L1** 一致性）外，本组全部跑合成 bar ⟹ **L1**（管线/算术正确性，零市场信息增量）。
+/// datum 本身的 **L2**（venue 官方费率表快照）由 `venue_fee` 模块的对账测试承担；本组
+/// **不主张**任何 alpha 或有效域结论。
+#[cfg(test)]
+mod venue_fee_wiring_tests {
+    use super::*;
+    use super::super::super::config::{ExecConfig, ThetaConfig};
+    use super::super::super::venue_fee::{
+        datum_dir, load_datum, FeeUnit, VenueFeeSchedule,
+    };
+
+    const NAV: f64 = 100_000.0;
+    const PX: f64 = 20.0;
+
+    /// tick_size=1 ⟹ close tick 与美元价逐位相等（量化不引入误差，费率差别可手算对账）。
+    fn cfg() -> ThetaConfig {
+        let mut c = ThetaConfig::default();
+        c.tick.tick_size = 1.0;
+        c
+    }
+
+    fn bars(n: usize) -> Vec<Bar> {
+        (0..n)
+            .map(|i| Bar {
+                source_index: i,
+                timestamp: i as i64,
+                open: PX as i64,
+                high: PX as i64,
+                low: PX as i64,
+                close: PX as i64,
+                volume: 1_000,
+                untradable: false,
+            })
+            .collect()
+    }
+
+    /// 单笔买单（qty 手 @ bar0）。
+    fn buy(qty: i64) -> Vec<Order> {
+        vec![Order { action: StrictAction::Buy, qty, exec_index: 0 }]
+    }
+
+    fn oklo() -> VenueFeeSchedule {
+        load_datum(&datum_dir().join("venue_fee_ibkr_pro_20260726.json"))
+            .expect("IBKR datum 可加载")
+            .resolve("OKLO", "PRO_TIERED_LE_300K_SHARES")
+            .expect("OKLO 在册")
+    }
+
+    /// 末点权益 = (cash + units·px)/NAV；买入后同价 ⟹ 权益缺口恰为**实付费用/NAV**。
+    fn fee_paid_via_equity(config: &ThetaConfig, orders: &[Order]) -> f64 {
+        let (eq, _, _) = simulate_fills(&bars(3), orders, NAV, config);
+        (1.0 - *eq.last().unwrap()) * NAV
+    }
+
+    fn approx(a: f64, b: f64, ctx: &str) {
+        let tol = 1e-9 * b.abs().max(1.0);
+        assert!((a - b).abs() <= tol, "{ctx}: 实得 {a:.12} ≠ 预期 {b:.12}");
+    }
+
+    /// **None ⟹ 现状**：三常数合成率 3bp/side，实付 = 名义 × 3e-4（逐值对账）。
+    #[test]
+    fn none_schedule_charges_flat_three_bps() {
+        let c = cfg();
+        assert!(c.exec.fee_schedule.is_none(), "default 未标定");
+        approx(fee_paid_via_equity(&c, &buy(100)), 2000.0 * 3e-4, "100 手 @ $20 未标定费用");
+        approx(fee_paid_via_equity(&c, &buy(10)), 200.0 * 3e-4, "10 手 @ $20 未标定费用");
+    }
+
+    /// **同率 per-notional 标定档 ⟹ 与 None 逐位相同**：证明 Some 支不引入额外浮点重排。
+    ///
+    /// 两侧都把 `slippage_bps` 置 0（datum 不覆盖滑点 ⟹ 标定档要加它；置 0 才谈得上"同率"），
+    /// 于是 base 侧 `(3+0+0)/1e4` 与 cal 侧 `3.0/1e4 + 0.0` **逐位同值** ⟹ 权益曲线/日
+    /// returns/trade_pnls 三者 `assert_eq!` 位相等。
+    #[test]
+    fn notional_schedule_equal_to_fallback_is_bit_exact_to_none() {
+        let mut base = cfg();
+        base.exec.commission_bps = 3.0;
+        base.exec.slippage_bps = 0.0;
+        let mut cal = base.clone();
+        cal.exec.commission_bps = 1.0; // 标定档下 commission 常数被 datum 取代（取值无关）
+        cal.exec.fee_schedule = Some(VenueFeeSchedule {
+            venue: "SYNTH".into(),
+            symbol: "X".into(),
+            tier: "T".into(),
+            unit: FeeUnit::Notional { maker_bps: 3.0, taker_bps: 3.0 },
+            datum_sha256: "0".repeat(64),
+        });
+        for qty in [1i64, 10, 100, 7_777] {
+            let (eq_a, dr_a, pnl_a) = simulate_fills(&bars(3), &buy(qty), NAV, &base);
+            let (eq_b, dr_b, pnl_b) = simulate_fills(&bars(3), &buy(qty), NAV, &cal);
+            assert_eq!(eq_a, eq_b, "qty={qty}: 权益曲线须逐位相同");
+            assert_eq!(dr_a, dr_b, "qty={qty}: 日 returns 须逐位相同");
+            assert_eq!(pnl_a, pnl_b, "qty={qty}: trade_pnls 须逐位相同");
+        }
+    }
+
+    /// **Some(datum) ⟹ 账本按 venue 口径扣费**：OKLO/IBKR Pro Tiered，100 股 @ $20 买入
+    /// = $0.370559（报告 §2.3 逐项：佣金 0.35 + pass-through + 清算 0.02 + CAT）。
+    #[test]
+    fn per_share_schedule_charges_datum_fee() {
+        let mut c = cfg();
+        c.exec.fee_schedule = Some(oklo());
+        // datum 费率 $0.370559 + **未被 datum 覆盖的滑点 2bp**（2000×2e-4 = $0.40）。
+        approx(fee_paid_via_equity(&c, &buy(100)), 0.370559 + 0.4, "OKLO 100 股买入实付");
+        // 未标定档同单收 $0.60（3bp）。标定后 $0.7706 > $0.60——佣金科目被真实费率替换、
+        // 滑点科目原样保留，总摩擦上升；若标定反而降低总摩擦，即是把滑点悄悄抹掉了。
+        approx(fee_paid_via_equity(&cfg(), &buy(100)), 0.6, "同单未标定实付");
+        assert!(
+            fee_paid_via_equity(&c, &buy(100)) > fee_paid_via_equity(&cfg(), &buy(100)),
+            "本价位下标定实付须高于未标定实付"
+        );
+        // ★不是普适命题（090 照实）：per-share 档折算成 bp 随价位反比——$20 上 1.85bp+2bp 滑点
+        //   > 未标定 3bp，但高价位上 $0.0035/股 会低于 1bp，总摩擦可低于未标定档（真实 OKLO 窗
+        //   实测即如此，见 `real_window_datum_reconciliation` 输出）。本断言只约束本价位。
+    }
+
+    /// **最低佣金在小单上主导**（压成 per-notional 会丢掉的效应，报告 §3.1）：
+    /// 10 股 @ $20 名义仅 $200，实付 $0.392289（≈19.6bp，含 2bp 滑点），远高于未标定 3bp。
+    #[test]
+    fn per_share_min_commission_dominates_small_order() {
+        let mut c = cfg();
+        c.exec.fee_schedule = Some(oklo());
+        let paid = fee_paid_via_equity(&c, &buy(10));
+        // datum $0.352289 + 滑点 200×2e-4 = $0.04。
+        approx(paid, 0.352289 + 0.04, "OKLO 10 股买入实付（最低佣金托底 + 滑点）");
+        assert!(
+            paid > fee_paid_via_equity(&cfg(), &buy(10)) * 5.0,
+            "最低佣金档实付须远高于未标定常率档（{paid}）"
+        );
+    }
+
+    /// **卖出监管费只在卖出侧计**（SEC Section 31 + FINRA TAF）：开空 100 股 ⟹ 实付
+    /// $0.431259 > 买入 $0.370559，差额 = 0.0607（报告 §2.3/§2.5 一手数字）。
+    #[test]
+    fn per_share_sell_side_adds_regulatory_fees() {
+        let mut c = cfg();
+        c.exec.fee_schedule = Some(oklo());
+        let sell = vec![Order { action: StrictAction::Sell, qty: 100, exec_index: 0 }];
+        let (eq, _, _) = simulate_fills(&bars(3), &sell, NAV, &c);
+        // 开空后同价：权益 = (cash + units·px)/NAV，units=−100 ⟹ 缺口仍为实付费用。
+        let paid = (1.0 - *eq.last().unwrap()) * NAV;
+        approx(paid, 0.431259 + 0.4, "OKLO 100 股开空实付（含 SEC+TAF + 滑点）");
+        // 滑点两侧同额 ⟹ 买卖差额恰是监管费增量（SEC 0.0412 + TAF 0.0195）。
+        approx(paid - (0.370559 + 0.4), 0.0607, "卖出监管费增量");
+    }
+
+    /// ★票体 Acceptance② 「Some(datum) 时费用计算对拍（**BTC/OKLO 窗口**，与报告 §2 一手数字
+    /// 对账）」：在**真实数据窗**上跑两遍（None / Some），把账本实付差与**独立重算**的 Σ 费用差
+    /// 对上——重算侧的费率**不调 datum 对象**，而是把报告 §2 的一手数字逐项手写成公式
+    /// （Binance 10bp/side；IBKR $0.0035/股 + min $0.35 + 1% 上限 + 清算 0.0002 + CAT 0.000003
+    /// + pass-through 0.00074×佣金 + 卖出 SEC 0.0000206 + TAF 0.000195/股 cap 9.79），两条路径
+    /// 独立 ⟹ 对上才是对账，不是同义反复。
+    ///
+    /// **认识论 L1**（费用算术在真实价格序列上的一致性；不主张任何 alpha）。
+    ///
+    /// `#[ignore]`：需真实数据（`analysis/data_cache/*.json`，BTC 329MB）。
+    /// 跑法：`cargo test --release --lib real_window_datum_reconciliation -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn real_window_datum_reconciliation() {
+        use super::super::data;
+        const BIG_NAV: f64 = 1e9; // 足够大 ⟹ 无现金拒单 ⟹ 两遍 units 轨迹完全相同
+
+        // (品种, datum 文件, 档位, 每单手数)
+        let cases: [(&str, &str, &str, i64); 2] = [
+            ("BTC", "venue_fee_binance_spot_20260726.json", "VIP0", 1),
+            ("OKLO", "venue_fee_ibkr_pro_20260726.json", "PRO_TIERED_LE_300K_SHARES", 100),
+        ];
+
+        for (sym, file, tier, lots) in cases {
+            let base = ThetaConfig::default();
+            let ds = data::load_by_symbol(sym, &base)
+                .unwrap_or_else(|e| panic!("{sym} 数据加载失败：{e}"));
+            // 窗口 = 末 2000 根可交易 bar（真实价格序列，非合成）。
+            let win: Vec<Bar> = ds
+                .bars
+                .iter()
+                .rev()
+                .filter(|b| !b.untradable && b.close > 0)
+                .take(2000)
+                .cloned()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect();
+            assert!(win.len() >= 500, "{sym}: 窗口 bar 数不足（{}）", win.len());
+
+            // 确定性订单流：每 100 根 bar 一次 Buy，其后第 50 根 Close（多轮往返）。
+            let mut orders: Vec<Order> = Vec::new();
+            let mut i = 0usize;
+            while i + 50 < win.len() {
+                orders.push(Order { action: StrictAction::Buy, qty: lots, exec_index: i });
+                orders.push(Order { action: StrictAction::Close, qty: lots, exec_index: i + 50 });
+                i += 100;
+            }
+            assert!(orders.len() >= 10, "{sym}: 订单数不足");
+
+            let mut cal = base.clone();
+            cal.exec.fee_schedule = Some(
+                load_datum(&datum_dir().join(file))
+                    .expect("datum 可加载")
+                    .resolve(sym, tier)
+                    .expect("档位在册"),
+            );
+
+            let (eq_none, _, _) = simulate_fills(&win, &orders, BIG_NAV, &base);
+            let (eq_cal, _, _) = simulate_fills(&win, &orders, BIG_NAV, &cal);
+
+            // ── 独立重算（不调 datum 对象；报告 §2 数字手写）──────────────────────
+            let slip = base.exec.slippage_bps / 10_000.0; // datum 不覆盖，两档都收
+            let none_rate = (base.exec.commission_bps + base.exec.slippage_bps + base.exec.tax_bps)
+                / 10_000.0;
+            let venue_rate = |qty: f64, px: f64, sell: bool| -> f64 {
+                match sym {
+                    "BTC" => 10.0 / 10_000.0, // Binance 现货 VIP0 taker（报告 §2.1）
+                    _ => {
+                        // IBKR Pro Tiered 首档（报告 §2.3/§2.5）
+                        let notional = qty * px;
+                        let commission = (0.0035 * qty).max(0.35).min(notional * 0.01);
+                        let passthru = commission * (0.000175 + 0.000565);
+                        let per_share = (0.0002 + 0.000003) * qty;
+                        let sell_reg = if sell {
+                            notional * 0.0000206 + (0.000195 * qty).min(9.79)
+                        } else {
+                            0.0
+                        };
+                        (commission + passthru + per_share + sell_reg) / notional
+                    }
+                }
+            };
+
+            let mut sum_none = 0.0;
+            let mut sum_cal = 0.0;
+            let mut units = 0.0f64;
+            let mut sorted = orders.clone();
+            sorted.sort_by_key(|o| o.exec_index);
+            for o in &sorted {
+                let px = win[o.exec_index].close as f64 * base.tick.tick_size;
+                let (delta, _) = order_delta_close_only(o.action, units).expect("本流无 noop 单");
+                let qty = o.qty as f64;
+                let notional = qty * px;
+                sum_none += notional * none_rate;
+                sum_cal += notional * (venue_rate(qty, px, delta < 0.0) + slip);
+                units += delta * qty;
+            }
+            assert_eq!(units, 0.0, "{sym}: 订单流应收平");
+
+            // 两遍 units 轨迹相同 ⟹ 末点权益差 = −Σ费用差 / NAV（逐笔现金流的唯一差别）。
+            let ledger_diff = (eq_none.last().unwrap() - eq_cal.last().unwrap()) * BIG_NAV;
+            let recomputed_diff = sum_cal - sum_none;
+            let tol = 1e-6 * recomputed_diff.abs().max(1.0);
+            assert!(
+                (ledger_diff - recomputed_diff).abs() <= tol,
+                "{sym}: 账本实付差 {ledger_diff:.6} ≠ §2 独立重算差 {recomputed_diff:.6}"
+            );
+            eprintln!(
+                "[#360 对拍] {sym} 窗 {}bar / {}单：未标定 Σfee={:.4}，标定 Σfee={:.4}（datum+滑点），\
+                 账本差={:.6} 重算差={:.6}",
+                win.len(),
+                orders.len(),
+                sum_none,
+                sum_cal,
+                ledger_diff,
+                recomputed_diff
+            );
+        }
+    }
+
+    /// 口径标签契约（risk.rs:709）：None ⟹ L1 未标定；Some ⟹ `[L2费率标定: datum <前12位>]`。
+    #[test]
+    fn calibration_label_follows_schedule() {
+        use super::super::super::strategy::risk::{rate_calibration_label, RATE_UNCALIBRATED_LABEL};
+        let plain = ExecConfig::default();
+        assert_eq!(rate_calibration_label(&plain), RATE_UNCALIBRATED_LABEL);
+        let mut cal = ExecConfig::default();
+        let s = oklo();
+        let sha = s.datum_sha256.clone();
+        cal.fee_schedule = Some(s);
+        assert_eq!(
+            rate_calibration_label(&cal),
+            format!("[L2费率标定: datum {}]", &sha[..12])
         );
     }
 }

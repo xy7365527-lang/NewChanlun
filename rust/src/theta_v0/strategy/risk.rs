@@ -758,6 +758,34 @@ impl FundingScheduleBook {
 /// （v3：历史数据只验证代码正确性）。datum 注入后升 `[L2费率标定: datum 版本哈希]`（不得跳级）。
 pub const RATE_UNCALIBRATED_LABEL: &str = "[L1机制/费率未标定]";
 
+/// **口径标签构造子**（A10 附则B / #360）：按 `ExecConfig` 的 venue 费率标定状态给出报告标签。
+///
+/// - `fee_schedule = None` ⟹ [`RATE_UNCALIBRATED_LABEL`]（三常数保底，禁作 alpha 论据）；
+/// - `Some(datum)` ⟹ `[L2费率标定: datum <sha256 前 12 位>]`——**不得跳级**：哈希取自 datum
+///   文件内容（`venue_fee::load_datum` 已与 sidecar `<file>.sha256` 核对通过），故标签里的
+///   12 位前缀可反查到那份费率表快照。
+///
+/// **有效域（231号）**：L2 只覆盖**佣金/监管/清算**科目。`slippage_bps` 仍未标定，持有成本三项
+/// （funding/borrow/liq）的标定另有其票——带这两类成本的 R 报告须自行判断标签，不因成交费率
+/// 升级而整体升级。
+pub fn rate_calibration_label(exec: &super::super::config::ExecConfig) -> String {
+    match &exec.fee_schedule {
+        None => RATE_UNCALIBRATED_LABEL.to_string(),
+        Some(s) => {
+            // 经 `venue_fee::load_datum` 的 schedule 必是 64 位小写 hex（构造期已校验）；
+            // 字段 pub ⟹ 可徒手构造，故此处**不做字节切片**（短串/非 ASCII 会 panic 在报告
+            // 生成路径上）——按字符取前 12，debug 下 fail-loud 揪出非法 datum 哈希。
+            debug_assert!(
+                s.datum_sha256.len() == 64 && s.datum_sha256.chars().all(|c| c.is_ascii_hexdigit()),
+                "datum_sha256 须为 64 位 hex（实得 {:?}）",
+                s.datum_sha256
+            );
+            let prefix: String = s.datum_sha256.chars().take(12).collect();
+            format!("[L2费率标定: datum {prefix}]")
+        }
+    }
+}
+
 /// 去杠杆/只平仓缓冲 B1/B2（Θ_risk 协变参数，§2.3；**非**交易所数据）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RiskCushions {
@@ -839,7 +867,14 @@ pub fn margin_inputs(
 //  不保守）。此处**不改值**：这两个参数均未按 venue 标定
 //  （`commission_bps` doc 标 `[设计选择;L3经验待标定]`，`slippage_bps` 标 L3），标定连同 venue
 //  档位、maker/taker 分档一并归 **venue 费率实装票（#285 后继标定票）**；本票只登记落差、不动
-//  数值（改值 ⟹ 改全部在册数值结论，须独立裁定）。**同性质**（非同处理）的 Python maker 落差见
+//  数值（改值 ⟹ 改全部在册数值结论，须独立裁定）。
+//  ★#360 实装后的现状（登记更新，**结论不变**）：标定出口已建成——
+//  [`ExecConfig::fee_schedule`](super::super::config::ExecConfig::fee_schedule) `Some(datum)` ⟹
+//  BTC 走 Binance **现货** VIP0 档（10/10 bp/side，BNB 抵扣档 7.5；与本节 spot 裁定同口径，
+//  perp 费率表未核不入簿），成交费率科目标签升 `[L2费率标定: datum <hash>]`
+//  （[`rate_calibration_label`]）。**default 仍是 `None`**（三常数 3bp/side）⟹ 上述落差与全部
+//  在册数值结论**逐位不变**；把 default 切成标定档是**另一次裁定**（改值 ⟹ 改全部在册结论），
+//  #360 不做。持有成本三项（funding/borrow/liq）不在 #360 覆盖面，仍 [`RATE_UNCALIBRATED_LABEL`]。**同性质**（非同处理）的 Python maker 落差见
 //  `analysis/btc_2week_1s_backtest.py` 模块 docstring：那侧除登记外还做了**有效域悬置**（其数值
 //  结论不作任何等级依据），本侧只登记不改——rust 这三通道 + fee_rate 的数值结论仍照常在册。
 //
@@ -1681,6 +1716,34 @@ mod tests {
     #[test]
     fn a10_rate_uncalibrated_label_frozen() {
         assert_eq!(RATE_UNCALIBRATED_LABEL, "[L1机制/费率未标定]", "标签逐字值冻结（090 措辞纪律）");
+    }
+
+    /// ★#360 升级契约（risk.rs:709「datum 注入后升 `[L2费率标定: datum 版本哈希]`，不得跳级」）：
+    /// 标签由 `ExecConfig::fee_schedule` **单一决定**——None ⟹ 逐字 L1；Some ⟹ L2 带 datum
+    /// 哈希前 12 位（可反查那份费率表快照）。**跳级不可能**：没有第三条分支。
+    #[test]
+    fn rate_calibration_label_follows_fee_schedule() {
+        use super::super::super::config::ExecConfig;
+        use super::super::super::venue_fee::{FeeUnit, VenueFeeSchedule};
+
+        let plain = ExecConfig::default();
+        assert_eq!(rate_calibration_label(&plain), RATE_UNCALIBRATED_LABEL, "默认档不得自升 L2");
+
+        let sha = "a".repeat(52) + "0123456789ab";
+        let mut cal = ExecConfig::default();
+        cal.fee_schedule = Some(VenueFeeSchedule {
+            venue: "V".into(),
+            symbol: "S".into(),
+            tier: "T".into(),
+            unit: FeeUnit::Notional { maker_bps: 10.0, taker_bps: 10.0 },
+            datum_sha256: sha.clone(),
+        });
+        assert_eq!(
+            rate_calibration_label(&cal),
+            format!("[L2费率标定: datum {}]", &sha[..12]),
+            "标定档标签逐字形状冻结（前 12 位哈希前缀）"
+        );
+        assert_ne!(rate_calibration_label(&cal), RATE_UNCALIBRATED_LABEL);
     }
 
     // ──────────────────────────────────────────────────────────────────────

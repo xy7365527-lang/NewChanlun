@@ -232,19 +232,58 @@ impl Default for RiskConfig {
 
 /// Θ_exec 参数（reference-theta-v0.md:49-54）。
 ///
-/// ★venue 口径（#303 裁定 = **spot**）与默认费率落差（3bp/side vs 现货 VIP0 taker 10bp/side，
-/// **登记不改**、标定归 venue 费率实装票）：唯一权威登记见
-/// [`CostModel`](super::strategy::risk::CostModel) 节头，此处不复制结论。
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// ★venue 口径（#303 裁定 = **spot**）与默认费率落差（3bp/side vs 现货 VIP0 taker 10bp/side）：
+/// 结论的唯一权威登记见 [`CostModel`](super::strategy::risk::CostModel) 节头，此处不复制。
+/// **落差的可执行出口（#360）= [`fee_schedule`](ExecConfig::fee_schedule)**：`None` 保持三常数
+/// 未标定 fallback（现状逐位），`Some(datum)` 走 venue 真实费率表（BTC 档 = Binance **现货**
+/// VIP0，与 #303 的 spot 裁定同口径；perp 费率表未核，报告 §4.1，不入簿）。
+///
+/// **`Copy` 已移除（#360）**：`fee_schedule` 持 datum 字符串（venue/symbol/tier/sha256），
+/// 无法 `Copy`。`ExecConfig` 仍 `Clone`——按值传递处改 `.clone()` 或借用。
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExecConfig {
     /// 信号确认后延迟成交的基础 K 根数。default 1（reference-theta-v0.md:50）。
     pub entry_delay_bars: u32,
     /// commission（bp/side）。default 1。[设计选择;L3经验待标定]
+    ///
+    /// ★#360 后语义收窄：本字段（与 `slippage_bps`/`tax_bps` 合成的常率）是
+    /// **`fee_schedule = None` 时的未标定 fallback**，口径标签 `[L1机制/费率未标定]`。
     pub commission_bps: f64,
     /// slippage（bp/side）。default 2。L3。
+    ///
+    /// ★#360 不覆盖滑点：滑点本质是价差/冲击 datum（报告 §1.6 裂缝 3，另立 datum 是另票），
+    /// 标定档下本字段**仍未标定**——venue 费率表只标定佣金/监管/清算科目。
     pub slippage_bps: f64,
     /// tax（bp/side）。default 0。L3。
     pub tax_bps: f64,
+    /// ★venue 真实费率档（#360；datum + sha256 版本哈希，见 [`venue_fee`](super::venue_fee)）。
+    ///
+    /// - `None`（default）⟹ 上面三常数合成的单一 per-notional 常率，**与改动前逐位相同**；
+    /// - `Some(s)` ⟹ 成交点按 datum 逐笔解析等效单边费率（per-notional 档恒定；per-share 档
+    ///   随单量/价/买卖方向变——最低佣金、名义额上限、卖出监管费），**再加 `slippage_bps`**
+    ///   （datum 只覆盖佣金/监管/清算，滑点是价差/冲击性质，报告 §3.3 明文保留未标定）；
+    ///   同时要求 `tax_bps == 0`（`treasury::fee_quoter` fail-loud，禁与 datum 内的监管税费重复计）。
+    ///
+    /// **品种绑定**：本档是**按品种**的 datum 条目，成交回路无 symbol 上下文 ⟹ 绑定校验放在
+    /// `backtest::data::load_by_symbol`（数据集品种 ≠ `schedule.symbol` ⟹ `Err`，禁跨品种借档）。
+    ///
+    /// **已收编的消费面**（解析器 = `backtest::treasury::fee_quoter`，报告 §3.1 item 3 的单源
+    /// 门面）：`backtest::fill` 的四条生产成交回路（`simulate_fills` /
+    /// `pi_theta_fill_loop_overlay` / `plan_and_fill_mtm` / `plan_and_fill_mtm_dual`），含其
+    /// 窗口终点强平；以及 `strategy::overlay_state::VoiceExecBook` 的开/平/强平三个扣费点
+    /// （簿是 (σ_v, q_v) 的真值源，故解析下沉到簿内逐声部做）。
+    ///
+    /// **未收编（照实登记，不膨胀）**——以下位点一律取未标定常率，且当前**无 datum 注入通道**
+    /// （它们都用 `ExecConfig::default()` ⟹ `None` ⟹ 与改动前逐位相同）：
+    ///
+    /// - `backtest::runner::RunResult::fee_rate`：随机对照的成本口径是单标量，per-share 档下
+    ///   无良定义 ⟹ 登记缺口，随滑点/价差 datum 一并收编（报告 §1.6 裂缝 3 同族）；
+    /// - `strategy::exec::apply_fees`：tick 域价格偏移变体，无成交量/方向上下文，且当前
+    ///   **无生产调用方**（仅其自身单测）；
+    /// - 研究跑批与诊断：`backtest::econ_positive` / `backtest::l3_delta_r_alpha` /
+    ///   `bin::pure_bsp_timing` / `bin::pi_bsp_timing` 各有自带 PnL 引擎，收编需逐引擎接
+    ///   (qty, side) 缝，属另票。
+    pub fee_schedule: Option<super::venue_fee::VenueFeeSchedule>,
 }
 
 impl Default for ExecConfig {
@@ -254,6 +293,7 @@ impl Default for ExecConfig {
             commission_bps: 1.0,
             slippage_bps: 2.0,
             tax_bps: 0.0,
+            fee_schedule: None,
         }
     }
 }
