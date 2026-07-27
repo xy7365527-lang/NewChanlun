@@ -412,12 +412,15 @@ fn compose_next(
         if run.is_empty() {
             continue;
         }
-        let projection = project(run, mode)
+        // 投影只保留失败传播（其 centers 不再喂 blocks，见下 #332 注）。
+        let _projection = project(run, mode)
             .map_err(|error| format!("L{next_level} 递归投影失败: {error:?}"))?
             .0;
-        let centers: Vec<_> = projection.seeds.iter().map(|s| s.center).collect();
-        let blocks = decompose::decompose(&centers);
-        let units = project_to_units(run, &blocks);
+        // ★#332 跨层错配修正：`centers` 是 `run` **产出**的中枢链（与下面 compose 出的 upper 1:1），
+        // 不与 `run` 本身 1:1——把它的 blocks 喂给 `run` 的投影会让 `center_own_dir_at` 索引落到
+        // 别的中枢链上。`run` 的同层 blocks 在本函数不可得（属上一级），故显式走空 blocks =
+        // endpoint fallback（`project_to_units` 文档的合法降级路径），不用错位块冒充方向。
+        let units = project_to_units(run, &[]);
         let (_, mut upper, _) = compose_level(&units, run, false, next_level as u32);
         for value in &mut upper {
             value.id = ElementId {

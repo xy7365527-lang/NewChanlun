@@ -885,6 +885,19 @@ pub fn compose_level_resume(
 /// 把上级 `LeveledMove` 序列投影为 `UnitRange` 序列（供下一级 `detect_centers_windowed` 的
 /// 几何路径用——上级中枢检测在外缘区间上做，方向是外缘占位）。
 ///
+/// ★#332 同层配对护栏：`blocks` 索引的是**被投影 moves 所对应的那条中枢链**——`compose_level`
+/// 保证 `upper[i] ↔ centers[i]` 1:1 ⟹ 非空 `blocks` 的末块 `end_center` 恰为 `moves.len()-1`。
+/// 跨层传参（把上一级中枢链的 blocks 喂给下一级塔）不违反任何类型约束，`center_own_dir_at`
+/// 的下标落到别的中枢链上 ⟹ 静默产出错方向（几何路径 `center_from_window` 不读方向，故此前
+/// 潜伏未爆）。空 `blocks` = 显式无块信息 ⟹ 全 endpoint fallback（合法）。
+fn debug_assert_blocks_pair(moves_len: usize, blocks: &[MoveBlock]) {
+    debug_assert!(
+        blocks.last().is_none_or(|b| b.end_center + 1 == moves_len),
+        "blocks 与 moves 跨层错配（#332）：blocks 覆盖 {} 个中枢，moves {moves_len} 条",
+        blocks.last().map_or(0, |b| b.end_center + 1),
+    );
+}
+
 /// 上级走势的 `UnitRange` = `[rmove.lo, rmove.hi]`（外缘下沿/上沿，由 subs 区间聚合，descend.rs
 /// `RMove::lo/hi`）+ 坐标 + 方向。
 ///
@@ -896,6 +909,7 @@ pub fn compose_level_resume(
 ///   （[`LeveledMove::fold_direction`] 外缘占位，标注：此路径的方向不携带走势类型语义，仅结构占位
 ///   ——盘整离开腿的方向消解归小转大/区间套语境，econ 层 XZD/Nest 通道）。
 pub fn project_to_units(moves: &[LeveledMove], blocks: &[MoveBlock]) -> Vec<UnitRange> {
+    debug_assert_blocks_pair(moves.len(), blocks);
     moves
         .iter()
         .enumerate()
@@ -932,6 +946,7 @@ pub fn project_to_units_resume(
     cache: &mut Vec<UnitRange>,
 ) {
     debug_assert!(cache.len() <= moves.len(), "投影缓存比 moves 长 ⟹ 前缀回缩未清空（违反契约）");
+    debug_assert_blocks_pair(moves.len(), blocks);
     for idx in cache.len()..moves.len() {
         let m = &moves[idx];
         let prev = if idx == 0 { None } else { Some(&moves[idx - 1]) };
@@ -3931,10 +3946,49 @@ mod tests {
         // 对照：无块 ⟹ endpoint fallback 给 Down（证明上面的 Up 确实来自块，非 fold 巧合）。
         let no_blocks = project_to_units(&moves, &[]);
         assert_eq!(no_blocks[1].direction, Direction::Down, "对照：空 blocks ⟹ endpoint Down");
-        // resume 与 full 逐字段一致（含块方向路径）。
+        // resume 与 full 逐字段一致（含块方向路径）。前缀批次喂**前缀自身的**分解
+        // （#332 同层配对：blocks 末块 end_center 必配当批 moves 末位），非全链 blocks。
+        let blocks_prefix = [MoveBlock { end_center: 1, ..blocks[0] }];
         let mut cache: Vec<UnitRange> = Vec::new();
-        project_to_units_resume(&moves[..2], &blocks, &mut cache);
+        project_to_units_resume(&moves[..2], &blocks_prefix, &mut cache);
         project_to_units_resume(&moves, &blocks, &mut cache);
         assert_eq!(cache, full, "resume（块方向路径）== 全量");
+    }
+
+    /// ★#332 显影：跨层 `blocks`（上一级中枢链的分解）喂给下一级塔投影 ⟹ `center_own_dir_at`
+    /// 的索引落在**别的中枢链**上。9 条 L0 走势 compose 出 3 个中枢/3 条 L1 走势，其 blocks
+    /// 只覆盖中枢 0..2——错喂给 9 条 L0 走势时 idx 1/2 拿到 L1 中枢的方向、idx≥3 全落 fallback，
+    /// 静默产错方向（现因 `center_from_window` 不读方向而潜伏）。修后由同层配对护栏当场拒绝。
+    #[test]
+    #[should_panic(expected = "跨层错配")]
+    fn project_to_units_rejects_cross_level_blocks() {
+        // 三组各 3 段，组间抬升 100（组内交叠成中枢、组间不交叠 ⟹ 依次上移的 3 个中枢
+        // ⟹ decompose 给 Trend(Up) 块，方向非 None，错位读方向才可见）。
+        let units: Vec<UnitRange> = (0..9)
+            .map(|i| {
+                let base = (i / 3) as Tick * 100;
+                let off = (i % 3) as Tick;
+                let dir = if i % 2 == 0 { up() } else { down() };
+                unit(i * 4, i * 4 + 4, dir, base + 40 - off, base + 60 + off)
+            })
+            .collect();
+        let moves: Vec<LeveledMove> =
+            units.iter().enumerate().map(|(i, u)| from_unit(u, i as u64)).collect();
+        let (centers, upper, _) = compose_level(&units, &moves, true, 1);
+        assert_eq!((centers.len(), upper.len()), (3, 3), "9 段 → 3 中枢 → 3 条 L1 走势");
+        // blocks 索引的是 L1 中枢链（与 upper 1:1），不是 9 条 L0 走势。
+        let blocks = super::super::decompose::decompose(&centers);
+        assert_eq!(blocks.last().unwrap().end_center, 2, "blocks 只覆盖中枢 0..2");
+
+        // 错位读方向的显影：同一 blocks 在 L0 塔的 9 个下标上——1/2 拿到中枢链方向，3..9 全 None。
+        let cross: Vec<_> = (0..moves.len()).map(|i| center_own_dir_at(&blocks, i)).collect();
+        assert!(cross[1].is_some() && cross[2].is_some(), "L0 idx 1/2 被判成 L1 中枢的方向");
+        assert!(cross[3..].iter().all(Option::is_none), "L0 idx≥3 越出 blocks 覆盖 ⟹ 全 fallback");
+
+        // 同一 blocks 的正确配对面（upper，3 条）——对照：下标 1/2 才是它真正描述的对象。
+        let _ok = project_to_units(&upper, &blocks);
+
+        // 错位调用：把 L1 中枢链的 blocks 喂给 L0 塔。
+        let _ = project_to_units(&moves, &blocks);
     }
 }
