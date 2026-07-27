@@ -806,11 +806,11 @@ fn step_center_oscillation(
                     let ev_out = osc_books[lvl].on_lifecycle_event(ev);
                     // ★#414：延续（`Superseded` 命中挂起 ⟹ 不终结、不清算）——只落观测。
                     for cont in ev_out.continuations.iter() {
-                        witness.record_suspension_continued(cont.side);
+                        witness.record_suspension_continued(lvl as u32, cont.side);
                     }
                     for outcome in ev_out.terminations {
-                        witness.record_suspension_source(outcome.side, outcome.source);
-                        witness.record_settlement(outcome.side, outcome.settlement);
+                        witness.record_suspension_source(lvl as u32, outcome.side, outcome.source);
+                        witness.record_settlement(lvl as u32, outcome.side, outcome.settlement);
                         if let Some(action) = outcome.cover_action {
                             actions.push(CenterOscillationActionRecord {
                                 bar,
@@ -834,8 +834,8 @@ fn step_center_oscillation(
             }
             ChainConsumed::Rebased { .. } => {
                 for outcome in osc_books[lvl].on_chain_rebase(chain) {
-                    witness.record_suspension_source(outcome.side, outcome.source);
-                    witness.record_settlement(outcome.side, outcome.settlement);
+                    witness.record_suspension_source(lvl as u32, outcome.side, outcome.source);
+                    witness.record_settlement(lvl as u32, outcome.side, outcome.settlement);
                     if let Some(action) = outcome.cover_action {
                         actions.push(CenterOscillationActionRecord {
                             bar,
@@ -870,11 +870,11 @@ fn step_center_oscillation(
                     // ★#414：本路径的 `Superseded` 不由买卖点驱动（`push_point` 只产 Broken/Reset），
                     // 故延续在此恒空——留着是穷尽性，不靠「产不出」的隐含前提（同下方核销分支惯例）。
                     for cont in ev_out.continuations.iter() {
-                        witness.record_suspension_continued(cont.side);
+                        witness.record_suspension_continued(lvl as u32, cont.side);
                     }
                     for outcome in ev_out.terminations {
-                        witness.record_suspension_source(outcome.side, outcome.source);
-                        witness.record_settlement(outcome.side, outcome.settlement);
+                        witness.record_suspension_source(lvl as u32, outcome.side, outcome.source);
+                        witness.record_settlement(lvl as u32, outcome.side, outcome.settlement);
                         if let Some(action) = outcome.cover_action {
                             actions.push(CenterOscillationActionRecord {
                                 bar,
@@ -1746,7 +1746,7 @@ mod center_oscillation_wiring_tests {
         assert_eq!(actions[0].action, CenterOscillationAction::Replenish);
         assert_eq!(actions[0].center, CenterId::of(&c0));
         assert_eq!(
-            witness.suspension_by_source.get(&("long", "broken_by_third_class_buy")),
+            witness.suspension_by_source.get(&(0, "long", "broken_by_third_class_buy")),
             Some(&1),
             "★issue #357：挂起归宿分桶记录三类买点破坏终结来源"
         );
@@ -1908,12 +1908,12 @@ mod center_oscillation_wiring_tests {
             "★#414：被取代不终结挂起——挂起延续，等原中枢三类点"
         );
         assert_eq!(
-            witness.suspension_continued_count.get("long"),
+            witness.suspension_continued_count.get(&(0, "long")),
             Some(&1),
             "延续计数落 witness（产物级可见，非静默）"
         );
         assert_eq!(
-            witness.suspension_by_source.get(&("long", "superseded")),
+            witness.suspension_by_source.get(&(0, "long", "superseded")),
             None,
             "★桶退役：取代不再是挂起归宿"
         );
@@ -1925,12 +1925,12 @@ mod center_oscillation_wiring_tests {
         assert_eq!(step2.actions[0].action, CenterOscillationAction::Replenish);
         assert_eq!(step2.actions[0].center, CenterId::of(&c0), "归属原中枢，不误挂到新在场的 c1");
         assert_eq!(
-            witness.suspension_by_source.get(&("long", "broken_by_third_class_buy")),
+            witness.suspension_by_source.get(&(0, "long", "broken_by_third_class_buy")),
             Some(&1),
             "归宿=三类买点（清算分流读数）"
         );
         assert_eq!(
-            witness.settlement_by_side.get(&("long", "cover_and_close")),
+            witness.settlement_by_side.get(&(0, "long", "cover_and_close")),
             Some(&1),
             "终局=闭合（与 forfeit/核销分列）"
         );

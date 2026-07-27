@@ -899,18 +899,23 @@ pub struct CampaignWiringWitness {
     /// 变体删除而**退役**——被取代不再是挂起的归宿（ADR 补充十一：中枢终结唯一 = 三类买卖点）。
     /// 其读数（wf8 旧口径 long=67/short=49，占挂起终结 81%）改道进 [`Self::suspension_continued_count`]
     /// 与后续真实清算桶。**跨版本不可比**：本桶在 #414 前后不是同一个量。
-    pub suspension_by_source: BTreeMap<(&'static str, &'static str), usize>,
+    /// ★#442 探针：键增 level 维 `(级别, 侧, 来源)`（纯观测，不改决策）——裁决「容读窗口太窄
+    /// vs 高级别不产三类点」需要清算按级别分布，只分侧读不出来。跨版本不可比同上。
+    pub suspension_by_source: BTreeMap<(u32, &'static str, &'static str), usize>,
     /// ★★#414（ADR 补充十一）：挂起**延续**计数（分侧）——`Superseded` 命中挂起、挂起不终结
     /// 也不清算的次数。正面读数，非警报；它与真实清算桶（`suspension_by_source` 的两个
     /// `broken_by_third_class_*` + `settlement_by_side`）的差额即「延续了但没等到三类点」的
     /// 残量，见 [`super::center_oscillation_trade::CenterOscillationBook::on_lifecycle_event`]
     /// 的有效域标注（容读窗口只保链尾前一格）。
-    pub suspension_continued_count: BTreeMap<&'static str, usize>,
+    /// ★#442 探针：键增 level 维 `(级别, 侧)`（纯观测）——延续集中在哪个级别是本探针的裁决量。
+    pub suspension_continued_count: BTreeMap<(u32, &'static str), usize>,
     /// ★#414 项三：终结的**清算终局**分流（键 `(侧, "cover_and_close"|"write_off_unclosed"|
     /// "forfeit")`）——票面「Forfeit 归宿与核销/闭合分列」的产物级读数。与
     /// [`Self::suspension_by_source`] 是同一批终结的两个正交切面（来源 vs 终局），两桶的分侧
     /// 总数恒相等（同一 `SuspensionOutcome` 各记一次），可互为对账。
-    pub settlement_by_side: BTreeMap<(&'static str, &'static str), usize>,
+    /// ★#442 探针：键增 level 维 `(级别, 侧, 终局)`（纯观测）——与 `suspension_by_source` 同步
+    /// 加维，两桶逐 (级别, 侧) 总数仍恒相等，对账关系不因加维破坏。
+    pub settlement_by_side: BTreeMap<(u32, &'static str, &'static str), usize>,
     /// ★#414 项三：**异中枢回补被拒**计数（分侧）——桶里有挂起、但**不是**本次回补触发的那个
     /// 来源中枢的（[`CampaignViolation::ReplenishForeignCenter`]）。旧口径此路径静默走「余按
     /// 时间序」冲抵别的中枢的挂起（wf8 产物级证据 `cover_by_side ("long","other_center"):3`），
@@ -1159,8 +1164,10 @@ impl CampaignWiringWitness {
 
     /// 记一次挂起终结来源（挂起归宿分桶）。★#381 关票修复：按 (持仓侧, 来源) 分桶——
     /// `side` 即该终结所在 `SuspensionOutcome` 的持仓侧，调用点已在手。
+    /// ★#442：加 `level`（调用点的 `lvl`，同样已在手），纯观测。
     pub fn record_suspension_source(
         &mut self,
+        level: u32,
         side: VoiceSide,
         source: SuspensionTerminationSource,
     ) {
@@ -1170,26 +1177,28 @@ impl CampaignWiringWitness {
             SuspensionTerminationSource::Reset => "reset",
             SuspensionTerminationSource::RebaseVanished => "rebase_vanished",
         };
-        *self.suspension_by_source.entry((side_label(side), label)).or_insert(0) += 1;
+        *self.suspension_by_source.entry((level, side_label(side), label)).or_insert(0) += 1;
     }
 
     /// ★★#414（ADR 补充十一）：记一次挂起**延续**（`Superseded` 命中挂起 ⟹ 不终结、不清算）。
     /// 与 [`Self::suspension_by_source`] 分列——延续不是归宿，混进归宿桶等于把「什么都没发生」
     /// 记成一次终结。
-    pub fn record_suspension_continued(&mut self, side: VoiceSide) {
-        *self.suspension_continued_count.entry(side_label(side)).or_insert(0) += 1;
+    /// ★#442：加 `level`（纯观测）——延续的级别分布是探针的裁决量。
+    pub fn record_suspension_continued(&mut self, level: u32, side: VoiceSide) {
+        *self.suspension_continued_count.entry((level, side_label(side))).or_insert(0) += 1;
     }
 
     /// ★#414：记一次终结的**清算终局**分流（闭合/核销/作废三分，票面项 3「Forfeit 归宿与
     /// 核销/闭合分列」）。与 [`Self::suspension_by_source`]（按**来源**分桶）是同一批终结的
     /// 两个正交切面：来源答「谁杀的」，终局答「账怎么了结」。
-    pub fn record_settlement(&mut self, side: VoiceSide, settlement: TerminationSettlement) {
+    /// ★#442：加 `level`（纯观测）——与来源桶同步加维，保持两切面逐 (级别, 侧) 可对账。
+    pub fn record_settlement(&mut self, level: u32, side: VoiceSide, settlement: TerminationSettlement) {
         let label = match settlement {
             TerminationSettlement::CoverAndClose => "cover_and_close",
             TerminationSettlement::WriteOffUnclosed => "write_off_unclosed",
             TerminationSettlement::Forfeit => "forfeit",
         };
-        *self.settlement_by_side.entry((side_label(side), label)).or_insert(0) += 1;
+        *self.settlement_by_side.entry((level, side_label(side), label)).or_insert(0) += 1;
     }
 
     /// 记一次动作按 (级别, 动作) 分桶（归属正确性见证）。
@@ -1578,20 +1587,35 @@ mod tests {
         assert_eq!(w.action_by_level.get(&(1, "long", "replenish")), Some(&1), "level 1 Replenish 独立分桶，不与 level 0 混计");
 
         // ★#414：`superseded` 桶退役（被取代不再是归宿），此处改用 `reset` 演示同一分桶纪律。
-        w.record_suspension_source(VoiceSide::Long, SuspensionTerminationSource::BrokenByThirdClassBuy);
-        w.record_suspension_source(VoiceSide::Long, SuspensionTerminationSource::Reset);
-        w.record_suspension_source(VoiceSide::Long, SuspensionTerminationSource::Reset);
-        w.record_suspension_source(VoiceSide::Short, SuspensionTerminationSource::Reset);
-        assert_eq!(w.suspension_by_source.get(&("long", "broken_by_third_class_buy")), Some(&1));
-        assert_eq!(w.suspension_by_source.get(&("long", "reset")), Some(&2), "挂起归宿分桶按来源独立累计");
+        // ★#442：键增 level 维——同侧同来源跨级别独立成桶（探针的裁决量）。
+        w.record_suspension_source(0, VoiceSide::Long, SuspensionTerminationSource::BrokenByThirdClassBuy);
+        w.record_suspension_source(0, VoiceSide::Long, SuspensionTerminationSource::Reset);
+        w.record_suspension_source(0, VoiceSide::Long, SuspensionTerminationSource::Reset);
+        w.record_suspension_source(0, VoiceSide::Short, SuspensionTerminationSource::Reset);
+        w.record_suspension_source(2, VoiceSide::Long, SuspensionTerminationSource::Reset);
+        assert_eq!(w.suspension_by_source.get(&(0, "long", "broken_by_third_class_buy")), Some(&1));
+        assert_eq!(w.suspension_by_source.get(&(0, "long", "reset")), Some(&2), "挂起归宿分桶按来源独立累计");
         // ★#381 关票修复：同一来源两侧独立分桶——多空并存时不得相加成 3（同一事件逐侧各产一条
         // `SuspensionOutcome`，混计即计数翻倍且无法归属）。
-        assert_eq!(w.suspension_by_source.get(&("short", "reset")), Some(&1), "空头侧同来源独立成桶");
+        assert_eq!(w.suspension_by_source.get(&(0, "short", "reset")), Some(&1), "空头侧同来源独立成桶");
         assert_eq!(
-            w.suspension_by_source.get(&("short", "broken_by_third_class_buy")),
+            w.suspension_by_source.get(&(0, "short", "broken_by_third_class_buy")),
             None,
             "空头侧未发生的来源不出现（不被多头侧读数污染）"
         );
+        // ★#442：level 2 的 reset 不与 level 0 的两次混计——加维的全部意义在此。
+        assert_eq!(w.suspension_by_source.get(&(2, "long", "reset")), Some(&1), "高级别同侧同来源独立成桶");
+
+        // ★#442：延续/清算终局两桶同样按 (级别, 侧) 分桶，跨级别不混计。
+        w.record_suspension_continued(0, VoiceSide::Long);
+        w.record_suspension_continued(2, VoiceSide::Long);
+        w.record_suspension_continued(2, VoiceSide::Long);
+        assert_eq!(w.suspension_continued_count.get(&(0, "long")), Some(&1));
+        assert_eq!(w.suspension_continued_count.get(&(2, "long")), Some(&2), "延续按级别独立累计");
+        w.record_settlement(0, VoiceSide::Long, TerminationSettlement::CoverAndClose);
+        w.record_settlement(2, VoiceSide::Long, TerminationSettlement::Forfeit);
+        assert_eq!(w.settlement_by_side.get(&(0, "long", "cover_and_close")), Some(&1));
+        assert_eq!(w.settlement_by_side.get(&(2, "long", "forfeit")), Some(&1), "清算终局按级别独立分桶");
 
         w.record_lifecycle(CampaignLifecycleEvent::Opened { level: 0, side: VoiceSide::Long, notional_in: 3_000 });
         w.record_lifecycle(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, suspended_units_forfeited: 0 });
