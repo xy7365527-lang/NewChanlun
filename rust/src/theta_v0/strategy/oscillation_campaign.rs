@@ -305,18 +305,43 @@ pub struct CampaignWiringWitness {
     /// 见该模块文档），故结构信号在本级空仓时触发是**真实经济场景**（结构说做、但当前无仓可
     /// 操作），非 bug。真实生产数据（wf8 实测）此项非零属预期读数，报告层照实呈现即可，
     /// 不得断言恒 0（`other_violation_count` 才是真正的接线错误警报）。
+    ///
+    /// ★issue #357 关票条件 C：本仓取数改分侧口径（只读多头侧余额，方案2）后，「本级持有
+    /// 空头仓位」不再落本桶——那属于「本接线未支持空头 campaign」，单独计入
+    /// [`Self::unsupported_short_position_count`]，本桶专指「本级多头侧真空仓」这一预期场景。
     pub no_active_campaign_count: usize,
-    /// `apply_action` 遇 [`CampaignViolation::ShortDiff`]`(`[`ShortDiffViolation::ChannelRejected`]`)`
-    /// 的计数——★同样非接线错误，而是**资源耗尽的真实经济场景**（wf8 实测坐实，2026-07-27）：
-    /// `OscillationCampaign::reduce_units`/`replenish_units`（#294/#348 既有落地代码，本票不
-    /// 改动）按**campaign 开局时冻结的总量**算 sizing（非「当前剩余可减仓量」），而
-    /// `CampaignBook` 按**级别**（非按中枢）聚合——同级多个中枢各自独立触发 `Reduce` 会共享
-    /// 同一份 `holding` 预算；当连续同向触发次数超过冻结总量所能支撑的轮次（如原始持仓
-    /// 3 等分后再遇第 4 次 `Reduce`），`cash_sound_gate` 显式拒绝（`holding` 将变负）——这正是
-    /// 「违规显式失败」设计纪律的产物级见证（非静默钳制/吸收），资源约束下的诚实拒绝，非本票
-    /// 引入的接线缺陷。非 0 属预期读数，报告层照实呈现；`other_violation_count` 才是真正的
-    /// 接线/记账错误警报。
-    pub resource_exhausted_count: usize,
+    /// `apply_action` 遇 [`CampaignViolation::NoActiveCampaign`]、且**本级空头侧持仓非零**的
+    /// 计数（issue #357 关票条件 C，方案2）——★本接线只支持多头侧 campaign（`drive_campaign_wiring`
+    /// 只读 `balance_side(Core{level}, Long)`），本级若持有空头仓位（FollowParent×Short 顺父
+    /// 级联核心仓），多头侧读数恒为空仓，结构信号触发时必落 `NoActiveCampaign`——但这不是
+    /// 「预期经济场景」（真空仓、结构说做当前无仓可操作），而是「未支持」（真有仓、只是本接线
+    /// 认不出这一侧）。与 [`Self::no_active_campaign_count`] 分列，不得混桶——前者是接线覆盖
+    /// 缺口的产物级见证，需与真正的空仓场景分开呈现，供后续票（空头 campaign 支持）依据。
+    pub unsupported_short_position_count: usize,
+    /// `apply_action` 遇 [`CampaignViolation::ShortDiff`]`(`[`ShortDiffViolation::ChannelRejected`]`(`
+    /// [`TransitionError::CashUnsound`]`{ holding<0, .. }`」的计数——★同样非接线错误，而是
+    /// **预算耗尽的真实经济场景**：`OscillationCampaign::reduce_units`/`replenish_units`
+    /// （#294/#348 既有落地代码，本票不改动）按**campaign 开局时冻结的总量**算 sizing（非
+    /// 「当前剩余可减仓量」），而 `CampaignBook` 按**级别**（非按中枢）聚合——同级多个中枢各自
+    /// 独立触发 `Reduce` 会共享同一份 `holding` 预算；当连续同向触发次数超过冻结总量所能支撑
+    /// 的轮次（如原始持仓 3 等分后再遇第 4 次 `Reduce`），`cash_sound_gate` 显式拒绝（`holding`
+    /// 将变负）——这正是「违规显式失败」设计纪律的产物级见证（非静默钳制/吸收），资源约束下的
+    /// 诚实拒绝，非本票引入的接线缺陷。
+    ///
+    /// ★issue #357 关票条件 B（拆因）：`resource_exhausted_count`（单桶）曾把
+    /// [`TransitionError`] 内层错误下划线丢弃——本路径 OQ-9 恒真（`ShortDiff`/`Realize` 的
+    /// `is_legal_from` 恒真），故必为 `CashUnsound`；但 `CashUnsound` 有两条含义完全不同的
+    /// 成因：`holding<0`（本字段，连续 Reduce 打穿冻结预算）与 `free<0`
+    /// （[`Self::resource_exhausted_free_negative_count`]，回补价高于卖出价的亏损往返）。
+    /// 拆桶后归因才可从读数上直接判定，不再靠推断。
+    pub resource_exhausted_holding_negative_count: usize,
+    /// `apply_action` 遇 `ChannelRejected(CashUnsound{ free<0, .. })` 的计数（issue #357 关票
+    /// 条件 B 新增子桶）——★**亏损往返**：`Reduce` 使 `free += units·p_sell`，`Replenish` 使
+    /// `free -= units·p_buy`，`p_buy > p_sell`（买回价高于卖出价，高抛低吸反着做）即 `free`
+    /// 转负、被 `cash_sound_gate` 拒绝。非 0 时意味着「亏钱的短差往返在本账本里根本记不进去」
+    /// （`record_and_apply_dual` 整笔回滚）——若本读数非零，报告层须撤销「预期经济场景」定性，
+    /// 如实呈现为待另立票的设计缺口（见 [`super`] 模块级 issue #357 报告，非本字段文档断言）。
+    pub resource_exhausted_free_negative_count: usize,
     /// `apply_action` 遇其余 [`CampaignViolation`]（`AvgCostMismatch`/`NonPositiveUnits`/
     /// `OverReplenish`/`UnclosedRoundTrip`/`UnitsExceedCostBasis`/`StageTransition`/
     /// `SizingRoundsToZero`）的计数——诊断用，生产路径正常接线下恒 0（非 0 = 真正的接线/
@@ -374,22 +399,51 @@ impl CampaignWiringWitness {
         }
     }
 
-    /// 记一次 `apply_action` 拒绝——按变体分桶（`NoActiveCampaign`/`ShortDiff(ChannelRejected)`
-    /// 是预期经济场景，其余是真正的接线/记账错误警报，见字段文档，不得混桶）。
-    pub fn record_violation(&mut self, violation: CampaignViolation) {
+    /// 记一次 `apply_action` 拒绝，遇 `NoActiveCampaign` 时额外核验本级空头侧持仓
+    /// （issue #357 关票条件 C，方案2）：空头侧非零 ⟹ 落
+    /// [`Self::unsupported_short_position_count`]（未支持，非预期）；空头侧为零 ⟹ 落
+    /// [`Self::no_active_campaign_count`]（真空仓，预期场景）。`is_short_side_held` 由调用方
+    /// （`drive_campaign_wiring`）在拒绝发生的同一 level 上现读 `balance_side(Core{level},
+    /// Short)` 传入——本方法不持账本，保持纯判据（同 [`super::account::reason_of_reverse_close`]
+    /// 的 `core_residual` 传入模式）。
+    ///
+    /// 其余变体按既定分桶（`ShortDiff(ChannelRejected(CashUnsound))` 拆 holding/free 两子桶，
+    /// issue #357 关票条件 B；其余是真正的接线/记账错误警报，见字段文档，不得混桶）。
+    pub fn record_violation(&mut self, violation: CampaignViolation, is_short_side_held: bool) {
         match violation {
+            CampaignViolation::NoActiveCampaign if is_short_side_held => {
+                self.unsupported_short_position_count += 1;
+            }
             CampaignViolation::NoActiveCampaign => {
                 self.no_active_campaign_count += 1;
             }
-            CampaignViolation::ShortDiff(ShortDiffViolation::ChannelRejected(_)) => {
-                self.resource_exhausted_count += 1;
+            CampaignViolation::ShortDiff(ShortDiffViolation::ChannelRejected(
+                TransitionError::CashUnsound { holding, .. },
+            )) if holding < 0 => {
+                self.resource_exhausted_holding_negative_count += 1;
+            }
+            CampaignViolation::ShortDiff(ShortDiffViolation::ChannelRejected(
+                TransitionError::CashUnsound { free, .. },
+            )) if free < 0 => {
+                self.resource_exhausted_free_negative_count += 1;
             }
             other => {
                 self.other_violation_count += 1;
                 let label = match other {
-                    CampaignViolation::NoActiveCampaign
-                    | CampaignViolation::ShortDiff(ShortDiffViolation::ChannelRejected(_)) => {
-                        unreachable!("上方分支已处理")
+                    CampaignViolation::NoActiveCampaign => "no_active_campaign_unreachable",
+                    CampaignViolation::ShortDiff(ShortDiffViolation::ChannelRejected(
+                        TransitionError::CashUnsound { .. },
+                    )) => {
+                        // holding<0/free<0 已在上方分支处理；三量皆非负时 cash_sound_gate 本不该
+                        // 拒绝——若触达此分支属真正异常，照实归类而非静默吞入某个资源桶。
+                        "resource_exhausted_cash_sound_neither_negative_unreachable"
+                    }
+                    CampaignViolation::ShortDiff(ShortDiffViolation::ChannelRejected(
+                        TransitionError::Oq9Illegal { .. },
+                    )) => {
+                        // OQ-9 在本路径恒真（ShortDiff/Realize 的 is_legal_from 恒真）——若触达
+                        // 说明合法性表被破坏，是真正的接线/记账错误，不得归入资源耗尽桶。
+                        "resource_exhausted_oq9_illegal_unexpected"
                     }
                     CampaignViolation::SizingRoundsToZero { .. } => "sizing_rounds_to_zero",
                     CampaignViolation::ShortDiff(ShortDiffViolation::NonPositiveUnits(_)) => {
@@ -673,10 +727,50 @@ mod tests {
 
         assert_eq!(w.no_active_campaign_count, 0);
         assert_eq!(w.other_violation_count, 0, "接线正常路径下其余通道拒绝计数恒 0");
-        w.record_violation(CampaignViolation::NoActiveCampaign);
-        assert_eq!(w.no_active_campaign_count, 1, "NoActiveCampaign 是预期经济场景，单独分桶");
+        w.record_violation(CampaignViolation::NoActiveCampaign, false);
+        assert_eq!(w.no_active_campaign_count, 1, "NoActiveCampaign 且本级空头侧无仓 ⟹ 预期经济场景，单独分桶");
+        assert_eq!(w.unsupported_short_position_count, 0, "空头侧无仓 ⟹ 不落未支持桶");
         assert_eq!(w.other_violation_count, 0, "不误落入其余违规桶");
-        w.record_violation(CampaignViolation::SizingRoundsToZero { held: 2 });
+        w.record_violation(CampaignViolation::SizingRoundsToZero { held: 2 }, false);
         assert_eq!(w.other_violation_count, 1, "SizingRoundsToZero 是真正的记账异常，落其余桶");
+    }
+
+    /// ★issue #357 关票条件 C：`NoActiveCampaign` 且本级空头侧持仓非零 ⟹ 落
+    /// `unsupported_short_position_count`（未支持），不与真空仓的 `no_active_campaign_count`
+    /// 混桶——两者叙事不同（前者「有仓但认不出」，后者「真空仓」）。
+    #[test]
+    fn witness_splits_no_active_campaign_by_short_side_holding() {
+        let mut w = CampaignWiringWitness::new();
+        w.record_violation(CampaignViolation::NoActiveCampaign, true);
+        assert_eq!(w.unsupported_short_position_count, 1, "空头侧持仓非零 ⟹ 落未支持桶");
+        assert_eq!(w.no_active_campaign_count, 0, "不误落入真空仓桶");
+        w.record_violation(CampaignViolation::NoActiveCampaign, false);
+        assert_eq!(w.no_active_campaign_count, 1, "空头侧无仓 ⟹ 落真空仓桶");
+        assert_eq!(w.unsupported_short_position_count, 1, "不回填/不误增未支持桶");
+    }
+
+    /// ★issue #357 关票条件 B：`ChannelRejected(CashUnsound)` 按 `holding<0`/`free<0` 拆两子桶
+    /// ——不再丢弃 `TransitionError` 内层错误，归因可直接从读数判定。
+    #[test]
+    fn witness_splits_resource_exhausted_by_holding_vs_free_negative() {
+        let mut w = CampaignWiringWitness::new();
+        w.record_violation(
+            CampaignViolation::ShortDiff(ShortDiffViolation::ChannelRejected(
+                TransitionError::CashUnsound { free: 10, holding: -5, withdrawn: 0 },
+            )),
+            false,
+        );
+        assert_eq!(w.resource_exhausted_holding_negative_count, 1, "holding<0 ⟹ 预算耗尽子桶");
+        assert_eq!(w.resource_exhausted_free_negative_count, 0);
+
+        w.record_violation(
+            CampaignViolation::ShortDiff(ShortDiffViolation::ChannelRejected(
+                TransitionError::CashUnsound { free: -3, holding: 100, withdrawn: 0 },
+            )),
+            false,
+        );
+        assert_eq!(w.resource_exhausted_free_negative_count, 1, "free<0 ⟹ 亏损往返子桶");
+        assert_eq!(w.resource_exhausted_holding_negative_count, 1, "另一子桶不被误增");
+        assert_eq!(w.other_violation_count, 0, "两条 CashUnsound 均落资源耗尽子桶，不误落其余违规桶");
     }
 }

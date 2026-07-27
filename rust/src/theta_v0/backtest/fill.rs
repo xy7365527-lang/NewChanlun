@@ -894,6 +894,19 @@ fn step_center_oscillation(
 /// 顺序：先按本仓口径（编排者裁定 A：`Core{level}` 身份账户）逐级 `sync_position`（本级持仓
 /// 空⟺持仓生死判据），再逐条消费本 bar 新产出的减/补动作（`apply_action`）——与生产调用点
 /// `pi_theta_fill_loop_overlay` 的既有顺序一致。
+///
+/// ★issue #357 关票条件 C：**本接线只支持多头侧 campaign**（方案2）——`account_view.balance(account)`
+/// 对同身份实例有符号净额求和（account.rs:341-347，多正空负），而 `identity_of` 把
+/// `(FollowParent,Short)` 也映到 `Core{level}`（顺父级联空腿）；若改用净额，本级持有空头仓位时
+/// 净额可能非正，会被 `sync_position` 的 `units()>0` 判据误判为空仓——campaign 永不开局，空头
+/// 侧的震荡短差整支被静默丢弃。改用 `balance_side`/`cost_basis_side` 只读**多头侧**分量
+/// （`VoiceSide::Long`），空头侧完全不参与本仓 campaign 的生死判据/sizing 现算——本级若持有
+/// 空头仓位，多头侧读数如实为空仓，结构信号触发时的拒绝不算「预期经济场景」，而是「本接线未
+/// 支持空头 campaign」，由下方 `is_short_side_held` 传给 witness 单独分桶
+/// （`unsupported_short_position_count`，不与真空仓的 `no_active_campaign_count` 混计）。
+/// `money` 字段口径 `as i64` 截断：**不再**援引 `TwLedgerThread::sync_basis_raw`
+/// 先例——该先例是 `(units.abs()*entry_cost.abs())`（空头取绝对额=在险市值），与本接线改分侧
+/// 后的多头侧口径同为正数但成因不同，两者截断写法只是形似，不构成同一惯例，不再混引。
 fn drive_campaign_wiring(
     n_levels: u32,
     account_view: &strategy::account::ParallelAccountLedger,
@@ -903,13 +916,13 @@ fn drive_campaign_wiring(
     campaign_book: &mut super::super::strategy::oscillation_campaign::CampaignBook,
     witness: &mut super::super::strategy::oscillation_campaign::CampaignWiringWitness,
 ) {
+    use super::super::strategy::voice::VoiceSide;
+
     for lvl in 0..n_levels {
         let account = strategy::account::AccountIdentity::Core { level: lvl };
-        // ★money 字段口径统一 `as i64`（同 `backtest::ledger::TwLedgerThread::sync_basis_raw`
-        // 的 `nav0 as i64`/`(units.abs()*entry_cost.abs()) as i64` 截断惯例，非本票新引入）。
         let snapshot = super::super::strategy::short_diff_bucket::CoreCostBasisSnapshot::new(
-            account_view.balance(account) as i64,
-            account_view.cost_basis(account) as i64,
+            account_view.balance_side(account, VoiceSide::Long) as i64,
+            account_view.cost_basis_side(account, VoiceSide::Long) as i64,
         );
         if let Some(event) = campaign_book.sync_position(lvl, snapshot) {
             witness.record_lifecycle(event);
@@ -919,7 +932,11 @@ fn drive_campaign_wiring(
         witness.record_action(rec.level, rec.action);
         match campaign_book.apply_action(rec.level, rec.action, price, risk_mode) {
             Ok(_outcome) => {}
-            Err(violation) => witness.record_violation(violation),
+            Err(violation) => {
+                let account = strategy::account::AccountIdentity::Core { level: rec.level };
+                let is_short_side_held = account_view.balance_side(account, VoiceSide::Short) != 0.0;
+                witness.record_violation(violation, is_short_side_held);
+            }
         }
     }
 }
@@ -1077,6 +1094,79 @@ mod campaign_wiring_tests {
         drive_campaign_wiring(1, &account_view, &actions, 12, RiskMode::Normal, &mut book, &mut witness);
         assert_eq!(witness.no_active_campaign_count, 1, "空仓级别喂动作 ⟹ NoActiveCampaign 分桶计数（预期读数）");
         assert_eq!(witness.other_violation_count, 0, "非 NoActiveCampaign 的其余违规恒 0（本用例不触发）");
+    }
+
+    fn short_key(level: u32) -> AccountKey {
+        AccountKey::new(
+            AccountIdentity::Core { level },
+            level,
+            PositionNodeId {
+                carrier: ElementId { level, ordinal: 0 },
+                entry_certificate: Some(EntryCertificate { level, source_index: 0 }),
+                side: VoiceSide::Short,
+                generation: 0,
+            },
+        )
+    }
+
+    /// ★issue #357 关票条件 C：本级只持空头仓位（FollowParent×Short 顺父级联核心仓，净额为负）
+    /// 时，`drive_campaign_wiring` 只读多头侧余额 ⟹ campaign 不开局（本接线只支持多头侧，方案2）；
+    /// 结构信号触发时的拒绝应落 `unsupported_short_position_count`（未支持，真有仓）而非
+    /// `no_active_campaign_count`（预期经济场景，真空仓）——两桶不得混计。
+    #[test]
+    fn drive_campaign_wiring_tallies_short_only_core_as_unsupported_not_no_active_campaign() {
+        let mut account_view = strategy::account::ParallelAccountLedger::new();
+        let open_short = AccountOrder {
+            key: short_key(0),
+            reason: ActionReason::Open,
+            qty_delta: -50.0,
+            decision_bar: 0,
+        };
+        account_view.post(open_short, 20.0, 0); // 空头 50 股 @20（净额=-50，多头侧=0）
+
+        let mut book = CampaignBook::new();
+        let mut witness = CampaignWiringWitness::new();
+        drive_campaign_wiring(1, &account_view, &[], 20, RiskMode::Normal, &mut book, &mut witness);
+        assert!(book.campaign(0).is_none(), "多头侧余额=0 ⟹ campaign 不开局（本接线未支持空头）");
+
+        let actions = vec![record(0, CenterOscillationAction::Reduce)];
+        drive_campaign_wiring(1, &account_view, &actions, 20, RiskMode::Normal, &mut book, &mut witness);
+        assert_eq!(
+            witness.unsupported_short_position_count, 1,
+            "本级持有空头仓位 ⟹ 落未支持桶（真有仓，非真空仓预期场景）"
+        );
+        assert_eq!(witness.no_active_campaign_count, 0, "不得混入真空仓桶");
+    }
+
+    /// ★issue #357 关票条件 C：本级多空并存时，campaign 只按多头侧取数开局——不被空头侧腿
+    /// 的净额/成本基污染（净额求和会让 300−50=250、成本基净额求和会把两侧成本基相加，均非
+    /// 「多头侧真实持仓 300 股 @10=3000」）。
+    #[test]
+    fn drive_campaign_wiring_opens_campaign_from_long_side_only_when_mixed_with_short() {
+        let mut account_view = strategy::account::ParallelAccountLedger::new();
+        let open_long = AccountOrder {
+            key: core_key(0),
+            reason: ActionReason::Open,
+            qty_delta: 300.0,
+            decision_bar: 0,
+        };
+        account_view.post(open_long, 10.0, 0); // 多头 300 股 @10 ⟹ 成本基 3000
+        let open_short = AccountOrder {
+            key: short_key(0),
+            reason: ActionReason::Open,
+            qty_delta: -50.0,
+            decision_bar: 0,
+        };
+        account_view.post(open_short, 20.0, 0); // 空头 50 股 @20 ⟹ 成本基 1000（另一实例，不与多头共享）
+
+        let mut book = CampaignBook::new();
+        let mut witness = CampaignWiringWitness::new();
+        drive_campaign_wiring(1, &account_view, &[], 15, RiskMode::Normal, &mut book, &mut witness);
+
+        let campaign = book.campaign(0).expect("多头侧持仓非空 ⟹ 应已开局 campaign");
+        assert_eq!(campaign.tw().notional_in, 3_000, "notional_in=多头侧成本基（3000），不含空头侧的1000");
+        assert_eq!(campaign.tw().holding, 3_000);
+        assert_eq!(witness.lifecycle_opened, 1);
     }
 }
 

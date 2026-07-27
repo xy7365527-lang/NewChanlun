@@ -1347,7 +1347,8 @@ fn m8_e2e_all_systems_oos() {
                 "[m8][#357] {tag}: center_oscillation.enabled={} trigger_attempts={} \
                  dropped_center_not_alive={} ({:.1}%) dropped_other={} action_by_level={:?} \
                  suspension_by_source={:?} lifecycle_opened={} lifecycle_died={} \
-                 no_active_campaign_count={} resource_exhausted_count={} \
+                 no_active_campaign_count={} unsupported_short_position_count={} \
+                 resource_exhausted_holding_negative_count={} resource_exhausted_free_negative_count={} \
                  other_violation_count={} other_violation_by_kind={:?} campaign_active_end={}",
                 cfg.center_oscillation.enabled,
                 w.trigger_attempts,
@@ -1359,20 +1360,25 @@ fn m8_e2e_all_systems_oos() {
                 w.lifecycle_opened,
                 w.lifecycle_died,
                 w.no_active_campaign_count,
-                w.resource_exhausted_count,
+                w.unsupported_short_position_count,
+                w.resource_exhausted_holding_negative_count,
+                w.resource_exhausted_free_negative_count,
                 w.other_violation_count,
                 w.other_violation_by_kind,
                 r.campaign_book.active_count(),
             );
-            // ★no_active_campaign_count/resource_exhausted_count 非 bug——前者是结构信号独立于
-            // 本级持仓状态的预期空仓触发（#292 CenterOscillationBook「无门」设计），后者是
-            // campaign 按级别（非按中枢）聚合共享同一份冻结 sizing 预算、连续同向触发耗尽
-            // holding 时 cash_sound_gate 的显式拒绝（真实资源约束，见 CampaignWiringWitness
-            // 字段文档）；两者均不断言恒 0。`other_violation_count` 才是真正的接线/记账逻辑
-            // 错误警报，必须恒 0。
+            // ★no_active_campaign_count/resource_exhausted_holding_negative_count 非 bug——前者
+            // 是结构信号独立于本级持仓状态的预期空仓触发（#292 CenterOscillationBook「无门」
+            // 设计），后者是 campaign 按级别（非按中枢）聚合共享同一份冻结 sizing 预算、连续同向
+            // 触发耗尽 holding 时 cash_sound_gate 的显式拒绝（真实资源约束，见 CampaignWiringWitness
+            // 字段文档）；两者均不断言恒 0。`unsupported_short_position_count`（issue #357 关票
+            // 条件 C：本接线只支持多头侧 campaign，空头持仓落此桶，非本票范围内修复）与
+            // `resource_exhausted_free_negative_count`（issue #357 关票条件 B：亏损往返，若非零
+            // 需另立票，见报告 §4.2）同样是产物级见证，不断言恒 0——`other_violation_count` 才是
+            // 真正的接线/记账逻辑错误警报，必须恒 0。
             assert_eq!(
                 w.other_violation_count, 0,
-                "接线/记账逻辑错误计数必须恒 0（NoActiveCampaign/资源耗尽除外，见对应分桶字段）"
+                "接线/记账逻辑错误计数必须恒 0（NoActiveCampaign/未支持空头/资源耗尽除外，见对应分桶字段）"
             );
         }
 

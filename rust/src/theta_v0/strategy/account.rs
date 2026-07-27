@@ -373,6 +373,18 @@ impl ParallelAccountLedger {
             .sum()
     }
 
+    /// 按身份 × 声部方向读分量成本基（**派生视图**：现算投影，非存储，与
+    /// [`balance_side`](Self::balance_side) 同规格）——issue #357 关票条件 C：`Core{level}`
+    /// 取数改分侧口径，本方法喂多头侧 `CoreCostBasisSnapshot::cost_basis()`，与分侧余额
+    /// 同一过滤谓词（`key.position.side == side`），避免多空并存时空侧成本基污染多头快照。
+    pub fn cost_basis_side(&self, account: AccountIdentity, side: VoiceSide) -> f64 {
+        self.instances
+            .values()
+            .filter(|i| i.key.account == account && i.key.position.side == side)
+            .map(|i| i.cost_basis)
+            .sum()
+    }
+
     /// 历史时点余额（**派生视图**：自成交事件日志重放，无快照存储）。
     pub fn balance_as_of(&self, account: AccountIdentity, bar: usize) -> f64 {
         self.fills
@@ -771,6 +783,24 @@ mod tests {
             book.balance_side(AccountIdentity::Core { level: 0 }, VoiceSide::Short),
             0.0,
             "一类买批 ⇒ 该级空侧分量=0（与卖批镜像）"
+        );
+    }
+
+    /// ★issue #357 关票条件 C：`cost_basis_side` 与 `balance_side` 同一过滤谓词——多空并存时
+    /// 多头侧成本基不被空侧污染（`cost_basis(account)` 净额聚合会把两侧成本基相加，本方法
+    /// 拆查后各自独立读数，喂 `drive_campaign_wiring` 的多头侧 `CoreCostBasisSnapshot`）。
+    #[test]
+    fn cost_basis_side_splits_by_voice_side_like_balance_side() {
+        let mut book = ParallelAccountLedger::new();
+        // Core{0} 多侧 100 股 @10（成本基1000）+ 空侧 30 股 @20（成本基600，顺父级联 Short 腿）。
+        book.post(order(AccountIdentity::Core { level: 0 }, 0, VoiceSide::Long, ActionReason::Open, 100.0, 0), 10.0, 0);
+        book.post(order(AccountIdentity::Core { level: 0 }, 0, VoiceSide::Short, ActionReason::Open, -30.0, 0), 20.0, 0);
+        assert_eq!(book.cost_basis_side(AccountIdentity::Core { level: 0 }, VoiceSide::Long), 1_000.0, "多侧成本基独立读数，不含空侧");
+        assert_eq!(book.cost_basis_side(AccountIdentity::Core { level: 0 }, VoiceSide::Short), 600.0, "空侧成本基独立读数，不含多侧");
+        assert_eq!(
+            book.cost_basis(AccountIdentity::Core { level: 0 }),
+            1_600.0,
+            "净额聚合口径不动（两派生视图共存）——正是本条件要规避的污染源"
         );
     }
 }
