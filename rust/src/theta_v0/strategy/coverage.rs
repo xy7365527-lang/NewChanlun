@@ -97,6 +97,12 @@ pub struct AncokProbe {
     /// ★暴露面：restore 因 registry 丢失/作废祖先提前中断（本应有 parent 但 registry 已失去）。
     /// >0 ⟹ 被 admit 子声部腿祖先链未完整 ⟹ 声部树非严格（697 ceiling 的可观测触发条件）。
     pub restore_break_registry_lost: u64,
+    /// ★票#315（呼应 #301 探针族）：held 腿占位（LivePresent/LiveDetached）统一 fixup 时点，
+    /// `parent_id` 已知但经 id_idx/overlay_seen/raw 三级解析仍未命中（父本轮从未物化进 raw，
+    /// 含真断链与"永不物化"两种成因）——[`rebuild_placeholder_parent_attached`] 保持 None/None
+    /// 不伪造。>0 ⟹ 该路径在生产窗口被命中，可与 AncOK 剪除计数交叉核对。纯只读计数，不改
+    /// work/raw 控制流。
+    pub placeholder_parent_unresolved: u64,
 }
 
 thread_local! {
@@ -110,6 +116,7 @@ thread_local! {
         restore_complete: 0,
         restore_break_already_in_raw: 0,
         restore_break_registry_lost: 0,
+        placeholder_parent_unresolved: 0,
     }) };
 }
 
@@ -2151,7 +2158,8 @@ fn restore_ancestor_chain_from_registry(
     }
 }
 
-/// ★票#267（#247 缺口二同类位点）：held 腿占位元素（LivePresent/LiveDetached 分支）角色输入重建。
+/// ★票#267/#315（#247 缺口二同类位点，#284 评审 MED-1 订正）：held 腿占位元素
+/// （LivePresent/LiveDetached 分支）角色输入重建。
 ///
 /// 占位元素携已知 `parent_id`（`leg.op_parent`，anc.pdf §15：LiveDetached 的 parent 仍是 op_parent(L)），
 /// 修复前写死 `parent:None, attached_dir:None`。AncOK 按 parent_id 结构映射判（不看 parent 索引）⟹
@@ -2165,12 +2173,24 @@ fn restore_ancestor_chain_from_registry(
 /// 同口径）。解析序同 #247：id_idx（base 段）→ overlay_seen（candidate+restore 段）→ raw 扫
 /// （先前 push 的 held 占位元素不在两张查表，扫 raw 兜底，raw 有界）。
 ///
+/// ★票#315（#284 评审 MED-1）调用时点订正：本 helper 由调用方在 `prev_active`/open 两个物化
+/// 循环**结束后**、AncOK 判定前统一调用（同 #247 `restore_ancestor_chain_from_registry` 循环后
+/// 统一修补形状），不再在占位 push 当轮立即调用。立即式对「父在本轮更晚迭代才物化进 raw」的
+/// 场景查不到（此时父尚未 push）⟹ 误留 None/None（#284 shadow-review-267 MED-1 坐实的时序孔，
+/// 测试坐实：`held_leg_placeholder_parent_materializes_in_later_iteration`）。改统一 fixup 后，
+/// 三张查表在调用时点均为**本 bar 终态**，父只要本轮曾被物化（不论早于/晚于该占位被处理），
+/// 均可解析。
+///
 /// 边界语义（皆为正确语义，非「防御分支」兜底，与 #247 裁定一致）：
 /// - `parent_id=None`（真边界胚元 ∂）：保持 None/None——σ_{p(∂)}=0 ⟹ V=Ambient 是去根化正解
 ///   （测试坐实：`held_leg_placeholder_boundary_germ_keeps_parent_none`）。
-/// - 父无法解析（断链 `restore_break_registry_lost` / LivePresent 父不在场）：保持 None/None，
-///   **不伪造**——占位元素的 parent_id 不在 raw ⟹ `ancestor_close_by_id`（AncOK：Anc(e)⊆raw 才
-///   保留）恒剪除 ⟹ 不进 next_idx，到不了角色计算（角色/p̃ 无影响）。
+/// - 父无法解析：保持 None/None，**不伪造**——占位元素的 parent_id **在本 bar 统一 fixup 时点
+///   仍不在 raw**（真断链 `restore_break_registry_lost` 永不物化，或该占位所在 bar 内父确实
+///   从未被任何路径 push）⟹ `ancestor_close_by_id`（AncOK：Anc(e)⊆raw 才保留）剪除 ⟹ 不进
+///   next_idx，到不了角色计算（角色/p̃ 无影响）。**订正**（090：#284 MED-1）：此处不是「恒」
+///   剪除——「不可解析」是统一 fixup 这一时点的判定，「AncOK 剪除」是循环终态 raw 上的判定，
+///   两者現在**同一时点**（统一 fixup 已移到循环后）才重合为全称；命中即计入
+///   `placeholder_parent_unresolved` probe（生产窗口可观测，呼应 #301 探针族）。
 ///   测试坐实：`held_leg_placeholder_broken_chain_pruned_by_ancok`。
 fn rebuild_placeholder_parent_attached(
     work: &mut ElementView,
@@ -2186,9 +2206,15 @@ fn rebuild_placeholder_parent_attached(
             .copied()
             .or_else(|| overlay_seen.get(&pid).copied())
             .or_else(|| raw.iter().copied().find(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false)));
-        if let Some(pidx) = pidx {
-            let p_eps = work[pidx].eps;
-            work.set_parent_attached(idx, pidx, p_eps);
+        match pidx {
+            Some(pidx) => {
+                let p_eps = work[pidx].eps;
+                work.set_parent_attached(idx, pidx, p_eps);
+            }
+            None => {
+                // ★票#315 probe：父不可解析（不伪造），纯只读计数，不改 work/raw 控制流。
+                ancok_probe_bump(|p| p.placeholder_parent_unresolved += 1);
+            }
         }
     }
 }
@@ -2233,6 +2259,11 @@ pub(crate) fn coverage_step_from_buckets_sep(
     // candidate_start = base 段长（candidate 从此起，在 overlay）。
     let candidate_start = work.base_len();
     let mut raw: Vec<usize> = Vec::new();
+    // ★票#315（#284 评审 MED-1）：held 腿占位（LivePresent/LiveDetached）idx 收集，两个物化循环
+    // （本循环 + 下方 open 候选父链恢复）结束、AncOK 判定前统一 fixup（同 #247 restore 循环后统一
+    // 修补形状），见函数尾部。替代立即式（push 当轮即调 `rebuild_placeholder_parent_attached`）——
+    // 立即式对「父在本轮更晚迭代才物化进 raw」的场景查不到父，误留 None/None。
+    let mut placeholders: Vec<usize> = Vec::new();
 
     // ponytail: H6 单次建 tree 前缀 ElementId→idx 索引——tree 前缀在持仓腿对位期间不变
     //（Stale 追加在 candidate_start 之后，不污染 tree 前缀）⟹ 建一次、多次查 O(1)。
@@ -2299,11 +2330,9 @@ pub(crate) fn coverage_step_from_buckets_sep(
                             id: leg.id,
                             parent_id: leg.op_parent,
                         });
-                        // ★票#267：占位元素角色输入重建（parent_id=op_parent 已知真父，同 #247 口径；
-                        // ∂/父不可解析保持 None 不伪造——后者恒被 AncOK 剪除，见 helper doc）。
-                        rebuild_placeholder_parent_attached(
-                            &mut work, idx, leg.op_parent, &id_idx, &overlay_seen, &raw,
-                        );
+                        // ★票#315（#284 评审 MED-1，订正票#267 立即式）：占位角色输入修补改收集 idx，
+                        // 循环后统一 fixup（见函数尾部 AncOK 判定前，helper doc 详述时序孔成因）。
+                        placeholders.push(idx);
                         raw.push(idx);
                     }
                     super::persistent::HeldLegState::LiveDetached => {
@@ -2330,12 +2359,10 @@ pub(crate) fn coverage_step_from_buckets_sep(
                             id: leg.id,
                             parent_id: leg.op_parent,
                         });
-                        // ★票#267：占位元素角色输入重建（#247 缺口二同类位点）——restore 已把 op_parent
-                        // 祖先链物化入 work（上方），op_parent 可经 id_idx/overlay_seen/raw 解析；
-                        // ∂/断链不可解析保持 None 不伪造（断链者恒被 AncOK 剪除，见 helper doc）。
-                        rebuild_placeholder_parent_attached(
-                            &mut work, idx, leg.op_parent, &id_idx, &overlay_seen, &raw,
-                        );
+                        // ★票#315（#284 评审 MED-1，订正票#267 立即式）：占位角色输入修补改收集 idx，
+                        // 循环后统一 fixup（同上；restore 已把 op_parent 祖先链物化入 work/raw，统一
+                        // fixup 时点可解析，见函数尾部 + helper doc）。
+                        placeholders.push(idx);
                         raw.push(idx);
                     }
                     super::persistent::HeldLegState::Closed | super::persistent::HeldLegState::Invalidated => {
@@ -2411,6 +2438,19 @@ pub(crate) fn coverage_step_from_buckets_sep(
                 }
             }
         }
+    }
+
+    // ★票#315（#284 评审 MED-1）：held 腿占位统一 fixup——两个物化循环（上方 prev_active held 腿 +
+    // open 候选父链恢复）均已结束、AncOK 判定前，对本轮收集的占位 idx 统一重建 parent/attached_dir
+    // （同 #247 `restore_ancestor_chain_from_registry` 循环后统一修补形状）。此时 id_idx/overlay_seen/
+    // raw 三张查表均为**本 bar 终态**——立即式（push 当轮即调）的时序孔（父在本轮更晚迭代才物化进
+    // raw，此刻查不到）不再存在：父只要本轮曾被任一路径物化（不论早于/晚于该占位被处理），统一
+    // fixup 都能经三级解析命中。父确实从未物化（真断链 `restore_break_registry_lost` 或该 bar 内
+    // 父从未被任何路径 push）时，保持 None/None 不伪造，随后被下方 AncOK 剪除，命中计入
+    // `placeholder_parent_unresolved` probe。
+    for &idx in &placeholders {
+        let parent_id = work[idx].parent_id;
+        rebuild_placeholder_parent_attached(&mut work, idx, parent_id, &id_idx, &overlay_seen, &raw);
     }
 
     // 步2：A_{t+1}=AncOK(A^raw)——剔除真 Compose 父容器不在 raw 的孤儿子腿（§13 持仓准入：未持父则剔除）。
@@ -4909,7 +4949,9 @@ mod tests {
     /// 本轮已 push 的恢复元素其 `parent_id` 不在 raw ⟹ `ancestor_close_by_id`（AncOK：Anc(e)⊆raw
     /// 才保留）将其全部剪除 ⟹ **不进 next_idx，到不了角色计算**，且不 panic。
     ///
-    /// 断链元素**不伪造** parent/attached_dir（保持 None/None）——它们恒被 AncOK 剪除，
+    /// 断链元素**不伪造** parent/attached_dir（保持 None/None）——registry 已丢失父，父
+    /// 在本轮（及此后任何轮）都不会物化进 raw ⟹ 被 AncOK 剪除（090 订正措辞，#284 MED-1：
+    /// 「恒」须限定在「父确实从未物化进 raw」这一条件下，非无条件全称——本例满足该条件），
     /// 角色/p̃ 无影响；这不是「防御分支兜底」，是 AncOK 结构判据的正规剪枝。
     #[test]
     fn restore_broken_chain_pruned_by_ancok_no_panic() {
@@ -5144,6 +5186,70 @@ mod tests {
         assert!((sep_root.q_units - 600.0).abs() < 1e-9,
             "depth=0 ⟹ q=600（∂ 语义修复前后不变）；实得 {}", sep_root.q_units);
         assert!((p_tilde - 600.0).abs() < 1e-9, "p̃=+600；实得 {p_tilde}");
+    }
+
+    /// ★票#315（#284 评审 MED-1 坐实的时序孔，父晚物化场景）：`prev_active` 中**子在父之前**、
+    /// 且父与子都是 Stale/LivePresent 占位（都在本轮 `prev_active` 循环内才被 push 进 raw，都不在
+    /// base 树/overlay_seen）——立即式修补（占位 push 当轮即调 helper）在 push 子时父尚未 push，
+    /// 三级解析（id_idx/overlay_seen/raw）全查不到，误留 `parent:None, attached_dir:None`；循环后
+    /// 统一 fixup（本票修复）在两个物化循环结束、AncOK 判定前执行，此时父已在 raw，可正确解析。
+    ///
+    /// 子占位存活性不受影响（AncOK 用 `parent_id`——ElementId 结构映射，不读 `parent` 索引字段，
+    /// 与 helper 的时序无关，见 [`ancestor_close_by_id`]）；受影响的是**角色输入**（V/depth/units），
+    /// 这正是本票要堵的缺角。
+    ///
+    /// **RED（立即式，修复前）**：子占位 V=Ambient + depth=0 ⟹ q_units=600，p̃=0（同修复前恒定
+    /// Ambient 的既有 held_leg 测试同构：600 父根 − 600 子 = 0）。
+    /// **GREEN（循环后统一 fixup，修复后）**：子占位 parent=Some(父 idx)、attached_dir=Some(父 eps)
+    /// ⟹ V=ShortDiff（δ=−σ_p）+ depth=1 ⟹ q_units=300，p̃=+300（600 父 − 300 子）。
+    #[test]
+    fn held_leg_placeholder_parent_materializes_in_later_iteration() {
+        // 父：LivePresent 占位，∂ 根（parent_id=None，level 1，Long）——本身角色计算 trivial，
+        // 但在 prev_active 中排在子**之后**，本轮循环内是**晚于子**才被 push 进 raw 的元素。
+        let father_cov = CoverageElement {
+            lambda: 0, rho: 8, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: eid(1, 0), parent_id: None,
+        };
+        let father_leg = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 8, lambda: 0,
+            id: eid(1, 0), parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        // 子：LivePresent 占位，parent_id=父（eid(1,0)），在 prev_active 中排在父**之前**
+        // （时序孔可达性：open 候选先入 raw、父链随后追加，令 next_active 中子先于父——见
+        // shadow-review-267-20260726.md §4 排序可达性推导；本测试直接构造 prev_active 顺序复现
+        // 同一时序孔，无需经过完整的 bar-to-bar 传播）。
+        let child_cov = CoverageElement {
+            lambda: 0, rho: 4, eps: VoiceSide::Short, level: 0,
+            parent: None, attached_dir: None, id: eid(0, 0), parent_id: Some(eid(1, 0)),
+        };
+        let child_leg = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 4, lambda: 0,
+            id: eid(0, 0), parent_id: Some(eid(1, 0)), is_boundary_root: false, op_parent: Some(eid(1, 0)),
+        };
+        let reg = super::super::persistent::PersistentRegistry::new()
+            .merge(&[child_cov, father_cov], &[]);
+        let base: Vec<CoverageElement> = Vec::new();
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+
+        // prev_active 顺序：子在前、父在后（timing hole 复现的必要条件）。
+        let (next_active, p_tilde, sep_legs) = coverage_step_from_buckets_sep(
+            ElementView::new(&base), &[child_leg, father_leg], &buckets, 1000.0, &cfg(), None, &reg,
+        );
+
+        // 承重坐实：子占位不受 helper 时序影响地存活（AncOK 判据是 parent_id，非 parent 索引）。
+        assert!(
+            next_active.iter().any(|l| l.id == eid(0, 0)),
+            "子占位 parent_id 链（父 eid(1,0)）经本轮统一 fixup 后已在 raw ⟹ AncOK 存活；实得 {next_active:?}"
+        );
+        let sep_child = sep_legs.iter().find(|s| s.id == eid(0, 0)).expect("子腿须在 sep_legs");
+        assert_eq!(sep_child.role_v, Vertical::ShortDiff,
+            "父晚物化（同 bar 更晚迭代）：循环后统一 fixup 应解析到父 ⟹ V=ShortDiff（立即式修补会误留 Ambient）");
+        assert!((sep_child.q_units - 300.0).abs() < 1e-9,
+            "depth=1 ⟹ q=300（立即式修补残留 depth=0 ⟹ 600）；实得 {}", sep_child.q_units);
+        let sep_father = sep_legs.iter().find(|s| s.id == eid(1, 0)).expect("父腿须在");
+        assert_eq!(sep_father.role_v, Vertical::Ambient, "父自身 ∂ 根，V=Ambient 不受本修复影响");
+        assert!((p_tilde - 300.0).abs() < 1e-9,
+            "p̃=+300（600 父 − 300 子）；立即式修补下应为 0（600−600）；实得 {p_tilde}");
     }
 
     /// ★(I-1) open 父注入非膨胀守卫：父 carrier **不在 registry**（既非持仓又非 registry-live）⟹ 子腿
