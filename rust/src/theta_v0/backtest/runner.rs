@@ -3032,6 +3032,15 @@ mod tests {
              （#349 MED-3：帽在 p_tilde_lee 之前施加，旧判据对帽驱动偏离恒不可见）",
             s.n_orders_off_structural_clock
         );
+        // ★#362 条 6（#363 偏离跟进）：#363 已把**逐级**判据做实（`cap_narrowed_levels` 逐级
+        // 解释项），但端到端只断言了 bar 级。逐级严格更强（一级 binding 不赦免同决策点其他
+        // 级别）⟹ 帽开启的生产路径上必须一并闭环，否则逐级判据在真实跑批里无断言消费者。
+        assert!(
+            s.per_level_sparsity_has_no_unexplained_violation(),
+            "帽开启后**逐级**稀疏性硬约束破：n_levels_off_clock_delta_unexplained={}（#363：\
+             无 tick 级别的 Δq_ℓ≠0 须由 rescaled 或该级 cap_narrowed_levels 解释）",
+            s.n_levels_off_clock_delta_unexplained
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────

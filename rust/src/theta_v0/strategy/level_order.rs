@@ -346,12 +346,40 @@ pub struct LevelOrderPlan {
     /// [`super::coverage::clamp_levels_to_weighted_cap`]，见 `level_risk` 模块头「施加点严格限定」）。
     /// `enforce_level_cap=false`（default）⟹ 恒空（零分配）。
     ///
+    /// ★#369 LOW-2（健全性证明，评审补）：本表作为「无 tick 却 `Δq_ℓ ≠ 0`」的解释项，其
+    /// **充要性**在恒等分支下可证。**认识论等级 L0**（纯代数/定义推导，零信息增量，
+    /// `formalization-validity-domain`）；**有效域 = 恒等分支**（`rescaled == false`），
+    /// 严格小于 [`LevelOrderStats::n_levels_off_clock_delta_unexplained`] 的定义域（全分支）
+    /// ——缩放分支由 `rescaled` 这一项单独承担，本证明不覆盖它。设某级 ℓ 本 bar 无 tick：
+    ///
+    /// - （⟸ 充分）ℓ 被帽裁 ⟹ `targets_ℓ` 被改写离开 `planned_ℓ` ⟹ `Δq_ℓ` 可非零。
+    /// - （⟹ 必要）[`LevelOrderLedger::regate`] 对无 tick 级别取 `planned` 的**前值**（不读本
+    ///   bar `net_ℓ`），故 `gated_ℓ = planned_ℓ`；若 `attribute_total` 走恒等分支
+    ///   （`rescaled == false` ⟹ `targets == gated` 逐级），则 `targets_ℓ = planned_ℓ` ⟹
+    ///   `Δq_ℓ = 0`。取逆否：`Δq_ℓ ≠ 0` ∧ `!rescaled` ⟹ `targets_ℓ ≠ gated_ℓ` ⟹ 该级只可能是
+    ///   被帽改写的（帽是恒等分支下唯一改写 `targets` 的算子）⟹ ℓ ∈ 本表。
+    ///
+    /// 即：**恒等分支下「无 tick 且 `Δq_ℓ ≠ 0`」⟺「该级被帽裁」**。故
+    /// [`LevelOrderStats::n_levels_off_clock_delta_unexplained`] 用 `rescaled || 本表.contains`
+    /// 作解释项既不漏（充分性）也不宽（必要性）——两个解释项恰好穷尽两条改写路径。
+    ///
     /// 为何不复用 `rescaled`：`rescaled` 的语义是 [`super::level_attrib::attribute_total`] 的
     /// **比例缩放**（`Σbasis ≠ 物理目标`），帽裁剪不经该路径；把帽写进 `rescaled` 会同时污染
     /// [`LevelOrderStats::n_rescaled`] 的读数语义（090 严格性：声明与实际一一对应）。
     pub cap_narrowed_levels: Vec<u32>,
-    /// `Σ_ℓ net_ℓ − T`（结构净额与账户层物理目标的**有符号分歧**；L1 经验读数，见
+    /// `Σ_ℓ net_ℓ^gated − T`（结构净额与账户层物理目标的**有符号分歧**；L1 经验读数，见
     /// [`LevelOrderStats::max_abs_struct_gap`]）。
+    ///
+    /// ★#362 MED-3 锚定语义订正（照实，不改计算）：此处的 `T` 锚的是 **`t_lee_raw`**——
+    /// 账户层投影后、**二次裁剪前**的目标，即 [`LevelOrderLedger::plan_gated`] 收到的
+    /// `target_total` 入参。`fill.rs::plan_level_gated_order` 在 reclamp 分支下会把
+    /// `targets`/`deltas`/`order_units` 重写为二次裁剪后的 `t_lee'`，但 `struct_gap` 由
+    /// `plan_gated` 内部一次算定后**随 `..plan` 原样带过**，不随之重算。故在帽 binding 的
+    /// 决策点上 `struct_gap ≠ Σgated − Σtargets`——两者差的正是二次裁剪量。
+    ///
+    /// 这是**有意的**：本读数要量的是「结构说的仓位」与「账户层投影能给的仓位」之间的分歧
+    /// （#308 待裁输入的口径），二次裁剪属于帽的施加、已由 [`Self::cap_narrowed_levels`] 单列
+    /// 记录；把它并进 `struct_gap` 会让两个读数重复计同一件事。
     pub struct_gap: i64,
 }
 
@@ -490,7 +518,10 @@ impl LevelOrderLedger {
     /// - `force_flat` ⟹ `T_lee == 0` ⟹ 各级目标按比例归零 ⟹ 平仓单照出（**风控每 bar 生效**）。
     ///
     /// `struct_gap` 在 M3 语义下 = `Σ_ℓ basis^gated_ℓ − T_lee`（门控后的结构计划与投影后物理
-    /// 目标的分歧，即帽/风控吃掉的部分）——仍是 L1 经验读数，不断言为 0。
+    /// 目标的分歧，即帽/风控吃掉的部分）——仍是 L1 经验读数，不断言为 0。此处 `T_lee` 即本函数
+    /// 的 `target_total` 入参 = **`t_lee_raw`**（投影后、二次裁剪前）；M4 帽 binding 时调用方
+    /// 会把 `targets` 重写为二次裁剪后的 `t_lee'` 而不重算 `struct_gap`，锚定差异见
+    /// [`LevelOrderPlan::struct_gap`] 字段 doc（#362 MED-3 订正，语义照实、计算不动）。
     pub fn plan_gated(&self, gated_basis: &[(u32, i64)], target_total: i64) -> LevelOrderPlan {
         let (targets, used_residual_bucket, rescaled) = attribute_total(gated_basis, target_total);
         let deltas = sub_levels(&targets, &self.planned);

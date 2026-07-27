@@ -540,17 +540,35 @@ struct AccountProjectionCtx<'a> {
 /// [`super::super::strategy::coverage::clamp_levels_to_weighted_cap`] 保序等长（逐级 `map`，零项
 /// 保留、残差桶透传），故逐位比较即逐级比较——不需要按 level 归并。
 fn levels_narrowed_by_cap(before: &[(u32, i64)], after: &[(u32, i64)]) -> Vec<u32> {
-    debug_assert_eq!(before.len(), after.len(), "clamp 保序等长契约破：{before:?} vs {after:?}");
+    // ★#369 LOW-1（与下方位序断言同源，一并升为真 `assert!`）：「等长」与「保序」是同一条
+    // clamp 契约的两半，失效形状也同形——release 下 `zip` 对长度不等**静默截断**，尾部被裁级别
+    // 直接漏出本表 ⟹ 逐级判据反把它计为未解释违例。只升一半 = 半成品（090）。
+    assert_eq!(before.len(), after.len(), "clamp 保序等长契约破：{before:?} vs {after:?}");
     before
         .iter()
         .zip(after.iter())
-        .filter(|(b, a)| b.0 == a.0 && b.1 != a.1)
+        .filter(|(b, a)| {
+            // ★#369 LOW-1：级别对齐是 clamp 的**构造性契约**（保序等长），不是需要过滤的数据
+            // 情形。写在 `filter` 里 ⟹ 契约一旦破，该级被静默跳过（漏报「被帽裁」⟹ 逐级判据
+            // 反而把它计为未解释违例，方向还是错的）。契约破 = 缺陷，应响亮。
+            assert_eq!(b.0, a.0, "clamp 保序契约破：位序 level {} vs {}", b.0, a.0);
+            b.1 != a.1
+        })
         .map(|(b, _)| b.0)
         .collect()
 }
 
-/// 两张升序级别表的并（去重）。任一侧为空 ⟹ 零分配返回另一侧（default 路径与帽未 binding 的
-/// 常态都走这条）。
+/// 两张级别表的并（**去重**，顺序不承诺）。任一侧为空 ⟹ 零分配返回另一侧（default 路径与帽未
+/// binding 的常态都走这条）。
+///
+/// ★#369 LOW-2（照实收窄）：原 doc 承诺「两张**升序**表」——该前置既无校验也无消费者
+/// （非空路径统一 `sort_unstable` + `dedup`，与输入是否有序无关；唯一下游
+/// [`super::super::strategy::level_order::LevelOrderPlan::cap_narrowed_levels`] 只用
+/// `contains`）。按 090「声明与实际一一对应」**删承诺**而非加校验（票体 #365 条 8 二选一）。
+///
+/// 同理不承诺**输出**升序：两条零分配早退路径原样返回输入，输入无序则输出无序——「输出升序」
+/// 恰恰依赖刚被删掉的输入前置，写进 doc 就是把删掉的膨胀换个位置再声明一遍。函数名保留
+/// `sorted` 仅指非空路径的实现手段（`sort_unstable` 是 `dedup` 的前置），不是对调用方的承诺。
 fn union_sorted_levels(a: Vec<u32>, b: Vec<u32>) -> Vec<u32> {
     if b.is_empty() {
         return a;
@@ -680,6 +698,16 @@ fn plan_level_gated_order(
     // 与归因账本因此同源同一份裁剪值，不再有第二套口径。`enforce_level_cap=false` 或帽未
     // binding 时 `plan` 未被重写，该式退化为 `t_lee_raw` 本身，M0–M3 bit-exact 不受影响
     // （纯整数运算，无浮点重排）。
+    //
+    // ★#362 影子评审 MED-2（声明域订正，照实收窄）：由此可得的上界是「Σ_ℓ 落在**真实级别桶**
+    // 的目标不越 Σ_ℓ cap_ℓ」，**不是**「物理下单量恒不越 Σcap_ℓ」。反例是残差桶旁路：
+    // `attribute_total` 在 `Σgated == 0 ∧ t_lee_raw ≠ 0` 时把全额记入
+    // [`super::super::strategy::level_attrib::LEVEL_ACCOUNT_RESIDUAL`]，而
+    // `clamp_levels_to_weighted_cap` 对该桶按 doc 原样透传（它无级别身份 ⟹ 无 `cap_ℓ` 可套），
+    // 上面的后置护栏也据此豁免它。此路径下物理下单量的唯一上界回落到账户层 `γ̄·U`
+    // （`pi_theta_position` 施加），与 Σcap_ℓ 无关。这不是 #356 的回归（#356 修的是「账本已裁
+    // 物理未裁」的两套口径，残差桶两边同样透传 ⟹ 仍同源同值），而是原声明的域比事实宽——
+    // 此处照实登记为旁路，**不**在本批引入残差桶裁剪语义（那是独立裁定，见 #365 条 2 原文）。
     let t_lee = t_prev + plan.order_units;
     debug_assert_eq!(
         plan.targets.iter().map(|&(_, q)| q).sum::<i64>(),
@@ -688,7 +716,13 @@ fn plan_level_gated_order(
         plan.targets,
         t_lee
     );
-    debug_assert!(
+    // ★#362 影子评审 MED-B（真 assert 升级）：本护栏与上面的 `Σ_ℓ q_ℓ ≡ t_lee'` 不同——后者
+    // 是构造性恒等（`order_units` 按定义就是 `targets − planned` 之和），`debug_assert` 足够；
+    // 本条「二次裁剪后无级别越 cap_ℓ」**非构造性**：它依赖 `clamp_levels_to_weighted_cap` 是
+    // 最后一个改写 `targets` 的算子这一**接线事实**，任何后续插入的改写都能静默破坏它。按
+    // `level_order.rs` 的「恒等证据须 release 非平凡可读」纪律（#289 MED 同源），只在 debug
+    // 求值 = release 跑批零执行 = 没有证据 ⟹ 升为真 `assert!`。代价 O(级别数)/bar，可忽略。
+    assert!(
         !risk.enforce_level_cap
             || plan
                 .targets
@@ -3061,7 +3095,11 @@ mod level_cap_reclamp_tests {
     /// ★#356 端到端红绿（`plan_level_gated_order` 是生产订单出口，非纯函数——本测直接调用它，
     /// 校验它的副作用：归因台账 + 输出 `Order`）：`t_lee` 二次裁剪前，下单量仍走裁剪**前**的值
     /// ⟹ 物理下单量可重越 Σcap_ℓ（账本已裁、物理未裁，issue #356 原句）；接线后下单量与账本
-    /// 同源，二者恒相等且不越 Σcap_ℓ。
+    /// 同源，二者恒相等；且在本场景（**全额落真实级别桶**）下不越 Σcap_ℓ。
+    ///
+    /// ★#362 MED-2 声明域：「不越 Σcap_ℓ」只对真实级别桶成立——残差桶路径
+    /// （`Σgated=0 ∧ t_lee_raw≠0`）下全额原样透传，上界回落到账户层 `γ̄·U`。本测不覆盖那条
+    /// 旁路（照实登记在 `plan_level_gated_order` 的 `t_lee` 绑定处注释）。
     ///
     /// 场景复刻 `coverage.rs::attribute_total_scaling_can_exceed_cap_and_reclamp_restores_it`
     /// 的「60→100」缩放突破：`level_weights=[0.5,0.1]` ⟹ `cap_0=50/cap_1=10`（`base_units=100`），
@@ -3118,13 +3156,27 @@ mod level_cap_reclamp_tests {
         let cap_0 = 50i64;
         let cap_1 = 10i64;
         let targets_sum: i64 = level_order.planned().iter().map(|&(_, q)| q).sum();
+        // ★#362 LOW-2：per-level cap 用**生产** `level_cap()` 取，不手写 `if lvl==0 {..} else {..}`
+        // ——后者把 lvl≥2 与残差桶（`LEVEL_ACCOUNT_RESIDUAL`，u32::MAX 量级）一并罩进 cap_1=10，
+        // 既是错的映射又会在场景漂移出两级时给出假绿/假红。残差桶无级别身份 ⟹ 无 cap 可套，
+        // 显式跳过（与生产后置护栏同一豁免口径）。
         for &(lvl, q) in level_order.planned() {
-            let cap = if lvl == 0 { cap_0 } else { cap_1 };
+            if lvl == crate::theta_v0::strategy::level_attrib::LEVEL_ACCOUNT_RESIDUAL {
+                continue;
+            }
+            let cap = crate::theta_v0::strategy::coverage::level_cap(lvl, base_units, &risk)
+                .floor()
+                .max(0.0) as i64;
             assert!(q.abs() <= cap, "前置：归因账本已裁到位 level{lvl}={q} 应 ≤ cap={cap}");
         }
-        assert!(
-            targets_sum < 100,
-            "前置：本场景须真实触发重越缩放（账本合计从未裁的 100 收窄），targets_sum={targets_sum}"
+        // ★#362 MED-4：钉死当前真值而非 `< 100` 的松代理——本场景两级都被裁到各自 cap 上
+        // （50+10），账本合计恒 = Σcap_ℓ = 60。写成 `< 100` 时，上游任何把合计压到 0 的漂移
+        // （例如门控/归因回归使 `gated` 全零）都会平凡满足，测试静默失效；钉死真值 ⟹ 漂移即红。
+        assert_eq!(
+            targets_sum,
+            cap_0 + cap_1,
+            "前置：本场景须真实触发重越缩放且二次裁剪把两级都压回各自 cap（50+10=60，从未裁的 \
+             100 收窄），targets_sum={targets_sum}"
         );
 
         let signed_qty = match order.action {
