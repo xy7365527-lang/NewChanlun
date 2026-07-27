@@ -546,7 +546,7 @@ fn account_mirror_post(
     // ★#199 断言③探针（恒在计数）+ 硬门（debug 逐笔核对，release 编译消除）：
     // - 前半「二类卖身份」：ReverseType2 仅落 ReverseOpen/Short 两身份，永不落 Core 账；
     // - 后半「仅残余才纠错」：CoreResidualCorrection 仅在核心残余实测非零时触发
-    //   （post 前余额含被关腿在册量；与 runner 分流点 `balance != 0.0` 同口径）。
+    //   （post 前余额含被关腿在册量；与 runner 分流点 `has_residual` 同口径）。
     if reason == strategy::account::ActionReason::ReverseType2 {
         type2_sell_guard_probe_bump();
         debug_assert!(
