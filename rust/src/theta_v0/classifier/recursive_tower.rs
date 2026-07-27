@@ -3959,6 +3959,10 @@ mod tests {
     /// 的索引落在**别的中枢链**上。9 条 L0 走势 compose 出 3 个中枢/3 条 L1 走势，其 blocks
     /// 只覆盖中枢 0..2——错喂给 9 条 L0 走势时 idx 1/2 拿到 L1 中枢的方向、idx≥3 全落 fallback，
     /// 静默产错方向（现因 `center_from_window` 不读方向而潜伏）。修后由同层配对护栏当场拒绝。
+    ///
+    /// 护栏本体是 `debug_assert_blocks_pair` 的 `debug_assert!`（release 编译消除），故本测试
+    /// 与护栏同域：`#[cfg(debug_assertions)]`。否则 release 构建下恒不 panic ⟹ 恒失败。
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "跨层错配")]
     fn project_to_units_rejects_cross_level_blocks() {
