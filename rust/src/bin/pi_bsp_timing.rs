@@ -56,7 +56,7 @@ use newchan_rust::theta_v0::backtest::metrics::{self, TradeRecord};
 use newchan_rust::theta_v0::backtest::mu_estimator::{
     marginal_return, MuClass, MuEstimator, MuObservation, PositionState,
 };
-use newchan_rust::theta_v0::backtest::selector::chi_t;
+use newchan_rust::theta_v0::backtest::selector::chi_open_gate_lcb;
 use newchan_rust::theta_v0::classifier::recursive_tower::ElementId;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::classifier::Classification;
@@ -273,7 +273,7 @@ struct PassResult {
 ///   同时累加 μ 表供 Pass 2 用。
 /// - `Some((est, theta, z_alpha))` ⟹ **χ=1[LCB(μ)>θ]**（Pass 2，§13 + p25 §12 LCB 升级）：开仓前
 ///   用 Pass 1 的 μ/std 表 `est` 查 z 的 **LCB(μ)=mean−z_alpha·std/√n**（非裸 μ，防高维 z 过拟合），
-///   仅当 `chi_t(LCB, θ, RiskOK, ConflictOK, empty=pass)` 为真才开。`z_alpha=0` ⟹ LCB=mean ⟹ 退化
+///   仅当 [`chi_open_gate_lcb`]`(LCB, θ, RiskOK, ConflictOK, empty=pass)` 为真才开。`z_alpha=0` ⟹ LCB=mean ⟹ 退化
 ///   回裸 μ 门（bit-exact 现有验收）。n<2 单样本 ⟹ mu_lcb=None ⟹ 走 empty=pass 分支（与未见 z 合流）。
 ///   - RiskOK：本 bin K_Θ=恒等（无杠杆/保证金约束，文件头诚实简化）⟹ RiskOK≡true。
 ///   - ConflictOK：carrier 配对 + anc_ok 结构性保证同 carrier 唯一声部（§9/§4）⟹ ConflictOK≡true。
@@ -432,7 +432,11 @@ fn run_state_machine(
                 // RiskOK≡true（K_Θ 恒等）、ConflictOK≡true（carrier+anc_ok 结构唯一）——见 fn 文档。
                 // empty=pass=true：未见 z 或 n<2 单样本（mu_lcb=None）放行（Pass 2 ⊆ Pass 1，过滤只
                 // 移除已见 n≥2 的 LCB≤θ 类）。准入用 LCB(μ) 而非裸 μ（p25 §12 防高维 z 过拟合）。
-                if !chi_t(est.mu_lcb(&z, z_alpha), theta, true, true, true) {
+                // #394 接线：改调 selector::chi_open_gate_lcb 封装（原地 chi_t(est.mu_lcb(..)) 内联
+                // 组合与该封装体内表达式逐项一致，见函数体 `chi_t(est.mu_lcb(z, z_alpha), theta,
+                // risk_ok, conflict_ok, treat_empty_as_pass)`——risk_ok=true/conflict_ok=true/
+                // treat_empty_as_pass=true 代入后与本调用点原表达式按变量逐项相同，bit-exact）。
+                if !chi_open_gate_lcb(est, &z, theta, z_alpha, true, true, true) {
                     chi_rejected += 1;
                     continue; // χ=0 ⟹ 不开（Γ_t^trade 排除该证书，§13 line 2248）。
                 }
