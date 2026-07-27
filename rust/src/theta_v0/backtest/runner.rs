@@ -4986,6 +4986,17 @@ mod tests {
         eprintln!("  ├ 提前收敛（已在 raw）  : {}", p.restore_break_already_in_raw);
         eprintln!("  └ ★暴露面（registry 丢失）: {}", p.restore_break_registry_lost);
         eprintln!("restore 恢复成功率        : {restore_success_rate:.6}");
+        // ★#347 MED-1：占位父不可解析 probe + 与 AncOK 剪除结果的交叉核对（coverage.rs
+        // `rebuild_placeholder_parent_attached`/`placeholder_pruned_by_ancok` 文档承诺"可交叉
+        // 核对"——此前报表不打印，声明无对应可执行验证，本处补齐）。
+        eprintln!("占位父不可解析（unresolved）: {}", p.placeholder_parent_unresolved);
+        eprintln!("  └ 其中被 AncOK 剪除      : {}", p.placeholder_pruned_by_ancok);
+        assert!(
+            p.placeholder_pruned_by_ancok <= p.placeholder_parent_unresolved,
+            "占位剪除数({})不应超过未解析总数({})——探针记账不封闭",
+            p.placeholder_pruned_by_ancok,
+            p.placeholder_parent_unresolved
+        );
         eprintln!("═══════════════════════════════════════════════");
     }
 

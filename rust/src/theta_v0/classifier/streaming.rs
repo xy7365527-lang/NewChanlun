@@ -42,6 +42,11 @@ pub struct OwnedIncrementalClassifier {
     incr_segments: parser::segment::IncrSegments,
     /// 增量塔缓存（跨 bar 复用——与借用变体同一身份稳定机制）。
     tower_cache: TowerCache,
+    /// ★#346 MED-2：`append_bar` 调用次数（= 分类器内部已消费的原始 bar 数，非 merged 后的
+    /// `incr_inclusion` 计数——inclusion 会把包含关系的 bar 折叠掉，不能代表宿主侧 bar 数）。
+    /// 唯一用途：给 [`bar_count`](Self::bar_count) 供宿主（`ThetaCore`）做锁步护栏比对
+    /// （宿主 `self.bars.len()` 应恒等于本计数——跳 bar/重复调用会使二者失配）。
+    bars_appended: usize,
 }
 
 impl OwnedIncrementalClassifier {
@@ -54,7 +59,16 @@ impl OwnedIncrementalClassifier {
             incr_strokes: parser::stroke::IncrStrokes::empty(),
             incr_segments: parser::segment::IncrSegments::empty(),
             tower_cache: TowerCache::new(),
+            bars_appended: 0,
         }
+    }
+
+    /// `append_bar` 已被调用的次数（= 本分类器认为自己消费过的原始 bar 数）。
+    ///
+    /// 宿主结构体（[`crate::theta_v0::nautilus::strategy::ThetaCore`]）用它核对自己的
+    /// `bars.len()` 是否与分类器内部状态锁步——二者失配即跳 bar/重复调用（增量血缘契约破裂）。
+    pub fn bar_count(&self) -> usize {
+        self.bars_appended
     }
 
     /// **per-bar 增量重分类（自持缓冲区）**：追加单根 bar，返回 `(classification, tower)` ==
@@ -72,6 +86,7 @@ impl OwnedIncrementalClassifier {
             bar,
             &self.config.parse,
         );
+        self.bars_appended += 1;
         classify_with_tower_incremental(&l0, &self.config, &mut self.tower_cache)
     }
 }

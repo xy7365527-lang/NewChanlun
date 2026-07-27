@@ -152,7 +152,10 @@ mod tests {
         let bars: Vec<Bar> = (0..2000usize)
             .map(|i| {
                 let base = 1000i64 + (i as i64) * 2;
-                let cycle = ((i as f64) / 50.0).sin() as i64 * 30;
+                // 振幅/周期须使 cycle 的逐 bar 斜率能超过 base 斜率（2/bar）且波形非单一频率
+                // （否则特征序列过于规则，线段划分状态机——67课——永不出顶底分型，segments 恒空）：
+                // 双频叠加（主周期 22 + 短周期 6）打破规则性，实测末 bar strokes=85 / segments=8。
+                let cycle = ((((i as f64) / 22.0).sin() * 60.0) + (((i as f64) / 6.0).sin() * 25.0)) as i64;
                 let close = base + cycle;
                 Bar {
                     source_index: i,
@@ -169,6 +172,8 @@ mod tests {
 
         let config = ThetaConfig::default();
         let mut owned = OwnedIncrementalClassifier::new(config.clone());
+        let mut final_strokes: usize = 0;
+        let mut final_segments: usize = 0;
         for i in 0..bars.len() {
             let (owned_cls, owned_tower) = owned.append_bar(bars[i]);
 
@@ -180,10 +185,21 @@ mod tests {
             for (lvl, (ol, ll)) in owned_tower.iter().zip(leg_tower.iter()).enumerate() {
                 assert_eq!(ol, ll, "owned synthetic bar {i} lvl {lvl}: tower 级 LeveledMove 破裂");
             }
+            if i == bars.len() - 1 {
+                final_strokes = l0.strokes.len();
+                final_segments = l0.segments.len();
+            }
         }
+        // #346 MED-1：合成序列必须产生非退化结构（笔/段非空），否则 bit-exact 对照的是两条退化的
+        // 单调直线空结构（`.sin() as i64` 优先级截断使 cycle 恒为 0）——本断言防止该退化复发。
+        assert!(
+            final_strokes > 1 && final_segments >= 1,
+            "owned synthetic: 末 bar strokes={final_strokes} segments={final_segments}，\
+             合成序列疑似退化为单调直线（无笔/段结构）"
+        );
         eprintln!(
-            "\n===== owned bit-exact 合成验证通过：{} bars =====\n  \
-             OwnedIncrementalClassifier::append_bar == 全量，bit-identical。",
+            "\n===== owned bit-exact 合成验证通过：{} bars，末 bar strokes={final_strokes} segments={final_segments} =====\n  \
+             OwnedIncrementalClassifier::append_bar == 全量，bit-identical，非退化。",
             bars.len()
         );
     }
@@ -413,7 +429,7 @@ mod tests {
         let bars: Vec<Bar> = (0..2000usize)
             .map(|i| {
                 let base = 1000i64 + (i as i64) * 2;
-                let cycle = ((i as f64) / 50.0).sin() as i64 * 30;
+                let cycle = (((i as f64) / 50.0).sin() * 30.0) as i64;
                 let close = base + cycle;
                 Bar {
                     source_index: i,

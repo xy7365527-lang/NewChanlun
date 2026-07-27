@@ -53,7 +53,12 @@ use super::order_adapter::{self, OrderIntent};
 #[derive(Debug, Clone)]
 pub struct ThetaCore {
     /// S_Θ 参数（Param 索引策略族成员，`StrategyFamily::pi` 的 param）。
-    pub config: ThetaConfig,
+    ///
+    /// ★#346 MED-3：私有（非 `pub`）——`classifier` 字段持有构造期克隆的同值拷贝（见下），
+    /// 两份拷贝的一致性只在「外部无写路径」下成立；`pub` 会开一条绕过 `ThetaCore::new` 的直接
+    /// 赋值口子（`core.config = other`），使两份拷贝静默分叉且无检测。私有化 = 唯一写入口收敛到
+    /// `new`（构造期一次性克隆两份），物理上排除分叉，非仅口头承诺。
+    config: ThetaConfig,
     /// 累积 bar 窗口（source_index = 窗口序号；S_Θ 管线吃完整窗口，非单 bar）。
     pub bars: Vec<Bar>,
     /// ★持仓声部台账（退出决策生成器的缠论语义真相源，按 depth 索引，长度 = max_depth）。
@@ -72,8 +77,10 @@ pub struct ThetaCore {
     groups: Vec<Vec<VoiceDecision>>,
     /// ★#345：自持缓冲区增量分类器（`OwnedIncrementalClassifier`，无生命周期参数）——替代
     /// 每 bar 对 `self.bars` 全量重跑 `parse_layer`+`classify_with_tower`（O(n²) 根因，#342）。
-    /// owned 一份 `config` 拷贝（构造期克隆，`ThetaConfig` 不可变，非双源——`self.config` 仍是
-    /// 权威源，此处只是同值拷贝供增量子系统内部使用，二者永不分叉）。
+    /// owned 一份 `config` 拷贝（构造期克隆）。`self.config` 仍是权威源，`classifier` 内部拷贝
+    /// 只读、无独立写路径——**分叉不可达**由上方 `config` 字段私有化保证（唯一写入口 = `new`
+    /// 构造期，两份拷贝同源同帧克隆），非本注释单方面声明（#346 MED-3：声明须有对应的物理约束，
+    /// `pub` 字段配"永不分叉"是声明膨胀，090号）。
     classifier: OwnedIncrementalClassifier,
 }
 
@@ -255,12 +262,31 @@ impl ThetaCore {
     /// 单独 recog 是因退出生成器需要 `decisions`（喂 `groups[i]` 的 reverse_signal 项）+ 开仓侧
     /// 分别走 plan_orders（退出决策与开仓决策不可混批，否则冲突排序语义错）。
     fn recognize_current(&mut self, new_bar: Bar) -> Vec<VoiceDecision> {
-        debug_assert_eq!(
-            self.bars.last(),
-            Some(&new_bar),
-            "recognize_current: new_bar 须与刚 push 进 self.bars 的同一根锁步（增量分类器契约，见上）"
+        // ★#346 MED-2：旧护栏 `self.bars.last() == Some(&new_bar)` 恒真（`plan_for_bar` 总是先
+        // push 再传同一个 new_bar 调本函数，与分类器内部状态毫无关系——手工 push 后跳过一次
+        // append_bar 也照样通过，评审实证见 lockstep_guard_catches_skipped_bar）。真正的锁步
+        // 契约是「分类器认为自己吃过多少根 bar」== `self.bars.len()`（append_bar 前应差 1，
+        // append_bar 后应相等）——用 `assert_eq!`（非 `debug_assert_eq!`）：本仓库以 `cargo test
+        // --release` 为验收命令，`debug_assert!` 在 release profile 下被完全编译剥离
+        // （`[profile.release]` 未设 `debug-assertions = true`，实测坐实：`debug_assert!(false)`
+        // 探针在 `cargo test --release` 下空跑不 panic），
+        // 用它做护栏等于没有护栏。
+        assert_eq!(
+            self.classifier.bar_count(),
+            self.bars.len() - 1,
+            "recognize_current: 分类器内部 bar 计数({})与 self.bars.len()-1({}) 失配\
+             （跳 bar/重复调用/绕道，增量分类器契约破裂）",
+            self.classifier.bar_count(),
+            self.bars.len() - 1
         );
         let (classification, tower) = self.classifier.append_bar(new_bar);
+        assert_eq!(
+            self.classifier.bar_count(),
+            self.bars.len(),
+            "recognize_current: append_bar 后分类器内部计数({})应与 self.bars.len()({}) 同步",
+            self.classifier.bar_count(),
+            self.bars.len()
+        );
         let active = strategy::held_voice_projection(&self.held);
         strategy::recognize_nested(&classification, &tower, &active, &self.bars, &self.config)
     }
@@ -312,6 +338,23 @@ mod tests {
         }
         assert!(intents.is_empty(), "单调数据无结构 ⟹ 空下单意图（诚实退化，非缺陷）");
         assert_eq!(core.bars.len(), 50, "bar 窗口累积到 50");
+    }
+
+    /// ★#346 MED-2 反例：锁步护栏必须能真正抓到跳 bar。旧护栏
+    /// `self.bars.last() == Some(&new_bar)` 恒真——手工往 `self.bars` push 一根后再走
+    /// `plan_for_bar`，旧护栏照样通过（评审实证）。新护栏比对 `classifier.bar_count()` 与
+    /// `self.bars.len()`：手工 push 后 `plan_for_bar` 内部 `self.bars.len()` 变 2、
+    /// `classifier.bar_count()` 仍是 0，`recognize_current` 起手的 `assert_eq!` 必须炸。
+    #[test]
+    #[should_panic(expected = "失配")]
+    fn lockstep_guard_catches_skipped_bar() {
+        let mut core = ThetaCore::new(ThetaConfig::default());
+        let snap = flat_snap();
+        // 手工跳 bar：直接 push 到 self.bars，绕过分类器（模拟"漏调 append_bar"实现 bug）。
+        core.bars.push(mk_bar(0, 1000));
+        // 合法路径喂下一根——plan_for_bar 内部 push 后 self.bars.len()=2，
+        // classifier.bar_count()=0，锁步护栏在 recognize_current 起手必须 panic。
+        core.plan_for_bar(mk_bar(1, 1001), &snap);
     }
 
     /// ★#345 集成层 bit-exact（code-review Standards/Spec 双轴浮出的缺口订正）：既有
@@ -432,6 +475,10 @@ mod tests {
         };
         core.bars.push(stop_bar);
         core.groups.push(Vec::new()); // bar 0 无开仓决策（手动注入台账，非 recog 路径）
+        // ★#346 MED-2 锁步护栏：手动 push bar 0 到 self.bars 时须同步喂分类器（生产路径每根
+        // bar 恒过 recognize_current→append_bar，手动注入台账不是绕过分类器的理由——分类器
+        // 内部 bar_count 与 self.bars.len() 一旦失配，护栏在下一次 plan_for_bar 必炸）。
+        core.classifier.append_bar(stop_bar);
         core.held[0] = Some(HeldVoice {
             side: VoiceSide::Long,
             stop: 950,
@@ -479,6 +526,8 @@ mod tests {
         let snap = long_snap(1_000_000.0, 300.0);
         core.bars.push(mk_bar(0, 1000));
         core.groups.push(Vec::new());
+        // ★#346 MED-2 锁步护栏：同上，手动注入 bar 0 须同步喂分类器。
+        core.classifier.append_bar(mk_bar(0, 1000));
         // 注入已 pending 的台账（上一 bar 已触发退出，Close 在 venue 撮合中）。
         core.held[0] = Some(HeldVoice {
             side: VoiceSide::Long,
