@@ -76,6 +76,10 @@ pub mod oscillation;
 /// 狭义短差动作本体（SPEC #274 T2，issue #292）：触发 + 减补动作 + 挂起出口二分（回补/终结）+
 /// 无互斥门。消费 T1 中枢生命周期事件（`classifier::center_lifecycle`）+ 次级别买卖点信号。
 pub mod center_oscillation_trade;
+/// 短差盈亏桶 + TW 桥（SPEC #287 T3，issue #293）：`CenterOscillationAction` 单源记账
+/// （报告层桶 + `TwEvent::ShortDiff`）+ 恒仓断言（Σ|units| 守恒，违规显式失败）+
+/// 本仓成本基不动断言。
+pub mod short_diff_bucket;
 /// 盘整/趋势在线协议状态机与 DA-Q2 协议事件轨（订单 P1..P10 的正交积因子）。
 pub mod protocol;
 pub mod risk;
