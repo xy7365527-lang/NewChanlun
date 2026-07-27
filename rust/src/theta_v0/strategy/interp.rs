@@ -1339,17 +1339,97 @@ pub fn interpret(gamma: &[Candidate], active: &[ActiveLeg]) -> Buckets {
 /// 副产品——同一 fold 单实现，非第二权威（分歧A 裁决：typed 语义在 interpret 与
 /// coverage_step_from_buckets 之间的组合层产生，interpret 本体不扩定义域）。
 ///
-/// **#202 并存声明**：本函数不再是 fold 的唯一驱动形态——[`interpret_with_external_closes`]
+/// **#202 并存声明**：本函数不是 fold 的唯一驱动形态——[`interpret_with_external_closes`]
 /// 是同一 fold 的第二驱动（规则2 输入源 = channel P2/P3 域裁决，生产 `pi_theta_step_traced`
-/// 正常路径消费）；本函数保留为 interp 自测/∃! 文档锚与「规则2 候选驱动」语义基准，
-/// 本体零改。规则演进须两处同步（复制维护风险在案，code-review #202 两轴）。
+/// 正常路径消费）；本函数保留为「规则2 纯候选驱动」的语义基准与 ∃! 文档锚。
+///
+/// **#396 单源化**：两个驱动共用私有 fold 本体 `fold_theta`（规则2 输入源 = 参数），本函数
+/// 退化为 `external_closes = &[]` 的薄 adapter ⟹ 规则演进只需改一处（#202 遗留的「两处
+/// 同步」义务随之撤销）。
 pub fn interpret_with_close_triggers(
     gamma: &[Candidate],
     active: &[ActiveLeg],
 ) -> (Buckets, Vec<Candidate>) {
+    fold_theta(gamma, active, &[])
+}
+
+/// ★#202 阶段 C：规则2 **外部化**的 fold 驱动（spec WP-3 阶段 C「仅替换 P2/P3」）。
+///
+/// 本级证书平仓域（channel 口径 P2/P3 = entry_v≠ReverseOpen 腿的 CloseRoot/ReduceCore）
+/// 由 channel 判据 [`super::channel::cert_close_trigger`] 逐腿裁决后**喂入**
+/// （`external_closes: (active_idx, trigger)`——「每声部每步一枚」的 channel 裁决替代
+/// 散装 fold 规则2 的候选消费粒度）；组合层 coverage `pi_theta_step_traced` 正常路径
+/// 是唯一生产消费点。
+///
+/// 语义边界（票面「其余通道维持现状」）：
+/// - 预置关闭标记后 fold 原逻辑零改：`!was_closed` 检查自动跳过 external 腿 ⟹ 规则2
+///   候选驱动语义只作用于剩余腿（entry_v==ReverseOpen 的 S 组——P4 域维持散装现状）。
+/// - external 触发候选计入 `closed_any`：一类 ⟹ 消费即止（不入 open）；二类 ⟹
+///   「先平后开」dual-effect 照常（#200 OpenShort 通道在 channel 判据下等价成立）。
+/// - close 归因序 = `(≺_Θ(trigger), active_idx)` 稳定序——与纯候选驱动归因序（候选 ≺_Θ
+///   遍历主序、同候选内 active 次序，#209 一类全平 push 序）同构：同构域 bit-exact，
+///   分歧域（多腿/多候选，票面明知非 bit-exact）次序语义一致可逐条对照。
+///
+/// **#396 单源化**：本函数与 [`interpret_with_close_triggers`] 共用私有 fold 本体
+/// `fold_theta`，二者退化为薄 adapter（差异只剩 `external_closes` 实参）；归因仍是 fold 内
+/// 同步 push，非第三权威（分歧A 裁决同款纪律）。「external 为空时与本体重逢（bit-exact）」由此
+/// 从两份实现在**单射域**上的巧合，升级为构造性恒等（同一实现、同一实参路径）——代价是原自测锁
+/// `external_closes_empty_is_bit_exact_with_plain_fold` 退化为 `f(x)==f(x)`，不再可能失败；
+/// 规则体的真锁改由 `fold_theta_golden_buckets_pin_rule_body` 承担。
+pub fn interpret_with_external_closes(
+    gamma: &[Candidate],
+    active: &[ActiveLeg],
+    external_closes: &[(usize, Candidate)],
+) -> (Buckets, Vec<Candidate>) {
+    fold_theta(gamma, active, external_closes)
+}
+
+/// **fold 规则体单源实现**（#396）：[`interpret_with_close_triggers`] 与
+/// [`interpret_with_external_closes`] 的唯一共同本体。
+///
+/// 两个 pub 驱动的差别只有**规则2 的输入源**，故把它提为参数 `external_closes`：
+/// - `&[]` ⟹ 规则2 纯候选驱动（spec §12 ℛ_Θ 定义基例，∃! 文档锚）；
+/// - 非空 ⟹ channel P2/P3 域裁决预置关闭，规则2 只作用于剩余（散装域）腿。
+///
+/// 规则1 / 证书门 / 规则2 / 规则3 / 规则4 + #200 dual-effect + #209 一类全平**只存在这一份**。
+///
+/// **前置条件（调用方保证）**：`gamma_index` 在 `gamma` 上**单射**。
+///
+/// 注意这**不是** `theta_key` 的性质——`theta_key` 把 `gamma_index` 列为末位分量，但「某字段
+/// 是键的一个分量」推不出「该键无平局」（`bits` 就不在键里：两候选可以八个键分量全同而 `bits`
+/// 不同）。单射性是 Γ **构造方**的性质：[`assemble_gamma`] 取 `enumerate()` 的 i、塔路径取
+/// push 循环内严格递增的 `gamma.len()`，两条生产组装线都满足。本函数以 `debug_assert` 兜住
+/// 该前提（release 编译掉），使违约在测试构建里立刻响，而不是静默改变归因次序。
+///
+/// 该前提是 ≺_Θ 全序（spec §12 ∃! 前提2）的实际来源，也是两个驱动能共用一份规则体的边界：
+/// 合并前的两份实现在 `theta_key` 出现平局时**本就互不相等**（纯候选驱动返回 push 序；external
+/// 驱动无条件按 `(theta_key, active_idx)` 重排，平局时可能重排出另一个序）。即平局域上并不存在
+/// 「一个旧行为」可供保持——#202 声明的「external 为空时与本体重逢」本身就只在单射域上成立。
+/// 故此处把单射显式化为契约，而不是在实现里假装两者恒等。
+///
+/// **⑤ 归因序重排的适用域**：在上述前置条件下，`external_closes` 为空时 (close, trigger) 对沿
+/// ≺_Θ 遍历主序（单射 ⟹ 跨候选 `theta_key` 严格升）+ 同候选内 `active_idx` 升序（`level_idx`
+/// 按 i 升序建）push，已然满足重排目标序 ⟹ 重排是恒等，故跳过。跳过与否在契约域内无语义差别；
+/// 选此形态是为了让纯候选驱动路径（spec §12 ℛ_Θ 定义基例 / ∃! 文档锚）在 release 下逐指令等同
+/// 于合并前，且不为它引入无谓的 O(n log n)。
+fn fold_theta(
+    gamma: &[Candidate],
+    active: &[ActiveLeg],
+    external_closes: &[(usize, Candidate)],
+) -> (Buckets, Vec<Candidate>) {
+    // ⓪ 前置条件守卫：gamma_index 在 gamma 上单射（见 fn doc）。release 编译掉。
+    debug_assert!(
+        {
+            let mut seen = std::collections::HashSet::with_capacity(gamma.len());
+            gamma.iter().all(|c| seen.insert(c.gamma_index))
+        },
+        "fold_theta 前置条件被破坏：gamma_index 在 gamma 上非单射 ⟹ ≺_Θ 出现平局，close 归因序\
+         不再由契约确定（常见成因：测试构造器硬编码 gamma_index: 0 后拼成多候选 gamma）"
+    );
+
     // ① ≺_Θ 排序（拷贝引用，不 mutate 输入）。
     let mut ordered: Vec<&Candidate> = gamma.iter().collect();
-    ordered.sort_by(|a, b| theta_key(a).cmp(&theta_key(b)));
+    ordered.sort_by_key(|c| theta_key(c));
 
     // ② 确定性 fold。working = A_t 的工作拷贝（bool=本 fold 已关闭）；opened=本 fold 已开 (level,σ)。
     let mut working: Vec<(ActiveLeg, bool)> = active.iter().map(|&l| (l, false)).collect();
@@ -1357,8 +1437,26 @@ pub fn interpret_with_close_triggers(
     let mut buckets = Buckets::default();
     // close 触发归因（与 buckets.close 同步 push，一一对应）。
     let mut close_triggers: Vec<Candidate> = Vec::new();
+    // 每条 close 桶成员的 active 索引——⑤ 归因序重排键（仅 external 非空时消费）。
+    let mut close_active_idx: Vec<usize> = Vec::new();
 
-    // ponytail: H8 预索引——level → legs idx 列表（reverse_signal 需逐腿判 bits，无法纯 key 查表；
+    // ②' 规则2 的**外部输入源**：external 预置关闭（channel P2/P3 域裁决）。空切片 ⟹ 整段
+    //    空转、working 全 false ⟹ 下方循环即纯候选驱动本体。
+    let mut ext_trigger_keys: std::collections::HashSet<usize> = std::collections::HashSet::new();
+    for &(i, trig) in external_closes {
+        let (leg, was_closed) = working
+            .get_mut(i)
+            .map(|(l, c)| (*l, c))
+            .unwrap_or_else(|| panic!("external 关闭索引越界：active_idx={i} ≥ |active|={}", active.len()));
+        debug_assert!(!*was_closed, "external 关闭重复喂入同一腿（active_idx={i}）");
+        *was_closed = true;
+        buckets.close.push(leg);
+        close_triggers.push(trig);
+        close_active_idx.push(i);
+        ext_trigger_keys.insert(trig.gamma_index);
+    }
+
+    // ③ ponytail: H8 预索引——level → legs idx 列表（reverse_signal 需逐腿判 bits，无法纯 key 查表；
     // 但 level 索引把 O(|working|) 全扫缩为只遍历同 level 的腿，通常 1-2 条）。
     // bit-exact：索引只过滤同 level 候选腿，逐腿判 !closed + reverse_signal/leg.dir 与旧线性
     // position/any 等价。active 不变 ⟹ 索引建一次（关闭只标 bool，不从索引移除——旧 position 跳过 closed）。
@@ -1370,6 +1468,7 @@ pub fn interpret_with_close_triggers(
         m
     };
 
+    // ④ 确定性 fold 主循环（规则1/证书门/规则2/规则3/规则4 + #200 dual-effect）。
     for &c in &ordered {
         // 规则1：非方向候选 ⟹ 𝒦_x。
         if c.dir == VoiceSide::Flat || c.bsp_class == u8::MAX {
@@ -1389,7 +1488,9 @@ pub fn interpret_with_close_triggers(
         // 命中腿（Ambient 根 / FollowParent 级联 / §13 restore 祖先一视同仁——fold 层不
         // 区分账户，账户归属由 `identity_of` × reason 单源承担）；二/三类维持 find 首个
         // （bit-exact：取首个未关闭且 reverse_signal 命中者 == 旧 working.iter().position）。
-        let mut closed_any = false;
+        // 外部输入源（②'）已裁决的腿由 `!was_closed` 自动跳过；其触发候选经 ext_trigger_keys
+        // 播种 closed_any（channel 已消费 ⟹ 一类消费即止、二类 dual-effect 照常）。
+        let mut closed_any = ext_trigger_keys.contains(&c.gamma_index);
         if c.bsp_class == 1 {
             if let Some(idxs) = level_idx.get(&c.level) {
                 for &i in idxs {
@@ -1399,6 +1500,7 @@ pub fn interpret_with_close_triggers(
                         working[i].1 = true;
                         buckets.close.push(leg);
                         close_triggers.push(*c); // 归因：每腿恰一（一一对应不变量保持）
+                        close_active_idx.push(i);
                         closed_any = true;
                     }
                 }
@@ -1413,26 +1515,25 @@ pub fn interpret_with_close_triggers(
             working[pos].1 = true;
             buckets.close.push(working[pos].0);
             close_triggers.push(*c); // 归因：本腿由候选 c 反向关闭（typed exit 原料）
+            close_active_idx.push(pos);
             closed_any = true;
         }
-        if closed_any {
-            // ★#200 OpenShort 通道（spec WP-2 修复 c / #185 审计发现 2「最早单源接入点」）：
-            // **二类**反向候选「先平后开」——被 close 分支消费后不 `continue`，落入下方
-            // 规则3/4 同款 slot 判据补开反向腿（ID-3：二类点 = 第二入场/加仓（加空）位；
-            // 反手机制 = 先平后开 `A_raw=(A_t∖D_t)∪O_t`，买卖点2 p.6/14 §9）。一/三类维持
-            // 消费即止（bit-exact 不动：一类「允许当场反手」是允许非要求，v1 不反手）。
-            // 账户归属（父 active⇒短差账 / 无父⇒空仓账的 ambient 守卫）由账户轴
-            // `identity_of` × `reason_of_open` 单源承担，本 fold 只放行候选、不另立判据。
-            if c.bsp_class != 2 {
-                continue;
-            }
+        // ★#200 OpenShort 通道（spec WP-2 修复 c / #185 审计发现 2「最早单源接入点」）：
+        // **二类**反向候选「先平后开」——被 close 分支消费后不 `continue`，落入下方
+        // 规则3/4 同款 slot 判据补开反向腿（ID-3：二类点 = 第二入场/加仓（加空）位；
+        // 反手机制 = 先平后开 `A_raw=(A_t∖D_t)∪O_t`，买卖点2 p.6/14 §9）。一/三类维持
+        // 消费即止（bit-exact 不动：一类「允许当场反手」是允许非要求，v1 不反手）。
+        // 账户归属（父 active⇒短差账 / 无父⇒空仓账的 ambient 守卫）由账户轴
+        // `identity_of` × `reason_of_open` 单源承担，本 fold 只放行候选、不另立判据。
+        if closed_any && c.bsp_class != 2 {
+            continue;
         }
         // 规则3/4：开启 vs 记录（slot = (level, σ_g)）。
         // ponytail: H8 slot_in_at 用 level 索引查同 level 腿里是否有未关闭且 dir==c.dir 者
         // == 旧 working.iter().any(|(leg,closed)| !closed && leg.level==c.level && leg.dir==c.dir)。
         let slot_in_at = level_idx
             .get(&c.level)
-            .map_or(false, |idxs| {
+            .is_some_and(|idxs| {
                 idxs.iter().any(|&i| !working[i].1 && working[i].0.dir == c.dir)
             });
         let slot_this_fold = opened.iter().any(|&(lv, d)| lv == c.level && d == c.dir);
@@ -1443,149 +1544,26 @@ pub fn interpret_with_close_triggers(
             buckets.record.push(*c); // 规则4：冲突/重复 ⟹ 记录不执行
         }
     }
+
+    // ⑤ 归因序重排：(≺_Θ(trigger), active_idx) 稳定序——与纯候选驱动归因序（候选遍历主序 +
+    //    同候选内 active 次序）同构。跨候选无平局**由前置条件 gamma_index 单射给出**（⓪ 守卫），
+    //    不是 theta_key 自身的性质；同候选多腿（#209 一类全平 / channel 多腿同触发）由
+    //    active_idx 保 active 次序。
+    //    external 为空 ⟹ push 序已然满足该序，跳过（见 fn doc「⑤ 归因序重排的适用域」）。
+    if !external_closes.is_empty() {
+        let mut order: Vec<usize> = (0..buckets.close.len()).collect();
+        order.sort_by_key(|&k| (theta_key(&close_triggers[k]), close_active_idx[k]));
+        let sorted_close: Vec<ActiveLeg> = order.iter().map(|&k| buckets.close[k]).collect();
+        let sorted_triggers: Vec<Candidate> = order.iter().map(|&k| close_triggers[k]).collect();
+        buckets.close = sorted_close;
+        close_triggers = sorted_triggers;
+    }
     debug_assert_eq!(
         buckets.close.len(),
         close_triggers.len(),
         "close 桶与触发归因一一对应（同步 push 不变量）"
     );
     (buckets, close_triggers)
-}
-
-/// ★#202 阶段 C：规则2 **外部化**的 fold 变体（spec WP-3 阶段 C「仅替换 P2/P3」）。
-///
-/// 本级证书平仓域（channel 口径 P2/P3 = entry_v≠ReverseOpen 腿的 CloseRoot/ReduceCore）
-/// 由 channel 判据 [`super::channel::cert_close_trigger`] 逐腿裁决后**喂入**
-/// （`external_closes: (active_idx, trigger)`——「每声部每步一枚」的 channel 裁决替代
-/// 散装 fold 规则2 的候选消费粒度）；组合层 coverage `pi_theta_step_traced` 正常路径
-/// 是唯一生产消费点。
-///
-/// 语义边界（票面「其余通道维持现状」）：
-/// - 预置关闭标记后 fold 原逻辑零改：`!was_closed` 检查自动跳过 external 腿 ⟹ 规则2
-///   候选驱动语义只作用于剩余腿（entry_v==ReverseOpen 的 S 组——P4 域维持散装现状）。
-/// - external 触发候选计入 `closed_any`：一类 ⟹ 消费即止（不入 open）；二类 ⟹
-///   「先平后开」dual-effect 照常（#200 OpenShort 通道在 channel 判据下等价成立）。
-/// - close 归因序 = `(≺_Θ(trigger), active_idx)` 稳定序——与原 fold 归因序（候选 ≺_Θ
-///   遍历主序、同候选内 active 次序，#209 一类全平 push 序）同构：同构域 bit-exact，
-///   分歧域（多腿/多候选，票面明知非 bit-exact）次序语义一致可逐条对照。
-///
-/// `interpret`/[`interpret_with_close_triggers`] 本体零改（自测/∃! 文档锚不动）；本函数
-/// 是同一 fold 的第二驱动形态（规则2 输入源不同），归因仍是 fold 内同步 push——非第三
-/// 权威（分歧A 裁决同款纪律）。external 为空时与本体重逢（bit-exact，自测锁）。
-pub fn interpret_with_external_closes(
-    gamma: &[Candidate],
-    active: &[ActiveLeg],
-    external_closes: &[(usize, Candidate)],
-) -> (Buckets, Vec<Candidate>) {
-    // ① ≺_Θ 排序（与 interpret_with_close_triggers 同单源形态；sort_by_key 同款稳定全序）。
-    let mut ordered: Vec<&Candidate> = gamma.iter().collect();
-    ordered.sort_by_key(|c| theta_key(c));
-
-    // ② working 拷贝 + external 预置关闭（channel P2/P3 域裁决）。close_active_idx 跟踪
-    //    每条 close 桶成员的 active 索引——尾部归因序重排键。
-    let mut working: Vec<(ActiveLeg, bool)> = active.iter().map(|&l| (l, false)).collect();
-    let mut opened: Vec<(u32, VoiceSide)> = Vec::new();
-    let mut buckets = Buckets::default();
-    let mut close_triggers: Vec<Candidate> = Vec::new();
-    let mut close_active_idx: Vec<usize> = Vec::new();
-    let mut ext_trigger_keys: std::collections::HashSet<usize> = std::collections::HashSet::new();
-    for &(i, trig) in external_closes {
-        let (leg, was_closed) = working
-            .get_mut(i)
-            .map(|(l, c)| (*l, c))
-            .unwrap_or_else(|| panic!("external 关闭索引越界：active_idx={i} ≥ |active|={}", active.len()));
-        debug_assert!(!*was_closed, "external 关闭重复喂入同一腿（active_idx={i}）");
-        *was_closed = true;
-        buckets.close.push(leg);
-        close_triggers.push(trig);
-        close_active_idx.push(i);
-        ext_trigger_keys.insert(trig.gamma_index);
-    }
-
-    // ③ level 预索引（同 interpret_with_close_triggers 的 H8 形态；关闭只标 bool 不移除）。
-    let level_idx: std::collections::HashMap<u32, Vec<usize>> = {
-        let mut m: std::collections::HashMap<u32, Vec<usize>> = std::collections::HashMap::new();
-        for (i, (leg, _)) in working.iter().enumerate() {
-            m.entry(leg.level).or_default().push(i);
-        }
-        m
-    };
-
-    // ④ fold 同款语义循环（规则1/证书门/规则2/规则3/规则4 + #200 dual-effect，与
-    //    interpret_with_close_triggers 循环体逐分支同语义；差异点仅：closed_any 以
-    //    external 触发集播种、close_active_idx 同步跟踪、sort_by_key/is_some_and 无警告
-    //    形态）——external 腿经 !was_closed 自动跳过（规则2 只作用散装域剩余腿）；
-    //    external 触发候选计入 closed_any（channel 裁决已消费 ⟹ 一类消费即止、二类
-    //    dual-effect）。
-    for &c in &ordered {
-        if c.dir == VoiceSide::Flat || c.bsp_class == u8::MAX {
-            buckets.record.push(*c);
-            continue;
-        }
-        if !c.nest_confirmed {
-            buckets.record.push(*c);
-            continue;
-        }
-        let mut closed_any = ext_trigger_keys.contains(&c.gamma_index);
-        if c.bsp_class == 1 {
-            if let Some(idxs) = level_idx.get(&c.level) {
-                for &i in idxs {
-                    let (leg, was_closed) = (working[i].0, working[i].1);
-                    if !was_closed && reverse_signal(leg.dir, &c.bits) {
-                        working[i].1 = true;
-                        buckets.close.push(leg);
-                        close_triggers.push(*c);
-                        close_active_idx.push(i);
-                        closed_any = true;
-                    }
-                }
-            }
-        } else if let Some(pos) = level_idx.get(&c.level).and_then(|idxs| {
-            idxs.iter().copied().find(|&i| {
-                let (leg, closed) = &working[i];
-                !*closed && reverse_signal(leg.dir, &c.bits)
-            })
-        }) {
-            working[pos].1 = true;
-            buckets.close.push(working[pos].0);
-            close_triggers.push(*c);
-            close_active_idx.push(pos);
-            closed_any = true;
-        }
-        if closed_any && c.bsp_class != 2 {
-            continue;
-        }
-        let slot_in_at = level_idx
-            .get(&c.level)
-            .is_some_and(|idxs| {
-                idxs.iter().any(|&i| !working[i].1 && working[i].0.dir == c.dir)
-            });
-        let slot_this_fold = opened.iter().any(|&(lv, d)| lv == c.level && d == c.dir);
-        if !slot_in_at && !slot_this_fold {
-            buckets.open.push(*c);
-            opened.push((c.level, c.dir));
-        } else {
-            buckets.record.push(*c);
-        }
-    }
-
-    // ⑤ 归因序重排：(≺_Θ(trigger), active_idx) 稳定序——与原 fold 归因序（候选遍历主序 +
-    //    同候选内 active 次序）同构。theta_key 含 gamma_index 终局键 ⟹ 跨候选无平局；
-    //    同候选多腿（#209 一类全平/channel 多腿同触发）由 active_idx 保 active 次序。
-    let mut order: Vec<usize> = (0..buckets.close.len()).collect();
-    order.sort_by_key(|&k| (theta_key(&close_triggers[k]), close_active_idx[k]));
-    let mut sorted_close = Vec::with_capacity(buckets.close.len());
-    let mut sorted_triggers = Vec::with_capacity(close_triggers.len());
-    for k in order {
-        sorted_close.push(buckets.close[k]);
-        sorted_triggers.push(close_triggers[k]);
-    }
-    buckets.close = sorted_close;
-    debug_assert_eq!(
-        buckets.close.len(),
-        sorted_triggers.len(),
-        "close 桶与触发归因一一对应（同步 push 不变量）"
-    );
-    (buckets, sorted_triggers)
 }
 
 #[cfg(test)]
@@ -1985,8 +1963,113 @@ mod tests {
         assert_eq!(triggers[1], gamma[0]);
     }
 
-    /// 边界：external 为空 ⟹ 与 `interpret_with_close_triggers` 逐字段 bit-exact
-    /// （同一 fold 单实现，零外部化 = 原路径）。
+    // ── ★#396 规则体 golden 锁 + 前置条件守卫 ──────────────────────────────────────
+
+    /// golden 场景：跨级别 5 候选 × 4 活动腿，一趟 fold 打穿规则1..4 + #200 + #209。
+    ///
+    /// `gamma_index`：0=buy3@L0(si0) 1=sell1@L0(si10) 2=buy2@L0(si4) 3=sell2@L1(si12)
+    /// 4=buy3@L1(si6)；≺_Θ 遍历序 = [g3, g4, g1, g2, g0]（Reverse(level) 高级别先，同级按 class）。
+    fn golden_scenario() -> (Vec<Candidate>, Vec<ActiveLeg>) {
+        let gamma = assemble_gamma(&classification(vec![
+            vec![buy_point(0, 3), sell_point(10, 1), buy_point(4, 2)],
+            vec![sell_point(12, 2), buy_point(6, 3)],
+        ]));
+        let active = vec![
+            aleg(0, VoiceSide::Long, 0, 0),
+            aleg(0, VoiceSide::Long, 2, 2),
+            aleg(1, VoiceSide::Long, 5, 5),
+            aleg(1, VoiceSide::Short, 7, 7),
+        ];
+        (gamma, active)
+    }
+
+    /// 三桶 + 归因的**完整**形状（close 取 (level, source_index)，其余取 gamma_index）。
+    #[allow(clippy::type_complexity)]
+    fn fold_shape(
+        b: &Buckets,
+        t: &[Candidate],
+    ) -> (Vec<(u32, usize)>, Vec<usize>, Vec<usize>, Vec<usize>) {
+        (
+            b.close.iter().map(|l| (l.level, l.source_index)).collect(),
+            t.iter().map(|c| c.gamma_index).collect(),
+            b.open.iter().map(|c| c.gamma_index).collect(),
+            b.record.iter().map(|c| c.gamma_index).collect(),
+        )
+    }
+
+    /// ★#396 规则体 golden 锁：把 fold 的**完整**三桶 + 归因期望值钉死。
+    ///
+    /// 存在理由：合并后 `external_closes_empty_is_bit_exact_with_plain_fold` 退化为
+    /// `f(x)==f(x)`（两个 pub 驱动同一实现同一实参路径），不可能失败 ⟹ 它不再锁住任何东西。
+    /// 本测试接替它：期望值取自合并**前**的实现（b7dc9b544d，两个驱动分别跑同一场景所得），
+    /// 故它锁的是「合并后的规则体仍算出合并前的结果」，而非两驱动之间的自洽。
+    ///
+    /// 覆盖（一趟 fold 全打到）：≺_Θ 跨级别主序 / 规则2 二三类 find-first / #200 二类先平后开
+    /// 且补开位被占时落规则4 / 规则2 三类消费即止 / #209 一类全平多腿 / 规则3 开启 /
+    /// 规则4 本 fold 同 slot 重复 / external 预置关闭改变 dual-effect 的 slot 可用性 /
+    /// ⑤ 归因序重排（external 分支 push 序 [g4,g3,..] 被重排为 [g3,g4,..]，非平凡）。
+    #[test]
+    fn fold_theta_golden_buckets_pin_rule_body() {
+        let (gamma, active) = golden_scenario();
+
+        // ── 驱动A：规则2 纯候选驱动（external = &[]）
+        // g3(sell2@L1) 关 leg2 后二类续跑，但 L1 Short slot 被未关闭的 leg3 占 ⟹ 落规则4 record；
+        // g4(buy3@L1) 关 leg3 三类消费即止；g1(sell1@L0) #209 全平 leg0+leg1；
+        // g2(buy2@L0) 开 L0/Long；g0(buy3@L0) 同 slot 本 fold 已开 ⟹ record。
+        let (b, t) = interpret_with_close_triggers(&gamma, &active);
+        assert_eq!(
+            fold_shape(&b, &t),
+            (
+                vec![(1, 5), (1, 7), (0, 0), (0, 2)],
+                vec![3, 4, 1, 1],
+                vec![2],
+                vec![3, 0],
+            ),
+            "纯候选驱动 golden 漂移"
+        );
+
+        // ── 驱动B：external 预置关闭 leg3（触发 g4），其余同场景
+        // leg3 被 channel 先关 ⟹ g3 的 #200 补开不再被 Short slot 挡住，真的开出 g3；
+        // g4 经 ext_trigger_keys 计入 closed_any ⟹ 三类消费即止不重复关。
+        // push 序 [(g4,idx3), (g3,idx2), (g1,idx0), (g1,idx1)]
+        //   ──⑤ 重排──▶ [(g3,idx2), (g4,idx3), (g1,idx0), (g1,idx1)]（g3≺_Θ g4）
+        let (b2, t2) = interpret_with_external_closes(&gamma, &active, &[(3usize, gamma[4])]);
+        assert_eq!(
+            fold_shape(&b2, &t2),
+            (
+                vec![(1, 5), (1, 7), (0, 0), (0, 2)],
+                vec![3, 4, 1, 1],
+                vec![3, 2],
+                vec![0],
+            ),
+            "external 驱动 golden 漂移"
+        );
+    }
+
+    /// ★#396 前置条件守卫：`gamma_index` 在 `gamma` 上非单射 ⟹ ⓪ 守卫当场响。
+    ///
+    /// 复现评审给出的危险路径：`selector.rs:575/636`、`runner.rs:4355`、`exit.rs:517` 的测试
+    /// 构造器硬编码 `gamma_index: 0`，拿它们拼多候选 gamma 就会让 ≺_Θ 出现平局，close 归因序
+    /// 不再由契约确定。守卫把「静默偏离」变成「当场 panic」。
+    ///
+    /// 仅 debug 构建存在：release 下 `debug_assert!` 被编译掉，本测试无对象。
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "非单射")]
+    fn fold_theta_rejects_non_injective_gamma_index() {
+        let mut gamma = assemble_gamma(&classification(vec![vec![
+            buy_point(0, 3),
+            sell_point(10, 1),
+        ]]));
+        gamma[1].gamma_index = gamma[0].gamma_index; // 模拟硬编码 gamma_index: 0
+        let _ = interpret_with_close_triggers(&gamma, &[aleg(0, VoiceSide::Long, 0, 0)]);
+    }
+
+    /// 边界：external 为空 ⟹ 与 `interpret_with_close_triggers` 逐字段 bit-exact。
+    ///
+    /// **#396 后本测试已退化**：两个 pub 驱动同一实现同一实参路径 ⟹ 恒真，不可能失败。保留
+    /// 为「两驱动不得再分叉」的结构声明，规则体的真锁见
+    /// [`fold_theta_golden_buckets_pin_rule_body`]。
     #[test]
     fn external_closes_empty_is_bit_exact_with_plain_fold() {
         let gamma = assemble_gamma(&classification(vec![
