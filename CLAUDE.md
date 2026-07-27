@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-> 蜂群/元编排体系已于 2026-07-10 卸载，相关文件归档于 `.claude/archive/swarm-uninstall-20260710/`。
-
 ## Language
 Always respond in Chinese-simplified (简体中文).
 
@@ -69,15 +67,20 @@ tradingview-mcp 已通过 `~/.claude/.mcp.json` 全局注册，在本项目的�
 
 **关键约束**：被 `study_filter` 指定的指标必须在图表上**可见**（不能隐藏）。
 
-### 标准分析 prompt 模板
+## Agent skills
 
-```
-# 单图分析
-"读取当前图表上缠论指标的标注，判断当前走势级别、有无买卖点"
+### Issue tracker
 
-# 截图 + 全分析
-"截取当前 Brent 原油图表，结合缠论指标输出给出操盘建议"
+Issues live in GitHub Issues at `xy7365527-lang/NewChanlun`（private，gh 已认证 keyring，操作走 `gh issue`）. See `docs/agents/issue-tracker.md`.
 
-# 多周期联动
-"对比 Brent 原油 30 分钟和 5 分钟的缠论标注，判断是否有背驰"
-```
+### Triage labels
+
+Five canonical roles, label string equal to its name: `needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: one `CONTEXT.md` + `docs/adr/` at repo root（文件不存在时静默跳过，由 /domain-modeling 惰性创建）. See `docs/agents/domain.md`.
+
+### 统计结论口径标注与引用审查
+
+归档判决落盘时标口径（轻档）；有人要拿某结论当决策依据时先查过没过异质审查（重档），未标默认按「未审」降级使用，不追溯存量。See `docs/agents/stat-provenance.md`.
