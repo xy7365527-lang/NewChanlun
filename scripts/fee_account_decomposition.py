@@ -114,20 +114,31 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--armD-dir", default="/tmp/m8_win_armD")
     ap.add_argument("--armR-dir", default="/tmp/m8_win_gate")
+    # ★#389 T3（帽臂 C）：与臂D **同一 datum 同一档位**（唯一差异 = `enforce_level_cap`），
+    #   故 commission_bps 取同一个 `taker_bps`——本表的臂C 行只反映**名义额（规模/形态）差**，
+    #   费率口径与臂D 逐位相同。产物缺失时本行**跳过而非报错**（帽臂是可选跑批，T2 时不存在）。
+    ap.add_argument("--armC-dir", default="/tmp/m8_win_armC")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
     taker_bps = binance_taker_bps()
     rows: list[str] = []
     missing: list[str] = []
+    optional_absent: list[str] = []
     for tag in WINDOWS:
-        for arm, root, comm_bps in (
-            ("D(标定)", pathlib.Path(args.armD_dir), taker_bps),
-            ("R(未标定)", pathlib.Path(args.armR_dir), ARM_R_COMMISSION_BPS),
+        for arm, root, comm_bps, required in (
+            ("D(标定)", pathlib.Path(args.armD_dir), taker_bps, True),
+            ("C(标定+帽)", pathlib.Path(args.armC_dir), taker_bps, False),
+            ("R(未标定)", pathlib.Path(args.armR_dir), ARM_R_COMMISSION_BPS, True),
         ):
             path = root / tag / "trades.jsonl"
             if not path.exists():
-                missing.append(str(path))
+                if required:
+                    missing.append(str(path))
+                else:
+                    # 可选臂缺产物：**不静默**。表里少一行与「跑了但为空」在下游读起来一样，
+                    # 必须在 stderr 说出来（同票 `M8_LEVEL_CAP` 非法值 fail-loud 的同一理由）。
+                    optional_absent.append(str(path))
                 continue
             d = decompose(leg_notionals(path), comm_bps)
             rows.append(
@@ -138,12 +149,19 @@ def main() -> int:
     if missing:
         print("产物缺失（跑批未做）：\n  " + "\n  ".join(missing), file=sys.stderr)
         return 4
+    if optional_absent:
+        print(
+            "可选臂产物缺失，对应行**未出现在表中**（不是「跑了但为空」）：\n  "
+            + "\n  ".join(optional_absent),
+            file=sys.stderr,
+        )
 
     md = "\n".join(
         [
             f"费率口径：臂D commission={taker_bps:.1f}bp（datum {DATUM_PATH.name} / BTC / VIP0 taker）；"
             f"臂R commission={ARM_R_COMMISSION_BPS:.1f}bp、tax={ARM_R_TAX_BPS:.1f}bp（config.rs:301-303）；"
-            f"两臂 slippage={SLIPPAGE_BPS:.1f}bp（datum 不覆盖，未标定 addon）。",
+            f"臂C commission 与臂D 同源（同 datum 同档位，唯一差异 = `enforce_level_cap`）；"
+            f"三臂 slippage={SLIPPAGE_BPS:.1f}bp（datum 不覆盖，未标定 addon）。",
             "",
             "| 窗 | 臂 | 成交腿数 | Σ名义额 | commission | 监管 | 清算 | slippage | Σ费用 |",
             "|---|---|---|---|---|---|---|---|---|",

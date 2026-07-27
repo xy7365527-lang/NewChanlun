@@ -243,6 +243,66 @@ fn apply_m8_fee_datum_from_env(cfg: &mut ThetaConfig) {
     }
 }
 
+/// ★#389 T3（帽臂 C）：级别帽臂的 `level_weights` = **#310 M4 验收既有配置**（6 级各 0.05，
+/// Σw_ℓ=0.3≤1）。
+///
+/// **来源（不自造参数）**：#310（LEE M4 级别 sizing/risk）落地时的两处在册验收配置
+/// —— `runner.rs::lee_m4_level_cap_narrows_position_when_enabled`（#310 本体验收：刻意不压到 0，
+/// 使帽「真收窄」而非「交易停摆」）与 `runner.rs::lee_m4_cap_on_sparsity_has_no_unexplained_violation`
+/// （#351 MED-3 补课，cap-on 稀疏性覆盖）逐字同值。#310 票体本身只钉 `Σw_ℓ≤1` 的代数约束，
+/// **不钉具体数值**；仓内唯一「既有配置」即此二测的 `vec![0.05; 6]`，本常量是它的单一来源化。
+///
+/// **参数归属声明（#310 票体逐字）**：`w_ℓ` 全属 `Θ_risk`，**禁冒充缠论可导**（090/v3）。
+const M8_LEVEL_CAP_WEIGHTS_310: [f64; 6] = [0.05; 6];
+
+/// ★#389 T3：`M8_LEVEL_CAP=true` ⟹ 帽臂（臂C）= 臂D 配置 + `enforce_level_cap=true`
+/// + [`M8_LEVEL_CAP_WEIGHTS_310`]；未设 ⟹ **no-op**（臂R/臂D 逐位不变，bit-exact 中性，
+/// 与 [`apply_enforce_gross_cap_from_env`] / [`apply_m8_fee_datum_from_env`] 同款 env-gate 先例）。
+///
+/// **非法值 fail-loud**（不静默忽略）：`ENFORCE_GROSS_CAP` 的 `!= "true" ⟹ 静默 false` 先例在本处
+/// **不适用**——帽臂产物若因拼写错误静默退回臂D，报告会把臂D 读数当帽臂登记（口径谎报）。
+/// 帽的施加点在 `fill.rs::pi_theta_position`（`risk.enforce_level_cap` 双施加点 + `cap_narrowed`
+/// 归因，#351 MED-3 / #363 逐级判据）。
+///
+/// `spec` 为 `None` 表示 env 未设（本函数与 env 解耦，便于测试无副作用地覆盖三分支）。
+///
+/// **`Σw_ℓ≤1` 不在此处运行时断言**（评审 Standards 轴指出）：注入值是编译期常量
+/// [`M8_LEVEL_CAP_WEIGHTS_310`]，对它做运行时断言恒真 ⟹ 零信息增量的 L0 同义反复
+/// （`formalization-validity-domain` 231号），把它读成「机器承保」会高估强度。
+/// 该约束的**真实承保点** = 测试 `m8_level_cap_true_applies_310_weights`（常量一旦被改，测试红）。
+fn apply_m8_level_cap(cfg: &mut ThetaConfig, spec: Option<&str>) {
+    match spec {
+        None => {} // 未设 = 帽关（臂R/臂D 路径逐位不变）
+        Some("true") => {
+            cfg.risk.level_weights = M8_LEVEL_CAP_WEIGHTS_310.to_vec();
+            cfg.risk.enforce_level_cap = true;
+        }
+        Some(other) => panic!(
+            "M8_LEVEL_CAP 仅接受 \"true\"（实得 {other:?}）——静默忽略会让帽臂产物冒充臂D 读数"
+        ),
+    }
+}
+
+/// [`apply_m8_level_cap`] 的 env 入口（`M8_LEVEL_CAP`）。
+fn apply_m8_level_cap_from_env(cfg: &mut ThetaConfig) {
+    apply_m8_level_cap(cfg, std::env::var("M8_LEVEL_CAP").ok().as_deref());
+}
+
+/// ★#389 T3：LEE 稀疏性六字段的**单一来源**（m8 跑批的 stdout 诊断行与产物表共用一份取值，
+/// 两处手抄同一组字段会静默漂移）。顺序 = 产物表列序：
+/// `n_decisions` / `n_cap_narrowed` / `off_clock 订单` / `其中风控·帽可解释` /
+/// `off_clock 级别Δq` / `未解释`。
+fn lee_row_cells(s: &super::super::strategy::level_order::LevelOrderStats) -> [u64; 6] {
+    [
+        s.n_decisions,
+        s.n_cap_narrowed,
+        s.n_orders_off_structural_clock,
+        s.n_orders_off_structural_clock_risk_explained,
+        s.n_levels_off_clock_delta,
+        s.n_levels_off_clock_delta_unexplained,
+    ]
+}
+
 /// ★#388 T2 / #374 有效域收窄的**报告层标注**：标定档下随机对照系读数一律标此串。
 ///
 /// 「不可用」不是「跑失败」，是**有效域之外**（231号）：单标量费率在 per-share 档无良定义
@@ -1292,6 +1352,9 @@ fn m8_e2e_all_systems_oos() {
     let plain_cfg = {
         let mut c = ThetaConfig::default();
         apply_m8_fee_datum_from_env(&mut c);
+        // ★#389 T3（帽臂 C）：同样在此注入——报告头的帽臂声明块取自本 cfg，不同步就会让
+        //   帽臂产物看上去与臂D 无异（口径谎报）。数据加载不受帽影响（帽在 fill 层）。
+        apply_m8_level_cap_from_env(&mut c);
         c
     };
     let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
@@ -1351,6 +1414,20 @@ fn m8_e2e_all_systems_oos() {
              不得把「不可用」读作「负」或「INCONCLUSIVE」。\n\n"
         ));
     }
+    // ★#389 T3（帽臂 C）：帽臂声明块随产物走——「同 config 仅帽开关差」是 D-vs-C 归因的前提，
+    //   产物必须自证它是哪个臂（否则报告引用时无法机械核对）。
+    if plain_cfg.risk.enforce_level_cap {
+        report.push_str(&format!(
+            "> **帽臂（臂C）声明（#389 / #385）**：本跑批经 `M8_LEVEL_CAP=true` 开启 M4 级别级风险帽\
+             （`risk.enforce_level_cap=true`，`level_weights={:?}` = #310 既有配置，Σw_ℓ={:.2}≤1）。\
+             与臂D **唯一配置差异即此开关**（费率 datum / margin / cost_model / κ=0 / 窗口全同）。\n\
+             >\n\
+             > `w_ℓ` 全属 **Θ_risk**（#310 票体逐字：禁冒充缠论可导）。帽臂读数**只量化政策的成本/\
+             形态影响，不评判政策取舍**（#385 Out of Scope：M4 级别帽政策本身的取舍）。\n\n",
+            plain_cfg.risk.level_weights,
+            plain_cfg.risk.level_weights.iter().sum::<f64>(),
+        ));
+    }
     report.push_str("## 四层报告\n\n");
 
     // ── signal 层（转引，不重算）──
@@ -1370,6 +1447,7 @@ fn m8_e2e_all_systems_oos() {
 
     let policy = RiskPolicy::baseline(); // κ=0（M7 冻结口径）
     let i0: i64 = 1_000_000; // I_0 基线（TwState notional_in 同源 = ⌊nav0⌋，此处报告门槛用 1e6 名义）
+    let mut lee_rows: Vec<String> = Vec::new(); // ★#389 T3：帽臂 LEE 稀疏性逐窗读数（帽关时恒空）
     for (tag, te_lo, te_hi) in &wins {
         let test = ds.slice_date_window(te_lo, te_hi);
         if test.bars.is_empty() {
@@ -1386,6 +1464,7 @@ fn m8_e2e_all_systems_oos() {
         apply_theta_dir_preset_from_env(&mut cfg);
         apply_enforce_gross_cap_from_env(&mut cfg);
         apply_m8_fee_datum_from_env(&mut cfg); // ★#388 T2 标定臂（未设 = 臂R 逐位不变）
+        apply_m8_level_cap_from_env(&mut cfg); // ★#389 T3 帽臂（未设 = 臂R/臂D 逐位不变）
         cfg.margin = Some(q4_margin_model(nav_te));
         cfg.cost_model = Some(m6_cost_model());
         eprintln!("[m8] BTC {tag} test={te_lo}..{te_hi}({}) 三系统同开 run…", test.bars.len());
@@ -1461,6 +1540,39 @@ fn m8_e2e_all_systems_oos() {
         );
         // treasury 单向不可逆：stage.rank ≤ 2（EarningShares 上界），且 W_T≤notional_in（退本金不超投入）。
         assert!(tw.withdrawn <= tw.notional_in, "W_T={} 不得超 notional_in={}", tw.withdrawn, tw.notional_in);
+
+        // ★#389 T3（帽臂 C）：LEE 稀疏性硬约束在**生产跑批**上逐窗断言（此前只在 runner.rs 的
+        //   9000-bar 合成 fixture 上覆盖，见 `lee_m4_cap_on_sparsity_has_no_unexplained_violation`）。
+        //   逐级判据（#363）严格强于 bar 级（#351 把 `cap_narrowed` 并入 `risk_or_cap_active`），
+        //   两条都断言。**帽关时不断言**——帽关路径 `n_cap_narrowed` 恒 0，判据平凡为真（无信息）。
+        //   读数行**无条件打印**（帽关时也打）——D-vs-C 的「帽政策形态影响」需要两臂同口径读数，
+        //   只在帽开时打会让对照缺一半（`max_abs_net_units` / `n_cap_narrowed` 的帽关侧基准）。
+        let s = r.level_order;
+        // 六个稀疏性字段**单一来源**（stdout 行与产物表共用，防两处手抄漂移）。
+        let [n_dec, n_cap, off_clk, off_clk_exp, off_delta, off_delta_unexp] = lee_row_cells(&s);
+        eprintln!(
+            "LEE_M4_ARM {tag} cap={} n_decisions={n_dec} n_cap_narrowed={n_cap} n_rescaled={} \
+             max_abs_net_units={} n_orders_generated={} off_clock={off_clk} \
+             off_clock_explained={off_clk_exp} off_clock_delta={off_delta} \
+             off_clock_delta_unexplained={off_delta_unexp}",
+            cfg.risk.enforce_level_cap, s.n_rescaled, s.max_abs_net_units, s.n_orders_generated,
+        );
+        if cfg.risk.enforce_level_cap {
+            assert!(s.n_decisions > 0, "非空前置：{tag} 决策点跑过");
+            assert!(
+                s.sparsity_has_no_unexplained_violation(),
+                "帽臂 {tag} bar 级稀疏性违例：无结构钟点却产订单 {} 次，其中仅 {} 次可由风控/帽解释",
+                s.n_orders_off_structural_clock, s.n_orders_off_structural_clock_risk_explained,
+            );
+            assert!(
+                s.per_level_sparsity_has_no_unexplained_violation(),
+                "帽臂 {tag} 逐级稀疏性违例：无 tick 级别 Δq_ℓ≠0 共 {} 次，其中 {} 次无缩放可解释",
+                s.n_levels_off_clock_delta, s.n_levels_off_clock_delta_unexplained,
+            );
+            lee_rows.push(format!(
+                "| {tag} | {n_dec} | {n_cap} | {off_clk} | {off_clk_exp} | {off_delta} | {off_delta_unexp} |\n"
+            ));
+        }
     }
 
     // ★#388 T2：层4 结算措辞随口径档分叉——标定档下 LCB 不可用 ⟹ **不给层4 结论**
@@ -1484,6 +1596,24 @@ fn m8_e2e_all_systems_oos() {
          {layer4_line}\n\
          I_0 报告门槛 = {i0}（notional_in 同源 ⌊nav0⌋，各窗 nav 不同 ⟹ 门槛按 notional_in 列读）。\n",
     ));
+    // ★#389 T3：帽臂 LEE 稀疏性逐窗读数随产物落盘（断言已在循环内逐窗执行，本表是读数登记）。
+    if !lee_rows.is_empty() {
+        report.push_str(
+            "\n## 帽臂 LEE 稀疏性逐窗读数（#389 / 设计文档 §F③）\n\n\
+             判据：`sparsity_has_no_unexplained_violation`（bar 级）∧ \
+             `per_level_sparsity_has_no_unexplained_violation`（逐级，严格更强）——\
+             **两条已在循环内逐窗断言，通过才有本表**。`unexplained` 列恒 0 是硬约束，非观测。\n\n\
+             | 窗 | n_decisions | n_cap_narrowed | off_clock 订单 | 其中风控/帽可解释 | off_clock 级别Δq | 未解释 |\n\
+             |---|---|---|---|---|---|---|\n",
+        );
+        for row in &lee_rows {
+            report.push_str(row);
+        }
+        report.push_str(
+            "\n**非平凡性**：`n_cap_narrowed>0` 表示帽在本窗真 binding（否则逐级判据平凡通过，\
+             #376 LOW-1 纪律）；该列若为 0，本窗的逐级绿是空断言，须照此读。\n",
+        );
+    }
     std::fs::write("/tmp/m8_e2e_all_systems_oos.md", &report).ok();
     eprintln!("[m8] 端到端四层报告落盘 /tmp/m8_e2e_all_systems_oos.md");
 }
@@ -1653,6 +1783,41 @@ mod tests {
         let o = parse_fee_datum_spec("venue_fee_ibkr_pro_20260726.json:OKLO:PRO_TIERED_LE_300K_SHARES");
         assert_eq!(o.venue, "IBKR_PRO_US_EQUITY");
         assert_eq!(o.symbol, "OKLO");
+    }
+
+    /// ★#389 T3：`M8_LEVEL_CAP` 未设 ⟹ **no-op**——帽字段逐位不变（臂R/臂D 的 bit-exact 中性
+    /// 由此承保；回归门 `scripts/check_armR_trades_digest.py` 是它的端到端实证）。
+    /// **认识论 L0**（配置契约，零数据依赖）。
+    #[test]
+    fn m8_level_cap_unset_is_noop() {
+        let mut cfg = ThetaConfig::default();
+        apply_m8_level_cap(&mut cfg, None);
+        assert!(!cfg.risk.enforce_level_cap, "未设 env 不得开帽");
+        assert!(cfg.risk.level_weights.is_empty(), "未设 env 不得注入权重（default 空表）");
+    }
+
+    /// ★#389 T3：`M8_LEVEL_CAP=true` ⟹ 开帽 + 注入 **#310 既有配置**（6 级各 0.05，Σ=0.3≤1）。
+    /// 参数归属：`w_ℓ ∈ Θ_risk`（#310 票体逐字，禁冒充缠论可导）。**认识论 L0**。
+    #[test]
+    fn m8_level_cap_true_applies_310_weights() {
+        use super::super::super::strategy::level_risk::{level_weights_sum, level_weights_sum_le_one};
+        let mut cfg = ThetaConfig::default();
+        apply_m8_level_cap(&mut cfg, Some("true"));
+        assert!(cfg.risk.enforce_level_cap, "帽臂须开 enforce_level_cap");
+        assert_eq!(cfg.risk.level_weights, vec![0.05; 6], "权重须为 #310 既有配置");
+        assert!((level_weights_sum(&cfg.risk) - 0.3).abs() < 1e-12, "Σw_ℓ=0.3");
+        assert!(level_weights_sum_le_one(&cfg.risk), "Σw_ℓ≤1 机器断言（#310 验收）");
+        // 与 runner.rs 两处 #310/#351 在册验收配置同值（单一来源化的见证）。
+        assert_eq!(M8_LEVEL_CAP_WEIGHTS_310.to_vec(), vec![0.05; 6]);
+    }
+
+    /// ★#389 T3：非法值 ⟹ **fail-loud**。静默退回帽关会让帽臂产物 = 臂D 读数却按帽臂登记
+    /// （口径谎报，090 声明膨胀）。**认识论 L0**。
+    #[test]
+    #[should_panic(expected = "M8_LEVEL_CAP")]
+    fn m8_level_cap_invalid_value_fails_loud() {
+        let mut cfg = ThetaConfig::default();
+        apply_m8_level_cap(&mut cfg, Some("1"));
     }
 
     /// ★#388 T2：spec 三段式格式非法 ⟹ fail-loud（禁静默按未标定档跑，那会让报告标签谎报）。
