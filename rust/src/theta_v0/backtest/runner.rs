@@ -3036,6 +3036,26 @@ mod tests {
         // ★#362 条 6（#363 偏离跟进）：#363 已把**逐级**判据做实（`cap_narrowed_levels` 逐级
         // 解释项），但端到端只断言了 bar 级。逐级严格更强（一级 binding 不赦免同决策点其他
         // 级别）⟹ 帽开启的生产路径上必须一并闭环，否则逐级判据在真实跑批里无断言消费者。
+        //
+        // ★#376 LOW-1（逐级非平凡前置，钉死）：上面的 bar 级前置 `n_orders_off_structural_clock
+        // > 0` **不蕴含**逐级非零——`has_structural()==false` 时 `ticked_levels` 仍可非空（风控
+        // 钟点不计入 structural 却计入 ticked，`level_clock.rs:177/187`），此时 off-clock 的级别
+        // 可被 tick 全覆盖 ⟹ 逐级谓词平凡通过。同理 `n_cap_narrowed==0`（帽从未 binding）也让它
+        // 平凡为真（该警告见 `LevelOrderStats::n_cap_narrowed` doc）。与本批条 4 对
+        // `targets_sum < 100` 的防平凡化同一纪律，故钉死两条实测读数（#375 影子评审探针：
+        // n_cap_narrowed=159 / n_levels_off_clock_delta=150 / unexplained=0）。
+        eprintln!(
+            "LEE_M4_PERLEVEL cap_narrowed={} off_clock_delta={} unexplained={}",
+            s.n_cap_narrowed, s.n_levels_off_clock_delta, s.n_levels_off_clock_delta_unexplained
+        );
+        assert!(
+            s.n_cap_narrowed > 0,
+            "非平凡前置：帽须在本 fixture 上真正 binding 过（否则逐级谓词平凡通过）；实测 159"
+        );
+        assert!(
+            s.n_levels_off_clock_delta > 0,
+            "非平凡前置：须存在无 tick 却 Δq_ℓ≠0 的级别（否则逐级谓词无被检对象）；实测 150"
+        );
         assert!(
             s.per_level_sparsity_has_no_unexplained_violation(),
             "帽开启后**逐级**稀疏性硬约束破：n_levels_off_clock_delta_unexplained={}（#363：\

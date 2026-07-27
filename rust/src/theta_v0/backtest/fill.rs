@@ -543,6 +543,10 @@ fn levels_narrowed_by_cap(before: &[(u32, i64)], after: &[(u32, i64)]) -> Vec<u3
     // ★#369 LOW-1（与下方位序断言同源，一并升为真 `assert!`）：「等长」与「保序」是同一条
     // clamp 契约的两半，失效形状也同形——release 下 `zip` 对长度不等**静默截断**，尾部被裁级别
     // 直接漏出本表 ⟹ 逐级判据反把它计为未解释违例。只升一半 = 半成品（090）。
+    //
+    // ★#376 LOW-2（措辞自洽）：本条虽是 clamp 的**构造性**契约，仍取真 `assert!` 而非
+    // `debug_assert`——判据是「同函数内构造 vs 跨接线可破」（论证见 `plan_level_gated_order` 内
+    // #362 MED-B 段），本函数与 clamp 的施加点隔着接线，属后者。
     assert_eq!(before.len(), after.len(), "clamp 保序等长契约破：{before:?} vs {after:?}");
     before
         .iter()
@@ -717,11 +721,18 @@ fn plan_level_gated_order(
         t_lee
     );
     // ★#362 影子评审 MED-B（真 assert 升级）：本护栏与上面的 `Σ_ℓ q_ℓ ≡ t_lee'` 不同——后者
-    // 是构造性恒等（`order_units` 按定义就是 `targets − planned` 之和），`debug_assert` 足够；
-    // 本条「二次裁剪后无级别越 cap_ℓ」**非构造性**：它依赖 `clamp_levels_to_weighted_cap` 是
-    // 最后一个改写 `targets` 的算子这一**接线事实**，任何后续插入的改写都能静默破坏它。按
+    // 的两端在**同一函数内**由同一表达式构造（`order_units` 按定义就是 `targets − planned` 之
+    // 和，紧邻上方几行可逐字核对），无外部接线能破，`debug_assert` 足够；本条「二次裁剪后无级别
+    // 越 cap_ℓ」依赖 `clamp_levels_to_weighted_cap` 是最后一个改写 `targets` 的算子这一
+    // **接线事实**，任何后续插入的改写都能静默破坏它。按
     // `level_order.rs` 的「恒等证据须 release 非平凡可读」纪律（#289 MED 同源），只在 debug
     // 求值 = release 跑批零执行 = 没有证据 ⟹ 升为真 `assert!`。代价 O(级别数)/bar，可忽略。
+    //
+    // ★#376 LOW-2（分界措辞订正，照实）：本批实际起作用的分界是「**同函数内构造** vs **跨接线
+    // 可破**」，不是「构造性 vs 非构造性」。区别有实效：`levels_narrowed_by_cap` 的等长/保序两条
+    // （`fill.rs:543-554`）就其被调用处而言确是 clamp 的构造性契约，但其施加点与消费点隔着接线
+    // ⟹ 按本分界归「跨接线可破」，同样升真 `assert!`（#369 LOW-1 的处置据此自洽）。若按旧措辞
+    // （构造 ⟹ `debug_assert` 足够）推导，会得出与本批相反的结论。
     assert!(
         !risk.enforce_level_cap
             || plan
