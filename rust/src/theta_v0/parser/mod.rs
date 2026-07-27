@@ -207,61 +207,91 @@ impl<'c> ParseLayerIncr<'c> {
     /// 内部：增量 inclusion → 增量 fractal → 增量 stroke → 增量 segment → tail 重算。
     /// ponytail: Rc 共享消除每 bar Vec clone——`to_result_rc()` 返回 Rc clone O(1)，
     /// 替代旧 `to_result().to_vec()` 的 O(n)/bar。tail 二分查找消除 O(merged_i) 线性扫描。
+    ///
+    /// 委托 [`append_incr_layer`]（#345：与 `OwnedIncrementalClassifier`〈owned config，
+    /// Nautilus 流式变体〉共享同一份步进实现，避免第二份平行实现——本仓库的 O(n²) 根因
+    /// 正是"两条平行实现互不复用"，本次抽取不重蹈）。
     pub fn append(&mut self, bar: Bar) -> ParseLayer {
-        // append 消费 self（by-value，mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
-        // #106 证书：append 前的相位决定本 bar confirmed 前缀语义（O(1)）。
-        let was_open_tail = self.incr_inclusion.to_result_ref().only_open_tail;
-        let prev = std::mem::replace(&mut self.incr_inclusion, inclusion::IncrInclusion::empty());
-        self.incr_inclusion = prev.append(bar);
-        // merged_rc: Rc 共享 clone（O(1)），替代旧 to_result_ref().merged.to_vec() 的 O(n)/bar。
-        // 下游 fractal/stroke/segment/tail 借用 &merged（Rc::deref → &[Bar]，透明）。
-        let merged = self.incr_inclusion.merged_rc();
-        // #106 confirmed 前缀长度（O(1) 证书）：相 B 稳态（append 前后均非 open_tail）⟹ 仅末根
-        // acc 可改写，前缀 [..len-1] 物理不变（append_folded 用 Rc::make_mut pop/push 末根，
-        // 前缀字节不动）⟹ confirmed = len-1。相 A（仍 open_tail）/ 相 A→B 迁移本 bar（was_open_tail
-        // 但现非）⟹ 0（整段折叠或无方向，对 classifier 旧 closes cache 无可复用前缀，退化全量）。
-        let now_open_tail = self.incr_inclusion.to_result_ref().only_open_tail;
-        let merged_confirmed_len = if was_open_tail || now_open_tail {
-            0
-        } else {
-            merged.len().saturating_sub(1)
-        };
+        append_incr_layer(
+            &mut self.incr_inclusion,
+            &mut self.incr_fractals,
+            &mut self.incr_strokes,
+            &mut self.incr_segments,
+            bar,
+            &self.config.parse,
+        )
+    }
+}
 
-        // 增量 fractal：保留 confirmed 前缀，重算尾部 2 个三元组。
-        // by-value append（mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
-        let prev_fractals = std::mem::replace(&mut self.incr_fractals, fractal::IncrFractals::empty());
-        self.incr_fractals = prev_fractals.append(&merged);
-        let fractals = self.incr_fractals.to_result_rc();
+/// **增量 parse 单 bar 步进的共享实现**（#345）。
+///
+/// [`ParseLayerIncr::append`]（借用 `&'c ThetaConfig`，批量回测场景）与
+/// `backtest::incremental::OwnedIncrementalClassifier::append_bar`（owned `ThetaConfig`
+/// 拷贝，Nautilus 流式场景——`self.bars: Vec<Bar>` 逐 bar `push` 会重分配，任何 `&'a` 借用
+/// 都可能失效）共用本函数：两种宿主的**生命周期/所有权模型不同**，但增量步进算法必须
+/// **同一份代码**（否则退回本仓库当前正在修的"两条平行实现"病灶——#342 根因）。
+///
+/// 只需 `&ParseConfig`（stroke/segment 增量步唯一消费的 config 子字段），故两个调用方
+/// 都能各自传自己持有的 config 存储形态（借用/owned）而不额外分裂逻辑。
+pub(crate) fn append_incr_layer(
+    incr_inclusion: &mut inclusion::IncrInclusion,
+    incr_fractals: &mut fractal::IncrFractals,
+    incr_strokes: &mut stroke::IncrStrokes,
+    incr_segments: &mut segment::IncrSegments,
+    bar: Bar,
+    parse_config: &super::config::ParseConfig,
+) -> ParseLayer {
+    // #106 证书：append 前的相位决定本 bar confirmed 前缀语义（O(1)）。
+    let was_open_tail = incr_inclusion.to_result_ref().only_open_tail;
+    let prev = std::mem::replace(incr_inclusion, inclusion::IncrInclusion::empty());
+    *incr_inclusion = prev.append(bar);
+    // merged_rc: Rc 共享 clone（O(1)），替代旧 to_result_ref().merged.to_vec() 的 O(n)/bar。
+    // 下游 fractal/stroke/segment/tail 借用 &merged（Rc::deref → &[Bar]，透明）。
+    let merged = incr_inclusion.merged_rc();
+    // #106 confirmed 前缀长度（O(1) 证书）：相 B 稳态（append 前后均非 open_tail）⟹ 仅末根
+    // acc 可改写，前缀 [..len-1] 物理不变（append_folded 用 Rc::make_mut pop/push 末根，
+    // 前缀字节不动）⟹ confirmed = len-1。相 A（仍 open_tail）/ 相 A→B 迁移本 bar（was_open_tail
+    // 但现非）⟹ 0（整段折叠或无方向，对 classifier 旧 closes cache 无可复用前缀，退化全量）。
+    let now_open_tail = incr_inclusion.to_result_ref().only_open_tail;
+    let merged_confirmed_len = if was_open_tail || now_open_tail {
+        0
+    } else {
+        merged.len().saturating_sub(1)
+    };
 
-        // 增量 stroke：保留 confirmed 交替序列前缀 + confirmed strokes，续扫配对。
-        // by-value append（mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
-        let prev_strokes = std::mem::replace(&mut self.incr_strokes, stroke::IncrStrokes::empty());
-        self.incr_strokes = prev_strokes.append(&fractals, &self.config.parse);
-        let strokes = self.incr_strokes.to_result_rc();
+    // 增量 fractal：保留 confirmed 前缀，重算尾部 2 个三元组。
+    // by-value append（mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
+    let prev_fractals = std::mem::replace(incr_fractals, fractal::IncrFractals::empty());
+    *incr_fractals = prev_fractals.append(&merged);
+    let fractals = incr_fractals.to_result_rc();
 
-        // 增量 segment：保留 confirmed segments 前缀，从 pending_start 续扫。
-        // by-value append（mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
-        let prev_segments = std::mem::replace(&mut self.incr_segments, segment::IncrSegments::empty());
-        self.incr_segments = prev_segments.append(&strokes, &self.config.parse);
-        let (segments, pending_start) = self.incr_segments.to_result_rc();
-        let pending_start = pending_start;
-        // #106 segments 证书（O(1)）：l0_tower 复用边界。
-        let segments_confirmed_len = self.incr_segments.confirmed_len();
-        let segments_earliest_unsealed = self.incr_segments.earliest_unsealed_from();
+    // 增量 stroke：保留 confirmed 交替序列前缀 + confirmed strokes，续扫配对。
+    // by-value append（mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
+    let prev_strokes = std::mem::replace(incr_strokes, stroke::IncrStrokes::empty());
+    *incr_strokes = prev_strokes.append(&fractals, parse_config);
+    let strokes = incr_strokes.to_result_rc();
 
-        // tail 全量重算（O(tail) 非 O(merged_i)——二分查找定位锚点 + 尾部延伸段扫描）。
-        let tail = tail::build_tail(&merged, &fractals, &strokes, &segments, pending_start);
+    // 增量 segment：保留 confirmed segments 前缀，从 pending_start 续扫。
+    // by-value append（mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
+    let prev_segments = std::mem::replace(incr_segments, segment::IncrSegments::empty());
+    *incr_segments = prev_segments.append(&strokes, parse_config);
+    let (segments, pending_start) = incr_segments.to_result_rc();
+    // #106 segments 证书（O(1)）：l0_tower 复用边界。
+    let segments_confirmed_len = incr_segments.confirmed_len();
+    let segments_earliest_unsealed = incr_segments.earliest_unsealed_from();
 
-        ParseLayer {
-            merged_bars: merged,
-            merged_confirmed_len,
-            segments_confirmed_len,
-            segments_earliest_unsealed,
-            fractals,
-            strokes,
-            segments,
-            tail: Rc::new(tail),
-        }
+    // tail 全量重算（O(tail) 非 O(merged_i)——二分查找定位锚点 + 尾部延伸段扫描）。
+    let tail = tail::build_tail(&merged, &fractals, &strokes, &segments, pending_start);
+
+    ParseLayer {
+        merged_bars: merged,
+        merged_confirmed_len,
+        segments_confirmed_len,
+        segments_earliest_unsealed,
+        fractals,
+        strokes,
+        segments,
+        tail: Rc::new(tail),
     }
 }
 

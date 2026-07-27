@@ -97,6 +97,9 @@ pub mod first_retrace_replay;
 /// C2 CompletedFreeze 的正式 append-only event-store adapter。
 pub mod level_view_store;
 
+/// #345：自持缓冲区增量分类器变体（Nautilus 流式适配，无条件编译——见模块头）。
+pub mod streaming;
+
 /// P52 全量增量重放专用的 frontier 只读计数器。
 ///
 /// 默认关闭；只有诊断 bin 显式 [`enable`] 后，分类器在既有 pop/recompose 与 dirty 依赖门处

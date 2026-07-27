@@ -126,6 +126,12 @@ impl<'a> IncrementalClassifier<'a> {
     }
 }
 
+/// #345 自持缓冲区变体：见 [`classifier::streaming::OwnedIncrementalClassifier`]（无条件
+/// 编译模块——`nautilus::strategy::ThetaCore`〈生产/实盘路径〉是其唯一消费方，`nautilus`
+/// 模块不受本 `backtest` 模块的 `any(test, feature = "backtest_bin")` 门控约束，故该类型
+/// **不能**定义在此处，只能重导出供本文件测试引用）。
+pub use classifier::streaming::OwnedIncrementalClassifier;
+
 // ════════════════════════════════════════════════════════════════════════════
 // 测试 + profile（cfg(test) 门控，backtest 整模块本就 cfg(test)，此处显式标注）
 // ════════════════════════════════════════════════════════════════════════════
@@ -133,6 +139,126 @@ impl<'a> IncrementalClassifier<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// **★bit-exact 合成数据验证（`OwnedIncrementalClassifier`，#345 always-run）**：
+    /// 逐 bar 断言自持缓冲区变体 `append_bar` 输出 == legacy 全量
+    /// `classify_with_tower(parse_layer(&bars[..=i]))`，bit-identical。
+    ///
+    /// 与既有 `bit_exact_synthetic`（`IncrementalClassifier<'a>`，借用切片变体）互补：
+    /// 同一合成序列，验证**两种所有权模型**共享的 `parser::append_incr_layer` 步进
+    /// 产同一 bit-exact 结果——非平行第二份实现。
+    #[test]
+    fn owned_bit_exact_synthetic() {
+        let bars: Vec<Bar> = (0..2000usize)
+            .map(|i| {
+                let base = 1000i64 + (i as i64) * 2;
+                let cycle = ((i as f64) / 50.0).sin() as i64 * 30;
+                let close = base + cycle;
+                Bar {
+                    source_index: i,
+                    timestamp: i as i64,
+                    open: close - 1,
+                    high: close + 5,
+                    low: close - 5,
+                    close,
+                    volume: 1000,
+                    untradable: false,
+                }
+            })
+            .collect();
+
+        let config = ThetaConfig::default();
+        let mut owned = OwnedIncrementalClassifier::new(config.clone());
+        for i in 0..bars.len() {
+            let (owned_cls, owned_tower) = owned.append_bar(bars[i]);
+
+            // legacy 对照：每 bar 从头全量重跑（非增量，ground truth）。
+            let l0 = parser::parse_layer(&bars[..=i], &config);
+            let (leg_cls, leg_tower) = classifier::classify_with_tower(&l0, &config);
+            assert_eq!(owned_cls, leg_cls, "owned synthetic bar {i}: classification bit-exact 破裂");
+            assert_eq!(owned_tower.len(), leg_tower.len(), "owned synthetic bar {i}: tower 层数破裂");
+            for (lvl, (ol, ll)) in owned_tower.iter().zip(leg_tower.iter()).enumerate() {
+                assert_eq!(ol, ll, "owned synthetic bar {i} lvl {lvl}: tower 级 LeveledMove 破裂");
+            }
+        }
+        eprintln!(
+            "\n===== owned bit-exact 合成验证通过：{} bars =====\n  \
+             OwnedIncrementalClassifier::append_bar == 全量，bit-identical。",
+            bars.len()
+        );
+    }
+
+    /// **★两变体互证（#345）**：`OwnedIncrementalClassifier`（owned config，无生命周期）
+    /// 与 `IncrementalClassifier<'a>`（借用切片，既有批量变体）在同一合成序列上逐 bar
+    /// bit-exact 相等——证明"自持缓冲区"重构未改变增量算法本身，只改了所有权模型。
+    #[test]
+    fn owned_matches_borrowed_variant_synthetic() {
+        let bars: Vec<Bar> = (0..1500usize)
+            .map(|i| {
+                let base = 1000i64 + (i as i64);
+                let cycle = (((i as f64) / 23.0).sin() * 40.0) as i64;
+                let close = base + cycle;
+                Bar {
+                    source_index: i,
+                    timestamp: i as i64,
+                    open: close - 1,
+                    high: close + 6,
+                    low: close - 6,
+                    close,
+                    volume: 1000,
+                    untradable: false,
+                }
+            })
+            .collect();
+
+        let config = ThetaConfig::default();
+        let mut owned = OwnedIncrementalClassifier::new(config.clone());
+        let mut borrowed = IncrementalClassifier::new(&bars, &config);
+        for i in 0..bars.len() {
+            let (owned_cls, owned_tower) = owned.append_bar(bars[i]);
+            let (borrowed_cls, borrowed_tower) = borrowed.classify_at(i);
+            assert_eq!(owned_cls, borrowed_cls, "bar {i}: owned != borrowed classification");
+            assert_eq!(owned_tower.len(), borrowed_tower.len(), "bar {i}: owned/borrowed tower 层数不同");
+            for (lvl, (ol, bl)) in owned_tower.iter().zip(borrowed_tower.iter()).enumerate() {
+                assert_eq!(ol, bl, "bar {i} lvl {lvl}: owned/borrowed LeveledMove 不同");
+            }
+        }
+    }
+
+    /// **★真实数据 bit-exact（OKLO/BTC，#345 验收要求，需数据）**：逐 bar 断言
+    /// `OwnedIncrementalClassifier::append_bar` == legacy 全量重跑，OKLO + BTC 各截一段窗口。
+    /// `#[ignore]`（O(n²) 双跑对照 + 需真实数据，同既有 `bit_exact_per_bar` 口径）。
+    #[test]
+    #[ignore = "bit-exact 验证：需 OKLO/BTC 数据；--release（O(n²) 全 bar 双跑对照）"]
+    fn owned_bit_exact_per_bar_real_symbols() {
+        let config = ThetaConfig::default();
+        let cap: usize = std::env::var("BITEXACT_BARS").ok().and_then(|s| s.parse().ok()).unwrap_or(8_000);
+        for symbol in ["OKLO", "BTC"] {
+            let ds = match super::super::data::load_by_symbol(symbol, &config) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("DATA BLOCKER [{symbol}]: {e}");
+                    panic!("需真实数据: {symbol}");
+                }
+            };
+            let n = cap.min(ds.bars.len());
+            let bars = &ds.bars[..n];
+            let mut owned = OwnedIncrementalClassifier::new(config.clone());
+            let t0 = std::time::Instant::now();
+            for i in 0..n {
+                let (owned_cls, owned_tower) = owned.append_bar(bars[i]);
+                let l0 = parser::parse_layer(&bars[..=i], &config);
+                let (leg_cls, leg_tower) = classifier::classify_with_tower(&l0, &config);
+                assert_eq!(owned_cls, leg_cls, "[{symbol}] bar {i}: owned classification != legacy");
+                assert_eq!(owned_tower.len(), leg_tower.len(), "[{symbol}] bar {i}: tower 层数 != legacy");
+                for (lvl, (ol, ll)) in owned_tower.iter().zip(leg_tower.iter()).enumerate() {
+                    assert_eq!(ol, ll, "[{symbol}] bar {i} lvl {lvl}: LeveledMove != legacy");
+                }
+            }
+            let dt = t0.elapsed().as_secs_f64();
+            eprintln!("[{symbol}] owned bit-exact n={n} 通过，{dt:.1}s（双跑对照）。");
+        }
+    }
 
     /// **★bit-exact 硬指标：逐 bar 断言增量 classify_at(i) == legacy
     /// `classify_with_tower(parse_layer(&bars[..=i]))`**。

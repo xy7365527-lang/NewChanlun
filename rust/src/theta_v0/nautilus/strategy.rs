@@ -33,9 +33,8 @@
 //! }
 //! ```
 
-use crate::theta_v0::classifier;
+use crate::theta_v0::classifier::streaming::OwnedIncrementalClassifier;
 use crate::theta_v0::config::ThetaConfig;
-use crate::theta_v0::parser;
 use crate::theta_v0::strategy::exit::{
     cascade_exit_decisions, exit_decision_for_nested, parent_invalid_at, record_held_voice,
     HeldVoice,
@@ -71,17 +70,24 @@ pub struct ThetaCore {
     /// 是否出现反向 BSP（χ^{σ_p}）。生产路径逐 bar 追加（owned `VoiceDecision`），调用时构造
     /// `&[Vec<&VoiceDecision>]` 视图喂 `exit_decision_for`（与 runner 传全局 groups 同签名，零分叉）。
     groups: Vec<Vec<VoiceDecision>>,
+    /// ★#345：自持缓冲区增量分类器（`OwnedIncrementalClassifier`，无生命周期参数）——替代
+    /// 每 bar 对 `self.bars` 全量重跑 `parse_layer`+`classify_with_tower`（O(n²) 根因，#342）。
+    /// owned 一份 `config` 拷贝（构造期克隆，`ThetaConfig` 不可变，非双源——`self.config` 仍是
+    /// 权威源，此处只是同值拷贝供增量子系统内部使用，二者永不分叉）。
+    classifier: OwnedIncrementalClassifier,
 }
 
 impl ThetaCore {
-    /// 构造（给定 Θ config，空窗口，空台账）。
+    /// 构造（给定 Θ config，空窗口，空台账，空增量分类器缓存）。
     pub fn new(config: ThetaConfig) -> Self {
         let max_depth = config.voice.max_depth as usize;
+        let classifier = OwnedIncrementalClassifier::new(config.clone());
         ThetaCore {
             config,
             bars: Vec::new(),
             held: vec![None; max_depth],
             groups: Vec::new(),
+            classifier,
         }
     }
 
@@ -132,7 +138,7 @@ impl ThetaCore {
         let pos_dir = account_adapter::position_dir(snap);
 
         // recog 段（当前窗口 → 开仓侧声部决策）。与 `groups` 追加同源（退出生成器读 groups[i]）。
-        let decisions = self.recognize_current();
+        let decisions = self.recognize_current(new_bar);
         // ★关⑤：groups 只收**根域开仓决策**（exit=false ∧ depth==0）——§9 反向项信号池：
         // interpret 规则2 已消费的反向触发（close 决策携入场快照 bsp，非当 bar 信号）与
         // ShortDiff 子决策的反父 bits 均不入池（M13：父仓穿越次级反向信号持有，短差由子腿
@@ -226,12 +232,21 @@ impl ThetaCore {
         }
     }
 
-    /// recog 段（`parse_layer → classify_with_tower → recognize_nested`）：当前 bar 窗口 →
-    /// 开仓侧声部决策。
+    /// recog 段（`append_bar 增量分类 → recognize_nested`）：当前 bar 窗口 → 开仓侧声部决策。
     ///
-    /// ★关⑤接线（施工图 §4.6）：`classify` 切 [`classifier::classify_with_tower`]
-    /// （Classification **bit-identical**，classifier/mod.rs:482 契约——分类层零漂移）+
-    /// [`strategy::recognize_nested`]（候选源换真嵌套塔取真 ShortDiff 角色 + held 活动投影
+    /// ★#345：`classify` 段改走 `self.classifier.append_bar(new_bar)`（`OwnedIncrementalClassifier`，
+    /// bit-exact 等价于全量 `classify_with_tower(parse_layer(&self.bars))`——见
+    /// `classifier::streaming` 模块头 + `backtest::incremental::tests::owned_bit_exact_*`）。
+    /// 旧实现每 bar 对 `self.bars` 全量重跑 `parse_layer`+`classify_with_tower`，是 O(n²) 根因
+    /// （#342：`chanlun/review-results/nt-engine-scaling-profile-20260726.md`）；`append_bar`
+    /// 只增量处理新追加的这一根 bar（inclusion O(1) + 下游 O(尾部)，摊还 O(1)/bar）。
+    ///
+    /// `new_bar` 必须与刚 push 进 `self.bars`（`plan_for_bar` 调用处）的那根**同一个值**——
+    /// 增量分类器内部状态与 `self.bars` 长度必须逐 bar 锁步（一次 `plan_for_bar` 调用 = 一次
+    /// `bars.push` + 一次 `append_bar`，不允许跳 bar/重复调用，否则增量血缘与 `self.bars`
+    /// 失配，bit-exact 契约破裂）。
+    ///
+    /// 接 [`strategy::recognize_nested`]（候选源换真嵌套塔取真 ShortDiff 角色 + held 活动投影
     /// 喂 interpret ⟹ 角色门四合取产 **depth>0 子声部**，root_side 继承树根）。
     /// venue 侧 hedge-mode 账户前提（q⁺/q⁻ 双腿共存）列部署裁定（施工图 §7 L7）——
     /// 本适配层只产决策/意图，venue 撮合语义不变。
@@ -239,9 +254,13 @@ impl ThetaCore {
     /// ★诚实：等价 `StrategyFamily::pi` 的 recog 段（不含 target→exec 的 plan_orders）——拆出
     /// 单独 recog 是因退出生成器需要 `decisions`（喂 `groups[i]` 的 reverse_signal 项）+ 开仓侧
     /// 分别走 plan_orders（退出决策与开仓决策不可混批，否则冲突排序语义错）。
-    fn recognize_current(&self) -> Vec<VoiceDecision> {
-        let l0 = parser::parse_layer(&self.bars, &self.config);
-        let (classification, tower) = classifier::classify_with_tower(&l0, &self.config);
+    fn recognize_current(&mut self, new_bar: Bar) -> Vec<VoiceDecision> {
+        debug_assert_eq!(
+            self.bars.last(),
+            Some(&new_bar),
+            "recognize_current: new_bar 须与刚 push 进 self.bars 的同一根锁步（增量分类器契约，见上）"
+        );
+        let (classification, tower) = self.classifier.append_bar(new_bar);
         let active = strategy::held_voice_projection(&self.held);
         strategy::recognize_nested(&classification, &tower, &active, &self.bars, &self.config)
     }
@@ -293,6 +312,40 @@ mod tests {
         }
         assert!(intents.is_empty(), "单调数据无结构 ⟹ 空下单意图（诚实退化，非缺陷）");
         assert_eq!(core.bars.len(), 50, "bar 窗口累积到 50");
+    }
+
+    /// ★#345 集成层 bit-exact（code-review Standards/Spec 双轴浮出的缺口订正）：既有
+    /// `owned_bit_exact_*` 只在 `OwnedIncrementalClassifier` 组件级验证，`recognize_current`
+    /// 这一接线点本身从未在 `ThetaCore::plan_for_bar`（唯一合法生产入口）驱动下验证过。
+    ///
+    /// 本测试**只**经 `plan_for_bar` 逐 bar 喂（不像 `held_long_stop_hit_yields_close_intent`
+    /// 那样手工 `core.bars.push`/`core.held[..]=` 绕过 recog 路径），逐 bar 用克隆-窥视法验证
+    /// `self.classifier.append_bar` 的返回值 == legacy 全量 `classify_with_tower(parse_layer(..))`：
+    /// `plan_for_bar` 调前克隆 `core.classifier`（`OwnedIncrementalClassifier: Clone`），调后用该
+    /// 克隆重放同一根 bar——纯函数（同起始状态+同输入 bar ⟹ 同输出），不需要新增生产代码访问器。
+    #[test]
+    fn recognize_current_integration_bit_exact_via_plan_for_bar() {
+        use crate::theta_v0::classifier;
+        use crate::theta_v0::parser;
+
+        let config = ThetaConfig::default();
+        let mut core = ThetaCore::new(config.clone());
+        let snap = flat_snap();
+        for i in 0..80usize {
+            let cycle = ((i as f64) / 11.0).sin() * 40.0;
+            let bar = mk_bar(i, 1000 + i as i64 + cycle as i64);
+            let classifier_before = core.classifier.clone();
+            core.plan_for_bar(bar, &snap);
+            let (owned_cls, owned_tower) = classifier_before.clone().append_bar(bar);
+
+            let l0 = parser::parse_layer(&core.bars, &config);
+            let (legacy_cls, legacy_tower) = classifier::classify_with_tower(&l0, &config);
+            assert_eq!(owned_cls, legacy_cls, "bar {i}: plan_for_bar 内部增量分类 != legacy 全量");
+            assert_eq!(owned_tower.len(), legacy_tower.len(), "bar {i}: tower 层数不同");
+            for (lvl, (ol, ll)) in owned_tower.iter().zip(legacy_tower.iter()).enumerate() {
+                assert_eq!(ol, ll, "bar {i} lvl {lvl}: LeveledMove 不同");
+            }
+        }
     }
 
     /// 窗口累积：每 bar 追加，source_index 单调。
