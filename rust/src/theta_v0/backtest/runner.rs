@@ -2700,10 +2700,74 @@ mod tests {
         );
         // 非平凡前置：钟没响过就谈不上一致性。
         assert!(n_bsp_ticks > 0, "非空前置：本 fixture 须产生过 BSP 确认钟点");
+        // ★#351 MED-4 补课：`>0` 恰被单元素集合满足，对「同身份至多响一次」零区分力（#349 影子
+        // 评审 MED-4，同批 MED-1 已用 `max_concurrent_real_levels>=2` 处置，MED-4 此前处置强度
+        // 弱于同批）。改为 distinct `(level, source_index)` 身份数下界，与
+        // `bsp_identity_diversity_meets_med4_bound` 同一判据（回归证据见
+        // `lee_m3_clock_first_observation_lower_bound_catches_shrunk_fixture`）。
+        assert!(
+            bsp_identity_diversity_meets_med4_bound(&fired),
+            "MED-4 补课：distinct 身份数={}（<2）——单身份集合下「至多响一次」构造上不可失败，\
+             fixture 退化时必须能被抓到，不得继续用 `>0` 冒充非平凡",
+            fired.len()
+        );
         // ① 因果（与 judge_at 的 prefix 首次观察同纪律）。
         assert_eq!(n_causal_violations, 0, "clock_ℓ 因果违例：BSP 在其 source_index 之前就响");
         // ② 首次唯一（append-only seen 去重；judge_at「首次观察钟不后移」同款）。
         assert_eq!(n_duplicate_ticks, 0, "clock_ℓ 同身份重复响 ⟹ 稀疏性统计虚高");
+    }
+
+    /// ★#351 MED-4 判据：至少 2 个 distinct `(level, source_index)` 身份，「至多响一次」才是
+    /// 非平凡检验（单身份集合下该性质构造上不可失败）。抽成纯函数以便脱离数据 fixture 直接
+    /// 单测该判据本身（下方 `bsp_identity_diversity_bound_rejects_single_identity`）。
+    fn bsp_identity_diversity_meets_med4_bound(fired: &std::collections::HashSet<(usize, usize)>) -> bool {
+        fired.len() >= 2
+    }
+
+    /// ★MED-4 判据的纯函数级红/绿：单身份集合（旧 1500-bar fixture 的真实产出，见下一测）
+    /// 必须被判不足；≥2 身份必须通过。
+    #[test]
+    fn bsp_identity_diversity_bound_rejects_single_identity() {
+        let single: std::collections::HashSet<(usize, usize)> = [(0usize, 42usize)].into_iter().collect();
+        assert!(!bsp_identity_diversity_meets_med4_bound(&single), "单身份必须判不足（红）");
+        let two: std::collections::HashSet<(usize, usize)> = [(0usize, 42usize), (0, 99)].into_iter().collect();
+        assert!(bsp_identity_diversity_meets_med4_bound(&two), "≥2 身份必须判合规（绿）");
+    }
+
+    /// ★#351 MED-4 回归证据：#309 原始指控的确切复现条件（1500-bar fixture）在真实管线上只产
+    /// 1 个 distinct 身份，`bsp_identity_diversity_meets_med4_bound` 必须把它判不足——即「退回
+    /// 1 tick 必须转红」在真实数据（非抽象构造）上坐实，而非只靠上面的纯函数单测。
+    #[test]
+    fn lee_m3_clock_first_observation_lower_bound_catches_shrunk_fixture() {
+        use super::super::signal::newly_confirmed_step;
+        let config = ThetaConfig::default();
+        let ds = random_walk_dataset("RW1500M3C", 1500, 40_000_000);
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+        let mut fired: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
+        let bars = ds.bars.clone();
+        for i in 0..bars.len() {
+            let l0_prefix = parser::parse_layer(&bars[..=i], &config);
+            let cls = classifier::classify_with_tower(&l0_prefix, &config).0;
+            let step = newly_confirmed_step(&cls, &mut seen);
+            for (lvl, ls) in step.levels.iter().enumerate() {
+                for pt in ls.bsp.iter() {
+                    fired.insert((lvl, pt.source_index));
+                }
+            }
+        }
+        eprintln!("LEE_M3_MED4_REGRESSION bars=1500 distinct_identities={}", fired.len());
+        assert_eq!(
+            fired.len(),
+            1,
+            "本回归测试锚定 #309 原始指控的确切条件（1500-bar ⟹ 1 tick）；若该值漂移，\
+             说明上游分类器/数据生成变了，需要换一个仍能复现『退化到 <2』的 fixture，而不是\
+             删掉本测（本测存在的意义就是证明退化场景会被 MED-4 下界抓到）"
+        );
+        assert!(
+            !bsp_identity_diversity_meets_med4_bound(&fired),
+            "回归失败：1500-bar 单 tick 场景本应被 MED-4 下界判不足（红），现在却判合规——\
+             说明下界本身失效了"
+        );
     }
 
     /// ★LEE M2→M3 归因维度可读（承自 M2 票，门控后仍成立）：由 `Σ_ℓ Δq_ℓ` 生成订单的同一
@@ -2808,6 +2872,47 @@ mod tests {
         assert!(
             c.n_orders_generated > 0,
             "级别级风险帽把交易压到全平（n_orders=0）⟹ 本例退化，未证明「收窄」只证明「关闭」"
+        );
+    }
+
+    /// ★#351 MED-3 补课：M4 开启（`enforce_level_cap=true`）后，「订单时点 ⊆ 结构事件时点并集」
+    /// 硬约束此前**没有任何断言覆盖**（#349 影子评审 MED-3）——旧 `lee_m3_...sparse_subset...`
+    /// 用 `ThetaConfig::default()`（帽关），本测填补 cap-on 的稀疏性覆盖。
+    ///
+    /// 归属盲区（#349 MED-3 指控原文）：`risk_or_cap_active = risk_gate_active ||
+    /// |p_star_lee−p_tilde_lee|≥0.5`，而级别帽在 `p_tilde_lee` **之前**施加 ⟹ 帽引起的偏离对该
+    /// 判据恒不可见，帽驱动的 off-clock 订单会被计为**未解释**违例。修复：`fill.rs` 新增
+    /// `cap_narrowed`（比较 `regate` 输出在级别帽 clamp 前后是否变化，直接量化「帽是否真的裁掉
+    /// 了什么」），并入 `risk_or_cap_active`。
+    #[test]
+    fn lee_m4_cap_on_sparsity_has_no_unexplained_violation() {
+        use super::super::super::config::RiskConfig;
+        let config = ThetaConfig {
+            risk: RiskConfig {
+                level_weights: vec![0.05; 6],
+                enforce_level_cap: true,
+                ..RiskConfig::default()
+            },
+            ..ThetaConfig::default()
+        };
+        let ds = random_walk_dataset("RW9000M2D", 9000, 40_000_000);
+        let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+        let s = ov.level_order;
+        eprintln!(
+            "LEE_M4_SPARSITY off_clock={} explained={}",
+            s.n_orders_off_structural_clock, s.n_orders_off_structural_clock_risk_explained
+        );
+        assert!(s.n_decisions > 0, "非空前置：决策点跑过");
+        assert!(
+            s.n_orders_off_structural_clock > 0,
+            "非空前置：本 fixture 须产生过无结构钟点却发单的决策点（帽收紧后订单增多，见\
+             lee_m4_level_cap_narrows_position_when_enabled 的 48→169）"
+        );
+        assert!(
+            s.sparsity_has_no_unexplained_violation(),
+            "帽开启后稀疏性硬约束破：off_clock={} 中有未被 risk_or_cap_active 覆盖的帽驱动违例\
+             （#349 MED-3：帽在 p_tilde_lee 之前施加，旧判据对帽驱动偏离恒不可见）",
+            s.n_orders_off_structural_clock
         );
     }
 

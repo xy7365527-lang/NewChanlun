@@ -489,14 +489,28 @@ fn plan_level_gated_order(
     let ticked_levels = ticks.ticked_levels();
     let gated = level_order.regate(&basis, &ticked_levels);
     // ★M4 级别级风险帽（design doc §D M4；`risk.enforce_level_cap` 默认关，M0–M3 bit-exact
-    // 不变）：裁剪后的 `gated` 同时喂下面的 `p_tilde_lee` 与后续 `plan_gated` 的归因基准——
-    // 级别帽在结构基准进入账户层之前统一生效，不留一条未裁剪的旁路（`level_risk` 模块头
-    // 「禁双重定价」纪律：本步只读已聚合的 `net_ℓ`，不拆解 leg 内部的 depth_weight 构成）。
+    // 不变）：裁剪后的 `gated` 同时喂下面的 `p_tilde_lee` 与后续 `plan_gated` 的归因基准。
+    //
+    // ★#351 MED-2 补课（照实订正）：帽在此处**只**裁了进入账户层前的结构基准，不是「不留
+    // 一条未裁剪的旁路」——`attribute_total`（`plan_gated` 内部）在 `Σgated ≠ t_lee` 时按比例
+    // 缩放**全部**级别（含账户层投影/`pan_div_child_units` 加项造成的放大），缩放后的
+    // `targets_ℓ` 可重新突破 `cap_ℓ`（#349 影子评审 MED-2；见
+    // `coverage::attribute_total_scaling_can_exceed_cap_and_reclamp_restores_it`）。真正堵住
+    // 旁路的是下面 `plan_gated` 之后对 `plan.targets` 的第二次 `clamp_levels_to_weighted_cap`
+    // ——两次裁剪合起来才是「不留旁路」：本次防止未裁剪 `net_ℓ` 进account层，下次防止归因缩放
+    // 把已裁剪的目标重新推出 cap。`pan_div_child_units` 本身无级别身份、不可能单独裁剪，但它
+    // 对各级 `targets_ℓ` 的影响已经过缩放传导，随第二次裁剪一并收回，不再是不受限的旁路。
+    // ★#351 MED-3 补课：帽是否真的裁掉了什么，在**此处**（帽施加点本身）直接判定——不能靠
+    // 下游 `p_star_lee` 与 `p_tilde_lee` 的差值反推（那个差值只反映账户层投影/风控的效应，
+    // 帽已经把 `net_ℓ` 改写进 `p_tilde_lee` 的输入，帽驱动的偏离对那个差值恒不可见，见
+    // `DecisionObs::risk_or_cap_active` 施加点）。`cap_narrowed` 是「帽驱动偏离」的单列判据。
+    let gated_pre_cap = gated.clone();
     let gated = if risk.enforce_level_cap {
         super::super::strategy::coverage::clamp_levels_to_weighted_cap(&gated, base_units, risk)
     } else {
         gated
     };
+    let cap_narrowed = gated != gated_pre_cap;
     // 结构净目标 = 各级门控计划之和 + **账户层 pan_div 在飞子腿**。后者是 P7/P9 中枢震荡的
     // 净目标分量，载体是 `pan_div_state` 的 lot 账本而**不是** `sep_legs` ⟹ 不经 `net_ℓ`；
     // M2 时它经 `p_star_final` 改写进目标（`schedule_order(target, p_t)` 两分支），M3 必须
@@ -511,6 +525,46 @@ fn plan_level_gated_order(
     // ③ order_raw（计划态增量，决定**是否**发单）→ K_Θ_gate（账户层可行性，锚**实际持仓**决定
     //    **发多少手**）→ Schedule_Θ 单出口。两锚分工与「合并即穿仓」的构造见函数文档表。
     let plan = level_order.plan_gated(&gated, t_lee);
+    // ★#351 MED-2 补课：归因缩放后二次裁剪（见①处「照实订正」段）——`attribute_total` 可能
+    // 把 `plan.targets` 放大回 cap 之上，用同一 `clamp_levels_to_weighted_cap` 再裁一次
+    // （该函数对 `LEVEL_ACCOUNT_RESIDUAL` 残差桶安全透传，见其 doc）。未越界时 `reclamped ==
+    // plan.targets`，零开销分支不改变任何现有行为（含 `enforce_level_cap=false` 的默认路径）。
+    let (plan, cap_narrowed) = if risk.enforce_level_cap {
+        let reclamped = super::super::strategy::coverage::clamp_levels_to_weighted_cap(
+            &plan.targets,
+            base_units,
+            risk,
+        );
+        if reclamped == plan.targets {
+            (plan, cap_narrowed)
+        } else {
+            let deltas =
+                super::super::strategy::level_attrib::sub_levels(&reclamped, level_order.planned());
+            let order_units = deltas.iter().map(|&(_, q)| q).sum();
+            let plan = super::super::strategy::level_order::LevelOrderPlan {
+                targets: reclamped,
+                deltas,
+                order_units,
+                ..plan
+            };
+            (plan, true) // MED-3：二次裁剪同样是帽驱动偏离，并入同一判据
+        }
+    } else {
+        (plan, cap_narrowed)
+    };
+    debug_assert!(
+        !risk.enforce_level_cap
+            || plan
+                .targets
+                .iter()
+                .all(|&(lvl, q)| lvl == super::super::strategy::level_attrib::LEVEL_ACCOUNT_RESIDUAL
+                    || q.abs()
+                        <= super::super::strategy::coverage::level_cap(lvl, base_units, risk)
+                            .floor()
+                            .max(0.0) as i64),
+        "MED-2 二次裁剪后仍有级别突破 cap_ℓ @bar{bar}: {:?}",
+        plan.targets
+    );
     let p_t_i = p_t.round() as i64;
     let scheduled = if plan.order_units == 0 {
         // 无结构意图 ⟹ 不发单（稀疏性）。持仓判据取**实际**持仓（订单语义面向真实仓位）。
@@ -540,8 +594,14 @@ fn plan_level_gated_order(
     );
     // 稀疏性反例的解释项：风控门非全开、或帽/量化使投影目标偏离结构目标（§F③ 合法例外）。
     // 两项分开算：`risk_gate_active` 是**纯风控**求值面证据，`risk_or_cap_active` 额外含帽 binding。
+    //
+    // ★#351 MED-3 补课：`cap_narrowed`（帽施加前后 `gated`/`targets` 是否真的被裁过，①②两处
+    // 施加点各判一次）必须单独并入——`|p_star_lee−p_tilde_lee|` 只反映账户层投影/风控的效应，
+    // 帽已经把 `net_ℓ` 改写进 `p_tilde_lee` 的输入，帽驱动的偏离对这个差值恒不可见（#349 MED-3：
+    // 「解释项对帽结构性不可见」）。不并入会把帽收紧逼出的 off-clock 订单误计为未解释违例。
     let risk_gate_active = gate.force_flat || gate.stop_long || gate.stop_short;
-    let risk_or_cap_active = risk_gate_active || (p_star_lee - p_tilde_lee).abs() >= 0.5;
+    let risk_or_cap_active =
+        risk_gate_active || cap_narrowed || (p_star_lee - p_tilde_lee).abs() >= 0.5;
     level_order.observe_decision(
         &plan,
         super::super::strategy::level_order::DecisionObs {

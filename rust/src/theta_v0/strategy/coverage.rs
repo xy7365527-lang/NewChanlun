@@ -2765,14 +2765,35 @@ pub(crate) fn level_cap(level: u32, base_units: f64, risk: &RiskConfig) -> f64 {
 /// `risk.enforce_level_cap=false`（default）⟹ 调用方**不得**调用本函数（应直接跳过），
 /// 而不是传入空 `level_weights` 期望本函数自然退化——空表会把 `cap_ℓ` 恒裁到 0，那是「全部
 /// 级别禁止持仓」而非「级别帽未启用」，两者语义相反，门禁必须在调用方（`fill.rs`）而非本函数。
+///
+/// ★#351 MED-1 补课：`level_weights` 是唯一权威判据是 doc 声明（`level_risk.rs` 模块头
+/// `level_weights_sum_le_one`），但接线前从未被生产路径实际调用——误配 `Σw_ℓ>1` 时裁剪照常
+/// 施加，`Σcap_ℓ` 静默突破账户层总 cap（#349 影子评审 MED-1）。本函数是全仓**唯一**施加级别帽
+/// 的生产入口（`level_risk.rs` 模块头「施加点严格限定」纪律），故校验必须钉死在这里，且用
+/// `assert!`（非 `debug_assert!`）——这是**配置校验**（外部可错的输入），不是「代码正确则恒真」
+/// 的内部不变量，必须在 release 构建下同样生效，否则生产环境的误配不会被拦截。
+///
+/// ★#351 MED-2 补课：本函数也用于 `fill.rs` 归因缩放后的**二次裁剪**（见调用点「帽后重越」
+/// 纪律），此时输入可能含 [`super::level_attrib::LEVEL_ACCOUNT_RESIDUAL`] 残差桶——该桶无级别
+/// 身份（不对应任何 `w_ℓ`），若按越界索引取权重会被 `level_weight` 判 0 从而错误清零，故本函数
+/// 显式跳过残差桶（原样透传，不裁剪；同「不得伪造级别身份」纪律）。
 pub(crate) fn clamp_levels_to_weighted_cap(
     gated: &[(u32, i64)],
     base_units: f64,
     risk: &RiskConfig,
 ) -> Vec<(u32, i64)> {
+    assert!(
+        super::level_risk::level_weights_sum_le_one(risk),
+        "MED-1（#351）：Σw_ℓ={} > 1，级别帽配置违规——本函数是全仓唯一权威施加点，拒绝在违规\
+         配置下裁剪，避免 Σcap_ℓ 静默突破账户层总 cap（level_risk.rs::level_weights_sum_le_one）",
+        super::level_risk::level_weights_sum(risk)
+    );
     gated
         .iter()
         .map(|&(lvl, q)| {
+            if lvl == super::level_attrib::LEVEL_ACCOUNT_RESIDUAL {
+                return (lvl, q); // 残差桶无级别身份，不参与级别帽（MED-2：禁伪造级别身份同纪律）
+            }
             let cap = level_cap(lvl, base_units, risk);
             let cap_units = cap.floor().max(0.0) as i64;
             (lvl, q.clamp(-cap_units, cap_units))
@@ -5640,6 +5661,21 @@ mod tests {
         assert_eq!(level_cap(1, 1000.0, &risk), 0.0, "level 1 未配权重 ⟹ cap=0");
     }
 
+    /// ★#351 MED-1 补课：`level_weights_sum_le_one` 是 doc 声明的「唯一权威判据」，但接线前
+    /// 从未被生产路径（`clamp_levels_to_weighted_cap`）实际调用——误配 Σw_ℓ=1.2>1 时裁剪照常
+    /// 施加，Σcap_ℓ 静默突破账户层总 cap（#349 影子评审 MED-1）。本测先坐实红：接线前误配
+    /// 不拒绝、裁剪正常返回。
+    #[test]
+    fn clamp_levels_to_weighted_cap_rejects_misconfigured_weights_over_one() {
+        let risk = RiskConfig { level_weights: vec![0.6, 0.6], ..rcfg() }; // Σ=1.2>1，违规配置
+        let gated = vec![(0u32, 10i64), (1, 10)];
+        let result = std::panic::catch_unwind(|| clamp_levels_to_weighted_cap(&gated, 1000.0, &risk));
+        assert!(
+            result.is_err(),
+            "MED-1 修复后：Σw_ℓ=1.2>1 的违规配置必须在裁剪前被拒绝（panic），不得静默放行"
+        );
+    }
+
     /// ★clamp_levels_to_weighted_cap：超帽级别被裁到 ±cap_ℓ，未超帽级别原样透传，零项保留。
     #[test]
     fn clamp_levels_to_weighted_cap_clips_only_binding_levels() {
@@ -5651,6 +5687,38 @@ mod tests {
         // 负向对称裁剪。
         let gated_neg = vec![(0u32, -80i64)];
         assert_eq!(clamp_levels_to_weighted_cap(&gated_neg, base_units, &risk), vec![(0, -50)]);
+    }
+
+    /// ★#351 MED-2 补课：`attribute_total` 的比例缩放可能把已裁剪到 `cap_ℓ` 的 `gated` 基准
+    /// 放大后重新推出 `cap_ℓ`——`fill.rs` 注释「级别帽…不留一条未裁剪的旁路」在此场景下为假
+    /// （#349 影子评审 MED-2）。构造：level0 裁剪后恰在 cap（50），账户层投影把 `T_lee` 从
+    /// `Σgated=60` 放大到 100（如 pan_div 加项/lex 重估），`attribute_total` 按比例把 level0
+    /// 放大到 83，突破 cap_0=50。修复：`fill.rs` 在归因后对 `plan.targets` 用同一
+    /// `clamp_levels_to_weighted_cap` 二次裁剪（本函数残差桶安全，见上方 doc）——本测直接验证
+    /// 「缩放会突破 cap」+「二次裁剪能收回」两段。
+    #[test]
+    fn attribute_total_scaling_can_exceed_cap_and_reclamp_restores_it() {
+        use super::super::level_attrib::attribute_total;
+        let risk = RiskConfig { level_weights: vec![0.5, 0.1], ..rcfg() };
+        let base_units = 100.0; // cap_0=50, cap_1=10
+        let gated = vec![(0u32, 50i64), (1, 10)]; // 裁剪后恰好压在 cap 上（Σ=60）
+        // 账户层投影把目标从 60 放大到 100（模拟 pan_div 加项或 lex 重估使 T_lee ≠ Σgated）。
+        let (scaled, _, rescaled) = attribute_total(&gated, 100);
+        assert!(rescaled, "Σbasis(60)≠target(100) 必须触发比例缩放");
+        let level0_scaled = scaled.iter().find(|&&(l, _)| l == 0).unwrap().1;
+        assert!(
+            level0_scaled > 50,
+            "红：缩放后 level0={level0_scaled} 必须突破 cap_0=50，坐实『重越』可达（{scaled:?}）"
+        );
+        // 修复验证：对缩放结果二次施加同一 clamp 函数，突破被收回。
+        let reclamped = clamp_levels_to_weighted_cap(&scaled, base_units, &risk);
+        for &(lvl, q) in &reclamped {
+            let cap = level_cap(lvl, base_units, &risk).floor() as i64;
+            assert!(
+                q.abs() <= cap,
+                "绿：二次裁剪后 level{lvl}={q} 必须回到 ±cap_ℓ={cap} 以内（{reclamped:?}）"
+            );
+        }
     }
 
     /// PiThetaWeights::from_risk 复用 κ/ρ（不引新参数）。
