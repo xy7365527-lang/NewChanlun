@@ -59,7 +59,7 @@ ARM_R_TAX_BPS = 0.0
 SLIPPAGE_BPS = ARM_R_SLIPPAGE_BPS
 # 标定档（臂D、臂C 共用——两者都吃 datum `fee_schedule`）的 tax：`config.rs:271`（`fee_schedule`
 # 字段文档）声明「`fee_schedule = Some(...)` 时要求 `tax_bps == 0`」，机器强制在
-# `treasury.rs` 的 `fn fee_quoter`（当前 :124 起）内的 `assert!`（当前 :128；禁与 datum 内的监管税费重复计）。
+# `treasury.rs` 的 `fn fee_quoter`（当前 :175 起）内的 `assert!`（当前 :179；禁与 datum 内的监管税费重复计）。
 # 这个 0 的依据是「标定档」这个性质本身，不是「臂D」这个臂——臂C 同样标定，故共用同一常量。
 ARM_CALIBRATED_TAX_BPS = 0.0
 
@@ -115,7 +115,7 @@ def decompose(
 ) -> Decomposition:
     """科目分解：commission / 监管 / 清算 / slippage / tax（本表覆盖的两个档位均无监管/清算科目；
     tax 在两个档位下均恒 0——臂R 是 `ExecConfig::default()` 常量，臂D/C 是 datum 标定档下
-    `config.rs:271` 声明、`treasury.rs` 的 `fn fee_quoter`（当前 :124 起）内 `assert!`（当前 :128）
+    `config.rs:271` 声明、`treasury.rs` 的 `fn fee_quoter`（当前 :175 起）内 `assert!`（当前 :179）
     机器强制的约束的推论，非「没算」）。"""
     total = sum(notionals)
     return Decomposition(
@@ -183,7 +183,7 @@ def main() -> int:
             f"臂C commission 与臂D 同源（同 datum 同档位，唯一差异 = `enforce_level_cap`）；"
             f"三臂 slippage={SLIPPAGE_BPS:.1f}bp（datum 不覆盖，未标定 addon）；"
             f"臂D/C tax={ARM_CALIBRATED_TAX_BPS:.1f}bp（config.rs:271 声明、treasury.rs fn fee_quoter"
-            f"[当前:124起]内 assert![当前:128] 强制的约束下的推论，非手抄）、"
+            f"[当前:175起]内 assert![当前:179] 强制的约束下的推论；本常量是该 rust 约束的手工镜像）、"
             f"臂R tax={ARM_R_TAX_BPS:.1f}bp（config.rs impl Default for ExecConfig，当前:318-320）。",
             "",
             "| 窗 | 臂 | 成交腿数 | Σ名义额 | commission | 监管 | 清算 | slippage | tax | Σ费用 |",
@@ -194,9 +194,10 @@ def main() -> int:
             "**非账本实扣分项**——账本 `Comm+Slip` 列含全部订单流（减仓/强平/窗末未平腿），口径更宽。",
             "**监管/清算恒 0**：Binance 现货与三常数档均无此科目（不是漏算）。",
             "**tax 恒 0**：臂R 是 `ExecConfig::default()` 常量；臂D/C 是标定档下 "
-            "`config.rs:271` 声明、`treasury.rs` 的 `fn fee_quoter`（当前 :124 起）内 `assert!`"
-            "（当前 :128；`fee_schedule = Some(...)` 时禁 `tax_bps != 0`）机器强制的约束"
-            "的推论——若上游改变该约束或该常量非零，本表逐笔重算会自动纳入（一等科目，非特判）。",
+            "`config.rs:271` 声明、`treasury.rs` 的 `fn fee_quoter`（当前 :175 起）内 `assert!`"
+            "（当前 :179；`fee_schedule = Some(...)` 时禁 `tax_bps != 0`）机器强制约束的"
+            "**手工镜像**。上游若改变该约束，须人工同步本脚本常量后重跑；本脚本不会自动感知 "
+            "rust 侧变化（自动化改造超出 #495 票面）。",
         ]
     )
     if args.out:

@@ -253,3 +253,12 @@ M8_SYMBOL=OKLO M8_WIN_FILTER=oklo_oos M8_FEE_DATUM=venue_fee_ibkr_pro_20260726.j
 `lee_m4_cap_on_sparsity_has_no_unexplained_violation`、
 `lee_m4_level_cap_narrows_position_when_enabled`）与 #115 一项
 （`extract_signals_bit_exact_digest_guard`）。
+
+### 2.10 订正（#475 HIGH-4 / #495：共享工位指纹口径）
+
+§2.6 / §2.9 的 `1966/4/135`、`1972/4/135`、`1976/4/135` 均是共享工位实测，
+包含并行线未提交测试约 9 项，不是被审 commit 的干净快照指纹。评审独立核得 #423 被审 commit
+`c0c1a74b16` 的干净快照为 debug **1957 passed / 4 failed / 135 ignored**、release
+**1960 passed / 1 failed / 135 ignored**；相对在案 release 1944 是 **+16**，不是把共享工位
+通过数直接相减所得的 +25。§2.9 的“+4”只是在同一共享工位前后测得的局部变化，不得冒充独立
+干净快照总指纹；旧日志与旧数字保留，不静默改写。失败集未扩大这一结论仍成立。

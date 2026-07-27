@@ -155,9 +155,9 @@ fn scalar_cost_rate_undefined_cause(exec: &ExecConfig) -> &'static str {
 /// **为什么式子里有一个恒为 0 的 `tax_bps` 项**：标量必须与标定档的**实际成交费率**同口径，
 /// 而后者 = datum 费率 + `slippage_bps/1e4`（`FeeQuoter` 的 `uncalibrated_addon`，
 /// venue_fee.rs:285-289）。`tax_bps` 在标定档下由 [`fee_quoter`] 的 assert 强制为 0
-/// （treasury.rs:128，禁与 datum 税费科目双计）⟹ 该项实际恒为 0。仍写进式内的理由有二：
-/// (1) 口径完备——本式与 [`fee_rate`] 的三项合成**同形**，读者不必回查哪一项被省略；
-/// (2) 若将来落一份含税辖区的 datum 并放宽那条 assert，本式无须再改。**不是**声明本函数
+/// （当前 `treasury.rs:179`，`fn fee_quoter` 内 `assert!`；禁与 datum 税费科目双计）⟹ 该项实际恒为 0。
+/// 仍写进式内的理由有二：(1) 口径完备——本式与 [`fee_rate`] 的三项合成**同形**，读者不必回查
+/// 哪一项被省略；(2) 若将来落一份含税辖区的 datum 并放宽那条 assert，本式无须再改。**不是**声明本函数
 /// 支持非零税辖区：非零 `tax_bps` + 标定档在成交点即 panic，走不到消费本标量的地方。
 pub fn scalar_cost_rate_opt(exec: &ExecConfig) -> Option<f64> {
     match exec.fee_schedule.as_ref() {

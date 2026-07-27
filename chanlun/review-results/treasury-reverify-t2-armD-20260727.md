@@ -135,6 +135,13 @@
 > **原句不删**（090：不改写已发布读数），本块为按实收窄。**未改任何代码与脚本**；§5 的三行读数与
 > 触达计数**逐位未变**，本订正只动措辞归因。
 
+> **订正（#475 HIGH-1/S1 / #495）——当前代码态已计算且渲染随机对照三值**：
+> 上表“标定档下根本不算”是 #388 落盘当时、`fee_schedule.is_some()` 一刀切代码态的真实声明；
+> #423 收尾轮 F 已落 `wverify_run.rs:358-379`（`layer4_random_control_cells`）、
+> `:1735-1739`（层4三列表头）与 `:1867-1880`（渲染落盘）。当前按金额对称臂D 的单标量口径
+> 可得，故 `metrics::significance` 会完整调用，`theta_beats_random` / `shift_pvalue` /
+> `indep_pvalue` 会随报告落盘；当前三窗实测见 §13.8。原表保留历史代码态，不作静默改写。
+
 **仍然有效**（与单标量费率无关；逐笔实付经 `treasury::fee_quoter` 解析）：n_orders / ΣN_tΔP_t /
 Comm+Slip / Funding / Borrow / LiqLoss / execR / MaxDD / 声部数 / 终Stage / Q_T / W_T / η 列 /
 R(含浮盈) / `NEST_GATE_STATS`。
@@ -556,8 +563,9 @@ python3 scripts/check_armR_trades_digest.py
 ⟹ 新串 `不可用(单标量成本口径无良定义 #374/#423)` 现在只可能由**按股档（per-share）或按金额非对称档**
 产生，而 m8 跑批的在册档位（Binance 现货 VIP0 / 三常数）都不是这两类 ⟹ **本票的 9 次跑批里该串一次未出现**。
 它的活证据在单测面：`treasury::scalar_cost_rate_opt_per_share_is_none` /
-`scalar_cost_rate_opt_notional_asymmetric_is_none` / `wverify_run` 层4 渲染测试（`wverify_run.rs:1862`
-断言 `lcb == SCALAR_UNDEFINED_UNAVAILABLE`）。**不改旧引文、不假装没变**，本节即登记。
+`scalar_cost_rate_opt_notional_asymmetric_is_none` / `wverify_run` 层4渲染测试
+（`wverify_run.rs:2273-2276` 的 `layer4_cells_calibrated_marks_unavailable` 断言
+`lcb == SCALAR_UNDEFINED_UNAVAILABLE`）。**不改旧引文、不假装没变**，本节即登记。
 
 ### 13.6 未产出项（照实，不留空、不用旧数顶替）
 
@@ -565,6 +573,10 @@ python3 scripts/check_armR_trades_digest.py
 |---|---|---|---|
 | 随机对照读数（`theta_beats_random` / `shift_pvalue` / `indep_pvalue`） | **未产出** | **m8 四层报告不渲染这三个字段**。`metrics::significance` 在标量可得档被**完整调用**（随机对照系在 `metrics.rs:539/562/566` 内算了），但 m8 只消费返回结构的 `boot_ci95_lo` 一个字段（`wverify_run.rs:1608-1617`）⟹ 三个值算了但没有任何落盘出口，无法从产物采集 | 需在 m8 层4 表增列该三字段（**代码改动**；本阶段禁改 rust，**只登记不动手**）。登记为 #423 后续可做项 |
 | 「LCB 差 = 费率科目差 vs 规模差」的份额分解 | **未产出** | 需第三个「标定费率 + 冻结臂R sizing 轨迹」的臂，属新配置面 | 同 §4.2 末尾登记 |
+
+> **订正（#475 HIGH-1/S1 / #495）**：上表第一行在 `/tmp/423_arm*` 加列前快照的补跑时点为真；
+> 同 commit 后续收尾轮 F 已补齐三值表头与落盘出口，故“m8 不渲染 / 无落盘出口 / 需后续加列”
+> 对当前代码态不再成立。旧证词保留；当前臂D 三窗补跑见 §13.8。
 
 ### 13.7 release 档指纹（本阶段实测）
 
@@ -580,3 +592,29 @@ failures:
   （#423 第一/第二阶段新增测试），failed / ignored 计数不变。
 - **失败集恰好 1 条**，仍是 `extract_signals_bit_exact_digest_guard`（#115 线在案）⟹ **未劣化**。
 - §8 的 1937/1/135 是 **#388 落盘当时**的历史读数，**保留不改**。
+
+> **订正（#475 HIGH-4 / #495）**：以上 `1966/1/135` 是共享工位实测，包含并行线未提交测试
+> 约 9 项，不是被审 commit 的干净快照指纹；同类共享工位后续读数 `1976/4/135`、
+> `1979/4/135`、`1980/4/135` 也不得用于计算本票净增测试数。评审独立干净快照为：
+> debug **1957 passed / 4 failed / 135 ignored**，release
+> **1960 passed / 1 failed / 135 ignored**；相对在案 release 1944 是 **+16**，不是 +25。
+> 失败集仍为 debug 的 #446×3 + #115×1、release 的 #115×1。旧运行日志与旧数字保留，只订正
+> 其证据口径。
+
+### 13.8 #495 同型补遗：当前代码态臂D随机对照三值（2026-07-27）
+
+> **代码态**：HEAD `f695e6a8c8`；报告含 #484/#490/#492 后续形态。命令沿用 §13.2 的臂D
+> 环境组合，另加隔离 `M8_REPORT_PATH=/tmp/49x_armD_report_<tag>.md` 与
+> `OPSEM_DUMP_DIR=/tmp/49x_armD_dump_<tag>`；stdout/stderr 为
+> `/tmp/49x_armD_<tag>.out`。三次均 exit 0。
+
+| 窗 | R(含浮盈) | LCB_OOS(R) | 三态 | `theta_beats_random` | `shift_pvalue` | `indep_pvalue` | 与 §13.3 对拍 |
+|---|---:|---:|---|---|---:|---:|---|
+| p3fold | -1564400 | -3792042 | 无(R≤0) | 否 | 0.9191 | 0.7882 | **一致** |
+| wf7 | -6113276 | -11526729 | 无(R≤0) | 否 | 0.8122 | 0.9870 | **一致** |
+| wf8 | +4980320 | -3593828 | INCONCLUSIVE | 否 | 0.6733 | 0.4236 | **一致** |
+
+三窗 LCB / 三态与 §13.3 **3/3 一致**；三值来自同一次 `metrics::significance` 调用的既有字段。
+LCB 均 ≤ 0、`theta_beats_random` 均为“否”，只作落盘能力与历史读数对拍，不作 alpha 论据或
+策略择优输入。当前行号锚为 `wverify_run.rs:358-379`（三值单元格函数）、
+`:1735-1739`（表头）与 `:1867-1880`（渲染出口）。
