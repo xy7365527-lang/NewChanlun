@@ -82,35 +82,40 @@ mod leg;
 mod held;
 mod step;
 mod sizing;
-mod trace;
+mod compose;
 #[cfg(test)]
 mod test_support;
 
 pub use ancok::{AncokProbe, active_set_step, ancestors, ancok_probe_reset, ancok_probe_snapshot};
-pub(crate) use ancok::{ancestors_by_id_lookup, ancok_probe_bump};
+use ancok::{ancestors_by_id_lookup, ancok_probe_bump};
 
 pub use element::{CoverageElement, attach_bsp_carrier_indexed, attach_bsp_parent_carrier_indexed, attach_bsp_to_tree, attach_bsp_to_tree_indexed, build_tree_endpoint_index, dual_view_consistency, ending_set, extract_carrier_forest, extract_elements, from_classification_levels, starting_set};
 pub(crate) use element::{ElementView, build_tree_id_index};
 
 pub use role::{Dir, GradeRel, Horizontal, OperationRole, Vertical, build_prev_sibling_index, grade_relation, horizontal_relation, operation_role, vertical_relation};
-pub(crate) use role::{dir_sign, operation_role_indexed_split, operation_role_two_segment};
+pub(crate) use role::operation_role_indexed_split;
+use role::{dir_sign, operation_role_two_segment};
 
 pub use leg::{LegTarget, SepLeg, dir_weight, gross_target_units, leg_target, net_target_units, overlay_net_delta, w_grade};
-pub(crate) use leg::{apply_gross_cap, strategy_target_legs};
+use leg::{apply_gross_cap, strategy_target_legs};
 #[cfg(test)]
-pub(crate) use leg::element_depth;
+use leg::element_depth;
 
-pub(crate) use held::{HeldLegMatch, close_indices, element_as_leg, held_leg_tree_index_indexed, held_stale_reregister_idx, restore_ancestor_chain_from_registry};
+use held::{HeldLegMatch, close_indices, element_as_leg, held_leg_tree_index_indexed, held_stale_reregister_idx, restore_ancestor_chain_from_registry};
 
-pub use step::{coverage_step_classification};
-pub(crate) use step::coverage_step_from_buckets_sep;
+pub use step::coverage_step_classification;
 #[cfg(test)]
-pub(crate) use step::{coverage_step_from_buckets, coverage_step_prebuilt};
+pub(crate) use step::coverage_step_prebuilt;
+use step::coverage_step_from_buckets_sep;
+#[cfg(test)]
+use step::coverage_step_from_buckets;
 
 pub use sizing::{KThetaRiskGate, PiThetaWeights, pi_theta_position, pi_theta_step, schedule_order};
-pub(crate) use sizing::feasible_lex_candidates;
-
-pub use trace::{t1_target_residual_probe_bump, t1_target_residual_probe_count, t1_target_zero_probe_bump, t1_target_zero_probe_count, t1_target_zero_probe_reset};
-pub(crate) use trace::{StepTrace, VoiceVerdict, pi_theta_step_traced};
+use sizing::feasible_lex_candidates;
 #[cfg(test)]
-pub(crate) use trace::TwStepCtx;
+use sizing::pi_theta_step_prebuilt;
+
+pub use compose::{t1_target_residual_probe_bump, t1_target_residual_probe_count, t1_target_zero_probe_bump, t1_target_zero_probe_count, t1_target_zero_probe_reset};
+pub(crate) use compose::{StepTrace, VoiceVerdict, pi_theta_step_traced};
+#[cfg(test)]
+pub(crate) use compose::TwStepCtx;

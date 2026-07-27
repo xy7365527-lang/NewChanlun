@@ -133,7 +133,7 @@ pub fn w_grade(role: &OperationRole, config: &VoiceConfig) -> f64 {
 ///
 /// `same`=sign=+1（顺上级）槽，`opp`=sign=−1（逆上级）槽。越界 level 视 1.0（与 `depth_weight`
 /// 越界返 0 的语义不同：w_dir 越界不应意外零化腿单位，保权更安全）。
-pub(crate) fn theta_dir_slot(preset: &ThetaDirPreset, depth: u32, sign: i8) -> f64 {
+fn theta_dir_slot(preset: &ThetaDirPreset, depth: u32, sign: i8) -> f64 {
     let eta = |v: &[f64]| v.get(depth as usize).copied().unwrap_or(1.0);
     let slot = |same: f64, opp: f64| if sign > 0 { same } else { opp };
     match preset {
@@ -168,7 +168,7 @@ pub fn leg_target(
 /// ★工位 4d：双段索引的 leg_target 变体——base 兄弟（缓存 tree-only）+ overlay 兄弟（本 bar candidate/
 /// restore 段），热循环 strategy_target_legs 单次建 overlay 索引、多次查。
 /// bit-exact == [`leg_target`]（role 经 [`operation_role_two_segment`] 双段 partition_point 同逻辑）。
-pub(crate) fn leg_target_two_segment(
+fn leg_target_two_segment(
     elements: &ElementView,
     e_idx: usize,
     base_units: f64,
@@ -212,7 +212,7 @@ pub(crate) fn leg_target_two_segment(
 /// **不静默钳制**（违规显式失败纪律）：钳制会把环化 parent 图伪装成一个合法深度，静默改
 /// `w_depth` ⟹ 下单权重被脏数据污染且无任何告警面。debug/release 同门（`debug_assert` 在
 /// release 被编译消除 ⟹ 恰好在生产侧失守）。
-pub(crate) fn element_depth(elements: &ElementView, e_idx: usize) -> u32 {
+pub(super) fn element_depth(elements: &ElementView, e_idx: usize) -> u32 {
     let fuel = elements.len();
     let mut depth = 0u32;
     let mut cur = elements.get(e_idx).and_then(|e| e.parent);
@@ -236,7 +236,7 @@ pub(crate) fn element_depth(elements: &ElementView, e_idx: usize) -> u32 {
 /// 对祖先闭合活动集 `active`（A_{t+1}）中**每个元素**生成 [`leg_target`]，得目标头寸腿列表
 /// （= 分账本目标头寸 q̄_Θ 的腿分解，对齐 `SeparateStrategyTarget.strategyTargetLegs` + M28）。
 /// 每条腿带 `(ν(e), ε_e, s_e, role)`，多空独立坐标（分账本 C25），净额抵消在 [`net_target_units`]。
-pub(crate) fn strategy_target_legs(
+pub(super) fn strategy_target_legs(
     elements: &ElementView,
     active: &[usize],
     base_units: f64,
@@ -341,7 +341,7 @@ pub fn gross_target_units(legs: &[LegTarget]) -> f64 {
 /// = [`super::super::exit::step_active_set_with_subtree_close`]）同一判据——非 per-bar 索引链；
 /// restore 段腿 `parent: None` 但 `parent_id` 携真父，索引链会误判其为独立根）。确定性：
 /// 分组按腿序首次出现，排序按 `(t_r, root_id)`（平局按根 id 定序），求和顺序固定 ⟹ bit-exact 可重放。
-pub(crate) fn apply_gross_cap(
+pub(super) fn apply_gross_cap(
     elements: &ElementView,
     legs: &mut [LegTarget],
     base_units: f64,

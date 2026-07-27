@@ -4,7 +4,7 @@ use super::*;
 /// 委托 [`coverage_step_from_buckets_sep`] 丢弃第三分量 `sep_legs`（M5 声部执行层暴露，纯只读，
 /// 不进决策路径）与第四分量 `next_active_idx`（#220 opened 配对键透出，仅 `pi_theta_step_traced`
 /// 主路径消费）——单源无平行状态机。
-pub(crate) fn coverage_step_from_buckets(
+pub(super) fn coverage_step_from_buckets(
     work: ElementView,
     prev_active: &[ActiveLeg],
     buckets: &Buckets,
@@ -35,7 +35,7 @@ pub(crate) fn coverage_step_from_buckets(
 ///
 /// ★#247 契约指针（**本 doc 不含 C1/C2/C3 正文**，别在这里找）：第三来源 `ℛ_x`、C1 环路硬门、
 /// C3 三条声明见 [`restore_ancestor_chain_from_registry`] doc；C2 见 [`held_stale_reregister_idx`] doc。
-pub(crate) fn coverage_step_from_buckets_sep(
+pub(super) fn coverage_step_from_buckets_sep(
     mut work: ElementView,
     prev_active: &[ActiveLeg],
     buckets: &Buckets,

@@ -123,7 +123,7 @@ pub struct OperationRole {
 /// ★ε_e/δ_g 二值不变量（M17 / `CoverageElement` 文档）：元素绝对方向恒 ∈{Long,Short}
 /// （`rmove_side` 只产 Long/Short）；`Flat` 不是合法元素方向（spec δ∈{+1,-1} 无 0），不可达，
 /// 防御性归 Plus 以保全函数性（不伪装 Flat 有方向）。
-pub(crate) fn direction_of(side: VoiceSide) -> Dir {
+fn direction_of(side: VoiceSide) -> Dir {
     match side {
         VoiceSide::Long => Dir::Plus,
         VoiceSide::Short => Dir::Minus,
@@ -132,7 +132,7 @@ pub(crate) fn direction_of(side: VoiceSide) -> Dir {
 }
 
 /// δ_g 的符号 {+1,-1}（与 σ 比较用）。
-pub(crate) fn dir_sign(d: Dir) -> i8 {
+pub(super) fn dir_sign(d: Dir) -> i8 {
     match d {
         Dir::Plus => 1,
         Dir::Minus => -1,
@@ -143,7 +143,7 @@ pub(crate) fn dir_sign(d: Dir) -> i8 {
 ///
 /// `None`（父为边界胚元 ∂，去根化）或 `Some(Flat)`（父无方向）→ 0；`Some(Long)`→+1；`Some(Short)`→−1。
 /// （voice.rs `Flat` 文档明示 `σ=0 是无方向态`，与此一致。）
-pub(crate) fn parent_sign(attached_dir: Option<VoiceSide>) -> i8 {
+fn parent_sign(attached_dir: Option<VoiceSide>) -> i8 {
     match attached_dir {
         None => 0,
         Some(VoiceSide::Long) => 1,
@@ -209,7 +209,7 @@ pub fn build_prev_sibling_index(
 
 /// ponytail: H5 带预建索引的 operation_role 变体——热循环（strategy_target_legs）单次建索引、
 /// 多次查，消除每元素 O(e_idx) 线性扫。bit-exact == operation_role（同 prev 判定逻辑）。
-pub(crate) fn operation_role_indexed(
+fn operation_role_indexed(
     elements: &ElementView,
     e_idx: usize,
     sibling_idx: &std::collections::HashMap<(Option<usize>, u32), Vec<usize>>,
@@ -332,7 +332,7 @@ pub(crate) fn operation_role_indexed_split(
 /// `partition_point(< e_idx)` 的前一个：overlay 段若有 `< e_idx` 的同键（其 idx > 任何 base idx）⟹ 取
 /// overlay 段 `< e_idx` 最大；否则 ⟹ base 段 `< e_idx` 最大。本函数先查 overlay（partition_point），
 /// 无则 fallback base（partition_point），与合并列表 partition_point 逐位等价。
-pub(crate) fn operation_role_two_segment(
+pub(super) fn operation_role_two_segment(
     elements: &ElementView,
     e_idx: usize,
     base_sibling: &std::collections::HashMap<(Option<usize>, u32), Vec<usize>>,
@@ -394,7 +394,7 @@ pub(crate) fn operation_role_two_segment(
 ///
 /// 互斥三分类：σ_p=0→`Ambient`；δ_g=σ_p→`FollowParent`；δ_g=−σ_p→`ReverseOpen`（GPT AgainstParent
 /// 商映射，不分级别——同级别/次级别反父合并，级别区分在独立 G 轴 [`classify_grade`]）。
-pub(crate) fn classify_vertical(sigma_parent: i8, delta_sgn: i8) -> Vertical {
+fn classify_vertical(sigma_parent: i8, delta_sgn: i8) -> Vertical {
     if sigma_parent == 0 {
         Vertical::Ambient
     } else if delta_sgn == sigma_parent {
@@ -408,7 +408,7 @@ pub(crate) fn classify_vertical(sigma_parent: i8, delta_sgn: i8) -> Vertical {
 ///
 /// 与 [`classify_vertical`] 同源——调用方共享同一 (ℓ_g, ℓ_p) 读取，V 三分类 + G 两分类独立组装
 /// [`OperationRole`]。ℓ_g<ℓ_p→`SubLevel`；ℓ_g≥ℓ_p（含等于/越界防御）→`SameLevel`。
-pub(crate) fn classify_grade(ell_g: u32, ell_p: u32) -> GradeRel {
+fn classify_grade(ell_g: u32, ell_p: u32) -> GradeRel {
     if ell_g < ell_p {
         GradeRel::SubLevel
     } else {

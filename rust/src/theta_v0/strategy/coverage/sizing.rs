@@ -46,12 +46,12 @@ const FLAT_EPS: f64 = 1e-9;
 ///
 /// `(x·J_SCALE).round()` 钳到 i64 值域（边界条件：p 有界于 ±cap、权重有限 ⟹ 常规配置不触钳制；
 /// 极端 base_units 触上界时钳到 i64::MAX，保字典序方向不翻转，非 bug）。
-pub(crate) fn scale_key(x: f64) -> i64 {
+fn scale_key(x: f64) -> i64 {
     (x * J_SCALE).round().clamp(i64::MIN as f64, i64::MAX as f64) as i64
 }
 
 /// 净持仓 lot 对齐（向最近 lot 取整；`lot≥1` 由调用方 `RiskConfig.default_lot.max(1)` 保证）。
-pub(crate) fn lot_round(p: f64, lot: f64) -> f64 {
+fn lot_round(p: f64, lot: f64) -> f64 {
     (p / lot).round() * lot
 }
 
@@ -70,7 +70,7 @@ pub(crate) fn lot_round(p: f64, lot: f64) -> f64 {
 ///
 /// **★诚实有效域**：美元级杠杆/保证金（[`risk::leverage_ok`]）仍需 runner 注入 price/equity。
 /// 实盘 Nautilus 路径：`a_t = U_ℓ · ā_t`（`ā_t = p*`，`U_ℓ = base_units`，runner 层还原绝对值）。
-pub(crate) fn feasible_net_cap(risk: &RiskConfig) -> f64 {
+fn feasible_net_cap(risk: &RiskConfig) -> f64 {
     risk.gamma.abs()
 }
 
@@ -171,7 +171,7 @@ impl KThetaRiskGate {
 /// ★凸性精确性（formalization-validity-domain，**非近似**）：主键跟踪误差 `w(p−p̃)²`（w>0）在 lot
 /// 离散区间的全局最小在 `clamp(p̃)` 相邻 lot 点取得；二点等距（p̃ 恰在 lot 中点）⟹ 跟踪并列 ⟹ 次键
 /// 成本破并列——两点均在本集 ⟹ **本代表集上 LexArgmin = 全 𝒦_Θ 网格 LexArgmin（精确相等）**。
-pub(crate) fn feasible_candidates(p_tilde: f64, p_t: f64, lo_cap: f64, hi_cap: f64, lot: f64) -> Vec<(f64, i64)> {
+fn feasible_candidates(p_tilde: f64, p_t: f64, lo_cap: f64, hi_cap: f64, lot: f64) -> Vec<(f64, i64)> {
     // 非对称 cap（𝒦_Θ 风控约束门 [`KThetaRiskGate::caps`] 注入）：hi_cap=净多上限、lo_cap=净空上限
     // （幅度）。对称全开时 lo_cap=hi_cap=cap（退化为旧 [−hi,hi]）；force_flat ⟹ 两者 0 ⟹ 𝒦_Θ={0}。
     let hi = ((hi_cap / lot).floor() * lot).max(0.0); // 净多最大 lot 对齐幅度 ≤ hi_cap
@@ -197,7 +197,7 @@ pub(crate) fn feasible_candidates(p_tilde: f64, p_t: f64, lo_cap: f64, hi_cap: f
 /// - `risk_penalty` = `ν·|p|`（RiskPenalty_x(p) 毛敞口 |p| 代理，**第三键**）。
 /// - `turnover` = 0（spec §15 J_x 仅三项无独立换手项；[`JThetaKey`] 第四键留 0，换手已并入成本）。
 /// - `grid_index`（升序位次，**固定平局键**，spec line 791 假设11）。
-pub(crate) fn j_theta_key(
+fn j_theta_key(
     p: f64,
     p_tilde: f64,
     p_t: f64,
@@ -238,7 +238,7 @@ pub fn pi_theta_position(
 ///
 /// 抽取自 [`pi_theta_position`]（纯重构，候选构造逻辑逐字不变）。pub(crate) 供
 /// [`pi_theta_step_traced`] 在 dump 启用路径复用算 top-k。
-pub(crate) fn feasible_lex_candidates(
+pub(super) fn feasible_lex_candidates(
     p_tilde: f64,
     p_t: f64,
     base_units: f64,
@@ -390,7 +390,7 @@ pub fn pi_theta_step(
 /// G4（#134）后委托 [`pi_theta_step_traced`] 丢弃 trace（单源组装，决策路径 bit-exact 不变；
 /// trace 构造在活动腿规模 O(|A_t|) 上，实测 |A_t|~9@16K bar，开销可忽略）。
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn pi_theta_step_prebuilt(
+pub(super) fn pi_theta_step_prebuilt(
     work: ElementView,
     gamma: &[Candidate],
     prev_active: &[ActiveLeg],
@@ -413,6 +413,9 @@ pub(crate) fn pi_theta_step_prebuilt(
 }
 
 
+
+
+
 #[cfg(test)]
 #[path = "sizing_tests_1.rs"]
 mod tests_1;
@@ -420,7 +423,3 @@ mod tests_1;
 #[cfg(test)]
 #[path = "sizing_tests_2.rs"]
 mod tests_2;
-
-#[cfg(test)]
-#[path = "sizing_tests_3.rs"]
-mod tests_3;

@@ -31,7 +31,7 @@ use super::*;
 /// 旧值比较 `(level,λ,eps)` 的"λ 漂移"归因错误——λ=start_index 在 confirmed 前缀不回写时不变。
 /// 真因 = `extract_elements` 每 bar 重建 Vec + 更高级新出现时根结构重构索引重映射 + 值比较非 spec §13
 /// 结构映射。Q4 修复：确定性 ElementId 跨 bar 稳定（全量/增量产同 ID），按 ID 匹配非值比较。
-pub(crate) fn held_leg_tree_index(
+fn held_leg_tree_index(
     elements: &[CoverageElement],
     candidate_start: usize,
     leg: &ActiveLeg,
@@ -45,7 +45,7 @@ pub(crate) fn held_leg_tree_index(
 
 /// ponytail: H6 带预建索引的 held_leg_tree_index 变体——热循环 coverage_step_from_buckets 单次建、多次查。
 /// codex Q4：按 `leg.id` 查表（结构映射），删除 CoordDrift 分支（ID 确定性 ⟹ 无需 λ 稳定性 hack）。
-pub(crate) fn held_leg_tree_index_indexed(
+pub(super) fn held_leg_tree_index_indexed(
     tree: &[CoverageElement],
     leg: &ActiveLeg,
     id_idx: &std::collections::HashMap<ElementId, usize>,
@@ -87,7 +87,7 @@ pub(crate) fn held_leg_tree_index_indexed(
 /// ★codex Q4 删除 `CoordDrift` 分支：ID 确定性 ⟹ 父延伸（ρ 漂移）仍同 ID ⟹ Exact 直接覆盖，
 /// 无需 λ 稳定性 hack（值比较 `(level,λ,eps)` 已弃用，spec §13 结构映射对齐）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum HeldLegMatch {
+pub(super) enum HeldLegMatch {
     /// ID 命中（跨 bar 同走势，父延伸也同 ID）且**无翻向事件**（#269 事件化守卫后 Exact 的
     /// 前提）：当前树元素 idx。σ/ε 出生对立（树 eps ≠ 腿 σ 但载体未翻向）不再阻碍 Exact
     /// ——存活腿随载体结构方向重登记（#233 前基线语义）。
@@ -108,7 +108,7 @@ pub(crate) enum HeldLegMatch {
 /// `source_index=ρ`（= `LeveledMove.end_index` / 候选 `source_index`，638 hostOf 身份）——喂下一 bar
 /// [`interp::interpret`] 闭环 + [`held_leg_tree_index`] 跨 bar 对位（坐标身份一致：本腿下一 bar 仍按
 /// `(level, ρ, dir)` 映射回真树元素）。候选元素 `lambda==rho==source_index`，根/树走势元素 `ρ=end_index`。
-pub(crate) fn element_as_leg(e: &CoverageElement) -> ActiveLeg {
+pub(super) fn element_as_leg(e: &CoverageElement) -> ActiveLeg {
     // ρ=source_index（右端点，漂移）+ λ=lambda（左端点，稳定语义身份，持久身份对位用）。
     // ★codex Q4：携带 id/parent_id/is_boundary_root（跨 bar 稳定身份，spec §13 结构映射）。
     // is_boundary_root = parent_id.is_none()（真边界胚元 ∂ 根）。
@@ -132,7 +132,7 @@ pub(crate) fn element_as_leg(e: &CoverageElement) -> ActiveLeg {
 /// [`interp::Buckets::close`]（𝒟_x）是 A_t 的子集（关闭的是活动腿）——逐个 close 腿在 `prev_active`
 /// 找首个未被认领的相等腿（`level`/`dir`/`source_index` 三元相等）标记其索引。close 腿若不匹配
 /// 任何 A_t 腿（不应发生——interpret 的 𝒟_x 取自 working A_t）则静默跳过（不伪造删除，no-patch）。
-pub(crate) fn close_indices(prev_active: &[ActiveLeg], close: &[ActiveLeg]) -> Vec<usize> {
+pub(super) fn close_indices(prev_active: &[ActiveLeg], close: &[ActiveLeg]) -> Vec<usize> {
     let mut claimed = vec![false; prev_active.len()];
     let mut idx = Vec::new();
     for d in close {
@@ -279,7 +279,7 @@ pub(crate) fn close_indices(prev_active: &[ActiveLeg], close: &[ActiveLeg]) -> V
 /// **held 路传空切片**（A_t 段由 𝒟_x^† 种子命中兜底，语义/轨迹 bit-exact 不变）。
 /// `already_in_raw` 检查先行：种子经反手候选同 id 重开已在 raw 时闭包合法收敛
 /// （ID-3「允许当场反手」不误伤——过滤只作用 restore 祖先注入，候选推送零改）。
-pub(crate) fn restore_ancestor_chain_from_registry(
+pub(super) fn restore_ancestor_chain_from_registry(
     work: &mut ElementView,
     raw: &mut Vec<usize>,
     registry: &super::super::persistent::PersistentRegistry,
@@ -430,7 +430,7 @@ pub(crate) fn restore_ancestor_chain_from_registry(
 ///
 /// **复用分支不回填**：`existing >= overlay_cand_end` 命中的是本 bar restore push 的元素，其
 /// `parent/attached_dir` 已由 restore 回填 ⟹ 不重写（树前缀/候选段属性零改，同 #247 口径）。
-pub(crate) fn held_stale_reregister_idx(
+pub(super) fn held_stale_reregister_idx(
     work: &mut ElementView,
     id_idx: &std::collections::HashMap<ElementId, usize>,
     overlay_seen: &mut std::collections::HashMap<ElementId, usize>,

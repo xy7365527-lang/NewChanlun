@@ -321,7 +321,7 @@ pub fn dual_view_consistency(
 /// `lm`：当前走势（一个元素 e）。`parent_idx`：父元素在 `elements` 中的索引（根 None）。
 /// `parent_dir`：父元素方向 σ_{α_e}（根 None）。先压入 e 自身，记其索引 `my_idx`；再对 e 的
 /// `sub_moves`（真嵌套子声部）递归，子元素 `parent = Some(my_idx)`（真父子）。
-pub(crate) fn push_element_tree(
+fn push_element_tree(
     elements: &mut Vec<CoverageElement>,
     lm: &LeveledMove,
     parent_idx: Option<usize>,
@@ -351,7 +351,7 @@ pub(crate) fn push_element_tree(
 /// `RMove::Segment` 直接取 direction；`RMove::Compose` 取外缘趋势方向（首尾 hi 比较，与
 /// `recursive_tower::LeveledMove::fold_direction` / `classifier::mod::rmove_direction` 同口径——
 /// 外缘上移=Up=Long，下移=Down=Short）。空 subs ⟹ 缺省 Up（防御性，与塔口径一致）。
-pub(crate) fn rmove_side(m: &RMove) -> VoiceSide {
+fn rmove_side(m: &RMove) -> VoiceSide {
     let dir = match m {
         RMove::Segment { direction, .. } => *direction,
         RMove::Compose { subs, .. } => match (subs.first(), subs.last()) {

@@ -1,10 +1,11 @@
 use super::*;
 
 // ════════════════════════════════════════════════════════════════════════════
-//  §9b 组合层 trace（I_Θ 决策点）——#134/#145/#146 typed exit 轨 +
-//  #199/#209/#237 断言①探针。自 `sizing` 分出（main 侧增长后 sizing 达 892 行，
-//  超 800 行上限）：`sizing` 保留 §9 π_Θ 定序/可行集/下单，本文件承载 trace 结构
-//  与 [`pi_theta_step_traced`] 组合层决策点。
+//  §9b 组合层 I_Θ（#134 裁定4「组合层」；#145/#146 typed exit + #199/#209/#237 断言①）
+//  自 `sizing` 分出（main 侧增长后 sizing 达 892 行，超 800 行上限）。分缝判据 =
+//  **决策点归属**，非「生产 vs 旁路」：`sizing` 承担 §9 π_Θ 定序/可行集/下单；本文件
+//  承担组合层裁决——P1 `force_flat` 短路、P2/P3/P4 优先级级联、断言①终态门。这些是
+//  **生产控制流**，`StepTrace`/`VoiceVerdict` 只是其外化载体，故名 compose 而非 trace。
 // ════════════════════════════════════════════════════════════════════════════
 
 // ── ★#199 断言①「T1 目标态」探针（thread_local，runner.rs #198/#199 同款模式；
@@ -485,3 +486,11 @@ pub(crate) fn pi_theta_step_traced(
     )
 }
 
+
+#[cfg(test)]
+#[path = "compose_tests_1.rs"]
+mod tests_1;
+
+#[cfg(test)]
+#[path = "compose_tests_2.rs"]
+mod tests_2;

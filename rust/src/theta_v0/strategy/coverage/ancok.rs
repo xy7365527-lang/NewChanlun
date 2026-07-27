@@ -85,7 +85,7 @@ thread_local! {
 }
 
 #[inline]
-pub(crate) fn ancok_probe_bump(f: impl FnOnce(&mut AncokProbe)) {
+pub(super) fn ancok_probe_bump(f: impl FnOnce(&mut AncokProbe)) {
     ANCOK_PROBE.with(|c| {
         let mut p = c.get();
         f(&mut p);
@@ -131,7 +131,7 @@ pub fn ancestors(elements: &[CoverageElement], e_idx: usize) -> Vec<usize> {
 ///
 /// 树深有限 ⟹ 链有限，无 fuel 需要。环不可能——parent_id 严格指向更高级别（`push_element_tree`
 /// 父 level > 子 level，descend 级别严格递减保证）。
-pub(crate) fn ancestors_by_id_lookup(
+pub(super) fn ancestors_by_id_lookup(
     elements: &ElementView,
     e_idx: usize,
     lookup: &impl Fn(&ElementId) -> Option<usize>,
@@ -151,7 +151,7 @@ pub(crate) fn ancestors_by_id_lookup(
 /// `active`（A_t）先滤除结束元素 `ending`（D_t），再并入新开始元素 `starting`（B_t）。
 /// **关闭在前 开启在后**（对齐 `SeparateStrategyTarget.targetActiveSet`）。返回去重后的索引集
 /// （同一元素不重复——B_t 中已在 A_t∖D_t 的不重复加）。
-pub(crate) fn raw_active_set(active: &[usize], ending: &[usize], starting: &[usize]) -> Vec<usize> {
+fn raw_active_set(active: &[usize], ending: &[usize], starting: &[usize]) -> Vec<usize> {
     // ponytail: HashSet O(1) 替 Vec.contains O(n)——ending/starting 去重查询从线性降常数
     let ending_set: std::collections::HashSet<usize> = ending.iter().copied().collect();
     let mut raw: Vec<usize> = active
@@ -176,7 +176,7 @@ pub(crate) fn raw_active_set(active: &[usize], ending: &[usize], starting: &[usi
 /// ★此为**索引链**版本（§3 Lean M16 区间递归原语对齐，非生产入场）。§13 生产 AncOK 由
 /// [`super::super::exit::step_active_set_with_subtree_close`] 接管（#183 归一：parent_id 结构映射判据
 /// 的散装等价物 `ancestor_close_by_id` 已下线，归一即删除）。
-pub(crate) fn ancestor_close(elements: &[CoverageElement], raw: &[usize]) -> Vec<usize> {
+fn ancestor_close(elements: &[CoverageElement], raw: &[usize]) -> Vec<usize> {
     // ponytail: HashSet O(1) 替 raw.contains O(n)——祖先查询从线性降常数
     let raw_set: std::collections::HashSet<usize> = raw.iter().copied().collect();
     raw.iter()
