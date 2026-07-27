@@ -450,6 +450,22 @@ pub fn attach_bsp_to_tree(
     }
 }
 
+/// ponytail: H6 预建 `ElementId → idx` 索引（结构映射查表 O(1)，spec §13）。
+/// 确定性 ID 跨 bar 稳定 ⟹ 全量/增量产同 ID ⟹ 同一走势跨 bar 命中同 idx（父延伸也同 ID）。
+///
+/// owner 归属（#359 M-1）：本函数只读 [`CoverageElement::id`] 建索引，无任何持仓腿语义，
+/// 拥有者是元素模块而非 held——原置于 held.rs 令 `ancok`/`leg` 反向依赖 held，
+/// 与 `held → ancok`（`ancok_probe_bump`）构成模块环。移入 element 后依赖图无环。
+pub(crate) fn build_tree_id_index(
+    tree: &[CoverageElement],
+) -> std::collections::HashMap<ElementId, usize> {
+    let mut idx: std::collections::HashMap<ElementId, usize> = std::collections::HashMap::new();
+    for (i, e) in tree.iter().enumerate() {
+        idx.entry(e.id).or_insert(i);
+    }
+    idx
+}
+
 /// ponytail: H7 预建 (level, ρ) → idx 索引——hostOf 查表 O(1)。
 /// bit-exact 依据：ρ（= end_index）在同级别单调唯一（compose_level 非重叠窗口，坐标严格递增）
 /// ⟹ (level, ρ) 唯一，无多匹配。热循环 coverage_elements_and_gamma_with_tower 单次建、多次查

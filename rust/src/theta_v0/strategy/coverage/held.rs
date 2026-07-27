@@ -42,18 +42,6 @@ pub(crate) fn held_leg_tree_index(
     held_leg_tree_index_indexed(tree, leg, &id_idx)
 }
 
-/// ponytail: H6 预建 `ElementId → idx` 索引（结构映射查表 O(1)，spec §13）。
-/// 确定性 ID 跨 bar 稳定 ⟹ 全量/增量产同 ID ⟹ 同一走势跨 bar 命中同 idx（父延伸也同 ID）。
-pub(crate) fn build_tree_id_index(
-    tree: &[CoverageElement],
-) -> std::collections::HashMap<ElementId, usize> {
-    let mut idx: std::collections::HashMap<ElementId, usize> = std::collections::HashMap::new();
-    for (i, e) in tree.iter().enumerate() {
-        idx.entry(e.id).or_insert(i);
-    }
-    idx
-}
-
 /// ponytail: H6 带预建索引的 held_leg_tree_index 变体——热循环 coverage_step_from_buckets 单次建、多次查。
 /// codex Q4：按 `leg.id` 查表（结构映射），删除 CoordDrift 分支（ID 确定性 ⟹ 无需 λ 稳定性 hack）。
 pub(crate) fn held_leg_tree_index_indexed(

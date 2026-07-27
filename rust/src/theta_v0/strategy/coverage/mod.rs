@@ -75,7 +75,7 @@ mod sizing;
 mod test_support;
 
 pub use ancok::{AncokProbe, ancok_probe_reset, ancok_probe_snapshot, ancestors, active_set_step};
-pub(crate) use ancok::{ancok_probe_bump, ancestors_by_id_lookup, raw_active_set, ancestor_close, ancestor_close_by_id};
+pub(crate) use ancok::{ancok_probe_bump, ancestors_by_id_lookup, ancestor_close_by_id};
 
 pub use element::{
     CoverageElement, extract_elements, extract_carrier_forest, dual_view_consistency,
@@ -83,37 +83,27 @@ pub use element::{
     attach_bsp_carrier_indexed, attach_bsp_parent_carrier_indexed, from_classification_levels,
     starting_set, ending_set,
 };
-pub(crate) use element::{ElementView, push_element_tree, rmove_side};
+pub(crate) use element::{ElementView, build_tree_id_index};
 
 pub use role::{
     Dir, Horizontal, Vertical, GradeRel, OperationRole, horizontal_relation,
     build_prev_sibling_index, vertical_relation, grade_relation, operation_role,
 };
-pub(crate) use role::{
-    operation_role_indexed, operation_role_indexed_split, operation_role_two_segment,
-    direction_of, dir_sign, parent_sign, classify_vertical, classify_grade,
-};
+pub(crate) use role::{operation_role_indexed_split, operation_role_two_segment, dir_sign};
 
 pub use leg::{
     SepLeg, LegTarget, dir_weight, w_grade, leg_target, net_target_units, gross_target_units,
     overlay_net_delta,
 };
-pub(crate) use leg::{
-    strategy_target_legs, apply_gross_cap, theta_dir_slot, leg_target_two_segment, element_depth,
-};
+pub(crate) use leg::{strategy_target_legs, apply_gross_cap};
 
 pub(crate) use held::{
-    build_tree_id_index, held_leg_tree_index, held_leg_tree_index_indexed, HeldLegMatch,
-    element_as_leg, close_indices, restore_ancestor_chain_from_registry,
-    rebuild_placeholder_parent_attached, resolve_pending_parent_fixups,
+    held_leg_tree_index_indexed, HeldLegMatch, element_as_leg, close_indices,
+    restore_ancestor_chain_from_registry, resolve_pending_parent_fixups,
 };
 
 pub use step::coverage_step_classification;
 pub(crate) use step::{coverage_step_from_buckets, coverage_step_from_buckets_sep, coverage_step_prebuilt};
 
 pub use sizing::{PiThetaWeights, KThetaRiskGate, pi_theta_position, schedule_order, pi_theta_step};
-pub(crate) use sizing::{
-    level_cap, clamp_levels_to_weighted_cap, feasible_lex_candidates, pi_theta_step_prebuilt,
-    StepTrace, TwStepCtx, pi_theta_step_traced, scale_key, lot_round, feasible_net_cap,
-    feasible_candidates, j_theta_key,
-};
+pub(crate) use sizing::{level_cap, clamp_levels_to_weighted_cap, TwStepCtx, pi_theta_step_traced};
