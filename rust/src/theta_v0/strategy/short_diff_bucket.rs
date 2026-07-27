@@ -94,6 +94,25 @@
 //! #294（T4）；`CenterOscillationAction` 的**数量**（units）来源（真实 sizing 口径）未在
 //! #292/#293 任一契约内定义——本模块把 units 作调用方显式入参（不臆造默认值），生产侧
 //! 真正实例化 TW 账本 + 喂入真实 units 属 #294（每仓 campaign 粒度落地时）的自然接线点。
+//!
+//! ## 评审尾巴四条小修（issue #354，承接 #353 一票）
+//!
+//! P2-E 合并落地后复审浮出的四处收尾：
+//!
+//! - **High-1**：[`ShortDiffAccount::record_action`] 开头新增 typed 拒绝——`units` 超过本仓
+//!   实际持有份数（`self.cost_basis.units()`）即 `Err`（[`ShortDiffViolation::UnitsExceedCostBasis`]），
+//!   与 [`ShortDiffViolation::OverReplenish`] 同规格但是独立的一条防线：`OverReplenish` 卡
+//!   「买回超过本轮挂起在途量」（短差账本内部状态），本变体卡「记账超过本仓真实持仓」
+//!   （外部成本基状态）。
+//! - **High-3**：`ShortDiffAccount` 的 `bucket` 字段改真私有 + 只读访问器
+//!   [`ShortDiffAccount::bucket`]（与 `cost_basis` 同规格）——旧版"P2-C 票面范围只列
+//!   cost_basis/realized_cash 两项、bucket 保持 pub"的处置名实不符，`pub` 字段的整体赋值本身
+//!   就是一种 setter。
+//! - **High-4**：[`ShortDiffAccount::record_action`] 降为私有，外部唯一出口收窄到
+//!   [`ShortDiffAccount::record_and_apply`]（grep 确认原本即无外部直接调用，本条是把既有事实
+//!   钉成类型层保证）。
+//! - **#353 附带**：E2E 桥接测试（`center_oscillation_action_from_book_bridges_into_tw_ledger`）
+//!   起手态补齐 `tw0.holding` 非负的显式断言，把 P1-B 起手态修正隐含的前提钉成可见断言。
 
 use super::super::closed_loop::transition::{cash_sound_gate, TransitionError};
 use super::center_oscillation_trade::CenterOscillationAction;
@@ -111,14 +130,20 @@ pub enum ShortDiffViolation {
     UnclosedRoundTrip { open_units: i64 },
     /// P2-E 附加守卫（issue #354，承接 #352 P1-A）：当前从 `self.cost_basis` 现算派生的
     /// `avg_cost`（`derived`）与挂起批次开仓时记录的 `avg_cost`（`recorded`）不一致——本模块
-    /// 内部调用永不触发（`cost_basis` 全程只读不变），唯一触发路径是外部把 `bucket` 整体移植到
-    /// 另一个 `cost_basis` 不同的账本（见模块文档「P2-E 合并」节）。
+    /// 内部调用永不触发（`cost_basis` 全程只读不变），唯一触发路径是把 `bucket` 整体移植到
+    /// 另一个 `cost_basis` 不同的账本（High-3 后 `bucket` 已真私有，此路径现只能发生在本模块
+    /// 内部——同文件测试对私有字段可见，见 [`ShortDiffAccount`] 文档「High-3 补齐」节）。
     AvgCostMismatch { recorded: i64, derived: i64 },
     /// P2-E 通道切换（issue #354，承接 #353 P1-B）：TW 事件经
     /// [`super::super::closed_loop::transition::cash_sound_gate`] 或 OQ-9 legal 检查被拒绝——
     /// 直接携带 [`TransitionError`]（同一 chokepoint 的同一错误类型，证明本模块的 TW 输出确实
     /// 流经该通道，而非另起一套等效实现）。
     ChannelRejected(TransitionError),
+    /// #354 评审尾巴 High-1：`units` 超过本仓实际持有份数（`self.cost_basis.units()`）——
+    /// 当场非法，不静默钳制到「只记账实际可用的那部分」。与 [`Self::OverReplenish`] 同规格
+    /// 但是独立的一条防线：`OverReplenish` 卡「买回超过本轮挂起在途量」（短差账本内部状态），
+    /// 本变体卡「记账超过本仓真实持仓」（外部成本基状态）——两条边界互不覆盖，缺一漏一。
+    UnitsExceedCostBasis { held: i64, attempted: i64 },
 }
 
 /// 本仓成本基快照（均价口径，[`ShortDiffAccount`] 只读传导，绝不写）。
@@ -267,18 +292,28 @@ impl ShortDiffEvents {
 ///
 /// ★P2-C 处置（issue #354，承接 #352 附带项）：`cost_basis` 改真私有（只读访问
 /// [`Self::cost_basis`]）——旧版 `pub` 字段允许整体替换（=setter），与「本仓成本基本模块只读
-/// 传导、不写」的叙事名实不符；`bucket` 字段保持 `pub`（P2-C 票面范围只列 `cost_basis`/
-/// `realized_cash` 两项），其可整体移植正是 [`ShortDiffViolation::AvgCostMismatch`] 附加守卫
-/// 存在的理由（见模块文档「P2-E 合并」节）。
+/// 传导、不写」的叙事名实不符。
+///
+/// ★High-3 补齐（#354 评审尾巴）：`bucket` 原判"保持 `pub`"（P2-C 票面范围只列
+/// `cost_basis`/`realized_cash` 两项）名实亦不符——`pub` 字段的整体赋值本身就是一种 setter，
+/// 与「桶是报告层只读读数 + 挂起状态」的叙事同样不一致。现改真私有（只读访问
+/// [`Self::bucket`]），与 `cost_basis` 同规格。外部整体移植（唯一仍可能引入 `avg_cost`
+/// 两腿不一致的路径，见 [`ShortDiffViolation::AvgCostMismatch`] 附加守卫）现只能发生在本模块
+/// 内部（同文件测试，私有字段对子模块可见）——附加守卫仍保留，作为该内部路径的防御性核验。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ShortDiffAccount {
-    pub bucket: ShortDiffBucket,
+    bucket: ShortDiffBucket,
     cost_basis: CoreCostBasisSnapshot,
 }
 
 impl ShortDiffAccount {
     pub fn new(cost_basis: CoreCostBasisSnapshot) -> Self {
         Self { bucket: ShortDiffBucket::new(), cost_basis }
+    }
+
+    /// 短差盈亏桶（只读访问，High-3 处置）：报告层累计读数 + 挂起在途状态。
+    pub fn bucket(&self) -> ShortDiffBucket {
+        self.bucket
     }
 
     /// 本仓成本基快照（只读访问，P2-C 处置）。
@@ -306,10 +341,16 @@ impl ShortDiffAccount {
     /// [`ShortDiffViolation::AvgCostMismatch`]。真实生产来源 = 持仓账本接口（[`CoreCostBasisSnapshot`]）；
     /// 本模块只读消费，不推导/不重算——真实实例化属 #294。
     ///
-    /// 恒仓断言（严格，违规即显式失败）：`units<=0`、回补超过挂起在途量、或挂起批次均价
-    /// 不一致均返回 typed `Err`，不静默钳制/吸收；失败时本账本状态**不变**（桶/在途量均未
-    /// 落笔）。
-    pub fn record_action(
+    /// 恒仓断言（严格，违规即显式失败）：`units<=0`、`units` 超过本仓实际持有份数
+    /// （[`ShortDiffViolation::UnitsExceedCostBasis`]，#354 评审尾巴 High-1）、回补超过挂起
+    /// 在途量、或挂起批次均价不一致均返回 typed `Err`，不静默钳制/吸收；失败时本账本状态
+    /// **不变**（桶/在途量均未落笔）。
+    ///
+    /// ★现在是私有出口（#354 评审尾巴 High-4）：外部唯一入口是
+    /// [`record_and_apply`](Self::record_and_apply)——记账与 TW 应用必须原子发生，不留下
+    /// 「记账已发生但 TW 未接受」的中间态（见该方法「原子回滚」节）；本方法只在
+    /// `record_and_apply` 内部调用（及本模块测试直接调用以核验拆分细节）。
+    fn record_action(
         &mut self,
         action: CenterOscillationAction,
         units: i64,
@@ -317,6 +358,12 @@ impl ShortDiffAccount {
     ) -> Result<ShortDiffEvents, ShortDiffViolation> {
         if units <= 0 {
             return Err(ShortDiffViolation::NonPositiveUnits(units));
+        }
+        if units > self.cost_basis.units() {
+            return Err(ShortDiffViolation::UnitsExceedCostBasis {
+                held: self.cost_basis.units(),
+                attempted: units,
+            });
         }
         let avg_cost = if self.cost_basis.units() > 0 {
             self.cost_basis.cost_basis() / self.cost_basis.units()
@@ -403,10 +450,16 @@ mod tests {
         CoreCostBasisSnapshot::new(units, cost_basis)
     }
 
-    /// 派生出恰为 `avg_cost` 的成本基快照（units=1，cost_basis=avg_cost）——P2-E 后
-    /// `avg_cost` 不再是调用方入参，测试改用此帮助函数精确控制现算派生结果。
+    /// 派生出恰为 `avg_cost` 的成本基快照——P2-E 后 `avg_cost` 不再是调用方入参，测试改用此
+    /// 帮助函数精确控制现算派生结果。
+    ///
+    /// ★High-1 后 units 改用大基数（10_000，非原 1）：`avg_cost = cost_basis/units` 整除保证
+    /// 派生值不变，但本模块新增「`units` 不得超过本仓实际持有份数」检查（见
+    /// [`ShortDiffViolation::UnitsExceedCostBasis`]）后，`units=1` 会让本文件几乎所有既有用例
+    /// （Reduce/Replenish 实际调用的 units 普遍 >1）当场被拒——大基数只为让「本仓总持仓」远超
+    /// 各用例实际卖出/买回的量，不影响 `avg_cost` 派生语义。
     fn avg_cost_snapshot(avg_cost: i64) -> CoreCostBasisSnapshot {
-        snapshot(1, avg_cost)
+        snapshot(10_000, avg_cost * 10_000)
     }
 
     // ── 单源记账（禁双写，新口径：桶净现金增量 = 本次产出全部 TwEvent 金额之和） ──
@@ -572,6 +625,24 @@ mod tests {
         assert_eq!(acct.bucket.realized_cash(), 0, "拒绝的调用不落笔");
     }
 
+    /// ★High-1（issue #354 评审尾巴）：`units` 超过本仓实际持有份数（`self.cost_basis.units()`）
+    /// 当场拒绝——不静默钳制到「只记账实际可用的那部分」。与 `OverReplenish` 同规格但是独立的
+    /// 一条防线：`OverReplenish` 卡「买回超过挂起在途量」（短差账本内部状态，见
+    /// [`over_replenish_is_explicit_violation_and_state_unchanged`]），本用例卡「记账超过本仓
+    /// 真实持仓」（外部成本基状态）——两条边界互不覆盖，均须各自拒绝。
+    #[test]
+    fn units_exceed_cost_basis_is_explicit_violation() {
+        let mut acct = ShortDiffAccount::new(snapshot(5, 40)); // 本仓仅持 5 股（均价 8）
+        let result = acct.record_action(CenterOscillationAction::Reduce, 10, 12); // 试图卖 10 股
+        assert_eq!(
+            result,
+            Err(ShortDiffViolation::UnitsExceedCostBasis { held: 5, attempted: 10 }),
+            "卖出(10)>本仓实际持有(5) ⟹ 显式拒绝"
+        );
+        assert_eq!(acct.bucket.realized_cash(), 0, "拒绝的调用不落笔");
+        assert_eq!(acct.bucket.open_units(), 0, "拒绝的调用不改在途量");
+    }
+
     /// 超额回补（买回多于挂起在途量）当场拒绝——不静默钳制到「只买回挂起的那部分」。
     #[test]
     fn over_replenish_is_explicit_violation_and_state_unchanged() {
@@ -606,22 +677,36 @@ mod tests {
 
     // ── P2-E 附加守卫：挂起批次均价一致性（issue #354，承接 #352） ──────────
 
-    /// ★P1-A 附加守卫核心用例：`bucket`（`pub` 字段，`Copy`）被整体移植到另一个 `cost_basis`
-    /// 不同的账本——本模块内部调用永不触发此路径（`cost_basis` 全程只读不变），但这是
-    /// `avg_cost` 结构性派生之外**唯一**仍可能引入两腿不一致的外部路径，附加守卫在此显式
-    /// 拒绝，不静默按新 `cost_basis` 重算历史批次。
+    /// ★P1-A 附加守卫核心用例：`bucket`（High-3 后真私有字段，同文件测试仍可见、`Copy`）被
+    /// 整体移植到另一个 `cost_basis` 不同的账本——本模块内部调用永不触发此路径（`cost_basis`
+    /// 全程只读不变），但这是 `avg_cost` 结构性派生之外**唯一**仍可能引入两腿不一致的路径
+    /// （High-3 后已收窄到本模块内部），附加守卫在此显式拒绝，不静默按新 `cost_basis` 重算
+    /// 历史批次。
     #[test]
     fn avg_cost_mismatch_after_bucket_transplant_is_explicit_violation() {
         let mut opened = ShortDiffAccount::new(avg_cost_snapshot(10));
         opened.record_action(CenterOscillationAction::Reduce, 10, 12).unwrap(); // 挂起批次记 avg_cost=10
         let mut mismatched = ShortDiffAccount::new(avg_cost_snapshot(20)); // 不同 cost_basis
-        mismatched.bucket = opened.bucket; // 唯一仍可行的不一致引入路径
+        mismatched.bucket = opened.bucket; // 唯一仍可行的不一致引入路径（私有字段，同文件测试可见）
         let result = mismatched.record_action(CenterOscillationAction::Replenish, 10, 9);
         assert_eq!(
             result,
             Err(ShortDiffViolation::AvgCostMismatch { recorded: 10, derived: 20 }),
             "挂起批次记录的 avg_cost(10) 与本账本现算派生的 avg_cost(20) 不一致 ⟹ 显式拒绝"
         );
+    }
+
+    // ── High-3（issue #354 评审尾巴）：bucket 只读访问器 ──────────────────
+
+    /// ★High-3：`bucket` 改真私有 + 只读访问器 `bucket()`（与 `cost_basis()` 同规格）——
+    /// 访问器读到的桶状态须与记账后直接字段读一致，证明访问器不是摆设、不丢失/篡改读数。
+    #[test]
+    fn bucket_accessor_reads_current_state() {
+        let mut acct = ShortDiffAccount::new(avg_cost_snapshot(9));
+        acct.record_action(CenterOscillationAction::Reduce, 10, 12).unwrap();
+        assert_eq!(acct.bucket().open_units(), 10, "访问器读到的挂起在途量与直接字段读一致");
+        assert_eq!(acct.bucket().realized_cash(), 120, "访问器读到的累计现金与直接字段读一致");
+        assert_eq!(acct.bucket(), acct.bucket, "访问器返回值与私有字段逐位相等（Copy 只读，非另存一份）");
     }
 
     // ── 本仓成本基不动断言 ───────────────────────────────────────────────
@@ -760,13 +845,16 @@ mod tests {
     /// 须覆盖本仓成本基（=20_000=500 股·均价 40），与 `snapshot(500, 20_000)` 一致——旧版
     /// `tw0=TwState::initial()`（holding=0）能通过纯因为旧桥未经 CashUnsound 检查；新通道下
     /// 若仍用 holding=0，Reduce 的 `ShortDiff(15·40=600)` 会让 holding 变负，被通道正确拦截
-    /// （这正是 P1-B 要防的类型，此处起手态改为真实反映持仓成本基，而非制造该失败）。
+    /// （这正是 P1-B 要防的类型，此处起手态改为真实反映持仓成本基，而非制造该失败）。附带项
+    /// （issue #353）：起手态显式断言 `tw0.holding` 非负（真实持仓不可能为负），把这条隐含前提
+    /// 钉成可见断言，防止未来编辑把起手态改回不真实的负值/0 而不被察觉。
     #[test]
     fn center_oscillation_action_from_book_bridges_into_tw_ledger() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
         let mut acct = ShortDiffAccount::new(snapshot(500, 20_000));
         let tw0 = TwState { holding: 20_000, ..TwState::initial() };
+        assert!(tw0.holding >= 0, "起手态 holding 不得为负（真实持仓不可能为负）");
         let avg_cost = 20_000 / 500; // 本仓成本基（均价口径，见 snapshot），= 40，供断言消息复算用。
 
         // 上沿高抛：次级别卖点，价格=中枢上沿 zg（真实 #292 触发构造，非合成值）。
