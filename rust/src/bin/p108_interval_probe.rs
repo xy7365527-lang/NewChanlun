@@ -26,6 +26,7 @@
 
 use newchan_rust::theta_v0::backtest::data::load_by_symbol;
 use newchan_rust::theta_v0::backtest::incremental::IncrementalClassifier;
+use newchan_rust::theta_v0::classifier::bsp::OwnerRef;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::types::BspBits;
 use std::collections::{BTreeMap, HashSet};
@@ -114,7 +115,10 @@ fn main() -> std::process::ExitCode {
                     if !(buy || sell) {
                         continue;
                     }
-                    let center = p.center.map(|c| (c.start_index, c.end_index));
+                    let center = p.center.and_then(|owner| match owner {
+                        OwnerRef::Center(c) => Some((c.start_index, c.end_index)),
+                        OwnerRef::Type1Anchor(_) => None,
+                    });
                     if (b.buy3 || b.sell3) && center.is_none() {
                         no_center3 += 1;
                     }
