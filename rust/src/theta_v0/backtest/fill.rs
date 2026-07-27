@@ -802,7 +802,7 @@ fn step_center_oscillation(
             ChainConsumed::Advanced { events, .. } => {
                 for ev in events.iter() {
                     for outcome in osc_books[lvl].on_lifecycle_event(ev) {
-                        witness.record_suspension_source(outcome.source);
+                        witness.record_suspension_source(outcome.side, outcome.source);
                         if let Some(action) = outcome.cover_action {
                             actions.push(CenterOscillationActionRecord {
                                 bar,
@@ -817,7 +817,7 @@ fn step_center_oscillation(
             }
             ChainConsumed::Rebased { .. } => {
                 for outcome in osc_books[lvl].on_chain_rebase(chain) {
-                    witness.record_suspension_source(outcome.source);
+                    witness.record_suspension_source(outcome.side, outcome.source);
                     if let Some(action) = outcome.cover_action {
                         actions.push(CenterOscillationActionRecord {
                             bar,
@@ -839,7 +839,7 @@ fn step_center_oscillation(
                 };
                 if let Ok(PointOutcome::Event(ev)) = cl_machines[lvl].push_point(p.bits, p.source_index, target) {
                     for outcome in osc_books[lvl].on_lifecycle_event(&ev) {
-                        witness.record_suspension_source(outcome.source);
+                        witness.record_suspension_source(outcome.side, outcome.source);
                         if let Some(action) = outcome.cover_action {
                             actions.push(CenterOscillationActionRecord {
                                 bar,
@@ -1062,7 +1062,7 @@ mod campaign_wiring_tests {
         assert_eq!(campaign.tw().notional_in, 3_000, "notional_in=本仓口径取数 cost_basis（非编造）");
         assert_eq!(campaign.tw().holding, 3_000);
         assert_eq!(campaign.tw().stage, TStage::CostReduction);
-        assert_eq!(witness.lifecycle_opened, 1, "witness 记录一次开仓生事件");
+        assert_eq!(witness.lifecycle_opened.get("long"), Some(&1), "witness 分侧记录一次开仓生事件（多头侧）");
     }
 
     /// ★sizing=1/3 落地 + 动作按 (级别, 动作) 归属正确：Core{0} 持仓 300 股，`Reduce` 动作应
@@ -1118,7 +1118,7 @@ mod campaign_wiring_tests {
         account_view.post(open, 15.0, 1);
         drive_campaign_wiring(0, 1, &account_view, &[], 15, RiskMode::Normal, &mut book, &mut witness);
         assert!(book.campaign(0, VoiceSide::Long).is_some(), "真实持仓事件流 ⟹ campaign 开局");
-        assert_eq!(witness.lifecycle_opened, 1);
+        assert_eq!(witness.lifecycle_opened.get("long"), Some(&1));
 
         // bar2：真实全平 fill——campaign 应终结。
         let close = AccountOrder {
@@ -1130,7 +1130,7 @@ mod campaign_wiring_tests {
         account_view.post(close, 18.0, 2);
         drive_campaign_wiring(0, 1, &account_view, &[], 18, RiskMode::Normal, &mut book, &mut witness);
         assert!(book.campaign(0, VoiceSide::Long).is_none(), "真实全平事件流 ⟹ campaign 终结");
-        assert_eq!(witness.lifecycle_died, 1);
+        assert_eq!(witness.lifecycle_died.get("long"), Some(&1));
     }
 
     /// ★`NoActiveCampaign` 分桶：向未开局的级别喂动作，`apply_action` 返回 `NoActiveCampaign`——
@@ -1186,7 +1186,12 @@ mod campaign_wiring_tests {
         assert_eq!(short_campaign.side(), VoiceSide::Short);
         assert_eq!(short_campaign.current_units(), 50, "units=分侧余额翻符号（多正空负，−(−50)=50）");
         assert_eq!(short_campaign.tw().notional_in, 1_000, "notional_in=空头侧成本基（在险市值 50×20）");
-        assert_eq!(witness.lifecycle_opened, 1, "恰一次开仓生（空头侧）");
+        assert_eq!(
+            witness.lifecycle_opened.get("short"),
+            Some(&1),
+            "恰一次开仓生（空头侧）"
+        );
+        assert_eq!(witness.lifecycle_opened.get("long"), None, "多头侧无仓 ⟹ 该侧桶不出现");
 
         // 空头侧「减」=回补空头：sizing=开局冻结 50/3=16，落空头 campaign 而非多头。
         let actions = vec![record_side(0, VoiceSide::Short, CenterOscillationAction::Reduce)];
@@ -1231,7 +1236,11 @@ mod campaign_wiring_tests {
         assert_eq!(short.tw().notional_in, 1_000, "空头侧 notional_in 不含多头侧的 3000");
         assert_eq!(long.current_units(), 300);
         assert_eq!(short.current_units(), 50);
-        assert_eq!(witness.lifecycle_opened, 2, "两侧各一次开仓生");
+        assert_eq!(
+            (witness.lifecycle_opened.get("long"), witness.lifecycle_opened.get("short")),
+            (Some(&1), Some(&1)),
+            "两侧各一次开仓生——★#381 关票修复：分侧计数，不得相加成 2"
+        );
 
         // 同一 bar 两侧各一条镜像动作 ⟹ 各记各账，互不冲抵。
         let actions = vec![
@@ -1264,7 +1273,11 @@ mod campaign_wiring_tests {
         drive_campaign_wiring(1, 1, &account_view, &[], 16, RiskMode::Normal, &mut book, &mut witness);
         assert!(book.campaign(0, VoiceSide::Long).is_none(), "多头侧全平 ⟹ 多头 campaign 死");
         assert!(book.campaign(0, VoiceSide::Short).is_some(), "空头侧仓位未动 ⟹ 空头 campaign 存活");
-        assert_eq!(witness.lifecycle_died, 1, "恰一次死亡事件（多头侧）");
+        assert_eq!(
+            (witness.lifecycle_died.get("long"), witness.lifecycle_died.get("short")),
+            (Some(&1), None),
+            "恰一次死亡事件且归属多头侧（空头侧存活 ⟹ 该侧无死亡计数）"
+        );
     }
 
     /// ★issue #357 关票条件 C（★#381 后语义扩展）：本级多空并存时，**多头侧** campaign 的取数
@@ -1297,7 +1310,11 @@ mod campaign_wiring_tests {
         let campaign = book.campaign(0, VoiceSide::Long).expect("多头侧持仓非空 ⟹ 应已开局 campaign");
         assert_eq!(campaign.tw().notional_in, 3_000, "notional_in=多头侧成本基（3000），不含空头侧的1000");
         assert_eq!(campaign.tw().holding, 3_000);
-        assert_eq!(witness.lifecycle_opened, 2, "★#381：多头侧 + 空头侧各开局一次");
+        assert_eq!(
+            (witness.lifecycle_opened.get("long"), witness.lifecycle_opened.get("short")),
+            (Some(&1), Some(&1)),
+            "★#381：多头侧 + 空头侧各开局一次（分侧可判读）"
+        );
     }
 }
 
@@ -1470,7 +1487,7 @@ mod center_oscillation_wiring_tests {
         assert_eq!(actions[0].action, CenterOscillationAction::Replenish);
         assert_eq!(actions[0].center, CenterId::of(&c0));
         assert_eq!(
-            witness.suspension_by_source.get("broken_by_third_class_buy"),
+            witness.suspension_by_source.get(&("long", "broken_by_third_class_buy")),
             Some(&1),
             "★issue #357：挂起归宿分桶记录三类买点破坏终结来源"
         );

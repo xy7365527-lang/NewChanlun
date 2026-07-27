@@ -504,11 +504,16 @@ pub struct CampaignWiringWitness {
     pub action_by_level: BTreeMap<(u32, &'static str, &'static str), usize>,
     /// 挂起终结来源分桶（挂起归宿：`BrokenByThirdClassBuy`/`.._Sell`/`Reset`/`Superseded`/
     /// `RebaseVanished` 五源，见 [`super::center_oscillation_trade::SuspensionTerminationSource`]）。
-    pub suspension_by_source: BTreeMap<&'static str, usize>,
+    /// ★#381 关票修复：键增持仓侧维 `(侧, 来源)`——`on_lifecycle_event`/`on_chain_rebase` 现在
+    /// 对同一事件**逐侧**各产一条 `SuspensionOutcome`，不分侧则多空并存时计数翻倍且无法归属
+    /// （破本 ADR 补充九自立的「两侧不得相加」）。
+    pub suspension_by_source: BTreeMap<(&'static str, &'static str), usize>,
     /// campaign 开仓生事件计数（[`CampaignLifecycleEvent::Opened`]）。
-    pub lifecycle_opened: usize,
-    /// campaign 全平死事件计数（[`CampaignLifecycleEvent::Died`]）。
-    pub lifecycle_died: usize,
+    /// ★#381 关票修复：改分侧分桶（键=`"long"`/`"short"`）——事件本身已带 `side`，标量相加是
+    /// 跨侧求和，既破「两侧不得相加」，也使多头侧生死零漂移不可逐条核验。
+    pub lifecycle_opened: BTreeMap<&'static str, usize>,
+    /// campaign 全平死事件计数（[`CampaignLifecycleEvent::Died`]）。★#381：同上，改分侧分桶。
+    pub lifecycle_died: BTreeMap<&'static str, usize>,
     /// `apply_action` 遇 [`CampaignViolation::NoActiveCampaign`] 的计数——★非接线错误：
     /// `CenterOscillationBook`（#292 T2）的减/补决策独立于本级 Core 持仓状态（「无门」设计，
     /// 见该模块文档），故结构信号在本级空仓时触发是**真实经济场景**（结构说做、但当前无仓可
@@ -670,8 +675,13 @@ impl CampaignWiringWitness {
         }
     }
 
-    /// 记一次挂起终结来源（挂起归宿分桶）。
-    pub fn record_suspension_source(&mut self, source: SuspensionTerminationSource) {
+    /// 记一次挂起终结来源（挂起归宿分桶）。★#381 关票修复：按 (持仓侧, 来源) 分桶——
+    /// `side` 即该终结所在 `SuspensionOutcome` 的持仓侧，调用点已在手。
+    pub fn record_suspension_source(
+        &mut self,
+        side: VoiceSide,
+        source: SuspensionTerminationSource,
+    ) {
         let label = match source {
             SuspensionTerminationSource::BrokenByThirdClassBuy => "broken_by_third_class_buy",
             SuspensionTerminationSource::BrokenByThirdClassSell => "broken_by_third_class_sell",
@@ -679,7 +689,7 @@ impl CampaignWiringWitness {
             SuspensionTerminationSource::Superseded => "superseded",
             SuspensionTerminationSource::RebaseVanished => "rebase_vanished",
         };
-        *self.suspension_by_source.entry(label).or_insert(0) += 1;
+        *self.suspension_by_source.entry((side_label(side), label)).or_insert(0) += 1;
     }
 
     /// 记一次动作按 (级别, 动作) 分桶（归属正确性见证）。
@@ -691,11 +701,15 @@ impl CampaignWiringWitness {
         *self.action_by_level.entry((level, side_label(side), label)).or_insert(0) += 1;
     }
 
-    /// 记一次 campaign 生死事件。
+    /// 记一次 campaign 生死事件。★#381 关票修复：按事件自带的 `side` 分侧累计（两侧不得相加）。
     pub fn record_lifecycle(&mut self, event: CampaignLifecycleEvent) {
         match event {
-            CampaignLifecycleEvent::Opened { .. } => self.lifecycle_opened += 1,
-            CampaignLifecycleEvent::Died { .. } => self.lifecycle_died += 1,
+            CampaignLifecycleEvent::Opened { side, .. } => {
+                *self.lifecycle_opened.entry(side_label(side)).or_insert(0) += 1;
+            }
+            CampaignLifecycleEvent::Died { side, .. } => {
+                *self.lifecycle_died.entry(side_label(side)).or_insert(0) += 1;
+            }
         }
     }
 
@@ -1034,16 +1048,29 @@ mod tests {
         assert_eq!(w.action_by_level.get(&(0, "long", "reduce")), Some(&2), "归属正确：level 0 两次 Reduce 分桶计数");
         assert_eq!(w.action_by_level.get(&(1, "long", "replenish")), Some(&1), "level 1 Replenish 独立分桶，不与 level 0 混计");
 
-        w.record_suspension_source(SuspensionTerminationSource::BrokenByThirdClassBuy);
-        w.record_suspension_source(SuspensionTerminationSource::Superseded);
-        w.record_suspension_source(SuspensionTerminationSource::Superseded);
-        assert_eq!(w.suspension_by_source.get("broken_by_third_class_buy"), Some(&1));
-        assert_eq!(w.suspension_by_source.get("superseded"), Some(&2), "挂起归宿分桶按来源独立累计");
+        w.record_suspension_source(VoiceSide::Long, SuspensionTerminationSource::BrokenByThirdClassBuy);
+        w.record_suspension_source(VoiceSide::Long, SuspensionTerminationSource::Superseded);
+        w.record_suspension_source(VoiceSide::Long, SuspensionTerminationSource::Superseded);
+        w.record_suspension_source(VoiceSide::Short, SuspensionTerminationSource::Superseded);
+        assert_eq!(w.suspension_by_source.get(&("long", "broken_by_third_class_buy")), Some(&1));
+        assert_eq!(w.suspension_by_source.get(&("long", "superseded")), Some(&2), "挂起归宿分桶按来源独立累计");
+        // ★#381 关票修复：同一来源两侧独立分桶——多空并存时不得相加成 3（同一事件逐侧各产一条
+        // `SuspensionOutcome`，混计即计数翻倍且无法归属）。
+        assert_eq!(w.suspension_by_source.get(&("short", "superseded")), Some(&1), "空头侧同来源独立成桶");
+        assert_eq!(
+            w.suspension_by_source.get(&("short", "broken_by_third_class_buy")),
+            None,
+            "空头侧未发生的来源不出现（不被多头侧读数污染）"
+        );
 
         w.record_lifecycle(CampaignLifecycleEvent::Opened { level: 0, side: VoiceSide::Long, notional_in: 3_000 });
         w.record_lifecycle(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, suspended_units_forfeited: 0 });
-        assert_eq!(w.lifecycle_opened, 1);
-        assert_eq!(w.lifecycle_died, 1);
+        w.record_lifecycle(CampaignLifecycleEvent::Opened { level: 0, side: VoiceSide::Short, notional_in: 1_000 });
+        // ★#381 关票修复：生死两轴分侧——事件已带 `side`，标量累加即跨侧求和。
+        assert_eq!(w.lifecycle_opened.get("long"), Some(&1));
+        assert_eq!(w.lifecycle_opened.get("short"), Some(&1), "空头侧开局独立计数，不与多头侧相加");
+        assert_eq!(w.lifecycle_died.get("long"), Some(&1));
+        assert_eq!(w.lifecycle_died.get("short"), None, "空头侧未死 ⟹ 该侧桶不出现（非 0 值混入）");
 
         assert!(w.no_active_campaign_count.is_empty());
         assert_eq!(w.other_violation_count, 0, "接线正常路径下其余通道拒绝计数恒 0");

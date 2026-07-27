@@ -1346,7 +1346,7 @@ fn m8_e2e_all_systems_oos() {
             eprintln!(
                 "[m8][#357] {tag}: center_oscillation.enabled={} trigger_attempts={} \
                  dropped_center_not_alive={} ({:.1}%) dropped_other={} action_by_level={:?} \
-                 suspension_by_source={:?} lifecycle_opened={} lifecycle_died={} \
+                 suspension_by_source={:?} lifecycle_opened={:?} lifecycle_died={:?} \
                  no_active_campaign_count={:?} \
                  resource_exhausted_holding_negative_count={:?} \
                  loss_round_trip_accounted_count={:?} defense_units_exceed_current_holding_count={:?} \
