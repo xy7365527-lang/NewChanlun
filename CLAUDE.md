@@ -84,3 +84,7 @@ Single-context layout: one `CONTEXT.md` + `docs/adr/` at repo root（文件不�
 ### 统计结论口径标注与引用审查
 
 归档判决落盘时标口径（轻档）；有人要拿某结论当决策依据时先查过没过异质审查（重档），未标默认按「未审」降级使用，不追溯存量。See `docs/agents/stat-provenance.md`.
+
+### 开票与关票的交付纪律
+
+声明人自带可核对的指针或证据；关票、对照型验收、豁免、编号和打包降级各自按规则声明，不追溯存量。See `docs/agents/delivery-discipline.md`.
