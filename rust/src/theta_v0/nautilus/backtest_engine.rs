@@ -108,7 +108,10 @@ fn to_nautilus_bar(bar: &crate::theta_v0::types::Bar, bar_type: BarType, tick_si
 /// #343 品种门控：非 BTC 品种 fail-fast，不静默套用 `btc_instrument()`。
 ///
 /// 纯函数（不摸 `BacktestEngine`）——独立可测，不需要真实引擎跑一圈才能验证门控是否生效。
-fn require_btc_symbol(symbol: &str) -> anyhow::Result<()> {
+///
+/// `pub`（#344 LOW-3）：CLI（`bin/theta_backtest.rs`）在 ⑤ 段（in-crate 回测）起跑前复用
+/// 同一门控 fail-fast，避免非 BTC 品种白跑一遍全量回测才在 ⑥ 段发现不支持。
+pub fn require_btc_symbol(symbol: &str) -> anyhow::Result<()> {
     if symbol.eq_ignore_ascii_case("BTC") {
         return Ok(());
     }
@@ -185,7 +188,13 @@ mod tests {
     fn non_btc_symbol_gate_names_symbol_and_declares_btc_only() {
         let err = require_btc_symbol("OKLO").expect_err("OKLO 未接入，须 fail-fast");
         let msg = err.to_string();
-        assert!(msg.contains("OKLO"), "错误须点名未接入品种，实际: {msg}");
+        // ★#344 MED-1 修复：断言反引号包裹的精确插值形态 `OKLO`，而非裸子串 "OKLO"——
+        // 后者即使 `{symbol}` 插值丢失也会命中错误文本里静态列举的 "QQQ/OKLO 需 Equity
+        // instrument"，测试空转（照过不代表插值生效）。
+        assert!(
+            msg.contains("`OKLO`"),
+            "错误须精确点名未接入品种（反引号包裹的插值形态），实际: {msg}"
+        );
         assert!(msg.contains("BTC"), "错误须声明当前能力边界（仅支持 BTC），实际: {msg}");
     }
 
@@ -197,13 +206,29 @@ mod tests {
     }
 
     #[test]
-    fn every_other_catalogued_symbol_is_gated() {
-        for sym in ["ES", "CL", "GC", "BRN", "DX", "QQQ", "OKLO"] {
+    fn every_catalogued_non_btc_symbol_is_gated() {
+        // ★#344 LOW-2 修复：随 SYMBOLS 表迭代（同 crate 可见），而非硬编码 7 品种数组——
+        // 品种表扩容时此测试自动延伸覆盖，不再需要手动同步维护列表。
+        for (sym, _, _) in crate::theta_v0::backtest::data::SYMBOLS.iter() {
+            if sym.eq_ignore_ascii_case("BTC") {
+                continue;
+            }
             let err = require_btc_symbol(sym).expect_err("非 BTC 品种须 fail-fast");
             assert!(
-                err.to_string().contains(sym),
-                "错误须点名品种 `{sym}`，实际: {err}"
+                err.to_string().contains(&format!("`{sym}`")),
+                "错误须精确点名品种 `{sym}`（反引号包裹的插值形态，非静态列举误报），实际: {err}"
             );
         }
+    }
+
+    #[test]
+    fn uncatalogued_symbol_is_named_via_interpolation_not_static_enumeration() {
+        // FOO 不出现在错误文本的静态品种列举（ES/CL/GC/BRN/DX/QQQ/OKLO）中——只有
+        // `{symbol}` 插值真正生效时此断言才会通过，是 #344 MED-1 空转的直接反测。
+        let err = require_btc_symbol("FOO").expect_err("未接入品种须 fail-fast");
+        assert!(
+            err.to_string().contains("`FOO`"),
+            "错误须通过 {{symbol}} 插值点名，非静态列举，实际: {err}"
+        );
     }
 }
