@@ -1567,8 +1567,17 @@ fn m8_execution_projection_label(voice_exec_is_some: bool) -> &'static str {
     }
 }
 
-/// ★#490 MED-2：逐窗 treasury 行的单一渲染入口；`unclassified_venue` 是未标定/
-/// per-notional 档的真实 venue 科目，必须与已分类科目并列可见。
+/// ★#492（#481 二轮复审 MED）：审计表的 trades/fill 必须各自显式标注计数域。
+fn m8_fee_audit_headings(voice_exec_is_some: bool) -> (&'static str, &'static str) {
+    if voice_exec_is_some {
+        ("声部投影trades", "净额影子fill")
+    } else {
+        ("净额trades", "净额fill")
+    }
+}
+
+/// ★#490 MED-2 / #492：逐窗净额 FeeAudit 行的单一渲染入口；
+/// `unclassified_venue` 是未标定/per-notional 档的真实 venue 科目，必须与已分类科目并列可见。
 fn format_m8_fee_audit_row(
     tag: &str,
     projected_trades: usize,
@@ -1955,17 +1964,14 @@ fn m8_e2e_all_systems_oos() {
          `FeeAudit.n_fills/total_fee` 逐窗硬断言，本表再硬断言逐科目和 \
          `== fee_audit.total_fee`，不作跨域伪对账。"
     };
-    let fee_audit_trades_heading = if !voice_exec_expected {
-        "净额trades"
-    } else {
-        "声部投影trades"
-    };
+    let (fee_audit_trades_heading, fee_audit_fill_heading) =
+        m8_fee_audit_headings(voice_exec_expected);
     report.push_str(&format!(
-        "\n## Treasury 真实 fill 费率科目与触达（#419，层1-3审计）\n\n\
-         本表与上方同一 `run_theta_v0_pi_overlay` 返回值同源；{fee_audit_reconciliation}\
+        "\n## Treasury 净额账本 fill 费率科目与触达（#419，层1-3审计）\n\n\
+         本表的 fill 来自净额账本，并与上方同一 `run_theta_v0_pi_overlay` 返回值同源；{fee_audit_reconciliation}\
          `Σ总费` 含未标定滑点 addon，\
          有效 venue 费率排除该 addon。所有读数只作账本/费用审计，禁作 alpha 或择优输入。\n\n\
-         | 窗 | {fee_audit_trades_heading} | 真实fill | Σ名义 | Σ佣金 | Σpass-through | Σ清算+CAT | Σ卖出SEC | Σ卖出TAF | \
+         | 窗 | {fee_audit_trades_heading} | {fee_audit_fill_heading} | Σ名义 | Σ佣金 | Σpass-through | Σ清算+CAT | Σ卖出SEC | Σ卖出TAF | \
          Σ未分类venue | Σ滑点addon | Σ总费 | 最低佣金触达 | 1%上限触达 | TAF上限触达 | venue有效费率 |\n\
          |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
     ));
@@ -2168,6 +2174,17 @@ mod tests {
         );
     }
 
+    /// ★#492（#481 二轮复审 MED）RED：审计表 trades/fill 必须成对显式标注各自域，
+    /// 禁止 `VOICE_EXEC=1` 时把净额影子账本 fill 写成未标域的旧称。
+    #[test]
+    fn m8_fee_audit_headings_match_voice_exec_state() {
+        assert_eq!(
+            m8_fee_audit_headings(true),
+            ("声部投影trades", "净额影子fill")
+        );
+        assert_eq!(m8_fee_audit_headings(false), ("净额trades", "净额fill"));
+    }
+
     /// ★#490 MED-2 RED：未标定 BTC 费用全落 unclassified_venue 时，审计行必须显式展示，
     /// 禁止形成“可见科目全 0、Σ总费非 0”的误读面。
     #[test]
@@ -2181,6 +2198,11 @@ mod tests {
         };
         let row = format_m8_fee_audit_row("wf8", 7, fee);
         let cells = row.split('|').map(str::trim).collect::<Vec<_>>();
+        assert_eq!(
+            (m8_fee_audit_headings(true).1, cells[3]),
+            ("净额影子fill", "1"),
+            "VOICE_EXEC=1 时第 3 列须显式标作净额影子账本 fill"
+        );
         assert_eq!(
             cells[10], "1353002.745411",
             "第 10 列须为 unclassified_venue"
