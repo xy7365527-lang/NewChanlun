@@ -80,6 +80,10 @@ pub mod center_oscillation_trade;
 /// （报告层桶 + `TwEvent::ShortDiff`）+ 恒仓断言（Σ|units| 守恒，违规显式失败）+
 /// 本仓成本基不动断言。
 pub mod short_diff_bucket;
+/// 每仓 campaign（SPEC #287 T4，issue #294）：`OscillationCampaign`/`CampaignBook`——开仓生/
+/// 到 0 转移（`RecoverCapital`）/全平死（`ClearCampaign`，挂起随死）的完整生命周期，
+/// sizing=当时持仓 1/3（#348）+ TW/R 双账入口对齐（P2-D）。
+pub mod oscillation_campaign;
 /// 盘整/趋势在线协议状态机与 DA-Q2 协议事件轨（订单 P1..P10 的正交积因子）。
 pub mod protocol;
 pub mod risk;

@@ -116,7 +116,7 @@
 
 use super::super::closed_loop::transition::{cash_sound_gate, TransitionError};
 use super::center_oscillation_trade::CenterOscillationAction;
-use super::ledger::{tw_step, TwEvent, TwState};
+use super::ledger::{ledger_step, tw_step, LedgerComp, LedgerEvent, TwEvent, TwState};
 
 /// 短差记账的 typed 拒绝（无静默兜底，恒仓断言违规的唯一载体）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -433,6 +433,45 @@ impl ShortDiffAccount {
     /// 恒仓断言（边界核验），委托 [`ShortDiffBucket::assert_conserved`]。
     pub fn assert_conserved(&self) -> Result<(), ShortDiffViolation> {
         self.bucket.assert_conserved()
+    }
+
+    /// **P2-D 双账入口对齐**（issue #294，[`super::oscillation_campaign`] 消费点）：
+    /// [`record_and_apply`](Self::record_and_apply) 的双账本版本——同一笔已实现盈亏
+    /// （[`TwEvent::Realize`]）额外镜像进 R=Π-A-W 账本（[`LedgerEvent::Realize`]），对齐
+    /// `closed_loop::transition::transition_adapter` 的双账本写回节奏（同一次成交的利润分量，
+    /// TW 账本 `free` 与 R 账本 `pi` 各自独立入账——两账本不同构 #90/674号，不混称）。
+    ///
+    /// 短差场景无 `Allocate`（往返不改变持仓资本化额——本仓成本基本体不动，修7），故只镜像
+    /// `Realize` 分量；成本基划转（`ShortDiff`）只入 TW，不进 R 账本（R 账本无「成本基」概念，
+    /// 只收 Π/A/W 三増量）。纯加法——不改动本方法之外任何既有 API/行为（#293/#354 既有
+    /// [`record_and_apply`](Self::record_and_apply) 逐字节不变）。
+    ///
+    /// 原子回滚同 [`record_and_apply`](Self::record_and_apply)：通道拒绝时账本状态（含 `ledger`
+    /// 参数对应的外部账本，本方法不持有 R 账本、只返回新值供调用方替换）不落笔——调用方在
+    /// `Err` 分支不得采用返回的旧 `ledger` 参数以外的值（本方法从不返回部分应用的中间态）。
+    pub fn record_and_apply_dual(
+        &mut self,
+        tw: &TwState,
+        ledger: &LedgerComp,
+        action: CenterOscillationAction,
+        units: i64,
+        price: i64,
+    ) -> Result<(TwState, LedgerComp), ShortDiffViolation> {
+        let before = *self;
+        let events = self.record_action(action, units, price)?;
+        match events.apply(tw) {
+            Ok(next_tw) => {
+                let next_ledger = match events.realize {
+                    Some(TwEvent::Realize(d)) => ledger_step(ledger, LedgerEvent::Realize(d)),
+                    _ => *ledger,
+                };
+                Ok((next_tw, next_ledger))
+            }
+            Err(violation) => {
+                *self = before;
+                Err(violation)
+            }
+        }
     }
 }
 
