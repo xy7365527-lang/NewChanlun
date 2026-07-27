@@ -22,7 +22,7 @@
 //! 累积（不拼接 Dataset 防接缝伪相邻）。聚合后每笔残差都来自"该窗训练截止之后"的样本外区间。
 
 use super::super::classifier::divergence::ForceStateA5;
-use super::super::config::{ThetaConfig, ThetaDirPreset};
+use super::super::config::{ExecConfig, ThetaConfig, ThetaDirPreset};
 use super::super::strategy::interp::ExitType;
 use super::l3_delta_r_alpha::build_mu_from_bars;
 use super::mu_estimator::{MuClass, ResidualTrade, UClass};
@@ -303,29 +303,39 @@ fn lee_row_cells(s: &super::super::strategy::level_order::LevelOrderStats) -> [u
     ]
 }
 
-/// ★#388 T2 / #374 有效域收窄的**报告层标注**：标定档下随机对照系读数一律标此串。
+/// ★#374 有效域收窄 / #388 T2 / #423 的**报告层标注**：单标量成本口径**无良定义**的档下，
+/// 随机对照系读数一律标此串。
 ///
-/// 「不可用」不是「跑失败」，是**有效域之外 + 实现层保守收窄**的合成（231号）。订正（#422）——
-/// 分两段，勿再把前段说成覆盖标定档全体：
-/// - **按股档（per-share）**：单标量费率无良定义（逐笔费率随 (qty, px, side) 非线性变，见
-///   [`treasury::scalar_cost_rate_opt`](super::treasury::scalar_cost_rate_opt) 的有效域论证）
-///   ⟹ 依赖它的 LCB_OOS(R)（block bootstrap 的成本口径）与三态判据**确无**合法取值；
-/// - **按金额档（per-notional，如 Binance 现货 maker=taker=10bp，撮合恒 Taker ⟹ 单边恒 12bp）**：
-///   标量其实**可定义**——该档下单标量口径并未失效。
+/// **适用范围 = 标量无良定义档，不是「标定档」全体**（★#423 第二阶段订正）。判定本体 =
+/// [`treasury::scalar_cost_rate_opt`](super::treasury::scalar_cost_rate_opt)（→
+/// `venue_fee::VenueFeeSchedule::constant_effective_rate` 的结构检查），两档落本标注：
+/// - **按股档（per-share）**：逐笔费率随 (qty, px, side) 非线性变（最低佣金托底 / 1% 名义额上限 /
+///   仅卖出监管费）⟹ 不存在常数等效费率 ⟹ 依赖它的 LCB_OOS(R)（block bootstrap 的成本口径）
+///   与三态判据**确无**合法取值；
+/// - **按金额档但 maker≠taker**：角色维不消失 ⟹ 常数不由 datum 内容唯一确定，选一侧充数就是把
+///   不对称藏进一个常数。
 ///
-/// 实现（`scalar_cost_rate_opt`）按 `fee_schedule.is_some()` **一刀切**判 `None`，不区分档位类型
-/// ⟹ 标定档**全体**（含按金额档）都落本标注。故本串对按金额档是**保守收窄**（宁缺不冒充），
-/// 不是「该档无良定义」。恢复按金额档读数属 #423，本处只订正措辞、不改判定。
+/// **不落本标注的档**：未标定档（`fee_schedule = None`，常率）与**按金额对称档**
+/// （per-notional 且 maker/taker 逐位对称，如 Binance 现货 VIP0 = 10bp/side）——后者自 ★#423
+/// 第一阶段起标量**可得**，其层4 读数照常产出（此前实现按 `fee_schedule.is_some()` 一刀切判
+/// `None`、连带撤下该档读数，那道保守收窄已拆除）。
 ///
-/// 喂近似值（实际有效费率等）在按股档已由 #374 明文否决——那只是把不对称藏进一个更贵的常数
-/// （090 声明膨胀）。
-const CALIBRATED_UNAVAILABLE: &str = "不可用(标定档有效域收窄 #374)";
+/// 喂近似值（实际有效费率等）在无良定义档已由 #374 明文否决——那只是把不对称藏进一个更贵的
+/// 常数（090 声明膨胀）。
+const SCALAR_UNDEFINED_UNAVAILABLE: &str = "不可用(单标量成本口径无良定义 #374/#423)";
 
 /// m8 四层报告的**层4 两格**（LCB_OOS(R) / 三态）渲染。
 ///
-/// - `lcb = Some(x)`（未标定档）⟹ 与降级改造前**逐字符相同**的原口径（M8:168 三分支）；
-/// - `lcb = None`（标定档，`RunResult::fee_rate = None`）⟹ 两格均 [`CALIBRATED_UNAVAILABLE`]。
-///   三态**不用 R 的正负顶替**：判据是 `LCB>0`，缺 LCB 即无判据（诚实缺席，不降格冒充）。
+/// - `lcb = Some(x)`（标量可得档：未标定档，或按金额对称标定档）⟹ 与降级改造前**逐字符相同**的
+///   原口径（M8:168 三分支）；
+/// - `lcb = None`（标量无良定义档，`RunResult::fee_rate = None`）⟹ 两格均
+///   [`SCALAR_UNDEFINED_UNAVAILABLE`]。三态**不用 R 的正负顶替**：判据是 `LCB>0`，缺 LCB 即无
+///   判据（诚实缺席，不降格冒充）。
+///
+/// 本函数的入参与层4 声明段（[`layer4_scalar_caliber_notice`]）/ 结算行
+/// （[`layer4_verdict_line`]）**同一个真值**——三者都由 `scalar_cost_rate_opt` 的可得性驱动，
+/// 不存在第二个判据（★#423 第二阶段：此前声明段按 `fee_schedule.is_some()` 判、数值按
+/// `fee_rate` 判，按金额对称档下二者分歧 ⟹ 同一报告内声明「不可用」而表格给数，090 声明膨胀）。
 fn layer4_cells(lcb: Option<f64>, r_total: f64) -> (String, String) {
     match lcb {
         Some(lcb_r) => {
@@ -338,7 +348,145 @@ fn layer4_cells(lcb: Option<f64>, r_total: f64) -> (String, String) {
             };
             (format!("{lcb_r:+.0}"), verdict.to_string())
         }
-        None => (CALIBRATED_UNAVAILABLE.to_string(), CALIBRATED_UNAVAILABLE.to_string()),
+        None => (
+            SCALAR_UNDEFINED_UNAVAILABLE.to_string(),
+            SCALAR_UNDEFINED_UNAVAILABLE.to_string(),
+        ),
+    }
+}
+
+/// m8 四层报告的**层4 随机对照三格**（★#423 收尾轮 F）——`Θ>随机` / `p_shift` / `p_indep`。
+///
+/// ## 为什么加这三格（票体交付缺口）
+///
+/// `metrics::significance` 在标量可得档被**完整调用**，`theta_beats_random` / `shift_pvalue` /
+/// `indep_pvalue` 三值都已算出，但此前 m8 只取 `boot_ci95_lo` 一个字段 ⟹ 票体 What-to-build
+/// 明写要出的「随机对照」读数**无落盘出口、采不到**。本函数是那个出口，**不新增任何计算**
+/// （同一次 `significance` 调用的既有字段）⟹ 不改 RNG 消耗、不改 dump 字节。
+///
+/// ## 渲染口径
+///
+/// - `None`（标量无良定义档：按股 / 按金额非对称）⟹ 三格均 [`SCALAR_UNDEFINED_UNAVAILABLE`]。
+///   该档本就不调 `significance`（无输入费率）⟹ 三值**未定义**，照实标不可用，
+///   **不填 0、不留空**（090：空格会被读成"算了但为 0"）。与层4 两格同一个真值、同一个标注串。
+/// - `Some(sig)` ⟹ `theta_beats_random` 渲染「是/否」；两个 p 值 `{:.4}`。
+///
+/// **退化标注**：`sig.controls_degenerate` 为真时（schedule-shift 无非零合法平移，或
+/// independent 全笔 `hold ≥ len` ⟹ 无真随机样本）p_upper 无统计含义（`metrics` 该字段文档）。
+/// 此时三格各附 `(对照退化)` / `(退化)`——p=1.0 是真算出来的值，但不得被读作"未能否证"。
+/// 该标志是**行级**的（`metrics::Significance` 只给一个合并标志，不分 shift/indep）⟹ 两个 p
+/// 格同标；不在本处推断"是哪一个退化"（那要改 `metrics` 的返回形态，另票）。
+fn layer4_random_control_cells(sig: Option<&super::metrics::Significance>) -> (String, String, String) {
+    match sig {
+        None => (
+            SCALAR_UNDEFINED_UNAVAILABLE.to_string(),
+            SCALAR_UNDEFINED_UNAVAILABLE.to_string(),
+            SCALAR_UNDEFINED_UNAVAILABLE.to_string(),
+        ),
+        Some(s) => {
+            let deg = if s.controls_degenerate { "(退化)" } else { "" };
+            (
+                format!(
+                    "{}{}",
+                    if s.theta_beats_random { "是" } else { "否" },
+                    if s.controls_degenerate { "(对照退化)" } else { "" }
+                ),
+                format!("{:.4}{deg}", s.shift_pvalue),
+                format!("{:.4}{deg}", s.indep_pvalue),
+            )
+        }
+    }
+}
+
+/// m8 报告头的**层4 标量成本口径声明段**（★#423 第二阶段）——`None` = 不出声明段。
+///
+/// 三分叉，判据**只有一个**：[`treasury::scalar_cost_rate_opt`](super::treasury::scalar_cost_rate_opt)
+/// 在本 `exec` 上的可得性（与层4 两格 [`layer4_cells`] 的数值来源同一函数）。
+///
+/// | 档 | 产出 |
+/// |---|---|
+/// | 未标定（`fee_schedule = None`） | `None`——不出声明段（臂R 产物逐字节不变） |
+/// | 标定 + 标量可得（按金额对称档） | 「可得」正文：层4 读数**照常产出**，并登记本声明不覆盖什么 |
+/// | 标定 + 标量无良定义（按股档 / 按金额非对称档） | 「不可用」正文，读数标 [`SCALAR_UNDEFINED_UNAVAILABLE`] |
+fn layer4_scalar_caliber_notice(exec: &ExecConfig) -> Option<String> {
+    exec.fee_schedule.as_ref()?; // 未标定档（臂R）不出声明段——产物逐字节不变。
+    Some(match super::treasury::scalar_cost_rate_opt(exec) {
+        Some(rate) => format!(
+            "> **标定档单标量成本口径可得声明（★#423）**：本跑批经 `M8_FEE_DATUM` 注入 venue 费率 \
+             datum，且该档为**按金额档（per-notional）且 maker/taker 逐位对称**、撮合角色取自编译期\
+             常量 `venue_fee::PRODUCTION_LIQUIDITY_ROLE` ⟹ 存在与 (qty, px, side) 无关的常数等效\
+             费率（判定本体 = `venue_fee::VenueFeeSchedule::constant_effective_rate`）。单标量成本\
+             费率（`RunResult::fee_rate`，经 `treasury::scalar_cost_rate_opt`）= 档 bps/1e4 + \
+             `slippage_bps`/1e4 + `tax_bps`/1e4 = **{:.6}**（标定档下 `tax_bps` 由 \
+             `treasury::fee_quoter` 的 assert 强制为 0）。\n\
+             > 故层4 的 `LCB_OOS(R)` 与三态判据在本臂**照常产出**——与未标定臂同一函数、同一口径，\
+             反事实臂（随机对照在不同 px 上重执行）用同一个常数，不引入口径不对称。\n\
+             >\n\
+             > **★#423 收尾轮 F 新增输出**：层4 表新增三列 `Θ>随机` / `p_shift(平移)` / \
+             `p_indep(独立)`，取自**同一次** `metrics::significance` 调用的既有字段\
+             （`theta_beats_random` / `shift_pvalue` / `indep_pvalue`）——此前只取 `boot_ci95_lo`，\
+             这三值算了却无落盘出口。**旧产物没有这三列**（本轮新增列，**不是**读数漂移）；\
+             三值不新增任何计算 ⟹ `trades.jsonl` / `tower_events.jsonl` 逐字节不变（回归门 + `cmp` 实证）。\
+             p 值口径 = `p_upper=(1+count(rand≥theta))/(N+1)`，N=1000，seed 冻结；\
+             `Θ>随机 ⟺ 两对照 p_upper 均 ≤0.05 且对照未退化`；对照退化时格内附 `(退化)`\
+             （p=1.0 是真算出的值，但**无统计含义**，不得读作「未能否证」）。\n\
+             >\n\
+             > **本声明不覆盖**（照实登记，不膨胀）：\n\
+             > - `slippage_bps` 仍**未标定**（venue datum 只标佣金/监管/清算科目，报告 §3.3）⟹ 本臂\
+             标量是「L2 标定佣金 + L1 未标定滑点」的合成；成交费率科目的口径标签见上方抬头；\n\
+             > - `l3_delta_r_alpha` 鞅守卫的成本剥离**不在本跑批路径内**（其唯一调用方是同文件的 \
+             `#[ignore]` 合成鞅守卫测试）；\n\
+             > - 层1 signal 的 INCONCLUSIVE 与本档无关（转引，不重算）。\n\n",
+            rate
+        ),
+        None => format!(
+            "> **单标量成本口径无良定义声明（#374 / #385 / ★#423）**：本跑批经 `M8_FEE_DATUM` 注入 \
+             venue 费率 datum，且该档**不存在**与 (qty, px, side) 无关的常数等效费率 ⟹ 单标量成本\
+             费率（`RunResult::fee_rate`）**无良定义**（`treasury::scalar_cost_rate_opt` 判 `None`，\
+             判定本体 = `venue_fee::VenueFeeSchedule::constant_effective_rate`）。两种档落此支：\n\
+             > - **按股档（per-share）**：逐笔费率随 (qty, px, side) 非线性变（最低佣金托底 / 1% 名义\
+             额上限 / 仅卖出监管费）；\n\
+             > - **按金额档但 maker≠taker**：角色维不消失，常数不由 datum 内容唯一确定。\n\
+             >\n\
+             > 故下列读数标 `{SCALAR_UNDEFINED_UNAVAILABLE}`，**不以近似费率顶替**——喂实际有效费率\
+             （Σfee/Σnotional 等）只是把口径不对称藏进一个更贵的常数（#374 明文否决，090 声明膨胀）：\n\
+             > - `LCB_OOS(R)`（block bootstrap 的成本口径依赖单标量费率）；\n\
+             > - **三态判据**（判据是 `LCB>0`，缺 LCB 即无判据——不用 R 的正负降格顶替）；\n\
+             > - `metrics::significance` 派生的随机对照系——层4 表的 `Θ>随机` / `p_shift(平移)` / \
+             `p_indep(独立)` 三列（★#423 收尾轮 F 新增列；本档下 `significance` **一律不调**，\
+             无输入费率 ⟹ 三值未定义，故三格同标不可用，**不填 0 也不留空**）；\n\
+             > - `l3_delta_r_alpha` 鞅守卫的成本剥离（不在本跑批路径内；本档要接须改逐笔实付累计）。\n\
+             >\n\
+             > **仍然有效**（与单标量费率无关，逐笔实付经 `treasury::fee_quoter` 解析）：n_orders / \
+             ΣN_tΔP_t / Comm+Slip / Funding / Borrow / LiqLoss / net_r(execR) / MaxDD / 声部数 / \
+             终Stage / Q_T / W_T / η 列 / R(含浮盈) / `NEST_GATE_STATS`。\n\
+             >\n\
+             > **对上文抬头的更正**：抬头「signal 层无 alpha ⟹ 端到端负/INCONCLUSIVE 照实」一句\
+             描述的是**标量可得档**的三态判读。本臂层4 **无结论**（判据缺输入），该句对本臂不适用——\
+             不得把「不可用」读作「负」或「INCONCLUSIVE」。\n\n"
+        ),
+    })
+}
+
+/// m8「判据结算」段的**层4 结算行**（★#423 第二阶段）——与 [`layer4_cells`] /
+/// [`layer4_scalar_caliber_notice`] 同一个真值（`scalar_cost_rate_opt` 的可得性）。
+///
+/// - `Some`（标量可得：未标定档，或按金额对称标定档）⟹ 常规判据行（见 LCB 列，未过 ⟹
+///   INCONCLUSIVE）；
+/// - `None`（标量无良定义档）⟹ **无结论**行。措辞§5.6 的 INCONCLUSIVE 是「有 LCB 且 ≤0」的态，
+///   拿它套「LCB 不存在」是静默越域。
+fn layer4_verdict_line(scalar_rate: Option<f64>) -> &'static str {
+    match scalar_rate {
+        None => {
+            "- **层4 完整策略** `LCB_OOS(R)>0`：**本臂无结论**——本档单标量成本口径无良定义 ⟹ \
+             LCB_OOS(R) 不可用（#374 / ★#423，见上方声明），判据无输入。**既不宣称 confirmed \
+             alpha，也不判 INCONCLUSIVE**（后者是「有 LCB 且 ≤0」的态，套用于「LCB 不存在」是越域）。\
+             该层要在本档下有结论，须先给随机对照接 (qty, px, side) 逐笔费率缝（另票）。\n"
+        }
+        Some(_) => {
+            "- **层4 完整策略** `LCB_OOS(R)>0`：见 LCB_OOS(R) 列——**未过 ⟹ INCONCLUSIVE**，\
+             不宣称 confirmed alpha（措辞§5.6：INCONCLUSIVE≠无 alpha；§5.3：不外推 max-full）。\n"
+        }
     }
 }
 
@@ -1403,33 +1551,12 @@ fn m8_e2e_all_systems_oos() {
         super::super::strategy::risk::rate_calibration_label(&plain_cfg.exec),
         super::super::strategy::risk::RATE_UNCALIBRATED_LABEL,
     ));
-    // ★#388 T2 / #385 Implementation Decisions：标定臂（臂D）的**有效域收窄声明**随产物走。
-    //   不可用项不是「跑失败」，是 #374 裁定的有效域之外（231号）——喂近似费率已明文否决。
-    if plain_cfg.exec.fee_schedule.is_some() {
-        report.push_str(&format!(
-            "> **标定档有效域收窄声明（#374 / #385 / 措辞订正 #422）**：本跑批经 `M8_FEE_DATUM` 注入 \
-             venue 费率 datum。单标量成本费率（`RunResult::fee_rate`）的失效**只在按股档（per-share）\
-             成立**——该档逐笔费率随 (qty, px, side) 非线性变（最低佣金托底/名义额上限/卖出监管费）\
-             ⟹ 标量**无良定义**。**按金额档（per-notional，如 Binance 现货 maker=taker=10bp，撮合恒 \
-             Taker ⟹ 单边恒 12bp）标量其实可定义**。实现（`treasury::scalar_cost_rate_opt`）按 \
-             `fee_schedule.is_some()` **一刀切**判 `None`、不区分档位类型 ⟹ 标定档全体（含本批所用的\
-             按金额档）一律撤下标量成本口径。故下列读数标 `{CALIBRATED_UNAVAILABLE}` 是**保守收窄**\
-             （宁缺不冒充），**不**等于本批档位无良定义；**不以近似费率顶替**。按金额档读数的恢复属 \
-             #423，本处仅订正措辞、不改判定、不恢复任何读数：\n\
-             > - `LCB_OOS(R)`（block bootstrap 的成本口径依赖单标量费率）；\n\
-             > - **三态判据**（判据是 `LCB>0`，缺 LCB 即无判据——不用 R 的正负降格顶替）；\n\
-             > - `metrics::significance` 派生的随机对照系（schedule-shift / independent-entry \
-             p 值、`theta_beats_random`）——本表不列，标定档下一律不产；\n\
-             > - `l3_delta_r_alpha` 鞅守卫的成本剥离（不在本跑批路径内；标定档要接须改逐笔实付累计）。\n\
-             >\n\
-             > **仍然有效**（与单标量费率无关，逐笔实付经 `treasury::fee_quoter` 解析）：n_orders / \
-             ΣN_tΔP_t / Comm+Slip / Funding / Borrow / LiqLoss / net_r(execR) / MaxDD / 声部数 / \
-             终Stage / Q_T / W_T / η 列 / R(含浮盈) / `NEST_GATE_STATS`。\n\
-             >\n\
-             > **对上文抬头的更正**：抬头「signal 层无 alpha ⟹ 端到端负/INCONCLUSIVE 照实」一句\
-             描述的是**未标定档**的三态判读。本臂层4 **无结论**（判据缺输入），该句对本臂不适用——\
-             不得把「不可用」读作「负」或「INCONCLUSIVE」。\n\n"
-        ));
+    // ★#423 第二阶段：层4 标量成本口径声明段与层4 数值**同一个真值**（`scalar_cost_rate_opt`）。
+    //   此前声明段按 `fee_schedule.is_some()` 判、数值按 `RunResult::fee_rate` 判——按金额对称档
+    //   （第一阶段解锁）下二者分歧 ⟹ 同一份报告声明「不可用」而表格给数（090 声明膨胀）。
+    let scalar_rate = super::treasury::scalar_cost_rate_opt(&plain_cfg.exec);
+    if let Some(notice) = layer4_scalar_caliber_notice(&plain_cfg.exec) {
+        report.push_str(&notice);
     }
     // ★#389 T3（帽臂 C）：帽臂声明块随产物走——「同 config 仅帽开关差」是 D-vs-C 归因的前提，
     //   产物必须自证它是哪个臂（否则报告引用时无法机械核对）。
@@ -1458,8 +1585,11 @@ fn m8_e2e_all_systems_oos() {
          η 列口径注记（p128 裁定 (i)，A10 C5）：**η_corrected = tw() − cum_holding_cost 为唯一合法判读口径**\
          （cum_holding_cost = r_decomp.tw_holding_cost_bridge，与 M7 witness 增打两行同源；修正只降不升）；\
          η_T/η_* 原列保留对照。\n\n\
-         | 窗 | n_orders | ΣN_tΔP_t | Comm+Slip | Funding | Borrow | LiqLoss | net_r(execR) | MaxDD | 声部数(A/S/F) | 终Stage | Q_T | W_T | η_T/η_* | cum_holding_cost | η_corrected(判读) | R(含浮盈) | LCB_OOS(R) | 三态 |\n\
-         |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
+         随机对照三列（`Θ>随机` / `p_shift(平移)` / `p_indep(独立)`）= ★#423 收尾轮 F **新增输出**，\
+         取自与 `LCB_OOS(R)` **同一次** `metrics::significance` 调用的既有字段（不新增计算）；\
+         **旧产物没有这三列**（新增列，非漂移）。标量无良定义档下 `significance` 不调 ⟹ 三格标不可用。\n\n\
+         | 窗 | n_orders | ΣN_tΔP_t | Comm+Slip | Funding | Borrow | LiqLoss | net_r(execR) | MaxDD | 声部数(A/S/F) | 终Stage | Q_T | W_T | η_T/η_* | cum_holding_cost | η_corrected(判读) | R(含浮盈) | LCB_OOS(R) | 三态 | Θ>随机 | p_shift(平移) | p_indep(独立) |\n\
+         |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
     );
 
     let policy = RiskPolicy::baseline(); // κ=0（M7 冻结口径）
@@ -1468,7 +1598,8 @@ fn m8_e2e_all_systems_oos() {
     for (tag, te_lo, te_hi) in &wins {
         let test = ds.slice_date_window(te_lo, te_hi);
         if test.bars.is_empty() {
-            report.push_str(&format!("| {tag} | test 段空 | | | | | | | | | | | | | | | | | |\n"));
+            // 空窗占位行：列数须与表头一致（★#423 收尾轮 F 加三列 ⟹ 此处同步加三个空格）。
+            report.push_str(&format!("| {tag} | test 段空 | | | | | | | | | | | | | | | | | | | | |\n"));
             continue;
         }
         let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
@@ -1519,13 +1650,21 @@ fn m8_e2e_all_systems_oos() {
         let eta_corrected = eta_t - cum_holding_cost;
 
         // 层4 完整策略：R(含浮盈) + LCB_OOS(R) block bootstrap。
-        // ★#388 T2：`fee_rate` 是 `Option`——标定臂（臂D）为 `None`（#374 有效域收窄）⟹ **不算**
-        //   significance，两格标不可用。未标定档（臂R）逐位不变。
-        // 订正（#422）：原注释写「随机对照的"含同等成本"在 per-share 档无良定义」，把按股档的理由
-        //   挂在了臂D（本批 = Binance 按金额档）。准确口径见 CALIBRATED_UNAVAILABLE 上方——无良定义
-        //   只成立于按股档；按金额档标量可定义，`None` 来自 `fee_schedule.is_some()` 一刀切的保守收窄。
+        // ★#388 T2：`fee_rate` 是 `Option`——标量无良定义档（按股档 / 按金额非对称档）为 `None`
+        //   ⟹ **不算** significance，两格标不可用。标量可得档（未标定臂R、按金额对称臂D）照常算。
+        // ★#423 第二阶段：本 `fee_rate` 与报告头声明段（layer4_scalar_caliber_notice）/ 结算行
+        //   （layer4_verdict_line）必须同真值。两者的 exec 分别是循环内 `cfg` 与 `plain_cfg`，
+        //   费率档由同一个 `apply_m8_fee_datum_from_env` 注入 ⟹ 下面这条断言把「同真值」从推理
+        //   变成机器事实（若将来两处注入分叉，此处即红，不会静默产出自相矛盾的报告）。
+        assert_eq!(
+            r.net_result.fee_rate.is_some(),
+            scalar_rate.is_some(),
+            "层4 数值的标量可得性须与报告头声明段同真值（前者来自循环内 cfg、后者来自 plain_cfg）"
+        );
         let r_total: f64 = r.net_result.trade_pnls_with_forced.iter().sum();
-        let lcb_r = r.net_result.fee_rate.map(|fee| {
+        // ★#423 收尾轮 F：保留**整个** `Significance`（此前 `.boot_ci95_lo` 就地取字段、丢掉其余）。
+        //   `significance` 的调用点/入参/次数一字未动 ⟹ RNG 消耗与浮点序列逐位不变（dump 字节不变）。
+        let sig = r.net_result.fee_rate.map(|fee| {
             significance(
                 &r.net_result.trade_pnls, // 已实现口径（bootstrap H0:收益≤0 输入）
                 &r.net_result.daily_returns,
@@ -1534,20 +1673,25 @@ fn m8_e2e_all_systems_oos() {
                 fee,
                 r.net_result.theta_return_mtm,
             )
-            .boot_ci95_lo // LCB_OOS(R) = block bootstrap 总收益 2.5 分位下界
         });
+        // LCB_OOS(R) = block bootstrap 总收益 2.5 分位下界。
+        let lcb_r = sig.as_ref().map(|s| s.boot_ci95_lo);
         // 三态（完整策略层，M8:168）：LCB>0 ⟹ confirmed；R>0∧LCB≤0 ⟹ INCONCLUSIVE；R≤0 ⟹ 无（本层）。
         let (lcb_cell, verdict) = layer4_cells(lcb_r, r_total);
+        // 随机对照三值的落盘出口（★#423 收尾轮 F，票体 What-to-build 交付项）。
+        let (beats_cell, p_shift_cell, p_indep_cell) = layer4_random_control_cells(sig.as_ref());
 
         report.push_str(&format!(
-            "| {tag} | {} | {:+.0} | {:.0} | {:.0} | {:.0} | {:.0} | {:+.0} | {:.4} | {}/{}/{} | {} | {} | {} | {}/{} | {} | {} | {:+.0} | {} | {} |\n",
+            "| {tag} | {} | {:+.0} | {:.0} | {:.0} | {:.0} | {:.0} | {:+.0} | {:.4} | {}/{}/{} | {} | {} | {} | {}/{} | {} | {} | {:+.0} | {} | {} | {} | {} | {} |\n",
             r.net_result.n_orders, d.price_pnl_gross, d.commission_slippage, d.funding, d.borrow,
             d.liquidation_loss, d.net_r, maxdd, n_amb, n_short, n_follow,
             stage_str, tw.notional_in, tw.withdrawn, eta_t, eta_star,
             cum_holding_cost, eta_corrected, r_total, lcb_cell, verdict,
+            beats_cell, p_shift_cell, p_indep_cell,
         ));
         eprintln!(
-            "[m8] {tag}: execR={:+.0} MaxDD={:.4} stage={} R={:+.0} LCB(R)={} → {}",
+            "[m8] {tag}: execR={:+.0} MaxDD={:.4} stage={} R={:+.0} LCB(R)={} → {} \
+             | Θ>随机={beats_cell} p_shift={p_shift_cell} p_indep={p_indep_cell}",
             d.net_r, maxdd, stage_str, r_total, lcb_cell, verdict,
         );
 
@@ -1594,18 +1738,9 @@ fn m8_e2e_all_systems_oos() {
         }
     }
 
-    // ★#388 T2：层4 结算措辞随口径档分叉——标定档下 LCB 不可用 ⟹ **不给层4 结论**
-    //   （不是「未过」也不是「过」，是无判据）。措辞§5.6 的 INCONCLUSIVE 是有 LCB 且 ≤0 的态，
-    //   拿它套「LCB 不存在」是静默越域。
-    let layer4_line = if plain_cfg.exec.fee_schedule.is_some() {
-        "- **层4 完整策略** `LCB_OOS(R)>0`：**本臂无结论**——标定档下 LCB_OOS(R) 不可用\
-         （#374 有效域收窄，见上方声明），判据无输入。**既不宣称 confirmed alpha，也不判 \
-         INCONCLUSIVE**（后者是「有 LCB 且 ≤0」的态，套用于「LCB 不存在」是越域）。\
-         该层要在标定档下有结论，须先给随机对照接 (qty, px, side) 逐笔费率缝（另票）。\n"
-    } else {
-        "- **层4 完整策略** `LCB_OOS(R)>0`：见 LCB_OOS(R) 列——**未过 ⟹ INCONCLUSIVE**，\
-         不宣称 confirmed alpha（措辞§5.6：INCONCLUSIVE≠无 alpha；§5.3：不外推 max-full）。\n"
-    };
+    // ★#423 第二阶段：层4 结算措辞随**标量可得性**分叉（不是随 `fee_schedule.is_some()`）——
+    //   与声明段/两格同一个真值。分叉正文见 `layer4_verdict_line`。
+    let layer4_line = layer4_verdict_line(scalar_rate);
     report.push_str(&format!(
         "\n## 判据结算（M8:163-168）\n\n\
          - **层1 signal**：INCONCLUSIVE（转引，无方向 alpha）。\n\
@@ -1764,10 +1899,13 @@ fn m3_partition_btc_fullhistory() {
 mod tests {
     use super::*;
 
-    /// ★#388 T2：**未标定档**的层4 两格（LCB_OOS(R) / 三态）渲染与降级前**逐字符相同**——
+    /// ★#388 T2：**标量可得档**的层4 两格（LCB_OOS(R) / 三态）渲染与降级前**逐字符相同**——
     /// 臂R（`fee_schedule=None`）产物不因本次改造漂移一个字节。三分支全覆盖
     /// （M8:168：LCB>0 ⟹ CONFIRMED；R>0∧LCB≤0 ⟹ INCONCLUSIVE；R≤0 ⟹ 无）。
     /// **认识论 L0**（渲染契约，零数据依赖）。
+    ///
+    /// ★#423 第二阶段：`Some` 分支的适用档从「未标定档」扩到「标量可得档」（+ 按金额对称标定档），
+    /// 渲染分支本身未改 ⟹ 本测断言逐字不变（臂R bit-exact 的承保点）。
     #[test]
     fn layer4_cells_uncalibrated_render_is_unchanged() {
         assert_eq!(layer4_cells(Some(1234.5), 9000.0), ("+1234".to_string(), "CONFIRMED".to_string()));
@@ -1776,22 +1914,217 @@ mod tests {
     }
 
     /// ★#388 T2 / #385 Implementation Decisions（「臂 D/C 的相关读数须标注不可用或改述」）：
-    /// **标定档**⟹ 随机对照系派生的两格一律标"不可用"，**不喂近似费率**、
+    /// **标量无良定义档**⟹ 随机对照系派生的两格一律标"不可用"，**不喂近似费率**、
     /// **不落一个看似有效的数**。**认识论 L0**（契约）。
     ///
-    /// 订正（#422）：原写「标定档（单标量费率无良定义，#374）」把按股档的理由挂到了标定档全体。
-    /// 准确口径 = 按股档（per-share）单标量确无良定义（#374）；按金额档（per-notional）标量
-    /// **可定义**，但实现按 `fee_schedule.is_some()` 一刀切判 `None` ⟹ 标定档全体落此标注，
-    /// 对按金额档是**保守收窄**。本测断言的是收窄后的渲染契约，不主张按金额档无良定义。
+    /// ★#423 第二阶段：本标注的适用范围从「标定档」收窄到「标量无良定义档」（按股档 /
+    /// 按金额非对称档）——按金额对称标定档自第一阶段起标量可得、走 `Some` 分支给真数。
+    /// 档位→分支的映射由 `layer4_notice_*` 四测按真实 datum / 手工构造档逐档钉住。
     #[test]
     fn layer4_cells_calibrated_marks_unavailable() {
         let (lcb, verdict) = layer4_cells(None, 6851062.0);
-        assert_eq!(lcb, CALIBRATED_UNAVAILABLE);
-        assert_eq!(verdict, CALIBRATED_UNAVAILABLE);
-        assert!(CALIBRATED_UNAVAILABLE.contains("不可用"), "标注须自解释");
-        assert!(CALIBRATED_UNAVAILABLE.contains("#374"), "标注须可追溯到有效域收窄票");
-        // R 的正负不影响标定档结论——三态判据本身依赖 LCB，缺 LCB 即无判据（不用 R 顶替）。
+        assert_eq!(lcb, SCALAR_UNDEFINED_UNAVAILABLE);
+        assert_eq!(verdict, SCALAR_UNDEFINED_UNAVAILABLE);
+        assert!(SCALAR_UNDEFINED_UNAVAILABLE.contains("不可用"), "标注须自解释");
+        assert!(
+            SCALAR_UNDEFINED_UNAVAILABLE.contains("#374"),
+            "标注须可追溯到有效域收窄票"
+        );
+        assert!(
+            SCALAR_UNDEFINED_UNAVAILABLE.contains("#423"),
+            "标注须可追溯到适用范围收窄票（分叉后不再覆盖标定档全体）"
+        );
+        assert!(
+            !SCALAR_UNDEFINED_UNAVAILABLE.contains("标定档"),
+            "标注正文不得把适用范围说成「标定档」——按金额对称标定档的读数照常产出"
+        );
+        // R 的正负不影响结论——三态判据本身依赖 LCB，缺 LCB 即无判据（不用 R 顶替）。
         assert_eq!(layer4_cells(None, -1.0), layer4_cells(None, 1.0));
+    }
+
+    /// ★#423 第二阶段：层4 声明段与层4 数值**同一个真值**（`scalar_cost_rate_opt` 的可得性），
+    /// 不是两个判据。本组四测覆盖三分叉全部形态。
+    ///
+    /// **未标定档（臂R）⟹ 不出声明段**（`None`）——臂R 产物逐字节不变（bit-exact 中性）。
+    /// **认识论 L0**（渲染契约，零数据依赖）。
+    #[test]
+    fn layer4_notice_absent_for_uncalibrated_arm() {
+        let exec = ExecConfig::default();
+        assert!(exec.fee_schedule.is_none(), "前置：default = 未标定档");
+        assert_eq!(layer4_scalar_caliber_notice(&exec), None, "未标定档不出声明段");
+    }
+
+    /// **按金额对称档（本批臂D = Binance 现货 VIP0，maker=taker=10bp）⟹ 标量可得**：
+    /// 声明段须说「照常产出」且**不含**不可用标注；层4 两格给真数、结算行走常规判据。
+    ///
+    /// **认识论 L1**（★#423 收尾轮 B 订正，原标 L2「读真实 datum 文件的档位形态」）。订正理由：
+    /// 读真实 datum ≠ L2。L2 要求真实数据上的**假设检验**（可产生否定性结果）；本测断言的是
+    /// 「档位形态 ⟹ 声明段/两格/结算行三处渲染一致」这条**渲染与分叉契约**，两格里的 LCB 数字
+    /// 是写死的字面量（`-2105181.0`），不来自任何跑批 ⟹ 不可否证任何市场假设，信息增量为零。
+    /// **本测能否证的假设：无**（同文件同型先例 `fee_datum_spec_resolves_repo_datum` 标 L1）。
+    #[test]
+    fn layer4_notice_declares_available_for_symmetric_notional() {
+        let exec = ExecConfig {
+            fee_schedule: Some(parse_fee_datum_spec(
+                "venue_fee_binance_spot_20260726.json:BTC:VIP0",
+            )),
+            ..Default::default()
+        };
+        let scalar = super::super::treasury::scalar_cost_rate_opt(&exec);
+        assert_eq!(
+            scalar,
+            Some(1e-3 + exec.slippage_bps / 10_000.0 + exec.tax_bps / 10_000.0),
+            "对称按金额档：标量 = 档 10bp + 未标定滑点 + tax(=0)"
+        );
+        let notice = layer4_scalar_caliber_notice(&exec).expect("标定档须出声明段");
+        assert!(
+            !notice.contains(SCALAR_UNDEFINED_UNAVAILABLE),
+            "标量可得档的声明段不得含不可用标注（那是声明与数值自相矛盾）：{notice}"
+        );
+        assert!(notice.contains("照常产出"), "须明说本臂层4 读数照常产出：{notice}");
+        // 数值侧同一真值：层4 两格给真数，结算行走常规判据（与未标定臂同函数同口径）。
+        assert_eq!(
+            layer4_cells(scalar.map(|_| -2105181.0), 6851062.0),
+            ("-2105181".to_string(), "INCONCLUSIVE".to_string())
+        );
+        assert_eq!(layer4_verdict_line(scalar), layer4_verdict_line(Some(3e-4)));
+    }
+
+    /// **按股档（IBKR Pro per-share）⟹ 标量无良定义**：声明段须含不可用标注 + 点名 per-share
+    /// 理由；层4 两格标不可用、结算行给「无结论」。
+    ///
+    /// **认识论 L1**（★#423 收尾轮 B 订正，原标 L2「真实 IBKR datum」）。订正理由同上一测：
+    /// 输入虽为真实 IBKR 费率表，被测命题却是「per-share 形态 ⟹ 三处渲染标不可用」的渲染契约，
+    /// 不承载任何可被市场否证的假设 ⟹ L1。
+    /// **本测能否证的假设：无**（同文件同型先例 `fee_datum_spec_resolves_repo_datum` 标 L1）。
+    #[test]
+    fn layer4_notice_declares_unavailable_for_per_share() {
+        let exec = ExecConfig {
+            fee_schedule: Some(parse_fee_datum_spec(
+                "venue_fee_ibkr_pro_20260726.json:OKLO:PRO_TIERED_LE_300K_SHARES",
+            )),
+            ..Default::default()
+        };
+        let scalar = super::super::treasury::scalar_cost_rate_opt(&exec);
+        assert_eq!(scalar, None, "按股档无常数等效费率");
+        let notice = layer4_scalar_caliber_notice(&exec).expect("标定档须出声明段");
+        assert!(notice.contains(SCALAR_UNDEFINED_UNAVAILABLE), "须标不可用：{notice}");
+        assert!(notice.contains("per-share"), "须点名按股档理由：{notice}");
+        assert_eq!(
+            layer4_cells(scalar, 6851062.0),
+            (SCALAR_UNDEFINED_UNAVAILABLE.to_string(), SCALAR_UNDEFINED_UNAVAILABLE.to_string())
+        );
+        assert!(layer4_verdict_line(scalar).contains("无结论"), "结算行须为无结论");
+    }
+
+    /// **按金额非对称档（maker≠taker）⟹ 落回无良定义**：角色维不消失 ⟹ 常数不由 datum 内容
+    /// 唯一确定。声明段须标不可用。**认识论 L0**（手工构造档，覆盖 datum 内不存在的形态）。
+    #[test]
+    fn layer4_notice_declares_unavailable_for_asymmetric_notional() {
+        use super::super::super::venue_fee::{FeeUnit, VenueFeeSchedule};
+        let exec = ExecConfig {
+            fee_schedule: Some(VenueFeeSchedule {
+                venue: "SYNTH".into(),
+                symbol: "BTC".into(),
+                tier: "ASYM".into(),
+                unit: FeeUnit::Notional { maker_bps: 5.0, taker_bps: 10.0 },
+                datum_sha256: "0".repeat(64),
+            }),
+            ..Default::default()
+        };
+        let scalar = super::super::treasury::scalar_cost_rate_opt(&exec);
+        assert_eq!(scalar, None, "非对称按金额档无良定义");
+        let notice = layer4_scalar_caliber_notice(&exec).expect("标定档须出声明段");
+        assert!(notice.contains(SCALAR_UNDEFINED_UNAVAILABLE), "须标不可用：{notice}");
+        assert!(notice.contains("maker≠taker"), "须点名非对称理由：{notice}");
+        assert!(layer4_verdict_line(scalar).contains("无结论"));
+    }
+
+    /// ★#423 收尾轮 F：**随机对照三值的落盘出口**——`Θ>随机` / `p_shift` / `p_indep` 三格。
+    ///
+    /// 覆盖三件事：(1) 标量无良定义档（`None`）三格标不可用，与层4 两格**同一个标注串**（单一来源）；
+    /// (2) 标量可得档给真数，`theta_beats_random` 渲染「是/否」、p 值四位小数；
+    /// (3) 对照退化时附退化标注——p=1.0 是真算出来的，但不得被读作「未能否证」。
+    /// **认识论 L0**（渲染契约，零数据依赖：`Significance` 由字面量构造）。
+    #[test]
+    fn layer4_random_control_cells_render_contract() {
+        use super::super::metrics::Significance;
+        // (1) 无良定义档：三格均标不可用（不填 0、不留空）。
+        let (b, ps, pi) = layer4_random_control_cells(None);
+        assert_eq!(b, SCALAR_UNDEFINED_UNAVAILABLE);
+        assert_eq!(ps, SCALAR_UNDEFINED_UNAVAILABLE);
+        assert_eq!(pi, SCALAR_UNDEFINED_UNAVAILABLE);
+
+        let base = Significance {
+            boot_mean_total_pnl: 0.0,
+            boot_pvalue_pnl_le_0: 0.5,
+            boot_ci95_lo: -1.0,
+            boot_ci95_hi: 1.0,
+            sharpe: 0.0,
+            sharpe_se: 0.0,
+            sharpe_ci95_lo: 0.0,
+            sharpe_ci95_hi: 0.0,
+            shift_mean_return: 0.0,
+            shift_pvalue: 0.6234,
+            indep_mean_return: 0.0,
+            indep_pvalue: 0.0421,
+            theta_return_same_caliber: 0.0,
+            theta_return_mtm: 0.0,
+            theta_beats_random: false,
+            controls_degenerate: false,
+        };
+        // (2) 标量可得 + 非退化：真数照出。
+        let (b, ps, pi) = layer4_random_control_cells(Some(&base));
+        assert_eq!((b.as_str(), ps.as_str(), pi.as_str()), ("否", "0.6234", "0.0421"));
+        let win = Significance { theta_beats_random: true, ..base.clone() };
+        assert_eq!(layer4_random_control_cells(Some(&win)).0, "是");
+
+        // (3) 退化：三格各附退化标注（p 值仍照实渲染，不改数也不抹掉）。
+        let deg = Significance {
+            shift_pvalue: 1.0,
+            indep_pvalue: 1.0,
+            controls_degenerate: true,
+            ..base.clone()
+        };
+        let (b, ps, pi) = layer4_random_control_cells(Some(&deg));
+        assert_eq!((b.as_str(), ps.as_str(), pi.as_str()), ("否(对照退化)", "1.0000(退化)", "1.0000(退化)"));
+    }
+
+    /// ★#423 收尾轮 F：**声明段与新增三列自洽**——加列后声明段不得再说随机对照系「本表不列」。
+    ///
+    /// 为什么必须有这条：无良定义档的声明段原文写「`metrics::significance` 派生的随机对照系……
+    /// **本表不列**，本档下一律不产」。收尾轮 F 给三值加了落盘出口 ⟹ 本表**列**了这三列（标不可用）。
+    /// 若声明段不同步，同一份报告里声明与表格自相矛盾（090 声明膨胀的镜像：声明**萎缩**）。
+    /// **认识论 L0**（措辞契约，零数据依赖）。
+    #[test]
+    fn layer4_notice_matches_random_control_columns() {
+        let per_share = ExecConfig {
+            fee_schedule: Some(parse_fee_datum_spec(
+                "venue_fee_ibkr_pro_20260726.json:OKLO:PRO_TIERED_LE_300K_SHARES",
+            )),
+            ..Default::default()
+        };
+        let notice = layer4_scalar_caliber_notice(&per_share).expect("标定档须出声明段");
+        assert!(
+            !notice.contains("本表不列"),
+            "加列后不得再声明「本表不列」——三列已在表内（标不可用）：{notice}"
+        );
+        assert!(
+            notice.contains("Θ>随机") && notice.contains("p_shift") && notice.contains("p_indep"),
+            "声明段须点名这三列的列名，读者才能机械核对表头：{notice}"
+        );
+
+        let symmetric = ExecConfig {
+            fee_schedule: Some(parse_fee_datum_spec(
+                "venue_fee_binance_spot_20260726.json:BTC:VIP0",
+            )),
+            ..Default::default()
+        };
+        let notice = layer4_scalar_caliber_notice(&symmetric).expect("标定档须出声明段");
+        assert!(
+            notice.contains("Θ>随机") && notice.contains("★#423 收尾轮 F"),
+            "标量可得档的声明段须登记这三列是本轮**新增输出**（旧产物没有这些列，不是漂移）：{notice}"
+        );
     }
 
     /// ★#388 T2：`M8_FEE_DATUM` spec 解析——仓内 datum 文件（路径即契约）逐字段落地，

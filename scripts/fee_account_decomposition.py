@@ -19,7 +19,8 @@
   （taker_bps；sha256 sidecar 已由 Rust 侧 `load_datum` 校验）+ 未标定滑点 addon
   `ExecConfig::slippage_bps`（datum 不覆盖滑点，`venue_fee.rs` FeeQuoter 明文相加）。
   Binance 现货 datum **无监管/清算科目** ⟹ 该两列恒 0（不是「没算」，是该 venue 无此科目）。
-- 臂R：`ExecConfig::default()` 三常数（`rust/src/theta_v0/config.rs:302-304`：
+- 臂R：`ExecConfig::default()` 三常数（`rust/src/theta_v0/config.rs`，`impl Default for ExecConfig`
+  内，当前 :318-320：
   commission 1bp / slippage 2bp / tax 0bp），无监管/清算科目。
   **这三个数在本脚本内是常量（手抄），不是从文件读的**——三常数档按定义**没有 datum**
   （未标定就是它的性质），无文件可读。Rust 侧改默认值而未同步本脚本 ⟹ 本表会静默漂移；
@@ -50,14 +51,15 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATUM_PATH = REPO_ROOT / "analysis" / "data_cache" / "venue_fee_binance_spot_20260726.json"
 WINDOWS = ("p3fold", "wf7", "wf8")
 
-# 臂R 三常数（rust/src/theta_v0/config.rs:302-304，ExecConfig::default()）。
+# 臂R 三常数（rust/src/theta_v0/config.rs 的 impl Default for ExecConfig，当前 :318-320）。
 ARM_R_COMMISSION_BPS = 1.0
 ARM_R_SLIPPAGE_BPS = 2.0
 ARM_R_TAX_BPS = 0.0
 # 未标定滑点 addon（datum 不覆盖，两臂同值；venue_fee.rs FeeQuoter::new 的 uncalibrated_addon）。
 SLIPPAGE_BPS = ARM_R_SLIPPAGE_BPS
-# 标定档（臂D、臂C 共用——两者都吃 datum `fee_schedule`）的 tax：`config.rs:271` fail-loud
-# 约束——`fee_schedule = Some(...)` 时要求 `tax_bps == 0`（禁与 datum 内的监管税费重复计）。
+# 标定档（臂D、臂C 共用——两者都吃 datum `fee_schedule`）的 tax：`config.rs:271`（`fee_schedule`
+# 字段文档）声明「`fee_schedule = Some(...)` 时要求 `tax_bps == 0`」，机器强制在
+# `treasury.rs` 的 `fn fee_quoter`（当前 :124 起）内的 `assert!`（当前 :128；禁与 datum 内的监管税费重复计）。
 # 这个 0 的依据是「标定档」这个性质本身，不是「臂D」这个臂——臂C 同样标定，故共用同一常量。
 ARM_CALIBRATED_TAX_BPS = 0.0
 
@@ -113,7 +115,8 @@ def decompose(
 ) -> Decomposition:
     """科目分解：commission / 监管 / 清算 / slippage / tax（本表覆盖的两个档位均无监管/清算科目；
     tax 在两个档位下均恒 0——臂R 是 `ExecConfig::default()` 常量，臂D/C 是 datum 标定档下
-    `config.rs:271` fail-loud 约束的推论，非「没算」）。"""
+    `config.rs:271` 声明、`treasury.rs` 的 `fn fee_quoter`（当前 :124 起）内 `assert!`（当前 :128）
+    机器强制的约束的推论，非「没算」）。"""
     total = sum(notionals)
     return Decomposition(
         n_legs=len(notionals),
@@ -175,11 +178,13 @@ def main() -> int:
     md = "\n".join(
         [
             f"费率口径：臂D commission={taker_bps:.1f}bp（datum {DATUM_PATH.name} / BTC / VIP0 taker）；"
-            f"臂R commission={ARM_R_COMMISSION_BPS:.1f}bp、tax={ARM_R_TAX_BPS:.1f}bp（config.rs:302-304）；"
+            f"臂R commission={ARM_R_COMMISSION_BPS:.1f}bp、tax={ARM_R_TAX_BPS:.1f}bp"
+            f"（config.rs impl Default for ExecConfig，当前:318-320）；"
             f"臂C commission 与臂D 同源（同 datum 同档位，唯一差异 = `enforce_level_cap`）；"
             f"三臂 slippage={SLIPPAGE_BPS:.1f}bp（datum 不覆盖，未标定 addon）；"
-            f"臂D/C tax={ARM_CALIBRATED_TAX_BPS:.1f}bp（config.rs:271 fail-loud 约束下的推论，非手抄）、"
-            f"臂R tax={ARM_R_TAX_BPS:.1f}bp（config.rs:302-304）。",
+            f"臂D/C tax={ARM_CALIBRATED_TAX_BPS:.1f}bp（config.rs:271 声明、treasury.rs fn fee_quoter"
+            f"[当前:124起]内 assert![当前:128] 强制的约束下的推论，非手抄）、"
+            f"臂R tax={ARM_R_TAX_BPS:.1f}bp（config.rs impl Default for ExecConfig，当前:318-320）。",
             "",
             "| 窗 | 臂 | 成交腿数 | Σ名义额 | commission | 监管 | 清算 | slippage | tax | Σ费用 |",
             "|---|---|---|---|---|---|---|---|---|---|",
@@ -189,7 +194,8 @@ def main() -> int:
             "**非账本实扣分项**——账本 `Comm+Slip` 列含全部订单流（减仓/强平/窗末未平腿），口径更宽。",
             "**监管/清算恒 0**：Binance 现货与三常数档均无此科目（不是漏算）。",
             "**tax 恒 0**：臂R 是 `ExecConfig::default()` 常量；臂D/C 是标定档下 "
-            "`config.rs:271` fail-loud 约束（`fee_schedule = Some(...)` 时禁 `tax_bps != 0`）"
+            "`config.rs:271` 声明、`treasury.rs` 的 `fn fee_quoter`（当前 :124 起）内 `assert!`"
+            "（当前 :128；`fee_schedule = Some(...)` 时禁 `tax_bps != 0`）机器强制的约束"
             "的推论——若上游改变该约束或该常量非零，本表逐笔重算会自动纳入（一等科目，非特判）。",
         ]
     )

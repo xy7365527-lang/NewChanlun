@@ -231,6 +231,34 @@ Borrow / LiqLoss 两列三臂三窗恒 0，略。「不可用」格的产物原�
   脚本 ⟹ 本表静默漂移；防线 = 表头每次运行打印这三个数与来源行号，复核时人工对一眼。
   与 #377 LOW 登记的 `pi_bsp_timing.rs:621` 手抄同一模式，登记在案（本票未改善，也未恶化）。
 - 本脚本只实现 **per-notional** 形态的分解；per-share 形态（IBKR）不适用（见 T2 §5）。
+- **列数订正（#423，2026-07-27）——本节静态表 9 列 ↔ 脚本现输出 10 列**：上方表格是 **9 列**
+  （窗 / 臂 / 成交腿数 / Σ名义额 / commission / 监管 / 清算 / slippage / Σ费用），而
+  `scripts/fee_account_decomposition.py` **现在输出 10 列**——#422 在 `slippage` 与 `Σ费用` 之间
+  新增了 **`tax` 列**（`Decomposition.tax`，一等科目而非特判）。**二者的关系 = 纯追加**：本次复跑
+  （`python3 scripts/fee_account_decomposition.py --out /tmp/423_fee_decomp.md`，2026-07-27）
+  实测 **tax 列九行恒 `0.00`**，其余九列的九行数字与上表**逐位相同**（Σ名义额 / commission / 监管 /
+  清算 / slippage / Σ费用 全中）⟹ 上表**未失真、无需重贴**，只是少了一个恒 0 的新列。
+  tax 恒 0 的机器依据（脚本表头自述）：臂R 是 `ExecConfig::default()` 常量 `tax_bps=0.0`；
+  臂D/C 是标定档下 `treasury::fee_quoter` 内 `assert!`（`fee_schedule = Some(...)` 时禁 `tax_bps != 0`）
+  强制的**推论**，不是手抄。**原表不删、不改**（090：不改写已发布读数）；本条只登记列数关系。
+  **附带照实登记（未动手）**：本次复跑的脚本表头里，臂D/C 的行号锚已改为动态自查
+  （`config.rs impl Default for ExecConfig，当前:318-320`、`treasury.rs fn fee_quoter[当前:124起]`），
+  但同一句末尾的「臂R tax=0.0bp（`config.rs:302-304`）」仍是**静态硬编码行号**——两个锚风格在同一句里
+  不一致。**#423 第三阶段禁改 scripts/**，故只登记，不修。
+
+  本次复跑的 10 列全表（补遗材料，**不替换**上方 9 列表）：
+
+  | 窗 | 臂 | 成交腿数 | Σ名义额 | commission | 监管 | 清算 | slippage | tax | Σ费用 |
+  |---|---|---|---|---|---|---|---|---|---|
+  | p3fold | D(标定) | 298 | 615050128.62 | 615050.13 | 0.00 | 0.00 | 123010.03 | **0.00** | 738060.15 |
+  | p3fold | C(标定+帽) | 298 | 737501286.98 | 737501.29 | 0.00 | 0.00 | 147500.26 | **0.00** | 885001.54 |
+  | p3fold | R(未标定) | 298 | 680415371.65 | 68041.54 | 0.00 | 0.00 | 136083.07 | **0.00** | 204124.61 |
+  | wf7 | D(标定) | 392 | 1399495095.94 | 1399495.10 | 0.00 | 0.00 | 279899.02 | **0.00** | 1679394.12 |
+  | wf7 | C(标定+帽) | 392 | 1683925275.35 | 1683925.28 | 0.00 | 0.00 | 336785.06 | **0.00** | 2020710.33 |
+  | wf7 | R(未标定) | 392 | 1575995194.19 | 157599.52 | 0.00 | 0.00 | 315199.04 | **0.00** | 472798.56 |
+  | wf8 | D(标定) | 336 | 1883048838.10 | 1883048.84 | 0.00 | 0.00 | 376609.77 | **0.00** | 2259658.61 |
+  | wf8 | C(标定+帽) | 336 | 1791909186.33 | 1791909.19 | 0.00 | 0.00 | 358381.84 | **0.00** | 2150291.02 |
+  | wf8 | R(未标定) | 336 | 1958219343.84 | 195821.93 | 0.00 | 0.00 | 391643.87 | **0.00** | 587465.80 |
 
 **臂C 行的读法**：臂C 与臂D 费率**逐位同源**，故该行与臂D 行的差**全部来自 Σ名义额**
 （= 规模/形态差），零费率口径差。这正是 §5.3 的量化基。
@@ -704,3 +732,193 @@ Spec 轴：票体六条验收标准全部有机器证据自证且经独立复核
 dual_ledger 只在 default 档，§4.4 已收窄措辞）、**US10 部分达成**（§9；treasury 层未达成，
 Lead 裁定其二，承接票 **#419**）、**红线触发**（§8）三项分别登记，不冒充完成。
 层4 措辞订正（**#422**）与按金额档层4 恢复（**#423**）已按 Lead 裁定其三挂票，见 §2.2。
+
+---
+
+## 14. 补遗节：#423 第三阶段臂D / 臂C 层4 读数补跑（2026-07-27）
+
+> **本节性质**：**新增补遗**，不改写本报告上文任何已发布读数、结论与引文。§2.2 / §4.5 / §11 的
+> 「不可用（标定档有效域收窄 #374）」诸格是 **#389 落盘当时**（`fee_schedule.is_some()` 一刀切）的
+> 真实产物读数，**逐字保留**。本节登记的是 **#423 按档位形态分叉落地后**同一命令重跑出来的**新读数**。
+> 两者不矛盾，是**两个代码态下的两次观测**：#423 第一阶段把
+> `treasury::scalar_cost_rate_opt` 改为按档位形态三分叉（未标定 ⟹ `Some(常率)`；per-notional 且
+> maker/taker 逐位对称 ⟹ `Some(档bps/1e4 + slippage + tax)`；per-notional 非对称 ⟹ `None`；
+> per-share ⟹ `None`），第二阶段把 `wverify_run` 的层4 声明段与层4 数值统一到同一真值
+> （新函数 `layer4_scalar_caliber_notice` / `layer4_verdict_line`）。臂D / 臂C 用的 Binance 现货
+> VIP0 是**按金额对称档（10bp）**⟹ 从「标量不可得」态迁到「标量可得」态。
+
+- **日期**：2026-07-27　**依据**：issue #423 第三阶段（承 §2.2 Lead 裁定其三：#422 措辞订正 / #423 读数恢复）
+- **认识论等级**：**L2**（真实 BTC OOS 三窗假设检验，可否证；`.claude/rules/formalization-validity-domain.md`）。
+  有效域与 §11 同：BTC / p3fold+wf7+wf8 / 三臂各自开关组合 / κ=0 冻结。**不外推**其它品种/窗口/档位。
+- **本阶段零代码改动**：只跑批与记数。rust 源码与 `scripts/` 未动；改动面 = 本报告 + T2 报告两个 md。
+
+### 14.1 备份路径（不可逆前置，已做）
+
+| 备份物 | 路径 |
+|---|---|
+| 臂R 三窗 dump（重跑前原件） | `/tmp/423_backup_m8_win_gate/{p3fold,wf7,wf8}/{trades,tower_events}.jsonl` |
+| #388 臂D 四层报告三窗（旧产物原文） | `/tmp/423_backup_388_armD_report_{p3fold,wf7,wf8}.md` |
+| 上一次 m8 四层报告 | `/tmp/423_backup_m8_e2e_all_systems_oos.md` |
+
+### 14.2 复现命令（逐字，工作目录 `/tmp/kimi-nest-mainline/rust`；`<tag> ∈ {p3fold,wf7,wf8}`）
+
+```
+# 臂R（回归门物证）
+M8_WIN_FILTER=<tag> VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 \
+  OPSEM_DUMP_DIR=/tmp/m8_win_gate/<tag> \
+  cargo test --release --lib theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos -- --ignored --nocapture
+# 臂D（标定）：+ M8_FEE_DATUM，OPSEM_DUMP_DIR=/tmp/m8_win_armD/<tag>
+M8_WIN_FILTER=<tag> VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 \
+  M8_FEE_DATUM=venue_fee_binance_spot_20260726.json:BTC:VIP0 \
+  OPSEM_DUMP_DIR=/tmp/m8_win_armD/<tag> cargo test --release --lib …（同上）
+# 臂C（标定+帽）：臂D + M8_LEVEL_CAP=true，OPSEM_DUMP_DIR=/tmp/m8_win_armC/<tag>
+M8_WIN_FILTER=<tag> VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 \
+  M8_FEE_DATUM=venue_fee_binance_spot_20260726.json:BTC:VIP0 M8_LEVEL_CAP=true \
+  OPSEM_DUMP_DIR=/tmp/m8_win_armC/<tag> cargo test --release --lib …（同上）
+# 回归门（仓根）
+python3 scripts/check_armR_trades_digest.py
+```
+
+产物：`/tmp/423_arm{R,D,C}_<tag>.out`、`/tmp/423_arm{R,D,C}_report_<tag>.md`（四层报告副本，源
+`/tmp/m8_e2e_all_systems_oos.md` 每次覆写 ⟹ 必须逐窗即时 `cp`）、
+`/tmp/m8_win_{gate,armD,armC}/<tag>/{trades,tower_events}.jsonl`。
+**9 次跑批全部 exit=0**，单窗 33～38s（三臂 × 三窗合计约 5.5 分钟）。
+
+### 14.3 回归门（**重跑后**的真物证，非陈旧产物校验）
+
+**先重跑臂R 三窗覆盖 `/tmp/m8_win_gate`，再跑门**——不重跑则门只校验陈旧产物、trivially 通过，
+不构成「基线不劣化」的物证。
+
+```
+$ python3 scripts/check_armR_trades_digest.py
+p3fold: n_trades=149 digest=0x6bf47daf0aa737cd bytes=206057 ✓
+wf7: n_trades=196 digest=0x282c28ca8ca65e16 bytes=270684 ✓
+wf8: n_trades=168 digest=0xcafa7c4846c762cd bytes=228108 ✓
+臂R trades 逐位无漂移。
+exit=0
+```
+
+| 窗 | 开工态 / #387 golden | **本次重跑后** | 判定 |
+|---|---|---|---|
+| p3fold | n=149 `0x6bf47daf0aa737cd` | n=149 `0x6bf47daf0aa737cd` | **逐位相同** |
+| wf7 | n=196 `0x282c28ca8ca65e16` | n=196 `0x282c28ca8ca65e16` | **逐位相同** |
+| wf8 | n=168 `0xcafa7c4846c762cd` | n=168 `0xcafa7c4846c762cd` | **逐位相同** |
+
+**更强的一条**：六个 dump（三窗 × {trades, tower_events}）与开工前备份
+`/tmp/423_backup_m8_win_gate/` **`cmp` 逐字节相同**（6/6 SAME）——不只 trades digest 中，
+tower_events 也逐字节不变。⟹ **#423 的档位形态分叉改动在未标定臂上 bit-exact 中性**，实证而非声明。
+臂R 三窗层4 读数亦逐位与 §2.2 相同（LCB -3550861 / -10865720 / -2105181，三态
+无(R≤0) / 无(R≤0) / INCONCLUSIVE）。
+
+### 14.4 臂D / 臂C 层4 恢复读数（**新读数**，与 §2.2 的「不可用」诸格并列，不替换）
+
+| 窗 | 臂 | R(含浮盈) | **LCB_OOS(R)** | **三态** | §2.2 旧读数（保留） |
+|---|---|---|---|---|---|
+| p3fold | R | -1191916 | -3550861 | 无(R≤0) | 同（未变） |
+| p3fold | **D** | -1564400 | **-3792042** | **无(R≤0)** | 不可用 / 不可用 |
+| p3fold | **C** | -2097623 | **-4542583** | **无(R≤0)** | 不可用 / 不可用 |
+| wf7 | R | -5147413 | -10865720 | 无(R≤0) | 同（未变） |
+| wf7 | **D** | -6113276 | **-11526729** | **无(R≤0)** | 不可用 / 不可用 |
+| wf7 | **C** | -6436069 | **-11700410** | **无(R≤0)** | 不可用 / 不可用 |
+| wf8 | R | +6851062 | -2105181 | INCONCLUSIVE | 同（未变） |
+| wf8 | **D** | +4980320 | **-3593828** | **INCONCLUSIVE** | 不可用 / 不可用 |
+| wf8 | **C** | +4785250 | **-3421526** | **INCONCLUSIVE** | 不可用 / 不可用 |
+
+**读法（v3 硬禁令 / A10 附则B）**：**九格 LCB 全部 ≤ 0 ⟹ 三臂层4 一律无 confirmed alpha**。
+wf8 三臂的 `INCONCLUSIVE` 是「R>0 ∧ LCB≤0」的态，**不是通过**（措辞§5.6：INCONCLUSIVE ≠ 无 alpha）。
+p3fold/wf7 六格的 `无(R≤0)` 是 R≤0 时该层无判据对象。全部数值**不作 alpha 论据、不作策略择优输入**，
+**不评判级别帽政策取舍**（#385 Out of Scope）。
+
+**照实登记的方向（不作机制解释、不作择优）**：p3fold/wf7 两窗 LCB 按 R → D → C 递减
+（更负）；wf8 则 D(-3593828) < C(-3421526) < R(-2105181)，即帽臂 LCB 略高于臂D 而两者都低于臂R
+——**三窗方向不一致**，本阶段**未做**归因（需把「费率科目差 / 规模差 / 帽形态差」三项拆开，
+属 §5.3 同一缺席；本阶段禁改代码，登记为后续可做项）。
+
+**其余各列逐位未变的实证**：`diff /tmp/423_backup_388_armD_report_<tag>.md /tmp/423_armD_report_<tag>.md`
+三窗的差**恰好只有三处**：① 报告头声明块整段替换；② 层4 表 `LCB_OOS(R)` / `三态` 两格；
+③ 判据结算段层4 那一行。§2.2 其余各列、§2.3 三阶段全表、§2.4 `NEST_GATE_STATS`、§4.1 LEE 表
+在本次复跑中**逐位复现**（抽验：`NEST_GATE_STATS total=1633 admitted=474 … xzd_gate_fail=927` 臂D/臂C 逐字段相同；
+`LEE_M4_ARM p3fold cap=true n_cap_narrowed=885 … off_clock_delta_unexplained=0`；
+臂C 三窗 `max_abs_net_units` = 117/114/156、`n_rescaled` = 210/240/274；臂D = 882/1021/1145、616/652/577）
+⟹ #423 的分叉改动**只动层4 标量口径面**。
+
+### 14.5 声明段实际文本（臂C 产物首两个 blockquote，三窗逐字相同）
+
+```
+> **标定档单标量成本口径可得声明（★#423）**：本跑批经 `M8_FEE_DATUM` 注入 venue 费率 datum，且该档为**按金额档（per-notional）且 maker/taker 逐位对称**、撮合角色取自编译期常量 `venue_fee::PRODUCTION_LIQUIDITY_ROLE` ⟹ 存在与 (qty, px, side) 无关的常数等效费率（判定本体 = `venue_fee::VenueFeeSchedule::constant_effective_rate`）。单标量成本费率（`RunResult::fee_rate`，经 `treasury::scalar_cost_rate_opt`）= 档 bps/1e4 + `slippage_bps`/1e4 + `tax_bps`/1e4 = **0.001200**（标定档下 `tax_bps` 由 `treasury::fee_quoter` 的 assert 强制为 0）。
+> 故层4 的 `LCB_OOS(R)` 与三态判据在本臂**照常产出**——与未标定臂同一函数、同一口径，反事实臂（随机对照在不同 px 上重执行）用同一个常数，不引入口径不对称。
+>
+> **本声明不覆盖**（照实登记，不膨胀）：
+> - `slippage_bps` 仍**未标定**（venue datum 只标佣金/监管/清算科目，报告 §3.3）⟹ 本臂标量是「L2 标定佣金 + L1 未标定滑点」的合成；成交费率科目的口径标签见上方抬头；
+> - `l3_delta_r_alpha` 鞅守卫的成本剥离**不在本跑批路径内**（其唯一调用方是同文件的 `#[ignore]` 合成鞅守卫测试）；
+> - 层1 signal 的 INCONCLUSIVE 与本档无关（转引，不重算）。
+
+> **帽臂（臂C）声明（#389 / #385）**：本跑批经 `M8_LEVEL_CAP=true` 开启 M4 级别级风险帽（`risk.enforce_level_cap=true`，`level_weights=[0.05, 0.05, 0.05, 0.05, 0.05, 0.05]` = #310 既有配置，Σw_ℓ=0.30≤1）。与臂D **唯一配置差异即此开关**（费率 datum / margin / cost_model / κ=0 / 窗口全同）。
+```
+
+层4 结算行（臂D / 臂C 三窗逐字相同，**已从「本臂无结论」改为照常判读**）：
+
+```
+- **层4 完整策略** `LCB_OOS(R)>0`：见 LCB_OOS(R) 列——**未过 ⟹ INCONCLUSIVE**，不宣称 confirmed alpha（措辞§5.6：INCONCLUSIVE≠无 alpha；§5.3：不外推 max-full）。
+```
+
+⟹ 前置事实核实通过：臂D / 臂C 现在输出「**可得**」声明 + 真 LCB + 三态，声明段与数值同真值
+（`wverify_run.rs:1601-1606` 的 `assert_eq!` 把「同真值」做成机器事实，两处注入分叉即红）。
+
+### 14.6 产物字符串变更登记（**旧引文不再逐字匹配新产物**）
+
+#423 把不可用标注常量 `CALIBRATED_UNAVAILABLE` 改名 `SCALAR_UNDEFINED_UNAVAILABLE`，正文由
+`不可用(标定档有效域收窄 #374)` 改为 `不可用(单标量成本口径无良定义 #374/#423)`。⟹ 本报告及
+上下游（T2 报告、#389/#431 影子评审证词）中**以「产物原文」名义引用旧串的句子，不再与新产物逐字相符**：
+
+| 位置 | 旧引文（**保留不改**） | 新产物实况 |
+|---|---|---|
+| §2.2 表内六格 | `**不可用（标定档有效域收窄 #374）**` | 臂D/C 产物层4 两格现为真数值 |
+| §2.2 表下 | 「『不可用』格的产物原文 = `不可用(标定档有效域收窄 #374)`」 | 该串在九个产物中**零命中** |
+| §4.5 | 「标定档（臂D / 臂C）下一律标 `不可用(标定档有效域收窄 #374)`」 | 同上；`significance` 现在**照常算** |
+| §0.1 / §11 相关表述 | 层4「无结论」 | 层4 已有结论（三态） |
+
+**两个独立原因叠加**（务必区分，否则会误判为纯改名问题）：
+
+1. **改名/改文**：不可用分支的正文串本身变了；
+2. **分支不再被走到**：臂D / 臂C 是按金额对称档 ⟹ `scalar_cost_rate_opt` 返回 `Some` ⟹ 不进不可用分支。
+   **实证**：`grep -c 不可用 /tmp/423_arm{R,D,C}_report_{p3fold,wf7,wf8}.md` → **9 个产物全部 0 命中**。
+
+⟹ 新串只可能由**按股档（per-share）或按金额非对称档**产生，而 m8 在册档位（Binance 现货 VIP0 /
+三常数）都不属这两类 ⟹ **本次 9 跑里该串一次未出现**；其活证据在单测面
+（`treasury::scalar_cost_rate_opt_per_share_is_none` / `..._notional_asymmetric_is_none` /
+`wverify_run.rs:1862` 断言 `lcb == SCALAR_UNDEFINED_UNAVAILABLE`）。**不改旧引文、不假装没变**。
+
+### 14.7 未产出项（照实，不留空、不用旧数顶替）
+
+| 项 | 状态 | 原因 | 剩余复现路径 |
+|---|---|---|---|
+| 随机对照读数（`theta_beats_random` / `shift_pvalue` / `indep_pvalue`），三臂三窗 | **未产出** | **m8 四层报告不渲染这三个字段**。`metrics::significance` 在标量可得档被**完整调用**（随机对照系在 `metrics.rs:539/562/566` 内算了，`theta_beats_random ⟺ 两 p_upper ≤ 0.05`），但 m8 只消费返回结构的 `boot_ci95_lo`（`wverify_run.rs:1608-1617`）⟹ 三值算了但无落盘出口，无法从产物采集。**注意**：这也意味着 §4.5「标定档下随机对照根本不算」这句在新代码态下**已不成立**（现在算，只是不打印） | 需在 m8 层4 表增列该三字段（**代码改动**；本阶段禁改 rust，**只登记不动手**）。登记为 #423 后续可做项 |
+| LCB 臂间差的份额分解（费率科目差 / 规模差 / 帽形态差） | **未产出** | 需新增「标定费率 + 冻结臂R sizing」的第四臂，属新配置面 | 同 §5.3 末尾登记 |
+| 降级项 | **无** | 单窗 33～38s，臂R/D/C × 三窗 **9/9 全跑完**，无降级 | — |
+
+### 14.8 release 档指纹（本阶段实测）
+
+```
+test result: FAILED. 1966 passed; 1 failed; 135 ignored; 0 measured; 0 filtered out; finished in 0.98s
+failures:
+    theta_v0::classifier::signal::tests::extract_signals_bit_exact_digest_guard
+```
+
+（日志 `/tmp/423_full_lib_test.log`，命令 `cargo test --release --lib`，仓根 `rust/`）
+
+- 相对 #423 票面在案的 release 指纹 **1944 passed / 1 failed / 135 ignored**：passed **+22**
+  （#423 第一/第二阶段新增测试），failed / ignored 计数不变。
+- **失败集恰好 1 条**，仍是 `extract_signals_bit_exact_digest_guard`（#115 线在案）⟹ **未劣化**。
+- §7.2 的历史读数**保留不改**。
+- **照实登记（非本阶段可处置）**：debug 档全量测试本阶段实跑
+  （`cargo test --lib`，日志 `/tmp/423_full_lib_debug.log`）为 **1963 passed / 4 failed / 135 ignored**，
+  失败集 = `lee_m3_attribution_dimension_is_readable_and_not_residual_only`、
+  `lee_m4_cap_on_sparsity_has_no_unexplained_violation`、
+  `lee_m4_level_cap_narrows_position_when_enabled`、`extract_signals_bit_exact_digest_guard`
+  ——前三条属 #446 线、末条属 #115 线，**本阶段不修**（票体明令）。**须警示的一条**：其中
+  `lee_m4_cap_on_sparsity_has_no_unexplained_violation` 正是 §4.1「有效域跃升」所引的那条
+  9000-bar 合成 fixture 判据（L1 侧）。**它在 debug 档当前为红**；而本节 §14.4 复跑证明该判据的
+  **L2 侧**（帽臂三窗生产跑批内断言，`unexplained` 恒 0、`n_cap_narrowed`=885/927/819>0）
+  **仍逐窗全绿**。两者不冲突（不同档、不同数据、不同断言点），但 §4.1「此前只在合成 fixture 上覆盖」
+  这句的**合成侧现状已非全绿**，引用时须知。归属 #446 线，本阶段只登记不动手。

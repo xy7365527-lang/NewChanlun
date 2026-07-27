@@ -132,12 +132,27 @@ pub struct RunResult {
     pub trades: Vec<metrics::TradeRecord>,
     /// 原始价格序列（close 口径，与账本侧 `apply_order` 成交价一致）——随机对照在其上重执行。
     pub prices: Vec<f64>,
-    /// 单边费用率（commission+slippage+tax 比率）——随机对照含同等成本。
+    /// 单边费用率（单标量口径）——随机对照含同等成本。
     ///
-    /// **有效域（231号 / #374 MED-A）：仅 `exec.fee_schedule = None`（未标定常率）档**。取值经
-    /// [`treasury::scalar_cost_rate_opt`](super::treasury::scalar_cost_rate_opt)：未标定档
-    /// `Some(常率)`；**标定档 `None`**——per-share 档的逐笔费率随 (qty, px, side) 变，没有使
-    /// 「随机对照含同等成本」成真的标量，消费面须先接缝改用 `treasury::fee_quoter`。
+    /// **有效域（231号 / #374 MED-A / ★#423）= 存在一个与 (qty, px, side) 无关的常数等效费率的
+    /// 档**。取值经 [`treasury::scalar_cost_rate_opt`](super::treasury::scalar_cost_rate_opt)，
+    /// **按档位形态三分叉**（判定本体 = `venue_fee::VenueFeeSchedule::constant_effective_rate`
+    /// 的结构检查，不是按 `fee_schedule` 有无一刀切）：
+    ///
+    /// | 档 | 本字段 |
+    /// |---|---|
+    /// | `exec.fee_schedule = None`（未标定常率） | `Some((commission+slippage+tax)bps/1e4)` |
+    /// | `Some`，per-notional 且 maker/taker **逐位对称** | `Some(档 bps/1e4 + slippage_bps/1e4 + tax_bps/1e4)` |
+    /// | `Some`，per-share **或** per-notional 非对称 | `None` |
+    ///
+    /// **为什么按金额对称档良定义**：`effective_rate` 的 `Notional` 分支直接返回 `bps/1e4`，函数体
+    /// 不读 `qty`/`px` ⟹ 规模维消失；`maker_bps == taker_bps` 逐位相等且角色取自编译期常量
+    /// `venue_fee::PRODUCTION_LIQUIDITY_ROLE` ⟹ 角色维消失。于是反事实臂（随机对照在不同 px 上
+    /// 重执行）与 Θ 实际路径用**同一个**常数，「含同等成本」为真。
+    ///
+    /// **为什么按股档/非对称档 `None`**：per-share 费率是 (qty, px, side) 的非线性函数（最低佣金
+    /// 托底 / 1% 名义额上限 / 仅卖出监管费）；非对称档的常数不由 datum 内容唯一确定。两档都没有使
+    /// 「随机对照含同等成本」成真的标量，消费面须先接 (qty, px, side) 缝改用 `treasury::fee_quoter`。
     ///
     /// ★#388 T2：`None` 由**类型**承载有效域收窄（此前是构造期 panic）。防线等价不减弱——
     /// 消费面要么 `expect(treasury::SCALAR_COST_RATE_UNDEFINED)`（原 fail-loud 语义，位点移到

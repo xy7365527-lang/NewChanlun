@@ -129,6 +129,12 @@ fn l3_fullwindow_multi_symbol_significance() {
         let total_pnl: f64 = pnls.iter().sum();
 
         // §3.4 block bootstrap（已实现）+ §4 操作语义随机对照（含浮盈，seed=20260625 冻结）。
+        // ★#423 第二阶段复核（照实登记，不擅自扩面）：`fee_rate` 自 ★#423 起按档位三分叉
+        //   （未标定档 / 按金额对称档 ⟹ `Some(常数)`；按股档 / 按金额非对称档 ⟹ `None`）。本跑批的
+        //   `config = ThetaConfig::default()`（本文件 :67），且**无 datum 注入通道**（无 env 钩子、
+        //   无参数）⟹ 本路径恒在未标定档，下面的 `expect` 在现有调用面上不可达。
+        //   故本处**无读数可解禁、口径无须重标**：本路径从来就在标量良定义档内、拿的是常率。
+        //   `expect` 保留不动——它是"未来若接 datum 注入则 fail-loud"的防线，不是当前的活分支。
         let sig = metrics::significance(
             pnls,
             &res.daily_returns,

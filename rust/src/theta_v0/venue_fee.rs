@@ -39,7 +39,9 @@
 //!   datum 覆盖的科目，不把滑点一起抹掉。`tax_bps` 在标定档下必须为 0（`treasury::fee_quoter`
 //!   fail-loud）——两个在册 venue 的交易税费科目已由 datum 逐项承载，再叠一个笼统 tax 会重复计；
 //! - maker/taker：现执行层全部按 bar close 成交、无挂单概念 ⟹ 生产路径**一律 Taker**
-//!   （报告 §3.1 item 4 的保守初档）。[`LiquidityRole::Maker`] 档存在于 datum 但生产不取；
+//!   （报告 §3.1 item 4 的保守初档，★#423 起有编译期常量载体
+//!   [`PRODUCTION_LIQUIDITY_ROLE`]，其文档逐条登记了它锁住/锁不住什么）。
+//!   [`LiquidityRole::Maker`] 档存在于 datum 但生产不取；
 //! - 未入簿品种（ES/CL/GC/BRN/DX/QQQ、Binance 永续）= 报告 §4 的未核项，[`VenueFeeBook::resolve`]
 //!   对其返回 `Err`（fail-loud，禁静默退化到某个"差不多"的档）。
 //!
@@ -60,6 +62,53 @@ pub enum LiquidityRole {
     Maker,
     Taker,
 }
+
+impl LiquidityRole {
+    /// **角色 → per-notional 单边 bps 的唯一选择处**（★#423 收尾轮 E）。
+    ///
+    /// 抽出理由（纯重构，费率逐位不变）：同形 `match role { Maker => maker_bps, Taker => taker_bps }`
+    /// 此前在 [`VenueFeeSchedule::fee_usd`] / [`VenueFeeSchedule::effective_rate`] /
+    /// [`VenueFeeSchedule::constant_effective_rate`] 各写一份（Repeated Switches）——三份同形分支
+    /// 的一致性靠人眼维持，新增角色枚举值时要改三处。收口后角色维的解读只有此一处。
+    ///
+    /// 只服务 [`FeeUnit::Notional`] 档：per-share 档没有"单边 bps"这个量（其费率是 (qty, px, side)
+    /// 的非线性函数），故不在本方法的定义域内——那一档的角色相关项（仅卖出监管费）由
+    /// [`FeeUnit::PerShare`] 分支按 `side` 处理，与角色无关。
+    fn pick_bps(self, maker_bps: f64, taker_bps: f64) -> f64 {
+        match self {
+            LiquidityRole::Maker => maker_bps,
+            LiquidityRole::Taker => taker_bps,
+        }
+    }
+}
+
+/// **生产成交路径的撮合角色**——编译期常量，单一来源（★#423）。
+///
+/// 上方 [`LiquidityRole`] 的"生产恒 Taker"此前只是**文档声明**，各成交点各写一个
+/// `LiquidityRole::Taker` 字面量。本常量把该事实变成一个可被机器消费的取值：
+/// [`VenueFeeSchedule::constant_effective_rate`] 的良定义判定与
+/// [`FeeQuoter::production_rate_or_fallback`] 的成交报价都引用它选角色，
+/// 于是"角色固定"不再是人工声明而是编译期事实。
+///
+/// **本常量锁住什么**（★#423 第二阶段 C 线收口后的实际强度）：
+/// - `FeeQuoter` **没有任何接收 [`LiquidityRole`] 的 `pub` 方法**（角色版
+///   `rate_with_role` 已收为私有）⟹ 生产成交点（`backtest::fill` 的 `order_fee_rate` /
+///   `leg_fee_rate` / `forced_flatten_fee_rate`、`strategy::overlay_state::quote`）只能调
+///   无角色参数的 [`FeeQuoter::production_rate_or_fallback`]。在这些位点写角色字面量
+///   **无参可传 ⟹ 编译错误**（不是测试失败，是编不过）；
+/// - 那两个文件已不再 `use` [`LiquidityRole`]（生产区段），路径 `LiquidityRole::Taker`
+///   本身即未解析符号；
+/// - 单标量成本口径的分叉判定（[`VenueFeeSchedule::constant_effective_rate`]）取角色亦只经此处。
+///
+/// **锁不住什么**（照实登记，090）：
+/// - 绕过 `FeeQuoter` 直接调 [`VenueFeeSchedule::effective_rate`] / [`VenueFeeSchedule::fee_usd`]
+///   并传角色字面量——这两个方法是**费率表自身**的算术，按 datum 的 maker/taker 维参数化是其
+///   定义的一部分（测试与逐笔对拍需要），故保留角色参数。这条绕行同时会绕掉 `FeeQuoter` 的
+///   滑点 addon 与量/价合法性判定，但**没有编译期屏障**拦它；
+/// - 改锁本身：把本常量改成 `Maker`、或给 quoter 加回一个接收角色的 `pub` 方法。前者由本模块
+///   测试 `production_quote_takes_role_from_single_constant`（非对称档上可判别）与
+///   `production_role_is_taker` 拦住；后者无自动屏障。
+pub const PRODUCTION_LIQUIDITY_ROLE: LiquidityRole = LiquidityRole::Taker;
 
 /// per-share 档（IBKR Pro 美股）的完整费项（报告 §2.3/§2.5 一手数字）。
 ///
@@ -124,11 +173,7 @@ impl VenueFeeSchedule {
         let notional = qty * px;
         match &self.unit {
             FeeUnit::Notional { maker_bps, taker_bps } => {
-                let bps = match role {
-                    LiquidityRole::Maker => *maker_bps,
-                    LiquidityRole::Taker => *taker_bps,
-                };
-                notional * bps / 10_000.0
+                notional * role.pick_bps(*maker_bps, *taker_bps) / 10_000.0
             }
             FeeUnit::PerShare(f) => {
                 // 佣金：per-share 起，每单最低佣金托底，成交额比例封顶（IBKR 三段口径）。
@@ -162,13 +207,67 @@ impl VenueFeeSchedule {
                     qty > 0.0 && px > 0.0 && qty.is_finite() && px.is_finite(),
                     "venue 费率解析要求 qty>0 且 px>0：qty={qty}, px={px}"
                 );
-                let bps = match role {
-                    LiquidityRole::Maker => *maker_bps,
-                    LiquidityRole::Taker => *taker_bps,
-                };
-                bps / 10_000.0
+                role.pick_bps(*maker_bps, *taker_bps) / 10_000.0
             }
             FeeUnit::PerShare(_) => self.fee_usd(qty, px, side, role) / (qty * px),
+        }
+    }
+
+    /// **与 (qty, px, side) 无关的常数等效费率**（★#423）——本档存在这样一个常数则 `Some`，
+    /// 否则 `None`。给"把成本当作一个常数费率"的下游做**结构性**良定义判定（不是人工开关）：
+    /// 唯一消费者 = `backtest::treasury::scalar_cost_rate_opt`。
+    ///
+    /// ## 判定的两个合取条件（票 #423 裁定形态）
+    ///
+    /// 1. **计费单位 = per-notional**：[`FeeUnit::Notional`] 分支的 [`Self::effective_rate`]
+    ///    直接给 `bps/1e4`，函数体不读 `qty`/`px`（venue_fee.rs:190-200）⟹ 规模维消失。
+    ///    [`FeeUnit::PerShare`] 分支走 `fee_usd/(qty·px)`，含最低佣金托底 / 1% 名义额上限 /
+    ///    仅卖出监管费 ⟹ 费率是 (qty, px, side) 的非线性函数，无此常数 ⟹ `None`。
+    /// 2. **角色维消失**：`maker_bps` 与 `taker_bps` **逐位相等**（`to_bits` 比较），
+    ///    且实际取值经 [`PRODUCTION_LIQUIDITY_ROLE`]（编译期常量）选 bps。
+    ///    非对称档 ⟹ `None`（不选一侧充数——那是把角色维的不对称藏进一个常数，090 声明膨胀）。
+    ///
+    /// ## 这两个条件里角色常量的**实际判别力**（★#423 收尾轮 D，措辞按实收窄）
+    ///
+    /// 良定义在**数学上单由「单位形态 + 对称性」推出**：`symmetric` 守卫成立时
+    /// `maker_bps` 与 `taker_bps` 逐位相等 ⟹ 本函数体内 `PRODUCTION_LIQUIDITY_ROLE` 的
+    /// 两个分支**逐位同值** ⟹ 该 `match` 在当前形态下**无判别力**（把它换成任一角色字面量，
+    /// 本函数所有取值不变）。原文把「角色取自编译期常量」与前两条并列为合取条件，读起来像它
+    /// 在参与判别——那是声明膨胀（090）。
+    ///
+    /// 角色常量在此处的实际作用是**纵深防御**，不是判别：若将来 `symmetric` 守卫被放宽
+    /// （例如接受"maker/taker 在容差内相等"），或 [`FeeUnit`] 扩充出别的按金额形态，角色来源
+    /// 已收口在单一常量上 ⟹ 放宽当天不必再去找"该取哪一侧"的第二处判定。它同时使本判定与
+    /// 生产报价 [`FeeQuoter::production_rate_or_fallback`] **同源**（不只是同值）。
+    ///
+    /// 合取条件本身**按票 #423 裁定形态（对称 ∧ 固定吃单）保留，未放宽**：本轮只订正措辞，
+    /// 不因"当前无判别力"而删条件——放宽良定义的适用范围（如允许非对称档取生产侧充数）属
+    /// 扩权，须编排者新裁定。
+    ///
+    /// `is_finite` 兜底：datum 装载路径已 fail-loud 拒非有限值（`datum_io::need`），但本类型
+    /// 字段 `pub`、可手工构造 ⟹ NaN 的 `to_bits` 自等会让 NaN 冒充"对称"。照实设防，不假装
+    /// 不可达。
+    ///
+    /// **本判定锁住什么**：档内容（单位形态 + 对称性）与分叉逻辑消费的角色来源。生产成交点
+    /// 的角色来源由 [`FeeQuoter::production_rate_or_fallback`] 的签名（无角色参数）承保，
+    /// 与本判定引用的是**同一个** [`PRODUCTION_LIQUIDITY_ROLE`]（★#423 第二阶段 C 线收口）。
+    /// **锁不住什么**：绕过 [`FeeQuoter`] 直接调 [`Self::effective_rate`] / [`Self::fee_usd`]
+    /// 传角色字面量的路径——逐条登记见 [`PRODUCTION_LIQUIDITY_ROLE`] 文档。
+    pub fn constant_effective_rate(&self) -> Option<f64> {
+        match &self.unit {
+            FeeUnit::Notional { maker_bps, taker_bps } => {
+                // ★#423 收尾轮 E：角色 → bps 的选择收口到 `LiquidityRole::pick_bps`（原此处与
+                //   `fee_usd` / `effective_rate` 各写一份同形 match）。★收尾轮 D：本次取值在
+                //   `symmetric` 守卫下两支逐位同值 ⟹ 无判别力，作用是纵深防御（见上方文档）。
+                let production_bps = PRODUCTION_LIQUIDITY_ROLE.pick_bps(*maker_bps, *taker_bps);
+                let symmetric = maker_bps.to_bits() == taker_bps.to_bits();
+                if symmetric && production_bps.is_finite() {
+                    Some(production_bps / 10_000.0)
+                } else {
+                    None
+                }
+            }
+            FeeUnit::PerShare(_) => None,
         }
     }
 }
@@ -203,19 +302,35 @@ impl<'a> FeeQuoter<'a> {
         FeeQuoter { fallback_rate, uncalibrated_addon: 0.0, schedule: None }
     }
 
-    /// 本笔成交的单边费率。未标定档忽略 `qty/px/side/role`（常率，与改动前逐位相同）。
-    pub fn rate_for(&self, qty: f64, px: f64, side: FillSide, role: LiquidityRole) -> f64 {
+    /// 本笔成交的单边费率（**私有**：角色维只在本类型内部存在）。未标定档忽略
+    /// `qty/px/side/role`（常率，与改动前逐位相同）。
+    ///
+    /// 不对外暴露的理由（★#423 第二阶段 C 线）：`FeeQuoter` 是生产成交点的唯一费率入口，
+    /// 而生产撮合角色只有一个合法取值 [`PRODUCTION_LIQUIDITY_ROLE`]。若本方法 `pub`，
+    /// 调用方就能在成交点写一个角色字面量 ⟹ "角色单一来源"退回文档声明。故对外只留
+    /// [`Self::production_rate_or_fallback`]（无角色参数），角色在此处内部取常量。
+    fn rate_with_role(&self, qty: f64, px: f64, side: FillSide, role: LiquidityRole) -> f64 {
         match self.schedule {
             None => self.fallback_rate,
             Some(s) => s.effective_rate(qty, px, side, role) + self.uncalibrated_addon,
         }
     }
 
+    /// **生产成交点的唯一费率取值方式**（★#423 第二阶段 C 线）——撮合角色不由调用方传入，
+    /// 而是在本方法体内取 [`PRODUCTION_LIQUIDITY_ROLE`]。
+    ///
     /// 成交量/价合法才询价，否则返回未标定常率占位——该 fill 是 noop/拒单，费率不进算术。
     /// （`fill.rs` 与 `overlay_state.rs` 的成交点共用此一处判定，不各写一份。）
-    pub fn rate_or_fallback(&self, qty: f64, px: f64, side: FillSide, role: LiquidityRole) -> f64 {
+    ///
+    /// **本签名锁住什么**：`FeeQuoter` 不再有任何接收 [`LiquidityRole`] 的 `pub` 方法 ⟹
+    /// 在任何调用点（生产或测试）向 quoter 传角色字面量是**编译错误**（无参可传）。
+    /// **锁不住什么**：绕过本类型直接调 [`VenueFeeSchedule::effective_rate`] /
+    /// [`VenueFeeSchedule::fee_usd`]——那两个是费率表**自身**的算术，按 datum 的
+    /// maker/taker 维参数化是其定义的一部分（测试与逐笔对拍需要），故保留角色参数。
+    /// 见 [`PRODUCTION_LIQUIDITY_ROLE`] 文档的逐条登记。
+    pub fn production_rate_or_fallback(&self, qty: f64, px: f64, side: FillSide) -> f64 {
         if qty > 0.0 && px > 0.0 {
-            self.rate_for(qty, px, side, role)
+            self.rate_with_role(qty, px, side, PRODUCTION_LIQUIDITY_ROLE)
         } else {
             self.fallback_rate
         }
@@ -545,7 +660,13 @@ mod tests {
 
     // ── FeeQuoter：None 逐值不破 / Some 生效 ─────────────────────────────────
 
-    /// **None ⟹ 逐位等于 fallback 常率**（任意 qty/px/side/role 全枚举，`assert_eq!` 位相等）。
+    /// **None ⟹ 逐位等于 fallback 常率**（任意 qty/px/side 全枚举，`assert_eq!` 位相等）。
+    ///
+    /// ★#423 第二阶段 C 线：原测还枚举 `role ∈ {Maker, Taker}` 断言"None 档忽略角色"。收口后
+    /// quoter 的 `pub` 报价方法**不接收角色** ⟹ 该维度在 quoter 层不存在，"忽略角色"变成
+    /// 无对象可断言的命题（不是覆盖被削弱，是被断言的对象被删除）。角色维本身仍由
+    /// [`VenueFeeSchedule::effective_rate`] 承载，其两支取值由
+    /// `production_quote_takes_role_from_single_constant` 在非对称档上分辨。
     #[test]
     fn quoter_none_is_bit_exact_fallback() {
         for fallback in [3e-4, 0.0, 1e-3, 7.5e-4, 1.234_567_891_011e-4] {
@@ -555,13 +676,11 @@ mod tests {
             for qty in [1e-8, 1.0, 12_345.678, 1e9] {
                 for px in [1e-6, 20.0, 50_000.0, 1e7] {
                     for side in [FillSide::Buy, FillSide::Sell] {
-                        for role in [LiquidityRole::Maker, LiquidityRole::Taker] {
-                            assert_eq!(
-                                q.rate_for(qty, px, side, role),
-                                fallback,
-                                "None 档必须逐位返回 fallback（qty={qty}, px={px}）"
-                            );
-                        }
+                        assert_eq!(
+                            q.production_rate_or_fallback(qty, px, side),
+                            fallback,
+                            "None 档必须逐位返回 fallback（qty={qty}, px={px}）"
+                        );
                     }
                 }
             }
@@ -578,7 +697,7 @@ mod tests {
         assert!(q.is_calibrated());
         assert_eq!(q.datum_sha256(), Some(b.datum_sha256.as_str()));
         assert_eq!(
-            q.rate_for(1.0, 50_000.0, FillSide::Buy, LiquidityRole::Taker),
+            q.production_rate_or_fallback(1.0, 50_000.0, FillSide::Buy),
             1e-3 + 2e-4,
             "VIP0 taker 10bp + 未标定滑点 2bp"
         );
@@ -587,16 +706,160 @@ mod tests {
         let oklo = i.resolve("OKLO", "PRO_TIERED_LE_300K_SHARES").unwrap();
         let q2 = FeeQuoter::new(3e-4, 2e-4, Some(&oklo));
         approx(
-            q2.rate_for(100.0, 20.0, FillSide::Sell, LiquidityRole::Taker),
+            q2.production_rate_or_fallback(100.0, 20.0, FillSide::Sell),
             2.156295e-4 + 2e-4,
             "quoter 转发 per-share 档 + 未标定滑点",
         );
         // addon=0 ⟹ 纯 datum 费率（滑点科目的可分离性物证）。
         let q3 = FeeQuoter::new(3e-4, 0.0, Some(&oklo));
         approx(
-            q3.rate_for(100.0, 20.0, FillSide::Sell, LiquidityRole::Taker),
+            q3.production_rate_or_fallback(100.0, 20.0, FillSide::Sell),
             2.156295e-4,
             "addon=0 ⟹ 纯 venue 档",
+        );
+    }
+
+    // ── ★#423：常数等效费率的结构判定 ──────────────────────────────────────────
+
+    /// 生产撮合角色常量 = Taker（规格值，报告 §3.1 item 4 的保守初档）。
+    ///
+    /// **本测锁住**：常量取值本身（改成 Maker 即红）。**它不需要**再核对"生产成交点的字面量
+    /// 与本常量同值"——★#423 第二阶段 C 线收口后那些位点已无字面量可写（`FeeQuoter` 的
+    /// `pub` 报价方法不接收角色 ⟹ 传角色是编译错误），同源由**签名**承保，不由断言承保。
+    /// **锁不住**：绕过 `FeeQuoter` 直传角色的路径（见 [`PRODUCTION_LIQUIDITY_ROLE`] 文档）。
+    /// 与 `production_quote_takes_role_from_single_constant` 的分工：那一测在**非对称档**上
+    /// 验"生产报价确实取 Taker 那一支"（行为可判别），本测只钉常量的规格取值。
+    #[test]
+    fn production_role_is_taker() {
+        assert_eq!(PRODUCTION_LIQUIDITY_ROLE, LiquidityRole::Taker);
+    }
+
+    /// ★#423 第二阶段 C 线：**生产报价的撮合角色只有一个来源**——[`FeeQuoter`] 的生产报价
+    /// 方法 [`FeeQuoter::production_rate_or_fallback`] **不接收角色参数**，角色在方法体内取
+    /// [`PRODUCTION_LIQUIDITY_ROLE`]。
+    ///
+    /// **本测的判别力来源**（不是重言）：档取 **maker≠taker 的非对称合成档**（maker 5bp /
+    /// taker 10bp）⟹ 两个角色的取值可区分。于是"生产报价 == taker 档取值"是一条能被否证的
+    /// 断言：若 [`PRODUCTION_LIQUIDITY_ROLE`] 被改成 `Maker`，本测立即红。对称档上这条断言
+    /// 无判别力（两支同值），故本测**必须**用非对称档。
+    ///
+    /// **同时是费率逐位不变的物证**：收口前三个成交点写 `LiquidityRole::Taker` 字面量并调
+    /// 角色版报价，收口后调本方法。本测把"本方法 == 显式 Taker 字面量的档级取值 + addon"
+    /// 钉成逐位相等（`assert_eq!`）⟹ 收口是纯重构，成交费率未改一位。
+    ///
+    /// **认识论 L0**（合成档 + 纯算术契约，零市场信息增量）。
+    #[test]
+    fn production_quote_takes_role_from_single_constant() {
+        let asym = VenueFeeSchedule {
+            venue: "SYNTH".into(),
+            symbol: "X".into(),
+            tier: "T".into(),
+            unit: FeeUnit::Notional { maker_bps: 5.0, taker_bps: 10.0 },
+            datum_sha256: "0".repeat(64),
+        };
+        const ADDON: f64 = 2e-4; // 未标定滑点（datum 不覆盖，须相加——报告 §3.3）
+        const FALLBACK: f64 = 3e-4;
+        let q = FeeQuoter::new(FALLBACK, ADDON, Some(&asym));
+        for qty in [1e-8, 1.0, 12_345.678, 1e9] {
+            for px in [1e-6, 20.0, 50_000.0, 1e7] {
+                for side in [FillSide::Buy, FillSide::Sell] {
+                    assert_eq!(
+                        q.production_rate_or_fallback(qty, px, side),
+                        asym.effective_rate(qty, px, side, LiquidityRole::Taker) + ADDON,
+                        "生产报价须逐位等于 Taker 档取值 + addon（qty={qty}, px={px}）"
+                    );
+                    assert_ne!(
+                        q.production_rate_or_fallback(qty, px, side),
+                        asym.effective_rate(qty, px, side, LiquidityRole::Maker) + ADDON,
+                        "非对称档下两角色取值必须可区分——否则本测无判别力"
+                    );
+                }
+            }
+        }
+        // 非法量/价 ⟹ 未标定常率占位（该 fill 是 noop/拒单，费率不进算术）——与角色无关。
+        assert_eq!(q.production_rate_or_fallback(0.0, 20.0, FillSide::Buy), FALLBACK);
+        assert_eq!(q.production_rate_or_fallback(1.0, 0.0, FillSide::Sell), FALLBACK);
+        // 未标定档 ⟹ 逐位 fallback（None 分支不读档也不读角色）。
+        let none = FeeQuoter::uncalibrated(FALLBACK);
+        assert_eq!(none.production_rate_or_fallback(1.0, 20.0, FillSide::Sell), FALLBACK);
+    }
+
+    /// 对称 per-notional 档 ⟹ `Some(bps/1e4)`，且与 [`VenueFeeSchedule::effective_rate`] 在
+    /// 多组 (qty, px, side) 上**逐位一致**（"与规模/方向无关"的物证）。**认识论 L0**。
+    #[test]
+    fn constant_rate_some_iff_symmetric_notional() {
+        let sym = VenueFeeSchedule {
+            venue: "SYNTH".into(),
+            symbol: "X".into(),
+            tier: "T".into(),
+            unit: FeeUnit::Notional { maker_bps: 10.0, taker_bps: 10.0 },
+            datum_sha256: "0".repeat(64),
+        };
+        let c = sym.constant_effective_rate().expect("对称档有常数");
+        assert_eq!(c, 1e-3);
+        for qty in [1e-8, 1.0, 1e9] {
+            for px in [1e-6, 20.0, 1e7] {
+                for side in [FillSide::Buy, FillSide::Sell] {
+                    assert_eq!(
+                        sym.effective_rate(qty, px, side, PRODUCTION_LIQUIDITY_ROLE),
+                        c,
+                        "常数须与逐笔解析逐位相同（qty={qty}, px={px}）"
+                    );
+                }
+            }
+        }
+
+        // ★#423 收尾轮 C：两个变体用**不可变**构造（原实现 `let mut x = sym.clone(); x.unit = …`
+        //   违 coding-style「ALWAYS create new objects, NEVER mutate」；改为函数式更新，与同一
+        //   diff 内 `..Default::default()` 的写法同型）。
+        // 非对称 ⟹ None（角色维不消失）。
+        let asym = VenueFeeSchedule {
+            unit: FeeUnit::Notional { maker_bps: 5.0, taker_bps: 10.0 },
+            ..sym.clone()
+        };
+        assert_eq!(asym.constant_effective_rate(), None);
+
+        // NaN 的 `to_bits` 自等，不得让它冒充"对称"（datum 路径不可达，手工构造可达）。
+        let nan = VenueFeeSchedule {
+            unit: FeeUnit::Notional { maker_bps: f64::NAN, taker_bps: f64::NAN },
+            ..sym.clone()
+        };
+        assert_eq!(nan.constant_effective_rate(), None);
+    }
+
+    /// per-share 档 ⟹ `None`；且其逐笔费率**确实随 qty 变**（"无常数"的物证，不是口头声明）。
+    ///
+    /// **认识论 L1**（★#423 收尾轮 B 订正，原标 L2「真实 IBKR datum」）。订正理由：datum 取自真实
+    /// venue 官方费率表不足以判 L2——L2 要求「真实数据**假设检验**，可能产生否定性结果」。本测断言
+    /// 的是费率表**算术形态**（per-share 分支给 `None`；两个不同 qty 上的等效费率不相等），这是
+    /// 装载 + 算术管线的正确性，输入是契约值而非估计量 ⟹ 不可否证任何市场假设，信息增量为零。
+    /// **本测能否证的假设：无**（同型先例 `wverify_run::fee_datum_spec_resolves_repo_datum` 标 L1）。
+    #[test]
+    fn constant_rate_none_for_per_share_with_witness() {
+        let s = ibkr().resolve("OKLO", "PRO_TIERED_LE_300K_SHARES").unwrap();
+        assert_eq!(s.constant_effective_rate(), None);
+        let r_small = s.effective_rate(10.0, 20.0, FillSide::Buy, PRODUCTION_LIQUIDITY_ROLE);
+        let r_big = s.effective_rate(100_000.0, 20.0, FillSide::Buy, PRODUCTION_LIQUIDITY_ROLE);
+        assert_ne!(r_small, r_big, "per-share 档费率随规模变 ⟹ 无常数可取");
+    }
+
+    /// 真实 datum：Binance 现货两档（VIP0 / BNB 抵扣）maker=taker ⟹ 均给常数。
+    ///
+    /// **认识论 L1**（★#423 收尾轮 B 订正，原标 L2「datum = venue 官方费率表快照」）。订正理由：
+    /// 「输入是真实数据」是 L2 的必要条件而非充分条件——L2 还要求该输入承载一个**可被否证的假设**。
+    /// 本测断言两条在册档的对称性判定结果与 bps 换算（`Some(1e-3)` / `Some(7.5e-4)`），期望值直接
+    /// 由费率表字面值算出 ⟹ 只验装载与除法，不验任何关于市场的命题。
+    /// **本测能否证的假设：无**（同型先例 `wverify_run::fee_datum_spec_resolves_repo_datum` 标 L1）。
+    #[test]
+    fn constant_rate_binance_real_datum() {
+        let b = binance();
+        assert_eq!(
+            b.resolve("BTC", "VIP0").unwrap().constant_effective_rate(),
+            Some(1e-3)
+        );
+        assert_eq!(
+            b.resolve("BTC", "VIP0_BNB25").unwrap().constant_effective_rate(),
+            Some(7.5e-4)
         );
     }
 

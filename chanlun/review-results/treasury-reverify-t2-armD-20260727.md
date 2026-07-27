@@ -121,6 +121,19 @@
 > 090 要求明写。
 > **本次只订正措辞，不恢复任何读数**——「不可用」诸格维持原状；按金额档层4 的恢复属 **#423**
 > （按档位形态分叉 scalar 成本口径），在其落地前本节状态不变。
+>
+> **订正（#423，2026-07-27）——上文「最低佣金托底 / 1% 上限 / TAF 封顶」三机制并列不精确，按实收窄**：
+> 上句把「有效费率随单量变动（§5 实测 1.8 倍）」归因于三个机制**并列**。**实测只有第一个机制起作用**——
+> `oklo_real_window_per_share_readings` 复跑（2026-07-27，`cargo test --release --lib
+> oklo_real_window_per_share_readings -- --ignored --nocapture`，日志 `/tmp/423_oklo.out`）逐字读数：
+> `lots=50 … 最低佣金触达=40 1%上限触达=0 TAF上限触达=0`／`lots=100 … 最低佣金触达=0 1%上限触达=0
+> TAF上限触达=0`／`lots=500 … 最低佣金触达=0 1%上限触达=0 TAF上限触达=0`
+> ⟹ **1% 名义额上限与 TAF 封顶三组均 0/40 触达**（与 §5 表原文一致），1.8 倍
+> （`1.375701e-4 / 7.654387e-5 = 1.797`）**只由最低佣金 $0.35 托底造成**。
+> ⟹ 准确表述 = 「per-share 档**存在**托底/封顶三类拐点机制使有效费率可能随单量变动；**本组证据里
+> 实际触发的只有最低佣金托底**，1% 上限与 TAF 封顶未被触达，故它们在本组读数中**不构成** 1.8 倍的成因」。
+> **原句不删**（090：不改写已发布读数），本块为按实收窄。**未改任何代码与脚本**；§5 的三行读数与
+> 触达计数**逐位未变**，本订正只动措辞归因。
 
 **仍然有效**（与单标量费率无关；逐笔实付经 `treasury::fee_quoter` 解析）：n_orders / ΣN_tΔP_t /
 Comm+Slip / Funding / Borrow / LiqLoss / execR / MaxDD / 声部数 / 终Stage / Q_T / W_T / η 列 /
@@ -435,3 +448,135 @@ failures:
 
 Standards 轴：5 项已修，4 项登记不修（其中最重的是 `fill.rs` 800 行上限，属 #385 明列的 Out of Scope）。
 Spec 轴：6 项已修，2 项登记（其中最重的是 OKLO 未进 treasury 层，按票体降级口径执行并明文登记）。
+
+---
+
+## 13. 补遗节：#423 第三阶段臂D 层4 读数补跑（2026-07-27）
+
+> **本节性质**：**新增补遗**，不改写本报告上文任何已发布读数、结论与引文。上文 §2 / §3 / §10 的
+> 「不可用」诸格是 **#388 落盘当时**（`fee_schedule.is_some()` 一刀切）的真实产物读数，**逐字保留**。
+> 本节登记的是 **#423 按档位形态分叉落地后**同一命令重跑出来的**新读数**。两者不是矛盾，是**两个不同
+> 代码态下的两次观测**——#423 第一/第二阶段改了 `treasury::scalar_cost_rate_opt` 与
+> `wverify_run` 层4 渲染，臂D 因此从「标量不可得」态迁到「标量可得」态。
+
+- **日期**：2026-07-27　**依据**：issue #423 第三阶段（承 Lead 裁定其三 → #422 措辞订正 / #423 读数恢复）
+- **认识论等级**：**L2**（真实 BTC OOS 三窗假设检验，可否证；`.claude/rules/formalization-validity-domain.md`）。
+  有效域与 §10 同：BTC / p3fold+wf7+wf8 三窗 / 臂D（`fee_schedule=Some(Binance spot VIP0)`、
+  `enforce_level_cap=false`、κ=0 冻结、`THETA_NEST_CERT_GATE=1`、`VOICE_EXEC=1`）。**不外推**其它品种/
+  窗口/档位/开关组合。
+- **本阶段零代码改动**：只跑批与记数（rust 源码与 `scripts/` 未动，改动面 = 本报告 + T3 报告两个 md）。
+
+### 13.1 备份路径（不可逆前置，已做）
+
+| 备份物 | 路径 | 用途 |
+|---|---|---|
+| 臂R 三窗 dump（重跑前原件） | `/tmp/423_backup_m8_win_gate/{p3fold,wf7,wf8}/{trades,tower_events}.jsonl` | 回归门漂移时的唯一对照物 |
+| #388 臂D 四层报告三窗（旧产物原文） | `/tmp/423_backup_388_armD_report_{p3fold,wf7,wf8}.md` | 产物字符串新旧对照 |
+| 上一次 m8 四层报告 | `/tmp/423_backup_m8_e2e_all_systems_oos.md` | 同上 |
+
+### 13.2 复现命令（逐字，工作目录 `/tmp/kimi-nest-mainline/rust`）
+
+```
+# 臂R（回归门物证；<tag> ∈ {p3fold,wf7,wf8}）
+M8_WIN_FILTER=<tag> VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 \
+  OPSEM_DUMP_DIR=/tmp/m8_win_gate/<tag> \
+  cargo test --release --lib theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos -- --ignored --nocapture
+# 臂D（标定）
+M8_WIN_FILTER=<tag> VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 \
+  M8_FEE_DATUM=venue_fee_binance_spot_20260726.json:BTC:VIP0 \
+  OPSEM_DUMP_DIR=/tmp/m8_win_armD/<tag> \
+  cargo test --release --lib theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos -- --ignored --nocapture
+# 回归门（仓根）
+python3 scripts/check_armR_trades_digest.py
+```
+
+产物：`/tmp/423_arm{R,D}_<tag>.out`（stdout/stderr）、`/tmp/423_arm{R,D}_report_<tag>.md`
+（四层报告副本，源 `/tmp/m8_e2e_all_systems_oos.md` 每次覆写）、
+`/tmp/m8_win_gate/<tag>/*.jsonl`、`/tmp/m8_win_armD/<tag>/*.jsonl`。单窗耗时 33～36s。
+
+### 13.3 臂D 层4 恢复读数（**新读数**，与 §2 的「不可用」诸格并列，不替换）
+
+| 窗 | R(含浮盈) | **LCB_OOS(R)** | **三态** | §2 旧读数（#388 当时，保留） |
+|---|---|---|---|---|
+| p3fold | -1564400 | **-3792042** | **无(R≤0)** | 不可用 / 不可用 |
+| wf7 | -6113276 | **-11526729** | **无(R≤0)** | 不可用 / 不可用 |
+| wf8 | +4980320 | **-3593828** | **INCONCLUSIVE** | 不可用 / 不可用 |
+
+臂R 同批复跑对照（逐位与 T1/#387 相同，未变）：LCB = -3550861 / -10865720 / -2105181，
+三态 = 无(R≤0) / 无(R≤0) / INCONCLUSIVE。
+
+**读法（v3 硬禁令）**：**三窗 LCB 全部 ≤ 0 ⟹ 臂D 层4 无 confirmed alpha**。wf8 的
+`INCONCLUSIVE` 是「R>0 ∧ LCB≤0」的态，**不是**通过。全部数值**不作 alpha 论据、不作策略择优输入**。
+两个负 LCB 窗（p3fold/wf7）的三态是 `无(R≤0)`，因 R≤0 时该层无判据对象。
+
+**臂D 相对臂R 的 LCB 方向（照实登记，不作机制解释）**：三窗均更负
+（-3550861→-3792042 / -10865720→-11526729 / -2105181→-3593828）。本阶段**未做**「LCB 差归因于
+费率科目差还是规模差」的分解——那需要第三个冻结 sizing 的臂（§4.2 末尾同一缺席）。
+
+**其余各列逐位未变的实证**：`diff /tmp/423_backup_388_armD_report_<tag>.md /tmp/423_armD_report_<tag>.md`
+三窗的差**恰好只有三处**：① 报告头声明块整段替换；② 层4 表的 `LCB_OOS(R)` / `三态` 两格；
+③ 判据结算段层4 那一行。n_orders / ΣN_tΔP_t / Comm+Slip / Funding / execR / MaxDD / 声部数 /
+终Stage / Q_T / W_T / η 列 / cum_holding_cost / η_corrected / R(含浮盈) **全部逐字节相同**
+⟹ #423 的分叉改动**只动层4 标量口径面**，未扰动任何账本读数。
+
+### 13.4 声明段实际文本（臂D 产物首个 blockquote，三窗逐字相同）
+
+```
+> **标定档单标量成本口径可得声明（★#423）**：本跑批经 `M8_FEE_DATUM` 注入 venue 费率 datum，且该档为**按金额档（per-notional）且 maker/taker 逐位对称**、撮合角色取自编译期常量 `venue_fee::PRODUCTION_LIQUIDITY_ROLE` ⟹ 存在与 (qty, px, side) 无关的常数等效费率（判定本体 = `venue_fee::VenueFeeSchedule::constant_effective_rate`）。单标量成本费率（`RunResult::fee_rate`，经 `treasury::scalar_cost_rate_opt`）= 档 bps/1e4 + `slippage_bps`/1e4 + `tax_bps`/1e4 = **0.001200**（标定档下 `tax_bps` 由 `treasury::fee_quoter` 的 assert 强制为 0）。
+> 故层4 的 `LCB_OOS(R)` 与三态判据在本臂**照常产出**——与未标定臂同一函数、同一口径，反事实臂（随机对照在不同 px 上重执行）用同一个常数，不引入口径不对称。
+>
+> **本声明不覆盖**（照实登记，不膨胀）：
+> - `slippage_bps` 仍**未标定**（venue datum 只标佣金/监管/清算科目，报告 §3.3）⟹ 本臂标量是「L2 标定佣金 + L1 未标定滑点」的合成；成交费率科目的口径标签见上方抬头；
+> - `l3_delta_r_alpha` 鞅守卫的成本剥离**不在本跑批路径内**（其唯一调用方是同文件的 `#[ignore]` 合成鞅守卫测试）；
+> - 层1 signal 的 INCONCLUSIVE 与本档无关（转引，不重算）。
+```
+
+⟹ 前置事实核实通过：臂D 现在输出的是「**可得**」声明（旧产物为「标定档有效域收窄声明（#374 / #385）」
++「无良定义」）。旧声明段全文见备份 `/tmp/423_backup_388_armD_report_p3fold.md:9-17`。
+
+### 13.5 产物字符串变更登记（**旧引文不再逐字匹配新产物**）
+
+#423 第一/第二阶段把不可用标注常量 `CALIBRATED_UNAVAILABLE` 改名 `SCALAR_UNDEFINED_UNAVAILABLE`，
+正文由 `不可用(标定档有效域收窄 #374)` 改为 `不可用(单标量成本口径无良定义 #374/#423)`。
+⟹ 本报告及下游影子评审中**以「产物原文」名义引用旧串的句子，不再与新产物逐字相符**：
+
+| 位置 | 旧引文（**保留不改**） | 新产物实况 |
+|---|---|---|
+| §2 表下 | 「『不可用』全称 = `不可用(标定档有效域收窄 #374)`（产物原文）」 | 臂D 三窗产物**已无任何「不可用」串**（层4 两格现为真数值） |
+| §3 表首列「处置」 | 「表格单元标 `不可用(标定档有效域收窄 #374)`」 | 同上 |
+| §10 | 「臂D 读数的层4 缺席是有效域收窄」 | 层4 已不缺席 |
+
+**两个独立原因叠加**（务必区分，否则会误判为纯改名问题）：
+
+1. **改名/改文**：不可用分支的正文串本身变了（`标定档有效域收窄 #374` → `单标量成本口径无良定义 #374/#423`）；
+2. **分支不再被走到**：臂D / 臂C 用的是按金额对称档 ⟹ `scalar_cost_rate_opt` 返回 `Some` ⟹
+   根本不进不可用分支。**实证**：`grep -c 不可用 /tmp/423_arm{R,D,C}_report_{p3fold,wf7,wf8}.md`
+   → **9 个产物全部 0 命中**。
+
+⟹ 新串 `不可用(单标量成本口径无良定义 #374/#423)` 现在只可能由**按股档（per-share）或按金额非对称档**
+产生，而 m8 跑批的在册档位（Binance 现货 VIP0 / 三常数）都不是这两类 ⟹ **本票的 9 次跑批里该串一次未出现**。
+它的活证据在单测面：`treasury::scalar_cost_rate_opt_per_share_is_none` /
+`scalar_cost_rate_opt_notional_asymmetric_is_none` / `wverify_run` 层4 渲染测试（`wverify_run.rs:1862`
+断言 `lcb == SCALAR_UNDEFINED_UNAVAILABLE`）。**不改旧引文、不假装没变**，本节即登记。
+
+### 13.6 未产出项（照实，不留空、不用旧数顶替）
+
+| 项 | 状态 | 原因 | 剩余复现路径 |
+|---|---|---|---|
+| 随机对照读数（`theta_beats_random` / `shift_pvalue` / `indep_pvalue`） | **未产出** | **m8 四层报告不渲染这三个字段**。`metrics::significance` 在标量可得档被**完整调用**（随机对照系在 `metrics.rs:539/562/566` 内算了），但 m8 只消费返回结构的 `boot_ci95_lo` 一个字段（`wverify_run.rs:1608-1617`）⟹ 三个值算了但没有任何落盘出口，无法从产物采集 | 需在 m8 层4 表增列该三字段（**代码改动**；本阶段禁改 rust，**只登记不动手**）。登记为 #423 后续可做项 |
+| 「LCB 差 = 费率科目差 vs 规模差」的份额分解 | **未产出** | 需第三个「标定费率 + 冻结臂R sizing 轨迹」的臂，属新配置面 | 同 §4.2 末尾登记 |
+
+### 13.7 release 档指纹（本阶段实测）
+
+```
+test result: FAILED. 1966 passed; 1 failed; 135 ignored; 0 measured; 0 filtered out; finished in 0.98s
+failures:
+    theta_v0::classifier::signal::tests::extract_signals_bit_exact_digest_guard
+```
+
+（日志 `/tmp/423_full_lib_test.log`，命令 `cargo test --release --lib`）
+
+- 相对 #423 票面在案的 release 指纹 **1944 passed / 1 failed / 135 ignored**：passed **+22**
+  （#423 第一/第二阶段新增测试），failed / ignored 计数不变。
+- **失败集恰好 1 条**，仍是 `extract_signals_bit_exact_digest_guard`（#115 线在案）⟹ **未劣化**。
+- §8 的 1937/1/135 是 **#388 落盘当时**的历史读数，**保留不改**。

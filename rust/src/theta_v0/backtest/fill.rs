@@ -6,7 +6,10 @@
 use super::super::config::ThetaConfig;
 use super::super::types::{Bar, Order, StrictAction};
 use super::super::strategy::exec::FillSide;
-use super::super::venue_fee::{FeeQuoter, LiquidityRole};
+// ★#423 第二阶段 C 线：本文件生产区段**不** import `LiquidityRole`——成交报价走
+// `FeeQuoter::production_rate_or_fallback`（无角色参数，角色单一来源 =
+// `venue_fee::PRODUCTION_LIQUIDITY_ROLE`）。测试区段按需自行 import（见 `mod tests`）。
+use super::super::venue_fee::FeeQuoter;
 
 /// fill 模拟（Θ_exec 基础形态，reference-theta-v0.md:49-54）。
 ///
@@ -136,8 +139,11 @@ pub(crate) fn order_delta_close_only(action: StrictAction, units: f64) -> Option
 /// 未标定档（`ExecConfig::fee_schedule = None`）⟹ 恒为三常数合成率，与改动前**逐位相同**；
 /// 标定档 ⟹ 按本笔 (qty, px, 成交方向) 解析 datum + 未被 datum 覆盖的滑点（`FeeQuoter`）。
 ///
-/// **流动性角色恒 [`LiquidityRole::Taker`]**：本引擎全部成交按 bar close 市价撮合，无挂单
-/// 语义 ⟹ 取 maker 档是声明膨胀（090）。datum 里的 maker 档留给真限价执行模型（报告 §3.1）。
+/// **流动性角色恒 [`PRODUCTION_LIQUIDITY_ROLE`](super::super::venue_fee::PRODUCTION_LIQUIDITY_ROLE)
+/// （= Taker）**：本引擎全部成交按 bar close 市价撮合，无挂单语义 ⟹ 取 maker 档是声明膨胀
+/// （090）。datum 里的 maker 档留给真限价执行模型（报告 §3.1）。★#423 第二阶段 C 线起本文件
+/// 三个成交点**不传角色**——走 [`FeeQuoter::production_rate_or_fallback`]，角色在 quoter 内部
+/// 取那个常量（单一来源；在此写角色字面量已是编译错误，无参可传）。
 ///
 /// **询价量 = 本笔可成交量的上界，且已扣掉可预知的裁量**：纯平仓单按
 /// `min(qty, |units|)` 询价（[`apply_fill`] 段 1 的同一 clamp）。剩余唯一偏差源是**开仓段
@@ -151,7 +157,7 @@ fn order_fee_rate(fees: &FeeQuoter, o: &Order, px: f64, units: f64) -> f64 {
     let qty = o.qty as f64;
     let qty = if close_only { qty.min(units.abs()) } else { qty };
     let side = if delta > 0.0 { FillSide::Buy } else { FillSide::Sell };
-    fees.rate_or_fallback(qty, px, side, LiquidityRole::Taker)
+    fees.production_rate_or_fallback(qty, px, side)
 }
 
 /// 双腿账本 [`LegOrder`](super::super::strategy::LegOrder) 的成交费率：(腿方向, 开/平) ⟹ 买卖
@@ -170,14 +176,14 @@ fn leg_fee_rate(
         (VoiceSide::Short, true) => (FillSide::Buy, (lo.order.qty as f64).min(ledger.q_short)),
         (VoiceSide::Flat, _) => return fees.fallback_rate(), // Flat 腿不成交
     };
-    fees.rate_or_fallback(qty, px, side, LiquidityRole::Taker)
+    fees.production_rate_or_fallback(qty, px, side)
 }
 
 /// 账户净持仓在窗口终点强平（含浮盈口径）的成交费率：持多 ⟹ 卖出，持空 ⟹ 买回。
 /// 询价量 = `|units|`（强平量确定，无裁量偏差）。
 fn forced_flatten_fee_rate(fees: &FeeQuoter, units: f64, px: f64) -> f64 {
     let side = if units > 0.0 { FillSide::Sell } else { FillSide::Buy };
-    fees.rate_or_fallback(units.abs(), px, side, LiquidityRole::Taker)
+    fees.production_rate_or_fallback(units.abs(), px, side)
 }
 
 pub(crate) fn apply_order(
@@ -3690,7 +3696,7 @@ mod venue_fee_wiring_tests {
         let paid = (1.0 - *eq.last().unwrap()) * SMALL_NAV;
 
         let q = super::super::treasury::fee_quoter(&c.exec);
-        let rate = |qty: f64, side| q.rate_or_fallback(qty, PX, side, LiquidityRole::Taker);
+        let rate = |qty: f64, side| q.production_rate_or_fallback(qty, PX, side);
         let fee_open = 10.0 * PX * rate(10.0, FillSide::Sell); // 开空段：询价量 = 实际成交量
         let fee_close_quoted = 10.0 * PX * rate(1_000.0, FillSide::Buy); // 实扣：按整单量询价
         let fee_close_correct = 10.0 * PX * rate(10.0, FillSide::Buy); // 应扣：按实际成交量
@@ -3845,8 +3851,17 @@ mod venue_fee_wiring_tests {
     ///
     /// 与 [`real_window_datum_reconciliation`] 的分工：那一测证明「datum 路径与手写公式对得上」
     /// （一个 Σ 对拍）；本测答的是票体 #388 的问题「per-share 档的**非线性拐点**在真实数据上到底
-    /// 触没触达」——这是单标量费率口径在标定档失效的**经验证据**（#374 有效域收窄的实证面）：
-    /// 若最低佣金/上限在真实单量上频繁生效，逐笔有效费率就不是常数，任何单标量近似都失真。
+    /// 触没触达」——这是单标量费率口径在**按股档（per-share）**失效的**经验证据**（#374 有效域
+    /// 收窄的实证面）：若最低佣金/上限在真实单量上频繁生效，逐笔有效费率就不是常数，任何单标量
+    /// 近似都失真。
+    ///
+    /// **有效域：本证据只管按股档，不牵连按金额档**（★#423 措辞收窄，#447 尾扫 MED-1 第 3 处）。
+    /// 原措辞写作「在**标定档**失效」，把 per-share 特有的非线性当成了标定档全体的性质。按金额档
+    /// （[`FeeUnit::Notional`](super::super::venue_fee::FeeUnit::Notional)）的有效费率 = `bps/1e4`，
+    /// `VenueFeeSchedule::effective_rate` 的该分支**函数体不读 `qty`/`px`**，也无最低佣金/名义额
+    /// 上限/仅卖出科目 ⟹ 没有拐点可触达，本测的证据对它**无话可说**（既不支持也不反对）。
+    /// 按金额档能否取单标量另有判据（maker/taker 是否逐位对称），本体 =
+    /// `VenueFeeSchedule::constant_effective_rate`，分叉见 `treasury::scalar_cost_rate_opt`（★#423）。
     ///
     /// **单量分组**（同款构造、只改每单股数）：50 / 100 / 500 股 —— 50 股 raw 佣金 $0.175 < $0.35
     /// ⟹ 必触底；100 股恰 $0.35（边界，不触底）；500 股 $1.75 ⟹ 不触底。三组一起跑才能看出
@@ -3863,7 +3878,7 @@ mod venue_fee_wiring_tests {
     #[test]
     #[ignore]
     fn oklo_real_window_per_share_readings() {
-        use super::super::super::venue_fee::LiquidityRole;
+        use super::super::super::venue_fee::PRODUCTION_LIQUIDITY_ROLE;
         use super::super::data;
         const BIG_NAV: f64 = 1e9; // 足够大 ⟹ 无现金拒单 ⟹ 各组 units 轨迹相同
         // 读数落盘路径（与 m8 跑批 `/tmp/m8_e2e_all_systems_oos.md` 同惯例：`#[ignore]` 手动跑批
@@ -3960,7 +3975,8 @@ mod venue_fee_wiring_tests {
                 } else {
                     super::super::super::strategy::exec::FillSide::Buy
                 };
-                let via_datum = sched.fee_usd(qty, px, side, LiquidityRole::Taker);
+                // 角色取生产常量（★#423 C 线：测试也不写字面量——本测对拍的是生产口径）。
+                let via_datum = sched.fee_usd(qty, px, side, PRODUCTION_LIQUIDITY_ROLE);
                 assert!(
                     (via_datum - recomputed).abs() <= 1e-9 * recomputed.abs().max(1.0),
                     "OKLO lots={lots} 逐笔对拍失败：datum {via_datum:.12} ≠ 手写 {recomputed:.12}"
@@ -4031,9 +4047,15 @@ mod venue_fee_wiring_tests {
             .unwrap_or_else(|e| panic!("OKLO 读数落盘失败 {OKLO_READINGS_PATH}：{e}"));
 
         // ── #418 LOW-2 机器断言：产物抬头的口径标签必须落**真哈希**，不得留字面占位符 ──
-        // 母 SPEC #385 US4 的目的是「读数的认识论等级**机器可读**」：消费方以
-        // `\[L2费率标定: datum ([0-9a-f]{12})\]` 提取档位与 datum 身份。抬头若留 `<前12位>`
-        // 这类字面占位符，该正则在产物上匹配失败 ⟹ 等级退化为人读。
+        // 母 SPEC #385 US4 的目的是「读数的认识论等级**机器可读**」。本组断言守的是一条
+        // **机器可读格式契约**：产物抬头承诺「口径标签」行可被正则
+        // `\[L2费率标定: datum ([0-9a-f]{12})\]` 解析出档位与 datum 身份。
+        // ★#423 措辞订正（#447 尾扫 LOW-2）：原注释写作「**消费方**以该正则提取……」——
+        // 仓内**不存在**这样的消费方（`grep -rn "L2费率标定" rust/src scripts chanlun` 的命中
+        // 全是**生产端**写标签：`fill.rs`/`wverify_run.rs`/`venue_fee.rs`/`risk.rs`，加评审报告
+        // 引用；没有任何代码/脚本读回并解析它）。故契约是**给未来/外部消费方的格式承诺**，
+        // 不是对既有消费方的描述——虚构一个不存在的消费方即 090 声明膨胀。
+        // 抬头若留 `<前12位>` 这类字面占位符，上述正则在产物上匹配失败 ⟹ 契约破、等级退化为人读。
         // 断言对象是**回读的落盘文件**而非内存 `md`：校验的必须是交付物本身。
         let written = std::fs::read_to_string(OKLO_READINGS_PATH)
             .unwrap_or_else(|e| panic!("OKLO 读数回读失败 {OKLO_READINGS_PATH}：{e}"));
@@ -4050,6 +4072,11 @@ mod venue_fee_wiring_tests {
             digest12.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)),
             "datum sha256 前 12 位非小写 hex：{digest12}"
         );
+        // ★#423（#447 尾扫 LOW-3）：本条相对前两条**冗余**——`digest12` 与生成抬头用的是同一
+        // 变量，故它对「哈希本身是否正确」是重言的，只能确认标签格式串未被改坏、且回读文件里
+        // 的那一行确实由本次生成写出。**真防线是第一条**（占位符检查：抬头是否落了运行时插值
+        // 而非字面 `<前12位>`）。保留本条的理由是格式串完整性（`[L2费率标定: datum …]` 的前后缀
+        // 被改坏时它变红），不是哈希正确性——后者由 sidecar `shasum -a 256 -c` 独立复核。
         let expected_label = format!("[L2费率标定: datum {digest12}]");
         assert!(
             label_line.contains(&expected_label),

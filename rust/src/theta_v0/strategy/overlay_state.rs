@@ -48,12 +48,17 @@ use super::coverage::{SepLeg, Vertical};
 use super::exec::FillSide;
 use super::voice::VoiceSide;
 use crate::theta_v0::classifier::recursive_tower::ElementId;
-use crate::theta_v0::venue_fee::{FeeQuoter, LiquidityRole};
+// ★#423 第二阶段 C 线：本文件**不** import `LiquidityRole`——报价走
+// `FeeQuoter::production_rate_or_fallback`（无角色参数，角色单一来源 =
+// `venue_fee::PRODUCTION_LIQUIDITY_ROLE`）。
+use crate::theta_v0::venue_fee::FeeQuoter;
 
 /// ★#360 声部簿的 venue 费率解析（开仓侧）：开多 = 买入，开空 = 卖出。
 ///
 /// 未标定档恒返回三常数合成率（**逐位现状**）；标定档按 (q_v, px, 方向) 解析 datum。
-/// 流动性角色恒 [`LiquidityRole::Taker`]（bar close 市价撮合，无挂单语义——同 `fill.rs`）。
+/// 流动性角色恒 [`PRODUCTION_LIQUIDITY_ROLE`](crate::theta_v0::venue_fee::PRODUCTION_LIQUIDITY_ROLE)
+/// （= Taker；bar close 市价撮合，无挂单语义——同 `fill.rs`）：★#423 第二阶段 C 线起本文件
+/// **不传角色**，角色在 [`FeeQuoter::production_rate_or_fallback`] 内部取该常量（单一来源）。
 /// 非法量/价 ⟹ 该 fill 不发生，返回常率占位（调用方随后即 noop）。
 fn open_fee_rate(fees: &FeeQuoter, side: VoiceSide, q_lots: i64, px: f64) -> f64 {
     let fill_side = match side {
@@ -75,8 +80,9 @@ fn close_fee_rate(fees: &FeeQuoter, side: VoiceSide, q_lots: i64, px: f64) -> f6
 }
 
 fn quote(fees: &FeeQuoter, q_lots: i64, px: f64, side: FillSide) -> f64 {
-    // 量/价合法性判定收在 `FeeQuoter::rate_or_fallback` 一处（与 `fill.rs` 成交点同源）。
-    fees.rate_or_fallback(q_lots as f64, px, side, LiquidityRole::Taker)
+    // 量/价合法性判定与撮合角色都收在 `FeeQuoter::production_rate_or_fallback` 一处
+    // （与 `fill.rs` 成交点同源；角色不由本文件表达）。
+    fees.production_rate_or_fallback(q_lots as f64, px, side)
 }
 
 /// σ_v 的符号（Long=+1 多 / Short=−1 空 / Flat=0 不入活动集，防御性）。

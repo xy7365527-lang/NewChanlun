@@ -261,6 +261,12 @@ pub struct ExecConfig {
     /// 标定档下本字段**仍未标定**——venue 费率表只标定佣金/监管/清算科目。
     pub slippage_bps: f64,
     /// tax（bp/side）。default 0。L3。
+    ///
+    /// **标定档下必须为 0**——本处只是该约束的**声明处**，唯一**强制处**是
+    /// `backtest::treasury::fee_quoter` 内的 `assert!`（`fee_schedule.is_none() || tax_bps == 0.0`）。
+    /// 理由见 [`fee_schedule`](Self::fee_schedule)：两个在册 venue 的交易税费科目已由 datum 逐项
+    /// 承载，再叠一个笼统 `tax_bps` 会重复计。本处不做任何运行时检查（把声明处读成强制处会高估
+    /// 强度）。
     pub tax_bps: f64,
     /// ★venue 真实费率档（#360；datum + sha256 版本哈希，见 [`venue_fee`](super::venue_fee)）。
     ///
@@ -279,14 +285,24 @@ pub struct ExecConfig {
     /// 窗口终点强平；以及 `strategy::overlay_state::VoiceExecBook` 的开/平/强平三个扣费点
     /// （簿是 (σ_v, q_v) 的真值源，故解析下沉到簿内逐声部做）。
     ///
+    /// **部分收编（★#423）**：`backtest::runner::RunResult::fee_rate` 是**单标量**成本口径
+    /// （随机对照/成本剥离用），不能走逐笔解析器 ⟹ 其收编条件是"本档存在一个与 (qty, px, side)
+    /// 无关的常数等效费率"。取值走 `backtest::treasury::scalar_cost_rate_opt`（#374 MED-A 起从
+    /// 文字登记升级为代码锁；#388 T2 起由 `Option` 类型承载，此前是 `scalar_cost_rate` 构造期
+    /// panic），★#423 起**按档位形态三分叉**：
+    ///
+    /// - **按金额档（per-notional）且 maker/taker 逐位对称** ⟹ **已收编**，标量 = 档 bps/1e4 +
+    ///   `slippage_bps`/1e4 + `tax_bps`/1e4（撮合角色取自编译期常量
+    ///   `venue_fee::PRODUCTION_LIQUIDITY_ROLE`；判定本体 =
+    ///   `venue_fee::VenueFeeSchedule::constant_effective_rate`）；
+    /// - **per-share 档 / per-notional 非对称档** ⟹ **未收编**，给 `None` 而非一个不对称口径的
+    ///   常数，消费面须 fail-loud（同一条 `SCALAR_COST_RATE_UNDEFINED`）或标注读数不可用。这两档
+    ///   的解锁需给消费面接 (qty, px, side) 缝（随滑点/价差 datum 一并，报告 §1.6 裂缝 3 同族），
+    ///   属另票。
+    ///
     /// **未收编（照实登记，不膨胀）**——以下位点一律取未标定常率，且当前**无 datum 注入通道**
     /// （它们都用 `ExecConfig::default()` ⟹ `None` ⟹ 与改动前逐位相同）：
     ///
-    /// - `backtest::runner::RunResult::fee_rate`：随机对照的成本口径是单标量，per-share 档下
-    ///   无良定义 ⟹ 随滑点/价差 datum 一并收编（报告 §1.6 裂缝 3 同族）。**#374 MED-A 起，
-    ///   该缺口从文字登记升级为代码锁**：取值走 `backtest::treasury::scalar_cost_rate_opt`
-    ///   （#388 T2 起；此前是 `scalar_cost_rate`），标定档下给 `None` 而非一个不对称口径的常数，
-    ///   消费面须 fail-loud（同一条 `SCALAR_COST_RATE_UNDEFINED`）或标注读数不可用；
     /// - `strategy::exec::apply_fees`：tick 域价格偏移变体，无成交量/方向上下文，且当前
     ///   **无生产调用方**（仅其自身单测）；
     /// - 研究跑批与诊断：`backtest::econ_positive` / `backtest::l3_delta_r_alpha` /

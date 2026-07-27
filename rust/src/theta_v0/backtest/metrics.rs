@@ -313,17 +313,23 @@ pub struct Significance {
 /// - `daily_returns`：逐 bar returns 序列（Sharpe 标准误 Lo 2002 调整用）。
 /// - `trades`：Θ 的交易执行轨迹（[`TradeRecord`]，操作语义随机对照的输入）。
 /// - `prices`：原始价格序列（close 口径，与 Θ 账本侧 `apply_order` 的 `px=bar.close` 一致）。
-/// - `fee_rate`：单边费用率（commission+slippage+tax，比率）。随机对照含同等成本。
-///   **有效域（#374 MED-A）**：该"同等成本"只在**未标定常率**档成立（`fee_schedule = None`）。
-///   订正（#422）——原写「venue 标定档下逐笔费率随 (qty, px, side) 变，单标量口径无良定义」，
-///   该因果对**按金额档**失实：按金额档（per-notional，如 Binance 现货 maker=taker=10bp，撮合恒
-///   Taker ⟹ 单边恒 12bp）逐笔费率**不随 qty/px 变**，标量口径可定义。无良定义只成立于**按股档**
-///   （per-share：最低佣金托底、名义额上限、卖出监管费 ⟹ 费率是 (qty, px, side) 的非线性函数）。
-///   实现按 `fee_schedule.is_some()` 一刀切、不区分档位类型 ⟹ 上游
-///   [`runner::RunResult::fee_rate`](super::runner::RunResult::fee_rate) 在标定档下是 `None`
-///   （`treasury::scalar_cost_rate_opt`，#388 T2 起由类型承载）⟹ 调用方要么
-///   `expect(treasury::SCALAR_COST_RATE_UNDEFINED)` fail-loud，要么按 #385 裁定把该读数标注
-///   不可用（m8 跑批取后者，标定档下**不调用本函数**）。两条路都不会把标定档的成本口径喂进来。
+/// - `fee_rate`：单边费用率（单标量口径，比率）。随机对照含同等成本。
+///   **有效域（#374 MED-A / ★#423）**：该"同等成本"只在**存在一个与 (qty, px, side) 无关的常数
+///   等效费率**的档上成立。实现**按档位形态三分叉**（★#423 起；此前按 `fee_schedule.is_some()`
+///   一刀切、不区分档位类型，那道保守收窄已拆除）：
+///   - **未标定常率档**（`fee_schedule = None`）：成立，费率 = (commission+slippage+tax)bps/1e4；
+///   - **按金额档**（per-notional 且 maker/taker 逐位对称，如 Binance 现货 maker=taker=10bp，
+///     撮合角色取自编译期常量 ⟹ 单边恒 12bp 含 2bp 未标定滑点）：**成立**——逐笔费率不随
+///     qty/px/side/role 变，标量口径可定义；
+///   - **按股档**（per-share：最低佣金托底、1% 名义额上限、仅卖出监管费 ⟹ 费率是 (qty, px, side)
+///     的非线性函数）与**按金额非对称档**（角色维不消失）：**无良定义**。
+///
+///   上游 [`runner::RunResult::fee_rate`](super::runner::RunResult::fee_rate) 在前两档给
+///   `Some(常数)`、后两档给 `None`（`treasury::scalar_cost_rate_opt`，#388 T2 起由类型承载）⟹
+///   拿到 `None` 的调用方要么 `expect(treasury::SCALAR_COST_RATE_UNDEFINED)` fail-loud，要么按
+///   #385 裁定把该读数标注不可用（m8 跑批取后者）。**m8 跑批在按金额对称档下会调用本函数**
+///   （★#423：该档标量可得 ⟹ 层4 LCB_OOS(R) 照常算），在按股/非对称档下不调用。两条路都不会把
+///   无良定义档的成本口径喂进来。
 /// - `theta_return_for_control`：Θ 含浮盈 total_return（MtM/终点强平口径）——随机对照的比较基准。
 ///
 /// **block bootstrap**（§3.4，backtest-protocol-v0.md:127）：以 [`TRADE_BLOCK_LEN`]=5 笔为块长

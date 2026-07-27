@@ -857,14 +857,29 @@ fn crossfit_l2() {
 /// `exit_bar` 扣 `qty·exit_px·fee_rate`（双边费，与 [`marginal_return`] 同口径）。返回长度
 /// `n_bars` 的逐 bar 成本序列（nav0 归一化），`cost[t]` = 第 t bar 发生的成交费用 / nav0。
 ///
-/// **有效域（#374 MED-A / 231号）**：`res.fee_rate` 是**未标定常率**口径的单标量，标定档
-/// （`exec.fee_schedule = Some`）下该字段在 `RunResult` 构造期即 fail-loud
-/// （`treasury::scalar_cost_rate`）⟹ 本函数只在未标定档被喂到。标定档要接鞅守卫，须把成本
-/// 改由成交侧逐笔实付累计（或 `treasury::fee_quoter` 逐笔重算）供给，不是换一个常数。
+/// **有效域（#374 MED-A / 231号 / ★#423）**：`res.fee_rate` 是单标量成本口径，只在**存在一个与
+/// (qty, px, side) 无关的常数等效费率**的档上有值（`treasury::scalar_cost_rate_opt` 三分叉）。
+/// 本函数因此分两种情形：
+///
+/// - **未标定档**（`fee_schedule = None`）与**按金额对称标定档**（per-notional，maker/taker 逐位
+///   对称）：`fee_rate = Some(常数)` ⟹ 本函数可运行。**按金额档的成本序列不因走标量而失真**：
+///   该档逐笔实付费用本就 = 常数 × 名义额，故下面的逐笔 `qty·px·fee` 与成交侧
+///   `treasury::fee_quoter` 的逐笔解析**同值**，逐 bar 分布（成本落在 entry/exit bar 上）一并保住，
+///   标量只在"费率"这一维取常数、不在"何时发生多少"这一维做平均；
+/// - **按股档 / 按金额非对称档**：`fee_rate = None` ⟹ 下面 `expect` fail-loud。这两档的逐笔费率是
+///   (qty, px, side) 的函数，标量只能保总额、保不住分布 ⟹ 要接鞅守卫须把成本改由成交侧逐笔实付
+///   累计（或 `fee_quoter` 逐笔重算）供给，不是换一个常数。
+///
+/// **本函数的实际消费面（照实登记，★#423 第二阶段核实）**：唯一调用方 = 同文件的 `#[ignore]` 鞅
+/// 守卫测试（[`martingale_impossibility_guard`]，输入 = [`synthetic_martingale`] 合成鞅 ⟹ 认识论
+/// L1）。它的 `config = ThetaConfig::default()` ⟹ `fee_schedule = None` ⟹ **上述三分叉在本函数的现有调用面上只触达
+/// 未标定档一支**。本函数**不在 m8 跑批路径内**（m8 的层4 只调 `metrics::significance`）——上面对
+/// 按金额档的可运行性论证是**有效域声明**，不是"已被跑到"的经验事实（231号：不为它虚构消费面）。
 fn rebuild_cost_series(res: &super::runner::RunResult, n_bars: usize, nav0: f64) -> Vec<f64> {
     let mut cost = vec![0.0f64; n_bars];
-    // ★#388 T2：标定档 `fee_rate=None` ⟹ 此处 fail-loud（原口径 = 构造期 panic，语义等价，
-    //   位点移到消费期）。鞅守卫要接标定档须改逐笔实付累计，不是换一个常数（见本函数有效域节）。
+    // ★#388 T2 / ★#423：`fee_rate=None`（按股档 / 按金额非对称档）⟹ 此处 fail-loud（原口径 =
+    //   构造期 panic，语义等价，位点移到消费期）。按金额对称档自 ★#423 起给 `Some(常数)` ⟹ 走下面
+    //   的逐笔 `qty·px·fee`，与成交侧 fee_quoter 同值、逐 bar 分布不丢（见本函数有效域节）。
     let fee = res.fee_rate.expect(super::treasury::SCALAR_COST_RATE_UNDEFINED);
     for tr in &res.trades {
         // 成交价从 RunResult.prices（与账本 apply_order 成交价一致，close 口径）取。
