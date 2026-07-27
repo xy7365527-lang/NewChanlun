@@ -385,6 +385,26 @@ impl ParallelAccountLedger {
             .sum()
     }
 
+    /// 清零判据容差（#400）：`balance` 是派生视图（对 `instances`——一个
+    /// `HashMap`——逐实例 `qty` 求和），HashMap 遍历顺序不定，求和顺序不同
+    /// 可在浮点末位产生抖动。`1e-9` 是**经验选值，非推导界**——本仓库
+    /// `backtest/fill.rs` 的 `(closed_qty - closed as f64).abs() < 1e-9` 量纲
+    /// 相同（都是 qty），但防的是不同机制：那处是单个浮点值离最近整数的量化
+    /// 残差；这里是对若干仓位节点 `qty` 求和的误差，而各 `qty` 上溯到
+    /// `backtest/fill.rs` 的 `let base_units = equity_nav / px;`——一次真实除法，
+    /// 误差量级与被除值成正比，并非固定 1e-9。多节点求和的误差界**没有推导
+    /// 过**；`1e-9` 只是借用同量纲场景的经验值，不是该场景下的证明界。
+    const RESIDUAL_EPS: f64 = 1e-9;
+
+    /// 是否有残余（**清零判据**，非精确相等）：`|balance(account)| > RESIDUAL_EPS`。
+    /// 收拢调用点原本手写的 `balance(..) != 0.0` 精确浮点比较——语义不变（真实
+    /// 未清仓头寸远超 1e-9 量级，仍判 true），仅把「浮点末位抖动是否算清零」
+    /// 这一判据常量收进 account 模块（接口归属，见 #400；未证实该抖动已在生产
+    /// 发生，本方法不改变现有行为，只是给判据一个显式的、非精确相等的定义）。
+    pub fn has_residual(&self, account: AccountIdentity) -> bool {
+        self.balance(account).abs() > Self::RESIDUAL_EPS
+    }
+
     /// 历史时点余额（**派生视图**：自成交事件日志重放，无快照存储）。
     pub fn balance_as_of(&self, account: AccountIdentity, bar: usize) -> f64 {
         self.fills
@@ -630,6 +650,38 @@ mod tests {
         assert!(!inst.open, "全平后实例关闭");
         assert_eq!(inst.realized_pnl, 100.0, "已实现 = 10 × (110 − 100)");
         assert_eq!(inst.cost_basis, 0.0, "全平后成本基释放");
+    }
+
+    /// #400 边界钉死：容差内（|qty| < RESIDUAL_EPS=1e-9）判无残余——直接构造一个
+    /// qty=9.9e-10 的实例（不经 post，避免真实开平仓路径无法精确命中边界值）。
+    #[test]
+    fn has_residual_false_within_tolerance() {
+        let mut book = ParallelAccountLedger::new();
+        let key = AccountKey::new(AccountIdentity::Core { level: 0 }, 0, pos(0, 0, VoiceSide::Long, 0));
+        book.instances.insert(
+            key,
+            AccountInstance { key, qty: 9.9e-10, cost_basis: 0.0, realized_pnl: 0.0, open: true },
+        );
+        assert!(
+            !book.has_residual(AccountIdentity::Core { level: 0 }),
+            "9.9e-10 < RESIDUAL_EPS，应判无残余"
+        );
+    }
+
+    /// #400 边界钉死：容差外（|qty| > RESIDUAL_EPS=1e-9）判有残余——防将来有人
+    /// 改动容差值或把 `>` 误写成 `>=` 而不被任何测试捕获。
+    #[test]
+    fn has_residual_true_beyond_tolerance() {
+        let mut book = ParallelAccountLedger::new();
+        let key = AccountKey::new(AccountIdentity::Core { level: 0 }, 0, pos(0, 0, VoiceSide::Long, 0));
+        book.instances.insert(
+            key,
+            AccountInstance { key, qty: 1.1e-9, cost_basis: 0.0, realized_pnl: 0.0, open: true },
+        );
+        assert!(
+            book.has_residual(AccountIdentity::Core { level: 0 }),
+            "1.1e-9 > RESIDUAL_EPS，应判有残余"
+        );
     }
 
     /// ★#199 分流单源（红→绿）：二类反向理由按账户分流——核心腿「仅残余才纠错」
