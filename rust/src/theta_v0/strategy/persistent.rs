@@ -78,6 +78,23 @@ impl HeldLegState {
 //  §4-§5 Persistent Element Layer Pi
 // ════════════════════════════════════════════════════════════════════════════
 
+/// registry 条目的**首见来源**（#271）：该 pid **第一次**进 registry 时走的是哪条 merge 路径。
+///
+/// 为什么需要：条目的 `dir` 是**首见方向**（I2 机器锁永固，见 [`PersistentRegistry::merge_in_place_split`]
+/// 的 #233 守卫），而三条登记路径写入的方向语义并不同轴——tree 段写结构方向 ε，candidate 段与
+/// held 兜底写信号/持仓方向 σ。[`PersistentRegistry::direction_flip_event_active`] 的枚举注释
+/// 「candidate 段冲突不算」若只看 `dir≠tree_eps`，在「候选/持仓先于树元素登记该 id」的构型下
+/// 不可执行（首见 dir=σ ⟹ 与树 ε 恒分歧 ⟹ 理论伪阳性）。记录来源使该枚举在**所有构型**下可执行。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FirstSeenSource {
+    /// snapshot **tree 段** upsert 首见 ⟹ `dir` = 结构树方向 ε（唯一与 `tree_eps` 同轴的来源）。
+    Tree,
+    /// snapshot **candidate 段** upsert 首见 ⟹ `dir` = 候选点信号方向 σ（BSP 构造下 σ=−ε 恒真）。
+    Candidate,
+    /// **held leg / op_parent 的 `or_insert`** 兜底首见（LiveDetached，§9 rule 2）⟹ `dir` = 持仓腿方向 σ。
+    Held,
+}
+
 /// 持久注册表条目：一个跨 bar 存活的元素（anc.pdf §4-§5）。
 ///
 /// `pid(e) = H(ℓ(e), start_anchor(e), end_anchor(e), δ(e), kind(e), tie_break(e))`（§5）——
@@ -106,6 +123,9 @@ pub struct PersistentElement {
     pub snapshot_present: bool,
     /// 显式作废标记（§10：只有 close/risk close/invalidation 才让元素退出 live）。
     pub invalidated: bool,
+    /// ★#271 首见来源：本条目**首次登记**走的路径（tree / candidate / held-or_insert）。
+    /// 与 `dir`（首见方向永固）同期写入、此后**不再改写**（首见即定，与 I2 同寿命）。
+    pub first_seen: FirstSeenSource,
 }
 
 /// 持久注册表 Pi（anc.pdf §4）。
@@ -335,6 +355,12 @@ impl PersistentRegistry {
                 structural_parent_id: e.parent_id,
                 snapshot_present: true,
                 invalidated: false,
+                // ★#271 首见来源（首见即定，此后不改写——下方只刷 snapshot 字段）。
+                first_seen: if cand_segment {
+                    FirstSeenSource::Candidate
+                } else {
+                    FirstSeenSource::Tree
+                },
             });
             // ★#233 I2 守卫：同 id 方向不一致 ⟹ 不覆写 dir（禁止静默覆写；拒绝形态，非异常——
             // 翻向是合法事件，事件化在 coverage 层），冲突显式计数（分 tree/cand 段）。
@@ -383,6 +409,7 @@ impl PersistentRegistry {
                 structural_parent_id: leg.parent_id,
                 snapshot_present: false, // LiveDetached（snapshot 找不到）
                 invalidated: false,
+                first_seen: FirstSeenSource::Held, // ★#271：持仓腿兜底登记 ⟹ dir = 腿方向 σ
             });
             // ★I4（anc.pdf §7）：操作父容器持久。
             if let Some(op_pid) = leg.op_parent {
@@ -395,6 +422,7 @@ impl PersistentRegistry {
                     structural_parent_id: None,
                     snapshot_present: false,
                     invalidated: false,
+                    first_seen: FirstSeenSource::Held, // ★#271：op_parent 兜底（dir 借腿方向 σ）
                 });
             }
         }
@@ -434,6 +462,17 @@ impl PersistentRegistry {
     ///   eps=σ（信号方向）与载体 ε（结构方向）的对立是 BSP 构造下**出生即存在的两轴分层**
     ///   （买点恒附下降段末端 ⟹ σ=−ε 恒真，#264 §2.1），含 χ 域外候选 flip-flop；是状态
     ///   分层不是事件。
+    ///
+    /// ★#271 **首见来源门（该枚举在所有构型下可执行）**：条目 `dir` 是首见方向，而首见可能来自
+    /// candidate 段或 held 兜底（[`FirstSeenSource`]），此时 `dir=σ` 与 `tree_eps=ε` **恒分歧**——
+    /// 不是翻向事件，而是两轴出生分层被记进了同一字段。故谓词**只对 `first_seen==Tree` 的分歧
+    /// 开火**（唯一与 `tree_eps` 同轴的来源，即 `tree_blocked` 计的那类事件）；非 tree 来源的分歧
+    /// **如实计数后忽略**（[`FlipGuardProbe::nontree_origin_divergence`]，不判 Flipped）。
+    ///
+    /// 口径边界（诚实标注）：非 tree 首见条目此后**永远**不参与翻向事件判定——其 I2 首见方向
+    /// 与结构轴不可比，本层无从区分「σ/ε 出生分层」与「该载体真翻向」。当前主路径（tree 先于
+    /// candidate/held 登记载体 id）下该分支不可达；χ 域外候选可达性既不能证实也不能证伪（#269），
+    /// 探针计数 >0 即为其在场证据。宁可漏判（不伪造杀）不可误杀——与 `None ⟹ false` 同一取向。
     /// - **不存在：父元素 destroy+反向重建**——前缀因果塔单调增长，无 destroy 概念
     ///   （opsem_dump.rs:167 诚实缺席）；「翻向」在本系统唯一可观察形态即树段方向冲突。
     /// - **不算：载体退出树（Stale）**——归 Stale 四态既有分派（§10 persistent overlay 域），
@@ -444,6 +483,11 @@ impl PersistentRegistry {
     /// 条目（树元素尚未经 merge 首见登记）⟹ 无事件证据 ⟹ false（诚实缺席，不伪造杀）。
     pub fn direction_flip_event_active(&self, pid: &ElementId, tree_eps: VoiceSide) -> bool {
         match self.elements.get(pid) {
+            // 首见非 tree 段 ⟹ dir 与 tree_eps 不同轴（σ vs ε）⟹ 分歧不是事件：如实计数后忽略。
+            Some(e) if e.dir != tree_eps && e.first_seen != FirstSeenSource::Tree => {
+                flip_guard_probe_bump(|p| p.nontree_origin_divergence += 1);
+                false
+            }
             Some(e) => e.dir != tree_eps,
             None => false,
         }
@@ -465,11 +509,22 @@ pub struct FlipGuardProbe {
     /// candidate 段 upsert 方向冲突守卫笔数（χ 域外候选 flip-flop——与树元素 dir 覆写
     /// 同一路径（同一 upsert 闭包），票面第 4 条：一并按守卫处理）。
     pub cand_blocked: u64,
+    /// ★#271：[`PersistentRegistry::direction_flip_event_active`] 遇到「首见来源非 tree 段
+    /// （candidate / held 兜底）的条目 dir ≠ tree_eps」的次数——**不判翻向事件**（σ/ε 两轴
+    /// 不同轴，非结构改判），只如实计数。>0 ⟹ 首见来源门在生产中真被走到（理论伪阳性边
+    /// 的可达性证据）；当前主路径预期恒 0（tree 先于 candidate/held 登记载体 id）。
+    pub nontree_origin_divergence: u64,
 }
 
 thread_local! {
     static FLIP_GUARD_PROBE: std::cell::Cell<FlipGuardProbe> =
-        const { std::cell::Cell::new(FlipGuardProbe { tree_blocked: 0, cand_blocked: 0 }) };
+        const {
+            std::cell::Cell::new(FlipGuardProbe {
+                tree_blocked: 0,
+                cand_blocked: 0,
+                nontree_origin_divergence: 0,
+            })
+        };
 }
 
 #[inline]
@@ -778,5 +833,75 @@ mod tests {
             "cand 段方向冲突显式计数（I2 机器锁审查证据）"
         );
         assert_eq!(flip_guard_probe_snapshot().tree_blocked, 0);
+    }
+
+    /// ★#271 **首见来源标记**：三条登记路径各自留下 [`FirstSeenSource`]（tree / candidate /
+    /// held-or_insert），使翻向事件枚举的「candidate 段冲突不算」在所有构型下可执行。
+    #[test]
+    fn first_seen_source_recorded_per_registration_path() {
+        let mut reg = PersistentRegistry::new();
+        let tree_pid = ElementId { level: 1, ordinal: 1 };
+        let cand_pid = ElementId { level: 0, ordinal: 2 };
+        let held_pid = ElementId { level: 0, ordinal: 3 };
+        let op_pid = ElementId { level: 1, ordinal: 9 };
+        let leg = active_leg(0, 3, 0, 5, VoiceSide::Long, Some(op_pid));
+        reg.merge_in_place_split(
+            &[cov_elem(1, 1, 0, 10, VoiceSide::Long, None)],
+            true,
+            &[cov_elem(0, 2, 0, 4, VoiceSide::Short, None)],
+            true,
+            &[leg],
+        );
+        assert_eq!(reg.get(&tree_pid).unwrap().first_seen, FirstSeenSource::Tree);
+        assert_eq!(reg.get(&cand_pid).unwrap().first_seen, FirstSeenSource::Candidate);
+        assert_eq!(reg.get(&held_pid).unwrap().first_seen, FirstSeenSource::Held);
+        assert_eq!(
+            reg.get(&op_pid).unwrap().first_seen,
+            FirstSeenSource::Held,
+            "op_parent 兜底同属 held 路径（I4）"
+        );
+    }
+
+    /// ★#271 **首见来源门**：翻向事件谓词只对 tree 来源的分歧开火；candidate / held 首见的
+    /// 分歧是 σ/ε 两轴出生分层（非结构改判）⟹ 不判事件，只计 `nontree_origin_divergence`。
+    ///
+    /// **RED（#271 前）**：谓词只看 `dir != tree_eps` ⟹ 候选/持仓先登记的构型下恒 true（理论
+    /// 伪阳性 ⟹ 出生对立腿被误判 Flipped）。
+    #[test]
+    fn flip_event_predicate_gated_by_first_seen_source() {
+        flip_guard_probe_reset();
+        let mut reg = PersistentRegistry::new();
+        // ① candidate 首见（σ=Long），树元素同 id 为 ε=Short：分歧但非事件。
+        let cand_pid = ElementId { level: 0, ordinal: 7 };
+        reg.merge_in_place_split(&[], true, &[cov_elem(0, 7, 0, 4, VoiceSide::Long, None)], true, &[]);
+        assert!(
+            !reg.direction_flip_event_active(&cand_pid, VoiceSide::Short),
+            "candidate 首见的方向分歧 = 两轴出生分层，不是翻向事件（枚举『不算』条可执行）"
+        );
+        // ② held 兜底首见（σ=Long），同 id 树元素 ε=Short：同样不是事件。
+        let held_pid = ElementId { level: 0, ordinal: 8 };
+        reg.merge_in_place_split(&[], true, &[], true, &[active_leg(0, 8, 0, 5, VoiceSide::Long, None)]);
+        assert!(!reg.direction_flip_event_active(&held_pid, VoiceSide::Short));
+        assert_eq!(
+            flip_guard_probe_snapshot().nontree_origin_divergence,
+            2,
+            "非 tree 来源分歧如实计数（忽略但不静默）"
+        );
+        // ③ tree 首见（ε=Long）+ 树改判 Short ⟹ 真翻向事件，照常开火。
+        let tree_pid = ElementId { level: 0, ordinal: 9 };
+        reg.merge_in_place_split(&[cov_elem(0, 9, 0, 10, VoiceSide::Long, None)], true, &[], true, &[]);
+        assert!(
+            reg.direction_flip_event_active(&tree_pid, VoiceSide::Short),
+            "tree 来源分歧 = 载体被 frontier 重组改判 ⟹ 翻向事件（#269 口径不倒退）"
+        );
+        assert!(
+            !reg.direction_flip_event_active(&tree_pid, VoiceSide::Long),
+            "同向 ⟹ 无事件"
+        );
+        assert_eq!(
+            flip_guard_probe_snapshot().nontree_origin_divergence,
+            2,
+            "tree 来源的开火/无事件均不进非 tree 计数"
+        );
     }
 }
