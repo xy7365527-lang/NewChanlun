@@ -1040,6 +1040,11 @@ fn drive_campaign_wiring(
                 if outcome.earning_replenish {
                     witness.record_earning_replenish(rec.side, outcome.earning_units_gained);
                 }
+                // ★#383 订正（ADR 补充十）：「free 够本金但挂起非空 ⟹ 到 0 推进被前置拦下」
+                // 的正面读数——不静默（见 `CampaignWiringWitness::profit_ready_but_suspended`）。
+                if outcome.stage_progress_suspended {
+                    witness.record_profit_ready_but_suspended(rec.side);
+                }
                 if let Some(ev) = outcome.stage_event {
                     let bars_since_open = campaign_book
                         .campaign(rec.level, rec.side)
@@ -1255,25 +1260,33 @@ mod campaign_wiring_tests {
             "逐条明细：级别/侧/bar/开局以来 bar 数/退本金额"
         );
 
-        // bar 17 的高抛上进阶段三。
+        // bar 17 的高抛：free 已够但挂起非空 ⟹ 阶段推进被前置拦下（★2026-07-27 判据订正，
+        // ADR 补充十），观测桶记一次、不静默。
         drive_campaign_wiring(17, 1, &account_view, &reduce, &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        assert_eq!(witness.stage_enter_earning_count, 0, "★挂起非空 ⟹ 本 bar 不派 EnterEarning");
+        assert_eq!(
+            witness.profit_ready_but_suspended.get("long"),
+            Some(&1),
+            "★「到 0 掺水被拦」经生产路径落 witness"
+        );
+
+        // bar 18：旧账（bar 17 卖出，阶段一锁定）等量收口 ⟹ 挂起归零，同 bar 派 EnterEarning。
+        drive_campaign_wiring(18, 1, &account_view, &replenish, &[], 8, RiskMode::Normal, &mut book, &mut witness);
         assert_eq!(witness.stage_enter_earning_count, 1, "★EnterEarning 经生产路径落 witness");
         assert_eq!(witness.stage_events[1].kind, "enter_earning");
-        assert_eq!(witness.stage_events[1].bar, 17);
+        assert_eq!(witness.stage_events[1].bar, 18);
         assert_eq!(
             witness.earning_mode_switch_bar.get(&(0, "long")),
-            Some(&18),
-            "★切换时点读数=次 bar（18）"
+            Some(&19),
+            "★切换时点读数=次 bar（19）"
         );
         assert!(!book.campaign(0, VoiceSide::Long).unwrap().earning_active(), "事件 bar 上尚未换尺");
-
-        // bar 18：旧账（bar 17 卖出，阶段一锁定）等量收口——按卖出时锁定，不受切换影响。
-        drive_campaign_wiring(18, 1, &account_view, &replenish, &[], 8, RiskMode::Normal, &mut book, &mut witness);
-        assert!(book.campaign(0, VoiceSide::Long).unwrap().earning_active(), "★次 bar 起模式生效");
         assert!(witness.earning_replenish_count.is_empty(), "旧账收口不算等金额回补（卖出时锁定）");
 
-        // bar 19 高抛@12（阶段三锁定，1_200 进池）→ bar 20 等金额回补@8 = floor(1200/8)=150。
+        // bar 19 高抛@12（次 bar 起模式生效 ⟹ 阶段三锁定，1_200 进池）→ bar 20 等金额回补@8
+        // = floor(1200/8)=150。
         drive_campaign_wiring(19, 1, &account_view, &reduce, &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        assert!(book.campaign(0, VoiceSide::Long).unwrap().earning_active(), "★次 bar 起模式生效");
         assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().earning_pool(), 1_200);
         drive_campaign_wiring(20, 1, &account_view, &replenish, &[], 8, RiskMode::Normal, &mut book, &mut witness);
         assert_eq!(witness.earning_replenish_count.get("long"), Some(&1), "★等金额回补次数");
