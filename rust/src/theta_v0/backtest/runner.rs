@@ -5041,10 +5041,14 @@ mod tests {
     /// 统计 Stale 四态分派频次 + restore 祖先链恢复率 + **暴露面**（restore 因 registry 丢失祖先
     /// 提前中断的次数 = 本应有 parent 但 registry 已失去）。
     ///
-    /// 判据（`restore_break_registry_lost`）：
-    /// - =0 ⟹ persistent carrier 在真实数据上**总能**恢复祖先链（问题1.pdf 建议6「证明 parent
-    ///   可恢复」经验成立）⟹ ceiling 休眠，声部树严格性在 BTC 上未被触发。
-    /// - >0 ⟹ 暴露面转正 ⟹ 存在被 admit 子声部腿祖先链未完整 ⟹ 须按建议6 三选一实装严格修复。
+    /// 判据（**订正，票#350**：真实判据是 `placeholder_parent_unresolved - placeholder_pruned_by_ancok`，
+    /// 非 `restore_break_registry_lost`——#350 坐实后者 `>0` 不再单独蕴含祖先链未完整，见
+    /// `coverage.rs` `AncokProbe::restore_break_registry_lost` 文档订正）：
+    /// - `placeholder_parent_unresolved == placeholder_pruned_by_ancok` ⟹ 所有未解析元素均被 AncOK
+    ///   正确剪除，无"被 admit 却接线不上"的漏网 ⟹ ceiling 休眠，声部树严格性在 BTC 上未被触发。
+    /// - `placeholder_parent_unresolved > placeholder_pruned_by_ancok` ⟹ 存在被 admit 但接线不上的
+    ///   子声部腿 ⟹ 须按建议6 三选一实装严格修复。`restore_break_registry_lost` 单独 >0（registry
+    ///   命中率旁路诊断）不再是判据，仅供参考。
     ///
     /// **须真实 BTC 数据**（329MB，全历史 ~百万级 bar）；`#[ignore]` 默认不跑，L2 收口时
     /// `cargo test --release --lib -- --ignored --nocapture ancok_l2_ceiling_exposure_real_btc` 手动运行。
@@ -5089,16 +5093,22 @@ mod tests {
         eprintln!("restore 调用总数          : {}", p.restore_calls);
         eprintln!("  ├ 自然收敛（抵达真根）  : {}", p.restore_complete);
         eprintln!("  ├ 提前收敛（已在 raw）  : {}", p.restore_break_already_in_raw);
-        eprintln!("  └ ★暴露面（registry 丢失）: {}", p.restore_break_registry_lost);
+        eprintln!("  └ registry 命中率旁路诊断（丢失/作废）: {}", p.restore_break_registry_lost);
         eprintln!("restore 恢复成功率        : {restore_success_rate:.6}");
-        // ★#347 MED-1：占位父不可解析 probe + 与 AncOK 剪除结果的交叉核对（coverage.rs
+        // ★#347 MED-1/#350：待修补元素（held-leg 占位 + restore 链恢复元素，票#350 起共用同一
+        // 统一 fixup）父不可解析 probe + 与 AncOK 剪除结果的交叉核对（coverage.rs
         // `rebuild_placeholder_parent_attached`/`placeholder_pruned_by_ancok` 文档承诺"可交叉
-        // 核对"——此前报表不打印，声明无对应可执行验证，本处补齐）。
-        eprintln!("占位父不可解析（unresolved）: {}", p.placeholder_parent_unresolved);
+        // 核对"——此前报表不打印，声明无对应可执行验证，本处补齐）。差值（unresolved−pruned）才是
+        // 697 ceiling 的真实判据（票#350 订正，见函数头文档）。
+        eprintln!("父不可解析（占位+restore 链，unresolved）: {}", p.placeholder_parent_unresolved);
         eprintln!("  └ 其中被 AncOK 剪除      : {}", p.placeholder_pruned_by_ancok);
+        eprintln!(
+            "  └ ★697 ceiling 真实暴露面（unresolved−pruned，被 admit 却接线不上）: {}",
+            p.placeholder_parent_unresolved - p.placeholder_pruned_by_ancok
+        );
         assert!(
             p.placeholder_pruned_by_ancok <= p.placeholder_parent_unresolved,
-            "占位剪除数({})不应超过未解析总数({})——探针记账不封闭",
+            "剪除数({})不应超过未解析总数({})——探针记账不封闭",
             p.placeholder_pruned_by_ancok,
             p.placeholder_parent_unresolved
         );

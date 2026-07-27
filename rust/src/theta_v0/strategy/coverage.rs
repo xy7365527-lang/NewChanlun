@@ -74,8 +74,22 @@ pub type PiThetaDecision = (OrderDecision, ProtocolEvent);
 
 /// AncOK Stale 四态分派 + 祖先链恢复的运行时计数（anc.pdf §10 四态 + restore）。
 ///
-/// 承载 697 号 ceiling 的**可观测暴露面**：`restore_break_registry_lost` > 0 ⟺ 存在被 admit 的
-/// 子声部腿其操作祖先链未被 registry 完整恢复（本应有 parent 但 registry 已失去）⟹ 声部树非严格。
+/// 承载 697 号 ceiling 的**可观测暴露面**：`restore_break_registry_lost` > 0 ⟹ 至少一次祖先链
+/// 上溯在 registry 单独判据下未能物化（本应有 parent 但 registry 已失去/作废）。
+///
+/// **订正（票#350）**：此前文档在此处断言"⟹ 声部树非严格"——该推论已被 #350 推翻：`>0` 只表示
+/// registry **单独**这一条物化路径失败，**不再**蕴含该元素最终未被正确接线——若同一祖先在本 bar
+/// 内经**另一条非 registry 路径**（如 `Closed|Invalidated`+`is_boundary_root` held 腿直接
+/// push）物化，[`coverage_step_from_buckets_sep`] 函数尾部的统一 fixup（两个物化循环全部结束后
+/// 执行）仍能正确接线（测试坐实：
+/// `restore_chain_ancestor_unresolved_when_shared_ancestor_only_materializes_via_later_boundary_root_push`）。
+/// 声部树是否真非严格，须看 [`placeholder_parent_unresolved`] 与 [`placeholder_pruned_by_ancok`]
+/// 的**差值**（unresolved 但未被 AncOK 剪除 = 被 admit 却接线不上，该差值 #350 修复后结构性恒为 0；
+/// 若真实数据观测到 >0，才是 697 ceiling 应处理的真实暴露面）——`restore_break_registry_lost`
+/// 本身只是 registry 命中率的旁路诊断，非 ceiling 判据。
+///
+/// [`placeholder_parent_unresolved`]: AncokProbe::placeholder_parent_unresolved
+/// [`placeholder_pruned_by_ancok`]: AncokProbe::placeholder_pruned_by_ancok
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AncokProbe {
     /// `HeldLegMatch::Stale` 命中总次数（snapshot 找不到持仓腿）。
@@ -94,10 +108,14 @@ pub struct AncokProbe {
     pub restore_complete: u64,
     /// restore 因祖先已在 raw 提前收敛（闭包已满足，合法完整）。
     pub restore_break_already_in_raw: u64,
-    /// ★暴露面：restore 因 registry 丢失/作废祖先提前中断（本应有 parent 但 registry 已失去）。
-    /// >0 ⟹ 被 admit 子声部腿祖先链未完整 ⟹ 声部树非严格（697 ceiling 的可观测触发条件）。
+    /// restore 因 registry 丢失/作废祖先提前中断（本应有 parent 但 registry 已失去）——registry
+    /// 单独判据下的失败旁路诊断。**订正（票#350）**：`>0` 不再单独蕴含"声部树非严格"（见结构体头
+    /// 文档订正）——该祖先仍可能经非 registry 路径同 bar 内物化、由统一 fixup 正确接线。697 ceiling
+    /// 的真实可观测触发条件是 `placeholder_parent_unresolved - placeholder_pruned_by_ancok > 0`。
     pub restore_break_registry_lost: u64,
-    /// ★票#315（呼应 #301 探针族）：held 腿占位（LivePresent/LiveDetached）统一 fixup 时点，
+    /// ★票#315/#350（呼应 #301 探针族）：本 bar 待修补父/attached_dir 的元素（held 腿占位
+    /// LivePresent/LiveDetached + restore 链恢复元素，#350 起两者共用同一统一 fixup，见
+    /// `pending_parent_fixup`）在**两个物化循环 + 全部 restore 调用均结束后**统一 fixup 时点，
     /// `parent_id` 已知但经 id_idx/overlay_seen/raw 三级解析仍未命中（父本轮从未物化进 raw，
     /// 含真断链与"永不物化"两种成因）——[`rebuild_placeholder_parent_attached`] 保持 None/None
     /// 不伪造。>0 ⟹ 该路径在生产窗口被命中，可与 [`placeholder_pruned_by_ancok`] 交叉核对。
@@ -105,7 +123,7 @@ pub struct AncokProbe {
     ///
     /// [`placeholder_pruned_by_ancok`]: AncokProbe::placeholder_pruned_by_ancok
     pub placeholder_parent_unresolved: u64,
-    /// ★#347 MED-1：`placeholder_parent_unresolved` 命中的 idx 中，本 bar 随后确实被
+    /// ★#347 MED-1/#350：`placeholder_parent_unresolved` 命中的 idx 中，本 bar 随后确实被
     /// `ancestor_close_by_id`（AncOK）剪除（不在 `next_idx`）的个数——文档声称"可与 AncOK
     /// 剪除计数交叉核对"，此前无对应计数使该声明不可执行（#347 MED-1）。恒 ≤
     /// `placeholder_parent_unresolved`（父不可解析 ⟹ parent_id 链断在此 idx，理论上必被剪；
@@ -2081,6 +2099,22 @@ fn close_indices(prev_active: &[ActiveLeg], close: &[ActiveLeg]) -> Vec<usize> {
 /// §11 归纳证明：每条未关闭腿的操作父 live ⟹ 所有 depth<d 腿通过 persistent AncOK。
 /// 递归上溯 structural_parent_id 链，遇到已在 raw 中的祖先停止（闭包满足）。
 /// ponytail: ceiling=增量 extract_elements 时 confirmed prefix 已含全部祖先，无需恢复。
+///
+/// ★票#350 修复（#347 评审 LOW-3，#247/#315 同类第三位点）：`parent`/`attached_dir` 修补**不在本
+/// 函数内**完成——本函数只把本轮新 push 的恢复元素 idx 追加进调用方持有的 `pending_parent_fixup`
+/// 累加器，实际修补由调用方（[`coverage_step_from_buckets_sep`]）在**本 bar 两个物化循环
+/// （prev_active held 腿 + open 候选父链恢复，本函数在两处均可能被多次调用）全部结束后**统一执行
+/// （同 [`rebuild_placeholder_parent_attached`] 处理 held 腿占位的形状，#315）。
+///
+/// 核实坐实的时序孔（#350）：修复前，本函数内部在自身 `while` 链结束后立即修补——链内部**同一次
+/// 调用**内子→父的解析确无孔（父恰是下一轮要处理的 `cur`，registry/`id_idx` 与调用顺序无关，
+/// 详见 `restore_chain_shared_ancestor_across_two_calls_resolves_and_dedupes`）；但当链在某祖先
+/// 处因 `registry_lost`（该祖先在 registry 中 `invalidated`）断链时，若该**同一祖先**在本 bar
+/// **更晚**作为一条 `Closed|Invalidated` + `is_boundary_root` 的 held 腿被**直接 push 入 raw**
+/// （非经 registry、非经本函数）——立即式修补已在更早那次调用内固化为 None/None，之后不会重跑，
+/// 即便该祖先客观上已在 raw（AncOK 按 `parent_id` 结构判据，与本函数是否重建 `parent`/`attached_dir`
+/// 无关）也检测不到，复现 #247 缺口（角色计算 V=Ambient/depth=0）。测试坐实（RED→GREEN）：
+/// `restore_chain_ancestor_unresolved_when_shared_ancestor_only_materializes_via_later_boundary_root_push`。
 fn restore_ancestor_chain_from_registry(
     work: &mut ElementView,
     raw: &mut Vec<usize>,
@@ -2090,12 +2124,13 @@ fn restore_ancestor_chain_from_registry(
     // O(work)/层=O(n²)。raw.any 不动（raw 有界，prev_active~O(log n) 实测 9@16K）。
     id_idx: &std::collections::HashMap<ElementId, usize>,
     overlay_seen: &mut std::collections::HashMap<ElementId, usize>,
+    // ★票#350：本轮新 push 的恢复元素 idx 追加于此（调用方持有，跨本函数的多次调用 + held 腿占位
+    // 共用同一累加器，见调用方 `pending_parent_fixup`）——不在本函数内修补，见函数头 #350 说明。
+    pending_parent_fixup: &mut Vec<usize>,
 ) {
     ancok_probe_bump(|p| p.restore_calls += 1);
     let mut broke = false;
     let mut cur = Some(start_pid);
-    // 本轮新 push 的恢复元素 idx（子先父后序）——循环结束后统一重建 parent/attached_dir（票#247）。
-    let mut restored: Vec<usize> = Vec::new();
     while let Some(pid) = cur {
         // 已在 raw 中？⟹ 闭包满足，停止递归。
         let already_in_raw = raw.iter().any(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false));
@@ -2126,7 +2161,8 @@ fn restore_ancestor_chain_from_registry(
         let parent_pid = pe.structural_parent_id;
         let op_idx = work.len();
         // parent/attached_dir 先以 None 占位：恢复循环**子先父后**上溯，push 子元素时真父 idx
-        // 通常尚未知（父在后续轮次才复用/push）⟹ 统一在循环结束后修补（见下方票#247 修复段）。
+        // 通常尚未知（父在后续轮次才复用/push，或跨本函数的另一次调用才 push）⟹ 统一由调用方
+        // 在本 bar 全部物化路径结束后修补（票#247 引入、票#350 移出本函数至调用方统一）。
         work.push(CoverageElement {
             lambda: pe.lambda,
             rho: pe.rho,
@@ -2138,50 +2174,9 @@ fn restore_ancestor_chain_from_registry(
             parent_id: pe.structural_parent_id,
         });
         overlay_seen.entry(pe.pid).or_insert(op_idx); // 记录新 push 的 overlay idx（首次出现序，复用查 O(1)）。
-        restored.push(op_idx); // 本轮新 push 的恢复元素（循环结束后重建 parent/attached_dir，票#247）。
+        pending_parent_fixup.push(op_idx); // 票#350：追加调用方累加器，本 bar 全部物化路径结束后统一修补。
         raw.push(op_idx);
         cur = parent_pid; // 上溯祖先链
-    }
-    // ★票#247 缺口二修复（A 类实装缺口，mutex-domain-loadbearing-20260725 §二裁定）：
-    // 恢复元素角色输入重建。对**本轮新 push** 的 overlay 元素统一修补：
-    // `parent_id = Some(pid)` 解析真父 idx ⟹ `parent = Some(父idx)`、
-    // `attached_dir = Some(work[父idx].eps)`（σ_{p(g)}=父容器方向=父元素 eps，与
-    // `push_element_tree` 压子元素时传 `Some(父eps)` 同口径）。修复前写死 None/None ⟹
-    // 恢复元素恒定命中「父越界/None 防御归 ℓ_g」分支：V=Ambient（parent_sign(None)=0）、
-    // G=SameLevel（ℓ_p=ℓ_g）、depth=0——角色输入丢失，进 dir_weight/w_grade/ShortDiff 禁用/p̃
-    // 可改实际下单权重。
-    // 父 idx 解析与循环内 already_in_raw 判定同口径：id_idx（base 段）→ overlay_seen
-    // （candidate+restore 段）→ raw 扫（held 腿 LiveDetached/LivePresent/∂ 占位元素不在两张
-    // 查表，扫 raw 兜底，raw 有界）。
-    // 边界语义（皆为正确语义，非「防御分支」兜底）：
-    // - `parent_id = None`（真边界胚元 ∂）：保持 None/None——σ_{p(∂)}=0 ⟹ V=Ambient 是去根化正解。
-    // - 父无法解析（断链 `restore_break_registry_lost`）：保持 None/None，**不伪造**——断链元素
-    //   的 parent_id 不在 raw ⟹ `ancestor_close_by_id`（AncOK：`Anc(e)⊆raw` 才保留）恒把该元素
-    //   及其本轮已 push 的下游链全部剪除 ⟹ 不进 next_idx，到不了角色计算（角色/p̃ 无影响）。
-    //   测试坐实：`restore_broken_chain_pruned_by_ancok_no_panic`。
-    // 复用现有 idx 分支命中的树前缀 carrier/candidate 元素**不动**——其 parent/attached_dir
-    // 本由 `push_element_tree`/638 附着填好。
-    // ★#347 LOW-1 同族订正：与 `rebuild_placeholder_parent_attached` 同一漏洞类别（090号：同一
-    // 模式在姊妹代码中不能只修一处）——registry 中若有条目 `structural_parent_id == Some(自身 pid)`
-    // （同样的外部数据来源，非 `push_element_tree` 树构造），raw 兜底扫会把自己解成自己的父，
-    // 下游 `element_depth` 挂起。`r != idx` 排除守卫同理适用。
-    for &idx in &restored {
-        if let Some(pid) = work[idx].parent_id {
-            let pidx = id_idx
-                .get(&pid)
-                .copied()
-                .or_else(|| overlay_seen.get(&pid).copied())
-                .or_else(|| {
-                    raw.iter()
-                        .copied()
-                        .filter(|&r| r != idx)
-                        .find(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false))
-                });
-            if let Some(pidx) = pidx {
-                let p_eps = work[pidx].eps;
-                work.set_parent_attached(idx, pidx, p_eps);
-            }
-        }
     }
     if !broke {
         // 自然收敛（cur=None 抵达真根）：整条操作祖先链已恢复/复用完毕。
@@ -2278,6 +2273,30 @@ fn rebuild_placeholder_parent_attached(
     }
 }
 
+/// ★票#350（code-review Standards 轴浮出：与测试 helper 逐行同构，抽取消除重复维护）：本 bar
+/// `pending_parent_fixup` 累加器（held-leg 占位 + restore 链恢复元素共用，两个物化循环全部结束
+/// 后调用）的统一 fixup——对每个 idx 调用 [`rebuild_placeholder_parent_attached`] 解析
+/// parent/attached_dir，返回未解析 idx 列表（供调用方与 AncOK 剪除结果交叉核对，#347 MED-1）。
+/// 生产路径（[`coverage_step_from_buckets_sep`]）与测试 helper 共用本函数，避免父解析循环两处
+/// 独立维护、静默漂移。
+fn resolve_pending_parent_fixups(
+    work: &mut ElementView,
+    pending: &[usize],
+    id_idx: &std::collections::HashMap<ElementId, usize>,
+    overlay_seen: &std::collections::HashMap<ElementId, usize>,
+    raw: &[usize],
+) -> Vec<usize> {
+    let mut unresolved = Vec::new();
+    for &idx in pending {
+        let parent_id = work[idx].parent_id;
+        let resolved = rebuild_placeholder_parent_attached(work, idx, parent_id, id_idx, overlay_seen, raw);
+        if !resolved {
+            unresolved.push(idx);
+        }
+    }
+    unresolved
+}
+
 /// [`coverage_step_from_buckets`] 的净额兼容出口（22 处旧调用点保持二元返回，bit-exact）。
 /// 委托 [`coverage_step_from_buckets_sep`] 丢弃第三分量 `sep_legs`（M5 声部执行层暴露，纯只读，
 /// 不进决策路径）——单源无平行状态机。
@@ -2318,11 +2337,14 @@ pub(crate) fn coverage_step_from_buckets_sep(
     // candidate_start = base 段长（candidate 从此起，在 overlay）。
     let candidate_start = work.base_len();
     let mut raw: Vec<usize> = Vec::new();
-    // ★票#315（#284 评审 MED-1）：held 腿占位（LivePresent/LiveDetached）idx 收集，两个物化循环
-    // （本循环 + 下方 open 候选父链恢复）结束、AncOK 判定前统一 fixup（同 #247 restore 循环后统一
-    // 修补形状），见函数尾部。替代立即式（push 当轮即调 `rebuild_placeholder_parent_attached`）——
-    // 立即式对「父在本轮更晚迭代才物化进 raw」的场景查不到父，误留 None/None。
-    let mut placeholders: Vec<usize> = Vec::new();
+    // ★票#315/#350（#284 评审 MED-1 + #347 评审 LOW-3）：待统一修补 parent/attached_dir 的元素 idx
+    // 累加器——held 腿占位（LivePresent/LiveDetached，push 时 parent_id 已知但父未必已在场）与
+    // restore 链恢复元素（`restore_ancestor_chain_from_registry` 本 bar 可能被多次调用，票#350起
+    // 不再各自函数内立即修补）共用同一累加器，两个物化循环（本循环 + 下方 open 候选父链恢复，
+    // 含循环内触发的全部 restore 调用）结束、AncOK 判定前统一 fixup（见函数尾部）。替代立即式
+    // （push/物化当轮即修补）——立即式对「父在本轮更晚才物化进 raw（无论经哪条路径）」的场景查
+    // 不到父，误留 None/None（#315 held 腿占位坐实；#350 坐实 restore 链同类时序孔）。
+    let mut pending_parent_fixup: Vec<usize> = Vec::new();
 
     // ponytail: H6 单次建 tree 前缀 ElementId→idx 索引——tree 前缀在持仓腿对位期间不变
     //（Stale 追加在 candidate_start 之后，不污染 tree 前缀）⟹ 建一次、多次查 O(1)。
@@ -2391,7 +2413,7 @@ pub(crate) fn coverage_step_from_buckets_sep(
                         });
                         // ★票#315（#284 评审 MED-1，订正票#267 立即式）：占位角色输入修补改收集 idx，
                         // 循环后统一 fixup（见函数尾部 AncOK 判定前，helper doc 详述时序孔成因）。
-                        placeholders.push(idx);
+                        pending_parent_fixup.push(idx);
                         raw.push(idx);
                     }
                     super::persistent::HeldLegState::LiveDetached => {
@@ -2405,6 +2427,7 @@ pub(crate) fn coverage_step_from_buckets_sep(
                         if let Some(op_pid) = leg.op_parent {
                             restore_ancestor_chain_from_registry(
                                 &mut work, &mut raw, registry, op_pid, &id_idx, &mut overlay_seen,
+                                &mut pending_parent_fixup,
                             );
                         }
                         let idx = work.len();
@@ -2421,7 +2444,7 @@ pub(crate) fn coverage_step_from_buckets_sep(
                         // ★票#315（#284 评审 MED-1，订正票#267 立即式）：占位角色输入修补改收集 idx，
                         // 循环后统一 fixup（同上；restore 已把 op_parent 祖先链物化入 work/raw，统一
                         // fixup 时点可解析，见函数尾部 + helper doc）。
-                        placeholders.push(idx);
+                        pending_parent_fixup.push(idx);
                         raw.push(idx);
                     }
                     super::persistent::HeldLegState::Closed | super::persistent::HeldLegState::Invalidated => {
@@ -2493,40 +2516,38 @@ pub(crate) fn coverage_step_from_buckets_sep(
                 let parent_in_raw =
                     raw.iter().any(|&r| work.get(r).map(|e| e.id == parent_pid).unwrap_or(false));
                 if !parent_in_raw && registry.registry_live(&parent_pid) {
-                    restore_ancestor_chain_from_registry(&mut work, &mut raw, registry, parent_pid, &id_idx, &mut overlay_seen);
+                    restore_ancestor_chain_from_registry(
+                        &mut work, &mut raw, registry, parent_pid, &id_idx, &mut overlay_seen,
+                        &mut pending_parent_fixup,
+                    );
                 }
             }
         }
     }
 
-    // ★票#315（#284 评审 MED-1）：held 腿占位统一 fixup——两个物化循环（上方 prev_active held 腿 +
-    // open 候选父链恢复）均已结束、AncOK 判定前，对本轮收集的占位 idx 统一重建 parent/attached_dir
-    // （同 #247 `restore_ancestor_chain_from_registry` 循环后统一修补形状）。此时 id_idx/overlay_seen/
-    // raw 三张查表均为**本 bar 终态**——立即式（push 当轮即调）的时序孔（父在本轮更晚迭代才物化进
-    // raw，此刻查不到）不再存在：父只要本轮曾被任一路径物化（不论早于/晚于该占位被处理），统一
-    // fixup 都能经三级解析命中。父确实从未物化（真断链 `restore_break_registry_lost` 或该 bar 内
-    // 父从未被任何路径 push）时，保持 None/None 不伪造，随后被下方 AncOK 剪除，命中计入
-    // `placeholder_parent_unresolved` probe。
-    // ★#347 MED-1：收集本 bar 未解析的占位 idx（`rebuild_placeholder_parent_attached` 返回
+    // ★票#315/#350（#284 评审 MED-1 + #347 评审 LOW-3）：held 腿占位 + restore 链恢复元素统一
+    // fixup——两个物化循环（上方 prev_active held 腿 + open 候选父链恢复，含循环内触发的**全部**
+    // `restore_ancestor_chain_from_registry` 调用，该函数本 bar 可能被多次调用）均已结束、AncOK
+    // 判定前，对本轮收集的 `pending_parent_fixup` 统一重建 parent/attached_dir。此时 id_idx/
+    // overlay_seen/raw 三张查表均为**本 bar 终态**——立即式（push/物化当轮即修补）的时序孔（父在
+    // 本轮更晚才物化进 raw，无论经 held 腿占位路径、restore 路径、或 open 候选/`Closed|Invalidated`
+    // 边界根直接 push 路径，此刻都查不到）不再存在：父只要本轮曾被任一路径物化（不论早于/晚于该
+    // 待修补元素被处理），统一 fixup 都能经三级解析命中。父确实从未物化（真断链
+    // `restore_break_registry_lost` 或该 bar 内父从未被任何路径 push）时，保持 None/None 不伪造，
+    // 随后被下方 AncOK 剪除，命中计入 `placeholder_parent_unresolved` probe。
+    // ★#347 MED-1：收集本 bar 未解析的元素 idx（`rebuild_placeholder_parent_attached` 返回
     // false），随后与 `next_idx`（AncOK 存活集）交叉核对——不在 `next_idx` 即被剪除，命中计入
     // `placeholder_pruned_by_ancok` probe（使函数头声明"可与 AncOK 剪除计数交叉核对"可执行）。
-    let mut unresolved_placeholders: Vec<usize> = Vec::new();
-    for &idx in &placeholders {
-        let parent_id = work[idx].parent_id;
-        let resolved =
-            rebuild_placeholder_parent_attached(&mut work, idx, parent_id, &id_idx, &overlay_seen, &raw);
-        if !resolved {
-            unresolved_placeholders.push(idx);
-        }
-    }
+    let unresolved_pending_fixup =
+        resolve_pending_parent_fixups(&mut work, &pending_parent_fixup, &id_idx, &overlay_seen, &raw);
 
     // 步2：A_{t+1}=AncOK(A^raw)——剔除真 Compose 父容器不在 raw 的孤儿子腿（§13 持仓准入：未持父则剔除）。
     // ★codex Q4：按 parent_id 结构映射闭包（spec §13 `p:C_ℓ→C_{ℓ+1}`），非 per-bar 索引链。
     let next_idx = ancestor_close_by_id(&work, &raw);
 
-    if !unresolved_placeholders.is_empty() {
+    if !unresolved_pending_fixup.is_empty() {
         let next_idx_set: std::collections::HashSet<usize> = next_idx.iter().copied().collect();
-        let pruned = unresolved_placeholders.iter().filter(|&&idx| !next_idx_set.contains(&idx)).count();
+        let pruned = unresolved_pending_fixup.iter().filter(|&&idx| !next_idx_set.contains(&idx)).count();
         if pruned > 0 {
             ancok_probe_bump(|p| p.placeholder_pruned_by_ancok += pruned as u64);
         }
@@ -3610,6 +3631,22 @@ mod tests {
             is_boundary_root: true,
             op_parent: None,
         }
+    }
+
+    /// ★票#350：`restore_ancestor_chain_from_registry` 不再在函数内自行修补 parent/attached_dir
+    /// （改为把 idx 追加进调用方 `pending`，由调用方统一延后 fixup，见函数头文档）——单元测试
+    /// 直接调用该函数后，用本 helper 补跑与生产路径同一个 [`resolve_pending_parent_fixups`]，
+    /// 使测试断言仍能观测到修补后的 `parent`/`attached_dir`（生产/测试共用同一 fixup 实现，
+    /// code-review Standards 轴浮出：此前测试 helper 与生产循环各自维护，逐字段同构但存在漂移
+    /// 风险——现测试直接调用生产函数，不再复制逻辑）。
+    fn resolve_pending_parent_fixup(
+        work: &mut ElementView,
+        pending: &[usize],
+        id_idx: &std::collections::HashMap<ElementId, usize>,
+        overlay_seen: &std::collections::HashMap<ElementId, usize>,
+        raw: &[usize],
+    ) {
+        resolve_pending_parent_fixups(work, pending, id_idx, overlay_seen, raw);
     }
 
     // ── §1/§2 元素提取（真嵌套父子，铁律守护）─────────────────────────────────
@@ -4972,12 +5009,184 @@ mod tests {
 
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, carrier, &id_idx, &mut overlay_seen);
+        let mut pending = Vec::new();
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, carrier, &id_idx, &mut overlay_seen, &mut pending);
 
         assert_eq!(work.len(), 1, "restore 不得 push 重复 id 元素（应复用 work[0]，overlay 空）");
         assert_eq!(raw, vec![0], "raw 须复用现有 idx 0，非追加新 idx");
         let dup = raw.iter().filter(|&&r| work[r].id == carrier).count();
         assert_eq!(dup, 1, "carrier 在 raw 中须唯一表示（双计根因守卫）");
+    }
+
+    /// ★票#350 核实起点（code-review 后订正措辞，原表述曾误判方向——见下方"局限"段）：
+    /// `restore_ancestor_chain_from_registry` 本 bar 可能被多次调用（LiveDetached 持仓腿逐条 +
+    /// open 候选逐条，见生产调用点 [`coverage_step_from_buckets_sep`]）。本测试坐实**跨调用共享
+    /// 祖先的复用与去重**：两条腿（P1/P2）的恢复链共享同一祖父 GP，先调用（处理 P1）把 GP 物化
+    /// （GP 是 P1 的直接父，同一次调用内紧接着解析，链内部无时序孔——父恰是同一 `while` 循环下一轮
+    /// 要处理的 `cur`），后调用（处理 P2）复用（`already_in_raw` 提前收敛）该已在场的 GP、不重复
+    /// push（双计根因守卫，同 #644）；两次调用各自贡献的 idx 一并进入调用方 `pending`，统一 fixup
+    /// （票#350 修复后，见函数头文档）后 P1/P2 都正确接到同一个 GP idx 上。
+    ///
+    /// **局限（本测试不覆盖的方向）**：本构造中 GP 由**先调用**物化，不构成 issue 原文"父由**更晚**
+    /// 一次 restore 调用物化"的反方向场景——该反方向的真实触发路径见下一测试
+    /// `restore_chain_ancestor_unresolved_when_shared_ancestor_only_materializes_via_later_boundary_root_push`
+    /// （#350 真正坐实的时序孔：父经**非 restore 的更晚直接 push** 物化，而非"更晚一次 restore 调用"
+    /// 字面所指——两者同属 #247 缺口类，触发路径不同）。
+    #[test]
+    fn restore_chain_shared_ancestor_across_two_calls_resolves_and_dedupes() {
+        let gp = eid(2, 0);
+        let p1 = eid(1, 0);
+        let p2 = eid(1, 1);
+        let gp_elem = CoverageElement {
+            lambda: 0, rho: 20, eps: VoiceSide::Long, level: 2,
+            parent: None, attached_dir: None, id: gp, parent_id: None,
+        };
+        let p1_elem = CoverageElement {
+            lambda: 0, rho: 12, eps: VoiceSide::Short, level: 1,
+            parent: None, attached_dir: None, id: p1, parent_id: Some(gp),
+        };
+        let p2_elem = CoverageElement {
+            lambda: 0, rho: 13, eps: VoiceSide::Short, level: 1,
+            parent: None, attached_dir: None, id: p2, parent_id: Some(gp),
+        };
+        let reg = super::super::persistent::PersistentRegistry::new()
+            .merge(&[gp_elem, p1_elem, p2_elem], &[]);
+
+        let base: Vec<CoverageElement> = Vec::new();
+        let mut work = ElementView::new(&base);
+        let mut raw: Vec<usize> = Vec::new();
+        let id_idx = build_tree_id_index(&base);
+        let mut overlay_seen = std::collections::HashMap::new();
+        let mut pending = Vec::new();
+
+        // 先调：P1 链——GP 是 P1 的直接父，同一调用内紧接着物化（不依赖后续调用）。
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, p1, &id_idx, &mut overlay_seen, &mut pending);
+        // 后调：P2 链——GP 已在场（already_in_raw 提前收敛），复用而非重复 push。
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, p2, &id_idx, &mut overlay_seen, &mut pending);
+        // 票#350：两次调用各自的 idx 已汇入 pending，统一延后 fixup（模拟生产路径的调用方统一修补）。
+        resolve_pending_parent_fixup(&mut work, &pending, &id_idx, &overlay_seen, &raw);
+
+        assert_eq!(work.len(), 3, "GP 只应物化一次（P1 链物化，P2 链复用），work 应恰好 3 元素；实得 {}", work.len());
+        let gp_count = (0..work.len()).filter(|&i| work[i].id == gp).count();
+        assert_eq!(gp_count, 1, "GP 在 work 中须唯一（跨调用双计根因守卫）；实得 {gp_count}");
+
+        let gp_idx = (0..work.len()).find(|&i| work[i].id == gp).expect("GP 须已物化");
+        let p1_idx = (0..work.len()).find(|&i| work[i].id == p1).expect("P1 须已物化");
+        let p2_idx = (0..work.len()).find(|&i| work[i].id == p2).expect("P2 须已物化");
+        assert_eq!(work[p1_idx].parent, Some(gp_idx), "先调用链：P1.parent 须解析到 GP idx");
+        assert_eq!(work[p1_idx].attached_dir, Some(VoiceSide::Long), "P1.attached_dir 须=GP.eps");
+        assert_eq!(
+            work[p2_idx].parent, Some(gp_idx),
+            "后调用链：P2.parent 须解析到（先调用已物化的）同一 GP idx"
+        );
+        assert_eq!(work[p2_idx].attached_dir, Some(VoiceSide::Long), "P2.attached_dir 须=GP.eps");
+    }
+
+    /// ★票#350 对抗性核实（code-review Spec 轴浮出，#247/#315 同类第三位点，坐实并已修复）：上一
+    /// 测试只坐实了"共享祖先由**先调用**物化、后调用复用"这一方向；本测试构造 issue 原文描述的
+    /// **反方向**场景的真实可达触发路径——某恢复元素的祖先只在**同 bar 更晚**才通过**非 restore
+    /// 的直接 push**物化（`Closed|Invalidated` + `is_boundary_root` 分支，held-leg 循环内、非经
+    /// `overlay_seen`），而该祖先此前已被**更早一次** restore 调用尝试解析、因 registry 该祖先
+    /// `invalidated` 而 `registry_lost` 断链——探测这两条独立判据（registry 断链 vs 该祖先自身 leg
+    /// 状态）是否会不同步。
+    ///
+    /// 构造：D（腿，LiveDetached，op_parent=Some(Q)）在 prev_active[0] 先处理，触发 restore 从 Q 起链：
+    /// Q 在 registry 中未失效 ⟹ 物化；Q 的 `structural_parent_id=Some(P)` ⟹ 链继续查 P——**此时** P
+    /// 在 registry 中已被独立标记 `invalidated`（模拟结构性作废信号，与 P 自身是否仍是 held 腿无关，
+    /// I3：parent 是关系非身份，作废是显式信号非隐含于父子关系）⟹ `registry.get(P)` 失败 ⟹ 断链，
+    /// Q 的 idx 汇入调用方 `pending_parent_fixup`（票#350 修复后，不在本次 restore 调用内立即修补）。
+    /// P 在 prev_active[1]（**更晚**）作为 held 腿处理：`held_state(P)` 独立查同一 `invalidated`
+    /// 标记 ⟹ 也判 `Closed|Invalidated`；因 `is_boundary_root` ⟹ 保留为根，**直接 push 入 raw**
+    /// （不经 restore、不经 overlay_seen）。
+    ///
+    /// **RED（修复前，本函数各次调用内立即 fixup）**：Q 的 fixup 在 prev_active[0] 处理时点（P 尚未
+    /// push）立即执行 ⟹ 把 Q.parent 固化为 None，此后不会重跑——即便 P 随后（prev_active[1]）确实
+    /// 入 raw、AncOK（`parent_id` 结构链，不读 `parent` idx 字段）判 Q 的祖先链全齐、Q 存活进
+    /// next_idx，Q 的**角色计算**（`strategy_target_legs` 读 `parent`/`attached_dir` idx 字段）仍读到
+    /// 早已固化的 None/None ⟹ V=Ambient/depth=0/q_units=600（#247 原始缺口的精确重现，触发路径不同：
+    /// 非"更晚一次 restore 调用"而是"更晚一次非 restore 直接 push"）。
+    /// **GREEN（修复后，票#350：本函数不再自行 fixup，idx 汇入 `pending_parent_fixup` 由调用方在
+    /// 两个物化循环全部结束后统一修补）**：统一 fixup 时点 P 已在 raw ⟹ 三级解析（id_idx/overlay_seen/
+    /// raw 扫）经 raw 扫命中 P ⟹ Q.parent=Some(P idx)、attached_dir=Some(P.eps) ⟹ V=ShortDiff、
+    /// depth=1、q_units=300。
+    ///
+    /// 结果包边界条件：仅当共享祖先 P **同时**满足 (a) 是仍在 `prev_active` 的 held 腿、(b) `is_boundary_root`、
+    /// (c) registry 状态被独立标记 invalidated、且 (d) 有另一条腿的祖先链经 P 时才触发；P 若非
+    /// boundary_root（非根，非法或 closed 且非根 ⟹ 直接 prune 不入 raw）则不触发。
+    #[test]
+    fn restore_chain_ancestor_unresolved_when_shared_ancestor_only_materializes_via_later_boundary_root_push() {
+        let p = eid(2, 0); // 共享祖先：仍是 held 腿（boundary_root）+ registry 侧已 invalidated。
+        let q = eid(1, 0); // 中间祖先：仅 registry 存在（非 held 腿），链上 D→Q→P。
+        let d = eid(0, 0); // 触发腿：LiveDetached，op_parent=Q。
+
+        let p_cov = CoverageElement {
+            lambda: 0, rho: 20, eps: VoiceSide::Long, level: 2,
+            parent: None, attached_dir: None, id: p, parent_id: None,
+        };
+        let q_cov = CoverageElement {
+            lambda: 0, rho: 12, eps: VoiceSide::Short, level: 1,
+            parent: None, attached_dir: None, id: q, parent_id: Some(p),
+        };
+        // bar1：P/Q 均在 snapshot 中登记（真实存在过的走势元素）。
+        let reg1 = super::super::persistent::PersistentRegistry::new().merge(&[p_cov, q_cov], &[]);
+
+        let d_leg = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 4, lambda: 0,
+            id: d, parent_id: None, is_boundary_root: false, op_parent: Some(q),
+        };
+        // bar2：tree 空（P/Q 均不在新快照）⟹ 增量重置两者 snapshot_present=false；
+        // held_legs=[d_leg] 令 D 自身登记为 LiveDetached 占位（op_parent=Q 的 registry 影子条目
+        // 因 Q 已存在于 registry 而被 or_insert 跳过，不覆盖 Q 真实的 structural_parent_id=Some(P)）。
+        let mut reg2 = reg1.merge(&[], &[d_leg]);
+        // 独立结构性作废信号（与 P 是否仍是 held 腿无关，I3：parent 是关系非身份）。
+        reg2.invalidate(&p);
+
+        let p_leg = ActiveLeg {
+            level: 2, dir: VoiceSide::Long, source_index: 20, lambda: 0,
+            id: p, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let base: Vec<CoverageElement> = Vec::new();
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+
+        // prev_active 顺序：D 先（触发对 Q 的 restore，链上溯到 P 时 registry_lost 断链）、
+        // P 后（更晚一次处理，Closed|Invalidated + is_boundary_root ⟹ 直接 push 入 raw）。
+        ancok_probe_reset();
+        let (next_active, _p_tilde, sep_legs) = coverage_step_from_buckets_sep(
+            ElementView::new(&base), &[d_leg, p_leg], &buckets, 1000.0, &cfg(), None, &reg2,
+        );
+        let probe = ancok_probe_snapshot();
+        // ★Standards J2（code-review 复评浮出）：probe 交叉核对——Q 的链确实命中 registry_lost
+        // （P 在 registry 侧 invalidated），但 Q 最终经统一 fixup 正确接线（非"unresolved 且未被
+        // AncOK 剪除"的漏网），坐实 697 ceiling 真实判据（unresolved−pruned）在此场景下仍为 0，
+        // 与 `restore_break_registry_lost>0` 不再蕴含"非严格"的订正一致（见 AncokProbe 文档）。
+        assert!(probe.restore_break_registry_lost >= 1,
+            "Q 的链须命中 registry_lost（P invalidated）；实得 {}", probe.restore_break_registry_lost);
+        assert_eq!(probe.placeholder_parent_unresolved, probe.placeholder_pruned_by_ancok,
+            "Q 虽经历 registry_lost 但最终统一 fixup 正确接线、AncOK 未剪除 ⟹ unresolved−pruned=0\
+             （697 ceiling 真实判据无暴露）；unresolved={} pruned={}",
+            probe.placeholder_parent_unresolved, probe.placeholder_pruned_by_ancok);
+
+        // 承重坐实：Q（restore 恢复的中间祖先）经 AncOK（parent_id 结构判据）在 P 于本 bar 更晚
+        // 入 raw 后仍应结构性存活——若这条都不满足，说明场景构造本身有误，非本票要坐实的缺口。
+        assert!(
+            next_active.iter().any(|l| l.id == q),
+            "Q 的祖先链（parent_id: Q→P）在 raw_ids 中已全齐（P 更晚入 raw）⟹ AncOK 应判 Q 存活；实得 {next_active:?}"
+        );
+        let sep_q = sep_legs.iter().find(|s| s.id == q).expect("Q 须在 sep_legs（AncOK 存活）");
+        // 核心断言（GREEN，#350 修复后）：Q 的角色计算须正确反映其真父 P——δ=−σ_p（Q Short vs P Long）
+        // ⟹ V=ShortDiff、depth=1 ⟹ q_units=1000×0.30=300。修复前（restore 各次调用内立即 fixup）
+        // 此处恒为 V=Ambient/q_units=600（P 更晚经非 restore 直接 push 物化，Q 的 fixup 已在更早一次
+        // restore 调用内固化为 None/None，不会重跑）。
+        assert_eq!(
+            sep_q.role_v, Vertical::ShortDiff,
+            "Q 存活进 next_idx 且 P 已在 raw（AncOK 判定祖先齐全）⟹ 角色计算须体现 V=ShortDiff；\
+             若为 Ambient 则坐实 #350 时序孔（P 由更晚一次非 restore push 物化，Q 的 fixup 未跟上）"
+        );
+        assert!(
+            (sep_q.q_units - 300.0).abs() < 1e-9,
+            "depth=1 ⟹ q_units=300（时序孔存在时会是 depth=0 ⟹ 600）；实得 {}",
+            sep_q.q_units
+        );
     }
 
     /// ★票#247 缺口二（A 类实装缺口，mutex-domain-loadbearing-20260725 §二裁定）：完整祖先链恢复后，
@@ -5009,8 +5218,10 @@ mod tests {
         let mut raw: Vec<usize> = Vec::new();
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
+        let mut pending = Vec::new();
 
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(1, 0), &id_idx, &mut overlay_seen);
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(1, 0), &id_idx, &mut overlay_seen, &mut pending);
+        resolve_pending_parent_fixup(&mut work, &pending, &id_idx, &overlay_seen, &raw);
 
         assert_eq!(work.len(), 2, "完整链恢复：父 + 祖父均 push 入 work");
         assert_eq!(raw, vec![0, 1], "恢复序 = 子先父后上溯");
@@ -5060,8 +5271,10 @@ mod tests {
         let mut raw: Vec<usize> = Vec::new();
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
+        let mut pending = Vec::new();
 
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(1, 0), &id_idx, &mut overlay_seen);
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(1, 0), &id_idx, &mut overlay_seen, &mut pending);
+        resolve_pending_parent_fixup(&mut work, &pending, &id_idx, &overlay_seen, &raw);
 
         assert_eq!(work.len(), 2, "祖父已在 base ⟹ 仅 push 父（overlay idx=1）");
         assert_eq!(raw, vec![1, 0], "父 push 入 raw 后上溯复用祖父现有 idx 0");
@@ -5106,8 +5319,10 @@ mod tests {
         let mut raw: Vec<usize> = Vec::new();
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
+        let mut pending = Vec::new();
 
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(0, 0), &id_idx, &mut overlay_seen);
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(0, 0), &id_idx, &mut overlay_seen, &mut pending);
+        resolve_pending_parent_fixup(&mut work, &pending, &id_idx, &overlay_seen, &raw);
 
         assert_eq!(work.len(), 1, "子已 push；父 registry 丢失 ⟹ 断链停止");
         assert_eq!(raw, vec![0], "断链子元素留在 raw（剪除归 AncOK，不在 restore 内）");
@@ -5136,8 +5351,10 @@ mod tests {
         let mut raw: Vec<usize> = Vec::new();
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
+        let mut pending = Vec::new();
 
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(2, 0), &id_idx, &mut overlay_seen);
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(2, 0), &id_idx, &mut overlay_seen, &mut pending);
+        resolve_pending_parent_fixup(&mut work, &pending, &id_idx, &overlay_seen, &raw);
 
         assert_eq!(work.len(), 1, "单元素（∂）恢复");
         assert_eq!(work[0].parent, None, "parent_id=None（∂）保持 parent=None");
