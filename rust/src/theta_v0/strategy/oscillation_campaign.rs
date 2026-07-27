@@ -401,7 +401,11 @@ pub struct DeathWriteOff {
     pub units_gap: i64,
     /// 桶实收现金（这些减出腿记进 `realized_cash` 的金额之和，**不与货缺口冲销**）。
     pub cash_booked: i64,
-    /// 被一并核销的来源中枢个数（≥1）——死亡吞的是整本账，非单个中枢，故一并留痕。
+    /// 被一并核销的来源中枢个数（≥1）——死亡吞的是整本账，非单个中枢。
+    ///
+    /// **类型层归属信息，当前不进 witness**（#441 复审订正）：无生产消费者，不落任何桶、不进
+    /// 任何 dump，只被单测断言读（跨中枢核销断言 `centers: 2`）。产物级读得出「吞了多少股」，
+    /// 读不出「吞了几个中枢」；按 (级别, 中枢) 分桶的加维留给 #442 统一定规格。
     pub centers: usize,
 }
 
@@ -786,9 +790,15 @@ impl OscillationCampaign {
     /// ★★#441（ADR 补充十二，2026-07-27 用户裁定）：**死亡吞挂起 = 未闭合减出核销**——旧口径
     /// 只把在途量当标量读出来叫「作废」（无核销、无现金那一笔、无 witness）；现改为走 #366 的
     /// 同一条核销路径：归属账 [`SuspensionAttribution::write_off_all`] 清账 + 短差桶
-    /// [`ShortDiffAccount::write_off_unclosed`] 留痕（`written_off_units`），产出
-    /// [`DeathWriteOff`]（货缺口/桶实收现金分列，不冲销）。**不产任何 `TwEvent`**（不冲销，同
-    /// #366）——`ClearCampaign` 是既有的终结事件，与核销无关。
+    /// [`ShortDiffAccount::write_off_unclosed`] 记账，产出 [`DeathWriteOff`]（货缺口/桶实收现金
+    /// 分列，不冲销）。**不产任何 `TwEvent`**（不冲销，同 #366）——`ClearCampaign` 是既有的终结
+    /// 事件，与核销无关。
+    ///
+    /// **留痕在哪**（#441 复审订正）：死亡路径上桶的 `written_off_units` **不可观测**——`close`
+    /// 返回后本实例即被丢弃（`campaigns.remove` 已取走所有权），全仓该读数的消费者只有测试与
+    /// 活体 campaign（#366 路径）。所以这里写桶的实际作用只剩「给下面那条 `debug_assert` 一个
+    /// 检查点」（桶拒绝 ⟹ 记账错误当场炸），**不是**留痕。死亡核销的留痕是产出的
+    /// [`DeathWriteOff`] → `CampaignLifecycleEvent::Died` → witness 三桶，别去桶里查。
     ///
     /// **死亡优先于延续**（#414/ADR 补充十一）：campaign 没了，挂起不可能延续到原中枢的三类
     /// 买卖点——出口在此就地闭合。行为化锚见测试
@@ -1495,8 +1505,11 @@ mod tests {
 
     /// ★挂起随死（issue #294 验收②「全平=campaign 终结含挂起随死」）：全平死亡时若短差盈亏桶
     /// 仍有挂起在途量（未及收口的半轮往返），死亡照实记录该量，不强求先 assert_conserved。
+    ///
+    /// ★#441 复审建议3：测试名去掉已退役的定性词「forfeit（作废）」——断言体读的是
+    /// [`DeathWriteOff`]（未闭合减出核销），名实须一致。
     #[test]
-    fn sync_position_death_forfeits_open_suspended_units_without_requiring_conservation() {
+    fn sync_position_death_writes_off_open_suspended_units_without_requiring_conservation() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // avg_cost=10
         book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap(); // 卖 100（1/3）
