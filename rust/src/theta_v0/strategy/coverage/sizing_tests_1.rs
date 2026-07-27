@@ -3,7 +3,6 @@ use super::super::test_support::*;
 use crate::theta_v0::types::{Center, BspBits};
 use crate::theta_v0::classifier::LevelState;
 use crate::theta_v0::classifier::bsp::BspPoint;
-use super::super::super::interp::ActiveLeg;
 
     /// PiThetaWeights::from_risk 复用 κ/ρ（不引新参数）。
     #[test]
