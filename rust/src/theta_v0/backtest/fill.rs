@@ -3890,13 +3890,17 @@ mod venue_fee_wiring_tests {
             .collect();
         assert!(win.len() >= 500, "OKLO 窗口 bar 数不足（{}）", win.len());
 
-        let mut md = String::from(
+        // 抬头口径标签的 datum 前缀由 `&sched.datum_sha256[..12]` **运行时插值**（与本测 footer
+        // 同源，见下方 `md.push_str`），不写死字面量：产物的认识论等级须机器可读（#385 US4，
+        // #418 LOW-2）。落盘后由本测末尾的回读断言校验。
+        let mut md = format!(
             "# OKLO 真实窗 per-share 档读数（#388 T2；IBKR Pro Tiered ≤300K shares）\n\n\
-             口径标签：`[L2费率标定: datum <前12位>]`（成交费率科目）。**认识论 L1**\
+             口径标签：`[L2费率标定: datum {}]`（成交费率科目）。**认识论 L1**\
              （费用算术 + 触达计数；不作 alpha 论据）。\n\n\
              | 每单股数 | 成交腿数 | Σ佣金 | Σpass-thru | Σ清算+CAT | Σ卖出SEC | Σ卖出TAF | Σ总费用 | \
              最低佣金触达 | 1%上限触达 | TAF上限触达 | 有效费率(Σ费用/Σ名义) |\n\
              |---|---|---|---|---|---|---|---|---|---|---|---|\n",
+            &sched.datum_sha256[..12],
         );
         for lots in [50i64, 100, 500] {
             let mut orders: Vec<Order> = Vec::new();
@@ -4025,6 +4029,33 @@ mod venue_fee_wiring_tests {
         // 落盘失败即测试失败（不 `.ok()` 吞错）：本测的产出**就是**这份读数，写不出去 = 没有交付物。
         std::fs::write(OKLO_READINGS_PATH, &md)
             .unwrap_or_else(|e| panic!("OKLO 读数落盘失败 {OKLO_READINGS_PATH}：{e}"));
+
+        // ── #418 LOW-2 机器断言：产物抬头的口径标签必须落**真哈希**，不得留字面占位符 ──
+        // 母 SPEC #385 US4 的目的是「读数的认识论等级**机器可读**」：消费方以
+        // `\[L2费率标定: datum ([0-9a-f]{12})\]` 提取档位与 datum 身份。抬头若留 `<前12位>`
+        // 这类字面占位符，该正则在产物上匹配失败 ⟹ 等级退化为人读。
+        // 断言对象是**回读的落盘文件**而非内存 `md`：校验的必须是交付物本身。
+        let written = std::fs::read_to_string(OKLO_READINGS_PATH)
+            .unwrap_or_else(|e| panic!("OKLO 读数回读失败 {OKLO_READINGS_PATH}：{e}"));
+        let label_line = written
+            .lines()
+            .find(|l| l.starts_with("口径标签："))
+            .unwrap_or_else(|| panic!("产物缺「口径标签：」行：{OKLO_READINGS_PATH}"));
+        assert!(
+            !label_line.contains('<') && !label_line.contains('>'),
+            "口径标签行残留字面占位符（#418 LOW-2）：{label_line}"
+        );
+        let digest12 = &sched.datum_sha256[..12];
+        assert!(
+            digest12.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)),
+            "datum sha256 前 12 位非小写 hex：{digest12}"
+        );
+        let expected_label = format!("[L2费率标定: datum {digest12}]");
+        assert!(
+            label_line.contains(&expected_label),
+            "口径标签行未落真哈希（#418 LOW-2）：期望含 `{expected_label}`，实为 {label_line}"
+        );
+
         eprintln!("[#388 OKLO] 读数落盘 {OKLO_READINGS_PATH}");
     }
 

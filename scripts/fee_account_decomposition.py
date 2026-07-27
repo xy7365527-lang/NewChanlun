@@ -56,6 +56,10 @@ ARM_R_SLIPPAGE_BPS = 2.0
 ARM_R_TAX_BPS = 0.0
 # 未标定滑点 addon（datum 不覆盖，两臂同值；venue_fee.rs FeeQuoter::new 的 uncalibrated_addon）。
 SLIPPAGE_BPS = ARM_R_SLIPPAGE_BPS
+# 标定档（臂D、臂C 共用——两者都吃 datum `fee_schedule`）的 tax：`config.rs:271` fail-loud
+# 约束——`fee_schedule = Some(...)` 时要求 `tax_bps == 0`（禁与 datum 内的监管税费重复计）。
+# 这个 0 的依据是「标定档」这个性质本身，不是「臂D」这个臂——臂C 同样标定，故共用同一常量。
+ARM_CALIBRATED_TAX_BPS = 0.0
 
 
 def binance_taker_bps() -> float:
@@ -91,14 +95,25 @@ class Decomposition:
     regulatory: float
     clearing: float
     slippage: float
+    tax: float
 
     @property
     def total(self) -> float:
-        return self.commission + self.regulatory + self.clearing + self.slippage
+        return (
+            self.commission
+            + self.regulatory
+            + self.clearing
+            + self.slippage
+            + self.tax
+        )
 
 
-def decompose(notionals: list[float], commission_bps: float) -> Decomposition:
-    """科目分解：commission / 监管 / 清算 / slippage（本表覆盖的两个档位均无监管/清算科目）。"""
+def decompose(
+    notionals: list[float], commission_bps: float, tax_bps: float
+) -> Decomposition:
+    """科目分解：commission / 监管 / 清算 / slippage / tax（本表覆盖的两个档位均无监管/清算科目；
+    tax 在两个档位下均恒 0——臂R 是 `ExecConfig::default()` 常量，臂D/C 是 datum 标定档下
+    `config.rs:271` fail-loud 约束的推论，非「没算」）。"""
     total = sum(notionals)
     return Decomposition(
         n_legs=len(notionals),
@@ -107,6 +122,7 @@ def decompose(notionals: list[float], commission_bps: float) -> Decomposition:
         regulatory=0.0,
         clearing=0.0,
         slippage=total * SLIPPAGE_BPS / 10_000.0,
+        tax=total * tax_bps / 10_000.0,
     )
 
 
@@ -126,10 +142,10 @@ def main() -> int:
     missing: list[str] = []
     optional_absent: list[str] = []
     for tag in WINDOWS:
-        for arm, root, comm_bps, required in (
-            ("D(标定)", pathlib.Path(args.armD_dir), taker_bps, True),
-            ("C(标定+帽)", pathlib.Path(args.armC_dir), taker_bps, False),
-            ("R(未标定)", pathlib.Path(args.armR_dir), ARM_R_COMMISSION_BPS, True),
+        for arm, root, comm_bps, tax_bps, required in (
+            ("D(标定)", pathlib.Path(args.armD_dir), taker_bps, ARM_CALIBRATED_TAX_BPS, True),
+            ("C(标定+帽)", pathlib.Path(args.armC_dir), taker_bps, ARM_CALIBRATED_TAX_BPS, False),
+            ("R(未标定)", pathlib.Path(args.armR_dir), ARM_R_COMMISSION_BPS, ARM_R_TAX_BPS, True),
         ):
             path = root / tag / "trades.jsonl"
             if not path.exists():
@@ -140,11 +156,11 @@ def main() -> int:
                     # 必须在 stderr 说出来（同票 `M8_LEVEL_CAP` 非法值 fail-loud 的同一理由）。
                     optional_absent.append(str(path))
                 continue
-            d = decompose(leg_notionals(path), comm_bps)
+            d = decompose(leg_notionals(path), comm_bps, tax_bps)
             rows.append(
                 f"| {tag} | {arm} | {d.n_legs} | {d.notional:.2f} | "
                 f"{d.commission:.2f} | {d.regulatory:.2f} | {d.clearing:.2f} | "
-                f"{d.slippage:.2f} | {d.total:.2f} |"
+                f"{d.slippage:.2f} | {d.tax:.2f} | {d.total:.2f} |"
             )
     if missing:
         print("产物缺失（跑批未做）：\n  " + "\n  ".join(missing), file=sys.stderr)
@@ -161,15 +177,20 @@ def main() -> int:
             f"费率口径：臂D commission={taker_bps:.1f}bp（datum {DATUM_PATH.name} / BTC / VIP0 taker）；"
             f"臂R commission={ARM_R_COMMISSION_BPS:.1f}bp、tax={ARM_R_TAX_BPS:.1f}bp（config.rs:302-304）；"
             f"臂C commission 与臂D 同源（同 datum 同档位，唯一差异 = `enforce_level_cap`）；"
-            f"三臂 slippage={SLIPPAGE_BPS:.1f}bp（datum 不覆盖，未标定 addon）。",
+            f"三臂 slippage={SLIPPAGE_BPS:.1f}bp（datum 不覆盖，未标定 addon）；"
+            f"臂D/C tax={ARM_CALIBRATED_TAX_BPS:.1f}bp（config.rs:271 fail-loud 约束下的推论，非手抄）、"
+            f"臂R tax={ARM_R_TAX_BPS:.1f}bp（config.rs:302-304）。",
             "",
-            "| 窗 | 臂 | 成交腿数 | Σ名义额 | commission | 监管 | 清算 | slippage | Σ费用 |",
-            "|---|---|---|---|---|---|---|---|---|",
+            "| 窗 | 臂 | 成交腿数 | Σ名义额 | commission | 监管 | 清算 | slippage | tax | Σ费用 |",
+            "|---|---|---|---|---|---|---|---|---|---|",
             *rows,
             "",
             "**口径**：基于 `trades.jsonl` 的**独立重算**（已平仓声部双腿），"
             "**非账本实扣分项**——账本 `Comm+Slip` 列含全部订单流（减仓/强平/窗末未平腿），口径更宽。",
             "**监管/清算恒 0**：Binance 现货与三常数档均无此科目（不是漏算）。",
+            "**tax 恒 0**：臂R 是 `ExecConfig::default()` 常量；臂D/C 是标定档下 "
+            "`config.rs:271` fail-loud 约束（`fee_schedule = Some(...)` 时禁 `tax_bps != 0`）"
+            "的推论——若上游改变该约束或该常量非零，本表逐笔重算会自动纳入（一等科目，非特判）。",
         ]
     )
     if args.out:

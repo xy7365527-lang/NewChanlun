@@ -305,9 +305,20 @@ fn lee_row_cells(s: &super::super::strategy::level_order::LevelOrderStats) -> [u
 
 /// ★#388 T2 / #374 有效域收窄的**报告层标注**：标定档下随机对照系读数一律标此串。
 ///
-/// 「不可用」不是「跑失败」，是**有效域之外**（231号）：单标量费率在 per-share 档无良定义
-/// ⟹ 依赖它的 LCB_OOS(R)（block bootstrap 的成本口径）与三态判据没有合法取值。喂近似值
-/// （实际有效费率等）已由 #374 明文否决——那只是把不对称藏进一个更贵的常数（090 声明膨胀）。
+/// 「不可用」不是「跑失败」，是**有效域之外 + 实现层保守收窄**的合成（231号）。订正（#422）——
+/// 分两段，勿再把前段说成覆盖标定档全体：
+/// - **按股档（per-share）**：单标量费率无良定义（逐笔费率随 (qty, px, side) 非线性变，见
+///   [`treasury::scalar_cost_rate_opt`](super::treasury::scalar_cost_rate_opt) 的有效域论证）
+///   ⟹ 依赖它的 LCB_OOS(R)（block bootstrap 的成本口径）与三态判据**确无**合法取值；
+/// - **按金额档（per-notional，如 Binance 现货 maker=taker=10bp，撮合恒 Taker ⟹ 单边恒 12bp）**：
+///   标量其实**可定义**——该档下单标量口径并未失效。
+///
+/// 实现（`scalar_cost_rate_opt`）按 `fee_schedule.is_some()` **一刀切**判 `None`，不区分档位类型
+/// ⟹ 标定档**全体**（含按金额档）都落本标注。故本串对按金额档是**保守收窄**（宁缺不冒充），
+/// 不是「该档无良定义」。恢复按金额档读数属 #423，本处只订正措辞、不改判定。
+///
+/// 喂近似值（实际有效费率等）在按股档已由 #374 明文否决——那只是把不对称藏进一个更贵的常数
+/// （090 声明膨胀）。
 const CALIBRATED_UNAVAILABLE: &str = "不可用(标定档有效域收窄 #374)";
 
 /// m8 四层报告的**层4 两格**（LCB_OOS(R) / 三态）渲染。
@@ -1396,9 +1407,15 @@ fn m8_e2e_all_systems_oos() {
     //   不可用项不是「跑失败」，是 #374 裁定的有效域之外（231号）——喂近似费率已明文否决。
     if plain_cfg.exec.fee_schedule.is_some() {
         report.push_str(&format!(
-            "> **标定档有效域收窄声明（#374 / #385）**：本跑批经 `M8_FEE_DATUM` 注入 venue 费率 datum，\
-             单标量成本费率（`RunResult::fee_rate`）在 per-share 档**无良定义** ⟹ 下列读数标\
-             `{CALIBRATED_UNAVAILABLE}`，**不以近似费率顶替**：\n\
+            "> **标定档有效域收窄声明（#374 / #385 / 措辞订正 #422）**：本跑批经 `M8_FEE_DATUM` 注入 \
+             venue 费率 datum。单标量成本费率（`RunResult::fee_rate`）的失效**只在按股档（per-share）\
+             成立**——该档逐笔费率随 (qty, px, side) 非线性变（最低佣金托底/名义额上限/卖出监管费）\
+             ⟹ 标量**无良定义**。**按金额档（per-notional，如 Binance 现货 maker=taker=10bp，撮合恒 \
+             Taker ⟹ 单边恒 12bp）标量其实可定义**。实现（`treasury::scalar_cost_rate_opt`）按 \
+             `fee_schedule.is_some()` **一刀切**判 `None`、不区分档位类型 ⟹ 标定档全体（含本批所用的\
+             按金额档）一律撤下标量成本口径。故下列读数标 `{CALIBRATED_UNAVAILABLE}` 是**保守收窄**\
+             （宁缺不冒充），**不**等于本批档位无良定义；**不以近似费率顶替**。按金额档读数的恢复属 \
+             #423，本处仅订正措辞、不改判定、不恢复任何读数：\n\
              > - `LCB_OOS(R)`（block bootstrap 的成本口径依赖单标量费率）；\n\
              > - **三态判据**（判据是 `LCB>0`，缺 LCB 即无判据——不用 R 的正负降格顶替）；\n\
              > - `metrics::significance` 派生的随机对照系（schedule-shift / independent-entry \
@@ -1503,8 +1520,10 @@ fn m8_e2e_all_systems_oos() {
 
         // 层4 完整策略：R(含浮盈) + LCB_OOS(R) block bootstrap。
         // ★#388 T2：`fee_rate` 是 `Option`——标定臂（臂D）为 `None`（#374 有效域收窄）⟹ **不算**
-        //   significance（随机对照的"含同等成本"在 per-share 档无良定义），两格标不可用。
-        //   未标定档（臂R）逐位不变。
+        //   significance，两格标不可用。未标定档（臂R）逐位不变。
+        // 订正（#422）：原注释写「随机对照的"含同等成本"在 per-share 档无良定义」，把按股档的理由
+        //   挂在了臂D（本批 = Binance 按金额档）。准确口径见 CALIBRATED_UNAVAILABLE 上方——无良定义
+        //   只成立于按股档；按金额档标量可定义，`None` 来自 `fee_schedule.is_some()` 一刀切的保守收窄。
         let r_total: f64 = r.net_result.trade_pnls_with_forced.iter().sum();
         let lcb_r = r.net_result.fee_rate.map(|fee| {
             significance(
@@ -1757,8 +1776,13 @@ mod tests {
     }
 
     /// ★#388 T2 / #385 Implementation Decisions（「臂 D/C 的相关读数须标注不可用或改述」）：
-    /// **标定档**（单标量费率无良定义，#374）⟹ 随机对照系派生的两格一律标"不可用"，
-    /// **不喂近似费率**、**不落一个看似有效的数**。**认识论 L0**（契约）。
+    /// **标定档**⟹ 随机对照系派生的两格一律标"不可用"，**不喂近似费率**、
+    /// **不落一个看似有效的数**。**认识论 L0**（契约）。
+    ///
+    /// 订正（#422）：原写「标定档（单标量费率无良定义，#374）」把按股档的理由挂到了标定档全体。
+    /// 准确口径 = 按股档（per-share）单标量确无良定义（#374）；按金额档（per-notional）标量
+    /// **可定义**，但实现按 `fee_schedule.is_some()` 一刀切判 `None` ⟹ 标定档全体落此标注，
+    /// 对按金额档是**保守收窄**。本测断言的是收窄后的渲染契约，不主张按金额档无良定义。
     #[test]
     fn layer4_cells_calibrated_marks_unavailable() {
         let (lcb, verdict) = layer4_cells(None, 6851062.0);
@@ -1844,7 +1868,15 @@ mod tests {
 
     /// ★#388 T2：**品种借档拦截实证**（#360 `data::load_by_symbol` 的 fail-loud 承保本 env 钩子）——
     /// 把 OKLO 的 per-share 档配给 BTC 数据集 ⟹ `Err`，跑批在数据加载期就停，不会静默产出
-    /// 「按股收费的 BTC」这种无意义费用。**磁盘无关**（品种校验先于文件读取）。
+    /// 「按股收费的 BTC」这种无意义费用。本测**读仓内 datum 文件**（经 `parse_fee_datum_spec`
+    /// → `load_datum` 读 `venue_fee_ibkr_pro_20260726.json`），只是**不依赖市场数据文件**——
+    /// 品种校验先于 `data_dir().join(file)` 读盘（`data.rs` 的 `load_by_symbol`：
+    /// `if let Some(sched)` 校验块在 299 行，读盘在 308 行），故不加载 BTC 全量 bar。
+    ///
+    /// **语义重叠登记（#418 LOW-4）**：`data::tests::fee_schedule_symbol_must_match_dataset`
+    /// （#360 已有，`data.rs:321`）覆盖同一条「品种不符 ⟹ Err」断言。本测保留的增量在于覆盖
+    /// **经 env spec 解析出档位**（`parse_fee_datum_spec`）这条路径——#360 那条直接构造
+    /// schedule，不穿过 env 钩子。两测断言相同、入口不同，故并存不算冗余。
     #[test]
     fn fee_datum_cross_symbol_borrow_is_blocked() {
         let mut cfg = ThetaConfig::default();

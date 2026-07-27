@@ -315,7 +315,11 @@ pub struct Significance {
 /// - `prices`：原始价格序列（close 口径，与 Θ 账本侧 `apply_order` 的 `px=bar.close` 一致）。
 /// - `fee_rate`：单边费用率（commission+slippage+tax，比率）。随机对照含同等成本。
 ///   **有效域（#374 MED-A）**：该"同等成本"只在**未标定常率**档成立（`fee_schedule = None`）。
-///   venue 标定档下逐笔费率随 (qty, px, side) 变，单标量口径无良定义 ⟹ 上游
+///   订正（#422）——原写「venue 标定档下逐笔费率随 (qty, px, side) 变，单标量口径无良定义」，
+///   该因果对**按金额档**失实：按金额档（per-notional，如 Binance 现货 maker=taker=10bp，撮合恒
+///   Taker ⟹ 单边恒 12bp）逐笔费率**不随 qty/px 变**，标量口径可定义。无良定义只成立于**按股档**
+///   （per-share：最低佣金托底、名义额上限、卖出监管费 ⟹ 费率是 (qty, px, side) 的非线性函数）。
+///   实现按 `fee_schedule.is_some()` 一刀切、不区分档位类型 ⟹ 上游
 ///   [`runner::RunResult::fee_rate`](super::runner::RunResult::fee_rate) 在标定档下是 `None`
 ///   （`treasury::scalar_cost_rate_opt`，#388 T2 起由类型承载）⟹ 调用方要么
 ///   `expect(treasury::SCALAR_COST_RATE_UNDEFINED)` fail-loud，要么按 #385 裁定把该读数标注
