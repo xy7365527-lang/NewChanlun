@@ -76,16 +76,13 @@
 //! 3) `center_block_kind` / `center_block_kind_at`（decompose.rs:213-226 / :197-205）：纯函数——
 //!    只读 blocks（projection centers 的 decompose 输出 ⟸ (i)），无任何时间读。签字通过。
 //!
-//! ── trend_confirm 游标驻留（090 能力声明）──
-//! 设计 §4.3 的**函数内** per-pair 游标驻留（env 包络/acc_hi/area/dif/hist 极值跨评估驻留）
-//! 需改 theta_v0 生产源码（trend_confirm_time 是 level_view.rs 私有函数，bin 不可达）或
-//! fork 判据路径——两者本轮皆禁（生产源码零改动 / 禁新判据路径）。**未实装**，如实声明。
-//! 实装的驻留 = **view 粒度**：评估缓存条目跨 clean bar 驻留整批产出（投影/pairs/事件），
-//! (i)-(iv) 保证输入不变 ⟹ 重扫零次；§4.3 的单调性论据（T2 假→真、T5 真→假终假、t3 未决
-//! 保持未决）在本架构中是判据 (ii)/(iii) 的完备性论据（端点越过必须重估，两个方向的状态
-//! 翻转都被覆盖），不是独立机制。§4.5 assemble/provide 双算单源化同理**未实装**（lib 内
-//! fusion 属生产改动）；其成本在保留评估内部，与慢版逐位相同。残量界：稀疏化收益全部来自
-//! 评估次数下降，保留评估单价不变——实测计数/计时见 stderr P123_SPARSE，预估见任务回报。
+//! ── trend_confirm 游标驻留（#69 5a，090 能力声明）──
+//! `LevelDerived` 持有 per-pair `ConfirmCursorStore`；dirty 评估把
+//! `TowerCache::tower_confirmed_len(level - 1)` 作为唯一稳定下级水位传入 resident 核，
+//! 仅 sealed prefix 的 env/acc_hi/area/dif/hist 极值跨评估驻留。run 消失或结构代次变化均
+//! 失效；forced shadow 明确传 `None`，始终走冷核。冷核与 resident 核共用同一扫描函数。
+//! `assemble_level_view_resident` 一次生成 pair confirmation sidecar，move completion 与
+//! provider 同读该 sidecar，不再重复调用 trend_confirm。
 //!
 //! ── 验收面（设计 §5）与白名单 ──
 //! 必须逐位：stdout 门行全套（INPUT/RULE/PROBE/YIELD/CERT/D3/BASELINE/PROVIDER/SNAPSHOT/
@@ -145,10 +142,11 @@ use newchan_rust::theta_v0::classifier;
 use newchan_rust::theta_v0::classifier::bsp::BspPoint;
 use newchan_rust::theta_v0::classifier::decompose;
 use newchan_rust::theta_v0::classifier::level_view::{
-    assemble_level_view, lower_legs_from, project_extended_windows_carried_only,
-    provide_nest_candidate_events, C2LevelViewConfig, C2VersionTuple, CoordinateWindow,
-    LevelViewMaterial, LevelViewQuery, LowerLeg, NestCandidateEvent, NestDivergenceKind,
-    ProjectionError, ProjectionMaterial,
+    assemble_level_view, assemble_level_view_resident, lower_legs_from,
+    project_extended_windows_carried_only, provide_nest_candidate_events, C2LevelViewConfig,
+    C2VersionTuple, ConfirmCursorStore, ConfirmResidence, CoordinateWindow, LevelViewMaterial,
+    LevelViewQuery, LowerLeg, NestCandidateEvent, NestDivergenceKind, ProjectionError,
+    ProjectionMaterial,
 };
 use newchan_rust::theta_v0::classifier::nest::{
     assemble_certificates_snapshot, assemble_typed_certificates, event_bsp_book_level,
@@ -181,7 +179,9 @@ fn dump_line(args: std::fmt::Arguments<'_>) {
     });
     if let Some(sink) = sink {
         if let Ok(mut writer) = sink.lock() {
-            let _ = writer.write_fmt(args).and_then(|()| writer.write_all(b"\n"));
+            let _ = writer
+                .write_fmt(args)
+                .and_then(|()| writer.write_all(b"\n"));
         }
     }
 }
@@ -300,7 +300,11 @@ impl TurnBook {
             }
             let seen = self.seen.entry(level).or_default();
             for block in &state.moves[from..ready] {
-                let key = (block.start_center, block.end_center, move_kind_tag(block.kind));
+                let key = (
+                    block.start_center,
+                    block.end_center,
+                    move_kind_tag(block.kind),
+                );
                 if !seen.insert(key) {
                     continue;
                 }
@@ -367,6 +371,8 @@ struct LevelDerived {
     /// lower_legs 的 end_index（塔不变量：LeveledMove 序列按 end_index 升序，递归塔
     /// recursive_tower.rs:120；partition_point 直接用，不再排序）。
     lower_ends: Vec<usize>,
+    /// #69 5a：本级各 run 的 trend-confirm per-pair resident 游标。
+    confirm_cursors: ConfirmCursorStore,
 }
 
 /// per-(level, run_source_start) 评估缓存条目（设计 §3 的 per-(level,run) 评估缓存）。
@@ -442,8 +448,14 @@ fn main() -> Result<(), String> {
     let terminal = run_terminal_pass(&loaded.bars[..max_bars], &config)?;
     let (hist, close_src) = terminal.cache.causal_series();
     let dif = terminal.cache.macd_dif();
-    let terminal_events =
-        collect_snapshot_candidates(&terminal.tower, max_bars - 1, hist, dif, close_src, &mut audit)?;
+    let terminal_events = collect_snapshot_candidates(
+        &terminal.tower,
+        max_bars - 1,
+        hist,
+        dif,
+        close_src,
+        &mut audit,
+    )?;
     let mut targets = BTreeMap::new();
     for event in terminal_events.iter().flatten() {
         targets.insert(EventKey::from(event), *event);
@@ -471,7 +483,11 @@ fn main() -> Result<(), String> {
         prefix_elapsed.as_secs_f64(),
     );
     for (level, reevals) in &stats.per_level_reevals {
-        let slow_would = stats.per_level_views_slow_would.get(level).copied().unwrap_or(0);
+        let slow_would = stats
+            .per_level_views_slow_would
+            .get(level)
+            .copied()
+            .unwrap_or(0);
         eprintln!(
             "P123_SPARSE_LEVEL level={level} reevals={reevals} slow_would_views={slow_would}"
         );
@@ -677,7 +693,11 @@ fn main() -> Result<(), String> {
     let missed: Vec<&EventKey> = book
         .terminal_confirmed
         .iter()
-        .filter(|key| !book.covered_b.contains(&(key.level, key.turn_source, key.interval_b)))
+        .filter(|key| {
+            !book
+                .covered_b
+                .contains(&(key.level, key.turn_source, key.interval_b))
+        })
         .collect();
     println!(
         "P123_MISSED terminal_confirmed={} covered_b={} intake_fallback_events={} missed={}",
@@ -801,7 +821,9 @@ fn run_targeted_prefix_pass(
             // arrived 分组：与慢版 collect_target_candidates 首段逐行一致。
             let mut runs_by_level: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
             for key in &pending {
-                let Some(event) = targets.get(key) else { continue };
+                let Some(event) = targets.get(key) else {
+                    continue;
+                };
                 // snapshot 无前视的结构下，turn_source 尚未到达时该对象不可能成为 Cand。
                 // 提前投影这些终态目标只增加扫描量，不可能改变首次可证钟。
                 if event.turn_source <= index {
@@ -850,11 +872,18 @@ fn run_targeted_prefix_pass(
                     level_derived.lower_gen += 1;
                     level_derived.lower_legs = lower_legs_from(&tower[level - 1])
                         .map_err(|error| format!("L{level} targeted lower legs 失败: {error:?}"))?;
-                    level_derived.lower_ends =
-                        level_derived.lower_legs.iter().map(|leg| leg.end_index).collect();
+                    level_derived.lower_ends = level_derived
+                        .lower_legs
+                        .iter()
+                        .map(|leg| leg.end_index)
+                        .collect();
                     stats.syncs_lower += 1;
                 }
-                let level_derived = &derived[&level];
+                let active_run_starts: Vec<_> = level_derived.run_ranges.keys().copied().collect();
+                level_derived
+                    .confirm_cursors
+                    .retain_run_starts(level as u32, active_run_starts);
+                let stable_lower_len = cache.tower_confirmed_len(level - 1);
                 for run_source_start in run_sources {
                     // 慢版：run 不在当前分区 ⟹ 本 trigger 无产出（continue）。条目保留不应用——
                     // run 重现时代次差（分区已随内容变同步过）⟹ dirty ⟹ 重估，无陈旧复用。
@@ -862,11 +891,9 @@ fn run_targeted_prefix_pass(
                     else {
                         continue;
                     };
-                    *stats
-                        .per_level_views_slow_would
-                        .entry(level)
-                        .or_default() += 1;
-                    let watermark_crossed = entries
+                    *stats.per_level_views_slow_would.entry(level).or_default() += 1;
+                    let watermark_crossed =
+                        entries
                         .get(&(level, run_source_start))
                         .is_some_and(|entry| {
                             let before = level_derived
@@ -894,17 +921,27 @@ fn run_targeted_prefix_pass(
                         }
                     };
                     if dirty {
-                        let events = evaluate_run(
+                        let structure_generation = level_derived.self_gen;
+                        let events = {
+                            let lower_legs = &level_derived.lower_legs;
+                            let confirm_cursors = &mut level_derived.confirm_cursors;
+                            evaluate_run(
                             level,
                             &tower[level],
                             (start, end),
-                            &level_derived.lower_legs,
+                                lower_legs,
                             index,
                             hist,
                             dif,
                             close_src,
                             &pending,
-                        )?;
+                                Some(ConfirmResidence {
+                                    store: confirm_cursors,
+                                    stable_lower_len,
+                                    structure_generation,
+                                }),
+                            )
+                        }?;
                         views += 1;
                         stats.reevals += 1;
                         *stats.per_level_reevals.entry(level).or_default() += 1;
@@ -947,6 +984,7 @@ fn run_targeted_prefix_pass(
                             dif,
                             close_src,
                             &pending,
+                            None,
                         )?;
                         stats.shadow_checks += 1;
                         let applied = &out[applied_start..];
@@ -999,8 +1037,9 @@ fn run_targeted_prefix_pass(
                 // p123 判据 (iv)：fresh（本 trigger 重估过 ⟹ 窗口可能变）∨ 账本内容变
                 // ⟹ 反查；其余情形结果为上次已查的同一 None（纯函数同输入），跳过逐位等价。
                 let recheck = fresh_levels.contains(&(event.level as usize))
-                    || event_bsp_book_level(event.level)
-                        .is_some_and(|book_level| bsp_changed.get(&book_level).copied().unwrap_or(true));
+                    || event_bsp_book_level(event.level).is_some_and(|book_level| {
+                        bsp_changed.get(&book_level).copied().unwrap_or(true)
+                    });
                 if recheck {
                     stats.term_rechecks += 1;
                     if !book.term_seen.contains(&key)
@@ -1039,7 +1078,8 @@ fn run_targeted_prefix_pass(
             let (hist, close_src) = cache.causal_series();
             let dif = cache.macd_dif();
             let mut ckpt_audit = ProviderAudit::default();
-            match collect_snapshot_candidates(&tower, index, hist, dif, close_src, &mut ckpt_audit) {
+            match collect_snapshot_candidates(&tower, index, hist, dif, close_src, &mut ckpt_audit)
+            {
                 Ok(by_level) => checkpoint_certificates(&by_level, &classification, index),
                 Err(error) => {
                     dump_line(format_args!("CKPT_ERR as_of={index} err={error}"));
@@ -1104,6 +1144,7 @@ fn evaluate_run(
     dif: &[f64],
     close_src: &[usize],
     pending: &BTreeSet<EventKey>,
+    confirm_residence: Option<ConfirmResidence<'_>>,
 ) -> Result<Vec<NestCandidateEvent>, String> {
     let (start, end) = run;
     let projection = project_extended_windows_carried_only(&windows[start..end])
@@ -1119,7 +1160,7 @@ fn evaluate_run(
         as_of,
         version: C2VersionTuple::auto_pairing(),
     };
-    let view = assemble_level_view(
+    let view = assemble_level_view_resident(
         C2LevelViewConfig { enabled: true },
         query,
         LevelViewMaterial {
@@ -1130,6 +1171,7 @@ fn evaluate_run(
             dif,
             close_src,
         },
+        confirm_residence,
     )
     .map_err(|error| format!("L{level} targeted C2 assemble 失败: {error:?}"))?;
     Ok(provide_nest_candidate_events(
@@ -1365,7 +1407,12 @@ fn observe_certificates(
             let ids = certificate
                 .identities()
                 .iter()
-                .map(|id| format!("{}:{}:{}-{}", id.level, id.turn_source, id.interval_b.0, id.interval_b.1))
+                .map(|id| {
+                    format!(
+                        "{}:{}:{}-{}",
+                        id.level, id.turn_source, id.interval_b.0, id.interval_b.1
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join("|");
             let kinds_str = certificate
@@ -1500,7 +1547,10 @@ fn bin_anchor_ctx() -> newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx<
     fn never(_: usize) -> Option<(newchan_rust::theta_v0::types::Tick, usize)> {
         None
     }
-    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx { anchor_at: &never, event_anchor: (None, None) }
+    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx {
+        anchor_at: &never,
+        event_anchor: (None, None),
+    }
 }
 
 const TERMINAL_MATCH: TerminalMatch = TerminalMatch::CWindow;
@@ -1527,15 +1577,24 @@ fn terminal_bits_old(
     side: Side,
     b_center_start: Option<usize>,
 ) -> Option<BspBits> {
-    let book_level = classification.levels.get(event_bsp_book_level(level as u32)?)?;
+    let book_level = classification
+        .levels
+        .get(event_bsp_book_level(level as u32)?)?;
     let book = &book_level.bsp;
     // 关③ P3 平移：旧事件 = Cand^δ 趋势族线（pan_div_diag 为 cand_delta=false 纯诊断，
     // 结构性不入终端查询）⟹ kind=Trend；B 身份 = 事件自带 `b_parent.source_interval.0`
     //（ParentCenterIdentity 已携 B start_index 快照，单一来源，无第二查法）。
     // #218 面 B：一/三类判同的 B 带由同层 `centers` 查出（b_center_start 只当查找键）。
     terminal_bits_in_book(
-        book, &book_level.centers, c_start, source, side, NestDivergenceKind::Trend,
-        b_center_start, TERMINAL_MATCH, &bin_anchor_ctx(),
+        book,
+        &book_level.centers,
+        c_start,
+        source,
+        side,
+        NestDivergenceKind::Trend,
+        b_center_start,
+        TERMINAL_MATCH,
+        &bin_anchor_ctx(),
     )
     .map(|t| t.bits)
 }

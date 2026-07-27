@@ -498,6 +498,7 @@ mod tests {
             query,
             cache_key: key,
             pairs: Vec::new(),
+            pair_confirmations: Vec::new(),
             moves: vec![AssembledMove {
                 start_index: 0,
                 end_index: 89,

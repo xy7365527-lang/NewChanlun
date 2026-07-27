@@ -14,10 +14,25 @@ use super::divergence::{
 };
 use super::recursive_tower::{map_src_to_close_idx, ElementId, LeveledMove};
 use super::signal::{
-    locate_pan_div_structure, locate_pan_div_structure_front_anchor,
-    nearest_confirmed_center_idx, pan_div_structure_extreme, trend_third_class_in_c,
+    locate_pan_div_structure, locate_pan_div_structure_front_anchor, nearest_confirmed_center_idx,
+    pan_div_structure_extreme, trend_third_class_in_c,
 };
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
+
+#[cfg(test)]
+std::thread_local! {
+    static CONFIRM_CORE_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+fn reset_confirm_core_calls() {
+    CONFIRM_CORE_CALLS.with(|calls| calls.set(0));
+}
+
+#[cfg(test)]
+fn confirm_core_calls() -> usize {
+    CONFIRM_CORE_CALLS.with(std::cell::Cell::get)
+}
 
 /// #73-#75 独立激活门。默认关闭，现有分类/交易路径不调用本 seam。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -275,11 +290,20 @@ pub enum ProjectionMaterial<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProjectionError {
-    TooShort { index: usize, sub_count: usize },
-    InvalidSeed { index: usize },
-    InvalidLowerLeg { index: usize },
+    TooShort {
+        index: usize,
+        sub_count: usize,
+    },
+    InvalidSeed {
+        index: usize,
+    },
+    InvalidLowerLeg {
+        index: usize,
+    },
     /// #90 结裁 fail-closed：窗口非 Compose 或 compose 未携带核——不得回退 offset-0 自核。
-    MissingCarriedCenter { index: usize },
+    MissingCarriedCenter {
+        index: usize,
+    },
 }
 
 fn first_leaf_direction(value: &LeveledMove) -> Option<Direction> {
@@ -447,7 +471,7 @@ fn leg_as_segment(value: &LowerLeg) -> Segment {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DivergencePairId {
     pub level: u32,
     pub block_start_center: usize,
@@ -461,6 +485,155 @@ pub struct DivergencePair {
     pub move_start: usize,
     pub seg_a: (usize, usize),
     pub seg_c: (usize, usize),
+}
+
+/// #69 5a：趋势确认的已证状态。`TerminalFalse` 仅表示单调力度关系已经终假；
+/// 结构或坐标仍不可验时必须保持 `Scanning`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfirmState {
+    Confirmed(usize),
+    TerminalFalse,
+    Scanning,
+}
+
+impl ConfirmState {
+    pub fn as_option(self) -> Option<usize> {
+        match self {
+            Self::Confirmed(t) => Some(t),
+            Self::TerminalFalse | Self::Scanning => None,
+        }
+    }
+}
+
+/// 与 `LevelAsOfView::pairs` 同源的确认 sidecar；消费时必须按 `pair_id` 查找。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PairConfirmState {
+    pub pair_id: DivergencePairId,
+    pub state: ConfirmState,
+}
+
+/// #69 5a：单个 divergence pair 在已封 lower-leg 前缀上的扫描累积。
+#[derive(Debug, Clone)]
+pub struct ConfirmCursor {
+    /// 下一个尚未消费的 lower-leg 下标；只允许落在确认水线内。
+    k0: usize,
+    env: Option<(Tick, Tick)>,
+    acc_hi: Option<usize>,
+    area_c: f64,
+    dif_max: f64,
+    dif_min: f64,
+    hist_max: f64,
+    hist_min: f64,
+    state: ConfirmState,
+}
+
+impl Default for ConfirmCursor {
+    fn default() -> Self {
+        Self {
+            k0: 0,
+            env: None,
+            acc_hi: None,
+            area_c: 0.0,
+            dif_max: f64::NEG_INFINITY,
+            dif_min: f64::INFINITY,
+            hist_max: f64::NEG_INFINITY,
+            hist_min: f64::INFINITY,
+            state: ConfirmState::Scanning,
+        }
+    }
+}
+
+/// #69 5a：不含 `as_of` 与可增长 seg-c 末端的结构身份键。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ConfirmKey {
+    level: u32,
+    run_window: CoordinateWindow,
+    version: C2VersionTuple,
+    pair_id: DivergencePairId,
+    move_start: usize,
+    seg_a: (usize, usize),
+    c_start: usize,
+    b_fingerprint: (usize, usize, Tick, Tick, Tick, Tick),
+    structure_generation: u64,
+}
+
+impl ConfirmKey {
+    fn for_pair(
+        query: LevelViewQuery,
+        pair: &DivergencePair,
+        last: &Center,
+        structure_generation: u64,
+    ) -> Self {
+        Self {
+            level: query.level,
+            run_window: query.coordinate_window,
+            version: query.version,
+            pair_id: pair.id,
+            move_start: pair.move_start,
+            seg_a: pair.seg_a,
+            c_start: pair.seg_c.0,
+            b_fingerprint: (
+                last.start_index,
+                last.end_index,
+                last.zd,
+                last.zg,
+                last.dd,
+                last.gg,
+            ),
+            structure_generation,
+        }
+    }
+}
+
+/// #69 5a：per-level divergence-pair cursor 映射；实际持有者在 bin `LevelDerived`。
+#[derive(Debug, Default)]
+pub struct ConfirmCursorStore {
+    cursors: HashMap<ConfirmKey, ConfirmCursor>,
+}
+
+impl ConfirmCursorStore {
+    pub fn len(&self) -> usize {
+        self.cursors.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.cursors.is_empty()
+    }
+
+    /// 上层 run 分区变化时删除已消失 run，避免陈旧 key 永久驻留。
+    pub fn retain_run_starts(&mut self, level: u32, run_starts: impl IntoIterator<Item = usize>) {
+        let run_starts: BTreeSet<_> = run_starts.into_iter().collect();
+        self.cursors
+            .retain(|key, _| key.level != level || run_starts.contains(&key.run_window.start));
+    }
+
+    fn retain_active_for_run(&mut self, level: u32, run_start: usize, active: &[ConfirmKey]) {
+        self.cursors.retain(|key, _| {
+            key.level != level
+                || key.run_window.start != run_start
+                || active.iter().any(|candidate| candidate == key)
+        });
+    }
+
+    fn cursor_mut(&mut self, key: ConfirmKey) -> &mut ConfirmCursor {
+        self.cursors.entry(key).or_default()
+    }
+
+    #[cfg(test)]
+    fn poison_for_test(&mut self, state: ConfirmState) {
+        for cursor in self.cursors.values_mut() {
+            cursor.state = state;
+        }
+    }
+}
+
+/// 新 resident 入口的显式状态；`None` 即真冷路径。
+pub struct ConfirmResidence<'a> {
+    pub store: &'a mut ConfirmCursorStore,
+    /// `TowerCache::tower_confirmed_len(level - 1)` 的逐字读数。
+    pub stable_lower_len: usize,
+    /// run 上层结构代次；变化即 key miss。
+    pub structure_generation: u64,
 }
 
 /// #92 新路径的背驰段类型。盘整背驰保留独立类型，不冒充同级 B1/S1。
@@ -503,7 +676,10 @@ pub struct NestCandidateEvent {
     pub b_center_start: usize,
 }
 
-fn structural_block_span(projection: &ExactThreeProjection, block: &MoveBlock) -> Option<(usize, usize)> {
+fn structural_block_span(
+    projection: &ExactThreeProjection,
+    block: &MoveBlock,
+) -> Option<(usize, usize)> {
     Some((
         projection.seeds.get(block.start_center)?.start_index,
         projection.seeds.get(block.end_center)?.end_index,
@@ -541,6 +717,220 @@ fn structural_pair_span(
 /// T5-OR 转假即终假（扫描终止，返回 None）。b 段/c_start 的 close 映射失败、或 t3 时点力度
 /// 窗口仍无 bar ⟹ None（力度不可验，诚实判负——与旧 `_ => false` 口径一致）。
 #[allow(clippy::too_many_arguments)]
+fn trend_confirm_state(
+    segments: &[Segment],
+    last: &Center,
+    direction: Direction,
+    side: Side,
+    seg_a: (usize, usize),
+    c_start: usize,
+    as_of: usize,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+) -> ConfirmState {
+    trend_confirm_state_core(
+        segments, last, direction, side, seg_a, c_start, as_of, hist, dif, close_src, None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn trend_confirm_state_core(
+    segments: &[Segment],
+    last: &Center,
+    direction: Direction,
+    side: Side,
+    seg_a: (usize, usize),
+    c_start: usize,
+    as_of: usize,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+    resident: Option<(&mut ConfirmCursor, usize)>,
+) -> ConfirmState {
+    #[cfg(test)]
+    CONFIRM_CORE_CALLS.with(|calls| calls.set(calls.get() + 1));
+
+    // T4（025:761）：B 中枢 span 内 DIF 变号或触 0（p112 主口径 cross_dif）。
+    let Some((b_lo, b_hi)) = map_src_to_close_idx(close_src, last.start_index, last.end_index)
+    else {
+        return ConfirmState::Scanning;
+    };
+    if !dif_crosses_zero(dif, b_lo, b_hi) {
+        return ConfirmState::Scanning;
+    }
+    // b 段力度基准（031:883 趋势背驰 = c vs b 比较）。
+    let Some(a_idx) = map_src_to_close_idx(close_src, seg_a.0, seg_a.1) else {
+        return ConfirmState::Scanning;
+    };
+    let Some(a_env) = range_envelope(segments, seg_a) else {
+        return ConfirmState::Scanning;
+    };
+    let area_a = same_color_area(hist, a_idx.0, a_idx.1, side);
+    let dif_peak_a = segment_dif_peak(dif, a_idx.0, a_idx.1, direction);
+    let hist_peak_a = same_dir_hist_peak(hist, a_idx.0, a_idx.1, side);
+    // T3（037:18）：c 全离开段内含对 B 的三买；t3 = 首个命中回试段终点（c 确立时点）。
+    let t3 = trend_third_class_in_c(segments, last, direction, c_start, as_of)
+        .map(|(_leave_end, t3)| t3);
+    // 渐进扫描 t ≥ t3：T2/T5 窗口 [c_start, t] 随段端点增量扩展。
+    let lo = segments.partition_point(|s| s.start_index < c_start.max(last.end_index));
+    let hi = segments.partition_point(|s| s.end_index <= as_of);
+
+    let scan = |cursor: &mut ConfirmCursor, range: std::ops::Range<usize>| {
+        scan_confirm_cursor(
+            cursor,
+            segments,
+            range,
+            t3,
+            direction,
+            side,
+            a_env,
+            area_a,
+            dif_peak_a,
+            hist_peak_a,
+            c_start,
+            hist,
+            dif,
+            close_src,
+        )
+    };
+
+    let Some((cursor, confirmed_len)) = resident else {
+        let mut cold = ConfirmCursor {
+            k0: lo,
+            ..ConfirmCursor::default()
+        };
+        return scan(&mut cold, lo..hi);
+    };
+
+    let confirmed_len = confirmed_len.min(segments.len());
+    if confirmed_len < cursor.k0 || hi < cursor.k0 {
+        *cursor = ConfirmCursor::default();
+    }
+    if matches!(
+        cursor.state,
+        ConfirmState::Confirmed(_) | ConfirmState::TerminalFalse
+    ) {
+        return cursor.state;
+    }
+
+    let stable_hi = confirmed_len.min(hi);
+    if stable_hi < lo {
+        cursor.k0 = stable_hi;
+    } else {
+        if cursor.k0 < lo {
+            cursor.k0 = lo;
+        }
+        // 坐标尚不可映射的已封腿不能跨 bar 持久化；本次结果仍由下方 tail 冷扫给出。
+        let persist_hi = (cursor.k0..stable_hi)
+            .find(|&index| {
+                map_src_to_close_idx(close_src, c_start, segments[index].end_index).is_none()
+            })
+            .unwrap_or(stable_hi);
+        let state = scan(cursor, cursor.k0..persist_hi);
+        if matches!(
+            state,
+            ConfirmState::Confirmed(_) | ConfirmState::TerminalFalse
+        ) {
+            return state;
+        }
+    }
+
+    // 可变尾只在本次局部副本上推进，未获水线证书的累积绝不回写 store。
+    let mut tail = cursor.clone();
+    let tail_start = lo.max(tail.k0);
+    scan(&mut tail, tail_start..hi)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn scan_confirm_cursor(
+    cursor: &mut ConfirmCursor,
+    segments: &[Segment],
+    range: std::ops::Range<usize>,
+    t3: Option<usize>,
+    direction: Direction,
+    side: Side,
+    a_env: (Tick, Tick),
+    area_a: f64,
+    dif_peak_a: f64,
+    hist_peak_a: f64,
+    c_start: usize,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+) -> ConfirmState {
+    for index in range {
+        let leg = &segments[index];
+        // 包络增量扩展（T2）。
+        let leg_lo = leg.start_price.min(leg.end_price);
+        let leg_hi = leg.start_price.max(leg.end_price);
+        cursor.env = Some(match cursor.env {
+            None => (leg_lo, leg_hi),
+            Some((old_lo, old_hi)) => (old_lo.min(leg_lo), old_hi.max(leg_hi)),
+        });
+        // 力度窗口增量扩展（T5）：新 bar 区间 (acc_hi, cur_hi] 累入。
+        if let Some((c_lo, cur_hi)) = map_src_to_close_idx(close_src, c_start, leg.end_index) {
+            let from = cursor.acc_hi.map_or(c_lo, |prev| prev + 1);
+            if from <= cur_hi {
+                for t in from..=cur_hi {
+                    match side {
+                        Side::Long if hist[t] < 0.0 => cursor.area_c += hist[t].abs(),
+                        Side::Short if hist[t] > 0.0 => cursor.area_c += hist[t],
+                        _ => {}
+                    }
+                    cursor.hist_max = cursor.hist_max.max(hist[t]);
+                    cursor.hist_min = cursor.hist_min.min(hist[t]);
+                    cursor.dif_max = cursor.dif_max.max(dif[t]);
+                    cursor.dif_min = cursor.dif_min.min(dif[t]);
+                }
+                cursor.acc_hi = Some(cur_hi);
+            }
+        }
+        cursor.k0 = index + 1;
+        let Some(t3) = t3 else {
+            continue;
+        };
+        if leg.end_index < t3 {
+            continue; // 三买未确立前不判（037:18 必要合取）。
+        }
+        // t3 时点力度窗口无 bar ⟹ 力度不可验 ⟹ 诚实判负（同旧 map None ⟹ false）。
+        if cursor.acc_hi.is_none() {
+            return ConfirmState::Scanning;
+        }
+        // T5 力度或关系（027:32）：同色面积 ∨ 黄白线峰 ∨ 同向柱峰（增量量与
+        // same_color_area / segment_dif_peak / same_dir_hist_peak 同口径）。
+        let dif_peak_c = match direction {
+            Direction::Up => cursor.dif_max.max(0.0),
+            Direction::Down => cursor.dif_min.min(0.0).abs(),
+        };
+        let hist_peak_c = match side {
+            Side::Long => cursor.hist_min.min(0.0).abs(),
+            Side::Short => cursor.hist_max.max(0.0),
+        };
+        let force_ok =
+            cursor.area_c < area_a || dif_peak_c < dif_peak_a || hist_peak_c < hist_peak_a;
+        if !force_ok {
+            // 各 proxy 只增 ⟹ 真→假单调，转假即终假（033:26 无衰减即无背驰）。
+            cursor.state = ConfirmState::TerminalFalse;
+            return cursor.state;
+        }
+        // T2 破极值（037:20）：c 包络破 b 包络。
+        let (env_lo, env_hi) = cursor.env.expect("扫描窗口非空（t3 已命中）");
+        let extreme = match side {
+            Side::Long => env_lo < a_env.0,
+            Side::Short => env_hi > a_env.1,
+        };
+        if extreme {
+            // t* = 首个 T2∧T5-OR 同真时点。
+            cursor.state = ConfirmState::Confirmed(leg.end_index);
+            return cursor.state;
+        }
+    }
+    cursor.state = ConfirmState::Scanning;
+    cursor.state
+}
+
+#[allow(clippy::too_many_arguments)]
 fn trend_confirm_time(
     segments: &[Segment],
     last: &Center,
@@ -553,85 +943,10 @@ fn trend_confirm_time(
     dif: &[f64],
     close_src: &[usize],
 ) -> Option<usize> {
-    // T4（025:761）：B 中枢 span 内 DIF 变号或触 0（p112 主口径 cross_dif）。
-    let (b_lo, b_hi) = map_src_to_close_idx(close_src, last.start_index, last.end_index)?;
-    if !dif_crosses_zero(dif, b_lo, b_hi) {
-        return None;
-    }
-    // b 段力度基准（031:883 趋势背驰 = c vs b 比较）。
-    let a_idx = map_src_to_close_idx(close_src, seg_a.0, seg_a.1)?;
-    let a_env = range_envelope(segments, seg_a)?;
-    let area_a = same_color_area(hist, a_idx.0, a_idx.1, side);
-    let dif_peak_a = segment_dif_peak(dif, a_idx.0, a_idx.1, direction);
-    let hist_peak_a = same_dir_hist_peak(hist, a_idx.0, a_idx.1, side);
-    // T3（037:18）：c 全离开段内含对 B 的三买；t3 = 首个命中回试段终点（c 确立时点）。
-    let (_leave_end, t3) = trend_third_class_in_c(segments, last, direction, c_start, as_of)?;
-    // 渐进扫描 t ≥ t3：T2/T5 窗口 [c_start, t] 随段端点增量扩展。
-    let lo = segments.partition_point(|s| s.start_index < c_start.max(last.end_index));
-    let hi = segments.partition_point(|s| s.end_index <= as_of);
-    let mut env: Option<(Tick, Tick)> = None;
-    let mut acc_hi: Option<usize> = None; // 已累入力度窗口的末个 close 下标
-    let mut area_c = 0.0f64;
-    let (mut dif_max, mut dif_min) = (f64::NEG_INFINITY, f64::INFINITY);
-    let mut hist_max = f64::NEG_INFINITY;
-    let mut hist_min = f64::INFINITY;
-    for leg in &segments[lo..hi] {
-        // 包络增量扩展（T2）。
-        let leg_lo = leg.start_price.min(leg.end_price);
-        let leg_hi = leg.start_price.max(leg.end_price);
-        env = Some(match env {
-            None => (leg_lo, leg_hi),
-            Some((old_lo, old_hi)) => (old_lo.min(leg_lo), old_hi.max(leg_hi)),
-        });
-        // 力度窗口增量扩展（T5）：新 bar 区间 (acc_hi, cur_hi] 累入。
-        if let Some((c_lo, cur_hi)) = map_src_to_close_idx(close_src, c_start, leg.end_index) {
-            let from = acc_hi.map_or(c_lo, |prev| prev + 1);
-            if from <= cur_hi {
-                for t in from..=cur_hi {
-                    match side {
-                        Side::Long if hist[t] < 0.0 => area_c += hist[t].abs(),
-                        Side::Short if hist[t] > 0.0 => area_c += hist[t],
-                        _ => {}
-                    }
-                    hist_max = hist_max.max(hist[t]);
-                    hist_min = hist_min.min(hist[t]);
-                    dif_max = dif_max.max(dif[t]);
-                    dif_min = dif_min.min(dif[t]);
-                }
-                acc_hi = Some(cur_hi);
-            }
-        }
-        if leg.end_index < t3 {
-            continue; // 三买未确立前不判（037:18 必要合取）。
-        }
-        // t3 时点力度窗口无 bar ⟹ 力度不可验 ⟹ 诚实判负（同旧 map None ⟹ false）。
-        acc_hi?;
-        // T5 力度或关系（027:32）：同色面积 ∨ 黄白线峰 ∨ 同向柱峰（增量量与
-        // same_color_area / segment_dif_peak / same_dir_hist_peak 同口径）。
-        let dif_peak_c = match direction {
-            Direction::Up => dif_max.max(0.0),
-            Direction::Down => dif_min.min(0.0).abs(),
-        };
-        let hist_peak_c = match side {
-            Side::Long => hist_min.min(0.0).abs(),
-            Side::Short => hist_max.max(0.0),
-        };
-        let force_ok =
-            area_c < area_a || dif_peak_c < dif_peak_a || hist_peak_c < hist_peak_a;
-        if !force_ok {
-            return None; // 各 proxy 只增 ⟹ 真→假单调，转假即终假（033:26 无衰减即无背驰）。
-        }
-        // T2 破极值（037:20）：c 包络破 b 包络。
-        let (env_lo, env_hi) = env.expect("扫描窗口非空（t3 已命中）");
-        let extreme = match side {
-            Side::Long => env_lo < a_env.0,
-            Side::Short => env_hi > a_env.1,
-        };
-        if extreme {
-            return Some(leg.end_index); // t* = 首个 T2∧T5-OR 同真时点。
-        }
-    }
-    None
+    trend_confirm_state(
+        segments, last, direction, side, seg_a, c_start, as_of, hist, dif, close_src,
+    )
+    .as_option()
 }
 
 /// #92 typed provider：把 strict C2 pair 映射为宽结构 Cand，并把力度确认留在独立字段。
@@ -659,7 +974,18 @@ pub fn provide_nest_candidate_events(
     dif: &[f64],
     close_src: &[usize],
 ) -> Vec<NestCandidateEvent> {
-    provide_nest_candidate_events_ext(level, projection, blocks, legs, view, hist, dif, close_src, &[], &[])
+    provide_nest_candidate_events_ext(
+        level,
+        projection,
+        blocks,
+        legs,
+        view,
+        hist,
+        dif,
+        close_src,
+        &[],
+        &[],
+    )
         .into_iter()
         .map(|ext| ext.event)
         .collect()
@@ -732,7 +1058,10 @@ pub fn provide_nest_candidate_events_ext(
     merged_bars: &[Bar],
 ) -> Vec<NestCandidateEventExt> {
     let segments: Vec<_> = legs.iter().map(leg_as_segment).collect();
-    let anchors_self: Vec<_> = segments.iter().map(|segment| Some(segment.direction)).collect();
+    let anchors_self: Vec<_> = segments
+        .iter()
+        .map(|segment| Some(segment.direction))
+        .collect();
     let mut out = Vec::new();
 
     for pair in &view.pairs {
@@ -771,18 +1100,11 @@ pub fn provide_nest_candidate_events_ext(
         // （禁前视：在 t* 之前全合取不成立，坐标不得早于确认时点）；
         // 未确认 ⟹ 保持全离开段结构坐标（诚实结构，力度/三买未成立）。
         let last_center = &projection.seeds[pair.id.block_end_center].center;
-        let confirm_t = trend_confirm_time(
-            &segments,
-            last_center,
-            pair.id.direction,
-            side,
-            pair.seg_a,
-            pair.seg_c.0,
-            view.query.as_of,
-            hist,
-            dif,
-            close_src,
-        );
+        let confirm_t = view
+            .pair_confirmations
+            .iter()
+            .find(|confirmation| confirmation.pair_id == pair.id)
+            .and_then(|confirmation| confirmation.state.as_option());
         let (interval_b, turn_source, divergence_confirmed) = match confirm_t {
             Some(t) => ((pair.seg_c.0, t), t, true),
             None => (pair.seg_c, pair.seg_c.1, false),
@@ -802,7 +1124,10 @@ pub fn provide_nest_candidate_events_ext(
                 divergence_confirmed,
                 turn_source,
                 judge_at: view.query.as_of,
-                provider_window: (view.query.coordinate_window.start, view.query.coordinate_window.end),
+                provider_window: (
+                    view.query.coordinate_window.start,
+                    view.query.coordinate_window.end,
+                ),
                 intake_fallback: false,
                 // 关③ P3：B = 被离开的最后中枢（`block_end_center` seed，trend_confirm_time 同一
                 // 中枢入参）——prefix 首次观察快照写入，延伸不改写 start_index。
@@ -816,7 +1141,10 @@ pub fn provide_nest_candidate_events_ext(
 
     let centers: Vec<_> = projection.seeds.iter().map(|seed| seed.center).collect();
     let kinds = center_block_kind(centers.len(), blocks);
-    for segment in segments.iter().filter(|segment| segment.end_index <= view.query.as_of) {
+    for segment in segments
+        .iter()
+        .filter(|segment| segment.end_index <= view.query.as_of)
+    {
         let Some(center_index) = nearest_confirmed_center_idx(&centers, segment.start_index) else {
             continue;
         };
@@ -825,16 +1153,19 @@ pub fn provide_nest_candidate_events_ext(
         }
         // ★R3：窄锚（中枢后前次同向破核心段）locate∧Extreme 优先；任一失败回退 A′（中枢前
         // 最近同向段，061:28 中枢两头比较，回中枢要件由中枢本身满足）重判 Extreme（044:234 维持）。
-        let Some(structure) = locate_pan_div_structure(
-            &centers[center_index], segment, &segments, &anchors_self,
-        )
+        let Some(structure) =
+            locate_pan_div_structure(&centers[center_index], segment, &segments, &anchors_self)
         .filter(|structure| pan_div_structure_extreme(structure, &segments))
         .or_else(|| {
             locate_pan_div_structure_front_anchor(
-                &centers[center_index], segment, &segments, &anchors_self,
+                        &centers[center_index],
+                        segment,
+                        &segments,
+                        &anchors_self,
             )
             .filter(|structure| pan_div_structure_extreme(structure, &segments))
-        }) else {
+                })
+        else {
             continue;
         };
         let Some(leave_index) = blocks.iter().position(|block| {
@@ -847,7 +1178,8 @@ pub fn provide_nest_candidate_events_ext(
         // #97 进料口（⑤「盘背入链」落地缺口补齐）：leave→retest 对不可用（如盘整块为末块、
         // 离开块未 Completed）时不再丢弃候选；interval_a 仅供 A 口径诊断，回填为盘整块自身
         // 结构跨度（再兜底 seg_a.0..seg_c.1），B 生产口径（interval_b）不受影响。
-        let (interval_a, intake_fallback) = match structural_pair_span(projection, blocks, leave_index) {
+        let (interval_a, intake_fallback) =
+            match structural_pair_span(projection, blocks, leave_index) {
             Some(span) => (span, false),
             None => (
                 blocks
@@ -876,7 +1208,10 @@ pub fn provide_nest_candidate_events_ext(
             divergence_confirmed,
             turn_source: structure.source_index,
             judge_at: view.query.as_of,
-            provider_window: (view.query.coordinate_window.start, view.query.coordinate_window.end),
+            provider_window: (
+                view.query.coordinate_window.start,
+                view.query.coordinate_window.end,
+            ),
             intake_fallback,
             // 关③ P3：B = 盘背结构所对的最近确认中枢（locate_pan_div_structure 同一中枢
             // 入参）——同写归因用途，不作门（P2 盘背域无需 owner 合取）。
@@ -888,15 +1223,21 @@ pub fn provide_nest_candidate_events_ext(
             // 已随 T5a (#207) 退役，#206 Q1 裁定）。
             let (extreme_price, group_anchor) =
                 resolve_triple_anchor(structure.seg_c.1, fractals, merged_bars);
-            out.push(NestCandidateEventExt { event, extreme_price, group_anchor });
+            out.push(NestCandidateEventExt {
+                event,
+                extreme_price,
+                group_anchor,
+            });
         }
     }
-    out.sort_by_key(|ext| (
+    out.sort_by_key(|ext| {
+        (
         ext.event.turn_source,
         ext.event.interval_b,
         ext.event.kind,
         matches!(ext.event.side, Side::Short),
-    ));
+        )
+    });
     out
 }
 
@@ -1030,6 +1371,7 @@ pub struct LevelAsOfView {
     pub cache_key: C2CacheKey,
     pub moves: Vec<AssembledMove>,
     pub pairs: Vec<DivergencePair>,
+    pub pair_confirmations: Vec<PairConfirmState>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1046,6 +1388,26 @@ pub fn assemble_level_view(
     config: C2LevelViewConfig,
     query: LevelViewQuery,
     material: LevelViewMaterial<'_>,
+) -> Result<LevelAsOfView, LevelViewError> {
+    assemble_level_view_impl(config, query, material, None)
+}
+
+/// #69 5a resident seam。旧入口签名不动并委托 `None`；调用方只有显式给出
+/// `ConfirmResidence` 才能跨 view 复用已封 lower-leg 前缀。
+pub fn assemble_level_view_resident(
+    config: C2LevelViewConfig,
+    query: LevelViewQuery,
+    material: LevelViewMaterial<'_>,
+    residence: Option<ConfirmResidence<'_>>,
+) -> Result<LevelAsOfView, LevelViewError> {
+    assemble_level_view_impl(config, query, material, residence)
+}
+
+fn assemble_level_view_impl(
+    config: C2LevelViewConfig,
+    query: LevelViewQuery,
+    material: LevelViewMaterial<'_>,
+    mut residence: Option<ConfirmResidence<'_>>,
 ) -> Result<LevelAsOfView, LevelViewError> {
     if !config.enabled {
         return Err(LevelViewError::FeatureDisabled);
@@ -1090,9 +1452,69 @@ pub fn assemble_level_view(
     } else {
         Vec::new()
     };
+    if let Some(residence) = residence.as_mut() {
+        let active_keys: Vec<_> = pairs
+            .iter()
+            .map(|pair| {
+                let last = &projection.seeds[pair.id.block_end_center].center;
+                ConfirmKey::for_pair(query, pair, last, residence.structure_generation)
+            })
+            .collect();
+        residence.store.retain_active_for_run(
+            query.level,
+            query.coordinate_window.start,
+            &active_keys,
+        );
+    }
 
     // Trend 完成判定（R1 全合取扫描）消费的段序列——与 provide_nest_candidate_events 同一投影。
     let segments: Vec<_> = material.lower_legs.iter().map(leg_as_segment).collect();
+    let pair_confirmations: Vec<_> = pairs
+        .iter()
+        .map(|pair| {
+            let last = &projection.seeds[pair.id.block_end_center].center;
+            let direction = pair.id.direction;
+            let side = match direction {
+                Direction::Down => Side::Long,
+                Direction::Up => Side::Short,
+            };
+            let state = if let Some(residence) = residence.as_mut() {
+                let key = ConfirmKey::for_pair(query, pair, last, residence.structure_generation);
+                let stable_lower_len = residence.stable_lower_len;
+                let cursor = residence.store.cursor_mut(key);
+                trend_confirm_state_core(
+                    &segments,
+                    last,
+                    direction,
+                    side,
+                    pair.seg_a,
+                    pair.seg_c.0,
+                    query.as_of,
+                    material.hist,
+                    material.dif,
+                    material.close_src,
+                    Some((cursor, stable_lower_len)),
+                )
+            } else {
+                trend_confirm_state(
+                    &segments,
+                    last,
+                    direction,
+                    side,
+                    pair.seg_a,
+                    pair.seg_c.0,
+                    query.as_of,
+                    material.hist,
+                    material.dif,
+                    material.close_src,
+                )
+            };
+            PairConfirmState {
+                pair_id: pair.id,
+                state,
+            }
+        })
+        .collect();
 
     let mut moves = Vec::with_capacity(material.move_blocks.len());
     for block in material.move_blocks {
@@ -1125,11 +1547,8 @@ pub fn assemble_level_view(
                         // 同一全合取谓词（trend_confirm_time，单一来源——T4 回拉0轴 ∧ T3 三买
                         // ∧ T2 破极值 ∧ T5 力度或关系，确认时点 = 首个全成立时点，禁前视）。
                         // 旧面积单通道（segments_diverge on seg_c）随 seg_c 全离开段化废止。
-                        let mappable = map_src_to_close_idx(
-                            material.close_src,
-                            pair.seg_a.0,
-                            pair.seg_a.1,
-                        )
+                        let mappable =
+                            map_src_to_close_idx(material.close_src, pair.seg_a.0, pair.seg_a.1)
                         .is_some()
                             && map_src_to_close_idx(
                                 material.close_src,
@@ -1143,36 +1562,23 @@ pub fn assemble_level_view(
                                 reason: PendingReason::MissingMacdCoordinates,
                             }
                         } else {
-                            let direction = block
-                                .dir
-                                .expect("Trend 块必有 dir（decompose 不变量，pair 存在性已证）");
-                            let side = match direction {
-                                Direction::Down => Side::Long,
-                                Direction::Up => Side::Short,
-                            };
-                            let last = &projection.seeds[block.end_center].center;
-                            match trend_confirm_time(
-                                &segments,
-                                last,
-                                direction,
-                                side,
-                                pair.seg_a,
-                                pair.seg_c.0,
-                                query.as_of,
-                                material.hist,
-                                material.dif,
-                                material.close_src,
-                            ) {
-                                Some(_) => CompletionStatus::Completed {
+                            let state = pair_confirmations
+                                .iter()
+                                .find(|confirmation| confirmation.pair_id == pair.id)
+                                .map_or(ConfirmState::Scanning, |confirmation| confirmation.state);
+                            match state {
+                                ConfirmState::Confirmed(_) => CompletionStatus::Completed {
                                     as_of: query.as_of,
                                     evidence: CompletionEvidence::TerminalDivergence {
                                         pair_id: pair.id,
                                     },
                                 },
-                                None => CompletionStatus::Pending {
+                                ConfirmState::TerminalFalse | ConfirmState::Scanning => {
+                                    CompletionStatus::Pending {
                                     as_of: query.as_of,
                                     reason: PendingReason::TerminalLegNotDivergent,
-                                },
+                                    }
+                                }
                             }
                         }
                     }
@@ -1193,6 +1599,7 @@ pub fn assemble_level_view(
         cache_key,
         moves,
         pairs,
+        pair_confirmations,
     })
 }
 
@@ -1316,10 +1723,25 @@ mod tests {
     #[test]
     fn triple_anchor_resolution_caliber() {
         let fractals = vec![
-            Fractal { kind: FractalKind::Bottom, source_index: 10, timestamp: 10, price: 100 },
+            Fractal {
+                kind: FractalKind::Bottom,
+                source_index: 10,
+                timestamp: 10,
+                price: 100,
+            },
             // W 底第二脚：同向同价（底, 100），与第一脚分属不同合并组。
-            Fractal { kind: FractalKind::Bottom, source_index: 30, timestamp: 30, price: 100 },
-            Fractal { kind: FractalKind::Top, source_index: 50, timestamp: 50, price: 190 },
+            Fractal {
+                kind: FractalKind::Bottom,
+                source_index: 30,
+                timestamp: 30,
+                price: 100,
+            },
+            Fractal {
+                kind: FractalKind::Top,
+                source_index: 50,
+                timestamp: 50,
+                price: 190,
+            },
         ];
         // 合并组：g0 = raw [0,20)（锚 0）；g1 = raw [20,50)（锚 20）；g2 = raw [50,∞)（锚 50）。
         let merged = vec![mbar(0), mbar(20), mbar(50)];
@@ -1332,12 +1754,24 @@ mod tests {
         // 跨级不变量构造锁：解析只读（x, 供给），不读级别几何——同一 x 在任意级别查到
         // 同一分型 ⟹ 极值价逐值相同（教义裁定 3）。
         let again = resolve_triple_anchor(10, &fractals, &merged);
-        assert_eq!(again, (p1, a1), "同一 x 重复解析逐值相同（与级别无关 ⟹ 跨级不变）");
-        assert_eq!(p1, Some(100), "极值价口径 = 分型极值价（整数 tick，非腿包络/非原始 K 极值）");
+        assert_eq!(
+            again,
+            (p1, a1),
+            "同一 x 重复解析逐值相同（与级别无关 ⟹ 跨级不变）"
+        );
+        assert_eq!(
+            p1,
+            Some(100),
+            "极值价口径 = 分型极值价（整数 tick，非腿包络/非原始 K 极值）"
+        );
         // x 在 L0 是反向分型（高级别走势以次级别反向段收束的情形）：极值价照取 x 处实际
         // 打印价（190 = 顶分型 high）——键内方向由 event.side 携带，不经本供给。
         let (pt, at) = resolve_triple_anchor(50, &fractals, &merged);
-        assert_eq!((pt, at), (Some(190), Some(50)), "极值价 = x 处实际分型价（不设 kind 守卫）");
+        assert_eq!(
+            (pt, at),
+            (Some(190), Some(50)),
+            "极值价 = x 处实际分型价（不设 kind 守卫）"
+        );
         // 分型供给未命中 ⟹ 极值价 None；组锚仍可解（x=51 ∈ g2）。
         let (pm, am) = resolve_triple_anchor(51, &fractals, &merged);
         assert_eq!(pm, None);
@@ -1394,21 +1828,46 @@ mod tests {
         )
         .unwrap();
         // 供给：x=129 处顶分型（极值 190 = 腿12 hi）；包含层逐根成组（锚 = 序号自身）。
-        let fractals =
-            vec![Fractal { kind: FractalKind::Top, source_index: 129, timestamp: 129, price: 190 }];
+        let fractals = vec![Fractal {
+            kind: FractalKind::Top,
+            source_index: 129,
+            timestamp: 129,
+            price: 190,
+        }];
         let merged: Vec<Bar> = (0..140).map(mbar).collect();
         let exts = provide_nest_candidate_events_ext(
-            1, &projection, &blocks, &legs, &view, &hist, &dif, &close_src, &fractals, &merged,
+            1,
+            &projection,
+            &blocks,
+            &legs,
+            &view,
+            &hist,
+            &dif,
+            &close_src,
+            &fractals,
+            &merged,
         );
         let ext = exts
             .iter()
             .find(|e| e.event.divergence_confirmed && e.event.kind == NestDivergenceKind::Trend)
             .expect("夹具应产 1 个 confirmed Trend 事件");
-        assert_eq!(ext.extreme_price, Some(190), "极值价 = x=129 处分型极值（跨级不变量口径）");
+        assert_eq!(
+            ext.extreme_price,
+            Some(190),
+            "极值价 = x=129 处分型极值（跨级不变量口径）"
+        );
         assert_eq!(ext.group_anchor, Some(129), "组锚 = x 所在合并组首根序号");
         // 锚 sidecar 不进事件本体：事件集/排序与事件视图（无锚供给）逐字节同。
-        let events_only =
-            provide_nest_candidate_events(1, &projection, &blocks, &legs, &view, &hist, &dif, &close_src);
+        let events_only = provide_nest_candidate_events(
+            1,
+            &projection,
+            &blocks,
+            &legs,
+            &view,
+            &hist,
+            &dif,
+            &close_src,
+        );
         assert_eq!(
             exts.iter().map(|e| e.event).collect::<Vec<_>>(),
             events_only,
@@ -1548,7 +2007,11 @@ mod tests {
         let legs = lower_legs_from(&extended).unwrap();
         let pairs = provide_divergence_pairs(1, &projection, &[block], &legs, 149);
         assert_eq!(pairs.len(), 1);
-        assert_eq!(pairs[0].seg_a, (80, 109), "seg_a 不动（b = 进入最后中枢的段）");
+        assert_eq!(
+            pairs[0].seg_a,
+            (80, 109),
+            "seg_a 不动（b = 进入最后中枢的段）"
+        );
         assert_eq!(
             pairs[0].seg_c,
             (120, 149),
@@ -1556,7 +2019,11 @@ mod tests {
         );
         // as_of 截断到 129 ⟹ 只看得到首腿：c_end 退化回首腿终点（禁前视，与 #105 逐位一致）。
         let truncated = provide_divergence_pairs(1, &projection, &[block], &legs, 129);
-        assert_eq!(truncated[0].seg_c, (120, 129), "as_of 截断 ⟹ 单腿窗口（禁前视）");
+        assert_eq!(
+            truncated[0].seg_c,
+            (120, 129),
+            "as_of 截断 ⟹ 单腿窗口（禁前视）"
+        );
     }
 
     #[test]
@@ -1638,6 +2105,437 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    /// #69 5a / T0：先锁住冷核的首证钟与未决投影；resident 化不得改写现行
+    /// `Option<usize>` 可观察结果。
+    #[test]
+    fn confirm_state_cold_projection_preserves_first_proof_and_scanning() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        let segments: Vec<_> = legs.iter().map(leg_as_segment).collect();
+        let last = &projection.seeds[2].center;
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(0.1);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+
+        let confirmed = trend_confirm_state(
+            &segments,
+            last,
+            Direction::Up,
+            Side::Short,
+            (80, 109),
+            120,
+            139,
+            &hist,
+            &dif,
+            &close_src,
+        );
+        assert_eq!(confirmed, ConfirmState::Confirmed(139));
+        assert_eq!(
+            confirmed.as_option(),
+            trend_confirm_time(
+                &segments,
+                last,
+                Direction::Up,
+                Side::Short,
+                (80, 109),
+                120,
+                139,
+                &hist,
+                &dif,
+                &close_src,
+            )
+        );
+
+        let scanning = trend_confirm_state(
+            &segments,
+            last,
+            Direction::Up,
+            Side::Short,
+            (80, 109),
+            120,
+            129,
+            &hist,
+            &dif,
+            &close_src,
+        );
+        assert_eq!(scanning, ConfirmState::Scanning);
+        assert_eq!(scanning.as_option(), None);
+    }
+
+    /// #69 5a / T1：只有已进入 T5 判定且 `force_ok` 单调转假才是终假；
+    /// 坐标缺失等旧 `None` 必须仍是未决。
+    #[test]
+    fn confirm_state_distinguishes_terminal_false_from_unresolved_none() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        let segments: Vec<_> = legs.iter().map(leg_as_segment).collect();
+        let last = &projection.seeds[2].center;
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(5.0);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+
+        let terminal = trend_confirm_state(
+            &segments,
+            last,
+            Direction::Up,
+            Side::Short,
+            (80, 109),
+            120,
+            139,
+            &hist,
+            &dif,
+            &close_src,
+        );
+        assert_eq!(terminal, ConfirmState::TerminalFalse);
+        assert_eq!(terminal.as_option(), None);
+
+        let missing_coordinates = trend_confirm_state(
+            &segments,
+            last,
+            Direction::Up,
+            Side::Short,
+            (80, 109),
+            120,
+            139,
+            &hist,
+            &dif,
+            &[],
+        );
+        assert_eq!(missing_coordinates, ConfirmState::Scanning);
+    }
+
+    /// #69 5a / T2：同一 pair 按 as_of 增长时，resident cursor 每一步必须与空 cursor
+    /// 冷算同果；已封 lower-leg 下标只前进、不重加。
+    #[test]
+    fn confirm_cursor_incremental_matches_cold_at_every_boundary() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        let segments: Vec<_> = legs.iter().map(leg_as_segment).collect();
+        let last = &projection.seeds[2].center;
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(0.1);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+        let mut cursor = ConfirmCursor::default();
+        let mut previous_k0 = 0;
+
+        for as_of in [119, 129, 139] {
+            let confirmed_len = segments.partition_point(|segment| segment.end_index <= as_of);
+            let resident = trend_confirm_state_core(
+                &segments,
+                last,
+                Direction::Up,
+                Side::Short,
+                (80, 109),
+                120,
+                as_of,
+                &hist,
+                &dif,
+                &close_src,
+                Some((&mut cursor, confirmed_len)),
+            );
+            let cold = trend_confirm_state(
+                &segments,
+                last,
+                Direction::Up,
+                Side::Short,
+                (80, 109),
+                120,
+                as_of,
+                &hist,
+                &dif,
+                &close_src,
+            );
+            assert_eq!(resident, cold, "as_of={as_of} 热路必须等于空 cursor 冷路");
+            assert!(cursor.k0 >= previous_k0, "已封 lower-leg 游标不得倒退");
+            assert!(cursor.k0 <= confirmed_len, "cursor 只能落在已封水线内");
+            previous_k0 = cursor.k0;
+        }
+        assert_eq!(cursor.state, ConfirmState::Confirmed(139));
+        let sealed_k0 = cursor.k0;
+        let repeated = trend_confirm_state_core(
+            &segments,
+            last,
+            Direction::Up,
+            Side::Short,
+            (80, 109),
+            120,
+            139,
+            &hist,
+            &dif,
+            &close_src,
+            Some((&mut cursor, segments.len())),
+        );
+        assert_eq!(repeated, ConfirmState::Confirmed(139));
+        assert_eq!(cursor.k0, sealed_k0, "终态重复查询不得重扫或推进 cursor");
+    }
+
+    /// #69 5a / T3：store 只持久化已封前缀；证书回退必须清 cursor 冷重算，
+    /// 结构代次变化必须 key miss 且同 run 旧 key 被剪枝。
+    #[test]
+    fn confirm_store_resets_on_watermark_rollback_and_structure_change() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        let blocks = [trend_block(Some(Direction::Up))];
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(0.1);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+        let resident_query = LevelViewQuery {
+            level: 1,
+            coordinate_window: CoordinateWindow { start: 0, end: 139 },
+            as_of: 139,
+            version: C2VersionTuple::auto_pairing(),
+        };
+        let material = || LevelViewMaterial {
+            projection: ProjectionMaterial::ExactThree(&projection),
+            move_blocks: &blocks,
+            lower_legs: &legs,
+            hist: &hist,
+            dif: &dif,
+            close_src: &close_src,
+        };
+        let mut store = ConfirmCursorStore::default();
+
+        let sealed = assemble_level_view_resident(
+            C2LevelViewConfig { enabled: true },
+            resident_query,
+            material(),
+            Some(ConfirmResidence {
+                store: &mut store,
+                stable_lower_len: legs.len(),
+                structure_generation: 7,
+            }),
+        )
+        .unwrap();
+        assert!(matches!(
+            sealed.moves[0].completion,
+            CompletionStatus::Completed { .. }
+        ));
+        assert_eq!(store.cursors.len(), 1);
+        assert_eq!(
+            store.cursors.values().next().unwrap().state,
+            ConfirmState::Confirmed(139)
+        );
+
+        let rolled = assemble_level_view_resident(
+            C2LevelViewConfig { enabled: true },
+            resident_query,
+            material(),
+            Some(ConfirmResidence {
+                store: &mut store,
+                stable_lower_len: 12,
+                structure_generation: 7,
+            }),
+        )
+        .unwrap();
+        assert_eq!(
+            rolled,
+            assemble_level_view(
+                C2LevelViewConfig { enabled: true },
+                resident_query,
+                material()
+            )
+            .unwrap()
+        );
+        let cursor = store.cursors.values().next().unwrap();
+        assert_eq!(cursor.k0, 12, "水线回退后只可重建到新已封边界");
+        assert_eq!(cursor.state, ConfirmState::Scanning, "可变尾结果不得回写");
+
+        let regenerated = assemble_level_view_resident(
+            C2LevelViewConfig { enabled: true },
+            resident_query,
+            material(),
+            Some(ConfirmResidence {
+                store: &mut store,
+                stable_lower_len: legs.len(),
+                structure_generation: 8,
+            }),
+        )
+        .unwrap();
+        assert_eq!(regenerated, sealed);
+        assert_eq!(store.cursors.len(), 1, "同 run 的旧结构 key 必须被剪枝");
+        assert!(store
+            .cursors
+            .keys()
+            .all(|key| key.structure_generation == 8));
+    }
+
+    /// #69 5a / T4：assemble 与 provider 必须消费 view 内同一份 pair 状态；
+    /// provider 不得二次进入确认核，且 sidecar 查找必须校验 `DivergencePairId`。
+    #[test]
+    fn assemble_and_provider_share_one_pair_confirmation() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        let blocks = [
+            trend_block(Some(Direction::Up)),
+            MoveBlock {
+                start_center: 1,
+                end_center: 2,
+                kind: MoveKind::Consolidation,
+                dir: None,
+                status: MoveStatus::Completed,
+            },
+        ];
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(0.1);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+        let query = LevelViewQuery {
+            level: 1,
+            coordinate_window: CoordinateWindow { start: 0, end: 139 },
+            as_of: 139,
+            version: C2VersionTuple::auto_pairing(),
+        };
+
+        reset_confirm_core_calls();
+        let view = assemble_level_view(
+            C2LevelViewConfig { enabled: true },
+            query,
+            LevelViewMaterial {
+                projection: ProjectionMaterial::ExactThree(&projection),
+                move_blocks: &blocks,
+                lower_legs: &legs,
+                hist: &hist,
+                dif: &dif,
+                close_src: &close_src,
+            },
+        )
+        .unwrap();
+        assert_eq!(view.pair_confirmations.len(), 1);
+        assert_eq!(
+            view.pair_confirmations[0],
+            PairConfirmState {
+                pair_id: view.pairs[0].id,
+                state: ConfirmState::Confirmed(139),
+            }
+        );
+        assert_eq!(confirm_core_calls(), 1, "assemble 每 pair 只进核一次");
+
+        let events = provide_nest_candidate_events(
+            1,
+            &projection,
+            &blocks,
+            &legs,
+            &view,
+            &hist,
+            &dif,
+            &close_src,
+        );
+        assert!(events
+            .iter()
+            .any(|event| event.kind == NestDivergenceKind::Trend && event.divergence_confirmed));
+        assert_eq!(confirm_core_calls(), 1, "provider 必须只读 view sidecar");
+
+        let mut mismatched = view.clone();
+        mismatched.pair_confirmations[0].pair_id.level += 1;
+        let mismatched_events = provide_nest_candidate_events(
+            1,
+            &projection,
+            &blocks,
+            &legs,
+            &mismatched,
+            &hist,
+            &dif,
+            &close_src,
+        );
+        assert!(mismatched_events
+            .iter()
+            .filter(|event| event.kind == NestDivergenceKind::Trend)
+            .all(|event| !event.divergence_confirmed));
+        assert_eq!(
+            confirm_core_calls(),
+            1,
+            "身份错配必须 fail-closed，禁止回退重算"
+        );
+    }
+
+    /// #69 5a / T5：即使 resident store 被污染，显式 `None` 仍必须走真冷核，
+    /// 既不读取也不改写该 store。
+    #[test]
+    fn cold_none_oracle_is_isolated_from_poisoned_resident_store() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        let blocks = [trend_block(Some(Direction::Up))];
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(0.1);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+        let query = LevelViewQuery {
+            level: 1,
+            coordinate_window: CoordinateWindow { start: 0, end: 139 },
+            as_of: 139,
+            version: C2VersionTuple::auto_pairing(),
+        };
+        let material = || LevelViewMaterial {
+            projection: ProjectionMaterial::ExactThree(&projection),
+            move_blocks: &blocks,
+            lower_legs: &legs,
+            hist: &hist,
+            dif: &dif,
+            close_src: &close_src,
+        };
+        let mut store = ConfirmCursorStore::default();
+        assemble_level_view_resident(
+            C2LevelViewConfig { enabled: true },
+            query,
+            material(),
+            Some(ConfirmResidence {
+                store: &mut store,
+                stable_lower_len: legs.len(),
+                structure_generation: 1,
+            }),
+        )
+        .unwrap();
+        store.poison_for_test(ConfirmState::TerminalFalse);
+
+        let forced_cold = assemble_level_view_resident(
+            C2LevelViewConfig { enabled: true },
+            query,
+            material(),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            forced_cold.pair_confirmations[0].state,
+            ConfirmState::Confirmed(139)
+        );
+        assert!(matches!(
+            forced_cold.moves[0].completion,
+            CompletionStatus::Completed { .. }
+        ));
+        assert!(store
+            .cursors
+            .values()
+            .all(|cursor| cursor.state == ConfirmState::TerminalFalse));
     }
 
     /// ★R1 负例（037:18 必要合取）：同一夹具但 as_of=129 截断回试腿 ⟹ c 内无三买（T3 构造性
