@@ -1209,6 +1209,48 @@ mod campaign_wiring_tests {
         assert_eq!(witness.other_violation_count, 0, "正常核销路径不落违规桶");
     }
 
+    /// ★#441（ADR 补充十二）端到端：主仓被全平（持仓→空仓）⟹ campaign 死亡时未收口挂起按
+    /// 「未闭合减出」核销，货缺口与桶实收现金分列进 witness 死亡桶（与 #366 三卖桶分列）。
+    #[test]
+    fn drive_campaign_wiring_writes_off_suspensions_when_campaign_dies() {
+        let mut account_view = strategy::account::ParallelAccountLedger::new();
+        account_view.post(
+            AccountOrder { key: core_key(0), reason: ActionReason::Open, qty_delta: 300.0, decision_bar: 0 },
+            10.0,
+            0,
+        );
+        let mut book = CampaignBook::new();
+        let mut witness = CampaignWiringWitness::new();
+        drive_campaign_wiring(0, 1, &account_view, &[], &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        let actions = vec![record(0, CenterOscillationAction::Reduce)];
+        drive_campaign_wiring(0, 1, &account_view, &actions, &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().short_diff().bucket().open_units(),
+            100,
+            "高抛后挂起在途量=100（未收口）"
+        );
+
+        // 主仓全平（本仓 300 股清空）⟹ 下一次接线调用即判死亡。
+        account_view.post(
+            AccountOrder { key: core_key(0), reason: ActionReason::ReverseType1, qty_delta: -300.0, decision_bar: 1 },
+            9.0,
+            1,
+        );
+        drive_campaign_wiring(1, 1, &account_view, &[], &[], 9, RiskMode::Normal, &mut book, &mut witness);
+
+        assert!(book.campaign(0, VoiceSide::Long).is_none(), "全平 ⟹ campaign 终结");
+        assert_eq!(witness.lifecycle_died.get("long"), Some(&1));
+        assert_eq!(witness.death_write_off_count.get("long"), Some(&1), "死亡吞挂起恰一条");
+        assert_eq!(witness.death_write_off_units_gap.get("long"), Some(&100), "货缺口=100 股");
+        assert_eq!(
+            witness.death_write_off_cash_booked.get("long"),
+            Some(&1_200),
+            "多头侧桶实收=units·price=100·12（与货缺口分列，不相减）"
+        );
+        assert!(witness.unclosed_write_off_count.is_empty(), "不落 #366 三卖桶（两条清算路径分列）");
+        assert_eq!(witness.other_violation_count, 0, "正常死亡核销路径不落违规桶");
+    }
+
     /// ★#366：核销请求到达但无可核销（该中枢无挂起批次）⟹ 落独立观测桶，不与真实核销读数
     /// 混计、也不记违规（零读数照实）。
     #[test]

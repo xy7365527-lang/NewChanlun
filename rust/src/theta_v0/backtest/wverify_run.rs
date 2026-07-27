@@ -1349,6 +1349,8 @@ fn m8_e2e_all_systems_oos() {
                  dropped_center_moved_down={} \
                  unclosed_write_off_count={:?} unclosed_write_off_units_gap={:?} \
                  unclosed_write_off_cash_booked={:?} unclosed_write_off_nothing_to_settle={:?} \
+                 death_write_off_count={:?} death_write_off_units_gap={:?} \
+                 death_write_off_cash_booked={:?} \
                  action_by_level={:?} \
                  suspension_by_source={:?} suspension_continued_count={:?} \
                  settlement_by_side={:?} replenish_foreign_center_count={:?} \
@@ -1374,6 +1376,11 @@ fn m8_e2e_all_systems_oos() {
                 w.unclosed_write_off_units_gap,
                 w.unclosed_write_off_cash_booked,
                 w.unclosed_write_off_nothing_to_settle,
+                // ★#441（ADR 补充十二）：death 吞挂起核销三读数——与上方 #366 三卖桶分列
+                // （中枢死 vs campaign 死，两条清算路径不混计），货缺口与现金不相减。
+                w.death_write_off_count,
+                w.death_write_off_units_gap,
+                w.death_write_off_cash_booked,
                 w.action_by_level,
                 w.suspension_by_source,
                 // ★#414（ADR 补充十一）：延续计数（取代不再终结挂起）/ 清算终局分流（闭合·核销·

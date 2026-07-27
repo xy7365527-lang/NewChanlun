@@ -268,6 +268,28 @@ impl SuspensionAttribution {
         (units, cash)
     }
 
+    /// ★#441（ADR 补充十二）：**死亡吞挂起核销**——移除**全部**来源中枢的挂起批次，返回
+    /// `(货缺口, 桶实收现金, 被吞的来源中枢个数)`。与 [`Self::write_off`] 同口径同算料，只是
+    /// 范围从「单个中枢」放大到「整本账」：campaign 死＝主仓全平，「回补进主仓」对**所有**
+    /// 中枢的挂起同时灭失，不能只核销其中一个而把其余留成无主欠账。
+    ///
+    /// 无批次时返回 `(0, 0, 0)`（无事可核销，非错误）。
+    fn write_off_all(&mut self) -> (i64, i64, usize) {
+        let units: i64 = self.batches.iter().map(|b| b.units).sum();
+        let cash: i64 = self.batches.iter().map(|b| b.cash_booked).sum();
+        // 去重按**相等性**逐个查（批次按到达序、同中枢可不相邻 ⟹ `dedup` 只去相邻会多计）；
+        // 一个 campaign 同时挂着的中枢数极少，线性查找足够且不引入排序/哈希序依赖。
+        let mut centers: Vec<CenterId> = Vec::new();
+        for b in &self.batches {
+            if !centers.contains(&b.center) {
+                centers.push(b.center);
+            }
+        }
+        let centers = centers.len();
+        self.batches.clear();
+        (units, cash, centers)
+    }
+
     /// `Replenish` 收口：**只冲抵同来源中枢**的批次（按到达序）。返回逐批冲抵明细（观测证据）；
     /// 冲抵完的批次移除。
     ///
@@ -364,14 +386,38 @@ impl ReplenishPlan {
     }
 }
 
+/// ★#441（ADR 补充十二，2026-07-27 用户裁定）：**campaign 死亡吞挂起**的核销呈报。
+///
+/// campaign 是对主仓的短差账——主仓全平（持仓→空仓）即「回补进主仓」这条出路灭失，其名下
+/// 未收口挂起按**三卖同族**清算：核销为「未闭合减出」，货缺口与桶实收现金**分开呈报、不
+/// 冲销**（口径与 [`UnclosedReduction`] 逐字相同，两侧同名不同义的分列声明见该类型文档）。
+///
+/// 与 [`UnclosedReduction`] 的差别只在**范围**：三类点清算按中枢到达 ⟹ 只核销那一个中枢；
+/// campaign 死亡 ⟹ 该 campaign 名下**全部**来源中枢的挂起一并核销（不留无主欠账），故本
+/// 类型不带 `center` 字段，改记 [`Self::centers`]（被吞的来源中枢**个数**）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeathWriteOff {
+    /// 货缺口（核销掉的挂起在途股数，恒 >0——为 0 时不产出本记录）。
+    pub units_gap: i64,
+    /// 桶实收现金（这些减出腿记进 `realized_cash` 的金额之和，**不与货缺口冲销**）。
+    pub cash_booked: i64,
+    /// 被一并核销的来源中枢个数（≥1）——死亡吞的是整本账，非单个中枢，故一并留痕。
+    pub centers: usize,
+}
+
 /// campaign 生命周期事件（[`CampaignBook::sync_position`] 产出，观测/witness 用）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CampaignLifecycleEvent {
     /// 开仓生：本仓成本基快照从空仓变为有持仓。★#381：`side`=本 campaign 的持仓侧。
     Opened { level: u32, side: VoiceSide, notional_in: i64 },
-    /// 全平死：本仓成本基快照回到空仓——`suspended_units_forfeited`=死亡时短差盈亏桶尚挂起
-    /// 的在途量（挂起随死，非 0 时是「未及收口即随仓终结」的照实记录，非违规）。
-    Died { level: u32, side: VoiceSide, suspended_units_forfeited: i64 },
+    /// 全平死：本仓成本基快照回到空仓。
+    ///
+    /// ★#441（ADR 补充十二）：`settlement`=死亡时未收口挂起的**核销呈报**
+    /// （[`DeathWriteOff`]；`None`=死亡时无挂起，不编造零读数记录）。旧字段
+    /// `suspended_units_forfeited`（只记「作废掉多少股」的标量）**退役**——它与新口径同源
+    /// 同量（=`settlement.units_gap`），但「作废」的定性已被裁定改写为「未闭合减出核销」，
+    /// 且现金那一笔在旧字段里根本无处安放。
+    Died { level: u32, side: VoiceSide, settlement: Option<DeathWriteOff> },
 }
 
 /// 单仓 campaign（[`TwState`] + [`LedgerComp`] 双账本并置 + [`ShortDiffAccount`] 短差桥）。
@@ -735,18 +781,46 @@ impl OscillationCampaign {
         ))
     }
 
-    /// 全平死：`TwEvent::ClearCampaign`（挂起随死——不核验 `assert_conserved`，全平即终结，
-    /// 未收口的挂起在途量随之作废，见 [`CampaignLifecycleEvent::Died`]）。
+    /// 全平死：`TwEvent::ClearCampaign`（不核验 `assert_conserved`，全平即终结）。
+    ///
+    /// ★★#441（ADR 补充十二，2026-07-27 用户裁定）：**死亡吞挂起 = 未闭合减出核销**——旧口径
+    /// 只把在途量当标量读出来叫「作废」（无核销、无现金那一笔、无 witness）；现改为走 #366 的
+    /// 同一条核销路径：归属账 [`SuspensionAttribution::write_off_all`] 清账 + 短差桶
+    /// [`ShortDiffAccount::write_off_unclosed`] 留痕（`written_off_units`），产出
+    /// [`DeathWriteOff`]（货缺口/桶实收现金分列，不冲销）。**不产任何 `TwEvent`**（不冲销，同
+    /// #366）——`ClearCampaign` 是既有的终结事件，与核销无关。
+    ///
+    /// **死亡优先于延续**（#414/ADR 补充十一）：campaign 没了，挂起不可能延续到原中枢的三类
+    /// 买卖点——出口在此就地闭合。行为化锚见测试
+    /// `death_takes_precedence_over_continuation_third_class_settlement_finds_nothing`。
     ///
     /// `ClearCampaign` 在本模块恒合法：本模块只用 `ShortDiff`/`Realize`（[`TwEvent::is_legal_from`]
     /// 对 `ClearCampaign` 的唯一门槛 `open_legacy_legs==0` 恒满足——本模块从不构造
     /// `OpenShareLeg`/`CloseShareLeg`）。
-    fn close(self) -> (TwState, i64) {
+    fn close(mut self) -> (TwState, Option<DeathWriteOff>) {
         debug_assert!(
             TwEvent::ClearCampaign.is_legal_from(&self.tw),
             "本模块从不用 legacy 腿构造子，ClearCampaign 前置 open_legacy_legs==0 恒满足"
         );
-        (tw_step(&self.tw, TwEvent::ClearCampaign), self.short_diff.bucket().open_units())
+        let (units_gap, cash_booked, centers) = self.suspension.write_off_all();
+        let settlement = if units_gap > 0 {
+            debug_assert_eq!(
+                units_gap,
+                self.short_diff.bucket().open_units(),
+                "归属账与桶标量恒等（逐笔同步推进）——不等即记账错误"
+            );
+            if self.short_diff.write_off_unclosed(units_gap).is_err() {
+                // 结构性不可达：`units_gap` 取自与桶恒等的归属账且 >0，桶核销的两条拒绝分支
+                // （非正 / 超出在途量）均不可命中。此处不静默吞真实错误——上一行 `debug_assert`
+                // 在 debug 侧即炸；release 侧本实例随即被移出账簿（状态不外泄），故不另立错误
+                // 通道（`sync_position` 的生死签名不因观测路径改成 `Result`）。
+                debug_assert!(false, "桶拒绝了取自归属账的在途量核销（记账错误）");
+            }
+            Some(DeathWriteOff { units_gap, cash_booked, centers })
+        } else {
+            None
+        };
+        (tw_step(&self.tw, TwEvent::ClearCampaign), settlement)
     }
 }
 
@@ -807,8 +881,10 @@ impl CampaignBook {
             }
             (true, false) => {
                 let campaign = self.campaigns.remove(&key).expect("contains_key 刚核验为 true");
-                let (_final_tw, suspended_units_forfeited) = campaign.close();
-                Some(CampaignLifecycleEvent::Died { level, side, suspended_units_forfeited })
+                // ★#441（ADR 补充十二）：死亡吞挂起在 `close` 内按「未闭合减出」核销，产出
+                // 分列呈报（货缺口/桶实收现金）；`None`=死亡时无挂起。
+                let (_final_tw, settlement) = campaign.close();
+                Some(CampaignLifecycleEvent::Died { level, side, settlement })
             }
             (true, true) => {
                 // 仍持仓：刷新防线基准（当时真实持仓），不产生生死事件、不动冻结快照。
@@ -1031,6 +1107,28 @@ pub struct CampaignWiringWitness {
     /// 现口径 = 各减出腿记进桶 `realized_cash` 的实收增量之和，两侧同名不同义的分列声明见
     /// [`UnclosedReduction`]。**跨版本不可比**：本桶在 #366 订正前后不是同一个量。
     pub unclosed_write_off_cash_booked: BTreeMap<&'static str, i64>,
+    /// ★★#441（ADR 补充十二，2026-07-27 用户裁定）：**死亡吞挂起**核销的分侧计数——campaign
+    /// 全平死亡时名下尚有未收口挂起的次数（[`CampaignLifecycleEvent::Died`] 带
+    /// [`DeathWriteOff`] 的那些）。
+    ///
+    /// 与上方 #366 三卖核销桶（`unclosed_write_off_*`）**分列、不混计**：两者虽同口径（未闭合
+    /// 减出核销），但归宿成因不同——一条是**中枢**死（三类卖点终局，campaign 尚在，其余中枢的
+    /// 挂起继续等），一条是 **campaign** 死（主仓全平，名下所有中枢的挂起一并灭失）。混桶就读
+    /// 不出「盲区有多大」这一本票的验收关注点。
+    ///
+    /// 与 [`Self::lifecycle_died`] 的关系：本桶 ≤ 死亡总数，差额=死时挂起为空的那些（干净死）
+    /// ——「无可核销」不另立桶（可由两桶相减读出），不编造零记录。
+    ///
+    /// **分桶键只分侧**（与 #366 同族三桶、[`Self::lifecycle_died`] 同规格）：级别维是 #442
+    /// 探针的裁决对象，其加维范围由该票统一定；本票不单独扩键，避免同族桶规格分叉。
+    pub death_write_off_count: BTreeMap<&'static str, usize>,
+    /// ★#441：死亡吞挂起的**货缺口**累计（分侧，单位=股数）——与下方桶实收现金**分列呈报，
+    /// 不相减**（相减＝冲销＝装没发生，见 [`UnclosedReduction`] 的同一论证）。
+    pub death_write_off_units_gap: BTreeMap<&'static str, i64>,
+    /// ★#441：死亡吞挂起的**桶实收现金**累计（分侧，单位=现金）——口径同
+    /// [`Self::unclosed_write_off_cash_booked`]（各减出腿记进 `realized_cash` 的增量之和），
+    /// 两侧同名不同义（空头侧「减」=买回），报告层分列呈现、不得相加。
+    pub death_write_off_cash_booked: BTreeMap<&'static str, i64>,
     /// ★#366：三卖终局到达但**无可核销**的分侧计数（该侧空仓无 campaign，或该中枢本就没有
     /// 挂起批次）——照实计数，不与真实核销读数混计（零读数照实亦是 #384 终验的对照项）。
     pub unclosed_write_off_nothing_to_settle: BTreeMap<&'static str, usize>,
@@ -1216,8 +1314,16 @@ impl CampaignWiringWitness {
             CampaignLifecycleEvent::Opened { side, .. } => {
                 *self.lifecycle_opened.entry(side_label(side)).or_insert(0) += 1;
             }
-            CampaignLifecycleEvent::Died { side, .. } => {
-                *self.lifecycle_died.entry(side_label(side)).or_insert(0) += 1;
+            // ★#441（ADR 补充十二）：死亡吞挂起的核销读数在此落桶——生死计数不变（每次死亡
+            // 恒记一次），核销三桶只在带挂起的那些死亡上累计（干净死不编造零记录）。
+            CampaignLifecycleEvent::Died { side, settlement, .. } => {
+                let sl = side_label(side);
+                *self.lifecycle_died.entry(sl).or_insert(0) += 1;
+                if let Some(w) = settlement {
+                    *self.death_write_off_count.entry(sl).or_insert(0) += 1;
+                    *self.death_write_off_units_gap.entry(sl).or_insert(0) += w.units_gap;
+                    *self.death_write_off_cash_booked.entry(sl).or_insert(0) += w.cash_booked;
+                }
             }
         }
     }
@@ -1380,8 +1486,8 @@ mod tests {
         let outcome = book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 0);
         assert_eq!(
             outcome,
-            Some(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, suspended_units_forfeited: 0 }),
-            "无挂起在途量的全平死亡"
+            Some(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, settlement: None }),
+            "无挂起在途量的全平死亡（无可核销 ⟹ 不产核销记录，#441）"
         );
         assert!(book.campaign(0, VoiceSide::Long).is_none(), "全平后 campaign 实例被移除");
         assert_eq!(book.active_count(), 0);
@@ -1398,8 +1504,12 @@ mod tests {
         let outcome = book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 0); // 仓位全平（未先回补）
         assert_eq!(
             outcome,
-            Some(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, suspended_units_forfeited: 100 }),
-            "挂起随死：全平死亡照实记录未收口的挂起量，非违规"
+            Some(CampaignLifecycleEvent::Died {
+                level: 0,
+                side: VoiceSide::Long,
+                settlement: Some(DeathWriteOff { units_gap: 100, cash_booked: 1_200, centers: 1 }),
+            }),
+            "★#441 口径改写：挂起不再「随死作废」，而是按未闭合减出核销并分列呈报（货缺口 100 股 / 桶实收 100·12=1200）"
         );
         assert!(book.campaign(0, VoiceSide::Long).is_none());
     }
@@ -1541,7 +1651,7 @@ mod tests {
 
         // 全平即 campaign 死亡（联动 #274 出口规则：仓位归零时终结，不因阶段推进而提前终结）。
         let death = book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 0);
-        assert_eq!(death, Some(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, suspended_units_forfeited: 0 }));
+        assert_eq!(death, Some(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, settlement: None }));
         assert!(book.campaign(0, VoiceSide::Long).is_none(), "全平即 campaign 死亡");
     }
 
@@ -1618,7 +1728,7 @@ mod tests {
         assert_eq!(w.settlement_by_side.get(&(2, "long", "forfeit")), Some(&1), "清算终局按级别独立分桶");
 
         w.record_lifecycle(CampaignLifecycleEvent::Opened { level: 0, side: VoiceSide::Long, notional_in: 3_000 });
-        w.record_lifecycle(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, suspended_units_forfeited: 0 });
+        w.record_lifecycle(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, settlement: None });
         w.record_lifecycle(CampaignLifecycleEvent::Opened { level: 0, side: VoiceSide::Short, notional_in: 1_000 });
         // ★#381 关票修复：生死两轴分侧——事件已带 `side`，标量累加即跨侧求和。
         assert_eq!(w.lifecycle_opened.get("long"), Some(&1));
@@ -2010,6 +2120,96 @@ mod tests {
         assert_ne!(reduction.cash_booked, 100 * 8, "空头侧不得回退到 Σ units·price 旧口径");
     }
 
+    // ── ★#441 死亡吞挂起 = 未闭合减出核销（ADR 补充十二，2026-07-27 用户裁定） ────
+
+    /// 核心用例：cid(1) 高抛一笔 + cid(2) 高抛一笔后 campaign 全平死亡 ⟹ 两个中枢的挂起
+    /// **一并**按「未闭合减出」核销（主仓全平即「回补进主仓」灭失，不留无主欠账），货缺口
+    /// 与桶实收现金**分列呈报、不相减**（同 #366 三卖终局口径）。
+    #[test]
+    fn death_writes_off_open_suspensions_across_all_centers_and_reports_gap_and_cash_separately() {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // avg_cost=10，sizing=100
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(2)).unwrap();
+
+        let outcome = book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 1);
+        assert_eq!(
+            outcome,
+            Some(CampaignLifecycleEvent::Died {
+                level: 0,
+                side: VoiceSide::Long,
+                settlement: Some(DeathWriteOff { units_gap: 200, cash_booked: 2_400, centers: 2 }),
+            }),
+            "死亡吞挂起：两个来源中枢的挂起一并核销（货缺口 200 股 / 桶实收 200·12=2400，分列不相减）"
+        );
+        assert!(book.campaign(0, VoiceSide::Long).is_none(), "全平后 campaign 实例被移除（生死语义不变）");
+    }
+
+    /// 无挂起可核销的死亡照实记 `None`（不编造零读数记录）——高抛已自然收口，或本就没做过短差。
+    #[test]
+    fn death_without_open_suspension_reports_no_settlement() {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
+        assert_eq!(
+            book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 1),
+            Some(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, settlement: None }),
+            "无挂起 ⟹ 无核销记录"
+        );
+    }
+
+    /// 空头侧对称：现金一笔同样取**桶实收**（`units·(2·avg_cost−price)`），非成交额
+    /// `units·price`（#366 §2.4 订正在死亡路径同样适用——两条路径共用同一算料）。
+    #[test]
+    fn death_write_off_applies_symmetrically_to_short_side() {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 0); // avg_cost=10，sizing=100
+        book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(1)).unwrap();
+        let outcome = book.sync_position(0, VoiceSide::Short, snapshot(0, 0), 1);
+        assert_eq!(
+            outcome,
+            Some(CampaignLifecycleEvent::Died {
+                level: 0,
+                side: VoiceSide::Short,
+                settlement: Some(DeathWriteOff { units_gap: 100, cash_booked: 1_200, centers: 1 }),
+            }),
+            "空头侧桶实收=100·(2·10−8)=1200，不得回退到 Σ units·price=800 旧口径"
+        );
+    }
+
+    /// ★死亡优先于延续（#414/ADR 补充十一）：campaign 没了，挂起不可能延续到三类买卖点——
+    /// 死亡后原中枢的三类点清算请求到达时无物可清（`Ok(None)`），不会把已核销的挂起复活。
+    #[test]
+    fn death_takes_precedence_over_continuation_third_class_settlement_finds_nothing() {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 1); // 死亡吞挂起
+
+        assert_eq!(
+            book.write_off_unclosed(0, VoiceSide::Long, cid(1)).unwrap(),
+            None,
+            "死亡优先：挂起已随死核销，其后原中枢三类点清算无物可清"
+        );
+    }
+
+    /// witness：死亡吞挂起的计数+单位量分侧落桶，与 #366 三卖核销桶**分列**（两条清算路径的
+    /// 读数不得混计——归宿不同：一条是中枢死，一条是 campaign 死）。
+    #[test]
+    fn witness_records_death_write_off_count_and_units_separately_from_third_class_bucket() {
+        let mut w = CampaignWiringWitness::new();
+        w.record_lifecycle(CampaignLifecycleEvent::Died {
+            level: 0,
+            side: VoiceSide::Long,
+            settlement: Some(DeathWriteOff { units_gap: 200, cash_booked: 2_400, centers: 2 }),
+        });
+        w.record_lifecycle(CampaignLifecycleEvent::Died { level: 1, side: VoiceSide::Long, settlement: None });
+        assert_eq!(w.lifecycle_died.get("long"), Some(&2), "两次死亡（生死桶不受本票影响）");
+        assert_eq!(w.death_write_off_count.get("long"), Some(&1), "只有带挂起的那次记核销");
+        assert_eq!(w.death_write_off_units_gap.get("long"), Some(&200));
+        assert_eq!(w.death_write_off_cash_booked.get("long"), Some(&2_400));
+        assert!(w.unclosed_write_off_count.is_empty(), "死亡核销不落 #366 三卖桶（两路径分列）");
+    }
+
     // ── #381：空头 campaign（键含侧 + 镜像减补 + 多空并存不污染） ──────────
 
     /// ★#381 验收①②：纯空头持仓开局 campaign 并按**镜像**记账——空头侧「减」=回补空头
@@ -2105,7 +2305,13 @@ mod tests {
         let died = book.sync_position(0, VoiceSide::Short, snapshot(0, 0), 9);
         assert_eq!(
             died,
-            Some(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Short, suspended_units_forfeited: 16 }),
+            Some(CampaignLifecycleEvent::Died {
+                level: 0,
+                side: VoiceSide::Short,
+                // ★#441：空头侧 avg_cost=1000/50=20、减出价 8 ⟹ 桶实收=16·(2·20−8)=512
+                // （非成交额 16·8——空头「减」是买回，见 `UnclosedReduction` 分列声明）。
+                settlement: Some(DeathWriteOff { units_gap: 16, cash_booked: 16 * (2 * 20 - 8), centers: 1 }),
+            }),
             "空头侧全平死（挂起随死，带侧）"
         );
         assert_eq!(book.active_count(), 1);
