@@ -47,8 +47,11 @@
 //!
 //! ## 用法
 //! ```text
-//! cargo run --release --features backtest_bin --bin pi_bsp_timing -- <SYMBOL> [START END]
+//! cargo run --release --features backtest_bin --bin pi_bsp_timing -- <SYMBOL> [START END [THETA [Z_ALPHA]]]
 //! ```
+//! #412 修复：`START END` 窗口切片只取决于是否传了这两个参数，与是否额外带 THETA/Z_ALPHA
+//! **无关**——旧版用 `args.len()==4` 判断是否切片，THETA 一出现 `args.len()` 变 5，窗口切片
+//! 被无声跳过、退化为跑全量数据集（OKLO 全量 34 万 bar，233s vs 窗口化 0.3s，#412）。见 `parse_cli_args`。
 
 use newchan_rust::theta_v0::backtest::data::load_by_symbol;
 use newchan_rust::theta_v0::backtest::incremental::IncrementalClassifier;
@@ -490,27 +493,77 @@ fn run_state_machine(
     }
 }
 
-fn main() -> std::process::ExitCode {
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() != 2 && args.len() != 4 && args.len() != 5 {
-        eprintln!(
-            "用法: {} <SYMBOL> [START_DATE END_DATE [THETA]]\n  SYMBOL: BTC/ES/CL/GC/BRN/DX/QQQ/OKLO\n  THETA: χ 阈值 θ（默认 0；负值趋近全覆盖，验收边界）",
-            args.first().map(String::as_str).unwrap_or("pi_bsp_timing")
-        );
-        return std::process::ExitCode::from(2);
+/// 命令行参数解析结果（#412：窗口是否切片提升为显式字段，杜绝「传了 THETA 就静默丢窗口」）。
+#[derive(Debug, PartialEq)]
+struct CliArgs {
+    symbol: String,
+    window: Option<(String, String)>,
+    theta: f64,
+    z_alpha: f64,
+}
+
+const USAGE: &str = "<SYMBOL> [START_DATE END_DATE [THETA [Z_ALPHA]]]\n  SYMBOL: BTC/ES/CL/GC/BRN/DX/QQQ/OKLO\n  THETA: χ 阈值 θ（默认 0；负值趋近全覆盖，验收边界）\n  Z_ALPHA: LCB 置信分位（默认 0）";
+
+/// 解析单个 `Θ_risk` 浮点参数（THETA / Z_ALPHA 共用）——静默必须变响亮：
+/// 解析失败直接报错返回，不做 `unwrap_or(0.0)` 式的静默默认值退化。
+fn parse_theta_like(field_name: &str, raw: &str) -> Result<f64, String> {
+    raw.parse::<f64>().map_err(|e| format!("{field_name} 解析失败（{raw:?}）: {e}"))
+}
+
+/// 显式按位置解析（#412 修复核心）：`window` 只取决于 `START_DATE END_DATE` 是否被传入，
+/// 与是否额外传了 THETA/Z_ALPHA **无关**——不再用 `args.len()==4` 这种「参数数量决定语义」
+/// 的魔数判据（旧判据在 THETA 存在时 `args.len()==5`，导致窗口切片无声跳过，是 #412 根因）。
+/// 不认识的参数个数一律报错返回 `Err`（响亮失败），不做静默降级。
+fn parse_cli_args(args: &[String]) -> Result<CliArgs, String> {
+    if args.len() < 2 {
+        return Err(format!("用法: pi_bsp_timing {USAGE}"));
     }
+    let symbol = args[1].clone();
+    let window = |args: &[String]| Some((args[2].clone(), args[3].clone()));
+    match args.len() {
+        2 => Ok(CliArgs { symbol, window: None, theta: 0.0, z_alpha: 0.0 }),
+        3 => Err(format!(
+            "参数数量不匹配：给了 START_DATE 但缺 END_DATE。用法: pi_bsp_timing {USAGE}"
+        )),
+        4 => Ok(CliArgs { symbol, window: window(args), theta: 0.0, z_alpha: 0.0 }),
+        5 => {
+            let theta = parse_theta_like("THETA", &args[4])?;
+            Ok(CliArgs { symbol, window: window(args), theta, z_alpha: 0.0 })
+        }
+        6 => {
+            let theta = parse_theta_like("THETA", &args[4])?;
+            let z_alpha = parse_theta_like("Z_ALPHA", &args[5])?;
+            Ok(CliArgs { symbol, window: window(args), theta, z_alpha })
+        }
+        n => Err(format!(
+            "参数数量不匹配（收到 {} 个，SYMBOL 之外只接受 0/2/3/4 个）。用法: pi_bsp_timing {USAGE}",
+            n - 1
+        )),
+    }
+}
+
+fn main() -> std::process::ExitCode {
+    let raw_args: Vec<String> = std::env::args().collect();
+    let cli = match parse_cli_args(&raw_args) {
+        Ok(cli) => cli,
+        Err(msg) => {
+            eprintln!("{msg}");
+            return std::process::ExitCode::from(2);
+        }
+    };
     let config = ThetaConfig::default();
-    let full = match load_by_symbol(&args[1], &config) {
+    let full = match load_by_symbol(&cli.symbol, &config) {
         Ok(ds) => ds,
         Err(e) => {
             eprintln!("数据加载失败: {e}");
             return std::process::ExitCode::FAILURE;
         }
     };
-    let dataset = if args.len() == 4 {
-        full.slice_date_window(&args[2], &args[3])
-    } else {
-        full
+    // ★#412 修复：窗口切片只看 `cli.window`（由 START/END 是否传入决定），
+    // 不再受后面是否还带了 THETA/Z_ALPHA 影响——这正是本票要堵死的静默退化点。
+    let dataset = match &cli.window {
+        Some((start, end)) => full.slice_date_window(start, end),
+        None => full,
     };
     if dataset.bars.is_empty() {
         eprintln!("空数据集——无法回测（inconclusive）");
@@ -530,12 +583,13 @@ fn main() -> std::process::ExitCode {
     // ★因果性诚实声明（alpha2 §5 / project_zero_lookahead_backtest / formalization-validity-domain）：
     //   Pass 2 用 Pass 1 **全程** in-sample μ 过滤当前开仓 = 未来函数泄漏。故 ΔN 非全等只证明
     //   **选择器逻辑生效（L1）**，**不**证明 alpha 提升（需 walk-forward μ，是 task #42 delta-r-alpha 后续工位）。
-    // θ：成本+风险门槛（§13），**Θ_risk 参数，非缠论可导**（诚实标注）。默认 θ=0；可由 args[4] 覆盖。
-    let theta: f64 = if args.len() >= 5 { args[4].parse().unwrap_or(0.0) } else { 0.0 };
+    // θ：成本+风险门槛（§13），**Θ_risk 参数，非缠论可导**（诚实标注）。默认 θ=0；由 CLI 覆盖。
+    // #412 修复后：THETA 解析失败在 `parse_cli_args` 里已响亮报错退出，这里直接读已验证值。
+    let theta: f64 = cli.theta;
     // z_alpha：LCB 置信分位（p25 §12，准入用 LCB(μ)=mean−z_alpha·std/√n 防高维 z 过拟合）。
     // 默认 0.0（LCB=mean ⟹ n≥2 类退化裸 μ；n=1 类 mu_lcb=None 走 empty=pass=true 全覆盖放行，
-    // 与裸 μ 正样本放行同决策——负 μ 的 n=1 例外，LCB 路径放行而裸 μ 拒，下游 L2 归因）；args[5] 覆盖。
-    let z_alpha: f64 = if args.len() >= 6 { args[5].parse().unwrap_or(0.0) } else { 0.0 };
+    // 与裸 μ 正样本放行同决策——负 μ 的 n=1 例外，LCB 路径放行而裸 μ 拒，下游 L2 归因）；CLI 覆盖。
+    let z_alpha: f64 = cli.z_alpha;
 
     let pass1 = run_state_machine(bars, &prices, &config, fee_rate, None);
     let pass2 = run_state_machine(bars, &prices, &config, fee_rate, Some((&pass1.mu_est, theta, z_alpha)));
@@ -738,3 +792,9 @@ fn main() -> std::process::ExitCode {
     }
     std::process::ExitCode::SUCCESS
 }
+
+// #412 回归测试拆到独立文件（避免把本文件推过 coding-style.md 800 行硬顶；
+// 测试逻辑仍完全属于本 bin，未违反「只动 pi_bsp_timing.rs（及其测试）」的范围）。
+#[cfg(test)]
+#[path = "pi_bsp_timing_cli_args_tests.rs"]
+mod cli_args_tests;
