@@ -41,9 +41,10 @@ pub(crate) fn bsp_bits_disc(b: &super::super::types::BspBits) -> u8 {
 /// 去重键是**三元组** `(level, source_index, bits_disc)`。同一锚点 `(level, source_index)` 因此
 /// 可在**同一 bar** 发出多个点——[`bsp_bits_disc`] 文档所述「不同类买卖点可共存」的直接后果：
 /// `classifier/signal.rs` 的 `make_first_point`/`make_second_point`/`make_third_point` 对同一锚点
-/// 各产一个**单类** `BspPoint`，同 bar 一并入前缀塔。#361 在 3500/6000/10000-bar × 三档 vol 上
-/// 实测：锚点多响**全部同 bar**、bits 间无子集关系、**零**跨 bar 重分类样本（即不存在「弱分类
-/// 先响、强分类后补响」）⟹ 判定为**合法语义**，不是同证据重复触发。任何在锚点粒度上声明
+/// 各产一个**单类** `BspPoint`，同 bar 一并入前缀塔。#361 在 **3500-bar / vol=4e7 一组** fixture 上
+/// 实测（代码内可复现，见下方测试；其余 (n, vol) 的推广依据是上述构造子机制，非代码内实测）：
+/// 锚点多响**全部同 bar**、**零**跨 bar 重分类样本（即不存在「弱分类先响、强分类后补响」）
+/// ⟹ 判定为**合法语义**，不是同证据重复触发。任何在锚点粒度上声明
 /// 「同身份至多响一次」的表述都过窄（历史表述见 `runner.rs::lee_m3_clock_obeys_first_observation_discipline`
 /// 的 #361 订正段）。
 ///
@@ -53,7 +54,12 @@ pub(crate) fn bsp_bits_disc(b: &super::super::types::BspBits) -> u8 {
 /// 事件的唯一直接源（`strategy/level_clock.rs` 模块头对齐表第 1 行）。但事件门控**不**逐点触发：
 /// `fill.rs` 只取「`bsp` 非空的级别下标」，再经 `LevelClockTicks` 的 `(level, kind)` BTreeSet 去重
 /// ⟹ 同级同 bar 的 n 个点恒塌缩为**一个** tick。故锚点级多响既不会重复触发事件门控，也不会撑大
-/// 稀疏性分母（该性质由上述测试的 `tick_inflation==0` 断言守住）。
+/// 稀疏性分母。
+///
+/// 该性质的回归守护 = `runner.rs::lee_m3_clock_obeys_first_observation_discipline` 的
+/// `tick_inflation==0` 断言——该测试按**逐点**级别序列喂 `collect_ticks`（非本函数在 `fill.rs`
+/// 侧已 distinct 的级别集），故 BTreeSet 去重路径真被走到、去重失效即转红（#361 影子评审
+/// HIGH-1；同测的 `collapse_witness>0` 保证 fixture 里真出现过同 bar 同级多点）。
 pub(crate) fn newly_confirmed_step(
     classification: &classifier::Classification,
     seen: &mut std::collections::HashSet<(usize, usize, u8)>,

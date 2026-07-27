@@ -2648,8 +2648,10 @@ mod tests {
     /// 观察纪律（prefix 首次确认写入、不回填、不改判），两条可证伪性质：
     ///
     /// ① **因果**：clock_ℓ 在 bar `i` 响的 BSP 事件，其 `source_index ≤ i`——不使用 `> i` 的数据；
-    /// ② **首次唯一**：同一 `(ℓ, source_index, bits)` 身份全跑批**至多响一次**
-    ///    （`newly_confirmed_step` 的 append-only `seen` 去重 ↔ `judge_at`「首次观察钟不后移」）；
+    /// ② **多类共存不跨 bar**：同一锚点 `(ℓ, source_index)` 的多个类型化身份**全部同 bar 发出**
+    ///    ——即不存在「弱分类先响、强分类后补响」的逐次强化时序（`newly_confirmed_step` 的
+    ///    append-only `seen` 去重 ↔ `judge_at`「首次观察钟不后移」的可证伪剩余；「同三元组至多响
+    ///    一次」本身与 `seen` 键同义反复、零区分力，故只作读数，见函数体 HIGH-2 注释）；
     /// ③ **多类共存不使钟点虚高**：同一 `(ℓ, bar)` 上的多个 BSP 在 clock_ℓ 侧塌缩为**一个**
     ///    `BspConfirmed` tick。
     ///
@@ -2661,9 +2663,10 @@ mod tests {
     /// 共存即把二元组表述证伪（#310 浮出 → #361 核实为**合法语义**，机制归因见函数体内注释）。
     ///
     /// ③ 是二元组表述当初真正担心的那件事（「重复响 ⟹ 稀疏性统计虚高」）的**直接**检验：
-    /// clock_ℓ 的 BSP 通道按级别取（`fill.rs` 的 `!ls.bsp.is_empty()`）再经
     /// [`LevelClockTicks`](super::super::strategy::level_clock::LevelClockTicks) 的
     /// `(level, kind)` BTreeSet 去重 ⟹ 同级同 bar 多点恒塌缩为 1 tick，虚高**不会**发生。
+    /// 本测按**逐点**级别序列喂 `collect_ticks`（不是 `fill.rs` 已 distinct 的 `!ls.bsp.is_empty()`
+    /// 级别集，否则去重路径走不到、断言恒真——#361 影子评审 HIGH-1），生产口径是其特例。
     ///
     /// 兑现真正的一致性实证需先落 E2E-N5 四钟载体（跨票域），或把 nest 门纳入默认路径
     /// （改变 M0 语义，M3 明确不做）。
@@ -2675,25 +2678,31 @@ mod tests {
         // ★#309 MED-4 补课：原 1500-bar fixture 只产 1 个 bsp tick——「同身份至多响一次」在单元素
         // 集合下构造上不可失败（非平凡前置只要求 `>0` 恰被最弱情形满足）。
         //
-        // ★#361 核实结论（3500-bar 实测 + 机制归因）：#310 浮出的「多次确认」判定为**合法语义**，
-        // 且其归因**不是**票体假设的「bits 渐进强分类」。实测 5 组配置
-        // （n∈{3500,6000,10000} × vol∈{1e7,4e7,8e7}）下，同一 `(lvl, source_index)` 的多次确认
-        // **全部落在同一 bar**（例：lvl=0 src=3244 于 bar 3274 一次性发出 bits=4/2/16 三点；
-        // lvl=0 src=4954 于 bar 5050 发出 bits=4/2），相邻 bits 之间**无**子集关系
-        // （monotone_superset=false），**零**跨 bar 重分类样本——即不存在「先弱后强、逐次强化」
-        // 的时间序列。机制 = `classifier/signal.rs` 的 `make_first_point`/`make_second_point`/
+        // ★#361 核实结论：#310 浮出的「多次确认」判定为**合法语义**，且其归因**不是**票体假设的
+        // 「bits 渐进强分类」。本测代码内可复现的口径 = **本 fixture 一组**（n=3500, vol=4e7）：
+        // 同一 `(lvl, source_index)` 的多次确认**全部落在同一 bar**（下方 `cross_bar==0` 断言即此
+        // 结论的回归守护），非「先弱后强、逐次强化」的时间序列。推广到其他 (n, vol) 靠的是**机制
+        // 归因**而非代码内实测（090：只声明代码能复现的）——机制 =
+        // `classifier/signal.rs` 的 `make_first_point`/`make_second_point`/
         // `make_third_point` 三个构造子对同一锚点各产一个**单类** `BspPoint`，同 bar 一并入前缀塔
         // ⟹ 三个**不同**三元组身份，`seen` 各插一次、无一重复。故不是同证据重复触发，而是原
         // 「至多响一次」用了比模块自身身份定义（含 bits）更窄的键 ⟹ 订正口径 + 补 ③ 断言，
         // **不**改 `newly_confirmed_step` 语义（no-patch-mentality：错的是声明不是代码）。
         //
         // fixture 3000→3500：3000-bar 下同锚点多类共存样本数为 0，③ 会空转（下方 witness 断言）。
-        let ds = random_walk_dataset("RW3000M3C", 3500, 40_000_000);
+        // fixture id 与 n 对齐（#361 影子评审 LOW-1；id 仅进 `Dataset::symbol`，随机序列由固定
+        // seed 生成、与 id 无关 ⟹ 改名不动数据）。
+        let ds = random_walk_dataset("RW3500M3C", 3500, 40_000_000);
         // 直接重放 π loop 的候选 diff 口径（与 fill.rs 的 clock_ℓ BSP 通道同一函数，禁第二查法）。
         let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
         // MED-4 下界读**锚点**多样性（`(ℓ, source_index)`，与 1500-bar 回归测同键，口径不动）。
         let mut fired: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
         // ② 读**类型化身份**（`(ℓ, source_index, bits)`）——#361 订正后的真身份。
+        //
+        // ★#361 影子评审 HIGH-2：`fired_typed`/`n_duplicate_ticks` 与 `newly_confirmed_step` 的
+        // 去重键 `seen` **逐字同键** ⟹ 输出点必为首次三元组 ⟹ 恒 0，**零区分力**。故降级为纯观测
+        // 读数（只进 eprintln，不设断言），不再冒充非平凡检验（#309/#351 MED-4 同一条纪律）。
+        // ② 的真实守护改由下方 `cross_bar==0`（多类共存全部同 bar）承担。
         let mut fired_typed: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
         let mut n_bsp_ticks = 0usize;
         let mut n_causal_violations = 0usize;
@@ -2702,8 +2711,10 @@ mod tests {
         //    （非空前置，防 fixture 退化后 ③ 空转）；`n_tick_inflation` = 塌缩失败次数（须 0）。
         let mut n_collapse_witness = 0usize;
         let mut n_tick_inflation = 0usize;
-        // 观测量（不设断言）：同锚点多类共存的锚点数、以及其中跨 bar 发生的个数。跨 bar 新类是
-        // 真实的新结构事件（新方向/新止损源），合法且应当产生新钟点——故只登记，不判违例。
+        // 同锚点多类共存的锚点数（非空前置）+ 其中跨 bar 发生的个数。跨 bar 新类本身并非「违例」
+        // （真新结构事件应当产生新钟点），但 #361 的核实结论与 `signal.rs` 的有效域论证正建立在
+        // 「实测零跨 bar」之上 ⟹ 断言 0 作为该结论的回归守护（影子评审 LOW-2）：一旦上游改成
+        // 逐次强化补响，结论与论证须重做，不得静默过期。
         let mut anchor_first_bar: std::collections::HashMap<(usize, usize), usize> = Default::default();
         let mut multiclass_anchors: std::collections::HashSet<(usize, usize)> = Default::default();
         let mut n_multiclass_cross_bar = 0usize;
@@ -2712,9 +2723,18 @@ mod tests {
             let l0_prefix = parser::parse_layer(&bars[..=i], &config);
             let cls = classifier::classify_with_tower(&l0_prefix, &config).0;
             let step = newly_confirmed_step(&cls, &mut seen);
+            // ③ 塌缩输入：**逐点**级别序列（每个 BSP 点一个条目）。
+            //
+            // ★#361 影子评审 HIGH-1：原先照 fill.rs 传 `!ls.bsp.is_empty()` 过滤出的 distinct 级别
+            // ——塌缩其实发生在这一步过滤里，`LevelClockTicks` 的 `(level, kind)` BTreeSet 去重路径
+            // **从未被走到**，`tick_inflation==0` 构造上恒真。改为逐点输入使去重真的发生：去重若
+            // 失效，同 bar 同级 n 个点会产出 n 个 tick ⟹ 断言转红。生产输入（已 distinct）是逐点
+            // 输入的特例 ⟹ 逐点通过蕴含生产口径通过。
+            let mut bsp_level_points: Vec<u32> = Vec::new();
             for (lvl, ls) in step.levels.iter().enumerate() {
                 for pt in ls.bsp.iter() {
                     n_bsp_ticks += 1;
+                    bsp_level_points.push(lvl as u32);
                     // ① 因果：确认 bar i ≥ 结构成立点 source_index。
                     if pt.source_index > i {
                         n_causal_violations += 1;
@@ -2734,34 +2754,19 @@ mod tests {
                     }
                 }
             }
-        }
-        // ③ 钟点塌缩：按 fill.rs 的 clock_ℓ BSP 通道口径重放（级别取自 `!ls.bsp.is_empty()`），
-        //    逐 bar 比对「BSP 点数」与「BspConfirmed tick 数」。分离成第二遍是为了让 seen 的
-        //    append-only 状态与上面同一条时间线——故重跑一遍 diff（同一函数，非第二查法）。
-        {
-            let mut seen2: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
-            for i in 0..bars.len() {
-                let l0_prefix = parser::parse_layer(&bars[..=i], &config);
-                let cls = classifier::classify_with_tower(&l0_prefix, &config).0;
-                let step = newly_confirmed_step(&cls, &mut seen2);
-                let bsp_levels: Vec<u32> = step
-                    .levels
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, ls)| !ls.bsp.is_empty())
-                    .map(|(l, _)| l as u32)
-                    .collect();
-                if bsp_levels.is_empty() {
-                    continue;
-                }
-                let n_points: usize = step.levels.iter().map(|ls| ls.bsp.len()).sum();
-                let ticks = collect_ticks(&bsp_levels, &[], &[], &[], &[], &[], &[]);
+            // ③ 钟点塌缩：逐 bar 比对「BSP 点数」与「BspConfirmed tick 数」。
+            //    ★#361 影子评审 MED-2：原先分离成第二遍全量 parse+classify（理由「让 seen 与上面
+            //    同一时间线」不成立——`step` 就在手），并入本循环内计算，同源且省一半耗时。
+            if !bsp_level_points.is_empty() {
+                let distinct_levels: std::collections::BTreeSet<u32> =
+                    bsp_level_points.iter().copied().collect();
+                let ticks = collect_ticks(&bsp_level_points, &[], &[], &[], &[], &[], &[]);
                 let n_bsp_tick_kinds =
                     ticks.iter().filter(|t| t.kind == LevelEventKind::BspConfirmed).count();
-                if n_bsp_tick_kinds != bsp_levels.len() {
+                if n_bsp_tick_kinds != distinct_levels.len() {
                     n_tick_inflation += 1;
                 }
-                if n_points > n_bsp_tick_kinds {
+                if bsp_level_points.len() > n_bsp_tick_kinds {
                     n_collapse_witness += 1;
                 }
             }
@@ -2770,7 +2775,7 @@ mod tests {
             "LEE_M3_FIVECLOCK bars={} bsp_ticks={} causal_violations={} duplicate_ticks={} \
              | #361: typed_identities={} anchors={} multiclass_anchors={} cross_bar_multiclass={} \
              collapse_witness={} tick_inflation={} \
-             | 交付=首次观察纪律（因果+类型化身份首次唯一+钟点不虚高）；五钟一致性实证**未兑现**（judge_at 挂 nest 门默认关，余四钟无 rust 载体）",
+             | 交付=首次观察纪律（因果+多类共存不跨 bar+钟点不虚高；duplicate_ticks/typed_identities 为读数，与 seen 同键无区分力）；五钟一致性实证**未兑现**（judge_at 挂 nest 门默认关，余四钟无 rust 载体）",
             bars.len(),
             n_bsp_ticks,
             n_causal_violations,
@@ -2797,11 +2802,21 @@ mod tests {
         );
         // ① 因果（与 judge_at 的 prefix 首次观察同纪律）。
         assert_eq!(n_causal_violations, 0, "clock_ℓ 因果违例：BSP 在其 source_index 之前就响");
-        // ② 首次唯一（#361 订正为类型化身份；append-only seen 去重 ↔ judge_at「首次观察钟不后移」）。
+        // ② 首次唯一：`n_duplicate_ticks` 与 `newly_confirmed_step` 的 `seen` 同键 ⟹ 恒 0，已降级
+        //    为观测读数（见上方声明处注释，#361 影子评审 HIGH-2），此处**不**设断言。
+        //    ② 的可证伪内容改由下面两条承担：非空前置（真出现过锚点多类共存）+ 全部同 bar。
+        assert!(
+            !multiclass_anchors.is_empty(),
+            "② 空转：本 fixture 未出现同锚点多类共存（multiclass_anchors=0）——\
+             下面的「跨 bar 重分类为零」无见证则无区分力"
+        );
+        // ② 真守护：多类共存**全部落在同一 bar**（#361 核实结论「零跨 bar 重分类」的回归守护，
+        //    影子评审 LOW-2）。上游分类器若改成「先弱后强、逐次强化」的时序补响，此断言转红。
         assert_eq!(
-            n_duplicate_ticks, 0,
-            "clock_ℓ 同**类型化身份** `(ℓ, source_index, bits)` 重复响——这才是真重复\
-             （同证据二次触发）。锚点级多类共存不算（#361 核实：合法语义，见函数体注释）"
+            n_multiclass_cross_bar, 0,
+            "clock_ℓ 跨 bar 重分类：同一锚点 `(ℓ, source_index)` 在**不同 bar** 上补响新类——\
+             这会使 #361「多类共存 = 同 bar 一次性发出的不同单类点」的核实结论失效，\
+             `signal.rs::newly_confirmed_step` 与本测的有效域论证须重做"
         );
         // ③ 非空前置：本 fixture 须真的出现过「同 bar 同级多点」，否则塌缩断言空转
         //    （#309/#351 MED-4 同一条纪律：不得用构造上不可失败的检查冒充非平凡）。
