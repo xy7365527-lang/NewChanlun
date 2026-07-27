@@ -241,9 +241,13 @@ pub struct ShortDiffBucket {
     /// 减出（多头侧；空头侧镜像为三类买点），由 [`ShortDiffAccount::write_off_unclosed`] 累计。
     ///
     /// 这是「不装没发生」的账面载体：核销把 `open_units` 归位（承诺已终局，不再等回补），
-    /// 但**不产任何 `TwEvent`**——卖出腿当时的 `ShortDiff`（成本基 holding→free）与 `Realize`
-    /// 照留在账上，即「货缺口」（`holding` 里少掉的成本基份额）与「现金盈余」（`realized_cash`
-    /// 已收的卖出所得）**分开呈报、不冲销**。冲销才是装没发生。
+    /// 但**不产任何 `TwEvent`**——减出腿当时的 `ShortDiff`（成本基 holding→free）与 `Realize`
+    /// 照留在账上，即「货缺口」（`holding` 里少掉的成本基份额）与「桶实收现金」
+    /// （`realized_cash` 已收进的那两笔之和）**分开呈报、不冲销**。冲销才是装没发生。
+    ///
+    /// ★口径订正（2026-07-27，评审 §2.4）：现金那一笔的呈报口径是**桶实收**，不是「卖出
+    /// 成交额」——空头侧「减」是回补空头（买回），成交腿是现金**支出**，两侧同名不同义的分列
+    /// 声明见 [`super::oscillation_campaign::UnclosedReduction`]。
     written_off_units: i64,
 }
 
@@ -556,9 +560,10 @@ impl ShortDiffAccount {
     /// ★#366（补充裁定 2026-07-27）：**未闭合减出核销**——三类卖点终局下不回补的挂起减出，
     /// 从在途量中核销掉（承诺已终局，不再等回补），**不产任何 `TwEvent`**：
     ///
-    /// - 卖出腿当时的 `ShortDiff(+units·avg_cost)`（成本基 holding→free）与 `Realize` 照留在
-    ///   账上不动 ⟹ 「货缺口」（`holding` 里少掉的那份成本基）与「现金盈余」
-    ///   （[`ShortDiffBucket::realized_cash`] 已收的卖出所得）**分开呈报、不冲销**。
+    /// - 减出腿当时的 `ShortDiff(+units·avg_cost)`（成本基 holding→free）与 `Realize` 照留在
+    ///   账上不动 ⟹ 「货缺口」（`holding` 里少掉的那份成本基）与「桶实收现金」
+    ///   （[`ShortDiffBucket::realized_cash`] 已收进的那两笔之和，多头=`units·price`、空头=
+    ///   `units·(2·avg_cost−price)`）**分开呈报、不冲销**。
     /// - 反面（本方法**不**做的事）：不构造一笔虚拟回补去抵平（那是冲销＝装没发生），也不
     ///   静默把 `open_units` 丢掉不留痕（核销量累计进 `written_off_units`）。
     ///
@@ -765,7 +770,7 @@ mod tests {
 
     // ── ★#366 未闭合减出核销（桶层：不产 TwEvent、留痕、越界拒绝） ──────────────
 
-    /// 核销把在途量归位并留痕，`realized_cash`（现金盈余）与均价状态照实——不冲销。
+    /// 核销把在途量归位并留痕，`realized_cash`（桶实收现金）与均价状态照实——不冲销。
     #[test]
     fn write_off_unclosed_clears_open_units_and_keeps_cash_intact() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(10));
@@ -776,7 +781,7 @@ mod tests {
         acct.write_off_unclosed(100).unwrap();
         assert_eq!(acct.bucket().open_units(), 0, "在途量归位（承诺已终局）");
         assert_eq!(acct.bucket().written_off_units(), 100, "核销量留痕（不装没发生）");
-        assert_eq!(acct.bucket().realized_cash(), cash_before, "现金盈余照留，不被核销冲掉");
+        assert_eq!(acct.bucket().realized_cash(), cash_before, "桶实收现金照留，不被核销冲掉");
         assert_eq!(acct.bucket().open_avg_cost(), None, "无挂起批次 ⟹ 均价守卫状态清空");
         assert!(acct.assert_conserved().is_ok(), "核销后无悬而未决的在途量");
     }

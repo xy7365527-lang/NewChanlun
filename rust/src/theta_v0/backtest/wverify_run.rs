@@ -1348,7 +1348,7 @@ fn m8_e2e_all_systems_oos() {
                  dropped_center_not_alive={} ({:.1}%) dropped_other={} \
                  dropped_center_moved_down={} \
                  unclosed_write_off_count={:?} unclosed_write_off_units_gap={:?} \
-                 unclosed_write_off_cash_surplus={:?} unclosed_write_off_nothing_to_settle={:?} \
+                 unclosed_write_off_cash_booked={:?} unclosed_write_off_nothing_to_settle={:?} \
                  action_by_level={:?} \
                  suspension_by_source={:?} lifecycle_opened={:?} lifecycle_died={:?} \
                  no_active_campaign_count={:?} \
@@ -1367,7 +1367,7 @@ fn m8_e2e_all_systems_oos() {
                 w.dropped_center_moved_down,
                 w.unclosed_write_off_count,
                 w.unclosed_write_off_units_gap,
-                w.unclosed_write_off_cash_surplus,
+                w.unclosed_write_off_cash_booked,
                 w.unclosed_write_off_nothing_to_settle,
                 w.action_by_level,
                 w.suspension_by_source,

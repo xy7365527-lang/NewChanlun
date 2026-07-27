@@ -900,6 +900,11 @@ fn step_center_oscillation(
         // 或链上无前驱 ⟹ 不下移。链视图取本级 `classification_i.levels[lvl].centers`（与
         // `cl_machines[lvl]` 本 bar 刚消费的同一张链），下标取 `alive_center()` 自带的链下标
         // ——不另立第二套链遍历（A 裁定「身份唯一源」的同精神）。
+        //
+        // ★口径声明（评审 §1.3/§1.4，2026-07-27 补录，只声明不改行为）：本判据是 89 课原文
+        // （前瞻：「这次跌完会不会形成中枢下移」）的**零前视历史代理**（「上次是否已下移」），
+        // 且严格小于 `<` 使「两中枢恰好相接」判为不下移＝放行——两处声明的正本见
+        // `CenterDrift` 的类型文档，此处不复述、不改判。
         let drift = match alive_with_index {
             Some((alive_center, idx)) if idx > 0 => {
                 match classification_i.levels[lvl].centers.get(idx - 1) {
@@ -1170,9 +1175,9 @@ mod campaign_wiring_tests {
         assert_eq!(witness.unclosed_write_off_count.get("long"), Some(&1), "核销恰一条");
         assert_eq!(witness.unclosed_write_off_units_gap.get("long"), Some(&100), "货缺口=100 股");
         assert_eq!(
-            witness.unclosed_write_off_cash_surplus.get("long"),
+            witness.unclosed_write_off_cash_booked.get("long"),
             Some(&1_200),
-            "现金盈余=100·12（与货缺口分列，不相减）"
+            "多头侧桶实收=units·avg_cost+units·(price−avg_cost)=units·price=100·12（与货缺口分列，不相减）"
         );
         let campaign = book.campaign(0, VoiceSide::Long).unwrap();
         assert_eq!(campaign.tw(), tw_before, "核销不产 TwEvent ⟹ TW 不漂移");

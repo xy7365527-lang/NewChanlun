@@ -109,10 +109,20 @@ pub struct SuspensionBatch {
     pub units: i64,
     /// 到达序（campaign 内单调递增）——「余按时间序」的确定性载体（非哈希/非中枢序）。
     pub seq: u64,
-    /// ★#366：本批减出的成交价——「未闭合减出」核销时「现金盈余」的唯一算料
-    /// （`Σ units·price`，见 [`UnclosedReduction::cash_surplus`]）。桶只记标量总现金
-    /// （`realized_cash`），无分批分解，故价格随批次记在归属账侧（观测口径，不另立记账）。
-    pub price: i64,
+    /// ★#366（订正 2026-07-27，评审 §2.4）：本批减出腿**桶实收现金**——该次 `Reduce` 使
+    /// [`short_diff_bucket::ShortDiffBucket::realized_cash`] 增加的金额，即「未闭合减出」核销
+    /// 时现金那一笔的唯一算料（见 [`UnclosedReduction::cash_booked`]）。
+    ///
+    /// 取值方式 = 记账放行**前后**读桶 `realized_cash` 之差（[`OscillationCampaign::apply_action`]）
+    /// ——不在本模块重算第二套公式，故两侧口径恒与桶一致：
+    /// - 多头「减=卖出」：`units·avg_cost`（成本基 holding→free）+ `units·(price−avg_cost)`
+    ///   （已实现盈亏）= `units·price`，恰为卖出成交额（现金流入）。
+    /// - 空头「减=回补空头（买回）」：`units·avg_cost` + `units·(avg_cost−price)`
+    ///   = `units·(2·avg_cost−price)`，**不等于** `units·price`，且成交腿本身是现金**支出**
+    ///   ——旧口径按 `Σ units·price` 记且命名为「卖出成交额」在空头侧值与符号双错。
+    ///
+    /// 桶只记标量总现金（无分批分解），故该分量随批次记在归属账侧（观测口径，不另立记账）。
+    pub cash_booked: i64,
 }
 
 /// ★#380 项四：一次 `Replenish` 对某个挂起批次的冲抵明细。
@@ -152,15 +162,17 @@ impl SuspensionAttribution {
         &self.batches
     }
 
-    /// `Reduce` 入队：新批次带来源中枢标签 + 成交价（#366 核销算料），追加在时间序末尾。
-    fn push(&mut self, center: CenterId, units: i64, price: i64) {
-        self.batches.push(SuspensionBatch { center, units, seq: self.next_seq, price });
+    /// `Reduce` 入队：新批次带来源中枢标签 + 本笔桶实收现金（#366 核销算料），追加在时间序末尾。
+    fn push(&mut self, center: CenterId, units: i64, cash_booked: i64) {
+        self.batches.push(SuspensionBatch { center, units, seq: self.next_seq, cash_booked });
         self.next_seq += 1;
     }
 
-    /// ★#366：**未闭合减出核销**——移除该来源中枢的全部挂起批次，返回 `(货缺口, 现金盈余)`
-    /// ＝ `(Σ units, Σ units·price)`。两者**分开返回、不相减**（不冲销，见
-    /// [`UnclosedReduction`]）；无该中枢批次时返回 `(0, 0)`（无事可核销，非错误）。
+    /// ★#366：**未闭合减出核销**——移除该来源中枢的全部挂起批次，返回 `(货缺口, 桶实收现金)`
+    /// ＝ `(Σ units, Σ cash_booked)`（订正 2026-07-27，评审 §2.4：现金一笔取**桶实收**，
+    /// 非 `Σ units·price`——后者在空头侧值与符号双错，见 [`SuspensionBatch::cash_booked`]）。
+    /// 两者**分开返回、不相减**（不冲销，见 [`UnclosedReduction`]）；无该中枢批次时返回
+    /// `(0, 0)`（无事可核销，非错误）。
     ///
     /// 核销范围 = **同来源中枢**的批次（与 [`Self::cover`] 的「同中枢优先」同一归属口径）
     /// ——终结事件按中枢身份到达（#292 D 裁定），只核销它所指的那个中枢的减出，不连坐其他
@@ -168,7 +180,7 @@ impl SuspensionAttribution {
     fn write_off(&mut self, center: CenterId) -> (i64, i64) {
         let units: i64 = self.batches.iter().filter(|b| b.center == center).map(|b| b.units).sum();
         let cash: i64 =
-            self.batches.iter().filter(|b| b.center == center).map(|b| b.units * b.price).sum();
+            self.batches.iter().filter(|b| b.center == center).map(|b| b.cash_booked).sum();
         self.batches.retain(|b| b.center != center);
         (units, cash)
     }
@@ -212,8 +224,22 @@ impl SuspensionAttribution {
 ///
 /// - [`Self::units_gap`]（货缺口）：已减出、永不回补的股数——账面上 `holding` 里少掉的那份
 ///   成本基所对应的货。
-/// - [`Self::cash_surplus`]（现金盈余）：这些减出当时的卖出成交额（`Σ units·price`）——
-///   已在 [`short_diff_bucket::ShortDiffBucket::realized_cash`] 收进桶。
+/// - [`Self::cash_booked`]（桶实收现金）：这些减出腿当时**实际记进**
+///   [`short_diff_bucket::ShortDiffBucket::realized_cash`] 的金额之和。
+///
+/// ★口径订正（2026-07-27，评审 §2.4）：本笔旧名 `cash_surplus`（现金盈余）、旧口径
+/// `Σ units·price`（「卖出成交额」）**在空头侧值与符号双错**，现改为「桶实收现金」并逐批取
+/// 桶增量（[`SuspensionBatch::cash_booked`]）。两侧同名不同义，按 ADR 补充九分列如下：
+///
+/// - **多头侧**：减=卖出，成交腿是现金**流入** `units·price`；桶实收 = `units·avg_cost`
+///   （在险成本基 holding→free）+ `units·(price−avg_cost)`（已实现盈亏）= `units·price`。
+///   两者数值恰好重合，旧口径在这一侧成立。
+/// - **空头侧**：减=回补空头（买回），成交腿是现金**支出** `units·price`——叫「现金盈余」
+///   「卖出成交额」在经济语义上是反的；桶实收 = `units·avg_cost` + `units·(avg_cost−price)`
+///   = `units·(2·avg_cost−price)`，与 `units·price` 不等（旧口径按后者记，数值也错）。
+///
+/// 因此本字段的符号锚是**桶的现金增量**（恒为「这笔减出让桶多收了多少」），不是任一侧的成交
+/// 额；成交腿的方向差异由上面两行分列声明承担，不靠字段名暗示。
 ///
 /// 两笔**不相减**：净额是「高抛躲过下跌的真实盈亏」，只有等价格重新有定义（新中枢/新买点）
 /// 才谈得上，此刻相减等于用当前价给未回补的货记一个虚拟成交＝装没发生。本类型只呈报，不裁决。
@@ -224,8 +250,9 @@ pub struct UnclosedReduction {
     pub center: CenterId,
     /// 货缺口（核销掉的挂起在途股数，恒 >0——为 0 时不产出本记录）。
     pub units_gap: i64,
-    /// 现金盈余（这些减出的卖出成交额之和，不与货缺口冲销）。
-    pub cash_surplus: i64,
+    /// 桶实收现金（这些减出腿记进 `realized_cash` 的金额之和，不与货缺口冲销；两侧口径见类型
+    /// 文档的分列声明）。
+    pub cash_booked: i64,
 }
 
 /// campaign 生命周期事件（[`CampaignBook::sync_position`] 产出，观测/witness 用）。
@@ -357,6 +384,10 @@ impl OscillationCampaign {
             });
         }
         let mut short_diff = self.short_diff;
+        // ★#366 订正（评审 §2.4）：本笔**桶实收现金**取记账前后桶 `realized_cash` 之差——
+        // 唯一算料来自桶自身，本模块不重算第二套公式（多头 `units·price` / 空头
+        // `units·(2·avg_cost−price)` 的两侧差异因此自动正确，见 `SuspensionBatch::cash_booked`）。
+        let cash_before = short_diff.bucket().realized_cash();
         // ★#380 项二：sizing 基准=开局冻结快照（上方 `reduce_units`），防线基准=当时真实持仓
         // （`self.current_units`，逐 bar 由 `sync_position` 刷新）——两个基准分开传。
         let (tw_after_action, ledger_after_action) = short_diff.record_and_apply_dual(
@@ -372,7 +403,7 @@ impl OscillationCampaign {
         let mut suspension = self.suspension.clone();
         let cover = match action {
             CenterOscillationAction::Reduce => {
-                suspension.push(source_center, units, price);
+                suspension.push(source_center, units, short_diff.bucket().realized_cash() - cash_before);
                 Vec::new()
             }
             CenterOscillationAction::Replenish => suspension.cover(source_center, units),
@@ -419,7 +450,7 @@ impl OscillationCampaign {
     }
 
     /// ★#366（补充裁定 2026-07-27）：**未闭合减出核销**——三卖终局（多头侧；空头侧镜像为
-    /// 三买终局）下不回补，把该来源中枢的挂起批次从在途量核销，产出货缺口/现金盈余两笔分开
+    /// 三买终局）下不回补，把该来源中枢的挂起批次从在途量核销，产出货缺口/桶实收现金两笔分开
     /// 的呈报（[`UnclosedReduction`]）。不构造任何回补动作、不产任何 `TwEvent`（不冲销，见
     /// [`ShortDiffAccount::write_off_unclosed`]）。
     ///
@@ -432,7 +463,7 @@ impl OscillationCampaign {
         center: CenterId,
     ) -> Result<(Self, Option<UnclosedReduction>), CampaignViolation> {
         let mut suspension = self.suspension.clone();
-        let (units_gap, cash_surplus) = suspension.write_off(center);
+        let (units_gap, cash_booked) = suspension.write_off(center);
         if units_gap <= 0 {
             return Ok((self.clone(), None));
         }
@@ -446,7 +477,7 @@ impl OscillationCampaign {
                 side: self.side,
                 center,
                 units_gap,
-                cash_surplus,
+                cash_booked,
             }),
         ))
     }
@@ -682,11 +713,16 @@ pub struct CampaignWiringWitness {
     pub cover_by_side: BTreeMap<(&'static str, &'static str), usize>,
     /// ★#366（补充裁定 2026-07-27）：**未闭合减出**核销的分侧计数（三卖终局条数）。
     pub unclosed_write_off_count: BTreeMap<&'static str, usize>,
-    /// ★#366：核销的**货缺口**累计（分侧，单位=股数）——与下方现金盈余**分列呈报，不相减**
+    /// ★#366：核销的**货缺口**累计（分侧，单位=股数）——与下方桶实收现金**分列呈报，不相减**
     /// （相减＝冲销＝装没发生，见 [`UnclosedReduction`]）。
     pub unclosed_write_off_units_gap: BTreeMap<&'static str, i64>,
-    /// ★#366：核销的**现金盈余**累计（分侧，单位=成交额）——见上，不与货缺口冲销。
-    pub unclosed_write_off_cash_surplus: BTreeMap<&'static str, i64>,
+    /// ★#366：核销的**桶实收现金**累计（分侧，单位=现金）——见上，不与货缺口冲销。
+    ///
+    /// ★口径订正（2026-07-27，评审 §2.4）：本桶旧名 `unclosed_write_off_cash_surplus`、旧口径
+    /// `Σ units·price`，空头侧值与符号双错（空头「减」是买回＝现金支出，非「卖出成交额」）。
+    /// 现口径 = 各减出腿记进桶 `realized_cash` 的实收增量之和，两侧同名不同义的分列声明见
+    /// [`UnclosedReduction`]。**跨版本不可比**：本桶在 #366 订正前后不是同一个量。
+    pub unclosed_write_off_cash_booked: BTreeMap<&'static str, i64>,
     /// ★#366：三卖终局到达但**无可核销**的分侧计数（该侧空仓无 campaign，或该中枢本就没有
     /// 挂起批次）——照实计数，不与真实核销读数混计（零读数照实亦是 #384 终验的对照项）。
     pub unclosed_write_off_nothing_to_settle: BTreeMap<&'static str, usize>,
@@ -788,12 +824,12 @@ impl CampaignWiringWitness {
         }
     }
 
-    /// ★#366：记一次「未闭合减出」核销（货缺口与现金盈余**分列**累计，不相减）。
+    /// ★#366：记一次「未闭合减出」核销（货缺口与桶实收现金**分列**累计，不相减）。
     pub fn record_write_off(&mut self, reduction: &UnclosedReduction) {
         let sl = side_label(reduction.side);
         *self.unclosed_write_off_count.entry(sl).or_insert(0) += 1;
         *self.unclosed_write_off_units_gap.entry(sl).or_insert(0) += reduction.units_gap;
-        *self.unclosed_write_off_cash_surplus.entry(sl).or_insert(0) += reduction.cash_surplus;
+        *self.unclosed_write_off_cash_booked.entry(sl).or_insert(0) += reduction.cash_booked;
     }
 
     /// ★#366：记一次「三卖终局到达但无可核销」（该侧空仓，或该中枢无挂起批次）。
@@ -1426,11 +1462,11 @@ mod tests {
         assert_eq!(w.replenish_triggered_but_full_count.get("long"), Some(&1), "货满桶不被误增");
     }
 
-    // ── ★#366 未闭合减出核销（补充裁定 2026-07-27）：货缺口/现金盈余分列，不冲销 ────
+    // ── ★#366 未闭合减出核销（补充裁定 2026-07-27）：货缺口/桶实收现金分列，不冲销 ────
 
     /// 核心用例：cid(1) 高抛两笔 + cid(2) 高抛一笔后，cid(1) 三卖终局 ⟹ 只核销 cid(1) 的两批
-    /// （货缺口 200 股、现金盈余 200·12=2400），cid(2) 的挂起**不连坐**（那个中枢未死，
-    /// 「挂起继续等」）。货缺口与现金盈余**分列返回，不相减**。
+    /// （货缺口 200 股、桶实收现金 200·12=2400），cid(2) 的挂起**不连坐**（那个中枢未死，
+    /// 「挂起继续等」）。货缺口与桶实收现金**分列返回，不相减**。
     #[test]
     fn write_off_settles_only_the_terminated_center_and_reports_gap_and_cash_separately() {
         let mut book = CampaignBook::new();
@@ -1444,7 +1480,11 @@ mod tests {
             .expect("核销不应报错")
             .expect("cid(1) 有两批挂起可核销");
         assert_eq!(reduction.units_gap, 200, "货缺口=cid(1) 两批减出股数");
-        assert_eq!(reduction.cash_surplus, 2_400, "现金盈余=Σ units·price=200·12（与货缺口分列，不相减）");
+        assert_eq!(
+            reduction.cash_booked,
+            2_400,
+            "多头侧桶实收=Σ[units·avg_cost+units·(price−avg_cost)]=Σ units·price=200·12（与货缺口分列，不相减）"
+        );
         assert_eq!(reduction.center, cid(1));
         assert_eq!(reduction.side, VoiceSide::Long);
 
@@ -1478,7 +1518,7 @@ mod tests {
         assert_eq!(
             after.short_diff().bucket().realized_cash(),
             before.short_diff().bucket().realized_cash(),
-            "现金盈余照留（卖出腿当时已入账），不被核销冲掉"
+            "桶实收现金照留（减出腿当时已入账），不被核销冲掉"
         );
         assert_eq!(after.short_diff().bucket().open_units(), 0, "在途量归位（承诺已终局，不再等回补）");
     }
@@ -1509,15 +1549,32 @@ mod tests {
     }
 
     /// 空头侧对称：核销口径对两侧同样适用（键含侧，各自独立）。
+    ///
+    /// ★口径订正（2026-07-27，评审 §2.4）：现金那一笔不是 `Σ units·price`（旧值 800）——空头
+    /// 「减」= 回补空头（买回），成交腿是现金**支出** `units·price=800`，把它记成「卖出成交额/
+    /// 现金盈余」值与符号双错。正确口径 = **桶实收现金**：`ShortDiff(units·avg_cost)=1000`
+    /// （在险成本基 holding→free）+ `Realize(units·(avg_cost−price))=100·(10−8)=200`
+    /// = `units·(2·avg_cost−price)=1200`。本测试同时对桶 `realized_cash` 增量取锚——两者恒等
+    /// 是「现金一笔取桶实收、不另立公式」的行为化保证，改断言即须同时改语义。
     #[test]
     fn write_off_applies_symmetrically_to_short_side() {
         let mut book = CampaignBook::new();
-        book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 0);
+        book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 0); // avg_cost=10，sizing=100
+        let cash_before = book.campaign(0, VoiceSide::Short).unwrap().short_diff().bucket().realized_cash();
         book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(1)).unwrap();
+        let cash_after = book.campaign(0, VoiceSide::Short).unwrap().short_diff().bucket().realized_cash();
+        assert_eq!(
+            cash_after - cash_before,
+            100 * (2 * 10 - 8),
+            "空头减出腿桶实收=units·avg_cost+units·(avg_cost−price)=units·(2·avg_cost−price)"
+        );
+
         let reduction = book.write_off_unclosed(0, VoiceSide::Short, cid(1)).unwrap().expect("空头侧同样可核销");
         assert_eq!(reduction.side, VoiceSide::Short);
         assert_eq!(reduction.units_gap, 100);
-        assert_eq!(reduction.cash_surplus, 800, "Σ units·price=100·8");
+        assert_eq!(reduction.cash_booked, 1_200, "桶实收=100·(2·10−8)=1200，非成交额 100·8=800");
+        assert_eq!(reduction.cash_booked, cash_after - cash_before, "现金一笔恒等于桶实收增量，不另立公式");
+        assert_ne!(reduction.cash_booked, 100 * 8, "空头侧不得回退到 Σ units·price 旧口径");
     }
 
     // ── #381：空头 campaign（键含侧 + 镜像减补 + 多空并存不污染） ──────────
