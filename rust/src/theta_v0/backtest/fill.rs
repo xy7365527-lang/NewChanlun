@@ -803,8 +803,14 @@ fn step_center_oscillation(
         match cl_machines[lvl].consume_chain(chain) {
             ChainConsumed::Advanced { events, .. } => {
                 for ev in events.iter() {
-                    for outcome in osc_books[lvl].on_lifecycle_event(ev) {
+                    let ev_out = osc_books[lvl].on_lifecycle_event(ev);
+                    // ★#414：延续（`Superseded` 命中挂起 ⟹ 不终结、不清算）——只落观测。
+                    for cont in ev_out.continuations.iter() {
+                        witness.record_suspension_continued(cont.side);
+                    }
+                    for outcome in ev_out.terminations {
                         witness.record_suspension_source(outcome.side, outcome.source);
+                        witness.record_settlement(outcome.side, outcome.settlement);
                         if let Some(action) = outcome.cover_action {
                             actions.push(CenterOscillationActionRecord {
                                 bar,
@@ -829,6 +835,7 @@ fn step_center_oscillation(
             ChainConsumed::Rebased { .. } => {
                 for outcome in osc_books[lvl].on_chain_rebase(chain) {
                     witness.record_suspension_source(outcome.side, outcome.source);
+                    witness.record_settlement(outcome.side, outcome.settlement);
                     if let Some(action) = outcome.cover_action {
                         actions.push(CenterOscillationActionRecord {
                             bar,
@@ -859,8 +866,15 @@ fn step_center_oscillation(
                     _ => None,
                 };
                 if let Ok(PointOutcome::Event(ev)) = cl_machines[lvl].push_point(p.bits, p.source_index, target) {
-                    for outcome in osc_books[lvl].on_lifecycle_event(&ev) {
+                    let ev_out = osc_books[lvl].on_lifecycle_event(&ev);
+                    // ★#414：本路径的 `Superseded` 不由买卖点驱动（`push_point` 只产 Broken/Reset），
+                    // 故延续在此恒空——留着是穷尽性，不靠「产不出」的隐含前提（同下方核销分支惯例）。
+                    for cont in ev_out.continuations.iter() {
+                        witness.record_suspension_continued(cont.side);
+                    }
+                    for outcome in ev_out.terminations {
                         witness.record_suspension_source(outcome.side, outcome.source);
+                        witness.record_settlement(outcome.side, outcome.settlement);
                         if let Some(action) = outcome.cover_action {
                             actions.push(CenterOscillationActionRecord {
                                 bar,
@@ -1851,6 +1865,76 @@ mod center_oscillation_wiring_tests {
         assert!(actions.is_empty(), "RebaseVanished 终结不回补，本 bar 无 cover_action 可见动作");
         assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "c0 已从新链消失⟹终结，不再悬空");
         assert!(osc_books[0].is_suspended(CenterId::of(&c1)), "c1 仍在新链上⟹跟随迁移，挂起原样保留");
+    }
+
+    /// ★★#414 端到端接线证据（ADR 补充十一）：`step_center_oscillation` 遇 `Superseded` 时
+    /// **不终结**挂起、只落延续观测；挂起延续到**原中枢**的三类买点到达才按 #366 闭合终局清算
+    /// （产出一条真实 `Replenish` 收手回补动作 + `cover_and_close` 终局分桶）。
+    ///
+    /// 三拍：bar0 采纳链 [c0] 并在 c0 上挂起 → bar1 链推进为 [c0,c1]（c0 被取代）→ bar2 在
+    /// c0（此时的容读格）上落三类买点。
+    #[test]
+    fn gate_superseded_continues_suspension_until_original_center_third_class_point() {
+        let c0 = center(5, 10, 100, 200);
+        let c1 = center(20, 25, 300, 400);
+        let mut cl_machines = Vec::new();
+        let mut osc_books = Vec::new();
+        let mut witness = super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let empty_step = Classification { levels: vec![LevelState::default()] };
+
+        // bar0：链=[c0] 首次消费（Adopted），随后在 c0 上开一笔挂起（上沿高抛）。
+        let bar0 = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let _ = step_center_oscillation(0, &bar0, &empty_step, &mut cl_machines, &mut osc_books, &mut witness).actions;
+        osc_books[0].on_trigger(
+            super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
+                0,
+                Some(CenterId::of(&c0)),
+                CenterDrift::NoDownShift,
+                VoiceSide::Short,
+                200, // = c0.zg，向上离开中枢（含端点）
+                1,
+            )
+            .unwrap(),
+        );
+        assert!(osc_books[0].is_suspended(CenterId::of(&c0)));
+
+        // bar1：链推进为 [c0, c1] ⟹ Advanced{Superseded(c0), Born(c1)}。
+        let bar1 = Classification { levels: vec![level_with_centers(vec![c0, c1])] };
+        let step1 = step_center_oscillation(1, &bar1, &empty_step, &mut cl_machines, &mut osc_books, &mut witness);
+        assert!(step1.actions.is_empty(), "取代不产任何动作");
+        assert!(step1.write_offs.is_empty(), "取代不产核销请求");
+        assert!(
+            osc_books[0].is_suspended(CenterId::of(&c0)),
+            "★#414：被取代不终结挂起——挂起延续，等原中枢三类点"
+        );
+        assert_eq!(
+            witness.suspension_continued_count.get("long"),
+            Some(&1),
+            "延续计数落 witness（产物级可见，非静默）"
+        );
+        assert_eq!(
+            witness.suspension_by_source.get(&("long", "superseded")),
+            None,
+            "★桶退役：取代不再是挂起归宿"
+        );
+
+        // bar2：原中枢 c0（容读格）上的三类买点 ⟹ #366 闭合终局（收手回补）。
+        let step2_bsp = Classification { levels: vec![level_with_bsp(vec![third_class_buy_break(77, c0)])] };
+        let step2 = step_center_oscillation(2, &bar1, &step2_bsp, &mut cl_machines, &mut osc_books, &mut witness);
+        assert_eq!(step2.actions.len(), 1, "延续的挂起在原中枢三类买点上收手回补");
+        assert_eq!(step2.actions[0].action, CenterOscillationAction::Replenish);
+        assert_eq!(step2.actions[0].center, CenterId::of(&c0), "归属原中枢，不误挂到新在场的 c1");
+        assert_eq!(
+            witness.suspension_by_source.get(&("long", "broken_by_third_class_buy")),
+            Some(&1),
+            "归宿=三类买点（清算分流读数）"
+        );
+        assert_eq!(
+            witness.settlement_by_side.get(&("long", "cover_and_close")),
+            Some(&1),
+            "终局=闭合（与 forfeit/核销分列）"
+        );
+        assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "清算后挂起离场");
     }
 
     /// 门控双轨（#292 项目二）：原测试用空 bars——`bars.is_empty()` 本身已让 `pan_div_hist=None`，

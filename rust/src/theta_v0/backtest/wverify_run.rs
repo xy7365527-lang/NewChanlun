@@ -1350,7 +1350,9 @@ fn m8_e2e_all_systems_oos() {
                  unclosed_write_off_count={:?} unclosed_write_off_units_gap={:?} \
                  unclosed_write_off_cash_booked={:?} unclosed_write_off_nothing_to_settle={:?} \
                  action_by_level={:?} \
-                 suspension_by_source={:?} lifecycle_opened={:?} lifecycle_died={:?} \
+                 suspension_by_source={:?} suspension_continued_count={:?} \
+                 settlement_by_side={:?} replenish_foreign_center_count={:?} \
+                 lifecycle_opened={:?} lifecycle_died={:?} \
                  no_active_campaign_count={:?} \
                  resource_exhausted_holding_negative_count={:?} \
                  loss_round_trip_accounted_count={:?} defense_units_exceed_current_holding_count={:?} \
@@ -1374,6 +1376,11 @@ fn m8_e2e_all_systems_oos() {
                 w.unclosed_write_off_nothing_to_settle,
                 w.action_by_level,
                 w.suspension_by_source,
+                // ★#414（ADR 补充十一）：延续计数（取代不再终结挂起）/ 清算终局分流（闭合·核销·
+                // 作废分列）/ 异中枢回补被拒（禁静默冲抵的正面读数）。
+                w.suspension_continued_count,
+                w.settlement_by_side,
+                w.replenish_foreign_center_count,
                 w.lifecycle_opened,
                 w.lifecycle_died,
                 w.no_active_campaign_count,

@@ -3,8 +3,12 @@
 //! ADR 0001 修正案一/补充二裁定 + #292 前置约束五条（#337 评审论证，2026-07-26）：
 //! - **A**：触发用主格——`alive_center()`（T1 [`center_lifecycle::CenterEventMachine`]）语义
 //!   未变，本模块直接消费其结果，不另立第二套「在场」判据。
-//! - **B**：superseded（[`center_lifecycle::DeathForm::ArenaTermination`]，被链推进取代）是
-//!   挂起短差的终结触发源之一——在场终结**不新增出口**，仍只走「回补/终结」二分的终结支。
+//! - **B**（★★#414 改判，2026-07-27 用户裁定，ADR 补充十一）：superseded
+//!   （[`center_lifecycle::DeathForm::ArenaTermination`]，被链推进取代）**不再是挂起的终结触发
+//!   源**——中枢的终结唯一 = 三类买卖点（定理三），取代只是「在场中枢换了一个」（中枢层更替），
+//!   不是中枢的死。原中枢区间为历史事实（ZG/ZD 冻结），其三类点判据在死后继续适用，故**挂起
+//!   延续**（不随取代清除），等原中枢的三类买卖点到达时按 #366 两终局清算（三买→回补、三卖→
+//!   核销）。本裁定修正 ADR 补充六「取代 = 在场终结，挂起随之终结」的账目层表述（中枢层不变）。
 //! - **C**：终结动作**幂等**——主流程常态是同一实例先收在场终结、后收教义死亡两条信号
 //!   （#337 容读法），第二条信号必须是 no-op，不得重复产出/panic。
 //! - **D**：挂起按**中枢身份**（[`center_lifecycle::CenterId`]，经 `killed_center_id()`）匹配，
@@ -265,8 +269,15 @@ pub struct CenterOscillationActionRecord {
     pub side: VoiceSide,
 }
 
-/// 挂起短差的终结来源（ADR 补充二 + #292 前置约束五条 + #292 续修）。五源同走「终结」出口，
+/// 挂起短差的终结来源（ADR 补充二 + #292 前置约束五条 + #292 续修）。四源同走「终结」出口，
 /// 互不重叠。
+///
+/// ★★#414 桶退役（2026-07-27 用户裁定，ADR 补充十一）：`Superseded` 变体**已删除**——被取代
+/// 不是中枢的死（中枢终结唯一 = 三类买卖点），故它不再是任何挂起的终结来源；命中挂起时产
+/// [`SuspensionContinuation`]（延续，不终结）。witness 的 `("侧","superseded")` 桶随之退役，
+/// 接替它的是 `suspension_continued_count`（正面读数，见
+/// [`super::oscillation_campaign::CampaignWiringWitness`]）。变体删除而非保留=让教义可机检：
+/// 「Superseded 是终结来源」在类型层已不可表达。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SuspensionTerminationSource {
     /// 本级三类**买**点破坏（`Broken{breaker_side: Long}`）：终结伴随一次收手回补——
@@ -280,9 +291,6 @@ pub enum SuspensionTerminationSource {
     /// 本级一类点全平（该级走势类型终结）。★暂定口径（票面项 8，待编排者裁）：清空**整场**
     /// 全部挂起身份，而非仅同死的那一个中枢——与该级走势类型终结同精神（Q2 同款先例）。
     Reset,
-    /// 被链推进取代（[`center_lifecycle::DeathForm::ArenaTermination`]，B 裁定）：终结不回补
-    /// ——承诺作废，禁任何形式复活（无本级买点证书不得开仓）。
-    Superseded,
     /// ★#292 续修（二轮评审浮出的挂起悬空泄漏修复）：链重基（[`center_lifecycle::ChainConsumed::Rebased`]）
     /// 后，挂起对应的中枢身份已不在新链上——该实例连「被取代」的记录都没有，是工程重基这一
     /// 侧信道的失踪，与 `Superseded` 同形态终结：不回补，承诺作废，禁任何形式复活。判据 =
@@ -304,11 +312,38 @@ pub enum TerminationSettlement {
     /// 闭合终局混同为「一律终结放弃回补」，本票分开。核销落点见
     /// [`super::oscillation_campaign::CampaignBook::write_off_unclosed`]。
     WriteOffUnclosed,
-    /// **承诺作废**（`Reset`/`Superseded`/`RebaseVanished`）：#292 既有口径，本票未改——
-    /// 前者是本级走势类型终结（仓位随之全平，挂起随仓死），后两者是链推进/工程重基的侧信道
-    /// 失踪，均非教义三类点终局，故不进两终局分账。如实标注：这三源的清算口径**未经**
-    /// #366 补充裁定复核（票面只裁三买/三卖两终局）。
+    /// **承诺作废**（`Reset`/`RebaseVanished`）：#292 既有口径，#366/#414 均未改——前者是本级
+    /// 走势类型终结（仓位随之全平，挂起随仓死），后者是工程重基的侧信道失踪，均非教义三类点
+    /// 终局，故不进两终局分账。如实标注：这两源的清算口径**未经** #366 补充裁定复核（票面只裁
+    /// 三买/三卖两终局），#414 前置裁定亦明示「Reset/RebaseVanished 保留现口径 + 如实呈报，
+    /// 其清算是否同族另议」。★#414：原第三源 `Superseded` 已不再是终结来源（见
+    /// [`SuspensionTerminationSource`] 的桶退役注记）。
     Forfeit,
+}
+
+/// ★★#414（2026-07-27 用户裁定，ADR 补充十一）：一条「挂起**延续**」记录——`Superseded`
+/// （被链推进取代）命中某侧挂起时的产出。
+///
+/// 与 [`SuspensionOutcome`] 的分野是教义性的、不是措辞差异：终结产出会把挂起从表里摘掉并进入
+/// 清算（回补/核销/作废），本记录**不动挂起表**——挂起原样留着，等原中枢的三类买卖点到达时
+/// 才按 #366 两终局清算。故本类型不携 `settlement`/`cover_action`（此刻没有任何清算发生），
+/// 只是可观测证据（witness `suspension_continued_count`），使「81% 的挂起改道延续」在产物级可读。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SuspensionContinuation {
+    pub center: CenterId,
+    pub side: VoiceSide,
+}
+
+/// ★#414：一条中枢生命周期事件对挂起表的**全部**产出——终结与延续两路**分列**。
+///
+/// 分列而非合并为一个 `Vec`：两者对账目的含义相反（终结=挂起离场并清算；延续=挂起仍在场、
+/// 一分钱不动），混进同一序列会让下游把「什么都没发生」记成一次归宿。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SuspensionEventOutcome {
+    /// 本事件终结的挂起（逐侧各一条）。
+    pub terminations: Vec<SuspensionOutcome>,
+    /// ★#414：本事件使其**延续**的挂起（当前唯一来源 = `Superseded`）。
+    pub continuations: Vec<SuspensionContinuation>,
 }
 
 /// 一次终结的产出：身份 + 来源 + 清算终局 + 是否伴随一次收手回补动作（仅 `CoverAndClose`
@@ -351,9 +386,9 @@ fn settlement_for(
                 TerminationSettlement::WriteOffUnclosed
             }
         }
-        SuspensionTerminationSource::Reset
-        | SuspensionTerminationSource::Superseded
-        | SuspensionTerminationSource::RebaseVanished => TerminationSettlement::Forfeit,
+        SuspensionTerminationSource::Reset | SuspensionTerminationSource::RebaseVanished => {
+            TerminationSettlement::Forfeit
+        }
     }
 }
 
@@ -488,27 +523,54 @@ impl CenterOscillationBook {
     /// [`SuspensionOutcome`]（带 `side`）。收手回补按侧**镜像**：多头侧于三类**买**点收手回补
     /// （结构续涨须补回货，既有口径不动），空头侧于三类**卖**点收手加回空头（结构续跌须补回
     /// 空头）；反向的那类点各自只终结不回补（多头「三卖不回补」的镜像）。
-    pub fn on_lifecycle_event(&mut self, event: &CenterLifecycleEvent) -> Vec<SuspensionOutcome> {
+    ///
+    /// ★★#414（ADR 补充十一）：`Superseded` 改走**延续**支——不摘挂起、不清算，逐侧产一条
+    /// [`SuspensionContinuation`]（`continuations`）。产出类型因此从 `Vec<SuspensionOutcome>`
+    /// 改为 [`SuspensionEventOutcome`]（终结/延续两路分列，理由见该类型文档）。
+    ///
+    /// ★**有效域（如实标注，090）**：延续的挂起只有在原中枢**仍能收到** `Broken` 事件时才走得到
+    /// 两终局清算——而 [`center_lifecycle::CenterEventMachine`] 的容读法只保**链尾前一格**
+    /// （`prev_slot`）：链再推进一格后，指向该中枢的三类点请求会被判为 `Stale` 而不产 `Broken`。
+    /// 故被取代两代以上的挂起在本机会**继续挂着**，直到 `Reset`（清空整场）或 `RebaseVanished`
+    /// 到达才离场。这不是本票新引入的缺口（容读窗口是 #337 既有口径），但它使「延续到三类点
+    /// 清算」在这部分样本上**不可达**——延续计数与最终清算计数的差额即该缺口的产物级读数，
+    /// 不得读成「都清算了」。
+    pub fn on_lifecycle_event(&mut self, event: &CenterLifecycleEvent) -> SuspensionEventOutcome {
         if matches!(event, CenterLifecycleEvent::Reset { .. }) {
             if self.suspended.is_empty() {
-                return Vec::new();
+                return SuspensionEventOutcome::default();
             }
             let keys: Vec<(VoiceSide, CenterId)> = self.suspended.keys().copied().collect();
             self.suspended.clear();
-            return keys
-                .into_iter()
-                .map(|(side, center)| SuspensionOutcome {
-                    center,
-                    source: SuspensionTerminationSource::Reset,
-                    cover_action: None,
-                    side,
-                    settlement: settlement_for(side, SuspensionTerminationSource::Reset),
-                })
-                .collect();
+            return SuspensionEventOutcome {
+                terminations: keys
+                    .into_iter()
+                    .map(|(side, center)| SuspensionOutcome {
+                        center,
+                        source: SuspensionTerminationSource::Reset,
+                        cover_action: None,
+                        side,
+                        settlement: settlement_for(side, SuspensionTerminationSource::Reset),
+                    })
+                    .collect(),
+                continuations: Vec::new(),
+            };
         }
         let Some(id) = event.killed_center_id() else {
-            return Vec::new(); // Born，或场为空的 Reset（上面分支已处理非空 Reset）。
+            // Born，或场为空的 Reset（上面分支已处理非空 Reset）。
+            return SuspensionEventOutcome::default();
         };
+        // ★#414：被取代 ⟹ 挂起**延续**（不摘表、不清算），逐侧产一条延续记录。
+        if matches!(event, CenterLifecycleEvent::Superseded { .. }) {
+            return SuspensionEventOutcome {
+                terminations: Vec::new(),
+                continuations: [VoiceSide::Long, VoiceSide::Short]
+                    .into_iter()
+                    .filter(|side| self.suspended.contains_key(&(*side, id)))
+                    .map(|side| SuspensionContinuation { center: id, side })
+                    .collect(),
+            };
+        }
         let source = match event {
             CenterLifecycleEvent::Broken { breaker_side: Side::Long, .. } => {
                 SuspensionTerminationSource::BrokenByThirdClassBuy
@@ -516,24 +578,28 @@ impl CenterOscillationBook {
             CenterLifecycleEvent::Broken { breaker_side: Side::Short, .. } => {
                 SuspensionTerminationSource::BrokenByThirdClassSell
             }
-            CenterLifecycleEvent::Superseded { .. } => SuspensionTerminationSource::Superseded,
-            CenterLifecycleEvent::Reset { .. } | CenterLifecycleEvent::Born { .. } => {
-                return Vec::new();
+            CenterLifecycleEvent::Superseded { .. }
+            | CenterLifecycleEvent::Reset { .. }
+            | CenterLifecycleEvent::Born { .. } => {
+                return SuspensionEventOutcome::default();
             }
         };
         // 逐侧终结（该身份在某侧未挂起 ⟹ 该侧幂等 no-op，不产出）。侧序固定 Long→Short，
         // 与挂起表的 `BTreeMap` 迭代序同锚（确定性，H1 理由不变）。
-        [VoiceSide::Long, VoiceSide::Short]
-            .into_iter()
-            .filter(|side| self.suspended.remove(&(*side, id)).is_some())
-            .map(|side| SuspensionOutcome {
-                center: id,
-                source,
-                cover_action: cover_action_for(side, source),
-                side,
-                settlement: settlement_for(side, source),
-            })
-            .collect()
+        SuspensionEventOutcome {
+            terminations: [VoiceSide::Long, VoiceSide::Short]
+                .into_iter()
+                .filter(|side| self.suspended.remove(&(*side, id)).is_some())
+                .map(|side| SuspensionOutcome {
+                    center: id,
+                    source,
+                    cover_action: cover_action_for(side, source),
+                    side,
+                    settlement: settlement_for(side, source),
+                })
+                .collect(),
+            continuations: Vec::new(),
+        }
     }
 
     /// 消费一次链**重基**（[`center_lifecycle::ChainConsumed::Rebased`]）⟹ 0 或多条终结产出
@@ -831,7 +897,7 @@ mod tests {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
         book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
-        let outcomes = book.on_lifecycle_event(&broken(id, Side::Long));
+        let outcomes = book.on_lifecycle_event(&broken(id, Side::Long)).terminations;
         assert_eq!(outcomes.len(), 1);
         assert_eq!(outcomes[0].source, SuspensionTerminationSource::BrokenByThirdClassBuy);
         assert_eq!(outcomes[0].cover_action, Some(CenterOscillationAction::Replenish));
@@ -844,7 +910,7 @@ mod tests {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
         book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
-        let outcomes = book.on_lifecycle_event(&reset_with(Some(id)));
+        let outcomes = book.on_lifecycle_event(&reset_with(Some(id))).terminations;
         assert_eq!(outcomes.len(), 1);
         assert_eq!(outcomes[0].source, SuspensionTerminationSource::Reset);
         assert_eq!(outcomes[0].cover_action, None, "全平终结不回补");
@@ -861,7 +927,7 @@ mod tests {
         book.on_trigger(CenterOscillationTrigger::new(0, Some(stale_suspended), CenterDrift::NoDownShift, VoiceSide::Short, stale_suspended.zg, 10).unwrap());
         book.on_trigger(CenterOscillationTrigger::new(0, Some(currently_alive), CenterDrift::NoDownShift, VoiceSide::Short, currently_alive.zg, 20).unwrap());
         assert_eq!(book.suspended_count(), 2);
-        let outcomes = book.on_lifecycle_event(&reset_with(Some(currently_alive)));
+        let outcomes = book.on_lifecycle_event(&reset_with(Some(currently_alive))).terminations;
         assert_eq!(outcomes.len(), 2, "清空整场=两个挂起身份同时终结，非仅同死的那一个");
         assert_eq!(book.suspended_count(), 0);
     }
@@ -872,32 +938,105 @@ mod tests {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
         book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
-        let outcomes = book.on_lifecycle_event(&broken(id, Side::Short));
+        let outcomes = book.on_lifecycle_event(&broken(id, Side::Short)).terminations;
         assert_eq!(outcomes.len(), 1);
         assert_eq!(outcomes[0].source, SuspensionTerminationSource::BrokenByThirdClassSell);
         assert_eq!(outcomes[0].cover_action, None);
         assert!(!book.is_suspended(id));
     }
 
-    /// 出口⑤：中枢破坏终结的另一面——被链推进取代（superseded，B 裁定）同走终结出口，不回补。
+    // ── ★★#414（ADR 补充十一）：Superseded 非终结——挂起延续到原中枢三类买卖点清算 ──────
+
+    /// ★#414 核心用例（改判既有出口⑤）：被链推进取代**不终结**挂起——不产终结、不清算，
+    /// 挂起原样留在表里，只产一条延续记录。教义：中枢终结唯一 = 三类买卖点，取代只是在场
+    /// 中枢换了一个（中枢层更替），不是中枢的死。
     #[test]
-    fn suspension_exit_superseded_arena_termination_without_cover() {
+    fn superseded_continues_suspension_instead_of_terminating() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
         book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
-        let outcomes = book.on_lifecycle_event(&superseded(id));
-        assert_eq!(outcomes.len(), 1);
-        assert_eq!(outcomes[0].source, SuspensionTerminationSource::Superseded);
-        assert_eq!(outcomes[0].cover_action, None, "承诺作废，禁任何形式复活");
+        let out = book.on_lifecycle_event(&superseded(id));
+        assert!(out.terminations.is_empty(), "取代不是死法 ⟹ 零终结产出");
+        assert_eq!(
+            out.continuations,
+            vec![SuspensionContinuation { center: id, side: VoiceSide::Long }],
+            "命中的挂起逐侧产一条延续记录（观测面，不是归宿）"
+        );
+        assert!(book.is_suspended(id), "★挂起延续：不随取代清除，等原中枢三类点清算");
+    }
+
+    /// ★#414：延续后**原中枢的三类买点**到达 ⟹ 走 #366 闭合终局（收手回补，哪怕贵了）。
+    /// 这是票面项 2「原中枢三类点出现时按两终局清算」的端到端最小证据（多头侧）。
+    #[test]
+    fn continued_suspension_settles_at_original_center_third_class_buy() {
+        let id = cid(5, 100, 200);
+        let mut book = CenterOscillationBook::new(0);
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
+        assert!(book.on_lifecycle_event(&superseded(id)).terminations.is_empty());
+        // 原中枢（区间已冻结为历史事实）的三类买点到达。
+        let out = book.on_lifecycle_event(&broken(id, Side::Long));
+        assert_eq!(out.terminations.len(), 1, "延续的挂起在原中枢三类点上终结");
+        assert_eq!(out.terminations[0].settlement, TerminationSettlement::CoverAndClose);
+        assert_eq!(
+            out.terminations[0].cover_action,
+            Some(CenterOscillationAction::Replenish),
+            "三买 ⟹ 回补（73 课：不回补即可能错过中枢上移）"
+        );
         assert!(!book.is_suspended(id));
     }
 
+    /// ★#414：延续后**原中枢的三类卖点**到达 ⟹ 走 #366 核销终局（不回补，未闭合减出分列呈报）。
+    #[test]
+    fn continued_suspension_settles_at_original_center_third_class_sell() {
+        let id = cid(5, 100, 200);
+        let mut book = CenterOscillationBook::new(0);
+        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
+        book.on_lifecycle_event(&superseded(id));
+        let out = book.on_lifecycle_event(&broken(id, Side::Short));
+        assert_eq!(out.terminations.len(), 1);
+        assert_eq!(out.terminations[0].settlement, TerminationSettlement::WriteOffUnclosed);
+        assert_eq!(out.terminations[0].cover_action, None, "三卖 ⟹ 不回补，核销");
+        assert!(!book.is_suspended(id));
+    }
+
+    /// ★#414：取代事件命中**未挂起**的身份 ⟹ 既不终结也不延续（零产出），不编造观测读数。
+    #[test]
+    fn superseded_without_suspension_produces_nothing() {
+        let id = cid(5, 100, 200);
+        let mut book = CenterOscillationBook::new(0);
+        let out = book.on_lifecycle_event(&superseded(id));
+        assert!(out.terminations.is_empty());
+        assert!(out.continuations.is_empty(), "没有挂起可延续 ⟹ 不记延续");
+    }
+
+    /// ★#414：延续在**两侧**各自成立（多空并存时逐侧一条，不跨侧求和，ADR 补充九纪律）。
+    #[test]
+    fn superseded_continuation_is_recorded_per_side() {
+        let mut book = CenterOscillationBook::new(0);
+        let c = cid(0, 100, 200);
+        let above = CenterOscillationTrigger::from_parts(0, c, BoundarySide::Above, VoiceSide::Short, 1);
+        let below = CenterOscillationTrigger::from_parts(0, c, BoundarySide::Below, VoiceSide::Long, 2);
+        book.on_trigger_side(VoiceSide::Long, above);
+        book.on_trigger_side(VoiceSide::Short, below);
+        let out = book.on_lifecycle_event(&superseded(c));
+        assert_eq!(
+            out.continuations,
+            vec![
+                SuspensionContinuation { center: c, side: VoiceSide::Long },
+                SuspensionContinuation { center: c, side: VoiceSide::Short },
+            ],
+            "逐侧各一条（侧序固定 Long→Short，确定性）"
+        );
+        assert_eq!(book.suspended_count(), 2, "两侧挂起都延续");
+    }
+
     /// 终结后幽灵回补=0：任何终结出口之后，同身份的下沿信号必须被拒绝（不得凭空复活仓位）。
+    /// ★#414：`superseded` 从本表移除——它已不是终结出口（延续后挂起仍在，下沿信号本就该
+    /// 放行回补，那正是「延续等清算」的正常形态，见 `superseded_continues_suspension_*`）。
     #[test]
     fn ghost_replenish_after_any_termination_source_is_always_zero() {
         for (label, event) in [
             ("third_class_sell", broken(cid(5, 100, 200), Side::Short)),
-            ("superseded", superseded(cid(5, 100, 200))),
             ("reset", reset_with(Some(cid(5, 100, 200)))),
         ] {
             let id = cid(5, 100, 200);
@@ -920,13 +1059,13 @@ mod tests {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
         book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
-        let buy_out = book.on_lifecycle_event(&broken(id, Side::Long));
+        let buy_out = book.on_lifecycle_event(&broken(id, Side::Long)).terminations;
         assert_eq!(buy_out[0].settlement, TerminationSettlement::CoverAndClose);
         assert_eq!(buy_out[0].cover_action, Some(CenterOscillationAction::Replenish));
 
         let mut book2 = CenterOscillationBook::new(0);
         book2.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
-        let sell_out = book2.on_lifecycle_event(&broken(id, Side::Short));
+        let sell_out = book2.on_lifecycle_event(&broken(id, Side::Short)).terminations;
         assert_eq!(
             sell_out[0].settlement,
             TerminationSettlement::WriteOffUnclosed,
@@ -942,28 +1081,25 @@ mod tests {
         let below = CenterOscillationTrigger::from_parts(0, c, BoundarySide::Below, VoiceSide::Long, 2);
         let mut book = CenterOscillationBook::new(0);
         book.on_trigger_side(VoiceSide::Short, below);
-        let sell_out = book.on_lifecycle_event(&broken(c, Side::Short));
+        let sell_out = book.on_lifecycle_event(&broken(c, Side::Short)).terminations;
         assert_eq!(sell_out[0].settlement, TerminationSettlement::CoverAndClose);
 
         let mut book2 = CenterOscillationBook::new(0);
         book2.on_trigger_side(VoiceSide::Short, below);
-        let buy_out = book2.on_lifecycle_event(&broken(c, Side::Long));
+        let buy_out = book2.on_lifecycle_event(&broken(c, Side::Long)).terminations;
         assert_eq!(buy_out[0].settlement, TerminationSettlement::WriteOffUnclosed);
     }
 
-    /// 非教义三类点的三源（`Reset`/`Superseded`/`RebaseVanished`）恒 `Forfeit`——#292 既有
-    /// 口径，#366 未改（票面只裁三买/三卖两终局；本条把「未改」钉成可执行事实，防止被误读为
-    /// 也已按新口径核销）。
+    /// 非教义三类点的两源（`Reset`/`RebaseVanished`）恒 `Forfeit`——#292 既有口径，#366 未改，
+    /// ★#414 亦明示「保留现口径 + 如实呈报」（票面项 4；本条把「未改」钉成可执行事实，防止
+    /// 被误读为也已按新口径核销）。原第三源 `Superseded` 已随 #414 移出终结面。
     #[test]
     fn non_doctrinal_termination_sources_stay_forfeit() {
         let id = cid(5, 100, 200);
-        for (label, event) in [
-            ("reset", reset_with(Some(id))),
-            ("superseded", superseded(id)),
-        ] {
+        for (label, event) in [("reset", reset_with(Some(id)))] {
             let mut book = CenterOscillationBook::new(0);
             book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
-            let out = book.on_lifecycle_event(&event);
+            let out = book.on_lifecycle_event(&event).terminations;
             assert_eq!(out[0].settlement, TerminationSettlement::Forfeit, "{label}");
         }
         let mut book = CenterOscillationBook::new(0);
@@ -984,24 +1120,31 @@ mod tests {
             level: 0,
             center: Center { zd: id.zd, zg: id.zg, dd: id.zd - 2, gg: id.zg + 2, start_index: id.start_index, end_index: id.start_index + 50 },
             chain_index: 0,
-        });
+        }).terminations;
         assert!(out.is_empty(), "中枢未死 ⟹ 无终局产出");
         assert!(book.is_suspended(id), "挂起继续等，不提前终局");
     }
 
     // ── 幂等（C 裁定） ────────────────────────────────────────────────────
 
-    /// 主流程常态：同一实例先收在场终结（superseded）、后收教义死亡（broken）——第二条信号
-    /// 必须是 no-op（幂等），不得重复产出终结事件。
+    /// ★#414 改判：主流程常态（同一实例先收在场终结 superseded、后收教义死亡 broken）现在
+    /// 是**延续 → 清算**两拍，不再是「终结 + no-op」。第二条信号才是真终局——这正是本票
+    /// 「触发点从取代时改到三类点时」的时序证据。
+    ///
+    /// 幂等本身仍成立（`same_event_fed_twice_is_idempotent` 与本条第三拍）：清算之后同一
+    /// 身份再来任何信号都是 no-op。
     #[test]
-    fn termination_is_idempotent_across_duplicate_dual_signals() {
+    fn superseded_then_doctrinal_death_settles_on_the_second_signal() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
         book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
         let first = book.on_lifecycle_event(&superseded(id));
-        assert_eq!(first.len(), 1, "第一条信号（在场终结）产出终结");
-        let second = book.on_lifecycle_event(&broken(id, Side::Long));
-        assert!(second.is_empty(), "第二条信号（容读法放行的教义死亡）必须 no-op，不重复产出");
+        assert!(first.terminations.is_empty(), "第一条信号（取代）不终结");
+        assert_eq!(first.continuations.len(), 1, "记一次延续");
+        let second = book.on_lifecycle_event(&broken(id, Side::Long)).terminations;
+        assert_eq!(second.len(), 1, "第二条信号（容读法放行的教义死亡）才是终局");
+        let third = book.on_lifecycle_event(&broken(id, Side::Long)).terminations;
+        assert!(third.is_empty(), "清算之后再来同一信号必须 no-op（幂等不变）");
     }
 
     /// 同一 Broken 事件被重复喂入（同型防御性重放）也必须幂等。
@@ -1011,9 +1154,9 @@ mod tests {
         let mut book = CenterOscillationBook::new(0);
         book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
         let ev = broken(id, Side::Long);
-        let first = book.on_lifecycle_event(&ev);
+        let first = book.on_lifecycle_event(&ev).terminations;
         assert_eq!(first.len(), 1);
-        let second = book.on_lifecycle_event(&ev);
+        let second = book.on_lifecycle_event(&ev).terminations;
         assert!(second.is_empty());
     }
 
@@ -1031,7 +1174,7 @@ mod tests {
         book.on_trigger(CenterOscillationTrigger::new(0, Some(new_id), CenterDrift::NoDownShift, VoiceSide::Short, new_id.zg, 100).unwrap());
         assert_eq!(book.suspended_count(), 2);
         // 终结事件声明身份 = old_id（即便当前在场早已是 new_id）。
-        let outcomes = book.on_lifecycle_event(&broken(old_id, Side::Short));
+        let outcomes = book.on_lifecycle_event(&broken(old_id, Side::Short)).terminations;
         assert_eq!(outcomes.len(), 1);
         assert_eq!(outcomes[0].center, old_id, "命中的是载体所指的旧身份");
         assert!(!book.is_suspended(old_id));
@@ -1048,7 +1191,7 @@ mod tests {
         let mut book = CenterOscillationBook::new(0);
         book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
         // 无任何 superseded 事件历史，直接喂教义死亡。
-        let outcomes = book.on_lifecycle_event(&broken(id, Side::Short));
+        let outcomes = book.on_lifecycle_event(&broken(id, Side::Short)).terminations;
         assert_eq!(outcomes.len(), 1);
         assert!(!book.is_suspended(id));
     }
@@ -1154,7 +1297,7 @@ mod tests {
     fn no_mutex_gate_between_levels_each_book_is_independent() {
         let id = cid(5, 100, 200);
         let mut book0 = CenterOscillationBook::new(0);
-        let mut book1 = CenterOscillationBook::new(1);
+        let book1 = CenterOscillationBook::new(1);
         book0.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
         book0.on_lifecycle_event(&broken(id, Side::Long));
         assert_eq!(book1.suspended_count(), 0, "本级动作对另一级别挂起表零影响");
@@ -1238,7 +1381,7 @@ mod tests {
         for (id, seed) in [(mid, 10usize), (high, 20), (low, 30)] {
             book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, seed).unwrap());
         }
-        let outcomes = book.on_lifecycle_event(&reset_with(None));
+        let outcomes = book.on_lifecycle_event(&reset_with(None)).terminations;
         let ids: Vec<CenterId> = outcomes.iter().map(|o| o.center).collect();
         assert_eq!(ids, vec![low, mid, high], "产出必须按 CenterId 升序（BTreeMap 派生序），非插入序");
         let mut sorted = ids.clone();
@@ -1312,7 +1455,7 @@ mod tests {
         book.on_trigger_side(VoiceSide::Long, above);
         book.on_trigger_side(VoiceSide::Short, below);
 
-        let outcomes = book.on_lifecycle_event(&broken(c, Side::Long)); // 三类买点破坏
+        let outcomes = book.on_lifecycle_event(&broken(c, Side::Long)).terminations; // 三类买点破坏
         assert_eq!(outcomes.len(), 2, "两侧挂起同时终结");
         let long_out = outcomes.iter().find(|o| o.side == VoiceSide::Long).expect("多头侧产出");
         let short_out = outcomes.iter().find(|o| o.side == VoiceSide::Short).expect("空头侧产出");
@@ -1327,7 +1470,7 @@ mod tests {
         let mut book2 = CenterOscillationBook::new(0);
         book2.on_trigger_side(VoiceSide::Long, above);
         book2.on_trigger_side(VoiceSide::Short, below);
-        let outcomes2 = book2.on_lifecycle_event(&broken(c, Side::Short));
+        let outcomes2 = book2.on_lifecycle_event(&broken(c, Side::Short)).terminations;
         let long2 = outcomes2.iter().find(|o| o.side == VoiceSide::Long).expect("多头侧产出");
         let short2 = outcomes2.iter().find(|o| o.side == VoiceSide::Short).expect("空头侧产出");
         assert_eq!(long2.cover_action, None, "多头侧三类卖点不回补（既有口径不变）");

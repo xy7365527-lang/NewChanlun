@@ -52,7 +52,9 @@
 use super::super::classifier::center_lifecycle::CenterId;
 use super::super::closed_loop::state::RiskMode;
 use super::super::closed_loop::transition::{cash_sound_gate, stage_progression, TransitionError};
-use super::center_oscillation_trade::{CenterOscillationAction, SuspensionTerminationSource, TriggerError};
+use super::center_oscillation_trade::{
+    CenterOscillationAction, SuspensionTerminationSource, TerminationSettlement, TriggerError,
+};
 use super::ledger::{tw_step, LedgerComp, RiskPolicy, TwEvent, TwState};
 use super::short_diff_bucket::{CoreCostBasisSnapshot, ShortDiffAccount, ShortDiffViolation};
 use super::voice::VoiceSide;
@@ -107,6 +109,14 @@ pub enum CampaignViolation {
     /// 照实分流计数，不与 [`Self::SizingRoundsToZero`]（持仓过小的量纲异常）或
     /// [`Self::ReplenishWhileFull`]（货本就满）混计。挂起继续挂着，不静默补齐。
     EarningSizingRoundsToZero { pool: i64, price: i64 },
+    /// ★★#414 项三（ADR 补充十一，2026-07-27 用户裁定）：`Replenish` 触发时桶里**有**挂起在途
+    /// 量，但**没有一批来自本次触发的那个来源中枢** ⟹ 拒绝，不拿这次回补去抹平别的中枢的
+    /// 挂起（旧口径的「余按时间序」外溢，wf8 证据 `cover_by_side ("long","other_center"):3`）。
+    ///
+    /// 与 [`Self::ReplenishWhileFull`]（桶总量=0，货本就满）**分列**：那是「没货可补」，这是
+    /// 「有货但不是你的货」。两者都是预期经济场景（非警报），但归因完全不同，混桶后就读不出
+    /// 中枢绑定实际拦了多少。`open_units_total` = 当时桶里其他中枢的挂起总量（诊断载荷）。
+    ReplenishForeignCenter { open_units_total: i64 },
 }
 
 impl From<ShortDiffViolation> for CampaignViolation {
@@ -223,11 +233,21 @@ impl SuspensionAttribution {
         self.next_seq += 1;
     }
 
+    /// ★#414 项三：**某来源中枢**的挂起在途量——挂起绑定来源中枢后，回补的算量/放行判据都只
+    /// 看这一个中枢的批次（不再拿别的中枢的挂起当自己的货）。
+    fn open_units_of(&self, center: CenterId) -> i64 {
+        self.batches.iter().filter(|b| b.center == center).map(|b| b.units).sum()
+    }
+
     /// ★#383：当前挂起在途量按**卖出时锁定的 sizing 模式**分列 `(阶段一等量, 阶段三等金额)`
     /// ——回补 sizing 的分流依据（题三「旧账按卖出时锁定，中途不变规矩」）。
-    fn open_units_by_mode(&self) -> (i64, i64) {
-        let earning: i64 = self.batches.iter().filter(|b| b.earning).map(|b| b.units).sum();
-        let legacy: i64 = self.batches.iter().filter(|b| !b.earning).map(|b| b.units).sum();
+    /// ★#414 项三：只统计**同来源中枢**的批次（异中枢的挂起不参与本次回补的算量）。
+    fn open_units_by_mode(&self, center: CenterId) -> (i64, i64) {
+        let same = |b: &&SuspensionBatch| b.center == center;
+        let earning: i64 =
+            self.batches.iter().filter(same).filter(|b| b.earning).map(|b| b.units).sum();
+        let legacy: i64 =
+            self.batches.iter().filter(same).filter(|b| !b.earning).map(|b| b.units).sum();
         (legacy, earning)
     }
 
@@ -248,34 +268,39 @@ impl SuspensionAttribution {
         (units, cash)
     }
 
-    /// `Replenish` 收口：**同中枢优先**（按到达序遍历该中枢的批次），余量再按**时间序**冲抵
-    /// 其余中枢的批次。返回逐批冲抵明细（观测证据）；冲抵完的批次移除。
+    /// `Replenish` 收口：**只冲抵同来源中枢**的批次（按到达序）。返回逐批冲抵明细（观测证据）；
+    /// 冲抵完的批次移除。
     ///
-    /// `units` 由调用方保证 ≤ [`Self::open_units`]（生产侧 `replenish_plan` 的 `close_units` 恰取全部待收口量，短差桶
-    /// 的 [`ShortDiffViolation::OverReplenish`] 是同一约束的记账层防线）——若仍有余量未冲抵，
-    /// 照实返回已冲抵部分，不静默造批次。
+    /// ★★#414 项三（ADR 补充十一，2026-07-27 用户裁定）：**禁异中枢回补静默冲抵**。旧口径是
+    /// 「同中枢优先、**余按时间序**冲抵其余中枢」——余量那一段等于拿这次回补去把**别的**中枢
+    /// 的作废挂起悄悄抹平（wf8 产物级证据 `cover_by_side ("long","other_center"):3`），比「装
+    /// 没发生」更隐蔽：账上那笔未闭合减出既没核销、也没呈报，就消失了。现改为**只冲抵同中枢**
+    /// ——挂起绑定来源中枢（#380 归属标签），出口只有两个：同中枢回补，或原中枢三类点清算
+    /// （三买回补 / 三卖核销，#366 两终局）。
+    ///
+    /// `units` 由调用方保证 ≤ 该中枢的 [`Self::open_units_of`]（生产侧 `replenish_plan` 现按
+    /// 同中枢算量，短差桶的 [`ShortDiffViolation::OverReplenish`] 是同一约束的记账层防线）
+    /// ——若仍有余量未冲抵，照实返回已冲抵部分，不静默造批次、更不外溢到别的中枢。
     fn cover(&mut self, center: CenterId, units: i64) -> Vec<CoverAssignment> {
         let mut remaining = units;
         let mut assignments = Vec::new();
-        for same_center in [true, false] {
+        for b in self.batches.iter_mut() {
             if remaining <= 0 {
                 break;
             }
-            for b in self.batches.iter_mut() {
-                if remaining <= 0 {
-                    break;
-                }
-                if (b.center == center) != same_center {
-                    continue;
-                }
-                let take = remaining.min(b.units);
-                if take <= 0 {
-                    continue;
-                }
-                b.units -= take;
-                remaining -= take;
-                assignments.push(CoverAssignment { center: b.center, units: take, seq: b.seq, same_center });
+            if b.center != center {
+                continue; // ★#414：异中枢批次一律不动（旧口径在此外溢）。
             }
+            let take = remaining.min(b.units);
+            if take <= 0 {
+                continue;
+            }
+            b.units -= take;
+            remaining -= take;
+            // `same_center` 恒 true（异中枢已在上面跳过）——字段保留是为让 witness 的
+            // `("侧","other_center")` 桶继续存在并**恒 0**：它现在是本条纪律的警报读数
+            // （非 0 = 中枢绑定被改坏），比删桶更能防回归。
+            assignments.push(CoverAssignment { center: b.center, units: take, seq: b.seq, same_center: true });
         }
         self.batches.retain(|b| b.units > 0);
         assignments
@@ -489,15 +514,23 @@ impl OscillationCampaign {
     /// 现金池为 0 或该族无挂起（`earning_open == 0`）⟹ 等金额腿整体不成立（`bought = 0`），
     /// 避免在「货已满」时凭空拿池里的零头买股（`ReplenishWhileFull` 语义不被绕过）。
     ///
+    /// ★★#414 项三：算量只看**本次回补触发的那个来源中枢**的挂起批次（`source_center`）——
+    /// 与 [`SuspensionAttribution::cover`] 的同中枢绑定同一口径，两处必须同源，否则算出的
+    /// `close_units` 会超过实际可冲抵量而外溢/落空。
+    ///
     /// **已知口径边界（如实标注）**：本方法按模式**分族算量**，而挂起冲抵
-    /// （[`SuspensionAttribution::cover`]）按「同中枢优先、余按时间序」**不看模式**——当
-    /// `bought < earning_open`（买不回同样多）导致只能部分收口时，实际被冲抵的批次可能落在
-    /// 另一族。总量与现金池扣减恒正确（池是标量，非按批次挂账），下一次回补按彼时**实际
-    /// 剩余**的批次重算，故不会漂移；受影响的只是「哪一批先收口」这一归属观测。
-    /// 现金池不随批次核销（#366 `write_off_unclosed`）归还——核销掉的减出腿其现金已实收进桶，
-    /// 池里的那份留着给后续等金额回补用（不冲销，同 [`UnclosedReduction`] 精神）。
-    fn replenish_plan(&self, price: i64) -> ReplenishPlan {
-        let (legacy_open, earning_open) = self.suspension.open_units_by_mode();
+    /// （[`SuspensionAttribution::cover`]）按到达序**不看模式**——当 `bought < earning_open`
+    /// （买不回同样多）导致只能部分收口时，实际被冲抵的批次可能落在另一族（#414 后两者已同属
+    /// 一个中枢，外溢面收窄到该中枢内部）。总量与现金池扣减恒正确（池是标量，非按批次挂账），
+    /// 下一次回补按彼时**实际剩余**的批次重算，故不会漂移；受影响的只是「哪一批先收口」这一
+    /// 归属观测。现金池不随批次核销（#366 `write_off_unclosed`）归还——核销掉的减出腿其现金
+    /// 已实收进桶，池里的那份留着给后续等金额回补用（不冲销，同 [`UnclosedReduction`] 精神）。
+    ///
+    /// ★现金池的**级别粒度**未变（campaign 粒度=级别，#294 决议 2）：池是本 campaign 的标量，
+    /// 不按中枢分账——阶段三某中枢的等金额回补可能花的是另一中枢减出攒下的钱。这是既有粒度的
+    /// 直接后果、非本票新引入，如实登记；本票只约束**货**（挂起在途量）的中枢绑定。
+    fn replenish_plan(&self, price: i64, source_center: CenterId) -> ReplenishPlan {
+        let (legacy_open, earning_open) = self.suspension.open_units_by_mode(source_center);
         let bought = if earning_open > 0 && price > 0 {
             (self.earning_pool / price).max(0)
         } else {
@@ -528,7 +561,7 @@ impl OscillationCampaign {
         let (units, plan) = match action {
             CenterOscillationAction::Reduce => (self.reduce_units(), ReplenishPlan::inert()),
             CenterOscillationAction::Replenish => {
-                let plan = self.replenish_plan(price);
+                let plan = self.replenish_plan(price, source_center);
                 (plan.close_units, plan)
             }
         };
@@ -537,6 +570,13 @@ impl OscillationCampaign {
         if matches!(action, CenterOscillationAction::Replenish) {
             if self.short_diff.bucket().open_units() == 0 {
                 return Err(CampaignViolation::ReplenishWhileFull);
+            }
+            // ★★#414 项三：桶里有挂起、但**不是这个来源中枢**的 ⟹ 禁静默冲抵，当场拒绝。
+            // 顺序在「货满」之后：货本就满（桶总量=0）是既有归因，不被本条改写读数。
+            if self.suspension.open_units_of(source_center) == 0 {
+                return Err(CampaignViolation::ReplenishForeignCenter {
+                    open_units_total: self.suspension.open_units(),
+                });
             }
             // ★#383：有挂起、但等金额腿的现金池买不起一股且无等量族可收口——照实分流。
             if units == 0 && plan.extra_units == 0 {
@@ -855,7 +895,27 @@ pub struct CampaignWiringWitness {
     /// ★#381 关票修复：键增持仓侧维 `(侧, 来源)`——`on_lifecycle_event`/`on_chain_rebase` 现在
     /// 对同一事件**逐侧**各产一条 `SuspensionOutcome`，不分侧则多空并存时计数翻倍且无法归属
     /// （破本 ADR 补充九自立的「两侧不得相加」）。
+    /// ★★#414 桶退役：`("侧","superseded")` 子桶随 `SuspensionTerminationSource::Superseded`
+    /// 变体删除而**退役**——被取代不再是挂起的归宿（ADR 补充十一：中枢终结唯一 = 三类买卖点）。
+    /// 其读数（wf8 旧口径 long=67/short=49，占挂起终结 81%）改道进 [`Self::suspension_continued_count`]
+    /// 与后续真实清算桶。**跨版本不可比**：本桶在 #414 前后不是同一个量。
     pub suspension_by_source: BTreeMap<(&'static str, &'static str), usize>,
+    /// ★★#414（ADR 补充十一）：挂起**延续**计数（分侧）——`Superseded` 命中挂起、挂起不终结
+    /// 也不清算的次数。正面读数，非警报；它与真实清算桶（`suspension_by_source` 的两个
+    /// `broken_by_third_class_*` + `settlement_by_side`）的差额即「延续了但没等到三类点」的
+    /// 残量，见 [`super::center_oscillation_trade::CenterOscillationBook::on_lifecycle_event`]
+    /// 的有效域标注（容读窗口只保链尾前一格）。
+    pub suspension_continued_count: BTreeMap<&'static str, usize>,
+    /// ★#414 项三：终结的**清算终局**分流（键 `(侧, "cover_and_close"|"write_off_unclosed"|
+    /// "forfeit")`）——票面「Forfeit 归宿与核销/闭合分列」的产物级读数。与
+    /// [`Self::suspension_by_source`] 是同一批终结的两个正交切面（来源 vs 终局），两桶的分侧
+    /// 总数恒相等（同一 `SuspensionOutcome` 各记一次），可互为对账。
+    pub settlement_by_side: BTreeMap<(&'static str, &'static str), usize>,
+    /// ★#414 项三：**异中枢回补被拒**计数（分侧）——桶里有挂起、但**不是**本次回补触发的那个
+    /// 来源中枢的（[`CampaignViolation::ReplenishForeignCenter`]）。旧口径此路径静默走「余按
+    /// 时间序」冲抵别的中枢的挂起（wf8 产物级证据 `cover_by_side ("long","other_center"):3`），
+    /// 本票禁止之：挂起绑定来源中枢，只能被同中枢回补或原中枢三类点清算。预期经济场景，非警报。
+    pub replenish_foreign_center_count: BTreeMap<&'static str, usize>,
     /// campaign 开仓生事件计数（[`CampaignLifecycleEvent::Opened`]）。
     /// ★#381 关票修复：改分侧分桶（键=`"long"`/`"short"`）——事件本身已带 `side`，标量相加是
     /// 跨侧求和，既破「两侧不得相加」，也使多头侧生死零漂移不可逐条核验。
@@ -1108,10 +1168,28 @@ impl CampaignWiringWitness {
             SuspensionTerminationSource::BrokenByThirdClassBuy => "broken_by_third_class_buy",
             SuspensionTerminationSource::BrokenByThirdClassSell => "broken_by_third_class_sell",
             SuspensionTerminationSource::Reset => "reset",
-            SuspensionTerminationSource::Superseded => "superseded",
             SuspensionTerminationSource::RebaseVanished => "rebase_vanished",
         };
         *self.suspension_by_source.entry((side_label(side), label)).or_insert(0) += 1;
+    }
+
+    /// ★★#414（ADR 补充十一）：记一次挂起**延续**（`Superseded` 命中挂起 ⟹ 不终结、不清算）。
+    /// 与 [`Self::suspension_by_source`] 分列——延续不是归宿，混进归宿桶等于把「什么都没发生」
+    /// 记成一次终结。
+    pub fn record_suspension_continued(&mut self, side: VoiceSide) {
+        *self.suspension_continued_count.entry(side_label(side)).or_insert(0) += 1;
+    }
+
+    /// ★#414：记一次终结的**清算终局**分流（闭合/核销/作废三分，票面项 3「Forfeit 归宿与
+    /// 核销/闭合分列」）。与 [`Self::suspension_by_source`]（按**来源**分桶）是同一批终结的
+    /// 两个正交切面：来源答「谁杀的」，终局答「账怎么了结」。
+    pub fn record_settlement(&mut self, side: VoiceSide, settlement: TerminationSettlement) {
+        let label = match settlement {
+            TerminationSettlement::CoverAndClose => "cover_and_close",
+            TerminationSettlement::WriteOffUnclosed => "write_off_unclosed",
+            TerminationSettlement::Forfeit => "forfeit",
+        };
+        *self.settlement_by_side.entry((side_label(side), label)).or_insert(0) += 1;
     }
 
     /// 记一次动作按 (级别, 动作) 分桶（归属正确性见证）。
@@ -1155,6 +1233,10 @@ impl CampaignWiringWitness {
             // ★#380 项四：「触发但货满」——预期经济场景，独立分桶。
             CampaignViolation::ReplenishWhileFull => {
                 *self.replenish_triggered_but_full_count.entry(sl).or_insert(0) += 1;
+            }
+            // ★#414 项三：「有货但不是这个中枢的」——预期经济场景，与「货满」分列。
+            CampaignViolation::ReplenishForeignCenter { .. } => {
+                *self.replenish_foreign_center_count.entry(sl).or_insert(0) += 1;
             }
             // ★#380 项二：防线（读当时真实持仓）拒绝的超卖——预期读数，独立分桶。
             CampaignViolation::ShortDiff(ShortDiffViolation::UnitsExceedCostBasis { .. }) => {
@@ -1213,6 +1295,10 @@ impl CampaignWiringWitness {
                         "short_diff_units_exceed_cost_basis_unreachable"
                     }
                     CampaignViolation::ReplenishWhileFull => "replenish_while_full_unreachable",
+                    // ★#414：已在上方分支分桶，此处只为穷尽性。
+                    CampaignViolation::ReplenishForeignCenter { .. } => {
+                        "replenish_foreign_center_unreachable"
+                    }
                     // 下两条已在上方分支各自分桶（#383），此处只为穷尽性。
                     CampaignViolation::EarningCashUnsound { .. } => {
                         "earning_cash_unsound_unreachable"
@@ -1491,15 +1577,16 @@ mod tests {
         assert_eq!(w.action_by_level.get(&(0, "long", "reduce")), Some(&2), "归属正确：level 0 两次 Reduce 分桶计数");
         assert_eq!(w.action_by_level.get(&(1, "long", "replenish")), Some(&1), "level 1 Replenish 独立分桶，不与 level 0 混计");
 
+        // ★#414：`superseded` 桶退役（被取代不再是归宿），此处改用 `reset` 演示同一分桶纪律。
         w.record_suspension_source(VoiceSide::Long, SuspensionTerminationSource::BrokenByThirdClassBuy);
-        w.record_suspension_source(VoiceSide::Long, SuspensionTerminationSource::Superseded);
-        w.record_suspension_source(VoiceSide::Long, SuspensionTerminationSource::Superseded);
-        w.record_suspension_source(VoiceSide::Short, SuspensionTerminationSource::Superseded);
+        w.record_suspension_source(VoiceSide::Long, SuspensionTerminationSource::Reset);
+        w.record_suspension_source(VoiceSide::Long, SuspensionTerminationSource::Reset);
+        w.record_suspension_source(VoiceSide::Short, SuspensionTerminationSource::Reset);
         assert_eq!(w.suspension_by_source.get(&("long", "broken_by_third_class_buy")), Some(&1));
-        assert_eq!(w.suspension_by_source.get(&("long", "superseded")), Some(&2), "挂起归宿分桶按来源独立累计");
+        assert_eq!(w.suspension_by_source.get(&("long", "reset")), Some(&2), "挂起归宿分桶按来源独立累计");
         // ★#381 关票修复：同一来源两侧独立分桶——多空并存时不得相加成 3（同一事件逐侧各产一条
         // `SuspensionOutcome`，混计即计数翻倍且无法归属）。
-        assert_eq!(w.suspension_by_source.get(&("short", "superseded")), Some(&1), "空头侧同来源独立成桶");
+        assert_eq!(w.suspension_by_source.get(&("short", "reset")), Some(&1), "空头侧同来源独立成桶");
         assert_eq!(
             w.suspension_by_source.get(&("short", "broken_by_third_class_buy")),
             None,
@@ -1682,10 +1769,12 @@ mod tests {
 
     // ── #380 项四：挂起归属（中枢标签 + 同中枢优先冲抵 + 触发但货满） ────
 
-    /// ★#380 项四核心用例：三笔 `Reduce` 分属两个中枢（cid1 seq0、cid2 seq1、cid1 seq2），
-    /// 一次 cid1 触发的全额回补 ⟹ 冲抵顺序=**同中枢优先**（seq0、seq2）**余按时间序**（seq1）。
+    /// ★#380 项四核心用例（★★#414 改判）：三笔 `Reduce` 分属两个中枢（cid1 seq0、cid2 seq1、
+    /// cid1 seq2），一次 cid1 触发的回补 ⟹ **只冲抵 cid1 的两批**（seq0、seq2），cid2 的挂起
+    /// 一股不动。旧口径的「余按时间序冲抵其余中枢」在本票被禁（异中枢静默冲抵），cid2 的
+    /// 挂起只能等自己那个中枢的回补或三类点清算。
     #[test]
-    fn cover_order_is_same_center_first_then_time_order() {
+    fn cover_only_settles_same_center_batches_in_arrival_order() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // avg_cost=10，sizing=100
         book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
@@ -1707,22 +1796,61 @@ mod tests {
         let outcome = book
             .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 9, RiskMode::Normal, cid(1))
             .unwrap();
-        assert_eq!(outcome.units, 300, "阶段一恒仓约束硬：全额买回挂起在途量");
+        assert_eq!(outcome.units, 200, "★#414：算量只看同中枢（cid1 两批 100+100），不含 cid2");
         assert_eq!(
             outcome.cover,
             vec![
                 CoverAssignment { center: cid(1), units: 100, seq: 0, same_center: true },
                 CoverAssignment { center: cid(1), units: 100, seq: 2, same_center: true },
-                CoverAssignment { center: cid(2), units: 100, seq: 1, same_center: false },
             ],
-            "同中枢（cid1）两批优先按到达序冲抵，余量再按时间序冲抵 cid2"
+            "★#414：只冲抵同中枢（cid1）两批，按到达序；cid2 不被静默冲抵"
         );
-        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().suspension().open_units(), 0, "全额回补 ⟹ 挂起清空");
+        let remaining = book.campaign(0, VoiceSide::Long).unwrap();
+        assert_eq!(
+            remaining.suspension().batches().iter().map(|b| (b.center, b.units)).collect::<Vec<_>>(),
+            vec![(cid(2), 100)],
+            "★#414：cid2 的挂起原样留着，等自己中枢的回补/三类点清算"
+        );
+        assert_eq!(
+            remaining.suspension().open_units(),
+            remaining.short_diff().bucket().open_units(),
+            "归属账与桶标量在部分收口后仍恒等（不外溢即不失同步）"
+        );
 
         let mut w = CampaignWiringWitness::new();
         w.record_cover(VoiceSide::Long, &outcome.cover);
         assert_eq!(w.cover_by_side.get(&("long", "same_center")), Some(&2), "同中枢冲抵计数（按侧）");
-        assert_eq!(w.cover_by_side.get(&("long", "other_center")), Some(&1), "异中枢冲抵计数（分列，不混桶）");
+        assert_eq!(
+            w.cover_by_side.get(&("long", "other_center")),
+            None,
+            "★#414：异中枢冲抵桶恒 0（非 0 = 中枢绑定被改坏的警报读数）"
+        );
+    }
+
+    /// ★★#414 项三：桶里**有**挂起、但没有一批来自本次触发的来源中枢 ⟹ typed
+    /// `ReplenishForeignCenter` + 独立分桶，不静默冲抵别的中枢（旧口径此路径会外溢）。
+    #[test]
+    fn replenish_from_foreign_center_is_rejected_and_bucketed_separately() {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        let result = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 9, RiskMode::Normal, cid(2));
+        assert_eq!(
+            result,
+            Err(CampaignViolation::ReplenishForeignCenter { open_units_total: 100 }),
+            "有货但不是这个中枢的 ⟹ 拒绝，不拿 cid2 的回补抹平 cid1 的挂起"
+        );
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().suspension().open_units(),
+            100,
+            "拒绝后账本一分不动"
+        );
+
+        let mut w = CampaignWiringWitness::new();
+        w.record_violation(VoiceSide::Long, CampaignViolation::ReplenishForeignCenter { open_units_total: 100 });
+        assert_eq!(w.replenish_foreign_center_count.get("long"), Some(&1), "独立分桶如实计数（按侧）");
+        assert_eq!(w.replenish_triggered_but_full_count.get("long"), None, "不与「货本就满」混桶");
+        assert_eq!(w.other_violation_count, 0, "预期经济场景，不落警报桶");
     }
 
     /// ★#380 项四：来源中枢后续买点触发回补、但**货已满**（挂起在途量=0）⟹ typed
@@ -2170,7 +2298,9 @@ mod tests {
     fn replenish_splits_legacy_and_earning_batches_by_sell_time_lock() {
         let (mut book, _event_bar, effective_bar) = book_at_earning_stage();
         // 事件 bar 上落一笔阶段一锁定的挂起（100 股），**不收口**，留到阶段三与新挂起并存。
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
+        // ★#414：两笔减出同属 cid(1)——本用例考的是「按卖出时模式分族算量」，与中枢绑定正交；
+        // 分属两中枢会被新的同中枢绑定切开，掩盖本用例真正要锁的两族分流。
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar);
         // 阶段三锁定的第二笔减出：受累计防线约束（open 100 + 本笔 100 ≤ 当前 300）。
         book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
@@ -2247,12 +2377,14 @@ mod tests {
     }
 
     /// ★回归锁：阶段一（无阶段三批次）时回补量 = 全部挂起在途量——#348 口径逐字节不变。
+    /// ★#414：两笔减出改为**同一来源中枢**——「全部挂起在途量」的口径自本票起限定在同中枢内
+    /// （异中枢挂起不参与本次算量，见 `cover_only_settles_same_center_batches_in_arrival_order`）。
     #[test]
     fn replenish_plan_in_stage_one_is_full_open_units() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
         book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
         let cover = book
             .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 9, RiskMode::Normal, cid(0))
             .unwrap();
