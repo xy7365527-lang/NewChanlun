@@ -70,8 +70,8 @@ pub struct LevelIdentity {
     /// 所属级别 ℓ（与 `Classification.levels` 索引同源）。
     ///
     /// ★#455 诚实更新（#434 grilling 交棒件）：本字段是级别身份的**唯一**存储事实——
-    /// 曾在 `BspPoint` 存在的同形拷贝字段（恒为 0、无消费者）已删除
-    /// （`CONTEXT.md`「级别身份」词条）。
+    /// 曾在 `BspPoint` 存在的同形拷贝字段全仓恒为 0、无下游级别语义消费者，仅有恒真
+    /// equality 分量及 Debug/digest 机械消费，现已删除（`CONTEXT.md`「级别身份」词条）。
     pub level: u32,
 }
 

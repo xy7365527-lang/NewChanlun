@@ -30,7 +30,7 @@ _Avoid_: 用时间周期（1F/5F/30F、日线等）指级别；用"深度""层�
 
 **级别身份（Level Identity）**:
 某个买卖点/结构对象归属哪个塔级别，是**参照系视图，非存储事实**（同「反向根」条「事后恰好性」注：身份非存储事实，账本零身份字段——本条是该原则在级别维的实例）。唯一存储事实是 `LevelProjectionLayer.identity.level`；调用方需要级别时按参照系当独立参数传入（`build_candidate_element` 的 `lvl` 参数），不在结构对象自身存一份可能漂移的拷贝。
-_Avoid_: 在买卖点/证书等结构对象上加同形字段存级别下标（SPEC #455：`BspPoint.level_origin` 曾这样做，全仓恒为 0、无消费者，已删除）
+_Avoid_: 在买卖点/证书等结构对象上加同形字段存级别下标（删除墓碑：`BspPoint.level_origin` 曾这样做，全仓恒为 0、无下游级别语义消费者，仅有恒真 equality 分量及 Debug/digest 机械消费；SPEC #455 已在 commit `2d1abf9786` 删除）
 
 **代际（Generation, n）**:
 声部在赋格树中的嵌套代数：根声部为 0，子声部 = 父代际 + 1。方向由逐层关系 `σ_u = −σ_{p(u)}` 给出。代码字段 `depth` 即此概念。
