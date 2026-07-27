@@ -521,10 +521,13 @@ fn plan_level_gated_order(
     // ② 账户层/风控投影（风控域，每 bar 无条件；gate 直接是 k_theta_risk_gate 的当 bar 真值）。
     let t_prev = level_order.planned_total();
     let p_star_lee = pi_theta_position(p_tilde_lee, t_prev as f64, base_units, risk, weights, gate);
-    let t_lee = p_star_lee.round() as i64;
+    // ★#356 命名订正：这是二次裁剪**前**的账户层投影目标（票体 `t_lee`），不是最终发单量——
+    // 二次裁剪后的 `t_lee'` 在下方独立绑定为 `t_lee`（真正喂给 `schedule_order` 的值）。两阶段
+    // 值分开命名，避免同名 `t_lee` 被误读为「同一个值」（090 严格性：声明与实际必须一一对应）。
+    let t_lee_raw = p_star_lee.round() as i64;
     // ③ order_raw（计划态增量，决定**是否**发单）→ K_Θ_gate（账户层可行性，锚**实际持仓**决定
     //    **发多少手**）→ Schedule_Θ 单出口。两锚分工与「合并即穿仓」的构造见函数文档表。
-    let plan = level_order.plan_gated(&gated, t_lee);
+    let plan = level_order.plan_gated(&gated, t_lee_raw);
     // ★#351 MED-2 补课：归因缩放后二次裁剪（见①处「照实订正」段）——`attribute_total` 可能
     // 把 `plan.targets` 放大回 cap 之上，用同一 `clamp_levels_to_weighted_cap` 再裁一次
     // （该函数对 `LEVEL_ACCOUNT_RESIDUAL` 残差桶安全透传，见其 doc）。未越界时 `reclamped ==
@@ -552,6 +555,23 @@ fn plan_level_gated_order(
     } else {
         (plan, cap_narrowed)
     };
+    // ★#356 修复（编排者裁定：下单量走二次裁剪后的 t_lee'，裁剪点统一）：上面①②两次
+    // `clamp_levels_to_weighted_cap` 已经把 `plan.targets`（归因账本）裁到位，但发单时若仍用
+    // 裁剪**前**的 `t_lee_raw`——账本说「已裁」，`schedule_order` 收到的却是未裁的目标，物理
+    // 下单量因此可重新突破 Σcap_ℓ（#356 issue 原句「账本已裁物理未裁」）。`plan.order_units`
+    // 是（可能经二次裁剪的）`plan.targets` 相对 `planned()`(=t_prev) 的增量之和，故
+    // `t_prev + plan.order_units ≡ Σ_ℓ plan.targets_ℓ` 恒成立（构造性，下方断言坐实）——下单量
+    // 与归因账本因此同源同一份裁剪值，不再有第二套口径。`enforce_level_cap=false` 或帽未
+    // binding 时 `plan` 未被重写，该式退化为 `t_lee_raw` 本身，M0–M3 bit-exact 不受影响
+    // （纯整数运算，无浮点重排）。
+    let t_lee = t_prev + plan.order_units;
+    debug_assert_eq!(
+        plan.targets.iter().map(|&(_, q)| q).sum::<i64>(),
+        t_lee,
+        "#356 一致性断言 Σ_ℓ q_ℓ ≡ t_lee' 违例 @bar{bar}: targets={:?} t_lee'={}",
+        plan.targets,
+        t_lee
+    );
     debug_assert!(
         !risk.enforce_level_cap
             || plan
@@ -2900,5 +2920,105 @@ pub(super) fn apply_voice_fill(voice_qty: &mut [u32], depth: usize, fill: FillOu
         debug_assert!((fill.closed_qty - closed as f64).abs() < 1e-9);
         debug_assert!((fill.opened_qty - opened as f64).abs() < 1e-9);
         *slot = slot.saturating_sub(closed).saturating_add(opened);
+    }
+}
+
+#[cfg(test)]
+mod level_cap_reclamp_tests {
+    use super::*;
+    use super::super::super::classifier::recursive_tower::ElementId;
+    use super::super::super::config::RiskConfig;
+    use super::super::super::strategy::coverage::{KThetaRiskGate, PiThetaWeights, SepLeg, Vertical};
+    use super::super::super::strategy::level_clock::{LevelClockTicks, LevelEventKind};
+    use super::super::super::strategy::level_order::LevelOrderLedger;
+    use super::super::super::strategy::voice::VoiceSide;
+
+    /// ★#356 端到端红绿（`plan_level_gated_order` 是生产订单出口，非纯函数——本测直接调用它，
+    /// 校验它的副作用：归因台账 + 输出 `Order`）：`t_lee` 二次裁剪前，下单量仍走裁剪**前**的值
+    /// ⟹ 物理下单量可重越 Σcap_ℓ（账本已裁、物理未裁，issue #356 原句）；接线后下单量与账本
+    /// 同源，二者恒相等且不越 Σcap_ℓ。
+    ///
+    /// 场景复刻 `coverage.rs::attribute_total_scaling_can_exceed_cap_and_reclamp_restores_it`
+    /// 的「60→100」缩放突破：`level_weights=[0.5,0.1]` ⟹ `cap_0=50/cap_1=10`（`base_units=100`），
+    /// 两级 `sep_legs` 净额恰好压在 cap 上（Σ=60），账户层 `pan_div_child_units=40` 把 `p̃_lee`
+    /// 推到 100（模拟 pan_div 加项/lex 重估使 `T_lee≠Σgated`，同 fill.rs ①处注释场景）——
+    /// `pi_theta_position` 在 `gamma=1.0·base_units=100` 的账户层 cap 上恰好把 `t_lee` 顶到
+    /// 100，`attribute_total` 按比例把两级放大到 Σ=100，level0 被推到 >50 突破 `cap_0`。
+    #[test]
+    fn physical_order_shares_same_reclamped_target_as_ledger() {
+        let risk = RiskConfig {
+            level_weights: vec![0.5, 0.1],
+            enforce_level_cap: true,
+            ..RiskConfig::default()
+        };
+        let base_units = 100.0; // cap_0=50, cap_1=10 ⟹ Σcap_ℓ=60
+        let weights = PiThetaWeights::from_risk(&risk);
+        let gate = KThetaRiskGate::open();
+
+        let sep_legs = vec![
+            SepLeg {
+                id: ElementId { level: 0, ordinal: 0 },
+                side: VoiceSide::Long,
+                q_units: 50.0,
+                role_v: Vertical::FollowParent,
+                parent_id: None,
+            },
+            SepLeg {
+                id: ElementId { level: 1, ordinal: 0 },
+                side: VoiceSide::Long,
+                q_units: 10.0,
+                role_v: Vertical::FollowParent,
+                parent_id: None,
+            },
+        ];
+        let mut ticks = LevelClockTicks::empty();
+        ticks.insert(0, LevelEventKind::BspConfirmed);
+        ticks.insert(1, LevelEventKind::BspConfirmed);
+
+        let mut level_order = LevelOrderLedger::new();
+        let mut order = Order { action: StrictAction::Wait, qty: 0, exec_index: 0 };
+        let acct = AccountProjectionCtx { p_t: 0.0, base_units, risk: &risk, weights, gate };
+        plan_level_gated_order(
+            &mut level_order,
+            &ticks,
+            &sep_legs,
+            40, // pan_div_child_units：把账户层目标从 Σgated=60 推到 100（重越场景构造）
+            0,  // qty_m0（仅进归因统计 max_abs_order_residual，不影响本测断言）
+            acct,
+            0,
+            0,
+            &mut order,
+        );
+
+        let cap_0 = 50i64;
+        let cap_1 = 10i64;
+        let targets_sum: i64 = level_order.planned().iter().map(|&(_, q)| q).sum();
+        for &(lvl, q) in level_order.planned() {
+            let cap = if lvl == 0 { cap_0 } else { cap_1 };
+            assert!(q.abs() <= cap, "前置：归因账本已裁到位 level{lvl}={q} 应 ≤ cap={cap}");
+        }
+        assert!(
+            targets_sum < 100,
+            "前置：本场景须真实触发重越缩放（账本合计从未裁的 100 收窄），targets_sum={targets_sum}"
+        );
+
+        let signed_qty = match order.action {
+            StrictAction::Buy | StrictAction::Add => order.qty as i64,
+            StrictAction::Sell | StrictAction::Reduce => -(order.qty as i64),
+            _ => 0,
+        };
+        let physical_position_after = signed_qty; // p_t=0 起点，Δ即终态净仓
+        // 绿（#356 修复核心）：物理下单量与归因账本同源——不再是两套裁剪值。
+        assert_eq!(
+            physical_position_after, targets_sum,
+            "物理下单量（p_t+Δ={physical_position_after}）应与账本合计 targets_sum={targets_sum} \
+             同源同值；修复前二者分叉（物理端仍是未裁的 100）"
+        );
+        // 绿：物理下单量不越 Σcap_ℓ（票体验收字面）。
+        assert!(
+            physical_position_after <= cap_0 + cap_1,
+            "物理下单量 {physical_position_after} 突破 Σcap_ℓ={}",
+            cap_0 + cap_1
+        );
     }
 }
