@@ -2999,7 +2999,8 @@ mod tests {
         }
     }
 
-    /// #542 口径锚：本行是决策账本开仓记录；身份是该开仓候选的生产者签发身份，
+    /// #542 口径锚：本行是平仓/窗口结算时 write_trade 写出的决策账本完整成交记录（含 exit）；
+    /// certificate 身份是开仓时决策层候选的生产者签发身份，经决策账本 open 快照承载，
     /// 不声明逐笔执行成交因果。dump 的证书键必须回连同一 typed-ledger 腿的入场证书。
     #[test]
     fn opsem_dump_third_class_entry_carries_complete_producer_identity() {

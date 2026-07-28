@@ -431,6 +431,20 @@ pub(crate) struct ThirdClassCert {
     pub retest_interval: (usize, usize),
 }
 
+fn third_class_entry_identity(
+    c: &Center,
+    leave_seg: &Segment,
+    retest_seg: &Segment,
+) -> ThirdClassEntryIdentity {
+    ThirdClassEntryIdentity {
+        center_si: c.start_index,
+        center_zd: c.zd,
+        center_zg: c.zg,
+        leave_interval: (leave_seg.start_index, leave_seg.end_index),
+        retest_interval: (retest_seg.start_index, retest_seg.end_index),
+    }
+}
+
 pub(crate) fn judge_third_cert(
     c: &Center,
     leave_seg: &Segment,
@@ -451,13 +465,8 @@ pub(crate) fn judge_third_cert(
                 is_sell_side: false,
             };
             let mut bits = endpoint_to_bsp(&situ);
-            bits.third_class_entry = Some(ThirdClassEntryIdentity {
-                center_si: c.start_index,
-                center_zd: c.zd,
-                center_zg: c.zg,
-                leave_interval: (leave_seg.start_index, leave_seg.end_index),
-                retest_interval: (retest_seg.start_index, retest_seg.end_index),
-            });
+            bits.third_class_entry =
+                Some(third_class_entry_identity(c, leave_seg, retest_seg));
             Some(ThirdClassCert {
                 point: make_third_point(retest.source_index, bits, retest.price, c),
                 center: *c,
@@ -476,13 +485,8 @@ pub(crate) fn judge_third_cert(
                 is_sell_side: true,
             };
             let mut bits = endpoint_to_bsp(&situ);
-            bits.third_class_entry = Some(ThirdClassEntryIdentity {
-                center_si: c.start_index,
-                center_zd: c.zd,
-                center_zg: c.zg,
-                leave_interval: (leave_seg.start_index, leave_seg.end_index),
-                retest_interval: (retest_seg.start_index, retest_seg.end_index),
-            });
+            bits.third_class_entry =
+                Some(third_class_entry_identity(c, leave_seg, retest_seg));
             Some(ThirdClassCert {
                 point: make_third_point(retest.source_index, bits, retest.price, c),
                 center: *c,

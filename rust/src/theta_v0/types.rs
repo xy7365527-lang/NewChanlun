@@ -140,8 +140,8 @@ pub struct Center {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ThirdClassEntryIdentity {
     pub center_si: usize,
-    pub center_zd: i64,
-    pub center_zg: i64,
+    pub center_zd: Tick,
+    pub center_zg: Tick,
     pub leave_interval: (usize, usize),
     pub retest_interval: (usize, usize),
 }
@@ -475,20 +475,13 @@ mod tests {
             first, second,
             "六 bit 相同 ⟹ 归因载荷不同也刻意判等（schema-only 铁律）"
         );
-        let debug = format!("{first:?}");
-        for payload_field in [
-            "third_class_entry",
-            "center_si",
-            "center_zd",
-            "center_zg",
-            "leave_interval",
-            "retest_interval",
-        ] {
-            assert!(
-                !debug.contains(payload_field),
-                "历史 Debug/FNV 不纳入归因字段 {payload_field}: {debug}"
-            );
-        }
+        let first_debug = format!("{first:?}");
+        let second_debug = format!("{second:?}");
+        assert_eq!(
+            first_debug.as_bytes(),
+            second_debug.as_bytes(),
+            "六 bit 相同 ⟹ 历史 Debug/FNV 逐字节忽略归因载荷"
+        );
     }
 
     #[test]

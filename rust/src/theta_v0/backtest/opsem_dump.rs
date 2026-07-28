@@ -4,6 +4,7 @@
 //! 公共类型经 `runner` 门面 `pub use` 保持原路径（`runner::StrictNestSidecarSummary`）。
 
 use super::super::config::ThetaConfig;
+use super::super::types::Tick;
 use super::super::{classifier, parser, strategy};
 use super::runner::{LedgerOpen, TypedTrade};
 
@@ -591,15 +592,17 @@ impl OpsemDump {
             o.cand_nest_confirmed, o.nest_depth,
             t.entry_z.parent_dir, o.cand_role,
         ));
-        // #542：本行是既有语义的决策账本开仓记录；证书身份是该决策层开仓候选的
-        // 生产者签发身份，不声明逐笔执行成交因果。严格 additive-only 追加在既有字段之后；
-        // None 逐字段写 null，不从 center_lifecycle/价格/邻近点反推。
+        // #542：本行是平仓/窗口结算时 write_trade 写出的决策账本完整成交记录（含 exit）；
+        // certificate 身份是开仓时决策层候选的生产者签发身份，经决策账本 open 快照承载，
+        // 不声明逐笔执行成交因果。
+        // 严格 additive-only 追加在既有字段之后；None 逐字段写 null，不从
+        // center_lifecycle/价格/邻近点反推。
         let third = o.third_class_entry;
         s.push_str(&format!(
             ",\"center_si\":{},\"center_zd\":{},\"center_zg\":{},\"leave_si\":{},\"leave_ei\":{},\"retest_si\":{},\"retest_ei\":{}}},",
             opt_usize_str(third.map(|x| x.center_si)),
-            opt_i64_str(third.map(|x| x.center_zd)),
-            opt_i64_str(third.map(|x| x.center_zg)),
+            opt_tick_str(third.map(|x| x.center_zd)),
+            opt_tick_str(third.map(|x| x.center_zg)),
             opt_usize_str(third.map(|x| x.leave_interval.0)),
             opt_usize_str(third.map(|x| x.leave_interval.1)),
             opt_usize_str(third.map(|x| x.retest_interval.0)),
@@ -1129,8 +1132,8 @@ fn opt_usize_str(o: Option<usize>) -> String {
     }
 }
 
-/// #542 辅助：Optional<Tick/i64> → JSON 字符串（number 或 null）。
-fn opt_i64_str(o: Option<i64>) -> String {
+/// #542 辅助：Optional<Tick> → JSON 字符串（number 或 null）。
+fn opt_tick_str(o: Option<Tick>) -> String {
     match o {
         Some(v) => v.to_string(),
         None => "null".into(),
