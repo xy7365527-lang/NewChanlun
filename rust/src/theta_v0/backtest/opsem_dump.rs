@@ -7,6 +7,100 @@ use super::super::config::ThetaConfig;
 use super::super::{classifier, parser, strategy};
 use super::runner::{LedgerOpen, TypedTrade};
 
+/// ★#466 D0：fill 生产事务交给 OPSEM writer 的只读重基现场。
+///
+/// `chain` 由事件机在 adopt 覆盖前抓取；`suspended_before` 必须在
+/// `CenterOscillationBook::on_chain_rebase` 核销 vanished 条目前抓取。类型本身不参与任何
+/// 决策，只在 [`OpsemDump`] 已由 `OPSEM_DUMP_DIR` 构造时产生。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct RebaseObservationInput {
+    pub(super) level: u32,
+    pub(super) chain: classifier::center_lifecycle::ChainRebaseObservation,
+    pub(super) suspended_before:
+        Vec<(strategy::voice::VoiceSide, classifier::center_lifecycle::CenterId)>,
+    pub(super) revived: bool,
+}
+
+fn center_id_json(id: classifier::center_lifecycle::CenterId) -> serde_json::Value {
+    serde_json::json!({
+        "start_index": id.start_index,
+        "zd": id.zd,
+        "zg": id.zg,
+    })
+}
+
+fn center_ids_json(
+    ids: impl IntoIterator<Item = classifier::center_lifecycle::CenterId>,
+) -> Vec<serde_json::Value> {
+    ids.into_iter().map(center_id_json).collect()
+}
+
+fn center_id_counts(
+    ids: &[classifier::center_lifecycle::CenterId],
+) -> std::collections::BTreeMap<classifier::center_lifecycle::CenterId, usize> {
+    let mut counts = std::collections::BTreeMap::new();
+    for id in ids {
+        *counts.entry(*id).or_insert(0) += 1;
+    }
+    counts
+}
+
+/// ★#466 D0：只把**精确 CenterId 相等**记为 continued。CenterId 缺席时，当前 seam 没有
+/// 稳定谱系/构造变换边，故一律记 ambiguous；同 start/core 只落 `non_lineage_hints`，绝不据此
+/// 自动判 continued/split/genuinely_removed。
+fn rebase_mapping_json(
+    old: classifier::center_lifecycle::CenterId,
+    before_counts: &std::collections::BTreeMap<
+        classifier::center_lifecycle::CenterId,
+        usize,
+    >,
+    after_counts: &std::collections::BTreeMap<
+        classifier::center_lifecycle::CenterId,
+        usize,
+    >,
+    added: &std::collections::BTreeSet<classifier::center_lifecycle::CenterId>,
+    source_occurrences_override: Option<usize>,
+) -> serde_json::Value {
+    let before_occurrences = source_occurrences_override
+        .unwrap_or_else(|| before_counts.get(&old).copied().unwrap_or(0));
+    let after_occurrences = after_counts.get(&old).copied().unwrap_or(0);
+    let functional = after_occurrences == 1;
+    let injective = after_occurrences > 0 && before_occurrences == 1;
+    let unique = functional && injective;
+    let result = if unique { "continued" } else { "ambiguous" };
+    let mapped_new_ids =
+        if after_occurrences > 0 { center_ids_json([old]) } else { Vec::new() };
+    let same_start_added: Vec<_> =
+        added.iter().copied().filter(|id| id.start_index == old.start_index).collect();
+    let same_core_added: Vec<_> =
+        added.iter().copied().filter(|id| id.zd == old.zd && id.zg == old.zg).collect();
+    let possible_results: Vec<&str> = if unique {
+        Vec::new()
+    } else {
+        vec!["continued", "split", "genuinely_removed"]
+    };
+
+    serde_json::json!({
+        "old_center": center_id_json(old),
+        "mapped_new_ids": mapped_new_ids,
+        "mapping_result": result,
+        "evidence": if unique { "exact_center_id" } else { "no_exact_lineage_witness" },
+        "possible_results": possible_results,
+        "left_degree": after_occurrences,
+        "right_degree": before_occurrences,
+        "functional": functional,
+        "injective": injective,
+        "unique": unique,
+        "bijective": unique,
+        "non_lineage_hints": {
+            "same_start_added_count": same_start_added.len(),
+            "same_start_added_ids": center_ids_json(same_start_added),
+            "same_core_added_count": same_core_added.len(),
+            "same_core_added_ids": center_ids_json(same_core_added),
+        }
+    })
+}
+
 /// 严格区间套证书记录（P3 sidecar）：目标级 `top_level` 的一条 `N^δ_{ℓ↓0}` 证书。
 #[derive(Debug, Clone, PartialEq)]
 pub struct StrictNestCertificateRecord {
@@ -173,6 +267,16 @@ pub(super) struct OpsemDump {
     /// resync 工程诊断行）。与 trades/tower_events 并列第三产物——同一 env 门（OPSEM_DUMP_DIR
     /// 未设 ⟹ 本写入器不存在，feed 不执行，生产路径 bit-exact 不变）；事件只外化不回馈决策。
     center_lifecycle_buf: std::io::BufWriter<std::fs::File>,
+    /// ★#466 D0：重基事务现场 `rebase_observability.jsonl`。与其余 OPSEM 产物同一 env 门；
+    /// 仅接收 fill 已完成的只读事务快照，不回馈事件机、挂起表或订单路径。
+    rebase_observability_buf: Box<dyn std::io::Write>,
+    /// 本次 dump 内全局单调重基序号（跨 bar/level，首条=1）。
+    rebase_seq: u64,
+    /// 重基观测 I/O 失败 witness。失败后关闭该旁路，避免部分行后的候选序号被重试复用；
+    /// 只影响观测，不参与交易、挂起或核销决策。
+    rebase_observability_failed: bool,
+    rebase_observability_failure_count: u64,
+    rebase_observability_failure_reported: bool,
     trade_id_counter: u64,
     /// 交易活跃区间（首入场 bar .. 末离场 bar）；None=尚未见入场。
     active_start: Option<usize>,
@@ -213,7 +317,7 @@ impl OpsemDump {
         Self::at_dir(std::path::Path::new(&dir))
     }
 
-    /// 在指定目录开两个 JSONL 写入器。
+    /// 在指定目录开 OPSEM JSONL 写入器。
     /// ponytail: 截断打开（每次回测重写；同 dump_deltafree_pertrade 落盘语义）。path 局部化——
     /// struct 只持 BufWriter（path 仅 create 时用，后续不读，YAGNI 不存字段）。
     fn at_dir(dir_path: &std::path::Path) -> Option<Self> {
@@ -222,10 +326,26 @@ impl OpsemDump {
         let tower_file = std::fs::File::create(dir_path.join("tower_events.jsonl")).ok()?;
         // ★#291：第三产物（同截断语义——每次回测重写）。
         let cl_file = std::fs::File::create(dir_path.join("center_lifecycle.jsonl")).ok()?;
+        // ★#466 D0：第四产物（同截断语义）。
+        let rebase_path = dir_path.join("rebase_observability.jsonl");
+        let rebase_file = match std::fs::File::create(&rebase_path) {
+            Ok(file) => file,
+            Err(error) => {
+                eprintln!(
+                    "#466 D0 重基观测初始化失败：{rebase_path:?}：{error}；前三个 OPSEM 产物已按截断语义创建，本次 dump 关闭（交易决策 fail-open）"
+                );
+                return None;
+            }
+        };
         Some(Self {
             trades_buf: std::io::BufWriter::new(trades_file),
             tower_buf: std::io::BufWriter::new(tower_file),
             center_lifecycle_buf: std::io::BufWriter::new(cl_file),
+            rebase_observability_buf: Box::new(std::io::BufWriter::new(rebase_file)),
+            rebase_seq: 0,
+            rebase_observability_failed: false,
+            rebase_observability_failure_count: 0,
+            rebase_observability_failure_reported: false,
             trade_id_counter: 0,
             active_start: None,
             active_end: None,
@@ -247,6 +367,183 @@ impl OpsemDump {
     /// 在离场 bar 更新活跃区间末点。
     pub(super) fn mark_exit(&mut self, bar: usize) {
         self.active_end = Some(bar);
+    }
+
+    /// ★#466 D0：写一笔重基事务现场。调用点位于既有 `on_chain_rebase` 行为完成之后，但输入
+    /// 已在其删除 vanished 挂起前冻结；本函数只序列化，不返回任何可供决策消费的值。
+    fn write_rebase_observation(
+        &mut self,
+        bar: usize,
+        input: &RebaseObservationInput,
+    ) -> std::io::Result<()> {
+        use classifier::center_lifecycle::CenterId;
+        use std::collections::BTreeSet;
+        use std::io::Write;
+
+        let before_counts = center_id_counts(&input.chain.before);
+        let after_counts = center_id_counts(&input.chain.after);
+        let before_set: BTreeSet<CenterId> = input.chain.before.iter().copied().collect();
+        let after_set: BTreeSet<CenterId> = input.chain.after.iter().copied().collect();
+        let removed: BTreeSet<CenterId> = before_set.difference(&after_set).copied().collect();
+        let added: BTreeSet<CenterId> = after_set.difference(&before_set).copied().collect();
+        let exact: BTreeSet<CenterId> = before_set.intersection(&after_set).copied().collect();
+
+        let identity_mappings: Vec<_> = input
+            .chain
+            .before
+            .iter()
+            .copied()
+            .map(|old| rebase_mapping_json(old, &before_counts, &after_counts, &added, None))
+            .collect();
+        let continued_count = input
+            .chain
+            .before
+            .iter()
+            .filter(|old| {
+                before_counts.get(old).copied() == Some(1)
+                    && after_counts.get(old).copied() == Some(1)
+            })
+            .count();
+        let ambiguous_count = input.chain.before.len().saturating_sub(continued_count);
+
+        let mut suspended_before = Vec::with_capacity(input.suspended_before.len());
+        let mut suspended_continued = 0usize;
+        for (side, old) in input.suspended_before.iter().copied() {
+            // 挂起表的 `(side, CenterId)` 键本身就是一个确定源项；它不要求旧身份仍在事件机
+            // consumed 链中（#292 D 允许 superseded 历史中枢继续挂起）。
+            let mut mapping =
+                rebase_mapping_json(old, &before_counts, &after_counts, &added, Some(1));
+            if mapping["mapping_result"] == "continued" {
+                suspended_continued += 1;
+            }
+            mapping
+                .as_object_mut()
+                .expect("rebase_mapping_json 恒返回 object")
+                .insert("side".into(), serde_json::json!(voice_side_str(side)));
+            suspended_before.push(mapping);
+        }
+        let suspended_ambiguous =
+            input.suspended_before.len().saturating_sub(suspended_continued);
+
+        let before_ids_unique = before_counts.values().all(|count| *count == 1);
+        let after_ids_unique = after_counts.values().all(|count| *count == 1);
+        let exact_mapping_left_unique =
+            exact.iter().all(|id| before_counts.get(id).copied() == Some(1));
+        let exact_mapping_right_unique =
+            exact.iter().all(|id| after_counts.get(id).copied() == Some(1));
+        let exact_mapping_bijective =
+            exact_mapping_left_unique && exact_mapping_right_unique;
+        let complete_bijection = before_ids_unique
+            && after_ids_unique
+            && removed.is_empty()
+            && added.is_empty()
+            && input.chain.before.len() == input.chain.after.len();
+
+        let rebase_seq = self.rebase_seq + 1;
+        let row = serde_json::json!({
+            "schema": "rebase_observability_d0_v1",
+            "rebase_seq": rebase_seq,
+            "bar": bar,
+            "level": input.level,
+            "guard_at": input.chain.at,
+            "revived": input.revived,
+            "before_chain_len": input.chain.before.len(),
+            "after_chain_len": input.chain.after.len(),
+            "before_ids": center_ids_json(input.chain.before.iter().copied()),
+            "after_ids": center_ids_json(input.chain.after.iter().copied()),
+            "removed_ids": center_ids_json(removed.iter().copied()),
+            "added_ids": center_ids_json(added.iter().copied()),
+            "suspended_at_rebase": input.suspended_before.len(),
+            "suspended_before": suspended_before,
+            "identity_mappings": identity_mappings,
+            "mapping_result_domain": [
+                "continued",
+                "split",
+                "genuinely_removed",
+                "ambiguous"
+            ],
+            "mapping_result_counts": {
+                "continued": continued_count,
+                "split": 0,
+                "genuinely_removed": 0,
+                "ambiguous": ambiguous_count,
+            },
+            "suspended_result_counts": {
+                "continued": suspended_continued,
+                "split": 0,
+                "genuinely_removed": 0,
+                "ambiguous": suspended_ambiguous,
+            },
+            "checks": {
+                "before_ids_unique": before_ids_unique,
+                "after_ids_unique": after_ids_unique,
+                "exact_mapping_count": exact.len(),
+                "exact_mapping_left_unique": exact_mapping_left_unique,
+                "exact_mapping_right_unique": exact_mapping_right_unique,
+                "exact_mapping_bijective": exact_mapping_bijective,
+                "complete_bijection": complete_bijection,
+                "unmapped_old_count": removed.len(),
+                "unmapped_new_count": added.len(),
+            },
+            "construction_witness": {
+                "status": "none",
+                "available": [
+                    "old_chain_center_id(start_index,zd,zg)",
+                    "new_chain_center_id(start_index,zd,zg)",
+                    "exact_center_id_equality",
+                    "non_lineage_same_start_and_same_core_hints"
+                ],
+                "missing": [
+                    "stable_lineage_id",
+                    "source_unit_ids",
+                    "rebase_transform_edges",
+                    "split_merge_generation_witness"
+                ],
+                "explanation": "当前 ChainConsumed/Classification seam 不暴露塔构造来源谱系或重基变换边；同 start/core 仅作提示，不据此实施或声明身份映射。"
+            }
+        });
+
+        // 先在内存中形成含换行的完整 JSONL 行，再一次性交给 writer；只有整行写成功才提交
+        // rebase_seq。若 writer 返回错误，fail-open 包装器会关闭本次 dump 的后续重基观测，
+        // 因而不会用同一候选序号重试。
+        let mut line = serde_json::to_vec(&row)
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+        line.push(b'\n');
+        self.rebase_observability_buf.write_all(&line)?;
+        self.rebase_seq = rebase_seq;
+        Ok(())
+    }
+
+    /// 生产调用入口：观测 I/O 失败只进入 witness 并关闭本实例的重基观测旁路，决策继续。
+    pub(super) fn write_rebase_observation_fail_open(
+        &mut self,
+        bar: usize,
+        input: &RebaseObservationInput,
+    ) {
+        if self.rebase_observability_failed {
+            return;
+        }
+        let candidate_seq = self.rebase_seq.saturating_add(1);
+        if let Err(error) = self.write_rebase_observation(bar, input) {
+            self.rebase_observability_failed = true;
+            self.report_rebase_observability_failure("write", candidate_seq, &error);
+        }
+    }
+
+    fn report_rebase_observability_failure(
+        &mut self,
+        stage: &'static str,
+        sequence: u64,
+        error: &std::io::Error,
+    ) {
+        self.rebase_observability_failure_count += 1;
+        if !self.rebase_observability_failure_reported {
+            eprintln!(
+                "#466 D0 重基观测 {stage} 失败：failure_count={} rebase_seq={sequence}：{error}；后续重基观测旁路关闭，交易决策继续（fail-open）",
+                self.rebase_observability_failure_count
+            );
+            self.rebase_observability_failure_reported = true;
+        }
     }
 
     /// 写一笔 trade JSONL 行。`t` 是 TypedTrade，`open.opsem` 是入场快照，`pnl` 是费前方向盈亏
@@ -463,6 +760,10 @@ impl OpsemDump {
         let _ = self.trades_buf.flush();
         let _ = self.tower_buf.flush();
         let _ = self.center_lifecycle_buf.flush();
+        if let Err(error) = self.rebase_observability_buf.flush() {
+            self.rebase_observability_failed = true;
+            self.report_rebase_observability_failure("flush", self.rebase_seq, &error);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -945,5 +1246,171 @@ pub(super) fn force_state_str(s: super::super::classifier::divergence::ForceStat
         ForceStateA5::Dominates => "Dominates(力度延续)",
         ForceStateA5::Tie => "Tie",
         ForceStateA5::Incomparable => "Incomparable(口径冲突)",
+    }
+}
+
+#[cfg(test)]
+mod rebase_observability_tests {
+    use super::*;
+    use classifier::center_lifecycle::{CenterId, ChainRebaseObservation};
+    use std::cell::Cell;
+    use std::io::Write;
+    use std::rc::Rc;
+    use strategy::voice::VoiceSide;
+
+    fn cid(start_index: usize, zd: i64, zg: i64) -> CenterId {
+        CenterId { start_index, zd, zg }
+    }
+
+    struct FailingWriter {
+        write_calls: Rc<Cell<usize>>,
+        flush_calls: Rc<Cell<usize>>,
+    }
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+            self.write_calls.set(self.write_calls.get() + 1);
+            Err(std::io::Error::other("注入的重基观测写入失败"))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.flush_calls.set(self.flush_calls.get() + 1);
+            Err(std::io::Error::other("注入的重基观测 flush 失败"))
+        }
+    }
+
+    #[test]
+    fn rebase_observation_writer_failure_is_visible_fail_open_and_not_retried() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("系统时钟应晚于 UNIX_EPOCH")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "newchan-rebase-observability-failure-{}-{nonce}",
+            std::process::id()
+        ));
+        let input = RebaseObservationInput {
+            level: 1,
+            chain: ChainRebaseObservation {
+                at: 0,
+                before: vec![cid(10, 100, 200)],
+                after: vec![cid(20, 110, 210)],
+            },
+            suspended_before: vec![(VoiceSide::Long, cid(10, 100, 200))],
+            revived: false,
+        };
+        let write_calls = Rc::new(Cell::new(0));
+        let flush_calls = Rc::new(Cell::new(0));
+
+        {
+            let mut dump = OpsemDump::at_dir(&dir).expect("测试 dump writer 应可创建");
+            dump.rebase_observability_buf = Box::new(FailingWriter {
+                write_calls: Rc::clone(&write_calls),
+                flush_calls: Rc::clone(&flush_calls),
+            });
+
+            dump.write_rebase_observation_fail_open(42, &input);
+            assert_eq!(write_calls.get(), 1, "首次失败必须真实到达观测 writer");
+            assert_eq!(dump.rebase_observability_failure_count, 1);
+            assert!(dump.rebase_observability_failure_reported);
+            assert!(dump.rebase_observability_failed);
+            assert_eq!(dump.rebase_seq, 0, "整行失败不得提交序号");
+
+            dump.write_rebase_observation_fail_open(43, &input);
+            assert_eq!(write_calls.get(), 1, "失败后关闭旁路，候选序号不得被重试复用");
+            assert_eq!(dump.rebase_observability_failure_count, 1);
+            assert_eq!(dump.rebase_seq, 0);
+
+            dump.flush();
+            assert_eq!(flush_calls.get(), 1, "显式 flush 必须覆盖重基观测 buffer");
+            assert_eq!(
+                dump.rebase_observability_failure_count, 2,
+                "flush 失败也必须进入可见 witness"
+            );
+        }
+
+        std::fs::remove_dir_all(&dir).expect("清理本测试专属临时目录");
+    }
+
+    #[test]
+    fn rebase_observability_jsonl_exposes_transaction_and_honest_mapping_reads() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("系统时钟应晚于 UNIX_EPOCH")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "newchan-rebase-observability-{}-{nonce}",
+            std::process::id()
+        ));
+        let old = cid(10, 100, 200);
+        let stable = cid(30, 300, 400);
+        let added = cid(10, 110, 210);
+        let input = RebaseObservationInput {
+            level: 1,
+            chain: ChainRebaseObservation {
+                at: 0,
+                before: vec![old, stable],
+                after: vec![added, stable],
+            },
+            suspended_before: vec![(VoiceSide::Long, old), (VoiceSide::Short, stable)],
+            revived: false,
+        };
+
+        let mut dump = OpsemDump::at_dir(&dir).expect("测试 dump writer 应可创建");
+        dump.write_rebase_observation(42, &input).expect("D0 JSONL 应可落盘");
+        drop(dump);
+
+        let raw = std::fs::read_to_string(dir.join("rebase_observability.jsonl"))
+            .expect("D0 产物必须存在");
+        let rows: Vec<serde_json::Value> = raw
+            .lines()
+            .map(|line| serde_json::from_str(line).expect("每行必须是合法 JSON"))
+            .collect();
+        assert_eq!(rows.len(), 1);
+        let row = &rows[0];
+        assert_eq!(row["schema"], "rebase_observability_d0_v1");
+        assert_eq!(row["rebase_seq"], 1);
+        assert_eq!(row["bar"], 42);
+        assert_eq!(row["level"], 1);
+        assert_eq!(row["removed_ids"].as_array().expect("removed 数组").len(), 1);
+        assert_eq!(row["added_ids"].as_array().expect("added 数组").len(), 1);
+        assert_eq!(
+            row["mapping_result_domain"],
+            serde_json::json!(["continued", "split", "genuinely_removed", "ambiguous"])
+        );
+
+        let suspended = row["suspended_before"].as_array().expect("挂起数组");
+        assert_eq!(suspended.len(), 2);
+        assert_eq!(suspended[0]["side"], "Long");
+        assert_eq!(suspended[0]["mapping_result"], "ambiguous");
+        assert_eq!(suspended[0]["unique"], false);
+        assert_eq!(suspended[0]["bijective"], false);
+        assert_eq!(
+            suspended[0]["non_lineage_hints"]["same_start_added_count"],
+            1,
+            "同 start 只作非谱系提示，不得把 ambiguous 偷换成 continued"
+        );
+        assert_eq!(suspended[1]["side"], "Short");
+        assert_eq!(suspended[1]["mapping_result"], "continued");
+        assert_eq!(suspended[1]["unique"], true);
+        assert_eq!(suspended[1]["bijective"], true);
+
+        assert_eq!(row["mapping_result_counts"]["continued"], 1);
+        assert_eq!(row["mapping_result_counts"]["split"], 0);
+        assert_eq!(row["mapping_result_counts"]["genuinely_removed"], 0);
+        assert_eq!(row["mapping_result_counts"]["ambiguous"], 1);
+        assert_eq!(row["checks"]["exact_mapping_bijective"], true);
+        assert_eq!(row["checks"]["complete_bijection"], false);
+        assert_eq!(row["construction_witness"]["status"], "none");
+        assert!(
+            row["construction_witness"]["missing"]
+                .as_array()
+                .expect("缺口数组")
+                .iter()
+                .any(|v| v == "stable_lineage_id"),
+            "无精确谱系时必须明示缺失 stable_lineage_id"
+        );
+
+        std::fs::remove_dir_all(&dir).expect("清理本测试专属临时目录");
     }
 }

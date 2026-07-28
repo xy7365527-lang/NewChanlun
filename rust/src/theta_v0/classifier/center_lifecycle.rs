@@ -332,6 +332,20 @@ pub enum ChainConsumed {
     Rebased { at: usize, len: usize, revived: bool },
 }
 
+/// ★#466 D0：一次工程重基在 `adopt()` 覆盖链游标前后的只读身份快照。
+///
+/// 仅由 [`CenterEventMachine::consume_chain_observed`] 在确实发生
+/// [`ChainConsumed::Rebased`] 时构造；普通生产消费不分配本快照。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChainRebaseObservation {
+    /// O(1) 守卫检出的分叉下标。
+    pub at: usize,
+    /// `adopt()` 前事件机已经消费的完整身份链。
+    pub before: Vec<CenterId>,
+    /// `adopt()` 后当前塔链的完整身份链。
+    pub after: Vec<CenterId>,
+}
+
 /// 死亡请求对链解析的内部四态（[`CenterEventMachine::resolve_kill_target`]）。
 enum KillResolution {
     /// 场为空：无可杀对象（校验不介入）。
@@ -454,11 +468,29 @@ impl CenterEventMachine {
     /// 每 bar 调一次（幂等：链未增长 ⟹ `Advanced{events:[], superseded:0}`）。语义三分支见
     /// [`ChainConsumed`]。
     pub fn consume_chain(&mut self, chain: &[Center]) -> ChainConsumed {
+        self.consume_chain_impl(chain, false).0
+    }
+
+    /// ★#466 D0：与 [`Self::consume_chain`] 完全相同的状态推进；唯一增量是在确实重基时，
+    /// 于 `adopt()` 覆盖前抓取旧链，并返回前后身份快照。调用方只应在观测通道已启用时使用，
+    /// 以保证 `OPSEM_DUMP_DIR` 未设时无额外链复制。
+    pub fn consume_chain_observed(
+        &mut self,
+        chain: &[Center],
+    ) -> (ChainConsumed, Option<ChainRebaseObservation>) {
+        self.consume_chain_impl(chain, true)
+    }
+
+    fn consume_chain_impl(
+        &mut self,
+        chain: &[Center],
+        observe_rebase: bool,
+    ) -> (ChainConsumed, Option<ChainRebaseObservation>) {
         // ① 首次消费：静默采纳既有链前缀（这些中枢在本机开机前就在链上，不伪造出生 bar）。
         if !self.synced {
             self.synced = true;
             let _ = self.adopt(chain); // 首次消费不可能复活（本机此前未杀过任何实例）。
-            return ChainConsumed::Adopted { adopted: chain.len() };
+            return (ChainConsumed::Adopted { adopted: chain.len() }, None);
         }
         // ② 前缀分叉守卫（O(1)/bar/级）：链回缩 或 已消费末条身份被改写 ⟹ 工程重基。
         //
@@ -484,8 +516,19 @@ impl CenterEventMachine {
                 .unwrap_or(false);
             if chain.len() < k || !tail_same {
                 let at = if chain.len() < k { chain.len() } else { k - 1 };
+                // ★#466 D0：必须在 adopt 全量覆盖前抓旧链。普通消费 observe=false，
+                // 不复制链，保持未启用 OPSEM_DUMP_DIR 时的既有开销面。
+                let before = observe_rebase.then(|| self.consumed.clone());
                 let revived = self.adopt(chain);
-                return ChainConsumed::Rebased { at, len: chain.len(), revived };
+                let observation = before.map(|before| ChainRebaseObservation {
+                    at,
+                    before,
+                    after: chain.iter().map(CenterId::of).collect(),
+                });
+                return (
+                    ChainConsumed::Rebased { at, len: chain.len(), revived },
+                    observation,
+                );
             }
         }
         // ③ 正常推进（尾部追加）⟹ 逐个新中枢产 Born，游标落链尾。
@@ -519,7 +562,7 @@ impl CenterEventMachine {
                 chain_index: idx,
             });
         }
-        ChainConsumed::Advanced { events, superseded }
+        (ChainConsumed::Advanced { events, superseded }, None)
     }
 
     /// 静默采纳当前链为已消费前缀（首次消费 / 前缀分叉重基共用）：游标落链尾，不产任何事件。
@@ -1089,6 +1132,29 @@ mod tests {
         );
         assert_eq!(m.counts(), (2, 0, 0), "重基不伪造 born");
         assert_eq!(m.alive_center(), Some((c1_recut, 1)));
+    }
+
+    /// ★#466 D0：观测版消费只在重基事务返回 adopt 前/后的完整身份链；旧链必须在
+    /// `adopt()` 覆盖前抓取，不能从重基后的事件机状态反推。
+    #[test]
+    fn observed_rebase_captures_chain_before_and_after_adopt() {
+        let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
+        let mut m = machine_on_chain(&[c0, c1]);
+        let c1_recut = center(300, 640, 160, 240);
+        let c2 = center(700, 900, 180, 280);
+
+        let (got, observation) = m.consume_chain_observed(&[c0, c1_recut, c2]);
+
+        assert_eq!(got, ChainConsumed::Rebased { at: 1, len: 3, revived: false });
+        let observation = observation.expect("Rebased 必须带一笔 D0 链事务观测");
+        assert_eq!(observation.at, 1);
+        assert_eq!(observation.before, vec![CenterId::of(&c0), CenterId::of(&c1)]);
+        assert_eq!(
+            observation.after,
+            vec![CenterId::of(&c0), CenterId::of(&c1_recut), CenterId::of(&c2)]
+        );
+        assert_eq!(m.chain_len(), 3, "观测不得改变 adopt 后的既有链状态");
+        assert_eq!(m.alive_center(), Some((c2, 2)), "观测不得改变既有在场选择");
     }
 
     // ──────────────────────────────────────────────────────────────────────

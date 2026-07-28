@@ -330,7 +330,7 @@ use super::signal::{entry_structural_stop, newly_confirmed_step};
 use super::opsem_dump::{
     eta_bucket_str, force_state_str, operation_role_str, risk_mode_str,
     strict_nest_sidecar_enabled, summarize_strict_nest_certificates, t_stage_str, voice_side_str,
-    OpsemDump, StrictNestSidecarCollector,
+    OpsemDump, RebaseObservationInput, StrictNestSidecarCollector,
 };
 use super::admission::{
     voice_exec_gate, nest_cert_gate_enabled,
@@ -781,6 +781,47 @@ fn step_center_oscillation(
     osc_books: &mut Vec<super::super::strategy::center_oscillation_trade::CenterOscillationBook>,
     witness: &mut super::super::strategy::oscillation_campaign::CampaignWiringWitness,
 ) -> CenterOscillationStepOutput {
+    step_center_oscillation_impl(
+        bar,
+        classification_i,
+        classification_step,
+        cl_machines,
+        osc_books,
+        witness,
+        false,
+    )
+}
+
+/// ★#466 D0：仅供 `OPSEM_DUMP_DIR` 已启用的生产循环与事务落盘测试使用。状态推进与
+/// [`step_center_oscillation`] 共用同一实现；增量只有 Rebased 时复制旧/新身份链和核销前挂起表。
+fn step_center_oscillation_observed(
+    bar: usize,
+    classification_i: &classifier::Classification,
+    classification_step: &classifier::Classification,
+    cl_machines: &mut Vec<classifier::center_lifecycle::CenterEventMachine>,
+    osc_books: &mut Vec<super::super::strategy::center_oscillation_trade::CenterOscillationBook>,
+    witness: &mut super::super::strategy::oscillation_campaign::CampaignWiringWitness,
+) -> CenterOscillationStepOutput {
+    step_center_oscillation_impl(
+        bar,
+        classification_i,
+        classification_step,
+        cl_machines,
+        osc_books,
+        witness,
+        true,
+    )
+}
+
+fn step_center_oscillation_impl(
+    bar: usize,
+    classification_i: &classifier::Classification,
+    classification_step: &classifier::Classification,
+    cl_machines: &mut Vec<classifier::center_lifecycle::CenterEventMachine>,
+    osc_books: &mut Vec<super::super::strategy::center_oscillation_trade::CenterOscillationBook>,
+    witness: &mut super::super::strategy::oscillation_campaign::CampaignWiringWitness,
+    observe_rebase: bool,
+) -> CenterOscillationStepOutput {
     use classifier::center_lifecycle::{CenterEventMachine, CenterId, ChainConsumed, PointOutcome};
     use super::super::strategy::center_oscillation_trade::{
         CenterDrift, CenterOscillationActionRecord, CenterOscillationBook, CenterOscillationTrigger,
@@ -790,6 +831,7 @@ fn step_center_oscillation(
 
     let mut actions = Vec::new();
     let mut write_offs: Vec<UnclosedWriteOffRequest> = Vec::new();
+    let mut rebase_observations = Vec::new();
     let n_levels = classification_i.levels.len();
     while cl_machines.len() < n_levels {
         let lvl = cl_machines.len() as u32;
@@ -800,7 +842,12 @@ fn step_center_oscillation(
         let chain: &[super::super::types::Center] = &classification_i.levels[lvl].centers;
         // #292 续修：重基（`ChainConsumed::Rebased`）到达时按身份核对新链——挂起对该级的
         // 处置见 `CenterOscillationBook::on_chain_rebase`（F 裁定：迁移/终结二分，禁悬空）。
-        match cl_machines[lvl].consume_chain(chain) {
+        let (consumed, chain_observation) = if observe_rebase {
+            cl_machines[lvl].consume_chain_observed(chain)
+        } else {
+            (cl_machines[lvl].consume_chain(chain), None)
+        };
+        match consumed {
             ChainConsumed::Advanced { events, .. } => {
                 for ev in events.iter() {
                     let ev_out = osc_books[lvl].on_lifecycle_event(ev);
@@ -833,7 +880,16 @@ fn step_center_oscillation(
                     }
                 }
             }
-            ChainConsumed::Rebased { .. } => {
+            ChainConsumed::Rebased { revived, .. } => {
+                // ★#466 D0：挂起表必须在既有 on_chain_rebase 删除 vanished 条目前抓取。
+                // 这里只读复制；下面核销/动作/见证路径逐字不改。
+                let rebase_observation =
+                    chain_observation.map(|chain| RebaseObservationInput {
+                        level: lvl as u32,
+                        chain,
+                        suspended_before: osc_books[lvl].suspended_identities(),
+                        revived,
+                    });
                 for outcome in osc_books[lvl].on_chain_rebase(chain) {
                     witness.record_suspension_source(lvl as u32, outcome.side, outcome.source);
                     witness.record_settlement(lvl as u32, outcome.side, outcome.settlement);
@@ -856,6 +912,9 @@ fn step_center_oscillation(
                             side: outcome.side,
                         });
                     }
+                }
+                if let Some(observation) = rebase_observation {
+                    rebase_observations.push(observation);
                 }
             }
             ChainConsumed::Adopted { .. } => {}
@@ -968,7 +1027,7 @@ fn step_center_oscillation(
             }
         }
     }
-    CenterOscillationStepOutput { actions, write_offs }
+    CenterOscillationStepOutput { actions, write_offs, rebase_observations }
 }
 
 /// ★#366：`step_center_oscillation` 的单 bar 产出——减/补动作 + 「未闭合减出」核销请求两路。
@@ -978,6 +1037,8 @@ fn step_center_oscillation(
 struct CenterOscillationStepOutput {
     actions: Vec<super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord>,
     write_offs: Vec<super::super::strategy::center_oscillation_trade::UnclosedWriteOffRequest>,
+    /// ★#466 D0：仅观测版调用可非空；普通调用恒空，不参与动作/核销/campaign。
+    rebase_observations: Vec<RebaseObservationInput>,
 }
 
 /// issue #357（T4/#294 生产实例化）：`step_center_oscillation` 产出的减/补动作 → 每仓
@@ -1902,13 +1963,23 @@ mod center_oscillation_wiring_tests {
         // bar1：链前缀分叉为 [c1, c2]（已消费的第 0 格身份从 c0 改写为 c1）⟹ Rebased。
         // 新链含 c1、不含 c0。
         let bar1_classification = Classification { levels: vec![level_with_centers(vec![c1, c2])] };
-        let out = step_center_oscillation(
+        let out = step_center_oscillation_observed(
             1,
             &bar1_classification,
             &empty_step,
             &mut cl_machines,
             &mut osc_books,
             &mut witness,
+        );
+        assert_eq!(out.rebase_observations.len(), 1, "一笔 Rebased 必须产一笔 D0 事务观测");
+        let rebase = &out.rebase_observations[0];
+        assert_eq!(rebase.level, 0);
+        assert_eq!(rebase.chain.before, vec![CenterId::of(&c0)]);
+        assert_eq!(rebase.chain.after, vec![CenterId::of(&c1), CenterId::of(&c2)]);
+        assert_eq!(
+            rebase.suspended_before,
+            vec![(VoiceSide::Long, CenterId::of(&c0)), (VoiceSide::Long, CenterId::of(&c1))],
+            "必须在 on_chain_rebase 删除 vanished 挂起前抓取完整分侧挂起表"
         );
         assert!(out.actions.is_empty(), "RebaseVanished 终结不回补，本 bar 无 cover_action 可见动作");
         assert_eq!(out.write_offs.len(), 1, "Rebased 路径必须产出一条未闭合减出核销请求");
@@ -2639,14 +2710,33 @@ where
                 // 不依赖上面的 pan_div_hist/gate）→ 挂起账减补动作（接线可见性证据）。
                 // ★#366：产出改两路（减/补动作 + 未闭合减出核销请求，见
                 // [`CenterOscillationStepOutput`]）——核销不成交、不产 TwEvent，与动作分列。
-                let osc_step = step_center_oscillation(
-                    i,
-                    &classification_i,
-                    &classification_step,
-                    &mut cl_machines,
-                    &mut osc_books,
-                    &mut campaign_witness,
-                );
+                // ★#466 D0：事务快照只在 OPSEM_DUMP_DIR 已启用时抓取；未启用时仍走原
+                // 入口，不复制旧链/新链或挂起表。观测发生在 on_chain_rebase 改写挂起表之前，
+                // 落盘发生在本步决策完成之后，两者都不参与任何决策。
+                let osc_step = if opsem.is_some() {
+                    step_center_oscillation_observed(
+                        i,
+                        &classification_i,
+                        &classification_step,
+                        &mut cl_machines,
+                        &mut osc_books,
+                        &mut campaign_witness,
+                    )
+                } else {
+                    step_center_oscillation(
+                        i,
+                        &classification_i,
+                        &classification_step,
+                        &mut cl_machines,
+                        &mut osc_books,
+                        &mut campaign_witness,
+                    )
+                };
+                if let Some(dump) = opsem.as_mut() {
+                    for observation in &osc_step.rebase_observations {
+                        dump.write_rebase_observation_fail_open(i, observation);
+                    }
+                }
                 let new_osc_actions = osc_step.actions;
                 // ★issue #357（T4/#294 生产实例化，编排者裁定 A：本仓=`Core{level}` 身份账户）：
                 // 每仓 campaign 生死驱动 + 减/补动作落成对偶事件（ShortDiff 成本基 + Realize
