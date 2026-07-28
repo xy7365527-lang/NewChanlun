@@ -161,9 +161,9 @@ pub struct RunResult {
     pub strict_nest_sidecar: Option<StrictNestSidecarSummary>,
 }
 
-// #499 退役删除，deprecated F-01 前视，删除 commit 见票。
+// run_theta_v0 已按 #499 裁定退役删除（deprecated F-01 前视；删除 commit 见票）。
 
-// #499 退役删除，deprecated F-01 前视，删除 commit 见票。
+// run_theta_v0_dual 已按 #499 裁定退役删除（deprecated F-01 前视；删除 commit 见票）。
 
 /// ★**七链 π_Θ 生产 runner（塔导出桥 (iii) 布线段，接 Nautilus 核心实装）**——
 /// 原与买卖点 v1 `recognize` 并行；v1 家族已由 #499 退役。
