@@ -185,6 +185,34 @@ pub(crate) fn pi_theta_step_traced(
     tw: Option<&TwStepCtx>,
     protocol: &ProtocolEventSet,
 ) -> (Vec<ActiveLeg>, f64, PiThetaDecision, StepTrace) {
+    pi_theta_step_traced_with_risk_seeds(
+        work, gamma, prev_active, p_t, exec_index, base_units, risk, weights, gate, &[], config,
+        registry, tw, protocol,
+    )
+}
+
+/// #572：trace 单源入口的腿级 risk-close seed 变体。
+///
+/// 旧入口仅以空 seeds 委托本函数，保持所有既有调用 bit-exact；生产 π loop 把 admission
+/// 命中的逐腿 stop seeds 传入。seeds 与解释器 close 桶共同进入现役活动集/子树机关，
+/// 但在 `StepTrace` 中仍正交外化为直接父 `risk_exits` 与后代 `silent_drops`。
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn pi_theta_step_traced_with_risk_seeds(
+    work: ElementView,
+    gamma: &[Candidate],
+    prev_active: &[ActiveLeg],
+    p_t: f64,
+    exec_index: usize,
+    base_units: f64,
+    risk: &RiskConfig,
+    weights: PiThetaWeights,
+    gate: KThetaRiskGate,
+    risk_close_seeds: &[ActiveLeg],
+    config: &VoiceConfig,
+    registry: &super::super::persistent::PersistentRegistry,
+    tw: Option<&TwStepCtx>,
+    protocol: &ProtocolEventSet,
+) -> (Vec<ActiveLeg>, f64, PiThetaDecision, StepTrace) {
     // 协议轨只读折叠，与下方 P1..P10 订单轨正交；所有 return 分支携同一显式事件。
     let protocol_event = protocol.selected();
     // P1 强平（PDF §7 全互斥 C_1=P_1 屏蔽 P2..P10）：force_flat ⟹ 活动腿全部 RiskExit 清空、无开仓、
@@ -211,6 +239,13 @@ pub(crate) fn pi_theta_step_traced(
             },
         );
     }
+    let risk_exit_ids: std::collections::HashSet<ElementId> =
+        risk_close_seeds.iter().map(|leg| leg.id).collect();
+    let risk_exits: Vec<ActiveLeg> = prev_active
+        .iter()
+        .filter(|leg| risk_exit_ids.contains(&leg.id))
+        .copied()
+        .collect();
     // ── TW 谓词 P2/P3/P4（#124 裁定4「真统一」：TW 三阶段进 fold，PDF §7 C_2/C_3/C_4）──
     // 优先级 P2 ≻ P3 ≻ P4 ≻ P5..P10；成立时**消耗当步裁决**（gamma 全部推迟 record 桶，屏蔽
     // P5..P10 的开/平；§13 结构剪枝 AncOK/Stale 照常——那是活动集与树的状态同步，非解释器裁决）。
@@ -233,9 +268,11 @@ pub(crate) fn pi_theta_step_traced(
                     open: Vec::new(),
                     record: gamma.to_vec(), // 当步普通候选推迟记录（消耗当步裁决）
                 };
-                let (next_active, p_tilde, sep_legs, _idx) = coverage_step_from_buckets_sep(
-                    work, prev_active, &buckets, base_units, config, Some(risk), registry,
-                );
+                let (next_active, p_tilde, sep_legs, _idx) =
+                    super::step::coverage_step_from_buckets_sep_with_risk_seeds(
+                        work, prev_active, &buckets, &risk_exits, base_units, config, Some(risk),
+                        registry,
+                    );
                 let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
                 let order = schedule_order(p_star, p_t, exec_index);
                 // §13 结构剪枝（AncOK/Stale）照常 ⟹ 被剪腿仍须外化（消费端在飞表不泄漏）。
@@ -245,7 +282,11 @@ pub(crate) fn pi_theta_step_traced(
                     overlay.iter().map(|l| l.id).collect();
                 let silent_drops = prev_active
                     .iter()
-                    .filter(|l| !overlay_ids.contains(&l.id) && !next_ids.contains(&l.id))
+                    .filter(|l| {
+                        !overlay_ids.contains(&l.id)
+                            && !risk_exit_ids.contains(&l.id)
+                            && !next_ids.contains(&l.id)
+                    })
                     .copied()
                     .collect();
                 // #201：P2 分支每持仓声部恰一枚裁决——overlay 腿 = CloseReverseOpen（与规则2
@@ -254,7 +295,9 @@ pub(crate) fn pi_theta_step_traced(
                 let verdicts = prev_active
                     .iter()
                     .filter_map(|l| {
-                        if overlay_ids.contains(&l.id) {
+                        if risk_exit_ids.contains(&l.id) {
+                            Some(VoiceVerdict { leg: *l, exit: interp::ExitType::RiskExit })
+                        } else if overlay_ids.contains(&l.id) {
                             Some(VoiceVerdict { leg: *l, exit: interp::ExitType::CloseReverseOpen })
                         } else if next_ids.contains(&l.id) {
                             Some(VoiceVerdict { leg: *l, exit: interp::ExitType::Hold })
@@ -267,7 +310,17 @@ pub(crate) fn pi_theta_step_traced(
                     next_active,
                     p_star,
                     (order, protocol_event),
-                    StepTrace { overlay_closes: overlay, silent_drops, sep_legs, verdicts, ..Default::default() },
+                    StepTrace {
+                        overlay_closes: overlay
+                            .into_iter()
+                            .filter(|leg| !risk_exit_ids.contains(&leg.id))
+                            .collect(),
+                        silent_drops,
+                        risk_exits,
+                        sep_legs,
+                        verdicts,
+                        ..Default::default()
+                    },
                 );
             }
         }
@@ -282,9 +335,11 @@ pub(crate) fn pi_theta_step_traced(
                 open: Vec::new(),
                 record: gamma.to_vec(), // 当步普通候选推迟记录（消耗当步裁决，屏蔽 P5..P10）
             };
-            let (next_active, p_tilde, sep_legs, _idx) = coverage_step_from_buckets_sep(
-                work, prev_active, &buckets, base_units, config, Some(risk), registry,
-            );
+            let (next_active, p_tilde, sep_legs, _idx) =
+                super::step::coverage_step_from_buckets_sep_with_risk_seeds(
+                    work, prev_active, &buckets, &risk_exits, base_units, config, Some(risk),
+                    registry,
+                );
             let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
             let order = schedule_order(p_star, p_t, exec_index);
             // §13 结构剪枝（AncOK/Stale）照常 ⟹ 被剪腿仍须外化（消费端在飞表不泄漏）。
@@ -292,21 +347,37 @@ pub(crate) fn pi_theta_step_traced(
                 next_active.iter().map(|l| l.id).collect();
             let silent_drops = prev_active
                 .iter()
-                .filter(|l| !next_ids.contains(&l.id))
+                .filter(|l| {
+                    !risk_exit_ids.contains(&l.id) && !next_ids.contains(&l.id)
+                })
                 .copied()
                 .collect();
             // #201：P3/P4 分支消耗当步裁决（屏蔽 P5..P10）——持仓声部仍逐枚裁 Hold
             // （活动腿保持）；§13 剪除腿非裁决（silent_drops 轨）。
             let verdicts = prev_active
                 .iter()
-                .filter(|l| next_ids.contains(&l.id))
-                .map(|&leg| VoiceVerdict { leg, exit: interp::ExitType::Hold })
+                .filter_map(|&leg| {
+                    if risk_exit_ids.contains(&leg.id) {
+                        Some(VoiceVerdict { leg, exit: interp::ExitType::RiskExit })
+                    } else if next_ids.contains(&leg.id) {
+                        Some(VoiceVerdict { leg, exit: interp::ExitType::Hold })
+                    } else {
+                        None
+                    }
+                })
                 .collect();
             return (
                 next_active,
                 p_star,
                 (order, protocol_event),
-                StepTrace { tw_event: Some(ev), silent_drops, sep_legs, verdicts, ..Default::default() },
+                StepTrace {
+                    tw_event: Some(ev),
+                    silent_drops,
+                    risk_exits,
+                    sep_legs,
+                    verdicts,
+                    ..Default::default()
+                },
             );
         }
     }
@@ -343,7 +414,9 @@ pub(crate) fn pi_theta_step_traced(
     // 环6：活动集递归 + AncOK + G7 毛约束（原样单源）。★M5：sep 出口暴露逐声部 P^sep_{t+1}。
     // ★#220 路④：第 4 分量 next_active_idx（与 next_active 逐位对位的 work idx）= opened 配对键。
     let (next_active, p_tilde, sep_legs, next_active_idx) =
-        coverage_step_from_buckets_sep(work, prev_active, &buckets, base_units, config, Some(risk), registry);
+        super::step::coverage_step_from_buckets_sep_with_risk_seeds(
+            work, prev_active, &buckets, &risk_exits, base_units, config, Some(risk), registry,
+        );
     // 环7：LexArgmin + Schedule（原样单源）。
     let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
     let order = schedule_order(p_star, p_t, exec_index);
@@ -359,6 +432,7 @@ pub(crate) fn pi_theta_step_traced(
         .iter()
         .copied()
         .zip(close_triggers)
+        .filter(|(leg, _)| !risk_exit_ids.contains(&leg.id))
         .map(|(l, c)| {
             let exit_type = interp::reverse_exit_type(entry_v_of(&l), c.bsp_class);
             (l, c, exit_type)
@@ -425,7 +499,9 @@ pub(crate) fn pi_theta_step_traced(
     let verdicts: Vec<VoiceVerdict> = prev_active
         .iter()
         .filter_map(|l| {
-            if let Some(&exit) = closed_typed.get(&l.id) {
+            if risk_exit_ids.contains(&l.id) {
+                Some(VoiceVerdict { leg: *l, exit: interp::ExitType::RiskExit })
+            } else if let Some(&exit) = closed_typed.get(&l.id) {
                 Some(VoiceVerdict { leg: *l, exit })
             } else if next_ids.contains(&l.id) {
                 Some(VoiceVerdict { leg: *l, exit: interp::ExitType::Hold })
@@ -437,7 +513,11 @@ pub(crate) fn pi_theta_step_traced(
     // 静默离场：prev_active 中既未被 close 桶认领、也不在 next_active（AncOK 剪/Stale prune）。
     let silent_drops: Vec<ActiveLeg> = prev_active
         .iter()
-        .filter(|l| !closed_ids.contains(&l.id) && !next_ids.contains(&l.id))
+        .filter(|l| {
+            !risk_exit_ids.contains(&l.id)
+                && !closed_ids.contains(&l.id)
+                && !next_ids.contains(&l.id)
+        })
         .copied()
         .collect();
     // ★#220 路④：真正准入的 open 候选 = 其**自身元素 idx**（candidate_start+gamma_index）出现在
@@ -482,7 +562,16 @@ pub(crate) fn pi_theta_step_traced(
         next_active,
         p_star,
         (order, protocol_event),
-        StepTrace { closed, silent_drops, opened, sep_legs, verdicts, lex_top3, ..Default::default() },
+        StepTrace {
+            closed,
+            silent_drops,
+            opened,
+            risk_exits,
+            sep_legs,
+            verdicts,
+            lex_top3,
+            ..Default::default()
+        },
     )
 }
 

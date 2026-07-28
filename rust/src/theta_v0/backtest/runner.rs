@@ -1744,6 +1744,97 @@ mod tests {
         assert_eq!(view.balance(AccountIdentity::ReverseOpen { level: 0 }), 0.0, "子 ReverseOpen 余额归零（无孤儿）");
     }
 
+    /// ★#572 π 级联止损锁（#568 裁定 S1）：父结构止损命中必须作为腿级 risk-close
+    /// seed 进入现役 `StepTrace/risk_exits/silent_drops` 出口；父 = RiskExit，后代 =
+    /// structural-prune，同一决策 bar 终结。E 组父 L1 Long stop=90，`bars[18].low=85`
+    /// （自然语言第 19 根 bar）触发；子 L0 ReverseOpen 不直接命中自身 stop=210。
+    #[test]
+    fn pi_parent_stop_cascades_risk_exit_to_reverse_open_child() {
+        use super::super::super::strategy::account::{AccountIdentity, ActionReason};
+        use super::super::super::strategy::interp::ExitType;
+
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0;
+        let mut bars = e1_bars();
+        bars[18].low = 85;
+
+        let cls_parent = {
+            let mut c = e_classification(false);
+            c.levels[0] = LevelState::default();
+            c
+        };
+        let cls_open = e_classification(false);
+        let tower = e_tower();
+        let classify = move |i: usize| {
+            let cls = if i >= 17 {
+                cls_open.clone()
+            } else if i >= 13 {
+                cls_parent.clone()
+            } else {
+                Classification::default()
+            };
+            (
+                cls,
+                tower.clone(),
+                tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
+                i as u64,
+                i as u64,
+            )
+        };
+
+        // #572 验收要求覆盖 overlay VOICE_EXEC 臂；线程局部 override，调用后立即恢复。
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
+        let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
+
+        let parent_row = fill
+            .typed_ledger
+            .iter()
+            .find(|t| t.entry_z.level == 1 && t.entry_z.delta == 1)
+            .expect("父 L1 Long typed 交易存在");
+        let child_row = fill
+            .typed_ledger
+            .iter()
+            .find(|t| t.entry_z.level == 0 && t.entry_z.delta == -1)
+            .expect("子 L0 ReverseOpen typed 交易存在");
+
+        // ① 父 RiskExit（自然语言 bar 19 = 0-based index 18）。
+        assert_eq!(parent_row.exit_type, ExitType::RiskExit, "父 stop 命中必须归 RiskExit");
+        assert_eq!(parent_row.exit_bar, 18, "父在第 19 根 bar（index 18）RiskExit");
+        assert!(!parent_row.via_structural_prune, "父是直接 risk-close seed，非结构剪枝");
+        // ② 子由既有子树机关同刻剪除。
+        assert_eq!(child_row.exit_type, ExitType::CloseReverseOpen);
+        assert_eq!(child_row.exit_bar, 18, "子与父同刻终结");
+        assert!(child_row.via_structural_prune, "子 = structural-prune/silent-drop");
+
+        let view = &fill.account_view;
+        let child_close_pos = view
+            .fills()
+            .iter()
+            .position(|f| {
+                f.order.account() == AccountIdentity::ReverseOpen { level: 0 }
+                    && f.order.reason == ActionReason::StructuralPrune
+                    && f.fill_bar == 18
+            })
+            .expect("子 ReverseOpen×StructuralPrune AccountFill 存在");
+        let parent_close_pos = view
+            .fills()
+            .iter()
+            .position(|f| {
+                f.order.account() == AccountIdentity::Core { level: 1 }
+                    && f.order.reason == ActionReason::RiskExit
+                    && f.fill_bar == 18
+            })
+            .expect("父 Core{1}×RiskExit AccountFill 存在");
+        // ③ 子 StructuralPrune 先于父 RiskExit（消费顺序 = silent_drops → risk_exits）。
+        assert!(child_close_pos < parent_close_pos, "子 StructuralPrune 必须先于父 RiskExit 过账");
+        // ④ bar 19 后父子余额均零；不以 venue n_orders 代替腿级/账户级断言。
+        assert_eq!(view.balance_as_of(AccountIdentity::Core { level: 1 }, 18), 0.0);
+        assert_eq!(view.balance_as_of(AccountIdentity::ReverseOpen { level: 0 }, 18), 0.0);
+        assert_eq!(view.balance(AccountIdentity::Core { level: 1 }), 0.0);
+        assert_eq!(view.balance(AccountIdentity::ReverseOpen { level: 0 }), 0.0);
+    }
+
     /// ★#200 生产路径见证（红→绿，spec WP-2 修复 c / issue #200 验收一）：二类开空通道——
     /// **无父（Ambient）二类反向候选「先平后开」**：残余核心纠错（#199 CoreResidualCorrection）
     /// ＋ 开空仓账（`Short` 账户，理由 `OpenShort`；票面 `OpenShort{level, certificate}` 的
@@ -6161,13 +6252,17 @@ mod tests {
     fn run_theta_v0_pi_risk_gate_force_flat_on_insolvent() {
         let bar = px100_bar(0);
         // equity≤0 ⟹ Insolvent ⟹ GlobalRiskClose ⟹ force_flat（𝒦_Θ={0}）。
-        let (gate_insolvent, mode_insolvent) = k_theta_risk_gate(&[], &std::collections::HashMap::new(), &bar, -1.0, 0.0, 100.0, None);
+        let (gate_insolvent, mode_insolvent, insolvent_stop_seeds) =
+            k_theta_risk_gate(&[], &std::collections::HashMap::new(), &bar, -1.0, 0.0, 100.0, None);
         assert!(gate_insolvent.force_flat, "equity≤0 ⟹ Insolvent ⟹ force_flat（𝒦_Θ={{0}}）");
+        assert!(insolvent_stop_seeds.is_empty(), "全局风险强平不伪造逐腿 stop seeds");
         // G3：透出的 mode 与门语义一致（z 第 13 维数据源同一真值）。
         assert_eq!(mode_insolvent, super::super::super::strategy::risk::RiskMode::Insolvent);
         // equity>0 + 无活动腿 ⟹ 门全开（无风控触发）。
-        let (gate_open, mode_open) = k_theta_risk_gate(&[], &std::collections::HashMap::new(), &bar, 1.0e6, 0.0, 100.0, None);
+        let (gate_open, mode_open, open_stop_seeds) =
+            k_theta_risk_gate(&[], &std::collections::HashMap::new(), &bar, 1.0e6, 0.0, 100.0, None);
         assert!(!gate_open.force_flat && !gate_open.stop_long && !gate_open.stop_short, "正常态 ⟹ 门全开");
+        assert!(open_stop_seeds.is_empty());
         assert_eq!(mode_open, super::super::super::strategy::risk::RiskMode::Normal);
     }
 
@@ -6230,17 +6325,21 @@ mod tests {
             volume: 1,
             untradable: false,
         };
-        let (gate, _mode) = k_theta_risk_gate(&[leg], &open_trades, &bar, 1.0e6, -1.0, 100.0, None);
+        let (gate, _mode, stop_seeds) =
+            k_theta_risk_gate(&[leg], &open_trades, &bar, 1.0e6, -1.0, 100.0, None);
         assert!(
             gate.stop_short,
             "族A：drifted campaign 腿从冻结 entry_stop 读出 stop ⟹ high≥stop 触发 stop_short"
         );
         assert!(!gate.stop_long, "仅空腿止损，多腿无触发");
+        assert_eq!(stop_seeds, vec![leg], "stop 命中保留腿 ID，方向布尔仅作 KΘ 派生");
 
         // 对照：entry_stop=None（非该方向交易点）⟹ 诚实无 stop，不触发。
         open_trades.get_mut(&ElementId { level: 0, ordinal: 0 }).unwrap().entry_stop = None;
-        let (gate2, _mode2) = k_theta_risk_gate(&[leg], &open_trades, &bar, 1.0e6, -1.0, 100.0, None);
+        let (gate2, _mode2, stop_seeds2) =
+            k_theta_risk_gate(&[leg], &open_trades, &bar, 1.0e6, -1.0, 100.0, None);
         assert!(!gate2.stop_short, "entry_stop=None ⟹ 诚实无 stop（非静默吞掉真实 stop）");
+        assert!(stop_seeds2.is_empty());
     }
 
     // ──────────────────────────────────────────────────────────────────────

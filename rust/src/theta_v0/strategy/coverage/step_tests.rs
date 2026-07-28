@@ -184,6 +184,61 @@ use super::super::super::interp::Buckets;
         assert_eq!(p2, 0.0, "无活动腿 ⟹ p̃=0");
     }
 
+    /// #572 / D1：父 campaign 的入场右端点随 carrier 延伸后不再严格相等时，
+    /// 只允许唯一的左开右闭 span 重建结构 seed。
+    #[test]
+    fn risk_seed_carrier_rebuilds_unique_rho_drift() {
+        let carrier = CoverageElement {
+            lambda: 0,
+            rho: 20,
+            eps: VoiceSide::Long,
+            level: 1,
+            parent: None,
+            attached_dir: None,
+            id: eid(1, 0),
+            parent_id: None,
+        };
+        let mut seed = aleg(1, VoiceSide::Long, 12, 12);
+        seed.id = eid(1, 6);
+
+        let rebuilt = risk_seed_carrier(&[carrier], &seed).expect("唯一 span 应重建 carrier");
+        assert_eq!(rebuilt.id, carrier.id);
+    }
+
+    /// #572 红线：两个同层 carrier 都包含父 campaign 入场点时身份有歧义，
+    /// 必须失败关闭；不能按方向或最窄区间猜一条，避免误杀无关同向腿。
+    #[test]
+    fn risk_seed_carrier_ambiguous_span_fails_closed() {
+        let carriers = [
+            CoverageElement {
+                lambda: 0,
+                rho: 20,
+                eps: VoiceSide::Long,
+                level: 1,
+                parent: None,
+                attached_dir: None,
+                id: eid(1, 0),
+                parent_id: None,
+            },
+            CoverageElement {
+                lambda: 8,
+                rho: 16,
+                eps: VoiceSide::Long,
+                level: 1,
+                parent: None,
+                attached_dir: None,
+                id: eid(1, 1),
+                parent_id: None,
+            },
+        ];
+        let mut seed = aleg(1, VoiceSide::Long, 12, 12);
+        seed.id = eid(1, 6);
+
+        assert!(
+            risk_seed_carrier(&carriers, &seed).is_none(),
+            "身份歧义必须失败关闭，不能猜测任一 carrier"
+        );
+    }
+
     // ── §8b §13 AncOK 持仓准入（639(c)：ReverseOpen 未持父则剔除，不开 naked 逆势仓）──────────
     //   真嵌套塔（L1 Long 父走势）+ 638 附着候选 ⟹ AncOK 在真 Compose 父链上对附着候选剪枝/准入。
-

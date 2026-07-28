@@ -116,4 +116,7 @@ use sizing::feasible_lex_candidates;
 use sizing::pi_theta_step_prebuilt;
 
 pub use compose::{t1_target_residual_probe_bump, t1_target_residual_probe_count, t1_target_zero_probe_bump, t1_target_zero_probe_count, t1_target_zero_probe_reset};
-pub(crate) use compose::{StepTrace, TwStepCtx, VoiceVerdict, pi_theta_step_traced};
+pub(crate) use compose::{
+    StepTrace, TwStepCtx, VoiceVerdict, pi_theta_step_traced,
+    pi_theta_step_traced_with_risk_seeds,
+};

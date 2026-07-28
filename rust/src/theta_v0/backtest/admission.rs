@@ -1189,7 +1189,11 @@ pub(super) fn k_theta_risk_gate(
     p_t: f64,
     px: f64,
     margin: Option<&super::super::strategy::risk::MarginModel>,
-) -> (super::super::strategy::coverage::KThetaRiskGate, super::super::strategy::risk::RiskMode) {
+) -> (
+    super::super::strategy::coverage::KThetaRiskGate,
+    super::super::strategy::risk::RiskMode,
+    Vec<super::super::strategy::interp::ActiveLeg>,
+) {
     use super::super::strategy::coverage::KThetaRiskGate;
     use super::super::strategy::exec::{close_pred, stop_hit, CloseTriggers, FillSide};
     use super::super::strategy::risk::{
@@ -1229,8 +1233,9 @@ pub(super) fn k_theta_risk_gate(
     // 不同坐标是 bug。本修复对齐两路径 + nautilus `record_held_voice`（入场一次性算 stop 冻结到
     // HeldVoice.stop，exitfix-research line 49）：stop 值固定在开仓结构 = formal-chain §9 语义
     // （结构失效价触及，非 trailing）。L0 静态根因；L2 dump（3765 等笔 stop 读出实际值）待 OOS。
-    let mut long_stop = false;
-    let mut short_stop = false;
+    // #572：逐腿 stop 命中以腿 ID 为主数据保留；方向布尔仅作 KΘ 净额投影派生。
+    // 这组腿将在同一 π step 作为 risk-close seeds 注入现役子树清仓机关。
+    let mut stop_risk_seeds = Vec::new();
     for leg in prev_active {
         let exit_side = match leg.dir {
             VoiceSide::Long => FillSide::Sell,
@@ -1251,13 +1256,13 @@ pub(super) fn k_theta_risk_gate(
             }
         };
         if !bar.untradable && stop_hit(bar, stop, exit_side) {
-            match leg.dir {
-                VoiceSide::Long => long_stop = true,
-                VoiceSide::Short => short_stop = true,
-                VoiceSide::Flat => {}
-            }
+            stop_risk_seeds.push(*leg);
         }
     }
+    let long_stop = stop_risk_seeds.iter().any(|leg| leg.dir == VoiceSide::Long);
+    let short_stop = stop_risk_seeds
+        .iter()
+        .any(|leg| leg.dir == VoiceSide::Short);
 
     // close_pred 折 𝒦_Θ（契约锚保留）：风控项（stop ∨ risk）→ 方向约束门。
     // G3（#138）：mode 一并透出——z 第 13 维 risk_mode 的账本态真值源（每 bar 已算，零重算）。
@@ -1279,6 +1284,7 @@ pub(super) fn k_theta_risk_gate(
             no_increase_cap, // M2/M3 净幅上限（margin-design §2.8）
         },
         mode,
+        stop_risk_seeds,
     )
 }
 

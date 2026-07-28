@@ -3213,7 +3213,15 @@ where
             }
             let base_units = equity_nav / px; // U_ℓ：NAV/价 = 可建名义手数（方案A协变）
             // 风控门也用**前缀因果分类**（leg 止损 bsp 因果查得，非全窗非因果——与 σ_p 同因果口径）。
-            let (gate, risk_mode_i) = k_theta_risk_gate(&prev_active, &open_trades, bar, equity_nav, p_t, px, config.margin.as_ref());
+            let (gate, risk_mode_i, stop_risk_seeds) = k_theta_risk_gate(
+                &prev_active,
+                &open_trades,
+                bar,
+                equity_nav,
+                p_t,
+                px,
+                config.margin.as_ref(),
+            );
             // ── M6 ③⁻ LiquidationLoss 强平罚金（边沿触发，一次一集）：本 bar 进入
             //    {Insolvent,Liquidation} 且持仓 ⟹ 收一次罚金（强平清算费/滑点），从 cash 扣。
             //    liq_active 边沿去抖：强平态跨 bar 持续（exec 延迟平仓期间）不重复罚；离开强平态复位。
@@ -3510,7 +3518,12 @@ where
                 );
                 osc_actions.extend(new_osc_actions);
             }
-            let (next_active, standard_p_star, (mut order, _protocol_event), step_trace) = coverage::pi_theta_step_traced(
+            let (
+                next_active,
+                standard_p_star,
+                (mut order, _protocol_event),
+                step_trace,
+            ) = coverage::pi_theta_step_traced_with_risk_seeds(
                 step_work,
                 &step_gamma_trade,
                 &prev_active,
@@ -3520,6 +3533,7 @@ where
                 &config.risk,
                 weights,
                 gate,
+                &stop_risk_seeds,
                 &config.voice,
                 &registry,
                 Some(&twc),

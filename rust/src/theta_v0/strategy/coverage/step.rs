@@ -36,9 +36,57 @@ pub(super) fn coverage_step_from_buckets(
 /// ★#247 契约指针（**本 doc 不含 C1/C2/C3 正文**，别在这里找）：第三来源 `ℛ_x`、C1 环路硬门、
 /// C3 三条声明见 [`restore_ancestor_chain_from_registry`] doc；C2 见 [`held_stale_reregister_idx`] doc。
 pub(super) fn coverage_step_from_buckets_sep(
+    work: ElementView,
+    prev_active: &[ActiveLeg],
+    buckets: &Buckets,
+    base_units: f64,
+    config: &VoiceConfig,
+    risk: Option<&RiskConfig>,
+    registry: &super::super::persistent::PersistentRegistry,
+) -> (Vec<ActiveLeg>, f64, Vec<SepLeg>, Vec<usize>) {
+    coverage_step_from_buckets_sep_with_risk_seeds(
+        work, prev_active, buckets, &[], base_units, config, risk, registry,
+    )
+}
+
+/// 父 campaign 入场坐标 → 当前结构树 carrier（#572 / D1 身份重建）。
+///
+/// 与 strategy 层既有 `carrier_of_entry` 同口径：先用同级严格右端点命中；若 carrier
+/// 入场后发生 ρ 延伸，则只接受唯一的左开右闭 span `λ < signal_index <= ρ`。
+/// 任一阶段出现多重命中都失败关闭，绝不按方向或区间宽度猜测，以免把无关同向腿注入
+/// risk-close 子树。
+fn risk_seed_carrier(tree: &[CoverageElement], seed: &ActiveLeg) -> Option<ActiveLeg> {
+    let mut exact = tree
+        .iter()
+        .filter(|e| e.level == seed.level && e.rho == seed.source_index);
+    match (exact.next(), exact.next()) {
+        (Some(e), None) => return Some(element_as_leg(e)),
+        (Some(_), Some(_)) => return None,
+        (None, _) => {}
+    }
+
+    let mut spans = tree.iter().filter(|e| {
+        e.level == seed.level
+            && e.lambda < seed.source_index
+            && seed.source_index <= e.rho
+    });
+    match (spans.next(), spans.next()) {
+        (Some(e), None) => Some(element_as_leg(e)),
+        _ => None,
+    }
+}
+
+/// #572：在既有三桶活动集推进中额外注入逐腿 risk-close seeds。
+///
+/// seeds 只扩展现役 `𝒟_x` 子树闭包；KΘ 净额夹紧仍由调用方的 `KThetaRiskGate`
+/// 独立承担仓位投影。本函数不新增退出管线，父/后代仍由同一个
+/// `step_active_set_with_subtree_close` 裁决。
+#[allow(clippy::too_many_arguments)]
+pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
     mut work: ElementView,
     prev_active: &[ActiveLeg],
     buckets: &Buckets,
+    risk_close_seeds: &[ActiveLeg],
     base_units: f64,
     config: &VoiceConfig,
     risk: Option<&RiskConfig>,
@@ -83,7 +131,21 @@ pub(super) fn coverage_step_from_buckets_sep(
 
     // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）按 ElementId 对位回当前因果树元素；不在树 ⟹ 按
     // is_boundary_root 决定 root/prune（发现 A 修复：Stale 不伪造 parent:None）。
-    let closed = close_indices(prev_active, &buckets.close);
+    let mut direct_close_seeds = buckets.close.clone();
+    for seed in risk_close_seeds {
+        if !direct_close_seeds.iter().any(|leg| leg.id == seed.id) {
+            direct_close_seeds.push(*seed);
+        }
+        // campaign 腿的 id 是候选元素 id；其后代的持久 `op_parent/parent_id` 指向承载该
+        // 入场点的结构 carrier id。逐腿 stop 只命中有 LedgerOpen 的 campaign，因此按 D1
+        // 从当前结构树确定性重建 carrier；身份有歧义则不补 seed（失败关闭，不误杀同向腿）。
+        if let Some(carrier) = risk_seed_carrier(work.tree_prefix(tree_end), seed) {
+            if !direct_close_seeds.iter().any(|leg| leg.id == carrier.id) {
+                direct_close_seeds.push(carrier);
+            }
+        }
+    }
+    let closed = close_indices(prev_active, &direct_close_seeds);
     // ★#269 翻向种子（事件化，#261 终裁）：当 bar 载体翻向**结构事件**激活的持仓腿 = 旧世代
     // 终结（#227 裁决蓝图两步形①）。事件谓词 = registry 首见方向 ≠ 当前树元素方向（树段
     // upsert 方向冲突；σ/ε 出生对立非事件，不再产种子——#264 误杀面收口）。
@@ -277,7 +339,15 @@ pub(super) fn coverage_step_from_buckets_sep(
                 let parent_in_raw =
                     raw.iter().any(|&r| work.get(r).map(|e| e.id == parent_pid).unwrap_or(false));
                 if !parent_in_raw && registry.registry_live(&parent_pid) {
-                    restore_ancestor_chain_from_registry(&mut work, &mut raw, registry, parent_pid, &id_idx, &mut overlay_seen, &buckets.close);
+                    restore_ancestor_chain_from_registry(
+                        &mut work,
+                        &mut raw,
+                        registry,
+                        parent_pid,
+                        &id_idx,
+                        &mut overlay_seen,
+                        &direct_close_seeds,
+                    );
                 }
             }
         }
@@ -321,8 +391,7 @@ pub(super) fn coverage_step_from_buckets_sep(
     // ★#233/#269：翻向种子并入关闭种子（只作用 A_t 段——ℬ_x 段反手/新世代候选不连坐，见上方
     // flipped_seeds 注释）。翻向父不在 a_t_legs（旧世代不保留）时，其后代经 exit.rs
     // `subtree_close` 的「父不在 A 数济判据」连坐连清。
-    let close_and_flip_seeds: Vec<ActiveLeg> = buckets
-        .close
+    let close_and_flip_seeds: Vec<ActiveLeg> = direct_close_seeds
         .iter()
         .chain(flipped_seeds.iter())
         .copied()
