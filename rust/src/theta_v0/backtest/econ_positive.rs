@@ -702,7 +702,8 @@ pub(super) fn build_multilevel_nest_cert(
 /// 钻入该次级别 Type1 段，逐级收缩到最低可用级别（`sub_moves` 空=递归底 level0）。
 ///
 /// - `Some(d)`（d≥1）：次级别 Type1 锚点成立，区间套逐级收缩穿越 d 层（d=最低可用级别的下沉深度）。
-/// - `None`：次级别存在但无 Type1 锚点（`div_cand` 假 / 无回抽端点对齐段 / `s` 已是递归底无次级别）
+/// - `None`：次级别存在但无 Type1 锚点（`div_cand` 假 / 无回抽端点对齐段 / `s` 已是递归底——塔内无次级别，
+///   塔不从笔递归系构造选择，非客观无次级别，订正 #520）
 ///   = **小转大**（该级别无一类买卖点，精确点无法下沉定位——知识库 L410「区间套和背驰不可解释情况
 ///   的补充」）。显式可测判别（非 catch-all fallback），门直接拒。
 ///
@@ -719,7 +720,7 @@ fn descend_type1_anchor_depth(
 ) -> Option<usize> {
     let subs = s.sub_moves.as_slice();
     if subs.is_empty() {
-        return None; // 递归底（level0 无次级别）⟹ 无可下沉的一类锚点 = 小转大
+        return None; // 递归底（塔内无次级别——塔不从笔递归，构造选择，非客观无次级别，订正 #520）⟹ 无可下沉的一类锚点 = 小转大
     }
     // 次级别 Type1 背驰段判据：s.sub_moves 中 end_index==source_index 段跑完整 div_cand。
     let tidx = find_move_by_end_index(subs, source_index)?; // 无回抽端点对齐段 ⟹ 小转大
@@ -811,7 +812,9 @@ fn cand_delta_type1_extreme(
 ///
 /// **保护边界 = 一类点极值**（回抽不破一类点）——由上游结构分类器置 buy2/sell2 位时强制，
 /// 本谓词不在 Cand 层重门保护位（no-patch 双门）。存在性锚 = 次级别 Type1（定律一下沉，
-/// 第29课L396「二三类精确点要下次级别以下找第一类」）。`lvl==0`（无次级别，递归底）⟹ 存在性
+/// 第29课L396「二三类精确点要下次级别以下找第一类」）。`lvl==0`（塔内无次级别——塔不从笔递归：
+/// 笔由解析层产出（`ParseLayer.strokes`）但不在塔的级别阶梯内，系构造选择，非客观无次级别（订正 #520，
+/// 原注「无次级别、递归底」经 #450 查实为假）；递归底）⟹ 存在性
 /// 免门（Type2@level0 不误拒）；`None`（无锚）= 小转大（该级无一类精确点无法下沉定位）⟹ 门拒。
 fn cand_delta_type2_completion(
     s: &super::super::classifier::recursive_tower::LeveledMove,
@@ -1248,7 +1251,7 @@ pub(super) fn pan_div_gate_pass(
     let Some(exec_moves) = tower.get(lvl).map(|m| m.as_slice()) else { return false };
     let Some(si) = find_move_by_end_index(exec_moves, cert.source_index) else { return false };
     let s = &exec_moves[si];
-    // 通道1（Nest 语义 ∃e<ℓ Conf^δ_e）：次级别 Type1 下沉锚。lvl==0（递归底无次级别）恒 None ⟹ 走通道2。
+    // 通道1（Nest 语义 ∃e<ℓ Conf^δ_e）：次级别 Type1 下沉锚。lvl==0（递归底，塔内无次级别——塔不从笔递归，构造选择，非客观无次级别，订正 #520）恒 None ⟹ 走通道2。
     if descend_type1_anchor_depth(s, cert.source_index, cert.side, hist).is_some() {
         return true;
     }
