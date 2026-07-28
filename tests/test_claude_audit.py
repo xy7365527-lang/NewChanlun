@@ -239,12 +239,12 @@ class TestMcpServer:
 
     @pytest.mark.asyncio
     async def test_list_tools(self) -> None:
-        from newchan.claude_audit.server import list_tools
+        from newchan.claude_audit.server import mcp
 
-        tools = await list_tools()
+        tools = await mcp.list_tools()
         assert len(tools) == 1
         assert tools[0].name == "claude_audit"
-        schema = tools[0].inputSchema
+        schema = tools[0].input_schema
         assert "task" in schema["properties"]
         assert "context" in schema["properties"]
         assert "audit_type" in schema["properties"]
@@ -264,23 +264,25 @@ class TestMcpServer:
                 '{"summary": "ok", "verdict": "pass"}'
             )
 
-            result = await server.call_tool("claude_audit", {
+            result = await server.mcp.call_tool("claude_audit", {
                 "task": "review",
                 "context": "code",
                 "audit_type": "code_review",
             })
 
-        assert len(result) == 1
-        parsed = json.loads(result[0].text)
+        assert len(result.content) == 1
+        parsed = json.loads(result.content[0].text)
         assert parsed["result"]["verdict"] == "pass"
         server._auditor = None  # cleanup
 
     @pytest.mark.asyncio
     async def test_call_tool_unknown(self) -> None:
-        from newchan.claude_audit.server import call_tool
+        from mcp.server.mcpserver.exceptions import ToolError
 
-        result = await call_tool("unknown_tool", {})
-        assert "Unknown tool" in result[0].text
+        from newchan.claude_audit.server import mcp
+
+        with pytest.raises(ToolError, match="Unknown tool"):
+            await mcp.call_tool("unknown_tool", {})
 
     @pytest.mark.asyncio
     async def test_call_tool_missing_key(self) -> None:
@@ -289,13 +291,13 @@ class TestMcpServer:
         server._auditor = None
 
         with patch.dict("os.environ", {}, clear=True):
-            result = await server.call_tool("claude_audit", {
+            result = await server.mcp.call_tool("claude_audit", {
                 "task": "t",
                 "context": "c",
                 "audit_type": "code_review",
             })
 
-        parsed = json.loads(result[0].text)
+        parsed = json.loads(result.content[0].text)
         assert "error" in parsed
         server._auditor = None
 
