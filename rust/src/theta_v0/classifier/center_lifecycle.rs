@@ -728,8 +728,9 @@ impl CenterEventMachine {
 
     /// 死亡请求对链解析（★#329 校验的 R3 口径，见 [`CenterMisKill`] / [`StaleKillRequest`]）。
     ///
-    /// - **场为空** ⟹ [`KillResolution::ArenaEmpty`]：无可杀对象，谈不上误杀（口径不变；
-    ///   ★#337：主格不在场时容读格**随之关闭**，见模块头「容读窗的边界」）。
+    /// - **场为空**时，三类点若精确绑定 `target` 且该身份仍在已消费链 ⟹
+    ///   [`KillResolution::HistoricalBound`]；其余仍为 [`KillResolution::ArenaEmpty`]：
+    ///   无可杀对象，谈不上误杀（★#337 容读格仍随主格关闭，见模块头「容读窗的边界」）。
     /// - 载体 == 链尾（主格）身份 ⟹ [`KillResolution::Alive`]：放行。
     /// - ★#337 载体 == 容读格（链尾前一格，退场方式 = 被取代）⟹ [`KillResolution::Tolerated`]：
     ///   放行，杀载体所指的那一个实例（链尾不动）。
@@ -746,6 +747,22 @@ impl CenterEventMachine {
         historical_bound: Option<Center>,
     ) -> Result<KillResolution, CenterMisKill> {
         let Some((alive_center, alive_chain_index)) = self.alive else {
+            if matches!(trigger, KillTrigger::ThirdClass) {
+                if let Some(t) = target {
+                    if let Some(bound_center) =
+                        historical_bound.filter(|c| CenterId::of(c) == t)
+                    {
+                        if let Some(target_chain_index) =
+                            self.consumed.iter().rposition(|c| *c == t)
+                        {
+                            return Ok(KillResolution::HistoricalBound(
+                                bound_center,
+                                target_chain_index,
+                            ));
+                        }
+                    }
+                }
+            }
             return Ok(KillResolution::ArenaEmpty);
         };
         let alive = CenterId::of(&alive_center);
