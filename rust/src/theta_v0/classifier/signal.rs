@@ -80,7 +80,9 @@
 //!   需 RMove 塔携带各次级别走势的 close 区间——同 still-MISSING-塔，由上游塔构造时接入真 MACD。
 
 use super::super::config::MacdConfig;
-use super::super::types::{Center, Direction, MoveKind, Segment, Side, Tick};
+use super::super::types::{
+    Center, Direction, MoveKind, Segment, Side, ThirdClassEntryIdentity, Tick,
+};
 // Side 已在上行 import（judge_first_cached 用它构造 BspPoint.struct_break_dir，P2-R2）。
 use super::bsp::{endpoint_to_bsp, EndpointSituation};
 use super::decompose::{
@@ -448,7 +450,12 @@ pub(crate) fn judge_third_cert(
                 below_last_center: false,
                 is_sell_side: false,
             };
-            let bits = endpoint_to_bsp(&situ);
+            let mut bits = endpoint_to_bsp(&situ);
+            bits.third_class_entry = Some(ThirdClassEntryIdentity {
+                center: *c,
+                leave_interval: (leave_seg.start_index, leave_seg.end_index),
+                retest_interval: (retest_seg.start_index, retest_seg.end_index),
+            });
             Some(ThirdClassCert {
                 point: make_third_point(retest.source_index, bits, retest.price, c),
                 center: *c,
@@ -466,7 +473,12 @@ pub(crate) fn judge_third_cert(
                 below_last_center: false,
                 is_sell_side: true,
             };
-            let bits = endpoint_to_bsp(&situ);
+            let mut bits = endpoint_to_bsp(&situ);
+            bits.third_class_entry = Some(ThirdClassEntryIdentity {
+                center: *c,
+                leave_interval: (leave_seg.start_index, leave_seg.end_index),
+                retest_interval: (retest_seg.start_index, retest_seg.end_index),
+            });
             Some(ThirdClassCert {
                 point: make_third_point(retest.source_index, bits, retest.price, c),
                 center: *c,

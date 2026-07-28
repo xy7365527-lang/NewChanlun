@@ -582,7 +582,7 @@ impl OpsemDump {
         // 触发证书。
         s.push_str("\"certificate\":{");
         s.push_str(&format!(
-            "\"bsp_bits_class_index\":{},\"bsp_class_min\":{},\"level\":{},\"source_index\":{},\"dir\":\"{}\",\"delta\":{},\"nest_confirmed\":{},\"nest_depth\":{},\"parent_dir_sigma_p\":{},\"role\":\"{}\"}},",
+            "\"bsp_bits_class_index\":{},\"bsp_class_min\":{},\"level\":{},\"source_index\":{},\"dir\":\"{}\",\"delta\":{},\"nest_confirmed\":{},\"nest_depth\":{},\"parent_dir_sigma_p\":{},\"role\":\"{}\"",
             o.cand_bits,
             if o.cand_bsp_class == u8::MAX { -1 } else { o.cand_bsp_class as i64 },
             o.cand_level, o.cand_source_index, o.cand_dir, t.entry_z.delta,
@@ -590,6 +590,19 @@ impl OpsemDump {
             // （π 路径 entry_z.nest_depth 恒 None——MuClass 进 μ 桶键，填 Some 破坏 bit-exact）。
             o.cand_nest_confirmed, o.nest_depth,
             t.entry_z.parent_dir, o.cand_role,
+        ));
+        // #542：三类证书完整身份，严格 additive-only 追加在既有 certificate 字段之后。
+        // None（非三类入口或生产链缺失）逐字段写 null；不从 center_lifecycle/价格/邻近点反推。
+        let third = o.third_class_entry;
+        s.push_str(&format!(
+            ",\"center_si\":{},\"center_zd\":{},\"center_zg\":{},\"leave_si\":{},\"leave_ei\":{},\"retest_si\":{},\"retest_ei\":{}}},",
+            opt_usize_str(third.map(|x| x.center.start_index)),
+            opt_i64_str(third.map(|x| x.center.zd)),
+            opt_i64_str(third.map(|x| x.center.zg)),
+            opt_usize_str(third.map(|x| x.leave_interval.0)),
+            opt_usize_str(third.map(|x| x.leave_interval.1)),
+            opt_usize_str(third.map(|x| x.retest_interval.0)),
+            opt_usize_str(third.map(|x| x.retest_interval.1)),
         ));
         // 入场时刻解释器状态。
         s.push_str("\"interpreter_at_entry\":{");
@@ -1104,6 +1117,22 @@ impl OpsemDump {
 impl Drop for OpsemDump {
     fn drop(&mut self) {
         self.flush();
+    }
+}
+
+/// #542 辅助：Optional<usize> → JSON 字符串（number 或 null）。
+fn opt_usize_str(o: Option<usize>) -> String {
+    match o {
+        Some(v) => v.to_string(),
+        None => "null".into(),
+    }
+}
+
+/// #542 辅助：Optional<Tick/i64> → JSON 字符串（number 或 null）。
+fn opt_i64_str(o: Option<i64>) -> String {
+    match o {
+        Some(v) => v.to_string(),
+        None => "null".into(),
     }
 }
 
