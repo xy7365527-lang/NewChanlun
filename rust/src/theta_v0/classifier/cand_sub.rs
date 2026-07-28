@@ -156,6 +156,16 @@ fn latest_by_level(streams: &CandidateStreams) -> BTreeMap<u32, Vec<&CandidateEv
 /// 相邻级包含只读探针：对每对相邻级 `(ℓ, ℓ+1)` 的候选事件跑 [`candidate_is_sub`] 并报数。
 ///
 /// 只读：不改事件流、不产生任何观察或修订，返回值只被打印/断言。
+///
+/// ## 复杂度：二次（对数随窗口内事件数**平方**增长）
+///
+/// 本函数的工作量 = [`count_pairs`]（逐相邻级笛卡尔积）+ [`count_same_level`]（逐级同级全配对），
+/// 两者均为 O(n²)。实测锚（BTC 500k bars 窗口）：`same_level_pairs = 1,593,865`、
+/// 相邻级 `total_pairs = 342,252`。窗口再放大一个数量级 ⟹ 对数放大约两个数量级。
+///
+/// 这是**只读探针**的可接受代价（零消费、调用点仅单测与诊断 bin，不在任何回放热路径上）；
+/// 但若将来把本扫描接进逐 bar 循环，二次项会直接主导——届时须先改判据结构（如按区间端点排序后
+/// 扫描线），不是把窗口调小了事。
 pub fn scan_adjacent_containment(streams: &CandidateStreams) -> ContainmentScan {
     let by_level = latest_by_level(streams);
     let mut levels = Vec::new();
@@ -172,6 +182,11 @@ pub fn scan_adjacent_containment(streams: &CandidateStreams) -> ContainmentScan 
     }
 }
 
+/// 一对相邻级的逐对计数。
+///
+/// **复杂度 O(child_events × parent_events)**：完整笛卡尔积，对数随窗口内事件数**平方**增长
+/// （无剪枝——`pairs` 是所有比值报数的分母，少判一对就等于分母失真）。
+/// 实测锚（BTC 500k bars）：0→1 级 `1,233 × 264 = 325,512` 对，三个相邻级合计 `342,252` 对。
 fn count_pairs(
     child_level: u32,
     parent_level: u32,
@@ -213,6 +228,11 @@ fn count_pairs(
     entry
 }
 
+/// 逐级同级全配对计数（有序对，含自反对）。
+///
+/// **复杂度 Σ_ℓ O(events_ℓ²)**：对数随窗口内事件数**平方**增长，且因同级事件集通常是最大的那个
+/// （低级别事件最多），本函数是整个扫描的复杂度主导项。实测锚（BTC 500k bars）：
+/// `same_level_pairs = 1,593,865`（同窗相邻级 `total_pairs` 仅 342,252，差约 4.7 倍）。
 fn count_same_level(by_level: &BTreeMap<u32, Vec<&CandidateEvent>>) -> SameLevelBlock {
     let mut block = SameLevelBlock::default();
     for events in by_level.values() {
