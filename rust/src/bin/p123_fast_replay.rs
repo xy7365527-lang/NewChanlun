@@ -510,8 +510,32 @@ struct LifecycleReplayStats {
     /// #527：L1 活窗定位结果分布（`L1LiveOutcome::reason_tag`；诊断只写不判）。
     /// 「某完成身份为何没有更早 Live」的可审计落点。
     l1_live_outcomes: BTreeMap<&'static str, usize>,
+    /// #559 C2 段账本完整性观测：活窗产出用的段序列（`tower[0]` 投影）与 parser 段账本
+    /// `l0.segments` 是否等长。**短一个即真缺段**——λ_C 的定界窗口会跨过缺失段。
+    /// 「行进中段起点 − 末段终点 > 0」**不是**缺段判据（笔构造 `gap_ok` 不足时 `i += 2`
+    /// 跳过分型 ⟹ 相邻笔在源坐标上本就可不相接），故另立本计数直接查缺段。
+    seg_ledger_complete: usize,
+    seg_ledger_short: usize,
+    /// 塔尚未构造（`tower` 为空，bootstrap 前几十 bar）——不参与完整性判定。
+    seg_ledger_no_tower: usize,
     /// 末 prefix 的终局分布与寿命读面（闪现/非闪现分层）。
     settlement: LifecycleSettlementStats,
+}
+
+/// #559 C1：L1 活窗定位的**逐 run** 诊断行——命中与未命中都记。
+///
+/// 原实装只记未命中行，于是「该 run 定位成功、但定位到的是**别的** C」这一现场在 dump 上
+/// 无痕 ⟹ 该身份的归因落到「无任何原因码行」（#559 条件 C1 点名的 11 只）。补记命中行后，
+/// 逐身份归因可在同一锚（`b_center_start`）上区分「未能定位」与「定位到别的 C」。
+/// 诊断只写不判，不进任何真值路径。
+#[derive(Debug, Clone, Copy)]
+struct L1LiveDiagRow {
+    /// `L1LiveOutcome::reason_tag()`（命中为 `"window"`）。
+    reason: &'static str,
+    /// 该 run 的锚中枢起点：命中取产窗身份的 B；未命中取 frontier 之前最近中枢。
+    b_center_start: Option<usize>,
+    /// 命中时产出窗的 λ_C（未命中恒 None）——「同锚多候选 C」的判据。
+    c_start: Option<usize>,
 }
 
 /// #421 逃生门的活窗结构分量；与 p409 `WindowStem` 同键，右端不进身份。
@@ -677,6 +701,12 @@ fn main() -> Result<(), String> {
         lifecycle_stats.provider_reuses,
     );
     eprintln!(
+        "P559_SEG_LEDGER complete={} short={} no_tower={}",
+        lifecycle_stats.seg_ledger_complete,
+        lifecycle_stats.seg_ledger_short,
+        lifecycle_stats.seg_ledger_no_tower,
+    );
+    eprintln!(
         "P527_L1_LIVE_OUTCOMES {}",
         lifecycle_stats
             .l1_live_outcomes
@@ -687,14 +717,15 @@ fn main() -> Result<(), String> {
     );
     let settlement = lifecycle_stats.settlement;
     eprintln!(
-        "P421_LIFETIME_SUMMARY entries={} first_provable={} provisional={} confirmed={} force_overtake={} never_constituted={} identity_vanished={} flash_terminal={} nonflash_count={} nonflash_min={:?} nonflash_median={:?} nonflash_max={:?} force_lifetime_count={} force_lifetime_min={:?} force_lifetime_median={:?} force_lifetime_max={:?}",
+        "P421_LIFETIME_SUMMARY entries={} first_provable={} provisional={} confirmed={} force_overtake={} never_constituted={} identity_vanished_refuted={} identity_vanished_seam={} flash_terminal={} nonflash_count={} nonflash_min={:?} nonflash_median={:?} nonflash_max={:?} force_lifetime_count={} force_lifetime_min={:?} force_lifetime_median={:?} force_lifetime_max={:?}",
         settlement.entry_count,
         settlement.first_provable_count,
         settlement.provisional_count,
         settlement.confirmed_count,
         settlement.force_overtake_count,
         settlement.never_constituted_count,
-        settlement.identity_vanished_count,
+        settlement.identity_vanished_refuted_count,
+        settlement.identity_vanished_seam_count,
         settlement.flash_terminal_count,
         settlement.nonflash_lifetime.count,
         settlement.nonflash_lifetime.min,
@@ -1050,21 +1081,42 @@ fn run_targeted_prefix_pass(
             || last_lifecycle_frontier != Some(frontier)
         {
             let before = lifecycle_window_stems.len();
-            let mut miss_rows: Vec<(&'static str, Option<usize>)> = Vec::new();
+            let mut diag_rows: Vec<L1LiveDiagRow> = Vec::new();
             lifecycle_window_stems = recompute_lifecycle_window_stems(
                 &tower,
                 frontier.as_ref(),
                 index,
                 &mut lifecycle_stats.l1_live_outcomes,
-                &mut miss_rows,
+                &mut diag_rows,
             );
-            for (reason, center_hint) in miss_rows {
+            // #559 C2 观测面：末 L0 单元终点（衔接差 = frontier.start − 该值）与段账本完整性。
+            let confirmed_last_end = tower
+                .first()
+                .and_then(|level0| level0.last())
+                .map_or(usize::MAX, |unit| unit.end_index);
+            let tower0_units = tower.first().map(|level0| level0.len());
+            match tower0_units {
+                None => lifecycle_stats.seg_ledger_no_tower += 1,
+                Some(units) if units == l0.segments.len() => {
+                    lifecycle_stats.seg_ledger_complete += 1
+                }
+                Some(_) => lifecycle_stats.seg_ledger_short += 1,
+            }
+            let tower0_units = tower0_units.map_or(usize::MAX, |units| units);
+            for row in diag_rows {
+                let tag = if row.c_start.is_some() {
+                    "L1_LIVE_HIT"
+                } else {
+                    "L1_LIVE_MISS"
+                };
                 write_lifecycle_line(
                     &mut lifecycle_dump,
                     format_args!(
-                        "L1_LIVE_MISS as_of={index} frontier_start={} reason={reason} b_center_start={}",
+                        "{tag} as_of={index} frontier_start={} reason={} b_center_start={} c_start={}",
                         frontier.map_or(usize::MAX, |f| f.start_index),
-                        center_hint.map_or(usize::MAX, |value| value),
+                        row.reason,
+                        row.b_center_start.map_or(usize::MAX, |value| value),
+                        row.c_start.map_or(usize::MAX, |value| value),
                     ),
                 )?;
             }
@@ -1072,11 +1124,12 @@ fn run_targeted_prefix_pass(
             write_lifecycle_line(
                 &mut lifecycle_dump,
                 format_args!(
-                    "L1_LIVE_RECOMPUTE as_of={index} frontier={} stems_before={before} stems_after={}",
+                    "L1_LIVE_RECOMPUTE as_of={index} frontier={} confirmed_last_end={confirmed_last_end} tower0_units={tower0_units} l0_segments={} stems_before={before} stems_after={}",
                     frontier.map_or("none".to_string(), |f| format!(
                         "({},{},{:?})",
                         f.start_index, f.extreme_at, f.direction
                     )),
+                    l0.segments.len(),
                     lifecycle_window_stems.len(),
                 ),
             )?;
@@ -1439,14 +1492,15 @@ fn run_targeted_prefix_pass(
     write_lifecycle_line(
         &mut lifecycle_dump,
         format_args!(
-            "LIFETIME entries={} first_provable={} provisional={} confirmed={} force_overtake={} never_constituted={} identity_vanished={} flash_terminal={} nonflash_count={} nonflash_min={:?} nonflash_median={:?} nonflash_max={:?} force_lifetime_count={} force_lifetime_min={:?} force_lifetime_median={:?} force_lifetime_max={:?}",
+            "LIFETIME entries={} first_provable={} provisional={} confirmed={} force_overtake={} never_constituted={} identity_vanished_refuted={} identity_vanished_seam={} flash_terminal={} nonflash_count={} nonflash_min={:?} nonflash_median={:?} nonflash_max={:?} force_lifetime_count={} force_lifetime_min={:?} force_lifetime_median={:?} force_lifetime_max={:?}",
             settlement.entry_count,
             settlement.first_provable_count,
             settlement.provisional_count,
             settlement.confirmed_count,
             settlement.force_overtake_count,
             settlement.never_constituted_count,
-            settlement.identity_vanished_count,
+            settlement.identity_vanished_refuted_count,
+            settlement.identity_vanished_seam_count,
             settlement.flash_terminal_count,
             settlement.nonflash_lifetime.count,
             settlement.nonflash_lifetime.min,
@@ -1539,14 +1593,18 @@ fn recompute_lifecycle_window_stems(
     tower: &[Rc<Vec<LeveledMove>>],
     frontier: Option<&ActiveSegmentFrontier>,
     as_of: usize,
-    misses: &mut BTreeMap<&'static str, usize>,
-    outcomes: &mut Vec<(&'static str, Option<usize>)>,
+    outcome_tally: &mut BTreeMap<&'static str, usize>,
+    diag_rows: &mut Vec<L1LiveDiagRow>,
 ) -> Vec<LifecycleWindowStem> {
     let mut windows_out = Vec::new();
     let Some(frontier) = frontier else {
         // 无行进中段 ⟹ 无活窗（不回落到 confirmed 回放重建）。
-        *misses.entry("no_active_frontier").or_default() += 1;
-        outcomes.push(("no_active_frontier", None));
+        *outcome_tally.entry("no_active_frontier").or_default() += 1;
+        diag_rows.push(L1LiveDiagRow {
+            reason: "no_active_frontier",
+            b_center_start: None,
+            c_start: None,
+        });
         return Vec::new();
     };
     for level in 1..2.min(tower.len()) {
@@ -1578,17 +1636,26 @@ fn recompute_lifecycle_window_stems(
                             frontier,
                             as_of,
                         );
-                        *misses.entry(outcome.reason_tag()).or_default() += 1;
-                        if outcome.window().is_none() {
-                            // 未产窗的 run：记下该 run 最近中枢起点，供「这只完成身份为何
-                            // 没有更早 Live」逐身份归因（诊断只写不判）。
-                            let center_hint = centers
-                                .iter()
-                                .rev()
-                                .find(|center| center.end_index <= frontier.start_index)
-                                .map(|center| center.start_index);
-                            outcomes.push((outcome.reason_tag(), center_hint));
-                        }
+                        *outcome_tally.entry(outcome.reason_tag()).or_default() += 1;
+                        // 逐 run 落一行（命中/未命中都记）：供「这只完成身份为何没有更早
+                        // Live」逐身份归因（诊断只写不判）。未命中取该 run 最近中枢起点作锚
+                        // 提示；命中取产窗身份的 B 与 λ_C。
+                        diag_rows.push(match outcome.window() {
+                            Some(window) => L1LiveDiagRow {
+                                reason: outcome.reason_tag(),
+                                b_center_start: Some(window.b_center_start),
+                                c_start: Some(window.seg_c_live.0),
+                            },
+                            None => L1LiveDiagRow {
+                                reason: outcome.reason_tag(),
+                                b_center_start: centers
+                                    .iter()
+                                    .rev()
+                                    .find(|center| center.end_index <= frontier.start_index)
+                                    .map(|center| center.start_index),
+                                c_start: None,
+                            },
+                        });
                         windows_out.extend(outcome.window());
                     }
                     run_start = None;
@@ -1708,10 +1775,11 @@ fn refresh_lifecycle_cache(
 /// `tower[level-1]` 上按 `end_index` 查证，取其 `ElementId` 与物理完成 bar。
 /// 查不到 ⟹ 报错停线（**不**按 `kind == Consolidation` 猜完成，#523 根因之二）。
 ///
-/// 完成钟三分：`completed_at` = lower unit `end_index`（物理完成）；
-/// `observed_completion_at` = 本 bar（provider 首次可见）；账本收到 bar 由 `advance` 记。
-/// 事件重发时 `observed_completion_at` 仍取当前 bar，首见性由 book 的
-/// `completion_signals` 按桥身份唯一保证（重发不入分母）。
+/// 完成钟两分（票 #559 条件 C3 订正）：`completed_at` = lower unit `end_index`（物理完成）；
+/// 账本收到 bar 由 `advance` 记（= 本 bar）。**不再另设「事件首次可见」第三钟**——本函数与
+/// `feed_lifecycle_bar` 在同一 bar 同一调用链内执行，该钟恒等于账本 `as_of`，
+/// 分列它等于声明一个代码不具备的分辨力（090；见 `CompletionSignal` 文档 C3 订正节）。
+/// 事件重发时首见性由 book 的 `completion_signals` 按桥身份唯一保证（重发不入分母）。
 fn lifecycle_bar_phases(
     tower: &[Rc<Vec<LeveledMove>>],
     live_windows: &[PanLiveWindow],
@@ -1743,7 +1811,6 @@ fn lifecycle_bar_phases(
             event: *event,
             completed_lower_id: unit.id,
             completed_at: unit.end_index,
-            observed_completion_at: as_of,
         }));
     }
     Ok(phases)
@@ -1786,7 +1853,7 @@ fn feed_lifecycle_bar(
         write_lifecycle_line(
             sink,
             format_args!(
-                "COMPLETION_SIGNAL as_of={} level={} side={:?} kind={:?} seg_a={:?} seg_c_full={:?} b_center_start={} lower_id={:?} completed_at={} observed_completion_at={}",
+                "COMPLETION_SIGNAL as_of={} level={} side={:?} kind={:?} seg_a={:?} seg_c_full={:?} b_center_start={} lower_id={:?} completed_at={}",
                 signal.as_of,
                 signal.key.level,
                 signal.key.side,
@@ -1796,7 +1863,6 @@ fn feed_lifecycle_bar(
                 signal.key.b_center_start,
                 (signal.completed_lower_id.level, signal.completed_lower_id.ordinal),
                 signal.completed_at,
-                signal.observed_completion_at,
             ),
         )?;
     }

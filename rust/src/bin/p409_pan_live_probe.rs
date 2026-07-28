@@ -55,6 +55,7 @@ use newchan_rust::theta_v0::classifier::level_view::{
 use newchan_rust::theta_v0::classifier::nest_lifecycle::{
     provide_pan_live_windows, ForceMaterial, InvalidatedReason, LifecycleObservation,
     LifecycleRevisionKind, NestEventState, NestLifecycleBook, PanLiveWindow, UnavailReason,
+    VanishCause,
 };
 use newchan_rust::theta_v0::classifier::recursive_tower::{map_src_to_close_idx, LeveledMove};
 use newchan_rust::theta_v0::config::ThetaConfig;
@@ -214,7 +215,10 @@ struct LevelStats {
     /// 从未构成（结构完成时从未写 first_provable）落地次数——本探针硬编码
     /// structure_completed=false ⟹ 恒 0（票 #425 新增原因码，接线票 #426 后才可非零）。
     never_constituted: usize,
-    identity_vanished: usize,
+    /// 身份消失 (a) 假设被推翻（真终局）——票 #559 裁定：两类分列，禁混记。
+    identity_vanished_refuted: usize,
+    /// 身份消失 (b) 观测接缝伪影（provider 换轨丢下）。
+    identity_vanished_seam: usize,
     confirmed: usize,
     provisional_alive: usize,
     first_provable_entries: usize,
@@ -463,7 +467,10 @@ fn emit_report(
             NestEventState::Invalidated => match entry.invalidated_reason {
                 Some(InvalidatedReason::ForceOvertake) => level_stats.force_overtake += 1,
                 Some(InvalidatedReason::NeverConstituted) => level_stats.never_constituted += 1,
-                Some(InvalidatedReason::IdentityVanished) => level_stats.identity_vanished += 1,
+                Some(InvalidatedReason::IdentityVanished { cause }) => match cause {
+                    VanishCause::HypothesisRefuted => level_stats.identity_vanished_refuted += 1,
+                    VanishCause::ObservationSeam { .. } => level_stats.identity_vanished_seam += 1,
+                },
                 None => {}
             },
         }
@@ -504,7 +511,7 @@ fn emit_report(
     );
     for (level, s) in &stats {
         println!(
-            "P409_LEVEL[{tag}] level={level} identities={} emissions={} force_true={} force_false={} unavail_missing={} unavail_coordmap={} invalid_force_overtake={} invalid_never_constituted={} invalid_identity_vanished={} confirmed={} provisional_alive={} entries_with_first_provable={}",
+            "P409_LEVEL[{tag}] level={level} identities={} emissions={} force_true={} force_false={} unavail_missing={} unavail_coordmap={} invalid_force_overtake={} invalid_never_constituted={} invalid_identity_vanished_refuted={} invalid_identity_vanished_seam={} confirmed={} provisional_alive={} entries_with_first_provable={}",
             s.identities,
             s.emissions,
             s.force_true,
@@ -513,7 +520,8 @@ fn emit_report(
             s.coord_failed,
             s.force_overtake,
             s.never_constituted,
-            s.identity_vanished,
+            s.identity_vanished_refuted,
+            s.identity_vanished_seam,
             s.confirmed,
             s.provisional_alive,
             s.first_provable_entries

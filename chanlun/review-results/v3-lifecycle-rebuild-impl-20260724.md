@@ -7,6 +7,16 @@
 > `feed_replay_prefix` 仅为 legacy/测试兼容。旧 `0/3715` 分母及不存在的“§7.3”
 > 引用均为历史遗留，不作现行事实或验收口径；现行结算分母、p409 反事实边界与 E
 > 改判见 `issue421-acceptance-selfcheck-20260727.md` §10「E 执行节」。
+>
+> **再订正（2026-07-28 晚，票 #527 实装 + #559 评审条件 C4）**：上一段「`ReplayPrefixFeed`/
+> `feed_replay_prefix` 仅为 legacy/测试兼容」已再次过期——这对符号已由 #527
+> （commit `7b4547b623`）**整体删除**（无生产调用方，no-patch：删除而非留兼容垫片）；
+> 原先 15 处调用改写为测试内本地夹具 adapter `feed_prefix_phases`，无 `#[test]` 被删。
+> 因此本文 §6 第 2 条与 §7 第 1 条中「调用 `feed_replay_prefix`」的表述所指符号**已不存在**，
+> 现行唯一生产喂入口是每根 bar 的 `feed_replay_bar`（两相：先活窗、后完成）。
+> 另：本文与 §7 涉及的 `IdentityVanished=0` 读数已由 #559 编排者裁定**撤销为不变量**，
+> 新不变量见 `nest_lifecycle.rs` 模块头「身份消失不变量」与
+> `issue527-panlive-l1-provider-20260728.md` §「#559 修复节」。
 
 - 日期：2026-07-24
 - 工位：实装 subagent（worktree `/tmp/kimi-nest-mainline`，分支 `kimi-nest-mainline-20260717`）
@@ -97,7 +107,7 @@ test result: FAILED. 1813 passed; 1 failed; 132 ignored; 0 measured; 0 filtered 
 ## 6. 边界与诚实登记（090：声明 = 能力）
 
 1. **模块头四项强制登记齐全**：①白名单工程桥限制（工程桥非 E2E WireV1 EventKey，并轨前不得进入证书真值路径——卡 §6.3/§9、裁定 #64 §2(c)）；②Unresolved 出切片（卡 §2.4，三态链非 E2E-D5 全四态）；③trend T1 合成保留不代表真实可达（勘误 20260721，真实通道 = pan 活窗 T11）；④#64 §5 验收线字面矛盾登记（按 §2(a) 执行：可查账、不开放消费，归编排者澄清）。
-2. **历史交付边界（已由 #421 续作收口）**：2026-07-24 本报告落笔时只交付状态机核心 + 消费契约；2026-07-28 起 `p123_fast_replay` 已在生产重估 trigger 内调用 `feed_replay_prefix`，现行能力以 §7 为准。
+2. **历史交付边界（已由 #421 续作收口）**：2026-07-24 本报告落笔时只交付状态机核心 + 消费契约；2026-07-28 起 `p123_fast_replay` 已在生产重估 trigger 内调用 `feed_replay_prefix`，现行能力以 §7 为准。〔#559 C4 订正：`feed_replay_prefix` 已被 #527 删除；现行生产喂入 = 逐 bar `feed_replay_bar`。〕
 3. **出切片项维持**（卡 §9 原样，零夹带）：Unresolved 四态、WireV1 全量 EventKey/StateKey/修订链、谱系两钟 opened/closed、跨级证伪（043:30）、024:28 面积乘 2 外推、postcondition 诊断钟、DeferOrphan 重判、Lean 侧 ActiveTail↔OpenTailSystem 桥、白名单桥与两元锚（`NestCandidateEventExt.extreme_price/group_anchor`，#110/#206 线已入库）并轨。
 4. **现行 feed 契约（#421 订正）**：只在回放引擎重估 trigger 投喂，时钟精度 = trigger 粒度；同一身份每 trigger 至多一只观察。非 trigger 间首次可证允许晚记到下一 trigger，不能早记；`observed_at` 与 `first_provable_at` 同由 `advance` 首次写入，故不会构造 `first_provable_at < observed_at`。
 5. **#43/#64 边界零侵蚀**：N^δ 装配仍只消费已闭合完整 c_p（nest.rs:802-810/:987-989 未触碰）；`judge_at` 字段/写入点/回填/CERT 主键/D3 统计逐 bit 不动；本 book 不进 `d_parent_interval_snapshot/terminal` 输入。
@@ -108,7 +118,8 @@ test result: FAILED. 1813 passed; 1 failed; 132 ignored; 0 measured; 0 filtered 
 
 1. `p123_fast_replay::run_targeted_prefix_pass` 在与既有引擎相同的
    `(forest_epoch, signal_signature)` 重估 trigger 上，从 tower/provider/window 链重建
-   pan run 与完成事件，调用 `feed_replay_prefix`。`pending` 出清不停止 sidecar；喂入只读
+   pan run 与完成事件，调用 `feed_replay_prefix`〔#559 C4 订正：该符号已被 #527 删除，
+   现行为逐 bar `feed_replay_bar` 两相喂入〕。`pending` 出清不停止 sidecar；喂入只读
    provider 产物，不写既有 `YieldBook`、事件流、stdout 或 `P116_DUMP`。
 2. 生命周期输出独立写 `P421_LIFECYCLE_DUMP`；release 路径在每次喂入后显式调用
    `NestLifecycleBook::assert_invariants`，不再声称 `advance` 自身在 release 自动核验。

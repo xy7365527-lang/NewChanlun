@@ -63,6 +63,16 @@
 //!   provenance。**级别有效域**：只有 L1 有 active lower-frontier；L2/L3 的 `LeveledMove`
 //!   在塔上没有 Active/Completed 表达（#523 遗留 1），故其身份仍只经完成相进账本——那是
 //!   provider 能力缺口，**不冒充** true-flash。
+//! - **身份消失不变量（票 #559 编排者裁定 2026-07-28，替换 #421 的旧口径）**：旧不变量
+//!   「`IdentityVanished = 0`」**已撤销**——它从来不是设计保证，而是「首见即完成」bug 的
+//!   副产品（活窗与完成同刻出生 ⟹ 身份从不跨 bar 存活 ⟹ 无从消失）。活窗真实存在后，
+//!   parser 教义「未完成走势不预判最终结果」直接蕴含行进中身份可被取消，是**合法新终局
+//!   形态**。**新不变量**：*凡消失的身份必须带可审计原因码，且成因拆两类落账本字段*——
+//!   (a) [`VanishCause::HypothesisRefuted`] 假设被推翻（真终局）；
+//!   (b) [`VanishCause::ObservationSeam`] 观测接缝伪影（provider 换轨丢下，与 #523 根因同
+//!   类）。两类禁混记：(b) 不是假设失效，混入寿命/反超率统计会吃进伪影
+//!   （`assert_invariants` 全态钉死 `vanish_cause` 有值 ⟺ 原因码是 IdentityVanished）。
+//!   本条挂 **#523 遗留问题 2**（稳定身份）名下。
 //! - **feed 契约（#421 逃生门）**：生产 trigger/事件流不动；sidecar 另走同源、独立的
 //!   **逐 bar 喂数循环**。每根 bar 先喂此刻可见的全部活窗观察，再喂该 bar 首次可见的完成
 //!   信号；同一身份 c 窗左端不动、右端逐 bar 延展。`observed_at` 与
@@ -163,6 +173,19 @@ fn bridge_identity(a: &LifecycleKey, b: &LifecycleKey) -> bool {
         && a.b_center_start == b.b_center_start
 }
 
+/// 同**锚**判定（票 #559）：身份键去掉 `seg_c_full` 的五元相等。
+///
+/// 与 [`bridge_identity`] 的分工：桥要求 C 左端也相同（右端延展吸收为同身份）；同锚只要求
+/// A/B 锚与级别/方向/域相同，**允许 C 左端不同**——那正是「provider 换到下一个 C」的形态。
+/// 两者关系：`bridge_identity ⟹ same_anchor`（严格更强）。
+fn same_anchor(a: &LifecycleKey, b: &LifecycleKey) -> bool {
+    a.level == b.level
+        && a.side == b.side
+        && a.kind == b.kind
+        && a.seg_a == b.seg_a
+        && a.b_center_start == b.b_center_start
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 三态 / 原因码 / 力度三值化（卡 §2.3/§4 + #78 修复 1）
 // ═══════════════════════════════════════════════════════════════════════════
@@ -187,14 +210,42 @@ impl NestEventState {
     }
 }
 
+/// 身份消失的两类成因（票 #559 编排者裁定 2026-07-28；挂 #523 遗留问题 2 名下）。
+///
+/// 裁定原文：「凡消失的身份必须带可审计原因码，且原因码拆两类落**账本字段**——
+/// (a) 假设被推翻（真终局）；(b) 观测接缝伪影（provider 换轨丢下）。混记会污染
+/// 寿命/反超率统计，禁。」
+///
+/// **判据（`advance` 第 8 步现算，唯一分类点）**：消失身份的**锚**
+/// = `(level, side, kind, seg_a, b_center_start)`（身份键去掉 `seg_c_full`）。
+/// 本 prefix 的观察集合里若仍有同锚身份（必然是不同 `seg_c_full.0`——同左端会被
+/// [`bridge_identity`] 吸收成 `Supersedes` 而不进消失扫描），则该锚的假设并未死，
+/// 只是 provider 把 C 换到了下一段 ⟹ (b)；否则该锚本 prefix 完全不再产窗 ⟹ (a)。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VanishCause {
+    /// (a) 假设被推翻（真终局）：本 prefix 该锚不再产出任何窗，结构前提被后续演化否证。
+    /// 教义依据：`parser/tail.rs`「未完成走势只能唯一分类为当下状态，不能强行分类为
+    /// 最终结果」⟹ 基于当下状态建立的活假设必然可被后续结构演化取消。
+    HypothesisRefuted,
+    /// (b) 观测接缝伪影：同 prefix 同锚仍有窗/事件产出，只是 C 段左端换了
+    /// （`successor_c_start`）。假设本身没死，是 provider 换轨把旧 key 丢下——与 #523
+    /// 钉的根因同类（从「首见即完成」变成「窗口错配」）。
+    ///
+    /// `successor_c_start` = 本 prefix 同锚新身份的 `seg_c_full.0`；锚其余五元与消失身份
+    /// 逐位相同，故该值唯一定位接手身份（右端随 bar 延展，不进身份）。同 prefix 存在多个
+    /// 同锚新身份时取 `BTreeSet` 序首个（确定性，无平局歧义）。
+    ObservationSeam { successor_c_start: usize },
+}
+
 /// 失效原因码（入 revision 载荷，诊断可查账；裁定 #64 §2(b)）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvalidatedReason {
     /// 被反超：**曾构成、后被否证**（061:26「一旦力度大于前者，那么就可以断定背驰段不
     /// 成立」）——要求曾写入 first_provable，是「先成立、再被推翻」。
     ForceOvertake,
-    /// 身份消失（上一 prefix 有、本 prefix 不再产出该 key；E2E §1:81）。
-    IdentityVanished,
+    /// 身份消失（上一 prefix 有、本 prefix 不再产出该 key；E2E §1:81）。成因两分见
+    /// [`VanishCause`]（票 #559 裁定：混记禁）。
+    IdentityVanished { cause: VanishCause },
     /// 从未构成：**根本未构成**（061:28「因为背驰如果没有创新高，是不存在的」）——结构
     /// 完成时该活假设从未写入 first_provable，与 ForceOvertake 的「曾构成」严格互补
     /// （两码的 first_provable_at 一有一无，assert_invariants 逐条钉死）。
@@ -298,6 +349,10 @@ pub struct NestLifecycleEntry {
     pub invalidated_at: Option<usize>,
     /// 失效原因码（ForceOvertake / NeverConstituted / IdentityVanished 三者可区分）。
     pub invalidated_reason: Option<InvalidatedReason>,
+    /// 身份消失成因（票 #559 裁定：两类落账本字段）。**恒与 `invalidated_reason` 同真**
+    /// ——`IdentityVanished{cause}` ⟺ `Some(cause)`，其余原因码恒 `None`
+    /// （`assert_invariants` 逐条钉死；唯一写入点 `invalidate`）。
+    pub vanish_cause: Option<VanishCause>,
     /// 力度证据终态留档（ForceOvertake 与 NeverConstituted 现算，材料缺则诚实 None；
     /// IdentityVanished 恒 None——无力度语义）。
     pub force_evidence: Option<ForceEvidence>,
@@ -335,7 +390,8 @@ impl NestLifecycleEntry {
     /// 结构上兑现模块头 090 登记 4「原因码与力度证据入载荷」；无删除路径，禁删除模拟失效）。
     ///
     /// `evidence`：ForceOvertake / NeverConstituted 传本 prefix 现算证据（材料缺则诚实
-    /// None）；IdentityVanished 传 None（无力度语义）。
+    /// None）；IdentityVanished 传 None（无力度语义）。`vanish_cause` 由 `reason` 现场投影
+    /// （单一写入点 ⟹ 两个字段结构上不可能不一致）。
     fn invalidate(
         &mut self,
         reason: InvalidatedReason,
@@ -345,6 +401,10 @@ impl NestLifecycleEntry {
         self.state = NestEventState::Invalidated;
         self.invalidated_at = Some(as_of);
         self.invalidated_reason = Some(reason);
+        self.vanish_cause = match reason {
+            InvalidatedReason::IdentityVanished { cause } => Some(cause),
+            InvalidatedReason::ForceOvertake | InvalidatedReason::NeverConstituted => None,
+        };
         self.force_evidence = evidence;
         self.push_revision(LifecycleRevisionKind::Invalidated { reason }, as_of, evidence)
     }
@@ -554,10 +614,18 @@ pub struct CompletionForceUnavailableAudit {
 /// 它与终态分开留档：身份可先由 Provisional→ForceOvertake 终局，之后到达的首完成仍须
 /// 进入真实分母，但终态吸收禁止据此回填 `StructureCompleted`。
 ///
-/// **完成钟 provenance 三分**（票 #527；#523 遗留问题 3）：三个时点分列，禁互相冒充——
-/// `completed_at`（lower unit **物理完成** bar，= 该单元 `end_index`）≤
-/// `observed_completion_at`（完成 Event **首次可见** bar，= provider 首次能构造该事件的 bar）≤
-/// `as_of`（**账本收到** bar，= `advance` 的时钟）。本样本三者当前并不相等，故不得合并记账。
+/// **完成钟 provenance 两分**（票 #527；#523 遗留问题 3；票 #559 条件 C3 订正）：两个时点
+/// 分列，禁互相冒充——`completed_at`（lower unit **物理完成** bar，= 该单元 `end_index`）
+/// ≤ `as_of`（**账本收到** bar，= `advance` 的时钟）。二者当前并不相等，故不得合并记账。
+///
+/// **C3 订正（为什么是两钟而不是三钟）**：#527 曾分列第三钟 `observed_completion_at`
+/// （完成 Event 首次可见 bar）。但现行接线下 provider 相的构造与账本喂入在**同一 bar、
+/// 同一调用链**内完成（`p123_fast_replay::lifecycle_bar_phases` → `feed_lifecycle_bar`），
+/// 该钟被硬写为 `as_of`，BTC 100k 全量 248/248 恒等 ⟹ 它不是独立可测时点，只是 `as_of`
+/// 的别名。保留一个恒等于另一字段的钟 = 声明代码不具备的分辨力（090 声明 = 能力）。
+/// 故删除，只留两钟；`as_of − completed_at` 即完整的完成可见性滞后读数（口径不变）。
+/// 若将来 provider 相构造与账本喂入解耦（批量/跨 bar 缓冲），第三钟才成为真实时点，
+/// 届时按真实产出重新引入——**不预留空字段**。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CompletionSignal {
     pub key: LifecycleKey,
@@ -567,8 +635,6 @@ pub struct CompletionSignal {
     pub completed_lower_id: ElementId,
     /// lower unit 物理完成 bar。
     pub completed_at: usize,
-    /// 完成 Event 首次可见 bar。
-    pub observed_completion_at: usize,
 }
 
 /// 一组寿命读数（单位为 `as_of` 的 bar-index 差，不冒充 trigger 次数）。
@@ -610,7 +676,11 @@ pub struct LifecycleSettlementStats {
     pub confirmed_count: usize,
     pub force_overtake_count: usize,
     pub never_constituted_count: usize,
-    pub identity_vanished_count: usize,
+    /// 身份消失 (a) 假设被推翻（真终局）——票 #559 裁定两类分列，禁合并计数。
+    pub identity_vanished_refuted_count: usize,
+    /// 身份消失 (b) 观测接缝伪影（provider 换轨丢下）——**不得**进入寿命/反超率统计
+    /// （票 #559 裁定：混记会污染统计）。
+    pub identity_vanished_seam_count: usize,
     pub flash_terminal_count: usize,
     pub nonflash_lifetime: LifetimeDistribution,
     pub force_overtake_lifetime: LifetimeDistribution,
@@ -707,8 +777,15 @@ impl NestLifecycleBook {
                         stats.never_constituted_count += 1;
                         (entry.invalidated_at, false)
                     }
-                    InvalidatedReason::IdentityVanished => {
-                        stats.identity_vanished_count += 1;
+                    InvalidatedReason::IdentityVanished { cause } => {
+                        match cause {
+                            VanishCause::HypothesisRefuted => {
+                                stats.identity_vanished_refuted_count += 1
+                            }
+                            VanishCause::ObservationSeam { .. } => {
+                                stats.identity_vanished_seam_count += 1
+                            }
+                        }
                         (entry.invalidated_at, false)
                     }
                 },
@@ -828,6 +905,7 @@ impl NestLifecycleBook {
                             confirmed_at: None,
                             invalidated_at: None,
                             invalidated_reason: None,
+                            vanish_cause: None,
                             force_evidence: None,
                             force_unavailable_at: None,
                             superseded_from: None,
@@ -963,9 +1041,21 @@ impl NestLifecycleBook {
             .map(|(key, _)| *key)
             .collect();
         for key in vanished {
+            // 成因两分（票 #559 裁定，唯一分类点）：本 prefix 观察集合里若仍有同锚身份
+            // （必然 c 左端不同——同左端已被桥吸收成 Supersedes，不进本扫描），则该锚的
+            // 假设未死，是 provider 换轨丢下旧 key ⟹ 观测接缝伪影；否则该锚本 prefix
+            // 完全不再产窗 ⟹ 假设被推翻。判据只读本 prefix 的 `seen`，不做历史重建。
+            let cause = seen
+                .iter()
+                .find(|other| **other != key && same_anchor(other, &key))
+                .map(|successor| VanishCause::ObservationSeam {
+                    successor_c_start: successor.seg_c_full.0,
+                })
+                .unwrap_or(VanishCause::HypothesisRefuted);
             let entry = self.entries.get_mut(&key).expect("扫描键存在");
             // 证据传 None：IdentityVanished 无力度语义（invariant 逐条钉死）。
-            let revision = entry.invalidate(InvalidatedReason::IdentityVanished, as_of, None);
+            let revision =
+                entry.invalidate(InvalidatedReason::IdentityVanished { cause }, as_of, None);
             delta.push(revision);
         }
         // 库内 debug 构建自动核验；release 不作“自动核验”声明。生产 p123 接线在每个
@@ -1010,6 +1100,16 @@ impl NestLifecycleBook {
                     assert!(first <= structure_end, "first_provable ≤ structure_end：{key:?}");
                 }
             }
+            // 票 #559 新不变量（全态覆盖）：`vanish_cause` 有值 ⟺ 原因码是 IdentityVanished。
+            // 「凡消失必带可审计两类原因码」的账本级钉死点；其它终局/活假设恒无成因字段。
+            assert_eq!(
+                entry.vanish_cause.is_some(),
+                matches!(
+                    entry.invalidated_reason,
+                    Some(InvalidatedReason::IdentityVanished { .. })
+                ),
+                "vanish_cause 有值 ⟺ IdentityVanished：{key:?}"
+            );
             match entry.state {
                 NestEventState::Provisional => {
                     assert!(
@@ -1036,7 +1136,8 @@ impl NestLifecycleBook {
                         "observed ≤ invalidated：{key:?}"
                     );
                     assert!(entry.confirmed_at.is_none(), "终态互斥：{key:?}");
-                    match entry.invalidated_reason.expect("Invalidated 必有原因码") {
+                    let reason = entry.invalidated_reason.expect("Invalidated 必有原因码");
+                    match reason {
                         InvalidatedReason::ForceOvertake => {
                             let first = entry
                                 .first_provable_at
@@ -1064,7 +1165,7 @@ impl NestLifecycleBook {
                                 "从未构成 invalidated ≤ last_as_of：{key:?}"
                             );
                         }
-                        InvalidatedReason::IdentityVanished => {
+                        InvalidatedReason::IdentityVanished { cause } => {
                             // 身份消失路径 invalidated_at 独立于 first_provable_at（卡 §2.3）；
                             // 失效在「本 prefix 不再产出」时结算 ⟹ invalidated ≥ last_as_of。
                             assert!(
@@ -1075,6 +1176,19 @@ impl NestLifecycleBook {
                                 entry.force_evidence.is_none(),
                                 "IdentityVanished 恒无力度证据：{key:?}"
                             );
+                            // 票 #559 新不变量：凡消失必带可审计成因，且账本字段与原因码
+                            // 载荷逐位一致（单一写入点 `invalidate` 的结构性保证）。
+                            assert_eq!(
+                                entry.vanish_cause,
+                                Some(cause),
+                                "身份消失成因入账本字段且与原因码载荷一致：{key:?}"
+                            );
+                            if let VanishCause::ObservationSeam { successor_c_start } = cause {
+                                assert_ne!(
+                                    successor_c_start, key.seg_c_full.0,
+                                    "接缝成因的接手身份 c 左端必异于消失身份（同左端应被桥吸收）：{key:?}"
+                                );
+                            }
                         }
                     }
                 }
@@ -1099,12 +1213,11 @@ impl NestLifecycleBook {
                     signal.key
                 );
             }
-            // 完成钟三分单调（票 #527）：物理完成 ≤ 事件首见 ≤ 账本收到。三者恒等不是要求，
-            // 恒序才是——违序 ⟹ provider 回填/前视，停线。
+            // 完成钟两分单调（票 #527，#559 C3 订正）：物理完成 ≤ 账本收到。二者恒等不是
+            // 要求，恒序才是——违序 ⟹ provider 回填/前视，停线。
             assert!(
-                signal.completed_at <= signal.observed_completion_at
-                    && signal.observed_completion_at <= signal.as_of,
-                "完成钟三分单调 completed ≤ observed ≤ 账本：{:?}",
+                signal.completed_at <= signal.as_of,
+                "完成钟两分单调 completed ≤ 账本：{:?}",
                 signal.key
             );
         }
@@ -1134,7 +1247,6 @@ impl NestLifecycleBook {
         as_of: usize,
         completed_lower_id: ElementId,
         completed_at: usize,
-        observed_completion_at: usize,
     ) -> bool {
         if self.completion_signal_seen(&key)
             || self
@@ -1148,7 +1260,6 @@ impl NestLifecycleBook {
             as_of,
             completed_lower_id,
             completed_at,
-            observed_completion_at,
         });
         true
     }
@@ -1346,10 +1457,21 @@ pub fn active_segment_frontier(l0: &ParseLayer) -> Option<ActiveSegmentFrontier>
 /// `locate_pan_div_structure`（窄锚）→ `locate_pan_div_structure_front_anchor`（A′ 回退）、
 /// `pan_div_structure_extreme` 预滤——与完成事件 provider（level_view.rs pan 分支）同序同判。
 ///
-/// **c_start 稳定性**（#523 遗留问题 2）：活窗左端 = `structure.seg_c.0` = λ_C，由
-/// `departure_move_c_start` 在 `[B.end_index, C.start_index]` 窗口上定界；该窗口只含 confirmed
-/// 段与行进中段自身，行进中段 emit 为 confirmed 后 `start_index`/`direction` 不变 ⟹ 同一 λ_C
-/// ⟹ 完成事件与本活窗的 `seg_c.0` 恒等，桥（除右端外全等）判同身份。
+/// **c_start 稳定性**（#523 遗留问题 2；票 #559 条件 C2 订正——原文写成无限定的恒等断言，
+/// BTC 100k 实测 5 例反例，故收窄为下述限定表述）：
+///
+/// 限定成立的是「**同一** C 段」上的恒等：活窗左端 = `structure.seg_c.0` = λ_C，由
+/// `departure_move_c_start` 在 `[B.end_index, C.start_index]` 窗口上定界；该窗口只含衔接连续的
+/// confirmed 段与行进中段自身（衔接由上面的守卫钉死），行进中段 emit 为 confirmed 后
+/// `start_index`/`direction` 不变 ⟹ 同一 λ_C ⟹ **该 C 段的**完成事件与**该 C 段的**活窗
+/// `seg_c.0` 恒等，桥（除右端外全等）判同身份。
+///
+/// **不成立的是跨 C 段的恒等**（反例来源）：完成事件的首次可见 bar 晚于 lower unit 物理完成
+/// bar（BTC 100k 滞后中位 57.5、最大 5190）。若该滞后超过 C 段活窗的存活期，完成事件到账时
+/// parser 的 pending 段早已换成**下一个** C ⟹ 当下活窗的 `seg_c.0` 与到账完成事件的
+/// `seg_c.0` 属于两个不同的 C，桥不判同身份 ⟹ 旧活窗记
+/// `IdentityVanished{ObservationSeam}`、完成事件另起闪现。这是**观测接缝**，不是 λ_C 不稳；
+/// 两类成因的账本区分见 [`VanishCause`]（票 #559 裁定）。
 ///
 /// 活窗右端 = `as_of`（卡 §3 设计内行为，随 bar 前进；不进身份键）。
 ///
@@ -1365,6 +1487,19 @@ pub fn provide_l1_active_pan_live_windows(
 ) -> L1LiveOutcome {
     let active = frontier.as_segment();
     // 行进中段必须严格晚于全部 confirmed 段（否则不是 frontier ⟹ 拒绝，诚实空产出）。
+    //
+    // **为什么只查 `>=` 而不查 `==`**（票 #559 条件 C2 的判定，照实登记）：段序列有洞
+    // （`active.start_index > last.end_index`）时，λ_C 的定界窗口会跨过缺失段 ⟹ 确实是
+    // 正确性问题。但在生产接线上**洞结构上不可能**：`segments` = `lower_legs_from(tower[0])`，
+    // 而 `tower[0]` = `l0.segments` 全量（含未确认末段，classifier/mod.rs
+    // `moves_tower_l0` 由 `l0.segments[..]` 纯函数生成）；parser 发射段用
+    // `end_stroke = k-1` 且下一段 `seg_start = k`（parser/segment.rs:415-425），
+    // 笔首尾相接 ⟹ 末段 `end_index` == pending 首笔 `start_index` == `frontier.start_index`。
+    // 故 `>` 分支在生产不可达（BTC 100k 实测 `frontier_gap` 分布逐 bar 恒 0，见交付报告
+    // #559 修复节）。**不加 `==` 守卫的原因**：仓内 pan 合成夹具用「段间 +1 不共端点」
+    // 的坐标约定（`pan_real_fixture`：(50,59)/(60,69)/…），与生产共端点约定不同，
+    // `==` 守卫在该夹具上恒拒 ⟹ 会把一条生产不可达的守卫做成只能靠改夹具才可测的死分支。
+    // 夹具约定与生产不一致本身登记为遗留（不在本票 Scope）。
     if confirmed_segments
         .last()
         .is_some_and(|last| active.start_index < last.end_index)
@@ -1521,8 +1656,8 @@ pub fn provide_replay_live_windows(
 ///
 /// 消费方**不再**按 `kind == Consolidation` 猜 provenance——那正是 #523 判定的根因之一
 /// （generic 事件被无证明地当作完成）。构造方（provider/接线侧）必须给出：
-/// 完成的 lower unit 身份 `completed_lower_id`、其物理完成 bar `completed_at`、
-/// 以及本完成事件首次可见的 bar `observed_completion_at`（完成钟三分见 [`CompletionSignal`]）。
+/// 完成的 lower unit 身份 `completed_lower_id` 与其物理完成 bar `completed_at`
+/// （完成钟两分见 [`CompletionSignal`]；事件首见 bar = 账本 `as_of`，不另设字段——#559 C3）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PanCompletionEvent {
     /// 同源 provider 的候选事件本体（口径一个 bit 不动）。
@@ -1531,8 +1666,6 @@ pub struct PanCompletionEvent {
     pub completed_lower_id: ElementId,
     /// lower unit 物理完成 bar（该单元 `end_index`）。
     pub completed_at: usize,
-    /// 完成 Event 首次可见 bar。
-    pub observed_completion_at: usize,
 }
 
 /// provider 的两相输出（票 #527 / #523 §3 伪代码）。
@@ -1658,13 +1791,12 @@ pub fn feed_replay_bar(
         }
 
         // 首完成事实独立于终态：即使该身份已提前 ForceOvertake，也照实进入完整分母。
-        // 完成钟三分（票 #527）随信号一并留档，账记不混。
+        // 完成钟两分（票 #527；#559 C3 订正）随信号一并留档，账记不混。
         if book.register_completion_signal(
             completed_key,
             feed.as_of,
             completed.completed_lower_id,
             completed.completed_at,
-            completed.observed_completion_at,
         ) {
             stats.completion_signals += 1;
             stats.channel_switches += 1;
@@ -2143,6 +2275,10 @@ mod tests {
     /// T6 身份消失（pan 窄锚 → A′ 回退切换，level_view.rs:826-839 两路）：上一 prefix 的
     /// key 本 prefix 不再产出 ⟹ Invalidated(IdentityVanished)，entry 保留（禁删除模拟
     /// 失效），与 ForceOvertake 原因码可区分（E2E §1:81 + 裁定 #64 §2(b)）。
+    ///
+    /// **成因 (a) 用例**（票 #559）：本 prefix 的新身份 `seg_a` 不同 ⟹ **锚已变** ⟹ 旧锚
+    /// 本 prefix 完全不再产窗 ⟹ [`VanishCause::HypothesisRefuted`]（假设被推翻，真终局）。
+    /// 成因 (b)（同锚换 C 的观测接缝）见 `t6b_identity_vanish_observation_seam`。
     #[test]
     fn t6_identity_vanish_on_structure_switch() {
         let close_src = identity_close_src(120);
@@ -2169,17 +2305,91 @@ mod tests {
             .get(&key_pan((50, 69), (70, 89)))
             .expect("旧 entry 保留（禁删除模拟失效）");
         assert_eq!(old.state, NestEventState::Invalidated);
-        assert_eq!(old.invalidated_reason, Some(InvalidatedReason::IdentityVanished));
+        assert_eq!(
+            old.invalidated_reason,
+            Some(InvalidatedReason::IdentityVanished {
+                cause: VanishCause::HypothesisRefuted
+            })
+        );
+        assert_eq!(
+            old.vanish_cause,
+            Some(VanishCause::HypothesisRefuted),
+            "成因入账本字段（票 #559 裁定：不是只写 dump 文本）"
+        );
         assert_eq!(old.invalidated_at, Some(99));
         assert!(old.force_evidence.is_none(), "IdentityVanished 恒无力度证据");
         assert!(
             matches!(
                 old.revisions.last().unwrap().kind,
-                LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::IdentityVanished }
+                LifecycleRevisionKind::Invalidated {
+                    reason: InvalidatedReason::IdentityVanished {
+                        cause: VanishCause::HypothesisRefuted
+                    }
+                }
             ),
-            "原因码入 revision 载荷（与 ForceOvertake 可区分）"
+            "原因码（含成因）入 revision 载荷（与 ForceOvertake 可区分）"
         );
         assert_eq!(book.len(), 2, "新身份建仓不受影响");
+        let stats = book.settlement_stats();
+        assert_eq!(stats.identity_vanished_refuted_count, 1, "(a) 类计 1");
+        assert_eq!(stats.identity_vanished_seam_count, 0, "(b) 类不被污染");
+        book.assert_invariants();
+    }
+
+    /// T6b 身份消失成因 (b)：**同锚换 C** 的观测接缝伪影（票 #559 裁定 (b) 类）。
+    ///
+    /// 场景与 T6 严格互补：`seg_a`/`b_center_start`/level/side 全同（**锚未变**），只有 C 段
+    /// 左端从 70 换到 90（parser 的 pending 段推进到下一个 C，或滞后到账的完成事件另指一个
+    /// C）。桥（除右端外全等）判**不同**身份 ⟹ 旧 key 本 prefix 不再产出 ⟹ 消失；但该锚
+    /// 仍在产窗 ⟹ 假设没死 ⟹ [`VanishCause::ObservationSeam`]，并记下接手身份的 c 左端。
+    ///
+    /// 这是 BTC 100k 上 #559 §1.1(c) 5 例反例的合成最小复现：两类若混记，(b) 的寿命会被
+    /// 当成「活假设存活了 N bar 后被证伪」进入寿命/反超率统计（裁定明令禁止）。
+    #[test]
+    fn t6b_identity_vanish_observation_seam() {
+        let close_src = identity_close_src(120);
+        let hist = vec![0.0; 120];
+        let dif = vec![0.0; 120];
+        let m = material(&hist, &dif, &close_src);
+        let mut book = NestLifecycleBook::new();
+        // as_of=89：锚 seg_a=(50,69)，C 段左端 70。
+        let d = book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 69), 70, 89), false)],
+            89,
+            &m,
+        );
+        assert_eq!(d.len(), 1, "仅 Observed");
+        // as_of=99：同锚（seg_a 不变），C 左端换成 90 ⟹ 桥不判同 ⟹ 旧 key 消失。
+        let d = book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 69), 90, 99), false)],
+            99,
+            &m,
+        );
+        assert_eq!(d.len(), 2, "新 C 身份 Observed + 旧 C 身份 IdentityVanished");
+        let old = book
+            .get(&key_pan((50, 69), (70, 89)))
+            .expect("旧 entry 保留");
+        assert_eq!(
+            old.vanish_cause,
+            Some(VanishCause::ObservationSeam {
+                successor_c_start: 90
+            }),
+            "接缝成因 + 接手身份 c 左端入账本字段"
+        );
+        assert_eq!(
+            old.invalidated_reason,
+            Some(InvalidatedReason::IdentityVanished {
+                cause: VanishCause::ObservationSeam {
+                    successor_c_start: 90
+                }
+            })
+        );
+        let stats = book.settlement_stats();
+        assert_eq!(stats.identity_vanished_seam_count, 1, "(b) 类计 1");
+        assert_eq!(
+            stats.identity_vanished_refuted_count, 0,
+            "(a) 类不被污染——两类分列是裁定的账本要求"
+        );
         book.assert_invariants();
     }
 
@@ -2254,7 +2464,9 @@ mod tests {
     /// 观察、后完成信号；同 bar 闪现允许 Observed→StructureCompleted→终局同钟。
     /// `observed_at` 与 `first_provable_at` 均在首次实际 `advance` 写入，禁止回填，因此
     /// 不能构造 `first_provable_at < observed_at`。测试内 `feed_prefix_phases` adapter
-    /// 仅为夹具展开；只在该兼容路径，跳过非 trigger prefix 才会晚记。
+    /// 仅为夹具展开：按给定 as_of 直喂，**不存在**「跳过非 trigger prefix」这条路径
+    /// （票 #559 条件 C4：该尾句是 legacy `ReplayPrefixFeed` 语境的残留，那对符号已由
+    /// #527 删除，故原句在夹具语境下悬空，此处按实际能力收窄）。
     #[test]
     fn t8_trend_identity_migration_whitelist() {
         let close_src = identity_close_src(200);
@@ -2289,7 +2501,9 @@ mod tests {
         let d = book.advance(&[LifecycleObservation::event(seg_a_changed, false)], 169, &m);
         assert!(d.iter().any(|r| matches!(
             r.kind,
-            LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::IdentityVanished }
+            LifecycleRevisionKind::Invalidated {
+                reason: InvalidatedReason::IdentityVanished { .. }
+            }
         )));
         let new_entry = book
             .get(&LifecycleKey { seg_a: (60, 109), ..key_trend((120, 169)) })
@@ -2870,7 +3084,13 @@ mod tests {
         };
         assert_eq!(by_reason(InvalidatedReason::ForceOvertake), 1);
         assert_eq!(by_reason(InvalidatedReason::NeverConstituted), 1);
-        assert_eq!(by_reason(InvalidatedReason::IdentityVanished), 0, "两者都不是身份消失");
+        assert_eq!(
+            book.entries()
+                .filter(|(_, e)| e.vanish_cause.is_some())
+                .count(),
+            0,
+            "两者都不是身份消失（成因字段恒空）"
+        );
         assert_eq!(book.len(), 2, "终态留档不删");
         assert!(book.consumable_closed().is_empty(), "终态一律不进消费侧");
         book.assert_invariants();
@@ -3001,7 +3221,6 @@ mod tests {
                 event: *event,
                 completed_lower_id,
                 completed_at,
-                observed_completion_at: as_of,
             }));
         }
         feed_replay_bar(book, &ReplayBarFeed { as_of, phases: &phases }, material)
@@ -3012,7 +3231,6 @@ mod tests {
         live_windows: &[PanLiveWindow],
         completion_events: &[NestCandidateEvent],
         completed_at: usize,
-        as_of: usize,
     ) -> Vec<PanProviderPhase> {
         let mut phases: Vec<PanProviderPhase> = live_windows
             .iter()
@@ -3027,7 +3245,6 @@ mod tests {
                     ordinal: 0,
                 },
                 completed_at,
-                observed_completion_at: as_of,
             }));
         }
         phases
@@ -3526,7 +3743,7 @@ mod tests {
         let events = [pan_event((50, 59), (70, 99), true, 99)];
         let mut book = NestLifecycleBook::new();
 
-        let phases = bar_phases(&windows, &events, 99, 99);
+        let phases = bar_phases(&windows, &events, 99);
         let (delta, stats) = feed_replay_bar(
             &mut book,
             &ReplayBarFeed {
@@ -3565,7 +3782,7 @@ mod tests {
         let mut book = NestLifecycleBook::new();
 
         let first = [pan_window((50, 59), 70, 79)];
-        let born_phases = bar_phases(&first, &[], 79, 79);
+        let born_phases = bar_phases(&first, &[], 79);
         let (born, _) = feed_replay_bar(
             &mut book,
             &ReplayBarFeed {
@@ -3586,7 +3803,7 @@ mod tests {
         );
 
         let later = [pan_window((50, 59), 70, 99)];
-        let later_phases = bar_phases(&later, &[], 99, 99);
+        let later_phases = bar_phases(&later, &[], 99);
         let (overtaken, _) = feed_replay_bar(
             &mut book,
             &ReplayBarFeed {
@@ -3628,7 +3845,7 @@ mod tests {
         let events = [pan_event((50, 59), (70, 99), true, 99)];
         let mut book = NestLifecycleBook::new();
 
-        let phases = bar_phases(&[], &events, 99, 99);
+        let phases = bar_phases(&[], &events, 99);
         let (delta, stats) = feed_replay_bar(
             &mut book,
             &ReplayBarFeed {
@@ -3835,7 +4052,6 @@ mod tests {
                 ordinal: 4,
             },
             completed_at: 99,
-            observed_completion_at: 99,
         })];
         let (delta, stats) = feed_replay_bar(
             &mut book,
@@ -3882,7 +4098,6 @@ mod tests {
                 ordinal: 4,
             },
             completed_at: 99,
-            observed_completion_at: 99,
         })];
         let (delta, stats) = feed_replay_bar(
             &mut book,
@@ -3901,23 +4116,20 @@ mod tests {
         assert_eq!(entry.observed_at, 99);
         assert_eq!(entry.confirmed_at, Some(99));
         assert_eq!(book.settlement_stats().flash_terminal_count, 1);
-        // 真 true-flash 的可审计判据：物理完成 bar == 事件首见 bar == 账本收到 bar。
+        // 真 true-flash 的可审计判据：物理完成 bar == 账本收到 bar（完成钟两分同值，
+        // #559 C3 订正——第三钟已删，它在生产恒等于 as_of，分列它不产生分辨力）。
         let signal = book.completion_signals()[0];
-        assert_eq!(
-            (
-                signal.completed_at,
-                signal.observed_completion_at,
-                signal.as_of
-            ),
-            (99, 99, 99)
-        );
+        assert_eq!((signal.completed_at, signal.as_of), (99, 99));
     }
 
-    /// P5 完成钟三分可分辨（票 #527：物理完成 / 事件首见 / 账本收到，账记不混）。
+    /// P5 完成钟两分可分辨（票 #527；票 #559 条件 C3 订正：物理完成 / 账本收到）。
     ///
-    /// 三值刻意互不相等；顺序不变量由 `assert_invariants` 同步钉死（违序 ⟹ panic）。
+    /// 两值刻意不相等；顺序不变量由 `assert_invariants` 同步钉死（违序 ⟹ panic）。
+    /// **C3 订正记**：原版断言三值 99/105/110 互不相等，但中间那个「事件首见」钟在生产
+    /// 接线下被硬写为 `as_of`（248/248 恒等），只有夹具能造出 105 —— 即断言的是夹具自洽，
+    /// 不是生产分辨力。第三钟已删，本测试相应收窄为两钟。
     #[test]
-    fn p5_completion_clock_three_points_are_distinguishable() {
+    fn p5_completion_clock_two_points_are_distinguishable() {
         let (_centers, _kinds, _segments, _anchors, hist, dif, close_src) =
             pan_real_fixture(-0.1, -0.5);
         let m = material(&hist, &dif, &close_src);
@@ -3929,7 +4141,6 @@ mod tests {
                 ordinal: 4,
             },
             completed_at: 99,
-            observed_completion_at: 105,
         })];
         feed_replay_bar(
             &mut book,
@@ -3941,8 +4152,11 @@ mod tests {
         );
         let signal = book.completion_signals()[0];
         assert_eq!(signal.completed_at, 99, "lower unit 物理完成 bar");
-        assert_eq!(signal.observed_completion_at, 105, "完成 Event 首次可见 bar");
         assert_eq!(signal.as_of, 110, "账本收到 bar");
+        assert_ne!(
+            signal.completed_at, signal.as_of,
+            "两钟可分辨——完成可见性滞后 = as_of − completed_at"
+        );
         assert_eq!(
             signal.completed_lower_id,
             ElementId {
@@ -3954,7 +4168,7 @@ mod tests {
         assert_eq!(
             book.entries().next().unwrap().1.structure_end_at,
             Some(110),
-            "账本钟仍取 advance 的 as_of——三钟分列，禁互相冒充"
+            "账本钟仍取 advance 的 as_of——两钟分列，禁互相冒充"
         );
         book.assert_invariants();
     }
