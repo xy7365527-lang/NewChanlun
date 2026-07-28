@@ -1285,6 +1285,13 @@ where
             };
             // 仅在 dump 开启时保存生产 χ 过滤结果的成员键。下游 Nest/Xzd 会继续收窄同一 Vec，
             // 故须在其消费前取 χ 真值；关闭时不分配。
+            // #563 L5 订正：gap2 设计稿 §4①「生产路径零额外指令」是对本 `gamma_dump.is_some()`
+            // 分支的不精确表述——关闭时该分支仍逐 bar 求值一次（O(1) 布尔判断），只是不进入
+            // `step_gamma_trade.iter()...collect()` 的实际分配/写入。行为无变（关闭时逐字节不变，
+            // R5-1 铁律不受影响），仅设计稿声明面订正：「零额外指令」应读作「零额外分配/写入」。
+            // #600 Std MED-4：该订正此前只落在本注释、设计稿原句未动（声明面两处不一致）；现已
+            // 回写设计稿正文——`chanlun/review-results/gap2-gamma-candidate-dump-design-20260719.md`
+            // §4① 原句下的勘误行（原句保留、订正追记，两处措辞自此同步）。
             let gamma_chi_admitted: Vec<usize> = if gamma_dump.is_some() {
                 step_gamma_trade.iter().map(|c| c.gamma_index).collect()
             } else {
@@ -1782,9 +1789,6 @@ where
                     opsem: opsem_snap,
                     units: b1_sep.map(|s| s.q_units).unwrap_or(0.0),
                 });
-                if c.role.v == super::super::strategy::coverage::Vertical::ShortDiff {
-                    tw_thread.open_share_leg();
-                }
             }
             // #571：四类 carrier-only 关闭事件统一 drain 全部 live generation；每实例各落一行。
             {
@@ -1806,6 +1810,27 @@ where
                 }
                 for leg in &step_trace.overlay_closes {
                     open_trades.settle_overlay(leg.id, &mut settlements);
+                }
+            }
+            // TW 腿事件（#124）：legacy ShortDiff 腿开仓驱动 open_legacy_legs 计数（P2 的 H
+            // 判据与生产腿同源同步；关侧在上方 drain 结算内经 open.entry_v 判定派 CloseShareLeg）。
+            // CloseShareLeg(0) 口径声明：净额架构无腿级损益分账 ⟹ profit 口径量 0 承载
+            // （cum_net_cash 非承重分量——P2/P3/P4 谓词不消费它；唯一承重 = open_legacy_legs
+            // 计数），非簿记伪造。
+            // OQ-9 守卫：EarningShares 阶段开 legacy 腿 PDF 定义为非法（is_legal_from）——
+            // A' 后该 stage 生产可达（已实现利润入账，见 TW 初始化注释）；达 earning 后此腿
+            // 不计 legacy 计数，关侧 legs>=1 守卫对称跳过（合法性语义，非掩盖）。
+            // ★#596 MED-2：本段位置**承重**，必须留在关闭段之后。两侧守卫非对称——开侧
+            // `is_legal_from` 按 stage 判、关侧按 `legs>=1` 判 ⟹ 同 bar 既开又关且 legs 起始为 0
+            // 时，「先关后开」终值 1、「先开后关」终值 0，不等价。#571 一度把本调用并入上方
+            // opened 循环（先开后关），本票把**顺序**回退至 pre-#571 原位（关段在前、开段在后）。
+            // #600 MED-3 声明面订正：回退的是顺序，**不是**计数语义——drain 使关侧对每个 carrier
+            // 派 N 次 `close_share_leg`（每个 live generation 一次），pre-#571 单槽世界至多一次 ⟹
+            // `open_legacy_legs` 的计数随 drain 已变（有效域声明见 `open_ledger` 模块头）。故此处
+            // 不成立「与 #571 前无条件等价」，只成立「与 #571 前同序」。
+            for (c, _leg) in &step_trace.opened {
+                if c.role.v == super::super::strategy::coverage::Vertical::ShortDiff {
+                    tw_thread.open_share_leg();
                 }
             }
             // P3/P4 TWEvent_t（#124 裁定4）：账本推进单点（组合层只读产出事件分量，此处是

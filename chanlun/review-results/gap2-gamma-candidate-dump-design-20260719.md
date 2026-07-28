@@ -97,6 +97,8 @@ if let Some(gdump) = gamma_dump.as_mut() {
 
 **① env-gated no-op**：`OPSEM_GAMMA_DUMP_DIR` 未设或空串 ⟹ `GammaDump::from_env() → None` ⟹ 唯一调用点（§2 钩子）`if let Some` 不进入 ⟹ 生产路径零额外指令（同 runner.rs:1111-1113/2366-2368 承诺；空串拒绝同 runner.rs:2420 `filter(|s| !s.is_empty())`）。
 
+> **勘误（#563 L5 认定，#600 Std MED-4 回写；原句保留不改）**：上句「生产路径零额外指令」应读作「生产路径零额外**分配/写入**」。实装的 `gamma_dump.is_some()` 分支（`backtest/fill.rs`，χ 过滤段之后）在 dump 关闭时仍逐决策 bar 求值一次 O(1) 布尔判断，只是不进入 `step_gamma_trade.iter()…collect()` 的分配与写入。**行为面无变**——关闭时产物逐字节不变，R5-1 铁律不受影响；本条只订正声明面措辞。代码侧同款订正见 `fill.rs` 该分支上方注释（两处措辞自此同步）。
+
 **② 只读消费，无生产写入**：钩子只持 `&step_gamma`/`&step_gamma_trade`/`&step_trace`/`&tower_i`/`&ext_i` 不可变引用；不向 `LedgerOpen`/`TypedTrade`/`MuClass`/`MuEstimator` 写任何字段；**不调 `est.observe`**（μ 表零观测增量）。结构性免疫先例：TypedTrade 不含 opsem 字段 ⟹ set/unset bit-exact（runner.rs:4373-4374 注释）；同理 GammaDump 不触任何进 `typed_ledger` 的类型。`GammaDump` 实例本身只活于 fill loop 局部变量（同 `opsem`，runner.rs:1113），不进 `FillResult`。
 
 **③ 派生值全部纯函数**：`z_of_candidate`（selector.rs:233-276，纯函数）、`mu_lcb`（mu_estimator.rs:468-473，`&self` 只读查询）、`structural_nest_depth`（纯结构读数，不依赖 hist，R5-c 先例 runner.rs:1652-1654/2383-2386）。无 RNG、无时钟、无哈希序依赖（遍历 Vec 保序，不遍历 HashMap）。
