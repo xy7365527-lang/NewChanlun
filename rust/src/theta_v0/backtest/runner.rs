@@ -2958,6 +2958,119 @@ mod tests {
         }
     }
 
+    /// #542：生产者签发的三类证书随点进入分类，不由成交侧反推。
+    fn buy3_at3_confirmed_at7() -> impl Fn(usize) -> (Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, Vec<usize>, u64, u64) {
+        use super::super::super::classifier::signal::judge_third_cert;
+        use super::super::super::types::{Direction, Segment};
+
+        let center = Center {
+            zd: 9_000_000_000,
+            zg: 9_500_000_000,
+            dd: 8_500_000_000,
+            gg: 9_800_000_000,
+            start_index: 0,
+            end_index: 1,
+        };
+        let leave = Segment {
+            direction: Direction::Up,
+            start_index: 1,
+            end_index: 2,
+            start_price: center.zg,
+            end_price: 11_000_000_000,
+        };
+        let retest = Segment {
+            direction: Direction::Down,
+            start_index: 2,
+            end_index: 3,
+            start_price: leave.end_price,
+            end_price: 10_000_000_000,
+        };
+        let cert = judge_third_cert(&center, &leave, Some(Direction::Up), &retest)
+            .expect("严格离开并回试不触中枢 ⟹ 三类买点证书");
+        let classification = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![cert.point]), ..Default::default() }],
+        };
+        move |i| {
+            if i >= 7 {
+                (classification.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+            } else {
+                (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64)
+            }
+        }
+    }
+
+    /// #542 口径锚：本行是平仓/窗口结算时 write_trade 写出的决策账本完整成交记录（含 exit）；
+    /// certificate 身份是开仓时决策层候选的生产者签发身份，经决策账本 open 快照承载，
+    /// 不声明逐笔执行成交因果。dump 的证书键必须回连同一 typed-ledger 腿的入场证书。
+    #[test]
+    fn opsem_dump_third_class_entry_carries_complete_producer_identity() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("系统时间晚于 epoch")
+            .as_nanos();
+        let dump_dir = std::env::temp_dir().join(format!(
+            "opsem_issue542_third_cert_test_{}_{}",
+            std::process::id(),
+            nonce
+        ));
+        OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = Some(dump_dir.clone()));
+        let fill = pi_theta_fill_loop(
+            buy3_at3_confirmed_at7(),
+            &bars,
+            1.0e6,
+            &config,
+            None,
+        );
+        OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = None);
+        assert!(
+            !fill.typed_ledger.is_empty(),
+            "前置：三类买点确认 ⟹ 有 typed 决策账本记录"
+        );
+
+        let content = std::fs::read_to_string(dump_dir.join("trades.jsonl"))
+            .expect("dump 启用 ⟹ trades.jsonl 生成");
+        let row: serde_json::Value =
+            serde_json::from_str(content.lines().next().expect("trades.jsonl 非空"))
+                .expect("决策账本行是合法 JSON");
+        let cert = &row["certificate"];
+        let row_position_node_id = row["position_node_id"]
+            .as_u64()
+            .expect("dump 行携 position_node_id");
+        let ledger_leg = fill
+            .typed_ledger
+            .iter()
+            .find(|t| t.position_node_id.hash64() == row_position_node_id)
+            .expect("dump 行 position_node_id 必须回连 typed_ledger 中同一条腿");
+        let ledger_cert = ledger_leg
+            .position_node_id
+            .entry_certificate
+            .expect("本腿由三类证书候选开仓");
+        let dump_cert_key = (
+            cert["level"].as_u64().expect("certificate.level") as u32,
+            cert["source_index"]
+                .as_u64()
+                .expect("certificate.source_index") as usize,
+        );
+        assert_eq!(
+            dump_cert_key,
+            (ledger_cert.level, ledger_cert.source_index),
+            "dump 的 (level, source_index) 必须对应 typed_ledger 本腿的入场证书"
+        );
+        assert_eq!(dump_cert_key, (0, 3), "生产者签发的三类证书键");
+        assert_eq!(cert["bsp_bits_class_index"], 4);
+        assert_eq!(cert["dir"], "Long");
+        assert_eq!(cert["center_si"], 0);
+        assert_eq!(cert["center_zd"], 9_000_000_000i64);
+        assert_eq!(cert["center_zg"], 9_500_000_000i64);
+        assert_eq!(cert["leave_si"], 1);
+        assert_eq!(cert["leave_ei"], 2);
+        assert_eq!(cert["retest_si"], 2);
+        assert_eq!(cert["retest_ei"], 3);
+        let _ = std::fs::remove_dir_all(&dump_dir);
+    }
+
     /// ★R5-1 bit-exact 不变量（基因 073a/274号）：OPSEM_DUMP_DIR 未设 ⟹ 生产路径逐字节不变。
     /// 验证链：(1) [`OpsemDump::from_env`] env-gating（未设/空 ⟹ None）；(2) set vs unset 跑
     /// [`pi_theta_fill_loop`] ⟹ typed_ledger/n_orders/trade_pnls_with_forced bit-exact（opsem 只活
@@ -3011,6 +3124,18 @@ mod tests {
             .read_to_string(&mut content)
             .unwrap();
         let first = content.lines().next().expect("trades.jsonl 非空");
+        let row: serde_json::Value = serde_json::from_str(first).expect("成交行是合法 JSON");
+        for field in [
+            "center_si",
+            "center_zd",
+            "center_zg",
+            "leave_si",
+            "leave_ei",
+            "retest_si",
+            "retest_ei",
+        ] {
+            assert!(row["certificate"][field].is_null(), "非三类证书入口 {field} 必须显式 null");
+        }
         assert!(
             first.contains("\"lex_argmin_top3\":[{\"control\""),
             "e1: lex_argmin_top3 非空数组（首名=p_star 选址，含 control+J_Θ key）"

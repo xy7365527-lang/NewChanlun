@@ -161,6 +161,9 @@ pub(super) struct OpsemEntrySnapshot {
     pub(super) cand_source_index: usize,
     /// 入场候选 bsp bits（6 bit 非互斥）。
     pub(super) cand_bits: u8,
+    /// #542：生产者签发的三类完整身份；随决策层开仓候选冻结，缺席时 dump 显式写 null。
+    pub(super) third_class_entry:
+        Option<super::super::types::ThirdClassEntryIdentity>,
     /// 入场候选方向 σ_g（VoiceSide 编码：Long/Short/Flat）。
     pub(super) cand_dir: &'static str,
     /// 入场候选最小成立类号（1/2/3，u8::MAX=无）。

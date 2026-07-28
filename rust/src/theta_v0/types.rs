@@ -132,6 +132,20 @@ pub struct Center {
     pub end_index: usize,
 }
 
+/// #542：三类入口证书的生产者身份。
+///
+/// 这是只读归因载荷：由 `judge_third_cert` 一次签发，随既有 BSP 证书进入候选与决策账本快照；
+/// 不参与六 bit 分类、排序、相等或任何交易判定，也不声明逐笔执行成交因果。
+/// `level/source_index/side` 仍由候选本体承载。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ThirdClassEntryIdentity {
+    pub center_si: usize,
+    pub center_zd: Tick,
+    pub center_zg: Tick,
+    pub leave_interval: (usize, usize),
+    pub retest_interval: (usize, usize),
+}
+
 /// 走势类型 / Move（次级别走势的递归构造单元，reference-theta-v0.md:29）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MoveKind {
@@ -179,7 +193,7 @@ pub enum PendingTail {
 /// ★关键（`Origin.BspClassification.no_exclusive_trichotomy`）：买卖点**不是互斥三分**——2B/3B
 /// 可在同一点重合（maimai.md:170）。故用 bit-vector（标签集），不是 sum type。`b1/b2/b3` 各为
 /// 独立 bool，一个点可同时是 `[2B,3B]`。这是 Origin BspClassification 核心诚实裁定的 Rust 镜像。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Default)]
 pub struct BspBits {
     pub buy1: bool,
     pub buy2: bool,
@@ -187,6 +201,40 @@ pub struct BspBits {
     pub sell1: bool,
     pub sell2: bool,
     pub sell3: bool,
+    /// #542：随证书直传的三类完整身份；不是第七个 bit，不进任何结构/交易语义。
+    ///
+    /// 置于既有证书载体而非 dump 侧旁路查询，由实际选中的 Candidate 带进决策账本快照；
+    /// 不作为 Order/fill 的逐笔执行身份。
+    #[doc(hidden)]
+    pub third_class_entry: Option<ThirdClassEntryIdentity>,
+}
+
+/// #542 schema-only 铁律：归因载荷不改变六 bit 的相等关系。
+impl PartialEq for BspBits {
+    fn eq(&self, other: &Self) -> bool {
+        self.buy1 == other.buy1
+            && self.buy2 == other.buy2
+            && self.buy3 == other.buy3
+            && self.sell1 == other.sell1
+            && self.sell2 == other.sell2
+            && self.sell3 == other.sell3
+    }
+}
+
+impl Eq for BspBits {}
+
+/// 保持历史 Debug 字节形状：新增归因载荷不进入任何既有 digest/报告旧字段。
+impl std::fmt::Debug for BspBits {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BspBits")
+            .field("buy1", &self.buy1)
+            .field("buy2", &self.buy2)
+            .field("buy3", &self.buy3)
+            .field("sell1", &self.sell1)
+            .field("sell2", &self.sell2)
+            .field("sell3", &self.sell3)
+            .finish()
+    }
 }
 
 impl BspBits {
@@ -258,6 +306,7 @@ impl BspBits {
             sell1: idx & 8 != 0,
             sell2: idx & 16 != 0,
             sell3: idx & 32 != 0,
+            third_class_entry: None,
         }
     }
 }
@@ -397,6 +446,44 @@ mod tests {
         assert!(sell.confirm_side(Side::Short) && !sell.confirm_side(Side::Long));
     }
 
+    /// #542 定向守卫：既有 equality/Debug-FNV 只覆盖六 bit；归因载荷保真由候选链测试另守。
+    #[test]
+    fn bsp_bits_schema_only_eq_and_debug_intentionally_ignore_attribution_payload() {
+        let first = BspBits {
+            buy3: true,
+            third_class_entry: Some(ThirdClassEntryIdentity {
+                center_si: 7,
+                center_zd: 90,
+                center_zg: 95,
+                leave_interval: (8, 9),
+                retest_interval: (9, 10),
+            }),
+            ..Default::default()
+        };
+        let second = BspBits {
+            third_class_entry: Some(ThirdClassEntryIdentity {
+                center_si: 70,
+                center_zd: 900,
+                center_zg: 950,
+                leave_interval: (80, 90),
+                retest_interval: (90, 100),
+            }),
+            ..first
+        };
+
+        assert_eq!(
+            first, second,
+            "六 bit 相同 ⟹ 归因载荷不同也刻意判等（schema-only 铁律）"
+        );
+        let first_debug = format!("{first:?}");
+        let second_debug = format!("{second:?}");
+        assert_eq!(
+            first_debug.as_bytes(),
+            second_debug.as_bytes(),
+            "六 bit 相同 ⟹ 历史 Debug/FNV 逐字节忽略归因载荷"
+        );
+    }
+
     #[test]
     fn class_index_from_index_round_trip_64_complete() {
         // ★64 类完全分类（P4 §5 line 241：Σ_{u∈{0,1}^6} 1[b=u]=1）：
@@ -425,6 +512,7 @@ mod tests {
             sell1: true,
             sell2: true,
             sell3: true,
+            third_class_entry: None,
         };
         assert_eq!(all.class_index(), 63, "全 1 ⟹ 第 63 类（64 类的最后一类）");
     }

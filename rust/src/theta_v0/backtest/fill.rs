@@ -3866,6 +3866,7 @@ where
                         cand_level: c.level,
                         cand_source_index: c.source_index,
                         cand_bits: c.bits.class_index(),
+                        third_class_entry: c.bits.third_class_entry,
                         cand_dir: voice_side_str(c.dir),
                         cand_bsp_class: c.bsp_class,
                         cand_nest_confirmed: c.nest_confirmed,
