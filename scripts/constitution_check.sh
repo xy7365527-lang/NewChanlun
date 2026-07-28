@@ -17,7 +17,7 @@ git worktree list --porcelain | grep '^worktree ' | awk '{print $2}' | while rea
 done
 
 echo "=== ② 残骸分支候选（无未合入 commit 的非 main 本地分支）==="
-git branch --format='%(refname:short)' | while read -r b; do
+git branch | sed 's/^[*+ ] *//' | while read -r b; do
   [ "$b" = "main" ] && continue
   ahead=$(git rev-list --count main.."$b" 2>/dev/null || echo "?")
   [ "$ahead" = "0" ] && echo "CANDIDATE: $b（注：票状态需人工核，gh issue view <n>）"
