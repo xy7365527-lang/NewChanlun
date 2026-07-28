@@ -66,7 +66,14 @@ pub struct AdjacentLevelContainment {
     /// 退化对不进 `contained` / `touching` / `strict` / `disjoint` 任何真值桶——三个区间判据
     /// （[`interval_is_sub`] / [`intervals_touch`] / [`intervals_are_disjoint`]）对退化输入一律
     /// 判 false。单列本桶是为了让这些对**可见**：不单列则它们计入分母 `pairs` 却不进任何桶，
-    /// 计数不划分、静默丢格，「判过但全不成立」与「根本没进判定」不可区分。
+    /// 静默丢格，「判过但全不成立」与「根本没进判定」不可区分。
+    ///
+    /// ★措辞收窄（收口小修批）：本桶**不**使各计数构成 `pairs` 的划分，原措辞「计数不划分」
+    /// 暗示了单列后即划分，收回。非退化的**部分交叠**对（互不包含且有交，如 `(5,15)` × `(10,20)`）
+    /// 同样计入 `pairs` 而不进任何桶——它们与退化对的「落在分母里、不落在任何桶里」是同型的。
+    /// 单列 `degenerate` 只解决退化这一类的可见性，不声称计数完备：
+    /// `contained + disjoint + degenerate <= pairs` 是不等式而非恒等式
+    /// （`touching` / `strict` 是 `contained` 的子划分，不另计入左端）。
     pub degenerate: usize,
     /// 反向对（把父级事件当 child 传入）区间包含成立、但被跨级分支拒的对数。
     ///
@@ -93,10 +100,20 @@ pub struct SameLevelBlock {
     pub interval_ok: usize,
     /// 其中被跨级分支拒的对数。恒等于 `interval_ok`（同级 ⟹ 级别分支必假）。
     pub blocked: usize,
-    /// `blocked` 中的**自反**对数（事件与自己，`a.key == b.key`）——恒等于同级事件总数。
+    /// `blocked` 中的**自反**对数（事件与自己，`a.key == b.key`）——恒等于同级**非退化**事件总数。
     ///
     /// 单列出来是因为它**没有信息量**：自反包含是区间谓词的自反性，与级别门无关。
     /// 「级别门真起作用」的证据是 [`Self::non_reflexive_blocked`]，不是 `blocked` 本身。
+    ///
+    /// ★口径精确化（收口小修批）：不是「同级事件总数」。自反对同样先过 [`interval_is_sub`]，
+    /// 而该判据对退化区间（`start > end`）一律判 false ⟹ 退化事件的自反对不进 `interval_ok`、
+    /// 不进 `blocked`、也不进本计数。差额恰是「同级退化事件数」。
+    ///
+    /// 本结构体**不设** `degenerate` 桶，与 [`AdjacentLevelContainment::degenerate`] 的
+    /// 「退化必须单列可见」在同一模块内是两套口径——本批按 doc 写明处置而非补桶（补桶须改
+    /// [`count_same_level`] 的计数行为，本批零代码行为变化）。后果照实：退化对在本结构体的
+    /// 字段里**不可读出**，要数只能由调用方另计。BTC 实测 `degenerate = 0`，故当前读数上
+    /// 「非退化事件总数」与「事件总数」数值相等——该相等是数据巧合，不是恒等式。
     pub reflexive_blocked: usize,
 }
 
