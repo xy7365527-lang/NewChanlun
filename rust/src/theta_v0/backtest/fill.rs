@@ -421,10 +421,11 @@ use super::admission::{
     NestGateStats,
     NestChainGate,
     ExitNestGateStats, ExitNestGateCtx,
-    k_theta_risk_gate, kappa_policy_resolved,
+    k_theta_risk_gate, kappa_policy_resolved, RiskAccount, RiskGateCtx,
 };
 use super::admission::ChiFilterCtx;
 use super::ledger::{track_position_transition, LedgerOpen, OpsemEntrySnapshot, TwLedgerThread, TypedTrade, TYPED_TRADE_SCHEMA_VERSION};
+use super::open_ledger::{ExitSnapshot, OpenTable, SettlementContext};
 #[cfg(test)]
 use super::admission::{VOICE_EXEC_OVERRIDE, NEST_CERT_GATE_OVERRIDE};
 
@@ -972,10 +973,7 @@ where
     let mut cum_borrow_v: f64 = 0.0;
     let mut cum_liq_v: f64 = 0.0;
     // ── G4 typed ledger（#134）：腿级在飞表（voice_id → 入场登记）+ 已结算 typed 交易。 ──
-    let mut open_trades: std::collections::HashMap<
-        classifier::recursive_tower::ElementId,
-        LedgerOpen,
-    > = std::collections::HashMap::new();
+    let mut open_trades: OpenTable<LedgerOpen> = OpenTable::new();
     let mut typed_ledger: Vec<TypedTrade> = Vec::new();
     // ★opsem-dump（基因 073a/274号）：env `OPSEM_DUMP_DIR` 启用时开两个 JSONL 写入器。
     // 未启用 ⟹ None，所有 write_trade/diff_tower 调用 no-op ⟹ 生产路径 bit-exact 不变。
@@ -987,15 +985,6 @@ where
     //   bar 的账本态真值，与 censored 兑现价同 bar）。主循环内每决策点刷新；无决策点（全窗不可交易）
     //   ⟹ ZExt::NONE（账本态维诚实 None，无 bar 决策点可取——同 entry_z 裸口径）。
     let mut last_ext: super::selector::ZExt = super::selector::ZExt::NONE;
-    // ★A9（Task #166，级别容器.pdf p14/§13）：campaign generation 高水位表——carrier(ElementId) →
-    //   该 carrier 已见最高 generation。同一 carrier close→reopen 时新 campaign 的 generation =
-    //   高水位 +1（首次入场 = 0）。`ActiveLeg::id`/`voice_id` 会跨 campaign 复用（close 后同 carrier
-    //   可再 open，见 interpret 无历史 tombstone + open_trades.insert 二次覆盖），高水位表使
-    //   position_node_id 四元组严格不碰撞（时序再入场可达，codex a9-posnode 裁定 C）。
-    let mut gen_hiwater: std::collections::HashMap<
-        classifier::recursive_tower::ElementId,
-        u32,
-    > = std::collections::HashMap::new();
     // ── #124 裁定4：TW 账本单一生产真值源（TwState 接入 π 路径；run_closed_loop 降级纯结构
     //    验证工具）。注资口径 = funded_campaign 同款（state.rs:219）：整窗 = 一个 campaign，
     //    投入 = 初始 NAV 取整（free = notional_in = ⌊nav0⌋）。i64 取整粒度诚实声明：TW 账本是
@@ -1184,7 +1173,13 @@ where
             let classification_step = newly_confirmed_step(&classification_i, &mut seen_bsps);
             let base_units = equity_nav / px; // U_ℓ：NAV/价 = 可建名义手数（方案A协变）
             // 风控门也用**前缀因果分类**（leg 止损 bsp 因果查得，非全窗非因果——与 σ_p 同因果口径）。
-            let (gate, risk_mode_i) = k_theta_risk_gate(&prev_active, &open_trades, bar, equity_nav, p_t, px, config.margin.as_ref());
+            let (gate, risk_mode_i) = k_theta_risk_gate(&RiskGateCtx {
+                prev_active: &prev_active,
+                open_trades: &open_trades,
+                bar,
+                account: RiskAccount { equity: equity_nav, p_t, px },
+                margin: config.margin.as_ref(),
+            });
             // ── M6 ③⁻ LiquidationLoss 强平罚金（边沿触发，一次一集）：本 bar 进入
             //    {Insolvent,Liquidation} 且持仓 ⟹ 收一次罚金（强平清算费/滑点），从 cash 扣。
             //    liq_active 边沿去抖：强平态跨 bar 持续（exec 延迟平仓期间）不重复罚；离开强平态复位。
@@ -1354,12 +1349,7 @@ where
             //    在飞表取（entry_v 入场固定，与 TW open_legacy_legs 计数同源）；risk_mode 从
             //    strategy::risk 五态投影到 closed_loop::state 五态（两枚举同锚 Origin 五构造子，
             //    此处只读逐变体映射，非第二权威源——判定仍单源 k_theta_risk_gate）。 ──
-            let shortdiff_ids: std::collections::HashSet<classifier::recursive_tower::ElementId> =
-                open_trades
-                    .iter()
-                    .filter(|(_, o)| o.entry_v == super::super::strategy::coverage::Vertical::ShortDiff)
-                    .map(|(id, _)| *id)
-                    .collect();
+            let shortdiff_ids = open_trades.shortdiff_carriers();
             let tw_risk_mode = {
                 use super::super::closed_loop::state::RiskMode as ClRiskMode;
                 use super::super::strategy::risk::RiskMode as StRiskMode;
@@ -1389,11 +1379,7 @@ where
                 let parents = prev_active
                     .iter()
                     .filter_map(|leg| {
-                        let open = open_trades.get(&leg.id)?;
-                        if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff {
-                            return None;
-                        }
-                        let units = open.units.round().max(0.0) as u64;
+                        let units = open_trades.parent_units(leg.id)?;
                         OscillationParentLeg::new(leg.id, leg.level, leg.dir, units).ok()
                     })
                     .collect();
@@ -1679,21 +1665,6 @@ where
             // fullz 置换 records 的 force_state 自此携真值（一类 A/C 对候选 Some）。
             for (c, leg) in &step_trace.opened {
                 use super::super::strategy::interp::{EntryCertificate, PositionNodeId};
-                // ★A9 generation：carrier 首次入场 = 0；close→reopen（表中已有）= 高水位 +1（单调）。
-                let generation = match gen_hiwater.get(&leg.id) {
-                    Some(&hi) => hi + 1,
-                    None => 0,
-                };
-                gen_hiwater.insert(leg.id, generation);
-                let position_node_id = PositionNodeId {
-                    carrier: leg.id,
-                    entry_certificate: Some(EntryCertificate {
-                        level: c.level,
-                        source_index: c.source_index,
-                    }),
-                    side: c.dir,
-                    generation,
-                };
                 // ★A6（prereg-rev2-20260704）：入场结构止损距离 d=|entry_px−stop|（美元，ex-ante）。
                 // 决策 bar 因果分类 classification_i 查开腿候选 BspPoint（(level,source_index) 键，与
                 // k_theta_risk_gate 止损回查同源 structural_stop），stop_side 由候选方向定。None =
@@ -1792,155 +1763,49 @@ where
                     "B1: opened leg {:?} not in step_trace.sep_legs (coverage work.get 跳过？)",
                     leg.id
                 );
-                open_trades.insert(leg.id, LedgerOpen {
+                open_trades.open(leg.id, |generation| LedgerOpen {
                     entry_bar: i,
                     entry_px: px,
                     entry_stop,
                     entry_stop_dist,
-                    // G3：与本 bar χ 查询共用同一 ext_i（训练/查询同口径，共享变量层保证）。
                     entry_z: super::selector::z_of_candidate(c, &tower_i, bars, &ext_i),
                     entry_v: c.role.v,
-                    position_node_id,
+                    position_node_id: PositionNodeId {
+                        carrier: leg.id,
+                        entry_certificate: Some(EntryCertificate {
+                            level: c.level,
+                            source_index: c.source_index,
+                        }),
+                        side: c.dir,
+                        generation,
+                    },
                     opsem: opsem_snap,
                     units: b1_sep.map(|s| s.q_units).unwrap_or(0.0),
                 });
-            }
-            // 反向关闭：typed 判据单源 reverse_exit_type（入场角色 + 触发候选类）。
-            for (leg, trig) in &step_trace.closed {
-                if let Some(open) = open_trades.remove(&leg.id) {
-                    if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff {
-                        tw_thread.close_share_leg(); // TW 腿计数（#124）
-                    }
-                    let pushed = TypedTrade {
-                        entry_z: open.entry_z,
-                        voice_id: leg.id,
-                        entry_bar: open.entry_bar,
-                        exit_bar: i,
-                        exit_type: interp::reverse_exit_type(open.entry_v, trig.bsp_class),
-                        entry_px: open.entry_px,
-                        exit_px: px,
-                        via_structural_prune: false, // 真信号平仓（反向候选触发）
-                        position_node_id: open.position_node_id,
-                        entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
-                        exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
-                        units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
-                    };
-                    // ★opsem-dump：反向关闭外化（trig.bsp_class = 触发候选类）。
-                    if let Some(dump) = opsem.as_mut() {
-                        dump.mark_exit(i);
-                        let _ = dump.write_trade(&pushed, &open, Some(trig.bsp_class));
-                    }
-                    typed_ledger.push(pushed);
-                }
-                // 表中无登记（本窗开跑前已持/restore 祖先腿）⟹ 非本窗信号入场，不入 ledger。
-            }
-            // 静默离场（§13 AncOK 连带剪/Stale prune，无触发信号）：子声部随父失效 ⟹
-            // CloseShortDiff；根腿结构失效 ⟹ CloseRoot（PDF §9 五枚举全集下的最近语义归置，
-            // 判据声明见 g4-impl 结果包边界条件）。
-            for leg in &step_trace.silent_drops {
-                if let Some(open) = open_trades.remove(&leg.id) {
-                    use super::super::strategy::coverage::Vertical;
-                    use super::super::strategy::interp::ExitType;
-                    if open.entry_v == Vertical::ShortDiff {
-                        tw_thread.close_share_leg(); // TW 腿计数（#124）
-                    }
-                    let exit_type = if open.entry_v != Vertical::Ambient {
-                        ExitType::CloseShortDiff
-                    } else {
-                        ExitType::CloseRoot
-                    };
-                    let pushed = TypedTrade {
-                        entry_z: open.entry_z,
-                        voice_id: leg.id,
-                        entry_bar: open.entry_bar,
-                        exit_bar: i,
-                        exit_type,
-                        entry_px: open.entry_px,
-                        exit_px: px,
-                        via_structural_prune: true, // §13 父驱动连带剪枝，非独立信号（μ 侧可分离）
-                        position_node_id: open.position_node_id,
-                        entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
-                        exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
-                        units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
-                    };
-                    // ★opsem-dump：静默离场外化（无触发候选，trigger_bsp_class=null）。
-                    if let Some(dump) = opsem.as_mut() {
-                        dump.mark_exit(i);
-                        let _ = dump.write_trade(&pushed, &open, None);
-                    }
-                    typed_ledger.push(pushed);
-                }
-            }
-            // 强平清空（#124 P1，PDF §7 C_1 屏蔽 P2..P10）：force_flat ⟹ prev_active 全部 RiskExit
-            // （无触发候选；pi_theta_step_traced 上游短路清空 next_active，见 StepTrace.risk_exits）。
-            for leg in &step_trace.risk_exits {
-                if let Some(open) = open_trades.remove(&leg.id) {
-                    if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff {
-                        tw_thread.close_share_leg();
-                    }
-                    let pushed = TypedTrade {
-                        entry_z: open.entry_z,
-                        voice_id: leg.id,
-                        entry_bar: open.entry_bar,
-                        exit_bar: i,
-                        exit_type: super::super::strategy::interp::ExitType::RiskExit,
-                        entry_px: open.entry_px,
-                        exit_px: px,
-                        via_structural_prune: false, // 强平=风险信号平仓，非结构剪枝
-                        position_node_id: open.position_node_id,
-                        entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
-                        exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
-                        units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
-                    };
-                    // ★opsem-dump：强平外化（无触发候选，trigger_bsp_class=null）。
-                    if let Some(dump) = opsem.as_mut() {
-                        dump.mark_exit(i);
-                        let _ = dump.write_trade(&pushed, &open, None);
-                    }
-                    typed_ledger.push(pushed);
-                }
-            }
-            // P2 CloseOverlay（#124 裁定4，PDF §7 C_2）：TW StageII 重叠腿关闭——真实订单已经
-            // 同一 schedule/fill（组合层合成 close 桶复用 𝒟_x 通道）；typed 归 CloseShortDiff
-            // （关的正是 legacy ShortDiff 重叠腿，PDF §9 五枚举内最近语义）。
-            for leg in &step_trace.overlay_closes {
-                if let Some(open) = open_trades.remove(&leg.id) {
-                    if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff {
-                        tw_thread.close_share_leg();
-                    }
-                    let pushed = TypedTrade {
-                        entry_z: open.entry_z,
-                        voice_id: leg.id,
-                        entry_bar: open.entry_bar,
-                        exit_bar: i,
-                        exit_type: super::super::strategy::interp::ExitType::CloseShortDiff,
-                        entry_px: open.entry_px,
-                        exit_px: px,
-                        via_structural_prune: false, // TW 账本谓词驱动的真实平仓，非结构剪枝
-                        position_node_id: open.position_node_id,
-                        entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
-                        exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
-                        units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
-                    };
-                    // ★opsem-dump：P2 overlay 关闭外化（无触发候选，trigger_bsp_class=null）。
-                    if let Some(dump) = opsem.as_mut() {
-                        dump.mark_exit(i);
-                        let _ = dump.write_trade(&pushed, &open, None);
-                    }
-                    typed_ledger.push(pushed);
-                }
-            }
-            // TW 腿事件（#124）：legacy ShortDiff 腿开仓驱动 open_legacy_legs 计数（P2 的 H
-            // 判据与生产腿同源同步；关侧在上方四个消费循环内经 open.entry_v 判定派
-            // CloseShareLeg）。CloseShareLeg(0) 口径声明：净额架构无腿级损益分账 ⟹ profit
-            // 口径量 0 承载（cum_net_cash 非承重分量——P2/P3/P4 谓词不消费它；唯一承重 =
-            // open_legacy_legs 计数），非簿记伪造。
-            // OQ-9 守卫：EarningShares 阶段开 legacy 腿 PDF 定义为非法（is_legal_from）——
-            // A' 后该 stage 生产可达（已实现利润入账，见 TW 初始化注释）；达 earning 后此腿
-            // 不计 legacy 计数，关侧 legs>=1 守卫对称跳过（合法性语义，非掩盖）。
-            for (c, _leg) in &step_trace.opened {
                 if c.role.v == super::super::strategy::coverage::Vertical::ShortDiff {
                     tw_thread.open_share_leg();
+                }
+            }
+            // #571：四类 carrier-only 关闭事件统一 drain 全部 live generation；每实例各落一行。
+            {
+                let exit = ExitSnapshot::new(i, px, &ext_i);
+                let mut settlements = SettlementContext::new(
+                    exit,
+                    &mut typed_ledger,
+                    &mut opsem,
+                    &mut tw_thread,
+                );
+                for (leg, trig) in &step_trace.closed {
+                    open_trades.settle_reverse(leg.id, trig.bsp_class, &mut settlements);
+                }
+                for leg in &step_trace.silent_drops {
+                    open_trades.settle_silent(leg.id, &mut settlements);
+                }
+                for leg in &step_trace.risk_exits {
+                    open_trades.settle_risk(leg.id, &mut settlements);
+                }
+                for leg in &step_trace.overlay_closes {
+                    open_trades.settle_overlay(leg.id, &mut settlements);
                 }
             }
             // P3/P4 TWEvent_t（#124 裁定4）：账本推进单点（组合层只读产出事件分量，此处是
@@ -2136,34 +2001,10 @@ where
     //    close（与旧 build_mu_from_bars censored 语义/窗口终点强平含浮盈同理，不偷看窗外）。──
     if let Some(last_i) = (0..n).rev().find(|&j| !bars[j].untradable && bars[j].close > 0) {
         let last_px = bars[last_i].close as f64 * config.tick.tick_size;
-        // 确定序输出（HashMap 迭代序不定 ⟹ 按 (entry_bar, voice_id) 排序，bit-exact 可复现）。
-        let mut censored: Vec<(classifier::recursive_tower::ElementId, LedgerOpen)> =
-            open_trades.drain().collect();
-        censored.sort_by_key(|(id, o)| (o.entry_bar, id.level, id.ordinal));
-        for (id, open) in censored {
-            let pushed = TypedTrade {
-                entry_z: open.entry_z,
-                voice_id: id,
-                entry_bar: open.entry_bar,
-                exit_bar: last_i,
-                exit_type: super::super::strategy::interp::ExitType::Hold,
-                entry_px: open.entry_px,
-                exit_px: last_px,
-                via_structural_prune: false, // censored 窗口边界，非结构剪枝
-                position_node_id: open.position_node_id,
-                entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
-                // A7 #165：censored 出场账本态取末决策点 last_ext（末可交易 bar 决策点真值，
-                // 与 last_px 兑现价同 bar 口径）；全窗无决策点 ⟹ ZExt::NONE 账本态维诚实 None。
-                exit_z: super::selector::exit_z_of(open.entry_z, &last_ext),
-                units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
-            };
-            // ★opsem-dump：censored Hold 外化（无触发候选，trigger_bsp_class=null）。
-            if let Some(dump) = opsem.as_mut() {
-                dump.mark_exit(last_i);
-                let _ = dump.write_trade(&pushed, &open, None);
-            }
-            typed_ledger.push(pushed);
-        }
+        let exit = ExitSnapshot::new(last_i, last_px, &last_ext);
+        let mut settlements =
+            SettlementContext::new(exit, &mut typed_ledger, &mut opsem, &mut tw_thread);
+        open_trades.settle_all_hold(&mut settlements);
     }
 
     // ★#490：必须在 r_decomp 按 VOICE_EXEC 域切换前完成。此处两个 oracle 仍严格属于净额影子

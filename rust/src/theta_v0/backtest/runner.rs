@@ -93,7 +93,7 @@ use super::admission::{
     NestGateStats, nest_gate_admit,
     NestGateObs, NestChainGate, LevelFingerprint,
     ExitNestGateStats, ExitNestGateCtx,
-    k_theta_risk_gate, kappa_policy_resolved, kappa_priority_resolve,
+    k_theta_risk_gate, kappa_policy_resolved, kappa_priority_resolve, RiskAccount, RiskGateCtx,
 };
 // T3 (#172) 链类型（测试与并门派生消费）。
 use super::admission::{ChainGapKind, ChainLevelStatus, ChainVerdict};
@@ -2621,9 +2621,15 @@ mod tests {
         //   风控触发面 = `k_theta_risk_gate` 非全开的决策点数。它的输入是
         //   `(prev_active, open_trades, bar, equity_nav, p_t, px, margin)`——**不含** clock ticks，
         //   故门控开关不改变它，这是构造性的。实测坐实（RW3000M3 fixture，同种子）：
-        //     门控关（剥离对照）：`risk_gate_active = 1191`
-        //     门控开（交付态）  ：`risk_gate_active = 1191`   ⟹ **触发面逐值不变**
+        //     门控关（剥离对照）：`risk_gate_active = 554`
+        //     门控开（交付态）  ：`risk_gate_active = 554`   ⟹ **触发面逐值不变**
         //   （剥离对照的复现方式见 `..._are_sparse_subset_of_clock_events` 的对照表注释。）
+        //
+        //   ★#571 修复轮再生（2026-07-28）：旧快照 1191 由 `k_theta_risk_gate` 的**旧** stop 口径
+        //   测出——彼时触发方向统一取 `ActiveLeg.dir`（carrier 结构走势 eps），与 campaign 持仓方向
+        //   无关 ⟹ 大量非持仓方向的误触发计入触发面。改按实例 `position_node_id.side` 聚合后，
+        //   触发面缩到 554。已按下方「★golden 再生机制」1–3 步跑剥离对照复算：门控关复算 554 ==
+        //   门控开实测 554 ⟹ 情形 (a) 历史快照过期，非事件门控污染风控域，按步骤 4 更新常量。
         //
         //   ★#309 MED-1 补课（RISK_FACE_BOTH_ARMS 处置）：下面这个常量**不是**两臂对拍——剥离臂
         //   不在本测内重算，锁的是单个历史快照数字。旧版失败措辞「⟹ 事件门控污染了风控域」把
@@ -2647,7 +2653,7 @@ mod tests {
             let ov_m3 = run_theta_v0_pi_overlay(&ds_m3, &config, 1.0, 1.0e6);
             /// 剥离对照（门控关，M2 口径）一次性测出的历史快照——**不是**本测内重算的两臂对拍。
             /// 再生步骤见上方注释「★golden 再生机制」。
-            const RISK_TRIGGER_SURFACE_GATE_OFF_SNAPSHOT: u64 = 1191;
+            const RISK_TRIGGER_SURFACE_GATE_OFF_SNAPSHOT: u64 = 554;
             assert_eq!(
                 ov_m3.level_order.n_risk_gate_active, RISK_TRIGGER_SURFACE_GATE_OFF_SNAPSHOT,
                 "风控触发面 golden 漂移：门控开态实测 {} ≠ 剥离对照历史快照 {}。这不能自动判定诱因——\
@@ -5610,15 +5616,104 @@ mod tests {
     #[test]
     fn run_theta_v0_pi_risk_gate_force_flat_on_insolvent() {
         let bar = px100_bar(0);
+        // 空在飞表（生产型 `OpenTable`，非测试垫片）。
+        let empty: super::super::open_ledger::OpenTable<LedgerOpen> =
+            super::super::open_ledger::OpenTable::new();
+        let gate_ctx = |equity: f64| RiskGateCtx {
+            prev_active: &[],
+            open_trades: &empty,
+            bar: &bar,
+            account: RiskAccount { equity, p_t: 0.0, px: 100.0 },
+            margin: None,
+        };
         // equity≤0 ⟹ Insolvent ⟹ GlobalRiskClose ⟹ force_flat（𝒦_Θ={0}）。
-        let (gate_insolvent, mode_insolvent) = k_theta_risk_gate(&[], &std::collections::HashMap::new(), &bar, -1.0, 0.0, 100.0, None);
+        let (gate_insolvent, mode_insolvent) = k_theta_risk_gate(&gate_ctx(-1.0));
         assert!(gate_insolvent.force_flat, "equity≤0 ⟹ Insolvent ⟹ force_flat（𝒦_Θ={{0}}）");
         // G3：透出的 mode 与门语义一致（z 第 13 维数据源同一真值）。
         assert_eq!(mode_insolvent, super::super::super::strategy::risk::RiskMode::Insolvent);
         // equity>0 + 无活动腿 ⟹ 门全开（无风控触发）。
-        let (gate_open, mode_open) = k_theta_risk_gate(&[], &std::collections::HashMap::new(), &bar, 1.0e6, 0.0, 100.0, None);
+        let (gate_open, mode_open) = k_theta_risk_gate(&gate_ctx(1.0e6));
         assert!(!gate_open.force_flat && !gate_open.stop_long && !gate_open.stop_short, "正常态 ⟹ 门全开");
         assert_eq!(mode_open, super::super::super::strategy::risk::RiskMode::Normal);
+    }
+
+    /// 风控门守卫共用：`carrier` 上开一条 campaign 实例（方向 `side` + 冻结 `entry_stop`）。
+    /// 走生产 [`super::super::open_ledger::OpenTable::open`]，`generation` 由表分配（#571 键形）。
+    fn open_campaign_for_gate(
+        table: &mut super::super::open_ledger::OpenTable<LedgerOpen>,
+        carrier: super::super::super::classifier::recursive_tower::ElementId,
+        side: super::super::super::strategy::voice::VoiceSide,
+        entry_stop: Option<super::super::super::types::Tick>,
+    ) {
+        use super::super::super::strategy::coverage::Vertical;
+        use super::super::super::strategy::interp::{EntryCertificate, PositionNodeId};
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::BspBits;
+        use super::super::mu_estimator::{MuClass, PositionState};
+        let delta = match side {
+            VoiceSide::Long => 1,
+            VoiceSide::Short => -1,
+            VoiceSide::Flat => panic!("风控门守卫不构造 Flat campaign"),
+        };
+        table.open(carrier, |generation| LedgerOpen {
+            entry_bar: 0,
+            entry_px: 100.0,
+            entry_z: MuClass::from_certificate(
+                0,
+                delta,
+                BspBits::default(),
+                0,
+                PositionState::Root,
+            ),
+            entry_stop_dist: entry_stop.map(|s| (s as f64 - 100.0).abs()),
+            entry_stop,
+            entry_v: Vertical::ShortDiff,
+            position_node_id: PositionNodeId {
+                carrier,
+                entry_certificate: Some(EntryCertificate {
+                    level: 0,
+                    source_index: 5,
+                }),
+                side,
+                generation,
+            },
+            opsem: OpsemEntrySnapshot::default(),
+            units: 1.0,
+        });
+    }
+
+    /// 风控门守卫共用 bar（`source_index=999` 对齐 drifted ρ 语境）。
+    fn gate_bar(
+        high: super::super::super::types::Tick,
+        low: super::super::super::types::Tick,
+    ) -> Bar {
+        Bar {
+            source_index: 999,
+            timestamp: 999,
+            open: 100,
+            high,
+            low,
+            close: 100,
+            volume: 1,
+            untradable: false,
+        }
+    }
+
+    /// 风控门守卫共用活动腿（`source_index=999` = drifted ρ；`id`/`dir` 由调用方给）。
+    fn gate_leg(
+        id: super::super::super::classifier::recursive_tower::ElementId,
+        dir: super::super::super::strategy::voice::VoiceSide,
+    ) -> super::super::super::strategy::interp::ActiveLeg {
+        super::super::super::strategy::interp::ActiveLeg {
+            level: 0,
+            dir,
+            source_index: 999,
+            lambda: 999,
+            id,
+            parent_id: None,
+            is_boundary_root: true,
+            op_parent: None,
+        }
     }
 
     /// ★族A 回归守卫：campaign 持仓腿的 source_index 漂移后（carrier 走势 ρ 延伸），逐 bar 风控门
@@ -5628,59 +5723,27 @@ mod tests {
     /// 并对照 entry_stop=None（非交易点）诚实无 stop。
     #[test]
     fn k_theta_risk_gate_reads_frozen_entry_stop_for_drifted_leg() {
-        use super::super::super::types::BspBits;
         use super::super::super::classifier::recursive_tower::ElementId;
-        use super::super::mu_estimator::{MuClass, PositionState};
-        use super::super::super::strategy::coverage::Vertical;
-        use super::super::super::strategy::interp::{ActiveLeg, EntryCertificate, PositionNodeId};
         use super::super::super::strategy::voice::VoiceSide;
-        use std::collections::HashMap;
+        use super::super::open_ledger::OpenTable;
 
         // Short campaign 腿：source_index=999（drifted ρ——carrier 延伸后，远超 entry bsp 坐标）。
         // 旧路径在此坐标查 bsp_index 必 None（无 bsp 在 999）⟹ 静默跳过。
-        let leg = ActiveLeg {
-            level: 0,
-            dir: VoiceSide::Short,
-            source_index: 999,
-            lambda: 999,
-            id: ElementId { level: 0, ordinal: 0 },
-            parent_id: None,
-            is_boundary_root: true,
-            op_parent: None,
-        };
-        // 冻结 entry_stop=200（Tick，空头止损在上方）；entry_certificate 源坐标=5（非 drifted）。
-        let mut open_trades: HashMap<ElementId, LedgerOpen> = HashMap::new();
-        open_trades.insert(
-            ElementId { level: 0, ordinal: 0 },
-            LedgerOpen {
-                entry_bar: 0,
-                entry_px: 100.0,
-                entry_z: MuClass::from_certificate(0, -1, BspBits::default(), 0, PositionState::Root),
-                entry_stop_dist: Some(100.0),
-                entry_stop: Some(200),
-                entry_v: Vertical::ShortDiff,
-                position_node_id: PositionNodeId {
-                    carrier: ElementId { level: 0, ordinal: 0 },
-                    entry_certificate: Some(EntryCertificate { level: 0, source_index: 5 }),
-                    side: VoiceSide::Short,
-                    generation: 0,
-                },
-                opsem: OpsemEntrySnapshot::default(),
-                units: 1.0,
-            },
-        );
+        let carrier = ElementId { level: 0, ordinal: 0 };
+        let leg = gate_leg(carrier, VoiceSide::Short);
         // bar high=250 ≥ stop=200 ⟹ 空头止损触及（stop_hit 空头镜像：high≥stop）。
-        let bar = Bar {
-            source_index: 999,
-            timestamp: 999,
-            open: 100,
-            high: 250,
-            low: 100,
-            close: 100,
-            volume: 1,
-            untradable: false,
-        };
-        let (gate, _mode) = k_theta_risk_gate(&[leg], &open_trades, &bar, 1.0e6, -1.0, 100.0, None);
+        let bar = gate_bar(250, 100);
+        // 冻结 entry_stop=200（Tick，空头止损在上方）。
+        let mut open_trades: OpenTable<LedgerOpen> = OpenTable::new();
+        open_campaign_for_gate(&mut open_trades, carrier, VoiceSide::Short, Some(200));
+        let legs = [leg];
+        let (gate, _mode) = k_theta_risk_gate(&RiskGateCtx {
+            prev_active: &legs,
+            open_trades: &open_trades,
+            bar: &bar,
+            account: RiskAccount { equity: 1.0e6, p_t: -1.0, px: 100.0 },
+            margin: None,
+        });
         assert!(
             gate.stop_short,
             "族A：drifted campaign 腿从冻结 entry_stop 读出 stop ⟹ high≥stop 触发 stop_short"
@@ -5688,9 +5751,75 @@ mod tests {
         assert!(!gate.stop_long, "仅空腿止损，多腿无触发");
 
         // 对照：entry_stop=None（非该方向交易点）⟹ 诚实无 stop，不触发。
-        open_trades.get_mut(&ElementId { level: 0, ordinal: 0 }).unwrap().entry_stop = None;
-        let (gate2, _mode2) = k_theta_risk_gate(&[leg], &open_trades, &bar, 1.0e6, -1.0, 100.0, None);
+        let mut no_stop: OpenTable<LedgerOpen> = OpenTable::new();
+        open_campaign_for_gate(&mut no_stop, carrier, VoiceSide::Short, None);
+        let (gate2, _mode2) = k_theta_risk_gate(&RiskGateCtx {
+            prev_active: &legs,
+            open_trades: &no_stop,
+            bar: &bar,
+            account: RiskAccount { equity: 1.0e6, p_t: -1.0, px: 100.0 },
+            margin: None,
+        });
         assert!(!gate2.stop_short, "entry_stop=None ⟹ 诚实无 stop（非静默吞掉真实 stop）");
+    }
+
+    /// ★#571 混合方向守卫：同一 carrier 上并存 Long / Short 两个 generation 时，风控门必须按
+    /// **实例自身** `position_node_id.side` 分别聚合 long/short stop——而非统一沿用
+    /// `ActiveLeg.dir`（结构走势 eps，与 campaign 持仓方向无关，#570 探针 §3「风控止损」行）。
+    ///
+    /// 三个 bar 覆盖四象限：只触多、只触空、两向同触、两向皆不触。活动腿 `dir` 全程固定为
+    /// `Long`——若判定仍读 leg.dir，Short 实例的 stop 会被记到 `stop_long` 上，本守卫必红。
+    #[test]
+    fn k_theta_risk_gate_aggregates_mixed_direction_generations_per_instance() {
+        use super::super::super::classifier::recursive_tower::ElementId;
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::open_ledger::OpenTable;
+
+        let carrier = ElementId { level: 0, ordinal: 0 };
+        // Long 实例 stop=90（下方）、Short 实例 stop=200（上方），同 carrier 两 generation 并存。
+        let mut open_trades: OpenTable<LedgerOpen> = OpenTable::new();
+        open_campaign_for_gate(&mut open_trades, carrier, VoiceSide::Long, Some(90));
+        open_campaign_for_gate(&mut open_trades, carrier, VoiceSide::Short, Some(200));
+        // 活动腿 dir=Long：旧口径会把两条实例都判成多头方向。
+        let legs = [gate_leg(carrier, VoiceSide::Long)];
+        let gate_of = |bar: &Bar| {
+            k_theta_risk_gate(&RiskGateCtx {
+                prev_active: &legs,
+                open_trades: &open_trades,
+                bar,
+                account: RiskAccount { equity: 1.0e6, p_t: 0.0, px: 100.0 },
+                margin: None,
+            })
+            .0
+        };
+
+        // ① low=80 ≤ 90 且 high=110 < 200 ⟹ 仅多头实例触及。
+        let only_long = gate_of(&gate_bar(110, 80));
+        assert!(only_long.stop_long, "#571：Long 实例 low≤stop ⟹ stop_long");
+        assert!(
+            !only_long.stop_short,
+            "#571：Short 实例未触及 ⟹ stop_short 不得被 leg.dir 带起"
+        );
+
+        // ② high=250 ≥ 200 且 low=100 > 90 ⟹ 仅空头实例触及（leg.dir=Long 也必须记到 short 侧）。
+        let only_short = gate_of(&gate_bar(250, 100));
+        assert!(
+            only_short.stop_short,
+            "#571：Short 实例 high≥stop ⟹ stop_short（非 stop_long）"
+        );
+        assert!(!only_short.stop_long, "#571：Long 实例未触及 ⟹ stop_long 假");
+
+        // ③ 两向同触 / ④ 两向皆不触。
+        let both = gate_of(&gate_bar(250, 80));
+        assert!(
+            both.stop_long && both.stop_short,
+            "#571：两实例各自触及 ⟹ 两向 stop 同真"
+        );
+        let neither = gate_of(&gate_bar(110, 100));
+        assert!(
+            !neither.stop_long && !neither.stop_short,
+            "#571：两实例皆未触及 ⟹ 门全开"
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────

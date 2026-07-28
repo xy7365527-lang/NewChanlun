@@ -9,7 +9,7 @@ use super::super::classifier;
 use super::super::config::ThetaConfig;
 use super::super::strategy::ledger::RiskPolicy;
 use super::super::types::Bar;
-use super::ledger::LedgerOpen;
+use super::open_ledger::LiveOpenView;
 
 #[cfg(test)]
 thread_local! {
@@ -1364,42 +1364,73 @@ impl<'a> ExitNestGateCtx<'a> {
     }
 }
 
+/// 账户数值快照（权益 NAV / 净 lot p_t / mark 价）——risk mode 与 `no_increase_cap` 的唯一输入。
+#[derive(Clone, Copy)]
+pub(super) struct RiskAccount {
+    pub(super) equity: f64,
+    pub(super) p_t: f64,
+    pub(super) px: f64,
+}
+
+/// [`k_theta_risk_gate`] 输入捆（原 7 位置参 → 5 字段，standards ≤5 参）。
+pub(super) struct RiskGateCtx<'a> {
+    /// 上一 bar 活动腿集——**只作 carrier 来源**；stop 方向由实例自身 side 定（见 [`stop_flags`]）。
+    pub(super) prev_active: &'a [super::super::strategy::interp::ActiveLeg],
+    /// typed 在飞表只读视图：同 carrier 可并存多 generation（#571），逐实例枚举。
+    pub(super) open_trades: &'a dyn LiveOpenView,
+    pub(super) bar: &'a Bar,
+    pub(super) account: RiskAccount,
+    pub(super) margin: Option<&'a super::super::strategy::risk::MarginModel>,
+}
+
 /// [close_pred 折 𝒦_Θ] 计算 [`KThetaRiskGate`]（Q2：风控 stop/risk 作可行集约束门，非第二出口）。
 ///
 /// 复用 `exec::close_pred` 契约锚（no-patch-keep-primitive）：
 /// - **risk（GlobalRiskClose）**：`risk_mode(equity)` ∈ {Insolvent,Liquidation} ⟹ `force_flat`
-///   （v0 可计算 Insolvent `E_t≤0`；账户层 MM/buffer/liq 未建模，诚实有效域 L0）。
-/// - **stop（结构止损触及）**：per 活动腿从**入场冻结的** `structural_stop`（[`LedgerOpen::entry_stop`]，
-///   开仓 bar 一次性算）判 `stop_hit(bar,…)` 触及——多腿止损 ⟹ `stop_long`、空腿止损 ⟹ `stop_short`。
-///   族A 修复：旧路径逐 bar 用 `leg.source_index`（carrier 走势 ρ，随父延伸漂移）回查 `classification`
-///   ⟹ drifted ρ 不命中 ⟹ 静默跳过 ⟹ 跨趋势持仓 stop 永不触发；改入场冻结对齐 nautilus
-///   `record_held_voice`（exitfix-research §族A）。
+///   （v0 可计算 Insolvent `E_t≤0`；账户层 MM/buffer/liq 未建模，诚实有效域 L0）。见 [`resolve_risk_mode`]。
+/// - **stop（结构止损触及）**：逐 campaign 实例读入场冻结 stop 判触及，见 [`stop_flags`]。
 /// - **reverse_signal 不入本门**：反向信号关活动腿走 `interpret` 𝒟_x（腿级单出口）；
 ///   **parent_invalid** v0 root 恒 false（无父）。
 pub(super) fn k_theta_risk_gate(
-    prev_active: &[super::super::strategy::interp::ActiveLeg],
-    open_trades: &std::collections::HashMap<classifier::recursive_tower::ElementId, LedgerOpen>,
-    bar: &Bar,
-    equity: f64,
-    p_t: f64,
-    px: f64,
-    margin: Option<&super::super::strategy::risk::MarginModel>,
+    ctx: &RiskGateCtx<'_>,
 ) -> (super::super::strategy::coverage::KThetaRiskGate, super::super::strategy::risk::RiskMode) {
     use super::super::strategy::coverage::KThetaRiskGate;
-    use super::super::strategy::exec::{close_pred, stop_hit, CloseTriggers, FillSide};
-    use super::super::strategy::risk::{
-        global_risk_close, margin_inputs, risk_mode, RiskMode, RiskModeInput,
-    };
-    use super::super::strategy::voice::VoiceSide;
+    use super::super::strategy::exec::{close_pred, CloseTriggers};
+    use super::super::strategy::risk::{global_risk_close, RiskMode};
 
-    // risk mode：有 margin 注入且 bar 时间落某快照段 ⟹ 真实 MM/liq/buffer（as_of 零前视，
-    // margin-design §2.7）；否则退化 MM=0（bit-exact 现状，M1/M2/M3 不可达）。
-    let mode = match margin.and_then(|m| m.book.as_of(bar.timestamp).map(|s| (m, s))) {
-        Some((m, sched)) => {
-            // p_t 净 lot × mark = 净名义（美元，margin-design §2.2：net_notional 已折算勿再乘价）。
-            let net_notional_usd = p_t.abs() * px;
-            risk_mode(&margin_inputs(net_notional_usd, equity, sched, &m.cushions))
-        }
+    let mode = resolve_risk_mode(ctx);
+    let risk_close = global_risk_close(mode);
+    // M2/M3（Deleverage/CloseOnly）：净幅上限=当前 |p_t|（margin-design §2.8，禁增仓 → 真改订单流）。
+    let no_increase_cap = match mode {
+        RiskMode::Deleverage | RiskMode::CloseOnly => Some(ctx.account.p_t.abs()),
+        _ => None,
+    };
+    let (long_stop, short_stop) = stop_flags(ctx);
+    let fold = |stop| {
+        close_pred(&CloseTriggers { parent_invalid: false, reverse_signal: false, stop, risk_close })
+    };
+
+    // close_pred 折 𝒦_Θ（契约锚保留）：风控项（stop ∨ risk）→ 方向约束门。
+    // G3（#138）：mode 一并透出——z 第 13 维 risk_mode 的账本态真值源（每 bar 已算，零重算）。
+    (
+        KThetaRiskGate {
+            force_flat: risk_close, // GlobalRiskClose ⟹ 𝒦_Θ={0}
+            stop_long: fold(long_stop),
+            stop_short: fold(short_stop),
+            no_increase_cap, // M2/M3 净幅上限（margin-design §2.8）
+        },
+        mode,
+    )
+}
+
+/// risk mode：有 margin 注入且 bar 时间落某快照段 ⟹ 真实 MM/liq/buffer（as_of 零前视，
+/// margin-design §2.7）；否则退化 MM=0（bit-exact 现状，M1/M2/M3 不可达）。
+fn resolve_risk_mode(ctx: &RiskGateCtx<'_>) -> super::super::strategy::risk::RiskMode {
+    use super::super::strategy::risk::{margin_inputs, risk_mode, RiskModeInput};
+    let RiskAccount { equity, p_t, px } = ctx.account;
+    match ctx.margin.and_then(|m| m.book.as_of(ctx.bar.timestamp).map(|s| (m, s))) {
+        // p_t 净 lot × mark = 净名义（美元，margin-design §2.2：net_notional 已折算勿再乘价）。
+        Some((m, sched)) => risk_mode(&margin_inputs(p_t.abs() * px, equity, sched, &m.cushions)),
         None => risk_mode(&RiskModeInput {
             equity,
             maint_margin: 0.0,
@@ -1407,74 +1438,41 @@ pub(super) fn k_theta_risk_gate(
             buffer2: 0.0,
             liq_flag: false,
         }),
-    };
-    let risk_close = global_risk_close(mode);
-    // M2/M3（Deleverage/CloseOnly）：净幅上限=当前 |p_t|（margin-design §2.8，禁增仓 → 真改订单流）。
-    let no_increase_cap = match mode {
-        RiskMode::Deleverage | RiskMode::CloseOnly => Some(p_t.abs()),
-        _ => None,
-    };
-
-    // ★族A 修复（formal-chain §9 closePred Stop 覆盖度）：stop 从**入场冻结的 structural_stop**
-    // （[`LedgerOpen::entry_stop`]）读出，非逐 bar 用 `leg.source_index` 回查 classification。
-    // 旧路径 `leg.source_index` 是 carrier 走势的 ρ（右端点），随父延伸漂移（coverage.rs 父延伸
-    // 不变量 ρ≥旧 source_index）⟹ 按 drifted ρ 查 bsp_index 不命中 ⟹ `None => continue` 静默
-    // 跳过该腿 stop 判定 ⟹ 持仓跨大级别趋势时 stop 永不触发（族 A 根因，exitfix-research §族A）。
-    // 入场路径（[`candidate_stop_dist`]）用候选 `c.source_index`（bsp 确认点）查得对——两路径同腿
-    // 不同坐标是 bug。本修复对齐两路径 + nautilus `record_held_voice`（入场一次性算 stop 冻结到
-    // HeldVoice.stop，exitfix-research line 49）：stop 值固定在开仓结构 = formal-chain §9 语义
-    // （结构失效价触及，非 trailing）。L0 静态根因；L2 dump（3765 等笔 stop 读出实际值）待 OOS。
-    let mut long_stop = false;
-    let mut short_stop = false;
-    for leg in prev_active {
-        let exit_side = match leg.dir {
-            VoiceSide::Long => FillSide::Sell,
-            VoiceSide::Short => FillSide::Buy,
-            VoiceSide::Flat => continue, // Flat 不入活动集（防御性）
-        };
-        let stop = match open_trades.get(&leg.id).and_then(|o| o.entry_stop) {
-            Some(s) => s,
-            None => {
-                // 腿不在 open_trades = **结构走势载体**（非 campaign 持仓）。`next_active` 含走势元素
-                // （AncOK 祖先闭包 + [`coverage::restore_ancestor_chain_from_registry`] 注入的父 carrier
-                // —— empirically：活动集里 level-1 走势载体与 open_trades 里 level-0 campaign 持仓并存，
-                // open_trades 仅记 campaign）。这类腿的 `dir`=走势 eps（非持仓方向）、`source_index`=
-                // 走势 ρ（漂移）—— 非开仓结构，无 stop 可读。旧路径用 drifted ρ 查 bsp_index 也返
-                // None ⟹ 同样跳过，但旧路径把载体**误当持仓**算 stop（无意义计算）。本修复按
-                // open_trades 成员区分 campaign 持仓 vs 结构载体，仅前者判 stop（族A 正域）。
-                continue;
-            }
-        };
-        if !bar.untradable && stop_hit(bar, stop, exit_side) {
-            match leg.dir {
-                VoiceSide::Long => long_stop = true,
-                VoiceSide::Short => short_stop = true,
-                VoiceSide::Flat => {}
-            }
-        }
     }
+}
 
-    // close_pred 折 𝒦_Θ（契约锚保留）：风控项（stop ∨ risk）→ 方向约束门。
-    // G3（#138）：mode 一并透出——z 第 13 维 risk_mode 的账本态真值源（每 bar 已算，零重算）。
-    (
-        KThetaRiskGate {
-            force_flat: risk_close, // GlobalRiskClose ⟹ 𝒦_Θ={0}
-            stop_long: close_pred(&CloseTriggers {
-                parent_invalid: false,
-                reverse_signal: false,
-                stop: long_stop,
-                risk_close,
-            }),
-            stop_short: close_pred(&CloseTriggers {
-                parent_invalid: false,
-                reverse_signal: false,
-                stop: short_stop,
-                risk_close,
-            }),
-            no_increase_cap, // M2/M3 净幅上限（margin-design §2.8）
-        },
-        mode,
-    )
+/// 逐 campaign 实例的结构止损聚合 →（`long_stop`, `short_stop`）。
+///
+/// ★族A 修复（formal-chain §9 closePred Stop 覆盖度）：stop 读**入场冻结的 structural_stop**
+/// （`LedgerOpen::entry_stop`，开仓 bar 一次性算），非逐 bar 用 `leg.source_index`（carrier 走势 ρ，
+/// 随父延伸漂移）回查 classification——drifted ρ 不命中 ⟹ 静默跳过 ⟹ 跨大级别趋势持仓 stop 永不
+/// 触发（族A 根因，exitfix-research §族A）。冻结值对齐入场路径 [`candidate_stop_dist`] 与 nautilus
+/// `record_held_voice`：stop 固定在开仓结构 = 结构失效价触及，非 trailing。
+///
+/// ★#571：一个 carrier 可并存多 generation 且方向不必同 ⟹ 触发方向取**实例自身**
+/// `position_node_id.side`（非 `ActiveLeg.dir`——后者是结构走势 eps，与 campaign 持仓方向无关）。
+/// 同向多实例 OR 聚合 = 任一触及即该方向 stop 成立（最紧者定门，#570 探针 §3「风控止损」行）。
+/// `untradable` bar 全窗不判（不可交易 bar 无成交面）。
+fn stop_flags(ctx: &RiskGateCtx<'_>) -> (bool, bool) {
+    use super::super::strategy::exec::{stop_hit, FillSide};
+    use super::super::strategy::voice::VoiceSide;
+    let (mut long_stop, mut short_stop) = (false, false);
+    if ctx.bar.untradable {
+        return (long_stop, short_stop);
+    }
+    for leg in ctx.prev_active {
+        ctx.open_trades.for_each_live(leg.id, &mut |open| {
+            let Some(stop) = open.entry_stop else {
+                return;
+            };
+            match open.position_node_id.side {
+                VoiceSide::Long => long_stop |= stop_hit(ctx.bar, stop, FillSide::Sell),
+                VoiceSide::Short => short_stop |= stop_hit(ctx.bar, stop, FillSide::Buy),
+                VoiceSide::Flat => {} // campaign 身份无 Flat 方向（防御性）
+            }
+        });
+    }
+    (long_stop, short_stop)
 }
 
 /// χ_t 阈值过滤上下文（task #41 chi-theta-filter）——`pi_theta_fill_loop` 的可选候选集过滤器。

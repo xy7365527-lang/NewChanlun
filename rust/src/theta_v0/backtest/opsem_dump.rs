@@ -133,9 +133,16 @@ pub(super) fn summarize_strict_nest_certificates(
 }
 
 pub(super) fn strict_nest_sidecar_enabled() -> bool {
-    std::env::var("THETA_STRICT_NEST_SIDECAR")
-        .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON"))
-        .unwrap_or(false)
+    match std::env::var("THETA_STRICT_NEST_SIDECAR") {
+        Ok(value) => matches!(
+            value.as_str(),
+            "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON"
+        ),
+        Err(std::env::VarError::NotPresent) => false,
+        Err(std::env::VarError::NotUnicode(_)) => {
+            panic!("环境变量 THETA_STRICT_NEST_SIDECAR 含非 UTF-8 值")
+        }
+    }
 }
 
 
@@ -193,28 +200,43 @@ impl OpsemDump {
         #[cfg(test)]
         {
             if let Some(dir) = OPSEM_DUMP_DIR_OVERRIDE.with(|c| c.borrow().clone()) {
-                return Self::at_dir(&dir);
+                return Some(Self::at_dir(&dir));
             }
         }
-        let dir = std::env::var("OPSEM_DUMP_DIR").ok().filter(|s| !s.is_empty())?;
-        Self::at_dir(std::path::Path::new(&dir))
+        let dir = match std::env::var("OPSEM_DUMP_DIR") {
+            Ok(dir) if dir.is_empty() => return None,
+            Ok(dir) => dir,
+            Err(std::env::VarError::NotPresent) => return None,
+            Err(std::env::VarError::NotUnicode(_)) => {
+                panic!("环境变量 OPSEM_DUMP_DIR 含非 UTF-8 值")
+            }
+        };
+        Some(Self::at_dir(std::path::Path::new(&dir)))
     }
 
     /// 在指定目录开两个 JSONL 写入器。
     /// ponytail: 截断打开（每次回测重写；同 dump_deltafree_pertrade 落盘语义）。path 局部化——
     /// struct 只持 BufWriter（path 仅 create 时用，后续不读，YAGNI 不存字段）。
-    fn at_dir(dir_path: &std::path::Path) -> Option<Self> {
-        std::fs::create_dir_all(dir_path).ok()?;
-        let trades_file = std::fs::File::create(dir_path.join("trades.jsonl")).ok()?;
-        let tower_file = std::fs::File::create(dir_path.join("tower_events.jsonl")).ok()?;
-        Some(Self {
+    fn at_dir(dir_path: &std::path::Path) -> Self {
+        std::fs::create_dir_all(dir_path).unwrap_or_else(|error| {
+            panic!("创建 OpsemDump 目录 {} 失败：{error}", dir_path.display())
+        });
+        let trades_path = dir_path.join("trades.jsonl");
+        let tower_path = dir_path.join("tower_events.jsonl");
+        let trades_file = std::fs::File::create(&trades_path).unwrap_or_else(|error| {
+            panic!("创建 OpsemDump 文件 {} 失败：{error}", trades_path.display())
+        });
+        let tower_file = std::fs::File::create(&tower_path).unwrap_or_else(|error| {
+            panic!("创建 OpsemDump 文件 {} 失败：{error}", tower_path.display())
+        });
+        Self {
             trades_buf: std::io::BufWriter::new(trades_file),
             tower_buf: std::io::BufWriter::new(tower_file),
             trade_id_counter: 0,
             active_start: None,
             active_end: None,
             prev_tower: None,
-        })
+        }
     }
 
     /// 在入场 bar 标记交易活跃区间起点。
@@ -317,7 +339,7 @@ impl OpsemDump {
         level: u32,
         kind: &str,
         detail: &str,
-    ) -> std::io::Result<()> {
+    ) {
         use std::io::Write;
         let active = match (self.active_start, self.active_end) {
             (Some(s), _) if bar < s => false,
@@ -325,7 +347,7 @@ impl OpsemDump {
             _ => false,
         };
         if !active {
-            return Ok(());
+            return;
         }
         let json = format!(
             "{{\"bar\":{bar},\"level\":{lvl},\"kind\":\"{kind}\",\"detail\":\"{detail}\"}}\n",
@@ -334,8 +356,11 @@ impl OpsemDump {
             kind = kind,
             detail = detail.replace('\\', "\\\\").replace('"', "\\\""),
         );
-        self.tower_buf.write_all(json.as_bytes())?;
-        Ok(())
+        self.tower_buf.write_all(json.as_bytes()).unwrap_or_else(|error| {
+            panic!(
+                "写 OpsemDump tower event 失败：bar={bar}, level={level}, kind={kind}, error={error}"
+            )
+        });
     }
 
     /// 在每 bar 调用：diff tower_i vs self.prev_tower，输出新建/延伸/升级事件（仅活跃区间）。
@@ -345,100 +370,111 @@ impl OpsemDump {
         bar: usize,
         tower_i: &[std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>],
     ) {
-        use classifier::descend::RMove;
         use classifier::recursive_tower::LeveledMove;
         // 仅在交易活跃区间内 diff（避免 O(n) per-bar 全窗扫描）。
-        let in_active = match (self.active_start, self.active_end) {
-            (Some(s), _) if bar >= s => true,
-            _ => false,
-        };
-        if !in_active {
+        if !matches!(self.active_start, Some(s) if bar >= s) {
             self.prev_tower = Some(tower_i.to_vec());
             return;
         }
-        let prev = self.prev_tower.take();
-        match prev {
-            None => {
-                // 首个活跃 bar：所有 Compose 都作 "new_center"。
-                for (lvl, moves) in tower_i.iter().enumerate() {
-                    for m in moves.iter() {
-                        if let RMove::Compose { centers, .. } = &m.rmove {
-                            if let Some(c) = centers.first() {
-                                let _ = self.write_tower_event(
-                                    bar,
-                                    lvl as u32,
-                                    "new_center",
-                                    &format!(
-                                        "L{} #{} zd={} zg={} si={} ei={}",
-                                        lvl, m.id.ordinal, c.zd, c.zg, m.start_index, m.end_index
-                                    ),
-                                );
-                            }
-                        }
-                    }
-                }
-            }
+        // prev=None（首个活跃 bar）与 prev=Some(空级别) 不同义：前者不产 level_upgrade
+        // （无"涌现"可言，全塔都是首见），后者是真升级事件。两分支不可合并。
+        match self.prev_tower.take() {
+            None => self.emit_initial_centers(bar, tower_i),
             Some(prev_vec) => {
                 for (lvl, moves) in tower_i.iter().enumerate() {
-                    let prev_moves: &[LeveledMove] = prev_vec
-                        .get(lvl)
-                        .map(|rc| rc.as_slice())
-                        .unwrap_or(&[]);
-                    // 升级：该级别在 prev 不存在（或为空）且现非空 ⟹ 新级别涌现。
-                    if prev_moves.is_empty() && !moves.is_empty() {
-                        let _ = self.write_tower_event(
-                            bar,
-                            lvl as u32,
-                            "level_upgrade",
-                            &format!("L{lvl} first compose count={}", moves.len()),
-                        );
-                    }
-                    // 新建 Compose / 延伸末段 end_index。
-                    let prev_len = prev_moves.len();
-                    for (i, m) in moves.iter().enumerate() {
-                        if let RMove::Compose { centers, .. } = &m.rmove {
-                            if i >= prev_len {
-                                // 新 Compose 涌现。
-                                if let Some(c) = centers.first() {
-                                    let _ = self.write_tower_event(
-                                        bar,
-                                        lvl as u32,
-                                        "new_center",
-                                        &format!(
-                                            "L{} #{} zd={} zg={} si={} ei={}",
-                                            lvl, m.id.ordinal, c.zd, c.zg, m.start_index, m.end_index
-                                        ),
-                                    );
-                                }
-                            } else if let Some(pm) = prev_moves.get(i) {
-                                // 已存在 Compose，比较 end_index —— 延伸事件。
-                                if m.end_index != pm.end_index {
-                                    if let Some(c) = centers.first() {
-                                        let _ = self.write_tower_event(
-                                            bar,
-                                            lvl as u32,
-                                            "extend",
-                                            &format!(
-                                                "L{} #{} zd={} zg={} ei {}->{}",
-                                                lvl, m.id.ordinal, c.zd, c.zg, pm.end_index, m.end_index
-                                            ),
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    let prev_moves: &[LeveledMove] =
+                        prev_vec.get(lvl).map(|rc| rc.as_slice()).unwrap_or(&[]);
+                    self.diff_level(bar, lvl, moves, prev_moves);
                 }
             }
         }
         self.prev_tower = Some(tower_i.to_vec());
     }
 
+    /// 首个活跃 bar：全塔 Compose 一律作 `new_center`（无 prev 可比）。
+    fn emit_initial_centers(
+        &mut self,
+        bar: usize,
+        tower_i: &[std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>],
+    ) {
+        use classifier::descend::RMove;
+        for (lvl, moves) in tower_i.iter().enumerate() {
+            for m in moves.iter() {
+                let RMove::Compose { centers, .. } = &m.rmove else {
+                    continue;
+                };
+                let Some(c) = centers.first() else { continue };
+                self.write_tower_event(
+                    bar,
+                    lvl as u32,
+                    "new_center",
+                    &format!(
+                        "L{} #{} zd={} zg={} si={} ei={}",
+                        lvl, m.id.ordinal, c.zd, c.zg, m.start_index, m.end_index
+                    ),
+                );
+            }
+        }
+    }
+
+    /// 单级别 diff：级别涌现（`level_upgrade`）+ 新 Compose（`new_center`）+ 末段延伸（`extend`）。
+    fn diff_level(
+        &mut self,
+        bar: usize,
+        lvl: usize,
+        moves: &[classifier::recursive_tower::LeveledMove],
+        prev_moves: &[classifier::recursive_tower::LeveledMove],
+    ) {
+        use classifier::descend::RMove;
+        // 升级：该级别在 prev 不存在（或为空）且现非空 ⟹ 新级别涌现。
+        if prev_moves.is_empty() && !moves.is_empty() {
+            self.write_tower_event(
+                bar,
+                lvl as u32,
+                "level_upgrade",
+                &format!("L{lvl} first compose count={}", moves.len()),
+            );
+        }
+        // 新建 Compose / 延伸末段 end_index。
+        for (i, m) in moves.iter().enumerate() {
+            let RMove::Compose { centers, .. } = &m.rmove else {
+                continue;
+            };
+            let Some(c) = centers.first() else { continue };
+            match prev_moves.get(i) {
+                None => self.write_tower_event(
+                    bar,
+                    lvl as u32,
+                    "new_center",
+                    &format!(
+                        "L{} #{} zd={} zg={} si={} ei={}",
+                        lvl, m.id.ordinal, c.zd, c.zg, m.start_index, m.end_index
+                    ),
+                ),
+                // 已存在 Compose，比较 end_index —— 延伸事件。
+                Some(pm) if m.end_index != pm.end_index => self.write_tower_event(
+                    bar,
+                    lvl as u32,
+                    "extend",
+                    &format!(
+                        "L{} #{} zd={} zg={} ei {}->{}",
+                        lvl, m.id.ordinal, c.zd, c.zg, pm.end_index, m.end_index
+                    ),
+                ),
+                Some(_) => {}
+            }
+        }
+    }
+
     /// flush 缓冲（drop 前）。
     fn flush(&mut self) {
         use std::io::Write;
-        let _ = self.trades_buf.flush();
-        let _ = self.tower_buf.flush();
+        self.trades_buf
+            .flush()
+            .unwrap_or_else(|error| panic!("flush OpsemDump trades.jsonl 失败：{error}"));
+        self.tower_buf
+            .flush()
+            .unwrap_or_else(|error| panic!("flush OpsemDump tower_events.jsonl 失败：{error}"));
     }
 }
 
