@@ -198,6 +198,7 @@ impl CandidateEventBook {
         let mut delta = Vec::new();
         let mut seen = BTreeSet::new();
         for observation in observations {
+            reject_unobservable_invalidation(observation);
             seen.insert(observation.key);
             if let Some(event) = self.advance_observation(observation, as_of) {
                 delta.push(event);
@@ -353,6 +354,18 @@ pub mod event_probe {
     }
 
     /// 一次 revision 落簿：分解状态转移、修订类别与三只钟的写入/钉死。
+    ///
+    /// ★`next.state == Invalidated` 在本函数是**不可达**的，两处 `unreachable!` 是该事实的机器载体
+    /// （不是「应该不会发生」的注释声明）。推导链：
+    /// 1. 本函数的唯一调用点是 [`super::CandidateEventBook::advance_observation`] 的落簿处，
+    ///    其 `next` 由 [`super::make_revision`] 产出 ⟹ `next.state == observation.state`（逐字复制）。
+    /// 2. 观察进事件簿的唯一入口 [`super::CandidateEventBook::advance`] 已由
+    ///    [`super::reject_unobservable_invalidation`] 把 `observation.state == Invalidated` 全部挡下
+    ///    ⟹ 走到本函数的 `next.state` 值域 = {`Provisional`, `Unresolved`, `Confirmed`}。
+    /// 3. 两条真实失效路径（缺席 / 回缩）调 [`super::invalidate`] 后走 [`on_invalidate`]，不经本函数。
+    ///
+    /// 故 `∅ → Invalidated` 与「活候选 → Invalidated」两条 E2E-D5 禁止边在此当场失败，
+    /// 而不是记零或静默滑过——静默滑过会让「该边从未发生」与「该边发生过但没人看见」不可区分。
     pub fn on_append(prior: Option<&CandidateEvent>, next: &CandidateEvent) {
         PROBE.with(|p| {
             let mut p = p.borrow_mut();
@@ -361,7 +374,10 @@ pub mod event_probe {
                     CandidateState::Provisional => p.birth_provisional += 1,
                     CandidateState::Unresolved => p.birth_unresolved += 1,
                     CandidateState::Confirmed => p.birth_confirmed += 1,
-                    CandidateState::Invalidated => {}
+                    CandidateState::Invalidated => unreachable!(
+                        "E2E-D5 禁止边 ∅→Invalidated 被走到：候选不得一出生即失效终态\
+                         （失效只能由 invalidate() 对既有 revision 判出，见 on_append 头部推导链）"
+                    ),
                 },
                 Some(prior) => {
                     if prior.state == next.state {
@@ -375,7 +391,11 @@ pub mod event_probe {
                             CandidateState::Provisional => p.to_provisional += 1,
                             CandidateState::Unresolved => p.to_unresolved += 1,
                             CandidateState::Confirmed => p.to_confirmed += 1,
-                            CandidateState::Invalidated => {}
+                            CandidateState::Invalidated => unreachable!(
+                                "E2E-D5 禁止边「活候选→(被观察为)Invalidated」被走到：\
+                                 失效不经 on_append（走 invalidate() + on_invalidate），\
+                                 见 on_append 头部推导链"
+                            ),
                         }
                     }
                     p.observed_pinned += 1;
@@ -413,6 +433,34 @@ pub mod event_probe {
     pub fn on_terminal_block() {
         PROBE.with(|p| p.borrow_mut().terminal_block += 1);
     }
+}
+
+/// E2E-D5 禁止边 `∅ → Invalidated`（以及「活候选 →（被观察为）Invalidated」）的机器锁，
+/// 位于事件簿的**唯一观察入口** [`CandidateEventBook::advance`]。
+///
+/// 推导链（为什么 `Invalidated` 不是可观察状态）：
+/// 1. `Invalidated` 的唯一构造点是 [`invalidate`]——它写 `invalidated_at = Some(as_of)`、
+///    递增 `revision`、置 `supersedes_revision`。两条失效路径（缺席
+///    [`CandidateEventBook::invalidate_unseen`]、回缩 [`CandidateEventBook::advance_observation`]）
+///    都走它，且都要求存在 `prior`：失效是**事件簿对既有 revision 的判决**，不是外部观察的输入。
+/// 2. 观察侧走的是 [`make_revision`]，它硬编码 `invalidated_at: None`。因此一条
+///    `state = Invalidated` 的观察若被放行，落簿的是「终态但无失效钟」的畸形事件；
+///    又因 [`CandidateState::is_terminal`] 为真，该 key 的后续全部修订被永久挡回（禁复活），
+///    畸形态就此钉死且不可修复。
+/// 3. 故 `∅ → Invalidated`（候选一出生即终态）在 E2E-D5 状态机里是禁止边，
+///    「活候选被观察为 Invalidated」同理——两者的前提都是 `observation.state == Invalidated`。
+///
+/// 本函数是这条禁止边的**机器**载体：一旦被走到就当场失败，而不是静默滑过。
+/// 生产恒不触发（结构域观察的状态由 [`StructuralPredicates::resolved_state`] 派生，
+/// 值域 = {`Provisional`, `Unresolved`}；Pan 域恒 `Confirmed`），
+/// 但 [`CandidateObservation`] 是 `pub` 且字段全开 ⟹ 该边在类型层可表达，必须在运行期拒绝。
+fn reject_unobservable_invalidation(observation: &CandidateObservation) {
+    assert!(
+        observation.state != CandidateState::Invalidated,
+        "E2E-D5 禁止边：`Invalidated` 是事件簿自产终态（唯一构造点 invalidate()），不是可观察状态；\
+         key={:?} 的观察携带 Invalidated ⟹ 拒绝入簿",
+        observation.key
+    );
 }
 
 fn invalidate(prior: &CandidateEvent, as_of: usize) -> CandidateEvent {
@@ -931,6 +979,28 @@ mod tests {
         assert_eq!(invalidated[0].invalidated_at, Some(36));
         assert!(book.advance(&[candidate], 37).is_empty());
         assert_eq!(book.streams()[0].len(), 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "E2E-D5 禁止边")]
+    fn observed_invalidation_at_birth_is_rejected_by_the_book_entry_lock() {
+        // ★#551 E2E-D5 禁止边 ∅→Invalidated 的机器锁见证：候选不得一出生即失效终态。
+        // 反事实（本锁之前）：该观察静默入簿，落成「state=Invalidated 但 invalidated_at=None」的
+        // 畸形终态事件，并因 is_terminal() 永久挡回该 key 的后续修订 —— 无人看得见。
+        let mut book = CandidateEventBook::default();
+        book.advance(&[observation((30, 35), CandidateState::Invalidated)], 35);
+    }
+
+    #[test]
+    #[should_panic(expected = "E2E-D5 禁止边")]
+    fn observed_invalidation_on_live_candidate_is_rejected_by_the_same_lock() {
+        // ★同一条锁的第二个入口：活候选被**观察为** Invalidated（on_append 的 :Some(prior) 侧禁止边）。
+        // 合法失效走 invalidate()（缺席/回缩两路径），不经观察 —— 见
+        // disappearance_appends_invalidation_and_terminal_never_revives / interval_shrink_appends_invalidation。
+        let mut book = CandidateEventBook::default();
+        let live = observation((30, 35), CandidateState::Provisional);
+        book.advance(std::slice::from_ref(&live), 35);
+        book.advance(&[observation((30, 40), CandidateState::Invalidated)], 40);
     }
 
     #[test]
