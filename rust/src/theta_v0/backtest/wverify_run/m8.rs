@@ -215,7 +215,7 @@ pub(super) fn parse_fee_datum_spec(spec: &str) -> crate::theta_v0::venue_fee::Ve
 /// [`apply_theta_dir_preset_from_env`] / `M8_WIN_FILTER` 同款 env-gate 先例）；
 /// 设置 ⟹ 注入 [`parse_fee_datum_spec`] 解析出的档，跑批升为**标定臂（臂D）**，
 /// 产物标签自动升 `[L2费率标定: datum <前12位>]`（`risk::rate_calibration_label` 契约）。
-pub(super) fn apply_m8_fee_datum_from_env(cfg: &mut ThetaConfig) {
+fn apply_m8_fee_datum_from_env(cfg: &mut ThetaConfig) {
     if let Ok(spec) = std::env::var("M8_FEE_DATUM") {
         cfg.exec.fee_schedule = Some(parse_fee_datum_spec(&spec));
     }
@@ -262,7 +262,7 @@ pub(super) fn apply_m8_level_cap(cfg: &mut ThetaConfig, spec: Option<&str>) {
 }
 
 /// [`apply_m8_level_cap`] 的 env 入口（`M8_LEVEL_CAP`）。
-pub(super) fn apply_m8_level_cap_from_env(cfg: &mut ThetaConfig) {
+fn apply_m8_level_cap_from_env(cfg: &mut ThetaConfig) {
     apply_m8_level_cap(cfg, std::env::var("M8_LEVEL_CAP").ok().as_deref());
 }
 

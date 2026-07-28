@@ -2,7 +2,7 @@ use super::*;
 
 /// ★A1（prereg-rev2-20260704）：force_state 第 8 维的 dump 编码（离线 round-trip 无损）。
 /// None=0 / Dominated=1 / Dominates=2 / Tie=3 / Incomparable=4——`load_deltafree_dump` 逆映射。
-pub(super) fn force_state_code(fs: Option<ForceStateA5>) -> u8 {
+fn force_state_code(fs: Option<ForceStateA5>) -> u8 {
     match fs {
         None => 0,
         Some(ForceStateA5::Dominated) => 1,
@@ -13,7 +13,7 @@ pub(super) fn force_state_code(fs: Option<ForceStateA5>) -> u8 {
 }
 
 /// force_state 报告标签（None/Dom-/Dom+/Tie/Inc，δ-free 主裁决桶表可读列）。
-pub(super) fn force_state_label(fs: Option<ForceStateA5>) -> &'static str {
+fn force_state_label(fs: Option<ForceStateA5>) -> &'static str {
     match fs {
         None => "None",
         Some(ForceStateA5::Dominated) => "Dom-",
@@ -68,7 +68,7 @@ pub(super) fn forcestate_delta_orthogonality(records: &[ResidualTrade]) -> Strin
 }
 
 /// force_state 编码逆映射（[`force_state_code`]），离线 dump 复现器还原第 8 维。
-pub(super) fn force_state_decode(code: u8) -> Option<ForceStateA5> {
+fn force_state_decode(code: u8) -> Option<ForceStateA5> {
     match code {
         1 => Some(ForceStateA5::Dominated),
         2 => Some(ForceStateA5::Dominates),
@@ -80,7 +80,7 @@ pub(super) fn force_state_decode(code: u8) -> Option<ForceStateA5> {
 
 /// ExitType 诊断切片的 dump 编码（codex-ruling-exittype-20260704 裁定甲：逐笔存档合法）。
 /// **不进桶键/门控/裁决基**——纯诊断列（[`exit_type_decode`] 逆映射，[`exit_type_label`] 报告标签）。
-pub(super) fn exit_type_code(et: ExitType) -> u8 {
+fn exit_type_code(et: ExitType) -> u8 {
     match et {
         ExitType::CloseRoot => 0,
         ExitType::ReduceCore => 1,
@@ -91,7 +91,7 @@ pub(super) fn exit_type_code(et: ExitType) -> u8 {
 }
 
 /// ExitType 编码逆映射（[`exit_type_code`]），离线 dump 复现器还原诊断列。
-pub(super) fn exit_type_decode(code: u8) -> ExitType {
+fn exit_type_decode(code: u8) -> ExitType {
     match code {
         0 => ExitType::CloseRoot,
         1 => ExitType::ReduceCore,
@@ -102,7 +102,7 @@ pub(super) fn exit_type_decode(code: u8) -> ExitType {
 }
 
 /// ExitType 报告标签（W-VERIFY 5 变体占比拆解节可读列）。
-pub(super) fn exit_type_label(et: ExitType) -> &'static str {
+fn exit_type_label(et: ExitType) -> &'static str {
     match et {
         ExitType::CloseRoot => "CloseRoot(P5)",
         ExitType::ReduceCore => "ReduceCore(P6)",
