@@ -13,3 +13,9 @@
 | [codex]#421-裁定落码-Q1Q2Q3 | kimi编排→codex exec（grilling 三裁 2026-07-28） | 两路喂+闪现窗零寿命+Provisional 可判反超，探针神谕验收（p409 同数据重测基准），工位 /tmp/kimi-nest-mainline | 已交付（26771ee0d8；kimi 抽验：1994/1 唯一红 #491、10 对 cmp=0、IdentityVanished=0；实测闪现率 100% 触发 Q2 逃生门，编排者裁定 (a) 开逃生门，已记票 comment-5103071677） |
 | [codex]#421-逃生门-逐bar喂数 | kimi编排→codex exec（逃生门裁定 2026-07-28，comment-5103071677） | nest_lifecycle sidecar 换独立逐 bar 喂数循环（#402 选项 c），Q1/Q2/Q3 语义不变，工位 /tmp/kimi-nest-mainline | 已交付（391936a486；kimi 抽验：1997/1 唯一红 #491、10 对 cmp=0；实测 per-bar 仍 248/248 闪现，p409 反事实 vs 生产结算矛盾，待编排者裁定 comment-5103436732） |
 | [codex]#523-结构完成根因调查 | kimi编排→codex exec（编排者 2026-07-28 选 C） | #421 阻塞：248 结构窗首见 bar 即完成根因调查（数据/定义/bug），只读，工位 /tmp/kimi-nest-mainline | 已交付（根因=bug：PanLive provider 接缝缺口，live 迟到非完成过早；报告+248 行 TSV 入库；建议新选项 E 待编排者裁） |
+| [kimi]#421-E裁定落地 | kimi编排（编排者 2026-07-28 裁 E） | #421 收窄 destination 记票 comment-5106372198；新开 PanLive provider 票 #527（map #59 子票，L1 先行）；p409 反超口径单列反事实 | 已落地 |
+| [codex]#429-三审 | kimi编排→codex exec（E 裁定口径为尺） | 裁定链收口核验 a12a1022d9..391936a486，落 shadow-429-trireview-20260728.md | 已交付（FAIL：Spec PASS + Standards FAIL MED×6/LOW×1；其中 2 条核为 #446/#511 范围污染） |
+| [codex]#430-三审 | kimi编排→codex exec（E 裁定口径为尺） | 同上，落 shadow-430-trireview-20260728.md | 已交付（PASS WITH CONDITIONS：无 HIGH、永禁零命中；条件=文档收口×2 + Standards 债去向×3） |
+| [kimi]#421-收口包裁定 | kimi编排（编排者 2026-07-28 裁 a） | 文档修 3 + 债票 #532（p123 长函数）/#533（字节门仓内化）+ 污染转 #446/#511 属主，记票 comment-5106781616 | 已落地 |
+| [codex]#421-收口包文档修订 | kimi编排→codex exec（收口包裁定 a） | T8/provider 文档口径统一 + rebuild 报告订正注记 + 自查档 E 执行节（L0-L3）+ F6 改名符实 | 派发中 |
+| [kimi]#421-关票链 | kimi编排（收口包抽验 58672e2563 全绿） | #429/#430 双关（条件满足+债有去向）→ #421/#427 双关（E 口径五项全绿）；map #59 记 Decisions；三审报告入库 | 已收口 |
