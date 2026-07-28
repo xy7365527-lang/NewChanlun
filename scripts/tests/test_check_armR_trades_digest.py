@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import sys
 import tempfile
@@ -21,7 +23,98 @@ def _write_minimal_dump(root):
         (window / "trades.jsonl").write_text(trade + "\n")
 
 
+def _valid_payload(dump_dir):
+    windows, missing = gate.collect(dump_dir)
+    if missing:
+        raise AssertionError(f"test dump incomplete: {missing}")
+    return {
+        "_schema": gate.GOLDEN_SCHEMA,
+        "provenance": {
+            "anchors": [
+                {
+                    "source_base_head": "a" * 40,
+                    "final_verification_head": "b" * 40,
+                    "source_worktree": "test-worktree",
+                    "run_date": "2026-07-28",
+                    "regen_command": "test regen",
+                    "check_command": "test check",
+                }
+            ]
+        },
+        "windows": windows,
+    }
+
+
 class ArmRTradesDigestTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        self.dump_dir = root / "dump"
+        self.golden_path = root / "golden.json"
+        _write_minimal_dump(self.dump_dir)
+
+    def _check_payload(self, payload):
+        self.golden_path.write_text(json.dumps(payload))
+        argv = ["check_armR_trades_digest.py", "--dump-dir", str(self.dump_dir)]
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(gate, "GOLDEN_PATH", self.golden_path),
+            mock.patch.object(sys, "argv", argv),
+            contextlib.redirect_stderr(stderr),
+        ):
+            exit_code = gate.main()
+        return exit_code, stderr.getvalue()
+
+    def test_check_rejects_non_hex_commit_head(self):
+        payload = _valid_payload(self.dump_dir)
+        payload["provenance"]["anchors"][0]["source_base_head"] = "forged-commit"
+
+        exit_code, stderr = self._check_payload(payload)
+
+        self.assertNotEqual(exit_code, gate.EXIT_OK)
+        self.assertIn("source_base_head", stderr)
+
+    def test_check_rejects_integer_commit_head(self):
+        payload = _valid_payload(self.dump_dir)
+        payload["provenance"]["anchors"][0]["final_verification_head"] = 123
+
+        exit_code, stderr = self._check_payload(payload)
+
+        self.assertNotEqual(exit_code, gate.EXIT_OK)
+        self.assertIn("final_verification_head", stderr)
+
+    def test_check_rejects_invalid_digest_schema(self):
+        payload = _valid_payload(self.dump_dir)
+        payload["windows"]["wf7"]["digest_fnv1a64"] = "0xNOT-A-DIGEST!"
+
+        exit_code, stderr = self._check_payload(payload)
+
+        self.assertNotEqual(exit_code, gate.EXIT_OK)
+        self.assertIn("16 位小写 hex", stderr)
+
+    def test_check_rejects_non_positive_or_boolean_counts(self):
+        for field, invalid in (("n_trades", 0), ("bytes", True)):
+            with self.subTest(field=field, invalid=invalid):
+                payload = _valid_payload(self.dump_dir)
+                payload["windows"]["p3fold"][field] = invalid
+
+                exit_code, stderr = self._check_payload(payload)
+
+                self.assertNotEqual(exit_code, gate.EXIT_OK)
+                self.assertIn(f"windows.p3fold.{field}", stderr)
+                self.assertIn("正整数", stderr)
+
+    def test_check_rejects_invalid_run_date(self):
+        payload = _valid_payload(self.dump_dir)
+        payload["provenance"]["anchors"][0]["run_date"] = "2026-02-30"
+
+        exit_code, stderr = self._check_payload(payload)
+
+        self.assertNotEqual(exit_code, gate.EXIT_OK)
+        self.assertIn("run_date", stderr)
+        self.assertIn("ISO 日期", stderr)
+
     def test_regen_appends_provenance_anchor_without_losing_history(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

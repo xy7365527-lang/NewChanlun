@@ -15,10 +15,14 @@
     cd rust
     for tag in p3fold wf7 wf8; do
       M8_WIN_FILTER=$tag VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 \
-        M8_REPORT_PATH=/tmp/484_armR_report_$tag.md OPSEM_DUMP_DIR=/tmp/484_armR_dump/$tag \
+        M8_REPORT_PATH=/tmp/m8_win_gate_report_$tag.md OPSEM_DUMP_DIR=/tmp/m8_win_gate/$tag \
         cargo test --release --lib theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos \
         -- --ignored --nocapture
     done
+
+**provenance 口径**：golden 锚中的 `dump_dir` / `regen_command` / `check_command`
+保留 `/tmp/446_armR_dump`，只记录历史锚来源；历史锚来源 ≠ 当前 canonical 默认根
+`/tmp/m8_win_gate/`。
 
 **本脚本用法**：
 
@@ -37,6 +41,7 @@ import collections
 import datetime
 import json
 import pathlib
+import re
 import shlex
 import subprocess
 import sys
@@ -129,6 +134,36 @@ def provenance_problems(payload: dict) -> list[str]:
         missing = [field for field in REQUIRED_ANCHOR_FIELDS if not anchor.get(field)]
         if missing:
             problems.append(f"provenance.anchors[{idx}]: 缺字段 {missing}")
+        for field in ("source_base_head", "final_verification_head"):
+            value = anchor.get(field)
+            if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{40}", value) is None:
+                problems.append(
+                    f"provenance.anchors[{idx}].{field}: 必须是 40 位小写 hex"
+                )
+        run_date = anchor.get("run_date")
+        try:
+            parsed_run_date = datetime.date.fromisoformat(run_date) if isinstance(run_date, str) else None
+        except ValueError:
+            parsed_run_date = None
+        if parsed_run_date is None or parsed_run_date.isoformat() != run_date:
+            problems.append(
+                f"provenance.anchors[{idx}].run_date: 必须是有效 ISO 日期 YYYY-MM-DD"
+            )
+    windows = payload.get("windows")
+    if isinstance(windows, dict):
+        for tag in WINDOWS:
+            window = windows.get(tag)
+            if not isinstance(window, dict):
+                continue
+            digest = window.get("digest_fnv1a64")
+            if not isinstance(digest, str) or re.fullmatch(r"0x[0-9a-f]{16}", digest) is None:
+                problems.append(
+                    f"windows.{tag}.digest_fnv1a64: 必须是带 0x 前缀的 16 位小写 hex"
+                )
+            for field in ("n_trades", "bytes"):
+                value = window.get(field)
+                if type(value) is not int or value <= 0:
+                    problems.append(f"windows.{tag}.{field}: 必须是正整数")
     return problems
 
 
