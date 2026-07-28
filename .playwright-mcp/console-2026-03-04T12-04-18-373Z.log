@@ -1,7 +1,0 @@
-[     789ms] [ERROR] Access to XMLHttpRequest at 'https://fred.stlouisfed.org/ssi/banner-content.php' from origin 'https://news.research.stlouisfed.org' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://news.research.stlouisfed.org/2022/01/ice-benchmark-administration-ltd-iba-data-to-be-removed-from-fred/:0
-[     790ms] [ERROR] Error fetching announcement:  error  @ https://fred.stlouisfed.org/js/1744382248.banner.js:23
-[     790ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://fred.stlouisfed.org/ssi/banner-content.php:0
-[     901ms] [ERROR] Permissions policy violation: accelerometer is not allowed in this document. @ https://fred.stlouisfed.org/we-kHORSC/5tZ-/d7BZQ/ikDYDcrfD4cNVQ1Q/ER4cUUFz/RwQ/tKmkgb3kB:0
-[     901ms] [WARNING] The deviceorientation events are blocked by permissions policy. See https://github.com/w3c/webappsec-permissions-policy/blob/master/features.md#sensor-features @ https://fred.stlouisfed.org/we-kHORSC/5tZ-/d7BZQ/ikDYDcrfD4cNVQ1Q/ER4cUUFz/RwQ/tKmkgb3kB:0
-[     901ms] [ERROR] Permissions policy violation: accelerometer is not allowed in this document. @ https://fred.stlouisfed.org/we-kHORSC/5tZ-/d7BZQ/ikDYDcrfD4cNVQ1Q/ER4cUUFz/RwQ/tKmkgb3kB:0
-[     901ms] [WARNING] The devicemotion events are blocked by permissions policy. See https://github.com/w3c/webappsec-permissions-policy/blob/master/features.md#sensor-features @ https://fred.stlouisfed.org/we-kHORSC/5tZ-/d7BZQ/ikDYDcrfD4cNVQ1Q/ER4cUUFz/RwQ/tKmkgb3kB:0

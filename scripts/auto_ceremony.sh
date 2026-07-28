@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-PROJECT_ROOT="G:/NewChanlun"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_FILE="${PROJECT_ROOT}/tmp/auto_ceremony.log"
 CEREMONY_STEP_FILE="${PROJECT_ROOT}/.ceremony-step"
 CEREMONY_WAL_FILE="${PROJECT_ROOT}/.chanlun/ceremony_wal.json"
