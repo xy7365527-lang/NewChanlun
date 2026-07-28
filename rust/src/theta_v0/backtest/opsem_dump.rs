@@ -940,7 +940,6 @@ impl OpsemDump {
         use classifier::center_lifecycle::KillTrigger;
         use std::io::Write;
         let trigger = match st.trigger {
-            KillTrigger::FirstClass => "first",
             KillTrigger::ThirdClass => "third",
         };
         let side = match st.trigger_side {
@@ -988,7 +987,6 @@ impl OpsemDump {
         use classifier::center_lifecycle::KillTrigger;
         use std::io::Write;
         let trigger = match mk.trigger {
-            KillTrigger::FirstClass => "first",
             KillTrigger::ThirdClass => "third",
         };
         let side = match mk.trigger_side {
@@ -1020,13 +1018,14 @@ impl OpsemDump {
 
     /// #291：中枢生命周期事件 JSONL 行（born/broken/reset；★#337 增 `superseded` = 在场终结）。
     ///
-    /// ★**#337 两形态分桶登记**（裁定②）：每条**登记了中枢下场**的行都带
-    /// `"death_form":"doctrinal"|"arena_termination"`——教义死亡（三类点破坏 / 一类点同死）
-    /// vs 在场终结（被链推进取代）。`born` 与 died 为空的 `reset` 无该字段（没死人）。
+    /// ★**#337/#489 两形态分桶登记**：每条**登记了中枢下场**的行都带
+    /// `"death_form":"doctrinal"|"arena_termination"`——教义死亡（三类点破坏）vs 在场终结
+    /// （被链推进取代）。`born` 与任意 `reset` 均无死亡形态；Reset 的非空 `died_*` 已改作
+    /// `alive_center_leak=true` 的活中枢漏发见证。
     /// 二者同走 #292 的「终结」出口（口径见 `center_lifecycle.rs` [`DeathForm`]）。
     ///
-    /// ★**#337 容读格标记**：`broken`/`reset` 增 `"slot":"tail"|"tail_prev"`——放行落在链尾
-    /// （主格）还是容读格（链尾前一格，被取代的合法死亡）。分桶读数由此可直接从产物统计。
+    /// ★**#337 容读格标记**：`broken` 的 `"slot":"tail"|"tail_prev"` 表示死亡落在主格还是
+    /// 容读格。Reset 的 `slot` 仅定位漏发见证，绝不表示死亡。
     fn write_cl_event(
         &mut self,
         bar: usize,
@@ -1068,7 +1067,8 @@ impl OpsemDump {
                 by = by_chain_index,
             ),
             E::Reset { level, died_center, died_chain_index, trigger_source_index, trigger_side } => {
-                // died 缺席写 null（与 trades.jsonl 缺席字段同款纪律，不编造）。
+                // ★#489：`died_*` 仅为旧线格式兼容保留，现表示 Reset 到场时仍在主格的活中枢
+                // 见证；缺席写 null。它不是死亡身份，故 death_form 恒 null。
                 let (dzd, dzg, ddd, dgg, dsi, dei) = match died_center {
                     Some(c) => (
                         c.zd.to_string(), c.zg.to_string(), c.dd.to_string(),
@@ -1079,14 +1079,13 @@ impl OpsemDump {
                 // ★#336 R3：`died_born_seg`（段号）→ `died_chain_idx`（链下标）；`cleared_segs`
                 // 随段序列删除而**去掉**（本机无段序列，写 0 会是编造）。
                 let didx = died_chain_index.map_or("null".into(), |o: usize| o.to_string());
-                // ★#337：场为空的一类点边界记录**没死人** ⟹ death_form/slot 一律 null（不编造）。
-                let (dform, slot) = match died_chain_index {
-                    Some(idx) => ("\"doctrinal\"".to_string(), format!("\"{}\"", slot_str(*level, *idx))),
-                    None => ("null".to_string(), "null".to_string()),
+                let (leak, slot) = match died_chain_index {
+                    Some(idx) => ("true", format!("\"{}\"", slot_str(*level, *idx))),
+                    None => ("false", "null".to_string()),
                 };
                 format!(
-                    "{{\"bar\":{bar},\"level\":{level},\"kind\":\"reset\",\"death_form\":{dform},\"slot\":{slot},\"died_zd\":{dzd},\"died_zg\":{dzg},\"died_dd\":{ddd},\"died_gg\":{dgg},\"died_si\":{dsi},\"died_ei\":{dei},\"died_chain_idx\":{didx},\"trigger_src\":{src},\"trigger_side\":\"{side}\"}}\n",
-                    bar = bar, level = level, dform = dform, slot = slot,
+                    "{{\"bar\":{bar},\"level\":{level},\"kind\":\"reset\",\"death_form\":null,\"alive_center_leak\":{leak},\"slot\":{slot},\"died_zd\":{dzd},\"died_zg\":{dzg},\"died_dd\":{ddd},\"died_gg\":{dgg},\"died_si\":{dsi},\"died_ei\":{dei},\"died_chain_idx\":{didx},\"trigger_src\":{src},\"trigger_side\":\"{side}\"}}\n",
+                    bar = bar, level = level, leak = leak, slot = slot,
                     dzd = dzd, dzg = dzg, ddd = ddd, dgg = dgg,
                     dsi = dsi, dei = dei, didx = didx,
                     src = trigger_source_index, side = side_str(*trigger_side),
