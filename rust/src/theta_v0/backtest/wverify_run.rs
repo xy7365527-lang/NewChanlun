@@ -593,6 +593,9 @@ fn q4_fullpi_policy() {
     run_q4_fullpi_policy();
 }
 
+/// #71 L0 χ 接入四臂真实数据验证（详见 [`issue71_chi_gamma`] 模块头，gap2 设计稿 §5-B）。
+///
+/// `#[ignore]`: `cargo test --release --lib theta_v0::backtest::wverify_run::issue71_chi_gamma_validation -- --ignored --nocapture`。
 #[test]
 #[ignore]
 fn issue71_chi_gamma_validation() {
@@ -701,6 +704,63 @@ fn m6_btc_oos_r_decomposition() {
 fn m8_e2e_all_systems_oos() {
     run_m8_e2e_all_systems_oos();
 }
+
+/// m8 字节护栏——仓内常驻回归门（GitHub issue #533，#421 三审 Standards 债 §9.1）。
+///
+/// #429/#430 三审曾对 p3fold/wf7/wf8 三窗的 `OpsemDump` 产物（`trades.jsonl`/`tower_events.jsonl`）
+/// 做过逐字节 pre/post 对拍（`chanlun/review-results/shadow-430-trireview-20260728.md` §5.2），
+/// 但只留在评审报告与 `/tmp` 人工文件里。本测试把同一套对拍收成仓内回归门：三窗产物均 <1MB，
+/// 全文 check 进 `tests/fixtures/issue533_m8_<tag>_{trades,tower_events}.golden.jsonl`
+/// （不需要哈希断言那档——票面"数据体积过大"的门槛在此未触发）。
+///
+/// 三窗顺序跑在同一线程内（非三个并行 `#[test]`），避免 `M8_WIN_FILTER` 进程级 env 被并行
+/// `--ignored` 测试互相踩（`OPSEM_DUMP_DIR_OVERRIDE` 线程局部注入已规避同类竞态，见其定义处
+/// 2026-07-13 竞态实录注记；`M8_WIN_FILTER` 无对应线程局部机制，故用单测试顺序调用规避）。
+///
+/// 数据前提：`analysis/data_cache/btc_1m_full.json` 被 `.gitignore:82` 排除，本地无该文件时
+/// `data::load_by_symbol` 会 panic 报出缺失路径——与既有 `m8_e2e_all_systems_oos` 测试同款
+/// 环境依赖，不额外包一层区分（本文件内既有 m8 测试均无此包装，保持同风格）。
+///
+/// 跑法：`cargo test --release --lib theta_v0::backtest::wverify_run::m8_byte_guardrail --
+///   --ignored --nocapture`。
+///
+/// golden 变更纪律：只允许因已审阅、故意的行为变化更新，且须在同一 PR 说明原因；禁止为让测试
+/// 变绿静默重新生成 golden。
+#[test]
+#[ignore]
+fn m8_byte_guardrail() {
+    for tag in ["p3fold", "wf7", "wf8"] {
+        let dump_dir = std::env::temp_dir().join(format!("issue533_m8_{tag}_opsem"));
+        std::fs::create_dir_all(&dump_dir)
+            .unwrap_or_else(|e| panic!("建 dump 目录 {} 失败：{e}", dump_dir.display()));
+        std::env::set_var("M8_WIN_FILTER", tag);
+        super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE
+            .with(|cell| *cell.borrow_mut() = Some(dump_dir.clone()));
+        run_m8_e2e_all_systems_oos();
+        super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|cell| *cell.borrow_mut() = None);
+        std::env::remove_var("M8_WIN_FILTER");
+        assert_m8_dump_matches_golden(tag, &dump_dir);
+    }
+}
+
+fn assert_m8_dump_matches_golden(tag: &str, dump_dir: &std::path::Path) {
+    for artifact in ["trades", "tower_events"] {
+        let actual_path = dump_dir.join(format!("{artifact}.jsonl"));
+        let actual = std::fs::read(&actual_path)
+            .unwrap_or_else(|e| panic!("读产物 {} 失败：{e}", actual_path.display()));
+        let golden_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(format!("issue533_m8_{tag}_{artifact}.golden.jsonl"));
+        let golden = std::fs::read(&golden_path)
+            .unwrap_or_else(|e| panic!("读 golden {} 失败：{e}", golden_path.display()));
+        assert_eq!(
+            String::from_utf8_lossy(&actual),
+            String::from_utf8_lossy(&golden),
+            "P533 DRIFT：m8 窗口 {tag} 的 {artifact}.jsonl 与仓内 golden 不再逐字节相等"
+        );
+    }
+}
+
 /// δ-free 主裁决的**离线 dump 复现器**（问题F 收口后：主裁决已在线，本测退为快速复现工具）。
 ///
 /// 问题F 收口前 δ-free 主裁决只在此离线算（含 δ 4 元组做主 verdict 是缺口）；收口后 `wverify_full`
