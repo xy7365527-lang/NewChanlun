@@ -1682,6 +1682,101 @@ mod tests {
         assert_eq!(gamma_t[1].force, None);
     }
 
+    /// #542 定向守卫：eq/Debug-FNV 刻意只守六 bit；归因载荷由本测试直接守候选链保真。
+    #[test]
+    fn third_class_entry_identity_survives_candidate_clone_and_copy_without_crosstalk() {
+        use super::super::super::classifier::signal::judge_third_cert;
+        use super::super::super::types::{
+            Direction, Segment, ThirdClassEntryIdentity,
+        };
+
+        let signed_point = |center: Center, leave: Segment, retest: Segment| {
+            judge_third_cert(&center, &leave, Some(Direction::Up), &retest)
+                .expect("严格向上离开、向下回试不触中枢 ⟹ 三类买点")
+                .point
+        };
+        let first_center = Center {
+            zd: 90,
+            zg: 95,
+            dd: 85,
+            gg: 98,
+            start_index: 7,
+            end_index: 8,
+        };
+        let first = signed_point(
+            first_center,
+            Segment {
+                direction: Direction::Up,
+                start_index: 8,
+                end_index: 9,
+                start_price: first_center.zg,
+                end_price: 110,
+            },
+            Segment {
+                direction: Direction::Down,
+                start_index: 9,
+                end_index: 10,
+                start_price: 110,
+                end_price: 100,
+            },
+        );
+        let second_center = Center {
+            zd: 190,
+            zg: 195,
+            dd: 185,
+            gg: 198,
+            start_index: 70,
+            end_index: 80,
+        };
+        let second = signed_point(
+            second_center,
+            Segment {
+                direction: Direction::Up,
+                start_index: 80,
+                end_index: 90,
+                start_price: second_center.zg,
+                end_price: 210,
+            },
+            Segment {
+                direction: Direction::Down,
+                start_index: 90,
+                end_index: 100,
+                start_price: 210,
+                end_price: 200,
+            },
+        );
+        let gamma = assemble_gamma(&classification(vec![vec![first, second]]));
+        assert_eq!(gamma.len(), 2, "两张生产者证书 ⟹ 两个 Candidate");
+
+        let first_expected = ThirdClassEntryIdentity {
+            center_si: 7,
+            center_zd: 90,
+            center_zg: 95,
+            leave_interval: (8, 9),
+            retest_interval: (9, 10),
+        };
+        let second_expected = ThirdClassEntryIdentity {
+            center_si: 70,
+            center_zd: 190,
+            center_zg: 195,
+            leave_interval: (80, 90),
+            retest_interval: (90, 100),
+        };
+        let cloned = gamma.clone();
+        let copied_first = gamma[0];
+        let copied_second = gamma[1];
+
+        assert_eq!(cloned[0].bits.third_class_entry, Some(first_expected));
+        assert_eq!(cloned[1].bits.third_class_entry, Some(second_expected));
+        assert_eq!(copied_first.bits.third_class_entry, Some(first_expected));
+        assert_eq!(copied_second.bits.third_class_entry, Some(second_expected));
+        assert_ne!(
+            copied_first.bits.third_class_entry,
+            copied_second.bits.third_class_entry,
+            "相邻 Candidate 的归因载荷不得串位"
+        );
+    }
+
     /// ★A12 orphan 见证塔（648 裁决 D）：L2 根只收 c2a/c2b，c1（L1）整棵子树掉出 T_i=↓r_i
     /// ——c1 及其 L0 subs 是 orphan frontier。K_i（extract_carrier_forest）全含。
     fn a12_orphan_tower() -> Vec<Rc<Vec<LeveledMove>>> {

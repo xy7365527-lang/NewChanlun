@@ -452,7 +452,9 @@ pub(crate) fn judge_third_cert(
             };
             let mut bits = endpoint_to_bsp(&situ);
             bits.third_class_entry = Some(ThirdClassEntryIdentity {
-                center: *c,
+                center_si: c.start_index,
+                center_zd: c.zd,
+                center_zg: c.zg,
                 leave_interval: (leave_seg.start_index, leave_seg.end_index),
                 retest_interval: (retest_seg.start_index, retest_seg.end_index),
             });
@@ -475,7 +477,9 @@ pub(crate) fn judge_third_cert(
             };
             let mut bits = endpoint_to_bsp(&situ);
             bits.third_class_entry = Some(ThirdClassEntryIdentity {
-                center: *c,
+                center_si: c.start_index,
+                center_zd: c.zd,
+                center_zg: c.zg,
                 leave_interval: (leave_seg.start_index, leave_seg.end_index),
                 retest_interval: (retest_seg.start_index, retest_seg.end_index),
             });

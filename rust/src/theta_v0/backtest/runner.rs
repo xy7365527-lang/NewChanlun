@@ -2999,7 +2999,8 @@ mod tests {
         }
     }
 
-    /// #542 红绿锚：完整身份必须从 `judge_third_cert` 经真实开仓/fill 链进入成交行。
+    /// #542 口径锚：本行是决策账本开仓记录；身份是该开仓候选的生产者签发身份，
+    /// 不声明逐笔执行成交因果。dump 的证书键必须回连同一 typed-ledger 腿的入场证书。
     #[test]
     fn opsem_dump_third_class_entry_carries_complete_producer_identity() {
         let config = ThetaConfig::default();
@@ -3022,16 +3023,41 @@ mod tests {
             None,
         );
         OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = None);
-        assert!(!fill.typed_ledger.is_empty(), "前置：三类买点确认 ⟹ 有 typed 交易");
+        assert!(
+            !fill.typed_ledger.is_empty(),
+            "前置：三类买点确认 ⟹ 有 typed 决策账本记录"
+        );
 
         let content = std::fs::read_to_string(dump_dir.join("trades.jsonl"))
             .expect("dump 启用 ⟹ trades.jsonl 生成");
         let row: serde_json::Value =
             serde_json::from_str(content.lines().next().expect("trades.jsonl 非空"))
-                .expect("成交行是合法 JSON");
+                .expect("决策账本行是合法 JSON");
         let cert = &row["certificate"];
-        assert_eq!(cert["level"], 0);
-        assert_eq!(cert["source_index"], 3);
+        let row_position_node_id = row["position_node_id"]
+            .as_u64()
+            .expect("dump 行携 position_node_id");
+        let ledger_leg = fill
+            .typed_ledger
+            .iter()
+            .find(|t| t.position_node_id.hash64() == row_position_node_id)
+            .expect("dump 行 position_node_id 必须回连 typed_ledger 中同一条腿");
+        let ledger_cert = ledger_leg
+            .position_node_id
+            .entry_certificate
+            .expect("本腿由三类证书候选开仓");
+        let dump_cert_key = (
+            cert["level"].as_u64().expect("certificate.level") as u32,
+            cert["source_index"]
+                .as_u64()
+                .expect("certificate.source_index") as usize,
+        );
+        assert_eq!(
+            dump_cert_key,
+            (ledger_cert.level, ledger_cert.source_index),
+            "dump 的 (level, source_index) 必须对应 typed_ledger 本腿的入场证书"
+        );
+        assert_eq!(dump_cert_key, (0, 3), "生产者签发的三类证书键");
         assert_eq!(cert["bsp_bits_class_index"], 4);
         assert_eq!(cert["dir"], "Long");
         assert_eq!(cert["center_si"], 0);

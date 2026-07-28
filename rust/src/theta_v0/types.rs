@@ -134,11 +134,14 @@ pub struct Center {
 
 /// #542：三类入口证书的生产者身份。
 ///
-/// 这是只读归因载荷：由 `judge_third_cert` 一次签发，随既有 BSP 证书进入候选与成交快照；
-/// 不参与六 bit 分类、排序、相等或任何交易判定。`level/source_index/side` 仍由候选本体承载。
+/// 这是只读归因载荷：由 `judge_third_cert` 一次签发，随既有 BSP 证书进入候选与决策账本快照；
+/// 不参与六 bit 分类、排序、相等或任何交易判定，也不声明逐笔执行成交因果。
+/// `level/source_index/side` 仍由候选本体承载。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ThirdClassEntryIdentity {
-    pub center: Center,
+    pub center_si: usize,
+    pub center_zd: i64,
+    pub center_zg: i64,
     pub leave_interval: (usize, usize),
     pub retest_interval: (usize, usize),
 }
@@ -200,7 +203,8 @@ pub struct BspBits {
     pub sell3: bool,
     /// #542：随证书直传的三类完整身份；不是第七个 bit，不进任何结构/交易语义。
     ///
-    /// 置于既有证书载体而非成交侧旁路查询，保证实际选中的 candidate/order 才能把身份带进 fill。
+    /// 置于既有证书载体而非 dump 侧旁路查询，由实际选中的 Candidate 带进决策账本快照；
+    /// 不作为 Order/fill 的逐笔执行身份。
     #[doc(hidden)]
     pub third_class_entry: Option<ThirdClassEntryIdentity>,
 }
@@ -440,6 +444,51 @@ mod tests {
         let sell = BspBits { sell3: true, ..Default::default() };
         assert!(buy.confirm_side(Side::Long) && !buy.confirm_side(Side::Short));
         assert!(sell.confirm_side(Side::Short) && !sell.confirm_side(Side::Long));
+    }
+
+    /// #542 定向守卫：既有 equality/Debug-FNV 只覆盖六 bit；归因载荷保真由候选链测试另守。
+    #[test]
+    fn bsp_bits_schema_only_eq_and_debug_intentionally_ignore_attribution_payload() {
+        let first = BspBits {
+            buy3: true,
+            third_class_entry: Some(ThirdClassEntryIdentity {
+                center_si: 7,
+                center_zd: 90,
+                center_zg: 95,
+                leave_interval: (8, 9),
+                retest_interval: (9, 10),
+            }),
+            ..Default::default()
+        };
+        let second = BspBits {
+            third_class_entry: Some(ThirdClassEntryIdentity {
+                center_si: 70,
+                center_zd: 900,
+                center_zg: 950,
+                leave_interval: (80, 90),
+                retest_interval: (90, 100),
+            }),
+            ..first
+        };
+
+        assert_eq!(
+            first, second,
+            "六 bit 相同 ⟹ 归因载荷不同也刻意判等（schema-only 铁律）"
+        );
+        let debug = format!("{first:?}");
+        for payload_field in [
+            "third_class_entry",
+            "center_si",
+            "center_zd",
+            "center_zg",
+            "leave_interval",
+            "retest_interval",
+        ] {
+            assert!(
+                !debug.contains(payload_field),
+                "历史 Debug/FNV 不纳入归因字段 {payload_field}: {debug}"
+            );
+        }
     }
 
     #[test]
