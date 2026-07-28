@@ -866,16 +866,17 @@ impl OpsemDump {
             }
             // ── 喂本 bar 新确认买卖点（修6：只消费已确认的点）──
             //
-            // ★#329 H1（R3 后口径收窄）：破坏/重置必须指名道姓——触发点自带载体
-            // （`BspPoint.center`：一类 = 被破的最后中枢、三类 = 所离开回抽的中枢）⟹ 取其
-            // [`CenterId`]（si,zd,zg）作 target 传入。载体不在本级链上 ⟹ 事件机拒杀并返回误杀
-            // 证据（`kind:"miskill"`）；载体命中链上已退场实例 ⟹ 陈旧请求（`kind:"stale"`）。
+            // ★#329 H1（#489 后口径）：拒杀/「指名道姓」只适用于 Broken（三类点）。
+            // 三类点以所离开回抽的中枢为载体，取其 [`CenterId`]（si,zd,zg）作 target；
+            // 载体不在本级链上 ⟹ 事件机拒杀并返回误杀证据（`kind:"miskill"`），载体命中
+            // 链上已退场实例 ⟹ 陈旧请求（`kind:"stale"`）。一类点忽略 target、不解析链，
+            // 直接广播 Reset；非空 `died_*` 只是广播到场时仍有活中枢的漏发见证。
             if let Some(step_level) = step.levels.get(lvl) {
                 for p in step_level.bsp.iter() {
                     let target = match p.center {
                         Some(classifier::bsp::OwnerRef::Center(c)) => Some(CenterId::of(&c)),
-                        // 二类锚（`Type1Anchor`）/ 载体缺席 ⟹ 无中枢身份可声明（None ⟹ 场非空
-                        // 时必拒杀；二类点本就不产事件，实测 wf8 零命中）。
+                        // 二类锚（`Type1Anchor`）/ 载体缺席 ⟹ 无中枢身份可声明；对三类点，
+                        // None 且场非空时必拒杀。二类点本就不产事件，一类点则忽略 target。
                         _ => None,
                     };
                     match self.cl_machines[lvl].push_point(p.bits, p.source_index, target) {
