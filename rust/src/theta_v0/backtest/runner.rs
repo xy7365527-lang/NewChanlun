@@ -4323,12 +4323,15 @@ mod tests {
 
     /// ★#526 MEDIUM-1（#590 装配层锚）：既有 5 把 runner 锁全挂 `pi_theta_fill_loop_voice`
     /// （#[cfg(test)] 薄包装，跳过生产入口），装配层——`run_theta_v0_pi_overlay` 的
-    /// `net_result` 声部口径切换 / `tw_final` 转发 / `VoiceExecRunSummary` 九字段——零覆盖
+    /// `net_result` 声部口径切换 / `VoiceExecRunSummary` 九字段（非零信号下）——零覆盖
     /// （既有 `voice_exec_env_gate_off_bitexact_on_voice_readings` 用的 60-bar 锯齿夹具经真
-    /// 增量分类器判零信号，n_voice_fills=0，其余 5 字段=0 的读数不构成「存在」证据）。本锁经
-    /// 真实 BTC 数据窗口（真结构、真触发）跑通 VOICE_EXEC 注入臂，锁九字段非零存在 + net_result
-    /// 切换读数存在 + tw_final 转发存在——**存在性 + 口径锁，不追加 bit-exact 伪称**。
+    /// 增量分类器判零信号，n_voice_fills=0，其余 5 字段=0 的读数不构成「存在」证据）。旧锚
+    /// （`voice_exec_env_gate_off_bitexact_on_voice_readings`）已覆盖 `tw_final` 转发等价；
+    /// 本锚补非零信号下九字段存在性 + net_result 声部口径切换读数：经真实 BTC 数据窗口
+    /// （真结构、真触发）跑通 VOICE_EXEC 注入臂，锁九字段非零存在 + net_result 切换读数
+    /// 存在——**存在性 + 口径锁，不追加 bit-exact 伪称**。
     #[test]
+    #[ignore = "需 BTC 真实数据（DATA BLOCKER 不伪造）"]
     fn pi_voice_exec_run_overlay_assembly_fields_present() {
         use super::super::data;
         let config = ThetaConfig::default();
@@ -7114,10 +7117,11 @@ mod tests {
     }
 
     /// ★#526 P1（#590 MEDIUM-2 订正）：与既有 `voice_exec_event_driven_fills_decision_bitexact`
-    /// （runner.rs:4180，同 buy_then_sell(1) 20-bar 单根 round-trip 夹具）的净增量——该锁已锁
-    /// typed_ledger/tw_final 跨臂 bit-exact + book.total_voices()/n_fills()，本锁只补它未覆盖
-    /// 的两条决策面：voice_verdicts 与 account_view.fills()。旧名「嵌套禁用」名实不符（未碰
-    /// NEST_CERT_GATE_OVERRIDE，比的是净额臂 vs 声部臂）已随本次订正消除。
+    /// （runner.rs:4180，同信号闭包、不同价格路径——4180 用 px100_bar 涨价路径产 PnL，本锁用
+    /// mk_bar 平价零 PnL）的净增量——该锁已锁 typed_ledger/tw_final 跨臂 bit-exact +
+    /// book.total_voices()/n_fills()，本锁只补它未覆盖的两条决策面：voice_verdicts 与
+    /// account_view.fills()。旧名「嵌套禁用」名实不符（未碰 NEST_CERT_GATE_OVERRIDE，比的是净额臂
+    /// vs 声部臂）已随本次订正消除。
     #[test]
     fn pi_voice_exec_verdicts_and_account_fills_match_net_arm() {
         let config = ThetaConfig::default();
