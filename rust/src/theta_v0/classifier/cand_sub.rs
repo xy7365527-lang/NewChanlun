@@ -69,6 +69,18 @@ pub struct SameLevelBlock {
     pub interval_ok: usize,
     /// 其中被跨级分支拒的对数。恒等于 `interval_ok`（同级 ⟹ 级别分支必假）。
     pub blocked: usize,
+    /// `blocked` 中的**自反**对数（事件与自己，`a.key == b.key`）——恒等于同级事件总数。
+    ///
+    /// 单列出来是因为它**没有信息量**：自反包含是区间谓词的自反性，与级别门无关。
+    /// 「级别门真起作用」的证据是 [`Self::non_reflexive_blocked`]，不是 `blocked` 本身。
+    pub reflexive_blocked: usize,
+}
+
+impl SameLevelBlock {
+    /// 非自反的级别门拦截数：两个**不同**候选同级且区间相含、被跨级分支拒的对数。
+    pub fn non_reflexive_blocked(self) -> usize {
+        self.blocked - self.reflexive_blocked
+    }
 }
 
 /// 相邻级包含扫描结果。
@@ -183,6 +195,9 @@ fn count_same_level(by_level: &BTreeMap<u32, Vec<CandidateEvent>>) -> SameLevelB
                     block.interval_ok += 1;
                     if !candidate_is_sub(a, b) {
                         block.blocked += 1;
+                        if a.key == b.key {
+                            block.reflexive_blocked += 1;
+                        }
                     }
                 }
             }
@@ -357,10 +372,41 @@ mod tests {
 
         // 反向级别门：父 (10,20) 反向套子 (30,40)? 否；套 (10,15)/(12,18)? 否 ⟹ 本例 0。
         assert_eq!(entry.reverse_blocked_by_level, 0);
-        // 同级门：L0 三条中 (12,18) ⊆ (10,15)? 否；自反对 3 条成立且全被级别门拒。
+        // 同级门：L0 三条互不相含（(12,18) ⊄ (10,15) 等），只有自反对成立且全被级别门拒。
         assert_eq!(scan.same_level.pairs, 3 * 3 + 1);
         assert_eq!(scan.same_level.interval_ok, 4, "三条 L0 自反 + L1 自反");
         assert_eq!(scan.same_level.blocked, scan.same_level.interval_ok);
+        assert_eq!(scan.same_level.reflexive_blocked, 4, "本例拦截全是自反");
+        assert_eq!(
+            scan.same_level.non_reflexive_blocked(),
+            0,
+            "本例无两个不同候选同级相含"
+        );
+    }
+
+    /// 同级门的非自反拦截：两个**不同**候选同级且区间相含 ⟹ 级别分支是唯一拒因。
+    #[test]
+    fn same_level_block_separates_reflexive_from_real_interception() {
+        let mut book = CandidateEventBook::default();
+        book.advance(
+            &[
+                observation(0, 10, (10, 20)),
+                observation(0, 12, (12, 18)),
+                observation(1, 30, (30, 40)),
+            ],
+            40,
+        );
+        let scan = scan_adjacent_containment(&book.streams());
+        assert_eq!(scan.same_level.pairs, 2 * 2 + 1);
+        // (12,18)⊆(10,20) 一条非自反 + 三条自反。
+        assert_eq!(scan.same_level.interval_ok, 4);
+        assert_eq!(scan.same_level.blocked, 4);
+        assert_eq!(scan.same_level.reflexive_blocked, 3);
+        assert_eq!(
+            scan.same_level.non_reflexive_blocked(),
+            1,
+            "同级两个不同候选相含被级别门拒 ⟹ 级别分支非装饰"
+        );
     }
 
     /// 反向级别门非真空的合成锁：父区间被子区间包含时，级别分支是唯一拒因。

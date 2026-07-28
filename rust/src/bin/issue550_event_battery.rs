@@ -6,6 +6,7 @@
 use newchan_rust::theta_v0::classifier::cand_event::{
     CandidateEvent, CandidateKey, CandidateKind, CandidateState,
 };
+use newchan_rust::theta_v0::classifier::cand_sub;
 use newchan_rust::theta_v0::classifier::streaming::OwnedIncrementalClassifier;
 use newchan_rust::theta_v0::classifier::{self, TowerCache};
 use newchan_rust::theta_v0::config::ThetaConfig;
@@ -121,8 +122,52 @@ fn run() -> Result<(), String> {
     let terminal_streams = compare_streams(&bars, &config)?;
     print_summary(&bars, &terminal_streams);
     print_lifecycle_summary(&terminal_streams);
+    print_containment_summary(&terminal_streams);
     print_projection_fork(&bars, &config, &terminal_streams)?;
     Ok(())
+}
+
+/// #552（N2）：真实事件流上的相邻级 `C⊆C` 包含只读探针 + 覆盖计数（防真空绿）。
+///
+/// 计数**不是** bin 侧的独立重算——本节直接调用生产谓词的扫描入口
+/// [`cand_sub::scan_adjacent_containment`]（其内部逐对调 `candidate_is_sub`），
+/// 故印出的每个数都是谓词本身在真实数据上的判定结果，与单测同源。
+///
+/// `pairs=0` 是**真空**读数（该窗口没有相邻级对可判），必须与「判过但全不成立」区分——
+/// 因此逐级印 child_events/parent_events/pairs，不只印成立数。
+fn print_containment_summary(streams: &classifier::cand_event::CandidateStreams) {
+    let scan = cand_sub::scan_adjacent_containment(streams);
+    for entry in &scan.levels {
+        println!(
+            "ISSUE552_CONTAIN_LEVEL child_level={} parent_level={} child_events={} \
+             parent_events={} pairs={} contained={} touching={} strict={} disjoint={} \
+             reverse_blocked_by_level={}",
+            entry.child_level,
+            entry.parent_level,
+            entry.child_events,
+            entry.parent_events,
+            entry.pairs,
+            entry.contained,
+            entry.touching,
+            entry.strict,
+            entry.disjoint,
+            entry.reverse_blocked_by_level,
+        );
+    }
+    println!(
+        "ISSUE552_CONTAIN adjacent_level_pairs_scanned={} total_pairs={} total_contained={} \
+         total_touching={} same_level_pairs={} same_level_interval_ok={} same_level_blocked={} \
+         same_level_reflexive_blocked={} same_level_non_reflexive_blocked={}",
+        scan.levels.len(),
+        scan.total_pairs(),
+        scan.total_contained(),
+        scan.total_touching(),
+        scan.same_level.pairs,
+        scan.same_level.interval_ok,
+        scan.same_level.blocked,
+        scan.same_level.reflexive_blocked,
+        scan.same_level.non_reflexive_blocked(),
+    );
 }
 
 /// #551：因果簿生命史分解——四态构成、修订类别、首证钟落位。
