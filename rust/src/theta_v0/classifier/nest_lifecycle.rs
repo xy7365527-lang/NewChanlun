@@ -1488,18 +1488,18 @@ pub fn provide_l1_active_pan_live_windows(
     let active = frontier.as_segment();
     // 行进中段必须严格晚于全部 confirmed 段（否则不是 frontier ⟹ 拒绝，诚实空产出）。
     //
-    // **为什么只查 `>=` 而不查 `==`**（票 #559 条件 C2 的判定，照实登记）：段序列有洞
-    // （`active.start_index > last.end_index`）时，λ_C 的定界窗口会跨过缺失段 ⟹ 确实是
-    // 正确性问题。但在生产接线上**洞结构上不可能**：`segments` = `lower_legs_from(tower[0])`，
-    // 而 `tower[0]` = `l0.segments` 全量（含未确认末段，classifier/mod.rs
-    // `moves_tower_l0` 由 `l0.segments[..]` 纯函数生成）；parser 发射段用
-    // `end_stroke = k-1` 且下一段 `seg_start = k`（parser/segment.rs:415-425），
-    // 笔首尾相接 ⟹ 末段 `end_index` == pending 首笔 `start_index` == `frontier.start_index`。
-    // 故 `>` 分支在生产不可达（BTC 100k 实测 `frontier_gap` 分布逐 bar 恒 0，见交付报告
-    // #559 修复节）。**不加 `==` 守卫的原因**：仓内 pan 合成夹具用「段间 +1 不共端点」
-    // 的坐标约定（`pan_real_fixture`：(50,59)/(60,69)/…），与生产共端点约定不同，
-    // `==` 守卫在该夹具上恒拒 ⟹ 会把一条生产不可达的守卫做成只能靠改夹具才可测的死分支。
-    // 夹具约定与生产不一致本身登记为遗留（不在本票 Scope）。
+    // **仍只查 `<` 不查 `==`**（票 #578 复核，推翻本注记曾经的「`>` 分支生产不可达」断言）：
+    // 票 #559 条件 C2 曾主张「parser 笔首尾相接 ⟹ 末段 end_index == frontier.start_index 恒真，
+    // `>` 分支不可达」，并引用「BTC 100k 实测 frontier_gap 分布逐 bar 恒 0」为据——但该数字
+    // **从未由任何真做 `!=`/`>` 判别的探针实际测过**：旧夹具坐标（段间 +1 不共端点）令 `==`
+    // 守卫在测试里恒拒，从来没人能在不改夹具的前提下把 `>` 分支接上真实数据跑一遍。
+    // 票 #578 把夹具坐标对齐生产共端点约定后，**首次**具备条件真做这个探针：改 `<`→`!=`
+    // 编译通过、单测全绿后，用同一 BTC 数据跑 p123 20k bar 对拍，`frontier_not_after_confirmed`
+    // 从 0 跳到 **210**（`window` 命中同时从 101 降到 58）——即 `active.start_index >
+    // last.end_index`（有洞，非倒灌）在真实数据里频繁发生，C2 的「恒可达」断言是未经验证的
+    // 声明膨胀（090 号语法禁令）。故**不收紧**本守卫：`<`→`!=` 会真实拒绝当下被接受的活窗，
+    // 不是生产零行为变化，是否应该拒绝这些「有洞」frontier 需要教义/架构裁决，非本票 Scope
+    // （见 §7 遗留 6）。
     if confirmed_segments
         .last()
         .is_some_and(|last| active.start_index < last.end_index)
@@ -2572,11 +2572,11 @@ mod tests {
     }
 
     /// pan 真实夹具：Consolidation 中枢 [20,49]（核心 [100,110]）+ 窄锚结构——
-    /// A=[50,59]（Down 105→95 破核心）→ 回中枢段 [60,69]（Up 96→104 重回核心）→
-    /// C episode [70,79]（Down 103→93 破核心新低）∪ [80,89]（Up 94→99 回拉不重回核心，
-    /// episode 不复位）∪ [90,99]（Down 98→92 续创新低）。
-    /// 力度：a 窗面积 20/柱峰 2.0/黄白线峰 5.0；c 一窗（[70,79]）全面更弱；
-    /// c 延展段（[80,99]）取值由调用方定（T11 反超 / T14 保持弱）。
+    /// A=[50,59]（Down 105→95 破核心）→ 回中枢段 [59,69]（Up 96→104 重回核心）→
+    /// C episode [69,79]（Down 103→93 破核心新低）∪ [79,89]（Up 94→99 回拉不重回核心，
+    /// episode 不复位）∪ [89,99]（Down 98→92 续创新低）。
+    /// 力度：a 窗面积 20/柱峰 2.0/黄白线峰 5.0；c 一窗（[69,79]）全面更弱；
+    /// c 延展段（[79,99]）取值由调用方定（T11 反超 / T14 保持弱）。
     #[allow(clippy::too_many_arguments)]
     fn pan_real_fixture(
         c_ext_hist: f64,
@@ -2605,10 +2605,10 @@ mod tests {
         );
         let segments = vec![
             Segment { direction: Direction::Down, start_index: 50, end_index: 59, start_price: 105, end_price: 95 },
-            Segment { direction: Direction::Up, start_index: 60, end_index: 69, start_price: 96, end_price: 104 },
-            Segment { direction: Direction::Down, start_index: 70, end_index: 79, start_price: 103, end_price: 93 },
-            Segment { direction: Direction::Up, start_index: 80, end_index: 89, start_price: 94, end_price: 99 },
-            Segment { direction: Direction::Down, start_index: 90, end_index: 99, start_price: 98, end_price: 92 },
+            Segment { direction: Direction::Up, start_index: 59, end_index: 69, start_price: 96, end_price: 104 },
+            Segment { direction: Direction::Down, start_index: 69, end_index: 79, start_price: 103, end_price: 93 },
+            Segment { direction: Direction::Up, start_index: 79, end_index: 89, start_price: 94, end_price: 99 },
+            Segment { direction: Direction::Down, start_index: 89, end_index: 99, start_price: 98, end_price: 92 },
         ];
         let anchors = self_anchors(&segments);
         let mut hist = vec![0.0; 120];
@@ -2634,23 +2634,23 @@ mod tests {
         let m = material(&hist, &dif, &close_src);
         let mut book = NestLifecycleBook::new();
 
-        // as_of=79：真实定位产窗（窄锚 A=(50,59)、c_start=70 同锚），三通道成立
+        // as_of=79：真实定位产窗（窄锚 A=(50,59)、c_start=69 同锚），三通道成立
         // （5<20、1<5、0.5<2）⟹ first_provable=79。
         let windows = provide_pan_live_windows(1, &centers, &kinds, &segments, &anchors, 79);
         assert_eq!(windows.len(), 1, "单一身份活窗");
         assert_eq!(windows[0].seg_a, (50, 59), "窄锚 A 经真实 locate_pan_div_structure 锚定");
-        assert_eq!(windows[0].seg_c_live, (70, 79), "c_start_live 与完成后 seg_c.0 同锚（卡 §3）");
+        assert_eq!(windows[0].seg_c_live, (69, 79), "c_start_live 与完成后 seg_c.0 同锚（卡 §3）");
         let obs: Vec<_> = windows.iter().map(|w| LifecycleObservation::pan_live(*w, false)).collect();
         book.advance(&obs, 79, &m);
         assert_eq!(
-            book.get(&key_pan((50, 59), (70, 79))).unwrap().first_provable_at,
+            book.get(&key_pan((50, 59), (69, 79))).unwrap().first_provable_at,
             Some(79)
         );
 
         // as_of=99：活窗延展，真实现算三通道全假 ⟹ Invalidated(ForceOvertake) 可审计。
         let windows = provide_pan_live_windows(1, &centers, &kinds, &segments, &anchors, 99);
         assert_eq!(windows.len(), 1);
-        assert_eq!(windows[0].seg_c_live, (70, 99), "活窗右端随 as_of 前进（设计内行为）");
+        assert_eq!(windows[0].seg_c_live, (69, 99), "活窗右端随 as_of 前进（设计内行为）");
         let obs: Vec<_> = windows.iter().map(|w| LifecycleObservation::pan_live(*w, false)).collect();
         let d = book.advance(&obs, 99, &m);
         assert!(d.iter().any(|r| matches!(
@@ -2668,7 +2668,7 @@ mod tests {
         assert_eq!((ev.hist_peak_a, ev.hist_peak_c), (2.0, 3.0));
         // 终态留档不可消费（消费侧 Closed-only，裁定 #64 §2(a)）。
         assert!(book.consumable_closed().is_empty(), "Invalidated 可查账、不开放消费");
-        // 终态吸收（含桥匹配）：as_of=109 活窗延展 (70,109) 仍零输出。
+        // 终态吸收（含桥匹配）：as_of=109 活窗延展 (69,109) 仍零输出。
         let windows = provide_pan_live_windows(1, &centers, &kinds, &segments, &anchors, 109);
         let obs: Vec<_> = windows.iter().map(|w| LifecycleObservation::pan_live(*w, false)).collect();
         let d = book.advance(&obs, 109, &m);
@@ -2694,7 +2694,7 @@ mod tests {
             r.kind,
             LifecycleRevisionKind::ForceUnavailable { reason: UnavailReason::MissingForceSeries }
         )));
-        let key79 = key_pan((50, 59), (70, 79));
+        let key79 = key_pan((50, 59), (69, 79));
         let e = book.get(&key79).unwrap();
         assert_eq!(e.state, NestEventState::Provisional, "「不可验」≠「不再弱」");
         assert_eq!(e.first_provable_at, None, "Unavailable 不写 first_provable");
@@ -2705,11 +2705,11 @@ mod tests {
         assert!(d.is_empty(), "同 as_of 注记幂等去重");
         assert_eq!(book.get(&key79).unwrap().revisions.len(), 2, "Observed + 一条注记");
 
-        // as_of=89：坐标映射失败子场景（close_src 截断到 70 之前 ⟹ c 窗映射失败）
+        // as_of=89：坐标映射失败子场景（close_src 截断到 69 之前 ⟹ c 窗映射失败）
         // ⟹ CoordinateMapFailed 注记，仍不判 Invalidated。
         let windows = provide_pan_live_windows(1, &centers, &kinds, &segments, &anchors, 89);
         let obs89: Vec<_> = windows.iter().map(|w| LifecycleObservation::pan_live(*w, false)).collect();
-        let short_src = identity_close_src(70);
+        let short_src = identity_close_src(69);
         let m_trunc = ForceMaterial {
             hist: Some(&hist),
             dif: Some(&dif),
@@ -3273,7 +3273,7 @@ mod tests {
         assert_eq!(stats.completion_events, 0);
         assert_eq!(stats.channel_switches, 0, "无完成事件 ⟹ 不切换");
         assert_eq!(delta.len(), 2, "Observed + FirstProvable");
-        let entry = book.get(&key_pan((50, 59), (70, 79))).expect("活假设建仓");
+        let entry = book.get(&key_pan((50, 59), (69, 79))).expect("活假设建仓");
         assert_eq!(entry.observed_at, 79);
         assert_eq!(entry.first_provable_at, Some(79));
         assert_eq!(entry.structure_end_at, None, "行进中通道不给结构完成信号");
@@ -3324,14 +3324,14 @@ mod tests {
         // as_of=79：仅行进中通道 ⟹ 结构完成信号未置。
         feed_prefix_phases(&mut book, &runs, &[], 79, &m);
         assert_eq!(
-            book.get(&key_pan((50, 59), (70, 79)))
+            book.get(&key_pan((50, 59), (69, 79)))
                 .unwrap()
                 .structure_end_at,
             None
         );
 
         // as_of=99：完成事件通道首次产出该身份 ⟹ 行进中窗让位、结构完成置真。
-        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        let events = [pan_event((50, 59), (69, 99), true, 99)];
         let (delta, stats) = feed_prefix_phases(&mut book, &runs, &events, 99, &m);
         assert_eq!(stats.completion_events, 1);
         assert_eq!(
@@ -3345,7 +3345,7 @@ mod tests {
             "结构完成信号由通道切换给出（不另造判据）"
         );
         let entry = book
-            .get(&key_pan((50, 59), (70, 99)))
+            .get(&key_pan((50, 59), (69, 99)))
             .expect("桥迁移后新键");
         assert_eq!(entry.structure_end_at, Some(99));
         assert_eq!(entry.state, NestEventState::Confirmed);
@@ -3360,7 +3360,7 @@ mod tests {
         );
         assert!(delta.is_empty(), "零延展修订");
         assert_eq!(
-            book.get(&key_pan((50, 59), (70, 99)))
+            book.get(&key_pan((50, 59), (69, 99)))
                 .unwrap()
                 .revisions
                 .len(),
@@ -3396,13 +3396,13 @@ mod tests {
             let mut book = NestLifecycleBook::new();
             feed_prefix_phases(&mut book, &runs, &[], 79, &m);
             assert_eq!(
-                book.get(&key_pan((50, 59), (70, 79)))
+                book.get(&key_pan((50, 59), (69, 79)))
                     .unwrap()
                     .first_provable_at,
                 Some(79),
                 "切换前已可证（反超定义要求曾构成）"
             );
-            let events = [pan_event((50, 59), (70, 99), event_confirmed, 99)];
+            let events = [pan_event((50, 59), (69, 99), event_confirmed, 99)];
             let delta = feed_prefix_phases(&mut book, &runs, &events, 99, &m)
             .0;
             let overtaken = delta.iter().any(|r| {
@@ -3458,10 +3458,10 @@ mod tests {
             }];
             let mut book = NestLifecycleBook::new();
             feed_prefix_phases(&mut book, &runs, &[], 79, &m);
-            let events = [pan_event((50, 59), (70, 99), false, 99)];
+            let events = [pan_event((50, 59), (69, 99), false, 99)];
             feed_prefix_phases(&mut book, &runs, &events, 99, &m);
             let entry = book
-                .get(&key_pan((50, 59), (70, 99)))
+                .get(&key_pan((50, 59), (69, 99)))
                 .expect("终态留档不删（谱系保留，禁删除模拟失效）");
             assert_eq!(entry.state, NestEventState::Invalidated);
             assert!(
@@ -3528,7 +3528,7 @@ mod tests {
             kinds: &kinds,
             legs: &legs,
         }];
-        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        let events = [pan_event((50, 59), (69, 99), true, 99)];
         // 不挂账本（基线）：入参原样。
         let baseline = events;
         // 挂账本：同一入参过一遍出口。
@@ -3563,10 +3563,10 @@ mod tests {
         }];
         let mut book = NestLifecycleBook::new();
         feed_prefix_phases(&mut book, &runs, &[], 79, &m);
-        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        let events = [pan_event((50, 59), (69, 99), true, 99)];
         feed_prefix_phases(&mut book, &runs, &events, 99, &m);
         assert_eq!(
-            book.get(&key_pan((50, 59), (70, 99))).unwrap().state,
+            book.get(&key_pan((50, 59), (69, 99))).unwrap().state,
             NestEventState::Confirmed,
             "前置：身份已进终态"
         );
@@ -3622,13 +3622,13 @@ mod tests {
         );
 
         // 对照臂：先在前一 trigger 建活身份；盘整域完成事件随后正常计入并结算。
-        let pan = pan_event((50, 59), (70, 99), true, 99);
+        let pan = pan_event((50, 59), (69, 99), true, 99);
         let mut book_pan = NestLifecycleBook::new();
         feed_prefix_phases(&mut book_pan, &runs, &[], 79, &m);
         let (_, stats_pan) = feed_prefix_phases(&mut book_pan, &runs, &[pan], 99, &m);
         assert_eq!(stats_pan.completion_events, 1);
         assert!(
-            book_pan.get(&key_pan((50, 59), (70, 99))).is_some(),
+            book_pan.get(&key_pan((50, 59), (69, 99))).is_some(),
             "盘整域事件命中先前活身份后正常结算（对照臂）"
         );
     }
@@ -3647,7 +3647,7 @@ mod tests {
             kinds: &kinds,
             legs: &legs,
         }];
-        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        let events = [pan_event((50, 59), (69, 99), true, 99)];
         let mut book = NestLifecycleBook::new();
 
         let (delta, stats) = feed_prefix_phases(&mut book, &runs, &events, 99, &m);
@@ -3663,7 +3663,7 @@ mod tests {
             LifecycleRevisionKind::Confirmed
         ));
         let completed = book
-            .get(&key_pan((50, 59), (70, 99)))
+            .get(&key_pan((50, 59), (69, 99)))
             .expect("闪现身份须留完整链");
         assert_eq!(completed.state, NestEventState::Confirmed);
         assert_eq!(completed.observed_at, 99);
@@ -3698,7 +3698,7 @@ mod tests {
         );
         assert_eq!(terminal.structure_end_at, None, "Q3 第二终局路径不经结构完成");
 
-        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        let events = [pan_event((50, 59), (69, 99), true, 99)];
         let (_, stats) = feed_prefix_phases(&mut book, &[], &events, 109, &m);
         assert_eq!(stats.completion_signals, 1, "首完成分母覆盖已提前终局身份");
         assert_eq!(stats.channel_switches, 1);
@@ -3717,7 +3717,7 @@ mod tests {
         let (_centers, _kinds, _segments, _anchors, hist, dif, close_src) =
             pan_real_fixture(-0.1, -0.5);
         let m = material(&hist, &dif, &close_src);
-        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        let events = [pan_event((50, 59), (69, 99), true, 99)];
         let mut book = NestLifecycleBook::new();
         let (delta, stats) = feed_prefix_phases(&mut book, &[], &events, 99, &m);
         assert_eq!(stats.completion_signals, 1);
@@ -3739,8 +3739,8 @@ mod tests {
         let (_centers, _kinds, _segments, _anchors, hist, dif, close_src) =
             pan_real_fixture(-0.1, -0.5);
         let m = material(&hist, &dif, &close_src);
-        let windows = [pan_window((50, 59), 70, 99)];
-        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        let windows = [pan_window((50, 59), 69, 99)];
+        let events = [pan_event((50, 59), (69, 99), true, 99)];
         let mut book = NestLifecycleBook::new();
 
         let phases = bar_phases(&windows, &events, 99);
@@ -3781,7 +3781,7 @@ mod tests {
         let m = material(&hist, &dif, &close_src);
         let mut book = NestLifecycleBook::new();
 
-        let first = [pan_window((50, 59), 70, 79)];
+        let first = [pan_window((50, 59), 69, 79)];
         let born_phases = bar_phases(&first, &[], 79);
         let (born, _) = feed_replay_bar(
             &mut book,
@@ -3802,7 +3802,7 @@ mod tests {
             NestEventState::Provisional
         );
 
-        let later = [pan_window((50, 59), 70, 99)];
+        let later = [pan_window((50, 59), 69, 99)];
         let later_phases = bar_phases(&later, &[], 99);
         let (overtaken, _) = feed_replay_bar(
             &mut book,
@@ -3842,7 +3842,7 @@ mod tests {
         let (_centers, _kinds, _segments, _anchors, hist, dif, close_src) =
             pan_real_fixture(-0.1, -0.5);
         let m = material(&hist, &dif, &close_src);
-        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        let events = [pan_event((50, 59), (69, 99), true, 99)];
         let mut book = NestLifecycleBook::new();
 
         let phases = bar_phases(&[], &events, 99);
@@ -3964,11 +3964,11 @@ mod tests {
     fn p2_active_frontier_live_window_matches_completed_identity() {
         let (centers, kinds, segments, _anchors, _hist, _dif, _close_src) =
             pan_real_fixture(-0.1, -0.5);
-        // confirmed 侧 = 前 4 段；第 5 段 (90,99) 尚在行进中（极值 92 已在 95 打出）。
+        // confirmed 侧 = 前 4 段；第 5 段 (89,99) 尚在行进中（极值 92 已在 95 打出）。
         let confirmed = &segments[..4];
         let frontier = ActiveSegmentFrontier {
             direction: Direction::Down,
-            start_index: 90,
+            start_index: 89,
             start_price: 98,
             extreme: 92,
             extreme_at: 95,
@@ -3980,11 +3980,11 @@ mod tests {
         assert_eq!(window.b_center_start, 20, "B 中枢取 confirmed 侧");
         assert_eq!(
             window.seg_c_live,
-            (70, 95),
+            (69, 95),
             "c_start = λ_C（与完成事件 seg_c.0 同锚）；右端随 as_of"
         );
-        // 与完成后的事件身份同桥（除右端外全等）——完成时 seg_c=(70,99)。
-        let completed = pan_event((50, 59), (70, 99), true, 99);
+        // 与完成后的事件身份同桥（除右端外全等）——完成时 seg_c=(69,99)。
+        let completed = pan_event((50, 59), (69, 99), true, 99);
         let live_key = LifecycleObservation::pan_live(window, false).key();
         let completed_key = LifecycleObservation::event(completed, true).key();
         assert!(
@@ -3992,7 +3992,7 @@ mod tests {
             "活窗与完成事件必须是同一身份（否则活窗白活）"
         );
 
-        // 负控：frontier 起点落在末 confirmed 段内部 ⟹ 不是 frontier ⟹ 拒绝 + 原因码。
+        // 负控：frontier 起点落在末 confirmed 段内部（倒灌）⟹ 不是 frontier ⟹ 拒绝 + 原因码。
         let bogus = ActiveSegmentFrontier {
             start_index: 75,
             ..frontier
@@ -4006,11 +4006,27 @@ mod tests {
             provide_l1_active_pan_live_windows(1, &centers, &kinds, confirmed, &frontier, 94),
             L1LiveOutcome::FrontierAheadOfClock
         );
+        // 已知缺口留痕（票 #578：夹具坐标对齐生产共端点约定后，`>` 臂首次可真实构造）：
+        // frontier 起点与末 confirmed 段之间有洞（89→90，不共端点）——现行 `<` 守卫**不拒绝**
+        // 这一臂，仍照常产窗。本条不是「验证正确行为」，是照实钉住当下行为：票 #559 条件 C2
+        // 「`>` 分支生产不可达」的断言经票 #578 用 p123 20k bar 真实数据证伪
+        // （`frontier_not_after_confirmed` 从 0 跳到 210、`window` 命中 101→58——见守卫上方
+        // 注记与本票交付报告）；是否应收紧为拒绝需教义/架构裁决，不在本票 Scope，留 §7 遗留。
+        let gapped = ActiveSegmentFrontier {
+            start_index: confirmed.last().unwrap().end_index + 1,
+            ..frontier
+        };
+        assert!(
+            provide_l1_active_pan_live_windows(1, &centers, &kinds, confirmed, &gapped, 95)
+                .window()
+                .is_some(),
+            "现状：有洞（非共端点）frontier 当下被接受产窗，不是本票裁定的正确性，只是诚实现状"
+        );
     }
 
     /// P3 Live→Completed 同身份、零回填、非闪现寿命（票 #527 验收 1/2 的最小语义）。
     ///
-    /// as_of=95 由行进中 C 产 Live（observed_at=95，**不是** c_start=70——零回填）；
+    /// as_of=95 由行进中 C 产 Live（observed_at=95，**不是** c_start=69——零回填）；
     /// as_of=99 该段完成 ⟹ 同一身份收完成信号并结算，寿命 = 99-95 = 4（非闪现）。
     #[test]
     fn p3_live_before_completion_settles_same_identity_without_backfill() {
@@ -4019,7 +4035,7 @@ mod tests {
         let m = material(&hist, &dif, &close_src);
         let frontier = ActiveSegmentFrontier {
             direction: Direction::Down,
-            start_index: 90,
+            start_index: 89,
             start_price: 98,
             extreme: 92,
             extreme_at: 95,
@@ -4040,13 +4056,13 @@ mod tests {
         );
         let live_entry = book.entries().next().expect("活窗建仓").1;
         assert_eq!(live_entry.observed_at, 95, "observed_at = 首次实际观察 bar");
-        assert_ne!(live_entry.observed_at, 70, "禁回填到 c_start");
+        assert_ne!(live_entry.observed_at, 69, "禁回填到 c_start");
         assert_eq!(live_entry.state, NestEventState::Provisional);
         assert_eq!(live_entry.structure_end_at, None, "完成前不置结构完成");
 
         // 该段在 99 完成 ⟹ 完成相以同一身份到达。
         let completion = [PanProviderPhase::Completed(PanCompletionEvent {
-            event: pan_event((50, 59), (70, 99), true, 99),
+            event: pan_event((50, 59), (69, 99), true, 99),
             completed_lower_id: ElementId {
                 level: 0,
                 ordinal: 4,
@@ -4092,7 +4108,7 @@ mod tests {
         let m = material(&hist, &dif, &close_src);
         let mut book = NestLifecycleBook::new();
         let phases = [PanProviderPhase::Completed(PanCompletionEvent {
-            event: pan_event((50, 59), (70, 99), true, 99),
+            event: pan_event((50, 59), (69, 99), true, 99),
             completed_lower_id: ElementId {
                 level: 0,
                 ordinal: 4,
@@ -4135,7 +4151,7 @@ mod tests {
         let m = material(&hist, &dif, &close_src);
         let mut book = NestLifecycleBook::new();
         let phases = [PanProviderPhase::Completed(PanCompletionEvent {
-            event: pan_event((50, 59), (70, 99), true, 110),
+            event: pan_event((50, 59), (69, 99), true, 110),
             completed_lower_id: ElementId {
                 level: 0,
                 ordinal: 4,
@@ -4193,13 +4209,13 @@ mod tests {
         let mut book = NestLifecycleBook::new();
 
         feed_prefix_phases(&mut book, &runs, &[], 79, &available);
-        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        let events = [pan_event((50, 59), (69, 99), true, 99)];
         let (_, stats) = feed_prefix_phases(&mut book, &runs, &events, 99, &no_force);
 
         assert_eq!(
             book.completion_force_unavailable_audits(),
             &[CompletionForceUnavailableAudit {
-                key: key_pan((50, 59), (70, 99)),
+                key: key_pan((50, 59), (69, 99)),
                 as_of: 99,
                 reason: UnavailReason::MissingForceSeries,
             }],
