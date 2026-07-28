@@ -1012,6 +1012,33 @@ impl TowerCache {
         }
     }
 
+    /// ★#601（#598 裁定路线 i）：产出 `tower[level]` 的那一级**窗口扫描断点**的只读视图。
+    ///
+    /// 下标口径与 [`Self::tower_confirmed_len`] 一致：`tower[level]` 由 `levels[level - 1]`
+    /// 扫描产出，故 `level >= 1`；`level == 0`（L0 塔来自 parser 段账本，非窗口扫描产物）与
+    /// 越界级一律 `None`（缺级不猜值，与 [`Self::freeze_boundary`] 同纪律）。
+    ///
+    /// **读契约边界（登记，防未来重构误判为无害）**：本访问器把 `WindowScanCursor` 从
+    /// 「增量扫描的内部实现细节」升格为**外部只读契约**——provider 侧用 `resume_from` 作
+    /// 「虚拟追加行进中下级单元后重扫」的合法起点（[`nest_lifecycle::active_l1_window_frontier`]）。
+    /// 若日后重构增量扫描算法改变 `resume_from`/`consumed` 的语义，须同步核对该消费点。
+    /// 只读：不暴露可变引用，不改变私有字段的可变性，塔存储形状零改动。
+    pub fn level_scan_cursor(&self, level: usize) -> Option<WindowScanCursor> {
+        if level == 0 {
+            return None;
+        }
+        self.levels.get(level - 1).map(|lc| lc.scan_cursor)
+    }
+
+    /// ★#601：L0 输入单元（`l0.segments` 的 [`segment_to_unit`] 投影）只读切片。
+    ///
+    /// 与 `tower[0]` 同序同长同源（`LeveledMove::from_unit` 的输入即本切片），是 L1 层窗口
+    /// 扫描的输入 units——provider 侧派生「若把行进中 L0 段计入、L1 层会形成的候选窗口」时
+    /// 需要它作为 confirmed 前缀。只读切片，调用方不得跨下一次增量调用持有。
+    pub fn l0_units(&self) -> &[UnitRange] {
+        &self.l0_units_cache
+    }
+
     /// #69 5b：classifier level 最近一次使用的 e_src（source_index 量纲）。
     ///
     /// p123 的 target level `L` 以 `L-1` 的 lower legs 判 pan，因此读取

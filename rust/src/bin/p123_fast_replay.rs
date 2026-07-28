@@ -167,11 +167,15 @@ use newchan_rust::theta_v0::classifier::nest::{
     TypedNestCertificate,
 };
 use newchan_rust::theta_v0::classifier::nest_lifecycle::{
-    active_segment_frontier, feed_replay_bar, provide_l1_active_pan_live_windows,
-    ActiveSegmentFrontier, ForceMaterial, LifecycleSettlementStats, NestLifecycleBook,
-    PanCompletionEvent, PanLiveWindow, PanProviderPhase, ReplayBarFeed, ReplayFeedStats,
+    active_l1_window_frontier, active_segment_frontier, feed_replay_bar,
+    provide_active_pan_live_windows, ActiveSegmentFrontier, ForceMaterial,
+    LifecycleSettlementStats, NestLifecycleBook, PanCompletionEvent, PanLiveWindow,
+    PanProviderPhase, ReplayBarFeed, ReplayFeedStats,
 };
-use newchan_rust::theta_v0::classifier::recursive_tower::{find_move_by_end_index, LeveledMove};
+use newchan_rust::theta_v0::classifier::recursive_tower::{
+    find_move_by_end_index, LeveledMove, WindowScanCursor,
+};
+use newchan_rust::theta_v0::classifier::center::UnitRange;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::{ParseLayer, ParseLayerIncr};
 use newchan_rust::theta_v0::types::{
@@ -507,9 +511,11 @@ struct LifecycleReplayStats {
     provider_requests: usize,
     provider_reevals: usize,
     provider_reuses: usize,
-    /// #527：L1 活窗定位结果分布（`L1LiveOutcome::reason_tag`；诊断只写不判）。
-    /// 「某完成身份为何没有更早 Live」的可审计落点。
-    l1_live_outcomes: BTreeMap<&'static str, usize>,
+    /// #527/#601：活窗定位结果分布，**按级别分列**（key = `(level, reason_tag)`；
+    /// `level=0` = 级别无关的前置失败）。「某完成身份为何没有更早 Live」的可审计落点；
+    /// L1/L2 共用同一码表命名空间但**禁合并计数**（合记则两级读数互相污染，无法逐级归因）。
+    /// 诊断只写不判。
+    l1_live_outcomes: BTreeMap<(u32, &'static str), usize>,
     /// #559 C2 段账本完整性观测：活窗产出用的段序列（`tower[0]` 投影）与 parser 段账本
     /// `l0.segments` 是否等长。**短一个即真缺段**——λ_C 的定界窗口会跨过缺失段。
     /// 「行进中段起点 − 末段终点 > 0」**不是**缺段判据（笔构造 `gap_ok` 不足时 `i += 2`
@@ -530,7 +536,11 @@ struct LifecycleReplayStats {
 /// 诊断只写不判，不进任何真值路径。
 #[derive(Debug, Clone, Copy)]
 struct L1LiveDiagRow {
-    /// `L1LiveOutcome::reason_tag()`（命中为 `"window"`）。
+    /// 产该行的级别（票 #601：L1/L2 共用同一诊断面 ⟹ 必须分级，否则两级读数混记）。
+    /// `0` = 级别无关的前置失败（无行进中 L0 段 ⟹ 两级都没有活动 C 腿）。
+    level: u32,
+    /// `PanLiveOutcome::reason_tag()`（命中为 `"window"`）／
+    /// `ActiveWindowOutcome::reason_tag()`（L2 的 C 腿派生失败码）。
     reason: &'static str,
     /// 该 run 的锚中枢起点：命中取产窗身份的 B；未命中取 frontier 之前最近中枢。
     b_center_start: Option<usize>,
@@ -712,12 +722,13 @@ fn main() -> Result<(), String> {
         lifecycle_stats.seg_ledger_short,
         lifecycle_stats.seg_ledger_no_tower,
     );
+    // #601：按级别分列（`l{level}:{tag}=n`；`l0:` = 级别无关的前置失败）。
     eprintln!(
         "P527_L1_LIVE_OUTCOMES {}",
         lifecycle_stats
             .l1_live_outcomes
             .iter()
-            .map(|(tag, count)| format!("{tag}={count}"))
+            .map(|((level, tag), count)| format!("l{level}:{tag}={count}"))
             .collect::<Vec<_>>()
             .join(" ")
     );
@@ -1048,8 +1059,14 @@ fn run_targeted_prefix_pass(
     // #527：活窗结构分量在「confirmed 侧变（forest_epoch）∨ active C frontier 变」时重算；
     // 两次重算之间逐 bar 只延展右端（身份分量不动）。frontier 是纯值 ⟹ 值不变 ⟹ 定位输出
     // 不变（locate/extreme 都是其纯函数），跳过重算是等价优化而非行为改动。
+    //
+    // #601：L2 活窗的 C 腿另有一个输入——L1 层扫描断点（`level_scan_cursor(1)`，重扫锚）。
+    // 它可以在 `forest_epoch` 不变时前进（不成立支 `i += 1` 推进 `consumed`/`resume_from`
+    // 而无窗口产出 ⟹ 塔字节未变 ⟹ epoch 不 bump），故必须**独立**进重算判据，否则 L2 的
+    // 派生会读到陈旧锚。三元组任一变即重算（保守、等价，不改行为）。
     let mut lifecycle_window_stems: Vec<LifecycleWindowStem> = Vec::new();
     let mut last_lifecycle_frontier: Option<Option<ActiveSegmentFrontier>> = None;
+    let mut last_lifecycle_l1_scan: Option<Option<WindowScanCursor>> = None;
     let mut lifecycle_dump = std::env::var("P421_LIFECYCLE_DUMP")
         .ok()
         .map(|path| {
@@ -1083,14 +1100,20 @@ fn run_targeted_prefix_pass(
         let forest_epoch = cache.forest_epoch();
         // #527 L1 活窗：C 只能是 parser 的行进中段（active frontier），禁 confirmed 段回放重建。
         let frontier = active_segment_frontier(&l0);
+        // #601 L2 活窗：C 腿由「L0 units（confirmed）+ 上面这段虚拟追加」在 L1 层重扫派生，
+        // 重扫锚取塔自己的 L1 层扫描断点（只读视图，塔存储零改动）。
+        let l1_scan = cache.level_scan_cursor(1);
         if last_lifecycle_forest_epoch != Some(forest_epoch)
             || last_lifecycle_frontier != Some(frontier)
+            || last_lifecycle_l1_scan != Some(l1_scan)
         {
             let before = lifecycle_window_stems.len();
             let mut diag_rows: Vec<L1LiveDiagRow> = Vec::new();
             lifecycle_window_stems = recompute_lifecycle_window_stems(
                 &tower,
                 frontier.as_ref(),
+                cache.l0_units(),
+                l1_scan,
                 index,
                 &mut lifecycle_stats.l1_live_outcomes,
                 &mut diag_rows,
@@ -1109,16 +1132,19 @@ fn run_targeted_prefix_pass(
                 Some(_) => lifecycle_stats.seg_ledger_short += 1,
             }
             let tower0_units = tower0_units.map_or(usize::MAX, |units| units);
+            // 票 #601：行 tag 去掉写死的 "L1_"（同一诊断面现在同时承载 L1/L2），级别改由
+            // 显式 `level=` 字段携带——tag 名与实际级别不符是声明膨胀（090）。
             for row in diag_rows {
                 let tag = if row.c_start.is_some() {
-                    "L1_LIVE_HIT"
+                    "PAN_LIVE_HIT"
                 } else {
-                    "L1_LIVE_MISS"
+                    "PAN_LIVE_MISS"
                 };
                 write_lifecycle_line(
                     &mut lifecycle_dump,
                     format_args!(
-                        "{tag} as_of={index} frontier_start={} reason={} b_center_start={} c_start={} gap_len={}",
+                        "{tag} as_of={index} level={} frontier_start={} reason={} b_center_start={} c_start={} gap_len={}",
+                        row.level,
                         frontier.map_or(usize::MAX, |f| f.start_index),
                         row.reason,
                         row.b_center_start.map_or(usize::MAX, |value| value),
@@ -1131,17 +1157,19 @@ fn run_targeted_prefix_pass(
             write_lifecycle_line(
                 &mut lifecycle_dump,
                 format_args!(
-                    "L1_LIVE_RECOMPUTE as_of={index} frontier={} confirmed_last_end={confirmed_last_end} tower0_units={tower0_units} l0_segments={} stems_before={before} stems_after={}",
+                    "PAN_LIVE_RECOMPUTE as_of={index} frontier={} l1_resume_from={} confirmed_last_end={confirmed_last_end} tower0_units={tower0_units} l0_segments={} stems_before={before} stems_after={}",
                     frontier.map_or("none".to_string(), |f| format!(
                         "({},{},{:?})",
                         f.start_index, f.extreme_at, f.direction
                     )),
+                    l1_scan.map_or(usize::MAX, |cursor| cursor.resume_from),
                     l0.segments.len(),
                     lifecycle_window_stems.len(),
                 ),
             )?;
             last_lifecycle_forest_epoch = Some(forest_epoch);
             last_lifecycle_frontier = Some(frontier);
+            last_lifecycle_l1_scan = Some(l1_scan);
         }
         let trigger = (forest_epoch, signal_signature(&classification));
         let lifecycle_due = last_lifecycle_trigger.as_ref() != Some(&trigger);
@@ -1583,31 +1611,40 @@ fn lifecycle_leg_as_segment(value: &LowerLeg) -> Segment {
     }
 }
 
-/// #527 L1 活窗发现：**confirmed A/B 锚 + active C frontier**。
+/// #527/#601 活窗发现：**confirmed A/B 锚 + 该级别的 active C 腿**。
 ///
 /// 与 #421 逃生门原实装的差别（#523 根因）：C 不再从已完成 lower legs 回放重建，而只能是
-/// parser 的行进中段（`frontier`）——故活窗可在完成前出生。B 中枢仍取 confirmed 侧
-/// （tower[1] 的 run 投影 seeds），A 锚仍取 confirmed 段（窄锚/A′ 与 provider 同序同判）。
+/// **塔上尚不存在的行进中腿**——故活窗可在完成前出生。B 中枢仍取 confirmed 侧
+/// （`tower[level]` 的 run 投影 seeds），A 锚仍取 confirmed 段（窄锚/A′ 与 provider 同序同判）。
 ///
-/// **级别范围（诚实登记，票 #527 Scope）**：只有 L1 有可用的 active lower-frontier
-/// （parser `OpenTail.pendingSegment`）。L2/L3 的 lower unit 是 `LeveledMove`，塔上没有
-/// Active/Completed 表达（#523 遗留问题 1），**故本函数不为 L2/L3 产活窗**——不拿已完成
-/// tower unit 外推「行进中」（那会重演同一 bug）。L2/L3 的身份因此只经完成相进账本，
-/// 其闪现是 provider 能力缺口，不是「该对象确实同 bar 出生并完成」的 true-flash。
+/// **级别范围（票 #601 = #598 裁定路线 i，先 L2 后 L3）**：
+/// - **L1**：C = parser 的行进中段（`ActiveSegmentFrontier`，`OpenTail.pendingSegment`）；
+/// - **L2**：C = **行进中的 L1 窗口单元**（[`active_l1_window_frontier`]）——由「`tower[0]`
+///   confirmed units + L0 行进中段虚拟追加」重跑 L1 层窗口判据派生，**不是** `tower[1]` 的
+///   任何已产出窗口（拿后者冒充活动 = 与完成事件同源同判 = 重演 #523）；
+/// - **L3 及以上**：本函数不产活窗（`3.min(tower.len())` 上界）。L3 需要「L2 层行进中窗口」，
+///   其判据是几何路径 `center_from_window` 且输入要换成 L1 层 units + L2 活动腿作虚拟单元，
+///   属另一次递归复合，由 #602 另立——**此处不外推**。L3 身份因此仍只经完成相进账本，
+///   其闪现是 provider 能力缺口，不是 true-flash。
 ///
-/// 只在 `forest_epoch` 或 `frontier` 变化时执行；不写生产缓存、不改 trigger/订单/证书路径。
+/// 只在 `forest_epoch` / `frontier` / L1 层扫描断点变化时执行（三者是本函数全部输入的
+/// 变化源）；不写生产缓存、不改 trigger/订单/证书路径。
 fn recompute_lifecycle_window_stems(
     tower: &[Rc<Vec<LeveledMove>>],
     frontier: Option<&ActiveSegmentFrontier>,
+    l0_units: &[UnitRange],
+    l1_scan: Option<WindowScanCursor>,
     as_of: usize,
-    outcome_tally: &mut BTreeMap<&'static str, usize>,
+    outcome_tally: &mut BTreeMap<(u32, &'static str), usize>,
     diag_rows: &mut Vec<L1LiveDiagRow>,
 ) -> Vec<LifecycleWindowStem> {
     let mut windows_out = Vec::new();
     let Some(frontier) = frontier else {
-        // 无行进中段 ⟹ 无活窗（不回落到 confirmed 回放重建）。
-        *outcome_tally.entry("no_active_frontier").or_default() += 1;
+        // 无行进中 L0 段 ⟹ L1/L2 都没有活动 C 腿（L2 的腿也由该段虚拟追加派生）。
+        // 不回落到 confirmed 回放重建。
+        *outcome_tally.entry((0, "no_active_frontier")).or_default() += 1;
         diag_rows.push(L1LiveDiagRow {
+            level: 0,
             reason: "no_active_frontier",
             b_center_start: None,
             c_start: None,
@@ -1615,11 +1652,81 @@ fn recompute_lifecycle_window_stems(
         });
         return Vec::new();
     };
-    for level in 1..2.min(tower.len()) {
+    // 上界写死 3（= 覆盖 L1/L2），级别在塔上是否已涌现由**显式原因码**回答而不是静默跳过：
+    // 完成事件的物理完成 bar 可以远早于其首次可见 bar（BTC 100k 滞后最大 4702），故一只 L2
+    // 身份的 C 活跃期可能整段落在「塔还没长出 L2」的时期——那时不产活窗是结构事实，但必须
+    // 能落到码上，否则该身份在归因表里没有任何行（#527 §9.2 补记命中行同一纪律）。
+    for level in 1..3 {
+        if level >= tower.len() {
+            *outcome_tally
+                .entry((level as u32, "tower_level_absent"))
+                .or_default() += 1;
+            diag_rows.push(L1LiveDiagRow {
+                level: level as u32,
+                reason: "tower_level_absent",
+                b_center_start: None,
+                c_start: None,
+                gap_len: None,
+            });
+            continue;
+        }
         let Ok(lower) = lower_legs_from(&tower[level - 1]) else {
             continue;
         };
-        let segments: Vec<Segment> = lower.iter().map(lifecycle_leg_as_segment).collect();
+        let mut segments: Vec<Segment> = lower.iter().map(lifecycle_leg_as_segment).collect();
+        // 该级别的 active C 腿：L1 直接用 parser 行进中段；L2 用派生的行进中 L1 窗口单元。
+        let active = match level {
+            1 => frontier.as_segment(),
+            2 => {
+                // L1 层扫描断点缺失（塔尚未产出该级缓存）⟹ 不猜锚，记原因码后跳过本级。
+                let Some(cursor) = l1_scan else {
+                    *outcome_tally
+                        .entry((level as u32, "resume_anchor_out_of_range"))
+                        .or_default() += 1;
+                    diag_rows.push(L1LiveDiagRow {
+                        level: level as u32,
+                        reason: "resume_anchor_out_of_range",
+                        b_center_start: None,
+                        c_start: None,
+                        gap_len: None,
+                    });
+                    continue;
+                };
+                let outcome =
+                    active_l1_window_frontier(l0_units, Some(frontier), cursor.resume_from);
+                let Some(active_window) = outcome.frontier() else {
+                    *outcome_tally
+                        .entry((level as u32, outcome.reason_tag()))
+                        .or_default() += 1;
+                    diag_rows.push(L1LiveDiagRow {
+                        level: level as u32,
+                        reason: outcome.reason_tag(),
+                        b_center_start: None,
+                        c_start: None,
+                        gap_len: None,
+                    });
+                    continue;
+                };
+                let active_segment = active_window.as_segment();
+                // ★confirmed 与 active 不得重叠（L1 的对应事实：parser 的 `l0.segments`
+                // 天然不含 pending 段）。塔在这一点上**不同**：`tower[1]` 的末窗即使仍开放
+                // （未被 non-extension 单元终结、每 bar pop 重扫），在类型上也与确认窗口
+                // 不可区分（#598 §1.1）。行进中 L1 单元正是该末窗「计入行进中 L0 段」后的
+                // 形态 ⟹ 二者同起点。若不截断，末窗会同时以 confirmed 与 active 两个身份
+                // 进入判定，`active.start_index < last.end_index` 恒真 ⟹ L2 恒判
+                // `frontier_not_after_confirmed`（BTC 100k 实测 844 次）。
+                // 判据取同起点（不是「末项一律截断」）：虚拟单元 seed 出**新**窗口时活动腿
+                // 起点严格晚于末窗起点，此时末窗确实已被终结，必须保留在 confirmed 侧。
+                if segments
+                    .last()
+                    .is_some_and(|last| last.start_index == active_segment.start_index)
+                {
+                    segments.pop();
+                }
+                active_segment
+            }
+            _ => unreachable!("循环上界 3.min(tower.len()) ⟹ level ∈ {{1,2}}"),
+        };
         let windows = &tower[level];
         let mut run_start = None;
         for index in 0..=windows.len() {
@@ -1636,31 +1743,35 @@ fn recompute_lifecycle_window_stems(
                             projection.seeds.iter().map(|seed| seed.center).collect();
                         let blocks = decompose::decompose(&centers);
                         let kinds = decompose::center_block_kind(centers.len(), &blocks);
-                        let outcome = provide_l1_active_pan_live_windows(
+                        let outcome = provide_active_pan_live_windows(
                             level as u32,
                             &centers,
                             &kinds,
                             &segments,
-                            frontier,
+                            active,
                             as_of,
                         );
-                        *outcome_tally.entry(outcome.reason_tag()).or_default() += 1;
+                        *outcome_tally
+                            .entry((level as u32, outcome.reason_tag()))
+                            .or_default() += 1;
                         // 逐 run 落一行（命中/未命中都记）：供「这只完成身份为何没有更早
                         // Live」逐身份归因（诊断只写不判）。未命中取该 run 最近中枢起点作锚
                         // 提示；命中取产窗身份的 B 与 λ_C。
                         diag_rows.push(match outcome.window() {
                             Some(window) => L1LiveDiagRow {
+                                level: level as u32,
                                 reason: outcome.reason_tag(),
                                 b_center_start: Some(window.b_center_start),
                                 c_start: Some(window.seg_c_live.0),
                                 gap_len: Some(window.gap_len),
                             },
                             None => L1LiveDiagRow {
+                                level: level as u32,
                                 reason: outcome.reason_tag(),
                                 b_center_start: centers
                                     .iter()
                                     .rev()
-                                    .find(|center| center.end_index <= frontier.start_index)
+                                    .find(|center| center.end_index <= active.start_index)
                                     .map(|center| center.start_index),
                                 c_start: None,
                                 gap_len: None,
