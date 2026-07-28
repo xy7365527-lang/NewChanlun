@@ -168,7 +168,7 @@ use newchan_rust::theta_v0::classifier::nest::{
 };
 use newchan_rust::theta_v0::classifier::nest_lifecycle::{
     active_l1_window_frontier, active_segment_frontier, feed_replay_bar,
-    provide_active_pan_live_windows, ActiveSegmentFrontier, ForceMaterial,
+    provide_active_pan_live_windows, ActiveSegmentFrontier, ForceMaterial, LifecycleRevision,
     LifecycleSettlementStats, NestLifecycleBook, PanCompletionEvent, PanLiveWindow,
     PanProviderPhase, ReplayBarFeed, ReplayFeedStats,
 };
@@ -1452,15 +1452,21 @@ fn run_targeted_prefix_pass(
             let (hist, close_src) = cache.causal_series();
             let dif = cache.macd_dif();
             let active_runs = refresh_lifecycle_cache(
-                &tower,
                 &cache,
-                index,
-                hist,
-                dif,
-                close_src,
-                &mut derived,
-                &mut entries,
-                &mut lifecycle_stats,
+                RefreshWorld {
+                    tower: &tower,
+                    as_of: index,
+                    series: CausalSeries {
+                        hist,
+                        dif,
+                        close_src,
+                    },
+                },
+                &mut LifecycleCacheState {
+                    derived: &mut derived,
+                    entries: &mut entries,
+                    stats: &mut lifecycle_stats,
+                },
             )?;
             completion_events = active_runs
                 .iter()
@@ -1483,11 +1489,15 @@ fn run_targeted_prefix_pass(
             &mut lifecycle_book,
             &phases,
             index,
-            hist,
-            dif,
-            close_src,
-            &mut lifecycle_dump,
-            &mut lifecycle_stats,
+            CausalSeries {
+                hist,
+                dif,
+                close_src,
+            },
+            &mut LifecycleDumpSink {
+                sink: &mut lifecycle_dump,
+                stats: &mut lifecycle_stats,
+            },
         )?;
         lifecycle_book.assert_invariants();
         if ckpt_every > 0 && index > 0 && index % ckpt_every == 0 {
@@ -1792,101 +1802,177 @@ fn recompute_lifecycle_window_stems(
     stems
 }
 
+/// #532：`hist`/`dif`/`close_src` 三元 Data Clumps 收束——三者恒由同一
+/// `cache.causal_series()` + `cache.macd_dif()` 同源产出、逐调用同行同现，收成一个借用体。
+#[derive(Clone, Copy)]
+struct CausalSeries<'a> {
+    hist: &'a [f64],
+    dif: &'a [f64],
+    close_src: &'a [usize],
+}
+
+/// #532：lifecycle 缓存刷新期间需要连带可变的三张账——收成一个上下文体，避免调用方
+/// 逐参数搬运。生命周期彼此独立（各自独立 `&mut` 借用），不共享单一底层容器。
+struct LifecycleCacheState<'a> {
+    derived: &'a mut BTreeMap<usize, LevelDerived>,
+    entries: &'a mut BTreeMap<(usize, usize), RunEntry>,
+    stats: &'a mut LifecycleReplayStats,
+}
+
+/// #532：`refresh_lifecycle_cache` 的只读上游输入（塔、当前 bar、因果序列三元组）打包，
+/// 供内部逐 level / 逐 run 提取的辅助函数共享，避免逐层重复搬运同一组只读引用。
+struct RefreshWorld<'a> {
+    tower: &'a [Rc<Vec<LeveledMove>>],
+    as_of: usize,
+    series: CausalSeries<'a>,
+}
+
+/// 单个 run 在 `refresh_run_entry` 中定位与判脏所需的标量集合。
+struct RunRefreshContext {
+    level: usize,
+    run_source_start: usize,
+    run: (usize, usize),
+    stable_lower_len: usize,
+    pan_freeze_boundary: usize,
+}
+
 /// 补齐 lifecycle 本 trigger 所需的全部 active run。targeted 已在同 trigger 更新过的
 /// 条目直接复用；其余条目也只在共享 dirty 判据命中时评估，禁 sidecar 每 trigger 全量重算。
-#[allow(clippy::too_many_arguments)]
 fn refresh_lifecycle_cache(
-    tower: &[Rc<Vec<LeveledMove>>],
     cache: &classifier::TowerCache,
-    as_of: usize,
-    hist: &[f64],
-    dif: &[f64],
-    close_src: &[usize],
-    derived: &mut BTreeMap<usize, LevelDerived>,
-    entries: &mut BTreeMap<(usize, usize), RunEntry>,
-    stats: &mut LifecycleReplayStats,
+    world: RefreshWorld,
+    state: &mut LifecycleCacheState,
 ) -> Result<Vec<(usize, usize)>, String> {
     let mut active_runs = Vec::new();
-    for level in 1..tower.len() {
-        sync_level_derived(level, tower, derived)?;
-        let active_run_starts: Vec<_> = derived[&level].run_ranges.keys().copied().collect();
-        derived
-            .get_mut(&level)
-            .expect("刚同步的 level 必须存在")
-            .confirm_cursors
-            .retain_run_starts(level as u32, active_run_starts);
-        let stable_lower_len = cache.tower_confirmed_len(level - 1);
-        let pan_freeze_boundary = cache.freeze_boundary(level - 1).unwrap_or(0);
-        let run_ranges: Vec<(usize, (usize, usize))> = derived[&level]
-            .run_ranges
-            .iter()
-            .map(|(&source, &range)| (source, range))
-            .collect();
-        for (run_source_start, run) in run_ranges {
-            stats.provider_requests += 1;
-            let level_derived = &derived[&level];
-            let watermark_crossed = entries
-                .get(&(level, run_source_start))
-                .is_some_and(|entry| {
-                    let before = level_derived
-                        .lower_ends
-                        .partition_point(|&end_index| end_index <= entry.last_as_of);
-                    let now = level_derived
-                        .lower_ends
-                        .partition_point(|&end_index| end_index <= as_of);
-                    now != before
-                });
-            let dirty = entries.get(&(level, run_source_start)).is_none_or(|entry| {
-                entry.self_gen != level_derived.self_gen
-                    || entry.lower_gen != level_derived.lower_gen
-                    || watermark_crossed
-            });
-            if dirty {
-                let self_gen = level_derived.self_gen;
-                let lower_gen = level_derived.lower_gen;
-                let entry = entries.entry((level, run_source_start)).or_insert_with(|| {
-                    RunEntry::new(
-                        self_gen,
-                        lower_gen,
-                        as_of,
-                        Vec::new(),
-                        Vec::new(),
-                        Vec::new(),
-                    )
-                });
-                let (centers, kinds, events) = {
-                    let level_derived = derived.get_mut(&level).expect("刚同步的 level 必须存在");
-                    let lower_legs = &level_derived.lower_legs;
-                    let confirm_cursors = &mut level_derived.confirm_cursors;
-                    evaluate_run(
-                        level,
-                        &tower[level],
-                        run,
-                        lower_legs,
-                        as_of,
-                        hist,
-                        dif,
-                        close_src,
-                        Some(ConfirmResidence {
-                            store: confirm_cursors,
-                            stable_lower_len,
-                            structure_generation: self_gen,
-                        }),
-                        Some(PanResidence {
-                            memo: &mut entry.pan_memo,
-                            freeze_boundary_src: pan_freeze_boundary,
-                        }),
-                    )
-                }?;
-                entry.update(self_gen, lower_gen, as_of, centers, kinds, events);
-                stats.provider_reevals += 1;
-            } else {
-                stats.provider_reuses += 1;
-            }
-            active_runs.push((level, run_source_start));
-        }
+    for level in 1..world.tower.len() {
+        active_runs.extend(refresh_level_runs(level, cache, &world, state)?);
     }
     Ok(active_runs)
+}
+
+/// 单个 level 内的全部 active run：先同步该 level 的派生面与游标驻留窗口，
+/// 再逐 run 判脏/重估（`refresh_run_entry`）。
+fn refresh_level_runs(
+    level: usize,
+    cache: &classifier::TowerCache,
+    world: &RefreshWorld,
+    state: &mut LifecycleCacheState,
+) -> Result<Vec<(usize, usize)>, String> {
+    sync_level_derived(level, world.tower, state.derived)?;
+    let active_run_starts: Vec<_> = state.derived[&level].run_ranges.keys().copied().collect();
+    state
+        .derived
+        .get_mut(&level)
+        .expect("刚同步的 level 必须存在")
+        .confirm_cursors
+        .retain_run_starts(level as u32, active_run_starts);
+    let stable_lower_len = cache.tower_confirmed_len(level - 1);
+    let pan_freeze_boundary = cache.freeze_boundary(level - 1).unwrap_or(0);
+    let run_ranges: Vec<(usize, (usize, usize))> = state.derived[&level]
+        .run_ranges
+        .iter()
+        .map(|(&source, &range)| (source, range))
+        .collect();
+    let mut active_runs = Vec::with_capacity(run_ranges.len());
+    for (run_source_start, run) in run_ranges {
+        let ctx = RunRefreshContext {
+            level,
+            run_source_start,
+            run,
+            stable_lower_len,
+            pan_freeze_boundary,
+        };
+        refresh_run_entry(ctx, world, state)?;
+        active_runs.push((level, run_source_start));
+    }
+    Ok(active_runs)
+}
+
+/// 单个 run 的判脏/重估：脏则重跑 `evaluate_run` 并更新共享 `RunEntry`，否则记复用命中。
+fn refresh_run_entry(
+    ctx: RunRefreshContext,
+    world: &RefreshWorld,
+    state: &mut LifecycleCacheState,
+) -> Result<(), String> {
+    state.stats.provider_requests += 1;
+    if !run_entry_is_dirty(&ctx, world.as_of, state) {
+        state.stats.provider_reuses += 1;
+        return Ok(());
+    }
+    reevaluate_run_entry(&ctx, world, state)?;
+    state.stats.provider_reevals += 1;
+    Ok(())
+}
+
+/// run 是否需要重估：条目缺失，或所属 level 的自身/lower 世代已前进，
+/// 或所属 lower legs 的完成水位线跨过了条目上次评估时的 `as_of`。
+fn run_entry_is_dirty(ctx: &RunRefreshContext, as_of: usize, state: &LifecycleCacheState) -> bool {
+    let level_derived = &state.derived[&ctx.level];
+    let entry = state.entries.get(&(ctx.level, ctx.run_source_start));
+    let watermark_crossed = entry.is_some_and(|entry| {
+        let before = level_derived
+            .lower_ends
+            .partition_point(|&end_index| end_index <= entry.last_as_of);
+        let now = level_derived
+            .lower_ends
+            .partition_point(|&end_index| end_index <= as_of);
+        now != before
+    });
+    entry.is_none_or(|entry| {
+        entry.self_gen != level_derived.self_gen
+            || entry.lower_gen != level_derived.lower_gen
+            || watermark_crossed
+    })
+}
+
+/// run 首次被看见时的空白 `RunEntry`——中心/类别/事件三项留给 `evaluate_run` 首次填充。
+fn empty_run_entry(self_gen: u64, lower_gen: u64, as_of: usize) -> RunEntry {
+    RunEntry::new(self_gen, lower_gen, as_of, Vec::new(), Vec::new(), Vec::new())
+}
+
+/// 脏 run 的实际重估：调用 `evaluate_run` 并把结果写回共享 `RunEntry`
+/// （首次见到该 run 时先以当前世代新建一条空条目）。
+fn reevaluate_run_entry(
+    ctx: &RunRefreshContext,
+    world: &RefreshWorld,
+    state: &mut LifecycleCacheState,
+) -> Result<(), String> {
+    let level_derived = &state.derived[&ctx.level];
+    let self_gen = level_derived.self_gen;
+    let lower_gen = level_derived.lower_gen;
+    let entry = state
+        .entries
+        .entry((ctx.level, ctx.run_source_start))
+        .or_insert_with(|| empty_run_entry(self_gen, lower_gen, world.as_of));
+    let (centers, kinds, events) = {
+        let level_derived = state
+            .derived
+            .get_mut(&ctx.level)
+            .expect("刚同步的 level 必须存在");
+        let lower_legs = &level_derived.lower_legs;
+        let confirm_cursors = &mut level_derived.confirm_cursors;
+        evaluate_run(
+            ctx.level,
+            &world.tower[ctx.level],
+            ctx.run,
+            lower_legs,
+            world.as_of,
+            world.series.hist,
+            world.series.dif,
+            world.series.close_src,
+            Some(ConfirmResidence {
+                store: confirm_cursors,
+                stable_lower_len: ctx.stable_lower_len,
+                structure_generation: self_gen,
+            }),
+            Some(PanResidence {
+                memo: &mut entry.pan_memo,
+                freeze_boundary_src: ctx.pan_freeze_boundary,
+            }),
+        )
+    }?;
+    entry.update(self_gen, lower_gen, world.as_of, centers, kinds, events);
+    Ok(())
 }
 
 /// 组装本 bar 的 provider 两相（票 #527：完成相是显式 typed 输出）。
@@ -1937,26 +2023,42 @@ fn lifecycle_bar_phases(
     Ok(phases)
 }
 
-#[allow(clippy::too_many_arguments)]
+/// #532：dump sink + 累计统计恒同调用点同现，收成一个上下文体。
+struct LifecycleDumpSink<'a> {
+    sink: &'a mut Option<BufWriter<File>>,
+    stats: &'a mut LifecycleReplayStats,
+}
+
 fn feed_lifecycle_bar(
     book: &mut NestLifecycleBook,
     phases: &[PanProviderPhase],
     as_of: usize,
-    hist: &[f64],
-    dif: &[f64],
-    close_src: &[usize],
-    sink: &mut Option<BufWriter<File>>,
-    replay_stats: &mut LifecycleReplayStats,
+    series: CausalSeries,
+    dump: &mut LifecycleDumpSink,
 ) -> Result<(), String> {
     let completion_signal_start = book.completion_signals().len();
     let audit_start = book.completion_force_unavailable_audits().len();
     let material = ForceMaterial {
-        hist: Some(hist),
-        dif: Some(dif),
-        close_src,
+        hist: Some(series.hist),
+        dif: Some(series.dif),
+        close_src: series.close_src,
     };
     let (delta, stats) = feed_replay_bar(book, &ReplayBarFeed { as_of, phases }, &material);
 
+    write_feed_summary_line(dump.sink, as_of, &stats)?;
+    write_completion_signal_lines(dump.sink, book, completion_signal_start)?;
+    write_revision_lines(dump.sink, &delta)?;
+    write_force_unavailable_lines(dump.sink, book, audit_start)?;
+
+    dump.stats.observe(stats);
+    Ok(())
+}
+
+fn write_feed_summary_line(
+    sink: &mut Option<BufWriter<File>>,
+    as_of: usize,
+    stats: &ReplayFeedStats,
+) -> Result<(), String> {
     write_lifecycle_line(
         sink,
         format_args!(
@@ -1969,8 +2071,15 @@ fn feed_lifecycle_bar(
             stats.retrograde_rejected,
             stats.completion_force_unavailable,
         ),
-    )?;
-    for signal in &book.completion_signals()[completion_signal_start..] {
+    )
+}
+
+fn write_completion_signal_lines(
+    sink: &mut Option<BufWriter<File>>,
+    book: &NestLifecycleBook,
+    start: usize,
+) -> Result<(), String> {
+    for signal in &book.completion_signals()[start..] {
         write_lifecycle_line(
             sink,
             format_args!(
@@ -1987,6 +2096,13 @@ fn feed_lifecycle_bar(
             ),
         )?;
     }
+    Ok(())
+}
+
+fn write_revision_lines(
+    sink: &mut Option<BufWriter<File>>,
+    delta: &[LifecycleRevision],
+) -> Result<(), String> {
     for revision in delta {
         write_lifecycle_line(
             sink,
@@ -2004,7 +2120,15 @@ fn feed_lifecycle_bar(
             ),
         )?;
     }
-    for audit in &book.completion_force_unavailable_audits()[audit_start..] {
+    Ok(())
+}
+
+fn write_force_unavailable_lines(
+    sink: &mut Option<BufWriter<File>>,
+    book: &NestLifecycleBook,
+    start: usize,
+) -> Result<(), String> {
+    for audit in &book.completion_force_unavailable_audits()[start..] {
         write_lifecycle_line(
             sink,
             format_args!(
@@ -2020,7 +2144,6 @@ fn feed_lifecycle_bar(
             ),
         )?;
     }
-    replay_stats.observe(stats);
     Ok(())
 }
 
