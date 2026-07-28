@@ -21,3 +21,9 @@
 | [kimi]#421-关票链 | kimi编排（收口包抽验 58672e2563 全绿） | #429/#430 双关（条件满足+债有去向）→ #421/#427 双关（E 口径五项全绿）；map #59 记 Decisions；三审报告入库 | 已收口 |
 | [codex]ticket-69-合流 | kimi编排→codex exec | #69 5a/5b merge 进 kimi-nest-mainline（禁 rebase 保封印 hash），三处冲突并集解 | 已交付（b615bd7143 双亲 29a2637a3e+b80ebb3d8a；kimi 抽验：五 commit 全祖先、干净树 2014/1 唯一红 #491、p123/m8 八面 cmp=0、SHADOW 179 checks 0 mismatch、他 session 脏面 SHA 未动） |
 | [claude-opus]#300-P0b-Lean形式化 | kimi编排→claude opus（票面指定 Opus 5，额度 12:56 ET 探活恢复） | G1/G2 终裁 + #76 出场门真链切换 Lean 机器见证，工位 /tmp/kimi-nest-mainline | 已交付并关票（e3ec398abe；kimi 抽验：lake build 145 jobs 绿零 sorry、fixture drift 绿、公理仅 propext+Quot.sound；map #59 已记） |
+| [claude-sonnet]#527-PanLive-provider-L1 | kimi编排→claude sonnet（实施票分工） | 完成前活窗可见 L1 | 流产（sonnet 自判 opus 档并派子代理，print 模式 600s 后台天花板杀父及子，零产出；教训=禁子代理+升 opus 重派） |
+| [claude-opus]#527-PanLive-provider-L1 | kimi编排→claude opus（sonnet 自判升档+四档规则高难=opus） | 同上一行任务面；prompt 加「全程前台单线程禁子代理禁后台」+ CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 | 派发中 |
+| [claude-opus]#527-PanLive-provider-L1 | kimi编排→claude opus（sonnet 流产升档） | 完成前活窗可见 L1 | 已交付（7b4547b623：156/248 完成前可见均提前 104 根、反超 0→35 首现、闪现 100%→32.39%、护栏十对 cmp=0、测试 2024/1 唯一红 #491；自报偏差 IdentityVanished 0→37 待评审裁量） |
+| [claude-opus]#559-影子评审-#527 | kimi编排→claude opus（评审档 opus 深） | 两轴新上下文禁自评，落 shadow-527-review-20260728.md | 已交付（PWC：交付本体成立+读数全独立复现；C1 归因窗错/C2 文档恒等断言反例等五条；IdentityVanished 建议=合法新终局但撤 =0 不变量+原因码拆两类落账本字段，待编排者裁） |
+| [kimi]#527-IdentityVanished裁定 | kimi编排（编排者 2026-07-28 同意） | 撤 =0 不变量、合法新终局、原因码拆两类落账本字段（挂 #523 遗留 2），记票 comment-5108273992 | 已落地 |
+| [claude-opus]#527-修复轮 | kimi编排→claude opus | #559 五条件 + 两类原因码账本字段 | 已交付（77d3554332；kimi 抽验：2025/1 唯一红 #491、十对 cmp=0、37=25 refuted+12 seam、5 例钉因=同锚多候选 C；#527/#559 双关、map 已记） |
