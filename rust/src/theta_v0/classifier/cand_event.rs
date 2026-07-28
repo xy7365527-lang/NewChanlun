@@ -416,8 +416,8 @@ fn structural_observation(
         previous,
         parent,
         segment,
-        a?,
-        c_start?,
+        a.expect("judge Some => A 段映射成立"),
+        c_start.expect("judge Some => lambda_C 成立"),
         point.struct_break_dir.expect("结构候选必有方向"),
     ))
 }
