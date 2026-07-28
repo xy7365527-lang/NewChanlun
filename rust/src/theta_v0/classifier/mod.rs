@@ -1035,6 +1035,17 @@ impl TowerCache {
     /// 与 `tower[0]` 同序同长同源（`LeveledMove::from_unit` 的输入即本切片），是 L1 层窗口
     /// 扫描的输入 units——provider 侧派生「若把行进中 L0 段计入、L1 层会形成的候选窗口」时
     /// 需要它作为 confirmed 前缀。只读切片，调用方不得跨下一次增量调用持有。
+    ///
+    /// **同长不变式**（#613 收 #609 F2）：`classify_with_tower_incremental` 返回后，若
+    /// `tower_snapshots` 非空，则 `l0_units().len() == tower[0].len()`。维护站点只有一处
+    /// （该函数的 `00_l0_units_build` 阶段），其**前置条件**是段账本回缩的 `cache.clear()`
+    /// 必须先于该阶段执行——两者顺序颠倒即破不变式（#609 F2 实测：BTC 100k @ as_of=71040
+    /// `l0_units=0 / tower[0]=547`）。函数末 `debug_assert!` 钉住该不变式；回归测试
+    /// `l0_units_stays_in_sync_with_tower0_on_segment_ledger_shrink`。
+    ///
+    /// 塔未产出任何级别快照（段数不足）时 `tower_snapshots` 为空而本切片非空——此时无契约面，
+    /// 消费方按「该级不存在」的显式原因码处理（见 `p123_fast_replay::recompute_lifecycle_window_stems`
+    /// 的 `tower_level_absent`）。
     pub fn l0_units(&self) -> &[UnitRange] {
         &self.l0_units_cache
     }
@@ -1548,6 +1559,26 @@ pub fn classify_with_tower_incremental(
     let min_parts = config.level.min_parts_per_level as usize;
     let l_max = config.level.l_max as usize;
 
+    // 前缀不变量校验：段账本回缩 ⟹ 清空重扫（bit-exact 退化，非增量）。
+    //
+    // ★#613（#609 F2 根因收口）：本检测**必须**在 `l0_units_cache` 构建之前。它曾位于构建之后
+    // （旧序：00_l0_units_build → Rc::clone 出借 → 回缩 clear），于是回缩 bar 上 [`TowerCache::clear`]
+    // 把刚建好的 `l0_units_cache` 清空（该方法逐字段清塔缓存），而本 bar 的塔构造消费的是 clear
+    // **之前** `Rc::clone` 出的局部 `l0_units`（写时复制 ⟹ 值完整）⟹ 函数返回后
+    // [`TowerCache::l0_units`] 为空而 `tower[0]` 满载，只读契约「与 tower[0] 同序同长同源」被破。
+    // BTC 100k 实测：回缩事件 1 次（`segments` 549→547 @ as_of=71040），失步 1 次，一一对应
+    // （L2 等级：BTC 单标的单窗）。提前后 `l0_units_cache` 已清 ⟹ reuse=0 ⟹ 本 bar 全量重建，
+    // 与同样在 clear 之后全量重建的 `moves_tower_l0` 口径归一，不变式成立（见函数末 debug_assert）。
+    //
+    // 值不变（bit-exact）：复用前缀受 `segments_confirmed_len` 证书约束（parser 保证
+    // `segments[..confirmed_len]` 跨 bar 逐字节稳定），回缩只发生在未确认尾部 ⟹ 全量重建 ==
+    // 复用重建。仓内 `DIAG_L0UNITS` 对拍探针在 BTC 100k 全程零告警（含该回缩 bar），L2 等级实证。
+    // 代价：回缩 bar 的 `l0_dirty_from` 从复用长度降为 0（保守全脏，A3 证书前缀护栏恒成立），
+    // 100k 内 1 次，标度无影响。
+    if l0.segments.len() < cache.last_l0_segments_len {
+        cache.clear();
+    }
+
     // L0 输入单元 = parser 线段账本。#106 证书增量（同 moves_tower_l0，消除每 bar 全量 collect）。
     // 返回 `reuse` = L0 units 复用前缀长度 = dirty_from[0]（§2.3：L0 不可变前缀，units[..reuse]
     // 逐字段等上 bar，units[reuse..] 本 bar 新 extend）。
@@ -1586,10 +1617,6 @@ pub fn classify_with_tower_incremental(
         return (Classification::default(), Vec::new());
     }
 
-    // 前缀不变量校验：段账本回缩 ⟹ 清空重扫（bit-exact 退化，非增量）。
-    if l0.segments.len() < cache.last_l0_segments_len {
-        cache.clear();
-    }
     cache.last_l0_segments_len = l0.segments.len();
     // ★#93：落账本 bar L0 确认前缀（tower[0] 水线，见字段文档）。min 防御 parser 古怪末段计数。
     cache.l0_confirmed_len = l0.segments_confirmed_len.min(l0.segments.len());
@@ -2270,6 +2297,23 @@ pub fn classify_with_tower_incremental(
     #[cfg(test)]
     oracle_probe::on_forest_dirty(forest_dirty_l0, forest_dirty && !forest_dirty_l0 && !cascade_reset, cascade_reset);
 
+    // ★#613（#609 F2）：`l0_units()` 只读契约的不变式——**塔已产出 L0 级快照时**，
+    // `l0_units_cache` 与 `tower[0]` 同长（同源同序由 `moves_tower_l0` 的构造保证：两者都是
+    // `l0.segments` 的逐元素纯函数投影，且本函数内只有一处写入站点）。
+    //
+    // 限定「非空」是结构事实而非放宽：段数不足以构造任何级别时 `tower_snapshots` 为空而
+    // `l0_units_cache` 已有内容（BTC 100k 实测 278 个早期 bar），此时消费方
+    // （`p123_fast_replay::recompute_lifecycle_window_stems`）走 `tower_level_absent` 显式原因码，
+    // 根本不读 `l0_units` ⟹ 无契约面。
+    debug_assert!(
+        tower_snapshots
+            .first()
+            .is_none_or(|l0_tower| l0_tower.len() == cache.l0_units_cache.len()),
+        "l0_units() 契约违反：l0_units_cache.len()={} 与 tower[0].len()={:?} 失步（#613/#609 F2）",
+        cache.l0_units_cache.len(),
+        tower_snapshots.first().map(|t| t.len())
+    );
+
     (Classification { levels }, tower_snapshots)
 }
 
@@ -2518,6 +2562,65 @@ mod tests {
 
     fn seg(dir: Direction, si: usize, ei: usize, sp: i64, ep: i64) -> Segment {
         Segment { direction: dir, start_index: si, end_index: ei, start_price: sp, end_price: ep }
+    }
+
+    /// ★#613（收 #609 F2）：段账本回缩 bar 上 `l0_units()` 与 `tower[0]` 必须仍同长。
+    ///
+    /// 回归的是这条真 bug：回缩检测的 `cache.clear()` 曾位于 `l0_units_cache` 构建**之后**，
+    /// 于是该 bar 上访问器返回空而 `tower[0]` 满载（BTC 100k @ as_of=71040：0 vs 547）。
+    /// 消费方（`p123_fast_replay` 的 L2 活窗派生）拿空切片重扫，只在 `resume_from > 0` 时被
+    /// 越界守卫恰好接住；`resume_from == 0` 时会静默落 `no_window_formed`。
+    #[test]
+    fn l0_units_stays_in_sync_with_tower0_on_segment_ledger_shrink() {
+        let cfg = ThetaConfig::default();
+        let mut cache = TowerCache::new();
+
+        // 第一 bar：6 段账本（confirmed 前缀 5，末段未确认——古怪线段可重划）。
+        let long_segments = vec![
+            seg(Direction::Up, 0, 4, 100, 150),
+            seg(Direction::Down, 4, 8, 150, 120),
+            seg(Direction::Up, 8, 12, 120, 148),
+            seg(Direction::Down, 12, 16, 148, 110),
+            seg(Direction::Up, 16, 20, 110, 145),
+            seg(Direction::Down, 20, 24, 145, 115),
+        ];
+        let closes: Vec<i64> = (0..28).map(|i| 100 + if i % 2 == 0 { 20 } else { -20 }).collect();
+        let long_layer = ParseLayer {
+            segments: Rc::new(long_segments.clone()),
+            segments_confirmed_len: 5,
+            merged_bars: Rc::new(bars_from_closes(&closes)),
+            ..Default::default()
+        };
+        let (_, tower_long) = classify_with_tower_incremental(&long_layer, &cfg, &mut cache);
+        assert_eq!(
+            cache.l0_units().len(),
+            tower_long[0].len(),
+            "非回缩 bar 本就同长"
+        );
+
+        // 第二 bar：段账本**回缩**到 4 段（末两段被重划吞并）⟹ 走 `cache.clear()` 分支。
+        let short_layer = ParseLayer {
+            segments: Rc::new(long_segments[..4].to_vec()),
+            segments_confirmed_len: 3,
+            merged_bars: Rc::new(bars_from_closes(&closes)),
+            ..Default::default()
+        };
+        let (_, tower_short) = classify_with_tower_incremental(&short_layer, &cfg, &mut cache);
+
+        assert!(!tower_short.is_empty(), "4 段仍足以产出 L0 塔快照");
+        assert_eq!(
+            tower_short[0].len(),
+            4,
+            "回缩后 tower[0] = 新段账本全量重建"
+        );
+        assert_eq!(
+            cache.l0_units().len(),
+            tower_short[0].len(),
+            "★F2 不变式：回缩 bar 上 l0_units() 不得为空/失步（#613 收 #609 F2）"
+        );
+        // 同长之外再钉同源：逐元素等于新段账本的 `segment_to_unit` 投影。
+        let expected: Vec<UnitRange> = short_layer.segments.iter().map(segment_to_unit).collect();
+        assert_eq!(cache.l0_units(), expected.as_slice(), "同序同源，非仅同长");
     }
 
     /// 构造 merged_bars：source_index 连续 0..n，close = vals（MACD 背驰真算用）。

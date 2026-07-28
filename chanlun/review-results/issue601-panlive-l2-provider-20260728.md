@@ -393,3 +393,341 @@ python3 /tmp/wt601_join.py   /tmp/wt601-post-100k.dump
 python3 /tmp/wt601_attrib.py /tmp/wt601-post-100k.dump
 python3 /tmp/wt601_settle.py /tmp/wt601-post-100k.dump
 ```
+
+---
+
+# 9. #609 修复节（票 #613：F1/F2 收口 + F3 补口径；#602 前置）
+
+评审 `chanlun/review-results/shadow-601-review-20260728.md` 判 **PASS WITH CONDITIONS**，
+其中 F1/F2 为 MEDIUM。本节逐条登记收口过程与读数，认识论等级统一标注。
+
+## 9.1 F2：`l0_units()` 与 `tower[0]` 失步——根因钉死（**L2 实证，非推断**）
+
+### 现场复现
+
+在 HEAD (`6e34dc57d7`) 的独立副本（`/tmp/wt613-probe`，`git archive` 导出）上加零行为探针，
+BTC 100k 复现评审现场**逐字一致**：
+
+```
+SH613 P123MISMATCH as_of=71040 l0_units=0 tower0=547 tower_len=4 resume_from=Some(535)
+```
+
+（评审记录：`SH609D MISMATCH as_of=71040 resume_from=535 l0_units=0 tower0=547 tower_len=4`）
+
+### 根因
+
+`classify_with_tower_incremental` 的旧执行序是：
+
+1. `00_l0_units_build`：按 `segments_confirmed_len` 证书复用前缀，重建 `cache.l0_units_cache`；
+2. `Rc::clone` 把它出借为局部 `l0_units`（下游塔构造的输入）；
+3. **段账本回缩检测** `l0.segments.len() < cache.last_l0_segments_len` ⟹ `cache.clear()`。
+
+`TowerCache::clear()` 逐字段清塔缓存，**包含刚建好的 `l0_units_cache`**（`Rc::make_mut(...).clear()`）。
+但第 2 步已经把值 `Rc::clone` 出去，`make_mut` 触发写时复制 ⟹ 局部 `l0_units` 保持完整、
+`tower[0]` 由它构造（547 条），而 `cache.l0_units_cache` 变成空 Vec。函数返回后
+`cache.l0_units()` 返回空切片 —— 只读契约「与 `tower[0]` 同序同长同源」被破。
+
+同一 bar 的 `moves_tower_l0`（= `tower[0]`）重建在 clear **之后**（reuse=0，全量），
+所以两者在回缩 bar 上本就口径不一致：一个复用前缀、一个全量重建。
+
+### 唯一性与自愈（探针实测）
+
+| 事件 | 100k 内次数 |
+|---|---:|
+| 段账本回缩（`segments` 549→547 @ as_of=71040） | **1** |
+| `l0_units()` 与 `tower[0]` 失步 | **1**（同一 bar，一一对应） |
+
+无第二成因。下一 bar `reuse = min(confirmed_len, 0) = 0` ⟹ 全量重建，失步只存活该 bar。
+（评审所见「280 条 mismatch」中另 278 条是塔尚未涌现任何级别的早期 bar，`tower_snapshots` 为空
+而 `l0_units_cache` 非空——那不是失步，消费方在该形态下走 `tower_level_absent` 显式原因码，
+根本不读 `l0_units`。本节的不变式因此限定在「`tower_snapshots` 非空」上，见 9.1 收口。）
+
+### 收口：修根因（票面选项 a 的严格形式），不是加原因码掩盖症状
+
+`no-patch-mentality` 禁「在错误代码上加 workaround」——选项 (b)「加独立原因码区分失步与
+`no_window_formed`」若单独采用，等于把契约违反归类而不修复。故取：**把回缩检测的
+`cache.clear()` 前移到 `l0_units_cache` 构建之前**，令不变式真成立，再加断言（选项 a）。
+
+**零字节影响的依据**（L0 论证 + L2 实证）：
+
+- L0：复用前缀受 `segments_confirmed_len` 证书约束（parser 保证 `segments[..confirmed_len]`
+  跨 bar 逐字节稳定），回缩只发生在未确认尾部（该 bar `confirmed=546 ≤ 新长度 547`）⟹
+  全量重建 == 复用重建；
+- L2：仓内既有 `DIAG_L0UNITS` 对拍探针（复用版 vs 全量 `segment_to_unit`）在 BTC 100k
+  **全程零告警**，含该回缩 bar。
+
+代价：回缩 bar 的 `l0_dirty_from` 由复用长度降为 0（保守全脏，A3 证书的前缀护栏
+`cached_units[..dirty_from] == units 前缀` 在 0 上恒成立），100k 内 1 次，标度无影响。
+
+### 三重钉法
+
+1. **不变式 + 断言**：`classify_with_tower_incremental` 末加 `debug_assert!`——
+   `tower_snapshots` 非空 ⟹ `tower_snapshots[0].len() == l0_units_cache.len()`；
+   `TowerCache::l0_units` 文档写明该不变式、唯一维护站点及其前置条件（clear 必须先行）。
+2. **回归测试**（真红-绿）：`l0_units_stays_in_sync_with_tower0_on_segment_ledger_shrink`
+   ——构造 6 段→4 段的账本回缩，断言同长 + 逐元素同源。
+   **负控实证**：同一测试插入 pre 侧（HEAD 净出副本）跑 **FAILED，`left: 0 right: 4`**
+   （与生产现场 0 vs 547 同构）；post 侧 ok。
+3. **消费侧独立原因码**：p123 的 L2 分支新增 `l0_units_out_of_sync`——根因已修，本码是**契约面
+   的独立可观测**（未来重构再破不变式时落本码，而不是让派生在 `resume_from == 0` 时静默落
+   `no_window_formed`，即 F2 指出的静默通道）。100k 实测计数 **0**（不变式成立的正面证据）。
+
+## 9.2 F1：去重叠改**整窗口径**（选择 + 理由）
+
+**选择：改口径**（不是「坚持单 pop + 给证明」）。理由三条：
+
+1. **单一来源**：「哪些塔单元算确认」在仓内已有唯一权威 `TowerCache::tower_confirmed_len(level)`
+   （= `upper_moves.len() - scan_cursor.last_window_emitted`，cascade bar 另取保留前缀 `min(P)`），
+   其字段文档自称「#93 水线证书（单一来源，禁第二查法）」。同起点单 pop 是**第二查法**。
+2. **单 pop 在 `last_window_emitted > 1` 时根本不触发**（不是「少 pop 几个」）：#148 升级重切窗
+   一窗产 ⌊n/3⌋ 个子中枢，它们起点递增，`segments.last().start_index` 与活动腿起点（= 窗口
+   **首**单元起点）不等 ⟹ 判据整条落空，k 个未确认子单元全部残留。评审实测该游标 3–7 占
+   20.0%（227/1134），残留落在 58/314 真产出活窗与 45/93 `frontier_not_after_confirmed` 上。
+3. **#602 继承**：L3 复用同一「虚拟追加 + 重扫」骨架，口径不收在 L2 会复制一层。
+
+实装：`segments.truncate(l1_confirmed_len)`，`l1_confirmed_len = cache.tower_confirmed_len(1)`。
+方向安全 = 水线是保守下界（over-shrink 恒 sound、over-grow 禁止），截多了只少产活窗、不凭空产出。
+
+**L1 不套用本口径**（结构差异，不是折中）：L1 的 confirmed 侧是 `tower[0]` = parser 段账本投影，
+其 active（parser `pendingSegment`）**不在** `l0.segments` 里 ⟹ F1 的重叠机制在 L1 上不存在，
+按水线截断只会误删真已终结的单元。「L1 confirmed 尾段跨 bar 可重划（古怪线段）」是**另一条**
+缺陷线索，与本条重叠无关，登记为遗留（9.6-3）。
+
+### 判据修正：水线是**第四个**输入，且推论被实测否定
+
+`tower_confirmed_len(1)` 独立进活窗重算判据。本票原写「三元组（`forest_epoch`/`frontier`/
+`l1_scan`）推论上已覆盖水线的全部变化源」——**该推论被 BTC 100k 实测否定**：
+
+| as_of | 水线 prev → now | `forest_epoch` | `WindowScanCursor` |
+|---:|---|---|---|
+| 53461 | 88 → **91** | 不变 | 不变 |
+| 85046 | 156 → **157** | 不变 | 不变 |
+| 94694 | 180 → **181** | 不变 | 不变 |
+| 97241 | 186 → **187** | 不变 | 不变 |
+
+根因：`LevelCache::confirmed_watermark` 是**有状态量**——cascade bar 走 `min(P)`/`min(w_nat)`
+把水线压到自然值以下（100k 内该分支命中 1888 次），压低值跨 bar 保留，直到某个非 cascade bar
+才直接取 `w_nat` 恢复；而 `forest_epoch`/`scan_cursor` 是当前塔状态的**无状态派生量**，恢复
+那一步不经过它们。漏掉这项 ⟹ 那 4 个 bar 继续用偏保守的 confirmed 侧派生活窗。故加入判据是
+**正确性所需**，不是保守冗余。（这 4 次多出的重算即 9.4 表中 L1 诊断面 +4 行的全部来源。）
+
+### 收口证据
+
+1. **生产读数**：`l2:frontier_not_after_confirmed` **93 → 0**（重叠通道整段关闭，不是减少）。
+2. **可执行契约**（生产路径，非注释）：截断后加 `debug_assert!(segments.last().end_index <=
+   active.start_index)`。**debug 构建跑满 BTC 100k 零违反**，且 debug 与 release 的 stdout
+   逐位相同。旧的单 pop 口径在 `last_window_emitted > 1` 时违反本式，故本式同时是「整窗口径
+   已生效」的判别。
+3. **单元测试**：`l2_confirmed_side_truncates_by_whole_window_watermark` 三分支——
+   (a) 不截断 ⟹ `FrontierNotAfterConfirmed`；(b) 单 pop ⟹ **仍** `FrontierNotAfterConfirmed`
+   （钉住「只修对一半」）；(c) 整窗截断 ⟹ 重叠消除、判据按序推进。
+   **该测试的限制照实登记**：它钉的是口径语义，在 pre 侧亦绿（不依赖生产调用点）——
+   「生产代码确实用了该口径」由上述 1、2 坐实，仓内无端到端断言（遗留 9.6-2）。
+
+## 9.3 F3：归因子桶判定规则（写出）+ 子桶表重发
+
+**规则**（可执行形式 = 仓内 `chanlun/review-results/issue613-attrib-buckets.py`，第三方可按此复算；
+不放 `/tmp`——评审对 #601 的条件 4 正是「理由指针指向仓外」）：
+
+1. 身份集 = `COMPLETION_SIGNAL level=2` 行去重，键 = (side, seg_a, seg_c_full, b_center_start)；
+   同键多行取 `as_of` 最小者（首见）。
+2. **A 桶「存在 earlier Live」**：存在 `PAN_LIVE_HIT level=2` 行满足
+   `b_center_start` == 身份的 `b_center_start` ∧ `c_start` == 身份的 `seg_c_full.0`
+   ∧ 该行 `as_of` < 身份的 `as_of`。
+3. 否则 **B 桶**。子桶 = 该身份 C 活跃期 `W = [seg_c_full.0, completed_at]`（#559 C1 口径）内
+   全部 level=2 诊断行（`PAN_LIVE_HIT`/`MISS`，闭区间）的 `reason` 的**众数**；
+   **并列取 W 内最早出现者**。
+   - `reason == "window"` 记为 `window_other_c`（定位成功但落在同锚的另一个 λ_C）；
+   - W 内零 level=2 诊断行 ⟹ `no_diag_row_in_window`（该桶非空即归因未闭合）。
+
+**按该规则复算的子桶表**（BTC 100k，L2 等级）：
+
+| 归因 | pre（HEAD `6e34dc57d7`） | post（本票） |
+|---|---:|---:|
+| A. 存在 earlier Live | 19 | **20** |
+| B. `structure_not_locatable` | 7 | **8** |
+| B. `window_other_c` | 5 | **4** |
+| B. `tower_level_absent` | 3 | **3** |
+| B. `center_not_consolidation` | 2 | **2** |
+| B. `frontier_not_after_confirmed` | **2** | **0**（该码已归零） |
+| B. `lower_frontier_not_absorbed` | 0 | **1** |
+| **合计** | **38** | **38** |
+| 归因闭合 | **PASS（零「不知道」）** | **PASS（零「不知道」）** |
+
+**与交付报告 §4 原表的差异说明（F3 的实质）**：原表记 `structure_not_locatable` = 9，
+按本规则复算是 7 + `frontier_not_after_confirmed` 2 —— 即原表把那 2 只并进了
+`structure_not_locatable` 而未单列该桶。本复算与评审 §1 的独立复算（「`frontier_not_after_confirmed`
+是 2 只身份的众数原因」）**逐值吻合**。F3 的条件按「写出规则并重发表」满足；该桶在 post 侧
+因 F1 收口而自然归零。
+
+## 9.4 BTC 100k 复测读数对照（照实登记，禁凑旧数）
+
+**活窗定位结果分布**（stderr `P527_L1_LIVE_OUTCOMES`）
+
+| 原因码 | pre | post | 说明 |
+|---|---:|---:|---|
+| `l2:window` | 314 | **342** | F1 关闭重叠通道后真产出活窗增加 |
+| `l2:frontier_not_after_confirmed` | 93 | **0** | ★F1 收口 |
+| `l2:resume_anchor_out_of_range` | 1 | **0** | ★F2 收口（该 1 次即失步本身） |
+| `l2:l0_units_out_of_sync` | —（码不存在） | **0** | 新契约码，不变式成立 ⟹ 恒 0 |
+| `l2:structure_not_locatable` | 423 | 467 | |
+| `l2:center_not_consolidation` | 304 | 329 | |
+| `l2:lower_frontier_not_absorbed` | 557 | 558 | |
+| `l2:tower_level_absent` | 520 | 520 | |
+| `l1:window` | 608 | 610 | ← +2 |
+| `l1:structure_not_locatable` | 817 | 818 | ← +1 |
+| `l1:center_not_consolidation` | 387 | 388 | ← +1 |
+| `l1:tower_level_absent` | 400 | 400 | |
+| `l0:no_active_frontier` | 57 | 57 | |
+
+L1 侧 +4 行**全部**来自 9.2 的判据修正（4 个 bar 多做一次重算，每次多落一行诊断），
+不是 L1 定位行为改变——见下方零回归。
+
+**全局终局分布**（`P421_LIFETIME_SUMMARY`，含 L1/L2/L3 合计）
+
+| 指标 | pre | post |
+|---|---:|---:|
+| entries | 286 | **302** |
+| first_provable | 196 | **208** |
+| confirmed | 135 | **135** |
+| force_overtake | 37 | **40** |
+| never_constituted | 75 | **74** |
+| identity_vanished_refuted | 26 | **29** |
+| identity_vanished_seam | 12 | **23** |
+| flash_terminal | 73 | **75** |
+| nonflash 寿命 min/median/max | 1 / 82.0 / 510 | **1 / 88.0 / 423** |
+
+变化全部落在 L2（L1/L3 真值面逐位不变，见下）。`identity_vanished_seam` 12→23 意味着 L2 首次
+出现观测接缝（#601 §4 记 L2 seam=0，那是**旧口径下的样本读数**）——照实登记，不外推成因；
+其机制归属仍是 #597 桥接语义研究票的输入。
+
+**L1 / L3 零回归（真值面逐位相同）**
+
+| 面 | 结果 |
+|---|---|
+| `REV`+`COMPLETION_SIGNAL` level=1（20819 行） | **cmp=0** |
+| `REV`+`COMPLETION_SIGNAL` level=3（39 行） | **cmp=0** |
+| L0/L1 活窗诊断行（`PAN_LIVE_*` level∈{0,1}） | 2269 → 2273 行，diff = **纯新增 4 行、零删除零修改**（来源见 9.2 判据修正） |
+
+## 9.5 护栏 + 测试门
+
+**字节护栏（pre = HEAD `6e34dc57d7` 净出副本 `/tmp/wt613-pre`，post = 本工位）**
+
+| 面 | 窗 | cmp | SHA-256（前 16） |
+|---|---|---:|---|
+| p123 stdout | 20k | **0** | `bd9ac1d655f9d615`（与 #601 记录逐字相同） |
+| P116 dump | 20k | **0** | `fcc8016a9a01a109`（同上） |
+| p123 stdout | 100k | **0** | `d8b69c180c23c5e3`（与 #527/#601 记录逐字相同） |
+| P116 dump | 100k | **0** | `8a7327feb3b9ba29`（同上） |
+| m8 trades / tower_events（p3fold/wf7/wf8 三窗） | — | **0** | `m8_byte_guardrail` 仓内门 **ok** |
+| 2000-bar lifecycle dump 全文 golden | 2k | **0** | 未漂（该窗塔尚未长出 L2） |
+
+**lifecycle dump（本票本体面，故意漂移）**
+
+| 窗 | pre | post |
+|---|---|---|
+| 20k | `00b68a99722f8487…` | **`3f2758b6c3f36036…`** |
+| 100k | `4697f7644bf2b859…` | **`966d589b1a78f95f…`** |
+
+按 `rust/tests/issue533_p123_byte_guardrail.rs:44-47` 的 golden 纪律（已审阅、故意、同 PR 说明
+原因并引用 issue/report）重锚 `tests/fixtures/issue533_p123_{20000,100000}.sha256` 的 `dump` 行；
+**`stdout` 行两窗均未改**（零漂移自证）。理由指针 = 本节 + issue #613（编排侧批准在票面，
+先例见 `9a6aa0e885`）。重锚后 `issue533_p123_byte_guardrail` 两档 **2 passed**。
+
+**测试门**：`cargo test --lib`（`CARGO_TARGET_DIR=/tmp/kimi-nest-target-613`）
+= **2041 passed / 1 failed**，唯一红 `extract_signals_bit_exact_digest_guard` = **#491 既有基线红**
+（pre 侧跑同一测试，失败摘要 `left: 16618955402698307653 / right: 10432481772907336594` 逐位相同
+⟹ 非本票引入）。`cargo test --bin p123_fast_replay` = **3 passed**（含本票新增 1 条）。
+新增测试 2 条，均覆盖本节收口路径。
+
+## 9.6 遗留（照实登记）
+
+1. **`tower[2]` 侧的开放末窗未截断**。F1 只收 confirmed **段序列**（`tower[level-1]`）侧；
+   `centers` 来自 `tower[level]`，其末窗同样可能开放。当前由
+   `nearest_confirmed_center_idx(centers, active.start_index)` 的「取 active 起点之前的最近中枢」
+   天然规避大部分情形，但未加水线截断——不在 F1 的判定范围（评审 F1 锚只指 `segments` 侧），
+   登记待审。
+2. **F1 无端到端仓内断言**。`recompute_lifecycle_window_stems` 的整窗截断由生产读数（93→0）
+   与 debug 契约（100k 零违反）坐实，但没有「构造真 compose 塔 → 调该函数 → 断言 tally」的
+   测试——需要 `compose_level` 造多级真塔的夹具，属独立工作量（与评审 F8 同域）。
+3. **L1 confirmed 尾段的跨 bar 稳定性**。`tower[0]` 的末段可被古怪线段重划（`tower_confirmed_len(0)`
+   即为此设），L1 活窗的 confirmed 侧未按该水线截断。这与 F1 的「confirmed/active 重叠」是
+   **两条不同缺陷**（L1 的 active 不在 `l0.segments` 内，不重叠），且收紧会破 L1 零回归
+   （本票票面硬要求）——需另票裁定是否收紧。
+4. **F4/F6/F7/F9/F11/F12 未在本票处理**（票面 Scope 只含 F1/F2/F3）。本票顺手清了 **F4**
+   （`unreachable!` 的陈旧理由句，改为「循环上界写死 `for level in 1..3`」）与 **F10**
+   （`cargo fmt` 命中的 import 排序，清后三面 cmp=0 自证零行为影响），其余留待各自票。
+
+## 9.7 结果包六要素（#525）
+
+1. **结论**：#609 的 F1/F2/F3 三条 MEDIUM/LOW-MED 条件全部收口。F2 修根因（回缩 `clear` 前移）
+   + 不变式断言 + 真红-绿回归测试 + 契约原因码；F1 改整窗水线口径（`frontier_not_after_confirmed`
+   93→0）+ 生产路径 debug 契约 + 三分支单测；F3 写出判定规则并重发子桶表（与评审独立复算吻合）。
+   L2 38/38 归因闭合两侧均 PASS，L1/L3 真值面逐位零回归，四个字节护栏面 cmp=0。
+2. **定义依据**：
+   - 「哪些塔单元算确认」= `TowerCache::tower_confirmed_len`（`classifier/mod.rs` 的 #93 水线
+     证书，自称单一来源、禁第二查法）；「frontier 回退域 = 整窗产出」=
+     `WindowScanCursor::last_window_emitted` 文档原文「只 pop 1 会残留旧子中枢」。F1 的口径直接取这两条。
+   - 「`l0_units()` 与 `tower[0]` 同源」= 两者都是 `l0.segments` 的逐元素纯函数投影
+     （`segment_to_unit` / `LeveledMove::from_unit ∘ segment_to_unit`），本函数内各只有一处写入站点。
+   - 「归因闭合」= 每只 L2 完成身份在其 C 活跃期 `[c_start, completed_at]` 内至少有一条 level=2
+     诊断行，或存在 `observed_at < completion_as_of`（#559 C1 口径 + #601 票面验收 1）。
+   - golden 变更纪律 = `rust/tests/issue533_p123_byte_guardrail.rs:44-47`。
+   - 认识论等级（`formalization-validity-domain`）：F2 根因的唯一性/自愈、F1 的暴露面与收口读数、
+     判据修正的 4 次反例，全部为 **L2**（BTC 单标的、100k 单窗真实数据），不外推跨品种；
+     F2 的「复用前缀 == 全量重建」另有 L0 论证（证书约束）。
+3. **边界条件（本节结论在何时翻转）**：
+   - 若 `confirmed_watermark` 的维护改为「不再被 cascade 压低」，9.2 的四个反例消失，
+     水线进判据退化为纯保守冗余（结论不变，理由需改写）；
+   - 若 `tower_confirmed_len` 改成非保守（允许 over-grow），F1 的方向安全论证失效，
+     截断可能留下跨 bar 可变单元；
+   - 若 parser 的 `segments_confirmed_len` 证书失效（回缩发生在已确认前缀内），F2 的
+     「零字节影响」论证失效，clear 前移会成为真实字节变更；
+   - 若 F3 的众数规则改为「取 W 内最后一行」或「取最严重码」，子桶表数字会变——规则是
+     **约定**不是发现，故必须公布（本节 9.3 即公布物）。
+4. **下游推论**：#602（L3）现在继承的是**已收口**的骨架——第三个只读访问器须同样在
+   `classify_with_tower_incremental` 内维护同长不变式，其 confirmed 侧须取 `tower_confirmed_len(2)`
+   而非任何同起点判据。#603 消费 L2 活窗集合时，`window=342` 与 `seam=23` 是新基线，
+   #601 §4 的 `window=314` / `seam=0` 作废。
+5. **谱系引用**：#609（本节收口的条件来源）；#601（本报告主体）；#598（架构裁定与切片建议）；
+   #523（PanLive 接缝根因）；#527/#559/#578/#591/#592（L1 先例与措辞限定）；#148（升级重切 =
+   F1 的成因域）；#93（水线证书）；#533（字节护栏门与 golden 纪律）；#491（既有基线红）；
+   090（声明=能力：判据注释中被实测否定的推论已改写，不留未验证声明）；
+   `no-patch-mentality`（F2 取修根因而非加原因码掩盖；F1 取单一来源而非第二查法）；
+   `formalization-validity-domain`（全节等级标注）。
+6. **影响声明**：改动 2 个生产文件（`classifier/mod.rs`：回缩 clear 前移 + 不变式断言 +
+   `l0_units` 文档 + 1 条新测试；`bin/p123_fast_replay.rs`：整窗截断 + 契约原因码 + 判据第四项
+   + debug 契约 + 1 条新测试 + F4/F10 顺手清）与 2 个 golden fixture（`issue533_p123_{20000,100000}.sha256`
+   的 `dump` 行）。**未改** `recursive_tower.rs` / 塔存储 / `nest_lifecycle.rs` / 塔消费方签名 /
+   p123 stdout / P116 dump / m8 产物 / `Cargo.toml` / 他 session 未提交面 / 任何 issue 状态 / map / roster。
+
+## 9.8 复现命令（#613）
+
+```bash
+cd rust
+CARGO_TARGET_DIR=/tmp/kimi-nest-target-613 cargo build --release --bin p123_fast_replay
+for w in 20000 100000; do
+  n=$([ $w = 20000 ] && echo 20k || echo 100k)
+  P116_MAX_BARS=$w P116_DUMP=/tmp/wt613-post-$n.p116 P421_LIFECYCLE_DUMP=/tmp/wt613-post-$n.lc \
+    /tmp/kimi-nest-target-613/release/p123_fast_replay ../analysis/data_cache/btc_1m_full.json \
+    > /tmp/wt613-post-$n.out 2> /tmp/wt613-post-$n.err
+done
+
+# pre 侧（HEAD 净出，只读导出，不动工位）
+mkdir -p /tmp/wt613-pre && git archive HEAD | tar -x -C /tmp/wt613-pre
+
+# 归因子桶复算（规则的可执行形式，见 9.3）
+python3 ../chanlun/review-results/issue613-attrib-buckets.py /tmp/wt613-post-100k.lc
+
+# 门
+CARGO_TARGET_DIR=/tmp/kimi-nest-target-613 cargo test --lib
+CARGO_TARGET_DIR=/tmp/kimi-nest-target-613 cargo test --bin p123_fast_replay
+CARGO_TARGET_DIR=/tmp/kimi-nest-target-613 cargo test --release --test issue533_p123_byte_guardrail -- --ignored
+CARGO_TARGET_DIR=/tmp/kimi-nest-target-613 cargo test --release --lib m8_byte_guardrail -- --ignored
+
+# debug 契约全窗验证（F1 的 debug_assert，1m29s）
+cargo build --bin p123_fast_replay
+P116_MAX_BARS=100000 P421_LIFECYCLE_DUMP=/tmp/wt613-debug-100k.dump \
+  /tmp/kimi-nest-target-613/debug/p123_fast_replay ../analysis/data_cache/btc_1m_full.json \
+  > /tmp/wt613-debug-100k.stdout
+```

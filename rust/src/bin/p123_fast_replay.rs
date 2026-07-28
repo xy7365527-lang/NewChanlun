@@ -152,6 +152,7 @@
 
 use newchan_rust::theta_v0::classifier;
 use newchan_rust::theta_v0::classifier::bsp::BspPoint;
+use newchan_rust::theta_v0::classifier::center::UnitRange;
 use newchan_rust::theta_v0::classifier::decompose;
 use newchan_rust::theta_v0::classifier::level_view::{
     assemble_level_view, assemble_level_view_resident, lower_legs_from,
@@ -175,7 +176,6 @@ use newchan_rust::theta_v0::classifier::nest_lifecycle::{
 use newchan_rust::theta_v0::classifier::recursive_tower::{
     find_move_by_end_index, LeveledMove, WindowScanCursor,
 };
-use newchan_rust::theta_v0::classifier::center::UnitRange;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::{ParseLayer, ParseLayerIncr};
 use newchan_rust::theta_v0::types::{
@@ -1064,9 +1064,22 @@ fn run_targeted_prefix_pass(
     // 它可以在 `forest_epoch` 不变时前进（不成立支 `i += 1` 推进 `consumed`/`resume_from`
     // 而无窗口产出 ⟹ 塔字节未变 ⟹ epoch 不 bump），故必须**独立**进重算判据，否则 L2 的
     // 派生会读到陈旧锚。三元组任一变即重算（保守、等价，不改行为）。
+    //
+    // #613（#609 F1）：L2 confirmed 侧的整窗截断口径 `tower_confirmed_len(1)` 是**第四个**输入，
+    // 必须独立进判据——**不是**保守冗余，是正确性所需。
+    //
+    // 「三元组已覆盖水线的全部变化源」这条推论（长度变 ⟹ epoch bump；`last_window_emitted`
+    // 变 ⟹ `l1_scan` 变）**被实测否定**：BTC 100k 上有 4 个 bar 三元组逐值不变而水线变化
+    // （as_of=53461 88→91、85046 156→157、94694 180→181、97241 186→187）。根因是
+    // `LevelCache::confirmed_watermark` 是**有状态量**：cascade bar 走 `min(P)`（保留前缀）
+    // 与 `min(w_nat)` 把水线压到自然值以下，该压低值跨 bar 保留，直到某个非 cascade bar 才
+    // 直接取 `w_nat` 恢复；而 `forest_epoch`/`scan_cursor` 是当前塔状态的无状态派生量，
+    // 恢复那一步不经过它们。漏掉这项 ⟹ 那 4 个 bar 继续用偏保守的 confirmed 侧（少 1–3 个
+    // 已确认单元）派生活窗。四项任一变即重算。
     let mut lifecycle_window_stems: Vec<LifecycleWindowStem> = Vec::new();
     let mut last_lifecycle_frontier: Option<Option<ActiveSegmentFrontier>> = None;
     let mut last_lifecycle_l1_scan: Option<Option<WindowScanCursor>> = None;
+    let mut last_lifecycle_l1_confirmed_len: Option<usize> = None;
     let mut lifecycle_dump = std::env::var("P421_LIFECYCLE_DUMP")
         .ok()
         .map(|path| {
@@ -1103,9 +1116,12 @@ fn run_targeted_prefix_pass(
         // #601 L2 活窗：C 腿由「L0 units（confirmed）+ 上面这段虚拟追加」在 L1 层重扫派生，
         // 重扫锚取塔自己的 L1 层扫描断点（只读视图，塔存储零改动）。
         let l1_scan = cache.level_scan_cursor(1);
+        // #613（#609 F1）：L2 confirmed 侧的整窗截断水线（第四个输入，见上方判据文档）。
+        let l1_confirmed_len = cache.tower_confirmed_len(1);
         if last_lifecycle_forest_epoch != Some(forest_epoch)
             || last_lifecycle_frontier != Some(frontier)
             || last_lifecycle_l1_scan != Some(l1_scan)
+            || last_lifecycle_l1_confirmed_len != Some(l1_confirmed_len)
         {
             let before = lifecycle_window_stems.len();
             let mut diag_rows: Vec<L1LiveDiagRow> = Vec::new();
@@ -1114,6 +1130,7 @@ fn run_targeted_prefix_pass(
                 frontier.as_ref(),
                 cache.l0_units(),
                 l1_scan,
+                l1_confirmed_len,
                 index,
                 &mut lifecycle_stats.l1_live_outcomes,
                 &mut diag_rows,
@@ -1170,6 +1187,7 @@ fn run_targeted_prefix_pass(
             last_lifecycle_forest_epoch = Some(forest_epoch);
             last_lifecycle_frontier = Some(frontier);
             last_lifecycle_l1_scan = Some(l1_scan);
+            last_lifecycle_l1_confirmed_len = Some(l1_confirmed_len);
         }
         let trigger = (forest_epoch, signal_signature(&classification));
         let lifecycle_due = last_lifecycle_trigger.as_ref() != Some(&trigger);
@@ -1639,11 +1657,13 @@ fn lifecycle_leg_as_segment(value: &LowerLeg) -> Segment {
 ///
 /// 只在 `forest_epoch` / `frontier` / L1 层扫描断点变化时执行（三者是本函数全部输入的
 /// 变化源）；不写生产缓存、不改 trigger/订单/证书路径。
+#[allow(clippy::too_many_arguments)]
 fn recompute_lifecycle_window_stems(
     tower: &[Rc<Vec<LeveledMove>>],
     frontier: Option<&ActiveSegmentFrontier>,
     l0_units: &[UnitRange],
     l1_scan: Option<WindowScanCursor>,
+    l1_confirmed_len: usize,
     as_of: usize,
     outcome_tally: &mut BTreeMap<(u32, &'static str), usize>,
     diag_rows: &mut Vec<L1LiveDiagRow>,
@@ -1688,6 +1708,25 @@ fn recompute_lifecycle_window_stems(
         let active = match level {
             1 => frontier.as_segment(),
             2 => {
+                // ★#613（收 #609 F2）：`l0_units()` 与 `tower[0]` 的同长契约在消费点复核。
+                // 根因已在 classifier 侧修死（段账本回缩的 `cache.clear()` 前移到 units 构建之前，
+                // 见 `TowerCache::l0_units` 的同长不变式），本守卫是**契约面的独立可观测**：
+                // 若未来重构再次破坏该不变式，本级落**本码**而不是让派生静默走到重扫上、因
+                // `resume_from==0` 时 `i + 2 < 1` 不成立而伪装成 `no_window_formed`
+                // （#609 F2 钉出的静默通道）。不变式成立时本码恒 0。
+                if l0_units.len() != tower[0].len() {
+                    *outcome_tally
+                        .entry((level as u32, "l0_units_out_of_sync"))
+                        .or_default() += 1;
+                    diag_rows.push(L1LiveDiagRow {
+                        level: level as u32,
+                        reason: "l0_units_out_of_sync",
+                        b_center_start: None,
+                        c_start: None,
+                        gap_len: None,
+                    });
+                    continue;
+                }
                 // L1 层扫描断点缺失（塔尚未产出该级缓存）⟹ 不猜锚，记原因码后跳过本级。
                 let Some(cursor) = l1_scan else {
                     *outcome_tally
@@ -1722,20 +1761,47 @@ fn recompute_lifecycle_window_stems(
                 // 天然不含 pending 段）。塔在这一点上**不同**：`tower[1]` 的末窗即使仍开放
                 // （未被 non-extension 单元终结、每 bar pop 重扫），在类型上也与确认窗口
                 // 不可区分（#598 §1.1）。行进中 L1 单元正是该末窗「计入行进中 L0 段」后的
-                // 形态 ⟹ 二者同起点。若不截断，末窗会同时以 confirmed 与 active 两个身份
-                // 进入判定，`active.start_index < last.end_index` 恒真 ⟹ L2 恒判
+                // 形态。若不截断，末窗会同时以 confirmed 与 active 两个身份进入判定，
+                // `active.start_index < last.end_index` 恒真 ⟹ L2 恒判
                 // `frontier_not_after_confirmed`（BTC 100k 实测 844 次）。
-                // 判据取同起点（不是「末项一律截断」）：虚拟单元 seed 出**新**窗口时活动腿
-                // 起点严格晚于末窗起点，此时末窗确实已被终结，必须保留在 confirmed 侧。
-                if segments
-                    .last()
-                    .is_some_and(|last| last.start_index == active_segment.start_index)
-                {
-                    segments.pop();
-                }
+                //
+                // ★#613（收 #609 F1）：截断口径 = **整窗**，取塔自己的确认水线
+                // `TowerCache::tower_confirmed_len(1)`（`upper_moves.len() -
+                // scan_cursor.last_window_emitted`，cascade bar 另取保留前缀 min(P)），
+                // 即「哪些塔单元算确认」的单一来源（#93 水线证书，`classifier/mod.rs` 自称
+                // 禁第二查法）。**不**再按「同起点 pop 1 个」：塔的 frontier 回退域是整窗产出
+                // （`WindowScanCursor::last_window_emitted` 原文「只 pop 1 会残留旧子中枢」），
+                // #148 升级重切窗一窗产 ⌊n/3⌋ 个子中枢，BTC 100k 实测该游标 3–7 占 20.0%
+                // （227/1134）；单 pop 在这些 bar 上残留 2–6 个**跨 bar 可变**的子单元留在
+                // confirmed 侧，而 seg_a 正是从这批段里定位、且 seg_a 进身份键 ⟹ L2 身份漂移
+                // 通道（#609 §3 实测覆盖 58/314 真产出活窗）。水线口径把这条通道整段关掉。
+                //
+                // 方向安全：水线是**保守下界**（over-shrink 恒 sound、over-grow 禁止），
+                // 截多了只会少产活窗，不会凭空产出；截断后 confirmed 侧全部元素跨 bar 逐字节
+                // 稳定 ⟹ seg_a 的输入稳定。
+                //
+                // **L1 不套用本口径**（不是折中，是结构差异）：L1 的 confirmed 侧是 `tower[0]`
+                // = parser 段账本投影，其 active（parser 的 pending 段）**不在** `l0.segments`
+                // 里 ⟹ F1 的重叠机制在 L1 上不存在，按水线截断只会误删真已终结的单元。
+                // 「L1 confirmed 尾段跨 bar 可重划（古怪线段）」是**另一条**缺陷线索，与本条
+                // 重叠无关，不在本票 Scope（见交付报告遗留）。
+                segments.truncate(l1_confirmed_len);
+                // 截断口径的**可执行契约**（不是注释保证）：水线之外的单元全部属于最后一个
+                // 成立窗口（或 cascade 保留前缀之后），而行进中 L1 单元由该窗口起点
+                // （`resume_from`）重扫派生 ⟹ 其起点不可能早于末确认单元的终点。旧的
+                // 「同起点 pop 1 个」在 `last_window_emitted > 1` 时**违反**本式（#609 F1
+                // 实测 45/93 残留），故本式同时是「整窗口径已生效」的判别。
+                debug_assert!(
+                    segments
+                        .last()
+                        .is_none_or(|last| last.end_index <= active_segment.start_index),
+                    "#613 F1：截断到确认水线后 confirmed 侧仍与 active 重叠（末端 {:?} > active 起点 {}）",
+                    segments.last().map(|last| last.end_index),
+                    active_segment.start_index
+                );
                 active_segment
             }
-            _ => unreachable!("循环上界 3.min(tower.len()) ⟹ level ∈ {{1,2}}"),
+            _ => unreachable!("循环上界写死 `for level in 1..3` ⟹ level ∈ {{1,2}}"),
         };
         let windows = &tower[level];
         let mut run_start = None;
@@ -2749,6 +2815,80 @@ mod tests {
         assert_eq!(later.seg_c_live, (30, 99));
         assert_eq!(first.gap_len, 7, "gap_len 随身份延展原样带出，不因右端前进重算");
         assert_eq!(later.gap_len, 7);
+    }
+
+    /// ★#613（收 #609 F1）：L2 的 confirmed 侧必须按**整窗**（塔的确认水线）截断，
+    /// 「同起点 pop 1 个」只修对一半。
+    ///
+    /// 场景取自实测形态：`tower[1]` 末尾 3 个 L1 单元来自同一个**仍开放**的窗口
+    /// （`WindowScanCursor::last_window_emitted == 3`，#148 升级重切窗一窗产 ⌊n/3⌋ 个子中枢；
+    /// BTC 100k 上该游标 >1 占 20.0%）⟹ `tower_confirmed_len(1) == 3`。行进中 L1 单元由该
+    /// 窗口起点重扫派生 ⟹ 与**首个**残留子单元同起点，而不是与末项同起点。
+    ///
+    /// 三分支各自钉一条：不截断 = 重叠恒判 `frontier_not_after_confirmed`；单 pop = 仍重叠
+    /// （残留 2 个）；整窗截断 = 重叠消除，判据推进到下一条（此处 centers 为空 ⟹
+    /// `no_confirmed_center_before`）。
+    #[test]
+    fn l2_confirmed_side_truncates_by_whole_window_watermark() {
+        use newchan_rust::theta_v0::classifier::nest_lifecycle::PanLiveOutcome;
+
+        // 6 个 L1 单元，共端点（生产 lower_legs 约定）。末 3 个（下标 3/4/5）= 开放末窗产物。
+        let leg = |si: usize, ei: usize, dir: Direction, sp: i64, ep: i64| Segment {
+            direction: dir,
+            start_index: si,
+            end_index: ei,
+            start_price: sp,
+            end_price: ep,
+        };
+        let legs = vec![
+            leg(0, 10, Direction::Up, 100, 150),
+            leg(10, 20, Direction::Down, 150, 120),
+            leg(20, 30, Direction::Up, 120, 148),
+            leg(30, 40, Direction::Down, 148, 110), // ← 开放末窗第 1 个子单元
+            leg(40, 50, Direction::Up, 110, 145),   // ← 第 2 个
+            leg(50, 60, Direction::Down, 145, 115), // ← 第 3 个
+        ];
+        // 塔的确认水线 = len - last_window_emitted = 6 - 3。
+        let l1_confirmed_len = 3usize;
+        // 行进中 L1 单元 = 该开放窗口「计入行进中 L0 段」后的形态 ⟹ 与 legs[3] 同起点。
+        let active = leg(30, 70, Direction::Down, 148, 105);
+        let centers: Vec<Center> = Vec::new();
+        let kinds: Vec<Option<MoveKind>> = Vec::new();
+
+        // (a) 不截断：末窗以 confirmed + active 双重身份进入 ⟹ 重叠恒真。
+        assert_eq!(
+            provide_active_pan_live_windows(2, &centers, &kinds, &legs, active, 70),
+            PanLiveOutcome::FrontierNotAfterConfirmed,
+            "不截断 ⟹ active.start(30) < confirmed.last().end(60)"
+        );
+
+        // (b) 旧修法「同起点 pop 1 个」：末项 legs[5] 起点 50 ≠ active 起点 30 ⟹ 根本不触发 pop；
+        //     即便强行摘掉末项，仍残留 legs[3]/legs[4] ⟹ 重叠未消除。这就是「只修对一半」。
+        let single_pop = &legs[..legs.len() - 1];
+        assert_eq!(
+            single_pop.last().map(|last| last.start_index),
+            Some(40),
+            "同起点判据在 last_window_emitted>1 时不成立（40 != 30），单 pop 甚至不触发"
+        );
+        assert_eq!(
+            provide_active_pan_live_windows(2, &centers, &kinds, single_pop, active, 70),
+            PanLiveOutcome::FrontierNotAfterConfirmed,
+            "单 pop 后仍有 2 个未确认子单元残留 ⟹ 重叠仍在"
+        );
+
+        // (c) 整窗截断到水线：confirmed 侧只剩真确认单元 ⟹ 重叠消除，判据推进到下一条。
+        let mut whole_window = legs.clone();
+        whole_window.truncate(l1_confirmed_len);
+        assert_eq!(
+            whole_window.last().map(|last| last.end_index),
+            Some(30),
+            "截断后末确认单元终点(30) <= active 起点(30) ⟹ 不重叠"
+        );
+        assert_eq!(
+            provide_active_pan_live_windows(2, &centers, &kinds, &whole_window, active, 70),
+            PanLiveOutcome::NoConfirmedCenterBefore,
+            "★F1：重叠消除后不再落 frontier_not_after_confirmed，判据按序推进"
+        );
     }
 
     /// #69 5b / T5：dirty 更新只替换代次/事件载荷，run-local pan memo 的持有地址不变。
