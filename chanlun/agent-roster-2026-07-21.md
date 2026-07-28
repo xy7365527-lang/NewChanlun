@@ -27,3 +27,7 @@
 | [claude-opus]#559-影子评审-#527 | kimi编排→claude opus（评审档 opus 深） | 两轴新上下文禁自评，落 shadow-527-review-20260728.md | 已交付（PWC：交付本体成立+读数全独立复现；C1 归因窗错/C2 文档恒等断言反例等五条；IdentityVanished 建议=合法新终局但撤 =0 不变量+原因码拆两类落账本字段，待编排者裁） |
 | [kimi]#527-IdentityVanished裁定 | kimi编排（编排者 2026-07-28 同意） | 撤 =0 不变量、合法新终局、原因码拆两类落账本字段（挂 #523 遗留 2），记票 comment-5108273992 | 已落地 |
 | [claude-opus]#527-修复轮 | kimi编排→claude opus | #559 五条件 + 两类原因码账本字段 | 已交付（77d3554332；kimi 抽验：2025/1 唯一红 #491、十对 cmp=0、37=25 refuted+12 seam、5 例钉因=同锚多候选 C；#527/#559 双关、map 已记） |
+| [kimi]#527遗留三问毕业 | kimi编排（编排者 2026-07-28 令） | 三问毕业成票：#578（夹具约定债，task+ready-for-agent）/#579（重算触发口径，research）/#580（一 run 一窗，research）；map 雾行已更新 | 已落地 |
+| [claude-sonnet]#579-重算触发口径研究 | kimi编排→claude sonnet | no_recompute_in_span 5 只逐只钉 + 反事实量化，落 issue579 报告 | 已交付（净增量=0：1 只塔未构造盲区、4 只回溯性多段重划；推荐不并触发+诊断标签改名 bootstrap_unavailable/retroactive_redivision_skipped，待编排者裁） |
+| [claude-sonnet]#580-一run一窗研究 | kimi编排→claude sonnet | located_other_* 6 只逐只钉 + 反事实量化，落 issue580 报告 | 已交付（0/6 可挽回：α=中枢确认时间差×3、β=前后段占 pending 槽×2、17447 双机制；推荐维持一 run 一窗+议桥接语义放宽；32893 疑点建议单开票，待编排者裁） |
+| [claude-sonnet]#578-夹具约定对齐 | kimi编排→claude sonnet（wayfinder frontier 取票） | 夹具坐标约定对齐生产共端点 + 守卫可测性二选一 | 已交付（bf37658101：对齐+联动 ~20 处、2030/1 唯一红 #491、五项 cmp=0；守卫收紧实测有洞 frontier 占 45% 非零变化→回退留钉，新发现转教义票） |
