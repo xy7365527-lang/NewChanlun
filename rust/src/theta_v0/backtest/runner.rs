@@ -6957,5 +6957,346 @@ mod tests {
             .collect()
     }
 
+    /// #526 共用 E1 前缀注入：父 L1 Long 于 bar13 开，子 L0 ReverseOpen 于 bar17 开；
+    /// `with_child_close_trigger=true` 时子腿于 bar19 被同级一类买点关闭。
+    fn pi_e1_classify(
+        with_child_close_trigger: bool,
+    ) -> impl FnMut(
+        usize,
+    ) -> (
+        Classification,
+        Vec<Rc<Vec<LeveledMove>>>,
+        Vec<usize>,
+        u64,
+        u64,
+    ) {
+        let cls_parent = {
+            let mut c = e_classification(false);
+            c.levels[0] = LevelState::default();
+            c
+        };
+        let cls_open = e_classification(false);
+        let cls_close = e_classification(true);
+        let tower = e_tower();
+        move |i: usize| {
+            let cls = if with_child_close_trigger && i >= 19 {
+                cls_close.clone()
+            } else if i >= 17 {
+                cls_open.clone()
+            } else if i >= 13 {
+                cls_parent.clone()
+            } else {
+                Classification::default()
+            };
+            (
+                cls,
+                tower.clone(),
+                tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
+                i as u64,
+                i as u64,
+            )
+        }
+    }
+
+    /// ★#526 P0-2：π 声部执行 E1 的 TW 三量守恒 + 在飞 ReverseOpen 腿计数。
+    ///
+    /// 父多腿与子空腿在窗口末共同在飞：VOICE_EXEC 簿必须保留两个独立 campaign 的执行事实；
+    /// 净额影子 TW 只消费真实平仓 Realize，故无真实平仓时 TW 不漂移，且
+    /// `open_legacy_legs==1` 精确对应在飞子 ReverseOpen 腿。
+    #[test]
+    fn pi_tw_wiring_conserves_with_parent_and_reverse_open_in_flight() {
+        use super::super::super::strategy::account::AccountIdentity;
+        use super::super::super::strategy::voice::VoiceSide;
+
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0;
+        let bars = e1_bars();
+        let baseline =
+            pi_theta_fill_loop(pi_e1_classify(false), &bars, 1.0e6, &config, None);
+        let mut book =
+            super::super::super::strategy::overlay_state::VoiceExecBook::new(1.0e6);
+
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
+        let fill = pi_theta_fill_loop_voice(
+            pi_e1_classify(false),
+            &bars,
+            1.0e6,
+            &config,
+            None,
+            &mut book,
+        );
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
+
+        let tw = fill.tw_final.expect("π 主 loop 必须产 TW 终态");
+        let baseline_tw = baseline.tw_final.expect("净额影子 π 主 loop 必须产 TW 终态");
+        let shadow_realized_sum: f64 = baseline.trade_pnls_realized.iter().sum();
+        assert_eq!(tw, baseline_tw, "VOICE_EXEC 只换执行投影 ⟹ 决策影子 TW bit-exact");
+        assert_eq!(
+            tw.tw(),
+            1_000_000 + shadow_realized_sum as i64,
+            "TW 漂移恰等于净额影子已实现 PnL 量化和"
+        );
+        assert_eq!(tw.free + tw.holding + tw.withdrawn, tw.tw(), "TW 三量定义逐项守恒");
+        assert_eq!(tw.open_legacy_legs, 1, "父多腿 + 子 ReverseOpen 在飞 ⟹ 子腿计数恰 1");
+        assert!(fill.trade_pnls_realized.is_empty(), "声部口径无真实平仓，窗口末虚拟兑现不冒充 realized");
+
+        assert_eq!(book.total_voices(), 2, "VOICE_EXEC 真实开过父、子两个 campaign");
+        assert_eq!(book.n_fills(), 2, "父开 + 子开恰两笔真实声部 fill");
+        assert_eq!(book.closed_voices().len(), 2, "窗口末父子各产一条虚拟兑现行");
+        assert!(book.closed_voices().iter().all(|row| row.forced), "两条均为窗口末虚拟兑现");
+        assert!(
+            book.closed_voices().iter().any(|row| row.side == VoiceSide::Short),
+            "声部簿保留子 ReverseOpen 的 Short 执行事实"
+        );
+
+        let view = &fill.account_view;
+        assert!(
+            view.instances()
+                .values()
+                .any(|inst| inst.key.account == AccountIdentity::Core { level: 1 }),
+            "内部账户夹具保留父 Core{{1}} 身份"
+        );
+        assert!(
+            view.instances()
+                .values()
+                .any(|inst| inst.key.account == AccountIdentity::ReverseOpen { level: 0 }),
+            "内部账户夹具保留子 ReverseOpen 身份，未被净额湮灭"
+        );
+    }
+
+    /// ★#526 P1：无父容器/无 ReverseOpen 的单根 round-trip 下，#569 裁定的未切换决策面
+    /// （typed/TW/verdict/account）逐字节一致；VOICE_EXEC 簿只出现 Ambient 根，不伪造嵌套腿。
+    /// equity/PnL/trades/n_orders/r_decomp 属 #569 明列的 W1 切换字段，不冒充 bit-exact 面。
+    #[test]
+    fn pi_nested_disabled_without_reverse_open_is_decision_bit_exact() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20)
+            .map(|i| mk_bar(i, 10_000_000_000, false))
+            .collect();
+        let baseline = pi_theta_fill_loop(buy_then_sell(1), &bars, 1.0e6, &config, None);
+        let mut book =
+            super::super::super::strategy::overlay_state::VoiceExecBook::new(1.0e6);
+
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
+        let voice = pi_theta_fill_loop_voice(
+            buy_then_sell(1),
+            &bars,
+            1.0e6,
+            &config,
+            None,
+            &mut book,
+        );
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
+
+        assert_eq!(voice.typed_ledger, baseline.typed_ledger, "typed 决策账 bit-exact");
+        assert_eq!(voice.tw_final, baseline.tw_final, "TW 决策影子 bit-exact");
+        assert_eq!(voice.voice_verdicts, baseline.voice_verdicts, "per-voice verdict 序 bit-exact");
+        assert_eq!(voice.account_view.fills(), baseline.account_view.fills(), "account fill 序 bit-exact");
+        assert_eq!(book.total_voices(), 1, "无嵌套数据只开一个 Ambient 根声部");
+        assert_eq!(book.n_fills(), 2, "单根开平恰两笔声部 fill");
+    }
+
+    /// ★#526 P1：π 单 Short 根 → 开空 → 上方结构止损 → 平空，VOICE_EXEC 交易方向必须
+    /// `long=false`，typed/account 两条内部轨同时落 RiskExit/Short 身份。
+    #[test]
+    fn pi_short_root_stop_round_trip_is_marked_short_end_to_end() {
+        use super::super::super::strategy::account::{AccountIdentity, ActionReason};
+        use super::super::super::strategy::interp::ExitType;
+        use super::super::super::strategy::voice::VoiceSide;
+
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0;
+        let bars = vec![
+            obar(0, 100, 110, 90, 100),
+            obar(1, 100, 105, 95, 100),
+            obar(2, 100, 105, 95, 100),
+            obar(3, 100, 105, 95, 100),
+            obar(4, 100, 105, 95, 100),
+            obar(5, 100, 105, 95, 100),
+            obar(6, 100, 105, 95, 100),
+            obar(7, 100, 105, 95, 100),
+            obar(8, 100, 105, 95, 100),
+            obar(9, 100, 105, 95, 100),
+            obar(10, 125, 130, 120, 125),
+            obar(11, 122, 128, 120, 122),
+        ];
+        let short = BspPoint {
+            source_index: 3,
+            bits: BspBits { sell1: true, ..Default::default() },
+            pivot_low: 0,
+            pivot_high: 120,
+            center: None,
+            struct_break_dir: None,
+            force: None,
+        };
+        let classification = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![short]), ..Default::default() }],
+        };
+        let classify = move |i| {
+            if i >= 7 {
+                (classification.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+            } else {
+                (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64)
+            }
+        };
+        let mut book =
+            super::super::super::strategy::overlay_state::VoiceExecBook::new(1.0e6);
+
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
+        let fill =
+            pi_theta_fill_loop_voice(classify, &bars, 1.0e6, &config, None, &mut book);
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
+
+        assert_eq!(book.n_fills(), 2, "开空 + 止损平空恰两笔声部 fill");
+        assert_eq!(book.closed_voices().len(), 1);
+        let closed = &book.closed_voices()[0];
+        assert_eq!(closed.side, VoiceSide::Short);
+        assert!(!closed.forced, "结构止损正常退出，非窗口强平");
+        assert_eq!(fill.trades.len(), 1);
+        assert!(!fill.trades[0].long, "Short 根交易标 long=false");
+        assert!(!fill.trades[0].forced_close);
+        assert_eq!(fill.typed_ledger.len(), 1);
+        assert_eq!(fill.typed_ledger[0].exit_type, ExitType::RiskExit);
+        assert!(fill.account_view.fills().iter().any(|f| {
+            f.order.account() == AccountIdentity::Short && f.order.reason == ActionReason::RiskExit
+        }));
+    }
+
+    /// ★#526 P1：E1 四步 1-cycle 的 π 双账形态——父开、子 ReverseOpen 开、子正常平、
+    /// 父保持至窗口末虚拟兑现。VOICE_EXEC 执行簿与 typed/account 决策账同时见证 M13。
+    #[test]
+    fn pi_four_step_cycle_keeps_parent_while_reverse_open_round_trips() {
+        use super::super::super::strategy::account::AccountIdentity;
+        use super::super::super::strategy::interp::ExitType;
+        use super::super::super::strategy::voice::VoiceSide;
+
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0;
+        let bars = e1_bars();
+        let baseline =
+            pi_theta_fill_loop(pi_e1_classify(true), &bars, 1.0e6, &config, None);
+        let mut book =
+            super::super::super::strategy::overlay_state::VoiceExecBook::new(1.0e6);
+
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
+        let fill = pi_theta_fill_loop_voice(
+            pi_e1_classify(true),
+            &bars,
+            1.0e6,
+            &config,
+            None,
+            &mut book,
+        );
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
+
+        assert_eq!(fill.tw_final, baseline.tw_final, "VOICE_EXEC 不改决策影子 TW");
+        assert_eq!(fill.typed_ledger, baseline.typed_ledger, "VOICE_EXEC 不改 typed 决策序");
+        assert_eq!(book.total_voices(), 2, "父、子两个 campaign");
+        assert_eq!(book.n_fills(), 3, "父开 + 子开 + 子平，窗口末父平为虚拟兑现不计 fill");
+        assert_eq!(book.closed_voices().len(), 2);
+        let child = book
+            .closed_voices()
+            .iter()
+            .find(|row| row.side == VoiceSide::Short)
+            .expect("子 ReverseOpen 空腿结算行存在");
+        let parent = book
+            .closed_voices()
+            .iter()
+            .find(|row| row.side == VoiceSide::Long)
+            .expect("父 Long 结算行存在");
+        assert_eq!(child.exit_bar, 20, "第三步：bar19 决策后按延迟成交契约于 bar20 正常平");
+        assert!(!child.forced);
+        assert_eq!(parent.exit_bar, 21, "第四步：父腿保持到窗口末");
+        assert!(parent.forced);
+        assert!(child.pnl_net > 0.0, "子空腿高卖低买 realized>0");
+
+        let child_typed = fill
+            .typed_ledger
+            .iter()
+            .find(|row| row.entry_z.delta == -1)
+            .expect("子腿 typed 行");
+        assert_eq!(child_typed.exit_type, ExitType::CloseReverseOpen);
+        assert_eq!(child_typed.exit_bar, 19, "typed 记录决策 bar；VOICE_EXEC 真成交在下一 bar");
+        assert!(!child_typed.via_structural_prune);
+        assert_eq!(
+            fill.tw_final.unwrap().open_legacy_legs,
+            0,
+            "子腿完成往返后 TW 在飞腿计数归零"
+        );
+        assert!(
+            fill.account_view
+                .instances()
+                .values()
+                .any(|inst| inst.key.account == AccountIdentity::ReverseOpen { level: 0 }),
+            "account 轨保留 ReverseOpen 独立身份"
+        );
+        let r = fill.r_decomp.expect("VOICE_EXEC R 分解存在");
+        let tol = 1e-6_f64.max(1e-9 * (1.0e6 + r.price_pnl_gross.abs()));
+        assert!(r.conservation_residual.abs() <= tol, "声部账户守恒残差={}", r.conservation_residual);
+    }
+
+    /// ★#526 P1 / #531 MEDIUM-2：π exit generator 完整链——Long 根开仓后结构止损触发，
+    /// VOICE_EXEC 真成交平仓，已实现盈亏非空；无窗口强平，双 PnL 口径同长。
+    #[test]
+    fn pi_exit_generator_stop_trigger_reaches_realized_trade() {
+        use super::super::super::strategy::interp::ExitType;
+
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0;
+        let bars = vec![
+            obar(0, 100, 110, 95, 100),
+            obar(1, 100, 110, 95, 100),
+            obar(2, 100, 110, 95, 100),
+            obar(3, 100, 110, 95, 100),
+            obar(4, 100, 110, 95, 100),
+            obar(5, 100, 110, 95, 100),
+            obar(6, 100, 110, 95, 100),
+            obar(7, 100, 110, 95, 100),
+            obar(8, 100, 110, 95, 100),
+            obar(9, 100, 110, 95, 100),
+            obar(10, 88, 92, 85, 88),
+            obar(11, 90, 94, 87, 90),
+        ];
+        let long = BspPoint {
+            source_index: 3,
+            bits: BspBits { buy1: true, ..Default::default() },
+            pivot_low: 90,
+            pivot_high: 0,
+            center: None,
+            struct_break_dir: None,
+            force: None,
+        };
+        let classification = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![long]), ..Default::default() }],
+        };
+        let classify = move |i| {
+            if i >= 7 {
+                (classification.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+            } else {
+                (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64)
+            }
+        };
+        let mut book =
+            super::super::super::strategy::overlay_state::VoiceExecBook::new(1.0e6);
+
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
+        let fill =
+            pi_theta_fill_loop_voice(classify, &bars, 1.0e6, &config, None, &mut book);
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
+
+        assert_eq!(book.n_fills(), 2, "触发链兑现为开仓 + 平仓两笔 fill");
+        assert_eq!(fill.typed_ledger.len(), 1);
+        assert_eq!(fill.typed_ledger[0].exit_type, ExitType::RiskExit, "结构止损触发 typed RiskExit");
+        assert!(!fill.trade_pnls_realized.is_empty(), "真实平仓 ⟹ realized 非空");
+        assert_eq!(
+            fill.trade_pnls_realized.len(),
+            fill.trade_pnls_with_forced.len(),
+            "无窗口强平 ⟹ 双口径同长"
+        );
+        assert_eq!(fill.trades.len(), 1);
+        assert!(!fill.trades[0].forced_close, "退出生成器成交不是 forced_close");
+        assert!(book.closed_voices().iter().all(|row| !row.forced));
+    }
+
 
 }

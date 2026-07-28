@@ -1601,6 +1601,79 @@ mod campaign_wiring_tests {
         assert_eq!(witness.other_violation_count, 0, "接线正常路径下其余通道拒绝恒 0");
     }
 
+    /// ★#526 P2 / #386 G5：经 π backtest 的 campaign wiring 走现役
+    /// `short_diff_bucket::record_and_apply_dual`，同一笔 Reduce 的已实现盈亏在 R 账本 Π 与
+    /// TW `Realize` 漂移上必须同数；ShortDiff 成本基腿独立守恒，桶现金恰等于
+    /// 「成本基释放 + 已实现盈亏」，不复造第二本 G5 账。
+    #[test]
+    fn pi_g5_realized_amount_matches_tw_and_r_ledger_through_campaign_wiring() {
+        let mut account_view = strategy::account::ParallelAccountLedger::new();
+        account_view.post(
+            AccountOrder {
+                key: core_key(0),
+                reason: ActionReason::Open,
+                qty_delta: 300.0,
+                decision_bar: 0,
+            },
+            10.0,
+            0,
+        );
+        let mut book = CampaignBook::new();
+        let mut witness = CampaignWiringWitness::new();
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
+        let before = book
+            .campaign(0, VoiceSide::Long)
+            .expect("Core{0} 开仓应实例化 campaign")
+            .clone();
+
+        let actions = vec![record(0, CenterOscillationAction::Reduce)];
+        drive_campaign_wiring(
+            1,
+            1,
+            &account_view,
+            &actions,
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
+        let after = book
+            .campaign(0, VoiceSide::Long)
+            .expect("Reduce 后 campaign 仍存活");
+
+        let child_realized = after.ledger().pi - before.ledger().pi;
+        let tw_realized = after.tw().tw() - before.tw().tw();
+        let short_diff_basis = before.tw().holding - after.tw().holding;
+        let bucket_cash = after.short_diff().bucket().realized_cash()
+            - before.short_diff().bucket().realized_cash();
+
+        assert_eq!(child_realized, 200, "100 股 × (12−均价10) = 已实现 200");
+        assert_eq!(
+            tw_realized, child_realized,
+            "G5 同数：R 账本 Π 增量 == TW Realize 漂移 == 子腿已实现盈亏"
+        );
+        assert_eq!(short_diff_basis, 1_000, "ShortDiff 成本基腿=100×均价10，单独守恒");
+        assert_eq!(
+            bucket_cash,
+            short_diff_basis + child_realized,
+            "#386 单源：桶现金=ShortDiff 成本基释放+Realize，不双写第二套金额"
+        );
+        assert!(after.ledger().inv_holds(), "R=Π−A−W 恒等保持");
+        assert!(after.short_diff().assert_conserved().is_err(), "半轮 Reduce 在途未回补，恒仓锁应如实未闭合");
+        assert_eq!(witness.other_violation_count, 0, "生产接线正常路径无记账拒绝");
+    }
+
     /// ★campaign 随真实事件流生死：Core{0} 从空仓→持仓→全平，`drive_campaign_wiring` 逐 bar
     /// 消费 `account_view` 真实状态（非模拟快照），campaign 应恰好随之开局/终结。
     #[test]
