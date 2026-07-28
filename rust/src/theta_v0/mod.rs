@@ -103,8 +103,7 @@ pub mod backtest;
 
 /// Nautilus Trader ↔ canonical S_Θ 适配层（goal acceptance[5]，设计 `docs/nautilus-integration-design.md`）。
 ///
-/// ★骨架阶段：子模块**不 `use nautilus_*`**（依赖未加，路径裁定权属编排者，见 mod 头 `IntegrationPath`）。
-/// 适配器逻辑全部依赖 in-crate（`classifier/parser/strategy/types`），故**可独立编译 + 自检**——
-/// 注册它让 13 个 L0/L1 self-check 在 `cargo test` 下运行（证明 Bar→S_Θ 管线→Order 数据流贯通，
-/// formalization-validity-domain：L1 管线就绪，**非** L2 真实回测）。依赖加入时删除占位结构（TODO 已标）。
+/// 实装在役（订正 #524：原「骨架阶段/不 `use nautilus_*`」声明过期作废——依赖已入 Cargo.toml
+/// 5 件 v0.60.0 optional + `nautilus` feature 门控；`theta_strategy.rs` / `backtest_engine.rs`
+/// 真实 `use nautilus_*`，分别由 `nautilus` / `all(nautilus, backtest_bin)` feature 门控）。
 pub mod nautilus;

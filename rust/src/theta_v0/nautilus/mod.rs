@@ -1,4 +1,4 @@
-//! # canonical S_Θ ↔ Nautilus Trader 适配层（骨架，goal `g-l2-nautilus-production` 第 2 段）
+//! # canonical S_Θ ↔ Nautilus Trader 适配层（goal `g-l2-nautilus-production` 第 2 段；订正 #524：已过骨架期）
 //!
 //! 把 `theta_v0` 的 canonical S_Θ（`Origin.StrategyFamily.piTheta` bit-exact 实装）接入
 //! Nautilus Trader 的 Rust-native Strategy，使 S_Θ 成生产引擎（回测 `BacktestNode` + 实盘
@@ -8,21 +8,25 @@
 //!
 //! 完整调研 + 架构 + 接口映射 + 依赖方案见 `docs/nautilus-integration-design.md`。
 //!
-//! ## ★骨架状态（no-patch-mentality：诚实声明能力边界）
+//! ## ★实装状态（订正 #524：原「骨架状态」段过期作废——三项自称均已为假）
 //!
-//! 本模块是**适配层骨架**——结构忠实于 §1.3 真实 Nautilus 接口（context7
-//! `/nautechsystems/nautilus_trader` develop 分支实证），但 **nautilus 依赖未加入 Cargo.toml**
-//! （依赖是大决策，待编排者裁定 Rust-native vs PyO3 路径，见设计文档 §5）。故：
-//! - **本模块不编译进 crate**（`lib.rs`/`theta_v0/mod.rs` 不注册它，避免引入未解析符号）。
-//!   注册时机：依赖加入 + theta_v0 公开 API 解 test 门控后，报 Lead 登记。
-//! - 真实 Nautilus trait 名/方法签名以**文档注释 + TODO** 锚定（不 `use nautilus_*`）。
-//! - 骨架声明**结构与职责边界**，**不声明已跑通**（声明膨胀禁止）。
+//! 本模块**已过骨架期、是实装适配层**：
+//! - **本模块编译进 crate**：`theta_v0/mod.rs` 无条件 `pub mod nautilus;` 注册。
+//! - **nautilus 依赖已入 Cargo.toml**：`nautilus-model/common/trading/backtest/core` v0.60.0
+//!   （optional，`nautilus` feature 门控；`backtest_bin` 含之）。路径已定 Rust-native
+//!   （`IntegrationPath` 占位 enum 仅作设计文档锚点，非运行时分支）。
+//! - **真实 `use nautilus_*` 已在产**：`theta_strategy.rs`（feature `nautilus` 门控，真实
+//!   `StrategyCore + DataActor + Strategy`）与 `backtest_engine.rs`（`all(nautilus, backtest_bin)`
+//!   门控，真实 BacktestEngine 驱动，task#8 acceptance[5]）。
+//! - **不声明盈利性**：声明管线贯通与增量等价，**不声明** S_Θ 接 Nautilus 后回测有效/盈利
+//!   （编排者纲领「不证明 Θ 是好 Θ」）。
 //!
 //! ## 认识论等级（formalization-validity-domain 231号）
 //!
 //! - 适配架构 + 接口映射设计 = **L0**（从双侧真实接口推导的结构，零数据）。
-//! - quantize 往返一致性 / 订单映射正确性 = **L1**（待依赖加入后 golden 验证）。
-//! - 真实集成跑通 + 回测指标 = **L2**（待验，依赖 + 真实数据 + sizing 产非空订单流）。
+//! - quantize 往返一致性 / 订单映射正确性 = **L1**（骨架期 13 个 self-check 在跑）。
+//! - 真实集成跑通 = **L2**（已落地：task#8 真实 BacktestEngine 非空订单流；#333 60k 窗口
+//!   两口径逐位一致；#345 增量分类接入，100k bar 0.47s）。
 //!   本模块**不声称** S_Θ 接 Nautilus 后回测有效/盈利（编排者纲领「不证明 Θ 是好 Θ」）。
 //!
 //! ## 适配层子模块拓扑（数据流见设计文档 §4.2）
@@ -39,7 +43,7 @@
 //! - [`account_adapter`]：Nautilus `portfolio`（net_position/PnL）↔ S_Θ `AccountState`（NAV+voice_qty）。
 //! - [`strategy`]：`ThetaStrategy` 适配器骨架（`on_bar` 串 4 个 adapter + 退出生成器接入点）。
 //!
-//! ## Rust-native Strategy 真实接口锚（context7 `write_rust_strategy.md`，待依赖加入后兑现）
+//! ## Rust-native Strategy 真实接口锚（context7 `write_rust_strategy.md`；已在 `theta_strategy.rs` 兑现，订正 #524）
 //!
 //! ```ignore
 //! use nautilus_common::actor::DataActor;
