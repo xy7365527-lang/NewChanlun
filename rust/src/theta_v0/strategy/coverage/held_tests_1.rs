@@ -93,7 +93,8 @@ use crate::theta_v0::classifier::LevelState;
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
         let mut pending = Vec::new();
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, carrier, &id_idx, &mut overlay_seen, &mut pending);
+        let overlay_cand_end = work.len();
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, carrier, &id_idx, &mut overlay_seen, overlay_cand_end, &mut pending);
 
         assert_eq!(work.len(), 1, "restore 不得 push 重复 id 元素（应复用 work[0]，overlay 空）");
         assert_eq!(raw, vec![0], "raw 须复用现有 idx 0，非追加新 idx");
@@ -142,11 +143,12 @@ use crate::theta_v0::classifier::LevelState;
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
         let mut pending = Vec::new();
+        let overlay_cand_end = work.len();
 
         // 先调：P1 链——GP 是 P1 的直接父，同一调用内紧接着物化（不依赖后续调用）。
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, p1, &id_idx, &mut overlay_seen, &mut pending);
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, p1, &id_idx, &mut overlay_seen, overlay_cand_end, &mut pending);
         // 后调：P2 链——GP 已在场（already_in_raw 提前收敛），复用而非重复 push。
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, p2, &id_idx, &mut overlay_seen, &mut pending);
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, p2, &id_idx, &mut overlay_seen, overlay_cand_end, &mut pending);
         // 票#350：两次调用各自的 idx 已汇入 pending，统一延后 fixup（模拟生产路径的调用方统一修补）。
         resolve_pending_parent_fixups(&mut work, &pending, &id_idx, &overlay_seen, &raw);
 
@@ -305,8 +307,9 @@ use crate::theta_v0::classifier::LevelState;
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
         let mut pending = Vec::new();
+        let overlay_cand_end = work.len();
 
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(1, 0), &id_idx, &mut overlay_seen, &mut pending);
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(1, 0), &id_idx, &mut overlay_seen, overlay_cand_end, &mut pending);
         resolve_pending_parent_fixups(&mut work, &pending, &id_idx, &overlay_seen, &raw);
 
         assert_eq!(work.len(), 2, "完整链恢复：父 + 祖父均 push 入 work");
@@ -359,8 +362,9 @@ use crate::theta_v0::classifier::LevelState;
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
         let mut pending = Vec::new();
+        let overlay_cand_end = work.len();
 
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(1, 0), &id_idx, &mut overlay_seen, &mut pending);
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(1, 0), &id_idx, &mut overlay_seen, overlay_cand_end, &mut pending);
         resolve_pending_parent_fixups(&mut work, &pending, &id_idx, &overlay_seen, &raw);
 
         assert_eq!(work.len(), 2, "祖父已在 base ⟹ 仅 push 父（overlay idx=1）");
@@ -408,8 +412,9 @@ use crate::theta_v0::classifier::LevelState;
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
         let mut pending = Vec::new();
+        let overlay_cand_end = work.len();
 
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(0, 0), &id_idx, &mut overlay_seen, &mut pending);
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(0, 0), &id_idx, &mut overlay_seen, overlay_cand_end, &mut pending);
         resolve_pending_parent_fixups(&mut work, &pending, &id_idx, &overlay_seen, &raw);
 
         assert_eq!(work.len(), 1, "子已 push；父 registry 丢失 ⟹ 断链停止");
@@ -424,5 +429,4 @@ use crate::theta_v0::classifier::LevelState;
         let legs = strategy_target_legs(&work, &next_idx, 1000.0, &cfg());
         assert!(legs.is_empty(), "next_idx 空 ⟹ 无腿（断链元素到不了角色计算）");
     }
-
 

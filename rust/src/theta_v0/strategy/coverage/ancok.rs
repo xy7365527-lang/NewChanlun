@@ -77,6 +77,9 @@ pub struct AncokProbe {
     /// `placeholder_parent_unresolved`（父不可解析 ⟹ parent_id 链断在此 idx，理论上必被剪；
     /// 若 <，说明存在未被剪除的未解析占位，须回查 `ancestor_close_by_id` 判据是否有遗漏路径）。
     pub placeholder_pruned_by_ancok: u64,
+    /// ★#446：`next_idx`/`next_active` 中至少出现一对重复 `ElementId` 的 step 次数。注册生产者
+    /// 按 ID 闭合后应恒为 0；release 也计数（`debug_assert!` 只负责 fail-fast），供真实跑批逐窗验收。
+    pub duplicate_active_id_violations: u64,
 }
 
 thread_local! {
@@ -92,6 +95,7 @@ thread_local! {
         restore_break_registry_lost: 0,
         placeholder_parent_unresolved: 0,
         placeholder_pruned_by_ancok: 0,
+        duplicate_active_id_violations: 0,
     }) };
 }
 

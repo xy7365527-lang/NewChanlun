@@ -103,6 +103,57 @@ pub(crate) fn element_as_leg(e: &CoverageElement) -> ActiveLeg {
     }
 }
 
+/// ★#446：held Stale 腿重注册时复用本 bar registry restore 已物化的同 ID 槽。
+///
+/// `overlay_cand_end` 划分初始候选段与后续 restore/held 段：候选拷贝即使 ID 相同也不能复用，
+/// 因其方向、坐标和 `parent_id` 属于新信号，不是持仓身份；restore/held 段则是同一持久身份，
+/// 必须复用以维持活动集 `ElementId` 唯一。新增 held 槽同时进入 `overlay_seen` 与统一 parent
+/// fixup 队列，保持 #315/#350 的延迟修补时序。
+pub(crate) fn held_stale_reregister_idx(
+    work: &mut ElementView,
+    overlay_seen: &mut std::collections::HashMap<ElementId, usize>,
+    overlay_cand_end: usize,
+    pending_parent_fixup: &mut Vec<usize>,
+    leg: &ActiveLeg,
+) -> usize {
+    if let Some(&existing) = overlay_seen.get(&leg.id) {
+        if existing >= overlay_cand_end {
+            // restore 条目可能由同 ID 的当前候选 snapshot 刷新过属性；held 腿才是未关闭持久身份
+            // 的权威。复用 idx 但覆盖为 held 坐标/方向/op_parent，禁止静默方向翻转。
+            work.replace_overlay(
+                existing,
+                CoverageElement {
+                    lambda: leg.lambda,
+                    rho: leg.source_index,
+                    eps: leg.dir,
+                    level: leg.level,
+                    parent: None,
+                    attached_dir: None,
+                    id: leg.id,
+                    parent_id: leg.op_parent,
+                },
+            );
+            return existing;
+        }
+    }
+
+    let idx = work.len();
+    work.push(CoverageElement {
+        lambda: leg.lambda,
+        rho: leg.source_index,
+        eps: leg.dir,
+        level: leg.level,
+        parent: None,
+        attached_dir: None,
+        id: leg.id,
+        parent_id: leg.op_parent,
+    });
+    // held 身份优先于候选拷贝：后续 restore/held 查同 ID 应复用本槽。
+    overlay_seen.insert(leg.id, idx);
+    pending_parent_fixup.push(idx);
+    idx
+}
+
 /// 𝒟_x 在 A_t 中的索引集（close 腿 ⊆ A_t；每个 close 腿认领一个匹配占位，保多重性严格）。
 ///
 /// [`interp::Buckets::close`]（𝒟_x）是 A_t 的子集（关闭的是活动腿）——逐个 close 腿在 `prev_active`
@@ -223,6 +274,9 @@ pub(crate) fn restore_ancestor_chain_from_registry(
     // O(work)/层=O(n²)。raw.any 不动（raw 有界，prev_active~O(log n) 实测 9@16K）。
     id_idx: &std::collections::HashMap<ElementId, usize>,
     overlay_seen: &mut std::collections::HashMap<ElementId, usize>,
+    // ★#446：初始候选段终点。restore 只能复用 base 或此边界之后的持久 overlay；
+    // 候选拷贝的方向/坐标/parent_id 不是 registry 持久身份。
+    overlay_cand_end: usize,
     // ★票#350：本轮新 push 的恢复元素 idx 追加于此（调用方持有，跨本函数的多次调用 + held 腿占位
     // 共用同一累加器，见调用方 `pending_parent_fixup`）——不在本函数内修补，见函数头 #350 说明。
     pending_parent_fixup: &mut Vec<usize>,
@@ -238,11 +292,18 @@ pub(crate) fn restore_ancestor_chain_from_registry(
             broke = true;
             break;
         }
-        // ★(I-1) 祖先若已在 work（树前缀 carrier / restore 已 push 的）但不在 raw，**复用现有 idx**入 raw
-        // （不 push 重复 id，否则 strategy_target_legs 双计 p̃ 伪证）。查表 O(1)：先 base id_idx 再 overlay_seen。
+        // ★(I-1) 祖先若已在 work 的树前缀或持久 overlay（restore/held 已 push）但不在 raw，
+        // **复用现有 idx**入 raw（不 push 重复 id，否则 strategy_target_legs 双计 p̃ 伪证）。
+        // 候选段同 ID 拷贝不复用：它不是 registry 身份，须由下方 registry 条目另行物化。
         // bit-exact == 旧 work.iter().position：position 返首个匹配 idx，base 段在 overlay 前 ⟹ base 优先与
         // position 序一致；overlay_seen 用 or_insert 存首次 push idx ⟹ 与 position 在 overlay 段首个匹配一致。
-        if let Some(&existing_idx) = id_idx.get(&pid).or_else(|| overlay_seen.get(&pid)) {
+        let existing_idx = id_idx.get(&pid).copied().or_else(|| {
+            overlay_seen
+                .get(&pid)
+                .copied()
+                .filter(|&idx| idx >= overlay_cand_end)
+        });
+        if let Some(existing_idx) = existing_idx {
             raw.push(existing_idx);
             cur = work[existing_idx].parent_id; // 沿已有元素的结构父链上溯
             continue;
@@ -272,7 +333,8 @@ pub(crate) fn restore_ancestor_chain_from_registry(
             id: pe.pid,
             parent_id: pe.structural_parent_id,
         });
-        overlay_seen.entry(pe.pid).or_insert(op_idx); // 记录新 push 的 overlay idx（首次出现序，复用查 O(1)）。
+        // 持久身份覆盖候选段索引：后续 restore/held 同 ID 必须复用本槽。
+        overlay_seen.insert(pe.pid, op_idx);
         pending_parent_fixup.push(op_idx); // 票#350：追加调用方累加器，本 bar 全部物化路径结束后统一修补。
         raw.push(op_idx);
         cur = parent_pid; // 上溯祖先链
@@ -322,9 +384,9 @@ pub(crate) fn restore_ancestor_chain_from_registry(
 /// 核对（`placeholder_pruned_by_ancok` probe）——原声明"可与 AncOK 剪除计数交叉核对"此前无
 /// 对应计数，声明超出实装（090号声明膨胀）。
 ///
-/// ★#347 LOW-1（#284 T5 自指保护，#315 fixup 移调用时点时遗漏）：`r==idx` 排除守卫——三级解析
-/// 的 raw 兜底段（`raw.iter().find(...)`）在理论上不应命中自身（`parent_id` 结构上不等于自身
-/// id），但若上游数据出现环形 `parent_id`（如 `leg.op_parent == leg.id`），排除自指可防
+/// ★#347 LOW-1 / #446：自指排除守卫覆盖三级解析（base `id_idx`、`overlay_seen`、raw 兜底）。
+/// 理论上 `parent_id` 不应等于自身 id，但若上游数据出现环形 `parent_id`
+/// （如 `leg.op_parent == leg.id`），排除 `pidx == idx` 可防
 /// `set_parent_attached(idx, idx, ..)` 自环——`.parent`（索引字段）自环会使下游 `element_depth`
 /// 顺 `parent` 链上溯永不终止而挂起。
 ///
@@ -348,7 +410,8 @@ pub(crate) fn rebuild_placeholder_parent_attached(
         let pidx = id_idx
             .get(&pid)
             .copied()
-            .or_else(|| overlay_seen.get(&pid).copied())
+            .filter(|&pidx| pidx != idx)
+            .or_else(|| overlay_seen.get(&pid).copied().filter(|&pidx| pidx != idx))
             .or_else(|| {
                 raw.iter()
                     .copied()

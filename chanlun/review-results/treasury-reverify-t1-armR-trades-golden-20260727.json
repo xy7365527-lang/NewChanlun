@@ -1,68 +1,71 @@
 {
-  "_note": "臂R（VOICE_EXEC=1 THETA_NEST_CERT_GATE=1，fee_schedule=None/enforce_level_cap=false）三窗 trades.jsonl 逐位冻结；issue #387 T1。后向回归锁，非 v4 原件对照。",
-  "_source_head": "c126d4cf69613068404b6ad0a53acf2e4dd9957b",
-  "_run_date": "2026-07-27",
-  "_regen_command": "cd rust && for tag in p3fold wf7 wf8; do M8_WIN_FILTER=$tag VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 OPSEM_DUMP_DIR=/tmp/m8_win_gate/$tag cargo test --release --lib theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos -- --ignored --nocapture; done",
-  "_check_command": "python3 scripts/check_armR_trades_digest.py",
+  "_note": "臂R（VOICE_EXEC=1 THETA_NEST_CERT_GATE=1，fee_schedule=None/enforce_level_cap=false）三窗 trades.jsonl 逐位冻结；issue #446 消除双计后的 #387 T1 红线重锚。",
+  "_source_base_head": "a12a1022d9ddd8d1cae867a107a3a33c359358cf",
+  "_final_verification_head": "6e15ceffeeb8259c065bf7c0ec9ec7c65935737c",
+  "_parallel_head_note": "#421 仅提交 classifier/level_view.rs、classifier/nest_lifecycle.rs、bin/p123_fast_replay.rs；未触本票文件面，臂R三窗 dump 在前后逐字相同。",
+  "_source_worktree": "未提交 issue #446 修复；由编排者验收后提交",
+  "_run_date": "2026-07-28",
+  "_regen_command": "cd rust && for tag in p3fold wf7 wf8; do M8_WIN_FILTER=$tag VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 M8_REPORT_PATH=/tmp/446_armR_report_$tag.md OPSEM_DUMP_DIR=/tmp/446_armR_dump/$tag cargo test --release --lib theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos -- --ignored --nocapture; done",
+  "_check_command": "python3 scripts/check_armR_trades_digest.py --dump-dir /tmp/446_armR_dump",
   "windows": {
     "p3fold": {
-      "digest_fnv1a64": "0x6bf47daf0aa737cd",
-      "bytes": 206057,
-      "n_trades": 149,
+      "digest_fnv1a64": "0xac5952cfcd8b8746",
+      "bytes": 195220,
+      "n_trades": 141,
       "per_dir_n": {
         "Long": 72,
-        "Short": 77
+        "Short": 69
       },
       "per_dir_pnl": {
-        "Long": "3645.7700000000114",
-        "Short": "-15493.57"
+        "Long": "4547.720000000023",
+        "Short": "-11904.309999999998"
       },
       "nest_depth_hist": {
         "0": 1,
-        "1": 56,
-        "2": 48,
-        "3": 39,
-        "4": 5
+        "1": 58,
+        "2": 42,
+        "3": 36,
+        "4": 4
       }
     },
     "wf7": {
-      "digest_fnv1a64": "0x282c28ca8ca65e16",
-      "bytes": 270684,
-      "n_trades": 196,
+      "digest_fnv1a64": "0x981a0560b8db0b40",
+      "bytes": 253658,
+      "n_trades": 184,
       "per_dir_n": {
         "Long": 99,
-        "Short": 97
+        "Short": 85
       },
       "per_dir_pnl": {
-        "Long": "-2379.330000000009",
-        "Short": "-15131.810000000027"
+        "Long": "-1477.3799999999974",
+        "Short": "-11542.530000000017"
       },
       "nest_depth_hist": {
         "0": 13,
-        "1": 73,
-        "2": 63,
-        "3": 33,
+        "1": 75,
+        "2": 52,
+        "3": 30,
         "4": 14
       }
     },
     "wf8": {
-      "digest_fnv1a64": "0xcafa7c4846c762cd",
-      "bytes": 228108,
-      "n_trades": 168,
+      "digest_fnv1a64": "0x18291f8ba8f1d40f",
+      "bytes": 216129,
+      "n_trades": 159,
       "per_dir_n": {
-        "Long": 88,
-        "Short": 80
+        "Long": 87,
+        "Short": 72
       },
       "per_dir_pnl": {
-        "Long": "24155.680000000022",
-        "Short": "-7937.1499999999505"
+        "Long": "23583.740000000023",
+        "Short": "-6312.109999999961"
       },
       "nest_depth_hist": {
         "0": 15,
         "1": 54,
-        "2": 58,
-        "3": 28,
-        "4": 13
+        "2": 54,
+        "3": 26,
+        "4": 10
       }
     }
   }

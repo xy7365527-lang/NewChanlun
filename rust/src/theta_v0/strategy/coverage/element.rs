@@ -117,6 +117,17 @@ impl<'a> ElementView<'a> {
         idx
     }
 
+    /// ★#446：restore 先物化、held 后认领同 ID 时，以 held 持久身份覆盖 overlay 槽的 snapshot
+    /// 属性；槽位 idx 保持不变，避免活动集双写。base 是只读真树，禁止走此入口。
+    pub(crate) fn replace_overlay(&mut self, idx: usize, e: CoverageElement) {
+        debug_assert!(idx >= self.base.len(), "replace_overlay 仅用于 overlay 段");
+        if idx >= self.base.len() {
+            if let Some(slot) = self.overlay.get_mut(idx - self.base.len()) {
+                *slot = e;
+            }
+        }
+    }
+
     /// ★票#247 缺口二：restore 角色输入重建——修补 overlay 段元素的 `parent`/`attached_dir`。
     /// 仅 overlay 段可写（base 为借用只读树前缀，其元素字段本由 `push_element_tree` 填好）；
     /// `idx < base.len()` 为内部误用（restore 只 push overlay），debug_assert 守卫 + 静默跳过。

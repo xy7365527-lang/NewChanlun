@@ -18,8 +18,9 @@ use crate::theta_v0::classifier::LevelState;
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
         let mut pending = Vec::new();
+        let overlay_cand_end = work.len();
 
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(2, 0), &id_idx, &mut overlay_seen, &mut pending);
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, eid(2, 0), &id_idx, &mut overlay_seen, overlay_cand_end, &mut pending);
         resolve_pending_parent_fixups(&mut work, &pending, &id_idx, &overlay_seen, &raw);
 
         assert_eq!(work.len(), 1, "单元素（∂）恢复");
@@ -460,5 +461,4 @@ use crate::theta_v0::classifier::LevelState;
         // p̃ 不含该腿（pruned ⟹ 不贡献）。
         let _ = p; // p̃ 可非零（若 ShortDiff 候选准入），关键是 stale_non_root 不在 active。
     }
-
 

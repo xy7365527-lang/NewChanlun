@@ -216,3 +216,16 @@ $ python3 scripts/fee_account_decomposition.py    → 与 /tmp/389_fee_decomp.md
 ## 一句话小结
 
 数值与证据链是我评审过的这条线里最扎实的一份——七条重点里六条经独立复算逐位吻合，Standards 轴的两条硬违规自曝不粉饰，甚至主动删掉了一条「看上去很硬其实是 L0 同义反复」的运行时断言；唯一的 MED 是报告写成时三张裁定票刚建好还没来得及引进去，属登记滞后而非事实错误。
+
+## #446 上游唯一性修复后的覆盖性订正（2026-07-28）
+
+本复审的第③项“LEE 稀疏性全绿”所核旧数，以及依赖 `strategy_target_legs` 的相关经济读数，
+后来证实受同一 `ElementId` 以树前缀 idx 与 registry 追加 idx 双出现的 release 静默双计污染。
+因此第③项只能作为“当时报告与当时产物一致”的历史审计，**不再证明当前数值正确**；旧结论不得
+增量沿用。
+
+#446 唯一注册修复后的 R/D/C × p3fold/wf7/wf8 九窗已 9/9 exit 0，release 逐窗
+`duplicate_id_violations=0`；新 LEE 表、经济表和 D-vs-C 差统一见
+`treasury-reverify-20260727.md` §15。帽臂新 `n_cap_narrowed=883/911/809` 且
+`off_clock_delta_unexplained=0/0/0`，仍是非平凡绿，但数值必须以该订正节为准。臂 R trades
+漂移已依红线完成逐笔取证、golden 重锚和 T1 §14 订正，回归门恢复 exit 0。

@@ -199,4 +199,337 @@ use crate::theta_v0::types::BspBits;
     // ── §8b §13 AncOK 持仓准入（639(c)：ShortDiff 未持父则剔除，不开 naked 逆势仓）──────────
     //   真嵌套塔（L1 Long 父走势）+ 638 附着候选 ⟹ AncOK 在真 Compose 父链上对附着候选剪枝/准入。
 
+/// ★#446：子腿先恢复父腿、父腿随后自行重注册时，必须复用 restore 已物化的同 ID 槽位。
+#[test]
+fn held_leg_reregister_reuses_restore_pushed_idx_no_duplicate_id() {
+    let child = eid(0, 900);
+    let parent = eid(1, 901);
+    let leg_child = ActiveLeg {
+        level: 0,
+        dir: VoiceSide::Long,
+        source_index: 30,
+        lambda: 20,
+        id: child,
+        parent_id: Some(parent),
+        is_boundary_root: false,
+        op_parent: Some(parent),
+    };
+    let leg_parent = ActiveLeg {
+        level: 1,
+        dir: VoiceSide::Long,
+        source_index: 30,
+        lambda: 20,
+        id: parent,
+        parent_id: None,
+        is_boundary_root: true,
+        op_parent: None,
+    };
+    let prev = [leg_child, leg_parent];
+    let buckets = Buckets {
+        close: vec![],
+        open: vec![],
+        record: vec![],
+    };
+    let tree: Vec<CoverageElement> = vec![];
+    let reg = super::super::super::persistent::PersistentRegistry::new().merge(&tree, &prev);
 
+    let (active, _p) =
+        coverage_step_from_buckets(view_split(&tree, 0), &prev, &buckets, 1000.0, &cfg(), None, &reg);
+
+    assert!(active.iter().any(|leg| leg.id == child));
+    assert_eq!(
+        active.iter().filter(|leg| leg.id == parent).count(),
+        1,
+        "restore 祖先腿与 held 重注册必须共用一个 ElementId 槽；实得 {active:?}"
+    );
+}
+
+/// ★#446：同一 carrier 的反向 open 对成对湮灭，净零目标不得留下活动腿。
+#[test]
+fn open_candidates_same_carrier_id_reverse_pair_annihilates() {
+    let carrier = eid(0, 162);
+    let parent = eid(1, 33);
+    let mk = |eps: VoiceSide| CoverageElement {
+        lambda: 42,
+        rho: 42,
+        eps,
+        level: 0,
+        parent: None,
+        attached_dir: None,
+        id: carrier,
+        parent_id: Some(parent),
+    };
+    let elements = vec![mk(VoiceSide::Long), mk(VoiceSide::Short)];
+    let buckets = Buckets {
+        close: vec![],
+        open: vec![
+            cand(0, 42, VoiceSide::Long, 0),
+            cand(0, 42, VoiceSide::Short, 1),
+        ],
+        record: vec![],
+    };
+    let leg_parent = ActiveLeg {
+        level: 1,
+        dir: VoiceSide::Long,
+        source_index: 40,
+        lambda: 30,
+        id: parent,
+        parent_id: None,
+        is_boundary_root: true,
+        op_parent: None,
+    };
+    let reg =
+        super::super::super::persistent::PersistentRegistry::new().merge(&[], &[leg_parent]);
+
+    let (active, _p) =
+        coverage_step_from_buckets(view_split(&elements, 0), &[], &buckets, 1000.0, &cfg(), None, &reg);
+
+    assert_eq!(
+        active.iter().filter(|leg| leg.id == carrier).count(),
+        0,
+        "同 carrier 反向 open 对应成对湮灭；实得 {active:?}"
+    );
+    assert!(active.iter().any(|leg| leg.id == parent));
+}
+
+/// ★#446：同一 carrier 的同向 open 候选只保留首现身份。
+#[test]
+fn open_candidates_same_carrier_id_same_dir_dedup_first_wins() {
+    let carrier = eid(0, 162);
+    let parent = eid(1, 33);
+    let mk = |lambda: usize| CoverageElement {
+        lambda,
+        rho: 42,
+        eps: VoiceSide::Long,
+        level: 0,
+        parent: None,
+        attached_dir: None,
+        id: carrier,
+        parent_id: Some(parent),
+    };
+    let elements = vec![mk(40), mk(42)];
+    let buckets = Buckets {
+        close: vec![],
+        open: vec![
+            cand(0, 40, VoiceSide::Long, 0),
+            cand(0, 42, VoiceSide::Long, 1),
+        ],
+        record: vec![],
+    };
+    let leg_parent = ActiveLeg {
+        level: 1,
+        dir: VoiceSide::Long,
+        source_index: 40,
+        lambda: 30,
+        id: parent,
+        parent_id: None,
+        is_boundary_root: true,
+        op_parent: None,
+    };
+    let reg =
+        super::super::super::persistent::PersistentRegistry::new().merge(&[], &[leg_parent]);
+
+    let (active, _p) =
+        coverage_step_from_buckets(view_split(&elements, 0), &[], &buckets, 1000.0, &cfg(), None, &reg);
+
+    let carrier_legs: Vec<_> = active.iter().filter(|leg| leg.id == carrier).collect();
+    assert_eq!(carrier_legs.len(), 1, "同 carrier 同向候选只留首现；实得 {active:?}");
+    assert_eq!(carrier_legs[0].lambda, 40, "同向去重须保持首现候选");
+}
+
+/// ★#446：held 身份与候选拷贝同 ID 时，候选不能覆盖持仓方向、坐标或操作父。
+#[test]
+fn held_leg_id_hits_candidate_copy_keeps_held_identity() {
+    let carrier = eid(0, 162);
+    let parent = eid(1, 33);
+    let candidate = CoverageElement {
+        lambda: 42,
+        rho: 42,
+        eps: VoiceSide::Short,
+        level: 0,
+        parent: None,
+        attached_dir: None,
+        id: carrier,
+        parent_id: Some(parent),
+    };
+    let elements = vec![candidate];
+    let held = ActiveLeg {
+        level: 0,
+        dir: VoiceSide::Long,
+        source_index: 40,
+        lambda: 30,
+        id: carrier,
+        parent_id: Some(parent),
+        is_boundary_root: false,
+        op_parent: Some(parent),
+    };
+    let buckets = Buckets {
+        close: vec![],
+        open: vec![cand(0, 42, VoiceSide::Short, 0)],
+        record: vec![],
+    };
+    let reg =
+        super::super::super::persistent::PersistentRegistry::new().merge(&elements, &[held]);
+
+    let (active, _p) =
+        coverage_step_from_buckets(view_split(&elements, 0), &[held], &buckets, 1000.0, &cfg(), None, &reg);
+
+    let carrier_legs: Vec<_> = active.iter().filter(|leg| leg.id == carrier).collect();
+    assert_eq!(carrier_legs.len(), 1, "held 与候选同 ID 时恰留 held 身份；实得 {active:?}");
+    assert_eq!(carrier_legs[0].dir, VoiceSide::Long);
+    assert_eq!(carrier_legs[0].source_index, 40);
+    assert_eq!(carrier_legs[0].op_parent, Some(parent));
+}
+
+/// ★#446 双轴审查锁定：子腿先 restore 父 ID 时也不得复用候选段父拷贝；随后父腿重注册不能双写。
+#[test]
+fn child_restore_and_held_parent_do_not_reuse_candidate_copy_or_duplicate_id() {
+    let child = eid(0, 900);
+    let parent = eid(1, 901);
+    let candidate_parent = CoverageElement {
+        lambda: 42,
+        rho: 42,
+        eps: VoiceSide::Short,
+        level: 1,
+        parent: None,
+        attached_dir: None,
+        id: parent,
+        parent_id: None,
+    };
+    let held_child = ActiveLeg {
+        level: 0,
+        dir: VoiceSide::Long,
+        source_index: 30,
+        lambda: 20,
+        id: child,
+        parent_id: Some(parent),
+        is_boundary_root: false,
+        op_parent: Some(parent),
+    };
+    let held_parent = ActiveLeg {
+        level: 1,
+        dir: VoiceSide::Long,
+        source_index: 30,
+        lambda: 20,
+        id: parent,
+        parent_id: None,
+        is_boundary_root: true,
+        op_parent: None,
+    };
+    let elements = vec![candidate_parent];
+    let prev = [held_child, held_parent];
+    let buckets = Buckets {
+        close: vec![],
+        open: vec![],
+        record: vec![],
+    };
+    let reg =
+        super::super::super::persistent::PersistentRegistry::new().merge(&elements, &prev);
+
+    let (active, _p) =
+        coverage_step_from_buckets(view_split(&elements, 0), &prev, &buckets, 1000.0, &cfg(), None, &reg);
+
+    let parent_legs: Vec<_> = active.iter().filter(|leg| leg.id == parent).collect();
+    assert_eq!(
+        parent_legs.len(),
+        1,
+        "child restore 与 held 父重注册必须共享持久槽，不得复用候选后再双写；实得 {active:?}"
+    );
+    assert_eq!(parent_legs[0].dir, VoiceSide::Long);
+    assert_eq!(parent_legs[0].lambda, 20);
+    assert_eq!(parent_legs[0].source_index, 30);
+}
+
+/// ★#446：同一合成输入在 debug/release 打出可逐字对拍的数值与活动集唯一性见证。
+#[test]
+fn coverage_unique_active_set_profile_parity_witness() {
+    let carrier = eid(0, 162);
+    let parent = eid(1, 33);
+    let elements = vec![
+        CoverageElement {
+            lambda: 40,
+            rho: 42,
+            eps: VoiceSide::Long,
+            level: 0,
+            parent: None,
+            attached_dir: None,
+            id: carrier,
+            parent_id: Some(parent),
+        },
+        CoverageElement {
+            lambda: 42,
+            rho: 42,
+            eps: VoiceSide::Long,
+            level: 0,
+            parent: None,
+            attached_dir: None,
+            id: carrier,
+            parent_id: Some(parent),
+        },
+    ];
+    let buckets = Buckets {
+        close: vec![],
+        open: vec![
+            cand(0, 40, VoiceSide::Long, 0),
+            cand(0, 42, VoiceSide::Long, 1),
+        ],
+        record: vec![],
+    };
+    let parent_leg = ActiveLeg {
+        level: 1,
+        dir: VoiceSide::Long,
+        source_index: 40,
+        lambda: 30,
+        id: parent,
+        parent_id: None,
+        is_boundary_root: true,
+        op_parent: None,
+    };
+    let reg =
+        super::super::super::persistent::PersistentRegistry::new().merge(&[], &[parent_leg]);
+    super::super::ancok_probe_reset();
+
+    let (active, p_tilde, sep) = coverage_step_from_buckets_sep(
+        view_split(&elements, 0),
+        &[],
+        &buckets,
+        1000.0,
+        &cfg(),
+        None,
+        &reg,
+    );
+
+    let mut ids = std::collections::HashSet::new();
+    assert!(active.iter().all(|leg| ids.insert(leg.id)));
+    let duplicate_id_violations =
+        super::super::ancok_probe_snapshot().duplicate_active_id_violations;
+    assert_eq!(duplicate_id_violations, 0);
+    let active_cells: Vec<_> = active
+        .iter()
+        .map(|leg| {
+            (
+                leg.id.level,
+                leg.id.ordinal,
+                leg.dir,
+                leg.lambda,
+                leg.source_index,
+            )
+        })
+        .collect();
+    let sep_cells: Vec<_> = sep
+        .iter()
+        .map(|leg| {
+            (
+                leg.id.level,
+                leg.id.ordinal,
+                leg.side,
+                leg.q_units.to_bits(),
+                leg.parent_id,
+            )
+        })
+        .collect();
+    eprintln!(
+        "COVERAGE_PROFILE_PARITY active={active_cells:?} p_tilde_bits={} sep={sep_cells:?} duplicate_id_violations={duplicate_id_violations}",
+        p_tilde.to_bits()
+    );
+}

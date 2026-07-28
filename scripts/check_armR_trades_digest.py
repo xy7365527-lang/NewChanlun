@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""臂R（treasury 重验 T1，issue #387）trades.jsonl 逐位回归锁——机器可复核。
+"""臂R（treasury 重验 T1，issue #387/#446）trades.jsonl 逐位回归锁——机器可复核。
 
-**性质**：后向回归锁。冻结的是「本批（2026-07-27，HEAD c126d4cf69）臂R 三窗跑批产物」的
-逐字节摘要，不是对 2026-07-20 v4 原始产物的对照——v4 的 `trades.jsonl` 已灭失，无法逐位比。
-对照声明口径因此限于「读数逐位 + digest 冻结」（issue #387 票体明文降级条款）。
+**性质**：后向回归锁。原 #387 基线因 #446 消除活动集同 ElementId 双计而按红线流程失效；
+当前冻结的是「2026-07-28，谱系起点 a12a1022d9、最终核验 HEAD 6e15ceffee +
+未提交 #446 修复」臂R 三窗产物的逐字节摘要（并行 #421 前后三窗逐字相同），
+不是对 2026-07-20 v4 原始产物的对照——v4 的 `trades.jsonl` 已灭失，无法逐位比。
 
 **摘要算法**：FNV-1a 64，逐字节喂 `trades.jsonl` 原始字节流（禁容差比较）。与
 `classifier::signal::extract_signals_bit_exact_digest_guard` / `backtest::runner::order_stream_digest`
@@ -13,7 +14,8 @@
 
     cd rust
     for tag in p3fold wf7 wf8; do
-      M8_WIN_FILTER=$tag VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 OPSEM_DUMP_DIR=/tmp/m8_win_gate/$tag \
+      M8_WIN_FILTER=$tag VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 \
+        M8_REPORT_PATH=/tmp/446_armR_report_$tag.md OPSEM_DUMP_DIR=/tmp/m8_win_gate/$tag \
         cargo test --release --lib theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos \
         -- --ignored --nocapture
     done
@@ -130,17 +132,22 @@ def main() -> int:
     if args.regen:
         payload = {
             "_note": "臂R（VOICE_EXEC=1 THETA_NEST_CERT_GATE=1，fee_schedule=None/enforce_level_cap=false）"
-                     "三窗 trades.jsonl 逐位冻结；issue #387 T1。后向回归锁，非 v4 原件对照。",
-            "_source_head": "c126d4cf69613068404b6ad0a53acf2e4dd9957b",
-            "_run_date": "2026-07-27",
+                     "三窗 trades.jsonl 逐位冻结；issue #446 消除双计后的 #387 T1 红线重锚。",
+            "_source_base_head": "6e15ceffeeb8259c065bf7c0ec9ec7c65935737c",
+            "_source_lineage_start": "a12a1022d9ddd8d1cae867a107a3a33c359358cf",
+            "_source_worktree": "未提交 issue #446 修复；由编排者验收后提交",
+            "_run_date": "2026-07-28",
             "_regen_command": (
                 "cd rust && for tag in p3fold wf7 wf8; do "
                 "M8_WIN_FILTER=$tag VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 "
-                "OPSEM_DUMP_DIR=/tmp/m8_win_gate/$tag "
+                "M8_REPORT_PATH=/tmp/446_armR_report_$tag.md "
+                "OPSEM_DUMP_DIR=/tmp/446_armR_dump/$tag "
                 "cargo test --release --lib "
                 "theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos -- --ignored --nocapture; done"
             ),
-            "_check_command": "python3 scripts/check_armR_trades_digest.py",
+            "_check_command": (
+                "python3 scripts/check_armR_trades_digest.py --dump-dir /tmp/446_armR_dump"
+            ),
             "windows": actual,
         }
         GOLDEN_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")

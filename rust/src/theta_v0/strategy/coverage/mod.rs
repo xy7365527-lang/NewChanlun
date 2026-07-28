@@ -99,7 +99,7 @@ pub(crate) use leg::{strategy_target_legs, apply_gross_cap};
 
 pub(crate) use held::{
     held_leg_tree_index_indexed, HeldLegMatch, element_as_leg, close_indices,
-    restore_ancestor_chain_from_registry, resolve_pending_parent_fixups,
+    held_stale_reregister_idx, restore_ancestor_chain_from_registry, resolve_pending_parent_fixups,
 };
 
 pub use step::coverage_step_classification;

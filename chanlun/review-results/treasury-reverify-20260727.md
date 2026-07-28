@@ -988,3 +988,101 @@ failures:
 > **1960 passed / 1 failed / 135 ignored**；相对在案 release 1944 是 **+16**，不是 +25。
 > 失败集仍为 debug 的 #446×3 + #115×1、release 的 #115×1。旧运行日志与旧数字保留，只订正
 > 其证据口径。
+
+## 15. #446 上游活动集唯一性修复订正（2026-07-28）
+
+> **覆盖性订正，禁止增量继承旧结论**：§4.1、§5.3、§14.4、§14.8 中所有消费
+> `strategy_target_legs` / `lee_rows` 的旧数，均受 #446 同 `ElementId` 双 idx 静默双计影响。
+> 那些数只保留为修复前历史证词；当前代码态引用必须使用本节九窗重验，不能把本节当作对旧表的
+> “补几列”。
+
+### 15.1 九窗唯一性与 LEE 新表
+
+复现口径沿用 §14.2：R 无 datum，D 加
+`M8_FEE_DATUM=venue_fee_binance_spot_20260726.json:BTC:VIP0`，C 再加
+`M8_LEVEL_CAP=true`；九窗全部带 `VOICE_EXEC=1 THETA_NEST_CERT_GATE=1`。隔离产物为
+`/tmp/446_arm{R,D,C}_report_<tag>.md`、`/tmp/446_arm{R,D,C}_dump_<tag>` 与
+`/tmp/446_arm{R,D,C}_<tag>.out`，9/9 exit 0。
+
+| 窗 | 臂 | duplicate-ID | cap | n_cap | n_rescaled | max_abs | orders | off_clock | explained | off_delta | unexplained |
+|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| p3fold | R | 0 | false | 0 | 567 | 885 | 572 | 203 | 203 | 422 | 0 |
+| p3fold | D | 0 | false | 0 | 608 | 882 | 619 | 251 | 251 | 481 | 0 |
+| p3fold | C | 0 | true | 883 | 199 | 117 | 457 | 138 | 138 | 294 | 0 |
+| wf7 | R | 0 | false | 0 | 556 | 1042 | 613 | 206 | 206 | 391 | 0 |
+| wf7 | D | 0 | false | 0 | 625 | 1035 | 689 | 275 | 275 | 468 | 0 |
+| wf7 | C | 0 | true | 911 | 229 | 114 | 521 | 158 | 158 | 309 | 0 |
+| wf8 | R | 0 | false | 0 | 518 | 1153 | 438 | 136 | 136 | 362 | 0 |
+| wf8 | D | 0 | false | 0 | 568 | 1145 | 486 | 183 | 183 | 410 | 0 |
+| wf8 | C | 0 | true | 809 | 265 | 156 | 448 | 149 | 149 | 283 | 0 |
+
+`duplicate-ID=0` 是 release 下计数并逐窗 assert 的结果，不依赖 debug-only 守卫。帽臂三窗
+`n_cap>0` 且 `unexplained=0`，新 LEE 读数仍为非平凡绿，但只能引用本表，旧 885/927/819 等数
+已被覆盖。
+
+### 15.2 九窗经济读数与 D-vs-C 差
+
+| 窗 | 臂 | net_r(execR) | R(含浮盈) | LCB_OOS(R) | 三态 |
+|---|---|---:|---:|---:|---|
+| p3fold | R | -927352 | -851632 | -2819599 | 无(R≤0) |
+| p3fold | D | -1341964 | -1275888 | -3143432 | 无(R≤0) |
+| p3fold | C | -1717806 | -1642547 | -3617538 | 无(R≤0) |
+| wf7 | R | -4818886 | -4559269 | -9771862 | 无(R≤0) |
+| wf7 | D | -5840660 | -5586255 | -10311385 | 无(R≤0) |
+| wf7 | C | -6017301 | -5758086 | -10566477 | 无(R≤0) |
+| wf8 | R | +6281284 | +6782644 | -2427669 | INCONCLUSIVE |
+| wf8 | D | +4463727 | +4938316 | -3921003 | INCONCLUSIVE |
+| wf8 | C | +4289720 | +4739268 | -3632422 | INCONCLUSIVE |
+
+| 窗 | C-D net_r(execR) | C-D R | C-D LCB |
+|---|---:|---:|---:|
+| p3fold | -375842 | -366659 | -474106 |
+| wf7 | -176641 | -171831 | -255092 |
+| wf8 | -174007 | -199048 | +288581 |
+
+这些数只作修复后能力、唯一性和配置差异审计；依 v3 硬禁令，不作 alpha 论据或策略择优输入。
+
+### 15.3 臂 R 红线
+
+臂 R 三窗 trades 均相对 `/tmp/m8_win_gate` 漂移，已按 #385 先例完成逐笔 diff、golden 重锚、
+T1 订正与门恢复。完整证据与新 digest 见
+`treasury-reverify-t1-armR-20260727.md` §14；重锚后
+`python3 scripts/check_armR_trades_digest.py --dump-dir /tmp/446_armR_dump` exit 0。
+
+### 15.4 对旧基线指纹的订正义务
+
+§14.9 的 debug `#446×3 + #115×1` 是修复前指纹。本票在同一共享工作区最终实跑：
+
+| 档位 | passed / failed / ignored | 失败集 | 日志 |
+|---|---|---|---|
+| debug | **1988 / 1 / 135** | `extract_signals_bit_exact_digest_guard`（#115） | `/tmp/446_debug_full_final.log` |
+| release | **1988 / 1 / 135** | `extract_signals_bit_exact_digest_guard`（#115） | `/tmp/446_release_full_final.log` |
+
+三条 LEE 红测在两档均转绿，无新红；失败集按预期收窄为 #115×1。计数是共享工位当次指纹，
+不据此反推本票净增测试数。
+
+> **审查后订正（最终工作树）**：上表 `1988/1/135` 是双轴审查前第一次全量，随后 Standards
+> 轴发现 restore×candidate×held 组合缺口并新增两项测试/生产修复，故上表不再是最终指纹。
+> 最终重跑为 debug **1990/1/135**（`/tmp/446_debug_full_final2.log`）与 release
+> **1990/1/135**（`/tmp/446_release_full_final2.log`）；两档唯一失败仍为 #115
+> `extract_signals_bit_exact_digest_guard`，三条 LEE 与新增组合测均绿，无新红。
+
+### 15.5 双轴审查闭环
+
+- **Standards 初审**发现：restore 曾可复用候选段拷贝；child-first restore 与随后 held 父认领组合
+  会重新双写同 ID。新增
+  `child_restore_and_held_parent_do_not_reuse_candidate_copy_or_duplicate_id` 先红
+  （`/tmp/446_review_cross_red.log` 明打印 `candidate-copy` + `held-reregister`），再令 restore
+  只复用 base/持久 overlay、held 复用槽时以 held 权威属性覆盖，转绿
+  （`/tmp/446_review_cross_green.log`）。
+- **Spec 初审**发现：golden 已重锚但脚本无参默认仍指旧 `/tmp/m8_win_gate`，造成 canonical 门假红。
+  默认根与用法已统一为 `/tmp/446_armR_dump`；无参复核 exit 0，日志
+  `/tmp/446_armR_gate_default_after_review.out`。
+- 上述修复后九窗已全部重跑，9/9 exit 0、duplicate-ID 仍为 0，报告与 dump 和审查前最终修复产物
+  逐字一致；因此 §15.1/§15.2 数字无需二次改表。期间 R/wf8 曾被并行 classifier 工位的
+  `level_view.rs:796` 中间态断言打断；未改该他人文件，待其稳定后重跑成功，最终日志
+  `/tmp/446_armR_wf8.out` 为准。
+- Standards 复审 **PASS**；Spec 对默认门与组合修复已 PASS，最终全量指纹按上一订正块闭合。
+- 共享分支最终由并行 #421 从 `a12a1022d9` 前推到 `6e15ceffee`；只提交 classifier 与
+  `p123_fast_replay.rs`，本票四个受控路径的并行 commit 查询为空，符合票面
+  “classifier/簿记并行线登记后继续”条件。

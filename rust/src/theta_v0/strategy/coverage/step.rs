@@ -73,6 +73,11 @@ pub(crate) fn coverage_step_from_buckets_sep(
             overlay_seen.entry(e.id).or_insert(i);
         }
     }
+    // ★#446：初始 overlay 候选段终点。其后新增槽只来自 registry restore / held 重注册；
+    // held 只能复用后者，不能复用同 ID 候选拷贝（候选方向/坐标/操作父不是持仓身份）。
+    let overlay_cand_end = work.len();
+    // 记录 registry restore 新增槽，供唯一性守卫在失败时打印两个来源路径。
+    let mut restore_pushed: std::collections::HashSet<usize> = std::collections::HashSet::new();
 
     // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）按 ElementId 对位回当前因果树元素；不在树 ⟹ 按
     // is_boundary_root 决定 root/prune（发现 A 修复：Stale 不伪造 parent:None）。
@@ -101,23 +106,17 @@ pub(crate) fn coverage_step_from_buckets_sep(
                 match held_state {
                     super::super::persistent::HeldLegState::LivePresent => {
                         ancok_probe_bump(|p| p.state_live_present += 1);
-                        // 理论不可达（Exact 未命中但 registry LivePresent = snapshot 不一致）；
-                        // 按持久身份保留（I1），op_parent 驱动 AncOK。
-                        let idx = work.len();
-                        work.push(CoverageElement {
-                            lambda: leg.lambda,
-                            rho: leg.source_index,
-                            eps: leg.dir,
-                            level: leg.level,
-                            parent: None,
-                            attached_dir: None,
-                            id: leg.id,
-                            parent_id: leg.op_parent,
-                        });
-                        // ★票#315（#284 评审 MED-1，订正票#267 立即式）：占位角色输入修补改收集 idx，
-                        // 循环后统一 fixup（见函数尾部 AncOK 判定前，helper doc 详述时序孔成因）。
-                        pending_parent_fixup.push(idx);
-                        raw.push(idx);
+                        // 候选段可使该分支真实可达；held 身份优先，候选拷贝不得覆盖持仓属性。
+                        let idx = held_stale_reregister_idx(
+                            &mut work,
+                            &mut overlay_seen,
+                            overlay_cand_end,
+                            &mut pending_parent_fixup,
+                            leg,
+                        );
+                        if !raw.contains(&idx) {
+                            raw.push(idx);
+                        }
                     }
                     super::super::persistent::HeldLegState::LiveDetached => {
                         ancok_probe_bump(|p| p.state_live_detached += 1);
@@ -128,27 +127,23 @@ pub(crate) fn coverage_step_from_buckets_sep(
                         // 全部加入 work/raw，使 ancestor_close_by_id 通过（§11：每条未关闭腿的操作父
                         // live ⟹ 所有 depth<d 腿通过 persistent AncOK）。
                         if let Some(op_pid) = leg.op_parent {
+                            let restore_start = work.len();
                             restore_ancestor_chain_from_registry(
                                 &mut work, &mut raw, registry, op_pid, &id_idx, &mut overlay_seen,
-                                &mut pending_parent_fixup,
+                                overlay_cand_end, &mut pending_parent_fixup,
                             );
+                            restore_pushed.extend(restore_start..work.len());
                         }
-                        let idx = work.len();
-                        work.push(CoverageElement {
-                            lambda: leg.lambda,
-                            rho: leg.source_index,
-                            eps: leg.dir,
-                            level: leg.level,
-                            parent: None,
-                            attached_dir: None,
-                            id: leg.id,
-                            parent_id: leg.op_parent,
-                        });
-                        // ★票#315（#284 评审 MED-1，订正票#267 立即式）：占位角色输入修补改收集 idx，
-                        // 循环后统一 fixup（同上；restore 已把 op_parent 祖先链物化入 work/raw，统一
-                        // fixup 时点可解析，见函数尾部 + helper doc）。
-                        pending_parent_fixup.push(idx);
-                        raw.push(idx);
+                        let idx = held_stale_reregister_idx(
+                            &mut work,
+                            &mut overlay_seen,
+                            overlay_cand_end,
+                            &mut pending_parent_fixup,
+                            leg,
+                        );
+                        if !raw.contains(&idx) {
+                            raw.push(idx);
+                        }
                     }
                     super::super::persistent::HeldLegState::Closed | super::super::persistent::HeldLegState::Invalidated => {
                         // 显式关闭/作废 → prune（§9 rule 5：只有 close/risk close/invalidation 才退出 live）。
@@ -194,10 +189,30 @@ pub(crate) fn coverage_step_from_buckets_sep(
     // 在不存在的父上）。父 carrier 几乎从不与子同 bar 共现/持仓（sd_parent_held=0），仅 registry
     // LiveDetached 存活——故 open 候选自身入 raw **不足以**让父在场。下方补 open 候选父链注入（no-patch：
     // 缺失逻辑补全，非 AncOK 加特例）。
+    // ★#446：open 热路径维护活动 ID→idx，避免每候选线性扫 raw。held/restore 身份先占位；
+    // 候选同向首现去重、反向逐对湮灭。
+    let mut raw_by_id: std::collections::HashMap<ElementId, usize> = raw
+        .iter()
+        .filter_map(|&idx| work.get(idx).map(|e| (e.id, idx)))
+        .collect();
+    let mut open_pushed: std::collections::HashMap<ElementId, (usize, VoiceSide)> =
+        std::collections::HashMap::new();
     for c in &buckets.open {
         let idx = candidate_start + c.gamma_index;
-        if idx < work.len() && !raw.contains(&idx) {
-            raw.push(idx);
+        if idx < work.len() {
+            let cid = work[idx].id;
+            let cdir = work[idx].eps;
+            if let Some(&(prior_idx, prior_dir)) = open_pushed.get(&cid) {
+                if prior_dir != cdir {
+                    raw.retain(|&raw_idx| raw_idx != prior_idx);
+                    raw_by_id.remove(&cid);
+                    open_pushed.remove(&cid);
+                }
+            } else if !raw_by_id.contains_key(&cid) {
+                raw.push(idx);
+                raw_by_id.insert(cid, idx);
+                open_pushed.insert(cid, (idx, cdir));
+            }
         }
         // ★(I-1) open 候选父注入（codex 异质审查行级坐实，642/644）：
         //
@@ -217,12 +232,20 @@ pub(crate) fn coverage_step_from_buckets_sep(
         if idx < work.len() {
             if let Some(parent_pid) = work[idx].parent_id {
                 let parent_in_raw =
-                    raw.iter().any(|&r| work.get(r).map(|e| e.id == parent_pid).unwrap_or(false));
+                    raw_by_id.contains_key(&parent_pid);
                 if !parent_in_raw && registry.registry_live(&parent_pid) {
+                    let raw_start = raw.len();
+                    let restore_start = work.len();
                     restore_ancestor_chain_from_registry(
                         &mut work, &mut raw, registry, parent_pid, &id_idx, &mut overlay_seen,
-                        &mut pending_parent_fixup,
+                        overlay_cand_end, &mut pending_parent_fixup,
                     );
+                    restore_pushed.extend(restore_start..work.len());
+                    for &raw_idx in &raw[raw_start..] {
+                        if let Some(e) = work.get(raw_idx) {
+                            raw_by_id.entry(e.id).or_insert(raw_idx);
+                        }
+                    }
                 }
             }
         }
@@ -291,17 +314,35 @@ pub(crate) fn coverage_step_from_buckets_sep(
             .map(|&i| element_as_leg(&work[i]))
             .collect()
     };
-    // ★(I-1) 双计守卫（codex 异质审查）：next_active 每 ElementId 必唯一——同 carrier 不得在 raw 中以
-    // 两个 idx（树前缀 + registry 追加）出现，否则 strategy_target_legs 双计 ⟹ p̃ 伪证。
-    // restore_ancestor_chain_from_registry 已复用现有 idx 保证唯一；此 assert 锁不变量防回归。
-    debug_assert!(
-        {
-            let mut ids: Vec<_> = next_active.iter().map(|l| l.id).collect();
-            ids.sort_by_key(|id| (id.level, id.ordinal));
-            ids.windows(2).all(|w| w[0] != w[1])
-        },
-        "next_active 含重复 ElementId ⟹ strategy_target_legs 双计 p̃（restore 未复用现有 idx）"
-    );
+    // ★#446：release 也累计违规计数，debug 额外 fail-fast。错误文本根因中立并打印重复 ID、
+    // 两个 work idx 与来源路径，避免把所有碰撞误归为 restore。
+    let mut active_id_idx: std::collections::HashMap<ElementId, usize> =
+        std::collections::HashMap::new();
+    let duplicate = next_idx.iter().find_map(|&idx| {
+        let id = work[idx].id;
+        active_id_idx.insert(id, idx).map(|prior| (id, prior, idx))
+    });
+    if let Some((id, first_idx, second_idx)) = duplicate {
+        ancok_probe_bump(|p| p.duplicate_active_id_violations += 1);
+        let source = |idx: usize| {
+            if idx < candidate_start {
+                "tree-prefix"
+            } else if idx < overlay_cand_end {
+                "candidate-copy"
+            } else if restore_pushed.contains(&idx) {
+                "registry-restore"
+            } else {
+                "held-reregister"
+            }
+        };
+        debug_assert!(
+            false,
+            "next_active 重复 ElementId {id:?}: idx {first_idx}({}) 与 idx {second_idx}({})；\
+             活动集注册路径未按 ID 闭合，strategy_target_legs 将双计 p̃",
+            source(first_idx),
+            source(second_idx),
+        );
+    }
     // ★M5 sep 暴露（多空对冲.pdf p16）：把已算 `legs`（post G7 cap）按 work-index e_idx 对位到
     // carrier ElementId + role(v) + parent(v)，打包 SepLeg。**只读重打包，不新计算**——
     // `net_target_units(&legs)==p_tilde` 恒等 ⟹ `Σ σ_v·q_units == Net(P^sep)` 与净额路径一致。

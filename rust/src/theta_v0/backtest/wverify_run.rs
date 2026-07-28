@@ -1742,6 +1742,7 @@ fn m8_e2e_all_systems_oos() {
     let policy = RiskPolicy::baseline(); // κ=0（M7 冻结口径）
     let i0: i64 = 1_000_000; // I_0 基线（TwState notional_in 同源 = ⌊nav0⌋，此处报告门槛用 1e6 名义）
     let mut lee_rows: Vec<String> = Vec::new(); // ★#389 T3：帽臂 LEE 稀疏性逐窗读数（帽关时恒空）
+    let mut duplicate_id_rows: Vec<String> = Vec::new(); // ★#446：活动集 ElementId 唯一性逐窗读数（三臂都打）
     let mut fee_rows: Vec<String> = Vec::new(); // ★#419：逐窗 treasury 原生费率科目审计
     let mut layer23_rows = Vec::new(); // ★#419：结算文案与逐窗真实 net_r / Stage 同源
     let mut fee_audit_windows_checked = 0_usize;
@@ -1772,8 +1773,19 @@ fn m8_e2e_all_systems_oos() {
         // ★T5a (#207) shadow dump 分窗接线（T3_SHADOW_DUMP 同型）：env T5A_CHAIN_DUMP_DIR
         // 设置时逐窗开 `<dir>/t5a_chain_dump_<tag>.jsonl`；未设 = no-op（bit-exact 中性）。
         super::admission::t5a_chain_dump::open_for_window(&tag);
+        super::super::strategy::coverage::ancok_probe_reset();
         let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
+        let duplicate_id_violations =
+            super::super::strategy::coverage::ancok_probe_snapshot().duplicate_active_id_violations;
         super::admission::t5a_chain_dump::close();
+        eprintln!(
+            "ACTIVE_ID_UNIQUENESS {tag} duplicate_id_violations={duplicate_id_violations}"
+        );
+        assert_eq!(
+            duplicate_id_violations, 0,
+            "#446 {tag} 活动集仍出现重复 ElementId（release/debug 均计数）"
+        );
+        duplicate_id_rows.push(format!("| {tag} | {duplicate_id_violations} |\n"));
         assert_eq!(
             r.voice_exec.is_some(),
             voice_exec_expected,
@@ -1954,6 +1966,15 @@ fn m8_e2e_all_systems_oos() {
             "\n**非平凡性**：`n_cap_narrowed>0` 表示帽在本窗真 binding（否则逐级判据平凡通过，\
              #376 LOW-1 纪律）；该列若为 0，本窗的逐级绿是空断言，须照此读。\n",
         );
+    }
+    report.push_str(
+        "\n## 活动集 ElementId 唯一性逐窗读数（#446）\n\n\
+         `duplicate_id_violations` 在 release/debug 都由 `next_idx` 独立扫描累计；逐窗硬断言必须为 0。\n\n\
+         | 窗 | duplicate_id_violations |\n\
+         |---|---:|\n",
+    );
+    for row in &duplicate_id_rows {
+        report.push_str(row);
     }
     let fee_audit_reconciliation = if !voice_exec_expected {
         "`n_fills == n_orders`、逐科目和 `== fee_audit.total_fee == \

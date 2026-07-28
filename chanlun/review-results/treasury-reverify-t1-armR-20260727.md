@@ -679,3 +679,59 @@ T2 #388 / 并入 T3 #389）由编排者定；在此之前本节是它们唯一�
 
 ⟹ LOW-C 悬置，处置权在编排者（编辑 #385 评论即可，一句话的事）。**在它被处理之前，
 #385 那条评论对「两条支撑」的复述与本报告 §11.4 不一致，读者以本报告为准。**
+
+## 14. #446 活动集唯一性修复后的红线订正（2026-07-28）
+
+> **覆盖性订正**：本节替代本报告此前关于臂 R `trades.jsonl` golden 仍适用于当前代码态的
+> 结论；旧数字和旧 digest 仅保留为修复前历史快照，不再作为当前回归基线。
+
+#446 证实 `strategy_target_legs` 的输入活动集曾存在同一 `ElementId` 的树前缀 idx 与 registry
+追加 idx，release 会静默双计。唯一注册修复后，臂 R 三窗与旧 `/tmp/m8_win_gate` 全部发生真实漂移，
+故依 #385 红线先例重锚同一 golden 文件
+`chanlun/review-results/treasury-reverify-t1-armR-trades-golden-20260727.json`。
+
+| 窗 | 旧→新 trades | 旧→新 bytes | 旧→新 FNV-1a 64 | Long/Short（新） |
+|---|---:|---:|---|---:|
+| p3fold | 149→141 | 206057→195220 | `0x6bf47daf0aa737cd`→`0xac5952cfcd8b8746` | 72/69 |
+| wf7 | 196→184 | 270684→253658 | `0x282c28ca8ca65e16`→`0x981a0560b8db0b40` | 99/85 |
+| wf8 | 168→159 | 228108→216129 | `0xcafa7c4846c762cd`→`0x18291f8ba8f1d40f` | 87/72 |
+
+逐笔对拍以六文件内唯一的 `position_node_id` 为连接键，忽略仅作输出序号的 `trade_id`：
+
+| 窗 | unchanged | changed | removed | added |
+|---|---:|---:|---:|---:|
+| p3fold | 29 | 105 | 15 | 7 |
+| wf7 | 2 | 169 | 25 | 13 |
+| wf8 | 52 | 106 | 10 | 1 |
+
+完整逐笔分类、变化字段及 old/new 值落在 `/tmp/446_armR_trades_diff.json`，人读索引在
+`/tmp/446_armR_trades_diff.md`。因果边界严格收窄为：受控对拍中改变交易决策的生产代码只有
+#446 活动腿唯一注册；probe/report 是 run 后观测，测试代码不进入生产路径。因此所有新增、删除和
+字段变化归为“双计消除后的轨迹变化”，但不虚称每一笔都直接命中已知碰撞
+`ElementId(0,162)`。
+
+重锚后复核：
+
+```
+$ python3 scripts/check_armR_trades_digest.py --dump-dir /tmp/446_armR_dump
+p3fold: n_trades=141 digest=0xac5952cfcd8b8746 bytes=195220 ✓
+wf7: n_trades=184 digest=0x981a0560b8db0b40 bytes=253658 ✓
+wf8: n_trades=159 digest=0x18291f8ba8f1d40f bytes=216129 ✓
+臂R trades 逐位无漂移。
+```
+
+修复前门失败证据 `/tmp/446_armR_gate_before_reanchor.out`，修复后 exit 0 证据
+`/tmp/446_armR_gate_after_reanchor.out`。本轮基于 base HEAD
+`a12a1022d9ddd8d1cae867a107a3a33c359358cf` 的未提交 #446 工作区跑出，golden 元数据已明确
+登记“未提交、待编排者验收提交”，未伪装成已有 commit。
+
+最终核验期间并行 #421 将分支前推到 `6e15ceffeeb8259c065bf7c0ec9ec7c65935737c`，提交面仅
+`classifier/level_view.rs`、`classifier/nest_lifecycle.rs` 与 `bin/p123_fast_replay.rs`，未触
+coverage/runner/wverify/review-results 本票文件面。臂 R 三窗 dump 在前后 `cmp` 逐字相同；golden
+元数据同时登记初始基点与最终核验 HEAD，未把并行推进藏掉。
+
+> **canonical 目录订正（编排者验收轮，2026-07-28）**：修复批默认门曾指向冻结副本
+> `/tmp/446_armR_dump`——与未来跑批惯例（`OPSEM_DUMP_DIR=/tmp/m8_win_gate/<tag>`，§14.2）
+> 脱节，会静默失效。已恢复 `check_armR_trades_digest.py` 默认根为 `/tmp/m8_win_gate` 并将新产物
+> 拷入该目录（无参门 exit 0 复核在案）；修复前产物存档于 `/tmp/423_backup_m8_win_gate`
+> （#423 在案 6/6 SAME 即修复前态），逐笔 diff 物证 `/tmp/446_armR_trades_diff.{md,json}`。
