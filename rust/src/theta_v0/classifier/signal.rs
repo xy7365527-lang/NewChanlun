@@ -646,6 +646,18 @@ pub(crate) struct PanDivStructure {
     pub seg_c: (usize, usize),
 }
 
+/// `allow_unbroken_c` 仅为 #483 观测增加「C 端点严格位于核心 `(zd, zg)`」这一支；
+/// 等号与反向越界仍拒绝，且该支仍须由 [`judge_pan_div_observation`] 的面积 `C<A` 门确认。
+/// 其余方向、锚、区间和生产破核心判据均不变。
+fn pan_div_side_with_policy(c: &Center, end: &SegEnd, allow_unbroken_c: bool) -> Option<Side> {
+    let c_strictly_inside_core = allow_unbroken_c && c.zd < end.price && end.price < c.zg;
+    match end.dir {
+        Direction::Down if end.price < c.zd || c_strictly_inside_core => Some(Side::Long),
+        Direction::Up if end.price > c.zg || c_strictly_inside_core => Some(Side::Short),
+        _ => None,
+    }
+}
+
 /// 只定位盘整 A/C 结构，不消费力度。
 ///
 /// 调用前提与 [`judge_pan_div`] 相同。返回 Some 只表示方向与 Comparable 成立；#92 provider
@@ -659,7 +671,7 @@ pub(crate) fn locate_pan_div_structure(
     locate_pan_div_structure_with_policy(c, seg, segments, anchors_self, false)
 }
 
-/// #483 观测专用定位：复用既有窄锚机制，但允许 C 端点不破中枢核心。
+/// #483 观测专用定位：复用既有窄锚机制，但允许 C 端点严格落在中枢核心 `(zd, zg)` 内。
 ///
 /// 只供 [`judge_pan_div_observation`]；Consolidation Nest 与生产 [`judge_pan_div`] 继续调用
 /// [`locate_pan_div_structure`]，因此不会把新分支送入生产决策或生命周期链。
@@ -680,11 +692,7 @@ fn locate_pan_div_structure_with_policy(
     allow_unbroken_c: bool,
 ) -> Option<PanDivStructure> {
     let end = seg_end(seg);
-    let side = match end.dir {
-        Direction::Down if allow_unbroken_c || end.price < c.zd => Side::Long,
-        Direction::Up if allow_unbroken_c || end.price > c.zg => Side::Short,
-        _ => return None,
-    };
+    let side = pan_div_side_with_policy(c, &end, allow_unbroken_c)?;
     let dir = end.dir;
     let lo = segments.partition_point(|s| s.start_index < c.end_index);
     let hi = segments.partition_point(|s| s.start_index <= seg.start_index);
@@ -751,7 +759,7 @@ pub(crate) fn locate_pan_div_structure_front_anchor(
     locate_pan_div_structure_front_anchor_with_policy(c, seg, segments, anchors_self, false)
 }
 
-/// #483 观测专用 A′ 回退：与既有中枢前最近同向段锚逐位同构，仅放宽 C 核心关系。
+/// #483 观测专用 A′ 回退：与既有中枢前最近同向段锚逐位同构，仅增加 C 严格在核心内这一支。
 fn locate_pan_div_structure_front_anchor_allowing_unbroken_c(
     c: &Center,
     seg: &Segment,
@@ -769,11 +777,7 @@ fn locate_pan_div_structure_front_anchor_with_policy(
     allow_unbroken_c: bool,
 ) -> Option<PanDivStructure> {
     let end = seg_end(seg);
-    let side = match end.dir {
-        Direction::Down if allow_unbroken_c || end.price < c.zd => Side::Long,
-        Direction::Up if allow_unbroken_c || end.price > c.zg => Side::Short,
-        _ => return None,
-    };
+    let side = pan_div_side_with_policy(c, &end, allow_unbroken_c)?;
     let dir = end.dir;
     let lambda_c = departure_move_c_start(segments, anchors_self, c, dir, seg.start_index)?;
     // A′ = 中枢前最近同向段（061:28 中枢两头比较；p113 Part B `prev_same.find(dir, c.start_index)`
@@ -866,8 +870,8 @@ pub(crate) fn judge_pan_div(
 /// #483 盘整背驰观测判定。
 ///
 /// - C 破核心：逐字调用既有 [`judge_pan_div`]，原 OR 力度判据与证书字段不变；
-/// - C 不破核心：沿用同一窄锚→A′ 回退和 source→MACD 区间映射，但严格只认第24课
-///   “同色柱面积 C<A”；
+/// - C 不破核心：C 端点必须严格位于核心 `(zd, zg)`（等号拒绝），沿用同一窄锚→A′ 回退和
+///   source→MACD 区间映射，并严格只认第24课“同色柱面积 C<A”；
 /// - 返回既有 [`PanDivCert`] 形状，只供 `pan_div_diag` 观测。生产信号提取仍调用
 ///   [`judge_pan_div`]，因此新分支不进入 `LevelState.pan_div`、BspPoint 或生命周期链。
 pub(crate) fn judge_pan_div_observation(
@@ -2607,7 +2611,7 @@ mod tests {
         let segs = vec![
             seg(Direction::Down, 9, 11, 460, 330),
             seg(Direction::Up, 11, 13, 330, 380),
-            seg(Direction::Down, 13, 15, 380, 360), // C：360 ∈ [zd=350, zg=450]
+            seg(Direction::Down, 13, 15, 380, 360), // C：360 ∈ (zd=350, zg=450)
         ];
         let mut hist = vec![0.0; 16];
         hist[9..=11].copy_from_slice(&[-4.0, -3.0, -2.0]);
@@ -2641,6 +2645,49 @@ mod tests {
                 seg_a: (9, 11),
                 seg_c: (13, 15),
             })
+        );
+    }
+
+    /// #483 高危反例：Down C 端点反向越过核心上沿时，不属于「C 不破核心」授权范围。
+    #[test]
+    fn pan_div_unbroken_core_down_above_zg_is_rejected() {
+        let c2 = dc(350, 450, 250, 500, 8);
+        let segs = vec![
+            seg(Direction::Down, 9, 11, 460, 330),
+            seg(Direction::Up, 11, 13, 330, 380),
+            seg(Direction::Down, 13, 15, 380, 500), // C：500 > zg=450，反向越界
+        ];
+        let mut hist = vec![0.0; 16];
+        hist[9..=11].copy_from_slice(&[-4.0, -3.0, -2.0]);
+        hist[13..=15].copy_from_slice(&[-1.0, -1.0, -1.0]);
+        let src: Vec<usize> = (0..hist.len()).collect();
+        let anchors = super::super::divergence::self_anchors(&segs);
+
+        assert!(
+            judge_pan_div_observation(&c2, &segs[2], &segs, &anchors, &hist, &[], &src)
+                .is_none(),
+            "Down C 端点反向越过 zg 不得识别为 C 不破核心盘背"
+        );
+    }
+
+    /// #483 高危反例：Up C 端点反向越过核心下沿时，A′ 回退也必须拒绝。
+    #[test]
+    fn pan_div_unbroken_core_up_below_zd_is_rejected() {
+        let c2 = Center { zd: 350, zg: 450, dd: 300, gg: 500, start_index: 4, end_index: 8 };
+        let segs = vec![
+            seg(Direction::Up, 1, 3, 340, 460),  // A′：中枢前最近同向段
+            seg(Direction::Up, 9, 11, 380, 300), // C：300 < zd=350，反向越界
+        ];
+        let mut hist = vec![0.0; 12];
+        hist[1..=3].copy_from_slice(&[4.0, 3.0, 2.0]);
+        hist[9..=11].copy_from_slice(&[1.0, 1.0, 1.0]);
+        let src: Vec<usize> = (0..hist.len()).collect();
+        let anchors = super::super::divergence::self_anchors(&segs);
+
+        assert!(
+            judge_pan_div_observation(&c2, &segs[1], &segs, &anchors, &hist, &[], &src)
+                .is_none(),
+            "Up C 端点反向越过 zd 不得经 A′ 回退识别为 C 不破核心盘背"
         );
     }
 
