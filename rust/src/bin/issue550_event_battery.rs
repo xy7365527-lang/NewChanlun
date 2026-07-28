@@ -14,6 +14,7 @@ use newchan_rust::theta_v0::types::{quantize, Bar};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::rc::Rc;
 
 #[derive(Deserialize)]
 struct RawBars {
@@ -37,13 +38,20 @@ fn timestamp(date: &str) -> i64 {
 }
 
 fn load(path: &Path, tick_size: f64, limit: usize) -> Result<Vec<Bar>, String> {
+    let raw = load_raw(path)?;
+    Ok(raw_to_bars(raw, tick_size, limit))
+}
+
+fn load_raw(path: &Path) -> Result<RawBars, String> {
     let text = std::fs::read_to_string(path)
         .map_err(|error| format!("读取 {} 失败: {error}", path.display()))?
         .replace("-Infinity", "null")
         .replace("Infinity", "null")
         .replace("NaN", "null");
-    let raw: RawBars = serde_json::from_str(&text)
-        .map_err(|error| format!("解析 {} 失败: {error}", path.display()))?;
+    serde_json::from_str(&text).map_err(|error| format!("解析 {} 失败: {error}", path.display()))
+}
+
+fn raw_to_bars(raw: RawBars, tick_size: f64, limit: usize) -> Vec<Bar> {
     let n = raw
         .closes
         .len()
@@ -54,39 +62,39 @@ fn load(path: &Path, tick_size: f64, limit: usize) -> Result<Vec<Bar>, String> {
         .min(limit);
     let mut bars = Vec::with_capacity(n);
     for i in 0..n {
-        let volume = raw.volumes.get(i).and_then(|value| *value).unwrap_or(0.0);
         let prior = bars.last().map_or(0, |bar: &Bar| bar.close);
-        let (open, high, low, close, invalid) =
-            match (raw.opens[i], raw.highs[i], raw.lows[i], raw.closes[i]) {
-                (Some(open), Some(high), Some(low), Some(close)) => {
-                    let invalid = high < open.max(close).max(low)
-                        || low > open.min(close).min(high)
-                        || open <= 0.0
-                        || high <= 0.0
-                        || low <= 0.0
-                        || close <= 0.0;
-                    (
-                        quantize(open, tick_size),
-                        quantize(high, tick_size),
-                        quantize(low, tick_size),
-                        quantize(close, tick_size),
-                        invalid,
-                    )
-                }
-                _ => (prior, prior, prior, prior, true),
-            };
-        bars.push(Bar {
-            source_index: i,
-            timestamp: timestamp(&raw.dates[i]),
-            open,
-            high,
-            low,
-            close,
-            volume: volume as i64,
-            untradable: invalid || volume <= 0.0,
-        });
+        bars.push(raw_bar(&raw, i, prior, tick_size));
     }
-    Ok(bars)
+    bars
+}
+
+fn raw_bar(raw: &RawBars, i: usize, prior: i64, tick_size: f64) -> Bar {
+    let volume = raw.volumes.get(i).and_then(|value| *value).unwrap_or(0.0);
+    let values = match (raw.opens[i], raw.highs[i], raw.lows[i], raw.closes[i]) {
+        (Some(open), Some(high), Some(low), Some(close)) => {
+            let invalid = high < open.max(close).max(low)
+                || low > open.min(close).min(high)
+                || [open, high, low, close].iter().any(|price| *price <= 0.0);
+            (
+                quantize(open, tick_size),
+                quantize(high, tick_size),
+                quantize(low, tick_size),
+                quantize(close, tick_size),
+                invalid,
+            )
+        }
+        _ => (prior, prior, prior, prior, true),
+    };
+    Bar {
+        source_index: i,
+        timestamp: timestamp(&raw.dates[i]),
+        open: values.0,
+        high: values.1,
+        low: values.2,
+        close: values.3,
+        volume: volume as i64,
+        untradable: values.4 || volume <= 0.0,
+    }
 }
 
 fn run() -> Result<(), String> {
@@ -106,21 +114,32 @@ fn run() -> Result<(), String> {
         return Err("输入窗口为空".to_string());
     }
 
-    // 两个公开真实入口逐 bar 对拍：借用式 ParseLayerIncr+TowerCache 与 owned streaming。
-    let mut parser = ParseLayerIncr::new(&config);
+    let terminal_streams = compare_streams(&bars, &config)?;
+    print_summary(&bars, &terminal_streams);
+    Ok(())
+}
+
+fn compare_streams(
+    bars: &[Bar],
+    config: &ThetaConfig,
+) -> Result<classifier::cand_event::CandidateStreams, String> {
+    let mut parser = ParseLayerIncr::new(config);
     let mut cache = TowerCache::new();
     let mut owned = OwnedIncrementalClassifier::new(config.clone());
-    let mut terminal_streams = std::rc::Rc::new(Vec::new());
+    let mut terminal_streams = Rc::new(Vec::new());
     for (i, bar) in bars.iter().copied().enumerate() {
         let l0 = parser.append(bar);
-        let direct = classifier::classify_with_tower_events_incremental(&l0, &config, &mut cache);
+        let direct = classifier::classify_with_tower_events_incremental(&l0, config, &mut cache);
         let streamed = owned.append_bar_events(bar);
         if direct != streamed {
             return Err(format!("逐 bar 三元通道不等: bar={i}"));
         }
         terminal_streams = streamed.2;
     }
+    Ok(terminal_streams)
+}
 
+fn print_summary(bars: &[Bar], terminal_streams: &classifier::cand_event::CandidateStreams) {
     let mut latest = BTreeMap::<CandidateKey, &CandidateEvent>::new();
     let mut revisions = 0usize;
     for stream in terminal_streams.iter() {
@@ -161,7 +180,6 @@ fn run() -> Result<(), String> {
     if std::env::var_os("ISSUE550_VERBOSE").is_some() {
         println!("ISSUE550_LATEST {latest:#?}");
     }
-    Ok(())
 }
 
 fn main() -> std::process::ExitCode {

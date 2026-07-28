@@ -85,6 +85,7 @@ pub struct CandidateEvent {
     /// SPEC E2E-D2 字段；当前为 CandidateKey 的另一种子哈希，与 key 双射，无独立信息。
     pub pair_id: u64,
     pub structural_predicates: StructuralPredicates,
+    /// SPEC E2E-D3 形状位；当前恒为 `key.seg_a` 的副本，无独立业务信息。
     pub extreme_proof: (usize, usize),
     pub third_class_proof: Option<usize>,
     /// C 段闭区间，source_index 坐标域。
@@ -107,11 +108,6 @@ pub fn interval_is_sub(child: (usize, usize), parent: (usize, usize)) -> bool {
     child.0 <= child.1 && parent.0 <= parent.1 && parent.0 <= child.0 && child.1 <= parent.1
 }
 
-/// 跨级候选 C⊆C。坐标均为 source_index，无级别换算。
-pub fn candidate_is_sub(child: &CandidateEvent, parent: &CandidateEvent) -> bool {
-    child.event_level < parent.event_level && interval_is_sub(child.interval, parent.interval)
-}
-
 /// 单次塔扫描给事件机的业务投影。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CandidateObservation {
@@ -123,6 +119,7 @@ pub struct CandidateObservation {
     /// SPEC E2E-D2 占位：当前是 key 的另一种子哈希，无独立业务信息。
     pub pair_id: u64,
     pub structural_predicates: StructuralPredicates,
+    /// SPEC E2E-D3 占位：当前恒为 `key.seg_a` 的副本，无独立业务信息。
     pub extreme_proof: (usize, usize),
     pub third_class_proof: Option<usize>,
     pub interval: (usize, usize),
@@ -161,41 +158,20 @@ impl CandidateEventBook {
         let mut seen = BTreeSet::new();
         for observation in observations {
             seen.insert(observation.key);
-            let prior = self
-                .latest
-                .get(&observation.key)
-                .copied()
-                .and_then(|(level, index)| {
-                    self.streams
-                        .get(level)
-                        .and_then(|stream| stream.get(index))
-                        .cloned()
-                });
-            if prior
-                .as_ref()
-                .is_some_and(|event| event.state.is_terminal())
-            {
-                continue;
+            if let Some(event) = self.advance_observation(observation, as_of) {
+                delta.push(event);
             }
-            if let Some(prior) = prior.as_ref() {
-                if observation.interval.1 < prior.interval.1 {
-                    let invalidated = invalidate(prior, as_of);
-                    self.append(invalidated.clone());
-                    delta.push(invalidated);
-                    continue;
-                }
-            }
-            let next = make_revision(prior.as_ref(), observation, as_of);
-            if prior
-                .as_ref()
-                .is_some_and(|event| same_projection(event, &next))
-            {
-                continue;
-            }
-            self.append(next.clone());
-            delta.push(next);
         }
+        delta.extend(self.invalidate_unseen(&seen, as_of));
+        delta
+    }
 
+    fn invalidate_unseen(
+        &mut self,
+        seen: &BTreeSet<CandidateKey>,
+        as_of: usize,
+    ) -> Vec<CandidateEvent> {
+        let mut delta = Vec::new();
         let active: Vec<CandidateKey> = self.latest.keys().copied().collect();
         for key in active {
             if seen.contains(&key) {
@@ -211,6 +187,46 @@ impl CandidateEventBook {
             delta.push(invalidated);
         }
         delta
+    }
+
+    fn advance_observation(
+        &mut self,
+        observation: &CandidateObservation,
+        as_of: usize,
+    ) -> Option<CandidateEvent> {
+        let prior = self.latest_event(observation.key);
+        if prior
+            .as_ref()
+            .is_some_and(|event| event.state.is_terminal())
+        {
+            return None;
+        }
+        if prior
+            .as_ref()
+            .is_some_and(|event| observation.interval.1 < event.interval.1)
+        {
+            let invalidated = invalidate(prior.as_ref().unwrap(), as_of);
+            self.append(invalidated.clone());
+            return Some(invalidated);
+        }
+        let next = make_revision(prior.as_ref(), observation, as_of);
+        if prior
+            .as_ref()
+            .is_some_and(|event| same_projection(event, &next))
+        {
+            return None;
+        }
+        self.append(next.clone());
+        Some(next)
+    }
+
+    fn latest_event(&self, key: CandidateKey) -> Option<CandidateEvent> {
+        self.latest.get(&key).copied().and_then(|(level, index)| {
+            self.streams
+                .get(level)
+                .and_then(|stream| stream.get(index))
+                .cloned()
+        })
     }
 
     fn append(&mut self, event: CandidateEvent) {
@@ -263,7 +279,11 @@ fn make_revision(
         confirmed_at: if observation.state == CandidateState::Confirmed {
             prior
                 .and_then(|event| event.confirmed_at)
-                .or(observation.confirmed_at)
+                .or_else(|| {
+                    (observation.kind != CandidateKind::Pan)
+                        .then_some(observation.confirmed_at)
+                        .flatten()
+                })
                 .or(Some(as_of))
         } else {
             None
@@ -327,82 +347,121 @@ pub(crate) fn structural_observations_for_level(
     gauge: DivergenceGauge,
 ) -> Vec<CandidateObservation> {
     let center_gate = center_trend_gate(centers.len(), blocks);
-    let mut observations = Vec::new();
+    let context = StructuralScan {
+        level,
+        centers,
+        segments,
+        anchor_dirs,
+        hist,
+        dif,
+        closes_tick,
+        close_src,
+        gauge,
+    };
+    let mut observations: Vec<_> = segments
+        .iter()
+        .enumerate()
+        .filter_map(|(i, segment)| structural_observation(&context, &center_gate, i, segment))
+        .collect();
+    observations.sort_by_key(|observation| (observation.interval, observation.key));
+    observations
+}
 
-    for (i, seg) in segments.iter().enumerate() {
-        let Some(c_idx) = signal::nearest_confirmed_center_idx(centers, seg.start_index) else {
-            continue;
-        };
-        let Some(direction) = center_gate.get(c_idx).copied().flatten() else {
-            continue;
-        };
-        if c_idx == 0 {
-            continue;
-        }
-        let previous = &centers[c_idx - 1];
-        let parent_center = &centers[c_idx];
-        let a = locate_departure_move_a(segments, anchor_dirs, previous, parent_center, direction)
-            .and_then(|span| move_range_envelope(segments, span).map(|envelope| (span, envelope)));
-        let lambda_c = departure_move_c_start(
-            segments,
-            anchor_dirs,
-            parent_center,
-            direction,
-            seg.start_index,
-        );
-        let Some(point) = signal::judge_first_cached(
-            parent_center,
-            direction,
-            seg,
-            anchor_dirs[i],
-            hist,
-            dif,
-            closes_tick,
-            close_src,
-            a,
-            lambda_c,
-            gauge,
-        ) else {
-            continue;
-        };
-        let seg_a = a.expect("judge Some => A 段映射成立").0;
-        let c_start = lambda_c.expect("judge Some => lambda_C 成立");
-        let side = point.struct_break_dir.expect("结构候选必有方向");
-        let parent = ParentFingerprint {
+struct StructuralScan<'a> {
+    level: u32,
+    centers: &'a [Center],
+    segments: &'a [Segment],
+    anchor_dirs: &'a [Option<Direction>],
+    hist: &'a [f64],
+    dif: &'a [f64],
+    closes_tick: &'a [Tick],
+    close_src: &'a [usize],
+    gauge: DivergenceGauge,
+}
+
+fn structural_observation(
+    scan: &StructuralScan<'_>,
+    center_gate: &[Option<Direction>],
+    i: usize,
+    segment: &Segment,
+) -> Option<CandidateObservation> {
+    let c_idx = signal::nearest_confirmed_center_idx(scan.centers, segment.start_index)?;
+    let direction = center_gate.get(c_idx).copied().flatten()?;
+    let previous = scan.centers.get(c_idx.checked_sub(1)?)?;
+    let parent = &scan.centers[c_idx];
+    let a = locate_departure_move_a(scan.segments, scan.anchor_dirs, previous, parent, direction)
+        .and_then(|span| move_range_envelope(scan.segments, span).map(|range| (span, range)));
+    let c_start = departure_move_c_start(
+        scan.segments,
+        scan.anchor_dirs,
+        parent,
+        direction,
+        segment.start_index,
+    );
+    let point = signal::judge_first_cached(
+        parent,
+        direction,
+        segment,
+        scan.anchor_dirs[i],
+        scan.hist,
+        scan.dif,
+        scan.closes_tick,
+        scan.close_src,
+        a,
+        c_start,
+        scan.gauge,
+    )?;
+    Some(trend_observation(
+        scan.level,
+        previous,
+        parent,
+        segment,
+        a?,
+        c_start?,
+        point.struct_break_dir.expect("结构候选必有方向"),
+    ))
+}
+
+fn trend_observation(
+    level: u32,
+    previous: &Center,
+    parent_center: &Center,
+    segment: &Segment,
+    a: ((usize, usize), (Tick, Tick)),
+    c_start: usize,
+    side: Side,
+) -> CandidateObservation {
+    let key = CandidateKey {
+        level,
+        kind: CandidateKind::Trend,
+        side,
+        previous_center_start: Some(previous.start_index),
+        parent: ParentFingerprint {
             center_start: parent_center.start_index,
             zd: parent_center.zd,
             zg: parent_center.zg,
-        };
-        let key = CandidateKey {
-            level,
-            kind: CandidateKind::Trend,
-            side,
-            previous_center_start: Some(previous.start_index),
-            parent,
-            seg_a,
-            c_start,
-        };
-        observations.push(CandidateObservation {
-            key,
-            kind: CandidateKind::Trend,
-            center_ids: Some((previous.start_index, parent.center_start)),
-            candidate_group_id: stable_id(&key, FNV_OFFSET_BASIS),
-            pair_id: stable_id(&key, PAIR_ID_SEED),
-            structural_predicates: StructuralPredicates {
-                direction: true,
-                comparable: true,
-                extreme: true,
-            },
-            extreme_proof: seg_a,
-            third_class_proof: None,
-            interval: (c_start, seg.end_index),
-            state: CandidateState::Provisional,
-            first_provable_at: seg.end_index,
-            confirmed_at: None,
-        });
+        },
+        seg_a: a.0,
+        c_start,
+    };
+    CandidateObservation {
+        key,
+        kind: CandidateKind::Trend,
+        center_ids: Some((previous.start_index, parent_center.start_index)),
+        candidate_group_id: stable_id(&key, FNV_OFFSET_BASIS),
+        pair_id: stable_id(&key, PAIR_ID_SEED),
+        structural_predicates: StructuralPredicates {
+            direction: true,
+            comparable: true,
+            extreme: true,
+        },
+        extreme_proof: a.0,
+        third_class_proof: None,
+        interval: (c_start, segment.end_index),
+        state: CandidateState::Provisional,
+        first_provable_at: segment.end_index,
+        confirmed_at: None,
     }
-    observations.sort_by_key(|observation| (observation.interval, observation.key));
-    observations
 }
 
 /// 将既有 `judge_pan_div` 唯一构造的证书投影为 Pan 域确认候选，不重判结构或力度。
@@ -443,7 +502,7 @@ pub(crate) fn pan_observations_for_level(
                 interval: cert.seg_c,
                 state: CandidateState::Confirmed,
                 first_provable_at: cert.source_index,
-                confirmed_at: Some(cert.source_index),
+                confirmed_at: None,
             }
         })
         .collect()
@@ -599,6 +658,19 @@ mod tests {
         assert_eq!(stream[1].first_provable_at, 35);
         assert_eq!(stream[1].confirmed_at, Some(40));
         assert_eq!(stream[1].revision_at, 40);
+    }
+
+    #[test]
+    fn confirmed_clock_uses_first_observation_as_of_not_geometry_clock() {
+        let mut book = CandidateEventBook::default();
+        let mut confirmed = observation((30, 35), CandidateState::Confirmed);
+        confirmed.kind = CandidateKind::Pan;
+        confirmed.key.kind = CandidateKind::Pan;
+        confirmed.confirmed_at = Some(35);
+        let event = book.advance(&[confirmed], 42).remove(0);
+        assert_eq!(event.first_provable_at, 35);
+        assert_eq!(event.observed_at, 42);
+        assert_eq!(event.confirmed_at, Some(42));
     }
 
     #[test]

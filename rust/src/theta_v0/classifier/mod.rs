@@ -48,6 +48,7 @@ use super::config::ThetaConfig;
 use super::parser::ParseLayer;
 use super::types::{Center, Direction, Segment, Tick};
 use divergence::MacdState;
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -257,6 +258,23 @@ fn unit_to_segment(u: &UnitRange) -> Segment {
         start_price,
         end_price,
     }
+}
+
+fn candidate_scan_inputs<'a>(
+    is_l0: bool,
+    l0_segments: &'a [Segment],
+    units: &[UnitRange],
+) -> (Cow<'a, [Segment]>, Vec<Option<Direction>>) {
+    let segments = if is_l0 {
+        Cow::Borrowed(l0_segments)
+    } else {
+        Cow::Owned(units.iter().map(unit_to_segment).collect())
+    };
+    let anchors = segments
+        .iter()
+        .map(|segment| Some(segment.direction))
+        .collect();
+    (segments, anchors)
 }
 
 /// 级别-N 一/三类买卖点提取（codex-decide-20260703 裁定 A：级别-N 直接判定，非 L0 relabel）。
@@ -490,22 +508,14 @@ fn classify_impl(
         bsp.extend(extract_second_for_level(&upper_moves, &hist, &close_src));
         bsp.sort_by_key(|p| p.source_index);
 
-        let candidate_segments: Vec<Segment>;
-        let candidate_anchors: Vec<Option<Direction>>;
-        let (segments, anchors): (&[Segment], &[Option<Direction>]) = if is_l0 {
-            candidate_anchors = l0.segments.iter().map(|s| Some(s.direction)).collect();
-            (&l0.segments, &candidate_anchors)
-        } else {
-            candidate_segments = units.iter().map(unit_to_segment).collect();
-            candidate_anchors = units.iter().map(|u| Some(u.direction)).collect();
-            (&candidate_segments, &candidate_anchors)
-        };
+        let (candidate_segments, candidate_anchors) =
+            candidate_scan_inputs(is_l0, &l0.segments, &units);
         candidate_observations.extend(cand_event::observations_for_level(
             level_idx as u32,
             &centers_w,
             &moves,
-            segments,
-            anchors,
+            candidate_segments.as_ref(),
+            &candidate_anchors,
             &hist,
             &dif,
             &closes_tick,
@@ -607,6 +617,10 @@ pub fn classify_with_tower(
 ///
 /// 旧 [`classify_with_tower`] 保留二元返回以维持既有消费者逐字节不动；需要候选事件的调用方
 /// 使用本纯增量通道。事件只产出，不参与 BSP、门、admission 或订单流。
+///
+/// 本入口每次以 fresh book 计算，因此事件流是“每个 key 一条终态”的**终态窗口投影**；
+/// 跨 bar 因果簿的唯一正本由 [`classify_with_tower_events_incremental`] 的 `TowerCache` 持有。
+/// fresh-full 与因果簿终态投影的等价锁归 #551。
 pub fn classify_with_tower_events(
     l0: &ParseLayer,
     config: &ThetaConfig,
@@ -1145,7 +1159,7 @@ impl TowerCache {
         &self.closes_tick
     }
 
-    /// 重置缓存（退化为下次全量重扫）。
+    /// 重置可重导塔缓存（退化为下次全量重扫），但保留不可回填的候选因果事件簿。
     ///
     /// 调用时机：段账本前缀非单调追加（回缩/改写）、或 config 变更、或 merged_bars
     /// 前缀改写（inclusion 合并回退改写尾部）。
@@ -1163,9 +1177,8 @@ impl TowerCache {
         self.close_src.clear();
         self.closes_tick.clear(); // 与 closes 锁步（同 update_closes_cache 前缀复用）。
         self.area_cache.clear(); // hist 全量重扫 ⟹ 旧 (start,end)→area 键值可能不再对应新 hist。
-        self.candidate_book = cand_event::CandidateEventBook::default();
-        // ★工位 4g：clear=全量重扫 ⟹ extract 输出会变 ⟹ +generation（不 reset 为 0——下游缓存旧
-        // generation 可能恰为 0 ⟹ 假命中复用陈旧树）。单调递增保 sound。
+                                 // ★工位 4g：clear=全量重扫 ⟹ extract 输出会变 ⟹ +generation（不 reset 为 0——下游缓存旧
+                                 // generation 可能恰为 0 ⟹ 假命中复用陈旧树）。单调递增保 sound。
         self.generation += 1;
         // ★on2w2 E4：clear = moves_tower_l0.clear（tower[0] 字节变更）⟹ forest 变 ⟹ +forest_epoch
         // （不 reset，同 generation 规格）。clear() 是 public 方法，此 bump 独立于增量循环的 forest_dirty
@@ -2286,22 +2299,14 @@ pub fn classify_with_tower_incremental(
             };
 
         if lc.cached_candidate_key != Some(bsp_key) {
-            let candidate_segments: Vec<Segment>;
-            let candidate_anchors: Vec<Option<Direction>>;
-            let (segments, anchors): (&[Segment], &[Option<Direction>]) = if is_l0 {
-                candidate_anchors = l0.segments.iter().map(|s| Some(s.direction)).collect();
-                (&l0.segments, &candidate_anchors)
-            } else {
-                candidate_segments = units.iter().map(unit_to_segment).collect();
-                candidate_anchors = units.iter().map(|u| Some(u.direction)).collect();
-                (&candidate_segments, &candidate_anchors)
-            };
+            let (candidate_segments, candidate_anchors) =
+                candidate_scan_inputs(is_l0, &l0.segments, &units);
             lc.cached_candidate_observations = cand_event::observations_for_level(
                 level_idx as u32,
                 &lc.centers,
                 &moves,
-                segments,
-                anchors,
+                candidate_segments.as_ref(),
+                &candidate_anchors,
                 hist,
                 dif,
                 &closes_tick,
@@ -2740,6 +2745,69 @@ mod tests {
                 untradable: false,
             })
             .collect()
+    }
+
+    fn cache_candidate(c_start: usize, end: usize) -> cand_event::CandidateObservation {
+        let key = cand_event::CandidateKey {
+            level: 0,
+            kind: cand_event::CandidateKind::Trend,
+            side: Side::Long,
+            previous_center_start: Some(10),
+            parent: cand_event::ParentFingerprint {
+                center_start: 20,
+                zd: 100,
+                zg: 110,
+            },
+            seg_a: (11, 19),
+            c_start,
+        };
+        cand_event::CandidateObservation {
+            key,
+            kind: cand_event::CandidateKind::Trend,
+            center_ids: Some((10, 20)),
+            candidate_group_id: c_start as u64,
+            pair_id: (c_start as u64) + 1,
+            structural_predicates: cand_event::StructuralPredicates {
+                direction: true,
+                comparable: true,
+                extreme: true,
+            },
+            extreme_proof: key.seg_a,
+            third_class_proof: None,
+            interval: (c_start, end),
+            state: cand_event::CandidateState::Provisional,
+            first_provable_at: end,
+            confirmed_at: None,
+        }
+    }
+
+    #[test]
+    fn tower_cache_clear_preserves_candidate_history_and_resets_derived_cache() {
+        let mut cache = TowerCache::new();
+        let removed = cache_candidate(30, 35);
+        let retained = cache_candidate(40, 45);
+        cache
+            .candidate_book
+            .advance(&[removed.clone(), retained.clone()], 50);
+        cache.last_l0_segments_len = 9;
+        cache.macd_hist.push(1.0);
+
+        cache.clear();
+        assert_eq!(cache.last_l0_segments_len, 0);
+        assert!(cache.macd_hist.is_empty());
+
+        let mut grown = retained.clone();
+        grown.interval.1 = 46;
+        let delta = cache.candidate_book.advance(&[grown], 60);
+        let invalidated = delta.iter().find(|event| event.key == removed.key).unwrap();
+        let revised = delta
+            .iter()
+            .find(|event| event.key == retained.key)
+            .unwrap();
+        assert_eq!(invalidated.state, cand_event::CandidateState::Invalidated);
+        assert_eq!(invalidated.revision, 1);
+        assert_eq!(revised.revision, 1);
+        assert_eq!(revised.observed_at, 50);
     }
 
     /// ★批1（force_state 生产热路由 step4）：TowerCache 的 dif 增量通路 bit-exact 对拍全量。
@@ -4169,7 +4237,7 @@ mod tests {
                 (hash ^ byte as u64).wrapping_mul(cand_event::FNV_PRIME)
             });
         assert_eq!(
-            digest, 4851063543183334400,
+            digest, 3608191067574153658,
             "真实事件流漂移须诚实更新 golden"
         );
     }
