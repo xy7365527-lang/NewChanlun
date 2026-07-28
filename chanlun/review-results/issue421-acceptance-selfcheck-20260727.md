@@ -133,3 +133,82 @@ pre 固定在 `a12a1022d9ddd8d1cae867a107a3a33c359358cf`，post 固定在
 4. **#450 未复核。** 本报告的按级别数字尚未按 #450 结论回看，不得外推。
 5. **#429/#430 待编排。** 两轴 `/code-review` 必须由新上下文执行，本自查不替代。
 6. **#454 未触碰。** `nest_lifecycle.rs` 拆分另票处理。
+
+## 7. 返工节（2026-07-28）
+
+本节是 #429/#430 双影子 FAIL 后的返工增量；上文保留为首轮自查历史。凡读数或结论冲突，
+以本节为准。pre 为本工位开工 HEAD `ce074711d5` 的二进制；重验期间主线仅并发前进了
+#514 的两份 `scripts/` 文件，未触碰本票 Rust 文件。
+
+### 7.1 P-H1 / P-H2 / P-H3 / T8 逐条判定
+
+| 项目 | 状态 | 证据锚 |
+|---|---|---|
+| P-H1 身份跨 prefix 存活 | **满足** | `f9a_same_trigger_completion_does_not_collapse_lifetime_to_zero` 先红 `/tmp/wt421r-ph1-red.log`、后绿 `/tmp/wt421r-ph1-green.log`；`feed_replay_prefix` 只有命中 book 中先前 Provisional 身份才切通道，同 trigger 首见碰撞只建活身份 |
+| P-H1 100k 生产寿命 | **满足** | `/tmp/wt421r-post-100k-lifecycle.dump`：Observed=248；有 StructureCompleted 的 229/229 全为正寿命，0 寿命=0；min/median/max=5/120/411 trigger，分桶 `1..99=100`、`100..499=129` |
+| P-H1 终局与关系行 | **满足** | 100k：Confirmed=140、NeverConstituted=89、ForceOvertake=1、IdentityVanished=18；summary 为 `live_windows=89576 / completion_signals=230 / channel_switches=230 / extension_suppressed=89098`，不再是 `live_windows==channel_switches` |
+| P-H2 生产接缝可达 | **满足** | F9 已改为只经 `feed_replay_prefix` 构造「先建活身份→完成信号+ForceMaterial::unavailable」；红 `/tmp/wt421r-ph2-red.log`，最终 25/25 lifecycle 绿 `/tmp/wt421r-nest-after-reapply.log`；audit 可查且仍不擅裁新终态 |
+| P-H2 唯一分母 | **满足** | `ReplayFeedStats::completion_signals` 按桥身份唯一；跨 trigger 重发的分子/分母均不重复。100k 生产发生率为 `completion_force_unavailable=0 / completion_signals=230 = 0%`，原始重复观察 `completion_events=125453` 仅保留诊断，不再作分母 |
+| P-H3 共享 dirty/cache | **满足** | sidecar 直接借用原 `LevelDerived`/`RunEntry` 的 centers/kinds/events；无第二个 map/cache。P-H3 编译红 `/tmp/wt421r-ph3-red.log`，debug/release 绿 `/tmp/wt421r-ph3-after-reapply.log`、`/tmp/wt421r-ph3-release.log` |
+| P-H3 100k 复用读数 | **满足** | `provider_requests=2099 / provider_reevals=87 / provider_reuses=2012`，复用率 95.855%，相对旧侧车每 request 全算的实际补算下降 95.855%；20k shadow 为 179 checks / 0 mismatch |
+| T8 契约矛盾 | **满足** | T8 注释已与模块头/feed 契约统一：非 trigger prefix 只会晚记；`observed_at` 与 `first_provable_at` 同次首次写入，不能构造 `first_provable_at < observed_at` |
+| S-H1 账本不可变 | **不在修复面** | 编排者已以 `5022e31df5` 在 `.claude/rules/common/coding-style.md` 明文裁定例外；本返工未把它伪装成代码修复 |
+
+谱系依据补录：生命周期构建/消费边界依
+`chanlun/escalate/r43-lifecycle-ruling-20260721.md`；共享驻留面及
+`LevelDerived`/`RunEntry` 归属依
+`chanlun/escalate/r1-r3-ruling-confirmation-checklist-20260720.md`。本返工没有另造第二套
+ConfirmCursor/PanMemo 缓存定义。
+
+### 7.2 红绿与测试门
+
+- P-H1：`/tmp/wt421r-ph1-{red,green}.log`；红为首次碰撞错误计 switch，绿后观察钟
+  `99 < 109` 完成钟。
+- P-H2：`/tmp/wt421r-ph2-{red,green}.log`；红为生产 feed 无 audit，绿后 F9 经主接缝可达；
+  最终测试另锁跨 trigger 重发不放大发生率。
+- P-H3：`/tmp/wt421r-ph3-red.log` 缺共享 payload/helper 编译红；
+  `/tmp/wt421r-ph3-after-reapply.log` 与 `/tmp/wt421r-ph3-release.log` 绿。
+- `cargo test --lib`：`1992 passed / 1 failed / 135 ignored`；
+  `cargo test --release --lib` 同数。唯一失败均为在册 #491
+  `theta_v0::classifier::signal::tests::extract_signals_bit_exact_digest_guard`，见
+  `/tmp/wt421r-cargo-test-{lib,release-lib}.log`；零新增失败。
+
+### 7.3 字节护栏与 lifecycle characterization
+
+| 面 | cmp | SHA-256（pre = post） |
+|---|---:|---|
+| p123 20k stdout | 0 | `bd9ac1d655f9d615a5d9b3495b3a92465fb1fae13ce5dadfa28033c47d375b6c` |
+| p123 20k P116 dump | 0 | `fcc8016a9a01a1098736b9ee3b348614296bb97aec817a5c172c9a0723427a40` |
+| p123 100k stdout | 0 | `d8b69c180c23c5e393bf3c330825d88ae9c989ff38f2b8865e049e1b5eb56da8` |
+| p123 100k P116 dump | 0 | `8a7327feb3b9ba29f69fa824af1f1ecc137d9303637b47ad8465b6d638705f84` |
+| m8 p3fold trades / tower_events | 0 / 0 | `65621e3505253a7fcde046a9eaa78bbc8c19798fe84ed626c88b56d6cb0cc21b` / `83f45a36ab422a92d198d5d9289c40db94e95fe2cba7af2322e2d37aa8e718c2` |
+| m8 wf7 trades / tower_events | 0 / 0 | `db6e14fab9f2e5767f38c832aead1efcf6c06b0831181e6c7c7cdaa3deaffbfb` / `aa96b3e836be5a43514c425d572c5312d15d8c6950d991d094416e4d61af1cbb` |
+| m8 wf8 trades / tower_events | 0 / 0 | `abf8245ffd880c0f4488cd02f8696e950cd8349de15c705b52a2add3d679eaf8` / `1d8dff0d29e8925fd2931e05259fad11b71745354482c413f4138d8123dfb34f` |
+
+lifecycle 是修复本体，不作 `cmp=0`：100k pre 为 Observed/StructureCompleted
+`248/248`、正寿命 `0/248`、Confirmed/NeverConstituted `151/97`；
+post 为 Observed/StructureCompleted `248/229`、正寿命 `229/229`、
+Confirmed/NeverConstituted/ForceOvertake/IdentityVanished `140/89/1/18`。
+post lifecycle SHA-256：20k
+`6a8877ee6549d50204407cf06dd466bd68874e4bf26b46d35468f699b4b80a52`，
+100k `d45201143c3d2171216849d5acdcfefbb2195c6a889d9f853282dcbde94c6c0e`。
+
+### 7.4 各 MED / LOW 去向（逐项）
+
+- #429 S-M1（文件/函数上限）：仍归 #454 拆分债；本票不触碰 #454。
+- #429 S-M2（自查缺谱系引用）：本节已补 `r43-lifecycle-ruling` 与
+  `r1-r3-ruling-confirmation-checklist`，本项满足。
+- #429 S-L1（F6 名称强于单测断言）：保留 LOW；本节只把 F6 当字段/Debug 对照，
+  真实字节结论只取 §7.3 的生产 pre/post `cmp=0`。仓内 integration 字节门由编排者另派。
+- #429 S-L2（`leg_as_segment_copy` 重复）：按 #421/#426 明示授权保留，不提升私有函数可见性。
+- #430 Spec-M1（Unavailable 生产不可达）：已由 P-H2 主接缝 F9 修复并满足。
+- #430 Spec-L1（T8 反向文字）：已订正并满足。
+- #430 Standards-M1（超 50 行/Data Clumps）：仍归 #454；本返工只移除旧的
+  `collect_lifecycle_runs` 全量重算函数，不借返工扩大拆分范围。
+- #430 Standards-M2（声明/实现未收口）：T8 已与模块头/feed 契约统一，本项满足。
+- #430 Standards-M3（缺仓内 p123 integration/E2E 字节门）：**部分**；新增 P-H3 bin
+  单测与原 shadow 对拍，但完整字节证明仍是外部产物，留待编排者派专门回归门票。
+- #430 Standards-L1（授权型 Duplicated Code）：同 #429 S-L2，保留登记、不越权改可见性。
+- #430 未能判定项（#450 后按级别复核）：仍未能判定；本返工不据总量外推按级别结论。
+
+#429/#430 保持 OPEN；本节只提交修复与证据，复审由编排者派新上下文执行。

@@ -378,16 +378,26 @@ struct LevelDerived {
 }
 
 /// per-(level, run_source_start) 评估缓存条目（设计 §3 的 per-(level,run) 评估缓存）。
+///
+/// #421 sidecar 与 targeted 路径共用这一份 provider 产物；未来 5a/5b 的
+/// ConfirmCursor/PanMemo 也仍分别驻留 `LevelDerived`/`RunEntry`，不得另建平行缓存。
 #[derive(Debug)]
 struct RunEntry {
-    /// 评估时 LevelDerived.self_gen / lower_gen（dirty 判据 (i)/(ii) 的代次锚）。
+    /// 共享 provider 产物评估时的 LevelDerived.self_gen / lower_gen。
     self_gen: u64,
     lower_gen: u64,
-    /// 评估时 as_of（dirty 判据 (iii) 的水位基线；构造上 (iii)⊂(ii)，见模块头证明）。
+    /// 共享 provider 产物评估时的 as_of（dirty 判据 (iii) 水位基线）。
     last_as_of: usize,
-    /// 上次评估产出 ∩ 评估时 pending（provide 输出原序）。judge_at 字段为评估时 as_of，
-    /// 应用侧不消费（钟位取 trigger bar，与慢版 or_insert(index) 同口径）。
+    /// 与 provider 同源的 run 投影中心/块类别，供 lifecycle 活窗直接借用。
+    centers: Vec<Center>,
+    kinds: Vec<Option<MoveKind>>,
+    /// provider 的完整输出（provide 原序）；targeted 应用时才与当前 pending 求交。
     events: Vec<NestCandidateEvent>,
+    /// targeted 消费者自己的旧缓存水位，仅用于保持 p123 原 dirty/物理 views 口径；
+    /// payload 仍只有上面一份，sidecar 不持有第二套结果。
+    target_self_gen: Option<u64>,
+    target_lower_gen: Option<u64>,
+    target_last_as_of: Option<usize>,
 }
 
 /// 稀疏化计数（stderr 专用，不进验收面）：判据触发/重估/复用/TERM 反查现场。
@@ -417,10 +427,15 @@ struct LifecycleReplayStats {
     triggers: usize,
     live_windows: usize,
     completion_events: usize,
+    completion_signals: usize,
     channel_switches: usize,
     extension_suppressed: usize,
     retrograde_rejected: usize,
     completion_force_unavailable: usize,
+    /// sidecar 对共享 RunEntry 的请求 / 实际补算 / 直接复用。
+    provider_requests: usize,
+    provider_reevals: usize,
+    provider_reuses: usize,
 }
 
 impl LifecycleReplayStats {
@@ -428,21 +443,12 @@ impl LifecycleReplayStats {
         self.triggers += 1;
         self.live_windows += feed.live_windows;
         self.completion_events += feed.completion_events;
+        self.completion_signals += feed.completion_signals;
         self.channel_switches += feed.channel_switches;
         self.extension_suppressed += feed.extension_suppressed;
         self.retrograde_rejected += feed.retrograde_rejected;
         self.completion_force_unavailable += feed.completion_force_unavailable;
     }
-}
-
-/// provider/window 侧生成的一条 run 的自足拷贝；只复制取数材料，不扩大上游可见性。
-#[derive(Debug)]
-struct LifecycleRunOwned {
-    level: u32,
-    centers: Vec<Center>,
-    kinds: Vec<Option<MoveKind>>,
-    legs: Vec<LowerLeg>,
-    completion_events: Vec<NestCandidateEvent>,
 }
 
 fn main() -> Result<(), String> {
@@ -518,22 +524,26 @@ fn main() -> Result<(), String> {
             "P123_SPARSE_LEVEL level={level} reevals={reevals} slow_would_views={slow_would}"
         );
     }
-    let completion_force_unavailable_rate = if lifecycle_stats.completion_events == 0 {
+    let completion_force_unavailable_rate = if lifecycle_stats.completion_signals == 0 {
         0.0
     } else {
         lifecycle_stats.completion_force_unavailable as f64
-            / lifecycle_stats.completion_events as f64
+            / lifecycle_stats.completion_signals as f64
     };
     eprintln!(
-        "P421_LIFECYCLE_SUMMARY triggers={} live_windows={} completion_events={} channel_switches={} extension_suppressed={} retrograde_rejected={} completion_force_unavailable={} completion_force_unavailable_rate={:.9}",
+        "P421_LIFECYCLE_SUMMARY triggers={} live_windows={} completion_events={} completion_signals={} channel_switches={} extension_suppressed={} retrograde_rejected={} completion_force_unavailable={} completion_force_unavailable_rate={:.9} provider_requests={} provider_reevals={} provider_reuses={}",
         lifecycle_stats.triggers,
         lifecycle_stats.live_windows,
         lifecycle_stats.completion_events,
+        lifecycle_stats.completion_signals,
         lifecycle_stats.channel_switches,
         lifecycle_stats.extension_suppressed,
         lifecycle_stats.retrograde_rejected,
         lifecycle_stats.completion_force_unavailable,
         completion_force_unavailable_rate,
+        lifecycle_stats.provider_requests,
+        lifecycle_stats.provider_reevals,
+        lifecycle_stats.provider_reuses,
     );
 
     let l0 = terminal.l0;
@@ -864,24 +874,7 @@ fn run_targeted_prefix_pass(
         // #116: TURN 逐 bar 观察（摊还 O(新稳定块数)，不经 trigger 门——pending 空后仍落盘）。
         turns.observe(&classification);
         let trigger = (cache.forest_epoch(), signal_signature(&classification));
-        // #421：侧车与 p123 使用同一重估触发时钟，但不受 pending 是否已出清影响。
-        // provider/window 材料在本 trigger 当场重建；既有 YieldBook、事件流与 dump 均只读。
-        if last_lifecycle_trigger.as_ref() != Some(&trigger) {
-            let (hist, close_src) = cache.causal_series();
-            let dif = cache.macd_dif();
-            feed_lifecycle_trigger(
-                &mut lifecycle_book,
-                &tower,
-                index,
-                hist,
-                dif,
-                close_src,
-                &mut lifecycle_dump,
-                &mut lifecycle_stats,
-            )?;
-            lifecycle_book.assert_invariants();
-            last_lifecycle_trigger = Some(trigger.clone());
-        }
+        let lifecycle_due = last_lifecycle_trigger.as_ref() != Some(&trigger);
         if last_trigger.as_ref() != Some(&trigger) && !pending.is_empty() {
             stats.triggers += 1;
             let (hist, close_src) = cache.causal_series();
@@ -925,21 +918,13 @@ fn run_targeted_prefix_pass(
                 if level == 0 || level >= tower.len() {
                     continue;
                 }
-                // ── 派生缓存同步（哨兵 = 内容快照值比对；变更才重建分区/legs）──
-                let level_derived = derived.entry(level).or_default();
-                if level_derived.self_snap[..] != tower[level][..] {
-                    level_derived.self_snap = tower[level][..].to_vec();
-                    level_derived.self_gen += 1;
-                    level_derived.run_ranges = build_run_ranges(&tower[level]);
+                // ── 派生缓存同步（targeted 与 lifecycle 共用同一 LevelDerived）──
+                let (self_synced, lower_synced) =
+                    sync_level_derived(level, &tower, &mut derived)?;
+                if self_synced {
                     stats.syncs_self += 1;
                 }
-                if level_derived.lower_snap[..] != tower[level - 1][..] {
-                    level_derived.lower_snap = tower[level - 1][..].to_vec();
-                    level_derived.lower_gen += 1;
-                    level_derived.lower_legs = lower_legs_from(&tower[level - 1])
-                        .map_err(|error| format!("L{level} targeted lower legs 失败: {error:?}"))?;
-                    level_derived.lower_ends =
-                        level_derived.lower_legs.iter().map(|leg| leg.end_index).collect();
+                if lower_synced {
                     stats.syncs_lower += 1;
                 }
                 let level_derived = &derived[&level];
@@ -956,10 +941,11 @@ fn run_targeted_prefix_pass(
                         .or_default() += 1;
                     let watermark_crossed = entries
                         .get(&(level, run_source_start))
-                        .is_some_and(|entry| {
+                        .and_then(|entry| entry.target_last_as_of)
+                        .is_some_and(|last_as_of| {
                             let before = level_derived
                                 .lower_ends
-                                .partition_point(|&end_index| end_index <= entry.last_as_of);
+                                .partition_point(|&end_index| end_index <= last_as_of);
                             let now = level_derived
                                 .lower_ends
                                 .partition_point(|&end_index| end_index <= index);
@@ -968,8 +954,10 @@ fn run_targeted_prefix_pass(
                     let dirty = match entries.get(&(level, run_source_start)) {
                         None => true, // 冷条目：首次评估
                         Some(entry) => {
-                            let self_changed = entry.self_gen != level_derived.self_gen;
-                            let lower_changed = entry.lower_gen != level_derived.lower_gen;
+                            let self_changed =
+                                entry.target_self_gen != Some(level_derived.self_gen);
+                            let lower_changed =
+                                entry.target_lower_gen != Some(level_derived.lower_gen);
                             if watermark_crossed {
                                 if lower_changed {
                                     stats.wm_cross_with_lower += 1;
@@ -982,7 +970,7 @@ fn run_targeted_prefix_pass(
                         }
                     };
                     if dirty {
-                        let events = evaluate_run(
+                        let (centers, kinds, events) = evaluate_run(
                             level,
                             &tower[level],
                             (start, end),
@@ -991,7 +979,6 @@ fn run_targeted_prefix_pass(
                             hist,
                             dif,
                             close_src,
-                            &pending,
                         )?;
                         views += 1;
                         stats.reevals += 1;
@@ -1003,7 +990,12 @@ fn run_targeted_prefix_pass(
                                 self_gen: level_derived.self_gen,
                                 lower_gen: level_derived.lower_gen,
                                 last_as_of: index,
+                                centers,
+                                kinds,
                                 events,
+                                target_self_gen: Some(level_derived.self_gen),
+                                target_lower_gen: Some(level_derived.lower_gen),
+                                target_last_as_of: Some(index),
                             },
                         );
                     } else {
@@ -1025,7 +1017,7 @@ fn run_targeted_prefix_pass(
                     // 判定强制全量重估，与缓存路径应用集逐字比对（judge_at 是 as_of 戳，
                     // 不消费，不参与比对）。任何 mismatch = dirty 判据漏判现场（090 停线）。
                     if shadow {
-                        let forced = evaluate_run(
+                        let (_, _, forced) = evaluate_run(
                             level,
                             &tower[level],
                             (start, end),
@@ -1034,8 +1026,11 @@ fn run_targeted_prefix_pass(
                             hist,
                             dif,
                             close_src,
-                            &pending,
                         )?;
+                        let forced: Vec<NestCandidateEvent> = forced
+                            .into_iter()
+                            .filter(|event| pending.contains(&EventKey::from(event)))
+                            .collect();
                         stats.shadow_checks += 1;
                         let applied = &out[applied_start..];
                         let same = applied.len() == forced.len()
@@ -1121,7 +1116,37 @@ fn run_targeted_prefix_pass(
                     pending.remove(&key);
                 }
             }
-            last_trigger = Some(trigger);
+            last_trigger = Some(trigger.clone());
+        }
+        // #421：targeted 先按原物理 views 口径更新共享条目；sidecar 随后只补 dirty
+        // 的非目标 run，并直接借用同一 RunEntry/LevelDerived 喂账本。pending 出清后仍运行。
+        if lifecycle_due {
+            let (hist, close_src) = cache.causal_series();
+            let dif = cache.macd_dif();
+            let active_runs = refresh_lifecycle_cache(
+                &tower,
+                index,
+                hist,
+                dif,
+                close_src,
+                &mut derived,
+                &mut entries,
+                &mut lifecycle_stats,
+            )?;
+            feed_lifecycle_trigger(
+                &mut lifecycle_book,
+                &derived,
+                &entries,
+                &active_runs,
+                index,
+                hist,
+                dif,
+                close_src,
+                &mut lifecycle_dump,
+                &mut lifecycle_stats,
+            )?;
+            lifecycle_book.assert_invariants();
+            last_lifecycle_trigger = Some(trigger);
         }
         if ckpt_every > 0 && index > 0 && index % ckpt_every == 0 {
             let (hist, close_src) = cache.causal_series();
@@ -1167,76 +1192,137 @@ fn write_lifecycle_line(
         .map_err(|error| format!("写 P421_LIFECYCLE_DUMP 失败: {error}"))
 }
 
-/// 在一个 p123 trigger 上，从 provider/window 侧重建全部可喂 run 与完成事件。
-///
-/// 数据源链与 `collect_snapshot_candidates` 同源：tower run 投影 → decompose →
-/// assemble_level_view → provide_nest_candidate_events。活窗 legs 是
-/// `lower_legs_from(tower[level-1])` 的私有拷贝，不新增 provider 字段。
-fn collect_lifecycle_runs(
+/// 同步 targeted/lifecycle 共用的 per-level 派生面；只在内容变化时重建。
+fn sync_level_derived(
+    level: usize,
+    tower: &[Rc<Vec<LeveledMove>>],
+    derived: &mut BTreeMap<usize, LevelDerived>,
+) -> Result<(bool, bool), String> {
+    let level_derived = derived.entry(level).or_default();
+    let self_synced = level_derived.self_snap[..] != tower[level][..];
+    if self_synced {
+        level_derived.self_snap = tower[level][..].to_vec();
+        level_derived.self_gen += 1;
+        level_derived.run_ranges = build_run_ranges(&tower[level]);
+    }
+    let lower_synced = level_derived.lower_snap[..] != tower[level - 1][..];
+    if lower_synced {
+        level_derived.lower_snap = tower[level - 1][..].to_vec();
+        level_derived.lower_gen += 1;
+        level_derived.lower_legs = lower_legs_from(&tower[level - 1])
+            .map_err(|error| format!("L{level} shared lower legs 失败: {error:?}"))?;
+        level_derived.lower_ends =
+            level_derived.lower_legs.iter().map(|leg| leg.end_index).collect();
+    }
+    Ok((self_synced, lower_synced))
+}
+
+/// 补齐 lifecycle 本 trigger 所需的全部 active run。targeted 已在同 trigger 更新过的
+/// 条目直接复用；其余条目也只在共享 dirty 判据命中时评估，禁 sidecar 每 trigger 全量重算。
+#[allow(clippy::too_many_arguments)]
+fn refresh_lifecycle_cache(
     tower: &[Rc<Vec<LeveledMove>>],
     as_of: usize,
     hist: &[f64],
     dif: &[f64],
     close_src: &[usize],
-) -> Result<Vec<LifecycleRunOwned>, String> {
-    let mut runs = Vec::new();
+    derived: &mut BTreeMap<usize, LevelDerived>,
+    entries: &mut BTreeMap<(usize, usize), RunEntry>,
+    stats: &mut LifecycleReplayStats,
+) -> Result<Vec<(usize, usize)>, String> {
+    let mut active_runs = Vec::new();
     for level in 1..tower.len() {
-        let lower = lower_legs_from(&tower[level - 1])
-            .map_err(|error| format!("L{level} lifecycle lower legs 失败: {error:?}"))?;
-        for (_, (start, end)) in build_run_ranges(&tower[level]) {
-            let projection = project_extended_windows_carried_only(&tower[level][start..end])
-                .map_err(|error| format!("L{level} lifecycle projection 失败: {error:?}"))?;
-            let centers: Vec<Center> = projection.seeds.iter().map(|seed| seed.center).collect();
-            let blocks = decompose::decompose(&centers);
-            let kinds = decompose::center_block_kind(centers.len(), &blocks);
-            let query = LevelViewQuery {
-                level: level as u32,
-                coordinate_window: CoordinateWindow {
-                    start: projection.seeds.first().expect("nonempty run").start_index,
-                    end: projection.seeds.last().expect("nonempty run").end_index,
-                },
-                as_of,
-                version: C2VersionTuple::auto_pairing(),
-            };
-            let view = assemble_level_view(
-                C2LevelViewConfig { enabled: true },
-                query,
-                LevelViewMaterial {
-                    projection: ProjectionMaterial::ExactThree(&projection),
-                    move_blocks: &blocks,
-                    lower_legs: &lower,
+        sync_level_derived(level, tower, derived)?;
+        let run_ranges: Vec<(usize, (usize, usize))> = derived[&level]
+            .run_ranges
+            .iter()
+            .map(|(&source, &range)| (source, range))
+            .collect();
+        for (run_source_start, run) in run_ranges {
+            stats.provider_requests += 1;
+            let level_derived = &derived[&level];
+            let watermark_crossed = entries
+                .get(&(level, run_source_start))
+                .is_some_and(|entry| {
+                    let before = level_derived
+                        .lower_ends
+                        .partition_point(|&end_index| end_index <= entry.last_as_of);
+                    let now = level_derived
+                        .lower_ends
+                        .partition_point(|&end_index| end_index <= as_of);
+                    now != before
+                });
+            let dirty = entries
+                .get(&(level, run_source_start))
+                .is_none_or(|entry| {
+                    entry.self_gen != level_derived.self_gen
+                        || entry.lower_gen != level_derived.lower_gen
+                        || watermark_crossed
+                });
+            if dirty {
+                let target_watermark = entries.get(&(level, run_source_start)).map(|entry| {
+                    (
+                        entry.target_self_gen,
+                        entry.target_lower_gen,
+                        entry.target_last_as_of,
+                    )
+                });
+                let (centers, kinds, events) = evaluate_run(
+                    level,
+                    &tower[level],
+                    run,
+                    &level_derived.lower_legs,
+                    as_of,
                     hist,
                     dif,
                     close_src,
-                },
-            )
-            .map_err(|error| format!("L{level} lifecycle C2 assemble 失败: {error:?}"))?;
-            let completion_events = provide_nest_candidate_events(
-                level as u32,
-                &projection,
-                &blocks,
-                &lower,
-                &view,
-                hist,
-                dif,
-                close_src,
-            );
-            runs.push(LifecycleRunOwned {
-                level: level as u32,
-                centers,
-                kinds,
-                legs: lower.clone(),
-                completion_events,
-            });
+                )?;
+                let (target_self_gen, target_lower_gen, target_last_as_of) =
+                    target_watermark.unwrap_or((None, None, None));
+                entries.insert(
+                    (level, run_source_start),
+                    RunEntry {
+                        self_gen: level_derived.self_gen,
+                        lower_gen: level_derived.lower_gen,
+                        last_as_of: as_of,
+                        centers,
+                        kinds,
+                        events,
+                        target_self_gen,
+                        target_lower_gen,
+                        target_last_as_of,
+                    },
+                );
+                stats.provider_reevals += 1;
+            } else {
+                stats.provider_reuses += 1;
+            }
+            active_runs.push((level, run_source_start));
         }
     }
-    Ok(runs)
+    Ok(active_runs)
+}
+
+/// 将共享 RunEntry 直接投影为 lifecycle 借用视图；测试锁定零复制接缝。
+fn cached_lifecycle_run<'a>(
+    level: usize,
+    entry: &'a RunEntry,
+    lower_legs: &'a [LowerLeg],
+) -> PanLiveRun<'a> {
+    PanLiveRun {
+        level: level as u32,
+        centers: &entry.centers,
+        kinds: &entry.kinds,
+        legs: lower_legs,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
 fn feed_lifecycle_trigger(
     book: &mut NestLifecycleBook,
-    tower: &[Rc<Vec<LeveledMove>>],
+    derived: &BTreeMap<usize, LevelDerived>,
+    entries: &BTreeMap<(usize, usize), RunEntry>,
+    active_runs: &[(usize, usize)],
     as_of: usize,
     hist: &[f64],
     dif: &[f64],
@@ -1244,19 +1330,19 @@ fn feed_lifecycle_trigger(
     sink: &mut Option<BufWriter<File>>,
     replay_stats: &mut LifecycleReplayStats,
 ) -> Result<(), String> {
-    let owned = collect_lifecycle_runs(tower, as_of, hist, dif, close_src)?;
-    let runs: Vec<PanLiveRun<'_>> = owned
+    let runs: Vec<PanLiveRun<'_>> = active_runs
         .iter()
-        .map(|run| PanLiveRun {
-            level: run.level,
-            centers: &run.centers,
-            kinds: &run.kinds,
-            legs: &run.legs,
+        .map(|&(level, run_source_start)| {
+            cached_lifecycle_run(
+                level,
+                &entries[&(level, run_source_start)],
+                &derived[&level].lower_legs,
+            )
         })
         .collect();
-    let completion_events: Vec<NestCandidateEvent> = owned
+    let completion_events: Vec<NestCandidateEvent> = active_runs
         .iter()
-        .flat_map(|run| run.completion_events.iter().copied())
+        .flat_map(|key| entries[key].events.iter().copied())
         .collect();
     let audit_start = book.completion_force_unavailable_audits().len();
     let material = ForceMaterial {
@@ -1277,9 +1363,10 @@ fn feed_lifecycle_trigger(
     write_lifecycle_line(
         sink,
         format_args!(
-            "FEED as_of={as_of} live_windows={} completion_events={} channel_switches={} extension_suppressed={} retrograde_rejected={} completion_force_unavailable={}",
+            "FEED as_of={as_of} live_windows={} completion_events={} completion_signals={} channel_switches={} extension_suppressed={} retrograde_rejected={} completion_force_unavailable={}",
             stats.live_windows,
             stats.completion_events,
+            stats.completion_signals,
             stats.channel_switches,
             stats.extension_suppressed,
             stats.retrograde_rejected,
@@ -1353,8 +1440,8 @@ fn build_run_ranges(windows: &Rc<Vec<LeveledMove>>) -> BTreeMap<usize, (usize, u
 }
 
 /// per-run 完整评估（慢版 collect_target_candidates per-run 块的提取，逐字同调用链）：
-/// run 投影 → decompose → assemble_level_view → provide_nest_candidate_events → ∩ pending。
-/// 产出保持 provide 输出序（turn_source/interval_b/kind/side 排序，与慢版事件拼接序一致）。
+/// run 投影 → decompose → assemble_level_view → provide_nest_candidate_events。
+/// 返回的中心、类别与完整事件只存进共享 RunEntry；targeted 应用侧再与 pending 求交。
 #[allow(clippy::too_many_arguments)]
 fn evaluate_run(
     level: usize,
@@ -1365,8 +1452,7 @@ fn evaluate_run(
     hist: &[f64],
     dif: &[f64],
     close_src: &[usize],
-    pending: &BTreeSet<EventKey>,
-) -> Result<Vec<NestCandidateEvent>, String> {
+) -> Result<(Vec<Center>, Vec<Option<MoveKind>>, Vec<NestCandidateEvent>), String> {
     let (start, end) = run;
     let projection = project_extended_windows_carried_only(&windows[start..end])
         .map_err(|error| format!("L{level} targeted projection 失败: {error:?}"))?;
@@ -1394,7 +1480,8 @@ fn evaluate_run(
         },
     )
     .map_err(|error| format!("L{level} targeted C2 assemble 失败: {error:?}"))?;
-    Ok(provide_nest_candidate_events(
+    let kinds = decompose::center_block_kind(centers.len(), &blocks);
+    let events = provide_nest_candidate_events(
         level as u32,
         &projection,
         &blocks,
@@ -1403,10 +1490,8 @@ fn evaluate_run(
         hist,
         dif,
         close_src,
-    )
-    .into_iter()
-    .filter(|event| pending.contains(&EventKey::from(event)))
-    .collect())
+    );
+    Ok((centers, kinds, events))
 }
 
 fn collect_snapshot_candidates(
@@ -1879,4 +1964,34 @@ fn date_to_timestamp(date: &str) -> Timestamp {
         }
     }
     digits.parse().unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// P-H3：lifecycle sidecar 必须借用 p123 同一 RunEntry 的 provider 产物，
+    /// 不得另建一份 centers/kinds 或在每个 trigger 重跑 provider。
+    #[test]
+    fn p_h3_lifecycle_borrows_shared_run_entry_payload() {
+        let entry = RunEntry {
+            self_gen: 1,
+            lower_gen: 1,
+            last_as_of: 99,
+            centers: Vec::new(),
+            kinds: Vec::new(),
+            events: Vec::new(),
+            target_self_gen: None,
+            target_lower_gen: None,
+            target_last_as_of: None,
+        };
+        let lower_legs = Vec::new();
+
+        let run = cached_lifecycle_run(2, &entry, &lower_legs);
+
+        assert_eq!(run.level, 2);
+        assert!(std::ptr::eq(run.centers, entry.centers.as_slice()));
+        assert!(std::ptr::eq(run.kinds, entry.kinds.as_slice()));
+        assert!(std::ptr::eq(run.legs, lower_legs.as_slice()));
+    }
 }

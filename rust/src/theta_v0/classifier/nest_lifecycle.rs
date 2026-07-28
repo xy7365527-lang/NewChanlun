@@ -548,7 +548,7 @@ pub struct NestLifecycleBook {
     /// 倒退拒绝审计注记（#78 修复 2）。同一倒退喂入重复执行重复记录（重复违规事实本身；
     /// 与 ForceUnavailable 同 as_of 幂等不对称——原 #78 评审 Low 登记同判，不阻塞）。
     retrograde_rejections: Vec<RetrogradeRejection>,
-    /// 完成信号与力度不可验同时发生的独立审计面（#428；同 key/as_of 幂等）。
+    /// 完成信号与力度不可验同时发生的独立审计面（#428；按桥身份唯一）。
     completion_force_unavailable_audits: Vec<CompletionForceUnavailableAudit>,
 }
 
@@ -731,13 +731,14 @@ impl NestLifecycleBook {
                     }
                 }
                 ForceCheck::Unavailable(reason) => {
-                    // 「不可验」≠「不再弱」：只记审计注记（同 as_of 幂等去重），不判
+                    // 「不可验」≠「不再弱」：只记审计注记（按桥身份唯一），不判
                     // Invalidated、不写 first_provable、不进完成确认（entry 保持原态）。
+                    // audit 按完成信号桥身份唯一；provider 跨 trigger 重发不重复抬高发生率分子。
                     if obs.structure_completed()
                         && !self
                             .completion_force_unavailable_audits
                             .iter()
-                            .any(|audit| audit.key == key && audit.as_of == as_of)
+                            .any(|audit| audit.key == key || bridge_identity(&audit.key, &key))
                     {
                         self.completion_force_unavailable_audits
                             .push(CompletionForceUnavailableAudit { key, as_of, reason });
@@ -939,13 +940,34 @@ impl NestLifecycleBook {
     /// `last_as_of` 不动、身份消失扫描只看 Provisional）⟹ 跳过是纯成本优化，非行为改动
     /// （F5 等价性测试锚定）。
     fn terminal_bridge_hit(&self, key: &LifecycleKey) -> bool {
-        let entry = match self.entries.get(key) {
+        let entry = self.bridge_entry(key);
+        entry.is_some_and(|entry| entry.state.is_terminal())
+    }
+
+    /// 该身份（含桥同身份）是否已在先前 prefix 建成活身份。回放出口只有命中该条件，
+    /// 才把完成事件解释为通道切换；同 trigger 首见的活窗/完成事件碰撞只先建仓。
+    fn provisional_bridge_hit(&self, key: &LifecycleKey) -> bool {
+        self.bridge_entry(key)
+            .is_some_and(|entry| entry.state == NestEventState::Provisional)
+    }
+
+    /// 同一完成信号是否已在此前 prefix 被处理。正常结算后由终态 entry 留痕；
+    /// 力度不可验时由独立 audit 留痕。该读面只用于唯一信号计数，不阻止材料补齐后重发。
+    fn completion_signal_seen(&self, key: &LifecycleKey) -> bool {
+        self.terminal_bridge_hit(key)
+            || self
+                .completion_force_unavailable_audits
+                .iter()
+                .any(|audit| audit.key == *key || bridge_identity(&audit.key, key))
+    }
+
+    fn bridge_entry(&self, key: &LifecycleKey) -> Option<&NestLifecycleEntry> {
+        match self.entries.get(key) {
             Some(entry) => Some(entry),
             None => self
                 .bridge_match(key)
                 .and_then(|old| self.entries.get(&old)),
-        };
-        entry.is_some_and(|entry| entry.state.is_terminal())
+        }
     }
 
     /// 白名单桥匹配：除 seg_c 右端外全等的既有键（同身份不同右端的键在 book 内至多一只，
@@ -1069,9 +1091,11 @@ pub struct ReplayPrefixFeed<'a> {
 pub struct ReplayFeedStats {
     /// 本前缀行进中通道产出的活窗数。
     pub live_windows: usize,
-    /// 本前缀完成事件通道的盘整事件数。
+    /// 本前缀完成事件通道的盘整事件观察数（可含跨 trigger 重发，不作发生率分母）。
     pub completion_events: usize,
-    /// 本前缀由行进中通道切到完成事件通道的活窗数（ADR-0003 结构完成信号）。
+    /// 本前缀首次命中既有活身份的唯一完成信号数（#428 发生率分母）。
+    pub completion_signals: usize,
+    /// 本前缀首次由行进中通道切到完成事件通道的唯一活窗数（ADR-0003 结构完成信号）。
     pub channel_switches: usize,
     /// 已进终态的身份被跳过喂入的活窗数（完成即停延展；终态吸收下逐位等价）。
     pub extension_suppressed: usize,
@@ -1092,8 +1116,9 @@ pub struct ReplayFeedStats {
 /// - **完成事件通道** = 数据源候选事件的盘整域（比较窗 = 定位到的完成段），
 ///   `structure_completed = true`——**切换本身即结构完成信号，不另造判据**。
 ///
-/// 同一身份同时出现在两通道时**行进中窗让位**（否则同前缀两只观察，违反「同一身份每
-/// prefix 至多一只观察」）；桥判同（除离开段右端外全等）保证让位不丢身份。
+/// 同一身份同时出现在两通道时，只有 book 中已有先前 prefix 的 Provisional 身份，
+/// 才由行进中窗让位并计通道切换；同 trigger 首见的碰撞先记活窗，完成信号留待下一
+/// trigger 复核。由此 Observe 与 StructureCompleted 不再被挤进同一 as_of。
 pub fn feed_replay_prefix(
     book: &mut NestLifecycleBook,
     feed: &ReplayPrefixFeed<'_>,
@@ -1109,8 +1134,6 @@ pub fn feed_replay_prefix(
         .map(|event| LifecycleObservation::event(*event, true))
         .collect();
     stats.completion_events = completions.len();
-    let completed_keys: Vec<LifecycleKey> =
-        completions.iter().map(LifecycleObservation::key).collect();
     for run in feed.runs {
         let segments: Vec<Segment> = run.legs.iter().map(leg_as_segment_copy).collect();
         // 自锚 = 逐段方向（与 `provide_nest_candidate_events_ext` level_view.rs:735 同口径，
@@ -1130,15 +1153,6 @@ pub fn feed_replay_prefix(
             stats.live_windows += 1;
             let observation = LifecycleObservation::pan_live(window, false);
             let key = observation.key();
-            // 通道切换（ADR-0003）：该身份已在完成事件通道产出 ⟹ 行进中窗让位，结构
-            // 完成信号由完成事件给出。桥判同（除离开段右端外全等）保证让位不丢身份。
-            if completed_keys
-                .iter()
-                .any(|completed| *completed == key || bridge_identity(completed, &key))
-            {
-                stats.channel_switches += 1;
-                continue;
-            }
             // 完成即停延展：终态身份不再喂行进中窗（终态吸收下逐位等价，见
             // `terminal_bridge_hit` 文档与 F5）。
             if book.terminal_bridge_hit(&key) {
@@ -1148,8 +1162,44 @@ pub fn feed_replay_prefix(
             observations.insert(key, observation);
         }
     }
-    for (key, observation) in completed_keys.into_iter().zip(completions) {
-        observations.insert(key, observation);
+    let mut counted_signals: Vec<LifecycleKey> = Vec::new();
+    for completion in completions {
+        let completed_key = completion.key();
+        // 通道切换只接受 book 中已有的先前活身份。同 trigger 首见碰撞保留行进中观察，
+        // 下一 trigger 再以各自 as_of 完成，禁出生即终结。
+        if !book.provisional_bridge_hit(&completed_key) {
+            continue;
+        }
+        // 发生率分母只数唯一完成信号：provider 跨 trigger 重发、同 trigger 桥同右端变化
+        // 都不是新发生。Unavailable 后仍继续处理重发，以便材料补齐时按原协议结算。
+        let first_signal = !book.completion_signal_seen(&completed_key)
+            && !counted_signals
+                .iter()
+                .any(|seen| *seen == completed_key || bridge_identity(seen, &completed_key));
+        if first_signal {
+            counted_signals.push(completed_key);
+            stats.completion_signals += 1;
+            stats.channel_switches += 1;
+        }
+        let live_key = observations
+            .keys()
+            .find(|live| **live == completed_key || bridge_identity(live, &completed_key))
+            .copied();
+        let switched = live_key
+            .and_then(|key| observations.remove(&key))
+            .and_then(|live| match live.force(material) {
+                // #428：完成信号已到，但行进中窗的三值力度材料不可验。用同一活窗携带
+                // structure_completed=true 进入 advance，显式落 audit；不伪造事件布尔真值。
+                ForceCheck::Unavailable(_) => match live {
+                    LifecycleObservation::PanLive { window, .. } => {
+                        Some(LifecycleObservation::pan_live(window, true))
+                    }
+                    LifecycleObservation::Event { .. } => None,
+                },
+                ForceCheck::Verified(_) => None,
+            })
+            .unwrap_or(completion);
+        observations.insert(switched.key(), switched);
     }
     let before = book.retrograde_rejections().len();
     let unavailable_before = book.completion_force_unavailable_audits().len();
@@ -1711,8 +1761,9 @@ mod tests {
 
     /// T8 trend 身份迁移豁免（白名单工程桥，模块头 090 登记 1）：收束记 Supersedes
     /// （链留痕、钟不动、无 Invalidated）；负面对照 seg_a 改变 ⟹ 白名单不越界 ⟹
-    /// IdentityVanished。（feed 契约：跳 prefix 回填可构造 first_provable < observed 的
-    /// 越约输入，出切片——实装报告 §5.4。）
+    /// IdentityVanished。（feed 契约的时钟精度是 trigger 粒度；`observed_at` 与
+    /// `first_provable_at` 均在首次实际 `advance` 中写入，因此跳过非 trigger prefix
+    /// 只会晚记，不能构造 `first_provable_at < observed_at`。）
     #[test]
     fn t8_trend_identity_migration_whitelist() {
         let close_src = identity_close_src(200);
@@ -2920,14 +2971,22 @@ mod tests {
             "trend 域事件不在账本建仓"
         );
 
-        // 对照臂：同一事件改判盘整域 ⟹ 计入并建仓。
-        let mut pan = trend;
-        pan.kind = NestDivergenceKind::Consolidation;
+        // 对照臂：先在前一 trigger 建活身份；盘整域完成事件随后正常计入并结算。
+        let pan = pan_event((50, 59), (70, 99), true, 99);
         let mut book_pan = NestLifecycleBook::new();
+        feed_replay_prefix(
+            &mut book_pan,
+            &ReplayPrefixFeed {
+                as_of: 79,
+                runs: &runs,
+                completion_events: &[],
+            },
+            &m,
+        );
         let (_, stats_pan) = feed_replay_prefix(
             &mut book_pan,
             &ReplayPrefixFeed {
-                as_of: 139,
+                as_of: 99,
                 runs: &runs,
                 completion_events: &[pan],
             },
@@ -2935,23 +2994,111 @@ mod tests {
         );
         assert_eq!(stats_pan.completion_events, 1);
         assert!(
-            book_pan.get(&key_pan((120, 129), (130, 139))).is_some(),
-            "盘整域同一事件正常建仓（对照臂）"
+            book_pan.get(&key_pan((50, 59), (70, 99))).is_some(),
+            "盘整域事件命中先前活身份后正常结算（对照臂）"
+        );
+    }
+
+    /// F9a P-H1 回归：同一 trigger 首次同时看见活窗与完成事件时，只能先建活身份；
+    /// 完成事件须等到后续 trigger 命中 book 中既有 Provisional 身份才构成通道切换。
+    #[test]
+    fn f9a_same_trigger_completion_does_not_collapse_lifetime_to_zero() {
+        let (centers, kinds, segments, _anchors, hist, dif, close_src) =
+            pan_real_fixture(-0.1, -0.5);
+        let legs = legs_of(&segments);
+        let m = material(&hist, &dif, &close_src);
+        let runs = [PanLiveRun {
+            level: 1,
+            centers: &centers,
+            kinds: &kinds,
+            legs: &legs,
+        }];
+        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        let mut book = NestLifecycleBook::new();
+
+        let (_, born_stats) = feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 99,
+                runs: &runs,
+                completion_events: &events,
+            },
+            &m,
+        );
+        assert_eq!(
+            born_stats.channel_switches, 0,
+            "book 中没有先前活身份时不得把同 trigger 碰撞计作通道切换"
+        );
+        let born = book
+            .get(&key_pan((50, 59), (70, 99)))
+            .expect("同 trigger 碰撞须先留下活身份");
+        assert_eq!(born.state, NestEventState::Provisional);
+        assert_eq!(born.observed_at, 99);
+        assert_eq!(born.structure_end_at, None);
+
+        let (_, completed_stats) = feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 109,
+                runs: &runs,
+                completion_events: &events,
+            },
+            &m,
+        );
+        assert_eq!(
+            completed_stats.channel_switches, 1,
+            "后续 trigger 命中既有活身份才是真通道切换"
+        );
+        let completed = book
+            .get(&key_pan((50, 59), (70, 99)))
+            .expect("完成事件沿桥命中既有身份");
+        assert_eq!(completed.state, NestEventState::Confirmed);
+        assert_eq!(completed.observed_at, 99);
+        assert_eq!(completed.structure_end_at, Some(109));
+        assert!(
+            completed.structure_end_at.unwrap() > completed.observed_at,
+            "生产身份须有正寿命"
         );
     }
 
     /// F9 #428 升格硬项：完成信号已到但力度不可验时不得静默接受。
     ///
-    /// 这条只要求独立审计事实可查，不替编排者裁定新终态；账本仍诚实滞留
-    /// Provisional，后续材料补齐后可照原协议继续结算。
+    /// 必须经生产主接缝 `feed_replay_prefix` 可达；这条只要求独立审计事实可查，
+    /// 不替编排者裁定新终态。账本仍诚实滞留 Provisional，后续材料补齐后可照原协议继续结算。
     #[test]
     fn f9_completion_force_unavailable_is_explicit_audit() {
-        let close_src = identity_close_src(120);
+        let (centers, kinds, segments, _anchors, hist, dif, close_src) =
+            pan_real_fixture(-0.1, -0.5);
+        let legs = legs_of(&segments);
+        let runs = [PanLiveRun {
+            level: 1,
+            centers: &centers,
+            kinds: &kinds,
+            legs: &legs,
+        }];
+        let available = material(&hist, &dif, &close_src);
         let no_force = ForceMaterial::unavailable(&close_src);
         let mut book = NestLifecycleBook::new();
-        let observation = LifecycleObservation::pan_live(pan_window((50, 59), 70, 99), true);
 
-        book.advance(&[observation], 99, &no_force);
+        feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 79,
+                runs: &runs,
+                completion_events: &[],
+            },
+            &available,
+        );
+        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        let (_, stats) = feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 99,
+                runs: &runs,
+                completion_events: &events,
+            },
+            &no_force,
+        );
 
         assert_eq!(
             book.completion_force_unavailable_audits(),
@@ -2960,9 +3107,29 @@ mod tests {
                 as_of: 99,
                 reason: UnavailReason::MissingForceSeries,
             }],
-            "完成信号与力度缺失须作为同一条独立审计事实可查"
+            "完成信号与力度缺失须经生产接缝成为同一条独立审计事实"
         );
-        let entry = book.get(&key_pan((50, 59), (70, 99))).unwrap();
+        assert_eq!(stats.channel_switches, 1, "完成信号命中先前活身份");
+        assert_eq!(stats.completion_signals, 1, "唯一完成信号作为发生率分母");
+        assert_eq!(stats.completion_force_unavailable, 1);
+
+        let (_, repeated) = feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 109,
+                runs: &runs,
+                completion_events: &events,
+            },
+            &no_force,
+        );
+        assert_eq!(repeated.completion_signals, 0, "跨 trigger 重发不重复抬高分母");
+        assert_eq!(repeated.channel_switches, 0, "同一信号重发不是第二次通道切换");
+        assert_eq!(
+            repeated.completion_force_unavailable, 0,
+            "同一桥身份重发不重复抬高不可验分子"
+        );
+        assert_eq!(book.completion_force_unavailable_audits().len(), 1);
+        let entry = book.entries().next().expect("重发后桥迁移身份仍在").1;
         assert_eq!(
             entry.state,
             NestEventState::Provisional,
