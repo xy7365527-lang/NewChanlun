@@ -33,5 +33,7 @@
 | [claude-sonnet]#578-夹具约定对齐 | kimi编排→claude sonnet（wayfinder frontier 取票） | 夹具坐标约定对齐生产共端点 + 守卫可测性二选一 | 已交付（bf37658101：对齐+联动 ~20 处、2030/1 唯一红 #491、五项 cmp=0；守卫收紧实测有洞 frontier 占 45% 非零变化→回退留钉，新发现转教义票） |
 | [kimi]#578/#579/#580-收口包 | kimi编排（编排者 2026-07-28 裁一包） | #580 关（维持一 run 一窗）、#578 关（夹具对齐+45% 发现）；新开 #591（32893 疑点）/#592（有洞 frontier 裁决输入）；#579 改名落地中 | 已落地 |
 | [claude-sonnet]#579-标签改名 | kimi编排→claude sonnet | no_recompute_in_span → bootstrap_unavailable/retroactive_redivision_skipped，零行为变化 | 已交付（照实核验：该标签自始至终未在 rust 源码/dump/统计面出现过，只存在于 review-results 三份报告 + roster 的分析文本中——是研究报告作者手工分类的残差桶名，非代码/dump 字段；仓内 grep + `/tmp/wt527fix-post-100k.dump` grep 双证零命中。故本票为纯文档改名：issue527 归因表拆分 5→1(`bootstrap_unavailable`)+4(`retroactive_redivision_skipped`)并加改名对照注、issue580 同源引用同步、roster 本行更新；rust/src 零改动，cargo test/cmp 门槛因此零风险平凡满足） |
-| [claude-sonnet]#591-32893疑点 | kimi编排→claude sonnet | 完成检测 vs 活窗两路径中枢查询口径对照+32893 现场+影响面，落 issue32893 报告 | 派发中 |
-| [claude-sonnet]#592-有洞frontier研究 | kimi编排→claude sonnet | 45% 分布量化+语义分类+分档影响+推荐（不替裁），落 issue592 报告 | 派发中 |
+| [claude-sonnet]#591-32893疑点 | kimi编排→claude sonnet | 完成检测 vs 活窗两路径中枢查询口径对照，落 issue32893 报告 | 已交付（判定时序差无害：两路径切片算法逐字相同+共用同一纯函数，中枢确认滞后+稀疏重算盲区所致，与 #580 类型 α 同源不新增计数；建议疑点结项+同序同判措辞补限定，待编排者裁） |
+| [claude-sonnet]#592-有洞frontier研究 | kimi编排→claude sonnet | 45% 分布量化+语义分类+分档影响，落 issue592 报告 | 已交付（60-62% recompute 有洞、窗命中占 42.6-53.6%、缺段证伪/合法形态坐实；B 全拒损 39 Confirmed 非纯降噪；荐 A+gap_len 诊断字段让消费者分档，待编排者裁） |
+| [kimi]#591/#592-裁定 | kimi编排（编排者 2026-07-28 照办） | #591 疑点结项（时序差无害）comment-5109292871；#592 选 A+gap_len 诊断字段 comment-5109293006 | 已落地 |
+| [claude-sonnet]#592-gap_len实装 | kimi编排→claude sonnet | gap_len 落账本+dump/统计同步+措辞限定 | 已交付（3a77c504ac；kimi 抽验：2031/1 唯一红 #491、主流 cmp=0、dump 剥列逐字节同、100k 共端点 282/608 对拍一致；#591/#592 双关、map 已记） |
