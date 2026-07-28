@@ -4335,18 +4335,10 @@ mod tests {
         cache
     }
 
-    /// 业务载荷投影（钟与 revision 计数属生命史，不入等价比较）。
+    /// 业务载荷投影相等 —— 口径与字段表的唯一来源是
+    /// [`cand_event::CandidateProjection`]（钟与 revision 计数属生命史，不入等价比较）。
     fn payload_eq(a: &cand_event::CandidateEvent, b: &cand_event::CandidateEvent) -> bool {
-        a.kind == b.kind
-            && a.event_level == b.event_level
-            && a.center_ids == b.center_ids
-            && a.candidate_group_id == b.candidate_group_id
-            && a.pair_id == b.pair_id
-            && a.structural_predicates == b.structural_predicates
-            && a.extreme_proof == b.extreme_proof
-            && a.third_class_proof == b.third_class_proof
-            && a.interval == b.interval
-            && a.state == b.state
+        a.projection() == b.projection()
     }
 
     /// ★#551 状态机全谱在 classify 全链上的生产可达锁：∅→Unresolved→Provisional，

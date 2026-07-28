@@ -469,37 +469,55 @@ fn make_revision(
     }
 }
 
-#[derive(PartialEq)]
-struct CandidateProjection {
-    kind: CandidateKind,
-    center_ids: Option<(usize, usize)>,
-    candidate_group_id: u64,
-    pair_id: u64,
-    structural_predicates: StructuralPredicates,
-    extreme_proof: (usize, usize),
-    third_class_proof: Option<usize>,
-    interval: (usize, usize),
-    state: CandidateState,
+/// [`CandidateEvent`] 的业务载荷投影 —— 候选「是什么」的**唯一比较口径**。
+///
+/// 进投影的是候选的业务身份与结构载荷：`kind`、`event_level`、`center_ids`、
+/// `candidate_group_id`、`pair_id`、`structural_predicates`、`extreme_proof`、
+/// `third_class_proof`、`interval`、`state`。
+///
+/// **不进投影**的是生命史记账字段：钟（`observed_at` / `first_provable_at` / `confirmed_at` /
+/// `invalidated_at` / `revision_at`）与 revision 计数（`revision` / `supersedes_revision`）。
+/// 它们记的是「这条载荷何时被观察到、是第几次修订」，属生命史而非载荷本身：同一份载荷在不同
+/// as_of 下重跑必然带不同的钟与计数，把它们计入等价比较会让「载荷未变」永远判不成立。
+/// 幂等跳过（[`CandidateEventBook::advance_observation`]）、fresh↔causal 双通道载荷比对
+/// （`issue550_event_battery` / `payload_eq`）共用本口径，不再各列一份字段表。
+///
+/// `key` 亦不入投影：它是流的索引而非载荷，全部比对点都在**同 key** 内进行；`event_level`
+/// 虽由 `key.level` 派生，仍显式入投影，使投影自足可读、不依赖调用方保证同 key。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CandidateProjection {
+    pub kind: CandidateKind,
+    pub event_level: u32,
+    pub center_ids: Option<(usize, usize)>,
+    pub candidate_group_id: u64,
+    pub pair_id: u64,
+    pub structural_predicates: StructuralPredicates,
+    pub extreme_proof: (usize, usize),
+    pub third_class_proof: Option<usize>,
+    pub interval: (usize, usize),
+    pub state: CandidateState,
 }
 
-impl From<&CandidateEvent> for CandidateProjection {
-    fn from(event: &CandidateEvent) -> Self {
-        Self {
-            kind: event.kind,
-            center_ids: event.center_ids,
-            candidate_group_id: event.candidate_group_id,
-            pair_id: event.pair_id,
-            structural_predicates: event.structural_predicates,
-            extreme_proof: event.extreme_proof,
-            third_class_proof: event.third_class_proof,
-            interval: event.interval,
-            state: event.state,
+impl CandidateEvent {
+    /// 取本次 revision 的业务载荷投影，口径见 [`CandidateProjection`]。
+    pub fn projection(&self) -> CandidateProjection {
+        CandidateProjection {
+            kind: self.kind,
+            event_level: self.event_level,
+            center_ids: self.center_ids,
+            candidate_group_id: self.candidate_group_id,
+            pair_id: self.pair_id,
+            structural_predicates: self.structural_predicates,
+            extreme_proof: self.extreme_proof,
+            third_class_proof: self.third_class_proof,
+            interval: self.interval,
+            state: self.state,
         }
     }
 }
 
 fn same_projection(a: &CandidateEvent, b: &CandidateEvent) -> bool {
-    CandidateProjection::from(a) == CandidateProjection::from(b)
+    a.projection() == b.projection()
 }
 
 /// 同一次分类迭代内的结构宽候选投影。

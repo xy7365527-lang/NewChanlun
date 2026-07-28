@@ -242,7 +242,7 @@ fn print_projection_fork(
             None => fork_fresh_only += 1,
             Some(booked) if booked.state == CandidateState::Invalidated => revived += 1,
             Some(booked) => {
-                if projection_of(booked) == projection_of(event) {
+                if booked.projection() == event.projection() {
                     payload_equal += 1;
                 } else {
                     payload_differ += 1;
@@ -269,7 +269,7 @@ fn print_projection_fork(
         }
         for (key, event) in &fresh_latest {
             if let Some(booked) = terminal.get(key) {
-                if projection_of(booked) != projection_of(event) {
+                if booked.projection() != event.projection() {
                     println!(
                         "ISSUE551_DIAG payload_differ key={key:?}\n  causal  state={:?} interval={:?} preds={:?} revision={}\n  fresh   state={:?} interval={:?} preds={:?}",
                         booked.state, booked.interval, booked.structural_predicates, booked.revision,
@@ -288,39 +288,6 @@ fn print_projection_fork(
         terminal.len(),
     );
     Ok(())
-}
-
-/// 业务载荷投影（钟与 revision 计数属生命史，不入等价比较）。
-type Projection = (
-    CandidateKind,
-    u32,
-    Option<(usize, usize)>,
-    u64,
-    u64,
-    (bool, bool, bool),
-    (usize, usize),
-    Option<usize>,
-    (usize, usize),
-    CandidateState,
-);
-
-fn projection_of(event: &CandidateEvent) -> Projection {
-    (
-        event.kind,
-        event.event_level,
-        event.center_ids,
-        event.candidate_group_id,
-        event.pair_id,
-        (
-            event.structural_predicates.direction,
-            event.structural_predicates.comparable,
-            event.structural_predicates.extreme,
-        ),
-        event.extreme_proof,
-        event.third_class_proof,
-        event.interval,
-        event.state,
-    )
 }
 
 fn compare_streams(
