@@ -49,15 +49,17 @@
 //! 「一个快照接口，两个消费点，零派生副本」，防止未来某一消费点悄悄另立一套字段子集导致两处
 //! 读到不一致的持仓视图（同构 #354 P1-A `avg_cost` 结构性消解的精神：单一只读源，禁两份重算）。
 
-use super::super::classifier::center_lifecycle::CenterId;
+use super::super::classifier::center_lifecycle::{CenterId, CenterLifecycleEvent};
 use super::super::closed_loop::state::RiskMode;
 use super::super::closed_loop::transition::{cash_sound_gate, stage_progression, TransitionError};
 use super::center_oscillation_trade::{
-    CenterOscillationAction, SuspensionTerminationSource, TerminationSettlement, TriggerError,
+    CenterOscillationAction, SuspensionEventOutcome, SuspensionTerminationSource,
+    TerminationSettlement, TriggerError,
 };
 use super::ledger::{tw_step, LedgerComp, RiskPolicy, TwEvent, TwState};
 use super::short_diff_bucket::{CoreCostBasisSnapshot, ShortDiffAccount, ShortDiffViolation};
 use super::voice::VoiceSide;
+use super::super::types::Side;
 use std::collections::BTreeMap;
 
 /// 本模块 typed 拒绝（无静默兜底，与 [`ShortDiffViolation`]/[`TransitionError`] 同规格）。
@@ -750,9 +752,9 @@ impl OscillationCampaign {
         Ok((next, outcome))
     }
 
-    /// ★#366/#472：**未闭合减出核销**——终局不回补时，把该来源中枢的挂起批次从在途量核销，
-    /// 产出货缺口/桶实收现金两笔分开的呈报（[`UnclosedReduction`]）。来源包括教义三类点不回补
-    /// 路径，以及 #472 的 `Reset`/`RebaseVanished` 止血路径。不构造任何回补动作、不产任何
+    /// ★#366/#472/#489：**未闭合减出核销**——终局不回补时，把该来源中枢的挂起批次从在途量
+    /// 核销，产出货缺口/桶实收现金两笔分开的呈报（[`UnclosedReduction`]）。来源包括教义三类点
+    /// 不回补路径，以及 `RebaseVanished` 工程失踪路径。不构造任何回补动作、不产任何
     /// `TwEvent`（不冲销，见 [`ShortDiffAccount::write_off_unclosed`]）。
     ///
     /// 该中枢无挂起批次 ⟹ `Ok(None)`（无事可核销，非错误——高抛后已自然收口，或该侧本就
@@ -926,8 +928,8 @@ impl CampaignBook {
         Ok(outcome)
     }
 
-    /// ★#366/#472：**未闭合减出核销**入口——教义三类点不回补路径与
-    /// `Reset`/`RebaseVanished` 止血路径共用的清算落点，透传
+    /// ★#366/#472/#489：**未闭合减出核销**入口——教义三类点不回补路径与
+    /// `RebaseVanished` 工程失踪路径共用的清算落点，透传
     /// [`OscillationCampaign::write_off_unclosed`]。
     ///
     /// 返回 `Ok(None)` 有两种诚实情形，均非错误、均不新增 typed 拒绝：① 该 (级别, 侧) 当前
@@ -975,8 +977,8 @@ pub struct CampaignWiringWitness {
     /// ★#381：键增持仓侧维（`"long"`/`"short"`）——同一次触发对两侧产出镜像动作，级别+动作
     /// 已不足以定位记账对象。
     pub action_by_level: BTreeMap<(u32, &'static str, &'static str), usize>,
-    /// 挂起终结来源分桶（挂起归宿：`BrokenByThirdClassBuy`/`.._Sell`/`Reset`/`Superseded`/
-    /// `RebaseVanished` 五源，见 [`super::center_oscillation_trade::SuspensionTerminationSource`]）。
+    /// 挂起终结来源分桶（挂起归宿：`BrokenByThirdClassBuy`/`.._Sell`/`RebaseVanished`
+    /// 三源，见 [`super::center_oscillation_trade::SuspensionTerminationSource`]）。
     /// ★#381 关票修复：键增持仓侧维 `(侧, 来源)`——`on_lifecycle_event`/`on_chain_rebase` 现在
     /// 对同一事件**逐侧**各产一条 `SuspensionOutcome`，不分侧则多空并存时计数翻倍且无法归属
     /// （破本 ADR 补充九自立的「两侧不得相加」）。
@@ -987,6 +989,13 @@ pub struct CampaignWiringWitness {
     /// ★#442 探针：键增 level 维 `(级别, 侧, 来源)`（纯观测，不改决策）——裁决「容读窗口太窄
     /// vs 高级别不产三类点」需要清算按级别分布，只分侧读不出来。跨版本不可比同上。
     pub suspension_by_source: BTreeMap<(u32, &'static str, &'static str), usize>,
+    /// ★#489：Reset 广播到场时主格仍有活中枢的漏发警报，按 `(级别, 一类点侧)` 分桶。
+    /// 逐条的 CenterId 与 bar 仍由 `CenterLifecycleEvent::Reset` 及 opsem 事件行承载；本桶只做
+    /// wf8 可汇总计数。`died_center=None` 的场空 Reset 是合法广播，不计警报。
+    pub reset_alive_center_leak_by_level_side: BTreeMap<(u32, &'static str), usize>,
+    /// ★#489 修复车：Reset 事件收到任何非空生命周期消费输出的次数。按事件计数；终结、
+    /// 核销、回补或延续任一路非空都击中，作为 Reset 广播意外产生清算副作用的活回归门。
+    reset_nonempty_lifecycle_outcome_count: usize,
     /// ★★#414（ADR 补充十一）：挂起**延续**计数（分侧）——`Superseded` 命中挂起、挂起不终结
     /// 也不清算的次数。正面读数，非警报；它与真实清算桶（`suspension_by_source` 的两个
     /// `broken_by_third_class_*` + `settlement_by_side`）的差额即「延续了但没等到三类点」的
@@ -1288,10 +1297,71 @@ impl CampaignWiringWitness {
         let label = match source {
             SuspensionTerminationSource::BrokenByThirdClassBuy => "broken_by_third_class_buy",
             SuspensionTerminationSource::BrokenByThirdClassSell => "broken_by_third_class_sell",
-            SuspensionTerminationSource::Reset => "reset",
             SuspensionTerminationSource::RebaseVanished => "rebase_vanished",
         };
         *self.suspension_by_source.entry((level, side_label(side), label)).or_insert(0) += 1;
+    }
+
+    /// ★#489：把 Reset 事件里的活中枢只读见证记入漏发警报桶；不参与任何终结或清算判据。
+    pub fn record_reset_alive_center_leak(&mut self, event: &CenterLifecycleEvent) {
+        let CenterLifecycleEvent::Reset {
+            level,
+            died_center: Some(_),
+            trigger_side,
+            ..
+        } = event
+        else {
+            return;
+        };
+        let side = match trigger_side {
+            Side::Long => "long",
+            Side::Short => "short",
+        };
+        *self.reset_alive_center_leak_by_level_side.entry((*level, side)).or_insert(0) += 1;
+    }
+
+    /// ★#489 修复车：Reset 的实际生命周期消费输出只要有一路非空，就按事件记一次。
+    pub fn record_reset_termination_outcome(
+        &mut self,
+        event: &CenterLifecycleEvent,
+        outcome: &SuspensionEventOutcome,
+    ) {
+        if matches!(event, CenterLifecycleEvent::Reset { .. })
+            && (!outcome.terminations.is_empty() || !outcome.continuations.is_empty())
+        {
+            self.reset_nonempty_lifecycle_outcome_count += 1;
+        }
+    }
+
+    /// ★#489 wf8 验收读数：Reset 实际产生任何终结/核销/回补/延续输出的事件数。
+    pub fn reset_settlement_count(&self) -> usize {
+        self.reset_nonempty_lifecycle_outcome_count
+    }
+
+    /// ★#489 wf8 验收读数：两类 Broken 清算按级别汇总；工程重基失踪不混入。
+    pub fn broken_by_level(&self) -> BTreeMap<u32, usize> {
+        let mut totals = BTreeMap::new();
+        for ((level, _, source), count) in &self.suspension_by_source {
+            if matches!(
+                *source,
+                "broken_by_third_class_buy" | "broken_by_third_class_sell"
+            ) {
+                *totals.entry(*level).or_insert(0) += *count;
+            }
+        }
+        totals
+    }
+
+    /// ★#487/#489 题三挂钩：跨侧终结 = 多头被三卖 + 空头被三买；不得跨侧求和猜测。
+    pub fn cross_side_termination_count(&self) -> usize {
+        self.suspension_by_source
+            .iter()
+            .filter(|((_, side, source), _)| {
+                (*side == "long" && *source == "broken_by_third_class_sell")
+                    || (*side == "short" && *source == "broken_by_third_class_buy")
+            })
+            .map(|(_, count)| *count)
+            .sum()
     }
 
     /// ★★#414（ADR 补充十一）：记一次挂起**延续**（`Superseded` 命中挂起 ⟹ 不终结、不清算）。
@@ -1720,6 +1790,38 @@ mod tests {
     }
 
     #[test]
+    fn reset_nonempty_termination_outcome_trips_live_regression_gate() {
+        use super::super::center_oscillation_trade::SuspensionOutcome;
+
+        let reset = CenterLifecycleEvent::Reset {
+            level: 0,
+            died_center: None,
+            died_chain_index: None,
+            trigger_source_index: 500,
+            trigger_side: Side::Long,
+        };
+        let ev_out = SuspensionEventOutcome {
+            terminations: vec![SuspensionOutcome {
+                center: cid(0),
+                source: SuspensionTerminationSource::RebaseVanished,
+                cover_action: None,
+                side: VoiceSide::Long,
+                settlement: TerminationSettlement::WriteOffUnclosed,
+            }],
+            continuations: Vec::new(),
+        };
+        let mut w = CampaignWiringWitness::new();
+
+        w.record_reset_termination_outcome(&reset, &ev_out);
+
+        assert_eq!(
+            w.reset_settlement_count(),
+            1,
+            "合成非空终结输出必须击中活门，不能退化成类型上永远为 0 的死读数"
+        );
+    }
+
+    #[test]
     fn witness_tallies_action_by_level_and_suspension_source_and_lifecycle() {
         let mut w = CampaignWiringWitness::new();
         w.record_action(0, VoiceSide::Long, CenterOscillationAction::Reduce);
@@ -1728,25 +1830,47 @@ mod tests {
         assert_eq!(w.action_by_level.get(&(0, "long", "reduce")), Some(&2), "归属正确：level 0 两次 Reduce 分桶计数");
         assert_eq!(w.action_by_level.get(&(1, "long", "replenish")), Some(&1), "level 1 Replenish 独立分桶，不与 level 0 混计");
 
-        // ★#414：`superseded` 桶退役（被取代不再是归宿），此处改用 `reset` 演示同一分桶纪律。
+        // ★#414/#489：`superseded` 与 `reset` 桶均退役；只用三类点与 RebaseVanished 锁分桶。
         // ★#442：键增 level 维——同侧同来源跨级别独立成桶（探针的裁决量）。
         w.record_suspension_source(0, VoiceSide::Long, SuspensionTerminationSource::BrokenByThirdClassBuy);
-        w.record_suspension_source(0, VoiceSide::Long, SuspensionTerminationSource::Reset);
-        w.record_suspension_source(0, VoiceSide::Long, SuspensionTerminationSource::Reset);
-        w.record_suspension_source(0, VoiceSide::Short, SuspensionTerminationSource::Reset);
-        w.record_suspension_source(2, VoiceSide::Long, SuspensionTerminationSource::Reset);
+        w.record_suspension_source(0, VoiceSide::Long, SuspensionTerminationSource::BrokenByThirdClassSell);
+        w.record_suspension_source(0, VoiceSide::Long, SuspensionTerminationSource::BrokenByThirdClassSell);
+        w.record_suspension_source(0, VoiceSide::Short, SuspensionTerminationSource::BrokenByThirdClassBuy);
+        w.record_suspension_source(2, VoiceSide::Long, SuspensionTerminationSource::RebaseVanished);
         assert_eq!(w.suspension_by_source.get(&(0, "long", "broken_by_third_class_buy")), Some(&1));
-        assert_eq!(w.suspension_by_source.get(&(0, "long", "reset")), Some(&2), "挂起归宿分桶按来源独立累计");
+        assert_eq!(
+            w.suspension_by_source.get(&(0, "long", "broken_by_third_class_sell")),
+            Some(&2),
+            "挂起归宿分桶按来源独立累计"
+        );
         // ★#381 关票修复：同一来源两侧独立分桶——多空并存时不得相加成 3（同一事件逐侧各产一条
         // `SuspensionOutcome`，混计即计数翻倍且无法归属）。
-        assert_eq!(w.suspension_by_source.get(&(0, "short", "reset")), Some(&1), "空头侧同来源独立成桶");
         assert_eq!(
             w.suspension_by_source.get(&(0, "short", "broken_by_third_class_buy")),
+            Some(&1),
+            "空头侧同来源独立成桶"
+        );
+        assert_eq!(
+            w.suspension_by_source.get(&(0, "short", "broken_by_third_class_sell")),
             None,
             "空头侧未发生的来源不出现（不被多头侧读数污染）"
         );
-        // ★#442：level 2 的 reset 不与 level 0 的两次混计——加维的全部意义在此。
-        assert_eq!(w.suspension_by_source.get(&(2, "long", "reset")), Some(&1), "高级别同侧同来源独立成桶");
+        assert_eq!(
+            w.suspension_by_source.get(&(2, "long", "rebase_vanished")),
+            Some(&1),
+            "高级别工程失踪来源独立成桶"
+        );
+        assert_eq!(w.reset_settlement_count(), 0, "类型层已不能登记 Reset 清算");
+        assert_eq!(
+            w.broken_by_level(),
+            BTreeMap::from([(0, 4)]),
+            "Broken 清算按级别汇总，不混入 RebaseVanished"
+        );
+        assert_eq!(
+            w.cross_side_termination_count(),
+            3,
+            "跨侧终结 = 多头被三卖 2 + 空头被三买 1"
+        );
 
         // ★#442：延续/清算终局两桶同样按 (级别, 侧) 分桶，跨级别不混计。
         w.record_suspension_continued(0, VoiceSide::Long);
@@ -1775,6 +1899,49 @@ mod tests {
         assert_eq!(w.other_violation_count, 0, "不误落入其余违规桶");
         w.record_violation(VoiceSide::Long, CampaignViolation::SizingRoundsToZero { held: 2 });
         assert_eq!(w.other_violation_count, 1, "SizingRoundsToZero 是真正的记账异常，落其余桶");
+    }
+
+    #[test]
+    fn witness_tallies_reset_alive_center_leak_by_level_and_side() {
+        let center = crate::theta_v0::types::Center {
+            zd: 100,
+            zg: 200,
+            dd: 98,
+            gg: 202,
+            start_index: 5,
+            end_index: 55,
+        };
+        let mut w = CampaignWiringWitness::new();
+        for event in [
+            CenterLifecycleEvent::Reset {
+                level: 0,
+                died_center: Some(center),
+                died_chain_index: Some(0),
+                trigger_source_index: 10,
+                trigger_side: Side::Long,
+            },
+            CenterLifecycleEvent::Reset {
+                level: 2,
+                died_center: Some(center),
+                died_chain_index: Some(4),
+                trigger_source_index: 20,
+                trigger_side: Side::Short,
+            },
+            CenterLifecycleEvent::Reset {
+                level: 0,
+                died_center: None,
+                died_chain_index: None,
+                trigger_source_index: 30,
+                trigger_side: Side::Long,
+            },
+        ] {
+            w.record_reset_alive_center_leak(&event);
+        }
+        assert_eq!(
+            w.reset_alive_center_leak_by_level_side,
+            BTreeMap::from([((0, "long"), 1), ((2, "short"), 1)]),
+            "只统计 Reset 到场时仍有活中枢的级别/侧；场空广播不报警"
+        );
     }
 
     /// ★#381：`unsupported_short_position_count` 桶退役的回归锁——空头侧持仓现有自己的

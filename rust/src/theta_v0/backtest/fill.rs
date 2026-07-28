@@ -906,7 +906,11 @@ fn step_center_oscillation_impl(
         match consumed {
             ChainConsumed::Advanced { events, .. } => {
                 for ev in events.iter() {
+                    witness.record_reset_alive_center_leak(ev);
                     let ev_out = osc_books[lvl].on_lifecycle_event(ev);
+                    // 当前事件域下 Advanced 只产 Born/Superseded，Reset 只经点产出路径到达；
+                    // 此处保留为穷尽性防御，与下方 continuations 穷尽分支同例。
+                    witness.record_reset_termination_outcome(ev, &ev_out);
                     // ★#414：延续（`Superseded` 命中挂起 ⟹ 不终结、不清算）——只落观测。
                     for cont in ev_out.continuations.iter() {
                         witness.record_suspension_continued(lvl as u32, cont.side);
@@ -923,8 +927,8 @@ fn step_center_oscillation_impl(
                                 side: outcome.side, // ★#381：收手回补归属该终结所在的持仓侧
                             });
                         }
-                        // ★#366/#472：教义三类点不回补路径或 Reset 止血路径
-                        // ⟹ 未闭合减出核销。
+                        // ★#366/#472/#489：教义三类点不回补路径 ⟹ 未闭合减出核销；
+                        // Reset 不会进入本终结分支。
                         if matches!(outcome.settlement, TerminationSettlement::WriteOffUnclosed) {
                             write_offs.push(UnclosedWriteOffRequest {
                                 bar,
@@ -1074,7 +1078,9 @@ fn step_center_oscillation_impl(
                 witness.record_center_mis_kill(lvl as u32);
             }
             if let Ok(PointOutcome::Event(ev)) = point_outcome {
+                witness.record_reset_alive_center_leak(&ev);
                 let ev_out = osc_books[lvl].on_lifecycle_event(&ev);
+                witness.record_reset_termination_outcome(&ev, &ev_out);
                 // ★#414：本路径的 `Superseded` 不由买卖点驱动（`push_point` 只产 Broken/Reset），
                 // 故延续在此恒空——留着是穷尽性，不靠「产不出」的隐含前提（同下方核销分支惯例）。
                 for cont in ev_out.continuations.iter() {
@@ -1286,8 +1292,8 @@ fn drive_campaign_wiring(
             }
         }
     }
-    // ★#366/#472：**未闭合减出核销**——教义三类点不回补路径与 Reset/RebaseVanished 止血
-    // 路径都把该中枢挂起从在途量核销，并分列呈报货缺口/现金。放在减/补动作**之后**：同一 bar
+    // ★#366/#472/#489：**未闭合减出核销**——教义三类点不回补路径与 RebaseVanished 工程
+    // 失踪路径把该中枢挂起从在途量核销，并分列呈报货缺口/现金。放在减/补动作**之后**：同一 bar
     // 内若该中枢的收手回补也在（闭合与核销互斥，同侧同中枢不会重复清算），顺序不影响结果；
     // 置后使既有动作路径的时序逐字节不变。
     for req in new_write_offs {
@@ -1843,7 +1849,7 @@ mod center_oscillation_wiring_tests {
         CenterOscillationTrigger,
     };
     use super::super::super::strategy::voice::VoiceSide;
-    use super::super::super::types::{BspBits, Center, Direction, Tick};
+    use super::super::super::types::{BspBits, Center, Direction, Side, Tick};
     use std::rc::Rc;
 
     fn center(start_index: usize, end_index: usize, zd: i64, zg: i64) -> Center {
@@ -2016,6 +2022,23 @@ mod center_oscillation_wiring_tests {
         }
     }
 
+    /// ★#489：本级一类点只广播 Reset；`owner` 仅保留生产点形状，不再授权杀中枢。
+    fn first_class_reset(source_index: usize, owner: Center, side: Side) -> BspPoint {
+        let bits = match side {
+            Side::Long => BspBits { buy1: true, ..BspBits::default() },
+            Side::Short => BspBits { sell1: true, ..BspBits::default() },
+        };
+        BspPoint {
+            source_index,
+            bits,
+            pivot_low: 0,
+            pivot_high: 0,
+            center: Some(OwnerRef::Center(owner)),
+            struct_break_dir: None,
+            force: None,
+        }
+    }
+
     /// 次级别（lvl-1）已确认买卖点：`side=Long` ⟹ buy1 bit（次级别买点，价格落 `pivot_low`），
     /// `side=Short` ⟹ sell1 bit（次级别卖点，价格落 `pivot_high`）——与生产读法
     /// （`step_center_oscillation`：Long→pivot_low/Short→pivot_high）同口径，供 #292 B 裁定
@@ -2140,6 +2163,67 @@ mod center_oscillation_wiring_tests {
             "★issue #357：挂起归宿分桶记录三类买点破坏终结来源"
         );
         assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "终结=挂起清空");
+    }
+
+    /// ★#489：Reset 事件照发，但只记「到场时仍有活中枢」漏发警报；不 take 中枢、不终结
+    /// 挂起、不产核销。随后原中枢自己的三类买点仍可清算这笔挂起。
+    #[test]
+    fn gate_reset_broadcast_keeps_center_and_suspension_until_third_class_point() {
+        let c0 = center(5, 10, 100, 200);
+        let classification = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let empty_step = Classification { levels: vec![LevelState::default()] };
+        let mut cl_machines = Vec::new();
+        let mut osc_books = Vec::new();
+        let mut witness = super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let _ = step_center_oscillation(
+            0,
+            &classification,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+        bind_side(&mut osc_books[0], c0, VoiceSide::Long);
+
+        let reset_step = Classification {
+            levels: vec![level_with_bsp(vec![first_class_reset(20, c0, Side::Short)])],
+        };
+        let reset_out = step_center_oscillation(
+            1,
+            &classification,
+            &reset_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+        assert_eq!(cl_machines[0].counts(), (0, 0, 1), "Reset 事件照发并计数");
+        assert_eq!(cl_machines[0].alive_center(), Some((c0, 0)), "Reset 不 take 在场中枢");
+        assert!(osc_books[0].is_suspended(CenterId::of(&c0)), "Reset 不终结挂起");
+        assert!(reset_out.actions.is_empty(), "Reset 不产生回补动作");
+        assert!(reset_out.write_offs.is_empty(), "Reset 不产生未闭合减出核销");
+        assert_eq!(
+            witness.reset_alive_center_leak_by_level_side.get(&(0, "short")),
+            Some(&1),
+            "漏发警报按 Reset 级别与买卖侧分桶"
+        );
+        // 0 的原因是本次真实 Reset 消费输出为空，不是类型上不可能出现非零。
+        assert_eq!(witness.reset_settlement_count(), 0, "Reset 实测消费输出为空");
+        assert!(witness.center_mis_kill_by_level.is_empty(), "Reset 广播不进入 MisKill");
+
+        let broken_step = Classification {
+            levels: vec![level_with_bsp(vec![third_class_buy_break(21, c0)])],
+        };
+        let broken_out = step_center_oscillation(
+            2,
+            &classification,
+            &broken_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+        assert_eq!(broken_out.actions.len(), 1, "挂起活到自己的三类买点并收手回补");
+        assert!(broken_out.write_offs.is_empty(), "三买走闭合终局，不核销");
+        assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "三类点才终结挂起");
     }
 
     /// ★#366（补充裁定 2026-07-27）门控开启臂 · **三卖终局**通路：先触发挂起，再喂本级三类

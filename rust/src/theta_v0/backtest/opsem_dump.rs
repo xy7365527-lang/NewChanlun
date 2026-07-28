@@ -796,8 +796,9 @@ impl OpsemDump {
     //     `{si,zd,zg,dd,gg,ei,chain_idx,by_chain_idx,death_form:"arena_termination"}`。
     //     理由 = 裁定②把「取代」升为**在场终结**（死亡登记形态之一），#292 要按**实例**终结
     //     挂起短差，聚合 count 不带身份，接不上。
-    //  2. `broken`/`reset` 增 `death_form`（`doctrinal`）与 `slot`（`tail` / `tail_prev` =
-    //     放行落在链尾主格还是容读格）。died 为空的 `reset` 二者写 null（没死人，不编造）。
+    //  2. `broken` 增 `death_form:"doctrinal"` 与 `slot`（`tail` / `tail_prev`，定位死亡
+    //     放行格）。`reset` 的 `death_form` 恒 null；兼容字段 `died_*` 非空只表示广播到场
+    //     时仍有活中枢，`slot` 仅定位漏发见证，场空时二者写 null。
     //  3. `chain_sync` 增身份字段 `tail_si/zd/zg`、`prev_si/zd/zg` 与 `revived` 布尔
     //     （评审 MAJOR-B：采纳/重基把「场」落到谁身上此前无产物级证据）。
     //  轨迹产物 `trades.jsonl`/`tower_events.jsonl` **不受影响**（本旁路只读，逐字节不变已实证）。
@@ -865,16 +866,17 @@ impl OpsemDump {
             }
             // ── 喂本 bar 新确认买卖点（修6：只消费已确认的点）──
             //
-            // ★#329 H1（R3 后口径收窄）：破坏/重置必须指名道姓——触发点自带载体
-            // （`BspPoint.center`：一类 = 被破的最后中枢、三类 = 所离开回抽的中枢）⟹ 取其
-            // [`CenterId`]（si,zd,zg）作 target 传入。载体不在本级链上 ⟹ 事件机拒杀并返回误杀
-            // 证据（`kind:"miskill"`）；载体命中链上已退场实例 ⟹ 陈旧请求（`kind:"stale"`）。
+            // ★#329 H1（#489 后口径）：拒杀/「指名道姓」只适用于 Broken（三类点）。
+            // 三类点以所离开回抽的中枢为载体，取其 [`CenterId`]（si,zd,zg）作 target；
+            // 载体不在本级链上 ⟹ 事件机拒杀并返回误杀证据（`kind:"miskill"`），载体命中
+            // 链上已退场实例 ⟹ 陈旧请求（`kind:"stale"`）。一类点忽略 target、不解析链，
+            // 直接广播 Reset；非空 `died_*` 只是广播到场时仍有活中枢的漏发见证。
             if let Some(step_level) = step.levels.get(lvl) {
                 for p in step_level.bsp.iter() {
                     let target = match p.center {
                         Some(classifier::bsp::OwnerRef::Center(c)) => Some(CenterId::of(&c)),
-                        // 二类锚（`Type1Anchor`）/ 载体缺席 ⟹ 无中枢身份可声明（None ⟹ 场非空
-                        // 时必拒杀；二类点本就不产事件，实测 wf8 零命中）。
+                        // 二类锚（`Type1Anchor`）/ 载体缺席 ⟹ 无中枢身份可声明；对三类点，
+                        // None 且场非空时必拒杀。二类点本就不产事件，一类点则忽略 target。
                         _ => None,
                     };
                     match self.cl_machines[lvl].push_point(p.bits, p.source_index, target) {
@@ -940,7 +942,6 @@ impl OpsemDump {
         use classifier::center_lifecycle::KillTrigger;
         use std::io::Write;
         let trigger = match st.trigger {
-            KillTrigger::FirstClass => "first",
             KillTrigger::ThirdClass => "third",
         };
         let side = match st.trigger_side {
@@ -988,7 +989,6 @@ impl OpsemDump {
         use classifier::center_lifecycle::KillTrigger;
         use std::io::Write;
         let trigger = match mk.trigger {
-            KillTrigger::FirstClass => "first",
             KillTrigger::ThirdClass => "third",
         };
         let side = match mk.trigger_side {
@@ -1020,13 +1020,14 @@ impl OpsemDump {
 
     /// #291：中枢生命周期事件 JSONL 行（born/broken/reset；★#337 增 `superseded` = 在场终结）。
     ///
-    /// ★**#337 两形态分桶登记**（裁定②）：每条**登记了中枢下场**的行都带
-    /// `"death_form":"doctrinal"|"arena_termination"`——教义死亡（三类点破坏 / 一类点同死）
-    /// vs 在场终结（被链推进取代）。`born` 与 died 为空的 `reset` 无该字段（没死人）。
+    /// ★**#337/#489 两形态分桶登记**：每条**登记了中枢下场**的行都带
+    /// `"death_form":"doctrinal"|"arena_termination"`——教义死亡（三类点破坏）vs 在场终结
+    /// （被链推进取代）。`born` 与任意 `reset` 均无死亡形态；Reset 的非空 `died_*` 已改作
+    /// `alive_center_leak=true` 的活中枢漏发见证。
     /// 二者同走 #292 的「终结」出口（口径见 `center_lifecycle.rs` [`DeathForm`]）。
     ///
-    /// ★**#337 容读格标记**：`broken`/`reset` 增 `"slot":"tail"|"tail_prev"`——放行落在链尾
-    /// （主格）还是容读格（链尾前一格，被取代的合法死亡）。分桶读数由此可直接从产物统计。
+    /// ★**#337 容读格标记**：`broken` 的 `"slot":"tail"|"tail_prev"` 表示死亡落在主格还是
+    /// 容读格。Reset 的 `slot` 仅定位漏发见证，绝不表示死亡。
     fn write_cl_event(
         &mut self,
         bar: usize,
@@ -1068,7 +1069,8 @@ impl OpsemDump {
                 by = by_chain_index,
             ),
             E::Reset { level, died_center, died_chain_index, trigger_source_index, trigger_side } => {
-                // died 缺席写 null（与 trades.jsonl 缺席字段同款纪律，不编造）。
+                // ★#489：`died_*` 仅为旧线格式兼容保留，现表示 Reset 到场时仍在主格的活中枢
+                // 见证；缺席写 null。它不是死亡身份，故 death_form 恒 null。
                 let (dzd, dzg, ddd, dgg, dsi, dei) = match died_center {
                     Some(c) => (
                         c.zd.to_string(), c.zg.to_string(), c.dd.to_string(),
@@ -1079,14 +1081,16 @@ impl OpsemDump {
                 // ★#336 R3：`died_born_seg`（段号）→ `died_chain_idx`（链下标）；`cleared_segs`
                 // 随段序列删除而**去掉**（本机无段序列，写 0 会是编造）。
                 let didx = died_chain_index.map_or("null".into(), |o: usize| o.to_string());
-                // ★#337：场为空的一类点边界记录**没死人** ⟹ death_form/slot 一律 null（不编造）。
-                let (dform, slot) = match died_chain_index {
-                    Some(idx) => ("\"doctrinal\"".to_string(), format!("\"{}\"", slot_str(*level, *idx))),
-                    None => ("null".to_string(), "null".to_string()),
+                let (leak, slot) = match died_chain_index {
+                    Some(idx) => ("true", format!("\"{}\"", slot_str(*level, *idx))),
+                    None => ("false", "null".to_string()),
                 };
+                // `alive_center_leak` 是 additive-only schema 扩展；仓内无严格 schema 或
+                // `additionalProperties:false` 消费者。金标准锚 trades/tower_events 不含
+                // lifecycle 流，故本字段不进入金标准对照面。
                 format!(
-                    "{{\"bar\":{bar},\"level\":{level},\"kind\":\"reset\",\"death_form\":{dform},\"slot\":{slot},\"died_zd\":{dzd},\"died_zg\":{dzg},\"died_dd\":{ddd},\"died_gg\":{dgg},\"died_si\":{dsi},\"died_ei\":{dei},\"died_chain_idx\":{didx},\"trigger_src\":{src},\"trigger_side\":\"{side}\"}}\n",
-                    bar = bar, level = level, dform = dform, slot = slot,
+                    "{{\"bar\":{bar},\"level\":{level},\"kind\":\"reset\",\"death_form\":null,\"alive_center_leak\":{leak},\"slot\":{slot},\"died_zd\":{dzd},\"died_zg\":{dzg},\"died_dd\":{ddd},\"died_gg\":{dgg},\"died_si\":{dsi},\"died_ei\":{dei},\"died_chain_idx\":{didx},\"trigger_src\":{src},\"trigger_side\":\"{side}\"}}\n",
+                    bar = bar, level = level, leak = leak, slot = slot,
                     dzd = dzd, dzg = dzg, ddd = ddd, dgg = dgg,
                     dsi = dsi, dei = dei, didx = didx,
                     src = trigger_source_index, side = side_str(*trigger_side),

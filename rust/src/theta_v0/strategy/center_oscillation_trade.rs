@@ -14,7 +14,7 @@
 //! - **D**：挂起按**中枢身份**（[`center_lifecycle::CenterId`]，经 `killed_center_id()`）匹配，
 //!   不按当前在场——链已推进换代后，终结事件仍须命中它所指的那个挂起实例。
 //! - **E**：接住首次教义死亡——即便某实例从未被记录过在场终结（无前置 Superseded），一旦
-//!   收到教义死亡（Broken/Reset）也要正确终结，不依赖「先 superseded 才能终结」的隐含前提。
+//!   收到教义死亡（Broken）也要正确终结，不依赖「先 superseded 才能终结」的隐含前提。
 //! - **F**（issue #292 续修，二轮评审浮出）：链**重基**（[`center_lifecycle::ChainConsumed::Rebased`]）
 //!   到达时，挂起按身份三元组核对重基后的新链——身份仍在链上⟹**跟随迁移**（挂起状态原样保留；
 //!   本机挂起表键本身就是身份，不含链下标侧车，故迁移是保状态的 no-op）；身份从新链上消失⟹
@@ -269,7 +269,7 @@ pub struct CenterOscillationActionRecord {
     pub side: VoiceSide,
 }
 
-/// 挂起短差的终结来源（ADR 补充二 + #292 前置约束五条 + #292 续修）。四源同走「终结」出口，
+/// 挂起短差的终结来源（ADR 补充二 + #292 前置约束五条 + #292 续修）。三源同走「终结」出口，
 /// 互不重叠。
 ///
 /// ★★#414 桶退役（2026-07-27 用户裁定，ADR 补充十一）：`Superseded` 变体**已删除**——被取代
@@ -288,9 +288,6 @@ pub enum SuspensionTerminationSource {
     /// 「出三类卖点则不回补」，仓位留待新证书才可能再开（SPEC Out of Scope 已如实标注为
     /// 未细化口径，本机按此执行）。
     BrokenByThirdClassSell,
-    /// 本级一类点全平（该级走势类型终结）。★暂定口径（票面项 8，待编排者裁）：清空**整场**
-    /// 全部挂起身份，而非仅同死的那一个中枢——与该级走势类型终结同精神（Q2 同款先例）。
-    Reset,
     /// ★#292 续修（二轮评审浮出的挂起悬空泄漏修复）：链重基（[`center_lifecycle::ChainConsumed::Rebased`]）
     /// 后，挂起对应的中枢身份已不在新链上——该实例连「被取代」的记录都没有，是工程重基这一
     /// 侧信道的失踪。终结不回补，★#472 按未闭合减出核销且禁任何形式复活；本来源是工程警报桶。
@@ -298,8 +295,8 @@ pub enum SuspensionTerminationSource {
     RebaseVanished,
 }
 
-/// ★#366/#472：一次终结的**清算终局**——闭合与未闭合减出核销分账，不煮一锅。教义三类点
-/// 按是否收手回补二分；#472 过渡口径把 `Reset` 与 `RebaseVanished` 归入未闭合减出核销。
+/// ★#366/#472/#489：一次终结的**清算终局**——闭合与未闭合减出核销分账，不煮一锅。
+/// 教义三类点按是否收手回补二分；工程失踪 `RebaseVanished` 归入未闭合减出核销。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminationSettlement {
     /// **闭合终局**（多头遇三类买点 / 空头遇三类卖点）：收手回补（哪怕回补价高于卖出价）
@@ -307,8 +304,8 @@ pub enum TerminationSettlement {
     /// 不再短差直到新中枢形成（73 课：第三买点不回补即可能错过中枢上移；49 课）。
     CoverAndClose,
     /// **未闭合减出**：不回补，挂起**核销**——货缺口 `units_gap` 与现金 `cash_booked`
-    /// **分开呈报，不冲销、不装没发生**。教义路径为多头三类卖点 / 空头三类买点；★#472
-    /// 过渡口径还包括 `Reset`，终态保留 `RebaseVanished`。核销落点见
+    /// **分开呈报，不冲销、不装没发生**。教义路径为多头三类卖点 / 空头三类买点；工程路径
+    /// 保留 `RebaseVanished`。核销落点见
     /// [`super::oscillation_campaign::CampaignBook::write_off_unclosed`]。
     WriteOffUnclosed,
 }
@@ -363,8 +360,8 @@ pub struct UnclosedWriteOffRequest {
     pub side: VoiceSide,
 }
 
-/// ★#366/#472：某一持仓侧遇某一终结来源时的清算终局——能收手回补的即闭合终局；教义三类点
-/// 不回补，或命中 #472 两个止血来源的，均为未闭合减出核销。
+/// ★#366/#472/#489：某一持仓侧遇某一终结来源时的清算终局——能收手回补的即闭合终局；
+/// 教义三类点不回补，或命中工程失踪 `RebaseVanished`，均为未闭合减出核销。
 fn settlement_for(
     side: VoiceSide,
     source: SuspensionTerminationSource,
@@ -378,7 +375,7 @@ fn settlement_for(
                 TerminationSettlement::WriteOffUnclosed
             }
         }
-        SuspensionTerminationSource::Reset | SuspensionTerminationSource::RebaseVanished => {
+        SuspensionTerminationSource::RebaseVanished => {
             TerminationSettlement::WriteOffUnclosed
         }
     }
@@ -391,7 +388,7 @@ fn settlement_for(
 ///   回补」不变，但不再是「装没发生」的静默作废）。
 /// - 空头侧：三类**卖**点破坏 ⟹ 收手加回空头（结构续跌，空头敞口须补回）；三类买点不加回
 ///   （多头侧「三卖不回补」的逐字镜像，同样走未闭合减出核销）。
-/// - 其余终结来源（`Reset`/`RebaseVanished`）两侧一律不回补，并按 #472 走未闭合减出核销。
+/// - `RebaseVanished` 两侧一律不回补，并按 #472 走未闭合减出核销。
 fn cover_action_for(
     side: VoiceSide,
     source: SuspensionTerminationSource,
@@ -411,10 +408,10 @@ fn cover_action_for(
 /// 「已终结」两种情形——两者对外行为相同：回补请求一律拒绝，终结信号一律 no-op，天然满足
 /// C 裁定的幂等要求，无需额外的 `Terminated` 哨兵态）。
 ///
-/// ★#292 H1（域层评审）：`BTreeMap` 非 `HashMap`——`on_lifecycle_event` 的 `Reset` 分支需要
-/// 把「当前挂起的全部身份」投影成 `Vec` 输出（清空整场，票面项 8），`HashMap::keys()` 迭代序
-/// 依赖默认哈希（跨进程/跨版本不确定）；`BTreeMap` 按 `CenterId` 派生序确定性迭代，wf8
-/// bit-exact 回归不受哈希实现变化影响（exit.rs `step_active_set_with_subtree_close` 的
+/// ★#292 H1（域层评审）：`BTreeMap` 非 `HashMap`——挂起身份会被确定性迭代并投影到重基终结、
+/// 多侧归宿等 `Vec` 输出；`HashMap::keys()` 迭代序依赖默认哈希（跨进程/跨版本不确定）。
+/// `BTreeMap` 按 `CenterId` 派生序确定性迭代，wf8 bit-exact 回归不受哈希实现变化影响
+/// （exit.rs `step_active_set_with_subtree_close` 的
 /// `HashSet` 反例：那里只做 `.contains()` membership 查询、从不迭代输出，故哈希序无关；
 /// 本处迭代序直接进产出 `Vec` 顺序，二者边界正在于「迭代是否进输出」）。
 ///
@@ -565,8 +562,8 @@ impl CenterOscillationBook {
         }
     }
 
-    /// 消费一条 T1 中枢生命周期事件 ⟹ 0 或多条终结产出（`Reset` 的「清空整场」暂定口径可能
-    /// 一次终结多个挂起身份；其余事件至多终结一个）。
+    /// 消费一条 T1 中枢生命周期事件 ⟹ 0 或多条终结/延续产出。Reset 只广播，恒为 no-op；
+    /// Broken 至多终结同一身份的两侧挂起，Superseded 至多延续两侧挂起。
     ///
     /// 身份匹配走 `event.killed_center_id()`（D 裁定：按身份，不按当前在场）；`Born` 事件与
     /// 未挂起的身份均 no-op（C 裁定：幂等——目标身份不在挂起表中，天然产出空 Vec）。
@@ -585,28 +582,8 @@ impl CenterOscillationBook {
     /// `Broken`。没有完整框的旧 API 挂起、框配对失败、或重基已让身份消失者不获此授权；前两者
     /// 继续等待，后者仍由 `RebaseVanished` 工程警报出口处置。
     pub fn on_lifecycle_event(&mut self, event: &CenterLifecycleEvent) -> SuspensionEventOutcome {
-        if matches!(event, CenterLifecycleEvent::Reset { .. }) {
-            if self.suspended.is_empty() {
-                return SuspensionEventOutcome::default();
-            }
-            let keys: Vec<(VoiceSide, CenterId)> = self.suspended.keys().copied().collect();
-            self.suspended.clear();
-            return SuspensionEventOutcome {
-                terminations: keys
-                    .into_iter()
-                    .map(|(side, center)| SuspensionOutcome {
-                        center,
-                        source: SuspensionTerminationSource::Reset,
-                        cover_action: None,
-                        side,
-                        settlement: settlement_for(side, SuspensionTerminationSource::Reset),
-                    })
-                    .collect(),
-                continuations: Vec::new(),
-            };
-        }
         let Some(id) = event.killed_center_id() else {
-            // Born，或场为空的 Reset（上面分支已处理非空 Reset）。
+            // Born 或 Reset（Reset 即使带活中枢漏发见证，也没有死亡身份）。
             return SuspensionEventOutcome::default();
         };
         // ★#414：被取代 ⟹ 挂起**延续**（不摘表、不清算），逐侧产一条延续记录。
@@ -953,23 +930,21 @@ mod tests {
         assert!(!book.is_suspended(id), "终结=挂起清空");
     }
 
-    /// 出口③：全平终结（本级一类点，暂定口径=清空整场，票面项 8）——不回补。
+    /// ★#489：Reset 只广播走势类型终结，不终结挂起、不回补、不核销。
     #[test]
-    fn suspension_exit_full_close_reset_terminates_without_cover() {
+    fn reset_broadcast_keeps_suspension_pending() {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
         book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
-        let outcomes = book.on_lifecycle_event(&reset_with(Some(id))).terminations;
-        assert_eq!(outcomes.len(), 1);
-        assert_eq!(outcomes[0].source, SuspensionTerminationSource::Reset);
-        assert_eq!(outcomes[0].cover_action, None, "全平终结不回补");
-        assert!(!book.is_suspended(id));
+        let out = book.on_lifecycle_event(&reset_with(Some(id)));
+        assert!(out.terminations.is_empty(), "Reset 不是中枢死亡证明 ⟹ 不产终结");
+        assert!(out.continuations.is_empty(), "Reset 不是中枢更替 ⟹ 不伪造延续事件");
+        assert!(book.is_suspended(id), "Reset 广播后挂起仍绑定原中枢，等待自己的三类点");
     }
 
-    /// ★暂定口径实证：Reset 清空**整场**——即便同死身份与挂起身份不是同一个（场为空的一类点
-    /// 边界记录、或挂起身份早于当前在场中枢），挂起表仍被整体清空（该级走势类型终结）。
+    /// ★#489 反例锁：Reset 广播不清空整场；当前主格与历史冻结框的挂起都继续等各自三类点。
     #[test]
-    fn reset_clears_entire_level_suspension_book_not_just_the_died_identity() {
+    fn reset_broadcast_keeps_entire_level_suspension_book() {
         let stale_suspended = cid(5, 100, 200); // 早于当前在场的挂起遗留（D 裁定：按身份不按在场）
         let currently_alive = cid(700, 300, 400);
         let mut book = CenterOscillationBook::new(0);
@@ -977,8 +952,10 @@ mod tests {
         book.on_trigger(CenterOscillationTrigger::new(0, Some(currently_alive), CenterDrift::NoDownShift, VoiceSide::Short, currently_alive.zg, 20).unwrap());
         assert_eq!(book.suspended_count(), 2);
         let outcomes = book.on_lifecycle_event(&reset_with(Some(currently_alive))).terminations;
-        assert_eq!(outcomes.len(), 2, "清空整场=两个挂起身份同时终结，非仅同死的那一个");
-        assert_eq!(book.suspended_count(), 0);
+        assert!(outcomes.is_empty(), "Reset 不是任一中枢的死亡证明 ⟹ 零终结");
+        assert_eq!(book.suspended_count(), 2, "广播不清空当前或历史挂起");
+        assert!(book.is_suspended(stale_suspended));
+        assert!(book.is_suspended(currently_alive));
     }
 
     /// 出口④：三类卖点终结——不回补，按未闭合减出核销。
@@ -1079,22 +1056,35 @@ mod tests {
         assert_eq!(book.suspended_count(), 2, "两侧挂起都延续");
     }
 
-    /// 终结后幽灵回补=0：任何终结出口之后，同身份的下沿信号必须被拒绝（不得凭空复活仓位）。
+    /// 终结后幽灵回补=0；反过来，Reset 不是终结，故同一笔真实挂起仍允许随后下沿回补。
     /// ★#414：`superseded` 从本表移除——它已不是终结出口（延续后挂起仍在，下沿信号本就该
     /// 放行回补，那正是「延续等清算」的正常形态，见 `superseded_continues_suspension_*`）。
     #[test]
-    fn ghost_replenish_after_any_termination_source_is_always_zero() {
-        for (label, event) in [
-            ("third_class_sell", broken(cid(5, 100, 200), Side::Short)),
-            ("reset", reset_with(Some(cid(5, 100, 200)))),
-        ] {
-            let id = cid(5, 100, 200);
-            let mut book = CenterOscillationBook::new(0);
-            book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
-            book.on_lifecycle_event(&event);
-            let cover_attempt = CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Long, id.zd, 30).unwrap();
-            assert_eq!(book.on_trigger(cover_attempt), None, "{label}: 终结后必须拒绝幽灵回补");
-        }
+    fn doctrinal_termination_rejects_ghost_while_reset_keeps_real_cover_live() {
+        let id = cid(5, 100, 200);
+        let cover_attempt = CenterOscillationTrigger::new(
+            0,
+            Some(id),
+            CenterDrift::NoDownShift,
+            VoiceSide::Long,
+            id.zd,
+            30,
+        )
+        .unwrap();
+
+        let mut terminated = CenterOscillationBook::new(0);
+        terminated.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
+        terminated.on_lifecycle_event(&broken(id, Side::Short));
+        assert_eq!(terminated.on_trigger(cover_attempt), None, "三类点终结后拒绝幽灵回补");
+
+        let mut broadcast_only = CenterOscillationBook::new(0);
+        broadcast_only.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
+        broadcast_only.on_lifecycle_event(&reset_with(Some(id)));
+        assert_eq!(
+            broadcast_only.on_trigger(cover_attempt),
+            Some(CenterOscillationAction::Replenish),
+            "Reset 后仍是原挂起的真实回补，不是幽灵"
+        );
     }
 
 
@@ -1139,25 +1129,27 @@ mod tests {
         assert_eq!(buy_out[0].settlement, TerminationSettlement::WriteOffUnclosed);
     }
 
-    /// ★#472（ADR 补充十三过渡口径）：`Reset`/`RebaseVanished` 均按未闭合减出核销。
-    /// 来源仍由 [`SuspensionTerminationSource`] 分列，终局只改为货缺口与现金分开呈报。
+    /// ★#489：撤销 #472 的 Reset 核销半边；RebaseVanished 身份永久消失，仍按终态核销。
     #[test]
-    fn reset_and_rebase_vanished_write_off_unclosed() {
+    fn reset_does_not_settle_while_rebase_vanished_still_writes_off_unclosed() {
         let id = cid(5, 100, 200);
-        for (label, event) in [("reset", reset_with(Some(id)))] {
-            let mut book = CenterOscillationBook::new(0);
-            book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
-            let out = book.on_lifecycle_event(&event).terminations;
-            assert_eq!(out[0].settlement, TerminationSettlement::WriteOffUnclosed, "{label}");
-        }
-        let mut book = CenterOscillationBook::new(0);
-        book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
-        let out = book.on_chain_rebase(&[]);
-        assert_eq!(out[0].settlement, TerminationSettlement::WriteOffUnclosed, "rebase_vanished");
+        let mut reset_book = CenterOscillationBook::new(0);
+        reset_book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
+        let reset_out = reset_book.on_lifecycle_event(&reset_with(Some(id))).terminations;
+        assert!(reset_out.is_empty(), "Reset 不产生任何清算终局");
+        assert!(reset_book.is_suspended(id), "Reset 后挂起继续等待三类点");
+
+        let mut rebase_book = CenterOscillationBook::new(0);
+        rebase_book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap());
+        let rebase_out = rebase_book.on_chain_rebase(&[]);
+        assert_eq!(rebase_out.len(), 1);
+        assert_eq!(rebase_out[0].source, SuspensionTerminationSource::RebaseVanished);
+        assert_eq!(rebase_out[0].settlement, TerminationSettlement::WriteOffUnclosed);
+        assert!(!rebase_book.is_suspended(id), "身份消失后按终态核销并摘挂起");
     }
 
     /// ★「高抛不回头时中枢未死，挂起继续等」（#366 补充裁定教义链）：无终结事件到达时，挂起
-    /// 既不被回补也不被核销；#472 的 `Reset`/`RebaseVanished` 止血终结另行走核销。
+    /// 既不被回补也不被核销；只有 `RebaseVanished` 工程失踪另行走核销。
     #[test]
     fn suspension_keeps_waiting_while_center_alive() {
         let id = cid(5, 100, 200);
@@ -1417,10 +1409,10 @@ mod tests {
 
     // ── H1 确定性回归：BTreeMap 迭代序 ────────────────────────────────────
 
-    /// Reset「清空整场」的多身份终结产出必须按 `CenterId` 派生序确定性排列（BTreeMap 键序），
-    /// 不依赖 HashMap 默认哈希（跨进程/跨版本不确定）。三身份刻意按乱序插入，产出必须升序。
+    /// ★#489：多身份挂起面对 Reset 一律保留；乱序插入后身份枚举仍按 BTreeMap 确定序，
+    /// 证明广播既不产终结，也不改挂起表。
     #[test]
-    fn reset_multi_suspension_outcomes_are_deterministically_ordered_by_center_id() {
+    fn reset_broadcast_preserves_multi_suspension_book_and_deterministic_order() {
         let mid = cid(50, 100, 200);
         let low = cid(5, 10, 20);
         let high = cid(900, 500, 600);
@@ -1430,11 +1422,16 @@ mod tests {
             book.on_trigger(CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, seed).unwrap());
         }
         let outcomes = book.on_lifecycle_event(&reset_with(None)).terminations;
-        let ids: Vec<CenterId> = outcomes.iter().map(|o| o.center).collect();
-        assert_eq!(ids, vec![low, mid, high], "产出必须按 CenterId 升序（BTreeMap 派生序），非插入序");
-        let mut sorted = ids.clone();
-        sorted.sort();
-        assert_eq!(ids, sorted, "确定性排序自证：与显式排序结果一致");
+        assert!(outcomes.is_empty(), "Reset 广播不产任何多身份终结");
+        assert_eq!(
+            book.suspended_identities(),
+            vec![
+                (VoiceSide::Long, low),
+                (VoiceSide::Long, mid),
+                (VoiceSide::Long, high),
+            ],
+            "挂起身份完整保留，且枚举序由 BTreeMap 固定"
+        );
     }
 
     // ── #381：空头侧镜像触发（减=回补空头、补=加回空头） ─────────────────
