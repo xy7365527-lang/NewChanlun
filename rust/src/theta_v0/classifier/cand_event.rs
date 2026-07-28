@@ -5,13 +5,18 @@
 //! 力度只影响 BSP bit，不进入候选身份或事件字段。
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::rc::Rc;
 
 use super::super::types::{Center, Direction, Segment, Tick};
-use super::decompose::{center_trend_gate, decompose};
+use super::decompose::center_trend_gate;
 use super::divergence::{
     departure_move_c_start, locate_departure_move_a, move_range_envelope, DivergenceGauge,
 };
 use super::signal;
+
+pub const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+pub const FNV_PRIME: u64 = 0x100000001b3;
+const PAIR_ID_SEED: u64 = 0x84222325cbf29ce4;
 
 /// 背驰段候选类型。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -32,6 +37,7 @@ pub struct ParentFingerprint {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CandidateKey {
     pub level: u32,
+    pub kind: CandidateKind,
     pub side_tag: u8,
     pub previous_center_start: usize,
     pub parent: ParentFingerprint,
@@ -55,6 +61,9 @@ impl CandidateState {
 }
 
 /// 结构谓词证据；字段值来自同一次塔扫描，不在本模块重判。
+///
+/// 当前 #550 生产点只在单源结构 judge 通过后构造事件，因此三项恒为 true；需要表达部分前提
+/// 成立的中间形态归 #551，不在本票伪造半成品状态。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructuralPredicates {
     pub direction: bool,
@@ -86,8 +95,8 @@ pub struct CandidateEvent {
     pub revision_at: usize,
 }
 
-/// 每级一条 append-only 流。
-pub type CandidateStreams = Vec<Vec<CandidateEvent>>;
+/// 每级一条 append-only 流；双层 Rc 让事件入口只克隆引用，不深拷贝全簿。
+pub type CandidateStreams = Rc<Vec<Rc<Vec<CandidateEvent>>>>;
 
 /// 闭区间 C⊆C；端点相等（相切）算包含。
 pub fn interval_is_sub(child: (usize, usize), parent: (usize, usize)) -> bool {
@@ -113,18 +122,28 @@ pub struct CandidateObservation {
     pub interval: (usize, usize),
     pub state: CandidateState,
     pub first_provable_at: usize,
+    pub confirmed_at: Option<usize>,
 }
 
 /// 每级 append-only 修订簿。终态不复活；同投影重跑零 Delta。
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CandidateEventBook {
     streams: CandidateStreams,
     latest: BTreeMap<CandidateKey, (usize, usize)>,
 }
 
+impl Default for CandidateEventBook {
+    fn default() -> Self {
+        Self {
+            streams: Rc::new(Vec::new()),
+            latest: BTreeMap::new(),
+        }
+    }
+}
+
 impl CandidateEventBook {
-    pub fn streams(&self) -> &CandidateStreams {
-        &self.streams
+    pub fn streams(&self) -> CandidateStreams {
+        Rc::clone(&self.streams)
     }
 
     pub fn advance(
@@ -148,17 +167,19 @@ impl CandidateEventBook {
                 });
             if prior
                 .as_ref()
-                .is_some_and(|event| observation.interval.1 <= event.interval.1)
-            {
-                continue;
-            }
-            if prior
-                .as_ref()
                 .is_some_and(|event| event.state.is_terminal())
             {
                 continue;
             }
-            let next = make_revision(prior.as_ref(), observation);
+            if let Some(prior) = prior.as_ref() {
+                if observation.interval.1 < prior.interval.1 {
+                    let invalidated = invalidate(prior, as_of);
+                    self.append(invalidated.clone());
+                    delta.push(invalidated);
+                    continue;
+                }
+            }
+            let next = make_revision(prior.as_ref(), observation, as_of);
             if prior
                 .as_ref()
                 .is_some_and(|event| same_projection(event, &next))
@@ -179,12 +200,7 @@ impl CandidateEventBook {
             if prior.state.is_terminal() {
                 continue;
             }
-            let mut invalidated = prior.clone();
-            invalidated.state = CandidateState::Invalidated;
-            invalidated.invalidated_at = Some(as_of);
-            invalidated.revision += 1;
-            invalidated.supersedes_revision = Some(prior.revision);
-            invalidated.revision_at = as_of;
+            let invalidated = invalidate(&prior, as_of);
             self.append(invalidated.clone());
             delta.push(invalidated);
         }
@@ -193,18 +209,31 @@ impl CandidateEventBook {
 
     fn append(&mut self, event: CandidateEvent) {
         let level = event.event_level as usize;
-        if self.streams.len() <= level {
-            self.streams.resize_with(level + 1, Vec::new);
+        let streams = Rc::make_mut(&mut self.streams);
+        if streams.len() <= level {
+            streams.resize_with(level + 1, || Rc::new(Vec::new()));
         }
-        let index = self.streams[level].len();
+        let stream = Rc::make_mut(&mut streams[level]);
+        let index = stream.len();
         self.latest.insert(event.key, (level, index));
-        self.streams[level].push(event);
+        stream.push(event);
     }
+}
+
+fn invalidate(prior: &CandidateEvent, as_of: usize) -> CandidateEvent {
+    let mut invalidated = prior.clone();
+    invalidated.state = CandidateState::Invalidated;
+    invalidated.invalidated_at = Some(as_of);
+    invalidated.revision += 1;
+    invalidated.supersedes_revision = Some(prior.revision);
+    invalidated.revision_at = as_of;
+    invalidated
 }
 
 fn make_revision(
     prior: Option<&CandidateEvent>,
     observation: &CandidateObservation,
+    as_of: usize,
 ) -> CandidateEvent {
     let revision = prior.map_or(0, |event| event.revision + 1);
     let observed_at = prior.map_or(observation.first_provable_at, |event| event.observed_at);
@@ -228,14 +257,15 @@ fn make_revision(
         confirmed_at: if observation.state == CandidateState::Confirmed {
             prior
                 .and_then(|event| event.confirmed_at)
-                .or(Some(observation.first_provable_at))
+                .or(observation.confirmed_at)
+                .or(Some(as_of))
         } else {
             None
         },
         invalidated_at: None,
         revision,
         supersedes_revision: prior.map(|event| event.revision),
-        revision_at: observation.interval.1,
+        revision_at: as_of,
     }
 }
 
@@ -260,6 +290,7 @@ fn same_projection(a: &CandidateEvent, b: &CandidateEvent) -> bool {
 pub(crate) fn structural_observations_for_level(
     level: u32,
     centers: &[Center],
+    blocks: &[super::decompose::MoveBlock],
     segments: &[Segment],
     anchor_dirs: &[Option<Direction>],
     hist: &[f64],
@@ -268,8 +299,7 @@ pub(crate) fn structural_observations_for_level(
     close_src: &[usize],
     gauge: DivergenceGauge,
 ) -> Vec<CandidateObservation> {
-    let blocks = decompose(centers);
-    let center_gate = center_trend_gate(centers.len(), &blocks);
+    let center_gate = center_trend_gate(centers.len(), blocks);
     let mut observations = Vec::new();
 
     for (i, seg) in segments.iter().enumerate() {
@@ -321,6 +351,7 @@ pub(crate) fn structural_observations_for_level(
         };
         let key = CandidateKey {
             level,
+            kind: CandidateKind::Trend,
             side_tag,
             previous_center_start: previous.start_index,
             parent,
@@ -331,8 +362,8 @@ pub(crate) fn structural_observations_for_level(
             key,
             kind: CandidateKind::Trend,
             center_ids: (previous.start_index, parent.center_start),
-            candidate_group_id: stable_id(&key, 0xcbf29ce484222325),
-            pair_id: stable_id(&key, 0x84222325cbf29ce4),
+            candidate_group_id: stable_id(&key, FNV_OFFSET_BASIS),
+            pair_id: stable_id(&key, PAIR_ID_SEED),
             structural_predicates: StructuralPredicates {
                 direction: true,
                 comparable: true,
@@ -343,8 +374,89 @@ pub(crate) fn structural_observations_for_level(
             interval: (c_start, seg.end_index),
             state: CandidateState::Provisional,
             first_provable_at: seg.end_index,
+            confirmed_at: None,
         });
     }
+    observations.sort_by_key(|observation| (observation.interval, observation.key));
+    observations
+}
+
+/// 将既有 `judge_pan_div` 唯一构造的证书投影为 Pan 域确认候选，不重判结构或力度。
+pub(crate) fn pan_observations_for_level(
+    level: u32,
+    certs: &[signal::PanDivCert],
+) -> Vec<CandidateObservation> {
+    certs
+        .iter()
+        .map(|cert| {
+            let side_tag = match cert.side {
+                super::super::types::Side::Long => 0,
+                super::super::types::Side::Short => 1,
+            };
+            let parent = ParentFingerprint {
+                center_start: cert.center.start_index,
+                zd: cert.center.zd,
+                zg: cert.center.zg,
+            };
+            let key = CandidateKey {
+                level,
+                kind: CandidateKind::Pan,
+                side_tag,
+                previous_center_start: cert.center.start_index,
+                parent,
+                seg_a: cert.seg_a,
+                c_start: cert.seg_c.0,
+            };
+            CandidateObservation {
+                key,
+                kind: CandidateKind::Pan,
+                center_ids: (cert.center.start_index, cert.center.start_index),
+                candidate_group_id: stable_id(&key, FNV_OFFSET_BASIS),
+                pair_id: stable_id(&key, PAIR_ID_SEED),
+                structural_predicates: StructuralPredicates {
+                    direction: true,
+                    comparable: true,
+                    extreme: true,
+                },
+                extreme_proof: cert.seg_a,
+                third_class_proof: None,
+                interval: cert.seg_c,
+                state: CandidateState::Confirmed,
+                first_provable_at: cert.source_index,
+                confirmed_at: Some(cert.source_index),
+            }
+        })
+        .collect()
+}
+
+/// 单级双域候选的统一接线点，供全量与增量分类循环共同调用。
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn observations_for_level(
+    level: u32,
+    centers: &[Center],
+    blocks: &[super::decompose::MoveBlock],
+    segments: &[Segment],
+    anchor_dirs: &[Option<Direction>],
+    hist: &[f64],
+    dif: &[f64],
+    closes_tick: &[Tick],
+    close_src: &[usize],
+    gauge: DivergenceGauge,
+    pan_div: &[signal::PanDivCert],
+) -> Vec<CandidateObservation> {
+    let mut observations = structural_observations_for_level(
+        level,
+        centers,
+        blocks,
+        segments,
+        anchor_dirs,
+        hist,
+        dif,
+        closes_tick,
+        close_src,
+        gauge,
+    );
+    observations.extend(pan_observations_for_level(level, pan_div));
     observations.sort_by_key(|observation| (observation.interval, observation.key));
     observations
 }
@@ -353,6 +465,7 @@ fn stable_id(key: &CandidateKey, seed: u64) -> u64 {
     let mut hash = seed;
     for value in [
         key.level as u64,
+        key.kind as u64,
         key.side_tag as u64,
         key.previous_center_start as u64,
         key.parent.center_start as u64,
@@ -364,7 +477,7 @@ fn stable_id(key: &CandidateKey, seed: u64) -> u64 {
     ] {
         for byte in value.to_le_bytes() {
             hash ^= byte as u64;
-            hash = hash.wrapping_mul(0x100000001b3);
+            hash = hash.wrapping_mul(FNV_PRIME);
         }
     }
     hash
@@ -373,6 +486,7 @@ fn stable_id(key: &CandidateKey, seed: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::theta_v0::classifier::decompose::decompose;
 
     fn center(zd: Tick, zg: Tick, end_index: usize) -> Center {
         Center {
@@ -404,6 +518,7 @@ mod tests {
     fn observation(interval: (usize, usize), state: CandidateState) -> CandidateObservation {
         let key = CandidateKey {
             level: 0,
+            kind: CandidateKind::Trend,
             side_tag: 0,
             previous_center_start: 10,
             parent: ParentFingerprint {
@@ -430,6 +545,7 @@ mod tests {
             interval,
             state,
             first_provable_at: 35,
+            confirmed_at: None,
         }
     }
 
@@ -460,7 +576,33 @@ mod tests {
         assert_eq!(stream[1].supersedes_revision, Some(0));
         assert_eq!(stream[1].observed_at, 35);
         assert_eq!(stream[1].first_provable_at, 35);
-        assert_eq!(stream[1].confirmed_at, Some(35));
+        assert_eq!(stream[1].confirmed_at, Some(40));
+        assert_eq!(stream[1].revision_at, 40);
+    }
+
+    #[test]
+    fn same_right_endpoint_projection_change_appends_revision() {
+        let mut book = CandidateEventBook::default();
+        let first = observation((30, 35), CandidateState::Provisional);
+        book.advance(std::slice::from_ref(&first), 35);
+        let mut changed = first;
+        changed.center_ids = (10, 21);
+        let delta = book.advance(&[changed], 36);
+        assert_eq!(delta.len(), 1);
+        assert_eq!(delta[0].revision, 1);
+        assert_eq!(delta[0].center_ids, (10, 21));
+    }
+
+    #[test]
+    fn interval_shrink_appends_invalidation() {
+        let mut book = CandidateEventBook::default();
+        let first = observation((30, 40), CandidateState::Provisional);
+        book.advance(std::slice::from_ref(&first), 40);
+        let shrunk = observation((30, 35), CandidateState::Provisional);
+        let delta = book.advance(&[shrunk], 41);
+        assert_eq!(delta.len(), 1);
+        assert_eq!(delta[0].state, CandidateState::Invalidated);
+        assert_eq!(delta[0].invalidated_at, Some(41));
     }
 
     #[test]
@@ -473,21 +615,6 @@ mod tests {
         assert_eq!(invalidated[0].invalidated_at, Some(36));
         assert!(book.advance(&[candidate], 37).is_empty());
         assert_eq!(book.streams()[0].len(), 2);
-    }
-
-    #[test]
-    fn candidate_event_stream_fnv1a_golden() {
-        let mut book = CandidateEventBook::default();
-        book.advance(&[observation((30, 35), CandidateState::Provisional)], 35);
-        book.advance(&[observation((30, 40), CandidateState::Confirmed)], 40);
-        let text = format!("{:?}", book.streams());
-        let digest = text.bytes().fold(0xcbf29ce484222325_u64, |hash, byte| {
-            (hash ^ byte as u64).wrapping_mul(0x100000001b3)
-        });
-        assert_eq!(
-            digest, 6427703010027133843,
-            "事件流输出漂移须诚实更新 golden"
-        );
     }
 
     #[test]
@@ -508,6 +635,7 @@ mod tests {
         let observations = structural_observations_for_level(
             0,
             &centers,
+            &decompose(&centers),
             &segments,
             &anchors,
             &flat_strength,

@@ -3,7 +3,9 @@
 //! 用法：
 //! `cargo run --release --bin issue550_event_battery -- <btc_1m_full.json> [max_bars]`
 
-use newchan_rust::theta_v0::classifier::cand_event::CandidateState;
+use newchan_rust::theta_v0::classifier::cand_event::{
+    CandidateEvent, CandidateKey, CandidateKind, CandidateState,
+};
 use newchan_rust::theta_v0::classifier::streaming::OwnedIncrementalClassifier;
 use newchan_rust::theta_v0::classifier::{self, TowerCache};
 use newchan_rust::theta_v0::config::ThetaConfig;
@@ -108,7 +110,7 @@ fn run() -> Result<(), String> {
     let mut parser = ParseLayerIncr::new(&config);
     let mut cache = TowerCache::new();
     let mut owned = OwnedIncrementalClassifier::new(config.clone());
-    let mut terminal_streams = Vec::new();
+    let mut terminal_streams = std::rc::Rc::new(Vec::new());
     for (i, bar) in bars.iter().copied().enumerate() {
         let l0 = parser.append(bar);
         let direct = classifier::classify_with_tower_events_incremental(&l0, &config, &mut cache);
@@ -119,27 +121,46 @@ fn run() -> Result<(), String> {
         terminal_streams = streamed.2;
     }
 
+    let mut latest = BTreeMap::<CandidateKey, &CandidateEvent>::new();
+    let mut revisions = 0usize;
+    for stream in terminal_streams.iter() {
+        for event in stream.iter() {
+            revisions += 1;
+            latest.insert(event.key, event);
+        }
+    }
+    let identities = latest.len();
     let mut active_by_level = BTreeMap::<u32, usize>::new();
     let mut active = 0usize;
-    let mut revisions = 0usize;
-    for stream in &terminal_streams {
-        revisions += stream.len();
-        if let Some(event) = stream.last() {
-            if event.state != CandidateState::Invalidated {
-                active += 1;
-                *active_by_level.entry(event.key.level).or_default() += 1;
+    let mut pan_identities = 0usize;
+    let mut pan_active = 0usize;
+    for event in latest.values() {
+        if event.kind == CandidateKind::Pan {
+            pan_identities += 1;
+        }
+        if event.state != CandidateState::Invalidated {
+            active += 1;
+            *active_by_level.entry(event.key.level).or_default() += 1;
+            if event.kind == CandidateKind::Pan {
+                pan_active += 1;
             }
         }
     }
     println!(
-        "ISSUE550_BATTERY bars={} compared={} streams={} revisions={} active={} levels={:?}",
+        "ISSUE550_BATTERY bars={} compared={} stream_levels={} identities={} revisions={} active={} levels={:?} pan_identities={} pan_active={}",
         bars.len(),
         bars.len(),
         terminal_streams.len(),
+        identities,
         revisions,
         active,
-        active_by_level
+        active_by_level,
+        pan_identities,
+        pan_active,
     );
+    if std::env::var_os("ISSUE550_VERBOSE").is_some() {
+        println!("ISSUE550_LATEST {latest:#?}");
+    }
     Ok(())
 }
 
