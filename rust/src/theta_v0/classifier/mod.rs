@@ -4146,6 +4146,131 @@ mod tests {
         }
     }
 
+
+    /// #550 主缝②：修订富集的逐段因果重放，全历史重建与跨步增量事件簿逐字段相等。
+    #[test]
+    fn candidate_event_stream_per_segment_full_replay_equals_incremental() {
+        let cfg = ThetaConfig::default();
+        let all_segments = candidate_rich_segments(120);
+        let closes: Vec<i64> = (0..=(all_segments.last().unwrap().end_index + 16))
+            .map(|i| 100 + if i % 8 < 4 { 35 } else { -35 } + (i as i64 / 16))
+            .collect();
+        let mut steps = Vec::new();
+        for n in 1..=all_segments.len() {
+            let prefix = all_segments[..n].to_vec();
+            steps.push(prefix.clone());
+            if n >= 12 {
+                let mut extended = prefix;
+                let tail = extended.last_mut().unwrap();
+                tail.end_index += 1;
+                match tail.direction {
+                    Direction::Up => tail.end_price += 7,
+                    Direction::Down => tail.end_price -= 7,
+                }
+                steps.push(extended);
+            }
+        }
+        let mut incremental_cache = TowerCache::new();
+        let mut terminal = std::rc::Rc::new(Vec::new());
+
+        for (step_idx, segments) in steps.iter().enumerate() {
+            let end = segments.last().unwrap().end_index.min(closes.len() - 1);
+            let layer = ParseLayer {
+                segments: Rc::new(segments.clone()),
+                merged_bars: Rc::new(bars_from_closes(&closes[..=end])),
+                ..Default::default()
+            };
+            terminal =
+                classify_with_tower_events_incremental(&layer, &cfg, &mut incremental_cache).2;
+
+            let mut replay_cache = TowerCache::new();
+            let mut replay_terminal = std::rc::Rc::new(Vec::new());
+            for replay_segments in &steps[..=step_idx] {
+                let replay_end = replay_segments
+                    .last()
+                    .unwrap()
+                    .end_index
+                    .min(closes.len() - 1);
+                let replay_layer = ParseLayer {
+                    segments: Rc::new(replay_segments.clone()),
+                    merged_bars: Rc::new(bars_from_closes(&closes[..=replay_end])),
+                    ..Default::default()
+                };
+                replay_terminal =
+                    classify_with_tower_events_incremental(&replay_layer, &cfg, &mut replay_cache)
+                        .2;
+            }
+            assert_eq!(
+                terminal, replay_terminal,
+                "step={step_idx}: 全历史重建≡增量事件簿"
+            );
+        }
+        let identities: std::collections::BTreeSet<_> = terminal
+            .iter()
+            .flat_map(|stream| stream.iter())
+            .map(|event| event.key)
+            .collect();
+        assert!(!identities.is_empty(), "事件身份流必须非空");
+
+        let sample = terminal
+            .iter()
+            .flat_map(|stream| stream.iter())
+            .next()
+            .expect("非空锁");
+        let mut book = cand_event::CandidateEventBook::default();
+        let observation = cand_event::CandidateObservation {
+            key: sample.key,
+            kind: sample.kind,
+            center_ids: sample.center_ids,
+            candidate_group_id: sample.candidate_group_id,
+            pair_id: sample.pair_id,
+            structural_predicates: sample.structural_predicates,
+            extreme_proof: sample.extreme_proof,
+            third_class_proof: sample.third_class_proof,
+            interval: sample.interval,
+            state: cand_event::CandidateState::Provisional,
+            first_provable_at: sample.first_provable_at,
+            confirmed_at: None,
+        };
+        book.advance(std::slice::from_ref(&observation), sample.revision_at);
+        let mut changed = observation;
+        changed.pair_id ^= 1;
+        assert_eq!(
+            book.advance(&[changed], sample.revision_at + 1)[0].revision,
+            1,
+            "修订富集锁：右端不动而投影变化必须追加 revision"
+        );
+    }
+
+    /// #550 FNV 锁真实 classify 产出，不锁手搓 book。
+    #[test]
+    fn candidate_event_stream_classify_fnv1a_golden() {
+        let cfg = ThetaConfig::default();
+        let segments = candidate_rich_segments(120);
+        let closes: Vec<i64> = (0..=segments.last().unwrap().end_index)
+            .map(|i| 100 + if i % 8 < 4 { 35 } else { -35 } + (i as i64 / 16))
+            .collect();
+        let layer = ParseLayer {
+            segments: Rc::new(segments),
+            merged_bars: Rc::new(bars_from_closes(&closes)),
+            ..Default::default()
+        };
+        let streams = classify_with_tower_events(&layer, &cfg).2;
+        assert!(streams.iter().any(|stream| !stream.is_empty()));
+        let digest = format!("{streams:?}")
+            .bytes()
+            .fold(cand_event::FNV_OFFSET_BASIS, |hash, byte| {
+                (hash ^ byte as u64).wrapping_mul(cand_event::FNV_PRIME)
+            });
+        // #551 诚实更新（旧值 3608191067574153658）：`CandidateKey` 增 `rule_version` 分量、
+        // `first_provable_at` 由 `usize` 改 `Option<usize>`（未决期不落钟）、Trend 域四态映射上线
+        // （Unresolved 生产可达）、同 episode 多腿归约为每 key 一条观察。
+        assert_eq!(
+            digest, 3542680779063880892,
+            "真实事件流漂移须诚实更新 golden"
+        );
+    }
+
     /// #551 生命史全谱合成夹具（几何逐点标注）。
     ///
     /// 中枢1 `[1000,1200]` → 大跌 → 中枢2 `[400,600]` → 过渡走势（`398→260→100`，两段同向
