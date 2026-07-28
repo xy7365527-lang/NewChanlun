@@ -4281,6 +4281,10 @@ mod tests {
     ///
     /// 反方向（fresh-full 在产而因果簿已判 `Invalidated`）= 复活型分叉，必须为空。本锁用 L0
     /// 塌空制造真实的中途消失，使「允许方向」在机器上真被走到（防真空绿）。
+    ///
+    /// 适用域：上游**未回长**的场景。上游塌空后再回长到逐字段相同结构时禁止方向可达，那是已
+    /// 上浮的矛盾，边界由 `escalated_upstream_regrowth_after_collapse_forks_in_forbidden_direction`
+    /// 单独锁定——本锁不覆盖该情形，也不假装它不存在。
     #[test]
     fn invalidation_fork_only_points_from_causal_book_to_absent_fresh_stream() {
         let cfg = ThetaConfig::default();
@@ -4361,6 +4365,59 @@ mod tests {
         assert!(
             differ_terminal < fresh.len(),
             "终态分叉不应吞掉全部身份（合成夹具期望 0，真实数据期望少数）"
+        );
+    }
+
+    /// ★#551 已上浮矛盾的边界锁（**不是**通过的验收项，是把矛盾钉死使其不可静默漂移）。
+    ///
+    /// 上游塌空后再回长到**逐字段相同**的结构时：因果簿按 E2E-O 判该 key 终态（`Invalidated`
+    /// 不复活），而 fresh-full 无状态、只看当下，会重新产出同一个 key —— 即裁定(i) 明令**禁止**
+    /// 的分叉方向（复活）在机制上可达。
+    ///
+    /// 根因不是实装缺陷，是两条已结算规则在此处直接对撞：E2E-O 的终态语义**历史相关**（一旦
+    /// 终态永远终态），fresh-full 的语义**历史无关**（只反映当前结构）；裁定(i) 要求二者每 key
+    /// 逐字段相等 ⟺ 要求终态语义历史无关。三条出路（各自代价见报告 §矛盾上浮）都要编排者裁决，
+    /// 本票不用任何 workaround 抹平：`CandidateKey` 补「上游代次」分量会让 fresh 侧算不出同一
+    /// 代次（等价锁全面失效）；「消失不判终态」违反 SPEC 明文的 US6 与 #535 红线③；「接受分叉」
+    /// 需收缩裁定(i) 的口径到非终态域。
+    ///
+    /// 生产可达性：BTC 100k 实测 `invalidations=0`，塌空—回长从未发生 ⟹ 该分叉当前**生产不可达**。
+    #[test]
+    fn escalated_upstream_regrowth_after_collapse_forks_in_forbidden_direction() {
+        let cfg = ThetaConfig::default();
+        let layer = lifecycle_rich_layer();
+        let mut cache = causal_book_over_prefixes(&layer, &cfg);
+        let collapsed = ParseLayer {
+            segments: Rc::new(Vec::new()),
+            merged_bars: Rc::clone(&layer.merged_bars),
+            ..Default::default()
+        };
+        classify_with_tower_events_incremental(&collapsed, &cfg, &mut cache);
+        classify_with_tower_events_incremental(&layer, &cfg, &mut cache);
+
+        let terminal = latest_by_key(&cache.candidate_book.streams());
+        let fresh = latest_by_key(&classify_with_tower_events(&layer, &cfg).2);
+        let revived: Vec<_> = fresh
+            .keys()
+            .filter(|key| {
+                terminal.get(key).map(|event| event.state)
+                    == Some(cand_event::CandidateState::Invalidated)
+            })
+            .collect();
+        assert_eq!(
+            revived.len(),
+            1,
+            "锁定当前语义：塌空—回长恰产生 1 个禁止方向的分叉（矛盾已上浮，见函数头）"
+        );
+        assert_eq!(
+            terminal[revived[0]].state,
+            cand_event::CandidateState::Invalidated,
+            "因果簿侧：终态不复活（E2E-O 成立）"
+        );
+        assert_eq!(
+            fresh[revived[0]].state,
+            cand_event::CandidateState::Provisional,
+            "fresh 侧：历史无关，重新产出同一 key（裁定(i) 的禁止方向）"
         );
     }
 
