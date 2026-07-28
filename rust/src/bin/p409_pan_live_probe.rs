@@ -129,6 +129,8 @@ impl WindowStem {
             seg_a: self.seg_a,
             seg_c_live: (self.c_start, as_of.max(self.c_start)),
             b_center_start: self.b_center_start,
+            // 本探针只用 `provide_pan_live_windows`（confirmed 侧，非 active frontier），无洞概念，恒 0。
+            gap_len: 0,
         }
     }
 }

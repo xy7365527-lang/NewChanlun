@@ -536,9 +536,12 @@ struct L1LiveDiagRow {
     b_center_start: Option<usize>,
     /// 命中时产出窗的 λ_C（未命中恒 None）——「同锚多候选 C」的判据。
     c_start: Option<usize>,
+    /// 命中时产出窗的 `gap_len`（票 #592；未命中恒 None）。
+    gap_len: Option<usize>,
 }
 
-/// #421 逃生门的活窗结构分量；与 p409 `WindowStem` 同键，右端不进身份。
+/// #421 逃生门的活窗结构分量；与 p409 `WindowStem` 同键，右端不进身份。`gap_len`
+/// 是产窗时刻的诊断快照（票 #592），随身份一起冻结——只延展右端时原样带出，不重算。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct LifecycleWindowStem {
     level: u32,
@@ -546,6 +549,7 @@ struct LifecycleWindowStem {
     seg_a: (usize, usize),
     c_start: usize,
     b_center_start: usize,
+    gap_len: usize,
 }
 
 impl LifecycleWindowStem {
@@ -559,6 +563,7 @@ impl LifecycleWindowStem {
             seg_a: window.seg_a,
             c_start: window.seg_c_live.0,
             b_center_start: window.b_center_start,
+            gap_len: window.gap_len,
         }
     }
 
@@ -573,6 +578,7 @@ impl LifecycleWindowStem {
             seg_a: self.seg_a,
             seg_c_live: (self.c_start, as_of.max(self.c_start)),
             b_center_start: self.b_center_start,
+            gap_len: self.gap_len,
         }
     }
 }
@@ -1112,11 +1118,12 @@ fn run_targeted_prefix_pass(
                 write_lifecycle_line(
                     &mut lifecycle_dump,
                     format_args!(
-                        "{tag} as_of={index} frontier_start={} reason={} b_center_start={} c_start={}",
+                        "{tag} as_of={index} frontier_start={} reason={} b_center_start={} c_start={} gap_len={}",
                         frontier.map_or(usize::MAX, |f| f.start_index),
                         row.reason,
                         row.b_center_start.map_or(usize::MAX, |value| value),
                         row.c_start.map_or(usize::MAX, |value| value),
+                        row.gap_len.map_or(usize::MAX, |value| value),
                     ),
                 )?;
             }
@@ -1604,6 +1611,7 @@ fn recompute_lifecycle_window_stems(
             reason: "no_active_frontier",
             b_center_start: None,
             c_start: None,
+            gap_len: None,
         });
         return Vec::new();
     };
@@ -1645,6 +1653,7 @@ fn recompute_lifecycle_window_stems(
                                 reason: outcome.reason_tag(),
                                 b_center_start: Some(window.b_center_start),
                                 c_start: Some(window.seg_c_live.0),
+                                gap_len: Some(window.gap_len),
                             },
                             None => L1LiveDiagRow {
                                 reason: outcome.reason_tag(),
@@ -1654,6 +1663,7 @@ fn recompute_lifecycle_window_stems(
                                     .find(|center| center.end_index <= frontier.start_index)
                                     .map(|center| center.start_index),
                                 c_start: None,
+                                gap_len: None,
                             },
                         });
                         windows_out.extend(outcome.window());
@@ -2485,6 +2495,7 @@ mod tests {
     use super::*;
 
     /// 逃生门身份键不含活窗右端：相邻 bar 只延展 `seg_c_live.1`，不得另造身份。
+    /// `gap_len`（票 #592）是产窗时刻冻结的诊断快照，随身份一起延展，不因右端前进而重算。
     #[test]
     fn lifecycle_window_stem_keeps_identity_while_extending_bar() {
         let stem = LifecycleWindowStem {
@@ -2493,6 +2504,7 @@ mod tests {
             seg_a: (10, 19),
             c_start: 30,
             b_center_start: 20,
+            gap_len: 7,
         };
         let first = stem.window_at(30);
         let later = stem.window_at(99);
@@ -2501,6 +2513,8 @@ mod tests {
         assert_eq!(LifecycleWindowStem::of(&later), stem);
         assert_eq!(first.seg_c_live, (30, 30));
         assert_eq!(later.seg_c_live, (30, 99));
+        assert_eq!(first.gap_len, 7, "gap_len 随身份延展原样带出，不因右端前进重算");
+        assert_eq!(later.gap_len, 7);
     }
 
     /// #69 5b / T5：dirty 更新只替换代次/事件载荷，run-local pan memo 的持有地址不变。

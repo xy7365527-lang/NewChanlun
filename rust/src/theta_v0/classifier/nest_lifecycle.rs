@@ -428,6 +428,12 @@ pub struct PanLiveWindow {
     /// 活窗 c 段源坐标闭区间 `(c_start_live, live_end)`。
     pub seg_c_live: (usize, usize),
     pub b_center_start: usize,
+    /// 诊断字段（票 #592 裁定）：frontier 起点与最近 confirmed 段末端的洞长（无洞=0），
+    /// 与 [`provide_l1_active_pan_live_windows`] 内 `frontier_not_after_confirmed` 判定
+    /// 同源同值——源头照实全收、拒绝判断留给消费端（账本照实记录哲学，不在本字段上二次
+    /// 加判据）。非 L1 active-frontier 通道（`provide_pan_live_windows`/完成事件闪现）不涉及
+    /// frontier 概念，恒 `0`。
+    pub gap_len: usize,
 }
 
 /// 推进观察（advance 的唯一输入；确定性结构/力度谓词，v3 硬禁令合规）。
@@ -1347,6 +1353,8 @@ pub fn provide_pan_live_windows(
                 // c 窗右端 = prefix 边界（含行进中 bar；卡 §3 设计内行为）。
                 seg_c_live: (structure.seg_c.0, as_of.max(structure.seg_c.0)),
                 b_center_start: centers[center_index].start_index,
+                // 本函数的 C 恒取自已完成 segments（非 active frontier），无洞概念，恒 0。
+                gap_len: 0,
             },
         );
     }
@@ -1457,6 +1465,14 @@ pub fn active_segment_frontier(l0: &ParseLayer) -> Option<ActiveSegmentFrontier>
 /// `locate_pan_div_structure`（窄锚）→ `locate_pan_div_structure_front_anchor`（A′ 回退）、
 /// `pan_div_structure_extreme` 预滤——与完成事件 provider（level_view.rs pan 分支）同序同判。
 ///
+/// **措辞限定**（票 #591 裁定）：「同序同判」指**同一输入序列 ⟹ 同一判定**——两路径调用的
+/// `nearest_confirmed_center_idx` 是同一纯函数、逐字相同的切片构造算法。这**不**蕴含「任一
+/// 时刻两路径的查询结果一致」：活窗路径按当前全局唯一 pending frontier 稀疏采样（仅在
+/// `(forest_epoch, frontier)` 变化时重算），完成路径在结构已完全确认后对已固定的
+/// `segment.start_index` 做一次性事后查询——中枢确认可落在活窗路径的稀疏重算盲区内，
+/// 此时两路径在**同一 bar** 查询同一纯函数会因**入参切片不同步**（活窗侧尚未看见刚确认的
+/// 中枢）而给出不同结果，这是时序差（无害），不是判据分歧（32893 现场分析）。
+///
 /// **c_start 稳定性**（#523 遗留问题 2；票 #559 条件 C2 订正——原文写成无限定的恒等断言，
 /// BTC 100k 实测 5 例反例，故收窄为下述限定表述）：
 ///
@@ -1486,6 +1502,13 @@ pub fn provide_l1_active_pan_live_windows(
     as_of: usize,
 ) -> L1LiveOutcome {
     let active = frontier.as_segment();
+    // 诊断字段（票 #592）：frontier 起点与最近 confirmed 段末端的洞长——与下方
+    // `frontier_not_after_confirmed` 判定同源同值（同一个 `confirmed_segments.last()`）。
+    // 无 confirmed 段（B 锚尚未建立）时无洞可定义，记 0；产窗必经 `NoConfirmedCenterBefore`
+    // 分支拒绝，该 0 值不会流入下游 Window 载荷。
+    let gap_len = confirmed_segments
+        .last()
+        .map_or(0, |last| active.start_index.saturating_sub(last.end_index));
     // 行进中段必须严格晚于全部 confirmed 段（否则不是 frontier ⟹ 拒绝，诚实空产出）。
     //
     // **仍只查 `<` 不查 `==`**（票 #578 复核，推翻本注记曾经的「`>` 分支生产不可达」断言）：
@@ -1546,6 +1569,7 @@ pub fn provide_l1_active_pan_live_windows(
         seg_a: structure.seg_a,
         seg_c_live: (structure.seg_c.0, as_of.max(structure.seg_c.0)),
         b_center_start: centers[center_index].start_index,
+        gap_len,
     })
 }
 
@@ -1783,6 +1807,8 @@ pub fn feed_replay_bar(
                     seg_a: event.seg_a,
                     seg_c_live: event.interval_b,
                     b_center_start: event.b_center_start,
+                    // 从完成事件反推的闪现观察，非 active frontier 通道，无洞概念，恒 0。
+                    gap_len: 0,
                 },
                 false,
             );
@@ -1877,6 +1903,7 @@ mod tests {
             seg_a,
             seg_c_live: (c_start, live_end),
             b_center_start: 20,
+            gap_len: 0,
         }
     }
 
@@ -3000,6 +3027,7 @@ mod tests {
             seg_a: (10, 19),
             seg_c_live: (30, live_end),
             b_center_start: 5,
+            gap_len: 0,
         };
         let win_b = |live_end: usize| PanLiveWindow {
             level: 2,
@@ -3007,6 +3035,7 @@ mod tests {
             seg_a: (110, 119),
             seg_c_live: (130, live_end),
             b_center_start: 105,
+            gap_len: 0,
         };
         let key_of = |w: PanLiveWindow| LifecycleKey {
             level: w.level,
@@ -3983,6 +4012,10 @@ mod tests {
             (69, 95),
             "c_start = λ_C（与完成事件 seg_c.0 同锚）；右端随 as_of"
         );
+        assert_eq!(
+            window.gap_len, 0,
+            "frontier.start_index(89) == confirmed.last().end_index(89) ⟹ 共端点，gap_len=0"
+        );
         // 与完成后的事件身份同桥（除右端外全等）——完成时 seg_c=(69,99)。
         let completed = pan_event((50, 59), (69, 99), true, 99);
         let live_key = LifecycleObservation::pan_live(window, false).key();
@@ -4006,21 +4039,21 @@ mod tests {
             provide_l1_active_pan_live_windows(1, &centers, &kinds, confirmed, &frontier, 94),
             L1LiveOutcome::FrontierAheadOfClock
         );
-        // 已知缺口留痕（票 #578：夹具坐标对齐生产共端点约定后，`>` 臂首次可真实构造）：
-        // frontier 起点与末 confirmed 段之间有洞（89→90，不共端点）——现行 `<` 守卫**不拒绝**
-        // 这一臂，仍照常产窗。本条不是「验证正确行为」，是照实钉住当下行为：票 #559 条件 C2
-        // 「`>` 分支生产不可达」的断言经票 #578 用 p123 20k bar 真实数据证伪
-        // （`frontier_not_after_confirmed` 从 0 跳到 210、`window` 命中 101→58——见守卫上方
-        // 注记与本票交付报告）；是否应收紧为拒绝需教义/架构裁决，不在本票 Scope，留 §7 遗留。
+        // 有洞 frontier（票 #578 首次证实可达；票 #592 裁定：选 A 保持全收 + `gap_len`
+        // 诊断字段落账本）：frontier 起点与末 confirmed 段之间有洞（89→90，不共端点）——
+        // 现行 `<` 守卫**不拒绝**这一臂，照常产窗，且产出窗携带真实洞长供下游按需过滤
+        // （源头照实全收、拒绝判断留给消费端，不在源头做硬编码 accept/reject）。
         let gapped = ActiveSegmentFrontier {
             start_index: confirmed.last().unwrap().end_index + 1,
             ..frontier
         };
-        assert!(
+        let gapped_window =
             provide_l1_active_pan_live_windows(1, &centers, &kinds, confirmed, &gapped, 95)
                 .window()
-                .is_some(),
-            "现状：有洞（非共端点）frontier 当下被接受产窗，不是本票裁定的正确性，只是诚实现状"
+                .expect("有洞 frontier 当下被接受产窗（#592 选 A 裁定）");
+        assert_eq!(
+            gapped_window.gap_len, 1,
+            "gap_len = frontier.start_index(90) − confirmed.last().end_index(89) = 1"
         );
     }
 
