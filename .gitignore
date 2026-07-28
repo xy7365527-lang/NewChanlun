@@ -101,3 +101,9 @@ analysis/logs/
 
 # Codex 投影（生成物，由 .agents/skills 生成，不进版本控制——#505 裁定）
 agent/
+
+# 禁入仓模式（#506 防复发：会话导出/备份/工具残留一律不进仓）
+*.bak
+.git.bak-*/
+kimi-export-*.md
+.playwright-mcp/
