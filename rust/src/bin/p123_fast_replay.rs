@@ -11,11 +11,14 @@
 //! 管线 = p116_turnpoint_anchor_existence 原样：terminal pass（增量塔）/ TURN 逐 bar 观察 /
 //! 终态快照 targets / 终态兜底 observe_snapshot / 证书装配 / CKPT 侧信道 / dump 行格式 /
 //! stdout 门行字段（前缀 P116_→P123_）全部逐字保留，账本语义（candidates/divergences 首插
-//! or_insert、pending 出清条件、term_seen 去重）逐行一致。**唯一**差异在 prefix pass：
+//! or_insert、pending 出清条件、term_seen 去重）逐行一致。**既有管线的唯一**差异在 prefix pass：
 //! 慢版「每次 trigger 对全部 arrived (level,run) 全量重估」换为 per-(level,run) 评估缓存 +
 //! 四类 dirty 判据稀疏重估（设计 §3）。判据代码零新增——dirty run 用与慢版逐字相同的 lib
 //! 调用链同一输入重估（project run → decompose → assemble_level_view →
 //! provide_nest_candidate_events），无新判据路径。
+//! #421 另挂独立活假设 sidecar：同一 trigger 从 provider/window 链取数并推进
+//! `NestLifecycleBook`；它不反流既有 YieldBook/事件流，修订只写 `P421_LIFECYCLE_DUMP`，
+//! 累计诊断只写 stderr。
 //!
 //! ── 稀疏化架构（实装）──
 //! trigger 语义冻结（设计 §4.4）：trigger=(forest_epoch, signal_signature) 检测与慢版逐字一致；
@@ -139,7 +142,8 @@
 //! 长度）、`P116_CKPT`（每 K bar 检查点全量证书快照，只写不判）。p123 自有开关：
 //! `P123_SHADOW=1`（设计 §6.3 shadow 强制对拍：每 trigger 对 arrived run 无视 dirty 判定
 //! 强制重估并与缓存路径逐字比对 + TERM 门控旁证；mismatch 打 stderr，计数入
-//! P123_SPARSE_SUMMARY；长期回归开关，不进验收面）。
+//! P123_SPARSE_SUMMARY；长期回归开关，不进验收面）。#421 自有可选侧信道：
+//! `P421_LIFECYCLE_DUMP=<path>`（活假设 feed/revision/异常审计；只写不判）。
 
 use newchan_rust::theta_v0::classifier;
 use newchan_rust::theta_v0::classifier::bsp::BspPoint;
@@ -155,10 +159,14 @@ use newchan_rust::theta_v0::classifier::nest::{
     terminal_bits_at_event, terminal_bits_in_book, NestIntervalCaliber, TerminalMatch,
     TypedNestCertificate,
 };
+use newchan_rust::theta_v0::classifier::nest_lifecycle::{
+    feed_replay_prefix, ForceMaterial, NestLifecycleBook, PanLiveRun, ReplayFeedStats,
+    ReplayPrefixFeed,
+};
 use newchan_rust::theta_v0::classifier::recursive_tower::LeveledMove;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::{ParseLayer, ParseLayerIncr};
-use newchan_rust::theta_v0::types::{quantize, Bar, BspBits, MoveKind, Side, Timestamp};
+use newchan_rust::theta_v0::types::{quantize, Bar, BspBits, Center, MoveKind, Side, Timestamp};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
@@ -403,6 +411,40 @@ struct SparseStats {
     per_level_views_slow_would: BTreeMap<usize, usize>,
 }
 
+/// #421 生产侧车的累计审计读面；只进 stderr/独立 dump，不参与 p123 既有账本与判定。
+#[derive(Debug, Default)]
+struct LifecycleReplayStats {
+    triggers: usize,
+    live_windows: usize,
+    completion_events: usize,
+    channel_switches: usize,
+    extension_suppressed: usize,
+    retrograde_rejected: usize,
+    completion_force_unavailable: usize,
+}
+
+impl LifecycleReplayStats {
+    fn observe(&mut self, feed: ReplayFeedStats) {
+        self.triggers += 1;
+        self.live_windows += feed.live_windows;
+        self.completion_events += feed.completion_events;
+        self.channel_switches += feed.channel_switches;
+        self.extension_suppressed += feed.extension_suppressed;
+        self.retrograde_rejected += feed.retrograde_rejected;
+        self.completion_force_unavailable += feed.completion_force_unavailable;
+    }
+}
+
+/// provider/window 侧生成的一条 run 的自足拷贝；只复制取数材料，不扩大上游可见性。
+#[derive(Debug)]
+struct LifecycleRunOwned {
+    level: u32,
+    centers: Vec<Center>,
+    kinds: Vec<Option<MoveKind>>,
+    legs: Vec<LowerLeg>,
+    completion_events: Vec<NestCandidateEvent>,
+}
+
 fn main() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
     let path = args
@@ -449,7 +491,7 @@ fn main() -> Result<(), String> {
         targets.insert(EventKey::from(event), *event);
     }
     let prefix_started = Instant::now();
-    let (mut book, prefix_views, unresolved_targets, stats) =
+    let (mut book, prefix_views, unresolved_targets, stats, lifecycle_stats) =
         run_targeted_prefix_pass(&loaded.bars[..max_bars], &config, &targets)?;
     let prefix_elapsed = prefix_started.elapsed();
     audit.views += prefix_views;
@@ -476,6 +518,23 @@ fn main() -> Result<(), String> {
             "P123_SPARSE_LEVEL level={level} reevals={reevals} slow_would_views={slow_would}"
         );
     }
+    let completion_force_unavailable_rate = if lifecycle_stats.completion_events == 0 {
+        0.0
+    } else {
+        lifecycle_stats.completion_force_unavailable as f64
+            / lifecycle_stats.completion_events as f64
+    };
+    eprintln!(
+        "P421_LIFECYCLE_SUMMARY triggers={} live_windows={} completion_events={} channel_switches={} extension_suppressed={} retrograde_rejected={} completion_force_unavailable={} completion_force_unavailable_rate={:.9}",
+        lifecycle_stats.triggers,
+        lifecycle_stats.live_windows,
+        lifecycle_stats.completion_events,
+        lifecycle_stats.channel_switches,
+        lifecycle_stats.extension_suppressed,
+        lifecycle_stats.retrograde_rejected,
+        lifecycle_stats.completion_force_unavailable,
+        completion_force_unavailable_rate,
+    );
 
     let l0 = terminal.l0;
     let classification = terminal.classification;
@@ -763,7 +822,7 @@ fn run_targeted_prefix_pass(
     bars: &[Bar],
     config: &ThetaConfig,
     targets: &BTreeMap<EventKey, NestCandidateEvent>,
-) -> Result<(YieldBook, usize, usize, SparseStats), String> {
+) -> Result<(YieldBook, usize, usize, SparseStats, LifecycleReplayStats), String> {
     let mut parser = ParseLayerIncr::new(config);
     let mut cache = classifier::TowerCache::new();
     let mut book = YieldBook::default();
@@ -771,6 +830,17 @@ fn run_targeted_prefix_pass(
     let mut pending: BTreeSet<EventKey> = targets.keys().cloned().collect();
     let mut views = 0usize;
     let mut last_trigger = None;
+    let mut last_lifecycle_trigger = None;
+    let mut lifecycle_book = NestLifecycleBook::new();
+    let mut lifecycle_stats = LifecycleReplayStats::default();
+    let mut lifecycle_dump = std::env::var("P421_LIFECYCLE_DUMP")
+        .ok()
+        .map(|path| {
+            File::create(&path)
+                .map(BufWriter::new)
+                .map_err(|error| format!("创建 P421_LIFECYCLE_DUMP={path} 失败: {error}"))
+        })
+        .transpose()?;
     let started = Instant::now();
     // #103 侧信道：P116_CKPT=<K> 时每 K bars 做一次全量快照装配并 dump（只写不判）。
     let ckpt_every: usize = std::env::var("P116_CKPT")
@@ -794,6 +864,24 @@ fn run_targeted_prefix_pass(
         // #116: TURN 逐 bar 观察（摊还 O(新稳定块数)，不经 trigger 门——pending 空后仍落盘）。
         turns.observe(&classification);
         let trigger = (cache.forest_epoch(), signal_signature(&classification));
+        // #421：侧车与 p123 使用同一重估触发时钟，但不受 pending 是否已出清影响。
+        // provider/window 材料在本 trigger 当场重建；既有 YieldBook、事件流与 dump 均只读。
+        if last_lifecycle_trigger.as_ref() != Some(&trigger) {
+            let (hist, close_src) = cache.causal_series();
+            let dif = cache.macd_dif();
+            feed_lifecycle_trigger(
+                &mut lifecycle_book,
+                &tower,
+                index,
+                hist,
+                dif,
+                close_src,
+                &mut lifecycle_dump,
+                &mut lifecycle_stats,
+            )?;
+            lifecycle_book.assert_invariants();
+            last_lifecycle_trigger = Some(trigger.clone());
+        }
         if last_trigger.as_ref() != Some(&trigger) && !pending.is_empty() {
             stats.triggers += 1;
             let (hist, close_src) = cache.causal_series();
@@ -1058,7 +1146,181 @@ fn run_targeted_prefix_pass(
             );
         }
     }
-    Ok((book, views, pending.len(), stats))
+    if let Some(writer) = lifecycle_dump.as_mut() {
+        writer
+            .flush()
+            .map_err(|error| format!("刷新 P421_LIFECYCLE_DUMP 失败: {error}"))?;
+    }
+    Ok((book, views, pending.len(), stats, lifecycle_stats))
+}
+
+fn write_lifecycle_line(
+    sink: &mut Option<BufWriter<File>>,
+    args: std::fmt::Arguments<'_>,
+) -> Result<(), String> {
+    let Some(writer) = sink.as_mut() else {
+        return Ok(());
+    };
+    writer
+        .write_fmt(args)
+        .and_then(|()| writer.write_all(b"\n"))
+        .map_err(|error| format!("写 P421_LIFECYCLE_DUMP 失败: {error}"))
+}
+
+/// 在一个 p123 trigger 上，从 provider/window 侧重建全部可喂 run 与完成事件。
+///
+/// 数据源链与 `collect_snapshot_candidates` 同源：tower run 投影 → decompose →
+/// assemble_level_view → provide_nest_candidate_events。活窗 legs 是
+/// `lower_legs_from(tower[level-1])` 的私有拷贝，不新增 provider 字段。
+fn collect_lifecycle_runs(
+    tower: &[Rc<Vec<LeveledMove>>],
+    as_of: usize,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+) -> Result<Vec<LifecycleRunOwned>, String> {
+    let mut runs = Vec::new();
+    for level in 1..tower.len() {
+        let lower = lower_legs_from(&tower[level - 1])
+            .map_err(|error| format!("L{level} lifecycle lower legs 失败: {error:?}"))?;
+        for (_, (start, end)) in build_run_ranges(&tower[level]) {
+            let projection = project_extended_windows_carried_only(&tower[level][start..end])
+                .map_err(|error| format!("L{level} lifecycle projection 失败: {error:?}"))?;
+            let centers: Vec<Center> = projection.seeds.iter().map(|seed| seed.center).collect();
+            let blocks = decompose::decompose(&centers);
+            let kinds = decompose::center_block_kind(centers.len(), &blocks);
+            let query = LevelViewQuery {
+                level: level as u32,
+                coordinate_window: CoordinateWindow {
+                    start: projection.seeds.first().expect("nonempty run").start_index,
+                    end: projection.seeds.last().expect("nonempty run").end_index,
+                },
+                as_of,
+                version: C2VersionTuple::auto_pairing(),
+            };
+            let view = assemble_level_view(
+                C2LevelViewConfig { enabled: true },
+                query,
+                LevelViewMaterial {
+                    projection: ProjectionMaterial::ExactThree(&projection),
+                    move_blocks: &blocks,
+                    lower_legs: &lower,
+                    hist,
+                    dif,
+                    close_src,
+                },
+            )
+            .map_err(|error| format!("L{level} lifecycle C2 assemble 失败: {error:?}"))?;
+            let completion_events = provide_nest_candidate_events(
+                level as u32,
+                &projection,
+                &blocks,
+                &lower,
+                &view,
+                hist,
+                dif,
+                close_src,
+            );
+            runs.push(LifecycleRunOwned {
+                level: level as u32,
+                centers,
+                kinds,
+                legs: lower.clone(),
+                completion_events,
+            });
+        }
+    }
+    Ok(runs)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn feed_lifecycle_trigger(
+    book: &mut NestLifecycleBook,
+    tower: &[Rc<Vec<LeveledMove>>],
+    as_of: usize,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+    sink: &mut Option<BufWriter<File>>,
+    replay_stats: &mut LifecycleReplayStats,
+) -> Result<(), String> {
+    let owned = collect_lifecycle_runs(tower, as_of, hist, dif, close_src)?;
+    let runs: Vec<PanLiveRun<'_>> = owned
+        .iter()
+        .map(|run| PanLiveRun {
+            level: run.level,
+            centers: &run.centers,
+            kinds: &run.kinds,
+            legs: &run.legs,
+        })
+        .collect();
+    let completion_events: Vec<NestCandidateEvent> = owned
+        .iter()
+        .flat_map(|run| run.completion_events.iter().copied())
+        .collect();
+    let audit_start = book.completion_force_unavailable_audits().len();
+    let material = ForceMaterial {
+        hist: Some(hist),
+        dif: Some(dif),
+        close_src,
+    };
+    let (delta, stats) = feed_replay_prefix(
+        book,
+        &ReplayPrefixFeed {
+            as_of,
+            runs: &runs,
+            completion_events: &completion_events,
+        },
+        &material,
+    );
+
+    write_lifecycle_line(
+        sink,
+        format_args!(
+            "FEED as_of={as_of} live_windows={} completion_events={} channel_switches={} extension_suppressed={} retrograde_rejected={} completion_force_unavailable={}",
+            stats.live_windows,
+            stats.completion_events,
+            stats.channel_switches,
+            stats.extension_suppressed,
+            stats.retrograde_rejected,
+            stats.completion_force_unavailable,
+        ),
+    )?;
+    for revision in delta {
+        write_lifecycle_line(
+            sink,
+            format_args!(
+                "REV as_of={} level={} side={:?} kind={:?} seg_a={:?} seg_c_full={:?} b_center_start={} revision={:?} evidence={:?}",
+                revision.as_of,
+                revision.key.level,
+                revision.key.side,
+                revision.key.kind,
+                revision.key.seg_a,
+                revision.key.seg_c_full,
+                revision.key.b_center_start,
+                revision.kind,
+                revision.evidence,
+            ),
+        )?;
+    }
+    for audit in &book.completion_force_unavailable_audits()[audit_start..] {
+        write_lifecycle_line(
+            sink,
+            format_args!(
+                "COMPLETION_FORCE_UNAVAILABLE as_of={} level={} side={:?} kind={:?} seg_a={:?} seg_c_full={:?} b_center_start={} reason={:?}",
+                audit.as_of,
+                audit.key.level,
+                audit.key.side,
+                audit.key.kind,
+                audit.key.seg_a,
+                audit.key.seg_c_full,
+                audit.key.b_center_start,
+                audit.reason,
+            ),
+        )?;
+    }
+    replay_stats.observe(stats);
+    Ok(())
 }
 
 /// run 分区扫描（慢版 collect_target_candidates 内联块的提取，逐字同算法）：

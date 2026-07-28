@@ -6,7 +6,8 @@
 //! （`chanlun/review-results/spec-v3-lifecycle-rebuild-20260724.md`）重建：实装卡 §2–§7
 //! （sidecar 注册表 + 三态 + 五钟）+ 勘误（trend 反超真实不可达）+ #78 修复全量
 //! （ForceCheck 三值化 / as_of 单调守卫）+ #64 裁定边界（构建放开、消费不放开）。
-//! 交付物 = 状态机核心 + 消费契约；生产 bin 接线（卡 §6.2 伪码的 prefix 循环投产）出切片。
+//! #421 已把状态机作为 sidecar 接入 `p123_fast_replay` 的重估触发循环；既有 YieldBook、
+//! stdout 与 `P116_DUMP` 均不读本 book，生命周期修订只写独立 `P421_LIFECYCLE_DUMP`。
 //!
 //! # 090 登记（声明 = 能力）
 //!
@@ -50,11 +51,12 @@
 //!   结构未完成期间 force 假而从未可证仍诚实滞留 Provisional（未到结算点，不提前判负）。
 //! - **judge_at 一个 bit 不动**（卡 §5.2）：字段/写入点/回填/CERT 主键/D3 统计全部保持；
 //!   新五钟只活在本模块 entry，`divergence_confirmed` 布尔口径不动。
-//! - **feed 契约**：feed-every-prefix（每 prefix 投喂、同一身份每 prefix 至多一只观察、
-//!   同身份 c 窗左端不动右端单调延展）。跳 prefix 回填可构造 first_provable < observed
-//!   的越约输入，出切片（实装报告 §5.4，T8 注释明载）。完成窗冻结 ⟹ 同一身份 force
-//!   结果恒定 ⟹ first_provable 不会后于 structure_end 写入。
-//! - **出切片项**（卡 §9 原样维持）：生产 bin 接线、WireV1 全量 EventKey/StateKey/修订链、
+//! - **feed 契约**：只在回放引擎重估 trigger 投喂，时钟精度 = trigger 粒度；同一身份每次
+//!   trigger 至多一只观察，同身份 c 窗左端不动、右端按 provider 产出延展。两个 trigger
+//!   之间首次可证只能在下一 trigger 被记录（允许晚记，不能早记）；`observed_at` 与
+//!   `first_provable_at` 均在同一 `advance` 内首次写入，故跳过非 trigger prefix 不可能构造
+//!   `first_provable_at < observed_at`。完成事件通道到达后切换并停止活窗延展。
+//! - **出切片项**（卡 §9 原样维持）：WireV1 全量 EventKey/StateKey/修订链、
 //!   谱系两钟 opened/closed、跨级证伪（043:30）、024:28 面积乘 2 外推、postcondition
 //!   诊断钟、DeferOrphan 重判、Lean 侧 ActiveTail↔OpenTailSystem 桥、白名单桥与两元锚
 //!   （`NestCandidateEventExt.extreme_price/group_anchor`，#110/#206 线已入库）并轨。
@@ -65,7 +67,7 @@ use super::super::types::{Center, Direction, MoveKind, Segment, Side};
 use super::divergence::{
     same_color_area, same_dir_hist_peak, segment_dif_peak, segments_diverge_or,
 };
-use super::level_view::{NestCandidateEvent, NestDivergenceKind};
+use super::level_view::{LowerLeg, NestCandidateEvent, NestDivergenceKind};
 use super::recursive_tower::map_src_to_close_idx;
 use super::signal::{
     locate_pan_div_structure, locate_pan_div_structure_front_anchor,
@@ -228,15 +230,17 @@ pub enum LifecycleRevisionKind {
     Supersedes { from: LifecycleKey },
     /// D1–D4 首次同真（仅 `Verified(true)` 分支写入——#78 核验 T14 锚定）。
     FirstProvable,
-    /// c 结构完成信号首次到达（完成但不背驰滞留 Provisional 也留此痕）。
-    /// Unavailable prefix 的完成信号不留痕（entry 保持原态——#78 核验原语义），
-    /// 数据补齐后重发信号时留痕。
+    /// c 结构完成信号首次到达。仅力度可验分支产生；同一 prefix 随后必结算为
+    /// Confirmed 或 Invalidated(NeverConstituted/ForceOvertake)，不会以
+    /// StructureCompleted 修订滞留 Provisional。Unavailable prefix 只写
+    /// ForceUnavailable + `CompletionForceUnavailableAudit`，数据补齐并重发信号后再留痕。
     StructureCompleted,
     /// 力度不可验审计注记（不判 Invalidated、不写 first_provable）。
     ForceUnavailable { reason: UnavailReason },
     /// Provisional → Confirmed（完成时复核仍弱，024:24）。
     Confirmed,
-    /// Provisional → Invalidated（三个原因码入载荷，逐一可区分——T6 / T17）。
+    /// Provisional → Invalidated；原因逐一为 ForceOvertake、NeverConstituted 或
+    /// IdentityVanished（逐码入载荷，可区分——T6 / T17）。
     Invalidated { reason: InvalidatedReason },
 }
 
@@ -515,6 +519,17 @@ pub struct RetrogradeRejection {
     pub rejected_as_of: usize,
 }
 
+/// 完成信号已到但力度不可验的独立审计事实（#428）。
+///
+/// 该事实只进入审计面，不改变 #78 的结算语义：对应 entry 仍为 Provisional，
+/// 待力度材料补齐并重发完成信号后再按原协议结算。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CompletionForceUnavailableAudit {
+    pub key: LifecycleKey,
+    pub as_of: usize,
+    pub reason: UnavailReason,
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // NestLifecycleBook（sidecar 注册表）
 // ═══════════════════════════════════════════════════════════════════════════
@@ -532,6 +547,8 @@ pub struct NestLifecycleBook {
     /// 倒退拒绝审计注记（#78 修复 2）。同一倒退喂入重复执行重复记录（重复违规事实本身；
     /// 与 ForceUnavailable 同 as_of 幂等不对称——原 #78 评审 Low 登记同判，不阻塞）。
     retrograde_rejections: Vec<RetrogradeRejection>,
+    /// 完成信号与力度不可验同时发生的独立审计面（#428；同 key/as_of 幂等）。
+    completion_force_unavailable_audits: Vec<CompletionForceUnavailableAudit>,
 }
 
 impl NestLifecycleBook {
@@ -559,6 +576,11 @@ impl NestLifecycleBook {
     /// 倒退拒绝注记门户（#78 修复 2 审计面）。
     pub fn retrograde_rejections(&self) -> &[RetrogradeRejection] {
         &self.retrograde_rejections
+    }
+
+    /// 完成信号已到但力度不可验的审计门户（只读，不参与状态判定）。
+    pub fn completion_force_unavailable_audits(&self) -> &[CompletionForceUnavailableAudit] {
+        &self.completion_force_unavailable_audits
     }
 
     /// 消费侧 Closed-only（裁定 #64 §2(a)「消费不放开」）：只放 Confirmed。
@@ -710,6 +732,15 @@ impl NestLifecycleBook {
                 ForceCheck::Unavailable(reason) => {
                     // 「不可验」≠「不再弱」：只记审计注记（同 as_of 幂等去重），不判
                     // Invalidated、不写 first_provable、不进完成确认（entry 保持原态）。
+                    if obs.structure_completed()
+                        && !self
+                            .completion_force_unavailable_audits
+                            .iter()
+                            .any(|audit| audit.key == key && audit.as_of == as_of)
+                    {
+                        self.completion_force_unavailable_audits
+                            .push(CompletionForceUnavailableAudit { key, as_of, reason });
+                    }
                     if entry.force_unavailable_at != Some(as_of) {
                         entry.force_unavailable_at = Some(as_of);
                         let revision = entry.push_revision(
@@ -783,6 +814,8 @@ impl NestLifecycleBook {
             let revision = entry.invalidate(InvalidatedReason::IdentityVanished, as_of, None);
             delta.push(revision);
         }
+        // 库内 debug 构建自动核验；release 不作“自动核验”声明。生产 p123 接线在每个
+        // trigger 喂入后显式调用本公开入口。
         #[cfg(debug_assertions)]
         self.assert_invariants();
         delta
@@ -899,6 +932,21 @@ impl NestLifecycleBook {
         }
     }
 
+    /// 该身份（含桥同身份）是否已进终态——喂数出口「完成即停延展」的判据。
+    ///
+    /// 终态吸收（advance 第 1/3 步）使照喂与不喂的 book 逐位相同（零 revision、
+    /// `last_as_of` 不动、身份消失扫描只看 Provisional）⟹ 跳过是纯成本优化，非行为改动
+    /// （F5 等价性测试锚定）。
+    fn terminal_bridge_hit(&self, key: &LifecycleKey) -> bool {
+        let entry = match self.entries.get(key) {
+            Some(entry) => Some(entry),
+            None => self
+                .bridge_match(key)
+                .and_then(|old| self.entries.get(&old)),
+        };
+        entry.is_some_and(|entry| entry.state.is_terminal())
+    }
+
     /// 白名单桥匹配：除 seg_c 右端外全等的既有键（同身份不同右端的键在 book 内至多一只，
     /// 迁移即替换 ⟹ 匹配唯一）。
     fn bridge_match(&self, key: &LifecycleKey) -> Option<LifecycleKey> {
@@ -970,6 +1018,145 @@ pub fn provide_pan_live_windows(
         );
     }
     latest.into_values().collect()
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 回放喂数出口（票 #426 主接缝；ADR-0003：结构完成 = 通道切换）
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// `level_view.rs:436` 私有 `leg_as_segment` 的接线侧复制（规格 Implementation Decisions
+/// 「在接线侧复制一份」而非提升可见性；`runner.rs` 诊断臂与 p409 探针已有同型先例）。
+fn leg_as_segment_copy(value: &LowerLeg) -> Segment {
+    let (start_price, end_price) = match value.direction {
+        Direction::Up => (value.lo, value.hi),
+        Direction::Down => (value.hi, value.lo),
+    };
+    Segment {
+        direction: value.direction,
+        start_index: value.start_index,
+        end_index: value.end_index,
+        start_price,
+        end_price,
+    }
+}
+
+/// 单个 run 的行进中通道取数（回放引擎逐前缀评估循环内已具备的量）。
+#[derive(Debug, Clone, Copy)]
+pub struct PanLiveRun<'a> {
+    pub level: u32,
+    /// run 投影种子的中枢序列。
+    pub centers: &'a [Center],
+    /// `center_block_kind` 的块类别向量（与 `centers` 等长）。
+    pub kinds: &'a [Option<MoveKind>],
+    /// 次级别腿（`lower_legs_from(tower[ℓ-1])`）；出口内按 `leg_as_segment_copy` 转段。
+    pub legs: &'a [LowerLeg],
+}
+
+/// 一个前缀的喂数输入：行进中通道（逐 run 产窗）+ 完成事件通道（数据源候选事件）。
+#[derive(Debug, Clone, Copy)]
+pub struct ReplayPrefixFeed<'a> {
+    /// 本次喂数的 prefix 边界（= 引擎的重估触发点；契约「时钟精度 = 触发点粒度」）。
+    pub as_of: usize,
+    pub runs: &'a [PanLiveRun<'a>],
+    /// 数据源本前缀产出的候选事件；本出口只取 `Consolidation` 域（trend 不在票 #426 范围）。
+    pub completion_events: &'a [NestCandidateEvent],
+}
+
+/// 喂数出口计数面（诊断/审计；不进真值路径、不参与任何判定）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ReplayFeedStats {
+    /// 本前缀行进中通道产出的活窗数。
+    pub live_windows: usize,
+    /// 本前缀完成事件通道的盘整事件数。
+    pub completion_events: usize,
+    /// 本前缀由行进中通道切到完成事件通道的活窗数（ADR-0003 结构完成信号）。
+    pub channel_switches: usize,
+    /// 已进终态的身份被跳过喂入的活窗数（完成即停延展；终态吸收下逐位等价）。
+    pub extension_suppressed: usize,
+    /// 本前缀新增的时点倒退拒绝注记数。
+    pub retrograde_rejected: usize,
+    /// 本前缀新增的「完成信号已到但力度不可验」审计事实数（#428）。
+    pub completion_force_unavailable: usize,
+}
+
+/// 回放循环的账本喂数出口（票 #426 主接缝）。
+///
+/// 给定某一前缀上数据源的产出，生成该步的观察记录、喂入账本、返回该步的变更集。
+/// **侧车**：只读入参、只写 `book`，对数据源事件流零反流（F7 逐字节护栏锚定）。
+///
+/// 通道分工（ADR-0003）：
+/// - **行进中通道** = `provide_pan_live_windows` 逐 run 现产的活窗（比较窗 = 起点到当前），
+///   `structure_completed = false`；
+/// - **完成事件通道** = 数据源候选事件的盘整域（比较窗 = 定位到的完成段），
+///   `structure_completed = true`——**切换本身即结构完成信号，不另造判据**。
+///
+/// 同一身份同时出现在两通道时**行进中窗让位**（否则同前缀两只观察，违反「同一身份每
+/// prefix 至多一只观察」）；桥判同（除离开段右端外全等）保证让位不丢身份。
+pub fn feed_replay_prefix(
+    book: &mut NestLifecycleBook,
+    feed: &ReplayPrefixFeed<'_>,
+    material: &ForceMaterial,
+) -> (Vec<LifecycleRevision>, ReplayFeedStats) {
+    let mut stats = ReplayFeedStats::default();
+    let mut observations: BTreeMap<LifecycleKey, LifecycleObservation> = BTreeMap::new();
+    // 完成事件通道：只取盘整域（trend 域不在票 #426 范围——090 登记，见模块头）。
+    let completions: Vec<LifecycleObservation> = feed
+        .completion_events
+        .iter()
+        .filter(|event| event.kind == NestDivergenceKind::Consolidation)
+        .map(|event| LifecycleObservation::event(*event, true))
+        .collect();
+    stats.completion_events = completions.len();
+    let completed_keys: Vec<LifecycleKey> =
+        completions.iter().map(LifecycleObservation::key).collect();
+    for run in feed.runs {
+        let segments: Vec<Segment> = run.legs.iter().map(leg_as_segment_copy).collect();
+        // 自锚 = 逐段方向（与 `provide_nest_candidate_events_ext` level_view.rs:735 同口径，
+        // 不是 `self_anchors`——禁第二查法）。
+        let anchors: Vec<Option<Direction>> = segments
+            .iter()
+            .map(|segment| Some(segment.direction))
+            .collect();
+        for window in provide_pan_live_windows(
+            run.level,
+            run.centers,
+            run.kinds,
+            &segments,
+            &anchors,
+            feed.as_of,
+        ) {
+            stats.live_windows += 1;
+            let observation = LifecycleObservation::pan_live(window, false);
+            let key = observation.key();
+            // 通道切换（ADR-0003）：该身份已在完成事件通道产出 ⟹ 行进中窗让位，结构
+            // 完成信号由完成事件给出。桥判同（除离开段右端外全等）保证让位不丢身份。
+            if completed_keys
+                .iter()
+                .any(|completed| *completed == key || bridge_identity(completed, &key))
+            {
+                stats.channel_switches += 1;
+                continue;
+            }
+            // 完成即停延展：终态身份不再喂行进中窗（终态吸收下逐位等价，见
+            // `terminal_bridge_hit` 文档与 F5）。
+            if book.terminal_bridge_hit(&key) {
+                stats.extension_suppressed += 1;
+                continue;
+            }
+            observations.insert(key, observation);
+        }
+    }
+    for (key, observation) in completed_keys.into_iter().zip(completions) {
+        observations.insert(key, observation);
+    }
+    let before = book.retrograde_rejections().len();
+    let unavailable_before = book.completion_force_unavailable_audits().len();
+    let batch: Vec<LifecycleObservation> = observations.into_values().collect();
+    let delta = book.advance(&batch, feed.as_of, material);
+    stats.retrograde_rejected = book.retrograde_rejections().len() - before;
+    stats.completion_force_unavailable =
+        book.completion_force_unavailable_audits().len() - unavailable_before;
+    (delta, stats)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2208,5 +2395,577 @@ mod tests {
         assert!(matches!(d[0].kind, LifecycleRevisionKind::Supersedes { .. }));
         assert_eq!(book.retrograde_rejections().len(), 1, "合法前进无新注记");
         book.assert_invariants();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 回放喂数出口（票 #426 主接缝；ADR-0003 通道切换 = 结构完成）
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// 把夹具段序列还原为 `LowerLeg`（喂数出口按生产口径自 legs 取段，测试须从 legs 侧喂；
+    /// `leg_as_segment` 的逆构造——`id` 不进段，取序号占位）。
+    fn legs_of(segments: &[Segment]) -> Vec<LowerLeg> {
+        segments
+            .iter()
+            .enumerate()
+            .map(|(index, segment)| LowerLeg {
+                id: ElementId {
+                    level: 0,
+                    ordinal: index as u64,
+                },
+                direction: segment.direction,
+                start_index: segment.start_index,
+                end_index: segment.end_index,
+                lo: segment.start_price.min(segment.end_price),
+                hi: segment.start_price.max(segment.end_price),
+            })
+            .collect()
+    }
+
+    /// F1 喂数出口的行进中通道：给定某一前缀上数据源的产出（级别/中枢/块类型/腿），
+    /// 出口自建观察记录、喂入账本、返回该步变更集。
+    ///
+    /// 与 T11 同夹具同 as_of ⟹ 出口路径与直接调 `provide_pan_live_windows` + `advance`
+    /// 的既有路径同判（出口不引入第二产窗法）。
+    #[test]
+    fn f1_replay_feed_live_channel_emits_observation() {
+        let (centers, kinds, segments, _anchors, hist, dif, close_src) =
+            pan_real_fixture(-3.0, -6.0);
+        let legs = legs_of(&segments);
+        let m = material(&hist, &dif, &close_src);
+        let mut book = NestLifecycleBook::new();
+        let runs = [PanLiveRun {
+            level: 1,
+            centers: &centers,
+            kinds: &kinds,
+            legs: &legs,
+        }];
+        let (delta, stats) = feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 79,
+                runs: &runs,
+                completion_events: &[],
+            },
+            &m,
+        );
+        assert_eq!(stats.live_windows, 1, "行进中通道产出单一活窗身份");
+        assert_eq!(stats.completion_events, 0);
+        assert_eq!(stats.channel_switches, 0, "无完成事件 ⟹ 不切换");
+        assert_eq!(delta.len(), 2, "Observed + FirstProvable");
+        let entry = book.get(&key_pan((50, 59), (70, 79))).expect("活假设建仓");
+        assert_eq!(entry.observed_at, 79);
+        assert_eq!(entry.first_provable_at, Some(79));
+        assert_eq!(entry.structure_end_at, None, "行进中通道不给结构完成信号");
+        book.assert_invariants();
+    }
+
+    /// 完成事件通道的盘整事件（字段取值对齐 `level_view.rs:869-884` 盘整分支：
+    /// `interval_b = structure.seg_c`、`b_center_start = centers[center_index].start_index`）。
+    fn pan_event(
+        seg_a: (usize, usize),
+        interval_b: (usize, usize),
+        confirmed: bool,
+        as_of: usize,
+    ) -> NestCandidateEvent {
+        NestCandidateEvent {
+            level: 1,
+            side: Side::Long,
+            kind: NestDivergenceKind::Consolidation,
+            seg_a,
+            interval_b,
+            interval_a: (20, 49),
+            divergence_confirmed: confirmed,
+            turn_source: interval_b.1,
+            judge_at: as_of,
+            provider_window: (20, 119),
+            intake_fallback: false,
+            b_center_start: 20,
+        }
+    }
+
+    /// F2 通道切换 = 结构完成（ADR-0003）：同一身份从行进中通道转入完成事件通道时，
+    /// 结构完成信号被置真；此后该身份不再产生迁移修订（完成即停延展）。
+    #[test]
+    fn f2_channel_switch_sets_structure_completed_and_stops_extension() {
+        // c 延展段保持弱 ⟹ 完成时复核仍弱 ⟹ Confirmed。
+        let (centers, kinds, segments, _anchors, hist, dif, close_src) =
+            pan_real_fixture(-0.1, -0.5);
+        let legs = legs_of(&segments);
+        let m = material(&hist, &dif, &close_src);
+        let mut book = NestLifecycleBook::new();
+        let runs = [PanLiveRun {
+            level: 1,
+            centers: &centers,
+            kinds: &kinds,
+            legs: &legs,
+        }];
+
+        // as_of=79：仅行进中通道 ⟹ 结构完成信号未置。
+        feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 79,
+                runs: &runs,
+                completion_events: &[],
+            },
+            &m,
+        );
+        assert_eq!(
+            book.get(&key_pan((50, 59), (70, 79)))
+                .unwrap()
+                .structure_end_at,
+            None
+        );
+
+        // as_of=99：完成事件通道首次产出该身份 ⟹ 行进中窗让位、结构完成置真。
+        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        let (delta, stats) = feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 99,
+                runs: &runs,
+                completion_events: &events,
+            },
+            &m,
+        );
+        assert_eq!(stats.completion_events, 1);
+        assert_eq!(
+            stats.channel_switches, 1,
+            "同一身份在完成事件通道产出 ⟹ 行进中窗让位"
+        );
+        assert!(
+            delta
+                .iter()
+                .any(|r| matches!(r.kind, LifecycleRevisionKind::StructureCompleted)),
+            "结构完成信号由通道切换给出（不另造判据）"
+        );
+        let entry = book
+            .get(&key_pan((50, 59), (70, 99)))
+            .expect("桥迁移后新键");
+        assert_eq!(entry.structure_end_at, Some(99));
+        assert_eq!(entry.state, NestEventState::Confirmed);
+
+        // as_of=109：行进中窗仍在产（右端追 as_of），但身份已终态 ⟹ 停止喂入、零延展修订。
+        let revisions_before = entry.revisions.len();
+        let (delta, stats) = feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 109,
+                runs: &runs,
+                completion_events: &[],
+            },
+            &m,
+        );
+        assert_eq!(stats.live_windows, 1, "数据源仍产窗（未改数据源）");
+        assert_eq!(
+            stats.extension_suppressed, 1,
+            "完成即停延展：终态身份不再喂行进中窗"
+        );
+        assert!(delta.is_empty(), "零延展修订");
+        assert_eq!(
+            book.get(&key_pan((50, 59), (70, 99)))
+                .unwrap()
+                .revisions
+                .len(),
+            revisions_before,
+            "修订链不再增长"
+        );
+        book.assert_invariants();
+    }
+
+    /// F3 通道切换处的**力度跃变**（规格 Implementation Decisions §「两通道的比较窗不同」）：
+    /// 行进中通道现算 `[c_start, as_of]`、完成事件通道取事件自带布尔口径，两条求值路径在
+    /// 切换那一刻**可能翻转**；本用例把翻转两个方向都钉出来，不默认连续。
+    ///
+    /// 夹具固定为 c 延展段强柱 ⟹ **同一前缀上行进中通道现算恒为「不再弱」**（测试内用同一
+    /// 生产原语 `segments_diverge_or` 现场核出，不靠断言宣称）。在此背景下：
+    /// - (a) 完成事件说「不再弱」⟹ 与活窗同判 ⟹ `Invalidated{ForceOvertake}`；
+    /// - (b) 完成事件说「仍弱」⟹ **与活窗判定相反**（跃变）⟹ 结算走 `Confirmed`。
+    ///
+    /// 两臂只差事件的一个布尔位，结论相反 ⟹ (a) 的断言不是构造性恒真。
+    #[test]
+    fn f3_channel_switch_force_jump_is_visible_both_ways() {
+        let (centers, kinds, segments, _anchors, hist, dif, close_src) =
+            pan_real_fixture(-3.0, -6.0);
+        let legs = legs_of(&segments);
+        let m = material(&hist, &dif, &close_src);
+        let runs = [PanLiveRun {
+            level: 1,
+            centers: &centers,
+            kinds: &kinds,
+            legs: &legs,
+        }];
+
+        // 先现场核出「同前缀行进中通道现算 = 不再弱」（生产原语，非断言宣称）。
+        let live_at_99 = segments_diverge_or(
+            &hist,
+            &dif,
+            Side::Long,
+            map_src_to_close_idx(&close_src, 50, 59).unwrap(),
+            map_src_to_close_idx(&close_src, 70, 99).unwrap(),
+        );
+        assert!(
+            !live_at_99,
+            "夹具前提：as_of=99 活窗现算已反超（跃变的对照基线）"
+        );
+
+        for (event_confirmed, expect_overtake) in [(false, true), (true, false)] {
+            let mut book = NestLifecycleBook::new();
+            feed_replay_prefix(
+                &mut book,
+                &ReplayPrefixFeed {
+                    as_of: 79,
+                    runs: &runs,
+                    completion_events: &[],
+                },
+                &m,
+            );
+            assert_eq!(
+                book.get(&key_pan((50, 59), (70, 79)))
+                    .unwrap()
+                    .first_provable_at,
+                Some(79),
+                "切换前已可证（反超定义要求曾构成）"
+            );
+            let events = [pan_event((50, 59), (70, 99), event_confirmed, 99)];
+            let delta = feed_replay_prefix(
+                &mut book,
+                &ReplayPrefixFeed {
+                    as_of: 99,
+                    runs: &runs,
+                    completion_events: &events,
+                },
+                &m,
+            )
+            .0;
+            let overtaken = delta.iter().any(|r| {
+                matches!(
+                    r.kind,
+                    LifecycleRevisionKind::Invalidated {
+                        reason: InvalidatedReason::ForceOvertake
+                    }
+                )
+            });
+            let confirmed = delta
+                .iter()
+                .any(|r| matches!(r.kind, LifecycleRevisionKind::Confirmed));
+            assert_eq!(
+                overtaken, expect_overtake,
+                "事件布尔位 {event_confirmed} ⟹ 反超={expect_overtake}（跃变被显式吃下）"
+            );
+            assert_eq!(confirmed, !expect_overtake, "两臂结论互斥");
+            book.assert_invariants();
+        }
+    }
+
+    /// F4 两类否证终局经喂数出口分别落码、终态留档不删（061:26 被反超 vs 061:28 从未构成）。
+    ///
+    /// 两臂**只差 a 段力度**（其余时序/结构/事件逐字相同）：a 强 ⟹ 曾可证 ⟹ 被反超；
+    /// a 弱 ⟹ 从未可证 ⟹ 从未构成。同一断言组在两臂上给出相反原因码 ⟹ 不靠同一断言蒙混。
+    #[test]
+    fn f4_two_falsification_terminals_land_distinct_reasons() {
+        let mut outcomes = Vec::new();
+        for a_strong in [true, false] {
+            let (centers, kinds, segments, _anchors, mut hist, mut dif, close_src) =
+                pan_real_fixture(-3.0, -6.0);
+            if !a_strong {
+                // a 段改弱（面积 5、柱峰 0.5、黄白线峰 1.0）⟹ c 自首个前缀起即强于 a
+                // ⟹ first_provable 从未写入。结构定位不读力度 ⟹ 活窗身份两臂相同。
+                hist[50..60].fill(-0.5);
+                dif[50..60].fill(-1.0);
+            }
+            let legs = legs_of(&segments);
+            let m = material(&hist, &dif, &close_src);
+            let runs = [PanLiveRun {
+                level: 1,
+                centers: &centers,
+                kinds: &kinds,
+                legs: &legs,
+            }];
+            let mut book = NestLifecycleBook::new();
+            feed_replay_prefix(
+                &mut book,
+                &ReplayPrefixFeed {
+                    as_of: 79,
+                    runs: &runs,
+                    completion_events: &[],
+                },
+                &m,
+            );
+            let events = [pan_event((50, 59), (70, 99), false, 99)];
+            feed_replay_prefix(
+                &mut book,
+                &ReplayPrefixFeed {
+                    as_of: 99,
+                    runs: &runs,
+                    completion_events: &events,
+                },
+                &m,
+            );
+            let entry = book
+                .get(&key_pan((50, 59), (70, 99)))
+                .expect("终态留档不删（谱系保留，禁删除模拟失效）");
+            assert_eq!(entry.state, NestEventState::Invalidated);
+            assert!(
+                entry.force_evidence.is_some(),
+                "两类力度否证均现算证据入载荷（可回溯复核）"
+            );
+            assert!(book.consumable_closed().is_empty(), "终态不进消费侧");
+            book.assert_invariants();
+            outcomes.push((entry.invalidated_reason, entry.first_provable_at.is_some()));
+        }
+        assert_eq!(
+            outcomes,
+            vec![
+                (Some(InvalidatedReason::ForceOvertake), true),
+                (Some(InvalidatedReason::NeverConstituted), false),
+            ],
+            "曾构成 ⟹ 被反超；从未构成 ⟹ 新原因码，两码在 first_provable 上严格互补"
+        );
+    }
+
+    /// F5 喂数节拍：时点倒退被显式拒绝，账本零改动且拒绝有注记可查（#78 修复 2 语义
+    /// 经出口透出）。
+    #[test]
+    fn f5_retrograde_prefix_rejected_with_zero_book_change() {
+        let (centers, kinds, segments, _anchors, hist, dif, close_src) =
+            pan_real_fixture(-0.1, -0.5);
+        let legs = legs_of(&segments);
+        let m = material(&hist, &dif, &close_src);
+        let runs = [PanLiveRun {
+            level: 1,
+            centers: &centers,
+            kinds: &kinds,
+            legs: &legs,
+        }];
+        let mut book = NestLifecycleBook::new();
+        feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 89,
+                runs: &runs,
+                completion_events: &[],
+            },
+            &m,
+        );
+        let snapshot = book.clone();
+        let (delta, stats) = feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 79,
+                runs: &runs,
+                completion_events: &[],
+            },
+            &m,
+        );
+        assert!(delta.is_empty(), "倒退 prefix 零 revision");
+        assert_eq!(stats.retrograde_rejected, 1, "拒绝有注记可查（非静默吸收）");
+        let rejection = *book.retrograde_rejections().last().unwrap();
+        assert_eq!((rejection.last_as_of, rejection.rejected_as_of), (89, 79));
+        // 账本零改动：除注记向量外 entry 全等（注记本身是审计面，不是账本状态）。
+        assert_eq!(
+            book.entries().collect::<Vec<_>>(),
+            snapshot.entries().collect::<Vec<_>>(),
+            "倒退喂入后 entry 逐字段零改动"
+        );
+        book.assert_invariants();
+    }
+
+    /// F6 侧车零反流（照 T5 逐字节护栏形态）：喂数出口对完成事件通道的入参**只读**，
+    /// 出口前后事件流逐字节相等；且挂账本与不挂账本两种配置下入参流逐字节相同。
+    #[test]
+    fn f6_feed_exit_is_sidecar_events_byte_identical() {
+        let (centers, kinds, segments, _anchors, hist, dif, close_src) =
+            pan_real_fixture(-0.1, -0.5);
+        let legs = legs_of(&segments);
+        let m = material(&hist, &dif, &close_src);
+        let runs = [PanLiveRun {
+            level: 1,
+            centers: &centers,
+            kinds: &kinds,
+            legs: &legs,
+        }];
+        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        // 不挂账本（基线）：入参原样。
+        let baseline = events;
+        // 挂账本：同一入参过一遍出口。
+        let mut book = NestLifecycleBook::new();
+        feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 99,
+                runs: &runs,
+                completion_events: &events,
+            },
+            &m,
+        );
+        assert_eq!(events, baseline, "事件流逐字段相等（PartialEq）");
+        assert_eq!(
+            format!("{events:?}"),
+            format!("{baseline:?}"),
+            "Debug 序列化逐字节相等"
+        );
+        assert!(!book.is_empty(), "账本确实被喂到（护栏不是空跑）");
+        book.assert_invariants();
+    }
+
+    /// F7 「完成即停延展」的跳过是**纯成本优化**：终态身份跳过喂入与照喂逐位同 book
+    /// （终态吸收 ⟹ 零 revision、`last_as_of` 不动、身份消失扫描只看 Provisional）。
+    ///
+    /// 这条把 `terminal_bridge_hit` 的等价性声明变成可证伪断言——若终态吸收哪天不再吸收，
+    /// 两侧 book 立刻不等。
+    #[test]
+    fn f7_terminal_skip_equals_feeding_terminal_identity() {
+        let (centers, kinds, segments, anchors, hist, dif, close_src) =
+            pan_real_fixture(-0.1, -0.5);
+        let legs = legs_of(&segments);
+        let m = material(&hist, &dif, &close_src);
+        let runs = [PanLiveRun {
+            level: 1,
+            centers: &centers,
+            kinds: &kinds,
+            legs: &legs,
+        }];
+        let mut book = NestLifecycleBook::new();
+        feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 79,
+                runs: &runs,
+                completion_events: &[],
+            },
+            &m,
+        );
+        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 99,
+                runs: &runs,
+                completion_events: &events,
+            },
+            &m,
+        );
+        assert_eq!(
+            book.get(&key_pan((50, 59), (70, 99))).unwrap().state,
+            NestEventState::Confirmed,
+            "前置：身份已进终态"
+        );
+        // A 侧：出口跳过喂入（stats.extension_suppressed 记账）。
+        let mut skipped = book.clone();
+        let (delta_skip, stats) = feed_replay_prefix(
+            &mut skipped,
+            &ReplayPrefixFeed {
+                as_of: 109,
+                runs: &runs,
+                completion_events: &[],
+            },
+            &m,
+        );
+        assert_eq!(stats.extension_suppressed, 1);
+        // B 侧：绕过出口、把同一活窗照喂进 advance。
+        let mut fed = book.clone();
+        let windows = provide_pan_live_windows(1, &centers, &kinds, &segments, &anchors, 109);
+        assert_eq!(
+            windows.len(),
+            1,
+            "数据源确实仍在产该窗（跳过不是因为没产出）"
+        );
+        let observations: Vec<_> = windows
+            .iter()
+            .map(|window| LifecycleObservation::pan_live(*window, false))
+            .collect();
+        let delta_fed = fed.advance(&observations, 109, &m);
+        assert_eq!(delta_skip, delta_fed, "两侧变更集逐字段相等（均为空）");
+        assert_eq!(skipped, fed, "两侧 book 逐字段相等 ⟹ 跳过是纯成本优化");
+    }
+
+    /// F8 范围边界：本出口的完成事件通道**只取盘整域**（票 #426 只接盘整背驰活假设；
+    /// trend 域不在范围——模块头 090 登记）。同一批入参里混入 trend 事件时，它既不计入
+    /// 完成事件数，也不在账本里建仓。
+    ///
+    /// 对照臂：把同一事件的 `kind` 换成 `Consolidation` ⟹ 立刻计入并建仓 ⟹ 本断言不是
+    /// 「事件从来不建仓」的恒真。
+    #[test]
+    fn f8_completion_channel_takes_consolidation_domain_only() {
+        let (centers, kinds, segments, _anchors, hist, dif, close_src) =
+            pan_real_fixture(-0.1, -0.5);
+        let legs = legs_of(&segments);
+        let m = material(&hist, &dif, &close_src);
+        let runs = [PanLiveRun {
+            level: 1,
+            centers: &centers,
+            kinds: &kinds,
+            legs: &legs,
+        }];
+        // trend 域事件（seg_a/中枢均与活窗身份无关，单独成身份）。
+        let mut trend = pan_event((120, 129), (130, 139), true, 139);
+        trend.kind = NestDivergenceKind::Trend;
+        let mut book = NestLifecycleBook::new();
+        let (_, stats) = feed_replay_prefix(
+            &mut book,
+            &ReplayPrefixFeed {
+                as_of: 139,
+                runs: &runs,
+                completion_events: &[trend],
+            },
+            &m,
+        );
+        assert_eq!(stats.completion_events, 0, "trend 域不计入完成事件通道");
+        assert!(
+            book.entries()
+                .all(|(key, _)| key.kind == NestDivergenceKind::Consolidation),
+            "trend 域事件不在账本建仓"
+        );
+
+        // 对照臂：同一事件改判盘整域 ⟹ 计入并建仓。
+        let mut pan = trend;
+        pan.kind = NestDivergenceKind::Consolidation;
+        let mut book_pan = NestLifecycleBook::new();
+        let (_, stats_pan) = feed_replay_prefix(
+            &mut book_pan,
+            &ReplayPrefixFeed {
+                as_of: 139,
+                runs: &runs,
+                completion_events: &[pan],
+            },
+            &m,
+        );
+        assert_eq!(stats_pan.completion_events, 1);
+        assert!(
+            book_pan.get(&key_pan((120, 129), (130, 139))).is_some(),
+            "盘整域同一事件正常建仓（对照臂）"
+        );
+    }
+
+    /// F9 #428 升格硬项：完成信号已到但力度不可验时不得静默接受。
+    ///
+    /// 这条只要求独立审计事实可查，不替编排者裁定新终态；账本仍诚实滞留
+    /// Provisional，后续材料补齐后可照原协议继续结算。
+    #[test]
+    fn f9_completion_force_unavailable_is_explicit_audit() {
+        let close_src = identity_close_src(120);
+        let no_force = ForceMaterial::unavailable(&close_src);
+        let mut book = NestLifecycleBook::new();
+        let observation = LifecycleObservation::pan_live(pan_window((50, 59), 70, 99), true);
+
+        book.advance(&[observation], 99, &no_force);
+
+        assert_eq!(
+            book.completion_force_unavailable_audits(),
+            &[CompletionForceUnavailableAudit {
+                key: key_pan((50, 59), (70, 99)),
+                as_of: 99,
+                reason: UnavailReason::MissingForceSeries,
+            }],
+            "完成信号与力度缺失须作为同一条独立审计事实可查"
+        );
+        let entry = book.get(&key_pan((50, 59), (70, 99))).unwrap();
+        assert_eq!(
+            entry.state,
+            NestEventState::Provisional,
+            "本票不擅自裁定新终态"
+        );
+        assert_eq!(entry.structure_end_at, None, "保持 #78 既有结算语义");
     }
 }

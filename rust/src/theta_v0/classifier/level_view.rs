@@ -787,6 +787,16 @@ pub fn provide_nest_candidate_events_ext(
             Some(t) => ((pair.seg_c.0, t), t, true),
             None => (pair.seg_c, pair.seg_c.1, false),
         };
+        // 票 #427 等价性加锁（裁定 #402 题二）：活假设账本的身份键 `seg_c_full` 走工程桥取
+        // `interval_b`，其与已退役的 `seg_c_full` 字段**仅差右端**，而桥判同（`bridge_identity`）
+        // **只比左端** ⟹ 「维持工程桥而不复活字段」这一裁定完全建立在「收束只截右端、左端恒等」
+        // 上。此前提一旦被数据源改动打破，等价性会**静默失效**（桥不再判同 ⟹ 同一身份被记成
+        // 「身份消失 + 新建仓」，而所有既有测试照绿）。故在唯一写入点钉死，且**非 debug 门控**
+        // ——release 构建同样执行（影子评审「debug-only 断言不算行为护栏」判据）。
+        assert_eq!(
+            interval_b.0, pair.seg_c.0,
+            "左端恒等：确认收束只许截右端（票 #427 / 裁定 #402 题二等价性前提）"
+        );
         // T1 (#170)：两元锚（极值价, 组锚）在事件构造点解析（单一查法；方向分量
         // 已随 T5a (#207) 退役，#206 Q1 裁定）。
         let (extreme_price, group_anchor) =
@@ -1638,6 +1648,141 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    /// 票 #427 左端恒等（裁定 #402 题二「维持工程桥」的等价性前提）：trend 确认分支把
+    /// `interval_b` 收束到 `[c_start, t*]`——**只截右端**。本用例跨两个独立公开面交叉核对：
+    /// `provide_divergence_pairs` 给出的 `pair.seg_c` 与 `provide_nest_candidate_events`
+    /// 给出的 `event.interval_b` 左端必须逐一相等。
+    ///
+    /// 非空转证明：同一夹具下**收束确实发生**（右端被截短），故「左端相等」不是「两端都没动」
+    /// 的顺带结论。
+    #[test]
+    fn trend_confirm_truncation_keeps_seg_c_left_anchor() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        // 与 nest_lifecycle T5 同款两块布局：interval_a 需要 leave→retest 块对
+        // （`structural_pair_span` 要求两块均 Completed），单块下 trend 事件不产出。
+        let blocks = [
+            MoveBlock {
+                start_center: 0,
+                end_center: 2,
+                kind: MoveKind::Trend,
+                dir: Some(Direction::Up),
+                status: MoveStatus::Completed,
+            },
+            MoveBlock {
+                start_center: 1,
+                end_center: 2,
+                kind: MoveKind::Consolidation,
+                dir: None,
+                status: MoveStatus::Completed,
+            },
+        ];
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(0.1);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+        let query = LevelViewQuery {
+            level: 1,
+            coordinate_window: CoordinateWindow { start: 0, end: 139 },
+            as_of: 139,
+            version: C2VersionTuple::auto_pairing(),
+        };
+        let view = assemble_level_view(
+            C2LevelViewConfig { enabled: true },
+            query,
+            LevelViewMaterial {
+                projection: ProjectionMaterial::ExactThree(&projection),
+                move_blocks: &blocks,
+                lower_legs: &legs,
+                hist: &hist,
+                dif: &dif,
+                close_src: &close_src,
+            },
+        )
+        .unwrap();
+        let pairs = provide_divergence_pairs(1, &projection, &blocks, &legs, 139);
+        let events = provide_nest_candidate_events(
+            1,
+            &projection,
+            &blocks,
+            &legs,
+            &view,
+            &hist,
+            &dif,
+            &close_src,
+        );
+        let trend: Vec<_> = events
+            .iter()
+            .filter(|event| event.kind == NestDivergenceKind::Trend)
+            .collect();
+        assert_eq!(trend.len(), 1, "夹具产单只 trend 事件");
+        assert_eq!(pairs.len(), 1, "同夹具产单只 pair");
+        assert!(trend[0].divergence_confirmed, "前提：走的是确认收束分支");
+        assert_eq!(
+            trend[0].interval_b.0, pairs[0].seg_c.0,
+            "左端恒等（票 #427 加锁的前提）"
+        );
+        // 非空转：同夹具下右端**确实改变**（实测 129 → 139，t* 晚于 seg_c 右端 ⟹ 本例是
+        // 外扩不是截短——裁定 #402 题二的「收束」措辞只在 t* ≤ seg_c.1 时成立；桥判同不看
+        // 右端方向（`bridge_identity` 三形态口径），故等价性结论不受影响）。
+        assert_ne!(
+            trend[0].interval_b.1, pairs[0].seg_c.1,
+            "右端确实改变 ⟹ 「左端相等」不是「两端都没动」的顺带结论"
+        );
+
+        // 第二臂：**未确认分支**（as_of=129 截断回试腿 ⟹ c 内无三买 ⟹ 全合取不成立）。
+        // 两个分支各写一次 `interval_b`，左端恒等须两边都成立——只测确认分支会留下
+        // 未确认分支的静默失效面（变异实测 M10 曾无干净测试捕获）。
+        let query_pending = LevelViewQuery {
+            level: 1,
+            coordinate_window: CoordinateWindow { start: 0, end: 139 },
+            as_of: 129,
+            version: C2VersionTuple::auto_pairing(),
+        };
+        let view_pending = assemble_level_view(
+            C2LevelViewConfig { enabled: true },
+            query_pending,
+            LevelViewMaterial {
+                projection: ProjectionMaterial::ExactThree(&projection),
+                move_blocks: &blocks,
+                lower_legs: &legs,
+                hist: &hist,
+                dif: &dif,
+                close_src: &close_src,
+            },
+        )
+        .unwrap();
+        let pairs_pending = provide_divergence_pairs(1, &projection, &blocks, &legs, 129);
+        let events_pending = provide_nest_candidate_events(
+            1,
+            &projection,
+            &blocks,
+            &legs,
+            &view_pending,
+            &hist,
+            &dif,
+            &close_src,
+        );
+        let trend_pending: Vec<_> = events_pending
+            .iter()
+            .filter(|event| event.kind == NestDivergenceKind::Trend)
+            .collect();
+        assert_eq!(trend_pending.len(), 1, "未确认分支同样产单只 trend 事件");
+        assert!(
+            !trend_pending[0].divergence_confirmed,
+            "前提：走的是未确认分支（保持全离开段结构坐标）"
+        );
+        assert_eq!(pairs_pending.len(), 1);
+        assert_eq!(
+            trend_pending[0].interval_b.0, pairs_pending[0].seg_c.0,
+            "未确认分支左端同样恒等"
+        );
     }
 
     /// ★R1 负例（037:18 必要合取）：同一夹具但 as_of=129 截断回试腿 ⟹ c 内无三买（T3 构造性
