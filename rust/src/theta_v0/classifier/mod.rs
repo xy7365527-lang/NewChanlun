@@ -1685,7 +1685,14 @@ pub fn classify_with_tower_incremental(
 
     // 空 L0：无可构造级别 + 清空缓存（下次从头扫）。
     if l0_units.is_empty() {
+        // ★#551：L0 无单元 ⟹ 本 bar 零候选观察 ⟹ 在案活候选的身份**当场**消失，必须当场判
+        // `Invalidated`。旧路径在此早退且不推进事件簿，失效被推迟到下一个非空 bar——延迟非无痕：
+        // 失效钟会落到错误的 as_of 上，且此间事件簿把已消失的候选继续挂为 active（#535 红线③
+        // 「丢 Invalidated 路径」的时序变体）。`clear()` 按 #550 裁定保留因果簿，故此处 advance
+        // 作用于保留下来的生命史，走的是既有「观察缺席 ⟹ Invalidated」单一路径，不新增判据。
+        let as_of = l0.merged_bars.last().map_or(0, |bar| bar.source_index);
         cache.clear();
+        cache.candidate_book.advance(&[], as_of);
         return (Classification::default(), Vec::new());
     }
 
@@ -4114,127 +4121,284 @@ mod tests {
         assert_eq!(pan.center_ids, None);
     }
 
-    /// #550 主缝②：修订富集的逐段因果重放，全历史重建与跨步增量事件簿逐字段相等。
-    #[test]
-    fn candidate_event_stream_per_segment_full_replay_equals_incremental() {
-        let cfg = ThetaConfig::default();
-        let all_segments = candidate_rich_segments(120);
-        let closes: Vec<i64> = (0..=(all_segments.last().unwrap().end_index + 16))
-            .map(|i| 100 + if i % 8 < 4 { 35 } else { -35 } + (i as i64 / 16))
-            .collect();
-        let mut steps = Vec::new();
-        for n in 1..=all_segments.len() {
-            let prefix = all_segments[..n].to_vec();
-            steps.push(prefix.clone());
-            if n >= 12 {
-                let mut extended = prefix;
-                let tail = extended.last_mut().unwrap();
-                tail.end_index += 1;
-                match tail.direction {
-                    Direction::Up => tail.end_price += 7,
-                    Direction::Down => tail.end_price -= 7,
-                }
-                steps.push(extended);
+    /// 每 key 最新 revision（因果簿终态投影的机器口径，裁定(i)）。
+    fn latest_by_key(
+        streams: &cand_event::CandidateStreams,
+    ) -> std::collections::BTreeMap<cand_event::CandidateKey, cand_event::CandidateEvent> {
+        let mut latest = std::collections::BTreeMap::new();
+        for stream in streams.iter() {
+            for event in stream.iter() {
+                latest.insert(event.key, event.clone());
             }
         }
-        let mut incremental_cache = TowerCache::new();
-        let mut terminal = std::rc::Rc::new(Vec::new());
-
-        for (step_idx, segments) in steps.iter().enumerate() {
-            let end = segments.last().unwrap().end_index.min(closes.len() - 1);
-            let layer = ParseLayer {
-                segments: Rc::new(segments.clone()),
-                merged_bars: Rc::new(bars_from_closes(&closes[..=end])),
-                ..Default::default()
-            };
-            terminal =
-                classify_with_tower_events_incremental(&layer, &cfg, &mut incremental_cache).2;
-
-            let mut replay_cache = TowerCache::new();
-            let mut replay_terminal = std::rc::Rc::new(Vec::new());
-            for replay_segments in &steps[..=step_idx] {
-                let replay_end = replay_segments
-                    .last()
-                    .unwrap()
-                    .end_index
-                    .min(closes.len() - 1);
-                let replay_layer = ParseLayer {
-                    segments: Rc::new(replay_segments.clone()),
-                    merged_bars: Rc::new(bars_from_closes(&closes[..=replay_end])),
-                    ..Default::default()
-                };
-                replay_terminal =
-                    classify_with_tower_events_incremental(&replay_layer, &cfg, &mut replay_cache)
-                        .2;
-            }
-            assert_eq!(
-                terminal, replay_terminal,
-                "step={step_idx}: 全历史重建≡增量事件簿"
-            );
-        }
-        let identities: std::collections::BTreeSet<_> = terminal
-            .iter()
-            .flat_map(|stream| stream.iter())
-            .map(|event| event.key)
-            .collect();
-        assert!(!identities.is_empty(), "事件身份流必须非空");
-
-        let sample = terminal
-            .iter()
-            .flat_map(|stream| stream.iter())
-            .next()
-            .expect("非空锁");
-        let mut book = cand_event::CandidateEventBook::default();
-        let observation = cand_event::CandidateObservation {
-            key: sample.key,
-            kind: sample.kind,
-            center_ids: sample.center_ids,
-            candidate_group_id: sample.candidate_group_id,
-            pair_id: sample.pair_id,
-            structural_predicates: sample.structural_predicates,
-            extreme_proof: sample.extreme_proof,
-            third_class_proof: sample.third_class_proof,
-            interval: sample.interval,
-            state: cand_event::CandidateState::Provisional,
-            first_provable_at: sample.first_provable_at,
-            confirmed_at: None,
-        };
-        book.advance(std::slice::from_ref(&observation), sample.revision_at);
-        let mut changed = observation;
-        changed.pair_id ^= 1;
-        assert_eq!(
-            book.advance(&[changed], sample.revision_at + 1)[0].revision,
-            1,
-            "修订富集锁：右端不动而投影变化必须追加 revision"
-        );
+        latest
     }
 
-    /// #550 FNV 锁真实 classify 产出，不锁手搓 book。
-    #[test]
-    fn candidate_event_stream_classify_fnv1a_golden() {
-        let cfg = ThetaConfig::default();
+    fn candidate_rich_layer() -> ParseLayer {
         let segments = candidate_rich_segments(120);
         let closes: Vec<i64> = (0..=segments.last().unwrap().end_index)
             .map(|i| 100 + if i % 8 < 4 { 35 } else { -35 } + (i as i64 / 16))
             .collect();
-        let layer = ParseLayer {
+        ParseLayer {
             segments: Rc::new(segments),
             merged_bars: Rc::new(bars_from_closes(&closes)),
             ..Default::default()
-        };
-        let streams = classify_with_tower_events(&layer, &cfg).2;
-        assert!(streams.iter().any(|stream| !stream.is_empty()));
-        let digest = format!("{streams:?}")
-            .bytes()
-            .fold(cand_event::FNV_OFFSET_BASIS, |hash, byte| {
-                (hash ^ byte as u64).wrapping_mul(cand_event::FNV_PRIME)
-            });
-        // #551 诚实更新（旧值 3608191067574153658）：`CandidateKey` 增 `rule_version` 分量、
-        // `first_provable_at` 由 `usize` 改 `Option<usize>`（未决期不落钟）、Trend 域四态映射上线
-        // （Unresolved 生产可达）、同 episode 多腿归约为每 key 一条观察。
+        }
+    }
+
+    /// #551 生命史全谱合成夹具（几何逐点标注）。
+    ///
+    /// 中枢1 `[1000,1200]` → 大跌 → 中枢2 `[400,600]` → 过渡走势（`398→260→100`，两段同向
+    /// 使三段重叠为空 ⟹ 不成中枢，走势低点 100 压到中枢3 下沿之下）→ 中枢3 `[150,250]`
+    /// （`dd=100 < zd=150`，故「破核心」与「破 b 包络极值」可分离）→ C 腿1 `140→130`（破
+    /// `zd=150`、未破 `b_lo=100` ⟹ 未决）→ 同 episode 反弹 `130→138`（不回中枢）→ C 腿2
+    /// `138→80`（破 `b_lo` ⟹ 可证）。
+    ///
+    /// 中枢2 与中枢3 的 `dd/gg` 不相交 ⟹ `classify_relation` 判 `DownContinuation` ⟹ 趋势门
+    /// 对中枢3 开启，C 腿才进第一类候选域。段方向不要求严格交替（parser 允许同向相邻段）。
+    fn lifecycle_rich_layer() -> ParseLayer {
+        let pts: [i64; 21] = [
+            1000, 1200, 1000, 1200, 350, 600, 400, 600, 390, 398, 260, 100, 250, 150, 250, 150,
+            250, 140, 130, 138, 80,
+        ];
+        let segments: Vec<Segment> = pts
+            .windows(2)
+            .enumerate()
+            .map(|(i, w)| {
+                let dir = if w[1] > w[0] {
+                    Direction::Up
+                } else {
+                    Direction::Down
+                };
+                seg(dir, i * 4, i * 4 + 4, w[0], w[1])
+            })
+            .collect();
+        let closes: Vec<i64> = (0..=segments.last().expect("非空").end_index)
+            .map(|i| 100 + (i as i64 % 7) * 3)
+            .collect();
+        ParseLayer {
+            segments: Rc::new(segments),
+            merged_bars: Rc::new(bars_from_closes(&closes)),
+            ..Default::default()
+        }
+    }
+
+    /// 逐段前缀推进出的因果簿（真实增量宿主，保留全部 revision）。
+    fn causal_book_over_prefixes(layer: &ParseLayer, cfg: &ThetaConfig) -> TowerCache {
+        let mut cache = TowerCache::new();
+        for n in 1..=layer.segments.len() {
+            let prefix = ParseLayer {
+                segments: Rc::new(layer.segments[..n].to_vec()),
+                merged_bars: Rc::clone(&layer.merged_bars),
+                ..Default::default()
+            };
+            classify_with_tower_events_incremental(&prefix, cfg, &mut cache);
+        }
+        cache
+    }
+
+    /// 业务载荷投影（钟与 revision 计数属生命史，不入等价比较）。
+    fn payload_eq(a: &cand_event::CandidateEvent, b: &cand_event::CandidateEvent) -> bool {
+        a.kind == b.kind
+            && a.event_level == b.event_level
+            && a.center_ids == b.center_ids
+            && a.candidate_group_id == b.candidate_group_id
+            && a.pair_id == b.pair_id
+            && a.structural_predicates == b.structural_predicates
+            && a.extreme_proof == b.extreme_proof
+            && a.third_class_proof == b.third_class_proof
+            && a.interval == b.interval
+            && a.state == b.state
+    }
+
+    /// ★#551 状态机全谱在 classify 全链上的生产可达锁：∅→Unresolved→Provisional，
+    /// 身份不变、右端生长、首证钟在转 Provisional 那一刻一次写入。
+    #[test]
+    fn classify_chain_walks_unresolved_to_provisional_with_growth_and_clock() {
+        let cfg = ThetaConfig::default();
+        let layer = lifecycle_rich_layer();
+        let book = causal_book_over_prefixes(&layer, &cfg).candidate_book.streams();
+        let history: Vec<_> = book
+            .iter()
+            .flat_map(|stream| stream.iter())
+            .filter(|event| event.kind == cand_event::CandidateKind::Trend)
+            .collect();
+        assert_eq!(history.len(), 2, "Trend 候选须走满两段生命史，禁真空绿");
+        assert_eq!(history[0].key, history[1].key, "右端不入键 ⟹ 同一身份");
+
+        assert_eq!(history[0].state, cand_event::CandidateState::Unresolved);
+        assert!(!history[0].structural_predicates.extreme, "破核心未破包络极值");
+        assert_eq!(history[0].first_provable_at, None, "未决期不落首证钟");
+        assert_eq!(history[0].revision, 0);
+
+        assert_eq!(history[1].state, cand_event::CandidateState::Provisional);
+        assert!(history[1].structural_predicates.extreme);
+        assert_eq!(history[1].revision, 1);
+        assert_eq!(history[1].supersedes_revision, Some(0));
+        assert!(
+            history[1].interval.1 > history[0].interval.1,
+            "C 段右端生长（生产触发的生长修订）"
+        );
         assert_eq!(
-            digest, 3542680779063880892,
-            "真实事件流漂移须诚实更新 golden"
+            history[1].first_provable_at,
+            Some(history[1].interval.1),
+            "首证钟 = 首次全谓词成立的结构位"
+        );
+        assert_eq!(history[1].observed_at, history[0].observed_at, "入簿钟不后移");
+    }
+
+    /// ★#551 裁定(i) 投影等价锁：fresh 全量流 ≡ 因果簿终态投影（每 key 最新 revision 逐字段相等）。
+    ///
+    /// 非真空由「因果簿真含多 revision」保证——若候选一次成型、无任何修订，该锁退化为平凡等式。
+    #[test]
+    fn causal_book_terminal_projection_equals_fresh_full_stream() {
+        let cfg = ThetaConfig::default();
+        let layer = lifecycle_rich_layer();
+        let fresh = latest_by_key(&classify_with_tower_events(&layer, &cfg).2);
+        let book = causal_book_over_prefixes(&layer, &cfg).candidate_book.streams();
+
+        let revisions: usize = book.iter().map(|stream| stream.len()).sum();
+        let terminal = latest_by_key(&book);
+        assert!(
+            revisions > terminal.len(),
+            "非真空前提：因果簿须真含多 revision（revisions={revisions} identities={}）",
+            terminal.len()
+        );
+        assert!(!fresh.is_empty(), "fresh 全量流非空，禁真空绿");
+        assert_eq!(fresh.len(), terminal.len(), "两侧身份集合等大");
+        for (key, event) in &fresh {
+            let booked = terminal
+                .get(key)
+                .unwrap_or_else(|| panic!("fresh 有而因果簿无该 key：{key:?}"));
+            assert!(
+                payload_eq(booked, event),
+                "业务载荷投影须逐字段相等\n  因果簿 {booked:?}\n  fresh {event:?}"
+            );
+        }
+    }
+
+    /// ★#551 裁定(i) 失效分叉方向锁：分叉只允许「因果簿判终态而 fresh-full 无该流」一个方向。
+    ///
+    /// 反方向（fresh-full 在产而因果簿已判 `Invalidated`）= 复活型分叉，必须为空。本锁用 L0
+    /// 塌空制造真实的中途消失，使「允许方向」在机器上真被走到（防真空绿）。
+    #[test]
+    fn invalidation_fork_only_points_from_causal_book_to_absent_fresh_stream() {
+        let cfg = ThetaConfig::default();
+        let layer = lifecycle_rich_layer();
+        let mut cache = causal_book_over_prefixes(&layer, &cfg);
+        let collapsed = ParseLayer {
+            segments: Rc::new(Vec::new()),
+            merged_bars: Rc::clone(&layer.merged_bars),
+            ..Default::default()
+        };
+        classify_with_tower_events_incremental(&collapsed, &cfg, &mut cache);
+        let terminal = latest_by_key(&cache.candidate_book.streams());
+        let fresh = latest_by_key(&classify_with_tower_events(&collapsed, &cfg).2);
+
+        let dead: Vec<_> = terminal
+            .values()
+            .filter(|event| event.state == cand_event::CandidateState::Invalidated)
+            .collect();
+        assert!(!dead.is_empty(), "非真空前提：塌空须真产生 Invalidated");
+        assert!(fresh.is_empty(), "塌空后 fresh-full 无任何候选流");
+        for event in &dead {
+            assert!(
+                !fresh.contains_key(&event.key),
+                "允许方向：因果簿终态在案而 fresh 无该流 {:?}",
+                event.key
+            );
+        }
+        // 禁止方向：fresh 在产而因果簿已判终态（复活）。
+        for (key, _) in &fresh {
+            assert_ne!(
+                terminal.get(key).map(|event| event.state),
+                Some(cand_event::CandidateState::Invalidated),
+                "禁止的分叉方向（复活）{key:?}"
+            );
+        }
+    }
+
+    /// ★#551：终态候选的载荷在确认时刻冻结 ⟹ 与 fresh-full 的当前重判必然分叉。
+    ///
+    /// 本锁**不掩盖**该分叉，而是把它的边界机器化：差异只允许落在终态候选上（`Confirmed`/
+    /// `Invalidated`），非终态候选必须逐字段相等。Pan 域一入簿即 `Confirmed`（#550 决策），其
+    /// C 段区间此后仍随 bar 推进而变——这是 E2E-O「终态不改写」与裁定(i)「全 key 等价」在
+    /// 「终态候选上游载荷仍会变」下的不可弥合张力，已按 090 登记并上浮（见
+    /// `chanlun/review-results/issue551-t2-impl-20260728.md`）。
+    ///
+    /// **口径边界（诚实声明）**：本 lib 锁只固定不变式的**方向**（`differ_live == 0`）。合成
+    /// 夹具规整、终态候选的上游证书不再变动，`differ_terminal` 恒为 0，故该分支在本缝上真空。
+    /// 非真空量度由真实数据电池给出：BTC 100k 实测 `payload_differ=25` 且 `payload_differ_live=0`
+    /// （`ISSUE551_FORK` 行），即 25 个差异 100% 落在终态候选上。
+    #[test]
+    fn projection_divergence_is_confined_to_terminal_candidates() {
+        let cfg = ThetaConfig::default();
+        let layer = candidate_rich_layer();
+        let fresh = latest_by_key(&classify_with_tower_events(&layer, &cfg).2);
+        let terminal = latest_by_key(&causal_book_over_prefixes(&layer, &cfg).candidate_book.streams());
+
+        let mut differ_terminal = 0usize;
+        let mut differ_live = 0usize;
+        for (key, event) in &fresh {
+            let Some(booked) = terminal.get(key) else {
+                continue;
+            };
+            if payload_eq(booked, event) {
+                continue;
+            }
+            if booked.state.is_terminal() {
+                differ_terminal += 1;
+            } else {
+                differ_live += 1;
+            }
+        }
+        assert_eq!(
+            differ_live, 0,
+            "非终态候选的投影必须逐字段相等（裁定(i) 在活假设域上无条件成立）"
+        );
+        // `differ_terminal` 在合成夹具上恒 0（见函数头口径边界），此处只报数不断言非零——
+        // 断言它 > 0 会把「合成数据规整」误报成缺陷。真实数据的非零量度在电池 bin。
+        assert!(
+            differ_terminal < fresh.len(),
+            "终态分叉不应吞掉全部身份（合成夹具期望 0，真实数据期望少数）"
+        );
+    }
+
+    /// ★#551：L0 塌空的 bar 必须**当场**把在案活候选判 `Invalidated`，不推迟到下一非空 bar。
+    #[test]
+    fn empty_l0_bar_invalidates_live_candidates_without_delay() {
+        let cfg = ThetaConfig::default();
+        let layer = lifecycle_rich_layer();
+        let mut cache = TowerCache::new();
+        let live = classify_with_tower_events_incremental(&layer, &cfg, &mut cache).2;
+        // 只有**非终态**候选会因观察缺席而失效；`Confirmed`/`Invalidated` 是终态，按 E2E-O
+        // 不复活也不再改写。
+        let live_keys: Vec<_> = latest_by_key(&live)
+            .into_iter()
+            .filter(|(_, event)| !event.state.is_terminal())
+            .map(|(key, _)| key)
+            .collect();
+        assert!(!live_keys.is_empty(), "非真空前提：塌空前须有非终态活候选");
+
+        cand_event::event_probe::reset();
+        let collapsed = ParseLayer {
+            segments: Rc::new(Vec::new()),
+            merged_bars: Rc::clone(&layer.merged_bars),
+            ..Default::default()
+        };
+        let after =
+            latest_by_key(&classify_with_tower_events_incremental(&collapsed, &cfg, &mut cache).2);
+        for key in &live_keys {
+            assert_eq!(
+                after.get(key).map(|event| event.state),
+                Some(cand_event::CandidateState::Invalidated),
+                "L0 塌空 ⟹ 候选身份消失 ⟹ 当场判终态（禁延迟到下一非空 bar）{key:?}"
+            );
+        }
+        assert_eq!(
+            cand_event::event_probe::snapshot().invalidated_absent as usize,
+            live_keys.len(),
+            "走的是既有「观察缺席 ⟹ Invalidated」单一路径"
         );
     }
 

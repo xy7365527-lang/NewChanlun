@@ -116,7 +116,200 @@ fn run() -> Result<(), String> {
 
     let terminal_streams = compare_streams(&bars, &config)?;
     print_summary(&bars, &terminal_streams);
+    print_lifecycle_summary(&terminal_streams);
+    print_projection_fork(&bars, &config, &terminal_streams)?;
     Ok(())
+}
+
+/// #551：因果簿生命史分解——四态构成、修订类别、首证钟落位。
+///
+/// 与 `print_summary` 的「每 key 最新 revision」口径互补：本节读**全部** revision，使
+/// 「转移/修订/钟路径是否在真实数据上真被触发」机器可见（防真空绿）。
+fn print_lifecycle_summary(streams: &classifier::cand_event::CandidateStreams) {
+    let mut latest = BTreeMap::<CandidateKey, &CandidateEvent>::new();
+    let mut history = BTreeMap::<CandidateKey, Vec<&CandidateEvent>>::new();
+    for stream in streams.iter() {
+        for event in stream.iter() {
+            latest.insert(event.key, event);
+            history.entry(event.key).or_default().push(event);
+        }
+    }
+
+    let mut by_state = BTreeMap::<&'static str, usize>::new();
+    let mut trend_by_state = BTreeMap::<&'static str, usize>::new();
+    let mut with_clock = 0usize;
+    for event in latest.values() {
+        *by_state.entry(state_name(event.state)).or_default() += 1;
+        if event.kind == CandidateKind::Trend {
+            *trend_by_state.entry(state_name(event.state)).or_default() += 1;
+        }
+        if event.first_provable_at.is_some() {
+            with_clock += 1;
+        }
+    }
+
+    let (mut growth, mut payload, mut transition, mut invalidation) = (0usize, 0usize, 0usize, 0);
+    for revisions in history.values() {
+        for pair in revisions.windows(2) {
+            let (prior, next) = (pair[0], pair[1]);
+            if next.state == CandidateState::Invalidated && prior.state != next.state {
+                invalidation += 1;
+            } else if prior.state != next.state {
+                transition += 1;
+            } else if next.interval.1 > prior.interval.1 {
+                growth += 1;
+            } else {
+                payload += 1;
+            }
+        }
+    }
+    if std::env::var_os("ISSUE551_DIAG").is_some() {
+        for event in latest.values() {
+            if event.state == CandidateState::Unresolved || event.kind == CandidateKind::Trend {
+                println!(
+                    "ISSUE551_DIAG trend kind={:?} state={:?} preds={:?} interval={:?} first_provable={:?} revision={} level={}",
+                    event.kind, event.state, event.structural_predicates, event.interval,
+                    event.first_provable_at, event.revision, event.key.level
+                );
+            }
+        }
+    }
+    println!(
+        "ISSUE551_LIFECYCLE states={by_state:?} trend_states={trend_by_state:?} \
+         with_first_provable={with_clock} growth_revisions={growth} payload_revisions={payload} \
+         transitions={transition} invalidations={invalidation}"
+    );
+}
+
+fn state_name(state: CandidateState) -> &'static str {
+    match state {
+        CandidateState::Provisional => "Provisional",
+        CandidateState::Unresolved => "Unresolved",
+        CandidateState::Confirmed => "Confirmed",
+        CandidateState::Invalidated => "Invalidated",
+    }
+}
+
+/// #551 裁定(i) 的真实数据版：末态 fresh 全量流 vs 因果簿终态投影。
+///
+/// 只跑**一次** fresh 全量（O(n)，非逐前缀 O(n²)）。两侧按 key 对齐后分两类报数：
+/// - `fork_causal_only`：因果簿有而 fresh 无——允许的分叉方向（中途消失 ⟹ Invalidated 在案）；
+/// - `fork_fresh_only` / `revived`：fresh 有而因果簿无、或因果簿已判终态却仍被 fresh 产出——
+///   **禁止**的分叉方向（复活），非零即为红。
+fn print_projection_fork(
+    bars: &[Bar],
+    config: &ThetaConfig,
+    causal: &classifier::cand_event::CandidateStreams,
+) -> Result<(), String> {
+    let mut parser = ParseLayerIncr::new(config);
+    let mut l0 = parser.append(bars[0]);
+    for bar in bars.iter().copied().skip(1) {
+        l0 = parser.append(bar);
+    }
+    let fresh = classifier::classify_with_tower_events(&l0, config).2;
+
+    let mut terminal = BTreeMap::<CandidateKey, &CandidateEvent>::new();
+    for stream in causal.iter() {
+        for event in stream.iter() {
+            terminal.insert(event.key, event);
+        }
+    }
+    let mut fresh_latest = BTreeMap::<CandidateKey, &CandidateEvent>::new();
+    for stream in fresh.iter() {
+        for event in stream.iter() {
+            fresh_latest.insert(event.key, event);
+        }
+    }
+
+    let mut payload_equal = 0usize;
+    let mut payload_differ = 0usize;
+    let mut payload_differ_live = 0usize;
+    let mut revived = 0usize;
+    let mut fork_fresh_only = 0usize;
+    for (key, event) in &fresh_latest {
+        match terminal.get(key) {
+            None => fork_fresh_only += 1,
+            Some(booked) if booked.state == CandidateState::Invalidated => revived += 1,
+            Some(booked) => {
+                if projection_of(booked) == projection_of(event) {
+                    payload_equal += 1;
+                } else {
+                    payload_differ += 1;
+                    if !booked.state.is_terminal() {
+                        payload_differ_live += 1;
+                    }
+                }
+            }
+        }
+    }
+    let causal_only: Vec<_> = terminal
+        .iter()
+        .filter(|(key, _)| !fresh_latest.contains_key(key))
+        .collect();
+    let fork_causal_only = causal_only.len();
+    let fork_causal_only_terminal = causal_only
+        .iter()
+        .filter(|(_, event)| event.state.is_terminal())
+        .count();
+    if std::env::var_os("ISSUE551_DIAG").is_some() {
+        for (key, event) in causal_only.iter().take(4) {
+            println!("ISSUE551_DIAG causal_only key={key:?} state={:?} interval={:?} observed_at={} revision={}",
+                event.state, event.interval, event.observed_at, event.revision);
+        }
+        for (key, event) in &fresh_latest {
+            if let Some(booked) = terminal.get(key) {
+                if projection_of(booked) != projection_of(event) {
+                    println!(
+                        "ISSUE551_DIAG payload_differ key={key:?}\n  causal  state={:?} interval={:?} preds={:?} revision={}\n  fresh   state={:?} interval={:?} preds={:?}",
+                        booked.state, booked.interval, booked.structural_predicates, booked.revision,
+                        event.state, event.interval, event.structural_predicates
+                    );
+                }
+            }
+        }
+    }
+    println!(
+        "ISSUE551_FORK fresh_identities={} causal_identities={} payload_equal={payload_equal} \
+         payload_differ={payload_differ} payload_differ_live={payload_differ_live} \
+         fork_causal_only={fork_causal_only} fork_causal_only_terminal={fork_causal_only_terminal} \
+         fork_fresh_only={fork_fresh_only} revived={revived}",
+        fresh_latest.len(),
+        terminal.len(),
+    );
+    Ok(())
+}
+
+/// 业务载荷投影（钟与 revision 计数属生命史，不入等价比较）。
+type Projection = (
+    CandidateKind,
+    u32,
+    Option<(usize, usize)>,
+    u64,
+    u64,
+    (bool, bool, bool),
+    (usize, usize),
+    Option<usize>,
+    (usize, usize),
+    CandidateState,
+);
+
+fn projection_of(event: &CandidateEvent) -> Projection {
+    (
+        event.kind,
+        event.event_level,
+        event.center_ids,
+        event.candidate_group_id,
+        event.pair_id,
+        (
+            event.structural_predicates.direction,
+            event.structural_predicates.comparable,
+            event.structural_predicates.extreme,
+        ),
+        event.extreme_proof,
+        event.third_class_proof,
+        event.interval,
+        event.state,
+    )
 }
 
 fn compare_streams(
