@@ -135,14 +135,18 @@ impl ContainmentScan {
 ///
 /// **不按 `state` 过滤**（含 `Invalidated` 终态）：`C⊆C` 是纯几何谓词，与候选活/死状态正交；
 /// 「哪些候选有资格进链」是下游 N3 链构造的裁量，在此提前过滤等于把未裁定的语义塞进谓词。
-fn latest_by_level(streams: &CandidateStreams) -> BTreeMap<u32, Vec<CandidateEvent>> {
-    let mut latest = BTreeMap::<CandidateKey, CandidateEvent>::new();
+///
+/// 分组存**借用**而非事件副本：本函数与其下游（[`count_pairs`] / [`count_same_level`]）纯读
+/// `interval` / `event_level` / `key` 三个字段，零拷贝即可；生命周期 `'a` 由调用方持有的
+/// `streams` 担保（`Rc` 的 `deref` 把外层借用透传到内层事件）。
+fn latest_by_level(streams: &CandidateStreams) -> BTreeMap<u32, Vec<&CandidateEvent>> {
+    let mut latest = BTreeMap::<CandidateKey, &CandidateEvent>::new();
     for stream in streams.iter() {
         for event in stream.iter() {
-            latest.insert(event.key, event.clone());
+            latest.insert(event.key, event);
         }
     }
-    let mut by_level = BTreeMap::<u32, Vec<CandidateEvent>>::new();
+    let mut by_level = BTreeMap::<u32, Vec<&CandidateEvent>>::new();
     for event in latest.into_values() {
         by_level.entry(event.event_level).or_default().push(event);
     }
@@ -171,8 +175,8 @@ pub fn scan_adjacent_containment(streams: &CandidateStreams) -> ContainmentScan 
 fn count_pairs(
     child_level: u32,
     parent_level: u32,
-    children: &[CandidateEvent],
-    parents: &[CandidateEvent],
+    children: &[&CandidateEvent],
+    parents: &[&CandidateEvent],
 ) -> AdjacentLevelContainment {
     let mut entry = AdjacentLevelContainment {
         child_level,
@@ -209,7 +213,7 @@ fn count_pairs(
     entry
 }
 
-fn count_same_level(by_level: &BTreeMap<u32, Vec<CandidateEvent>>) -> SameLevelBlock {
+fn count_same_level(by_level: &BTreeMap<u32, Vec<&CandidateEvent>>) -> SameLevelBlock {
     let mut block = SameLevelBlock::default();
     for events in by_level.values() {
         for a in events {
