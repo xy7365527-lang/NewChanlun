@@ -1,1 +1,7 @@
 | [5.6]issue112-code-review | sonnet壳→codex GPT-5.6 Sol | 双轴审查 issue#112 进场门多级投影 commit，产出 chanlun/review-results/code-review-issue112-20260721.md | 派发中 |
+| [codex]#479-wave1-5a5b-卡重建 | kimi编排→codex exec（claude 周额度尽，降级） | 据幸存纲要重建 wave1-plan5a/5b 实装卡（原卡佚失，#69 前置），工位 /tmp/wt-69 分支 ticket-69，落 chanlun/review-results/ | 已交付（e1e3aa7037，#479 已关，待 #69 实装） |
+| [codex]#69-5a-游标驻留实装 | kimi编排→codex exec（claude 周额度尽，降级，编排者 2026-07-27 拍板） | #69 段二：trend_confirm per-pair 游标驻留（卡 wave1-plan5a-implementation-card-20260719.md），工位 /tmp/wt-69 分支 ticket-69，验收=测试全绿+250k/1M diff=0+SHADOW 0+在线计数一致 | 已交付（7c4df3e118，kimi 验收+提交；基线红 3 条在册 #446、1 条新登记 #491，零新增红） |
+| [codex]#69-5b-pan-memo实装 | kimi编排→codex exec（claude 周额度尽，降级） | #69 段三：p123 run 语境细粒度 pan memo（卡 wave1-plan5b-implementation-card-20260719.md，R1/R3），工位 /tmp/wt-69 分支 ticket-69（基 7c4df3e118），提交门=零新增红+新测试全过 | 派发中 |
+| [codex]#69-5b-pan-memo实装 | kimi编排→codex exec（claude 周额度尽，降级） | #69 段三：p123 run 语境细粒度 pan memo（卡 wave1-plan5b-implementation-card-20260719.md，R1/R3），工位 /tmp/wt-69 分支 ticket-69（基 7c4df3e118），提交门=零新增红+新测试全过 | 已交付（e8d5a47f06 自提交；kimi 抽验：零新增红、250k/1M cmp=0、SHADOW 27037 checks 0 mismatch、在线计数一致） |
+| [codex]#494-影子评审-#69 | kimi编排→codex exec（新上下文终局门） | #69 5a/5b 实装影子评审（两轴+证据独立复核+提交纪律），工位 /tmp/wt-69，落 chanlun/review-results/shadow-494-issue69-20260727.md | 派发中 |
+| [codex]#494-影子评审-#69 | kimi编排→codex exec（新上下文终局门） | #69 5a/5b 实装影子评审（两轴+证据独立复核+提交纪律），工位 /tmp/wt-69，落 chanlun/review-results/shadow-494-issue69-20260727.md | 已收口（FAIL 五条翻转条件 → 编排者四项裁定 + 封印 diff=0，#494 已关） |
