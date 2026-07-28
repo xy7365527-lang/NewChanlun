@@ -32,8 +32,8 @@ def _valid_payload(dump_dir):
         "provenance": {
             "anchors": [
                 {
-                    "source_base_head": "a" * 40,
-                    "final_verification_head": "b" * 40,
+                    "source_base_head": "c126d4cf69613068404b6ad0a53acf2e4dd9957b",
+                    "final_verification_head": "c126d4cf69613068404b6ad0a53acf2e4dd9957b",
                     "source_worktree": "test-worktree",
                     "run_date": "2026-07-28",
                     "regen_command": "test regen",
@@ -75,14 +75,29 @@ class ArmRTradesDigestTest(unittest.TestCase):
         self.assertNotEqual(exit_code, gate.EXIT_OK)
         self.assertIn("source_base_head", stderr)
 
-    def test_check_rejects_integer_commit_head(self):
+    def test_check_rejects_non_string_commit_head(self):
+        for field, invalid in (
+            ("final_verification_head", 123),
+            ("source_lineage_start", None),
+        ):
+            with self.subTest(field=field, invalid=invalid):
+                payload = _valid_payload(self.dump_dir)
+                payload["provenance"]["anchors"][0][field] = invalid
+
+                exit_code, stderr = self._check_payload(payload)
+
+                self.assertNotEqual(exit_code, gate.EXIT_OK)
+                self.assertIn(field, stderr)
+
+    def test_check_rejects_hex_head_that_is_not_a_commit(self):
         payload = _valid_payload(self.dump_dir)
-        payload["provenance"]["anchors"][0]["final_verification_head"] = 123
+        payload["provenance"]["anchors"][0]["source_base_head"] = "0" * 40
 
         exit_code, stderr = self._check_payload(payload)
 
         self.assertNotEqual(exit_code, gate.EXIT_OK)
-        self.assertIn("final_verification_head", stderr)
+        self.assertIn("source_base_head", stderr)
+        self.assertIn("仓内不可解析 commit", stderr)
 
     def test_check_rejects_invalid_digest_schema(self):
         payload = _valid_payload(self.dump_dir)
@@ -92,6 +107,28 @@ class ArmRTradesDigestTest(unittest.TestCase):
 
         self.assertNotEqual(exit_code, gate.EXIT_OK)
         self.assertIn("16 位小写 hex", stderr)
+
+    def test_check_rejects_integer_command(self):
+        payload = _valid_payload(self.dump_dir)
+        payload["provenance"]["anchors"][0]["regen_command"] = 123
+
+        exit_code, stderr = self._check_payload(payload)
+
+        self.assertNotEqual(exit_code, gate.EXIT_OK)
+        self.assertIn("regen_command", stderr)
+        self.assertIn("字符串", stderr)
+
+    def test_check_rejects_reversed_lineage_ancestry(self):
+        payload = _valid_payload(self.dump_dir)
+        anchor = payload["provenance"]["anchors"][0]
+        anchor["source_lineage_start"] = "6e15ceffeeb8259c065bf7c0ec9ec7c65935737c"
+        anchor["final_verification_head"] = "a12a1022d9ddd8d1cae867a107a3a33c359358cf"
+
+        exit_code, stderr = self._check_payload(payload)
+
+        self.assertNotEqual(exit_code, gate.EXIT_OK)
+        self.assertIn("source_lineage_start", stderr)
+        self.assertIn("不是 final_verification_head 的祖先", stderr)
 
     def test_check_rejects_non_positive_or_boolean_counts(self):
         for field, invalid in (("n_trades", 0), ("bytes", True)):

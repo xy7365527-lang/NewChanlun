@@ -24,6 +24,12 @@
 保留 `/tmp/446_armR_dump`，只记录历史锚来源；历史锚来源 ≠ 当前 canonical 默认根
 `/tmp/m8_win_gate/`。
 
+**provenance 校验边界**：本门只在本仓 git worktree 内运行；每个 head 必须可由
+`git cat-file -e <sha>^{commit}` 解析，谱系起点必须通过
+`git merge-base --is-ancestor`。无 git 环境时门会如实失败并返回非零，不提供伪成功降级。
+但「head 可解析 + 祖先成立」不证明 dump 确由该 HEAD 产生：当前没有 sidecar/manifest
+绑定；该机制归后续票，本票不实现。
+
 **本脚本用法**：
 
     python3 scripts/check_armR_trades_digest.py                 # 校验（默认读 /tmp/m8_win_gate）
@@ -58,6 +64,18 @@ REQUIRED_ANCHOR_FIELDS = (
     "run_date",
     "regen_command",
     "check_command",
+)
+HEAD_FIELDS = (
+    "source_base_head",
+    "final_verification_head",
+    "source_lineage_start",
+)
+ANCHOR_STRING_FIELDS = (
+    "source_worktree",
+    "regen_command",
+    "check_command",
+    "dump_dir",
+    "parallel_head_note",
 )
 
 FNV_OFFSET = 0xCBF29CE484222325
@@ -118,10 +136,46 @@ def _current_regen_anchor(dump_dir: pathlib.Path) -> dict:
     }
 
 
+def _git_commit_problem(head: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "cat-file", "-e", f"{head}^{{commit}}"],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        return f"git 无法执行，不能验证 commit：{exc}"
+    if result.returncode != 0:
+        return "仓内不可解析 commit"
+    return None
+
+
+def _git_ancestry_problem(ancestor: str, descendant: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        return f"git 无法执行，不能验证祖先关系：{exc}"
+    if result.returncode == 1:
+        return "不是 final_verification_head 的祖先"
+    if result.returncode != 0:
+        return f"git merge-base --is-ancestor 校验失败（exit={result.returncode}）"
+    return None
+
+
 def provenance_problems(payload: dict) -> list[str]:
     problems: list[str] = []
     if payload.get("_schema") != GOLDEN_SCHEMA:
         problems.append(f"_schema: expected={GOLDEN_SCHEMA!r} actual={payload.get('_schema')!r}")
+    if "_note" in payload and not isinstance(payload["_note"], str):
+        problems.append("_note: 必须是字符串")
     provenance = payload.get("provenance")
     anchors = provenance.get("anchors") if isinstance(provenance, dict) else None
     if not isinstance(anchors, list) or not anchors:
@@ -134,11 +188,43 @@ def provenance_problems(payload: dict) -> list[str]:
         missing = [field for field in REQUIRED_ANCHOR_FIELDS if not anchor.get(field)]
         if missing:
             problems.append(f"provenance.anchors[{idx}]: 缺字段 {missing}")
-        for field in ("source_base_head", "final_verification_head"):
+        for field in ANCHOR_STRING_FIELDS:
+            if field in anchor and not isinstance(anchor[field], str):
+                problems.append(
+                    f"provenance.anchors[{idx}].{field}: 必须是字符串"
+                )
+        valid_head_fields: set[str] = set()
+        for field in HEAD_FIELDS:
             value = anchor.get(field)
+            if field == "source_lineage_start" and field not in anchor:
+                continue
             if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{40}", value) is None:
                 problems.append(
                     f"provenance.anchors[{idx}].{field}: 必须是 40 位小写 hex"
+                )
+                continue
+            commit_problem = _git_commit_problem(value)
+            if commit_problem is not None:
+                problems.append(
+                    f"provenance.anchors[{idx}].{field}: {commit_problem}"
+                )
+                continue
+            valid_head_fields.add(field)
+        ancestor_field = (
+            "source_lineage_start"
+            if "source_lineage_start" in anchor
+            else "source_base_head"
+        )
+        if (
+            ancestor_field in valid_head_fields
+            and "final_verification_head" in valid_head_fields
+        ):
+            ancestry_problem = _git_ancestry_problem(
+                anchor[ancestor_field], anchor["final_verification_head"]
+            )
+            if ancestry_problem is not None:
+                problems.append(
+                    f"provenance.anchors[{idx}].{ancestor_field}: {ancestry_problem}"
                 )
         run_date = anchor.get("run_date")
         try:
