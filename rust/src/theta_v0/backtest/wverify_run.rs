@@ -1781,10 +1781,6 @@ fn m8_e2e_all_systems_oos() {
         eprintln!(
             "ACTIVE_ID_UNIQUENESS {tag} duplicate_id_violations={duplicate_id_violations}"
         );
-        assert_eq!(
-            duplicate_id_violations, 0,
-            "#446 {tag} 活动集仍出现重复 ElementId（release/debug 均计数）"
-        );
         duplicate_id_rows.push(format!("| {tag} | {duplicate_id_violations} |\n"));
         assert_eq!(
             r.voice_exec.is_some(),
@@ -1969,7 +1965,8 @@ fn m8_e2e_all_systems_oos() {
     }
     report.push_str(
         "\n## 活动集 ElementId 唯一性逐窗读数（#446）\n\n\
-         `duplicate_id_violations` 在 release/debug 都由 `next_idx` 独立扫描累计；逐窗硬断言必须为 0。\n\n\
+         `next_idx` 重复 ID 已在 coverage 生产边界 release/debug fail-loud；本表只保留逐窗观测计数，\
+         不再设置第二个较晚断言点。能完成该窗报告即应为 0。\n\n\
          | 窗 | duplicate_id_violations |\n\
          |---|---:|\n",
     );

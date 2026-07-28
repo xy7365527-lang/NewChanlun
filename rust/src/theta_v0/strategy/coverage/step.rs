@@ -76,8 +76,10 @@ pub(crate) fn coverage_step_from_buckets_sep(
     // ★#446：初始 overlay 候选段终点。其后新增槽只来自 registry restore / held 重注册；
     // held 只能复用后者，不能复用同 ID 候选拷贝（候选方向/坐标/操作父不是持仓身份）。
     let overlay_cand_end = work.len();
-    // 记录 registry restore 新增槽，供唯一性守卫在失败时打印两个来源路径。
-    let mut restore_pushed: std::collections::HashSet<usize> = std::collections::HashSet::new();
+    // 显式记录候选段后每个新增槽的物化来源，供唯一性守卫打印真实来源路径；禁用 catch-all
+    // 把 Closed/Invalidated 边界根等其他直推路径误报为 held 重注册。
+    let mut appended_source: std::collections::HashMap<usize, &'static str> =
+        std::collections::HashMap::new();
 
     // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）按 ElementId 对位回当前因果树元素；不在树 ⟹ 按
     // is_boundary_root 决定 root/prune（发现 A 修复：Stale 不伪造 parent:None）。
@@ -114,6 +116,9 @@ pub(crate) fn coverage_step_from_buckets_sep(
                             &mut pending_parent_fixup,
                             leg,
                         );
+                        if idx >= overlay_cand_end {
+                            appended_source.entry(idx).or_insert("held-reregister");
+                        }
                         if !raw.contains(&idx) {
                             raw.push(idx);
                         }
@@ -132,7 +137,9 @@ pub(crate) fn coverage_step_from_buckets_sep(
                                 &mut work, &mut raw, registry, op_pid, &id_idx, &mut overlay_seen,
                                 overlay_cand_end, &mut pending_parent_fixup,
                             );
-                            restore_pushed.extend(restore_start..work.len());
+                            for idx in restore_start..work.len() {
+                                appended_source.entry(idx).or_insert("registry-restore");
+                            }
                         }
                         let idx = held_stale_reregister_idx(
                             &mut work,
@@ -141,6 +148,9 @@ pub(crate) fn coverage_step_from_buckets_sep(
                             &mut pending_parent_fixup,
                             leg,
                         );
+                        if idx >= overlay_cand_end {
+                            appended_source.entry(idx).or_insert("held-reregister");
+                        }
                         if !raw.contains(&idx) {
                             raw.push(idx);
                         }
@@ -161,6 +171,7 @@ pub(crate) fn coverage_step_from_buckets_sep(
                                 id: leg.id,
                                 parent_id: None,
                             });
+                            appended_source.insert(idx, "boundary-root-retain");
                             raw.push(idx);
                         } else {
                             ancok_probe_bump(|p| p.closed_inval_pruned += 1);
@@ -240,7 +251,9 @@ pub(crate) fn coverage_step_from_buckets_sep(
                         &mut work, &mut raw, registry, parent_pid, &id_idx, &mut overlay_seen,
                         overlay_cand_end, &mut pending_parent_fixup,
                     );
-                    restore_pushed.extend(restore_start..work.len());
+                    for idx in restore_start..work.len() {
+                        appended_source.entry(idx).or_insert("registry-restore");
+                    }
                     for &raw_idx in &raw[raw_start..] {
                         if let Some(e) = work.get(raw_idx) {
                             raw_by_id.entry(e.id).or_insert(raw_idx);
@@ -279,6 +292,36 @@ pub(crate) fn coverage_step_from_buckets_sep(
         }
     }
 
+    // ★#512 MED-1：release/debug 都在目标腿计算与生产返回之前 fail-loud。先累计违规计数，再打印
+    // 重复 ID、两个 work idx 与来源路径；禁止构造/返回已双计的 p̃/P^sep，也不把碰撞都误归 restore。
+    let mut active_id_idx: std::collections::HashMap<ElementId, usize> =
+        std::collections::HashMap::new();
+    let duplicate = next_idx.iter().find_map(|&idx| {
+        let id = work[idx].id;
+        active_id_idx.insert(id, idx).map(|prior| (id, prior, idx))
+    });
+    if let Some((id, first_idx, second_idx)) = duplicate {
+        ancok_probe_bump(|p| p.duplicate_active_id_violations += 1);
+        let source = |idx: usize| {
+            if idx < candidate_start {
+                "tree-prefix"
+            } else if idx < overlay_cand_end {
+                "candidate-copy"
+            } else {
+                appended_source
+                    .get(&idx)
+                    .copied()
+                    .unwrap_or("post-overlay-unregistered")
+            }
+        };
+        panic!(
+            "next_active 重复 ElementId {id:?}: idx {first_idx}({}) 与 idx {second_idx}({})；\
+             活动集注册路径未按 ID 闭合，strategy_target_legs 将双计 p̃",
+            source(first_idx),
+            source(second_idx),
+        );
+    }
+
     // p̃=Σ Leg(g)（depth 权重沿真父链 + 方向净额聚合，ShortDiff 空腿部分对冲父多腿）。
     let mut legs = strategy_target_legs(&work, &next_idx, base_units, config);
     // f3 反事实（config.disable_shortdiff）：剔 ShortDiff 腿的净头寸贡献，测多重赋格对冲增量。default false→bit-exact。
@@ -314,35 +357,6 @@ pub(crate) fn coverage_step_from_buckets_sep(
             .map(|&i| element_as_leg(&work[i]))
             .collect()
     };
-    // ★#446：release 也累计违规计数，debug 额外 fail-fast。错误文本根因中立并打印重复 ID、
-    // 两个 work idx 与来源路径，避免把所有碰撞误归为 restore。
-    let mut active_id_idx: std::collections::HashMap<ElementId, usize> =
-        std::collections::HashMap::new();
-    let duplicate = next_idx.iter().find_map(|&idx| {
-        let id = work[idx].id;
-        active_id_idx.insert(id, idx).map(|prior| (id, prior, idx))
-    });
-    if let Some((id, first_idx, second_idx)) = duplicate {
-        ancok_probe_bump(|p| p.duplicate_active_id_violations += 1);
-        let source = |idx: usize| {
-            if idx < candidate_start {
-                "tree-prefix"
-            } else if idx < overlay_cand_end {
-                "candidate-copy"
-            } else if restore_pushed.contains(&idx) {
-                "registry-restore"
-            } else {
-                "held-reregister"
-            }
-        };
-        debug_assert!(
-            false,
-            "next_active 重复 ElementId {id:?}: idx {first_idx}({}) 与 idx {second_idx}({})；\
-             活动集注册路径未按 ID 闭合，strategy_target_legs 将双计 p̃",
-            source(first_idx),
-            source(second_idx),
-        );
-    }
     // ★M5 sep 暴露（多空对冲.pdf p16）：把已算 `legs`（post G7 cap）按 work-index e_idx 对位到
     // carrier ElementId + role(v) + parent(v)，打包 SepLeg。**只读重打包，不新计算**——
     // `net_target_units(&legs)==p_tilde` 恒等 ⟹ `Σ σ_v·q_units == Net(P^sep)` 与净额路径一致。

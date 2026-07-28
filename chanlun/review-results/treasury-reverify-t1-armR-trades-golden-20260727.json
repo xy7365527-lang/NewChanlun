@@ -1,12 +1,20 @@
 {
+  "_schema": "armR-trades-digest/v2",
   "_note": "臂R（VOICE_EXEC=1 THETA_NEST_CERT_GATE=1，fee_schedule=None/enforce_level_cap=false）三窗 trades.jsonl 逐位冻结；issue #446 消除双计后的 #387 T1 红线重锚。",
-  "_source_base_head": "a12a1022d9ddd8d1cae867a107a3a33c359358cf",
-  "_final_verification_head": "6e15ceffeeb8259c065bf7c0ec9ec7c65935737c",
-  "_parallel_head_note": "#421 仅提交 classifier/level_view.rs、classifier/nest_lifecycle.rs、bin/p123_fast_replay.rs；未触本票文件面，臂R三窗 dump 在前后逐字相同。",
-  "_source_worktree": "未提交 issue #446 修复；由编排者验收后提交",
-  "_run_date": "2026-07-28",
-  "_regen_command": "cd rust && for tag in p3fold wf7 wf8; do M8_WIN_FILTER=$tag VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 M8_REPORT_PATH=/tmp/446_armR_report_$tag.md OPSEM_DUMP_DIR=/tmp/446_armR_dump/$tag cargo test --release --lib theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos -- --ignored --nocapture; done",
-  "_check_command": "python3 scripts/check_armR_trades_digest.py --dump-dir /tmp/446_armR_dump",
+  "provenance": {
+    "anchors": [
+      {
+        "source_base_head": "a12a1022d9ddd8d1cae867a107a3a33c359358cf",
+        "final_verification_head": "6e15ceffeeb8259c065bf7c0ec9ec7c65935737c",
+        "parallel_head_note": "#421 仅提交 classifier/level_view.rs、classifier/nest_lifecycle.rs、bin/p123_fast_replay.rs；未触本票文件面，臂R三窗 dump 在前后逐字相同。",
+        "source_worktree": "未提交 issue #446 修复；由编排者验收后提交",
+        "run_date": "2026-07-28",
+        "dump_dir": "/tmp/446_armR_dump",
+        "regen_command": "cd rust && for tag in p3fold wf7 wf8; do M8_WIN_FILTER=$tag VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 M8_REPORT_PATH=/tmp/446_armR_report_$tag.md OPSEM_DUMP_DIR=/tmp/446_armR_dump/$tag cargo test --release --lib theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos -- --ignored --nocapture; done",
+        "check_command": "python3 scripts/check_armR_trades_digest.py --dump-dir /tmp/446_armR_dump"
+      }
+    ]
+  },
   "windows": {
     "p3fold": {
       "digest_fnv1a64": "0xac5952cfcd8b8746",

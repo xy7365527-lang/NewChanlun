@@ -244,6 +244,51 @@ fn held_leg_reregister_reuses_restore_pushed_idx_no_duplicate_id() {
     );
 }
 
+/// ★#512 MED-1：release 生产边界遇活动集重复 ID 必须 fail-loud，禁返回已双计的 p̃/P^sep。
+#[test]
+fn duplicate_active_id_panics_with_id_indices_and_sources_in_release() {
+    let duplicate = aleg(0, VoiceSide::Long, 777, 777);
+    let prev = [duplicate, duplicate];
+    let buckets = Buckets {
+        close: vec![],
+        open: vec![],
+        record: vec![],
+    };
+    let tree: Vec<CoverageElement> = vec![];
+    let reg = super::super::super::persistent::PersistentRegistry::new();
+
+    let payload = std::panic::catch_unwind(|| {
+        coverage_step_from_buckets(
+            view_split(&tree, 0),
+            &prev,
+            &buckets,
+            1000.0,
+            &cfg(),
+            None,
+            &reg,
+        )
+    })
+    .expect_err("release 生产边界不得返回含重复活动 ID 的双计结果");
+    let message = payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| payload.downcast_ref::<&str>().copied())
+        .expect("panic payload 必须是可审计文本");
+
+    assert!(
+        message.contains("ElementId { level: 0, ordinal: 777 }"),
+        "{message}"
+    );
+    assert!(
+        message.contains("idx 0(boundary-root-retain)"),
+        "{message}"
+    );
+    assert!(
+        message.contains("idx 1(boundary-root-retain)"),
+        "{message}"
+    );
+}
+
 /// ★#446：同一 carrier 的反向 open 对成对湮灭，净零目标不得留下活动腿。
 #[test]
 fn open_candidates_same_carrier_id_reverse_pair_annihilates() {

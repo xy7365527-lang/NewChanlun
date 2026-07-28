@@ -1086,3 +1086,51 @@ T1 订正与门恢复。完整证据与新 digest 见
 - 共享分支最终由并行 #421 从 `a12a1022d9` 前推到 `6e15ceffee`；只提交 classifier 与
   `p123_fast_replay.rs`，本票四个受控路径的并行 commit 查询为空，符合票面
   “classifier/簿记并行线登记后继续”条件。
+
+### 15.6 #512 / #511 MED canonical 与证据路径订正（2026-07-28）
+
+> **只追加订正，不改写 §15.5 原证词**：§15.5 原 :1078-1080 所称默认根
+> `/tmp/446_armR_dump`、原 :1085 对 Spec 的无条件 PASS，均被编排者验收轮恢复 canonical
+> 的事实覆盖。当前 `scripts/check_armR_trades_digest.py` 默认根为 `/tmp/m8_win_gate`；
+> #512 在 v2 provenance schema 下实跑无参门 exit 0，三窗 digest 全中，日志
+> `/tmp/512_armR_gate_default.log`。`/tmp/446_armR_dump` 仍是修复后冻结副本，不是默认根。
+
+逐笔 diff 的旧侧不能再写 `/tmp/m8_win_gate`：该目录已恢复为修复后 canonical 产物，会把“旧”
+误指到“新”。旧侧统一为修复前存档 `/tmp/423_backup_m8_win_gate`（#423 在案 6/6 SAME），
+新侧为 `/tmp/446_armR_dump`。`/tmp/446_armR_trades_diff.md` 首部与同名 JSON `_scope`
+已同步；§15.3 中“相对 `/tmp/m8_win_gate` 漂移”只保留为当时历史陈述，当前引用必须按本段路径对。
+
+### 15.7 #446 `strategy_target_legs` 污染面登记表
+
+生产共享路径为 `coverage/step.rs` 的 `strategy_target_legs` 调用；直接消费面为
+`coverage/sizing.rs:609-675`、`backtest/l3_fullwindow.rs:449-467`、
+`backtest/incremental.rs:1778-1791`。状态口径如下：
+
+- **已重验**：仅本报告 §15.1/§15.2 的 R/D/C × p3fold/wf7/wf8 九窗；九窗
+  `duplicate-ID=0`，经济与 LEE 数值以两节新表为准。
+- 对其余历史产物只允许下表两态：`superseded` 或 `未复核`。`未复核` 只表示尚未证明是否实际
+  命中碰撞，禁止改写成“已污染”或“未污染”。
+
+> **防线角色订正**：§15.1 原句“release 下计数并逐窗 assert”描述的是 #446 时点实现。
+> #512 已把唯一硬防线前移为 coverage 生产边界的 release/debug `panic!`；m8 逐窗表只保留
+> `duplicate_id_violations` 可观测读数，不再重复设置较晚断言点。能完成报告的九窗计数仍应为 0。
+
+| 历史产物 / 消费族 | 覆盖面 | 状态 | 当前引用规则 |
+|---|---|---|---|
+| `treasury-reverify-t2-armD-20260727.md` §2（原 :76-97）、§6（原 :262-273）、§13.8 | sizing / m8 臂 D；如 wf8 `+4504490/+4980320` | **superseded** | 以本报告 §15.1/§15.2（wf8 `+4463727/+4938316`）为准；T2 已追加订正块 |
+| `v4-three-window-typed-chain-acceptance-20260721.md:49-61` | sizing / m8 三窗旧臂 | **未复核** | 不得冒充 §15 九窗重验 |
+| `v4-three-arm-acceptance-20260720.md:38-49` | sizing / m8 三臂旧表 | **未复核** | 不证明是否命中碰撞 |
+| `w2-dual-ledger-m8-impl-20260719.md:30-61` | `run_theta_v0_dual` / `run_theta_v0` / π 基线 | **未复核** | 双账、净额与 π 三臂均不外推 |
+| `dual-open-implementation-audit-20260719.md:67-116` | dual-open 历史验收读数 | **未复核** | 只保留历史证词 |
+| `l3_fullwindow.rs:449-467` 所产 L3 报告族（含 `l3-econ-gate-filter-rate-20260719.md`） | L3 全窗 instrument 直接消费 coverage | **未复核** | L3 数值不得借 §15 自动洗白 |
+| `incremental.rs:1778-1791` 的 coverage 标度/profile 族及经 `run_theta_v0` / `run_theta_v0_dual` 形成的其余历史跑批报告 | incremental / run-theta 共享消费族 | **未复核** | 未逐份重跑前不下碰撞结论 |
+
+穷尽规则：属于 §15 九窗的归“已重验”；命中 T2 指定旧表的归 `superseded`；其余经上述三个
+直接消费面或 run-theta 包装层形成、且未逐份重跑的历史数值一律归“未复核”。不存在第三种旧产物状态。
+
+### 15.8 LOW 登记（本票不修）
+
+- #511 LOW-2：既有新增测试函数超过 50 行、夹具构造重复，归入 **#493** 的测试拆分/夹具抽取面；
+  #512 不做结构重排。
+- #511 LOW-1：`wverify_run.rs` 体量问题已在 **#493** 在案，本票仅删除重复的较晚唯一性断言点，
+  不承接文件拆分。

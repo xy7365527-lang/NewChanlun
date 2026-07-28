@@ -15,7 +15,7 @@
     cd rust
     for tag in p3fold wf7 wf8; do
       M8_WIN_FILTER=$tag VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 \
-        M8_REPORT_PATH=/tmp/446_armR_report_$tag.md OPSEM_DUMP_DIR=/tmp/m8_win_gate/$tag \
+        M8_REPORT_PATH=/tmp/484_armR_report_$tag.md OPSEM_DUMP_DIR=/tmp/484_armR_dump/$tag \
         cargo test --release --lib theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos \
         -- --ignored --nocapture
     done
@@ -24,7 +24,8 @@
 
     python3 scripts/check_armR_trades_digest.py                 # 校验（默认读 /tmp/m8_win_gate）
     python3 scripts/check_armR_trades_digest.py --dump-dir DIR   # 指定 dump 根目录
-    python3 scripts/check_armR_trades_digest.py --regen          # 重新落 golden（改动经审后才允许）
+    python3 scripts/check_armR_trades_digest.py --dump-dir DIR --regen
+        # 追加 provenance 历史锚并重落同 schema golden（改动经审后才允许）
 
 **退出码**：0=无漂移；1=真漂移（打字段级差异）；4=产物缺失（跑批未做，非漂移）。
 """
@@ -33,14 +34,26 @@ from __future__ import annotations
 
 import argparse
 import collections
+import datetime
 import json
 import pathlib
+import shlex
+import subprocess
 import sys
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 GOLDEN_PATH = REPO_ROOT / "chanlun" / "review-results" / "treasury-reverify-t1-armR-trades-golden-20260727.json"
 DEFAULT_DUMP_DIR = pathlib.Path("/tmp/m8_win_gate")
 WINDOWS = ("p3fold", "wf7", "wf8")
+GOLDEN_SCHEMA = "armR-trades-digest/v2"
+REQUIRED_ANCHOR_FIELDS = (
+    "source_base_head",
+    "final_verification_head",
+    "source_worktree",
+    "run_date",
+    "regen_command",
+    "check_command",
+)
 
 FNV_OFFSET = 0xCBF29CE484222325
 FNV_PRIME = 0x100000001B3
@@ -49,6 +62,74 @@ MASK64 = 0xFFFFFFFFFFFFFFFF
 EXIT_OK = 0
 EXIT_DRIFT = 1
 EXIT_MISSING = 4
+
+
+def _legacy_anchor(payload: dict) -> dict | None:
+    """把 v1 顶层 provenance 原样迁入首个历史锚，禁止 regen 静默丢字段。"""
+    mapping = {
+        "source_base_head": "_source_base_head",
+        "source_worktree": "_source_worktree",
+        "run_date": "_run_date",
+        "regen_command": "_regen_command",
+        "check_command": "_check_command",
+    }
+    if not all(field in payload for field in mapping.values()):
+        return None
+    anchor = {field: payload[legacy] for field, legacy in mapping.items()}
+    anchor["final_verification_head"] = payload.get(
+        "_final_verification_head", payload["_source_base_head"]
+    )
+    if "_source_lineage_start" in payload:
+        anchor["source_lineage_start"] = payload["_source_lineage_start"]
+    if "_parallel_head_note" in payload:
+        anchor["parallel_head_note"] = payload["_parallel_head_note"]
+    return anchor
+
+
+def _current_regen_anchor(dump_dir: pathlib.Path) -> dict:
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    status = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    quoted_dump = shlex.quote(str(dump_dir))
+    return {
+        "source_base_head": head,
+        "final_verification_head": head,
+        "source_worktree": "clean" if not status else f"dirty（git status --short: {len(status)} paths）",
+        "run_date": datetime.date.today().isoformat(),
+        "dump_dir": str(dump_dir),
+        "regen_command": f"python3 scripts/check_armR_trades_digest.py --dump-dir {quoted_dump} --regen",
+        "check_command": f"python3 scripts/check_armR_trades_digest.py --dump-dir {quoted_dump}",
+    }
+
+
+def provenance_problems(payload: dict) -> list[str]:
+    problems: list[str] = []
+    if payload.get("_schema") != GOLDEN_SCHEMA:
+        problems.append(f"_schema: expected={GOLDEN_SCHEMA!r} actual={payload.get('_schema')!r}")
+    provenance = payload.get("provenance")
+    anchors = provenance.get("anchors") if isinstance(provenance, dict) else None
+    if not isinstance(anchors, list) or not anchors:
+        problems.append("provenance.anchors: 必须是非空历史锚数组")
+        return problems
+    for idx, anchor in enumerate(anchors):
+        if not isinstance(anchor, dict):
+            problems.append(f"provenance.anchors[{idx}]: 必须是对象")
+            continue
+        missing = [field for field in REQUIRED_ANCHOR_FIELDS if not anchor.get(field)]
+        if missing:
+            problems.append(f"provenance.anchors[{idx}]: 缺字段 {missing}")
+    return problems
 
 
 def fnv1a64(data: bytes) -> int:
@@ -130,24 +211,19 @@ def main() -> int:
         return EXIT_MISSING
 
     if args.regen:
+        previous = json.loads(GOLDEN_PATH.read_text()) if GOLDEN_PATH.exists() else {}
+        provenance = previous.get("provenance")
+        if previous.get("_schema") == GOLDEN_SCHEMA and isinstance(provenance, dict):
+            anchors = list(provenance.get("anchors", []))
+        else:
+            legacy = _legacy_anchor(previous)
+            anchors = [legacy] if legacy is not None else []
+        anchors.append(_current_regen_anchor(args.dump_dir))
         payload = {
+            "_schema": GOLDEN_SCHEMA,
             "_note": "臂R（VOICE_EXEC=1 THETA_NEST_CERT_GATE=1，fee_schedule=None/enforce_level_cap=false）"
                      "三窗 trades.jsonl 逐位冻结；issue #446 消除双计后的 #387 T1 红线重锚。",
-            "_source_base_head": "6e15ceffeeb8259c065bf7c0ec9ec7c65935737c",
-            "_source_lineage_start": "a12a1022d9ddd8d1cae867a107a3a33c359358cf",
-            "_source_worktree": "未提交 issue #446 修复；由编排者验收后提交",
-            "_run_date": "2026-07-28",
-            "_regen_command": (
-                "cd rust && for tag in p3fold wf7 wf8; do "
-                "M8_WIN_FILTER=$tag VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 "
-                "M8_REPORT_PATH=/tmp/446_armR_report_$tag.md "
-                "OPSEM_DUMP_DIR=/tmp/446_armR_dump/$tag "
-                "cargo test --release --lib "
-                "theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos -- --ignored --nocapture; done"
-            ),
-            "_check_command": (
-                "python3 scripts/check_armR_trades_digest.py --dump-dir /tmp/446_armR_dump"
-            ),
+            "provenance": {"anchors": anchors},
             "windows": actual,
         }
         GOLDEN_PATH.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
@@ -158,10 +234,11 @@ def main() -> int:
         print(f"golden 文件不存在：{GOLDEN_PATH}（先跑 --regen）", file=sys.stderr)
         return EXIT_MISSING
 
-    golden = json.loads(GOLDEN_PATH.read_text()).get("windows", {})
-    problems = diff_report(golden, actual)
+    golden_payload = json.loads(GOLDEN_PATH.read_text())
+    problems = provenance_problems(golden_payload)
+    problems.extend(diff_report(golden_payload.get("windows", {}), actual))
     if problems:
-        print("臂R trades 漂移（逐字段差异）：", file=sys.stderr)
+        print("臂R golden/provenance 或 trades 漂移（逐字段差异）：", file=sys.stderr)
         for p in problems:
             print(f"  {p}", file=sys.stderr)
         return EXIT_DRIFT
