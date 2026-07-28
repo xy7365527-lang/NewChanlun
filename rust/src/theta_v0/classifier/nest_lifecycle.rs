@@ -1134,9 +1134,10 @@ impl NestLifecycleBook {
 ///
 /// 对每只 Consolidation 中枢取**末个**可定位离开段的结构锚，活窗 = `(seg_c.0, as_of)`
 /// （c 窗右端 = prefix 边界，含行进中 bar）。本函数只做定位与产窗，不消费力度
-/// （力度三值化在 advance 内现算）。#421 已由 `p123_fast_replay` 在生产重估 trigger
-/// 调用 `feed_replay_prefix`，本函数是其 `PanLiveWindow` 行进中通道的参照实装
-/// （T11/T14 真实夹具锚定）。
+/// （力度三值化在 advance 内现算）。#421 现由 `p123_fast_replay` 在生产每根 bar 调用
+/// `feed_replay_bar`（活窗相先、完成相后）；本函数是其 `PanLiveWindow` 结构定位与初建的
+/// 参照实装（T11/T14 真实夹具锚定）。`ReplayPrefixFeed`/`feed_replay_prefix` 仅保留为
+/// legacy/测试兼容 adapter，不描述现行生产喂数时钟。
 /// 可见性登记：保留 `pub`——本函数是交付「消费契约」的喂入参照（两轴评审发现项取
 /// 登记分支）；`pub(crate)` 在非 test 构建无调用方会触发 dead_code 警告，违反零新增警告线。
 pub fn provide_pan_live_windows(
@@ -1976,10 +1977,11 @@ mod tests {
 
     /// T8 trend 身份迁移豁免（白名单工程桥，模块头 090 登记 1）：收束记 Supersedes
     /// （链留痕、钟不动、无 Invalidated）；负面对照 seg_a 改变 ⟹ 白名单不越界 ⟹
-    /// IdentityVanished。feed 在每个 trigger 严格先活窗观察、后完成信号；同 trigger
-    /// 闪现允许 Observed→StructureCompleted→终局同钟。`observed_at` 与
-    /// `first_provable_at` 均在首次实际 `advance` 写入，跳过非 trigger prefix 只会晚记，
-    /// 禁止回填，因此不能构造 `first_provable_at < observed_at`。
+    /// IdentityVanished。现行生产经 `feed_replay_bar` 逐 bar 两相喂：每根 bar 严格先活窗
+    /// 观察、后完成信号；同 bar 闪现允许 Observed→StructureCompleted→终局同钟。
+    /// `observed_at` 与 `first_provable_at` 均在首次实际 `advance` 写入，禁止回填，因此
+    /// 不能构造 `first_provable_at < observed_at`。`ReplayPrefixFeed`/trigger adapter
+    /// 仅为 legacy/测试兼容；只在该兼容路径，跳过非 trigger prefix 才会晚记。
     #[test]
     fn t8_trend_identity_migration_whitelist() {
         let close_src = identity_close_src(200);
@@ -3033,10 +3035,11 @@ mod tests {
         book.assert_invariants();
     }
 
-    /// F6 侧车零反流（照 T5 逐字节护栏形态）：喂数出口对完成事件通道的入参**只读**，
-    /// 出口前后事件流逐字节相等；且挂账本与不挂账本两种配置下入参流逐字节相同。
+    /// F6 侧车零反流（合成事件等价性护栏）：喂数出口对完成事件通道的入参**只读**；
+    /// 出口前后的 Copy 事件流以 `PartialEq` 比较，并比较其 Debug 表示。这不是生产
+    /// 序列化字节护栏。
     #[test]
-    fn f6_feed_exit_is_sidecar_events_byte_identical() {
+    fn f6_feed_exit_is_sidecar_events_equivalent() {
         let (centers, kinds, segments, _anchors, hist, dif, close_src) =
             pan_real_fixture(-0.1, -0.5);
         let legs = legs_of(&segments);
@@ -3061,11 +3064,11 @@ mod tests {
             },
             &m,
         );
-        assert_eq!(events, baseline, "事件流逐字段相等（PartialEq）");
+        assert_eq!(events, baseline, "Copy 后事件流等价（PartialEq）");
         assert_eq!(
             format!("{events:?}"),
             format!("{baseline:?}"),
-            "Debug 序列化逐字节相等"
+            "事件流 Debug 表示相等"
         );
         assert!(!book.is_empty(), "账本确实被喂到（护栏不是空跑）");
         book.assert_invariants();

@@ -1,5 +1,13 @@
 # V3 NestLifecycleBook 重建实装说明（issue #231，spec #232）
 
+> **订正注记（2026-07-28，#421 E 裁定 comment-5106372198）**：本文保留
+> 2026-07-24 原始交付与后续阶段性订正，不静默改写历史。文中“只在生产重估 trigger
+> 投喂”已被 commit `391936a486` 的生产逐 bar 两相 feed 实装取代：现行
+> `p123_fast_replay` 每根 bar 调用 `feed_replay_bar`，`ReplayPrefixFeed`/
+> `feed_replay_prefix` 仅为 legacy/测试兼容。旧 `0/3715` 分母及不存在的“§7.3”
+> 引用均为历史遗留，不作现行事实或验收口径；现行结算分母、p409 反事实边界与 E
+> 改判见 `issue421-acceptance-selfcheck-20260727.md` §10「E 执行节」。
+
 - 日期：2026-07-24
 - 工位：实装 subagent（worktree `/tmp/kimi-nest-mainline`，分支 `kimi-nest-mainline-20260717`）
 - 规格：`chanlun/review-results/spec-v3-lifecycle-rebuild-20260724.md`（spec #232，下称「spec」；ID-n 指 spec 节号）
