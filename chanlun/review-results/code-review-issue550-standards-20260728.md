@@ -1,48 +1,53 @@
-# #550 实装 Standards 轴评审（fixed point 7b4547b623 → HEAD aa7acd22c0）
+# #550 实装 Standards 轴复审（fixed point 7b4547b623 → HEAD 39ce41b896，5 commits）
 
 标准源：`.claude/rules/common/*.md`（8 份全读）+ Fowler 12 条臭味基线。rustfmt/clippy/编译器已强制的项不计。
-**结论：FAIL**（2 条硬违反 + 1 条测试标准缺口；无正确性缺陷，正确性属 Spec 轴）。
+本轮 = 首轮 FAIL 后的复审（修复 commit `ad19cb9499`「整合修 13 条」）。
+
+**结论：FAIL**（2 条硬违反未修且偏离扩大 + 4 条新引入项；无正确性缺陷，正确性属 Spec 轴）。
+
+## 首轮项已修（登记，不再重复上浮）
+
+FNV 三处魔数收 `FNV_OFFSET_BASIS`/`FNV_PRIME`/`PAIR_ID_SEED` 命名常量（cand_event.rs:17-19）；FNV golden 改锁 `classify_with_tower_events` 真实产出（mod.rs:4152）；全量/增量候选逻辑归并到 `observations_for_level`（mod.rs:503 ≡ 2299 共用）；`Pan` 域生产化（cand_event.rs:385）解除该项 Speculative Generality；`streams()` 改 `Rc::clone` + `append_bar` 恢复直调（streaming.rs:83）灭全簿深拷贝；恒真谓词加诚实注释并把中间形态推给 #551（cand_event.rs:63-66）；修复 commit 本身零格式混批（281 行全为语义改动），Divergent Change 提交卫生项已改善（历史 commit 2c2214d30c 不可追改）。
 
 ## 硬违反（文档标准可判）
 
-**HIGH — coding-style.md「Files are focused (<800 lines)」/「200-400 lines typical, 800 max」— `rust/src/theta_v0/classifier/mod.rs`（4534 行，+798）、`rust/src/theta_v0/backtest/incremental.rs`（2160 行，+301）**
-超限是基线既有（3736/1859），但本 diff 把新特性全量塞回同一文件而非留在新建的 `cand_event.rs`（528 行，合规），偏离进一步扩大。
+**HIGH — coding-style.md「Files are focused (<800 lines)」/「200-400 lines typical, 800 max」**
+`classifier/mod.rs` 4697 行（基线 3736，本 diff +961）、`backtest/incremental.rs` 2160 行（基线 1859）。首轮已判，本轮修复又向 mod.rs 加 279 行，偏离继续扩大。新建 `cand_event.rs` 656 行合规。
 
-**HIGH — coding-style.md「Functions are small (<50 lines)」— mod.rs:1632『classify_with_tower_incremental』(806 行)、mod.rs:362『classify_impl』(207 行)**
-本 diff 分别向其内联 +24 / +30 行候选逻辑（mod.rs:2173-2194、455-476），未抽函数。
+**HIGH — coding-style.md「Functions are small (<50 lines)」**
+未修：`mod.rs:1637 classify_with_tower_incremental`（812 行）、`mod.rs:362 classify_impl`（209 行）。
+新引入：`cand_event.rs:290 structural_observations_for_level`（93 行）、`cand_event.rs:149 advance`（60 行）、`bin/issue550_event_battery.rs:92 run`（74 行）、`:39 load`（52 行）。
 
-**MED — testing.md「Test Types (ALL required): Unit / Integration / E2E」— `rust/src/bin/issue550_event_battery.rs`**
-真实数据逐 bar 对拍只以手工 bin 存在（commit message 标 `test(classifier)`，但无 `#[test]`，不进 CI）。塔内自动化只有 mod.rs:3992『fresh 单发』相等断言；bin 实测的「逐 bar 增量≡全量」无自动化覆盖。
+**MED — testing.md「Test Types (ALL required): Unit / Integration / E2E」**
+部分修复：合成侧已补逐段重放锁 `mod.rs:4057`（实测 `cargo test --release` 0.49s 通过）+ 非空/Pan 断言。仍缺：真实数据逐 bar 对拍只以手工 bin 存在（`issue550_event_battery.rs`，无 `#[test]`，不进 CI）。
 
-**MED — coding-style.md「No hardcoded values (use constants or config)」— cand_event.rs:334-335、350、486**
-FNV 种子 `0xcbf29ce484222325` / `0x84222325cbf29ce4` / `0x100000001b3` 三处字面量散落；`structural_predicates` 三字段恒写字面 `true`。
-
-**LOW — coding-style.md「Handle errors explicitly at every level」— cand_event.rs:308-312**
-生产路径 3 处 `.expect(...)`（A 段/λ_C/方向）在不变量破裂时 panic。与本文件基线一致，故仅记录。
-
-*非违反（明确登记，避免下游重复上浮）*：`CandidateEventBook` 原地推进受 coding-style.md「补（2026-07-28）：带修订留痕的单线程状态机/账本」豁免；bin 的 OHLC 边界校验满足 Input Validation；security.md 全项无命中。
+**LOW — coding-style.md「Handle errors explicitly at every level」**
+`cand_event.rs:341-343` 三处生产路径 `.expect(...)`（A 段/λ_C/方向）在不变量破裂时 panic。与本文件基线一致，仅记录。
 
 ## 基线臭味（判断题）
 
-**HIGH — Speculative Generality — cand_event.rs:38-124、88、228**
-生产侧只产出 `kind=Trend` / `state=Provisional` / `third_class_proof=None` / 谓词恒 `(true,true,true)`；`CandidateKind::Pan`、`CandidateState::{Unresolved,Confirmed}`、`make_revision` 的 `confirmed_at` 分支、`pub fn candidate_is_sub`（零调用者，含测试）全部只活在测试与类型声明里。模块声明的状态机远宽于它产出的。
+**MED — Shotgun Surgery（新引入）— cand_event.rs:76 / 112 / 243 / 272 + 生产点 361、410**
+加一个业务字段要同步改 5 处；`same_projection` 手写 9 字段比较，漏一项即静默丢 revision（当前 9 项无遗漏）。
 
-**MED — Duplicated Code — mod.rs:455-476 ≡ mod.rs:2173-2194（22 行逐字重复）、mod.rs:561 ≡ 2402（as_of 同式）；incremental.rs:97-112 重抄 `classify_at_with_l0` 的 append+断言而非委托**
+**MED — Duplicated Code（新引入 + 残留）— cand_event.rs:343-346 ≡ 392-395（`Side`→u8 映射逐字两份）；mod.rs:493-502 ≡ 2289-2298（segments/anchors 构造 10 行逐字重复，首轮 22 行已缩短未消除）**
 
-**MED — Data Clumps — mod.rs:608/2440、incremental.rs:97、streaming.rs:92**
-`(Classification, Vec<Rc<Vec<LeveledMove>>>, CandidateStreams)` 三元组在 4 处公开签名重复出现，未命名成结构体；`(hist, dif, closes_tick, close_src, gauge)` 同行旅行迫使 cand_event.rs:262 挂 `#[allow(clippy::too_many_arguments)]`。
+**MED — Mysterious Name（未修）— cand_event.rs:365-366、464**
+`candidate_group_id` / `pair_id` 是同一 `key` 的两次不同种子哈希，与 key 双射 ⇒ 不承载任何「分组/配对」信息。
 
-**MED — Mysterious Name — cand_event.rs:334-335、345**
-`candidate_group_id` / `pair_id` 是同一 key 的两次不同种子哈希，与 key 双射 ⇒ 不承载任何「分组/配对」信息；`first_provable_at`、`revision_at`、`interval.1` 三名同值（均 `seg.end_index`）。
+**MED — 字段语义失真（新引入）— cand_event.rs:405、413**
+Pan 域无前中枢，`previous_center_start` 与 `center_ids` 双端一律填 `cert.center.start_index`，占位值冒充语义字段（身份键因此对 Pan 少一维）。
 
-**MED — Middle Man — mod.rs:2440『classify_with_tower_events_incremental』**
-纯转委托 + `cache.candidate_book.streams().to_vec()`；该 `to_vec()` 每 bar 深拷贝全量事件簿。
+**MED — Speculative Generality（降级留存）— cand_event.rs:52、107、102**
+`CandidateState::Unresolved` 生产不可达（仅 `:611` 一测试构造）；`candidate_is_sub` 全仓零调用者（含测试）；`interval_is_sub` 只服务该死函数与自身真值表测试。
 
-**LOW — Primitive Obsession — cand_event.rs:38、25-26**
-`side_tag: u8`（手写 Long→0/Short→1）绕过既有 `types::Side`——受阻于 `Side` 未 derive `Ord/Hash`，修法是补一行 derive；`ParentFingerprint.zd/zg: i64` 丢弃了 `Tick` 别名。
+**LOW — Primitive Obsession — cand_event.rs:41、32-33**
+`side_tag: u8` 绕过既有 `types::Side`（阻力仅是 `Side` 缺 `Ord/Hash` derive）；`ParentFingerprint.zd/zg: i64` 丢弃 `Tick` 别名。
 
-**LOW — Divergent Change（提交卫生）— commit 2c2214d30c**
-该 feat commit 的 mod.rs 改动 1462 行中，特性相关约 120 行，其余为全文件 rustfmt 重排（含 `pub mod` 声明重排序）。git-workflow.md 的 type 分类（feat/chore）本意单一目的；混批使特性 diff 在评审中不可读。
+**LOW — Middle Man — mod.rs:2451、backtest/incremental.rs `classify_at_events`**
+纯转委托 + `streams()`；成本已降为 O(1)，仅形状残留。
 
-**LOW — 测试脆性 — cand_event.rs:479-490**
-golden 摘要取 `format!("{:?}", streams)` 的 FNV——任何字段增删或 Debug 派生变动都会翻转，与结构语义不绑定。
+**LOW — 冗余排序 — cand_event.rs:380 → 462**
+`structural_observations_for_level` 内部排序后，`observations_for_level` 立即整体重排，前者对唯一调用方无效。
+
+**LOW — 每 bar 全量克隆 — mod.rs:2314**
+`cached_candidate_observations.iter().cloned()` 每 bar 每级复制全部观察（首轮 O(n²) 主项已由 `bsp_key` 缓存消除，此为残留常数项）。

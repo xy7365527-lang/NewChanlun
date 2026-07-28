@@ -1,4 +1,46 @@
-# #550 实装收尾 Spec 轴评审（2026-07-28）
+# #550 实装收尾 Spec 轴评审 · 第二轮复审（2026-07-28，新上下文）
+
+- 评审面：`git diff 7b4547b623...HEAD`（5 commits，8 文件，+2806/-464），重点核 `ad19cb9499`（整合修 13 条）与 `39ce41b896`（报告订正）
+- 规格源：SPEC #547 全文、#550 票体验收标准、票内三评注（R1 返工点 / 底座更正 / 裁定 (i)）
+- 性质：只读复审，未改任何代码文件
+
+## 结论：FAIL
+
+首轮 10 条中 6 条实修（Pan 域落地、confirmed 因果钟、`same_projection` 修订闸、增量 memo 灭 O(n²)、`append_bar` 复原 + `Rc` 灭深拷贝、FNV 改锁真实 `classify` 产出、非空锁、bin 计数改按 key 最新 revision）。仍 FAIL 的原因：US17 整条缺席且未按 090 登记；修订链在生产上无触发证据；观察钟仍回填。
+
+## 发现
+
+**HIGH-1 US17 整条未做，且以规格外产物替代、未按 090 登记** — `p123_fast_replay.rs` 全 diff = 0（无 env-gated 事件 dump、无双跑 diff=0、无双侧 SHA 封印）。替代物 `rust/src/bin/issue550_event_battery.rs` 规格未要求（scope creep）。`issue550-t1-impl-20260728.md:119-132`「验收逐条」10 项全 PASS，未列此缺口。
+> SPEC #547:33 US17「p123 dump 侧信道扩一路事件 dump（env-gated、只写不判），以便重型验证窗口全量双跑 diff=0 + 双侧 SHA 封印（#69 协议）」；#547:96「090：任何测不出/未覆盖项照实登记」。
+
+**HIGH-2 「活段生长 → 修订」在生产路径无触发证据** — 电池 100,000 bar 报 246 身份 / 250 revision（`issue550-t1-impl-20260728.md:47`），即 4 次修订。增量候选 memo 挂 `bsp_key`（`mod.rs:2288`），而该 key 的 soundness 论证正是「尾 bar 不触及 confirmed 区间 ⟹ 输出 bit-identical」（`mod.rs:2186-2192`）——对活段右端生长按设计不敏感；`interval.1` 取 `seg.end_index`（`cand_event.rs:374`）同样只走确认段。全套锁中唯一的 revision 断言（`mod.rs:4142-4147`）用手搓 `CandidateObservation` 喂 book，不经 `classify`。
+> SPEC #547:20 US4「c 段右端与 as_of 不入身份键，以便活段生长不换身份、键管身份修订管生长」；#547:21 US5「修订只追加、旧 revision 保留，以便候选生命史全程可稽」。
+
+**HIGH-3 观察钟回填，五钟仍塌成四钟** — `cand_event.rs:239-242`：`observed_at` 与 `first_provable_at` 对新事件同取 `observation.first_provable_at` = `seg.end_index`（`cand_event.rs:375`）/ `cert.source_index`；同一 revision 的 `revision_at = as_of`。首次入簿时 `seg.end_index ≤ as_of` 恒成立（段须确认后才进 `l0.segments`），故事件自称的观察/首证时点早于它实际被观察到的 bar。
+> SPEC #547:54「observed_at, first_provable_at, confirmed_at?, invalidated_at?，五钟，一次写入不后移」；#547:65「禁未来回填 first_provable_at」。
+
+**MED-4 两项恒定字段无 090 登记** — `CandidateState::Unresolved` 生产不可达（结构域恒 `Provisional`：`cand_event.rs:375`；Pan 域恒 `Confirmed`：`cand_event.rs:424`）；`third_class_proof` 生产恒 `None`（`cand_event.rs:373`、`420`）。`StructuralPredicates` 恒真已在 `cand_event.rs:63-66` 诚实注明，此二项没有对应登记，报告亦未列。
+> SPEC #547:22 US6「事件状态机 ∅→Provisional/Unresolved/Confirmed」；#547:47-52「third_class_proof?」。
+
+**MED-5 「快照 commit」条目与分支实态不符（订正 commit 未订正到位）** — `issue550-t1-impl-20260728.md:115-117` 与 `:132` 仍称二轮修复 commit 为 BLOCKED-ENV「不伪造 commit id」，而二轮修复实为 `ad19cb9499`、报告订正实为 `39ce41b896`；订正 commit 只补了首轮三枚。
+> #550 验收标准「计数纪律 = passed/failed/ignored 三元组 + 快照 commit」。
+
+**LOW-6 N2 谓词跨级分支无单测** — 真值表（`cand_event.rs:552-561`）只覆盖 `interval_is_sub`；`candidate_is_sub`（`cand_event.rs:107-109`）多出的 `child.event_level < parent.event_level` 无任何调用者与断言。
+> SPEC #547:76「N2 谓词真值表单测：含相切边界（端点相等 = 包含）、相离、严格包含、反向不包含」。
+
+**LOW-7 级别 truncate 后同 key 永不再生（登记备 #551）** — `mod.rs:2397` 空级 truncate ⟹ 该级观察缺席 ⟹ `advance` 判 `Invalidated`（`cand_event.rs:200-206`）；终态不复活（`:168-173`）⟹ 级别回长后同一 key 永久缺失，全量路径则会重新产出。此项落在裁定 (i) 已推迟到 #551 的 fresh-full ≡ 因果簿终态投影锁内，仅登记不判失。
+
+**LOW-8 首提交 rustfmt 全文重排仍淹没实质 diff** — `2c2214d30c` 的 `mod.rs` 1462 行改动中特性相关约 120 行；历史不可改，仅登记。
+> SPEC #547:42「既有文件改动面 = `classify_impl` 产出点接线 + 输出通道透传 + `TowerCache` 增量态扩展」。
+
+## 复核成立（不列发现）
+
+身份键口径（`c` 右端与 `as_of` 不入键，`cand_event.rs:36-46`）；判据单源（唯一 `signal::judge_first_cached` / 既有 `PanDivCert`，力度不进身份与字段）；`observations_for_level` 全量/增量共用（`mod.rs:503` ≡ `:2299`），无 classify 外二次扫描、无 `cand_delta_tower*`/`level_cand_delta`/nest 侧调用；`nest` 三件、`CandDeltaEvent`、`NestCandidateEvent`、typed 链 diff = 0；四入口透传含 `OwnedIncrementalClassifier::append_bar_events`，`append_bar`/`classify_at`/`classify_with_tower` 签名与行为不变、消费方零接线；`interval_is_sub` 闭区间含端点、不复读 `nest::is_sub`；FNV golden 已锁 `classify_with_tower_events` 真实产出（`mod.rs:4155-4172`）并带非空 + Pan 命中锁；`signal::tests::extract_signals_bit_exact_digest_guard` 之红确为线既有（`signal.rs` 最后改动 `e8d5a47f06` 早于基座 `7b4547b623`），登记口径成立。
+
+---
+
+## 附：首轮报告（存档，line 号对应 `aa7acd22c0` 前的实装态）
+
 
 - 评审面：`git diff 7b4547b623...HEAD`（3 commits，6 文件，+2375/-464）
 - 规格源：SPEC #547 全文、#550 票体验收标准、票内三评注（R1 返工点 / 底座更正 / 裁定(i)）
