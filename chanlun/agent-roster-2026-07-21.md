@@ -19,3 +19,4 @@
 | [kimi]#421-收口包裁定 | kimi编排（编排者 2026-07-28 裁 a） | 文档修 3 + 债票 #532（p123 长函数）/#533（字节门仓内化）+ 污染转 #446/#511 属主，记票 comment-5106781616 | 已落地 |
 | [codex]#421-收口包文档修订 | kimi编排→codex exec（收口包裁定 a） | T8/provider 文档口径统一 + rebuild 报告订正注记 + 自查档 E 执行节（L0-L3）+ F6 改名符实 | 派发中 |
 | [kimi]#421-关票链 | kimi编排（收口包抽验 58672e2563 全绿） | #429/#430 双关（条件满足+债有去向）→ #421/#427 双关（E 口径五项全绿）；map #59 记 Decisions；三审报告入库 | 已收口 |
+| [codex]ticket-69-合流 | kimi编排→codex exec | #69 5a/5b merge 进 kimi-nest-mainline（禁 rebase 保封印 hash），三处冲突并集解 | 已交付（b615bd7143 双亲 29a2637a3e+b80ebb3d8a；kimi 抽验：五 commit 全祖先、干净树 2014/1 唯一红 #491、p123/m8 八面 cmp=0、SHADOW 179 checks 0 mismatch、他 session 脏面 SHA 未动） |
