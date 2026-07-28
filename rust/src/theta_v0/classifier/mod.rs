@@ -87,6 +87,8 @@ pub use turn_class::{
 /// #550：塔内原生背驰段候选事件（对象、append-only 修订流与 C⊆C 谓词）。
 pub mod cand_event;
 pub mod cand_predicate;
+/// #552（N2）：候选事件区间上的跨级 `C⊆C` 包含谓词与相邻级只读扫描探针。零消费接线。
+pub mod cand_sub;
 /// D7 firstRetrace 只读复核：严格 CompletedMove pair 映射与对象重启事件语义。
 /// 不接生产订单路径；只消费 C2 view，默认关闭的 seam 不受影响。
 pub mod first_retrace_replay;
