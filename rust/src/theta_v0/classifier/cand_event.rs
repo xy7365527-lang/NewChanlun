@@ -142,9 +142,38 @@ pub struct CandidateEvent {
 /// 每级一条 append-only 流；双层 Rc 让事件入口只克隆引用，不深拷贝全簿。
 pub type CandidateStreams = Rc<Vec<Rc<Vec<CandidateEvent>>>>;
 
-/// 闭区间 C⊆C；端点相等（相切）算包含。
+/// 区间退化：左端严格大于右端。
+///
+/// 退化 ≠ 空区间：C 段区间是**闭**区间，`(a, a)` 是合法单点区间（非退化）；`start > end` 是
+/// 非法几何，没有对应的 source_index 跨度，端点/交集/包含在其上均无定义。
+///
+/// 本仓库三个闭区间判据（[`interval_is_sub`] / [`intervals_touch`] / [`intervals_are_disjoint`]）
+/// 共用它作前置守卫，退化输入一律判 **false**——这三条不是「哪个成立」的三分，退化对在三者上
+/// 同时为假。调用方若需区分「判过但全不成立」与「退化不可判」，须自行按本谓词单列计数。
+pub fn interval_is_degenerate(interval: (usize, usize)) -> bool {
+    interval.0 > interval.1
+}
+
+/// 闭区间 C⊆C；端点相等（相切）算包含。任一区间退化 ⟹ false。
 pub fn interval_is_sub(child: (usize, usize), parent: (usize, usize)) -> bool {
-    child.0 <= child.1 && parent.0 <= parent.1 && parent.0 <= child.0 && child.1 <= parent.1
+    !interval_is_degenerate(child)
+        && !interval_is_degenerate(parent)
+        && parent.0 <= child.0
+        && child.1 <= parent.1
+}
+
+/// 两闭区间**相切**：至少一端点相等（#246 相切口径）。任一区间退化 ⟹ false。
+///
+/// 与 [`interval_is_sub`] 正交：相切不蕴含包含（`(10,30)` 与 `(10,20)` 左端相切但互不包含），
+/// 包含也不蕴含相切（严格内含两端均不等）。调用方要「包含且相切」须自取合取。
+pub fn intervals_touch(a: (usize, usize), b: (usize, usize)) -> bool {
+    !interval_is_degenerate(a) && !interval_is_degenerate(b) && (a.0 == b.0 || a.1 == b.1)
+}
+
+/// 两闭区间**相离**：交集为空。闭区间 ⟹ 端点相等即相交（`(10,20)` 与 `(20,30)` 不相离）。
+/// 任一区间退化 ⟹ false。
+pub fn intervals_are_disjoint(a: (usize, usize), b: (usize, usize)) -> bool {
+    !interval_is_degenerate(a) && !interval_is_degenerate(b) && (a.1 < b.0 || b.1 < a.0)
 }
 
 /// 单次塔扫描给事件机的业务投影。
@@ -909,6 +938,59 @@ mod tests {
         assert!(!interval_is_sub((9, 20), (10, 20)));
         assert!(!interval_is_sub((10, 21), (10, 20)));
         assert!(!interval_is_sub((20, 10), (10, 20)));
+        assert!(!interval_is_sub((11, 19), (20, 10)));
+    }
+
+    #[test]
+    fn degenerate_is_start_strictly_after_end_and_single_point_is_legal() {
+        assert!(interval_is_degenerate((20, 10)));
+        assert!(interval_is_degenerate((11, 10)));
+        // 单点闭区间合法（非退化）——退化 ≠ 空。
+        assert!(!interval_is_degenerate((10, 10)));
+        assert!(!interval_is_degenerate((10, 20)));
+    }
+
+    #[test]
+    fn touching_truth_table_covers_each_endpoint_and_degenerate_guard() {
+        // 左端相切。
+        assert!(intervals_touch((10, 15), (10, 20)));
+        // 右端相切。
+        assert!(intervals_touch((15, 20), (10, 20)));
+        // 两端同时相切（同区间）。
+        assert!(intervals_touch((10, 20), (10, 20)));
+        // 相切但互不包含——相切与包含正交。
+        assert!(intervals_touch((10, 30), (10, 20)));
+        assert!(!interval_is_sub((10, 30), (10, 20)));
+        // 严格内含 ⟹ 两端点均不等 ⟹ 不相切。
+        assert!(!intervals_touch((11, 19), (10, 20)));
+        // 相离且端点不等。
+        assert!(!intervals_touch((30, 40), (10, 20)));
+        // 交叉端点（a.1 == b.0）不算相切——本谓词判的是**同侧**端点相等。
+        assert!(!intervals_touch((5, 10), (10, 20)));
+        // 退化守卫：任一侧退化 ⟹ false，即便端点数值相等。
+        assert!(!intervals_touch((20, 10), (20, 30)));
+        assert!(!intervals_touch((10, 20), (20, 10)));
+        assert!(!intervals_touch((20, 10), (20, 10)));
+    }
+
+    #[test]
+    fn disjoint_truth_table_covers_closed_interval_touching_and_degenerate_guard() {
+        // 完全相离（两侧各一）。
+        assert!(intervals_are_disjoint((30, 40), (10, 20)));
+        assert!(intervals_are_disjoint((1, 5), (10, 20)));
+        // 闭区间 ⟹ 端点相接即相交，不相离。
+        assert!(!intervals_are_disjoint((20, 30), (10, 20)));
+        // 部分交叠 / 包含 / 同区间均不相离。
+        assert!(!intervals_are_disjoint((5, 15), (10, 20)));
+        assert!(!intervals_are_disjoint((11, 19), (10, 20)));
+        assert!(!intervals_are_disjoint((10, 20), (10, 20)));
+        // 单点区间：落在外面才相离。
+        assert!(intervals_are_disjoint((30, 30), (10, 20)));
+        assert!(!intervals_are_disjoint((15, 15), (10, 20)));
+        // 退化守卫：任一侧退化 ⟹ false，即便数值上「看着无交」。
+        assert!(!intervals_are_disjoint((60, 50), (10, 20)));
+        assert!(!intervals_are_disjoint((10, 20), (60, 50)));
+        assert!(!intervals_are_disjoint((60, 50), (40, 30)));
     }
 
     #[test]

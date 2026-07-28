@@ -141,7 +141,7 @@ fn print_containment_summary(streams: &classifier::cand_event::CandidateStreams)
         println!(
             "ISSUE552_CONTAIN_LEVEL child_level={} parent_level={} child_events={} \
              parent_events={} pairs={} contained={} touching={} strict={} disjoint={} \
-             reverse_blocked_by_level={}",
+             degenerate={} reverse_blocked_by_level={}",
             entry.child_level,
             entry.parent_level,
             entry.child_events,
@@ -151,6 +151,7 @@ fn print_containment_summary(streams: &classifier::cand_event::CandidateStreams)
             entry.touching,
             entry.strict,
             entry.disjoint,
+            entry.degenerate,
             entry.reverse_blocked_by_level,
         );
     }

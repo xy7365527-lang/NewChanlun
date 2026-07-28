@@ -8,9 +8,13 @@
 //! ## 对照纪律（audit §6 / SPEC US18）
 //!
 //! 不复读 [`super::nest::is_sub`]——那是 `NestInterval` 的 `(start_time, end_time)` **时间**
-//! 坐标谓词，属 nest 对照身份（ADR-0005）。本模块的区间不等式**唯一**委托上游单一来源
-//! [`super::cand_event::interval_is_sub`]，不在此重写第二套不等式；本模块自己只加**跨级分支**
-//! （`child.event_level < parent.event_level`）。
+//! 坐标谓词，属 nest 对照身份（ADR-0005）。
+//!
+//! **谓词的包含不等式**唯一委托上游单一来源 [`super::cand_event::interval_is_sub`]；探针的
+//! 相切 / 相离 / 退化判据亦同源于 `cand_event`（[`intervals_touch`] / [`intervals_are_disjoint`] /
+//! [`interval_is_degenerate`]）。**本模块不重写任何区间不等式**——三者共用同一条退化守卫，
+//! #246 相切口径与退化语义因此无第二处可漂移。本模块自己只加**跨级分支**
+//! （`child.event_level < parent.event_level`）与按对计数。
 //!
 //! ## 零消费（SPEC US12/US13）
 //!
@@ -19,7 +23,10 @@
 
 use std::collections::BTreeMap;
 
-use super::cand_event::{interval_is_sub, CandidateEvent, CandidateKey, CandidateStreams};
+use super::cand_event::{
+    interval_is_degenerate, interval_is_sub, intervals_are_disjoint, intervals_touch,
+    CandidateEvent, CandidateKey, CandidateStreams,
+};
 
 /// 跨级候选 `C⊆C`。坐标均为 `source_index`，无级别换算。
 ///
@@ -52,8 +59,15 @@ pub struct AdjacentLevelContainment {
     pub touching: usize,
     /// 成立且两端点均严格内含的对数。
     pub strict: usize,
-    /// 两区间无交的对数（相离）。
+    /// 两区间无交的对数（相离）。退化对不计入（见 [`Self::degenerate`]）。
     pub disjoint: usize,
+    /// 该对中**至少一端区间退化**（`start > end`）的对数。
+    ///
+    /// 退化对不进 `contained` / `touching` / `strict` / `disjoint` 任何真值桶——三个区间判据
+    /// （[`interval_is_sub`] / [`intervals_touch`] / [`intervals_are_disjoint`]）对退化输入一律
+    /// 判 false。单列本桶是为了让这些对**可见**：不单列则它们计入分母 `pairs` 却不进任何桶，
+    /// 计数不划分、静默丢格，「判过但全不成立」与「根本没进判定」不可区分。
+    pub degenerate: usize,
     /// 反向对（把父级事件当 child 传入）区间包含成立、但被跨级分支拒的对数。
     ///
     /// 非零 ⟹ 级别分支在真实数据上**真起作用**（不是恒真装饰）——防真空绿的直接证据。
@@ -170,15 +184,19 @@ fn count_pairs(
     };
     for child in children {
         for parent in parents {
+            if interval_is_degenerate(child.interval) || interval_is_degenerate(parent.interval) {
+                entry.degenerate += 1;
+                continue;
+            }
             if candidate_is_sub(child, parent) {
                 entry.contained += 1;
-                if child.interval.0 == parent.interval.0 || child.interval.1 == parent.interval.1 {
+                if intervals_touch(child.interval, parent.interval) {
                     entry.touching += 1;
                 } else {
                     entry.strict += 1;
                 }
             }
-            if child.interval.1 < parent.interval.0 || parent.interval.1 < child.interval.0 {
+            if intervals_are_disjoint(child.interval, parent.interval) {
                 entry.disjoint += 1;
             }
             // 反向对：区间成立却被级别分支拒 ⟹ 级别门在本窗口真起作用。
@@ -401,6 +419,46 @@ mod tests {
             scan.same_level.non_reflexive_blocked(),
             0,
             "本例无两个不同候选同级相含"
+        );
+    }
+
+    /// 退化区间的对进专门桶：不进 `contained` / `touching` / `strict` / `disjoint` 任何真值桶。
+    ///
+    /// 反事实（就地手写不等式时期）：相离判据 `parent.1 < child.0` 不带退化守卫 ⟹ 退化子区间
+    /// `(60,50)` 对父 `(10,20)` 被判「相离」（`20 < 60` 成立），而退化父 `(40,30)` 对子 `(12,18)`
+    /// 既不进 `contained`（`interval_is_sub` 有守卫）也不进 `disjoint`（`18 < 40` 不成立、
+    /// `30 < 12` 不成立）⟹ 静默丢格。
+    #[test]
+    fn degenerate_intervals_go_to_their_own_bucket_not_silently_dropped() {
+        let mut book = CandidateEventBook::default();
+        book.advance(
+            &[
+                // L1 父：正常 (10,20) + 退化 (40,30)。
+                observation(1, 10, (10, 20)),
+                observation(1, 40, (40, 30)),
+                // L0 子：严格包含 (12,18)、相离 (30,40)、退化 (60,50)。
+                observation(0, 12, (12, 18)),
+                observation(0, 30, (30, 40)),
+                observation(0, 60, (60, 50)),
+            ],
+            60,
+        );
+        let scan = scan_adjacent_containment(&book.streams());
+        let entry = scan.levels[0];
+        assert_eq!((entry.child_events, entry.parent_events), (3, 2));
+        assert_eq!(entry.pairs, 6);
+        assert_eq!(entry.contained, 1, "只有 (12,18) ⊆ (10,20)");
+        assert_eq!(entry.strict, 1);
+        assert_eq!(entry.touching, 0);
+        assert_eq!(entry.disjoint, 1, "只有 (30,40) 与 (10,20) 无交");
+        assert_eq!(
+            entry.degenerate, 4,
+            "6 对中只有「正常子 × 正常父」2 对非退化"
+        );
+        // 本夹具下四桶恰好划分分母——退化对既不丢也不重复计入其他桶。
+        assert_eq!(
+            entry.contained + entry.disjoint + entry.degenerate,
+            entry.pairs
         );
     }
 
