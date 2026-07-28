@@ -21,8 +21,16 @@
 - **round(·, 6)**：Python 内置 round（round-half-to-even），Rust 用 `{:.6}` 正确舍入复刻。
 
 ## 认识论等级
-- 合成数据：L1（管线正确性 + 浮点累加树 bit-exact）。
-- BZ 真实数据：L2（真实价格序列上 bit-exact）。
+- 合成数据：L1（管线正确性 + 浮点累加树 bit-exact）。16 个非 slow 用例覆盖，
+  任何环境（含 CI）都会跑到。
+- BZ 真实数据：L2（真实价格序列上 bit-exact）。来自唯一一个
+  `@pytest.mark.slow` 用例 `test_macd_real_data_bit_exact`，且仅在本机存在
+  `.cache/BZ_1min_2024_raw.parquet` 缓存文件时才会被执行验证——CI 环境
+  （用 `-m "not slow"` 过滤）下该证据实际不会被跑到（deselected）。
+  两种口径：
+  - 本地默认全跑（不加 `-m` 过滤）：17 passed，含 L2 真实数据验证。
+  - CI 口径（`-m "not slow"`）：16 passed + 1 deselected(slow)，只有 L1
+    合成数据证据，L2 证据未被执行。
 """
 
 from __future__ import annotations

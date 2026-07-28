@@ -115,6 +115,14 @@ pub struct MacdSeries {
 /// alpha = 2 / (span + 1) 数值上等于源码 `1/(1+com)`；此处按源码形式书写以杜绝歧义。
 /// 空输入返回空。
 fn ewm_adjust_false(values: &[f64], span: i64) -> Vec<f64> {
+    const USE_FMA: bool = cfg!(any(
+        target_arch = "aarch64",
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        )
+    ));
+
     let mut out = Vec::with_capacity(values.len());
     if values.is_empty() {
         return out;
@@ -132,24 +140,9 @@ fn ewm_adjust_false(values: &[f64], span: i64) -> Vec<f64> {
         old_wt *= old_wt_factor;
         if weighted != cur {
             let new_term = new_wt * cur;
-            #[cfg(any(
-                target_arch = "aarch64",
-                all(
-                    any(target_arch = "x86", target_arch = "x86_64"),
-                    target_feature = "fma"
-                )
-            ))]
-            {
+            if USE_FMA {
                 weighted = old_wt.mul_add(weighted, new_term);
-            }
-            #[cfg(not(any(
-                target_arch = "aarch64",
-                all(
-                    any(target_arch = "x86", target_arch = "x86_64"),
-                    target_feature = "fma"
-                )
-            )))]
-            {
+            } else {
                 weighted = old_wt * weighted + new_term;
             }
             weighted /= old_wt + new_wt;

@@ -71,10 +71,15 @@ def _wasserstein_distance(
 
     默认 p=1（用于 T8 背驰检测——Layer 2）。
     """
-    from persim import wasserstein
-
     if dgm_a.shape[0] == 0 and dgm_b.shape[0] == 0:
         return 0.0
+    if dgm_a.shape == dgm_b.shape and (dgm_a == dgm_b).all():
+        # W(D, D) 按定义精确为 0。绕过 Hungarian 求解器，避免不同
+        # scipy/persim 平台对同一 diagram 留下非零浮点残差。
+        return 0.0
+
+    from persim import wasserstein
+
     return float(wasserstein(dgm_a, dgm_b, order=order))
 
 

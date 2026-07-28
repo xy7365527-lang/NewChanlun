@@ -103,13 +103,16 @@ class OnlineMacdState:
     认识论：算法层 L0（EMA 递推的代数形式恒定）。但与 `compute_macd`
     （pandas ewm adjust=False）**并非 bit-exact**：本类用朴素递推
     `α·x+(1−α)·prev`，而 pandas 编译的 Cython 对 `old_wt*weighted+new_wt*cur`
-    做了浮点收缩（FMA），末位舍入不同 → 两路径数值偏差 ~1e-13（实测 macd
+    是否做浮点收缩（FMA）取决于目标架构——AArch64（以及显式启用 `fma`
+    target_feature 的 x86）会融合为 FMA，manylinux 基线 x86_64（不含 `fma`
+    特性）不融合，保留两次乘法再加法。无论走哪条架构分支，其末位舍入都与
+    本类的朴素递推不同 → 两路径数值偏差 ~1e-13（实测 macd
     max|Δ|≈8.5e-14, signal≈6.3e-14, hist≈4.1e-14，n=5000）。
     `test_a_macd.TestOnlineMacdState` 用 atol=1e-10 容差断言（非 exact），
     系统既有立场即"容差等价"。背驰力度比较的阈值远粗于 1e-14，故此偏差不影响
     背驰判定的路径不变性。Rust 移植（newchan_rust）对两路径各自忠实复刻其算术
-    （compute_macd 用 f64::mul_add 对齐 pandas FMA，OnlineMacdState 用朴素递推），
-    各自 bit-exact，但同样保留两路径间的 ~1e-14 偏差。
+    （compute_macd 按同一目标架构分支选择 f64::mul_add 或朴素乘加以对齐 pandas，
+    OnlineMacdState 用朴素递推），各自 bit-exact，但同样保留两路径间的 ~1e-14 偏差。
     """
 
     def __init__(
