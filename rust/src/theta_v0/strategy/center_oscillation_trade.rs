@@ -441,6 +441,12 @@ impl CenterOscillationBook {
         self.suspended.len()
     }
 
+    /// ★#466 D0：确定序读取当时全部分侧挂起身份。只供 env-gated OPSEM 重基事务观测；
+    /// 返回副本，调用方不能借此改挂起表。
+    pub fn suspended_identities(&self) -> Vec<(VoiceSide, CenterId)> {
+        self.suspended.keys().copied().collect()
+    }
+
     /// 多头侧挂起查询（#381 前既有语义；分侧查询见 [`Self::is_suspended_side`]）。
     pub fn is_suspended(&self, center: CenterId) -> bool {
         self.is_suspended_side(VoiceSide::Long, center)
