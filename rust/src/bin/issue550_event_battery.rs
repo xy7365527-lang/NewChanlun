@@ -192,10 +192,17 @@ fn state_name(state: CandidateState) -> &'static str {
 
 /// #551 裁定(i) 的真实数据版：末态 fresh 全量流 vs 因果簿终态投影。
 ///
-/// 只跑**一次** fresh 全量（O(n)，非逐前缀 O(n²)）。两侧按 key 对齐后分两类报数：
-/// - `fork_causal_only`：因果簿有而 fresh 无——允许的分叉方向（中途消失 ⟹ Invalidated 在案）；
-/// - `fork_fresh_only` / `revived`：fresh 有而因果簿无、或因果簿已判终态却仍被 fresh 产出——
-///   **禁止**的分叉方向（复活），非零即为红。
+/// 只跑**一次** fresh 全量（O(n)，非逐前缀 O(n²)）。两侧按 key 对齐后分类报数。
+///
+/// 口径以裁定(i) 的**甲口径定稿**为准（编排者 2026-07-28 裁决，见
+/// `chanlun/review-results/issue551-t2-impl-20260728.md` §五）：
+/// - `fork_causal_only`：因果簿有而 fresh 无——终态语义的定义后果（中途消失 ⟹ Invalidated
+///   在案），计量项；
+/// - `revived`：因果簿已判终态却仍被 fresh 产出（复活型分叉）——**禁令已随裁决取消**，现为
+///   终态域计量项，非零不是红；
+/// - `fork_fresh_only`：fresh 有而因果簿无——**仍是禁止方向**，非零即为红。它不在终态域豁免内：
+///   因果簿是正本，fresh 侧凭空多出从未入簿的身份 = 增量宿主漏记，是实装缺陷而非语义后果；
+/// - `payload_differ_live`：非终态候选的载荷差异——甲口径的**无条件域**，非零即为红。
 fn print_projection_fork(
     bars: &[Bar],
     config: &ThetaConfig,

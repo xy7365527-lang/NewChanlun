@@ -616,7 +616,20 @@ pub fn classify_with_tower(
 ///
 /// 本入口每次以 fresh book 计算，因此事件流是“每个 key 一条终态”的**终态窗口投影**；
 /// 跨 bar 因果簿的唯一正本由 [`classify_with_tower_events_incremental`] 的 `TowerCache` 持有。
-/// fresh-full 与因果簿终态投影的等价锁归 #551。
+///
+/// **#551 裁定(i) 等价锁口径（编排者 2026-07-28 裁决：出路甲）**——原文「fresh-full 与因果簿
+/// 终态投影每 key 最新 revision 逐字段相等」经裁决**收窄为非终态域**：
+/// 1. **非终态域逐字段相等，无条件**：因果簿中状态为 `Provisional`/`Unresolved` 的每个 key，
+///    fresh-full 侧必存在同 key 且业务载荷逐字段相等。无任何豁免。
+/// 2. **终态域分叉只计量、不禁止**：`Confirmed`/`Invalidated` 的 key 上，两侧的载荷差异与 key
+///    集合差异（含塌空—回长的复活型分叉）是 E2E-O 终态语义的**定义后果**，不是违规。成因：
+///    终态候选的载荷在终态时刻**冻结**，而其上游证书（如 `PanDivCert.seg_c`）仍随 bar 推进而变，
+///    fresh-full 无状态、只按当前结构重判 —— 历史相关语义与历史无关语义在终态域必然分叉。
+///
+/// 该口径修订的完整论证（命题、两个可观测面、三条出路对照与裁决）见
+/// `chanlun/review-results/issue551-t2-impl-20260728.md` §五。机器载体 = 本模块 test 段的
+/// `causal_book_terminal_projection_equals_fresh_full_stream` 与
+/// `invalidation_fork_only_points_from_causal_book_to_absent_fresh_stream` 两枚定稿锁。
 pub fn classify_with_tower_events(
     l0: &ParseLayer,
     config: &ThetaConfig,
@@ -4372,9 +4385,25 @@ mod tests {
         assert_eq!(history[1].observed_at, history[0].observed_at, "入簿钟不后移");
     }
 
-    /// ★#551 裁定(i) 投影等价锁：fresh 全量流 ≡ 因果簿终态投影（每 key 最新 revision 逐字段相等）。
+    /// ★#551 裁定(i) 投影等价锁 —— **甲口径定稿**（编排者 2026-07-28 裁决，非上浮态）。
     ///
-    /// 非真空由「因果簿真含多 revision」保证——若候选一次成型、无任何修订，该锁退化为平凡等式。
+    /// 裁定(i) 原文「每 key 最新 revision 逐字段相等」已按出路甲收窄，本锁是该修订的机器载体：
+    /// - **无条件域 = 非终态**：因果簿中 `Provisional`/`Unresolved` 的每个 key，fresh-full 侧必
+    ///   存在同 key 且 `payload_eq` 逐字段成立。零豁免。
+    /// - **计量域 = 终态**：`Confirmed`/`Invalidated` 的 key 上只数三类事实
+    ///   （`terminal_equal` / `terminal_differ` / `terminal_absent_in_fresh`），不作相等断言。
+    ///   理由：终态载荷在终态时刻**冻结**，而其上游证书仍随 bar 变，fresh-full 无状态、按当前
+    ///   结构重判 ⟹ 终态域分叉是 E2E-O 终态语义历史相关性的**定义后果**，不是缺陷。
+    /// - **仍是硬断言**：「fresh 有而因果簿无该 key」。它不在终态域豁免范围内 —— 豁免的是
+    ///   「因果簿判了终态、fresh 侧不再产出/载荷已变」这一个方向；反过来 fresh 侧凭空多出因果簿
+    ///   从未记过的 key，说明增量宿主漏记，是实装缺陷而非语义后果。
+    ///
+    /// 非真空三重前提：因果簿真含多 revision、fresh 非空、且 `live_checked > 0`（非终态域断言
+    /// 不得真空 —— 夹具若一个非终态 key 都没有，本锁等于没锁，必须红）。
+    ///
+    /// **计量域的量度归属（诚实声明）**：合成夹具规整，终态计数可能全为 0，故本锁**不断言**它们
+    /// 非零（断言非零会把「合成数据规整」误报成缺陷）。真实数据的非真空量度由电池给出：
+    /// BTC 100k `payload_differ=25` 且 `payload_differ_live=0`（`ISSUE551_FORK` 行）。
     #[test]
     fn causal_book_terminal_projection_equals_fresh_full_stream() {
         let cfg = ThetaConfig::default();
@@ -4390,26 +4419,76 @@ mod tests {
             terminal.len()
         );
         assert!(!fresh.is_empty(), "fresh 全量流非空，禁真空绿");
-        assert_eq!(fresh.len(), terminal.len(), "两侧身份集合等大");
-        for (key, event) in &fresh {
-            let booked = terminal
-                .get(key)
-                .unwrap_or_else(|| panic!("fresh 有而因果簿无该 key：{key:?}"));
+
+        // 无条件域（非终态）逐字段相等 + 计量域（终态）只数不断。遍历因果簿（正本）。
+        let mut live_checked = 0usize;
+        let mut terminal_equal = 0usize;
+        let mut terminal_differ = 0usize;
+        let mut terminal_absent_in_fresh = 0usize;
+        for (key, booked) in &terminal {
+            if booked.state.is_terminal() {
+                match fresh.get(key) {
+                    None => terminal_absent_in_fresh += 1,
+                    Some(event) if payload_eq(booked, event) => terminal_equal += 1,
+                    Some(_) => terminal_differ += 1,
+                }
+                continue;
+            }
+            let event = fresh.get(key).unwrap_or_else(|| {
+                panic!(
+                    "非终态域无条件相等：因果簿有活候选而 fresh 缺席 {key:?}\n  因果簿 {booked:?}"
+                )
+            });
             assert!(
                 payload_eq(booked, event),
-                "业务载荷投影须逐字段相等\n  因果簿 {booked:?}\n  fresh {event:?}"
+                "非终态域无条件相等（裁定(i) 甲口径）\n  因果簿 {booked:?}\n  fresh {event:?}"
+            );
+            live_checked += 1;
+        }
+        assert!(
+            live_checked > 0,
+            "非真空前提：非终态域断言不得真空（terminal_identities={} fresh_identities={}）",
+            terminal.len(),
+            fresh.len()
+        );
+
+        // 反方向仍是硬断言：fresh 侧不得出现因果簿从未记过的身份（漏记缺陷，非终态语义后果）。
+        for (key, event) in &fresh {
+            assert!(
+                terminal.contains_key(key),
+                "fresh 有而因果簿无该 key（因果簿是正本，此方向不在终态域豁免内）：{key:?}\n  fresh {event:?}"
             );
         }
+
+        // 计量域事实（口径：只报数，不断言非零；见函数头量度归属）。
+        assert_eq!(
+            terminal_equal + terminal_differ + terminal_absent_in_fresh + live_checked,
+            terminal.len(),
+            "计量口径分解须覆盖因果簿全部身份：live={live_checked} \
+             terminal_equal={terminal_equal} terminal_differ={terminal_differ} \
+             terminal_absent_in_fresh={terminal_absent_in_fresh} \
+             terminal_identities={} fresh_identities={}",
+            terminal.len(),
+            fresh.len()
+        );
     }
 
-    /// ★#551 裁定(i) 失效分叉方向锁：分叉只允许「因果簿判终态而 fresh-full 无该流」一个方向。
+    /// ★#551 裁定(i) 失效分叉锁 —— **甲口径定稿**（编排者 2026-07-28 裁决，非上浮态）。
     ///
-    /// 反方向（fresh-full 在产而因果簿已判 `Invalidated`）= 复活型分叉，必须为空。本锁用 L0
-    /// 塌空制造真实的中途消失，使「允许方向」在机器上真被走到（防真空绿）。
+    /// 与 `causal_book_terminal_projection_equals_fresh_full_stream` 同一口径的失效侧：
+    /// - **无条件域 = 非终态禁向**：不存在这样的 key —— 因果簿中为 `Provisional`/`Unresolved`
+    ///   而 fresh 侧缺席或载荷不等。**本夹具上该分支真空**（诚实声明）：L0 塌空后因果簿里的活
+    ///   候选被当场判 `Invalidated`，故非终态集合为空，该断言在此缝上走不到。非真空由锁一的
+    ///   `live_checked > 0` 承担。真空不是删掉它的理由 —— 口径分支必须在两枚锁上同构存在，
+    ///   否则夹具一变（塌空前提被替换）就没有任何东西守住这个方向。
+    /// - **计量域 = 终态**：原「禁止方向（fresh 在产而因果簿已判终态 = 复活）必须为空」的**禁令
+    ///   已按裁决取消**，改为计量 `revived_terminal`。复活型分叉是 E2E-O 终态语义历史相关性的
+    ///   定义后果，不再是违规。本夹具（塌空后**未回长**）上它恒 0；回长场景的非零量度由
+    ///   `escalated_upstream_regrowth_after_collapse_forks_in_forbidden_direction` 单独计量。
+    ///   同域的 `fork_causal_only_terminal`（因果簿终态在案而 fresh 无该流）一并报数。
     ///
-    /// 适用域：上游**未回长**的场景。上游塌空后再回长到逐字段相同结构时禁止方向可达，那是已
-    /// 上浮的矛盾，边界由 `escalated_upstream_regrowth_after_collapse_forks_in_forbidden_direction`
-    /// 单独锁定——本锁不覆盖该情形，也不假装它不存在。
+    /// 非真空前提保留：塌空须真产生 `Invalidated`、塌空后 fresh 须为空 —— 二者保证本锁走的是
+    /// 真实的中途消失，而非空跑。
     #[test]
     fn invalidation_fork_only_points_from_causal_book_to_absent_fresh_stream() {
         let cfg = ThetaConfig::default();
@@ -4430,30 +4509,58 @@ mod tests {
             .collect();
         assert!(!dead.is_empty(), "非真空前提：塌空须真产生 Invalidated");
         assert!(fresh.is_empty(), "塌空后 fresh-full 无任何候选流");
-        for event in &dead {
+
+        // 无条件域：非终态禁向。本夹具上 live_scanned 恒 0（见函数头真空声明）。
+        let mut live_scanned = 0usize;
+        for (key, booked) in &terminal {
+            if booked.state.is_terminal() {
+                continue;
+            }
+            live_scanned += 1;
+            let event = fresh.get(key).unwrap_or_else(|| {
+                panic!("非终态禁向：因果簿有活候选而 fresh 缺席 {key:?}\n  因果簿 {booked:?}")
+            });
             assert!(
-                !fresh.contains_key(&event.key),
-                "允许方向：因果簿终态在案而 fresh 无该流 {:?}",
-                event.key
+                payload_eq(booked, event),
+                "非终态禁向：活候选载荷须逐字段相等\n  因果簿 {booked:?}\n  fresh {event:?}"
             );
         }
-        // 禁止方向：fresh 在产而因果簿已判终态（复活）。
-        for (key, _) in &fresh {
-            assert_ne!(
-                terminal.get(key).map(|event| event.state),
-                Some(cand_event::CandidateState::Invalidated),
-                "禁止的分叉方向（复活）{key:?}"
-            );
-        }
+
+        // 计量域（**非禁令**）：终态 key 在 fresh 侧的两种去向。
+        let revived_terminal = fresh
+            .keys()
+            .filter(|key| {
+                terminal
+                    .get(*key)
+                    .is_some_and(|event| event.state.is_terminal())
+            })
+            .count();
+        let fork_causal_only_terminal = terminal
+            .iter()
+            .filter(|(key, event)| event.state.is_terminal() && !fresh.contains_key(*key))
+            .count();
+        // 计量口径分解（覆盖因果簿全部身份，报出实值）；本夹具未回长 ⟹ revived_terminal=0，
+        // 但该 0 是**观测结果**，不是禁令 —— 回长场景下它为 1 且被上面点名的那枚锁计量。
+        assert_eq!(
+            live_scanned + revived_terminal + fork_causal_only_terminal,
+            terminal.len(),
+            "计量口径分解：live_scanned={live_scanned} revived_terminal={revived_terminal} \
+             fork_causal_only_terminal={fork_causal_only_terminal} \
+             terminal_identities={} fresh_identities={}",
+            terminal.len(),
+            fresh.len()
+        );
     }
 
     /// ★#551：终态候选的载荷在确认时刻冻结 ⟹ 与 fresh-full 的当前重判必然分叉。
     ///
     /// 本锁**不掩盖**该分叉，而是把它的边界机器化：差异只允许落在终态候选上（`Confirmed`/
     /// `Invalidated`），非终态候选必须逐字段相等。Pan 域一入簿即 `Confirmed`（#550 决策），其
-    /// C 段区间此后仍随 bar 推进而变——这是 E2E-O「终态不改写」与裁定(i)「全 key 等价」在
-    /// 「终态候选上游载荷仍会变」下的不可弥合张力，已按 090 登记并上浮（见
-    /// `chanlun/review-results/issue551-t2-impl-20260728.md`）。
+    /// C 段区间此后仍随 bar 推进而变——这曾是 E2E-O「终态不改写」与裁定(i)「全 key 等价」在
+    /// 「终态候选上游载荷仍会变」下的不可弥合张力，**已裁决：甲**（编排者 2026-07-28，见
+    /// `chanlun/review-results/issue551-t2-impl-20260728.md` §五）。裁决把裁定(i) 收窄到非终态
+    /// 域，本锁的断言形状恰是甲口径本身 ⟹ 断言逐字未动，只是身份从「矛盾边界锁」变为
+    /// **甲口径的机器载体**。
     ///
     /// **口径边界（诚实声明）**：本 lib 锁只固定不变式的**方向**（`differ_live == 0`）。合成
     /// 夹具规整、终态候选的上游证书不再变动，`differ_terminal` 恒为 0，故该分支在本缝上真空。
@@ -4493,20 +4600,28 @@ mod tests {
         );
     }
 
-    /// ★#551 已上浮矛盾的边界锁（**不是**通过的验收项，是把矛盾钉死使其不可静默漂移）。
+    /// ★#551 复活型分叉的**计量锁**（甲口径定稿）。
+    ///
+    /// **函数名沿用上浮期命名（`forbidden_direction`），语义以本 doc 为准 —— 改名会破坏既有
+    /// 测试名册差集对账这条纪律，故不改名。** 该方向已不再是「禁止方向」。同理，下方断言消息中
+    /// 的「禁止方向」「矛盾已上浮」也是上浮期措辞：断言按裁决要求**逐字未动**（改动会改变本锁
+    /// 锁住的事实），其定性一律以本 doc 为准。
     ///
     /// 上游塌空后再回长到**逐字段相同**的结构时：因果簿按 E2E-O 判该 key 终态（`Invalidated`
-    /// 不复活），而 fresh-full 无状态、只看当下，会重新产出同一个 key —— 即裁定(i) 明令**禁止**
-    /// 的分叉方向（复活）在机制上可达。
+    /// 不复活），而 fresh-full 无状态、只看当下，会重新产出同一个 key —— 复活型分叉在机制上可达。
     ///
-    /// 根因不是实装缺陷，是两条已结算规则在此处直接对撞：E2E-O 的终态语义**历史相关**（一旦
-    /// 终态永远终态），fresh-full 的语义**历史无关**（只反映当前结构）；裁定(i) 要求二者每 key
-    /// 逐字段相等 ⟺ 要求终态语义历史无关。三条出路（各自代价见报告 §矛盾上浮）都要编排者裁决，
-    /// 本票不用任何 workaround 抹平：`CandidateKey` 补「上游代次」分量会让 fresh 侧算不出同一
-    /// 代次（等价锁全面失效）；「消失不判终态」违反 SPEC 明文的 US6 与 #535 红线③；「接受分叉」
-    /// 需收缩裁定(i) 的口径到非终态域。
+    /// 根因不是实装缺陷，是两条规则的语义差：E2E-O 的终态语义**历史相关**（一旦终态永远终态），
+    /// fresh-full 的语义**历史无关**（只反映当前结构）。**已裁决：甲**（编排者 2026-07-28，报告
+    /// §五）——裁定(i) 收窄为非终态域逐字段相等；终态域（含本处的复活型分叉）是该语义差的
+    /// **定义后果**，接受并计量，不再作禁止断言。乙（改 Pan 状态映射）与丙（key 补上游代次）
+    /// 未被采纳，代价见报告 §五 对照表。
     ///
-    /// 生产可达性：BTC 100k 实测 `invalidations=0`，塌空—回长从未发生 ⟹ 该分叉当前**生产不可达**。
+    /// 于是本锁从「矛盾边界锁」转为**计量锁**：锁住的是该分叉恰落在终态域、数量恰为 1、且两侧
+    /// 状态如实可解释（因果簿 `Invalidated` / fresh `Provisional`）。断言逐字未动 —— 它锁的事实
+    /// 没变，变的只是这些事实的定性。
+    ///
+    /// 生产可达性（保留）：BTC 100k 实测 `invalidations=0`，塌空—回长从未发生 ⟹ 该分叉当前
+    /// **生产不可达**。
     #[test]
     fn escalated_upstream_regrowth_after_collapse_forks_in_forbidden_direction() {
         let cfg = ThetaConfig::default();
