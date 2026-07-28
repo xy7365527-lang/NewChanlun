@@ -516,11 +516,7 @@ fn classify_impl(
             &moves,
             candidate_segments.as_ref(),
             &candidate_anchors,
-            &hist,
-            &dif,
-            &closes_tick,
             &close_src,
-            config.divergence_gauge,
             &pan_div,
         ));
 
@@ -2307,11 +2303,7 @@ pub fn classify_with_tower_incremental(
                 &moves,
                 candidate_segments.as_ref(),
                 &candidate_anchors,
-                hist,
-                dif,
-                &closes_tick,
                 &close_src,
-                config.divergence_gauge,
                 &pan_div,
             );
             lc.cached_candidate_key = Some(bsp_key);
@@ -2749,6 +2741,7 @@ mod tests {
 
     fn cache_candidate(c_start: usize, end: usize) -> cand_event::CandidateObservation {
         let key = cand_event::CandidateKey {
+            rule_version: cand_event::CANDIDATE_RULE_VERSION,
             level: 0,
             kind: cand_event::CandidateKind::Trend,
             side: Side::Long,
@@ -2776,7 +2769,7 @@ mod tests {
             third_class_proof: None,
             interval: (c_start, end),
             state: cand_event::CandidateState::Provisional,
-            first_provable_at: end,
+            first_provable_at: Some(end),
             confirmed_at: None,
         }
     }
@@ -4236,8 +4229,11 @@ mod tests {
             .fold(cand_event::FNV_OFFSET_BASIS, |hash, byte| {
                 (hash ^ byte as u64).wrapping_mul(cand_event::FNV_PRIME)
             });
+        // #551 诚实更新（旧值 3608191067574153658）：`CandidateKey` 增 `rule_version` 分量、
+        // `first_provable_at` 由 `usize` 改 `Option<usize>`（未决期不落钟）、Trend 域四态映射上线
+        // （Unresolved 生产可达）、同 episode 多腿归约为每 key 一条观察。
         assert_eq!(
-            digest, 3608191067574153658,
+            digest, 3542680779063880892,
             "真实事件流漂移须诚实更新 golden"
         );
     }

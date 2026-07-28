@@ -219,6 +219,103 @@ pub(crate) fn nearest_confirmed_center_idx(centers: &[Center], seg_start: usize)
     }
 }
 
+/// 第一类结构门的分量分解（E2E-D3 结构谓词，#551 单一来源）。
+///
+/// 字段与 [`judge_first_cached`] 的三道结构门逐条同源，**不是**第二套判据：
+/// - `side`：破最后中枢的方向（买侧向下破 = `Long`，卖侧向上破 = `Short`）。本结构存在本身即
+///   蕴含 `direction` 谓词成立——未破中枢或方向锚不合（Q7-#1 裁定C）时函数返回 `None`。
+/// - `extreme`：037:20 破 b = I(A) 包络极值（严格超越，等号排除）。
+/// - `a_idx`/`c_idx`：I(A)/I(C) 的 closes 下标区间；两者同时 `Some` ⟺ [`Self::comparable`]，
+///   即 MACD 面积坐标系上 A/C 可比较。
+///
+/// `None` 的语义是「**无候选身份**」（非「谓词不成立」）：破中枢不成立 ⟹ 不进候选域；A 段无法
+/// 定位或 λ_C 无法定位 ⟹ `CandidateKey` 的 `seg_a`/`c_start` 无来源 ⟹ 身份不可构造。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FirstStructuralGates {
+    pub side: Side,
+    /// I(A) = 前中枢同向离开走势区间（source_index）。
+    pub seg_a: (usize, usize),
+    /// λ_C = 离开最后中枢的当前 episode 首同向段起点（source_index）。
+    pub lambda_c: usize,
+    pub a_idx: Option<(usize, usize)>,
+    pub c_idx: Option<(usize, usize)>,
+    pub extreme: bool,
+}
+
+impl FirstStructuralGates {
+    /// I(A)/I(C) 均可映射到 closes 下标 ⟺ MACD 面积可算 ⟺ A/C 可比较。
+    pub fn comparable(&self) -> bool {
+        self.a_idx.is_some() && self.c_idx.is_some()
+    }
+}
+
+/// 第一类结构门的唯一判定点（[`judge_first_cached`] 与 #550 候选事件产出同读，禁第二套判据）。
+///
+/// 与旧内联版逐位等价：门的判据表达式与短路条件全部原样搬入——`judge_first_cached` 仍以「三门
+/// 全成立」为产点条件，只是把「不成立即 `return None`」拆成「记录谓词值 + 调用方裁剪」。唯一
+/// 非语义差异：`extreme` 不成立时本函数仍计算 `a_idx`/`c_idx`（纯函数、无副作用），使候选事件
+/// 侧能诚实读出 `comparable` 分量。
+pub(crate) fn first_structural_gates(
+    last_center: &Center,
+    trend_dir: Direction,
+    seg: &Segment,
+    anchor_dir: Option<Direction>,
+    src_to_idx: &[usize],
+    a_seg: Option<((usize, usize), (Tick, Tick))>,
+    c_move_start: Option<usize>,
+) -> Option<FirstStructuralGates> {
+    let end = seg_end(seg);
+    // C 破最后中枢几何（L0）+ 方向必须 = 趋势方向（下跌趋势=向下破=底背驰；上涨=向上破=顶背驰）。
+    // 因果触发点 = 破中枢段端点（Q5 等价性注记见 `judge_first_cached` 函数头）。
+    // Q7-#1 裁定C：破中枢段方向锚用 anchor_dir（provenance 资格）——fallback 单元（None）不触发。
+    // L0 恒 anchor_dir==Some(end.dir)（线段内在方向）⟹ 与旧 (end.dir, trend_dir) 匹配逐位一致。
+    // ★p117（686 翻转条款第一支窄域授权，终端背书裁定 T2）：生产第一类调用点（judge_segment）
+    // 经窄域授权改传结构方向锚（anchors_self，行程方向=τ 等式 veto）；直接调用方传 provenance
+    // 锚时裁定C 行为保留（判据函数语义未动，降级在调用点——测试
+    // `judge_first_cached_provenance_gate_preserved_for_direct_callers` 锁此契约）。
+    let (broke, is_sell) = match (anchor_dir, trend_dir) {
+        // 1 买：下跌趋势中向下破最后中枢下沿（底背驰候选）。
+        (Some(Direction::Down), Direction::Down) if end.price < last_center.zd => (true, false),
+        // 1 卖：上涨趋势中向上破最后中枢上沿（顶背驰候选）。
+        (Some(Direction::Up), Direction::Up) if last_center.zg < end.price => (true, true),
+        _ => (false, false),
+    };
+    if !broke {
+        return None; // 未破最后中枢 ⟹ 非第一类结构候选（几何分量不足，无候选身份）。
+    }
+    // A 区间由调用方预算传入（缓存复用，消解热点②）。无 A 候选 ⟹ A/C 无法配对 ⟹ 身份无 seg_a。
+    let ((a_start, a_end), (b_lo, b_hi)) = a_seg?;
+    // λ_C（Q5）：broke 成立 ⟹ seg 自身满足「同向 ∧ start ≥ c.end_index」过滤 ⟹ 首匹配必存在。
+    let Some(lambda_c) = c_move_start else {
+        debug_assert!(false, "broke 成立时 λ_C 必 Some（seg 自身在过滤集内）");
+        return None;
+    };
+    // ★037:20 破极值合取（教义必要项，p112 §6-3 裁定项，终端背书裁定 T3 核准）：c 端点必破
+    // b 包络极值——下跌趋势 end.price < b_lo（c 创出新低）；上涨趋势 end.price > b_hi（c 创出
+    // 新高）。b = I(A)（prev_center 的离开 episode，`locate_departure_move_a` 区间）；包络 =
+    // `move_range_envelope`（与 D2 侧 R1 T2 同一原语同区间语义，单一来源）。「创出」= 严格超越
+    // （等号排除，与 zd/zg 严格口径一致）。未破 b 极值的破核心段 = 037:20 否则条款域（可按盘整
+    // 背驰处理），不进第一类候选域（061:28：未创新极值不构成背驰——含零 bit struct_break 候选
+    // 也不产，D1 候选门收缩语义）。
+    // 因果触发等价性（同 `judge_first_cached` 函数头 Q5 注记论证）：段是单向对象、终点即极值，
+    // I(C) 包络首次破 b 包络 ⟺ 某同向段端点首次越 b_lo/b_hi ⟹ 在该段端点判 `end.price` 破极值
+    // = I(C) 包络判破的因果触发点。本合取不改变点的因果语义，只在同一触发点加严。
+    let extreme = match trend_dir {
+        Direction::Down => end.price < b_lo,
+        Direction::Up => end.price > b_hi,
+    };
+    // I(A)/I(C)（source_index 区间）→ closes 下标区间（MACD 面积坐标系，Q5 全区间口径）。
+    // 越界/空 ⟹ None ⟹ `comparable` 不成立（无面积 ⟹ 无法算 C<A）。
+    Some(FirstStructuralGates {
+        side: if is_sell { Side::Short } else { Side::Long },
+        seg_a: (a_start, a_end),
+        lambda_c,
+        a_idx: map_src_range_to_close_idx(src_to_idx, a_start, a_end),
+        c_idx: map_src_range_to_close_idx(src_to_idx, lambda_c, seg.end_index),
+        extreme,
+    })
+}
+
 /// 第一类买卖点判定（契约锚 `Origin.BspClassification.IsType1 = brokeCenter ∧ IsDivergence`；
 /// ★A/B/C 趋势背驰框架，第24课:22-24 + reference:34 + maimai.md:103-112）。
 ///
@@ -297,59 +394,28 @@ pub(crate) fn judge_first_cached(
     c_move_start: Option<usize>,
     gauge: DivergenceGauge,
 ) -> Option<BspPoint> {
-    let end = seg_end(seg);
-    // C 破最后中枢几何（L0）+ 方向必须 = 趋势方向（下跌趋势=向下破=底背驰；上涨=向上破=顶背驰）。
-    // 因果触发点 = 破中枢段端点（Q5 等价性注记见函数头）。
-    // Q7-#1 裁定C：破中枢段方向锚用 anchor_dir（provenance 资格）——fallback 单元（None）不触发。
-    // L0 恒 anchor_dir==Some(end.dir)（线段内在方向）⟹ 与旧 (end.dir, trend_dir) 匹配逐位一致。
-    // ★p117（686 翻转条款第一支窄域授权，终端背书裁定 T2）：生产第一类调用点（judge_segment）
-    // 经窄域授权改传结构方向锚（anchors_self，行程方向=τ 等式 veto）；直接调用方传 provenance
-    // 锚时裁定C 行为保留（判据函数语义未动，降级在调用点——测试
-    // `judge_first_cached_provenance_gate_preserved_for_direct_callers` 锁此契约）。
-    let (broke, is_sell) = match (anchor_dir, trend_dir) {
-        // 1 买：下跌趋势中向下破最后中枢下沿（底背驰候选）。
-        (Some(Direction::Down), Direction::Down) if end.price < last_center.zd => (true, false),
-        // 1 卖：上涨趋势中向上破最后中枢上沿（顶背驰候选）。
-        (Some(Direction::Up), Direction::Up) if last_center.zg < end.price => (true, true),
-        _ => (false, false),
-    };
-    if !broke {
-        return None; // 未破最后中枢 ⟹ 非第一类结构候选（几何分量不足）。
-    }
-    // A 区间由调用方预算传入（缓存复用，消解热点②）。无 A 候选 ⟹ A/C 无法配对 ⟹ 无趋势背驰对照。
-    let Some(((a_start, a_end), (b_lo, b_hi))) = a_seg else {
-        return None; // 无 prev_center 同向离开走势 ⟹ A/C 无法配对 ⟹ 无 struct_break 候选。
-    };
-    // ★037:20 破极值合取（教义必要项，p112 §6-3 裁定项，终端背书裁定 T3 核准）：c 端点必破
-    // b 包络极值——下跌趋势 end.price < b_lo（c 创出新低）；上涨趋势 end.price > b_hi（c 创出
-    // 新高）。b = I(A)（prev_center 的离开 episode，`locate_departure_move_a` 区间）；包络 =
-    // `move_range_envelope`（与 D2 侧 R1 T2 同一原语同区间语义，单一来源）。「创出」= 严格超越
-    // （等号排除，与 zd/zg 严格口径一致）。未破 b 极值的破核心段 = 037:20 否则条款域（可按盘整
-    // 背驰处理），不进第一类候选域（061:28：未创新极值不构成背驰——含零 bit struct_break 候选
-    // 也不产，D1 候选门收缩语义）。
-    // 因果触发等价性（同函数头 Q5 注记论证）：段是单向对象、终点即极值，I(C) 包络首次破 b 包络
-    // ⟺ 某同向段端点首次越 b_lo/b_hi ⟹ 在该段端点判 `end.price` 破极值 = I(C) 包络判破的因果
-    // 触发点。本合取不改变点的因果语义，只在同一触发点加严（纯收缩：保留点逐字段不变）。
-    let extreme_037_20 = match trend_dir {
-        Direction::Down => end.price < b_lo,
-        Direction::Up => end.price > b_hi,
-    };
-    if !extreme_037_20 {
+    // ★#551：三道结构门由 [`first_structural_gates`] 单一来源判定（本函数与 #550 候选事件产出
+    // 同读；禁第二套判据，audit §6）。本函数保持「三门全成立才产点」的收缩语义不变。
+    let gates = first_structural_gates(
+        last_center,
+        trend_dir,
+        seg,
+        anchor_dir,
+        src_to_idx,
+        a_seg,
+        c_move_start,
+    )?;
+    if !gates.extreme {
         return None; // 未破 b 包络极值 ⟹ 非趋势背驰 c（061:28：未创新极值不构成背驰）。
     }
-    // λ_C（Q5）：broke 成立 ⟹ seg 自身满足「同向 ∧ start ≥ c.end_index」过滤 ⟹ 首匹配必存在。
-    let Some(lambda_c) = c_move_start else {
-        debug_assert!(false, "broke 成立时 λ_C 必 Some（seg 自身在过滤集内）");
-        return None;
-    };
-    // I(A)/I(C)（source_index 区间）→ closes 下标区间（MACD 面积坐标系，Q5 全区间口径）。
-    let (Some(c_idx), Some(a_idx)) = (
-        map_src_range_to_close_idx(src_to_idx, lambda_c, seg.end_index),
-        map_src_range_to_close_idx(src_to_idx, a_start, a_end),
-    ) else {
+    let (Some(c_idx), Some(a_idx)) = (gates.c_idx, gates.a_idx) else {
         // 区间无法映射到 closes（越界/空）⟹ 无 MACD 面积 ⟹ 无法算 C<A ⟹ 无 struct_break 候选。
         return None;
     };
+    let end = seg_end(seg);
+    let is_sell = gates.side == Side::Short;
+    let (a_start, a_end) = gates.seg_a;
+    let lambda_c = gates.lambda_c;
     // ★A/B/C 背驰段对（结构化，对齐 Lean `Origin.Divergence.DivergencePair { forceA, forceC, isTrend }`）：
     // I(A) + I(C)（source_index 区间，Q5 走势区间口径）+ is_trend=true（第一类只由趋势背驰产）。
     let abc = AbcDivergence { seg_a: (a_start, a_end), seg_c: (lambda_c, seg.end_index), is_trend: true };
