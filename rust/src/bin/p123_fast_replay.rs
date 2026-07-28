@@ -167,10 +167,11 @@ use newchan_rust::theta_v0::classifier::nest::{
     TypedNestCertificate,
 };
 use newchan_rust::theta_v0::classifier::nest_lifecycle::{
-    feed_replay_bar, provide_pan_live_windows, ForceMaterial, LifecycleSettlementStats,
-    NestLifecycleBook, PanLiveWindow, ReplayBarFeed, ReplayFeedStats,
+    active_segment_frontier, feed_replay_bar, provide_l1_active_pan_live_windows,
+    ActiveSegmentFrontier, ForceMaterial, LifecycleSettlementStats, NestLifecycleBook,
+    PanCompletionEvent, PanLiveWindow, PanProviderPhase, ReplayBarFeed, ReplayFeedStats,
 };
-use newchan_rust::theta_v0::classifier::recursive_tower::LeveledMove;
+use newchan_rust::theta_v0::classifier::recursive_tower::{find_move_by_end_index, LeveledMove};
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::{ParseLayer, ParseLayerIncr};
 use newchan_rust::theta_v0::types::{
@@ -506,6 +507,9 @@ struct LifecycleReplayStats {
     provider_requests: usize,
     provider_reevals: usize,
     provider_reuses: usize,
+    /// #527：L1 活窗定位结果分布（`L1LiveOutcome::reason_tag`；诊断只写不判）。
+    /// 「某完成身份为何没有更早 Live」的可审计落点。
+    l1_live_outcomes: BTreeMap<&'static str, usize>,
     /// 末 prefix 的终局分布与寿命读面（闪现/非闪现分层）。
     settlement: LifecycleSettlementStats,
 }
@@ -671,6 +675,15 @@ fn main() -> Result<(), String> {
         lifecycle_stats.provider_requests,
         lifecycle_stats.provider_reevals,
         lifecycle_stats.provider_reuses,
+    );
+    eprintln!(
+        "P527_L1_LIVE_OUTCOMES {}",
+        lifecycle_stats
+            .l1_live_outcomes
+            .iter()
+            .map(|(tag, count)| format!("{tag}={count}"))
+            .collect::<Vec<_>>()
+            .join(" ")
     );
     let settlement = lifecycle_stats.settlement;
     eprintln!(
@@ -995,8 +1008,11 @@ fn run_targeted_prefix_pass(
     let mut last_lifecycle_forest_epoch = None;
     let mut lifecycle_book = NestLifecycleBook::new();
     let mut lifecycle_stats = LifecycleReplayStats::default();
-    // p409 同机制：forest_epoch 变时独立重算结构；两次重算之间逐 bar 延展右端。
+    // #527：活窗结构分量在「confirmed 侧变（forest_epoch）∨ active C frontier 变」时重算；
+    // 两次重算之间逐 bar 只延展右端（身份分量不动）。frontier 是纯值 ⟹ 值不变 ⟹ 定位输出
+    // 不变（locate/extreme 都是其纯函数），跳过重算是等价优化而非行为改动。
     let mut lifecycle_window_stems: Vec<LifecycleWindowStem> = Vec::new();
+    let mut last_lifecycle_frontier: Option<Option<ActiveSegmentFrontier>> = None;
     let mut lifecycle_dump = std::env::var("P421_LIFECYCLE_DUMP")
         .ok()
         .map(|path| {
@@ -1028,9 +1044,44 @@ fn run_targeted_prefix_pass(
         // #116: TURN 逐 bar 观察（摊还 O(新稳定块数)，不经 trigger 门——pending 空后仍落盘）。
         turns.observe(&classification);
         let forest_epoch = cache.forest_epoch();
-        if last_lifecycle_forest_epoch != Some(forest_epoch) {
-            lifecycle_window_stems = recompute_lifecycle_window_stems(&tower, index);
+        // #527 L1 活窗：C 只能是 parser 的行进中段（active frontier），禁 confirmed 段回放重建。
+        let frontier = active_segment_frontier(&l0);
+        if last_lifecycle_forest_epoch != Some(forest_epoch)
+            || last_lifecycle_frontier != Some(frontier)
+        {
+            let before = lifecycle_window_stems.len();
+            let mut miss_rows: Vec<(&'static str, Option<usize>)> = Vec::new();
+            lifecycle_window_stems = recompute_lifecycle_window_stems(
+                &tower,
+                frontier.as_ref(),
+                index,
+                &mut lifecycle_stats.l1_live_outcomes,
+                &mut miss_rows,
+            );
+            for (reason, center_hint) in miss_rows {
+                write_lifecycle_line(
+                    &mut lifecycle_dump,
+                    format_args!(
+                        "L1_LIVE_MISS as_of={index} frontier_start={} reason={reason} b_center_start={}",
+                        frontier.map_or(usize::MAX, |f| f.start_index),
+                        center_hint.map_or(usize::MAX, |value| value),
+                    ),
+                )?;
+            }
+            // 定位现场只在结构分量变化时落一行（诊断只写不判；每 bar 写会淹没 dump）。
+            write_lifecycle_line(
+                &mut lifecycle_dump,
+                format_args!(
+                    "L1_LIVE_RECOMPUTE as_of={index} frontier={} stems_before={before} stems_after={}",
+                    frontier.map_or("none".to_string(), |f| format!(
+                        "({},{},{:?})",
+                        f.start_index, f.extreme_at, f.direction
+                    )),
+                    lifecycle_window_stems.len(),
+                ),
+            )?;
             last_lifecycle_forest_epoch = Some(forest_epoch);
+            last_lifecycle_frontier = Some(frontier);
         }
         let trigger = (forest_epoch, signal_signature(&classification));
         let lifecycle_due = last_lifecycle_trigger.as_ref() != Some(&trigger);
@@ -1335,12 +1386,14 @@ fn run_targeted_prefix_pass(
             .copied()
             .map(|stem| stem.window_at(index))
             .collect();
+        // #527：完成相是显式 typed 输出——每条完成事件都必须能在塔上查到那只已完成的
+        // lower unit（身份 + 物理完成 bar），否则停线（禁按 kind 猜 provenance）。
+        let phases = lifecycle_bar_phases(&tower, &bar_windows, &completion_events, index)?;
         let (hist, close_src) = cache.causal_series();
         let dif = cache.macd_dif();
         feed_lifecycle_bar(
             &mut lifecycle_book,
-            &bar_windows,
-            &completion_events,
+            &phases,
             index,
             hist,
             dif,
@@ -1469,23 +1522,38 @@ fn lifecycle_leg_as_segment(value: &LowerLeg) -> Segment {
     }
 }
 
-/// #421 逃生门：与 p409 `recompute_windows` 同构的独立活窗发现。
+/// #527 L1 活窗发现：**confirmed A/B 锚 + active C frontier**。
 ///
-/// 只在 `forest_epoch` 变化时执行；不写生产缓存、不改变 trigger/订单/证书路径。
+/// 与 #421 逃生门原实装的差别（#523 根因）：C 不再从已完成 lower legs 回放重建，而只能是
+/// parser 的行进中段（`frontier`）——故活窗可在完成前出生。B 中枢仍取 confirmed 侧
+/// （tower[1] 的 run 投影 seeds），A 锚仍取 confirmed 段（窄锚/A′ 与 provider 同序同判）。
+///
+/// **级别范围（诚实登记，票 #527 Scope）**：只有 L1 有可用的 active lower-frontier
+/// （parser `OpenTail.pendingSegment`）。L2/L3 的 lower unit 是 `LeveledMove`，塔上没有
+/// Active/Completed 表达（#523 遗留问题 1），**故本函数不为 L2/L3 产活窗**——不拿已完成
+/// tower unit 外推「行进中」（那会重演同一 bug）。L2/L3 的身份因此只经完成相进账本，
+/// 其闪现是 provider 能力缺口，不是「该对象确实同 bar 出生并完成」的 true-flash。
+///
+/// 只在 `forest_epoch` 或 `frontier` 变化时执行；不写生产缓存、不改 trigger/订单/证书路径。
 fn recompute_lifecycle_window_stems(
     tower: &[Rc<Vec<LeveledMove>>],
+    frontier: Option<&ActiveSegmentFrontier>,
     as_of: usize,
+    misses: &mut BTreeMap<&'static str, usize>,
+    outcomes: &mut Vec<(&'static str, Option<usize>)>,
 ) -> Vec<LifecycleWindowStem> {
     let mut windows_out = Vec::new();
-    for level in 1..tower.len() {
+    let Some(frontier) = frontier else {
+        // 无行进中段 ⟹ 无活窗（不回落到 confirmed 回放重建）。
+        *misses.entry("no_active_frontier").or_default() += 1;
+        outcomes.push(("no_active_frontier", None));
+        return Vec::new();
+    };
+    for level in 1..2.min(tower.len()) {
         let Ok(lower) = lower_legs_from(&tower[level - 1]) else {
             continue;
         };
         let segments: Vec<Segment> = lower.iter().map(lifecycle_leg_as_segment).collect();
-        let anchors_self: Vec<Option<Direction>> = segments
-            .iter()
-            .map(|segment| Some(segment.direction))
-            .collect();
         let windows = &tower[level];
         let mut run_start = None;
         for index in 0..=windows.len() {
@@ -1502,14 +1570,26 @@ fn recompute_lifecycle_window_stems(
                             projection.seeds.iter().map(|seed| seed.center).collect();
                         let blocks = decompose::decompose(&centers);
                         let kinds = decompose::center_block_kind(centers.len(), &blocks);
-                        windows_out.extend(provide_pan_live_windows(
+                        let outcome = provide_l1_active_pan_live_windows(
                             level as u32,
                             &centers,
                             &kinds,
                             &segments,
-                            &anchors_self,
+                            frontier,
                             as_of,
-                        ));
+                        );
+                        *misses.entry(outcome.reason_tag()).or_default() += 1;
+                        if outcome.window().is_none() {
+                            // 未产窗的 run：记下该 run 最近中枢起点，供「这只完成身份为何
+                            // 没有更早 Live」逐身份归因（诊断只写不判）。
+                            let center_hint = centers
+                                .iter()
+                                .rev()
+                                .find(|center| center.end_index <= frontier.start_index)
+                                .map(|center| center.start_index);
+                            outcomes.push((outcome.reason_tag(), center_hint));
+                        }
+                        windows_out.extend(outcome.window());
                     }
                     run_start = None;
                 }
@@ -1621,11 +1701,58 @@ fn refresh_lifecycle_cache(
     Ok(active_runs)
 }
 
+/// 组装本 bar 的 provider 两相（票 #527：完成相是显式 typed 输出）。
+///
+/// 完成相的构造前提 = **该完成事件对应的 lower unit 已在塔上作为已完成单元存在**：
+/// 用 `interval_b` 右端（= 完成 C 段终点，pan 分支 `structure.seg_c.1` 单一来源）在
+/// `tower[level-1]` 上按 `end_index` 查证，取其 `ElementId` 与物理完成 bar。
+/// 查不到 ⟹ 报错停线（**不**按 `kind == Consolidation` 猜完成，#523 根因之二）。
+///
+/// 完成钟三分：`completed_at` = lower unit `end_index`（物理完成）；
+/// `observed_completion_at` = 本 bar（provider 首次可见）；账本收到 bar 由 `advance` 记。
+/// 事件重发时 `observed_completion_at` 仍取当前 bar，首见性由 book 的
+/// `completion_signals` 按桥身份唯一保证（重发不入分母）。
+fn lifecycle_bar_phases(
+    tower: &[Rc<Vec<LeveledMove>>],
+    live_windows: &[PanLiveWindow],
+    completion_events: &[NestCandidateEvent],
+    as_of: usize,
+) -> Result<Vec<PanProviderPhase>, String> {
+    let mut phases: Vec<PanProviderPhase> = live_windows
+        .iter()
+        .copied()
+        .map(PanProviderPhase::Live)
+        .collect();
+    for event in completion_events {
+        if event.kind != NestDivergenceKind::Consolidation {
+            continue; // trend 域不在盘整完成相范围（口径同 feed 出口的域过滤）。
+        }
+        let level = event.level as usize;
+        let lower = tower
+            .get(level.wrapping_sub(1))
+            .ok_or_else(|| format!("完成事件 level={level} 无 lower 塔层（as_of={as_of}）"))?;
+        let unit_index = find_move_by_end_index(lower, event.interval_b.1).ok_or_else(|| {
+            format!(
+                "完成事件的 lower unit 不在塔上（level={level} seg_c_end={} as_of={as_of}）：\
+                 无法证明结构已完成，停线",
+                event.interval_b.1
+            )
+        })?;
+        let unit = &lower[unit_index];
+        phases.push(PanProviderPhase::Completed(PanCompletionEvent {
+            event: *event,
+            completed_lower_id: unit.id,
+            completed_at: unit.end_index,
+            observed_completion_at: as_of,
+        }));
+    }
+    Ok(phases)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn feed_lifecycle_bar(
     book: &mut NestLifecycleBook,
-    live_windows: &[PanLiveWindow],
-    completion_events: &[NestCandidateEvent],
+    phases: &[PanProviderPhase],
     as_of: usize,
     hist: &[f64],
     dif: &[f64],
@@ -1640,15 +1767,7 @@ fn feed_lifecycle_bar(
         dif: Some(dif),
         close_src,
     };
-    let (delta, stats) = feed_replay_bar(
-        book,
-        &ReplayBarFeed {
-            as_of,
-            live_windows,
-            completion_events,
-        },
-        &material,
-    );
+    let (delta, stats) = feed_replay_bar(book, &ReplayBarFeed { as_of, phases }, &material);
 
     write_lifecycle_line(
         sink,
@@ -1667,7 +1786,7 @@ fn feed_lifecycle_bar(
         write_lifecycle_line(
             sink,
             format_args!(
-                "COMPLETION_SIGNAL as_of={} level={} side={:?} kind={:?} seg_a={:?} seg_c_full={:?} b_center_start={}",
+                "COMPLETION_SIGNAL as_of={} level={} side={:?} kind={:?} seg_a={:?} seg_c_full={:?} b_center_start={} lower_id={:?} completed_at={} observed_completion_at={}",
                 signal.as_of,
                 signal.key.level,
                 signal.key.side,
@@ -1675,6 +1794,9 @@ fn feed_lifecycle_bar(
                 signal.key.seg_a,
                 signal.key.seg_c_full,
                 signal.key.b_center_start,
+                (signal.completed_lower_id.level, signal.completed_lower_id.ordinal),
+                signal.completed_at,
+                signal.observed_completion_at,
             ),
         )?;
     }
