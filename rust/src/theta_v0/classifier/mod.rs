@@ -62,40 +62,42 @@ static CASCADE_EPROBE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 #[cfg(test)]
 static CASCADE_FULLCLEAR: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
-pub mod center;
-pub mod ref_v1;
-pub mod decompose;
-pub mod level_state;
 pub mod bsp;
+pub mod center;
+pub mod decompose;
+pub mod descend;
 pub mod divergence;
 pub mod force_conformance;
-pub mod descend;
-pub mod rmove_compose;
-pub mod recursive_tower;
+pub mod level_state;
 pub mod nest;
-/// V3 活假设状态机：NestLifecycleBook sidecar 注册表（三态 + 五钟；#231 重建，spec #232）。
-pub mod nest_lifecycle;
 /// #92/#93 证书索引：确认事件 → typed 证书（身份主键；构建口径 B + CWindow）。
 pub mod nest_index;
+/// V3 活假设状态机：NestLifecycleBook sidecar 注册表（三态 + 五钟；#231 重建，spec #232）。
+pub mod nest_lifecycle;
+pub mod recursive_tower;
+pub mod ref_v1;
+pub mod rmove_compose;
 /// p118 关④ 小转大显式分类分支：旁挂联合分类 `NestTurnClass`（四类 partition，纯只读派生）。
 pub mod turn_class;
 pub use turn_class::{
     classify_certificate_turn, classify_nest_turns, is_defer_orphan_event, CertKey, NestTurnClass,
     XzdEvidence,
 };
-pub mod signal;
-/// #110 投影层骨架 + 级别身份标签（SPEC #109 expand 第一票）。默认门关零开销。
-pub mod projection;
-pub mod six_state;
-pub mod voice_eat;
+/// #550：塔内原生背驰段候选事件（对象、append-only 修订流与 C⊆C 谓词）。
+pub mod cand_event;
 pub mod cand_predicate;
-/// C2 走势消费 seam：显式 exact-three 投影、D3 方向绑定与 D2 A/C provider。
-pub mod level_view;
 /// D7 firstRetrace 只读复核：严格 CompletedMove pair 映射与对象重启事件语义。
 /// 不接生产订单路径；只消费 C2 view，默认关闭的 seam 不受影响。
 pub mod first_retrace_replay;
+/// C2 走势消费 seam：显式 exact-three 投影、D3 方向绑定与 D2 A/C provider。
+pub mod level_view;
 /// C2 CompletedFreeze 的正式 append-only event-store adapter。
 pub mod level_view_store;
+/// #110 投影层骨架 + 级别身份标签（SPEC #109 expand 第一票）。默认门关零开销。
+pub mod projection;
+pub mod signal;
+pub mod six_state;
+pub mod voice_eat;
 
 /// #345：自持缓冲区增量分类器变体（Nautilus 流式适配，无条件编译——见模块头）。
 pub mod streaming;
@@ -167,6 +169,7 @@ pub mod cp_replay_diagnostics {
     }
 }
 
+use super::types::Side;
 use bsp::BspPoint;
 use center::UnitRange;
 use decompose::{decompose, decompose_resume, MoveBlock};
@@ -174,7 +177,6 @@ use recursive_tower::{
     compose_level, descend_leveled, index_of_in, map_src_to_close_idx, project_to_units,
     CpScanOwnership, ElementId, LeveledMove, WinMeta,
 };
-use super::types::Side;
 
 /// 单级别分类状态（R6 态 + 走势类型 + 中枢 + 买卖点）。
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -288,7 +290,14 @@ fn extract_first_third_for_level(
     // （`judge_segment` 内消费 `anchors_self`）；`anchors` 实参仍须传——三类 leave 锚与
     // CandDelta 诊断 provider 仍在消费 provenance 锚。
     signal::extract_signals_with_hist_anchored(
-        centers, &segs, Some(anchors), hist, dif, closes_tick, close_src, gauge,
+        centers,
+        &segs,
+        Some(anchors),
+        hist,
+        dif,
+        closes_tick,
+        close_src,
+        gauge,
     )
 }
 
@@ -350,7 +359,14 @@ fn classify_level(units: &[UnitRange], is_l0: bool) -> (Vec<Center>, Vec<MoveBlo
 /// `Classification.levels` 同构（`tower_snapshots.len() == levels.len()`）：
 /// - 索引 0（L0 级）：全 `RMove::Segment`（递归底，`sub_moves` 空）。
 /// - 索引 ≥1（L(k) 级）：前一级产出的 `RMove::Compose` 序列（携次级别 subs，depth≥1 真嵌套）。
-fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
+fn classify_impl(
+    l0: &ParseLayer,
+    config: &ThetaConfig,
+) -> (
+    Classification,
+    Vec<Rc<Vec<LeveledMove>>>,
+    cand_event::CandidateStreams,
+) {
     let min_parts = config.level.min_parts_per_level as usize;
     let l_max = config.level.l_max as usize;
 
@@ -361,7 +377,7 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
 
     // 空 L0：无可构造级别（自然终止于 L0 之前）。
     if units.is_empty() {
-        return (Classification::default(), Vec::new());
+        return (Classification::default(), Vec::new(), Vec::new());
     }
 
     // ★递归塔对象（#53 升级，still-MISSING-塔解除）：L0 走势单元 = 携坐标的 `RMove::Segment`
@@ -374,7 +390,15 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
         units
             .iter()
             .enumerate()
-            .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
+            .map(|(i, u)| {
+                LeveledMove::from_unit(
+                    u,
+                    ElementId {
+                        level: 0,
+                        ordinal: i as u64,
+                    },
+                )
+            })
             .collect(),
     );
 
@@ -391,6 +415,7 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
 
     let mut levels: Vec<LevelState> = Vec::new();
     let mut tower_snapshots: Vec<Rc<Vec<LeveledMove>>> = Vec::new();
+    let mut candidate_observations = Vec::new();
 
     // 递归级别构造：每级由下级走势单元构造（L0 直接是线段单元，从 L0 开始裁决）。
     for level_idx in 0..=l_max {
@@ -409,8 +434,12 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
         // L(k+1) 走势塔 = 本级窗口化 compose（每中枢的构成三段次级别走势 → 一个上级 `RMove::Compose`，
         // 契约锚 `Origin.RecursiveLevelSystem.composeStep` 窗口封装）。`upper_moves` 是携坐标的上级走势
         // 序列（descend 取回构成它的次级别走势 ⟹ B2/S2 可产），与 `centers` 一一对应。
-        let (centers_w, upper_moves, mut cp_ownership) = compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
-        debug_assert_eq!(centers, centers_w, "compose_level 与 classify_level 中枢序列一致");
+        let (centers_w, upper_moves, mut cp_ownership) =
+            compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
+        debug_assert_eq!(
+            centers, centers_w,
+            "compose_level 与 classify_level 中枢序列一致"
+        );
         recursive_tower::advance_cp_lifecycles(
             &mut cp_ownership,
             &centers_w,
@@ -419,6 +448,32 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
             (!is_l0).then_some(&units_anchors[..]),
             1,
         );
+
+        // #550：候选与本级 Classification 在同一迭代、同一结构快照内产出。只复用
+        // judge_first_cached 的 D1-D3 结构门；不调用 cand_delta_tower/level_cand_delta，
+        // 不读取 BSP 力度 bit/force。
+        let candidate_segments: Vec<Segment>;
+        let candidate_anchors: Vec<Option<Direction>>;
+        let (segments_for_candidate, anchors_for_candidate): (&[Segment], &[Option<Direction>]) =
+            if is_l0 {
+                candidate_anchors = l0.segments.iter().map(|s| Some(s.direction)).collect();
+                (&l0.segments, &candidate_anchors)
+            } else {
+                candidate_segments = units.iter().map(unit_to_segment).collect();
+                candidate_anchors = units.iter().map(|u| Some(u.direction)).collect();
+                (&candidate_segments, &candidate_anchors)
+            };
+        candidate_observations.extend(cand_event::structural_observations_for_level(
+            level_idx as u32,
+            &centers_w,
+            segments_for_candidate,
+            anchors_for_candidate,
+            &hist,
+            &dif,
+            &closes_tick,
+            &close_src,
+            config.divergence_gauge,
+        ));
 
         // BSP 信号提取（reference:34-36）。三层覆盖：
         // - **L0 线段层**（`extract_signals`）：第一类（破中枢几何 L0 ∧ MACD 背驰 L1 真算）+ 第三类
@@ -432,13 +487,24 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
             // = Some（5 proxy），进 selector force_state 第 8 维。结构六 bit 不变（force 不进 class_index/
             // 分桶 key，PartialEq 排除），GOLDEN 因 Debug 含 force 诚实翻转（signal.rs digest guard）。
             signal::extract_signals_with_hist(
-                &centers, &l0.segments, &hist, &dif, &closes_tick, &close_src,
+                &centers,
+                &l0.segments,
+                &hist,
+                &dif,
+                &closes_tick,
+                &close_src,
                 config.divergence_gauge,
             )
         } else {
             // 级别-N 一/三类（codex-decide-20260703 裁定 A）：units 承担线段角色，复用 L0 判据（含 force）。
             extract_first_third_for_level(
-                &centers, &units, &units_anchors, &hist, &dif, &closes_tick, &close_src,
+                &centers,
+                &units,
+                &units_anchors,
+                &hist,
+                &dif,
+                &closes_tick,
+                &close_src,
                 config.divergence_gauge,
             )
         };
@@ -479,7 +545,9 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
             let pb = &levels.last().expect("本级 LevelState 已 push").moves;
             units = project_to_units(&upper_moves, pb);
             // Q7-#1 裁定C：锚资格与投影方向同一 provenance 来源（center_own_dir_at，None=fallback）。
-            units_anchors = (0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect();
+            units_anchors = (0..units.len())
+                .map(|i| decompose::center_own_dir_at(pb, i))
+                .collect();
         }
         moves_tower = Rc::new(upper_moves);
 
@@ -489,7 +557,14 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
         }
     }
 
-    (Classification { levels }, tower_snapshots)
+    let mut candidate_book = cand_event::CandidateEventBook::default();
+    let as_of = l0.merged_bars.last().map_or(0, |bar| bar.source_index);
+    candidate_book.advance(&candidate_observations, as_of);
+    (
+        Classification { levels },
+        tower_snapshots,
+        candidate_book.streams().to_vec(),
+    )
 }
 
 /// Θ_level + Θ_signal 顶层入口（reference-theta-v0.md:27-37）。
@@ -522,6 +597,22 @@ pub fn classify_with_tower(
     l0: &ParseLayer,
     config: &ThetaConfig,
 ) -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
+    let (classification, tower, _) = classify_impl(l0, config);
+    (classification, tower)
+}
+
+/// 分类 + 逐级塔 + #550 原生候选事件流。
+///
+/// 旧 [`classify_with_tower`] 保留二元返回以维持既有消费者逐字节不动；需要候选事件的调用方
+/// 使用本纯增量通道。事件只产出，不参与 BSP、门、admission 或订单流。
+pub fn classify_with_tower_events(
+    l0: &ParseLayer,
+    config: &ThetaConfig,
+) -> (
+    Classification,
+    Vec<Rc<Vec<LeveledMove>>>,
+    cand_event::CandidateStreams,
+) {
     classify_impl(l0, config)
 }
 
@@ -677,8 +768,9 @@ fn cand_delta_tower_with_series(
         } else {
             let pb = &classification.levels[lvl - 1].moves;
             let units = project_to_units(&tower_snapshots[lvl], pb);
-            let anchors: Vec<Option<Direction>> =
-                (0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect();
+            let anchors: Vec<Option<Direction>> = (0..units.len())
+                .map(|i| decompose::center_own_dir_at(pb, i))
+                .collect();
             let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
             recursive_tower::level_cand_delta(
                 lvl as u32,
@@ -971,6 +1063,8 @@ pub struct TowerCache {
     /// B3 #4 area-memo：[`AreaCache`]（见其文档）——`sublevel_diverges` 的 `(start,end)→area`
     /// 冻结缓存，跨 bar 持久。
     area_cache: AreaCache,
+    /// #550：跨 bar 持久的候选事件簿；首见钟与 revision 只能由逐前缀推进产生。
+    candidate_book: cand_event::CandidateEventBook,
 }
 
 impl TowerCache {
@@ -1064,6 +1158,7 @@ impl TowerCache {
         self.close_src.clear();
         self.closes_tick.clear(); // 与 closes 锁步（同 update_closes_cache 前缀复用）。
         self.area_cache.clear(); // hist 全量重扫 ⟹ 旧 (start,end)→area 键值可能不再对应新 hist。
+        self.candidate_book = cand_event::CandidateEventBook::default();
         // ★工位 4g：clear=全量重扫 ⟹ extract 输出会变 ⟹ +generation（不 reset 为 0——下游缓存旧
         // generation 可能恰为 0 ⟹ 假命中复用陈旧树）。单调递增保 sound。
         self.generation += 1;
@@ -1201,7 +1296,13 @@ fn compute_macd_hist_incremental(
         } else {
             cache.macd_hist.clear();
             cache.macd_dif.clear();
-            rebuild_macd_state_to(closes, resume_from, cfg, &mut cache.macd_hist, &mut cache.macd_dif)
+            rebuild_macd_state_to(
+                closes,
+                resume_from,
+                cfg,
+                &mut cache.macd_hist,
+                &mut cache.macd_dif,
+            )
         }
     } else {
         // 全量重建（resume_from=0 或 state 空）。
@@ -1309,7 +1410,10 @@ pub mod stage_profile {
 
     pub fn stage(label: &'static str) -> Option<Guard> {
         if enabled() {
-            Some(Guard { label, start: Instant::now() })
+            Some(Guard {
+                label,
+                start: Instant::now(),
+            })
         } else {
             None
         }
@@ -1364,7 +1468,11 @@ pub mod stage_profile {
             }
             eprintln!("=== THETA STAGE SPANS ===");
             for (label, sum, max, count) in s.iter() {
-                let avg = if *count > 0 { *sum as f64 / *count as f64 } else { 0.0 };
+                let avg = if *count > 0 {
+                    *sum as f64 / *count as f64
+                } else {
+                    0.0
+                };
                 eprintln!(
                     "  {:<24} sum={:>14} max={:>10} count={:>10} avg={:>12.2}",
                     label, sum, max, count, avg
@@ -1439,10 +1547,18 @@ pub mod oracle_probe {
         PROBE.with(|p| {
             let mut p = p.borrow_mut();
             p.fd_calls += 1;
-            if l0 { p.fd_l0 += 1; }
-            if extend { p.fd_extend += 1; }
-            if cascade { p.fd_cascade += 1; }
-            if l0 || extend || cascade { p.fd_any += 1; }
+            if l0 {
+                p.fd_l0 += 1;
+            }
+            if extend {
+                p.fd_extend += 1;
+            }
+            if cascade {
+                p.fd_cascade += 1;
+            }
+            if l0 || extend || cascade {
+                p.fd_any += 1;
+            }
         });
     }
     /// on2w2-cascade 放行条件3 探针：一次 cascade 事件的保留前缀比例 P/len（`keep_frac` ∈ [0,1]）。
@@ -1591,7 +1707,14 @@ pub fn classify_with_tower_incremental(
             let reuse = l0.segments_confirmed_len.min(old_len);
             (reuse..old_len).any(|i| {
                 let u = segment_to_unit(&l0.segments[i]);
-                old[i] != LeveledMove::from_unit(&u, ElementId { level: 0, ordinal: i as u64 })
+                old[i]
+                    != LeveledMove::from_unit(
+                        &u,
+                        ElementId {
+                            level: 0,
+                            ordinal: i as u64,
+                        },
+                    )
             })
         }
     };
@@ -1602,7 +1725,13 @@ pub fn classify_with_tower_incremental(
         for (off, seg) in l0.segments[reuse..].iter().enumerate() {
             let i = reuse + off;
             let u = segment_to_unit(seg);
-            m.push(LeveledMove::from_unit(&u, ElementId { level: 0, ordinal: i as u64 }));
+            m.push(LeveledMove::from_unit(
+                &u,
+                ElementId {
+                    level: 0,
+                    ordinal: i as u64,
+                },
+            ));
         }
     });
     let moves_tower_l0: Rc<Vec<LeveledMove>> = Rc::clone(&cache.moves_tower_l0);
@@ -1684,6 +1813,7 @@ pub fn classify_with_tower_incremental(
     // （§2.3）；L≥1 = 父级 prefix_count（loop 尾 `dirty_from = prefix_count`）。驱动 03（L1+ stable
     // 从 0 抬起）+ 04（cached_units truncate+extend O(tail)）。
     let mut dirty_from: usize = l0_dirty_from;
+    let mut candidate_observations = Vec::new();
 
     for level_idx in 0..=l_max {
         // 自然终止：单元数 < min_parts ⟹ 停止（与 classify_impl 同口径）。
@@ -1713,7 +1843,9 @@ pub fn classify_with_tower_incremental(
         //       的单元）内某单元值变了——parser 古怪线段重划改写末段（定义层正确，非 bug）。仅长度
         //       守卫漏此例（bar 1464 seg[9] end 1384→1170，段数不变）。扫描区外（未读尾部）的变化
         //       无害（resume 从 consumed 续扫会读到新值），不触发重置。
-        let scanned = (lc.scan_cursor.consumed + 2).min(units.len()).min(lc.cached_units.len());
+        let scanned = (lc.scan_cursor.consumed + 2)
+            .min(units.len())
+            .min(lc.cached_units.len());
         // #106 证书跳前缀（仅 L0 安全，codex 裁决）：L0 units = segments 投影，segments[..confirmed_len]
         // 跨 bar bit-stable ⟹ units[..stable] 必等，只比 [stable..scanned]。L1+ units 来自上级投影
         // （无 segments 证书）⟹ stable=0 全量比较（保守，不假定相等）。证书不证明 [stable..scanned]
@@ -1901,7 +2033,8 @@ pub fn classify_with_tower_incremental(
             popped_upper = um[keep..].to_vec(); // on2w2：pop 前捕获（与重扫 tail_upper 逐值比）。
             um.truncate(keep);
             // ★on2w2-cascade：win_meta 与 centers/upper_moves 1:1 同步 pop（末窗整窗，重扫重产）。
-            lc.win_meta.truncate(lc.win_meta.len().saturating_sub(pop_n));
+            lc.win_meta
+                .truncate(lc.win_meta.len().saturating_sub(pop_n));
         }
         // ★codex Q4：prefix_count = lc.upper_moves.len()（pop 后的已产出前缀数），tail ordinal 接续
         // 前缀 ⟹ 全量/增量产同 ElementId（跨 bar 稳定身份）。★A3 §2.2：prefix_count 同时是本级
@@ -1913,7 +2046,8 @@ pub fn classify_with_tower_incremental(
         debug_assert!(
             lc.cached_second_count <= prefix_count,
             "§3.1 契约违反：cached_second_count={} > prefix_count={}",
-            lc.cached_second_count, prefix_count
+            lc.cached_second_count,
+            prefix_count
         );
         let (tail_centers, tail_upper, mut tail_cp, tail_metas, new_cursor) =
             stage_profile::time("05_compose_resume", || {
@@ -1928,11 +2062,10 @@ pub fn classify_with_tower_incremental(
             });
         // frontier pop/recompose 若产出同一个 B_p/c_p 身份，继承已扫描对象态，只从 dirty_from 推进。
         // Closed 证书若落入 dirty 后缀则不可继承，必须从 departure 重判；证书完全位于稳定前缀才保留。
-        let dirty_invalidation =
-            recursive_tower::invalidate_cp_lifecycle_dirty_dependencies(
-                Rc::make_mut(&mut lc.cp_ownership).as_mut_slice(),
-                dirty_from,
-            );
+        let dirty_invalidation = recursive_tower::invalidate_cp_lifecycle_dirty_dependencies(
+            Rc::make_mut(&mut lc.cp_ownership).as_mut_slice(),
+            dirty_from,
+        );
         cp_replay_diagnostics::record_dirty_invalidation(
             level_idx,
             dirty_invalidation.pending_fallbacks,
@@ -1959,8 +2092,7 @@ pub fn classify_with_tower_incremental(
                 object.full_trend_evidence = prior.full_trend_evidence.clone();
                 object.full_trend_c_qualified = prior.full_trend_c_qualified.clone();
             } else if let Some(departure) = object.departure_move_id {
-                lifecycle_scan_from =
-                    lifecycle_scan_from.min(departure.ordinal as usize + 1);
+                lifecycle_scan_from = lifecycle_scan_from.min(departure.ordinal as usize + 1);
             }
         }
 
@@ -2036,6 +2168,30 @@ pub fn classify_with_tower_incremental(
             &mut lc.decompose_state,
             lc.scan_cursor.last_window_emitted.max(1),
         );
+        // #550：增量路径与全量路径在同一个逐级循环、同一个结构快照内产候选。
+        // D1-D3 仍只由 judge_first_cached 判定；力度字段不进入候选身份。
+        let candidate_segments: Vec<Segment>;
+        let candidate_anchors: Vec<Option<Direction>>;
+        let (segments_for_candidate, anchors_for_candidate): (&[Segment], &[Option<Direction>]) =
+            if is_l0 {
+                candidate_anchors = l0.segments.iter().map(|s| Some(s.direction)).collect();
+                (&l0.segments, &candidate_anchors)
+            } else {
+                candidate_segments = units.iter().map(unit_to_segment).collect();
+                candidate_anchors = units.iter().map(|u| Some(u.direction)).collect();
+                (&candidate_segments, &candidate_anchors)
+            };
+        candidate_observations.extend(cand_event::structural_observations_for_level(
+            level_idx as u32,
+            &lc.centers,
+            segments_for_candidate,
+            anchors_for_candidate,
+            hist,
+            dif,
+            &closes_tick,
+            &close_src,
+            config.divergence_gauge,
+        ));
         // #69 5b：无条件登记本级一/三类所用 source 水位；不得挂在 BSP memo miss 分支，
         // 否则 hit bar 会暴露陈旧 e_src。公式与 signal resume 单一同源。
         lc.last_freeze_boundary = signal::freeze_boundary_src(&lc.centers, prefix_count, dirty_e);
@@ -2060,71 +2216,95 @@ pub fn classify_with_tower_incremental(
         // 故 level≥1 的结构长度键用 `units.len()`（L0 用 segments.len()）——append 变长即触 miss 重算。
         // frontier **同长改写**由 cascade_reset（frontier_mutated 比对，scan 窗覆盖全 units 因
         // consumed+2≥units.len()）清 cached_bsp_key 兜底；回缩由 last_input_len 守卫触 cascade。三情形全覆盖。
-        let struct_len = if is_l0 { l0.segments.len() } else { units.len() };
-        let bsp_key = (lc.centers.len(), lc.upper_moves.len(), struct_len);
-        let (bsp, pan_div): (Rc<Vec<BspPoint>>, Rc<Vec<signal::PanDivCert>>) = if lc.cached_bsp_key
-            == Some(bsp_key)
-        {
-            // 07c：memo 命中 ⟹ `Rc::clone`（引用计数 O(1)），替代全量 `cached_bsp.clone()`。
-            // Q4：pan_div 同批命中（同 key 守卫 ⟹ 同一 extract 产出的两半锁步复用）。
-            stage_profile::time("07c_bsp_memo_clone", || {
-                (Rc::clone(&lc.cached_bsp), Rc::clone(&lc.cached_pan_div))
-            })
+        let struct_len = if is_l0 {
+            l0.segments.len()
         } else {
-            // ★on2w3-07a frontier-resume：confirmed 前缀段的一/三类点缓存复用，只重判 frontier tail
-            // （消 07a O(n²) 主导项）。冻结边界锚 = min(centers[prefix_count-2].end_index, dirty_e)——
-            // `moves`（= decompose_resume 输出，本级增量续折）作 blocks 单一来源（不重 decompose）。
-            // segments 来源：L0=l0.segments（有序）；L≥1=units→unit_to_segment 投影（几何衰减，
-            // resume 内 debug_assert 守 end_index 严格递增）。cascade 清 cached_first_third 见 §失效块。
-            let (mut b, pan): (Vec<BspPoint>, Vec<signal::PanDivCert>) = if is_l0 {
-                stage_profile::time("07a_extract_signals_l0", || {
-                    signal::extract_first_third_resume(
-                        &mut lc.cached_first_third, &mut lc.cached_first_third_pan,
-                        &mut lc.cached_first_third_count, &lc.centers, &l0.segments, None, &moves,
-                        prefix_count, dirty_e, hist, dif, &closes_tick, &close_src,
-                        config.divergence_gauge,
-                    )
+            units.len()
+        };
+        let bsp_key = (lc.centers.len(), lc.upper_moves.len(), struct_len);
+        let (bsp, pan_div): (Rc<Vec<BspPoint>>, Rc<Vec<signal::PanDivCert>>) =
+            if lc.cached_bsp_key == Some(bsp_key) {
+                // 07c：memo 命中 ⟹ `Rc::clone`（引用计数 O(1)），替代全量 `cached_bsp.clone()`。
+                // Q4：pan_div 同批命中（同 key 守卫 ⟹ 同一 extract 产出的两半锁步复用）。
+                stage_profile::time("07c_bsp_memo_clone", || {
+                    (Rc::clone(&lc.cached_bsp), Rc::clone(&lc.cached_pan_div))
                 })
             } else {
-                stage_profile::time("07a_extract_first_third_ln", || {
-                    // 级别-N 一/三类（裁定 A）：units 承担线段角色，复用 L0 判据。units→Segment 投影
-                    // （几何衰减 O(units_L)/miss）+ anchors 平行传入。resume 冻结边界同 L0 锚口径。
-                    let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
-                    signal::extract_first_third_resume(
-                        &mut lc.cached_first_third, &mut lc.cached_first_third_pan,
-                        &mut lc.cached_first_third_count, &lc.centers, &segs, Some(&units_anchors),
-                        &moves, prefix_count, dirty_e, hist, dif, &closes_tick, &close_src,
-                        config.divergence_gauge,
+                // ★on2w3-07a frontier-resume：confirmed 前缀段的一/三类点缓存复用，只重判 frontier tail
+                // （消 07a O(n²) 主导项）。冻结边界锚 = min(centers[prefix_count-2].end_index, dirty_e)——
+                // `moves`（= decompose_resume 输出，本级增量续折）作 blocks 单一来源（不重 decompose）。
+                // segments 来源：L0=l0.segments（有序）；L≥1=units→unit_to_segment 投影（几何衰减，
+                // resume 内 debug_assert 守 end_index 严格递增）。cascade 清 cached_first_third 见 §失效块。
+                let (mut b, pan): (Vec<BspPoint>, Vec<signal::PanDivCert>) = if is_l0 {
+                    stage_profile::time("07a_extract_signals_l0", || {
+                        signal::extract_first_third_resume(
+                            &mut lc.cached_first_third,
+                            &mut lc.cached_first_third_pan,
+                            &mut lc.cached_first_third_count,
+                            &lc.centers,
+                            &l0.segments,
+                            None,
+                            &moves,
+                            prefix_count,
+                            dirty_e,
+                            hist,
+                            dif,
+                            &closes_tick,
+                            &close_src,
+                            config.divergence_gauge,
+                        )
+                    })
+                } else {
+                    stage_profile::time("07a_extract_first_third_ln", || {
+                        // 级别-N 一/三类（裁定 A）：units 承担线段角色，复用 L0 判据。units→Segment 投影
+                        // （几何衰减 O(units_L)/miss）+ anchors 平行传入。resume 冻结边界同 L0 锚口径。
+                        let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
+                        signal::extract_first_third_resume(
+                            &mut lc.cached_first_third,
+                            &mut lc.cached_first_third_pan,
+                            &mut lc.cached_first_third_count,
+                            &lc.centers,
+                            &segs,
+                            Some(&units_anchors),
+                            &moves,
+                            prefix_count,
+                            dirty_e,
+                            hist,
+                            dif,
+                            &closes_tick,
+                            &close_src,
+                            config.divergence_gauge,
+                        )
+                    })
+                };
+                let second = stage_profile::time("07b_extract_second", || {
+                    // ★07b frontier 门控：confirmed 前缀 parent 的 B2 缓存复用（跳过其重复背驰扫描），
+                    // 只对 frontier tail 每 bar 重算。消 confirmed-parent 全塔重扫 O(U²)。
+                    extract_second_resume(
+                        &mut lc.cached_second,
+                        &mut lc.cached_second_count,
+                        &lc.upper_moves[..],
+                        prefix_count,
+                        hist,
+                        &close_src,
+                        &area_cache,
+                        stable_len,
                     )
-                })
+                });
+                b.extend(second);
+                b.sort_by_key(|p| p.source_index);
+                // miss 路径：`Rc::new` 一次，cache 与 LevelState 共享同一 buffer（消除旧 `b.clone()`）。
+                let rc = Rc::new(b);
+                let rc_pan = Rc::new(pan);
+                lc.cached_bsp = Rc::clone(&rc);
+                lc.cached_pan_div = Rc::clone(&rc_pan); // Q4：与 bsp 同批缓存（同 key）。
+                lc.cached_bsp_key = Some(bsp_key);
+                (rc, rc_pan)
             };
-            let second = stage_profile::time("07b_extract_second", || {
-                // ★07b frontier 门控：confirmed 前缀 parent 的 B2 缓存复用（跳过其重复背驰扫描），
-                // 只对 frontier tail 每 bar 重算。消 confirmed-parent 全塔重扫 O(U²)。
-                extract_second_resume(
-                    &mut lc.cached_second,
-                    &mut lc.cached_second_count,
-                    &lc.upper_moves[..],
-                    prefix_count,
-                    hist,
-                    &close_src,
-                    &area_cache,
-                    stable_len,
-                )
-            });
-            b.extend(second);
-            b.sort_by_key(|p| p.source_index);
-            // miss 路径：`Rc::new` 一次，cache 与 LevelState 共享同一 buffer（消除旧 `b.clone()`）。
-            let rc = Rc::new(b);
-            let rc_pan = Rc::new(pan);
-            lc.cached_bsp = Rc::clone(&rc);
-            lc.cached_pan_div = Rc::clone(&rc_pan); // Q4：与 bsp 同批缓存（同 key）。
-            lc.cached_bsp_key = Some(bsp_key);
-            (rc, rc_pan)
-        };
 
         // 08：`Rc::clone`（O(1)）投影增量塔 centers 到 LevelState，替代全量 `centers.clone()`。
-        let level_centers = stage_profile::time("08_levels_centers_clone", || Rc::clone(&lc.centers));
+        let level_centers =
+            stage_profile::time("08_levels_centers_clone", || Rc::clone(&lc.centers));
         // #110 投影层 stamping（增量塔 memo-miss/命中终装点同口径；机制位关 = None 零开销）。
         // T3 (#172) 并门：机制位转派生（π 入口 `admission::chain_driven_level_projection`
         // 唯一生产写入点，#168 裁定 3）——链活 ⟹ 层必载，链死不载。
@@ -2183,12 +2363,16 @@ pub fn classify_with_tower_incremental(
         );
         // 10：`Rc::clone`（O(1)）替代全量 `projected_units.clone()`（O(units_L)/bar）。下一级借
         // &units[..] 只读；stage 09 头部 make_mut 时本 Rc 已 drop（loop 尾重赋）⟹ 原地写不退化。
-        units = stage_profile::time("10_projected_units_clone", || Rc::clone(&lc.projected_units));
+        units = stage_profile::time("10_projected_units_clone", || {
+            Rc::clone(&lc.projected_units)
+        });
         // Q7-#1 裁定C：锚资格与投影同源同步派生（deterministic 于 (moves, len) ⟹ resume bit-exact：
         // 全量与增量在同一 (pb, units.len()) 上得同一锚数组，无缓存陈旧面）。
         units_anchors = {
             let pb = &levels.last().expect("本级 LevelState 已 push").moves;
-            (0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect()
+            (0..units.len())
+                .map(|i| decompose::center_own_dir_at(pb, i))
+                .collect()
         };
 
         // ★A3 §2.4：本级 prefix_count 是下一级 units 的不可变前缀（父 confirmed 前缀投影稳定）。
@@ -2215,6 +2399,8 @@ pub fn classify_with_tower_incremental(
     cache.close_src = close_src;
     cache.closes_tick = closes_tick; // force 价格振幅/速度 proxy 缓冲放回，下 bar 复用（同 closes 模式）。
     cache.area_cache = area_cache.into_inner(); // B3 #4 area-memo：缓冲放回，下 bar 复用（同上模式）。
+    let as_of = l0.merged_bars.last().map_or(0, |bar| bar.source_index);
+    cache.candidate_book.advance(&candidate_observations, as_of);
 
     // ★工位 4g：本 bar 若有 cascade 重扫或任一级 extend 非空 tail ⟹ extract_elements 可观察树变更 ⟹
     // +generation（下游 TreeCache 据此 O(1) 跳过 TreeKey::of）。无变化 bar（~99.8%）generation 不变 ⟹
@@ -2241,9 +2427,31 @@ pub fn classify_with_tower_incremental(
         cache.forest_epoch += 1;
     }
     #[cfg(test)]
-    oracle_probe::on_forest_dirty(forest_dirty_l0, forest_dirty && !forest_dirty_l0 && !cascade_reset, cascade_reset);
+    oracle_probe::on_forest_dirty(
+        forest_dirty_l0,
+        forest_dirty && !forest_dirty_l0 && !cascade_reset,
+        cascade_reset,
+    );
 
     (Classification { levels }, tower_snapshots)
+}
+
+/// [`classify_with_tower_incremental`] 的 #550 三元事件通道。
+pub fn classify_with_tower_events_incremental(
+    l0: &ParseLayer,
+    config: &ThetaConfig,
+    cache: &mut TowerCache,
+) -> (
+    Classification,
+    Vec<Rc<Vec<LeveledMove>>>,
+    cand_event::CandidateStreams,
+) {
+    let (classification, tower) = classify_with_tower_incremental(l0, config, cache);
+    (
+        classification,
+        tower,
+        cache.candidate_book.streams().to_vec(),
+    )
 }
 
 /// 递归组装层第二类提取（对一级的每个上级走势 `RMove::Compose` 产 B2/S2）。
@@ -2276,7 +2484,14 @@ fn extract_second_for_level(
     let area_cache = RefCell::new(AreaCache::new());
     let stable_len = hist.len();
     for parent in upper_moves {
-        second_for_parent(parent, hist, close_src, &area_cache, stable_len, &mut points);
+        second_for_parent(
+            parent,
+            hist,
+            close_src,
+            &area_cache,
+            stable_len,
+            &mut points,
+        );
     }
     points
 }
@@ -2402,7 +2617,11 @@ fn sublevel_diverges(
     let curr = &subs[idx];
     let curr_dir = rmove_direction(&curr.rmove);
     // 序列序最近同向前驱走势（reference:34「末段相对前同向段」的确定配对）。
-    let Some(prev) = subs[..idx].iter().rev().find(|x| rmove_direction(&x.rmove) == curr_dir) else {
+    let Some(prev) = subs[..idx]
+        .iter()
+        .rev()
+        .find(|x| rmove_direction(&x.rmove) == curr_dir)
+    else {
         return false; // 无前同向走势 ⟹ 无背驰对照 ⟹ 非第一类（趋势末段必有前同向段）。
     };
     // 两走势 source_index 区间 → hist 面积比较（curr < prev ⟹ 背驰，divergence.rs 真算）。
@@ -2467,10 +2686,10 @@ fn rmove_direction(m: &descend::RMove) -> Direction {
 
 #[cfg(test)]
 mod tests {
-    use super::super::types::MoveKind;
-    use super::*;
     use super::super::parser::ParseLayer;
     use super::super::types::Direction;
+    use super::super::types::MoveKind;
+    use super::*;
 
     #[test]
     fn p52_frontier_diagnostics_are_level_scoped_and_resettable() {
@@ -2490,7 +2709,13 @@ mod tests {
     }
 
     fn seg(dir: Direction, si: usize, ei: usize, sp: i64, ep: i64) -> Segment {
-        Segment { direction: dir, start_index: si, end_index: ei, start_price: sp, end_price: ep }
+        Segment {
+            direction: dir,
+            start_index: si,
+            end_index: ei,
+            start_price: sp,
+            end_price: ep,
+        }
     }
 
     /// 构造 merged_bars：source_index 连续 0..n，close = vals（MACD 背驰真算用）。
@@ -2536,9 +2761,21 @@ mod tests {
             let confirmed = k.saturating_sub(1); // append-only：前 k-1 稳定，尾 bar 不稳定。
             compute_macd_hist_incremental(prefix, confirmed, &cfg, &mut cache);
             let full = divergence::compute_macd(prefix, &cfg);
-            assert_eq!(cache.macd_dif(), full.dif.as_slice(), "bar {k}: dif 增量 ≠ 全量（bit-exact 破）");
-            assert_eq!(cache.macd_hist_for_test(), full.hist.as_slice(), "bar {k}: hist 增量 ≠ 全量");
-            assert_eq!(cache.macd_dif().len(), cache.macd_hist_for_test().len(), "dif/hist 锁步等长");
+            assert_eq!(
+                cache.macd_dif(),
+                full.dif.as_slice(),
+                "bar {k}: dif 增量 ≠ 全量（bit-exact 破）"
+            );
+            assert_eq!(
+                cache.macd_hist_for_test(),
+                full.hist.as_slice(),
+                "bar {k}: hist 增量 ≠ 全量"
+            );
+            assert_eq!(
+                cache.macd_dif().len(),
+                cache.macd_hist_for_test().len(),
+                "dif/hist 锁步等长"
+            );
         }
 
         // ── closes_tick 增量 == merged_bars.close（整数域，force 振幅/速度 proxy 输入）──
@@ -2547,7 +2784,11 @@ mod tests {
         for k in 1..=bars.len() {
             update_closes_cache(&bars[..k], k.saturating_sub(1), &mut cache2);
             let expect: Vec<Tick> = bars[..k].iter().map(|b| b.close).collect();
-            assert_eq!(cache2.closes_tick(), expect.as_slice(), "bar {k}: closes_tick ≠ merged_bars.close");
+            assert_eq!(
+                cache2.closes_tick(),
+                expect.as_slice(),
+                "bar {k}: closes_tick ≠ merged_bars.close"
+            );
         }
     }
 
@@ -2572,8 +2813,14 @@ mod tests {
             );
         }
         // over-invalidate 方向保持：空 cache 对非空序列必不命中（退化全量，bit-exact）。
-        assert!(!cache_series_ok(&TowerCache::new(), 5), "空 cache 必不命中（守卫仍 over-invalidate）");
-        assert!(cache_series_ok(&TowerCache::new(), 0), "n=0：空 cache 与空序列自洽（与旧守卫同界）");
+        assert!(
+            !cache_series_ok(&TowerCache::new(), 5),
+            "空 cache 必不命中（守卫仍 over-invalidate）"
+        );
+        assert!(
+            cache_series_ok(&TowerCache::new(), 0),
+            "n=0：空 cache 与空序列自洽（与旧守卫同界）"
+        );
     }
 
     /// ★端到端 B2 真产出（#53 验证门，L1 管线正确性）：升级后的递归塔（`RMove::Compose` 携 subs）
@@ -2607,43 +2854,74 @@ mod tests {
         // （末子 hi < 首子 hi：148<150 / 114<115）⟹ 背驰可配对（closes 前大后小）。
         let segments = vec![
             // 组A（L1[0]）：up-down-up，核心 [120,148]，外缘 [110,150]
-            seg(Direction::Up,   0,  4, 110, 150),
-            seg(Direction::Down, 4,  8, 150, 120),
-            seg(Direction::Up,   8, 12, 120, 148),
+            seg(Direction::Up, 0, 4, 110, 150),
+            seg(Direction::Down, 4, 8, 150, 120),
+            seg(Direction::Up, 8, 12, 120, 148),
             // 组B（L1[1]）：down-up-down，首段 hi=115<ZD_A=120 non-ext，lo=80 深破 L2 核心下沿 112
-            seg(Direction::Down,12, 16, 115,  80),
-            seg(Direction::Up,  16, 20,  80, 125),
-            seg(Direction::Down,20, 24, 114,  85),
+            seg(Direction::Down, 12, 16, 115, 80),
+            seg(Direction::Up, 16, 20, 80, 125),
+            seg(Direction::Down, 20, 24, 114, 85),
             // 组C（L1[2]）：up-down-up，首段 lo=115>ZG_B=114 non-ext，回拉不创新低（lo=112 >= 80）
-            seg(Direction::Up,  24, 28, 115, 148),
-            seg(Direction::Down,28, 32, 148, 112),
-            seg(Direction::Up,  32, 36, 112, 147),
+            seg(Direction::Up, 24, 28, 115, 148),
+            seg(Direction::Down, 28, 32, 148, 112),
+            seg(Direction::Up, 32, 36, 112, 147),
         ];
         // closes 让 L1[1] 区间（source_index [12,24]）MACD 面积 < L1[0] 区间（[0,12]）= 背驰（真算）。
         // 前段大幅波动（面积大），后段小幅（面积小）。
         let mut closes: Vec<i64> = Vec::new();
-        for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); } // L1[0] 大幅
-        for i in 0..12 { closes.push(100 + if i % 2 == 0 { 5 } else { -5 }); }   // L1[1] 小幅（背驰）
-        for i in 0..16 { closes.push(100 + if i % 2 == 0 { 3 } else { -3 }); }   // L1[2] 更小
-        let layer = ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+        for i in 0..12 {
+            closes.push(100 + if i % 2 == 0 { 40 } else { -40 });
+        } // L1[0] 大幅
+        for i in 0..12 {
+            closes.push(100 + if i % 2 == 0 { 5 } else { -5 });
+        } // L1[1] 小幅（背驰）
+        for i in 0..16 {
+            closes.push(100 + if i % 2 == 0 { 3 } else { -3 });
+        } // L1[2] 更小
+        let layer = ParseLayer {
+            segments: Rc::new(segments),
+            merged_bars: Rc::new(bars_from_closes(&closes)),
+            ..Default::default()
+        };
         let out = classify(&layer, &cfg);
 
         // L1 级别（索引 1）含 L2 中枢 + B2（递归组装层产出）。
-        assert!(out.levels.len() >= 2, "三组 L0 → L1 走势塔 → L2 中枢，至少 2 级");
+        assert!(
+            out.levels.len() >= 2,
+            "三组 L0 → L1 走势塔 → L2 中枢，至少 2 级"
+        );
         let l1 = &out.levels[1];
-        assert_eq!(l1.centers.len(), 1, "3 个 L1 走势 → 1 个 L2 中枢（几何路径）");
+        assert_eq!(
+            l1.centers.len(),
+            1,
+            "3 个 L1 走势 → 1 个 L2 中枢（几何路径）"
+        );
         let second_buys: Vec<_> = l1.bsp.iter().filter(|p| p.bits.buy2).collect();
-        assert_eq!(second_buys.len(), 1, "★升级后塔真产 B2（旧 UnitRange 塔产 0）");
+        assert_eq!(
+            second_buys.len(),
+            1,
+            "★升级后塔真产 B2（旧 UnitRange 塔产 0）"
+        );
         let b2 = second_buys[0];
         // B2 端点坐标由 source_index 侧车真映射（回拉走势 L1[2] 的 end_index=36）。
-        assert_eq!(b2.source_index, 36, "B2 source_index = 回拉走势 L1[2] 的原始 K 序（坐标侧车真映射）");
+        assert_eq!(
+            b2.source_index, 36,
+            "B2 source_index = 回拉走势 L1[2] 的原始 K 序（坐标侧车真映射）"
+        );
         // 第二类止损 = 回拉低点（second_point = 回拉走势 m2.lo）——止损仍 pivot 非 center.zg/zd。
-        assert!(b2.pivot_low != 0, "B2 携结构止损价 pivot_low（回拉低点 single source）");
+        assert!(
+            b2.pivot_low != 0,
+            "B2 携结构止损价 pivot_low（回拉低点 single source）"
+        );
         // ★#218 面 A（spec owner-attribution-fix-20260724 ID-1，机械改写归因：载体形态变化）：
         // 二类点归属载体从判定中枢 c1（次级别中枢，确认层对象）改载该走势一类点身份锚——
         // 第一类离开走势 m1（L1[1]，背驰次级别走势）的终点坐标（区间套：该走势终点极值点 =
         // 一类点）；止损仍 pivot（上条已锁，止损语义不变）。
-        assert_eq!(b2.center, Some(signal::OwnerRef::Type1Anchor(24)), "二类点归属载体 = 该走势一类点锚（m1=L1[1] 终点坐标 24）");
+        assert_eq!(
+            b2.center,
+            Some(signal::OwnerRef::Type1Anchor(24)),
+            "二类点归属载体 = 该走势一类点锚（m1=L1[1] 终点坐标 24）"
+        );
         // 互斥语义：B2 端点不置 1/3 类 bit。
         assert!(!b2.bits.buy1 && !b2.bits.buy3, "第二类端点不置 1/3 类 bit");
     }
@@ -2661,17 +2939,27 @@ mod tests {
         let cfg = ThetaConfig::default();
         // 简单 up-down-up 三段（一个 L0 中枢，一个 L1 走势）——L1 走势 3 段 subs 内无法产 B2/S2。
         let segments = vec![
-            seg(Direction::Up,   0,  4, 100, 200),
-            seg(Direction::Down, 4,  8, 200, 100),
-            seg(Direction::Up,   8, 12, 100, 200),
+            seg(Direction::Up, 0, 4, 100, 200),
+            seg(Direction::Down, 4, 8, 200, 100),
+            seg(Direction::Up, 8, 12, 100, 200),
         ];
         let closes: Vec<i64> = (0..16).map(|i| 100 + (i % 4) * 10).collect();
-        let layer = ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+        let layer = ParseLayer {
+            segments: Rc::new(segments),
+            merged_bars: Rc::new(bars_from_closes(&closes)),
+            ..Default::default()
+        };
         let out = classify(&layer, &cfg);
         // L0 级别 bsp 不含第二类（三段交替窗口结构上界）。
         for p in out.levels[0].bsp.iter() {
-            assert!(!p.bits.buy2, "L0→L1 三段交替窗口不产 B2（still-MISSING-窗口，codex 裁决）");
-            assert!(!p.bits.sell2, "L0→L1 三段交替窗口不产 S2（still-MISSING-窗口，codex 裁决）");
+            assert!(
+                !p.bits.buy2,
+                "L0→L1 三段交替窗口不产 B2（still-MISSING-窗口，codex 裁决）"
+            );
+            assert!(
+                !p.bits.sell2,
+                "L0→L1 三段交替窗口不产 S2（still-MISSING-窗口，codex 裁决）"
+            );
         }
     }
 
@@ -2682,21 +2970,60 @@ mod tests {
     fn unit_to_segment_endpoint_faithful_and_roundtrips() {
         use super::center::UnitRange;
         // 向上单元：起点=lo、终点=hi（seg_end 取 end_price=hi=高点）。
-        let up = UnitRange { start_index: 4, end_index: 8, direction: Direction::Up, lo: 90, hi: 150 };
+        let up = UnitRange {
+            start_index: 4,
+            end_index: 8,
+            direction: Direction::Up,
+            lo: 90,
+            hi: 150,
+        };
         let s_up = unit_to_segment(&up);
-        assert_eq!((s_up.start_price, s_up.end_price), (90, 150), "向上单元 end_price=hi（终点=高点）");
+        assert_eq!(
+            (s_up.start_price, s_up.end_price),
+            (90, 150),
+            "向上单元 end_price=hi（终点=高点）"
+        );
         assert_eq!(s_up.direction, Direction::Up);
-        assert_eq!((s_up.start_index, s_up.end_index), (4, 8), "source_index 坐标保留（A/C 面积映射用）");
+        assert_eq!(
+            (s_up.start_index, s_up.end_index),
+            (4, 8),
+            "source_index 坐标保留（A/C 面积映射用）"
+        );
         // 向下单元：起点=hi、终点=lo（终点=低点）。
-        let down = UnitRange { start_index: 8, end_index: 12, direction: Direction::Down, lo: 90, hi: 150 };
+        let down = UnitRange {
+            start_index: 8,
+            end_index: 12,
+            direction: Direction::Down,
+            lo: 90,
+            hi: 150,
+        };
         let s_down = unit_to_segment(&down);
-        assert_eq!((s_down.start_price, s_down.end_price), (150, 90), "向下单元 end_price=lo（终点=低点）");
+        assert_eq!(
+            (s_down.start_price, s_down.end_price),
+            (150, 90),
+            "向下单元 end_price=lo（终点=低点）"
+        );
         // round-trip：L0 段 → segment_to_unit → unit_to_segment == 原段（互逆 bit-exact）。
-        for orig in [seg(Direction::Up, 0, 4, 100, 200), seg(Direction::Down, 4, 8, 200, 50)] {
+        for orig in [
+            seg(Direction::Up, 0, 4, 100, 200),
+            seg(Direction::Down, 4, 8, 200, 50),
+        ] {
             let back = unit_to_segment(&segment_to_unit(&orig));
             assert_eq!(
-                (back.direction, back.start_index, back.end_index, back.start_price, back.end_price),
-                (orig.direction, orig.start_index, orig.end_index, orig.start_price, orig.end_price),
+                (
+                    back.direction,
+                    back.start_index,
+                    back.end_index,
+                    back.start_price,
+                    back.end_price
+                ),
+                (
+                    orig.direction,
+                    orig.start_index,
+                    orig.end_index,
+                    orig.start_price,
+                    orig.end_price
+                ),
                 "segment_to_unit ∘ unit_to_segment = id（round-trip bit-exact）"
             );
         }
@@ -2710,13 +3037,45 @@ mod tests {
     fn level_ge1_extract_first_third_produces_type1_via_units() {
         use super::center::UnitRange;
         // 两依次向下中枢（c1.gg=210 < c0.dd=290 ⟹ DownContinuation ⟹ trend_class=Trend(Down)）。
-        let c0 = Center { zd: 300, zg: 400, dd: 290, gg: 410, start_index: 0, end_index: 2 };
-        let c1 = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 8 };
+        let c0 = Center {
+            zd: 300,
+            zg: 400,
+            dd: 290,
+            gg: 410,
+            start_index: 0,
+            end_index: 2,
+        };
+        let c1 = Center {
+            zd: 100,
+            zg: 200,
+            dd: 90,
+            gg: 210,
+            start_index: 0,
+            end_index: 8,
+        };
         // Down 单元：lo=终点价、hi=起点价（unit_to_segment 还原 start=hi/end=lo）。
         let units = vec![
-            UnitRange { start_index: 3, end_index: 5, direction: Direction::Down, lo: 250, hi: 350 }, // A 段（C0 离开）
-            UnitRange { start_index: 5, end_index: 7, direction: Direction::Up, lo: 250, hi: 280 },   // B 段连接
-            UnitRange { start_index: 9, end_index: 11, direction: Direction::Down, lo: 80, hi: 150 }, // C 段破 C1（<100）
+            UnitRange {
+                start_index: 3,
+                end_index: 5,
+                direction: Direction::Down,
+                lo: 250,
+                hi: 350,
+            }, // A 段（C0 离开）
+            UnitRange {
+                start_index: 5,
+                end_index: 7,
+                direction: Direction::Up,
+                lo: 250,
+                hi: 280,
+            }, // B 段连接
+            UnitRange {
+                start_index: 9,
+                end_index: 11,
+                direction: Direction::Down,
+                lo: 80,
+                hi: 150,
+            }, // C 段破 C1（<100）
         ];
         // A 段 bar[3,5] 急跌（hist 面积大）、C 段 bar[9,11] 缓动（面积小=背驰）——同 signal.rs fixture。
         let prices: Vec<i64> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
@@ -2725,18 +3084,45 @@ mod tests {
         let hist = divergence::compute_macd(&closes, &ThetaConfig::default().macd).hist;
         // 本测试只验结构六 bit（force 旁挂不改），传空 dif/closes_tick ⟹ force=None（不影响 buy1 判据）。
         // Q7-#1 裁定C：显式全锚（本测试验证的是 Trend ownership 单元的 gap-fill 路径）。
-        let anchors = [Some(Direction::Down), Some(Direction::Up), Some(Direction::Down)];
-        let (bsp, _pan) = extract_first_third_for_level(&[c0, c1], &units, &anchors, &hist, &[], &[], &close_src, divergence::DivergenceGauge::default());
+        let anchors = [
+            Some(Direction::Down),
+            Some(Direction::Up),
+            Some(Direction::Down),
+        ];
+        let (bsp, _pan) = extract_first_third_for_level(
+            &[c0, c1],
+            &units,
+            &anchors,
+            &hist,
+            &[],
+            &[],
+            &close_src,
+            divergence::DivergenceGauge::default(),
+        );
         let buy1: Vec<_> = bsp.iter().filter(|p| p.bits.buy1).collect();
-        assert_eq!(buy1.len(), 1, "级别-N 下跌趋势 C 段破最后中枢 ∧ C<A 背驰 ⟹ 一个 1 买（缺口已填，非 no-op）");
-        assert_eq!(buy1[0].source_index, 11, "1 买端点 = C 段（破最后中枢单元）终止 source_index");
-        assert_eq!(buy1[0].pivot_low, 80, "1 买止损源 = pivot_low（C 段破中枢端点极值）");
+        assert_eq!(
+            buy1.len(),
+            1,
+            "级别-N 下跌趋势 C 段破最后中枢 ∧ C<A 背驰 ⟹ 一个 1 买（缺口已填，非 no-op）"
+        );
+        assert_eq!(
+            buy1[0].source_index, 11,
+            "1 买端点 = C 段（破最后中枢单元）终止 source_index"
+        );
+        assert_eq!(
+            buy1[0].pivot_low, 80,
+            "1 买止损源 = pivot_low（C 段破中枢端点极值）"
+        );
         // ★owner 载体补齐（关③ 补记② 路径 (a)）：一类点构造时填入判定中枢 last_center=c1
         //（被破的最后中枢）——名实一致根据同 signal.rs `first_buy_extracted_with_trend_divergence`
         //（本测试复用其 A/B/C 几何的 UnitRange 表达）；center 是 owner 载体，止损仍 pivot
         //（pivot_low=80 上条已锁，center 不进 1/2 类止损判据）。
         // （#218 面 A 载体形态机械适配：一/三类载 OwnerRef::Center，语义不动。）
-        assert_eq!(buy1[0].center, Some(signal::OwnerRef::Center(c1)), "一类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
+        assert_eq!(
+            buy1[0].center,
+            Some(signal::OwnerRef::Center(c1)),
+            "一类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center"
+        );
     }
 
     /// ★裁定 A 三类（高级别「中枢外缘区间」边界语义，codex 风险点单独 snapshot）：级别-N 离开中枢
@@ -2746,23 +3132,61 @@ mod tests {
     fn level_ge1_extract_first_third_produces_type3_via_units() {
         use super::center::UnitRange;
         // 单中枢 [100,200]（盘整 τ ⟹ 无一类）——三类是纯几何位置判据，不依赖趋势门控。
-        let c = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 };
+        let c = Center {
+            zd: 100,
+            zg: 200,
+            dd: 90,
+            gg: 210,
+            start_index: 0,
+            end_index: 12,
+        };
         let units = vec![
             // 离开单元：向上，终点=hi=250 > zg=200（离开中枢上方）。
-            UnitRange { start_index: 12, end_index: 16, direction: Direction::Up, lo: 150, hi: 250 },
+            UnitRange {
+                start_index: 12,
+                end_index: 16,
+                direction: Direction::Up,
+                lo: 150,
+                hi: 250,
+            },
             // 回试单元：向下，终点=lo=210 > zg=200（不重入闭区间中枢）⟹ 3 买。
-            UnitRange { start_index: 16, end_index: 20, direction: Direction::Down, lo: 210, hi: 250 },
+            UnitRange {
+                start_index: 16,
+                end_index: 20,
+                direction: Direction::Down,
+                lo: 210,
+                hi: 250,
+            },
         ];
         // 三类无 MACD 依赖（纯整数几何），hist 空亦可——传空 hist/dif/closes_tick（第一类自然不产，force=None）。
         // Q7-#1 裁定C：显式全锚（leave 单元有 Trend ownership 资格的三类路径）。
         let anchors = [Some(Direction::Up), Some(Direction::Down)];
-        let (bsp, _pan) = extract_first_third_for_level(&[c], &units, &anchors, &[], &[], &[], &(0..24).collect::<Vec<_>>(), divergence::DivergenceGauge::default());
+        let (bsp, _pan) = extract_first_third_for_level(
+            &[c],
+            &units,
+            &anchors,
+            &[],
+            &[],
+            &[],
+            &(0..24).collect::<Vec<_>>(),
+            divergence::DivergenceGauge::default(),
+        );
         let buy3: Vec<_> = bsp.iter().filter(|p| p.bits.buy3).collect();
-        assert_eq!(buy3.len(), 1, "级别-N 离开中枢 + 回试不重入 ⟹ 一个 3 买（外缘区间端点判据）");
-        assert_eq!(buy3[0].source_index, 20, "3 买端点 = 回试单元终止 source_index");
+        assert_eq!(
+            buy3.len(),
+            1,
+            "级别-N 离开中枢 + 回试不重入 ⟹ 一个 3 买（外缘区间端点判据）"
+        );
+        assert_eq!(
+            buy3[0].source_index, 20,
+            "3 买端点 = 回试单元终止 source_index"
+        );
         assert_eq!(buy3[0].pivot_low, 210, "3 买止损源 = pivot_low（回试低点）");
         assert_eq!(
-            buy3[0].center.and_then(|o| match o { signal::OwnerRef::Center(c) => Some(c.zg), _ => None }),
+            buy3[0].center.and_then(|o| match o {
+                signal::OwnerRef::Center(c) => Some(c.zg),
+                _ => None,
+            }),
             Some(200),
             "3 买 center=Some（止损=zg；#218 面 A 载体形态：Center 变体读出）"
         );
@@ -2780,42 +3204,137 @@ mod tests {
     fn q7_ruling_c_first_class_structural_direction_third_class_provenance_kept() {
         use super::center::UnitRange;
         // fixture 同 level_ge1_extract_first_third_fills_type1_gap（两下行中枢 + A/B/C 三单元）。
-        let c0 = Center { zd: 300, zg: 400, dd: 290, gg: 410, start_index: 0, end_index: 2 };
-        let c1 = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 8 };
+        let c0 = Center {
+            zd: 300,
+            zg: 400,
+            dd: 290,
+            gg: 410,
+            start_index: 0,
+            end_index: 2,
+        };
+        let c1 = Center {
+            zd: 100,
+            zg: 200,
+            dd: 90,
+            gg: 210,
+            start_index: 0,
+            end_index: 8,
+        };
         let units = vec![
-            UnitRange { start_index: 3, end_index: 5, direction: Direction::Down, lo: 250, hi: 350 },
-            UnitRange { start_index: 5, end_index: 7, direction: Direction::Up, lo: 250, hi: 280 },
-            UnitRange { start_index: 9, end_index: 11, direction: Direction::Down, lo: 80, hi: 150 },
+            UnitRange {
+                start_index: 3,
+                end_index: 5,
+                direction: Direction::Down,
+                lo: 250,
+                hi: 350,
+            },
+            UnitRange {
+                start_index: 5,
+                end_index: 7,
+                direction: Direction::Up,
+                lo: 250,
+                hi: 280,
+            },
+            UnitRange {
+                start_index: 9,
+                end_index: 11,
+                direction: Direction::Down,
+                lo: 80,
+                hi: 150,
+            },
         ];
         let prices: Vec<i64> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
         let closes: Vec<f64> = prices.iter().map(|&v| v as f64).collect();
         let close_src: Vec<usize> = (0..prices.len()).collect();
         let hist = divergence::compute_macd(&closes, &ThetaConfig::default().macd).hist;
         let n_buy1 = |anchors: &[Option<Direction>]| {
-            let (bsp, _) = extract_first_third_for_level(&[c0, c1], &units, anchors, &hist, &[], &[], &close_src, divergence::DivergenceGauge::default());
+            let (bsp, _) = extract_first_third_for_level(
+                &[c0, c1],
+                &units,
+                anchors,
+                &hist,
+                &[],
+                &[],
+                &close_src,
+                divergence::DivergenceGauge::default(),
+            );
             bsp.iter().filter(|p| p.bits.buy1).count()
         };
         // 对照组：全锚 ⟹ 1 买产（gap-fill 路径活；保留断言）。
-        assert_eq!(n_buy1(&[Some(Direction::Down), Some(Direction::Up), Some(Direction::Down)]), 1);
+        assert_eq!(
+            n_buy1(&[
+                Some(Direction::Down),
+                Some(Direction::Up),
+                Some(Direction::Down)
+            ]),
+            1
+        );
         // A 段单元 fallback：p117 后第一类 A 窗筛选用单元结构方向（行程方向 Down=τ）⟹ A 候选
         // 可配 ⟹ 产 1 买（S4 救回型；授权翻转 0→1。provenance 锚消费方仅余三类/诊断仪器）。
-        assert_eq!(n_buy1(&[None, Some(Direction::Up), Some(Direction::Down)]), 1,
-            "p117 窄域授权：第一类 A 段方向锚 = 单元结构方向（fallback 单元行程方向=τ 时可配）");
+        assert_eq!(
+            n_buy1(&[None, Some(Direction::Up), Some(Direction::Down)]),
+            1,
+            "p117 窄域授权：第一类 A 段方向锚 = 单元结构方向（fallback 单元行程方向=τ 时可配）"
+        );
         // C 段（破中枢段）单元 fallback：p117 后 broke 锚门用单元结构方向（Down=τ）⟹ 触发 ⟹
         // 产 1 买（S2 救回型；授权翻转 0→1。行程方向 ≠τ 的单元仍拒——signal.rs 反向 veto 锁）。
-        assert_eq!(n_buy1(&[Some(Direction::Down), Some(Direction::Up), None]), 1,
-            "p117 窄域授权：第一类破中枢段方向锚 = 单元结构方向（fallback 单元行程方向=τ 时触发）");
+        assert_eq!(
+            n_buy1(&[Some(Direction::Down), Some(Direction::Up), None]),
+            1,
+            "p117 窄域授权：第一类破中枢段方向锚 = 单元结构方向（fallback 单元行程方向=τ 时触发）"
+        );
         // 三类：leave 段 fallback ⟹ 不产 3 买（686 对三类的保护整体保留；retest 是几何角色不设锚门）。
-        let c = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 };
+        let c = Center {
+            zd: 100,
+            zg: 200,
+            dd: 90,
+            gg: 210,
+            start_index: 0,
+            end_index: 12,
+        };
         let u3 = vec![
-            UnitRange { start_index: 12, end_index: 16, direction: Direction::Up, lo: 150, hi: 250 },
-            UnitRange { start_index: 16, end_index: 20, direction: Direction::Down, lo: 210, hi: 250 },
+            UnitRange {
+                start_index: 12,
+                end_index: 16,
+                direction: Direction::Up,
+                lo: 150,
+                hi: 250,
+            },
+            UnitRange {
+                start_index: 16,
+                end_index: 20,
+                direction: Direction::Down,
+                lo: 210,
+                hi: 250,
+            },
         ];
         let src24: Vec<usize> = (0..24).collect();
-        let (bsp, _) = extract_first_third_for_level(&[c], &u3, &[None, Some(Direction::Down)], &[], &[], &[], &src24, divergence::DivergenceGauge::default());
-        assert_eq!(bsp.iter().filter(|p| p.bits.buy3).count(), 0, "fallback 单元不得作三类离开段方向锚（686 裁定C 三类保留）");
+        let (bsp, _) = extract_first_third_for_level(
+            &[c],
+            &u3,
+            &[None, Some(Direction::Down)],
+            &[],
+            &[],
+            &[],
+            &src24,
+            divergence::DivergenceGauge::default(),
+        );
+        assert_eq!(
+            bsp.iter().filter(|p| p.bits.buy3).count(),
+            0,
+            "fallback 单元不得作三类离开段方向锚（686 裁定C 三类保留）"
+        );
         // 成员身份不变：同 fixture 全锚下产出恢复（锚门不改变序列成员/中枢几何）。
-        let (bsp2, _) = extract_first_third_for_level(&[c], &u3, &[Some(Direction::Up), Some(Direction::Down)], &[], &[], &[], &src24, divergence::DivergenceGauge::default());
+        let (bsp2, _) = extract_first_third_for_level(
+            &[c],
+            &u3,
+            &[Some(Direction::Up), Some(Direction::Down)],
+            &[],
+            &[],
+            &[],
+            &src24,
+            divergence::DivergenceGauge::default(),
+        );
         assert_eq!(bsp2.iter().filter(|p| p.bits.buy3).count(), 1);
     }
 
@@ -2829,7 +3348,8 @@ mod tests {
         use super::super::backtest::data::load_by_symbol;
         use super::super::parser::parse_layer;
         let cfg = ThetaConfig::default();
-        let full = load_by_symbol("BTC", &cfg).expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
+        let full = load_by_symbol("BTC", &cfg)
+            .expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
         // 可选日期窗（CENSUS_WINDOW="2020-10-01,2021-04-01"）——检验 type1 的水平线依赖性：
         // 全历史中枢链全局非单调 ⟹ trend_class=Degenerate ⟹ type1=0；单向牛/熊窗内某级链可单调 ⟹ type1>0。
         let ds = match std::env::var("CENSUS_WINDOW") {
@@ -2842,16 +3362,27 @@ mod tests {
         };
         eprintln!("[census] BTC bars={}", ds.bars.len());
         let layer = parse_layer(&ds.bars, &cfg);
-        eprintln!("[census] L0 segments={} merged_bars={}", layer.segments.len(), layer.merged_bars.len());
+        eprintln!(
+            "[census] L0 segments={} merged_bars={}",
+            layer.segments.len(),
+            layer.merged_bars.len()
+        );
         let out = classify(&layer, &cfg);
         eprintln!("[census] levels={}", out.levels.len());
         for (li, lv) in out.levels.iter().enumerate() {
-            let trend = lv.moves.iter().filter(|m| m.kind == MoveKind::Trend).count();
+            let trend = lv
+                .moves
+                .iter()
+                .filter(|m| m.kind == MoveKind::Trend)
+                .count();
             let (mut b1, mut s1, mut b2, mut s2, mut b3, mut s3) = (0, 0, 0, 0, 0, 0);
             for p in lv.bsp.iter() {
-                b1 += p.bits.buy1 as usize; s1 += p.bits.sell1 as usize;
-                b2 += p.bits.buy2 as usize; s2 += p.bits.sell2 as usize;
-                b3 += p.bits.buy3 as usize; s3 += p.bits.sell3 as usize;
+                b1 += p.bits.buy1 as usize;
+                s1 += p.bits.sell1 as usize;
+                b2 += p.bits.buy2 as usize;
+                s2 += p.bits.sell2 as usize;
+                b3 += p.bits.buy3 as usize;
+                s3 += p.bits.sell3 as usize;
             }
             eprintln!(
                 "[census] L{li}: centers={} moves={}(trend={}) bsp={} pan_div={} | buy1={b1} sell1={s1} buy2={b2} sell2={s2} buy3={b3} sell3={s3}",
@@ -2860,14 +3391,24 @@ mod tests {
             // 抽样：level≥1 的前 3 个一类端点（若有）+ 前 3 个三类端点（人工核结构合法性——
             // source_index + center[zd,zg] + pivot（回试端点极值）；三类不重入判据由 judge_third 保证）。
             if li >= 1 {
-                let t1: Vec<_> = lv.bsp.iter().filter(|p| p.bits.buy1 || p.bits.sell1).take(3).collect();
+                let t1: Vec<_> = lv
+                    .bsp
+                    .iter()
+                    .filter(|p| p.bits.buy1 || p.bits.sell1)
+                    .take(3)
+                    .collect();
                 for (k, p) in t1.iter().enumerate() {
                     eprintln!(
                         "[census]   L{li} type1#{k}: src_idx={} buy1={} sell1={} break_dir={:?} pivot_low={} pivot_high={}",
                         p.source_index, p.bits.buy1, p.bits.sell1, p.struct_break_dir, p.pivot_low, p.pivot_high
                     );
                 }
-                let t3: Vec<_> = lv.bsp.iter().filter(|p| p.bits.buy3 || p.bits.sell3).take(3).collect();
+                let t3: Vec<_> = lv
+                    .bsp
+                    .iter()
+                    .filter(|p| p.bits.buy3 || p.bits.sell3)
+                    .take(3)
+                    .collect();
                 for (k, p) in t3.iter().enumerate() {
                     eprintln!(
                         "[census]   L{li} type3#{k}: src_idx={} buy3={} sell3={} center_zd={:?} center_zg={:?} pivot_low={} pivot_high={}",
@@ -2895,7 +3436,8 @@ mod tests {
         use super::super::parser::parse_layer;
         use super::center::{classify_relation, CenterRelation};
         let cfg = ThetaConfig::default();
-        let full = load_by_symbol("BTC", &cfg).expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
+        let full = load_by_symbol("BTC", &cfg)
+            .expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
         let ds = match std::env::var("CENSUS_WINDOW") {
             Ok(w) => {
                 let (s, e) = w.split_once(',').expect("CENSUS_WINDOW 格式 start,end");
@@ -2906,7 +3448,11 @@ mod tests {
         };
         eprintln!("[funnel] BTC bars={}", ds.bars.len());
         let layer = parse_layer(&ds.bars, &cfg);
-        eprintln!("[funnel] L0 segments={} merged_bars={}", layer.segments.len(), layer.merged_bars.len());
+        eprintln!(
+            "[funnel] L0 segments={} merged_bars={}",
+            layer.segments.len(),
+            layer.merged_bars.len()
+        );
 
         // 生产对拍源（675号守卫：级别循环不分叉）。
         let out = classify(&layer, &cfg);
@@ -2924,7 +3470,15 @@ mod tests {
             units
                 .iter()
                 .enumerate()
-                .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
+                .map(|(i, u)| {
+                    LeveledMove::from_unit(
+                        u,
+                        ElementId {
+                            level: 0,
+                            ordinal: i as u64,
+                        },
+                    )
+                })
                 .collect(),
         );
 
@@ -2958,7 +3512,15 @@ mod tests {
                 for (_, (s, e)) in &windowed {
                     let w = e - s + 1;
                     max_w = max_w.max(w);
-                    hist[if w <= 3 { 0 } else if w <= 5 { 1 } else if w <= 9 { 2 } else { 3 }] += 1;
+                    hist[if w <= 3 {
+                        0
+                    } else if w <= 5 {
+                        1
+                    } else if w <= 9 {
+                        2
+                    } else {
+                        3
+                    }] += 1;
                 }
                 eprintln!(
                     "[funnel] L{level_idx}: 窗口段数分布 =3段:{} 4-5:{} 6-9:{} ≥10:{} max={}",
@@ -2967,11 +3529,22 @@ mod tests {
             }
 
             // 中枢链相邻关系直方图 + 前缀 τ 时间线 + 反事实局部同向 run。
-            let rels: Vec<CenterRelation> =
-                centers.windows(2).map(|w| classify_relation(&w[0], &w[1])).collect();
-            let n_up = rels.iter().filter(|r| **r == CenterRelation::UpContinuation).count();
-            let n_down = rels.iter().filter(|r| **r == CenterRelation::DownContinuation).count();
-            let n_exp = rels.iter().filter(|r| **r == CenterRelation::LevelExpansion).count();
+            let rels: Vec<CenterRelation> = centers
+                .windows(2)
+                .map(|w| classify_relation(&w[0], &w[1]))
+                .collect();
+            let n_up = rels
+                .iter()
+                .filter(|r| **r == CenterRelation::UpContinuation)
+                .count();
+            let n_down = rels
+                .iter()
+                .filter(|r| **r == CenterRelation::DownContinuation)
+                .count();
+            let n_exp = rels
+                .iter()
+                .filter(|r| **r == CenterRelation::LevelExpansion)
+                .count();
             // 前缀 τ：τ(前k中枢)=Trend ⟺ k≥2 ∧ rels[0..k-1] 全等且非 Expansion。锁死点=首个异关系下标。
             let trend_open = !rels.is_empty() && rels[0] != CenterRelation::LevelExpansion;
             let lock_at = if rels.is_empty() {
@@ -3002,7 +3575,11 @@ mod tests {
                 None => format!("链长<2 无关系"),
                 Some(i) => {
                     let c_end = centers[i + 1].end_index;
-                    let date = ds.dates.get(c_end).map(|d| d.get(..10).unwrap_or("?")).unwrap_or("?");
+                    let date = ds
+                        .dates
+                        .get(c_end)
+                        .map(|d| d.get(..10).unwrap_or("?"))
+                        .unwrap_or("?");
                     format!("中枢#{}（end_src={} {date}）", i + 1, c_end)
                 }
             };
@@ -3014,10 +3591,22 @@ mod tests {
                 let pb = &out.levels[level_idx - 1].moves;
                 (
                     units.iter().map(unit_to_segment).collect(),
-                    Some((0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect()),
+                    Some(
+                        (0..units.len())
+                            .map(|i| decompose::center_own_dir_at(pb, i))
+                            .collect(),
+                    ),
                 )
             };
-            let f = signal::type1_funnel_dx(&centers, &segs, funnel_anchors.as_deref(), &series.hist, &series.dif, &closes_tick, &close_src);
+            let f = signal::type1_funnel_dx(
+                &centers,
+                &segs,
+                funnel_anchors.as_deref(),
+                &series.hist,
+                &series.dif,
+                &closes_tick,
+                &close_src,
+            );
             eprintln!(
                 "[funnel] L{level_idx}: centers={} segs={} rel(up/down/exp)={}/{}/{} blocks(trend/consol)={}/{} 最长趋势块={}中枢 | 旧AllTrend锁死点={} 局部同向run≥2中枢数={} 最长run={}(={}中枢)",
                 f.n_centers, f.n_segments, n_up, n_down, n_exp, f.n_trend_blocks, f.n_consol_blocks,
@@ -3034,19 +3623,31 @@ mod tests {
                     .bsp
                     .iter()
                     .filter(|p| p.bits.sell1)
-                    .filter_map(|p| ds.dates.get(p.source_index).map(|d| d.get(..10).unwrap_or("?")))
+                    .filter_map(|p| {
+                        ds.dates
+                            .get(p.source_index)
+                            .map(|d| d.get(..10).unwrap_or("?"))
+                    })
                     .filter(|d| ("2020-10-01".."2021-04-15").contains(d))
                     .collect();
-                let n_sell1 =
-                    out.levels[level_idx].bsp.iter().filter(|p| p.bits.sell1).count();
-                let n_buy1 = out.levels[level_idx].bsp.iter().filter(|p| p.bits.buy1).count();
+                let n_sell1 = out.levels[level_idx]
+                    .bsp
+                    .iter()
+                    .filter(|p| p.bits.sell1)
+                    .count();
+                let n_buy1 = out.levels[level_idx]
+                    .bsp
+                    .iter()
+                    .filter(|p| p.bits.buy1)
+                    .count();
                 eprintln!(
                     "[funnel] L{level_idx}: 全历史 buy1={} sell1={} | 2021顶区(2020-10-01..2021-04-15) sell1×{}: {:?}",
                     n_buy1, n_sell1, top_sell1.len(), top_sell1
                 );
             }
 
-            let (_cw, upper_moves, _) = compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
+            let (_cw, upper_moves, _) =
+                compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
             units = project_to_units(&upper_moves, &out.levels[level_idx].moves); // Q7：生产同源块
             moves_tower = Rc::new(upper_moves);
             if units.is_empty() {
@@ -3067,7 +3668,10 @@ mod tests {
         // L0 线段数 < min_parts_per_level(3) ⟹ 无 L0 走势，levels 空（自然终止）。
         let cfg = ThetaConfig::default();
         let layer = ParseLayer {
-            segments: Rc::new(vec![seg(Direction::Up, 0, 4, 0, 10), seg(Direction::Down, 4, 8, 10, 5)]),
+            segments: Rc::new(vec![
+                seg(Direction::Up, 0, 4, 0, 10),
+                seg(Direction::Down, 4, 8, 10, 5),
+            ]),
             ..Default::default()
         };
         let out = classify(&layer, &cfg);
@@ -3096,8 +3700,14 @@ mod tests {
         assert_eq!((l0.centers[0].zd, l0.centers[0].zg), (5, 10));
         // 一个中枢 ⟹ 分解 = 单盘整块（PDF §6 情形1）。
         assert_eq!(l0.moves.len(), 1);
-        assert_eq!((l0.moves[0].kind, l0.moves[0].start_center, l0.moves[0].end_center),
-                   (MoveKind::Consolidation, 0, 0));
+        assert_eq!(
+            (
+                l0.moves[0].kind,
+                l0.moves[0].start_center,
+                l0.moves[0].end_center
+            ),
+            (MoveKind::Consolidation, 0, 0)
+        );
     }
 
     #[test]
@@ -3116,7 +3726,10 @@ mod tests {
         let out = classify(&layer, &cfg);
         // 无方向交替 ⟹ L0 无中枢（完整判据拒绝单边三段）。
         assert_eq!(out.levels.len(), 1);
-        assert!(out.levels[0].centers.is_empty(), "同向三段无方向交替 ⟹ 完整判据拒绝（非中枢）");
+        assert!(
+            out.levels[0].centers.is_empty(),
+            "同向三段无方向交替 ⟹ 完整判据拒绝（非中枢）"
+        );
     }
 
     #[test]
@@ -3126,10 +3739,17 @@ mod tests {
         let mut segments = Vec::new();
         // 27 段全重叠区间 [0,100]（每三段成一中枢，逐级递归）。
         for i in 0..27 {
-            let dir = if i % 2 == 0 { Direction::Up } else { Direction::Down };
+            let dir = if i % 2 == 0 {
+                Direction::Up
+            } else {
+                Direction::Down
+            };
             segments.push(seg(dir, i * 4, i * 4 + 4, 0, 100));
         }
-        let layer = ParseLayer { segments: Rc::new(segments), ..Default::default() };
+        let layer = ParseLayer {
+            segments: Rc::new(segments),
+            ..Default::default()
+        };
         let out = classify(&layer, &cfg);
         // 级别数不超过 l_max+1（reference:30 上界，default l_max=6）。
         assert!(out.levels.len() <= cfg.level.l_max as usize + 1);
@@ -3168,7 +3788,7 @@ mod tests {
                 seg(Direction::Up, 0, 4, 100, 200),
                 seg(Direction::Down, 4, 8, 200, 100),
                 seg(Direction::Up, 8, 12, 100, 200),
-                seg(Direction::Up, 12, 16, 205, 250),   // 离开中枢上方（lo=205>ZG ⟹ non-extension）
+                seg(Direction::Up, 12, 16, 205, 250), // 离开中枢上方（lo=205>ZG ⟹ non-extension）
                 seg(Direction::Down, 16, 20, 250, 210), // 回试低点 > zg → 3 买
             ]),
             ..Default::default()
@@ -3189,7 +3809,10 @@ mod tests {
         assert_eq!(p.source_index, 20, "买卖点定位回试端点");
         assert_eq!(p.pivot_low, 210, "结构止损价 pivot_low single source");
         assert_eq!(
-            p.center.and_then(|o| match o { signal::OwnerRef::Center(c) => Some(c.zg), _ => None }),
+            p.center.and_then(|o| match o {
+                signal::OwnerRef::Center(c) => Some(c.zg),
+                _ => None,
+            }),
             Some(200),
             "3 买止损 = ZG single source（#218 面 A 载体形态：Center 变体读出）"
         );
@@ -3210,7 +3833,10 @@ mod tests {
         };
         let out = classify(&layer, &cfg);
         assert_eq!(out.levels[0].centers.len(), 1);
-        assert!(out.levels[0].bsp.is_empty(), "无离开/回试 ⟹ 无买卖点（诚实空）");
+        assert!(
+            out.levels[0].bsp.is_empty(),
+            "无离开/回试 ⟹ 无买卖点（诚实空）"
+        );
     }
 
     /// ★classify_with_tower (i) 段导出桥——tower 非空 + depth≥1 真嵌套存在。
@@ -3225,27 +3851,43 @@ mod tests {
         // 核心分离（组B 首段 hi=115<ZD_A=120、组C 首段 lo=115>ZG_B=114 ⟹ non-extension，PDF §5
         // Step3），外缘 O_A=[110,150]/O_B=[80,125]/O_C=[112,148] 共同相交 ⟹ L2 核心 [112,125] 非空。
         let segments = vec![
-            seg(Direction::Up,   0,  4, 110, 150),
-            seg(Direction::Down, 4,  8, 150, 120),
-            seg(Direction::Up,   8, 12, 120, 148),
-            seg(Direction::Down,12, 16, 115,  80),
-            seg(Direction::Up,  16, 20,  80, 125),
-            seg(Direction::Down,20, 24, 114,  85),
-            seg(Direction::Up,  24, 28, 115, 148),
-            seg(Direction::Down,28, 32, 148, 112),
-            seg(Direction::Up,  32, 36, 112, 147),
+            seg(Direction::Up, 0, 4, 110, 150),
+            seg(Direction::Down, 4, 8, 150, 120),
+            seg(Direction::Up, 8, 12, 120, 148),
+            seg(Direction::Down, 12, 16, 115, 80),
+            seg(Direction::Up, 16, 20, 80, 125),
+            seg(Direction::Down, 20, 24, 114, 85),
+            seg(Direction::Up, 24, 28, 115, 148),
+            seg(Direction::Down, 28, 32, 148, 112),
+            seg(Direction::Up, 32, 36, 112, 147),
         ];
         let mut closes: Vec<i64> = Vec::new();
-        for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
-        for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
-        for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
-        let layer = ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+        for i in 0..12 {
+            closes.push(100 + if i % 2 == 0 { 40 } else { -40 });
+        }
+        for i in 0..12 {
+            closes.push(100 + if i % 2 == 0 { 5 } else { -5 });
+        }
+        for i in 0..16 {
+            closes.push(100 + if i % 2 == 0 { 3 } else { -3 });
+        }
+        let layer = ParseLayer {
+            segments: Rc::new(segments),
+            merged_bars: Rc::new(bars_from_closes(&closes)),
+            ..Default::default()
+        };
         let (_, tower) = classify_with_tower(&layer, &cfg);
         assert!(!tower.is_empty(), "tower 非空（至少 L0 级被处理）");
-        assert!(tower.len() >= 2, "9 段 L0 → 3 个 L1 走势 → L2 中枢 ⟹ tower 至少 2 层");
+        assert!(
+            tower.len() >= 2,
+            "9 段 L0 → 3 个 L1 走势 → L2 中枢 ⟹ tower 至少 2 层"
+        );
         // depth≥1 真嵌套：tower[1] 含 sub_moves 非空的 LeveledMove（RMove::Compose，L1 输入塔）。
         let has_true_nesting = tower[1].iter().any(|m| !m.sub_moves.is_empty());
-        assert!(has_true_nesting, "tower[1] 含真嵌套 LeveledMove（sub_moves 非空，depth≥1）");
+        assert!(
+            has_true_nesting,
+            "tower[1] 含真嵌套 LeveledMove（sub_moves 非空，depth≥1）"
+        );
     }
 
     /// ★classify_with_tower Classification 与 classify 同输入 bit-identical（导出不改原分类）。
@@ -3256,24 +3898,37 @@ mod tests {
         // 核心分离（组B 首段 hi=115<ZD_A=120、组C 首段 lo=115>ZG_B=114 ⟹ non-extension，PDF §5
         // Step3），外缘 O_A=[110,150]/O_B=[80,125]/O_C=[112,148] 共同相交 ⟹ L2 核心 [112,125] 非空。
         let segments = vec![
-            seg(Direction::Up,   0,  4, 110, 150),
-            seg(Direction::Down, 4,  8, 150, 120),
-            seg(Direction::Up,   8, 12, 120, 148),
-            seg(Direction::Down,12, 16, 115,  80),
-            seg(Direction::Up,  16, 20,  80, 125),
-            seg(Direction::Down,20, 24, 114,  85),
-            seg(Direction::Up,  24, 28, 115, 148),
-            seg(Direction::Down,28, 32, 148, 112),
-            seg(Direction::Up,  32, 36, 112, 147),
+            seg(Direction::Up, 0, 4, 110, 150),
+            seg(Direction::Down, 4, 8, 150, 120),
+            seg(Direction::Up, 8, 12, 120, 148),
+            seg(Direction::Down, 12, 16, 115, 80),
+            seg(Direction::Up, 16, 20, 80, 125),
+            seg(Direction::Down, 20, 24, 114, 85),
+            seg(Direction::Up, 24, 28, 115, 148),
+            seg(Direction::Down, 28, 32, 148, 112),
+            seg(Direction::Up, 32, 36, 112, 147),
         ];
         let mut closes: Vec<i64> = Vec::new();
-        for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
-        for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
-        for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
-        let layer = ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+        for i in 0..12 {
+            closes.push(100 + if i % 2 == 0 { 40 } else { -40 });
+        }
+        for i in 0..12 {
+            closes.push(100 + if i % 2 == 0 { 5 } else { -5 });
+        }
+        for i in 0..16 {
+            closes.push(100 + if i % 2 == 0 { 3 } else { -3 });
+        }
+        let layer = ParseLayer {
+            segments: Rc::new(segments),
+            merged_bars: Rc::new(bars_from_closes(&closes)),
+            ..Default::default()
+        };
         let expected = classify(&layer, &cfg);
         let (actual, _) = classify_with_tower(&layer, &cfg);
-        assert_eq!(actual, expected, "classify_with_tower Classification 与 classify bit-identical（原分类不变）");
+        assert_eq!(
+            actual, expected,
+            "classify_with_tower Classification 与 classify bit-identical（原分类不变）"
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -3284,7 +3939,11 @@ mod tests {
     fn synthetic_segments(count: usize) -> Vec<Segment> {
         (0..count)
             .map(|i| {
-                let dir = if i % 2 == 0 { Direction::Up } else { Direction::Down };
+                let dir = if i % 2 == 0 {
+                    Direction::Up
+                } else {
+                    Direction::Down
+                };
                 let base = 100i64 + (i as i64) * 3;
                 let swing = if i % 2 == 0 { 50 } else { -50 };
                 let sp = base;
@@ -3304,19 +3963,51 @@ mod tests {
         for n in [3usize, 6, 9, 12, 18] {
             let segments = synthetic_segments(n);
             let closes: Vec<i64> = (0..(n * 4 + 8) as i64).map(|i| 100 + (i % 5) * 5).collect();
-            let layer =
-                ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+            let layer = ParseLayer {
+                segments: Rc::new(segments),
+                merged_bars: Rc::new(bars_from_closes(&closes)),
+                ..Default::default()
+            };
 
             let (full_cls, full_tower) = classify_with_tower(&layer, &cfg);
             let mut cache = TowerCache::new();
             let (inc_cls, inc_tower) = classify_with_tower_incremental(&layer, &cfg, &mut cache);
 
             assert_eq!(inc_cls, full_cls, "n={n}: 增量 Classification == 全量");
-            assert_eq!(inc_tower.len(), full_tower.len(), "n={n}: 增量 tower 层数 == 全量");
+            assert_eq!(
+                inc_tower.len(),
+                full_tower.len(),
+                "n={n}: 增量 tower 层数 == 全量"
+            );
             for (lvl, (il, fl)) in inc_tower.iter().zip(full_tower.iter()).enumerate() {
-                assert_eq!(il, fl, "n={n} level {lvl}: 增量 tower 级 LeveledMove 序列 == 全量");
+                assert_eq!(
+                    il, fl,
+                    "n={n} level {lvl}: 增量 tower 级 LeveledMove 序列 == 全量"
+                );
             }
         }
+    }
+
+    /// #550 主缝：新事件通道不改既有两字段，且 fresh 增量与全量逐字段一致。
+    #[test]
+    fn candidate_event_stream_fresh_incremental_equals_full() {
+        let cfg = ThetaConfig::default();
+        let segments = synthetic_segments(36);
+        let closes: Vec<i64> = (0..=segments.last().unwrap().end_index)
+            .map(|i| 100 + if i % 8 < 4 { 35 } else { -35 } + (i as i64 / 16))
+            .collect();
+        let layer = ParseLayer {
+            segments: Rc::new(segments),
+            merged_bars: Rc::new(bars_from_closes(&closes)),
+            ..Default::default()
+        };
+        let legacy = classify_with_tower(&layer, &cfg);
+        let full = classify_with_tower_events(&layer, &cfg);
+        let mut cache = TowerCache::new();
+        let incremental = classify_with_tower_events_incremental(&layer, &cfg, &mut cache);
+        assert_eq!(full.0, legacy.0, "Classification 逐字段不动");
+        assert_eq!(full.1, legacy.1, "tower 逐字段不动");
+        assert_eq!(incremental, full, "候选事件流 fresh 增量≡全量");
     }
 
     /// ★增量塔逐段追加 bit-exact（#93 核心铁律）：模拟 per-bar substrate 逐段追加，
@@ -3345,7 +4036,10 @@ mod tests {
             // 增量（cache 跨步复用）。
             let (inc_cls, inc_tower) = classify_with_tower_incremental(&layer, &cfg, &mut cache);
 
-            assert_eq!(inc_cls, full_cls, "n={n}: 增量 Classification != 全量（bit-exact 破裂）");
+            assert_eq!(
+                inc_cls, full_cls,
+                "n={n}: 增量 Classification != 全量（bit-exact 破裂）"
+            );
             assert_eq!(
                 inc_tower.len(),
                 full_tower.len(),
@@ -3360,8 +4054,6 @@ mod tests {
         }
     }
 
-
-
     /// ★段账本回缩退化 bit-exact：模拟 parser 回撤最后一段（非单调追加），
     /// `cache` 自动检测回缩 ⟹ 清空 + 全量重扫 ⟹ 仍 bit-exact（退化不破坏正确性）。
     #[test]
@@ -3372,8 +4064,11 @@ mod tests {
 
         let mut cache = TowerCache::new();
         // 先追加到 12 段。
-        let layer_full =
-            ParseLayer { segments: Rc::new(all_segments.clone()), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+        let layer_full = ParseLayer {
+            segments: Rc::new(all_segments.clone()),
+            merged_bars: Rc::new(bars_from_closes(&closes)),
+            ..Default::default()
+        };
         let _ = classify_with_tower_incremental(&layer_full, &cfg, &mut cache);
         // 回缩到 8 段（parser 回撤）。
         let layer_shrink = ParseLayer {
@@ -3397,33 +4092,65 @@ mod tests {
         // 核心分离（组B 首段 hi=115<ZD_A=120、组C 首段 lo=115>ZG_B=114 ⟹ non-extension，PDF §5
         // Step3），外缘 O_A=[110,150]/O_B=[80,125]/O_C=[112,148] 共同相交 ⟹ L2 核心 [112,125] 非空。
         let segments = vec![
-            seg(Direction::Up,   0,  4, 110, 150),
-            seg(Direction::Down, 4,  8, 150, 120),
-            seg(Direction::Up,   8, 12, 120, 148),
-            seg(Direction::Down,12, 16, 115,  80),
-            seg(Direction::Up,  16, 20,  80, 125),
-            seg(Direction::Down,20, 24, 114,  85),
-            seg(Direction::Up,  24, 28, 115, 148),
-            seg(Direction::Down,28, 32, 148, 112),
-            seg(Direction::Up,  32, 36, 112, 147),
+            seg(Direction::Up, 0, 4, 110, 150),
+            seg(Direction::Down, 4, 8, 150, 120),
+            seg(Direction::Up, 8, 12, 120, 148),
+            seg(Direction::Down, 12, 16, 115, 80),
+            seg(Direction::Up, 16, 20, 80, 125),
+            seg(Direction::Down, 20, 24, 114, 85),
+            seg(Direction::Up, 24, 28, 115, 148),
+            seg(Direction::Down, 28, 32, 148, 112),
+            seg(Direction::Up, 32, 36, 112, 147),
         ];
         let mut closes: Vec<i64> = Vec::new();
-        for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
-        for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
-        for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
-        let layer = ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+        for i in 0..12 {
+            closes.push(100 + if i % 2 == 0 { 40 } else { -40 });
+        }
+        for i in 0..12 {
+            closes.push(100 + if i % 2 == 0 { 5 } else { -5 });
+        }
+        for i in 0..16 {
+            closes.push(100 + if i % 2 == 0 { 3 } else { -3 });
+        }
+        let layer = ParseLayer {
+            segments: Rc::new(segments),
+            merged_bars: Rc::new(bars_from_closes(&closes)),
+            ..Default::default()
+        };
 
         let (full_cls, _) = classify_with_tower(&layer, &cfg);
         let mut cache = TowerCache::new();
         let (inc_cls, _) = classify_with_tower_incremental(&layer, &cfg, &mut cache);
 
         // 全量产 1 个 B2（见 end_to_end_second_buy_via_l1_l2_geometric），增量须 bit-identical。
-        let full_b2: Vec<_> = full_cls.levels[1].bsp.iter().filter(|p| p.bits.buy2).collect();
-        let inc_b2: Vec<_> = inc_cls.levels[1].bsp.iter().filter(|p| p.bits.buy2).collect();
-        assert_eq!(inc_b2.len(), full_b2.len(), "增量塔 B2 数量 == 全量（真 Fugue 547 保留）");
-        assert_eq!(inc_b2.len(), 1, "增量塔仍真产 B2（subs 真 Compose，非级别差伪造）");
-        assert_eq!(inc_b2[0].source_index, full_b2[0].source_index, "B2 source_index bit-exact");
-        assert_eq!(inc_cls, full_cls, "增量塔完整 Classification == 全量（含 B2 BSP）");
+        let full_b2: Vec<_> = full_cls.levels[1]
+            .bsp
+            .iter()
+            .filter(|p| p.bits.buy2)
+            .collect();
+        let inc_b2: Vec<_> = inc_cls.levels[1]
+            .bsp
+            .iter()
+            .filter(|p| p.bits.buy2)
+            .collect();
+        assert_eq!(
+            inc_b2.len(),
+            full_b2.len(),
+            "增量塔 B2 数量 == 全量（真 Fugue 547 保留）"
+        );
+        assert_eq!(
+            inc_b2.len(),
+            1,
+            "增量塔仍真产 B2（subs 真 Compose，非级别差伪造）"
+        );
+        assert_eq!(
+            inc_b2[0].source_index, full_b2[0].source_index,
+            "B2 source_index bit-exact"
+        );
+        assert_eq!(
+            inc_cls, full_cls,
+            "增量塔完整 Classification == 全量（含 B2 BSP）"
+        );
     }
 
     /// ★codex 反例（cascade reset 完备性，L1 构造）：L0 frontier 末段**内点改写**——
@@ -3446,40 +4173,68 @@ mod tests {
         // ★task #142 延伸语义诚实重算：三组核心分离 fixture（同 end_to_end_second_buy_via_l1_l2_geometric
         // 推导——组B 首段 hi=115<ZD_A=120、组C 首段 lo=115>ZG_B=114 ⟹ non-extension，PDF §5 Step3）。
         let base = vec![
-            seg(Direction::Up,   0,  4, 110, 150),
-            seg(Direction::Down, 4,  8, 150, 120),
-            seg(Direction::Up,   8, 12, 120, 148),
-            seg(Direction::Down,12, 16, 115,  80),
-            seg(Direction::Up,  16, 20,  80, 125),
-            seg(Direction::Down,20, 24, 114,  85),
-            seg(Direction::Up,  24, 28, 115, 148),
-            seg(Direction::Down,28, 32, 148, 112),
-            seg(Direction::Up,  32, 36, 112, 147), // v1 末段
+            seg(Direction::Up, 0, 4, 110, 150),
+            seg(Direction::Down, 4, 8, 150, 120),
+            seg(Direction::Up, 8, 12, 120, 148),
+            seg(Direction::Down, 12, 16, 115, 80),
+            seg(Direction::Up, 16, 20, 80, 125),
+            seg(Direction::Down, 20, 24, 114, 85),
+            seg(Direction::Up, 24, 28, 115, 148),
+            seg(Direction::Down, 28, 32, 148, 112),
+            seg(Direction::Up, 32, 36, 112, 147), // v1 末段
         ];
         let mut closes: Vec<i64> = Vec::new();
-        for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
-        for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
-        for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
+        for i in 0..12 {
+            closes.push(100 + if i % 2 == 0 { 40 } else { -40 });
+        }
+        for i in 0..12 {
+            closes.push(100 + if i % 2 == 0 { 5 } else { -5 });
+        }
+        for i in 0..16 {
+            closes.push(100 + if i % 2 == 0 { 3 } else { -3 });
+        }
         let merged = Rc::new(bars_from_closes(&closes));
 
         // v1: 末段 end_price=147。
-        let layer_v1 = ParseLayer { segments: Rc::new(base.clone()), merged_bars: merged.clone(), ..Default::default() };
+        let layer_v1 = ParseLayer {
+            segments: Rc::new(base.clone()),
+            merged_bars: merged.clone(),
+            ..Default::default()
+        };
         // v2: 仅末段 end_price 改写 147→140（组 C 外缘内点，L1 投影不变，L0 sub_moves 变）。
         let mut v2_segs = base.clone();
         v2_segs[8].end_price = 140;
-        let layer_v2 = ParseLayer { segments: Rc::new(v2_segs), merged_bars: merged.clone(), ..Default::default() };
+        let layer_v2 = ParseLayer {
+            segments: Rc::new(v2_segs),
+            merged_bars: merged.clone(),
+            ..Default::default()
+        };
 
         // 前提自检（codex 反例成立的必要条件）：L1 投影输入 v1==v2 bit-identical（守卫看不到变异），
         // 但 L0 末段 sub_moves 已变（147→140）。若此前提不成立，本测试不构成反例。
         let mk_l1_units = |segs: &Rc<Vec<Segment>>| {
             let l0_units: Vec<UnitRange> = segs.iter().map(segment_to_unit).collect();
-            let moves_l0: Vec<LeveledMove> = l0_units.iter().enumerate()
-                .map(|(i,u)| LeveledMove::from_unit(u, recursive_tower::ElementId{level:0,ordinal:i as u64})).collect();
+            let moves_l0: Vec<LeveledMove> = l0_units
+                .iter()
+                .enumerate()
+                .map(|(i, u)| {
+                    LeveledMove::from_unit(
+                        u,
+                        recursive_tower::ElementId {
+                            level: 0,
+                            ordinal: i as u64,
+                        },
+                    )
+                })
+                .collect();
             let (c, upper, _) = recursive_tower::compose_level(&l0_units, &moves_l0, true, 1);
             recursive_tower::project_to_units(&upper, &decompose::decompose(&c))
         };
-        assert_eq!(mk_l1_units(&layer_v1.segments), mk_l1_units(&layer_v2.segments),
-            "前提：L1 投影输入 v1==v2（守卫的本级投影比对看不到此变异）");
+        assert_eq!(
+            mk_l1_units(&layer_v1.segments),
+            mk_l1_units(&layer_v2.segments),
+            "前提：L1 投影输入 v1==v2（守卫的本级投影比对看不到此变异）"
+        );
 
         // 共享 cache：先喂 v1（缓存 L0/L1），再喂 v2（frontier 内点改写）——模拟 per-bar 末段重划。
         let mut cache = TowerCache::new();
@@ -3492,9 +4247,20 @@ mod tests {
         // 新鲜 moves_tower 快照），故陈旧在返回值里 latent——但它喂 BSP（extract_second_for_level）+
         // 下一 bar 的 L2 投影。直接断言 cache 深 subs，捕获 latent 陈旧（640：不靠返回值碰巧相等）。
         // 推导（task #142 fixture）：v2 seg[8] = Up 112→140 ⟹ 区间 [112,140]（v1 为 [112,147]）。
-        let l0_seg8_full = classify_with_tower(&layer_v2, &cfg).1[0].last().unwrap().rmove.clone();
-        assert_eq!(l0_seg8_full, descend::RMove::Segment { direction: Direction::Up, lo: 112, hi: 140 },
-            "前提：v2 全量 L0 末段 == [112,140]");
+        let l0_seg8_full = classify_with_tower(&layer_v2, &cfg).1[0]
+            .last()
+            .unwrap()
+            .rmove
+            .clone();
+        assert_eq!(
+            l0_seg8_full,
+            descend::RMove::Segment {
+                direction: Direction::Up,
+                lo: 112,
+                hi: 140
+            },
+            "前提：v2 全量 L0 末段 == [112,140]"
+        );
         // cache.L1.upper_moves[0].sub_moves[2](groupC).sub_moves[2](seg[8]) 应 == [112,140]。
         let l1_deep = &cache.levels[1].upper_moves[0].sub_moves[2].sub_moves[2].rmove;
         assert_eq!(*l1_deep, descend::RMove::Segment { direction: Direction::Up, lo: 112, hi: 140 },
@@ -3502,7 +4268,11 @@ mod tests {
 
         // 返回值也须 bit-exact（cascade 后 L1 重建，tower/Classification 全对齐）。
         assert_eq!(inc_v2, full_v2, "cascade: v2 增量 Classification == 全量");
-        assert_eq!(inc_tower_v2.len(), full_tower_v2.len(), "cascade: tower 层数 == 全量");
+        assert_eq!(
+            inc_tower_v2.len(),
+            full_tower_v2.len(),
+            "cascade: tower 层数 == 全量"
+        );
         for (lvl, (il, fl)) in inc_tower_v2.iter().zip(full_tower_v2.iter()).enumerate() {
             assert_eq!(il, fl, "cascade: level {lvl} LeveledMove == 全量");
         }
@@ -3519,25 +4289,39 @@ mod tests {
     fn forest_epoch_bumps_on_l0_tail_redivision() {
         let cfg = ThetaConfig::default();
         let base = vec![
-            seg(Direction::Up,   0,  4, 110, 150),
-            seg(Direction::Down, 4,  8, 150, 120),
-            seg(Direction::Up,   8, 12, 120, 148),
-            seg(Direction::Down,12, 16, 115,  80),
-            seg(Direction::Up,  16, 20,  80, 125),
-            seg(Direction::Down,20, 24, 114,  85),
-            seg(Direction::Up,  24, 28, 115, 148),
-            seg(Direction::Down,28, 32, 148, 112),
-            seg(Direction::Up,  32, 36, 112, 147), // v1 末段
+            seg(Direction::Up, 0, 4, 110, 150),
+            seg(Direction::Down, 4, 8, 150, 120),
+            seg(Direction::Up, 8, 12, 120, 148),
+            seg(Direction::Down, 12, 16, 115, 80),
+            seg(Direction::Up, 16, 20, 80, 125),
+            seg(Direction::Down, 20, 24, 114, 85),
+            seg(Direction::Up, 24, 28, 115, 148),
+            seg(Direction::Down, 28, 32, 148, 112),
+            seg(Direction::Up, 32, 36, 112, 147), // v1 末段
         ];
         let mut closes: Vec<i64> = Vec::new();
-        for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
-        for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
-        for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
+        for i in 0..12 {
+            closes.push(100 + if i % 2 == 0 { 40 } else { -40 });
+        }
+        for i in 0..12 {
+            closes.push(100 + if i % 2 == 0 { 5 } else { -5 });
+        }
+        for i in 0..16 {
+            closes.push(100 + if i % 2 == 0 { 3 } else { -3 });
+        }
         let merged = Rc::new(bars_from_closes(&closes));
-        let layer_v1 = ParseLayer { segments: Rc::new(base.clone()), merged_bars: merged.clone(), ..Default::default() };
+        let layer_v1 = ParseLayer {
+            segments: Rc::new(base.clone()),
+            merged_bars: merged.clone(),
+            ..Default::default()
+        };
         let mut v2_segs = base.clone();
         v2_segs[8].end_price = 140; // L0 尾段重划（内点改写）——A12 bar3020 假命中场景。
-        let layer_v2 = ParseLayer { segments: Rc::new(v2_segs), merged_bars: merged.clone(), ..Default::default() };
+        let layer_v2 = ParseLayer {
+            segments: Rc::new(v2_segs),
+            merged_bars: merged.clone(),
+            ..Default::default()
+        };
 
         let mut cache = TowerCache::new();
         let _ = classify_with_tower_incremental(&layer_v1, &cfg, &mut cache);
@@ -3557,18 +4341,24 @@ mod tests {
     fn forest_epoch_stable_on_no_change() {
         let cfg = ThetaConfig::default();
         let base = vec![
-            seg(Direction::Up,   0,  4, 110, 150),
-            seg(Direction::Down, 4,  8, 150, 120),
-            seg(Direction::Up,   8, 12, 120, 148),
-            seg(Direction::Down,12, 16, 115,  80),
-            seg(Direction::Up,  16, 20,  80, 125),
-            seg(Direction::Down,20, 24, 114,  85),
-            seg(Direction::Up,  24, 28, 115, 148),
+            seg(Direction::Up, 0, 4, 110, 150),
+            seg(Direction::Down, 4, 8, 150, 120),
+            seg(Direction::Up, 8, 12, 120, 148),
+            seg(Direction::Down, 12, 16, 115, 80),
+            seg(Direction::Up, 16, 20, 80, 125),
+            seg(Direction::Down, 20, 24, 114, 85),
+            seg(Direction::Up, 24, 28, 115, 148),
         ];
         let mut closes: Vec<i64> = Vec::new();
-        for i in 0..28 { closes.push(100 + if i % 2 == 0 { 30 } else { -30 }); }
+        for i in 0..28 {
+            closes.push(100 + if i % 2 == 0 { 30 } else { -30 });
+        }
         let merged = Rc::new(bars_from_closes(&closes));
-        let layer = ParseLayer { segments: Rc::new(base.clone()), merged_bars: merged.clone(), ..Default::default() };
+        let layer = ParseLayer {
+            segments: Rc::new(base.clone()),
+            merged_bars: merged.clone(),
+            ..Default::default()
+        };
 
         let mut cache = TowerCache::new();
         let _ = classify_with_tower_incremental(&layer, &cfg, &mut cache);
@@ -3626,7 +4416,8 @@ mod tests {
         }
 
         // exp 估计（log-log 斜率，sizes 翻倍）。
-        let full_exp = (full_times[2] / full_times[0]).ln() / (sizes[2] as f64 / sizes[0] as f64).ln();
+        let full_exp =
+            (full_times[2] / full_times[0]).ln() / (sizes[2] as f64 / sizes[0] as f64).ln();
         let inc_exp = (inc_times[2] / inc_times[0]).ln() / (sizes[2] as f64 / sizes[0] as f64).ln();
 
         eprintln!(
@@ -3662,9 +4453,9 @@ mod tests {
 #[cfg(test)]
 mod incremental_profile {
     //! 增量塔真实数据标度 profile（#[ignore]，需真实数据 + release）。
-    use super::*;
     use super::super::backtest::data;
     use super::super::parser;
+    use super::*;
 
     /// ★真实数据 per-bar 标度：CL 真实段账本逐段追加，增量 vs 全量累积成本 + exp。
     ///
@@ -3691,7 +4482,10 @@ mod incremental_profile {
 
         for &n in &sizes {
             if n > oos.bars.len() {
-                eprintln!("DATA LIMIT: n={n} > oos.bars.len()={}，跳过", oos.bars.len());
+                eprintln!(
+                    "DATA LIMIT: n={n} > oos.bars.len()={}，跳过",
+                    oos.bars.len()
+                );
                 break;
             }
             let bars = &oos.bars[..n];
@@ -3713,7 +4507,11 @@ mod incremental_profile {
             }
             inc_times.push(t0.elapsed().as_secs_f64());
             used_sizes.push(n);
-            eprintln!("n={n} done: full={:.2}s inc={:.2}s", *full_times.last().unwrap(), *inc_times.last().unwrap());
+            eprintln!(
+                "n={n} done: full={:.2}s inc={:.2}s",
+                *full_times.last().unwrap(),
+                *inc_times.last().unwrap()
+            );
         }
 
         // 逐相邻对算 exp（log-log 斜率），大规模验证 acceptance[4]。
@@ -3722,10 +4520,10 @@ mod incremental_profile {
             let (n0, n1) = (w[0], w[1]);
             let i0 = used_sizes.iter().position(|&s| s == n0).unwrap();
             let i1 = i0 + 1;
-            let full_exp = (full_times[i1] / full_times[i0].max(1e-12)).ln()
-                / (n1 as f64 / n0 as f64).ln();
-            let inc_exp = (inc_times[i1] / inc_times[i0].max(1e-12)).ln()
-                / (n1 as f64 / n0 as f64).ln();
+            let full_exp =
+                (full_times[i1] / full_times[i0].max(1e-12)).ln() / (n1 as f64 / n0 as f64).ln();
+            let inc_exp =
+                (inc_times[i1] / inc_times[i0].max(1e-12)).ln() / (n1 as f64 / n0 as f64).ln();
             eprintln!(
                 "  [{n0}→{n1}] full exp≈{full_exp:.2}  inc exp≈{inc_exp:.2}  \
                  增量/全量比 @{n1}: {:.2}x",
