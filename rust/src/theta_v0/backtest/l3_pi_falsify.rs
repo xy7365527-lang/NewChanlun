@@ -4,6 +4,11 @@
 //! 但驱动 `run_theta_v0_pi`（非 v1 `run_theta_v0`/recognize）。**独立**否证（新七链 ≠ 已被否证
 //! 的买卖点 v1，memory `newchanlun-v1-fullwindow-l3-falsified`）。
 //!
+//! **档处置（验收统计推断核·档2-修砍单，`chanlun/escalate/chi-line-falsification-ruling-20260728.md`
+//! §1②，2026-07-28）**：显著性否证 harness 作为新协议仪器已砍。诊断件保留（禁删）；本模块历史产出
+//! 的 INCONCLUSIVE 否证结论照旧有效——砍的是仪器，不是历史裁决。登记详见
+//! `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
 //! ## 阶段1探针结论 → 本阶段用可行子集（非全窗）
 //!
 //! pi substrate = per-bar 前缀重分类 = **O(n²)**（探针实测 exp≈2.0–2.66；CL OOS 870K bar 全窗

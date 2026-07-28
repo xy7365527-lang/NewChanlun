@@ -1,5 +1,10 @@
 //! 因果选择器 χ_t(γ) 阈值过滤（买卖点alpha2.pdf §13 + §17，task #41 chi-theta-filter）。
 //!
+//! **档处置（决策统计族·χ线撤销，`chanlun/escalate/chi-line-falsification-ruling-20260728.md` §1①，
+//! 2026-07-28）**：`chi_t`/`filter_gamma*` 已随 χ 线一并撤销——教义 §13 在本系统登记为不采用（估计问题
+//! 不可解，#71 实测坐实）。诊断件保留（禁删）；生产零变化（frozen 默认 `chi_theta=None`）。登记详见
+//! `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
 //! ## 命题（alpha2 §13 line 2239）
 //!
 //! 把目标从「∀e 吃到所有元素」改成「只交易具有正边际条件期望的买卖点证书」。形式上定义

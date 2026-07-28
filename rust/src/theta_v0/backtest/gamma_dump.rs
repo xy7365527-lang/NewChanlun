@@ -3,6 +3,21 @@
 //! `OPSEM_GAMMA_DUMP_DIR=<dir>` 独立启用 `<dir>/gamma_candidates.jsonl`。本模块只读取
 //! 生产已经算出的 `step_gamma`、χ 过滤成员关系和 `step_trace.opened`；不重跑 χ 门、不调用
 //! `MuEstimator::observe`，任何字段都不进入 `entry_z`/`MuClass`/μ 桶键/`J_Θ`/χ。
+//!
+//! 认识论等级（formalization-validity-domain 231号）：L1（纯只读外化，零信息增量，同
+//! [`super::opsem_dump::OpsemDump`] 先例）。
+//!
+//! ## 写失败处理策略（#563 L3 订正）
+//!
+//! 本模块（`from_env`/`at_dir` 建目录建文件失败、`write_step` 落盘失败经 `fill.rs` 调用点）
+//! 一律 **panic**（fail loud，security.md「不吞异常」+ no-patch-mentality 诚实强制）——与
+//! [`super::opsem_dump::OpsemDump::write_trade`]/`write_tower_event`（`open_ledger.rs` 调用点
+//! `write_trade_fail_loud` / `opsem_dump.rs:359` 同款 `unwrap_or_else(|e| panic!(...))`）**一致**。
+//! `admission.rs` 的 `t5a_chain_dump`（`#[cfg(test)]` 限定的测试期临时脚手架）是**唯一**例外——
+//! 显式声明"诊断臂不得击穿回测"只吞异常 eprintln 一次；二者不是同一政策的两种落地，是**两类
+//! 载体**分别定策：`GammaDump`/`OpsemDump` 是生产构建常驻的只读外化通道，写失败即审计链断裂，
+//! 必须让运行者立刻知道；`t5a_chain_dump` 是仅 `#[cfg(test)]` 存在的一次性诊断挂件，其写失败
+//! 不该拖垮它所依附的真实测试。
 
 use std::io::Write;
 

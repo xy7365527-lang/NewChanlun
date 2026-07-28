@@ -45,6 +45,12 @@ pub(crate) fn q4_margin_model(nav0: f64) -> super::super::super::strategy::risk:
 /// est 按臂自身生产口径训练（treatment-on-the-treated 的训练/生产分布一致；Arm1/Arm2 共享
 /// fullpi-est，Arm3 用 plain-est，χ 不参与训练段 fill loop 故臂内一致）。
 /// `#[ignore]`: `cargo test --release --lib theta_v0::backtest::wverify_run::q4_fullpi_policy -- --ignored --nocapture`。
+///
+/// **档处置（决策统计族·χ线撤销，`chanlun/escalate/chi-line-falsification-ruling-20260728.md` §1①，
+/// 2026-07-28）**：本函数是 wverify_run/m8.rs 内含 χ 臂的部分（Arm1/Arm2/Arm3 调用 χ 门），随族谱
+/// 同档处置——注意本文件同模块的 `q4_margin_model`/`m6_cost_model` 等非 χ 内容不在本裁定范围内。
+/// 诊断件保留（禁删，历史裁决 q4 π^full INCONCLUSIVE 照旧有效）。登记详见
+/// `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
 pub(super) fn run_q4_fullpi_policy() {
     use super::super::runner::{run_theta_v0_pi, run_theta_v0_pi_chi, RunResult};
 

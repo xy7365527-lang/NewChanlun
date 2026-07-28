@@ -455,6 +455,11 @@ pub fn run_theta_v0_pi(
 /// θ 取 `config.risk.chi_theta`（`None` ⟹ 退化为 [`run_theta_v0_pi`] χ≡1）；μ 表 `est` 由调用方提供
 /// （其因果性由调用方负责并诚实标注：全窗 in-sample μ=泄漏 L1；walk-forward 增量 μ=L2/L3，#42）。
 /// `treat_empty_as_pass`：空类（μ=None）χ 取值（codex Q3：false=不交易最诚实）。
+///
+/// **档处置（决策统计族·χ线撤销，`chanlun/escalate/chi-line-falsification-ruling-20260728.md` §1①，
+/// 2026-07-28）**：本函数是 runner.rs 两 χ 入口之一，已随 χ 线一并撤销——不接生产、不进 Destination。
+/// 诊断件保留（禁删，供历史否证证据链追溯）；生产默认路径走 [`run_theta_v0_pi`]（`chi_theta=None`
+/// 时二者等价，生产零变化）。登记详见 `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
 pub fn run_theta_v0_pi_chi(
     dataset: &Dataset,
     config: &ThetaConfig,
@@ -475,6 +480,11 @@ pub fn run_theta_v0_pi_chi(
 
 /// shrinkage 准入入口（acc-three-way-l2 #83）：与 [`run_theta_v0_pi_chi`] 同 harness，唯一区别
 /// 准入量 = mu_shrink(z,τ²)（层级收缩抗稀疏）而非 LCB(μ)。`chi_theta=None` 时退化 χ≡1（同基线）。
+///
+/// **档处置（决策统计族·χ线撤销，`chanlun/escalate/chi-line-falsification-ruling-20260728.md` §1①，
+/// 2026-07-28）**：本函数是 runner.rs 两 χ 入口之一，已随 χ 线一并撤销（同 [`run_theta_v0_pi_chi`]
+/// 处置理由）。诊断件保留（禁删）。登记详见
+/// `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
 pub fn run_theta_v0_pi_chi_shrink(
     dataset: &Dataset,
     config: &ThetaConfig,

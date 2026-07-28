@@ -2,6 +2,11 @@
 //! （区间套的统计版本，谱系 694 号扬弃承接；prereg 冻结于
 //! `.chanlun/review-results/highlow-a3-20260704.md` §1-§2，先于跑数落盘）。
 //!
+//! **档处置（验收统计推断核·档2-修砍单，`chanlun/escalate/chi-line-falsification-ruling-20260728.md`
+//! §1②，2026-07-28）**：本模块的条件期望估计量 μ̂(z_L0|D_hi) 与 χ 门同构（裁定原文「与 χ 同构」），
+//! 已随验收族推断核一并砍单。诊断件保留（禁删）；历史裁决（μ̂ 奇偶交替现象观测）照旧有效，成因
+//! 未定与本处置无关。登记详见 `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
 //! ## 估计量
 //!
 //! `μ̂(z_L0 | D_hi=d) = mean{ Y_i : level_i=0, D_hi(t_i)=d }`，Y_i 为 wverify 残差口径

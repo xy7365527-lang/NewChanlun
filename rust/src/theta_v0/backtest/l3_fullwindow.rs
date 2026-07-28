@@ -1,5 +1,10 @@
 //! **★全窗 L3 定论（task #75，goal 核心问题最终裁决）**——完整 v1 全 8 品种 OOS **全窗**否证。
 //!
+//! **档处置（验收统计推断核·档2-修砍单，`chanlun/escalate/chi-line-falsification-ruling-20260728.md`
+//! §1②，2026-07-28）**：显著性否证 harness 作为新协议仪器已砍。诊断件保留（禁删）；本模块产出的
+//! 「全窗 8/8 L3 否证」历史定论照旧有效——砍的是仪器，不是历史裁决。登记详见
+//! `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
 //! ## 与 [`runner::tests::l3_falsify_multi_symbol_significance`] 的关系
 //!
 //! l3_falsify 是**截断窗**（`MAX_BARS=60_000`）——全窗 CPU-bound 曾不可行（BTC 全窗 1.31M

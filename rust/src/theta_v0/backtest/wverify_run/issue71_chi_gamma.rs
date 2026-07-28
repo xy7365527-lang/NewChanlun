@@ -1,6 +1,47 @@
+//! #71 L0 χ 接入四臂真实数据验证（gap2 设计稿 §5-B「OPSEM 重跑对照」，wayfinder #71）。
+//!
+//! **档处置（决策统计族·χ线撤销，`chanlun/escalate/chi-line-falsification-ruling-20260728.md` §1①
+//! + #563 影子评审 M6 订正补列，2026-07-28）**：本 harness 含 χ 臂调用，随族谱同档处置——χ 门本身
+//! 已撤销，但本文件产出的 #71 实测数据（80.04% 落空桶等）正是本裁定的证据基座，诊断件永久保留
+//! （禁删，历史证据不因仪器撤销而失效）。登记详见
+//! `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
+//! 跑 arm0（两开关均不设）/ arm1（仅 `OPSEM_DUMP_DIR`）/ arm2（`OPSEM_GAMMA_DUMP_DIR` 敏感臂）/
+//! arm3（G7+margin 隔离臂，同 `m8.rs:42` Arm1−Arm3 口径）四腿 BTC wf8 窗口真实回测，断言
+//! `GammaDump`/`OpsemDump` 两条只读外化通道对既有生产不变量零扰动（§5-B②③ 隔离腿/确定性腿）。
+//!
+//! 认识论等级（formalization-validity-domain 231号）：**L2**（真实 BTC 历史数据驱动，非合成——
+//! 本文件不产生"L1 分桶逻辑正确性"结论，验证的是"真实回测轨迹在两只读 dump 打开前后 bit-exact"
+//! 这一经验事实）。
+//!
+//! ## §5-B①「历史基线」锚定边界（影子评审 #71 M5 订正）
+//!
+//! 设计稿 §5-B①原文要求「与既有基线输出逐字节 diff」。本文件的 [`run_baseline_arms`] 是**四臂互
+//! 一致性自比**——`unset` 臂与本 commit 其余三臂同代码、同进程跑，只证明"打开只读 dump 通道不扰动
+//! 其余三臂"，不证明"四臂是否共同偏离 #71 之前的历史行为"（同码四腿必然互一致，不构成对历史基线
+//! 的独立验证）。
+//!
+//! **显式锚定**（M5 选项二）：真历史基线 = [`PRE_ISSUE71_BASELINE_SHA`]（commit `717fc4fa35` 的
+//! 父提交，#71 落地前最后一个提交）。跨 commit 自动 diff 未实装——原因照实声明：该对照需要在
+//! `PRE_ISSUE71_BASELINE_SHA` checkout 下跑通本文件同款 harness（依赖真实 BTC 1m 数据集，非本仓
+//! 保证在 CI/沙箱环境常驻），且若无法真实执行，编造"历史基线数值"违反 090 声明膨胀禁令。
+//! 复核该边界时的手工程序：
+//! 1. `git worktree add /tmp/issue71-baseline PRE_ISSUE71_BASELINE_SHA`；
+//! 2. 在该 worktree 跑等价四臂 harness（若历史提交无本文件，退化为跑 `run_theta_v0_pi` 生成
+//!    `unset` 等价的 `n_orders`/`trade_pnls_with_forced`/`equity_curve`）；
+//! 3. 与本 commit 的 `unset` 臂逐字节比对——不一致即 #71 引入的历史回归，一致即本自比结论
+//!    （"只读通道零扰动"）可外推为"对历史基线亦零扰动"。
+//! 本文件不内建该跨 worktree 流程（避免测试对 git 子进程/额外 checkout 产生非幂等副作用）。
+//!
+//! 跑法：`cargo test --release --lib theta_v0::backtest::wverify_run::issue71_chi_gamma_validation -- --ignored --nocapture`
+
 use super::super::runner::{run_theta_v0_pi, run_theta_v0_pi_chi, RunResult};
 use super::m8::{q4_margin_model, q4_prev_day, q4_shift_back_6m};
 use super::*;
+
+/// #71 落地前最后一个提交（`717fc4fa35` 的父提交）——§5-B①「历史基线」的显式锚点（M5 订正，
+/// 见本文件模块头「§5-B①锚定边界」）。手工复核跨 commit diff 时以此 SHA checkout 对照。
+const PRE_ISSUE71_BASELINE_SHA: &str = "b8a4e75e7109d48191fdb66053c28befb857de2a";
 
 /// 首批实测冻结品种。
 const DEFAULT_SYMBOL: &str = "BTC";
@@ -232,6 +273,9 @@ where
     result
 }
 
+/// 四臂互一致性自比（**非**跨 commit 历史基线对照——见模块头「§5-B①锚定边界」，
+/// 历史基线锚点 [`PRE_ISSUE71_BASELINE_SHA`]）。`unset` 是本 commit 内的自比参照臂，
+/// 不是 #71 之前的历史产物。
 fn run_baseline_arms(setup: &ValidationSetup) -> BaselineRuns {
     let run_plain = || run_theta_v0_pi(&setup.test, &setup.plain_cfg, setup.years, setup.nav_test);
     BaselineRuns {
@@ -253,6 +297,8 @@ fn read_validation_artifact(path: &std::path::Path) -> Vec<u8> {
         .unwrap_or_else(|error| panic!("读取验证产物 {} 失败：{error}", path.display()))
 }
 
+/// `baseline` 是本 commit 内的自比参照臂（`BaselineRuns::unset`），非跨 commit 历史基线——
+/// 见 [`run_baseline_arms`] 文档。
 fn assert_baseline_run(name: &str, observed: &RunResult, baseline: &RunResult) {
     assert_eq!(
         observed.n_orders, baseline.n_orders,
@@ -323,7 +369,9 @@ fn render_report(setup: &ValidationSetup, arms: &ArmResults) -> String {
          test={}..{} ({} bars); ISSUE71_MAX_BARS={:?}\n\
          - θ={CHI_THETA}; z_alpha={CHI_Z_ALPHA}; Arm1 teap={STRICT_TEAP}; \
          Arm2 teap={PERMISSIVE_TEAP}\n\
-         - 三腿硬断言：基线输出一致；OPSEM 隔离逐字节一致；Gamma 两跑逐字节一致。\n\n\
+         - 三腿硬断言：四臂互一致（本 commit 内自比，非历史基线对照）；OPSEM 隔离逐字节一致；\
+         Gamma 两跑逐字节一致。历史基线锚点（M5 订正，手工复核程序见模块头）：commit \
+         `{PRE_ISSUE71_BASELINE_SHA}`\n\n\
          | 臂 | n_orders | n_trades | Σpnl |\n|---|---:|---:|---:|\n",
         setup.symbol,
         setup.tag,

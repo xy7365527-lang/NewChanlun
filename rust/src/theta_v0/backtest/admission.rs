@@ -1,6 +1,11 @@
 //! ★准入门 seam（B-M2，#89）：χ/nest/k_Θ 三门 + κ 解析，自 runner.rs 纯移动
 //!（设计 chanlun/plans/runner-rs-seam-designs-20260721.md §M2）。
 //!
+//! **档处置（决策统计族·χ线撤销，`chanlun/escalate/chi-line-falsification-ruling-20260728.md` §1①，
+//! 2026-07-28）**：三门中 `ChiFilterCtx`（χ 门）已随 χ 线一并撤销——nest/k_Θ 两门不在本裁定范围
+//! （结构判定，非概率推断）。诊断件保留（禁删）；生产零变化（frozen 默认 `chi_theta=None`）。登记详见
+//! `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
 //! 三道门共用一个 seam 语义——「候选/组合 → 放行或收窄 𝒦_Θ」。κ 优先序
 //!（env > config > baseline，A10 附则A 裁定接口冻结）藏在本模块内，fill loop
 //! 不再 import env 细节。对外类型/函数经 `runner` 门面 `pub use` 保持原路径。

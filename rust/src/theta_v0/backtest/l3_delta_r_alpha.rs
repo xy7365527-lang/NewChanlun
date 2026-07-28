@@ -1,5 +1,10 @@
 //! **Phase-3 L2/L3 ΔR 净额增量 alpha 否证**（acc-delta-r-alpha，task #42）。
 //!
+//! **档处置（决策统计族·χ线撤销，`chanlun/escalate/chi-line-falsification-ruling-20260728.md` §1①，
+//! 2026-07-28）**：本 walk-forward harness 检验的 χ_t(γ) 选择器已撤销——本模块不再作为新协议仪器
+//! 使用；其历史否证结论（INCONCLUSIVE 系列）照旧有效，不因撤销而失效。诊断件保留（禁删）。登记详见
+//! `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
 //! 检验 χ_t(γ)=1[μ(z)>θ] 选择器（[`super::selector`]）是否产生**正净额增量 alpha**——
 //! 对齐买卖点alpha2.pdf Doc2 §10-§14 + Doc3 §11-§16：
 //!
@@ -38,7 +43,7 @@
 //! （`typed_ledger_from_bars`，χ≡1）产腿级 `TypedTrade`——入场 = interpret open 桶 + AncOK
 //! 准入的开腿信号（z 经 [`super::selector::z_of_candidate`] 塔真值），出场 = typed exit
 //! （P5/P6/P7 反向关腿 / §13 结构剪枝 / train 末 **censored Hold**——codex Q1 边界泄漏 guard），
-//! 兑现 X_γ（[`super::mu_estimator::marginal_return`]）。PDF §9 点名废弃的 τ^reverse
+//! 兑现 X_γ（量纲③，[`super::mu_estimator::chi_dimension_three_return`]，裁定 #65）。PDF §9 点名废弃的 τ^reverse
 //! （下一个任意反向信号出场）已删除。θ 常数（不从样本 μ 分布选，无 in-sample 泄漏）。
 //! test 窗的 χ 决策只读 frozen μ 表。
 //!
@@ -1826,7 +1831,12 @@ fn degeneracy_diagnosis() {
         }
 
         // ── 假设3：θ scan（θ<0 是否解退化）──
-        eprintln!("  [假设3 θ过严] θ scan（test候选按 train μ 表过滤后的 χ=1 候选数）:");
+        // #563 L2 订正（与 M1 同源，`chi-dimension-ruling-20260721.md` 裁定 #65）：本网格
+        // [-1e-6,-1e-3,-1e-1] 是量纲③（费扣后持仓期**相对收益**，O(1e-3~1e-1) 量级）落地前、
+        // 沿用量纲①（绝对额，BTC 场景 O(10~1e4) 量级）时代的旧刻度——在①量纲下 -1e-6/-1e-3 相对
+        // 典型 PnL 近似 −∞（无分辨力），③量纲下未重新校准，同样近似 −∞（本诊断的旧刻度失分辨力，
+        // 需要真正的分辨力须先解 M1 τ² 冻结先验重锚，本 LOW 项只订正标注不改数值——诊断脚本，非生产口径）。
+        eprintln!("  [假设3 θ过严] θ scan（test候选按 train μ 表过滤后的 χ=1 候选数；网格为量纲①遗留旧刻度，见上方订正注）:");
         for &theta in &[0.0f64, -1e-6, -1e-3, -1e-1, f64::NEG_INFINITY] {
             // 全覆盖语义 = θ=−∞ 且 treat_empty=true 才成立；这里固定 treat_empty=false（与实证同口径），
             // 仅扫 θ 看已观测类放行数（未见类恒滤，与实证一致）。θ=−∞ 时放行所有已观测类。

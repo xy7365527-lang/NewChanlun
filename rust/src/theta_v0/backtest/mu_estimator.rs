@@ -1,5 +1,11 @@
 //! μ(z,a) 类别条件边际收益估计器（alpha2.pdf §12-§14，task #39 mu-estimator）。
 //!
+//! **档处置（决策统计族·χ线撤销，`chanlun/escalate/chi-line-falsification-ruling-20260728.md` §1①，
+//! 2026-07-28）**：本模块门侧接口（μ/LCB/`mu_shrink`/`oos_gated_drop`）已随 χ 线一并撤销——不接生产、
+//! 不进 Destination、不再开语义终裁。诊断件保留（供 #61/#71 历史否证证据链追溯，禁删）；生产零变化
+//! （frozen 默认 `chi_theta=None`）。登记详见
+//! `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
 //! ## 命题（alpha2 §12 / §16）
 //!
 //! 把买卖点操作状态拆成**全互斥类别** z，在每类上估计条件边际收益样本均值：
@@ -7,9 +13,14 @@
 //! ```text
 //!   z = (ℓ, δ, I_γ, 父声部方向, 短差/顺势, 仓位态)         (§16 line 3262)
 //!   τ_γ = inf{u > t : 出现该声部出场证书或风险退出}          (§12 line 2140)
-//!   X_γ = δ·(P_τγ − P_t) − C_{t:τγ}                          (§12 line 2147)
+//!   X_γ = δ·(P_τγ − P_t) − C_{t:τγ}                          (§12 line 2147，教义原始每单位价格差量纲)
 //!   μ(z) = E[X_γ | Z = z] ≈ (1/|S_z|) Σ_{γ∈S_z} X_γ          (§12 line 2173, 样本均值)
 //! ```
+//!
+//! **量纲③重锚（裁定 #65，`chanlun/escalate/chi-dimension-ruling-20260721.md`）**：上式是
+//! PDF §12 的教义原始形式（未规定量纲）。生产喂入 X_γ 已裁定为方案③——费扣后**持仓期相对收益**
+//! `X = (δ(P_exit−P_entry) − fee) / P_entry`，由 [`chi_dimension_three_return`] 产出（[`marginal_return`]
+//! 只是其内部复用的绝对额子步骤，不再是喂入 [`MuObservation::x_gamma`] 的终值）。
 //!
 //! 严格 alpha 条件 `μ(z) > 0`（§12 line 2180）；`μ(z) ≤ 0` ⟹ 该类在此退出规则/成本模型/
 //! 样本下无正期望（§12 line 2186）。本模块**只估计 μ**——不做 χ_θ 阈值过滤（那是下游
@@ -31,7 +42,8 @@
 //! `X_γ` 的 `P_τγ` 必须是持仓**实际兑现**到未来退出时刻 τ_γ 的价格——这是 F_τγ-可测的真实
 //! 退出，**不是**端点后视 `ε_e = sign(P_ρe − P_λe)`（用段终点反推方向 = 未来函数泄漏）。
 //! 本模块不计算 τ_γ（退出时刻由上游交易轨迹给定，[`MuObservation::x_gamma`] 由调用方按
-//! 真实 entry/exit 价格用 [`marginal_return`] 算出后传入）。μ 估计器只对**已实现**的 X_γ 分桶——
+//! 真实 entry/exit 价格用 [`chi_dimension_three_return`]（量纲③，裁定 #65）算出后传入）。
+//! μ 估计器只对**已实现**的 X_γ 分桶——
 //! 这是 μ 与构造性恒真 G_e 的本质区别：G_e 用端点拼接恒真（L0 同义反复），μ 用实际兑现可否证。
 
 use std::collections::HashMap;
@@ -289,8 +301,9 @@ impl UClass {
 
 /// 单笔交易观测：分类值 z + 已实现交易收益 X_γ（§12 line 2147）。
 ///
-/// `x_gamma` 是**已兑现**的 `δ(P_τγ−P_t)−C`——由调用方用真实 entry/exit 价格经
-/// [`marginal_return`] 算出（F_τγ-可测，非端点后视）。μ 估计器只消费已实现值，不重算退出时刻。
+/// `x_gamma` 是**已兑现**的费扣后持仓期相对收益 `(δ(P_τγ−P_t)−C)/P_t`（量纲③，裁定 #65，
+/// `chanlun/escalate/chi-dimension-ruling-20260721.md`）——由调用方用真实 entry/exit 价格经
+/// [`chi_dimension_three_return`] 算出（F_τγ-可测，非端点后视）。μ 估计器只消费已实现值，不重算退出时刻。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MuObservation {
     pub class: MuClass,
@@ -376,6 +389,15 @@ pub fn marginal_return(
 ///
 /// `pi_bsp_timing` 是独立 binary crate，故需 `pub` 才能与 library 调用点共享单一实现；
 /// `doc(hidden)` 避免把诊断 helper 扩成文档 API 面。
+///
+/// # Panics（release 生效，#563 M7 订正）
+/// `qty·entry_px ≤ 0` ⟹ **`assert!`**（非 `debug_assert!`）失败，release 下同样 panic——
+/// entry_notional≤0 会让本函数除零/负除产出 Inf/NaN，一旦流入 [`MuEstimator::observe`] 的
+/// Welford 累加器即**永久污染**该 z 桶的 mean（无法事后剔除），比 fail-fast 崩溃代价更高
+/// （coding-style「Fail fast with clear error messages」）。两个生产调用点均已在上游显式过滤
+/// 该前置条件（`l3_delta_r_alpha.rs` 的 `LedgerDisposition::NonPositivePx`；`pi_bsp_timing.rs`
+/// 两处 μ 喂入点的 `entry_px > 0.0` 守卫），故本 assert 在当前标的池上预期永不触发——它是
+/// 防未来新调用点遗漏守卫的最后一道线，不是当前已知路径的正常触发点。
 #[doc(hidden)]
 pub fn chi_dimension_three_return(
     entry_px: f64,
@@ -385,7 +407,7 @@ pub fn chi_dimension_three_return(
     delta: i8,
 ) -> f64 {
     let entry_notional = qty * entry_px;
-    debug_assert!(entry_notional > 0.0, "量纲③要求 qty·entry_px > 0");
+    assert!(entry_notional > 0.0, "量纲③要求 qty·entry_px > 0，收到 qty={qty} entry_px={entry_px}");
     marginal_return(entry_px, exit_px, qty, fee_rate, delta) / entry_notional
 }
 
