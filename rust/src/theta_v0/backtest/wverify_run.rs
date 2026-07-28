@@ -1354,6 +1354,7 @@ fn m8_e2e_all_systems_oos() {
                  action_by_level={:?} \
                  suspension_by_source={:?} suspension_continued_count={:?} \
                  settlement_by_side={:?} historical_bound_by_level={:?} \
+                 historical_multi_owner_same_event={:?} \
                  center_mis_kill_by_level={:?} \
                  replenish_foreign_center_count={:?} \
                  lifecycle_opened={:?} lifecycle_died={:?} \
@@ -1391,6 +1392,8 @@ fn m8_e2e_all_systems_oos() {
                 w.suspension_continued_count,
                 w.settlement_by_side,
                 w.historical_bound_by_level,
+                // ★#487：多 Owner 同事件的产物级观测桶（合法多投递，不参与路由或清算判据）。
+                w.historical_multi_owner_same_event,
                 w.center_mis_kill_by_level,
                 w.replenish_foreign_center_count,
                 w.lifecycle_opened,
