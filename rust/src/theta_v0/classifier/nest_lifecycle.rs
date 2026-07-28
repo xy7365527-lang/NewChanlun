@@ -158,7 +158,8 @@ pub enum NestEventState {
     Provisional,
     /// first_provable 已写 ∧ c 结构完成 ∧ 完成时复核仍弱（024:24）。
     Confirmed,
-    /// 力度反超（061:26）或身份消失（E2E §1:81）。终态留档，禁删除模拟失效。
+    /// 力度反超（061:26）、从未构成（061:28）或身份消失（E2E §1:81）。
+    /// 终态留档，禁删除模拟失效。
     Invalidated,
 }
 
@@ -963,8 +964,9 @@ impl NestLifecycleBook {
 ///
 /// 对每只 Consolidation 中枢取**末个**可定位离开段的结构锚，活窗 = `(seg_c.0, as_of)`
 /// （c 窗右端 = prefix 边界，含行进中 bar）。本函数只做定位与产窗，不消费力度
-/// （力度三值化在 advance 内现算）。生产 bin 接线（prefix 循环）出切片——本函数是
-/// 调用方按 `PanLiveWindow` 契约喂入的参照实装（T11/T14 真实夹具锚定）。
+/// （力度三值化在 advance 内现算）。#421 已由 `p123_fast_replay` 在生产重估 trigger
+/// 调用 `feed_replay_prefix`，本函数是其 `PanLiveWindow` 行进中通道的参照实装
+/// （T11/T14 真实夹具锚定）。
 /// 可见性登记：保留 `pub`——本函数是交付「消费契约」的喂入参照（两轴评审发现项取
 /// 登记分支）；`pub(crate)` 在非 test 构建无调用方会触发 dead_code 警告，违反零新增警告线。
 pub fn provide_pan_live_windows(

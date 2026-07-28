@@ -79,16 +79,41 @@ test result: FAILED. 1813 passed; 1 failed; 132 ignored; 0 measured; 0 filtered 
 1. **ID-5「新 interval_b ⊆ 旧」字面张力**（spec:77 vs spec:28 三形态/T1 回扩/T3 延展）：spec 内部张力——右端若按字面只收不扩，则 spec 自己的 Solution 与 T1/T3 锚定自相矛盾。实装取三形态侧（右端双向），`bridge_identity` 注释登记，归编排者澄清（本票不替裁）。
 2. **T11 夹具 spec:106 字面**「复刻 extended_windows + R1 全合取 + retest 块」：extended_windows 是 trend 夹具（实用于 T5）；T11 按 #78 核验锚名 `pan_real_fixture` 自构 pan 结构（真实 `locate_pan_div_structure`/`center_block_kind`/`segments_diverge_or`，非纯 mock）——满足 issue #231「真实 provider 夹具」口径与 #78 锚定，spec 字面系夹具风格泛指。如实登记。
 3. **`provide_pan_live_windows` pub 可见性**（spec 轴建议降 pub(crate) 或登记）：取**登记**分支——该函数是交付「消费契约」的喂入参照实装；`pub(crate)` 在非 test 构建无调用方会触发 dead_code 警告，违反零新增警告线。函数文档已登记可见性理由。
-4. **Unavailable ∧ structure_completed 同 prefix 时 StructureCompleted 留痕缺失**（语义边缘，spec 未明文）：行为保持 #78 核验原语义（Unavailable 分支「entry 保持原态、continue 不进第 7 步」——重建忠实度）；`StructureCompleted` 文档注释已收窄为该语义（数据补齐后重发信号时留痕），此处如实登记为 spec 外发现。
+4. **Unavailable ∧ structure_completed 历史发现（已由 #421 补观测面）**：2026-07-24
+   重建保持 #78 原语义（Unavailable 分支不越权造终态）；#421 现已新增独立
+   `CompletionForceUnavailableAudit` 并把 occurrence/rate 写入生产审计面。终局归属仍待另票裁定，
+   当前不把零发生率冒充规格豁免；现行口径统一见 §7.3。
 
 无 HIGH/Critical 项；已修复 2 项（Standards 异味 1/2）回归证据见 §3 尾行（修复后重跑：模块 11/11 绿、全量 1813 passed/1 failed（既线 #110）/132 ignored、`cargo check --lib` 33 警告零新增）。
 
 ## 6. 边界与诚实登记（090：声明 = 能力）
 
 1. **模块头四项强制登记齐全**：①白名单工程桥限制（工程桥非 E2E WireV1 EventKey，并轨前不得进入证书真值路径——卡 §6.3/§9、裁定 #64 §2(c)）；②Unresolved 出切片（卡 §2.4，三态链非 E2E-D5 全四态）；③trend T1 合成保留不代表真实可达（勘误 20260721，真实通道 = pan 活窗 T11）；④#64 §5 验收线字面矛盾登记（按 §2(a) 执行：可查账、不开放消费，归编排者澄清）。
-2. **交付物 = 状态机核心 + 消费契约**，不是生产 bin 接线（卡 §6.2 prefix 循环投产出切片）：活窗由调用方按 `PanLiveWindow` 契约喂入（`provide_pan_live_windows` 为参照实装），trend 结构完成信号经 `structure_completed` 通道喂入（判据属调用方）。
+2. **历史交付边界（已由 #421 续作收口）**：2026-07-24 本报告落笔时只交付状态机核心 + 消费契约；2026-07-28 起 `p123_fast_replay` 已在生产重估 trigger 内调用 `feed_replay_prefix`，现行能力以 §7 为准。
 3. **出切片项维持**（卡 §9 原样，零夹带）：Unresolved 四态、WireV1 全量 EventKey/StateKey/修订链、谱系两钟 opened/closed、跨级证伪（043:30）、024:28 面积乘 2 外推、postcondition 诊断钟、DeferOrphan 重判、Lean 侧 ActiveTail↔OpenTailSystem 桥、白名单桥与两元锚（`NestCandidateEventExt.extreme_price/group_anchor`，#110/#206 线已入库）并轨。
-4. **feed 契约**（模块头明载）：feed-every-prefix、同一身份每 prefix 至多一只观察、同身份 c 窗左端不动右端单调延展；跳 prefix 回填可构造 first_provable < observed 的越约输入，出切片（T8 注释明载）。
+4. **现行 feed 契约（#421 订正）**：只在回放引擎重估 trigger 投喂，时钟精度 = trigger 粒度；同一身份每 trigger 至多一只观察。非 trigger 间首次可证允许晚记到下一 trigger，不能早记；`observed_at` 与 `first_provable_at` 同由 `advance` 首次写入，故不会构造 `first_provable_at < observed_at`。
 5. **#43/#64 边界零侵蚀**：N^δ 装配仍只消费已闭合完整 c_p（nest.rs:802-810/:987-989 未触碰）；`judge_at` 字段/写入点/回填/CERT 主键/D3 统计逐 bit 不动；本 book 不进 `d_parent_interval_snapshot/terminal` 输入。
-6. **未验证项（如实）**：①`cargo test --release --lib` 未跑（spec ID-7 验收线为 debug 全量，已跑并留档；release 构建未验证）；②T5 护栏证明的是「advance 不反流改 provider 输出」的结构性事实，非未来改动的永久保险；③spec 外发现三项（§5 Spec 轴 1/2/4）已登记未自裁——ID-5 字面张力、T11 夹具字面、Unavailable∧completed 留痕语义，均归编排者澄清。
+6. **历史未验证项（已由 #421 部分收口）**：2026-07-24 时 release 全库未跑；#421 已补 debug/release 双档与 pre/post 字节对拍，见 §7 及 `issue421-acceptance-selfcheck-20260727.md`。T5 仍只证明当前实现不反流，不是未来改动的永久保险；ID-5/T11 字面张力仍未由本票代裁。
 7. **与原实装的可核验性边界**：原 nest_lifecycle.rs（1283 行 + #64 续作至 2326 行）全库无副本，本重建按 spec/卡/勘误/#78 核验的语义锚逐条复建；与原文件的逐行一致性强声明不可证（无 diff 对象），声明 = 「规格语义全符合 + 测试族全绿 + 边界零侵蚀」，不声明「与丢失文件逐行相同」。
+
+## 7. #421 生产接线续作订正（2026-07-28）
+
+1. `p123_fast_replay::run_targeted_prefix_pass` 在与既有引擎相同的
+   `(forest_epoch, signal_signature)` 重估 trigger 上，从 tower/provider/window 链重建
+   pan run 与完成事件，调用 `feed_replay_prefix`。`pending` 出清不停止 sidecar；喂入只读
+   provider 产物，不写既有 `YieldBook`、事件流、stdout 或 `P116_DUMP`。
+2. 生命周期输出独立写 `P421_LIFECYCLE_DUMP`；release 路径在每次喂入后显式调用
+   `NestLifecycleBook::assert_invariants`，不再声称 `advance` 自身在 release 自动核验。
+3. #428 边缘事实新增独立 `CompletionForceUnavailableAudit`：完成信号与力度不可验同时发生
+   时可查账，但仍按 #78 滞留 Provisional，不擅自增加终态。20k OKLO 实测为
+   `0 / 3715 = 0%`；该零值只作裁定输入，不证明未来数据上不可达。
+4. **#64 §2(d) 字段授权核销**：
+   - provider 加字段 `seg_c_full` 的授权退役，不复活字段。现行工程桥继续取既有
+     `NestCandidateEvent.interval_b`；`level_view` 在唯一写入点以 release 生效断言钉死
+     `interval_b.0 == pair.seg_c.0`，因此工程桥与原拟字段只可能差右端。
+   - provider 加字段 `c_start_live` 的授权退役，不新增字段。活窗左端由
+     `provide_pan_live_windows` 在 provider/window 侧按现有结构定位原语派生；生产接线只复制
+     `LowerLeg`/中枢/块类别材料。
+5. `LifecycleRevisionKind::StructureCompleted` / `Invalidated` 公共文档已按真实转移订正：
+   StructureCompleted 只在力度可验分支产生且同 prefix 随后结算；Invalidated 三个原因码
+   为 ForceOvertake / NeverConstituted / IdentityVanished。

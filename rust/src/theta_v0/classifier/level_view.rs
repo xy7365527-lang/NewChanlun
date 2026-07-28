@@ -1655,8 +1655,7 @@ mod tests {
     /// `provide_divergence_pairs` 给出的 `pair.seg_c` 与 `provide_nest_candidate_events`
     /// 给出的 `event.interval_b` 左端必须逐一相等。
     ///
-    /// 非空转证明：同一夹具下**收束确实发生**（右端被截短），故「左端相等」不是「两端都没动」
-    /// 的顺带结论。
+    /// 非空转证明：同一夹具下**右端确实改变**，故「左端相等」不是「两端都没动」的顺带结论。
     #[test]
     fn trend_confirm_truncation_keeps_seg_c_left_anchor() {
         let (windows, lower) = extended_windows();
