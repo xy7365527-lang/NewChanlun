@@ -4273,9 +4273,14 @@ mod tests {
         assert!(fill.equity_curve.iter().all(|&e| e == 1.0), "无持仓零费用 ⟹ 权益恒 1");
     }
 
-    /// ★W1 env gate（④⑤）：VOICE_EXEC 关闭 ⟹ 生产路径逐字节不变（bit-exact 回归锁）；
-    /// 开启 ⟹ 声部执行读数装配 + 决策层 TW 与净额 bit-exact + 验收量（上界/守恒/对账）成立。
-    /// 线程局部注入（并行安全；进程级 env 不动——OPSEM_DUMP_DIR_OVERRIDE 同惯例）。
+    /// ★W1 env gate（④⑤）：VOICE_EXEC 关闭 ⟹ 生产路径逐字节不变（bit-exact 回归锁，实测成立）；
+    /// 开启 ⟹ 不 panic + 声部执行读数字段可装配读出（存在性）+ 决策层 TW 与净额 bit-exact。
+    /// **口径澄清（#595）**：本测试用的 60-bar 锯齿夹具经真实增量分类器判零信号
+    /// （n_voice_fills=0，baseline n_orders 亦为 0），故「上界/守恒/对账」等验收量在本锚下
+    /// 全部退化为平凡零值（0≤0、0 残差），不构成非零信号下这些量真正成立的证据——仅锁住了
+    /// 「gate 关闭 bit-exact」与「gate 开启不 panic + 读数行存在」两件事。非零信号下的验收量
+    /// 真实覆盖见 `pi_voice_exec_run_overlay_assembly_fields_present`（`#[ignore]`，需 BTC
+    /// 真实数据）。线程局部注入（并行安全；进程级 env 不动——OPSEM_DUMP_DIR_OVERRIDE 同惯例）。
     #[test]
     fn voice_exec_env_gate_off_bitexact_on_voice_readings() {
         let config = ThetaConfig::default();
