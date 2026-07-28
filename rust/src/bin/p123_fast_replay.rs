@@ -16,9 +16,10 @@
 //! 四类 dirty 判据稀疏重估（设计 §3）。判据代码零新增——dirty run 用与慢版逐字相同的 lib
 //! 调用链同一输入重估（project run → decompose → assemble_level_view →
 //! provide_nest_candidate_events），无新判据路径。
-//! #421 另挂独立活假设 sidecar：同一 trigger 从 provider/window 链取数并推进
-//! `NestLifecycleBook`；它不反流既有 YieldBook/事件流，修订只写 `P421_LIFECYCLE_DUMP`，
-//! 累计诊断只写 stderr。
+//! #421 另挂独立活假设 sidecar：同一 trigger 从 provider/window 链取数，严格先喂
+//! 此刻可见活窗、再喂完成信号并推进 `NestLifecycleBook`；同 trigger 闪现照实记零寿命，
+//! 首完成事实与终态独立。它不反流既有 YieldBook/事件流，修订只写
+//! `P421_LIFECYCLE_DUMP`，累计诊断只写 stderr。
 //!
 //! ── 稀疏化架构（实装）──
 //! trigger 语义冻结（设计 §4.4）：trigger=(forest_epoch, signal_signature) 检测与慢版逐字一致；
@@ -160,8 +161,8 @@ use newchan_rust::theta_v0::classifier::nest::{
     TypedNestCertificate,
 };
 use newchan_rust::theta_v0::classifier::nest_lifecycle::{
-    feed_replay_prefix, ForceMaterial, NestLifecycleBook, PanLiveRun, ReplayFeedStats,
-    ReplayPrefixFeed,
+    feed_replay_prefix, ForceMaterial, LifecycleSettlementStats, NestLifecycleBook, PanLiveRun,
+    ReplayFeedStats, ReplayPrefixFeed,
 };
 use newchan_rust::theta_v0::classifier::recursive_tower::LeveledMove;
 use newchan_rust::theta_v0::config::ThetaConfig;
@@ -436,6 +437,8 @@ struct LifecycleReplayStats {
     provider_requests: usize,
     provider_reevals: usize,
     provider_reuses: usize,
+    /// 末 prefix 的终局分布与寿命读面（闪现/非闪现分层）。
+    settlement: LifecycleSettlementStats,
 }
 
 impl LifecycleReplayStats {
@@ -544,6 +547,26 @@ fn main() -> Result<(), String> {
         lifecycle_stats.provider_requests,
         lifecycle_stats.provider_reevals,
         lifecycle_stats.provider_reuses,
+    );
+    let settlement = lifecycle_stats.settlement;
+    eprintln!(
+        "P421_LIFETIME_SUMMARY entries={} first_provable={} provisional={} confirmed={} force_overtake={} never_constituted={} identity_vanished={} flash_terminal={} nonflash_count={} nonflash_min={:?} nonflash_median={:?} nonflash_max={:?} force_lifetime_count={} force_lifetime_min={:?} force_lifetime_median={:?} force_lifetime_max={:?}",
+        settlement.entry_count,
+        settlement.first_provable_count,
+        settlement.provisional_count,
+        settlement.confirmed_count,
+        settlement.force_overtake_count,
+        settlement.never_constituted_count,
+        settlement.identity_vanished_count,
+        settlement.flash_terminal_count,
+        settlement.nonflash_lifetime.count,
+        settlement.nonflash_lifetime.min,
+        settlement.nonflash_lifetime.median,
+        settlement.nonflash_lifetime.max,
+        settlement.force_overtake_lifetime.count,
+        settlement.force_overtake_lifetime.min,
+        settlement.force_overtake_lifetime.median,
+        settlement.force_overtake_lifetime.max,
     );
 
     let l0 = terminal.l0;
@@ -1171,6 +1194,30 @@ fn run_targeted_prefix_pass(
             );
         }
     }
+    lifecycle_stats.settlement = lifecycle_book.settlement_stats();
+    let settlement = lifecycle_stats.settlement;
+    write_lifecycle_line(
+        &mut lifecycle_dump,
+        format_args!(
+            "LIFETIME entries={} first_provable={} provisional={} confirmed={} force_overtake={} never_constituted={} identity_vanished={} flash_terminal={} nonflash_count={} nonflash_min={:?} nonflash_median={:?} nonflash_max={:?} force_lifetime_count={} force_lifetime_min={:?} force_lifetime_median={:?} force_lifetime_max={:?}",
+            settlement.entry_count,
+            settlement.first_provable_count,
+            settlement.provisional_count,
+            settlement.confirmed_count,
+            settlement.force_overtake_count,
+            settlement.never_constituted_count,
+            settlement.identity_vanished_count,
+            settlement.flash_terminal_count,
+            settlement.nonflash_lifetime.count,
+            settlement.nonflash_lifetime.min,
+            settlement.nonflash_lifetime.median,
+            settlement.nonflash_lifetime.max,
+            settlement.force_overtake_lifetime.count,
+            settlement.force_overtake_lifetime.min,
+            settlement.force_overtake_lifetime.median,
+            settlement.force_overtake_lifetime.max,
+        ),
+    )?;
     if let Some(writer) = lifecycle_dump.as_mut() {
         writer
             .flush()
@@ -1344,6 +1391,7 @@ fn feed_lifecycle_trigger(
         .iter()
         .flat_map(|key| entries[key].events.iter().copied())
         .collect();
+    let completion_signal_start = book.completion_signals().len();
     let audit_start = book.completion_force_unavailable_audits().len();
     let material = ForceMaterial {
         hist: Some(hist),
@@ -1373,6 +1421,21 @@ fn feed_lifecycle_trigger(
             stats.completion_force_unavailable,
         ),
     )?;
+    for signal in &book.completion_signals()[completion_signal_start..] {
+        write_lifecycle_line(
+            sink,
+            format_args!(
+                "COMPLETION_SIGNAL as_of={} level={} side={:?} kind={:?} seg_a={:?} seg_c_full={:?} b_center_start={}",
+                signal.as_of,
+                signal.key.level,
+                signal.key.side,
+                signal.key.kind,
+                signal.key.seg_a,
+                signal.key.seg_c_full,
+                signal.key.b_center_start,
+            ),
+        )?;
+    }
     for revision in delta {
         write_lifecycle_line(
             sink,

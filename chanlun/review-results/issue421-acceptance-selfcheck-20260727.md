@@ -212,3 +212,102 @@ post lifecycle SHA-256：20k
 - #430 未能判定项（#450 后按级别复核）：仍未能判定；本返工不据总量外推按级别结论。
 
 #429/#430 保持 OPEN；本节只提交修复与证据，复审由编排者派新上下文执行。
+
+## 8. 裁定执行节（2026-07-28）
+
+本节执行 #421 最末条「裁定：完成定义与结算时序」。上文 §7 是裁定前返工历史；凡与本节
+冲突，以本节为准。**总判定仍为部分满足，不能按 090 宣称通过验收神谕。**
+
+### 8.1 Q1 / Q2 / Q3 逐条判定
+
+| 裁定项 | 状态 | 执行结果与证据 |
+|---|---|---|
+| Q1 身份开窗即入账、每 trigger 两路喂 | **满足** | `feed_replay_prefix` 先组装全部可见 `PanLive`，再追加完成相；同 trigger 不再用完成事件替换活窗。真实首完成另存 `CompletionSignal`，不再用终态冒充完成事实，也不再要求「先前仍为 Provisional」。BTC 100k：`Observed=248`、`COMPLETION_SIGNAL=248`、`completion_signals=248`，首完成零丢弃；`IdentityVanished=0`、`retrograde_rejected=0`。后到提前终局身份的完成信号只入独立分母，终态吸收禁止回填 `StructureCompleted`。F9a/F9b/F9c 锁定同 trigger、提前终局、completion-only 三条路径。 |
+| Q2 闪现窗零寿命照实记、统计分层 | **满足（记录语义）；神谕未满足** | 同 trigger 链照实为 `Observed@t → (FirstProvable@t) → StructureCompleted@t → 终局@t`；`LifecycleSettlementStats` 与 p123 的 `LIFETIME` / `P421_LIFETIME_SUMMARY` 分开报告 `flash_terminal` 和非闪现寿命。20k 为 `46/46` 闪现，100k 为 `248/248` 闪现，非闪现 `count=0`。没有为制造正寿命而延迟完成或回填历史。闪现率 100% 已高于裁定所述“三四成”逃生门，须带本节数据另行决定是否启用独立逐 bar 喂数循环；本票不擅自越过 US15/稀疏 trigger 裁定。 |
+| Q3 Provisional 可直接 ForceOvertake | **部分** | 模块头、`NestEventState::Invalidated`、`LifecycleRevisionKind::StructureCompleted`、`advance` 第 6/7 步及 T7/T8 均登记「曾可证后反超可直接终局、无需 StructureCompleted」。F3、T7、F9b 均证明该链可执行，`assert_invariants` 也明确允许 `structure_end_at=None`。但 BTC 100k 双通道生产账本因 248 个身份均在首次可见 trigger 已收到真实完成信号而 `ForceOvertake=0`，没有可交付的生产 dump 实例链；故只判部分。 |
+
+### 8.2 TDD 与测试门
+
+- RED：`/tmp/wt421q-red.log`，新增测试先因缺
+  `NestLifecycleBook::completion_signals` / `settlement_stats` 编译失败。
+- GREEN：`/tmp/wt421q-nest-lifecycle-green.log`，27 passed / 0 failed。
+- `cargo test --lib`：`/tmp/wt421q-cargo-test-lib.log`，
+  1994 passed / 1 failed / 135 ignored。
+- `cargo test --release --lib`：`/tmp/wt421q-cargo-test-release-lib.log`，
+  1994 passed / 1 failed / 135 ignored。
+- 两档唯一失败均为在册 #491
+  `theta_v0::classifier::signal::tests::extract_signals_bit_exact_digest_guard`；本次零新增失败。
+
+### 8.3 五项验收读数
+
+| 验收项 | 状态 | 实测 |
+|---|---|---|
+| 1. debug / release 测试门 | **满足** | 两档均 1994/1/135，失败集合仅 #491；新增 lifecycle 测试全绿。 |
+| 2. 字节护栏 | **满足** | p123 20k/100k stdout 与 P116 dump 均 `cmp=0`；m8 的 p3fold/wf7/wf8 两面（trades、tower_events）六对均 `cmp=0`。P-H3 100k 仍为 provider `2099/87/2012`（request/reeval/reuse），复用率 95.855169%。 |
+| 3. 同 BTC 100k 探针神谕 | **未满足** | p409 同码同前缀：248 身份、124 曾可证、113 ForceOvertake，反超率 91.129032%，Force 寿命 min/median/max=`9/378/20966` 根，Unavailable=0。双通道账本：248 身份、151 曾可证、ForceOvertake=0、Confirmed/Never=`151/97`、闪现 248、非闪现 0、Unavailable=0。身份总数与 Unavailable 一致，但终局分布和非闪现寿命不一致。 |
+| 4. 结算时序证明 | **部分** | 100k dump 中 `IdentityVanished=0`；独立 `COMPLETION_SIGNAL=248` 等于全部真实首完成；全局 `as_of` 单调、无倒退拒绝。因生产 `ForceOvertake=0`，未能给出要求的生产 `Observed→(FirstProvable)→Invalidated{ForceOvertake}` 实例链；仅测试与 p409 有该链。 |
+| 5. 自查档裁定执行节 | **满足** | 本节逐条登记 Q1/Q2/Q3、五项门、探针对照与未满足项。 |
+
+### 8.4 同前缀探针对照
+
+| BTC 100k 指标 | p409（pan-live-only，逐 prefix） | p123 双通道账本（稀疏 trigger） |
+|---|---:|---:|
+| 身份 / entries | 248 | 248 |
+| 曾可证 | 124 | 151 |
+| ForceOvertake | 113 | 0 |
+| 反超率（Force / 曾可证） | 91.129032% | 0% |
+| Confirmed / NeverConstituted | 0 / 0 | 151 / 97 |
+| IdentityVanished | 20 | 0 |
+| 闪现终局 | 不适用（无完成通道） | 248（100%） |
+| 非闪现寿命 | Force `9/378/20966` | `count=0` |
+| Unavailable | 0 | 0 |
+
+证据：
+
+- p409：`/tmp/wt421q-p409-btc100k.log`、
+  `/tmp/wt421q-p409-btc100k-entries.jsonl`、
+  `/tmp/wt421q-p409-btc100k-force-lifetimes.txt`。
+- p123：`/tmp/wt421q-post-{20k,100k}-p123.{stdout,stderr}`、
+  `/tmp/wt421q-post-{20k,100k}-{replay,lifecycle}.dump`。
+
+两侧身份数同为 248，排除「双通道漏窗」解释。差异来自完成定义：p409 按既有探针契约
+`structure_completed=false` 继续延展；p123 按 ADR-0003 与本次 Q1/Q2，在完成事件首次可见
+trigger 当场结算。若忽略首完成、等下一 trigger 重发，可人为制造正寿命，但这正是
+#429 复审判定的返工病，本节禁止复活。
+
+### 8.5 lifecycle 修正本体前后
+
+BTC 100k 裁定前（f663 返工）：
+
+- `Observed/StructureCompleted=248/229`；
+- `Confirmed/Never/Force/IdentityVanished=140/89/1/18`；
+- `completion_signals=230`，漏 18 个真实首完成。
+
+裁定后：
+
+- `Observed/StructureCompleted/COMPLETION_SIGNAL=248/248/248`；
+- `Confirmed/Never/Force/IdentityVanished=151/97/0/0`；
+- `flash_terminal/nonflash_count=248/0`；
+- lifecycle SHA-256：20k
+  `7a927e9b23d6ed2e0ba06ba7eed8cc96fbda4574c77f56836a06394458bfdda8`，
+  100k `7ce0b1b39c4837657525696f695d1acbe1aec31414be8dc8e1392c6f31b8b5d9`。
+
+### 8.6 非 lifecycle 字节护栏
+
+| 面 | cmp | SHA-256（pre = post） |
+|---|---:|---|
+| p123 20k stdout | 0 | `bd9ac1d655f9d615a5d9b3495b3a92465fb1fae13ce5dadfa28033c47d375b6c` |
+| p123 20k P116 dump | 0 | `fcc8016a9a01a1098736b9ee3b348614296bb97aec817a5c172c9a0723427a40` |
+| p123 100k stdout | 0 | `d8b69c180c23c5e393bf3c330825d88ae9c989ff38f2b8865e049e1b5eb56da8` |
+| p123 100k P116 dump | 0 | `8a7327feb3b9ba29f69fa824af1f1ecc137d9303637b47ad8465b6d638705f84` |
+| m8 p3fold trades / tower_events | 0 / 0 | `2da686833581d5358a1806aa41ad7ba16371bc3db190fe2a8ccfe62b9cb46627` / `83f45a36ab422a92d198d5d9289c40db94e95fe2cba7af2322e2d37aa8e718c2` |
+| m8 wf7 trades / tower_events | 0 / 0 | `3371f1e62153e8aa216ae6f28530bcaa95423a1e3f9b5341e647ec1a78a3fca8` / `aa96b3e836be5a43514c425d572c5312d15d8c6950d991d094416e4d61af1cbb` |
+| m8 wf8 trades / tower_events | 0 / 0 | `006c31f54cd72d8ec9c9461122068faf58377cad2d176f839f6a6e0c5ff601b7` / `1d8dff0d29e8925fd2931e05259fad11b71745354482c413f4138d8123dfb34f` |
+
+### 8.7 遗留
+
+1. 验收神谕与当前完成定义在 BTC 100k 上不同时成立：按真实首完成当场结算得到 100% 闪现；
+   忽略首完成则违反 Q1/Q2。须由编排者按裁定中的逃生门决定是否另开「独立逐 bar 喂数循环」
+   带数据重裁；在此之前本票只能部分满足。
+2. 生产双通道没有 ForceOvertake 实例，Q3 仅在公共契约、状态机与测试层闭合。
+3. #454/#497 标准债、本票外的 integration 字节门与 map #59 Decisions 均未触碰。
