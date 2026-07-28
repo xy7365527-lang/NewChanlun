@@ -275,7 +275,7 @@ fn unit_to_segment(u: &UnitRange) -> Segment {
 fn extract_first_third_for_level(
     centers: &[Center],
     units: &[UnitRange],
-    anchors: &[Option<Direction>],
+    provenance_anchors: &[Option<Direction>],
     hist: &[f64],
     dif: &[f64],
     closes_tick: &[Tick],
@@ -283,14 +283,18 @@ fn extract_first_third_for_level(
     gauge: divergence::DivergenceGauge,
 ) -> (Vec<BspPoint>, Vec<signal::PanDivCert>) {
     let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
-    // ★Q7-#1 裁定C（codex-q7-fallback-20260703，收窄 #121 裁定A）：`anchors[i]` = 产生本级 units
-    // 的下级 blocks 的 ownership 方向（`center_own_dir_at` 同一来源，与 `project_to_units` 方向
-    // 派生锁步）。None = endpoint fallback 单元——保留为序列/区间/面积成员，不作一/三类方向锚。
-    // ★p117（686 窄域授权，终端背书裁定 T2）：第一类方向锚经 p117 降级为单元结构方向
-    // （`judge_segment` 内消费 `anchors_self`）；`anchors` 实参仍须传——三类 leave 锚与
-    // CandDelta 诊断 provider 仍在消费 provenance 锚。
+    // ★#486（#485 范围 1）：L≥1 一/三类均以单元结构方向为方向锚；provenance 只保留平行数组
+    // 长度契约，不再决定三类 leave 资格。`judge_third_cert` 的 Some(Direction)、方向匹配、
+    // 回试方向、严格 >ZG/<ZD 与 OwnerRef 契约不变。
+    let structural_anchors: Vec<Option<Direction>> =
+        units.iter().map(|u| Some(u.direction)).collect();
+    debug_assert_eq!(
+        provenance_anchors.len(),
+        structural_anchors.len(),
+        "provenance anchors 与 L≥1 units 必等长"
+    );
     signal::extract_signals_with_hist_anchored(
-        centers, &segs, Some(anchors), hist, dif, closes_tick, close_src, gauge,
+        centers, &segs, Some(&structural_anchors), hist, dif, closes_tick, close_src, gauge,
     )
 }
 
@@ -2086,12 +2090,16 @@ pub fn classify_with_tower_incremental(
             } else {
                 stage_profile::time("07a_extract_first_third_ln", || {
                     // 级别-N 一/三类（裁定 A）：units 承担线段角色，复用 L0 判据。units→Segment 投影
-                    // （几何衰减 O(units_L)/miss）+ anchors 平行传入。resume 冻结边界同 L0 锚口径。
+                    // （几何衰减 O(units_L)/miss）。#486：三类 leave 与一类同取单元结构方向锚；
+                    // provenance `units_anchors` 仍供塔 ownership 链消费，不再传入 BSP 判据。
                     let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
+                    let structural_anchors: Vec<Option<Direction>> =
+                        units.iter().map(|u| Some(u.direction)).collect();
                     signal::extract_first_third_resume(
                         &mut lc.cached_first_third, &mut lc.cached_first_third_pan,
-                        &mut lc.cached_first_third_count, &lc.centers, &segs, Some(&units_anchors),
-                        &moves, prefix_count, dirty_e, hist, dif, &closes_tick, &close_src,
+                        &mut lc.cached_first_third_count, &lc.centers, &segs,
+                        Some(&structural_anchors), &moves, prefix_count, dirty_e, hist, dif,
+                        &closes_tick, &close_src,
                         config.divergence_gauge,
                     )
                 })
@@ -2766,16 +2774,13 @@ mod tests {
         );
     }
 
-    /// ★Q7-#1 裁定C + p117 窄域授权（686 翻转条款第一支，终端背书裁定 T2 核准）：Consolidation
-    /// ownership 的 endpoint fallback 单元（anchor=None）在**第一类路径**经窄域授权降级——方向锚
-    /// 取单元结构方向（`anchors_self`，行程方向=τ 等式 veto，「趋势中」定义域由 τ 门承担），
-    /// fallback 不再是第一类击杀理由；**三类路径**裁定C 整体保留（leave 段 fallback 仍不得作
-    /// 三类方向锚）。三向验证（同 fixture 对照）：全锚 ⟹ 1 买产（对照组，保留）；A 段 fallback
-    /// ⟹ 结构同向筛选可配 ⟹ 产 1 买（0→1 授权翻转）；C 段 fallback ⟹ 结构方向 Down=τ ⟹ broke
-    /// 触发 ⟹ 产 1 买（0→1 授权翻转）。三类：leave 段 fallback ⟹ 不产 3 买（保留）。成员身份
-    /// 不变（centers/分解不受锚门影响）。
+    /// ★ADR 补充十三 / #486 / Spec #485：L≥1 一/三类的方向锚均取单元结构方向。
+    /// provenance endpoint fallback（anchor=None）仍是序列成员，不再阻断几何合法的一/三类。
+    /// 一类 p117 直调契约由 signal.rs 的
+    /// `judge_first_cached_provenance_gate_preserved_for_direct_callers` 独立锁定；三类的方向匹配、
+    /// 回试方向、严格 `>ZG/<ZD` 与 OwnerRef 契约均不变。
     #[test]
-    fn q7_ruling_c_first_class_structural_direction_third_class_provenance_kept() {
+    fn q7_ruling_c_first_and_third_class_structural_direction_authorized() {
         use super::center::UnitRange;
         // fixture 同 level_ge1_extract_first_third_fills_type1_gap（两下行中枢 + A/B/C 三单元）。
         let c0 = Center { zd: 300, zg: 400, dd: 290, gg: 410, start_index: 0, end_index: 2 };
@@ -2789,21 +2794,25 @@ mod tests {
         let closes: Vec<f64> = prices.iter().map(|&v| v as f64).collect();
         let close_src: Vec<usize> = (0..prices.len()).collect();
         let hist = divergence::compute_macd(&closes, &ThetaConfig::default().macd).hist;
-        let n_buy1 = |anchors: &[Option<Direction>]| {
-            let (bsp, _) = extract_first_third_for_level(&[c0, c1], &units, anchors, &hist, &[], &[], &close_src, divergence::DivergenceGauge::default());
-            bsp.iter().filter(|p| p.bits.buy1).count()
-        };
-        // 对照组：全锚 ⟹ 1 买产（gap-fill 路径活；保留断言）。
-        assert_eq!(n_buy1(&[Some(Direction::Down), Some(Direction::Up), Some(Direction::Down)]), 1);
-        // A 段单元 fallback：p117 后第一类 A 窗筛选用单元结构方向（行程方向 Down=τ）⟹ A 候选
-        // 可配 ⟹ 产 1 买（S4 救回型；授权翻转 0→1。provenance 锚消费方仅余三类/诊断仪器）。
-        assert_eq!(n_buy1(&[None, Some(Direction::Up), Some(Direction::Down)]), 1,
-            "p117 窄域授权：第一类 A 段方向锚 = 单元结构方向（fallback 单元行程方向=τ 时可配）");
-        // C 段（破中枢段）单元 fallback：p117 后 broke 锚门用单元结构方向（Down=τ）⟹ 触发 ⟹
-        // 产 1 买（S2 救回型；授权翻转 0→1。行程方向 ≠τ 的单元仍拒——signal.rs 反向 veto 锁）。
-        assert_eq!(n_buy1(&[Some(Direction::Down), Some(Direction::Up), None]), 1,
-            "p117 窄域授权：第一类破中枢段方向锚 = 单元结构方向（fallback 单元行程方向=τ 时触发）");
-        // 三类：leave 段 fallback ⟹ 不产 3 买（686 对三类的保护整体保留；retest 是几何角色不设锚门）。
+        // 一类只锁 L≥1 调用层的结构锚授权：helper 会重建结构锚，故不在这里伪造 provenance
+        // 变体。p117 的 provenance 直调契约由 signal.rs 上述独立测试锁定。
+        let (first_bsp, _) = extract_first_third_for_level(
+            &[c0, c1],
+            &units,
+            &[None, None, None],
+            &hist,
+            &[],
+            &[],
+            &close_src,
+            divergence::DivergenceGauge::default(),
+        );
+        assert_eq!(
+            first_bsp.iter().filter(|p| p.bits.buy1).count(),
+            1,
+            "#486：L≥1 一类按结构方向锚产一买"
+        );
+        // 三类：ADR 补充十三 / #486 / Spec #485 授权 L≥1 leave 使用结构方向锚；
+        // provenance fallback=None 不再否决三买，retest 仍是几何角色、不另设锚门。
         let c = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 };
         let u3 = vec![
             UnitRange { start_index: 12, end_index: 16, direction: Direction::Up, lo: 150, hi: 250 },
@@ -2811,10 +2820,97 @@ mod tests {
         ];
         let src24: Vec<usize> = (0..24).collect();
         let (bsp, _) = extract_first_third_for_level(&[c], &u3, &[None, Some(Direction::Down)], &[], &[], &[], &src24, divergence::DivergenceGauge::default());
-        assert_eq!(bsp.iter().filter(|p| p.bits.buy3).count(), 0, "fallback 单元不得作三类离开段方向锚（686 裁定C 三类保留）");
-        // 成员身份不变：同 fixture 全锚下产出恢复（锚门不改变序列成员/中枢几何）。
+        let buy3: Vec<_> = bsp.iter().filter(|p| p.bits.buy3).collect();
+        assert_eq!(buy3.len(), 1, "#486：provenance fallback=None 时，L≥1 仍按结构方向产三买");
+        assert_eq!(buy3[0].center, Some(signal::OwnerRef::Center(c)), "三类 OwnerRef 仍精确指向所破中枢");
+        // provenance 是否有值不再改变同一结构几何的三类输出。
         let (bsp2, _) = extract_first_third_for_level(&[c], &u3, &[Some(Direction::Up), Some(Direction::Down)], &[], &[], &[], &src24, divergence::DivergenceGauge::default());
-        assert_eq!(bsp2.iter().filter(|p| p.bits.buy3).count(), 1);
+        assert_eq!(bsp2, bsp);
+    }
+
+    #[test]
+    fn issue486_level_ge1_third_rejects_structural_direction_geometry_mismatch() {
+        use super::center::UnitRange;
+        let c = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 };
+        let units = vec![
+            // 价格位于上方，但结构方向是 Down；旧 provenance=Up 不得越权把它认作向上离开。
+            UnitRange { start_index: 12, end_index: 16, direction: Direction::Down, lo: 250, hi: 260 },
+            UnitRange { start_index: 16, end_index: 20, direction: Direction::Down, lo: 210, hi: 250 },
+        ];
+        let src24: Vec<usize> = (0..24).collect();
+        let (bsp, _) = extract_first_third_for_level(
+            &[c], &units, &[Some(Direction::Up), Some(Direction::Down)], &[], &[], &[],
+            &src24, divergence::DivergenceGauge::default(),
+        );
+        assert!(
+            bsp.iter().all(|p| !p.bits.buy3 && !p.bits.sell3),
+            "结构方向与三买几何方向不符时必须拒绝，provenance 不得覆盖结构事实"
+        );
+    }
+
+    #[test]
+    fn issue486_level_ge1_third_rejects_retest_equal_center_edge() {
+        use super::center::UnitRange;
+        let c = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 };
+        let src24: Vec<usize> = (0..24).collect();
+        let buy_equal = vec![
+            UnitRange { start_index: 12, end_index: 16, direction: Direction::Up, lo: 150, hi: 250 },
+            UnitRange { start_index: 16, end_index: 20, direction: Direction::Down, lo: 200, hi: 250 },
+        ];
+        let sell_equal = vec![
+            UnitRange { start_index: 12, end_index: 16, direction: Direction::Down, lo: 50, hi: 150 },
+            UnitRange { start_index: 16, end_index: 20, direction: Direction::Up, lo: 50, hi: 100 },
+        ];
+        for units in [&buy_equal, &sell_equal] {
+            let (bsp, _) = extract_first_third_for_level(
+                &[c], units, &[None, None], &[], &[], &[], &src24,
+                divergence::DivergenceGauge::default(),
+            );
+            assert!(
+                bsp.iter().all(|p| !p.bits.buy3 && !p.bits.sell3),
+                "retest==ZG/ZD 仍触及闭区间中枢，必须严格拒绝"
+            );
+        }
+    }
+
+    #[test]
+    fn issue486_l0_third_output_fields_unchanged() {
+        let c = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 };
+        let segs = vec![
+            Segment {
+                direction: Direction::Up,
+                start_index: 12,
+                end_index: 16,
+                start_price: 150,
+                end_price: 250,
+            },
+            Segment {
+                direction: Direction::Down,
+                start_index: 16,
+                end_index: 20,
+                start_price: 250,
+                end_price: 210,
+            },
+        ];
+        let src24: Vec<usize> = (0..24).collect();
+        let (bsp, pan) = signal::extract_signals_with_hist(
+            &[c], &segs, &[], &[], &[], &src24, divergence::DivergenceGauge::default(),
+        );
+        assert!(pan.is_empty());
+        assert_eq!(bsp.len(), 1);
+        let p = &bsp[0];
+        assert_eq!(p.source_index, 20);
+        assert!(!p.bits.buy1);
+        assert!(!p.bits.buy2);
+        assert!(p.bits.buy3);
+        assert!(!p.bits.sell1);
+        assert!(!p.bits.sell2);
+        assert!(!p.bits.sell3);
+        assert_eq!(p.pivot_low, 210);
+        assert_eq!(p.pivot_high, 0);
+        assert_eq!(p.center, Some(signal::OwnerRef::Center(c)));
+        assert_eq!(p.struct_break_dir, None);
+        assert!(p.force.is_none());
     }
 
     /// ★L2 信号普查诊断（裁定 A gap-fill 真实数据核验，`--ignored` 手动跑，依赖 analysis/data_cache）：
