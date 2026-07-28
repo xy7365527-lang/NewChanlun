@@ -234,9 +234,14 @@ use super::super::super::interp::Buckets;
         let mut seed = aleg(1, VoiceSide::Long, 12, 12);
         seed.id = eid(1, 6);
 
+        ancok_probe_reset();
         assert!(
             risk_seed_carrier(&carriers, &seed).is_none(),
             "身份歧义必须失败关闭，不能猜测任一 carrier"
+        );
+        assert_eq!(
+            ancok_probe_snapshot().risk_seed_carrier_ambiguous, 1,
+            "#594：歧义 fail-closed 必须计入探针 risk_seed_carrier_ambiguous（此前零可观测）"
         );
     }
 

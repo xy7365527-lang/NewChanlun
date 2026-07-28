@@ -51,17 +51,23 @@ pub(super) fn coverage_step_from_buckets_sep(
 
 /// 父 campaign 入场坐标 → 当前结构树 carrier（#572 / D1 身份重建）。
 ///
-/// 与 strategy 层既有 `carrier_of_entry` 同口径：先用同级严格右端点命中；若 carrier
-/// 入场后发生 ρ 延伸，则只接受唯一的左开右闭 span `λ < signal_index <= ρ`。
-/// 任一阶段出现多重命中都失败关闭，绝不按方向或区间宽度猜测，以免把无关同向腿注入
-/// risk-close 子树。
+/// 判据结构与 strategy 层既有 `carrier_of_entry` 一致（先同级严格右端点命中；若 carrier
+/// 入场后发生 ρ 延伸，则只接受唯一的左开右闭 span `λ < signal_index <= ρ`），**但并非同
+/// 口径**——`carrier_of_entry` 的严格右端点阶段用 `find` 取首个命中，不检测该阶段的多重
+/// 命中；本函数在严格右端点阶段同样以 filter+双 next 检测歧义，两阶段都 fail-closed。
+/// risk-close 场景比 D1 附着一致判据更严：宁可漏补 seed（父仍照常 RiskExit，只是后代不
+/// 被子树连坐清除，残留裸腿——见 [`super::ancok::AncokProbe::risk_seed_carrier_ambiguous`]
+/// 计数），也绝不按方向或区间宽度猜测，以免把无关同向腿误注入 risk-close 子树。
 fn risk_seed_carrier(tree: &[CoverageElement], seed: &ActiveLeg) -> Option<ActiveLeg> {
     let mut exact = tree
         .iter()
         .filter(|e| e.level == seed.level && e.rho == seed.source_index);
     match (exact.next(), exact.next()) {
         (Some(e), None) => return Some(element_as_leg(e)),
-        (Some(_), Some(_)) => return None,
+        (Some(_), Some(_)) => {
+            ancok_probe_bump(|p| p.risk_seed_carrier_ambiguous += 1);
+            return None;
+        }
         (None, _) => {}
     }
 
@@ -72,7 +78,11 @@ fn risk_seed_carrier(tree: &[CoverageElement], seed: &ActiveLeg) -> Option<Activ
     });
     match (spans.next(), spans.next()) {
         (Some(e), None) => Some(element_as_leg(e)),
-        _ => None,
+        (Some(_), Some(_)) => {
+            ancok_probe_bump(|p| p.risk_seed_carrier_ambiguous += 1);
+            None
+        }
+        (None, _) => None,
     }
 }
 

@@ -63,6 +63,10 @@ pub struct AncokProbe {
     /// 与 [`super::super::exit::step_active_set_with_subtree_close`] 的 AncOK fuel 门同族（那里超限保守剪除
     /// 一条腿即可降级；此处无降级路径——不设门 = 生产进程挂死）。
     pub element_depth_fuel_exhausted: u64,
+    /// ★#594：[`super::step::risk_seed_carrier`] 多 carrier 歧义 fail-closed 命中次数——父
+    /// campaign 仍照常 RiskExit，但因身份歧义未能补 risk-close seed ⟹ 该子树后代不被连坐
+    /// 清除，残留裸腿（#577 评审尾巴①暴露面：该丢弃此前零可观测）。
+    pub risk_seed_carrier_ambiguous: u64,
 }
 
 thread_local! {
@@ -81,6 +85,7 @@ thread_local! {
         restore_parent_rebound: 0,
         restore_parent_unresolved: 0,
         element_depth_fuel_exhausted: 0,
+        risk_seed_carrier_ambiguous: 0,
     }) };
 }
 

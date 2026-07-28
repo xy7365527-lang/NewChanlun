@@ -107,7 +107,13 @@ pub(crate) struct StepTrace {
     pub closed: Vec<(ActiveLeg, Candidate, interp::ExitType)>,
     pub silent_drops: Vec<ActiveLeg>,
     pub opened: Vec<(Candidate, ActiveLeg)>,
-    /// P1 强平清空的活动腿（force_flat ⟹ RiskExit）——无触发候选，独立通道。
+    /// 风险强平出场的活动腿——无触发候选，独立通道。**两个来源同桶**（★#594 订正：本字段
+    /// 并非只承载 P1）：① `force_flat`（PDF §7 C_1 全局屏蔽 P2..P10）⟹ `prev_active` 整体清空；
+    /// ② #572 `risk_close_seeds`（admission 命中的逐腿 stop，非全局强平）⟹ 仅命中种子 id 的
+    /// 直接父腿（`risk_exit_ids` 过滤 `prev_active`）——其子树后代由现役子树机关连坐清除，
+    /// 不入本桶而落 `silent_drops`（#594 尾巴①：该丢弃的可观测面见
+    /// [`super::ancok::AncokProbe::risk_seed_carrier_ambiguous`]）。消费端 fill.rs 对两来源
+    /// 同样外化 `ExitType::RiskExit`/`ActionReason::RiskExit`，不区分来源。
     pub risk_exits: Vec<ActiveLeg>,
     /// P2 CloseOverlay 关闭的重叠腿（TW StageII ∧ H>0 ⟹ 关 legacy ReverseOpen 腿，PDF §7 C_2）
     /// ——无触发候选（TW 账本谓词驱动，非反向信号），独立于 `closed`；真产订单进同一
@@ -161,6 +167,29 @@ pub(crate) struct TwStepCtx<'a> {
     /// 的 η 左操作数（η_corrected = tw() − eta_correction）。**0 ⟹ 与历史判据同值 bit-exact**
     /// （回归锁）。★F4 同源约束：与 ZExt 第 15 维 η_bucket 的修正量同一变量（runner 单点喂两处）。
     pub eta_correction: i64,
+}
+
+/// ★#594 尾巴③归并：P2/P3-P4/主路径三分支各自内联同构 `silent_drops` 过滤（判据一致，
+/// 仅「额外已认领集」不同——P2 传 `overlay_ids`、主路径传 `closed_ids`、P3/P4 无额外集），
+/// 归并为共享 helper（诊断已定选最简处置：`next_ids` 的构造保留各分支内联——verdicts 段
+/// 复用同一 `next_ids`，若并入本 helper 需返回或重算，反增分支间耦合面，diff 更大）。
+/// prev_active 中既未被本步 risk_exit/也未被额外认领集/也未延续进 next_active 的腿 ⟹
+/// §13 结构静默剪除（AncOK/Stale prune），落 silent_drops 轨（非解释器裁决）。
+fn silent_dropped_legs(
+    prev_active: &[ActiveLeg],
+    risk_exit_ids: &std::collections::HashSet<ElementId>,
+    next_ids: &std::collections::HashSet<ElementId>,
+    also_claimed: Option<&std::collections::HashSet<ElementId>>,
+) -> Vec<ActiveLeg> {
+    prev_active
+        .iter()
+        .filter(|l| {
+            !risk_exit_ids.contains(&l.id)
+                && !next_ids.contains(&l.id)
+                && !also_claimed.is_some_and(|set| set.contains(&l.id))
+        })
+        .copied()
+        .collect()
 }
 
 /// [`pi_theta_step_prebuilt`] 的 trace 版（G4 #134 组合层）：同一决策路径（interpret →
@@ -280,15 +309,8 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
                     next_active.iter().map(|l| l.id).collect();
                 let overlay_ids: std::collections::HashSet<ElementId> =
                     overlay.iter().map(|l| l.id).collect();
-                let silent_drops = prev_active
-                    .iter()
-                    .filter(|l| {
-                        !overlay_ids.contains(&l.id)
-                            && !risk_exit_ids.contains(&l.id)
-                            && !next_ids.contains(&l.id)
-                    })
-                    .copied()
-                    .collect();
+                let silent_drops =
+                    silent_dropped_legs(prev_active, &risk_exit_ids, &next_ids, Some(&overlay_ids));
                 // #201：P2 分支每持仓声部恰一枚裁决——overlay 腿 = CloseReverseOpen（与规则2
                 // 短差关闭同 typed，源头区分在 overlay_closes 桶）、保留腿 = Hold；
                 // prev_active 次序；§13 剪除腿非裁决（silent_drops 轨）。
@@ -345,13 +367,7 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
             // §13 结构剪枝（AncOK/Stale）照常 ⟹ 被剪腿仍须外化（消费端在飞表不泄漏）。
             let next_ids: std::collections::HashSet<ElementId> =
                 next_active.iter().map(|l| l.id).collect();
-            let silent_drops = prev_active
-                .iter()
-                .filter(|l| {
-                    !risk_exit_ids.contains(&l.id) && !next_ids.contains(&l.id)
-                })
-                .copied()
-                .collect();
+            let silent_drops = silent_dropped_legs(prev_active, &risk_exit_ids, &next_ids, None);
             // #201：P3/P4 分支消耗当步裁决（屏蔽 P5..P10）——持仓声部仍逐枚裁 Hold
             // （活动腿保持）；§13 剪除腿非裁决（silent_drops 轨）。
             let verdicts = prev_active
@@ -511,15 +527,8 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
         })
         .collect();
     // 静默离场：prev_active 中既未被 close 桶认领、也不在 next_active（AncOK 剪/Stale prune）。
-    let silent_drops: Vec<ActiveLeg> = prev_active
-        .iter()
-        .filter(|l| {
-            !risk_exit_ids.contains(&l.id)
-                && !closed_ids.contains(&l.id)
-                && !next_ids.contains(&l.id)
-        })
-        .copied()
-        .collect();
+    let silent_drops: Vec<ActiveLeg> =
+        silent_dropped_legs(prev_active, &risk_exit_ids, &next_ids, Some(&closed_ids));
     // ★#220 路④：真正准入的 open 候选 = 其**自身元素 idx**（candidate_start+gamma_index）出现在
     // next_active_idx（AncOK 未剪且未被 gross 零化）。旧「id ∈ next_active 即配对」在同 bar 同
     // carrier 候选对 × restore 在场形态下，把同一条 restore 腿配给两个被 #216 规则①让位的候选

@@ -37,6 +37,17 @@
 //! shadow 每 bar 无条件执行（票面验收①要求生产路径真实运行，非门控）：每 slot 一次
 //! candidates 全量 clone + 每 bar 一次事实索引重建——env 未设时为零产出纯观测开销，
 //! 与「订单轨 bit-exact 不变」正交（只读观测，无写入生产状态）。
+//!
+//! ## ★#594 尾巴②口径登记：`divergences=0` 生产路径见证的覆盖边界
+//!
+//! `backtest::runner` 的 `shadow_dual_chain_witness_in_pi_loop`（单腿单候选、无 `risk_close_seeds`
+//! 的买点持仓夹具）只见证「全 Match」这一诚实有效域——该夹具**不触发**#572 逐腿 risk-close
+//! seed 级联（父腿携 `ExitType::RiskExit`、channel 因无逐腿 stop 通道仍裁 Hold ⟹
+//! [`DivergenceKind::ChannelHoldProductionExit`]）。本模块 `tests` 内
+//! `per_leg_risk_stop_without_force_flat_records_channel_hold_production_exit` 与
+//! `classify_covers_full_decision_fact_cross_table` 的 `(Hold, RiskExited)` 条目独立补齐
+//! 该分歧类的见证——不改 `runner.rs` 夹具（#594 硬约束改动范围不含该文件），选择在本模块
+//! 就地登记覆盖口径，为最简处置。
 
 use std::collections::{HashMap, HashSet};
 
@@ -82,7 +93,9 @@ pub(crate) enum DivergenceKind {
     ExitTypedMismatch,
     /// channel 裁出场，生产腿延续（TW 屏蔽/AncOK 幸存/多候选 fold 结构差）。
     ChannelExitProductionHold,
-    /// channel 裁 Hold，生产腿离场（ReverseOpen entry_v 已知缺口/TW overlay/证书门差）。
+    /// channel 裁 Hold，生产腿离场（ReverseOpen entry_v 已知缺口/TW overlay/证书门差；
+    /// ★#594 追加已知因：#572 逐腿 risk-close seed 触发的父腿 `RiskExit`——channel 无逐腿
+    /// stop 通道，全局 `force_flat` 未置位时对该 slot 只能裁 Hold，本分歧为正确暴露，非缺陷）。
     ChannelHoldProductionExit,
     /// channel 裁开仓，生产未开（§13 AncOK 准入门剪 / 候选被散装 fold 规则2 消费为关闭
     /// 触发——channel 声部独立互斥 vs fold 消费语义的结构差，预期缺口）。
@@ -533,6 +546,9 @@ mod tests {
             (D::Exit(ExitType::Hold), F::Idle, K::Match),
             (D::Exit(ExitType::Hold), F::Closed(ExitType::CloseRoot), K::ChannelHoldProductionExit),
             (D::Exit(ExitType::Hold), F::OverlayClosed, K::ChannelHoldProductionExit),
+            // ★#594：#572 逐腿 risk-close seed 触发的父腿 RiskExit——channel 无逐腿 stop 通道，
+            // 全局 force_flat 未置位时该 slot 仍裁 Hold（模块 doc「#594 尾巴②口径登记」）。
+            (D::Exit(ExitType::Hold), F::RiskExited, K::ChannelHoldProductionExit),
             (D::Exit(ExitType::Hold), F::SilentDropped, K::ProductionSilentDrop),
             (D::Exit(ExitType::Hold), F::Opened, K::ChannelHoldProductionOpen),
             // 出场 vs 持有/剪除。
@@ -642,5 +658,34 @@ mod tests {
         assert_eq!(book.stats().voice_steps, 2, "持仓 slot + 空仓候选 slot 各一枚裁决");
         assert_eq!(book.stats().matches, 2, "P1 双链同裁（全互斥 C1 屏蔽）");
         assert!(book.records().is_empty());
+    }
+
+    /// ★#594 尾巴②：#572 逐腿 risk-close seed（admission 命中的父 campaign 单腿 stop，
+    /// **非**全局 P1 `force_flat`）触发时，channel 无逐腿 stop 通道 ⟹ 该 slot 无候选/无
+    /// force_flat 仍裁 Hold；生产 verdicts 携 `ExitType::RiskExit`（组合层 `risk_exit_ids`
+    /// 单源外化，见 `compose.rs::pi_theta_step_traced_with_risk_seeds`）——按分歧交叉表
+    /// 归 `ChannelHoldProductionExit`（正确分歧，非缺陷，模块 doc「#594 尾巴②口径登记」）。
+    /// `runner.rs::shadow_dual_chain_witness_in_pi_loop` 的 `divergences=0` 夹具无逐腿
+    /// stop，不覆盖本类；本用例独立补齐见证。
+    #[test]
+    fn per_leg_risk_stop_without_force_flat_records_channel_hold_production_exit() {
+        let held = leg(1, VoiceSide::Long, 5);
+        let entry_v = HashMap::new();
+        // 无候选、force_flat=false：channel 唯一可裁 Hold（对齐 hold_trace 场景的裁决前提）。
+        let trace = StepTrace {
+            verdicts: vec![VoiceVerdict { leg: held, exit: ExitType::RiskExit }],
+            ..Default::default()
+        };
+        let mut book = ShadowVoiceBook::default();
+        book.observe_and_compare(3, &[held], &[], &entry_v, false, &[], &trace);
+        assert_eq!(book.stats().voice_steps, 1);
+        assert_eq!(
+            book.stats().channel_hold_production_exit, 1,
+            "channel 不知逐腿 stop ⟹ 裁 Hold，生产 RiskExit ⟹ ChannelHoldProductionExit"
+        );
+        assert_eq!(book.records().len(), 1);
+        assert_eq!(book.records()[0].kind, DivergenceKind::ChannelHoldProductionExit);
+        assert_eq!(book.records()[0].production, ProductionFact::RiskExited);
+        assert_eq!(book.records()[0].decision, ChannelDecision::Exit(ExitType::Hold));
     }
 }

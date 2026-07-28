@@ -3791,8 +3791,10 @@ where
                     );
                 }
             }
-            // 强平清空（#124 P1，PDF §7 C_1 屏蔽 P2..P10）：force_flat ⟹ prev_active 全部 RiskExit
-            // （无触发候选；pi_theta_step_traced 上游短路清空 next_active，见 StepTrace.risk_exits）。
+            // 风险强平出场（★#594 订正：本桶非只承载 P1）：① #124 P1（PDF §7 C_1 屏蔽
+            // P2..P10）force_flat ⟹ prev_active 全部 RiskExit（无触发候选，上游短路清空
+            // next_active）；② #572 risk_close_seeds 逐腿 stop（非全局强平）命中的直接父腿——
+            // 其子树后代经现役子树机关连坐清除，落 silent_drops 非本桶（见 StepTrace.risk_exits doc）。
             for leg in &step_trace.risk_exits {
                 if let Some(open) = open_trades.remove(&leg.id) {
                     if open.entry_v == super::super::strategy::coverage::Vertical::ReverseOpen {
