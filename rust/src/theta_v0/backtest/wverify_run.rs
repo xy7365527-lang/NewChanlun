@@ -33,6 +33,7 @@ use std::collections::{BTreeMap, HashMap};
 mod report;
 use report::*;
 mod m8;
+mod issue71_chi_gamma;
 pub(crate) use m8::{m6_cost_model, q4_margin_model};
 use m8::{run_m8_e2e_all_systems_oos, run_q4_fullpi_policy};
 
@@ -591,6 +592,13 @@ fn policy_backtest() {
 fn q4_fullpi_policy() {
     run_q4_fullpi_policy();
 }
+
+#[test]
+#[ignore]
+fn issue71_chi_gamma_validation() {
+    issue71_chi_gamma::run_issue71_chi_gamma_validation();
+}
+
 /// ★M6 BTC OOS R 分解跑批（TARGET_STRATEGY_MAXFULL.md M6 / 路线.pdf p16 第十一关）：
 /// 在真实 BTC OOS 窗跑带 margin（CME-simple）+ cost_model（参数化持有成本三项，**spot 口径**见
 /// [`m6_cost_model`]）的 π^full 臂，落盘 R 分解表（ΣN_tΔP_t / Commission+Slippage / Funding /

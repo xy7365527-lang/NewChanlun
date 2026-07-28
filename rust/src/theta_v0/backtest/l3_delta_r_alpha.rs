@@ -62,7 +62,8 @@ use std::rc::Rc;
 use super::data::{self, Dataset};
 use super::incremental::IncrementalClassifier;
 use super::mu_estimator::{
-    h_bucket, marginal_return, MuClass, MuEstimator, MuObservation, PositionState, ResidualTrade,
+    chi_dimension_three_return, h_bucket, marginal_return, MuClass, MuEstimator, MuObservation,
+    PositionState, ResidualTrade,
 };
 use super::prereg_windows::PREREG_WINDOWS;
 use super::runner::run_theta_v0_pi_chi;
@@ -263,10 +264,12 @@ pub fn build_mu_from_bars(
             LedgerDisposition::Kept => {}
             LedgerDisposition::SameBarCensored | LedgerDisposition::NonPositivePx => continue,
         }
-        // X_γ = δ(P_exit−P_entry) − C（qty=1 名义单位，μ 是单位边际收益的类条件均值）。
+        // #65 量纲③：X_γ = (δ(P_exit−P_entry)−fee)/P_entry。
+        // qty=1 只用于保持既有费扣分子；χ 喂入是持仓期相对收益，不是绝对额。
         // δ 从 entry_z 取（开腿候选方向；opened 腿非 Flat，interpret 规则1 保证 δ∈{±1}）。
         let delta = t.entry_z.delta;
-        let x_gamma = marginal_return(t.entry_px, t.exit_px, 1.0, fee_rate, delta);
+        let x_gamma =
+            chi_dimension_three_return(t.entry_px, t.exit_px, 1.0, fee_rate, delta);
         est.observe(MuObservation { class: t.entry_z, x_gamma });
 
         // ── 残差记录（alpha分离.pdf §1/§4.1，task #82——B̂/成本/分层维逻辑不变，G4 只换出场源）──
@@ -2002,6 +2005,14 @@ fn pooling_icc_multi_symbol() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 量纲③重锚（#65 裁定 2026-07-21）：ledger χ 观测必须是费扣后持仓期相对收益。
+    #[test]
+    fn chi_feed_uses_entry_notional_relative_return() {
+        let got = chi_dimension_three_return(100.0, 110.0, 1.0, 0.001, 1);
+        let expected = marginal_return(100.0, 110.0, 1.0, 0.001, 1) / 100.0;
+        assert!((got - expected).abs() < 1e-15, "量纲③ X_γ={expected}，实得 {got}");
+    }
 
     /// ★G4 诊断（#134，L2 冒烟）：真实 BTC train 窗上 typed ledger 非空 + exit_type 分布 +
     /// μ 表统计——τ^reverse → typed exit 语义变更的量级证据（#135 全量重跑前的管线可用性见证）。

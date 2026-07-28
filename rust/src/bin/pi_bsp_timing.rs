@@ -54,7 +54,7 @@ use newchan_rust::theta_v0::backtest::data::load_by_symbol;
 use newchan_rust::theta_v0::backtest::incremental::IncrementalClassifier;
 use newchan_rust::theta_v0::backtest::metrics::{self, TradeRecord};
 use newchan_rust::theta_v0::backtest::mu_estimator::{
-    marginal_return, MuClass, MuEstimator, MuObservation, PositionState,
+    chi_dimension_three_return, MuClass, MuEstimator, MuObservation, PositionState,
 };
 use newchan_rust::theta_v0::backtest::selector::chi_t;
 use newchan_rust::theta_v0::classifier::recursive_tower::ElementId;
@@ -367,7 +367,8 @@ fn run_state_machine(
             let voice = voices[v];
             let entry_px = prices[voice.entry_bar.min(n - 1)];
             let exit_px = prices[i]; // τ_γ=i：出场证书命中的当前 bar close（F_i-可测，非后视）
-            let x_gamma = marginal_return(entry_px, exit_px, voice.qty, fee_rate, voice.dir);
+            let x_gamma =
+                chi_dimension_three_return(entry_px, exit_px, voice.qty, fee_rate, voice.dir);
             let z = MuClass::from_certificate(
                 voice.level,
                 voice.dir,
@@ -460,7 +461,8 @@ fn run_state_machine(
             if last_bar > voice.entry_bar {
                 let entry_px = prices[voice.entry_bar.min(last_bar)];
                 let exit_px = prices[last_bar];
-                let x_gamma = marginal_return(entry_px, exit_px, voice.qty, fee_rate, voice.dir);
+                let x_gamma =
+                    chi_dimension_three_return(entry_px, exit_px, voice.qty, fee_rate, voice.dir);
                 let z = MuClass::from_certificate(
                     voice.level,
                     voice.dir,
@@ -675,7 +677,8 @@ fn main() -> std::process::ExitCode {
         println!("  ⚠ χ 有否决但 ΔN 全等——被滤声部不影响净额（被 anc_ok 剪/重复 carrier）。诚实标注。");
     }
     // ── μ(z,a) 类别条件边际收益表（alpha2 §12，task #39，L2 真实数据可否证）──
-    // 按 z=(ℓ,δ,I_γ,父向,短差,仓位态) 分桶；μ(z)=E[X_γ|z]=ΣX_γ/|S_z| 绝对收益（与 metrics 同单位）。
+    // 按 z=(ℓ,δ,I_γ,父向,短差,仓位态) 分桶；#65 量纲③：
+    // μ(z)=E[X_γ|z]，X_γ=费扣后持仓期相对收益（逐笔 ÷qty·entry_px）。
     // ★μ(z)>0 ⟹ 该类买卖点在此退出规则/成本/样本下有正边际期望（alpha 候选）；μ(z)≤0 ⟹ 无正期望
     // （§12 line 2186）——否定性结果（formalization-validity-domain：μ≤0 比确认更有信息增量）。
     let mut mu_rows: Vec<(MuClass, f64, u64)> = mu_est
@@ -696,7 +699,7 @@ fn main() -> std::process::ExitCode {
     } else {
         println!(
             "{:>3} {:>3} {:>4} {:>5} {:>6} {:>6} {:>6} {:>14}",
-            "ℓ", "δ", "Iγ", "父向", "短差", "仓位", "|S_z|", "μ(z)绝对"
+            "ℓ", "δ", "Iγ", "父向", "短差", "仓位", "|S_z|", "μ(z)相对"
         );
         for (z, mu, cnt) in &mu_rows {
             let alpha = if *mu > 0.0 { "+" } else { "≤0" };
@@ -733,4 +736,17 @@ fn main() -> std::process::ExitCode {
         println!("等级: L2——π^bsp Sharpe={:.4} 子声部={n_children} 多声部对冲真激活（§19 goal#5）", m.sharpe);
     }
     std::process::ExitCode::SUCCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 量纲③重锚（#65 裁定 2026-07-21）：逐笔 ÷(qty·entry_px)，χ 观测对 qty 免疫。
+    #[test]
+    fn chi_feed_dimension_three_is_qty_immune() {
+        let one = chi_dimension_three_return(100.0, 110.0, 1.0, 0.001, 1);
+        let five = chi_dimension_three_return(100.0, 110.0, 5.0, 0.001, 1);
+        assert!((one - five).abs() < 1e-15, "量纲③逐笔归一化后必须 qty 免疫：{one} vs {five}");
+    }
 }

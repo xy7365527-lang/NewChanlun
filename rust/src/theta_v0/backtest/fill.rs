@@ -415,6 +415,7 @@ use super::opsem_dump::{
     strict_nest_sidecar_enabled, summarize_strict_nest_certificates, t_stage_str, voice_side_str,
     OpsemDump, StrictNestSidecarCollector,
 };
+use super::gamma_dump::GammaDump;
 use super::admission::{
     voice_exec_gate, nest_cert_gate_enabled,
     NestGateStats,
@@ -979,6 +980,8 @@ where
     // ★opsem-dump（基因 073a/274号）：env `OPSEM_DUMP_DIR` 启用时开两个 JSONL 写入器。
     // 未启用 ⟹ None，所有 write_trade/diff_tower 调用 no-op ⟹ 生产路径 bit-exact 不变。
     let mut opsem = OpsemDump::from_env();
+    // ★#71 Gap-2 Γ_t 候选级只读 dump：独立 env 开关；不进任何生产类型或门控。
+    let mut gamma_dump = GammaDump::from_env();
     // ★A7（Task #165）：出场 z 账本态维（t_stage/eta_bucket/risk_mode）取自出场 bar 决策点的
     //   `ext_i`。窗口终点 censored Hold 在主循环外结算 ⟹ 需保留**最后一个决策点** ext_i（末可交易
     //   bar 的账本态真值，与 censored 兑现价同 bar）。主循环内每决策点刷新；无决策点（全窗不可交易）
@@ -1285,6 +1288,13 @@ where
                 ),
                 None => step_gamma.clone(), // χ≡1：原候选集（bit-exact 不变）
             };
+            // 仅在 dump 开启时保存生产 χ 过滤结果的成员键。下游 Nest/Xzd 会继续收窄同一 Vec，
+            // 故须在其消费前取 χ 真值；关闭时不分配。
+            let gamma_chi_admitted: Vec<usize> = if gamma_dump.is_some() {
+                step_gamma_trade.iter().map(|c| c.gamma_index).collect()
+            } else {
+                Vec::new()
+            };
             // ── ★nest-gate（升格路径 b，实装卡 §3.2；#75 真链切换）：Γ_t^trade → Γ_t^cert={γ:持
             //    typed N^δ/Xzd 证书}。#75 起 **typed 真链为唯一 nest 判定源**（N^δ 跨级递归链
             //    判定，nest.rs n_delta 递归核；增量喂法 + 索引消费见 NestChainGate 文档）；typed
@@ -1445,6 +1455,33 @@ where
                 Some(&twc),
                 &protocol_events,
             );
+            // #71 钩子符号重锚：#69 合流后 PanDiv 的候选准备已移到 step_trace 之前；此处仍是
+            // step_gamma/生产 χ 成员/step_trace 三者首次同时在手、且在 PanDiv 最终选址消费前。
+            if let Some(dump) = gamma_dump.as_mut() {
+                let gamma_opened: Vec<usize> = step_trace
+                    .opened
+                    .iter()
+                    .map(|(candidate, _)| candidate.gamma_index)
+                    .collect();
+                let dump_path = dump.path().to_path_buf();
+                dump.write_step(
+                    super::gamma_dump::GammaBarContext {
+                        bar: i,
+                        gamma_raw: &step_gamma,
+                        tower: &tower_i,
+                        bars,
+                        ext: &ext_i,
+                    },
+                    super::gamma_dump::GammaChiContext {
+                        admitted_indices: &gamma_chi_admitted,
+                        opened_indices: &gamma_opened,
+                        chi: chi.as_ref(),
+                    },
+                )
+                .unwrap_or_else(|error| {
+                    panic!("写入 GammaDump 文件 {} 失败：{error}", dump_path.display())
+                });
+            }
             // ★LEE M2：物理净目标 p\* 的单一读点。无 pan_div 覆盖 ⟹ 恒 = `standard_p_star`
             //   （`pi_theta_step_traced` 的 `LexArgmin_{p∈𝒦_Θ}J_x(p)`）；pan_div 覆盖订单时同步
             //   改写（下方两处 `schedule_order(target, …)` 分支）——保证 M2 归因读到的目标与

@@ -372,6 +372,23 @@ pub fn marginal_return(
     trade_abs_pnl(entry_px, exit_px, qty, fee_rate, delta == 1)
 }
 
+/// #65 量纲③：χ 喂入 = 费扣后持仓期绝对收益 ÷ 逐笔入场名义 `qty·entry_px`。
+///
+/// `pi_bsp_timing` 是独立 binary crate，故需 `pub` 才能与 library 调用点共享单一实现；
+/// `doc(hidden)` 避免把诊断 helper 扩成文档 API 面。
+#[doc(hidden)]
+pub fn chi_dimension_three_return(
+    entry_px: f64,
+    exit_px: f64,
+    qty: f64,
+    fee_rate: f64,
+    delta: i8,
+) -> f64 {
+    let entry_notional = qty * entry_px;
+    debug_assert!(entry_notional > 0.0, "量纲③要求 qty·entry_px > 0");
+    marginal_return(entry_px, exit_px, qty, fee_rate, delta) / entry_notional
+}
+
 /// 单 z 桶的 Welford 在线均值/方差累加器（Welford 1962，数值稳定，无 ΣX² 灾难性抵消）。
 ///
 /// 状态 `(n, mean, m2)`：`mean = ΣX_γ/n`，`m2 = Σ(X_γ−mean)²`。样本方差 = `m2/(n−1)`
