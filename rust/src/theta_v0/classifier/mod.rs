@@ -4043,13 +4043,14 @@ mod tests {
             full.2.iter().any(|stream| !stream.is_empty()),
             "主缝事件流必须非空，禁止真空绿"
         );
-        assert!(
-            full.2
-                .iter()
-                .flat_map(|stream| stream.iter())
-                .any(|event| event.kind == cand_event::CandidateKind::Pan),
-            "双域电池必须命中 Pan"
-        );
+        let pan = full
+            .2
+            .iter()
+            .flat_map(|stream| stream.iter())
+            .find(|event| event.kind == cand_event::CandidateKind::Pan)
+            .expect("双域电池必须命中 Pan");
+        assert_eq!(pan.key.previous_center_start, None);
+        assert_eq!(pan.center_ids, None);
     }
 
     /// #550 主缝②：修订富集的逐段因果重放，全历史重建与跨步增量事件簿逐字段相等。
@@ -4139,7 +4140,7 @@ mod tests {
         };
         book.advance(std::slice::from_ref(&observation), sample.revision_at);
         let mut changed = observation;
-        changed.center_ids.1 += 1;
+        changed.pair_id ^= 1;
         assert_eq!(
             book.advance(&[changed], sample.revision_at + 1)[0].revision,
             1,
@@ -4168,7 +4169,7 @@ mod tests {
                 (hash ^ byte as u64).wrapping_mul(cand_event::FNV_PRIME)
             });
         assert_eq!(
-            digest, 16287327716591662250,
+            digest, 4851063543183334400,
             "真实事件流漂移须诚实更新 golden"
         );
     }

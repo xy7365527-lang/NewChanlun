@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use super::super::types::{Center, Direction, Segment, Tick};
+use super::super::types::{Center, Direction, Segment, Side, Tick};
 use super::decompose::center_trend_gate;
 use super::divergence::{
     departure_move_c_start, locate_departure_move_a, move_range_envelope, DivergenceGauge,
@@ -38,8 +38,9 @@ pub struct ParentFingerprint {
 pub struct CandidateKey {
     pub level: u32,
     pub kind: CandidateKind,
-    pub side_tag: u8,
-    pub previous_center_start: usize,
+    pub side: Side,
+    /// Trend 域的前中枢；Pan 域没有前中枢，必须为 None。
+    pub previous_center_start: Option<usize>,
     pub parent: ParentFingerprint,
     pub seg_a: (usize, usize),
     pub c_start: usize,
@@ -77,8 +78,11 @@ pub struct CandidateEvent {
     pub key: CandidateKey,
     pub kind: CandidateKind,
     pub event_level: u32,
-    pub center_ids: (usize, usize),
+    /// Trend 域为（前中枢，父中枢）；Pan 域没有前中枢，必须为 None。
+    pub center_ids: Option<(usize, usize)>,
+    /// SPEC E2E-D2 字段；当前为 CandidateKey 的 FNV 种子哈希，与 key 双射，无独立信息。
     pub candidate_group_id: u64,
+    /// SPEC E2E-D2 字段；当前为 CandidateKey 的另一种子哈希，与 key 双射，无独立信息。
     pub pair_id: u64,
     pub structural_predicates: StructuralPredicates,
     pub extreme_proof: (usize, usize),
@@ -113,8 +117,10 @@ pub fn candidate_is_sub(child: &CandidateEvent, parent: &CandidateEvent) -> bool
 pub struct CandidateObservation {
     pub key: CandidateKey,
     pub kind: CandidateKind,
-    pub center_ids: (usize, usize),
+    pub center_ids: Option<(usize, usize)>,
+    /// SPEC E2E-D2 占位：当前是 key 的 FNV 种子哈希，无独立业务信息。
     pub candidate_group_id: u64,
+    /// SPEC E2E-D2 占位：当前是 key 的另一种子哈希，无独立业务信息。
     pub pair_id: u64,
     pub structural_predicates: StructuralPredicates,
     pub extreme_proof: (usize, usize),
@@ -236,7 +242,7 @@ fn make_revision(
     as_of: usize,
 ) -> CandidateEvent {
     let revision = prior.map_or(0, |event| event.revision + 1);
-    let observed_at = prior.map_or(observation.first_provable_at, |event| event.observed_at);
+    let observed_at = prior.map_or(as_of, |event| event.observed_at);
     let first_provable_at = prior.map_or(observation.first_provable_at, |event| {
         event.first_provable_at
     });
@@ -269,16 +275,37 @@ fn make_revision(
     }
 }
 
+#[derive(PartialEq)]
+struct CandidateProjection {
+    kind: CandidateKind,
+    center_ids: Option<(usize, usize)>,
+    candidate_group_id: u64,
+    pair_id: u64,
+    structural_predicates: StructuralPredicates,
+    extreme_proof: (usize, usize),
+    third_class_proof: Option<usize>,
+    interval: (usize, usize),
+    state: CandidateState,
+}
+
+impl From<&CandidateEvent> for CandidateProjection {
+    fn from(event: &CandidateEvent) -> Self {
+        Self {
+            kind: event.kind,
+            center_ids: event.center_ids,
+            candidate_group_id: event.candidate_group_id,
+            pair_id: event.pair_id,
+            structural_predicates: event.structural_predicates,
+            extreme_proof: event.extreme_proof,
+            third_class_proof: event.third_class_proof,
+            interval: event.interval,
+            state: event.state,
+        }
+    }
+}
+
 fn same_projection(a: &CandidateEvent, b: &CandidateEvent) -> bool {
-    a.kind == b.kind
-        && a.center_ids == b.center_ids
-        && a.candidate_group_id == b.candidate_group_id
-        && a.pair_id == b.pair_id
-        && a.structural_predicates == b.structural_predicates
-        && a.extreme_proof == b.extreme_proof
-        && a.third_class_proof == b.third_class_proof
-        && a.interval == b.interval
-        && a.state == b.state
+    CandidateProjection::from(a) == CandidateProjection::from(b)
 }
 
 /// 同一次分类迭代内的结构宽候选投影。
@@ -340,10 +367,7 @@ pub(crate) fn structural_observations_for_level(
         };
         let seg_a = a.expect("judge Some => A 段映射成立").0;
         let c_start = lambda_c.expect("judge Some => lambda_C 成立");
-        let side_tag = match point.struct_break_dir.expect("结构候选必有方向") {
-            super::super::types::Side::Long => 0,
-            super::super::types::Side::Short => 1,
-        };
+        let side = point.struct_break_dir.expect("结构候选必有方向");
         let parent = ParentFingerprint {
             center_start: parent_center.start_index,
             zd: parent_center.zd,
@@ -352,8 +376,8 @@ pub(crate) fn structural_observations_for_level(
         let key = CandidateKey {
             level,
             kind: CandidateKind::Trend,
-            side_tag,
-            previous_center_start: previous.start_index,
+            side,
+            previous_center_start: Some(previous.start_index),
             parent,
             seg_a,
             c_start,
@@ -361,7 +385,7 @@ pub(crate) fn structural_observations_for_level(
         observations.push(CandidateObservation {
             key,
             kind: CandidateKind::Trend,
-            center_ids: (previous.start_index, parent.center_start),
+            center_ids: Some((previous.start_index, parent.center_start)),
             candidate_group_id: stable_id(&key, FNV_OFFSET_BASIS),
             pair_id: stable_id(&key, PAIR_ID_SEED),
             structural_predicates: StructuralPredicates {
@@ -389,10 +413,6 @@ pub(crate) fn pan_observations_for_level(
     certs
         .iter()
         .map(|cert| {
-            let side_tag = match cert.side {
-                super::super::types::Side::Long => 0,
-                super::super::types::Side::Short => 1,
-            };
             let parent = ParentFingerprint {
                 center_start: cert.center.start_index,
                 zd: cert.center.zd,
@@ -401,8 +421,8 @@ pub(crate) fn pan_observations_for_level(
             let key = CandidateKey {
                 level,
                 kind: CandidateKind::Pan,
-                side_tag,
-                previous_center_start: cert.center.start_index,
+                side: cert.side,
+                previous_center_start: None,
                 parent,
                 seg_a: cert.seg_a,
                 c_start: cert.seg_c.0,
@@ -410,7 +430,7 @@ pub(crate) fn pan_observations_for_level(
             CandidateObservation {
                 key,
                 kind: CandidateKind::Pan,
-                center_ids: (cert.center.start_index, cert.center.start_index),
+                center_ids: None,
                 candidate_group_id: stable_id(&key, FNV_OFFSET_BASIS),
                 pair_id: stable_id(&key, PAIR_ID_SEED),
                 structural_predicates: StructuralPredicates {
@@ -466,8 +486,9 @@ fn stable_id(key: &CandidateKey, seed: u64) -> u64 {
     for value in [
         key.level as u64,
         key.kind as u64,
-        key.side_tag as u64,
-        key.previous_center_start as u64,
+        key.side as u64,
+        key.previous_center_start.is_some() as u64,
+        key.previous_center_start.unwrap_or_default() as u64,
         key.parent.center_start as u64,
         key.parent.zd as u64,
         key.parent.zg as u64,
@@ -519,8 +540,8 @@ mod tests {
         let key = CandidateKey {
             level: 0,
             kind: CandidateKind::Trend,
-            side_tag: 0,
-            previous_center_start: 10,
+            side: Side::Long,
+            previous_center_start: Some(10),
             parent: ParentFingerprint {
                 center_start: 20,
                 zd: 100,
@@ -532,7 +553,7 @@ mod tests {
         CandidateObservation {
             key,
             kind: CandidateKind::Trend,
-            center_ids: (10, 20),
+            center_ids: Some((10, 20)),
             candidate_group_id: 1,
             pair_id: 2,
             structural_predicates: StructuralPredicates {
@@ -564,8 +585,8 @@ mod tests {
     fn append_only_revisions_keep_identity_and_clocks_and_same_as_of_is_idempotent() {
         let mut book = CandidateEventBook::default();
         let first = observation((30, 35), CandidateState::Provisional);
-        assert_eq!(book.advance(std::slice::from_ref(&first), 35).len(), 1);
-        assert!(book.advance(std::slice::from_ref(&first), 35).is_empty());
+        assert_eq!(book.advance(std::slice::from_ref(&first), 37).len(), 1);
+        assert!(book.advance(std::slice::from_ref(&first), 37).is_empty());
 
         let grown = observation((30, 40), CandidateState::Confirmed);
         assert_eq!(book.advance(std::slice::from_ref(&grown), 40).len(), 1);
@@ -574,7 +595,7 @@ mod tests {
         assert_eq!(stream[0].key, stream[1].key);
         assert_eq!(stream[1].revision, 1);
         assert_eq!(stream[1].supersedes_revision, Some(0));
-        assert_eq!(stream[1].observed_at, 35);
+        assert_eq!(stream[1].observed_at, 37);
         assert_eq!(stream[1].first_provable_at, 35);
         assert_eq!(stream[1].confirmed_at, Some(40));
         assert_eq!(stream[1].revision_at, 40);
@@ -586,11 +607,11 @@ mod tests {
         let first = observation((30, 35), CandidateState::Provisional);
         book.advance(std::slice::from_ref(&first), 35);
         let mut changed = first;
-        changed.center_ids = (10, 21);
+        changed.center_ids = Some((10, 21));
         let delta = book.advance(&[changed], 36);
         assert_eq!(delta.len(), 1);
         assert_eq!(delta[0].revision, 1);
-        assert_eq!(delta[0].center_ids, (10, 21));
+        assert_eq!(delta[0].center_ids, Some((10, 21)));
     }
 
     #[test]
@@ -649,7 +670,7 @@ mod tests {
             1,
             "结构门成立即产候选，力度 C<A=false 不得拦截"
         );
-        assert_eq!(observations[0].key.side_tag, 0);
+        assert_eq!(observations[0].key.side, Side::Long);
         assert_eq!(observations[0].first_provable_at, 11);
         assert_eq!(observations[0].state, CandidateState::Provisional);
     }

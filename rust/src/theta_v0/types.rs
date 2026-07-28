@@ -258,7 +258,7 @@ impl BspBits {
 /// `Short` = 卖点侧（顶背驰/向下离开中枢之下）。卖点判据要求 `Side::Short`（见 closed_loop/sell.rs）。
 /// ★这是判据**方向特化参数**，非持仓方向（`Pos`）——背驰力度判据本身方向无关（顶/底背驰同构），
 /// `Side` 只在 side/trend 语境区分买卖（Lean `type1_buy_sell_share_divergence`）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Side {
     Long,
     Short,
