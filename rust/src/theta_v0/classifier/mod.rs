@@ -259,6 +259,72 @@ fn unit_to_segment(u: &UnitRange) -> Segment {
     }
 }
 
+/// ★#487：为接线层给出的**精确挂起中枢**复核“旧框右边 → 紧邻 leave/retest”三类证书。
+///
+/// 本函数只消费结构事实，不读取 strategy/账户状态；挂起候选集合由接线层提供。配对规则：
+///
+/// 1. `center.end_index` 是旧框冻结的右边；从本级输入塔中第一条
+///    `start_index >= end_index` 的走势起，只找**第一组方向相反的相邻对**；
+/// 2. 该对的前项是 leave、后项是紧随其后的反向 retest；同向续行不是 leave/retest 对，
+///    可以越过，但第一组反向相邻对一旦价格失败就不再向后搜索；
+/// 3. 两条走势按本级生产投影还原为 `Segment`，价格只交给
+///    [`signal::judge_third_cert`] 相对该旧框的 `ZG/ZD` 判定。
+///
+/// 因此同一价格带的晚框穿越、或首个 leave/retest 已失败后出现的远期相邻对，均不能回填旧框。
+/// 九段升级同核心不设分支：接线层给出首次绑定时冻结的完整框，天然按该框四边判定。
+pub(crate) fn historical_bound_third_cert(
+    classification: &Classification,
+    tower: &[Rc<Vec<LeveledMove>>],
+    level: usize,
+    center: &Center,
+) -> Option<signal::ThirdClassCert> {
+    let level_moves = tower.get(level)?;
+    let first_after_frame = level_moves.partition_point(|m| m.start_index < center.end_index);
+    let (leave, retest) =
+        (first_after_frame..level_moves.len().saturating_sub(1)).find_map(|leave_idx| {
+            let leave =
+                historical_bound_segment(classification, level_moves, level, leave_idx)?;
+            let retest =
+                historical_bound_segment(classification, level_moves, level, leave_idx + 1)?;
+            (retest.direction == leave.direction.flip()).then_some((leave, retest))
+        })?;
+    debug_assert!(
+        leave.start_index >= center.end_index,
+        "historical-bound leave 必须位于旧框右边之后"
+    );
+    signal::judge_third_cert(center, &leave, Some(leave.direction), &retest)
+}
+
+/// 把 `tower[level][idx]` 按该级生产投影的同一方向/外缘口径还原成 `Segment`。
+fn historical_bound_segment(
+    classification: &Classification,
+    level_moves: &[LeveledMove],
+    level: usize,
+    idx: usize,
+) -> Option<Segment> {
+    let m = level_moves.get(idx)?;
+    let prev = idx.checked_sub(1).and_then(|i| level_moves.get(i));
+    let direction = if level == 0 {
+        match &m.rmove {
+            descend::RMove::Segment { direction, .. } => *direction,
+            // L0 正常恒为 Segment；保守回退只维持结构方向，不另造判据。
+            descend::RMove::Compose { .. } => m.fold_direction(prev),
+        }
+    } else {
+        let lower_blocks = &classification.levels.get(level - 1)?.moves;
+        decompose::center_own_dir_at(lower_blocks, idx)
+            .unwrap_or_else(|| m.fold_direction(prev))
+    };
+    let (lo, hi) = m.envelope();
+    Some(unit_to_segment(&UnitRange {
+        start_index: m.start_index,
+        end_index: m.end_index,
+        direction,
+        lo,
+        hi,
+    }))
+}
+
 /// 级别-N 一/三类买卖点提取（codex-decide-20260703 裁定 A：级别-N 直接判定，非 L0 relabel）。
 ///
 /// 把级别-N 输入单元 `units`（承担「线段」角色）还原为 `Segment` 后**复用 L0 的

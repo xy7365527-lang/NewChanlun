@@ -788,6 +788,8 @@ fn step_center_oscillation(
         cl_machines,
         osc_books,
         witness,
+        None,
+        None,
         false,
     )
 }
@@ -809,7 +811,41 @@ fn step_center_oscillation_observed(
         cl_machines,
         osc_books,
         witness,
+        None,
+        None,
         true,
+    )
+}
+
+/// ★#487 生产/接线测试入口：接线层把挂起集合与同 bar 结构塔交给纯结构配对函数；
+/// classifier 不读取 strategy 状态。`historical_seen` 按精确身份 + 信号坐标/类型去重，避免
+/// frontier 重评把同一四边证书重复清算。
+fn step_center_oscillation_historical(
+    bar: usize,
+    classification_i: &classifier::Classification,
+    classification_step: &classifier::Classification,
+    tower_i: &[Rc<Vec<classifier::recursive_tower::LeveledMove>>],
+    historical_seen: &mut std::collections::HashSet<(
+        usize,
+        classifier::center_lifecycle::CenterId,
+        usize,
+        u8,
+    )>,
+    cl_machines: &mut Vec<classifier::center_lifecycle::CenterEventMachine>,
+    osc_books: &mut Vec<super::super::strategy::center_oscillation_trade::CenterOscillationBook>,
+    witness: &mut super::super::strategy::oscillation_campaign::CampaignWiringWitness,
+    observe_rebase: bool,
+) -> CenterOscillationStepOutput {
+    step_center_oscillation_impl(
+        bar,
+        classification_i,
+        classification_step,
+        cl_machines,
+        osc_books,
+        witness,
+        Some(tower_i),
+        Some(historical_seen),
+        observe_rebase,
     )
 }
 
@@ -820,6 +856,15 @@ fn step_center_oscillation_impl(
     cl_machines: &mut Vec<classifier::center_lifecycle::CenterEventMachine>,
     osc_books: &mut Vec<super::super::strategy::center_oscillation_trade::CenterOscillationBook>,
     witness: &mut super::super::strategy::oscillation_campaign::CampaignWiringWitness,
+    tower_i: Option<&[Rc<Vec<classifier::recursive_tower::LeveledMove>>]>,
+    mut historical_seen: Option<
+        &mut std::collections::HashSet<(
+            usize,
+            classifier::center_lifecycle::CenterId,
+            usize,
+            u8,
+        )>,
+    >,
     observe_rebase: bool,
 ) -> CenterOscillationStepOutput {
     use classifier::center_lifecycle::{CenterEventMachine, CenterId, ChainConsumed, PointOutcome};
@@ -919,41 +964,119 @@ fn step_center_oscillation_impl(
             }
             ChainConsumed::Adopted { .. } => {}
         }
-        if let Some(step_level) = classification_step.levels.get(lvl) {
-            for p in step_level.bsp.iter() {
-                let target = match p.center {
-                    Some(classifier::bsp::OwnerRef::Center(c)) => Some(CenterId::of(&c)),
-                    _ => None,
-                };
-                if let Ok(PointOutcome::Event(ev)) = cl_machines[lvl].push_point(p.bits, p.source_index, target) {
-                    let ev_out = osc_books[lvl].on_lifecycle_event(&ev);
-                    // ★#414：本路径的 `Superseded` 不由买卖点驱动（`push_point` 只产 Broken/Reset），
-                    // 故延续在此恒空——留着是穷尽性，不靠「产不出」的隐含前提（同下方核销分支惯例）。
-                    for cont in ev_out.continuations.iter() {
-                        witness.record_suspension_continued(lvl as u32, cont.side);
+        // ★#487：挂起候选集合只在接线层形成。挂起簿给出首次绑定时冻结的完整 Center
+        // （起止边 + ZD/ZG），再交 classifier 纯结构函数做旧框右边的紧邻配对。
+        // RebaseVanished 已在上方先清表，故消失身份不会在这里复活。
+        let historical_points: Vec<classifier::bsp::BspPoint> =
+            if let (Some(tower), Some(seen)) = (tower_i, historical_seen.as_deref_mut()) {
+                let mut by_event: std::collections::BTreeMap<
+                    (usize, u8),
+                    classifier::bsp::BspPoint,
+                > = std::collections::BTreeMap::new();
+                for cert in osc_books[lvl]
+                    .suspended_frames()
+                    .into_iter()
+                    .filter_map(|c| {
+                        classifier::historical_bound_third_cert(classification_i, tower, lvl, &c)
+                    })
+                {
+                    let p = cert.point;
+                    let owner = CenterId::of(&cert.center);
+                    let disc = super::signal::bsp_bits_disc(&p.bits);
+                    let seen_key = (lvl, owner, p.source_index, disc);
+                    if !seen.insert(seen_key) {
+                        continue;
                     }
-                    for outcome in ev_out.terminations {
-                        witness.record_suspension_source(lvl as u32, outcome.side, outcome.source);
-                        witness.record_settlement(lvl as u32, outcome.side, outcome.settlement);
-                        if let Some(action) = outcome.cover_action {
-                            actions.push(CenterOscillationActionRecord {
-                                bar,
-                                level: lvl as u32,
-                                center: outcome.center,
-                                action,
-                                side: outcome.side, // ★#381：收手回补归属该终结所在的持仓侧
-                            });
-                        }
-                        // ★#366/#472：本分支接住本级买卖点驱动的三类点终结与 Reset 止血终结；
-                        // 不回补者产出未闭合减出核销请求。
-                        if matches!(outcome.settlement, TerminationSettlement::WriteOffUnclosed) {
-                            write_offs.push(UnclosedWriteOffRequest {
-                                bar,
-                                level: lvl as u32,
-                                center: outcome.center,
-                                side: outcome.side,
-                            });
-                        }
+                    // 四边配对把一个三类事件钉到唯一框。同 source/侧若仍出现两个挂起框，
+                    // 属于配对实现破裂；debug 显式炸出，release 保留确定序首项且绝不双杀。
+                    let event_key = (p.source_index, disc);
+                    if let Some(prior) = by_event.get(&event_key) {
+                        debug_assert_eq!(
+                            prior.center, p.center,
+                            "同一三类事件不得同时认领两个挂起中枢框"
+                        );
+                    } else {
+                        by_event.insert(event_key, p);
+                    }
+                }
+                by_event.into_values().collect()
+            } else {
+                Vec::new()
+            };
+
+        let historical_event_keys: std::collections::HashSet<(usize, u8)> = historical_points
+            .iter()
+            .map(|p| (p.source_index, super::signal::bsp_bits_disc(&p.bits)))
+            .collect();
+        let regular_points = classification_step
+            .levels
+            .get(lvl)
+            .into_iter()
+            .flat_map(|step_level| step_level.bsp.iter())
+            // 挂起旧框通过四边证时，该点的唯一 Owner 已由旧框重写；抑制同 source/侧的
+            // “最近中枢”副本，防止一个三类事件先后杀两个中枢。
+            .filter(|p| {
+                !historical_event_keys
+                    .contains(&(p.source_index, super::signal::bsp_bits_disc(&p.bits)))
+            })
+            .map(|p| (p, false));
+        let bound_points = historical_points.iter().map(|p| (p, true));
+        // 旧框候选先落账；regular 中同事件副本已在上方抑制，其余点保持既有顺序。
+        for (p, requires_binding) in bound_points.chain(regular_points) {
+            let owner = match p.center {
+                Some(classifier::bsp::OwnerRef::Center(c)) => Some(c),
+                _ => None,
+            };
+            let target = owner.as_ref().map(CenterId::of);
+            let is_bound = target.is_some_and(|id| {
+                osc_books[lvl].is_suspended_side(VoiceSide::Long, id)
+                    || osc_books[lvl].is_suspended_side(VoiceSide::Short, id)
+            });
+            if requires_binding && !is_bound {
+                continue;
+            }
+            // strategy 挂起态只在接线层转成一次精确授权；只有上方四边配对产出的 bound 点
+            // 才能走 historical-bound。普通点即使身份仍挂起，也走原 push_point ⟹ 配对失败的
+            // 历史载体保持 Stale；classifier/生命周期机不反向读取账户状态。
+            let historical_before = cl_machines[lvl].historical_bound_kills();
+            let point_outcome = match owner {
+                Some(c) if requires_binding && is_bound => {
+                    cl_machines[lvl].push_point_historical_bound(p.bits, p.source_index, c)
+                }
+                _ => cl_machines[lvl].push_point(p.bits, p.source_index, target),
+            };
+            if cl_machines[lvl].historical_bound_kills() > historical_before {
+                witness.record_historical_bound(lvl as u32);
+            }
+            if point_outcome.is_err() {
+                witness.record_center_mis_kill(lvl as u32);
+            }
+            if let Ok(PointOutcome::Event(ev)) = point_outcome {
+                let ev_out = osc_books[lvl].on_lifecycle_event(&ev);
+                // ★#414：本路径的 `Superseded` 不由买卖点驱动（`push_point` 只产 Broken/Reset），
+                // 故延续在此恒空——留着是穷尽性，不靠「产不出」的隐含前提（同下方核销分支惯例）。
+                for cont in ev_out.continuations.iter() {
+                    witness.record_suspension_continued(lvl as u32, cont.side);
+                }
+                for outcome in ev_out.terminations {
+                    witness.record_suspension_source(lvl as u32, outcome.side, outcome.source);
+                    witness.record_settlement(lvl as u32, outcome.side, outcome.settlement);
+                    if let Some(action) = outcome.cover_action {
+                        actions.push(CenterOscillationActionRecord {
+                            bar,
+                            level: lvl as u32,
+                            center: outcome.center,
+                            action,
+                            side: outcome.side,
+                        });
+                    }
+                    if matches!(outcome.settlement, TerminationSettlement::WriteOffUnclosed) {
+                        write_offs.push(UnclosedWriteOffRequest {
+                            bar,
+                            level: lvl as u32,
+                            center: outcome.center,
+                            side: outcome.side,
+                        });
                     }
                 }
             }
@@ -1009,12 +1132,17 @@ fn step_center_oscillation_impl(
             );
             witness.record_trigger_result(&trigger_result);
             if let Ok(trigger) = trigger_result {
+                let center = alive_with_index
+                    .map(|(center, _)| center)
+                    .expect("触发构造成功蕴含完整在场中枢存在");
                 // ★#381：同一次触发对**两侧**各产一条镜像动作（上沿：多头减/空头补；下沿：
                 // 多头补/空头减，见 `CenterOscillationBook::on_trigger_side`）——两侧挂起表
                 // 独立，各自的幽灵门各自把关（未挂起的收口腿仍返回 `None` 不构造）。侧序固定
                 // Long→Short（确定性，与挂起表迭代序同锚）。
                 for side in [VoiceSide::Long, VoiceSide::Short] {
-                    if let Some(action) = osc_books[lvl].on_trigger_side(side, trigger) {
+                    if let Some(action) =
+                        osc_books[lvl].on_trigger_side_bound(side, trigger, center)
+                    {
                         actions.push(CenterOscillationActionRecord {
                             bar,
                             level: lvl as u32,
@@ -1684,11 +1812,16 @@ mod center_oscillation_wiring_tests {
     //!   仍在链上⟹跟随迁移，从新链消失⟹终结，端到端经 `step_center_oscillation` 可见（见
     //!   `gate_on_chain_rebase_migrates_survivor_and_terminates_vanished_suspension`）。
     use super::*;
+    use classifier::center::UnitRange;
     use classifier::center_lifecycle::CenterId;
+    use classifier::recursive_tower::{ElementId, LeveledMove};
     use classifier::{bsp::BspPoint, bsp::OwnerRef, Classification, LevelState};
-    use super::super::super::strategy::center_oscillation_trade::{CenterDrift, CenterOscillationAction, CenterOscillationBook};
+    use super::super::super::strategy::center_oscillation_trade::{
+        CenterDrift, CenterOscillationAction, CenterOscillationBook,
+        CenterOscillationTrigger,
+    };
     use super::super::super::strategy::voice::VoiceSide;
-    use super::super::super::types::{BspBits, Center, Tick};
+    use super::super::super::types::{BspBits, Center, Direction, Tick};
     use std::rc::Rc;
 
     fn center(start_index: usize, end_index: usize, zd: i64, zg: i64) -> Center {
@@ -1701,6 +1834,45 @@ mod center_oscillation_wiring_tests {
 
     fn level_with_bsp(points: Vec<BspPoint>) -> LevelState {
         LevelState { bsp: Rc::new(points), ..LevelState::default() }
+    }
+
+    fn l0_move(
+        ordinal: u64,
+        direction: Direction,
+        start_index: usize,
+        end_index: usize,
+        lo: Tick,
+        hi: Tick,
+    ) -> LeveledMove {
+        LeveledMove::from_unit(
+            &UnitRange { start_index, end_index, direction, lo, hi },
+            ElementId { level: 0, ordinal },
+        )
+    }
+
+    fn bind_side(
+        book: &mut CenterOscillationBook,
+        center: Center,
+        side: VoiceSide,
+    ) {
+        let (signal_side, price) = match side {
+            VoiceSide::Long => (VoiceSide::Short, center.zg),
+            VoiceSide::Short => (VoiceSide::Long, center.zd),
+            VoiceSide::Flat => panic!("挂起只允许 Long/Short"),
+        };
+        let trigger = CenterOscillationTrigger::new(
+            book.level(),
+            Some(CenterId::of(&center)),
+            CenterDrift::NoDownShift,
+            signal_side,
+            price,
+            center.end_index,
+        )
+        .unwrap();
+        assert_eq!(
+            book.on_trigger_side_bound(side, trigger, center),
+            Some(CenterOscillationAction::Reduce)
+        );
     }
 
     fn third_class_buy_break(source_index: usize, owner: Center) -> BspPoint {
@@ -2061,6 +2233,309 @@ mod center_oscillation_wiring_tests {
         assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "清算后挂起离场");
     }
 
+    /// ★#487：目标已滑出主格/容读格，但精确挂起绑定授权其 Owner 三类点命中历史分支。
+    /// 同一事件只清算 c0；c1 挂起不连坐。买三对多头闭合、对空头核销，矩阵两路同时可见。
+    #[test]
+    fn gate_historical_bound_center_outside_tolerance_settles_exact_owner() {
+        let c0 = center(0, 10, 100, 200);
+        let c1 = center(20, 30, 300, 400);
+        let c2 = center(40, 50, 500, 600);
+        let empty_step = Classification { levels: vec![LevelState::default()] };
+        let mut cl_machines = Vec::new();
+        let mut osc_books = Vec::new();
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let mut historical_seen = std::collections::HashSet::new();
+
+        let first = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let _ = step_center_oscillation(
+            0,
+            &first,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+        bind_side(&mut osc_books[0], c0, VoiceSide::Long);
+        bind_side(&mut osc_books[0], c0, VoiceSide::Short);
+
+        let advanced =
+            Classification { levels: vec![level_with_centers(vec![c0, c1, c2])] };
+        let _ = step_center_oscillation(
+            1,
+            &advanced,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+        bind_side(&mut osc_books[0], c1, VoiceSide::Long);
+
+        let tower = vec![Rc::new(vec![
+            l0_move(0, Direction::Up, 10, 15, 190, 260),
+            l0_move(1, Direction::Down, 15, 20, 240, 280),
+        ])];
+        let out = step_center_oscillation_historical(
+            2,
+            &advanced,
+            &empty_step,
+            &tower,
+            &mut historical_seen,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+            false,
+        );
+
+        assert_eq!(out.actions.len(), 1, "买三只为多头产 cover_and_close");
+        assert_eq!(out.actions[0].center, CenterId::of(&c0));
+        assert_eq!(out.actions[0].side, VoiceSide::Long);
+        assert_eq!(out.actions[0].action, CenterOscillationAction::Replenish);
+        assert_eq!(out.write_offs.len(), 1, "同一买三对空头走 write_off_unclosed");
+        assert_eq!(out.write_offs[0].center, CenterId::of(&c0));
+        assert_eq!(out.write_offs[0].side, VoiceSide::Short);
+        assert!(!osc_books[0].is_suspended_side(VoiceSide::Long, CenterId::of(&c0)));
+        assert!(!osc_books[0].is_suspended_side(VoiceSide::Short, CenterId::of(&c0)));
+        assert!(
+            osc_books[0].is_suspended_side(VoiceSide::Long, CenterId::of(&c1)),
+            "同一三类事件不得连坐其它 Owner"
+        );
+        assert_eq!(cl_machines[0].historical_bound_kills(), 1);
+        assert_eq!(cl_machines[0].mis_kills(), 0);
+        assert_eq!(witness.historical_bound_by_level.get(&0), Some(&1));
+        assert_eq!(
+            witness.settlement_by_side.get(&(0, "long", "cover_and_close")),
+            Some(&1)
+        );
+        assert_eq!(
+            witness.settlement_by_side.get(&(0, "short", "write_off_unclosed")),
+            Some(&1)
+        );
+    }
+
+    /// ★#487 反例：同一个出窗 Owner 没有挂起授权时仍走原 Stale，绝不借 historical 分支放宽。
+    #[test]
+    fn gate_historical_owner_without_binding_remains_stale() {
+        let c0 = center(0, 10, 100, 200);
+        let c1 = center(20, 30, 300, 400);
+        let c2 = center(40, 50, 500, 600);
+        let empty_step = Classification { levels: vec![LevelState::default()] };
+        let mut cl_machines = Vec::new();
+        let mut osc_books = Vec::new();
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let first = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let _ = step_center_oscillation(
+            0,
+            &first,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+        let advanced =
+            Classification { levels: vec![level_with_centers(vec![c0, c1, c2])] };
+        let _ = step_center_oscillation(
+            1,
+            &advanced,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+        let point = Classification {
+            levels: vec![level_with_bsp(vec![third_class_buy_break(77, c0)])],
+        };
+        let out = step_center_oscillation(
+            2,
+            &advanced,
+            &point,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+
+        assert!(out.actions.is_empty());
+        assert!(out.write_offs.is_empty());
+        assert_eq!(cl_machines[0].stale_requests(), 1);
+        assert_eq!(cl_machines[0].historical_bound_kills(), 0);
+        assert_eq!(cl_machines[0].mis_kills(), 0);
+    }
+
+    /// ★#487 正例：旧框首次挂起时冻结。即使同身份中枢后来延伸了右边，仍以旧 `end_index`
+    /// 后紧邻的 leave/retest 配对，命中出窗绑定。
+    #[test]
+    fn gate_historical_frame_immediate_pair_reaches_bound_owner() {
+        let c0 = center(0, 10, 100, 200);
+        let c0_extended = Center { end_index: 30, ..c0 };
+        let c1 = center(40, 50, 300, 400);
+        let c2 = center(60, 70, 500, 600);
+        let empty_step = Classification { levels: vec![LevelState::default()] };
+        let mut cl_machines = Vec::new();
+        let mut osc_books = Vec::new();
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let mut historical_seen = std::collections::HashSet::new();
+
+        let first = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let _ = step_center_oscillation(
+            0,
+            &first,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+        bind_side(&mut osc_books[0], c0, VoiceSide::Long);
+        let advanced = Classification {
+            levels: vec![level_with_centers(vec![c0_extended, c1, c2])],
+        };
+        let tower = vec![Rc::new(vec![
+            // 同向续行本身还不是 leave/retest 对；第一组反向相邻对从 ordinal=1 开始。
+            l0_move(0, Direction::Up, 10, 12, 150, 190),
+            l0_move(1, Direction::Up, 12, 15, 190, 260),
+            l0_move(2, Direction::Down, 15, 20, 240, 280),
+        ])];
+
+        // 同一 source 另有既有“最近中枢”副本；四边旧框证通过后必须改写为唯一 c0 Owner，
+        // 不能先后破坏 c0 与当前 alive c2。
+        let regular_duplicate = Classification {
+            levels: vec![level_with_bsp(vec![third_class_buy_break(20, c2)])],
+        };
+        let out = step_center_oscillation_historical(
+            1,
+            &advanced,
+            &regular_duplicate,
+            &tower,
+            &mut historical_seen,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+            false,
+        );
+
+        assert_eq!(out.actions.len(), 1);
+        assert_eq!(out.actions[0].center, CenterId::of(&c0));
+        assert_eq!(out.actions[0].action, CenterOscillationAction::Replenish);
+        assert!(out.write_offs.is_empty());
+        assert_eq!(cl_machines[0].historical_bound_kills(), 1);
+        assert_eq!(cl_machines[0].mis_kills(), 0);
+        assert_eq!(witness.historical_bound_by_level.get(&0), Some(&1));
+        assert_eq!(
+            cl_machines[0].alive_center().map(|(c, _)| CenterId::of(&c)),
+            Some(CenterId::of(&c2)),
+            "同一事件的最近中枢副本被抑制，alive c2 不得连坐"
+        );
+    }
+
+    /// ★#487 反例：两个框虽有相同 ZD/ZG，后来框右边的穿越不能回头认领旧时间框。
+    #[test]
+    fn gate_same_band_later_frame_crossing_does_not_claim_old_frame() {
+        let c0 = center(0, 10, 100, 200);
+        let c1 = center(20, 30, 100, 200);
+        let c2 = center(40, 50, 500, 600);
+        let empty_step = Classification { levels: vec![LevelState::default()] };
+        let mut cl_machines = Vec::new();
+        let mut osc_books = Vec::new();
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let mut historical_seen = std::collections::HashSet::new();
+        let first = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let _ = step_center_oscillation(
+            0,
+            &first,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+        bind_side(&mut osc_books[0], c0, VoiceSide::Long);
+        let advanced =
+            Classification { levels: vec![level_with_centers(vec![c0, c1, c2])] };
+        let tower = vec![Rc::new(vec![
+            l0_move(0, Direction::Up, 10, 15, 150, 190),
+            l0_move(1, Direction::Down, 15, 20, 150, 190),
+            l0_move(2, Direction::Up, 30, 35, 190, 260),
+            l0_move(3, Direction::Down, 35, 40, 240, 280),
+        ])];
+        let late_price_band_crossing = Classification {
+            levels: vec![level_with_bsp(vec![third_class_buy_break(40, c0)])],
+        };
+
+        let out = step_center_oscillation_historical(
+            1,
+            &advanced,
+            &late_price_band_crossing,
+            &tower,
+            &mut historical_seen,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+            false,
+        );
+
+        assert!(out.actions.is_empty());
+        assert!(out.write_offs.is_empty());
+        assert!(osc_books[0].is_suspended(CenterId::of(&c0)));
+        assert_eq!(cl_machines[0].stale_requests(), 1, "配对失败的普通点仍走 Stale");
+        assert_eq!(cl_machines[0].historical_bound_kills(), 0);
+        assert_eq!(cl_machines[0].mis_kills(), 0);
+    }
+
+    /// ★#487 反例：旧框右边第一组 leave/retest 已失败后，不得滑到远期相邻对回填旧框。
+    #[test]
+    fn gate_remote_pair_after_failed_immediate_retest_does_not_refill_old_frame() {
+        let c0 = center(0, 10, 100, 200);
+        let c1 = center(30, 40, 300, 400);
+        let c2 = center(50, 60, 500, 600);
+        let empty_step = Classification { levels: vec![LevelState::default()] };
+        let mut cl_machines = Vec::new();
+        let mut osc_books = Vec::new();
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let mut historical_seen = std::collections::HashSet::new();
+        let first = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let _ = step_center_oscillation(
+            0,
+            &first,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+        bind_side(&mut osc_books[0], c0, VoiceSide::Long);
+        let advanced =
+            Classification { levels: vec![level_with_centers(vec![c0, c1, c2])] };
+        let tower = vec![Rc::new(vec![
+            l0_move(0, Direction::Up, 10, 15, 190, 260),
+            l0_move(1, Direction::Down, 15, 20, 150, 280),
+            l0_move(2, Direction::Up, 20, 25, 190, 260),
+            l0_move(3, Direction::Down, 25, 30, 240, 280),
+        ])];
+        let remote_point = Classification {
+            levels: vec![level_with_bsp(vec![third_class_buy_break(30, c0)])],
+        };
+
+        let out = step_center_oscillation_historical(
+            1,
+            &advanced,
+            &remote_point,
+            &tower,
+            &mut historical_seen,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+            false,
+        );
+
+        assert!(out.actions.is_empty());
+        assert!(out.write_offs.is_empty());
+        assert!(osc_books[0].is_suspended(CenterId::of(&c0)));
+        assert_eq!(cl_machines[0].stale_requests(), 1, "远期普通点不得借挂起绑定绕过 Stale");
+        assert_eq!(cl_machines[0].historical_bound_kills(), 0);
+        assert_eq!(cl_machines[0].mis_kills(), 0);
+    }
+
     /// 门控双轨（#292 项目二）：原测试用空 bars——`bars.is_empty()` 本身已让 `pan_div_hist=None`，
     /// 恒真无判别力（门控是否真生效根本没被触达）。改为非空 bars + 真实触发条件（本级中枢
     /// 在场 + 次级别已确认卖点，价格落中枢上半区）上的 `enabled=false`/`enabled=true` 对照：
@@ -2166,6 +2641,14 @@ where
     let mut registry = super::super::strategy::persistent::PersistentRegistry::new();
     // ★确认-bar 部署 seen-set（append-only "只增不改"；已部署买卖点身份键，stream.rs:162 同构）。
     let mut seen_bsps: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+    // ★#487：挂起候选三类证书按 (level, 精确 Owner, source, bits) 去重。Owner 必须入键：
+    // 同一 retest 对不同四边框的配对是不同归属证书，不能复用普通 BSP 不含 Owner 的 seen 键。
+    let mut seen_historical_bound_bsps: std::collections::HashSet<(
+        usize,
+        classifier::center_lifecycle::CenterId,
+        usize,
+        u8,
+    )> = std::collections::HashSet::new();
     // 延迟成交队列（spec:50：订单在 exec_index bar 成交，与 plan_and_fill_mtm 同语义）。
     let mut pending: Vec<Vec<Order>> = vec![Vec::new(); n];
     // 工位 K 性能：tree-prefix 缓存（§16 confirmed prefix immutable；跨 bar 复用 extract_elements）。
@@ -2713,25 +3196,17 @@ where
                 // ★#466 D0：事务快照只在 OPSEM_DUMP_DIR 已启用时抓取；未启用时仍走原
                 // 入口，不复制旧链/新链或挂起表。观测发生在 on_chain_rebase 改写挂起表之前，
                 // 落盘发生在本步决策完成之后，两者都不参与任何决策。
-                let osc_step = if opsem.is_some() {
-                    step_center_oscillation_observed(
-                        i,
-                        &classification_i,
-                        &classification_step,
-                        &mut cl_machines,
-                        &mut osc_books,
-                        &mut campaign_witness,
-                    )
-                } else {
-                    step_center_oscillation(
-                        i,
-                        &classification_i,
-                        &classification_step,
-                        &mut cl_machines,
-                        &mut osc_books,
-                        &mut campaign_witness,
-                    )
-                };
+                let osc_step = step_center_oscillation_historical(
+                    i,
+                    &classification_i,
+                    &classification_step,
+                    &tower_i,
+                    &mut seen_historical_bound_bsps,
+                    &mut cl_machines,
+                    &mut osc_books,
+                    &mut campaign_witness,
+                    opsem.is_some(),
+                );
                 if let Some(dump) = opsem.as_mut() {
                     for observation in &osc_step.rebase_observations {
                         dump.write_rebase_observation_fail_open(i, observation);

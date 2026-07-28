@@ -1433,6 +1433,7 @@ fn judge_segment(
 
     // 第三类：当前段作 retest，前一段作 leave。中枢归属 = **leave 段离开的最近中枢**（第18课
     // 「该中枢」），故用 leave 段 start_index 定位中枢，retest 相对**同一**中枢判一次。
+    // ★#487 不改这条既有最近归属路径；四边框时间配对只用于接线层额外给出的挂起历史候选。
     if i > 0 {
         let leave_seg = &sorted[i - 1];
         if let Some(c_leave_idx) = nearest_confirmed_center_idx(centers_sorted, leave_seg.start_index)
