@@ -69,7 +69,9 @@ provider 只产 1 个」，而是「当时只有 1 个候选，产的就是它�
   确实是二者共同的最近中枢，不代表 provider 在两个候选之间做了取舍。
 - **落选原因**：`own` 段（25582 起）在其自身活跃期 `[25582,25890]` 内**从未被 recompute 命中或未命中过**
   ——即整个活跃期内，全局 pending 段槽位从未指向它（可能因为它太短命，或该活跃期内 recompute 触发条件
-  未满足，与 #559 `no_recompute_in_span` 同源但未落入该桶，因为 `[25520,25582]` 那次命中落在
+  未满足，与 #559 `bootstrap_unavailable`/`retroactive_redivision_skipped`〔原统称
+  `no_recompute_in_span`，#579 研究拆分，`issue579-no-recompute-in-span-20260728.md` §1.6〕
+  同源但未落入该桶，因为 `[25520,25582]` 那次命中落在
   `[c_start,completed_at]` 窗口内被算作「本锚曾出现过窗」，实际那扇窗属于另一身份）。
 
 ### 1.4 as_of=32893（`located_other_center`）—— 类型 α，且「落选候选」本身走完了独立生命周期

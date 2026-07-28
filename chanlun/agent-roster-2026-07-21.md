@@ -31,3 +31,7 @@
 | [claude-sonnet]#579-重算触发口径研究 | kimi编排→claude sonnet | no_recompute_in_span 5 只逐只钉 + 反事实量化，落 issue579 报告 | 已交付（净增量=0：1 只塔未构造盲区、4 只回溯性多段重划；推荐不并触发+诊断标签改名 bootstrap_unavailable/retroactive_redivision_skipped，待编排者裁） |
 | [claude-sonnet]#580-一run一窗研究 | kimi编排→claude sonnet | located_other_* 6 只逐只钉 + 反事实量化，落 issue580 报告 | 已交付（0/6 可挽回：α=中枢确认时间差×3、β=前后段占 pending 槽×2、17447 双机制；推荐维持一 run 一窗+议桥接语义放宽；32893 疑点建议单开票，待编排者裁） |
 | [claude-sonnet]#578-夹具约定对齐 | kimi编排→claude sonnet（wayfinder frontier 取票） | 夹具坐标约定对齐生产共端点 + 守卫可测性二选一 | 已交付（bf37658101：对齐+联动 ~20 处、2030/1 唯一红 #491、五项 cmp=0；守卫收紧实测有洞 frontier 占 45% 非零变化→回退留钉，新发现转教义票） |
+| [kimi]#578/#579/#580-收口包 | kimi编排（编排者 2026-07-28 裁一包） | #580 关（维持一 run 一窗）、#578 关（夹具对齐+45% 发现）；新开 #591（32893 疑点）/#592（有洞 frontier 裁决输入）；#579 改名落地中 | 已落地 |
+| [claude-sonnet]#579-标签改名 | kimi编排→claude sonnet | no_recompute_in_span → bootstrap_unavailable/retroactive_redivision_skipped，零行为变化 | 已交付（照实核验：该标签自始至终未在 rust 源码/dump/统计面出现过，只存在于 review-results 三份报告 + roster 的分析文本中——是研究报告作者手工分类的残差桶名，非代码/dump 字段；仓内 grep + `/tmp/wt527fix-post-100k.dump` grep 双证零命中。故本票为纯文档改名：issue527 归因表拆分 5→1(`bootstrap_unavailable`)+4(`retroactive_redivision_skipped`)并加改名对照注、issue580 同源引用同步、roster 本行更新；rust/src 零改动，cargo test/cmp 门槛因此零风险平凡满足） |
+| [claude-sonnet]#591-32893疑点 | kimi编排→claude sonnet | 完成检测 vs 活窗两路径中枢查询口径对照+32893 现场+影响面，落 issue32893 报告 | 派发中 |
+| [claude-sonnet]#592-有洞frontier研究 | kimi编排→claude sonnet | 45% 分布量化+语义分类+分档影响+推荐（不替裁），落 issue592 报告 | 派发中 |

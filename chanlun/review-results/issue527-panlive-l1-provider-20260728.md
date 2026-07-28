@@ -305,14 +305,20 @@ prefix 完全不产窗，才是「该假设的结构前提被后续演化推翻�
 | B. L1 无 Live — `no_active_frontier` | 1 | **0**（该归因被推翻，见下） |
 | B. L1 无 Live — `located_other_c`（**同锚**上定位到别的 C） | — | **2** |
 | B. L1 无 Live — `located_other_center`（活跃期内只在别的锚上产窗） | — | **4** |
-| B. L1 无 Live — `no_recompute_in_span`（活跃期内结构分量未变 ⟹ 未重算 ⟹ 从未被扫描） | — | **5** |
+| B. L1 无 Live — `bootstrap_unavailable`（L1 塔尚未构造完成，归因时点扫描循环体为空） | — | **1** |
+| B. L1 无 Live — `retroactive_redivision_skipped`（目标 C 是回溯性多段重划产物，从未作为独立 pending frontier 存在） | — | **4** |
 | 区间内无任何原因码行 | 0（旧窗口径下） | **0**（影子评审按新窗算得 11，现全部落码） |
 | C. L2/L3 无 active lower-frontier | 46（38/8） | **46**（38/8，票面 Scope 外，不变） |
 
-小计：156 + (8+21+6+0+2+4+5 = 46) + 46 = **248** ✓。影子评审用新窗独立算出的
+小计：156 + (8+21+6+0+2+4+1+4 = 46) + 46 = **248** ✓。影子评审用新窗独立算出的
 `structure_not_locatable=29`（= 8+21）、`center_not_consolidation=6`、`no_active_frontier=0`
 逐值复现；其点名的 11 只现分解为 `located_other_c` 2 + `located_other_center` 4 +
-`no_recompute_in_span` 5。
+`bootstrap_unavailable` 1 + `retroactive_redivision_skipped` 4（原统称 `no_recompute_in_span` 5，
+#579 研究〔`chanlun/review-results/issue579-no-recompute-in-span-20260728.md` §1.6〕逐只钉因后
+按机制拆分：`as_of=1693` 为模式 A→`bootstrap_unavailable`；`as_of=33862/64500/86879/94693`
+四只为模式 B→`retroactive_redivision_skipped`；本改名为纯标签订正，不改触发口径、不改产窗
+行为、不改 46 只总数——旧名 `no_recompute_in_span` 暗示「触发口径不够宽」，#579 §2 已用生产代码
+自身的 purity 声明证伪这一暗示，故订正为符实的两个机制名）。
 
 **`as_of=94693` 的反向归因已修掉**：原报告归为 `no_active_frontier`（「C 活跃期 parser 无
 PendingSegment」），而实测该身份的 C 活跃期是 `[94447, 94510]`，区间内 **recompute 数 = 0**
@@ -481,10 +487,15 @@ P-H3 复用率不动：pre/post 均 `provider_requests=2099 provider_reevals=87 
 1. **合成夹具坐标约定与生产不一致**：`pan_real_fixture` 的段用「段间 +1 不共端点」
    （(50,59)/(60,69)/…），生产段共享端点。后果：任何以段衔接为前提的守卫/断言都无法用该
    夹具验证（本轮衔接守卫回退的直接原因，§9.3）。属测试基础设施债，不在 #527/#559 Scope。
-2. **`no_recompute_in_span` 5 只是否可修**：活窗重算触发口径为
-   「`forest_epoch` 变 ∨ active frontier 值变」；这 5 只的 C 活跃期内两者都没变，故从未被
-   扫描。是否应把「C 段候选集变化」也并入触发条件，属 provider 触发口径设计问题，本票不替裁
-   （与 §7 遗留 4「L1 缺口可修性」同源）。
+2. **`bootstrap_unavailable`/`retroactive_redivision_skipped`（原 `no_recompute_in_span`）5 只
+   是否可修**：活窗重算触发口径为「`forest_epoch` 变 ∨ active frontier 值变」；这 5 只的 C
+   活跃期内两者都没变，故从未被扫描。#579 研究〔`issue579-no-recompute-in-span-20260728.md`〕
+   已钉因：1 只（`as_of=1693`）是 L1 塔 bootstrap 盲区，4 只（`as_of=33862/64500/86879/94693`）
+   是回溯性多段重划、目标 C 从未作为独立候选存在过，把「C 段候选集变化」并入触发条件对这 5 只
+   净增量为 0（#579 §2，代码 purity 声明证伪）；模式 B 的唯一解法（把已确认段纳入候选 C 扫描）
+   与 R43/#523/#527 的教义边界冲突，不是触发口径调宽能解决的。是否值得为模式 A 单独补冷启动
+   路径、是否放开模式 B 教义边界，属 provider 设计/教义问题，本票不替裁（与 §7 遗留 4「L1 缺口
+   可修性」同源，2026-07-28 编排者已裁定：不并触发，诊断标签改名照此落地）。
 3. **`located_other_c` / `located_other_center` 6 只**：provider 每个 run 每次重算最多产
    1 个窗（`outcome.window()` 是 `Option`），同锚上并存多个候选 C 时只有一个能出生。
    是否应产出全部候选，属 provider 产窗基数设计问题，本票不替裁。
