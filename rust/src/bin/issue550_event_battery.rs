@@ -27,19 +27,23 @@ struct RawBars {
     dates: Vec<String>,
 }
 
-fn timestamp(date: &str) -> i64 {
-    date.chars()
+/// 从日期串提取前 14 位数字作为时间戳。解析失败是输入损坏，不是可默认化的情况——
+/// 一律返回 `Err` 并带上原始 date 串，绝不用哨兵值（如 0）冒充有效时间戳。
+fn timestamp(date: &str) -> Result<i64, String> {
+    let digits: String = date
+        .chars()
         .take_while(|c| *c != '+')
         .filter(char::is_ascii_digit)
         .take(14)
-        .collect::<String>()
+        .collect();
+    digits
         .parse()
-        .unwrap_or(0)
+        .map_err(|error| format!("日期 {date:?} 解析时间戳失败（提取数字串 {digits:?}）: {error}"))
 }
 
 fn load(path: &Path, tick_size: f64, limit: usize) -> Result<Vec<Bar>, String> {
     let raw = load_raw(path)?;
-    Ok(raw_to_bars(raw, tick_size, limit))
+    raw_to_bars(raw, tick_size, limit)
 }
 
 fn load_raw(path: &Path) -> Result<RawBars, String> {
@@ -51,7 +55,7 @@ fn load_raw(path: &Path) -> Result<RawBars, String> {
     serde_json::from_str(&text).map_err(|error| format!("解析 {} 失败: {error}", path.display()))
 }
 
-fn raw_to_bars(raw: RawBars, tick_size: f64, limit: usize) -> Vec<Bar> {
+fn raw_to_bars(raw: RawBars, tick_size: f64, limit: usize) -> Result<Vec<Bar>, String> {
     let n = raw
         .closes
         .len()
@@ -63,12 +67,12 @@ fn raw_to_bars(raw: RawBars, tick_size: f64, limit: usize) -> Vec<Bar> {
     let mut bars = Vec::with_capacity(n);
     for i in 0..n {
         let prior = bars.last().map_or(0, |bar: &Bar| bar.close);
-        bars.push(raw_bar(&raw, i, prior, tick_size));
+        bars.push(raw_bar(&raw, i, prior, tick_size)?);
     }
-    bars
+    Ok(bars)
 }
 
-fn raw_bar(raw: &RawBars, i: usize, prior: i64, tick_size: f64) -> Bar {
+fn raw_bar(raw: &RawBars, i: usize, prior: i64, tick_size: f64) -> Result<Bar, String> {
     let volume = raw.volumes.get(i).and_then(|value| *value).unwrap_or(0.0);
     let values = match (raw.opens[i], raw.highs[i], raw.lows[i], raw.closes[i]) {
         (Some(open), Some(high), Some(low), Some(close)) => {
@@ -85,16 +89,16 @@ fn raw_bar(raw: &RawBars, i: usize, prior: i64, tick_size: f64) -> Bar {
         }
         _ => (prior, prior, prior, prior, true),
     };
-    Bar {
+    Ok(Bar {
         source_index: i,
-        timestamp: timestamp(&raw.dates[i]),
+        timestamp: timestamp(&raw.dates[i])?,
         open: values.0,
         high: values.1,
         low: values.2,
         close: values.3,
         volume: volume as i64,
         untradable: values.4 || volume <= 0.0,
-    }
+    })
 }
 
 fn run() -> Result<(), String> {
