@@ -109,7 +109,7 @@
 //!   `.chanlun/review-results/center-event-machine-r3-chain-consumption-20260726.md`）。
 //! - ★**段序列口径全部作废**（#336 R3）：模块旧「段计数口径」整节（`born_seg_ordinal` 分母、
 //!   「三类破坏不清段序列」旧口径、其 #331 R0′ 修正口径「已消费段不再参与新中枢计数」、
-//!   一类同死清零段序列、`Reset::cleared_segments`）随段序列本身删除而作废。出生序号口径
+//!   一类点触发旧清场并清零段序列、`Reset::cleared_segments`）随段序列本身删除而作废。出生序号口径
 //!   改为 **链下标**（`chain_index` = 该实例在 `levels[level].centers` 中的 0-based 下标）。
 //! - ★**#331 R8（塔层索引对齐）退役**（口径吸收）：R8 修的是「事件机吃第几层塔单元」——R3 下
 //!   本机**不再投影任何塔单元**（`project_to_units_resume` / `confirmed_lens` 水线 / `blocks`
@@ -825,8 +825,8 @@ impl CenterEventMachine {
         self.superseded_total
     }
 
-    /// ★#337：落在**容读格**（链尾前一格）的死亡放行累计。放行总数 = (broken+reset 中 died 非空)，
-    /// 其中本计数落在容读格、其余落在链尾 ⟹ 放行的两格分桶读数。
+    /// ★#337/#489：`Broken` 落在**容读格**（链尾前一格）的死亡放行累计；
+    /// 其余 `Broken` 落在链尾。Reset 只广播并见证当下主格，不消费本计数。
     pub fn tolerated_kills(&self) -> usize {
         self.tolerated_total
     }

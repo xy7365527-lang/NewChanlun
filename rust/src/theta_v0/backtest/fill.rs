@@ -912,6 +912,9 @@ fn step_center_oscillation_impl(
                 for ev in events.iter() {
                     witness.record_reset_alive_center_leak(ev);
                     let ev_out = osc_books[lvl].on_lifecycle_event(ev);
+                    // 当前事件域下 Advanced 只产 Born/Superseded，Reset 只经点产出路径到达；
+                    // 此处保留为穷尽性防御，与下方 continuations 穷尽分支同例。
+                    witness.record_reset_termination_outcome(ev, &ev_out);
                     // ★#414：延续（`Superseded` 命中挂起 ⟹ 不终结、不清算）——只落观测。
                     for cont in ev_out.continuations.iter() {
                         witness.record_suspension_continued(lvl as u32, cont.side);
@@ -1081,6 +1084,7 @@ fn step_center_oscillation_impl(
             if let Ok(PointOutcome::Event(ev)) = point_outcome {
                 witness.record_reset_alive_center_leak(&ev);
                 let ev_out = osc_books[lvl].on_lifecycle_event(&ev);
+                witness.record_reset_termination_outcome(&ev, &ev_out);
                 // ★#414：本路径的 `Superseded` 不由买卖点驱动（`push_point` 只产 Broken/Reset），
                 // 故延续在此恒空——留着是穷尽性，不靠「产不出」的隐含前提（同下方核销分支惯例）。
                 for cont in ev_out.continuations.iter() {
@@ -2206,7 +2210,8 @@ mod center_oscillation_wiring_tests {
             Some(&1),
             "漏发警报按 Reset 级别与买卖侧分桶"
         );
-        assert_eq!(witness.reset_settlement_count(), 0, "Reset 清算条数恒为 0");
+        // 0 的原因是本次真实 Reset 消费输出为空，不是类型上不可能出现非零。
+        assert_eq!(witness.reset_settlement_count(), 0, "Reset 实测消费输出为空");
         assert!(witness.center_mis_kill_by_level.is_empty(), "Reset 广播不进入 MisKill");
 
         let broken_step = Classification {

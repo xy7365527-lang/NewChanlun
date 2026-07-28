@@ -796,8 +796,9 @@ impl OpsemDump {
     //     `{si,zd,zg,dd,gg,ei,chain_idx,by_chain_idx,death_form:"arena_termination"}`。
     //     理由 = 裁定②把「取代」升为**在场终结**（死亡登记形态之一），#292 要按**实例**终结
     //     挂起短差，聚合 count 不带身份，接不上。
-    //  2. `broken`/`reset` 增 `death_form`（`doctrinal`）与 `slot`（`tail` / `tail_prev` =
-    //     放行落在链尾主格还是容读格）。died 为空的 `reset` 二者写 null（没死人，不编造）。
+    //  2. `broken` 增 `death_form:"doctrinal"` 与 `slot`（`tail` / `tail_prev`，定位死亡
+    //     放行格）。`reset` 的 `death_form` 恒 null；兼容字段 `died_*` 非空只表示广播到场
+    //     时仍有活中枢，`slot` 仅定位漏发见证，场空时二者写 null。
     //  3. `chain_sync` 增身份字段 `tail_si/zd/zg`、`prev_si/zd/zg` 与 `revived` 布尔
     //     （评审 MAJOR-B：采纳/重基把「场」落到谁身上此前无产物级证据）。
     //  轨迹产物 `trades.jsonl`/`tower_events.jsonl` **不受影响**（本旁路只读，逐字节不变已实证）。
@@ -1083,6 +1084,9 @@ impl OpsemDump {
                     Some(idx) => ("true", format!("\"{}\"", slot_str(*level, *idx))),
                     None => ("false", "null".to_string()),
                 };
+                // `alive_center_leak` 是 additive-only schema 扩展；仓内无严格 schema 或
+                // `additionalProperties:false` 消费者。金标准锚 trades/tower_events 不含
+                // lifecycle 流，故本字段不进入金标准对照面。
                 format!(
                     "{{\"bar\":{bar},\"level\":{level},\"kind\":\"reset\",\"death_form\":null,\"alive_center_leak\":{leak},\"slot\":{slot},\"died_zd\":{dzd},\"died_zg\":{dzg},\"died_dd\":{ddd},\"died_gg\":{dgg},\"died_si\":{dsi},\"died_ei\":{dei},\"died_chain_idx\":{didx},\"trigger_src\":{src},\"trigger_side\":\"{side}\"}}\n",
                     bar = bar, level = level, leak = leak, slot = slot,

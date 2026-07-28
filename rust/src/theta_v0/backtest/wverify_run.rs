@@ -1683,19 +1683,22 @@ fn flip_guard_wf8_onebar_prune_replay() {
 /// `chain_sync`（adopt/rebase）/ `superseded`（链推进取代）/ `stale`（陈旧死亡请求）。
 ///
 /// ★**#337 口径再修**（容读法 + 两形态分桶，用户裁定 2026-07-26）：
-/// - Δidx=−1（被取代的旧中枢，其死亡通知晚一格到）已改判**合法放行**，落进 `broken`/`reset`
-///   且带 `slot:"tail_prev"`。**可机检锚**：产物里若还剩 Δidx=−1 的 `stale`，它**只可能**是
+/// - Δidx=−1（被取代的旧中枢，其死亡通知晚一格到）对 `broken` 已改判**合法放行**，
+///   带 `slot:"tail_prev"`；Reset 不消费容读格，只广播并见证当下主格。**可机检锚**：
+///   产物里若还剩 Δidx=−1 的 `stale`，它**只可能**是
 ///   「该身份此前已收过教义死亡」的二次死亡请求（容读格一次性）——测试逐行累积教义死亡身份集
 ///   并对每条 Δidx=−1 的 stale 反查；查不到即容读判据没接上（真回归）。
-/// - 每条登记了中枢下场的行带 `death_form`（`doctrinal` = 三类破坏/一类同死；
-///   `arena_termination` = 被链推进取代）⟹ 两形态分桶可直接从产物统计。
+/// - 每条登记了中枢下场的行带 `death_form`（`doctrinal` = 三类破坏；
+///   `arena_termination` = 被链推进取代）；Reset 的 `death_form` 恒 null，非空 `died_*`
+///   只承载活中枢漏发见证。
 /// - `superseded` 由「每 bar 每级一行带 count」改为**逐实例事件行**（带身份 + `chain_idx` +
 ///   `by_chain_idx`）；`chain_sync` 行补 `tail_*`/`prev_*` 身份与 `revived` 复活标志。
 ///
 /// 断言（结构性不变量 + 计数合理性，均不涉轨迹数值——轨迹不变由对拍臂证）：
 /// - 每 born：`zd ≤ zg`（核心非空 = 中枢成立判据，机检不变量）+ 含 `chain_idx`；
 /// - 每 broken：`zd ≤ zg` + 含 `chain_idx` + `death_form=="doctrinal"` + `slot ∈ {tail,tail_prev}`；
-/// - 每 reset：died 非 null 时 `died_zd ≤ died_zg` 且带 doctrinal/slot，died 为 null 时二者皆 null；
+/// - 每 reset：`death_form==null`；`died_*` 非 null 时
+///   `alive_center_leak==true ∧ died_zd ≤ died_zg` 且 `slot` 只定位见证，场空时三者皆空/false；
 /// - 每 superseded：`death_form=="arena_termination"` ∧ `by_chain_idx == chain_idx + 1`；
 /// - 每 stale：`target_idx < alive_idx`，且 Δidx=−1 者须已在此前收过教义死亡（★#337 锚）；
 /// - 计数：`born ≥ 1`（L0 必现）∧ 逐级 `broken ≤ born`（破坏必先有出生）；

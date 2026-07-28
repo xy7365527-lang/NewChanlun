@@ -53,7 +53,8 @@ use super::super::classifier::center_lifecycle::{CenterId, CenterLifecycleEvent}
 use super::super::closed_loop::state::RiskMode;
 use super::super::closed_loop::transition::{cash_sound_gate, stage_progression, TransitionError};
 use super::center_oscillation_trade::{
-    CenterOscillationAction, SuspensionTerminationSource, TerminationSettlement, TriggerError,
+    CenterOscillationAction, SuspensionEventOutcome, SuspensionTerminationSource,
+    TerminationSettlement, TriggerError,
 };
 use super::ledger::{tw_step, LedgerComp, RiskPolicy, TwEvent, TwState};
 use super::short_diff_bucket::{CoreCostBasisSnapshot, ShortDiffAccount, ShortDiffViolation};
@@ -992,6 +993,9 @@ pub struct CampaignWiringWitness {
     /// 逐条的 CenterId 与 bar 仍由 `CenterLifecycleEvent::Reset` 及 opsem 事件行承载；本桶只做
     /// wf8 可汇总计数。`died_center=None` 的场空 Reset 是合法广播，不计警报。
     pub reset_alive_center_leak_by_level_side: BTreeMap<(u32, &'static str), usize>,
+    /// ★#489 修复车：Reset 事件收到任何非空生命周期消费输出的次数。按事件计数；终结、
+    /// 核销、回补或延续任一路非空都击中，作为 Reset 广播意外产生清算副作用的活回归门。
+    reset_nonempty_lifecycle_outcome_count: usize,
     /// ★★#414（ADR 补充十一）：挂起**延续**计数（分侧）——`Superseded` 命中挂起、挂起不终结
     /// 也不清算的次数。正面读数，非警报；它与真实清算桶（`suspension_by_source` 的两个
     /// `broken_by_third_class_*` + `settlement_by_side`）的差额即「延续了但没等到三类点」的
@@ -1316,13 +1320,22 @@ impl CampaignWiringWitness {
         *self.reset_alive_center_leak_by_level_side.entry((*level, side)).or_insert(0) += 1;
     }
 
-    /// ★#489 wf8 验收读数：生产来源表中由 Reset 触发的清算条数。
+    /// ★#489 修复车：Reset 的实际生命周期消费输出只要有一路非空，就按事件记一次。
+    pub fn record_reset_termination_outcome(
+        &mut self,
+        event: &CenterLifecycleEvent,
+        outcome: &SuspensionEventOutcome,
+    ) {
+        if matches!(event, CenterLifecycleEvent::Reset { .. })
+            && (!outcome.terminations.is_empty() || !outcome.continuations.is_empty())
+        {
+            self.reset_nonempty_lifecycle_outcome_count += 1;
+        }
+    }
+
+    /// ★#489 wf8 验收读数：Reset 实际产生任何终结/核销/回补/延续输出的事件数。
     pub fn reset_settlement_count(&self) -> usize {
-        self.suspension_by_source
-            .iter()
-            .filter(|((_, _, source), _)| *source == "reset")
-            .map(|(_, count)| *count)
-            .sum()
+        self.reset_nonempty_lifecycle_outcome_count
     }
 
     /// ★#489 wf8 验收读数：两类 Broken 清算按级别汇总；工程重基失踪不混入。
@@ -1774,6 +1787,38 @@ mod tests {
         assert_eq!(w.trigger_attempts, 5, "丢弃率分母=全部尝试次数");
         assert_eq!(w.dropped_center_not_alive, 2, "CenterNotAlive 单独分桶（丢弃率分子）");
         assert_eq!(w.dropped_other_trigger, 2, "FlatSignal/PriceOutsideZone 合桶（非 CenterNotAlive 关注点）");
+    }
+
+    #[test]
+    fn reset_nonempty_termination_outcome_trips_live_regression_gate() {
+        use super::super::center_oscillation_trade::SuspensionOutcome;
+
+        let reset = CenterLifecycleEvent::Reset {
+            level: 0,
+            died_center: None,
+            died_chain_index: None,
+            trigger_source_index: 500,
+            trigger_side: Side::Long,
+        };
+        let ev_out = SuspensionEventOutcome {
+            terminations: vec![SuspensionOutcome {
+                center: cid(0),
+                source: SuspensionTerminationSource::RebaseVanished,
+                cover_action: None,
+                side: VoiceSide::Long,
+                settlement: TerminationSettlement::WriteOffUnclosed,
+            }],
+            continuations: Vec::new(),
+        };
+        let mut w = CampaignWiringWitness::new();
+
+        w.record_reset_termination_outcome(&reset, &ev_out);
+
+        assert_eq!(
+            w.reset_settlement_count(),
+            1,
+            "合成非空终结输出必须击中活门，不能退化成类型上永远为 0 的死读数"
+        );
     }
 
     #[test]
