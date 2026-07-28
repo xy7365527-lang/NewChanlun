@@ -114,16 +114,6 @@ pub fn exit_decision_for_nested(
 }
 
 
-/// v0 反向证书基例（对照读出角色，#76 起判定不消费）：对反向开仓决策自身方向
-/// δ′ = `voice_side(root_side, depth)` 读证书基例 Conf^{δ′}_e（复用
-/// [`super::interp::nest_confirm`]，不 fork 第二套证书判据；单级末端 Conf，
-/// Flat ⟹ false）。#76 后 runner 侧仅双读落账 NEST_GATE_EXIT cross 对照差，
-/// 不进判定、禁作 fallback。
-pub fn reverse_nest_cert_base(d: &VoiceDecision) -> bool {
-    let dir = voice_side(d.root_side, d.depth);
-    super::interp::nest_confirm(d.level, d.signal_index, &d.bsp, dir)
-}
-
 /// 退出判定共享实现（§9 closePred 四析取）。
 fn exit_decision_impl(
     hv: &HeldVoice,

@@ -543,7 +543,7 @@ fn min_class(bits: &BspBits, dir: VoiceSide) -> u8 {
 /// 故此处只产**证书基例**（单级末端 Conf）。Flat 方向 ⟹ false（无方向无确认）。
 ///
 /// **出场复用**（nest-exit-gate-impl-20260719，唯一签名改动 `fn` → `pub(crate)`）：
-/// [`super::exit::reverse_nest_cert_base`] 经此谓词对反向候选读同一证书基例——进出场
+/// 出场门（v1/dual，已随 #499 退役）曾经此谓词对反向候选读同一证书基例——进出场
 /// **同一台机器**（`nest::chi_bool`）、同一谓词（N^δ base case Conf^δ_e）、方向镜像。
 pub(crate) fn nest_confirm(level: u32, source_index: usize, bits: &BspBits, dir: VoiceSide) -> bool {
     let confirm_ok = match dir {
