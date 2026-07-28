@@ -12,66 +12,75 @@
         "dump_dir": "/tmp/446_armR_dump",
         "regen_command": "cd rust && for tag in p3fold wf7 wf8; do M8_WIN_FILTER=$tag VOICE_EXEC=1 THETA_NEST_CERT_GATE=1 M8_REPORT_PATH=/tmp/446_armR_report_$tag.md OPSEM_DUMP_DIR=/tmp/446_armR_dump/$tag cargo test --release --lib theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos -- --ignored --nocapture; done",
         "check_command": "python3 scripts/check_armR_trades_digest.py --dump-dir /tmp/446_armR_dump"
+      },
+      {
+        "source_base_head": "5505eaaed2a31cb128ca5b27616e15cf92ad8bc9",
+        "final_verification_head": "5505eaaed2a31cb128ca5b27616e15cf92ad8bc9",
+        "source_worktree": "dirty（git status --short: 17 paths）",
+        "run_date": "2026-07-28",
+        "dump_dir": "/tmp/m8_win_gate",
+        "regen_command": "python3 scripts/check_armR_trades_digest.py --dump-dir /tmp/m8_win_gate --regen",
+        "check_command": "python3 scripts/check_armR_trades_digest.py --dump-dir /tmp/m8_win_gate"
       }
     ]
   },
   "windows": {
     "p3fold": {
-      "digest_fnv1a64": "0xac5952cfcd8b8746",
-      "bytes": 195220,
-      "n_trades": 141,
+      "digest_fnv1a64": "0xd77d78c75a3a46f0",
+      "bytes": 201115,
+      "n_trades": 145,
       "per_dir_n": {
-        "Long": 72,
-        "Short": 69
+        "Long": 73,
+        "Short": 72
       },
       "per_dir_pnl": {
-        "Long": "4547.720000000023",
-        "Short": "-11904.309999999998"
+        "Long": "4607.900000000023",
+        "Short": "-12215.59"
       },
       "nest_depth_hist": {
         "0": 1,
-        "1": 58,
-        "2": 42,
-        "3": 36,
+        "1": 60,
+        "2": 43,
+        "3": 37,
         "4": 4
       }
     },
     "wf7": {
-      "digest_fnv1a64": "0x981a0560b8db0b40",
-      "bytes": 253658,
-      "n_trades": 184,
+      "digest_fnv1a64": "0xf43066af2b0b11d8",
+      "bytes": 262476,
+      "n_trades": 189,
       "per_dir_n": {
-        "Long": 99,
-        "Short": 85
+        "Long": 100,
+        "Short": 89
       },
       "per_dir_pnl": {
-        "Long": "-1477.3799999999974",
-        "Short": "-11542.530000000017"
+        "Long": "-1417.199999999997",
+        "Short": "-11740.340000000022"
       },
       "nest_depth_hist": {
         "0": 13,
-        "1": 75,
-        "2": 52,
-        "3": 30,
+        "1": 78,
+        "2": 53,
+        "3": 31,
         "4": 14
       }
     },
     "wf8": {
-      "digest_fnv1a64": "0x18291f8ba8f1d40f",
-      "bytes": 216129,
-      "n_trades": 159,
+      "digest_fnv1a64": "0x9c6a202dbea2de77",
+      "bytes": 221626,
+      "n_trades": 160,
       "per_dir_n": {
         "Long": 87,
-        "Short": 72
+        "Short": 73
       },
       "per_dir_pnl": {
         "Long": "23583.740000000023",
-        "Short": "-6312.109999999961"
+        "Short": "-6302.169999999958"
       },
       "nest_depth_hist": {
         "0": 15,
         "1": 54,
-        "2": 54,
+        "2": 55,
         "3": 26,
         "4": 10
       }
