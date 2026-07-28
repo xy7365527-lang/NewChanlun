@@ -1228,4 +1228,108 @@ mod tests {
         assert_eq!(probe.invalidated_absent, 2);
         assert_eq!(probe.terminal_block, 1);
     }
+
+    /// growth_revision 的**生产路径**夹具：在 `deferred_envelope_break_scan` 之后再接同 episode
+    /// 的一对段（反向段端点 88 < zd=100 ⟹ 未回中枢核心 ⟹ 不开新 episode，λ_C 仍为 9），
+    /// 使同一 key 在两次扫描下都判 `Provisional` 而 I(C) 右端由 15 生长到 19。
+    fn extended_episode_scan() -> (
+        [Center; 2],
+        Vec<Segment>,
+        Vec<Option<Direction>>,
+        Vec<usize>,
+    ) {
+        let (centers, mut segments, _, _) = deferred_envelope_break_scan();
+        segments.push(segment(Direction::Up, 15, 17, 85, 88));
+        segments.push(segment(Direction::Down, 17, 19, 88, 80));
+        let anchors = segments
+            .iter()
+            .map(|segment| Some(segment.direction))
+            .collect();
+        (centers, segments, anchors, (0..20).collect())
+    }
+
+    #[test]
+    fn growth_revision_counts_same_state_right_end_extension() {
+        // ★#551 growth_revision 非零锁（此前全仓只有 assert_eq!(.., 0)，方向与「已覆盖」相反）。
+        // 走生产扫描：同一 key 连续两次观察状态不变（Provisional→Provisional）而 I(C) 右端生长
+        // ⟹ 落在 on_append 的「状态不变 ∧ 右端增长」分支，不是状态转移分支、也不是载荷修订分支。
+        event_probe::reset();
+        let (centers, segments, anchors, close_src) = extended_episode_scan();
+        let early = scan_observations(&centers, &segments[..5], &anchors[..5], &close_src);
+        let late = scan_observations(&centers, &segments, &anchors, &close_src);
+        assert_eq!(early.len(), 1);
+        assert_eq!(late.len(), 1);
+        assert_eq!(early[0].key, late[0].key, "右端不入键 ⟹ 同一候选身份");
+        assert_eq!(early[0].state, CandidateState::Provisional);
+        assert_eq!(late[0].state, CandidateState::Provisional);
+        assert_eq!(early[0].interval, (9, 15));
+        assert_eq!(late[0].interval, (9, 19), "同 episode 续腿 ⟹ I(C) 右端生长");
+
+        let mut book = CandidateEventBook::default();
+        assert_eq!(book.advance(&early, 15).len(), 1);
+        assert_eq!(book.advance(&late, 19).len(), 1);
+        let probe = event_probe::snapshot();
+        assert!(probe.growth_revision > 0, "生长修订分支必须真被触发");
+        assert_eq!(probe.growth_revision, 1);
+        assert_eq!(probe.birth_provisional, 1, "首条 revision 是出生，不是生长");
+        assert_eq!(probe.payload_revision, 0, "右端生长不得记入载荷修订");
+        assert_eq!(probe.to_provisional, 0, "状态不变 ⟹ 不计状态转移");
+    }
+
+    #[test]
+    fn invalidated_shrink_counts_the_stale_geometry_path() {
+        // ★#551 invalidated_shrink 非零锁（此前全仓只有 assert_eq!(.., 0)）。
+        // 触发条件是事件簿契约层的「同 key 新观察右端 < 在案右端」（陈旧几何 ⟹ 判 Invalidated），
+        // 与缺席失效是两条独立路径，必须分别可见：本测同时钉死 absent 计数为零，防两路混记。
+        event_probe::reset();
+        let mut book = CandidateEventBook::default();
+        let first = observation((30, 40), CandidateState::Provisional);
+        assert_eq!(book.advance(std::slice::from_ref(&first), 40).len(), 1);
+        let shrunk = observation((30, 35), CandidateState::Provisional);
+        let delta = book.advance(&[shrunk], 41);
+        assert_eq!(delta.len(), 1);
+        assert_eq!(delta[0].state, CandidateState::Invalidated);
+        assert_eq!(delta[0].invalidated_at, Some(41));
+        let probe = event_probe::snapshot();
+        assert!(probe.invalidated_shrink > 0, "回缩失效分支必须真被触发");
+        assert_eq!(probe.invalidated_shrink, 1);
+        assert_eq!(probe.invalidated_absent, 0, "回缩失效不得记到缺席路径");
+    }
+
+    #[test]
+    fn birth_confirmed_counts_pan_domain_first_revision() {
+        // ★#551 birth_confirmed 非零锁（此前全仓零读取零断言）。走生产投影 `pan_observations_for_level`：
+        // Pan 域证书恒投影为 Confirmed 观察 ⟹ 一入簿即 ∅→Confirmed（出生边，非状态转移边）。
+        event_probe::reset();
+        let cert = signal::PanDivCert {
+            source_index: 15,
+            side: Side::Long,
+            center: center(100, 200, 8),
+            seg_a: (3, 5),
+            seg_c: (9, 15),
+        };
+        let observations = pan_observations_for_level(0, std::slice::from_ref(&cert));
+        assert_eq!(observations.len(), 1);
+        assert_eq!(observations[0].state, CandidateState::Confirmed);
+
+        let mut book = CandidateEventBook::default();
+        let delta = book.advance(&observations, 42);
+        assert_eq!(delta.len(), 1);
+        assert_eq!(delta[0].revision, 0, "首条 revision ⟹ 出生边");
+        assert_eq!(delta[0].supersedes_revision, None);
+        assert_eq!(delta[0].state, CandidateState::Confirmed);
+        assert_eq!(delta[0].confirmed_at, Some(42));
+        let probe = event_probe::snapshot();
+        assert!(
+            probe.birth_confirmed > 0,
+            "∅→Confirmed 出生分支必须真被触发"
+        );
+        assert_eq!(probe.birth_confirmed, 1);
+        assert_eq!(probe.birth_provisional, 0);
+        assert_eq!(probe.birth_unresolved, 0);
+        assert_eq!(
+            probe.to_confirmed, 0,
+            "∅→Confirmed 是出生边，不计入状态转移"
+        );
+    }
 }
