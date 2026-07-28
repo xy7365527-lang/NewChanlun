@@ -2734,7 +2734,7 @@ where
                 };
                 if let Some(dump) = opsem.as_mut() {
                     for observation in &osc_step.rebase_observations {
-                        let _ = dump.write_rebase_observation(i, observation);
+                        dump.write_rebase_observation_fail_open(i, observation);
                     }
                 }
                 let new_osc_actions = osc_step.actions;

@@ -269,9 +269,14 @@ pub(super) struct OpsemDump {
     center_lifecycle_buf: std::io::BufWriter<std::fs::File>,
     /// ★#466 D0：重基事务现场 `rebase_observability.jsonl`。与其余 OPSEM 产物同一 env 门；
     /// 仅接收 fill 已完成的只读事务快照，不回馈事件机、挂起表或订单路径。
-    rebase_observability_buf: std::io::BufWriter<std::fs::File>,
+    rebase_observability_buf: Box<dyn std::io::Write>,
     /// 本次 dump 内全局单调重基序号（跨 bar/level，首条=1）。
     rebase_seq: u64,
+    /// 重基观测 I/O 失败 witness。失败后关闭该旁路，避免部分行后的候选序号被重试复用；
+    /// 只影响观测，不参与交易、挂起或核销决策。
+    rebase_observability_failed: bool,
+    rebase_observability_failure_count: u64,
+    rebase_observability_failure_reported: bool,
     trade_id_counter: u64,
     /// 交易活跃区间（首入场 bar .. 末离场 bar）；None=尚未见入场。
     active_start: Option<usize>,
@@ -322,14 +327,25 @@ impl OpsemDump {
         // ★#291：第三产物（同截断语义——每次回测重写）。
         let cl_file = std::fs::File::create(dir_path.join("center_lifecycle.jsonl")).ok()?;
         // ★#466 D0：第四产物（同截断语义）。
-        let rebase_file =
-            std::fs::File::create(dir_path.join("rebase_observability.jsonl")).ok()?;
+        let rebase_path = dir_path.join("rebase_observability.jsonl");
+        let rebase_file = match std::fs::File::create(&rebase_path) {
+            Ok(file) => file,
+            Err(error) => {
+                eprintln!(
+                    "#466 D0 重基观测初始化失败：{rebase_path:?}：{error}；前三个 OPSEM 产物已按截断语义创建，本次 dump 关闭（交易决策 fail-open）"
+                );
+                return None;
+            }
+        };
         Some(Self {
             trades_buf: std::io::BufWriter::new(trades_file),
             tower_buf: std::io::BufWriter::new(tower_file),
             center_lifecycle_buf: std::io::BufWriter::new(cl_file),
-            rebase_observability_buf: std::io::BufWriter::new(rebase_file),
+            rebase_observability_buf: Box::new(std::io::BufWriter::new(rebase_file)),
             rebase_seq: 0,
+            rebase_observability_failed: false,
+            rebase_observability_failure_count: 0,
+            rebase_observability_failure_reported: false,
             trade_id_counter: 0,
             active_start: None,
             active_end: None,
@@ -355,7 +371,7 @@ impl OpsemDump {
 
     /// ★#466 D0：写一笔重基事务现场。调用点位于既有 `on_chain_rebase` 行为完成之后，但输入
     /// 已在其删除 vanished 挂起前冻结；本函数只序列化，不返回任何可供决策消费的值。
-    pub(super) fn write_rebase_observation(
+    fn write_rebase_observation(
         &mut self,
         bar: usize,
         input: &RebaseObservationInput,
@@ -487,11 +503,47 @@ impl OpsemDump {
             }
         });
 
-        serde_json::to_writer(&mut self.rebase_observability_buf, &row)
+        // 先在内存中形成含换行的完整 JSONL 行，再一次性交给 writer；只有整行写成功才提交
+        // rebase_seq。若 writer 返回错误，fail-open 包装器会关闭本次 dump 的后续重基观测，
+        // 因而不会用同一候选序号重试。
+        let mut line = serde_json::to_vec(&row)
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
-        self.rebase_observability_buf.write_all(b"\n")?;
+        line.push(b'\n');
+        self.rebase_observability_buf.write_all(&line)?;
         self.rebase_seq = rebase_seq;
         Ok(())
+    }
+
+    /// 生产调用入口：观测 I/O 失败只进入 witness 并关闭本实例的重基观测旁路，决策继续。
+    pub(super) fn write_rebase_observation_fail_open(
+        &mut self,
+        bar: usize,
+        input: &RebaseObservationInput,
+    ) {
+        if self.rebase_observability_failed {
+            return;
+        }
+        let candidate_seq = self.rebase_seq.saturating_add(1);
+        if let Err(error) = self.write_rebase_observation(bar, input) {
+            self.rebase_observability_failed = true;
+            self.report_rebase_observability_failure("write", candidate_seq, &error);
+        }
+    }
+
+    fn report_rebase_observability_failure(
+        &mut self,
+        stage: &'static str,
+        sequence: u64,
+        error: &std::io::Error,
+    ) {
+        self.rebase_observability_failure_count += 1;
+        if !self.rebase_observability_failure_reported {
+            eprintln!(
+                "#466 D0 重基观测 {stage} 失败：failure_count={} rebase_seq={sequence}：{error}；后续重基观测旁路关闭，交易决策继续（fail-open）",
+                self.rebase_observability_failure_count
+            );
+            self.rebase_observability_failure_reported = true;
+        }
     }
 
     /// 写一笔 trade JSONL 行。`t` 是 TypedTrade，`open.opsem` 是入场快照，`pnl` 是费前方向盈亏
@@ -708,6 +760,10 @@ impl OpsemDump {
         let _ = self.trades_buf.flush();
         let _ = self.tower_buf.flush();
         let _ = self.center_lifecycle_buf.flush();
+        if let Err(error) = self.rebase_observability_buf.flush() {
+            self.rebase_observability_failed = true;
+            self.report_rebase_observability_failure("flush", self.rebase_seq, &error);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -1197,10 +1253,83 @@ pub(super) fn force_state_str(s: super::super::classifier::divergence::ForceStat
 mod rebase_observability_tests {
     use super::*;
     use classifier::center_lifecycle::{CenterId, ChainRebaseObservation};
+    use std::cell::Cell;
+    use std::io::Write;
+    use std::rc::Rc;
     use strategy::voice::VoiceSide;
 
     fn cid(start_index: usize, zd: i64, zg: i64) -> CenterId {
         CenterId { start_index, zd, zg }
+    }
+
+    struct FailingWriter {
+        write_calls: Rc<Cell<usize>>,
+        flush_calls: Rc<Cell<usize>>,
+    }
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+            self.write_calls.set(self.write_calls.get() + 1);
+            Err(std::io::Error::other("注入的重基观测写入失败"))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.flush_calls.set(self.flush_calls.get() + 1);
+            Err(std::io::Error::other("注入的重基观测 flush 失败"))
+        }
+    }
+
+    #[test]
+    fn rebase_observation_writer_failure_is_visible_fail_open_and_not_retried() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("系统时钟应晚于 UNIX_EPOCH")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "newchan-rebase-observability-failure-{}-{nonce}",
+            std::process::id()
+        ));
+        let input = RebaseObservationInput {
+            level: 1,
+            chain: ChainRebaseObservation {
+                at: 0,
+                before: vec![cid(10, 100, 200)],
+                after: vec![cid(20, 110, 210)],
+            },
+            suspended_before: vec![(VoiceSide::Long, cid(10, 100, 200))],
+            revived: false,
+        };
+        let write_calls = Rc::new(Cell::new(0));
+        let flush_calls = Rc::new(Cell::new(0));
+
+        {
+            let mut dump = OpsemDump::at_dir(&dir).expect("测试 dump writer 应可创建");
+            dump.rebase_observability_buf = Box::new(FailingWriter {
+                write_calls: Rc::clone(&write_calls),
+                flush_calls: Rc::clone(&flush_calls),
+            });
+
+            dump.write_rebase_observation_fail_open(42, &input);
+            assert_eq!(write_calls.get(), 1, "首次失败必须真实到达观测 writer");
+            assert_eq!(dump.rebase_observability_failure_count, 1);
+            assert!(dump.rebase_observability_failure_reported);
+            assert!(dump.rebase_observability_failed);
+            assert_eq!(dump.rebase_seq, 0, "整行失败不得提交序号");
+
+            dump.write_rebase_observation_fail_open(43, &input);
+            assert_eq!(write_calls.get(), 1, "失败后关闭旁路，候选序号不得被重试复用");
+            assert_eq!(dump.rebase_observability_failure_count, 1);
+            assert_eq!(dump.rebase_seq, 0);
+
+            dump.flush();
+            assert_eq!(flush_calls.get(), 1, "显式 flush 必须覆盖重基观测 buffer");
+            assert_eq!(
+                dump.rebase_observability_failure_count, 2,
+                "flush 失败也必须进入可见 witness"
+            );
+        }
+
+        std::fs::remove_dir_all(&dir).expect("清理本测试专属临时目录");
     }
 
     #[test]
