@@ -14,10 +14,25 @@ use super::divergence::{
 };
 use super::recursive_tower::{map_src_to_close_idx, ElementId, LeveledMove};
 use super::signal::{
-    locate_pan_div_structure, locate_pan_div_structure_front_anchor,
-    nearest_confirmed_center_idx, pan_div_structure_extreme, trend_third_class_in_c,
+    locate_pan_div_structure, locate_pan_div_structure_front_anchor, nearest_confirmed_center_idx,
+    pan_div_structure_extreme, trend_third_class_in_c,
 };
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
+
+#[cfg(test)]
+std::thread_local! {
+    static CONFIRM_CORE_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+fn reset_confirm_core_calls() {
+    CONFIRM_CORE_CALLS.with(|calls| calls.set(0));
+}
+
+#[cfg(test)]
+fn confirm_core_calls() -> usize {
+    CONFIRM_CORE_CALLS.with(std::cell::Cell::get)
+}
 
 /// #73-#75 独立激活门。默认关闭，现有分类/交易路径不调用本 seam。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -275,11 +290,20 @@ pub enum ProjectionMaterial<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProjectionError {
-    TooShort { index: usize, sub_count: usize },
-    InvalidSeed { index: usize },
-    InvalidLowerLeg { index: usize },
+    TooShort {
+        index: usize,
+        sub_count: usize,
+    },
+    InvalidSeed {
+        index: usize,
+    },
+    InvalidLowerLeg {
+        index: usize,
+    },
     /// #90 结裁 fail-closed：窗口非 Compose 或 compose 未携带核——不得回退 offset-0 自核。
-    MissingCarriedCenter { index: usize },
+    MissingCarriedCenter {
+        index: usize,
+    },
 }
 
 fn first_leaf_direction(value: &LeveledMove) -> Option<Direction> {
@@ -447,7 +471,7 @@ fn leg_as_segment(value: &LowerLeg) -> Segment {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DivergencePairId {
     pub level: u32,
     pub block_start_center: usize,
@@ -461,6 +485,155 @@ pub struct DivergencePair {
     pub move_start: usize,
     pub seg_a: (usize, usize),
     pub seg_c: (usize, usize),
+}
+
+/// #69 5a：趋势确认的已证状态。`TerminalFalse` 仅表示单调力度关系已经终假；
+/// 结构或坐标仍不可验时必须保持 `Scanning`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfirmState {
+    Confirmed(usize),
+    TerminalFalse,
+    Scanning,
+}
+
+impl ConfirmState {
+    pub fn as_option(self) -> Option<usize> {
+        match self {
+            Self::Confirmed(t) => Some(t),
+            Self::TerminalFalse | Self::Scanning => None,
+        }
+    }
+}
+
+/// 与 `LevelAsOfView::pairs` 同源的确认 sidecar；消费时必须按 `pair_id` 查找。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PairConfirmState {
+    pub pair_id: DivergencePairId,
+    pub state: ConfirmState,
+}
+
+/// #69 5a：单个 divergence pair 在已封 lower-leg 前缀上的扫描累积。
+#[derive(Debug, Clone)]
+pub struct ConfirmCursor {
+    /// 下一个尚未消费的 lower-leg 下标；只允许落在确认水线内。
+    k0: usize,
+    env: Option<(Tick, Tick)>,
+    acc_hi: Option<usize>,
+    area_c: f64,
+    dif_max: f64,
+    dif_min: f64,
+    hist_max: f64,
+    hist_min: f64,
+    state: ConfirmState,
+}
+
+impl Default for ConfirmCursor {
+    fn default() -> Self {
+        Self {
+            k0: 0,
+            env: None,
+            acc_hi: None,
+            area_c: 0.0,
+            dif_max: f64::NEG_INFINITY,
+            dif_min: f64::INFINITY,
+            hist_max: f64::NEG_INFINITY,
+            hist_min: f64::INFINITY,
+            state: ConfirmState::Scanning,
+        }
+    }
+}
+
+/// #69 5a：不含 `as_of` 与可增长 seg-c 末端的结构身份键。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ConfirmKey {
+    level: u32,
+    run_window: CoordinateWindow,
+    version: C2VersionTuple,
+    pair_id: DivergencePairId,
+    move_start: usize,
+    seg_a: (usize, usize),
+    c_start: usize,
+    b_fingerprint: (usize, usize, Tick, Tick, Tick, Tick),
+    structure_generation: u64,
+}
+
+impl ConfirmKey {
+    fn for_pair(
+        query: LevelViewQuery,
+        pair: &DivergencePair,
+        last: &Center,
+        structure_generation: u64,
+    ) -> Self {
+        Self {
+            level: query.level,
+            run_window: query.coordinate_window,
+            version: query.version,
+            pair_id: pair.id,
+            move_start: pair.move_start,
+            seg_a: pair.seg_a,
+            c_start: pair.seg_c.0,
+            b_fingerprint: (
+                last.start_index,
+                last.end_index,
+                last.zd,
+                last.zg,
+                last.dd,
+                last.gg,
+            ),
+            structure_generation,
+        }
+    }
+}
+
+/// #69 5a：per-level divergence-pair cursor 映射；实际持有者在 bin `LevelDerived`。
+#[derive(Debug, Default)]
+pub struct ConfirmCursorStore {
+    cursors: HashMap<ConfirmKey, ConfirmCursor>,
+}
+
+impl ConfirmCursorStore {
+    pub fn len(&self) -> usize {
+        self.cursors.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.cursors.is_empty()
+    }
+
+    /// 上层 run 分区变化时删除已消失 run，避免陈旧 key 永久驻留。
+    pub fn retain_run_starts(&mut self, level: u32, run_starts: impl IntoIterator<Item = usize>) {
+        let run_starts: BTreeSet<_> = run_starts.into_iter().collect();
+        self.cursors
+            .retain(|key, _| key.level != level || run_starts.contains(&key.run_window.start));
+    }
+
+    fn retain_active_for_run(&mut self, level: u32, run_start: usize, active: &[ConfirmKey]) {
+        self.cursors.retain(|key, _| {
+            key.level != level
+                || key.run_window.start != run_start
+                || active.iter().any(|candidate| candidate == key)
+        });
+    }
+
+    fn cursor_mut(&mut self, key: ConfirmKey) -> &mut ConfirmCursor {
+        self.cursors.entry(key).or_default()
+    }
+
+    #[cfg(test)]
+    fn poison_for_test(&mut self, state: ConfirmState) {
+        for cursor in self.cursors.values_mut() {
+            cursor.state = state;
+        }
+    }
+}
+
+/// 新 resident 入口的显式状态；`None` 即真冷路径。
+pub struct ConfirmResidence<'a> {
+    pub store: &'a mut ConfirmCursorStore,
+    /// `TowerCache::tower_confirmed_len(level - 1)` 的逐字读数。
+    pub stable_lower_len: usize,
+    /// run 上层结构代次；变化即 key miss。
+    pub structure_generation: u64,
 }
 
 /// #92 新路径的背驰段类型。盘整背驰保留独立类型，不冒充同级 B1/S1。
@@ -503,7 +676,10 @@ pub struct NestCandidateEvent {
     pub b_center_start: usize,
 }
 
-fn structural_block_span(projection: &ExactThreeProjection, block: &MoveBlock) -> Option<(usize, usize)> {
+fn structural_block_span(
+    projection: &ExactThreeProjection,
+    block: &MoveBlock,
+) -> Option<(usize, usize)> {
     Some((
         projection.seeds.get(block.start_center)?.start_index,
         projection.seeds.get(block.end_center)?.end_index,
@@ -541,6 +717,220 @@ fn structural_pair_span(
 /// T5-OR 转假即终假（扫描终止，返回 None）。b 段/c_start 的 close 映射失败、或 t3 时点力度
 /// 窗口仍无 bar ⟹ None（力度不可验，诚实判负——与旧 `_ => false` 口径一致）。
 #[allow(clippy::too_many_arguments)]
+fn trend_confirm_state(
+    segments: &[Segment],
+    last: &Center,
+    direction: Direction,
+    side: Side,
+    seg_a: (usize, usize),
+    c_start: usize,
+    as_of: usize,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+) -> ConfirmState {
+    trend_confirm_state_core(
+        segments, last, direction, side, seg_a, c_start, as_of, hist, dif, close_src, None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn trend_confirm_state_core(
+    segments: &[Segment],
+    last: &Center,
+    direction: Direction,
+    side: Side,
+    seg_a: (usize, usize),
+    c_start: usize,
+    as_of: usize,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+    resident: Option<(&mut ConfirmCursor, usize)>,
+) -> ConfirmState {
+    #[cfg(test)]
+    CONFIRM_CORE_CALLS.with(|calls| calls.set(calls.get() + 1));
+
+    // T4（025:761）：B 中枢 span 内 DIF 变号或触 0（p112 主口径 cross_dif）。
+    let Some((b_lo, b_hi)) = map_src_to_close_idx(close_src, last.start_index, last.end_index)
+    else {
+        return ConfirmState::Scanning;
+    };
+    if !dif_crosses_zero(dif, b_lo, b_hi) {
+        return ConfirmState::Scanning;
+    }
+    // b 段力度基准（031:883 趋势背驰 = c vs b 比较）。
+    let Some(a_idx) = map_src_to_close_idx(close_src, seg_a.0, seg_a.1) else {
+        return ConfirmState::Scanning;
+    };
+    let Some(a_env) = range_envelope(segments, seg_a) else {
+        return ConfirmState::Scanning;
+    };
+    let area_a = same_color_area(hist, a_idx.0, a_idx.1, side);
+    let dif_peak_a = segment_dif_peak(dif, a_idx.0, a_idx.1, direction);
+    let hist_peak_a = same_dir_hist_peak(hist, a_idx.0, a_idx.1, side);
+    // T3（037:18）：c 全离开段内含对 B 的三买；t3 = 首个命中回试段终点（c 确立时点）。
+    let t3 = trend_third_class_in_c(segments, last, direction, c_start, as_of)
+        .map(|(_leave_end, t3)| t3);
+    // 渐进扫描 t ≥ t3：T2/T5 窗口 [c_start, t] 随段端点增量扩展。
+    let lo = segments.partition_point(|s| s.start_index < c_start.max(last.end_index));
+    let hi = segments.partition_point(|s| s.end_index <= as_of);
+
+    let scan = |cursor: &mut ConfirmCursor, range: std::ops::Range<usize>| {
+        scan_confirm_cursor(
+            cursor,
+            segments,
+            range,
+            t3,
+            direction,
+            side,
+            a_env,
+            area_a,
+            dif_peak_a,
+            hist_peak_a,
+            c_start,
+            hist,
+            dif,
+            close_src,
+        )
+    };
+
+    let Some((cursor, confirmed_len)) = resident else {
+        let mut cold = ConfirmCursor {
+            k0: lo,
+            ..ConfirmCursor::default()
+        };
+        return scan(&mut cold, lo..hi);
+    };
+
+    let confirmed_len = confirmed_len.min(segments.len());
+    if confirmed_len < cursor.k0 || hi < cursor.k0 {
+        *cursor = ConfirmCursor::default();
+    }
+    if matches!(
+        cursor.state,
+        ConfirmState::Confirmed(_) | ConfirmState::TerminalFalse
+    ) {
+        return cursor.state;
+    }
+
+    let stable_hi = confirmed_len.min(hi);
+    if stable_hi < lo {
+        cursor.k0 = stable_hi;
+    } else {
+        if cursor.k0 < lo {
+            cursor.k0 = lo;
+        }
+        // 坐标尚不可映射的已封腿不能跨 bar 持久化；本次结果仍由下方 tail 冷扫给出。
+        let persist_hi = (cursor.k0..stable_hi)
+            .find(|&index| {
+                map_src_to_close_idx(close_src, c_start, segments[index].end_index).is_none()
+            })
+            .unwrap_or(stable_hi);
+        let state = scan(cursor, cursor.k0..persist_hi);
+        if matches!(
+            state,
+            ConfirmState::Confirmed(_) | ConfirmState::TerminalFalse
+        ) {
+            return state;
+        }
+    }
+
+    // 可变尾只在本次局部副本上推进，未获水线证书的累积绝不回写 store。
+    let mut tail = cursor.clone();
+    let tail_start = lo.max(tail.k0);
+    scan(&mut tail, tail_start..hi)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn scan_confirm_cursor(
+    cursor: &mut ConfirmCursor,
+    segments: &[Segment],
+    range: std::ops::Range<usize>,
+    t3: Option<usize>,
+    direction: Direction,
+    side: Side,
+    a_env: (Tick, Tick),
+    area_a: f64,
+    dif_peak_a: f64,
+    hist_peak_a: f64,
+    c_start: usize,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+) -> ConfirmState {
+    for index in range {
+        let leg = &segments[index];
+        // 包络增量扩展（T2）。
+        let leg_lo = leg.start_price.min(leg.end_price);
+        let leg_hi = leg.start_price.max(leg.end_price);
+        cursor.env = Some(match cursor.env {
+            None => (leg_lo, leg_hi),
+            Some((old_lo, old_hi)) => (old_lo.min(leg_lo), old_hi.max(leg_hi)),
+        });
+        // 力度窗口增量扩展（T5）：新 bar 区间 (acc_hi, cur_hi] 累入。
+        if let Some((c_lo, cur_hi)) = map_src_to_close_idx(close_src, c_start, leg.end_index) {
+            let from = cursor.acc_hi.map_or(c_lo, |prev| prev + 1);
+            if from <= cur_hi {
+                for t in from..=cur_hi {
+                    match side {
+                        Side::Long if hist[t] < 0.0 => cursor.area_c += hist[t].abs(),
+                        Side::Short if hist[t] > 0.0 => cursor.area_c += hist[t],
+                        _ => {}
+                    }
+                    cursor.hist_max = cursor.hist_max.max(hist[t]);
+                    cursor.hist_min = cursor.hist_min.min(hist[t]);
+                    cursor.dif_max = cursor.dif_max.max(dif[t]);
+                    cursor.dif_min = cursor.dif_min.min(dif[t]);
+                }
+                cursor.acc_hi = Some(cur_hi);
+            }
+        }
+        cursor.k0 = index + 1;
+        let Some(t3) = t3 else {
+            continue;
+        };
+        if leg.end_index < t3 {
+            continue; // 三买未确立前不判（037:18 必要合取）。
+        }
+        // t3 时点力度窗口无 bar ⟹ 力度不可验 ⟹ 诚实判负（同旧 map None ⟹ false）。
+        if cursor.acc_hi.is_none() {
+            return ConfirmState::Scanning;
+        }
+        // T5 力度或关系（027:32）：同色面积 ∨ 黄白线峰 ∨ 同向柱峰（增量量与
+        // same_color_area / segment_dif_peak / same_dir_hist_peak 同口径）。
+        let dif_peak_c = match direction {
+            Direction::Up => cursor.dif_max.max(0.0),
+            Direction::Down => cursor.dif_min.min(0.0).abs(),
+        };
+        let hist_peak_c = match side {
+            Side::Long => cursor.hist_min.min(0.0).abs(),
+            Side::Short => cursor.hist_max.max(0.0),
+        };
+        let force_ok =
+            cursor.area_c < area_a || dif_peak_c < dif_peak_a || hist_peak_c < hist_peak_a;
+        if !force_ok {
+            // 各 proxy 只增 ⟹ 真→假单调，转假即终假（033:26 无衰减即无背驰）。
+            cursor.state = ConfirmState::TerminalFalse;
+            return cursor.state;
+        }
+        // T2 破极值（037:20）：c 包络破 b 包络。
+        let (env_lo, env_hi) = cursor.env.expect("扫描窗口非空（t3 已命中）");
+        let extreme = match side {
+            Side::Long => env_lo < a_env.0,
+            Side::Short => env_hi > a_env.1,
+        };
+        if extreme {
+            // t* = 首个 T2∧T5-OR 同真时点。
+            cursor.state = ConfirmState::Confirmed(leg.end_index);
+            return cursor.state;
+        }
+    }
+    cursor.state = ConfirmState::Scanning;
+    cursor.state
+}
+
+#[allow(clippy::too_many_arguments)]
 fn trend_confirm_time(
     segments: &[Segment],
     last: &Center,
@@ -553,85 +943,271 @@ fn trend_confirm_time(
     dif: &[f64],
     close_src: &[usize],
 ) -> Option<usize> {
-    // T4（025:761）：B 中枢 span 内 DIF 变号或触 0（p112 主口径 cross_dif）。
-    let (b_lo, b_hi) = map_src_to_close_idx(close_src, last.start_index, last.end_index)?;
-    if !dif_crosses_zero(dif, b_lo, b_hi) {
-        return None;
+    trend_confirm_state(
+        segments, last, direction, side, seg_a, c_start, as_of, hist, dif, close_src,
+    )
+    .as_option()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct PanSegmentIdentity {
+    up: bool,
+    start_index: usize,
+    end_index: usize,
+    start_price: Tick,
+    end_price: Tick,
+}
+
+impl From<&Segment> for PanSegmentIdentity {
+    fn from(segment: &Segment) -> Self {
+        Self {
+            up: segment.direction == Direction::Up,
+            start_index: segment.start_index,
+            end_index: segment.end_index,
+            start_price: segment.start_price,
+            end_price: segment.end_price,
+        }
     }
-    // b 段力度基准（031:883 趋势背驰 = c vs b 比较）。
-    let a_idx = map_src_to_close_idx(close_src, seg_a.0, seg_a.1)?;
-    let a_env = range_envelope(segments, seg_a)?;
-    let area_a = same_color_area(hist, a_idx.0, a_idx.1, side);
-    let dif_peak_a = segment_dif_peak(dif, a_idx.0, a_idx.1, direction);
-    let hist_peak_a = same_dir_hist_peak(hist, a_idx.0, a_idx.1, side);
-    // T3（037:18）：c 全离开段内含对 B 的三买；t3 = 首个命中回试段终点（c 确立时点）。
-    let (_leave_end, t3) = trend_third_class_in_c(segments, last, direction, c_start, as_of)?;
-    // 渐进扫描 t ≥ t3：T2/T5 窗口 [c_start, t] 随段端点增量扩展。
-    let lo = segments.partition_point(|s| s.start_index < c_start.max(last.end_index));
-    let hi = segments.partition_point(|s| s.end_index <= as_of);
-    let mut env: Option<(Tick, Tick)> = None;
-    let mut acc_hi: Option<usize> = None; // 已累入力度窗口的末个 close 下标
-    let mut area_c = 0.0f64;
-    let (mut dif_max, mut dif_min) = (f64::NEG_INFINITY, f64::INFINITY);
-    let mut hist_max = f64::NEG_INFINITY;
-    let mut hist_min = f64::INFINITY;
-    for leg in &segments[lo..hi] {
-        // 包络增量扩展（T2）。
-        let leg_lo = leg.start_price.min(leg.end_price);
-        let leg_hi = leg.start_price.max(leg.end_price);
-        env = Some(match env {
-            None => (leg_lo, leg_hi),
-            Some((old_lo, old_hi)) => (old_lo.min(leg_lo), old_hi.max(leg_hi)),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct PanCenterIdentity {
+    zd: Tick,
+    zg: Tick,
+    dd: Tick,
+    gg: Tick,
+    start_index: usize,
+    end_index: usize,
+}
+
+impl From<&Center> for PanCenterIdentity {
+    fn from(center: &Center) -> Self {
+        Self {
+            zd: center.zd,
+            zg: center.zg,
+            dd: center.dd,
+            gg: center.gg,
+            start_index: center.start_index,
+            end_index: center.end_index,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct PanBlockIdentity {
+    start_center: usize,
+    end_center: usize,
+    trend: bool,
+    direction: i8,
+    completed: bool,
+    start_source: usize,
+    end_source: usize,
+}
+
+fn pan_block_identity(
+    projection: &ExactThreeProjection,
+    block: &MoveBlock,
+    reads_status: bool,
+) -> Option<PanBlockIdentity> {
+    Some(PanBlockIdentity {
+        start_center: block.start_center,
+        end_center: block.end_center,
+        trend: block.kind == MoveKind::Trend,
+        direction: match block.dir {
+            Some(Direction::Up) => 1,
+            Some(Direction::Down) => -1,
+            None => 0,
+        },
+        // target/第一后继的 status 进入 structural_pair_span；第二后继只作存在性封口门。
+        // 忽略第二后继的 Active→Completed，保证纯追加第四块不清已证目标。
+        completed: reads_status && block.status == MoveStatus::Completed,
+        start_source: projection.seeds.get(block.start_center)?.start_index,
+        end_source: projection.seeds.get(block.end_center)?.end_index,
+    })
+}
+
+fn pan_owner_block_index(blocks: &[MoveBlock], center_index: usize) -> Option<usize> {
+    if center_index == 0 {
+        return (!blocks.is_empty()).then_some(0);
+    }
+    blocks
+        .iter()
+        .position(|block| block.start_center < center_index && center_index <= block.end_center)
+}
+
+fn pan_block_triple(
+    projection: &ExactThreeProjection,
+    blocks: &[MoveBlock],
+    block_index: usize,
+) -> Option<[PanBlockIdentity; 3]> {
+    // 链②唯一门：目标块之后至少两个完整身份槽；不足时稳定资格不存在。
+    (block_index + 2 < blocks.len()).then_some(())?;
+    Some([
+        pan_block_identity(projection, blocks.get(block_index)?, true)?,
+        pan_block_identity(projection, blocks.get(block_index + 1)?, true)?,
+        pan_block_identity(projection, blocks.get(block_index + 2)?, false)?,
+    ])
+}
+
+/// run 语境键：level/window/version + segment/center + ownership block 与两个后继块。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct PanMemoKey {
+    level: u32,
+    provider_window: (usize, usize),
+    projection_version: ProviderVersion,
+    segment_index: usize,
+    segment: PanSegmentIdentity,
+    center_index: usize,
+    center: PanCenterIdentity,
+    block_index: usize,
+    blocks: [PanBlockIdentity; 3],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PanEventCore {
+    structure: super::signal::PanDivStructure,
+    interval_a: (usize, usize),
+    intake_fallback: bool,
+    divergence_confirmed: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PanMemoValue {
+    NoEvent,
+    Event(PanEventCore),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PanMemoEntry {
+    /// 本 entry 实际读取的最大 source_index；复用要求严格 `< e_src`。
+    read_end_src: usize,
+    /// 定位窄锚/front-anchor/Extreme 实际可见的段前缀长度。
+    read_segment_count: usize,
+    value: PanMemoValue,
+}
+
+/// #69 5b memo 诊断计数；只描述 memo 行为，不参与事件语义。
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct PanMemoStats {
+    pub hits: usize,
+    pub misses: usize,
+    pub writes: usize,
+    pub invalidations: usize,
+}
+
+/// #69 5b：由调用方按 run 持有的盘整背驰 memo。
+///
+/// 状态只经显式 [`PanResidence`] 进入 provider；默认入口与 `None` 始终走真冷路径。
+#[derive(Debug, Default)]
+pub struct PanMemo {
+    entries: HashMap<PanMemoKey, PanMemoEntry>,
+    /// run 的逐项精确 lower-segment 快照；entry 只存读前缀长度，避免每项复制整段前缀。
+    segment_snapshot: Vec<PanSegmentIdentity>,
+    stats: PanMemoStats,
+}
+
+impl PanMemo {
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn stats(&self) -> PanMemoStats {
+        self.stats
+    }
+
+    fn prepare(
+        &mut self,
+        level: u32,
+        provider_window: (usize, usize),
+        projection_version: ProviderVersion,
+        projection: &ExactThreeProjection,
+        blocks: &[MoveBlock],
+        segments: &[Segment],
+        centers: &[Center],
+        freeze_boundary_src: usize,
+    ) {
+        let current_segments: Vec<_> = segments.iter().map(PanSegmentIdentity::from).collect();
+        let common_segment_prefix = self
+            .segment_snapshot
+            .iter()
+            .zip(&current_segments)
+            .take_while(|(old, current)| old == current)
+            .count();
+        let before = self.entries.len();
+        self.entries.retain(|key, entry| {
+            key.level == level
+                && key.provider_window == provider_window
+                && key.projection_version == projection_version
+                && entry.read_end_src < freeze_boundary_src
+                && entry.read_segment_count <= common_segment_prefix
+                && segments
+                    .get(key.segment_index)
+                    .is_some_and(|segment| PanSegmentIdentity::from(segment) == key.segment)
+                && centers
+                    .get(key.center_index)
+                    .is_some_and(|center| PanCenterIdentity::from(center) == key.center)
+                && pan_block_triple(projection, blocks, key.block_index)
+                    .is_some_and(|blocks| blocks == key.blocks)
         });
-        // 力度窗口增量扩展（T5）：新 bar 区间 (acc_hi, cur_hi] 累入。
-        if let Some((c_lo, cur_hi)) = map_src_to_close_idx(close_src, c_start, leg.end_index) {
-            let from = acc_hi.map_or(c_lo, |prev| prev + 1);
-            if from <= cur_hi {
-                for t in from..=cur_hi {
-                    match side {
-                        Side::Long if hist[t] < 0.0 => area_c += hist[t].abs(),
-                        Side::Short if hist[t] > 0.0 => area_c += hist[t],
-                        _ => {}
-                    }
-                    hist_max = hist_max.max(hist[t]);
-                    hist_min = hist_min.min(hist[t]);
-                    dif_max = dif_max.max(dif[t]);
-                    dif_min = dif_min.min(dif[t]);
-                }
-                acc_hi = Some(cur_hi);
+        self.stats.invalidations += before - self.entries.len();
+        self.segment_snapshot = current_segments;
+    }
+
+    fn lookup(&mut self, key: &PanMemoKey) -> Option<PanMemoValue> {
+        match self.entries.get(key).map(|entry| entry.value) {
+            Some(entry) => {
+                self.stats.hits += 1;
+                Some(entry)
+            }
+            None => {
+                self.stats.misses += 1;
+                None
             }
         }
-        if leg.end_index < t3 {
-            continue; // 三买未确立前不判（037:18 必要合取）。
-        }
-        // t3 时点力度窗口无 bar ⟹ 力度不可验 ⟹ 诚实判负（同旧 map None ⟹ false）。
-        acc_hi?;
-        // T5 力度或关系（027:32）：同色面积 ∨ 黄白线峰 ∨ 同向柱峰（增量量与
-        // same_color_area / segment_dif_peak / same_dir_hist_peak 同口径）。
-        let dif_peak_c = match direction {
-            Direction::Up => dif_max.max(0.0),
-            Direction::Down => dif_min.min(0.0).abs(),
-        };
-        let hist_peak_c = match side {
-            Side::Long => hist_min.min(0.0).abs(),
-            Side::Short => hist_max.max(0.0),
-        };
-        let force_ok =
-            area_c < area_a || dif_peak_c < dif_peak_a || hist_peak_c < hist_peak_a;
-        if !force_ok {
-            return None; // 各 proxy 只增 ⟹ 真→假单调，转假即终假（033:26 无衰减即无背驰）。
-        }
-        // T2 破极值（037:20）：c 包络破 b 包络。
-        let (env_lo, env_hi) = env.expect("扫描窗口非空（t3 已命中）");
-        let extreme = match side {
-            Side::Long => env_lo < a_env.0,
-            Side::Short => env_hi > a_env.1,
-        };
-        if extreme {
-            return Some(leg.end_index); // t* = 首个 T2∧T5-OR 同真时点。
-        }
     }
-    None
+
+    fn insert(
+        &mut self,
+        key: PanMemoKey,
+        read_end_src: usize,
+        read_segment_count: usize,
+        value: PanMemoValue,
+    ) {
+        self.entries.insert(
+            key,
+            PanMemoEntry {
+                read_end_src,
+                read_segment_count,
+                value,
+            },
+        );
+        self.stats.writes += 1;
+    }
+
+    #[cfg(test)]
+    fn poison_for_test(&mut self) {
+        let entry = self
+            .entries
+            .values_mut()
+            .find(|entry| matches!(entry.value, PanMemoValue::Event(_)))
+            .expect("测试夹具须已有 event memo");
+        let PanMemoValue::Event(mut core) = entry.value else {
+            unreachable!("上方已筛 Event");
+        };
+        core.divergence_confirmed = !core.divergence_confirmed;
+        entry.value = PanMemoValue::Event(core);
+    }
+}
+
+/// #69 5b：pan memo 的显式 resident seam。`freeze_boundary_src` 是 source_index 量纲；
+/// `None` 表示完全绕过 memo 的真冷路径。
+pub struct PanResidence<'a> {
+    pub memo: &'a mut PanMemo,
+    pub freeze_boundary_src: usize,
 }
 
 /// #92 typed provider：把 strict C2 pair 映射为宽结构 Cand，并把力度确认留在独立字段。
@@ -659,10 +1235,41 @@ pub fn provide_nest_candidate_events(
     dif: &[f64],
     close_src: &[usize],
 ) -> Vec<NestCandidateEvent> {
-    provide_nest_candidate_events_ext(level, projection, blocks, legs, view, hist, dif, close_src, &[], &[])
-        .into_iter()
-        .map(|ext| ext.event)
-        .collect()
+    provide_nest_candidate_events_resident(
+        level, projection, blocks, legs, view, hist, dif, close_src, None,
+    )
+}
+
+/// #69 5b resident 事件视图入口。当前与旧入口共用同一 provider 核；显式 `None`
+/// 是 shadow/legacy 的真冷 oracle。
+#[allow(clippy::too_many_arguments)]
+pub fn provide_nest_candidate_events_resident(
+    level: u32,
+    projection: &ExactThreeProjection,
+    blocks: &[MoveBlock],
+    legs: &[LowerLeg],
+    view: &LevelAsOfView,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+    residence: Option<PanResidence<'_>>,
+) -> Vec<NestCandidateEvent> {
+    provide_nest_candidate_events_ext_resident(
+        level,
+        projection,
+        blocks,
+        legs,
+        view,
+        hist,
+        dif,
+        close_src,
+        &[],
+        &[],
+        residence,
+    )
+    .into_iter()
+    .map(|ext| ext.event)
+    .collect()
 }
 
 /// 事件 + T1 (#170) 锚 sidecar：事件本体不变（[`NestCandidateEvent`] 口径不动）。
@@ -712,6 +1319,54 @@ fn resolve_triple_anchor(
     (price, anchor)
 }
 
+/// A/C source 闭区间到 MACD 前缀的完整映射。仅“有交集”不足以写 memo：
+/// source 尾尚未到达或 hist/dif 未覆盖映射终点时返回 `None`。
+fn complete_pan_span(
+    close_src: &[usize],
+    hist: &[f64],
+    dif: &[f64],
+    span: (usize, usize),
+) -> Option<(usize, usize)> {
+    if close_src.first().copied()? > span.0 || close_src.last().copied()? < span.1 {
+        return None;
+    }
+    let mapped = map_src_to_close_idx(close_src, span.0, span.1)?;
+    (mapped.1 < hist.len() && mapped.1 < dif.len()).then_some(mapped)
+}
+
+fn materialize_pan_event(
+    level: u32,
+    core: PanEventCore,
+    view: &LevelAsOfView,
+    fractals: &[Fractal],
+    merged_bars: &[Bar],
+) -> NestCandidateEventExt {
+    let event = NestCandidateEvent {
+        level,
+        side: core.structure.side,
+        kind: NestDivergenceKind::Consolidation,
+        seg_a: core.structure.seg_a,
+        interval_b: core.structure.seg_c,
+        interval_a: core.interval_a,
+        divergence_confirmed: core.divergence_confirmed,
+        turn_source: core.structure.source_index,
+        judge_at: view.query.as_of,
+        provider_window: (
+            view.query.coordinate_window.start,
+            view.query.coordinate_window.end,
+        ),
+        intake_fallback: core.intake_fallback,
+        b_center_start: core.structure.center.start_index,
+    };
+    let (extreme_price, group_anchor) =
+        resolve_triple_anchor(core.structure.seg_c.1, fractals, merged_bars);
+    NestCandidateEventExt {
+        event,
+        extreme_price,
+        group_anchor,
+    }
+}
+
 /// [`provide_nest_candidate_events`] 的 ext 形态（同一扫描核，事件集/排序逐字节同；
 /// 仅额外携带 T1 (#170) 锚 sidecar（T5a 起两元：极值价, 组锚））。消费方：gate 派生
 /// （`derive_level_events`）。
@@ -731,8 +1386,42 @@ pub fn provide_nest_candidate_events_ext(
     fractals: &[Fractal],
     merged_bars: &[Bar],
 ) -> Vec<NestCandidateEventExt> {
+    provide_nest_candidate_events_ext_resident(
+        level,
+        projection,
+        blocks,
+        legs,
+        view,
+        hist,
+        dif,
+        close_src,
+        fractals,
+        merged_bars,
+        None,
+    )
+}
+
+/// #69 5b resident ext 入口；trend 分支保持冷核，只有 pan 分支可消费显式 run memo。
+#[allow(clippy::too_many_arguments)]
+pub fn provide_nest_candidate_events_ext_resident(
+    level: u32,
+    projection: &ExactThreeProjection,
+    blocks: &[MoveBlock],
+    legs: &[LowerLeg],
+    view: &LevelAsOfView,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+    fractals: &[Fractal],
+    merged_bars: &[Bar],
+    residence: Option<PanResidence<'_>>,
+) -> Vec<NestCandidateEventExt> {
+    let mut residence = residence;
     let segments: Vec<_> = legs.iter().map(leg_as_segment).collect();
-    let anchors_self: Vec<_> = segments.iter().map(|segment| Some(segment.direction)).collect();
+    let anchors_self: Vec<_> = segments
+        .iter()
+        .map(|segment| Some(segment.direction))
+        .collect();
     let mut out = Vec::new();
 
     for pair in &view.pairs {
@@ -771,18 +1460,11 @@ pub fn provide_nest_candidate_events_ext(
         // （禁前视：在 t* 之前全合取不成立，坐标不得早于确认时点）；
         // 未确认 ⟹ 保持全离开段结构坐标（诚实结构，力度/三买未成立）。
         let last_center = &projection.seeds[pair.id.block_end_center].center;
-        let confirm_t = trend_confirm_time(
-            &segments,
-            last_center,
-            pair.id.direction,
-            side,
-            pair.seg_a,
-            pair.seg_c.0,
-            view.query.as_of,
-            hist,
-            dif,
-            close_src,
-        );
+        let confirm_t = view
+            .pair_confirmations
+            .iter()
+            .find(|confirmation| confirmation.pair_id == pair.id)
+            .and_then(|confirmation| confirmation.state.as_option());
         let (interval_b, turn_source, divergence_confirmed) = match confirm_t {
             Some(t) => ((pair.seg_c.0, t), t, true),
             None => (pair.seg_c, pair.seg_c.1, false),
@@ -812,7 +1494,10 @@ pub fn provide_nest_candidate_events_ext(
                 divergence_confirmed,
                 turn_source,
                 judge_at: view.query.as_of,
-                provider_window: (view.query.coordinate_window.start, view.query.coordinate_window.end),
+                provider_window: (
+                    view.query.coordinate_window.start,
+                    view.query.coordinate_window.end,
+                ),
                 intake_fallback: false,
                 // 关③ P3：B = 被离开的最后中枢（`block_end_center` seed，trend_confirm_time 同一
                 // 中枢入参）——prefix 首次观察快照写入，延伸不改写 start_index。
@@ -826,87 +1511,170 @@ pub fn provide_nest_candidate_events_ext(
 
     let centers: Vec<_> = projection.seeds.iter().map(|seed| seed.center).collect();
     let kinds = center_block_kind(centers.len(), blocks);
-    for segment in segments.iter().filter(|segment| segment.end_index <= view.query.as_of) {
+    let provider_window = (
+        view.query.coordinate_window.start,
+        view.query.coordinate_window.end,
+    );
+    if let Some(residence) = residence.as_mut() {
+        residence.memo.prepare(
+            level,
+            provider_window,
+            projection.version,
+            projection,
+            blocks,
+            &segments,
+            &centers,
+            residence.freeze_boundary_src,
+        );
+    }
+    for (segment_index, segment) in segments
+        .iter()
+        .enumerate()
+        .filter(|(_, segment)| segment.end_index <= view.query.as_of)
+    {
         let Some(center_index) = nearest_confirmed_center_idx(&centers, segment.start_index) else {
             continue;
         };
         if kinds.get(center_index) != Some(&Some(MoveKind::Consolidation)) {
             continue;
         }
-        // ★R3：窄锚（中枢后前次同向破核心段）locate∧Extreme 优先；任一失败回退 A′（中枢前
-        // 最近同向段，061:28 中枢两头比较，回中枢要件由中枢本身满足）重判 Extreme（044:234 维持）。
-        let Some(structure) = locate_pan_div_structure(
-            &centers[center_index], segment, &segments, &anchors_self,
-        )
-        .filter(|structure| pan_div_structure_extreme(structure, &segments))
-        .or_else(|| {
-            locate_pan_div_structure_front_anchor(
-                &centers[center_index], segment, &segments, &anchors_self,
-            )
-            .filter(|structure| pan_div_structure_extreme(structure, &segments))
-        }) else {
+        let Some(leave_index) = pan_owner_block_index(blocks, center_index) else {
             continue;
         };
-        let Some(leave_index) = blocks.iter().position(|block| {
-            block.kind == MoveKind::Consolidation
-                && block.start_center <= center_index
-                && block.end_center >= center_index
-        }) else {
+        let memo_key =
+            pan_block_triple(projection, blocks, leave_index).map(|block_triple| PanMemoKey {
+                level,
+                provider_window,
+                projection_version: projection.version,
+                segment_index,
+                segment: PanSegmentIdentity::from(segment),
+                center_index,
+                center: PanCenterIdentity::from(&centers[center_index]),
+                block_index: leave_index,
+                blocks: block_triple,
+            });
+        let segment_is_stable = residence.as_ref().is_some_and(|residence| {
+            segments[..=segment_index]
+                .iter()
+                .all(|read| read.end_index < residence.freeze_boundary_src)
+                && centers[center_index].end_index < residence.freeze_boundary_src
+        });
+        let cached = if segment_is_stable {
+            memo_key.and_then(|memo_key| {
+                residence
+                    .as_mut()
+                    .and_then(|residence| residence.memo.lookup(&memo_key))
+            })
+        } else {
+            None
+        };
+        if let Some(value) = cached {
+            match value {
+                PanMemoValue::NoEvent => continue,
+                PanMemoValue::Event(core) => {
+                    let ext = materialize_pan_event(level, core, view, fractals, merged_bars);
+                    if !out.iter().any(|candidate| candidate.event == ext.event) {
+                        out.push(ext);
+                    }
+                    continue;
+                }
+            }
+        }
+        // ★R3：窄锚（中枢后前次同向破核心段）locate∧Extreme 优先；任一失败回退 A′（中枢前
+        // 最近同向段，061:28 中枢两头比较，回中枢要件由中枢本身满足）重判 Extreme（044:234 维持）。
+        let Some(structure) =
+            locate_pan_div_structure(&centers[center_index], segment, &segments, &anchors_self)
+                .filter(|structure| pan_div_structure_extreme(structure, &segments))
+                .or_else(|| {
+                    locate_pan_div_structure_front_anchor(
+                        &centers[center_index],
+                        segment,
+                        &segments,
+                        &anchors_self,
+                    )
+                    .filter(|structure| pan_div_structure_extreme(structure, &segments))
+                })
+        else {
+            if let Some(memo_key) = memo_key.filter(|_| segment_is_stable) {
+                residence
+                    .as_mut()
+                    .expect("stable 资格来自 resident")
+                    .memo
+                    .insert(
+                        memo_key,
+                        segment.end_index.max(centers[center_index].end_index),
+                        segment_index + 1,
+                        PanMemoValue::NoEvent,
+                    );
+            }
             continue;
         };
         // #97 进料口（⑤「盘背入链」落地缺口补齐）：leave→retest 对不可用（如盘整块为末块、
         // 离开块未 Completed）时不再丢弃候选；interval_a 仅供 A 口径诊断，回填为盘整块自身
         // 结构跨度（再兜底 seg_a.0..seg_c.1），B 生产口径（interval_b）不受影响。
-        let (interval_a, intake_fallback) = match structural_pair_span(projection, blocks, leave_index) {
-            Some(span) => (span, false),
-            None => (
-                blocks
-                    .get(leave_index)
-                    .and_then(|block| structural_block_span(projection, block))
-                    .unwrap_or((structure.seg_a.0, structure.seg_c.1)),
-                true,
-            ),
-        };
+        let (interval_a, intake_fallback) =
+            match structural_pair_span(projection, blocks, leave_index) {
+                Some(span) => (span, false),
+                None => (
+                    blocks
+                        .get(leave_index)
+                        .and_then(|block| structural_block_span(projection, block))
+                        .unwrap_or((structure.seg_a.0, structure.seg_c.1)),
+                    true,
+                ),
+            };
         // ★R2：力度或关系（027:32「只要其中一个符合就可以」）——同色柱面积 ∨ 黄白线峰 ∨
         // 同向柱峰，替代旧混合柱面积单通道必要门（p113 实测 30.4% 聋度）。
-        let divergence_confirmed = match (
-            map_src_to_close_idx(close_src, structure.seg_a.0, structure.seg_a.1),
-            map_src_to_close_idx(close_src, structure.seg_c.0, structure.seg_c.1),
-        ) {
-            (Some(a), Some(c)) => segments_diverge_or(hist, dif, structure.side, a, c),
-            _ => false,
-        };
-        let event = NestCandidateEvent {
-            level,
-            side: structure.side,
-            kind: NestDivergenceKind::Consolidation,
-            seg_a: structure.seg_a,
-            interval_b: structure.seg_c,
+        let mapped_spans = complete_pan_span(close_src, hist, dif, structure.seg_a)
+            .zip(complete_pan_span(close_src, hist, dif, structure.seg_c));
+        let divergence_confirmed = mapped_spans
+            .map(|(a, c)| segments_diverge_or(hist, dif, structure.side, a, c))
+            .unwrap_or(false);
+        let core = PanEventCore {
+            structure,
             interval_a,
-            divergence_confirmed,
-            turn_source: structure.source_index,
-            judge_at: view.query.as_of,
-            provider_window: (view.query.coordinate_window.start, view.query.coordinate_window.end),
             intake_fallback,
-            // 关③ P3：B = 盘背结构所对的最近确认中枢（locate_pan_div_structure 同一中枢
-            // 入参）——同写归因用途，不作门（P2 盘背域无需 owner 合取）。
-            b_center_start: centers[center_index].start_index,
+            divergence_confirmed,
         };
+        let ext = materialize_pan_event(level, core, view, fractals, merged_bars);
+        let read_end_src = segment
+            .end_index
+            .max(centers[center_index].end_index)
+            .max(structure.seg_a.1)
+            .max(structure.seg_c.1);
+        if segment_is_stable
+            && memo_key.is_some()
+            && read_end_src
+                < residence
+                    .as_ref()
+                    .expect("stable 资格来自 resident")
+                    .freeze_boundary_src
+            && mapped_spans.is_some()
+        {
+            residence
+                .as_mut()
+                .expect("stable 资格来自 resident")
+                .memo
+                .insert(
+                    memo_key.expect("链②资格已核"),
+                    read_end_src,
+                    segment_index + 1,
+                    PanMemoValue::Event(core),
+                );
+        }
         // 去重键 = 事件本体（与旧 `out.contains(&event)` 逐字同语义；锚 sidecar 不进键）。
-        if !out.iter().any(|ext| ext.event == event) {
-            // T1 (#170)：两元锚（极值价, 组锚）在事件构造点解析（单一查法；方向分量
-            // 已随 T5a (#207) 退役，#206 Q1 裁定）。
-            let (extreme_price, group_anchor) =
-                resolve_triple_anchor(structure.seg_c.1, fractals, merged_bars);
-            out.push(NestCandidateEventExt { event, extreme_price, group_anchor });
+        if !out.iter().any(|candidate| candidate.event == ext.event) {
+            out.push(ext);
         }
     }
-    out.sort_by_key(|ext| (
-        ext.event.turn_source,
-        ext.event.interval_b,
-        ext.event.kind,
-        matches!(ext.event.side, Side::Short),
-    ));
+    out.sort_by_key(|ext| {
+        (
+            ext.event.turn_source,
+            ext.event.interval_b,
+            ext.event.kind,
+            matches!(ext.event.side, Side::Short),
+        )
+    });
     out
 }
 
@@ -1040,6 +1808,7 @@ pub struct LevelAsOfView {
     pub cache_key: C2CacheKey,
     pub moves: Vec<AssembledMove>,
     pub pairs: Vec<DivergencePair>,
+    pub pair_confirmations: Vec<PairConfirmState>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1056,6 +1825,26 @@ pub fn assemble_level_view(
     config: C2LevelViewConfig,
     query: LevelViewQuery,
     material: LevelViewMaterial<'_>,
+) -> Result<LevelAsOfView, LevelViewError> {
+    assemble_level_view_impl(config, query, material, None)
+}
+
+/// #69 5a resident seam。旧入口签名不动并委托 `None`；调用方只有显式给出
+/// `ConfirmResidence` 才能跨 view 复用已封 lower-leg 前缀。
+pub fn assemble_level_view_resident(
+    config: C2LevelViewConfig,
+    query: LevelViewQuery,
+    material: LevelViewMaterial<'_>,
+    residence: Option<ConfirmResidence<'_>>,
+) -> Result<LevelAsOfView, LevelViewError> {
+    assemble_level_view_impl(config, query, material, residence)
+}
+
+fn assemble_level_view_impl(
+    config: C2LevelViewConfig,
+    query: LevelViewQuery,
+    material: LevelViewMaterial<'_>,
+    mut residence: Option<ConfirmResidence<'_>>,
 ) -> Result<LevelAsOfView, LevelViewError> {
     if !config.enabled {
         return Err(LevelViewError::FeatureDisabled);
@@ -1100,9 +1889,69 @@ pub fn assemble_level_view(
     } else {
         Vec::new()
     };
+    if let Some(residence) = residence.as_mut() {
+        let active_keys: Vec<_> = pairs
+            .iter()
+            .map(|pair| {
+                let last = &projection.seeds[pair.id.block_end_center].center;
+                ConfirmKey::for_pair(query, pair, last, residence.structure_generation)
+            })
+            .collect();
+        residence.store.retain_active_for_run(
+            query.level,
+            query.coordinate_window.start,
+            &active_keys,
+        );
+    }
 
     // Trend 完成判定（R1 全合取扫描）消费的段序列——与 provide_nest_candidate_events 同一投影。
     let segments: Vec<_> = material.lower_legs.iter().map(leg_as_segment).collect();
+    let pair_confirmations: Vec<_> = pairs
+        .iter()
+        .map(|pair| {
+            let last = &projection.seeds[pair.id.block_end_center].center;
+            let direction = pair.id.direction;
+            let side = match direction {
+                Direction::Down => Side::Long,
+                Direction::Up => Side::Short,
+            };
+            let state = if let Some(residence) = residence.as_mut() {
+                let key = ConfirmKey::for_pair(query, pair, last, residence.structure_generation);
+                let stable_lower_len = residence.stable_lower_len;
+                let cursor = residence.store.cursor_mut(key);
+                trend_confirm_state_core(
+                    &segments,
+                    last,
+                    direction,
+                    side,
+                    pair.seg_a,
+                    pair.seg_c.0,
+                    query.as_of,
+                    material.hist,
+                    material.dif,
+                    material.close_src,
+                    Some((cursor, stable_lower_len)),
+                )
+            } else {
+                trend_confirm_state(
+                    &segments,
+                    last,
+                    direction,
+                    side,
+                    pair.seg_a,
+                    pair.seg_c.0,
+                    query.as_of,
+                    material.hist,
+                    material.dif,
+                    material.close_src,
+                )
+            };
+            PairConfirmState {
+                pair_id: pair.id,
+                state,
+            }
+        })
+        .collect();
 
     let mut moves = Vec::with_capacity(material.move_blocks.len());
     for block in material.move_blocks {
@@ -1135,54 +1984,38 @@ pub fn assemble_level_view(
                         // 同一全合取谓词（trend_confirm_time，单一来源——T4 回拉0轴 ∧ T3 三买
                         // ∧ T2 破极值 ∧ T5 力度或关系，确认时点 = 首个全成立时点，禁前视）。
                         // 旧面积单通道（segments_diverge on seg_c）随 seg_c 全离开段化废止。
-                        let mappable = map_src_to_close_idx(
-                            material.close_src,
-                            pair.seg_a.0,
-                            pair.seg_a.1,
-                        )
-                        .is_some()
-                            && map_src_to_close_idx(
-                                material.close_src,
-                                pair.seg_c.0,
-                                pair.seg_c.1,
-                            )
-                            .is_some();
+                        let mappable =
+                            map_src_to_close_idx(material.close_src, pair.seg_a.0, pair.seg_a.1)
+                                .is_some()
+                                && map_src_to_close_idx(
+                                    material.close_src,
+                                    pair.seg_c.0,
+                                    pair.seg_c.1,
+                                )
+                                .is_some();
                         if !mappable {
                             CompletionStatus::Pending {
                                 as_of: query.as_of,
                                 reason: PendingReason::MissingMacdCoordinates,
                             }
                         } else {
-                            let direction = block
-                                .dir
-                                .expect("Trend 块必有 dir（decompose 不变量，pair 存在性已证）");
-                            let side = match direction {
-                                Direction::Down => Side::Long,
-                                Direction::Up => Side::Short,
-                            };
-                            let last = &projection.seeds[block.end_center].center;
-                            match trend_confirm_time(
-                                &segments,
-                                last,
-                                direction,
-                                side,
-                                pair.seg_a,
-                                pair.seg_c.0,
-                                query.as_of,
-                                material.hist,
-                                material.dif,
-                                material.close_src,
-                            ) {
-                                Some(_) => CompletionStatus::Completed {
+                            let state = pair_confirmations
+                                .iter()
+                                .find(|confirmation| confirmation.pair_id == pair.id)
+                                .map_or(ConfirmState::Scanning, |confirmation| confirmation.state);
+                            match state {
+                                ConfirmState::Confirmed(_) => CompletionStatus::Completed {
                                     as_of: query.as_of,
                                     evidence: CompletionEvidence::TerminalDivergence {
                                         pair_id: pair.id,
                                     },
                                 },
-                                None => CompletionStatus::Pending {
-                                    as_of: query.as_of,
-                                    reason: PendingReason::TerminalLegNotDivergent,
-                                },
+                                ConfirmState::TerminalFalse | ConfirmState::Scanning => {
+                                    CompletionStatus::Pending {
+                                        as_of: query.as_of,
+                                        reason: PendingReason::TerminalLegNotDivergent,
+                                    }
+                                }
                             }
                         }
                     }
@@ -1203,6 +2036,7 @@ pub fn assemble_level_view(
         cache_key,
         moves,
         pairs,
+        pair_confirmations,
     })
 }
 
@@ -1326,10 +2160,25 @@ mod tests {
     #[test]
     fn triple_anchor_resolution_caliber() {
         let fractals = vec![
-            Fractal { kind: FractalKind::Bottom, source_index: 10, timestamp: 10, price: 100 },
+            Fractal {
+                kind: FractalKind::Bottom,
+                source_index: 10,
+                timestamp: 10,
+                price: 100,
+            },
             // W 底第二脚：同向同价（底, 100），与第一脚分属不同合并组。
-            Fractal { kind: FractalKind::Bottom, source_index: 30, timestamp: 30, price: 100 },
-            Fractal { kind: FractalKind::Top, source_index: 50, timestamp: 50, price: 190 },
+            Fractal {
+                kind: FractalKind::Bottom,
+                source_index: 30,
+                timestamp: 30,
+                price: 100,
+            },
+            Fractal {
+                kind: FractalKind::Top,
+                source_index: 50,
+                timestamp: 50,
+                price: 190,
+            },
         ];
         // 合并组：g0 = raw [0,20)（锚 0）；g1 = raw [20,50)（锚 20）；g2 = raw [50,∞)（锚 50）。
         let merged = vec![mbar(0), mbar(20), mbar(50)];
@@ -1342,12 +2191,24 @@ mod tests {
         // 跨级不变量构造锁：解析只读（x, 供给），不读级别几何——同一 x 在任意级别查到
         // 同一分型 ⟹ 极值价逐值相同（教义裁定 3）。
         let again = resolve_triple_anchor(10, &fractals, &merged);
-        assert_eq!(again, (p1, a1), "同一 x 重复解析逐值相同（与级别无关 ⟹ 跨级不变）");
-        assert_eq!(p1, Some(100), "极值价口径 = 分型极值价（整数 tick，非腿包络/非原始 K 极值）");
+        assert_eq!(
+            again,
+            (p1, a1),
+            "同一 x 重复解析逐值相同（与级别无关 ⟹ 跨级不变）"
+        );
+        assert_eq!(
+            p1,
+            Some(100),
+            "极值价口径 = 分型极值价（整数 tick，非腿包络/非原始 K 极值）"
+        );
         // x 在 L0 是反向分型（高级别走势以次级别反向段收束的情形）：极值价照取 x 处实际
         // 打印价（190 = 顶分型 high）——键内方向由 event.side 携带，不经本供给。
         let (pt, at) = resolve_triple_anchor(50, &fractals, &merged);
-        assert_eq!((pt, at), (Some(190), Some(50)), "极值价 = x 处实际分型价（不设 kind 守卫）");
+        assert_eq!(
+            (pt, at),
+            (Some(190), Some(50)),
+            "极值价 = x 处实际分型价（不设 kind 守卫）"
+        );
         // 分型供给未命中 ⟹ 极值价 None；组锚仍可解（x=51 ∈ g2）。
         let (pm, am) = resolve_triple_anchor(51, &fractals, &merged);
         assert_eq!(pm, None);
@@ -1404,21 +2265,46 @@ mod tests {
         )
         .unwrap();
         // 供给：x=129 处顶分型（极值 190 = 腿12 hi）；包含层逐根成组（锚 = 序号自身）。
-        let fractals =
-            vec![Fractal { kind: FractalKind::Top, source_index: 129, timestamp: 129, price: 190 }];
+        let fractals = vec![Fractal {
+            kind: FractalKind::Top,
+            source_index: 129,
+            timestamp: 129,
+            price: 190,
+        }];
         let merged: Vec<Bar> = (0..140).map(mbar).collect();
         let exts = provide_nest_candidate_events_ext(
-            1, &projection, &blocks, &legs, &view, &hist, &dif, &close_src, &fractals, &merged,
+            1,
+            &projection,
+            &blocks,
+            &legs,
+            &view,
+            &hist,
+            &dif,
+            &close_src,
+            &fractals,
+            &merged,
         );
         let ext = exts
             .iter()
             .find(|e| e.event.divergence_confirmed && e.event.kind == NestDivergenceKind::Trend)
             .expect("夹具应产 1 个 confirmed Trend 事件");
-        assert_eq!(ext.extreme_price, Some(190), "极值价 = x=129 处分型极值（跨级不变量口径）");
+        assert_eq!(
+            ext.extreme_price,
+            Some(190),
+            "极值价 = x=129 处分型极值（跨级不变量口径）"
+        );
         assert_eq!(ext.group_anchor, Some(129), "组锚 = x 所在合并组首根序号");
         // 锚 sidecar 不进事件本体：事件集/排序与事件视图（无锚供给）逐字节同。
-        let events_only =
-            provide_nest_candidate_events(1, &projection, &blocks, &legs, &view, &hist, &dif, &close_src);
+        let events_only = provide_nest_candidate_events(
+            1,
+            &projection,
+            &blocks,
+            &legs,
+            &view,
+            &hist,
+            &dif,
+            &close_src,
+        );
         assert_eq!(
             exts.iter().map(|e| e.event).collect::<Vec<_>>(),
             events_only,
@@ -1558,7 +2444,11 @@ mod tests {
         let legs = lower_legs_from(&extended).unwrap();
         let pairs = provide_divergence_pairs(1, &projection, &[block], &legs, 149);
         assert_eq!(pairs.len(), 1);
-        assert_eq!(pairs[0].seg_a, (80, 109), "seg_a 不动（b = 进入最后中枢的段）");
+        assert_eq!(
+            pairs[0].seg_a,
+            (80, 109),
+            "seg_a 不动（b = 进入最后中枢的段）"
+        );
         assert_eq!(
             pairs[0].seg_c,
             (120, 149),
@@ -1566,7 +2456,11 @@ mod tests {
         );
         // as_of 截断到 129 ⟹ 只看得到首腿：c_end 退化回首腿终点（禁前视，与 #105 逐位一致）。
         let truncated = provide_divergence_pairs(1, &projection, &[block], &legs, 129);
-        assert_eq!(truncated[0].seg_c, (120, 129), "as_of 截断 ⟹ 单腿窗口（禁前视）");
+        assert_eq!(
+            truncated[0].seg_c,
+            (120, 129),
+            "as_of 截断 ⟹ 单腿窗口（禁前视）"
+        );
     }
 
     #[test]
@@ -1648,6 +2542,436 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    /// #69 5a / T0：先锁住冷核的首证钟与未决投影；resident 化不得改写现行
+    /// `Option<usize>` 可观察结果。
+    #[test]
+    fn confirm_state_cold_projection_preserves_first_proof_and_scanning() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        let segments: Vec<_> = legs.iter().map(leg_as_segment).collect();
+        let last = &projection.seeds[2].center;
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(0.1);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+
+        let confirmed = trend_confirm_state(
+            &segments,
+            last,
+            Direction::Up,
+            Side::Short,
+            (80, 109),
+            120,
+            139,
+            &hist,
+            &dif,
+            &close_src,
+        );
+        assert_eq!(confirmed, ConfirmState::Confirmed(139));
+        assert_eq!(
+            confirmed.as_option(),
+            trend_confirm_time(
+                &segments,
+                last,
+                Direction::Up,
+                Side::Short,
+                (80, 109),
+                120,
+                139,
+                &hist,
+                &dif,
+                &close_src,
+            )
+        );
+
+        let scanning = trend_confirm_state(
+            &segments,
+            last,
+            Direction::Up,
+            Side::Short,
+            (80, 109),
+            120,
+            129,
+            &hist,
+            &dif,
+            &close_src,
+        );
+        assert_eq!(scanning, ConfirmState::Scanning);
+        assert_eq!(scanning.as_option(), None);
+    }
+
+    /// #69 5a / T1：只有已进入 T5 判定且 `force_ok` 单调转假才是终假；
+    /// 坐标缺失等旧 `None` 必须仍是未决。
+    #[test]
+    fn confirm_state_distinguishes_terminal_false_from_unresolved_none() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        let segments: Vec<_> = legs.iter().map(leg_as_segment).collect();
+        let last = &projection.seeds[2].center;
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(5.0);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+
+        let terminal = trend_confirm_state(
+            &segments,
+            last,
+            Direction::Up,
+            Side::Short,
+            (80, 109),
+            120,
+            139,
+            &hist,
+            &dif,
+            &close_src,
+        );
+        assert_eq!(terminal, ConfirmState::TerminalFalse);
+        assert_eq!(terminal.as_option(), None);
+
+        let missing_coordinates = trend_confirm_state(
+            &segments,
+            last,
+            Direction::Up,
+            Side::Short,
+            (80, 109),
+            120,
+            139,
+            &hist,
+            &dif,
+            &[],
+        );
+        assert_eq!(missing_coordinates, ConfirmState::Scanning);
+    }
+
+    /// #69 5a / T2：同一 pair 按 as_of 增长时，resident cursor 每一步必须与空 cursor
+    /// 冷算同果；已封 lower-leg 下标只前进、不重加。
+    #[test]
+    fn confirm_cursor_incremental_matches_cold_at_every_boundary() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        let segments: Vec<_> = legs.iter().map(leg_as_segment).collect();
+        let last = &projection.seeds[2].center;
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(0.1);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+        let mut cursor = ConfirmCursor::default();
+        let mut previous_k0 = 0;
+
+        for as_of in [119, 129, 139] {
+            let confirmed_len = segments.partition_point(|segment| segment.end_index <= as_of);
+            let resident = trend_confirm_state_core(
+                &segments,
+                last,
+                Direction::Up,
+                Side::Short,
+                (80, 109),
+                120,
+                as_of,
+                &hist,
+                &dif,
+                &close_src,
+                Some((&mut cursor, confirmed_len)),
+            );
+            let cold = trend_confirm_state(
+                &segments,
+                last,
+                Direction::Up,
+                Side::Short,
+                (80, 109),
+                120,
+                as_of,
+                &hist,
+                &dif,
+                &close_src,
+            );
+            assert_eq!(resident, cold, "as_of={as_of} 热路必须等于空 cursor 冷路");
+            assert!(cursor.k0 >= previous_k0, "已封 lower-leg 游标不得倒退");
+            assert!(cursor.k0 <= confirmed_len, "cursor 只能落在已封水线内");
+            previous_k0 = cursor.k0;
+        }
+        assert_eq!(cursor.state, ConfirmState::Confirmed(139));
+        let sealed_k0 = cursor.k0;
+        let repeated = trend_confirm_state_core(
+            &segments,
+            last,
+            Direction::Up,
+            Side::Short,
+            (80, 109),
+            120,
+            139,
+            &hist,
+            &dif,
+            &close_src,
+            Some((&mut cursor, segments.len())),
+        );
+        assert_eq!(repeated, ConfirmState::Confirmed(139));
+        assert_eq!(cursor.k0, sealed_k0, "终态重复查询不得重扫或推进 cursor");
+    }
+
+    /// #69 5a / T3：store 只持久化已封前缀；证书回退必须清 cursor 冷重算，
+    /// 结构代次变化必须 key miss 且同 run 旧 key 被剪枝。
+    #[test]
+    fn confirm_store_resets_on_watermark_rollback_and_structure_change() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        let blocks = [trend_block(Some(Direction::Up))];
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(0.1);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+        let resident_query = LevelViewQuery {
+            level: 1,
+            coordinate_window: CoordinateWindow { start: 0, end: 139 },
+            as_of: 139,
+            version: C2VersionTuple::auto_pairing(),
+        };
+        let material = || LevelViewMaterial {
+            projection: ProjectionMaterial::ExactThree(&projection),
+            move_blocks: &blocks,
+            lower_legs: &legs,
+            hist: &hist,
+            dif: &dif,
+            close_src: &close_src,
+        };
+        let mut store = ConfirmCursorStore::default();
+
+        let sealed = assemble_level_view_resident(
+            C2LevelViewConfig { enabled: true },
+            resident_query,
+            material(),
+            Some(ConfirmResidence {
+                store: &mut store,
+                stable_lower_len: legs.len(),
+                structure_generation: 7,
+            }),
+        )
+        .unwrap();
+        assert!(matches!(
+            sealed.moves[0].completion,
+            CompletionStatus::Completed { .. }
+        ));
+        assert_eq!(store.cursors.len(), 1);
+        assert_eq!(
+            store.cursors.values().next().unwrap().state,
+            ConfirmState::Confirmed(139)
+        );
+
+        let rolled = assemble_level_view_resident(
+            C2LevelViewConfig { enabled: true },
+            resident_query,
+            material(),
+            Some(ConfirmResidence {
+                store: &mut store,
+                stable_lower_len: 12,
+                structure_generation: 7,
+            }),
+        )
+        .unwrap();
+        assert_eq!(
+            rolled,
+            assemble_level_view(
+                C2LevelViewConfig { enabled: true },
+                resident_query,
+                material()
+            )
+            .unwrap()
+        );
+        let cursor = store.cursors.values().next().unwrap();
+        assert_eq!(cursor.k0, 12, "水线回退后只可重建到新已封边界");
+        assert_eq!(cursor.state, ConfirmState::Scanning, "可变尾结果不得回写");
+
+        let regenerated = assemble_level_view_resident(
+            C2LevelViewConfig { enabled: true },
+            resident_query,
+            material(),
+            Some(ConfirmResidence {
+                store: &mut store,
+                stable_lower_len: legs.len(),
+                structure_generation: 8,
+            }),
+        )
+        .unwrap();
+        assert_eq!(regenerated, sealed);
+        assert_eq!(store.cursors.len(), 1, "同 run 的旧结构 key 必须被剪枝");
+        assert!(store
+            .cursors
+            .keys()
+            .all(|key| key.structure_generation == 8));
+    }
+
+    /// #69 5a / T4：assemble 与 provider 必须消费 view 内同一份 pair 状态；
+    /// provider 不得二次进入确认核，且 sidecar 查找必须校验 `DivergencePairId`。
+    #[test]
+    fn assemble_and_provider_share_one_pair_confirmation() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        let blocks = [
+            trend_block(Some(Direction::Up)),
+            MoveBlock {
+                start_center: 1,
+                end_center: 2,
+                kind: MoveKind::Consolidation,
+                dir: None,
+                status: MoveStatus::Completed,
+            },
+        ];
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(0.1);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+        let query = LevelViewQuery {
+            level: 1,
+            coordinate_window: CoordinateWindow { start: 0, end: 139 },
+            as_of: 139,
+            version: C2VersionTuple::auto_pairing(),
+        };
+        reset_confirm_core_calls();
+        let view = assemble_level_view(
+            C2LevelViewConfig { enabled: true },
+            query,
+            LevelViewMaterial {
+                projection: ProjectionMaterial::ExactThree(&projection),
+                move_blocks: &blocks,
+                lower_legs: &legs,
+                hist: &hist,
+                dif: &dif,
+                close_src: &close_src,
+            },
+        )
+        .unwrap();
+        assert_eq!(view.pair_confirmations.len(), 1);
+        assert_eq!(
+            view.pair_confirmations[0],
+            PairConfirmState {
+                pair_id: view.pairs[0].id,
+                state: ConfirmState::Confirmed(139),
+            }
+        );
+        assert_eq!(confirm_core_calls(), 1, "assemble 每 pair 只进核一次");
+
+        let events = provide_nest_candidate_events(
+            1,
+            &projection,
+            &blocks,
+            &legs,
+            &view,
+            &hist,
+            &dif,
+            &close_src,
+        );
+        assert!(events
+            .iter()
+            .any(|event| event.kind == NestDivergenceKind::Trend && event.divergence_confirmed));
+        assert_eq!(confirm_core_calls(), 1, "provider 必须只读 view sidecar");
+
+        let mut mismatched = view.clone();
+        mismatched.pair_confirmations[0].pair_id.level += 1;
+        let mismatched_events = provide_nest_candidate_events(
+            1,
+            &projection,
+            &blocks,
+            &legs,
+            &mismatched,
+            &hist,
+            &dif,
+            &close_src,
+        );
+        assert!(mismatched_events
+            .iter()
+            .filter(|event| event.kind == NestDivergenceKind::Trend)
+            .all(|event| !event.divergence_confirmed));
+        assert_eq!(
+            confirm_core_calls(),
+            1,
+            "身份错配必须 fail-closed，禁止回退重算"
+        );
+    }
+
+    /// #69 5a / T5：即使 resident store 被污染，显式 `None` 仍必须走真冷核，
+    /// 既不读取也不改写该 store。
+    #[test]
+    fn cold_none_oracle_is_isolated_from_poisoned_resident_store() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        let blocks = [trend_block(Some(Direction::Up))];
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(0.1);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+        let query = LevelViewQuery {
+            level: 1,
+            coordinate_window: CoordinateWindow { start: 0, end: 139 },
+            as_of: 139,
+            version: C2VersionTuple::auto_pairing(),
+        };
+        let material = || LevelViewMaterial {
+            projection: ProjectionMaterial::ExactThree(&projection),
+            move_blocks: &blocks,
+            lower_legs: &legs,
+            hist: &hist,
+            dif: &dif,
+            close_src: &close_src,
+        };
+        let mut store = ConfirmCursorStore::default();
+        assemble_level_view_resident(
+            C2LevelViewConfig { enabled: true },
+            query,
+            material(),
+            Some(ConfirmResidence {
+                store: &mut store,
+                stable_lower_len: legs.len(),
+                structure_generation: 1,
+            }),
+        )
+        .unwrap();
+        store.poison_for_test(ConfirmState::TerminalFalse);
+
+        let forced_cold = assemble_level_view_resident(
+            C2LevelViewConfig { enabled: true },
+            query,
+            material(),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            forced_cold.pair_confirmations[0].state,
+            ConfirmState::Confirmed(139)
+        );
+        assert!(matches!(
+            forced_cold.moves[0].completion,
+            CompletionStatus::Completed { .. }
+        ));
+        assert!(store
+            .cursors
+            .values()
+            .all(|cursor| cursor.state == ConfirmState::TerminalFalse));
     }
 
     /// 票 #427 左端恒等（裁定 #402 题二「维持工程桥」的等价性前提）：trend 确认分支把
@@ -1860,5 +3184,889 @@ mod tests {
             stream_a, stream_b,
             "freeze event stream key 必须跨 as_of 稳定"
         );
+    }
+
+    struct PanProviderFixture {
+        projection: ExactThreeProjection,
+        blocks: Vec<MoveBlock>,
+        legs: Vec<LowerLeg>,
+        view: LevelAsOfView,
+        hist: Vec<f64>,
+        dif: Vec<f64>,
+        close_src: Vec<usize>,
+    }
+
+    fn pan_seed(index: usize, center: Center) -> ExactThreeSeed {
+        ExactThreeSeed {
+            source_id: ElementId {
+                level: 1,
+                ordinal: index as u64,
+            },
+            source_sub_count: 3,
+            start_index: center.start_index,
+            end_index: center.end_index,
+            center,
+            core_provenance: SeedCoreProvenance::SelfConsistent,
+        }
+    }
+
+    fn pan_provider_fixture() -> PanProviderFixture {
+        let centers = [
+            Center {
+                zd: 100,
+                zg: 200,
+                dd: 90,
+                gg: 210,
+                start_index: 0,
+                end_index: 2,
+            },
+            Center {
+                zd: 300,
+                zg: 400,
+                dd: 290,
+                gg: 410,
+                start_index: 3,
+                end_index: 5,
+            },
+            Center {
+                zd: 350,
+                zg: 450,
+                dd: 250,
+                gg: 460,
+                start_index: 4,
+                end_index: 8,
+            },
+            Center {
+                zd: 500,
+                zg: 550,
+                dd: 490,
+                gg: 560,
+                start_index: 12,
+                end_index: 14,
+            },
+            Center {
+                zd: 600,
+                zg: 650,
+                dd: 590,
+                gg: 660,
+                start_index: 15,
+                end_index: 17,
+            },
+            Center {
+                zd: 580,
+                zg: 640,
+                dd: 570,
+                gg: 670,
+                start_index: 18,
+                end_index: 20,
+            },
+            Center {
+                zd: 700,
+                zg: 750,
+                dd: 690,
+                gg: 760,
+                start_index: 21,
+                end_index: 23,
+            },
+        ];
+        let projection = ExactThreeProjection {
+            version: ProviderVersion::EXTENDED_TO_EXACT_THREE_V3,
+            seeds: centers
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(index, center)| pan_seed(index, center))
+                .collect(),
+        };
+        let blocks = vec![
+            MoveBlock {
+                start_center: 0,
+                end_center: 2,
+                kind: MoveKind::Consolidation,
+                dir: None,
+                status: MoveStatus::Completed,
+            },
+            MoveBlock {
+                start_center: 2,
+                end_center: 4,
+                kind: MoveKind::Trend,
+                dir: Some(Direction::Up),
+                status: MoveStatus::Completed,
+            },
+            MoveBlock {
+                start_center: 4,
+                end_center: 6,
+                kind: MoveKind::Consolidation,
+                dir: None,
+                status: MoveStatus::Active,
+            },
+        ];
+        let legs = vec![
+            LowerLeg {
+                id: ElementId {
+                    level: 0,
+                    ordinal: 0,
+                },
+                direction: Direction::Down,
+                start_index: 1,
+                end_index: 3,
+                lo: 360,
+                hi: 460,
+            },
+            LowerLeg {
+                id: ElementId {
+                    level: 0,
+                    ordinal: 1,
+                },
+                direction: Direction::Down,
+                start_index: 9,
+                end_index: 11,
+                lo: 300,
+                hi: 380,
+            },
+        ];
+        let mut hist = vec![0.0; 32];
+        hist[1..=3].fill(-5.0);
+        hist[9] = -1.0;
+        hist[10] = 20.0;
+        hist[11] = -1.0;
+        let dif = vec![0.0; 32];
+        let close_src: Vec<_> = (0..32).collect();
+        let query = LevelViewQuery {
+            level: 1,
+            coordinate_window: CoordinateWindow { start: 0, end: 23 },
+            as_of: 31,
+            version: C2VersionTuple::auto_pairing(),
+        };
+        let view = LevelAsOfView {
+            query,
+            cache_key: C2CacheKey::from_query(&query).unwrap(),
+            moves: Vec::new(),
+            pairs: Vec::new(),
+            pair_confirmations: Vec::new(),
+        };
+        PanProviderFixture {
+            projection,
+            blocks,
+            legs,
+            view,
+            hist,
+            dif,
+            close_src,
+        }
+    }
+
+    /// #69 5b / T0：先锁冷路径盘背事件的全部物理字段；resident `None` 必须逐字段等于旧入口。
+    #[test]
+    fn pan_memo_cold_path_characterization() {
+        let fixture = pan_provider_fixture();
+        let cold = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        let resident_none = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            None,
+        );
+        assert_eq!(resident_none, cold, "None 必须是真冷旧核");
+        let event = cold
+            .iter()
+            .find(|event| event.kind == NestDivergenceKind::Consolidation)
+            .expect("夹具必须产真实盘背事件");
+        assert_eq!(event.side, Side::Long);
+        assert_eq!(event.seg_a, (1, 3));
+        assert_eq!(event.interval_b, (9, 11));
+        assert_eq!(event.interval_a, (0, 17));
+        assert!(event.divergence_confirmed);
+        assert_eq!(event.turn_source, 11);
+        assert_eq!(event.judge_at, 31);
+        assert_eq!(event.provider_window, (0, 23));
+        assert!(!event.intake_fallback);
+        assert_eq!(event.b_center_start, 4);
+    }
+
+    /// #69 5b / T0 补格：锁定窄锚优先、Extreme 淘汰、span fallback 与事件去重；
+    /// 坐标未到格由 `pan_memo_incomplete_macd_does_not_negative_cache` 同时覆盖。
+    #[test]
+    fn pan_cold_path_narrow_extreme_fallback_and_dedup_grid() {
+        let fixture = pan_provider_fixture();
+
+        let mut narrow_legs = fixture.legs.clone();
+        narrow_legs.push(LowerLeg {
+            id: ElementId {
+                level: 0,
+                ordinal: 2,
+            },
+            direction: Direction::Up,
+            start_index: 11,
+            end_index: 13,
+            lo: 300,
+            hi: 430,
+        });
+        narrow_legs.push(LowerLeg {
+            id: ElementId {
+                level: 0,
+                ordinal: 3,
+            },
+            direction: Direction::Down,
+            start_index: 13,
+            end_index: 15,
+            lo: 280,
+            hi: 430,
+        });
+        let narrow = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &narrow_legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        assert!(
+            narrow.iter().any(|event| {
+                event.kind == NestDivergenceKind::Consolidation
+                    && event.seg_a == (9, 11)
+                    && event.interval_b == (13, 15)
+            }),
+            "同一中枢第二次离开必须优先命中窄锚 A"
+        );
+
+        let mut no_extreme_legs = fixture.legs.clone();
+        no_extreme_legs[1].lo = 370;
+        let no_extreme = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &no_extreme_legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        assert!(no_extreme
+            .iter()
+            .all(|event| event.kind != NestDivergenceKind::Consolidation));
+
+        let mut fallback_blocks = fixture.blocks.clone();
+        fallback_blocks[1].status = MoveStatus::Active;
+        let fallback = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fallback_blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        let fallback_event = fallback
+            .iter()
+            .find(|event| event.kind == NestDivergenceKind::Consolidation)
+            .expect("span 不可用时结构候选不得丢失");
+        assert!(fallback_event.intake_fallback);
+        assert_eq!(fallback_event.interval_a, (0, 8));
+
+        let mut duplicate_legs = fixture.legs.clone();
+        let mut duplicate = duplicate_legs[1];
+        duplicate.id.ordinal += 10;
+        duplicate_legs.push(duplicate);
+        let deduped = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &duplicate_legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        assert_eq!(
+            deduped
+                .iter()
+                .filter(|event| event.kind == NestDivergenceKind::Consolidation)
+                .count(),
+            1,
+            "重复候选仍按事件本体去重"
+        );
+    }
+
+    /// #69 5b / T2（链①）：水位增长后稳定 entry 一生一算；回退及严格等号边界立即失效。
+    #[test]
+    fn pan_memo_e_src_growth_rollback_and_equal_boundary() {
+        let fixture = pan_provider_fixture();
+        let cold = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        let mut memo = PanMemo::default();
+
+        let first = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        assert_eq!(first, cold);
+        assert_eq!(memo.len(), 1);
+        assert_eq!(memo.stats().writes, 1);
+        assert_eq!(memo.stats().hits, 0);
+
+        let grown = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        assert_eq!(grown, cold);
+        assert_eq!(memo.len(), 1, "水位增长不得清已证前缀");
+        assert_eq!(memo.stats().writes, 1, "已证 entry 不得重算回写");
+        assert_eq!(memo.stats().hits, 1);
+
+        let rolled = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 11,
+            }),
+        );
+        assert_eq!(rolled, cold, "失效后必须退化为真冷同案同果");
+        assert_eq!(memo.len(), 0, "segment.end == e_src 不得留 stable memo");
+        assert_eq!(memo.stats().writes, 1, "可变尾冷算不得回写");
+        assert!(memo.stats().invalidations >= 1);
+    }
+
+    /// #69 5b / T2（链①c）：坐标/MACD 前缀未覆盖 A/C 时只冷算，不得写入假阴性；
+    /// 输入到齐后同一调用可产事件并开始缓存。
+    #[test]
+    fn pan_memo_incomplete_macd_does_not_negative_cache() {
+        let fixture = pan_provider_fixture();
+        let mut memo = PanMemo::default();
+        let incomplete_src = &fixture.close_src[..10];
+        let incomplete = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist[..10],
+            &fixture.dif[..10],
+            incomplete_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        let incomplete_pan = incomplete
+            .iter()
+            .find(|event| event.kind == NestDivergenceKind::Consolidation)
+            .expect("结构候选仍须按冷路返回");
+        assert!(!incomplete_pan.divergence_confirmed);
+        assert_eq!(memo.len(), 0);
+        assert_eq!(memo.stats().writes, 0);
+
+        let complete = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        let complete_pan = complete
+            .iter()
+            .find(|event| event.kind == NestDivergenceKind::Consolidation)
+            .expect("输入到齐后必须保留盘背事件");
+        assert!(
+            complete_pan.divergence_confirmed,
+            "不得复用未到齐时的假阴性"
+        );
+        assert_eq!(memo.len(), 1);
+        assert_eq!(memo.stats().writes, 1);
+        assert_eq!(memo.stats().hits, 0);
+    }
+
+    /// #69 5b / T3（链②a）：目标 block 后 0/1 块仍属可变尾；恰有两个后继块才可驻留。
+    #[test]
+    fn pan_memo_requires_two_successor_blocks() {
+        let fixture = pan_provider_fixture();
+        for successor_count in 0..=2 {
+            let blocks = &fixture.blocks[..=successor_count];
+            let cold = provide_nest_candidate_events(
+                1,
+                &fixture.projection,
+                blocks,
+                &fixture.legs,
+                &fixture.view,
+                &fixture.hist,
+                &fixture.dif,
+                &fixture.close_src,
+            );
+            let mut memo = PanMemo::default();
+            let resident = provide_nest_candidate_events_resident(
+                1,
+                &fixture.projection,
+                blocks,
+                &fixture.legs,
+                &fixture.view,
+                &fixture.hist,
+                &fixture.dif,
+                &fixture.close_src,
+                Some(PanResidence {
+                    memo: &mut memo,
+                    freeze_boundary_src: 12,
+                }),
+            );
+            assert_eq!(resident, cold);
+            assert_eq!(
+                memo.len(),
+                usize::from(successor_count == 2),
+                "{successor_count} 个后继块的驻留资格错误"
+            );
+        }
+    }
+
+    /// #69 5b / T3（链②b）：追加第四块不清已证三块；后继消失或身份重折须立即失效。
+    #[test]
+    fn pan_memo_block_shrink_rewrite_and_append_discipline() {
+        let fixture = pan_provider_fixture();
+        let mut memo = PanMemo::default();
+        let first = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        assert_eq!(memo.len(), 1);
+
+        let mut appended = fixture.blocks.clone();
+        appended[2].status = MoveStatus::Completed;
+        appended.push(MoveBlock {
+            start_center: 6,
+            end_center: 6,
+            kind: MoveKind::Consolidation,
+            dir: None,
+            status: MoveStatus::Active,
+        });
+        let appended_out = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &appended,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        assert_eq!(appended_out, first);
+        assert_eq!(memo.stats().hits, 1, "追加尾块不得清已证目标三块");
+        assert_eq!(memo.stats().invalidations, 0);
+
+        let shrunk = &fixture.blocks[..2];
+        let cold_shrunk = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            shrunk,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        let resident_shrunk = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            shrunk,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        assert_eq!(resident_shrunk, cold_shrunk);
+        assert!(memo.is_empty(), "两个后继块门消失后不得残留 entry");
+        assert_eq!(memo.stats().writes, 1, "回缩后的冷算不得回写");
+        assert!(memo.stats().invalidations >= 1);
+
+        let mut memo = PanMemo::default();
+        let _ = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        let mut rewritten = fixture.blocks.clone();
+        rewritten[1].kind = MoveKind::Consolidation;
+        rewritten[1].dir = None;
+        let cold_rewritten = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &rewritten,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        let resident_rewritten = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &rewritten,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        assert_eq!(resident_rewritten, cold_rewritten);
+        assert!(memo.stats().invalidations >= 1, "后继块身份重折必须失效");
+        assert_eq!(memo.stats().writes, 2, "重折后须按新身份冷算回写");
+    }
+
+    /// #69 5b / T4：`judge_at` 每次按当前调用物化；pan 核所读 segment 前缀改写时，
+    /// 即便候选末段身份未变也不得命中旧值。
+    #[test]
+    fn pan_memo_rematerializes_dynamic_fields_and_invalidates_read_prefix() {
+        let fixture = pan_provider_fixture();
+        let mut memo = PanMemo::default();
+        let _ = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+
+        let mut later_view = fixture.view.clone();
+        later_view.query.as_of = 40;
+        let later = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &later_view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        assert_eq!(memo.stats().hits, 1);
+        assert_eq!(memo.stats().writes, 1);
+        assert_eq!(
+            later
+                .iter()
+                .find(|event| event.kind == NestDivergenceKind::Consolidation)
+                .expect("缓存事件仍须按当前调用物化")
+                .judge_at,
+            40
+        );
+
+        let mut rewritten_legs = fixture.legs.clone();
+        rewritten_legs[0].lo -= 10;
+        let cold_rewritten = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &rewritten_legs,
+            &later_view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        let resident_rewritten = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &rewritten_legs,
+            &later_view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        assert_eq!(resident_rewritten, cold_rewritten);
+        assert!(memo.stats().invalidations >= 1, "A/C 读前缀改写必须失效");
+        assert_eq!(memo.stats().writes, 2);
+    }
+
+    /// #69 5b / T4：锚 sidecar 命中时按当前供给重解；provider window 改变即视为另一 run
+    /// 语境，不得共享旧 entry。
+    #[test]
+    fn pan_memo_rematerializes_anchor_and_separates_run_window() {
+        let fixture = pan_provider_fixture();
+        let mut memo = PanMemo::default();
+        let first = provide_nest_candidate_events_ext_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            &[],
+            &[],
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        let first_pan = first
+            .iter()
+            .find(|ext| ext.event.kind == NestDivergenceKind::Consolidation)
+            .expect("夹具必须产 pan");
+        assert_eq!(
+            (first_pan.extreme_price, first_pan.group_anchor),
+            (None, None)
+        );
+
+        let fractals = [Fractal {
+            kind: FractalKind::Bottom,
+            source_index: 11,
+            timestamp: 11,
+            price: 300,
+        }];
+        let merged: Vec<_> = (0..32).map(mbar).collect();
+        let anchored = provide_nest_candidate_events_ext_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            &fractals,
+            &merged,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        let anchored_pan = anchored
+            .iter()
+            .find(|ext| ext.event.kind == NestDivergenceKind::Consolidation)
+            .expect("命中后事件仍须存在");
+        assert_eq!(
+            (anchored_pan.extreme_price, anchored_pan.group_anchor),
+            (Some(300), Some(11))
+        );
+        assert_eq!(memo.stats().hits, 1);
+        assert_eq!(memo.stats().writes, 1);
+
+        let mut other_run_view = fixture.view.clone();
+        other_run_view.query.coordinate_window.end += 1;
+        other_run_view.cache_key = C2CacheKey::from_query(&other_run_view.query).unwrap();
+        let other_run = provide_nest_candidate_events_ext_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &other_run_view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            &fractals,
+            &merged,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        assert!(other_run.iter().any(|ext| {
+            ext.event.kind == NestDivergenceKind::Consolidation
+                && ext.event.provider_window == (0, 24)
+        }));
+        assert!(memo.stats().invalidations >= 1);
+        assert_eq!(memo.stats().writes, 2, "新 run 语境须冷算后独立回写");
+    }
+
+    /// #69 5b / T4：完整执行后的稳定 force-false 可缓存；命中不得把 false 改写为猜测值。
+    #[test]
+    fn pan_memo_caches_complete_stable_force_false() {
+        let fixture = pan_provider_fixture();
+        let mut non_divergent_hist = fixture.hist.clone();
+        non_divergent_hist[9] = -10.0;
+        non_divergent_hist[10] = 20.0;
+        non_divergent_hist[11] = -10.0;
+        let mut memo = PanMemo::default();
+        for expected_hits in 0..=1 {
+            let events = provide_nest_candidate_events_resident(
+                1,
+                &fixture.projection,
+                &fixture.blocks,
+                &fixture.legs,
+                &fixture.view,
+                &non_divergent_hist,
+                &fixture.dif,
+                &fixture.close_src,
+                Some(PanResidence {
+                    memo: &mut memo,
+                    freeze_boundary_src: 12,
+                }),
+            );
+            let event = events
+                .iter()
+                .find(|event| event.kind == NestDivergenceKind::Consolidation)
+                .expect("结构事件仍应存在");
+            assert!(!event.divergence_confirmed);
+            assert_eq!(memo.stats().hits, expected_hits);
+        }
+        assert_eq!(memo.stats().writes, 1);
+        assert_eq!(memo.len(), 1);
+    }
+
+    /// #69 5b / T6：人为污染 resident 后热路必须显出差异，而显式 `None` 仍返回真冷 oracle，
+    /// 且 forced 调用不读写该 memo。
+    #[test]
+    fn pan_memo_forced_none_is_true_cold_oracle() {
+        let fixture = pan_provider_fixture();
+        let cold = provide_nest_candidate_events(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+        );
+        let mut memo = PanMemo::default();
+        let _ = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 12,
+            }),
+        );
+        memo.poison_for_test();
+        let poisoned = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            Some(PanResidence {
+                memo: &mut memo,
+                freeze_boundary_src: 13,
+            }),
+        );
+        assert_ne!(poisoned, cold, "污染须能被 shadow 比对观察到");
+        let stats_before_forced = memo.stats();
+        let len_before_forced = memo.len();
+        let forced = provide_nest_candidate_events_resident(
+            1,
+            &fixture.projection,
+            &fixture.blocks,
+            &fixture.legs,
+            &fixture.view,
+            &fixture.hist,
+            &fixture.dif,
+            &fixture.close_src,
+            None,
+        );
+        assert_eq!(forced, cold);
+        assert_eq!(memo.stats(), stats_before_forced);
+        assert_eq!(memo.len(), len_before_forced);
     }
 }

@@ -257,6 +257,7 @@ mod tests {
             cache_key: C2CacheKey::from_query(&query).unwrap(),
             moves,
             pairs: Vec::new(),
+            pair_confirmations: Vec::new(),
         }
     }
 

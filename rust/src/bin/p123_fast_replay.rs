@@ -80,16 +80,20 @@
 //! 3) `center_block_kind` / `center_block_kind_at`（decompose.rs:213-226 / :197-205）：纯函数——
 //!    只读 blocks（projection centers 的 decompose 输出 ⟸ (i)），无任何时间读。签字通过。
 //!
-//! ── trend_confirm 游标驻留（090 能力声明）──
-//! 设计 §4.3 的**函数内** per-pair 游标驻留（env 包络/acc_hi/area/dif/hist 极值跨评估驻留）
-//! 需改 theta_v0 生产源码（trend_confirm_time 是 level_view.rs 私有函数，bin 不可达）或
-//! fork 判据路径——两者本轮皆禁（生产源码零改动 / 禁新判据路径）。**未实装**，如实声明。
-//! 实装的驻留 = **view 粒度**：评估缓存条目跨 clean bar 驻留整批产出（投影/pairs/事件），
-//! (i)-(iv) 保证输入不变 ⟹ 重扫零次；§4.3 的单调性论据（T2 假→真、T5 真→假终假、t3 未决
-//! 保持未决）在本架构中是判据 (ii)/(iii) 的完备性论据（端点越过必须重估，两个方向的状态
-//! 翻转都被覆盖），不是独立机制。§4.5 assemble/provide 双算单源化同理**未实装**（lib 内
-//! fusion 属生产改动）；其成本在保留评估内部，与慢版逐位相同。残量界：稀疏化收益全部来自
-//! 评估次数下降，保留评估单价不变——实测计数/计时见 stderr P123_SPARSE，预估见任务回报。
+//! ── trend_confirm 游标驻留（#69 5a，090 能力声明）──
+//! `LevelDerived` 持有 per-pair `ConfirmCursorStore`；dirty 评估把
+//! `TowerCache::tower_confirmed_len(level - 1)` 作为唯一稳定下级水位传入 resident 核，
+//! 仅 sealed prefix 的 env/acc_hi/area/dif/hist 极值跨评估驻留。run 消失或结构代次变化均
+//! 失效；forced shadow 明确传 `None`，始终走冷核。冷核与 resident 核共用同一扫描函数。
+//! `assemble_level_view_resident` 一次生成 pair confirmation sidecar，move completion 与
+//! provider 同读该 sidecar，不再重复调用 trend_confirm。
+//!
+//! ── pan run memo（#69 5b，090 能力声明）──
+//! `RunEntry` 按 run 持有 `PanMemo`；dirty 评估显式传入，forced shadow 显式传 `None`。
+//! 写入/复用只在 source 水位严格封口与目标 block 已有两个后继块两链合取时成立；
+//! segment/center/block/run 身份回缩或重折逐项失效，MACD 映射未到齐不写负缓存，动态字段
+//! 每次重物化。R1 已接受的 TURN 末窗多子中枢残余不在本实现加第三门，仍由 V0、shadow 与
+//! 双跑 diff 拦截。
 //!
 //! ── 验收面（设计 §5）与白名单 ──
 //! 必须逐位：stdout 门行全套（INPUT/RULE/PROBE/YIELD/CERT/D3/BASELINE/PROVIDER/SNAPSHOT/
@@ -150,10 +154,12 @@ use newchan_rust::theta_v0::classifier;
 use newchan_rust::theta_v0::classifier::bsp::BspPoint;
 use newchan_rust::theta_v0::classifier::decompose;
 use newchan_rust::theta_v0::classifier::level_view::{
-    assemble_level_view, lower_legs_from, project_extended_windows_carried_only,
-    provide_nest_candidate_events, C2LevelViewConfig, C2VersionTuple, CoordinateWindow,
-    LevelViewMaterial, LevelViewQuery, LowerLeg, NestCandidateEvent, NestDivergenceKind,
-    ProjectionError, ProjectionMaterial,
+    assemble_level_view, assemble_level_view_resident, lower_legs_from,
+    project_extended_windows_carried_only, provide_nest_candidate_events,
+    provide_nest_candidate_events_resident, C2LevelViewConfig, C2VersionTuple, ConfirmCursorStore,
+    ConfirmResidence, CoordinateWindow, LevelViewMaterial, LevelViewQuery, LowerLeg,
+    NestCandidateEvent, NestDivergenceKind, PanMemo, PanResidence, ProjectionError,
+    ProjectionMaterial,
 };
 use newchan_rust::theta_v0::classifier::nest::{
     assemble_certificates_snapshot, assemble_typed_certificates, event_bsp_book_level,
@@ -192,7 +198,9 @@ fn dump_line(args: std::fmt::Arguments<'_>) {
     });
     if let Some(sink) = sink {
         if let Ok(mut writer) = sink.lock() {
-            let _ = writer.write_fmt(args).and_then(|()| writer.write_all(b"\n"));
+            let _ = writer
+                .write_fmt(args)
+                .and_then(|()| writer.write_all(b"\n"));
         }
     }
 }
@@ -311,7 +319,11 @@ impl TurnBook {
             }
             let seen = self.seen.entry(level).or_default();
             for block in &state.moves[from..ready] {
-                let key = (block.start_center, block.end_center, move_kind_tag(block.kind));
+                let key = (
+                    block.start_center,
+                    block.end_center,
+                    move_kind_tag(block.kind),
+                );
                 if !seen.insert(key) {
                     continue;
                 }
@@ -378,6 +390,8 @@ struct LevelDerived {
     /// lower_legs 的 end_index（塔不变量：LeveledMove 序列按 end_index 升序，递归塔
     /// recursive_tower.rs:120；partition_point 直接用，不再排序）。
     lower_ends: Vec<usize>,
+    /// #69 5a：本级各 run 的 trend-confirm per-pair resident 游标。
+    confirm_cursors: ConfirmCursorStore,
 }
 
 /// per-(level, run_source_start) 评估缓存条目（设计 §3 的 per-(level,run) 评估缓存）。
@@ -404,6 +418,49 @@ struct RunEntry {
     target_self_gen: Option<u64>,
     target_lower_gen: Option<u64>,
     target_last_as_of: Option<usize>,
+    /// #69 5b：严格 run-local；dirty 更新不得替换，forced shadow 不得借用。
+    pan_memo: PanMemo,
+}
+
+impl RunEntry {
+    fn new(
+        self_gen: u64,
+        lower_gen: u64,
+        last_as_of: usize,
+        centers: Vec<Center>,
+        kinds: Vec<Option<MoveKind>>,
+        events: Vec<NestCandidateEvent>,
+    ) -> Self {
+        Self {
+            self_gen,
+            lower_gen,
+            last_as_of,
+            centers,
+            kinds,
+            events,
+            target_self_gen: None,
+            target_lower_gen: None,
+            target_last_as_of: None,
+            pan_memo: PanMemo::default(),
+        }
+    }
+
+    fn update(
+        &mut self,
+        self_gen: u64,
+        lower_gen: u64,
+        last_as_of: usize,
+        centers: Vec<Center>,
+        kinds: Vec<Option<MoveKind>>,
+        events: Vec<NestCandidateEvent>,
+    ) {
+        self.self_gen = self_gen;
+        self.lower_gen = lower_gen;
+        self.last_as_of = last_as_of;
+        self.centers = centers;
+        self.kinds = kinds;
+        self.events = events;
+    }
 }
 
 /// 稀疏化计数（stderr 专用，不进验收面）：判据触发/重估/复用/TERM 反查现场。
@@ -423,6 +480,12 @@ struct SparseStats {
     shadow_checks: usize,
     shadow_mismatches: usize,
     shadow_term_mismatches: usize,
+    /// #69 5b run-local pan memo 的终态驻留/累计诊断；只进 stderr。
+    pan_entries: usize,
+    pan_hits: usize,
+    pan_misses: usize,
+    pan_writes: usize,
+    pan_invalidations: usize,
     per_level_reevals: BTreeMap<usize, usize>,
     per_level_views_slow_would: BTreeMap<usize, usize>,
 }
@@ -538,8 +601,14 @@ fn main() -> Result<(), String> {
     let terminal = run_terminal_pass(&loaded.bars[..max_bars], &config)?;
     let (hist, close_src) = terminal.cache.causal_series();
     let dif = terminal.cache.macd_dif();
-    let terminal_events =
-        collect_snapshot_candidates(&terminal.tower, max_bars - 1, hist, dif, close_src, &mut audit)?;
+    let terminal_events = collect_snapshot_candidates(
+        &terminal.tower,
+        max_bars - 1,
+        hist,
+        dif,
+        close_src,
+        &mut audit,
+    )?;
     let mut targets = BTreeMap::new();
     for event in terminal_events.iter().flatten() {
         targets.insert(EventKey::from(event), *event);
@@ -551,7 +620,7 @@ fn main() -> Result<(), String> {
     audit.views += prefix_views;
     audit.snapshots += book.candidates.len();
     eprintln!(
-        "P123_SPARSE_SUMMARY triggers={} reevals={} reuses={} syncs_self={} syncs_lower={} wm_cross_with_lower={} wm_cross_without_lower={} term_rechecks={} term_skips={} shadow_checks={} shadow_mismatches={} shadow_term_mismatches={} prefix_s={:.3}",
+        "P123_SPARSE_SUMMARY triggers={} reevals={} reuses={} syncs_self={} syncs_lower={} wm_cross_with_lower={} wm_cross_without_lower={} term_rechecks={} term_skips={} shadow_checks={} shadow_mismatches={} shadow_term_mismatches={} pan_entries={} pan_hits={} pan_misses={} pan_writes={} pan_invalidations={} prefix_s={:.3}",
         stats.triggers,
         stats.reevals,
         stats.reuses,
@@ -564,10 +633,19 @@ fn main() -> Result<(), String> {
         stats.shadow_checks,
         stats.shadow_mismatches,
         stats.shadow_term_mismatches,
+        stats.pan_entries,
+        stats.pan_hits,
+        stats.pan_misses,
+        stats.pan_writes,
+        stats.pan_invalidations,
         prefix_elapsed.as_secs_f64(),
     );
     for (level, reevals) in &stats.per_level_reevals {
-        let slow_would = stats.per_level_views_slow_would.get(level).copied().unwrap_or(0);
+        let slow_would = stats
+            .per_level_views_slow_would
+            .get(level)
+            .copied()
+            .unwrap_or(0);
         eprintln!(
             "P123_SPARSE_LEVEL level={level} reevals={reevals} slow_would_views={slow_would}"
         );
@@ -815,7 +893,11 @@ fn main() -> Result<(), String> {
     let missed: Vec<&EventKey> = book
         .terminal_confirmed
         .iter()
-        .filter(|key| !book.covered_b.contains(&(key.level, key.turn_source, key.interval_b)))
+        .filter(|key| {
+            !book
+                .covered_b
+                .contains(&(key.level, key.turn_source, key.interval_b))
+        })
         .collect();
     println!(
         "P123_MISSED terminal_confirmed={} covered_b={} intake_fallback_events={} missed={}",
@@ -959,7 +1041,9 @@ fn run_targeted_prefix_pass(
             // arrived 分组：与慢版 collect_target_candidates 首段逐行一致。
             let mut runs_by_level: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
             for key in &pending {
-                let Some(event) = targets.get(key) else { continue };
+                let Some(event) = targets.get(key) else {
+                    continue;
+                };
                 // snapshot 无前视的结构下，turn_source 尚未到达时该对象不可能成为 Cand。
                 // 提前投影这些终态目标只增加扫描量，不可能改变首次可证钟。
                 if event.turn_source <= index {
@@ -996,15 +1080,20 @@ fn run_targeted_prefix_pass(
                     continue;
                 }
                 // ── 派生缓存同步（targeted 与 lifecycle 共用同一 LevelDerived）──
-                let (self_synced, lower_synced) =
-                    sync_level_derived(level, &tower, &mut derived)?;
+                let (self_synced, lower_synced) = sync_level_derived(level, &tower, &mut derived)?;
                 if self_synced {
                     stats.syncs_self += 1;
                 }
                 if lower_synced {
                     stats.syncs_lower += 1;
                 }
-                let level_derived = &derived[&level];
+                let level_derived = derived.get_mut(&level).expect("刚同步的 level 必须存在");
+                let active_run_starts: Vec<_> = level_derived.run_ranges.keys().copied().collect();
+                level_derived
+                    .confirm_cursors
+                    .retain_run_starts(level as u32, active_run_starts);
+                let stable_lower_len = cache.tower_confirmed_len(level - 1);
+                let pan_freeze_boundary = cache.freeze_boundary(level - 1).unwrap_or(0);
                 for run_source_start in run_sources {
                     // 慢版：run 不在当前分区 ⟹ 本 trigger 无产出（continue）。条目保留不应用——
                     // run 重现时代次差（分区已随内容变同步过）⟹ dirty ⟹ 重估，无陈旧复用。
@@ -1012,10 +1101,7 @@ fn run_targeted_prefix_pass(
                     else {
                         continue;
                     };
-                    *stats
-                        .per_level_views_slow_would
-                        .entry(level)
-                        .or_default() += 1;
+                    *stats.per_level_views_slow_would.entry(level).or_default() += 1;
                     let watermark_crossed = entries
                         .get(&(level, run_source_start))
                         .and_then(|entry| entry.target_last_as_of)
@@ -1047,34 +1133,55 @@ fn run_targeted_prefix_pass(
                         }
                     };
                     if dirty {
-                        let (centers, kinds, events) = evaluate_run(
-                            level,
-                            &tower[level],
-                            (start, end),
-                            &level_derived.lower_legs,
-                            index,
-                            hist,
-                            dif,
-                            close_src,
-                        )?;
+                        let structure_generation = level_derived.self_gen;
+                        let entry = entries.entry((level, run_source_start)).or_insert_with(|| {
+                            RunEntry::new(
+                                level_derived.self_gen,
+                                level_derived.lower_gen,
+                                index,
+                                Vec::new(),
+                                Vec::new(),
+                                Vec::new(),
+                            )
+                        });
+                        let (centers, kinds, events) = {
+                            let lower_legs = &level_derived.lower_legs;
+                            let confirm_cursors = &mut level_derived.confirm_cursors;
+                            evaluate_run(
+                                level,
+                                &tower[level],
+                                (start, end),
+                                lower_legs,
+                                index,
+                                hist,
+                                dif,
+                                close_src,
+                                Some(ConfirmResidence {
+                                    store: confirm_cursors,
+                                    stable_lower_len,
+                                    structure_generation,
+                                }),
+                                Some(PanResidence {
+                                    memo: &mut entry.pan_memo,
+                                    freeze_boundary_src: pan_freeze_boundary,
+                                }),
+                            )
+                        }?;
                         views += 1;
                         stats.reevals += 1;
                         *stats.per_level_reevals.entry(level).or_default() += 1;
                         fresh_levels.insert(level);
-                        entries.insert(
-                            (level, run_source_start),
-                            RunEntry {
-                                self_gen: level_derived.self_gen,
-                                lower_gen: level_derived.lower_gen,
-                                last_as_of: index,
-                                centers,
-                                kinds,
-                                events,
-                                target_self_gen: Some(level_derived.self_gen),
-                                target_lower_gen: Some(level_derived.lower_gen),
-                                target_last_as_of: Some(index),
-                            },
+                        entry.update(
+                            level_derived.self_gen,
+                            level_derived.lower_gen,
+                            index,
+                            centers,
+                            kinds,
+                            events,
                         );
+                        entry.target_self_gen = Some(level_derived.self_gen);
+                        entry.target_lower_gen = Some(level_derived.lower_gen);
+                        entry.target_last_as_of = Some(index);
                     } else {
                         stats.reuses += 1;
                     }
@@ -1103,6 +1210,8 @@ fn run_targeted_prefix_pass(
                             hist,
                             dif,
                             close_src,
+                            None,
+                            None,
                         )?;
                         let forced: Vec<NestCandidateEvent> = forced
                             .into_iter()
@@ -1159,8 +1268,9 @@ fn run_targeted_prefix_pass(
                 // p123 判据 (iv)：fresh（本 trigger 重估过 ⟹ 窗口可能变）∨ 账本内容变
                 // ⟹ 反查；其余情形结果为上次已查的同一 None（纯函数同输入），跳过逐位等价。
                 let recheck = fresh_levels.contains(&(event.level as usize))
-                    || event_bsp_book_level(event.level)
-                        .is_some_and(|book_level| bsp_changed.get(&book_level).copied().unwrap_or(true));
+                    || event_bsp_book_level(event.level).is_some_and(|book_level| {
+                        bsp_changed.get(&book_level).copied().unwrap_or(true)
+                    });
                 if recheck {
                     stats.term_rechecks += 1;
                     if !book.term_seen.contains(&key)
@@ -1204,6 +1314,7 @@ fn run_targeted_prefix_pass(
             let dif = cache.macd_dif();
             let active_runs = refresh_lifecycle_cache(
                 &tower,
+                &cache,
                 index,
                 hist,
                 dif,
@@ -1242,7 +1353,8 @@ fn run_targeted_prefix_pass(
             let (hist, close_src) = cache.causal_series();
             let dif = cache.macd_dif();
             let mut ckpt_audit = ProviderAudit::default();
-            match collect_snapshot_candidates(&tower, index, hist, dif, close_src, &mut ckpt_audit) {
+            match collect_snapshot_candidates(&tower, index, hist, dif, close_src, &mut ckpt_audit)
+            {
                 Ok(by_level) => checkpoint_certificates(&by_level, &classification, index),
                 Err(error) => {
                     dump_line(format_args!("CKPT_ERR as_of={index} err={error}"));
@@ -1260,6 +1372,14 @@ fn run_targeted_prefix_pass(
                 stats.reevals,
             );
         }
+    }
+    for entry in entries.values() {
+        let pan = entry.pan_memo.stats();
+        stats.pan_entries += entry.pan_memo.len();
+        stats.pan_hits += pan.hits;
+        stats.pan_misses += pan.misses;
+        stats.pan_writes += pan.writes;
+        stats.pan_invalidations += pan.invalidations;
     }
     lifecycle_stats.settlement = lifecycle_book.settlement_stats();
     let settlement = lifecycle_stats.settlement;
@@ -1325,8 +1445,11 @@ fn sync_level_derived(
         level_derived.lower_gen += 1;
         level_derived.lower_legs = lower_legs_from(&tower[level - 1])
             .map_err(|error| format!("L{level} shared lower legs 失败: {error:?}"))?;
-        level_derived.lower_ends =
-            level_derived.lower_legs.iter().map(|leg| leg.end_index).collect();
+        level_derived.lower_ends = level_derived
+            .lower_legs
+            .iter()
+            .map(|leg| leg.end_index)
+            .collect();
     }
     Ok((self_synced, lower_synced))
 }
@@ -1359,8 +1482,10 @@ fn recompute_lifecycle_window_stems(
             continue;
         };
         let segments: Vec<Segment> = lower.iter().map(lifecycle_leg_as_segment).collect();
-        let anchors_self: Vec<Option<Direction>> =
-            segments.iter().map(|segment| Some(segment.direction)).collect();
+        let anchors_self: Vec<Option<Direction>> = segments
+            .iter()
+            .map(|segment| Some(segment.direction))
+            .collect();
         let windows = &tower[level];
         let mut run_start = None;
         for index in 0..=windows.len() {
@@ -1404,6 +1529,7 @@ fn recompute_lifecycle_window_stems(
 #[allow(clippy::too_many_arguments)]
 fn refresh_lifecycle_cache(
     tower: &[Rc<Vec<LeveledMove>>],
+    cache: &classifier::TowerCache,
     as_of: usize,
     hist: &[f64],
     dif: &[f64],
@@ -1415,6 +1541,14 @@ fn refresh_lifecycle_cache(
     let mut active_runs = Vec::new();
     for level in 1..tower.len() {
         sync_level_derived(level, tower, derived)?;
+        let active_run_starts: Vec<_> = derived[&level].run_ranges.keys().copied().collect();
+        derived
+            .get_mut(&level)
+            .expect("刚同步的 level 必须存在")
+            .confirm_cursors
+            .retain_run_starts(level as u32, active_run_starts);
+        let stable_lower_len = cache.tower_confirmed_len(level - 1);
+        let pan_freeze_boundary = cache.freeze_boundary(level - 1).unwrap_or(0);
         let run_ranges: Vec<(usize, (usize, usize))> = derived[&level]
             .run_ranges
             .iter()
@@ -1434,47 +1568,49 @@ fn refresh_lifecycle_cache(
                         .partition_point(|&end_index| end_index <= as_of);
                     now != before
                 });
-            let dirty = entries
-                .get(&(level, run_source_start))
-                .is_none_or(|entry| {
-                    entry.self_gen != level_derived.self_gen
-                        || entry.lower_gen != level_derived.lower_gen
-                        || watermark_crossed
-                });
+            let dirty = entries.get(&(level, run_source_start)).is_none_or(|entry| {
+                entry.self_gen != level_derived.self_gen
+                    || entry.lower_gen != level_derived.lower_gen
+                    || watermark_crossed
+            });
             if dirty {
-                let target_watermark = entries.get(&(level, run_source_start)).map(|entry| {
-                    (
-                        entry.target_self_gen,
-                        entry.target_lower_gen,
-                        entry.target_last_as_of,
+                let self_gen = level_derived.self_gen;
+                let lower_gen = level_derived.lower_gen;
+                let entry = entries.entry((level, run_source_start)).or_insert_with(|| {
+                    RunEntry::new(
+                        self_gen,
+                        lower_gen,
+                        as_of,
+                        Vec::new(),
+                        Vec::new(),
+                        Vec::new(),
                     )
                 });
-                let (centers, kinds, events) = evaluate_run(
-                    level,
-                    &tower[level],
-                    run,
-                    &level_derived.lower_legs,
-                    as_of,
-                    hist,
-                    dif,
-                    close_src,
-                )?;
-                let (target_self_gen, target_lower_gen, target_last_as_of) =
-                    target_watermark.unwrap_or((None, None, None));
-                entries.insert(
-                    (level, run_source_start),
-                    RunEntry {
-                        self_gen: level_derived.self_gen,
-                        lower_gen: level_derived.lower_gen,
-                        last_as_of: as_of,
-                        centers,
-                        kinds,
-                        events,
-                        target_self_gen,
-                        target_lower_gen,
-                        target_last_as_of,
-                    },
-                );
+                let (centers, kinds, events) = {
+                    let level_derived = derived.get_mut(&level).expect("刚同步的 level 必须存在");
+                    let lower_legs = &level_derived.lower_legs;
+                    let confirm_cursors = &mut level_derived.confirm_cursors;
+                    evaluate_run(
+                        level,
+                        &tower[level],
+                        run,
+                        lower_legs,
+                        as_of,
+                        hist,
+                        dif,
+                        close_src,
+                        Some(ConfirmResidence {
+                            store: confirm_cursors,
+                            stable_lower_len,
+                            structure_generation: self_gen,
+                        }),
+                        Some(PanResidence {
+                            memo: &mut entry.pan_memo,
+                            freeze_boundary_src: pan_freeze_boundary,
+                        }),
+                    )
+                }?;
+                entry.update(self_gen, lower_gen, as_of, centers, kinds, events);
                 stats.provider_reevals += 1;
             } else {
                 stats.provider_reuses += 1;
@@ -1621,6 +1757,8 @@ fn evaluate_run(
     hist: &[f64],
     dif: &[f64],
     close_src: &[usize],
+    confirm_residence: Option<ConfirmResidence<'_>>,
+    pan_residence: Option<PanResidence<'_>>,
 ) -> Result<(Vec<Center>, Vec<Option<MoveKind>>, Vec<NestCandidateEvent>), String> {
     let (start, end) = run;
     let projection = project_extended_windows_carried_only(&windows[start..end])
@@ -1636,7 +1774,7 @@ fn evaluate_run(
         as_of,
         version: C2VersionTuple::auto_pairing(),
     };
-    let view = assemble_level_view(
+    let view = assemble_level_view_resident(
         C2LevelViewConfig { enabled: true },
         query,
         LevelViewMaterial {
@@ -1647,10 +1785,11 @@ fn evaluate_run(
             dif,
             close_src,
         },
+        confirm_residence,
     )
     .map_err(|error| format!("L{level} targeted C2 assemble 失败: {error:?}"))?;
     let kinds = decompose::center_block_kind(centers.len(), &blocks);
-    let events = provide_nest_candidate_events(
+    let events = provide_nest_candidate_events_resident(
         level as u32,
         &projection,
         &blocks,
@@ -1659,6 +1798,7 @@ fn evaluate_run(
         hist,
         dif,
         close_src,
+        pan_residence,
     );
     Ok((centers, kinds, events))
 }
@@ -1881,7 +2021,12 @@ fn observe_certificates(
             let ids = certificate
                 .identities()
                 .iter()
-                .map(|id| format!("{}:{}:{}-{}", id.level, id.turn_source, id.interval_b.0, id.interval_b.1))
+                .map(|id| {
+                    format!(
+                        "{}:{}:{}-{}",
+                        id.level, id.turn_source, id.interval_b.0, id.interval_b.1
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join("|");
             let kinds_str = certificate
@@ -2016,7 +2161,10 @@ fn bin_anchor_ctx() -> newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx<
     fn never(_: usize) -> Option<(newchan_rust::theta_v0::types::Tick, usize)> {
         None
     }
-    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx { anchor_at: &never, event_anchor: (None, None) }
+    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx {
+        anchor_at: &never,
+        event_anchor: (None, None),
+    }
 }
 
 const TERMINAL_MATCH: TerminalMatch = TerminalMatch::CWindow;
@@ -2043,15 +2191,24 @@ fn terminal_bits_old(
     side: Side,
     b_center_start: Option<usize>,
 ) -> Option<BspBits> {
-    let book_level = classification.levels.get(event_bsp_book_level(level as u32)?)?;
+    let book_level = classification
+        .levels
+        .get(event_bsp_book_level(level as u32)?)?;
     let book = &book_level.bsp;
     // 关③ P3 平移：旧事件 = Cand^δ 趋势族线（pan_div_diag 为 cand_delta=false 纯诊断，
     // 结构性不入终端查询）⟹ kind=Trend；B 身份 = 事件自带 `b_parent.source_interval.0`
     //（ParentCenterIdentity 已携 B start_index 快照，单一来源，无第二查法）。
     // #218 面 B：一/三类判同的 B 带由同层 `centers` 查出（b_center_start 只当查找键）。
     terminal_bits_in_book(
-        book, &book_level.centers, c_start, source, side, NestDivergenceKind::Trend,
-        b_center_start, TERMINAL_MATCH, &bin_anchor_ctx(),
+        book,
+        &book_level.centers,
+        c_start,
+        source,
+        side,
+        NestDivergenceKind::Trend,
+        b_center_start,
+        TERMINAL_MATCH,
+        &bin_anchor_ctx(),
     )
     .map(|t| t.bits)
 }
@@ -2156,5 +2313,17 @@ mod tests {
         assert_eq!(LifecycleWindowStem::of(&later), stem);
         assert_eq!(first.seg_c_live, (30, 30));
         assert_eq!(later.seg_c_live, (30, 99));
+    }
+
+    /// #69 5b / T5：dirty 更新只替换代次/事件载荷，run-local pan memo 的持有地址不变。
+    #[test]
+    fn run_entry_update_preserves_pan_memo_residence() {
+        let mut entry = RunEntry::new(1, 2, 3, Vec::new(), Vec::new(), Vec::new());
+        let memo_address = std::ptr::addr_of!(entry.pan_memo);
+        entry.update(4, 5, 6, Vec::new(), Vec::new(), Vec::new());
+        assert_eq!(entry.self_gen, 4);
+        assert_eq!(entry.lower_gen, 5);
+        assert_eq!(entry.last_as_of, 6);
+        assert_eq!(std::ptr::addr_of!(entry.pan_memo), memo_address);
     }
 }
