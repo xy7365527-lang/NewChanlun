@@ -9,7 +9,7 @@
 
 **① χ 线——以历史样本 μ 估计为准入依据的统计门族——从本系统目标中撤销：不接生产、不进 Destination、不再开语义终裁（z_α/treat_empty/θ 全部核销）。**
 
-族谱（决策统计族，全枚举）：`mu_estimator.rs` 门侧（μ/LCB/`mu_shrink`/`oos_gated_drop`）、`selector.rs` `chi_t`/`filter_gamma*`、`admission.rs` `ChiFilterCtx`、`runner.rs` 两 χ 入口、`l3_delta_r_alpha.rs` walk-forward harness、`wverify_run/m8.rs` χ 臂、`pooling_icc.rs`。
+族谱（决策统计族，全枚举）：`mu_estimator.rs` 门侧（μ/LCB/`mu_shrink`/`oos_gated_drop`）、`selector.rs` `chi_t`/`filter_gamma*`、`admission.rs` `ChiFilterCtx`、`runner.rs` 两 χ 入口、`l3_delta_r_alpha.rs` walk-forward harness、`wverify_run/m8.rs` χ 臂、`pooling_icc.rs`。**订正（#563 影子评审 M6，2026-07-28）**：补列 `wverify_run/issue71_chi_gamma.rs`（#71 四臂验证 harness，含 χ 臂调用，随族谱同档处置）。
 
 **② 验收统计族按「档2-修」定档：推断核全砍，描述簿记留，历史裁决照旧（编排者 2026-07-28「可以」）。**
 
