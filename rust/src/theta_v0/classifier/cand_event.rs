@@ -511,7 +511,7 @@ fn same_projection(a: &CandidateEvent, b: &CandidateEvent) -> bool {
 /// ★同 episode 归约（#551）：同一 key 可由**同一 episode 内的多条同向腿**各产一次门结果
 /// （λ_C 与 seg_a 相同、只右端不同）。它们是同一候选在**同一时刻**的多份证据，不是时间序列——
 /// 必须先归约成每 key 一条观察再入事件簿，否则同 as_of 重跑时靠前的短区间会被误判为区间回缩，
-/// 破坏幂等（US8）。归约口径见 [`merge_episode_leg`]。
+/// 破坏幂等（US8）。归约口径见 [`merged`]。
 pub(crate) fn structural_observations_for_level(
     level: u32,
     centers: &[Center],
@@ -537,7 +537,10 @@ pub(crate) fn structural_observations_for_level(
             Entry::Vacant(slot) => {
                 slot.insert(leg);
             }
-            Entry::Occupied(mut slot) => merge_episode_leg(slot.get_mut(), leg),
+            Entry::Occupied(mut slot) => {
+                let reduced = merged(slot.get(), &leg);
+                slot.insert(reduced);
+            }
         }
     }
     let mut observations: Vec<_> = by_key.into_values().collect();
@@ -545,26 +548,46 @@ pub(crate) fn structural_observations_for_level(
     observations
 }
 
-/// 把同 key 的后一条 episode 腿并入累积观察（腿按段序到达 ⟹ `leg.interval.1` 单调不减）。
+/// 由累积观察 `acc` 与同 key 的后一条 episode 腿 `leg` 归约出**新的**累积观察
+/// （腿按段序到达 ⟹ `leg.interval.1` 单调不减）。两个入参均只读，不被修改。
+///
+/// 承载体（除下述字段外的全部字段）取右端更新的那一条：`leg.interval.1 > acc.interval.1`
+/// 时为 `leg`，否则为 `acc`。在此之上逐字段归约：
 ///
 /// - `interval`：右端取最新腿的端点——I(C) = [λ_C, 当前 episode 最新同向段端点]（Q5 区间口径）。
-/// - `extreme`：取**析取**。037:20 判的是 I(C) 包络破 b 包络，而「I(C) 包络首次破 ⟺ 某同向段
-///   端点首次越界」（`signal` 函数头等价性注记）⟹ episode 内任一腿破极值即整个 I(C) 已破，
-///   该事实不因后续腿端点回撤而消失。
-/// - `comparable`：取最新腿的值——A/C 可比较性由当前 I(C) 区间的坐标可映射性决定。
-/// - `first_provable_at`：取**首个**使全谓词成立的腿的结构位，不被后续腿改写（首证钟语义）。
-fn merge_episode_leg(acc: &mut CandidateObservation, leg: CandidateObservation) {
+/// - `extreme`：取**析取**（两条的析取，独立于承载体的选择）。037:20 判的是 I(C) 包络破 b 包络，
+///   而「I(C) 包络首次破 ⟺ 某同向段端点首次越界」（`signal` 函数头等价性注记）⟹ episode 内
+///   任一腿破极值即整个 I(C) 已破，该事实不因后续腿端点回撤而消失。
+/// - `comparable`：取最新腿的值——A/C 可比较性由当前 I(C) 区间的坐标可映射性决定，
+///   故随承载体走。
+/// - `state`：由归约后的谓词组重新派生（[`StructuralPredicates::resolved_state`] 是单一来源）。
+/// - `first_provable_at`：取**首个**使全谓词成立的腿的结构位，不被后续腿改写（首证钟语义）；
+///   `acc` 的首证钟优先于 `leg` 的，两者皆空且归约后成立时落在承载体的区间右端。
+fn merged(acc: &CandidateObservation, leg: &CandidateObservation) -> CandidateObservation {
     let extreme = acc.structural_predicates.extreme || leg.structural_predicates.extreme;
-    let first_provable_at = acc.first_provable_at.or(leg.first_provable_at);
-    if leg.interval.1 > acc.interval.1 {
-        *acc = leg;
-    }
-    acc.structural_predicates.extreme = extreme;
-    acc.state = acc.structural_predicates.resolved_state();
-    acc.first_provable_at = match acc.state {
-        CandidateState::Provisional => first_provable_at.or(Some(acc.interval.1)),
-        _ => first_provable_at,
+    let carrier = if leg.interval.1 > acc.interval.1 {
+        leg
+    } else {
+        acc
     };
+    let structural_predicates = StructuralPredicates {
+        extreme,
+        ..carrier.structural_predicates
+    };
+    let state = structural_predicates.resolved_state();
+    let first_provable_at = match state {
+        CandidateState::Provisional => acc
+            .first_provable_at
+            .or(leg.first_provable_at)
+            .or(Some(carrier.interval.1)),
+        _ => acc.first_provable_at.or(leg.first_provable_at),
+    };
+    CandidateObservation {
+        structural_predicates,
+        state,
+        first_provable_at,
+        ..carrier.clone()
+    }
 }
 
 struct StructuralScan<'a> {
