@@ -123,6 +123,11 @@ pub(super) struct NestGateStats {
     pub(super) chain_none: usize,
     /// 链顶级别分布（有链顶的候选：Pass/Reject/NoChain 全计——链即身份读数）。
     pub(super) chain_top_dist: std::collections::BTreeMap<u32, usize>,
+    /// π 单门双覆盖的出场归因子总体：门前候选中，方向性候选与 `prev_active`
+    /// 存在同级反向活动腿的总数。`prev_active` 按定义只含未平仓腿。
+    pub(super) exit_cand_total: usize,
+    /// 上述子总体中被门放行的候选数；拒绝数由 `total - admitted` 导出。
+    pub(super) exit_cand_admitted: usize,
     // T5a (#207)：方向见证统计字段（chain_dir_witness_divergence）随方向退役删除——
     // 「方向分歧」在 ADR 20260723 裁定 1 下是非概念（同点跨型 = 各级自为真，非分歧）。
 }
@@ -176,6 +181,54 @@ impl NestGateStats {
                 *self.chain_top_dist.entry(top).or_default() += 1;
             }
         }
+    }
+
+    /// π 出场归因只读落账：只消费调用点已经读出的方向/活动腿匹配结果，不参与准入判定。
+    pub(super) fn observe_exit_candidate(&mut self, admit: bool, would_close: bool) {
+        if !would_close {
+            return;
+        }
+        self.exit_cand_total += 1;
+        if admit {
+            self.exit_cand_admitted += 1;
+        }
+    }
+
+    pub(super) fn exit_cand_rejected(&self) -> usize {
+        self.exit_cand_total - self.exit_cand_admitted
+    }
+
+    /// π 可达臂的出场归因诊断行。独立命名，避免与 deprecated v1/dual
+    /// 决策注入门的 `NEST_GATE_EXIT` 行混为同一统计域。
+    pub(super) fn exit_cand_report_line(&self) -> String {
+        format!(
+            "NEST_GATE_EXIT_CAND total={} admitted={} rejected={}",
+            self.exit_cand_total,
+            self.exit_cand_admitted,
+            self.exit_cand_rejected(),
+        )
+    }
+}
+
+/// π 候选过滤门的出场归因读出：方向性候选若命中同级反向活动腿，则它在未过滤时
+/// 会进入 fold 规则2 的平仓消费域。这里只读 `(level, dir)` 与 `prev_active`，不复制
+/// fold 平仓谓词、不消费候选，也不参与 [`NestChainGate::admit`] 的判定。
+pub(super) fn exit_candidate_would_close(
+    candidate_level: u32,
+    candidate_dir: super::super::strategy::voice::VoiceSide,
+    prev_active: &[super::super::strategy::interp::ActiveLeg],
+) -> bool {
+    use super::super::strategy::voice::VoiceSide;
+
+    match candidate_dir {
+        VoiceSide::Long | VoiceSide::Short => prev_active.iter().any(|leg| {
+            leg.level == candidate_level
+                && matches!(
+                    (candidate_dir, leg.dir),
+                    (VoiceSide::Long, VoiceSide::Short) | (VoiceSide::Short, VoiceSide::Long)
+                )
+        }),
+        VoiceSide::Flat => false,
     }
 }
 
@@ -1180,8 +1233,10 @@ impl ExitNestGateStats {
         }
     }
 
-    /// NEST_GATE_EXIT 行（门开时 v1/dual 退出循环末尾各打一行；门关恒不输出——
-    /// 诊断读出与 NEST_GATE_STATS 同 env 惯例，不进任何判定）。
+    /// NEST_GATE_EXIT 行只属于 v1/dual 的决策注入门（门开时两退出循环末尾各打一行；
+    /// 门关恒不输出）。#467 重裁：π 引擎的可达臂以一道候选过滤门过滤共享 gamma，
+    /// 同时覆盖进场与规则2平仓候选，其出场归因另报 `NEST_GATE_EXIT_CAND`。
+    /// v1/dual 连同本注入形态已 deprecated，退役见 #499。诊断读出不进任何判定。
     /// T5b (#208)：行 schema 随迁链改（typed_found/typed_none → chain_found/chain_none，
     /// cross 列 typed→gate）——出场侧诊断行，不经 m8 红线面（三窗零行先例）。
     pub(super) fn report(&self, path: &str) {
@@ -1365,7 +1420,9 @@ impl<'a> ExitNestGateCtx<'a> {
         pass
     }
 
-    /// NEST_GATE_EXIT 行（门开时 v1/dual 退出循环末尾各打一行）。
+    /// NEST_GATE_EXIT 行仅报告 deprecated v1/dual 决策注入门；π 以一道候选过滤门
+    /// 对共享 gamma 作进出场双覆盖，并由 `NEST_GATE_EXIT_CAND` 报出场归因。
+    /// v1/dual 家族及本形态退役见 #499。
     pub(super) fn report(&self, path: &str) {
         self.stats.report(path);
     }
@@ -1832,5 +1889,58 @@ pub(super) mod t5b_exit_dump {
             });
             let _ = writeln!(writer, "{line}");
         });
+    }
+}
+
+#[cfg(test)]
+mod issue467_exit_candidate_tests {
+    use super::super::super::classifier::recursive_tower::ElementId;
+    use super::super::super::strategy::interp::ActiveLeg;
+    use super::super::super::strategy::voice::VoiceSide;
+    use super::{exit_candidate_would_close, NestGateStats};
+
+    fn active_leg(level: u32, dir: VoiceSide, ordinal: u64) -> ActiveLeg {
+        ActiveLeg {
+            level,
+            dir,
+            source_index: ordinal as usize,
+            lambda: ordinal as usize,
+            id: ElementId { level, ordinal },
+            parent_id: None,
+            is_boundary_root: true,
+            op_parent: None,
+        }
+    }
+
+    #[test]
+    fn nest_gate_exit_candidate_counts_complete_matching_subpopulation() {
+        let prev_active = [
+            active_leg(2, VoiceSide::Long, 0),
+            active_leg(1, VoiceSide::Short, 1),
+        ];
+        let cases = [
+            // admit, level, candidate direction, would drive same-level opposite-leg close
+            (false, 2, VoiceSide::Short, true),
+            (true, 1, VoiceSide::Long, true),
+            (false, 2, VoiceSide::Long, false),
+            (false, 3, VoiceSide::Short, false),
+            (false, 2, VoiceSide::Flat, false),
+        ];
+        let mut stats = NestGateStats::default();
+
+        for (admit, level, dir, expected) in cases {
+            let would_close = exit_candidate_would_close(level, dir, &prev_active);
+            assert_eq!(would_close, expected, "level={level} dir={dir:?}");
+            stats.observe_exit_candidate(admit, would_close);
+        }
+
+        assert_eq!(stats.exit_cand_total, 2, "完整子总体只含同级反向持仓匹配");
+        assert_eq!(stats.exit_cand_admitted, 1, "admitted 侧同法计数");
+        assert_eq!(stats.exit_cand_rejected(), 1, "rejected 侧归因计数");
+        assert_eq!(
+            stats.exit_cand_report_line(),
+            "NEST_GATE_EXIT_CAND total=2 admitted=1 rejected=1",
+            "π 可达臂使用独立行名，避免与 deprecated v1/dual NEST_GATE_EXIT 混淆"
+        );
     }
 }

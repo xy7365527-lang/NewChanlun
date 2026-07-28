@@ -334,7 +334,7 @@ use super::opsem_dump::{
 };
 use super::admission::{
     voice_exec_gate, nest_cert_gate_enabled,
-    NestGateStats,
+    exit_candidate_would_close, NestGateStats,
     NestChainGate,
     ExitNestGateStats, ExitNestGateCtx,
     k_theta_risk_gate, kappa_policy_resolved,
@@ -2539,6 +2539,9 @@ where
                             // 逐候选落新链结果（三态+谱系+缺断）+ admit/channel。
                             #[cfg(test)]
                             super::admission::t5a_chain_dump::record(i, c, &obs, admit, channel);
+                            let would_close =
+                                exit_candidate_would_close(c.level, c.dir, &prev_active);
+                            nest_gate_stats.observe_exit_candidate(admit, would_close);
                             nest_gate_stats.observe(admit, channel, obs);
                             admit
                         })
@@ -3482,6 +3485,7 @@ where
                 inst.base_consolidation(),
             );
         }
+        eprintln!("{}", s.exit_cand_report_line());
     }
     FillOutput {
         equity_curve,

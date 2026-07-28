@@ -93,6 +93,17 @@ _Avoid_: 塔顶（随时间生长）；固定 ℓ+1 起算（2026-07-23 裁定�
 跨级链从链顶逐级向下延伸至 L0 的完整性要求：逐级有该级自治证书且过 `n_delta`。缺环即拒、断环即拒——lvl+1 单级过证不算，高级有证而中间断不算。
 _Avoid_: 浅链准入（单级过证即算）；跳链准入（并集残留，2026-07-23 裁定）
 
+**候选过滤门（candidate-filter gate）**:
+π 世代在 fold 之前过滤进出场共享的 gamma 候选集：一道过滤同时覆盖开仓消费与规则2反向证书平仓消费，候选被拒即两边都不可消费。门判据来自 `nest.rs` 的 `n_delta` 递归核；过滤器只消费该判据，不另造出场查法。
+
+**决策注入门（decision-injection gate）**:
+v1/dual 世代在逐持仓退出决策里向 `closePred` 注入反向析取项，消费单位是持仓决策，不是共享候选集。它与候选过滤门的确认判据同源于 `nest.rs` 的 `n_delta` 递归核，但消费形态分代；v1/dual 及该形态已 deprecated，退役见 #499。
+
+### 运行边界
+
+**「生产」拆三义（three meanings of production）**:
+**π 引擎**指 canonical `run_theta_v0_pi`/π fill 的策略与执行家族本体；**最小生产路径 CLI** 指 `theta_backtest` 用仓内数据加载、π 引擎与内部 fill 串成的可运行闭环，它证明 CLI 可驱动引擎，但不等于交易场所集成；**NT 真生产**指 NautilusTrader 的 Backtest/Live runtime、真实 portfolio/order 生命周期与 broker adapter 驱动同一策略。三者须按全名使用，不以裸称“生产”互相替代。
+
 ### 出场判定
 
 **谓词（Predicate, P_j）**:
