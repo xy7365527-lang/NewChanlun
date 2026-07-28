@@ -98,3 +98,6 @@ analysis/logs/
 
 # precompact-save.sh 自动快照（运行时产物，ceremony 只读最新，累积不入库）
 .chanlun/sessions/
+
+# Codex 投影（生成物，由 .agents/skills 生成，不进版本控制——#505 裁定）
+agent/

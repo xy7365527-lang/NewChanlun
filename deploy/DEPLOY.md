@@ -42,10 +42,7 @@ rm -rf /tmp/ecc
 
 ### 第二步：安装元编排层
 
-```bash
-# 解压部署包后，在部署包目录下执行
-bash install.sh
-```
+> ⚠️ 声称降级（#505，2026-07-28）：`install.sh` 尚未实装，本节一键安装不可用；请用下方手动步骤。
 
 或手动：
 
@@ -95,8 +92,8 @@ claude   # 启动 Claude Code
 ```
 deploy/
 ├── DEPLOY.md                           # 本文件
-├── CLAUDE.md.example                   # 项目级配置模板
-├── install.sh                          # 一键安装脚本
+├── CLAUDE.md.example                   # 【缺失待补】项目级配置模板
+├── install.sh                          # 【缺失待补】一键安装脚本
 ├── rules/
 │   ├── no-workaround.md                # 核心禁令（优先级最高）
 │   ├── result-package.md               # 结果包格式强制
