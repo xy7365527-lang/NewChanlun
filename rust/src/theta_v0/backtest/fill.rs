@@ -1601,10 +1601,10 @@ mod campaign_wiring_tests {
         assert_eq!(witness.other_violation_count, 0, "接线正常路径下其余通道拒绝恒 0");
     }
 
-    /// ★#526 P2 / #386 G5：经 π backtest 的 campaign wiring 走现役
-    /// `short_diff_bucket::record_and_apply_dual`，同一笔 Reduce 的已实现盈亏在 R 账本 Π 与
-    /// TW `Realize` 漂移上必须同数；ShortDiff 成本基腿独立守恒，桶现金恰等于
-    /// 「成本基释放 + 已实现盈亏」，不复造第二本 G5 账。
+    /// ★#526 P2 / #386 G5（#590 MEDIUM-3 措辞订正）：经 `drive_campaign_wiring`（非全 bar 循环
+    /// e2e，直调装配函数）的 campaign wiring 走现役 `short_diff_bucket::record_and_apply_dual`，
+    /// 同一笔 Reduce 的已实现盈亏在 R 账本 Π 与 TW `Realize` 漂移上必须同数；ShortDiff 成本基腿
+    /// 独立守恒，桶现金恰等于「成本基释放 + 已实现盈亏」，不复造第二本 G5 账。
     #[test]
     fn pi_g5_realized_amount_matches_tw_and_r_ledger_through_campaign_wiring() {
         let mut account_view = strategy::account::ParallelAccountLedger::new();
@@ -1670,6 +1670,9 @@ mod campaign_wiring_tests {
             "#386 单源：桶现金=ShortDiff 成本基释放+Realize，不双写第二套金额"
         );
         assert!(after.ledger().inv_holds(), "R=Π−A−W 恒等保持");
+        // ★#590 LOW 脆锁风险注明：`is_err()` 只判「报错与否」不判错误变体——`assert_conserved`
+        // 若未来改造出与「在途未回补」无关的新错误分支，本断言仍会绿，不构成该分支的判别力；
+        // 本锁的判别力落在其上方三条 assert_eq!（数值同数/成本基/桶现金）。
         assert!(after.short_diff().assert_conserved().is_err(), "半轮 Reduce 在途未回补，恒仓锁应如实未闭合");
         assert_eq!(witness.other_violation_count, 0, "生产接线正常路径无记账拒绝");
     }

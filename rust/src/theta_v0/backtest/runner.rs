@@ -4321,6 +4321,55 @@ mod tests {
         assert!(vs.n_voice_fills <= 2 * vs.n_voices_total, "事件驱动上界");
     }
 
+    /// ★#526 MEDIUM-1（#590 装配层锚）：既有 5 把 runner 锁全挂 `pi_theta_fill_loop_voice`
+    /// （#[cfg(test)] 薄包装，跳过生产入口），装配层——`run_theta_v0_pi_overlay` 的
+    /// `net_result` 声部口径切换 / `tw_final` 转发 / `VoiceExecRunSummary` 九字段——零覆盖
+    /// （既有 `voice_exec_env_gate_off_bitexact_on_voice_readings` 用的 60-bar 锯齿夹具经真
+    /// 增量分类器判零信号，n_voice_fills=0，其余 5 字段=0 的读数不构成「存在」证据）。本锁经
+    /// 真实 BTC 数据窗口（真结构、真触发）跑通 VOICE_EXEC 注入臂，锁九字段非零存在 + net_result
+    /// 切换读数存在 + tw_final 转发存在——**存在性 + 口径锁，不追加 bit-exact 伪称**。
+    #[test]
+    fn pi_voice_exec_run_overlay_assembly_fields_present() {
+        use super::super::data;
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("BTC 加载失败：{e}（DATA BLOCKER，跳过装配层锚）");
+                return;
+            }
+        };
+        let n_full = ds_full.bars.len();
+        let max_bars: usize = 20_000;
+        let start = n_full.saturating_sub(max_bars);
+        let ds = ds_full.slice_bar_range(start, n_full);
+
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
+        let on = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
+
+        // ① VoiceExecRunSummary 九字段装配存在（真实数据窗口，非零信号，非空转读数）。
+        let vs = on.voice_exec.expect("VOICE_EXEC=1 ⟹ 声部执行读数装配存在");
+        assert!(vs.n_voices_total > 0, "n_voices_total 装配存在且非零（真窗口有声部开过）");
+        assert!(vs.n_voice_fills > 0, "n_voice_fills 装配存在且非零");
+        assert!(vs.n_voices_open_end <= vs.n_voices_total, "n_voices_open_end 装配存在且不超总数");
+        assert!(vs.gross_turnover_lots > 0, "gross_turnover_lots 装配存在且非零");
+        assert!(vs.fee_paid > 0.0, "fee_paid 装配存在且非零");
+        assert!(vs.conservation_residual.is_finite(), "conservation_residual 装配存在（有限）");
+        assert!(vs.price_pnl_reconcile_residual.is_finite(), "price_pnl_reconcile_residual 装配存在（有限）");
+        assert!(vs.event_bound_holds, "event_bound_holds 装配存在（事件驱动上界成立）");
+        assert_eq!(vs.book.n_fills(), vs.n_voice_fills, "book 与读数同源装配存在");
+
+        // ② tw_final 转发存在（fill.tw_final → OverlayRunResult 顶层，装配层未静默丢失）。
+        assert!(on.tw_final.is_some(), "VOICE_EXEC 臂 tw_final 转发存在");
+
+        // ③ net_result 声部口径切换读数存在（装配层未静默回落净额空转——equity/trades/n_orders
+        //    随声部账本非空产出，且 n_orders 切换读数=声部 fill 事件数，同源装配非巧合）。
+        assert_eq!(on.net_result.equity_curve.len(), on.n_bars, "声部臂 equity_curve 装配存在且长度对齐");
+        assert!(!on.net_result.trades.is_empty(), "声部臂 trades 装配存在（非空）");
+        assert_eq!(on.net_result.n_orders, vs.n_voice_fills, "net_result.n_orders 切换读数=声部 fill 事件数");
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     //  ★nest-gate（进出场区间套证书门，实装报告 nest-exit-gate-impl-20260719）
     // ──────────────────────────────────────────────────────────────────────
@@ -7064,11 +7113,13 @@ mod tests {
         );
     }
 
-    /// ★#526 P1：无父容器/无 ReverseOpen 的单根 round-trip 下，#569 裁定的未切换决策面
-    /// （typed/TW/verdict/account）逐字节一致；VOICE_EXEC 簿只出现 Ambient 根，不伪造嵌套腿。
-    /// equity/PnL/trades/n_orders/r_decomp 属 #569 明列的 W1 切换字段，不冒充 bit-exact 面。
+    /// ★#526 P1（#590 MEDIUM-2 订正）：与既有 `voice_exec_event_driven_fills_decision_bitexact`
+    /// （runner.rs:4180，同 buy_then_sell(1) 20-bar 单根 round-trip 夹具）的净增量——该锁已锁
+    /// typed_ledger/tw_final 跨臂 bit-exact + book.total_voices()/n_fills()，本锁只补它未覆盖
+    /// 的两条决策面：voice_verdicts 与 account_view.fills()。旧名「嵌套禁用」名实不符（未碰
+    /// NEST_CERT_GATE_OVERRIDE，比的是净额臂 vs 声部臂）已随本次订正消除。
     #[test]
-    fn pi_nested_disabled_without_reverse_open_is_decision_bit_exact() {
+    fn pi_voice_exec_verdicts_and_account_fills_match_net_arm() {
         let config = ThetaConfig::default();
         let bars: Vec<Bar> = (0..20)
             .map(|i| mk_bar(i, 10_000_000_000, false))
@@ -7088,12 +7139,8 @@ mod tests {
         );
         VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
 
-        assert_eq!(voice.typed_ledger, baseline.typed_ledger, "typed 决策账 bit-exact");
-        assert_eq!(voice.tw_final, baseline.tw_final, "TW 决策影子 bit-exact");
         assert_eq!(voice.voice_verdicts, baseline.voice_verdicts, "per-voice verdict 序 bit-exact");
         assert_eq!(voice.account_view.fills(), baseline.account_view.fills(), "account fill 序 bit-exact");
-        assert_eq!(book.total_voices(), 1, "无嵌套数据只开一个 Ambient 根声部");
-        assert_eq!(book.n_fills(), 2, "单根开平恰两笔声部 fill");
     }
 
     /// ★#526 P1：π 单 Short 根 → 开空 → 上方结构止损 → 平空，VOICE_EXEC 交易方向必须
