@@ -2774,10 +2774,11 @@ mod tests {
         );
     }
 
-    /// ★Q7-#1 裁定C + p117 + #486：L≥1 一/三类的方向锚均取单元结构方向。provenance
-    /// endpoint fallback（anchor=None）仍是序列成员，不再阻断几何合法的三类离开段。
-    /// 一类既有 p117 行为不变；三类只放宽方向来源，`judge_third_cert` 的方向匹配、回试方向、
-    /// 严格 `>ZG/<ZD` 与 OwnerRef 契约均不变。
+    /// ★ADR 补充十三 / #486 / Spec #485：L≥1 一/三类的方向锚均取单元结构方向。
+    /// provenance endpoint fallback（anchor=None）仍是序列成员，不再阻断几何合法的一/三类。
+    /// 一类 p117 直调契约由 signal.rs 的
+    /// `judge_first_cached_provenance_gate_preserved_for_direct_callers` 独立锁定；三类的方向匹配、
+    /// 回试方向、严格 `>ZG/<ZD` 与 OwnerRef 契约均不变。
     #[test]
     fn q7_ruling_c_first_and_third_class_structural_direction_authorized() {
         use super::center::UnitRange;
@@ -2793,21 +2794,25 @@ mod tests {
         let closes: Vec<f64> = prices.iter().map(|&v| v as f64).collect();
         let close_src: Vec<usize> = (0..prices.len()).collect();
         let hist = divergence::compute_macd(&closes, &ThetaConfig::default().macd).hist;
-        let n_buy1 = |anchors: &[Option<Direction>]| {
-            let (bsp, _) = extract_first_third_for_level(&[c0, c1], &units, anchors, &hist, &[], &[], &close_src, divergence::DivergenceGauge::default());
-            bsp.iter().filter(|p| p.bits.buy1).count()
-        };
-        // 对照组：全锚 ⟹ 1 买产（gap-fill 路径活；保留断言）。
-        assert_eq!(n_buy1(&[Some(Direction::Down), Some(Direction::Up), Some(Direction::Down)]), 1);
-        // A 段单元 fallback：p117 后第一类 A 窗筛选用单元结构方向（行程方向 Down=τ）⟹ A 候选
-        // 可配 ⟹ 产 1 买（S4 救回型；授权翻转 0→1。provenance 锚消费方仅余三类/诊断仪器）。
-        assert_eq!(n_buy1(&[None, Some(Direction::Up), Some(Direction::Down)]), 1,
-            "p117 窄域授权：第一类 A 段方向锚 = 单元结构方向（fallback 单元行程方向=τ 时可配）");
-        // C 段（破中枢段）单元 fallback：p117 后 broke 锚门用单元结构方向（Down=τ）⟹ 触发 ⟹
-        // 产 1 买（S2 救回型；授权翻转 0→1。行程方向 ≠τ 的单元仍拒——signal.rs 反向 veto 锁）。
-        assert_eq!(n_buy1(&[Some(Direction::Down), Some(Direction::Up), None]), 1,
-            "p117 窄域授权：第一类破中枢段方向锚 = 单元结构方向（fallback 单元行程方向=τ 时触发）");
-        // 三类：leave 段 fallback ⟹ 不产 3 买（686 对三类的保护整体保留；retest 是几何角色不设锚门）。
+        // 一类只锁 L≥1 调用层的结构锚授权：helper 会重建结构锚，故不在这里伪造 provenance
+        // 变体。p117 的 provenance 直调契约由 signal.rs 上述独立测试锁定。
+        let (first_bsp, _) = extract_first_third_for_level(
+            &[c0, c1],
+            &units,
+            &[None, None, None],
+            &hist,
+            &[],
+            &[],
+            &close_src,
+            divergence::DivergenceGauge::default(),
+        );
+        assert_eq!(
+            first_bsp.iter().filter(|p| p.bits.buy1).count(),
+            1,
+            "#486：L≥1 一类按结构方向锚产一买"
+        );
+        // 三类：ADR 补充十三 / #486 / Spec #485 授权 L≥1 leave 使用结构方向锚；
+        // provenance fallback=None 不再否决三买，retest 仍是几何角色、不另设锚门。
         let c = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 };
         let u3 = vec![
             UnitRange { start_index: 12, end_index: 16, direction: Direction::Up, lo: 150, hi: 250 },

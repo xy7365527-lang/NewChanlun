@@ -974,16 +974,15 @@ pub fn extract_signals_with_hist(
     extract_signals_with_hist_anchored(centers, segments, None, hist, dif, closes_tick, close_src, gauge)
 }
 
-/// ★Q7-#1 裁定C（codex-q7-fallback-20260703，收窄 #121 裁定A）：`anchor_dirs[i]` = `segments[i]`
-/// 的**方向锚资格**——级别-N 传 `center_own_dir_at` ownership 方向（provenance 派生）；`None` 元素
-/// = endpoint fallback 单元，保留为序列/区间/面积成员，但不得作 A 段候选、C 段/破中枢段、离开段
-/// 方向锚。整参 `None` = L0（段方向即锚方向）。盘整背驰路径（[`judge_pan_div`]）不受锚门约束
-/// （盘整是独立范畴，腿方向即结构方向——恒用 `anchors_self`）。
+/// ★ADR 补充十三 / #486 / Spec #485（承接 Q7-#1 裁定C）：`anchor_dirs[i]` 是
+/// `segments[i]` 在本入口使用的方向锚。整参 `None` = L0（段结构方向即锚方向）；L≥1 生产调用由
+/// `extract_first_third_for_level` 传入单元结构方向。endpoint provenance fallback 只保留在上游
+/// 平行数组/诊断中，不再否决 A 段、C 段/破中枢段或三类 leave 段。盘整背驰路径
+/// （[`judge_pan_div`]）仍恒用 `anchors_self`。
 ///
-/// ★p117（686 翻转条款第一支窄域授权，终端背书裁定 T2，p112 §6-4 裁定项）：本函数第一类路径
-/// 经 [`judge_segment`] 消费 `anchors_self`（单元结构方向，行程方向=τ 等式 veto；τ 门已承担
-/// 「趋势中」定义域），`anchors`（provenance 锚）**仅余三类 leave 锚用途**（`judge_segment`
-/// 三类分支 `anchors[i-1]`）——686 对三类的保护整体保留，第一类/三类方向来源自此分层。
+/// ★p117 + #486：[`judge_segment`] 的第一类路径消费 `anchors_self`，三类路径消费 `anchors`；
+/// L≥1 生产调用中两者均为单元结构方向，故一/三类处于同级授权层次。判据函数的方向匹配与几何
+/// 契约不动；`judge_first_cached` 直调时传 `None` 的拒绝契约另由同模块直测锁定。
 pub fn extract_signals_with_hist_anchored(
     centers: &[Center],
     segments: &[Segment],
@@ -1292,16 +1291,14 @@ fn judge_segment(
     // 当前走势类型的最后中枢 = c）；prev_center = pos-1（同块前驱，A 段所在）。
     if let Some((pos, dir)) = gate_dir {
         let prev_center = &centers_sorted[pos - 1];
-        // ★p117（686 翻转条款第一支窄域授权，p112 §6-4 裁定项，终端背书裁定 T2 核准）：
-        // 第一类路径方向锚降级——provenance 锚（`anchors`，次级别块 ownership 资格）→
-        // 单元结构方向（`anchors_self`）。定义域「趋势中」（037:16/027:14）由本分支 τ 门
-        // （gate_dir，级别-N decompose Trend 块）已承担；行程方向=τ（037:20 单元级对应）
-        // 与破核心几何在判据函数内保留——降级非去除（方向匹配检查整体保留，仅换方向来源：
-        // 单元方向只做 =τ 的等式 veto，不传递方向内容，无方向信息自 fallback 单元外流）。
+        // ★p117 + ADR 补充十三 / #486 / Spec #485：L≥1 一/三类均获单元结构方向锚。
+        // 第一类在此消费 `anchors_self`。定义域「趋势中」（037:16/027:14）由本分支 τ 门
+        // （gate_dir，级别-N decompose Trend 块）承担；行程方向=τ（037:20 单元级对应）
+        // 与破核心几何在判据函数内保留——授权非去除，方向匹配检查整体保留。
         // 三消费点同源切换（禁部分修：broke 门/λ_C/A 段是同一「第一类方向锚」语义，部分切换
-        // 会使 judge_first_cached「broke ⟹ λ_C 必 Some」契约出现模糊地带）。三类分支（下方
-        // `anchors[i-1]`）不动——本案集三类零证据，686 对三类的保护整体保留；pan 域本已
-        // `anchors_self`（本切换后第一类与 pan 方向来源对齐，语义统一）。
+        // 会使 judge_first_cached「broke ⟹ λ_C 必 Some」契约出现模糊地带）。三类分支读取
+        // `anchors[i-1]`；L≥1 生产调用已由上层传入结构锚，与 p117 一类处于同级授权层次。
+        // provenance 仅留上游平行数组长度契约/诊断，不再作为一类或三类的方向否决。
         // 热点②修复：A 区间按 last_center_idx=c_idx 缓存（与 C 段 `seg` 无关）。首次 miss 才调
         // `locate_departure_move_a` O(窗口)，后续 hit O(1) 复用——消解每段重算的 O(S²)。
         // ★p117 037:20（裁定 T3）：b 包络（`move_range_envelope`，单一来源）随 I(A) 同槽缓存——
@@ -1339,7 +1336,8 @@ fn judge_segment(
         if let Some(c_leave_idx) = nearest_confirmed_center_idx(centers_sorted, leave_seg.start_index)
         {
             let c_leave = &centers_sorted[c_leave_idx];
-            // Q7-#1 裁定C：leave 段（三类离开/突破段）须有方向锚资格；retest 段是几何回试角色。
+            // ADR 补充十三 / #486 / Spec #485：leave 段须有方向锚；L≥1 的 `anchors`
+            // 已由调用层换成结构方向。retest 段仍只是几何回试角色。
             if let Some(p) = judge_third(c_leave, leave_seg, anchors[i - 1], seg) {
                 points.push(p);
             }
@@ -1440,8 +1438,8 @@ pub(crate) fn type1_funnel_dx(
         f.s_gate_open += 1;
         // broke 几何（judge_first_cached 同判据同顺序）。
         let end = seg_end(seg);
-        // ★p117（686 窄域授权）：broke 锚门与生产第一类路径同源——结构方向锚（行程方向=τ
-        // 等式 veto）；provenance 锚（fallback=None ⟹ 不触发）仅余三类/直调判据契约。
+        // ★p117 + ADR 补充十三 / #486 / Spec #485：broke 锚门与生产第一类路径同源——
+        // 结构方向锚（行程方向=τ 等式 veto）；provenance None 只保留直调判据契约。
         let broke = match (anchors_owned[si], dir) {
             (Some(Direction::Down), Direction::Down) => end.price < c.zd,
             (Some(Direction::Up), Direction::Up) => c.zg < end.price,
@@ -1825,9 +1823,8 @@ mod tests {
 
     #[test]
     fn judge_first_cached_provenance_gate_preserved_for_direct_callers() {
-        // ★判据函数 provenance 门契约锁：降级发生在**调用点**（judge_segment 传 anchors_self），
-        // `judge_first_cached` 语义未动——直接调用方传 provenance None（fallback）时 686 裁定C
-        // 行为保留（broke 锚门在几何评估前拒）。
+        // ★p117 直调判据契约锁：ADR 补充十三 / #486 / Spec #485 只改 L≥1 调用层方向源；
+        // `judge_first_cached` 语义未动，直接调用方传 provenance None 时仍在几何评估前拒绝。
         let c1 = dc(100, 200, 90, 210, 8);
         let c_seg = seg(Direction::Down, 9, 11, 150, 80);
         let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
