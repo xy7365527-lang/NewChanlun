@@ -187,6 +187,36 @@ fn same_anchor(a: &LifecycleKey, b: &LifecycleKey) -> bool {
         && a.b_center_start == b.b_center_start
 }
 
+/// 中枢升级认领判据（票 #603 档 1「暂认中枢回溯认领」，#599 编排者裁定 2026-07-28）。
+///
+/// **严格同锚**：`level/side/kind/seg_a/seg_c_full.0` 五项全等（= 同一背驰假设的同一 C 段），
+/// **只放开 `b_center_start`**，且要求新 B 严格晚于旧 B（`old < new`，单调前进）。
+///
+/// 语义（为什么这不是"回填历史"）：B 的取值来自
+/// [`nearest_confirmed_center_idx`] 对**已确认**中枢集合的查询——中枢从"未确认"变为"已确认"
+/// 是回顾性、单调的状态跃迁，查询答案随之更新反映的是「当下可得的已确认信息集合变大了」，
+/// 不是对未来的预判（`parser/tail.rs:11-14` 裁定的边界在此侧）。与 [`bridge_identity`] 已经
+/// 承认的「C 收束/回扩/延展」是同一原则的推广：同一 A/C 组合，用当下最新已确认信息重算一个
+/// 辅助参数。**单调方向是合法性的前提**——反向替换（用更早的中枢覆盖当前答案）才真正构成
+/// 回填，本判据禁之。
+///
+/// **跨锚零实装**（#599 §4.2 教义否定，编排者采纳）：`seg_a` 是背驰检验的离开段，两个不同
+/// `seg_a` 是两个**不同的背驰假设**（巧合共享同一 C 段），合并 = 用一个假设的最终结果回溯
+/// 重定义另一个假设曾经的观测内容 = `tail.rs`「强行分类为最终结果」。故 `seg_a` 全等是硬
+/// 约束，本函数不提供任何放开它的分支。
+///
+/// 与 [`bridge_identity`] 的关系：两者**互斥**（桥要求 `b_center_start` 相等，本判据要求严格
+/// 不等）⟹ `advance` 第 1 步先桥后认领，匹配不重叠。C 右端不进本判据（与桥同款，右端随
+/// as_of/收束变动，不是身份）。
+fn bridge_by_center_upgrade(old: &LifecycleKey, new: &LifecycleKey) -> bool {
+    old.level == new.level
+        && old.side == new.side
+        && old.kind == new.kind
+        && old.seg_a == new.seg_a
+        && old.seg_c_full.0 == new.seg_c_full.0
+        && old.b_center_start < new.b_center_start
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 三态 / 原因码 / 力度三值化（卡 §2.3/§4 + #78 修复 1）
 // ═══════════════════════════════════════════════════════════════════════════
@@ -298,6 +328,17 @@ pub enum LifecycleRevisionKind {
     Observed,
     /// 白名单工程桥身份迁移（收束/回扩/活窗延展）：钟不动、链留痕、无 Invalidated。
     Supersedes { from: LifecycleKey },
+    /// 中枢升级认领（票 #603 档 1）：同一候选（同 `seg_a` 同 C 左端）的 B 参照被一个**更晚
+    /// 确认、因而更近**的中枢替换（判据 [`bridge_by_center_upgrade`]）。两种形态，由前身
+    /// 死活决定，**都不改前身条目的任何 bit**：
+    ///
+    /// - 前身仍 `Provisional` ⟹ **迁移**：与 `Supersedes` 同款（remove + 继承五钟 + 链留痕），
+    ///   前身条目被迁移走，无 `Invalidated`、无 `IdentityVanished`；
+    /// - 前身已终态 ⟹ **认领留痕**：新身份独立建仓（`Observed` 后紧跟本修订），前身条目
+    ///   原样留档（终态吸收/禁复活/终态钟只写一次三条不变量一个 bit 不动，E2E §1:83）。
+    ///   本修订是两条历史之间**唯一**的可审计关联——统计口径按 `superseded_from` 反查即可
+    ///   把「被认领的前身终局」从反超/寿命分母中剔除（#599 §5-1「口径正确性修复」）。
+    CenterUpgraded { from: LifecycleKey },
     /// D1–D4 首次同真（仅 `Verified(true)` 分支写入——#78 核验 T14 锚定）。
     FirstProvable,
     /// c 结构完成信号首次到达。仅力度可验且此前未由第二终局路径吸收时产生；同一 prefix
@@ -359,7 +400,10 @@ pub struct NestLifecycleEntry {
     pub force_evidence: Option<ForceEvidence>,
     /// 最近一次力度不可验注记 prefix（同 as_of 幂等去重基准；只作去重，不阻塞恢复推进）。
     pub force_unavailable_at: Option<usize>,
-    /// 白名单桥迁移链留痕（迁移不改写任何钟）。
+    /// 身份来源链留痕（两码，逐条对应本 entry 首个非 `Observed` 修订的 kind）：
+    /// 白名单桥迁移（`Supersedes`，迁移不改写任何钟）或中枢升级认领
+    /// （`CenterUpgraded`，票 #603 档 1——迁移形态同样不改钟；认领留痕形态下本字段是新身份
+    /// 指向**已终态前身**的唯一关联，前身条目不因此改任何 bit）。
     pub superseded_from: Option<LifecycleKey>,
     /// 该身份已见最大 as_of（#78 修复 2 倒退守卫基准）。
     pub last_as_of: usize,
@@ -682,6 +726,14 @@ pub struct LifecycleSettlementStats {
     pub provisional_count: usize,
     pub confirmed_count: usize,
     pub force_overtake_count: usize,
+    /// 其中被**中枢升级认领**的前身数（票 #603 档 1）：该反超身份随后被一个同锚、B 更晚的
+    /// 身份以 `CenterUpgraded` 认领 ⟹ 那条反超是「更精确的 B 出现之前的暂时状态」，
+    /// 按 #599 §5-1 的口径正确性修复应从反超分母中剔除。
+    ///
+    /// **账本一个 bit 不改**：前身条目仍是 `Invalidated{ForceOvertake}` 原样留档（终态吸收/
+    /// 禁复活/终态钟只写一次三条不变量不动）——纠误只发生在**口径层**，
+    /// `force_overtake_count - force_overtake_claimed_count` 即纠误后的反超数。
+    pub force_overtake_claimed_count: usize,
     pub never_constituted_count: usize,
     /// 身份消失 (a) 假设被推翻（真终局）——票 #559 裁定两类分列，禁合并计数。
     pub identity_vanished_refuted_count: usize,
@@ -761,6 +813,18 @@ impl NestLifecycleBook {
         };
         let mut nonflash_lifetimes = Vec::new();
         let mut force_overtake_lifetimes = Vec::new();
+        // 票 #603 档 1：被 `CenterUpgraded` 认领的前身键集合（认领方 entry 的
+        // `superseded_from` + 首条认领修订即唯一来源；账本自足，不另存状态）。
+        let claimed: std::collections::BTreeSet<LifecycleKey> = self
+            .entries
+            .values()
+            .filter(|entry| {
+                entry.revisions.iter().any(|revision| {
+                    matches!(revision.kind, LifecycleRevisionKind::CenterUpgraded { .. })
+                })
+            })
+            .filter_map(|entry| entry.superseded_from)
+            .collect();
         for entry in self.entries.values() {
             stats.first_provable_count += usize::from(entry.first_provable_at.is_some());
             let (terminal_at, force_overtake) = match entry.state {
@@ -778,6 +842,8 @@ impl NestLifecycleBook {
                 {
                     InvalidatedReason::ForceOvertake => {
                         stats.force_overtake_count += 1;
+                        stats.force_overtake_claimed_count +=
+                            usize::from(claimed.contains(&entry.key));
                         (entry.invalidated_at, true)
                     }
                     InvalidatedReason::NeverConstituted => {
@@ -894,33 +960,71 @@ impl NestLifecycleBook {
                         delta.push(revision);
                     }
                     None => {
-                        // 新身份建仓（observed_at 建仓写一次、无任何改写点；倒退 as_of 的
-                        // 新身份无基线可违照建——#78 评审信息项，observed_at ≤ last_as_of 不受损）。
-                        let revision = LifecycleRevision {
-                            key,
-                            kind: LifecycleRevisionKind::Observed,
-                            as_of,
-                            evidence: None,
-                        };
-                        let entry = NestLifecycleEntry {
-                            key,
-                            state: NestEventState::Provisional,
-                            revision: 1,
-                            observed_at: as_of,
-                            first_provable_at: None,
-                            structure_end_at: None,
-                            confirmed_at: None,
-                            invalidated_at: None,
-                            invalidated_reason: None,
-                            vanish_cause: None,
-                            force_evidence: None,
-                            force_unavailable_at: None,
-                            superseded_from: None,
-                            last_as_of: as_of,
-                            revisions: vec![revision],
-                        };
-                        self.entries.insert(key, entry);
-                        delta.push(revision);
+                        // 档 1（票 #603 / #599 裁定）：桥未命中 ⟹ 试中枢升级认领（严格同锚，
+                        // 判据 [`bridge_by_center_upgrade`]）。**前身条目一律不改任何 bit**，
+                        // 两形态由前身死活决定：
+                        //  - 前身仍 Provisional 且非倒退 ⟹ **迁移**（继承五钟，与 Supersedes 同款）；
+                        //  - 前身已终态 / 倒退喂入 ⟹ **认领留痕**（新身份独立建仓 + 关联修订，
+                        //    前身原样留档——终态吸收/禁复活/终态钟只写一次三条不变量不动）。
+                        let claim = self.center_upgrade_match(&key);
+                        let migratable = claim.is_some_and(|old_key| {
+                            let old = &self.entries[&old_key];
+                            old.state == NestEventState::Provisional && as_of >= old.last_as_of
+                        });
+                        match (claim, migratable) {
+                            (Some(old_key), true) => {
+                                // 迁移（全 book 第二个 remove 点；钟不动、链留痕、无 Invalidated）。
+                                let mut entry = self.entries.remove(&old_key).expect("认领键存在");
+                                entry.superseded_from = Some(old_key);
+                                entry.key = key;
+                                let revision = entry.push_revision(
+                                    LifecycleRevisionKind::CenterUpgraded { from: old_key },
+                                    as_of,
+                                    None,
+                                );
+                                self.entries.insert(key, entry);
+                                delta.push(revision);
+                            }
+                            (claimed_from, _) => {
+                                // 新身份建仓（observed_at 建仓写一次、无任何改写点；倒退 as_of 的
+                                // 新身份无基线可违照建——#78 评审信息项，observed_at ≤ last_as_of
+                                // 不受损）。`claimed_from` 有值 ⟹ 紧跟一条认领留痕修订。
+                                let revision = LifecycleRevision {
+                                    key,
+                                    kind: LifecycleRevisionKind::Observed,
+                                    as_of,
+                                    evidence: None,
+                                };
+                                let mut entry = NestLifecycleEntry {
+                                    key,
+                                    state: NestEventState::Provisional,
+                                    revision: 1,
+                                    observed_at: as_of,
+                                    first_provable_at: None,
+                                    structure_end_at: None,
+                                    confirmed_at: None,
+                                    invalidated_at: None,
+                                    invalidated_reason: None,
+                                    vanish_cause: None,
+                                    force_evidence: None,
+                                    force_unavailable_at: None,
+                                    superseded_from: None,
+                                    last_as_of: as_of,
+                                    revisions: vec![revision],
+                                };
+                                delta.push(revision);
+                                if let Some(old_key) = claimed_from {
+                                    entry.superseded_from = Some(old_key);
+                                    let claim_revision = entry.push_revision(
+                                        LifecycleRevisionKind::CenterUpgraded { from: old_key },
+                                        as_of,
+                                        None,
+                                    );
+                                    delta.push(claim_revision);
+                                }
+                                self.entries.insert(key, entry);
+                            }
+                        }
                     }
                 }
             }
@@ -1201,8 +1305,14 @@ impl NestLifecycleBook {
                 }
             }
             if let Some(from) = entry.superseded_from {
-                assert!(from != key, "迁移链不自环：{key:?}");
-                assert!(bridge_identity(&from, &key), "迁移链两端满足桥身份：{key:?}");
+                assert!(from != key, "身份来源链不自环：{key:?}");
+                // 两码互斥且穷尽（票 #603 档 1）：桥迁移（`Supersedes`，B 相等）或中枢升级认领
+                // （`CenterUpgraded`，B 严格更晚）——`bridge_identity` 与
+                // `bridge_by_center_upgrade` 在 `b_center_start` 上互斥（相等 vs 严格小于）。
+                assert!(
+                    bridge_identity(&from, &key) || bridge_by_center_upgrade(&from, &key),
+                    "身份来源链两端满足桥身份或中枢升级认领：{key:?}"
+                );
             }
         }
         for (index, signal) in self.completion_signals.iter().enumerate() {
@@ -1286,6 +1396,22 @@ impl NestLifecycleBook {
         self.entries
             .keys()
             .find(|old| **old != *key && bridge_identity(old, key))
+            .copied()
+    }
+
+    /// 中枢升级认领匹配（票 #603 档 1）：同锚（`seg_a` + C 左端全等）且 B 严格更晚的既有键。
+    ///
+    /// **只服务 `advance` 第 1 步的建仓分支**——`bridge_entry`/`terminal_bridge_hit`/
+    /// `completion_signal_seen` 一律仍走 [`bridge_identity`]（严格更强），本方法不参与那三处
+    /// 判定：认领是「两个身份之间的关联」，不是「它们是同一个身份」，把它塞进桥语义会让终态
+    /// 前身把新身份一并吸收（禁复活的适用面被误扩），那正是本设计要避免的。
+    ///
+    /// 多候选时取 `BTreeMap` 序首个（确定性，无平局歧义）——同链上至多一只存活：迁移形态
+    /// 会 remove 前身，认领留痕形态下前身已终态（其后不再有活窗喂入产生更新的 B）。
+    fn center_upgrade_match(&self, key: &LifecycleKey) -> Option<LifecycleKey> {
+        self.entries
+            .keys()
+            .find(|old| bridge_by_center_upgrade(old, key))
             .copied()
     }
 }
@@ -1399,6 +1525,115 @@ impl ActiveSegmentFrontier {
             start_price: self.start_price,
             end_price: self.extreme,
         }
+    }
+}
+
+/// pending 槽队列的默认深度（票 #603 档 2，#599 编排者裁定 2026-07-28）。
+///
+/// **选择依据照实登记**：#599 §3.2 对 BTC 100k 全窗 33 只「槽被占」实例统计其活跃期内出现过
+/// 的不同占槽 frontier 值个数（链深），分布 = 1 跳 25 只 / 2 跳 7 只 / 3 跳 1 只，**未观测到
+/// 深度 ≥4**。裁定采纳「默认 3」= 覆盖该分布的全部实测链深。`formalization-validity-domain`
+/// 标注：**L2 证据，仅覆盖 BTC 100k 单窗**——跨标的/更长窗口可能出现更深链，深度充分性需按
+/// 新窗口重新验证，本常量不是规格常量。
+pub const ACTIVE_FRONTIER_QUEUE_DEPTH: usize = 3;
+
+/// pending 槽**队列**（票 #603 档 2）：把「全局唯一 pending 槽」扩展为容量 N 的候选队列。
+///
+/// # 这是什么（以及不是什么）
+///
+/// 队列成员**全部**由 [`active_segment_frontier`] 从 parser 的 `tail` 构造——构造点唯一、
+/// 数据源纪律（#523 永禁清单「禁止从 confirmed segments 回放重建」）逐字不动。本类型只做
+/// 一件事：**把曾经真实出现过的 pending 槽快照多留几个 bar**，而不是在槽被换走的同一刻丢弃。
+///
+/// 为什么需要（#599 实测机制）：parser 的线段确认是**批量**的——一次 `append` 可以同时确认
+/// 多条链式段，中间段因此从未单独当过 pending 槽；即便当过，其占槽期间 B 中枢可能尚未确认
+/// （活窗侧查到的是更早的暂认中枢）而 `locate_pan_div_structure` 尚不可定位。两种情形下该
+/// 候选在"当下"都产不出自己的活窗，等条件齐备时槽已被后继段占走 ⟹ 该身份只能在完成事件
+/// 到账时首见（覆盖率缺口）。队列让这些候选在被淘汰前继续接受观测。
+///
+/// # 诚实边界（不冒充「当下行进中段」）
+///
+/// 队尾（[`ActiveFrontierQueue::current`]）是**当下**的 pending 槽；其余成员是**曾经**的
+/// pending 槽快照，其对应的段可能已被 parser 确认。对它们产出的窗口是「对该历史候选的滞后
+/// 观测」，不是「当下行进中段」——消费侧（`p123_fast_replay` 诊断行 `cand_start=`）逐行标出
+/// 候选身份，不得以队尾口径冒充（090 声明=能力）。教义侧：每个候选被观测时仍只诚实报告
+/// **它自己**当时的方向/起点/极值（快照不随 bar 改写），不预判它自己或队列中其他候选的
+/// 最终归宿 ⟹ 不触 `parser/tail.rs`「不预判最终结果」（#599 §4.3）。
+///
+/// # 可变性
+///
+/// 本类型是回放驱动内的**驻留游标**（与 `p123_fast_replay` 的其余摊销累加器同类），按
+/// `coding-style` 「回放驱动性能缓存」注记（2026-07-27 编排者裁定）就地推进，不套不可变副本。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActiveFrontierQueue {
+    slots: Vec<ActiveSegmentFrontier>,
+    depth: usize,
+    /// 本 bar parser 是否真有行进中段。`observe(None)` ⟹ `false`，此时队尾是**上一次**观察到
+    /// 的槽快照，**不得**当作当下槽消费（L2 的 C 腿派生只吃当下槽——拿历史槽去重扫 L1 层窗口
+    /// 会用过期的行进中单元冒充当下，那是 #523 同类的错配）。
+    current_live: bool,
+}
+
+impl ActiveFrontierQueue {
+    /// 深度 N 的空队列（`depth == 0` 无意义——退化为"从不保留任何候选"，构造即拒绝）。
+    pub fn with_depth(depth: usize) -> Self {
+        assert!(depth >= 1, "pending 槽队列深度须 ≥1（1 = 退化回单槽语义）");
+        Self {
+            slots: Vec::with_capacity(depth),
+            depth,
+            current_live: false,
+        }
+    }
+
+    /// 观察本 bar 的 pending 槽值。
+    ///
+    /// - `None`（parser 无行进中段）⟹ 队列不动：历史候选继续接受观测，不因"当下无槽"被清空；
+    /// - 槽的身份是**候选段起点** `start_index`，不是整个快照值——同起点的新快照（极值随 bar
+    ///   推进）**替换**旧快照并移到队尾，不占新槽位；
+    /// - 新起点 ⟹ 入队；超出深度则淘汰最旧一个（FIFO，队尾恒为当下槽）。
+    ///
+    /// **为什么按起点而不是按值去重**（实测钉因）：`ActiveSegmentFrontier` 的 `extreme`/
+    /// `extreme_at` 随 bar 推进，逐值去重会把**同一候选段的不同延展阶段**当成并行候选各占
+    /// 一个槽位——它们随后各自产窗、互相 `Supersedes`（BTC 100k 实测 L1 Supersedes 从 19814
+    /// 涨到 30281），且等于让同一候选在同一 bar 有多个"当下状态"，违反活假设状态机的时间
+    /// 语义（一个候选在一个 prefix 只有一个当下状态）。槽的粒度必须是**段**。
+    pub fn observe(&mut self, frontier: Option<ActiveSegmentFrontier>) {
+        self.current_live = frontier.is_some();
+        let Some(frontier) = frontier else {
+            return;
+        };
+        if let Some(position) = self
+            .slots
+            .iter()
+            .position(|slot| slot.start_index == frontier.start_index)
+        {
+            self.slots.remove(position);
+        }
+        self.slots.push(frontier);
+        if self.slots.len() > self.depth {
+            self.slots.remove(0);
+        }
+    }
+
+    /// 候选快照（序：最旧 → 最新）。队尾是否为**当下**槽由 [`ActiveFrontierQueue::current`]
+    /// 回答——本方法不区分，消费方按位次自行判定（见 `is_current_at`）。
+    pub fn candidates(&self) -> &[ActiveSegmentFrontier] {
+        &self.slots
+    }
+
+    /// 当下 pending 槽。本 bar parser 无行进中段（`observe(None)`）或队列为空 ⟹ `None`。
+    pub fn current(&self) -> Option<&ActiveSegmentFrontier> {
+        if self.current_live {
+            self.slots.last()
+        } else {
+            None
+        }
+    }
+
+    /// [`ActiveFrontierQueue::candidates`] 的第 `index` 位是否为**当下**槽
+    /// （⟺ 它是队尾且本 bar 的观察值非 `None`）。
+    pub fn is_current_at(&self, index: usize) -> bool {
+        self.current_live && index + 1 == self.slots.len()
     }
 }
 
@@ -4678,6 +4913,265 @@ mod tests {
             signal.as_of > entry.observed_at,
             "验收 1 主分支在 L2 成立：存在 earlier Live"
         );
+        book.assert_invariants();
+    }
+
+    // ── 票 #603（#599 裁定）：档 2 pending 槽队列 / 档 1 暂认中枢严格同锚回溯认领 ──────
+
+    fn frontier_at(start_index: usize, extreme_at: usize) -> ActiveSegmentFrontier {
+        ActiveSegmentFrontier {
+            direction: Direction::Up,
+            start_index,
+            start_price: 100,
+            extreme: 110,
+            extreme_at,
+        }
+    }
+
+    /// 档 2-a：槽的粒度是**段**（`start_index`），不是快照值——同段的极值推进原地更新并
+    /// 保持队尾，不占新槽位；新起点才入队，超深度 FIFO 淘汰最旧。
+    #[test]
+    fn issue603_frontier_queue_depth_behaviour() {
+        let mut queue = ActiveFrontierQueue::with_depth(3);
+        assert!(queue.candidates().is_empty() && queue.current().is_none());
+
+        queue.observe(Some(frontier_at(10, 12)));
+        // 同段极值推进：仍是一个槽，且是当下槽（快照被替换为最新）。
+        queue.observe(Some(frontier_at(10, 15)));
+        assert_eq!(queue.candidates().len(), 1, "同起点的新快照不占新槽位");
+        assert_eq!(queue.candidates()[0].extreme_at, 15, "快照原地更新为最新");
+        assert!(queue.is_current_at(0));
+
+        queue.observe(Some(frontier_at(20, 24)));
+        queue.observe(Some(frontier_at(30, 36)));
+        assert_eq!(
+            queue.candidates().iter().map(|c| c.start_index).collect::<Vec<_>>(),
+            vec![10, 20, 30],
+            "序：最旧 → 最新"
+        );
+        assert!(!queue.is_current_at(0) && !queue.is_current_at(1) && queue.is_current_at(2));
+
+        // 超出深度 ⟹ 淘汰最旧一个。
+        queue.observe(Some(frontier_at(40, 47)));
+        assert_eq!(
+            queue.candidates().iter().map(|c| c.start_index).collect::<Vec<_>>(),
+            vec![20, 30, 40],
+            "深度 3：最旧的 10 被淘汰"
+        );
+
+        // `None`（parser 无行进中段）⟹ 队列不动，但队尾不再是"当下槽"。
+        queue.observe(None);
+        assert_eq!(queue.candidates().len(), 3, "None 不清队：历史候选继续可观测");
+        assert!(queue.current().is_none(), "当下槽不存在时不得拿历史槽冒充");
+        assert!(!queue.is_current_at(2));
+
+        // parser 回到既有起点 ⟹ 该槽移回队尾（不重复占位）。
+        queue.observe(Some(frontier_at(20, 29)));
+        assert_eq!(
+            queue.candidates().iter().map(|c| c.start_index).collect::<Vec<_>>(),
+            vec![30, 40, 20]
+        );
+        assert!(queue.is_current_at(2));
+
+        // depth=1 = 退化回队列化之前的单槽语义。
+        let mut single = ActiveFrontierQueue::with_depth(1);
+        single.observe(Some(frontier_at(10, 12)));
+        single.observe(Some(frontier_at(20, 24)));
+        assert_eq!(single.candidates().len(), 1);
+        assert_eq!(single.candidates()[0].start_index, 20);
+    }
+
+    /// 档 1-a：暂认中枢回溯认领——**前身仍 Provisional** ⟹ 迁移（五钟继承、链留痕、
+    /// 无 `IdentityVanished`），与 `Supersedes` 同款。
+    #[test]
+    fn issue603_center_upgrade_claims_provisional_predecessor_by_migration() {
+        let close_src = identity_close_src(140);
+        let mut hist = vec![0.0; 140];
+        hist[50..=59].fill(-2.0);
+        let mut dif = vec![0.0; 140];
+        dif[50..=59].fill(-5.0);
+        hist[70..=129].fill(-0.25);
+        dif[70..=139].fill(-1.0);
+        let m = material(&hist, &dif, &close_src);
+
+        // 暂认中枢 b=20 下建仓并首次可证。
+        let mut book = NestLifecycleBook::new();
+        book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 120), false)],
+            120,
+            &m,
+        );
+        assert_eq!(book.len(), 1);
+
+        // 更近的中枢 b=30 确认 ⟹ 同 seg_a、同 C 左端、B 严格更晚 ⟹ 认领。
+        let upgraded = PanLiveWindow {
+            b_center_start: 30,
+            ..pan_window((50, 59), 70, 129)
+        };
+        let delta = book.advance(
+            &[LifecycleObservation::pan_live(upgraded, false)],
+            129,
+            &m,
+        );
+        assert!(
+            delta.iter().any(|revision| matches!(
+                revision.kind,
+                LifecycleRevisionKind::CenterUpgraded { from } if from.b_center_start == 20
+            )),
+            "记 CenterUpgraded 而非另起身份"
+        );
+        assert_eq!(book.len(), 1, "迁移而非新建：book 内仍只有一只身份");
+        let (key, entry) = book.entries().next().unwrap();
+        assert_eq!(key.b_center_start, 30);
+        assert_eq!(entry.observed_at, 120, "认领迁移不改写观察钟");
+        assert_eq!(entry.first_provable_at, Some(120), "首次可证钟不后移");
+        assert_eq!(entry.superseded_from.map(|from| from.b_center_start), Some(20));
+        assert_eq!(entry.state, NestEventState::Provisional, "认领不产生终局");
+        book.assert_invariants();
+    }
+
+    /// 档 1-b：**前身已终态** ⟹ 认领留痕（新身份独立建仓 + 关联修订），前身条目一个 bit
+    /// 不动——终态吸收/禁复活/终态钟只写一次三条不变量优先于认领（E2E §1:83）。
+    /// 纠误发生在**口径层**：`force_overtake_claimed_count` 给出应从反超分母剔除的数。
+    #[test]
+    fn issue603_center_upgrade_leaves_terminal_predecessor_untouched() {
+        let close_src = identity_close_src(140);
+        let mut hist = vec![0.0; 140];
+        hist[50..=59].fill(-2.0);
+        let mut dif = vec![0.0; 140];
+        dif[50..=59].fill(-5.0);
+        hist[70..=129].fill(-0.25);
+        dif[70..=139].fill(-1.0);
+
+        let mut book = NestLifecycleBook::new();
+        let m = material(&hist, &dif, &close_src);
+        book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            129,
+            &m,
+        );
+        // 活窗延展 ⟹ 力度反超 ⟹ 前身进终态。
+        hist[130..=139].fill(-3.0);
+        dif[130..=139].fill(-6.0);
+        let m = material(&hist, &dif, &close_src);
+        book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 139), false)],
+            139,
+            &m,
+        );
+        let terminal_before = book.get(&key_pan((50, 59), (70, 139))).cloned().unwrap();
+        assert_eq!(
+            terminal_before.invalidated_reason,
+            Some(InvalidatedReason::ForceOvertake)
+        );
+
+        // 更近的中枢确认后，同锚新身份到达。
+        let upgraded = PanLiveWindow {
+            b_center_start: 30,
+            ..pan_window((50, 59), 70, 139)
+        };
+        let delta = book.advance(
+            &[LifecycleObservation::pan_live(upgraded, false)],
+            139,
+            &m,
+        );
+        assert!(
+            delta
+                .iter()
+                .any(|revision| matches!(revision.kind, LifecycleRevisionKind::Observed)),
+            "终态前身不得吸收掉新身份（否则该完成候选整只从账本消失）"
+        );
+        assert!(delta.iter().any(|revision| matches!(
+            revision.kind,
+            LifecycleRevisionKind::CenterUpgraded { from } if from.b_center_start == 20
+        )));
+        assert_eq!(book.len(), 2, "留痕关联，不合并");
+        assert_eq!(
+            book.get(&key_pan((50, 59), (70, 139))).unwrap(),
+            &terminal_before,
+            "前身条目逐位不动（禁复活、终态钟只写一次）"
+        );
+        let settlement = book.settlement_stats();
+        assert_eq!(settlement.force_overtake_count, 1, "账本反超数不改");
+        assert_eq!(
+            settlement.force_overtake_claimed_count, 1,
+            "口径层给出应剔除的误计数（35→33 的可计算来源）"
+        );
+        book.assert_invariants();
+    }
+
+    /// 档 1-c（教义边界，**跨锚零实装**）：`seg_a` 不同 = 两个不同的背驰假设，即便共享同一
+    /// C 段也**不**认领（#599 §4.2 判定越界，编排者采纳）；B 反向（更早的中枢）同样不认领。
+    #[test]
+    fn issue603_center_upgrade_rejects_cross_anchor_and_backward_center() {
+        let base = key_pan((50, 59), (70, 129));
+        let cross_anchor = LifecycleKey {
+            seg_a: (40, 49),
+            b_center_start: 30,
+            ..base
+        };
+        assert!(
+            !bridge_by_center_upgrade(&base, &cross_anchor),
+            "跨锚（seg_a 不同）不认领——两个不同背驰假设巧合共享 C 段"
+        );
+        let backward = LifecycleKey {
+            b_center_start: 10,
+            ..base
+        };
+        assert!(
+            !bridge_by_center_upgrade(&base, &backward),
+            "B 反向（更早的中枢）不认领——那才是真正的回填历史"
+        );
+        let other_c = LifecycleKey {
+            seg_c_full: (80, 129),
+            b_center_start: 30,
+            ..base
+        };
+        assert!(!bridge_by_center_upgrade(&base, &other_c), "C 左端不同不认领");
+        let same_b = LifecycleKey {
+            seg_c_full: (70, 139),
+            ..base
+        };
+        assert!(
+            !bridge_by_center_upgrade(&base, &same_b) && bridge_identity(&base, &same_b),
+            "B 相等归 bridge_identity，两码互斥"
+        );
+        let upgraded = LifecycleKey {
+            b_center_start: 30,
+            ..base
+        };
+        assert!(bridge_by_center_upgrade(&base, &upgraded), "严格同锚 + B 单调前进 ⟹ 认领");
+
+        // 端到端：跨锚身份到达时照常独立建仓，不产生任何认领修订。
+        let close_src = identity_close_src(140);
+        let mut hist = vec![0.0; 140];
+        hist[50..=59].fill(-2.0);
+        hist[40..=49].fill(-2.0);
+        let mut dif = vec![0.0; 140];
+        dif[50..=59].fill(-5.0);
+        dif[40..=49].fill(-5.0);
+        hist[70..=129].fill(-0.25);
+        dif[70..=129].fill(-1.0);
+        let m = material(&hist, &dif, &close_src);
+        let mut book = NestLifecycleBook::new();
+        book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            129,
+            &m,
+        );
+        let cross = PanLiveWindow {
+            seg_a: (40, 49),
+            b_center_start: 30,
+            ..pan_window((50, 59), 70, 129)
+        };
+        let delta = book.advance(&[LifecycleObservation::pan_live(cross, false)], 129, &m);
+        assert!(
+            !delta
+                .iter()
+                .any(|revision| matches!(revision.kind, LifecycleRevisionKind::CenterUpgraded { .. })),
+            "跨锚零实装：diff 自证无此路径"
+        );
+        assert_eq!(book.len(), 2, "两个独立假设各自成身份");
         book.assert_invariants();
     }
 }
