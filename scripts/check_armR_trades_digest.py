@@ -152,7 +152,9 @@ def _git_commit_problem(head: str) -> str | None:
     return None
 
 
-def _git_ancestry_problem(ancestor: str, descendant: str) -> str | None:
+def _git_ancestry_problem(
+    ancestor: str, descendant: str, descendant_field: str
+) -> str | None:
     try:
         result = subprocess.run(
             ["git", "merge-base", "--is-ancestor", ancestor, descendant],
@@ -164,7 +166,7 @@ def _git_ancestry_problem(ancestor: str, descendant: str) -> str | None:
     except OSError as exc:
         return f"git 无法执行，不能验证祖先关系：{exc}"
     if result.returncode == 1:
-        return "不是 final_verification_head 的祖先"
+        return f"不是 {descendant_field} 的祖先"
     if result.returncode != 0:
         return f"git merge-base --is-ancestor 校验失败（exit={result.returncode}）"
     return None
@@ -210,17 +212,25 @@ def provenance_problems(payload: dict) -> list[str]:
                 )
                 continue
             valid_head_fields.add(field)
-        ancestor_field = (
-            "source_lineage_start"
+        lineage_edges = (
+            (("source_lineage_start", "source_base_head"),)
             if "source_lineage_start" in anchor
-            else "source_base_head"
+            else ()
         )
-        if (
-            ancestor_field in valid_head_fields
-            and "final_verification_head" in valid_head_fields
-        ):
+        ancestry_edges = (
+            *lineage_edges,
+            ("source_base_head", "final_verification_head"),
+        )
+        for ancestor_field, descendant_field in ancestry_edges:
+            if (
+                ancestor_field not in valid_head_fields
+                or descendant_field not in valid_head_fields
+            ):
+                continue
             ancestry_problem = _git_ancestry_problem(
-                anchor[ancestor_field], anchor["final_verification_head"]
+                anchor[ancestor_field],
+                anchor[descendant_field],
+                descendant_field,
             )
             if ancestry_problem is not None:
                 problems.append(

@@ -128,6 +128,29 @@ class ArmRTradesDigestTest(unittest.TestCase):
 
         self.assertNotEqual(exit_code, gate.EXIT_OK)
         self.assertIn("source_lineage_start", stderr)
+        self.assertIn("不是 source_base_head 的祖先", stderr)
+
+    def test_check_rejects_reversed_base_ancestry_when_lineage_is_valid(self) -> None:
+        valid_payload = _valid_payload(self.dump_dir)
+        valid_anchors = valid_payload["provenance"]["anchors"]
+        anchor = {
+            **valid_anchors[0],
+            "source_lineage_start": "a12a1022d9ddd8d1cae867a107a3a33c359358cf",
+            "source_base_head": "6e15ceffeeb8259c065bf7c0ec9ec7c65935737c",
+            "final_verification_head": "a12a1022d9ddd8d1cae867a107a3a33c359358cf",
+        }
+        payload = {
+            **valid_payload,
+            "provenance": {
+                **valid_payload["provenance"],
+                "anchors": [anchor, *valid_anchors[1:]],
+            },
+        }
+
+        exit_code, stderr = self._check_payload(payload)
+
+        self.assertNotEqual(exit_code, gate.EXIT_OK)
+        self.assertIn("source_base_head", stderr)
         self.assertIn("不是 final_verification_head 的祖先", stderr)
 
     def test_check_rejects_non_positive_or_boolean_counts(self):
