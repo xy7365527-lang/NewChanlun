@@ -985,9 +985,11 @@ fn step_center_oscillation_impl(
         let historical_points: Vec<classifier::bsp::BspPoint> =
             if let (Some(tower), Some(seen)) = (tower_i, historical_seen.as_deref_mut()) {
                 let mut by_event: std::collections::BTreeMap<
-                    (usize, u8),
+                    (usize, u8, CenterId),
                     classifier::bsp::BspPoint,
                 > = std::collections::BTreeMap::new();
+                let mut owner_bound_events: std::collections::BTreeSet<(usize, u8)> =
+                    std::collections::BTreeSet::new();
                 for cert in osc_books[lvl]
                     .suspended_frames()
                     .into_iter()
@@ -1002,20 +1004,13 @@ fn step_center_oscillation_impl(
                     if seen.contains(&seen_key) {
                         continue;
                     }
-                    // 四边配对把一个三类事件钉到唯一框。同 source/侧若仍出现两个挂起框，
-                    // 属于配对实现破裂；debug 显式炸出，release 保留确定序首项且绝不双杀。
-                    // seen 只在点实际进入 by_event 投递集合后登记；落选 Owner 留待后续事件重试。
+                    // 同一紧邻三类事件可给多个冻结框各自产证；投递键保留 Owner，禁止首项覆盖。
+                    // regular 副本抑制仍在下方只按 source/侧进行，不把最近中枢副本一并放进来。
                     let event_key = (p.source_index, disc);
-                    if let Some(prior) = by_event.get(&event_key) {
-                        debug_assert_eq!(
-                            prior.center, p.center,
-                            "同一三类事件不得同时认领两个挂起中枢框"
-                        );
-                    } else {
-                        by_event.insert(event_key, p);
-                        let inserted = seen.insert(seen_key);
-                        debug_assert!(inserted, "contains 已排除重复 historical seen key");
+                    if !owner_bound_events.insert(event_key) {
+                        witness.record_historical_multi_owner_same_event(lvl as u32);
                     }
+                    by_event.insert((p.source_index, disc, owner), p);
                 }
                 by_event.into_values().collect()
             } else {
@@ -1031,8 +1026,8 @@ fn step_center_oscillation_impl(
             .get(lvl)
             .into_iter()
             .flat_map(|step_level| step_level.bsp.iter())
-            // “一事件一 Owner 一清算”：挂起旧框通过四边证时，该点的唯一 Owner 已由旧框
-            // 重写；抑制同 source/侧的“最近中枢”副本，防止一个三类事件先后杀两个中枢。
+            // 挂起旧框通过四边证时，所有合法 Owner 已各自产出 bound 点；这里仍按 source/侧
+            // 抑制“最近中枢”regular 副本，防的是连坐非 Owner，不限制多个合法 Owner 各自清算。
             .filter(|p| {
                 !historical_event_keys
                     .contains(&(p.source_index, super::signal::bsp_bits_disc(&p.bits)))
@@ -1059,7 +1054,20 @@ fn step_center_oscillation_impl(
             let historical_before = cl_machines[lvl].historical_bound_kills();
             let point_outcome = match owner {
                 Some(c) if requires_binding && is_bound => {
-                    cl_machines[lvl].push_point_historical_bound(p.bits, p.source_index, c)
+                    let outcome =
+                        cl_machines[lvl].push_point_historical_bound(p.bits, p.source_index, c);
+                    // seen 的唯一含义是“已完成实际投递”：建表候选与 is_bound 失败均不得登记。
+                    let seen = historical_seen
+                        .as_deref_mut()
+                        .expect("bound 点只由带 historical_seen 的历史接线入口产生");
+                    let inserted = seen.insert(HistoricalSeenKey::new(
+                        lvl,
+                        CenterId::of(&c),
+                        p.source_index,
+                        super::signal::bsp_bits_disc(&p.bits),
+                    ));
+                    debug_assert!(inserted, "建表 contains 已排除重复 historical seen key");
+                    outcome
                 }
                 _ => cl_machines[lvl].push_point(p.bits, p.source_index, target),
             };
@@ -2633,10 +2641,10 @@ mod center_oscillation_wiring_tests {
         );
     }
 
-    /// ★#487/A3 保险：同事件若出现两个 Owner，debug 仍炸出竞争；无论 debug/release，
-    /// 只有真正进入投递集合的首项登记 seen，落选 Owner 可在后续事件重试并完成投递。
+    /// ★#487/A3：同一紧邻三类事件可同时给多个冻结 Owner 过证；每个 Owner 各自清算，
+    /// 不得因同 source/侧竞争而 panic、丢投或把未投递候选提前记入 seen。
     #[test]
-    fn gate_competing_owner_loser_is_not_seen_until_later_delivery() {
+    fn gate_same_event_two_bound_owners_both_settle() {
         let c0 = center(0, 10, 100, 200);
         let c1 = center(1, 10, 100, 200);
         let c2 = center(20, 30, 500, 600);
@@ -2651,25 +2659,43 @@ mod center_oscillation_wiring_tests {
             l0_move(1, Direction::Down, 15, 20, 240, 280),
         ])];
 
-        let first = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            fixture.historical(1, &classification, None, &tower, false)
-        }));
-        if cfg!(debug_assertions) {
-            assert!(first.is_err(), "debug 必须保留多 Owner 同事件断言");
-        } else {
-            assert!(first.is_ok(), "release 保留确定序首项投递");
-        }
-        assert_eq!(
-            fixture.historical_seen.len(),
-            1,
-            "落选 Owner 未进入投递集合，不得提前消耗 seen"
-        );
+        let out = fixture.historical(1, &classification, None, &tower, false);
 
-        let retry = fixture.historical(2, &classification, None, &tower, false);
-        assert_eq!(retry.actions.len(), 1);
-        assert_eq!(retry.actions[0].center, CenterId::of(&c1));
+        let action_matrix: Vec<_> = out
+            .actions
+            .iter()
+            .map(|a| (a.center, a.side, a.action))
+            .collect();
+        assert_eq!(
+            action_matrix,
+            vec![
+                (
+                    CenterId::of(&c0),
+                    VoiceSide::Long,
+                    CenterOscillationAction::Replenish,
+                ),
+                (
+                    CenterId::of(&c1),
+                    VoiceSide::Long,
+                    CenterOscillationAction::Replenish,
+                ),
+            ]
+        );
+        assert!(!fixture.osc_books[0].is_suspended(CenterId::of(&c0)));
+        assert!(!fixture.osc_books[0].is_suspended(CenterId::of(&c1)));
         assert_eq!(fixture.historical_seen.len(), 2);
         assert_eq!(fixture.cl_machines[0].mis_kills(), 0);
+        assert_eq!(
+            fixture.witness.historical_multi_owner_same_event.get(&0),
+            Some(&1)
+        );
+        assert_eq!(
+            fixture
+                .witness
+                .settlement_by_side
+                .get(&(0, "long", "cover_and_close")),
+            Some(&2)
+        );
     }
 
     /// ★#466 D0：生产实际调用的 historical wrapper 在 observe_rebase=true 时仍于改表前抓取

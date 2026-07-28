@@ -1004,6 +1004,9 @@ pub struct CampaignWiringWitness {
     /// ★#487：精确挂起绑定授权、且目标已滑出 alive/prev_slot 的 historical-bound
     /// 路由命中数（按级别）。这是显式路由分支的审计读数；不参与任何清算判据。
     pub historical_bound_by_level: BTreeMap<u32, usize>,
+    /// ★#487/A3：同一 `(source_index, 买卖侧)` 紧邻证同时绑定多个冻结 Owner 时，
+    /// 每多出一个 Owner 记一次（按级别）。这是合法多投递的观测读数，不参与路由或清算判据。
+    pub historical_multi_owner_same_event: BTreeMap<u32, usize>,
     /// ★#487：生命周期路由拒绝错杀的 `CenterMisKill` 次数（按级别）；验收要求全级别为 0。
     pub center_mis_kill_by_level: BTreeMap<u32, usize>,
     /// ★#414 项三：**异中枢回补被拒**计数（分侧）——桶里有挂起、但**不是**本次回补触发的那个
@@ -1314,6 +1317,11 @@ impl CampaignWiringWitness {
     /// ★#487：记一次已滑出容读窗的精确 historical-bound 命中。
     pub fn record_historical_bound(&mut self, level: u32) {
         *self.historical_bound_by_level.entry(level).or_insert(0) += 1;
+    }
+
+    /// ★#487/A3：记一次同事件新增的合法冻结 Owner 绑定。
+    pub fn record_historical_multi_owner_same_event(&mut self, level: u32) {
+        *self.historical_multi_owner_same_event.entry(level).or_insert(0) += 1;
     }
 
     /// ★#487：记一次生命周期路由的错杀请求。
