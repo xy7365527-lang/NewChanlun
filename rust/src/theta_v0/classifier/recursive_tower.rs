@@ -2104,8 +2104,9 @@ pub fn level_cand_delta(
             // 边界；不产 BspPoint、不置一类 bit。
             if any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation) {
                 let c = &centers_sorted[c_idx];
-                if let Some(cert) =
-                    signal::judge_pan_div(c, seg, sorted, &anchors_self, hist, dif, close_src)
+                if let Some(cert) = signal::judge_pan_div_observation(
+                    c, seg, sorted, &anchors_self, hist, dif, close_src,
+                )
                 {
                     events.push(CandDeltaEvent {
                         level,
@@ -2158,7 +2159,10 @@ pub fn level_cand_delta(
         let side = pf.struct_break_dir.expect("第一类结构候选必携 struct_break_dir（P2-R2 无条件置）");
         let kind_consol = any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation);
         let pan_div_diag = kind_consol
-            && signal::judge_pan_div(c, seg, sorted, &anchors_self, hist, dif, close_src).is_some();
+            && signal::judge_pan_div_observation(
+                c, seg, sorted, &anchors_self, hist, dif, close_src,
+            )
+            .is_some();
         let confirm_src = pf.source_index;
         let interval_end = seg.end_index;
         let cand_delta = pf.bits.buy1 || pf.bits.sell1;
@@ -2336,6 +2340,37 @@ mod p1_tests {
         assert_eq!(e.interval, (13, 15), "I(C) = 当前离开走势区间");
         assert_eq!(e.a_interval, (9, 11), "I(A) = 前一次同向离开末段");
         assert_eq!(e.enter_src, 13, "enter_src = λ_C = I(C) 起点");
+    }
+
+    /// #483：24 课 C 不破核心 + 同色柱面积 C<A 也必须抵达纯诊断通道；仍然
+    /// cand_delta=false，因而不入链、不置买卖点 bit。
+    #[test]
+    fn pan_div_diag_reaches_unbroken_core_area_branch_without_entering_chain() {
+        let c0 = dc(100, 200, 90, 210, 2);
+        let c1 = dc(300, 400, 290, 410, 5);
+        let c2 = dc(350, 450, 250, 460, 8);
+        let segs = vec![
+            seg(Direction::Down, 9, 11, 460, 330),
+            seg(Direction::Up, 11, 13, 330, 380),
+            seg(Direction::Down, 13, 15, 380, 360), // C：核心内
+        ];
+        let mut hist = vec![0.0; 16];
+        hist[9..=11].copy_from_slice(&[-4.0, -3.0, -2.0]);
+        hist[13..=15].copy_from_slice(&[-1.0, -1.0, -1.0]);
+        let prices = vec![100; hist.len()];
+        let src: Vec<usize> = (0..hist.len()).collect();
+
+        let events = level_cand_delta(
+            0, &[c0, c1, c2], None, &segs, None, None, &hist, &[], &prices, &src,
+            DivergenceGauge::default(),
+        );
+
+        assert_eq!(events.len(), 1, "不破核心面积背驰应产恰一条诊断事件");
+        let event = &events[0];
+        assert!(event.pan_div_diag, "新分支必须进入 pan_div_diag");
+        assert!(!event.cand_delta, "纯诊断事件不得进入 Cand^δ 链");
+        assert_eq!(event.interval, (13, 15));
+        assert_eq!(event.a_interval, (9, 11));
     }
 }
 

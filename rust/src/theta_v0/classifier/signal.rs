@@ -612,15 +612,16 @@ fn make_second_point(source_index: usize, bits: BspBits, second_point: Tick, typ
 ///
 /// 结构语义（第24课:34-36 + beichi.md:113 盘整背驰 = **同一中枢**两次同向离开，
 /// `AbcDivergence.is_trend=false`）：
-/// - `seg_c`：当前离开走势区间 I(C)（Q5 同款区间语义，source_index 闭区间），末段破中枢核心。
+/// - `seg_c`：当前离开走势区间 I(C)（Q5 同款区间语义，source_index 闭区间）。既有生产承接支
+///   末段破中枢核心；#483 的 C 不破核心支只复用本证书形状进入观测/诊断，不进入生产承接。
 /// - `seg_a`：**前一次同向离开 episode 区间** I(A)（Q5 区间口径，A/C 对称）——锚段端点破核心，
 ///   与 C 之间存在回中枢段（否则是同一次离开）。
 /// - Weak = MACD 面积 C < A（与 buy1 同一冻结力度原语 `segments_diverge`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PanDivCert {
-    /// 破中枢段端点 source_index（因果触发点，承接路由的定位键）。
+    /// C 段端点 source_index（因果触发点；破核心支亦作承接路由定位键）。
     pub source_index: usize,
-    /// 承接方向候选：向下破 = Long 候选 / 向上破 = Short。
+    /// 方向候选：向下 C = Long / 向上 C = Short。
     pub side: Side,
     /// 盘整背驰所在的中枢（A/C 两次离开的同一中枢 = B）。
     pub center: Center,
@@ -655,10 +656,33 @@ pub(crate) fn locate_pan_div_structure(
     segments: &[Segment],
     anchors_self: &[Option<Direction>],
 ) -> Option<PanDivStructure> {
+    locate_pan_div_structure_with_policy(c, seg, segments, anchors_self, false)
+}
+
+/// #483 观测专用定位：复用既有窄锚机制，但允许 C 端点不破中枢核心。
+///
+/// 只供 [`judge_pan_div_observation`]；Consolidation Nest 与生产 [`judge_pan_div`] 继续调用
+/// [`locate_pan_div_structure`]，因此不会把新分支送入生产决策或生命周期链。
+fn locate_pan_div_structure_allowing_unbroken_c(
+    c: &Center,
+    seg: &Segment,
+    segments: &[Segment],
+    anchors_self: &[Option<Direction>],
+) -> Option<PanDivStructure> {
+    locate_pan_div_structure_with_policy(c, seg, segments, anchors_self, true)
+}
+
+fn locate_pan_div_structure_with_policy(
+    c: &Center,
+    seg: &Segment,
+    segments: &[Segment],
+    anchors_self: &[Option<Direction>],
+    allow_unbroken_c: bool,
+) -> Option<PanDivStructure> {
     let end = seg_end(seg);
     let side = match end.dir {
-        Direction::Down if end.price < c.zd => Side::Long,
-        Direction::Up if end.price > c.zg => Side::Short,
+        Direction::Down if allow_unbroken_c || end.price < c.zd => Side::Long,
+        Direction::Up if allow_unbroken_c || end.price > c.zg => Side::Short,
         _ => return None,
     };
     let dir = end.dir;
@@ -724,10 +748,30 @@ pub(crate) fn locate_pan_div_structure_front_anchor(
     segments: &[Segment],
     anchors_self: &[Option<Direction>],
 ) -> Option<PanDivStructure> {
+    locate_pan_div_structure_front_anchor_with_policy(c, seg, segments, anchors_self, false)
+}
+
+/// #483 观测专用 A′ 回退：与既有中枢前最近同向段锚逐位同构，仅放宽 C 核心关系。
+fn locate_pan_div_structure_front_anchor_allowing_unbroken_c(
+    c: &Center,
+    seg: &Segment,
+    segments: &[Segment],
+    anchors_self: &[Option<Direction>],
+) -> Option<PanDivStructure> {
+    locate_pan_div_structure_front_anchor_with_policy(c, seg, segments, anchors_self, true)
+}
+
+fn locate_pan_div_structure_front_anchor_with_policy(
+    c: &Center,
+    seg: &Segment,
+    segments: &[Segment],
+    anchors_self: &[Option<Direction>],
+    allow_unbroken_c: bool,
+) -> Option<PanDivStructure> {
     let end = seg_end(seg);
     let side = match end.dir {
-        Direction::Down if end.price < c.zd => Side::Long,
-        Direction::Up if end.price > c.zg => Side::Short,
+        Direction::Down if allow_unbroken_c || end.price < c.zd => Side::Long,
+        Direction::Up if allow_unbroken_c || end.price > c.zg => Side::Short,
         _ => return None,
     };
     let dir = end.dir;
@@ -809,6 +853,60 @@ pub(crate) fn judge_pan_div(
     };
     if !segments_diverge_or(hist, dif, structure.side, a_idx, c_idx) {
         return None; // 各 proxy 全无衰减 ⟹ 市场事实（033:26）⟹ 非盘整背驰。
+    }
+    Some(PanDivCert {
+        source_index: structure.source_index,
+        side: structure.side,
+        center: structure.center,
+        seg_a: a_span,
+        seg_c: c_span,
+    })
+}
+
+/// #483 盘整背驰观测判定。
+///
+/// - C 破核心：逐字调用既有 [`judge_pan_div`]，原 OR 力度判据与证书字段不变；
+/// - C 不破核心：沿用同一窄锚→A′ 回退和 source→MACD 区间映射，但严格只认第24课
+///   “同色柱面积 C<A”；
+/// - 返回既有 [`PanDivCert`] 形状，只供 `pan_div_diag` 观测。生产信号提取仍调用
+///   [`judge_pan_div`]，因此新分支不进入 `LevelState.pan_div`、BspPoint 或生命周期链。
+pub(crate) fn judge_pan_div_observation(
+    c: &Center,
+    seg: &Segment,
+    segments: &[Segment],
+    anchors_self: &[Option<Direction>],
+    hist: &[f64],
+    dif: &[f64],
+    src_to_idx: &[usize],
+) -> Option<PanDivCert> {
+    let end = seg_end(seg);
+    let c_breaks_core = match end.dir {
+        Direction::Down => end.price < c.zd,
+        Direction::Up => end.price > c.zg,
+    };
+    if c_breaks_core {
+        return judge_pan_div(c, seg, segments, anchors_self, hist, dif, src_to_idx);
+    }
+
+    let structure = locate_pan_div_structure_allowing_unbroken_c(
+        c, seg, segments, anchors_self,
+    )
+    .or_else(|| {
+        locate_pan_div_structure_front_anchor_allowing_unbroken_c(
+            c, seg, segments, anchors_self,
+        )
+    })?;
+    let (c_span, a_span) = (structure.seg_c, structure.seg_a);
+    let (Some(c_idx), Some(a_idx)) = (
+        map_src_range_to_close_idx(src_to_idx, c_span.0, c_span.1),
+        map_src_range_to_close_idx(src_to_idx, a_span.0, a_span.1),
+    ) else {
+        return None;
+    };
+    if divergence::same_color_area(hist, c_idx.0, c_idx.1, structure.side)
+        >= divergence::same_color_area(hist, a_idx.0, a_idx.1, structure.side)
+    {
+        return None;
     }
     Some(PanDivCert {
         source_index: structure.source_index,
@@ -2496,6 +2594,131 @@ mod tests {
         assert_eq!((cert.center.zd, cert.center.zg), (350, 450), "证书携同一中枢（两次离开的 B）");
         assert_eq!(cert.seg_a, (9, 11), "A = 前一次同向离开末段");
         assert_eq!(cert.seg_c, (13, 15), "I(C) = 当前离开走势区间（Q5 同款区间语义）");
+    }
+
+    /// #483 正例（24 课第二支）：C 端点仍在中枢核心内，但同色 MACD 柱面积严格 C<A，
+    /// 只产 PanDivCert 形状的观测证书；不产任何 BspPoint，也不进入生产 PanDiv 承接。
+    #[test]
+    fn pan_div_unbroken_core_area_divergence_emits_observation_only() {
+        use super::super::divergence::same_color_area;
+        let c0 = dc(100, 200, 90, 210, 2);
+        let c1 = dc(300, 400, 290, 410, 5);
+        let c2 = dc(350, 450, 250, 460, 8);
+        let segs = vec![
+            seg(Direction::Down, 9, 11, 460, 330),
+            seg(Direction::Up, 11, 13, 330, 380),
+            seg(Direction::Down, 13, 15, 380, 360), // C：360 ∈ [zd=350, zg=450]
+        ];
+        let mut hist = vec![0.0; 16];
+        hist[9..=11].copy_from_slice(&[-4.0, -3.0, -2.0]);
+        hist[13..=15].copy_from_slice(&[-1.0, -1.0, -1.0]);
+        let src: Vec<usize> = (0..hist.len()).collect();
+        assert!(
+            same_color_area(&hist, 13, 15, Side::Long)
+                < same_color_area(&hist, 9, 11, Side::Long),
+            "前置：24 课面积判据严格 C<A"
+        );
+
+        let anchors = super::super::divergence::self_anchors(&segs);
+        let observation = judge_pan_div_observation(
+            &c2, &segs[2], &segs, &anchors, &hist, &[], &src,
+        );
+        let (points, production_pan) = extract_signals_with_hist(
+            &[c0, c1, c2], &segs, &hist, &[], &[], &src, DivergenceGauge::default(),
+        );
+
+        assert!(points.is_empty(), "不破核心盘背只进观测层，不产 BspPoint");
+        assert!(
+            production_pan.is_empty(),
+            "不破核心盘背不得进入既有生产 PanDiv 承接路径"
+        );
+        assert_eq!(
+            observation,
+            Some(PanDivCert {
+                source_index: 15,
+                side: Side::Long,
+                center: c2,
+                seg_a: (9, 11),
+                seg_c: (13, 15),
+            })
+        );
+    }
+
+    /// #483 反例锁：C 不破核心时，24 课只授权同色柱面积严格 C<A；即使既有 OR 判据的
+    /// DIF 峰衰减成立，只要面积不背驰，也不得识别。
+    #[test]
+    fn pan_div_unbroken_core_without_area_divergence_is_rejected() {
+        use super::super::divergence::{same_color_area, segments_diverge_or};
+        let c0 = dc(100, 200, 90, 210, 2);
+        let c1 = dc(300, 400, 290, 410, 5);
+        let c2 = dc(350, 450, 250, 460, 8);
+        let segs = vec![
+            seg(Direction::Down, 9, 11, 460, 330),
+            seg(Direction::Up, 11, 13, 330, 380),
+            seg(Direction::Down, 13, 15, 380, 360),
+        ];
+        let mut hist = vec![0.0; 16];
+        hist[9..=11].copy_from_slice(&[-1.0, -1.0, -1.0]);
+        hist[13..=15].copy_from_slice(&[-2.0, -2.0, -2.0]);
+        let mut dif = vec![0.0; 16];
+        dif[9..=11].copy_from_slice(&[-4.0, -4.0, -4.0]);
+        dif[13..=15].copy_from_slice(&[-1.0, -1.0, -1.0]);
+        let src: Vec<usize> = (0..hist.len()).collect();
+        assert!(
+            same_color_area(&hist, 13, 15, Side::Long)
+                >= same_color_area(&hist, 9, 11, Side::Long),
+            "前置：面积没有 C<A"
+        );
+        assert!(
+            segments_diverge_or(&hist, &dif, Side::Long, (9, 11), (13, 15)),
+            "反例隔离：既有 OR 判据仅由 DIF 峰衰减成立"
+        );
+
+        let anchors = super::super::divergence::self_anchors(&segs);
+        let observation = judge_pan_div_observation(
+            &c2, &segs[2], &segs, &anchors, &hist, &dif, &src,
+        );
+        let (points, production_pan) = extract_signals_with_hist(
+            &[c0, c1, c2], &segs, &hist, &dif, &[], &src, DivergenceGauge::default(),
+        );
+
+        assert!(points.is_empty(), "反例不得产 BspPoint");
+        assert!(production_pan.is_empty(), "反例不得进入生产 PanDiv 承接路径");
+        assert!(observation.is_none(), "C 不破核心且面积不背驰不得识别");
+    }
+
+    /// #483 反例锁：C 破核心支继续走既有“力度或关系”路径，完整证书字段与买卖点集合逐位不变。
+    #[test]
+    fn pan_div_broken_core_branch_remains_bit_exact() {
+        let c0 = dc(100, 200, 90, 210, 2);
+        let c1 = dc(300, 400, 290, 410, 5);
+        let c2 = dc(350, 450, 250, 460, 8);
+        let segs = vec![
+            seg(Direction::Down, 9, 11, 460, 330),
+            seg(Direction::Up, 11, 13, 330, 380),
+            seg(Direction::Down, 13, 15, 380, 300), // 300 < zd=350
+        ];
+        let mut hist = vec![0.0; 16];
+        hist[9..=11].copy_from_slice(&[-4.0, -3.0, -2.0]);
+        hist[13..=15].copy_from_slice(&[-1.0, -1.0, -1.0]);
+        let src: Vec<usize> = (0..hist.len()).collect();
+
+        let (points, pan) = extract_signals_with_hist(
+            &[c0, c1, c2], &segs, &hist, &[], &[], &src, DivergenceGauge::default(),
+        );
+
+        assert!(points.is_empty(), "既有 fixture 的买卖点集合保持空集");
+        assert_eq!(
+            pan,
+            vec![PanDivCert {
+                source_index: 15,
+                side: Side::Long,
+                center: c2,
+                seg_a: (9, 11),
+                seg_c: (13, 15),
+            }],
+            "破核心支证书逐字段不变"
+        );
     }
 
     // ── R1/R2/R3（2026-07-17 代理裁定）：三买几何 / 力度或关系 / A′ 锚扩展 ─────────
