@@ -70,7 +70,17 @@ pub struct AdjacentLevelContainment {
     pub degenerate: usize,
     /// 反向对（把父级事件当 child 传入）区间包含成立、但被跨级分支拒的对数。
     ///
-    /// 非零 ⟹ 级别分支在真实数据上**真起作用**（不是恒真装饰）——防真空绿的直接证据。
+    /// ★口径精确化（收口小修批）：在**本探针的相邻级调用点**（`parent_level == child_level + 1`），
+    /// 合取项 `!candidate_is_sub(parent, child)` 由前件**恒真**——`parent.event_level` 严格大于
+    /// `child.event_level` ⟹ 级别分支必假 ⟹ 取反必真。故本计数在此**等价于裸的反向区间包含**
+    /// `interval_is_sub(parent.interval, child.interval)`。
+    ///
+    /// 因此它不是「级别门真起作用」的**独立**证据：非零只说明真实数据上存在「父区间反被子区间
+    /// 包含」的相邻级对，级别分支在这些对上确实是唯一拒因（结论不假），但该拒绝在此调用点由
+    /// 前件蕴含，不是运行期才见分晓的判定。与 [`SameLevelBlock::blocked`] ≡ `interval_ok` 同型
+    /// （报告 §八 登记 7 / 9）。级别分支非装饰的**独立**证据是
+    /// [`SameLevelBlock::non_reflexive_blocked`]——同级两个**不同**候选相含被拒，那里的级别相等
+    /// 不由调用点前件给定，而是数据里真实出现的。
     pub reverse_blocked_by_level: usize,
 }
 
