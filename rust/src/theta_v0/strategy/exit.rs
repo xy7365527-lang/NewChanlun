@@ -3,7 +3,7 @@
 //! ## 存在论位置（消双源）
 //!
 //! 退出生成器有**两个消费路径**，必须共享同一逻辑（否则 bit-exact 漂移）：
-//! - **回测路径**（[`super::super::backtest::runner`] `plan_and_fill_mtm`）：内部模拟台账
+//! - **历史回测路径**（#499 已退役）：内部模拟台账
 //!   （cash/units/voice_qty）+ 延迟成交队列驱动，equity 由模拟撮合算。
 //! - **生产路径**（[`super::super::nautilus::strategy::ThetaCore`]）：持仓真相源 = Nautilus
 //!   portfolio，equity 由 venue MtM，Close 订单交 venue 撮合（无内部延迟队列）。
@@ -114,25 +114,6 @@ pub fn exit_decision_for_nested(
     exit_decision_impl(hv, depth, bar, i, groups, equity_now, parent_invalid, None)
 }
 
-/// **★#76 证书门版退出决策生成器**（出场门真链切换，SPEC #73 A 线第三票）。
-///
-/// 与 [`exit_decision_for_nested`] 的唯一差异：第 8 参 `reverse_cert`——注入的**反向证书准入
-/// 查询**闭包（生产侧 = #75 同一 `NestChainGate`/身份桥/`n_delta` 判定；miss ⟹ false，
-/// 诚实不准出，禁 fallback v0——Xzd 回退只服务进场，出场反向项无 Xzd 对应物）。
-/// 反向项 χ^{σ_p} 的消费对象自此从裸 BspBits 升格为 typed 真链反查；四析取结构不动
-/// （`Origin.SubVoiceOpenClose.closePred` line 552-562，零新析取项）。
-pub fn exit_decision_for_nested_cert(
-    hv: &HeldVoice,
-    depth: usize,
-    bar: &Bar,
-    i: usize,
-    groups: &[Vec<&VoiceDecision>],
-    equity_now: f64,
-    parent_invalid: bool,
-    reverse_cert: &mut dyn FnMut(&VoiceDecision) -> bool,
-) -> Option<VoiceDecision> {
-    exit_decision_impl(hv, depth, bar, i, groups, equity_now, parent_invalid, Some(reverse_cert))
-}
 
 /// v0 反向证书基例（对照读出角色，#76 起判定不消费）：对反向开仓决策自身方向
 /// δ′ = `voice_side(root_side, depth)` 读证书基例 Conf^{δ′}_e（复用
@@ -242,7 +223,7 @@ pub fn parent_invalid_at(held: &[Option<HeldVoice>], depth: usize) -> bool {
 //  本节函数即生产「父关则子关」的**唯一实装**——
 //  - coverage.rs 环6 活动集一步更新 A_{t+1}=AncOK[(A_t∖𝒟_x^†)∪ℬ_x] 归一到
 //    [`step_active_set_with_subtree_close`]（散装 `ancestor_close_by_id` 已下线）；
-//  - runner（`plan_and_fill_mtm_dual`）与 nautilus（`ThetaCore::plan_for_bar`）的级联发射
+//  - 退役 dual runner 与 nautilus（`ThetaCore::plan_for_bar`）的级联发射
 //    归一到 [`subtree_close_exit_decisions`]（held 槽压缩链投影 → [`subtree_close`]；
 //    散装 `cascade_exit_decisions` 已下线——deepest-first + 触发者收尾的发射序由
 //    [`subtree_close`] 的代际降序同一兑现，depth 槽线性链是 parent_id 树的线性特例）。
@@ -416,7 +397,7 @@ pub fn step_active_set_with_subtree_close(
 /// - `exit_pending` 槽不入链（fill 前抑制重复触发，等价旧 cascade 的 skip；exit.rs:33-35 机制）。
 /// - 触发决策 `trigger_exit` 收尾（调用方经 [`exit_decision_for_nested`] 产出，与其余腿的
 ///   快照重构同构：exit=true ∧ enter_ok=false ∧ signal_index=i ∧ depth=槽位）。
-/// - 调用契约：触发槽非 `None` 且非 pending（两处生产调用点——runner `plan_and_fill_mtm_dual`
+/// - 调用契约：触发槽非 `None` 且非 pending（历史 dual runner
 ///   与 nautilus `ThetaCore::plan_for_bar`——的外层循环已过滤，否则 expect fail-closed）。
 pub fn subtree_close_exit_decisions(
     held: &[Option<HeldVoice>],
@@ -717,6 +698,46 @@ mod tests {
         d.enter_ok = false;
         d.signal_index = i;
         d
+    }
+
+    /// #499：v1 退出循环退役后，止损三态直接锁在共享退出生成器 seam。
+    #[test]
+    fn exit_generator_stop_hit_produces_close_trade() {
+        let h = held_at(0, false); // Long，结构止损 950
+        let bar = bar_at(3, 960, 965, 900, 920); // low 900 ≤ 950
+        let groups: Vec<Vec<&VoiceDecision>> = vec![];
+        let d = exit_decision_for_nested(&h, 0, &bar, 3, &groups, 1_000_000.0, false)
+            .expect("止损触及 ⟹ 退出生成器产 Close 决策");
+        assert!(d.exit && !d.enter_ok);
+        assert_eq!(d.signal_index, 3);
+        assert_eq!(d.depth, 0);
+    }
+
+    /// #499：四项关闭谓词全假时，共享退出生成器必须保持持仓。
+    #[test]
+    fn exit_generator_no_trigger_holds_position() {
+        let h = held_at(0, false); // Long，结构止损 950
+        let bar = bar_at(3, 1000, 1010, 990, 1005); // low 990 > 950
+        let groups: Vec<Vec<&VoiceDecision>> = vec![];
+        assert!(
+            exit_decision_for_nested(&h, 0, &bar, 3, &groups, 1_000_000.0, false).is_none(),
+            "无父失效/反向/止损/风险关闭 ⟹ 持仓延续"
+        );
+    }
+
+    /// #499：持多遇卖侧根决策时，反向信号项直接产 Close 决策。
+    #[test]
+    fn exit_generator_reverse_signal_produces_close() {
+        let h = held_at(0, false);
+        let bar = bar_at(3, 1000, 1010, 990, 1005); // 不触止损
+        let mut reverse = h.decision;
+        reverse.root_side = VoiceSide::Short;
+        reverse.bsp = BspBits { sell1: true, ..Default::default() };
+        let groups = vec![vec![], vec![], vec![], vec![&reverse]];
+        let d = exit_decision_for_nested(&h, 0, &bar, 3, &groups, 1_000_000.0, false)
+            .expect("持多遇卖侧根决策 ⟹ 反向项产 Close 决策");
+        assert!(d.exit && !d.enter_ok);
+        assert_eq!(d.signal_index, 3);
     }
 
     /// C1（最深优先级联，#183 归一到 subtree_close_exit_decisions）：held[0..3] 全活，
