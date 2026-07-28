@@ -16,10 +16,10 @@
 //! 四类 dirty 判据稀疏重估（设计 §3）。判据代码零新增——dirty run 用与慢版逐字相同的 lib
 //! 调用链同一输入重估（project run → decompose → assemble_level_view →
 //! provide_nest_candidate_events），无新判据路径。
-//! #421 另挂独立活假设 sidecar：同一 trigger 从 provider/window 链取数，严格先喂
-//! 此刻可见活窗、再喂完成信号并推进 `NestLifecycleBook`；同 trigger 闪现照实记零寿命，
-//! 首完成事实与终态独立。它不反流既有 YieldBook/事件流，修订只写
-//! `P421_LIFECYCLE_DUMP`，累计诊断只写 stderr。
+//! #421 另挂独立活假设 sidecar：活窗按 p409 同构路径在 `forest_epoch` 变化时独立重算，
+//! 其余 bar 只延展右端；完成事件仍从同源 provider trigger 取得。账本每根 bar 先喂此刻
+//! 可见活窗、再喂该 bar 首完成信号；同 bar 闪现照实记零寿命，首完成事实与终态独立。
+//! 它不反流既有 YieldBook/事件流，修订只写 `P421_LIFECYCLE_DUMP`，累计诊断只写 stderr。
 //!
 //! ── 稀疏化架构（实装）──
 //! trigger 语义冻结（设计 §4.4）：trigger=(forest_epoch, signal_signature) 检测与慢版逐字一致；
@@ -161,13 +161,15 @@ use newchan_rust::theta_v0::classifier::nest::{
     TypedNestCertificate,
 };
 use newchan_rust::theta_v0::classifier::nest_lifecycle::{
-    feed_replay_prefix, ForceMaterial, LifecycleSettlementStats, NestLifecycleBook, PanLiveRun,
-    ReplayFeedStats, ReplayPrefixFeed,
+    feed_replay_bar, provide_pan_live_windows, ForceMaterial, LifecycleSettlementStats,
+    NestLifecycleBook, PanLiveWindow, ReplayBarFeed, ReplayFeedStats,
 };
 use newchan_rust::theta_v0::classifier::recursive_tower::LeveledMove;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::{ParseLayer, ParseLayerIncr};
-use newchan_rust::theta_v0::types::{quantize, Bar, BspBits, Center, MoveKind, Side, Timestamp};
+use newchan_rust::theta_v0::types::{
+    quantize, Bar, BspBits, Center, Direction, MoveKind, Segment, Side, Timestamp,
+};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
@@ -380,8 +382,9 @@ struct LevelDerived {
 
 /// per-(level, run_source_start) 评估缓存条目（设计 §3 的 per-(level,run) 评估缓存）。
 ///
-/// #421 sidecar 与 targeted 路径共用这一份 provider 产物；未来 5a/5b 的
-/// ConfirmCursor/PanMemo 也仍分别驻留 `LevelDerived`/`RunEntry`，不得另建平行缓存。
+/// #421 sidecar 的完成事件与 targeted 路径共用这一份 provider 产物；活窗由独立逐 bar
+/// 路径从同一 tower 重算。未来 5a/5b 的 ConfirmCursor/PanMemo 仍分别驻留
+/// `LevelDerived`/`RunEntry`，不得另建平行 provider 缓存。
 #[derive(Debug)]
 struct RunEntry {
     /// 共享 provider 产物评估时的 LevelDerived.self_gen / lower_gen。
@@ -389,8 +392,10 @@ struct RunEntry {
     lower_gen: u64,
     /// 共享 provider 产物评估时的 as_of（dirty 判据 (iii) 水位基线）。
     last_as_of: usize,
-    /// 与 provider 同源的 run 投影中心/块类别，供 lifecycle 活窗直接借用。
+    /// provider 评估的完整 run 投影中心/块类别；逃生门不再把它们当活窗时钟。
+    #[allow(dead_code)]
     centers: Vec<Center>,
+    #[allow(dead_code)]
     kinds: Vec<Option<MoveKind>>,
     /// provider 的完整输出（provide 原序）；targeted 应用时才与当前 pending 求交。
     events: Vec<NestCandidateEvent>,
@@ -425,7 +430,8 @@ struct SparseStats {
 /// #421 生产侧车的累计审计读面；只进 stderr/独立 dump，不参与 p123 既有账本与判定。
 #[derive(Debug, Default)]
 struct LifecycleReplayStats {
-    triggers: usize,
+    bars: usize,
+    provider_triggers: usize,
     live_windows: usize,
     completion_events: usize,
     completion_signals: usize,
@@ -441,9 +447,48 @@ struct LifecycleReplayStats {
     settlement: LifecycleSettlementStats,
 }
 
+/// #421 逃生门的活窗结构分量；与 p409 `WindowStem` 同键，右端不进身份。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct LifecycleWindowStem {
+    level: u32,
+    side_tag: u8,
+    seg_a: (usize, usize),
+    c_start: usize,
+    b_center_start: usize,
+}
+
+impl LifecycleWindowStem {
+    fn of(window: &PanLiveWindow) -> Self {
+        Self {
+            level: window.level,
+            side_tag: match window.side {
+                Side::Long => 0,
+                Side::Short => 1,
+            },
+            seg_a: window.seg_a,
+            c_start: window.seg_c_live.0,
+            b_center_start: window.b_center_start,
+        }
+    }
+
+    fn window_at(self, as_of: usize) -> PanLiveWindow {
+        PanLiveWindow {
+            level: self.level,
+            side: if self.side_tag == 0 {
+                Side::Long
+            } else {
+                Side::Short
+            },
+            seg_a: self.seg_a,
+            seg_c_live: (self.c_start, as_of.max(self.c_start)),
+            b_center_start: self.b_center_start,
+        }
+    }
+}
+
 impl LifecycleReplayStats {
     fn observe(&mut self, feed: ReplayFeedStats) {
-        self.triggers += 1;
+        self.bars += 1;
         self.live_windows += feed.live_windows;
         self.completion_events += feed.completion_events;
         self.completion_signals += feed.completion_signals;
@@ -534,8 +579,9 @@ fn main() -> Result<(), String> {
             / lifecycle_stats.completion_signals as f64
     };
     eprintln!(
-        "P421_LIFECYCLE_SUMMARY triggers={} live_windows={} completion_events={} completion_signals={} channel_switches={} extension_suppressed={} retrograde_rejected={} completion_force_unavailable={} completion_force_unavailable_rate={:.9} provider_requests={} provider_reevals={} provider_reuses={}",
-        lifecycle_stats.triggers,
+        "P421_LIFECYCLE_SUMMARY bars={} provider_triggers={} live_windows={} completion_events={} completion_signals={} channel_switches={} extension_suppressed={} retrograde_rejected={} completion_force_unavailable={} completion_force_unavailable_rate={:.9} provider_requests={} provider_reevals={} provider_reuses={}",
+        lifecycle_stats.bars,
+        lifecycle_stats.provider_triggers,
         lifecycle_stats.live_windows,
         lifecycle_stats.completion_events,
         lifecycle_stats.completion_signals,
@@ -864,8 +910,11 @@ fn run_targeted_prefix_pass(
     let mut views = 0usize;
     let mut last_trigger = None;
     let mut last_lifecycle_trigger = None;
+    let mut last_lifecycle_forest_epoch = None;
     let mut lifecycle_book = NestLifecycleBook::new();
     let mut lifecycle_stats = LifecycleReplayStats::default();
+    // p409 同机制：forest_epoch 变时独立重算结构；两次重算之间逐 bar 延展右端。
+    let mut lifecycle_window_stems: Vec<LifecycleWindowStem> = Vec::new();
     let mut lifecycle_dump = std::env::var("P421_LIFECYCLE_DUMP")
         .ok()
         .map(|path| {
@@ -896,7 +945,12 @@ fn run_targeted_prefix_pass(
             classifier::classify_with_tower_incremental(&l0, config, &mut cache);
         // #116: TURN 逐 bar 观察（摊还 O(新稳定块数)，不经 trigger 门——pending 空后仍落盘）。
         turns.observe(&classification);
-        let trigger = (cache.forest_epoch(), signal_signature(&classification));
+        let forest_epoch = cache.forest_epoch();
+        if last_lifecycle_forest_epoch != Some(forest_epoch) {
+            lifecycle_window_stems = recompute_lifecycle_window_stems(&tower, index);
+            last_lifecycle_forest_epoch = Some(forest_epoch);
+        }
+        let trigger = (forest_epoch, signal_signature(&classification));
         let lifecycle_due = last_lifecycle_trigger.as_ref() != Some(&trigger);
         if last_trigger.as_ref() != Some(&trigger) && !pending.is_empty() {
             stats.triggers += 1;
@@ -1141,8 +1195,10 @@ fn run_targeted_prefix_pass(
             }
             last_trigger = Some(trigger.clone());
         }
-        // #421：targeted 先按原物理 views 口径更新共享条目；sidecar 随后只补 dirty
-        // 的非目标 run，并直接借用同一 RunEntry/LevelDerived 喂账本。pending 出清后仍运行。
+        // #421：targeted 先按原物理 views 口径更新共享条目；sidecar 的 provider trigger
+        // 随后只补 dirty 非目标 run，并刷新完成事件。活窗由上方独立 p409 同构循环发现，
+        // 不借生产 RunEntry 的完成时刻快照。账本本身每根 bar 都喂。
+        let mut completion_events = Vec::new();
         if lifecycle_due {
             let (hist, close_src) = cache.causal_series();
             let dif = cache.macd_dif();
@@ -1156,21 +1212,32 @@ fn run_targeted_prefix_pass(
                 &mut entries,
                 &mut lifecycle_stats,
             )?;
-            feed_lifecycle_trigger(
-                &mut lifecycle_book,
-                &derived,
-                &entries,
-                &active_runs,
-                index,
-                hist,
-                dif,
-                close_src,
-                &mut lifecycle_dump,
-                &mut lifecycle_stats,
-            )?;
-            lifecycle_book.assert_invariants();
+            completion_events = active_runs
+                .iter()
+                .flat_map(|key| entries[key].events.iter().copied())
+                .collect();
+            lifecycle_stats.provider_triggers += 1;
             last_lifecycle_trigger = Some(trigger);
         }
+        let bar_windows: Vec<PanLiveWindow> = lifecycle_window_stems
+            .iter()
+            .copied()
+            .map(|stem| stem.window_at(index))
+            .collect();
+        let (hist, close_src) = cache.causal_series();
+        let dif = cache.macd_dif();
+        feed_lifecycle_bar(
+            &mut lifecycle_book,
+            &bar_windows,
+            &completion_events,
+            index,
+            hist,
+            dif,
+            close_src,
+            &mut lifecycle_dump,
+            &mut lifecycle_stats,
+        )?;
+        lifecycle_book.assert_invariants();
         if ckpt_every > 0 && index > 0 && index % ckpt_every == 0 {
             let (hist, close_src) = cache.causal_series();
             let dif = cache.macd_dif();
@@ -1264,6 +1331,74 @@ fn sync_level_derived(
     Ok((self_synced, lower_synced))
 }
 
+/// `level_view.rs:436` 私有转换的 sidecar 本地复制；与 p409 探针逐字同口径。
+fn lifecycle_leg_as_segment(value: &LowerLeg) -> Segment {
+    let (start_price, end_price) = match value.direction {
+        Direction::Up => (value.lo, value.hi),
+        Direction::Down => (value.hi, value.lo),
+    };
+    Segment {
+        direction: value.direction,
+        start_index: value.start_index,
+        end_index: value.end_index,
+        start_price,
+        end_price,
+    }
+}
+
+/// #421 逃生门：与 p409 `recompute_windows` 同构的独立活窗发现。
+///
+/// 只在 `forest_epoch` 变化时执行；不写生产缓存、不改变 trigger/订单/证书路径。
+fn recompute_lifecycle_window_stems(
+    tower: &[Rc<Vec<LeveledMove>>],
+    as_of: usize,
+) -> Vec<LifecycleWindowStem> {
+    let mut windows_out = Vec::new();
+    for level in 1..tower.len() {
+        let Ok(lower) = lower_legs_from(&tower[level - 1]) else {
+            continue;
+        };
+        let segments: Vec<Segment> = lower.iter().map(lifecycle_leg_as_segment).collect();
+        let anchors_self: Vec<Option<Direction>> =
+            segments.iter().map(|segment| Some(segment.direction)).collect();
+        let windows = &tower[level];
+        let mut run_start = None;
+        for index in 0..=windows.len() {
+            let valid = index < windows.len()
+                && project_extended_windows_carried_only(std::slice::from_ref(&windows[index]))
+                    .is_ok();
+            match (run_start, valid) {
+                (None, true) => run_start = Some(index),
+                (Some(start), false) => {
+                    if let Ok(projection) =
+                        project_extended_windows_carried_only(&windows[start..index])
+                    {
+                        let centers: Vec<_> =
+                            projection.seeds.iter().map(|seed| seed.center).collect();
+                        let blocks = decompose::decompose(&centers);
+                        let kinds = decompose::center_block_kind(centers.len(), &blocks);
+                        windows_out.extend(provide_pan_live_windows(
+                            level as u32,
+                            &centers,
+                            &kinds,
+                            &segments,
+                            &anchors_self,
+                            as_of,
+                        ));
+                    }
+                    run_start = None;
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut stems: Vec<LifecycleWindowStem> =
+        windows_out.iter().map(LifecycleWindowStem::of).collect();
+    stems.sort();
+    stems.dedup();
+    stems
+}
+
 /// 补齐 lifecycle 本 trigger 所需的全部 active run。targeted 已在同 trigger 更新过的
 /// 条目直接复用；其余条目也只在共享 dirty 判据命中时评估，禁 sidecar 每 trigger 全量重算。
 #[allow(clippy::too_many_arguments)]
@@ -1350,26 +1485,11 @@ fn refresh_lifecycle_cache(
     Ok(active_runs)
 }
 
-/// 将共享 RunEntry 直接投影为 lifecycle 借用视图；测试锁定零复制接缝。
-fn cached_lifecycle_run<'a>(
-    level: usize,
-    entry: &'a RunEntry,
-    lower_legs: &'a [LowerLeg],
-) -> PanLiveRun<'a> {
-    PanLiveRun {
-        level: level as u32,
-        centers: &entry.centers,
-        kinds: &entry.kinds,
-        legs: lower_legs,
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
-fn feed_lifecycle_trigger(
+fn feed_lifecycle_bar(
     book: &mut NestLifecycleBook,
-    derived: &BTreeMap<usize, LevelDerived>,
-    entries: &BTreeMap<(usize, usize), RunEntry>,
-    active_runs: &[(usize, usize)],
+    live_windows: &[PanLiveWindow],
+    completion_events: &[NestCandidateEvent],
     as_of: usize,
     hist: &[f64],
     dif: &[f64],
@@ -1377,20 +1497,6 @@ fn feed_lifecycle_trigger(
     sink: &mut Option<BufWriter<File>>,
     replay_stats: &mut LifecycleReplayStats,
 ) -> Result<(), String> {
-    let runs: Vec<PanLiveRun<'_>> = active_runs
-        .iter()
-        .map(|&(level, run_source_start)| {
-            cached_lifecycle_run(
-                level,
-                &entries[&(level, run_source_start)],
-                &derived[&level].lower_legs,
-            )
-        })
-        .collect();
-    let completion_events: Vec<NestCandidateEvent> = active_runs
-        .iter()
-        .flat_map(|key| entries[key].events.iter().copied())
-        .collect();
     let completion_signal_start = book.completion_signals().len();
     let audit_start = book.completion_force_unavailable_audits().len();
     let material = ForceMaterial {
@@ -1398,12 +1504,12 @@ fn feed_lifecycle_trigger(
         dif: Some(dif),
         close_src,
     };
-    let (delta, stats) = feed_replay_prefix(
+    let (delta, stats) = feed_replay_bar(
         book,
-        &ReplayPrefixFeed {
+        &ReplayBarFeed {
             as_of,
-            runs: &runs,
-            completion_events: &completion_events,
+            live_windows,
+            completion_events,
         },
         &material,
     );
@@ -1411,7 +1517,7 @@ fn feed_lifecycle_trigger(
     write_lifecycle_line(
         sink,
         format_args!(
-            "FEED as_of={as_of} live_windows={} completion_events={} completion_signals={} channel_switches={} extension_suppressed={} retrograde_rejected={} completion_force_unavailable={}",
+            "FEED cadence=bar as_of={as_of} live_windows={} completion_events={} completion_signals={} channel_switches={} extension_suppressed={} retrograde_rejected={} completion_force_unavailable={}",
             stats.live_windows,
             stats.completion_events,
             stats.completion_signals,
@@ -2033,28 +2139,22 @@ fn date_to_timestamp(date: &str) -> Timestamp {
 mod tests {
     use super::*;
 
-    /// P-H3：lifecycle sidecar 必须借用 p123 同一 RunEntry 的 provider 产物，
-    /// 不得另建一份 centers/kinds 或在每个 trigger 重跑 provider。
+    /// 逃生门身份键不含活窗右端：相邻 bar 只延展 `seg_c_live.1`，不得另造身份。
     #[test]
-    fn p_h3_lifecycle_borrows_shared_run_entry_payload() {
-        let entry = RunEntry {
-            self_gen: 1,
-            lower_gen: 1,
-            last_as_of: 99,
-            centers: Vec::new(),
-            kinds: Vec::new(),
-            events: Vec::new(),
-            target_self_gen: None,
-            target_lower_gen: None,
-            target_last_as_of: None,
+    fn lifecycle_window_stem_keeps_identity_while_extending_bar() {
+        let stem = LifecycleWindowStem {
+            level: 2,
+            side_tag: 0,
+            seg_a: (10, 19),
+            c_start: 30,
+            b_center_start: 20,
         };
-        let lower_legs = Vec::new();
+        let first = stem.window_at(30);
+        let later = stem.window_at(99);
 
-        let run = cached_lifecycle_run(2, &entry, &lower_legs);
-
-        assert_eq!(run.level, 2);
-        assert!(std::ptr::eq(run.centers, entry.centers.as_slice()));
-        assert!(std::ptr::eq(run.kinds, entry.kinds.as_slice()));
-        assert!(std::ptr::eq(run.legs, lower_legs.as_slice()));
+        assert_eq!(LifecycleWindowStem::of(&first), stem);
+        assert_eq!(LifecycleWindowStem::of(&later), stem);
+        assert_eq!(first.seg_c_live, (30, 30));
+        assert_eq!(later.seg_c_live, (30, 99));
     }
 }

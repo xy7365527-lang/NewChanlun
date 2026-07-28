@@ -53,13 +53,14 @@
 //!   `Invalidated{ForceOvertake}`，无需先经 `StructureCompleted`（061:26；#421 Q3）。
 //! - **judge_at 一个 bit 不动**（卡 §5.2）：字段/写入点/回填/CERT 主键/D3 统计全部保持；
 //!   新五钟只活在本模块 entry，`divergence_confirmed` 布尔口径不动。
-//! - **feed 契约**：只在回放引擎重估 trigger 投喂，时钟精度 = trigger 粒度；每个 trigger
-//!   先喂此刻可见的全部活窗观察，再喂完成信号。同一身份 c 窗左端不动、右端按 provider
-//!   产出延展；两个 trigger 之间首次可证只能在下一 trigger 被记录（允许晚记，不能早记），
-//!   禁止回填历史。`observed_at` 与 `first_provable_at` 均在首次实际 `advance` 写入，故跳过
-//!   非 trigger prefix 不可能构造 `first_provable_at < observed_at`。若窗在两个 trigger
-//!   间开完又完成，则在同一 trigger 照实形成 Observed→StructureCompleted→终局，寿命为 0；
-//!   零寿命是闪现子集，不得丢弃或拖到下一 trigger。完成后停止活窗延展。
+//! - **feed 契约（#421 逃生门）**：生产 trigger/事件流不动；sidecar 另走同源、独立的
+//!   **逐 bar 喂数循环**。每根 bar 先喂此刻可见的全部活窗观察，再喂该 bar 首次可见的完成
+//!   信号；同一身份 c 窗左端不动、右端逐 bar 延展。`observed_at` 与
+//!   `first_provable_at` 只在当前 bar 的实际 `advance` 首写，禁止回填历史或人为延迟完成。
+//!   同 bar 开合照实形成 Observed→StructureCompleted→终局，寿命为 0；零寿命是独立统计的
+//!   闪现子集，事件不得丢弃。若先前已沿第二终局路径 Provisional→
+//!   Invalidated{ForceOvertake} 吸收，后到首完成只进独立完成分母，禁止回填
+//!   StructureCompleted。完成后停止活窗延展。
 //! - **出切片项**（卡 §9 原样维持）：WireV1 全量 EventKey/StateKey/修订链、
 //!   谱系两钟 opened/closed、跨级证伪（043:30）、024:28 面积乘 2 外推、postcondition
 //!   诊断钟、DeferOrphan 重判、Lean 侧 ActiveTail↔OpenTailSystem 桥、白名单桥与两元锚
@@ -1233,49 +1234,113 @@ pub struct ReplayPrefixFeed<'a> {
     pub completion_events: &'a [NestCandidateEvent],
 }
 
+/// 把同源 provider 的逐 run 结构展开为当前边界的活窗。
+///
+/// 本函数是旧 trigger/provider 适配层的展开原语。生产逐 bar sidecar 在 p123 内按 p409
+/// 同构机制独立发现结构窗；后续 bar 保持身份字段不动，仅延展 `seg_c_live.1`。
+pub fn provide_replay_live_windows(
+    runs: &[PanLiveRun<'_>],
+    as_of: usize,
+) -> Vec<PanLiveWindow> {
+    let mut live_windows = Vec::new();
+    for run in runs {
+        let segments: Vec<Segment> = run.legs.iter().map(leg_as_segment_copy).collect();
+        // 自锚 = 逐段方向（与 `provide_nest_candidate_events_ext` level_view.rs:735 同口径，
+        // 不是 `self_anchors`——禁第二查法）。
+        let anchors: Vec<Option<Direction>> = segments
+            .iter()
+            .map(|segment| Some(segment.direction))
+            .collect();
+        live_windows.extend(provide_pan_live_windows(
+            run.level,
+            run.centers,
+            run.kinds,
+            &segments,
+            &anchors,
+            as_of,
+        ));
+    }
+    live_windows
+}
+
+/// 独立逐 bar 循环的两相输入：当前 bar 可见活窗 + 当前 bar 首次可见的完成事件。
+#[derive(Debug, Clone, Copy)]
+pub struct ReplayBarFeed<'a> {
+    /// 当前 bar 的源坐标；账本所有钟均直接取本值，禁止回填或延迟结算。
+    pub as_of: usize,
+    /// 当前 bar 可见的活窗。调用方沿 p409 机制保持身份，逐 bar 只延展右端。
+    pub live_windows: &'a [PanLiveWindow],
+    /// 当前 bar 同源 provider 首次可见的候选事件；只消费 `Consolidation` 域。
+    pub completion_events: &'a [NestCandidateEvent],
+}
+
 /// 喂数出口计数面（诊断/审计；不进真值路径、不参与任何判定）。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ReplayFeedStats {
     /// 本前缀行进中通道产出的活窗数（不含完成事件反推的闪现观察）。
     pub live_windows: usize,
-    /// 本前缀完成事件通道的盘整事件观察数（可含跨 trigger 重发，不作发生率分母）。
+    /// 本 bar 完成事件通道的盘整事件观察数（provider 可重发，不作发生率分母）。
     pub completion_events: usize,
-    /// 本前缀真实、唯一的首完成信号数；包括同 trigger 闪现与已提前终局身份（完整分母）。
+    /// 本 bar 真实、唯一的首完成信号数；包括同 bar 闪现与已提前终局身份（完整分母）。
     pub completion_signals: usize,
-    /// 本前缀首次由活窗观察切到完成信号的唯一身份数（与首完成分母同口径）。
+    /// 本 bar 首次由活窗观察切到完成信号的唯一身份数（与首完成分母同口径）。
     pub channel_switches: usize,
     /// 已进终态的身份被跳过喂入的活窗数（完成即停延展；终态吸收下逐位等价）。
     pub extension_suppressed: usize,
-    /// 本前缀新增的时点倒退拒绝注记数。
+    /// 本 bar 新增的时点倒退拒绝注记数。
     pub retrograde_rejected: usize,
-    /// 本前缀新增的「完成信号已到但力度不可验」审计事实数（#428）。
+    /// 本 bar 新增的「完成信号已到但力度不可验」审计事实数（#428）。
     pub completion_force_unavailable: usize,
 }
 
-/// 回放循环的账本喂数出口（票 #426 主接缝）。
+/// trigger/provider 适配层：把逐 run 同源数据展开成当前边界的活窗，再交给逐 bar 两相出口。
 ///
-/// 给定某一前缀上数据源的产出，生成该步的观察记录、喂入账本、返回该步的变更集。
-/// **侧车**：只读入参、只写 `book`，对数据源事件流零反流（F7 逐字节护栏锚定）。
-///
-/// 通道分工（ADR-0003）：
-/// - **行进中通道** = `provide_pan_live_windows` 逐 run 现产的活窗（比较窗 = 起点到当前），
-///   `structure_completed = false`；
-/// - **完成事件通道** = 数据源候选事件的盘整域（比较窗 = 定位到的完成段），
-///   `structure_completed = true`——**切换本身即结构完成信号，不另造判据**。
-///
-/// 每个 trigger 严格分两相：先喂全部可见活窗，再喂完成信号。完成信号只对账该身份，
-/// 不删除同 trigger 的活窗观察，也不要求身份必须来自更早 trigger；因此同 trigger 首见
-/// 可照实形成 Observed→StructureCompleted→终局的零寿命闪现链。若稀疏 trigger 之间开窗
-/// 又完成、当前只剩完成事件，则由该事件在当前 `as_of` 反推一条闪现观察，禁止丢首完成。
-/// 已提前由 Provisional→ForceOvertake 终局的身份仍独立登记后到的首完成，但终态吸收禁止
-/// 回填 StructureCompleted。所有钟只取当前 trigger，禁止回填历史。
+/// 保留该入口供既有调用与确定性测试复用；生产 sidecar 走 [`feed_replay_bar`] 的独立逐 bar
+/// 循环，不再把本适配层的调用节拍当作生命周期时钟。
 pub fn feed_replay_prefix(
     book: &mut NestLifecycleBook,
     feed: &ReplayPrefixFeed<'_>,
     material: &ForceMaterial,
 ) -> (Vec<LifecycleRevision>, ReplayFeedStats) {
+    let live_windows = provide_replay_live_windows(feed.runs, feed.as_of);
+    feed_replay_bar(
+        book,
+        &ReplayBarFeed {
+            as_of: feed.as_of,
+            live_windows: &live_windows,
+            completion_events: feed.completion_events,
+        },
+        material,
+    )
+}
+
+/// 独立逐 bar 循环的账本喂数出口（#421 逃生门主接缝）。
+///
+/// **侧车**：只读入参、只写 `book`，对生产 trigger、事件流、装配与证书真值零反流。
+/// 每根 bar 严格分两相：先喂当前可见的全部活窗，再喂当前首次可见的完成信号。完成信号
+/// 不删除同 bar 的活窗观察，也不要求身份来自更早 bar；同 bar 开合照实形成
+/// Observed→StructureCompleted→终局，寿命为 0。若首见即只有完成事件，则只在当前 bar
+/// 合成观察，禁止回填历史；若身份已由 Provisional→ForceOvertake 提前终局，后到首完成
+/// 仍进入独立分母，但终态吸收禁止回填 `StructureCompleted`。
+pub fn feed_replay_bar(
+    book: &mut NestLifecycleBook,
+    feed: &ReplayBarFeed<'_>,
+    material: &ForceMaterial,
+) -> (Vec<LifecycleRevision>, ReplayFeedStats) {
     let mut stats = ReplayFeedStats::default();
     let mut live_observations: BTreeMap<LifecycleKey, LifecycleObservation> = BTreeMap::new();
+    for window in feed.live_windows.iter().copied() {
+        stats.live_windows += 1;
+        let observation = LifecycleObservation::pan_live(window, false);
+        let key = observation.key();
+        // 完成即停延展：终态身份不再喂行进中窗（终态吸收下逐位等价，见
+        // `terminal_bridge_hit` 文档与 F7）。
+        if book.terminal_bridge_hit(&key) {
+            stats.extension_suppressed += 1;
+            continue;
+        }
+        live_observations.insert(key, observation);
+    }
     // 完成事件通道：只取盘整域（trend 域不在票 #426 范围——090 登记，见模块头）。
     let completions: Vec<LifecycleObservation> = feed
         .completion_events
@@ -1284,39 +1349,11 @@ pub fn feed_replay_prefix(
         .map(|event| LifecycleObservation::event(*event, true))
         .collect();
     stats.completion_events = completions.len();
-    for run in feed.runs {
-        let segments: Vec<Segment> = run.legs.iter().map(leg_as_segment_copy).collect();
-        // 自锚 = 逐段方向（与 `provide_nest_candidate_events_ext` level_view.rs:735 同口径，
-        // 不是 `self_anchors`——禁第二查法）。
-        let anchors: Vec<Option<Direction>> = segments
-            .iter()
-            .map(|segment| Some(segment.direction))
-            .collect();
-        for window in provide_pan_live_windows(
-            run.level,
-            run.centers,
-            run.kinds,
-            &segments,
-            &anchors,
-            feed.as_of,
-        ) {
-            stats.live_windows += 1;
-            let observation = LifecycleObservation::pan_live(window, false);
-            let key = observation.key();
-            // 完成即停延展：终态身份不再喂行进中窗（终态吸收下逐位等价，见
-            // `terminal_bridge_hit` 文档与 F5）。
-            if book.terminal_bridge_hit(&key) {
-                stats.extension_suppressed += 1;
-                continue;
-            }
-            live_observations.insert(key, observation);
-        }
-    }
     let mut completion_phase = Vec::new();
     let mut completion_keys: Vec<LifecycleKey> = Vec::new();
     for completion in completions {
         let completed_key = completion.key();
-        // 同 trigger 的 provider 可能经多个 run 重复产同一桥身份；物理观察数照记，
+        // 同 bar 的 provider 可能经多个 run 重复产同一桥身份；物理观察数照记，
         // 结算与首完成分母只处理一次。
         if completion_keys
             .iter()
@@ -1333,7 +1370,7 @@ pub fn feed_replay_prefix(
                 key == completed_key || bridge_identity(&key, &completed_key)
             })
             .copied();
-        // 稀疏 trigger 间开完又完成：首个可见事实虽只剩完成事件，仍在当前钟先建闪现观察。
+        // 同 bar 开完又完成：首个可见事实虽只剩完成事件，仍在当前钟先建闪现观察。
         // 只复用事件的身份窗，不伪造历史 as_of。
         if matching_live.is_none() && book.bridge_entry(&completed_key).is_none() {
             let LifecycleObservation::Event { event, .. } = completion else {
@@ -3303,6 +3340,143 @@ mod tests {
         assert!(delta
             .iter()
             .any(|revision| matches!(revision.kind, LifecycleRevisionKind::StructureCompleted)));
+        assert!(matches!(
+            delta.last().unwrap().kind,
+            LifecycleRevisionKind::Confirmed
+        ));
+        assert_eq!(book.settlement_stats().flash_terminal_count, 1);
+    }
+
+    /// F10a 逃生门逐 bar 两相：同一 bar 必须先落活窗观察，再落完成与终局；
+    /// 同 bar 开合照实归入零寿命闪现，不许为制造寿命延后完成。
+    #[test]
+    fn f10a_bar_feed_orders_live_before_completion_and_keeps_flash() {
+        let (_centers, _kinds, _segments, _anchors, hist, dif, close_src) =
+            pan_real_fixture(-0.1, -0.5);
+        let m = material(&hist, &dif, &close_src);
+        let windows = [pan_window((50, 59), 70, 99)];
+        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        let mut book = NestLifecycleBook::new();
+
+        let (delta, stats) = feed_replay_bar(
+            &mut book,
+            &ReplayBarFeed {
+                as_of: 99,
+                live_windows: &windows,
+                completion_events: &events,
+            },
+            &m,
+        );
+
+        let observed = delta
+            .iter()
+            .position(|revision| matches!(revision.kind, LifecycleRevisionKind::Observed))
+            .expect("同 bar 活窗必须先被观察");
+        let completed = delta
+            .iter()
+            .position(|revision| matches!(revision.kind, LifecycleRevisionKind::StructureCompleted))
+            .expect("同 bar 完成信号不得丢失");
+        let terminal = delta
+            .iter()
+            .position(|revision| matches!(revision.kind, LifecycleRevisionKind::Confirmed))
+            .expect("同 bar 完成后必须结算");
+        assert!(observed < completed && completed < terminal);
+        assert!(delta.iter().all(|revision| revision.as_of == 99));
+        assert_eq!(stats.completion_signals, 1);
+        assert_eq!(book.settlement_stats().flash_terminal_count, 1);
+        assert_eq!(book.settlement_stats().nonflash_lifetime.count, 0);
+    }
+
+    /// F10b 逃生门跨 bar 链：真实活窗逐 bar 延展，先可证、后反超，允许
+    /// Provisional→FirstProvable→ForceOvertake；全链 as_of 单调且不伪造完成修订。
+    #[test]
+    fn f10b_bar_feed_grows_cross_bar_force_overtake_monotonically() {
+        let (_centers, _kinds, _segments, _anchors, hist, dif, close_src) =
+            pan_real_fixture(-3.0, -6.0);
+        let m = material(&hist, &dif, &close_src);
+        let mut book = NestLifecycleBook::new();
+
+        let first = [pan_window((50, 59), 70, 79)];
+        let (born, _) = feed_replay_bar(
+            &mut book,
+            &ReplayBarFeed {
+                as_of: 79,
+                live_windows: &first,
+                completion_events: &[],
+            },
+            &m,
+        );
+        assert!(born
+            .iter()
+            .any(|revision| matches!(revision.kind, LifecycleRevisionKind::Observed)));
+        assert!(born
+            .iter()
+            .any(|revision| matches!(revision.kind, LifecycleRevisionKind::FirstProvable)));
+        assert_eq!(
+            book.entries().next().unwrap().1.state,
+            NestEventState::Provisional
+        );
+
+        let later = [pan_window((50, 59), 70, 99)];
+        let (overtaken, _) = feed_replay_bar(
+            &mut book,
+            &ReplayBarFeed {
+                as_of: 99,
+                live_windows: &later,
+                completion_events: &[],
+            },
+            &m,
+        );
+        assert!(overtaken.iter().any(|revision| matches!(
+            revision.kind,
+            LifecycleRevisionKind::Invalidated {
+                reason: InvalidatedReason::ForceOvertake
+            }
+        )));
+        assert!(book
+            .entries()
+            .next()
+            .unwrap()
+            .1
+            .revisions
+            .windows(2)
+            .all(|pair| pair[0].as_of <= pair[1].as_of));
+        let terminal = book.entries().next().unwrap().1;
+        assert_eq!(terminal.invalidated_at, Some(99));
+        assert_eq!(terminal.structure_end_at, None);
+        assert_eq!(
+            book.settlement_stats().force_overtake_lifetime.median,
+            Some(20.0)
+        );
+    }
+
+    /// F10c completion-only 窗：逐 bar 循环首见即完成时仍先合成当前 bar 的观察，
+    /// 再完整结算；事件与首完成分母均不得丢弃。
+    #[test]
+    fn f10c_bar_feed_records_completion_only_window_without_loss() {
+        let (_centers, _kinds, _segments, _anchors, hist, dif, close_src) =
+            pan_real_fixture(-0.1, -0.5);
+        let m = material(&hist, &dif, &close_src);
+        let events = [pan_event((50, 59), (70, 99), true, 99)];
+        let mut book = NestLifecycleBook::new();
+
+        let (delta, stats) = feed_replay_bar(
+            &mut book,
+            &ReplayBarFeed {
+                as_of: 99,
+                live_windows: &[],
+                completion_events: &events,
+            },
+            &m,
+        );
+
+        assert_eq!(stats.completion_events, 1);
+        assert_eq!(stats.completion_signals, 1);
+        assert_eq!(book.completion_signals().len(), 1);
+        assert!(matches!(
+            delta.first().unwrap().kind,
+            LifecycleRevisionKind::Observed
+        ));
         assert!(matches!(
             delta.last().unwrap().kind,
             LifecycleRevisionKind::Confirmed

@@ -311,3 +311,137 @@ BTC 100k 裁定前（f663 返工）：
    带数据重裁；在此之前本票只能部分满足。
 2. 生产双通道没有 ForceOvertake 实例，Q3 仅在公共契约、状态机与测试层闭合。
 3. #454/#497 标准债、本票外的 integration 字节门与 map #59 Decisions 均未触碰。
+
+## 9. 逃生门执行节（2026-07-28）
+
+本节执行 #421 comment-5103071677 的「独立逐 bar 喂数循环」授权。实现严格保持：
+
+- 生产 `trigger=(forest_epoch, signal_signature)`、候选事件流、YieldBook、装配、证书与订单流
+  不动；
+- sidecar 活窗发现复制 p409 的逐级逐 run 路：`forest_epoch` 变化时重算结构窗，其他 bar
+  保持身份分量、只把 `seg_c_live.1` 延到当前 bar；
+- 每根 bar 经独立出口先喂活窗、后喂当 bar 首次可见完成事件；无回填、无延迟完成；
+- 完成事件仍按 #415 / ADR-0003 的「数据源由 PanLive 切入 Event 通道即结构完成」口径
+  当场结算，不用下一 trigger 重发制造寿命。
+
+### 9.1 RED / GREEN 与测试门
+
+- RED：`/tmp/wt421-escape-red.log`。F10a/F10b/F10c 先因
+  `ReplayBarFeed` / `feed_replay_bar` 尚不存在而编译失败。
+- GREEN（新增行为）：`/tmp/wt421-escape-f10-green-final.log`，3 passed / 0 failed：
+  - F10a：逐 bar 两相顺序 + 同 bar 闪现零寿命；
+  - F10b：跨 bar `Observed→FirstProvable→ForceOvertake`，修订 `as_of` 单调；
+  - F10c：completion-only 窗先合成当 bar 观察、首完成零丢弃。
+- lifecycle 模块：`/tmp/wt421-escape-nest-lifecycle-green-final.log`，
+  30 passed / 0 failed。
+- p123 bin 接缝：`/tmp/wt421-escape-p123-bin-green-final.log`，
+  1 passed / 0 failed。
+- 全库 debug：`/tmp/wt421-escape-cargo-test-lib-final.log`，
+  1997 passed / 1 failed / 135 ignored。
+- 全库 release：`/tmp/wt421-escape-cargo-test-release-lib-final.log`，
+  1997 passed / 1 failed / 135 ignored。
+- 两档唯一失败均为在册 #491
+  `theta_v0::classifier::signal::tests::extract_signals_bit_exact_digest_guard`；
+  本轮零新增失败。
+
+### 9.2 五项验收逐条判定
+
+| 验收项 | 状态 | 本轮实测 |
+|---|---|---|
+| 1. 测试门 | **满足** | F10 三条新增行为、lifecycle 30/30、p123 bin 1/1 全绿；全库 debug/release 均为 1997/1/135，唯一失败 #491。 |
+| 2. 字节护栏 | **满足** | p123 20k/100k stdout + P116 dump 四对 `cmp=0`；m8 三窗 trades+tower_events 六对 `cmp=0`；P-H3=`2099/87/2012`、复用率 95.855169%。lifecycle dump 按逐 bar feed 本体发生变化，见 §9.4。 |
+| 3. p409 正面神谕 | **未满足** | p409 BTC 100k 仍为 248 身份、124 曾可证、113 Force、反超率 91.129032%、Force 寿命 `9/378/20966`；逐 bar 双通道账本仍为 248/248 闪现、Force=0、非闪现 count=0。Unavailable 两侧均 0。禁止靠忽略/延迟首完成凑数。 |
+| 4. 结算时序 | **部分满足** | 100k dump 有 100000 条连续 `FEED`（0..99999、gap=0）；1143 条修订 `as_of` 回退=0、跨 bar 错配=0；`COMPLETION_SIGNAL=248` 全部与当 bar 对齐，IdentityVanished=0、retrograde_rejected=0。但生产 Force=0，故不存在可交付的生产 `Observed→FirstProvable→Invalidated{ForceOvertake}` + ForceEvidence 实例。 |
+| 5. 自查档 | **满足** | 本节登记实现、五项门、字节面、探针对照、直接反证与失败归因。 |
+
+### 9.3 trigger 粒度 → 独立逐 bar 前后
+
+BTC 100k，同一数据、同一完成定义：
+
+| 指标 | trigger 粒度（26771ee0d8） | 独立逐 bar |
+|---|---:|---:|
+| 生命周期时钟 / provider trigger | 1206 trigger | 100000 bar / 1206 trigger |
+| 活窗物理观察 | 89576 | 11026776 |
+| entries / 首完成信号 | 248 / 248 | 248 / 248 |
+| 曾可证 | 151 | 151 |
+| Confirmed / NeverConstituted | 151 / 97 | 151 / 97 |
+| ForceOvertake / IdentityVanished | 0 / 0 | 0 / 0 |
+| 闪现终局 / 闪现率 | 248 / 100% | 248 / 100% |
+| 非闪现寿命 | count=0 | count=0 |
+| Unavailable / retrograde | 0 / 0 | 0 / 0 |
+
+20k 同判：逐 bar读数为 `bars=20000`、`provider_triggers=565`、
+`live_windows=316914`、`completion_signals=46`；终局 `Confirmed/Never=35/11`、
+`Force/IdentityVanished=0/0`、闪现 `46/46`、非闪现 count=0。
+
+逐 bar 循环确实执行了：100k 活窗调用量从 89576 增为 11026776，dump 每 bar 有
+`FEED cadence=bar`。终局分布不变不是循环没有运行，而是每只身份第一次可见时完成信号也
+在同一 bar 到达，按 Q1/Q2 必须当场结算。
+
+### 9.4 非 lifecycle 字节面与 lifecycle 修正本体
+
+| 面 | cmp | SHA-256（pre = post） |
+|---|---:|---|
+| p123 20k stdout | 0 | `bd9ac1d655f9d615a5d9b3495b3a92465fb1fae13ce5dadfa28033c47d375b6c` |
+| p123 20k P116 dump | 0 | `fcc8016a9a01a1098736b9ee3b348614296bb97aec817a5c172c9a0723427a40` |
+| p123 100k stdout | 0 | `d8b69c180c23c5e393bf3c330825d88ae9c989ff38f2b8865e049e1b5eb56da8` |
+| p123 100k P116 dump | 0 | `8a7327feb3b9ba29f69fa824af1f1ecc137d9303637b47ad8465b6d638705f84` |
+| m8 p3fold trades / tower_events | 0 / 0 | `2da686833581d5358a1806aa41ad7ba16371bc3db190fe2a8ccfe62b9cb46627` / `83f45a36ab422a92d198d5d9289c40db94e95fe2cba7af2322e2d37aa8e718c2` |
+| m8 wf7 trades / tower_events | 0 / 0 | `3371f1e62153e8aa216ae6f28530bcaa95423a1e3f9b5341e647ec1a78a3fca8` / `aa96b3e836be5a43514c425d572c5312d15d8c6950d991d094416e4d61af1cbb` |
+| m8 wf8 trades / tower_events | 0 / 0 | `006c31f54cd72d8ec9c9461122068faf58377cad2d176f839f6a6e0c5ff601b7` / `1d8dff0d29e8925fd2931e05259fad11b71745354482c413f4138d8123dfb34f` |
+
+lifecycle dump 是修正本体，不作 `cmp=0`：
+
+| 前缀 | trigger 粒度 SHA-256 | 独立逐 bar SHA-256 |
+|---|---|---|
+| 20k | `7a927e9b23d6ed2e0ba06ba7eed8cc96fbda4574c77f56836a06394458bfdda8` | `940a69dbaa96b6ff19ee8dc934d6cae65b378c771fe512d34273d1507727bd1b` |
+| 100k | `7ce0b1b39c4837657525696f695d1acbe1aec31414be8dc8e1392c6f31b8b5d9` | `3df5fbc732514929fcde7c6db6298b40539ca338e8af799ea0de58ac729db71c` |
+
+证据：`/tmp/wt421e-final-{20k,100k}-p123.{stdout,stderr}`、
+`/tmp/wt421e-final-{20k,100k}-{replay,lifecycle}.dump`、
+`/tmp/wt421e-final-m8-default-{p3fold,wf7,wf8}/`。
+
+### 9.5 p409 同前缀神谕对照与直接反证
+
+p409 已在本轮同码、同 BTC 100k 前缀重跑：
+
+| BTC 100k 指标 | p409 pan-live-only | p123 独立逐 bar 双通道 |
+|---|---:|---:|
+| identities / entries | 248 | 248 |
+| 曾可证 | 124 | 151 |
+| ForceOvertake | 113 | 0 |
+| Force / 曾可证 | 91.129032% | 0% |
+| Force 寿命 min / median / max | 9 / 378 / 20966 | 无 |
+| Confirmed / NeverConstituted | 0 / 0 | 151 / 97 |
+| IdentityVanished | 20 | 0 |
+| 闪现终局 | 不适用（无完成通道） | 248（100%） |
+| 非闪现寿命 | Force 113 只 | count=0 |
+| MissingForceSeries / CoordinateMapFailed | 0 / 0 | 0 / 0 |
+
+证据：
+
+- `/tmp/wt421e-p409-btc100k.log`；
+- `/tmp/wt421e-p409-btc100k-entries.jsonl`；
+- `/tmp/wt421e-p409-btc100k-force-lifetimes.txt`；
+- `/tmp/wt421e-p409-btc20k-verify.log`：`P409_VERIFY=1`，
+  `verify_mismatches=0`，证明 forest_epoch 缓存与每 bar 强制重算的活窗集合一致；
+- `/tmp/wt421e-first-vs-completion.tsv`：按
+  `(level, side, seg_a, c_start, b_center_start)` 逐身份 join。
+
+决定性对照：p409 的 248 个身份与生产 248 个首完成身份全量一一匹配；248/248 都满足
+`p409.observed_at == COMPLETION_SIGNAL.as_of`，差值 min/max=`0/0`。因此不存在「逐 bar
+循环漏掉更早活窗」可修；同一 bar 必须先观察后完成，结果必为零寿命闪现。
+
+p409 的 113 个 Force 来自其硬编码 `structure_completed=false` 后继续延展；若在双通道账本
+中复现这 113 个 Force，只能忽略同 bar 已到的真实首完成并继续延展，正是 #429 复审禁止的
+「人工延迟结算造寿命」。本轮没有走该路径。
+
+### 9.6 失败归因与遗留
+
+1. **裁定目标与既有完成定义不能同时成立。** 独立逐 bar 节拍已落码并实跑，但它不改变
+   `PanLive` 与完成 `Event` 在数据源上的首次可见时点；两者逐身份完全同刻。
+2. **验收 3 未满足，验收 4 只能部分满足。** 生产 dump 无合法 ForceOvertake 实例，
+   故不伪造 ForceEvidence 链。
+3. 若仍要求「终局反超主导 + 中位数百根」，须由编排者另裁至少一项语义：
+   完成信号取值/身份桥/完成后是否吸收。executor 无权用实现技巧替裁。
+4. #454/#497、roster、四份 shadow 报告、map 与 issue 状态均未触碰。
