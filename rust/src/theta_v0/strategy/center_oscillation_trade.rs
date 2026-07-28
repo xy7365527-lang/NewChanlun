@@ -6,7 +6,7 @@
 //! - **B**（★★#414 改判，2026-07-27 用户裁定，ADR 补充十一）：superseded
 //!   （[`center_lifecycle::DeathForm::ArenaTermination`]，被链推进取代）**不再是挂起的终结触发
 //!   源**——中枢的终结唯一 = 三类买卖点（定理三），取代只是「在场中枢换了一个」（中枢层更替），
-//!   不是中枢的死。原中枢区间为历史事实（ZG/ZD 冻结），其三类点判据在死后继续适用，故**挂起
+//!   不是中枢的死。原中枢四边框为历史事实（ZG/ZD + 起止边冻结），其三类点判据在死后继续适用，故**挂起
 //!   延续**（不随取代清除），等原中枢的三类买卖点到达时按 #366 两终局清算（三买→回补、三卖→
 //!   核销）。本裁定修正 ADR 补充六「取代 = 在场终结，挂起随之终结」的账目层表述（中枢层不变）。
 //! - **C**：终结动作**幂等**——主流程常态是同一实例先收在场终结、后收教义死亡两条信号
@@ -421,10 +421,14 @@ fn cover_action_for(
 /// ★#381：挂起表键改 `(VoiceSide, CenterId)`——多空并存时同一中枢可在两侧各自挂起，各按
 /// 各自的边沿开局/收口（镜像口径见 [`Self::on_trigger_side`]），两侧互不覆盖、互不污染。
 /// `VoiceSide` 在前保证同侧条目在 `BTreeMap` 中相邻（迭代序仍确定性，H1 理由不变）。
+///
+/// ★#487：值保存首次挂起时的完整中枢框（含冻结的 `end_index`）。`CenterId` 刻意不含会随延伸
+/// 改写的右边，不能反过来承担四边框快照；`None` 只服务不掌握完整框的旧 API/域层单测，生产
+/// 接线一律经 [`Self::on_trigger_side_bound`] 写入 `Some`。
 #[derive(Debug, Default)]
 pub struct CenterOscillationBook {
     level: u32,
-    suspended: BTreeMap<(VoiceSide, CenterId), ()>,
+    suspended: BTreeMap<(VoiceSide, CenterId), Option<Center>>,
 }
 
 impl CenterOscillationBook {
@@ -445,6 +449,20 @@ impl CenterOscillationBook {
     /// 返回副本，调用方不能借此改挂起表。
     pub fn suspended_identities(&self) -> Vec<(VoiceSide, CenterId)> {
         self.suspended.keys().copied().collect()
+    }
+
+    /// ★#487：仍有挂起绑定的完整旧框，按 `CenterId` 去重、确定序返回。
+    ///
+    /// 同一中枢若两侧先后挂起，第二侧沿用第一侧已经冻结的框；因此这里不会把一个身份投成两个
+    /// 时间框。旧 API 产生的无框挂起不冒充四边证候选。
+    pub fn suspended_frames(&self) -> Vec<Center> {
+        let mut frames = BTreeMap::new();
+        for ((_, id), frame) in self.suspended.iter() {
+            if let Some(center) = frame {
+                frames.entry(*id).or_insert(*center);
+            }
+        }
+        frames.into_values().collect()
     }
 
     /// 多头侧挂起查询（#381 前既有语义；分侧查询见 [`Self::is_suspended_side`]）。
@@ -486,6 +504,30 @@ impl CenterOscillationBook {
         side: VoiceSide,
         trigger: CenterOscillationTrigger,
     ) -> Option<CenterOscillationAction> {
+        self.on_trigger_side_impl(side, trigger, None)
+    }
+
+    /// ★#487 生产接线入口：开局腿把完整中枢框绑定到挂起；重复触发只延续首次冻结框。
+    pub fn on_trigger_side_bound(
+        &mut self,
+        side: VoiceSide,
+        trigger: CenterOscillationTrigger,
+        center: Center,
+    ) -> Option<CenterOscillationAction> {
+        assert_eq!(
+            CenterId::of(&center),
+            trigger.center(),
+            "挂起四边框必须与触发 CenterId 精确同源"
+        );
+        self.on_trigger_side_impl(side, trigger, Some(center))
+    }
+
+    fn on_trigger_side_impl(
+        &mut self,
+        side: VoiceSide,
+        trigger: CenterOscillationTrigger,
+        center: Option<Center>,
+    ) -> Option<CenterOscillationAction> {
         assert_eq!(
             trigger.level(),
             self.level,
@@ -502,7 +544,19 @@ impl CenterOscillationBook {
             VoiceSide::Long | VoiceSide::Flat => BoundarySide::Above,
         };
         if trigger.boundary_side() == open_edge {
-            self.suspended.insert((side, trigger.center()), ());
+            let frozen = self
+                .suspended
+                .iter()
+                .find_map(|((_, id), frame)| (*id == trigger.center()).then_some(*frame).flatten())
+                .or(center);
+            self.suspended
+                .entry((side, trigger.center()))
+                .and_modify(|frame| {
+                    if frame.is_none() {
+                        *frame = frozen;
+                    }
+                })
+                .or_insert(frozen);
             Some(CenterOscillationAction::Reduce)
         } else if self.suspended.remove(&(side, trigger.center())).is_some() {
             Some(CenterOscillationAction::Replenish)
@@ -526,13 +580,10 @@ impl CenterOscillationBook {
     /// [`SuspensionContinuation`]（`continuations`）。产出类型因此从 `Vec<SuspensionOutcome>`
     /// 改为 [`SuspensionEventOutcome`]（终结/延续两路分列，理由见该类型文档）。
     ///
-    /// ★**有效域（如实标注，090）**：延续的挂起只有在原中枢**仍能收到** `Broken` 事件时才走得到
-    /// 两终局清算——而 [`center_lifecycle::CenterEventMachine`] 的容读法只保**链尾前一格**
-    /// （`prev_slot`）：链再推进一格后，指向该中枢的三类点请求会被判为 `Stale` 而不产 `Broken`。
-    /// 故被取代两代以上的挂起在本机会**继续挂着**，直到 `Reset`（清空整场）或 `RebaseVanished`
-    /// 到达才离场。这不是本票新引入的缺口（容读窗口是 #337 既有口径），但它使「延续到三类点
-    /// 清算」在这部分样本上**不可达**——延续计数与最终清算计数的差额即该缺口的产物级读数，
-    /// 不得读成「都清算了」。
+    /// ★**有效域（如实标注，090）**：#487 后生产接线把首次挂起的完整旧框交给四边配对；配对证
+    /// 通过且精确 `CenterId` 仍在挂起表时，即使已滑出 `prev_slot` 也经 historical-bound 产
+    /// `Broken`。没有完整框的旧 API 挂起、框配对失败、或重基已让身份消失者不获此授权；前两者
+    /// 继续等待，后者仍由 `RebaseVanished` 工程警报出口处置。
     pub fn on_lifecycle_event(&mut self, event: &CenterLifecycleEvent) -> SuspensionEventOutcome {
         if matches!(event, CenterLifecycleEvent::Reset { .. }) {
             if self.suspended.is_empty() {

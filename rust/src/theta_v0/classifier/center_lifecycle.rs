@@ -346,7 +346,7 @@ pub struct ChainRebaseObservation {
     pub after: Vec<CenterId>,
 }
 
-/// 死亡请求对链解析的内部四态（[`CenterEventMachine::resolve_kill_target`]）。
+/// 死亡请求对链解析的内部五态（[`CenterEventMachine::resolve_kill_target`]）。
 enum KillResolution {
     /// 场为空：无可杀对象（校验不介入）。
     ArenaEmpty,
@@ -355,6 +355,9 @@ enum KillResolution {
     /// ★#337 容读法：载体 == **容读格**（链尾前一格，退场方式 = 被取代）⟹ 放行，杀该实例
     /// （链尾不动）。载荷 = 该实例出生快照 + 链下标。
     Tolerated(Center, usize),
+    /// ★#487：三类点载体已滑出主格/容读格，但接线层提供了**精确挂起绑定**的同一中枢快照
+    /// ⟹ 放行，只杀该历史实例，当前主格/容读格不动。
+    HistoricalBound(Center, usize),
     /// 载体命中链上已退场实例（且不在容读格）：陈旧请求（不杀，不计误杀）。
     Stale(StaleKillRequest),
 }
@@ -395,6 +398,8 @@ pub struct CenterEventMachine {
     superseded_total: usize,
     /// ★#337：落在**容读格**（链尾前一格）的死亡放行累计（分桶读数：放行 = 链尾 + 容读格）。
     tolerated_total: usize,
+    /// ★#487：精确挂起绑定授权、且已滑出主格/容读格的历史三类点命中累计。
+    historical_bound_total: usize,
     /// ★#337（MINOR 补查）：最近一次被**教义死亡事件**杀掉的链尾身份（`alive` 转 None 那一刻
     /// 记下）。唯一用途 = 重基复活判据（见 [`CenterEventMachine::adopt`]）。
     dead_tail: Option<CenterId>,
@@ -458,6 +463,7 @@ impl CenterEventMachine {
             stale_total: 0,
             superseded_total: 0,
             tolerated_total: 0,
+            historical_bound_total: 0,
             dead_tail: None,
             revived_total: 0,
         }
@@ -601,6 +607,31 @@ impl CenterEventMachine {
         source_index: usize,
         target: Option<CenterId>,
     ) -> Result<PointOutcome, CenterMisKill> {
+        self.push_point_impl(bits, source_index, target, None)
+    }
+
+    /// ★#487：喂入由接线层以**精确挂起绑定**授权的历史中枢三类点。
+    ///
+    /// 本入口不扩张容读窗：授权快照仅在三类点、身份命中已消费链且已滑出 alive/prev_slot 时
+    /// 生效；其它点型与既有 [`Self::push_point`] 完全同路。结构机不读取 strategy 状态，调用方
+    /// 必须先以挂起表的精确 `CenterId` 完成授权。
+    pub fn push_point_historical_bound(
+        &mut self,
+        bits: BspBits,
+        source_index: usize,
+        bound_center: Center,
+    ) -> Result<PointOutcome, CenterMisKill> {
+        let target = Some(CenterId::of(&bound_center));
+        self.push_point_impl(bits, source_index, target, Some(bound_center))
+    }
+
+    fn push_point_impl(
+        &mut self,
+        bits: BspBits,
+        source_index: usize,
+        target: Option<CenterId>,
+        historical_bound: Option<Center>,
+    ) -> Result<PointOutcome, CenterMisKill> {
         // 一类优先（1B/3B 前提冲突互斥，理论不同位；防御性规定，模块头已标注）。
         let first = if bits.buy1 {
             Some(Side::Long)
@@ -610,10 +641,17 @@ impl CenterEventMachine {
             None
         };
         if let Some(trigger_side) = first {
-            let (died_center, died_chain_index) = match self
-                .resolve_kill_target(KillTrigger::FirstClass, source_index, trigger_side, target)?
-            {
+            let (died_center, died_chain_index) = match self.resolve_kill_target(
+                KillTrigger::FirstClass,
+                source_index,
+                trigger_side,
+                target,
+                historical_bound,
+            )? {
                 KillResolution::Stale(st) => return Ok(PointOutcome::Stale(st)),
+                KillResolution::HistoricalBound(..) => {
+                    unreachable!("historical-bound 只授权三类点")
+                }
                 // ★#337 容读放行：同死的是**载体所指**的容读格实例，链尾一动不动（连坐 = 在无
                 // 载体证据下杀第二个中枢，违「拒杀优先于错杀」）。
                 KillResolution::Tolerated(c, idx) => {
@@ -643,9 +681,13 @@ impl CenterEventMachine {
             None
         };
         if let Some(breaker_side) = third {
-            let (center, chain_index) = match self
-                .resolve_kill_target(KillTrigger::ThirdClass, source_index, breaker_side, target)?
-            {
+            let (center, chain_index) = match self.resolve_kill_target(
+                KillTrigger::ThirdClass,
+                source_index,
+                breaker_side,
+                target,
+                historical_bound,
+            )? {
                 KillResolution::Stale(st) => return Ok(PointOutcome::Stale(st)),
                 // 场为空 ⟹ 诚实 no-op（不杀不存在的中枢）。
                 KillResolution::ArenaEmpty => return Ok(PointOutcome::Silent),
@@ -653,6 +695,10 @@ impl CenterEventMachine {
                 KillResolution::Tolerated(c, idx) => {
                     self.prev_slot = None; // 容读格一次性。
                     self.tolerated_total += 1;
+                    (c, idx)
+                }
+                KillResolution::HistoricalBound(c, idx) => {
+                    self.historical_bound_total += 1;
                     (c, idx)
                 }
                 KillResolution::Alive => self.take_alive().expect("Alive 分支蕴含场非空"),
@@ -682,12 +728,15 @@ impl CenterEventMachine {
 
     /// 死亡请求对链解析（★#329 校验的 R3 口径，见 [`CenterMisKill`] / [`StaleKillRequest`]）。
     ///
-    /// - **场为空** ⟹ [`KillResolution::ArenaEmpty`]：无可杀对象，谈不上误杀（口径不变；
-    ///   ★#337：主格不在场时容读格**随之关闭**，见模块头「容读窗的边界」）。
+    /// - **场为空**时，三类点若精确绑定 `target` 且该身份仍在已消费链 ⟹
+    ///   [`KillResolution::HistoricalBound`]；其余仍为 [`KillResolution::ArenaEmpty`]：
+    ///   无可杀对象，谈不上误杀（★#337 容读格仍随主格关闭，见模块头「容读窗的边界」）。
     /// - 载体 == 链尾（主格）身份 ⟹ [`KillResolution::Alive`]：放行。
     /// - ★#337 载体 == 容读格（链尾前一格，退场方式 = 被取代）⟹ [`KillResolution::Tolerated`]：
     ///   放行，杀载体所指的那一个实例（链尾不动）。
     /// - 载体命中**已消费链前缀里的其它实例** ⟹ [`KillResolution::Stale`]：时序滞后，不计误杀。
+    /// - ★#487 三类点载体命中其它历史实例，且接线层提供同一身份的精确挂起绑定快照
+    ///   ⟹ [`KillResolution::HistoricalBound`]：只杀该实例，主格/容读格不动。
     /// - 其余（载体不在本级链上，含 `None`）⟹ [`Err(CenterMisKill)`](CenterMisKill)，状态不动。
     fn resolve_kill_target(
         &mut self,
@@ -695,8 +744,25 @@ impl CenterEventMachine {
         source_index: usize,
         trigger_side: Side,
         target: Option<CenterId>,
+        historical_bound: Option<Center>,
     ) -> Result<KillResolution, CenterMisKill> {
         let Some((alive_center, alive_chain_index)) = self.alive else {
+            if matches!(trigger, KillTrigger::ThirdClass) {
+                if let Some(t) = target {
+                    if let Some(bound_center) =
+                        historical_bound.filter(|c| CenterId::of(c) == t)
+                    {
+                        if let Some(target_chain_index) =
+                            self.consumed.iter().rposition(|c| *c == t)
+                        {
+                            return Ok(KillResolution::HistoricalBound(
+                                bound_center,
+                                target_chain_index,
+                            ));
+                        }
+                    }
+                }
+            }
             return Ok(KillResolution::ArenaEmpty);
         };
         let alive = CenterId::of(&alive_center);
@@ -717,6 +783,14 @@ impl CenterEventMachine {
             }
             // 链上线性查找（自尾向头——陈旧请求多命中靠近游标处）。
             if let Some(target_chain_index) = self.consumed.iter().rposition(|c| *c == t) {
+                if matches!(trigger, KillTrigger::ThirdClass) {
+                    if let Some(bound_center) = historical_bound.filter(|c| CenterId::of(c) == t) {
+                        return Ok(KillResolution::HistoricalBound(
+                            bound_center,
+                            target_chain_index,
+                        ));
+                    }
+                }
                 self.stale_total += 1;
                 return Ok(KillResolution::Stale(StaleKillRequest {
                     level: self.level,
@@ -775,6 +849,11 @@ impl CenterEventMachine {
     /// 其中本计数落在容读格、其余落在链尾 ⟹ 放行的两格分桶读数。
     pub fn tolerated_kills(&self) -> usize {
         self.tolerated_total
+    }
+
+    /// ★#487：精确挂起绑定授权的历史三类点命中累计。
+    pub fn historical_bound_kills(&self) -> usize {
+        self.historical_bound_total
     }
 
     /// ★#337（MINOR 补查）：重基把已被教义死亡杀掉的链尾实例重新扶上场的累计次数
