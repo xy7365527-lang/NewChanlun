@@ -78,8 +78,14 @@ pub struct SameLevelBlock {
 
 impl SameLevelBlock {
     /// 非自反的级别门拦截数：两个**不同**候选同级且区间相含、被跨级分支拒的对数。
+    ///
+    /// [`count_same_level`] 产出的实例恒满足 `blocked >= reflexive_blocked`（自反对是被拒对的子集）。
+    /// 但本结构体字段全 `pub` 且无构造器守这条不变量（探针载体，诊断 bin 直接读字段打印），
+    /// 违例实例在类型层可表达 ⟹ 用 `saturating_sub`：`reflexive_blocked > blocked` 时**饱和到 0**，
+    /// 不 panic（debug）也不回绕成天文数字（release）——回绕值会被 bin 原样印成「拦截数」，
+    /// 一个溢出的假计数比 0 更难识别。
     pub fn non_reflexive_blocked(self) -> usize {
-        self.blocked - self.reflexive_blocked
+        self.blocked.saturating_sub(self.reflexive_blocked)
     }
 }
 
@@ -304,6 +310,20 @@ mod tests {
         assert!(!candidate_is_sub(&event(2, inner), &event(1, outer)));
         // 反向级别 + 同区间：两端相切也不救级别分支。
         assert!(!candidate_is_sub(&event(1, outer), &event(0, outer)));
+    }
+
+    /// 违例构造（`reflexive_blocked > blocked`）下非自反拦截数饱和到 0，不 panic 也不回绕。
+    ///
+    /// 字段全 `pub` 且无构造器守 `blocked >= reflexive_blocked`（探针结构体，诊断 bin 直接读字段），
+    /// 故该违例在类型层可表达：裸 `-` 会在 debug 下 panic、release 下回绕成天文数字并被 bin 印出。
+    #[test]
+    fn non_reflexive_blocked_saturates_on_inconsistent_counts() {
+        let block = SameLevelBlock {
+            blocked: 1,
+            reflexive_blocked: 3,
+            ..SameLevelBlock::default()
+        };
+        assert_eq!(block.non_reflexive_blocked(), 0);
     }
 
     /// 退化区间（start > end）在跨级分支成立时仍被区间侧拒——单一来源的传导锁。
