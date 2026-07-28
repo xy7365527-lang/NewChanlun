@@ -4476,7 +4476,7 @@ mod tests {
     /// - **计量域 = 终态**：原「禁止方向（fresh 在产而因果簿已判终态 = 复活）必须为空」的**禁令
     ///   已按裁决取消**，改为计量 `revived_terminal`。复活型分叉是 E2E-O 终态语义历史相关性的
     ///   定义后果，不再是违规。本夹具（塌空后**未回长**）上它恒 0；回长场景的非零量度由
-    ///   `escalated_upstream_regrowth_after_collapse_forks_in_forbidden_direction` 单独计量。
+    ///   `escalated_upstream_regrowth_after_collapse_revival_fork_metered` 单独计量。
     ///   同域的 `fork_causal_only_terminal`（因果簿终态在案而 fresh 无该流）一并报数。
     ///
     /// 非真空前提保留：塌空须真产生 `Invalidated`、塌空后 fresh 须为空 —— 二者保证本锁走的是
@@ -4594,10 +4594,20 @@ mod tests {
 
     /// ★#551 复活型分叉的**计量锁**（甲口径定稿）。
     ///
-    /// **函数名沿用上浮期命名（`forbidden_direction`），语义以本 doc 为准 —— 改名会破坏既有
-    /// 测试名册差集对账这条纪律，故不改名。** 该方向已不再是「禁止方向」。同理，下方断言消息中
-    /// 的「禁止方向」「矛盾已上浮」也是上浮期措辞：断言按裁决要求**逐字未动**（改动会改变本锁
-    /// 锁住的事实），其定性一律以本 doc 为准。
+    /// **命名已按甲口径订正**（编排者 2026-07-28 裁决）：原上浮期名
+    /// `escalated_upstream_regrowth_after_collapse_forks_in_forbidden_direction` →
+    /// 现名 `…_revival_fork_metered`。该方向已不再是「禁止方向」，旧名与代码实际锁住的事实
+    /// 名实不符 = 声明膨胀（090 严格性），故改名，而非靠 doc 反向纠正。
+    /// 名册差集对账不靠「不改名」偿付，改由**显式声明 rename 非删增**偿付：改名 commit 的正文
+    /// 记录「删旧名 1 / 增新名 1、二者为同一测试的改名两端、测试体与断言消息逐字未动」，
+    /// 对账时按此把这一删一增抵消，不计入测试增删。
+    ///
+    /// **改名与断言消息的不对称（诚实声明）**：函数名改了，下方断言消息中的「禁止方向」
+    /// 「矛盾已上浮」**逐字未改**。二者性质不同 —— 函数名是本测试对外的身份标识，不进入任何
+    /// 断言比较，改它只改称谓；断言消息是断言失败时打印的文本，属于本锁固定下来的现场记录，
+    /// 改动它会改变本锁锁住的事实边界（裁决要求断言逐字不动）。故：称谓按裁决后的甲口径订正，
+    /// 断言文本保持上浮期原貌，其定性一律以本 doc 为准 —— 消息里的「禁止方向」读作
+    /// 「原判为禁止、现判为计量的那个方向」。
     ///
     /// 上游塌空后再回长到**逐字段相同**的结构时：因果簿按 E2E-O 判该 key 终态（`Invalidated`
     /// 不复活），而 fresh-full 无状态、只看当下，会重新产出同一个 key —— 复活型分叉在机制上可达。
@@ -4615,7 +4625,7 @@ mod tests {
     /// 生产可达性（保留）：BTC 100k 实测 `invalidations=0`，塌空—回长从未发生 ⟹ 该分叉当前
     /// **生产不可达**。
     #[test]
-    fn escalated_upstream_regrowth_after_collapse_forks_in_forbidden_direction() {
+    fn escalated_upstream_regrowth_after_collapse_revival_fork_metered() {
         let cfg = ThetaConfig::default();
         let layer = lifecycle_rich_layer();
         let mut cache = causal_book_over_prefixes(&layer, &cfg);
