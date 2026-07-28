@@ -168,14 +168,16 @@ def topo_divergence(
 
     dominant = barcode_c.max_persistence(dimension)
 
-    import persim
+    diagram_a = _diagram_array(barcode_a, dimension)
+    diagram_c = _diagram_array(barcode_c, dimension)
+    if diagram_a.shape == diagram_c.shape and (diagram_a == diagram_c).all():
+        # W(D, D) 按定义精确为 0。绕过 Hungarian 求解器，避免不同
+        # scipy/persim 平台对同一 diagram 留下非零浮点残差。
+        w_ac = 0.0
+    else:
+        import persim
 
-    w_ac = float(
-        persim.wasserstein(
-            _diagram_array(barcode_a, dimension),
-            _diagram_array(barcode_c, dimension),
-        )
-    )
+        w_ac = float(persim.wasserstein(diagram_a, diagram_c))
 
     return TopoDivergence(
         force_a=force_a,

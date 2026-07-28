@@ -106,9 +106,10 @@ pub struct MacdSeries {
 /// **关键 bit-exact 细节（经 Rust↔pandas 5000 点全管线零失配验证）**：
 /// 1. alpha 用 `1/(1+(span-1)/2)`（与 `2/(span+1)` 在双精度下相等，但按源码写法保留）。
 /// 2. `if weighted != cur` 守卫不可省（常数段跳过更新）。
-/// 3. 分子 `old_wt*weighted + new_wt*cur` 必须用 **FMA**（`mul_add`）——pandas 编译的
-///    Cython 用 `-ffp-contract` 把它融合为单条 FMA 指令，末位 ULP 与朴素乘加不同。
-///    Rust 默认不做浮点收缩，故显式 `mul_add` 复刻。
+/// 3. 分子 `old_wt*weighted + new_wt*cur` 是否收缩取决于 pandas wheel 的目标特征：
+///    AArch64（以及显式启用 `fma` 的 x86）会融合为 FMA；manylinux 基线 x86_64
+///    不含 `fma`，保留两次乘法再加法。Rust 必须跟随同一目标特征，否则第二个点
+///    就会产生 ULP 分歧。
 /// 4. `weighted /= (old_wt + new_wt)` 是独立的第二步除法（先乘加后除，不可合并）。
 ///
 /// alpha = 2 / (span + 1) 数值上等于源码 `1/(1+com)`；此处按源码形式书写以杜绝歧义。
@@ -130,8 +131,27 @@ fn ewm_adjust_false(values: &[f64], span: i64) -> Vec<f64> {
     for &cur in &values[1..] {
         old_wt *= old_wt_factor;
         if weighted != cur {
-            // FMA：复刻 pandas 编译期浮点收缩（old_wt*weighted + new_wt*cur 单条 FMA）。
-            weighted = old_wt.mul_add(weighted, new_wt * cur);
+            let new_term = new_wt * cur;
+            #[cfg(any(
+                target_arch = "aarch64",
+                all(
+                    any(target_arch = "x86", target_arch = "x86_64"),
+                    target_feature = "fma"
+                )
+            ))]
+            {
+                weighted = old_wt.mul_add(weighted, new_term);
+            }
+            #[cfg(not(any(
+                target_arch = "aarch64",
+                all(
+                    any(target_arch = "x86", target_arch = "x86_64"),
+                    target_feature = "fma"
+                )
+            )))]
+            {
+                weighted = old_wt * weighted + new_term;
+            }
             weighted /= old_wt + new_wt;
         }
         old_wt = 1.0;

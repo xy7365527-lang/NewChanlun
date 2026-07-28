@@ -334,6 +334,23 @@ class TestTopoDivergence:
         assert div.ratio == pytest.approx(1.0)
         assert not div.is_divergent  # force_c == force_a 不算衰减
 
+    def test_identical_diagrams_bypass_solver_residual(self, monkeypatch):
+        """同一 persistence diagram 的距离按定义精确为零，不消费求解器残差。"""
+        barcode = PersistenceBarcode(
+            bars=(
+                Bar(birth=1.0, death=3.0, persistence=2.0, dimension=0),
+                Bar(birth=2.0, death=5.0, persistence=3.0, dimension=0),
+            ),
+            n_points=4,
+        )
+
+        import persim
+
+        monkeypatch.setattr(persim, "wasserstein", lambda *_args, **_kwargs: 1e-8)
+        div = topo_divergence(barcode, barcode, dimension=0)
+
+        assert div.wasserstein_ac == 0.0
+
     def test_result_is_frozen(self):
         div = TopoDivergence(1.0, 0.5, 0.5, True, 1.0, 0.3, 1)
         with pytest.raises(dataclasses.FrozenInstanceError):

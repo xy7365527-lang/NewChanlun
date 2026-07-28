@@ -11,6 +11,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from morse_landscape import MorseLandscape, UnionFind, build_morse_landscape
+from migrate_to_block_topology import _relations_is_lfs_pointer
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +155,8 @@ REAL_RELATIONS = Path(".chanlun/block-topology/relations.jsonl")
 class TestRealData:
     def test_real_data_hard_constraint(self):
         """在真实 relations.jsonl 上运行，验证 862 硬约束。"""
+        if _relations_is_lfs_pointer(REAL_RELATIONS.parent):
+            pytest.skip("relations.jsonl is an unresolved Git LFS pointer")
         landscape = build_morse_landscape(
             relations_path=REAL_RELATIONS,
             cache_path=None,
