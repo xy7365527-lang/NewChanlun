@@ -123,8 +123,9 @@ pub(super) struct NestGateStats {
     pub(super) chain_none: usize,
     /// 链顶级别分布（有链顶的候选：Pass/Reject/NoChain 全计——链即身份读数）。
     pub(super) chain_top_dist: std::collections::BTreeMap<u32, usize>,
-    /// π 单门双覆盖的出场归因子总体：门前候选中，方向性候选与 `prev_active`
+    /// π 单门双覆盖的出场归因子总体：χ 过滤后的门前候选中，方向性候选与 `prev_active`
     /// 存在同级反向活动腿的总数。`prev_active` 按定义只含未平仓腿。
+    ///（严格超集口径见 [`exit_candidate_would_close`] 文档——不含 fold 证书门与腿占用状态。）
     pub(super) exit_cand_total: usize,
     /// 上述子总体中被门放行的候选数；拒绝数由 `total - admitted` 导出。
     pub(super) exit_cand_admitted: usize,
@@ -210,9 +211,14 @@ impl NestGateStats {
     }
 }
 
-/// π 候选过滤门的出场归因读出：方向性候选若命中同级反向活动腿，则它在未过滤时
-/// 会进入 fold 规则2 的平仓消费域。这里只读 `(level, dir)` 与 `prev_active`，不复制
-/// fold 平仓谓词、不消费候选，也不参与 [`NestChainGate::admit`] 的判定。
+/// π 候选过滤门的出场归因读出：方向性候选若命中同级反向活动腿，则它满足 fold 规则2
+/// 平仓消费的级别/方向前置条件。本读出**不含** fold 的 `nest_confirmed` 证书门与 fold 内
+/// 腿占用状态，故为真实消费域的**超集**：已知偏宽源 = (a) `struct_break_dir` 零 bit 回退
+/// 候选（`nest_confirmed=false`，fold 归 record）、(b) 同 bar 多候选竞争同一腿的重复计数
+///（#510 影子评审实测 60000 bar 约 4.4%）。方向性候选经 `root_sel` 蕴含
+/// `nest_confirmed=true ∧ bsp_class≠MAX`，故证书门本身不构成偏差源。
+/// 这里只读 `(level, dir)` 与 `prev_active`，不复制 fold 平仓谓词、不消费候选，
+/// 也不参与 [`NestChainGate::admit`] 的判定。读出口径 = χ 过滤后的门前候选。
 pub(super) fn exit_candidate_would_close(
     candidate_level: u32,
     candidate_dir: super::super::strategy::voice::VoiceSide,
