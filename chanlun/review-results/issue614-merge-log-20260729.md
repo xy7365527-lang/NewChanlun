@@ -395,3 +395,37 @@ $ git log -1 --format='%H parents=%P' 79a2715070
 - 已清理：`/private/tmp/wt-614-base-main`、`/private/tmp/wt-614-base-kimi`（`git worktree remove`）
 - 日志留档：`/tmp/wt614-{merged,basemain,basekimi}-test.log`、`/tmp/wt614-{check-all,basemain-check,basekimi-check}.log`
 - 主仓与 `/private/tmp/kimi-nest-mainline`：全程只读，零写入
+
+---
+
+## §8 后记：移动靶再次发生（收尾时点实测）
+
+本车收尾时复查分支引用，`kimi-nest-mainline-20260717` 已从 `797c9ad35c` 再推进到
+`21cf2dd442`（**又 10 个提交**，平行 session 持续提交）。实测 `797c9ad35c` 仍是新 tip 的
+严格祖先 ⟹ **本次合并仍然有效**，只是不含这 10 个增量：
+
+```
+21cf2dd442 refactor(theta): #633 批6 收敛至全函数 <=50（TowerLoop 携带量载体 + 循环骨架三分）
+ceb28e34d4 docs(theta): #630 ConfirmCursor 可见性收紧评估
+6c77bbab19 refactor(theta): #630 level_view.rs 生产段按域拆分（1965→572+4 sibling 文件）
+4f2ab99f4f refactor(theta): #633 批5 主循环外提 build_level_tower
+cd8dd00430 refactor(theta): #633 批4 BSP/装配/投影段分解
+2c8c3492a5 feat(theta):    #635 register_new 处死通道恢复点护栏（#632 L2）
+be75dc590c refactor(theta): #633 批3 扫描/继承/水线段分解
+891d24dd27 refactor(theta): #633 批2 cascade 失效段分解
+6af5314a79 refactor(theta): #633 批1 序幕分解
+d9f1860124 refactor(theta): #631 level_origin 空转字段处置（#610 归因附带）
+```
+
+两点要紧的：
+
+1. **`d9f1860124`（#631）把 `level_origin` 空转字段处置掉了**——那正是本次 ⚠LOW（signal.rs
+   GOLDEN 双值、gamma_dump 字段移除）的成因。kimi 线自己也收敛到了 main #455 的方向，
+   两线在这一点上**本已趋同**，只是晚于本次合并端点。
+2. **#630/#633 是又一轮大拆分**（`level_view.rs` 1965→572+4 文件、主循环三分）。这会让
+   ⚠HIGH-2 的「main 内联 vs kimi 拆分」冲突面**继续扩大**。
+
+⟹ #614 票据评论里的执行协议第①条「两线冻结窗口（平行 session 停 commit，移动靶合并必烂）」
+**并未生效**：本车执行全程 kimi 线在持续提交（开工时 `1cab40f9d8`→`797c9ad35c`，
+收尾时 `797c9ad35c`→`21cf2dd442`，共 20 个提交）。**落线前必须先冻结**，否则
+⚠HIGH-1/2/3 的移植工作会被新的分叉不断作废。这是本车对落线次序的第一条建议。
