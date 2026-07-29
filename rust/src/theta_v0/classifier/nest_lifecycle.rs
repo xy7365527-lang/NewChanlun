@@ -93,6 +93,10 @@ use super::super::types::{Center, Direction, MoveKind, PendingTail, Segment, Sid
 use super::divergence::{
     same_color_area, same_dir_hist_peak, segment_dif_peak, segments_diverge_or,
 };
+use super::ledger_kernel::{
+    first_write_clock, LedgerAdmission, LedgerBook, LedgerDelta, LedgerEntryCore, LedgerPolicy,
+    LedgerRetrogradeRejection, LedgerRevision, LedgerSettlement, LedgerState,
+};
 use super::level_view::{LowerLeg, NestCandidateEvent, NestDivergenceKind};
 use super::center::{center_from_segments, UnitRange};
 use super::recursive_tower::{detect_centers_windowed_resume, map_src_to_close_idx, ElementId};
@@ -222,22 +226,43 @@ fn bridge_by_center_upgrade(old: &LifecycleKey, new: &LifecycleKey) -> bool {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// 三态（E2E-D5 最小子集；`Unresolved` 出切片——模块头 090 登记 2）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NestEventState {
-    /// 活假设（061:26「都可以先假设是进入背驰段」——Provisional 是默认态，非例外态）。
-    Provisional,
-    /// first_provable 已写 ∧ c 结构完成 ∧ 完成时复核仍弱（024:24）。
-    Confirmed,
-    /// 力度反超（061:26，可由 Provisional 直接到达，无需结构先完成）、从未构成
-    /// （061:28）或身份消失（E2E §1:81）。
-    /// 终态留档，禁删除模拟失效。
-    Invalidated,
-}
+///
+/// **本类型即内核三态**（票 #573 T1 重基）：[`LedgerState`] 承载「未决 / 成立 / 失效」这条
+/// **账本纪律**（终态吸收、禁复活、终态钟只写一次），三个变体逐位同名同序。域语义
+/// ——何时进入哪一态、该态在缠论下的名分——仍在本模块，逐条登记如下：
+///
+/// - `Provisional` = 活假设（061:26「都可以先假设是进入背驰段」——默认态，非例外态）;
+/// - `Confirmed` = first_provable 已写 ∧ c 结构完成 ∧ 完成时复核仍弱（024:24）;
+/// - `Invalidated` = 力度反超（061:26，可由 Provisional 直接到达，无需结构先完成）、
+///   从未构成（061:28）或身份消失（E2E §1:81）；终态留档，禁删除模拟失效。
+///
+/// `is_terminal` 由内核提供（同一条纪律，无域内容），语义一个 bit 不变。
+pub type NestEventState = LedgerState;
 
-impl NestEventState {
-    /// 终态（Confirmed/Invalidated）⟹ 吸收：同 key 任何后续观察零输出（E2E §1:83 禁复活）。
-    pub fn is_terminal(self) -> bool {
-        matches!(self, NestEventState::Confirmed | NestEventState::Invalidated)
+/// 活假设账本的泛化面实例（票 #573 T1）：把 11 个对象无关责任点接到内核
+/// [`LedgerBook`]，域侧只留自己的判据（桥/同锚/中枢升级、三态业务条件、原因码含义、
+/// 域钟语义、provider/feed、力度判定、完成信号与消失扫描）。
+///
+/// 四组类型参数的域取值：`Key` = [`LifecycleKey`]（六元组）、`Observation` =
+/// [`LifecycleObservation`]（事件 / pan 活窗双通道）、`RevisionKind` =
+/// [`LifecycleRevisionKind`]、ReasonPayload = [`InvalidatedReason`] + [`ForceEvidence`]。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NestPolicy;
+
+impl LedgerPolicy for NestPolicy {
+    type Key = LifecycleKey;
+    type Observation = LifecycleObservation;
+    type RevisionKind = LifecycleRevisionKind;
+    type Reason = InvalidatedReason;
+    type Evidence = ForceEvidence;
+    type Entry = NestLifecycleEntry;
+
+    fn observation_key(observation: &Self::Observation) -> Self::Key {
+        observation.key()
+    }
+
+    fn opened_revision_kind() -> Self::RevisionKind {
+        LifecycleRevisionKind::Observed
     }
 }
 
@@ -372,17 +397,13 @@ enum MigrationKind {
 }
 
 /// 一条修订（entry 留档 + advance 增量返回双通道；禁删除模拟失效，E2E §1:81）。
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct LifecycleRevision {
-    /// 修订发生时 entry 的身份键（Supersedes 后为新键）。
-    pub key: LifecycleKey,
-    pub kind: LifecycleRevisionKind,
-    /// 产生该修订的 prefix（一切钟 ≤ 此 as_of，E2E-S5 判据）。
-    pub as_of: usize,
-    /// 力度证据（ForceOvertake / NeverConstituted 且力度序列齐备时现算；
-    /// IdentityVanished 恒 None）。
-    pub evidence: Option<ForceEvidence>,
-}
+///
+/// **本类型即内核修订**（票 #573 T1 重基）：[`LedgerRevision`] 四字段与旧域结构逐位同构
+/// ——`key`（修订发生时 entry 的身份键，Supersedes 后为新键）、`kind`、`as_of`（产生该修订
+/// 的 prefix，一切钟 ≤ 此 as_of，E2E-S5 判据）、`evidence`（力度证据：ForceOvertake /
+/// NeverConstituted 且力度序列齐备时现算，IdentityVanished 恒 None）。append-only 纪律与
+/// 「计数 == 留档长度」由内核唯一追加点 [`LedgerEntryCore::push_revision`] 结构性保证。
+pub type LifecycleRevision = LedgerRevision<NestPolicy>;
 
 /// 生命周期 entry：身份 + 三态 + 五钟 + 留档（卡 §2.3 + #78 修复 1/2 字段）。
 ///
@@ -431,47 +452,151 @@ pub struct NestLifecycleEntry {
     pub revisions: Vec<LifecycleRevision>,
 }
 
-impl NestLifecycleEntry {
-    /// 追加一条修订（计数与留档同步推进；E2E §1:83 业务载荷投影变化才调用）。
-    /// revision.key 取调用时 entry 的当前键（Supersedes 迁移先改键再推送 ⟹ 新键）。
-    fn push_revision(
-        &mut self,
-        kind: LifecycleRevisionKind,
-        as_of: usize,
-        evidence: Option<ForceEvidence>,
-    ) -> LifecycleRevision {
-        self.revision += 1;
-        let revision = LifecycleRevision {
-            key: self.key,
-            kind,
-            as_of,
-            evidence,
-        };
-        self.revisions.push(revision);
-        revision
+/// 条目通用面（票 #573 T1）：域字段布局一个 bit 不动，只经访问器把内核所需的读写口
+/// 暴露出去。追加（`push_revision`）与终态落账（`settle`）两条写入路径由内核默认实现
+/// 独占 ⟹「修订计数 == 留档长度」不再靠本模块自觉维护，而是结构性成立。
+impl LedgerEntryCore<NestPolicy> for NestLifecycleEntry {
+    /// 建空白条目：三态默认 Provisional、观察钟与门卫钟同取 `as_of`、五钟其余为空、
+    /// 计数 0、留档空、无来源链。建项修订由 [`LedgerBook::open_on_observation`] 追加。
+    fn open(key: LifecycleKey, as_of: usize) -> Self {
+        Self {
+            key,
+            state: NestEventState::Provisional,
+            revision: 0,
+            observed_at: as_of,
+            first_provable_at: None,
+            structure_end_at: None,
+            confirmed_at: None,
+            invalidated_at: None,
+            invalidated_reason: None,
+            vanish_cause: None,
+            force_evidence: None,
+            force_unavailable_at: None,
+            superseded_from: None,
+            last_as_of: as_of,
+            revisions: Vec::new(),
+        }
     }
 
+    fn key(&self) -> LifecycleKey {
+        self.key
+    }
+
+    fn set_key(&mut self, key: LifecycleKey) {
+        self.key = key;
+    }
+
+    fn state(&self) -> NestEventState {
+        self.state
+    }
+
+    fn set_state(&mut self, state: NestEventState) {
+        self.state = state;
+    }
+
+    fn revision_count(&self) -> u32 {
+        self.revision
+    }
+
+    fn set_revision_count(&mut self, count: u32) {
+        self.revision = count;
+    }
+
+    fn revisions(&self) -> &[LifecycleRevision] {
+        &self.revisions
+    }
+
+    fn revisions_mut(&mut self) -> &mut Vec<LifecycleRevision> {
+        &mut self.revisions
+    }
+
+    /// 出生钟 = 首见 prefix（建仓写一次、无任何改写点）。
+    fn opened_at(&self) -> usize {
+        self.observed_at
+    }
+
+    fn last_as_of(&self) -> usize {
+        self.last_as_of
+    }
+
+    fn set_last_as_of(&mut self, as_of: usize) {
+        self.last_as_of = as_of;
+    }
+
+    /// 落锤钟合并读数：域按终态分列两只字段（终态互斥 ⟹ 至多一只有值）。
+    fn settled_at(&self) -> Option<usize> {
+        self.confirmed_at.or(self.invalidated_at)
+    }
+
+    fn migrated_from(&self) -> Option<LifecycleKey> {
+        self.superseded_from
+    }
+
+    fn set_migrated_from(&mut self, from: LifecycleKey) {
+        self.superseded_from = Some(from);
+    }
+
+    /// 终态载荷落账（内核 [`LedgerEntryCore::settle`] 的域侧写入部）：按终态写对应的落锤钟
+    /// 与载荷。`vanish_cause` 由 `reason` 现场投影 ⟹ 两个字段结构上不可能不一致；
+    /// Confirmed 臂不碰任何 Invalidated 侧字段（正向终态无原因码、无力度证据）。
+    fn write_settlement(
+        &mut self,
+        state: NestEventState,
+        reason: Option<InvalidatedReason>,
+        as_of: usize,
+        evidence: Option<ForceEvidence>,
+    ) {
+        match state {
+            NestEventState::Confirmed => self.confirmed_at = Some(as_of),
+            NestEventState::Invalidated => {
+                self.invalidated_at = Some(as_of);
+                self.invalidated_reason = reason;
+                self.vanish_cause = match reason.expect("Invalidated 必有原因码") {
+                    InvalidatedReason::IdentityVanished { cause } => Some(cause),
+                    InvalidatedReason::ForceOvertake | InvalidatedReason::NeverConstituted => None,
+                };
+                self.force_evidence = evidence;
+            }
+            NestEventState::Provisional => unreachable!("非终态不入终态落账"),
+        }
+    }
+}
+
+impl NestLifecycleEntry {
     /// 转入终态 `Invalidated` 并留档（三个原因码的**唯一**写入点——原因码与力度证据同写，
     /// 结构上兑现模块头 090 登记 4「原因码与力度证据入载荷」；无删除路径，禁删除模拟失效）。
     ///
     /// `evidence`：ForceOvertake / NeverConstituted 传本 prefix 现算证据（材料缺则诚实
-    /// None）；IdentityVanished 传 None（无力度语义）。`vanish_cause` 由 `reason` 现场投影
-    /// （单一写入点 ⟹ 两个字段结构上不可能不一致）。
+    /// None）；IdentityVanished 传 None（无力度语义）。转终态与追加修订的次序纪律由内核
+    /// [`LedgerEntryCore::settle`] 承担（全内核唯一转终态点），本方法只装域载荷。
     fn invalidate(
         &mut self,
         reason: InvalidatedReason,
         as_of: usize,
         evidence: Option<ForceEvidence>,
     ) -> LifecycleRevision {
-        self.state = NestEventState::Invalidated;
-        self.invalidated_at = Some(as_of);
-        self.invalidated_reason = Some(reason);
-        self.vanish_cause = match reason {
-            InvalidatedReason::IdentityVanished { cause } => Some(cause),
-            InvalidatedReason::ForceOvertake | InvalidatedReason::NeverConstituted => None,
-        };
-        self.force_evidence = evidence;
-        self.push_revision(LifecycleRevisionKind::Invalidated { reason }, as_of, evidence)
+        self.settle(
+            LedgerSettlement {
+                state: NestEventState::Invalidated,
+                kind: LifecycleRevisionKind::Invalidated { reason },
+                reason: Some(reason),
+                evidence,
+            },
+            as_of,
+        )
+    }
+
+    /// 转入终态 `Confirmed` 并留档（完成时复核仍弱，024:24；正向终态无原因码、无力度证据）。
+    fn confirm(&mut self, as_of: usize) -> LifecycleRevision {
+        self.settle(
+            LedgerSettlement {
+                state: NestEventState::Confirmed,
+                kind: LifecycleRevisionKind::Confirmed,
+                reason: None,
+                evidence: None,
+            },
+            as_of,
+        )
     }
 }
 
@@ -660,14 +785,10 @@ impl<'a> ForceMaterial<'a> {
 }
 
 /// 倒退 prefix 显式拒绝注记（#78 修复 2：禁静默吸收）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RetrogradeRejection {
-    pub key: LifecycleKey,
-    /// 该身份已见最大 as_of。
-    pub last_as_of: usize,
-    /// 被拒绝的倒退 as_of。
-    pub rejected_as_of: usize,
-}
+///
+/// **本类型即内核注记**（票 #573 T1 重基）：三字段逐位同构——`key`、`last_as_of`
+/// （该身份已见最大 as_of）、`rejected_as_of`（被拒绝的倒退 as_of）。
+pub type RetrogradeRejection = LedgerRetrogradeRejection<LifecycleKey>;
 
 /// 完成信号已到但力度不可验的独立审计事实（#428）。
 ///
@@ -778,10 +899,13 @@ pub struct LifecycleSettlementStats {
 /// `divergence_confirmed` 布尔口径、N^δ 装配仍只消费已闭合完整 c_p。
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct NestLifecycleBook {
-    entries: BTreeMap<LifecycleKey, NestLifecycleEntry>,
-    /// 倒退拒绝审计注记（#78 修复 2）。同一倒退喂入重复执行重复记录（重复违规事实本身；
-    /// 与 ForceUnavailable 同 as_of 幂等不对称——原 #78 评审 Low 登记同判，不阻塞）。
-    retrograde_rejections: Vec<RetrogradeRejection>,
+    /// 账本内核（票 #573 T1）：per-key 注册表 + 倒退拒绝注记面。11 个对象无关责任点
+    /// （建项 / 追加 / 计数一致 / 倒退拒绝 / 终态吸收 / 钟首写 / 增量 / 迁移 / 枚举 /
+    /// 不变量骨架）全在此，本模块只加自己的判据与域结算。
+    ///
+    /// 倒退拒绝注记随内核走：同一倒退喂入重复执行重复记录（重复违规事实本身；与
+    /// ForceUnavailable 同 as_of 幂等不对称——原 #78 评审 Low 登记同判，不阻塞）。
+    ledger: LedgerBook<NestPolicy>,
     /// 数据源真实首完成信号（按桥身份唯一；与终态独立，禁用终态冒充「已经完成」）。
     completion_signals: Vec<CompletionSignal>,
     /// 完成信号与力度不可验同时发生的独立审计面（#428；按桥身份唯一）。
@@ -794,25 +918,25 @@ impl NestLifecycleBook {
     }
 
     pub fn len(&self) -> usize {
-        self.entries.len()
+        self.ledger.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+        self.ledger.is_empty()
     }
 
     /// entry 读面（TDD 接缝外部行为断言面）。
     pub fn get(&self, key: &LifecycleKey) -> Option<&NestLifecycleEntry> {
-        self.entries.get(key)
+        self.ledger.get(key)
     }
 
     pub fn entries(&self) -> impl Iterator<Item = (&LifecycleKey, &NestLifecycleEntry)> {
-        self.entries.iter()
+        self.ledger.entries()
     }
 
     /// 倒退拒绝注记门户（#78 修复 2 审计面）。
     pub fn retrograde_rejections(&self) -> &[RetrogradeRejection] {
-        &self.retrograde_rejections
+        self.ledger.retrograde_rejections()
     }
 
     /// 数据源真实首完成信号门户（按桥身份唯一；独立于状态终局）。
@@ -828,7 +952,7 @@ impl NestLifecycleBook {
     /// 汇总终局分布与寿命；闪现只计终局钟与 `observed_at` 同刻的身份。
     pub fn settlement_stats(&self) -> LifecycleSettlementStats {
         let mut stats = LifecycleSettlementStats {
-            entry_count: self.entries.len(),
+            entry_count: self.ledger.len(),
             ..LifecycleSettlementStats::default()
         };
         let mut nonflash_lifetimes = Vec::new();
@@ -841,7 +965,7 @@ impl NestLifecycleBook {
         // 入的 `from` 是自己的旧键——旧键已被 `remove`、不在 `entries` 内，`claimed.contains`
         // 恒不命中，不污染口径。账本自足，不另存状态。
         let claimed: std::collections::BTreeSet<LifecycleKey> = self
-            .entries
+            .ledger
             .values()
             .flat_map(|entry| entry.revisions.iter())
             .filter_map(|revision| match revision.kind {
@@ -849,7 +973,7 @@ impl NestLifecycleBook {
                 _ => None,
             })
             .collect();
-        for entry in self.entries.values() {
+        for entry in self.ledger.values() {
             stats.first_provable_count += usize::from(entry.first_provable_at.is_some());
             let (terminal_at, force_overtake) = match entry.state {
                 NestEventState::Provisional => {
@@ -912,10 +1036,7 @@ impl NestLifecycleBook {
     /// Provisional/Invalidated 永不经本门户离开 book——Invalidated 可查账
     /// （entries/revisions 全程留档），不开放消费（模块头 090 登记 4）。
     pub fn consumable_closed(&self) -> Vec<&NestLifecycleEntry> {
-        self.entries
-            .values()
-            .filter(|entry| entry.state == NestEventState::Confirmed)
-            .collect()
+        self.ledger.in_state(NestEventState::Confirmed)
     }
 
     /// 谱系构建节点读面（裁定 #64 §2(a)「构建放开」）。
@@ -924,7 +1045,7 @@ impl NestLifecycleBook {
     /// `d_parent_interval_snapshot`/装配候选/证书真值路径（nest.rs:802-810/:987-989
     /// 装配输入不变；白名单工程桥不得进证书真值路径——裁定 §2(c) 裁定义务）。
     pub fn lineage_nodes(&self) -> Vec<&NestLifecycleEntry> {
-        self.entries.values().collect()
+        self.ledger.values().collect()
     }
 
     /// 推进一 prefix（卡 §2.3 转移表 + #78 修复全量）。返回本 prefix 新产出修订
@@ -946,35 +1067,32 @@ impl NestLifecycleBook {
         as_of: usize,
         material: &ForceMaterial,
     ) -> Vec<LifecycleRevision> {
-        let mut delta = Vec::new();
+        let mut delta = LedgerDelta::new();
         let mut seen = std::collections::BTreeSet::new();
         for obs in observations {
             let key = obs.key();
             seen.insert(key);
             // 第 1 步：建仓 / 白名单桥迁移 / 终态吸收（含桥匹配到终态）。
-            if !self.entries.contains_key(&key) {
+            if !self.ledger.contains(&key) {
                 match self.bridge_match(&key) {
                     Some(old_key) => {
-                        let old = &self.entries[&old_key];
+                        let old = self.ledger.get(&old_key).expect("桥匹配键在册");
+                        let (old_last_as_of, old_terminal) =
+                            (old.last_as_of, old.state.is_terminal());
                         // 同一身份的倒退喂入：显式拒绝（不迁移、不建仓、零 revision）。
-                        if as_of < old.last_as_of {
-                            let last_as_of = old.last_as_of;
-                            self.retrograde_rejections.push(RetrogradeRejection {
-                                key,
-                                last_as_of,
-                                rejected_as_of: as_of,
-                            });
+                        if as_of < old_last_as_of {
+                            self.ledger.reject_retrograde(key, old_last_as_of, as_of);
                             continue;
                         }
                         // 终态吸收含桥匹配：终态不迁移、不建仓、零输出（禁复活，E2E §1:83）。
-                        if old.state.is_terminal() {
+                        if old_terminal {
                             continue;
                         }
                         // Supersedes 迁移（仅 Provisional 可达——终态已在上一步吸收）：
                         // 钟不动、链留痕（单一写入点 [`Self::migrate_entry`]）。
                         let revision =
                             self.migrate_entry(old_key, key, MigrationKind::Bridge, as_of);
-                        delta.push(revision);
+                        delta.record(revision);
                     }
                     None => {
                         // 档 1（票 #603 / #599 裁定）：桥未命中 ⟹ 试中枢升级认领（严格同锚，
@@ -995,76 +1113,55 @@ impl NestLifecycleBook {
                                     MigrationKind::CenterUpgrade,
                                     as_of,
                                 );
-                                delta.push(revision);
+                                delta.record(revision);
                             }
                             (claimed_from, _) => {
-                                // 新身份建仓（observed_at 建仓写一次、无任何改写点；倒退 as_of 的
-                                // 新身份无基线可违照建——#78 评审信息项，observed_at ≤ last_as_of
-                                // 不受损）。`claimed_from` 有值 ⟹ 紧跟一条认领留痕修订。
-                                let revision = LifecycleRevision {
-                                    key,
-                                    kind: LifecycleRevisionKind::Observed,
-                                    as_of,
-                                    evidence: None,
-                                };
-                                let mut entry = NestLifecycleEntry {
-                                    key,
-                                    state: NestEventState::Provisional,
-                                    revision: 1,
-                                    observed_at: as_of,
-                                    first_provable_at: None,
-                                    structure_end_at: None,
-                                    confirmed_at: None,
-                                    invalidated_at: None,
-                                    invalidated_reason: None,
-                                    vanish_cause: None,
-                                    force_evidence: None,
-                                    force_unavailable_at: None,
-                                    superseded_from: None,
-                                    last_as_of: as_of,
-                                    revisions: vec![revision],
-                                };
-                                delta.push(revision);
+                                // 新身份建仓（内核首次观察建项：Provisional + 观察钟/门卫钟同取
+                                // as_of + 一条 `Observed` 建项修订；observed_at 建仓写一次、无任何
+                                // 改写点。倒退 as_of 的新身份无基线可违照建——#78 评审信息项，
+                                // observed_at ≤ last_as_of 不受损）。`claimed_from` 有值 ⟹ 紧跟
+                                // 一条认领留痕修订。
+                                let revision = self
+                                    .ledger
+                                    .open_on_observation(obs, as_of)
+                                    .expect("建仓分支的身份此前不在册");
+                                delta.record(revision);
                                 if let Some(old_key) = claimed_from {
-                                    entry.superseded_from = Some(old_key);
+                                    let entry =
+                                        self.ledger.get_mut(&key).expect("本轮刚建仓的身份在册");
+                                    entry.set_migrated_from(old_key);
                                     let claim_revision = entry.push_revision(
                                         LifecycleRevisionKind::CenterUpgraded { from: old_key },
                                         as_of,
                                         None,
                                     );
-                                    delta.push(claim_revision);
+                                    delta.record(claim_revision);
                                 }
-                                self.entries.insert(key, entry);
                             }
                         }
                     }
                 }
             }
-            // 第 2 步：倒退守卫（per-identity last_as_of；本 prefix 新建 entry 恒通过——
-            // last_as_of = as_of，守卫不触发）。
-            let last_as_of = self.entries[&key].last_as_of;
-            if as_of < last_as_of {
-                self.retrograde_rejections.push(RetrogradeRejection {
-                    key,
-                    last_as_of,
-                    rejected_as_of: as_of,
-                });
-                continue; // 零 revision、entry 零改动（显式拒绝，非静默吸收——#78 修复 2）
+            // 第 2/3 步：倒退守卫（per-identity last_as_of；本 prefix 新建 entry 恒通过——
+            // last_as_of = as_of，守卫不触发）+ 终态吸收（禁复活）。两者由内核准入一次给出。
+            match self.ledger.admit(&key, as_of) {
+                // 零 revision、entry 零改动（显式拒绝 + 注记，非静默吸收——#78 修复 2）。
+                LedgerAdmission::RetrogradeRejected => continue,
+                // 门卫钟已前移，但终态不复活 ⟹ 零输出（E2E §1:83）。
+                LedgerAdmission::TerminalAbsorbed => continue,
+                LedgerAdmission::Accepted => {}
             }
-            let entry = self.entries.get_mut(&key).expect("entry 已建仓");
-            entry.last_as_of = as_of;
-            // 第 3 步：终态吸收（禁复活）。
-            if entry.state.is_terminal() {
-                continue;
-            }
+            let entry = self.ledger.get_mut(&key).expect("entry 已建仓");
             // 第 4 步：力度求值（事件通道恒 Verified；活窗三值化）。
             let force = obs.force(material);
             // 第 5 步：first_provable 首次写入（仅 Verified(true)——#78 核验 T14 锚定；
             // Unavailable 不写 first_provable）。
-            if entry.first_provable_at.is_none() && force == ForceCheck::Verified(true) {
-                entry.first_provable_at = Some(as_of);
-                let revision = entry.push_revision(LifecycleRevisionKind::FirstProvable, as_of, None);
-                delta.push(revision);
+            if force == ForceCheck::Verified(true)
+                && first_write_clock(&mut entry.first_provable_at, as_of)
+            {
+                let revision =
+                    entry.push_revision(LifecycleRevisionKind::FirstProvable, as_of, None);
+                delta.record(revision);
             }
             // 第 6 步：反超判负 / Unavailable 审计注记。反超只要求曾可证；结构完成不是
             // 前置条件，因此这里合法产生 Provisional→ForceOvertake 第二终局路径（Q3）。
@@ -1073,12 +1170,9 @@ impl NestLifecycleBook {
                     if entry.first_provable_at.is_some() {
                         // 反超（061:26）：曾可证 ∧ 当前不再弱 ⟹ Invalidated(ForceOvertake)。
                         let evidence = obs.force_evidence(material);
-                        let revision = entry.invalidate(
-                            InvalidatedReason::ForceOvertake,
-                            as_of,
-                            evidence,
-                        );
-                        delta.push(revision);
+                        let revision =
+                            entry.invalidate(InvalidatedReason::ForceOvertake, as_of, evidence);
+                        delta.record(revision);
                         continue;
                     }
                 }
@@ -1102,7 +1196,7 @@ impl NestLifecycleBook {
                             as_of,
                             None,
                         );
-                        delta.push(revision);
+                        delta.record(revision);
                     }
                     continue;
                 }
@@ -1111,21 +1205,17 @@ impl NestLifecycleBook {
             // 第 7 步：完成时复核（024:24——同一谓词在完成窗上重算为真才结算；禁
             // 「曾经弱过」冒充，E2E §4.1:151；复核用本 prefix 现算 force，不沿用旧值）。
             if obs.structure_completed() {
-                if entry.structure_end_at.is_none() {
-                    entry.structure_end_at = Some(as_of);
+                if first_write_clock(&mut entry.structure_end_at, as_of) {
                     let revision = entry.push_revision(
                         LifecycleRevisionKind::StructureCompleted,
                         as_of,
                         None,
                     );
-                    delta.push(revision);
+                    delta.record(revision);
                 }
                 if entry.first_provable_at.is_some() && force == ForceCheck::Verified(true) {
-                    entry.state = NestEventState::Confirmed;
-                    entry.confirmed_at = Some(as_of);
-                    let revision =
-                        entry.push_revision(LifecycleRevisionKind::Confirmed, as_of, None);
-                    delta.push(revision);
+                    let revision = entry.confirm(as_of);
+                    delta.record(revision);
                 } else if entry.first_provable_at.is_none() {
                     // 从未构成（061:28「因为背驰如果没有创新高，是不存在的」，ADR-0003）：
                     // 结构完成时从未写入 first_provable ⟹ 该假设根本未构成，转终态挂
@@ -1139,12 +1229,9 @@ impl NestLifecycleBook {
                     // 弱」优先——宁可推迟结算，不从缺失数据造否证；T19 锁定）。数据补齐后的
                     // 完成信号照常结算；始终不补则永久滞留。
                     let evidence = obs.force_evidence(material);
-                    let revision = entry.invalidate(
-                        InvalidatedReason::NeverConstituted,
-                        as_of,
-                        evidence,
-                    );
-                    delta.push(revision);
+                    let revision =
+                        entry.invalidate(InvalidatedReason::NeverConstituted, as_of, evidence);
+                    delta.record(revision);
                 }
                 // 完成观察已反超者已被第 6 步接住（Invalidated(ForceOvertake) 而非
                 // Confirmed，confirmed_at 保持 None，T7(b) 锁定）；若是此前活窗先反超，
@@ -1154,8 +1241,8 @@ impl NestLifecycleBook {
         // 第 8 步：身份消失扫描（上一 prefix 有、本 prefix 不再产出该 key ⟹ Invalidated；
         // 倒退 prefix 不制造 IdentityVanished——last_as_of > as_of 的身份跳过，#78 修复 2）。
         let vanished: Vec<LifecycleKey> = self
-            .entries
-            .iter()
+            .ledger
+            .entries()
             .filter(|(key, entry)| {
                 entry.state == NestEventState::Provisional
                     && entry.last_as_of <= as_of
@@ -1175,17 +1262,17 @@ impl NestLifecycleBook {
                     successor_c_start: successor.seg_c_full.0,
                 })
                 .unwrap_or(VanishCause::HypothesisRefuted);
-            let entry = self.entries.get_mut(&key).expect("扫描键存在");
+            let entry = self.ledger.get_mut(&key).expect("扫描键存在");
             // 证据传 None：IdentityVanished 无力度语义（invariant 逐条钉死）。
             let revision =
                 entry.invalidate(InvalidatedReason::IdentityVanished { cause }, as_of, None);
-            delta.push(revision);
+            delta.record(revision);
         }
         // 库内 debug 构建自动核验；release 不作“自动核验”声明。生产 p123 接线在每个
         // trigger 喂入后显式调用本公开入口。
         #[cfg(debug_assertions)]
         self.assert_invariants();
-        delta
+        delta.into_vec()
     }
 
     /// 钟不变量显式化（review judgement call 4：公开可调用，不只靠 debug_assert）。
@@ -1197,7 +1284,11 @@ impl NestLifecycleBook {
     /// **被反超与从未构成在 first_provable 上严格互补**（前者恒有、后者恒无），从未构成的
     /// invalidated_at == structure_end_at（票 #425）；首完成信号按桥身份唯一且不早于观察钟。
     pub fn assert_invariants(&self) {
-        for entry in self.entries.values() {
+        // 账本级骨架（票 #573 T1，对象无关）：注册表键一致、计数 == 留档、出生钟 ≤ 门卫钟、
+        // 终态 ⟺ 终态钟、留档时序非降、首条修订为建项词汇、来源链不自环。域断言在其之上
+        // 逐条叠加（两层互不替代——下面全部既有域断言语义一条不改）。
+        self.ledger.assert_core_invariants();
+        for entry in self.ledger.values() {
             let key = entry.key;
             assert_eq!(
                 entry.revision as usize,
@@ -1394,30 +1485,29 @@ impl NestLifecycleBook {
     }
 
     fn bridge_entry(&self, key: &LifecycleKey) -> Option<&NestLifecycleEntry> {
-        match self.entries.get(key) {
+        match self.ledger.get(key) {
             Some(entry) => Some(entry),
-            None => self
-                .bridge_match(key)
-                .and_then(|old| self.entries.get(&old)),
+            None => self.bridge_match(key).and_then(|old| self.ledger.get(&old)),
         }
     }
 
     /// 白名单桥匹配：除 seg_c 右端外全等的既有键（同身份不同右端的键在 book 内至多一只，
     /// 迁移即替换 ⟹ 匹配唯一）。
     fn bridge_match(&self, key: &LifecycleKey) -> Option<LifecycleKey> {
-        self.entries
+        self.ledger
             .keys()
             .find(|old| **old != *key && bridge_identity(old, key))
             .copied()
     }
 
     /// 身份迁移：把 `old_key` 的整条 entry 原样搬到 `new_key` 下，写当下来源指针 + 追加一条
-    /// 来源修订。**全 book 仅有的两个 `entries.remove` 点收敛于此**（票 #619 L12）。
+    /// 来源修订。**全 book 仅有的两个迁移点收敛于此**（票 #619 L12），搬运本身由内核
+    /// [`LedgerBook::migrate`] 独占执行（票 #573 T1：旧键退表 → 改键 → 来源链留痕 →
+    /// 追加迁移修订 → 新键入表）。
     ///
-    /// 「钟一个 bit 不动」由实现形态保证——entry 整体搬走，五钟不经任何赋值；`revision`/
-    /// `revisions` 由 [`NestLifecycleEntry::push_revision`] 同步推进。来源码见 [`MigrationKind`]：
-    /// `from` 恒取 `old_key`（被 remove 的那个键），调用方不参与构造 ⟹ 「写 `superseded_from`」
-    /// 与「写哪种来源修订」不可能不一致。
+    /// 「钟一个 bit 不动」由实现形态保证——entry 整体搬走，五钟不经任何赋值。本方法只负责
+    /// **域侧的来源码 → 修订词汇映射**（见 [`MigrationKind`]）：`from` 恒取 `old_key`
+    /// （被退表的那个键），调用方不参与构造 ⟹「写来源指针」与「写哪种来源修订」不可能不一致。
     fn migrate_entry(
         &mut self,
         old_key: LifecycleKey,
@@ -1425,16 +1515,11 @@ impl NestLifecycleBook {
         migration: MigrationKind,
         as_of: usize,
     ) -> LifecycleRevision {
-        let mut entry = self.entries.remove(&old_key).expect("迁移源键存在");
-        entry.superseded_from = Some(old_key);
-        entry.key = new_key;
         let kind = match migration {
             MigrationKind::Bridge => LifecycleRevisionKind::Supersedes { from: old_key },
             MigrationKind::CenterUpgrade => LifecycleRevisionKind::CenterUpgraded { from: old_key },
         };
-        let revision = entry.push_revision(kind, as_of, None);
-        self.entries.insert(new_key, entry);
-        revision
+        self.ledger.migrate(old_key, new_key, kind, as_of)
     }
 
     /// 中枢升级认领匹配（票 #603 档 1）：同锚（`seg_a` + C 左端全等）且 B 严格更晚的既有键，
@@ -1466,7 +1551,7 @@ impl NestLifecycleBook {
         as_of: usize,
     ) -> (Option<LifecycleKey>, bool) {
         let mut fallback = None;
-        for (old_key, old) in &self.entries {
+        for (old_key, old) in self.ledger.entries() {
             if !bridge_by_center_upgrade(old_key, key) {
                 continue;
             }
