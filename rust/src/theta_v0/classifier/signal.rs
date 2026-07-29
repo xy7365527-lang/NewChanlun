@@ -96,6 +96,8 @@ use super::divergence::{
 use super::super::types::BspBits;
 use super::descend::RMove;
 use super::rmove_compose::find_second_type_structure;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 /// 买卖点条目（带结构止损价，single source，见 `bsp::BspPoint`）。
 pub use super::bsp::BspPoint;
@@ -541,6 +543,128 @@ pub(crate) fn trend_third_class_in_c(
         }
     }
     None
+}
+
+/// T3-in-c 固定首对分级器五桶 Missing 原因（#606 S1，ADR 补充十五/十六）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum T3InCGradeReason {
+    /// 中枢框右边（`start_index >= last_center.end_index`，含等值）无任何段。
+    MissingLeave,
+    /// leave 之后无紧随段（连续缺口单腿 c）。
+    MissingRetest,
+    /// leave 与 retest 方向相同（非互反，未构成离开/回试对）。
+    SameDirection,
+    /// leave 端点未严格破该框 ZG/ZD（未离开核心）。
+    LeaveNotOutside,
+    /// retest 端点重回该框核心（未能保持在核心之外）。
+    RetestReentered,
+}
+
+/// T3-in-c 固定首对分级判定结果。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum T3InCGrade {
+    /// 固定首对命中：leave/retest 区间（`start_index, end_index`）。
+    Present { leave_interval: (usize, usize), retest_interval: (usize, usize) },
+    Missing(T3InCGradeReason),
+}
+
+/// **T3-in-c 固定首对分级器**（D1，ADR 补充十五「共享枢轴坐标系」+ 补充十六裁定同源）。
+///
+/// 判定锚 = **最后中枢 `last_center` 右边**（`start_index >= last_center.end_index`，含等值即
+/// 紧邻）——**不是** `λ_C`/`c_start`。leave = 该锚之后固定第一条段，retest = 紧随一条；方向
+/// 互反；价格严格对该框 `ZG`/`ZD`（Up：`leave.end_price > zg ∧ retest.end_price > zg`；Down
+/// 镜像 `< zd`）。任一失败即 `Missing`，**不后扫**——[`trend_third_class_in_c`] 扫描器（全 c 窗
+/// 后扫取首个成功对）不复用，两者不是同一谓词（#586 在案）。
+pub(crate) fn t3_in_c_fixed_first_pair(
+    segments: &[Segment],
+    last_center: &Center,
+    direction: Direction,
+) -> T3InCGrade {
+    let anchor = segments.partition_point(|s| s.start_index < last_center.end_index);
+    let Some(leave) = segments.get(anchor) else {
+        return T3InCGrade::Missing(T3InCGradeReason::MissingLeave);
+    };
+    let Some(retest) = segments.get(anchor + 1) else {
+        return T3InCGrade::Missing(T3InCGradeReason::MissingRetest);
+    };
+    if leave.direction == retest.direction {
+        return T3InCGrade::Missing(T3InCGradeReason::SameDirection);
+    }
+    let leave_outside = match direction {
+        Direction::Up => leave.end_price > last_center.zg,
+        Direction::Down => leave.end_price < last_center.zd,
+    };
+    if !leave_outside {
+        return T3InCGrade::Missing(T3InCGradeReason::LeaveNotOutside);
+    }
+    let retest_outside = match direction {
+        Direction::Up => retest.end_price > last_center.zg,
+        Direction::Down => retest.end_price < last_center.zd,
+    };
+    if !retest_outside {
+        return T3InCGrade::Missing(T3InCGradeReason::RetestReentered);
+    }
+    T3InCGrade::Present {
+        leave_interval: (leave.start_index, leave.end_index),
+        retest_interval: (retest.start_index, retest.end_index),
+    }
+}
+
+/// 一类点 T3-in-c 固定首对分级观测记录（#606 S1 第三修复车：挂在生产 `judge_segment` 调
+/// `judge_first_cached` 的真实调用点，`points.push` 之前——非诊断复刻塔重判）。
+///
+/// 每条记录对应一个当前生产口径下已产出的一类点（`buy1 ∨ sell1`）在
+/// [`t3_in_c_fixed_first_pair`] 下的一次分级（`Present` 与 `Missing` 均记录，非只记否则域）。
+/// 键唯一：`(level, source_index, side, center_start_index, center_zd, center_zg)`；一一对应：
+/// 生产 `bsp` 中每个 `buy1 ∨ sell1` 点恰产一条本记录（无重复判定、无遗漏）。
+///
+/// `level` 是**真实调用级别**，非占位：`mod.rs` 逐级循环本就持有 `level_idx`，经
+/// [`extract_first_third_resume`] 的 `level: u32` 参数穿透到 [`judge_segment`]，捕获时直接
+/// 写入本字段——不再有事后按 `(source_index,side,center)` 反查 `classification.levels[lvl].bsp`
+/// 补齐级别的机器（旧版反查在多级巧合同签名时会误配/静默丢记录，见
+/// [`crate::theta_v0::backtest::opsem_dump`] 模块头谱系注记）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FirstClassGradeRecord {
+    pub level: u32,
+    pub source_index: usize,
+    pub side: Side,
+    /// 中枢身份（判定 `last_center`，取自该点自身 `BspPoint.center`，非重新查找）。
+    pub center_start_index: usize,
+    pub center_end_index: usize,
+    pub center_zd: Tick,
+    pub center_zg: Tick,
+    pub grade: T3InCGrade,
+}
+
+thread_local! {
+    /// #606 S1 第三修复车：一类点 T3-in-c 分级 sidecar 捕获槽。`None`（默认，生产恒态）⟹
+    /// [`judge_segment`] 挂点读一次 `Cell`（`is_none()`）即返回，零成本；`Some` 仅由
+    /// [`otherwise_domain_sidecar_begin`]（env 门控，同 opsem sidecar 先例）在诊断复放前打开。
+    ///
+    /// 纯传递通道（`Vec`，push 序）——每条记录捕获时已携带真实 `level`（调用者传参穿透，见
+    /// [`FirstClassGradeRecord`] 文档），无需在此按签名分组或做候选级别分配；跨帧 upsert 折叠
+    /// （"保留最新一次判定"）在收尾阶段按完整身份键（含 `level`）进行，见
+    /// [`crate::theta_v0::backtest::opsem_dump::OtherwiseDomainSidecarCollector::observe_frame`]。
+    static GRADE_SIDECAR: RefCell<Option<Vec<FirstClassGradeRecord>>> = RefCell::new(None);
+}
+
+/// 打开一类点分级 sidecar 捕获（诊断专用，调用方负责 env 门控）。
+pub(crate) fn otherwise_domain_sidecar_begin() {
+    GRADE_SIDECAR.with(|c| *c.borrow_mut() = Some(Vec::new()));
+}
+
+/// 关闭并取走已捕获记录（每条记录的 `level` 是捕获时真实调用级别，非占位）。未 `begin` 时
+/// 返回空 Vec。
+pub(crate) fn otherwise_domain_sidecar_take() -> Vec<FirstClassGradeRecord> {
+    GRADE_SIDECAR.with(|c| c.borrow_mut().take().unwrap_or_default())
+}
+
+/// ★S2 fix2 F1 回归测试专用：只读探针，是否仍在捕获态（`GRADE_SIDECAR.is_some()`）。
+/// 不消费槽内容（不同于 [`otherwise_domain_sidecar_take`]）——纯粹用于断言 `finish()` 后
+/// thread_local 是否已正确收回 `None`。
+#[cfg(test)]
+pub(crate) fn otherwise_domain_sidecar_is_active() -> bool {
+    GRADE_SIDECAR.with(|c| c.borrow().is_some())
 }
 
 /// 构造第一类 BspPoint（结构止损价 = pivot 极值，reference:46——1 类止损用 pivot 非 center.zg/zd）。
@@ -1234,9 +1358,12 @@ pub fn extract_signals_with_hist_anchored(
         let kind_consol = any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation);
         // ★on2w3-07a：单段判定核（第一/盘整/三类）——full 路径与 resume 路径共享，逐字段等价
         // （gate/kind 由 caller 按 O(C) 数组或 pointwise 查询解析后传入，判定逻辑同一份）。
+        // `level: None`——本入口是全量 fallback（也是 `extract_first_third_resume` 内部
+        // debug_assert 对拍重算路径），非生产 incremental 逐 bar 调用点，不参与 sidecar 捕获
+        // （见 `judge_segment` 文档 `level` 参数说明）。
         judge_segment(
             i, seg, c_idx, gate_dir, kind_consol, &sorted, anchors, &anchors_self, &centers_sorted,
-            &mut a_seg_cache, hist, dif, closes_tick, close_src, gauge, &mut points, &mut pan_divs,
+            &mut a_seg_cache, hist, dif, closes_tick, close_src, gauge, None, &mut points, &mut pan_divs,
         );
     }
     // 按 source_index 升序（reference:16 平局裁决键的时间序分量）。force 已收进各 BspPoint.force。
@@ -1267,11 +1394,18 @@ pub fn extract_signals_with_hist_anchored(
 /// **setup 线性化**：`blocks` = caller 已增量产出的 `decompose_resume` 输出（不重 decompose）；门/
 /// 类别用 pointwise `center_own_dir_at`/`center_block_kind_at`（O(log C)/段），不 materialize O(C) 数组；
 /// `first_match_idx` 冗余删除（中枢 end_index 严格递增 ⟹ 三元组唯一 ⟹ pos==c_idx，on2w3 实测 0/7.17M）。
+///
+/// `level`：本入口是生产 incremental 重放的**真实调用点**——`mod.rs` 的 `for level_idx in
+/// 0..=l_max` 塔循环逐级各调一次，`level_idx` 本就在场（#606 S1 第三修复车：level 传参穿透，
+/// 换掉旧版「挂点处不在场 ⟹ sidecar 收尾按身份反查补齐」的反查机器）。原样传给
+/// [`judge_segment`]（`Some(level)`），供一类点 T3-in-c 分级 sidecar（若已打开）捕获时直接
+/// 打上真实级别标签。
 #[allow(clippy::too_many_arguments)]
 pub fn extract_first_third_resume(
     cached_pts: &mut Vec<BspPoint>,
     cached_pans: &mut Vec<PanDivCert>,
     cached_count: &mut usize,
+    level: u32,
     centers: &[Center],
     segments: &[Segment],
     anchor_dirs: Option<&[Option<Direction>]>,
@@ -1340,7 +1474,7 @@ pub fn extract_first_third_resume(
                     any_consol && center_block_kind_at(blocks, c_idx) == Some(MoveKind::Consolidation);
                 judge_segment(
                     i, seg, c_idx, gate_dir, kind_consol, segments, anchors, &anchors_self, centers,
-                    a_cache, hist, dif, closes_tick, close_src, gauge, pts, pans,
+                    a_cache, hist, dif, closes_tick, close_src, gauge, Some(level), pts, pans,
                 );
             }
         };
@@ -1388,6 +1522,12 @@ pub fn extract_first_third_resume(
 /// - `kind_consol`：该段最近中枢按 ownership 落 Consolidation 块（走盘整背驰证书路径）。
 /// - `a_seg_cache`：A 段区间 + 其 b 包络（p117 037:20）按 `last_center_idx=c_idx` 缓存（热点②，
 ///   趋势 τ 下多段共享 A 段对；包络随 I(A) 同槽，`move_range_envelope` 单一来源）。
+/// - `level`：`Some(level_idx)` = 本调用来自 [`extract_first_third_resume`]（生产 incremental
+///   重放路径，`mod.rs` 逐级循环真实持有的级别号，#606 S1 第三修复车传参穿透）——一类点
+///   T3-in-c 分级 sidecar（若已打开）据此捕获，见下方 `GRADE_SIDECAR` 分支。`None` = 本调用来自
+///   [`extract_signals_with_hist_anchored`]（全量 fallback / `extract_first_third_resume` 内部
+///   debug_assert 对拍重算）——该路径不是生产逐 bar 重放的调用点，也可能对同一批段重复判定，
+///   不参与 sidecar 捕获（避免与真实捕获重复写入或写入无意义级别）。
 #[allow(clippy::too_many_arguments)]
 fn judge_segment(
     i: usize,
@@ -1405,6 +1545,7 @@ fn judge_segment(
     closes_tick: &[Tick],
     close_src: &[usize],
     gauge: DivergenceGauge,
+    level: Option<u32>,
     points: &mut Vec<BspPoint>,
     pan_divs: &mut Vec<PanDivCert>,
 ) {
@@ -1439,6 +1580,30 @@ fn judge_segment(
             c, dir, seg, anchors_self[i], hist, dif, closes_tick, close_src, a_seg_entry,
             c_start_entry, gauge,
         ) {
+            // #606 S1 第三修复车：生产挂点否则域观测（判据本体上方未改一行，纯只读旁挂）。
+            // `level.is_none()`（全量 fallback / debug_assert 对拍路径）或 sidecar 未打开
+            // （生产恒态）⟹ 短路，零成本；`level.is_some() ∧ sidecar 打开` 才真捕获，写入的
+            // `level` 是调用者传入的真实调用级别，非占位。
+            if let Some(lvl) = level {
+                if (pf.bits.buy1 || pf.bits.sell1) && GRADE_SIDECAR.with(|c| c.borrow().is_some()) {
+                    let grade = t3_in_c_fixed_first_pair(sorted, c, dir);
+                    let rec = FirstClassGradeRecord {
+                        level: lvl,
+                        source_index: pf.source_index,
+                        side: if pf.bits.buy1 { Side::Long } else { Side::Short },
+                        center_start_index: c.start_index,
+                        center_end_index: c.end_index,
+                        center_zd: c.zd,
+                        center_zg: c.zg,
+                        grade,
+                    };
+                    GRADE_SIDECAR.with(|cell| {
+                        if let Some(v) = cell.borrow_mut().as_mut() {
+                            v.push(rec);
+                        }
+                    });
+                }
+            }
             points.push(pf);
         }
     }
@@ -2156,6 +2321,40 @@ mod tests {
         assert_eq!(filled, first_class, "所有一类趋势背驰候选（A/C 可配对）point.force 均 Some");
     }
 
+    /// #606 S1 抛光车（终审 F-低2）：钉死「`level=None` 全量 fallback 路径不写 `GRADE_SIDECAR`」——
+    /// 只有 `extract_first_third_resume`（生产 incremental 重放）传 `Some(level)` 才触达捕获分支
+    /// （`judge_segment` 文档已述该契约，本测试补一条直接单测锁）。复用上一测试 fixture（保证产
+    /// 一个 buy1，否则测试空转）。
+    #[test]
+    fn fallback_full_recompute_does_not_capture_grade_sidecar() {
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 350, 250),
+            seg(Direction::Up, 5, 7, 250, 280),
+            seg(Direction::Down, 9, 11, 150, 80),
+        ];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244,
+        ];
+        let (closes, src) = closes_seq(&prices);
+        let series = compute_macd(&closes, &MacdConfig::default());
+        let closes_tick: Vec<Tick> = closes.iter().map(|&c| c as Tick).collect();
+
+        otherwise_domain_sidecar_begin();
+        let (points, _pans) = extract_signals_with_hist_anchored(
+            &[c0, c1], &segs, None, &series.hist, &series.dif, &closes_tick, &src,
+            DivergenceGauge::default(),
+        );
+        assert!(points.iter().any(|p| p.bits.buy1), "fixture 仍需产一个 buy1（否则测试空转）");
+        let captured = otherwise_domain_sidecar_take();
+        assert!(
+            captured.is_empty(),
+            "level=None 全量 fallback 路径不应写入 GRADE_SIDECAR（只有 incremental resume 传 \
+             Some(level) 才捕获，见 judge_segment 文档 level 参数说明）"
+        );
+    }
+
     /// 三口径 D 判定接线（A2 #163）：同一 fixture 下 gauge 切换只改 buy1/sell1 置位，不改候选集合
     /// （struct_break_dir 无条件置——未背驰候选进样本，消选择偏差语义在三口径下保持）。
     #[test]
@@ -2832,6 +3031,163 @@ mod tests {
         // 无回试（单腿窗口）⟹ None——p112 构造性恒假的机械显形（#105 单腿口径）。
         let single = vec![seg(Direction::Up, 6, 8, 210, 260)];
         assert_eq!(trend_third_class_in_c(&single, &last, Direction::Up, 6, 10), None);
+    }
+
+    // ── T3-in-c 固定首对分级器（D1，#606 S1）：五桶全盖 + 与扫描器行为对照 ─────────
+
+    /// Present：leave/retest 紧邻固定首对，方向互反、价格严格破该框 ZG/ZD。
+    #[test]
+    fn t3_in_c_fixed_first_pair_present() {
+        let last = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 5 };
+        let segs = vec![
+            seg(Direction::Up, 5, 8, 210, 260),
+            seg(Direction::Down, 8, 10, 260, 220),
+        ];
+        assert_eq!(
+            t3_in_c_fixed_first_pair(&segs, &last, Direction::Up),
+            T3InCGrade::Present { leave_interval: (5, 8), retest_interval: (8, 10) },
+            "固定首对紧邻锚 last_center.end_index=5（含等值）命中"
+        );
+        // Down 镜像。
+        let down = vec![
+            seg(Direction::Down, 5, 8, 190, 90),
+            seg(Direction::Up, 8, 10, 90, 95),
+        ];
+        assert_eq!(
+            t3_in_c_fixed_first_pair(&down, &last, Direction::Down),
+            T3InCGrade::Present { leave_interval: (5, 8), retest_interval: (8, 10) }
+        );
+    }
+
+    /// 桶①missing_leave：中枢框右边（`start_index >= end_index`）无任何段。
+    #[test]
+    fn t3_in_c_fixed_first_pair_missing_leave() {
+        let last = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 20 };
+        // 唯一段落在锚之前（start_index=5 < end_index=20）⟹ 锚右边无段。
+        let segs = vec![seg(Direction::Up, 5, 8, 210, 260)];
+        assert_eq!(
+            t3_in_c_fixed_first_pair(&segs, &last, Direction::Up),
+            T3InCGrade::Missing(T3InCGradeReason::MissingLeave)
+        );
+        // 空段列同样落此桶。
+        assert_eq!(
+            t3_in_c_fixed_first_pair(&[], &last, Direction::Up),
+            T3InCGrade::Missing(T3InCGradeReason::MissingLeave)
+        );
+    }
+
+    /// 桶②missing_retest：连续缺口单腿 c——leave 存在但无紧随段。
+    #[test]
+    fn t3_in_c_fixed_first_pair_missing_retest() {
+        let last = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 5 };
+        let single = vec![seg(Direction::Up, 5, 8, 210, 260)];
+        assert_eq!(
+            t3_in_c_fixed_first_pair(&single, &last, Direction::Up),
+            T3InCGrade::Missing(T3InCGradeReason::MissingRetest),
+            "单腿窗口（连续缺口）⟹ missing_retest，非 missing_leave"
+        );
+    }
+
+    /// 桶③same_direction：leave 与 retest 方向相同（同向续行，非离开/回试对）。
+    #[test]
+    fn t3_in_c_fixed_first_pair_same_direction() {
+        let last = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 5 };
+        let segs = vec![
+            seg(Direction::Up, 5, 8, 210, 230),
+            seg(Direction::Up, 8, 10, 230, 260), // 同向续行（非回试）
+        ];
+        assert_eq!(
+            t3_in_c_fixed_first_pair(&segs, &last, Direction::Up),
+            T3InCGrade::Missing(T3InCGradeReason::SameDirection)
+        );
+    }
+
+    /// 桶④leave_not_outside：leave 端点未严格破该框 ZG/ZD（未离开核心）。
+    #[test]
+    fn t3_in_c_fixed_first_pair_leave_not_outside() {
+        let last = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 5 };
+        let segs = vec![
+            seg(Direction::Up, 5, 8, 150, 200), // 端点 200 未严格 > zg=200
+            seg(Direction::Down, 8, 10, 200, 180),
+        ];
+        assert_eq!(
+            t3_in_c_fixed_first_pair(&segs, &last, Direction::Up),
+            T3InCGrade::Missing(T3InCGradeReason::LeaveNotOutside)
+        );
+    }
+
+    /// 桶⑤retest_reentered：leave 严格破核心，但 retest 端点重回闭区间核心。
+    #[test]
+    fn t3_in_c_fixed_first_pair_retest_reentered() {
+        let last = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 5 };
+        let segs = vec![
+            seg(Direction::Up, 5, 8, 210, 260),
+            seg(Direction::Down, 8, 10, 260, 190), // 190 <= zg=200，重回核心
+        ];
+        assert_eq!(
+            t3_in_c_fixed_first_pair(&segs, &last, Direction::Up),
+            T3InCGrade::Missing(T3InCGradeReason::RetestReentered)
+        );
+    }
+
+    /// 首对失败远对不认领：与 [`trend_third_class_in_c`] 对照——扫描器在首对失败（同向续行）
+    /// 后继续后扫，找到延迟三买（p112 70 案型）；固定首对分级器**不后扫**，首对失败即 Missing，
+    /// 不认领后面本会成功的远对（补充十五「不得越过同向续行后扫替代配对」）。
+    #[test]
+    fn t3_in_c_fixed_first_pair_does_not_rescan_past_first_pair_failure() {
+        let last = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 6 };
+        // 首对：leave(6,8) Up 破核心 260>200，retest(8,10) Down 190<=200 重回核心 ⟹ retest_reentered。
+        // 远对：leave(10,12) Up 再次破核心 270>200，retest(12,14) Down 205>200 不重回 ⟹ 若后扫会命中。
+        let delayed = vec![
+            seg(Direction::Up, 6, 8, 210, 260),
+            seg(Direction::Down, 8, 10, 260, 190),
+            seg(Direction::Up, 10, 12, 190, 270),
+            seg(Direction::Down, 12, 14, 270, 205),
+        ];
+        assert_eq!(
+            t3_in_c_fixed_first_pair(&delayed, &last, Direction::Up),
+            T3InCGrade::Missing(T3InCGradeReason::RetestReentered),
+            "固定首对分级器不后扫：首对失败即 Missing，不认领延迟三买远对"
+        );
+        // 对照：既有扫描器在同一段列上会后扫命中延迟三买（c_start=6, as_of=14）。
+        assert_eq!(
+            trend_third_class_in_c(&delayed, &last, Direction::Up, 6, 14),
+            Some((12, 14)),
+            "扫描器口径下同一段列会认领远对——两谓词不是同一判据（#586 在案）"
+        );
+    }
+
+    /// 固定首对锚非 λ_C/c_start 坐标案例：锚 = `last_center.end_index`（B 右边），不是
+    /// `λ_C`/`c_start`。当 λ_C 晚于 `last_center.end_index`（B 右边与 c 的次级别离开起点之间
+    /// 还有一段未被 λ_C 覆盖的段）时，固定首对分级器仍以 B 右边第一条为 leave——与「从 λ_C 起
+    /// 扫」的口径可能给出不同的 leave/retest 对（判定锚差异的机械显形）。
+    #[test]
+    fn t3_in_c_fixed_first_pair_anchor_is_b_right_edge_not_lambda_c() {
+        let last = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 5 };
+        // B 右边（end_index=5）之后第一条段 start_index=5（等值即紧邻）已是 leave；
+        // 假设某扫描口径的 λ_C/c_start 误锚在 8（下一段起点），会跳过 (5,8) 这一段，
+        // 直接从 (8,10) 起扫——那样会漏掉本对象在锚 5 处即已 Missing 的判定（此处仍破核心+
+        // 不重回 ⟹ Present，用于反证「锚必须是 B 右边」：若锚误用 8，只看得到 retest 段
+        // 本身找不到紧随段 ⟹ 会误判 missing_retest，而固定首对（锚=5）给出 Present）。
+        let segs = vec![
+            seg(Direction::Up, 5, 8, 210, 260),
+            seg(Direction::Down, 8, 10, 260, 220),
+        ];
+        assert_eq!(
+            t3_in_c_fixed_first_pair(&segs, &last, Direction::Up),
+            T3InCGrade::Present { leave_interval: (5, 8), retest_interval: (8, 10) },
+            "锚=B 右边 end_index=5 ⟹ Present"
+        );
+        // 若误把锚坐标设为 λ_C=8（跳过 leave 段直接从 retest 段起找），
+        // 该段列在锚 8 处只剩 (8,10) 一条 ⟹ missing_retest——与正确锚（Present）判异，
+        // 机械证明锚坐标选择改变判定结果。
+        let wrong_anchor_center =
+            Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 8 };
+        assert_eq!(
+            t3_in_c_fixed_first_pair(&segs, &wrong_anchor_center, Direction::Up),
+            T3InCGrade::Missing(T3InCGradeReason::MissingRetest),
+            "误锚 λ_C=8 ⟹ missing_retest，与正确锚 B 右边=5 的 Present 判异"
+        );
     }
 
     /// R3 A′ 锚扩展（061:28 中枢两头比较）：中枢后无前次同向破核心段（窄锚不可得）时，

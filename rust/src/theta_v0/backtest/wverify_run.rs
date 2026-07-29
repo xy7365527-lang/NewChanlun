@@ -1967,6 +1967,218 @@ fn center_lifecycle_wf8_events_replay() {
     );
 }
 
+/// D4（#606 S1 第三修复车：换结构，level 传参穿透，删反查机器）：一类点 T3-in-c 固定首对
+/// 分级观测——wf8 全窗重放。观测挂点 = 生产 `judge_segment`（`judge_first_cached` 返回后、
+/// `points.push` 前）——真实调用级别（`extract_first_third_resume` 新增的 `level: u32` 参数，
+/// 由 `mod.rs` 逐级循环 `level_idx` 直接传入）随捕获同时写入，不再需要收尾阶段按身份反查
+/// `classification.levels[lvl].bsp` 补齐（旧版反查/候选分配机器已删，见
+/// `OtherwiseDomainSidecarCollector` 模块头谱系注记）。逐个 `buy1 ∨ sell1` 点产一条
+/// [`classifier::signal::FirstClassGradeRecord`]（`grade` 含 `Present`/`Missing(reason)`）。
+///
+/// 三项统计口径（原「三锁」表述过誉——键唯一是 upsert `HashMap` 的结构性保证，重新验证它只是
+/// 验证数据结构本身，非独立断言，本版不再列为「锁」）：
+///
+/// ①**账平**（记录总数 = native(Present) + otherwise(Missing)）——构造性恒等：这是
+/// `T3InCGrade` 定义本身的 `Present`/`Missing` 二分对同一个 `records` vec 的重新求和（同一份
+/// 数据分两类计数再相加，数学上必然回到原总数），不是独立验证，**不作验收证据陈列**，只作
+/// 统计展示（供 #585 逐案对拍读数）。
+///
+/// ②**基数对拍**（`sidecar.records.len()` 与独立读 `center_lifecycle.jsonl` 的 `kind=="reset"`
+/// 行数相等）——两个独立数据源的**总数**核对，不是按 `(level,source_index,side)` 逐键核对
+/// 独立统计的 `bsp` 一类点计数（代码里没有任何这样的 per-key 计数）。基数相等不排除"漏一多一"
+/// 相抵（一处漏记、另一处多记，总数照样对得上）；Reset 广播与一类点记录也只是间接对应（广播
+/// 时点=瞬时 true 那帧，记录 grade=末次重判，见
+/// [`super::opsem_dump::OtherwiseDomainSidecarSummary`] 文档 F7 口径登记）。
+///
+/// ③**五桶分级分侧计数**（missing_leave/missing_retest/same_direction/leave_not_outside/
+/// retest_reentered）——计数分级分侧打印进验收行，供人工核对。
+///
+/// `#[ignore]`：需 BTC 数据（DATA BLOCKER 不伪造）；wf8 全窗重放，
+/// env `THETA_OTHERWISE_DOMAIN_SIDECAR=1`（测试内部设置，无需外部前缀）。
+/// `cargo test --release --lib theta_v0::backtest::wverify_run::otherwise_domain_wf8_grade_buckets -- --ignored --nocapture`
+#[test]
+#[ignore = "#606 S1 第三修复车 D4：wf8 全窗一类点分级观测三项口径 + 五桶；需 BTC 数据（DATA BLOCKER 不伪造）"]
+fn otherwise_domain_wf8_grade_buckets() {
+    use super::super::classifier::signal::{T3InCGrade, T3InCGradeReason};
+    use super::super::types::Side;
+    use super::runner::run_theta_v0_pi_overlay;
+
+    let plain_cfg = ThetaConfig::default();
+    let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
+    let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
+    let w = sw.wf_anchored.iter().find(|w| w.i == 8).expect("wf8 窗");
+    let test = ds.slice_date_window(w.test_start, w.test_end);
+    assert!(!test.bars.is_empty(), "wf8 test 段非空（否则测试空转）");
+    let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
+    let nav_te = test
+        .bars
+        .iter()
+        .find(|b| !b.untradable && b.close > 0)
+        .map(|b| b.close as f64 * plain_cfg.tick.tick_size)
+        .unwrap_or(1.0)
+        * 1000.0;
+    let mut cfg = ThetaConfig::default();
+    apply_theta_dir_preset_from_env(&mut cfg);
+    apply_enforce_gross_cap_from_env(&mut cfg);
+    cfg.margin = Some(q4_margin_model(nav_te));
+    cfg.cost_model = Some(m6_cost_model());
+
+    // 开臂（THETA_CENTER_OSCILLATION=1）+ D4 sidecar + OPSEM dump 同一次重放（与 S1 报告
+    // §4.2 命令口径一致——独立 dump 目录唯一化，override 测试末尾复位，同
+    // `center_lifecycle_wf8_events_replay` 先例）。
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("系统时间晚于 epoch")
+        .as_nanos();
+    let dump_dir = std::env::temp_dir().join(format!(
+        "otherwise_domain_wf8_grade_dump_{}_{}",
+        std::process::id(),
+        nonce
+    ));
+    super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = Some(dump_dir.clone()));
+    super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
+    std::env::set_var("THETA_CENTER_OSCILLATION", "1");
+    std::env::set_var("THETA_OTHERWISE_DOMAIN_SIDECAR", "1");
+    let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
+    std::env::remove_var("THETA_OTHERWISE_DOMAIN_SIDECAR");
+    std::env::remove_var("THETA_CENTER_OSCILLATION");
+    super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
+    super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = None);
+
+    let sidecar = r.net_result.otherwise_domain_sidecar.expect("env 门开 ⟹ sidecar Some");
+    assert!(sidecar.frames >= 1, "至少观察到一帧（wf8 非空窗）");
+
+    // ── 独立对照：`center_lifecycle.jsonl` 的 Reset 行（一类确认事件 → Reset 广播，#489/#585
+    // 同口径，与 sidecar 记录数分别独立统计）——逐行同时取出 `level`/`trigger_side`/
+    // `alive_center_leak`，供②基数对拍 + 下方 D5 逐级对拍（两者共用同一次解析，不重复读盘）──
+    let lifecycle_text = std::fs::read_to_string(dump_dir.join("center_lifecycle.jsonl"))
+        .expect("OPSEM dump 启用 ⟹ center_lifecycle.jsonl 落盘");
+    let _ = std::fs::remove_dir_all(&dump_dir);
+    let reset_rows: Vec<(u32, u8, bool)> = lifecycle_text
+        .lines()
+        .filter(|line| !line.is_empty())
+        .filter_map(|line| {
+            let v: serde_json::Value =
+                serde_json::from_str(line).expect("center_lifecycle.jsonl 行合法 JSON");
+            if v["kind"].as_str() != Some("reset") {
+                return None;
+            }
+            let level = v["level"].as_u64().expect("reset 行含 level") as u32;
+            let side_u8 = match v["trigger_side"].as_str().expect("reset 行含 trigger_side") {
+                "Long" => 0u8,
+                "Short" => 1u8,
+                other => panic!("reset 行 trigger_side 未知取值：{other}"),
+            };
+            let leak = v["alive_center_leak"]
+                .as_bool()
+                .expect("reset 行含 alive_center_leak");
+            Some((level, side_u8, leak))
+        })
+        .collect();
+    let reset_count = reset_rows.len();
+
+    // ── ③五桶分级分侧计数 + 分级分侧 native/otherwise 总表（供 #585 逐案对拍）。键唯一由
+    // `OtherwiseDomainSidecarCollector` 内部 upsert `HashMap` 结构性保证（见其模块头谱系
+    // 注记），本测试不再重复断言（重新验证只是验证数据结构本身，非独立证据）──
+    // (level, side) -> [missing_leave, missing_retest, same_direction, leave_not_outside, retest_reentered]
+    let mut bucket_counts: std::collections::BTreeMap<(u32, u8), [usize; 5]> =
+        std::collections::BTreeMap::new();
+    // (level, side) -> (native, otherwise)
+    let mut level_side_totals: std::collections::BTreeMap<(u32, u8), (usize, usize)> =
+        std::collections::BTreeMap::new();
+    let mut native_count = 0usize;
+    let mut otherwise_count = 0usize;
+    for rec in &sidecar.records {
+        let side_u8 = match rec.side {
+            Side::Long => 0u8,
+            Side::Short => 1u8,
+        };
+        let totals = level_side_totals.entry((rec.level, side_u8)).or_insert((0, 0));
+        match rec.grade {
+            T3InCGrade::Present { .. } => {
+                native_count += 1;
+                totals.0 += 1;
+            }
+            T3InCGrade::Missing(reason) => {
+                otherwise_count += 1;
+                totals.1 += 1;
+                let bucket_idx = match reason {
+                    T3InCGradeReason::MissingLeave => 0,
+                    T3InCGradeReason::MissingRetest => 1,
+                    T3InCGradeReason::SameDirection => 2,
+                    T3InCGradeReason::LeaveNotOutside => 3,
+                    T3InCGradeReason::RetestReentered => 4,
+                };
+                bucket_counts.entry((rec.level, side_u8)).or_insert([0; 5])[bucket_idx] += 1;
+            }
+        }
+    }
+
+    // ── ②基数对拍：sidecar 记录数 = center_lifecycle Reset 行数（两个独立数据源的总数核对，
+    // 非按 (level,source_index,side) 逐键核对独立 bsp 计数——不排除漏一多一相抵，见上文档）──
+    let grand_total = sidecar.records.len();
+    assert_eq!(
+        grand_total, reset_count,
+        "②基数对拍：sidecar 记录数({grand_total}) == center_lifecycle Reset 行数({reset_count})"
+    );
+
+    // ── ①账平（构造性恒等，非独立验证，仅供 #585 对拍统计口径行；见上文档）──
+    assert_eq!(
+        grand_total,
+        native_count + otherwise_count,
+        "①账平：一类点总数 = 趋势一类(native) + 否则域(otherwise)（Present/Missing 二分恒等）"
+    );
+
+    // ── D5 逐级对拍（#606 S1 抛光车终审 F-中1）：② 只核对总数，本断言逐桶核对——records 按
+    // (level,side) 分桶总数（native+otherwise）与 center_lifecycle reset 行按 (level,trigger_side)
+    // 分桶重新分 leak=true/false 两类计数。两个独立数据源在每个桶上应满足
+    // `records桶总数 - leak=true桶计数 == leak=false桶计数`（若一桶 record 有多算/漏算，diff 会偏离该桶
+    // leak=false 计数，逐桶断言比②的总数断言更细，能抓总数抵消但分桶错位的情形）。照实测写，
+    // 不预先硬编码期望值。
+    let mut reset_leak_true: std::collections::BTreeMap<(u32, u8), usize> =
+        std::collections::BTreeMap::new();
+    let mut reset_leak_false: std::collections::BTreeMap<(u32, u8), usize> =
+        std::collections::BTreeMap::new();
+    for &(level, side_u8, leak) in &reset_rows {
+        let map = if leak { &mut reset_leak_true } else { &mut reset_leak_false };
+        *map.entry((level, side_u8)).or_insert(0) += 1;
+    }
+    let mut d5_keys: std::collections::BTreeSet<(u32, u8)> =
+        level_side_totals.keys().copied().collect();
+    d5_keys.extend(reset_leak_true.keys().copied());
+    d5_keys.extend(reset_leak_false.keys().copied());
+    for key in &d5_keys {
+        let record_count = level_side_totals.get(key).map(|(n, o)| n + o).unwrap_or(0);
+        let leak_true = reset_leak_true.get(key).copied().unwrap_or(0);
+        let leak_false = reset_leak_false.get(key).copied().unwrap_or(0);
+        let diff = record_count as i64 - leak_true as i64;
+        assert_eq!(
+            diff, leak_false as i64,
+            "D5 逐级对拍 (level={},side={}): records 桶总数({record_count}) - \
+             reset leak=true 桶计数({leak_true}) 应恰等于该桶 leak=false 计数({leak_false})",
+            key.0, key.1
+        );
+    }
+    eprintln!(
+        "[#606 S1 D5] 逐级对拍：records(level,side)→总数={:?}；reset(level,trigger_side)→\
+         leak=true 计数={reset_leak_true:?}；leak=false 计数={reset_leak_false:?}",
+        level_side_totals
+            .iter()
+            .map(|(k, (n, o))| (*k, n + o))
+            .collect::<std::collections::BTreeMap<_, _>>(),
+    );
+
+    eprintln!(
+        "[#606 S1 D4] wf8 一类点 T3-in-c 分级观测：frames={} 一类点总数={grand_total} \
+         (center_lifecycle reset={reset_count}) native(趋势一类)={native_count} \
+         otherwise(否则域)={otherwise_count} \
+         (level,side=0long/1short)→(native,otherwise)={level_side_totals:?} \
+         ③五桶(level,side)→[missing_leave,missing_retest,same_direction,\
+         leave_not_outside,retest_reentered]={bucket_counts:?}",
+        sidecar.frames,
+    );
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  #327 真覆盖见证锁：#321 从严判据（单点核心 ZD==ZG 不成立）落在中枢级联变动块上的命中断言
 // ════════════════════════════════════════════════════════════════════════════

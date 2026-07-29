@@ -2150,7 +2150,8 @@ pub fn classify_with_tower_incremental(
                 stage_profile::time("07a_extract_signals_l0", || {
                     signal::extract_first_third_resume(
                         &mut lc.cached_first_third, &mut lc.cached_first_third_pan,
-                        &mut lc.cached_first_third_count, &lc.centers, &l0.segments, None, &moves,
+                        &mut lc.cached_first_third_count, level_idx as u32, &lc.centers,
+                        &l0.segments, None, &moves,
                         prefix_count, dirty_e, hist, dif, &closes_tick, &close_src,
                         config.divergence_gauge,
                     )
@@ -2165,7 +2166,7 @@ pub fn classify_with_tower_incremental(
                         units.iter().map(|u| Some(u.direction)).collect();
                     signal::extract_first_third_resume(
                         &mut lc.cached_first_third, &mut lc.cached_first_third_pan,
-                        &mut lc.cached_first_third_count, &lc.centers, &segs,
+                        &mut lc.cached_first_third_count, level_idx as u32, &lc.centers, &segs,
                         Some(&structural_anchors), &moves, prefix_count, dirty_e, hist, dif,
                         &closes_tick, &close_src,
                         config.divergence_gauge,
