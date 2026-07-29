@@ -68,6 +68,84 @@ use crate::theta_v0::classifier::bsp::BspPoint;
         assert!((p_star - 20.0).abs() < 1e-9, "p* = 20（最近 lot 点）");
     }
 
+    /// ★#628 阶段一用例：`held_side=Long ∧ e.eps=Short ∧ p̃>0` 场景下 `stop_long` 是否正确夹住 p*。
+    ///
+    /// 背景（review-625.md 发现1）：`gate.stop_long`（hi_cap=0）取自 `position_node_id.side`
+    /// （持仓方向），而 `p̃=Σ leg.side·units` 的 `leg.side=e.eps`（走势载体方向）——审计称两者
+    /// 89.2% 相反。本用例构造「触发 stop_long 的那个持仓其 eps 与 held_side 相反」的最坏读法：
+    /// 即使如此，`caps()` 只读 `gate.stop_long`（布尔，来自 held_side）与聚合后的标量 `p̃`，
+    /// **从不读任何单腿的 eps**——只要 `p̃`（聚合结果，Long=+/Short=− 与 `held_side` 同一套
+    /// `VoiceSide` 数值约定，`element.rs:12`「Up=Long/Down=Short」+ `leg.rs:290 net_target_units`）
+    /// 真是正的，hi_cap=0 就会把 p* 正确夹到 ≤0——与「该腿 eps=Short」无关。
+    ///
+    /// 结论：本用例证明**无实害**——cap 消费的是净额 p̃ 的符号（与 held_side 同源同约定），
+    /// 不是任何单腿 eps；89.2% 逐腿错配是另一个真实但正交的事实（腿级 stop 判定 vs 净额 cap
+    /// 消费点不同源），不传导为「cap 夹反侧」。
+    #[test]
+    fn stop_long_caps_ptilde_regardless_of_leg_eps_direction() {
+        let r = rcfg(); // base_units=1000, γ̄=1.0 ⟹ cap=1000
+        let w = PiThetaWeights::from_risk(&r);
+        // p̃=600>0（净额聚合已算出的"想净多"目标——不管其中哪条腿 eps 是 Long 还是 Short，
+        // 净额本身的符号就是 caps() 唯一读的量）。
+        let p_tilde = 600.0;
+        let gate_open = KThetaRiskGate::open();
+        let gate_stop_long = KThetaRiskGate { stop_long: true, ..KThetaRiskGate::open() };
+
+        let p_star_open = pi_theta_position(p_tilde, 0.0, 1000.0, &r, w, gate_open);
+        let p_star_stopped = pi_theta_position(p_tilde, 0.0, 1000.0, &r, w, gate_stop_long);
+
+        assert!((p_star_open - 600.0).abs() < 1e-9, "无 gate：p*=p̃=600（对照组）");
+        assert!(p_star_stopped <= 1e-9, "stop_long ⟹ hi_cap=0 ⟹ p*≤0（禁净多，与触发腿的 eps 无关）");
+        assert!(
+            p_star_stopped < p_star_open - 1e-9,
+            "cap 确有实际压制效果（p* 从 600 被夹到 ≤0，非 no-op）"
+        );
+    }
+
+    /// ★#628 反证：p̃≤0 时 `stop_long` 是 no-op（hi_cap=0 本就不会绑住已经非正的目标）——
+    /// 与 wf8 实测「相反(p̃≤0)37 例 ⟺ Δp*=0 37 例」逐一对应的最小复现。
+    #[test]
+    fn stop_long_is_noop_when_ptilde_already_nonpositive() {
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let p_tilde = -400.0; // 净额已经是净空目标——hi_cap=0 不影响
+        let gate_open = KThetaRiskGate::open();
+        let gate_stop_long = KThetaRiskGate { stop_long: true, ..KThetaRiskGate::open() };
+        let p_star_open = pi_theta_position(p_tilde, 0.0, 1000.0, &r, w, gate_open);
+        let p_star_stopped = pi_theta_position(p_tilde, 0.0, 1000.0, &r, w, gate_stop_long);
+        assert!(
+            (p_star_open - p_star_stopped).abs() < 1e-9,
+            "p̃≤0 时 stop_long 不改变 p*（cap 未真正 binding，纯 no-op）"
+        );
+    }
+
+    /// ★#628 归因探针自检：`cap_binding_attribution_snapshot` 逐次记录 `p_tilde`/`p_star_actual`/
+    /// 反事实字段，`reset` 清空——供 wf8 跑批读数（wverify_run.rs）的最小契约见证。
+    #[test]
+    fn cap_binding_attribution_records_hi_and_lo_events() {
+        cap_binding_attribution_reset();
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        // 一次 hi 触发（p̃=600>0，一致）+ 一次 lo 触发（p̃=-600<0，一致）。
+        let gate_hi = KThetaRiskGate { stop_long: true, ..KThetaRiskGate::open() };
+        let gate_lo = KThetaRiskGate { stop_short: true, ..KThetaRiskGate::open() };
+        let _ = pi_theta_position(600.0, 0.0, 1000.0, &r, w, gate_hi);
+        let _ = pi_theta_position(-600.0, 0.0, 1000.0, &r, w, gate_lo);
+        let events = cap_binding_attribution_snapshot();
+        assert_eq!(events.len(), 2, "两次 binding 各记一条");
+        let hi_ev = events.iter().find(|e| e.hi_triggered).expect("hi 事件在表中");
+        assert!((hi_ev.p_tilde - 600.0).abs() < 1e-9);
+        assert!(hi_ev.p_star_actual <= 1e-9, "hi 触发 ⟹ p*≤0");
+        assert!(hi_ev.p_star_cf_hi.is_some_and(|cf| (cf - 600.0).abs() < 1e-9), "反事实=去掉 stop_long 后应恢复 p̃");
+        let lo_ev = events.iter().find(|e| e.lo_triggered).expect("lo 事件在表中");
+        assert!((lo_ev.p_tilde + 600.0).abs() < 1e-9);
+        assert!(lo_ev.p_star_actual >= -1e-9, "lo 触发 ⟹ p*≥0");
+        assert!(lo_ev.p_star_cf_lo.is_some_and(|cf| (cf + 600.0).abs() < 1e-9), "反事实=去掉 stop_short 后应恢复 p̃");
+
+        cap_binding_attribution_reset();
+        assert!(cap_binding_attribution_snapshot().is_empty(), "reset 后表清空");
+    }
+
     /// ★Schedule_Θ 开仓：空仓 → p*=±600 ⟹ Buy/Sell 600。
     #[test]
     fn schedule_open_from_flat() {

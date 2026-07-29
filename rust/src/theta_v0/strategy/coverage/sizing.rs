@@ -42,6 +42,101 @@ pub fn cap_binding_probe_snapshot() -> CapBindingProbe {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+//  #628 归因扩展——逐次 binding 事件（分桶方向 vs p̃ 符号一致性 + 反事实 p* 差值）
+// ════════════════════════════════════════════════════════════════════════════
+// 上面的 CapBindingProbe 只计次数，不够回答 #628 票问 1（183 次逐次归因：分桶方向与 p̃
+// 投影方向一致/相反各多少、相反时夹错多少）。本探针在同一触发点（`stop_long`/`stop_short`
+// 生效）额外记录 `p_tilde` 符号 + 反事实 p*（移除**本次触发的那一侧**风控约束、其余门不变
+// 重算的 p*）——`p_star_actual − p_star_cf` 即该次 binding 对净持仓的真实影响幅度；差值为 0
+// 说明 binding 当次无实害（p̃ 本就未压向那一侧）。反事实走 `feasible_lex_candidates_raw`
+// （用 `caps_raw`，不二次 bump 上面的计数探针）。
+
+/// 单次 cap binding 归因记录（#628 阶段一观测量）。
+#[derive(Debug, Clone, Copy)]
+pub struct CapBindingAttributionEvent {
+    /// 本次 `stop_long`（hi 禁净多）是否触发。
+    pub hi_triggered: bool,
+    /// 本次 `stop_short`（lo 禁净空）是否触发。
+    pub lo_triggered: bool,
+    /// 触发当次的目标净持仓 p̃（eps 投影口径，正=净多/负=净空，`leg.rs:281`）。
+    pub p_tilde: f64,
+    /// 实际 p*（既有生产路径产出，本记录不改其值）。
+    pub p_star_actual: f64,
+    /// 反事实 p*：仅移除 `stop_long`（其余门含 `stop_short` 不变）重算；`hi_triggered=false` 则 `None`。
+    pub p_star_cf_hi: Option<f64>,
+    /// 反事实 p*：仅移除 `stop_short`（其余门含 `stop_long` 不变）重算；`lo_triggered=false` 则 `None`。
+    pub p_star_cf_lo: Option<f64>,
+}
+
+thread_local! {
+    static CAP_BINDING_ATTRIBUTION: std::cell::RefCell<Vec<CapBindingAttributionEvent>> =
+        std::cell::RefCell::new(Vec::new());
+}
+
+/// 归零 #628 归因事件表（wf8 run 前调用，与 [`cap_binding_probe_reset`] 同惯例）。
+pub fn cap_binding_attribution_reset() {
+    CAP_BINDING_ATTRIBUTION.with(|c| c.borrow_mut().clear());
+}
+
+/// 读取 #628 归因事件表快照（wf8 run 后调用）。
+pub fn cap_binding_attribution_snapshot() -> Vec<CapBindingAttributionEvent> {
+    CAP_BINDING_ATTRIBUTION.with(|c| c.borrow().clone())
+}
+
+/// 𝒦_Θ 可行代表集的**无副作用**构造（同 [`feasible_lex_candidates`]，但用 [`KThetaRiskGate::caps_raw`]
+/// 而非 `caps`——不 bump [`CAP_BINDING_PROBE`]）。仅供本节反事实归因复用，非生产决策路径。
+fn feasible_lex_candidates_raw(
+    p_tilde: f64,
+    p_t: f64,
+    base_units: f64,
+    risk: &RiskConfig,
+    weights: PiThetaWeights,
+    gate: KThetaRiskGate,
+) -> Vec<LexCandidate<f64>> {
+    let lot = risk.default_lot.max(1) as f64;
+    let cap = feasible_net_cap(risk) * base_units.abs();
+    let (lo_cap, hi_cap) = gate.caps_raw(cap);
+    feasible_candidates(p_tilde, p_t, lo_cap, hi_cap, lot)
+        .into_iter()
+        .map(|(p, gi)| LexCandidate { control: p, key: j_theta_key(p, p_tilde, p_t, weights, gi) })
+        .collect()
+}
+
+/// #628 阶段一归因记录：`gate` 触发 `stop_long`/`stop_short` 时，逐侧算反事实 p* 并入表。
+/// `force_flat` 或两侧均未触发 ⟹ 早退（无 binding 可归因）。
+fn record_cap_binding_attribution(
+    p_tilde: f64,
+    p_t: f64,
+    base_units: f64,
+    risk: &RiskConfig,
+    weights: PiThetaWeights,
+    gate: KThetaRiskGate,
+    p_star_actual: f64,
+) {
+    if gate.force_flat || !(gate.stop_long || gate.stop_short) {
+        return;
+    }
+    let p_star_cf_hi = gate.stop_long.then(|| {
+        let cf_gate = KThetaRiskGate { stop_long: false, ..gate };
+        lex_argmin(&feasible_lex_candidates_raw(p_tilde, p_t, base_units, risk, weights, cf_gate)).unwrap_or(0.0)
+    });
+    let p_star_cf_lo = gate.stop_short.then(|| {
+        let cf_gate = KThetaRiskGate { stop_short: false, ..gate };
+        lex_argmin(&feasible_lex_candidates_raw(p_tilde, p_t, base_units, risk, weights, cf_gate)).unwrap_or(0.0)
+    });
+    CAP_BINDING_ATTRIBUTION.with(|c| {
+        c.borrow_mut().push(CapBindingAttributionEvent {
+            hi_triggered: gate.stop_long,
+            lo_triggered: gate.stop_short,
+            p_tilde,
+            p_star_actual,
+            p_star_cf_hi,
+            p_star_cf_lo,
+        })
+    });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 //  §9 环7：目标头寸 p̃_{t+1} → 全定义策略 π_Θ → 唯一订单 O_{t+1}
 //        （spec §15 P12 line 717-756：𝒦_Θ / J_x / LexArgmin / Schedule_Θ；
 //         定理 spec §16 P13 line 795：∀x ∃! O_{t+1}=π_Θ(x)，七链 **环7** rust 兑现）
@@ -153,8 +248,9 @@ impl KThetaRiskGate {
         KThetaRiskGate { force_flat: false, stop_long: false, stop_short: false, no_increase_cap: None }
     }
 
-    /// 应用约束门到对称 cap，产 `(lo_cap, hi_cap)` 幅度（`force_flat` 优先收到 {0}）。
-    fn caps(&self, cap: f64) -> (f64, f64) {
+    /// 应用约束门到对称 cap，产 `(lo_cap, hi_cap)` 幅度（`force_flat` 优先收到 {0}）——**无副作用版**
+    /// （不 bump [`CAP_BINDING_PROBE`]，供 #628 反事实归因复用，避免二次调用污染生产计数）。
+    fn caps_raw(&self, cap: f64) -> (f64, f64) {
         if self.force_flat {
             return (0.0, 0.0); // GlobalRiskClose ⟹ 𝒦_Θ={0}（净持仓只能 0）
         }
@@ -163,20 +259,24 @@ impl KThetaRiskGate {
             Some(c) => cap.min(c.max(0.0)),
             None => cap,
         };
+        let hi = if self.stop_long { 0.0 } else { cap }; // 禁净多 ⟹ 上限 0
+        let lo = if self.stop_short { 0.0 } else { cap }; // 禁净空 ⟹ 下限 0
+        (lo, hi)
+    }
+
+    /// 应用约束门到对称 cap，产 `(lo_cap, hi_cap)` 幅度（`force_flat` 优先收到 {0}）。
+    fn caps(&self, cap: f64) -> (f64, f64) {
+        let (lo, hi) = self.caps_raw(cap);
         // ★#625 发现1 观测（review-625.md 发现1 PLAUSIBLE）：分侧 binding 计数，纯旁路，
-        // 不改下方 hi/lo 取值——用于验证「若 binding 恒零，方向口径错配对净持仓影响为 0」。
-        let hi = if self.stop_long {
-            cap_binding_probe_bump(|p| p.hi_binding += 1);
-            0.0 // 禁净多 ⟹ 上限 0
-        } else {
-            cap
-        };
-        let lo = if self.stop_short {
-            cap_binding_probe_bump(|p| p.lo_binding += 1);
-            0.0 // 禁净空 ⟹ 下限 0
-        } else {
-            cap
-        };
+        // 不改上方 hi/lo 取值——用于验证「若 binding 恒零，方向口径错配对净持仓影响为 0」。
+        if !self.force_flat {
+            if self.stop_long {
+                cap_binding_probe_bump(|p| p.hi_binding += 1);
+            }
+            if self.stop_short {
+                cap_binding_probe_bump(|p| p.lo_binding += 1);
+            }
+        }
         (lo, hi)
     }
 
@@ -282,7 +382,11 @@ pub fn pi_theta_position(
     weights: PiThetaWeights,
     gate: KThetaRiskGate, // 𝒦_Θ 风控约束门（close_pred 折入，非第二出口；全开=open()）
 ) -> f64 {
-    lex_argmin(&feasible_lex_candidates(p_tilde, p_t, base_units, risk, weights, gate)).unwrap_or(0.0)
+    let p_star =
+        lex_argmin(&feasible_lex_candidates(p_tilde, p_t, base_units, risk, weights, gate)).unwrap_or(0.0);
+    // ★#628 阶段一归因：binding 触发时记录反事实 p*（早退防护在函数内，非 binding 时零开销）。
+    record_cap_binding_attribution(p_tilde, p_t, base_units, risk, weights, gate, p_star);
+    p_star
 }
 
 /// 𝒦_Θ 可行代表集 → `Vec<LexCandidate<f64>>`（J_Θ 键已挂），供 [`lex_argmin`]（p_star 选址）与
