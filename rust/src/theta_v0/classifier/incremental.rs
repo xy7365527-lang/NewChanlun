@@ -210,15 +210,11 @@ pub fn classify_with_tower_incremental(
     config: &ThetaConfig,
     cache: &mut TowerCache,
 ) -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
-    let min_parts = config.level.min_parts_per_level as usize;
-    let l_max = config.level.l_max as usize;
-
     // L0 侧序幕（回缩校验 → units 增量 → 空判 → 水线落账 → L0 塔增量）。内部五步次序受 T1–T5 约束。
     let Some(prelude) = prepare_l0_inputs(l0, cache) else {
         // 空 L0 边界：缓存已在序幕内清空（下次从头扫）。
         return (Classification::default(), Vec::new());
     };
-    let L0Prelude { l0_units, moves_tower_l0, l0_dirty_from, forest_dirty_l0 } = prelude;
 
     // MACD hist（背驰真算，增量递推——231号纯性能，解 aed4d5f5 实证的 c_exp≈2.31 主导根因）。
     //
@@ -263,198 +259,7 @@ pub fn classify_with_tower_incremental(
         stable_len,
     };
 
-    let mut levels: Vec<LevelState> = Vec::new();
-    // ★O(n) 重构：snapshots 存 Rc——L≥1 级 push Rc::clone(&lc.upper_moves)（O(1)）；L0 级 push
-    // moves_tower_l0（Rc）。下游（runner/interp/l3）只读借 &[Rc<Vec<LeveledMove>>]。
-    let mut tower_snapshots: Vec<Rc<Vec<LeveledMove>>> = Vec::new();
-
-    // 逐级增量构造。`units`/`moves_tower` 是本级输入（前缀来自缓存，尾部新增）。
-    // ★H7 Rc 化：loop 内 units 只读（读 len/切片/传 &[]，从不原地改），下一级由 stage 10
-    // `Rc::clone(&lc.projected_units)` O(1) 重赋，替代全量 clone。
-    // ★H4：L0 首级 units = l0_units（本身已是 Rc<Vec<UnitRange>>，00b 阶段 Rc::clone 出借缓存），
-    // 直接 move 入 units（无 Rc::new 双重包裹）。
-    let mut units: Rc<Vec<UnitRange>> = l0_units;
-    // Q7-#1 裁定C：units 方向锚资格（循环携带，级别-N 在投影点与 units 同步派生；L0 分支不消费）。
-    let mut units_anchors: Vec<Option<Direction>> = Vec::new();
-    let mut moves_tower: Rc<Vec<LeveledMove>> = moves_tower_l0;
-
-    // ★cascade reset（codex 异质审查裁决：option 2）：任一级检出 frontier 变异 ⟹ 该级**及所有更高级**
-    // 无条件 reset。根因：本级守卫只比对 `project_to_units` 投影（有损——丢弃 `sub_moves`/`rmove.subs`）。
-    // 当 L0 末段内点改写使上级投影 bit-identical 但底层 sub_moves 变时，上级 frontier_mutated=false 会
-    // 漏 reset ⟹ `upper_moves` 深嵌套 sub_moves 陈旧 + BSP memo 复用陈旧（codex 反例
-    // `cascade_reset_on_frontier_interior_rewrite` 坐实）。cascade 消除整类"投影是否捕获深字段变化"
-    // 的易错判断（no-patch）：下级变异无条件向上传播，上级不依赖投影完备性。代价：变异 bar（16K 中
-    // ~120 次稀疏）该级+所有上级全量重扫，amortized 仍 O(n)。
-    let mut cascade_reset = false;
-    // ★on2w2-cascade 失效边界定理（设计 §1）：本 bar 累积脏源下界 `e`（最小改变源坐标，逐级恒定
-    // 传播）。init usize::MAX（=+∞，无改变 ⟹ 无 cascade）。**生产逻辑**：cascade 命中时按
-    // `read_end_src < e` 取保留前缀 P，前缀 bit-identical 保留、后缀失效重扫（撤 #65「整塔前缀清空」）。
-    let mut dirty_e: usize = usize::MAX;
-    // ★工位 4g：本 bar 是否有任一级 extend 非空 tail（含新级涌现首产 + 最高级 append）——驱动
-    // generation +1（与 cascade_reset 一起完整覆盖 extract 可观察树变更，codex Q3）。
-    let mut did_extend = false;
-    // ★on2w2 forest_epoch dirty 累积器（E1-E3 折叠，循环后统一 bump——避开与循环内 `lc` 可变别名，
-    // 同 did_extend/cascade_reset 模式）。E1（L0 塔重建）在循环前置位；E2（upper extend）/E2a
-    // （frontier pop）/E3（cascade clear）在循环内 `|=`。E4（clear()）不经此，方法内直接 bump。
-    let mut forest_dirty = forest_dirty_l0;
-    // ★A3 证书（per-level dirty_from，§2.4）：本级 units 的不可变前缀长度。L0 = l0_dirty_from
-    // （§2.3）；L≥1 = 父级 prefix_count（loop 尾 `dirty_from = prefix_count`）。驱动 03（L1+ stable
-    // 从 0 抬起）+ 04（cached_units truncate+extend O(tail)）。
-    let mut dirty_from: usize = l0_dirty_from;
-
-    for level_idx in 0..=l_max {
-        // 自然终止：单元数 < min_parts ⟹ 停止（与 classify_impl 同口径）。
-        if units.len() < min_parts {
-            // ★§2.6：level_idx 及所有更高级本 bar 全跳过（循环顶部 break，lc 未触碰）——truncate 掉
-            // 这段不可达尾巴的陈旧 LevelCache，令其恢复时走 LevelCache::default() 全扫（血缘自洽，
-            // 防 stable=dirty_from.min(scanned) 坍缩假阴）。
-            #[cfg(test)]
-            oracle_probe::on_minparts_break(level_idx < cache.levels.len());
-            cache.levels.truncate(level_idx);
-            break;
-        }
-
-        let is_l0 = level_idx == 0;
-
-        // 缓存槽按需扩展（首次到达该级 ⟹ 新建空 LevelCache，start_i=0 全量扫）。
-        if cache.levels.len() <= level_idx {
-            cache.levels.push(LevelCache::default());
-        }
-        let lc = &mut cache.levels[level_idx];
-
-        // #106/A3 §3.3 证书跳前缀：L0 用 parser `segments_confirmed_len`，L1+ 用父级 `dirty_from`。
-        let stable_bound = if is_l0 { l0.segments_confirmed_len } else { dirty_from };
-        apply_frontier_invalidation(
-            lc, &units, stable_bound,
-            &mut cascade_reset, &mut dirty_e, &mut forest_dirty,
-        );
-        lc.last_input_len = units.len();
-        sync_cached_units(lc, &units, dirty_from);
-
-        let popped = pop_frontier_window(lc);
-        // ★codex Q4：prefix_count = lc.upper_moves.len()（pop 后的已产出前缀数），tail ordinal 接续
-        // 前缀 ⟹ 全量/增量产同 ElementId（跨 bar 稳定身份）。★A3 §2.2：prefix_count 同时是本级
-        // projected_units 的不可变前缀（§2.5 truncate 锚）+ 下一级 units 的 dirty_from（§2.4 loop 尾）。
-        let prefix_count = lc.upper_moves.len();
-        // ★on2w2-cascade §3.1 契约：cached_second_count（保留 parent 前缀数）须 <= pop 后 prefix_count
-        // （否则缓存越过 confirmed 边界，extract_second_resume 单调守卫会重置）。cascade truncate 设
-        // cached_second_count=P=win_meta 保留数 <= upper_moves 保留数 == prefix_count（同一 truncate(p)）。
-        debug_assert!(
-            lc.cached_second_count <= prefix_count,
-            "§3.1 契约违反：cached_second_count={} > prefix_count={}",
-            lc.cached_second_count, prefix_count
-        );
-        let (tail_centers, tail_upper, mut tail_cp, tail_metas, new_cursor) =
-            stage_profile::time("05_compose_resume", || {
-                compose_level_resume(
-                    &units,
-                    &moves_tower[..],
-                    is_l0,
-                    level_idx as u32 + 1,
-                    popped.resume_start,
-                    prefix_count,
-                )
-            });
-        let lifecycle_scan_from =
-            reinherit_cp_lifecycles(lc, &mut tail_cp, &popped.cp, dirty_from, level_idx);
-
-        // ★A3 oracle 探针：had_emitted_window pop 后 T = tail_upper.len()（本 bar 本级重扫产出窗口数）。
-        // T==1 = did_extend 证伪正向锁（重扫仅复现被 pop 窗口，tail_upper 恰 1）；T>1 = frontier 值改写。
-        #[cfg(test)]
-        if popped.had_window {
-            oracle_probe::on_pop_rescan(tail_upper.len());
-        }
-
-        // ★task #143：走势分解增量无需 frontier 失效钩子——decompose_resume 只冻结 sealed
-        // 关系（i < m-2，两端中枢均有后继），触 frontier 中枢的临时尾关系每 bar 重折。frontier
-        // pop 后重扫改值 / 一次重扫多产两种破口均被冻结不变量覆盖（decompose.rs 模块头 + 随机
-        // 事件流 parity 测试）。
-        // 追加到已缓存前缀（前缀不可变，仅尾部追加）⟹ 累积 centers/upper == 全量扫描结果。
-        did_extend |= !tail_upper.is_empty();
-        // ★on2w2 E2+E2a（合并逐值判据）：本级 upper_moves 尾部从 popped.upper 换成 tail_upper。
-        // 变更 ⟺ 两者不逐值相等（含长度）。frontier resume 每 bar pop+重扫复现相同窗口（tail_upper
-        // == popped.upper）时**不置 dirty**——这是把 bump 率从 did_extend 的 ~96% 压回 forest 真变率
-        // 0.78% 的机制（实证订正：初版 `|=!tail_upper.is_empty()` 对每 bar 重扫复现的相同窗口误 bump）。
-        // over-invalidate 保留：长度或任一值不等即 dirty。O(tail) 比对，非全塔。
-        // ★次序：本比较必须在 extend_level_tail 消费 tail_upper 之前。
-        forest_dirty |= tail_upper != popped.upper;
-        extend_level_tail(lc, tail_centers, tail_upper, tail_cp, tail_metas);
-        let cp_objects = Rc::make_mut(&mut lc.cp_ownership);
-        recursive_tower::advance_cp_lifecycles(
-            cp_objects.as_mut_slice(),
-            &lc.centers,
-            &units,
-            &moves_tower,
-            (!is_l0).then_some(&units_anchors[..]),
-            lifecycle_scan_from,
-        );
-        lc.scan_cursor = new_cursor;
-        advance_confirmed_watermark(lc, cascade_reset);
-        debug_assert_level_alignment(lc);
-
-        // 本级输入塔快照（compose 前）。
-        // ★O(1) 优化：moves_tower 是 Rc——move 入 snapshots（所有权转移，零拷贝）。下一级用
-        // Rc::clone(&lc.upper_moves) 重置 moves_tower（line 912），故此处 move 后 moves_tower 失效合法。
-        // bit-exact：snapshots 内容 == 全量版（Rc 指向的 Vec 值不变，仅所有权/引用计数变）。
-        tower_snapshots.push(std::mem::take(&mut moves_tower));
-
-        // 走势分解（增量续折：resume 单一来源 ⟹ 与全量 decompose 定义性 bit-exact）。
-        // ★#148：链尾可变中枢数 = 本轮末窗口产出数（升级重切窗口的全部子中枢在窗口 sealed 前
-        // 均可变——外缘随延伸改写、数量随段数增长改变），冻结边界随之后移（decompose.rs 文档）。
-        let moves = decompose_resume(
-            &lc.centers,
-            &mut lc.decompose_state,
-            lc.scan_cursor.last_window_emitted.max(1),
-        );
-        // #69 5b：无条件登记本级一/三类所用 source 水位；不得挂在 BSP memo miss 分支，
-        // 否则 hit bar 会暴露陈旧 e_src。公式与 signal resume 单一同源。
-        lc.last_freeze_boundary = signal::freeze_boundary_src(&lc.centers, prefix_count, dirty_e);
-
-        let bsp_inputs = LevelBspInputs {
-            l0,
-            config,
-            units: &units,
-            units_anchors: &units_anchors,
-            is_l0,
-        };
-        let (bsp, pan_div) =
-            extract_level_bsp(lc, &bsp_inputs, &moves, prefix_count, dirty_e, &series);
-
-        // 08：`Rc::clone`（O(1)）投影增量塔 centers 到 LevelState，替代全量 `centers.clone()`。
-        let level_centers = stage_profile::time("08_levels_centers_clone", || Rc::clone(&lc.centers));
-        let level_projection = build_level_projection(config, levels.len() as u32, &bsp, l0);
-        levels.push(LevelState {
-            moves,
-            centers: level_centers,
-            cp_ownership: Rc::clone(&lc.cp_ownership),
-            bsp,
-            pan_div,
-            level_projection,
-        });
-
-        // 下一级输入 = 上级走势塔投影 + 同源方向锚（`levels` 尾 = 本级刚 push 的 LevelState）。
-        let parent_blocks = &levels.last().expect("本级 LevelState 已 push").moves;
-        units = project_next_level_units(lc, parent_blocks, prefix_count);
-        units_anchors = derive_units_anchors(parent_blocks, units.len());
-
-        // ★A3 §2.4：本级 prefix_count 是下一级 units 的不可变前缀（父 confirmed 前缀投影稳定）。
-        dirty_from = prefix_count;
-
-        if units.is_empty() {
-            // ★§2.6：level_idx 已处理完（尾部 break），level_idx+1 及更高级本 bar 因空 units 全跳过——
-            // truncate 掉这段不可达尾巴的陈旧 LevelCache（血缘自洽，恢复时全扫重建）。
-            #[cfg(test)]
-            oracle_probe::on_empty_break(level_idx + 1 < cache.levels.len());
-            cache.levels.truncate(level_idx + 1);
-            break;
-        }
-        // ★O(n) 重构：moves_tower = Rc::clone(&lc.upper_moves) —— O(1) 引用计数，消除 per-bar 全塔
-        // 深拷贝（旧 `lc.upper_moves.clone()` 是 O(n²) 热点①根因）。下一级 line 832 借 &moves_tower[..]
-        // 只读，line 854 move 入 snapshots。lc.upper_moves 跨 bar 持久于 cache；extend（line 843）经
-        // make_mut，caller 逐 bar drop snapshot ⟹ strong_count==1 ⟹ 原地 O(tail)。
-        // bit-exact：Rc 指向同一 Vec，逐字段与旧 clone 等价。
-        moves_tower = Rc::clone(&lc.upper_moves);
-    }
+    let built = build_level_tower(l0, config, &mut cache.levels, prelude, &series);
 
     // closes/close_src 缓冲放回 cache（mem::take 取出的所有权归还，下 bar 复用，零额外分配）。
     cache.closes = closes;
@@ -462,51 +267,10 @@ pub fn classify_with_tower_incremental(
     cache.closes_tick = closes_tick; // force 价格振幅/速度 proxy 缓冲放回，下 bar 复用（同 closes 模式）。
     cache.area_cache = area_cache.into_inner(); // B3 #4 area-memo：缓冲放回，下 bar 复用（同上模式）。
 
-    // ★工位 4g：本 bar 若有 cascade 重扫或任一级 extend 非空 tail ⟹ extract_elements 可观察树变更 ⟹
-    // +generation（下游 TreeCache 据此 O(1) 跳过 TreeKey::of）。无变化 bar（~99.8%）generation 不变 ⟹
-    // 命中。soundness：保守过度计数（低级 extend 不动最高级输出时多算一次 TreeKey）安全，绝不假命中。
-    //
-    // ★L0-root 边界（codex Q3 漏洞 + gen_fastpath_bit_exact_debug bar 345 坐实）：当最高非空级是 **L0**
-    // （tower 无 compose 级，extract 直接读 `moves_tower_l0`），L0 走势塔每 bar 从 `l0.segments` 重建
-    // （非缓存 Rc），其增长/同 len 古怪线段重划**不经** cascade/did_extend（那两者只覆盖各级 upper_moves）。
-    // 故 L0-root 阶段**强制每 bar +generation**（走 TreeKey fallback）——此阶段 tree 极小（早期 bar），
-    // TreeKey O(small) 不影响大 n 标度。一旦 L1+ 出现（extract 读 L1），L0 任何变化必经 cascade 传播至
-    // L1（codex Q1：L0 frontier 改写→L1 units 投影变→L1 frontier_mutated→cascade），被完整捕获。
-    let highest_nonempty = tower_snapshots.iter().rposition(|s| !s.is_empty());
-    let l0_is_root = highest_nonempty == Some(0);
-    if cascade_reset || did_extend || l0_is_root {
-        cache.generation += 1;
-    }
+    bump_tower_epochs(cache, &built);
+    debug_assert_l0_units_in_sync(cache, &built.tower_snapshots);
 
-    // ★on2w2 forest_epoch：E1-E3 折叠（forest_dirty，含 E1 L0 塔重建 / E2 upper extend / E2a frontier
-    // pop / E3 cascade clear）循环后统一 bump。E4（clear()）不经此（方法内已 bump）。与 generation 的
-    // 关键区别：generation 靠 l0_is_root 每-bar blunt 兜底（bump 率 98.5%）；forest_epoch 只在塔实际字节
-    // 变更时 bump（E1 直接捕获 L0 变更，无需 blunt 兜底）⟹ bump 率贴近 forest 真变率 ≈0.8%（on2w2 §2）。
-    // over-invalidate：写入站点无条件 dirty，宁可多失效不可假命中（假命中不可能性证明 on2w2 §4）。
-    if forest_dirty {
-        cache.forest_epoch += 1;
-    }
-    #[cfg(test)]
-    oracle_probe::on_forest_dirty(forest_dirty_l0, forest_dirty && !forest_dirty_l0 && !cascade_reset, cascade_reset);
-
-    // ★#613（#609 F2）：`l0_units()` 只读契约的不变式——**塔已产出 L0 级快照时**，
-    // `l0_units_cache` 与 `tower[0]` 同长（同源同序由 `moves_tower_l0` 的构造保证：两者都是
-    // `l0.segments` 的逐元素纯函数投影，且本函数内只有一处写入站点）。
-    //
-    // 限定「非空」是结构事实而非放宽：段数不足以构造任何级别时 `tower_snapshots` 为空而
-    // `l0_units_cache` 已有内容（BTC 100k 实测 278 个早期 bar），此时消费方
-    // （`p123_fast_replay::recompute_lifecycle_window_stems`）走 `tower_level_absent` 显式原因码，
-    // 根本不读 `l0_units` ⟹ 无契约面。
-    debug_assert!(
-        tower_snapshots
-            .first()
-            .is_none_or(|l0_tower| l0_tower.len() == cache.l0_units_cache.len()),
-        "l0_units() 契约违反：l0_units_cache.len()={} 与 tower[0].len()={:?} 失步（#613/#609 F2）",
-        cache.l0_units_cache.len(),
-        tower_snapshots.first().map(|t| t.len())
-    );
-
-    (Classification { levels }, tower_snapshots)
+    (Classification { levels: built.levels }, built.tower_snapshots)
 }
 
 /// 放行条件3 falsification 探针启用开关（env `THETA_CASCADE_EPROBE`，仅 test 构建；
@@ -1089,4 +853,290 @@ fn derive_units_anchors(parent_blocks: &[MoveBlock], units_len: usize) -> Vec<Op
     (0..units_len)
         .map(|i| decompose::center_own_dir_at(parent_blocks, i))
         .collect()
+}
+
+/// [`build_level_tower`] 的产出：本 bar 的分级状态 + 塔快照 + 三个跨级累积判据。
+struct TowerBuild {
+    levels: Vec<LevelState>,
+    tower_snapshots: Vec<Rc<Vec<LeveledMove>>>,
+    /// 任一级检出 frontier 变异（含更高级无条件跟随）。驱动 `generation` bump + 水线只许收缩。
+    cascade_reset: bool,
+    /// 任一级 extend 非空 tail（含新级涌现首产 + 最高级 append）。驱动 `generation` bump。
+    did_extend: bool,
+    /// on2w2 E1-E3 折叠：塔实际字节变更。驱动 `forest_epoch` bump。
+    forest_dirty: bool,
+    /// E1 分量（L0 塔本 bar 重建），仅供 `on_forest_dirty` 探针分辨 E1 vs E2/E3。
+    ///
+    /// `allow(dead_code)`：唯一读点在 `#[cfg(test)]` 探针内（同 [`PoppedFrontier::had_window`]）。
+    #[allow(dead_code)]
+    forest_dirty_l0: bool,
+}
+
+/// 逐级增量构造塔（`for level_idx in 0..=l_max` 主循环）。
+///
+/// 按字段接参而非 `&mut TowerCache`：`series` 持 `&cache.macd_{hist,dif}`，本函数改 `cache.levels`
+/// ——两个借用路径不相交（报告 §1.2）。返回类型不含借用 ⟹ 调用结束即释放，主函数随后可写 cache。
+///
+/// 循环携带量（`units`/`moves_tower`/`units_anchors`/`dirty_from`/三个累积判据）全部是本函数的
+/// 栈上局部量，drop 时点与原码内联时逐点相同（T11/T12）。
+fn build_level_tower(
+    l0: &ParseLayer,
+    config: &ThetaConfig,
+    levels_cache: &mut Vec<LevelCache>,
+    prelude: L0Prelude,
+    series: &LevelSeries<'_>,
+) -> TowerBuild {
+    let min_parts = config.level.min_parts_per_level as usize;
+    let l_max = config.level.l_max as usize;
+    let L0Prelude { l0_units, moves_tower_l0, l0_dirty_from, forest_dirty_l0 } = prelude;
+
+    let mut levels: Vec<LevelState> = Vec::new();
+    // ★O(n) 重构：snapshots 存 Rc——L≥1 级 push Rc::clone(&lc.upper_moves)（O(1)）；L0 级 push
+    // moves_tower_l0（Rc）。下游（runner/interp/l3）只读借 &[Rc<Vec<LeveledMove>>]。
+    let mut tower_snapshots: Vec<Rc<Vec<LeveledMove>>> = Vec::new();
+
+    // 逐级增量构造。`units`/`moves_tower` 是本级输入（前缀来自缓存，尾部新增）。
+    // ★H7 Rc 化：loop 内 units 只读（读 len/切片/传 &[]，从不原地改），下一级由 stage 10
+    // `Rc::clone(&lc.projected_units)` O(1) 重赋，替代全量 clone。
+    // ★H4：L0 首级 units = l0_units（本身已是 Rc<Vec<UnitRange>>，00b 阶段 Rc::clone 出借缓存），
+    // 直接 move 入 units（无 Rc::new 双重包裹）。
+    let mut units: Rc<Vec<UnitRange>> = l0_units;
+    // Q7-#1 裁定C：units 方向锚资格（循环携带，级别-N 在投影点与 units 同步派生；L0 分支不消费）。
+    let mut units_anchors: Vec<Option<Direction>> = Vec::new();
+    let mut moves_tower: Rc<Vec<LeveledMove>> = moves_tower_l0;
+
+    // ★cascade reset（codex 异质审查裁决：option 2）：任一级检出 frontier 变异 ⟹ 该级**及所有更高级**
+    // 无条件 reset。根因：本级守卫只比对 `project_to_units` 投影（有损——丢弃 `sub_moves`/`rmove.subs`）。
+    // 当 L0 末段内点改写使上级投影 bit-identical 但底层 sub_moves 变时，上级 frontier_mutated=false 会
+    // 漏 reset ⟹ `upper_moves` 深嵌套 sub_moves 陈旧 + BSP memo 复用陈旧（codex 反例
+    // `cascade_reset_on_frontier_interior_rewrite` 坐实）。cascade 消除整类"投影是否捕获深字段变化"
+    // 的易错判断（no-patch）：下级变异无条件向上传播，上级不依赖投影完备性。代价：变异 bar（16K 中
+    // ~120 次稀疏）该级+所有上级全量重扫，amortized 仍 O(n)。
+    let mut cascade_reset = false;
+    // ★on2w2-cascade 失效边界定理（设计 §1）：本 bar 累积脏源下界 `e`（最小改变源坐标，逐级恒定
+    // 传播）。init usize::MAX（=+∞，无改变 ⟹ 无 cascade）。**生产逻辑**：cascade 命中时按
+    // `read_end_src < e` 取保留前缀 P，前缀 bit-identical 保留、后缀失效重扫（撤 #65「整塔前缀清空」）。
+    let mut dirty_e: usize = usize::MAX;
+    // ★工位 4g：本 bar 是否有任一级 extend 非空 tail（含新级涌现首产 + 最高级 append）——驱动
+    // generation +1（与 cascade_reset 一起完整覆盖 extract 可观察树变更，codex Q3）。
+    let mut did_extend = false;
+    // ★on2w2 forest_epoch dirty 累积器（E1-E3 折叠，循环后统一 bump——避开与循环内 `lc` 可变别名，
+    // 同 did_extend/cascade_reset 模式）。E1（L0 塔重建）在循环前置位；E2（upper extend）/E2a
+    // （frontier pop）/E3（cascade clear）在循环内 `|=`。E4（clear()）不经此，方法内直接 bump。
+    let mut forest_dirty = forest_dirty_l0;
+    // ★A3 证书（per-level dirty_from，§2.4）：本级 units 的不可变前缀长度。L0 = l0_dirty_from
+    // （§2.3）；L≥1 = 父级 prefix_count（loop 尾 `dirty_from = prefix_count`）。驱动 03（L1+ stable
+    // 从 0 抬起）+ 04（cached_units truncate+extend O(tail)）。
+    let mut dirty_from: usize = l0_dirty_from;
+
+    for level_idx in 0..=l_max {
+        // 自然终止：单元数 < min_parts ⟹ 停止（与 classify_impl 同口径）。
+        if units.len() < min_parts {
+            // ★§2.6：level_idx 及所有更高级本 bar 全跳过（循环顶部 break，lc 未触碰）——truncate 掉
+            // 这段不可达尾巴的陈旧 LevelCache，令其恢复时走 LevelCache::default() 全扫（血缘自洽，
+            // 防 stable=dirty_from.min(scanned) 坍缩假阴）。
+            #[cfg(test)]
+            oracle_probe::on_minparts_break(level_idx < levels_cache.len());
+            levels_cache.truncate(level_idx);
+            break;
+        }
+
+        let is_l0 = level_idx == 0;
+
+        // 缓存槽按需扩展（首次到达该级 ⟹ 新建空 LevelCache，start_i=0 全量扫）。
+        if levels_cache.len() <= level_idx {
+            levels_cache.push(LevelCache::default());
+        }
+        let lc = &mut levels_cache[level_idx];
+
+        // #106/A3 §3.3 证书跳前缀：L0 用 parser `segments_confirmed_len`，L1+ 用父级 `dirty_from`。
+        let stable_bound = if is_l0 { l0.segments_confirmed_len } else { dirty_from };
+        apply_frontier_invalidation(
+            lc, &units, stable_bound,
+            &mut cascade_reset, &mut dirty_e, &mut forest_dirty,
+        );
+        lc.last_input_len = units.len();
+        sync_cached_units(lc, &units, dirty_from);
+
+        let popped = pop_frontier_window(lc);
+        // ★codex Q4：prefix_count = lc.upper_moves.len()（pop 后的已产出前缀数），tail ordinal 接续
+        // 前缀 ⟹ 全量/增量产同 ElementId（跨 bar 稳定身份）。★A3 §2.2：prefix_count 同时是本级
+        // projected_units 的不可变前缀（§2.5 truncate 锚）+ 下一级 units 的 dirty_from（§2.4 loop 尾）。
+        let prefix_count = lc.upper_moves.len();
+        // ★on2w2-cascade §3.1 契约：cached_second_count（保留 parent 前缀数）须 <= pop 后 prefix_count
+        // （否则缓存越过 confirmed 边界，extract_second_resume 单调守卫会重置）。cascade truncate 设
+        // cached_second_count=P=win_meta 保留数 <= upper_moves 保留数 == prefix_count（同一 truncate(p)）。
+        debug_assert!(
+            lc.cached_second_count <= prefix_count,
+            "§3.1 契约违反：cached_second_count={} > prefix_count={}",
+            lc.cached_second_count, prefix_count
+        );
+        let (tail_centers, tail_upper, mut tail_cp, tail_metas, new_cursor) =
+            stage_profile::time("05_compose_resume", || {
+                compose_level_resume(
+                    &units,
+                    &moves_tower[..],
+                    is_l0,
+                    level_idx as u32 + 1,
+                    popped.resume_start,
+                    prefix_count,
+                )
+            });
+        let lifecycle_scan_from =
+            reinherit_cp_lifecycles(lc, &mut tail_cp, &popped.cp, dirty_from, level_idx);
+
+        // ★A3 oracle 探针：had_emitted_window pop 后 T = tail_upper.len()（本 bar 本级重扫产出窗口数）。
+        // T==1 = did_extend 证伪正向锁（重扫仅复现被 pop 窗口，tail_upper 恰 1）；T>1 = frontier 值改写。
+        #[cfg(test)]
+        if popped.had_window {
+            oracle_probe::on_pop_rescan(tail_upper.len());
+        }
+
+        // ★task #143：走势分解增量无需 frontier 失效钩子——decompose_resume 只冻结 sealed
+        // 关系（i < m-2，两端中枢均有后继），触 frontier 中枢的临时尾关系每 bar 重折。frontier
+        // pop 后重扫改值 / 一次重扫多产两种破口均被冻结不变量覆盖（decompose.rs 模块头 + 随机
+        // 事件流 parity 测试）。
+        // 追加到已缓存前缀（前缀不可变，仅尾部追加）⟹ 累积 centers/upper == 全量扫描结果。
+        did_extend |= !tail_upper.is_empty();
+        // ★on2w2 E2+E2a（合并逐值判据）：本级 upper_moves 尾部从 popped.upper 换成 tail_upper。
+        // 变更 ⟺ 两者不逐值相等（含长度）。frontier resume 每 bar pop+重扫复现相同窗口（tail_upper
+        // == popped.upper）时**不置 dirty**——这是把 bump 率从 did_extend 的 ~96% 压回 forest 真变率
+        // 0.78% 的机制（实证订正：初版 `|=!tail_upper.is_empty()` 对每 bar 重扫复现的相同窗口误 bump）。
+        // over-invalidate 保留：长度或任一值不等即 dirty。O(tail) 比对，非全塔。
+        // ★次序：本比较必须在 extend_level_tail 消费 tail_upper 之前。
+        forest_dirty |= tail_upper != popped.upper;
+        extend_level_tail(lc, tail_centers, tail_upper, tail_cp, tail_metas);
+        let cp_objects = Rc::make_mut(&mut lc.cp_ownership);
+        recursive_tower::advance_cp_lifecycles(
+            cp_objects.as_mut_slice(),
+            &lc.centers,
+            &units,
+            &moves_tower,
+            (!is_l0).then_some(&units_anchors[..]),
+            lifecycle_scan_from,
+        );
+        lc.scan_cursor = new_cursor;
+        advance_confirmed_watermark(lc, cascade_reset);
+        debug_assert_level_alignment(lc);
+
+        // 本级输入塔快照（compose 前）。
+        // ★O(1) 优化：moves_tower 是 Rc——move 入 snapshots（所有权转移，零拷贝）。下一级用
+        // Rc::clone(&lc.upper_moves) 重置 moves_tower（line 912），故此处 move 后 moves_tower 失效合法。
+        // bit-exact：snapshots 内容 == 全量版（Rc 指向的 Vec 值不变，仅所有权/引用计数变）。
+        tower_snapshots.push(std::mem::take(&mut moves_tower));
+
+        // 走势分解（增量续折：resume 单一来源 ⟹ 与全量 decompose 定义性 bit-exact）。
+        // ★#148：链尾可变中枢数 = 本轮末窗口产出数（升级重切窗口的全部子中枢在窗口 sealed 前
+        // 均可变——外缘随延伸改写、数量随段数增长改变），冻结边界随之后移（decompose.rs 文档）。
+        let moves = decompose_resume(
+            &lc.centers,
+            &mut lc.decompose_state,
+            lc.scan_cursor.last_window_emitted.max(1),
+        );
+        // #69 5b：无条件登记本级一/三类所用 source 水位；不得挂在 BSP memo miss 分支，
+        // 否则 hit bar 会暴露陈旧 e_src。公式与 signal resume 单一同源。
+        lc.last_freeze_boundary = signal::freeze_boundary_src(&lc.centers, prefix_count, dirty_e);
+
+        let bsp_inputs = LevelBspInputs {
+            l0,
+            config,
+            units: &units,
+            units_anchors: &units_anchors,
+            is_l0,
+        };
+        let (bsp, pan_div) =
+            extract_level_bsp(lc, &bsp_inputs, &moves, prefix_count, dirty_e, &series);
+
+        // 08：`Rc::clone`（O(1)）投影增量塔 centers 到 LevelState，替代全量 `centers.clone()`。
+        let level_centers = stage_profile::time("08_levels_centers_clone", || Rc::clone(&lc.centers));
+        let level_projection = build_level_projection(config, levels.len() as u32, &bsp, l0);
+        levels.push(LevelState {
+            moves,
+            centers: level_centers,
+            cp_ownership: Rc::clone(&lc.cp_ownership),
+            bsp,
+            pan_div,
+            level_projection,
+        });
+
+        // 下一级输入 = 上级走势塔投影 + 同源方向锚（`levels` 尾 = 本级刚 push 的 LevelState）。
+        let parent_blocks = &levels.last().expect("本级 LevelState 已 push").moves;
+        units = project_next_level_units(lc, parent_blocks, prefix_count);
+        units_anchors = derive_units_anchors(parent_blocks, units.len());
+
+        // ★A3 §2.4：本级 prefix_count 是下一级 units 的不可变前缀（父 confirmed 前缀投影稳定）。
+        dirty_from = prefix_count;
+
+        if units.is_empty() {
+            // ★§2.6：level_idx 已处理完（尾部 break），level_idx+1 及更高级本 bar 因空 units 全跳过——
+            // truncate 掉这段不可达尾巴的陈旧 LevelCache（血缘自洽，恢复时全扫重建）。
+            #[cfg(test)]
+            oracle_probe::on_empty_break(level_idx + 1 < levels_cache.len());
+            levels_cache.truncate(level_idx + 1);
+            break;
+        }
+        // ★O(n) 重构：moves_tower = Rc::clone(&lc.upper_moves) —— O(1) 引用计数，消除 per-bar 全塔
+        // 深拷贝（旧 `lc.upper_moves.clone()` 是 O(n²) 热点①根因）。下一级 line 832 借 &moves_tower[..]
+        // 只读，line 854 move 入 snapshots。lc.upper_moves 跨 bar 持久于 cache；extend（line 843）经
+        // make_mut，caller 逐 bar drop snapshot ⟹ strong_count==1 ⟹ 原地 O(tail)。
+        // bit-exact：Rc 指向同一 Vec，逐字段与旧 clone 等价。
+        moves_tower = Rc::clone(&lc.upper_moves);
+    }
+    TowerBuild { levels, tower_snapshots, cascade_reset, did_extend, forest_dirty, forest_dirty_l0 }
+}
+
+/// ★工位 4g：本 bar 若有 cascade 重扫或任一级 extend 非空 tail ⟹ `extract_elements` 可观察树变更 ⟹
+/// `+generation`（下游 `TreeCache` 据此 O(1) 跳过 `TreeKey::of`）。无变化 bar（~99.8%）generation
+/// 不变 ⟹ 命中。soundness：保守过度计数（低级 extend 不动最高级输出时多算一次 TreeKey）安全，
+/// 绝不假命中。
+///
+/// ★L0-root 边界（codex Q3 漏洞 + `gen_fastpath_bit_exact_debug` bar 345 坐实）：当最高非空级是 **L0**
+/// （tower 无 compose 级，extract 直接读 `moves_tower_l0`），L0 走势塔每 bar 从 `l0.segments` 重建
+/// （非缓存 Rc），其增长/同 len 古怪线段重划**不经** cascade/did_extend（那两者只覆盖各级 upper_moves）。
+/// 故 L0-root 阶段**强制每 bar +generation**（走 TreeKey fallback）——此阶段 tree 极小（早期 bar），
+/// TreeKey O(small) 不影响大 n 标度。一旦 L1+ 出现（extract 读 L1），L0 任何变化必经 cascade 传播至
+/// L1（codex Q1：L0 frontier 改写→L1 units 投影变→L1 frontier_mutated→cascade），被完整捕获。
+///
+/// ★on2w2 forest_epoch：E1-E3 折叠（`forest_dirty`，含 E1 L0 塔重建 / E2 upper extend / E2a frontier
+/// pop / E3 cascade clear）循环后统一 bump。E4（`clear()`）不经此（方法内已 bump）。与 `generation` 的
+/// 关键区别：`generation` 靠 `l0_is_root` 每-bar blunt 兜底（bump 率 98.5%）；`forest_epoch` 只在塔实际
+/// 字节变更时 bump（E1 直接捕获 L0 变更，无需 blunt 兜底）⟹ bump 率贴近 forest 真变率 ≈0.8%（on2w2 §2）。
+/// over-invalidate：写入站点无条件 dirty，宁可多失效不可假命中（假命中不可能性证明 on2w2 §4）。
+///
+/// **T10 次序**：本函数必须在 closes/close_src/closes_tick/area_cache 四个缓冲放回之后调用
+/// （放回与 bump 都要 `&mut cache`，而 `hist`/`dif` 的共享借用须先在放回处结束）。
+fn bump_tower_epochs(cache: &mut TowerCache, built: &TowerBuild) {
+    let highest_nonempty = built.tower_snapshots.iter().rposition(|s| !s.is_empty());
+    let l0_is_root = highest_nonempty == Some(0);
+    if built.cascade_reset || built.did_extend || l0_is_root {
+        cache.generation += 1;
+    }
+    if built.forest_dirty {
+        cache.forest_epoch += 1;
+    }
+    #[cfg(test)]
+    oracle_probe::on_forest_dirty(
+        built.forest_dirty_l0,
+        built.forest_dirty && !built.forest_dirty_l0 && !built.cascade_reset,
+        built.cascade_reset,
+    );
+}
+
+/// ★#613（#609 F2）：[`TowerCache::l0_units`] 只读契约的不变式——**塔已产出 L0 级快照时**，
+/// `l0_units_cache` 与 `tower[0]` 同长（同源同序由 `moves_tower_l0` 的构造保证：两者都是
+/// `l0.segments` 的逐元素纯函数投影，且只有一处写入站点 [`build_l0_units_cache`]）。
+///
+/// 限定「非空」是结构事实而非放宽：段数不足以构造任何级别时 `tower_snapshots` 为空而
+/// `l0_units_cache` 已有内容（BTC 100k 实测 278 个早期 bar），此时消费方
+/// （`p123_fast_replay::recompute_lifecycle_window_stems`）走 `tower_level_absent` 显式原因码，
+/// 根本不读 `l0_units` ⟹ 无契约面。
+fn debug_assert_l0_units_in_sync(cache: &TowerCache, tower_snapshots: &[Rc<Vec<LeveledMove>>]) {
+    debug_assert!(
+        tower_snapshots
+            .first()
+            .is_none_or(|l0_tower| l0_tower.len() == cache.l0_units_cache.len()),
+        "l0_units() 契约违反：l0_units_cache.len()={} 与 tower[0].len()={:?} 失步（#613/#609 F2）",
+        cache.l0_units_cache.len(),
+        tower_snapshots.first().map(|t| t.len())
+    );
 }
