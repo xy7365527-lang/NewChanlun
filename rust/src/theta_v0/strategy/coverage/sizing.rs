@@ -210,6 +210,59 @@ fn feasible_net_cap(risk: &RiskConfig) -> f64 {
     risk.gamma.abs()
 }
 
+/// ★M4 级别级协变 cap `cap_ℓ = w_ℓ·γ̄·U_ℓ`（multi-level-native-execution-design-20260719
+/// §D M4；[`super::super::level_risk`] 模块头「对偶统一声明」）。
+///
+/// **协变分解守恒**（票体验收「𝒦_Θ 协变 cap 按级别分解后仍满足」的机器判据）：账户层总 cap
+/// `= γ̄·U_ℓ`（[`feasible_net_cap`]×`base_units`，同上方用的量）；本函数只多乘一个
+/// `w_ℓ∈[0,1]` 因子——`cap_ℓ` 与总 cap 共用同一 `U_ℓ` 协变缩放，故 `cap_ℓ` 本身**逐级协变**：
+/// `a_k` 缩放资本时 `cap_ℓ(S_k x) = a_k·cap_ℓ(x)`，与总 cap 的协变律同构，非另立一套。
+///
+/// `Σ_ℓ cap_ℓ = (Σ_ℓ w_ℓ)·γ̄·U_ℓ ≤ γ̄·U_ℓ`（由
+/// [`super::super::level_risk::level_weights_sum_le_one`] 保证 `Σw_ℓ≤1`）——分解后的级别帽之和
+/// **不超过**未分解的账户层总 cap，这正是「分解后仍满足」的代数内容（L0，见测试
+/// `level_cap_decomposition_never_exceeds_account_cap`）。
+pub(crate) fn level_cap(level: u32, base_units: f64, risk: &RiskConfig) -> f64 {
+    feasible_net_cap(risk) * super::super::level_risk::level_weight(level, risk) * base_units.abs()
+}
+
+/// ★M4 级别级风险帽实际施加点（`risk.enforce_level_cap` 门禁，G7 [`apply_gross_cap`] 同款
+/// 模式）：把已按级别聚合的门控结构基准 `gated_ℓ` 逐级 clamp 到 `[-cap_ℓ, +cap_ℓ]`
+/// （[`level_cap`]）。
+///
+/// 施加点纪律（§F③ 域分离 + `level_risk` 模块头「禁双重定价」）：本函数只读**已经**按级别
+/// 聚合完成的 `gated`（`net_ℓ` 之和，depth_weight 早已沉淀在其中），**不**拆解单条 leg 的深度
+/// 构成——level_weight 与 depth_weight 因此不会对同一块资金重复定价。零项保留（级别封闭
+/// 可读，与 `LevelOrderPlan::deltas` 同纪律）。
+///
+/// `risk.enforce_level_cap=false`（default）⟹ 调用方**不得**调用本函数（应直接跳过），
+/// 而不是传入空 `level_weights` 期望本函数自然退化——空表会把 `cap_ℓ` 恒裁到 0，那是「全部
+/// 级别禁止持仓」而非「级别帽未启用」，两者语义相反，门禁必须在调用方而非本函数。
+///
+/// ★#642 语义重放偏差照实声明：本函数是 #310 的核心数学原语（level_cap 协变分解 + 逐级
+/// clamp），语义与 kimi 侧 `coverage.rs::clamp_levels_to_weighted_cap` 逐字等价；但 kimi 侧
+/// `fill.rs` 的实际调用点（`plan_level_gated_order`，把本函数接进 `LevelOrderLedger::regate`
+/// 输出的两处施加点）**未随本次移植接线**——main 侧 `level_order.rs` 文档已预写该调用点存在
+/// （`capped_levels`/`plan_level_gated_order` 等提法，源自 main 自己更晚的 #355/#363/#369/#376
+/// 谱系），但实际未实现，接线需要与那条谱系的既有文档承诺对齐，超出本票语义重放范围，留作
+/// 独立跟进项（见 issue642-coverage-replay 报告）。`enforce_level_cap` default=false 且本函数
+/// 未被生产路径调用 ⟹ 零行为改变（M0-M3 bit-exact 不变，同 kimi 原提交声明）。
+#[allow(dead_code)]
+pub(crate) fn clamp_levels_to_weighted_cap(
+    gated: &[(u32, i64)],
+    base_units: f64,
+    risk: &RiskConfig,
+) -> Vec<(u32, i64)> {
+    gated
+        .iter()
+        .map(|&(lvl, q)| {
+            let cap = level_cap(lvl, base_units, risk);
+            let cap_units = cap.floor().max(0.0) as i64;
+            (lvl, q.clamp(-cap_units, cap_units))
+        })
+        .collect()
+}
+
 /// **𝒦_Θ 风控约束门（close_pred 折入可行集，非第二决策出口，§16 单一决策出口）**。
 ///
 /// ## Q2 编排者裁定（close_pred 风控折进 𝒦_Θ）

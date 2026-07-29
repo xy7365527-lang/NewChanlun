@@ -415,3 +415,51 @@ use super::super::super::interp::ActiveLeg;
         }
         eprintln!("bit_exact_cached_indices_vs_fallback: {n} bars 全部 with==without，{hits} bars 缓存命中");
     }
+
+    // ── ★票#310 语义重放（kimi 7d8b45be70）：M4 级别级风险帽 level_cap / clamp_levels_to_weighted_cap ──
+
+    /// ★协变分解守恒（票体验收「𝒦_Θ 协变 cap 按级别分解后仍满足」）：`Σ_ℓ cap_ℓ ≤ γ̄·U_ℓ`
+    /// （账户层总 cap），由 `Σw_ℓ≤1` 代数保证——不依赖跑批数据，L0。
+    #[test]
+    fn level_cap_decomposition_never_exceeds_account_cap() {
+        let risk = RiskConfig { level_weights: vec![0.5, 0.3, 0.2], ..rcfg() };
+        let base_units: f64 = 1000.0;
+        let account_cap = feasible_net_cap(&risk) * base_units.abs();
+        let sum_level_caps: f64 = (0u32..3).map(|lvl| level_cap(lvl, base_units, &risk)).sum();
+        assert!(
+            sum_level_caps <= account_cap + 1e-6,
+            "Σcap_ℓ={sum_level_caps} 必须 ≤ 账户层总 cap={account_cap}"
+        );
+        // Σw_ℓ=1.0（边界）⟹ 分解**恰好**覆盖账户层总 cap，非严格小于（1.0 是上确界而非余量）。
+        assert!((sum_level_caps - account_cap).abs() < 1e-6, "Σw_ℓ=1 ⟹ 分解恰好覆盖总 cap");
+    }
+
+    /// ★level_cap 协变缩放：`base_units`（`U_ℓ`）翻倍 ⟹ `cap_ℓ` 同比翻倍（方案A协变律，与
+    /// `feasible_net_cap` 文档同构，非另立一套缩放规则）。
+    #[test]
+    fn level_cap_is_covariant_with_base_units() {
+        let risk = RiskConfig { level_weights: vec![0.4], ..rcfg() };
+        let cap_1x = level_cap(0, 1000.0, &risk);
+        let cap_2x = level_cap(0, 2000.0, &risk);
+        assert!((cap_2x - 2.0 * cap_1x).abs() < 1e-9, "cap_ℓ 随 U_ℓ 协变缩放");
+    }
+
+    /// ★level_cap 未配置该级别权重 ⟹ 0（表外级别帽=0，同 `level_weight` 纪律，非错误）。
+    #[test]
+    fn level_cap_zero_for_unweighted_level() {
+        let risk = RiskConfig { level_weights: vec![0.5], ..rcfg() };
+        assert_eq!(level_cap(1, 1000.0, &risk), 0.0, "level 1 未配权重 ⟹ cap=0");
+    }
+
+    /// ★clamp_levels_to_weighted_cap：超帽级别被裁到 ±cap_ℓ，未超帽级别原样透传，零项保留。
+    #[test]
+    fn clamp_levels_to_weighted_cap_clips_only_binding_levels() {
+        let risk = RiskConfig { level_weights: vec![0.5, 0.1], ..rcfg() };
+        let base_units = 100.0; // cap_0=0.5*1.0*100=50, cap_1=0.1*1.0*100=10
+        let gated = vec![(0u32, 80i64), (1, 3), (2, 0)];
+        let clamped = clamp_levels_to_weighted_cap(&gated, base_units, &risk);
+        assert_eq!(clamped, vec![(0, 50), (1, 3), (2, 0)], "level0 超帽裁到 50，level1 未超帽原样，level2 零项保留");
+        // 负向对称裁剪。
+        let gated_neg = vec![(0u32, -80i64)];
+        assert_eq!(clamp_levels_to_weighted_cap(&gated_neg, base_units, &risk), vec![(0, -50)]);
+    }

@@ -621,3 +621,199 @@ use super::super::super::interp::{ActiveLeg, Buckets};
         let _ = p; // p̃ 可非零（若 ReverseOpen 候选准入），关键是 stale_non_root 不在 active。
     }
 
+    /// ★票#315（语义重放自 kimi 2ca040d9fa，#642）：`prev_active` 中**子在父之前**、且父与子都是
+    /// Stale/LivePresent 占位（都在本轮 `prev_active` 循环内才被 push 进 raw，都不在 base 树/
+    /// overlay_seen）——immediate 式修补（占位 push 当轮即解析 parent/attached_dir，main 侧修复前
+    /// 的 `held_stale_reregister_idx` 行为）在 push 子时父尚未 push，三级解析全查不到，误留
+    /// `parent:None, attached_dir:None`；循环后统一 fixup（`resolve_pending_parent_fixups`，两个
+    /// 物化循环结束、AncOK 判定前执行）此时父已在 raw，可正确解析。
+    ///
+    /// 子占位存活性不受影响（AncOK 用 `parent_id`——ElementId 结构映射，不读 `parent` 索引字段）；
+    /// 受影响的是**角色输入**（V/depth/units），这正是本票要堵的时序孔。
+    ///
+    /// **RED（immediate 式，修复前）**：子占位 V=Ambient + depth=0 ⟹ q_units=600，p̃=0（600 父根 −
+    /// 600 子）。**GREEN（统一 fixup，修复后）**：子占位 parent=Some(父idx)、attached_dir=Some(父eps)
+    /// ⟹ V=ReverseOpen（原 ShortDiff，#281 更名）（δ=−σ_p）+ depth=1 ⟹ q_units=300，p̃=+300（600 父 − 300 子）。
+    #[test]
+    fn held_leg_placeholder_parent_materializes_in_later_iteration() {
+        // 父：LivePresent 占位，∂ 根（parent_id=None，level 1，Long）——本身角色计算 trivial，
+        // 但在 prev_active 中排在子**之后**，本轮循环内是**晚于子**才被 push 进 raw 的元素。
+        let father_leg = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 8, lambda: 0,
+            id: eid(1, 0), parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let father_cov = CoverageElement {
+            lambda: 0, rho: 8, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: eid(1, 0), parent_id: None,
+        };
+        // 子：LivePresent 占位，parent_id=父（eid(1,0)），在 prev_active 中排在父**之前**
+        // （时序孔可达性：main 侧同 kimi 复现——本测试直接构造 prev_active 顺序复现同一时序孔）。
+        let child_leg = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 4, lambda: 0,
+            id: eid(0, 0), parent_id: Some(eid(1, 0)), is_boundary_root: false, op_parent: Some(eid(1, 0)),
+        };
+        let child_cov = CoverageElement {
+            lambda: 0, rho: 4, eps: VoiceSide::Short, level: 0,
+            parent: None, attached_dir: None, id: eid(0, 0), parent_id: Some(eid(1, 0)),
+        };
+        let snapshot = vec![child_cov, father_cov];
+        let reg = super::super::super::persistent::PersistentRegistry::new().merge(&snapshot, &[]);
+        let base: Vec<CoverageElement> = Vec::new();
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+
+        // prev_active 顺序：子在前、父在后（时序孔复现的必要条件）。
+        let (next_active, p_tilde, sep_legs, _idx) = coverage_step_from_buckets_sep(
+            view_split(&base, 0), &[child_leg, father_leg], &buckets, 1000.0, &cfg(), None, &reg,
+        );
+
+        // 承重坐实：子占位不受 helper 时序影响地存活（AncOK 判据是 parent_id，非 parent 索引）。
+        assert!(
+            next_active.iter().any(|l| l.id == eid(0, 0)),
+            "子占位 parent_id 链（父 eid(1,0)）经本轮统一 fixup 后已在 raw ⟹ AncOK 存活；实得 {next_active:?}"
+        );
+        let sep_child = sep_legs.iter().find(|s| s.id == eid(0, 0)).expect("子腿须在 sep_legs");
+        assert_eq!(
+            sep_child.role_v, Vertical::ReverseOpen,
+            "父晚物化（同 bar 更晚迭代）：循环后统一 fixup 应解析到父 ⟹ V=ReverseOpen（原 ShortDiff，#281 更名）（immediate 式修补会误留 Ambient）"
+        );
+        assert!(
+            (sep_child.q_units - 300.0).abs() < 1e-9,
+            "depth=1 ⟹ q=300（immediate 式修补残留 depth=0 ⟹ 600）；实得 {}", sep_child.q_units
+        );
+        let sep_father = sep_legs.iter().find(|s| s.id == eid(1, 0)).expect("父腿须在");
+        assert_eq!(sep_father.role_v, Vertical::Ambient, "父自身 ∂ 根，V=Ambient 不受本修复影响");
+        assert!(
+            (p_tilde - 300.0).abs() < 1e-9,
+            "p̃=+300（600 父 − 300 子）；immediate 式修补下应为 0（600−600）；实得 {p_tilde}"
+        );
+    }
+
+    /// ★票#350（语义重放自 kimi 760c3520c5，#642）：`restore_ancestor_chain_from_registry` 同 bar
+    /// 可能被多次调用（多条 held 腿逐条触发）。本测试坐实：某恢复元素 Q 的祖先 P 在**该次 restore
+    /// 调用内**因 registry `invalidated` 命中 `restore_break_registry_lost` 断链（Q 的 idx 汇入
+    /// `pending_parent_fixup`，此时不修补）；但 P 本身作为**另一条** held 腿，在本 bar **更晚**经
+    /// `Closed|Invalidated` + `is_boundary_root` 分支**直接 push** 入 raw（不经 registry、不经
+    /// `overlay_seen`）——这条路径 main 侧本就存在（#446/#315 移植时保留）。
+    ///
+    /// 统一 fixup（`resolve_pending_parent_fixups`）的 raw 扫兜底须能在此场景下补上 Q→P 的连接：
+    /// P 不在 `id_idx`/`overlay_seen`（未经两张查表登记的路径），唯有扫 `raw` 才能命中。
+    ///
+    /// **RED（若 restore 仍在函数内立即修补，#350 修复前main侧的等价行为）**：Q 的 fixup 会在
+    /// D 腿处理时点（P 尚未 push）立即执行 ⟹ 固化 None/None，即便 P 随后入 raw 也不会重跑
+    /// ⟹ Q 的角色计算仍读到 Ambient/depth=0/q_units=600（#247 缺口重现）。
+    /// **GREEN（票#350 修复后：统一延后 fixup）**：统一 fixup 时点 P 已在 raw ⟹ raw 扫命中
+    /// ⟹ Q.parent=Some(P idx)、attached_dir=Some(P.eps) ⟹ V=ReverseOpen、depth=1、q_units=300。
+    #[test]
+    fn restore_chain_ancestor_unresolved_when_shared_ancestor_only_materializes_via_later_boundary_root_push() {
+        let p = eid(2, 0); // 共享祖先：仍是 held 腿（boundary_root）+ registry 侧已 invalidated。
+        let q = eid(1, 0); // 中间祖先：仅 registry 存在（非 held 腿），链上 D→Q→P。
+        let d = eid(0, 0); // 触发腿：LiveDetached，op_parent=Q。
+
+        let p_cov = CoverageElement {
+            lambda: 0, rho: 20, eps: VoiceSide::Long, level: 2,
+            parent: None, attached_dir: None, id: p, parent_id: None,
+        };
+        let q_cov = CoverageElement {
+            lambda: 0, rho: 12, eps: VoiceSide::Short, level: 1,
+            parent: None, attached_dir: None, id: q, parent_id: Some(p),
+        };
+        // bar1：P/Q 均在 snapshot 中登记（真实存在过的走势元素）。
+        let reg1 = super::super::super::persistent::PersistentRegistry::new().merge(&[p_cov, q_cov], &[]);
+
+        let d_leg = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 4, lambda: 0,
+            id: d, parent_id: None, is_boundary_root: false, op_parent: Some(q),
+        };
+        // bar2：tree 空（P/Q 均不在新快照）⟹ 增量重置两者 snapshot_present=false；
+        // held_legs=[d_leg] 令 D 自身登记为 LiveDetached 占位（op_parent=Q 的 registry 影子条目
+        // 因 Q 已存在于 registry 而被 or_insert 跳过，不覆盖 Q 真实的 structural_parent_id=Some(P)）。
+        let mut reg2 = reg1.merge(&[], &[d_leg]);
+        // 独立结构性作废信号（与 P 是否仍是 held 腿无关）。
+        reg2.invalidate(&p);
+
+        let p_leg = ActiveLeg {
+            level: 2, dir: VoiceSide::Long, source_index: 20, lambda: 0,
+            id: p, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let base: Vec<CoverageElement> = Vec::new();
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+
+        // prev_active 顺序：D 先（触发对 Q 的 restore，链上溯到 P 时 registry_lost 断链）、
+        // P 后（更晚一次处理，Closed|Invalidated + is_boundary_root ⟹ 直接 push 入 raw）。
+        ancok_probe_reset();
+        let (next_active, _p_tilde, sep_legs, _idx) = coverage_step_from_buckets_sep(
+            view_split(&base, 0), &[d_leg, p_leg], &buckets, 1000.0, &cfg(), None, &reg2,
+        );
+        let probe = ancok_probe_snapshot();
+        assert!(
+            probe.restore_break_registry_lost >= 1,
+            "Q 的链须命中 registry_lost（P invalidated）；实得 {}", probe.restore_break_registry_lost
+        );
+
+        assert!(
+            next_active.iter().any(|l| l.id == q),
+            "Q 的祖先链（parent_id: Q→P）在 raw 中已全齐（P 更晚入 raw）⟹ AncOK 应判 Q 存活；实得 {next_active:?}"
+        );
+        let sep_q = sep_legs.iter().find(|s| s.id == q).expect("Q 须在 sep_legs（AncOK 存活）");
+        assert_eq!(
+            sep_q.role_v, Vertical::ReverseOpen,
+            "Q 存活进 next_idx 且 P 已在 raw（AncOK 判定祖先齐全）⟹ 角色计算须体现 V=ReverseOpen（原\
+             ShortDiff）；若为 Ambient 则坐实 #350 时序孔（P 由更晚一次非 restore push 物化，Q 的 fixup 未跟上）"
+        );
+        assert!(
+            (sep_q.q_units - 300.0).abs() < 1e-9,
+            "depth=1 ⟹ q_units=300（时序孔存在时会是 depth=0 ⟹ 600）；实得 {}",
+            sep_q.q_units
+        );
+    }
+
+    /// ★票#346/#347 MED-1/票#358（语义重放自 kimi c3cd34bcea/ea027130f7，#642）：
+    /// `placeholder_pruned_by_ancok` 探针交叉核对——`restore_parent_unresolved` 命中（父在本 bar
+    /// 内**从未**被任何路径物化，真断链）的元素必被统一 AncOK 剪除（`parent_id=Some` 但父不在
+    /// raw ⟹ 不进 `next_idx`），使 probe doc「可与 AncOK 剪除计数交叉核对」这一声明可执行。
+    ///
+    /// 构造：D 腿 LiveDetached，`op_parent=Q`，但 Q **不在 registry**（真丢失，非仅 invalidated）
+    /// ⟹ `restore_ancestor_chain_from_registry` 对 Q 的 walk 立即 `restore_break_registry_lost`
+    /// 中断、不 push 任何元素；D 自身经 `held_stale_reregister_idx` push，`parent_id=Some(Q)`
+    /// 汇入 `pending_parent_fixup`。统一 fixup 时 Q 在 `id_idx`/`overlay_seen`/`raw` 三级解析全
+    /// miss（本 bar 内 Q 从未被任何路径物化）⟹ D 计入 `restore_parent_unresolved` 且 unresolved
+    /// 返回列表含 D 的 idx；D 的 `parent_id=Some(Q)` 但 Q 不在 raw ⟹ 统一 AncOK 剪除 D ⟹ D 不进
+    /// `next_idx` ⟹ `placeholder_pruned_by_ancok` 计 1，与 `restore_parent_unresolved` 差值为 0。
+    #[test]
+    fn placeholder_pruned_by_ancok_cross_check_matches_unresolved_on_true_lost_chain() {
+        let d = eid(0, 0);
+        let q = eid(1, 0); // registry 中不存在（真丢失，非 invalidated）。
+        let d_leg = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 4, lambda: 0,
+            id: d, parent_id: None, is_boundary_root: false, op_parent: Some(q),
+        };
+        let d_cov = CoverageElement {
+            lambda: 0, rho: 4, eps: VoiceSide::Short, level: 0,
+            parent: None, attached_dir: None, id: d, parent_id: Some(q),
+        };
+        // registry 只登记 D 自身（其影子条目 structural_parent_id 亦指向 Q，但 Q 从未独立入册）。
+        let reg = super::super::super::persistent::PersistentRegistry::new().merge(&[d_cov], &[]);
+        let base: Vec<CoverageElement> = Vec::new();
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+
+        ancok_probe_reset();
+        let (next_active, _p_tilde, _sep, _idx) = coverage_step_from_buckets_sep(
+            view_split(&base, 0), &[d_leg], &buckets, 1000.0, &cfg(), None, &reg,
+        );
+        let probe = ancok_probe_snapshot();
+        assert!(
+            probe.restore_parent_unresolved >= 1,
+            "D 的父 Q 全 bar 内从未物化 ⟹ 计入 restore_parent_unresolved；实得 {}",
+            probe.restore_parent_unresolved
+        );
+        assert!(
+            !next_active.iter().any(|l| l.id == d),
+            "D 的 parent_id=Some(Q) 但 Q 不在 raw ⟹ 统一 AncOK 必剪除 D；实得 {next_active:?}"
+        );
+        assert_eq!(
+            probe.placeholder_pruned_by_ancok, probe.restore_parent_unresolved,
+            "非环形数据下差值结构性恒为 0（票#358 订正的限定条件）；unresolved={} pruned={}",
+            probe.restore_parent_unresolved, probe.placeholder_pruned_by_ancok
+        );
+    }
+

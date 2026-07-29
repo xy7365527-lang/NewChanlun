@@ -138,6 +138,16 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
     // 拷贝（held 重注册**不得**复用——候选 eps 是信号方向、lambda==rho 点元素、parent_id 非本腿
     // op_parent，复用 = 持仓身份被候选属性覆盖，code-review Spec 轴 (c)1）。
     let overlay_cand_end = work.len();
+    // ★票#512：显式记录候选段后每个新增槽的物化来源，供唯一性守卫（函数尾部）打印真实来源
+    // 路径；禁用 catch-all 把 Closed/Invalidated 边界根等其他直推路径误报为 held 重注册。
+    let mut appended_source: std::collections::HashMap<usize, &'static str> =
+        std::collections::HashMap::new();
+    // ★票#315（#284 评审 MED-1，对齐 #247）：held 腿占位（LivePresent/LiveDetached）新 push 的元素
+    // idx 累加器——immediate 式修补（push 当轮即解析 parent/attached_dir）在「父本轮更晚才物化进
+    // work（无论经哪条路径）」场景查不到父，误留 None/None（#247 缺口同类重现）。改为只收集 idx，
+    // 两个物化循环（本循环 + 下方 open 候选父链恢复）全部结束、AncOK 判定前，由
+    // `resolve_pending_parent_fixups` 统一重建（此时 id_idx/overlay_seen/raw 均为本 bar 终态）。
+    let mut pending_parent_fixup: Vec<usize> = Vec::new();
 
     // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）按 ElementId 对位回当前因果树元素；不在树 ⟹ 按
     // is_boundary_root 决定 root/prune（发现 A 修复：Stale 不伪造 parent:None）。
@@ -204,8 +214,14 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                         // 测试 held_leg_id_hits_candidate_copy_keeps_held_identity 实证。
                         // 按持久身份保留（I1），op_parent 驱动 AncOK。
                         // ★#216：重注册复用 restore push 现有 idx（见 [`held_stale_reregister_idx`]）。
-                        let idx =
-                            held_stale_reregister_idx(&mut work, &id_idx, &mut overlay_seen, overlay_cand_end, leg);
+                        // ★票#315：新 push 分支不再立即解析 parent/attached_dir，idx 收进
+                        // pending_parent_fixup，统一 fixup 见函数尾部。
+                        let idx = held_stale_reregister_idx(
+                            &mut work, &mut overlay_seen, overlay_cand_end, &mut pending_parent_fixup, leg,
+                        );
+                        if idx >= overlay_cand_end {
+                            appended_source.entry(idx).or_insert("held-reregister");
+                        }
                         if !raw.contains(&idx) {
                             raw.push(idx);
                         }
@@ -222,13 +238,23 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                             // ★#226：held 路传空种子表——A_t 段由 𝒟_x^† 种子命中兜底（restore
                             // 复活的被关父同清，`t4_subtree_close_unifies_production_active_set_step`
                             // 锁定），语义/轨迹 bit-exact 不变。
+                            let restore_start = work.len();
                             restore_ancestor_chain_from_registry(
                                 &mut work, &mut raw, registry, op_pid, &id_idx, &mut overlay_seen, &[],
+                                &mut pending_parent_fixup,
                             );
+                            for idx in restore_start..work.len() {
+                                appended_source.entry(idx).or_insert("registry-restore");
+                            }
                         }
                         // ★#216：重注册复用 restore push 现有 idx（见 [`held_stale_reregister_idx`]）。
-                        let idx =
-                            held_stale_reregister_idx(&mut work, &id_idx, &mut overlay_seen, overlay_cand_end, leg);
+                        // ★票#315：同上，新 push 分支延后统一 fixup。
+                        let idx = held_stale_reregister_idx(
+                            &mut work, &mut overlay_seen, overlay_cand_end, &mut pending_parent_fixup, leg,
+                        );
+                        if idx >= overlay_cand_end {
+                            appended_source.entry(idx).or_insert("held-reregister");
+                        }
                         if !raw.contains(&idx) {
                             raw.push(idx);
                         }
@@ -249,6 +275,7 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                                 id: leg.id,
                                 parent_id: None,
                             });
+                            appended_source.insert(idx, "boundary-root-retain");
                             raw.push(idx);
                         } else {
                             ancok_probe_bump(|p| p.closed_inval_pruned += 1);
@@ -349,6 +376,7 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                 let parent_in_raw =
                     raw.iter().any(|&r| work.get(r).map(|e| e.id == parent_pid).unwrap_or(false));
                 if !parent_in_raw && registry.registry_live(&parent_pid) {
+                    let restore_start = work.len();
                     restore_ancestor_chain_from_registry(
                         &mut work,
                         &mut raw,
@@ -357,11 +385,24 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                         &id_idx,
                         &mut overlay_seen,
                         &direct_close_seeds,
+                        &mut pending_parent_fixup,
                     );
+                    for idx in restore_start..work.len() {
+                        appended_source.entry(idx).or_insert("registry-restore");
+                    }
                 }
             }
         }
     }
+
+    // ★票#315：held 腿占位（LivePresent/LiveDetached 新 push 分支）统一 fixup——两个物化循环
+    // （上方 prev_active held 腿 + 本循环 open 候选父链恢复）均已结束、AncOK 判定前，对
+    // `pending_parent_fixup` 统一重建 parent/attached_dir。此时 id_idx/overlay_seen/raw 三张查表
+    // 均为本 bar 终态——immediate 式（push 当轮即修补）的时序孔（父在本轮更晚才物化进 work，无论
+    // 经 held 腿占位路径、restore 路径、或 open 候选/`Closed|Invalidated` 边界根直接 push 路径，
+    // 此刻都查不到）不再存在：父只要本轮曾被任一路径物化，统一 fixup 都能经三级解析命中。
+    let unresolved_pending_fixup =
+        resolve_pending_parent_fixups(&mut work, &pending_parent_fixup, &id_idx, &overlay_seen, &raw);
 
     // 步2：A_{t+1}=AncOK(A^raw)——剔除真 Compose 父容器不在 raw 的孤儿子腿（§13 持仓准入：未持父则剔除）。
     // ★#183 T4 归一（#179 裁决：结构对应是硬要求，子树清仓接线进生产 π loop）：
@@ -444,6 +485,47 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
         })
         .collect();
 
+    // ★票#347 MED-1：未解析占位与 AncOK 存活集交叉核对——不在 next_idx 即被剪除，计入
+    // `placeholder_pruned_by_ancok`（使 probe doc「可与 AncOK 剪除计数交叉核对」可执行）。
+    if !unresolved_pending_fixup.is_empty() {
+        let next_idx_set: std::collections::HashSet<usize> = next_idx.iter().copied().collect();
+        let pruned = unresolved_pending_fixup.iter().filter(|&&idx| !next_idx_set.contains(&idx)).count();
+        if pruned > 0 {
+            ancok_probe_bump(|p| p.placeholder_pruned_by_ancok += pruned as u64);
+        }
+    }
+
+    // ★票#512（语义重放自 kimi 8d8895c652，#642；订正 #446 的 debug_assert-only 防线）：唯一性
+    // 防线前移到 coverage 生产边界——release/debug 都 fail-loud（先记违规计数再 panic，带重复
+    // ID + 双 idx + 真实物化来源，无 catch-all）。检查点放在 next_idx 刚算出、任何 p̃/腿计算
+    // **之前**：重复按构造不可能，一旦命中就是唯一性闭合本身已被打穿，不应让调用方在不知情下
+    // 拿到双计的 p̃/P^sep（#511 评审指出 debug_assert-only + 晚检查点是两个独立缺口，此处一并
+    // 收口，m8 wverify_run 的窗口后置断言相应降级为纯观测，防线单一化）。
+    let mut active_id_idx: std::collections::HashMap<ElementId, usize> =
+        std::collections::HashMap::new();
+    let duplicate_active_id = next_idx.iter().find_map(|&idx| {
+        let id = work[idx].id;
+        active_id_idx.insert(id, idx).map(|prior_idx| (id, prior_idx, idx))
+    });
+    if let Some((id, first_idx, second_idx)) = duplicate_active_id {
+        ancok_probe_bump(|p| p.duplicate_active_id_violations += 1);
+        let source = |idx: usize| {
+            if idx < candidate_start {
+                "tree-prefix"
+            } else if idx < overlay_cand_end {
+                "candidate-copy"
+            } else {
+                appended_source.get(&idx).copied().unwrap_or("post-overlay-unregistered")
+            }
+        };
+        panic!(
+            "next_active 重复 ElementId {id:?}: idx {first_idx}({}) 与 idx {second_idx}({})；\
+             活动集注册路径未按 ID 闭合，strategy_target_legs 将双计 p̃",
+            source(first_idx),
+            source(second_idx),
+        );
+    }
+
     // p̃=Σ Leg(g)（depth 权重沿真父链 + 方向净额聚合，ReverseOpen 空腿部分对冲父多腿）。
     let mut legs = strategy_target_legs(&work, &next_idx, base_units, config);
     // f3 反事实（config.disable_reverse_open）：剔 ReverseOpen 腿的净头寸贡献，测多重赋格对冲增量。default false→bit-exact。
@@ -485,17 +567,11 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
     let next_active: Vec<ActiveLeg> =
         next_active_idx.iter().map(|&i| element_as_leg(&work[i])).collect();
     // ★(I-1) 双计守卫（codex 异质审查）：next_active 每 ElementId 必唯一——同 carrier 不得在 raw 中以
-    // 两个 idx（树前缀 + registry 追加）出现，否则 strategy_target_legs 双计 ⟹ p̃ 伪证。
-    // 唯一性由三处注册路径闭合保证：restore_ancestor_chain_from_registry 复用现有 idx、held Stale
-    // 重注册复用 overlay 现有 idx、open 候选按 id 判重（同向首现）/反向成对湮灭（#216）；此 assert 锁不变量防回归。
-    debug_assert!(
-        {
-            let mut ids: Vec<_> = next_active.iter().map(|l| l.id).collect();
-            ids.sort_by_key(|id| (id.level, id.ordinal));
-            ids.windows(2).all(|w| w[0] != w[1])
-        },
-        "next_active 含重复 ElementId ⟹ strategy_target_legs 双计 p̃（活动集注册路径未按 id 判重，#216）"
-    );
+    // 两个 idx（树前缀 + registry 追加）出现，否则 strategy_target_legs 双计 ⟹ p̃ 伪证。唯一性由
+    // 三处注册路径闭合保证（restore 复用现有 idx、held Stale 重注册复用 overlay 现有 idx、open
+    // 候选按 id 判重/反向成对湮灭，#216）；硬防线已前移到 next_idx 刚算出时（票#512，见上方
+    // panic! 块）——此处 next_active_idx 是 next_idx 的子集（仅按 gross_zeroed 过滤幽灵开仓腿，
+    // 不改变已通过防线的 ElementId 集合），故不重复设防。
     // ★M5 sep 暴露（多空对冲.pdf p16）：把已算 `legs`（post G7 cap）按 work-index e_idx 对位到
     // carrier ElementId + role(v) + parent(v)，打包 SepLeg。**只读重打包，不新计算**——
     // `net_target_units(&legs)==p_tilde` 恒等 ⟹ `Σ σ_v·q_units == Net(P^sep)` 与净额路径一致。

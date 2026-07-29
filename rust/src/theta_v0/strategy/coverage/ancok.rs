@@ -54,6 +54,15 @@ pub struct AncokProbe {
     /// （[`super::super::exit::step_active_set_with_subtree_close`]）按 id 判祖先不在集 ⟹ **必被剪除**，
     /// 不进 `next_idx`/`strategy_target_legs` ⟹ 其角色从不被消费（见 `restore_broken_chain_*` 测试）。
     pub restore_parent_unresolved: u64,
+    /// ★票#347 MED-1（语义重放自 kimi #346/#347/#358）：`restore_parent_unresolved`/
+    /// `placeholder_parent_unresolved` 命中的 idx 中，本 bar 随后确实被统一 AncOK（不在
+    /// `next_idx`）剪除的个数——文档声称"可与 AncOK 剪除计数交叉核对"，此前无对应计数使该
+    /// 声明不可执行。恒 ≤ 未解析计数（父不可解析 ⟹ `parent_id` 链断在此 idx，理论上必被剪；
+    /// 若 <，说明存在未被剪除的未解析占位，须回查 `ancestor_close_by_id`/`step_active_set_
+    /// with_subtree_close` 判据是否有遗漏路径）。**非环形 `parent_id` 数据下**该差值结构性
+    /// 恒为 0（票#358 订正：环形 `parent_id` 下 `r != idx` 自环排除守卫会使某未解析元素同时
+    /// 经环路径存活进 `next_idx`，此时差值可能 >0，报警判据仍对但不可接生产硬 assert）。
+    pub placeholder_pruned_by_ancok: u64,
     /// ★#247 C1（影子评审阻断级）：[`element_depth`] 的 **fuel 上界硬门**命中次数——沿 `parent` 链
     /// 上溯步数超过 `elements.len()` ⟹ 该 parent 图**必含环**（简单路径最长 len−1 条边）。
     /// #247 缺口二回填首次让 restore 元素的 `parent` 可指向 overlay ⟹ 链的无环性转而依赖 registry
@@ -67,6 +76,11 @@ pub struct AncokProbe {
     /// campaign 仍照常 RiskExit，但因身份歧义未能补 risk-close seed ⟹ 该子树后代不被连坐
     /// 清除，残留裸腿（#577 评审尾巴①暴露面：该丢弃此前零可观测）。
     pub risk_seed_carrier_ambiguous: u64,
+    /// ★#446：`next_idx`（活动集推进产出）中至少出现一对重复 `ElementId` 的 step 次数。三处
+    /// 注册路径（held 重注册/restore 复用/open 候选按 id 判重，#216）按 ID 闭合后应恒为 0；
+    /// release 下 `debug_assert!` 被编译消除 ⟹ 该不变量在 release 静默失守（生产 dump 实锤，
+    /// p3fold carrier ElementId(0,162)）——此计数在 release/debug 都累计，供真实跑批逐窗验收。
+    pub duplicate_active_id_violations: u64,
 }
 
 thread_local! {
@@ -84,8 +98,10 @@ thread_local! {
         held_flip_terminated: 0,
         restore_parent_rebound: 0,
         restore_parent_unresolved: 0,
+        placeholder_pruned_by_ancok: 0,
         element_depth_fuel_exhausted: 0,
         risk_seed_carrier_ambiguous: 0,
+        duplicate_active_id_violations: 0,
     }) };
 }
 
