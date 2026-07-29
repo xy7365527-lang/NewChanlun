@@ -13,7 +13,7 @@
 //! | 1 | per-key 注册表 | [`LedgerBook`] 的 `entries: BTreeMap<K, Entry>` + `get/contains/len/keys` |
 //! | 2 | 首次观察建项 | [`LedgerBook::open_on_observation`] |
 //! | 3 | append-only 修订追加 | [`LedgerEntryCore::push_revision`]（内核默认实现，唯一追加点） |
-//! | 4 | 修订计数与历史一致 | 同上：计数由留档长度现算 ⟹ 结构上不可能不一致 |
+//! | 4 | 修订计数与历史一致 | 同上：计数由留档长度现算；凡经 `push_revision`/`settle` 写入路径不会不一致，`assert_invariants` 调用点逮住绕过 |
 //! | 5 | per-identity 倒退拒绝 | [`LedgerBook::admit`] / [`LedgerBook::reject_retrograde`] |
 //! | 6 | 终态吸收 | [`LedgerState::is_terminal`] + `admit` 的 [`LedgerAdmission::TerminalAbsorbed`] |
 //! | 7 | 钟首次写入不后移 | [`first_write_clock`] |
@@ -218,7 +218,8 @@ impl<P: LedgerPolicy> Default for LedgerDelta<P> {
 /// 条目通用面：域自选字段布局，经本 trait 暴露内核所需的读写口。
 ///
 /// 追加与落锤两条写入路径由内核默认实现独占（[`push_revision`](Self::push_revision) /
-/// [`settle`](Self::settle)）——域不自行拼装修订，故「计数 == 留档长度」是结构性保证。
+/// [`settle`](Self::settle)）——凡经这两条路径写入的修订与计数不会不一致；`assert_invariants`
+/// 调用点负责逮住任何绕过路径造成的不一致。
 pub trait LedgerEntryCore<P: LedgerPolicy>: Sized {
     /// 建空白条目：状态 `Provisional`、两钟同取 `as_of`、修订计数 0、留档空、无来源链。
     fn open(key: P::Key, as_of: usize) -> Self;
@@ -270,6 +271,7 @@ pub trait LedgerEntryCore<P: LedgerPolicy>: Sized {
 
     /// 终态落账：置终态 → 域写落锤钟/原因/证据 → 追加一条修订。**全内核唯一转终态点。**
     fn settle(&mut self, settlement: LedgerSettlement<P>, as_of: usize) -> LedgerRevision<P> {
+        assert!(!self.state().is_terminal(), "终态禁再落账（禁复活）");
         assert!(
             settlement.state.is_terminal(),
             "终态落账要求终态：{:?}",
@@ -408,6 +410,7 @@ impl<P: LedgerPolicy> LedgerBook<P> {
         as_of: usize,
     ) -> LedgerRevision<P> {
         assert!(from != to, "身份迁移两端不得同键：{from:?}");
+        assert!(!self.entries.contains_key(&to), "身份迁移目标键须空闲：{to:?}");
         let mut entry = self.entries.remove(&from).expect("迁移源键存在");
         entry.set_migrated_from(from);
         entry.set_key(to);

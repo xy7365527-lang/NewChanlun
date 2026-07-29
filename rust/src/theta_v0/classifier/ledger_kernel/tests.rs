@@ -411,6 +411,32 @@ fn settlement_into_non_terminal_state_fails_loud() {
     );
 }
 
+#[test]
+#[should_panic(expected = "终态禁再落账")]
+fn settle_twice_fails_loud() {
+    let mut ledger = book();
+    ledger.open_on_observation(&observation(1, 0), 20);
+    let entry = ledger.get_mut(&key(1, 0)).expect("条目已建仓");
+    entry.settle(
+        LedgerSettlement {
+            state: LedgerState::Confirmed,
+            kind: ProbeKind::Settled,
+            reason: Some(ProbeReason::Fulfilled),
+            evidence: None,
+        },
+        21,
+    );
+    entry.settle(
+        LedgerSettlement {
+            state: LedgerState::Invalidated,
+            kind: ProbeKind::Settled,
+            reason: Some(ProbeReason::Withdrawn),
+            evidence: None,
+        },
+        22,
+    );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 责任点 7：钟首次写入不后移
 // ═══════════════════════════════════════════════════════════════════════════
@@ -524,6 +550,15 @@ fn migration_to_same_key_fails_loud() {
 #[should_panic(expected = "迁移源键存在")]
 fn migration_from_absent_key_fails_loud() {
     let mut ledger = book();
+    ledger.migrate(key(1, 0), key(1, 5), ProbeKind::Migrated, 11);
+}
+
+#[test]
+#[should_panic(expected = "身份迁移目标键须空闲")]
+fn migration_to_occupied_key_fails_loud() {
+    let mut ledger = book();
+    ledger.open_on_observation(&observation(1, 0), 10);
+    ledger.open_on_observation(&observation(1, 5), 10);
     ledger.migrate(key(1, 0), key(1, 5), ProbeKind::Migrated, 11);
 }
 

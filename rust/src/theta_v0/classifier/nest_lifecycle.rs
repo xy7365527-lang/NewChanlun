@@ -233,7 +233,9 @@ fn bridge_by_center_upgrade(old: &LifecycleKey, new: &LifecycleKey) -> bool {
 /// 三态（E2E-D5 最小子集；`Unresolved` 出切片——模块头 090 登记 2）。
 ///
 /// **本类型即内核三态**（票 #573 T1 重基）：[`LedgerState`] 承载「未决 / 成立 / 失效」这条
-/// **账本纪律**（终态吸收、禁复活、终态钟只写一次），三个变体逐位同名同序。域语义
+/// **账本纪律**——内核承载终态吸收（`admit`）与禁复活（`settle` 守卫，票 #573 T1 修复轮新增）；
+/// 终态钟只写一次由「`settle` 守卫（禁二次落账）+ 域侧 `write_settlement` 写入点」联合保证。
+/// 三个变体逐位同名同序。域语义
 /// ——何时进入哪一态、该态在缠论下的名分——仍在本模块，逐条登记如下：
 ///
 /// - `Provisional` = 活假设（061:26「都可以先假设是进入背驰段」——默认态，非例外态）;
@@ -459,7 +461,8 @@ pub struct NestLifecycleEntry {
 
 /// 条目通用面（票 #573 T1）：域字段布局一个 bit 不动，只经访问器把内核所需的读写口
 /// 暴露出去。追加（`push_revision`）与终态落账（`settle`）两条写入路径由内核默认实现
-/// 独占 ⟹「修订计数 == 留档长度」不再靠本模块自觉维护，而是结构性成立。
+/// 独占 ⟹ 凡经这两条路径写入的修订与计数不会不一致；不变量断言在 `assert_invariants`
+/// 调用点逮住绕过路径造成的不一致。
 impl LedgerEntryCore<NestPolicy> for NestLifecycleEntry {
     /// 建空白条目：三态默认 Provisional、观察钟与门卫钟同取 `as_of`、五钟其余为空、
     /// 计数 0、留档空、无来源链。建项修订由 [`LedgerBook::open_on_observation`] 追加。
