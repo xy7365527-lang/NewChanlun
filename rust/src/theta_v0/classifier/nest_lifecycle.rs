@@ -2253,8 +2253,10 @@ pub fn active_l2_window_frontier(
 // shadow-527-review T-3 先期登记）：生产侧 sidecar 实走单 run typed 结果的
 // `provide_active_pan_live_windows`（本文件 `pub fn provide_active_pan_live_windows`），
 // p123_fast_replay.rs 自持独立 `lifecycle_leg_as_segment` 复制腿转段，均不调用本段三件。
-// 全库唯一调用点是本文件 `#[cfg(test)] mod tests` 内的夹具。是否清除/归档见票 #605
-// 交付报告的定档建议表，删除动作本身须编排者终审，本次只订正措辞对齐实装。
+// 全库唯一调用点是本文件 `#[cfg(test)] mod tests` 内的夹具（`feed_prefix_phases`，25 调用点
+// 覆盖 12 个 #421/#426 验收测试）。**名分：4 归档（测试专用通道，2026-07-29 #605 终审，
+// 编排者裁）**——生产不消费但验收测试喂书依赖（已完成 legs 语义与生产 active frontier
+// 为 #523 分水岭两端，不能机械换夹具）；删除须待验收测试喂书迁移方案票，随迁移票一并执行。
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// `level_view.rs:436` 私有 `leg_as_segment` 的接线侧复制（规格 Implementation Decisions
