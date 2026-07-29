@@ -736,7 +736,12 @@ fn breach_reason(child: &CandidateEvent, parent: &CandidateEvent) -> PredicateBr
 ///
 /// **入库理由**：读数逻辑此前散在两个诊断 bin 里各写一遍（`issue550_event_battery` 的
 /// `print_chain_summary` 与 p123 的 `chain_dump_line`），既重复又不可测。放进库内 ⟹ 单测可锁、
-/// 两个 bin 同源、报告数与测试数不可能对不上。
+/// 报告数与测试数不可能对不上。
+///
+/// **同源范围（照实，#641 S-2 收窄）**：只有 `issue550_event_battery::print_chain_summary`
+/// 真迁到了本结构体（`summarize()` + `digest()`）。p123 的 `chain_dump_line` 是**逐证书**
+/// （per-certificate）的行格式化，粒度与本结构体的**全簿汇总**不同，**未迁**——它仍自带各档
+/// 节点/边的计数。故「同源」当前只成立于全簿 `summarize` / `digest` 一侧，不含 p123 的逐行 dump。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ChainBookSummary {
     /// 簿内全部 revision 数（append-only 的总行数）。
