@@ -6,9 +6,10 @@
 > **修订登记（2026-07-29 修复轮）**：本报告在 `4fa468711d` 交付后，按 #641 地板裁定
 > （comment-5121572134）与两套 N3 取舍裁定（comment-5121793896）追加了 **§九 取舍裁定执行节**，
 > 并就地改写了受裁定影响的 5 处：§一.3 第二条边界条件、§二「Closed / Invalidated / 路径扩展」
-> 三行、§三② 测试清单、§六 D2 / D3 / K2 / S8 四行。§五 的 BTC 读数**未改**（修复轮三窗逐字段复现，
-> 见 §九 9.3）；§七 的 10 条登记**未改**（本轮新增登记接在 §九 9.4）；§八 的三元组是交付当时的
-> 快照，现行值见 §九 9.5。
+> 三行、§三② 测试清单、§六 D2 / D3 / K2 / S8 四行。§五 的 BTC 读数**除 `extends` 列外未改**
+> （修复轮三窗逐字段复现，见 §九 9.3；`extends` 列的 5/12/33 已被 `extends` 修复归零，§五 5.4
+> 该列就地标注 supersede，现行值见 §九 9.3）；§七 的 10 条登记**未改**（本轮新增登记接在 §九
+> 9.4）；§八 的三元组是交付当时的快照，现行值见 §九 9.5。
 
 ---
 
@@ -227,11 +228,11 @@ bin 侧                            ：cargo test --bin p123_fast_replay → 9 pa
 
 ### 5.4 路径形态
 
-| 窗口 | 路径长 2 | 路径长 3 | 链头级别分布 | `extends` 非空（路径扩展链） | 幂等重跑 Delta |
+| 窗口 | 路径长 2 | 路径长 3 | 链头级别分布 | ~~`extends` 非空（路径扩展链）~~★修复轮后为 0，见 §九 9.3 | 幂等重跑 Delta |
 |---|---|---|---|---|---|
-| 20k | 13 | 5 | {1:4, 2:14} | 5 | **0** |
-| 100k | 77 | 12 | {1:36, 2:53} | 12 | **0** |
-| 300k | 260 | 33 | {1:131, 2:116, 3:46} | 33 | **0** |
+| 20k | 13 | 5 | {1:4, 2:14} | ~~5~~→0 | **0** |
+| 100k | 77 | 12 | {1:36, 2:53} | ~~12~~→0 | **0** |
+| 300k | 260 | 33 | {1:131, 2:116, 3:46} | ~~33~~→0 | **0** |
 
 ### 5.5 读数照实解读（只说数支持的）
 
@@ -427,3 +428,41 @@ FNV golden（链簿） ：9935805022530767834（旧 9771189513849272089，因 `i
 rustfmt --check    ：chain_cert/{mod.rs,tests.rs}、两个 bin 干净（`classifier/mod.rs` 同 §七登记 9 处置）
 BTC 链簿 digest    ：20k=11721078737383519109 / 100k=6645041198801530824 / 300k=2200354287177549197
 ```
+
+### 9.6 #653 条件收口（影子评审 MED-1/MED-2/LOW-1/LOW-2，2026-07-29）
+
+影子评审 `chanlun/review-results/shadow-641-review-20260729.md` 对 `d5e55925a6` 判 **PASS WITH
+CONDITIONS**，两条 MEDIUM + 两条 LOW 全部收编，本节登记逐条修法与复测证据。
+
+| # | 修法 | 锚 | 复测 |
+|---|---|---|---|
+| MED-1 | `floor_blocked` 探针条件补 `&& all_segments`——事实边判死场景不再假计数 | `mod.rs:615`（`#[cfg(test)]` 探针，生产零开销） | 既有单测 `head_only_survivor_stays_open_by_floor_conjunct` 不受影响（无事实边场景）；`cargo test --lib chain_cert` 24/24 全绿 |
+| MED-2 | 报告修订登记「§五 未改」收窄为「除 `extends` 列外未改」；§五 5.4 表格 `extends` 列就地删除线 + supersede 标注指向本节 9.3 | 本报告 :9-11（头部登记）、:231-235（§五 5.4 表格） | 纯文档，未重跑读数（§五 5.4 现行值即 9.3 表格的 `extends_some=0/0/0`） |
+| LOW-1 | `print_chain_summary` 把 `digest` 与 `summarize` 改在同一簿状态点取（`advance` 幂等重跑之前），防幂等破时 `digest` 静默包含重跑追加的 revision 而 `summary` 不含 | `issue550_event_battery.rs`（`print_chain_summary` 内） | 复跑 20k：`chains=18 revisions=18 extends_some=0 idempotent_replay_delta=0`，`digest=11721078737383519109`——与修复前逐字相同（§9.5），零回归 |
+| LOW-2 | 新增一致性测试 `breach_reason_matches_interval_is_sub_conjuncts`：直接构造 `CandidateEvent` 覆盖四个失败合取项（子退化/父退化/左越界/右越界/两端越界），逐项断言 `breach_reason` 命中的档确是 `candidate_is_sub` 判假的直接原因；`interval_is_sub` 未来口径变动会使该测试当场变红 | `chain_cert/tests.rs`（`candidate_event_for_breach` + 新测试，共 67 行） | `cargo test --lib chain_cert` 24/24（含新测试）全绿 |
+
+**验收门（本轮独立复测）**：
+
+```text
+cargo test --lib（CARGO_TARGET_DIR=/tmp/kimi-nest-target-653fix，release，本工位 ticket-641b）
+  → 2082 passed / 1 failed / 135 ignored（合计 2218，较修复前 +1 = LOW-2 新增测试）
+  唯一红 = extract_signals_bit_exact_digest_guard（#491，基座同红，在案非本票，见 9.4 登记 5）
+  零新增红 ✓
+cargo test --lib chain_cert → 24 passed / 0 failed（较修复前 +1）
+cargo test --bin p123_fast_replay → 9 passed / 0 failed（不变）
+rustfmt --check --edition 2021（mod.rs / tests.rs / issue550_event_battery.rs）：干净
+
+p123 20k stdout/dump（P116_MAX_BARS=20000 P123_CHAIN_DUMP_EVERY=2000，产物 /tmp/wt653fix-20000.*）：
+  stdout sha256 前16位 = bd9ac1d655f9d615（与修复前 §八/评审逐字相同）
+  p123 dump  sha256 前16位 = ed690db7c30eba16（19 行，与评审 §二「20k：19 行」一致；
+    `rust/src/bin/p123_fast_replay.rs` 本轮零改动，产物必然位级不变——本轮改动只落在
+    `#[cfg(test)]` 探针 / 诊断 bin `issue550_event_battery` / 测试文件 / 本报告，均不在
+    p123 生产路径上）
+
+issue550_event_battery 20k 独立复跑（LOW-1 修法后）：
+  ISSUE641_CHAIN_FLOOR closed_with_zero_segments=0 segments=23 invalidated_head=0
+    invalidated_predicate=0 digest=11721078737383519109（与 §9.5 逐字相同）
+```
+
+**判定**：四条收编条件全部落地，判定路径、BTC 三窗读数、护栏 SHA 均零变化——影子评审的
+PASS WITH CONDITIONS 转为 **PASS**。
