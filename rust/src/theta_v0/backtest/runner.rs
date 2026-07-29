@@ -6399,6 +6399,107 @@ mod tests {
         assert!(stop_seeds2.is_empty());
     }
 
+    /// ★#625 回归守卫：止损判据的**方向**必须与止损价所属结构方向一致——取持仓方向
+    /// （开仓候选 `c.dir`，入场冻结在 [`LedgerOpen::position_node_id`]`.side` / `entry_z.delta`），
+    /// **不是** `ActiveLeg::dir`（走势载体 eps）。
+    ///
+    /// 缺陷态（#572 后、本修复前）：`exit_side` 取 `leg.dir`、`stop` 取开仓 certificate 方向，
+    /// wf8 实测 89.2% 两者相反 ⟹ 止损判在错误一侧 ⟹ 入场价本就在止损「安全侧」的另一边 ⟹
+    /// `stop_hit` 开仓即恒真 ⟹ 88.5% 仓位 2 根 bar 内被切（cascade-stop-audit-20260728 §1.1）。
+    ///
+    /// 本测试两侧都锁：① 方向错配腿在未触及止损的 bar 上**不得**触发（防恒真误杀）；
+    /// ② 同一仓位真跌破结构止损时**必须**触发且落对应方向桶（防修成永不触发）。
+    #[test]
+    fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
+        use super::super::super::types::BspBits;
+        use super::super::super::classifier::recursive_tower::ElementId;
+        use super::super::mu_estimator::{MuClass, PositionState};
+        use super::super::super::strategy::coverage::Vertical;
+        use super::super::super::strategy::interp::{ActiveLeg, EntryCertificate, PositionNodeId};
+        use super::super::super::strategy::voice::VoiceSide;
+        use std::collections::HashMap;
+
+        let eid = ElementId { level: 0, ordinal: 0 };
+        // 走势载体腿方向 = Short（`leg.dir` 是走势 eps，admission.rs 自陈「非持仓方向」）。
+        let carrier_short = ActiveLeg {
+            level: 0,
+            dir: VoiceSide::Short,
+            source_index: 999,
+            lambda: 999,
+            id: eid,
+            parent_id: None,
+            is_boundary_root: true,
+            op_parent: None,
+        };
+        // 同 carrier 的多头持仓：`c.dir=Long` ⟹ `structural_stop(StopSide::Long)` 取 pivot_low
+        // ⟹ 止损 50 在入场价 100 **下方**（signal.rs::entry_structural_stop 与 side 同源 `c.dir`）。
+        let held = |stop: super::super::super::types::Tick, side: VoiceSide, delta: i8| LedgerOpen {
+            entry_bar: 0,
+            entry_px: 100.0,
+            entry_z: MuClass::from_certificate(0, delta, BspBits::default(), 0, PositionState::Root),
+            entry_stop_dist: Some(50.0),
+            entry_stop: Some(stop),
+            entry_v: Vertical::FollowParent,
+            position_node_id: PositionNodeId {
+                carrier: eid,
+                entry_certificate: Some(EntryCertificate { level: 0, source_index: 5 }),
+                side,
+                generation: 0,
+            },
+            opsem: OpsemEntrySnapshot::default(),
+            units: 1.0,
+        };
+        let quiet = |idx: usize, o: i64, h: i64, l: i64, c: i64| Bar {
+            source_index: idx,
+            timestamp: idx as i64,
+            open: o,
+            high: h,
+            low: l,
+            close: c,
+            volume: 1,
+            untradable: false,
+        };
+
+        let mut open_trades: HashMap<ElementId, LedgerOpen> = HashMap::new();
+        open_trades.insert(eid, held(50, VoiceSide::Long, 1));
+
+        // ① 开仓后 2 根 bar 价格在 [95,112] 震荡，从未触及多头止损 50 ⟹ 不得触发 RiskExit。
+        //    缺陷态按 `leg.dir=Short` 判空头镜像 `open>stop`（100>50）⟹ 第 1 根即恒真。
+        for (n, bar_n) in [(1usize, quiet(1, 100, 110, 95, 105)), (2, quiet(2, 105, 112, 98, 99))] {
+            let (gate, _mode, seeds) =
+                k_theta_risk_gate(&[carrier_short], &open_trades, &bar_n, 1.0e6, 1.0, 100.0, None);
+            assert!(
+                !gate.stop_long && !gate.stop_short,
+                "#625 第{n}根：多头仓结构止损 50 未触及 ⟹ 不得触发（缺陷态按载体 leg.dir 判恒真）"
+            );
+            assert!(seeds.is_empty(), "#625 第{n}根：未触及止损不得产 risk seed");
+        }
+
+        // ② 真跌破：low=40 ≤ stop=50 ⟹ 必须触发，且落 **stop_long** 桶（分桶亦按持仓方向）。
+        let bar_break = quiet(3, 60, 65, 40, 45);
+        let (gate_hit, _mode, seeds_hit) =
+            k_theta_risk_gate(&[carrier_short], &open_trades, &bar_break, 1.0e6, 1.0, 100.0, None);
+        assert!(gate_hit.stop_long, "#625：真跌破多头结构止损 ⟹ stop_long 必须触发（不许修成永不触发）");
+        assert!(!gate_hit.stop_short, "#625：多头仓不得落空头桶（KΘ 方向投影按持仓方向）");
+        assert_eq!(seeds_hit, vec![carrier_short], "命中腿 ID 仍以载体腿身份进 seeds（级联口径不变）");
+
+        // ③ 镜像：空头持仓（止损 200 在上方）配 Long 走势载体腿。
+        open_trades.insert(eid, held(200, VoiceSide::Short, -1));
+        let carrier_long = ActiveLeg { dir: VoiceSide::Long, ..carrier_short };
+        let (gate_m, _mode, seeds_m) =
+            k_theta_risk_gate(&[carrier_long], &open_trades, &quiet(4, 100, 110, 95, 105), 1.0e6, -1.0, 100.0, None);
+        assert!(
+            !gate_m.stop_long && !gate_m.stop_short,
+            "#625 镜像：空头仓止损 200 未触及 ⟹ 不得触发（缺陷态按 leg.dir=Long 判 low≤stop 恒真）"
+        );
+        assert!(seeds_m.is_empty());
+        let (gate_mh, _mode, seeds_mh) =
+            k_theta_risk_gate(&[carrier_long], &open_trades, &quiet(5, 100, 250, 95, 240), 1.0e6, -1.0, 100.0, None);
+        assert!(gate_mh.stop_short, "#625 镜像：真上破空头结构止损 ⟹ stop_short 必须触发");
+        assert!(!gate_mh.stop_long, "#625 镜像：空头仓不得落多头桶");
+        assert_eq!(seeds_mh, vec![carrier_long]);
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     //  ★★督导见证（task #94）：多 bar 闭环证明 account+twState 每 bar 真更新喂回
     //  （对比旧 runner「account 构造一次不喂回」的开环单帧）
