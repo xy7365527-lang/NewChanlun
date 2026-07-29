@@ -178,6 +178,9 @@ pub struct ChainNodeTrace {
 }
 
 /// 链段资格的唯一判定谓词的**指名**（`cand_sub` 的跨级 `C⊆C`，本模块不重写任何区间不等式）。
+///
+/// **deprecated 待退役**（世代宪法 §1 登记，#641 S-6）：零非测试外部调用者——当前只有本模块内
+/// 与 `tests.rs` 用。**不删**：N4 的「事件 ↔ BSP 稳定身份边」是候选消费面，退役须另票裁定。
 pub const CHAIN_SEGMENT_PREDICATE: &str = "cand_sub::candidate_is_sub";
 
 /// 事实边（谓词判不过）判不过的**直接原因**，按 [`candidate_is_sub`] 的合取项分档。
@@ -492,6 +495,9 @@ fn hasse_children(index: &AliveIndex<'_>) -> BTreeMap<CandidateKey, Vec<Candidat
 ///
 /// 单节点极大路径（既无父也无子的孤立候选）不是链，不产出——它们的个数由
 /// [`chain_probe::ChainProbe::isolated_roots`] 计数，不静默丢。
+///
+/// **deprecated 待退役**（世代宪法 §1 登记，#641 S-6）：零非测试外部调用者——当前只有本模块内
+/// 与 `tests.rs` 用。**不删**：N4 的「事件 ↔ BSP 稳定身份边」是候选消费面，退役须另票裁定。
 pub fn chain_paths(streams: &CandidateStreams) -> Vec<Vec<CandidateKey>> {
     let index = AliveIndex::build(streams);
     paths_from_index(&index)
@@ -796,6 +802,10 @@ impl ChainCertificateBook {
         &self.certificates
     }
 
+    /// 按 [`ChainKey`] 取该链身份的最新 revision（无此 key 则 `None`）。
+    ///
+    /// **deprecated 待退役**（世代宪法 §1 登记，#641 S-6）：零非测试外部调用者——当前只有本模块内
+    /// 与 `tests.rs` 用。**不删**：N4 的「事件 ↔ BSP 稳定身份边」是候选消费面，退役须另票裁定。
     pub fn latest_of(&self, key: &ChainKey) -> Option<&TowerChainCertificate> {
         self.latest.get(key).map(|index| &self.certificates[*index])
     }
