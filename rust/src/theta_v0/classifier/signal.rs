@@ -396,6 +396,12 @@ pub(crate) fn judge_first_cached(
     // §8.3 教训同源）。生产 `judge_segment`（level=Some，incremental resume 传参穿透）与诊断
     // `level_cand_delta`（level=None，#529 塔地盘不参与捕获，同 #606 S1 既有边界）两条调用
     // 路径共享同一挂点。仅 sidecar 已打开（env 门控，`otherwise_domain_sidecar_begin`）时捕获。
+    // ★#607 F4 登记：sidecar 记的是**真实** `t3_grade`（Present/Missing 如实反映 T3-in-c 判据），
+    // 不受 `THETA_T3INC_SKIP` 影响；但 `THETA_T3INC_SKIP=1` 时下方 `below_last_center`（一类 bit）
+    // 强制按 `diverged` 置（跳过 T3-in-c 二次门控，见上）。两者在 skip 臂下脱钩——bit 驱动的
+    // Reset 计数（59，旧行为）与 sidecar 按真实 grade 切的 native/otherwise 桶（native=22）
+    // 不再一一对应。skip 臂只用于 trades/tower 字节级反证（D5 §5.1），**不跑**②基数对拍
+    // （native_count == reset_count）——两臂互斥是设计，非 bug。
     if let Some(lvl) = level {
         if diverged && GRADE_SIDECAR.with(|c| c.borrow().is_some()) {
             let rec = FirstClassGradeRecord {

@@ -2165,6 +2165,11 @@ pub fn level_cand_delta(
             .is_some();
         let confirm_src = pf.source_index;
         let interval_end = seg.end_index;
+        // #607 D2 登记：pf.bits.buy1/sell1 与生产路径同受 T3-in-c 否则域大闸门控
+        // （Missing ⟹ 二次门控清零，见 signal.rs judge_first_cached）——cand_delta 事件
+        // 集合随之缩小。D2 之前的 strict_nest_check/p107/p124 等诊断 bin 历史读数是旧口径
+        // （否则域点仍计入 cand_delta），不得与 D2 之后的读数直接混比；如需复现旧口径，
+        // 用 THETA_T3INC_SKIP=1 重跑（见 issue607-impl 报告 §5）。
         let cand_delta = pf.bits.buy1 || pf.bits.sell1;
         let (
             b_parent,
