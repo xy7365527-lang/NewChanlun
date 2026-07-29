@@ -3,36 +3,84 @@ Origin/NestLifecycleBook.lean — NestLifecycleBook 三态、五钟与留档纪�
 （票 #299，P0a）
 
 ── 权威锚 ────────────────────────────────────────────────────────────────────
-Rust 域语义：
-  · `rust/src/theta_v0/classifier/nest_lifecycle.rs`
-    - 模块头「090 登记 / 口径与契约」；
-    - `NestEventState`、`InvalidatedReason`、`NestLifecycleEntry`；
-    - `advance`、`consumable_closed`、`assert_invariants`。
-Rust 通用机制：
-  · `rust/src/theta_v0/classifier/ledger_kernel/mod.rs`
-    - `LedgerState`、`first_write_clock`、终态吸收、append-only 修订。
+以下 Rust 机器语义均按当前
+`main@59c8eb1a79d96313a22b0fb8f4bcd4a98bcf4b50`（2026-07-29）实读，
+非票体旧行号、非转述：
+  · `rust/src/theta_v0/classifier/nest_lifecycle.rs`：
+    `consumable_closed` :1054-1059；`advance` :1070-1295（桥匹配终态提前吸收
+    :1094-1109，倒退拒绝 / 终态吸收 :1164-1171，Unavailable 审计 :1198-1219，
+    消失成因分类 :1260-1288）；`assert_invariants` :1297-1463
+    （IdentityVanished 钟臂 :1401-1407）。
+  · `rust/src/theta_v0/classifier/ledger_kernel/mod.rs`：
+    `first_write_clock` :152-160，append-only 唯一追加点 :253-268，
+    已建仓准入流程 :380-397，`migrate` :401-419。
 裁定：
   · `chanlun/escalate/r43-lifecycle-ruling-20260721.md` §2(a)(b)、§4。
 
+── 编号对照（票体 I1–I7 ↔ 定稿①–⑤ / 本文 I1–I5）─────────────────────────
+本文 I1–I5 按定稿五项重编号，不沿用票体 I1–I7；后续验收以本表为准：
+  · 票体 I1（五钟偏序）→ 定稿② / 本文 I2：`clock_discipline`；
+  · 票体 I2（终态互斥 + 吸收）→ 定稿① / 本文 I1：`advance_legal`、
+    `confirmed_absorbing`、`invalidated_absorbing`、`confirmed_invalidated_side_empty`；
+  · 票体 I3（Closed-only 消费）→ 定稿④ / 本文 I4：`toClosed_some_iff_confirmed`、
+    `provisional_not_closed`、`invalidated_not_closed`；
+  · 票体 I4（Invalidated 留档；票体原文含 book 键集单调）→ 定稿⑤ / 本文 I5：
+    `history_append_only`、`newly_invalidated_archived`、`invalidated_has_payload`；本文只证
+    单 entry 修订链 append-only，不证 book 键集单调；
+  · 票体 I5（first_provable 只写一次）→ 定稿② / 本文 I2：
+    `first_provable_write_once`、`new_first_provable_at_current`；
+  · 票体 I6（原因码互补）→ 定稿③ / 本文 I3：`force_reason_first_complement`；
+  · 票体 I7（倒退拒绝 ⟹ entry 零改动）→ 定稿①的倒退子义务：
+    `retrograde_no_change`。
+
 ── 认识论等级与有效域（090 照实）────────────────────────────────────────────
-本文定理均为 **L0 machine-checked**：它们证明本文给出的纯函数状态机具有三态合法转移、
-当前喂入点首写、分支化五钟偏序、Confirmed-only 类型门与失效留档性质。
+本文定理的实际结论均为 **L0 machine-checked**：它们证明本文给出的纯函数状态机具有
+三态合法转移、当前喂入点首写、已证分支的五钟偏序、Confirmed-only 类型门与单 entry
+失效留档性质。`ClaimStatus090.unprovedModelWithoutBridge` 携带反例，不提供其索引命题
+的证明。
 
 本文不声称：
   1. Rust 与本模型逐 bit 等价；本文件只形式化 #299 定稿的状态机核心；
   2. 力度计算正确或行情经验有效；力度结果是参数化输入；
-  3. Rust 生产消费路径已经改接 Lean 类型。
+  3. Rust 生产消费路径已经改接 Lean 类型；
+  4. `ClosedEntry` 能力值必来自真实账本：它是公开的 `ConfirmedSnapshot` 能力形；本文只证
+     `toClosed?` 对一般 `Entry` 当且仅当 Confirmed 产出能力，且 `consumeClosed` 只接该类型；
+  5. `Feed.vanished cause` 的成因分类正确：`cause` 是参数化输入；Rust 基于 book/seen 集合的
+     两类 `VanishCause` 分类，以及 `Supersedes` / `CenterUpgraded` 多 entry 迁移语义均在范围外；
+  6. Rust 的 `revision_count == revisions.len()`：本文 `Entry` 无独立计数字段，
+     `history_append_only` 只证单 entry 历史前缀关系。
 
-── 三条降级注释（只登记，不立定理）─────────────────────────────────────────
+── 降级与范围外登记（只登记，不冒充已证命题）────────────────────────────────
 ⑥ **未证（R 域参数化前提）**：力度三值判定门。`ForceCheck` 只接收 R 域给出的
    `verifiedWeaker / verifiedOvertake / unavailable`；本文不证明 R 域如何算出该值。
-   `unavailable` 不等于 `verifiedOvertake`，不得由不可验制造失效。
+   `unavailable` 不等于 `verifiedOvertake`，不得由不可验制造失效。本模型该分支
+   `delta := []`，不模型化 Rust 的 `ForceUnavailable` 修订与
+   `CompletionForceUnavailableAudit` 审计侧效应，因而不声称审计留痕逐位等价。
 ⑦ **定义域禁令（不立证）**：白名单工程桥只负责工程身份迁移，裁定明令
    「不进证书真值路径」；本文的状态真值、
-   `ClosedEntry` 与消费入口均不含桥参数。
+   `ClosedEntry` 与消费入口均不含桥参数；`Supersedes` / `CenterUpgraded`
+   的 book 级迁移、认领与来源链语义不在本模型内。
 ⑧ **挂起 / 未能判定**：EventKey 并轨仍待后续裁定；本文不定义
    `LifecycleKey ↔ WireV1 EventKey`
    等价或转换定理。
+
+**IdentityVanished 钟臂未证（模型无桥匹配分支）**：Rust 真谓词是
+`last_as_of ≤ invalidated_at`（`nest_lifecycle.rs:1401-1407`），不是 `True`。
+本模型无 book / 桥匹配分支，且终态推进会经 `touchInvalidated` 前移 `lastAsOf`；因此
+`advance (advance (openEntry 0) 5 (.vanished .hypothesisRefuted)) 9
+  (.seen .verifiedWeaker true)`
+真实可达 `invalidatedAt = 5 < lastAsOf = 9`。两处 IdentityVanished 臂均以
+`ClaimStatus090 (lastAsOf ≤ invalidatedAt)` 写出真实谓词；反例状态只能携带
+`.unprovedModelWithoutBridge`，该构造子不能当作谓词证明。Rust 当前生产路径靠
+`advance:1094-1109` 的桥匹配终态提前吸收规避；模型没有该路径，结论不得外推。
+另票线索：ledger kernel 准入流程先前移终态门卫钟（:380-397）与该断言存在张力，
+目前依赖路径耦合未炸；本票只登记，由编排另开质询票。
+
+── 谱系与影响声明 ───────────────────────────────────────────────────────────
+Lean 侧此前无可复用的 `NestLifecycleBook` 状态机前驱；本文从已结算 Rust 三态、五钟、
+原因载荷与留档契约建立纯 core 模型。`Origin.CertGatedExit` 只提供 typed-only 能力门范式，
+`Origin.IntervalNestCertificate` 只给区间套证书的计算 / 选择语义；本文不导入、不改写二者，
+与其无语义重叠。本文新增类型只是既有 Rust 契约的类型化承载，不作新教义概念分离。
 
 ── 纯 core 硬约束 ────────────────────────────────────────────────────────────
 无 Mathlib/Batteries/Std；零证明占位 / 新公理。
@@ -125,7 +173,9 @@ deriving Repr
     § 2. 只允许合法快照的状态索引
 
     三种结构分别承载三态。证明字段不是外加市场前提，而是快照构造资格：
-    状态机只能构造满足钟纪律与原因名分的快照。
+    状态机只能构造满足已证钟纪律与原因名分的快照。唯一例外是
+    IdentityVanished 的 Rust 反向钟谓词：`ClaimStatus090` 只登记正证或反例状态，
+    不把未证谓词冒充为构造资格。
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /-- 未决快照：没有结构完成钟或终态钟。 -/
@@ -151,11 +201,21 @@ structure ConfirmedSnapshot (Evidence : Type) where
       confirmedAt ≤ lastAsOf
 
 /--
+090 降级载体：索引参数始终写出待证的真实命题；`proved` 才携带该命题的证明，
+`unprovedModelWithoutBridge` 则携带该状态下的反例，明记“模型无桥匹配分支，未证”，
+不能当作命题成立使用。
+-/
+inductive ClaimStatus090 (claim : Prop) : Prop where
+  | proved (proof : claim)
+  | unprovedModelWithoutBridge (counterexample : ¬ claim)
+
+/--
 失效快照先满足全分支偏序：每个已存在的 first/structure 钟都不晚于
 invalidated，且二者同在时 `first ≤ structure`。原因分支再收紧：
 * ForceOvertake：曾可证，结构钟可空；
 * NeverConstituted：从未可证，`structure = invalidated ≤ lastAsOf`；
-* IdentityVanished：不追加原因特有的钟关系。
+* IdentityVanished：Rust 命题为 `lastAsOf ≤ invalidatedAt`；本模型无桥匹配分支，
+  终态门卫钟可继续前移，故用 `ClaimStatus090` 显式登记该命题“未证”，不以 `True` 充数。
 -/
 structure InvalidatedSnapshot (Evidence : Type) where
   observedAt : Nat
@@ -187,7 +247,8 @@ structure InvalidatedSnapshot (Evidence : Type) where
         firstProvableAt = none ∧
           structureEndAt = some invalidatedAt ∧
           invalidatedAt ≤ lastAsOf
-    | .identityVanished _ => True
+    | .identityVanished _ =>
+        ClaimStatus090 (lastAsOf ≤ invalidatedAt)
 
 /-- 合法快照只有三个构造子。 -/
 inductive Snapshot (Evidence : Type) where
@@ -344,7 +405,10 @@ private def touchInvalidated
           simp only at discipline ⊢
           rcases discipline with ⟨hfirst, hstructure, hil⟩
           exact ⟨hfirst, hstructure, by omega⟩
-      | identityVanished cause => simp }
+      | identityVanished cause =>
+          by_cases hclaim : current ≤ entry.invalidatedAt
+          · exact .proved hclaim
+          · exact .unprovedModelWithoutBridge hclaim }
 
 /--
 一步纯函数。
@@ -400,7 +464,9 @@ def advanceSnapshot
                     observed_le_invalidated := by
                       have hobs := entry.observed_le_last
                       omega
-                    reason_discipline := by simp [payload] }
+                    reason_discipline := by
+                      simp only [payload]
+                      exact .proved (Nat.le_refl current) }
               delta := [.invalidated current payload] }
         | .seen force structureComplete =>
             match force with
@@ -534,6 +600,19 @@ def advance
   { snapshot := result.next
     history := entry.history ++ result.delta }
 
+/--
+**票体 I7 / L0**：倒退喂入被拒绝时，快照与留档逐位零改动。
+-/
+theorem retrograde_no_change
+    (entry : Entry Evidence)
+    (current : Nat)
+    (feed : Feed Evidence)
+    (hretro : current < entry.lastAsOf) :
+    advance entry current feed = entry := by
+  rcases entry with ⟨snapshot, history⟩
+  have h : current < snapshot.lastAsOf := hretro
+  simp [advance, advanceSnapshot, h]
+
 /-! ═══════════════════════════════════════════════════════════════════════
     § 4. 三态合法性与五钟纪律
     ═══════════════════════════════════════════════════════════════════════ -/
@@ -626,7 +705,8 @@ theorem confirmed_invalidated_side_empty
       Snapshot.clocks, Snapshot.invalidation] at hstate ⊢
 
 /--
-五钟偏序是路径敏感的，不是总链。
+五钟偏序是路径敏感的，不是总链。IdentityVanished 臂保留 Rust 真实谓词，
+但 `ClaimStatus090.unprovedModelWithoutBridge` 只携带反例，不证明该谓词。
 -/
 def ClockDiscipline (snapshot : Snapshot Evidence) : Prop :=
   match snapshot with
@@ -662,10 +742,12 @@ def ClockDiscipline (snapshot : Snapshot Evidence) : Prop :=
             entry.firstProvableAt = none ∧
               entry.structureEndAt = some entry.invalidatedAt ∧
               entry.invalidatedAt ≤ entry.lastAsOf
-        | .identityVanished _ => True
+        | .identityVanished _ =>
+            ClaimStatus090 (entry.lastAsOf ≤ entry.invalidatedAt)
 
 /--
-**I2 / L0**：每个可构造快照都满足准确的分支化五钟偏序。
+**I2 / L0**：每个可构造快照都满足已证分支的准确五钟偏序；IdentityVanished
+只得到其 Rust 钟谓词的 090 状态，不把“未证”升级成谓词成立。
 -/
 theorem clock_discipline (entry : Entry Evidence) :
     ClockDiscipline entry.snapshot := by
@@ -976,6 +1058,7 @@ theorem identity_vanished_has_no_force_evidence (cause : VanishCause) :
 -/
 
 #print axioms advance_legal
+#print axioms retrograde_no_change
 #print axioms confirmed_absorbing
 #print axioms invalidated_absorbing
 #print axioms confirmed_invalidated_side_empty
