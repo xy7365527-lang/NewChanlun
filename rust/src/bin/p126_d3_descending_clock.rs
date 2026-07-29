@@ -1,11 +1,23 @@
-//! #671（N5 裁定②）D3 递降钟——塔内候选事件父子级 `first_provable_at` 时序普查。
+//! #690（口径 v2，#687 三裁裁定）D3 递降钟——塔内候选事件父子级 `first_provable_at` 时序普查。
 //!
 //! 只写不判：本 bin 只做只读普查 + 分桶计数，不做任何门（不拦截、不改生产路径、不判定裁决）。
-//! 违规定义：一对满足 [`cand_sub::candidate_is_sub`]（`child.event_level < parent.event_level`
-//! ∧ `C⊆C` 区间包含——生产既有的跨级候选父子关系判据，非本 bin 新造）的 (child, parent)
-//! 候选事件，若两者 `first_provable_at` 均已钉死（`Some`）且 `parent.first_provable_at >
-//! child.first_provable_at`，即父级首证钟**晚于**子级——是为「递降钟」违规（因果直觉：父级应先
-//! 或同时可证，不应晚于子级）。
+//!
+//! **口径 v2（#687 裁定，替换 #671 v1）**：父子对 = [`cand_sub::candidate_is_sub`]
+//! （`child.event_level < parent.event_level` ∧ `C⊆C` 区间包含——生产既有的跨级候选父子关系
+//! 判据，非本 bin 新造）**∧ 方向一致**（`child.key.side == parent.key.side`）。方向错配的对
+//! 继续计数（`side_mismatch_pairs`，供对照），但不再进入违规分母/分子（v1 曾把方向错配对也计入
+//! 分母，#687 认定这会稀释/污染违规率的可解释性）。
+//!
+//! 违规定义（不变）：一对合格父子（v2 口径）若两者 `first_provable_at` 均已钉死（`Some`）且
+//! `parent.first_provable_at > child.first_provable_at`，即父级首证钟**晚于**子级——是为
+//! 「递降钟」违规（因果直觉：父级应先或同时可证，不应晚于子级）。
+//!
+//! **多重归属不强行唯一**（#687 裁定②）：同方向下一个 child 可被多个 parent 包含，不去重、不
+//! 挑「唯一父」。新增归属分布：每个 child 被多少个同方向 parent 包含（`candidate_is_sub` 成立
+//! 计数），按 n=0/1/2/3+ 分桶报数。
+//!
+//! **违规个案 dump**（#687 裁定③）：每条违规打出 child/parent 键标识（级别、side、区间坐标）
+//! 与两端 `first_provable_at` 值，供编排者钉因。
 //!
 //! 分桶：窗口 × 级别对（`child_level → parent_level`）× 方向（`CandidateKey.side`）。
 //! 用法：`cargo run --release --bin p126_d3_descending_clock -- <btc_1m_full.json> [w1,w2,...]`
@@ -137,15 +149,77 @@ fn side_name(side: Side) -> &'static str {
 
 #[derive(Default, Clone, Copy)]
 struct Bucket {
-    /// 两端 `first_provable_at` 均 `Some`（可判）的对数——违规率分母。
+    /// 满足 `candidate_is_sub` ∧ 方向一致（v2 父子对）且两端 `first_provable_at` 均 `Some`
+    /// （可判）的对数——违规率分母。
     judged_pairs: usize,
     /// `judged_pairs` 中 `parent.first_provable_at > child.first_provable_at` 的对数。
     violations: usize,
-    /// 满足 `candidate_is_sub` 但至少一端 `first_provable_at` 为 `None`（尚未可证，不可判）的对数。
+    /// 满足 v2 父子对但至少一端 `first_provable_at` 为 `None`（尚未可证，不可判）的对数。
     unjudged_pairs: usize,
 }
 
+/// 单 child 被多少个同方向 parent 包含（`candidate_is_sub` 成立）的分布——#687 裁定②
+/// 「多重归属不强行唯一」的计数载体。n=0/1/2/3+ 四桶。
+#[derive(Default, Clone, Copy)]
+struct AttributionCounts {
+    n0: usize,
+    n1: usize,
+    n2: usize,
+    n3_plus: usize,
+}
+
+impl AttributionCounts {
+    fn record(&mut self, parent_count: usize) {
+        match parent_count {
+            0 => self.n0 += 1,
+            1 => self.n1 += 1,
+            2 => self.n2 += 1,
+            _ => self.n3_plus += 1,
+        }
+    }
+
+    fn total(&self) -> usize {
+        self.n0 + self.n1 + self.n2 + self.n3_plus
+    }
+}
+
+/// 一条违规个案的键标识 + 两端首证钟——#687 裁定③ dump，供编排者钉因。
+fn print_violation(
+    window_bars: usize,
+    child_level: u32,
+    parent_level: u32,
+    side: &'static str,
+    child: &CandidateEvent,
+    parent: &CandidateEvent,
+    child_at: usize,
+    parent_at: usize,
+) {
+    println!(
+        "ISSUE690_D3_VIOLATION window_bars={window_bars} child_level={child_level} \
+         parent_level={parent_level} side={side} \
+         child_kind={:?} child_interval=({},{}) child_c_start={} child_seg_a=({},{}) \
+         child_first_provable_at={child_at} \
+         parent_kind={:?} parent_interval=({},{}) parent_c_start={} parent_seg_a=({},{}) \
+         parent_first_provable_at={parent_at}",
+        child.key.kind,
+        child.interval.0,
+        child.interval.1,
+        child.key.c_start,
+        child.key.seg_a.0,
+        child.key.seg_a.1,
+        parent.key.kind,
+        parent.interval.0,
+        parent.interval.1,
+        parent.key.c_start,
+        parent.key.seg_a.0,
+        parent.key.seg_a.1,
+    );
+}
+
 /// 单窗口普查：只读——不改事件流、不产生任何观察或修订，返回值只被打印。
+///
+/// 口径 v2（#687 裁定①）：父子对 = `candidate_is_sub` ∧ 方向一致。方向错配对仍计入
+/// `side_mismatch_pairs`（供对照）但 `continue` 跳过，不进入 `buckets`/归属分布。
 fn scan_window(path: &Path, config: &ThetaConfig, max_bars: usize) -> Result<(), String> {
     let bars = load(path, config.tick.tick_size, max_bars)?;
     if bars.is_empty() {
@@ -162,34 +236,64 @@ fn scan_window(path: &Path, config: &ThetaConfig, max_bars: usize) -> Result<(),
 
     let mut buckets = BTreeMap::<(u32, u32, &'static str), Bucket>::new();
     let mut side_mismatch_pairs = 0usize;
+    let mut attribution = AttributionCounts::default();
+    let mut violations: Vec<(u32, u32, &'static str, &CandidateEvent, &CandidateEvent, usize, usize)> =
+        Vec::new();
 
     for (&child_level, children) in &by_level {
         let parent_level = child_level + 1;
-        let Some(parents) = by_level.get(&parent_level) else {
-            continue;
-        };
+        let parents = by_level.get(&parent_level);
         for child in children {
-            for parent in parents {
-                if !candidate_is_sub(child, parent) {
-                    continue;
-                }
-                if child.key.side != parent.key.side {
-                    side_mismatch_pairs += 1;
-                }
-                let bucket = buckets
-                    .entry((child_level, parent_level, side_name(child.key.side)))
-                    .or_default();
-                match (child.first_provable_at, parent.first_provable_at) {
-                    (Some(c_at), Some(p_at)) => {
-                        bucket.judged_pairs += 1;
-                        if p_at > c_at {
-                            bucket.violations += 1;
-                        }
+            let mut same_side_parent_count = 0usize;
+            if let Some(parents) = parents {
+                for parent in parents {
+                    if !candidate_is_sub(child, parent) {
+                        continue;
                     }
-                    _ => bucket.unjudged_pairs += 1,
+                    if child.key.side != parent.key.side {
+                        side_mismatch_pairs += 1;
+                        continue;
+                    }
+                    same_side_parent_count += 1;
+                    let side = side_name(child.key.side);
+                    let bucket = buckets
+                        .entry((child_level, parent_level, side))
+                        .or_default();
+                    match (child.first_provable_at, parent.first_provable_at) {
+                        (Some(c_at), Some(p_at)) => {
+                            bucket.judged_pairs += 1;
+                            if p_at > c_at {
+                                bucket.violations += 1;
+                                violations.push((
+                                    child_level,
+                                    parent_level,
+                                    side,
+                                    child,
+                                    parent,
+                                    c_at,
+                                    p_at,
+                                ));
+                            }
+                        }
+                        _ => bucket.unjudged_pairs += 1,
+                    }
                 }
             }
+            attribution.record(same_side_parent_count);
         }
+    }
+
+    for (child_level, parent_level, side, child, parent, c_at, p_at) in &violations {
+        print_violation(
+            bars.len(),
+            *child_level,
+            *parent_level,
+            side,
+            child,
+            parent,
+            *c_at,
+            *p_at,
+        );
     }
 
     let (mut total_judged, mut total_violations, mut total_unjudged) = (0usize, 0usize, 0usize);
@@ -203,7 +307,7 @@ fn scan_window(path: &Path, config: &ThetaConfig, max_bars: usize) -> Result<(),
             bucket.violations as f64 / bucket.judged_pairs as f64
         };
         println!(
-            "ISSUE671_D3_BUCKET window_bars={} child_level={child_level} parent_level={parent_level} \
+            "ISSUE690_D3_BUCKET window_bars={} child_level={child_level} parent_level={parent_level} \
              side={side} judged_pairs={} violations={} violation_rate={rate:.6} unjudged_pairs={}",
             bars.len(),
             bucket.judged_pairs,
@@ -218,11 +322,20 @@ fn scan_window(path: &Path, config: &ThetaConfig, max_bars: usize) -> Result<(),
         total_violations as f64 / total_judged as f64
     };
     println!(
-        "ISSUE671_D3_WINDOW window_bars={} levels={} judged_pairs={total_judged} \
+        "ISSUE690_D3_WINDOW window_bars={} levels={} judged_pairs={total_judged} \
          violations={total_violations} violation_rate={total_rate:.6} unjudged_pairs={total_unjudged} \
          side_mismatch_pairs={side_mismatch_pairs}",
         bars.len(),
         by_level.len(),
+    );
+    println!(
+        "ISSUE690_D3_ATTRIBUTION window_bars={} children_total={} n0={} n1={} n2={} n3_plus={}",
+        bars.len(),
+        attribution.total(),
+        attribution.n0,
+        attribution.n1,
+        attribution.n2,
+        attribution.n3_plus,
     );
     Ok(())
 }
