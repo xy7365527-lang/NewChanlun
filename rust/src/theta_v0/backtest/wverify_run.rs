@@ -1533,6 +1533,13 @@ fn m8_e2e_all_systems_oos() {
                 w.other_violation_by_kind,
                 r.campaign_book.active_count(),
             );
+            // ★#679 D1b：挂起随谱系迁移的分桶读数（`rebase_lineage_migrated` /
+            // `rebase_vanished_kept` + 四条 fail-closed 归因）。进程级计数器，跨窗累积——
+            // 单窗跑（`M8_WIN_FILTER=wf8`）时即本窗读数。纯 stderr，不进任何产物文件。
+            eprintln!(
+                "[m8][#679] {tag}: {}",
+                crate::theta_v0::lineage_book::report_line()
+            );
             // ★no_active_campaign_count/resource_exhausted_holding_negative_count 非 bug——前者
             // 是结构信号独立于本级持仓状态的预期空仓触发（#292 CenterOscillationBook「无门」
             // 设计），后者是 campaign 按级别（非按中枢）聚合共享同一份冻结 sizing 预算、连续同向
