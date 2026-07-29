@@ -2007,22 +2007,35 @@ fn center_lifecycle_wf8_events_replay() {
 /// ③**五桶分级分侧计数**（missing_leave/missing_retest/same_direction/leave_not_outside/
 /// retest_reentered）——计数分级分侧打印进验收行，供人工核对。
 ///
-/// `#[ignore]`：需 BTC 数据（DATA BLOCKER 不伪造）；wf8 全窗重放，
+/// `#[ignore]`：需 BTC 数据（DATA BLOCKER 不伪造）；wf8 全窗重放（默认），
+/// `M8_WIN_FILTER=wf7|p3fold` 可切至其余两窗（#608 S3 多窗对照，未设时行为逐字节不变）；
 /// env `THETA_OTHERWISE_DOMAIN_SIDECAR=1`（测试内部设置，无需外部前缀）。
 /// `cargo test --release --lib theta_v0::backtest::wverify_run::otherwise_domain_wf8_grade_buckets -- --ignored --nocapture`
 #[test]
-#[ignore = "#606 S1 D4 / #607 S2 口径切换：wf8 全窗一类点分级观测三项口径 + 五桶（Reset 只属趋势一类）；需 BTC 数据（DATA BLOCKER 不伪造）"]
+#[ignore = "#606 S1 D4 / #607 S2 口径切换 / #608 S3 多窗对照：一类点分级观测三项口径 + 五桶（Reset 只属趋势一类）；M8_WIN_FILTER=wf7|wf8|p3fold 选窗（未设=wf8，行为不变）；需 BTC 数据（DATA BLOCKER 不伪造）"]
 fn otherwise_domain_wf8_grade_buckets() {
     use super::super::classifier::signal::{T3InCGrade, T3InCGradeReason};
     use super::super::types::Side;
     use super::runner::run_theta_v0_pi_overlay;
 
+    // #608 S3：M8_WIN_FILTER 选窗（同 m8_e2e_all_systems_oos 口径），未设保持 wf8 原行为不变。
+    let win_tag = std::env::var("M8_WIN_FILTER").unwrap_or_else(|_| "wf8".into());
     let plain_cfg = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
     let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
-    let w = sw.wf_anchored.iter().find(|w| w.i == 8).expect("wf8 窗");
-    let test = ds.slice_date_window(w.test_start, w.test_end);
-    assert!(!test.bars.is_empty(), "wf8 test 段非空（否则测试空转）");
+    let (test_start, test_end): (&str, &str) = match win_tag.as_str() {
+        "p3fold" => ("2023-01-01", "2023-06-30"),
+        "wf7" => {
+            let w = sw.wf_anchored.iter().find(|w| w.i == 7).expect("wf7 窗");
+            (w.test_start, w.test_end)
+        }
+        _ => {
+            let w = sw.wf_anchored.iter().find(|w| w.i == 8).expect("wf8 窗");
+            (w.test_start, w.test_end)
+        }
+    };
+    let test = ds.slice_date_window(test_start, test_end);
+    assert!(!test.bars.is_empty(), "{win_tag} test 段非空（否则测试空转）");
     let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
     let nav_te = test
         .bars
@@ -2187,7 +2200,7 @@ fn otherwise_domain_wf8_grade_buckets() {
     );
 
     eprintln!(
-        "[#607 S2 D4] wf8 一类点 T3-in-c 分级观测：frames={} 一类点总数={grand_total} \
+        "[#607 S2/#608 S3 D4] {win_tag} 一类点 T3-in-c 分级观测：frames={} 一类点总数={grand_total} \
          (center_lifecycle reset={reset_count}, 新口径=Reset 只属趋势一类) native(趋势一类)={native_count} \
          otherwise(否则域)={otherwise_count} \
          (level,side=0long/1short)→(native,otherwise)={level_side_totals:?} \
