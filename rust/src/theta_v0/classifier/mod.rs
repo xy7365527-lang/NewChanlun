@@ -935,6 +935,10 @@ struct LevelCache {
     /// `units`（loop 尾/下 bar 重赋）⟹ strong_count==1 ⟹ 原地写（stage 09 O(tail) 不退化）；
     /// >1（理论跨 bar 持有）⟹ 写时复制（bit-exact）。同 A1 泳道 centers/bsp Rc 化。
     projected_units: Rc<Vec<UnitRange>>,
+    /// #69 5b（#614 并线自 kimi 线 `tower_cache.rs` 引入）：本级一/三类所用的 source 水位快照。
+    /// **只写缓存**——生产分类/交易路径无任何读点，唯一读点是 [`TowerCache::freeze_boundary`]
+    /// （诊断 bin `p123_fast_replay` 消费）。公式与 signal resume 单一同源。
+    last_freeze_boundary: usize,
     /// ★07b frontier 门控（A 泳道 resume 家族，与 A3/07c 同族）：confirmed 前缀 `upper_moves` 的第二类
     /// B2/S2 输出缓存。`extract_second_for_level` 每 memo-miss 全塔重扫 O(U)=O(n²)，但每个 parent 的 B2
     /// 只依赖该 parent（`c1`/subs）+ hist/close_src——confirmed 前缀 parent 的源区间落稳定前缀、hist 前缀
@@ -1108,6 +1112,42 @@ impl TowerCache {
                 .get(level - 1)
                 .map_or(0, |lc| lc.confirmed_watermark)
         }
+    }
+
+    // ── #614 并线：kimi 线 `tower_cache.rs` 的三个只读窗口/水位访问器 ────────────────
+    // 本合并树取 main 线的内联 `TowerCache`（见 #614 合并报告 ⚠HIGH-2），kimi 线把这三个
+    // 访问器放在其拆分出的 `classifier/tower_cache.rs`。消费方 `src/bin/p123_fast_replay.rs`
+    // （kimi 线 #421/#527/#601 PanLive 探针，本合并树取 kimi 版）逐字调用它们。
+    // 三者**全部只读**，不参与任何分类/交易/订单/风控分支。⚠待人工复核：#614 手工重放。
+
+    /// 本级窗口扫描游标（level≥1；level 0 无上级窗口 ⟹ `None`）。
+    ///
+    /// `levels[level-1]` 的对应关系与 `level_scan_units` 同源（`levels` 下标 = 上级层号-1）。
+    pub fn level_scan_cursor(&self, level: usize) -> Option<WindowScanCursor> {
+        if level == 0 {
+            return None;
+        }
+        self.levels.get(level - 1).map(|lc| lc.scan_cursor)
+    }
+
+    /// 本级窗口扫描的**输入** units 只读切片（level≥1；level 0 无上级窗口 ⟹ `None`）。
+    ///
+    /// level 1 的输入 = L0 单元投影（`l0_units_cache`，与 `tower[0]` 同序同长同源）；
+    /// level≥2 的输入 = 下一级的 `projected_units`。只读切片，调用方不得跨下一次增量调用持有。
+    pub fn level_scan_units(&self, level: usize) -> Option<&[UnitRange]> {
+        match level {
+            0 => None,
+            1 => Some(&self.l0_units_cache[..]),
+            _ => self.levels.get(level - 2).map(|lc| &lc.projected_units[..]),
+        }
+    }
+
+    /// #69 5b：classifier level 最近一次使用的 e_src（source_index 量纲）。
+    ///
+    /// p123 的 target level `L` 以 `L-1` 的 lower legs 判 pan，因此读取 `freeze_boundary(L-1)`。
+    /// 缺级返回 `None`；调用方须按稳定集为空处理，禁止猜值。
+    pub fn freeze_boundary(&self, level: usize) -> Option<usize> {
+        self.levels.get(level).map(|lc| lc.last_freeze_boundary)
     }
 
     /// #92 因果 prefix provider 的只读 MACD/坐标快照。
@@ -2124,6 +2164,11 @@ pub fn classify_with_tower_incremental(
             &mut lc.decompose_state,
             lc.scan_cursor.last_window_emitted.max(1),
         );
+        // #69 5b（#614 并线自 kimi 线 `incremental.rs:597` 同位点重放）：无条件登记本级一/三类
+        // 所用 source 水位；不得挂在 BSP memo miss 分支，否则 hit bar 会暴露陈旧 e_src。
+        // 公式与下方 `extract_first_third_resume` 的 (prefix_count, dirty_e) 单一同源；本行是
+        // **只写缓存**，唯一读点是 `TowerCache::freeze_boundary`（诊断 bin），零生产读点。
+        lc.last_freeze_boundary = signal::freeze_boundary_src(&lc.centers, prefix_count, dirty_e);
 
         // BSP 提取（同 classify_impl：L0 线段层 + 递归组装层）。
         // ★增量接入：传预计算 hist（从 cache 增量产出），避免 extract_signals 内部全量 compute_macd。
