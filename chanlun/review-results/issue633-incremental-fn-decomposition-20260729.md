@@ -364,3 +364,13 @@ classify_with_tower_incremental (45)
    `tests/{level_signals,incremental_tower,cache_and_units}.rs`）。未碰 `classifier/mod.rs`
    （`mod incremental;` 声明形式使目录化零改动），未碰 `level_view*` / `signal.rs` / `bsp.rs` /
    `retrace_ledger/` / `nest_lifecycle.rs` 等并行车面，未改动仓外任何文件，未改任何对外 API。
+
+---
+
+## 修订补记（2026-07-29，影子评审 MEDIUM-1 触发，编排侧落）
+
+**§6.3「登记变换 6 类穷举」补第 7 类 + 「逐字保留」收窄**：
+
+- **第 7 类：格式串改写**（6 条，全部位于 #[ignore] 测试/profile 面）：`[census]`/`[funnel]` → `[{tag}]`、位置实参 → 内联具名、`format!` → `to_string`。影子评审逐条核过输出等价、行为零影响。
+- 「所有串逐字保留」收窄为：**生产面 + assert/探针/stage 标签逐字保留**；字符串字面量多重集实测 base 独有 12 / 收口独有 6（即上述第 7 类），不再声称全量逐字。
+- 影子评审 `shadow-633-review-20260729.md` MEDIUM-1 在案；另 MEDIUM-2（报告 §7.5 全量集成测试二进制缺口）已由影子**加强复现**（41 个集成测试二进制两树逐项相同）关闭。
