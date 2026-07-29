@@ -155,17 +155,18 @@ fn print_chain_summary(bars: &[Bar], run: ChainRun) {
         last_streams,
         last_as_of,
     } = run;
+    // 幂等：同一 as_of、同一事件流重跑必须零 Delta。非零即为红（此处照实印出，不吞）。
+    let replay = book.advance(&last_streams, last_as_of).len();
+
     // 分桶计数走**库内**读数口 `ChainCertificateBook::summarize()`（#641 修复轮从 B 侧移植）——
     // bin 侧此前自己重写一遍循环，与 p123 的 dump 行各算各的、且不可单测。现两处同源。
+    // summarize 放在幂等重放之后，确保与末尾 digest 同取一个簿态。
     let summary = book.summarize();
     let by_status = BTreeMap::from([
         ("Open", summary.open),
         ("Closed", summary.closed),
         ("Invalidated", summary.invalidated),
     ]);
-
-    // 幂等：同一 as_of、同一事件流重跑必须零 Delta。非零即为红（此处照实印出，不吞）。
-    let replay = book.advance(&last_streams, last_as_of).len();
 
     println!(
         "ISSUE641_CHAIN bars={} chains={} revisions={} advance_every={every} advances={advances} \
