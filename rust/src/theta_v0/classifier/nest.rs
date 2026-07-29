@@ -1974,8 +1974,7 @@ mod tests {
     }
 
     fn pt(source_index: usize, bits: BspBits) -> BspPoint {
-        BspPoint { level_origin: 0,
-            source_index,
+        BspPoint { source_index,
             bits,
             pivot_low: 0,
             pivot_high: 0,

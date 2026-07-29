@@ -222,7 +222,7 @@ use crate::theta_v0::types::BspBits;
     /// ★全链 π_Θ（GAP-5）：买点 Γ 入场 → π_Θ → Buy；入场源=买卖点 source_index（非走势边界）。
     #[test]
     fn pi_theta_step_buy_point_entry_gap5() {
-        let bsp = BspPoint { level_origin: 0,
+        let bsp = BspPoint {
             source_index: 4,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
@@ -252,7 +252,7 @@ use crate::theta_v0::types::BspBits;
     /// ★G4 组合层 [`StepTrace`]：opened=准入信号腿；traced 决策三分量 == prebuilt（委托 bit-exact 见证）。
     #[test]
     fn pi_theta_step_traced_opened_and_bitexact() {
-        let bsp = BspPoint { level_origin: 0,
+        let bsp = BspPoint {
             source_index: 4,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
@@ -296,7 +296,7 @@ use crate::theta_v0::types::BspBits;
     /// 被关腿不入 next_active、不入 silent_drops（close 认领互斥于静默离场）。
     #[test]
     fn pi_theta_step_traced_reverse_close_attribution() {
-        let sell = BspPoint { level_origin: 0,
+        let sell = BspPoint {
             source_index: 10,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0,
@@ -334,7 +334,7 @@ use crate::theta_v0::types::BspBits;
     /// ⟹ 均被 P1 屏蔽，open 不入 next_active（否则跨 bar 幽灵腿）。
     #[test]
     fn pi_theta_step_traced_p1_force_flat_risk_exits_all() {
-        let buy = BspPoint { level_origin: 0,
+        let buy = BspPoint {
             source_index: 4,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
@@ -663,7 +663,7 @@ use crate::theta_v0::types::BspBits;
     /// ★∀x ∃! O_{t+1}（spec §16）：同输入 ⟹ 同订单 + 同 p*（确定唯一）。
     #[test]
     fn pi_theta_step_deterministic_unique_order() {
-        let bsp = BspPoint { level_origin: 0,
+        let bsp = BspPoint {
             source_index: 0,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,

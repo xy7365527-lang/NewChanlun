@@ -547,7 +547,7 @@ fn make_first_point(
     struct_break_dir: Option<Side>,
     force: Option<ForceProxies>,
 ) -> BspPoint {
-    BspPoint { level_origin: 0,
+    BspPoint {
         source_index,
         bits,
         // 1 买止损源 pivot_low（破中枢低点）；1 卖止损源 pivot_high（破中枢高点）。
@@ -567,7 +567,7 @@ fn make_first_point(
 /// 3 类止损取 `center.zg`(买)/`zd`(卖)，故 center 必 `Some`（不变量：含 3 类 bit ⟹ center
 /// 有值）。pivot_low/pivot_high 取回试端点价（买点回试低点 = pivot_low，卖点 = pivot_high）。
 fn make_third_point(source_index: usize, bits: BspBits, retest_price: Tick, c: &Center) -> BspPoint {
-    BspPoint { level_origin: 0,
+    BspPoint {
         source_index,
         bits,
         // 买点回试低点 → pivot_low；卖点回抽高点 → pivot_high。按 bit 方向填，另一侧 0。
@@ -593,7 +593,7 @@ fn make_third_point(source_index: usize, bits: BspBits, retest_price: Tick, c: &
 /// 锚 =（极值价, 合并组锚）由 nest 核内经 T1 oracle 判定时解析（本层只载坐标），
 /// **不进止损判据**（止损仍 pivot，语义不变）。
 fn make_second_point(source_index: usize, bits: BspBits, second_point: Tick, type1_src: usize) -> BspPoint {
-    BspPoint { level_origin: 0,
+    BspPoint {
         source_index,
         bits,
         // 2 买止损源 pivot_low（回拉低点）；2 卖止损源 pivot_high（回拉高点）。
@@ -3412,7 +3412,8 @@ fn diag_first_buy() {
         // bsp.rs:170）。若未来电池纳入一/二类路径点致摘要翻转，按上方先例诚实重算并更新本段。
         // ★#610 诚实重锚（2026-07-29，#308 先例）：翻转引入提交 `bbbd8f89fa`（2026-07-24，
         // "P1→#214→#218 证书索引口径三部曲"，合法口径演进）对 `BspPoint` 做了两处同时进入
-        // `#[derive(Debug)]` 的改动——新增 `level_origin: u32` 字段（恒 0，#110 面）+
+        // `#[derive(Debug)]` 的改动——新增 `level_origin: u32` 字段（恒 0，#110 面；该字段已在
+        // #631 删除，详见下条）+
         // `center: Option<Center>` → `Option<OwnerRef>` 类型改写（#218 面 A，二类点值本身也变
         // 为 `OwnerRef::Type1Anchor` 坐标，非仅包裹形态）。GOLDEN 未随该提交同步重锚，致
         // guard 自 `bbbd8f89fa` 起持续红（#491 发现）。归因坐实：`chanlun/review-results/
@@ -3420,11 +3421,19 @@ fn diag_first_buy() {
         // 触及 signal.rs/bsp.rs 的候选提交中确认机制）。ID-6.5 登记见本文件同目录
         // `owner-attribution-fix-readings-20260724.md` §5（面 A 部分）+
         // `chanlun/review-results/issue610-id65-supplement-20260729.md`（level_origin 面补记）。
-        // 历史值：`0x90c7_9ee6_17e1_1392`（`bbbd8f89fa` 前，owner 载体补齐后，本次重锚前旧值）；
+        // ★#631 诚实重锚（承接 #610/#434 归因附带处置）：上条引入的 `level_origin: u32` 字段
+        // **删除**——全仓 62 处硬编码常值 0、`classify_impl`/`classify_with_tower_incremental`
+        // 从未写过，正主 `LevelProjectionLayer.identity.level` 已实填，同信息两份拷贝其一恒空
+        // ——删除零损失（详见 issue #631/#434）。字段退出 `#[derive(Debug)]` ⟹ 每点 Debug 串少一枚
+        // `level_origin: 0, ` 常量串 ⟹ FNV 摘要再翻转。同上方先例：**诚实、可证**（`PartialEq` 同步
+        // 摘掉该分量，`extract_signals_bit_exact_vs_orig_per_case` 逐 case 对拍口径同步收窄，六 bit
+        // + pivot + center + struct_break_dir 仍逐字段锁定），**不**自定义 Debug 补回假字段掩盖翻转。
+        // 历史值：`0xe6a2_63e3_43e4_3845`（`level_origin` 删除前，#631 之前最后一版）；
+        //         `0x90c7_9ee6_17e1_1392`（`bbbd8f89fa` 前，owner 载体补齐后）；
         //         `0x56ed_dd65_1c59_5733`（force 引入前，struct_break_dir 后）；
         //         `0x37d2_45a7_cdc5_505a`（P2-R2 前，struct_break_dir 引入前）；
         //         `0x06b3_7c2f_3a5e_9d41`（更早，与 git HEAD oracle 不一致的历史电池状态）。
-        const GOLDEN: u64 = 0xe6a2_63e3_43e4_3845;
+        const GOLDEN: u64 = 0xe371_3897_d9bf_978c;
         let digest = bit_exact_battery_digest();
         assert_eq!(
             digest, GOLDEN,

@@ -259,7 +259,6 @@ mod tests {
     fn buy1_at(si: usize) -> BspPoint {
         BspPoint {
             source_index: si,
-            level_origin: 0,
             bits: BspBits {
                 buy1: true,
                 ..Default::default()

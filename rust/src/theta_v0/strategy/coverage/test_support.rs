@@ -190,7 +190,7 @@ use crate::theta_v0::types::BspBits;
 
     /// L0 卖买卖点（src=si；host 右端点 ρ=si；pivot 远离 ⟹ 止损不触及）。
     pub(crate) fn sell_bsp(si: usize) -> BspPoint {
-        BspPoint { level_origin: 0,
+        BspPoint {
             source_index: si,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0,
@@ -204,7 +204,7 @@ use crate::theta_v0::types::BspBits;
 
     /// L0 买买卖点（src=si）。
     pub(crate) fn buy_bsp(si: usize) -> BspPoint {
-        BspPoint { level_origin: 0,
+        BspPoint {
             source_index: si,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
@@ -224,7 +224,7 @@ use crate::theta_v0::types::BspBits;
 
 
     pub(crate) fn buy_gamma() -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
-        let buy = BspPoint { level_origin: 0,
+        let buy = BspPoint {
             source_index: 4,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,

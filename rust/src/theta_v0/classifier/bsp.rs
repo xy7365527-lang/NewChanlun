@@ -134,11 +134,6 @@ pub fn endpoint_to_bsp(e: &EndpointSituation) -> BspBits {
 pub struct BspPoint {
     /// 候选点在 L0 原始 K 序的位置（平局裁决 + 回溯定位，reference:16）。
     pub source_index: usize,
-    /// #110 级别身份标签（SPEC #109 expand 第一票）：该点被提取时所在的塔级别下标
-    /// （0 = L0 线段层，ℓ = 级别-ℓ 账本）。classify stamping 路径写入（classify_impl /
-    /// classify_with_tower_incremental memo-miss 终装点，构造器默认 0）；参与 `PartialEq`
-    /// （结构身份的一部分——同坐标不同级别的点不等）。不进 `BspBits`/`class_index`/分桶 key。
-    pub level_origin: u32,
     /// 买卖点 bit-vector（非互斥 subset，2/3 类可共存）。
     pub bits: BspBits,
     /// 该买卖点 pivot low（1/2 类买点结构止损源；底分型/线段端点的极值 tick）。
@@ -194,10 +189,14 @@ pub struct BspPoint {
 }
 
 /// 手写 `PartialEq`（排除 `force`，见 [`BspPoint`] 头 β^div 力度铁律说明）。
+///
+/// ★#631 诚实更新（承接 #610/#434 归因附带处置）：曾经的塔级别下标标注分量已随其字段一并删除——
+/// 该字段全仓恒为 0、无消费者，级别身份的正主是 `LevelProjectionLayer.identity.level`
+/// （`projection.rs`），非本结构存储事实。`PartialEq` 由此回到**同级别结构相等**的本分管辖，
+/// 不再假装承载跨级身份。
 impl PartialEq for BspPoint {
     fn eq(&self, other: &Self) -> bool {
         self.source_index == other.source_index
-            && self.level_origin == other.level_origin
             && self.bits == other.bits
             && self.pivot_low == other.pivot_low
             && self.pivot_high == other.pivot_high
@@ -347,7 +346,7 @@ mod tests {
     fn bsp_point_carries_pivot_low_for_first_buy() {
         // 路 B single source：1 买条目携带 pivot_low（strategy 1/2 买止损源，零重算）。
         let bits = BspBits { buy1: true, ..Default::default() };
-        let p = BspPoint { level_origin: 0,
+        let p = BspPoint {
             source_index: 42,
             bits,
             pivot_low: 1000,
@@ -366,7 +365,7 @@ mod tests {
         // 路 B single source：3 买条目携带 center（strategy 3 买止损=center.zg，无歧义定位）。
         let bits = BspBits { buy3: true, ..Default::default() };
         let c = center(800, 1200);
-        let p = BspPoint { level_origin: 0,
+        let p = BspPoint {
             source_index: 50,
             bits,
             pivot_low: 0,
@@ -391,7 +390,7 @@ mod tests {
         // classifier 顶层为含 3 类 bit 的端点填 center=Some（离开的那个中枢）——契约见 mod.rs。
         // 本测试锁定语义：strategy 读 3 类止损时 center 必可用。
         let c = center(800, 1200);
-        let p = BspPoint { level_origin: 0, source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: Some(OwnerRef::Center(c)), struct_break_dir: None, force: None };
+        let p = BspPoint { source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: Some(OwnerRef::Center(c)), struct_break_dir: None, force: None };
         assert!(p.bits.buy3 && p.center.is_some());
     }
 
@@ -400,7 +399,7 @@ mod tests {
         // 卖镜像：1/2 卖止损=pivot_high；3 卖止损=center.zd。
         let bits = BspBits { sell1: true, ..Default::default() };
         let c = center(800, 1200);
-        let p = BspPoint { level_origin: 0,
+        let p = BspPoint {
             source_index: 7,
             bits,
             pivot_low: 0,

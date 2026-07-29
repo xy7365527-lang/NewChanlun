@@ -309,7 +309,7 @@ use crate::theta_v0::types::BspBits;
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
         ]);
         // L0 卖候选 source_index=12 ⟹ host=sub(8,12)（ρ=12）⟹ 真父 L1 Long ⟹ σ_p=Long。
-        let sell = BspPoint { level_origin: 0,
+        let sell = BspPoint {
             source_index: 12,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0, pivot_high: 210,

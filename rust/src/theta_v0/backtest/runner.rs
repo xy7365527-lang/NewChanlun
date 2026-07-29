@@ -1265,7 +1265,6 @@ mod tests {
     fn buy1_at(si: usize) -> BspPoint {
         BspPoint {
             source_index: si,
-            level_origin: 0,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 9_000_000_000, // px 90 < 入场 100 ⟹ 止损在下方不触及
             pivot_high: 0,
@@ -1737,7 +1736,6 @@ mod tests {
         };
         BspPoint {
             source_index: si,
-            level_origin: 0,
             bits,
             pivot_low: 0,
             pivot_high: 20_000_000_000, // px 200 ≫ 100 ⟹ 不触及
@@ -3309,7 +3307,6 @@ mod tests {
                 cp_ownership: std::rc::Rc::new(Vec::new()),
                 bsp: std::rc::Rc::new(vec![BspPoint {
                     source_index: 19,
-                    level_origin: 0,
                     bits,
                     pivot_low: 0,
                     pivot_high: 0,
@@ -3675,7 +3672,6 @@ mod tests {
             use super::super::super::types::Center;
             BspPoint {
                 source_index: 40, // owner 中枢 start=20（nc_event b_center_start=20 配套）
-                level_origin: 0,
                 bits: buy1,
                 pivot_low: 0,
                 pivot_high: 0,
@@ -3784,7 +3780,6 @@ mod tests {
         let buy3 = BspBits { buy3: true, ..Default::default() };
         let mk_pt = |src: usize| super::super::super::classifier::bsp::BspPoint {
             source_index: src,
-            level_origin: 0,
             bits: buy3,
             pivot_low: 0,
             pivot_high: 0,
@@ -3837,7 +3832,6 @@ mod tests {
         let buy3 = BspBits { buy3: true, ..Default::default() };
         let mk_pt = |src: usize| super::super::super::classifier::bsp::BspPoint {
             source_index: src,
-            level_origin: 0,
             bits: buy3,
             pivot_low: 0,
             pivot_high: 0,
@@ -3942,7 +3936,6 @@ mod tests {
         let buy1 = BspBits { buy1: true, ..Default::default() };
         let mk_pt = |src: usize| BspPoint {
             source_index: src,
-            level_origin: 0,
             bits: buy1,
             pivot_low: 0,
             pivot_high: 0,
@@ -4181,7 +4174,6 @@ mod tests {
         let buy1 = BspBits { buy1: true, ..Default::default() };
         let mk_pt = |src: usize, bits: BspBits| BspPoint {
             source_index: src,
-            level_origin: 0,
             bits,
             pivot_low: 0,
             pivot_high: 0,
@@ -4520,7 +4512,6 @@ mod tests {
         let sell1 = BspBits { sell1: true, ..Default::default() };
         let mk_pt = |src: usize| BspPoint {
             source_index: src,
-            level_origin: 0,
             bits: sell1,
             pivot_low: 0,
             pivot_high: 0,
@@ -7527,7 +7518,6 @@ mod tests {
     fn e_classification(with_child_close_trigger: bool) -> Classification {
         let buy_parent = BspPoint {
             source_index: 12,
-            level_origin: 0,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
@@ -7537,7 +7527,6 @@ mod tests {
         };
         let sell_child = BspPoint {
             source_index: 16,
-            level_origin: 0,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0,
             pivot_high: 210,
@@ -7549,7 +7538,6 @@ mod tests {
         if with_child_close_trigger {
             l0.push(BspPoint {
                 source_index: 18,
-                level_origin: 0,
                 bits: BspBits { buy1: true, ..Default::default() },
                 pivot_low: 120,
                 pivot_high: 0,
@@ -7726,7 +7714,6 @@ mod tests {
             levels: vec![LevelState {
                 bsp: Rc::new(vec![BspPoint {
                     source_index: 0,
-                    level_origin: 0,
                     bits: BspBits { buy1: true, ..Default::default() },
                     pivot_low: 90,
                     pivot_high: 0,

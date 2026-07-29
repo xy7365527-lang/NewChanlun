@@ -143,7 +143,7 @@ use crate::theta_v0::types::BspBits;
     fn classification_end_to_end_ring5_ring6() {
         let reg = super::super::super::persistent::PersistentRegistry::new();
         // L0 一个一类买点（source_index=4）。
-        let bsp = BspPoint { level_origin: 0,
+        let bsp = BspPoint {
             source_index: 4,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
@@ -170,7 +170,7 @@ use crate::theta_v0::types::BspBits;
     fn ring6_active_set_feeds_back_into_interpret() {
         let reg = super::super::super::persistent::PersistentRegistry::new();
         // bar t：买点开 Long。
-        let buy = BspPoint { level_origin: 0,
+        let buy = BspPoint {
             source_index: 0,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90, pivot_high: 0,
@@ -182,7 +182,7 @@ use crate::theta_v0::types::BspBits;
         let (active_t1, _) = coverage_step_classification(&c_buy, &[], &[], 1000.0, &cfg(), None, &reg);
         assert_eq!(active_t1.len(), 1, "买点开 Long 腿");
         // bar t+1：卖点（反向）→ A_{t+1} 回喂 interpret ⟹ 关闭 Long 腿 ⟹ A_{t+2}=∅。
-        let sell = BspPoint { level_origin: 0,
+        let sell = BspPoint {
             source_index: 10,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0, pivot_high: 210,

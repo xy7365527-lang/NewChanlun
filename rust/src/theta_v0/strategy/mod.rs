@@ -1359,7 +1359,7 @@ mod tests {
 
     /// 构造含一个第三类买点的单级 Classification（L0 = L*，single source BspPoint）。
     fn classification_with_buy3(source_index: usize) -> Classification {
-        let bsp = vec![BspPoint { level_origin: 0,
+        let bsp = vec![BspPoint {
             source_index,
             bits: BspBits { buy3: true, ..Default::default() },
             pivot_low: 210,
@@ -1424,7 +1424,7 @@ mod tests {
     #[test]
     fn recognize_sell3_yields_short_sell_order() {
         let cfg = ThetaConfig::default();
-        let bsp = vec![BspPoint { level_origin: 0,
+        let bsp = vec![BspPoint {
             source_index: 0,
             bits: BspBits { sell3: true, ..Default::default() },
             pivot_low: 0,
@@ -1473,7 +1473,7 @@ mod tests {
     fn recognize_higher_empty_levels_no_underflow() {
         let cfg = ThetaConfig::default();
         // L0 有第三类买点，L1/L2 bsp 空（多级别真实常态：高级别无信号）⟹ l_star=0。
-        let l0_bsp = vec![BspPoint { level_origin: 0,
+        let l0_bsp = vec![BspPoint {
             source_index: 0,
             bits: BspBits { buy3: true, ..Default::default() },
             pivot_low: 210,
@@ -1517,7 +1517,7 @@ mod tests {
     fn recognize_third_bit_without_center_rejected() {
         let cfg = ThetaConfig::default();
         // 违反不变量构造：buy3=true 但 center=None（cc-classifier 保证不会发生，此处守卫）。
-        let bsp = vec![BspPoint { level_origin: 0,
+        let bsp = vec![BspPoint {
             source_index: 0,
             bits: BspBits { buy3: true, ..Default::default() },
             pivot_low: 210,
@@ -1715,7 +1715,7 @@ mod tests {
 
     /// L0 sell1 候选（src=si；host=sub(4,8) 当 si=8 ⟹ 真父 L1 Long ⟹ role ShortDiff）。
     fn classification_with_sell1(source_index: usize) -> Classification {
-        let bsp = vec![BspPoint { level_origin: 0,
+        let bsp = vec![BspPoint {
             source_index,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0,
