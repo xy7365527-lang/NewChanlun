@@ -15,13 +15,13 @@
 
 | 旧缺口 # | 旧状态 | 真封 root:定理 | 新状态 |
 |---|---|---|---|
-| **A5** 决策充分性四支 | 部分 | `DecisionSufficiency.lean:65/84/94/176` `decision_feasible_nonempty`/`decision_intent_complete`/`same_class_same_intent`/`same_class_same_policy` + `decision_pipeline_exists_unique` | **已实装**（K_Θ≠∅/Intent完备/J∃!/π∃! 四支全综合） |
+| **A5** 决策充分性四支 | 部分 | `DecisionSufficiency.lean:83/102/112/194` `decision_feasible_nonempty`/`decision_intent_complete`/`same_class_same_intent`/`same_class_same_policy` + `decision_pipeline_exists_unique` | **已实装**（K_Θ≠∅/Intent完备/J∃!/π∃! 四支全综合） |
 | **A6** 动态同余算子 | 部分→核心缺 | `DynamicCongruence.lean:107` `dynamic_congruence_commutes`（算子级 `classifyState∘hybridStep=T̄∘(classifyState,ē)`）+ `:178` `witness_is_dynamically_congruent`（非空洞见证）+ `congruence_via_foundation_skeleton`（对接 Foundation 骨架） | **已实装**（含非退化见证） |
 | **B4** 中枢相对位置六态 r | 缺 | `TrendSixState.lean:82` `TrendSixState`（六态）+ `:134/153/170` `sixState_exhaustive`/`sixState_no_seventh`/`sixState_unique` | **已实装** |
 | **B5** 信号位向量 b∈{0,1}⁶ | 缺 | `TrendSixState.lean:252` `SignalBits` + `:298/320` `signalBits_2b3b_coexist`/`signalBits_1b2b_exclusive` | **已实装** |
-| **E5** 杠杆完全分类 G/N/L^G/L^N | 缺（最大缺口）| `LeverageCapital.lean:109/116` `grossNotional`/`netNotional` + `:92` `signedNotional` + `:202/211` `netLeGross`/`gross_cap_implies_net_cap` | **已实装** |
+| **E5** 杠杆完全分类 G/N/L^G/L^N | 缺（最大缺口）| `LeverageCapital.lean:109/116` `grossNotional`/`netNotional` + `:92` `signedNotional` + `:197/201/219` `levG`/`levN`/`lev_net_le_gross` + `:211/232` `netLeGross`/`gross_cap_implies_net_cap` | **已实装** |
 | **F2/G3** 区间套 N^δ + Sel_Θ | 部分 | `IntervalNestCertificate.lean:195` `selectΘ` + `:340` `selectedByKey_unique` + `:375` `NestLevel`（多层嵌套链） | **已实装** |
-| **F6/G1** 根声部 RootSel 镜像反对称 | 缺 | `RootSelDisambig.lean:158` `rootSel` + `:185` `rootSel_mirror_antisymmetric` + `:178` `rootSel_double_trigger_flat`(1,1)消歧 + `:282` `globalRiskClose` | **已实装** |
+| **F6/G1** 根声部 RootSel 镜像反对称 | 缺 | `RootSelDisambig.lean:158` `rootSel` + `:185` `rootSel_mirror_antisymmetric` + `:178` `rootSel_double_trigger_flat`(1,1)消歧 + `:284` `globalRiskClose` | **已实装** |
 | **C4 中枢生成空桩** `chanCenters_empty` | 部分（退化）| `CenterComplete.lean:167` `centerConfirmedComplete_iff_trueCenterCore`（真中枢核心）+ `:252/289` 反退化拒绝（同向三段/第三段不贯穿）；迁主塔 A→B 真封 | **已实装**（退化消除） |
 | **PDF I-1/I-2/I-3** Can/U_n/[d_n]∼ 路径 | 缺（概念分叉待裁决）| `CanonicalQuotientTower.lean:104/108/111` `PhiRule`/`LegalDecomp`/`legalDecomp_segments_ge_three`(m≥3) + `:178/199` `QuotientSingleton`/`canonical_representative_unique` + `:235` `literal_unique_is_canonical`（FULL `∃!` 路径与 PDF 商化路径**统一**，非分叉）| **已实装**（概念分叉扬弃） |
 
