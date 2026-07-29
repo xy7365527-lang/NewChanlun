@@ -224,12 +224,34 @@ fn predicate_failure_becomes_fact_edge_and_invalidates_chain() {
     let certificate = head(&book, &[key(2, 0), key(1, 10)]);
     assert_eq!(certificate.status, ChainStatus::Invalidated);
     assert_eq!(certificate.invalidated_at, Some(40));
+    assert_eq!(
+        certificate.invalidation_cause,
+        Some(ChainInvalidationCause::PredicateFailed),
+        "判死成因分档：谓词判不过这一支"
+    );
     assert_eq!(certificate.edges.len(), 1, "事实边照实留痕，不被删除");
     assert!(!certificate.edges[0].is_segment());
     assert_eq!(certificate.segment_count(), 0);
     assert_eq!(certificate.fact_edge_count(), 1);
     assert_eq!(certificate.revision, 1);
     assert_eq!(certificate.supersedes_revision, Some(0));
+
+    // 事实边的指名见证：哪条谓词、哪两端点（含判定时读到的区间）、判不过的直接原因。
+    let breach = certificate.edges[0]
+        .breach
+        .expect("谓词判不过的边必须携带指名见证");
+    assert_eq!(breach.predicate, CHAIN_SEGMENT_PREDICATE);
+    assert_eq!(breach.parent, certificate.edges[0].parent);
+    assert_eq!(breach.child, certificate.edges[0].child);
+    assert_eq!(breach.parent, key(2, 0));
+    assert_eq!(breach.child, key(1, 10));
+    assert_eq!(breach.parent_interval, (0, 30));
+    assert_eq!(breach.child_interval, (10, 40));
+    assert_eq!(
+        breach.reason,
+        PredicateBreachReason::RightOverhang,
+        "子区间右端 40 越出父区间右端 30，左端未越出"
+    );
 
     let probe = chain_probe::snapshot();
     assert!(
@@ -330,9 +352,42 @@ fn falsified_head_invalidates_chain_but_keeps_node_traces() {
 
     let certificate = head(&book, &[key(2, 0), key(1, 10)]);
     assert_eq!(certificate.status, ChainStatus::Invalidated);
+    assert_eq!(
+        certificate.invalidation_cause,
+        Some(ChainInvalidationCause::HeadInvalidated),
+        "判死成因分档：链头这一支"
+    );
     assert_eq!(certificate.nodes[0].status, ChainNodeStatus::Falsified);
     assert_eq!(certificate.nodes[1].status, ChainNodeStatus::Alive);
     assert!(certificate.edges.is_empty(), "只剩一个存活端点 ⟹ 无边");
+}
+
+/// 判死成因**只有裁定授权的两支**：中间节点失效不进任何判死档（它走「留痕 + 被跨过」）。
+///
+/// 反事实锁：若移植 B 侧的 `NodeInvalidated` 连坐支（2026-07-29 核定已 supersede），本例的链
+/// 会被判死并落上该成因——它当场变红。
+#[test]
+fn invalidation_cause_has_only_the_two_ruled_branches() {
+    let alive = [
+        obs(2, 0, (0, 100)),
+        obs(1, 10, (10, 60)),
+        obs(0, 20, (20, 40)),
+    ];
+    let mut candidates = CandidateEventBook::default();
+    candidates.advance(&alive, 100);
+    let mut book = ChainCertificateBook::default();
+    book.advance(&candidates.streams(), 100);
+
+    candidates.advance(&[obs(2, 0, (0, 100)), obs(0, 20, (20, 40))], 110);
+    book.advance(&candidates.streams(), 110);
+
+    let certificate = head(&book, &[key(2, 0), key(1, 10), key(0, 20)]);
+    assert_eq!(certificate.nodes[1].status, ChainNodeStatus::Falsified);
+    assert_eq!(certificate.status, ChainStatus::Open);
+    assert_eq!(
+        certificate.invalidation_cause, None,
+        "中间节点失效不判死 ⟹ 无成因可落"
+    );
 }
 
 /// 路径节点在事件流中查无（终态窗口投影驱动）——单列为 `Absent`，不与 `Falsified` 混同。
@@ -395,10 +450,14 @@ fn closed_requires_confirmed_head_and_no_extension() {
     assert_eq!(certificate.closed_at, Some(100));
 }
 
-/// 后来长出的子节点 = **路径扩展**：新 `ChainKey` + `extends` 指最长 proper-prefix；
+/// 后来长出的子节点 = **路径扩展**：新 `ChainKey` + `extends` 指**簿内**最长真前缀；
 /// 已 `Closed` 的旧链不回写、不复活（E2E-L「原谱系及其形成钟不回写」的机器载体）。
+///
+/// 同时锁住 `extends` 的**命中侧**：真前缀 `[L2,L1]` 在 as_of=100 已作为链落过簿 ⟹ 查簿命中 ⟹
+/// 写 `extends`（否定侧见 `extends_is_none_when_the_structural_prefix_never_materialized`）。
 #[test]
 fn downward_extension_creates_new_key_and_leaves_closed_chain_untouched() {
+    chain_probe::reset();
     let mut root = key(2, 0);
     root.kind = CandidateKind::Pan;
     root.previous_center_start = None;
@@ -437,6 +496,117 @@ fn downward_extension_creates_new_key_and_leaves_closed_chain_untouched() {
         old.extends, None,
         "两节点链的 proper-prefix 是单节点，不是链"
     );
+    let probe = chain_probe::snapshot();
+    assert_eq!(
+        (probe.extends_resolved, probe.extends_not_materialized),
+        (1, 0),
+        "查簿命中侧真被走过：{probe:?}"
+    );
+}
+
+/// ★#641 `extends` 负控（取舍裁定 comment-5121793896 第 3 条）：结构上的真前缀若**从未**作为
+/// 链在簿中物化过，不得写 `extends`。
+///
+/// 旧实装取纯结构派生（去掉 leaf）而不查簿，BTC 100k 实测 12 条 `extends` **全部**指向从未存在
+/// 的链。本例复现该形态：三节点链一次成型，其两节点真前缀 `[L2,L1]` 因 L1 有存活子而从来不是
+/// 极大路径 ⟹ 簿内查无 ⟹ `extends` 必须为 `None`。
+#[test]
+fn extends_is_none_when_the_structural_prefix_never_materialized() {
+    chain_probe::reset();
+    let mut book = ChainCertificateBook::default();
+    book.advance(
+        &streams_of(
+            &[
+                obs(2, 0, (0, 100)),
+                obs(1, 10, (10, 60)),
+                obs(0, 20, (20, 40)),
+            ],
+            100,
+        ),
+        100,
+    );
+
+    let long = head(&book, &[key(2, 0), key(1, 10), key(0, 20)]);
+    assert_eq!(long.key.path.len(), 3, "结构上确实存在两节点真前缀");
+    assert!(
+        book.latest_of(&ChainKey::new(vec![key(2, 0), key(1, 10)]))
+            .is_none(),
+        "该真前缀从未落簿"
+    );
+    assert_eq!(
+        long.extends, None,
+        "簿内查无 ⟹ 不写 extends（禁把结构派生冒充谱系事实）"
+    );
+    let probe = chain_probe::snapshot();
+    assert_eq!(
+        (probe.extends_resolved, probe.extends_not_materialized),
+        (0, 1),
+        "幽灵前缀被计数、不被静默写入：{probe:?}"
+    );
+}
+
+/// 库内只读读数口 [`ChainCertificateBook::summarize`] / [`ChainCertificateBook::digest`]：
+/// 与簿内对象逐格自洽，且 `digest` 对同一簿确定、对不同簿相异。
+///
+/// 地板条款监视格 `closed_with_zero_segments` 在本例（与全部真实窗口）恒 0——它是「地板被绕过」
+/// 的机器警报，不是可选统计。
+#[test]
+fn summarize_and_digest_are_book_internal_readouts() {
+    let mut book = ChainCertificateBook::default();
+    book.advance(
+        &streams_of(
+            &[
+                confirmed(2, 0, (0, 100)),
+                obs(1, 10, (10, 60)),
+                obs(0, 20, (20, 40)),
+                obs(2, 200, (200, 300)),
+                obs(0, 220, (220, 240)),
+            ],
+            300,
+        ),
+        300,
+    );
+
+    let summary = book.summarize();
+    assert_eq!(summary.revisions, book.certificates().len());
+    assert_eq!(summary.chains, book.heads().len());
+    assert_eq!(
+        summary.open + summary.closed + summary.invalidated,
+        summary.chains,
+        "三态划分链身份集合"
+    );
+    assert_eq!(
+        summary.invalidated_head + summary.invalidated_predicate,
+        summary.invalidated,
+        "判死成因分档合计恒等于 Invalidated 数"
+    );
+    assert_eq!(summary.adjacent_edges + summary.skip_edges, summary.edges);
+    assert_eq!(summary.segments + summary.fact_edges, summary.edges);
+    assert_eq!(
+        summary.closed_with_zero_segments, 0,
+        "地板条款监视格：`Closed` 且零链段恒 0"
+    );
+    assert!(
+        summary.skip_edges > 0,
+        "本夹具含 L2→L0 的 skip 边：{summary:?}"
+    );
+    assert_eq!(summary.by_path_len.values().sum::<usize>(), summary.chains);
+    assert_eq!(
+        summary.by_root_level.values().sum::<usize>(),
+        summary.chains
+    );
+    assert_eq!(
+        summary.nodes_alive + summary.nodes_falsified + summary.nodes_absent,
+        book.heads()
+            .iter()
+            .map(|certificate| certificate.nodes.len())
+            .sum::<usize>()
+    );
+
+    let same = book.digest();
+    assert_eq!(same, book.digest(), "同一簿的摘要确定");
+    let empty = ChainCertificateBook::default();
+    assert_ne!(same, empty.digest(), "空簿与非空簿的摘要必须相异");
 }
 
 /// 非终态链在子节点出现后转为**可扩展**：状态仍 `Open`，但载荷变 ⟹ 追加修订（不是幂等跳过）。
@@ -466,60 +636,80 @@ fn resident_open_chain_becomes_extendable_and_appends_a_payload_revision() {
     assert!(chain_probe::snapshot().payload_revision > 0);
 }
 
-/// ★裁定②「Closed = 链头 Confirmed + 不可再扩展 + 全链段谓词判过」的**照实后果**：
-/// 全部下级被证伪、只剩链头存活时，链段集合为空 ⟹「全链段谓词判过」真空成立 ⟹ 链可 `Closed`。
+/// ★#641 地板条款（comment-5121572134，2026-07-29 编排者裁定）：链必须**至少一条有效链段**
+/// 才能 `Closed`；链头独活（全下级证伪/缺失 ⟹ 链段集合为空）= **永远 Open**。
 ///
-/// 这与 E2E-L 原型的 `CloseFloor_at 非 UnresolvedFloor` 条件（「节点高于 L1 而当前前缀没有可证
-/// 子事件 ⟹ 只能给 UnresolvedFloor，且 Consume_at 必须拒绝」）**不同**——#636 裁定给的是三态且
-/// 未携带 floor 分类，本实装按裁定字面落地，不自行补 floor 规则。差异随报告 §语义对照表登记。
+/// 本测试是该裁定点名要翻转的那一枚（原名
+/// `head_only_survivor_closes_by_vacuous_segment_condition`，原钉的行为是「真空成立 ⟹ 可
+/// Closed」）。翻转后钉的是裁定字面：**不可 Closed**。与 E2E-L 原型 `UnresolvedFloor` 语义对齐
+/// （原型 §5:188/§6.1，git `640609071d`）。
+///
+/// floor 的**完整**口径（`CloseFloor_at` 三型、级别地板）仍留 fog 另裁（取舍裁定
+/// comment-5121793896 第 5 条），本测试只钉「≥1 有效链段」这一格。
 #[test]
-fn head_only_survivor_closes_by_vacuous_segment_condition() {
-    let mut root = key(2, 0);
-    root.kind = CandidateKind::Pan;
-    root.previous_center_start = None;
-
-    let alive = [confirmed(2, 0, (0, 100)), obs(1, 10, (10, 60))];
+fn head_only_survivor_stays_open_by_floor_conjunct() {
+    chain_probe::reset();
+    // 非终态起手：头未确认 ⟹ 首轮 Open。
     let mut candidates = CandidateEventBook::default();
-    candidates.advance(&alive, 100);
+    candidates.advance(&[obs(2, 400, (400, 500)), obs(1, 410, (410, 460))], 500);
     let mut book = ChainCertificateBook::default();
-    book.advance(&candidates.streams(), 100);
-    // 首轮已 Closed（不可扩展）——先让它非终态：把 leaf 之下补一个存活候选。
-    assert_eq!(head(&book, &[root, key(1, 10)]).status, ChainStatus::Closed);
+    book.advance(&candidates.streams(), 500);
+    let path = [key(2, 400), key(1, 410)];
+    assert_eq!(head(&book, &path).status, ChainStatus::Open);
+    assert_eq!(head(&book, &path).segment_count(), 1);
 
-    // 另起一条：链头 Confirmed、leaf 之下有候选 ⟹ 首轮 Open；随后 leaf 与其子一并消失。
-    let mut root2 = key(2, 200);
-    root2.kind = CandidateKind::Pan;
-    root2.previous_center_start = None;
-    let full = [
-        confirmed(2, 200, (200, 300)),
-        obs(1, 210, (210, 260)),
-        obs(0, 220, (220, 240)),
-    ];
-    let mut candidates2 = CandidateEventBook::default();
-    candidates2.advance(&full, 300);
-    let mut book2 = ChainCertificateBook::default();
-    book2.advance(&candidates2.streams(), 300);
-    let path = [root2, key(1, 210), key(0, 220)];
-    assert_eq!(head(&book2, &path).status, ChainStatus::Closed);
+    // 头转 `Confirmed`（同一身份，区间不变）+ 唯一下级缺席失效 ⟹ 链段集合为空。
+    let mut head_confirmed = obs(2, 400, (400, 500));
+    head_confirmed.state = CandidateState::Confirmed;
+    candidates.advance(&[head_confirmed], 510);
+    book.advance(&candidates.streams(), 510);
 
-    // 用一条**非终态**链复现真空条件：头未确认 ⟹ 首轮 Open，随后下级全灭且头转确认。
-    let mut candidates3 = CandidateEventBook::default();
-    candidates3.advance(&[obs(2, 400, (400, 500)), obs(1, 410, (410, 460))], 500);
-    let mut book3 = ChainCertificateBook::default();
-    book3.advance(&candidates3.streams(), 500);
-    let path3 = [key(2, 400), key(1, 410)];
-    assert_eq!(head(&book3, &path3).status, ChainStatus::Open);
-
-    candidates3.advance(&[obs(2, 400, (400, 500))], 510);
-    book3.advance(&candidates3.streams(), 510);
-    let certificate = head(&book3, &path3);
+    let certificate = head(&book, &path);
+    assert_eq!(certificate.nodes[0].status, ChainNodeStatus::Alive);
+    assert_eq!(certificate.nodes[0].state, Some(CandidateState::Confirmed));
     assert_eq!(certificate.nodes[1].status, ChainNodeStatus::Falsified);
-    assert!(certificate.edges.is_empty());
+    assert!(certificate.edges.is_empty(), "只剩链头存活 ⟹ 无边");
+    assert_eq!(certificate.segment_count(), 0);
+    assert!(
+        !certificate.extendable,
+        "链头内部已无存活候选 ⟹ 旧口径的另两条 Closed 条件都满足"
+    );
     assert_eq!(
         certificate.status,
         ChainStatus::Open,
-        "链头未确认 ⟹ 仍 Open（真空链段条件本身不足以 Closed）"
+        "地板条款：链段集合为空 ⟹ 不可 Closed（真空成立不算数）"
     );
+    assert_eq!(certificate.closed_at, None, "被地板拦下 ⟹ 形成钟不落");
+
+    let probe = chain_probe::snapshot();
+    assert!(
+        probe.floor_blocked > 0,
+        "地板合取必须真被走到（不是靠注释声明）：{probe:?}"
+    );
+}
+
+/// 地板条款只挡「零链段」这一格：有链段的链不受影响，`Closed` 照常。
+///
+/// 反事实锁：若把地板合取写成级别地板（如「必须降到 L0 才能 Close」），本例的 L2→L1 两节点链
+/// 会被一并挡住——它当场变红。floor 完整口径留 fog 另裁，本模块只落「≥1 有效链段」。
+#[test]
+fn floor_conjunct_does_not_block_a_chain_that_has_a_segment() {
+    let mut root = key(2, 0);
+    root.kind = CandidateKind::Pan;
+    root.previous_center_start = None;
+    let mut book = ChainCertificateBook::default();
+    book.advance(
+        &streams_of(&[confirmed(2, 0, (0, 100)), obs(1, 10, (10, 60))], 100),
+        100,
+    );
+    let certificate = head(&book, &[root, key(1, 10)]);
+    assert_eq!(certificate.segment_count(), 1);
+    assert_eq!(
+        certificate.leaf_level, 1,
+        "未降到 L0 也可 Closed（无级别地板）"
+    );
+    assert_eq!(certificate.status, ChainStatus::Closed);
+    assert_eq!(certificate.closed_at, Some(100));
 }
 
 // ── 幂等 / append-only ──────────────────────────────────────────────────────────────────

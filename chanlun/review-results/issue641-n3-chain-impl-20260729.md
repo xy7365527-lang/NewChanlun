@@ -3,6 +3,13 @@
 日期：2026-07-29　票：#641（父票 #529）　裁定：#636 Resolution（comment-5119573446）
 基座：`ticket-553`（654ee7a9c3，N1/N2 四票链尾）　交付分支：`ticket-641b`　工位：`/tmp/wt-641b`
 
+> **修订登记（2026-07-29 修复轮）**：本报告在 `4fa468711d` 交付后，按 #641 地板裁定
+> （comment-5121572134）与两套 N3 取舍裁定（comment-5121793896）追加了 **§九 取舍裁定执行节**，
+> 并就地改写了受裁定影响的 5 处：§一.3 第二条边界条件、§二「Closed / Invalidated / 路径扩展」
+> 三行、§三② 测试清单、§六 D2 / D3 / K2 / S8 四行。§五 的 BTC 读数**未改**（修复轮三窗逐字段复现，
+> 见 §九 9.3）；§七 的 10 条登记**未改**（本轮新增登记接在 §九 9.4）；§八 的三元组是交付当时的
+> 快照，现行值见 §九 9.5。
+
 ---
 
 ## 〇、必须先读：工位冲突登记（照实，未自决）
@@ -46,8 +53,10 @@
    收缩至最低级别）；032:227 + 044:16（逐级非必然、命名的跨级路径）。
 3. **边界条件**（结论在什么条件下翻转）：
    - 若裁定改判「链段有效性看边的级别形态」（skip 边不同权），`ChainEdge::is_segment` 与终态判定翻转；
-   - 若裁定给回 E2E-L 的 `CloseFloor_at` / `UnresolvedFloor`（本裁定未携带，见 §六对照表 D3），
-     「只剩链头存活且不可扩展 ⟹ 可 Closed」这一条照实后果翻转；
+   - ~~若裁定给回 E2E-L 的 `CloseFloor_at` / `UnresolvedFloor`（本裁定未携带，见 §六对照表 D3），
+     「只剩链头存活且不可扩展 ⟹ 可 Closed」这一条照实后果翻转~~ ——**该条件已于 2026-07-29 兑现**
+     （#641 comment-5121572134 地板裁定），翻转已落地，见 §九 9.1①②；剩余的 floor 级别分量仍留
+     fog（翻转条件未消失，只是缩小到「若裁定再给回**级别**地板」）；
    - 若裁定要求 skip 边携带 44 课「小转大」替代必要条件（次级别中枢第三类买卖点），本实装的 skip 边
      语义偏宽，须加证据字段（#636 裁定③已明确**留 fog**，本票不做）；
    - 若「边 = 覆盖关系」被改判为「边 = 全部包含对」，链数按路径长度组合放大，且在场且套得住的中间级
@@ -75,13 +84,13 @@
 | 谱系照实：证伪留痕 | `ChainNodeStatus::Falsified` + `ChainEdge.crossed_nodes` | 证伪节点原样留在 `nodes` 里（状态照实为 `Invalidated`），并记录它被哪条边跨过 |
 | 谱系照实：跳过留痕 | `ChainEdgeKind::Skip` | 由两存活端点级别差派生，非人工标记 |
 | append-only、旧 revision 保留 | `ChainCertificateBook.certificates: Vec<..>` 只 push | 无删除路径；`heads()` 另给每 key 最新 revision |
-| 路径扩展走 `extends_lineage_key` 新 key | `ChainKey::proper_prefix()` → `TowerChainCertificate.extends` | 加子节点 = 新 `ChainKey`，旧链不被改写 |
+| 路径扩展走 `extends_lineage_key` 新 key | `ChainCertificateBook::resolve_extends()` → `TowerChainCertificate.extends`（**修复轮改**：由纯结构派生改为查簿命中） | 加子节点 = 新 `ChainKey`，旧链不被改写；结构真前缀未物化 ⟹ 不写指针，见 §九 9.1③ |
 | 链段有效性一律由 C⊆C 在**存活端点**间判定 | `evaluate()`：先取 `alive_positions`，边只在相邻存活端点之间建 | 证伪/查无节点被跨过，不参与判定 |
 | 谓词判过的 skip 边与相邻边**同权** | `ChainEdge::is_segment()` 只读 `predicate_holds`，不读 `kind` | 单测 `skip_edge_and_adjacent_edge_are_equally_segments` 直接断言两者相等 |
 | 判不过记为**事实边**，不构成链段 | 边照实留在 `edges` 里、`is_segment()` 为假；`fact_edge_count()` 可读 | 单测 `predicate_failure_becomes_fact_edge_and_invalidates_chain` |
 | 证伪节点留痕但**不判死上级** | 中间节点证伪 ⟹ 两侧存活端点间新长出一条 skip 边，链继续由谓词裁 | 单测 `falsified_middle_node_is_crossed_and_does_not_kill_the_head`（链保持 `Open`） |
-| `Closed` = 链头 Confirmed + 不可再扩展 + 全链段判过 | `evaluate()` 三合取 | `extendable` = 最低存活端点内部还有存活候选 |
-| `Invalidated` = 谓词判不过 **或** 链头 Invalidated；不复活 | `evaluate()` 优先臂 + `apply()` 终态挡回 | 单测 `terminal_status_never_revives`（几何恢复也不复活） |
+| `Closed` = 链头 Confirmed + 不可再扩展 + 全链段判过（+ **≥1 有效链段**，#641 地板裁定补） | `evaluate()` **四**合取 | `extendable` = 最低存活端点内部还有存活候选；第四合取项见 §九 9.1① |
+| `Invalidated` = 谓词判不过 **或** 链头 Invalidated；不复活 | `evaluate()` 优先臂 + `apply()` 终态挡回；成因落 `invalidation_cause`（**恰两档**） | 单测 `terminal_status_never_revives`（几何恢复也不复活）、`invalidation_cause_has_only_the_two_ruled_branches` |
 | 否则 `Open` | 同上 | — |
 | 纯产出零消费 | 生产面零引用（§三③） | — |
 | 命名独立（与 `NestCertificate` 区分） | `TowerChainCertificate` / `ChainKey` / `ChainCertificateBook` | 不共享类型、不互相调用 |
@@ -126,8 +135,14 @@ skip 边只在中间级**真缺**或**真断**时出现。机器锁 = `edges_are
 另加（非票面点名，属构造口径与照实纪律的机器载体）：`edges_are_cover_relation_not_transitive_closure`、
 `closed_requires_confirmed_head_and_no_extension`、`resident_open_chain_becomes_extendable_and_appends_a_payload_revision`、
 `revisions_are_append_only_and_node_growth_alone_is_not_a_chain_revision`、
-`head_only_survivor_closes_by_vacuous_segment_condition`、`isolated_candidates_are_counted_not_silently_dropped`、
-`single_node_path_is_not_a_chain`。
+`head_only_survivor_stays_open_by_floor_conjunct`（**修复轮改名 + 翻转**，原
+`head_only_survivor_closes_by_vacuous_segment_condition`，见 §九 9.1②）、
+`isolated_candidates_are_counted_not_silently_dropped`、`single_node_path_is_not_a_chain`。
+
+修复轮另加 4 枚（见 §九）：`floor_conjunct_does_not_block_a_chain_that_has_a_segment`、
+`invalidation_cause_has_only_the_two_ruled_branches`、
+`extends_is_none_when_the_structural_prefix_never_materialized`、
+`summarize_and_digest_are_book_internal_readouts`。
 
 ### ③ 护栏
 
@@ -255,13 +270,13 @@ bin 侧                            ：cargo test --bin p123_fast_replay → 9 pa
 | # | E2E-L 原型 | 本实装 | 关系 |
 |---|---|---|---|
 | D1 | 谱系四态 `Open / Unresolved / Closed / Invalidated`（:85） | 三态 `Open / Closed / Invalidated` | **裁定改写**。#636 裁定②只给三态、且「否则 Open」；原型的 `Unresolved`（证据不足）在本实装并入 `Open` |
-| D2 | `Closed` 条件 = **全部被消费节点** `Confirmed` ∧ `CloseFloor_at` 非 `UnresolvedFloor`（:85） | `Closed` = **链头** `Confirmed` ∧ 不可再扩展 ∧ 全链段谓词判过 | **裁定改写**。裁定把「全部节点确认」放宽为「链头确认」（因「证伪节点不判死上级」），另加「全链段谓词判过」 |
-| D3 | `CloseFloor_at` 三型地板 `FormalFloor / QuasiFloor / UnresolvedFloor`，且「节点高于 L1 而当前前缀没有可证子事件 ⟹ 只能给 `UnresolvedFloor`，`Consume_at` 必须拒绝」（:184） | **不实装 floor 分类**；「不可再扩展」= 本次 `as_of` 下最低存活端点内部无存活候选 | **裁定未携带**。#636 裁定②的三条件里没有 floor 分量。**照实后果**：全部下级被证伪、只剩链头存活时链段集合为空 ⟹「全链段谓词判过」真空成立 ⟹ 链可 `Closed`；按 E2E-L 该情形是 `UnresolvedFloor`、不可 Close。本实装按裁定字面落地，不自行补 floor 规则。机器载体 = `head_only_survivor_closes_by_vacuous_segment_condition`（该测试同时锁住「链头未确认时真空条件本身不足以 Closed」）。**待编排侧裁** |
+| D2 | `Closed` 条件 = **全部被消费节点** `Confirmed` ∧ `CloseFloor_at` 非 `UnresolvedFloor`（:85） | `Closed` = **链头** `Confirmed` ∧ 不可再扩展 ∧ 全链段谓词判过 ∧ **≥1 有效链段** | **裁定改写 + 地板条款补齐**。裁定把「全部节点确认」放宽为「链头确认」（因「证伪节点不判死上级」），另加「全链段谓词判过」；第四个合取项由 #641 comment-5121572134 补裁（见 D3） |
+| D3 | `CloseFloor_at` 三型地板 `FormalFloor / QuasiFloor / UnresolvedFloor`，且「节点高于 L1 而当前前缀没有可证子事件 ⟹ 只能给 `UnresolvedFloor`，`Consume_at` 必须拒绝」（:184） | **不实装 floor 三型分类**；「不可再扩展」= 本次 `as_of` 下最低存活端点内部无存活候选；**另加「≥1 有效链段」合取项** | **部分对齐（2026-07-29 修复轮改写本行）**。原实装按 #636 裁定字面落地，「全链段谓词判过」在空集上真空成立 ⟹ 链头独活可 `Closed`，与原型的 `UnresolvedFloor` 相悖（旧对照结论：不一致）。#641 comment-5121572134 已裁定补上「至少一条有效链段」合取项：链头独活 = **永远 Open**，本实装已落地（`evaluate` 的 `has_segment` 合取 + `chain_probe::floor_blocked` + 单测 `head_only_survivor_stays_open_by_floor_conjunct`）⟹ 与原型 `UnresolvedFloor` 在**这一格**上对齐。**仍不一致的剩余面**：原型的三型地板是**级别地板**（`L1=FormalFloor`、`L0=QuasiFloor`，节点高于 L1 且无可证子事件才给 `UnresolvedFloor`），本实装无级别分量——一条 L2→L1 的两节点链只要有链段就可 `Closed`，按原型它在 L1 应是 `FormalFloor`（可闭合，此格恰巧同判），但一条 L3→L2 的链按原型只能给 `UnresolvedFloor`，本实装仍判 `Closed`。该剩余面由取舍裁定 comment-5121793896 第 5 条**明确留 fog 另裁**，本轮不动。反事实锁 = `floor_conjunct_does_not_block_a_chain_that_has_a_segment`（若误把地板写成级别地板，该测试当场变红） |
 | S1 | skip edge：允许 `parent_level > child_level + 1` 的**显式**边；记录事实、不自动补中间节点、不得为缺失级别伪造证书（:188） | `ChainEdgeKind::Skip` + `SkippedLevel` 逐级记数；模块内不构造 `CandidateKey` | **一致**（并加严：把「缺」与「断」分三格记，原型只要求「记录事实」） |
 | S2 | skip 边是否需携带替代必要条件（44 课小转大：次级别中枢第三类买卖点）——原型**未回答** | **不携带** | **一致于裁定③**（明确留 fog）。照实：本实装的 skip 边比 44 课教义门槛**宽** |
 | K1 | `LineageKey = ["LIN1", rule_id, rule_version, selection_policy_id_or_null, selection_policy_version_or_null, ordered_EventKey_path, ordered_EdgeKey_path, localization_tail_key_or_null]`；不含 Floor/status/clocks/revision（:250） | `ChainKey = { rule_version, path: Vec<CandidateKey> }`；不含 status/clocks/revision | **裁剪同构**。`ordered_EdgeKey_path` **不入键**——边的形态（Adjacent/Skip、跨过哪些节点）是当时节点状态的派生量，入键会让同一条路径在证伪前后变成两个身份，与「证伪节点留痕但不判死上级」冲突。`selection_policy` 恒 null（不选支）；`localization_tail_key` 不实装（类背驰尾端属 E2E-F，不在 #636 范围） |
-| K2 | `extends_lineage_key` = 唯一最长 proper-prefix key；只在规则与政策 ID/版本完全相同时才指（:253） | `ChainKey::proper_prefix()`（去 leaf，≥2 节点才有）；`rule_version` 相同 | **一致**。向上多出新 root 不构成 prefix 关系 ⟹ `extends = None`（原型的路径扩展也只指向下加子节点/加尾端） |
-| S8 | `s4_lineages.jsonl.node_event_keys[]` **只存 EventKey 引用**，节点几何由 validator 回联事件 head 取（:314） | `nodes` 只存 key + 当次状态；**节点区间不进链投影** | **一致**。后果已机器锁：节点 C 段右端生长而拓扑与谓词结论不变时链侧零 Delta（`revisions_are_append_only_and_node_growth_alone_is_not_a_chain_revision`） |
+| K2 | `extends_lineage_key` = 唯一最长 proper-prefix key；只在规则与政策 ID/版本完全相同时才指（:253） | `ChainCertificateBook::resolve_extends()`：**簿内**最长真前缀（从 `len-1` 向下试到 2 节点，取第一个有 head 的）；`rule_version` 相同 | **一致（2026-07-29 修复轮改写本行）**。旧实装是纯结构派生（去 leaf，不问是否物化），BTC 100k 实测 12 条 `extends` **全部**指向从未落簿的链（幽灵前缀）；取舍裁定 comment-5121793896 第 3 条判改为查簿命中才写。向上多出新 root 不构成 prefix 关系 ⟹ `extends = None`。**不按状态过滤**：`Closed`/`Invalidated` 的前缀同样算数（「那条链曾经存在」是谱系事实）。负控 = `extends_is_none_when_the_structural_prefix_never_materialized`，命中侧 = `downward_extension_creates_new_key_and_leaves_closed_chain_untouched` |
+| S8 | `s4_lineages.jsonl.node_event_keys[]` **只存 EventKey 引用**，节点几何由 validator 回联事件 head 取（:314） | `nodes` 只存 key + 当次状态；**节点区间不进链投影**；唯一例外 = 事实边的 `PredicateBreach` 携带判定时读到的两个区间 | **一致（例外有界，2026-07-29 修复轮加注）**。后果已机器锁：节点 C 段右端生长而拓扑与谓词结论不变时链侧零 Delta（`revisions_are_append_only_and_node_growth_alone_is_not_a_chain_revision`）。修复轮移植的「事实边指名见证」把两端点区间写进 `ChainEdge::breach`——这是**唯一**几何入链载荷的路径，且有界：谓词判不过 ⟹ 链当次即 `Invalidated`（终态）⟹ 每条链至多一条 revision 携带几何，不构成 B 侧那种「节拍收细即退化为事件簿影子」的形态（B 是**每条边**恒带 `parent_interval`/`child_interval`）|
 | R1 | 修订协议：同 key 业务载荷投影变才 `revision=n+1` + `supersedes_revision=n`；投影相同零输出；`Closed/Invalidated` 终态；终态后规则版本变须新 key（:83/:85） | `ChainProjection` + `apply()` + `CHAIN_RULE_VERSION` | **一致** |
 | C1 | `Consume_at` 只接收 `Closed` 谱系（:85） | **不实装消费**（N7 另票） | 一致于裁定④「N7 只收 Closed 谱系」，本票纯产出 |
 
@@ -330,4 +345,85 @@ FNV golden（链簿） ：9771189513849272089
 p123 封印 SHA256   ：P116_DUMP  = fcc8016a9a01a1098736b9ee3b348614296bb97aec817a5c172c9a0723427a40
                      stdout     = bd9ac1d655f9d615a5d9b3495b3a92465fb1fae13ce5dadfa28033c47d375b6c
                      （基座二进制 / 本分支关灯 / 本分支开灯 三者相等，P116_MAX_BARS=20000）
+```
+
+> ★本节数字为 `4fa468711d` 当时的快照。修复轮（取舍裁定执行节，见 §九）后的现行三元组见 §九 5。
+
+---
+
+## 九、取舍裁定执行节（2026-07-29）
+
+裁定锚：#641 comment-5121793896（两套 N3 取舍，编排者「照办」）+ comment-5121572134（地板条款）。
+依据：对比评审 `/tmp/issue641-n3-comparison-20260729.md`（M1/M2/M3 + P1/P2/P3）。
+执行面：`ticket-641b`，改 4 个文件（`chain_cert/{mod.rs,tests.rs}`、`classifier/mod.rs`、
+`bin/issue550_event_battery.rs`）。**未动** `/tmp/wt-641`、未动侧 ref `ticket-641-kimi-line`、
+未 push/merge、未改 `Cargo.toml`。
+
+### 9.1 补三件（裁定第 3 条）
+
+| # | 裁定条款 | 落地 | 机器载体 |
+|---|---|---|---|
+| ① | `Closed` 加「≥1 有效链段」合取（地板裁定） | `evaluate()` 新增 `has_segment = edges.iter().any(is_segment)`，`Closed` 臂改为 `head_confirmed && !extendable && has_segment`；模块头加「地板条款」专段 | 单测 `head_only_survivor_stays_open_by_floor_conjunct`（链头 `Confirmed` + 不可扩展 + 零链段 ⟹ 判 `Open`、`closed_at` 不落）+ 探针 `chain_probe::floor_blocked` + 读数格 `ChainBookSummary::closed_with_zero_segments`（三窗恒 0）+ 主缝 golden 测试内的 `closed_with_zero_segments == 0` 断言 |
+| ② | 翻转 `head_only_survivor_closes_by_vacuous_segment_condition` 为「不可 Closed」 | 该测试**重写并改名**为 `head_only_survivor_stays_open_by_floor_conjunct`；原文档注释（「真空成立 ⟹ 链可 Closed」）整段替换为裁定字面。改名理由：原名把被裁定否掉的后果写进了名字，留名 = 声明与实际不一致（090）；新旧名对照在此登记，票面点名的那一枚即本枚 | 断言由 `status == Closed` 翻为 `status == Open` + `closed_at == None` + `floor_blocked > 0` |
+| ③ | `extends` 改查簿命中才写 | 删 `ChainKey::proper_prefix()`（纯结构派生），改为私有 `ChainKey::prefix(len)` + 簿侧 `ChainCertificateBook::resolve_extends()`：从 `len-1` 向下试到 2 节点，取**第一个簿内有 head 的**前缀。解析点从 `evaluate()`（纯函数）挪到 `apply()`（落簿处）——承继是簿的事实，塞进纯函数会让「纯函数」这个声明变假。`ChainObservation` 相应删去 `extends` 字段 | **负控**单测 `extends_is_none_when_the_structural_prefix_never_materialized`（三节点链一次成型、真前缀从未落簿 ⟹ `extends == None`）+ **命中侧**在 `downward_extension_creates_new_key_and_leaves_closed_chain_untouched` 内加探针断言 `(extends_resolved, extends_not_materialized) == (1, 0)` + 主缝非真空锁 `probe.extends_not_materialized > 0` |
+
+### 9.2 从 B 移植三件（裁定第 4 条，B 源锚 → A 形态）
+
+| # | B 源锚 | A 侧形态 | 差异说明（不照抄签名） |
+|---|---|---|---|
+| P1 判死成因分档 | `cand_chain_book.rs:56-68` `ChainInvalidationCause`（四档） | `chain_cert::ChainInvalidationCause`（**两档**：`HeadInvalidated` / `PredicateFailed`）+ `TowerChainCertificate::invalidation_cause`（与 `invalidated_at` 同步一次写入）+ `ChainBookSummary` 两个分档计数 | **只留裁定②授权的两支**：B 的 `NodeInvalidated`（中间节点失效即判死全链）是 2026-07-29 核定 supersede 掉的连坐语义，**不移植**；B 的 `NodeAbsent` 亦不另开档（见 9.4 登记 1）。成因**不进** `ChainProjection`（生命史记账，与三只钟同侧，口径与 B 同）。反事实锁 = `invalidation_cause_has_only_the_two_ruled_branches`（中间节点证伪 ⟹ 链仍 `Open` 且成因为 `None`；若误移植连坐支当场变红） |
+| P2 库内只读读数口 | `cand_chain_book.rs:539-611` `summarize` / `digest` / `heads`（自由函数，吃 `ChainLineageStreams`） | `ChainCertificateBook::summarize() -> ChainBookSummary` / `::digest() -> u64`（方法，吃簿本身）；`heads()` A 侧**原已有**，本轮不动 | B 按四档 `EdgeVerdict` 分桶，A 按本模块的边形态（`ChainEdgeKind`）+ 谓词两侧（链段/事实边）分桶，并加了 A 独有的三格 `SkippedLevel` 分解与地板监视格。`digest` 口径与主缝 golden 统一（golden 测试改调 `book.digest()`）⟹ 报告数、golden、bin 读数三处同源。`issue550_event_battery::print_chain_summary` 的自写循环整段删除，改读 `summarize()` |
+| P3 事实边指名见证 | `cand_chain.rs:366-397` `fact_edge` 的 `min_by_key` 指名档 | `ChainEdge::breach: Option<PredicateBreach>`：`predicate`（恒 `CHAIN_SEGMENT_PREDICATE = "cand_sub::candidate_is_sub"`）+ `parent`/`child`（指名到候选身份键）+ 两端点判定时的区间 + `reason: PredicateBreachReason` | 语义位置不同：B 的指名见证挂在「被跳过级别」的事实边上（B 那里 child 可能缺失，故需另选见证）；A 的事实边**两端点本就在场**，缺的是「哪条谓词、判不过在哪一项」，故 A 的见证给的是**谓词构成的首个失败合取项**（`ChildIntervalDegenerate` / `ParentIntervalDegenerate` / `LeftOverhang` / `RightOverhang` / `BothEndsOverhang`）。级别分支的失败档**不设**——路径级别严格递减使其在调用点不可达，按本模块既有口径用 `unreachable!` + 推导链作载体（同 `on_append` 的禁止边），不留恒 0 的枚举变体。锁 = `predicate_failure_becomes_fact_edge_and_invalidates_chain` 内的六条见证断言 |
+
+### 9.3 复测与护栏
+
+**BTC 链读数（同 §五口径与节拍，release，`CARGO_TARGET_DIR=/tmp/kimi-nest-target-641b-fix`）**：
+
+| 窗口/节拍 | 链数 | revision | Open | Closed | Invalidated | 边 | skip | skip 占比 | **`closed_with_zero_segments`** | **`invalidated_head`/`_predicate`** | **`extends_some`（旧→新）** |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 20k / 2000 | 18 | 18 | 0 | 18 | 0 | 23 | 9 | 0.3913 | **0** | 0 / 0 | **5 → 0** |
+| 100k / 5000 | 89 | 99 | 15 | 74 | 0 | 101 | 41 | 0.4059 | **0** | 0 / 0 | **12 → 0** |
+| 300k / 25000 | 293 | 480 | 55 | 237 | 1 | 325 | 134 | 0.4123 | **0** | **1 / 0** | **33 → 0** |
+
+照实读：
+1. **地板合取在 A 的数据面上零变化**——三窗链数/三态/边形态/skip 占比与 §五**逐字段相同**，`closed_with_zero_segments = 0`（与对比评审「A 侧违规可达但未触发」的实测一致）。对照：B 侧同一格是其 `Closed` 的 80–85%。
+2. **`extends` 的 5/12/33 条全部撤下**——三窗归零，与对比评审「12/12 幽灵」的独立实测吻合（那 12 条正是本轮 100k 归零的 12 条）。这不是「功能退化」，是把一个**从未指向过真实对象**的指针如实置空；`extends` 的命中路径仍在（单测覆盖），只是 BTC 这三窗的节拍下从未发生「真前缀先落簿、再向下扩展」的序列。
+3. **300k 那 1 条 `Invalidated` 的死因现在机器可读**：`invalidated_head=1 / invalidated_predicate=0`，即 §5.5 第 3 条原来靠 `nodes_falsified=1 ∧ crossed=0` 推出来的归因，现由 P1 的成因分档直接给出。
+4. `idempotent_replay_delta = 0`（三窗），幂等未因本轮改动破坏。
+
+**字节护栏（产物 `/tmp/wt641bfix-*`）**：
+
+| 面 | 命令 | 结果 |
+|---|---|---|
+| p123 stdout / P116 dump（20k、100k） | `P116_MAX_BARS={20000,100000} P116_CKPT=0 P116_DUMP=…` | **cmp=0 ×4**（pre = `46c4c30dd3` 树经 `git archive` 另建的 release 二进制；post = 本轮） |
+| m8 三窗 `trades.jsonl` / `tower_events.jsonl` | `M8_WIN_FILTER={p3fold,wf7,wf8} OPSEM_DUMP_DIR=… cargo test --release --lib m8_e2e_all_systems_oos -- --ignored` | **cmp=0 ×6**；SHA 前 16 位与 #527 报告 §7.3 六个数逐字相同（跨票一致） |
+| p123 链 dump（本体面，给前后对照） | `P123_CHAIN_DUMP=… P123_CHAIN_DUMP_EVERY={2000,5000}` | 20k：19 行中 **5 行**差异；100k：100 行中 **12 行**差异（两侧行数相同）。**差异全部且仅在 `extends=` 字段（1→0）**——把该字段抹掉后两侧逐字节相同（`diff <(sed 's/extends=[01] //' pre) <(sed …post)` 为空）。即：地板合取在 dump 面上**零翻转**，唯一变化面就是 `extends` 修复 |
+
+链 dump 的行格式**未改**（`cause=` 未加）：判死成因可由该行既有的 `alive/falsified/fact` 三格推出，加字段会动 `chain_dump_meta_and_line_format_are_stable` 的封印面而不增信息。此事实照实登记。
+
+### 9.4 090 照实登记（本轮新增，接续 §七）
+
+1. **`ChainInvalidationCause::HeadInvalidated` 覆盖两种链头形态**：`Falsified`（事件判 `Invalidated`）与 `Absent`（终态窗口投影驱动下查无）。裁定②只授权「链头 `Invalidated`」一支，故不为 `Absent` 另开第三档（B 有 `NodeAbsent`，不在授权范围）。**分辨不丢**——`nodes[0].status` 原样留痕，读的人从节点留痕即可分开。若编排侧认为「查无」应独立成档，属新裁，本轮不自决。
+2. **`extends` 现在可因簿的历史而变**：一条 `Open` 链在其真前缀后来物化时会获得 `extends` ⟹ 载荷变 ⟹ 追加一条 payload revision。这是查簿口径的必然后果（承继是簿的事实），append-only 与终态不复活均不受影响（终态链在 `apply` 入口已挡回）。BTC 三窗未触发该序列。
+3. **事实边的见证把几何写进了链载荷**（E2E-L §S8 的唯一例外，见 §六 S8 行）：有界——谓词判不过 ⟹ 链当次终态 ⟹ 每条链至多一条 revision 携带几何。
+4. **`resolve_extends` 不按前缀状态过滤**：`Closed` / `Invalidated` 的前缀同样可被指向（「那条链曾经存在」是谱系事实）。B 侧 `resolve()` 排除 `Invalidated` 前缀，本轮**不照抄**——A 的既有语义锁 `downward_extension_creates_new_key_and_leaves_closed_chain_untouched` 正是「指向一条已 `Closed` 的前缀」，排除终态会与它冲突。差异在此登记。
+5. **测试门的红不是全绿**：本工位基座 `ticket-553` 上 `extract_signals_bit_exact_digest_guard`（#491）**仍红**，与 `4fa468711d` 快照同红、与基座同红。#491 的收口是**在 main 上**做的 GOLDEN 诚实重锚（`f6cd18aebc` / 合并 `a559d2edba`，锚 `issue610-digest-guard-attribution-20260728.md`），main 侧现行值 `0xe371_3897_d9bf_978c` 取的是 #455 之后（`level_origin` 已删）的口径；kimi 线的实测值 `0xe6a2_63e3_43e4_3845` 正是 main 侧注释里点名的「该字段删除前那一版」。**该重锚不在本票权限内**（跨票、且属 main 线的口径决定），本轮不改 `signal.rs`。派发单「基线已全绿」的前提对 **main** 成立、对 `ticket-641b` 的基座**不成立**，照实登记不代过。
+6. **`floor_blocked` 探针在真实数据上恒 0**：三窗均未触发（A 的地板违规「可达但未触发」）。故该条款的非真空证据只来自 `chain_cert::tests` 的语义锁，不来自 BTC——认识论等级 = L0/L1（合成夹具），不是 L2。若将来某窗口出现非零，属真实触发，须照实记而不是当异常。
+7. **500k 窗口仍未跑**（§七 登记 5 原因未变，瓶颈在既有电池三节）。本轮未重试。
+8. **`CONTEXT.md` 词表条目文本需随本轮更新**：§七 登记 1 备好的条目里「终态三态」一句应补「+ 至少一条有效链段（链头独活 = 永远 Open）」，并把「`extends_lineage_key`」注为「簿内最长真前缀」。仍待编排侧在 main 上收编，本票不动 main。
+
+### 9.5 修复轮后的三元组
+
+```text
+基座               ：654ee7a9c3  ticket-553（净树）
+交付分支           ：ticket-641b（代码 4fa468711d + 报告 46c4c30dd3 + 本修复轮 commit）
+cargo test --lib   ：passed=2081 / failed=1 / ignored=135   （+4 = 本轮新增 4 枚）
+  唯一红           ：extract_signals_bit_exact_digest_guard = #491（基座同红，见 9.4 登记 5）
+  本票 chain_cert  ：21 passed / 0 failed（17 → 21）
+  本票 classifier  ：2 passed / 0 failed（不变，内容加严）
+cargo test --bin p123_fast_replay：passed=9 / failed=0 / ignored=0（不变）
+FNV golden（链簿） ：9935805022530767834（旧 9771189513849272089，因 `invalidation_cause` /
+                     `breach` 进 Debug + `extends` 改查簿而诚实翻转）
+rustfmt --check    ：chain_cert/{mod.rs,tests.rs}、两个 bin 干净（`classifier/mod.rs` 同 §七登记 9 处置）
+BTC 链簿 digest    ：20k=11721078737383519109 / 100k=6645041198801530824 / 300k=2200354287177549197
 ```
