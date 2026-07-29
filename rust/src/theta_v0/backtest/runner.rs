@@ -78,6 +78,10 @@ use super::opsem_dump::{
     strict_nest_sidecar_enabled, summarize_strict_nest_certificates, t_stage_str, voice_side_str,
     OpsemDump, StrictNestSidecarCollector,
 };
+use super::opsem_dump::{
+    otherwise_domain_sidecar_enabled, OtherwiseDomainSidecarCollector,
+};
+pub(crate) use super::opsem_dump::OtherwiseDomainSidecarSummary;
 // ★#295：OPSEM_DUMP_DIR_OVERRIDE 为 #[cfg(test)] thread_local 注入点（opsem_dump.rs:180，
 // 消费面仅 tests::opsem_dump_env_gated_bit_exact）——import 同门控，同 VOICE_EXEC_OVERRIDE 惯例。
 #[cfg(test)]
@@ -159,6 +163,10 @@ pub struct RunResult {
     /// 严格区间套证书 sidecar 汇总。默认 `None`；仅 `THETA_STRICT_NEST_SIDECAR=1/true/yes/on`
     /// 时在生产 π 重放同帧旁路产出，不参与订单、候选、风控、账本。
     pub strict_nest_sidecar: Option<StrictNestSidecarSummary>,
+    /// D4（#606 S1）：37:18 否则域亚型记录 sidecar 汇总。默认 `None`；仅
+    /// `THETA_OTHERWISE_DOMAIN_SIDECAR=1/true/yes/on` 时在生产 π 重放同帧旁路产出（同
+    /// `strict_nest_sidecar` 先例，观测面，不参与订单、候选、风控、账本、任何 bit 判据）。
+    pub(crate) otherwise_domain_sidecar: Option<OtherwiseDomainSidecarSummary>,
 }
 
 // run_theta_v0 已按 #499 裁定退役删除（deprecated F-01 前视；删除 commit 见票）。
@@ -389,6 +397,7 @@ fn run_theta_v0_pi_inner(
         equity_curve: fill.equity_curve,
         r_decomp: fill.r_decomp, // 生产 π 路径 R 分解（cost_model=None ⟹ 三项 0，仍产分解表）
         strict_nest_sidecar,
+        otherwise_domain_sidecar: None, // 本路径（run_theta_v0_pi/_chi/_chi_shrink）未接线（S1 仅接 overlay 臂）
     }
 }
 
@@ -506,9 +515,26 @@ pub fn run_theta_v0_pi_overlay(
     // （层门配置面退役；派生必须先于分类器构建——层 stamping 读派生后机制位）。
     let config = super::admission::chain_driven_level_projection(config);
     let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, &config);
+    // D4（#606 S1）：同 `run_theta_v0_pi_inner` 的 `strict_nest_sidecar` 先例——`enabled=false`
+    // （env 未设，默认态）⟹ `classify_at` 热路径不变，observe_frame 立即 no-op；纯观测面，
+    // 不参与 fill loop 任何决策输入。
+    let mut otherwise_domain_sidecar =
+        OtherwiseDomainSidecarCollector::new(otherwise_domain_sidecar_enabled());
     let fill = pi_theta_fill_loop_overlay(
         |i| {
-            let (cls, tower) = classifier_incr.classify_at(i);
+            let (cls, tower) = if otherwise_domain_sidecar.enabled {
+                let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
+                otherwise_domain_sidecar.observe_frame(
+                    &l0,
+                    &cls,
+                    &tower,
+                    &config,
+                    classifier_incr.tower_cache(),
+                );
+                (cls, tower)
+            } else {
+                classifier_incr.classify_at(i)
+            };
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch();
@@ -521,6 +547,7 @@ pub fn run_theta_v0_pi_overlay(
         Some(&mut overlay),
         voice_book.as_mut(),
     );
+    let otherwise_domain_sidecar = otherwise_domain_sidecar.finish();
 
     // 净额执行层 RunResult（与 run_theta_v0_pi 同装配，bit-exact——overlay 是只读旁路）。
     let bh_return = buy_and_hold_return(bars);
@@ -560,6 +587,7 @@ pub fn run_theta_v0_pi_overlay(
         equity_curve: fill.equity_curve,
         r_decomp: fill.r_decomp,
         strict_nest_sidecar: None,
+        otherwise_domain_sidecar,
     };
 
     let tw_final = fill.tw_final;

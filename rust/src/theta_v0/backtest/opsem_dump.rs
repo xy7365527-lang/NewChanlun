@@ -233,6 +233,71 @@ pub(super) fn strict_nest_sidecar_enabled() -> bool {
         .unwrap_or(false)
 }
 
+/// D4（#606 S1）：37:18 否则域亚型记录 sidecar 末帧汇总（[`OtherwiseDomainSidecarCollector`]
+/// 同 [`StrictNestSidecarCollector`] 只读 env 门控先例——生产 π 重放同帧旁路产出，不参与订单/
+/// 候选/风控/账本）。`records_by_level[lvl]` = 该级末帧（全历史前缀）否则域亚型记录全集
+/// （[`classifier::cand_delta_tower_cached_with_otherwise_domain`] 单次遍历同判据产出，逐 bar
+/// 覆盖非累加——末帧已含全部历史，同 `StrictNestSidecarSummary` 覆盖语义）。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct OtherwiseDomainSidecarSummary {
+    /// 已观察生产 replay 帧数。
+    pub(crate) frames: usize,
+    pub(crate) records_by_level: Vec<Vec<classifier::recursive_tower::OtherwiseDomainRecord>>,
+    /// 账平第三独立分量（#606 S1 D4）：末帧每级 `cand_delta=true`（一类点，`buy1 ∨ sell1`）
+    /// 总数——与 `records_by_level[lvl].len()`（否则域）分别独立统计，账平断言核验
+    /// `records_by_level[lvl].len() ≤ cand_delta_true_by_level[lvl]`
+    /// 且差值 = 趋势一类（native，`Present` 判级）计数。
+    pub(crate) cand_delta_true_by_level: Vec<usize>,
+}
+
+pub(super) struct OtherwiseDomainSidecarCollector {
+    pub(super) enabled: bool,
+    summary: OtherwiseDomainSidecarSummary,
+}
+
+impl OtherwiseDomainSidecarCollector {
+    pub(super) fn new(enabled: bool) -> Self {
+        Self { enabled, summary: OtherwiseDomainSidecarSummary::default() }
+    }
+
+    pub(super) fn observe_frame(
+        &mut self,
+        l0: &parser::ParseLayer,
+        classification: &classifier::Classification,
+        tower: &[std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>],
+        config: &ThetaConfig,
+        cache: &classifier::TowerCache,
+    ) {
+        if !self.enabled {
+            return;
+        }
+        let (events, records_by_level) =
+            classifier::cand_delta_tower_cached_with_otherwise_domain(
+                l0,
+                classification,
+                tower,
+                config,
+                cache,
+            );
+        let cand_delta_true_by_level: Vec<usize> = events
+            .iter()
+            .map(|evs| evs.iter().filter(|e| e.cand_delta).count())
+            .collect();
+        let frames = self.summary.frames + 1;
+        self.summary =
+            OtherwiseDomainSidecarSummary { frames, records_by_level, cand_delta_true_by_level };
+    }
+
+    pub(super) fn finish(self) -> Option<OtherwiseDomainSidecarSummary> {
+        self.enabled.then_some(self.summary)
+    }
+}
+
+pub(super) fn otherwise_domain_sidecar_enabled() -> bool {
+    std::env::var("THETA_OTHERWISE_DOMAIN_SIDECAR")
+        .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON"))
+        .unwrap_or(false)
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  ★opsem-dump（基因 073a/274号 谱系）：只读语义快照 dump——env-gated，零生产语义改动。

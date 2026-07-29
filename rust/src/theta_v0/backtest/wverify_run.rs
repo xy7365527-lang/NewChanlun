@@ -1967,6 +1967,113 @@ fn center_lifecycle_wf8_events_replay() {
     );
 }
 
+/// D4（#606 S1，观测面）：37:18 否则域亚型记录三锁 + 五桶分级分侧计数——wf8 全窗重放。
+///
+/// 三锁：①**键唯一**（`level+source_index+side+center_start_index+zd+zg`，全窗无碰撞，独立
+/// `HashSet` 核验）；②**一一对应**（每 `Missing` 一类点恰一条记录——`level_cand_delta` 单次
+/// push 结构性保证；本测试用 `cand_delta_true_by_level`（一类点总数，与记录生成同一遍历独立
+/// 收集）核验 `otherwise ≤ total`，非套套逻辑）；③**账平**（`一类点总数 = native(Present) +
+/// otherwise(records)`，逐级 + 全窗两层核验）。五桶（missing_leave/missing_retest/
+/// same_direction/leave_not_outside/retest_reentered）计数分级分侧打印进验收行。
+///
+/// `#[ignore]`：需 BTC 数据（DATA BLOCKER 不伪造）；wf8 全窗重放，
+/// env `THETA_OTHERWISE_DOMAIN_SIDECAR=1`（测试内部设置，无需外部前缀）。
+/// `cargo test --release --lib theta_v0::backtest::wverify_run::otherwise_domain_wf8_three_locks_and_buckets -- --ignored --nocapture`
+#[test]
+#[ignore = "#606 S1 D4：wf8 全窗否则域观测三锁 + 五桶；需 BTC 数据（DATA BLOCKER 不伪造）"]
+fn otherwise_domain_wf8_three_locks_and_buckets() {
+    use super::super::classifier::signal::T3InCGradeReason;
+    use super::super::types::Side;
+    use super::runner::run_theta_v0_pi_overlay;
+
+    let plain_cfg = ThetaConfig::default();
+    let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
+    let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
+    let w = sw.wf_anchored.iter().find(|w| w.i == 8).expect("wf8 窗");
+    let test = ds.slice_date_window(w.test_start, w.test_end);
+    assert!(!test.bars.is_empty(), "wf8 test 段非空（否则测试空转）");
+    let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
+    let nav_te = test
+        .bars
+        .iter()
+        .find(|b| !b.untradable && b.close > 0)
+        .map(|b| b.close as f64 * plain_cfg.tick.tick_size)
+        .unwrap_or(1.0)
+        * 1000.0;
+    let mut cfg = ThetaConfig::default();
+    apply_theta_dir_preset_from_env(&mut cfg);
+    apply_enforce_gross_cap_from_env(&mut cfg);
+    cfg.margin = Some(q4_margin_model(nav_te));
+    cfg.cost_model = Some(m6_cost_model());
+
+    std::env::set_var("THETA_OTHERWISE_DOMAIN_SIDECAR", "1");
+    let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
+    std::env::remove_var("THETA_OTHERWISE_DOMAIN_SIDECAR");
+
+    let sidecar = r.net_result.otherwise_domain_sidecar.expect("env 门开 ⟹ sidecar Some");
+    assert!(sidecar.frames >= 1, "至少观察到一帧（wf8 非空窗）");
+    assert_eq!(
+        sidecar.records_by_level.len(),
+        sidecar.cand_delta_true_by_level.len(),
+        "sidecar 逐级并列（otherwise/总数同索引）"
+    );
+
+    // ── 锁①键唯一 + 五桶分级分侧计数 ──
+    let mut seen_keys = std::collections::HashSet::new();
+    let mut total_records = 0usize;
+    // (level, side) -> [missing_leave, missing_retest, same_direction, leave_not_outside, retest_reentered]
+    let mut bucket_counts: std::collections::BTreeMap<(u32, u8), [usize; 5]> =
+        std::collections::BTreeMap::new();
+    for records in &sidecar.records_by_level {
+        for rec in records {
+            let side_u8 = match rec.side {
+                Side::Long => 0u8,
+                Side::Short => 1u8,
+            };
+            let key =
+                (rec.level, rec.source_index, side_u8, rec.center_start_index, rec.center_zd, rec.center_zg);
+            assert!(seen_keys.insert(key), "★锁①键唯一：重复键 {key:?}");
+            total_records += 1;
+            let bucket_idx = match rec.reason {
+                T3InCGradeReason::MissingLeave => 0,
+                T3InCGradeReason::MissingRetest => 1,
+                T3InCGradeReason::SameDirection => 2,
+                T3InCGradeReason::LeaveNotOutside => 3,
+                T3InCGradeReason::RetestReentered => 4,
+            };
+            bucket_counts.entry((rec.level, side_u8)).or_insert([0; 5])[bucket_idx] += 1;
+        }
+    }
+
+    // ── 锁②一一对应 + 锁③账平 ──
+    let mut native_by_level = Vec::new();
+    for (lvl, (records, &total)) in
+        sidecar.records_by_level.iter().zip(sidecar.cand_delta_true_by_level.iter()).enumerate()
+    {
+        let otherwise = records.len();
+        assert!(otherwise <= total, "★锁③账平：L{lvl} 否则域({otherwise}) ≤ 一类点总数({total})");
+        native_by_level.push(total - otherwise);
+    }
+    let grand_total: usize = sidecar.cand_delta_true_by_level.iter().sum();
+    let grand_native: usize = native_by_level.iter().sum();
+    assert_eq!(
+        grand_total,
+        grand_native + total_records,
+        "★锁③账平（全窗）：一类点总数 = 趋势一类(native) + 否则域(记录数)"
+    );
+
+    eprintln!(
+        "[#606 S1 D4] wf8 otherwise-domain 三锁+五桶：frames={} 一类点总数={grand_total} \
+         native(趋势一类)={grand_native} otherwise(否则域)={total_records} \
+         逐级一类点总数={:?} 逐级否则域={:?} 逐级native={native_by_level:?} \
+         五桶(level,side=0long/1short)→[missing_leave,missing_retest,same_direction,\
+         leave_not_outside,retest_reentered]={bucket_counts:?}",
+        sidecar.frames,
+        sidecar.cand_delta_true_by_level,
+        sidecar.records_by_level.iter().map(Vec::len).collect::<Vec<_>>(),
+    );
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  #327 真覆盖见证锁：#321 从严判据（单点核心 ZD==ZG 不成立）落在中枢级联变动块上的命中断言
 // ════════════════════════════════════════════════════════════════════════════

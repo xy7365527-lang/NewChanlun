@@ -645,6 +645,7 @@ pub fn cand_delta_tower(
         &series.dif,
         &closes_tick,
         &close_src,
+        None,
     )
 }
 
@@ -680,6 +681,7 @@ pub fn cand_delta_tower_cached(
         &cache.macd_dif,
         &cache.closes_tick,
         &cache.close_src,
+        None,
     );
     if std::env::var("DIAG_CANDCACHE").is_ok() {
         let full = cand_delta_tower(l0, classification, tower_snapshots, config);
@@ -689,6 +691,52 @@ pub fn cand_delta_tower_cached(
         );
     }
     out
+}
+
+/// D4（#606 S1，观测面 sidecar 专用）：[`cand_delta_tower_cached`] 的姊妹入口——除返回同一份
+/// `Cand^δ` 事件外，额外收集每级 [`recursive_tower::OtherwiseDomainRecord`]（37:18 否则域亚型
+/// 记录，判据 = 单一分级器 [`signal::t3_in_c_fixed_first_pair`]，与事件本身同一遍历同一判据，
+/// 不重复判定、不改变 `Cand^δ` 事件集合/排序）。仅 `OtherwiseDomainSidecarCollector`（观测面，
+/// env 门控）调用；`cand_delta_tower`/`cand_delta_tower_cached` 现有全部调用点签名/行为不变。
+pub(crate) fn cand_delta_tower_cached_with_otherwise_domain(
+    l0: &ParseLayer,
+    classification: &Classification,
+    tower_snapshots: &[Rc<Vec<LeveledMove>>],
+    config: &ThetaConfig,
+    cache: &TowerCache,
+) -> (Vec<Vec<recursive_tower::CandDeltaEvent>>, Vec<Vec<recursive_tower::OtherwiseDomainRecord>>) {
+    let n = l0.merged_bars.len();
+    let mut otherwise_domain = Vec::with_capacity(classification.levels.len());
+    if !cache_series_ok(cache, n) {
+        let closes: Vec<f64> = l0.merged_bars.iter().map(|b| b.close as f64).collect();
+        let close_src: Vec<usize> = l0.merged_bars.iter().map(|b| b.source_index).collect();
+        let series = divergence::compute_macd(&closes, &config.macd);
+        let closes_tick: Vec<Tick> = l0.merged_bars.iter().map(|b| b.close).collect();
+        let events = cand_delta_tower_with_series(
+            l0,
+            classification,
+            tower_snapshots,
+            config,
+            &series.hist,
+            &series.dif,
+            &closes_tick,
+            &close_src,
+            Some(&mut otherwise_domain),
+        );
+        return (events, otherwise_domain);
+    }
+    let events = cand_delta_tower_with_series(
+        l0,
+        classification,
+        tower_snapshots,
+        config,
+        &cache.macd_hist,
+        &cache.macd_dif,
+        &cache.closes_tick,
+        &cache.close_src,
+        Some(&mut otherwise_domain),
+    );
+    (events, otherwise_domain)
 }
 
 /// P53 放宽后的 Cand 入口集合。
@@ -741,6 +789,7 @@ fn cand_delta_tower_with_series(
     dif: &[f64],
     closes_tick: &[Tick],
     close_src: &[usize],
+    mut otherwise_domain_out: Option<&mut Vec<Vec<recursive_tower::OtherwiseDomainRecord>>>,
 ) -> Vec<Vec<recursive_tower::CandDeltaEvent>> {
     let mut out = Vec::with_capacity(classification.levels.len());
     for (lvl, ls) in classification.levels.iter().enumerate() {
@@ -748,6 +797,8 @@ fn cand_delta_tower_with_series(
             lvl < tower_snapshots.len(),
             "tower_snapshots 与 levels 同构（classify_impl 不变量）"
         );
+        let mut level_otherwise_domain: Option<Vec<recursive_tower::OtherwiseDomainRecord>> =
+            otherwise_domain_out.is_some().then(Vec::new);
         let evs = if lvl == 0 {
             recursive_tower::level_cand_delta(
                 0,
@@ -761,6 +812,7 @@ fn cand_delta_tower_with_series(
                 closes_tick,
                 close_src,
                 config.divergence_gauge,
+                level_otherwise_domain.as_mut(),
             )
         } else {
             let pb = &classification.levels[lvl - 1].moves;
@@ -780,8 +832,12 @@ fn cand_delta_tower_with_series(
                 closes_tick,
                 close_src,
                 config.divergence_gauge,
+                level_otherwise_domain.as_mut(),
             )
         };
+        if let Some(out_vec) = otherwise_domain_out.as_deref_mut() {
+            out_vec.push(level_otherwise_domain.unwrap_or_default());
+        }
         out.push(evs);
     }
     out
