@@ -548,6 +548,12 @@ struct L1LiveDiagRow {
     c_start: Option<usize>,
     /// 命中时产出窗的 `gap_len`（票 #592；未命中恒 None）。
     gap_len: Option<usize>,
+    /// 命中时产出窗的 `seg_a`（票 #618：`(b_center_start, c_start)` 粗键在同一 C 位置上
+    /// 先后出现多个不同身份（不同 `seg_a` 解释）时无法区分——#618 §2.1 实证 `c=17170`
+    /// 一例。未命中时结构定位本身未成功（`locate_pan_div_structure`/`_front_anchor` 均未
+    /// 产出，见 `provide_active_pan_live_windows`），seg_a 无值可记，恒 None——不是遗漏，
+    /// 是该原因码下 seg_a 概念不适用。
+    seg_a: Option<(usize, usize)>,
 }
 
 /// #421 逃生门的活窗结构分量；与 p409 `WindowStem` 同键，右端不进身份。`gap_len`
@@ -1161,13 +1167,14 @@ fn run_targeted_prefix_pass(
                 write_lifecycle_line(
                     &mut lifecycle_dump,
                     format_args!(
-                        "{tag} as_of={index} level={} frontier_start={} reason={} b_center_start={} c_start={} gap_len={}",
+                        "{tag} as_of={index} level={} frontier_start={} reason={} b_center_start={} c_start={} gap_len={} seg_a={}",
                         row.level,
                         frontier.map_or(usize::MAX, |f| f.start_index),
                         row.reason,
                         row.b_center_start.map_or(usize::MAX, |value| value),
                         row.c_start.map_or(usize::MAX, |value| value),
                         row.gap_len.map_or(usize::MAX, |value| value),
+                        row.seg_a.map_or("none".to_string(), |(a, b)| format!("({a},{b})")),
                     ),
                 )?;
             }
@@ -1680,6 +1687,7 @@ fn recompute_lifecycle_window_stems(
             b_center_start: None,
             c_start: None,
             gap_len: None,
+            seg_a: None,
         });
         return Vec::new();
     };
@@ -1698,6 +1706,7 @@ fn recompute_lifecycle_window_stems(
                 b_center_start: None,
                 c_start: None,
                 gap_len: None,
+                seg_a: None,
             });
             continue;
         }
@@ -1725,6 +1734,7 @@ fn recompute_lifecycle_window_stems(
                         b_center_start: None,
                         c_start: None,
                         gap_len: None,
+                        seg_a: None,
                     });
                     continue;
                 }
@@ -1739,6 +1749,7 @@ fn recompute_lifecycle_window_stems(
                         b_center_start: None,
                         c_start: None,
                         gap_len: None,
+                        seg_a: None,
                     });
                     continue;
                 };
@@ -1754,6 +1765,7 @@ fn recompute_lifecycle_window_stems(
                         b_center_start: None,
                         c_start: None,
                         gap_len: None,
+                        seg_a: None,
                     });
                     continue;
                 };
@@ -1841,6 +1853,7 @@ fn recompute_lifecycle_window_stems(
                                 b_center_start: Some(window.b_center_start),
                                 c_start: Some(window.seg_c_live.0),
                                 gap_len: Some(window.gap_len),
+                                seg_a: Some(window.seg_a),
                             },
                             None => L1LiveDiagRow {
                                 level: level as u32,
@@ -1852,6 +1865,7 @@ fn recompute_lifecycle_window_stems(
                                     .map(|center| center.start_index),
                                 c_start: None,
                                 gap_len: None,
+                                seg_a: None,
                             },
                         });
                         windows_out.extend(outcome.window());
