@@ -360,6 +360,10 @@ fn first_class_point_pairs_at_non_zero_level() {
     assert_eq!(bridge.edges_for_bsp_point(1, 40).len(), 1);
 }
 
+// debug_assert! 在 release profile 编译为空操作——本测试只锁 debug 臂（`cargo test --lib`
+// 基线口径），release 臂（`cargo test --lib --release`）天然跳过，不构成漏测（LOW-2 的静默
+// 覆盖本身在 release 下确实不会 panic，这是 debug_assert 的既定语义，不是本测试的缺口）。
+#[cfg(debug_assertions)]
 #[test]
 #[should_panic(expected = "trend_index_by_interval_end 静默覆盖")]
 fn trend_index_collision_trips_debug_assert() {
