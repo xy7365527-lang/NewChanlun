@@ -75,6 +75,8 @@ pub mod force_conformance;
 pub mod descend;
 pub mod rmove_compose;
 pub mod recursive_tower;
+/// #543 D1a：重基构造证书 seam（`RebaseTransformTxnV1`，env `OPSEM_DUMP_DIR` 门控的只读观测）。
+pub mod rebase_txn;
 pub mod nest;
 /// V3 活假设状态机：NestLifecycleBook sidecar 注册表（三态 + 五钟；#231 重建，spec #232）。
 pub mod nest_lifecycle;
@@ -1681,14 +1683,62 @@ pub fn classify_with_tower_incremental(
         }
     }
 
+    // ★#543 D1a 构造证书 seam（`rebase_txn`，纯观测）：env `OPSEM_DUMP_DIR` 未设 ⟹ `txn_on=false`，
+    // 下面全部快照/装配/落盘点一律不进（生产路径逐字节不变，同 opsem-dump 先例）。
+    // `txn_bar` = 本 bar 末 merged bar 的 source_index——与 trades/tower_events/rebase_observability
+    // 的 `bar` 同一坐标系（== 下方 `close_src` 末位，`update_closes_cache` 逐 bar push 同一字段）。
+    let txn_on = rebase_txn::enabled();
+    let txn_bar = if txn_on { l0.merged_bars.last().map_or(0, |b| b.source_index) } else { 0 };
+    // 整塔缓存全清（段账本回缩退化路径）丢弃的旧输出，按级别下标暂存；由下面的级别循环在同 bar
+    // 全量重扫后配成 old→new 事务（未走到的级别在循环后补一条 removed-only 证书）。
+    let mut txn_cleared: Vec<Vec<rebase_txn::TxnNode>> = Vec::new();
+
     // 空 L0：无可构造级别 + 清空缓存（下次从头扫）。
     if l0_units.is_empty() {
+        // ★#543 D1a 产出点⑥a：空 L0 全清——本 bar 没有任何重扫产出，旧对象全部 removed，
+        // 逐级各记一条 removed-only 证书（否则这批旧身份在三流里凭空消失）。
+        if txn_on {
+            for (level_idx, lc) in cache.levels.iter().enumerate() {
+                if lc.upper_moves.is_empty() {
+                    continue;
+                }
+                let old = rebase_txn::snapshot_nodes(
+                    "old", &lc.upper_moves, &lc.centers, &lc.win_meta,
+                );
+                let _ = rebase_txn::emit(
+                    rebase_txn::TxnContext {
+                        bar: txn_bar,
+                        level: level_idx,
+                        cause: "cache_clear",
+                        cascade_reason: "empty_l0",
+                        dirty_e: 0,
+                        resume_start: 0,
+                        prefix_count: 0,
+                    },
+                    old,
+                    Vec::new(),
+                    None,
+                );
+            }
+        }
         cache.clear();
         return (Classification::default(), Vec::new());
     }
 
     // 前缀不变量校验：段账本回缩 ⟹ 清空重扫（bit-exact 退化，非增量）。
     if l0.segments.len() < cache.last_l0_segments_len {
+        // ★#543 D1a 产出点⑥b：整塔全清在**级别循环之外**发生——它丢弃的旧输出既不经 frontier
+        // pop、也不经 cascade 后缀失效，若不在 clear 前快照，这批旧身份就是三流里的"凭空消失"
+        // （wf8 实测 seq=49/64 两次重基正是此路径）。
+        if txn_on {
+            txn_cleared = cache
+                .levels
+                .iter()
+                .map(|lc| {
+                    rebase_txn::snapshot_nodes("old", &lc.upper_moves, &lc.centers, &lc.win_meta)
+                })
+                .collect();
+        }
         cache.clear();
     }
     cache.last_l0_segments_len = l0.segments.len();
@@ -1813,6 +1863,10 @@ pub fn classify_with_tower_incremental(
     // 从 0 抬起）+ 04（cached_units truncate+extend O(tail)）。
     let mut dirty_from: usize = l0_dirty_from;
 
+    // ★#543 D1a：同 bar 下一级事务（level_idx-1）的连续边——供本级把「源 X 是同 lineage 的修订」与
+    // 「ordinal 位置号复用」分开（调研 §5.3 递归链接组）。仅当上一条恰是本级的下一级时使用。
+    let mut txn_lower: Option<(usize, u64, rebase_txn::LowerMap)> = None;
+
     for level_idx in 0..=l_max {
         // 自然终止：单元数 < min_parts ⟹ 停止（与 classify_impl 同口径）。
         if units.len() < min_parts {
@@ -1877,6 +1931,24 @@ pub fn classify_with_tower_incremental(
             };
             dirty_e = dirty_e.min(local_e);
         }
+        // ★#543 D1a：本级事务的旧侧节点累积器（cascade 丢弃的后缀 + frontier pop 的整窗），
+        // 与事务头的 cause/cascade_reason。`txn_on=false` 时三者恒为初值且无人读（零开销）。
+        let mut txn_old_nodes: Vec<rebase_txn::TxnNode> = Vec::new();
+        let mut txn_cause: &'static str = "append";
+        let mut txn_cascade_reason: &'static str = "-";
+        let mut txn_cascade_dropped = false;
+        // ★#543 D1a 产出点⑥b 续：整塔全清丢弃的本级旧输出接进本级事务，与同 bar 全量重扫的
+        // 新产出配成 old→new 边（`mem::take` 后循环尾的补记不会重复登记）。
+        if txn_on {
+            if let Some(dropped) = txn_cleared.get_mut(level_idx) {
+                if !dropped.is_empty() {
+                    txn_old_nodes = std::mem::take(dropped);
+                    txn_cause = "cache_clear";
+                    txn_cascade_reason = "l0_segment_ledger_shrink";
+                    txn_cascade_dropped = true;
+                }
+            }
+        }
         if cascade_reset {
             // ★on2w2-cascade E3：本级 upper_moves 尾段失效（tower[level+1] 字节变更）⟹ forest 变。
             forest_dirty = true;
@@ -1894,6 +1966,27 @@ pub fn classify_with_tower_incremental(
             #[cfg(test)]
             if *CASCADE_FULLCLEAR.get_or_init(|| std::env::var("THETA_CASCADE_FULLCLEAR").is_ok()) {
                 p = 0;
+            }
+            // ★#543 D1a 产出点④（cascade 后缀失效，P=0/P>0 两支共用）：被丢弃的旧后缀 `[p..]` 在
+            // truncate/clear **之前**形成只读快照。这些旧对象不经下方 frontier pop，若不在此捕获，
+            // 三流里就只剩「旧三元组凭空消失」（调研 §5.2 第 4 点点名必须覆盖）。
+            if txn_on {
+                txn_cause = if p == 0 { "cascade_p0" } else { "cascade_prefix" };
+                txn_cascade_reason = if units.len() < lc.last_input_len {
+                    "len_shrink"
+                } else if frontier_mutated {
+                    "frontier_mutated"
+                } else {
+                    // 本级自身未变异，cascade 由更低级别无条件传播而来。
+                    "inherited"
+                };
+                txn_old_nodes = rebase_txn::snapshot_nodes(
+                    "old",
+                    &lc.upper_moves[p..],
+                    &lc.centers[p..],
+                    &lc.win_meta[p..],
+                );
+                txn_cascade_dropped = !txn_old_nodes.is_empty();
             }
             if p == 0 {
                 // P=0（无可保留前缀，含 e=0 全清 / e 坍缩到起点）：退化为原全清（bit-exact，与现码同）。
@@ -2018,6 +2111,23 @@ pub fn classify_with_tower_incremental(
                 pop_n >= 1 && lc.centers.len() >= pop_n && lc.upper_moves.len() >= pop_n,
                 "had_emitted_window ⟹ 末窗口产出（pop_n={pop_n}）可回退"
             );
+            // ★#543 D1a 产出点①（旧开放整窗 pop，truncate 前只读快照）：现有代码只捕获
+            // `popped_upper`，会丢掉对应的 old `WinMeta`/`Center`（调研 §5.2 第 1 点明列）。
+            // 旧节点按 output_ordinal 升序排列——pop 掉的整窗在 cascade 丢弃的后缀之前。
+            if txn_on {
+                let keep = lc.upper_moves.len().saturating_sub(pop_n);
+                let mut popped_nodes = rebase_txn::snapshot_nodes(
+                    "old",
+                    &lc.upper_moves[keep..],
+                    &lc.centers[keep..],
+                    &lc.win_meta[keep..],
+                );
+                popped_nodes.append(&mut txn_old_nodes);
+                txn_old_nodes = popped_nodes;
+                if txn_cause == "append" {
+                    txn_cause = "frontier_pop";
+                }
+            }
             let cs = Rc::make_mut(&mut lc.centers);
             cs.truncate(cs.len().saturating_sub(pop_n));
             let cp = Rc::make_mut(&mut lc.cp_ownership);
@@ -2110,7 +2220,39 @@ pub fn classify_with_tower_incremental(
         // == popped_upper）时**不置 dirty**——这是把 bump 率从 did_extend 的 ~96% 压回 forest 真变率
         // 0.78% 的机制（实证订正：初版 `|=!tail_upper.is_empty()` 对每 bar 重扫复现的相同窗口误 bump）。
         // over-invalidate 保留：长度或任一值不等即 dirty。O(tail) 比对，非全塔。
-        forest_dirty |= tail_upper != popped_upper;
+        // ★#543 D1a 产出点②③⑤（新 tail 已由 `compose_level_resume` 返回，old/new 完整、写回前的
+        // 自然 emit 点——调研 §5.2 第 2/3 点；一窗产 k 个子中枢的关系由 `WinMeta.emitted` 带进事务，
+        // 第 5 点）。**纯观测**：只读 tail 与上面的旧快照，不改任何状态、不回馈决策。
+        // 平凡事务不产出——判据与上一行 `forest_dirty` 同源（pop 后重扫复现同一整窗 ⟹ 无重基），
+        // 否则每 bar 每级都会刷一条无信息行。
+        if txn_on
+            && (txn_cascade_dropped || tail_upper != popped_upper)
+            && !(txn_old_nodes.is_empty() && tail_upper.is_empty())
+        {
+            let new_nodes =
+                rebase_txn::snapshot_nodes("new", &tail_upper, &tail_centers, &tail_metas);
+            let ctx = rebase_txn::TxnContext {
+                bar: txn_bar,
+                level: level_idx,
+                cause: txn_cause,
+                cascade_reason: txn_cascade_reason,
+                dirty_e,
+                resume_start,
+                prefix_count,
+            };
+            // 递归链接只认「同 bar 的紧邻下一级」——中间级别无事务时不得跨级冒充。
+            let lower = txn_lower
+                .as_ref()
+                .filter(|(lv, _, _)| level_idx > 0 && *lv + 1 == level_idx)
+                .map(|(_, id, map)| (*id, map));
+            let (txn_id, lower_map) = rebase_txn::emit(
+                ctx,
+                std::mem::take(&mut txn_old_nodes),
+                new_nodes,
+                lower,
+            );
+            txn_lower = Some((level_idx, txn_id, lower_map));
+        }
         stage_profile::time("06_extend_centers_upper", || {
             // make_mut：strong_count==1 ⟹ 原地 extend O(tail)；>1 ⟹ 写时复制（bit-exact）。
             Rc::make_mut(&mut lc.centers).extend(tail_centers);
@@ -2343,6 +2485,31 @@ pub fn classify_with_tower_incremental(
         // make_mut，caller 逐 bar drop snapshot ⟹ strong_count==1 ⟹ 原地 O(tail)。
         // bit-exact：Rc 指向同一 Vec，逐字段与旧 clone 等价。
         moves_tower = Rc::clone(&lc.upper_moves);
+    }
+
+    // ★#543 D1a 产出点⑥b 收尾：整塔全清后本 bar 未被重扫触达的级别（`min_parts`/空 units 提前
+    // break，或 l_max 收缩）——其旧输出没有任何新对象与之配对，逐级补一条 removed-only 证书。
+    // 不补就会留下「旧身份消失但无变换边」的黑洞（正是本 seam 要消灭的东西）。
+    if txn_on {
+        for (level_idx, dropped) in txn_cleared.iter_mut().enumerate() {
+            if dropped.is_empty() {
+                continue;
+            }
+            let _ = rebase_txn::emit(
+                rebase_txn::TxnContext {
+                    bar: txn_bar,
+                    level: level_idx,
+                    cause: "cache_clear",
+                    cascade_reason: "level_not_rescanned",
+                    dirty_e: 0,
+                    resume_start: 0,
+                    prefix_count: 0,
+                },
+                std::mem::take(dropped),
+                Vec::new(),
+                None,
+            );
+        }
     }
 
     // closes/close_src 缓冲放回 cache（mem::take 取出的所有权归还，下 bar 复用，零额外分配）。
@@ -2709,6 +2876,122 @@ mod tests {
         // over-invalidate 方向保持：空 cache 对非空序列必不命中（退化全量，bit-exact）。
         assert!(!cache_series_ok(&TowerCache::new(), 5), "空 cache 必不命中（守卫仍 over-invalidate）");
         assert!(cache_series_ok(&TowerCache::new(), 0), "n=0：空 cache 与空序列自洽（与旧守卫同界）");
+    }
+
+    /// ★#543 D1a：构造证书 seam 的**生产放置点**端到端见证（不是纯函数单测——真走
+    /// `classify_with_tower_incremental` 逐 bar 增量路径）。
+    ///
+    /// 覆盖三个放置点：
+    /// 1. 常态 frontier pop（`had_emitted_window` 分支，产出点①）+ 新 tail 返回/自然 emit（②③）；
+    /// 2. 一窗产 k 个子对象（`WinMeta.emitted`，产出点⑤——若本输入触发九段升级则 emitted>1）；
+    /// 3. cascade 后缀失效（产出点④）——用 **input len shrink**（同 cache 喂更短前缀）强制
+    ///    `units.len() < lc.last_input_len` ⟹ `e=0` ⟹ `P=0` 全清分支，旧后缀必须在 clear 前被捕获。
+    ///
+    /// 断言只落在「证书结构自洽 + 放置点确实被触达」上；不断言具体 relation 分布（那取决于合成
+    /// 输入的几何，属现场事实，由 wf8 实测报告登记）。
+    #[test]
+    fn rebase_txn_seam_emits_certificates_at_production_placement_points() {
+        let cfg = super::super::config::ThetaConfig::default();
+        // 合成 closes：多频叠加锯齿（保证足够多分型/笔/线段 ⟹ L1 中枢 + frontier 每 bar 重算）。
+        let vals: Vec<i64> = (0..600)
+            .map(|i| {
+                let f = i as f64;
+                1000 + (40.0 * (f * 0.35).sin() + 15.0 * (f * 0.11).cos() + 6.0 * (f * 1.7).sin())
+                    as i64
+            })
+            .collect();
+        let bars = bars_from_closes(&vals);
+
+        rebase_txn::test_capture_start();
+        let mut cache = TowerCache::new();
+        for i in 5..=bars.len() {
+            let l0 = super::super::parser::parse_layer(&bars[..i], &cfg);
+            let _ = classify_with_tower_incremental(&l0, &cfg, &mut cache);
+        }
+        // len shrink：同一 cache 喂更短前缀 ⟹ cascade P=0 全清（产出点④）。
+        let l0_short = super::super::parser::parse_layer(&bars[..300], &cfg);
+        let _ = classify_with_tower_incremental(&l0_short, &cfg, &mut cache);
+        let lines = rebase_txn::test_capture_take();
+
+        assert!(!lines.is_empty(), "生产放置点一条构造证书都没产出（seam 未接通）");
+        let mut n_pop = 0usize;
+        let mut n_cascade = 0usize;
+        let mut n_continued = 0usize;
+        let mut n_multi_emit = 0usize;
+        for line in &lines {
+            for k in [
+                "\"schema\":\"rebase_transform_txn_v1\"", "\"txn_id\"", "\"bar\"", "\"level\"",
+                "\"cause\"", "\"dirty_e\"", "\"resume_start\"", "\"prefix_count\"",
+                "\"old_nodes\"", "\"new_nodes\"", "\"transform_edges\"", "\"lower_txn_id\"",
+                "\"lower_edge_refs\"", "\"algorithm_version\"", "\"source_order_digest\"",
+                "\"txn_digest\"",
+            ] {
+                assert!(line.contains(k), "证书缺字段组 {k}");
+            }
+            assert!(!line.contains("18446744073709551615"), "usize::MAX 哨兵须记 null");
+            if line.contains("\"cause\":\"frontier_pop\"") {
+                n_pop += 1;
+            }
+            if line.contains("\"cause\":\"cascade_p0\"") || line.contains("\"cause\":\"cascade_prefix\"") {
+                n_cascade += 1;
+                assert!(
+                    line.contains("\"side\":\"old\""),
+                    "cascade 事务必须带被丢弃的旧后缀快照（产出点④的全部意义）"
+                );
+            }
+            if line.contains("\"relation\":\"continued_1to1\"") {
+                n_continued += 1;
+            }
+            if line.contains("\"emitted\":2") || line.contains("\"emitted\":3") {
+                n_multi_emit += 1;
+            }
+        }
+        eprintln!(
+            "[#543 seam] txn={} frontier_pop={n_pop} cascade={n_cascade} \
+             含 continued_1to1={n_continued} 一窗多产={n_multi_emit}",
+            lines.len()
+        );
+        assert!(n_pop > 0, "常态 frontier pop 放置点未触达");
+        assert!(n_cascade > 0, "cascade 后缀失效放置点未触达（len shrink 未走到 P=0 分支）");
+        assert!(n_continued > 0, "无一条连续边——同 seed 重扫本应产 continued_1to1");
+    }
+
+    /// ★#543 D1a 负控：seam 未启用（无 env、无捕获）⟹ 逐 bar 增量塔的输出与启用时**逐字段相同**。
+    /// 这是「行为零变化」红线的单测化（wf8 关臂 cmp=0 是同一命题的现场版）。
+    #[test]
+    fn rebase_txn_seam_does_not_change_classification_output() {
+        let cfg = super::super::config::ThetaConfig::default();
+        let vals: Vec<i64> = (0..600)
+            .map(|i| {
+                let f = i as f64;
+                1000 + (40.0 * (f * 0.35).sin() + 15.0 * (f * 0.11).cos() + 6.0 * (f * 1.7).sin())
+                    as i64
+            })
+            .collect();
+        let bars = bars_from_closes(&vals);
+
+        let run = |capture: bool| {
+            if capture {
+                rebase_txn::test_capture_start();
+            }
+            let mut cache = TowerCache::new();
+            let mut out = Vec::new();
+            for i in 5..=bars.len() {
+                let l0 = super::super::parser::parse_layer(&bars[..i], &cfg);
+                let (c, tower) = classify_with_tower_incremental(&l0, &cfg, &mut cache);
+                out.push((c, tower));
+            }
+            let n = if capture { rebase_txn::test_capture_take().len() } else { 0 };
+            (out, n)
+        };
+        let (off, _) = run(false);
+        let (on, emitted) = run(true);
+        assert!(emitted > 0, "开臂须真产出证书，否则本负控无区分力");
+        assert_eq!(off.len(), on.len());
+        for (i, (a, b)) in off.iter().zip(on.iter()).enumerate() {
+            assert_eq!(a.0, b.0, "bar {i}: Classification 被观测旁路改变（行为零变化红线破）");
+            assert_eq!(a.1, b.1, "bar {i}: tower 快照被观测旁路改变（行为零变化红线破）");
+        }
     }
 
     /// ★端到端 B2 真产出（#53 验证门，L1 管线正确性）：升级后的递归塔（`RMove::Compose` 携 subs）
