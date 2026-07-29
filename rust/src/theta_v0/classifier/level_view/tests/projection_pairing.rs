@@ -38,6 +38,30 @@ fn projection_uses_only_first_three_and_is_immutable_from_extension_tail() {
     );
 }
 
+/// 正向钉三个 provider 版本（票 #624 迁入：原 `first_retrace_replay.rs` 的
+/// `lv_case2_auto_pairing_tuple_keeps_all_three_versions_pinned` 夹具 F1，随该模块按 #465 裁定 A
+/// 删除而迁到本主模块——它测的是 `C2VersionTuple` 而非 firstRetrace 语义）。
+///
+/// 与下面的 `version_tuple_missing_or_wrong_direction_fails_closed` 互补：那条钉**反面**
+/// （缺项/错项 fail-closed），本条钉**正面**（默认元组恰好是这三个版本且自校验通过）。
+#[test]
+fn auto_pairing_tuple_keeps_all_three_versions_pinned() {
+    let version = C2VersionTuple::auto_pairing();
+    assert_eq!(
+        version.direction_provider_version,
+        Some(ProviderVersion::CENTRAL_GGDD_V1)
+    );
+    assert_eq!(
+        version.divergence_pair_provider_version,
+        Some(ProviderVersion::MOVE_BLOCK_AC_V1)
+    );
+    assert_eq!(
+        version.projection_provider_version,
+        Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V3)
+    );
+    assert!(version.validate().is_ok());
+}
+
 #[test]
 fn version_tuple_missing_or_wrong_direction_fails_closed() {
     let (windows, lower) = extended_windows();
