@@ -3718,6 +3718,21 @@ mod tests {
     /// 全量 `classify_with_tower` 每步从 0 重扫塔 ⟹ 累积 O(Σ i) ≈ O(N²)，exp≈2。
     /// 增量 `classify_with_tower_incremental` 每步续扫 tail ⟹ 累积 O(Σ tail) ≈ O(N)，exp≈1。
     /// 合成段序列单调追加（增量有效域）；此测试 always-run（无需真实数据）。
+    ///
+    /// ## ⚠ 时间敏感（票 #619 L9 登记）
+    ///
+    /// 本测试的判据是**墙钟时间比**（`ratio_at_max < 0.7`），因而对机器负载敏感：并行跑
+    /// 整个 `--lib` 套件、或机器同时在跑别的重活时，会偶发红（观测集群 ~0.55，余量 ~0.14）。
+    /// **隔离单跑恒绿**——复现红时的正确处置是
+    /// `cargo test --release --lib incremental_tower_scaling_dominates_full_synthetic`
+    /// 单独重跑确认，而不是改阈值（阈值的因果标定见下方长注释，`no-patch-mentality` 合规）。
+    ///
+    /// 这是**该测试的固有属性**，不是回归信号，**与 #491**（`extract_signals_bit_exact_digest_guard`
+    /// 的确定性红）**无关**：#491 是字节摘要不符、恒红且与负载无关；本测试是负载相关的偶发红。
+    /// 此前该性质只散落在 4 份评审报告的自然语言里（`frontier-had-emitted-window-20260702.md:52`
+    /// 首次定性、`shadow-review-389-20260727.md:111`、`treasury-reverify-20260727.md:504`、
+    /// `shadow-603-review-20260728.md` §6），测试本体无注记 ⟹ 登记口径与 #491 不对称。本注记
+    /// 补齐该不对称的测试本体侧。
     #[test]
     fn incremental_tower_scaling_dominates_full_synthetic() {
         let cfg = ThetaConfig::default();

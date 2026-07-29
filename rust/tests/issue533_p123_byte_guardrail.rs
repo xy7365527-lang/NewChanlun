@@ -15,6 +15,14 @@
 //!   ≈5MB/≈25MB，check 进仓库不现实——只 check SHA-256（`fixtures/issue533_p123_{20000,100000}.sha256`），
 //!   失败时只能报告"变了"，不能报告"哪里变了"（这是本方案对大窗的已知局限，票内登记）。
 //!
+//! ## 第三个产物面：`P116_DUMP`（票 #619 L10 补齐）
+//!
+//! `p123_fast_replay.rs:199` 的 `P116_DUMP` 是与 stdout / `P421_LIFECYCLE_DUMP` 并列的独立
+//! 产物面（#98/#99 调研侧信道）。本门原先只覆盖前两面 ⟹ 它漏在护栏之外，只能靠评审逐次
+//! 手工 `cmp`（#603 链的回退与小修包两侧交付都漏列了它，影子评审 #619 L10 登记）。现三窗
+//! 全部纳入，且**三窗都用全文对拍**而非哈希——该面体积 438B / 8.8KB / 21.6KB，比 dump 小
+//! 三个数量级，进仓库无成本，没有理由退回"只能报告『变了』"的哈希断言。
+//!
 //! ## 数据前提（环境 vs 真漂移的区分，仿 `theta_v0_fixture_drift.rs` 的 exit 码分域）
 //!
 //! `analysis/data_cache/btc_1m_full.json` 被 `.gitignore:82` 排除（314MB 真实行情，不入库）。
@@ -45,6 +53,15 @@
 //!
 //! golden 文件只允许因**已审阅、故意的**行为变化而更新，且更新须在同一 PR 里说明原因
 //! （引用相应 issue/report）；禁止为了让测试变绿而静默重新生成 golden。
+//!
+//! 变更登记（每次动 golden 都在此追加一行，便于 `git blame` 之外的正向可查）：
+//!
+//! | commit | 动了哪些 golden | 原因 |
+//! |---|---|---|
+//! | `fa912ba991` | 2000 dump + 20k/100k `dump` 行 | #603 档1+档2 新增诊断字段（impl 报告 §5） |
+//! | `0e0d011da2` | 20k/100k `dump` 行（2000 回落至 `6ebe18eda1`） | #603 档2 回退（revert 报告「golden fixture」节） |
+//! | `dc2b7dd48b` | 2000 dump + 20k/100k `dump` 行 | #618 小修包：诊断行补 `seg_a` 完整锚（**当时无仓内说明——影子评审 #619 M3；说明已补在 `chanlun/review-results/issue619-condition-closure-20260728.md` §M3 与 #533 issue 评论**） |
+//! | 本次（#619） | **无重锚**：新增三份 `*_p116.golden.txt` | L10 补齐 P116 面；stdout/dump 三窗与 `dc2b7dd48b` 逐字节相同（零漂移，见报告 §验收） |
 
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -109,14 +126,17 @@ fn read_golden_sha_map(name: &str) -> std::collections::BTreeMap<String, String>
 struct P123Run {
     stdout: Vec<u8>,
     dump: Vec<u8>,
+    /// `P116_DUMP` 侧信道产物（票 #619 L10 纳入）。
+    p116: Vec<u8>,
 }
 
-fn run_p123(max_bars: usize, dump_path: &Path) -> P123Run {
+fn run_p123(max_bars: usize, dump_path: &Path, p116_path: &Path) -> P123Run {
     let data = require_btc_data();
     let output = Command::new(p123_binary())
         .arg(&data)
         .env("P116_MAX_BARS", max_bars.to_string())
         .env("P421_LIFECYCLE_DUMP", dump_path)
+        .env("P116_DUMP", p116_path)
         .output()
         .unwrap_or_else(|e| panic!("P533 ENVIRONMENT（非漂移）：启动 p123_fast_replay 失败：{e}"));
     assert!(
@@ -130,9 +150,13 @@ fn run_p123(max_bars: usize, dump_path: &Path) -> P123Run {
             dump_path.display()
         )
     });
+    let p116 = std::fs::read(p116_path).unwrap_or_else(|e| {
+        panic!("读 P116_DUMP 产物 {} 失败：{e}", p116_path.display())
+    });
     P123Run {
         stdout: output.stdout,
         dump,
+        p116,
     }
 }
 
@@ -142,10 +166,12 @@ fn run_p123(max_bars: usize, dump_path: &Path) -> P123Run {
 #[ignore = "字节护栏：需本地 analysis/data_cache/btc_1m_full.json；-- --ignored 单独触发"]
 fn p123_replay_2000bars_byte_exact() {
     let dump_path = std::env::temp_dir().join("issue533_p123_2000_dump.actual.txt");
-    let run = run_p123(2000, &dump_path);
+    let p116_path = std::env::temp_dir().join("issue533_p123_2000_p116.actual.txt");
+    let run = run_p123(2000, &dump_path, &p116_path);
 
     let golden_stdout = read_golden("issue533_p123_2000_stdout.golden.txt");
     let golden_dump = read_golden("issue533_p123_2000_dump.golden.txt");
+    let golden_p116 = read_golden("issue533_p123_2000_p116.golden.txt");
 
     assert_eq!(
         String::from_utf8_lossy(&run.stdout),
@@ -157,22 +183,46 @@ fn p123_replay_2000bars_byte_exact() {
         String::from_utf8_lossy(&golden_dump),
         "P533 DRIFT：2000-bar lifecycle dump 与仓内 golden 不再逐字节相等"
     );
+    assert_eq!(
+        String::from_utf8_lossy(&run.p116),
+        String::from_utf8_lossy(&golden_p116),
+        "P533 DRIFT：2000-bar P116_DUMP 与仓内 golden 不再逐字节相等（票 #619 L10）"
+    );
 }
 
-/// 大窗哈希断言：20k/100k 前缀（对齐 #429/#430 三审原窗口），SHA-256(stdout)/SHA-256(dump)
-/// 与仓内 golden 哈希相等。哈希不等 ⟹ 字节流已变——但不给出字段级 diff（票内登记的已知局限，
-/// 数据量过大不适合全文 check 进仓库）。
+/// 大窗断言：20k/100k 前缀（对齐 #429/#430 三审原窗口）。
+///
+/// - stdout / lifecycle dump：SHA-256 与仓内 golden 哈希相等。哈希不等 ⟹ 字节流已变——但不
+///   给出字段级 diff（票内登记的已知局限，数据量过大不适合全文 check 进仓库）。
+/// - `P116_DUMP`（票 #619 L10）：**全文对拍**——该面 8.8KB / 21.6KB，不受上述体积约束。
 #[test]
 #[ignore = "字节护栏：需本地 analysis/data_cache/btc_1m_full.json；-- --ignored 单独触发"]
 fn p123_replay_large_windows_hash_guardrail() {
-    for (max_bars, golden_name) in [
-        (20_000usize, "issue533_p123_20000.sha256"),
-        (100_000usize, "issue533_p123_100000.sha256"),
+    for (max_bars, golden_name, p116_golden_name) in [
+        (
+            20_000usize,
+            "issue533_p123_20000.sha256",
+            "issue533_p123_20000_p116.golden.txt",
+        ),
+        (
+            100_000usize,
+            "issue533_p123_100000.sha256",
+            "issue533_p123_100000_p116.golden.txt",
+        ),
     ] {
         let dump_path =
             std::env::temp_dir().join(format!("issue533_p123_{max_bars}_dump.actual.txt"));
-        let run = run_p123(max_bars, &dump_path);
+        let p116_path =
+            std::env::temp_dir().join(format!("issue533_p123_{max_bars}_p116.actual.txt"));
+        let run = run_p123(max_bars, &dump_path, &p116_path);
         let golden = read_golden_sha_map(golden_name);
+
+        // P116 面走全文对拍（体积比 dump 小三个数量级，失败时给出字段级 diff；票 #619 L10）。
+        assert_eq!(
+            String::from_utf8_lossy(&run.p116),
+            String::from_utf8_lossy(&read_golden(p116_golden_name)),
+            "P533 DRIFT：max_bars={max_bars} P116_DUMP 与仓内 golden 不再逐字节相等"
+        );
 
         let stdout_sha = sha256_hex(&run.stdout);
         let dump_sha = sha256_hex(&run.dump);

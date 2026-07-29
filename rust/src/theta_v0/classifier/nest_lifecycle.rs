@@ -336,8 +336,10 @@ pub enum LifecycleRevisionKind {
     ///   前身条目被迁移走，无 `Invalidated`、无 `IdentityVanished`；
     /// - 前身已终态 ⟹ **认领留痕**：新身份独立建仓（`Observed` 后紧跟本修订），前身条目
     ///   原样留档（终态吸收/禁复活/终态钟只写一次三条不变量一个 bit 不动，E2E §1:83）。
-    ///   本修订是两条历史之间**唯一**的可审计关联——统计口径按 `superseded_from` 反查即可
-    ///   把「被认领的前身终局」从反超/寿命分母中剔除（#599 §5-1「口径正确性修复」）。
+    ///   本修订是两条历史之间**唯一**的可审计关联——统计口径按**本修订自带的 `from`** 反查
+    ///   即可把「被认领的前身终局」从反超/寿命分母中剔除（#599 §5-1「口径正确性修复」）。
+    ///   **禁经 `superseded_from` 中转**（票 #619 H1）：那是「当下来源指针」，每次桥迁移
+    ///   整体覆盖；修订链 append-only、永不覆盖，才是认领事件的权威载体。
     CenterUpgraded { from: LifecycleKey },
     /// D1–D4 首次同真（仅 `Verified(true)` 分支写入——#78 核验 T14 锚定）。
     FirstProvable,
@@ -354,6 +356,19 @@ pub enum LifecycleRevisionKind {
     /// Provisional → Invalidated；原因逐一为 ForceOvertake、NeverConstituted 或
     /// IdentityVanished（逐码入载荷，可区分——T6 / T17）。
     Invalidated { reason: InvalidatedReason },
+}
+
+/// 迁移来源码（[`NestLifecycleBook::migrate_entry`] 的唯一入参形态，票 #619 L12）。
+///
+/// 只说「哪一种迁移」，**不带 `from`**——`from` 由迁移点自己填（它就是被 `remove` 的那个键），
+/// 调用方无从填错。两处逐句同构的迁移块收敛到单一写入点后，「写 `superseded_from`」与「写哪
+/// 种来源修订」的一致性由类型保证，而非靠两处代码各自遵守纪律（Fowler: Duplicated Code）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MigrationKind {
+    /// 白名单工程桥（除 C 右端外全等，判据 [`bridge_identity`]）。
+    Bridge,
+    /// 中枢升级认领（严格同锚 + B 单调前进，判据 [`bridge_by_center_upgrade`]，票 #603 档 1）。
+    CenterUpgrade,
 }
 
 /// 一条修订（entry 留档 + advance 增量返回双通道；禁删除模拟失效，E2E §1:81）。
@@ -400,10 +415,15 @@ pub struct NestLifecycleEntry {
     pub force_evidence: Option<ForceEvidence>,
     /// 最近一次力度不可验注记 prefix（同 as_of 幂等去重基准；只作去重，不阻塞恢复推进）。
     pub force_unavailable_at: Option<usize>,
-    /// 身份来源链留痕（两码，逐条对应本 entry 首个非 `Observed` 修订的 kind）：
-    /// 白名单桥迁移（`Supersedes`，迁移不改写任何钟）或中枢升级认领
-    /// （`CenterUpgraded`，票 #603 档 1——迁移形态同样不改钟；认领留痕形态下本字段是新身份
-    /// 指向**已终态前身**的唯一关联，前身条目不因此改任何 bit）。
+    /// 身份来源链的**当下来源指针**（两码：白名单桥迁移 `Supersedes` / 中枢升级认领
+    /// `CenterUpgraded`，两种迁移都不改写任何钟）。
+    ///
+    /// **有效域（票 #619 H1 订正）**：本字段是单个 `Option`、**每次迁移整体覆盖**——它只
+    /// 回答「这只 entry 的当下身份是从哪个键搬过来/认领来的」，不承载历史。留痕认领产出的
+    /// 新身份若在后续 bar 被桥迁移，本字段即被改写为「上一 bar 的自己」，与终态前身的关联
+    /// 从本字段消失。故**认领关联的权威来源是 append-only 的 `CenterUpgraded` 修订**
+    /// （`revisions` 内自带 `from`，见 [`NestLifecycleBook::settlement_stats`] 的 claimed
+    /// 集合），本字段不得用于任何跨 bar 的口径统计。
     pub superseded_from: Option<LifecycleKey>,
     /// 该身份已见最大 as_of（#78 修复 2 倒退守卫基准）。
     pub last_as_of: usize,
@@ -813,17 +833,21 @@ impl NestLifecycleBook {
         };
         let mut nonflash_lifetimes = Vec::new();
         let mut force_overtake_lifetimes = Vec::new();
-        // 票 #603 档 1：被 `CenterUpgraded` 认领的前身键集合（认领方 entry 的
-        // `superseded_from` + 首条认领修订即唯一来源；账本自足，不另存状态）。
+        // 票 #603 档 1：被 `CenterUpgraded` 认领的前身键集合。来源取 **append-only 修订链里
+        // 每一条 `CenterUpgraded` 自带的 `from`**（票 #619 H1 订正）——不经 `superseded_from`
+        // 中转：后者是「当下来源指针」，认领方只要多活一个 bar 被桥迁移（dump 实证桥迁移逐
+        // bar 发生），该指针即被改写为「上一 bar 的自己」，认领关联静默丢失 ⟹ 本口径少计。
+        // 取全部 `from`（不止首条）：同一 entry 可先留痕认领终态前身、再逐 bar 迁移，迁移写
+        // 入的 `from` 是自己的旧键——旧键已被 `remove`、不在 `entries` 内，`claimed.contains`
+        // 恒不命中，不污染口径。账本自足，不另存状态。
         let claimed: std::collections::BTreeSet<LifecycleKey> = self
             .entries
             .values()
-            .filter(|entry| {
-                entry.revisions.iter().any(|revision| {
-                    matches!(revision.kind, LifecycleRevisionKind::CenterUpgraded { .. })
-                })
+            .flat_map(|entry| entry.revisions.iter())
+            .filter_map(|revision| match revision.kind {
+                LifecycleRevisionKind::CenterUpgraded { from } => Some(from),
+                _ => None,
             })
-            .filter_map(|entry| entry.superseded_from)
             .collect();
         for entry in self.entries.values() {
             stats.first_provable_count += usize::from(entry.first_provable_at.is_some());
@@ -947,16 +971,9 @@ impl NestLifecycleBook {
                             continue;
                         }
                         // Supersedes 迁移（仅 Provisional 可达——终态已在上一步吸收）：
-                        // 全 book 唯一 remove 点；钟不动、链留痕。
-                        let mut entry = self.entries.remove(&old_key).expect("桥匹配键存在");
-                        entry.superseded_from = Some(old_key);
-                        entry.key = key;
-                        let revision = entry.push_revision(
-                            LifecycleRevisionKind::Supersedes { from: old_key },
-                            as_of,
-                            None,
-                        );
-                        self.entries.insert(key, entry);
+                        // 钟不动、链留痕（单一写入点 [`Self::migrate_entry`]）。
+                        let revision =
+                            self.migrate_entry(old_key, key, MigrationKind::Bridge, as_of);
                         delta.push(revision);
                     }
                     None => {
@@ -966,23 +983,18 @@ impl NestLifecycleBook {
                         //  - 前身仍 Provisional 且非倒退 ⟹ **迁移**（继承五钟，与 Supersedes 同款）；
                         //  - 前身已终态 / 倒退喂入 ⟹ **认领留痕**（新身份独立建仓 + 关联修订，
                         //    前身原样留档——终态吸收/禁复活/终态钟只写一次三条不变量不动）。
-                        let claim = self.center_upgrade_match(&key);
-                        let migratable = claim.is_some_and(|old_key| {
-                            let old = &self.entries[&old_key];
-                            old.state == NestEventState::Provisional && as_of >= old.last_as_of
-                        });
-                        match (claim, migratable) {
+                        // 优选由 `center_upgrade_match` 一并给出（票 #619 H2：留痕形态把终态
+                        // 前身留在册 ⟹ 同链可**匹配**多只，必须择优而非按字节序盲取）。
+                        let claim = self.center_upgrade_match(&key, as_of);
+                        match claim {
                             (Some(old_key), true) => {
-                                // 迁移（全 book 第二个 remove 点；钟不动、链留痕、无 Invalidated）。
-                                let mut entry = self.entries.remove(&old_key).expect("认领键存在");
-                                entry.superseded_from = Some(old_key);
-                                entry.key = key;
-                                let revision = entry.push_revision(
-                                    LifecycleRevisionKind::CenterUpgraded { from: old_key },
+                                // 迁移（钟不动、链留痕、无 Invalidated；单一写入点）。
+                                let revision = self.migrate_entry(
+                                    old_key,
+                                    key,
+                                    MigrationKind::CenterUpgrade,
                                     as_of,
-                                    None,
                                 );
-                                self.entries.insert(key, entry);
                                 delta.push(revision);
                             }
                             (claimed_from, _) => {
@@ -1399,20 +1411,71 @@ impl NestLifecycleBook {
             .copied()
     }
 
-    /// 中枢升级认领匹配（票 #603 档 1）：同锚（`seg_a` + C 左端全等）且 B 严格更晚的既有键。
+    /// 身份迁移：把 `old_key` 的整条 entry 原样搬到 `new_key` 下，写当下来源指针 + 追加一条
+    /// 来源修订。**全 book 仅有的两个 `entries.remove` 点收敛于此**（票 #619 L12）。
+    ///
+    /// 「钟一个 bit 不动」由实现形态保证——entry 整体搬走，五钟不经任何赋值；`revision`/
+    /// `revisions` 由 [`NestLifecycleEntry::push_revision`] 同步推进。来源码见 [`MigrationKind`]：
+    /// `from` 恒取 `old_key`（被 remove 的那个键），调用方不参与构造 ⟹ 「写 `superseded_from`」
+    /// 与「写哪种来源修订」不可能不一致。
+    fn migrate_entry(
+        &mut self,
+        old_key: LifecycleKey,
+        new_key: LifecycleKey,
+        migration: MigrationKind,
+        as_of: usize,
+    ) -> LifecycleRevision {
+        let mut entry = self.entries.remove(&old_key).expect("迁移源键存在");
+        entry.superseded_from = Some(old_key);
+        entry.key = new_key;
+        let kind = match migration {
+            MigrationKind::Bridge => LifecycleRevisionKind::Supersedes { from: old_key },
+            MigrationKind::CenterUpgrade => LifecycleRevisionKind::CenterUpgraded { from: old_key },
+        };
+        let revision = entry.push_revision(kind, as_of, None);
+        self.entries.insert(new_key, entry);
+        revision
+    }
+
+    /// 中枢升级认领匹配（票 #603 档 1）：同锚（`seg_a` + C 左端全等）且 B 严格更晚的既有键，
+    /// 连同「该前身此刻可否迁移」一并给出（`Provisional` ∧ 非倒退喂入）。
     ///
     /// **只服务 `advance` 第 1 步的建仓分支**——`bridge_entry`/`terminal_bridge_hit`/
     /// `completion_signal_seen` 一律仍走 [`bridge_identity`]（严格更强），本方法不参与那三处
     /// 判定：认领是「两个身份之间的关联」，不是「它们是同一个身份」，把它塞进桥语义会让终态
     /// 前身把新身份一并吸收（禁复活的适用面被误扩），那正是本设计要避免的。
     ///
-    /// 多候选时取 `BTreeMap` 序首个（确定性，无平局歧义）——同链上至多一只存活：迁移形态
-    /// 会 remove 前身，认领留痕形态下前身已终态（其后不再有活窗喂入产生更新的 B）。
-    fn center_upgrade_match(&self, key: &LifecycleKey) -> Option<LifecycleKey> {
-        self.entries
-            .keys()
-            .find(|old| bridge_by_center_upgrade(old, key))
-            .copied()
+    /// ## 多候选语义（票 #619 H2 订正）
+    ///
+    /// **可匹配者可以有多只**：认领留痕形态**恰恰把终态前身留在册**（那是它的设计要点），
+    /// 于是同一条链上可同时存在「已终态的 P1（B 较早）」与「留痕后新建、仍 `Provisional` 的
+    /// P2（B 居中）」；第三次 B 升级到达时两只都满足 [`bridge_by_center_upgrade`]。
+    /// 旧口径「同链至多一只**存活**」把「存活」当成了「匹配」，论证不成立——已订正。
+    ///
+    /// **优选规则**（确定性，无平局歧义）：
+    /// 1. 首选 `BTreeMap` 序首个**可迁移**者（`Provisional` ∧ `as_of ≥ last_as_of`）；
+    /// 2. 无可迁移者时退回 `BTreeMap` 序首个匹配者，走认领留痕。
+    ///
+    /// 为什么不能按 [`LifecycleKey`] 序盲取：`sort_tuple`（见 :134）在 `b_center_start` **之前**
+    /// 先比 `seg_c_full`，而 C 右端随 `as_of` 漂移、**与前身死活完全无关** ⟹ 盲取会以「谁的 C
+    /// 右端更小」决定要不要迁移。若盲选到终态前身，本该被迁移的那只**存活**前身不被迁移 ⟹
+    /// 五钟不继承、该 entry 沦为孤儿 ⟹ 后续走 `IdentityVanished`（凭空多一条身份消失）。
+    fn center_upgrade_match(
+        &self,
+        key: &LifecycleKey,
+        as_of: usize,
+    ) -> (Option<LifecycleKey>, bool) {
+        let mut fallback = None;
+        for (old_key, old) in &self.entries {
+            if !bridge_by_center_upgrade(old_key, key) {
+                continue;
+            }
+            if old.state == NestEventState::Provisional && as_of >= old.last_as_of {
+                return (Some(*old_key), true);
+            }
+            fallback.get_or_insert(*old_key);
+        }
+        (fallback, false)
     }
 }
 
@@ -5000,6 +5063,264 @@ mod tests {
             "跨锚零实装：diff 自证无此路径"
         );
         assert_eq!(book.len(), 2, "两个独立假设各自成身份");
+        book.assert_invariants();
+    }
+
+    // ── 票 #619（影子评审 #603 收口）：多步链场景 ─────────────────────
+
+    /// 认领留痕后，**认领方多活一个 bar 被桥迁移**——认领关联必须存活。
+    ///
+    /// 这是 H1 的可复现失效路径：`superseded_from` 是单个「当下来源指针」，桥迁移逐 bar
+    /// 发生（BTC 100k dump 实证），一旦被改写成「上一 bar 的自己」，经它反查认领前身的口径
+    /// 就静默丢数。本测试同时钉住两件事：(a) 该指针确实被覆盖（成因不被掩盖）；
+    /// (b) `force_overtake_claimed_count` 仍取到 1（来源已改为 append-only 修订链）。
+    #[test]
+    fn issue619_claim_association_survives_subsequent_bridge_migration() {
+        let close_src = identity_close_src(150);
+        let mut hist = vec![0.0; 150];
+        hist[50..=59].fill(-2.0);
+        let mut dif = vec![0.0; 150];
+        dif[50..=59].fill(-5.0);
+        hist[70..=129].fill(-0.25);
+        dif[70..=149].fill(-1.0);
+        let m = material(&hist, &dif, &close_src);
+
+        let mut book = NestLifecycleBook::new();
+        book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            129,
+            &m,
+        );
+        assert_eq!(
+            book.entries().next().unwrap().1.first_provable_at,
+            Some(129),
+            "前身曾可证（反超的前置条件）"
+        );
+
+        // 力度反超 ⟹ 前身（桥迁移到 c=(70,139) 后）进终态。
+        hist[130..=149].fill(-3.0);
+        dif[130..=149].fill(-6.0);
+        let m = material(&hist, &dif, &close_src);
+        book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 139), false)],
+            139,
+            &m,
+        );
+        let terminal_key = key_pan((50, 59), (70, 139));
+        assert_eq!(
+            book.get(&terminal_key).unwrap().invalidated_reason,
+            Some(InvalidatedReason::ForceOvertake)
+        );
+
+        // 同 prefix：B 升级到达 ⟹ 前身已终态 ⟹ 认领留痕。
+        let upgraded = PanLiveWindow {
+            b_center_start: 30,
+            ..pan_window((50, 59), 70, 139)
+        };
+        book.advance(&[LifecycleObservation::pan_live(upgraded, false)], 139, &m);
+        assert_eq!(
+            book.settlement_stats().force_overtake_claimed_count,
+            1,
+            "认领当刻口径成立"
+        );
+
+        // ★ 认领方多活一个 bar：活窗右端延展 ⟹ 桥迁移 ⟹ `superseded_from` 被覆盖。
+        let extended = PanLiveWindow {
+            b_center_start: 30,
+            ..pan_window((50, 59), 70, 140)
+        };
+        let delta = book.advance(&[LifecycleObservation::pan_live(extended, false)], 140, &m);
+        assert!(
+            delta
+                .iter()
+                .any(|revision| matches!(revision.kind, LifecycleRevisionKind::Supersedes { .. })),
+            "认领方被桥迁移（本测试的前提事件）"
+        );
+
+        let claimer_key = LifecycleKey {
+            b_center_start: 30,
+            ..key_pan((50, 59), (70, 140))
+        };
+        let claimer = book.get(&claimer_key).expect("认领方在册");
+        assert_eq!(
+            claimer.superseded_from,
+            Some(LifecycleKey {
+                b_center_start: 30,
+                ..key_pan((50, 59), (70, 139))
+            }),
+            "当下来源指针已被改写为「上一 bar 的自己」——H1 成因，不得用于跨 bar 口径"
+        );
+        assert!(
+            claimer.revisions.iter().any(|revision| matches!(
+                revision.kind,
+                LifecycleRevisionKind::CenterUpgraded { from } if from == terminal_key
+            )),
+            "认领事件仍留在 append-only 修订链里（永不覆盖）"
+        );
+        assert_eq!(
+            book.settlement_stats().force_overtake_claimed_count,
+            1,
+            "纠误口径不随桥迁移丢数（票 #619 H1）"
+        );
+        book.assert_invariants();
+    }
+
+    /// 同锚 B **连升两次**：两次都走迁移形态，五钟一路继承，两条认领事件逐条留痕。
+    ///
+    /// 缺口来源（票 #619）：档 1 的三个测试链长都是 1，多步链从未被覆盖——H1/H2 至今
+    /// 未被发现的直接原因。
+    #[test]
+    fn issue619_center_upgrade_chain_migrates_twice_keeping_clocks() {
+        let close_src = identity_close_src(150);
+        let mut hist = vec![0.0; 150];
+        hist[50..=59].fill(-2.0);
+        let mut dif = vec![0.0; 150];
+        dif[50..=59].fill(-5.0);
+        // 全程弱力度 ⟹ 前身恒 Provisional ⟹ 两次升级都走迁移形态。
+        hist[70..=149].fill(-0.25);
+        dif[70..=149].fill(-1.0);
+        let m = material(&hist, &dif, &close_src);
+
+        let mut book = NestLifecycleBook::new();
+        book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            129,
+            &m,
+        );
+        let second = PanLiveWindow {
+            b_center_start: 30,
+            ..pan_window((50, 59), 70, 130)
+        };
+        book.advance(&[LifecycleObservation::pan_live(second, false)], 130, &m);
+        let third = PanLiveWindow {
+            b_center_start: 40,
+            ..pan_window((50, 59), 70, 131)
+        };
+        let delta = book.advance(&[LifecycleObservation::pan_live(third, false)], 131, &m);
+
+        assert!(
+            delta.iter().any(|revision| matches!(
+                revision.kind,
+                LifecycleRevisionKind::CenterUpgraded { from } if from.b_center_start == 30
+            )),
+            "第二次升级认领的是第一次升级后的身份"
+        );
+        assert_eq!(book.len(), 1, "连升两次仍是一只身份（迁移，非分裂）");
+        let (key, entry) = book.entries().next().unwrap();
+        assert_eq!(key.b_center_start, 40);
+        assert_eq!(entry.observed_at, 129, "两次迁移都不改写观察钟");
+        assert_eq!(entry.first_provable_at, Some(129), "首次可证钟一路不后移");
+        let upgrades: Vec<usize> = entry
+            .revisions
+            .iter()
+            .filter_map(|revision| match revision.kind {
+                LifecycleRevisionKind::CenterUpgraded { from } => Some(from.b_center_start),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            upgrades,
+            vec![20, 30],
+            "两条认领事件逐条留痕，后一条不覆盖前一条"
+        );
+        book.assert_invariants();
+    }
+
+    /// 多候选择优（H2）：留痕把终态前身留在册 ⟹ 第三次 B 升级时**死/活两只同时匹配**，
+    /// 必须迁移那只**存活**的，不能按 `BTreeMap` 序盲取。
+    ///
+    /// 本用例刻意让终态前身在键序上**排在前面**（`seg_c_full` 先于 `b_center_start` 参与
+    /// 排序，而 C 右端与死活无关）——盲取实现会选中终态者 ⟹ 存活前身不被迁移 ⟹ 五钟不
+    /// 继承、沦为孤儿 ⟹ 凭空多一条 `IdentityVanished`。
+    #[test]
+    fn issue619_center_upgrade_prefers_migratable_predecessor_over_terminal_one() {
+        let close_src = identity_close_src(150);
+        let mut hist = vec![0.0; 150];
+        hist[50..=59].fill(-2.0);
+        let mut dif = vec![0.0; 150];
+        dif[50..=59].fill(-5.0);
+        hist[70..=129].fill(-0.25);
+        dif[70..=149].fill(-1.0);
+        let m = material(&hist, &dif, &close_src);
+
+        let mut book = NestLifecycleBook::new();
+        book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            129,
+            &m,
+        );
+
+        // bar 130：力度反超 ⟹ 桥迁移后进终态，终态键 c=(70,130)。三通道须**同时**不衰减
+        // （`segments_diverge_or` 是或关系），故单根强 bar 需压过 a=[50,59] 的整段面积。
+        hist[130..=149].fill(-30.0);
+        dif[130..=149].fill(-60.0);
+        let m = material(&hist, &dif, &close_src);
+        book.advance(
+            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 130), false)],
+            130,
+            &m,
+        );
+        let terminal_key = key_pan((50, 59), (70, 130));
+        let terminal_before = book.get(&terminal_key).cloned().expect("终态前身在册");
+        assert_eq!(
+            terminal_before.invalidated_reason,
+            Some(InvalidatedReason::ForceOvertake)
+        );
+
+        // bar 131：第二次 B（前身已终态）⟹ 留痕新建 ⟹ 同链出现第二只可匹配者。
+        let second = PanLiveWindow {
+            b_center_start: 30,
+            ..pan_window((50, 59), 70, 131)
+        };
+        book.advance(&[LifecycleObservation::pan_live(second, false)], 131, &m);
+        let live_key = LifecycleKey {
+            b_center_start: 30,
+            ..key_pan((50, 59), (70, 131))
+        };
+        assert_eq!(
+            book.get(&live_key).expect("留痕新身份在册").state,
+            NestEventState::Provisional
+        );
+        assert!(
+            terminal_key < live_key,
+            "本用例的排序前提：终态前身在 BTreeMap 序上更靠前（盲取会取到它）"
+        );
+
+        // bar 132：第三次 B ⟹ 两只都满足判据，必须选存活的那只。
+        let third = PanLiveWindow {
+            b_center_start: 40,
+            ..pan_window((50, 59), 70, 132)
+        };
+        let delta = book.advance(&[LifecycleObservation::pan_live(third, false)], 132, &m);
+        assert!(
+            delta.iter().any(|revision| matches!(
+                revision.kind,
+                LifecycleRevisionKind::CenterUpgraded { from } if from == live_key
+            )),
+            "优选可迁移（存活）前身，而非键序首个（终态）前身——票 #619 H2"
+        );
+        assert!(
+            !delta.iter().any(|revision| matches!(
+                revision.kind,
+                LifecycleRevisionKind::Invalidated {
+                    reason: InvalidatedReason::IdentityVanished { .. }
+                }
+            )),
+            "存活前身被迁移走 ⟹ 不留孤儿、不产生凭空的身份消失"
+        );
+        assert_eq!(book.len(), 2, "终态前身留档 + 迁移后的新身份");
+        let migrated = book
+            .get(&LifecycleKey {
+                b_center_start: 40,
+                ..key_pan((50, 59), (70, 132))
+            })
+            .expect("迁移后的身份在册");
+        assert_eq!(migrated.observed_at, 131, "五钟随迁移继承（不是重新建仓）");
+        assert_eq!(
+            book.get(&terminal_key).unwrap(),
+            &terminal_before,
+            "终态前身仍逐位不动"
+        );
         book.assert_invariants();
     }
 }
