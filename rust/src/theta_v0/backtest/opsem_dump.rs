@@ -233,21 +233,28 @@ pub(super) fn strict_nest_sidecar_enabled() -> bool {
         .unwrap_or(false)
 }
 
-/// D4（#606 S1 返工）：一类点 T3-in-c 固定首对分级 sidecar 全窗汇总（[`OtherwiseDomainSidecarCollector`]
-/// 同 [`StrictNestSidecarCollector`] 只读 env 门控先例——生产 π 重放同帧旁路产出，不参与订单/
-/// 候选/风控/账本）。`records` = 全窗**并集**一类点分级记录。挂点在
-/// `signal::judge_segment`（真实生产调用点，`judge_first_cached` 返回、`points.push` 之前）——
-/// 该处不携带级别号（[`classifier::signal::extract_first_third_resume`] 每级各调一次但不接收
-/// `level` 参数，调用者 `mod.rs` 逐级循环才知道；穿透整条调用链传参触及面过大，#606 S1 报告
-/// §5.2 已勘验），故 signal.rs 侧 thread-local 捕获只记 `(source_index,side,center,grade)`，
-/// `level` 占位 0；本 collector 每个**调用帧**（`observe_frame`，非每个 bar——`mod.rs` 的 BSP
-/// memo 命中（★实测 ~99.2% bar 命中）时 `extract_first_third_resume`/`judge_segment` 根本不被
-/// 调用，该 bar 无捕获、`observe_frame` 抽干得到空批，命名「逐帧」名不副实，故改称「调用帧」）
-/// 取走该（调用）帧捕获、用**同一帧**的 `classification.levels[lvl].bsp` 反查补齐 `level`
-/// （同一 `classify_at` 调用内产出，天然一致，非跨帧对照）——`runner.rs` 不改 `classify_at`
-/// 调用本体，只在闭包内追加一行 `observe_frame` 调用，`classifier/mod.rs`、`recursive_tower.rs`
-/// 零改动。memo 命中帧无捕获不损并集（judge_segment 的判定结果本就随 memo 一并复用，未产生新的
-/// 一类点，无信息可捕获）。
+/// D4（#606 S1 第三修复车：换结构，level 传参穿透，删反查机器）：一类点 T3-in-c 固定首对
+/// 分级 sidecar 全窗汇总（[`OtherwiseDomainSidecarCollector`] 同 [`StrictNestSidecarCollector`]
+/// 只读 env 门控先例——生产 π 重放同帧旁路产出，不参与订单/候选/风控/账本）。`records` = 全窗
+/// **并集**一类点分级记录。挂点在 `signal::judge_segment`（真实生产调用点，
+/// `judge_first_cached` 返回、`points.push` 之前）——`mod.rs` 的塔循环 `for level_idx in
+/// 0..=l_max` 逐级各调一次 [`classifier::signal::extract_first_third_resume`]，`level_idx`
+/// 本就在场，经其新增的 `level: u32` 参数穿透到 `judge_segment`，捕获时直接写入真实级别。
+///
+/// **两轮影子评审（`/tmp/codex-research-456/review-606.md`、`review-606fix2.md`）判定：旧版
+/// 「挂点处不在场 ⟹ 占位 0 + sidecar 收尾按身份反查补齐」路线每一版都生新错**（候选分配把
+/// L1 grade 错配给 L3 / unresolved 无人消费 / 锁①变构造性恒等 / 锁③恒等，见 review-606fix2.md
+/// F2-F5）——本版不修补反查逻辑，而是换结构：level 由调用者直接传入，收尾阶段不再需要
+/// `classification` 反查、不再需要候选级别分配、不再有 `unresolved` 概念（结构保证，非分配
+/// 规则保证）。本 collector 每个**调用帧**（`observe_frame`，非每个 bar——`mod.rs` 的 BSP memo
+/// 命中（★实测 ~99.2% bar 命中）时 `extract_first_third_resume`/`judge_segment` 根本不被调用，
+/// 该 bar 无捕获、`observe_frame` 抽干得到空批，命名「逐帧」名不副实，故改称「调用帧」）取走该
+/// （调用）帧捕获，按完整身份键（含真实 `level`）upsert 进全窗并集；`runner.rs` 不改
+/// `classify_at` 调用本体，只在闭包内追加一行 `observe_frame` 调用，`classifier/mod.rs` 只多传
+/// 一个既有变量、`recursive_tower.rs` 零改动（该文件的诊断 provider 调用点走独立的
+/// `judge_first_cached` 直调，不经 `judge_segment`，不参与本捕获，见其模块内注记）。memo 命中帧
+/// 无捕获不损并集（judge_segment 的判定结果本就随 memo 一并复用，未产生新的一类点，无信息可
+/// 捕获）。
 ///
 /// **为何要逐调用帧取走而非只读末帧**：on2w3-07a frontier-resume 下，未确认前缀（tail）段每
 /// 调用帧重判——某些一类点只在中间某调用帧短暂 `buy1/sell1=true`（触发 Reset 广播），随后段前缀
@@ -255,13 +262,13 @@ pub(super) fn strict_nest_sidecar_enabled() -> bool {
 /// `classification.levels[lvl].bsp` 里已看不到它——只读末帧会漏记这些点（G实测：末帧only 口径
 /// 仅见 21/59）。逐调用帧取走 + 按身份键 upsert（同键覆盖，保留最新一次分级）解决此问题——与
 /// Reset 广播本身「读到 bsp 里瞬时 true 就广播」同一时间语义，故记录数与
-/// `center_lifecycle.jsonl` Reset 行数逐一对应。★S2 fix2 F7 口径登记：这里的「同键覆盖」保留的
-/// 是该身份**最后一次重判**产出的 `grade`（一帧内 `observe_frame` 按抽干顺序覆盖，跨帧再按
-/// [`OtherwiseDomainKey`] upsert 覆盖），不是 Reset **广播时刻**那一帧的 `grade` 快照——两者
-/// 时间点不同（广播发生在瞬时 `buy1/sell1=true` 那帧，重判可能发生在其后的任意帧）。与
-/// `center_lifecycle.jsonl` Reset 行数相等的只是**记录数**（一一对应的身份计数），每条记录的
-/// `grade` 字段本身携带的是末次重判口径，不与 Reset 广播那一帧的几何同步——统计口径行需登记
-/// 此点，不可读作「grade 即广播时刻快照」。
+/// `center_lifecycle.jsonl` Reset 行数逐一对应。★F7 口径登记（本版沿用）：这里的「同键覆盖」
+/// 保留的是该身份**最后一次重判**产出的 `grade`（跨帧按 [`OtherwiseDomainKey`] upsert 覆盖），
+/// 不是 Reset **广播时刻**那一帧的 `grade` 快照——两者时间点不同（广播发生在瞬时
+/// `buy1/sell1=true` 那帧，重判可能发生在其后的任意帧）。与 `center_lifecycle.jsonl` Reset
+/// 行数相等的只是**记录数**（一一对应的身份计数），每条记录的 `grade` 字段本身携带的是末次
+/// 重判口径，不与 Reset 广播那一帧的几何同步——统计口径行需登记此点，不可读作「grade 即广播
+/// 时刻快照」。
 ///
 /// 每条记录携 `grade`（`Present`/`Missing(reason)`）——账平（一类点总数 = native + otherwise）由
 /// 记录本身的一一对应结构保证，非另需并列计数。
@@ -270,20 +277,13 @@ pub(crate) struct OtherwiseDomainSidecarSummary {
     /// 已观察生产 replay 帧数。
     pub(crate) frames: usize,
     pub(crate) records: Vec<classifier::signal::FirstClassGradeRecord>,
-    /// ★S2 fix2 F6：level 反查失败次数（本帧 `classification.levels` 中无任何一级的
-    /// `bsp` 能与捕获身份匹配）。不再静默落 L0 占位——落 L0 会与真实 L0 记录混在一起、
-    /// 对拍表 `(0,Long)=5`/`(0,Short)=6` 这类桶无法区分"真 L0"与"反查失败"。这里独立计数，
-    /// 该帧对应的捕获记录本身**被丢弃**（不进 `records`，因为它没有可信 `level` 归属，硬造 0 是
-    /// 编造而非缺席标注）。
-    pub(crate) unresolved: usize,
 }
 
 /// 记录身份键（跨帧 upsert 用）：`(level, source_index, side, center_start_index, center_zd, center_zg)`。
 ///
-/// ★S2 fix2 F4：不含 `center_end_index`——中枢身份对齐 `CenterId`（si,zd,zg）语义，延伸
-/// （`end_index` 增长）不改变身份。若含 `end_index`，frontier 下同一中枢延伸时旧键/新键不同，
-/// collector 会把同一个逻辑点存成两条（甚至与锁①测试键——同样不含 `end_index`——不一致，
-/// 真延伸发生时二者判据分裂）。
+/// 不含 `center_end_index`——中枢身份对齐 `CenterId`（si,zd,zg）语义，延伸（`end_index` 增长）
+/// 不改变身份。若含 `end_index`，frontier 下同一中枢延伸时旧键/新键不同，collector 会把同一个
+/// 逻辑点存成两条。
 type OtherwiseDomainKey =
     (u32, usize, bool, usize, super::super::types::Tick, super::super::types::Tick);
 
@@ -298,80 +298,19 @@ fn otherwise_domain_key(r: &classifier::signal::FirstClassGradeRecord) -> Otherw
     )
 }
 
-/// 捕获身份签名（不含 `level`，与 signal.rs 侧 `GradeSidecarKey` 同构——同一帧内可能有多条
-/// 共用此签名的原始捕获，见下）。
-type OtherwiseDomainSignature =
-    (usize, bool, usize, usize, super::super::types::Tick, super::super::types::Tick);
-
-fn otherwise_domain_signature(r: &classifier::signal::FirstClassGradeRecord) -> OtherwiseDomainSignature {
-    (
-        r.source_index,
-        matches!(r.side, super::super::types::Side::Short),
-        r.center_start_index,
-        r.center_end_index,
-        r.center_zd,
-        r.center_zg,
-    )
-}
-
-/// 该帧 `classification.levels` 中，`bsp` 命中给定签名的**全部**级别（升序）——不止第一个。
-fn otherwise_domain_candidate_levels(
-    classification: &classifier::Classification,
-    rec: &classifier::signal::FirstClassGradeRecord,
-) -> Vec<u32> {
-    classification
-        .levels
-        .iter()
-        .enumerate()
-        .filter(|(_, ls)| {
-            ls.bsp.iter().any(|p| {
-                p.source_index == rec.source_index
-                    && match rec.side {
-                        super::super::types::Side::Long => p.bits.buy1,
-                        super::super::types::Side::Short => p.bits.sell1,
-                    }
-                    && matches!(
-                        p.center,
-                        Some(classifier::signal::OwnerRef::Center(c))
-                            if c.start_index == rec.center_start_index
-                                && c.end_index == rec.center_end_index
-                                && c.zd == rec.center_zd
-                                && c.zg == rec.center_zg
-                    )
-            })
-        })
-        .map(|(lvl, _)| lvl as u32)
-        .collect()
-}
-
-/// ★S2 fix2 F5/F6：把一个调用帧抽干的原始捕获（可能含跨级同身份的多条，见 signal.rs
-/// `GRADE_SIDECAR` 文档）按签名分组，逐条从该签名的候选级别表里顺序取用（同签名只有一个候选
-/// 级别时——生产唯一实际形态：同级重判——全部记录落在那一级，按插入顺序自然折叠为最新一次
-/// 判定；同签名有多个候选级别时——跨级巧合碰撞，未见实例但不假设不发生——逐条分配到不同候选
-/// 级别，不再"先到先得"覆盖丢记录）。候选表为空 ⟹ 反查失败，计入 `unresolved`，不再静默落
-/// L0（原记录本身也不写入 `records`——没有可信 `level` 归属，硬造 0 是编造）。
+/// 把一个调用帧抽干的原始捕获（每条记录已携带捕获时的真实 `level`，见 signal.rs
+/// `FirstClassGradeRecord` 文档）按完整身份键 upsert 进全窗并集——同键覆盖，保留最新一次分级
+/// （F7 口径登记）。不再需要 `Classification` 反查或候选级别分配：级别在捕获时已由调用者
+/// （`extract_first_third_resume` 的 `level` 参数）正确写入，结构上不存在「level 缺失待补」的
+/// 中间态。
 ///
-/// 抽成自由函数（不带 `&mut self`）以便单测直接喂合成 `Classification` + 合成捕获批次，不必
-/// 绕经 thread-local 与生产 `judge_segment` 调用链。
-fn merge_frame_captures(
+/// 抽成自由函数（不带 `&mut self`）以便单测直接喂合成捕获批次，不必绕经 thread-local 与生产
+/// `judge_segment` 调用链。
+fn upsert_frame_captures(
     records: &mut std::collections::HashMap<OtherwiseDomainKey, classifier::signal::FirstClassGradeRecord>,
-    unresolved: &mut usize,
     drained: Vec<classifier::signal::FirstClassGradeRecord>,
-    classification: &classifier::Classification,
 ) {
-    let mut candidates_by_sig: std::collections::HashMap<OtherwiseDomainSignature, (Vec<u32>, usize)> =
-        std::collections::HashMap::new();
-    for mut rec in drained {
-        let sig = otherwise_domain_signature(&rec);
-        let (levels, next) = candidates_by_sig
-            .entry(sig)
-            .or_insert_with(|| (otherwise_domain_candidate_levels(classification, &rec), 0));
-        if levels.is_empty() {
-            *unresolved += 1;
-            continue;
-        }
-        rec.level = levels[*next % levels.len()];
-        *next += 1;
+    for rec in drained {
         records.insert(otherwise_domain_key(&rec), rec);
     }
 }
@@ -379,7 +318,6 @@ fn merge_frame_captures(
 pub(super) struct OtherwiseDomainSidecarCollector {
     pub(super) enabled: bool,
     frames: usize,
-    unresolved: usize,
     records: std::collections::HashMap<OtherwiseDomainKey, classifier::signal::FirstClassGradeRecord>,
 }
 
@@ -388,38 +326,30 @@ impl OtherwiseDomainSidecarCollector {
         if enabled {
             classifier::signal::otherwise_domain_sidecar_begin();
         }
-        Self { enabled, frames: 0, unresolved: 0, records: std::collections::HashMap::new() }
+        Self { enabled, frames: 0, records: std::collections::HashMap::new() }
     }
 
-    /// 本调用帧末（`classify_at` 已返回 `classification`）取走 signal.rs 侧 thread-local 本
-    /// 调用帧捕获（memo 命中的 bar 不调 `classify_at` 内的 extract 路径，无捕获、批为空），
-    /// 用本调用帧 `classification` 反查补齐 `level`，upsert 进全窗并集；随即为下一调用帧重开
-    /// 捕获槽。
-    ///
-    /// ★S2 fix2 F5：signal.rs 侧捕获键不含 `level`，同帧内不同级别巧合产出完全相同的
-    /// `(source_index,side,center 四元组)` 时，thread-local 侧已改为 `Vec`（不再单值覆盖，见
-    /// [`classifier::signal`] 文档），这里按同一签名先枚举**全部**候选级别（该帧
-    /// `classification.levels` 中 `bsp` 命中该签名的每一级，不止第一个），再按签名分组、逐条
-    /// 从候选级别表里顺序取用——同签名只有一个候选级别时（生产唯一实际形态：同级重判）全部
-    /// 记录落在那一级、按插入顺序自然折叠为最新一次判定；同签名有多个候选级别时（跨级巧合碰撞，
-    /// 未见实例但不假设不发生）逐条分配到不同候选级别，不再"先到先得"覆盖丢记录。候选表耗尽后
-    /// 仍有记录待分配 ⟹ 反查失败，计入 `unresolved`（F6），不再静默落 L0。
-    pub(super) fn observe_frame(&mut self, classification: &classifier::Classification) {
+    /// 本调用帧末（`classify_at` 已返回）取走 signal.rs 侧 thread-local 本调用帧捕获（memo
+    /// 命中的 bar 不调 `classify_at` 内的 extract 路径，无捕获、批为空），按完整身份键（含真实
+    /// `level`）upsert 进全窗并集；随即为下一调用帧重开捕获槽。不再接收 `Classification` 参数
+    /// ——旧版按身份反查 `classification.levels[lvl].bsp` 补齐 `level` 的机器已删（换结构：
+    /// level 在捕获时已由调用者正确写入）。
+    pub(super) fn observe_frame(&mut self) {
         if !self.enabled {
             return;
         }
         self.frames += 1;
         let drained = classifier::signal::otherwise_domain_sidecar_take();
         classifier::signal::otherwise_domain_sidecar_begin();
-        merge_frame_captures(&mut self.records, &mut self.unresolved, drained, classification);
+        upsert_frame_captures(&mut self.records, drained);
     }
 
-    /// ★S2 fix2 F1：finish 是本 collector thread-local 生命周期的唯一收尾点——`enabled` 时
-    /// 显式 take 丢弃 `GRADE_SIDECAR` 里由最后一次 `observe_frame` 重开的空捕获槽，把
-    /// thread-local 收回 `None`。不做这一步：同线程后续 run 即使 `enabled=false`（未设 env，
+    /// ★F1 回归修复（沿用）：finish 是本 collector thread-local 生命周期的唯一收尾点——
+    /// `enabled` 时显式 take 丢弃 `GRADE_SIDECAR` 里由最后一次 `observe_frame` 重开的空捕获槽，
+    /// 把 thread-local 收回 `None`。不做这一步：同线程后续 run 即使 `enabled=false`（未设 env，
     /// 生产恒态）也不会调 `begin`，但 `GRADE_SIDECAR` 仍停在上一轮遗留的 `Some(..)`——
     /// `judge_segment` 挂点的 `is_some()` 短路检查因此误判为"sidecar 开着"，照样跑
-    /// `t3_in_c_fixed_first_pair` 并往一个此后再也无人 take 的 map 里插入，单调增长、
+    /// `t3_in_c_fixed_first_pair` 并往一个此后再也无人 take 的 Vec 里插入，单调增长、
     /// 永不释放（同进程多 run 场景，如「关臂/开臂同进程对照」实验，正是触发形态）。
     pub(super) fn finish(self) -> Option<OtherwiseDomainSidecarSummary> {
         if self.enabled {
@@ -428,7 +358,6 @@ impl OtherwiseDomainSidecarCollector {
         self.enabled.then(|| OtherwiseDomainSidecarSummary {
             frames: self.frames,
             records: self.records.into_values().collect(),
-            unresolved: self.unresolved,
         })
     }
 }
@@ -1657,52 +1586,27 @@ mod rebase_observability_tests {
     }
 }
 
-/// ★S2 fix2（#606 影子评审 F1/F4/F5/F6 回归）：`OtherwiseDomainSidecarCollector` 单测——直接喂
-/// 合成 `Classification` + 合成捕获批次给自由函数 [`merge_frame_captures`]，不绕经 thread-local
-/// 与生产 `judge_segment` 调用链（那需要完整 BTC 重放，387s/次，不适合做单元回归）。
+/// #606 S1 第三修复车：`OtherwiseDomainSidecarCollector` 单测——直接喂合成捕获批次给自由函数
+/// [`upsert_frame_captures`]，不绕经 thread-local 与生产 `judge_segment` 调用链（那需要完整
+/// BTC 重放，387s/次，不适合做单元回归）。换结构后每条合成记录直接携带其"真实"（测试构造的）
+/// `level`，不再需要合成 `Classification` 供反查——旧版 F4/F5/F6 回归的反查/候选分配机器已删。
 #[cfg(test)]
 mod otherwise_domain_tests {
     use super::*;
-    use classifier::bsp::BspPoint;
-    use classifier::signal::{FirstClassGradeRecord, OwnerRef, T3InCGrade, T3InCGradeReason};
-    use classifier::{Classification, LevelState};
-    use std::rc::Rc;
+    use classifier::signal::{FirstClassGradeRecord, T3InCGrade, T3InCGradeReason};
 
     fn center(start_index: usize, end_index: usize, zd: Tick, zg: Tick) -> super::super::super::types::Center {
         super::super::super::types::Center { zd, zg, dd: zd, gg: zg, start_index, end_index }
     }
 
-    fn bsp_point(
-        source_index: usize,
-        buy1: bool,
-        sell1: bool,
-        c: super::super::super::types::Center,
-    ) -> BspPoint {
-        BspPoint {
-            source_index,
-            bits: super::super::super::types::BspBits { buy1, sell1, ..Default::default() },
-            pivot_low: 0,
-            pivot_high: 0,
-            center: Some(OwnerRef::Center(c)),
-            struct_break_dir: None,
-            force: None,
-        }
-    }
-
-    /// 造一个 `level..=level` 长的塔，只在末级（下标 `level`）放 `points`，其余级默认空。
-    fn classification_with_level_bsp(level: usize, points: Vec<BspPoint>) -> Classification {
-        let mut levels: Vec<LevelState> = (0..=level).map(|_| LevelState::default()).collect();
-        levels[level].bsp = Rc::new(points);
-        Classification { levels }
-    }
-
     fn grade_rec(
+        level: u32,
         source_index: usize,
         side: super::super::super::types::Side,
         c: super::super::super::types::Center,
     ) -> FirstClassGradeRecord {
         FirstClassGradeRecord {
-            level: 0, // 挂点处不在场，占位——同生产捕获（signal.rs 文档）。
+            level,
             source_index,
             side,
             center_start_index: c.start_index,
@@ -1713,9 +1617,9 @@ mod otherwise_domain_tests {
         }
     }
 
-    /// ★F1 回归：`finish()` 后 signal.rs 侧 thread_local 捕获槽必须收回 `None`。此前 `finish()`
-    /// 不 take ⟹ 同进程后续 run（即使 `enabled=false`）会因 `judge_segment` 的 `is_some()` 短路
-    /// 检查误判仍在捕获态，持续插入一个此后再无人取走的 map，单调增长、永不释放。
+    /// ★F1 回归（沿用）：`finish()` 后 signal.rs 侧 thread_local 捕获槽必须收回 `None`。此前
+    /// `finish()` 不 take ⟹ 同进程后续 run（即使 `enabled=false`）会因 `judge_segment` 的
+    /// `is_some()` 短路检查误判仍在捕获态，持续插入一个此后再无人取走的 Vec，单调增长、永不释放。
     #[test]
     fn finish_releases_thread_local_capture_slot() {
         let collector = OtherwiseDomainSidecarCollector::new(true);
@@ -1730,73 +1634,43 @@ mod otherwise_domain_tests {
         );
     }
 
-    /// ★F4 回归：中枢延伸（同 `CenterId(si,zd,zg)`，`end_index` 跨帧增长）不得被当成两个不同身份。
-    /// upsert 键已不含 `end_index`（见 [`OtherwiseDomainKey`] 文档），故两帧应折叠为一条记录。
+    /// 中枢延伸（同 `CenterId(si,zd,zg)` 与同 `level`，`end_index` 跨帧增长）不得被当成两个不同
+    /// 身份。upsert 键已不含 `end_index`（见 [`OtherwiseDomainKey`] 文档），故两帧应折叠为一条
+    /// 记录，且保留最新一帧（延伸后）的 `end_index`（F7 口径：同键覆盖=保留末次重判）。
     #[test]
     fn center_extension_across_frames_collapses_to_one_record() {
         use super::super::super::types::Side;
         let c1 = center(10, 100, 1000, 2000);
-        let c2 = center(10, 150, 1000, 2000); // 同 CenterId，end_index 延伸 100→150
-        let rec1 = grade_rec(55, Side::Long, c1);
-        let rec2 = grade_rec(55, Side::Long, c2);
+        let c2 = center(10, 150, 1000, 2000); // 同 CenterId 同 level，end_index 延伸 100→150
+        let rec1 = grade_rec(0, 55, Side::Long, c1);
+        let rec2 = grade_rec(0, 55, Side::Long, c2);
 
         let mut records = std::collections::HashMap::new();
-        let mut unresolved = 0usize;
+        upsert_frame_captures(&mut records, vec![rec1]);
+        upsert_frame_captures(&mut records, vec![rec2]);
 
-        let cls1 = classification_with_level_bsp(0, vec![bsp_point(55, true, false, c1)]);
-        merge_frame_captures(&mut records, &mut unresolved, vec![rec1], &cls1);
-
-        let cls2 = classification_with_level_bsp(0, vec![bsp_point(55, true, false, c2)]);
-        merge_frame_captures(&mut records, &mut unresolved, vec![rec2], &cls2);
-
-        assert_eq!(unresolved, 0);
-        assert_eq!(records.len(), 1, "同 CenterId 不同 end_index（延伸）应只留一条记录");
+        assert_eq!(records.len(), 1, "同 CenterId 同 level 不同 end_index（延伸）应只留一条记录");
         let only = records.values().next().expect("恰一条");
         assert_eq!(only.center_end_index, 150, "应保留最新一帧（延伸后）的 end_index");
     }
 
-    /// ★F5 回归：两个不同级别在同一帧巧合产出完全相同的 `(source_index,side,center 四元组)`
-    /// 时，两条都应保留（分落两个不同 level），不再"先到先得"覆盖丢记录。
+    /// ★新增（#606 S1 第三修复车）：两个不同级别在同一帧巧合产出完全相同的
+    /// `(source_index,side,CenterId)` 签名时，两条记录各带真实 level、不互吞——这是 upsert 键
+    /// 含 `level` 的**结构保证**，不再依赖候选级别分配规则（旧版 F5 靠"逐条从候选表顺序取用"
+    /// 才能不丢，换结构后 level 在捕获时已由调用者正确写入，不存在候选/分配的中间态）。
     #[test]
     fn cross_level_identical_signature_both_preserved() {
         use super::super::super::types::Side;
         let c = center(10, 100, 1000, 2000);
-        let rec_a = grade_rec(55, Side::Long, c);
-        let rec_b = grade_rec(55, Side::Long, c); // 同签名——模拟另一级巧合产出同一签名
-
-        // 合成一帧：level0 与 level1 的 bsp 都恰好命中同一签名（人工构造的巧合碰撞，生产中
-        // 未见实例但不假设不发生，F5 的问题正在于此）。
-        let mut levels = vec![LevelState::default(), LevelState::default()];
-        levels[0].bsp = Rc::new(vec![bsp_point(55, true, false, c)]);
-        levels[1].bsp = Rc::new(vec![bsp_point(55, true, false, c)]);
-        let cls = Classification { levels };
+        let rec_l0 = grade_rec(0, 55, Side::Long, c);
+        let rec_l1 = grade_rec(1, 55, Side::Long, c); // 同签名，不同真实 level——巧合碰撞
 
         let mut records = std::collections::HashMap::new();
-        let mut unresolved = 0usize;
-        merge_frame_captures(&mut records, &mut unresolved, vec![rec_a, rec_b], &cls);
+        upsert_frame_captures(&mut records, vec![rec_l0, rec_l1]);
 
-        assert_eq!(unresolved, 0);
-        assert_eq!(records.len(), 2, "跨级同身份两条都应保留，不得互吞");
+        assert_eq!(records.len(), 2, "跨级同身份两条都应保留，结构保证不互吞");
         let levels_seen: std::collections::BTreeSet<u32> =
             records.values().map(|r| r.level).collect();
         assert_eq!(levels_seen, [0u32, 1u32].into_iter().collect(), "两条应分落 level0/level1");
-    }
-
-    /// ★F6 回归：level 反查失败（该帧没有任何一级的 `bsp` 与捕获身份匹配）不得静默落 L0——
-    /// 独立计入 `unresolved`，且该条不得进入 `records`（没有可信 `level` 归属）。
-    #[test]
-    fn unresolved_when_no_level_bsp_matches() {
-        use super::super::super::types::Side;
-        let c = center(10, 100, 1000, 2000);
-        let rec = grade_rec(55, Side::Long, c);
-        // classification 里唯一的 bsp 项 source_index=999，与 rec 的 55 对不上——反查必失败。
-        let cls = classification_with_level_bsp(0, vec![bsp_point(999, true, false, c)]);
-
-        let mut records = std::collections::HashMap::new();
-        let mut unresolved = 0usize;
-        merge_frame_captures(&mut records, &mut unresolved, vec![rec], &cls);
-
-        assert_eq!(unresolved, 1, "反查失败应计入 unresolved");
-        assert!(records.is_empty(), "反查失败的记录不得落 L0 占位");
     }
 }

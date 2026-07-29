@@ -524,7 +524,7 @@ pub fn run_theta_v0_pi_overlay(
     let fill = pi_theta_fill_loop_overlay(
         |i| {
             let (cls, tower) = classifier_incr.classify_at(i);
-            otherwise_domain_sidecar.observe_frame(&cls);
+            otherwise_domain_sidecar.observe_frame();
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch();

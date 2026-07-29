@@ -1967,39 +1967,38 @@ fn center_lifecycle_wf8_events_replay() {
     );
 }
 
-/// D4（#606 S1 返工，观测面挪到生产）：一类点 T3-in-c 固定首对分级三锁 + 五桶分级分侧计数——
-/// wf8 全窗重放。观测挂点 = 生产 `classification.levels[lvl].bsp`（[`judge_segment`] 真实产出，
-/// 非诊断复刻塔重判）——[`classifier::grade_first_class_points_against_t3_in_c`] 逐个
-/// `buy1 ∨ sell1` 点产一条 [`classifier::signal::FirstClassGradeRecord`]（`grade` 含
-/// `Present`/`Missing(reason)`）。
+/// D4（#606 S1 第三修复车：换结构，level 传参穿透，删反查机器）：一类点 T3-in-c 固定首对
+/// 分级观测——wf8 全窗重放。观测挂点 = 生产 `judge_segment`（`judge_first_cached` 返回后、
+/// `points.push` 前）——真实调用级别（`extract_first_third_resume` 新增的 `level: u32` 参数，
+/// 由 `mod.rs` 逐级循环 `level_idx` 直接传入）随捕获同时写入，不再需要收尾阶段按身份反查
+/// `classification.levels[lvl].bsp` 补齐（旧版反查/候选分配机器已删，见
+/// `OtherwiseDomainSidecarCollector` 模块头谱系注记）。逐个 `buy1 ∨ sell1` 点产一条
+/// [`classifier::signal::FirstClassGradeRecord`]（`grade` 含 `Present`/`Missing(reason)`）。
 ///
-/// 两把真锁 + 一个恒等展示（★S2 fix2 F2/F3 口径订正，原「三锁」表述过誉，见下）：
+/// 三项统计口径（原「三锁」表述过誉——键唯一是 upsert `HashMap` 的结构性保证，重新验证它只是
+/// 验证数据结构本身，非独立断言，本版不再列为「锁」）：
 ///
-/// ①**键唯一**（`level+source_index+side+center_start_index+zd+zg`，全窗无碰撞，独立
-/// `HashSet` 核验）——真断言，键碰撞立即 panic。
+/// ①**账平**（记录总数 = native(Present) + otherwise(Missing)）——构造性恒等：这是
+/// `T3InCGrade` 定义本身的 `Present`/`Missing` 二分对同一个 `records` vec 的重新求和（同一份
+/// 数据分两类计数再相加，数学上必然回到原总数），不是独立验证，**不作验收证据陈列**，只作
+/// 统计展示（供 #585 逐案对拍读数）。
 ///
 /// ②**基数对拍**（`sidecar.records.len()` 与独立读 `center_lifecycle.jsonl` 的 `kind=="reset"`
-/// 行数相等）——**订正**：本断言只核对两个独立数据源的**总数**相等，不是按
-/// `(level,source_index,side)` 逐键核对独立统计的 `bsp` 一类点计数（代码里没有任何这样的
-/// per-key 计数）。基数相等不排除"漏一多一"相抵（一处漏记、另一处多记，总数照样对得上）；
-/// Reset 广播与一类点记录也只是间接对应（广播时点=瞬时 true 那帧，记录 grade=末次重判，见
-/// [`super::opsem_dump::OtherwiseDomainSidecarSummary`] 文档 F7 口径登记）——原文档「一一对应」
-/// 措辞过誉，改称「基数对拍」。
+/// 行数相等）——两个独立数据源的**总数**核对，不是按 `(level,source_index,side)` 逐键核对
+/// 独立统计的 `bsp` 一类点计数（代码里没有任何这样的 per-key 计数）。基数相等不排除"漏一多一"
+/// 相抵（一处漏记、另一处多记，总数照样对得上）；Reset 广播与一类点记录也只是间接对应（广播
+/// 时点=瞬时 true 那帧，记录 grade=末次重判，见
+/// [`super::opsem_dump::OtherwiseDomainSidecarSummary`] 文档 F7 口径登记）。
 ///
-/// ③**账平展示**（记录总数 = native(Present) + otherwise(Missing)）——**订正**：这是
-/// `T3InCGrade` 定义本身的 `Present`/`Missing` 二分对同一个 `records` vec 的重新求和，
-/// 构造性恒等（同一份数据分两类计数再相加，数学上必然回到原总数），不是独立验证，**不作
-/// 验收证据陈列**，只作统计展示（供 #585 逐案对拍读数）。
-///
-/// 五桶（missing_leave/missing_retest/same_direction/leave_not_outside/retest_reentered）
-/// 计数分级分侧打印进验收行。
+/// ③**五桶分级分侧计数**（missing_leave/missing_retest/same_direction/leave_not_outside/
+/// retest_reentered）——计数分级分侧打印进验收行，供人工核对。
 ///
 /// `#[ignore]`：需 BTC 数据（DATA BLOCKER 不伪造）；wf8 全窗重放，
 /// env `THETA_OTHERWISE_DOMAIN_SIDECAR=1`（测试内部设置，无需外部前缀）。
-/// `cargo test --release --lib theta_v0::backtest::wverify_run::otherwise_domain_wf8_three_locks_and_buckets -- --ignored --nocapture`
+/// `cargo test --release --lib theta_v0::backtest::wverify_run::otherwise_domain_wf8_grade_buckets -- --ignored --nocapture`
 #[test]
-#[ignore = "#606 S1 D4：wf8 全窗一类点分级观测三锁 + 五桶；需 BTC 数据（DATA BLOCKER 不伪造）"]
-fn otherwise_domain_wf8_three_locks_and_buckets() {
+#[ignore = "#606 S1 第三修复车 D4：wf8 全窗一类点分级观测三项口径 + 五桶；需 BTC 数据（DATA BLOCKER 不伪造）"]
+fn otherwise_domain_wf8_grade_buckets() {
     use super::super::classifier::signal::{T3InCGrade, T3InCGradeReason};
     use super::super::types::Side;
     use super::runner::run_theta_v0_pi_overlay;
@@ -2050,7 +2049,7 @@ fn otherwise_domain_wf8_three_locks_and_buckets() {
     assert!(sidecar.frames >= 1, "至少观察到一帧（wf8 非空窗）");
 
     // ── 独立对照：`center_lifecycle.jsonl` 的 Reset 行数（一类确认事件 → Reset 广播，
-    // #489/#585 同口径，与 sidecar 记录数分别独立统计，供锁②对拍）──
+    // #489/#585 同口径，与 sidecar 记录数分别独立统计，供②基数对拍）──
     let lifecycle_text = std::fs::read_to_string(dump_dir.join("center_lifecycle.jsonl"))
         .expect("OPSEM dump 启用 ⟹ center_lifecycle.jsonl 落盘");
     let _ = std::fs::remove_dir_all(&dump_dir);
@@ -2064,8 +2063,9 @@ fn otherwise_domain_wf8_three_locks_and_buckets() {
         })
         .count();
 
-    // ── 锁①键唯一 + 五桶分级分侧计数 + 分级分侧 native/otherwise 总表（供 #585 逐案对拍）──
-    let mut seen_keys = std::collections::HashSet::new();
+    // ── ③五桶分级分侧计数 + 分级分侧 native/otherwise 总表（供 #585 逐案对拍）。键唯一由
+    // `OtherwiseDomainSidecarCollector` 内部 upsert `HashMap` 结构性保证（见其模块头谱系
+    // 注记），本测试不再重复断言（重新验证只是验证数据结构本身，非独立证据）──
     // (level, side) -> [missing_leave, missing_retest, same_direction, leave_not_outside, retest_reentered]
     let mut bucket_counts: std::collections::BTreeMap<(u32, u8), [usize; 5]> =
         std::collections::BTreeMap::new();
@@ -2079,9 +2079,6 @@ fn otherwise_domain_wf8_three_locks_and_buckets() {
             Side::Long => 0u8,
             Side::Short => 1u8,
         };
-        let key =
-            (rec.level, rec.source_index, side_u8, rec.center_start_index, rec.center_zd, rec.center_zg);
-        assert!(seen_keys.insert(key), "★锁①键唯一：重复键 {key:?}");
         let totals = level_side_totals.entry((rec.level, side_u8)).or_insert((0, 0));
         match rec.grade {
             T3InCGrade::Present { .. } => {
@@ -2103,27 +2100,27 @@ fn otherwise_domain_wf8_three_locks_and_buckets() {
         }
     }
 
-    // ── 锁②基数对拍：sidecar 记录数 = center_lifecycle Reset 行数（两个独立数据源的总数核对，
-    // 非按 (level,source_index,side) 逐键核对独立 bsp 计数——不排除漏一多一相抵，见上文档订正）──
+    // ── ②基数对拍：sidecar 记录数 = center_lifecycle Reset 行数（两个独立数据源的总数核对，
+    // 非按 (level,source_index,side) 逐键核对独立 bsp 计数——不排除漏一多一相抵，见上文档）──
     let grand_total = sidecar.records.len();
     assert_eq!(
         grand_total, reset_count,
-        "★锁②基数对拍：sidecar 记录数({grand_total}) == center_lifecycle Reset 行数({reset_count})"
+        "②基数对拍：sidecar 记录数({grand_total}) == center_lifecycle Reset 行数({reset_count})"
     );
 
-    // ── ③账平展示（构造性恒等，非独立验证，仅供 #585 对拍统计口径行；见上文档订正）──
+    // ── ①账平（构造性恒等，非独立验证，仅供 #585 对拍统计口径行；见上文档）──
     assert_eq!(
         grand_total,
         native_count + otherwise_count,
-        "账平展示：一类点总数 = 趋势一类(native) + 否则域(otherwise)（Present/Missing 二分恒等）"
+        "①账平：一类点总数 = 趋势一类(native) + 否则域(otherwise)（Present/Missing 二分恒等）"
     );
 
     eprintln!(
-        "[#606 S1 D4] wf8 一类点 T3-in-c 分级三锁+五桶：frames={} 一类点总数={grand_total} \
+        "[#606 S1 D4] wf8 一类点 T3-in-c 分级观测：frames={} 一类点总数={grand_total} \
          (center_lifecycle reset={reset_count}) native(趋势一类)={native_count} \
          otherwise(否则域)={otherwise_count} \
          (level,side=0long/1short)→(native,otherwise)={level_side_totals:?} \
-         五桶(level,side)→[missing_leave,missing_retest,same_direction,\
+         ③五桶(level,side)→[missing_leave,missing_retest,same_direction,\
          leave_not_outside,retest_reentered]={bucket_counts:?}",
         sidecar.frames,
     );

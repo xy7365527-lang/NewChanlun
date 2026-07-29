@@ -610,7 +610,7 @@ pub(crate) fn t3_in_c_fixed_first_pair(
     }
 }
 
-/// 一类点 T3-in-c 固定首对分级观测记录（#606 S1 返工：挂在生产 `judge_segment` 调
+/// 一类点 T3-in-c 固定首对分级观测记录（#606 S1 第三修复车：挂在生产 `judge_segment` 调
 /// `judge_first_cached` 的真实调用点，`points.push` 之前——非诊断复刻塔重判）。
 ///
 /// 每条记录对应一个当前生产口径下已产出的一类点（`buy1 ∨ sell1`）在
@@ -618,12 +618,11 @@ pub(crate) fn t3_in_c_fixed_first_pair(
 /// 键唯一：`(level, source_index, side, center_start_index, center_zd, center_zg)`；一一对应：
 /// 生产 `bsp` 中每个 `buy1 ∨ sell1` 点恰产一条本记录（无重复判定、无遗漏）。
 ///
-/// `level` 在挂点处（`judge_segment`）不在场——[`extract_first_third_resume`] 每级各调一次，
-/// 但不携带级别号（调用者 `mod.rs` 逐级循环才知道）；穿透整条 `judge_range`/`judge_segment`
-/// 调用链传 `level: u32` 触及面过大（#606 S1 报告 §5.2 已勘验），故本字段在捕获时置 0 占位，
-/// 由 sidecar 收尾时按 `(source_index,side,center)` 反查 `classification.levels[lvl].bsp` 补齐
-/// （[`crate::theta_v0::backtest::opsem_dump::OtherwiseDomainSidecarCollector::finish`]）——
-/// 不改变捕获判据本体，只是级别标签的产出时点后移。
+/// `level` 是**真实调用级别**，非占位：`mod.rs` 逐级循环本就持有 `level_idx`，经
+/// [`extract_first_third_resume`] 的 `level: u32` 参数穿透到 [`judge_segment`]，捕获时直接
+/// 写入本字段——不再有事后按 `(source_index,side,center)` 反查 `classification.levels[lvl].bsp`
+/// 补齐级别的机器（旧版反查在多级巧合同签名时会误配/静默丢记录，见
+/// [`crate::theta_v0::backtest::opsem_dump`] 模块头谱系注记）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct FirstClassGradeRecord {
     pub level: u32,
@@ -637,47 +636,27 @@ pub(crate) struct FirstClassGradeRecord {
     pub grade: T3InCGrade,
 }
 
-/// 捕获记录键（不含 `level`——挂点处不在场，见 [`FirstClassGradeRecord`] 文档）。
-type GradeSidecarKey = (usize, bool, usize, usize, Tick, Tick);
-
-fn grade_sidecar_key(rec: &FirstClassGradeRecord) -> GradeSidecarKey {
-    (
-        rec.source_index,
-        matches!(rec.side, Side::Short),
-        rec.center_start_index,
-        rec.center_end_index,
-        rec.center_zd,
-        rec.center_zg,
-    )
-}
-
 thread_local! {
-    /// #606 S1 返工（S2 fix2 F5 订正）：一类点 T3-in-c 分级 sidecar 捕获槽。`None`（默认，生产
-    /// 恒态）⟹ [`judge_segment`] 挂点读一次 `Cell`（`is_none()`）即返回，零成本；`Some` 仅由
+    /// #606 S1 第三修复车：一类点 T3-in-c 分级 sidecar 捕获槽。`None`（默认，生产恒态）⟹
+    /// [`judge_segment`] 挂点读一次 `Cell`（`is_none()`）即返回，零成本；`Some` 仅由
     /// [`otherwise_domain_sidecar_begin`]（env 门控，同 opsem sidecar 先例）在诊断复放前打开。
     ///
-    /// 值改 `Vec`（原 F5：单值 upsert 覆盖）——键不含 `level`（挂点处不在场，见
-    /// [`FirstClassGradeRecord`] 文档），若两个不同级别在同一帧巧合产出完全相同的
-    /// `(source_index,side,center 四元组)`，单值覆盖会永久丢一条且无锁可查。`Vec` 全部保留，同键
-    /// 下同一点在 frontier tail 阶段被 `judge_segment` 重判多次（段前缀增长、分级结果随之更新）
-    /// 也一并保留、按 push 顺序天然保序——收尾时按 `(level, ...)` 反查再 upsert 折叠，"保留最新
-    /// 一次判定" 的语义挪到收尾阶段（[`crate::theta_v0::backtest::opsem_dump::
-    /// OtherwiseDomainSidecarCollector::observe_frame`]），而非在这里过早丢弃同键的另一级记录。
-    static GRADE_SIDECAR: RefCell<Option<HashMap<GradeSidecarKey, Vec<FirstClassGradeRecord>>>> =
-        RefCell::new(None);
+    /// 纯传递通道（`Vec`，push 序）——每条记录捕获时已携带真实 `level`（调用者传参穿透，见
+    /// [`FirstClassGradeRecord`] 文档），无需在此按签名分组或做候选级别分配；跨帧 upsert 折叠
+    /// （"保留最新一次判定"）在收尾阶段按完整身份键（含 `level`）进行，见
+    /// [`crate::theta_v0::backtest::opsem_dump::OtherwiseDomainSidecarCollector::observe_frame`]。
+    static GRADE_SIDECAR: RefCell<Option<Vec<FirstClassGradeRecord>>> = RefCell::new(None);
 }
 
 /// 打开一类点分级 sidecar 捕获（诊断专用，调用方负责 env 门控）。
 pub(crate) fn otherwise_domain_sidecar_begin() {
-    GRADE_SIDECAR.with(|c| *c.borrow_mut() = Some(HashMap::new()));
+    GRADE_SIDECAR.with(|c| *c.borrow_mut() = Some(Vec::new()));
 }
 
-/// 关闭并取走已捕获记录（`level` 全部占位为 0，调用方按需反查补齐——见
-/// [`FirstClassGradeRecord`] 文档）。未 `begin` 时返回空 Vec。
+/// 关闭并取走已捕获记录（每条记录的 `level` 是捕获时真实调用级别，非占位）。未 `begin` 时
+/// 返回空 Vec。
 pub(crate) fn otherwise_domain_sidecar_take() -> Vec<FirstClassGradeRecord> {
-    GRADE_SIDECAR.with(|c| {
-        c.borrow_mut().take().map(|m| m.into_values().flatten().collect()).unwrap_or_default()
-    })
+    GRADE_SIDECAR.with(|c| c.borrow_mut().take().unwrap_or_default())
 }
 
 /// ★S2 fix2 F1 回归测试专用：只读探针，是否仍在捕获态（`GRADE_SIDECAR.is_some()`）。
@@ -1379,9 +1358,12 @@ pub fn extract_signals_with_hist_anchored(
         let kind_consol = any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation);
         // ★on2w3-07a：单段判定核（第一/盘整/三类）——full 路径与 resume 路径共享，逐字段等价
         // （gate/kind 由 caller 按 O(C) 数组或 pointwise 查询解析后传入，判定逻辑同一份）。
+        // `level: None`——本入口是全量 fallback（也是 `extract_first_third_resume` 内部
+        // debug_assert 对拍重算路径），非生产 incremental 逐 bar 调用点，不参与 sidecar 捕获
+        // （见 `judge_segment` 文档 `level` 参数说明）。
         judge_segment(
             i, seg, c_idx, gate_dir, kind_consol, &sorted, anchors, &anchors_self, &centers_sorted,
-            &mut a_seg_cache, hist, dif, closes_tick, close_src, gauge, &mut points, &mut pan_divs,
+            &mut a_seg_cache, hist, dif, closes_tick, close_src, gauge, None, &mut points, &mut pan_divs,
         );
     }
     // 按 source_index 升序（reference:16 平局裁决键的时间序分量）。force 已收进各 BspPoint.force。
@@ -1412,11 +1394,18 @@ pub fn extract_signals_with_hist_anchored(
 /// **setup 线性化**：`blocks` = caller 已增量产出的 `decompose_resume` 输出（不重 decompose）；门/
 /// 类别用 pointwise `center_own_dir_at`/`center_block_kind_at`（O(log C)/段），不 materialize O(C) 数组；
 /// `first_match_idx` 冗余删除（中枢 end_index 严格递增 ⟹ 三元组唯一 ⟹ pos==c_idx，on2w3 实测 0/7.17M）。
+///
+/// `level`：本入口是生产 incremental 重放的**真实调用点**——`mod.rs` 的 `for level_idx in
+/// 0..=l_max` 塔循环逐级各调一次，`level_idx` 本就在场（#606 S1 第三修复车：level 传参穿透，
+/// 换掉旧版「挂点处不在场 ⟹ sidecar 收尾按身份反查补齐」的反查机器）。原样传给
+/// [`judge_segment`]（`Some(level)`），供一类点 T3-in-c 分级 sidecar（若已打开）捕获时直接
+/// 打上真实级别标签。
 #[allow(clippy::too_many_arguments)]
 pub fn extract_first_third_resume(
     cached_pts: &mut Vec<BspPoint>,
     cached_pans: &mut Vec<PanDivCert>,
     cached_count: &mut usize,
+    level: u32,
     centers: &[Center],
     segments: &[Segment],
     anchor_dirs: Option<&[Option<Direction>]>,
@@ -1485,7 +1474,7 @@ pub fn extract_first_third_resume(
                     any_consol && center_block_kind_at(blocks, c_idx) == Some(MoveKind::Consolidation);
                 judge_segment(
                     i, seg, c_idx, gate_dir, kind_consol, segments, anchors, &anchors_self, centers,
-                    a_cache, hist, dif, closes_tick, close_src, gauge, pts, pans,
+                    a_cache, hist, dif, closes_tick, close_src, gauge, Some(level), pts, pans,
                 );
             }
         };
@@ -1533,6 +1522,12 @@ pub fn extract_first_third_resume(
 /// - `kind_consol`：该段最近中枢按 ownership 落 Consolidation 块（走盘整背驰证书路径）。
 /// - `a_seg_cache`：A 段区间 + 其 b 包络（p117 037:20）按 `last_center_idx=c_idx` 缓存（热点②，
 ///   趋势 τ 下多段共享 A 段对；包络随 I(A) 同槽，`move_range_envelope` 单一来源）。
+/// - `level`：`Some(level_idx)` = 本调用来自 [`extract_first_third_resume`]（生产 incremental
+///   重放路径，`mod.rs` 逐级循环真实持有的级别号，#606 S1 第三修复车传参穿透）——一类点
+///   T3-in-c 分级 sidecar（若已打开）据此捕获，见下方 `GRADE_SIDECAR` 分支。`None` = 本调用来自
+///   [`extract_signals_with_hist_anchored`]（全量 fallback / `extract_first_third_resume` 内部
+///   debug_assert 对拍重算）——该路径不是生产逐 bar 重放的调用点，也可能对同一批段重复判定，
+///   不参与 sidecar 捕获（避免与真实捕获重复写入或写入无意义级别）。
 #[allow(clippy::too_many_arguments)]
 fn judge_segment(
     i: usize,
@@ -1550,6 +1545,7 @@ fn judge_segment(
     closes_tick: &[Tick],
     close_src: &[usize],
     gauge: DivergenceGauge,
+    level: Option<u32>,
     points: &mut Vec<BspPoint>,
     pan_divs: &mut Vec<PanDivCert>,
 ) {
@@ -1584,25 +1580,29 @@ fn judge_segment(
             c, dir, seg, anchors_self[i], hist, dif, closes_tick, close_src, a_seg_entry,
             c_start_entry, gauge,
         ) {
-            // #606 S1 返工：生产挂点否则域观测（判据本体上方未改一行，纯只读旁挂）。sidecar
-            // 未打开（生产恒态）⟹ `borrow().is_none()` 立即短路，零成本。
-            if (pf.bits.buy1 || pf.bits.sell1) && GRADE_SIDECAR.with(|c| c.borrow().is_some()) {
-                let grade = t3_in_c_fixed_first_pair(sorted, c, dir);
-                let rec = FirstClassGradeRecord {
-                    level: 0, // 挂点处不在场，sidecar 收尾按身份反查补齐（见字段文档）。
-                    source_index: pf.source_index,
-                    side: if pf.bits.buy1 { Side::Long } else { Side::Short },
-                    center_start_index: c.start_index,
-                    center_end_index: c.end_index,
-                    center_zd: c.zd,
-                    center_zg: c.zg,
-                    grade,
-                };
-                GRADE_SIDECAR.with(|cell| {
-                    if let Some(m) = cell.borrow_mut().as_mut() {
-                        m.entry(grade_sidecar_key(&rec)).or_insert_with(Vec::new).push(rec);
-                    }
-                });
+            // #606 S1 第三修复车：生产挂点否则域观测（判据本体上方未改一行，纯只读旁挂）。
+            // `level.is_none()`（全量 fallback / debug_assert 对拍路径）或 sidecar 未打开
+            // （生产恒态）⟹ 短路，零成本；`level.is_some() ∧ sidecar 打开` 才真捕获，写入的
+            // `level` 是调用者传入的真实调用级别，非占位。
+            if let Some(lvl) = level {
+                if (pf.bits.buy1 || pf.bits.sell1) && GRADE_SIDECAR.with(|c| c.borrow().is_some()) {
+                    let grade = t3_in_c_fixed_first_pair(sorted, c, dir);
+                    let rec = FirstClassGradeRecord {
+                        level: lvl,
+                        source_index: pf.source_index,
+                        side: if pf.bits.buy1 { Side::Long } else { Side::Short },
+                        center_start_index: c.start_index,
+                        center_end_index: c.end_index,
+                        center_zd: c.zd,
+                        center_zg: c.zg,
+                        grade,
+                    };
+                    GRADE_SIDECAR.with(|cell| {
+                        if let Some(v) = cell.borrow_mut().as_mut() {
+                            v.push(rec);
+                        }
+                    });
+                }
             }
             points.push(pf);
         }
