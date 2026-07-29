@@ -3410,10 +3410,21 @@ fn diag_first_buy() {
         // 二类由 `extract_second_signals` 产，不在本电池输入域）⟹ **点集合与摘要双零变化**。
         // per-case 对拍（oracle 同步填载，「同步非快照」先例）继续逐字段锁定（center 在 PartialEq 内，
         // bsp.rs:170）。若未来电池纳入一/二类路径点致摘要翻转，按上方先例诚实重算并更新本段。
-        // 历史值：`0x56ed_dd65_1c59_5733`（force 引入前，struct_break_dir 后）；
+        // ★#610 诚实重锚（2026-07-29，#308 先例）：翻转引入提交 `bbbd8f89fa`（2026-07-24，
+        // "P1→#214→#218 证书索引口径三部曲"，合法口径演进）对 `BspPoint` 做了两处同时进入
+        // `#[derive(Debug)]` 的改动——新增 `level_origin: u32` 字段（恒 0，#110 面）+
+        // `center: Option<Center>` → `Option<OwnerRef>` 类型改写（#218 面 A，二类点值本身也变
+        // 为 `OwnerRef::Type1Anchor` 坐标，非仅包裹形态）。GOLDEN 未随该提交同步重锚，致
+        // guard 自 `bbbd8f89fa` 起持续红（#491 发现）。归因坐实：`chanlun/review-results/
+        // issue610-digest-guard-attribution-20260728.md`（git bisect + 逐行 diff 定性，唯二
+        // 触及 signal.rs/bsp.rs 的候选提交中确认机制）。ID-6.5 登记见本文件同目录
+        // `owner-attribution-fix-readings-20260724.md` §5（面 A 部分）+
+        // `chanlun/review-results/issue610-id65-supplement-20260729.md`（level_origin 面补记）。
+        // 历史值：`0x90c7_9ee6_17e1_1392`（`bbbd8f89fa` 前，owner 载体补齐后，本次重锚前旧值）；
+        //         `0x56ed_dd65_1c59_5733`（force 引入前，struct_break_dir 后）；
         //         `0x37d2_45a7_cdc5_505a`（P2-R2 前，struct_break_dir 引入前）；
         //         `0x06b3_7c2f_3a5e_9d41`（更早，与 git HEAD oracle 不一致的历史电池状态）。
-        const GOLDEN: u64 = 0x90c7_9ee6_17e1_1392;
+        const GOLDEN: u64 = 0xe6a2_63e3_43e4_3845;
         let digest = bit_exact_battery_digest();
         assert_eq!(
             digest, GOLDEN,
