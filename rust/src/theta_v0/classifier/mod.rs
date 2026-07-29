@@ -1053,6 +1053,41 @@ impl TowerCache {
         &self.l0_units_cache
     }
 
+    /// ★#602（#598 裁定路线 i 在 L3 的延伸）：产出 `tower[level]` 的那一级**窗口扫描输入
+    /// units** 的只读切片。
+    ///
+    /// 下标口径与 [`Self::tower_confirmed_len`] / [`Self::level_scan_cursor`] 一致——`tower[level]`
+    /// 由 `levels[level - 1]` 对某份 `units` 扫描产出，本访问器返回的就是**那一份**：
+    /// - `level == 1` ⟹ [`Self::l0_units`]（L0 段投影，L1 层扫描输入；委托而非重建，
+    ///   两个访问器同源同值）；
+    /// - `level >= 2` ⟹ `levels[level - 2].projected_units`（= `tower[level - 1]` 的
+    ///   [`recursive_tower::project_to_units`] 投影，见 `classify_with_tower_incremental`
+    ///   的 `09_project_to_units_resume` 阶段）；
+    /// - `level == 0`（L0 塔来自 parser 段账本，非窗口扫描产物）与越界级 ⟹ `None`
+    ///   （缺级不猜值，与 [`Self::level_scan_cursor`] 同纪律）。
+    ///
+    /// **为什么必须是这一份而不是从 `tower[level - 1]` 反投影**：provider 侧派生「若把行进中
+    /// 下级单元计入、本级会形成的候选窗口」时要与塔**逐字同输入**重跑扫描；另建一份几何
+    /// 等值但构造路径不同的 units 是第二查法（`center_from_window` 忽略方向 ⟹ 分歧不会
+    /// 在窗口上暴露，只会在方向语义上静默漂移）。
+    ///
+    /// **同长不变式**：`classify_with_tower_incremental` 返回后，
+    /// `level_scan_units(level).len() == tower[level - 1].len()`（`level >= 2`：stage 09
+    /// `truncate(prefix_count)` + `project_to_units_resume` 补齐到 `upper_moves.len()`；
+    /// `level == 1`：`l0_units` 的 #613 同长不变式）。消费方在读点独立复核（#613 先例）。
+    ///
+    /// 只读切片，调用方不得跨下一次增量调用持有。
+    pub fn level_scan_units(&self, level: usize) -> Option<&[UnitRange]> {
+        match level {
+            0 => None,
+            1 => Some(self.l0_units()),
+            _ => self
+                .levels
+                .get(level - 2)
+                .map(|lc| &lc.projected_units[..]),
+        }
+    }
+
     /// #69 5b：classifier level 最近一次使用的 e_src（source_index 量纲）。
     ///
     /// p123 的 target level `L` 以 `L-1` 的 lower legs 判 pan，因此读取

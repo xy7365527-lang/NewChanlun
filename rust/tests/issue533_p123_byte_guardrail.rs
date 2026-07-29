@@ -62,6 +62,7 @@
 //! | `0e0d011da2` | 20k/100k `dump` 行（2000 回落至 `6ebe18eda1`） | #603 档2 回退（revert 报告「golden fixture」节） |
 //! | `dc2b7dd48b` | 2000 dump + 20k/100k `dump` 行 | #618 小修包：诊断行补 `seg_a` 完整锚（**当时无仓内说明——影子评审 #619 M3；说明已补在 `chanlun/review-results/issue619-condition-closure-20260728.md` §M3 与 #533 issue 评论**） |
 //! | 本次（#619） | **无重锚**：新增三份 `*_p116.golden.txt` | L10 补齐 P116 面；stdout/dump 三窗与 `dc2b7dd48b` 逐字节相同（零漂移，见报告 §验收） |
+//! | 本次（#602） | 2000 `dump` 全文 + 20k/100k `dump` 行 | L3 PanLive provider 接线：dump 新增 `level=3` 诊断行、`PAN_LIVE_RECOMPUTE` 补 `l2_resume_from=` 字段（交付报告 `chanlun/review-results/issue602-panlive-l3-provider-20260728.md` §验收 5）。**漂移面仅 dump**：stdout / P116 三窗同轮 `cmp` 全为 0，其 SHA 与 #601/#619 记录逐字相同 |
 
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};

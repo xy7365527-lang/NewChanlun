@@ -168,10 +168,10 @@ use newchan_rust::theta_v0::classifier::nest::{
     TypedNestCertificate,
 };
 use newchan_rust::theta_v0::classifier::nest_lifecycle::{
-    active_l1_window_frontier, active_segment_frontier, feed_replay_bar,
-    provide_active_pan_live_windows, ActiveSegmentFrontier, ForceMaterial, LifecycleRevision,
-    LifecycleSettlementStats, NestLifecycleBook, PanCompletionEvent, PanLiveWindow,
-    PanProviderPhase, ReplayBarFeed, ReplayFeedStats,
+    active_l1_window_frontier, active_l2_window_frontier, active_segment_frontier, feed_replay_bar,
+    provide_active_pan_live_windows, ActiveSegmentFrontier, ActiveWindowFrontier, ForceMaterial,
+    LifecycleRevision, LifecycleSettlementStats, NestLifecycleBook, PanCompletionEvent,
+    PanLiveWindow, PanProviderPhase, ReplayBarFeed, ReplayFeedStats,
 };
 use newchan_rust::theta_v0::classifier::recursive_tower::{
     find_move_by_end_index, LeveledMove, WindowScanCursor,
@@ -554,6 +554,41 @@ struct L1LiveDiagRow {
     /// 产出，见 `provide_active_pan_live_windows`），seg_a 无值可记，恒 None——不是遗漏，
     /// 是该原因码下 seg_a 概念不适用。
     seg_a: Option<(usize, usize)>,
+}
+
+/// #527/#601/#613：**L1/L2** 活窗结构分量的重算判据键——四项逐值相等 ⟹ 定位输出不变 ⟹
+/// 跳过重算是等价优化而非行为改动（逐项来源与「为什么不能少一项」见回放循环内的判据文档）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LifecycleLowerKey {
+    forest_epoch: u64,
+    frontier: Option<ActiveSegmentFrontier>,
+    l1_scan: Option<WindowScanCursor>,
+    l1_confirmed_len: usize,
+}
+
+/// #602：**L3** 活窗结构分量在 [`LifecycleLowerKey`] 之外**多出**的两项塔侧输入。
+///
+/// 两项与 L1 层的同名项同理不可由 `forest_epoch` 覆盖：`level_scan_cursor(2)` 可在塔字节
+/// 不变时前进（不成立支 `i += 1` 推进 `resume_from` 而无窗口产出）；`tower_confirmed_len(2)`
+/// 是**有状态量**（cascade bar 压低的水线跨 bar 保留，恢复那一步不经过 epoch/cursor，#613
+/// 实测 4 例）。L1/L2 **不消费**这两项 ⟹ 它们只驱动 L3 的重算（局部依赖，见
+/// `recompute_lifecycle_window_stems` 文档）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LifecycleUpperKey {
+    l2_scan: Option<WindowScanCursor>,
+    l2_confirmed_len: usize,
+}
+
+/// #602：L2 那一段派生出、**L3 复用**的中间量（递归复合：L3 的虚拟单元 = L2 的活动 C 腿）。
+///
+/// 输入全在 [`LifecycleLowerKey`] 内 ⟹ lower 段不重算时其值不会陈旧，L3 单独重算可直接取。
+/// L2 那一段每次重算**先清空再回填**，任何失败路径都不给 L3 留旧值。
+#[derive(Debug, Clone, Default)]
+struct LowerFrontierCarry {
+    /// 行进中的 L1 窗口单元（[`active_l1_window_frontier`] 产物）。
+    l1_frontier: Option<ActiveWindowFrontier>,
+    /// `lower_legs_from(tower[1])` 的首叶方向列（与 `level_scan_units(2)` 逐位对应）。
+    l1_leg_dirs: Vec<Direction>,
 }
 
 /// #421 逃生门的活窗结构分量；与 p409 `WindowStem` 同键，右端不进身份。`gap_len`
@@ -1060,7 +1095,6 @@ fn run_targeted_prefix_pass(
     let mut views = 0usize;
     let mut last_trigger = None;
     let mut last_lifecycle_trigger = None;
-    let mut last_lifecycle_forest_epoch = None;
     let mut lifecycle_book = NestLifecycleBook::new();
     let mut lifecycle_stats = LifecycleReplayStats::default();
     // #527：活窗结构分量在「confirmed 侧变（forest_epoch）∨ active C frontier 变」时重算；
@@ -1083,10 +1117,26 @@ fn run_targeted_prefix_pass(
     // 直接取 `w_nat` 恢复；而 `forest_epoch`/`scan_cursor` 是当前塔状态的无状态派生量，
     // 恢复那一步不经过它们。漏掉这项 ⟹ 那 4 个 bar 继续用偏保守的 confirmed 侧（少 1–3 个
     // 已确认单元）派生活窗。四项任一变即重算。
+    //
+    // #602：L3 的 C 腿是**再上一层**的同型派生，其两个塔侧输入（L2 层扫描断点
+    // `level_scan_cursor(2)`、`tower[2]` 确认水线 `tower_confirmed_len(2)`）与 L1 层的那两项
+    // **同理不可由 `forest_epoch` 覆盖**（前者可在塔字节不变时前进，后者是有状态量）。但它们
+    // **另立一把键**（[`LifecycleUpperKey`]）而不是并进上面这四项：L1/L2 不消费这两项，并键
+    // = 用不相干的输入去失效可复用的结果（局部依赖原则）。这不是洁癖——并键版实测把
+    // `l1:window` 从 610 顶到 615（重算变频 ⟹ 含 `as_of` 的 `FrontierAheadOfClock` 守卫在更早
+    // 的 bar 被重判 ⟹ L1/L2 产出真的变），会破「L1/L2 逐位零回归」。
+    //
+    // **units 内容不进判据键**（登记，防误读为遗漏）：`level_scan_units(k)` 的内容是
+    // `tower[k-1]` 的纯函数投影（`project_to_units`：坐标/外缘来自元素本身、方向来自
+    // `decompose(centers)`，而 centers 与 upper_moves 1:1），塔字节不变 ⟹ 投影逐值不变 ⟹
+    // 已被 `forest_epoch` 覆盖。逐 bar 比较 units 内容是 O(n)/bar，不为已覆盖的量付这个代价。
     let mut lifecycle_window_stems: Vec<LifecycleWindowStem> = Vec::new();
-    let mut last_lifecycle_frontier: Option<Option<ActiveSegmentFrontier>> = None;
-    let mut last_lifecycle_l1_scan: Option<Option<WindowScanCursor>> = None;
-    let mut last_lifecycle_l1_confirmed_len: Option<usize> = None;
+    // 分级持有（#602）：两段各按自己的键刷新，合并后喂账本。
+    let mut lifecycle_stems_lower: Vec<LifecycleWindowStem> = Vec::new();
+    let mut lifecycle_stems_upper: Vec<LifecycleWindowStem> = Vec::new();
+    let mut lower_frontier_carry = LowerFrontierCarry::default();
+    let mut last_lifecycle_lower_key: Option<LifecycleLowerKey> = None;
+    let mut last_lifecycle_upper_key: Option<LifecycleUpperKey> = None;
     let mut lifecycle_dump = std::env::var("P421_LIFECYCLE_DUMP")
         .ok()
         .map(|path| {
@@ -1122,38 +1172,87 @@ fn run_targeted_prefix_pass(
         let frontier = active_segment_frontier(&l0);
         // #601 L2 活窗：C 腿由「L0 units（confirmed）+ 上面这段虚拟追加」在 L1 层重扫派生，
         // 重扫锚取塔自己的 L1 层扫描断点（只读视图，塔存储零改动）。
-        let l1_scan = cache.level_scan_cursor(1);
-        // #613（#609 F1）：L2 confirmed 侧的整窗截断水线（第四个输入，见上方判据文档）。
-        let l1_confirmed_len = cache.tower_confirmed_len(1);
-        if last_lifecycle_forest_epoch != Some(forest_epoch)
-            || last_lifecycle_frontier != Some(frontier)
-            || last_lifecycle_l1_scan != Some(l1_scan)
-            || last_lifecycle_l1_confirmed_len != Some(l1_confirmed_len)
-        {
+        // #602 L3 活窗：同型再上一层——L2 层扫描断点 + `tower[1]` 投影 units（同样只读）。
+        let l1_view = TowerScanView {
+            units: cache.level_scan_units(1),
+            cursor: cache.level_scan_cursor(1),
+            // #613（#609 F1）：本级 confirmed 侧的整窗截断水线（见上方判据文档）。
+            confirmed_len: cache.tower_confirmed_len(1),
+        };
+        let l2_view = TowerScanView {
+            units: cache.level_scan_units(2),
+            cursor: cache.level_scan_cursor(2),
+            confirmed_len: cache.tower_confirmed_len(2),
+        };
+        let lower_key = LifecycleLowerKey {
+            forest_epoch,
+            frontier,
+            l1_scan: l1_view.cursor,
+            l1_confirmed_len: l1_view.confirmed_len,
+        };
+        let upper_key = LifecycleUpperKey {
+            l2_scan: l2_view.cursor,
+            l2_confirmed_len: l2_view.confirmed_len,
+        };
+        // L1/L2 段按自己的四项键重算（与 #613 逐位相同）；L3 段的输入是**该键 ∪ 上两项**
+        // ——lower 变则 L3 的虚拟单元也变，故 `lower_due ⟹ upper_due`（单向，不反向）。
+        let lower_due = last_lifecycle_lower_key != Some(lower_key);
+        let upper_due = lower_due || last_lifecycle_upper_key != Some(upper_key);
+        if lower_due || upper_due {
             let before = lifecycle_window_stems.len();
             let mut diag_rows: Vec<L1LiveDiagRow> = Vec::new();
-            lifecycle_window_stems = recompute_lifecycle_window_stems(
-                &tower,
-                frontier.as_ref(),
-                cache.l0_units(),
-                l1_scan,
-                l1_confirmed_len,
-                index,
-                &mut lifecycle_stats.l1_live_outcomes,
-                &mut diag_rows,
-            );
+            if lower_due {
+                lifecycle_stems_lower = recompute_lifecycle_window_stems(
+                    1..3,
+                    &tower,
+                    frontier.as_ref(),
+                    l1_view,
+                    l2_view,
+                    &mut lower_frontier_carry,
+                    index,
+                    &mut lifecycle_stats.l1_live_outcomes,
+                    &mut diag_rows,
+                );
+            }
+            if upper_due {
+                lifecycle_stems_upper = recompute_lifecycle_window_stems(
+                    3..4,
+                    &tower,
+                    frontier.as_ref(),
+                    l1_view,
+                    l2_view,
+                    &mut lower_frontier_carry,
+                    index,
+                    &mut lifecycle_stats.l1_live_outcomes,
+                    &mut diag_rows,
+                );
+            }
+            // 合并两段（`LifecycleWindowStem` 的 Ord 以 level 为首字段 ⟹ 拼接后重排即全局有序；
+            // 两段级别不相交 ⟹ dedup 不会跨段吞并）。
+            lifecycle_window_stems = lifecycle_stems_lower
+                .iter()
+                .chain(lifecycle_stems_upper.iter())
+                .copied()
+                .collect();
+            lifecycle_window_stems.sort();
+            lifecycle_window_stems.dedup();
             // #559 C2 观测面：末 L0 单元终点（衔接差 = frontier.start − 该值）与段账本完整性。
             let confirmed_last_end = tower
                 .first()
                 .and_then(|level0| level0.last())
                 .map_or(usize::MAX, |unit| unit.end_index);
             let tower0_units = tower.first().map(|level0| level0.len());
-            match tower0_units {
-                None => lifecycle_stats.seg_ledger_no_tower += 1,
-                Some(units) if units == l0.segments.len() => {
-                    lifecycle_stats.seg_ledger_complete += 1
+            // **只在 lower 段重算时计数**（口径不动）：本观测面问的是「产 L1/L2 活窗那一刻
+            // 段账本是否完整」，与 L3 的两项塔侧输入无关——挂到 union 上会让读数随 #602
+            // 新增的重算次数漂移，那是把不相干的量混进同一个分母。
+            if lower_due {
+                match tower0_units {
+                    None => lifecycle_stats.seg_ledger_no_tower += 1,
+                    Some(units) if units == l0.segments.len() => {
+                        lifecycle_stats.seg_ledger_complete += 1
+                    }
+                    Some(_) => lifecycle_stats.seg_ledger_short += 1,
                 }
-                Some(_) => lifecycle_stats.seg_ledger_short += 1,
             }
             let tower0_units = tower0_units.map_or(usize::MAX, |units| units);
             // 票 #601：行 tag 去掉写死的 "L1_"（同一诊断面现在同时承载 L1/L2），级别改由
@@ -1182,20 +1281,19 @@ fn run_targeted_prefix_pass(
             write_lifecycle_line(
                 &mut lifecycle_dump,
                 format_args!(
-                    "PAN_LIVE_RECOMPUTE as_of={index} frontier={} l1_resume_from={} confirmed_last_end={confirmed_last_end} tower0_units={tower0_units} l0_segments={} stems_before={before} stems_after={}",
+                    "PAN_LIVE_RECOMPUTE as_of={index} frontier={} l1_resume_from={} l2_resume_from={} confirmed_last_end={confirmed_last_end} tower0_units={tower0_units} l0_segments={} stems_before={before} stems_after={}",
                     frontier.map_or("none".to_string(), |f| format!(
                         "({},{},{:?})",
                         f.start_index, f.extreme_at, f.direction
                     )),
-                    l1_scan.map_or(usize::MAX, |cursor| cursor.resume_from),
+                    l1_view.cursor.map_or(usize::MAX, |cursor| cursor.resume_from),
+                    l2_view.cursor.map_or(usize::MAX, |cursor| cursor.resume_from),
                     l0.segments.len(),
                     lifecycle_window_stems.len(),
                 ),
             )?;
-            last_lifecycle_forest_epoch = Some(forest_epoch);
-            last_lifecycle_frontier = Some(frontier);
-            last_lifecycle_l1_scan = Some(l1_scan);
-            last_lifecycle_l1_confirmed_len = Some(l1_confirmed_len);
+            last_lifecycle_lower_key = Some(lower_key);
+            last_lifecycle_upper_key = Some(upper_key);
         }
         let trigger = (forest_epoch, signal_signature(&classification));
         let lifecycle_due = last_lifecycle_trigger.as_ref() != Some(&trigger);
@@ -1647,175 +1745,230 @@ fn lifecycle_leg_as_segment(value: &LowerLeg) -> Segment {
     }
 }
 
-/// #527/#601 活窗发现：**confirmed A/B 锚 + 该级别的 active C 腿**。
+/// #601/#602：塔侧活动语义的只读输入三元，**按「产出 `tower[level]` 的那一级」取值**
+/// （三个访问器同一下标口径，见 `TowerCache::level_scan_units` 文档）。
+#[derive(Clone, Copy)]
+struct TowerScanView<'a> {
+    /// `TowerCache::level_scan_units(level)`——该级窗口扫描的 confirmed 输入 units。
+    units: Option<&'a [UnitRange]>,
+    /// `TowerCache::level_scan_cursor(level)`——该级扫描断点（重扫锚取其 `resume_from`）。
+    cursor: Option<WindowScanCursor>,
+    /// `TowerCache::tower_confirmed_len(level)`——`tower[level]` 的确认水线（#613 整窗截断口径）。
+    confirmed_len: usize,
+}
+
+/// #527/#601/#613/#602 活窗发现：**confirmed A/B 锚 + 该级别的 active C 腿**。
 ///
 /// 与 #421 逃生门原实装的差别（#523 根因）：C 不再从已完成 lower legs 回放重建，而只能是
 /// **塔上尚不存在的行进中腿**——故活窗可在完成前出生。B 中枢仍取 confirmed 侧
 /// （`tower[level]` 的 run 投影 seeds），A 锚仍取 confirmed 段（窄锚/A′ 与 provider 同序同判）。
 ///
-/// **级别范围（票 #601 = #598 裁定路线 i，先 L2 后 L3）**：
+/// **级别范围（票 #601 立 L2、票 #602 补 L3；#598 裁定路线 i，先 L2 后 L3）**：
 /// - **L1**：C = parser 的行进中段（`ActiveSegmentFrontier`，`OpenTail.pendingSegment`）；
 /// - **L2**：C = **行进中的 L1 窗口单元**（[`active_l1_window_frontier`]）——由「`tower[0]`
-///   confirmed units + L0 行进中段虚拟追加」重跑 L1 层窗口判据派生，**不是** `tower[1]` 的
-///   任何已产出窗口（拿后者冒充活动 = 与完成事件同源同判 = 重演 #523）；
-/// - **L3 及以上**：本函数不产活窗（`3.min(tower.len())` 上界）。L3 需要「L2 层行进中窗口」，
-///   其判据是几何路径 `center_from_window` 且输入要换成 L1 层 units + L2 活动腿作虚拟单元，
-///   属另一次递归复合，由 #602 另立——**此处不外推**。L3 身份因此仍只经完成相进账本，
-///   其闪现是 provider 能力缺口，不是 true-flash。
+///   confirmed units + L0 行进中段虚拟追加」重跑 L1 层窗口判据（`center_from_segments`）派生；
+/// - **L3**：C = **行进中的 L2 窗口单元**（[`active_l2_window_frontier`]）——由「`tower[1]`
+///   投影 units + 上一条的产物虚拟追加」重跑 L2 层窗口判据（`center_from_window`，几何路径）
+///   派生。**递归复合一次，不是把 L2 的实装换个参数**：build、输入层、方向来源三处全变
+///   （见该函数文档）。
 ///
-/// 只在 `forest_epoch` / `frontier` / L1 层扫描断点变化时执行（三者是本函数全部输入的
-/// 变化源）；不写生产缓存、不改 trigger/订单/证书路径。
+/// 三级共同的 #523 红线：**都不是** `tower[level]` 的任何已产出窗口（拿后者冒充活动 =
+/// 与完成事件同源同判 = 重演「首见即完成」）。
+///
+/// - **L4 及以上**：本函数不产活窗（上界写死 `1..4`）。其身份仍只经完成相进账本，闪现是
+///   provider 能力缺口，不是 true-flash——**不外推未验证的级别**（#527 §7 纪律）。
+///
+/// **分级重算（票 #602；`lead-parallel-dispatch` 局部依赖原则的直接落地）**：`levels` 指定
+/// 本次要重算哪几级。L1/L2 与 L3 的塔侧输入**不同**——L3 多两个输入（`level_scan_cursor(2)` /
+/// `tower_confirmed_len(2)`），少的那两级不消费它们。把六项并成一个键会**过度失效** L1/L2：
+/// 重算频率变高 ⟹ 含 `as_of` 的守卫（`PanLiveOutcome::FrontierAheadOfClock` 是
+/// `active.end_index > as_of`）在更早的 bar 上被重判 ⟹ L1/L2 的产出**真的会变**
+/// （实测：并键版 `l1:window` 610→615）。故两段各按自己的键重算，L1/L2 逐位不动。
+///
+/// `carry` 承载 L2 派生的中间量供 L3 复用（递归复合；其输入全在 lower 键内 ⟹ L3 单独重算
+/// 时取用不会陈旧）。
 #[allow(clippy::too_many_arguments)]
 fn recompute_lifecycle_window_stems(
+    levels: std::ops::Range<usize>,
     tower: &[Rc<Vec<LeveledMove>>],
     frontier: Option<&ActiveSegmentFrontier>,
-    l0_units: &[UnitRange],
-    l1_scan: Option<WindowScanCursor>,
-    l1_confirmed_len: usize,
+    l1_view: TowerScanView<'_>,
+    l2_view: TowerScanView<'_>,
+    carry: &mut LowerFrontierCarry,
     as_of: usize,
     outcome_tally: &mut BTreeMap<(u32, &'static str), usize>,
     diag_rows: &mut Vec<L1LiveDiagRow>,
 ) -> Vec<LifecycleWindowStem> {
     let mut windows_out = Vec::new();
-    let Some(frontier) = frontier else {
-        // 无行进中 L0 段 ⟹ L1/L2 都没有活动 C 腿（L2 的腿也由该段虚拟追加派生）。
-        // 不回落到 confirmed 回放重建。
-        *outcome_tally.entry((0, "no_active_frontier")).or_default() += 1;
+    /// 记一条未命中诊断（tally + dump 行，两处同码同源——禁两处各写一遍产生漂移）。
+    fn miss(
+        outcome_tally: &mut BTreeMap<(u32, &'static str), usize>,
+        diag_rows: &mut Vec<L1LiveDiagRow>,
+        level: usize,
+        reason: &'static str,
+    ) {
+        *outcome_tally.entry((level as u32, reason)).or_default() += 1;
         diag_rows.push(L1LiveDiagRow {
-            level: 0,
-            reason: "no_active_frontier",
+            level: level as u32,
+            reason,
             b_center_start: None,
             c_start: None,
             gap_len: None,
             seg_a: None,
         });
+    }
+    if frontier.is_none() && levels.start == 1 {
+        // 无行进中 L0 段 ⟹ L1/L2 都没有活动 C 腿（L2 的腿也由该段虚拟追加派生），且 L3 的
+        // 虚拟单元（= L2 的活动腿）随之失效 ⟹ 清 carry，L3 那一段自会落 `no_lower_frontier`。
+        // 不回落到 confirmed 回放重建。
+        miss(outcome_tally, diag_rows, 0, "no_active_frontier");
+        *carry = LowerFrontierCarry::default();
         return Vec::new();
-    };
-    // 上界写死 3（= 覆盖 L1/L2），级别在塔上是否已涌现由**显式原因码**回答而不是静默跳过：
-    // 完成事件的物理完成 bar 可以远早于其首次可见 bar（BTC 100k 滞后最大 4702），故一只 L2
-    // 身份的 C 活跃期可能整段落在「塔还没长出 L2」的时期——那时不产活窗是结构事实，但必须
+    }
+    // 上界写死 4（= 覆盖 L1/L2/L3），级别在塔上是否已涌现由**显式原因码**回答而不是静默跳过：
+    // 完成事件的物理完成 bar 可以远早于其首次可见 bar（BTC 100k 滞后最大 4702），故一只 L2/L3
+    // 身份的 C 活跃期可能整段落在「塔还没长出该级」的时期——那时不产活窗是结构事实，但必须
     // 能落到码上，否则该身份在归因表里没有任何行（#527 §9.2 补记命中行同一纪律）。
-    for level in 1..3 {
+    for level in levels {
+        if level == 2 {
+            // 本级产物先清空——**任何**一条 `continue` 路径都不得给 L3 留下上一轮的陈旧活动腿
+            // （陈旧腿 = 拿别的 bar 的塔状态派生 L3，是凭空发明状态）。成功时在下方回填。
+            *carry = LowerFrontierCarry::default();
+        }
         if level >= tower.len() {
-            *outcome_tally
-                .entry((level as u32, "tower_level_absent"))
-                .or_default() += 1;
-            diag_rows.push(L1LiveDiagRow {
-                level: level as u32,
-                reason: "tower_level_absent",
-                b_center_start: None,
-                c_start: None,
-                gap_len: None,
-                seg_a: None,
-            });
+            miss(outcome_tally, diag_rows, level, "tower_level_absent");
             continue;
         }
+        // 本级 confirmed 腿源。投影失败（`first_leaf_direction` 为 None ⟹ 空 Compose）原实装
+        // 静默 `continue`，在归因表上不留任何行（「零不知道」的一条静默通道）——票 #602 补码。
         let Ok(lower) = lower_legs_from(&tower[level - 1]) else {
+            miss(outcome_tally, diag_rows, level, "lower_legs_unprojectable");
             continue;
         };
+        if level == 2 {
+            // `lower_legs_from(&tower[1])` 在这一轮已算（作 confirmed 段源），L3 需要它的
+            // direction 列作首叶方向表——复用同一份，不二次投影（禁第二查法）。
+            carry.l1_leg_dirs = lower.iter().map(|leg| leg.direction).collect();
+        }
         let mut segments: Vec<Segment> = lower.iter().map(lifecycle_leg_as_segment).collect();
-        // 该级别的 active C 腿：L1 直接用 parser 行进中段；L2 用派生的行进中 L1 窗口单元。
-        let active = match level {
-            1 => frontier.as_segment(),
-            2 => {
-                // ★#613（收 #609 F2）：`l0_units()` 与 `tower[0]` 的同长契约在消费点复核。
+        // 该级别的 active C 腿 + confirmed 侧的整窗截断水线（`None` = 本级不截断，仅 L1）。
+        let (active, truncate_to) = match level {
+            1 => (
+                frontier
+                    .expect("levels.start==1 ⟹ frontier 为 None 时已在上面早退")
+                    .as_segment(),
+                None,
+            ),
+            2 | 3 => {
+                // 视图下标 = 「产出 `tower[level-1]` 的那一级」：level==2 用 L1 层扫描
+                // （消费 `tower[0]` 的投影 units），level==3 用 L2 层扫描（消费 `tower[1]`）。
+                let view = if level == 2 { l1_view } else { l2_view };
+                // ★#613（收 #609 F2）：扫描输入 units 与 `tower[level-1]` 的同长契约在消费点复核。
                 // 根因已在 classifier 侧修死（段账本回缩的 `cache.clear()` 前移到 units 构建之前，
-                // 见 `TowerCache::l0_units` 的同长不变式），本守卫是**契约面的独立可观测**：
-                // 若未来重构再次破坏该不变式，本级落**本码**而不是让派生静默走到重扫上、因
-                // `resume_from==0` 时 `i + 2 < 1` 不成立而伪装成 `no_window_formed`
+                // 见 `TowerCache::l0_units` / `level_scan_units` 的同长不变式），本守卫是**契约面
+                // 的独立可观测**：若未来重构再次破坏该不变式，本级落**本码**而不是让派生静默走到
+                // 重扫上、因 `resume_from==0` 时 `i + 2 < 1` 不成立而伪装成 `no_window_formed`
                 // （#609 F2 钉出的静默通道）。不变式成立时本码恒 0。
-                if l0_units.len() != tower[0].len() {
-                    *outcome_tally
-                        .entry((level as u32, "l0_units_out_of_sync"))
-                        .or_default() += 1;
-                    diag_rows.push(L1LiveDiagRow {
-                        level: level as u32,
-                        reason: "l0_units_out_of_sync",
-                        b_center_start: None,
-                        c_start: None,
-                        gap_len: None,
-                        seg_a: None,
-                    });
+                let Some(units) = view.units else {
+                    miss(outcome_tally, diag_rows, level, "scan_units_absent");
+                    continue;
+                };
+                // 同长基准是 `tower[level - 2]`（该扫描的**输入**塔层），不是 `tower[level - 1]`
+                // （它的**产出**）：level==2 的输入是 `tower[0]`、level==3 的输入是 `tower[1]`。
+                if units.len() != tower[level - 2].len() {
+                    miss(outcome_tally, diag_rows, level, "scan_units_out_of_sync");
                     continue;
                 }
-                // L1 层扫描断点缺失（塔尚未产出该级缓存）⟹ 不猜锚，记原因码后跳过本级。
-                let Some(cursor) = l1_scan else {
-                    *outcome_tally
-                        .entry((level as u32, "resume_anchor_out_of_range"))
-                        .or_default() += 1;
-                    diag_rows.push(L1LiveDiagRow {
-                        level: level as u32,
-                        reason: "resume_anchor_out_of_range",
-                        b_center_start: None,
-                        c_start: None,
-                        gap_len: None,
-                        seg_a: None,
-                    });
+                // 本级扫描断点缺失（塔尚未产出该级缓存）⟹ 不猜锚，记原因码后跳过本级。
+                let Some(cursor) = view.cursor else {
+                    miss(outcome_tally, diag_rows, level, "resume_anchor_out_of_range");
                     continue;
                 };
-                let outcome =
-                    active_l1_window_frontier(l0_units, Some(frontier), cursor.resume_from);
+                // ★#602 **输入侧**的整窗截断（与 #613 F1 的 confirmed 段侧截断同一条水线，
+                // 但作用在扫描输入上；**L3 专有，是结构差异不是折中**）：
+                // - L2 的扫描输入 `l0_units` 是 parser **已 emit** 段的投影，行进中段不在其中
+                //   ⟹ 输入与虚拟单元天然不重叠，无需截断；
+                // - L3 的扫描输入 `l1_units` 是 `tower[1]` 的投影，**含塔的开放末窗单元**，而
+                //   虚拟单元正是那批开放单元「计入行进中 L0 段」后的形态 ⟹ 不截断则恒倒灌
+                //   （BTC 100k 探针实测 `lower_frontier_not_after_units` 728 次）。
+                // 截到 `tower_confirmed_len(1)`——与本级 confirmed 段侧用的是同一条水线证书
+                // （#93 单一来源，禁第二查法）。截断后 `resume_from` 可能落在被截区间内，此时
+                // `scan_active_window` 的锚守卫落 `resume_anchor_out_of_range`（诚实空产出，
+                // **不**把锚往前拽——那是猜塔没走过的扫描路径）。
+                let scan_units = if level == 3 {
+                    &units[..l1_view.confirmed_len.min(units.len())]
+                } else {
+                    units
+                };
+                let outcome = if level == 2 {
+                    active_l1_window_frontier(scan_units, frontier, cursor.resume_from)
+                } else {
+                    // L3：虚拟单元 = L2 那一段派生的行进中 L1 窗口单元；首叶方向表 = 同一段
+                    // 的 `lower_legs_from(tower[1])`。两者缺失（L2 派生失败或本 bar 无行进中
+                    // L0 段）⟹ 本级落 `no_lower_frontier`，成因在同 bar 的 L2 诊断行上。
+                    active_l2_window_frontier(
+                        scan_units,
+                        &carry.l1_leg_dirs[..carry.l1_leg_dirs.len().min(scan_units.len())],
+                        carry.l1_frontier.as_ref(),
+                        cursor.resume_from,
+                    )
+                };
                 let Some(active_window) = outcome.frontier() else {
-                    *outcome_tally
-                        .entry((level as u32, outcome.reason_tag()))
-                        .or_default() += 1;
-                    diag_rows.push(L1LiveDiagRow {
-                        level: level as u32,
-                        reason: outcome.reason_tag(),
-                        b_center_start: None,
-                        c_start: None,
-                        gap_len: None,
-                        seg_a: None,
-                    });
+                    miss(outcome_tally, diag_rows, level, outcome.reason_tag());
                     continue;
                 };
-                let active_segment = active_window.as_segment();
-                // ★confirmed 与 active 不得重叠（L1 的对应事实：parser 的 `l0.segments`
-                // 天然不含 pending 段）。塔在这一点上**不同**：`tower[1]` 的末窗即使仍开放
-                // （未被 non-extension 单元终结、每 bar pop 重扫），在类型上也与确认窗口
-                // 不可区分（#598 §1.1）。行进中 L1 单元正是该末窗「计入行进中 L0 段」后的
-                // 形态。若不截断，末窗会同时以 confirmed 与 active 两个身份进入判定，
-                // `active.start_index < last.end_index` 恒真 ⟹ L2 恒判
-                // `frontier_not_after_confirmed`（BTC 100k 实测 844 次）。
-                //
-                // ★#613（收 #609 F1）：截断口径 = **整窗**，取塔自己的确认水线
-                // `TowerCache::tower_confirmed_len(1)`（`upper_moves.len() -
-                // scan_cursor.last_window_emitted`，cascade bar 另取保留前缀 min(P)），
-                // 即「哪些塔单元算确认」的单一来源（#93 水线证书，`classifier/mod.rs` 自称
-                // 禁第二查法）。**不**再按「同起点 pop 1 个」：塔的 frontier 回退域是整窗产出
-                // （`WindowScanCursor::last_window_emitted` 原文「只 pop 1 会残留旧子中枢」），
-                // #148 升级重切窗一窗产 ⌊n/3⌋ 个子中枢，BTC 100k 实测该游标 3–7 占 20.0%
-                // （227/1134）；单 pop 在这些 bar 上残留 2–6 个**跨 bar 可变**的子单元留在
-                // confirmed 侧，而 seg_a 正是从这批段里定位、且 seg_a 进身份键 ⟹ L2 身份漂移
-                // 通道（#609 §3 实测覆盖 58/314 真产出活窗）。水线口径把这条通道整段关掉。
-                //
-                // 方向安全：水线是**保守下界**（over-shrink 恒 sound、over-grow 禁止），
-                // 截多了只会少产活窗，不会凭空产出；截断后 confirmed 侧全部元素跨 bar 逐字节
-                // 稳定 ⟹ seg_a 的输入稳定。
-                //
-                // **L1 不套用本口径**（不是折中，是结构差异）：L1 的 confirmed 侧是 `tower[0]`
-                // = parser 段账本投影，其 active（parser 的 pending 段）**不在** `l0.segments`
-                // 里 ⟹ F1 的重叠机制在 L1 上不存在，按水线截断只会误删真已终结的单元。
-                // 「L1 confirmed 尾段跨 bar 可重划（古怪线段）」是**另一条**缺陷线索，与本条
-                // 重叠无关，不在本票 Scope（见交付报告遗留）。
-                segments.truncate(l1_confirmed_len);
-                // 截断口径的**可执行契约**（不是注释保证）：水线之外的单元全部属于最后一个
-                // 成立窗口（或 cascade 保留前缀之后），而行进中 L1 单元由该窗口起点
-                // （`resume_from`）重扫派生 ⟹ 其起点不可能早于末确认单元的终点。旧的
-                // 「同起点 pop 1 个」在 `last_window_emitted > 1` 时**违反**本式（#609 F1
-                // 实测 45/93 残留），故本式同时是「整窗口径已生效」的判别。
-                debug_assert!(
-                    segments
-                        .last()
-                        .is_none_or(|last| last.end_index <= active_segment.start_index),
-                    "#613 F1：截断到确认水线后 confirmed 侧仍与 active 重叠（末端 {:?} > active 起点 {}）",
-                    segments.last().map(|last| last.end_index),
-                    active_segment.start_index
-                );
-                active_segment
+                if level == 2 {
+                    carry.l1_frontier = Some(active_window);
+                }
+                (active_window.as_segment(), Some(view.confirmed_len))
             }
-            _ => unreachable!("循环上界写死 `for level in 1..3` ⟹ level ∈ {{1,2}}"),
+            _ => unreachable!("循环上界写死 `for level in 1..4` ⟹ level ∈ {{1,2,3}}"),
         };
+        // ★confirmed 与 active 不得重叠（L1 的对应事实：parser 的 `l0.segments` 天然不含
+        // pending 段）。塔在这一点上**不同**：`tower[k]` 的末窗即使仍开放（未被 non-extension
+        // 单元终结、每 bar pop 重扫），在类型上也与确认窗口不可区分（#598 §1.1）。行进中的
+        // 上级单元正是该末窗「计入行进中下级单元」后的形态。若不截断，末窗会同时以 confirmed
+        // 与 active 两个身份进入判定，`active.start_index < last.end_index` 恒真 ⟹ 该级恒判
+        // `frontier_not_after_confirmed`（L2 上 BTC 100k 实测 844 次）。
+        //
+        // ★#613（收 #609 F1）：截断口径 = **整窗**，取塔自己的确认水线
+        // `TowerCache::tower_confirmed_len(level - 1)`（`upper_moves.len() -
+        // scan_cursor.last_window_emitted`，cascade bar 另取保留前缀 min(P)），即「哪些塔单元
+        // 算确认」的单一来源（#93 水线证书，`classifier/mod.rs` 自称禁第二查法）。**不**按
+        // 「同起点 pop 1 个」：塔的 frontier 回退域是整窗产出
+        // （`WindowScanCursor::last_window_emitted` 原文「只 pop 1 会残留旧子中枢」），#148
+        // 升级重切窗一窗产 ⌊n/3⌋ 个子中枢，BTC 100k 实测该游标 3–7 占 20.0%（227/1134）；单 pop
+        // 在这些 bar 上残留 2–6 个**跨 bar 可变**的子单元留在 confirmed 侧，而 seg_a 正是从这批
+        // 段里定位、且 seg_a 进身份键 ⟹ 身份漂移通道（#609 §3 实测覆盖 58/314 真产出活窗）。
+        // 水线口径把这条通道整段关掉。
+        //
+        // ★票 #602：**L3 与 L2 同构**（`tower[2]` 的开放末窗与确认窗口同样类型上不可区分，
+        // #601 §7 遗留 1 点名的「tower[2] 侧开放末窗截断未做」即本条）——按级别取
+        // `tower_confirmed_len(level - 1)`，同一口径同一来源，不为 L3 另立判据。
+        //
+        // 方向安全：水线是**保守下界**（over-shrink 恒 sound、over-grow 禁止），截多了只会少产
+        // 活窗，不会凭空产出；截断后 confirmed 侧全部元素跨 bar 逐字节稳定 ⟹ seg_a 的输入稳定。
+        //
+        // **L1 不套用本口径**（不是折中，是结构差异）：L1 的 confirmed 侧是 `tower[0]` = parser
+        // 段账本投影，其 active（parser 的 pending 段）**不在** `l0.segments` 里 ⟹ F1 的重叠机制
+        // 在 L1 上不存在，按水线截断只会误删真已终结的单元。「L1 confirmed 尾段跨 bar 可重划
+        // （古怪线段）」是**另一条**缺陷线索，与本条重叠无关，不在本票 Scope（见交付报告遗留）。
+        if let Some(watermark) = truncate_to {
+            segments.truncate(watermark);
+            // 截断口径的**可执行契约**（不是注释保证）：水线之外的单元全部属于最后一个成立窗口
+            // （或 cascade 保留前缀之后），而行进中的上级单元由该窗口起点（`resume_from`）重扫
+            // 派生 ⟹ 其起点不可能早于末确认单元的终点。旧的「同起点 pop 1 个」在
+            // `last_window_emitted > 1` 时**违反**本式（#609 F1 实测 45/93 残留），故本式同时是
+            // 「整窗口径已生效」的判别。
+            debug_assert!(
+                segments
+                    .last()
+                    .is_none_or(|last| last.end_index <= active.start_index),
+                "#613 F1 / #602：level={level} 截断到确认水线后 confirmed 侧仍与 active 重叠（末端 {:?} > active 起点 {}）",
+                segments.last().map(|last| last.end_index),
+                active.start_index
+            );
+        }
         let windows = &tower[level];
         let mut run_start = None;
         for index in 0..=windows.len() {
@@ -2903,6 +3056,126 @@ mod tests {
             provide_active_pan_live_windows(2, &centers, &kinds, &whole_window, active, 70),
             PanLiveOutcome::NoConfirmedCenterBefore,
             "★F1：重叠消除后不再落 frontier_not_after_confirmed，判据按序推进"
+        );
+    }
+
+    /// ★#602：L3 的**扫描输入**必须按 `tower[1]` 的确认水线整窗截断。
+    ///
+    /// L2 与 L3 在这一点上**结构不同**（不是可省的对称补丁）：
+    /// - L2 的扫描输入 `l0_units` 是 parser **已 emit** 段的投影，行进中段在 `tail` 里、
+    ///   不在输入中 ⟹ 输入与虚拟单元天然不重叠；
+    /// - L3 的扫描输入 = `tower[1]` 的投影，**含塔的开放末窗单元**，而虚拟单元（行进中 L1
+    ///   窗口）正是那批开放单元「计入行进中 L0 段」后的形态 ⟹ 二者同起点，不截断即倒灌。
+    ///
+    /// 三分支各钉一条：不截断 = 恒判 `lower_frontier_not_after_units`（BTC 100k 探针实测
+    /// 728 次）；截到水线 = 倒灌消除、判据按序推进；水线取自 `tower_confirmed_len(1)`，与
+    /// L3 confirmed 段侧用的**同一条**水线证书（#93 单一来源）。
+    #[test]
+    fn l3_scan_input_truncates_by_tower1_whole_window_watermark() {
+        use newchan_rust::theta_v0::classifier::center::UnitRange as U;
+        use newchan_rust::theta_v0::classifier::nest_lifecycle::{
+            active_l2_window_frontier, ActiveWindowFrontier, ActiveWindowOutcome,
+        };
+
+        // 5 个 L1 单元（= `tower[1]` 投影，共端点）。末 2 个来自同一个**仍开放**的窗口
+        // ⟹ `tower_confirmed_len(1) == 3`。
+        let unit = |si: usize, ei: usize, lo: i64, hi: i64| U {
+            start_index: si,
+            end_index: ei,
+            direction: Direction::Up,
+            lo,
+            hi,
+        };
+        let l1_units = vec![
+            unit(0, 10, 100, 120),
+            unit(10, 20, 105, 120),
+            unit(20, 30, 105, 125),
+            unit(30, 40, 108, 122), // ← 开放末窗第 1 个子单元
+            unit(40, 50, 106, 124), // ← 第 2 个
+        ];
+        let leg_dirs = vec![Direction::Down; l1_units.len()];
+        let l1_confirmed_len = 3usize;
+        // 行进中 L1 单元 = 该开放窗口「计入行进中 L0 段」后的形态 ⟹ 与 l1_units[3] 同起点。
+        let active = ActiveWindowFrontier {
+            direction: Direction::Down,
+            start_index: 30,
+            end_index: 60,
+            lo: 110,
+            hi: 118,
+        };
+
+        // (a) 不截断：开放末窗以 confirmed + active 双重身份进入 ⟹ 倒灌恒真。
+        assert_eq!(
+            active_l2_window_frontier(&l1_units, &leg_dirs, Some(&active), 0),
+            ActiveWindowOutcome::LowerFrontierNotAfterUnits,
+            "不截断 ⟹ active.start(30) < units.last().end(50)"
+        );
+
+        // (b) 截到水线：输入只剩真确认单元 ⟹ 倒灌消除，虚拟单元被末窗吸收。
+        let scan_units = &l1_units[..l1_confirmed_len];
+        assert_eq!(
+            scan_units.last().map(|last| last.end_index),
+            Some(30),
+            "截断后末确认单元终点(30) <= active 起点(30) ⟹ 不倒灌"
+        );
+        let outcome = active_l2_window_frontier(
+            scan_units,
+            &leg_dirs[..l1_confirmed_len],
+            Some(&active),
+            0,
+        );
+        let frontier = outcome
+            .frontier()
+            .expect("★倒灌消除后判据按序推进，行进中 L1 单元被 L2 层末窗吸收");
+        assert_eq!(
+            (frontier.start_index, frontier.end_index),
+            (0, 60),
+            "行进中 L2 单元右端落在行进中 L1 单元终点——塔上不存在的形态"
+        );
+        assert_eq!(frontier.direction, Direction::Down, "首叶方向表口径");
+    }
+
+    /// ★#602：L3 的 **confirmed 段侧**同样按整窗水线截断（`tower_confirmed_len(2)`），
+    /// 与 #613 在 L2 上的口径逐字同构——#601 §7 遗留 1 点名的「tower[2] 侧开放末窗截断未做」。
+    ///
+    /// provider 本身级别中立，故本测试钉的是**该级别水线口径生效后判据按序推进**：不截断 ⟹
+    /// 恒判 `frontier_not_after_confirmed`；截到水线 ⟹ 不再落该码。
+    #[test]
+    fn l3_confirmed_side_truncates_by_tower2_whole_window_watermark() {
+        use newchan_rust::theta_v0::classifier::nest_lifecycle::PanLiveOutcome;
+
+        let leg = |si: usize, ei: usize, dir: Direction, sp: i64, ep: i64| Segment {
+            direction: dir,
+            start_index: si,
+            end_index: ei,
+            start_price: sp,
+            end_price: ep,
+        };
+        // 6 个 L2 单元（= `lower_legs_from(tower[2])`）。末 3 个 = 开放末窗产物 ⟹ 水线 = 3。
+        let legs = vec![
+            leg(0, 10, Direction::Up, 100, 150),
+            leg(10, 20, Direction::Down, 150, 120),
+            leg(20, 30, Direction::Up, 120, 148),
+            leg(30, 40, Direction::Down, 148, 110),
+            leg(40, 50, Direction::Up, 110, 145),
+            leg(50, 60, Direction::Down, 145, 115),
+        ];
+        let l2_confirmed_len = 3usize;
+        let active = leg(30, 70, Direction::Down, 148, 105);
+        let centers: Vec<Center> = Vec::new();
+        let kinds: Vec<Option<MoveKind>> = Vec::new();
+
+        assert_eq!(
+            provide_active_pan_live_windows(3, &centers, &kinds, &legs, active, 70),
+            PanLiveOutcome::FrontierNotAfterConfirmed,
+            "不截断 ⟹ active.start(30) < confirmed.last().end(60)"
+        );
+        let mut whole_window = legs.clone();
+        whole_window.truncate(l2_confirmed_len);
+        assert_eq!(
+            provide_active_pan_live_windows(3, &centers, &kinds, &whole_window, active, 70),
+            PanLiveOutcome::NoConfirmedCenterBefore,
+            "★整窗截断后不再落 frontier_not_after_confirmed，判据按序推进"
         );
     }
 

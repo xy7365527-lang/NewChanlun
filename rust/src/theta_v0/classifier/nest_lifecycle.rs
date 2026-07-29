@@ -60,9 +60,14 @@
 //!   `OpenTail.pendingSegment`，见 [`ActiveSegmentFrontier`] / [`provide_active_pan_live_windows`]），
 //!   `Completed` **只能**在 lower unit 真正进入 completed set 时构造（[`PanCompletionEvent`]
 //!   携 `completed_lower_id`/`completed_at`）。消费方不再按 `kind == Consolidation` 猜
-//!   provenance。**级别有效域**：只有 L1 有 active lower-frontier；L2/L3 的 `LeveledMove`
-//!   在塔上没有 Active/Completed 表达（#523 遗留 1），故其身份仍只经完成相进账本——那是
-//!   provider 能力缺口，**不冒充** true-flash。
+//!   provenance。**级别有效域**（票 #527 → #601 → #602 逐级推进，照实登记当下状态）：
+//!   L1/L2/L3 三级都已有 active lower-frontier——L1 取 parser 的行进中段
+//!   （[`ActiveSegmentFrontier`]）、L2 取行进中的 L1 窗口单元（[`active_l1_window_frontier`]）、
+//!   L3 取行进中的 L2 窗口单元（[`active_l2_window_frontier`]）。`LeveledMove` 在塔上**仍**
+//!   没有 Active/Completed 之分（#523 遗留 1 的塔侧现状未变），活动语义由 provider 侧
+//!   **只读派生**补齐（#598 裁定路线 i），不写塔。**L4 及以上仍无 active frontier**
+//!   （`p123_fast_replay::recompute_lifecycle_window_stems` 的级别上界写死），其身份只经
+//!   完成相进账本——那是 provider 能力缺口，**不冒充** true-flash。
 //! - **身份消失不变量（票 #559 编排者裁定 2026-07-28，替换 #421 的旧口径）**：旧不变量
 //!   「`IdentityVanished = 0`」**已撤销**——它从来不是设计保证，而是「首见即完成」bug 的
 //!   副产品（活窗与完成同刻出生 ⟹ 身份从不跨 bar 存活 ⟹ 无从消失）。活窗真实存在后，
@@ -98,7 +103,7 @@ use super::ledger_kernel::{
     LedgerRetrogradeRejection, LedgerRevision, LedgerSettlement, LedgerState,
 };
 use super::level_view::{LowerLeg, NestCandidateEvent, NestDivergenceKind};
-use super::center::{center_from_segments, UnitRange};
+use super::center::{center_from_segments, center_from_window, UnitRange};
 use super::recursive_tower::{detect_centers_windowed_resume, map_src_to_close_idx, ElementId};
 use super::signal::{
     locate_pan_div_structure, locate_pan_div_structure_front_anchor,
@@ -1956,25 +1961,36 @@ impl ActiveWindowFrontier {
     }
 }
 
-/// [`active_l1_window_frontier`] 的结果与**未产出原因码**（票 #601；诊断面，不进真值路径）。
+/// [`active_l1_window_frontier`] / [`active_l2_window_frontier`] 的结果与**未产出原因码**
+/// （票 #601 立、票 #602 扩 L2 层；诊断面，不进真值路径）。
 ///
-/// 原因码回答「这只 L2 完成身份为什么没有更早的 Live」——L2 特有的缺口在此照实命名，
+/// 原因码回答「这只 L2/L3 完成身份为什么没有更早的 Live」——塔层特有的缺口在此照实命名，
 /// 不并入 L1 的 [`PanLiveOutcome`] 码表（两者定位的是不同层的失败：本枚举失败在
-/// 「L1 层根本没有行进中单元可作 C」，`PanLiveOutcome` 失败在「有 C 但 A/B 结构定位不成」）。
+/// 「下一级根本没有行进中单元可作 C」，`PanLiveOutcome` 失败在「有 C 但 A/B 结构定位不成」）。
+///
+/// **码表跨级共用、计数禁合并**：本枚举的语义是级别中立的（「行进中下级单元」在 L2 指
+/// L1 窗口单元、在 L3 指 L2 窗口单元），故不为 L3 另起一套同义码——那是同一失败换名，
+/// 属声明膨胀。消费方按 `(level, reason_tag)` 分列计数（`p123_fast_replay` 已如此）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActiveWindowOutcome {
-    /// 派生成功：行进中的 L1 窗口单元。
+    /// 派生成功：行进中的本级窗口单元。
     Frontier(ActiveWindowFrontier),
-    /// L0 无行进中段（parser 无 `PendingSegment`）⟹ 无可虚拟追加的单元。
+    /// 下一级无行进中单元（L2：parser 无 `PendingSegment`；L3：L1 层活动窗口未派生成功
+    /// ——**其具体成因在同一 bar 的 L2 诊断行上**，本码不复述，见函数文档）⟹ 无可虚拟
+    /// 追加的单元。
     NoLowerFrontier,
-    /// 行进中 L0 段与 `tower[0]` 单元序不自洽（起点落在末单元内部）⟹ 拒绝，诚实空产出。
+    /// 行进中下级单元与本级 confirmed units 序不自洽（起点落在末单元内部）⟹ 拒绝，诚实空产出。
     LowerFrontierNotAfterUnits,
-    /// L1 层扫描断点越过 `tower[0]` 单元数（塔与 units 不同步）⟹ 拒绝重扫，不猜锚。
+    /// 本级扫描断点越过 confirmed units 数（塔与 units 不同步）⟹ 拒绝重扫，不猜锚。
     ResumeAnchorOutOfRange,
     /// 虚拟追加后自断点起重扫仍无任何窗口成立（seed 判据不过）。
     NoWindowFormed,
-    /// 重扫末窗**不含**行进中 L0 段 ⟹ 该窗与 `tower[1]` 已有窗口同源，拒绝外推（#523 红线）。
+    /// 重扫末窗**不含**行进中下级单元 ⟹ 该窗与 `tower[level]` 已有窗口同源，拒绝外推
+    /// （#523 红线）。
     LowerFrontierNotAbsorbed,
+    /// 首叶方向表与 confirmed units 不等长（票 #602 只在 L2 层可达）⟹ 拒绝，不猜方向。
+    /// 两者必须逐位对应同一个 `tower[level]` 元素，长度不等即调用方供给失步。
+    LowerLegDirsOutOfSync,
 }
 
 impl ActiveWindowOutcome {
@@ -1987,6 +2003,7 @@ impl ActiveWindowOutcome {
             Self::ResumeAnchorOutOfRange => "resume_anchor_out_of_range",
             Self::NoWindowFormed => "no_window_formed",
             Self::LowerFrontierNotAbsorbed => "lower_frontier_not_absorbed",
+            Self::LowerLegDirsOutOfSync => "lower_leg_dirs_out_of_sync",
         }
     }
 
@@ -1996,6 +2013,85 @@ impl ActiveWindowOutcome {
             _ => None,
         }
     }
+}
+
+/// [`scan_active_window`] 的成功产出：末窗在**扩展后**单元序列上的起点下标 + 该窗几何。
+///
+/// 方向**不在**本结构里：窗口首单元的「首叶方向」（`lower_legs_from` 口径）要按级别到不同
+/// 的来源上取（L1 层 = L0 段单元自带方向；L2 层 = `tower[1]` 元素的 `first_leaf_direction`，
+/// 与投影单元的 ownership 方向**不是**同一个值），故留给各级入口解析。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ActiveWindowScan {
+    /// 末窗起点在「confirmed units ++ 虚拟追加单元」序列上的下标。
+    win_start: usize,
+    /// 末窗首单元起点源坐标。
+    start_index: usize,
+    /// 末窗末单元终点源坐标（= 虚拟追加单元的终点，见吸收判据）。
+    end_index: usize,
+    /// 窗口聚合外缘下沿（`center.dd`）。
+    lo: Tick,
+    /// 窗口聚合外缘上沿（`center.gg`）。
+    hi: Tick,
+}
+
+/// **行进中窗口扫描内核**（票 #602 抽出；L1 层与 L2 层共用同一实装，禁第二查法）。
+///
+/// 算法 = 把 `virtual_unit`（行进中的下级单元，**塔上尚不存在**）作虚拟单元接在
+/// `units` 尾后，从 `resume_from` **重跑与塔逐字相同的窗口扫描**
+/// （[`detect_centers_windowed_resume`]，`build` 由调用方按级别钉死），取末窗。
+///
+/// 为什么 `resume_from` 是合法起点：它就是塔自己每 bar 用的 resume 锚
+/// （`recursive_tower::WindowScanCursor` 文档的 frontier 协议），`units[..resume_from]` 的
+/// 扫描路径确定且与塔一致；本函数只在其**尾部**多喂一个单元，不改前缀。
+///
+/// 三道守卫（全部返回可审计原因码，不 panic、不猜）：
+/// 1. **衔接**：虚拟单元起点不得落在末 confirmed 单元内部（只拒**倒灌**，不拒「有洞」
+///    ——#578 复核已证「有洞」在真实数据里频繁发生，收紧属教义裁决，非本票 Scope）；
+/// 2. **锚在界内**：`resume_from <= units.len()`；
+/// 3. **禁外推**（#523 红线）：末窗必须含虚拟追加单元（`win.1 + 1 == extended.len()`）
+///    ⟺ 扫描因数据耗尽而停（无 non-extension 哨兵）⟺ 该窗口仍开放。否则末窗由纯
+///    confirmed 单元构成，与 `tower[level]` 已有窗口同源，拿它冒充活动 C = 与完成事件
+///    同源同判 = 逐字重演 #523 的「首见即完成」恒等式。
+///
+/// **只取末窗的代数后果（票 #617 同构，照实登记，不是可调项）**：一次重扫可产出 m 个成立
+/// 窗口（#148 升级重切一窗产 ⌊n/3⌋ 个子中枢，或续扫连出多窗）。`windowed.last()` 只取最后
+/// 一个 ⟹ 同批更早的 m−1 个窗口在**任何**粒度上都不曾作为「当下的行进中窗口」存在过——
+/// 与 #617 在 parser `append` 内 while 批量确认上的结论同构：**不是观测缺口，是那个「当下
+/// 状态」根本不存在**。守卫 3 又要求末窗含虚拟单元，故批内更早窗口连被拒的机会都没有
+/// （它们不满足吸收判据）。本函数不为此加队列/回补：那会凭空发明塔从未处于过的状态。
+fn scan_active_window(
+    units: &[UnitRange],
+    virtual_unit: UnitRange,
+    resume_from: usize,
+    build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
+) -> Result<ActiveWindowScan, ActiveWindowOutcome> {
+    if units
+        .last()
+        .is_some_and(|last| virtual_unit.start_index < last.end_index)
+    {
+        return Err(ActiveWindowOutcome::LowerFrontierNotAfterUnits);
+    }
+    if resume_from > units.len() {
+        return Err(ActiveWindowOutcome::ResumeAnchorOutOfRange);
+    }
+    let mut extended = units.to_vec();
+    extended.push(virtual_unit);
+    let (windowed, _metas, _cursor) = detect_centers_windowed_resume(&extended, build, resume_from);
+    let Some((center, win)) = windowed.last().copied() else {
+        return Err(ActiveWindowOutcome::NoWindowFormed);
+    };
+    if win.1 + 1 != extended.len() {
+        return Err(ActiveWindowOutcome::LowerFrontierNotAbsorbed);
+    }
+    Ok(ActiveWindowScan {
+        win_start: win.0,
+        start_index: extended[win.0].start_index,
+        end_index: extended[win.1].end_index,
+        // `center.dd/gg` = 窗口全单元外缘聚合（detect 的 seed 三段交 + 延伸 min/max），
+        // 与该窗若 compose 后的 `rmove.lo()/hi()` 逐值相等（`LeveledMove::envelope` 投影契约）。
+        lo: center.dd,
+        hi: center.gg,
+    })
 }
 
 /// 派生**行进中的 L1 窗口单元**（票 #601 的本体；L2 活窗的 C 来源）。
@@ -2028,46 +2124,104 @@ pub fn active_l1_window_frontier(
     let Some(frontier) = l0_frontier else {
         return ActiveWindowOutcome::NoLowerFrontier;
     };
-    // 衔接守卫与 L1 活窗同口径（`provide_active_pan_live_windows` 的
-    // `frontier_not_after_confirmed`）：只拒**倒灌**（起点落在末单元内部），不拒「有洞」
-    // ——#578 复核已证「有洞」在真实数据里频繁发生，收紧属教义裁决，非本票 Scope。
-    if l0_units
-        .last()
-        .is_some_and(|last| frontier.start_index < last.end_index)
-    {
-        return ActiveWindowOutcome::LowerFrontierNotAfterUnits;
-    }
-    if l1_resume_from > l0_units.len() {
-        return ActiveWindowOutcome::ResumeAnchorOutOfRange;
-    }
     // 虚拟追加单元：口径与 `classifier::segment_to_unit` 逐字相同（lo/hi 按端点价取序，
     // 不假设方向与价序一致）。右端 = 极值结构点（`ActiveSegmentFrontier` 已禁 as_of 冒充）。
-    let mut units = l0_units.to_vec();
-    units.push(UnitRange {
+    let virtual_unit = UnitRange {
         start_index: frontier.start_index,
         end_index: frontier.extreme_at,
         direction: frontier.direction,
         lo: frontier.start_price.min(frontier.extreme),
         hi: frontier.start_price.max(frontier.extreme),
-    });
-    let (windowed, _metas, _cursor) =
-        detect_centers_windowed_resume(&units, center_from_segments, l1_resume_from);
-    let Some((center, win)) = windowed.last().copied() else {
-        return ActiveWindowOutcome::NoWindowFormed;
     };
-    // 末窗必须含虚拟追加单元（⟺ 扫描因数据耗尽而停 ⟺ 窗口仍开放）；否则该窗由纯 confirmed
-    // 单元构成，与 `tower[1]` 已有窗口同源 ⟹ 拒绝外推（#523 红线，见结构体文档）。
-    if win.1 + 1 != units.len() {
-        return ActiveWindowOutcome::LowerFrontierNotAbsorbed;
-    }
+    let scan = match scan_active_window(
+        l0_units,
+        virtual_unit,
+        l1_resume_from,
+        center_from_segments,
+    ) {
+        Ok(scan) => scan,
+        Err(outcome) => return outcome,
+    };
     ActiveWindowOutcome::Frontier(ActiveWindowFrontier {
-        direction: units[win.0].direction,
-        start_index: units[win.0].start_index,
-        end_index: units[win.1].end_index,
-        // `center.dd/gg` = 窗口全单元外缘聚合（detect 的 seed 三段交 + 延伸 min/max），
-        // 与该窗若 compose 后的 `rmove.lo()/hi()` 逐值相等（`LeveledMove::envelope` 投影契约）。
-        lo: center.dd,
-        hi: center.gg,
+        // L1 层的窗口首单元就是一根 L0 段单元，其 `direction` **即**首叶方向
+        // （`segment_to_unit` 直传段方向 ⟹ 与 `lower_legs_from(tower[0])` 的
+        // `first_leaf_direction` 逐值相同）。虚拟单元命中窗口首位时同理（parser 行进中段
+        // 的方向）。故本级无需外部方向表——L2 层不同，见 [`active_l2_window_frontier`]。
+        direction: if scan.win_start < l0_units.len() {
+            l0_units[scan.win_start].direction
+        } else {
+            frontier.direction
+        },
+        start_index: scan.start_index,
+        end_index: scan.end_index,
+        lo: scan.lo,
+        hi: scan.hi,
+    })
+}
+
+/// 派生**行进中的 L2 窗口单元**（票 #602 的本体；L3 活窗的 C 来源）。
+///
+/// 与 [`active_l1_window_frontier`] 的关系：同一内核（[`scan_active_window`]）、同一
+/// frontier 协议、同一禁外推判据；**三处**级别相关的差异全部显式化，不靠参数默认值掩盖：
+///
+/// 1. **build 换几何路径**：本级用 `center::center_from_window`（上级递归层判据：全三段核心
+///    非空，**无方向交替**——上级单元是中枢外缘区间，没有 §6.1 意义的方向维度，见
+///    `center.rs` 的诚实有效域登记）。给 L2 层套 `center_from_segments` 会在几何判据层用
+///    完整判据，产出塔上不可能存在的窗口（#601 已把这条写进拒绝理由）。
+/// 2. **输入换一层**：`l1_units` = `TowerCache::level_scan_units(2)`（= `tower[1]` 的投影，
+///    L2 层扫描的真输入）；虚拟单元 = [`active_l1_window_frontier`] 的产物。
+/// 3. **方向另有来源**：`l1_units[i].direction` 是**投影 ownership 方向**
+///    （`recursive_tower::project_to_units` 的 Q7 口径：中枢 i 落 Trend(d) 块 ⟹ d，否则
+///    endpoint 比较降级），**不是** `lower_legs_from` 的 `first_leaf_direction`。而 L3 活窗
+///    的 confirmed 侧腿取自 `lower_legs_from(tower[2])`（首叶口径），活动腿必须与之同口径
+///    ——否则 `provide_active_pan_live_windows` 里 A/C 结构定位是拿两套方向语义对比。故
+///    首叶方向由调用方按 `l1_leg_dirs`（= `lower_legs_from(tower[1])` 的 direction 列，
+///    与 `l1_units` 逐位对应）供给。L1 层不需要这一项是因为那一级两套方向恰好同值（见上）。
+///
+/// **虚拟单元的 `direction` 字段照实登记**：填 `l1_frontier.direction`（首叶口径），而
+/// `l1_units` 里同位置的元素若已 confirmed 会带 ownership 方向——两者可以不同值。这不构成
+/// 分歧，因为本级 build（`center_from_window`）**不读 direction**，
+/// `detect_centers_windowed_resume` 的延伸判据也只读 `lo/hi`。此处不做「方向无关紧要」的
+/// 静默假设，而是把「本级扫描不消费方向」写成显式登记（090：声明 = 能力）。
+///
+/// 未产出时返回可审计原因码（[`ActiveWindowOutcome`]），禁以「不知道」结账。
+/// `l1_frontier == None`（L1 层活动窗口本身未派生成功）⟹ [`ActiveWindowOutcome::NoLowerFrontier`]
+/// ——**其具体成因由同一次重算里 L2 级的诊断行承载**（两级共用同一 bar 的诊断面，
+/// `p123_fast_replay` 逐级落行），本码不复述以免同一事实两处命名产生漂移。
+pub fn active_l2_window_frontier(
+    l1_units: &[UnitRange],
+    l1_leg_dirs: &[Direction],
+    l1_frontier: Option<&ActiveWindowFrontier>,
+    l2_resume_from: usize,
+) -> ActiveWindowOutcome {
+    let Some(frontier) = l1_frontier else {
+        return ActiveWindowOutcome::NoLowerFrontier;
+    };
+    if l1_leg_dirs.len() != l1_units.len() {
+        return ActiveWindowOutcome::LowerLegDirsOutOfSync;
+    }
+    let virtual_unit = UnitRange {
+        start_index: frontier.start_index,
+        end_index: frontier.end_index,
+        direction: frontier.direction,
+        lo: frontier.lo,
+        hi: frontier.hi,
+    };
+    let scan =
+        match scan_active_window(l1_units, virtual_unit, l2_resume_from, center_from_window) {
+            Ok(scan) => scan,
+            Err(outcome) => return outcome,
+        };
+    ActiveWindowOutcome::Frontier(ActiveWindowFrontier {
+        direction: if scan.win_start < l1_leg_dirs.len() {
+            l1_leg_dirs[scan.win_start]
+        } else {
+            frontier.direction
+        },
+        start_index: scan.start_index,
+        end_index: scan.end_index,
+        lo: scan.lo,
+        hi: scan.hi,
     })
 }
 
@@ -4951,6 +5105,282 @@ mod tests {
         assert!(
             signal.as_of > entry.observed_at,
             "验收 1 主分支在 L2 成立：存在 earlier Live"
+        );
+        book.assert_invariants();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 票 #602：L3 活窗（行进中 L2 窗口单元；build/输入层/方向来源三处换级）
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// L2 层扫描的最小 L1 units 夹具：三段几何重叠 ⟹ `center_from_window` 的核心
+    /// `[max lo, min hi] = [105,120]` 非空 ⟹ seed 成立。
+    ///
+    /// **方向故意全同向**（Up/Up/Up）：L2 层判据是几何路径，**不查方向交替**；同一夹具喂
+    /// L1 层判据（`center_from_segments`）必判 `None`——R2 用这条对照把「build 真的换了」钉死，
+    /// 不靠读代码相信。
+    fn l1_units_seed() -> Vec<UnitRange> {
+        vec![
+            UnitRange {
+                start_index: 0,
+                end_index: 10,
+                direction: Direction::Up,
+                lo: 100,
+                hi: 120,
+            },
+            UnitRange {
+                start_index: 10,
+                end_index: 20,
+                direction: Direction::Up,
+                lo: 105,
+                hi: 120,
+            },
+            UnitRange {
+                start_index: 20,
+                end_index: 30,
+                direction: Direction::Up,
+                lo: 105,
+                hi: 125,
+            },
+        ]
+    }
+
+    /// 行进中的 L1 窗口单元（虚拟追加用）：与末 confirmed 单元共端点，几何触及核心 ⟹ 延伸吸收。
+    fn active_l1_unit() -> ActiveWindowFrontier {
+        ActiveWindowFrontier {
+            direction: Direction::Down,
+            start_index: 30,
+            end_index: 40,
+            lo: 110,
+            hi: 118,
+        }
+    }
+
+    /// R1 行进中 L1 单元被 L2 层窗口吸收 ⟹ 产出**塔上不存在**的行进中 L2 单元；
+    /// 方向取**首叶方向表**而非投影 units 自带的 ownership 方向。
+    ///
+    /// 方向这一条是 L3 特有的正确性点：`level_scan_units(2)[i].direction` 是
+    /// `project_to_units` 的 ownership 方向，`lower_legs_from(tower[1])[i].direction` 是
+    /// `first_leaf_direction`——两者**可以不同值**（本夹具故意让它们相反）。L3 活窗的
+    /// confirmed 侧腿取首叶口径，活动腿必须同口径，否则 A/C 结构定位在拿两套方向语义对比。
+    #[test]
+    fn r1_active_l2_window_frontier_absorbs_active_l1_unit_with_leg_dirs() {
+        let units = l1_units_seed();
+        // 首叶方向表与 units 自带方向**逐位相反**（投影 ownership ≠ 首叶，见函数文档）。
+        let leg_dirs = [Direction::Down, Direction::Down, Direction::Down];
+        let active = active_l1_unit();
+        let outcome = active_l2_window_frontier(&units, &leg_dirs, Some(&active), 0);
+        let frontier = outcome
+            .frontier()
+            .expect("行进中 L1 单元被吸收 ⟹ 有行进中 L2 单元");
+        assert_eq!(outcome.reason_tag(), "active_window");
+        assert_eq!(
+            frontier.direction,
+            Direction::Down,
+            "方向 = 首叶方向表[win.0]（Down），**不是** units[0].direction（Up）"
+        );
+        assert_eq!(frontier.start_index, 0, "起点 = 窗口首单元起点");
+        assert_eq!(
+            frontier.end_index, 40,
+            "右端 = 行进中 L1 单元的终点——`tower[2]` 已产出窗口的右端只能落在 confirmed 单元上（≤30）"
+        );
+        assert_eq!(
+            (frontier.lo, frontier.hi),
+            (100, 125),
+            "外缘 = 窗口全单元聚合（含虚拟单元）"
+        );
+        let segment = frontier.as_segment();
+        assert_eq!(
+            (segment.start_price, segment.end_price),
+            (125, 100),
+            "Down ⟹ (hi, lo)——与 level_view::leg_as_segment 逐字同口径"
+        );
+        assert_eq!((segment.start_index, segment.end_index), (0, 40));
+    }
+
+    /// R2 **build 真的换了**（对照，不是读代码相信）：同一份输入 + 同一份几何虚拟单元，
+    /// L2 层（几何路径 `center_from_window`）成窗，L1 层（完整判据 `center_from_segments`，
+    /// 要求方向交替）判无窗。
+    ///
+    /// 反过来说：若 L3 复用 `active_l1_window_frontier`，本夹具这类**同向重叠**的上级窗口
+    /// 会被整类丢掉（塔的 L2 层扫描恰恰会产出它们）。
+    #[test]
+    fn r2_l2_layer_uses_geometric_build_unlike_l1_layer() {
+        let units = l1_units_seed();
+        let leg_dirs = [Direction::Up, Direction::Up, Direction::Up];
+        let active = active_l1_unit();
+        assert!(
+            active_l2_window_frontier(&units, &leg_dirs, Some(&active), 0)
+                .frontier()
+                .is_some(),
+            "几何路径只要核心非空即成窗"
+        );
+        // 同一几何形态换成 L1 层的输入类型（虚拟单元 lo/hi 逐值相同）。
+        let l0_frontier = ActiveSegmentFrontier {
+            direction: Direction::Down,
+            start_index: 30,
+            start_price: 118,
+            extreme: 110,
+            extreme_at: 40,
+        };
+        assert_eq!(
+            active_l1_window_frontier(&units, Some(&l0_frontier), 0),
+            ActiveWindowOutcome::NoWindowFormed,
+            "完整判据要求方向交替 ⟹ 全同向输入无窗（这正是 L3 不能复用 L1 层实装的原因）"
+        );
+    }
+
+    /// R3 L2 层未产出时的原因码逐条可达（禁以「不知道」结账），含 L3 新增的方向表守卫。
+    #[test]
+    fn r3_active_l2_window_frontier_reason_codes() {
+        let units = l1_units_seed();
+        let leg_dirs = [Direction::Up, Direction::Up, Direction::Up];
+        let active = active_l1_unit();
+
+        // (a) 下一级无行进中单元（L2 层派生本身失败 / 本 bar 无行进中 L0 段）。
+        let none = active_l2_window_frontier(&units, &leg_dirs, None, 0);
+        assert_eq!(none, ActiveWindowOutcome::NoLowerFrontier);
+        assert_eq!(none.reason_tag(), "no_lower_frontier");
+
+        // (b) 首叶方向表与 units 不等长 ⟹ 拒绝，不猜方向。
+        let short = active_l2_window_frontier(&units, &leg_dirs[..2], Some(&active), 0);
+        assert_eq!(short, ActiveWindowOutcome::LowerLegDirsOutOfSync);
+        assert_eq!(short.reason_tag(), "lower_leg_dirs_out_of_sync");
+
+        // (c) 倒灌：行进中单元起点落在末 confirmed 单元内部。
+        let backfill = ActiveWindowFrontier {
+            start_index: 25,
+            ..active
+        };
+        assert_eq!(
+            active_l2_window_frontier(&units, &leg_dirs, Some(&backfill), 0),
+            ActiveWindowOutcome::LowerFrontierNotAfterUnits
+        );
+
+        // (d) 重扫锚越过 units 长度 ⟹ 不猜锚。
+        assert_eq!(
+            active_l2_window_frontier(&units, &leg_dirs, Some(&active), units.len() + 1),
+            ActiveWindowOutcome::ResumeAnchorOutOfRange
+        );
+
+        // (e) 虚拟追加后无窗成立（三段无共同重叠 ⟹ 几何 seed 判据不过）。
+        let disjoint = vec![
+            UnitRange {
+                start_index: 0,
+                end_index: 10,
+                direction: Direction::Up,
+                lo: 100,
+                hi: 110,
+            },
+            UnitRange {
+                start_index: 10,
+                end_index: 30,
+                direction: Direction::Up,
+                lo: 200,
+                hi: 210,
+            },
+        ];
+        assert_eq!(
+            active_l2_window_frontier(&disjoint, &leg_dirs[..2], Some(&active), 0),
+            ActiveWindowOutcome::NoWindowFormed
+        );
+
+        // (f) **禁外推**（#523 红线）：虚拟单元整体在核心之上 ⟹ non-extension ⟹ 末窗由纯
+        //     confirmed 单元构成，与 `tower[2]` 已有窗口同源 ⟹ 拒绝。
+        let above = ActiveWindowFrontier {
+            direction: Direction::Up,
+            start_index: 30,
+            end_index: 40,
+            lo: 130,
+            hi: 140,
+        };
+        let refused = active_l2_window_frontier(&units, &leg_dirs, Some(&above), 0);
+        assert_eq!(refused, ActiveWindowOutcome::LowerFrontierNotAbsorbed);
+        assert!(
+            refused.frontier().is_none(),
+            "拿 tower[2] 已产出窗口冒充行进中单元的路径必须空产出（重演 #523 的锁）"
+        );
+    }
+
+    /// R4 L3 活窗：provider 级别中立在 L3 上成立 + 同身份衔接 + 零回填。
+    ///
+    /// 夹具说明（诚实标注，同 Q4）：`pan_real_fixture` 的 centers/segments 是**级别无关**的
+    /// 结构对象，本测试用它驱动 `level = 3` 的产窗路径——测的是「provider 对任意 level 同判
+    /// + L3 身份的桥衔接与观察钟」，**不是** L3 真实塔数据的端到端复现（后者由 BTC 100k
+    /// 生产回放验收，见交付报告）。C 腿取 [`ActiveWindowFrontier`]（L3 唯一合法来源）。
+    #[test]
+    fn r4_l3_live_window_bridges_completion_without_backfill() {
+        let (centers, kinds, segments, _anchors, hist, dif, close_src) =
+            pan_real_fixture(-0.1, -0.5);
+        let m = material(&hist, &dif, &close_src);
+        let active_l2 = ActiveWindowFrontier {
+            direction: Direction::Down,
+            start_index: 89,
+            end_index: 95,
+            lo: 92,
+            hi: 98,
+        };
+        let outcome = provide_active_pan_live_windows(
+            3,
+            &centers,
+            &kinds,
+            &segments[..4],
+            active_l2.as_segment(),
+            95,
+        );
+        let window = outcome.window().expect("L3 完成前活窗");
+        assert_eq!(window.level, 3, "level 只随窗口带出，不参与判定");
+        assert_eq!(window.seg_a, (50, 59));
+        assert_eq!(window.b_center_start, 20);
+        assert_eq!(window.seg_c_live, (69, 95), "c_start = λ_C；右端随 as_of");
+
+        let mut book = NestLifecycleBook::new();
+        let live_phase = [PanProviderPhase::Live(window)];
+        feed_replay_bar(
+            &mut book,
+            &ReplayBarFeed {
+                as_of: 95,
+                phases: &live_phase,
+            },
+            &m,
+        );
+        let live_entry = book.entries().next().expect("L3 活窗建仓").1;
+        assert_eq!(live_entry.key.level, 3, "身份键携 L3");
+        assert_eq!(live_entry.observed_at, 95, "observed_at = 首次实际观察 bar");
+        assert_ne!(live_entry.observed_at, 69, "禁回填到 c_start");
+
+        // 同一 L3 身份的完成事件到达 ⟹ 桥迁移（不新建），观察钟不被改写。
+        let completion = [PanProviderPhase::Completed(PanCompletionEvent {
+            event: NestCandidateEvent {
+                level: 3,
+                ..pan_event((50, 59), (69, 99), true, 99)
+            },
+            completed_lower_id: ElementId {
+                level: 2,
+                ordinal: 7,
+            },
+            completed_at: 99,
+        })];
+        let (_, stats) = feed_replay_bar(
+            &mut book,
+            &ReplayBarFeed {
+                as_of: 99,
+                phases: &completion,
+            },
+            &m,
+        );
+        assert_eq!(stats.completion_signals, 1);
+        assert_eq!(book.len(), 1, "桥迁移而非新建身份");
+        let entry = book.entries().next().unwrap().1;
+        assert_eq!(entry.observed_at, 95, "完成不改写观察钟");
+        assert_eq!(entry.structure_end_at, Some(99));
+        let settlement = book.settlement_stats();
+        assert_eq!(settlement.flash_terminal_count, 0, "L3 不再是闪现");
+        assert_eq!(settlement.nonflash_lifetime.min, Some(4), "寿命 = 99-95");
+        let signal = book.completion_signals()[0];
+        assert!(
+            signal.as_of > entry.observed_at,
+            "验收 1 主分支在 L3 成立：存在 earlier Live"
         );
         book.assert_invariants();
     }
