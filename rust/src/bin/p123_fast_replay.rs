@@ -169,10 +169,9 @@ use newchan_rust::theta_v0::classifier::nest::{
 };
 use newchan_rust::theta_v0::classifier::nest_lifecycle::{
     active_l1_window_frontier, active_segment_frontier, feed_replay_bar,
-    provide_active_pan_live_windows, ActiveFrontierQueue, ActiveSegmentFrontier, ForceMaterial,
-    LifecycleRevision, LifecycleSettlementStats, NestLifecycleBook, PanCompletionEvent,
-    PanLiveWindow, PanProviderPhase, ReplayBarFeed, ReplayFeedStats,
-    ACTIVE_FRONTIER_QUEUE_DEPTH,
+    provide_active_pan_live_windows, ActiveSegmentFrontier, ForceMaterial, LifecycleRevision,
+    LifecycleSettlementStats, NestLifecycleBook, PanCompletionEvent, PanLiveWindow,
+    PanProviderPhase, ReplayBarFeed, ReplayFeedStats,
 };
 use newchan_rust::theta_v0::classifier::recursive_tower::{
     find_move_by_end_index, LeveledMove, WindowScanCursor,
@@ -549,13 +548,6 @@ struct L1LiveDiagRow {
     c_start: Option<usize>,
     /// 命中时产出窗的 `gap_len`（票 #592；未命中恒 None）。
     gap_len: Option<usize>,
-    /// 产该行的 pending 槽候选起点（票 #603 档 2）。队列化后同一 bar 可有多个候选各出一行，
-    /// 「这一行属于哪个槽」必须逐行自明——否则读者会把历史候选的行读成当下槽的行（090）。
-    /// 级别无关的前置失败（`level == 0`）恒 `None`。
-    cand_start: Option<usize>,
-    /// 该候选距队尾的距离（票 #603 档 2）：`0` = 当下 pending 槽，`≥1` = 曾经的槽快照。
-    /// 与 `cand_start` 同真同假。
-    cand_age: Option<usize>,
 }
 
 /// #421 逃生门的活窗结构分量；与 p409 `WindowStem` 同键，右端不进身份。`gap_len`
@@ -568,21 +560,10 @@ struct LifecycleWindowStem {
     c_start: usize,
     b_center_start: usize,
     gap_len: usize,
-    /// #603 档 2：**历史候选**的活窗右端冻结值（当下槽恒 `None`，右端照旧随 `as_of` 延展）。
-    ///
-    /// 为什么必须冻结：`as_of` 右端表达的是「行进中 C 到当下 bar 为止」，只对**当下**槽成立。
-    /// 历史候选对应的段 parser 早已不再报告（多半已确认终结），把 `as_of` 继续当它的右端 =
-    /// 把该段终结之后的行情算进它的力度 = 伪造 C 的力度（实测：不冻结时 BTC 100k 的
-    /// `ForceOvertake` 从 35 涨到 43，涨出来的全是这种伪反超）。冻结值取该候选快照的极值
-    /// 结构点 `extreme_at`（= `ActiveSegmentFrontier::as_segment().end_index`）——它是 parser
-    /// 最后一次报告该段时的结构右端，`≤` 该候选存活期内的任何 `as_of`，故不引入未来信息，
-    /// 且沿用「禁用 as_of 冒充结构点」的既有纪律。
-    frozen_end: Option<usize>,
 }
 
 impl LifecycleWindowStem {
-    fn of(candidate: &CandidateWindow) -> Self {
-        let window = &candidate.window;
+    fn of(window: &PanLiveWindow) -> Self {
         Self {
             level: window.level,
             side_tag: match window.side {
@@ -593,12 +574,10 @@ impl LifecycleWindowStem {
             c_start: window.seg_c_live.0,
             b_center_start: window.b_center_start,
             gap_len: window.gap_len,
-            frozen_end: (!candidate.is_current).then_some(candidate.frozen_end),
         }
     }
 
     fn window_at(self, as_of: usize) -> PanLiveWindow {
-        let live_end = self.frozen_end.unwrap_or(as_of);
         PanLiveWindow {
             level: self.level,
             side: if self.side_tag == 0 {
@@ -607,7 +586,7 @@ impl LifecycleWindowStem {
                 Side::Short
             },
             seg_a: self.seg_a,
-            seg_c_live: (self.c_start, live_end.max(self.c_start)),
+            seg_c_live: (self.c_start, as_of.max(self.c_start)),
             b_center_start: self.b_center_start,
             gap_len: self.gap_len,
         }
@@ -1099,12 +1078,6 @@ fn run_targeted_prefix_pass(
     // 恢复那一步不经过它们。漏掉这项 ⟹ 那 4 个 bar 继续用偏保守的 confirmed 侧（少 1–3 个
     // 已确认单元）派生活窗。四项任一变即重算。
     let mut lifecycle_window_stems: Vec<LifecycleWindowStem> = Vec::new();
-    // #603（#599 裁定档 2）：pending 槽由「全局唯一」扩展为深度 `ACTIVE_FRONTIER_QUEUE_DEPTH`
-    // 的候选队列。队尾恒为当下 pending 槽（L2 派生仍只用队尾——见
-    // `recompute_lifecycle_window_stems` 的有效域登记）；其余成员是曾经的 pending 槽快照，
-    // 供 L1 继续观测（挽回「候选占槽时 B 尚未确认 / 从未单独占过槽」两类覆盖缺口）。
-    // 重算门控不需要为队列加项：队列是 frontier 值序列的纯函数，frontier 变 ⟺ 队列变。
-    let mut frontier_queue = ActiveFrontierQueue::with_depth(ACTIVE_FRONTIER_QUEUE_DEPTH);
     let mut last_lifecycle_frontier: Option<Option<ActiveSegmentFrontier>> = None;
     let mut last_lifecycle_l1_scan: Option<Option<WindowScanCursor>> = None;
     let mut last_lifecycle_l1_confirmed_len: Option<usize> = None;
@@ -1141,9 +1114,6 @@ fn run_targeted_prefix_pass(
         let forest_epoch = cache.forest_epoch();
         // #527 L1 活窗：C 只能是 parser 的行进中段（active frontier），禁 confirmed 段回放重建。
         let frontier = active_segment_frontier(&l0);
-        // #603 档 2：本 bar 的槽值入队（同值幂等、None 不清队）。队列在门控**之前**推进，
-        // 因为门控要比对的正是"槽值是否变了"这件事本身。
-        frontier_queue.observe(frontier);
         // #601 L2 活窗：C 腿由「L0 units（confirmed）+ 上面这段虚拟追加」在 L1 层重扫派生，
         // 重扫锚取塔自己的 L1 层扫描断点（只读视图，塔存储零改动）。
         let l1_scan = cache.level_scan_cursor(1);
@@ -1158,7 +1128,7 @@ fn run_targeted_prefix_pass(
             let mut diag_rows: Vec<L1LiveDiagRow> = Vec::new();
             lifecycle_window_stems = recompute_lifecycle_window_stems(
                 &tower,
-                &frontier_queue,
+                frontier.as_ref(),
                 cache.l0_units(),
                 l1_scan,
                 l1_confirmed_len,
@@ -1191,16 +1161,13 @@ fn run_targeted_prefix_pass(
                 write_lifecycle_line(
                     &mut lifecycle_dump,
                     format_args!(
-                        "{tag} as_of={index} level={} frontier_start={} reason={} b_center_start={} c_start={} gap_len={} cand_age={}",
+                        "{tag} as_of={index} level={} frontier_start={} reason={} b_center_start={} c_start={} gap_len={}",
                         row.level,
-                        // #603：`frontier_start` 改记**产该行的候选**起点（队列化前恒 = 当下
-                        // 唯一槽，语义相容）；队列位次另由 `cand_age` 字段自明。
-                        row.cand_start.map_or(usize::MAX, |value| value),
+                        frontier.map_or(usize::MAX, |f| f.start_index),
                         row.reason,
                         row.b_center_start.map_or(usize::MAX, |value| value),
                         row.c_start.map_or(usize::MAX, |value| value),
                         row.gap_len.map_or(usize::MAX, |value| value),
-                        row.cand_age.map_or(usize::MAX, |value| value),
                     ),
                 )?;
             }
@@ -1208,18 +1175,11 @@ fn run_targeted_prefix_pass(
             write_lifecycle_line(
                 &mut lifecycle_dump,
                 format_args!(
-                    "PAN_LIVE_RECOMPUTE as_of={index} frontier={} queue={} l1_resume_from={} confirmed_last_end={confirmed_last_end} tower0_units={tower0_units} l0_segments={} stems_before={before} stems_after={}",
+                    "PAN_LIVE_RECOMPUTE as_of={index} frontier={} l1_resume_from={} confirmed_last_end={confirmed_last_end} tower0_units={tower0_units} l0_segments={} stems_before={before} stems_after={}",
                     frontier.map_or("none".to_string(), |f| format!(
                         "({},{},{:?})",
                         f.start_index, f.extreme_at, f.direction
                     )),
-                    // #603 档 2：本次重算实际参与的候选队列（序：最旧 → 最新，末位 = 当下槽）。
-                    frontier_queue
-                        .candidates()
-                        .iter()
-                        .map(|c| c.start_index.to_string())
-                        .collect::<Vec<_>>()
-                        .join(","),
                     l1_scan.map_or(usize::MAX, |cursor| cursor.resume_from),
                     l0.segments.len(),
                     lifecycle_window_stems.len(),
@@ -1696,25 +1656,12 @@ fn lifecycle_leg_as_segment(value: &LowerLeg) -> Segment {
 ///   属另一次递归复合，由 #602 另立——**此处不外推**。L3 身份因此仍只经完成相进账本，
 ///   其闪现是 provider 能力缺口，不是 true-flash。
 ///
-/// **pending 槽队列（票 #603 档 2，#599 编排者裁定）**：L1 的 C 腿不再只取当下唯一 pending
-/// 槽，而是遍历 [`ActiveFrontierQueue`] 的全部候选（深度 [`ACTIVE_FRONTIER_QUEUE_DEPTH`]）。
-/// 每个候选独立跑 `nearest_confirmed_center_idx` + `locate_pan_div_structure`，B 锚一律取
-/// **当下**已确认中枢集合——历史候选因此可以在「它占槽时 B 尚未确认」之后被补上观测。
-///
-/// - **confirmed 侧按候选截断**：历史候选（非当下槽）的 A 锚只能取 `end_index ≤ 候选起点`
-///   的段——即"该候选还是 pending 段时"的 confirmed 前缀。**当下槽不截断**（`partition_point`
-///   在当下槽上恒取全量：parser 的 pending 段不在 `l0.segments` 里 ⟹ 末段
-///   `end_index ≤ 槽起点`），故当下槽这一路的行为与队列化之前逐字节相同。
-/// - **L2 有效域**：L2 的 C 腿仍**只**由当下槽派生（`queue.current()`）——历史槽重扫 L1 层
-///   窗口会拿过期的行进中单元冒充当下（#523 同类错配），且 #599 的量化只覆盖 L1 完成信号。
-///   L2 的覆盖缺口不在本票裁定范围，**不外推**。
-///
-/// 只在 `forest_epoch` / `frontier` / L1 层扫描断点 / L1 确认水线变化时执行（四者是本函数
-/// 全部输入的变化源；队列是 frontier 值序列的纯函数 ⟹ 不需要第五项）；不写生产缓存、
-/// 不改 trigger/订单/证书路径。
+/// 只在 `forest_epoch` / `frontier` / L1 层扫描断点变化时执行（三者是本函数全部输入的
+/// 变化源）；不写生产缓存、不改 trigger/订单/证书路径。
+#[allow(clippy::too_many_arguments)]
 fn recompute_lifecycle_window_stems(
     tower: &[Rc<Vec<LeveledMove>>],
-    queue: &ActiveFrontierQueue,
+    frontier: Option<&ActiveSegmentFrontier>,
     l0_units: &[UnitRange],
     l1_scan: Option<WindowScanCursor>,
     l1_confirmed_len: usize,
@@ -1723,9 +1670,9 @@ fn recompute_lifecycle_window_stems(
     diag_rows: &mut Vec<L1LiveDiagRow>,
 ) -> Vec<LifecycleWindowStem> {
     let mut windows_out = Vec::new();
-    if queue.candidates().is_empty() {
-        // parser 至今未出现过行进中 L0 段 ⟹ L1/L2 都没有活动 C 腿（L2 的腿也由该段虚拟
-        // 追加派生）。不回落到 confirmed 回放重建。
+    let Some(frontier) = frontier else {
+        // 无行进中 L0 段 ⟹ L1/L2 都没有活动 C 腿（L2 的腿也由该段虚拟追加派生）。
+        // 不回落到 confirmed 回放重建。
         *outcome_tally.entry((0, "no_active_frontier")).or_default() += 1;
         diag_rows.push(L1LiveDiagRow {
             level: 0,
@@ -1733,11 +1680,9 @@ fn recompute_lifecycle_window_stems(
             b_center_start: None,
             c_start: None,
             gap_len: None,
-            cand_start: None,
-            cand_age: None,
         });
         return Vec::new();
-    }
+    };
     // 上界写死 3（= 覆盖 L1/L2），级别在塔上是否已涌现由**显式原因码**回答而不是静默跳过：
     // 完成事件的物理完成 bar 可以远早于其首次可见 bar（BTC 100k 滞后最大 4702），故一只 L2
     // 身份的 C 活跃期可能整段落在「塔还没长出 L2」的时期——那时不产活窗是结构事实，但必须
@@ -1753,8 +1698,6 @@ fn recompute_lifecycle_window_stems(
                 b_center_start: None,
                 c_start: None,
                 gap_len: None,
-                cand_start: None,
-                cand_age: None,
             });
             continue;
         }
@@ -1762,39 +1705,9 @@ fn recompute_lifecycle_window_stems(
             continue;
         };
         let mut segments: Vec<Segment> = lower.iter().map(lifecycle_leg_as_segment).collect();
-        if level == 1 {
-            // 档 2：逐候选扫描（含当下槽）。L1 到此为止，不落入下面的 L2 单槽派生。
-            scan_l1_queue_candidates(
-                &tower[level],
-                &segments,
-                queue,
-                as_of,
-                &mut LiveScanSink {
-                    outcome_tally,
-                    diag_rows,
-                    windows_out: &mut windows_out,
-                },
-            );
-            continue;
-        }
-        // 该级别的 active C 腿：L2 用当下槽派生的行进中 L1 窗口单元（历史槽不参与，见函数文档）。
-        let Some(frontier) = queue.current() else {
-            // 当下 bar 无行进中 L0 段 ⟹ L2 没有可派生的 C 腿（历史槽不得冒充当下）。
-            *outcome_tally
-                .entry((level as u32, "no_active_frontier"))
-                .or_default() += 1;
-            diag_rows.push(L1LiveDiagRow {
-                level: level as u32,
-                reason: "no_active_frontier",
-                b_center_start: None,
-                c_start: None,
-                gap_len: None,
-                cand_start: None,
-                cand_age: None,
-            });
-            continue;
-        };
+        // 该级别的 active C 腿：L1 直接用 parser 行进中段；L2 用派生的行进中 L1 窗口单元。
         let active = match level {
+            1 => frontier.as_segment(),
             2 => {
                 // ★#613（收 #609 F2）：`l0_units()` 与 `tower[0]` 的同长契约在消费点复核。
                 // 根因已在 classifier 侧修死（段账本回缩的 `cache.clear()` 前移到 units 构建之前，
@@ -1812,8 +1725,6 @@ fn recompute_lifecycle_window_stems(
                         b_center_start: None,
                         c_start: None,
                         gap_len: None,
-                        cand_start: Some(frontier.start_index),
-                        cand_age: Some(0),
                     });
                     continue;
                 }
@@ -1828,8 +1739,6 @@ fn recompute_lifecycle_window_stems(
                         b_center_start: None,
                         c_start: None,
                         gap_len: None,
-                        cand_start: Some(frontier.start_index),
-                        cand_age: Some(0),
                     });
                     continue;
                 };
@@ -1845,8 +1754,6 @@ fn recompute_lifecycle_window_stems(
                         b_center_start: None,
                         c_start: None,
                         gap_len: None,
-                        cand_start: Some(frontier.start_index),
-                        cand_age: Some(0),
                     });
                     continue;
                 };
@@ -1897,208 +1804,69 @@ fn recompute_lifecycle_window_stems(
             }
             _ => unreachable!("循环上界写死 `for level in 1..3` ⟹ level ∈ {{1,2}}"),
         };
-        scan_runs_for_candidate(
-            CandidateScan {
-                level: level as u32,
-                windows: &tower[level],
-                segments: &segments,
-                active,
-                cand_start: frontier.start_index,
-                cand_age: 0,
-                is_current: true,
-                as_of,
-            },
-            &mut LiveScanSink {
-                outcome_tally,
-                diag_rows,
-                windows_out: &mut windows_out,
-            },
-        );
+        let windows = &tower[level];
+        let mut run_start = None;
+        for index in 0..=windows.len() {
+            let valid = index < windows.len()
+                && project_extended_windows_carried_only(std::slice::from_ref(&windows[index]))
+                    .is_ok();
+            match (run_start, valid) {
+                (None, true) => run_start = Some(index),
+                (Some(start), false) => {
+                    if let Ok(projection) =
+                        project_extended_windows_carried_only(&windows[start..index])
+                    {
+                        let centers: Vec<_> =
+                            projection.seeds.iter().map(|seed| seed.center).collect();
+                        let blocks = decompose::decompose(&centers);
+                        let kinds = decompose::center_block_kind(centers.len(), &blocks);
+                        let outcome = provide_active_pan_live_windows(
+                            level as u32,
+                            &centers,
+                            &kinds,
+                            &segments,
+                            active,
+                            as_of,
+                        );
+                        *outcome_tally
+                            .entry((level as u32, outcome.reason_tag()))
+                            .or_default() += 1;
+                        // 逐 run 落一行（命中/未命中都记）：供「这只完成身份为何没有更早
+                        // Live」逐身份归因（诊断只写不判）。未命中取该 run 最近中枢起点作锚
+                        // 提示；命中取产窗身份的 B 与 λ_C。
+                        diag_rows.push(match outcome.window() {
+                            Some(window) => L1LiveDiagRow {
+                                level: level as u32,
+                                reason: outcome.reason_tag(),
+                                b_center_start: Some(window.b_center_start),
+                                c_start: Some(window.seg_c_live.0),
+                                gap_len: Some(window.gap_len),
+                            },
+                            None => L1LiveDiagRow {
+                                level: level as u32,
+                                reason: outcome.reason_tag(),
+                                b_center_start: centers
+                                    .iter()
+                                    .rev()
+                                    .find(|center| center.end_index <= active.start_index)
+                                    .map(|center| center.start_index),
+                                c_start: None,
+                                gap_len: None,
+                            },
+                        });
+                        windows_out.extend(outcome.window());
+                    }
+                    run_start = None;
+                }
+                _ => {}
+            }
+        }
     }
     let mut stems: Vec<LifecycleWindowStem> =
         windows_out.iter().map(LifecycleWindowStem::of).collect();
     stems.sort();
     stems.dedup();
     stems
-}
-
-/// 一次「候选 × 级别」的活窗扫描输入（票 #603：队列化后同一 bar 要跑多次同形扫描，
-/// 逐参搬运会把参数表撑到 10 个——按 #532 同款收成一个借用体）。
-struct CandidateScan<'a> {
-    level: u32,
-    /// 该级别的塔窗口（run 分组的输入）。
-    windows: &'a [LeveledMove],
-    /// 该候选可用的 confirmed 段（A 锚来源；历史候选已按候选起点截断）。
-    segments: &'a [Segment],
-    /// 该候选的 active C 腿。
-    active: Segment,
-    /// 该候选的 pending 槽起点（诊断行 `frontier_start=`）。
-    cand_start: usize,
-    /// 该候选距队尾的距离（`0` = 队尾）。诊断字段，不参与判定。
-    cand_age: usize,
-    /// 该候选是否为**当下**槽（`queue.is_current_at`）。决定两件事：confirmed 侧是否按候选
-    /// 起点截断，以及活窗右端是否随 `as_of` 延展（见 [`LifecycleWindowStem::frozen_end`]）。
-    is_current: bool,
-    as_of: usize,
-}
-
-/// 一只产出窗 + 它来自当下槽还是历史候选（票 #603：右端延展语义由此分叉，见
-/// [`LifecycleWindowStem::frozen_end`]）。
-#[derive(Clone, Copy)]
-struct CandidateWindow {
-    window: PanLiveWindow,
-    is_current: bool,
-    /// 该候选快照的极值结构点（历史候选的活窗右端冻结值；当下槽不消费本字段）。
-    frozen_end: usize,
-}
-
-/// 活窗扫描的三张出账（计数 / 诊断行 / 产窗）——同样按 #532 口径收簇，避免逐参搬运。
-struct LiveScanSink<'a> {
-    outcome_tally: &'a mut BTreeMap<(u32, &'static str), usize>,
-    diag_rows: &'a mut Vec<L1LiveDiagRow>,
-    windows_out: &'a mut Vec<CandidateWindow>,
-}
-
-/// L1 的队列逐候选扫描（票 #603 档 2）。
-///
-/// confirmed 侧按候选截断：历史候选只看 `end_index ≤ 候选起点` 的段（= 该候选还是 pending
-/// 段时的 confirmed 前缀），**当下槽不截断**（`partition_point` 在当下槽上恒取全量 ⟹ 这一路
-/// 逐字节等同队列化之前）。B 锚一律取当下已确认中枢集合——那正是本档要挽回的信息增量。
-///
-/// 截断口径的**有效域登记**：「end_index ≤ 候选起点的段 ≡ 该候选占槽时的 confirmed 集合」
-/// 依赖段账本对该前缀不再回缩重划。古怪线段导致的尾段跨 bar 重划会破坏该等价（历史候选的
-/// A 锚取到重划后的段），本票不处理——与 #613 F1 注记点名的「L1 confirmed 尾段可重划」是
-/// 同一条待查线索。
-fn scan_l1_queue_candidates(
-    windows: &[LeveledMove],
-    confirmed: &[Segment],
-    queue: &ActiveFrontierQueue,
-    as_of: usize,
-    sink: &mut LiveScanSink<'_>,
-) {
-    let candidates = queue.candidates();
-    for (index, candidate) in candidates.iter().enumerate() {
-        let is_current = queue.is_current_at(index);
-        // ★过期快照守卫（票 #603 档 2）：历史候选的快照拍摄于它还是 pending 段时；parser
-        // 随后确认该段可能把它**截短**（实测：候选 (15738, extreme_at=15862) 确认后的真实段
-        // 是 (15738,15821)）。拿截短前的快照继续产窗 = 用该段真实终结之后的行情算它的力度 =
-        // 伪反超（不设本守卫时 BTC 100k 的 `ForceOvertake` 从 35 涨到 53，涨出来的 13 只全是
-        // 本来 Confirmed/NeverConstituted 的身份被活窗判负）。
-        //
-        // 判据：该候选起点在 confirmed 侧若已有对应段，则快照右端必须与之逐位相同才继续用；
-        // 不同 ⟹ 快照已被重划取代，落**显式原因码**后跳过（不静默丢弃，#527 §9.2 同纪律）。
-        // 该段尚未确认时无从比对，照旧观测（那正是它还在被跟踪的理由）。
-        let redivided = !is_current
-            && confirmed
-                .iter()
-                .find(|seg| seg.start_index == candidate.start_index)
-                .is_some_and(|seg| seg.end_index != candidate.extreme_at);
-        if redivided {
-            *sink
-                .outcome_tally
-                .entry((1, "stale_candidate_redivided"))
-                .or_default() += 1;
-            sink.diag_rows.push(L1LiveDiagRow {
-                level: 1,
-                reason: "stale_candidate_redivided",
-                b_center_start: None,
-                c_start: None,
-                gap_len: None,
-                cand_start: Some(candidate.start_index),
-                cand_age: Some(candidates.len() - 1 - index),
-            });
-            continue;
-        }
-        let segments = if is_current {
-            confirmed
-        } else {
-            &confirmed[..confirmed.partition_point(|seg| seg.end_index <= candidate.start_index)]
-        };
-        scan_runs_for_candidate(
-            CandidateScan {
-                level: 1,
-                windows,
-                segments,
-                active: candidate.as_segment(),
-                cand_start: candidate.start_index,
-                cand_age: candidates.len() - 1 - index,
-                is_current,
-                as_of,
-            },
-            sink,
-        );
-    }
-}
-
-/// 单个候选在该级别塔上的 run 分组扫描（原 `recompute_lifecycle_window_stems` 内联循环，
-/// 票 #603 抽出以供 L1 逐候选复用；判据/顺序/原因码逐字未动）。
-fn scan_runs_for_candidate(scan: CandidateScan<'_>, sink: &mut LiveScanSink<'_>) {
-    let mut run_start = None;
-    for index in 0..=scan.windows.len() {
-        let valid = index < scan.windows.len()
-            && project_extended_windows_carried_only(std::slice::from_ref(&scan.windows[index]))
-                .is_ok();
-        match (run_start, valid) {
-            (None, true) => run_start = Some(index),
-            (Some(start), false) => {
-                if let Ok(projection) =
-                    project_extended_windows_carried_only(&scan.windows[start..index])
-                {
-                    let centers: Vec<_> =
-                        projection.seeds.iter().map(|seed| seed.center).collect();
-                    let blocks = decompose::decompose(&centers);
-                    let kinds = decompose::center_block_kind(centers.len(), &blocks);
-                    let outcome = provide_active_pan_live_windows(
-                        scan.level,
-                        &centers,
-                        &kinds,
-                        scan.segments,
-                        scan.active,
-                        scan.as_of,
-                    );
-                    *sink
-                        .outcome_tally
-                        .entry((scan.level, outcome.reason_tag()))
-                        .or_default() += 1;
-                    // 逐 run 落一行（命中/未命中都记）：供「这只完成身份为何没有更早
-                    // Live」逐身份归因（诊断只写不判）。未命中取该 run 最近中枢起点作锚
-                    // 提示；命中取产窗身份的 B 与 λ_C。
-                    sink.diag_rows.push(match outcome.window() {
-                        Some(window) => L1LiveDiagRow {
-                            level: scan.level,
-                            reason: outcome.reason_tag(),
-                            b_center_start: Some(window.b_center_start),
-                            c_start: Some(window.seg_c_live.0),
-                            gap_len: Some(window.gap_len),
-                            cand_start: Some(scan.cand_start),
-                            cand_age: Some(scan.cand_age),
-                        },
-                        None => L1LiveDiagRow {
-                            level: scan.level,
-                            reason: outcome.reason_tag(),
-                            b_center_start: centers
-                                .iter()
-                                .rev()
-                                .find(|center| center.end_index <= scan.active.start_index)
-                                .map(|center| center.start_index),
-                            c_start: None,
-                            gap_len: None,
-                            cand_start: Some(scan.cand_start),
-                            cand_age: Some(scan.cand_age),
-                        },
-                    });
-                    sink.windows_out
-                        .extend(outcome.window().map(|window| CandidateWindow {
-                            window,
-                            is_current: scan.is_current,
-                            frozen_end: scan.active.end_index,
-                        }));
-                }
-                run_start = None;
-            }
-            _ => {}
-        }
-    }
 }
 
 /// #532：`hist`/`dif`/`close_src` 三元 Data Clumps 收束——三者恒由同一
@@ -3038,49 +2806,16 @@ mod tests {
             c_start: 30,
             b_center_start: 20,
             gap_len: 7,
-            frozen_end: None,
         };
         let first = stem.window_at(30);
         let later = stem.window_at(99);
-        let as_current = |window: PanLiveWindow| CandidateWindow {
-            window,
-            is_current: true,
-            frozen_end: 0,
-        };
 
-        assert_eq!(LifecycleWindowStem::of(&as_current(first)), stem);
-        assert_eq!(LifecycleWindowStem::of(&as_current(later)), stem);
+        assert_eq!(LifecycleWindowStem::of(&first), stem);
+        assert_eq!(LifecycleWindowStem::of(&later), stem);
         assert_eq!(first.seg_c_live, (30, 30));
         assert_eq!(later.seg_c_live, (30, 99));
         assert_eq!(first.gap_len, 7, "gap_len 随身份延展原样带出，不因右端前进重算");
         assert_eq!(later.gap_len, 7);
-    }
-
-    /// ★#603 档 2：**历史候选**的活窗右端冻结在候选快照的极值结构点，不随 `as_of` 延展
-    /// （否则把该段终结之后的行情算进它的力度 = 伪反超）。当下槽不受影响（上一测试锚定）。
-    #[test]
-    fn lifecycle_window_stem_freezes_right_edge_for_stale_candidate() {
-        let live = CandidateWindow {
-            window: PanLiveWindow {
-                level: 1,
-                side: Side::Long,
-                seg_a: (10, 19),
-                seg_c_live: (30, 44),
-                b_center_start: 20,
-                gap_len: 0,
-            },
-            is_current: false,
-            frozen_end: 44,
-        };
-        let stem = LifecycleWindowStem::of(&live);
-        assert_eq!(stem.frozen_end, Some(44), "历史候选带冻结右端");
-        assert_eq!(
-            stem.window_at(99).seg_c_live,
-            (30, 44),
-            "as_of 前进不改历史候选的活窗右端"
-        );
-        // 同一候选逐 bar 产出的 stem 逐位相同 ⟹ 身份键不动 ⟹ 不产生 Supersedes 洪水。
-        assert_eq!(LifecycleWindowStem::of(&live), stem);
     }
 
     /// ★#613（收 #609 F1）：L2 的 confirmed 侧必须按**整窗**（塔的确认水线）截断，
