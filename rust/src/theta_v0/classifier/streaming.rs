@@ -7,7 +7,10 @@
 use super::super::config::ThetaConfig;
 use super::super::parser;
 use super::super::types::Bar;
-use super::{classify_with_tower_incremental, recursive_tower::LeveledMove, Classification, TowerCache};
+use super::{
+    cand_event::CandidateStreams, classify_with_tower_events_incremental,
+    classify_with_tower_incremental, recursive_tower::LeveledMove, Classification, TowerCache,
+};
 
 /// **自持缓冲区的增量分类器变体**（#345，Nautilus 流式适配——#342 O(n²) 根因的修复）。
 ///
@@ -78,6 +81,27 @@ impl OwnedIncrementalClassifier {
     /// （如 `ThetaCore::bars.push(new_bar)` 后）直接把新 bar 传入本方法，无需持有一个生命
     /// 周期内稳定不变的完整切片。
     pub fn append_bar(&mut self, bar: Bar) -> (Classification, Vec<std::rc::Rc<Vec<LeveledMove>>>) {
+        let l0 = self.append_parse(bar);
+        classify_with_tower_incremental(&l0, &self.config, &mut self.tower_cache)
+    }
+
+    /// #550 三元事件通道（SPEC #547 第四入口）。
+    ///
+    /// `append_bar` 保持既有二元 API；需要候选事件尾的消费方显式选择本入口。两者共用
+    /// 同一增量 parse/tower/cache，事件簿随 `TowerCache` 跨 bar 持久。
+    pub fn append_bar_events(
+        &mut self,
+        bar: Bar,
+    ) -> (
+        Classification,
+        Vec<std::rc::Rc<Vec<LeveledMove>>>,
+        CandidateStreams,
+    ) {
+        let l0 = self.append_parse(bar);
+        classify_with_tower_events_incremental(&l0, &self.config, &mut self.tower_cache)
+    }
+
+    fn append_parse(&mut self, bar: Bar) -> parser::ParseLayer {
         let l0 = parser::append_incr_layer(
             &mut self.incr_inclusion,
             &mut self.incr_fractals,
@@ -87,6 +111,6 @@ impl OwnedIncrementalClassifier {
             &self.config.parse,
         );
         self.bars_appended += 1;
-        classify_with_tower_incremental(&l0, &self.config, &mut self.tower_cache)
+        l0
     }
 }

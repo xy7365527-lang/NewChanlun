@@ -149,6 +149,11 @@
 //! 强制重估并与缓存路径逐字比对 + TERM 门控旁证；mismatch 打 stderr，计数入
 //! P123_SPARSE_SUMMARY；长期回归开关，不进验收面）。#421 自有可选侧信道：
 //! `P421_LIFECYCLE_DUMP=<path>`（活假设 feed/revision/异常审计；只写不判）。
+//! #553（N1-T4）自有可选侧信道：`P123_EVENT_DUMP=<path>`（候选事件流逐条：key/级别/状态/
+//! 钟/区间/修订号；行口径见 [`EventDump`] 文档与
+//! `chanlun/review-results/issue553-t4-acceptance-20260728.md`）。**独立 sink 独立文件**——
+//! 既有 `P116_DUMP` 行的产生条件、字段与行序零扰动，既有封印面不含本路任何字节；
+//! 只写不判（无第二读点），env 未设时零行为差异。本路不进 §5 验收面。
 
 use newchan_rust::theta_v0::classifier;
 use newchan_rust::theta_v0::classifier::bsp::BspPoint;
@@ -365,6 +370,132 @@ fn nest_kind_tag(kind: NestDivergenceKind) -> &'static str {
     match kind {
         NestDivergenceKind::Trend => "trend",
         NestDivergenceKind::Consolidation => "pan",
+    }
+}
+
+/// #553（N1-T4）候选事件 dump 侧信道的 env 开关名（唯一字面量来源）。
+const EVENT_DUMP_ENV: &str = "P123_EVENT_DUMP";
+
+/// #553（N1-T4）候选事件 dump 侧信道：`P123_EVENT_DUMP=<path>` 时把**候选事件流**逐条落盘。
+///
+/// 只写不判（090 能力声明，三条构造性保证）：
+/// 1. **既有封印零扰动**——本路持有自己的 writer 与自己的文件，与 `P116_DUMP`
+///    （CERT/DIV/TERM/TURN/TURN_CLASS/FALLBACK 全套含行序）分属两个 sink；既有行的
+///    产生条件、字段与落盘顺序不被本路读写触碰，既有验收面不含本路任何字节。
+/// 2. **零判定消费 / 零生产路径读取**——`revisions`/`seq` 只在 [`EventDump::observe`]
+///    内自增自读，无第二个读点；账本（candidates/divergences/term_seen）、dirty 判据、
+///    pending 出清、证书装配、stdout 门行都不读本结构。本结构也不回写事件。
+/// 3. **env 未设 ⟹ 零行为差异**——`writer=None` 时 `observe` 首行即返回，不记 revision、
+///    不推 seq、不格式化，成本 = 一次 `Option::is_none`。
+///
+/// **边界（写失败的传播口径，照实声明）**：`writer` 为 `Some` 时，[`EventDump::observe`]
+/// 的写失败经调用点的 `?` 上抛（调用点在 prefix replay 的事件应用循环
+/// [`apply_targeted_events`]，逐层经 [`evaluate_and_apply_targeted_trigger`]、
+/// [`process_targeted_bar`] 的 `?` 冒到 [`run_targeted_prefix_pass`]），会**中止 prefix
+/// pass**；此时 [`finalize_targeted_pass`] 内既有的 `P421_LIFECYCLE_DUMP` sidecar 收尾
+/// flush（先执行）与随后的 [`EventDump::flush`] 一并被跳过（`run_targeted_prefix_pass`
+/// 提前返回 ⟹ 收尾函数整体不可达）。**上抛不止于此**：该 `Err` 继续经
+/// `main` 内 [`run_targeted_prefix_pass`] 调用点的 `?` 逃出 `main`，`main` 尾部的
+/// [`dump_flush`] 调用**同样不可达**；而 [`DUMP`] 是 `static OnceLock<..BufWriter..>`，
+/// Rust 的 `static` **不执行 `Drop`** ⟹ 既有 `P116_DUMP` 的缓冲尾字节**静默丢失**
+///（受损面 = 既有封印文件；本结构自己的 `BufWriter` 由局部的 [`TargetedPassState`]
+/// 持有，提前返回时随之 drop、drop 时会冲刷）。
+/// 这与 `#421` 的 `P421_LIFECYCLE_DUMP` 侧信道写失败同形（同样经 [`write_lifecycle_line`]
+/// 以 `?` 上抛，同样使 [`dump_flush`] 不可达）——**既有形状，非本路新引入**；与既有
+/// [`dump_line`]（`P116_DUMP`）的**吞错**口径不同款——`dump_line` 写失败被 `let _ = ...`
+/// 吸收，不上抛、不中止重放。关灯路径（env 未设 ⟹ `writer=None`）不受本边界影响：
+/// `observe` 首行即返回 `Ok(())`，不存在写失败面，第 3 条「env 未设 ⟹ 零行为差异」的
+/// 声明不因本边界而弱化。
+///
+/// 行口径（一行一条候选事件观察，字段序固定；见验收报告 §dump 口径）：
+/// ```text
+/// EVENT seq=<全局行序,0基> rev=<同 EventKey 第几次观察,1基> as_of=<观察 bar>
+///       level=<级别> side=<Long|Short> kind=<trend|pan> div=<0|1 背驰确认位>
+///       pending=<0|1 观察瞬间是否仍在 pending 集合> turn_source=<拐点源坐标>
+///       judge_at=<provider 判定钟> seg_a=<s>..<e> interval_b=<s>..<e>
+///       interval_a=<s>..<e> provider_window=<s>..<e> b_center_start=<B 中枢身份快照>
+///       intake_fallback=<0|1>
+/// ```
+/// 「状态」= `div`+`pending`；「钟」= `as_of`/`judge_at`/`turn_source`；
+/// 「区间」= `seg_a`/`interval_b`/`interval_a`/`provider_window`；「修订号」= `rev`
+///（同一 EventKey 被候选事件流重复观察的次数，`div` 与钟不进 key ⟹ 同 key 的状态迁移
+/// 在 rev 递增的同一序列里可读出）。
+struct EventDump {
+    writer: Option<Box<dyn Write>>,
+    /// dump 专用修订计数；无第二读点（见上「零判定消费」）。
+    revisions: BTreeMap<EventKey, u64>,
+    seq: u64,
+}
+
+impl EventDump {
+    fn new(writer: Option<Box<dyn Write>>) -> Self {
+        Self {
+            writer,
+            revisions: BTreeMap::new(),
+            seq: 0,
+        }
+    }
+
+    /// `P123_EVENT_DUMP=<path>` 门控构造；未设 env ⟹ 关灯（零行为差异）。
+    fn from_env() -> Result<Self, String> {
+        let writer = std::env::var(EVENT_DUMP_ENV)
+            .ok()
+            .map(|path| {
+                File::create(&path)
+                    .map(|file| Box::new(BufWriter::new(file)) as Box<dyn Write>)
+                    .map_err(|error| format!("创建 {EVENT_DUMP_ENV}={path} 失败: {error}"))
+            })
+            .transpose()?;
+        Ok(Self::new(writer))
+    }
+
+    fn observe(
+        &mut self,
+        event: &NestCandidateEvent,
+        as_of: usize,
+        pending_hit: bool,
+    ) -> Result<(), String> {
+        let Some(writer) = self.writer.as_mut() else {
+            return Ok(());
+        };
+        let revision = self.revisions.entry(EventKey::from(event)).or_insert(0);
+        *revision += 1;
+        let line = format!(
+            "EVENT seq={} rev={} as_of={} level={} side={:?} kind={} div={} pending={} \
+turn_source={} judge_at={} seg_a={}..{} interval_b={}..{} interval_a={}..{} \
+provider_window={}..{} b_center_start={} intake_fallback={}",
+            self.seq,
+            revision,
+            as_of,
+            event.level,
+            event.side,
+            nest_kind_tag(event.kind),
+            u8::from(event.divergence_confirmed),
+            u8::from(pending_hit),
+            event.turn_source,
+            event.judge_at,
+            event.seg_a.0,
+            event.seg_a.1,
+            event.interval_b.0,
+            event.interval_b.1,
+            event.interval_a.0,
+            event.interval_a.1,
+            event.provider_window.0,
+            event.provider_window.1,
+            event.b_center_start,
+            u8::from(event.intake_fallback),
+        );
+        self.seq += 1;
+        writeln!(writer, "{line}").map_err(|error| format!("写 {EVENT_DUMP_ENV} 失败: {error}"))
+    }
+
+    fn flush(&mut self) -> Result<(), String> {
+        match self.writer.as_mut() {
+            Some(writer) => writer
+                .flush()
+                .map_err(|error| format!("刷新 {EVENT_DUMP_ENV} 失败: {error}")),
+            None => Ok(()),
+        }
     }
 }
 
@@ -1251,6 +1382,8 @@ struct TargetedPassState<'c> {
     last_lifecycle_lower_key: Option<LifecycleLowerKey>,
     last_lifecycle_upper_key: Option<LifecycleUpperKey>,
     lifecycle_dump: Option<BufWriter<File>>,
+    // #553（N1-T4）候选事件 dump：独立 sink，与 P116_DUMP 既有封印面互不触碰（只写不判）。
+    event_dump: EventDump,
     // ── p123 稀疏状态 ──
     derived: BTreeMap<usize, LevelDerived>,
     entries: BTreeMap<(usize, usize), RunEntry>,
@@ -1291,6 +1424,7 @@ impl<'c> TargetedPassState<'c> {
             last_lifecycle_lower_key: None,
             last_lifecycle_upper_key: None,
             lifecycle_dump,
+            event_dump: EventDump::from_env()?,
             derived: BTreeMap::new(),
             entries: BTreeMap::new(),
             bsp_snaps: BTreeMap::new(),
@@ -1627,8 +1761,7 @@ fn evaluate_and_apply_targeted_trigger(
             state, level, run_sources, tower, index, shadow, &mut out, &mut fresh_levels,
         )?;
     }
-    apply_targeted_events(state, out, targets, classification, &fresh_levels, &bsp_changed, index, shadow);
-    Ok(())
+    apply_targeted_events(state, out, targets, classification, &fresh_levels, &bsp_changed, index, shadow)
 }
 
 fn group_pending_runs_by_level(
@@ -2024,11 +2157,16 @@ fn apply_targeted_events(
     bsp_changed: &BTreeMap<usize, bool>,
     index: usize,
     shadow: bool,
-) {
+) -> Result<(), String> {
     // ── 事件应用循环：与 p116 逐行一致，仅 TERM 查法加判据 (iv) 门控 ──
     for event in out {
         let key = EventKey::from(&event);
-        if !state.pending.contains(&key) {
+        let pending_hit = state.pending.contains(&key);
+        // #553 候选事件 dump（只写不判）：写在既有 pending 短路**之前** ⟹ 落盘的是
+        // 完整候选事件流（含本 trigger 内已被前序事件出清的观察）。`pending.contains`
+        // 是纯查询，提出到 `pending_hit` 不改变既有控制流与既有 dump 行的产生顺序。
+        state.event_dump.observe(&event, index, pending_hit)?;
+        if !pending_hit {
             continue;
         }
         state.book.candidates.entry(key.clone()).or_insert(index);
@@ -2051,6 +2189,7 @@ fn apply_targeted_events(
             state.pending.remove(&key);
         }
     }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2257,6 +2396,9 @@ fn finalize_targeted_pass(
             .flush()
             .map_err(|error| format!("刷新 P421_LIFECYCLE_DUMP 失败: {error}"))?;
     }
+    // #553：事件 dump 收尾 flush 排在既有 P421_LIFECYCLE_DUMP 收尾 flush **之后**
+    //（与 ticket-553 原口径同序；两者分属独立 sink，互不触碰）。
+    state.event_dump.flush()?;
     let pending_len = state.pending.len();
     Ok((
         state.book,
@@ -3598,6 +3740,7 @@ fn date_to_timestamp(date: &str) -> Timestamp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::RefCell;
 
     /// 逃生门身份键不含活窗右端：相邻 bar 只延展 `seg_c_live.1`，不得另造身份。
     /// `gap_len`（票 #592）是产窗时刻冻结的诊断快照，随身份一起延展，不因右端前进而重算。
@@ -3814,6 +3957,139 @@ mod tests {
             PanLiveOutcome::NoConfirmedCenterBefore,
             "★整窗截断后不再落 frontier_not_after_confirmed，判据按序推进"
         );
+    }
+
+    /// #553 测试夹具：候选事件（字段全显式，行格式逐字断言的唯一输入源）。
+    fn sample_event(turn_source: usize, divergence_confirmed: bool) -> NestCandidateEvent {
+        NestCandidateEvent {
+            level: 2,
+            side: Side::Short,
+            kind: NestDivergenceKind::Consolidation,
+            seg_a: (10, 19),
+            interval_b: (20, 39),
+            interval_a: (40, 59),
+            divergence_confirmed,
+            turn_source,
+            judge_at: 777,
+            provider_window: (5, 70),
+            intake_fallback: false,
+            b_center_start: 20,
+        }
+    }
+
+    /// #553 门控：env 未设（writer=None）⟹ 观察候选事件流零落盘、零副作用可见面。
+    #[test]
+    fn event_dump_disabled_writes_nothing() {
+        let mut dump = EventDump::new(None);
+        dump.observe(&sample_event(100, true), 123, true).unwrap();
+        dump.observe(&sample_event(101, false), 124, false).unwrap();
+        assert!(dump.writer.is_none());
+        assert_eq!(dump.seq, 0);
+        assert!(dump.revisions.is_empty());
+    }
+
+    /// #553 行格式 + 修订号：同 EventKey 复现 ⟹ rev 递增；行序号 seq 全局单调。
+    #[test]
+    fn event_dump_line_format_and_revision_monotonic() {
+        let sink: Rc<RefCell<Vec<u8>>> = Rc::new(RefCell::new(Vec::new()));
+        let mut dump = EventDump::new(Some(Box::new(SharedSink(Rc::clone(&sink)))));
+        dump.observe(&sample_event(100, false), 123, true).unwrap();
+        dump.observe(&sample_event(100, true), 130, true).unwrap();
+        dump.observe(&sample_event(200, true), 130, false).unwrap();
+
+        let text = String::from_utf8(sink.borrow().clone()).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 3);
+        assert_eq!(
+            lines[0],
+            "EVENT seq=0 rev=1 as_of=123 level=2 side=Short kind=pan div=0 pending=1 \
+turn_source=100 judge_at=777 seg_a=10..19 interval_b=20..39 interval_a=40..59 \
+provider_window=5..70 b_center_start=20 intake_fallback=0"
+        );
+        // 同 key（div 不进 EventKey）第二次观察 ⟹ rev=2，且 div/时钟按当次实况落盘。
+        assert_eq!(
+            lines[1],
+            "EVENT seq=1 rev=2 as_of=130 level=2 side=Short kind=pan div=1 pending=1 \
+turn_source=100 judge_at=777 seg_a=10..19 interval_b=20..39 interval_a=40..59 \
+provider_window=5..70 b_center_start=20 intake_fallback=0"
+        );
+        // 不同 key（turn_source 进 EventKey）⟹ rev 重新从 1 起；seq 继续单调。
+        assert_eq!(
+            lines[2],
+            "EVENT seq=2 rev=1 as_of=130 level=2 side=Short kind=pan div=1 pending=0 \
+turn_source=200 judge_at=777 seg_a=10..19 interval_b=20..39 interval_a=40..59 \
+provider_window=5..70 b_center_start=20 intake_fallback=0"
+        );
+    }
+
+    /// 测试用共享 sink：把 dump 落盘面引到内存，验证行内容逐字。
+    struct SharedSink(Rc<RefCell<Vec<u8>>>);
+
+    impl Write for SharedSink {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.borrow_mut().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// 测试用故障 sink：`write`/`flush` 按开关返回 `Err`，纯内存构造（不碰文件系统/进程 env），
+    /// 用于锁定 [`EventDump::observe`]/[`EventDump::flush`] 写失败经 `?` 上抛的传播边界（#553）。
+    /// 不包 `BufWriter`——`BufWriter` 会缓冲写入，写失败要等到缓冲区满/显式 flush 才暴露，
+    /// 直接把它作为 `Box<dyn Write>` 传给 `EventDump::new` 才能在 `observe` 单次调用内测到。
+    struct FailingSink {
+        fail_on_write: bool,
+        fail_on_flush: bool,
+    }
+
+    impl Write for FailingSink {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.fail_on_write {
+                Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "boom"))
+            } else {
+                Ok(buf.len())
+            }
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            if self.fail_on_flush {
+                Err(std::io::Error::new(std::io::ErrorKind::Other, "boom"))
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    /// #553 边界：`observe` 的写失败经调用点 `?` 上抛（模块头「边界」段落），错误消息含
+    /// `EVENT_DUMP_ENV` 常量渲染的字面量 `"P123_EVENT_DUMP"`——锁定常量确实被插值，不是占位符。
+    #[test]
+    fn event_dump_observe_propagates_write_error() {
+        let sink = FailingSink {
+            fail_on_write: true,
+            fail_on_flush: false,
+        };
+        let mut dump = EventDump::new(Some(Box::new(sink) as Box<dyn Write>));
+        let err = dump
+            .observe(&sample_event(100, true), 123, true)
+            .expect_err("write 失败必须经 ? 上抛为 Err，不得被吞掉");
+        assert!(err.contains("写 P123_EVENT_DUMP 失败"), "{err}");
+    }
+
+    /// #553 边界：`flush` 的写失败同样经 `?` 上抛，错误消息含同一字面量渲染的 `"刷新 …失败"` 前缀。
+    #[test]
+    fn event_dump_flush_propagates_flush_error() {
+        let sink = FailingSink {
+            fail_on_write: false,
+            fail_on_flush: true,
+        };
+        let mut dump = EventDump::new(Some(Box::new(sink) as Box<dyn Write>));
+        let err = dump
+            .flush()
+            .expect_err("flush 失败必须经 ? 上抛为 Err，不得被吞掉");
+        assert!(err.contains("刷新 P123_EVENT_DUMP 失败"), "{err}");
     }
 
     /// #69 5b / T5：dirty 更新只替换代次/事件载荷，run-local pan memo 的持有地址不变。
