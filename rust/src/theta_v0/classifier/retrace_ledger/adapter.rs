@@ -97,6 +97,19 @@ pub enum RetraceRejection {
         incoming_side: RetraceSide,
         incoming_leave_end: RetracePoint,
     },
+    /// 改口处死知情时护栏：`kill_as_rebased` 落锤前 `as_of` 早于旧档门卫钟（裁定二 fail-loud
+    /// 同族；影子评审 #622 S2 HIGH-1 修复，票 #622 S2 修复轮）。由
+    /// [`super::book::RetraceLedger::observe`] 的 `observe` 碰撞分支与
+    /// [`super::book::RetraceLedger::reconcile_window`] 两条通道共用，不经 `admit_input`——
+    /// `kill_as_rebased` 是唯一不过 `LedgerBook::admit` 倒退门的终态落账路径，故须自带这道护栏，
+    /// 否则可静默写出违反内核「出生钟 ≤ 终态钟」不变量的账本条目。
+    RebaseAsOfBehindGate {
+        key: RetraceKey,
+        /// 旧档门卫钟（该身份已见最大知情时）。
+        gate_as_of: usize,
+        /// 被拒绝的处死知情时。
+        as_of: usize,
+    },
 }
 
 /// 适配器输出：已验证观察（内核建项入口）+ 注册拍证据（钉进留档的载荷）。

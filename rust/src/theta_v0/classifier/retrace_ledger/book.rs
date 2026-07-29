@@ -42,6 +42,12 @@ pub struct RetraceStep {
     pub delta: LedgerDelta<RetracePolicy>,
     /// 已建仓身份的准入裁决；本轮为**首次注册**时为 `None`。
     pub admission: Option<LedgerAdmission>,
+    /// 本轮引擎改口处死的旧档身份（影子评审 #622 S2 MEDIUM-3 修复）：`observe` 碰撞路径下
+    /// `key`/`state` 描述**新档**，旧档之死此前只混在 `delta` 里、须逐条比对 `revision.key`
+    /// 才能发现；本字段把它显式化，消费方不必再逐条扫。`reconcile_window` 路径 `key` 本身即被
+    /// 处死的档，此处仍显式带出（`Some(key)`）以保持字段语义统一——「本轮是否有旧档被处死」
+    /// 一处可查，不必区分调用来路。
+    pub killed: Option<RetraceKey>,
 }
 
 impl RetraceStep {
@@ -75,6 +81,11 @@ pub struct RetraceAlarms {
     /// 引擎改口处死次数（裁定一：窗口变 / 中枢从 provider 消失 ⟹ `NotConstituted{CenterRebased}`，
     /// 票 #622）。**不进四类 audit 流**——这是真实终态事件，走 [`super::log`] 的修订日志本体，
     /// 本计数只是工程侧的快速可观测面。
+    ///
+    /// **现算，非独立字段**（影子评审 #622 S2 MEDIUM-2 修复）：`CenterRebased` 是已进日志的真实
+    /// 终态事件（不同于其余三个计数——它们记的是**未被采纳的输入**，日志里本就没有），故不设
+    /// 独立可变字段——那正是裁定六反对的「日志 + 状态双真相」形状。每次读数直接现算自
+    /// `book`（`fold(journal)` 的折叠投影），`fold`/`restore` 后天然与 live 值一致。
     pub center_rebased: u64,
 }
 
@@ -133,7 +144,6 @@ pub struct RetraceLedger {
     pub(super) late_absorbed: u64,
     pub(super) registration_rejected: u64,
     pub(super) dead_center_registrations: u64,
-    pub(super) center_rebased: u64,
     /// 四类警报的 append-only 记录（裁定六：审计归审计，`fold` 不吃本字段）。
     pub(super) audit_log: Vec<RetraceAuditRecord>,
     pub(super) provenance: RetraceProvenance,
@@ -148,7 +158,6 @@ impl RetraceLedger {
             late_absorbed: 0,
             registration_rejected: 0,
             dead_center_registrations: 0,
-            center_rebased: 0,
             audit_log: Vec::new(),
             provenance,
         }
@@ -188,7 +197,7 @@ impl RetraceLedger {
         let observation = admitted.observation;
         let key = observation.key;
         let mut delta = LedgerDelta::new();
-        self.guard_single_active(key, observation.as_of, &mut delta)?;
+        let killed = self.guard_single_active(key, observation.as_of, &mut delta)?;
         let opened = self
             .book
             .open_on_observation(&observation, observation.as_of)
@@ -203,19 +212,20 @@ impl RetraceLedger {
         self.record(&mut delta, pinned);
         self.link_restart(&mut delta, key, observation.as_of);
         self.judge(&mut delta, admitted);
-        Ok(self.step(key, delta, None))
+        Ok(self.step(key, delta, None, killed))
     }
 
     /// 裁定四：死人挂号前置拒收（自查 [`Self::death_certificate`]，不依赖外部）→
     /// 裁定二/裁定一：同一中枢同时刻至多一个活跃候选——同 departure 而窗口变 ⟹ 引擎改口处死
-    /// （旧候选进 [`kill_as_rebased`](Self::kill_as_rebased)，本次注册继续）；不同 departure 而
-    /// 旧候选未判完 ⟹ provider 有病，报错拒收。
+    /// （旧候选进 [`kill_as_rebased`](Self::kill_as_rebased)，本次注册继续，返回值带出被处死的
+    /// 旧档身份供 [`RetraceStep::killed`] 显式暴露）；不同 departure 而旧候选未判完 ⟹ provider
+    /// 有病，报错拒收。
     fn guard_single_active(
         &mut self,
         incoming: RetraceKey,
         as_of: usize,
         delta: &mut LedgerDelta<RetracePolicy>,
-    ) -> Result<(), RetraceRejection> {
+    ) -> Result<Option<RetraceKey>, RetraceRejection> {
         if let Some(certificate) = self.death_certificate(incoming.anchor()) {
             self.dead_center_registrations += 1;
             self.push_audit(RetraceAuditEvent::DeadCenterRejected {
@@ -231,7 +241,7 @@ impl RetraceLedger {
             });
         }
         let Some(active) = self.active_by_anchor.get(&incoming.anchor()).copied() else {
-            return Ok(());
+            return Ok(None);
         };
         let state = self
             .book
@@ -239,13 +249,15 @@ impl RetraceLedger {
             .expect("路由投影只指向已建仓身份")
             .state;
         if state.is_terminal() {
-            return Ok(());
+            return Ok(None);
         }
         if incoming.departure_move_index == active.departure_move_index {
             // 同一 departure、不同窗口（键不同故走到本分支）⟹ 引擎改口（裁定一：活着期间每次
-            // 观察比对窗口，偏离 ⟹ 处死记档）。**不算倒退**（裁定五），无论 as_of 相对旧候选如何。
-            self.kill_as_rebased(delta, active, Some(incoming.frame), as_of);
-            return Ok(());
+            // 观察比对窗口，偏离 ⟹ 处死记档）。**不算倒退**（裁定五），无论 as_of 相对旧候选如何
+            // ——但「不算倒退」≠「可回写落锤钟」（影子评审 #622 S2 HIGH-1 修复）：`kill_as_rebased`
+            // 自带知情时护栏，`as_of` 早于旧档门卫钟一律 fail-loud，不静默写坏账。
+            self.kill_as_rebased(delta, active, Some(incoming.frame), as_of)?;
+            return Ok(Some(active));
         }
         self.registration_rejected += 1;
         self.push_audit(RetraceAuditEvent::ResidualRejected {
@@ -260,13 +272,33 @@ impl RetraceLedger {
 
     /// 引擎改口处死：活跃候选 Provisional → Invalidated{CenterRebased}，证据带新旧窗口对照
     /// （沿用注册快照的侧/离开边，无买卖判定语义——处死不是判案）。
+    ///
+    /// **知情时护栏**（影子评审 #622 S2 HIGH-1 修复）：本函数是全模块**唯一不经
+    /// [`LedgerBook::admit`]** 的终态落账路径——`admit` 的倒退门（`as_of < last_as_of` ⟹
+    /// `RetrogradeRejected`）在这条路径上从未跑过。若不在此另设护栏，一个早于旧档门卫钟的
+    /// `as_of` 会静默写出违反内核「出生钟 ≤ 终态钟」不变量的账本条目（`assert_invariants` 才
+    /// 事后炸，写入当场零报错）。落锤前先查 `as_of ≥ entry.last_as_of`，违反即 fail-loud 拒收
+    /// （[`RetraceRejection::RebaseAsOfBehindGate`]，裁定二 provider 时间错乱同族），零改写。
     fn kill_as_rebased(
         &mut self,
         delta: &mut LedgerDelta<RetracePolicy>,
         key: RetraceKey,
         observed_window: Option<CenterFrame>,
         as_of: usize,
-    ) {
+    ) -> Result<(), RetraceRejection> {
+        let gate_as_of = self.book.get(&key).expect("活跃候选必在账").last_as_of;
+        if as_of < gate_as_of {
+            self.registration_rejected += 1;
+            self.push_audit(RetraceAuditEvent::ResidualRejected {
+                as_of,
+                code: RetraceRejectionCode::RebaseAsOfBehindGate,
+            });
+            return Err(RetraceRejection::RebaseAsOfBehindGate {
+                key,
+                gate_as_of,
+                as_of,
+            });
+        }
         let evidence = self.book.get(&key).and_then(|entry| entry.registration());
         let reason = NotConstitutedReason::CenterRebased {
             registered_window: key.frame,
@@ -284,27 +316,32 @@ impl RetraceLedger {
         }
         let revision = entry.settle(settlement, as_of);
         self.record(delta, revision);
-        self.center_rebased += 1;
+        Ok(())
     }
 
     /// per-中枢锚窗口核对（裁定一「活着期间每次观察比对当前中枢窗口与注册快照」的显式通道）：
     /// 供引擎在**无新 departure** 时汇报当前窗口——`current_window = None` 即「中枢从 provider
     /// 消失」。无活跃候选 / 候选已终态 ⟹ 零动作；窗口同注册快照 ⟹ **同窗口重确认零动作**
     /// （裁定一，连门卫钟都不动——真是零动作，不是零输出）；偏离 ⟹ 处死记档进警报桶。
+    ///
+    /// 返回 `Ok(None)` = 零动作（无候选 / 已终态 / 同窗口）；`Err` = 知情时护栏拒收（HIGH-1
+    /// 修复，见 [`Self::kill_as_rebased`]）——`as_of` 早于旧档门卫钟，零改写。
     pub fn reconcile_window(
         &mut self,
         anchor: CenterAnchor,
         current_window: Option<CenterFrame>,
         as_of: usize,
-    ) -> Option<RetraceStep> {
-        let active = self.active_by_anchor.get(&anchor).copied()?;
+    ) -> Result<Option<RetraceStep>, RetraceRejection> {
+        let Some(active) = self.active_by_anchor.get(&anchor).copied() else {
+            return Ok(None);
+        };
         let entry = self.book.get(&active).expect("路由投影只指向已建仓身份");
         if entry.state.is_terminal() || current_window == Some(active.frame) {
-            return None;
+            return Ok(None);
         }
         let mut delta = LedgerDelta::new();
-        self.kill_as_rebased(&mut delta, active, current_window, as_of);
-        Some(self.step(active, delta, None))
+        self.kill_as_rebased(&mut delta, active, current_window, as_of)?;
+        Ok(Some(self.step(active, delta, None, Some(active))))
     }
 
     /// Restart = 新档注册 + 谱系载荷记前任（裁定三）：anchor 上曾有过任何前任（无论因判败重回
@@ -323,13 +360,26 @@ impl RetraceLedger {
         self.record(delta, restarted);
     }
 
-    /// 已建仓身份的推进：两拍证据一致性守卫（零改写）→ 倒退拒绝 / 终态吸收（+ 警报）/ 判决。
+    /// 已建仓身份的推进：两拍证据一致性守卫（零改写，仅未决身份）→ 倒退拒绝 / 终态吸收
+    /// （+ 警报）/ 判决。
+    ///
+    /// **守卫有效域收缩到未决身份**（影子评审 #622 S2 MEDIUM-1 修复；编排者字面裁定三优先）：
+    /// 终态后同身份迟到输入——无论证据是否与注册拍矛盾——一律走裁定三「静默吸收 + 警报」，不再
+    /// 因证据矛盾而 fail-loud。两拍守卫只在身份仍**未决**时把关，落锤前挡下 provider 两拍改口；
+    /// 落锤已固化后，任何迟到输入（一致或矛盾）都改不动任何东西，判它 `Err` 只会把调用方拖入
+    /// 本该静默的既成事实。
     fn advance_existing(
         &mut self,
         admitted: &AdmittedObservation,
     ) -> Result<RetraceStep, RetraceRejection> {
         let key = admitted.observation.key;
-        if admitted.observation.outcome.is_some() {
+        let is_pending = !self
+            .book
+            .get(&key)
+            .expect("advance_existing 要求条目已建仓")
+            .state
+            .is_terminal();
+        if is_pending && admitted.observation.outcome.is_some() {
             self.guard_terminal_evidence_consistency(key, admitted)?;
         }
         let mut delta = LedgerDelta::new();
@@ -354,12 +404,14 @@ impl RetraceLedger {
             }
             LedgerAdmission::Accepted => self.judge(&mut delta, admitted),
         }
-        Ok(self.step(key, delta, Some(admission)))
+        Ok(self.step(key, delta, Some(admission), None))
     }
 
-    /// 两拍证据一致性守卫（裁定二 fail-loud 同族；影子评审 #621 MEDIUM-2 补，票 #622）：
-    /// 落锤拍的侧 / 离开边须与注册拍一致，否则 provider 两拍改口 ⟹ 报错拒收（零改写——检查发生
-    /// 在 `admit` 之前）。前缀态（尚无注册快照）无从比对，放行给后续路径自然处理。
+    /// 两拍证据一致性守卫（裁定二 fail-loud 同族；影子评审 #621 MEDIUM-2 补，票 #622；有效域收窄
+    /// 至未决身份，影子评审 #622 S2 MEDIUM-1 修复）：落锤拍的侧 / 离开边须与注册拍一致，否则
+    /// provider 两拍改口 ⟹ 报错拒收（零改写——检查发生在 `admit` 之前）。前缀态（尚无注册快照）
+    /// 无从比对，放行给后续路径自然处理。调用方只在身份仍未决时施加本守卫——终态后的迟到输入
+    /// 走裁定三静默吸收，不经此路（见 [`Self::advance_existing`]）。
     fn guard_terminal_evidence_consistency(
         &mut self,
         key: RetraceKey,
@@ -446,12 +498,14 @@ impl RetraceLedger {
         key: RetraceKey,
         delta: LedgerDelta<RetracePolicy>,
         admission: Option<LedgerAdmission>,
+        killed: Option<RetraceKey>,
     ) -> RetraceStep {
         RetraceStep {
             key,
             state: self.book.get(&key).expect("推进后条目必在账").state,
             delta,
             admission,
+            killed,
         }
     }
 
@@ -492,8 +546,23 @@ impl RetraceLedger {
             registration_rejected: self.registration_rejected,
             retrograde_rejected: self.book.retrograde_rejections().len() as u64,
             dead_center_registrations: self.dead_center_registrations,
-            center_rebased: self.center_rebased,
+            center_rebased: self.count_center_rebased(),
         }
+    }
+
+    /// `center_rebased` 现算（影子评审 #622 S2 MEDIUM-2 修复）：直接数 `book` 中处于
+    /// `Invalidated{CenterRebased}` 的条目——`book` 是 `journal` 的折叠投影，`fold`/`restore`
+    /// 后天然与 live 值一致，不必另设可变字段追着写。
+    fn count_center_rebased(&self) -> u64 {
+        self.book
+            .values()
+            .filter(|entry| {
+                matches!(
+                    entry.not_constituted_reason(),
+                    Some(NotConstitutedReason::CenterRebased { .. })
+                )
+            })
+            .count() as u64
     }
 
     /// Audit 流只读面（裁定六：四类警报的 append-only 记录，不进真相恢复路径）。
@@ -647,7 +716,8 @@ impl RetraceLedger {
 
 /// [`RetraceRejection`] → [`RetraceRejectionCode`]（audit 流轻量标签，`observe` 的
 /// `admit_input` 错误映射点专用；`ActiveCandidateNotSettled`/`DeadCenterReentry`/
-/// `TerminalEvidenceContradictsRegistration` 由本模块直接产出、直接自选对应码，不经此函数）。
+/// `TerminalEvidenceContradictsRegistration`/`RebaseAsOfBehindGate` 由本模块直接产出、直接自选
+/// 对应码，不经此函数）。
 fn adapter_rejection_code(rejection: &RetraceRejection) -> RetraceRejectionCode {
     match rejection {
         RetraceRejection::MalformedFrame { .. } => RetraceRejectionCode::MalformedFrame,
@@ -663,6 +733,9 @@ fn adapter_rejection_code(rejection: &RetraceRejection) -> RetraceRejectionCode 
         }
         RetraceRejection::TerminalEvidenceContradictsRegistration { .. } => {
             unreachable!("两拍守卫走 guard_terminal_evidence_consistency 自选码，admit_input 不产出本变体")
+        }
+        RetraceRejection::RebaseAsOfBehindGate { .. } => {
+            unreachable!("改口知情时护栏走 kill_as_rebased 自选码，admit_input 不产出本变体")
         }
     }
 }
