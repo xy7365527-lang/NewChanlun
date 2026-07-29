@@ -63,3 +63,11 @@
 | [claude-opus]#619-影子评审-#603链 | kimi编排→claude opus（评审档） | 档1 语义/回退彻底性/小修包/护栏链/文档链 两轴评审，落 shadow-603-review-20260728.md | 派发中 |
 | [claude-opus]#619-影子评审-#603链 | kimi编排→claude opus（评审档） | 两轴评审，落 shadow-603-review-20260728.md | 已交付（PWC：交付事实全独立复现；H1 claimed 关联被桥迁移覆盖/H2 center_upgrade_match 盲选 两条口径面 HIGH+M3/L9/L10/L12；真值定盘=回退报告档1-only 列，impl 旧数作废） |
 | [claude-opus]#619-条件收口 | kimi编排→claude opus | migrate_entry 统一迁移写入点（兼消 L12 重复）+center_upgrade_match 确定性优选+M3/L9/L10/revert 报告订正 | 派发中 |
+| [kimi]#603/#619-关票链 | kimi编排 | #619 PWC→无条件 PASS（6381debba9 负控实证收口）、#603 关；impl 报告 M4 订正；报告入库 886a439c78；map #597 已记 | 已收口 |
+| [claude-opus]#602-L3-PanLive实装 | kimi编排→claude opus（塔架构高难档） | L3 provider 路线(i) 扩 tower[2]；#617 口径：开工先探针预分级（机制不可观测/时机边界/可观测）、三类原因码进验收、不假设塔侧队列；tower[2] 截断同构 #613 | 派发中 |
+| [claude-opus]#602-L3-PanLive实装 | kimi编排→claude opus（塔架构高难档） | L3 provider 路线(i) 扩 tower[2]，#617 口径预分级 | 已交付（fd585859fa：8/8 归因闭合——1 可观测提前 163/3 同 bar 首见/3 活窗滞后 190-860/1 全程不存在；earlier Live 0→1；批量丢弃 91 实例存在但 0/8 解释本批；L1/L2 逐位零回归；护栏十四面 cmp=0；#573 并发移植全套重跑） |
+| [claude-opus]#629-影子评审-#602 | kimi编排→claude opus（评审档） | 两轴评审：预分级裁断/8 只闭合/F-新1新2/零回归/573 移植/测试门，落 shadow-602-review-20260728.md | 派发中 |
+| [claude-opus]#629-影子评审-#602 | kimi编排→claude opus（评审档） | 两轴评审，落 shadow-602-review-20260728.md | 已交付（PWC：八项七 PASS 全独立复现；P2 探针证据不可复算/S2 结构性不可达口径/S3 unreachable 陈旧/S4 计数差 1/S5 两读数未登 全登记面；坐实「计数验收必先出净树」） |
+| [claude-sonnet]#629-条件结账 | kimi编排→claude sonnet | P2 探针证据归档/S2/S3/S4/S5 登记面订正，全零生产改动 | 派发中 |
+| [claude-sonnet]#629-条件结账 | kimi编排→claude sonnet | P2 探针证据归档/S2/S3/S4/S5 登记面订正 | 已交付（3f7cf1eb41：探针重建 5/6 逐值复现、Σ(m−1) 91vs236 照实挂账、门全绿；#602/#629 双关、map #597 关图） |
+| [kimi]map#597-关图 | kimi编排 | Destination 达成账记票关图（46 只全达 L1 口径+α/β 捞回）；六子句补账 5421a20fbf（#598/#599/#617/#618/#429/#430 原件+#629 报告入库） | 已收口 |
