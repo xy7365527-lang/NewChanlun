@@ -129,27 +129,40 @@ _Avoid_: 当每个走势单元的固有字段（事件非属性）；用删除�
 _Avoid_: 链头独活真空 Closed；把查无当证伪判死；伪造中间级补链；与 NestCertificate 同名混用
 
 **事件↔BSP 桥接边（event-BSP bridge edge）**:
-塔内原生一等关系对象（2026-07-29 #666 裁定、#668 落地；`BspBridgeEdge` 独立户口，`CandidateEvent`/
-`BspPoint` 两个老对象零改动，ADR-0008）：身份 = （N1 事件键沿用 CandidateKey，BSP 结构身份键 v2）
-对。双向产出——一/二/三类点产出时回挂其对应候选事件（一类=自身破中枢 C 段候选、二类=继承一类锚
-自己的候选、三类=离开段候选），均走「查簿命中才写」（同 extends_lineage_key 先例）；查无 = Absent
-非证伪，不产边、不产占位记录。边活死单一来源 = N1 事件侧状态：事件转 Invalidated ⟹ 边同步终态、
-留痕不复活；BSP 侧无独立状态机（一次置位即冻结事实）。append-only + E2E-O 修订协议全套（同 as_of
-重跑零 Delta）。**已知残留**：BTC 实测配对覆盖率偏低（三类尤甚——Trend 候选结构门与三类离开段几何
-判据不同构；一类自身命中率实测约三至四成，根因未查），覆盖率是**配对密度**问题，与键**唯一性**
-（已证成立）是两件事，不可互相反推。
-_Avoid_: 把 Absent 当证伪判 Invalidated；拿配对覆盖率低反推键公式错误；改判据函数去凑配对命中率
+塔内原生一等关系对象（2026-07-29 #666 裁定 + 三轮 supersede、#668 落地、#670 影子评审 FAIL 回炉
+修复，ADR-0008；`BspBridgeEdge` 独立户口，`CandidateEvent`/`BspPoint` 两个老对象零改动）：身份 =
+（N1 事件键沿用 CandidateKey，BSP 结构身份键 v2）对。双向产出——**一类**走事件侧驱动：遍历 Trend
+episode，回挂其区间 `[c_start, interval.1]` 覆盖的全部一类点（判据 = episode 区间覆盖，非本点
+`source_index` 与候选当前右端等值——右端会随 `as_of` 生长，用它做配对键会漏配同 episode 内早于
+当前右端就已确认的物理点，evidenced 修复前 BTC 实测一类覆盖率仅三至四成，修复后 100%，
+`chanlun/review-results/issue668-n4-fix-round1-20260729.md`）；**二/三类**走点侧驱动：反查其对应
+候选事件（二类=继承一类锚所属 episode，同样按区间覆盖；三类=离开段候选，判据未改）。均走
+「查簿命中才写」（同 extends_lineage_key 先例）；查无 = Absent 非证伪，不产边、不产占位记录。
+边活死单一来源 = N1 事件侧状态：事件转 Invalidated ⟹ 边同步终态、留痕不复活；BSP 侧无独立状态机
+（一次置位即冻结事实）。append-only + E2E-O 修订协议全套（同 as_of 重跑零 Delta）。**同 episode
+多物理一类点**（多段递进背驰，教义必然）折叠为**同一身份的修订链**：pivot/`source_index` 是修订
+载荷，不入身份——`heads()` 只见链头（最新物理点），历史物理点见 `edges()`（append-only 全量）。
+**已知残留**：三类近零覆盖（Trend 候选结构门与三类离开段几何判据不同构，根因未查，归 #688）。
+_Avoid_: 把 Absent 当证伪判 Invalidated；改判据函数去凑配对命中率；~~拿配对覆盖率低反推键公式
+错误~~（**已撤销，2026-07-29 #670 评审证伪**：一类低覆盖率**正是**判据错误的直接后果——右端等值
+判据把 62% 的一类点排除出检验域，"唯一性"是排除规则的算术必然，不是键的区分力；episode 区间覆盖
+判据同一批数据实测 100% 覆盖。低覆盖率反推判据可疑，是本对象唯一有效的自查路径，不是禁忌）
 
 **BSP 结构身份键 v2（BSP structural key v2）**:
 BspPoint 六 bit 之一的结构身份 = 被破/所离中枢指纹（ParentFingerprint 同款）+ 方向 + 点类 + 锚段
 坐标（2026-07-29 #666 supersede 裁定，ADR-0008）：v1（无锚段）在 BTC 三窗被真值表证伪
-（ambiguous_keys=10/74/260）；v2 加锚段坐标后同三窗 ambiguous_keys=0——一类=(seg_a, c_start)、
-三类=(leave_interval, retest_interval 左端)、二类=一类锚坐标（回抽段坐标 structurally 不可得，
-诚实退化为 v1）。**右端/as_of 不入键纪律**（与 CandidateKey「C 右端与 as_of 不入键」同一纪律）：
-本点自身所在段的右端恒等于其 source_index，塞进锚会让键对 source_index 平凡单射、真值表恒判
-「唯一」（methodologically 空洞），一律排除。
+（ambiguous_keys=10/74/260）；v2 加锚段坐标——一类=(seg_a, c_start)、三类=(leave_interval,
+retest_interval 左端)、二类=一类锚坐标（回抽段坐标 structurally 不可得，诚实退化为 v1）。
+**右端/as_of 不入键纪律**（与 CandidateKey「C 右端与 as_of 不入键」同一纪律）：本点自身所在段的
+右端恒等于其 source_index，塞进锚会让键对 source_index 平凡单射，一律排除。**「键唯一性」不是
+验收目标**（2026-07-29 #670 评审回炉、三轮 supersede 裁定①撤销此前叙事）：v2 锚标定的是**这一次
+破中枢的 episode 本身**，同一 episode 内允许存在多个物理一类点（多段递进背驰）——这些物理点是
+**同一候选身份的修订史**，pivot/`source_index` 是修订载荷不入身份，撞键自动消解、不需要任何区分
+量。真正的不变量是**episode 归属唯一**（一个一类点只能落在一个 episode 区间内，`find_episode`
+的 `debug_assert` 机器化此不变量，BTC 三窗实测零违反）。
 _Avoid_: 把本点自身 source_index 塞进锚（伪阳性唯一性）；三类回试段右端入锚；二类冒充有真实回抽
-段坐标
+段坐标；~~把「键唯一性」当验收目标~~（**已撤销**：验收目标是「episode 归属唯一」，同 episode
+多物理点是合法的修订史，不是需要消灭的撞键）
 
 ### 运行边界
 
