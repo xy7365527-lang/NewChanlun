@@ -295,7 +295,7 @@ class Divergence:
 | 黄白线创新高检查 | ✅ 工具函数已实现（T6） | `dif_peak_for_range()`：计算指定范围DIF峰值。未集成到主检测（#2 or/and未结算） |
 | 柱子伸长高度比较 | ✅ 工具函数已实现（T7） | `histogram_peak_for_range()`：计算指定范围hist峰值。未集成到主检测（#2 or/and未结算） |
 | 盘整背驰 | ✅ 已实现 | 同向离开段力度比较 |
-| 区间套（多级别嵌套） | ✅ 已实现 | 单级别 `divergences_in_bar_range` + 跨级别 `nested_divergence_search` |
+| 区间套（多级别嵌套） | ⚠️ 部分实现（2026-07-29 订正） | 单级别 `divergences_in_bar_range` + 跨级别 `nested_divergence_search`（Python `a_nested_divergence.py:465`）**仅接观测 API（server.py 查询端点），未接交易决策路径**；Rust 生产侧有 NestCertificate/Cand 谓词/nest_index 等 5 件在判据路径（map #529 N0-N3 交付），但「入场时点力度=小级别盘背」的因果性封装+防未来函数消费门空缺（= #529 Consume_at/N5-N7 雾里）。核查 `.chanlun/review-results/qujiandao-impl-audit-20260729.md` |
 | 小转大 | ✅ 已实现 | `a_xiaozhuan_da.py`: 跨级别联动检测 |
 | confirmed时机 | ✅ 基本实现 | 跟随trend的confirmed状态 |
 
