@@ -1062,30 +1062,6 @@ pub struct CpStructureIdentity {
     pub source_end: Option<usize>,
 }
 
-/// D4 观测面：37:18 否则域亚型记录（#606 S1，ADR 补充十六「T3-in-c 资格检验」同源）。
-///
-/// 每条记录对应一个**当前生产口径下已产出**的一类点（`buy1 ∨ sell1`）在
-/// [`signal::t3_in_c_fixed_first_pair`] 固定首对分级器下判 `Missing` 的一次观测。**纯观测**：
-/// 不回写任何 bit、不改变 `CandDeltaEvent`/BspPoint 产出（本票 D2 切 bit 另裁，S1 只记录）。
-///
-/// 三锁（键唯一/一一对应/账平，进 wf8 验收行）：
-/// - 键唯一：`(level, source_index, side, center_start_index, center_zd, center_zg)`；
-/// - 一一对应：每个 `Missing` 一类点恰好一条记录（[`level_cand_delta`] 单次推送，不重复判定）；
-/// - 账平：否则域点数（`cand_delta` 事件中 `Missing` 计数）= 本记录数。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct OtherwiseDomainRecord {
-    pub level: u32,
-    pub source_index: usize,
-    pub side: Side,
-    /// 中枢身份（判定 `last_center`，与 `level_cand_delta` 内部 `first_match_idx` 同一
-    /// `(end_index, zd, zg)` 惯例，#498 已证全窗无碰撞）。
-    pub center_start_index: usize,
-    pub center_end_index: usize,
-    pub center_zd: Tick,
-    pub center_zg: Tick,
-    pub reason: signal::T3InCGradeReason,
-}
-
 /// `c_p` 内部第三类离开/回试结构及其对 `B_p`/`c_p` 的引用。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ThirdClassInCp {
@@ -2036,13 +2012,8 @@ fn cp_event_objects(
 /// prelude 与 signal.rs full 路径逐行同构（见上方段头铁律；行为注释不在此重复）。
 /// 每个破中枢结构候选产一个事件，沿用 `(episode, I(A), enter_src, side, 诊断位)` 结构键稳定排序；
 /// `confirm_src` 不参与排序。
-///
-/// `otherwise_domain_out`（D4，#606 S1，可选观测出参）：`Some` 时，每个 `cand_delta`（一类点，
-/// `buy1 ∨ sell1`）事件都经 [`signal::t3_in_c_fixed_first_pair`] 固定首对分级——`Missing` 推入
-/// 一条 [`OtherwiseDomainRecord`]（否则域亚型记录，纯观测追加，不改变本函数任何既有产出字段/
-/// 排序/事件集合）。`None`（现有全部调用点）行为逐字节不变。
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn level_cand_delta(
+pub fn level_cand_delta(
     level: u32,
     centers: &[Center],
     cp_scan: Option<&[CpScanOwnership]>,
@@ -2054,7 +2025,6 @@ pub(crate) fn level_cand_delta(
     closes_tick: &[Tick],
     close_src: &[usize],
     gauge: DivergenceGauge,
-    mut otherwise_domain_out: Option<&mut Vec<OtherwiseDomainRecord>>,
 ) -> Vec<CandDeltaEvent> {
     // ── 以下 prelude 与 signal::extract_signals_with_hist_anchored 逐行同构 ──
     let sorted_owned: Vec<Segment>;
@@ -2196,26 +2166,6 @@ pub(crate) fn level_cand_delta(
         let confirm_src = pf.source_index;
         let interval_end = seg.end_index;
         let cand_delta = pf.bits.buy1 || pf.bits.sell1;
-        // D4（#606 S1，观测面，纯追加不改判据）：一类点（`cand_delta`）经固定首对分级器复核，
-        // `Missing` 记入否则域亚型（不回写 bits/BspPoint，`otherwise_domain_out=None` 时零成本）。
-        if cand_delta {
-            if let Some(out) = otherwise_domain_out.as_deref_mut() {
-                if let signal::T3InCGrade::Missing(reason) =
-                    signal::t3_in_c_fixed_first_pair(sorted, c, dir)
-                {
-                    out.push(OtherwiseDomainRecord {
-                        level,
-                        source_index: confirm_src,
-                        side,
-                        center_start_index: c.start_index,
-                        center_end_index: c.end_index,
-                        center_zd: c.zd,
-                        center_zg: c.zg,
-                        reason,
-                    });
-                }
-            }
-        }
         let (
             b_parent,
             c_structure,
@@ -2315,7 +2265,7 @@ mod p1_tests {
         );
         let events = level_cand_delta(
             0, &centers, None, &segs, None, None, &series.hist, &series.dif, &prices, &src,
-            DivergenceGauge::MacdArea, None,
+            DivergenceGauge::MacdArea,
         );
         // 逐 bit：buy1/sell1 背驰确认支 ⟺ cand_delta=true 事件（(src, side) 多重集相等）。
         let mut lhs: Vec<(usize, i8)> = points
@@ -2375,7 +2325,7 @@ mod p1_tests {
         let centers = [c0, c1, c2];
         let events = level_cand_delta(
             0, &centers, None, &segs, None, None, &series.hist, &series.dif, &prices, &src,
-            DivergenceGauge::default(), None,
+            DivergenceGauge::default(),
         );
         // 恰一条纯诊断事件；零 cand_delta=true（诊断不入谓词）。
         assert_eq!(events.len(), 1, "盘整块内恰一张 PanDivCert ⟹ 恰一条诊断事件");
@@ -2412,7 +2362,7 @@ mod p1_tests {
 
         let events = level_cand_delta(
             0, &[c0, c1, c2], None, &segs, None, None, &hist, &[], &prices, &src,
-            DivergenceGauge::default(), None,
+            DivergenceGauge::default(),
         );
 
         assert_eq!(events.len(), 1, "不破核心面积背驰应产恰一条诊断事件");
@@ -2421,77 +2371,6 @@ mod p1_tests {
         assert!(!event.cand_delta, "纯诊断事件不得进入 Cand^δ 链");
         assert_eq!(event.interval, (13, 15));
         assert_eq!(event.a_interval, (9, 11));
-    }
-
-    // ── D4（#606 S1）：`otherwise_domain_out` 观测出参 三锁 + 零成本 None 路径 ─────────
-
-    /// `otherwise_domain_out=None`（现有全部生产/审计调用点）⟹ `level_cand_delta` 输出
-    /// 逐字段不变——本测试复用 [`cand_delta_bit_exact_with_extract_signals_buy1`] 同一 fixture，
-    /// 唯一差别是显式传 `None`（而非省略），证明新增可选参数对既有行为零成本。
-    #[test]
-    fn level_cand_delta_otherwise_domain_out_none_is_zero_cost() {
-        let c0 = dc(300, 400, 290, 410, 2);
-        let c1 = dc(100, 200, 90, 210, 8);
-        let segs = vec![
-            seg(Direction::Down, 3, 5, 350, 250),
-            seg(Direction::Up, 5, 7, 250, 280),
-            seg(Direction::Down, 9, 11, 150, 80),
-        ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
-        let closes: Vec<f64> = prices.iter().map(|&p| p as f64).collect();
-        let src: Vec<usize> = (0..prices.len()).collect();
-        let series = compute_macd(&closes, &MacdConfig::default());
-        let centers = [c0, c1];
-        let with_none = level_cand_delta(
-            0, &centers, None, &segs, None, None, &series.hist, &series.dif, &prices, &src,
-            DivergenceGauge::MacdArea, None,
-        );
-        let mut sink = Vec::new();
-        let with_some_but_unread = level_cand_delta(
-            0, &centers, None, &segs, None, None, &series.hist, &series.dif, &prices, &src,
-            DivergenceGauge::MacdArea, Some(&mut sink),
-        );
-        assert_eq!(with_none, with_some_but_unread, "Cand^δ 事件产出与 otherwise_domain_out 无关");
-    }
-
-    /// D4 三锁最小见证：同一 fixture 下，锚（`last_center.end_index=8`）之后唯一段
-    /// `(Down,9,11)` 无紧随段（连续缺口单腿 c）⟹ 该一类点固定首对分级 `Missing(missing_retest)`
-    /// ⟹ 恰一条否则域亚型记录（**锁②一一对应**：1 个 `cand_delta=true` 一类点 ↔ 1 条记录）；
-    /// 记录键字段（level/source_index/side/中枢身份）与产出 `CandDeltaEvent` 逐值一致
-    /// （**锁①键唯一**的构造依据——键完全派生自该点自身身份，不同点天然不同键）；
-    /// `records.len() ≤ cand_delta_true 总数`（**锁③账平**，此处 1 ≤ 1，native=0）。
-    #[test]
-    fn level_cand_delta_otherwise_domain_three_locks_minimal() {
-        let c0 = dc(300, 400, 290, 410, 2);
-        let c1 = dc(100, 200, 90, 210, 8);
-        let segs = vec![
-            seg(Direction::Down, 3, 5, 350, 250),
-            seg(Direction::Up, 5, 7, 250, 280),
-            seg(Direction::Down, 9, 11, 150, 80),
-        ];
-        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
-        let closes: Vec<f64> = prices.iter().map(|&p| p as f64).collect();
-        let src: Vec<usize> = (0..prices.len()).collect();
-        let series = compute_macd(&closes, &MacdConfig::default());
-        let centers = [c0, c1];
-        let mut records = Vec::new();
-        let events = level_cand_delta(
-            0, &centers, None, &segs, None, None, &series.hist, &series.dif, &prices, &src,
-            DivergenceGauge::MacdArea, Some(&mut records),
-        );
-        let cand_delta_true = events.iter().filter(|e| e.cand_delta).count();
-        assert_eq!(cand_delta_true, 1, "fixture 恰一个一类点（背驰确认支）");
-        assert_eq!(records.len(), 1, "锚（last_center.end_index=8）后唯一段无紧随 ⟹ 恰一条否则域记录");
-        assert!(records.len() <= cand_delta_true, "★锁③账平：否则域 ≤ 一类点总数");
-        let rec = records[0];
-        assert_eq!(rec.reason, super::signal::T3InCGradeReason::MissingRetest);
-        assert_eq!(rec.level, 0);
-        assert_eq!(rec.source_index, events[0].confirm_src, "键字段与产出事件同一点同一身份");
-        assert_eq!(rec.side, events[0].side);
-        assert_eq!(rec.center_start_index, c1.start_index);
-        assert_eq!(rec.center_end_index, c1.end_index);
-        assert_eq!(rec.center_zd, c1.zd);
-        assert_eq!(rec.center_zg, c1.zg);
     }
 }
 

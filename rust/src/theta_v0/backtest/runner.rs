@@ -515,26 +515,16 @@ pub fn run_theta_v0_pi_overlay(
     // （层门配置面退役；派生必须先于分类器构建——层 stamping 读派生后机制位）。
     let config = super::admission::chain_driven_level_projection(config);
     let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, &config);
-    // D4（#606 S1）：同 `run_theta_v0_pi_inner` 的 `strict_nest_sidecar` 先例——`enabled=false`
-    // （env 未设，默认态）⟹ `classify_at` 热路径不变，observe_frame 立即 no-op；纯观测面，
-    // 不参与 fill loop 任何决策输入。
+    // D4（#606 S1 返工）：同 `run_theta_v0_pi_inner` 的 `strict_nest_sidecar` 先例——
+    // `enabled=false`（env 未设，默认态）⟹ `observe_frame` 立即 no-op；纯观测面，不参与 fill
+    // loop 任何决策输入、不改变 `classify_at` 调用本体（挂点在 signal.rs 生产路径内部，见
+    // `OtherwiseDomainSidecarCollector` 文档）。
     let mut otherwise_domain_sidecar =
         OtherwiseDomainSidecarCollector::new(otherwise_domain_sidecar_enabled());
     let fill = pi_theta_fill_loop_overlay(
         |i| {
-            let (cls, tower) = if otherwise_domain_sidecar.enabled {
-                let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
-                otherwise_domain_sidecar.observe_frame(
-                    &l0,
-                    &cls,
-                    &tower,
-                    &config,
-                    classifier_incr.tower_cache(),
-                );
-                (cls, tower)
-            } else {
-                classifier_incr.classify_at(i)
-            };
+            let (cls, tower) = classifier_incr.classify_at(i);
+            otherwise_domain_sidecar.observe_frame(&cls);
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch();

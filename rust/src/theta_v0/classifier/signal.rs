@@ -96,6 +96,8 @@ use super::divergence::{
 use super::super::types::BspBits;
 use super::descend::RMove;
 use super::rmove_compose::find_second_type_structure;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 /// 买卖点条目（带结构止损价，single source，见 `bsp::BspPoint`）。
 pub use super::bsp::BspPoint;
@@ -606,6 +608,69 @@ pub(crate) fn t3_in_c_fixed_first_pair(
         leave_interval: (leave.start_index, leave.end_index),
         retest_interval: (retest.start_index, retest.end_index),
     }
+}
+
+/// 一类点 T3-in-c 固定首对分级观测记录（#606 S1 返工：挂在生产 `judge_segment` 调
+/// `judge_first_cached` 的真实调用点，`points.push` 之前——非诊断复刻塔重判）。
+///
+/// 每条记录对应一个当前生产口径下已产出的一类点（`buy1 ∨ sell1`）在
+/// [`t3_in_c_fixed_first_pair`] 下的一次分级（`Present` 与 `Missing` 均记录，非只记否则域）。
+/// 键唯一：`(level, source_index, side, center_start_index, center_zd, center_zg)`；一一对应：
+/// 生产 `bsp` 中每个 `buy1 ∨ sell1` 点恰产一条本记录（无重复判定、无遗漏）。
+///
+/// `level` 在挂点处（`judge_segment`）不在场——[`extract_first_third_resume`] 每级各调一次，
+/// 但不携带级别号（调用者 `mod.rs` 逐级循环才知道）；穿透整条 `judge_range`/`judge_segment`
+/// 调用链传 `level: u32` 触及面过大（#606 S1 报告 §5.2 已勘验），故本字段在捕获时置 0 占位，
+/// 由 sidecar 收尾时按 `(source_index,side,center)` 反查 `classification.levels[lvl].bsp` 补齐
+/// （[`crate::theta_v0::backtest::opsem_dump::OtherwiseDomainSidecarCollector::finish`]）——
+/// 不改变捕获判据本体，只是级别标签的产出时点后移。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FirstClassGradeRecord {
+    pub level: u32,
+    pub source_index: usize,
+    pub side: Side,
+    /// 中枢身份（判定 `last_center`，取自该点自身 `BspPoint.center`，非重新查找）。
+    pub center_start_index: usize,
+    pub center_end_index: usize,
+    pub center_zd: Tick,
+    pub center_zg: Tick,
+    pub grade: T3InCGrade,
+}
+
+/// 捕获记录键（不含 `level`——挂点处不在场，见 [`FirstClassGradeRecord`] 文档）。
+type GradeSidecarKey = (usize, bool, usize, usize, Tick, Tick);
+
+fn grade_sidecar_key(rec: &FirstClassGradeRecord) -> GradeSidecarKey {
+    (
+        rec.source_index,
+        matches!(rec.side, Side::Short),
+        rec.center_start_index,
+        rec.center_end_index,
+        rec.center_zd,
+        rec.center_zg,
+    )
+}
+
+thread_local! {
+    /// #606 S1 返工：一类点 T3-in-c 分级 sidecar 捕获槽。`None`（默认，生产恒态）⟹
+    /// [`judge_segment`] 挂点读一次 `Cell`（`is_none()`）即返回，零成本；`Some` 仅由
+    /// [`otherwise_domain_sidecar_begin`]（env 门控，同 opsem sidecar 先例）在诊断复放前打开。
+    /// `HashMap` upsert（同键覆盖）——同一点在 frontier tail 阶段可能被 `judge_segment` 重判多次
+    /// （段前缀增长、分级结果随之更新），只保留最新一次判定，天然一一对应（同 `judge_first_cached`
+    /// 自身「一生一算」推进纪律的观测面镜像）。
+    static GRADE_SIDECAR: RefCell<Option<HashMap<GradeSidecarKey, FirstClassGradeRecord>>> =
+        RefCell::new(None);
+}
+
+/// 打开一类点分级 sidecar 捕获（诊断专用，调用方负责 env 门控）。
+pub(crate) fn otherwise_domain_sidecar_begin() {
+    GRADE_SIDECAR.with(|c| *c.borrow_mut() = Some(HashMap::new()));
+}
+
+/// 关闭并取走已捕获记录（`level` 全部占位为 0，调用方按需反查补齐——见
+/// [`FirstClassGradeRecord`] 文档）。未 `begin` 时返回空 Vec。
+pub(crate) fn otherwise_domain_sidecar_take() -> Vec<FirstClassGradeRecord> {
+    GRADE_SIDECAR.with(|c| c.borrow_mut().take().map(|m| m.into_values().collect()).unwrap_or_default())
 }
 
 /// 构造第一类 BspPoint（结构止损价 = pivot 极值，reference:46——1 类止损用 pivot 非 center.zg/zd）。
@@ -1504,6 +1569,26 @@ fn judge_segment(
             c, dir, seg, anchors_self[i], hist, dif, closes_tick, close_src, a_seg_entry,
             c_start_entry, gauge,
         ) {
+            // #606 S1 返工：生产挂点否则域观测（判据本体上方未改一行，纯只读旁挂）。sidecar
+            // 未打开（生产恒态）⟹ `borrow().is_none()` 立即短路，零成本。
+            if (pf.bits.buy1 || pf.bits.sell1) && GRADE_SIDECAR.with(|c| c.borrow().is_some()) {
+                let grade = t3_in_c_fixed_first_pair(sorted, c, dir);
+                let rec = FirstClassGradeRecord {
+                    level: 0, // 挂点处不在场，sidecar 收尾按身份反查补齐（见字段文档）。
+                    source_index: pf.source_index,
+                    side: if pf.bits.buy1 { Side::Long } else { Side::Short },
+                    center_start_index: c.start_index,
+                    center_end_index: c.end_index,
+                    center_zd: c.zd,
+                    center_zg: c.zg,
+                    grade,
+                };
+                GRADE_SIDECAR.with(|cell| {
+                    if let Some(m) = cell.borrow_mut().as_mut() {
+                        m.insert(grade_sidecar_key(&rec), rec);
+                    }
+                });
+            }
             points.push(pf);
         }
     }

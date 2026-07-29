@@ -233,63 +233,105 @@ pub(super) fn strict_nest_sidecar_enabled() -> bool {
         .unwrap_or(false)
 }
 
-/// D4（#606 S1）：37:18 否则域亚型记录 sidecar 末帧汇总（[`OtherwiseDomainSidecarCollector`]
+/// D4（#606 S1 返工）：一类点 T3-in-c 固定首对分级 sidecar 全窗汇总（[`OtherwiseDomainSidecarCollector`]
 /// 同 [`StrictNestSidecarCollector`] 只读 env 门控先例——生产 π 重放同帧旁路产出，不参与订单/
-/// 候选/风控/账本）。`records_by_level[lvl]` = 该级末帧（全历史前缀）否则域亚型记录全集
-/// （[`classifier::cand_delta_tower_cached_with_otherwise_domain`] 单次遍历同判据产出，逐 bar
-/// 覆盖非累加——末帧已含全部历史，同 `StrictNestSidecarSummary` 覆盖语义）。
+/// 候选/风控/账本）。`records` = 全窗**并集**一类点分级记录。挂点在
+/// `signal::judge_segment`（真实生产调用点，`judge_first_cached` 返回、`points.push` 之前）——
+/// 该处不携带级别号（[`classifier::signal::extract_first_third_resume`] 每级各调一次但不接收
+/// `level` 参数，调用者 `mod.rs` 逐级循环才知道；穿透整条调用链传参触及面过大，#606 S1 报告
+/// §5.2 已勘验），故 signal.rs 侧 thread-local 捕获只记 `(source_index,side,center,grade)`，
+/// `level` 占位 0；本 collector 每帧（`observe_frame`）取走该帧捕获、用**同一帧**的
+/// `classification.levels[lvl].bsp` 反查补齐 `level`（同一 `classify_at` 调用内产出，天然
+/// 一致，非跨帧对照）——`runner.rs` 不改 `classify_at` 调用本体，只在闭包内追加一行
+/// `observe_frame` 调用，`classifier/mod.rs`、`recursive_tower.rs` 零改动。
+///
+/// **为何要逐帧取走而非只读末帧**：on2w3-07a frontier-resume 下，未确认前缀（tail）段每帧
+/// 重判——某些一类点只在中间某帧短暂 `buy1/sell1=true`（触发 Reset 广播），随后段前缀增长后
+/// 该段的 `judge_first_cached` 重判为 `false`（不再是一类点，几何被后续段改判），末帧
+/// `classification.levels[lvl].bsp` 里已看不到它——只读末帧会漏记这些点（G实测：末帧only 口径
+/// 仅见 21/59）。逐帧取走 + 按身份键 upsert（同键覆盖，保留最新一次分级）解决此问题——与
+/// Reset 广播本身「读到 bsp 里瞬时 true 就广播」同一时间语义，故记录数与
+/// `center_lifecycle.jsonl` Reset 行数逐一对应。
+///
+/// 每条记录携 `grade`（`Present`/`Missing(reason)`）——账平（一类点总数 = native + otherwise）由
+/// 记录本身的一一对应结构保证，非另需并列计数。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct OtherwiseDomainSidecarSummary {
     /// 已观察生产 replay 帧数。
     pub(crate) frames: usize,
-    pub(crate) records_by_level: Vec<Vec<classifier::recursive_tower::OtherwiseDomainRecord>>,
-    /// 账平第三独立分量（#606 S1 D4）：末帧每级 `cand_delta=true`（一类点，`buy1 ∨ sell1`）
-    /// 总数——与 `records_by_level[lvl].len()`（否则域）分别独立统计，账平断言核验
-    /// `records_by_level[lvl].len() ≤ cand_delta_true_by_level[lvl]`
-    /// 且差值 = 趋势一类（native，`Present` 判级）计数。
-    pub(crate) cand_delta_true_by_level: Vec<usize>,
+    pub(crate) records: Vec<classifier::signal::FirstClassGradeRecord>,
+}
+
+/// 记录身份键（跨帧 upsert 用）：`(level, source_index, side, center_start_index, center_end_index, center_zd, center_zg)`。
+type OtherwiseDomainKey =
+    (u32, usize, bool, usize, usize, super::super::types::Tick, super::super::types::Tick);
+
+fn otherwise_domain_key(r: &classifier::signal::FirstClassGradeRecord) -> OtherwiseDomainKey {
+    (
+        r.level,
+        r.source_index,
+        matches!(r.side, super::super::types::Side::Short),
+        r.center_start_index,
+        r.center_end_index,
+        r.center_zd,
+        r.center_zg,
+    )
 }
 
 pub(super) struct OtherwiseDomainSidecarCollector {
     pub(super) enabled: bool,
-    summary: OtherwiseDomainSidecarSummary,
+    frames: usize,
+    records: std::collections::HashMap<OtherwiseDomainKey, classifier::signal::FirstClassGradeRecord>,
 }
 
 impl OtherwiseDomainSidecarCollector {
     pub(super) fn new(enabled: bool) -> Self {
-        Self { enabled, summary: OtherwiseDomainSidecarSummary::default() }
+        if enabled {
+            classifier::signal::otherwise_domain_sidecar_begin();
+        }
+        Self { enabled, frames: 0, records: std::collections::HashMap::new() }
     }
 
-    pub(super) fn observe_frame(
-        &mut self,
-        l0: &parser::ParseLayer,
-        classification: &classifier::Classification,
-        tower: &[std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>],
-        config: &ThetaConfig,
-        cache: &classifier::TowerCache,
-    ) {
+    /// 本帧末（`classify_at` 已返回 `classification`）取走 signal.rs 侧 thread-local 本帧捕获，
+    /// 用本帧 `classification` 反查补齐 `level`，upsert 进全窗并集；随即为下一帧重开捕获槽。
+    pub(super) fn observe_frame(&mut self, classification: &classifier::Classification) {
         if !self.enabled {
             return;
         }
-        let (events, records_by_level) =
-            classifier::cand_delta_tower_cached_with_otherwise_domain(
-                l0,
-                classification,
-                tower,
-                config,
-                cache,
-            );
-        let cand_delta_true_by_level: Vec<usize> = events
-            .iter()
-            .map(|evs| evs.iter().filter(|e| e.cand_delta).count())
-            .collect();
-        let frames = self.summary.frames + 1;
-        self.summary =
-            OtherwiseDomainSidecarSummary { frames, records_by_level, cand_delta_true_by_level };
+        self.frames += 1;
+        let drained = classifier::signal::otherwise_domain_sidecar_take();
+        classifier::signal::otherwise_domain_sidecar_begin();
+        for mut rec in drained {
+            for (lvl, ls) in classification.levels.iter().enumerate() {
+                let hit = ls.bsp.iter().any(|p| {
+                    p.source_index == rec.source_index
+                        && match rec.side {
+                            super::super::types::Side::Long => p.bits.buy1,
+                            super::super::types::Side::Short => p.bits.sell1,
+                        }
+                        && matches!(
+                            p.center,
+                            Some(classifier::signal::OwnerRef::Center(c))
+                                if c.start_index == rec.center_start_index
+                                    && c.end_index == rec.center_end_index
+                                    && c.zd == rec.center_zd
+                                    && c.zg == rec.center_zg
+                        )
+                });
+                if hit {
+                    rec.level = lvl as u32;
+                    break; // 同帧同身份不跨级碰撞（生产坐标不变式，未见反例，同 #585 census 口径）。
+                }
+            }
+            self.records.insert(otherwise_domain_key(&rec), rec);
+        }
     }
 
     pub(super) fn finish(self) -> Option<OtherwiseDomainSidecarSummary> {
-        self.enabled.then_some(self.summary)
+        self.enabled.then(|| OtherwiseDomainSidecarSummary {
+            frames: self.frames,
+            records: self.records.into_values().collect(),
+        })
     }
 }
 

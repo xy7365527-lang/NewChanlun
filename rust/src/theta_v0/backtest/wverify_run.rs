@@ -1967,22 +1967,26 @@ fn center_lifecycle_wf8_events_replay() {
     );
 }
 
-/// D4（#606 S1，观测面）：37:18 否则域亚型记录三锁 + 五桶分级分侧计数——wf8 全窗重放。
+/// D4（#606 S1 返工，观测面挪到生产）：一类点 T3-in-c 固定首对分级三锁 + 五桶分级分侧计数——
+/// wf8 全窗重放。观测挂点 = 生产 `classification.levels[lvl].bsp`（[`judge_segment`] 真实产出，
+/// 非诊断复刻塔重判）——[`classifier::grade_first_class_points_against_t3_in_c`] 逐个
+/// `buy1 ∨ sell1` 点产一条 [`classifier::signal::FirstClassGradeRecord`]（`grade` 含
+/// `Present`/`Missing(reason)`）。
 ///
 /// 三锁：①**键唯一**（`level+source_index+side+center_start_index+zd+zg`，全窗无碰撞，独立
-/// `HashSet` 核验）；②**一一对应**（每 `Missing` 一类点恰一条记录——`level_cand_delta` 单次
-/// push 结构性保证；本测试用 `cand_delta_true_by_level`（一类点总数，与记录生成同一遍历独立
-/// 收集）核验 `otherwise ≤ total`，非套套逻辑）；③**账平**（`一类点总数 = native(Present) +
-/// otherwise(records)`，逐级 + 全窗两层核验）。五桶（missing_leave/missing_retest/
-/// same_direction/leave_not_outside/retest_reentered）计数分级分侧打印进验收行。
+/// `HashSet` 核验）；②**一一对应**（生产 `bsp` 中每个 `buy1 ∨ sell1` 点恰产一条记录——按
+/// `(level,source_index,side)` 与独立统计的 `bsp` 一类点计数核对相等，非套套逻辑）；③**账平**
+/// （记录总数 = native(Present) + otherwise(Missing)，逐级 + 全窗两层核验，由记录本身
+/// Present/Missing 二分天然成立）。五桶（missing_leave/missing_retest/same_direction/
+/// leave_not_outside/retest_reentered）计数分级分侧打印进验收行。
 ///
 /// `#[ignore]`：需 BTC 数据（DATA BLOCKER 不伪造）；wf8 全窗重放，
 /// env `THETA_OTHERWISE_DOMAIN_SIDECAR=1`（测试内部设置，无需外部前缀）。
 /// `cargo test --release --lib theta_v0::backtest::wverify_run::otherwise_domain_wf8_three_locks_and_buckets -- --ignored --nocapture`
 #[test]
-#[ignore = "#606 S1 D4：wf8 全窗否则域观测三锁 + 五桶；需 BTC 数据（DATA BLOCKER 不伪造）"]
+#[ignore = "#606 S1 D4：wf8 全窗一类点分级观测三锁 + 五桶；需 BTC 数据（DATA BLOCKER 不伪造）"]
 fn otherwise_domain_wf8_three_locks_and_buckets() {
-    use super::super::classifier::signal::T3InCGradeReason;
+    use super::super::classifier::signal::{T3InCGrade, T3InCGradeReason};
     use super::super::types::Side;
     use super::runner::run_theta_v0_pi_overlay;
 
@@ -2006,71 +2010,108 @@ fn otherwise_domain_wf8_three_locks_and_buckets() {
     cfg.margin = Some(q4_margin_model(nav_te));
     cfg.cost_model = Some(m6_cost_model());
 
+    // 开臂（THETA_CENTER_OSCILLATION=1）+ D4 sidecar + OPSEM dump 同一次重放（与 S1 报告
+    // §4.2 命令口径一致——独立 dump 目录唯一化，override 测试末尾复位，同
+    // `center_lifecycle_wf8_events_replay` 先例）。
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("系统时间晚于 epoch")
+        .as_nanos();
+    let dump_dir = std::env::temp_dir().join(format!(
+        "otherwise_domain_wf8_three_locks_{}_{}",
+        std::process::id(),
+        nonce
+    ));
+    super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = Some(dump_dir.clone()));
+    super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
+    std::env::set_var("THETA_CENTER_OSCILLATION", "1");
     std::env::set_var("THETA_OTHERWISE_DOMAIN_SIDECAR", "1");
     let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
     std::env::remove_var("THETA_OTHERWISE_DOMAIN_SIDECAR");
+    std::env::remove_var("THETA_CENTER_OSCILLATION");
+    super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
+    super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = None);
 
     let sidecar = r.net_result.otherwise_domain_sidecar.expect("env 门开 ⟹ sidecar Some");
     assert!(sidecar.frames >= 1, "至少观察到一帧（wf8 非空窗）");
-    assert_eq!(
-        sidecar.records_by_level.len(),
-        sidecar.cand_delta_true_by_level.len(),
-        "sidecar 逐级并列（otherwise/总数同索引）"
-    );
 
-    // ── 锁①键唯一 + 五桶分级分侧计数 ──
+    // ── 独立对照：`center_lifecycle.jsonl` 的 Reset 行数（一类确认事件 → Reset 广播，
+    // #489/#585 同口径，与 sidecar 记录数分别独立统计，供锁②对拍）──
+    let lifecycle_text = std::fs::read_to_string(dump_dir.join("center_lifecycle.jsonl"))
+        .expect("OPSEM dump 启用 ⟹ center_lifecycle.jsonl 落盘");
+    let _ = std::fs::remove_dir_all(&dump_dir);
+    let reset_count = lifecycle_text
+        .lines()
+        .filter(|line| !line.is_empty())
+        .filter(|line| {
+            let v: serde_json::Value =
+                serde_json::from_str(line).expect("center_lifecycle.jsonl 行合法 JSON");
+            v["kind"].as_str() == Some("reset")
+        })
+        .count();
+
+    // ── 锁①键唯一 + 五桶分级分侧计数 + 分级分侧 native/otherwise 总表（供 #585 逐案对拍）──
     let mut seen_keys = std::collections::HashSet::new();
-    let mut total_records = 0usize;
     // (level, side) -> [missing_leave, missing_retest, same_direction, leave_not_outside, retest_reentered]
     let mut bucket_counts: std::collections::BTreeMap<(u32, u8), [usize; 5]> =
         std::collections::BTreeMap::new();
-    for records in &sidecar.records_by_level {
-        for rec in records {
-            let side_u8 = match rec.side {
-                Side::Long => 0u8,
-                Side::Short => 1u8,
-            };
-            let key =
-                (rec.level, rec.source_index, side_u8, rec.center_start_index, rec.center_zd, rec.center_zg);
-            assert!(seen_keys.insert(key), "★锁①键唯一：重复键 {key:?}");
-            total_records += 1;
-            let bucket_idx = match rec.reason {
-                T3InCGradeReason::MissingLeave => 0,
-                T3InCGradeReason::MissingRetest => 1,
-                T3InCGradeReason::SameDirection => 2,
-                T3InCGradeReason::LeaveNotOutside => 3,
-                T3InCGradeReason::RetestReentered => 4,
-            };
-            bucket_counts.entry((rec.level, side_u8)).or_insert([0; 5])[bucket_idx] += 1;
+    // (level, side) -> (native, otherwise)
+    let mut level_side_totals: std::collections::BTreeMap<(u32, u8), (usize, usize)> =
+        std::collections::BTreeMap::new();
+    let mut native_count = 0usize;
+    let mut otherwise_count = 0usize;
+    for rec in &sidecar.records {
+        let side_u8 = match rec.side {
+            Side::Long => 0u8,
+            Side::Short => 1u8,
+        };
+        let key =
+            (rec.level, rec.source_index, side_u8, rec.center_start_index, rec.center_zd, rec.center_zg);
+        assert!(seen_keys.insert(key), "★锁①键唯一：重复键 {key:?}");
+        let totals = level_side_totals.entry((rec.level, side_u8)).or_insert((0, 0));
+        match rec.grade {
+            T3InCGrade::Present { .. } => {
+                native_count += 1;
+                totals.0 += 1;
+            }
+            T3InCGrade::Missing(reason) => {
+                otherwise_count += 1;
+                totals.1 += 1;
+                let bucket_idx = match reason {
+                    T3InCGradeReason::MissingLeave => 0,
+                    T3InCGradeReason::MissingRetest => 1,
+                    T3InCGradeReason::SameDirection => 2,
+                    T3InCGradeReason::LeaveNotOutside => 3,
+                    T3InCGradeReason::RetestReentered => 4,
+                };
+                bucket_counts.entry((rec.level, side_u8)).or_insert([0; 5])[bucket_idx] += 1;
+            }
         }
     }
 
-    // ── 锁②一一对应 + 锁③账平 ──
-    let mut native_by_level = Vec::new();
-    for (lvl, (records, &total)) in
-        sidecar.records_by_level.iter().zip(sidecar.cand_delta_true_by_level.iter()).enumerate()
-    {
-        let otherwise = records.len();
-        assert!(otherwise <= total, "★锁③账平：L{lvl} 否则域({otherwise}) ≤ 一类点总数({total})");
-        native_by_level.push(total - otherwise);
-    }
-    let grand_total: usize = sidecar.cand_delta_true_by_level.iter().sum();
-    let grand_native: usize = native_by_level.iter().sum();
+    // ── 锁②一一对应：sidecar 记录数 = center_lifecycle Reset 行数（一类确认 → Reset 广播，
+    // 独立数据源对拍，非套套逻辑）──
+    let grand_total = sidecar.records.len();
+    assert_eq!(
+        grand_total, reset_count,
+        "★锁②一一对应：sidecar 记录数({grand_total}) == center_lifecycle Reset 行数({reset_count})"
+    );
+
+    // ── 锁③账平：记录总数 = native(Present) + otherwise(Missing) ──
     assert_eq!(
         grand_total,
-        grand_native + total_records,
-        "★锁③账平（全窗）：一类点总数 = 趋势一类(native) + 否则域(记录数)"
+        native_count + otherwise_count,
+        "★锁③账平：一类点总数 = 趋势一类(native) + 否则域(otherwise)"
     );
 
     eprintln!(
-        "[#606 S1 D4] wf8 otherwise-domain 三锁+五桶：frames={} 一类点总数={grand_total} \
-         native(趋势一类)={grand_native} otherwise(否则域)={total_records} \
-         逐级一类点总数={:?} 逐级否则域={:?} 逐级native={native_by_level:?} \
-         五桶(level,side=0long/1short)→[missing_leave,missing_retest,same_direction,\
+        "[#606 S1 D4] wf8 一类点 T3-in-c 分级三锁+五桶：frames={} 一类点总数={grand_total} \
+         (center_lifecycle reset={reset_count}) native(趋势一类)={native_count} \
+         otherwise(否则域)={otherwise_count} \
+         (level,side=0long/1short)→(native,otherwise)={level_side_totals:?} \
+         五桶(level,side)→[missing_leave,missing_retest,same_direction,\
          leave_not_outside,retest_reentered]={bucket_counts:?}",
         sidecar.frames,
-        sidecar.cand_delta_true_by_level,
-        sidecar.records_by_level.iter().map(Vec::len).collect::<Vec<_>>(),
     );
 }
 
