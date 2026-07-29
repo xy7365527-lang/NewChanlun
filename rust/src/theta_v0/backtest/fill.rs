@@ -3187,13 +3187,14 @@ fn entry_stop_reverse_dump_row(
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  #647 入场结构复检门——拒单计数（分侧 × 分级）
+//  #647 入场结构复检门——拒单计数（分侧 × 分级 × 分类别）
 //  定稿（2026-07-29 用户 HITL）：门 = 破自己的底即拒，全类别同判，力度轴不进生产门。
-//  一/二/三类拒单统一计入本计数（不按类别分桶）——见 `signal::entry_stop_recheck_reject` 文档。
+//  一/二/三类拒单统一经同一判据（`signal::entry_stop_recheck_reject`）判定——判据本身零分桶。
+//  #678：类别桶为纯观测面增补（读出 by_class_* 不反哺任何判据/订单流），与 by_level_* 同通道。
 // ════════════════════════════════════════════════════════════════════════════
 
-/// 入场结构复检拒单计数（#647）：分持仓侧 + 分级别（`by_level_*[ℓ]` = 该级拒单数），全类别
-/// 同一计数口径（无分类别桶）。
+/// 入场结构复检拒单计数（#647 + #678）：分持仓侧 + 分级别（`by_level_*[ℓ]`）+ 分类别
+/// （`by_class_*[0/1/2]` = 一/二/三类拒单数）。判据全类别同判，本结构体只做事后观测分桶。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct EntryStopRecheckProbe {
     /// 多仓候选被拒次数（结构止损已在入场价上方/同价）。
@@ -3204,6 +3205,10 @@ pub(super) struct EntryStopRecheckProbe {
     pub(super) by_level_long: Vec<u64>,
     /// 分级别拒单（下标 = 候选 `level`），空仓侧。
     pub(super) by_level_short: Vec<u64>,
+    /// 分类别拒单（下标 0/1/2 = 一/二/三类，即 `bsp_class` 1/2/3），多仓侧。
+    pub(super) by_class_long: [u64; 3],
+    /// 分类别拒单（下标 0/1/2 = 一/二/三类），空仓侧。
+    pub(super) by_class_short: [u64; 3],
 }
 
 thread_local! {
@@ -3213,6 +3218,8 @@ thread_local! {
             short_rejected: 0,
             by_level_long: Vec::new(),
             by_level_short: Vec::new(),
+            by_class_long: [0; 3],
+            by_class_short: [0; 3],
         }) };
 }
 
@@ -3237,8 +3244,9 @@ pub(super) fn entry_stop_recheck_skip() -> bool {
     })
 }
 
-/// 记一次拒单（门内唯一写入点）。
-fn entry_stop_recheck_probe_bump(dir: strategy::voice::VoiceSide, level: u32) {
+/// 记一次拒单（门内唯一写入点）。`bsp_class`：候选最小成立类号 1/2/3（#678 类别桶键，
+/// 判据本身不读该值——见上方结构体注释）。
+fn entry_stop_recheck_probe_bump(dir: strategy::voice::VoiceSide, level: u32, bsp_class: u8) {
     ENTRY_STOP_RECHECK_PROBE.with(|c| {
         let mut p = c.borrow_mut();
         let long = match dir {
@@ -3258,6 +3266,13 @@ fn entry_stop_recheck_probe_bump(dir: strategy::voice::VoiceSide, level: u32) {
             by_level.resize(idx + 1, 0);
         }
         by_level[idx] += 1;
+        // 到达本门的候选恒有效分类（`interp::min_class` 1/2/3；Flat 已在上方 return，
+        // MAX 无类候选不构成可交易 candidate，不会流入 step_gamma_trade）。
+        debug_assert!((1..=3).contains(&bsp_class), "candidate bsp_class 越界: {bsp_class}");
+        if (1..=3).contains(&bsp_class) {
+            let by_class = if long { &mut p.by_class_long } else { &mut p.by_class_short };
+            by_class[(bsp_class - 1) as usize] += 1;
+        }
     });
 }
 
@@ -3810,7 +3825,7 @@ where
                             px,
                             config.tick.tick_size,
                         ) {
-                            entry_stop_recheck_probe_bump(c.dir, c.level);
+                            entry_stop_recheck_probe_bump(c.dir, c.level, c.bsp_class);
                             false
                         } else {
                             true
@@ -4954,6 +4969,19 @@ mod entry_stop_recheck_gate_tests {
         }
     }
 
+    /// 一类买点（结构止损 = `pivot_low`）。
+    fn buy1_point(source_index: usize, pivot_low: Tick) -> BspPoint {
+        BspPoint {
+            source_index,
+            bits: BspBits { buy1: true, ..BspBits::default() },
+            pivot_low,
+            pivot_high: 0,
+            center: None,
+            struct_break_dir: None,
+            force: None,
+        }
+    }
+
     /// 二类买点（结构止损 = `pivot_low`）。
     fn buy2_point(source_index: usize, pivot_low: Tick) -> BspPoint {
         BspPoint {
@@ -4967,18 +4995,34 @@ mod entry_stop_recheck_gate_tests {
         }
     }
 
+    /// 三类买点（结构止损 = `pivot_low`）。
+    fn buy3_point(source_index: usize, pivot_low: Tick) -> BspPoint {
+        BspPoint {
+            source_index,
+            bits: BspBits { buy3: true, ..BspBits::default() },
+            pivot_low,
+            pivot_high: 0,
+            center: None,
+            struct_break_dir: None,
+            force: None,
+        }
+    }
+
     /// 单级场景：L0 一段上行走势 + 其右端点上的二类买点（`pivot_low` 由参数给）。
     fn run_with_pivot_low(pivot_low: Tick) -> FillOutput {
+        run_with_points(vec![buy2_point(2, pivot_low)])
+    }
+
+    /// 单级场景：L0 一段上行走势 + 其右端点上任意组合的买点集合（同一 source_index 上可挂
+    /// 多个不同类别的证书——#678 逐例对拍测试用，验证 by_class 分桶与拒单事件一一对应）。
+    fn run_with_points(points: Vec<BspPoint>) -> FillOutput {
         let bars: Vec<Bar> = (0..8).map(flat_bar).collect();
         let mv = LeveledMove::from_unit(
             &UnitRange { start_index: 0, end_index: 2, direction: Direction::Up, lo: PX, hi: PX },
             ElementId { level: 0, ordinal: 0 },
         );
         let cls = Classification {
-            levels: vec![LevelState {
-                bsp: Rc::new(vec![buy2_point(2, pivot_low)]),
-                ..LevelState::default()
-            }],
+            levels: vec![LevelState { bsp: Rc::new(points), ..LevelState::default() }],
         };
         let tower: Vec<Rc<Vec<LeveledMove>>> = vec![Rc::new(vec![mv])];
         let config = super::super::super::config::ThetaConfig::default();
@@ -5022,6 +5066,32 @@ mod entry_stop_recheck_gate_tests {
         assert_eq!(p.long_rejected, 1, "多仓侧拒单计数");
         assert_eq!(p.short_rejected, 0);
         assert_eq!(p.by_level_long, vec![1], "分级计数落 level 0");
+        assert_eq!(p.by_class_long, [0, 1, 0], "#678 二类买点落 by_class_long 下标1");
+        assert_eq!(p.by_class_short, [0, 0, 0]);
+    }
+
+    /// #678 逐例对拍：同一 source_index 挂一/二/三类三张证书，全部逆侧 ⟹ 三笔皆拒。
+    /// 桶计数须与拒事件逐例一致：`long_rejected`=3，`by_class_long`=[1,1,1]（各类恰一例）。
+    #[test]
+    fn by_class_bucket_matches_reject_events_one_per_class() {
+        entry_stop_recheck_probe_reset();
+        let reversed_pivot_low = 11_000_000_000; // 110 > 入场价 100 ⟹ 三张证书皆判逆侧
+        let out = run_with_points(vec![
+            buy1_point(2, reversed_pivot_low),
+            buy2_point(2, reversed_pivot_low),
+            buy3_point(2, reversed_pivot_low),
+        ]);
+        assert!(out.typed_ledger.is_empty(), "三张证书皆逆侧 ⟹ 零入场");
+        let p = entry_stop_recheck_probe_snapshot();
+        assert_eq!(p.long_rejected, 3, "三张证书逐例皆拒，总数须与桶之和一致");
+        assert_eq!(p.short_rejected, 0);
+        assert_eq!(
+            p.by_class_long.iter().sum::<u64>(),
+            p.long_rejected,
+            "分类别桶之和须等于该侧拒单总数（逐例对拍不变量）"
+        );
+        assert_eq!(p.by_class_long, [1, 1, 1], "一/二/三类各恰一例拒单，无串桶");
+        assert_eq!(p.by_level_long, vec![3], "三例皆在 level 0");
     }
 
     /// 边界恰等（`pivot_low` == 入场价）：判逆侧 ⟹ 拒（d=0 且 `stop_hit` 含等号即触及）。

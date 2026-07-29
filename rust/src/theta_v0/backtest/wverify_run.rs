@@ -1316,10 +1316,16 @@ fn m8_e2e_all_systems_oos() {
         );
         // ★#647：入场结构复检门拒单读数（分侧 × 分级）——门落地后 entry_stop_reverse 两桶应归 0
         // （逆侧候选在开仓前即被剔除），拒单计数承接原先那部分入场。
+        // ★#678：同一快照增补分类别读数（by_class_* 下标 0/1/2 = 一/二/三类），纯观测面，
+        // 判据仍全类别同判——不改变上一行 long_rejected/short_rejected/by_level_* 的含义。
         let recheck = super::fill::entry_stop_recheck_probe_snapshot();
         eprintln!(
             "[m8][#647] {tag}: entry_stop_recheck 拒单 long={} short={} | by_level long={:?} short={:?}",
             recheck.long_rejected, recheck.short_rejected, recheck.by_level_long, recheck.by_level_short,
+        );
+        eprintln!(
+            "[m8][#678] {tag}: entry_stop_recheck by_class（1/2/3类）long={:?} short={:?}",
+            recheck.by_class_long, recheck.by_class_short,
         );
         // ★#628 阶段一归因：逐次 binding 事件——分桶方向(hi=held Long/lo=held Short)与 p̃ 符号
         // 一致/相反计数 + 反事实 Δp*（p_star_actual − p_star_cf）分布。
