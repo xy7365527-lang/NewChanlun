@@ -1283,8 +1283,22 @@ fn m8_e2e_all_systems_oos() {
         // ★T5a (#207) shadow dump 分窗接线（T3_SHADOW_DUMP 同型）：env T5A_CHAIN_DUMP_DIR
         // 设置时逐窗开 `<dir>/t5a_chain_dump_<tag>.jsonl`；未设 = no-op（bit-exact 中性）。
         super::admission::t5a_chain_dump::open_for_window(&tag);
+        // ★#625 收尾（review-625.md 发现1/3）：跑批前归零两个观测探针（纯计数旁路，
+        // 不改本窗判定/订单流），跑批后读快照接 wf8 验收行。
+        super::fill::entry_stop_reverse_probe_reset();
+        super::super::strategy::coverage::cap_binding_probe_reset();
         let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
         super::admission::t5a_chain_dump::close();
+        let entry_stop_reverse = super::fill::entry_stop_reverse_probe_snapshot();
+        let cap_binding = super::super::strategy::coverage::cap_binding_probe_snapshot();
+        eprintln!(
+            "[m8][#625] {tag}: entry_stop_reverse(发现3 观测) long={} short={} | \
+             cap_binding(发现1 观测) hi={} lo={}",
+            entry_stop_reverse.long_reverse,
+            entry_stop_reverse.short_reverse,
+            cap_binding.hi_binding,
+            cap_binding.lo_binding,
+        );
 
         // 层2 execution：R 分解 + MaxDD + 逐声部归因。
         let d = r.net_result.r_decomp.expect("overlay 臂经生产 π loop ⟹ 产 R 分解");

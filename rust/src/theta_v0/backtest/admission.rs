@@ -1235,15 +1235,19 @@ pub(super) fn k_theta_risk_gate(
     // （结构失效价触及，非 trailing）。L0 静态根因；L2 dump（3765 等笔 stop 读出实际值）待 OOS。
     // #572：逐腿 stop 命中以腿 ID 为主数据保留；方向布尔仅作 KΘ 净额投影派生。
     // 这组腿将在同一 π step 作为 risk-close seeds 注入现役子树清仓机关。
+    // ★#625：止损判据的**方向**取持仓方向（开仓候选 `c.dir`，入场冻结在
+    // [`LedgerOpen::position_node_id`]`.side`），**不是** `leg.dir`（走势载体 eps）。止损价由
+    // `entry_structural_stop(c, …)` 按同一个 `c.dir` 定方向域（多仓取 pivot_low/ZG 在下方、
+    // 空仓取 pivot_high/ZD 在上方，`signal.rs:83`），两者必须同源；取 `leg.dir` 则 wf8 实测
+    // 89.2% 的腿方向相反 ⟹ 止损判在错误一侧 ⟹ 入场瞬间即命中（`stop_hit` 退化为恒真谓词）
+    // ⟹ 88.5% 仓位 2 根 bar 内被误杀（cascade-stop-audit-20260728 §1.1；#572 引入/暴露）。
+    // 方向布尔 `long_stop`/`short_stop`（KΘ 净额投影）同口径按持仓方向分桶。
     let mut stop_risk_seeds = Vec::new();
+    let mut long_stop = false;
+    let mut short_stop = false;
     for leg in prev_active {
-        let exit_side = match leg.dir {
-            VoiceSide::Long => FillSide::Sell,
-            VoiceSide::Short => FillSide::Buy,
-            VoiceSide::Flat => continue, // Flat 不入活动集（防御性）
-        };
-        let stop = match open_trades.get(&leg.id).and_then(|o| o.entry_stop) {
-            Some(s) => s,
+        let open = match open_trades.get(&leg.id) {
+            Some(o) => o,
             None => {
                 // 腿不在 open_trades = **结构走势载体**（非 campaign 持仓）。`next_active` 含走势元素
                 // （AncOK 祖先闭包 + [`coverage::restore_ancestor_chain_from_registry`] 注入的父 carrier
@@ -1255,14 +1259,38 @@ pub(super) fn k_theta_risk_gate(
                 continue;
             }
         };
+        let stop = match open.entry_stop {
+            Some(s) => s,
+            // 该方向无结构止损（非交易点，与 `entry_stop_dist` 同口径）⟹ 诚实不判。
+            None => continue,
+        };
+        // 持仓方向：与止损价同源于开仓候选 `c.dir`（`fill.rs` 同一 `c` 既定 `position_node_id.side`
+        // 又定 `entry_structural_stop` 的 `stop_side`）。`entry_z.delta` 是同一来源的 i8 投影，
+        // 双源一致性在 debug 构建下守卫（不一致 = 入场登记面破，须暴露而非静默判错方向）。
+        let held_side = open.position_node_id.side;
+        debug_assert_eq!(
+            match held_side {
+                VoiceSide::Long => 1i8,
+                VoiceSide::Short => -1i8,
+                VoiceSide::Flat => 0i8,
+            },
+            open.entry_z.delta,
+            "#625：持仓方向双源（position_node_id.side / entry_z.delta）须同源于开仓候选 c.dir"
+        );
+        let exit_side = match held_side {
+            VoiceSide::Long => FillSide::Sell,   // 平多 = 卖，止损在下方
+            VoiceSide::Short => FillSide::Buy,   // 平空 = 买，止损在上方
+            VoiceSide::Flat => continue,         // 台账只记 Long/Short（防御性）
+        };
         if !bar.untradable && stop_hit(bar, stop, exit_side) {
             stop_risk_seeds.push(*leg);
+            match held_side {
+                VoiceSide::Long => long_stop = true,
+                VoiceSide::Short => short_stop = true,
+                VoiceSide::Flat => {}
+            }
         }
     }
-    let long_stop = stop_risk_seeds.iter().any(|leg| leg.dir == VoiceSide::Long);
-    let short_stop = stop_risk_seeds
-        .iter()
-        .any(|leg| leg.dir == VoiceSide::Short);
 
     // close_pred 折 𝒦_Θ（契约锚保留）：风控项（stop ∨ risk）→ 方向约束门。
     // G3（#138）：mode 一并透出——z 第 13 维 risk_mode 的账本态真值源（每 bar 已算，零重算）。

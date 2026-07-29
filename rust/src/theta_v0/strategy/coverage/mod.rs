@@ -87,6 +87,7 @@ mod compose;
 mod test_support;
 
 pub use ancok::{AncokProbe, active_set_step, ancestors, ancok_probe_reset, ancok_probe_snapshot};
+pub use sizing::{CapBindingProbe, cap_binding_probe_reset, cap_binding_probe_snapshot};
 use ancok::{ancestors_by_id_lookup, ancok_probe_bump};
 
 pub use element::{CoverageElement, attach_bsp_carrier_indexed, attach_bsp_parent_carrier_indexed, attach_bsp_to_tree, attach_bsp_to_tree_indexed, build_tree_endpoint_index, dual_view_consistency, ending_set, extract_carrier_forest, extract_elements, from_classification_levels, starting_set};
