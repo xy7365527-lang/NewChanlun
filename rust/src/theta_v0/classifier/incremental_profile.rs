@@ -32,33 +32,43 @@ fn profile_incremental_tower_real_scaling() {
             eprintln!("DATA LIMIT: n={n} > oos.bars.len()={}，跳过", oos.bars.len());
             break;
         }
-        let bars = &oos.bars[..n];
-
-        // 全量 per-bar 累积。
-        let t0 = std::time::Instant::now();
-        for i in 50..n {
-            let l0 = parser::parse_layer(&bars[..i], &cfg);
-            let _ = classify_with_tower(&l0, &cfg);
-        }
-        full_times.push(t0.elapsed().as_secs_f64());
-
-        // 增量 per-bar 累积。
-        let t0 = std::time::Instant::now();
-        let mut cache = TowerCache::new();
-        for i in 50..n {
-            let l0 = parser::parse_layer(&bars[..i], &cfg);
-            let _ = classify_with_tower_incremental(&l0, &cfg, &mut cache);
-        }
-        inc_times.push(t0.elapsed().as_secs_f64());
+        let (t_full, t_inc) = time_real_bar_accumulation(&oos.bars[..n], &cfg);
+        full_times.push(t_full);
+        inc_times.push(t_inc);
         used_sizes.push(n);
-        eprintln!("n={n} done: full={:.2}s inc={:.2}s", *full_times.last().unwrap(), *inc_times.last().unwrap());
+        eprintln!("n={n} done: full={t_full:.2}s inc={t_inc:.2}s");
     }
 
-    // 逐相邻对算 exp（log-log 斜率），大规模验证 acceptance[4]。
+    report_real_scaling_exponents(&used_sizes, &full_times, &inc_times);
+}
+
+/// 同一真实 bar 序列上，全量与增量两条 per-bar 累积路径的墙钟耗时（秒）。
+///
+/// 两侧共用同一 `parse_layer` 前缀重放（i∈[50,n)），差别只在塔构造：全量每步重跑
+/// `classify_with_tower`；增量 `TowerCache` 跨步复用。
+fn time_real_bar_accumulation(bars: &[super::super::types::Bar], cfg: &ThetaConfig) -> (f64, f64) {
+    let n = bars.len();
+    let t0 = std::time::Instant::now();
+    for i in 50..n {
+        let l0 = parser::parse_layer(&bars[..i], cfg);
+        let _ = classify_with_tower(&l0, cfg);
+    }
+    let t_full = t0.elapsed().as_secs_f64();
+
+    let t0 = std::time::Instant::now();
+    let mut cache = TowerCache::new();
+    for i in 50..n {
+        let l0 = parser::parse_layer(&bars[..i], cfg);
+        let _ = classify_with_tower_incremental(&l0, cfg, &mut cache);
+    }
+    (t_full, t0.elapsed().as_secs_f64())
+}
+
+/// 逐相邻对算 exp（log-log 斜率），大规模验证 acceptance[4]。
+fn report_real_scaling_exponents(used_sizes: &[usize], full_times: &[f64], inc_times: &[f64]) {
     eprintln!("\n===== 增量塔真实标度（CL per-bar 累积，大规模）=====");
-    for w in used_sizes.windows(2) {
+    for (i0, w) in used_sizes.windows(2).enumerate() {
         let (n0, n1) = (w[0], w[1]);
-        let i0 = used_sizes.iter().position(|&s| s == n0).unwrap();
         let i1 = i0 + 1;
         let full_exp = (full_times[i1] / full_times[i0].max(1e-12)).ln()
             / (n1 as f64 / n0 as f64).ln();
