@@ -382,7 +382,8 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
     // 均为本 bar 终态——immediate 式（push 当轮即修补）的时序孔（父在本轮更晚才物化进 work，无论
     // 经 held 腿占位路径、restore 路径、或 open 候选/`Closed|Invalidated` 边界根直接 push 路径，
     // 此刻都查不到）不再存在：父只要本轮曾被任一路径物化，统一 fixup 都能经三级解析命中。
-    resolve_pending_parent_fixups(&mut work, &pending_parent_fixup, &id_idx, &overlay_seen, &raw);
+    let unresolved_pending_fixup =
+        resolve_pending_parent_fixups(&mut work, &pending_parent_fixup, &id_idx, &overlay_seen, &raw);
 
     // 步2：A_{t+1}=AncOK(A^raw)——剔除真 Compose 父容器不在 raw 的孤儿子腿（§13 持仓准入：未持父则剔除）。
     // ★#183 T4 归一（#179 裁决：结构对应是硬要求，子树清仓接线进生产 π loop）：
@@ -464,6 +465,16 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                 .expect("step_active_set_with_subtree_close 产出 ⊆ raw（raw 内 id 唯一，#216）")
         })
         .collect();
+
+    // ★票#347 MED-1：未解析占位与 AncOK 存活集交叉核对——不在 next_idx 即被剪除，计入
+    // `placeholder_pruned_by_ancok`（使 probe doc「可与 AncOK 剪除计数交叉核对」可执行）。
+    if !unresolved_pending_fixup.is_empty() {
+        let next_idx_set: std::collections::HashSet<usize> = next_idx.iter().copied().collect();
+        let pruned = unresolved_pending_fixup.iter().filter(|&&idx| !next_idx_set.contains(&idx)).count();
+        if pruned > 0 {
+            ancok_probe_bump(|p| p.placeholder_pruned_by_ancok += pruned as u64);
+        }
+    }
 
     // p̃=Σ Leg(g)（depth 权重沿真父链 + 方向净额聚合，ReverseOpen 空腿部分对冲父多腿）。
     let mut legs = strategy_target_legs(&work, &next_idx, base_units, config);

@@ -446,13 +446,18 @@ pub(super) fn held_stale_reregister_idx(
 /// 解析成功计 `restore_parent_rebound`，父不可解析（真 ∂ 边界胚元 `parent_id=None`，或本 bar 内父
 /// 确未被任何路径物化）留 None/None、`parent_id=Some` 时计 `restore_parent_unresolved`（随后交由
 /// AncOK 按 `parent_id` 剪除，不伪造）。
+///
+/// 返回本 bar 未解析的 idx 列表（★票#347 MED-1：供调用方与 `next_idx`（AncOK 存活集）交叉
+/// 核对——不在 `next_idx` 即被剪除，计入 [`AncokProbe::placeholder_pruned_by_ancok`]，使
+/// 「可与 AncOK 剪除计数交叉核对」这一文档声明可执行）。
 pub(super) fn resolve_pending_parent_fixups(
     work: &mut ElementView,
     pending: &[usize],
     id_idx: &std::collections::HashMap<ElementId, usize>,
     overlay_seen: &std::collections::HashMap<ElementId, usize>,
     raw: &[usize],
-) {
+) -> Vec<usize> {
+    let mut unresolved = Vec::new();
     for &idx in pending {
         let pid = match work[idx].parent_id {
             Some(pid) => pid,
@@ -473,9 +478,13 @@ pub(super) fn resolve_pending_parent_fixups(
                 }
                 ancok_probe_bump(|p| p.restore_parent_rebound += 1);
             }
-            None => ancok_probe_bump(|p| p.restore_parent_unresolved += 1),
+            None => {
+                ancok_probe_bump(|p| p.restore_parent_unresolved += 1);
+                unresolved.push(idx);
+            }
         }
     }
+    unresolved
 }
 
 

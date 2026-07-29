@@ -767,3 +767,53 @@ use super::super::super::interp::{ActiveLeg, Buckets};
         );
     }
 
+    /// ★票#346/#347 MED-1/票#358（语义重放自 kimi c3cd34bcea/ea027130f7，#642）：
+    /// `placeholder_pruned_by_ancok` 探针交叉核对——`restore_parent_unresolved` 命中（父在本 bar
+    /// 内**从未**被任何路径物化，真断链）的元素必被统一 AncOK 剪除（`parent_id=Some` 但父不在
+    /// raw ⟹ 不进 `next_idx`），使 probe doc「可与 AncOK 剪除计数交叉核对」这一声明可执行。
+    ///
+    /// 构造：D 腿 LiveDetached，`op_parent=Q`，但 Q **不在 registry**（真丢失，非仅 invalidated）
+    /// ⟹ `restore_ancestor_chain_from_registry` 对 Q 的 walk 立即 `restore_break_registry_lost`
+    /// 中断、不 push 任何元素；D 自身经 `held_stale_reregister_idx` push，`parent_id=Some(Q)`
+    /// 汇入 `pending_parent_fixup`。统一 fixup 时 Q 在 `id_idx`/`overlay_seen`/`raw` 三级解析全
+    /// miss（本 bar 内 Q 从未被任何路径物化）⟹ D 计入 `restore_parent_unresolved` 且 unresolved
+    /// 返回列表含 D 的 idx；D 的 `parent_id=Some(Q)` 但 Q 不在 raw ⟹ 统一 AncOK 剪除 D ⟹ D 不进
+    /// `next_idx` ⟹ `placeholder_pruned_by_ancok` 计 1，与 `restore_parent_unresolved` 差值为 0。
+    #[test]
+    fn placeholder_pruned_by_ancok_cross_check_matches_unresolved_on_true_lost_chain() {
+        let d = eid(0, 0);
+        let q = eid(1, 0); // registry 中不存在（真丢失，非 invalidated）。
+        let d_leg = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 4, lambda: 0,
+            id: d, parent_id: None, is_boundary_root: false, op_parent: Some(q),
+        };
+        let d_cov = CoverageElement {
+            lambda: 0, rho: 4, eps: VoiceSide::Short, level: 0,
+            parent: None, attached_dir: None, id: d, parent_id: Some(q),
+        };
+        // registry 只登记 D 自身（其影子条目 structural_parent_id 亦指向 Q，但 Q 从未独立入册）。
+        let reg = super::super::super::persistent::PersistentRegistry::new().merge(&[d_cov], &[]);
+        let base: Vec<CoverageElement> = Vec::new();
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+
+        ancok_probe_reset();
+        let (next_active, _p_tilde, _sep, _idx) = coverage_step_from_buckets_sep(
+            view_split(&base, 0), &[d_leg], &buckets, 1000.0, &cfg(), None, &reg,
+        );
+        let probe = ancok_probe_snapshot();
+        assert!(
+            probe.restore_parent_unresolved >= 1,
+            "D 的父 Q 全 bar 内从未物化 ⟹ 计入 restore_parent_unresolved；实得 {}",
+            probe.restore_parent_unresolved
+        );
+        assert!(
+            !next_active.iter().any(|l| l.id == d),
+            "D 的 parent_id=Some(Q) 但 Q 不在 raw ⟹ 统一 AncOK 必剪除 D；实得 {next_active:?}"
+        );
+        assert_eq!(
+            probe.placeholder_pruned_by_ancok, probe.restore_parent_unresolved,
+            "非环形数据下差值结构性恒为 0（票#358 订正的限定条件）；unresolved={} pruned={}",
+            probe.restore_parent_unresolved, probe.placeholder_pruned_by_ancok
+        );
+    }
+
