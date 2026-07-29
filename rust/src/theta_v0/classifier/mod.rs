@@ -97,7 +97,8 @@ pub mod cand_event;
 pub mod cand_predicate;
 /// #552（N2）：候选事件区间上的跨级 `C⊆C` 包含谓词与相邻级只读扫描探针。零消费接线。
 pub mod cand_sub;
-/// #641（N3）：级别链证书塔对象（覆盖边 + 极大路径 + E2E-L 三态谱系）。纯产出零消费。
+/// #641（N3）：级别链证书塔对象（节点=候选事件、边=C⊆C 覆盖关系、E2E-L 三态谱系 + skip edge）。
+/// 纯产出零消费接线。
 pub mod chain_cert;
 /// C2 走势消费 seam：显式 exact-three 投影、D3 方向绑定与 D2 A/C provider。
 /// #630 生产段拆分的 4 个子域（`projection`/`confirm`/`pan`/`pan_provider`）在

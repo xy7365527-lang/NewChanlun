@@ -612,7 +612,7 @@ fn evaluate(path: &[CandidateKey], index: &AliveIndex<'_>) -> ChainObservation {
     #[cfg(test)]
     chain_probe::on_evaluate(&nodes, &edges);
     #[cfg(test)]
-    if head_alive && head_confirmed && !extendable && !has_segment {
+    if head_alive && head_confirmed && !extendable && !has_segment && all_segments {
         chain_probe::on_floor_blocked();
     }
 

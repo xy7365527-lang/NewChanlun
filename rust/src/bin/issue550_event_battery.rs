@@ -158,6 +158,9 @@ fn print_chain_summary(bars: &[Bar], run: ChainRun) {
     // 分桶计数走**库内**读数口 `ChainCertificateBook::summarize()`（#641 修复轮从 B 侧移植）——
     // bin 侧此前自己重写一遍循环，与 p123 的 dump 行各算各的、且不可单测。现两处同源。
     let summary = book.summarize();
+    // `digest` 与 `summarize` 必须取自同一簿状态点（幂等重跑`advance`之前）——否则幂等一旦破，
+    // `digest` 会静默包含重跑追加的 revision 而同行打印的 `summary` 不含（#653 影子评审 LOW-1）。
+    let digest = book.digest();
     let by_status = BTreeMap::from([
         ("Open", summary.open),
         ("Closed", summary.closed),
@@ -212,7 +215,7 @@ fn print_chain_summary(bars: &[Bar], run: ChainRun) {
         summary.segments,
         summary.invalidated_head,
         summary.invalidated_predicate,
-        book.digest(),
+        digest,
     );
 }
 
