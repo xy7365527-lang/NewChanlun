@@ -2792,6 +2792,7 @@ mod tests {
             UnitRange { start_index: 3, end_index: 5, direction: Direction::Down, lo: 250, hi: 350 }, // A 段（C0 离开）
             UnitRange { start_index: 5, end_index: 7, direction: Direction::Up, lo: 250, hi: 280 },   // B 段连接
             UnitRange { start_index: 9, end_index: 11, direction: Direction::Down, lo: 80, hi: 150 }, // C 段破 C1（<100）
+            UnitRange { start_index: 11, end_index: 13, direction: Direction::Up, lo: 80, hi: 90 }, // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
         ];
         // A 段 bar[3,5] 急跌（hist 面积大）、C 段 bar[9,11] 缓动（面积小=背驰）——同 signal.rs fixture。
         let prices: Vec<i64> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
@@ -2800,7 +2801,7 @@ mod tests {
         let hist = divergence::compute_macd(&closes, &ThetaConfig::default().macd).hist;
         // 本测试只验结构六 bit（force 旁挂不改），传空 dif/closes_tick ⟹ force=None（不影响 buy1 判据）。
         // Q7-#1 裁定C：显式全锚（本测试验证的是 Trend ownership 单元的 gap-fill 路径）。
-        let anchors = [Some(Direction::Down), Some(Direction::Up), Some(Direction::Down)];
+        let anchors = [Some(Direction::Down), Some(Direction::Up), Some(Direction::Down), Some(Direction::Up)];
         let (bsp, _pan) = extract_first_third_for_level(&[c0, c1], &units, &anchors, &hist, &[], &[], &close_src, divergence::DivergenceGauge::default());
         let buy1: Vec<_> = bsp.iter().filter(|p| p.bits.buy1).collect();
         assert_eq!(buy1.len(), 1, "级别-N 下跌趋势 C 段破最后中枢 ∧ C<A 背驰 ⟹ 一个 1 买（缺口已填，非 no-op）");
@@ -2858,6 +2859,7 @@ mod tests {
             UnitRange { start_index: 3, end_index: 5, direction: Direction::Down, lo: 250, hi: 350 },
             UnitRange { start_index: 5, end_index: 7, direction: Direction::Up, lo: 250, hi: 280 },
             UnitRange { start_index: 9, end_index: 11, direction: Direction::Down, lo: 80, hi: 150 },
+            UnitRange { start_index: 11, end_index: 13, direction: Direction::Up, lo: 80, hi: 90 }, // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
         ];
         let prices: Vec<i64> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
         let closes: Vec<f64> = prices.iter().map(|&v| v as f64).collect();
@@ -2868,7 +2870,7 @@ mod tests {
         let (first_bsp, _) = extract_first_third_for_level(
             &[c0, c1],
             &units,
-            &[None, None, None],
+            &[None, None, None, None],
             &hist,
             &[],
             &[],

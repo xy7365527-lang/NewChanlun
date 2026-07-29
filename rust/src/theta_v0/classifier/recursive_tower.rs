@@ -2148,7 +2148,7 @@ pub fn level_cand_delta(
         let c_start_entry = departure_move_c_start(sorted, anchors, c, dir, seg.start_index);
         let Some(pf) = signal::judge_first_cached(
             c, dir, seg, anchors[i], hist, dif, closes_tick, close_src, a_seg_entry,
-            c_start_entry, gauge,
+            c_start_entry, gauge, sorted, None,
         ) else {
             continue; // 未破中枢/未破 b 极值（037:20）/A 不可配对/不可映射 ⟹ 非结构候选（与生产路径同一 gate）。
         };
@@ -2254,6 +2254,7 @@ mod p1_tests {
             seg(Direction::Down, 3, 5, 350, 250),
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Down, 9, 11, 150, 80),
+            seg(Direction::Up, 11, 13, 80, 90), // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
         ];
         let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
         let closes: Vec<f64> = prices.iter().map(|&p| p as f64).collect();
