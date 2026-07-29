@@ -4575,43 +4575,111 @@ mod tests {
     /// （`parent`/`child`/`kind`/`skipped_levels[].level`/`crossed_nodes`/`predicate_holds`/
     /// `breach`）与证书的其余字段（`key`/`extends`/`nodes`/`status`/`revision_at` 等）逐一
     /// 参与比对，不豁免。
+    /// 三层全部解构开头（不用 `..`）：新增字段落进任一层的字面量都会编译红在**本函数**，把
+    /// 「不豁免」的承诺从手写等式合取链的君子协定变成编译期事实（MED-2，同 diff 的
+    /// `issue550_event_battery::print_chain_readout` 已用同招）。`SkippedLevel` 的
+    /// `alive_at_level` / `inside_parent` 两字段仍在解构里显式列出、显式 `_` 排除——豁免理由
+    /// 见本函数上方 doc（候选全集计数由驱动决定，天然不同不代表链身份分叉）。
     fn certificates_agree_ignoring_alive_candidate_universe_counts(
         causal: &chain_cert::TowerChainCertificate,
         terminal: &chain_cert::TowerChainCertificate,
     ) -> bool {
-        let edges_agree = causal.edges.len() == terminal.edges.len()
-            && causal
-                .edges
+        fn skipped_level_key(level: &chain_cert::SkippedLevel) -> u32 {
+            let chain_cert::SkippedLevel {
+                level,
+                // 豁免：候选全集计数，见外层函数 doc。
+                alive_at_level: _,
+                inside_parent: _,
+            } = level;
+            *level
+        }
+
+        fn edges_agree(a: &chain_cert::ChainEdge, b: &chain_cert::ChainEdge) -> bool {
+            let chain_cert::ChainEdge {
+                parent: a_parent,
+                child: a_child,
+                kind: a_kind,
+                skipped_levels: a_skipped_levels,
+                crossed_nodes: a_crossed_nodes,
+                predicate_holds: a_predicate_holds,
+                breach: a_breach,
+            } = a;
+            let chain_cert::ChainEdge {
+                parent: b_parent,
+                child: b_child,
+                kind: b_kind,
+                skipped_levels: b_skipped_levels,
+                crossed_nodes: b_crossed_nodes,
+                predicate_holds: b_predicate_holds,
+                breach: b_breach,
+            } = b;
+            a_parent == b_parent
+                && a_child == b_child
+                && a_kind == b_kind
+                && a_crossed_nodes == b_crossed_nodes
+                && a_predicate_holds == b_predicate_holds
+                && a_breach == b_breach
+                && a_skipped_levels.len() == b_skipped_levels.len()
+                && a_skipped_levels
+                    .iter()
+                    .zip(b_skipped_levels.iter())
+                    .all(|(sa, sb)| skipped_level_key(sa) == skipped_level_key(sb))
+        }
+
+        let chain_cert::TowerChainCertificate {
+            key: causal_key,
+            extends: causal_extends,
+            root_level: causal_root_level,
+            leaf_level: causal_leaf_level,
+            nodes: causal_nodes,
+            edges: causal_edges,
+            extendable: causal_extendable,
+            status: causal_status,
+            observed_at: causal_observed_at,
+            closed_at: causal_closed_at,
+            invalidated_at: causal_invalidated_at,
+            invalidation_cause: causal_invalidation_cause,
+            revision: causal_revision,
+            supersedes_revision: causal_supersedes_revision,
+            revision_at: causal_revision_at,
+        } = causal;
+        let chain_cert::TowerChainCertificate {
+            key: terminal_key,
+            extends: terminal_extends,
+            root_level: terminal_root_level,
+            leaf_level: terminal_leaf_level,
+            nodes: terminal_nodes,
+            edges: terminal_edges,
+            extendable: terminal_extendable,
+            status: terminal_status,
+            observed_at: terminal_observed_at,
+            closed_at: terminal_closed_at,
+            invalidated_at: terminal_invalidated_at,
+            invalidation_cause: terminal_invalidation_cause,
+            revision: terminal_revision,
+            supersedes_revision: terminal_supersedes_revision,
+            revision_at: terminal_revision_at,
+        } = terminal;
+
+        causal_edges.len() == terminal_edges.len()
+            && causal_edges
                 .iter()
-                .zip(terminal.edges.iter())
-                .all(|(a, b)| {
-                    a.parent == b.parent
-                        && a.child == b.child
-                        && a.kind == b.kind
-                        && a.crossed_nodes == b.crossed_nodes
-                        && a.predicate_holds == b.predicate_holds
-                        && a.breach == b.breach
-                        && a.skipped_levels.len() == b.skipped_levels.len()
-                        && a.skipped_levels
-                            .iter()
-                            .zip(b.skipped_levels.iter())
-                            .all(|(sa, sb)| sa.level == sb.level)
-                });
-        edges_agree
-            && causal.key == terminal.key
-            && causal.extends == terminal.extends
-            && causal.root_level == terminal.root_level
-            && causal.leaf_level == terminal.leaf_level
-            && causal.nodes == terminal.nodes
-            && causal.extendable == terminal.extendable
-            && causal.status == terminal.status
-            && causal.observed_at == terminal.observed_at
-            && causal.closed_at == terminal.closed_at
-            && causal.invalidated_at == terminal.invalidated_at
-            && causal.invalidation_cause == terminal.invalidation_cause
-            && causal.revision == terminal.revision
-            && causal.supersedes_revision == terminal.supersedes_revision
-            && causal.revision_at == terminal.revision_at
+                .zip(terminal_edges.iter())
+                .all(|(a, b)| edges_agree(a, b))
+            && causal_key == terminal_key
+            && causal_extends == terminal_extends
+            && causal_root_level == terminal_root_level
+            && causal_leaf_level == terminal_leaf_level
+            && causal_nodes == terminal_nodes
+            && causal_extendable == terminal_extendable
+            && causal_status == terminal_status
+            && causal_observed_at == terminal_observed_at
+            && causal_closed_at == terminal_closed_at
+            && causal_invalidated_at == terminal_invalidated_at
+            && causal_invalidation_cause == terminal_invalidation_cause
+            && causal_revision == terminal_revision
+            && causal_supersedes_revision == terminal_supersedes_revision
+            && causal_revision_at == terminal_revision_at
     }
 
     /// 因果簿驱动与终态窗口投影驱动都是 `chain_cert` 声明支持的输入语义
