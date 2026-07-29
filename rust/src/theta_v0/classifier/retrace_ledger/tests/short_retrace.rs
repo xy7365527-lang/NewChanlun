@@ -82,7 +82,8 @@ fn sync_is_one_to_one_with_ledger_failures() {
     settled(&book);
 }
 
-/// 三锁之三：账平断言——本档条数须等于账本判败条数（进验收行）。
+/// 三锁之三：账平断言——本档记录与账本判败一一对应（bijection：条数 + 身份 + 内容三重比对，进验收行）。
+/// （2026-07-29 修复轮：由「条数相等」升级为内容级一一对应，影子评审 M1。）
 #[test]
 fn portal_balances_with_ledger_failure_count() {
     let mut book = ledger();
