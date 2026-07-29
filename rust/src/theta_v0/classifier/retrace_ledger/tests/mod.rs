@@ -16,7 +16,8 @@
 //! - [`recovery_guard`]（票 #632）：恢复后未决身份落锤显式护栏（影子评审 #621 MEDIUM-1；
 //!   陈旧知情时拒收 + 边界 + 终态身份不受影响 + 活账零约束）；
 //! - [`replay_parity`]（票 #624）：旧模块 `first_retrace_replay` fixtures 的行为等价面对拍
-//!   （严格 pair 映射 / 消费一次性 / Supersede→Restart 纪律 / 两错 fail-loud 的对应面）。
+//!   （严格 pair 映射 / 消费一次性 / Supersede→Restart 纪律 / 两错 fail-loud 的对应面）；
+//! - [`golden_log`]（票 #624）：事件日志 golden 锚（JSONL 字节 + 指纹 + 重放一致，六场景覆盖）。
 
 use super::super::super::types::{Direction, Tick};
 use super::super::first_retrace_replay::{RetraceOutcome, StrictCompletedPair};
@@ -25,6 +26,7 @@ use super::*;
 
 mod clocks;
 mod dead_center;
+mod golden_log;
 mod log_replay;
 mod portal;
 mod rebase;
