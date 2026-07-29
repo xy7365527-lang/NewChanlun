@@ -50,7 +50,7 @@ srcDir = "."
 #   HybridComponents 用已证组件（Dynamics.State micro + 新建 LedgerComp R=Π-A-W + Fugue/
 #   RiskProj 确定选择器）实例化为单一闭环 assembly；新建闭环 T 保 R=Π-A-W（补账户因果洞）。
 #   import Strict.HybridStep + Fugue + RiskProj + Tlayers.Dynamics，依赖单向无环。
-roots = ["Strict.Classification", "Strict.Trend", "Strict.Recursive", "Strict.Decomp", "Strict.BSP", "Strict.Causal", "Strict.OpenTail", "Strict.Op", "Strict.Center", "Strict.StrategyFamily", "Strict.ClassificationFamily", "Strict.Parse", "Strict.LevelState", "Strict.Nest", "Strict.Fugue", "Strict.RiskProj", "Strict.Chain", "Strict.HybridStep", "Strict.HybridAssembly"]
+roots = ["Strict.Classification", "Strict.Trend", "Strict.Recursive", "Strict.Decomp", "Strict.BSP", "Strict.Causal", "Strict.OpenTail", "Strict.Op", "Strict.Center", "Strict.StrategyFamily", "Strict.ClassificationFamily", "Strict.Parse", "Strict.LevelState", "Strict.CThetaWiring", "Strict.Nest", "Strict.Fugue", "Strict.RiskProj", "Strict.Chain", "Strict.HybridStep", "Strict.HybridAssembly"]
 
 # ★Foundation（完全分类严格推导地基，编排者「从一开始的完全分类的严格推导出发」，2026-06-26）：
 #   GPT「推导完全分类」的形式化原样移入作严格地基（build on，非 absorb）——我们的起点不如它严格。
