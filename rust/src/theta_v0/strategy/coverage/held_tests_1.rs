@@ -94,7 +94,7 @@ use super::super::super::interp::{ActiveLeg, Buckets, Candidate};
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
         let mut pending = Vec::new();
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, carrier, &id_idx, &mut overlay_seen, &[], &mut pending);
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, carrier, &id_idx, &mut overlay_seen, 0, &[], &mut pending);
 
         assert_eq!(work.len(), 1, "restore 不得 push 重复 id 元素（应复用 work[0]，overlay 空）");
         assert_eq!(raw, vec![0], "raw 须复用现有 idx 0，非追加新 idx");
@@ -138,7 +138,7 @@ use super::super::super::interp::{ActiveLeg, Buckets, Candidate};
         let mut overlay_seen = std::collections::HashMap::new();
         let mut pending = Vec::new();
         restore_ancestor_chain_from_registry(
-            &mut work, &mut raw, &reg, child, &id_idx, &mut overlay_seen, &[], &mut pending,
+            &mut work, &mut raw, &reg, child, &id_idx, &mut overlay_seen, 0, &[], &mut pending,
         );
         // ★票#350：parent/attached_dir 不再在函数内立即解析，测试须补跑生产统一 fixup 才能观测。
         resolve_pending_parent_fixups(&mut work, &pending, &id_idx, &overlay_seen, &raw);
@@ -407,7 +407,7 @@ use super::super::super::interp::{ActiveLeg, Buckets, Candidate};
         let mut pending = Vec::new();
         ancok_probe_reset();
         restore_ancestor_chain_from_registry(
-            &mut work, &mut raw, &reg, child, &id_idx, &mut overlay_seen, &[], &mut pending,
+            &mut work, &mut raw, &reg, child, &id_idx, &mut overlay_seen, 0, &[], &mut pending,
         );
         // ★票#350：unresolved 判定（含 probe 计数）移到统一 fixup 时点。
         resolve_pending_parent_fixups(&mut work, &pending, &id_idx, &overlay_seen, &raw);
@@ -664,5 +664,78 @@ use super::super::super::interp::{ActiveLeg, Buckets, Candidate};
         assert_eq!(carrier_legs[0].dir, VoiceSide::Long, "持仓身份优先：方向不得被候选信号翻转");
         assert_eq!(carrier_legs[0].source_index, 40, "持仓身份优先：坐标取腿自身（非候选点元素）");
         assert_eq!(carrier_legs[0].op_parent, Some(parent), "op_parent 持久（I4），非候选 parent_id 改写");
+    }
+
+    /// ★#446 补移植（影子评审 HIGH-1，2026-07-29）：restore 侧祖先命中**候选段拷贝**时不得复用——
+    /// 门禁语义须与 [`held_stale_reregister_idx`] 一致（`held_leg_id_hits_candidate_copy_keeps_held_identity`
+    /// 覆盖 held 侧同一碰撞）。本测试直测 [`restore_ancestor_chain_from_registry`] 本身：`overlay_seen`
+    /// 命中的 ancestor idx 落在候选段（`< overlay_cand_end`），registry 持有该 ancestor 的持久身份
+    /// （方向/坐标/structural_parent_id 均与候选拷贝不同）。
+    ///
+    /// **RED（修复前）**：门禁缺失 ⟹ 直接复用候选段 idx 入 raw、`cur` 沿候选伪 `parent_id` 上溯——
+    /// `raw` 命中候选拷贝（信号方向/点元素坐标），且祖先链在候选伪 parent 处走错，真持久祖先
+    /// （grandparent）未物化。**GREEN（修复后）**：候选段命中被过滤，restore 从 registry 新 push
+    /// 持久身份元素（真实 λ/ρ/eps/structural_parent_id），沿真链上溯至 grandparent。
+    ///
+    /// 定义依据：影子评审 `shadow-642-review-20260729.md` HIGH-1（`held.rs:320` 一带缺失同款门禁，
+    /// 可构造 raw 同 ElementId 双槽）；kimi `f838540eff`（#446）restore 侧候选段过滤。
+    #[test]
+    fn restore_does_not_reuse_candidate_segment_copy_for_ancestor() {
+        let ancestor = eid(1, 800);
+        let grandparent = eid(2, 801);
+        // 候选段拷贝：同 id 信号方向 Short、lambda==rho 点元素、parent_id 是候选自身 Compose 父
+        // （非持久 structural_parent_id）——与 `held_leg_id_hits_candidate_copy_keeps_held_identity`
+        // 同构造（候选段与 held 侧共用同一张 overlay_seen，风险同级）。
+        let cand_copy = CoverageElement {
+            lambda: 99, rho: 99, eps: VoiceSide::Short, level: 1,
+            parent: None, attached_dir: None, id: ancestor, parent_id: Some(eid(9, 999)),
+        };
+        let base: Vec<CoverageElement> = vec![];
+        let mut work = ElementView::new(&base);
+        work.push(cand_copy);
+        // 候选段终点：本 bar 候选段已 push 完毕（此刻 work.len()==1），此后 work 只被 restore/held push
+        // 增长——与生产 `step.rs:140` 的 overlay_cand_end 语义一致。
+        let overlay_cand_end = work.len();
+        let mut overlay_seen: std::collections::HashMap<_, _> = std::collections::HashMap::new();
+        // 候选段登记（同生产 step.rs:131-135：for i in candidate_start..work.len() { ... } ）。
+        overlay_seen.insert(ancestor, 0);
+
+        // registry 持有该 ancestor 的持久身份：真实 λ/ρ/eps/structural_parent_id，均与候选拷贝不同。
+        let persistent_ancestor = CoverageElement {
+            lambda: 10, rho: 20, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: ancestor, parent_id: Some(grandparent),
+        };
+        let persistent_grandparent = CoverageElement {
+            lambda: 5, rho: 30, eps: VoiceSide::Short, level: 2,
+            parent: None, attached_dir: None, id: grandparent, parent_id: None,
+        };
+        let reg = super::super::super::persistent::PersistentRegistry::new()
+            .merge(&[persistent_ancestor, persistent_grandparent], &[]);
+
+        let id_idx = build_tree_id_index(&base); // base 空 ⟹ 候选段/持久身份均不在 id_idx。
+        let mut raw: Vec<usize> = Vec::new();
+        let mut pending = Vec::new();
+        restore_ancestor_chain_from_registry(
+            &mut work, &mut raw, &reg, ancestor, &id_idx, &mut overlay_seen, overlay_cand_end, &[],
+            &mut pending,
+        );
+
+        assert_eq!(
+            work.len(), 3,
+            "候选段拷贝不可复用 ⟹ restore 须从 registry 新 push ancestor + grandparent 两个持久元素"
+        );
+        assert!(!raw.contains(&0), "raw 不得含候选段 idx 0（候选拷贝非持久身份）；实得 raw={raw:?}");
+        assert_eq!(raw.len(), 2, "沿持久 structural_parent_id 链上溯 ancestor→grandparent 恰两级；实得 raw={raw:?}");
+        let new_ancestor_idx = raw[0];
+        assert_eq!(
+            work[new_ancestor_idx].eps, VoiceSide::Long,
+            "新 push 元素须取 registry 持久方向 Long，不得沿用候选拷贝的信号方向 Short"
+        );
+        assert_eq!(work[new_ancestor_idx].lambda, 10, "新 push 元素须取 registry 持久坐标，非候选 λ==ρ 点元素");
+        assert_eq!(
+            work[new_ancestor_idx].parent_id, Some(grandparent),
+            "新 push 元素须取 registry structural_parent_id，不得沿用候选伪 parent_id"
+        );
+        assert_eq!(work[raw[1]].id, grandparent, "上溯第二环须抵达真持久 grandparent（候选伪 parent_id 不会指向它）");
     }
 
