@@ -467,35 +467,60 @@ fn absent_head_stays_open_and_is_not_invalidated() {
 /// 链头**上一轮曾 `Confirmed`**、本轮查无——不得因「曾确认」残留而误判 `Closed`：状态只读
 /// 当前这一轮的事件视图（status/state 同源），不带上一轮的记忆（#667 INFO-1 机器锁）。
 ///
-/// 三轮：① 头未确认 ⟹ `Open`（基线）。② 头转 `Confirmed`，同时喂入 level 0 候选令 mid 可扩展
-/// （`extendable=true`）⟹ 仍 `Open`（非终态，被 resident 机制带入下一轮重评）。③ 头整个查无
-/// （`Absent`）⟹ 落 `Open`，非 `Closed` 非 `Invalidated`。
+/// 三节点夹具（#676-4 反事实收窄，见下方分辨力说明）：① 头未确认 ⟹ `Open`（基线，mid-leaf 间
+/// 已有一条判过的边）。② 头转 `Confirmed`，同轮喂入一枚**不在路径内**的更低级候选令 leaf 保持
+/// 可扩展（`extendable=true`）⟹ 仍 `Open`（非终态，被 resident 机制带入下一轮重评）。③ 头整个
+/// 查无（`Absent`），mid/leaf 仍存活、其间保留一条判过的边（`has_segment == true`）⟹ 落
+/// `Open`，非 `Closed` 非 `Invalidated`。
+///
+/// **分辨力**：两节点版本（原型）里头 Absent 后只剩一个存活节点，`alive_positions.windows(2)`
+/// 为空 ⟹ 零边 ⟹ 地板条款（`mod.rs:602` 的 `has_segment`）单独封堵 Closed，`head_confirmed`
+/// 是否正确读「当前」而非「历史」根本没被测到。三节点版本里 mid/leaf 两端仍活着、其间的边仍是
+/// 有效链段，地板条款不再介入，`head_confirmed` 才是**唯一**封堵者——反事实：在 `mod.rs:599`
+/// 把 `head_confirmed` 改成 `nodes[0].state == Some(Confirmed) || nodes[0].status ==
+/// ChainNodeStatus::Absent`（把「曾确认」误判物化），本测试必须变红（`certificate.status`
+/// 变 `Closed`）。
 #[test]
 fn absent_head_after_prior_confirmed_stays_open_and_is_not_invalidated() {
     chain_probe::reset();
     let mut book = ChainCertificateBook::default();
+    let path = [key(3, 0), key(2, 10), key(1, 20)];
 
     book.advance(
-        &streams_of(&[obs(2, 0, (0, 100)), obs(1, 10, (10, 60))], 100),
+        &streams_of(
+            &[
+                obs(3, 0, (0, 100)),
+                obs(2, 10, (10, 60)),
+                obs(1, 20, (20, 40)),
+            ],
+            100,
+        ),
         100,
     );
-    assert_eq!(
-        head(&book, &[key(2, 0), key(1, 10)]).status,
-        ChainStatus::Open
+    let baseline = head(&book, &path);
+    assert_eq!(baseline.status, ChainStatus::Open);
+    assert!(
+        baseline.segment_count() > 0,
+        "基线必须已有有效链段，否则③轮的 Open 会被地板条款而非 head_confirmed 决定"
     );
 
-    // 头转 Confirmed；同轮喂入 level 0 候选令 mid 保持可扩展——防止本轮本身先误判 Closed
-    // （这只是本用例站稳「头曾 Confirmed」这一前提的手段，不是待测结论）。
-    let mut confirmed_head = obs(2, 0, (0, 100));
+    // 头转 Confirmed；同轮喂入一枚不在路径内的更低级候选令 leaf 保持可扩展——防止本轮本身先
+    // 误判 Closed（这只是本用例站稳「头曾 Confirmed」这一前提的手段，不是待测结论）。
+    let mut confirmed_head = obs(3, 0, (0, 100));
     confirmed_head.state = CandidateState::Confirmed;
     book.advance(
         &streams_of(
-            &[confirmed_head, obs(1, 10, (10, 60)), obs(0, 20, (20, 40))],
+            &[
+                confirmed_head,
+                obs(2, 10, (10, 60)),
+                obs(1, 20, (20, 40)),
+                obs(0, 30, (25, 35)),
+            ],
             105,
         ),
         105,
     );
-    let mid_confirmed = head(&book, &[key(2, 0), key(1, 10)]);
+    let mid_confirmed = head(&book, &path);
     assert_eq!(
         mid_confirmed.nodes[0].state,
         Some(CandidateState::Confirmed),
@@ -503,10 +528,15 @@ fn absent_head_after_prior_confirmed_stays_open_and_is_not_invalidated() {
     );
     assert_eq!(mid_confirmed.status, ChainStatus::Open);
 
-    // fresh book ⟹ 上一轮头整个不在流里（不是 Invalidated，是查无）。
-    book.advance(&streams_of(&[obs(1, 10, (10, 60))], 110), 110);
+    // fresh book ⟹ 上一轮头整个不在流里（不是 Invalidated，是查无）；mid/leaf 仍存活，不再喂
+    // level 0 候选 ⟹ extendable=false，其间保留一条判过的边 ⟹ has_segment=true——地板条款不
+    // 介入，head_confirmed 是本轮 Closed 支唯一的封堵者。
+    book.advance(
+        &streams_of(&[obs(2, 10, (10, 60)), obs(1, 20, (20, 40))], 110),
+        110,
+    );
 
-    let certificate = head(&book, &[key(2, 0), key(1, 10)]);
+    let certificate = head(&book, &path);
     assert_eq!(
         certificate.status,
         ChainStatus::Open,
@@ -514,6 +544,10 @@ fn absent_head_after_prior_confirmed_stays_open_and_is_not_invalidated() {
     );
     assert_eq!(certificate.invalidation_cause, None);
     assert_eq!(certificate.nodes[0].status, ChainNodeStatus::Absent);
+    assert!(
+        certificate.segment_count() > 0,
+        "mid/leaf 必须仍构成有效链段，否则地板条款会重新顶替 head_confirmed 成为封堵者：{certificate:?}"
+    );
     assert!(
         chain_probe::snapshot().absent_node > 0,
         "必须真经过 Absent 节点分支"
