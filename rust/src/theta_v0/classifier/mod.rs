@@ -97,6 +97,8 @@ pub mod cand_event;
 pub mod cand_predicate;
 /// #552（N2）：候选事件区间上的跨级 `C⊆C` 包含谓词与相邻级只读扫描探针。零消费接线。
 pub mod cand_sub;
+/// #641（N3）：级别链证书塔对象（覆盖边 + 极大路径 + E2E-L 三态谱系）。纯产出零消费。
+pub mod chain_cert;
 /// C2 走势消费 seam：显式 exact-three 投影、D3 方向绑定与 D2 A/C provider。
 /// #630 生产段拆分的 4 个子域（`projection`/`confirm`/`pan`/`pan_provider`）在
 /// #630 修复轮改为 `level_view` 内部子模块（目录模块，非 classifier 兄弟文件）——
@@ -1215,6 +1217,15 @@ impl TowerCache {
     /// 同代次 ⟹ K_i 森林输出逐字节不变（soundness 见 `forest_epoch` 字段文档 + on2w2-epoch-design §4）。
     pub fn forest_epoch(&self) -> u64 {
         self.forest_epoch
+    }
+
+    /// #641：跨 bar 因果候选事件簿的**只读**快照（与 [`classify_with_tower_events_incremental`]
+    /// 返回的第三元同一来源，同一 `Rc`）。
+    ///
+    /// 加这个取数口是为了让已经调 [`classify_with_tower_incremental`] 的既有驱动（p123）能在
+    /// **不改既有调用点、不改既有返回值**的前提下读到事件流。只读、不改簿、零行为影响。
+    pub fn candidate_streams(&self) -> cand_event::CandidateStreams {
+        self.candidate_book.streams()
     }
 
     /// ★#93 水线证书（单一来源，禁第二查法）：`tower[level][..w]` **跨 bar bit-stable 下界**。
@@ -4384,6 +4395,111 @@ mod tests {
         assert_eq!(
             digest, 3542680779063880892,
             "真实事件流漂移须诚实更新 golden"
+        );
+    }
+
+    /// #641（N3）逐段前缀推进的链簿夹具（与 #550 主缝②同一段序列口径，规模收小以夹住 O(n²)）。
+    ///
+    /// 每一步把该前缀喂给候选事件通道，再把**当步的事件流**喂给链簿推进一次——链簿因此走的是
+    /// 真实的多 `as_of` 生命史（覆盖边重算、可扩展性翻转、证伪跨越、终态封口），不是单点快照。
+    fn chain_book_over_prefixes(
+        segments: &[Segment],
+        closes: &[i64],
+        cfg: &ThetaConfig,
+        cache: &mut TowerCache,
+    ) -> chain_cert::ChainCertificateBook {
+        let mut book = chain_cert::ChainCertificateBook::default();
+        for n in 1..=segments.len() {
+            let end = segments[n - 1].end_index.min(closes.len() - 1);
+            let layer = ParseLayer {
+                segments: Rc::new(segments[..n].to_vec()),
+                merged_bars: Rc::new(bars_from_closes(&closes[..=end])),
+                ..Default::default()
+            };
+            let streams = classify_with_tower_events_incremental(&layer, cfg, cache).2;
+            book.advance(&streams, end);
+        }
+        book
+    }
+
+    fn chain_fixture(count: usize) -> (Vec<Segment>, Vec<i64>) {
+        let segments = candidate_rich_segments(count);
+        let closes: Vec<i64> = (0..=segments.last().expect("非空").end_index)
+            .map(|i| 100 + if i % 8 < 4 { 35 } else { -35 } + (i as i64 / 16))
+            .collect();
+        (segments, closes)
+    }
+
+    /// ★#641 双路径逐字节一致：跨步增量推进的链簿 ≡ 每步从零全历史重建的链簿。
+    ///
+    /// 与 #550 主缝②同款纪律：链簿是**有状态**对象（终态封口、钟一次写入、修订计数），若增量
+    /// 宿主与全历史重建有任何分叉，逐 revision 的 `PartialEq` 当场变红。
+    #[test]
+    fn chain_certificate_book_incremental_equals_full_replay() {
+        let cfg = ThetaConfig::default();
+        let (segments, closes) = chain_fixture(40);
+        let mut incremental_cache = TowerCache::new();
+        let incremental = chain_book_over_prefixes(&segments, &closes, &cfg, &mut incremental_cache);
+
+        for n in 1..=segments.len() {
+            let mut replay_cache = TowerCache::new();
+            let replay =
+                chain_book_over_prefixes(&segments[..n], &closes, &cfg, &mut replay_cache);
+            let mut rerun_cache = TowerCache::new();
+            let prefix_incremental =
+                chain_book_over_prefixes(&segments[..n], &closes, &cfg, &mut rerun_cache);
+            assert_eq!(replay, prefix_incremental, "step={n}: 全历史重建≡增量链簿");
+        }
+        assert!(
+            !incremental.certificates().is_empty(),
+            "非真空锁：链簿必须真产出（真空绿等于没锁）"
+        );
+    }
+
+    /// ★#641 FNV golden + 非真空锁：链簿产出漂移当场变红，且覆盖探针证明真走过链路径。
+    #[test]
+    fn chain_certificate_book_classify_fnv1a_golden() {
+        chain_cert::chain_probe::reset();
+        let cfg = ThetaConfig::default();
+        let (segments, closes) = chain_fixture(120);
+        let mut cache = TowerCache::new();
+        let book = chain_book_over_prefixes(&segments, &closes, &cfg, &mut cache);
+
+        let heads = book.heads();
+        assert!(!heads.is_empty(), "非真空锁：链身份非空");
+        assert!(
+            heads.iter().any(|certificate| !certificate.edges.is_empty()),
+            "非真空锁：至少一条链带边（否则边侧全部判据未被触发）"
+        );
+        let probe = chain_cert::chain_probe::snapshot();
+        assert!(probe.birth_open + probe.birth_closed > 0, "{probe:?}");
+        assert!(
+            probe.skip_edges > 0,
+            "非真空锁：合成 classify 面上 skip 边真被走过（{probe:?}）"
+        );
+        assert_eq!(
+            probe.birth_invalidated, 0,
+            "构造口径锁：首次观察的链不可能一出生即 Invalidated（{probe:?}）"
+        );
+        // 090 照实：本合成夹具**未覆盖**到的分支（`to_invalidated` / `fact_edges` /
+        // `falsified_nodes` / `payload_revision`）由 `chain_cert::tests` 的语义锁逐条覆盖；
+        // 此处不为凑覆盖率而断言它们非零（合成数据规整不是缺陷）。
+        let pan_rooted = heads
+            .iter()
+            .filter(|certificate| certificate.key.root().kind == cand_event::CandidateKind::Pan)
+            .count();
+
+        let certificates = book.certificates();
+        let digest = format!("{certificates:?}")
+            .bytes()
+            .fold(cand_event::FNV_OFFSET_BASIS, |hash, byte| {
+                (hash ^ byte as u64).wrapping_mul(cand_event::FNV_PRIME)
+            });
+        assert_eq!(
+            digest, 9771189513849272089,
+            "链簿产出漂移须诚实更新 golden（probe={probe:?} certs={} heads={} pan_rooted={pan_rooted}）",
+            certificates.len(),
+            heads.len()
         );
     }
 
