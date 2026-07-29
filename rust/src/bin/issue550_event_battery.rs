@@ -138,20 +138,37 @@ fn run() -> Result<(), String> {
     print_lifecycle_summary(&terminal_streams);
     print_containment_summary(&terminal_streams);
     print_projection_fork(&bars, &config, &terminal_streams)?;
-    print_chain_summary(&bars, chain_run);
+    print_chain_readout(&bars, &settle_chain_readout(chain_run));
     Ok(())
 }
 
-/// #641（N3）：真实数据上的链证书簿读数（照实登记，不预设任何数值）。
+/// #641（N3）链簿读数的**取态结果**（#676-2 职责拆分的载体，Standards LOW-3）。
 ///
-/// 与 `ISSUE552_CONTAIN` 同款纪律——印出的每个数都是生产判据本身的判定结果
+/// 存在理由：取态有**顺序约束**（`summary`/`digest` 必须取在幂等重放之前，理由见
+/// [`settle_chain_readout`]），而印出没有。把两件事合在一个 `print_*` 函数里既让名字说假话
+/// （名 `print_*` 实则 `advance` 改簿态），也让那条顺序约束散落在印出代码中间无人守。现在：
+/// 约束只在 [`settle_chain_readout`] 一处成立，本结构一经构造，三项读数即同一簿状态点的定值，
+/// [`print_chain_readout`] 只格式化、不再碰簿。
+struct ChainReadout {
+    every: usize,
+    advances: usize,
+    summary: chain_cert::ChainBookSummary,
+    /// 终态簿锚值（取于幂等重放**前**）。
+    digest: u64,
+    /// 幂等重放的 Delta 条数（应恒 0；非零即为红，照实印出不吞）。
+    replay: usize,
+}
+
+/// #641（N3）：真实数据上的链证书簿**取态**（照实登记，不预设任何数值）。
+///
+/// 与 `ISSUE552_CONTAIN` 同款纪律——取到的每个数都是生产判据本身的判定结果
 /// （[`chain_cert::ChainCertificateBook::advance`] 内部逐对调 `candidate_is_sub`），
 /// bin 侧只做**分桶计数**，不重写任何判据。
 ///
 /// 链簿挂在 #550 既有的逐 bar 对拍循环上（[`ChainRun`]），**不另跑一遍全量分类**：
 /// 500k 窗口上多一遍逐 bar 因果重放会把电池整体推过 10 分钟（实测中止在案，见实施报告）。
 /// 挂载点只**读**该循环已经产出的事件流，不改其输入、判定与输出——既有行逐字节不动。
-fn print_chain_summary(bars: &[Bar], run: ChainRun) {
+fn settle_chain_readout(run: ChainRun) -> ChainReadout {
     let ChainRun {
         mut book,
         every,
@@ -167,14 +184,37 @@ fn print_chain_summary(bars: &[Bar], run: ChainRun) {
     // （#653 影子评审 LOW-1 与 #641 S-3 两线独立发现；取「同取于前」：锚值描述终态簿，
     // 破幂等由 idempotent_replay_delta 单独报，不揉进锚值）。
     let digest = book.digest();
+
+    // 幂等：同一 as_of、同一事件流重跑必须零 Delta。**本函数唯一的改簿动作，且必须最后做**
+    // ——这就是取态与印出必须分家的那条约束（#676-2）。
+    let replay = book.advance(&last_streams, last_as_of).len();
+
+    ChainReadout {
+        every,
+        advances,
+        summary,
+        digest,
+        replay,
+    }
+}
+
+/// #641（N3）链簿读数的印出（纯格式化：不推进、不改簿、不重算任何判据）。
+///
+/// 行口径与 `ISSUE641_CHAIN*` 四行逐字节固定；#676-2 拆分对这四行**零改动**
+/// （20k 小窗对拍 diff 为空，见 commit message）。
+fn print_chain_readout(bars: &[Bar], readout: &ChainReadout) {
+    let &ChainReadout {
+        every,
+        advances,
+        ref summary,
+        digest,
+        replay,
+    } = readout;
     let by_status = BTreeMap::from([
         ("Open", summary.open),
         ("Closed", summary.closed),
         ("Invalidated", summary.invalidated),
     ]);
-
-    // 幂等：同一 as_of、同一事件流重跑必须零 Delta。非零即为红（此处照实印出，不吞）。
-    let replay = book.advance(&last_streams, last_as_of).len();
 
     println!(
         "ISSUE641_CHAIN bars={} chains={} revisions={} advance_every={every} advances={advances} \
