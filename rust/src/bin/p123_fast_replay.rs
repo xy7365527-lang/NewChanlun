@@ -542,7 +542,9 @@ struct ChainDump {
     book: classifier::chain_cert::ChainCertificateBook,
     every: usize,
     seq: u64,
-    /// 节拍探针（#676 LOW-2）：每次**真推进**（越过 [`ChainDump::observe`] 的节拍门）记下 `as_of`。
+    /// 节拍探针（#691 LOW-1 实修）：`self.book.advance(...)` **真正调用之后**记下 `as_of`
+    /// ——见证的是「推进执行」，不是「越过节拍门」（此前记录点在 `advance` 调用之前，探针名不副实，
+    /// 见 #676 LOW-1）。
     ///
     /// 只在 `cfg(test)` 编译进结构（同 `chain_cert::chain_probe` 的先例）——生产面零字段、零成本。
     /// 存在理由：节拍门的可观察后果（Delta 行）在空事件流上恒为零行，「节拍正确 / 永不推进 /
@@ -611,9 +613,9 @@ impl ChainDump {
         if !is_last && (as_of + 1) % self.every != 0 {
             return Ok(());
         }
+        let delta = self.book.advance(&cache.candidate_streams(), as_of);
         #[cfg(test)]
         self.advanced_at.push(as_of);
-        let delta = self.book.advance(&cache.candidate_streams(), as_of);
         let lines: Vec<String> = delta
             .iter()
             .map(|certificate| {
@@ -4254,34 +4256,167 @@ provider_window=5..70 b_center_start=20 intake_fallback=0"
 
     /// #641 节拍：非末根只在 `(as_of+1) % every == 0` 时推进；末根无条件推进。
     ///
-    /// **锁定手段照实（#676 LOW-2 实修）**：本测试断言的是 [`ChainDump::advanced_at`] 探针记下的
-    /// **真推进 `as_of` 序列本身**，不是它的可观察后果——空事件流上 Delta 恒空，行数/`seq` 在
-    /// 「节拍正确 / 永不推进 / 每根都推进」三种实现下同形为 0，靠它们判不出节拍。
+    /// **锁定手段照实（#676 LOW-1 实修）**：断言的是 [`ChainDump::advanced_at`] 探针记下的
+    /// **真推进 `as_of` 序列本身**（探针记录点在 `self.book.advance` 真正调用之后，见证「推进
+    /// 执行」而非「越过节拍门」——#691 LOW-1 把记录点从 `advance` 之前挪到之后），不是它的可观察
+    /// 后果——空事件流上 Delta 恒空，行数/`seq` 在「节拍正确 / 永不推进 / 每根都推进」三种实现下
+    /// 同形为 0，靠它们判不出节拍。
     ///
-    /// 反事实负控（#676 实做记录，非推想）：
-    /// - 把节拍门改成「永不推进」（`observe` 在门后直接 `return Ok(())`）⟹ 探针序列为 `[]`，
-    ///   本测试的 `advanced_at` 断言变红（left=`[]` right=`[2, 5, 6]`）；
-    /// - 改成「每根都推进」（删掉 `!is_last && (as_of + 1) % self.every != 0` 这道门）⟹ 探针序列
-    ///   为 `[0, 1, 2, 3, 4, 5, 6]`，同一条断言变红。
+    /// **两组独立 `every` 夹具（#691 LOW-2 实修）**：单一 `every=3` 只锁住节拍*形状*，锁不住
+    /// 「节拍由 `every` 参数真驱动」这件事——把 `self.every` 硬编码成字面量 `3` 时，`every=3` 那组
+    /// 照样全绿；加一组独立算出期望值的 `every=2` 夹具，硬编码注入 ⟹ `every=2` 那组变红
+    /// （实测：left=`[2, 5, 6]`（硬编码值算出）right=`[1, 3, 5, 6]`（真参数值算出））。
+    ///
+    /// 反事实负控（#676/#691 实做记录，非推想）：
+    /// - 把节拍门改成「永不推进」（`observe` 在门后直接 `return Ok(())`）⟹ 两组探针序列都退化为
+    ///   只剩末根 `[6]`，各自的断言变红；
+    /// - 改成「每根都推进」（删掉 `!is_last && (as_of + 1) % self.every != 0` 这道门）⟹ 两组探针
+    ///   序列都变成 `[0, 1, 2, 3, 4, 5, 6]`，各自的断言变红；
+    /// - 把 `self.every` 硬编码成 `3`（LOW-2 病态实现）⟹ `every=2` 组变红（`every=3` 组仍绿，
+    ///   正是「单一夹具锁不住参数依赖」的反面证据）。
     #[test]
     fn chain_dump_cadence_advances_on_beat_and_on_last_bar() {
-        let cache = classifier::TowerCache::new();
-        let sink: Rc<RefCell<Vec<u8>>> = Rc::new(RefCell::new(Vec::new()));
-        let mut dump = ChainDump::new(Some(Box::new(SharedSink(Rc::clone(&sink)))), 3);
-        for as_of in 0..7 {
-            dump.observe(&cache, as_of, as_of == 6).unwrap();
-        }
-        dump.flush().unwrap();
+        let advanced_at_for = |every: usize| -> Vec<usize> {
+            let cache = classifier::TowerCache::new();
+            let sink: Rc<RefCell<Vec<u8>>> = Rc::new(RefCell::new(Vec::new()));
+            let mut dump = ChainDump::new(Some(Box::new(SharedSink(Rc::clone(&sink)))), every);
+            for as_of in 0..7 {
+                dump.observe(&cache, as_of, as_of == 6).unwrap();
+            }
+            dump.flush().unwrap();
+            assert!(String::from_utf8(sink.borrow().clone()).unwrap().is_empty());
+            assert_eq!(
+                dump.seq, 0,
+                "空事件流 ⟹ 零 Delta ⟹ 零行序推进（every={every}）"
+            );
+            dump.advanced_at
+        };
+
         // every=3、bars=0..=6：节拍根 = `(as_of+1)%3==0` 的 2 与 5；末根 6 无条件推进
         // （`(6+1)%3 != 0`，故它只可能来自末根支）。三个数各锁一件事：
         // 少了 2/5 ⟹ 节拍支没走；少了 6 ⟹ 末根支没走；多出 0/1/3/4 ⟹ 门没起作用。
         assert_eq!(
-            dump.advanced_at,
+            advanced_at_for(3),
             vec![2, 5, 6],
-            "节拍门必须恰好在节拍根与末根放行（每根都推进 / 永不推进 / 相位错一位都在此变红）"
+            "every=3：节拍门必须恰好在节拍根与末根放行（每根都推进 / 永不推进 / 相位错一位都在此变红）"
         );
-        assert!(String::from_utf8(sink.borrow().clone()).unwrap().is_empty());
-        assert_eq!(dump.seq, 0, "空事件流 ⟹ 零 Delta ⟹ 零行序推进");
+        // every=2、bars=0..=6：节拍根 = `(as_of+1)%2==0` 的 1/3/5；末根 6 无条件推进
+        // （`(6+1)%2 != 0`，同样只可能来自末根支）。期望值与 every=3 组不同，证明节拍确由
+        // `every` 参数决定——硬编码 `self.every=3` 的病态实现会让本组变红。
+        assert_eq!(
+            advanced_at_for(2),
+            vec![1, 3, 5, 6],
+            "every=2：节拍门必须恰好在节拍根与末根放行（硬编码 every=3 的病态实现在此变红）"
+        );
+    }
+
+    fn cadence_probe_seg(dir: Direction, si: usize, ei: usize, sp: i64, ep: i64) -> Segment {
+        Segment {
+            direction: dir,
+            start_index: si,
+            end_index: ei,
+            start_price: sp,
+            end_price: ep,
+        }
+    }
+
+    /// 候选富集段序列（同 `classifier::mod::tests::candidate_rich_segments` 口径，本 bin 内独立
+    /// 一份——那份是 classifier 模块内 `#[cfg(test)]` 私有项，跨 crate 不可见）。
+    fn cadence_probe_candidate_rich_segments(count: usize) -> Vec<Segment> {
+        let mut price = 100_i64;
+        let mut state = 0x9e3779b97f4a7c15_u64;
+        (0..count)
+            .map(|i| {
+                state = state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                let swing = 20 + ((state >> 32) % 90) as i64;
+                let dir = if i % 2 == 0 {
+                    Direction::Up
+                } else {
+                    Direction::Down
+                };
+                let start = price;
+                price += match dir {
+                    Direction::Up => swing,
+                    Direction::Down => -swing,
+                };
+                cadence_probe_seg(dir, i * 4, i * 4 + 4, start, price)
+            })
+            .collect()
+    }
+
+    fn cadence_probe_bars_from_closes(vals: &[i64]) -> Vec<Bar> {
+        vals.iter()
+            .enumerate()
+            .map(|(i, &v)| Bar {
+                source_index: i,
+                timestamp: i as i64,
+                open: v,
+                high: v,
+                low: v,
+                close: v,
+                volume: 1,
+                untradable: false,
+            })
+            .collect()
+    }
+
+    /// #691 LOW-1 补强：探针改口径（记录点移到 `advance` 之后）本身仍可能被「删掉
+    /// `book.advance` 整条、留一个类型匹配的空 `Vec` 占位」这种病态实现绕过——单纯挪动语句顺序
+    /// 的探针只见证「程序走到了这一行」，不见证「这一行真的调用了 `advance` 并产生效果」（空事件流
+    /// 上 `advance` 恒为 no-op，二者在 `advanced_at` 上完全同形，参见上一用例文档）。
+    ///
+    /// 本用例改用**真实非空候选流**堵死这个漏洞：真调用 `advance` 时，首个越过节拍门的 `as_of`
+    /// 会在簿里留下真实证书（`seq`/`book.certificates()` 非零、Delta 行落盘非空）；病态实现把
+    /// `book.advance` 换成空 `Vec` 字面量后，无论探针记在哪一行，这三项永远锁定在零/空。
+    ///
+    /// 反事实负控（#691 实做记录，非推想）：把 `observe` 里
+    /// `let delta = self.book.advance(&cache.candidate_streams(), as_of);` 整条替换为
+    /// `let delta: Vec<_> = Vec::new();`（保留节拍门与两条 `#[cfg(test)]` 探针语句不动）⟹
+    /// 本用例 `dump.seq > 0` 断言变红（left=`0` right>`0`）。
+    #[test]
+    fn chain_dump_observe_advance_produces_real_certificates_on_first_beat() {
+        let cfg = ThetaConfig::default();
+        let segments = cadence_probe_candidate_rich_segments(120);
+        let closes: Vec<i64> = (0..=segments.last().unwrap().end_index)
+            .map(|i| 100 + if i % 8 < 4 { 35 } else { -35 } + (i as i64 / 16))
+            .collect();
+        let layer = ParseLayer {
+            segments: Rc::new(segments),
+            merged_bars: Rc::new(cadence_probe_bars_from_closes(&closes)),
+            ..Default::default()
+        };
+        let mut cache = classifier::TowerCache::new();
+        classifier::classify_with_tower_events_incremental(&layer, &cfg, &mut cache);
+        assert!(
+            cache
+                .candidate_streams()
+                .iter()
+                .any(|stream| !stream.is_empty()),
+            "夹具必须产出非空候选流，否则测不到 advance 的可观察后果"
+        );
+
+        let sink: Rc<RefCell<Vec<u8>>> = Rc::new(RefCell::new(Vec::new()));
+        let mut dump = ChainDump::new(Some(Box::new(SharedSink(Rc::clone(&sink)))), 3);
+        dump.observe(&cache, 0, false).unwrap();
+        assert_eq!(dump.seq, 0, "as_of=0 未越过 every=3 的节拍门，不该推进");
+        dump.observe(&cache, 2, false).unwrap(); // (2+1)%3==0：首个节拍根
+        dump.flush().unwrap();
+
+        assert!(
+            dump.seq > 0,
+            "真实候选流上首个节拍根必须产出非空 Delta（真推进的可观察后果）；\
+             为 0 即 advance 未被真正调用（病态实现漏网，见本函数文档反事实负控）"
+        );
+        assert!(
+            !dump.book.certificates().is_empty(),
+            "真实候选流上首个节拍根必须在簿中留下证书"
+        );
+        assert!(
+            !String::from_utf8(sink.borrow().clone()).unwrap().is_empty(),
+            "非空 Delta 必须落盘为 CHAIN 行"
+        );
     }
 
     /// #641 元行 + 行格式逐字锁（行口径漂移当场变红）。
