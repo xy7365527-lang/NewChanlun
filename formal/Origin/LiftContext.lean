@@ -5,24 +5,35 @@ Origin/LiftContext.lean — #257 Lift / Context / 父中枢内反例
 
 1. `Induces : Cert ℓ → ParentCarrier → BspClass → Prop`；
 2. `ContextOne` / `ContextTwo` / `ContextThree` 的完整定义；
-3. 判定 `InsideParentCenter W c` 能否排除三个 Context。
+3. 区分字面前提 `WalkInsideParentCenter W c` 与加强前提
+   `InsideParentCenter W c`，判定二者能否排除三个 Context。
 
-结论先行：原三类全排除命题为假。中枢内几何能推出 `brokeCenter=false` 与
-`leftCenter=false`，却不能抹掉历史量 `afterTypeOne`。因此一类、三类可排除；若
-`afterTypeOne=true`，二类反而成立。本文件给出机器检查反例，且把补
-`afterTypeOne=false` 后才成立的加强定理明确命名为 `_of_not_afterTypeOne`。
+结论先行：
+- `WalkInsideParentCenter` 只表达 `W ⊆ [ZD,ZG]`，不连接 W 与待分类父终端；
+  W 甚至可为空，因此字面版下一、二、三类 Context 分别均不可排除；
+- `InsideParentCenter` 是加强版，另含 `c.terminalMove.endPrice ∈ W`，故 W 非空且
+  待分类父终端确在中枢内。只有在这条对象连接下，几何才推出
+  `brokeCenter=false` 与 `leftCenter=false`，从而排除一类、三类；
+- 加强版仍不能抹掉历史量 `afterTypeOne`。本文件的完整 Lift 见证中，一类、三类
+  已分别证明为假，唯一命中二类。
+
+**编码边界**：当前 `afterTypeOne` 是无 `_spec` 约束的外部自由 Bool。本文件的二类
+证伪只在该编码内成立；历史条件真形式化后，必须另证它与“父终端在中枢内”可共存，
+否则证伪结论翻转。补 `afterTypeOne=false` 后才成立的加强定理明确命名为
+`_of_not_afterTypeOne`。
 
 认识论等级：
 - 下列结构、定义、等价和反例均为 **L0 machine-checked / 定义**；
 - `Cert.isTypeOne` 只编码“输入 g 已是次级别一类证书”这一 PDF 定义域；
-- `ParentCarrier.endpoint` 是上级分类器已给出的端点判据；本文件不冒充从行情识别
-  `afterTypeOne`，也不证明现有前序折叠等于完整市场历史识别（该识别仍是上游责任）；
+- `ParentCarrier.endpoint` 是上级分类器已给出的端点判据；其中 `afterTypeOne` 在本文件
+  仍是自由 Bool。本文件不冒充从行情识别该历史条件，也不证明现有前序折叠等于完整
+  市场历史识别（该识别仍是上游 still-MISSING-D 责任）；
 - `Cert.notUsedAtTime` 只消费共享 `M_t` 的外部时点观测；从账本计算该观测仍未证，
   且账本归属不在本票收窄范围；
 - `CarrierRef (ℓ+1)` 只在类型层表达调用方声明的 Compose 父引用；其 canonical 签发、
   `CarrierId` 唯一性与区间输入良构仍未证，state→LevelView 正确性按拆票留给 #663；
 - 不修改 `IntervalNestCertificate` 的通用结构核；文件后部提供 Bool 适配器，
-  将本文件的具体 Lift 语义送入外部 `candidateOK` / `confirmOK` 缝。
+  可将本文件的具体 Lift 语义送入外部 `candidateOK` / `confirmOK` 缝。
 
 无证明占位符。
 -/
@@ -115,7 +126,8 @@ deriving Repr
 
   `endpoint` 是上级分类器在 carrier 右端给出的完整判据载体。两条 `_spec` 把几何位
   `brokeCenter/leftCenter` 锚回 canonical `BspConstruction` 的末端价推导；历史位
-  `afterTypeOne` 刻意不加几何等式，因为它属于父级一类之后的时序。
+  `afterTypeOne` 刻意不加几何等式，因为它属于父级一类之后的时序；在当前载体中它仍是
+  无 `_spec` 约束的自由 Bool。历史条件真形式化后，须另证它能与父终端位于中枢内共存。
 
   carrier 自身不存级别；`Nest` 只接受 id 与命中 host 所携 `CarrierRef (ℓ+1)` 一致的对象。
 -/
@@ -187,8 +199,10 @@ def ContextOne {ℓ : Nat} (g : Cert ℓ) (c : ParentCarrier) : Prop :=
   **`Context^δ_2(c,g)`（定义）** —— 证书方向与父端点方向一致，且父端点处于
   **父级一类之后的回抽序列**：`afterTypeOne=true ∧ brokeCenter=false`。
 
-  这里 `afterTypeOne` 是历史条件，不是价格几何的别名。它由上级结构历史提供；
-  本定义不把“中枢内”偷换成 `afterTypeOne=false`。
+  这里 `afterTypeOne` 是历史条件，不是价格几何的别名。本文件当前把它编码为上级结构
+  提供的自由 Bool，未附 `_spec`；本定义不把“中枢内”偷换成
+  `afterTypeOne=false`。历史条件真形式化后，必须重证它与“父终端在中枢内”的共存性，
+  否则下文二类证伪结论翻转。
 -/
 def ContextTwo {ℓ : Nat} (g : Cert ℓ) (c : ParentCarrier) : Prop :=
   g.endpoint.side = c.endpoint.side ∧ IsType2 c.endpoint
@@ -270,21 +284,22 @@ def WalkInsideParentCenter (W : List Tick) (c : ParentCarrier) : Prop :=
   ∀ p, p ∈ W → IsWithin c.center p
 
 /--
-  **与待分类父终端连接的 Inside（定义）** —— 除字面子集外，父 carrier 的终端价属于 W。
+  **加强版 Inside（定义）** —— 除字面子集外，父 carrier 的终端价属于 W。
 
-  正向推出 `brokeCenter/leftCenter` 必须有这条对象连接；下文对票体字面弱前提的两个
-  全称命题则单独使用 `WalkInsideParentCenter`，不会把加强前提冒充原题。
+  该成员关系同时保证 W 非空，并把中枢内区间连接到待分类父终端。正向推出
+  `brokeCenter/leftCenter` 必须有这条对象连接；不得把下列加强版正向结论转述成
+  仅由字面 `WalkInsideParentCenter` 可得。
 -/
 def InsideParentCenter (W : List Tick) (c : ParentCarrier) : Prop :=
   c.terminalMove.endPrice ∈ W ∧ WalkInsideParentCenter W c
 
-/-- Inside 蕴含父 carrier 终端价在 `[ZD,ZG]` 内（L0）。 -/
+/-- 加强版 Inside 蕴含父 carrier 终端价在 `[ZD,ZG]` 内（L0）。 -/
 theorem insideParentCenter_terminal_within {W : List Tick} {c : ParentCarrier}
     (h : InsideParentCenter W c) :
     IsWithin c.center c.terminalMove.endPrice :=
   h.2 _ h.1
 
-/-- Inside 的终端价不在中枢外（供 broke/left 两个几何位共享，L0）。 -/
+/-- 加强版 Inside 的终端价不在中枢外（供 broke/left 两个几何位共享，L0）。 -/
 theorem insideParentCenter_not_outside {W : List Tick} {c : ParentCarrier}
     (h : InsideParentCenter W c) :
     ¬ (c.terminalMove.endPrice < c.center.zd ∨
@@ -294,21 +309,21 @@ theorem insideParentCenter_not_outside {W : List Tick} {c : ParentCarrier}
   simp only [Tick] at hw ⊢
   omega
 
-/-- Inside 排除几何位 `brokeCenter`（L0 machine-checked）。 -/
+/-- 加强版 Inside 排除几何位 `brokeCenter`（L0 machine-checked）。 -/
 theorem insideParentCenter_brokeCenter_false {W : List Tick} {c : ParentCarrier}
     (h : InsideParentCenter W c) :
     c.endpoint.brokeCenter = false := by
   rw [c.brokeCenter_spec]
   simp [brokeCenterOf, insideParentCenter_not_outside h]
 
-/-- Inside 排除几何位 `leftCenter`（L0 machine-checked）。 -/
+/-- 加强版 Inside 排除几何位 `leftCenter`（L0 machine-checked）。 -/
 theorem insideParentCenter_leftCenter_false {W : List Tick} {c : ParentCarrier}
     (h : InsideParentCenter W c) :
     c.endpoint.leftCenter = false := by
   rw [c.leftCenter_spec]
   simp [leftCenterOf, insideParentCenter_not_outside h]
 
-/-- Inside 排除一类 Context：一类要求 `brokeCenter=true`（L0）。 -/
+/-- 加强版 Inside 排除一类 Context：一类要求 `brokeCenter=true`（L0）。 -/
 theorem insideParentCenter_not_contextOne {ℓ : Nat} {g : Cert ℓ}
     {c : ParentCarrier} {W : List Tick}
     (h : InsideParentCenter W c) :
@@ -319,7 +334,7 @@ theorem insideParentCenter_not_contextOne {ℓ : Nat} {g : Cert ℓ}
   rw [hfalse] at htrue
   exact Bool.noConfusion htrue
 
-/-- Inside 排除三类 Context：三类两方向都要求 `leftCenter=true`（L0）。 -/
+/-- 加强版 Inside 排除三类 Context：三类两方向都要求 `leftCenter=true`（L0）。 -/
 theorem insideParentCenter_not_contextThree {ℓ : Nat} {g : Cert ℓ}
     {c : ParentCarrier} {W : List Tick}
     (h : InsideParentCenter W c) :
@@ -335,7 +350,8 @@ theorem insideParentCenter_not_contextThree {ℓ : Nat} {g : Cert ℓ}
     exact Bool.noConfusion htrue
 
 /--
-  **Inside 的无加强结论（L0）** —— 只能同时排除一类与三类；刻意不声称排除二类。
+  **加强版 Inside 的最强无历史附加结论（L0）** —— 只能同时排除一类与三类；
+  刻意不声称排除二类。字面 `WalkInsideParentCenter` 下连这两类也排不掉。
 -/
 theorem insideParentCenter_excludes_geometricContexts {ℓ : Nat} {g : Cert ℓ}
     {c : ParentCarrier} {W : List Tick}
@@ -344,10 +360,11 @@ theorem insideParentCenter_excludes_geometricContexts {ℓ : Nat} {g : Cert ℓ}
   ⟨insideParentCenter_not_contextOne h, insideParentCenter_not_contextThree h⟩
 
 /--
-  **二类的历史条件精确暴露（L0）** —— 在方向匹配且 W 位于父中枢内时，
+  **二类的历史条件精确暴露（L0）** —— 在方向匹配且满足加强版 Inside 时，
   `ContextTwo` 当且仅当历史位 `afterTypeOne=true`。
 
-  这正是几何约束无法排掉二类的突破口。
+  这只是在 `afterTypeOne` 为自由 Bool 的当前编码内精确暴露突破口；历史条件真形式化后，
+  还须另证其与加强版 Inside 可共存。
 -/
 theorem insideParentCenter_contextTwo_iff {ℓ : Nat} {g : Cert ℓ}
     {c : ParentCarrier} {W : List Tick}
@@ -362,8 +379,8 @@ theorem insideParentCenter_contextTwo_iff {ℓ : Nat} {g : Cert ℓ}
     exact ⟨hsame, hafter, insideParentCenter_brokeCenter_false h⟩
 
 /--
-  **加强版三类全排除（L0）** —— 只有显式另加历史前提
-  `afterTypeOne=false`，Inside 才能推出三个 Context 全假。
+  **双重加强版三类全排除（L0）** —— 在已经含“父终端价 ∈ W”的加强版 Inside 上，
+  还须显式另加历史前提 `afterTypeOne=false`，才能推出三个 Context 全假。
 
   ★这不是题设原命题；定理名和注释均保留 `_of_not_afterTypeOne`，禁止冒充。
 -/
@@ -384,7 +401,7 @@ def parentFlags (c : ParentCarrier) : Bool × Bool × Bool :=
   (c.endpoint.brokeCenter, c.endpoint.leftCenter, c.endpoint.afterTypeOne)
 
 /--
-  **Inside 对三元组的最强无加强定理（L0）**：
+  **加强版 Inside 对三元组的最强无历史附加定理（L0）**：
   前两位归零，第三位保留原历史值，而不是被几何强制归零。
 -/
 theorem insideParentCenter_flags_exact {W : List Tick} {c : ParentCarrier}
@@ -394,7 +411,7 @@ theorem insideParentCenter_flags_exact {W : List Tick} {c : ParentCarrier}
   rw [insideParentCenter_brokeCenter_false h, insideParentCenter_leftCenter_false h]
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 5. 原命题的二类历史反例（完整 Lift，而非条件反例）
+    § 5. 加强版 Inside 在自由历史位编码下的二类反例（完整 Lift）
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /-- 反例父中枢 `[10,20]`。 -/
@@ -417,6 +434,9 @@ def insideTypeTwoParentMove : Move :=
 /--
   父级二类端点：几何位均假，但历史位 `afterTypeOne=true`。
   这镜像仓内既有 `SecondSellClosedLoop.sampleType2Buy` 的 `[10,20] / 15` 见证。
+
+  **编码边界**：这里的 `true` 是当前无 `_spec` 约束载体中的外部历史位，不是已经
+  形式化出的“父级一类之后回抽序列”见证。
 -/
 def insideTypeTwoParentEndpoint : BspEndpoint :=
   { side := Side.long
@@ -436,8 +456,8 @@ def insideTypeTwoParent : ParentCarrier :=
     center := insideTypeTwoCenter
     endpoint := insideTypeTwoParentEndpoint
     endpointCenter := rfl
-    brokeCenter_spec := by native_decide
-    leftCenter_spec := by native_decide }
+    brokeCenter_spec := by decide
+    leftCenter_spec := by decide }
 
 /-- 次级别唯一 host：类型视图为 level 0，嵌套于父区间并真指向父 id 200。 -/
 def insideTypeTwoHost : HostCarrier 0 :=
@@ -457,19 +477,25 @@ def insideTypeTwoChildEndpoint : BspEndpoint :=
     retracePrice := 10
     firstRetrace := false }
 
-/-- PDF 定义域内的 `g ∈ P^+_{1,0}`，唯一 host 且在共享 `M_t` 观测中尚未使用。 -/
+/--
+  PDF 定义域内的 `g ∈ P^+_{1,0}`：`isTypeOne` 证明字段保证次级别一类完好，
+  且它有唯一 host、在共享 `M_t` 观测中尚未使用。
+-/
 def insideTypeTwoCert : Cert 0 :=
   { id := 7
     sourcePoint := { extremePrice := 10, mergeGroupAnchor := 18 }
     endpoint := insideTypeTwoChildEndpoint
-    isTypeOne := by native_decide
+    isTypeOne := by decide
     hostCandidates := [insideTypeTwoHost]
     notUsedAtTime := true }
 
 /-- 反例价格窗 `W={15}`。 -/
 def insideTypeTwoWalk : List Tick := [15]
 
-/-- W 完整在 `[10,20]` 内（L0 machine-checked）。 -/
+/--
+  W 完整在 `[10,20]` 内且包含父终端价（L0 machine-checked）。
+  后一成员关系保证 W 非空；这是正式强版证伪使用的前提，不是字面弱前提。
+-/
 theorem witness_insideTypeTwo_inside :
     InsideParentCenter insideTypeTwoWalk insideTypeTwoParent := by
   simp [InsideParentCenter, WalkInsideParentCenter, insideTypeTwoWalk,
@@ -478,7 +504,7 @@ theorem witness_insideTypeTwo_inside :
 /-- 反例三元组精确为 `(0,0,1)`（L0 machine-checked）。 -/
 theorem witness_insideTypeTwo_flags :
     parentFlags insideTypeTwoParent = (false, false, true) := by
-  native_decide
+  decide
 
 /-- Inside 场景的一类 Context 为假（L0）。 -/
 theorem witness_insideTypeTwo_not_contextOne :
@@ -491,53 +517,191 @@ theorem witness_insideTypeTwo_not_contextThree :
   insideParentCenter_not_contextThree witness_insideTypeTwo_inside
 
 /--
-  **历史突破几何约束**：同一 Inside 场景的二类 Context 为真（L0 machine-checked）。
+  **当前编码中的历史位突破几何约束**：同一加强版 Inside 场景的二类 Context 为真
+  （L0 machine-checked）。
+
+  本定理只在 `afterTypeOne` 为自由 Bool 的当前编码内成立；历史条件真形式化后，
+  须另证它与“父终端在中枢内”可共存，否则结论翻转。
 -/
 theorem witness_insideTypeTwo_contextTwo :
     ContextTwo insideTypeTwoCert insideTypeTwoParent := by
-  native_decide
+  decide
 
 /--
-  **完整 Lift 反例**：Host、Nest、Context₂、Fresh 四门全过，故中枢内 W 确实可诱导
-  父级二类，不只是“若其余门恰好为真”的条件反例。
+  **当前编码内的完整 Lift 反例**：Host、Nest、Context₂、Fresh 四门全过，且
+  `Cert.isTypeOne` 在案，故加强版中枢内 W 可诱导父级二类，不只是“若其余门恰好为真”
+  的条件反例。`afterTypeOne` 真历史化后的共存性仍是显式 open question。
 -/
 theorem witness_insideTypeTwo_induces :
     Induces insideTypeTwoCert insideTypeTwoParent BspClass.two := by
   apply (inducesB_iff insideTypeTwoCert insideTypeTwoParent BspClass.two).mp
-  native_decide
+  decide
 
-/-- 票体目标“三位必为 0”的无加强、全称版本。 -/
-def InsideForcesZero : Prop :=
+/--
+  强版反例中一类、三类均已排除，唯一命中二类（L0）。
+  因而正式证伪不再借空 W 或一类/三类击穿命题。
+-/
+theorem witness_insideTypeTwo_only_contextTwo :
+    ¬ ContextOne insideTypeTwoCert insideTypeTwoParent ∧
+      ContextTwo insideTypeTwoCert insideTypeTwoParent ∧
+      ¬ ContextThree insideTypeTwoCert insideTypeTwoParent :=
+  ⟨witness_insideTypeTwo_not_contextOne, witness_insideTypeTwo_contextTwo,
+    witness_insideTypeTwo_not_contextThree⟩
+
+/-! ─── § 5.1 字面弱前提的真实边界：三类均可分别出现 ─── -/
+
+/-- 弱前提见证的父终端走势：W 仍取 `{15}`，但待分类父终端价 5 在中枢外。 -/
+def walkInsideOuterParentMove : Move :=
+  { kind := MoveKind.consolidation
+    startIndex := 0
+    endIndex := 30
+    startPrice := 12
+    endPrice := 5
+    centers := [insideTypeTwoCenter] }
+
+/-- 一类与三类同时成立的父端点；它只用于展示字面 W 子集前提没有对象连接。 -/
+def walkInsideOuterParentEndpoint : BspEndpoint :=
+  { side := Side.long
+    center := insideTypeTwoCenter
+    divPair := { forceA := ⟨3⟩, forceC := ⟨1⟩, isTrend := true }
+    brokeCenter := true
+    afterTypeOne := true
+    leftCenter := true
+    retracePrice := 25
+    firstRetrace := true }
+
+/-- 待分类父终端价在中枢外、但无关的 W 仍完全落在中枢内。 -/
+def walkInsideOuterParent : ParentCarrier :=
+  { id := { value := 201 }
+    window := { startTime := 0, endTime := 30, idx := 0 }
+    terminalMove := walkInsideOuterParentMove
+    center := insideTypeTwoCenter
+    endpoint := walkInsideOuterParentEndpoint
+    endpointCenter := rfl
+    brokeCenter_spec := by decide
+    leftCenter_spec := by decide }
+
+/-- 与父终端无关的 W 满足字面 `WalkInsideParentCenter`（L0）。 -/
+theorem witness_walkInside_outer :
+    WalkInsideParentCenter insideTypeTwoWalk walkInsideOuterParent := by
+  simp [WalkInsideParentCenter, insideTypeTwoWalk, walkInsideOuterParent,
+    insideTypeTwoCenter, IsWithin]
+
+/-- 同一见证不满足加强版 Inside，因为父终端价 5 不属于 W={15}（L0）。 -/
+theorem witness_walkInside_outer_not_inside :
+    ¬ InsideParentCenter insideTypeTwoWalk walkInsideOuterParent := by
+  simp [InsideParentCenter, insideTypeTwoWalk, walkInsideOuterParent,
+    walkInsideOuterParentMove]
+
+/-- 字面弱前提下，一类 Context 可成立（L0）。 -/
+theorem witness_walkInside_contextOne :
+    ContextOne insideTypeTwoCert walkInsideOuterParent := by
+  decide
+
+/-- 字面弱前提下，三类 Context 可成立（L0）。 -/
+theorem witness_walkInside_contextThree :
+    ContextThree insideTypeTwoCert walkInsideOuterParent := by
+  decide
+
+/--
+  **字面版下三类均不可排除（L0）**：分别存在满足
+  `WalkInsideParentCenter` 的一类、二类、三类见证。三者不要求同一父端点同时成立。
+-/
+theorem walkInsideParentCenter_allows_each_context :
+    (∃ (ℓ : Nat) (g : Cert ℓ) (c : ParentCarrier) (W : List Tick),
+      WalkInsideParentCenter W c ∧ ContextOne g c) ∧
+    (∃ (ℓ : Nat) (g : Cert ℓ) (c : ParentCarrier) (W : List Tick),
+      WalkInsideParentCenter W c ∧ ContextTwo g c) ∧
+    (∃ (ℓ : Nat) (g : Cert ℓ) (c : ParentCarrier) (W : List Tick),
+      WalkInsideParentCenter W c ∧ ContextThree g c) := by
+  refine ⟨?_, ?_, ?_⟩
+  · exact ⟨0, insideTypeTwoCert, walkInsideOuterParent, insideTypeTwoWalk,
+      witness_walkInside_outer, witness_walkInside_contextOne⟩
+  · exact ⟨0, insideTypeTwoCert, insideTypeTwoParent, insideTypeTwoWalk,
+      witness_insideTypeTwo_inside.2, witness_insideTypeTwo_contextTwo⟩
+  · exact ⟨0, insideTypeTwoCert, walkInsideOuterParent, insideTypeTwoWalk,
+      witness_walkInside_outer, witness_walkInside_contextThree⟩
+
+/-! ─── § 5.2 正式强版命题与低信息弱版命题 ─── -/
+
+/--
+  字面弱版“三位必为 0”。它不连接 W 与 c，允许 `W=[]` 空真，信息量低于正式强版。
+-/
+def WalkInsideForcesZero : Prop :=
   ∀ (W : List Tick) (c : ParentCarrier),
     WalkInsideParentCenter W c → parentFlags c = (false, false, false)
 
-/-- 票体第 3 项“三个 Context 全假”的无加强、全称版本。 -/
-def InsideExcludesAllContexts : Prop :=
+/--
+  字面弱版“三个 Context 全假”。它不连接 W 与 c，允许 `W=[]` 空真，信息量低于正式强版。
+-/
+def WalkInsideExcludesAllContexts : Prop :=
   ∀ (ℓ : Nat) (g : Cert ℓ) (c : ParentCarrier) (W : List Tick),
     WalkInsideParentCenter W c →
       ¬ ContextOne g c ∧ ¬ ContextTwo g c ∧ ¬ ContextThree g c
 
 /--
-  **目标三元组命题证伪（L0 machine-checked）**：
-  `W⊆[ZD,ZG]` 不推出 `(brokeCenter,leftCenter,afterTypeOne)=(0,0,0)`。
+  正式强版“三位必为 0”：`InsideParentCenter` 额外连接父终端并保证 W 非空。
+-/
+def InsideForcesZero : Prop :=
+  ∀ (W : List Tick) (c : ParentCarrier),
+    InsideParentCenter W c → parentFlags c = (false, false, false)
+
+/--
+  正式强版“三个 Context 全假”：`InsideParentCenter` 保证非空与父终端对象连接；
+  `g : Cert ℓ` 自带 `isTypeOne` 证明字段，保留次级别一类完好性。
+-/
+def InsideExcludesAllContexts : Prop :=
+  ∀ (ℓ : Nat) (g : Cert ℓ) (c : ParentCarrier) (W : List Tick),
+    InsideParentCenter W c →
+      ¬ ContextOne g c ∧ ¬ ContextTwo g c ∧ ¬ ContextThree g c
+
+/--
+  **正式强版三元组命题证伪（L0 machine-checked）**：
+  非空、连接父终端的中枢内 W 仍不推出
+  `(brokeCenter,leftCenter,afterTypeOne)=(0,0,0)`。
+
+  **编码边界**：第三位之所以可为真，依赖 `afterTypeOne` 是自由 Bool 的当前编码；
+  历史条件真形式化后须另证其与加强版 Inside 可共存，否则本结论翻转。
 -/
 theorem insideParentCenter_not_forces_zero : ¬ InsideForcesZero := by
   intro h
-  have hz := h insideTypeTwoWalk insideTypeTwoParent witness_insideTypeTwo_inside.2
+  have hz := h insideTypeTwoWalk insideTypeTwoParent witness_insideTypeTwo_inside
   rw [witness_insideTypeTwo_flags] at hz
   have hthird := congrArg (fun x : Bool × Bool × Bool => x.2.2) hz
   exact Bool.noConfusion hthird
 
 /--
-  **原三类全排除命题证伪（L0 machine-checked）**：
-  反例中的 `ContextTwo` 为真。
+  **正式强版三类全排除命题证伪（L0 machine-checked）**：
+  W 非空、父终端对象连接、次级别一类证书均在案；一类与三类已证为假，唯一命中二类。
+
+  **编码边界**：该二类命中在 `afterTypeOne` 为自由 Bool 的当前编码内成立；历史条件
+  真形式化后须另证其与加强版 Inside 可共存，否则本结论翻转。
 -/
 theorem insideParentCenter_not_excludes_allContexts :
     ¬ InsideExcludesAllContexts := by
   intro h
   have hall := h 0 insideTypeTwoCert insideTypeTwoParent insideTypeTwoWalk
-    witness_insideTypeTwo_inside.2
-  exact hall.2.1 witness_insideTypeTwo_contextTwo
+    witness_insideTypeTwo_inside
+  exact hall.2.1 witness_insideTypeTwo_only_contextTwo.2.1
+
+/--
+  字面弱版同样为假，但其 W 可与 c 无关甚至为空；本定理只登记兼容性，不作为正式证伪落点。
+-/
+theorem walkInsideParentCenter_not_forces_zero : ¬ WalkInsideForcesZero := by
+  intro h
+  apply insideParentCenter_not_forces_zero
+  intro W c hinside
+  exact h W c hinside.2
+
+/--
+  字面弱版同样为假，但可由空 W 和一类/三类击穿；本定理不支撑“唯一命中二类”的叙事。
+-/
+theorem walkInsideParentCenter_not_excludes_allContexts :
+    ¬ WalkInsideExcludesAllContexts := by
+  intro h
+  apply insideParentCenter_not_excludes_allContexts
+  intro ℓ g c W hinside
+  exact h ℓ g c W hinside.2
 
 -- TDD seam：票体要求的精确公共签名。
 example {ℓ : Nat} : Cert ℓ → ParentCarrier → BspClass → Prop := Induces
@@ -547,7 +711,7 @@ example :
     samePointRecursiveB
       { extremePrice := 10, mergeGroupAnchor := 18 }
       { extremePrice := 10, mergeGroupAnchor := 19 } = false := by
-  native_decide
+  decide
 
 -- TDD seam：Compose 父引用的 `ℓ+1` 由 elaborator 检查，不存在运行时 level 副本。
 example : CarrierRef (0 + 1) := insideTypeTwoHost.parent
@@ -556,7 +720,7 @@ example : CarrierRef (0 + 1) := insideTypeTwoHost.parent
 example :
     nestB insideTypeTwoCert
       { insideTypeTwoParent with id := { value := 201 } } = false := by
-  native_decide
+  decide
 
 -- TDD seam：通用区间套 Bool 参数消费本模块语义时，必须与 Prop 定义同真。
 example {ℓ : Nat} (g : Cert ℓ) (c : ParentCarrier) (j : BspClass) :
@@ -565,7 +729,7 @@ example {ℓ : Nat} (g : Cert ℓ) (c : ParentCarrier) (j : BspClass) :
 example {ℓ : Nat} (g : Cert ℓ) (c : ParentCarrier) (j : BspClass) :
     inducesB g c j = true ↔ Induces g c j := inducesB_iff g c j
 
--- TDD seam：Inside 只能消去两个几何位；二类精确退化为独立历史位。
+-- TDD seam：加强版 Inside 只能消去两个几何位；二类精确退化为外部历史位。
 example {ℓ : Nat} {g : Cert ℓ} {c : ParentCarrier} {W : List Tick}
     (h : InsideParentCenter W c) :
     ¬ ContextOne g c ∧ ¬ ContextThree g c :=
@@ -577,15 +741,26 @@ example {ℓ : Nat} {g : Cert ℓ} {c : ParentCarrier} {W : List Tick}
     ContextTwo g c ↔ c.endpoint.afterTypeOne = true :=
   insideParentCenter_contextTwo_iff h hsame
 
--- TDD seam：原命题必须由具体二类历史反例证伪，而不是只写一段解释。
+-- TDD seam：正式强版命题必须由具体二类历史反例证伪，而不是只写一段解释。
 example : InsideParentCenter insideTypeTwoWalk insideTypeTwoParent :=
   witness_insideTypeTwo_inside
 
 example : Induces insideTypeTwoCert insideTypeTwoParent BspClass.two :=
   witness_insideTypeTwo_induces
 
+example :
+    ¬ ContextOne insideTypeTwoCert insideTypeTwoParent ∧
+      ContextTwo insideTypeTwoCert insideTypeTwoParent ∧
+      ¬ ContextThree insideTypeTwoCert insideTypeTwoParent :=
+  witness_insideTypeTwo_only_contextTwo
+
 example : ¬ InsideForcesZero := insideParentCenter_not_forces_zero
 
 example : ¬ InsideExcludesAllContexts := insideParentCenter_not_excludes_allContexts
+
+example : ¬ WalkInsideForcesZero := walkInsideParentCenter_not_forces_zero
+
+example : ¬ WalkInsideExcludesAllContexts :=
+  walkInsideParentCenter_not_excludes_allContexts
 
 end NewChanlun.Origin
