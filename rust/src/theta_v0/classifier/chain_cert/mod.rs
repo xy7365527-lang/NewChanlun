@@ -23,11 +23,24 @@
 //! 3. **证伪节点不判死上级**（裁定③）：路径中某节点的事件转 `Invalidated` 时，它降为
 //!    [`ChainNodeStatus::Falsified`] 留痕并被**跨过**，链段改由它两侧的存活端点直接判——链的死活
 //!    由谓词裁，不由该节点裁。
-//! 4. **终态三态**（裁定②）：`Closed` = 链头 `Confirmed` + 链不可再扩展 + 全链段谓词判过；
-//!    `Invalidated` = 谓词判不过或链头 `Invalidated`；否则 `Open`。终态不复活。
+//! 4. **终态三态**（裁定② + #641 地板条款 comment-5121572134）：`Closed` = 链头 `Confirmed`
+//!    + 链不可再扩展 + 全链段谓词判过 + **至少一条有效链段**；`Invalidated` = 谓词判不过或
+//!    链头 `Invalidated`（成因分档见 [`ChainInvalidationCause`]）；否则 `Open`。终态不复活。
 //! 5. **路径扩展走新 key**（裁定②）：加子节点 = 新 [`ChainKey`]，其
-//!    [`TowerChainCertificate::extends`] 指向唯一最长 proper-prefix key（E2E-L
-//!    `extends_lineage_key` 同义），旧路径不被篡改。
+//!    [`TowerChainCertificate::extends`] 指向**簿内**最长 proper-prefix key（E2E-L
+//!    `extends_lineage_key` 同义，见 [`ChainCertificateBook::resolve_extends`]），旧路径不被篡改。
+//!
+//! ## 地板条款（#641 comment-5121572134，2026-07-29 编排者裁定）
+//!
+//! 「全链段谓词判过」**不得在空集上真空成立**：链必须至少有一条有效链段（谓词判过的边，含
+//! skip 边）才能 `Closed`。链头独活（全下级证伪/缺失 ⟹ 链段集合为空）= 永远 `Open`。与 E2E-L
+//! `UnresolvedFloor` 语义对齐（原型 §5:188/§6.1，git `640609071d`）。机器载体 =
+//! [`chain_probe::ChainProbe::floor_blocked`] + 单测
+//! `head_only_survivor_stays_open_by_floor_conjunct`。
+//!
+//! **floor 完整口径**（E2E-L `CloseFloor_at` 三型 `FormalFloor / QuasiFloor / UnresolvedFloor`）
+//! 仍留 fog 另裁（#641 取舍裁定 comment-5121793896 第 5 条）：本模块只落地「至少一条有效链段」
+//! 这一格，不自行补级别地板（如「必须降到 L0/L1 才能 Close」）。
 //!
 //! ## 边 = 包含序的**覆盖关系**（构造口径，本实装的判定，非新裁）
 //!
@@ -61,7 +74,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::cand_event::{CandidateEvent, CandidateKey, CandidateState, CandidateStreams};
+use super::cand_event::{
+    interval_is_degenerate, CandidateEvent, CandidateKey, CandidateState, CandidateStreams,
+    FNV_OFFSET_BASIS, FNV_PRIME,
+};
 use super::cand_sub::candidate_is_sub;
 
 #[cfg(test)]
@@ -87,6 +103,30 @@ impl ChainStatus {
     pub fn is_terminal(self) -> bool {
         matches!(self, Self::Closed | Self::Invalidated)
     }
+}
+
+/// 链转 [`ChainStatus::Invalidated`] 的成因（照实分档；只有裁定②授权的两支）。
+///
+/// #636 裁定②：「`Invalidated` = 谓词判不过 **或** 链头 `Invalidated`」。本枚举恰好两支，
+/// **不含**「中间节点失效即判死全链」那条连坐支——它是 2026-07-29 核定明文 supersede 掉的原型
+/// 文本，本模块的中间节点证伪走「留痕 + 被跨过 + 链继续由谓词裁」（裁定③，
+/// `falsified_middle_node_is_crossed_and_does_not_kill_the_head`）。
+///
+/// 与三只钟（`observed_at` / `closed_at` / `invalidated_at`）同属**生命史记账**，故不进
+/// [`ChainProjection`]（它由载荷派生：`nodes[0].status` 与 `edges` 的谓词取值已完整决定它，
+/// 计入等价比较不增加分辨力，只会与钟一样让「载荷未变」判不成立）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ChainInvalidationCause {
+    /// 链头不再是存活端点。
+    ///
+    /// **口径照实**：本档覆盖 `nodes[0].status` 为 [`ChainNodeStatus::Falsified`]（事件判
+    /// `Invalidated`）与 [`ChainNodeStatus::Absent`]（终态窗口投影驱动下查无）两种。裁定②只
+    /// 授权「链头 `Invalidated`」这一支，故本枚举不为 `Absent` 另开第三档；两者的分辨**不丢**
+    /// ——`nodes[0].status` 原样留痕，读的人从节点留痕即可分开（见 [`ChainNodeStatus::Absent`]
+    /// 的可达域说明）。
+    HeadInvalidated,
+    /// 两存活端点间 `C⊆C` 谓词判不过（该边成事实边，见 [`PredicateBreach`]）。
+    PredicateFailed,
 }
 
 /// 边的级别形态。**只作留痕，不参与链段有效性判定**（裁定③「同权」的类型层体现）。
@@ -140,10 +180,69 @@ pub struct ChainNodeTrace {
     pub state: Option<CandidateState>,
 }
 
+/// 链段资格的唯一判定谓词的**指名**（`cand_sub` 的跨级 `C⊆C`，本模块不重写任何区间不等式）。
+pub const CHAIN_SEGMENT_PREDICATE: &str = "cand_sub::candidate_is_sub";
+
+/// 事实边（谓词判不过）判不过的**直接原因**，按 [`candidate_is_sub`] 的合取项分档。
+///
+/// `candidate_is_sub = 跨级分支 ∧ interval_is_sub`，而
+/// `interval_is_sub = ¬退化(child) ∧ ¬退化(parent) ∧ parent.0 <= child.0 ∧ child.1 <= parent.1`。
+/// 本枚举按该合取式的求值序给出**唯一**的首个失败项——分档不是重判，是把生产谓词已经算出的
+/// 假值按其构成拆开读（本模块不复算任何不等式，只读同一组端点值）。
+///
+/// **不含「级别分支假」档**：本模块的路径级别严格递减（[`ChainKey`] 由 [`chain_paths`] 的覆盖
+/// 关系图产出，每条覆盖边按构造满足 `child.event_level < parent.event_level`；簿内驻留路径是
+/// 同一批 key），故边的两端在 [`build_edge`] 的调用点上级别分支恒真。该不可达性以
+/// `unreachable!` + 推导链作机器载体（同 [`chain_probe::on_append`] 的禁止边口径），不设一个
+/// 从不被写入的档——静默留一个恒 0 的枚举变体会让「该情形从未发生」与「发生了但归错档」不可区分。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PredicateBreachReason {
+    /// 子端点区间退化（`start > end`）。
+    ChildIntervalDegenerate,
+    /// 父端点区间退化（`start > end`）。
+    ParentIntervalDegenerate,
+    /// 子区间左端越出父区间左端（`child.0 < parent.0`），右端未越出。
+    LeftOverhang,
+    /// 子区间右端越出父区间右端（`child.1 > parent.1`），左端未越出。
+    RightOverhang,
+    /// 两端均越出父区间。
+    BothEndsOverhang,
+}
+
+/// 事实边的**指名见证**（#641 取舍裁定 comment-5121793896 第 4 条，形态承自 B 侧
+/// `cand_chain.rs` 的 `fact_edge` 指名档，按本模块的对象形态重述）。
+///
+/// 回答三件事，缺一则「谓词判不过」这条留痕不可复核：**哪条谓词**（[`Self::predicate`]）、
+/// **哪两端点**（[`Self::parent`] / [`Self::child`]，指名到候选身份键，并附判定时读到的两个
+/// 区间）、**判不过的直接原因**（[`Self::reason`]）。
+///
+/// ## S8 口径的照实登记（E2E-L §S8「节点几何不入链载荷」）
+///
+/// 本结构体**携带端点区间** ⟹ 节点几何在事实边这一档进入了链载荷。后果有界且已封口：谓词
+/// 判不过 ⟹ 链当次即转 `Invalidated`（终态）⟹ 该链此后不再有任何 revision，故每条链至多有
+/// **一条** revision 携带几何。链段（`predicate_holds == true`）一侧恒为 `None`，S8 的原意
+/// （节点区间生长不得刷链修订）由 `revisions_are_append_only_and_node_growth_alone_is_not_a_chain_revision`
+/// 继续锁住。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PredicateBreach {
+    /// 判定谓词的指名，恒为 [`CHAIN_SEGMENT_PREDICATE`]（唯一判定来源，不重写区间不等式）。
+    pub predicate: &'static str,
+    /// 上端（级别大）存活端点，与 [`ChainEdge::parent`] 同值（见证自包含，同一构造点写入）。
+    pub parent: CandidateKey,
+    /// 下端（级别小）存活端点，与 [`ChainEdge::child`] 同值。
+    pub child: CandidateKey,
+    /// 判定时读到的父端点区间（`source_index` 闭区间）。
+    pub parent_interval: (usize, usize),
+    /// 判定时读到的子端点区间。
+    pub child_interval: (usize, usize),
+    pub reason: PredicateBreachReason,
+}
+
 /// 两个**存活端点**之间的一条边。
 ///
 /// 谓词判过 ⟹ 链段（[`Self::is_segment`]）；判不过 ⟹ **事实边**，照实留在
-/// [`TowerChainCertificate::edges`] 里但不构成链段，并使整条链转 `Invalidated`（裁定②）。
+/// [`TowerChainCertificate::edges`] 里但不构成链段（携带 [`Self::breach`] 指名见证），
+/// 并使整条链转 `Invalidated`（裁定②，成因 [`ChainInvalidationCause::PredicateFailed`]）。
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChainEdge {
     /// 上端（级别大）存活端点。
@@ -157,6 +256,10 @@ pub struct ChainEdge {
     pub crossed_nodes: Vec<CandidateKey>,
     /// `C⊆C` 直接谓词在两存活端点上的取值（[`candidate_is_sub`]，唯一判定来源）。
     pub predicate_holds: bool,
+    /// 判不过时的指名见证；`predicate_holds == true` ⟹ 恒 `None`。
+    ///
+    /// 不变量（构造点唯一，见 [`build_edge`]）：`breach.is_some() ⟺ !predicate_holds`。
+    pub breach: Option<PredicateBreach>,
 }
 
 impl ChainEdge {
@@ -206,15 +309,15 @@ impl ChainKey {
         self.path.last().expect("ChainKey::new 保证路径非空")
     }
 
-    /// 唯一最长 proper-prefix key（E2E-L `extends_lineage_key`）。
+    /// 第 `len` 个节点为止的真前缀键（`2 <= len < path.len()`，否则 `None`）。
     ///
-    /// 去掉 leaf 后仍是合法链（≥2 节点）时为 `Some`，否则 `None`。**向下扩展**（加子节点）才是
-    /// E2E-L 意义上的路径扩展；向上多出一个新 root 是另一条链的身份，不构成 prefix 关系，故其
-    /// `extends` 为 `None`。返回的是**键引用**，不保证该 key 曾作为对象在簿中物化过。
-    pub fn proper_prefix(&self) -> Option<ChainKey> {
-        (self.path.len() >= 3).then(|| ChainKey {
+    /// 纯结构派生，**不保证该 key 曾作为对象在簿中物化过**——`extends` 的解析必须经
+    /// [`ChainCertificateBook::resolve_extends`] 查簿命中，本函数只提供候选键。
+    /// 单节点前缀不是链（[`Self::new`] 的 ≥2 断言），故 `len < 2` 返回 `None`。
+    fn prefix(&self, len: usize) -> Option<ChainKey> {
+        (2..self.path.len()).contains(&len).then(|| ChainKey {
             rule_version: self.rule_version,
-            path: self.path[..self.path.len() - 1].to_vec(),
+            path: self.path[..len].to_vec(),
         })
     }
 }
@@ -223,7 +326,10 @@ impl ChainKey {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TowerChainCertificate {
     pub key: ChainKey,
-    /// E2E-L `extends_lineage_key`：本链所扩展的最长 proper-prefix 路径键。
+    /// E2E-L `extends_lineage_key`：本链所扩展的、**曾在本簿物化过**的最长真前缀路径键。
+    ///
+    /// 由 [`ChainCertificateBook::resolve_extends`] 查簿得出（不是纯结构派生）——结构上存在的
+    /// 真前缀若从未作为链落过簿，本字段为 `None`，不指一条不存在的谱系。
     pub extends: Option<ChainKey>,
     pub root_level: u32,
     pub leaf_level: u32,
@@ -240,6 +346,8 @@ pub struct TowerChainCertificate {
     pub closed_at: Option<usize>,
     /// 首次进入 `Invalidated` 的 `as_of`（终态，一次写入）。
     pub invalidated_at: Option<usize>,
+    /// 判死成因（与 [`Self::invalidated_at`] 同步一次写入）；非 `Invalidated` 恒 `None`。
+    pub invalidation_cause: Option<ChainInvalidationCause>,
     pub revision: u32,
     pub supersedes_revision: Option<u32>,
     pub revision_at: usize,
@@ -247,7 +355,8 @@ pub struct TowerChainCertificate {
 
 /// [`TowerChainCertificate`] 的业务载荷投影 —— 链「是什么」的**唯一比较口径**。
 ///
-/// 进投影的是链的结构载荷与判定结果；**不进投影**的是生命史记账（三只钟 + revision 计数）。
+/// 进投影的是链的结构载荷与判定结果；**不进投影**的是生命史记账（三只钟 + revision 计数 +
+/// [`ChainInvalidationCause`]，后者由载荷派生，见其文档）。
 /// 理由与 `cand_event::CandidateProjection` 同：同一份载荷在不同 `as_of` 重跑必然带不同的钟，
 /// 计入等价比较会让「载荷未变」永远判不成立、幂等永远达不到。`key` 亦不入投影（它是簿的索引，
 /// 全部比对都在同 key 内进行）。
@@ -287,16 +396,20 @@ impl TowerChainCertificate {
 }
 
 /// 单次链扫描给簿的业务投影（不含钟与 revision）。
+///
+/// **不含 `extends`**：谱系承继是**簿的事实**（那条前缀链是否真落过簿），不是单次扫描能从
+/// 事件视图读出的量；由 [`ChainCertificateBook::resolve_extends`] 在落簿处解析。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChainObservation {
     pub key: ChainKey,
-    pub extends: Option<ChainKey>,
     pub root_level: u32,
     pub leaf_level: u32,
     pub nodes: Vec<ChainNodeTrace>,
     pub edges: Vec<ChainEdge>,
     pub extendable: bool,
     pub status: ChainStatus,
+    /// `status == Invalidated` 时的判死成因，否则 `None`。
+    pub invalidation_cause: Option<ChainInvalidationCause>,
 }
 
 // ── 事件索引（每 key 最新 revision + 存活分级） ────────────────────────────────────────────
@@ -476,19 +589,34 @@ fn evaluate(path: &[CandidateKey], index: &AliveIndex<'_>) -> ChainObservation {
     let head_alive = nodes[0].status == ChainNodeStatus::Alive;
     let head_confirmed = nodes[0].state == Some(CandidateState::Confirmed);
     let all_segments = edges.iter().all(ChainEdge::is_segment);
-    let status = if !head_alive || !all_segments {
-        ChainStatus::Invalidated
-    } else if head_confirmed && !extendable {
-        ChainStatus::Closed
+    // 地板条款（#641 comment-5121572134）：「全链段谓词判过」不得在空集上真空成立。
+    let has_segment = edges.iter().any(ChainEdge::is_segment);
+    // 两支判死的优先序：链头不再存活先于谓词判不过。两者可同时成立（链头证伪且某条边判不过），
+    // 此时记链头这一支——链头是整条链的存在前提，它一没谓词判定的两端点关系已不成立。
+    let (status, invalidation_cause) = if !head_alive {
+        (
+            ChainStatus::Invalidated,
+            Some(ChainInvalidationCause::HeadInvalidated),
+        )
+    } else if !all_segments {
+        (
+            ChainStatus::Invalidated,
+            Some(ChainInvalidationCause::PredicateFailed),
+        )
+    } else if head_confirmed && !extendable && has_segment {
+        (ChainStatus::Closed, None)
     } else {
-        ChainStatus::Open
+        (ChainStatus::Open, None)
     };
 
     #[cfg(test)]
     chain_probe::on_evaluate(&nodes, &edges);
+    #[cfg(test)]
+    if head_alive && head_confirmed && !extendable && !has_segment {
+        chain_probe::on_floor_blocked();
+    }
 
     ChainObservation {
-        extends: key.proper_prefix(),
         root_level: key.root().level,
         leaf_level: key.leaf().level,
         key,
@@ -496,6 +624,7 @@ fn evaluate(path: &[CandidateKey], index: &AliveIndex<'_>) -> ChainObservation {
         edges,
         extendable,
         status,
+        invalidation_cause,
     }
 }
 
@@ -527,6 +656,7 @@ fn build_edge(
             }
         })
         .collect();
+    let predicate_holds = candidate_is_sub(child, parent);
     ChainEdge {
         parent: parent_key,
         child: child_key,
@@ -536,11 +666,116 @@ fn build_edge(
             .iter()
             .map(|node| node.key)
             .collect(),
-        predicate_holds: candidate_is_sub(child, parent),
+        predicate_holds,
+        breach: (!predicate_holds).then(|| PredicateBreach {
+            predicate: CHAIN_SEGMENT_PREDICATE,
+            parent: parent_key,
+            child: child_key,
+            parent_interval: parent.interval,
+            child_interval: child.interval,
+            reason: breach_reason(child, parent),
+        }),
+    }
+}
+
+/// 谓词判不过时的首个失败合取项（[`PredicateBreachReason`]）。
+///
+/// 只在 `candidate_is_sub(child, parent) == false` 时被调用（唯一调用点 [`build_edge`] 的
+/// `breach` 构造），故本函数必然能定位到一个失败项；分档只读两端点的 `event_level` 与
+/// `interval`，不复算任何不等式的真值。
+fn breach_reason(child: &CandidateEvent, parent: &CandidateEvent) -> PredicateBreachReason {
+    if child.event_level >= parent.event_level {
+        // ★不可达（禁止边的机器载体，非「应该不会发生」的注释声明）。推导链：
+        // 1. 本函数的唯一调用点是 `build_edge`，其两端点取自 `ChainKey.path` 的两个位置
+        //    （upper < lower，路径序 root→leaf）；
+        // 2. 路径来自 `chain_paths` 的覆盖关系图，每条覆盖边按构造满足
+        //    `candidate_is_sub(child, parent)` ⟹ `child.event_level < parent.event_level`
+        //    ⟹ 路径的 `key.level` 沿 root→leaf 严格递减；簿内驻留路径是同一批 key（`advance`
+        //    只把已入簿的 `key.path` 放回评估，不改路径）；
+        // 3. `CandidateEvent::event_level` 恒等于 `key.level`（`cand_event` 的观察落事件处），
+        //    故 upper 位的 `event_level` 严格大于 lower 位的。
+        // 静默把它归进区间档会把「级别拒」误报成「区间越界」，两件事不可混同。
+        unreachable!(
+            "链路径级别沿 root→leaf 严格递减：跨级分支不可能在 build_edge 的调用点判假\
+             （见 breach_reason 头部推导链）；实得 child_level={} parent_level={}",
+            child.event_level, parent.event_level
+        );
+    }
+    if interval_is_degenerate(child.interval) {
+        return PredicateBreachReason::ChildIntervalDegenerate;
+    }
+    if interval_is_degenerate(parent.interval) {
+        return PredicateBreachReason::ParentIntervalDegenerate;
+    }
+    match (
+        child.interval.0 < parent.interval.0,
+        child.interval.1 > parent.interval.1,
+    ) {
+        (true, true) => PredicateBreachReason::BothEndsOverhang,
+        (true, false) => PredicateBreachReason::LeftOverhang,
+        (false, true) => PredicateBreachReason::RightOverhang,
+        // ★不可达：两端都不越出 + 两区间均非退化 ⟹ `interval_is_sub` 判真 ⟹ 合上已成立的
+        // 跨级分支即 `candidate_is_sub` 为真，与本函数的调用前提（谓词判不过）矛盾。
+        (false, false) => unreachable!(
+            "谓词判不过但两端点区间既不退化也不越界，与 candidate_is_sub 的构成矛盾：\
+             child={:?} parent={:?}",
+            child.interval, parent.interval
+        ),
     }
 }
 
 // ── append-only 修订簿 ──────────────────────────────────────────────────────────────────
+
+/// 链簿的全量只读读数（诊断与报告用；**不判真值**）。
+///
+/// 形态承自 B 侧 `cand_chain_book.rs` 的 `ChainBookSummary`（#641 取舍裁定 comment-5121793896
+/// 第 4 条），按本模块的对象形态重述：B 汇总的是 `ChainLineageStreams`、按四档 `EdgeVerdict`
+/// 分桶；本结构体汇总的是 [`ChainCertificateBook`] 的 head 集合、按本模块的边形态
+/// （[`ChainEdgeKind`]）与谓词两侧（链段 / 事实边）分桶。
+///
+/// **入库理由**：读数逻辑此前散在两个诊断 bin 里各写一遍（`issue550_event_battery` 的
+/// `print_chain_summary` 与 p123 的 `chain_dump_line`），既重复又不可测。放进库内 ⟹ 单测可锁、
+/// 两个 bin 同源、报告数与测试数不可能对不上。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ChainBookSummary {
+    /// 簿内全部 revision 数（append-only 的总行数）。
+    pub revisions: usize,
+    /// 链身份数（每 key 最新 revision 一条）。
+    pub chains: usize,
+    pub open: usize,
+    pub closed: usize,
+    pub invalidated: usize,
+    /// 判死成因分档（合计恒等于 [`Self::invalidated`]）。
+    pub invalidated_head: usize,
+    pub invalidated_predicate: usize,
+    /// `extends` 非空（谱系承继命中）的链数。
+    pub extends_some: usize,
+    /// ★地板条款监视格（#641 comment-5121572134）：`Closed` 且零链段的链数。
+    ///
+    /// 地板合取上线后**恒 0**；非零 = 地板条款被绕过。单列而非只靠单测，是为了让真实数据面上
+    /// 的违规可见（对比评审在 B 侧实测该格 = 其 Closed 的 85%）。
+    pub closed_with_zero_segments: usize,
+    pub edges: usize,
+    pub adjacent_edges: usize,
+    pub skip_edges: usize,
+    /// 链段数（谓词判过的边）。
+    pub segments: usize,
+    /// 事实边数（谓词判不过的边，携带 [`PredicateBreach`]）。
+    pub fact_edges: usize,
+    /// 被边跨过的路径节点数（证伪/查无夹在两存活端点之间）。
+    pub crossed_nodes: usize,
+    pub nodes_alive: usize,
+    pub nodes_falsified: usize,
+    pub nodes_absent: usize,
+    /// 被跳过级别的三格分解（口径见 [`SkippedLevel`]）：缺 / 断-在父外 / 断-在父内接不上。
+    pub skipped_level_missing: usize,
+    pub skipped_level_broken_outside: usize,
+    pub skipped_level_broken_inside: usize,
+    /// 路径节点数 → 链数。
+    pub by_path_len: BTreeMap<usize, usize>,
+    /// 链头级别 → 链数。
+    pub by_root_level: BTreeMap<u32, usize>,
+}
 
 /// 链证书 append-only 修订簿。终态不复活；同一 `as_of` 重跑零 Delta。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -565,6 +800,35 @@ impl ChainCertificateBook {
             .values()
             .map(|index| &self.certificates[*index])
             .collect()
+    }
+
+    /// E2E-L `extends_lineage_key`：**簿内**最长真前缀（`rule_version` 相同）。
+    ///
+    /// ## 为什么必须查簿（#641 取舍裁定 comment-5121793896 第 3 条）
+    ///
+    /// 旧实装取纯结构派生的最长真前缀（去掉 leaf），不问它是否真作为链落过簿。BTC 100k 实测
+    /// `extends` 非空 12 条、其中**物化命中 0 条**——12 条指针全部指向从未存在过的链。成因是
+    /// 构造口径的直接后果：极大路径的真前缀本身不是极大路径（它的 leaf 有存活子），除非它在更
+    /// 早的 `as_of` 恰好曾是极大路径并落过簿。字段语义写的是「本链所扩展的谱系」，指一条不存在
+    /// 的谱系就是把「结构派生」冒充成「谱系事实」，对 N7 是误导。
+    ///
+    /// ## 口径
+    ///
+    /// 从最长（`path.len()-1`）向下逐个试到 2 节点，取**第一个在簿内有 head 的**前缀键。
+    /// **不按状态过滤**：`Closed` / `Invalidated` 的前缀同样算数——「那条链曾经存在」是谱系事实，
+    /// 与它后来死活无关（既有单测 `downward_extension_creates_new_key_and_leaves_closed_chain_untouched`
+    /// 锁的正是「向下扩展指向一条已 `Closed` 的前缀链」）。
+    ///
+    /// 本解析在**落簿处**做而非在 `evaluate` 里：`evaluate` 是纯函数（同一事件视图上重复调用结果
+    /// 相同），承继关系依赖簿的历史，把它塞进 `evaluate` 会让「纯函数」这个声明变假。
+    fn resolve_extends(&self, key: &ChainKey) -> Option<ChainKey> {
+        let resolved = (2..key.path.len())
+            .rev()
+            .filter_map(|len| key.prefix(len))
+            .find(|prefix| self.latest.contains_key(prefix));
+        #[cfg(test)]
+        chain_probe::on_extends(key.path.len() >= 3, resolved.is_some());
+        resolved
     }
 
     /// 用本次 `as_of` 的候选事件流推进一步，返回本次追加的 Delta。
@@ -613,7 +877,8 @@ impl ChainCertificateBook {
             chain_probe::on_terminal_block();
             return None;
         }
-        let next = make_revision(prior.as_ref(), observation, as_of);
+        let extends = self.resolve_extends(&observation.key);
+        let next = make_revision(prior.as_ref(), observation, extends, as_of);
         if prior
             .as_ref()
             .is_some_and(|certificate| certificate.projection() == next.projection())
@@ -633,14 +898,92 @@ impl ChainCertificateBook {
         self.latest.insert(certificate.key.clone(), position);
         self.certificates.push(certificate);
     }
+
+    /// 全量只读读数（每 key 最新 revision 分桶）。不判真值、不改簿。
+    pub fn summarize(&self) -> ChainBookSummary {
+        let mut summary = ChainBookSummary {
+            revisions: self.certificates.len(),
+            chains: self.latest.len(),
+            ..ChainBookSummary::default()
+        };
+        for certificate in self.heads() {
+            match certificate.status {
+                ChainStatus::Open => summary.open += 1,
+                ChainStatus::Closed => summary.closed += 1,
+                ChainStatus::Invalidated => summary.invalidated += 1,
+            }
+            match certificate.invalidation_cause {
+                Some(ChainInvalidationCause::HeadInvalidated) => summary.invalidated_head += 1,
+                Some(ChainInvalidationCause::PredicateFailed) => summary.invalidated_predicate += 1,
+                None => {}
+            }
+            if certificate.extends.is_some() {
+                summary.extends_some += 1;
+            }
+            if certificate.status == ChainStatus::Closed && certificate.segment_count() == 0 {
+                summary.closed_with_zero_segments += 1;
+            }
+            *summary
+                .by_path_len
+                .entry(certificate.key.path.len())
+                .or_default() += 1;
+            *summary
+                .by_root_level
+                .entry(certificate.root_level)
+                .or_default() += 1;
+            for node in &certificate.nodes {
+                match node.status {
+                    ChainNodeStatus::Alive => summary.nodes_alive += 1,
+                    ChainNodeStatus::Falsified => summary.nodes_falsified += 1,
+                    ChainNodeStatus::Absent => summary.nodes_absent += 1,
+                }
+            }
+            for edge in &certificate.edges {
+                summary.edges += 1;
+                match edge.kind {
+                    ChainEdgeKind::Adjacent => summary.adjacent_edges += 1,
+                    ChainEdgeKind::Skip => summary.skip_edges += 1,
+                }
+                if edge.is_segment() {
+                    summary.segments += 1;
+                } else {
+                    summary.fact_edges += 1;
+                }
+                summary.crossed_nodes += edge.crossed_nodes.len();
+                for level in &edge.skipped_levels {
+                    if level.alive_at_level == 0 {
+                        summary.skipped_level_missing += 1;
+                    } else if level.inside_parent == 0 {
+                        summary.skipped_level_broken_outside += 1;
+                    } else {
+                        summary.skipped_level_broken_inside += 1;
+                    }
+                }
+            }
+        }
+        summary
+    }
+
+    /// 簿的确定性摘要（FNV-1a over `Debug`，覆盖**全部** revision 而非仅 head）。
+    ///
+    /// golden 锁与双路径比对共用同一口径 ⟹ 主缝的 golden 与 bin 的读数不可能各算各的。
+    pub fn digest(&self) -> u64 {
+        format!("{:?}", self.certificates)
+            .bytes()
+            .fold(FNV_OFFSET_BASIS, |hash, byte| {
+                (hash ^ byte as u64).wrapping_mul(FNV_PRIME)
+            })
+    }
 }
 
 fn make_revision(
     prior: Option<&TowerChainCertificate>,
     observation: ChainObservation,
+    extends: Option<ChainKey>,
     as_of: usize,
 ) -> TowerChainCertificate {
-    // observed_at / closed_at / invalidated_at 均为「一次写入不后移」：已在案的值优先。
+    // observed_at / closed_at / invalidated_at / invalidation_cause 均为「一次写入不后移」：
+    // 已在案的值优先。
     let observed_at = prior.map_or(as_of, |certificate| certificate.observed_at);
     let closed_at = prior
         .and_then(|certificate| certificate.closed_at)
@@ -648,9 +991,12 @@ fn make_revision(
     let invalidated_at = prior
         .and_then(|certificate| certificate.invalidated_at)
         .or((observation.status == ChainStatus::Invalidated).then_some(as_of));
+    let invalidation_cause = prior
+        .and_then(|certificate| certificate.invalidation_cause)
+        .or(observation.invalidation_cause);
     TowerChainCertificate {
         key: observation.key,
-        extends: observation.extends,
+        extends,
         root_level: observation.root_level,
         leaf_level: observation.leaf_level,
         nodes: observation.nodes,
@@ -660,6 +1006,7 @@ fn make_revision(
         observed_at,
         closed_at,
         invalidated_at,
+        invalidation_cause,
         revision: prior.map_or(0, |certificate| certificate.revision + 1),
         supersedes_revision: prior.map(|certificate| certificate.revision),
         revision_at: as_of,
@@ -711,6 +1058,19 @@ pub mod chain_probe {
         pub absent_node: u64,
         /// 既无存活父也无存活子的孤立候选（不成链，单列不静默丢）。
         pub isolated_roots: u64,
+        /// ★地板条款（#641 comment-5121572134）拦下的 `Closed`：链头存活且 `Confirmed`、不可再
+        /// 扩展，但**链段集合为空** ⟹ 判 `Open` 而非 `Closed`。
+        ///
+        /// 非零 = 地板合取真被走到（不是靠注释声明的条款）。BTC 三窗实测该情形零触发，故这条
+        /// 只由 `chain_cert::tests` 的语义锁覆盖，见报告 §五。
+        pub floor_blocked: u64,
+        /// `extends` 解析：结构上存在真前缀（路径 ≥3 节点）且**簿内命中**。
+        pub extends_resolved: u64,
+        /// `extends` 解析：结构上存在真前缀但**簿内无一命中** ⟹ 不写 `extends`。
+        ///
+        /// 旧实装在这一格上照写不误（BTC 100k 实测 12 条全部落这一格），是「结构派生冒充谱系
+        /// 事实」的机器计数。
+        pub extends_not_materialized: u64,
     }
 
     thread_local! {
@@ -727,6 +1087,25 @@ pub mod chain_probe {
 
     pub fn on_isolated_root() {
         PROBE.with(|probe| probe.borrow_mut().isolated_roots += 1);
+    }
+
+    pub fn on_floor_blocked() {
+        PROBE.with(|probe| probe.borrow_mut().floor_blocked += 1);
+    }
+
+    /// `structural_prefix_exists` = 路径 ≥3 节点（结构上有真前缀）；`resolved` = 簿内命中。
+    pub fn on_extends(structural_prefix_exists: bool, resolved: bool) {
+        if !structural_prefix_exists {
+            return;
+        }
+        PROBE.with(|probe| {
+            let mut probe = probe.borrow_mut();
+            if resolved {
+                probe.extends_resolved += 1;
+            } else {
+                probe.extends_not_materialized += 1;
+            }
+        });
     }
 
     pub fn on_evaluate(nodes: &[ChainNodeTrace], edges: &[ChainEdge]) {

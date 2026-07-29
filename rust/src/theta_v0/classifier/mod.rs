@@ -4481,6 +4481,17 @@ mod tests {
             probe.birth_invalidated, 0,
             "构造口径锁：首次观察的链不可能一出生即 Invalidated（{probe:?}）"
         );
+        // ★#641 `extends` 查簿分支在主缝上真被走到（非真空）：本合成夹具的三节点链一次成型，
+        // 其结构真前缀从未作为极大路径落过簿 ⟹ 全部落「未物化」格、一条 `extends` 都不写。
+        // 旧实装在这一格上照写不误（幽灵前缀）——本断言即那条修复的机器载体。
+        assert!(
+            probe.extends_not_materialized > 0,
+            "非真空锁：extends 的查簿分支必须真被走过（{probe:?}）"
+        );
+        assert!(
+            heads.iter().all(|certificate| certificate.extends.is_none()),
+            "本夹具上无一前缀物化 ⟹ extends 全空（{probe:?}）"
+        );
         // 090 照实：本合成夹具**未覆盖**到的分支（`to_invalidated` / `fact_edges` /
         // `falsified_nodes` / `payload_revision`）由 `chain_cert::tests` 的语义锁逐条覆盖；
         // 此处不为凑覆盖率而断言它们非零（合成数据规整不是缺陷）。
@@ -4489,17 +4500,30 @@ mod tests {
             .filter(|certificate| certificate.key.root().kind == cand_event::CandidateKind::Pan)
             .count();
 
-        let certificates = book.certificates();
-        let digest = format!("{certificates:?}")
-            .bytes()
-            .fold(cand_event::FNV_OFFSET_BASIS, |hash, byte| {
-                (hash ^ byte as u64).wrapping_mul(cand_event::FNV_PRIME)
-            });
+        // 摘要走库内口径 `ChainCertificateBook::digest()`（#641 修复轮从 B 侧移植的库内读数口）
+        // ——golden 与诊断 bin 的读数因此不可能各算各的。
+        let digest = book.digest();
+        // 诚实更新（旧值 9771189513849272089）：#641 修复轮给 `TowerChainCertificate` 加了
+        // `invalidation_cause`、给 `ChainEdge` 加了 `breach`，两者都进 `#[derive(Debug)]`；
+        // 且 `extends` 由结构派生改为查簿命中（本夹具上原值即全是未物化前缀 ⟹ 现全部为 None）。
+        // 三处都改写 Debug 字节流，摘要必然翻转。裁定锚：#641 comment-5121793896。
         assert_eq!(
-            digest, 9771189513849272089,
+            digest, 9935805022530767834,
             "链簿产出漂移须诚实更新 golden（probe={probe:?} certs={} heads={} pan_rooted={pan_rooted}）",
-            certificates.len(),
+            book.certificates().len(),
             heads.len()
+        );
+
+        // ★地板条款监视格（#641 comment-5121572134）：合成 classify 面上 `Closed` 且零链段恒 0。
+        let summary = book.summarize();
+        assert_eq!(
+            summary.closed_with_zero_segments, 0,
+            "地板条款被绕过（summary={summary:?}）"
+        );
+        assert_eq!(
+            summary.chains,
+            heads.len(),
+            "库内读数口与簿的 head 集合同源"
         );
     }
 

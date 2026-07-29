@@ -155,86 +155,65 @@ fn print_chain_summary(bars: &[Bar], run: ChainRun) {
         last_streams,
         last_as_of,
     } = run;
-    let heads = book.heads();
-    let mut by_status = BTreeMap::<&'static str, usize>::new();
-    let mut by_path_len = BTreeMap::<usize, usize>::new();
-    let mut by_root_level = BTreeMap::<u32, usize>::new();
-    let (mut adjacent, mut skip, mut fact) = (0usize, 0usize, 0usize);
-    let (mut alive, mut falsified, mut absent) = (0usize, 0usize, 0usize);
-    let (mut lvl_missing, mut lvl_broken_outside, mut lvl_broken_inside) = (0usize, 0usize, 0usize);
-    let (mut extends_some, mut crossed) = (0usize, 0usize);
-    for certificate in &heads {
-        *by_status
-            .entry(chain_status_name(certificate.status))
-            .or_default() += 1;
-        *by_path_len.entry(certificate.key.path.len()).or_default() += 1;
-        *by_root_level.entry(certificate.root_level).or_default() += 1;
-        if certificate.extends.is_some() {
-            extends_some += 1;
-        }
-        for node in &certificate.nodes {
-            match node.status {
-                chain_cert::ChainNodeStatus::Alive => alive += 1,
-                chain_cert::ChainNodeStatus::Falsified => falsified += 1,
-                chain_cert::ChainNodeStatus::Absent => absent += 1,
-            }
-        }
-        for edge in &certificate.edges {
-            match edge.kind {
-                chain_cert::ChainEdgeKind::Adjacent => adjacent += 1,
-                chain_cert::ChainEdgeKind::Skip => skip += 1,
-            }
-            if !edge.is_segment() {
-                fact += 1;
-            }
-            crossed += edge.crossed_nodes.len();
-            for level in &edge.skipped_levels {
-                if level.alive_at_level == 0 {
-                    lvl_missing += 1;
-                } else if level.inside_parent == 0 {
-                    lvl_broken_outside += 1;
-                } else {
-                    lvl_broken_inside += 1;
-                }
-            }
-        }
-    }
-    let edges = adjacent + skip;
-    let (chains, revisions) = (heads.len(), book.certificates().len());
-    drop(heads);
+    // 分桶计数走**库内**读数口 `ChainCertificateBook::summarize()`（#641 修复轮从 B 侧移植）——
+    // bin 侧此前自己重写一遍循环，与 p123 的 dump 行各算各的、且不可单测。现两处同源。
+    let summary = book.summarize();
+    let by_status = BTreeMap::from([
+        ("Open", summary.open),
+        ("Closed", summary.closed),
+        ("Invalidated", summary.invalidated),
+    ]);
 
     // 幂等：同一 as_of、同一事件流重跑必须零 Delta。非零即为红（此处照实印出，不吞）。
     let replay = book.advance(&last_streams, last_as_of).len();
 
     println!(
-        "ISSUE641_CHAIN bars={} chains={chains} revisions={revisions} advance_every={every} advances={advances} \
-         statuses={by_status:?} path_lens={by_path_len:?} root_levels={by_root_level:?} \
-         extends_some={extends_some} idempotent_replay_delta={replay}",
+        "ISSUE641_CHAIN bars={} chains={} revisions={} advance_every={every} advances={advances} \
+         statuses={by_status:?} path_lens={:?} root_levels={:?} \
+         extends_some={} idempotent_replay_delta={replay}",
         bars.len(),
+        summary.chains,
+        summary.revisions,
+        summary.by_path_len,
+        summary.by_root_level,
+        summary.extends_some,
     );
     println!(
-        "ISSUE641_CHAIN_EDGE edges={edges} adjacent={adjacent} skip={skip} fact_edges={fact} \
-         skip_ratio={:.4} crossed_nodes={crossed}",
-        if edges == 0 {
+        "ISSUE641_CHAIN_EDGE edges={} adjacent={} skip={} fact_edges={} \
+         skip_ratio={:.4} crossed_nodes={}",
+        summary.edges,
+        summary.adjacent_edges,
+        summary.skip_edges,
+        summary.fact_edges,
+        if summary.edges == 0 {
             0.0
         } else {
-            skip as f64 / edges as f64
+            summary.skip_edges as f64 / summary.edges as f64
         },
+        summary.crossed_nodes,
     );
     println!(
-        "ISSUE641_CHAIN_TRACE nodes_alive={alive} nodes_falsified={falsified} \
-         nodes_absent={absent} skipped_level_missing={lvl_missing} \
-         skipped_level_broken_outside={lvl_broken_outside} \
-         skipped_level_broken_inside={lvl_broken_inside}"
+        "ISSUE641_CHAIN_TRACE nodes_alive={} nodes_falsified={} \
+         nodes_absent={} skipped_level_missing={} \
+         skipped_level_broken_outside={} \
+         skipped_level_broken_inside={}",
+        summary.nodes_alive,
+        summary.nodes_falsified,
+        summary.nodes_absent,
+        summary.skipped_level_missing,
+        summary.skipped_level_broken_outside,
+        summary.skipped_level_broken_inside,
     );
-}
-
-fn chain_status_name(status: chain_cert::ChainStatus) -> &'static str {
-    match status {
-        chain_cert::ChainStatus::Open => "Open",
-        chain_cert::ChainStatus::Closed => "Closed",
-        chain_cert::ChainStatus::Invalidated => "Invalidated",
-    }
+    // #641 修复轮新增读数：地板条款监视格（应恒 0）+ 判死成因两档 + 簿摘要。
+    println!(
+        "ISSUE641_CHAIN_FLOOR closed_with_zero_segments={} segments={} \
+         invalidated_head={} invalidated_predicate={} digest={}",
+        summary.closed_with_zero_segments,
+        summary.segments,
+        summary.invalidated_head,
+        summary.invalidated_predicate,
+        book.digest(),
+    );
 }
 
 /// #552（N2）：真实事件流上的相邻级 `C⊆C` 包含只读探针 + 覆盖计数（防真空绿）。
