@@ -19,6 +19,158 @@ static CASCADE_EPROBE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 #[cfg(test)]
 static CASCADE_FULLCLEAR: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
+/// [`prepare_l0_inputs`] 的产出：本 bar L0 侧的两个塔构造输入 + 两个证书/判据。
+///
+/// 各字段的生成次序受 T1–T5 次序点约束，见 `chanlun/review-results/issue633-incremental-fn-decomposition-20260729.md` §1.1。
+struct L0Prelude {
+    /// L0 输入单元（`l0_units_cache` 的 `Rc::clone`，逐级循环的首级 `units`）。
+    l0_units: Rc<Vec<UnitRange>>,
+    /// L0 走势塔（`moves_tower_l0` 的 `Rc::clone`，逐级循环的首级 `moves_tower`）。
+    moves_tower_l0: Rc<Vec<LeveledMove>>,
+    /// L0 units 复用前缀长度 = `dirty_from[0]`（A3 证书 §2.3）。
+    l0_dirty_from: usize,
+    /// on2w2 E1：L0 塔（tower[0]）本 bar 字节变更判据（循环 `forest_dirty` 的初值）。
+    forest_dirty_l0: bool,
+}
+
+/// 前缀不变量校验：段账本回缩 ⟹ 清空重扫（bit-exact 退化，非增量）。
+///
+/// ★#613（#609 F2 根因收口）：本检测**必须**在 `l0_units_cache` 构建之前（T1）。它曾位于构建之后
+/// （旧序：00_l0_units_build → Rc::clone 出借 → 回缩 clear），于是回缩 bar 上 [`TowerCache::clear`]
+/// 把刚建好的 `l0_units_cache` 清空（该方法逐字段清塔缓存），而本 bar 的塔构造消费的是 clear
+/// **之前** `Rc::clone` 出的局部 `l0_units`（写时复制 ⟹ 值完整）⟹ 函数返回后
+/// [`TowerCache::l0_units`] 为空而 `tower[0]` 满载，只读契约「与 tower[0] 同序同长同源」被破。
+/// BTC 100k 实测：回缩事件 1 次（`segments` 549→547 @ as_of=71040），失步 1 次，一一对应
+/// （L2 等级：BTC 单标的单窗）。提前后 `l0_units_cache` 已清 ⟹ reuse=0 ⟹ 本 bar 全量重建，
+/// 与同样在 clear 之后全量重建的 `moves_tower_l0` 口径归一，不变式成立
+/// （见 [`classify_with_tower_incremental`] 末 `debug_assert`）。
+///
+/// 值不变（bit-exact）：复用前缀受 `segments_confirmed_len` 证书约束（parser 保证
+/// `segments[..confirmed_len]` 跨 bar 逐字节稳定），回缩只发生在未确认尾部 ⟹ 全量重建 ==
+/// 复用重建。仓内 `DIAG_L0UNITS` 对拍探针在 BTC 100k 全程零告警（含该回缩 bar），L2 等级实证。
+/// 代价：回缩 bar 的 `l0_dirty_from` 从复用长度降为 0（保守全脏，A3 证书前缀护栏恒成立），
+/// 100k 内 1 次，标度无影响。
+fn reset_cache_on_segment_shrink(l0: &ParseLayer, cache: &mut TowerCache) {
+    if l0.segments.len() < cache.last_l0_segments_len {
+        cache.clear();
+    }
+}
+
+/// L0 输入单元 = parser 线段账本。#106 证书增量（同 `moves_tower_l0`，消除每 bar 全量 collect）。
+///
+/// 返回 `reuse` = L0 units 复用前缀长度 = `dirty_from[0]`（§2.3：L0 不可变前缀，`units[..reuse]`
+/// 逐字段等上 bar，`units[reuse..]` 本 bar 新 extend）。
+///
+/// `Rc::make_mut`：上 bar 的 `l0_units` Rc 已在循环内被投影重赋值 drop ⟹ `strong_count==1` ⟹ 原地
+/// truncate+extend O(tail)；>1（caller 跨 bar 持有）⟹ 写时复制（bit-exact，同 `moves_tower_l0`）。
+/// **本函数必须先于出借的 `Rc::clone`**（T2）——反序则 `strong_count==2`，每 bar 退化为写时复制。
+fn build_l0_units_cache(l0: &ParseLayer, cache: &mut TowerCache) -> usize {
+    stage_profile::time("00_l0_units_build", || {
+        let reuse = l0.segments_confirmed_len.min(cache.l0_units_cache.len());
+        let c = Rc::make_mut(&mut cache.l0_units_cache);
+        c.truncate(reuse);
+        c.extend(l0.segments[reuse..].iter().map(segment_to_unit));
+        reuse
+    })
+}
+
+/// DIAG(frontier-bit-exact)：对拍复用版 `l0_units_cache` vs 全量 `segment_to_unit`
+/// （隔离 L0 units 前缀复用是否陈旧）。env `DIAG_L0UNITS` 门控，未开启时零开销直通。
+fn diag_l0_units_parity(l0: &ParseLayer, l0_units: &[UnitRange], cache: &TowerCache) {
+    if std::env::var("DIAG_L0UNITS").is_err() {
+        return;
+    }
+    let full: Vec<UnitRange> = l0.segments.iter().map(segment_to_unit).collect();
+    if l0_units != full.as_slice() {
+        let m = l0_units.len().min(full.len());
+        let first = (0..m).find(|&i| l0_units[i] != full[i]);
+        eprintln!(
+            "[DIAG-L0UNITS] segs={} confirmed_len={} cache.len(reuse前)={} ★l0_units陈旧 first_diff={:?} \
+             lens=({},{})",
+            l0.segments.len(), l0.segments_confirmed_len, cache.l0_units_cache.len(),
+            first, l0_units.len(), full.len()
+        );
+    }
+}
+
+/// ★on2w2 E1：L0 塔（tower[0]）字节变更判据。`moves_tower_l0` 是 `l0.segments` 的纯函数
+/// （`from_unit∘segment_to_unit`，ordinal=index）⟹ 内容变更 ⟺ segments 变更。parser 证书保
+/// `segments[..confirmed_len]` 跨 bar bit-stable ⟹ 只需比 tail `[reuse..]`。
+///
+/// **必须先于 [`rebuild_l0_tower`]**（T4）：本函数读的是 `cache.moves_tower_l0` 的**旧值**，
+/// 重建后再比恒为 false ⟹ E1 判据失效、`forest_epoch` 漏 bump ⟹ 下游 `TreeCache` 假命中陈旧森林。
+///
+/// ★实证订正（on2w2 实装，CL 8K）：初版设计用「reuse<len ∨ segments[reuse..]非空」长度判据，
+/// 但 frontier resume 使 truncate+repush 每 bar 发生（segments 有未确认尾段 ⟹ reuse<len 恒真），
+/// 而 repush 的尾段字节 99.2% 与旧值相同（inclusion-only 不改段）⟹ 长度判据 bump 率 100%，
+/// O(n²) 未消除。故改为**逐值比对 tail**（O(未确认尾段)=O(1) 摊还，非全塔）——精确匹配
+/// of_forest 真变率 0.78%。over-invalidate 方向保留：长度不等或任一尾段值不等即 dirty。
+fn l0_tower_tail_changed(l0: &ParseLayer, cache: &TowerCache) -> bool {
+    let old = &cache.moves_tower_l0;
+    let old_len = old.len();
+    if old_len != l0.segments.len() {
+        return true;
+    }
+    let reuse = l0.segments_confirmed_len.min(old_len);
+    (reuse..old_len).any(|i| {
+        let u = segment_to_unit(&l0.segments[i]);
+        old[i] != LeveledMove::from_unit(&u, ElementId { level: 0, ordinal: i as u64 })
+    })
+}
+
+/// L0 走势塔 = 携坐标的 `RMove::Segment`（递归底）。
+///
+/// ★#106 证书增量（替代每 bar 全量 `from_unit` 重建 = O(segs)×n，profile 坐实 400K=5.8s）：
+/// parser `segments_confirmed_len` 保证 `segments[..confirmed_len]` 跨 bar bit-stable（仅末段可古怪
+/// 线段重划，codex 确认）⟹ `moves_tower_l0[..reuse]` 复用（`from_unit` 只依赖单 seg，无相邻依赖）。
+/// `ordinal=reuse+i` 全局索引（前缀 `reuse<=confirmed_len` 时 ordinal 不变 = 全量 enumerate，bit-exact）。
+/// `Rc::make_mut`：caller 逐 bar drop 上轮 `tower_snapshots[0]` ⟹ `strong_count==1` ⟹ 原地 O(tail)；
+/// >1（理论 caller 跨 bar 持有）⟹ 写时复制（仍 bit-exact）。`clear()` 已同步清空（退化全量）。
+fn rebuild_l0_tower(l0: &ParseLayer, cache: &mut TowerCache) {
+    stage_profile::time("01_l0_tower_rebuild", || {
+        let reuse = l0.segments_confirmed_len.min(cache.moves_tower_l0.len());
+        let m = Rc::make_mut(&mut cache.moves_tower_l0);
+        m.truncate(reuse);
+        for (off, seg) in l0.segments[reuse..].iter().enumerate() {
+            let i = reuse + off;
+            let u = segment_to_unit(seg);
+            m.push(LeveledMove::from_unit(&u, ElementId { level: 0, ordinal: i as u64 }));
+        }
+    });
+}
+
+/// 本 bar 的 L0 侧序幕：回缩校验 → units 增量重建 → 空判 → 水线落账 → L0 塔增量重建。
+///
+/// 返回 `None` ⟺ 空 L0（无线段）：缓存已清空，调用方须直接返回
+/// `(Classification::default(), Vec::new())`（原边界语义，T5）。
+///
+/// 内部五步的相对次序全部是硬约束（T1–T5），逐条见各步函数文档。
+fn prepare_l0_inputs(l0: &ParseLayer, cache: &mut TowerCache) -> Option<L0Prelude> {
+    reset_cache_on_segment_shrink(l0, cache); // T1：必须先于 units 构建
+    let l0_dirty_from = build_l0_units_cache(l0, cache);
+    // ★[H4] Rc::clone（引用计数 O(1)）替代全量 `.clone()`（O(segments)/bar × n = O(n²)，profile 坐实
+    // 400K=380ms）。下游 `units` 只读消费（compose/extract 借 &[UnitRange]），bit-exact：值不变仅所有权。
+    let l0_units: Rc<Vec<UnitRange>> =
+        stage_profile::time("00b_l0_units_clone", || Rc::clone(&cache.l0_units_cache));
+    diag_l0_units_parity(l0, &l0_units, cache);
+
+    // 空 L0：无可构造级别 + 清空缓存（下次从头扫）。
+    if l0_units.is_empty() {
+        cache.clear();
+        return None;
+    }
+
+    cache.last_l0_segments_len = l0.segments.len();
+    // ★#93：落账本 bar L0 确认前缀（tower[0] 水线，见字段文档）。min 防御 parser 古怪末段计数。
+    cache.l0_confirmed_len = l0.segments_confirmed_len.min(l0.segments.len());
+
+    let forest_dirty_l0 = l0_tower_tail_changed(l0, cache); // T4：读旧值，必须先于重建
+    rebuild_l0_tower(l0, cache);
+    let moves_tower_l0: Rc<Vec<LeveledMove>> = Rc::clone(&cache.moves_tower_l0);
+
+    Some(L0Prelude { l0_units, moves_tower_l0, l0_dirty_from, forest_dirty_l0 })
+}
+
 /// ★增量塔入口：返回 `(Classification, tower_snapshots)` bit-exact 等价于
 /// `classify_with_tower(l0, config)`，但塔构造的中枢扫描走增量 resume（前级 confirmed 前缀缓存，
 /// 仅尾部续扫），解 per-bar substrate 的塔构造 O(n²) 根因。
@@ -61,107 +213,12 @@ pub fn classify_with_tower_incremental(
     let min_parts = config.level.min_parts_per_level as usize;
     let l_max = config.level.l_max as usize;
 
-    // 前缀不变量校验：段账本回缩 ⟹ 清空重扫（bit-exact 退化，非增量）。
-    //
-    // ★#613（#609 F2 根因收口）：本检测**必须**在 `l0_units_cache` 构建之前。它曾位于构建之后
-    // （旧序：00_l0_units_build → Rc::clone 出借 → 回缩 clear），于是回缩 bar 上 [`TowerCache::clear`]
-    // 把刚建好的 `l0_units_cache` 清空（该方法逐字段清塔缓存），而本 bar 的塔构造消费的是 clear
-    // **之前** `Rc::clone` 出的局部 `l0_units`（写时复制 ⟹ 值完整）⟹ 函数返回后
-    // [`TowerCache::l0_units`] 为空而 `tower[0]` 满载，只读契约「与 tower[0] 同序同长同源」被破。
-    // BTC 100k 实测：回缩事件 1 次（`segments` 549→547 @ as_of=71040），失步 1 次，一一对应
-    // （L2 等级：BTC 单标的单窗）。提前后 `l0_units_cache` 已清 ⟹ reuse=0 ⟹ 本 bar 全量重建，
-    // 与同样在 clear 之后全量重建的 `moves_tower_l0` 口径归一，不变式成立（见函数末 debug_assert）。
-    //
-    // 值不变（bit-exact）：复用前缀受 `segments_confirmed_len` 证书约束（parser 保证
-    // `segments[..confirmed_len]` 跨 bar 逐字节稳定），回缩只发生在未确认尾部 ⟹ 全量重建 ==
-    // 复用重建。仓内 `DIAG_L0UNITS` 对拍探针在 BTC 100k 全程零告警（含该回缩 bar），L2 等级实证。
-    // 代价：回缩 bar 的 `l0_dirty_from` 从复用长度降为 0（保守全脏，A3 证书前缀护栏恒成立），
-    // 100k 内 1 次，标度无影响。
-    if l0.segments.len() < cache.last_l0_segments_len {
-        cache.clear();
-    }
-
-    // L0 输入单元 = parser 线段账本。#106 证书增量（同 moves_tower_l0，消除每 bar 全量 collect）。
-    // 返回 `reuse` = L0 units 复用前缀长度 = dirty_from[0]（§2.3：L0 不可变前缀，units[..reuse]
-    // 逐字段等上 bar，units[reuse..] 本 bar 新 extend）。
-    let l0_dirty_from = stage_profile::time("00_l0_units_build", || {
-        let reuse = l0.segments_confirmed_len.min(cache.l0_units_cache.len());
-        // make_mut：上 bar 的 l0_units Rc 已在循环内被投影重赋值 drop ⟹ strong_count==1 ⟹ 原地
-        // truncate+extend O(tail)；>1（caller 跨 bar 持有）⟹ 写时复制（bit-exact，同 moves_tower_l0）。
-        let c = Rc::make_mut(&mut cache.l0_units_cache);
-        c.truncate(reuse);
-        c.extend(l0.segments[reuse..].iter().map(segment_to_unit));
-        reuse
-    });
-    // ★[H4] Rc::clone（引用计数 O(1)）替代全量 `.clone()`（O(segments)/bar × n = O(n²)，profile 坐实
-    // 400K=380ms）。下游 `units` 只读消费（compose/extract 借 &[UnitRange]），bit-exact：值不变仅所有权。
-    let l0_units: Rc<Vec<UnitRange>> =
-        stage_profile::time("00b_l0_units_clone", || Rc::clone(&cache.l0_units_cache));
-
-    // DIAG(frontier-bit-exact): 对拍复用版 l0_units_cache vs 全量 segment_to_unit（隔离 L0 units 前缀复用是否陈旧）。
-    if std::env::var("DIAG_L0UNITS").is_ok() {
-        let full: Vec<UnitRange> = l0.segments.iter().map(segment_to_unit).collect();
-        if *l0_units != full {
-            let m = l0_units.len().min(full.len());
-            let first = (0..m).find(|&i| l0_units[i] != full[i]);
-            eprintln!(
-                "[DIAG-L0UNITS] segs={} confirmed_len={} cache.len(reuse前)={} ★l0_units陈旧 first_diff={:?} \
-                 lens=({},{})",
-                l0.segments.len(), l0.segments_confirmed_len, cache.l0_units_cache.len(),
-                first, l0_units.len(), full.len()
-            );
-        }
-    }
-
-    // 空 L0：无可构造级别 + 清空缓存（下次从头扫）。
-    if l0_units.is_empty() {
-        cache.clear();
+    // L0 侧序幕（回缩校验 → units 增量 → 空判 → 水线落账 → L0 塔增量）。内部五步次序受 T1–T5 约束。
+    let Some(prelude) = prepare_l0_inputs(l0, cache) else {
+        // 空 L0 边界：缓存已在序幕内清空（下次从头扫）。
         return (Classification::default(), Vec::new());
-    }
-
-    cache.last_l0_segments_len = l0.segments.len();
-    // ★#93：落账本 bar L0 确认前缀（tower[0] 水线，见字段文档）。min 防御 parser 古怪末段计数。
-    cache.l0_confirmed_len = l0.segments_confirmed_len.min(l0.segments.len());
-
-    // L0 走势塔 = 携坐标的 RMove::Segment（递归底）。
-    // ★#106 证书增量（替代每 bar 全量 from_unit 重建 = O(segs)×n，profile 坐实 400K=5.8s）：
-    // parser `segments_confirmed_len` 保证 segments[..confirmed_len] 跨 bar bit-stable（仅末段可古怪
-    // 线段重划，codex 确认）⟹ moves_tower_l0[..reuse] 复用（from_unit 只依赖单 seg，无相邻依赖）。
-    // ordinal=reuse+i 全局索引（前缀 reuse<=confirmed_len 时 ordinal 不变 = 全量 enumerate，bit-exact）。
-    // make_mut：caller 逐 bar drop 上轮 tower_snapshots[0] ⟹ strong_count==1 ⟹ 原地 O(tail)；
-    // >1（理论 caller 跨 bar 持有）⟹ 写时复制（仍 bit-exact）。clear() 已同步清空（退化全量）。
-    // ★on2w2 E1：L0 塔（tower[0]）字节变更判据。`moves_tower_l0` 是 `l0.segments` 的纯函数
-    // （from_unit∘segment_to_unit，ordinal=index）⟹ 内容变更 ⟺ segments 变更。parser 证书保
-    // segments[..confirmed_len] 跨 bar bit-stable（同 line 1069）⟹ 只需比 tail [reuse..]。
-    // ★实证订正（on2w2 实装，CL 8K）：初版设计用「reuse<len ∨ segments[reuse..]非空」长度判据，
-    // 但 frontier resume 使 truncate+repush 每 bar 发生（segments 有未确认尾段 ⟹ reuse<len 恒真），
-    // 而 repush 的尾段字节 99.2% 与旧值相同（inclusion-only 不改段）⟹ 长度判据 bump 率 100%，
-    // O(n²) 未消除。故改为**逐值比对 tail**（O(未确认尾段)=O(1) 摊还，非全塔）——精确匹配
-    // of_forest 真变率 0.78%。over-invalidate 方向保留：长度不等或任一尾段值不等即 dirty。
-    let forest_dirty_l0 = {
-        let old = &cache.moves_tower_l0;
-        let old_len = old.len();
-        if old_len != l0.segments.len() {
-            true
-        } else {
-            let reuse = l0.segments_confirmed_len.min(old_len);
-            (reuse..old_len).any(|i| {
-                let u = segment_to_unit(&l0.segments[i]);
-                old[i] != LeveledMove::from_unit(&u, ElementId { level: 0, ordinal: i as u64 })
-            })
-        }
     };
-    stage_profile::time("01_l0_tower_rebuild", || {
-        let reuse = l0.segments_confirmed_len.min(cache.moves_tower_l0.len());
-        let m = Rc::make_mut(&mut cache.moves_tower_l0);
-        m.truncate(reuse);
-        for (off, seg) in l0.segments[reuse..].iter().enumerate() {
-            let i = reuse + off;
-            let u = segment_to_unit(seg);
-            m.push(LeveledMove::from_unit(&u, ElementId { level: 0, ordinal: i as u64 }));
-        }
-    });
-    let moves_tower_l0: Rc<Vec<LeveledMove>> = Rc::clone(&cache.moves_tower_l0);
+    let L0Prelude { l0_units, moves_tower_l0, l0_dirty_from, forest_dirty_l0 } = prelude;
 
     // MACD hist（背驰真算，增量递推——231号纯性能，解 aed4d5f5 实证的 c_exp≈2.31 主导根因）。
     //
