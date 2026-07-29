@@ -1256,6 +1256,14 @@ impl TowerCache {
     // 访问器放在其拆分出的 `classifier/tower_cache.rs`。消费方 `src/bin/p123_fast_replay.rs`
     // （kimi 线 #421/#527/#601 PanLive 探针，本合并树取 kimi 版）逐字调用它们。
     // 三者**全部只读**，不参与任何分类/交易/订单/风控分支。⚠待人工复核：#614 手工重放。
+    //
+    // ★#712 收 #645 LOW-1：三者对同一个 `level` 实参的下标口径互差 1（易错面，非错——kimi
+    // 侧原样口径，`tower_cache.rs:314-330` 长文档承担互指角色，本合并树未随入长文档，故在
+    // 此互指一句）：`freeze_boundary(level)` 直读 `levels.get(level)`；`level_scan_cursor(level)`
+    // 读 `levels.get(level-1)`（`tower[level]` 由 `levels[level-1]` 扫描产出）；
+    // `level_scan_units(level)` 读 `levels.get(level-2)`（level==1 特例为 `l0_units_cache`，
+    // 即「产出 `tower[level-1]` 的那一级窗口扫描输入」）。三者同放一个 impl 块相邻位置，
+    // 调用前须按各自文档核对 `level` 实参，不可假设三者同口径。
 
     /// 本级窗口扫描游标（level≥1；level 0 无上级窗口 ⟹ `None`）。
     ///

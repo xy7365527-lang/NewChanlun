@@ -199,6 +199,11 @@ impl GammaDump {
     ///
     /// `admitted_indices` 来自生产 `filter_gamma_with_admission` 的返回成员关系；即使下游
     /// Nest/Xzd 门继续收窄，也不会污染 `chi_admit`。`opened` 同理由生产 `step_trace` 导出。
+    ///
+    /// ★#712 收 #645 LOW-3：下游收窄清单已被 #647 超出——`fill.rs` 在 Nest/Xzd 门之后又多了
+    /// #647 入场结构复检门（第三次收窄同一份候选 Vec）。字段语义未破（`chi_admit` 仍是纯 χ
+    /// 真值，本文档声明依旧成立），但 `admitted − opened` 差的归因解读须相应补一项：
+    /// Nest/Xzd + 入场复检 + 开仓判据三者共同解释，而非仅前两者。
     pub(super) fn write_step(
         &mut self,
         bar_context: GammaBarContext<'_>,
