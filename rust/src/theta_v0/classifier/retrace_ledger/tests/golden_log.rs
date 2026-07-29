@@ -8,7 +8,7 @@
 //!
 //! 六场景中**只有四个进日志**：迟到吸收与死人挂号是「未被采纳的输入」，按 #574 裁定六走 audit
 //! 流、不改状态、结构上不进真相路径（`audit.rs` 模块头）。golden 里因此看不到它们——这不是覆盖
-//! 缺口，是裁定六的可观测证据，由 [`golden_scenario_covers_all_six_faces`] 正面钉死。
+//! 缺口，是裁定六的可观测证据，由 [`golden_scenario_covers_the_two_audit_only_faces`] 正面钉死。
 //!
 //! # 三层锚
 //!
@@ -186,11 +186,10 @@ fn golden_log_folds_back_to_the_anchored_ledger_state() {
 // 场景覆盖：六个面各自落在哪条流
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// ①②③⑤ 四个进真相路径的面：日志词汇里各自可见。
 #[test]
-fn golden_scenario_covers_all_six_faces() {
+fn golden_scenario_covers_the_four_faces_that_enter_the_log() {
     let live = anchored();
-
-    // ①②③⑤ 四个进真相路径的面：日志词汇里各自可见。
     let kinds: Vec<_> = live
         .journal()
         .iter()
@@ -221,8 +220,12 @@ fn golden_scenario_covers_all_six_faces() {
             .any(|kind| matches!(kind, RetraceRevisionKind::Restarted { .. })),
         "Restart 新档谱系载荷进日志"
     );
+}
 
-    // ⑥⑦ 两个不进真相路径的面：只在 audit 流与警报计数里可见。
+/// ⑥⑦ 两个**不进**真相路径的面：只在 audit 流与警报计数里可见（#574 裁定六）。
+#[test]
+fn golden_scenario_covers_the_two_audit_only_faces() {
+    let live = anchored();
     let alarms = live.alarms();
     assert_eq!(alarms.late_absorbed, 1, "迟到吸收计数");
     assert_eq!(alarms.dead_center_registrations, 1, "死人挂号拒收计数");
