@@ -634,6 +634,16 @@ pub struct PanLiveWindow {
     pub gap_len: usize,
 }
 
+/// 活窗右端判据（票 #604 单一权威；原四处独立复刻 `as_of.max(c_start)` 收敛于此）。
+///
+/// `seg_c_live` 右端 = `as_of` 与 `c_start` 的较大值：正常前进中 `as_of ≥ c_start`，
+/// 右端随 `as_of` 推进（[`PanLiveWindow`] 文档「右端随 as_of 前进」的落地）；`as_of == c_start`
+/// 两值相等语义无差。钳位分支（`as_of < c_start`，仅见于缓存重放路径按陈旧 `as_of` 重建窗口时）
+/// 退化为单点区间 `[c_start, c_start]`，防止产出右端早于左端的倒挂区间。
+pub fn active_window_right_edge(c_start: usize, as_of: usize) -> usize {
+    as_of.max(c_start)
+}
+
 /// 推进观察（advance 的唯一输入；确定性结构/力度谓词，v3 硬禁令合规）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LifecycleObservation {
@@ -1634,7 +1644,10 @@ pub fn provide_pan_live_windows(
                 side: structure.side,
                 seg_a: structure.seg_a,
                 // c 窗右端 = prefix 边界（含行进中 bar；卡 §3 设计内行为）。
-                seg_c_live: (structure.seg_c.0, as_of.max(structure.seg_c.0)),
+                seg_c_live: (
+                    structure.seg_c.0,
+                    active_window_right_edge(structure.seg_c.0, as_of),
+                ),
                 b_center_start: centers[center_index].start_index,
                 // 本函数的 C 恒取自已完成 segments（非 active frontier），无洞概念，恒 0。
                 gap_len: 0,
@@ -1860,7 +1873,10 @@ pub fn provide_active_pan_live_windows(
         level,
         side: structure.side,
         seg_a: structure.seg_a,
-        seg_c_live: (structure.seg_c.0, as_of.max(structure.seg_c.0)),
+        seg_c_live: (
+            structure.seg_c.0,
+            active_window_right_edge(structure.seg_c.0, as_of),
+        ),
         b_center_start: centers[center_index].start_index,
         gap_len,
     })
@@ -2553,6 +2569,20 @@ mod tests {
 
     fn identity_close_src(n: usize) -> Vec<usize> {
         (0..n).collect()
+    }
+
+    /// 票 #604：活窗右端判据单一权威——三支边界逐点核验（正常前进/相等/钳位）。
+    #[test]
+    fn issue604_active_window_right_edge_boundaries() {
+        // as_of > c_start：正常前进，右端随 as_of。
+        assert_eq!(active_window_right_edge(69, 95), 95);
+        // as_of == c_start：两值相等，无歧义。
+        assert_eq!(active_window_right_edge(69, 69), 69);
+        // as_of < c_start：钳位退化为单点区间，防止右端早于左端的倒挂。
+        assert_eq!(active_window_right_edge(69, 40), 69);
+        // 边界外值：0 与 usize::MAX 两端探底。
+        assert_eq!(active_window_right_edge(0, 0), 0);
+        assert_eq!(active_window_right_edge(0, usize::MAX), usize::MAX);
     }
 
     /// T1 trend 反超可触发（**合成路径，真实不可达——勘误 20260721**：

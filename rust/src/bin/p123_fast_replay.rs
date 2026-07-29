@@ -168,10 +168,11 @@ use newchan_rust::theta_v0::classifier::nest::{
     TypedNestCertificate,
 };
 use newchan_rust::theta_v0::classifier::nest_lifecycle::{
-    active_l1_window_frontier, active_l2_window_frontier, active_segment_frontier, feed_replay_bar,
-    provide_active_pan_live_windows, ActiveSegmentFrontier, ActiveWindowFrontier, ForceMaterial,
-    LifecycleRevision, LifecycleSettlementStats, NestLifecycleBook, PanCompletionEvent,
-    PanLiveWindow, PanProviderPhase, ReplayBarFeed, ReplayFeedStats,
+    active_l1_window_frontier, active_l2_window_frontier, active_segment_frontier,
+    active_window_right_edge, feed_replay_bar, provide_active_pan_live_windows,
+    ActiveSegmentFrontier, ActiveWindowFrontier, ForceMaterial, LifecycleRevision,
+    LifecycleSettlementStats, NestLifecycleBook, PanCompletionEvent, PanLiveWindow,
+    PanProviderPhase, ReplayBarFeed, ReplayFeedStats,
 };
 use newchan_rust::theta_v0::classifier::recursive_tower::{
     find_move_by_end_index, LeveledMove, WindowScanCursor,
@@ -627,7 +628,7 @@ impl LifecycleWindowStem {
                 Side::Short
             },
             seg_a: self.seg_a,
-            seg_c_live: (self.c_start, as_of.max(self.c_start)),
+            seg_c_live: (self.c_start, active_window_right_edge(self.c_start, as_of)),
             b_center_start: self.b_center_start,
             gap_len: self.gap_len,
         }

@@ -53,9 +53,9 @@ use newchan_rust::theta_v0::classifier::level_view::{
     lower_legs_from, project_extended_windows_carried_only, LowerLeg,
 };
 use newchan_rust::theta_v0::classifier::nest_lifecycle::{
-    provide_pan_live_windows, ForceMaterial, InvalidatedReason, LifecycleObservation,
-    LifecycleRevisionKind, NestEventState, NestLifecycleBook, PanLiveWindow, UnavailReason,
-    VanishCause,
+    active_window_right_edge, provide_pan_live_windows, ForceMaterial, InvalidatedReason,
+    LifecycleObservation, LifecycleRevisionKind, NestEventState, NestLifecycleBook, PanLiveWindow,
+    UnavailReason, VanishCause,
 };
 use newchan_rust::theta_v0::classifier::recursive_tower::{map_src_to_close_idx, LeveledMove};
 use newchan_rust::theta_v0::config::ThetaConfig;
@@ -127,7 +127,7 @@ impl WindowStem {
             level: self.level,
             side: self.side(),
             seg_a: self.seg_a,
-            seg_c_live: (self.c_start, as_of.max(self.c_start)),
+            seg_c_live: (self.c_start, active_window_right_edge(self.c_start, as_of)),
             b_center_start: self.b_center_start,
             // 本探针只用 `provide_pan_live_windows`（confirmed 侧，非 active frontier），无洞概念，恒 0。
             gap_len: 0,
