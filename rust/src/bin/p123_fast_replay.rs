@@ -154,6 +154,10 @@
 //! `chanlun/review-results/issue553-t4-acceptance-20260728.md`）。**独立 sink 独立文件**——
 //! 既有 `P116_DUMP` 行的产生条件、字段与行序零扰动，既有封印面不含本路任何字节；
 //! 只写不判（无第二读点），env 未设时零行为差异。本路不进 §5 验收面。
+//! #641（N3）自有可选侧信道：`P123_CHAIN_DUMP=<path>`（级别链证书 Delta 逐条：路径/三态/边
+//! 形态/留痕/钟/修订号；行口径见 [`ChainDump`] 文档）+ `P123_CHAIN_DUMP_EVERY=<K>`（推进节拍，
+//! 未设 ⟹ 只在 pass 末根推进一次）。同为**独立 sink 独立文件**，N1-T4 口径不变：只写不判、
+//! env 未设零行为差异、不进 §5 验收面。
 
 use newchan_rust::theta_v0::classifier;
 use newchan_rust::theta_v0::classifier::bsp::BspPoint;
@@ -497,6 +501,189 @@ provider_window={}..{} b_center_start={} intake_fallback={}",
             None => Ok(()),
         }
     }
+}
+
+/// #641（N3）级别链证书 dump 侧信道的 env 开关名（唯一字面量来源）。
+const CHAIN_DUMP_ENV: &str = "P123_CHAIN_DUMP";
+/// #641（N3）链簿推进节拍的 env 名（唯一字面量来源）。
+const CHAIN_DUMP_EVERY_ENV: &str = "P123_CHAIN_DUMP_EVERY";
+
+/// #641（N3）级别链证书 dump 侧信道：`P123_CHAIN_DUMP=<path>` 时把**链簿 Delta** 逐条落盘。
+///
+/// 只写不判（N1-T4 口径逐条对齐 [`EventDump`]）：
+/// 1. **既有封印零扰动**——自己的 writer、自己的文件，与 `P116_DUMP`、`P421_LIFECYCLE_DUMP`、
+///    `P123_EVENT_DUMP` 分属四个 sink；既有行的产生条件、字段与落盘顺序不被本路读写触碰。
+/// 2. **零判定消费 / 零生产路径读取**——`book`/`seq` 只在 [`ChainDump::observe`] 内自增自读，
+///    无第二个读点；账本、dirty 判据、pending 出清、证书装配、stdout 门行都不读本结构。
+///    本结构对分类器**只读**（经 `TowerCache::candidate_streams()` 取候选事件流快照）。
+/// 3. **env 未设 ⟹ 零行为差异**——`writer=None` 时 `observe` 首行即返回，不建簿、不推进、
+///    不格式化，成本 = 一次 `Option::is_none`。
+///
+/// **推进节拍（显式声明，不是静默采样）**：链的覆盖边计算是 O(存活候选²)，逐 bar 推进在十万级
+/// 窗口上不可行。`P123_CHAIN_DUMP_EVERY=<K>` 给节拍，未设 ⟹ 只在 pass 末根推进一次；实际取值
+/// 随首行 `CHAIN_META` 印出，读 dump 的人不必猜。
+///
+/// **边界（写失败的传播口径）**：与 [`EventDump`] 同款——写失败经调用点 `?` 上抛，中止 prefix
+/// pass，收尾 flush 不可达。既有形状，非本路新引入。
+///
+/// 行口径（一行一条链证书 revision；`CHAIN_META` 一行在最前）：
+/// ```text
+/// CHAIN_META every=<推进节拍> bars=<本 pass 总 bar 数>
+/// CHAIN seq=<全局行序,0基> as_of=<推进 bar> rev=<修订号,0基> status=<Open|Closed|Invalidated>
+///       root_level=<链头级别> leaf_level=<链尾级别> nodes=<路径节点数>
+///       alive=<存活> falsified=<证伪留痕> absent=<查无留痕>
+///       edges=<存活端点间边数> adjacent=<相邻边> skip=<跨级边> fact=<事实边(谓词判不过)>
+///       crossed=<被边跨过的节点数> extendable=<0|1> extends=<0|1 是否为路径扩展>
+///       observed_at=<入簿钟> closed_at=<n|-> invalidated_at=<n|->
+///       path=<lvl:c_start;lvl:c_start;...>
+/// ```
+struct ChainDump {
+    writer: Option<Box<dyn Write>>,
+    book: classifier::chain_cert::ChainCertificateBook,
+    every: usize,
+    seq: u64,
+}
+
+impl ChainDump {
+    fn new(writer: Option<Box<dyn Write>>, every: usize) -> Self {
+        Self {
+            writer,
+            book: classifier::chain_cert::ChainCertificateBook::default(),
+            every,
+            seq: 0,
+        }
+    }
+
+    /// `P123_CHAIN_DUMP=<path>` 门控构造；未设 env ⟹ 关灯（零行为差异）。
+    ///
+    /// 节拍解析失败是输入损坏，不默认化——返回 `Err` 并带上原始串（与电池 bin 的时间戳解析
+    /// 同款纪律：绝不用哨兵值冒充有效配置）。
+    fn from_env(total_bars: usize) -> Result<Self, String> {
+        let writer = std::env::var(CHAIN_DUMP_ENV)
+            .ok()
+            .map(|path| {
+                File::create(&path)
+                    .map(|file| Box::new(BufWriter::new(file)) as Box<dyn Write>)
+                    .map_err(|error| format!("创建 {CHAIN_DUMP_ENV}={path} 失败: {error}"))
+            })
+            .transpose()?;
+        let every = match std::env::var(CHAIN_DUMP_EVERY_ENV) {
+            Ok(raw) => raw
+                .parse::<usize>()
+                .map_err(|error| format!("{CHAIN_DUMP_EVERY_ENV}={raw:?} 非法: {error}"))?
+                .max(1),
+            Err(_) => total_bars.max(1),
+        };
+        let mut dump = Self::new(writer, every);
+        dump.write_meta(total_bars)?;
+        Ok(dump)
+    }
+
+    fn write_meta(&mut self, total_bars: usize) -> Result<(), String> {
+        let every = self.every;
+        let Some(writer) = self.writer.as_mut() else {
+            return Ok(());
+        };
+        writeln!(writer, "CHAIN_META every={every} bars={total_bars}")
+            .map_err(|error| format!("写 {CHAIN_DUMP_ENV} 失败: {error}"))
+    }
+
+    /// 按节拍推进链簿并落盘本次 Delta；`is_last` 为真时无条件推进（末根必推）。
+    fn observe(
+        &mut self,
+        cache: &classifier::TowerCache,
+        as_of: usize,
+        is_last: bool,
+    ) -> Result<(), String> {
+        if self.writer.is_none() {
+            return Ok(());
+        }
+        if !is_last && (as_of + 1) % self.every != 0 {
+            return Ok(());
+        }
+        let delta = self.book.advance(&cache.candidate_streams(), as_of);
+        let lines: Vec<String> = delta
+            .iter()
+            .map(|certificate| {
+                let line = chain_dump_line(certificate, self.seq, as_of);
+                self.seq += 1;
+                line
+            })
+            .collect();
+        let writer = self.writer.as_mut().expect("已在函数首行确认为 Some");
+        for line in lines {
+            writeln!(writer, "{line}")
+                .map_err(|error| format!("写 {CHAIN_DUMP_ENV} 失败: {error}"))?;
+        }
+        Ok(())
+    }
+
+    fn flush(&mut self) -> Result<(), String> {
+        match self.writer.as_mut() {
+            Some(writer) => writer
+                .flush()
+                .map_err(|error| format!("刷新 {CHAIN_DUMP_ENV} 失败: {error}")),
+            None => Ok(()),
+        }
+    }
+}
+
+fn chain_dump_line(
+    certificate: &classifier::chain_cert::TowerChainCertificate,
+    seq: u64,
+    as_of: usize,
+) -> String {
+    use classifier::chain_cert::{ChainEdgeKind, ChainNodeStatus, ChainStatus};
+    let status = match certificate.status {
+        ChainStatus::Open => "Open",
+        ChainStatus::Closed => "Closed",
+        ChainStatus::Invalidated => "Invalidated",
+    };
+    let count = |wanted: ChainNodeStatus| {
+        certificate
+            .nodes
+            .iter()
+            .filter(|node| node.status == wanted)
+            .count()
+    };
+    let adjacent = certificate
+        .edges
+        .iter()
+        .filter(|edge| edge.kind == ChainEdgeKind::Adjacent)
+        .count();
+    let crossed: usize = certificate
+        .edges
+        .iter()
+        .map(|edge| edge.crossed_nodes.len())
+        .sum();
+    let path: Vec<String> = certificate
+        .key
+        .path
+        .iter()
+        .map(|node| format!("{}:{}", node.level, node.c_start))
+        .collect();
+    let clock = |value: Option<usize>| value.map_or_else(|| "-".to_string(), |v| v.to_string());
+    format!(
+        "CHAIN seq={seq} as_of={as_of} rev={} status={status} root_level={} leaf_level={} \
+nodes={} alive={} falsified={} absent={} edges={} adjacent={adjacent} skip={} fact={} \
+crossed={crossed} extendable={} extends={} observed_at={} closed_at={} invalidated_at={} path={}",
+        certificate.revision,
+        certificate.root_level,
+        certificate.leaf_level,
+        certificate.nodes.len(),
+        count(ChainNodeStatus::Alive),
+        count(ChainNodeStatus::Falsified),
+        count(ChainNodeStatus::Absent),
+        certificate.edges.len(),
+        certificate.edges.len() - adjacent,
+        certificate.fact_edge_count(),
+        u8::from(certificate.extendable),
+        u8::from(certificate.extends.is_some()),
+        certificate.observed_at,
+        clock(certificate.closed_at),
+        clock(certificate.invalidated_at),
+        path.join(";"),
+    )
 }
 
 struct TerminalState {
@@ -1384,6 +1571,9 @@ struct TargetedPassState<'c> {
     lifecycle_dump: Option<BufWriter<File>>,
     // #553（N1-T4）候选事件 dump：独立 sink，与 P116_DUMP 既有封印面互不触碰（只写不判）。
     event_dump: EventDump,
+    // #641（N3）链证书 dump：同款独立 sink（只写不判），与 event_dump 分属两个文件、两把
+    // env 开关，互不读写；env 未设 ⟹ 零行为差异。
+    chain_dump: ChainDump,
     // ── p123 稀疏状态 ──
     derived: BTreeMap<usize, LevelDerived>,
     entries: BTreeMap<(usize, usize), RunEntry>,
@@ -1394,9 +1584,12 @@ struct TargetedPassState<'c> {
 }
 
 impl<'c> TargetedPassState<'c> {
+    /// `total_bars` 只被 [`ChainDump::from_env`] 用作「节拍未设 ⟹ 只在 pass 末根推进一次」的
+    /// 默认节拍与 `CHAIN_META` 行的 `bars=` 字段；不进任何既有判据。
     fn new(
         config: &'c ThetaConfig,
         targets: &BTreeMap<EventKey, NestCandidateEvent>,
+        total_bars: usize,
     ) -> Result<Self, String> {
         let lifecycle_dump = std::env::var("P421_LIFECYCLE_DUMP")
             .ok()
@@ -1425,6 +1618,7 @@ impl<'c> TargetedPassState<'c> {
             last_lifecycle_upper_key: None,
             lifecycle_dump,
             event_dump: EventDump::from_env()?,
+            chain_dump: ChainDump::from_env(total_bars)?,
             derived: BTreeMap::new(),
             entries: BTreeMap::new(),
             bsp_snaps: BTreeMap::new(),
@@ -1438,7 +1632,7 @@ fn run_targeted_prefix_pass(
     config: &ThetaConfig,
     targets: &BTreeMap<EventKey, NestCandidateEvent>,
 ) -> Result<(YieldBook, usize, usize, SparseStats, LifecycleReplayStats), String> {
-    let mut state = TargetedPassState::new(config, targets)?;
+    let mut state = TargetedPassState::new(config, targets, bars.len())?;
     // #103 侧信道：P116_CKPT=<K> 时每 K bars 做一次全量快照装配并 dump（只写不判）。
     let ckpt_every: usize = std::env::var("P116_CKPT")
         .ok()
@@ -1470,6 +1664,12 @@ fn process_targeted_bar(
     let l0 = state.parser.append(bar);
     let (classification, tower) =
         classifier::classify_with_tower_incremental(&l0, config, &mut state.cache);
+    // #641（N3）链 dump 侧信道（只写不判；关灯时 `observe` 首行返回）。放在既有 TURN 观察
+    // **之前**（与驻车线原口径同位），只对 `state.cache` 做只读取数（`candidate_streams()`），
+    // 不改 classification/tower/turns 的任何输入与产生条件，也不触碰 `event_dump` 的 sink。
+    state
+        .chain_dump
+        .observe(&state.cache, index, index + 1 == bars_len)?;
     // #116: TURN 逐 bar 观察（摊还 O(新稳定块数)，不经 trigger 门——pending 空后仍落盘）。
     state.turns.observe(&classification);
     let forest_epoch = state.cache.forest_epoch();
@@ -2399,6 +2599,9 @@ fn finalize_targeted_pass(
     // #553：事件 dump 收尾 flush 排在既有 P421_LIFECYCLE_DUMP 收尾 flush **之后**
     //（与 ticket-553 原口径同序；两者分属独立 sink，互不触碰）。
     state.event_dump.flush()?;
+    // #641：链 dump 收尾 flush 排在 #553 事件 dump 收尾 flush **之后**（与驻车线原口径同序；
+    // 四个 sink 各自独立，互不触碰）。
+    state.chain_dump.flush()?;
     let pending_len = state.pending.len();
     Ok((
         state.book,
@@ -4019,6 +4222,104 @@ provider_window=5..70 b_center_start=20 intake_fallback=0"
             "EVENT seq=2 rev=1 as_of=130 level=2 side=Short kind=pan div=1 pending=0 \
 turn_source=200 judge_at=777 seg_a=10..19 interval_b=20..39 interval_a=40..59 \
 provider_window=5..70 b_center_start=20 intake_fallback=0"
+        );
+    }
+
+    /// #641 门控：env 未设（writer=None）⟹ 链簿不建、不推进、零落盘、零副作用可见面。
+    #[test]
+    fn chain_dump_disabled_writes_nothing_and_never_advances_the_book() {
+        let cache = classifier::TowerCache::new();
+        let mut dump = ChainDump::new(None, 1);
+        dump.observe(&cache, 0, false).unwrap();
+        dump.observe(&cache, 1, true).unwrap();
+        assert!(dump.writer.is_none());
+        assert_eq!(dump.seq, 0);
+        assert!(
+            dump.book.certificates().is_empty(),
+            "关灯路径不得推进链簿（零行为差异）"
+        );
+    }
+
+    /// #641 节拍：非末根只在 `(as_of+1) % every == 0` 时推进；末根无条件推进。
+    #[test]
+    fn chain_dump_cadence_advances_on_beat_and_on_last_bar() {
+        let cache = classifier::TowerCache::new();
+        let sink: Rc<RefCell<Vec<u8>>> = Rc::new(RefCell::new(Vec::new()));
+        let mut dump = ChainDump::new(Some(Box::new(SharedSink(Rc::clone(&sink)))), 3);
+        // 空事件流 ⟹ Delta 恒空，但推进与否可由簿的 revision 数以外的可观测面判定：
+        // 这里断言的是**不 panic + 零行**（节拍分支被真走过，行数为 0 是空流的后果）。
+        for as_of in 0..5 {
+            dump.observe(&cache, as_of, as_of == 4).unwrap();
+        }
+        dump.flush().unwrap();
+        assert!(String::from_utf8(sink.borrow().clone()).unwrap().is_empty());
+        assert_eq!(dump.seq, 0, "空事件流 ⟹ 零 Delta ⟹ 零行序推进");
+    }
+
+    /// #641 元行 + 行格式逐字锁（行口径漂移当场变红）。
+    #[test]
+    fn chain_dump_meta_and_line_format_are_stable() {
+        use newchan_rust::theta_v0::classifier::cand_event::{
+            CandidateEventBook, CandidateKey, CandidateKind, CandidateObservation, CandidateState,
+            ParentFingerprint, StructuralPredicates, CANDIDATE_RULE_VERSION,
+        };
+        let observation =
+            |level: u32, c_start: usize, interval: (usize, usize)| CandidateObservation {
+                key: CandidateKey {
+                    rule_version: CANDIDATE_RULE_VERSION,
+                    level,
+                    kind: CandidateKind::Trend,
+                    side: Side::Long,
+                    previous_center_start: Some(10),
+                    parent: ParentFingerprint {
+                        center_start: 20,
+                        zd: 100,
+                        zg: 110,
+                    },
+                    seg_a: (11, 19),
+                    c_start,
+                },
+                kind: CandidateKind::Trend,
+                center_ids: Some((10, 20)),
+                candidate_group_id: 1,
+                pair_id: 2,
+                structural_predicates: StructuralPredicates {
+                    direction: true,
+                    comparable: true,
+                    extreme: true,
+                },
+                extreme_proof: (11, 19),
+                third_class_proof: None,
+                interval,
+                state: CandidateState::Provisional,
+                first_provable_at: Some(interval.1),
+                confirmed_at: None,
+            };
+        // L2 ⊇ L0，L1 域无候选 ⟹ 一条 skip 边的两节点链。
+        let mut candidates = CandidateEventBook::default();
+        candidates.advance(
+            &[observation(2, 0, (0, 100)), observation(0, 20, (20, 40))],
+            100,
+        );
+        let mut chains = classifier::chain_cert::ChainCertificateBook::default();
+        let delta = chains.advance(&candidates.streams(), 100);
+        assert_eq!(delta.len(), 1);
+
+        let sink: Rc<RefCell<Vec<u8>>> = Rc::new(RefCell::new(Vec::new()));
+        let mut dump = ChainDump::new(Some(Box::new(SharedSink(Rc::clone(&sink)))), 7);
+        dump.write_meta(500).unwrap();
+        let line = chain_dump_line(&delta[0], dump.seq, 100);
+        writeln!(dump.writer.as_mut().unwrap(), "{line}").unwrap();
+        dump.flush().unwrap();
+
+        let text = String::from_utf8(sink.borrow().clone()).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines[0], "CHAIN_META every=7 bars=500");
+        assert_eq!(
+            lines[1],
+            "CHAIN seq=0 as_of=100 rev=0 status=Open root_level=2 leaf_level=0 nodes=2 \
+alive=2 falsified=0 absent=0 edges=1 adjacent=0 skip=1 fact=0 crossed=0 extendable=0 \
+extends=0 observed_at=100 closed_at=- invalidated_at=- path=2:0;0:20"
         );
     }
 
