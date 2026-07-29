@@ -36,11 +36,21 @@ impl ConfirmState {
 
 /// #69 5a：单个 divergence pair 在已封 lower-leg 前缀上的扫描累积。
 ///
-/// 字段 `pub(super)`（非 `pub`）：跨 `level_view.rs`/`level_view::tests`（`classifier` 子树内
-/// 兄弟模块）访问，同时不对 crate 外及 `classifier` 之外暴露内部字段（#497 归位）。
+/// 字段 `pub(super)`（非 `pub`）：跨 `level_view.rs`/`level_view_confirm.rs`/`level_view::tests`
+/// （`classifier` 子树内兄弟模块）访问，同时不对 crate 外及 `classifier` 之外暴露内部字段
+/// （#497 归位；#630 影子评审 MEDIUM-2 后继评估：确认核心 `trend_confirm_state_core`/
+/// `scan_confirm_cursor` 拆分至 `level_view_confirm.rs` 后与本类型分处两个 sibling 文件，
+/// 两者最近公共祖先仍是 `classifier`，`pub(super)` 已是此分解下的最小可见性——newtype 包壳/
+/// 字段私有化+方法面三条收紧路径均要求把确认核心与本类型重新并回同一文件，超出本票范围，
+/// 留作后继票；当前处置 = **约定等级声明 + 不变量测试钉死**，而非编译期保证）。
 #[derive(Debug, Clone)]
 pub struct ConfirmCursor {
-    /// 下一个尚未消费的 lower-leg 下标；只允许落在确认水线内。
+    /// 下一个尚未消费的 lower-leg 下标；只允许落在确认水线内——此不变量现由约定维持
+    /// （非编译期私有字段保证），由
+    /// `level_view::tests::confirm::confirm_cursor_incremental_matches_cold_at_every_boundary`
+    /// （`cursor.k0 <= confirmed_len` 逐步骤钉死 + 单调不倒退）与
+    /// `level_view::tests::confirm::confirm_store_resets_on_watermark_rollback_and_structure_change`
+    /// （水线回退重建）两条测试固定。
     pub(super) k0: usize,
     pub(super) env: Option<(Tick, Tick)>,
     pub(super) acc_hi: Option<usize>,
