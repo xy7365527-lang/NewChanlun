@@ -2954,6 +2954,38 @@ mod center_oscillation_wiring_tests {
     }
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+//  #625 发现3 观测探针（review-625.md 发现3，登记）——入场止损逆侧计数
+// ════════════════════════════════════════════════════════════════════════════
+// 常驻探针（ancok.rs 同惯例，thread_local Cell）：纯观测旁路，挂在生产 `open_trades` 唯一
+// 写入点（entry_structural_stop 调用处，见下方 pi_theta_fill_loop_overlay 内）——只计数
+// 「入场时结构止损价已在入场价逆侧」（多仓 stop_px≥entry_px / 空仓 stop_px≤entry_px），
+// 不改 entry_stop 取值/判定（structural_stop 取价与 stop_hit 逻辑逐字节不动）。
+
+/// 入场止损逆侧分侧计数（review-625.md 发现3 观测量）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) struct EntryStopReverseProbe {
+    /// 多仓入场：`stop_px >= entry_px`（结构止损已在入场价上方/同价，逆侧）次数。
+    pub(super) long_reverse: u64,
+    /// 空仓入场：`stop_px <= entry_px`（结构止损已在入场价下方/同价，逆侧）次数。
+    pub(super) short_reverse: u64,
+}
+
+thread_local! {
+    static ENTRY_STOP_REVERSE_PROBE: std::cell::Cell<EntryStopReverseProbe> =
+        const { std::cell::Cell::new(EntryStopReverseProbe { long_reverse: 0, short_reverse: 0 }) };
+}
+
+/// 归零入场止损逆侧探针（wf8 run 前调用）。
+pub(super) fn entry_stop_reverse_probe_reset() {
+    ENTRY_STOP_REVERSE_PROBE.with(|c| c.set(EntryStopReverseProbe::default()));
+}
+
+/// 读取入场止损逆侧探针快照（wf8 run 后调用）。
+pub(super) fn entry_stop_reverse_probe_snapshot() -> EntryStopReverseProbe {
+    ENTRY_STOP_REVERSE_PROBE.with(std::cell::Cell::get)
+}
+
 pub(super) fn pi_theta_fill_loop_overlay<F>(
     mut classify_at: F,
     bars: &[Bar],
@@ -3909,6 +3941,28 @@ where
                 let entry_stop = entry_structural_stop(c, &classification_i);
                 let entry_stop_dist =
                     entry_stop.map(|stop| (px - stop as f64 * config.tick.tick_size).abs());
+                // ★#625 发现3 观测（review-625.md 发现3，登记）：入场时结构止损是否已落在
+                // 持仓逆侧——纯计数，不动 entry_stop 取值/判定。
+                if let Some(stop) = entry_stop {
+                    let stop_px = stop as f64 * config.tick.tick_size;
+                    match c.dir {
+                        strategy::voice::VoiceSide::Long if stop_px >= px => {
+                            ENTRY_STOP_REVERSE_PROBE.with(|cell| {
+                                let mut p = cell.get();
+                                p.long_reverse += 1;
+                                cell.set(p);
+                            });
+                        }
+                        strategy::voice::VoiceSide::Short if stop_px <= px => {
+                            ENTRY_STOP_REVERSE_PROBE.with(|cell| {
+                                let mut p = cell.get();
+                                p.short_reverse += 1;
+                                cell.set(p);
+                            });
+                        }
+                        _ => {}
+                    }
+                }
                 // ★B1（步骤4，codex review conditional 修复）：入场 sizing target 快照（开腿当步
                 // SepLeg.q_units，含 dir_weight）。sep_legs 经 coverage.rs:2342-2353 filter_map(work.get) 构造 ⟹
                 // opened 腿 id 通常在其中，但 filter_map 可跳过 work 不含的 e_idx，理论非 100% 保证。

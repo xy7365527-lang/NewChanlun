@@ -1,6 +1,47 @@
 use super::*;
 
 // ════════════════════════════════════════════════════════════════════════════
+//  #625 发现1 观测探针（review-625.md 发现1 PLAUSIBLE）——KΘ hi/lo cap binding 计数
+// ════════════════════════════════════════════════════════════════════════════
+// 常驻探针（ancok.rs 同惯例，thread_local Cell）：纯观测旁路，只在 caps() 既有的
+// stop_long/stop_short 分支上 bump 计数，不改 hi/lo 取值/判定逻辑。用于验证评审建议的
+// 检验法——「若 binding 恒零，方向口径错配（sizing.rs:125 hi/lo cap 消费者与 fill.rs 分桶
+// 不同源，见 review-625.md 发现1）对净持仓的影响即为 0」。
+
+/// KΘ 风控门 hi/lo cap 分侧 binding 次数（review-625.md 发现1 观测量）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CapBindingProbe {
+    /// `stop_long` 生效（hi 禁净多归零）次数。
+    pub hi_binding: u64,
+    /// `stop_short` 生效（lo 禁净空归零）次数。
+    pub lo_binding: u64,
+}
+
+thread_local! {
+    static CAP_BINDING_PROBE: std::cell::Cell<CapBindingProbe> =
+        const { std::cell::Cell::new(CapBindingProbe { hi_binding: 0, lo_binding: 0 }) };
+}
+
+#[inline]
+fn cap_binding_probe_bump(f: impl FnOnce(&mut CapBindingProbe)) {
+    CAP_BINDING_PROBE.with(|c| {
+        let mut p = c.get();
+        f(&mut p);
+        c.set(p);
+    });
+}
+
+/// 归零 cap binding 探针（wf8 run 前调用）。
+pub fn cap_binding_probe_reset() {
+    CAP_BINDING_PROBE.with(|c| c.set(CapBindingProbe::default()));
+}
+
+/// 读取 cap binding 探针快照（wf8 run 后调用）。
+pub fn cap_binding_probe_snapshot() -> CapBindingProbe {
+    CAP_BINDING_PROBE.with(std::cell::Cell::get)
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 //  §9 环7：目标头寸 p̃_{t+1} → 全定义策略 π_Θ → 唯一订单 O_{t+1}
 //        （spec §15 P12 line 717-756：𝒦_Θ / J_x / LexArgmin / Schedule_Θ；
 //         定理 spec §16 P13 line 795：∀x ∃! O_{t+1}=π_Θ(x)，七链 **环7** rust 兑现）
@@ -122,8 +163,20 @@ impl KThetaRiskGate {
             Some(c) => cap.min(c.max(0.0)),
             None => cap,
         };
-        let hi = if self.stop_long { 0.0 } else { cap }; // 禁净多 ⟹ 上限 0
-        let lo = if self.stop_short { 0.0 } else { cap }; // 禁净空 ⟹ 下限 0
+        // ★#625 发现1 观测（review-625.md 发现1 PLAUSIBLE）：分侧 binding 计数，纯旁路，
+        // 不改下方 hi/lo 取值——用于验证「若 binding 恒零，方向口径错配对净持仓影响为 0」。
+        let hi = if self.stop_long {
+            cap_binding_probe_bump(|p| p.hi_binding += 1);
+            0.0 // 禁净多 ⟹ 上限 0
+        } else {
+            cap
+        };
+        let lo = if self.stop_short {
+            cap_binding_probe_bump(|p| p.lo_binding += 1);
+            0.0 // 禁净空 ⟹ 下限 0
+        } else {
+            cap
+        };
         (lo, hi)
     }
 
