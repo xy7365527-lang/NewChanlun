@@ -147,9 +147,10 @@ pub struct RetraceLedger {
     /// 四类警报的 append-only 记录（裁定六：审计归审计，`fold` 不吃本字段）。
     pub(super) audit_log: Vec<RetraceAuditRecord>,
     pub(super) provenance: RetraceProvenance,
-    /// 恢复点（票 #632；影子评审 #621 MEDIUM-1 修复）：`None` = 活账 / 普通 `fold`，落锤零约束；
-    /// `Some(as_of)` = 经 [`RetraceLedger::fold_recovered`] 显式声明——该 `as_of` 之前
-    /// 的知情时不得把仍处 Provisional 的身份落锤（[`Self::guard_settle_after_recovery`]）。
+    /// 恢复点（票 #632；影子评审 #621 MEDIUM-1 修复；票 #635 扩至处死通道）：`None` = 活账 /
+    /// 普通 `fold`，落锤零约束；`Some(as_of)` = 经 [`RetraceLedger::fold_recovered`] 显式声明——
+    /// 该 `as_of` 之前的知情时不得把仍处 Provisional 的身份落锤（判胜/判败或引擎改口处死，统一走
+    /// [`Self::guard_settle_after_recovery`]）。
     pub(super) recovery_floor: Option<usize>,
 }
 
@@ -292,6 +293,12 @@ impl RetraceLedger {
     /// `as_of` 会静默写出违反内核「出生钟 ≤ 终态钟」不变量的账本条目（`assert_invariants` 才
     /// 事后炸，写入当场零报错）。落锤前先查 `as_of ≥ entry.last_as_of`，违反即 fail-loud 拒收
     /// （[`RetraceRejection::RebaseAsOfBehindGate`]，裁定二 provider 时间错乱同族），零改写。
+    ///
+    /// **恢复点护栏叠加**（票 #635，修复 #632 窄口——此前只挂在 [`Self::judge`] 的判胜/判败
+    /// 入口，未覆盖本函数这条独立终态落账路径）：复用 [`Self::guard_settle_after_recovery`]
+    /// 同一判据，早于恢复点的 `as_of` 一律 fail-loud 拒收；`guard_single_active`、
+    /// [`Self::reconcile_window`] 共用本函数，护栏落此处两路同时覆盖。两门皆违反时恢复点护栏
+    /// 先查（两判据独立、互不替代，先后仅为实现顺序），报 `SettleBehindRecoveryPoint`。
     fn kill_as_rebased(
         &mut self,
         delta: &mut LedgerDelta<RetracePolicy>,
@@ -299,6 +306,7 @@ impl RetraceLedger {
         observed_window: Option<CenterFrame>,
         as_of: usize,
     ) -> Result<(), RetraceRejection> {
+        self.guard_settle_after_recovery(key, as_of)?;
         let gate_as_of = self.book.get(&key).expect("活跃候选必在账").last_as_of;
         if as_of < gate_as_of {
             self.registration_rejected += 1;
@@ -452,11 +460,12 @@ impl RetraceLedger {
     }
 
     /// 恢复后未决身份落锤护栏（编排者 2026-07-29 裁方案②，票 #632；影子评审 #621 MEDIUM-1
-    /// 修复）：本账未经 [`RetraceLedger::fold_recovered`] 声明恢复点（`recovery_floor
-    /// == None`）时零约束——活账与普通 `fold` 均不受影响。声明恢复点后，任何即将把仍处
-    /// Provisional 的身份落锤（判胜/判败）的知情时早于恢复点，一律 fail-loud 拒收，零改写
-    /// （检查发生在 [`Self::judge`] 之前，调用方风格同
-    /// [`Self::guard_terminal_evidence_consistency`]）。
+    /// 修复；票 #635 扩至 [`Self::kill_as_rebased`] 处死通道）：本账未经
+    /// [`RetraceLedger::fold_recovered`] 声明恢复点（`recovery_floor == None`）时零约束——活账与
+    /// 普通 `fold` 均不受影响。声明恢复点后，任何即将把仍处 Provisional 的身份落锤（判胜/判败，
+    /// 检查发生在 [`Self::judge`] 之前，调用方风格同
+    /// [`Self::guard_terminal_evidence_consistency`]；或引擎改口处死，检查发生在
+    /// [`Self::kill_as_rebased`] 内）的知情时早于恢复点，一律 fail-loud 拒收，零改写。
     ///
     /// **不是门卫钟第二次校验**：门卫钟的倒退门比对的是**该身份自己**的 `last_as_of`（S1 现状
     /// 不动，见 `log` 模块头「门卫钟的可恢复性」）；本护栏比对的是**调用方声明的恢复点**——两者

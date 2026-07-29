@@ -123,6 +123,23 @@ pub(super) fn cache_series_ok(cache: &TowerCache, n: usize) -> bool {
         && cache.macd_dif.len() == n
 }
 
+/// L≥1 的 `level_cand_delta` 几何输入派生：上级塔投影 → units → (Segment 投影, 方向锚)。
+///
+/// units 承担线段角色（裁定 A），方向锚与投影同源（`center_own_dir_at`，与 `classify_impl` /
+/// 增量塔的 `derive_units_anchors` 同一 provenance）。
+fn level_ge1_cand_inputs(
+    classification: &Classification,
+    tower_snapshots: &[Rc<Vec<LeveledMove>>],
+    lvl: usize,
+) -> (Vec<Segment>, Vec<Option<Direction>>) {
+    let pb = &classification.levels[lvl - 1].moves;
+    let units = project_to_units(&tower_snapshots[lvl], pb);
+    let anchors: Vec<Option<Direction>> =
+        (0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect();
+    let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
+    (segs, anchors)
+}
+
 /// P1 驱动器核心（序列注入版）：`cand_delta_tower`（全量重算）与
 /// `cand_delta_tower_cached`（增量缓存）共用单一事件提取路径（判据零分叉）。
 #[allow(clippy::too_many_arguments)]
@@ -157,11 +174,7 @@ pub(super) fn cand_delta_tower_with_series(
                 config.divergence_gauge,
             )
         } else {
-            let pb = &classification.levels[lvl - 1].moves;
-            let units = project_to_units(&tower_snapshots[lvl], pb);
-            let anchors: Vec<Option<Direction>> =
-                (0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect();
-            let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
+            let (segs, anchors) = level_ge1_cand_inputs(classification, tower_snapshots, lvl);
             recursive_tower::level_cand_delta(
                 lvl as u32,
                 &ls.centers[..],

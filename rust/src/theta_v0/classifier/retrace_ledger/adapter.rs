@@ -110,12 +110,15 @@ pub enum RetraceRejection {
         as_of: usize,
     },
     /// 恢复后未决身份落锤护栏：显式恢复点之前的知情时不得把仍处 Provisional 的身份落锤
-    /// （编排者 2026-07-29 裁方案②，票 #632；影子评审 #621 MEDIUM-1 修复）。恢复点由调用方
-    /// 经 [`super::book::RetraceLedger::fold_recovered`] 显式声明——门卫钟本身仍退回留档下界
-    /// （S1 诚实设计不动，见 `log` 模块头），本护栏是叠加的一层，只在调用方确实知道「恢复
-    /// 时刻」时启用；未声明恢复点的账本（`new()` 活账 / 未升级的普通 `fold()` 调用方）不受
-    /// 影响。判据仅覆盖**落锤**（本码只在 `judge` 即将产出 `Confirmed`/`NotConstituted` 时
-    /// 触发），不覆盖注册/门卫钟推进——门卫钟语义与终态吸收行为均不动。
+    /// （编排者 2026-07-29 裁方案②，票 #632；影子评审 #621 MEDIUM-1 修复；票 #635 扩至
+    /// [`super::book::RetraceLedger::kill_as_rebased`] 处死通道，修复 #632 未覆盖「改口/处死」
+    /// 的窄口）。恢复点由调用方经 [`super::book::RetraceLedger::fold_recovered`] 显式声明——
+    /// 门卫钟本身仍退回留档下界（S1 诚实设计不动，见 `log` 模块头），本护栏是叠加的一层，只在
+    /// 调用方确实知道「恢复时刻」时启用；未声明恢复点的账本（`new()` 活账 / 未升级的普通
+    /// `fold()` 调用方）不受影响。判据覆盖**任何即将把 Provisional 身份固化为终态的落锤**——
+    /// `judge` 产出的 `Confirmed`/`NotConstituted{RetestReentered}`，以及 `kill_as_rebased`
+    /// 产出的 `NotConstituted{CenterRebased}`；不覆盖注册/门卫钟推进——门卫钟语义与终态吸收
+    /// 行为均不动。
     SettleBehindRecoveryPoint {
         key: RetraceKey,
         /// 调用方声明的恢复点。
