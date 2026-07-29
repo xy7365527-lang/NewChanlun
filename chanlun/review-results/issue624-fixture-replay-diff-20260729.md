@@ -248,3 +248,9 @@
    `level_view/tests/projection_pairing.rs`（F1 迁入）、`classifier/mod.rs`（删注册行）；删
    `classifier/first_retrace_replay.rs`。**零生产行为变更**：被删模块零生产调用点，账本 0/3 未接线，
    本票不新增任何生产路径。
+
+---
+
+## 修订补记（2026-07-29，影子评审 LOW 触发，编排侧落）
+
+**§四 C 缺口登记补一条双实现风险位**：`rust/src/bin/p83_yield_remeasure.rs:383-393` 存在近邻统计实现（按 seed 在 moves 的 `center_indices` 中是否存在计数 `unassigned_projected`）——它不是 seed→CompletedMove 唯一性/fail-closed 证明（无 MissingSource/NoCompletedMove/AmbiguousCompletedMove 语义、非 fail-closed），不反证本报告 §四 C「唯一性证明仓内已消失」的断言；但 #640 落 provider 侧证明时须核对该统计实现，防双实现分叉。（影子评审 `shadow-624-t3-acceptance-review-20260729.md` LOW-3 指出，#640 票面已注明。）
