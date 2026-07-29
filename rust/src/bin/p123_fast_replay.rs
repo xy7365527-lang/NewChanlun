@@ -368,6 +368,9 @@ fn nest_kind_tag(kind: NestDivergenceKind) -> &'static str {
     }
 }
 
+/// #553（N1-T4）候选事件 dump 侧信道的 env 开关名（唯一字面量来源）。
+const EVENT_DUMP_ENV: &str = "P123_EVENT_DUMP";
+
 /// #553（N1-T4）候选事件 dump 侧信道：`P123_EVENT_DUMP=<path>` 时把**候选事件流**逐条落盘。
 ///
 /// 只写不判（090 能力声明，三条构造性保证）：
@@ -379,6 +382,16 @@ fn nest_kind_tag(kind: NestDivergenceKind) -> &'static str {
 ///    pending 出清、证书装配、stdout 门行都不读本结构。本结构也不回写事件。
 /// 3. **env 未设 ⟹ 零行为差异**——`writer=None` 时 `observe` 首行即返回，不记 revision、
 ///    不推 seq、不格式化，成本 = 一次 `Option::is_none`。
+///
+/// **边界（写失败的传播口径，照实声明）**：`writer` 为 `Some` 时，[`EventDump::observe`]
+/// 的写失败经调用点的 `?` 上抛（调用点在 prefix replay 的事件应用循环
+/// [`run_targeted_prefix_pass`]），会**中止 prefix pass**；此时收尾的既有
+/// `P421_LIFECYCLE_DUMP` sidecar 收尾 flush（先执行）与随后的 [`EventDump::flush`] 一并
+/// 被跳过（函数提前返回，两条收尾语句均不可达）。这与 `#421` 的 `P421_LIFECYCLE_DUMP`
+/// 侧信道写失败同形（同样经 [`write_lifecycle_line`] 以 `?` 上抛），与既有 [`dump_line`]
+///（`P116_DUMP`）的**吞错**口径不同款——`dump_line` 写失败被 `let _ = ...` 吸收，不上抛、
+/// 不中止重放。关灯路径（env 未设 ⟹ `writer=None`）不受本边界影响：`observe` 首行即
+/// 返回 `Ok(())`，不存在写失败面，第 3 条「env 未设 ⟹ 零行为差异」的声明不因本边界而弱化。
 ///
 /// 行口径（一行一条候选事件观察，字段序固定；见验收报告 §dump 口径）：
 /// ```text
@@ -411,12 +424,12 @@ impl EventDump {
 
     /// `P123_EVENT_DUMP=<path>` 门控构造；未设 env ⟹ 关灯（零行为差异）。
     fn from_env() -> Result<Self, String> {
-        let writer = std::env::var("P123_EVENT_DUMP")
+        let writer = std::env::var(EVENT_DUMP_ENV)
             .ok()
             .map(|path| {
                 File::create(&path)
                     .map(|file| Box::new(BufWriter::new(file)) as Box<dyn Write>)
-                    .map_err(|error| format!("创建 P123_EVENT_DUMP={path} 失败: {error}"))
+                    .map_err(|error| format!("创建 {EVENT_DUMP_ENV}={path} 失败: {error}"))
             })
             .transpose()?;
         Ok(Self::new(writer))
@@ -459,14 +472,14 @@ provider_window={}..{} b_center_start={} intake_fallback={}",
             u8::from(event.intake_fallback),
         );
         self.seq += 1;
-        writeln!(writer, "{line}").map_err(|error| format!("写 P123_EVENT_DUMP 失败: {error}"))
+        writeln!(writer, "{line}").map_err(|error| format!("写 {EVENT_DUMP_ENV} 失败: {error}"))
     }
 
     fn flush(&mut self) -> Result<(), String> {
         match self.writer.as_mut() {
             Some(writer) => writer
                 .flush()
-                .map_err(|error| format!("刷新 P123_EVENT_DUMP 失败: {error}")),
+                .map_err(|error| format!("刷新 {EVENT_DUMP_ENV} 失败: {error}")),
             None => Ok(()),
         }
     }
