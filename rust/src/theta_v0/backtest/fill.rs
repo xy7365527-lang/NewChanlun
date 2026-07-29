@@ -2986,6 +2986,178 @@ pub(super) fn entry_stop_reverse_probe_snapshot() -> EntryStopReverseProbe {
     ENTRY_STOP_REVERSE_PROBE.with(std::cell::Cell::get)
 }
 
+// ── #647 阶段一归因 dump（env `ENTRY_STOP_REVERSE_DUMP=<path>`；未设 = no-op）──
+// 仅在逆侧命中时写一行 JSONL（wf8 全窗 49 行），未设 env 时连文件都不开 ⟹ 生产零开销、
+// 零行为影响（与上方计数探针同款纯观测旁路）。
+thread_local! {
+    /// `None` = 未初始化；`Some(None)` = env 未设（永久 no-op）；`Some(Some(f))` = 已开文件。
+    static ENTRY_STOP_REVERSE_DUMP: std::cell::RefCell<Option<Option<std::fs::File>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// 逆侧命中逐笔明细写一行（#647 阶段一归因）。
+fn entry_stop_reverse_dump_line(line: &str) {
+    ENTRY_STOP_REVERSE_DUMP.with(|c| {
+        let mut slot = c.borrow_mut();
+        if slot.is_none() {
+            *slot = Some(std::env::var("ENTRY_STOP_REVERSE_DUMP").ok().and_then(|p| {
+                std::fs::OpenOptions::new().create(true).append(true).open(p).ok()
+            }));
+        }
+        if let Some(Some(f)) = slot.as_mut() {
+            use std::io::Write;
+            let _ = writeln!(f, "{line}");
+        }
+    });
+}
+
+/// 逆侧命中一笔的归因明细（#647 阶段一）：候选坐标 / 证书类型 / pivot / 中枢 / 止损 /
+/// 决策 bar 收盘 / exec bar OHLC——供离线逐笔核对机制。
+#[allow(clippy::too_many_arguments)]
+fn entry_stop_reverse_dump_row(
+    c: &super::super::strategy::interp::Candidate,
+    classification: &classifier::Classification,
+    bars: &[Bar],
+    i: usize,
+    exec_index: Option<usize>,
+    px: f64,
+    stop: super::super::types::Tick,
+    config: &ThetaConfig,
+) {
+    // env 未设时 dump_line 内部 no-op，但字符串拼装在此之前 ⟹ 先探一次开关，避免常态开销。
+    if ENTRY_STOP_REVERSE_DUMP.with(|c| matches!(&*c.borrow(), Some(None))) {
+        return;
+    }
+    let ts = config.tick.tick_size;
+    let bsp = classification
+        .levels
+        .get(c.level as usize)
+        .and_then(|lvl| lvl.bsp.iter().find(|p| p.source_index == c.source_index));
+    let (pivot_low, pivot_high, zg, zd, owner) = match bsp {
+        Some(p) => {
+            let (zg, zd, owner) = match p.center {
+                Some(super::super::classifier::bsp::OwnerRef::Center(ct)) => (ct.zg, ct.zd, "center"),
+                Some(super::super::classifier::bsp::OwnerRef::Type1Anchor(_)) => (0, 0, "type1anchor"),
+                None => (0, 0, "none"),
+            };
+            (p.pivot_low, p.pivot_high, zg, zd, owner)
+        }
+        None => (0, 0, 0, 0, "missing"),
+    };
+    let src = bars.get(c.source_index);
+    let ex = exec_index.and_then(|ei| bars.get(ei));
+    let line = format!(
+        concat!(
+            r#"{{"decision_bar":{},"exec_bar":{},"src_bar":{},"lag_bars":{},"level":{},"dir":"{}","#,
+            r#""bsp_class":{},"bits":{},"buy1":{},"buy2":{},"buy3":{},"sell1":{},"sell2":{},"sell3":{},"#,
+            r#""nest_confirmed":{},"owner":"{}","stop_tick":{},"stop_px":{},"decision_close":{},"#,
+            r#""src_close":{},"src_high":{},"src_low":{},"exec_close":{},"exec_high":{},"exec_low":{},"#,
+            r#""pivot_low_px":{},"pivot_high_px":{},"zg_px":{},"zd_px":{}}}"#,
+        ),
+        i,
+        exec_index.map(|e| e as i64).unwrap_or(-1),
+        c.source_index,
+        i as i64 - c.source_index as i64,
+        c.level,
+        voice_side_str(c.dir),
+        c.bsp_class,
+        c.bits.class_index(),
+        c.bits.buy1,
+        c.bits.buy2,
+        c.bits.buy3,
+        c.bits.sell1,
+        c.bits.sell2,
+        c.bits.sell3,
+        c.nest_confirmed,
+        owner,
+        stop,
+        stop as f64 * ts,
+        px,
+        src.map(|b| b.close as f64 * ts).unwrap_or(f64::NAN),
+        src.map(|b| b.high as f64 * ts).unwrap_or(f64::NAN),
+        src.map(|b| b.low as f64 * ts).unwrap_or(f64::NAN),
+        ex.map(|b| b.close as f64 * ts).unwrap_or(f64::NAN),
+        ex.map(|b| b.high as f64 * ts).unwrap_or(f64::NAN),
+        ex.map(|b| b.low as f64 * ts).unwrap_or(f64::NAN),
+        pivot_low as f64 * ts,
+        pivot_high as f64 * ts,
+        zg as f64 * ts,
+        zd as f64 * ts,
+    );
+    entry_stop_reverse_dump_line(&line);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  #647 入场结构复检门——拒单计数（分侧 × 分级）
+// ════════════════════════════════════════════════════════════════════════════
+
+/// 入场结构复检拒单计数（#647）：分持仓侧 + 分级别（`by_level_*[ℓ]` = 该级拒单数）。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(super) struct EntryStopRecheckProbe {
+    /// 多仓候选被拒次数（结构止损已在入场价上方/同价）。
+    pub(super) long_rejected: u64,
+    /// 空仓候选被拒次数（结构止损已在入场价下方/同价）。
+    pub(super) short_rejected: u64,
+    /// 分级别拒单（下标 = 候选 `level`），多仓侧。
+    pub(super) by_level_long: Vec<u64>,
+    /// 分级别拒单（下标 = 候选 `level`），空仓侧。
+    pub(super) by_level_short: Vec<u64>,
+}
+
+thread_local! {
+    static ENTRY_STOP_RECHECK_PROBE: std::cell::RefCell<EntryStopRecheckProbe> =
+        const { std::cell::RefCell::new(EntryStopRecheckProbe {
+            long_rejected: 0,
+            short_rejected: 0,
+            by_level_long: Vec::new(),
+            by_level_short: Vec::new(),
+        }) };
+}
+
+/// 归零入场结构复检拒单计数（run 前调用）。
+pub(super) fn entry_stop_recheck_probe_reset() {
+    ENTRY_STOP_RECHECK_PROBE.with(|c| *c.borrow_mut() = EntryStopRecheckProbe::default());
+}
+
+/// 读取入场结构复检拒单计数快照（run 后调用）。
+pub(super) fn entry_stop_recheck_probe_snapshot() -> EntryStopRecheckProbe {
+    ENTRY_STOP_RECHECK_PROBE.with(|c| c.borrow().clone())
+}
+
+/// 反证开关（ADR-0001 基线重订常例，#607 `THETA_T3INC_SKIP` 同款）：`THETA_ENTRY_STOP_RECHECK_SKIP=1`
+/// ⟹ 门整体旁路 ⟹ 旧行为逐字节恢复（差异源单一性的 counterfactual 证据）。仅供审计复跑，
+/// 生产不设。
+pub(super) fn entry_stop_recheck_skip() -> bool {
+    static SKIP: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *SKIP.get_or_init(|| {
+        std::env::var("THETA_ENTRY_STOP_RECHECK_SKIP").map(|v| v == "1").unwrap_or(false)
+    })
+}
+
+/// 记一次拒单（门内唯一写入点）。
+fn entry_stop_recheck_probe_bump(dir: strategy::voice::VoiceSide, level: u32) {
+    ENTRY_STOP_RECHECK_PROBE.with(|c| {
+        let mut p = c.borrow_mut();
+        let long = match dir {
+            strategy::voice::VoiceSide::Long => true,
+            strategy::voice::VoiceSide::Short => false,
+            // Flat 候选不开仓 ⟹ 门内恒不判逆侧（`entry_stop_recheck_reject` 返 false），不可达。
+            strategy::voice::VoiceSide::Flat => return,
+        };
+        if long {
+            p.long_rejected += 1;
+        } else {
+            p.short_rejected += 1;
+        }
+        let by_level = if long { &mut p.by_level_long } else { &mut p.by_level_short };
+        let idx = level as usize;
+        if by_level.len() <= idx {
+            by_level.resize(idx + 1, 0);
+        }
+        by_level[idx] += 1;
+    });
+}
+
 pub(super) fn pi_theta_fill_loop_overlay<F>(
     mut classify_at: F,
     bars: &[Bar],
@@ -3508,6 +3680,41 @@ where
                 }
                 None => step_gamma_trade, // 门关闭 ⟹ 逐字节不变（bit-exact 回归锁）
             };
+            // ── ★#647 入场结构复检门：候选自身的结构止损若在**决策时点**已落在入场价逆侧
+            //    （多仓 `stop_px ≥ px` / 空仓 `stop_px ≤ px`），该买卖点赖以成立的结构已破
+            //    ⟹ 剔除 ⟹ interpret 不归 open ⟹ 不开仓（与 χ/nest 门同一语义层，:3560 注释
+            //    同款「gamma 滤掉 ⟹ 不开仓」）。判据与依据见
+            //    [`super::signal::entry_stop_recheck_reject`] 文档（13课:18 / 24课:36 / 8课:30
+            //    + 出入场同一 stop 值的内部一致性）。`entry_stop=None`（非该方向交易点）或
+            //    `px≤0`（不可交易 bar 的退化价）⟹ **不判**，直通。拒绝不经 μ 桶键（ext_i/
+            //    entry_z 三维不动，R5-1 铁律同 nest 门）。──
+            let step_gamma_trade: Vec<_> = if px > 0.0 && !entry_stop_recheck_skip() {
+                step_gamma_trade
+                    .into_iter()
+                    .filter(|c| {
+                        // ★范围铁律（票面「入场复检 ⟹ 逆侧拒单」）：本门只拒**开仓**。同一候选
+                        // 若在本步还承担关仓职责（反向信号关现役腿，`exit_candidate_would_close`
+                        // 与 nest 门同一 helper），一律放行——结构失效判据只否定「据此建新仓」，
+                        // 不授权顺带压制平仓（平仓侧另有 channel/风控门单源，不在本票范围）。
+                        if exit_candidate_would_close(c.level, c.dir, &prev_active) {
+                            return true;
+                        }
+                        if super::signal::entry_stop_recheck_reject(
+                            c,
+                            &classification_i,
+                            px,
+                            config.tick.tick_size,
+                        ) {
+                            entry_stop_recheck_probe_bump(c.dir, c.level);
+                            false
+                        } else {
+                            true
+                        }
+                    })
+                    .collect()
+            } else {
+                step_gamma_trade
+            };
             // ── #196 shadow 输入适配：parent_projections 生产构造（现成单源
             //    `interp::parent_certificate_projection` 逐候选构造；cand_elems = step_work
             //    candidate 段只读切片、tree = step_tree，与生产同一份数据；χ 后口径——
@@ -3996,6 +4203,9 @@ where
                                 p.long_reverse += 1;
                                 cell.set(p);
                             });
+                            entry_stop_reverse_dump_row(
+                                c, &classification_i, bars, i, exec_index, px, stop, config,
+                            );
                         }
                         strategy::voice::VoiceSide::Short if stop_px <= px => {
                             ENTRY_STOP_REVERSE_PROBE.with(|cell| {
@@ -4003,6 +4213,9 @@ where
                                 p.short_reverse += 1;
                                 cell.set(p);
                             });
+                            entry_stop_reverse_dump_row(
+                                c, &classification_i, bars, i, exec_index, px, stop, config,
+                            );
                         }
                         _ => {}
                     }
@@ -4603,5 +4816,115 @@ pub(super) fn apply_voice_fill(voice_qty: &mut [u32], depth: usize, fill: FillOu
         debug_assert!((fill.closed_qty - closed as f64).abs() < 1e-9);
         debug_assert!((fill.opened_qty - opened as f64).abs() < 1e-9);
         *slot = slot.saturating_sub(closed).saturating_add(opened);
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  #647 入场结构复检门——生产路径回归测试
+// ════════════════════════════════════════════════════════════════════════════
+#[cfg(test)]
+mod entry_stop_recheck_gate_tests {
+    //! 门在**生产 fill 循环**里的判别力：同一场景只改结构止损价的一侧，逆侧候选不得开仓、
+    //! 顺侧候选照常开仓（对照臂同时锁住「门没把正常入场也拒掉」与「测试确有判别力」）。
+    use super::*;
+    use classifier::center::UnitRange;
+    use classifier::recursive_tower::{ElementId, LeveledMove};
+    use classifier::{bsp::BspPoint, Classification, LevelState};
+    use super::super::super::types::{Bar, BspBits, Direction, Tick};
+    use std::rc::Rc;
+
+    /// 入场价（tick）：tick_size=1e-8 ⟹ 100.00 美元。
+    const PX: Tick = 10_000_000_000;
+
+    fn flat_bar(idx: usize) -> Bar {
+        Bar {
+            source_index: idx,
+            timestamp: idx as i64,
+            open: PX,
+            high: PX,
+            low: PX,
+            close: PX,
+            volume: 1,
+            untradable: false,
+        }
+    }
+
+    /// 二类买点（结构止损 = `pivot_low`）。
+    fn buy2_point(source_index: usize, pivot_low: Tick) -> BspPoint {
+        BspPoint {
+            source_index,
+            bits: BspBits { buy2: true, ..BspBits::default() },
+            pivot_low,
+            pivot_high: 0,
+            center: None,
+            struct_break_dir: None,
+            force: None,
+        }
+    }
+
+    /// 单级场景：L0 一段上行走势 + 其右端点上的二类买点（`pivot_low` 由参数给）。
+    fn run_with_pivot_low(pivot_low: Tick) -> FillOutput {
+        let bars: Vec<Bar> = (0..8).map(flat_bar).collect();
+        let mv = LeveledMove::from_unit(
+            &UnitRange { start_index: 0, end_index: 2, direction: Direction::Up, lo: PX, hi: PX },
+            ElementId { level: 0, ordinal: 0 },
+        );
+        let cls = Classification {
+            levels: vec![LevelState {
+                bsp: Rc::new(vec![buy2_point(2, pivot_low)]),
+                ..LevelState::default()
+            }],
+        };
+        let tower: Vec<Rc<Vec<LeveledMove>>> = vec![Rc::new(vec![mv])];
+        let config = super::super::super::config::ThetaConfig::default();
+        pi_theta_fill_loop(
+            move |i| {
+                // bar 2 起该买卖点已在因果分类里（首次出现 ⟹ 本 bar 确认 ⟹ 部署）。
+                let c = if i >= 2 { cls.clone() } else { Classification::default() };
+                (c, tower.clone(), vec![1], i as u64, i as u64)
+            },
+            &bars,
+            1.0,
+            &config,
+            None,
+        )
+    }
+
+    /// 顺侧（`pivot_low` = 90 < 入场价 100）：门不干预，候选照常开仓——对照臂，兼作本测试
+    /// 有判别力的证据（若这里也开不出仓，下面的"拒"就是假阳性）。
+    #[test]
+    fn stop_below_entry_still_opens() {
+        entry_stop_recheck_probe_reset();
+        let out = run_with_pivot_low(9_000_000_000);
+        assert!(
+            !out.typed_ledger.is_empty(),
+            "顺侧候选（止损 90 在入场价 100 下方）必须照常开仓——否则本测试无判别力"
+        );
+        assert_eq!(
+            entry_stop_recheck_probe_snapshot(),
+            EntryStopRecheckProbe::default(),
+            "顺侧不应产生任何拒单"
+        );
+    }
+
+    /// 逆侧（`pivot_low` = 110 > 入场价 100）：结构在决策时点已破 ⟹ 拒单，一笔不开。
+    #[test]
+    fn stop_above_entry_is_rejected() {
+        entry_stop_recheck_probe_reset();
+        let out = run_with_pivot_low(11_000_000_000);
+        assert!(out.typed_ledger.is_empty(), "逆侧候选必须被拒 ⟹ 零入场");
+        let p = entry_stop_recheck_probe_snapshot();
+        assert_eq!(p.long_rejected, 1, "多仓侧拒单计数");
+        assert_eq!(p.short_rejected, 0);
+        assert_eq!(p.by_level_long, vec![1], "分级计数落 level 0");
+    }
+
+    /// 边界恰等（`pivot_low` == 入场价）：判逆侧 ⟹ 拒（d=0 且 `stop_hit` 含等号即触及）。
+    #[test]
+    fn stop_exactly_at_entry_is_rejected() {
+        entry_stop_recheck_probe_reset();
+        let out = run_with_pivot_low(PX);
+        assert!(out.typed_ledger.is_empty(), "恰等口径 = 拒");
+        assert_eq!(entry_stop_recheck_probe_snapshot().long_rejected, 1);
     }
 }
