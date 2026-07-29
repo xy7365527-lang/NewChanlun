@@ -2645,6 +2645,62 @@ provider_window=5..70 b_center_start=20 intake_fallback=0"
         }
     }
 
+    /// 测试用故障 sink：`write`/`flush` 按开关返回 `Err`，纯内存构造（不碰文件系统/进程 env），
+    /// 用于锁定 [`EventDump::observe`]/[`EventDump::flush`] 写失败经 `?` 上抛的传播边界（#553）。
+    /// 不包 `BufWriter`——`BufWriter` 会缓冲写入，写失败要等到缓冲区满/显式 flush 才暴露，
+    /// 直接把它作为 `Box<dyn Write>` 传给 `EventDump::new` 才能在 `observe` 单次调用内测到。
+    struct FailingSink {
+        fail_on_write: bool,
+        fail_on_flush: bool,
+    }
+
+    impl Write for FailingSink {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.fail_on_write {
+                Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "boom"))
+            } else {
+                Ok(buf.len())
+            }
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            if self.fail_on_flush {
+                Err(std::io::Error::new(std::io::ErrorKind::Other, "boom"))
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    /// #553 边界：`observe` 的写失败经调用点 `?` 上抛（模块头「边界」段落），错误消息含
+    /// `EVENT_DUMP_ENV` 常量渲染的字面量 `"P123_EVENT_DUMP"`——锁定常量确实被插值，不是占位符。
+    #[test]
+    fn event_dump_observe_propagates_write_error() {
+        let sink = FailingSink {
+            fail_on_write: true,
+            fail_on_flush: false,
+        };
+        let mut dump = EventDump::new(Some(Box::new(sink) as Box<dyn Write>));
+        let err = dump
+            .observe(&sample_event(100, true), 123, true)
+            .expect_err("write 失败必须经 ? 上抛为 Err，不得被吞掉");
+        assert!(err.contains("写 P123_EVENT_DUMP 失败"), "{err}");
+    }
+
+    /// #553 边界：`flush` 的写失败同样经 `?` 上抛，错误消息含同一字面量渲染的 `"刷新 …失败"` 前缀。
+    #[test]
+    fn event_dump_flush_propagates_flush_error() {
+        let sink = FailingSink {
+            fail_on_write: false,
+            fail_on_flush: true,
+        };
+        let mut dump = EventDump::new(Some(Box::new(sink) as Box<dyn Write>));
+        let err = dump
+            .flush()
+            .expect_err("flush 失败必须经 ? 上抛为 Err，不得被吞掉");
+        assert!(err.contains("刷新 P123_EVENT_DUMP 失败"), "{err}");
+    }
+
     /// #69 5b / T5：dirty 更新只替换代次/事件载荷，run-local pan memo 的持有地址不变。
     #[test]
     fn run_entry_update_preserves_pan_memo_residence() {
