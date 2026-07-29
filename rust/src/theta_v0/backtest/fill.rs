@@ -3089,9 +3089,12 @@ fn entry_stop_reverse_dump_row(
 
 // ════════════════════════════════════════════════════════════════════════════
 //  #647 入场结构复检门——拒单计数（分侧 × 分级）
+//  定稿（2026-07-29 用户 HITL）：门 = 破自己的底即拒，全类别同判，力度轴不进生产门。
+//  一/二/三类拒单统一计入本计数（不按类别分桶）——见 `signal::entry_stop_recheck_reject` 文档。
 // ════════════════════════════════════════════════════════════════════════════
 
-/// 入场结构复检拒单计数（#647）：分持仓侧 + 分级别（`by_level_*[ℓ]` = 该级拒单数）。
+/// 入场结构复检拒单计数（#647）：分持仓侧 + 分级别（`by_level_*[ℓ]` = 该级拒单数），全类别
+/// 同一计数口径（无分类别桶）。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct EntryStopRecheckProbe {
     /// 多仓候选被拒次数（结构止损已在入场价上方/同价）。
@@ -3125,8 +3128,9 @@ pub(super) fn entry_stop_recheck_probe_snapshot() -> EntryStopRecheckProbe {
 }
 
 /// 反证开关（ADR-0001 基线重订常例，#607 `THETA_T3INC_SKIP` 同款）：`THETA_ENTRY_STOP_RECHECK_SKIP=1`
-/// ⟹ 门整体旁路 ⟹ 旧行为逐字节恢复（差异源单一性的 counterfactual 证据）。仅供审计复跑，
-/// 生产不设。
+/// ⟹ 门整体旁路 ⟹ 旧行为（门落地前基线）逐字节恢复（差异源单一性的 counterfactual 证据）。
+/// 保留用途：合入本票时的反证复核——旁路后 trades 产物须与门前基线逐字节比对（cmp=0），
+/// 证明门本身是本次差异的唯一来源，非其他并发改动混入。仅供审计复跑，生产不设。
 pub(super) fn entry_stop_recheck_skip() -> bool {
     static SKIP: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *SKIP.get_or_init(|| {
@@ -3680,14 +3684,16 @@ where
                 }
                 None => step_gamma_trade, // 门关闭 ⟹ 逐字节不变（bit-exact 回归锁）
             };
-            // ── ★#647 入场结构复检门：候选自身的结构止损若在**决策时点**已落在入场价逆侧
-            //    （多仓 `stop_px ≥ px` / 空仓 `stop_px ≤ px`），该买卖点赖以成立的结构已破
+            // ── ★#647 入场结构复检门（2026-07-29 用户 HITL 定稿：破自己的底即拒，全类别
+            //    同判，力度轴不进生产门）：候选自身的结构位若在**决策时点**已被价格越过
+            //    （多仓 `stop_px ≥ px` / 空仓 `stop_px ≤ px`），该点在入场时点已不成立
             //    ⟹ 剔除 ⟹ interpret 不归 open ⟹ 不开仓（与 χ/nest 门同一语义层，:3560 注释
-            //    同款「gamma 滤掉 ⟹ 不开仓」）。判据与依据见
-            //    [`super::signal::entry_stop_recheck_reject`] 文档（13课:18 / 24课:36 / 8课:30
-            //    + 出入场同一 stop 值的内部一致性）。`entry_stop=None`（非该方向交易点）或
-            //    `px≤0`（不可交易 bar 的退化价）⟹ **不判**，直通。拒绝不经 μ 桶键（ext_i/
-            //    entry_z 三维不动，R5-1 铁律同 nest 门）。──
+            //    同款「gamma 滤掉 ⟹ 不开仓」）。一/二/三类同一判据、不分桶（101 课最弱二类因
+            //    未破自身底而天然不触门，非门内特例放行）。门名分 = 系统自设风控参数（#659
+            //    登记，非缠论判据），只表达是否值得建仓，不代判点是否成立。判据全文见
+            //    [`super::signal::entry_stop_recheck_reject`] 文档。`entry_stop=None`
+            //    （非该方向交易点）或 `px≤0`（不可交易 bar 的退化价）⟹ **不判**，直通。
+            //    拒绝不经 μ 桶键（ext_i/entry_z 三维不动，R5-1 铁律同 nest 门）。──
             let step_gamma_trade: Vec<_> = if px > 0.0 && !entry_stop_recheck_skip() {
                 step_gamma_trade
                     .into_iter()
