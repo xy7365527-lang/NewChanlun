@@ -569,3 +569,104 @@ fn main() -> std::process::ExitCode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use newchan_rust::theta_v0::classifier::cand_event::{
+        CandidateEventBook, CandidateKey, CandidateObservation, ParentFingerprint,
+        StructuralPredicates, CANDIDATE_RULE_VERSION,
+    };
+    use newchan_rust::theta_v0::types::Side;
+
+    fn observation(level: u32, c_start: usize, interval: (usize, usize)) -> CandidateObservation {
+        CandidateObservation {
+            key: CandidateKey {
+                rule_version: CANDIDATE_RULE_VERSION,
+                level,
+                kind: CandidateKind::Trend,
+                side: Side::Long,
+                previous_center_start: Some(10),
+                parent: ParentFingerprint {
+                    center_start: 20,
+                    zd: 100,
+                    zg: 110,
+                },
+                seg_a: (11, 19),
+                c_start,
+            },
+            kind: CandidateKind::Trend,
+            center_ids: Some((10, 20)),
+            candidate_group_id: 1,
+            pair_id: 2,
+            structural_predicates: StructuralPredicates {
+                direction: true,
+                comparable: true,
+                extreme: true,
+            },
+            extreme_proof: (11, 19),
+            third_class_proof: None,
+            interval,
+            state: CandidateState::Provisional,
+            first_provable_at: Some(interval.1),
+            confirmed_at: None,
+        }
+    }
+
+    fn streams_of(
+        observations: &[CandidateObservation],
+        as_of: usize,
+    ) -> classifier::cand_event::CandidateStreams {
+        let mut book = CandidateEventBook::default();
+        book.advance(observations, as_of);
+        book.streams()
+    }
+
+    /// #691 INFO-1 机器锁：`settle_chain_readout` 的 `summary`/`digest` 必须取自幂等重放
+    /// **前**的簿态（模块头注释与 [`settle_chain_readout`] 文档声明的顺序约束，此前只靠人读
+    /// 语句顺序守，battery bin 零单测）。
+    ///
+    /// 构造手段：先把簿真推进到 `as_of=100`，只喂 `narrow`（一条 L0 候选）；`ChainRun::last_streams`
+    /// 却挂 `wide`（多一条 L2 候选、同一 `as_of=100`）——`settle_chain_readout` 内部那次「幂等重放」
+    /// 因此**不幂等**，真实追加一条新 revision（`replay` 非零）。断言 `summary`/`digest` 与「只推进
+    /// 过 narrow」的独立簿逐字段相同，证明二者取的是重放**前**的簿态，不含 replay 追加的 wide
+    /// revision——顺序一旦颠倒（先 replay 后取 summary/digest），这条断言当场变红。
+    #[test]
+    fn settle_chain_readout_digest_and_summary_precede_replay_delta() {
+        let narrow = streams_of(&[observation(0, 20, (20, 40))], 100);
+        let wide = streams_of(
+            &[observation(0, 20, (20, 40)), observation(2, 0, (0, 100))],
+            100,
+        );
+
+        let mut book = chain_cert::ChainCertificateBook::default();
+        book.advance(&narrow, 100);
+
+        let readout = settle_chain_readout(ChainRun {
+            book,
+            every: 1,
+            advances: 1,
+            last_streams: wide,
+            last_as_of: 100,
+        });
+
+        assert!(
+            readout.replay > 0,
+            "夹具必须制造出非零重放 Delta，否则没测到「重放后」这个反面：{}",
+            readout.replay
+        );
+
+        let mut narrow_only_book = chain_cert::ChainCertificateBook::default();
+        narrow_only_book.advance(&narrow, 100);
+        assert_eq!(
+            readout.summary,
+            narrow_only_book.summarize(),
+            "summary 必须取自重放前（只见 narrow）的簿态，不含 replay 追加的 wide revision"
+        );
+        assert_eq!(
+            readout.digest,
+            narrow_only_book.digest(),
+            "digest 必须取自重放前（只见 narrow）的簿态，不含 replay 追加的 wide revision"
+        );
+    }
+}
