@@ -464,6 +464,62 @@ fn absent_head_stays_open_and_is_not_invalidated() {
     );
 }
 
+/// 链头**上一轮曾 `Confirmed`**、本轮查无——不得因「曾确认」残留而误判 `Closed`：状态只读
+/// 当前这一轮的事件视图（status/state 同源），不带上一轮的记忆（#667 INFO-1 机器锁）。
+///
+/// 三轮：① 头未确认 ⟹ `Open`（基线）。② 头转 `Confirmed`，同时喂入 level 0 候选令 mid 可扩展
+/// （`extendable=true`）⟹ 仍 `Open`（非终态，被 resident 机制带入下一轮重评）。③ 头整个查无
+/// （`Absent`）⟹ 落 `Open`，非 `Closed` 非 `Invalidated`。
+#[test]
+fn absent_head_after_prior_confirmed_stays_open_and_is_not_invalidated() {
+    chain_probe::reset();
+    let mut book = ChainCertificateBook::default();
+
+    book.advance(
+        &streams_of(&[obs(2, 0, (0, 100)), obs(1, 10, (10, 60))], 100),
+        100,
+    );
+    assert_eq!(
+        head(&book, &[key(2, 0), key(1, 10)]).status,
+        ChainStatus::Open
+    );
+
+    // 头转 Confirmed；同轮喂入 level 0 候选令 mid 保持可扩展——防止本轮本身先误判 Closed
+    // （这只是本用例站稳「头曾 Confirmed」这一前提的手段，不是待测结论）。
+    let mut confirmed_head = obs(2, 0, (0, 100));
+    confirmed_head.state = CandidateState::Confirmed;
+    book.advance(
+        &streams_of(
+            &[confirmed_head, obs(1, 10, (10, 60)), obs(0, 20, (20, 40))],
+            105,
+        ),
+        105,
+    );
+    let mid_confirmed = head(&book, &[key(2, 0), key(1, 10)]);
+    assert_eq!(
+        mid_confirmed.nodes[0].state,
+        Some(CandidateState::Confirmed),
+        "本轮头必须真读到 Confirmed（不是构造摆设）"
+    );
+    assert_eq!(mid_confirmed.status, ChainStatus::Open);
+
+    // fresh book ⟹ 上一轮头整个不在流里（不是 Invalidated，是查无）。
+    book.advance(&streams_of(&[obs(1, 10, (10, 60))], 110), 110);
+
+    let certificate = head(&book, &[key(2, 0), key(1, 10)]);
+    assert_eq!(
+        certificate.status,
+        ChainStatus::Open,
+        "曾 Confirmed 不得残留成 Closed"
+    );
+    assert_eq!(certificate.invalidation_cause, None);
+    assert_eq!(certificate.nodes[0].status, ChainNodeStatus::Absent);
+    assert!(
+        chain_probe::snapshot().absent_node > 0,
+        "必须真经过 Absent 节点分支"
+    );
+}
+
 // ── 终态三态 ────────────────────────────────────────────────────────────────────────────
 
 /// `Closed` 三条件缺一不可：链头 `Confirmed` + 不可再扩展 + 全链段谓词判过。
