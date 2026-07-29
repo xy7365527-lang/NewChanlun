@@ -20,8 +20,10 @@
 
 use super::super::super::types::Direction;
 use super::super::first_retrace_replay::{RetraceOutcome, StrictCompletedPair};
+use super::book::CenterDeathCertificate;
 use super::{
-    CenterFrame, RetraceEvidence, RetraceKey, RetraceObservation, RetracePoint, RetraceSide,
+    CenterAnchor, CenterFrame, RetraceEvidence, RetraceKey, RetraceObservation, RetracePoint,
+    RetraceSide,
 };
 
 /// 观察适配器的原始输入（票面「观察进」的唯一入口）。
@@ -68,10 +70,32 @@ pub enum RetraceRejection {
         leave_move_index: usize,
         retest_move_index: usize,
     },
-    /// 同一中枢已有未判完的活跃候选而新 departure 到达（裁定二：provider 有病 ⟹ fail-loud）。
+    /// 同一中枢已有未判完的活跃候选，而新 departure（不同 departure_move_index）到达
+    /// （裁定二：provider 有病 ⟹ fail-loud）。**不含**同 departure 改口——那走引擎改口处死路径
+    /// （票 #622；[`super::NotConstitutedReason::CenterRebased`]），不是拒收。
     ActiveCandidateNotSettled {
         active: RetraceKey,
         incoming_departure_move_index: usize,
+    },
+    /// 死人挂号：该中枢锚已有死亡证明（Success 已落锤），仍收到新 departure（裁定四「给死人
+    /// 挂号」）。由 [`super::book::RetraceLedger::observe`] 施加，自查
+    /// [`super::book::RetraceLedger::death_certificate`]，不依赖外部（票 #622）。
+    ///
+    /// 与同身份迟到输入（幂等，裁定三静默吸收）严格区分：本码只在**新身份**试图挂号时触发，
+    /// 迟到输入走 `advance_existing` 的终态吸收分支，从不经过本模块。
+    DeadCenterReentry {
+        anchor: CenterAnchor,
+        attempted: RetraceKey,
+        death_certificate: CenterDeathCertificate,
+    },
+    /// 两拍证据矛盾：同一身份注册拍与落锤拍的侧 / 离开边不一致（裁定二 fail-loud 同族；
+    /// 影子评审 #621 MEDIUM-2 补，票 #622）。frame 不比对——落到本码时二者必然同 key 故同 frame。
+    TerminalEvidenceContradictsRegistration {
+        key: RetraceKey,
+        registered_side: RetraceSide,
+        registered_leave_end: RetracePoint,
+        incoming_side: RetraceSide,
+        incoming_leave_end: RetracePoint,
     },
 }
 
