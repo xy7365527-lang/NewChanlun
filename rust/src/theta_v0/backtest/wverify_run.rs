@@ -1287,6 +1287,7 @@ fn m8_e2e_all_systems_oos() {
         // 不改本窗判定/订单流），跑批后读快照接 wf8 验收行。
         super::fill::entry_stop_reverse_probe_reset();
         super::super::strategy::coverage::cap_binding_probe_reset();
+        super::super::strategy::coverage::cap_binding_attribution_reset(); // #628 阶段一归因
         let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
         super::admission::t5a_chain_dump::close();
         let entry_stop_reverse = super::fill::entry_stop_reverse_probe_snapshot();
@@ -1298,6 +1299,74 @@ fn m8_e2e_all_systems_oos() {
             entry_stop_reverse.short_reverse,
             cap_binding.hi_binding,
             cap_binding.lo_binding,
+        );
+        // ★#628 阶段一归因：逐次 binding 事件——分桶方向(hi=held Long/lo=held Short)与 p̃ 符号
+        // 一致/相反计数 + 反事实 Δp*（p_star_actual − p_star_cf）分布。
+        let attribution = super::super::strategy::coverage::cap_binding_attribution_snapshot();
+        let (mut hi_aligned, mut hi_opposite, mut hi_zero_delta, mut hi_nonzero_delta) = (0u64, 0u64, 0u64, 0u64);
+        let (mut lo_aligned, mut lo_opposite, mut lo_zero_delta, mut lo_nonzero_delta) = (0u64, 0u64, 0u64, 0u64);
+        let mut hi_deltas: Vec<f64> = Vec::new();
+        let mut lo_deltas: Vec<f64> = Vec::new();
+        for ev in &attribution {
+            if ev.hi_triggered {
+                // hi=禁净多（held Long 的止损触发）；一致 = p̃>0（p̃ 也指向净多，cap 真压了目标）。
+                if ev.p_tilde > 0.0 {
+                    hi_aligned += 1;
+                } else {
+                    hi_opposite += 1;
+                }
+                if let Some(cf) = ev.p_star_cf_hi {
+                    let d = ev.p_star_actual - cf;
+                    hi_deltas.push(d);
+                    if d.abs() < 1e-9 {
+                        hi_zero_delta += 1;
+                    } else {
+                        hi_nonzero_delta += 1;
+                    }
+                }
+            }
+            if ev.lo_triggered {
+                // lo=禁净空（held Short 的止损触发）；一致 = p̃<0。
+                if ev.p_tilde < 0.0 {
+                    lo_aligned += 1;
+                } else {
+                    lo_opposite += 1;
+                }
+                if let Some(cf) = ev.p_star_cf_lo {
+                    let d = ev.p_star_actual - cf;
+                    lo_deltas.push(d);
+                    if d.abs() < 1e-9 {
+                        lo_zero_delta += 1;
+                    } else {
+                        lo_nonzero_delta += 1;
+                    }
+                }
+            }
+        }
+        let summarize = |deltas: &mut Vec<f64>| -> (f64, f64, f64) {
+            if deltas.is_empty() {
+                return (0.0, 0.0, 0.0);
+            }
+            deltas.sort_by(|a, b| a.abs().partial_cmp(&b.abs()).unwrap());
+            let max = deltas.last().copied().unwrap_or(0.0);
+            let sum: f64 = deltas.iter().map(|d| d.abs()).sum();
+            let mean = sum / deltas.len() as f64;
+            let median = deltas[deltas.len() / 2];
+            (mean, median, max)
+        };
+        let (hi_mean, hi_median, hi_max) = summarize(&mut hi_deltas);
+        let (lo_mean, lo_median, lo_max) = summarize(&mut lo_deltas);
+        eprintln!(
+            "[m8][#628] {tag}: hi(held Long) n={} 一致(p̃>0)={} 相反(p̃≤0)={} | Δp*≠0={} Δp*=0={} \
+             |Δp*| mean={:.4} median={:.4} max={:.4}",
+            attribution.iter().filter(|e| e.hi_triggered).count(),
+            hi_aligned, hi_opposite, hi_nonzero_delta, hi_zero_delta, hi_mean, hi_median, hi_max,
+        );
+        eprintln!(
+            "[m8][#628] {tag}: lo(held Short) n={} 一致(p̃<0)={} 相反(p̃≥0)={} | Δp*≠0={} Δp*=0={} \
+             |Δp*| mean={:.4} median={:.4} max={:.4}",
+            attribution.iter().filter(|e| e.lo_triggered).count(),
+            lo_aligned, lo_opposite, lo_nonzero_delta, lo_zero_delta, lo_mean, lo_median, lo_max,
         );
 
         // 层2 execution：R 分解 + MaxDD + 逐声部归因。
