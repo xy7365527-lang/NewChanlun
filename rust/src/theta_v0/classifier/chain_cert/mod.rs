@@ -117,13 +117,10 @@ impl ChainStatus {
 /// 计入等价比较不增加分辨力，只会与钟一样让「载荷未变」判不成立）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ChainInvalidationCause {
-    /// 链头不再是存活端点。
+    /// 链头事件判 `Invalidated`。
     ///
-    /// **口径照实**：本档覆盖 `nodes[0].status` 为 [`ChainNodeStatus::Falsified`]（事件判
-    /// `Invalidated`）与 [`ChainNodeStatus::Absent`]（终态窗口投影驱动下查无）两种。裁定②只
-    /// 授权「链头 `Invalidated`」这一支，故本枚举不为 `Absent` 另开第三档；两者的分辨**不丢**
-    /// ——`nodes[0].status` 原样留痕，读的人从节点留痕即可分开（见 [`ChainNodeStatus::Absent`]
-    /// 的可达域说明）。
+    /// **口径照实**：本档只覆盖 `nodes[0].status` 为 [`ChainNodeStatus::Falsified`]；事件流中
+    /// 查无的 [`ChainNodeStatus::Absent`] 是投影抖动，不是证伪，落 `Open` 不判死。
     HeadInvalidated,
     /// 两存活端点间 `C⊆C` 谓词判不过（该边成事实边，见 [`PredicateBreach`]）。
     PredicateFailed,
@@ -586,14 +583,13 @@ fn evaluate(path: &[CandidateKey], index: &AliveIndex<'_>) -> ChainObservation {
         index.alive().any(|other| candidate_is_sub(other, leaf))
     });
 
-    let head_alive = nodes[0].status == ChainNodeStatus::Alive;
     let head_confirmed = nodes[0].state == Some(CandidateState::Confirmed);
     let all_segments = edges.iter().all(ChainEdge::is_segment);
     // 地板条款（#641 comment-5121572134）：「全链段谓词判过」不得在空集上真空成立。
     let has_segment = edges.iter().any(ChainEdge::is_segment);
-    // 两支判死的优先序：链头不再存活先于谓词判不过。两者可同时成立（链头证伪且某条边判不过），
+    // 两支判死的优先序：链头证伪先于谓词判不过。两者可同时成立（链头证伪且某条边判不过），
     // 此时记链头这一支——链头是整条链的存在前提，它一没谓词判定的两端点关系已不成立。
-    let (status, invalidation_cause) = if !head_alive {
+    let (status, invalidation_cause) = if nodes[0].status == ChainNodeStatus::Falsified {
         (
             ChainStatus::Invalidated,
             Some(ChainInvalidationCause::HeadInvalidated),
@@ -612,7 +608,12 @@ fn evaluate(path: &[CandidateKey], index: &AliveIndex<'_>) -> ChainObservation {
     #[cfg(test)]
     chain_probe::on_evaluate(&nodes, &edges);
     #[cfg(test)]
-    if head_alive && head_confirmed && !extendable && !has_segment {
+    if nodes[0].status == ChainNodeStatus::Alive
+        && head_confirmed
+        && all_segments
+        && !extendable
+        && !has_segment
+    {
         chain_probe::on_floor_blocked();
     }
 

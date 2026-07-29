@@ -260,6 +260,35 @@ fn predicate_failure_becomes_fact_edge_and_invalidates_chain() {
     );
 }
 
+/// 全边均为事实边时走 `PredicateFailed` 判死，不得同时计入「地板拦下」。
+#[test]
+fn all_fact_edges_do_not_increment_floor_blocked_probe() {
+    chain_probe::reset();
+    let mut book = ChainCertificateBook::default();
+    book.advance(
+        &streams_of(&[obs(2, 0, (0, 30)), obs(1, 10, (10, 20))], 20),
+        20,
+    );
+
+    let mut head_confirmed = obs(2, 0, (0, 30));
+    head_confirmed.state = CandidateState::Confirmed;
+    book.advance(&streams_of(&[head_confirmed, obs(1, 10, (10, 40))], 40), 40);
+
+    let certificate = head(&book, &[key(2, 0), key(1, 10)]);
+    assert_eq!(certificate.status, ChainStatus::Invalidated);
+    assert_eq!(
+        certificate.invalidation_cause,
+        Some(ChainInvalidationCause::PredicateFailed)
+    );
+    assert_eq!(certificate.segment_count(), 0);
+    assert_eq!(certificate.fact_edge_count(), certificate.edges.len());
+    assert_eq!(
+        chain_probe::snapshot().floor_blocked,
+        0,
+        "谓词判不过的事实边链不属于「地板拦下」"
+    );
+}
+
 /// 终态不复活：几何恢复也不把 `Invalidated` 拉回 `Open`。
 #[test]
 fn terminal_status_never_revives() {
@@ -409,6 +438,29 @@ fn absent_node_is_recorded_separately_from_falsified() {
     assert!(
         probe.absent_node > 0 && probe.falsified_nodes == 0,
         "{probe:?}"
+    );
+}
+
+/// 链头在 fresh 事件流中查无只表示投影抖动：落 `Open`，不判死。
+#[test]
+fn absent_head_stays_open_and_is_not_invalidated() {
+    chain_probe::reset();
+    let mut book = ChainCertificateBook::default();
+    book.advance(
+        &streams_of(&[obs(2, 0, (0, 100)), obs(1, 10, (10, 60))], 100),
+        100,
+    );
+
+    // fresh book ⟹ 上一轮链头整个不在流里（不是 Invalidated，是查无）。
+    book.advance(&streams_of(&[obs(1, 10, (10, 60))], 110), 110);
+
+    let certificate = head(&book, &[key(2, 0), key(1, 10)]);
+    assert_eq!(certificate.status, ChainStatus::Open);
+    assert_eq!(certificate.invalidation_cause, None);
+    assert_eq!(certificate.nodes[0].status, ChainNodeStatus::Absent);
+    assert!(
+        chain_probe::snapshot().absent_node > 0,
+        "必须真经过 Absent 节点分支"
     );
 }
 
