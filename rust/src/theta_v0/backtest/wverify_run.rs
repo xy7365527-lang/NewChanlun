@@ -1973,12 +1973,26 @@ fn center_lifecycle_wf8_events_replay() {
 /// `buy1 ∨ sell1` 点产一条 [`classifier::signal::FirstClassGradeRecord`]（`grade` 含
 /// `Present`/`Missing(reason)`）。
 ///
-/// 三锁：①**键唯一**（`level+source_index+side+center_start_index+zd+zg`，全窗无碰撞，独立
-/// `HashSet` 核验）；②**一一对应**（生产 `bsp` 中每个 `buy1 ∨ sell1` 点恰产一条记录——按
-/// `(level,source_index,side)` 与独立统计的 `bsp` 一类点计数核对相等，非套套逻辑）；③**账平**
-/// （记录总数 = native(Present) + otherwise(Missing)，逐级 + 全窗两层核验，由记录本身
-/// Present/Missing 二分天然成立）。五桶（missing_leave/missing_retest/same_direction/
-/// leave_not_outside/retest_reentered）计数分级分侧打印进验收行。
+/// 两把真锁 + 一个恒等展示（★S2 fix2 F2/F3 口径订正，原「三锁」表述过誉，见下）：
+///
+/// ①**键唯一**（`level+source_index+side+center_start_index+zd+zg`，全窗无碰撞，独立
+/// `HashSet` 核验）——真断言，键碰撞立即 panic。
+///
+/// ②**基数对拍**（`sidecar.records.len()` 与独立读 `center_lifecycle.jsonl` 的 `kind=="reset"`
+/// 行数相等）——**订正**：本断言只核对两个独立数据源的**总数**相等，不是按
+/// `(level,source_index,side)` 逐键核对独立统计的 `bsp` 一类点计数（代码里没有任何这样的
+/// per-key 计数）。基数相等不排除"漏一多一"相抵（一处漏记、另一处多记，总数照样对得上）；
+/// Reset 广播与一类点记录也只是间接对应（广播时点=瞬时 true 那帧，记录 grade=末次重判，见
+/// [`super::opsem_dump::OtherwiseDomainSidecarSummary`] 文档 F7 口径登记）——原文档「一一对应」
+/// 措辞过誉，改称「基数对拍」。
+///
+/// ③**账平展示**（记录总数 = native(Present) + otherwise(Missing)）——**订正**：这是
+/// `T3InCGrade` 定义本身的 `Present`/`Missing` 二分对同一个 `records` vec 的重新求和，
+/// 构造性恒等（同一份数据分两类计数再相加，数学上必然回到原总数），不是独立验证，**不作
+/// 验收证据陈列**，只作统计展示（供 #585 逐案对拍读数）。
+///
+/// 五桶（missing_leave/missing_retest/same_direction/leave_not_outside/retest_reentered）
+/// 计数分级分侧打印进验收行。
 ///
 /// `#[ignore]`：需 BTC 数据（DATA BLOCKER 不伪造）；wf8 全窗重放，
 /// env `THETA_OTHERWISE_DOMAIN_SIDECAR=1`（测试内部设置，无需外部前缀）。
@@ -2089,19 +2103,19 @@ fn otherwise_domain_wf8_three_locks_and_buckets() {
         }
     }
 
-    // ── 锁②一一对应：sidecar 记录数 = center_lifecycle Reset 行数（一类确认 → Reset 广播，
-    // 独立数据源对拍，非套套逻辑）──
+    // ── 锁②基数对拍：sidecar 记录数 = center_lifecycle Reset 行数（两个独立数据源的总数核对，
+    // 非按 (level,source_index,side) 逐键核对独立 bsp 计数——不排除漏一多一相抵，见上文档订正）──
     let grand_total = sidecar.records.len();
     assert_eq!(
         grand_total, reset_count,
-        "★锁②一一对应：sidecar 记录数({grand_total}) == center_lifecycle Reset 行数({reset_count})"
+        "★锁②基数对拍：sidecar 记录数({grand_total}) == center_lifecycle Reset 行数({reset_count})"
     );
 
-    // ── 锁③账平：记录总数 = native(Present) + otherwise(Missing) ──
+    // ── ③账平展示（构造性恒等，非独立验证，仅供 #585 对拍统计口径行；见上文档订正）──
     assert_eq!(
         grand_total,
         native_count + otherwise_count,
-        "★锁③账平：一类点总数 = 趋势一类(native) + 否则域(otherwise)"
+        "账平展示：一类点总数 = 趋势一类(native) + 否则域(otherwise)（Present/Missing 二分恒等）"
     );
 
     eprintln!(

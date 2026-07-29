@@ -652,13 +652,18 @@ fn grade_sidecar_key(rec: &FirstClassGradeRecord) -> GradeSidecarKey {
 }
 
 thread_local! {
-    /// #606 S1 返工：一类点 T3-in-c 分级 sidecar 捕获槽。`None`（默认，生产恒态）⟹
-    /// [`judge_segment`] 挂点读一次 `Cell`（`is_none()`）即返回，零成本；`Some` 仅由
+    /// #606 S1 返工（S2 fix2 F5 订正）：一类点 T3-in-c 分级 sidecar 捕获槽。`None`（默认，生产
+    /// 恒态）⟹ [`judge_segment`] 挂点读一次 `Cell`（`is_none()`）即返回，零成本；`Some` 仅由
     /// [`otherwise_domain_sidecar_begin`]（env 门控，同 opsem sidecar 先例）在诊断复放前打开。
-    /// `HashMap` upsert（同键覆盖）——同一点在 frontier tail 阶段可能被 `judge_segment` 重判多次
-    /// （段前缀增长、分级结果随之更新），只保留最新一次判定，天然一一对应（同 `judge_first_cached`
-    /// 自身「一生一算」推进纪律的观测面镜像）。
-    static GRADE_SIDECAR: RefCell<Option<HashMap<GradeSidecarKey, FirstClassGradeRecord>>> =
+    ///
+    /// 值改 `Vec`（原 F5：单值 upsert 覆盖）——键不含 `level`（挂点处不在场，见
+    /// [`FirstClassGradeRecord`] 文档），若两个不同级别在同一帧巧合产出完全相同的
+    /// `(source_index,side,center 四元组)`，单值覆盖会永久丢一条且无锁可查。`Vec` 全部保留，同键
+    /// 下同一点在 frontier tail 阶段被 `judge_segment` 重判多次（段前缀增长、分级结果随之更新）
+    /// 也一并保留、按 push 顺序天然保序——收尾时按 `(level, ...)` 反查再 upsert 折叠，"保留最新
+    /// 一次判定" 的语义挪到收尾阶段（[`crate::theta_v0::backtest::opsem_dump::
+    /// OtherwiseDomainSidecarCollector::observe_frame`]），而非在这里过早丢弃同键的另一级记录。
+    static GRADE_SIDECAR: RefCell<Option<HashMap<GradeSidecarKey, Vec<FirstClassGradeRecord>>>> =
         RefCell::new(None);
 }
 
@@ -670,7 +675,17 @@ pub(crate) fn otherwise_domain_sidecar_begin() {
 /// 关闭并取走已捕获记录（`level` 全部占位为 0，调用方按需反查补齐——见
 /// [`FirstClassGradeRecord`] 文档）。未 `begin` 时返回空 Vec。
 pub(crate) fn otherwise_domain_sidecar_take() -> Vec<FirstClassGradeRecord> {
-    GRADE_SIDECAR.with(|c| c.borrow_mut().take().map(|m| m.into_values().collect()).unwrap_or_default())
+    GRADE_SIDECAR.with(|c| {
+        c.borrow_mut().take().map(|m| m.into_values().flatten().collect()).unwrap_or_default()
+    })
+}
+
+/// ★S2 fix2 F1 回归测试专用：只读探针，是否仍在捕获态（`GRADE_SIDECAR.is_some()`）。
+/// 不消费槽内容（不同于 [`otherwise_domain_sidecar_take`]）——纯粹用于断言 `finish()` 后
+/// thread_local 是否已正确收回 `None`。
+#[cfg(test)]
+pub(crate) fn otherwise_domain_sidecar_is_active() -> bool {
+    GRADE_SIDECAR.with(|c| c.borrow().is_some())
 }
 
 /// 构造第一类 BspPoint（结构止损价 = pivot 极值，reference:46——1 类止损用 pivot 非 center.zg/zd）。
@@ -1585,7 +1600,7 @@ fn judge_segment(
                 };
                 GRADE_SIDECAR.with(|cell| {
                     if let Some(m) = cell.borrow_mut().as_mut() {
-                        m.insert(grade_sidecar_key(&rec), rec);
+                        m.entry(grade_sidecar_key(&rec)).or_insert_with(Vec::new).push(rec);
                     }
                 });
             }
