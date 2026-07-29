@@ -3,8 +3,8 @@
 //! # 四类警报
 //!
 //! 与 [`super::book::RetraceAlarms`] 的四个计数字段一一对应：残废拒收（含单活跃候选纪律 + 两拍
-//! 证据一致性守卫 + 改口处死知情时护栏，票 #622 S2）/ 死人挂号拒收 / 门卫钟倒退拒收 / 终态后
-//! 迟到静默吸收。本模块只多做一件事——
+//! 证据一致性守卫 + 改口处死知情时护栏 + 恢复后未决身份落锤护栏，票 #622 S2 / 票 #632）/ 死人
+//! 挂号拒收 / 门卫钟倒退拒收 / 终态后迟到静默吸收。本模块只多做一件事——
 //! 把同一批事件序列化为 append-only JSONL（`CompletedFreezeReducer` 先例：只追加、重放幂等、
 //! 冲突拒绝），供离线审计。
 //!
@@ -56,6 +56,7 @@ pub enum RetraceRejectionCode {
     ActiveCandidateNotSettled,
     TerminalEvidenceContradictsRegistration,
     RebaseAsOfBehindGate,
+    SettleBehindRecoveryPoint,
 }
 
 /// 四类警报事件（裁定六）。

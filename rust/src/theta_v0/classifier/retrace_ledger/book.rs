@@ -147,6 +147,10 @@ pub struct RetraceLedger {
     /// 四类警报的 append-only 记录（裁定六：审计归审计，`fold` 不吃本字段）。
     pub(super) audit_log: Vec<RetraceAuditRecord>,
     pub(super) provenance: RetraceProvenance,
+    /// 恢复点（票 #632；影子评审 #621 MEDIUM-1 修复）：`None` = 活账 / 普通 `fold`，落锤零约束；
+    /// `Some(as_of)` = 经 [`RetraceLedger::fold_recovered`] 显式声明——该 `as_of` 之前
+    /// 的知情时不得把仍处 Provisional 的身份落锤（[`Self::guard_settle_after_recovery`]）。
+    pub(super) recovery_floor: Option<usize>,
 }
 
 impl RetraceLedger {
@@ -160,7 +164,13 @@ impl RetraceLedger {
             dead_center_registrations: 0,
             audit_log: Vec::new(),
             provenance,
+            recovery_floor: None,
         }
+    }
+
+    /// 恢复点只读面（票 #632）：`None` = 活账 / 普通 `fold`，落锤零约束。
+    pub fn recovery_floor(&self) -> Option<usize> {
+        self.recovery_floor
     }
 
     /// 追加一条 audit 事件（四类警报统一入口，序号即产生序）。
@@ -196,6 +206,9 @@ impl RetraceLedger {
     ) -> Result<RetraceStep, RetraceRejection> {
         let observation = admitted.observation;
         let key = observation.key;
+        if observation.outcome.is_some() {
+            self.guard_settle_after_recovery(key, observation.as_of)?;
+        }
         let mut delta = LedgerDelta::new();
         let killed = self.guard_single_active(key, observation.as_of, &mut delta)?;
         let opened = self
@@ -381,6 +394,7 @@ impl RetraceLedger {
             .is_terminal();
         if is_pending && admitted.observation.outcome.is_some() {
             self.guard_terminal_evidence_consistency(key, admitted)?;
+            self.guard_settle_after_recovery(key, admitted.observation.as_of)?;
         }
         let mut delta = LedgerDelta::new();
         let admission = self.book.admit(&key, admitted.observation.as_of);
@@ -434,6 +448,39 @@ impl RetraceLedger {
             registered_leave_end: registered.leave_end,
             incoming_side: admitted.evidence.side,
             incoming_leave_end: admitted.evidence.leave_end,
+        })
+    }
+
+    /// 恢复后未决身份落锤护栏（编排者 2026-07-29 裁方案②，票 #632；影子评审 #621 MEDIUM-1
+    /// 修复）：本账未经 [`RetraceLedger::fold_recovered`] 声明恢复点（`recovery_floor
+    /// == None`）时零约束——活账与普通 `fold` 均不受影响。声明恢复点后，任何即将把仍处
+    /// Provisional 的身份落锤（判胜/判败）的知情时早于恢复点，一律 fail-loud 拒收，零改写
+    /// （检查发生在 [`Self::judge`] 之前，调用方风格同
+    /// [`Self::guard_terminal_evidence_consistency`]）。
+    ///
+    /// **不是门卫钟第二次校验**：门卫钟的倒退门比对的是**该身份自己**的 `last_as_of`（S1 现状
+    /// 不动，见 `log` 模块头「门卫钟的可恢复性」）；本护栏比对的是**调用方声明的恢复点**——两者
+    /// 独立，恢复点可以晚于（也可以早于）门卫钟的留档下界，护栏不替代门卫钟，只是叠加的一层。
+    fn guard_settle_after_recovery(
+        &mut self,
+        key: RetraceKey,
+        as_of: usize,
+    ) -> Result<(), RetraceRejection> {
+        let Some(recovery_as_of) = self.recovery_floor else {
+            return Ok(());
+        };
+        if as_of >= recovery_as_of {
+            return Ok(());
+        }
+        self.registration_rejected += 1;
+        self.push_audit(RetraceAuditEvent::ResidualRejected {
+            as_of,
+            code: RetraceRejectionCode::SettleBehindRecoveryPoint,
+        });
+        Err(RetraceRejection::SettleBehindRecoveryPoint {
+            key,
+            recovery_as_of,
+            as_of,
         })
     }
 
@@ -736,6 +783,9 @@ fn adapter_rejection_code(rejection: &RetraceRejection) -> RetraceRejectionCode 
         }
         RetraceRejection::RebaseAsOfBehindGate { .. } => {
             unreachable!("改口知情时护栏走 kill_as_rebased 自选码，admit_input 不产出本变体")
+        }
+        RetraceRejection::SettleBehindRecoveryPoint { .. } => {
+            unreachable!("恢复点落锤护栏走 guard_settle_after_recovery 自选码，admit_input 不产出本变体")
         }
     }
 }

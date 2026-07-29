@@ -12,7 +12,9 @@
 //!   碰撞路径 + `reconcile_window` 显式核对路径）；
 //! - [`dead_center`]（票 #622）：死人挂号拒收 vs 同身份迟到静默吸收（两路不混）；
 //! - [`two_pass_evidence`]（票 #622）：注册拍 / 落锤拍证据一致性守卫（影子评审 #621 MEDIUM-2）；
-//! - [`rebase_audit`]（票 #622）：四类警报 audit 流（落流 + append-only + 不进折叠 + 篡改隔离）。
+//! - [`rebase_audit`]（票 #622）：四类警报 audit 流（落流 + append-only + 不进折叠 + 篡改隔离）；
+//! - [`recovery_guard`]（票 #632）：恢复后未决身份落锤显式护栏（影子评审 #621 MEDIUM-1；
+//!   陈旧知情时拒收 + 边界 + 终态身份不受影响 + 活账零约束）。
 
 use super::super::super::types::{Direction, Tick};
 use super::super::first_retrace_replay::{RetraceOutcome, StrictCompletedPair};
@@ -25,6 +27,7 @@ mod log_replay;
 mod portal;
 mod rebase;
 mod rebase_audit;
+mod recovery_guard;
 mod short_retrace;
 mod standby;
 mod state_machine;

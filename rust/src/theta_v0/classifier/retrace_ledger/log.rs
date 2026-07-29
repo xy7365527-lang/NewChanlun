@@ -25,10 +25,19 @@
 //! （[`super::RetraceEntry::log_supported_gate`] = 最后一条修订的知情时）。可观察后果——
 //! 恢复后，落在「最后一条修订知情时」与「重启前最后一次未决观察知情时」之间的输入不再被判
 //! 倒退。日志对这段区间本就一无所知（其间没有任何身份事实发生），账本不编造它没有的知识。
-//! **完整后果声明**（影子评审 #621 MEDIUM-1 补全）：对终态身份这只影响迟到吸收计数；对**未决**
-//! 身份，该输入不但不再被拒、**还能落锤**——陈旧知情时将写进首写永不改的落锤钟与成立档
-//! `confirmed_as_of`，产物不可撤销。裁定五的非降保护在恢复后对未决候选失效于此区间；行为面
-//! 处置（下界改 `max(留档下界, 恢复时刻)` 或落锤额外护栏）上浮 S2/S4 待裁，S1 保持现状如实声明。
+//!
+//! **护栏后口径**（编排者 2026-07-29 裁方案②，票 #632；影子评审 #621 MEDIUM-1 落地）：
+//! 上一段声明对**终态**身份始终准确无害（只影响迟到吸收计数）；对**未决**身份，若不加额外
+//! 护栏，该区间的输入不但不再被拒、还能把陈旧知情时写进首写永不改的落锤钟与成立档
+//! `confirmed_as_of`（产物不可撤销）——这正是 MEDIUM-1 命中的历史行为。**S1 门卫钟本身的退回
+//! 语义不变**（仍是「留档下界」，不隐瞒不编造）；本票在其上叠加一层独立护栏：调用方经
+//! [`RetraceLedger::fold_recovered`] 显式声明**恢复点**（调用方自己维护、独立于本账本
+//! journal 的进度标记——留档下界本身即门卫钟的退回值，任何仅从 journal 计算的量都无法覆盖
+//! 「留档下界」与「重启前最后已知知情时」之间那段日志本就不知道的区间，恢复点因此只能来自
+//! journal 之外）。声明恢复点后，任何早于它的知情时不得把仍处 Provisional 的身份落锤，一律
+//! fail-loud 拒收 + 警报（[`super::RetraceRejection::SettleBehindRecoveryPoint`]）。未声明恢复点
+//! （`fold`／活账 `new()`）零约束，本段声明对它们仍如实成立——护栏是叠加的可选层，不是对上一段
+//! 声明的否定。
 //!
 //! # 边界输入即不信任输入
 //!
@@ -150,6 +159,26 @@ impl RetraceLedger {
     ) -> Result<Self, RetraceLogError> {
         let mut ledger = Self::new(provenance);
         ledger.fold_tail(records)?;
+        Ok(ledger)
+    }
+
+    /// 显式恢复：与 [`Self::fold`] 语义相同的全量重放折叠，额外记录调用方声明的**恢复点**
+    /// （编排者 2026-07-29 裁方案②，票 #632；影子评审 #621 MEDIUM-1 修复；恢复点形状见模块头
+    /// §「门卫钟的可恢复性」护栏后口径段）。
+    ///
+    /// `recovery_as_of` 由调用方独立维护（例如重放驱动自身的续跑断点），**不从本账本 journal
+    /// 推导**——journal 能推导出的任何量都不超过留档下界，无法覆盖 MEDIUM-1 命中的那段「日志
+    /// 本就不知道」的区间。声明后，任何早于 `recovery_as_of` 的知情时不得把仍处 Provisional 的
+    /// 身份落锤（[`super::RetraceRejection::SettleBehindRecoveryPoint`]），门卫钟本身的退回语义
+    /// 不受影响。未调用本函数（只用 [`Self::fold`]）的账本 `recovery_floor` 保持 `None`，护栏
+    /// 零约束——本函数是纯增设，不改 [`Self::fold`] 的既有行为。
+    pub fn fold_recovered(
+        provenance: RetraceProvenance,
+        records: &[RetraceRecord],
+        recovery_as_of: usize,
+    ) -> Result<Self, RetraceLogError> {
+        let mut ledger = Self::fold(provenance, records)?;
+        ledger.recovery_floor = Some(recovery_as_of);
         Ok(ledger)
     }
 
