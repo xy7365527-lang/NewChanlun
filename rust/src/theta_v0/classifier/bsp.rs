@@ -191,9 +191,9 @@ pub struct BspPoint {
 /// 手写 `PartialEq`（排除 `force`，见 [`BspPoint`] 头 β^div 力度铁律说明）。
 ///
 /// ★#631 诚实更新（承接 #610/#434 归因附带处置）：曾经的塔级别下标标注分量已随其字段一并删除——
-/// 该字段全仓恒为 0、无消费者，级别身份的正主是 `LevelProjectionLayer.identity.level`
-/// （`projection.rs`），非本结构存储事实。`PartialEq` 由此回到**同级别结构相等**的本分管辖，
-/// 不再假装承载跨级身份。
+/// 该字段全仓恒为 0、无下游级别语义消费者（仅恒真 equality 分量及 Debug/digest 机械消费），
+/// 级别身份的正主是 `LevelProjectionLayer.identity.level`（`projection.rs`），非本结构存储事实。
+/// `PartialEq` 由此回到**同级别结构相等**的本分管辖，不再假装承载跨级身份。
 impl PartialEq for BspPoint {
     fn eq(&self, other: &Self) -> bool {
         self.source_index == other.source_index
