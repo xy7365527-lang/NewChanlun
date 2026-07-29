@@ -32,12 +32,13 @@
 //! | 1 | [`CenterDeathCertificate`]（[`book::RetraceLedger::death_certificate`] + [`ThirdPointPack::death_certificate`]） | 中枢生命周期账（`crate::trading::center_book::CenterBook`） | **已接线（#637）：消费入口已立** | `CenterBook::consume_death_certificate` 消费本证明、对判同锚登记 Broken（票 #637 修复轮，2026-07-29 编排者裁定 3A：票面「生产调用点 ≥1」按字面结，`CenterDeathCertificate` 出现于生产代码即达标）；驱动入口的上游生产链——`RetraceLedger` 本身接生产驱动 + 交易层消费 `ThirdPointPack`——归 #575 后续票 |
 //! | 2 | [`ThirdPointPack`]（[`book::RetraceLedger::established`] / [`book::RetraceLedger::established_pack`]） | 交易层（`crate::trading` 线） | **未接线** | 迟到三类点过滤 #587 已裁归交易层自理；本账不进口外部状态（裁定八总禁区） |
 //! | 2' | [`StandbyWatch`]（[`book::RetraceLedger::standby`]）——同一消费方的**备战**面 | 交易层（盯次级别回切入点，024:36） | **未接线** | 禁区：不许被消费成买入信号，类型面隔离已由 [`portal::TradableSignal`] 编译期把关 |
-//! | 3 | [`ShortRetraceRecord`] / [`ShortRetracePortal`] / [`FailureDisposalNotice`]（亚型签 [`PanDivSubtype`]） | 盘背短差通道（`signal::locate_pan_div_structure` 一线的 #606/#607 票） | **未接线** | 本账只供判败事件源（spec §出界：pan_div_diag 实装不在本线） |
+//! | 3 | [`ShortRetraceRecord`] / [`ShortRetracePortal`] / [`FailureDisposalNotice`]（亚型签 [`PanDivSubtype`]） | 盘背短差通道（`signal::drain_pan_div_short_retrace_observations`，pan_div_diag/signal 一线——票 #639） | **已接线（#639）：消费入口已立，管线未起** | ①消费入口 = 本票新立 `signal::drain_pan_div_short_retrace_observations`，物理位置与 #606 S1 一类点分级 sidecar 同构，但**非管线同构**——本票未起 collector/summary/runner 骨架（理由：`RetraceLedger` 尚无驱动源，无驱动源支撑的骨架即死代码；collector 形态归 #575 驱动票按当时真实驱动需要决定，不由本票预先猜形）；②与仓内既有 pan_div 生产主链**零连接**——该主链——`signal::locate_pan_div_structure` → `PanDivCert` → `strategy::oscillation::PanDivTrigger`（#292 后已降格为可选辅助，`backtest::fill::step_center_oscillation` 不再消费它，见 `fill.rs:761`；中枢震荡交易语义改由次级别买卖点驱动，产出 `strategy::center_oscillation_trade::CenterOscillationTrigger`，024:36/46 上沿减/下沿补语义落在该链末端 `short_diff_bucket`/`oscillation_campaign`）——自身盘背产出，本票交付物一行未动，两条产线并行、互不知情；③驱动链——`RetraceLedger` 本身接生产驱动（喂真实 replay 判败事件）——归 #575 后续票（2026-07-29 编排者裁定 B，同 #637 裁定 3A 口径）；票面「生产调用点 ≥1」的达标口径 = 类型 `ShortRetraceRecord`/`ShortRetracePortal` 出现于生产代码即达标（裁定 B / #637 裁定 3A 同口径），非「本函数已被生产调用方驱动」；`drain` 的 `consume` 与 [`portal::ShortRetracePortal::disposal_notices`] 共享同一 `consumed` 判重集——通道侧目前无「已入场者通知」消费方（grep 实证，当前无实害），但接线后若通知面与本通道挂在**同一个** [`portal::ShortRetracePortal`] 实例上，通道每 drain 一条、通知面就少一条（通道先跑则通知面恒空）；[`FailureDisposalNotice`]/`disposal_notices` **不是**「已备好待接」（原措辞已失准），#575 后续票接通知面时须给两面各自独立门户实例、或给 `disposal_notices` 另设判重 |
 //!
-//! 生产接线点计数（登记时点 2026-07-29，#637 修复轮更新）：**1/3（入口计数口径）**。本模块在
-//! `lib` 内被 [`super`](super) 注册；#1 消费面经 `CenterBook::consume_death_certificate` 接线
-//! （消费入口已立，非驱动链全通——`RetraceLedger` 自身仍无生产实例，见 #575 后续票），
-//! 其余两面仍为测试群消费，除此之外零生产调用点——与登记表一致。
+//! 生产接线点计数（登记时点 2026-07-29，#639 接线轮更新）：**2/3（入口计数口径）**。本模块在
+//! `lib` 内被 [`super`](super) 注册；#1 消费面经 `CenterBook::consume_death_certificate` 接线、
+//! #3 消费面经 `signal::drain_pan_div_short_retrace_observations` 接线（两面均为消费入口已立、
+//! 非驱动链全通——`RetraceLedger` 自身仍无生产实例，见 #575 后续票）；#2/2' 两面仍为测试群
+//! 消费，除此之外零生产调用点——与登记表一致。
 //!
 //! # 「状态 = 日志折叠」的结构性兑现
 //!

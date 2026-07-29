@@ -1,7 +1,7 @@
 ---
 id: "617"
 number: 617
-status: 已结算   # 【结算 2026-06-27 codex异质委托：分类器Θ-参数化·诚实标级MET正确终态(结构性结论非缺陷)】 分类器 Θ-参数化精化结论，由 Lead/cc-integrator 落盘（genealogist teammate 受 harness worktree .md 写入限制，见 615/616 同约束）。内容源：codex 研究(/tmp/codex_ctheta_chain.md) + cc-classificationfamily 形式化(Strict/ClassificationFamily.lean fiber_total/fiber_disjoint/fiberSetoid/classifier_total_unique) + cc-parse 形式化(Strict/Parse.lean parse_unique Θ 参数化, codex session 019f0170)。最终结算待编排者 /ritual。依赖 615/616。
+status: 已结算   # 【结算 2026-06-27 codex异质委托：分类器Θ-参数化·诚实标级MET正确终态(结构性结论非缺陷)】 分类器 Θ-参数化精化结论，由 Lead/cc-integrator 落盘（genealogist teammate 受 harness worktree .md 写入限制，见 615/616 同约束）。内容源：codex 研究(/tmp/codex_ctheta_chain.md) + cc-classificationfamily 形式化(Strict/ClassificationFamily.lean fiber_total/fiber_disjoint/fiberSetoid/classifier_total_unique) + cc-parse 形式化(Strict/Parse.lean parse_unique Θ 参数化, codex session 019f0170)。最终结算待编排者 /ritual。依赖 615/616。【2026-07-29 /ritual 执行：pending ① 清偿（限定读法），证据 #665 + 影子 #672 PASS，编排者批准（map #530 评论存档）。】
 date: "2026-06-25"
 type: 概念分离
 depends_on: ["616", "615"]
@@ -27,7 +27,7 @@ separation:
     - name: "Θ-参数化分类器 C_Θ（结构公理 + Θ_parse 规范化选择器 → 固定分类器）"
       definition: "固定分类器 C_Θ = 缠论结构公理 + Θ_parse（边界/canonical 选择器：level 最小、平级最左、相同极值取舍、开闭边界、未完成尾部）。形式：`ClassifierFamily X Param`（State:Param→Type 依赖 θ——不同 Θ_parse/Θ_level 诱导不同标签集；C:(θ:Param)→X→State θ）。**L0 可证**：`classifier_total_unique`（给定 θ ⟹ C θ x 唯一）；fiber 原像划分 `fiber_total`（∀x ∃s, C x=s）+ `fiber_disjoint`（C s₁ x ∧ C s₂ x ⟹ s₁=s₂）+ `fiberSetoid`（FiberRel C 是 Setoid，给互斥穷尽商）。Θ_parse 唯一性前件：`parse_unique θ h ℓ`（给定 Θ_parse 选择器 θ ⟹ 规范分解唯一）——唯一性**条件于 θ**，固定选择器后唯一，**这正是『唯一性依赖 Θ_parse』**。R6态 {⊥,I,U⁰,U¹,D⁰,D¹}=中枢三态状态机精化（Θ_parse+Θ_signal 运行分类，依赖『最后中枢』『3买/3卖事件』）+ E∈{0,1}⁶=BSPLabels 诚实版（非互斥，2B/3B 可共存）。**诚实边界**：原像划分只证 partition（任何全函数自动给互斥穷尽），**不证**各标签谓词有缠论语义/递归正确/因果无前视——逐 claim 证明仍负责给 C_Θ 字段内容。"
       source: "[蜂群方法论] codex 研究 Q2/Q4 骨架 + Strict/ClassificationFamily.lean（ClassifierFamily/classifier_total_unique/Fiber/fiber_total/fiber_disjoint/fiberSetoid/ParseDependentClassifier）+ Strict/Parse.lean parse_unique（session 019f0170）+ Strict/LevelState.lean R6态/BSPVector"
-  pending_verification: "①原像划分是『全函数⟹fiber partition』的弱抽象——**不证**标签语义/递归正确/因果，逐 claim 证明（605/615 各部分）仍负责给字段内容。②Θ_parse 当前 gaugeFix 只形式化『level 最小、平级最左』选择，完整 Θ_parse 全包（包含处理、相同极值取舍、开闭边界、未完成尾部）仍是待实例化参数（codex 诚实标注）。③R6态/E bit-vector 是 Θ_parse+Θ_signal 运行分类，依赖『最后中枢』『3买/3卖事件』定义——这些定义本身的 Θ 依赖待显式化。④Θ_parse 的最小充分集（哪些参数不可省）= 开放问题（继承 616 ④）。⑤盈利/最优性属 L3 经验有效域，不由本号 L0 声称（继承 616 ⑤）。"
+  pending_verification: "①【已清偿 2026-07-29 /ritual】原像划分是『全函数⟹fiber partition』的弱抽象——**不证**标签语义/递归正确/因果，逐 claim 证明（605/615 各部分）仍负责给字段内容。【清偿注（2026-07-29 /ritual 执行，编排者批准，存档 = map #530 评论）：限定读法——接线证书 Strict/CThetaWiring.lean（commit a84ec797c3，票 #665）为并列合取：「标签语义」同域兑现（RLevel 语义化 Strict.Classifies 机器见证）；「递归正确/因果」为引用登记（四格定理在案经证书字段回指）；四格终态标签为登记式。证据链：#661 验收线裁定 + 编排验收（lake build 146 jobs 绿、零 sorry/admit/新公理）+ 影子评审 #672 PASS（0H/3M/6L，负控排假绿）。划销仅及 ①，②–⑤ 不变。】②Θ_parse 当前 gaugeFix 只形式化『level 最小、平级最左』选择，完整 Θ_parse 全包（包含处理、相同极值取舍、开闭边界、未完成尾部）仍是待实例化参数（codex 诚实标注）。③R6态/E bit-vector 是 Θ_parse+Θ_signal 运行分类，依赖『最后中枢』『3买/3卖事件』定义——这些定义本身的 Θ 依赖待显式化。④Θ_parse 的最小充分集（哪些参数不可省）= 开放问题（继承 616 ④）。⑤盈利/最优性属 L3 经验有效域，不由本号 L0 声称（继承 616 ⑤）。"
 
 definitions_involved:
   - name: "616 完全分类 ⊬ 唯一策略（π_Θ 族）"

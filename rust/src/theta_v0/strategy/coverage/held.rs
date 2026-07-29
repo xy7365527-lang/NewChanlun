@@ -290,14 +290,14 @@ pub(super) fn restore_ancestor_chain_from_registry(
     overlay_seen: &mut std::collections::HashMap<ElementId, usize>,
     // ★#226：当 bar 关闭种子（见函数 doc）。
     closed_seeds: &[ActiveLeg],
+    // ★票#350（#247/#315 同类第三位点）：本轮新 push 的恢复元素 idx 追加于此（调用方持有，跨本
+    // 函数的多次调用 + held 腿占位共用同一累加器，见 [`held_stale_reregister_idx`]）——不在本函数
+    // 内修补，见函数头 #350 说明。
+    pending_parent_fixup: &mut Vec<usize>,
 ) {
     ancok_probe_bump(|p| p.restore_calls += 1);
     let mut broke = false;
     let mut cur = Some(start_pid);
-    // ★#247 缺口二：本次 walk **新 push** 的恢复元素 idx（不含复用的现有 idx——那些元素的
-    // parent/attached_dir 由其原产地（树前缀 / 前序 restore）已定，不重写）。walk 自下而上，
-    // 父在子之后 push ⟹ push 时父尚不在 work，故 parent 索引在 walk 结束后统一回填。
-    let mut pushed: Vec<usize> = Vec::new();
     while let Some(pid) = cur {
         // 已在 raw 中？⟹ 闭包满足，停止递归。
         let already_in_raw = raw.iter().any(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false));
@@ -334,6 +334,10 @@ pub(super) fn restore_ancestor_chain_from_registry(
         };
         let parent_pid = pe.structural_parent_id;
         let op_idx = work.len();
+        // parent/attached_dir 先以 None 占位：恢复循环**子先父后**上溯，push 子元素时真父 idx
+        // 通常尚未知（父在后续轮次才复用/push，或跨本函数的另一次调用、或 held 腿占位路径才
+        // push）⟹ 统一由调用方在本 bar 全部物化路径结束后修补（票#247 引入、票#350 移出本函数
+        // 至调用方统一，见 [`resolve_pending_parent_fixups`]）。
         work.push(CoverageElement {
             lambda: pe.lambda,
             rho: pe.rho,
@@ -345,47 +349,13 @@ pub(super) fn restore_ancestor_chain_from_registry(
             parent_id: pe.structural_parent_id,
         });
         overlay_seen.entry(pe.pid).or_insert(op_idx); // 记录新 push 的 overlay idx（首次出现序，复用查 O(1)）。
-        pushed.push(op_idx);
+        pending_parent_fixup.push(op_idx); // 票#350：追加调用方累加器，本 bar 全部物化路径结束后统一修补。
         raw.push(op_idx);
         cur = parent_pid; // 上溯祖先链
     }
     if !broke {
         // 自然收敛（cur=None 抵达真根）：整条操作祖先链已恢复/复用完毕。
         ancok_probe_bump(|p| p.restore_complete += 1);
-    }
-    // ★#247 缺口二（角色输入重建）：恢复元素落 work 时 `parent_id` 已知却写死 `parent:None,
-    // attached_dir:None` ⟹ `parent_sign(None)=0 ⟹ V=Ambient`、`ell_p=ell_g ⟹ G=SameLevel`——
-    // 一条自称「不应到达」的防御分支（[`operation_role_two_segment`] 的 `父越界/None` 归并）被
-    // registry 恢复路径恒定命中，角色进 `dir_weight`/`w_grade`/`element_depth` ⟹ 改变下单权重。
-    //
-    // 回填（**只作用本次 walk 新 push 的元素**，复用的现有 idx 不动 ⟹ 树前缀/候选段属性零改）：
-    //   `parent_id` → work idx（与 walk 同一解析序 base `id_idx` 优先、再 overlay_seen——保持与
-    //   「复用现有 idx」判定同源，不引入第二套查表语义），命中 ⟹ `parent=Some(idx)`、
-    //   `attached_dir=Some(work[idx].eps)`（σ_p 取父元素绝对方向，与 638 附着候选同口径）。
-    //
-    // **父不在 work 的语义裁定（与防御分支分离）**：`parent_id=Some` 但链断（registry 丢失 /
-    // 当 bar 关闭种子中断 / fuel 型提前 break）⟹ `parent` 留 None、`parent_id` **保持 Some**。
-    // 该元素**不是** ∂ 边界胚元（`is_boundary_root=parent_id.is_none()=false`），统一 AncOK
-    // （[`super::super::exit::step_active_set_with_subtree_close`]）按 `parent_id` 判祖先不在集 ⟹ **必被
-    // 剪除**，从不进 `next_idx` ⟹ [`strategy_target_legs`] 从不对它求角色。故防御分支回归
-    // 「不应到达」不是注释宣称，而是「链断 ⟹ AncOK 剪除」这条不变量的推论（见测试
-    // `restore_broken_chain_element_pruned_never_scored`）。计数入 `restore_parent_unresolved`。
-    for &i in &pushed {
-        let pid = match work[i].parent_id {
-            Some(pid) => pid,
-            None => continue, // 真边界胚元 ∂：parent=None/attached_dir=None 是**正确**语义（V=Ambient）。
-        };
-        match id_idx.get(&pid).or_else(|| overlay_seen.get(&pid)) {
-            Some(&pidx) => {
-                let sigma_p = work[pidx].eps;
-                if let Some(e) = work.overlay_mut(i) {
-                    e.parent = Some(pidx);
-                    e.attached_dir = Some(sigma_p);
-                    ancok_probe_bump(|p| p.restore_parent_rebound += 1);
-                }
-            }
-            None => ancok_probe_bump(|p| p.restore_parent_unresolved += 1),
-        }
     }
 }
 
@@ -429,48 +399,92 @@ pub(super) fn restore_ancestor_chain_from_registry(
 /// 计 `restore_parent_unresolved`。
 ///
 /// **复用分支不回填**：`existing >= overlay_cand_end` 命中的是本 bar restore push 的元素，其
-/// `parent/attached_dir` 已由 restore 回填 ⟹ 不重写（树前缀/候选段属性零改，同 #247 口径）。
+/// `parent/attached_dir` 已由统一 fixup（[`resolve_pending_parent_fixups`]）回填 ⟹ 不重写（树前缀/
+/// 候选段属性零改，同 #247 口径）。
+///
+/// ★票#315（#284 评审 MED-1，对齐 #247）：新 push 分支**不再**在此处立即解析 `parent`/
+/// `attached_dir`——push 前 `op_parent` 是否已在 work 依调用点而异（`LiveDetached` 调用点前有
+/// `restore_ancestor_chain_from_registry` 先行、`LivePresent` 调用点无），但即便调用点已先行，父
+/// 仍可能在**本 bar更晚**才经其他路径物化（`Closed|Invalidated`+`is_boundary_root` 边界根直接
+/// push、后续 held 循环迭代、或 open 候选父链恢复）——immediate 式解析在那一刻查不到父，误固化
+/// None/None（#247 缺口同类重现）。改为新 push 的 idx 收进调用方 `pending_parent_fixup`
+/// 累加器，`parent`/`attached_dir` 留 None，两个物化循环全部结束后由
+/// [`resolve_pending_parent_fixups`] 统一解析（此时 id_idx/overlay_seen/raw 均为本 bar 终态）。
 pub(super) fn held_stale_reregister_idx(
     work: &mut ElementView,
-    id_idx: &std::collections::HashMap<ElementId, usize>,
     overlay_seen: &mut std::collections::HashMap<ElementId, usize>,
     overlay_cand_end: usize,
+    pending_parent_fixup: &mut Vec<usize>,
     leg: &ActiveLeg,
 ) -> usize {
     match overlay_seen.get(&leg.id) {
         Some(&existing) if existing >= overlay_cand_end => existing,
         _ => {
             let idx = work.len();
-            // ★#247 C2：角色输入 (σ_p, ℓ_p) 由 op_parent 解析（见函数 doc）。push 前解析——
-            // work 此刻尚不含本元素。op_parent **是否已在 work 依调用点而异**：
-            // - `LiveDetached` 调用点：`restore_ancestor_chain_from_registry` 先行 push 整条操作
-            //   祖先链 ⟹ op_parent 常态已在 work（链断/被关种子中断时仍可缺）；
-            // - `LivePresent` 调用点：**无 restore 先行** ⟹ op_parent 完全可能不在 work。
-            // 故此处不假定祖先在场：`and_then` 未命中即 resolved=None，parent/attached_dir 留 None
-            // （计 `restore_parent_unresolved`，语义裁定见函数 doc「父不在 work」一节）。
-            let resolved = leg
-                .op_parent
-                .and_then(|pid| id_idx.get(&pid).or_else(|| overlay_seen.get(&pid)).copied());
-            match (leg.op_parent, resolved) {
-                (Some(_), Some(_)) => ancok_probe_bump(|p| p.restore_parent_rebound += 1),
-                (Some(_), None) => ancok_probe_bump(|p| p.restore_parent_unresolved += 1),
-                (None, _) => {} // 真 ∂ 边界胚元：None/None 是正确语义，不计入任一探针。
-            }
-            let attached_dir = resolved.and_then(|pidx| work.get(pidx).map(|e| e.eps));
             work.push(CoverageElement {
                 lambda: leg.lambda,
                 rho: leg.source_index,
                 eps: leg.dir,
                 level: leg.level,
-                parent: resolved,
-                attached_dir,
+                parent: None,
+                attached_dir: None,
                 id: leg.id,
                 parent_id: leg.op_parent,
             });
             overlay_seen.entry(leg.id).or_insert(idx);
+            pending_parent_fixup.push(idx);
             idx
         }
     }
+}
+
+/// ★票#315（#284 评审 MED-1 + #347 评审 LOW-3）：本 bar `pending_parent_fixup` 累加器（held 腿占位
+/// [`held_stale_reregister_idx`] 新 push 分支）统一 fixup——两个物化循环（prev_active held 腿 + open
+/// 候选父链恢复）全部结束、AncOK 判定前调用。父 idx 解析三级：`id_idx`（base 段）→ `overlay_seen`
+/// （candidate+restore 段）→ `raw` 扫兜底（`Closed|Invalidated`+`is_boundary_root` 边界根直接 push
+/// 的元素不进 `overlay_seen`，唯一可查途径是扫 `raw`；`r != idx` 排除自环守卫，同 #347 LOW-1）。
+/// 解析成功计 `restore_parent_rebound`，父不可解析（真 ∂ 边界胚元 `parent_id=None`，或本 bar 内父
+/// 确未被任何路径物化）留 None/None、`parent_id=Some` 时计 `restore_parent_unresolved`（随后交由
+/// AncOK 按 `parent_id` 剪除，不伪造）。
+///
+/// 返回本 bar 未解析的 idx 列表（★票#347 MED-1：供调用方与 `next_idx`（AncOK 存活集）交叉
+/// 核对——不在 `next_idx` 即被剪除，计入 [`AncokProbe::placeholder_pruned_by_ancok`]，使
+/// 「可与 AncOK 剪除计数交叉核对」这一文档声明可执行）。
+pub(super) fn resolve_pending_parent_fixups(
+    work: &mut ElementView,
+    pending: &[usize],
+    id_idx: &std::collections::HashMap<ElementId, usize>,
+    overlay_seen: &std::collections::HashMap<ElementId, usize>,
+    raw: &[usize],
+) -> Vec<usize> {
+    let mut unresolved = Vec::new();
+    for &idx in pending {
+        let pid = match work[idx].parent_id {
+            Some(pid) => pid,
+            None => continue, // 真边界胚元 ∂：parent/attached_dir 留 None 是正确语义，不计入探针。
+        };
+        let pidx = id_idx.get(&pid).copied().or_else(|| overlay_seen.get(&pid).copied()).or_else(|| {
+            raw.iter()
+                .copied()
+                .filter(|&r| r != idx)
+                .find(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false))
+        });
+        match pidx {
+            Some(pidx) => {
+                let sigma_p = work[pidx].eps;
+                if let Some(e) = work.overlay_mut(idx) {
+                    e.parent = Some(pidx);
+                    e.attached_dir = Some(sigma_p);
+                }
+                ancok_probe_bump(|p| p.restore_parent_rebound += 1);
+            }
+            None => {
+                ancok_probe_bump(|p| p.restore_parent_unresolved += 1);
+                unresolved.push(idx);
+            }
+        }
+    }
+    unresolved
 }
 
 

@@ -22,22 +22,22 @@
   全部 **L0**（纯定义/代数，不依赖数据）。机器可检验命题：
   - `net_le_gross`：N_t ≤ G_t（净名义 ≤ 毛名义，三角不等式 |Σ| ≤ Σ|·|）。
   - `lev_net_le_gross`：E_t > 0 ⟹ L^N_t ≤ L^G_t（净杠杆 ≤ 毛杠杆，除以正权益保序）。
-  - `gross_cap_implies_net_cap`：L^G ≤ L̄^G ∧ L̄^N ≥ L̄^G ⟹ L^N ≤ L̄^N（毛帽蕴含净帽，若净帽不紧）。
-  Lean build 通过 = 这些代数命题正确（L0），**不**是「杠杆上限 L̄^G/L̄^N 经验校准最优」
-  （那是 L2 EmpiricalDomain，本文件不声称——上限值是 Θ_leverage 参数，非缠论可导）。
+  - `grossOk_iff_levG_le`：E_t > 0 ⟹ G_t ≤ G̅ ↔ L^G_t ≤ G̅/E_t（比值层与整数名义层接通）。
+  - `gross_cap_implies_net_cap`：G_t ≤ Ḡ ∧ Ḡ ≤ N̄ ⟹ N_t ≤ N̄（毛名义帽蕴含净名义帽，若净帽不紧）。
+  Lean build 只证这些 L0 代数命题，**不**证杠杆上限经验校准最优（那是 L2 EmpiricalDomain）。
 
   ── 诚实标注（formalization-validity-domain + no-patch-mentality）────────────
-  ★乘数 M_v / 价格 P_v / 权益 E_t / 杠杆上限 L̄^G,L̄^N 全部是 **Θ_leverage / 账户层参数（非缠论
-    可导）**——缠论结构（Origin CompleteClassifier）**不能推出杠杆上限**。本文件证「**给定**这些
-    参数后 G/N/L^G/L^N 的代数关系」，**不**证上限本身来自缠论。
+  ★乘数 M_v / 价格 P_v / 权益 E_t / 杠杆上限 L̄^G,L̄^N 全部是 **Θ_leverage / 账户层参数
+    （非缠论可导）**；本文件只证给定参数后的 G/N/L^G/L^N 代数关系，不证上限来自缠论。
   ★**多空双开结构保持**：名义聚合**不加** Q⁺Q⁻=0 禁令（净用代数和的绝对值，毛用绝对值之和——
     双开使 G 增、N 可不增，正是「净低毛高」需同时约束的来源，与 VoiceTree 多空双开一致）。
-  ★still-MISSING（L2）：杠杆上限 L̄^G/L̄^N 的经验校准（多大上限在真实账户上避免强平）属
-    EmpiricalDomain，本文件**不**证——只证「给定上限后的约束代数」。
+  ★公理足迹例外：`lev_net_le_gross`/`grossOk_iff_levG_le` 的 `#print axioms` 含 `Classical.choice`；
+    它来自 Lean core `Rat.div → Rat.mul` 的既有约分实现，非本文件显式调用/用户 axiom；仅改证明无法消除。
+  ★still-MISSING（L2）：杠杆上限的真实账户经验校准；本文件只证「给定上限后的约束代数」。
 
   ── 依赖方向（单向无环，不 import #113 分类血肉、不 import legacy Strict）──────
   LeverageCapital → Origin.SourceAxioms（仅用 Side）。standalone。
-  验证：`cd formal && lake env lean Origin/LeverageCapital.lean`。禁 sorry/admit/axiom。
+  验证：`cd formal && lake env lean Origin/LeverageCapital.lean`。禁 sorry/admit/用户 axiom 声明。
 
   谱系：FULL 十三 / strict §11 → #96/#97（A′ Origin canonical base）→ 本文件 #54（杠杆港入 Origin）。
 -/
@@ -175,10 +175,11 @@ theorem hedged_gross_high_net_zero (k : Nat) (_hk : 0 < k) :
   - `positions : List VoicePosition`：当前所有声部名义头寸。
   - `equity : Int`：账户权益 E_t（要求 > 0，杠杆分母）。
   - `grossCap : Int`、`netCap : Int`：毛/净杠杆上限对应的**名义上限** G̅ = L̄^G·E、N̅ = L̄^N·E
-    （把 L^G ≤ L̄^G ⟺ G ≤ L̄^G·E 化为整数名义比较，避免有理数除法——bit-exact 对齐 rust 实装）。
+    （运行时把 L^G ≤ L̄^G ⟺ G ≤ L̄^G·E 化为整数名义比较；`grossOk_iff_levG_le`
+    在 E>0 下机器证明 G≤G̅ ↔ L^G≤G̅/E，故当输入 G̅=L̄^G·E 时接通两种约束）。
 
   ★诚实标注：equity / grossCap / netCap 全是账户/Θ_leverage 层运行时输入（非缠论可导）。
-  把杠杆比 L^G ≤ L̄^G 等价转写为名义 G ≤ L̄^G·E（grossCap），是「除以正权益保序」的整数化。
+  桥接定理只证给定 grossCap 的等价，不证明 grossCap 的经验值或账户标定本身正确。
 -/
 structure LeverageAccount where
   positions : List VoicePosition
@@ -192,6 +193,14 @@ def LeverageAccount.gross (a : LeverageAccount) : Int := (grossNotional a.positi
 /-- ★净敞口（整数名义，L0）：N_t。 -/
 def LeverageAccount.net (a : LeverageAccount) : Int := (netNotional a.positions : Int)
 
+/-- ★毛杠杆（精确有理数比值，L0）：L^G_t = G_t / E_t。 -/
+def LeverageAccount.levG (a : LeverageAccount) : Rat :=
+  (a.gross : Rat) / (a.equity : Rat)
+
+/-- ★净杠杆（精确有理数比值，L0）：L^N_t = N_t / E_t。 -/
+def LeverageAccount.levN (a : LeverageAccount) : Rat :=
+  (a.net : Rat) / (a.equity : Rat)
+
 /-- ★毛杠杆约束满足（L0）：G_t ≤ G̅（= L^G ≤ L̄^G 的整数名义形式）。 -/
 def LeverageAccount.grossOk (a : LeverageAccount) : Prop := a.gross ≤ a.grossCap
 
@@ -204,6 +213,18 @@ theorem LeverageAccount.netLeGross (a : LeverageAccount) : a.net ≤ a.gross := 
   exact_mod_cast net_le_gross a.positions
 
 /--
+  ★★净杠杆 ≤ 毛杠杆（L0）：正权益 `E_t > 0` 时，有理数除法保序，
+  `L^N_t = N_t / E_t ≤ G_t / E_t = L^G_t`。
+-/
+theorem lev_net_le_gross (a : LeverageAccount) (hequity : 0 < a.equity) :
+    a.levN ≤ a.levG := by
+  unfold LeverageAccount.levN LeverageAccount.levG
+  rw [Rat.div_def, Rat.div_def]
+  exact Rat.mul_le_mul_of_nonneg_right
+    (Rat.intCast_le_intCast.mpr a.netLeGross)
+    (Rat.le_of_lt (Rat.inv_pos.mpr (Rat.intCast_pos.mpr hequity)))
+
+/--
   ★★毛帽蕴含净帽（条件性，L0）：**若净上限不紧于毛上限**（G̅ ≤ N̅）则 G ≤ G̅ ⟹ N ≤ N̅。
   N ≤ G ≤ G̅ ≤ N̅。这给出「同时约束毛净」的一个充分条件下的层级——但**反向不成立**
   （N ≤ N̅ 不蕴含 G ≤ G̅），故 line 1006「必须同时约束」：净约束**不能**替代毛约束。
@@ -213,6 +234,25 @@ theorem gross_cap_implies_net_cap (a : LeverageAccount)
   unfold LeverageAccount.netOk
   unfold LeverageAccount.grossOk at hgross
   exact Int.le_trans (Int.le_trans a.netLeGross hgross) hcap
+
+/--
+  ★★整数毛名义帽 ↔ 精确毛杠杆帽（L0）：正权益时，
+  `G_t ≤ G̅ ↔ G_t/E_t ≤ G̅/E_t`。右端的 `G̅/E_t` 在运行时输入满足
+  `G̅ = L̄^G·E_t` 时即为毛杠杆上限 `L̄^G`。
+-/
+theorem grossOk_iff_levG_le (a : LeverageAccount) (hequity : 0 < a.equity) :
+    a.grossOk ↔ a.levG ≤ (a.grossCap : Rat) / (a.equity : Rat) := by
+  unfold LeverageAccount.grossOk LeverageAccount.levG
+  rw [Rat.div_def, Rat.div_def]
+  have hinv : 0 < (a.equity : Rat)⁻¹ :=
+    Rat.inv_pos.mpr (Rat.intCast_pos.mpr hequity)
+  constructor
+  · intro h
+    exact Rat.mul_le_mul_of_nonneg_right
+      (Rat.intCast_le_intCast.mpr h) (Rat.le_of_lt hinv)
+  · intro h
+    exact Rat.intCast_le_intCast.mp
+      (Rat.le_of_mul_le_mul_right h hinv)
 
 /--
   ★★净约束不能替代毛约束（L0，line 1006「必须同时约束二者」的形式坐实）：
