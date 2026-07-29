@@ -1,28 +1,41 @@
-//! #668（N4）事件↔BSP 稳定身份桥接对象（#666 四问四裁 + 2026-07-29 supersede v2 键公式落地）。
+//! #668（N4）事件↔BSP 稳定身份桥接对象（#666 四问四裁 + 2026-07-29 三轮 supersede 落地，
+//! 修复轮 = #670 影子评审 FAIL 回炉，见 `chanlun/review-results/issue668-n4-fix-round1-20260729.md`）。
 //!
 //! ## 命名独立（#666 裁定①，同 #636/#540 先例）
 //!
 //! 老对象（[`super::cand_event::CandidateEvent`]/[`super::bsp::BspPoint`]）**不动**——本模块只
 //! 新增一个关系户口：[`BspBridgeEdge`]。身份 = （N1 事件键，BSP 结构键）对（裁定②）：
 //! - N1 事件键沿用 [`CandidateKey`]，不新造。
-//! - BSP 结构键 = [`BspStructuralKey`]：v1（被破中枢指纹 + 方向 + 点类）被真值表证伪（BTC 三窗
-//!   ambiguous=10/74/260，`chanlun/review-results/issue668-n4-impl-ticket668-20260729.md`），
+//! - BSP 结构键 = [`BspStructuralKey`]：v1（被破中枢指纹 + 方向 + 点类）被真值表证伪。
 //!   v2 = v1 + **锚段坐标**——一类=背驰确认段（`seg_a`+`c_start`）、二类=一类锚身份（v1 退化，
-//!   见 [`resolve_second_class_anchor`] 文档）、三类=离开段+回试段起点。v2 真值表 BTC 三窗
-//!   （20k/100k/300k）均 `ambiguous_keys=0`，见 `issue668-n4-impl-ticket668b-20260729.md`。
+//!   见 [`resolve_second_class_anchor`] 文档）、三类=离开段+回试段起点。
+//!
+//! ## 一类点身份 = episode（第三轮 supersede 裁定①，撤销「键唯一性」旧叙事）
+//!
+//! v2 锚（`seg_a`+`c_start`）标定的是**这一次破中枢的候选事件本身**（episode），不是某个孤立
+//! 物理点。同一 episode 内可能存在**多个**物理一类点（多段递进背驰，教义必然，非 bug）——这些
+//! 物理点是**同一候选身份的修订史**：`source_index`/pivot 是修订**载荷**，不入身份分量（与
+//! [`BspBridgeEdge::bsp_source_index`] 头纪律一致）。「键唯一性」不是本对象的验收目标；「episode
+//! 归属唯一」才是（一个一类点只能属于一个 episode——[`find_episode`] 的 `debug_assert`
+//! 机器化此不变量，评审 #670 §五复核探针 300k 窗 `points_in_multiple_episodes=0` 实证）。
 //!
 //! ## 双向产出，主路径内联（裁定③）
 //!
 //! 「内联」= 直接消费 `classify_impl` 已经就地产出的两条主路径事实——BSP 六 bit
 //! （[`super::LevelState::bsp`]）与候选事件流（[`CandidateStreams`]，`cand_event.rs` 头注「本模块
 //! 只产出、存储候选生命史」同一条），**不重新扫描/重新判定**任何结构；不是外挂 sidecar 事后
-//! 补扫（旧 `otherwise_domain_sidecar` 反面教材）。「双向」= 一次联合折叠里同时补齐两个方向：
-//! - 一类点 = 候选事件本身（`CandidateKind::Trend`，破中枢 C 段）**若也通过背驰确认**，回挂本点。
-//! - 三类点的「离开段」= 同一 C 段候选事件（不要求背驰确认——`judge_third_cert` 的 `leave_seg`
-//!   与 N1 候选扫描共用同一 `first_structural_gates`/`nearest_confirmed_center_idx` 定位，见
-//!   [`resolve_third_class_event`] 文档）。
-//! - 二类点 = 其一类锚（`OwnerRef::Type1Anchor`）自身对应的候选事件（继承锚的边，见
-//!   [`resolve_second_class_anchor`]）。
+//! 补扫（旧 `otherwise_domain_sidecar` 反面教材）。「双向」= 两个方向各有独立的、真实的遍历入口
+//! （非同一遍历改名两次）：
+//! - **事件侧 → 一类点**（[`resolve_first_class_episode_edges`]）：遍历 Trend 候选事件，对每个
+//!   episode 回挂其区间 `[c_start, interval.1]` 覆盖的全部一类点（同 level/side/中枢指纹）——
+//!   判据从「本点 `source_index` 恰好等于候选当前右端」改为「本点落在候选 episode 区间内」
+//!   （右端会随 `as_of` 生长，[`super::cand_event`] 称为 `growth_revision`；区间左端 `c_start`
+//!   已闭合不再增长，纪律同 [`CandidateKey`]）。
+//! - **点侧 → 事件**（二/三类，[`resolve_bridge`]）：遍历 BSP 点，反查其所属候选事件——三类点的
+//!   「离开段」= 同一 C 段候选事件（不要求背驰确认——`judge_third_cert` 的 `leave_seg` 与 N1
+//!   候选扫描共用同一 `first_structural_gates`/`nearest_confirmed_center_idx` 定位）；二类点 =
+//!   其一类锚（`OwnerRef::Type1Anchor`）所属 episode（同样按区间覆盖反查，见
+//!   [`resolve_second_class_anchor`] 文档）。
 //!
 //! 「查簿命中才写」（N3 `extends_lineage_key` 先例）：找不到对应 N1 事件 ⟹ 不产边（[`BspBridgeBook::advance`]
 //! 直接跳过该点，不写占位/不写「缺失」记录）——**Absent（查无）非证伪**（裁定⑤），与
@@ -195,14 +208,16 @@ fn latest_candidates(streams: &CandidateStreams) -> BTreeMap<CandidateKey, Candi
     latest
 }
 
-/// Trend 域事件反查索引：`(level, side, parent, interval.1) → CandidateKey`。
+/// Trend 域事件反查索引：`(level, side, parent, interval.1) → CandidateKey`。**仅供三类点**
+/// （离开段右端是三类点自身已闭合的历史坐标，不随本 episode 后续生长而漂移——三类离开时刻
+/// 记录的 `leave_interval.1` 是过去时；见 [`resolve_bridge`] 三类分支）。一类/二类改走
+/// [`find_episode`]（评审 #670 HIGH-1/HIGH-2：右端等值对一类点是错判据——它会随 `as_of` 生长，
+/// `cand_event` 称为 `growth_revision`，用它做一类点的配对键会漏掉同一 episode 内右端生长之前
+/// 就已确认的物理点）。
 ///
-/// `interval.1` = 该 Trend 候选 C 段的右端（`segment.end_index`）——它是「这一次破中枢」的
-/// 因果触发坐标，一类点的 `source_index`、三类点 `leave_interval.1`（离开段右端）都恰好落在
-/// 这个坐标上（同一 `first_structural_gates`/`nearest_confirmed_center_idx` 结构门产出，见
-/// 模块头「双向产出」段）——三条判据（一类背驰确认、三类离开、N1 候选扫描）共享同一段，
-/// 只是各自要求的门不同（一类另要求 MACD 背驰确认；三类只要求几何离开；N1 候选只要求结构宽
-/// 三门）。
+/// 静默覆盖留痕（LOW-2）：同 `(level, side, parent, interval.1)` 理论上不应有两个 Trend 候选
+/// （interval.1 在教义上标定「这一次」破中枢的因果触发坐标），`debug_assert` 机器化此假设，
+/// 复核探针 300k 窗 `idx_all_interval_end_collisions=0` 实证当前无实害。
 fn trend_index_by_interval_end(
     latest: &BTreeMap<CandidateKey, CandidateEvent>,
 ) -> BTreeMap<(u32, Side, ParentFingerprint, usize), CandidateKey> {
@@ -211,12 +226,68 @@ fn trend_index_by_interval_end(
         if event.kind != CandidateKind::Trend {
             continue;
         }
-        index.insert(
-            (event.event_level, event.key.side, event.key.parent, event.interval.1),
+        let idx_key = (event.event_level, event.key.side, event.key.parent, event.interval.1);
+        let prior = index.insert(idx_key, event.key);
+        debug_assert!(
+            prior.is_none() || prior == Some(event.key),
+            "trend_index_by_interval_end 静默覆盖：{idx_key:?} 已有 {prior:?}，被 {:?} 覆盖",
             event.key,
         );
     }
     index
+}
+
+/// 一次「破中枢」episode 的区间身份：候选 [`CandidateKey`]（含 `seg_a`/`c_start`，已闭合、
+/// 不随 `as_of` 生长）+ 当前区间右端（会生长，只用作区间上界，不入身份，见模块头「一类点身份
+/// = episode」段）。
+struct TrendEpisode {
+    key: CandidateKey,
+    level: u32,
+    side: Side,
+    parent: ParentFingerprint,
+    c_start: usize,
+    interval_end: usize,
+}
+
+fn trend_episodes(latest: &BTreeMap<CandidateKey, CandidateEvent>) -> Vec<TrendEpisode> {
+    latest
+        .values()
+        .filter(|event| event.kind == CandidateKind::Trend)
+        .map(|event| TrendEpisode {
+            key: event.key,
+            level: event.event_level,
+            side: event.key.side,
+            parent: event.key.parent,
+            c_start: event.key.c_start,
+            interval_end: event.interval.1,
+        })
+        .collect()
+}
+
+/// episode 区间覆盖反查（评审 #670 HIGH-1/HIGH-2 修复核心）：给定一个坐标，找它落在哪个
+/// Trend episode 的 `[c_start, interval_end]` 闭区间内（同 level/side/parent）。
+///
+/// `debug_assert` 机器化「episode 归属唯一」（评审 #670 §五复核探针 300k 窗
+/// `points_in_multiple_episodes=0` 实证；100k 窗同）——若失守，说明该不变量在新数据上不再成立，
+/// 按 dispatch「若仍有撞键，停手上报」处置，不静默择一。
+fn find_episode<'a>(
+    episodes: &'a [TrendEpisode],
+    level: u32,
+    side: Side,
+    parent: ParentFingerprint,
+    source_index: usize,
+) -> Option<&'a TrendEpisode> {
+    let mut hits = episodes
+        .iter()
+        .filter(|ep| ep.level == level && ep.side == side && ep.parent == parent)
+        .filter(|ep| ep.c_start <= source_index && source_index <= ep.interval_end);
+    let first = hits.next()?;
+    debug_assert!(
+        hits.next().is_none(),
+        "episode 归属应唯一：source_index={source_index} 在 level={level} side={side:?} \
+         parent={parent:?} 下落入多个 episode——评审 #670 复核探针未观测到此路径，需上报"
+    );
+    Some(first)
 }
 
 /// 一类/三类点的破/离中枢指纹（`OwnerRef::Center` 载体，`make_first_point`/`make_third_point`
@@ -273,25 +344,22 @@ fn resolve_second_class_anchor(
     })
 }
 
-/// 单点单 bit 的 BSP 结构键 + 对应 N1 事件键（找不到 N1 事件 ⟹ `None`，模块头「查簿命中才写」）。
+/// 单点单 bit（二/三类）的 BSP 结构键 + 对应 N1 事件键（找不到 N1 事件 ⟹ `None`，模块头
+/// 「查簿命中才写」）。**一类不走本函数**——一类是事件侧驱动，见
+/// [`resolve_first_class_episode_edges`]（模块头「双向产出」段）。
 fn resolve_bridge(
     level_idx: u32,
     level: &LevelState,
     idx_in_level: usize,
     class: BspPointClass,
     trend_index: &BTreeMap<(u32, Side, ParentFingerprint, usize), CandidateKey>,
+    episodes: &[TrendEpisode],
 ) -> Option<(BspStructuralKey, CandidateKey)> {
     let point = &level.bsp[idx_in_level];
     let side = class.side();
     match class {
         BspPointClass::Buy1 | BspPointClass::Sell1 => {
-            let parent = center_fingerprint(level, idx_in_level)?;
-            let event_key = *trend_index.get(&(level_idx, side, parent, point.source_index))?;
-            let anchor = vec![event_key.seg_a, (event_key.c_start, event_key.c_start)];
-            Some((
-                BspStructuralKey { rule_version: BRIDGE_RULE_VERSION, level: level_idx, parent, side, class, anchor },
-                event_key,
-            ))
+            unreachable!("一类由 resolve_first_class_episode_edges 事件侧产出，不经本函数")
         }
         BspPointClass::Buy3 | BspPointClass::Sell3 => {
             let parent = center_fingerprint(level, idx_in_level)?;
@@ -308,30 +376,116 @@ fn resolve_bridge(
         }
         BspPointClass::Buy2 | BspPointClass::Sell2 => {
             let (parent, anchor_idx) = resolve_second_class_anchor(level, class, idx_in_level)?;
-            let event_key = *trend_index.get(&(level_idx, side, parent, anchor_idx))?;
+            // episode 区间覆盖反查（HIGH-2 修复：exact right-end 会在同 episode 后续生长后漏判
+            // 一类锚，二类继承同一失效风险，改用与一类同款判据）。
+            let episode = find_episode(episodes, level_idx, side, parent, anchor_idx)?;
             let anchor = vec![(anchor_idx, anchor_idx)];
             Some((
                 BspStructuralKey { rule_version: BRIDGE_RULE_VERSION, level: level_idx, parent, side, class, anchor },
-                event_key,
+                episode.key,
             ))
         }
     }
 }
 
-/// 单次扫描：全部（level, point, class）三元组求边观察，找不到 N1 事件的点诚实跳过（Absent）。
+/// 一类点的 BSP 结构键（episode 锚，不含任何物理点自身坐标——模块头「一类点身份 = episode」）。
+fn first_class_structural_key(episode: &TrendEpisode, class: BspPointClass) -> BspStructuralKey {
+    BspStructuralKey {
+        rule_version: BRIDGE_RULE_VERSION,
+        level: episode.level,
+        parent: episode.parent,
+        side: episode.side,
+        class,
+        anchor: vec![episode.key.seg_a, (episode.key.c_start, episode.key.c_start)],
+    }
+}
+
+/// 事件侧 → 一类点（HIGH-2 修复：裁定③「双向产出」缺的那一向）。遍历 Trend episode，对每个
+/// episode 回挂其区间 `[c_start, interval_end]` 覆盖的全部一类点（同 level/side/中枢指纹）。
+///
+/// 同一 episode 若覆盖多个物理一类点（多段递进背驰，教义必然——见模块头「一类点身份 =
+/// episode」），按 `source_index` 升序产出多条观察，全部共享同一 [`BridgeKey`]：
+/// `BspBridgeBook::apply`（同 `as_of` 内顺序 apply）会把它们折叠成一条**修订链**——较早的物理点
+/// 先落 revision 0，后续物理点依次追加 revision，链头（`latest_of`）落在**最后一个**（即
+/// `source_index` 最大、语义上「目前所见最新递进」的物理点）。这不是「键碰撞被强行去重」，
+/// 是 dispatch 第三轮 supersede 裁定①明文授权的语义：pivot/右端是修订载荷，不是身份分量。
+fn resolve_first_class_episode_edges(
+    classification: &Classification,
+    episodes: &[TrendEpisode],
+    latest: &BTreeMap<CandidateKey, CandidateEvent>,
+) -> Vec<BridgeObservation> {
+    let mut observations = Vec::new();
+    for episode in episodes {
+        let Some(level) = classification.levels.get(episode.level as usize) else {
+            continue;
+        };
+        let class = match episode.side {
+            Side::Long => BspPointClass::Buy1,
+            Side::Short => BspPointClass::Sell1,
+        };
+        let mut covered: Vec<(usize, usize)> = level
+            .bsp
+            .iter()
+            .enumerate()
+            .filter(|(idx, point)| {
+                let hit = match episode.side {
+                    Side::Long => point.bits.buy1,
+                    Side::Short => point.bits.sell1,
+                };
+                hit && center_fingerprint(level, *idx) == Some(episode.parent)
+                    && episode.c_start <= point.source_index
+                    && point.source_index <= episode.interval_end
+            })
+            .map(|(idx, point)| (idx, point.source_index))
+            .collect();
+        covered.sort_by_key(|(_, source_index)| *source_index);
+
+        let bsp_key = first_class_structural_key(episode, class);
+        let event_state = latest[&episode.key].state;
+        let status = if event_state == CandidateState::Invalidated {
+            BridgeStatus::Invalidated
+        } else {
+            BridgeStatus::Open
+        };
+        for (_, source_index) in covered {
+            observations.push(BridgeObservation {
+                key: BridgeKey { event: episode.key, bsp: bsp_key.clone() },
+                bsp_level: episode.level,
+                bsp_source_index: source_index,
+                event_state,
+                status,
+            });
+        }
+    }
+    observations
+}
+
+/// 单次扫描：一类走事件侧驱动（[`resolve_first_class_episode_edges`]），二/三类走点侧驱动
+/// （[`resolve_bridge`]）——两个方向各自真实遍历，找不到 N1 事件的点诚实跳过（Absent）。
 fn observe(classification: &Classification, streams: &CandidateStreams) -> Vec<BridgeObservation> {
     let latest = latest_candidates(streams);
     let trend_index = trend_index_by_interval_end(&latest);
-    let mut observations = Vec::new();
+    let episodes = trend_episodes(&latest);
+
+    let mut observations = resolve_first_class_episode_edges(classification, &episodes, &latest);
+
     for (level_idx, level) in classification.levels.iter().enumerate() {
         for idx_in_level in 0..level.bsp.len() {
             for class in BspPointClass::set_classes(&level.bsp[idx_in_level].bits) {
-                let Some((bsp_key, event_key)) =
-                    resolve_bridge(level_idx as u32, level, idx_in_level, class, &trend_index)
-                else {
+                if matches!(class, BspPointClass::Buy1 | BspPointClass::Sell1) {
+                    continue; // 已由事件侧驱动产出，见上。
+                }
+                let Some((bsp_key, event_key)) = resolve_bridge(
+                    level_idx as u32,
+                    level,
+                    idx_in_level,
+                    class,
+                    &trend_index,
+                    &episodes,
+                ) else {
                     continue;
                 };
-                // event_key 保证在 latest 中存在（trend_index 由 latest 折叠而来）。
+                // event_key 保证在 latest 中存在（trend_index/episodes 均由 latest 折叠而来）。
                 let event_state = latest[&event_key].state;
                 let status = if event_state == CandidateState::Invalidated {
                     BridgeStatus::Invalidated
