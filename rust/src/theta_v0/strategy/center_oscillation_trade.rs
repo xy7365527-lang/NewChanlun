@@ -402,6 +402,53 @@ fn cover_action_for(
     covers.then_some(CenterOscillationAction::Replenish)
 }
 
+/// ★#679 D1b：一次重基里对某个旧身份的谱系查簿结论（域层只见本枚举，不依赖
+/// [`crate::theta_v0::lineage_book`] 的具体类型——判定规则在域层，证书来源在接线层）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineageVerdict {
+    /// 构造证书给出唯一 1→1 连续边（`relation=continued_1to1` 且四布尔全真）。
+    Continued(CenterId),
+    /// 本 bar 本级没有该旧身份的连续边。
+    NoCert,
+    /// 同一旧身份有多个候选后继——歧义。
+    Ambiguous,
+    /// 簿记的 bar 与本次重基的 bar 不符——工程错误，不做跨 bar 猜测。
+    BarMismatch,
+}
+
+/// ★#679 D1b：谱系查簿接口。实现在 [`crate::theta_v0::lineage_book::LineageView`]。
+pub trait LineageLookup {
+    fn lookup(&self, old: CenterId) -> LineageVerdict;
+}
+
+/// ★#679 D1b：一次重基的迁移/拒迁分桶读数（票面「迁移计数分桶」的域层载体）。
+///
+/// **口径（评审 #679 订正：原文声称的「四子桶之和恒 = kept」「`migrated+kept` = 锚个数」是假
+/// 不变量，已撤回）**：[`Self::kept`] 按 **(侧, 锚)** 计——摘表时逐 `(VoiceSide, CenterId)` 计数，
+/// 同一锚若两侧同时挂起，核销时计两次；五个 fail-closed 子桶（[`Self::no_cert`] /
+/// [`Self::target_absent`] / [`Self::ambiguous`] / [`Self::bar_mismatch`] / [`Self::duplicate_claim`]）
+/// 按**锚**计，一个锚只落一个子桶一次——每个拒迁锚都有确定原因，不留「无归因的核销」，但子桶之和
+/// 是**去重锚数**，只在没有锚双侧同时挂起时才与 `kept` 相等（wf8 单侧样本下恰好相等，不能当
+/// 通用不变量外推）。`migrated` 计的是迁移**次数**（同一锚可跨 bar 多次被救下再迁），不是锚数，
+/// 与 `kept` 不构成可相加验证的恒等式。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RebaseMigrationTally {
+    /// 凭 1→1 构造证书成功迁移身份锚的挂起数（`rebase_lineage_migrated`）。
+    pub migrated: usize,
+    /// 谱系不可达、保持 `RebaseVanished` 核销的挂起数（`rebase_vanished_kept`）。
+    pub kept: usize,
+    /// fail closed：无构造证书边。
+    pub no_cert: usize,
+    /// fail closed：证书给出的新身份不在重基后的新链上。
+    pub target_absent: usize,
+    /// fail closed：歧义（多候选后继）。
+    pub ambiguous: usize,
+    /// fail closed：簿 bar 不匹配。
+    pub bar_mismatch: usize,
+    /// fail closed：多个旧锚被判到同一新身份（重复 lineage claim）。
+    pub duplicate_claim: usize,
+}
+
 /// 挂起短差状态机（每级别一台，与 T1 [`center_lifecycle::CenterEventMachine`] 同粒度）。
 ///
 /// 身份 → 是否挂起：只存 `Suspended` 身份；不存在于表中 = 未挂起（含「从未挂起过」与
@@ -422,15 +469,55 @@ fn cover_action_for(
 /// ★#487：值保存首次挂起时的完整中枢框（含冻结的 `end_index`）。`CenterId` 刻意不含会随延伸
 /// 改写的右边，不能反过来承担四边框快照；`None` 只服务不掌握完整框的旧 API/域层单测，生产
 /// 接线一律经 [`Self::on_trigger_side_bound`] 写入 `Some`。
+///
+/// ★★#679 D1b（双层身份，调研 `rebase-identity-d1-research-20260728.md` §4.2 方案 C）：挂起表的
+/// 键是**稳定锚**（首次绑定时的身份），不随重基改写；重基后的新身份经
+/// [`Self::on_chain_rebase_lineage`] 用 1→1 构造证书**别名**回该锚（[`Self::anchor_of`]）。
+/// 这样一次迁移只改一张别名表，而
+/// ① 首次绑定冻结的四边框（本表的值）、
+/// ② campaign 挂起归属账的来源中枢标签（`oscillation_campaign::SuspensionBatch::center`）、
+/// ③ 历史绑定三类证书的去重键（`fill::HistoricalSeenKey::owner`）
+/// 三者全都保持自洽——不必在同一事务里并发迁移三处状态（那才是原子性风险的来源）。
+/// 锚在两侧挂起都消失后随别名一起回收（[`Self::gc_anchor`]）。
 #[derive(Debug, Default)]
 pub struct CenterOscillationBook {
     level: u32,
     suspended: BTreeMap<(VoiceSide, CenterId), Option<Center>>,
+    /// ★#679 D1b：**当前身份 → 稳定锚**。只由重基谱系迁移写入；恒等映射不入表
+    /// （`resolve` 查不到即返回原值）。
+    anchor_of: BTreeMap<CenterId, CenterId>,
+    /// ★#679 D1b：**稳定锚 → 当前身份**（`anchor_of` 的逆）。重基核对时用它取「这个锚现在
+    /// 应该长什么样」，再拿去和新链比对。
+    current_of: BTreeMap<CenterId, CenterId>,
 }
 
 impl CenterOscillationBook {
     pub fn new(level: u32) -> Self {
-        Self { level, suspended: BTreeMap::new() }
+        Self {
+            level,
+            suspended: BTreeMap::new(),
+            anchor_of: BTreeMap::new(),
+            current_of: BTreeMap::new(),
+        }
+    }
+
+    /// ★#679 D1b：把**当前身份**折回**稳定锚**。未经谱系迁移的身份恒等返回。
+    ///
+    /// 这是挂起表的唯一 key 归一入口：触发、生命周期事件、挂起查询三条路径都先经它，
+    /// 于是「重基后拿新身份来的事件」与「拿首次绑定旧框来的历史事件」命中同一条挂起。
+    pub fn resolve(&self, id: CenterId) -> CenterId {
+        self.anchor_of.get(&id).copied().unwrap_or(id)
+    }
+
+    /// 该锚两侧都不再挂起 ⟹ 回收它的别名（防止别名表随时间单调增长，也防已终结的
+    /// 锚把后来的同值新身份误吸过去）。
+    fn gc_anchor(&mut self, anchor: CenterId) {
+        if self.suspended.keys().any(|(_, id)| *id == anchor) {
+            return;
+        }
+        if let Some(cur) = self.current_of.remove(&anchor) {
+            self.anchor_of.remove(&cur);
+        }
     }
 
     pub const fn level(&self) -> u32 {
@@ -467,9 +554,10 @@ impl CenterOscillationBook {
         self.is_suspended_side(VoiceSide::Long, center)
     }
 
-    /// ★#381：分侧挂起查询。
+    /// ★#381：分侧挂起查询。★#679 D1b：入参先经 [`Self::resolve`] 折回稳定锚——重基后拿
+    /// 新身份来问与拿首次绑定旧身份来问，答案相同。
     pub fn is_suspended_side(&self, side: VoiceSide, center: CenterId) -> bool {
-        self.suspended.contains_key(&(side, center))
+        self.suspended.contains_key(&(side, self.resolve(center)))
     }
 
     /// 处理一次触发 ⟹ 减/补动作二选一，或幽灵回补拒绝（`None`）。
@@ -540,14 +628,17 @@ impl CenterOscillationBook {
             VoiceSide::Short => BoundarySide::Below,
             VoiceSide::Long | VoiceSide::Flat => BoundarySide::Above,
         };
+        // ★#679 D1b：触发带的是**新链当前身份**，挂起表键是首次绑定的稳定锚——先折回。
+        // 未经谱系迁移时 `resolve` 恒等 ⟹ 逐字节与旧行为相同。
+        let anchor = self.resolve(trigger.center());
         if trigger.boundary_side() == open_edge {
             let frozen = self
                 .suspended
                 .iter()
-                .find_map(|((_, id), frame)| (*id == trigger.center()).then_some(*frame).flatten())
+                .find_map(|((_, id), frame)| (*id == anchor).then_some(*frame).flatten())
                 .or(center);
             self.suspended
-                .entry((side, trigger.center()))
+                .entry((side, anchor))
                 .and_modify(|frame| {
                     if frame.is_none() {
                         *frame = frozen;
@@ -555,7 +646,8 @@ impl CenterOscillationBook {
                 })
                 .or_insert(frozen);
             Some(CenterOscillationAction::Reduce)
-        } else if self.suspended.remove(&(side, trigger.center())).is_some() {
+        } else if self.suspended.remove(&(side, anchor)).is_some() {
+            self.gc_anchor(anchor);
             Some(CenterOscillationAction::Replenish)
         } else {
             None
@@ -582,10 +674,12 @@ impl CenterOscillationBook {
     /// `Broken`。没有完整框的旧 API 挂起、框配对失败、或重基已让身份消失者不获此授权；前两者
     /// 继续等待，后者仍由 `RebaseVanished` 工程警报出口处置。
     pub fn on_lifecycle_event(&mut self, event: &CenterLifecycleEvent) -> SuspensionEventOutcome {
-        let Some(id) = event.killed_center_id() else {
+        let Some(raw_id) = event.killed_center_id() else {
             // Born 或 Reset（Reset 即使带活中枢漏发见证，也没有死亡身份）。
             return SuspensionEventOutcome::default();
         };
+        // ★#679 D1b：折回稳定锚——重基迁移后事件带的是新链身份，挂起表的键仍是首次绑定锚。
+        let id = self.resolve(raw_id);
         // ★#414：被取代 ⟹ 挂起**延续**（不摘表、不清算），逐侧产一条延续记录。
         if matches!(event, CenterLifecycleEvent::Superseded { .. }) {
             return SuspensionEventOutcome {
@@ -612,20 +706,20 @@ impl CenterOscillationBook {
         };
         // 逐侧终结（该身份在某侧未挂起 ⟹ 该侧幂等 no-op，不产出）。侧序固定 Long→Short，
         // 与挂起表的 `BTreeMap` 迭代序同锚（确定性，H1 理由不变）。
-        SuspensionEventOutcome {
-            terminations: [VoiceSide::Long, VoiceSide::Short]
-                .into_iter()
-                .filter(|side| self.suspended.remove(&(*side, id)).is_some())
-                .map(|side| SuspensionOutcome {
-                    center: id,
-                    source,
-                    cover_action: cover_action_for(side, source),
-                    side,
-                    settlement: settlement_for(side, source),
-                })
-                .collect(),
-            continuations: Vec::new(),
-        }
+        let terminations: Vec<SuspensionOutcome> = [VoiceSide::Long, VoiceSide::Short]
+            .into_iter()
+            .filter(|side| self.suspended.remove(&(*side, id)).is_some())
+            .map(|side| SuspensionOutcome {
+                center: id,
+                source,
+                cover_action: cover_action_for(side, source),
+                side,
+                settlement: settlement_for(side, source),
+            })
+            .collect();
+        // ★#679 D1b：两侧都不再挂起 ⟹ 回收该锚的谱系别名（无迁移时恒为 no-op）。
+        self.gc_anchor(id);
+        SuspensionEventOutcome { terminations, continuations: Vec::new() }
     }
 
     /// 消费一次链**重基**（[`center_lifecycle::ChainConsumed::Rebased`]）⟹ 0 或多条终结产出
@@ -642,17 +736,120 @@ impl CenterOscillationBook {
     /// **禁悬空（机检断言）**：处理后仍挂起的身份必须全部在新链上——不留「既非迁移又非终结」
     /// 的第三态；这是本函数的构造性不变量（逐身份要么留要么删），断言只是把它显式钉死。
     pub fn on_chain_rebase(&mut self, chain: &[Center]) -> Vec<SuspensionOutcome> {
+        self.on_chain_rebase_lineage(chain, None).0
+    }
+
+    /// ★★#679 D1b：带**构造谱系证书**的重基核对——[`Self::on_chain_rebase`] 的超集。
+    ///
+    /// 判据分三层，逐层 fail closed：
+    ///
+    /// 1. 锚的**当前身份**（经 [`Self::current_of`]，首次重基前 = 锚自身）仍在新链上 ⟹ 原样保留
+    ///    （既有「跟随迁移」语义，无需证书）；
+    /// 2. 当前身份不在新链上 ⟹ 查 `lineage`。**只有**拿到
+    ///    [`LineageVerdict::Continued`]（证书判 `relation=continued_1to1` 且
+    ///    functional∧injective∧unique∧bijective 全真）**且**该新身份确实出现在重基后的新链上、
+    ///    **且**没有第二个锚同时认领它，才迁移身份锚（`rebase_lineage_migrated`）；
+    /// 3. 其余一切情形（无证书 / 歧义 / bar 不匹配 / 目标不在新链 / 重复认领 / `lineage=None`）
+    ///    ⟹ 保持既有 `RebaseVanished` 核销（`rebase_vanished_kept`）+ 分桶计数。**禁 fail-open**。
+    ///
+    /// 迁移**只改身份锚**：挂起表的键、值（首次绑定冻结的四边框）、campaign 挂起归属账的来源
+    /// 中枢标签一律不动——清算仍按 ADR 补充十四拿旧框判（教义口径，票 #679）。
+    ///
+    /// **禁悬空（机检断言）**：处理后仍挂起的每个锚，其当前身份都必须在新链上。
+    pub fn on_chain_rebase_lineage(
+        &mut self,
+        chain: &[Center],
+        lineage: Option<&dyn LineageLookup>,
+    ) -> (Vec<SuspensionOutcome>, RebaseMigrationTally) {
+        let mut tally = RebaseMigrationTally::default();
         if self.suspended.is_empty() {
-            return Vec::new();
+            return (Vec::new(), tally);
         }
         let chain_ids: BTreeSet<CenterId> = chain.iter().map(CenterId::of).collect();
-        // ★#381：逐（侧, 身份）核对——两侧各自迁移/终结，判据（身份是否在新链上）不分侧。
-        let vanished: Vec<(VoiceSide, CenterId)> =
-            self.suspended.keys().copied().filter(|(_, id)| !chain_ids.contains(id)).collect();
-        for key in &vanished {
+        // 锚集合（去侧去重，确定序——`BTreeMap` 键序）。判据不分侧：身份是否还在构造链上是
+        // 结构事实，与持仓侧无关（#381 起两侧共用同一锚）。
+        let mut anchors: Vec<CenterId> = Vec::new();
+        for (_, id) in self.suspended.keys() {
+            if !anchors.contains(id) {
+                anchors.push(*id);
+            }
+        }
+
+        let mut vanished_anchors: Vec<CenterId> = Vec::new();
+        // 本次重基已被认领的新身份 → 认领它的锚（防两个旧锚认领同一个新身份）。
+        let mut claimed: BTreeMap<CenterId, CenterId> = BTreeMap::new();
+        // 先算全部迁移决定，再统一落账——避免边算边改 `current_of` 影响后续锚的判定。
+        let mut migrations: Vec<(CenterId, CenterId, CenterId)> = Vec::new(); // (锚, 旧当前, 新当前)
+
+        for anchor in anchors {
+            let current = self.current_of.get(&anchor).copied().unwrap_or(anchor);
+            if chain_ids.contains(&current) {
+                continue; // 仍在链上：既有「跟随迁移」路径，一动不动。
+            }
+            let Some(book) = lineage else {
+                // 反证臂（`THETA_REBASE_MIGRATE_SKIP=1`）或未接谱系簿 ⟹ 旧行为。
+                tally.no_cert += 1;
+                vanished_anchors.push(anchor);
+                continue;
+            };
+            match book.lookup(current) {
+                LineageVerdict::Continued(new_id) if !chain_ids.contains(&new_id) => {
+                    // 证书说它延续到 new_id，但 new_id 不在生命周期层收到的新链上——两侧不一致，
+                    // 不是可信的过继，照 fail-closed 走核销。
+                    tally.target_absent += 1;
+                    vanished_anchors.push(anchor);
+                }
+                LineageVerdict::Continued(new_id) => match claimed.entry(new_id) {
+                    std::collections::btree_map::Entry::Vacant(v) => {
+                        v.insert(anchor);
+                        migrations.push((anchor, current, new_id));
+                    }
+                    std::collections::btree_map::Entry::Occupied(_) => {
+                        // 重复 lineage claim：两个旧锚同时指向一个新身份 ⟹ 非单射，全部拒绝。
+                        tally.duplicate_claim += 1;
+                        vanished_anchors.push(anchor);
+                    }
+                },
+                LineageVerdict::NoCert => {
+                    tally.no_cert += 1;
+                    vanished_anchors.push(anchor);
+                }
+                LineageVerdict::Ambiguous => {
+                    tally.ambiguous += 1;
+                    vanished_anchors.push(anchor);
+                }
+                LineageVerdict::BarMismatch => {
+                    tally.bar_mismatch += 1;
+                    vanished_anchors.push(anchor);
+                }
+            }
+        }
+
+        for (anchor, old_current, new_current) in migrations {
+            if old_current != anchor {
+                // 中间修订身份退役：它已不在链上，留着只会让别名表单调增长。
+                self.anchor_of.remove(&old_current);
+            }
+            self.anchor_of.insert(new_current, anchor);
+            self.current_of.insert(anchor, new_current);
+            tally.migrated += 1;
+        }
+
+        // 核销：逐（侧, 锚）摘表，产 `RebaseVanished`（不回补，按 #472 未闭合减出核销）。
+        let vanished_keys: Vec<(VoiceSide, CenterId)> = self
+            .suspended
+            .keys()
+            .copied()
+            .filter(|(_, id)| vanished_anchors.contains(id))
+            .collect();
+        for key in &vanished_keys {
             self.suspended.remove(key);
         }
-        let outcomes: Vec<SuspensionOutcome> = vanished
+        tally.kept = vanished_keys.len();
+        for anchor in &vanished_anchors {
+            self.gc_anchor(*anchor);
+        }
+        let outcomes: Vec<SuspensionOutcome> = vanished_keys
             .into_iter()
             .map(|(side, center)| SuspensionOutcome {
                 center,
@@ -663,10 +860,12 @@ impl CenterOscillationBook {
             })
             .collect();
         debug_assert!(
-            self.suspended.keys().all(|(_, id)| chain_ids.contains(id)),
-            "禁悬空：重基核对后任何仍挂起的身份都必须在新链上（迁移分支的机检不变量）"
+            self.suspended.keys().all(|(_, id)| {
+                chain_ids.contains(&self.current_of.get(id).copied().unwrap_or(*id))
+            }),
+            "禁悬空：重基核对后任何仍挂起的锚，其当前身份都必须在新链上（迁移分支的机检不变量）"
         );
-        outcomes
+        (outcomes, tally)
     }
 }
 
@@ -1316,6 +1515,212 @@ mod tests {
         assert!(!book.is_suspended(vanishes_b));
         assert_eq!(book.suspended_count(), 1, "只剩迁移的那一个");
         assert!(chain_ids.contains(&stays), "迁移身份必须在新链上（否则是第三态：悬空未归因）");
+    }
+
+    // ── ★#679 D1b：挂起随谱系迁移（LineageBook 接入） ─────────────────────────
+
+    /// 测试用查簿桩：一张固定的 `旧身份 → 结论` 表。
+    struct StubLineage(Vec<(CenterId, LineageVerdict)>);
+
+    impl LineageLookup for StubLineage {
+        fn lookup(&self, old: CenterId) -> LineageVerdict {
+            self.0
+                .iter()
+                .find(|(k, _)| *k == old)
+                .map(|(_, v)| *v)
+                .unwrap_or(LineageVerdict::NoCert)
+        }
+    }
+
+    /// 在 `book` 上挂起 `id`（多头持仓侧的开局腿 = 上沿高抛，触发源是次级别**卖**点），
+    /// 并绑定完整四边框。
+    fn suspend_bound(book: &mut CenterOscillationBook, id: CenterId, seed: usize) {
+        let trigger = CenterOscillationTrigger::new(
+            0,
+            Some(id),
+            CenterDrift::NoDownShift,
+            VoiceSide::Short,
+            id.zg,
+            seed,
+        )
+        .unwrap();
+        assert_eq!(
+            book.on_trigger_side_bound(VoiceSide::Long, trigger, center_of(id)),
+            Some(CenterOscillationAction::Reduce)
+        );
+    }
+
+    /// ★迁移族：旧身份不在新链上，但有 1→1 构造证书且新身份确实在新链上 ⟹ **不核销**，
+    /// 身份锚随谱系迁移；新旧两个身份都能问到同一条挂起（`resolve` 折回锚）。
+    #[test]
+    fn lineage_certificate_migrates_suspension_instead_of_writing_off() {
+        let old = cid(5, 100, 200);
+        let new = cid(5, 90, 200); // 同 seed 窗重算，第三源外缘修订 ⟹ zd 漂移（wf8 seq=3 型）
+        let mut book = CenterOscillationBook::new(0);
+        suspend_bound(&mut book, old, 10);
+        let lineage = StubLineage(vec![(old, LineageVerdict::Continued(new))]);
+        let (outcomes, tally) =
+            book.on_chain_rebase_lineage(&[center_of(new)], Some(&lineage as &dyn LineageLookup));
+        assert!(outcomes.is_empty(), "有 1→1 证书 ⟹ 不产 RebaseVanished");
+        assert_eq!(tally, RebaseMigrationTally { migrated: 1, ..Default::default() });
+        assert_eq!(book.suspended_count(), 1, "挂起保留");
+        assert!(book.is_suspended(new), "新链身份可问到这条挂起（谱系别名）");
+        assert!(book.is_suspended(old), "首次绑定身份仍可问到（历史绑定路径拿旧框来问）");
+        assert_eq!(book.resolve(new), old, "身份锚 = 首次绑定身份，campaign 归属账标签不变");
+    }
+
+    /// ★迁移族续：迁移**只迁身份锚**——首次绑定冻结的四边框不动（ADR 补充十四：清算仍拿旧框判），
+    /// 且迁移后拿**新链身份**来的教义死亡事件仍能终结这条挂起，清算落在旧锚上。
+    #[test]
+    fn migrated_suspension_keeps_frozen_frame_and_settles_on_the_stable_anchor() {
+        let old = cid(5, 100, 200);
+        let new = cid(5, 90, 200);
+        let mut book = CenterOscillationBook::new(0);
+        suspend_bound(&mut book, old, 10);
+        let frozen_before = book.suspended_frames();
+        let lineage = StubLineage(vec![(old, LineageVerdict::Continued(new))]);
+        let _ = book.on_chain_rebase_lineage(&[center_of(new)], Some(&lineage as &dyn LineageLookup));
+        assert_eq!(
+            book.suspended_frames(),
+            frozen_before,
+            "迁移只迁身份锚：首次绑定冻结的四边框一个字段都不许被新修订框覆盖"
+        );
+        // 新链身份带来的三类买点破坏 ⟹ 终结，且 outcome 落在稳定锚上（= campaign 批次标签）。
+        let out = book.on_lifecycle_event(&broken(new, Side::Long)).terminations;
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].center, old, "清算落在稳定锚，不落在重基后的新身份");
+        assert_eq!(out[0].source, SuspensionTerminationSource::BrokenByThirdClassBuy);
+        assert_eq!(book.suspended_count(), 0);
+        assert_eq!(book.resolve(new), new, "锚回收后别名一并退役，不留悬挂映射");
+    }
+
+    /// ★拒迁族：证书判非连续（split/removed/歧义）或干脆没有 ⟹ 保持既有 `RebaseVanished` 核销。
+    #[test]
+    fn non_continued_certificate_keeps_rebase_vanished_write_off() {
+        let old = cid(5, 100, 200);
+        let survivor = cid(700, 300, 400);
+        let mut book = CenterOscillationBook::new(0);
+        suspend_bound(&mut book, old, 10);
+        suspend_bound(&mut book, survivor, 20);
+        // 簿里根本没有 old 的连续边（= wf8 seq=66 型：seed 右移，构造窗撤出）。
+        let lineage = StubLineage(vec![]);
+        let (outcomes, tally) = book.on_chain_rebase_lineage(
+            &[center_of(survivor)],
+            Some(&lineage as &dyn LineageLookup),
+        );
+        assert_eq!(outcomes.len(), 1);
+        assert_eq!(outcomes[0].center, old);
+        assert_eq!(outcomes[0].source, SuspensionTerminationSource::RebaseVanished);
+        assert_eq!(outcomes[0].cover_action, None, "核销不回补（#472 未闭合减出）");
+        assert_eq!(
+            tally,
+            RebaseMigrationTally { kept: 1, no_cert: 1, ..Default::default() },
+            "拒迁必须有确定归因，不留无归因的核销"
+        );
+        assert!(!book.is_suspended(old));
+        assert!(book.is_suspended(survivor), "存活身份不受连坐");
+    }
+
+    /// ★fail-closed 族：四条「有证书但不可信」的路径逐条拒绝过继，各自分桶。
+    ///
+    /// - `target_absent`：证书说延续到 X，但生命周期层收到的新链里没有 X；
+    /// - `ambiguous`：同一旧身份有多个候选后继；
+    /// - `bar_mismatch`：簿记 bar 与本次重基不符（跨 bar 不做猜测）；
+    /// - `duplicate_claim`：两个旧锚同时认领同一个新身份（非单射）。
+    #[test]
+    fn fail_closed_paths_refuse_adoption_and_bucket_each_reason() {
+        let ghost = cid(5, 100, 200); // 证书指向一个不在新链上的身份
+        let ambiguous = cid(50, 150, 250);
+        let stale_bar = cid(80, 160, 260);
+        let claim_a = cid(90, 170, 270);
+        let claim_b = cid(95, 175, 275);
+        let survivor = cid(700, 300, 400);
+        let contested = cid(701, 310, 410); // claim_a / claim_b 都指向它
+        let mut book = CenterOscillationBook::new(0);
+        for (i, id) in [ghost, ambiguous, stale_bar, claim_a, claim_b, survivor]
+            .into_iter()
+            .enumerate()
+        {
+            suspend_bound(&mut book, id, 10 + i);
+        }
+        let lineage = StubLineage(vec![
+            (ghost, LineageVerdict::Continued(cid(999, 1, 2))), // 不在新链上
+            (ambiguous, LineageVerdict::Ambiguous),
+            (stale_bar, LineageVerdict::BarMismatch),
+            (claim_a, LineageVerdict::Continued(contested)),
+            (claim_b, LineageVerdict::Continued(contested)),
+        ]);
+        let new_chain = vec![center_of(survivor), center_of(contested)];
+        let (outcomes, tally) =
+            book.on_chain_rebase_lineage(&new_chain, Some(&lineage as &dyn LineageLookup));
+        // claim_a 先到先得（`BTreeMap` 键序确定），claim_b 判重复认领。
+        let terminated: std::collections::BTreeSet<CenterId> =
+            outcomes.iter().map(|o| o.center).collect();
+        assert_eq!(
+            terminated,
+            [ghost, ambiguous, stale_bar, claim_b].into_iter().collect(),
+            "四条 fail-closed 路径全部保持核销"
+        );
+        assert_eq!(
+            tally,
+            RebaseMigrationTally {
+                migrated: 1,
+                kept: 4,
+                no_cert: 0,
+                target_absent: 1,
+                ambiguous: 1,
+                bar_mismatch: 1,
+                duplicate_claim: 1,
+            }
+        );
+        assert!(book.is_suspended(contested), "唯一合法认领者迁移成功");
+        assert_eq!(book.resolve(contested), claim_a);
+        assert!(book.is_suspended(survivor), "本来就在链上的不受影响");
+        assert_eq!(book.suspended_count(), 2);
+    }
+
+    /// ★反证开关：`lineage=None`（生产由 `THETA_REBASE_MIGRATE_SKIP=1` 触发）⟹ 逐字与旧行为相同。
+    #[test]
+    fn skip_switch_restores_legacy_rebase_vanished_behaviour() {
+        let old = cid(5, 100, 200);
+        let new = cid(5, 90, 200);
+        let mut with_book = CenterOscillationBook::new(0);
+        let mut without = CenterOscillationBook::new(0);
+        suspend_bound(&mut with_book, old, 10);
+        suspend_bound(&mut without, old, 10);
+        let lineage = StubLineage(vec![(old, LineageVerdict::Continued(new))]);
+        let (migrated, _) =
+            with_book.on_chain_rebase_lineage(&[center_of(new)], Some(&lineage as &dyn LineageLookup));
+        let (legacy, tally) = without.on_chain_rebase_lineage(&[center_of(new)], None);
+        assert!(migrated.is_empty());
+        assert_eq!(legacy.len(), 1, "SKIP ⟹ 仍按旧行为核销");
+        assert_eq!(legacy[0].source, SuspensionTerminationSource::RebaseVanished);
+        assert_eq!(tally, RebaseMigrationTally { kept: 1, no_cert: 1, ..Default::default() });
+        // 旧入口（无 lineage 参数）与 SKIP 臂同语义。
+        let mut plain = CenterOscillationBook::new(0);
+        suspend_bound(&mut plain, old, 10);
+        assert_eq!(plain.on_chain_rebase(&[center_of(new)]).len(), 1);
+    }
+
+    /// ★多跳：连续两次重基各有一条 1→1 证书 ⟹ 锚一路不变，中间修订身份的别名退役。
+    #[test]
+    fn successive_rebases_chain_through_the_same_stable_anchor() {
+        let a = cid(5, 100, 200);
+        let b = cid(5, 90, 200);
+        let c = cid(5, 80, 200);
+        let mut book = CenterOscillationBook::new(0);
+        suspend_bound(&mut book, a, 10);
+        let l1 = StubLineage(vec![(a, LineageVerdict::Continued(b))]);
+        let _ = book.on_chain_rebase_lineage(&[center_of(b)], Some(&l1 as &dyn LineageLookup));
+        let l2 = StubLineage(vec![(b, LineageVerdict::Continued(c))]);
+        let (out, tally) =
+            book.on_chain_rebase_lineage(&[center_of(c)], Some(&l2 as &dyn LineageLookup));
+        assert!(out.is_empty());
+        assert_eq!(tally.migrated, 1);
+        assert_eq!(book.resolve(c), a, "锚恒为首次绑定身份");
+        assert_eq!(book.resolve(b), b, "中间修订身份的别名已退役（不留单调增长的映射）");
+        assert!(book.is_suspended(c));
+        assert!(book.is_suspended(a));
     }
 
     /// 空挂起表上的重基是 no-op（不 panic，不产任何终结）——防御性边界。

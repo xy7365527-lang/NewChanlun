@@ -881,7 +881,7 @@ fn step_center_oscillation_impl(
     use classifier::center_lifecycle::{CenterEventMachine, CenterId, ChainConsumed, PointOutcome};
     use super::super::strategy::center_oscillation_trade::{
         CenterDrift, CenterOscillationActionRecord, CenterOscillationBook, CenterOscillationTrigger,
-        TerminationSettlement, UnclosedWriteOffRequest,
+        LineageLookup, TerminationSettlement, UnclosedWriteOffRequest,
     };
     use super::super::strategy::voice::VoiceSide;
 
@@ -950,7 +950,26 @@ fn step_center_oscillation_impl(
                         suspended_before: osc_books[lvl].suspended_identities(),
                         revived,
                     });
-                for outcome in osc_books[lvl].on_chain_rebase(chain) {
+                // ★#679 D1b：挂起随谱系迁移。谱系簿由本 bar 的塔构造事务证书建成
+                // （`classifier::rebase_txn::emit` → `lineage_book::record_edges`，同线程同 bar），
+                // 这里按 `(bar, level)` 取视图交给挂起簿判定；`THETA_REBASE_MIGRATE_SKIP=1` ⟹
+                // `view_for` 返回 `None` ⟹ 逐字节回到旧行为（反证臂）。
+                let lineage = super::super::lineage_book::view_for(bar, lvl);
+                let (rebase_outcomes, tally) = osc_books[lvl].on_chain_rebase_lineage(
+                    chain,
+                    lineage.as_ref().map(|v| v as &dyn LineageLookup),
+                );
+                super::super::lineage_book::record_tally(&tally);
+                if super::super::lineage_book::trace_enabled()
+                    && (tally.migrated > 0 || tally.kept > 0)
+                {
+                    eprintln!(
+                        "[LINEAGE-TRACE] bar={bar} level={lvl} migrated={} kept={:?} tally={tally:?}",
+                        tally.migrated,
+                        rebase_outcomes.iter().map(|o| (o.side, o.center)).collect::<Vec<_>>(),
+                    );
+                }
+                for outcome in rebase_outcomes {
                     witness.record_suspension_source(lvl as u32, outcome.side, outcome.source);
                     witness.record_settlement(lvl as u32, outcome.side, outcome.settlement);
                     if let Some(action) = outcome.cover_action {
@@ -1167,6 +1186,11 @@ fn step_center_oscillation_impl(
                 // 多头补/空头减，见 `CenterOscillationBook::on_trigger_side`）——两侧挂起表
                 // 独立，各自的幽灵门各自把关（未挂起的收口腿仍返回 `None` 不构造）。侧序固定
                 // Long→Short（确定性，与挂起表迭代序同锚）。
+                // ★#679 D1b：动作记录挂在**稳定锚**上（未经谱系迁移时 = `trigger.center()`，
+                // 逐字节不变）。campaign 的挂起归属账按来源中枢标签分批（`SuspensionBatch::center`），
+                // 减出腿与其后的回补/核销必须落在同一个标签上——迁移后若这里改用新链身份，
+                // 减出记新标签、核销走锚标签，账就会静默错位成「无主欠账」。
+                let anchor = osc_books[lvl].resolve(trigger.center());
                 for side in [VoiceSide::Long, VoiceSide::Short] {
                     if let Some(action) =
                         osc_books[lvl].on_trigger_side_bound(side, trigger, center)
@@ -1174,7 +1198,7 @@ fn step_center_oscillation_impl(
                         actions.push(CenterOscillationActionRecord {
                             bar,
                             level: lvl as u32,
-                            center: trigger.center(),
+                            center: anchor,
                             action,
                             side,
                         });
@@ -2436,6 +2460,81 @@ mod center_oscillation_wiring_tests {
         assert_eq!(out.write_offs[0].side, VoiceSide::Long);
         assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "c0 已从新链消失⟹终结，不再悬空");
         assert!(osc_books[0].is_suspended(CenterId::of(&c1)), "c1 仍在新链上⟹跟随迁移，挂起原样保留");
+    }
+
+    /// ★★#679 D1b 端到端接线证据：同一 bar 的塔构造证书在谱系簿里给出 `c0 → c1` 的 1→1 边时，
+    /// `step_center_oscillation` 的 `Rebased` 分支**不再**核销 c0 的挂起，而是把身份锚迁到 c1；
+    /// 反证开关按下（`consumer_enabled=false`，生产由 `THETA_REBASE_MIGRATE_SKIP=1` 触发）⟹
+    /// 同一输入逐字回到 `RebaseVanished` 核销。
+    ///
+    /// 这条测试锁的是**接线**（簿 → `view_for(bar, lvl)` → `on_chain_rebase_lineage`），
+    /// 判定规则本身的三族覆盖在 `center_oscillation_trade` 域层单测。
+    #[test]
+    fn gate_lineage_certificate_migrates_suspension_end_to_end() {
+        use super::super::super::lineage_book;
+        let c0 = center(5, 10, 100, 200);
+        let c1 = center(5, 12, 110, 200); // 同 seed 窗重算：start 不变、zd 修订（wf8 seq=3 型）
+        let c2 = center(22, 27, 500, 600);
+        let empty_step = Classification { levels: vec![LevelState::default()] };
+
+        // 两臂共用的建仓段：bar0 采纳链 [c0]，在 c0 上挂起一笔多头。
+        let arm = |migrate_on: bool| {
+            lineage_book::reset_book();
+            lineage_book::test_set_consumer(Some(migrate_on));
+            let mut cl_machines = Vec::new();
+            let mut osc_books = Vec::new();
+            let mut witness =
+                super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+            let bar0 = Classification { levels: vec![level_with_centers(vec![c0])] };
+            let _ = step_center_oscillation(
+                0, &bar0, &empty_step, &mut cl_machines, &mut osc_books, &mut witness,
+            );
+            osc_books[0].on_trigger(
+                super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
+                    0, Some(CenterId::of(&c0)), CenterDrift::NoDownShift, VoiceSide::Short, 200, 1,
+                )
+                .unwrap(),
+            );
+            assert!(osc_books[0].is_suspended(CenterId::of(&c0)));
+            // 本 bar 的构造证书：c0 → c1 是 1→1 连续边（真实路径由 `rebase_txn::emit` 写入，
+            // 这里直接喂簿以隔离接线本身）。这条测试锁的是接线机制本身，非严格/宽读法之别
+            // （#679 用户 2026-07-29 裁定后宽读法转生产默认），两个映射都喂同一条边，
+            // 不受 `THETA_REBASE_MIGRATE_STRICT` 默认值影响。
+            lineage_book::record_edges(
+                1,
+                0,
+                4242,
+                "cert-digest",
+                &[(CenterId::of(&c0), CenterId::of(&c1))],
+                &[(CenterId::of(&c0), CenterId::of(&c1))],
+            );
+            let bar1 = Classification { levels: vec![level_with_centers(vec![c1, c2])] };
+            let out = step_center_oscillation(
+                1, &bar1, &empty_step, &mut cl_machines, &mut osc_books, &mut witness,
+            );
+            lineage_book::test_set_consumer(None);
+            lineage_book::reset_book();
+            (out, osc_books)
+        };
+
+        let (migrated, books) = arm(true);
+        assert!(
+            migrated.write_offs.is_empty(),
+            "有 1→1 构造证书 ⟹ 挂起随谱系迁移，不产未闭合减出核销"
+        );
+        assert!(books[0].is_suspended(CenterId::of(&c1)), "新链身份可问到这条挂起");
+        assert!(books[0].is_suspended(CenterId::of(&c0)), "首次绑定身份经别名仍可问到");
+        assert_eq!(
+            books[0].resolve(CenterId::of(&c1)),
+            CenterId::of(&c0),
+            "身份锚不动 ⟹ campaign 挂起归属账的来源中枢标签不必同步迁移"
+        );
+
+        let (kept, books) = arm(false);
+        assert_eq!(kept.write_offs.len(), 1, "反证臂：逐字回到 RebaseVanished 核销");
+        assert_eq!(kept.write_offs[0].center, CenterId::of(&c0));
+        assert!(!books[0].is_suspended(CenterId::of(&c0)));
+        assert!(!books[0].is_suspended(CenterId::of(&c1)));
     }
 
     /// ★★#414 端到端接线证据（ADR 补充十一）：`step_center_oscillation` 遇 `Superseded` 时

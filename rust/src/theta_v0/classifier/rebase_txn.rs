@@ -29,6 +29,7 @@
 //! verifier 可逐字节复现（`scripts` 侧实现见 #543 报告附的 verifier）。
 
 use super::recursive_tower::{ElementId, LeveledMove, WinMeta};
+use super::center_lifecycle::CenterId;
 use super::super::types::{Center, Tick};
 
 /// 证书 schema 名（写进每行 JSON；verifier 据此拒绝未知版本）。
@@ -648,6 +649,38 @@ pub fn classify_edges(
     edges
 }
 
+/// ★#679 D1b：从变换边抽出**可过继**的 `旧中枢身份 → 新中枢身份` 对。
+///
+/// 门槛与 D0 §6.1 逐字一致：`relation == continued_1to1` **且**
+/// `functional ∧ injective ∧ unique ∧ bijective` 全真。任何一项不满足即不产对
+/// （split / merge / removed / created / unknown 全部在此被挡下）。
+///
+/// 身份取节点的完整四边框投影 `CenterId::of`（`(start_index, zd, zg)`）——这正是挂起簿的键
+/// 与生命周期链的对账口径，不另立第二套身份。
+pub fn continued_center_pairs(
+    old_nodes: &[TxnNode],
+    new_nodes: &[TxnNode],
+    edges: &[TransformEdge],
+) -> Vec<(CenterId, CenterId)> {
+    let mut out = Vec::new();
+    for e in edges {
+        if e.relation != Relation::Continued1To1
+            || !(e.functional && e.injective && e.unique && e.bijective)
+        {
+            continue;
+        }
+        let (Some(o), Some(n)) = (e.old_node_ref, e.new_node_ref) else { continue };
+        let (Some(on), Some(nn)) = (
+            old_nodes.iter().find(|x| x.node_ref == o),
+            new_nodes.iter().find(|x| x.node_ref == n),
+        ) else {
+            continue;
+        };
+        out.push((CenterId::of(&on.center), CenterId::of(&nn.center)));
+    }
+    out
+}
+
 /// 从本事务的连续边导出供**上一级**使用的 lineage 重映射。
 pub fn lower_map_of(level_of_outputs: u32, edges: &[TransformEdge]) -> LowerMap {
     let mut map = LowerMap { level: level_of_outputs, continued: Vec::new(), broken: Vec::new() };
@@ -803,6 +836,11 @@ pub fn test_capture_take() -> Vec<String> {
 }
 
 /// 证书产出是否启用。**未启用 ⟹ 放置点连快照都不做**（零开销，行为逐字节不变）。
+///
+/// ★#679 D1b：判据从「只看 `OPSEM_DUMP_DIR`」扩为「谱系簿要建 **或** 要落盘」——票面范围第 1 条
+/// 「簿的读写与 `OPSEM_DUMP_DIR` 环境门解耦，生产判径可用」。默认
+/// [`consumer_enabled`](super::super::lineage_book::consumer_enabled) 为真 ⟹ 生产路径上 seam 常开；
+/// `THETA_REBASE_MIGRATE_SKIP=1` 且未设 dump 目录 ⟹ 回到 D1a 前的全链 no-op。
 pub fn enabled() -> bool {
     #[cfg(test)]
     {
@@ -810,7 +848,7 @@ pub fn enabled() -> bool {
             return true;
         }
     }
-    sink().is_some()
+    super::super::lineage_book::consumer_enabled() || sink().is_some()
 }
 
 /// 全局单调事务号（跨 bar/level，首条 = 1）。
@@ -832,6 +870,52 @@ pub fn emit(
     let id = next_txn_id();
     let txn = build_txn(id, ctx, old_nodes, new_nodes, lower);
     let map = lower_map_of(ctx.level as u32 + 1, &txn.edges);
+
+    // ★#679 D1b：谱系簿消费**同一产出点**（与 `OPSEM_DUMP_DIR` 解耦——见 [`enabled`]）。
+    // 只登记 `continued_1to1 ∧ 四布尔全真` 的边；宽读法边只在开关打开时另算一遍
+    // （`classify_edges(.., None)` = 不追下级 lineage，即 D0 探针口径，见 lineage_book 模块头）。
+    if super::super::lineage_book::consumer_enabled() {
+        // ★#679 用户 2026-07-29 裁定：宽读法转生产默认（`wide_reading()` 恒真，除非
+        // `THETA_REBASE_MIGRATE_STRICT=1`）。`strict` 边**全量入簿但生产默认永不被
+        // `lookup` 取用**——`lineage_book::lookup` 只读 `wide_reading()` 选中的那一半簿
+        // （见 `LineageBook::lookup`）。留档对照语义：严格读法作反事实基线常驻计算，
+        // 需要复核 D1a §5.4 两读法差异或切回 `_STRICT=1` 时无需另跑一遍即有数可查。
+        // 未加 lookup 门控（不按 wide_reading() 跳过 strict 计算）是有意选择——这段计算
+        // 相对 wide_edges 的 `classify_edges` 重算是轻量增量（同一 `txn.edges` 上过滤），
+        // 常开换取「随时可回读严格口径」不值得为省这点算力另开一条门控分支。
+        let strict = continued_center_pairs(&txn.old_nodes, &txn.new_nodes, &txn.edges);
+        let wide = if super::super::lineage_book::wide_reading() {
+            let wide_edges = classify_edges(&txn.old_nodes, &txn.new_nodes, None);
+            continued_center_pairs(&txn.old_nodes, &txn.new_nodes, &wide_edges)
+        } else {
+            Vec::new()
+        };
+        super::super::lineage_book::record_edges(
+            txn.bar,
+            txn.level,
+            txn.txn_id,
+            &txn.txn_digest,
+            &strict,
+            &wide,
+        );
+    }
+
+    // JSON 序列化只在真要落盘/捕获时做——它是本 seam 的开销大头（wf8 实测 38.5 MB / 4172 行，
+    // D1a §3.4）。D1b 让 seam 在生产判径常开，若无条件序列化就等于给生产路径挂上 38 MB 的
+    // 字符串构造，故此处按需。
+    let need_line = {
+        #[cfg(test)]
+        {
+            CAPTURE.with(|c| c.borrow().is_some()) || sink().is_some()
+        }
+        #[cfg(not(test))]
+        {
+            sink().is_some()
+        }
+    };
+    if !need_line {
+        return (id, map);
+    }
     let mut line = txn.json();
     line.push('\n');
     #[cfg(test)]
@@ -1085,10 +1169,59 @@ mod tests {
         assert!(!line.contains('\n'));
     }
 
-    /// `enabled()` 默认关（未设 env、未开捕获）⟹ 放置点全 no-op。
+    /// ★#679 D1b：[`continued_center_pairs`] 只收 `continued_1to1 ∧ 四布尔全真` 的边——
+    /// `split` / `removed` / `created` / `unknown` 一律不产谱系对（D0 §6.1 门槛的实现层锁）。
     #[test]
-    fn disabled_by_default_without_env_or_capture() {
-        assert!(!super::enabled() || std::env::var("OPSEM_DUMP_DIR").is_ok());
+    fn continued_center_pairs_only_admits_fully_bijective_continued_edges() {
+        // ① 同 seed、第三源修订 ⟹ 一条可过继的连续边。
+        let s0 = seg_move(12, 100, 110, 1000, 1100);
+        let s1 = seg_move(13, 110, 120, 1050, 1150);
+        let old_c = center(100, 130, 1080, 1100, 1000, 1180);
+        let new_c = center(100, 136, 1060, 1100, 1000, 1200);
+        let old = composed(5, &[s0.clone(), s1.clone(), seg_move(14, 120, 130, 1080, 1180)], old_c);
+        let new = composed(5, &[s0, s1, seg_move(14, 120, 136, 1060, 1200)], new_c);
+        let old_nodes = snapshot_nodes("old", &[old], &[old_c], &[win(3, 6, 140, 1)]);
+        let new_nodes = snapshot_nodes("new", &[new], &[new_c], &[win(3, 6, 146, 1)]);
+        let txn = build_txn(1, ctx(), old_nodes, new_nodes, None);
+        assert_eq!(
+            continued_center_pairs(&txn.old_nodes, &txn.new_nodes, &txn.edges),
+            vec![(CenterId::of(&old_c), CenterId::of(&new_c))]
+        );
+
+        // ② 同一批节点，人为把边降级为非连续/非全真 ⟹ 一对都不产。
+        for degraded in [
+            TransformEdge { relation: Relation::Split, ..txn.edges[0].clone() },
+            TransformEdge { relation: Relation::Unknown, ..txn.edges[0].clone() },
+            TransformEdge { bijective: false, ..txn.edges[0].clone() },
+            TransformEdge { unique: false, ..txn.edges[0].clone() },
+            TransformEdge { injective: false, ..txn.edges[0].clone() },
+            TransformEdge { functional: false, ..txn.edges[0].clone() },
+            TransformEdge { new_node_ref: None, relation: Relation::Removed, ..txn.edges[0].clone() },
+        ] {
+            assert!(
+                continued_center_pairs(&txn.old_nodes, &txn.new_nodes, &[degraded.clone()]).is_empty(),
+                "非 `continued_1to1 ∧ 四布尔全真` 的边不得产谱系对：{degraded:?}"
+            );
+        }
+    }
+
+    /// 反证臂负控：consumer 显式关（`THETA_REBASE_MIGRATE_SKIP=1` 语义）且未开落盘捕获
+    /// ⟹ `enabled()` 假——D1a 前旧行为的可复现锚点，防「默认开」把这条路堵死。
+    #[test]
+    fn disabled_when_consumer_off_without_env_or_capture() {
+        assert!(std::env::var("OPSEM_DUMP_DIR").is_err(), "本测试要求进程未设 OPSEM_DUMP_DIR");
+        crate::theta_v0::lineage_book::test_set_consumer(Some(false));
+        assert!(!super::enabled());
+        crate::theta_v0::lineage_book::test_set_consumer(None);
+    }
+
+    /// ★#679 D1b 新默认：判据从「只看 `OPSEM_DUMP_DIR`」改为「谱系簿要建 或 要落盘」，
+    /// 未置任何反证开关、未开落盘捕获 ⟹ `enabled()` 真（生产判径常开，票面范围第 1 条）。
+    #[test]
+    fn enabled_by_default_without_env_or_capture() {
+        assert!(std::env::var("OPSEM_DUMP_DIR").is_err(), "本测试要求进程未设 OPSEM_DUMP_DIR");
+        crate::theta_v0::lineage_book::test_set_consumer(None);
+        assert!(super::enabled());
     }
 
     // Rc 未直接使用时避免 unused 警告（compose 内部持有 Rc<Vec<LeveledMove>>）。

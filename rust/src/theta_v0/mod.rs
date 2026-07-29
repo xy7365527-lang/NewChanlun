@@ -70,6 +70,11 @@ pub mod classifier;
 pub mod parser;
 pub mod strategy;
 
+/// 重基构造谱系簿（#679 D1b）：消费 D1a（#543）的 `RebaseTransformTxnV1` 构造证书，在进程内建
+/// 「旧中枢身份 → 新中枢身份」的 1→1 映射，供接线层把挂起随谱系迁移（`RebaseVanished` 从
+/// 「工程丢身份」压回真实的构造终止）。教义口径、fail-closed 规则与两种读法见模块头。
+pub mod lineage_book;
+
 /// 分账本头寸空间 P^sep（工作单元 R2，C25/C26/C29）。契约锚 **`formal/Origin/SeparateLedger.lean`**
 /// （C25/C26：`Leg`/`SepPosition`/`Net`）+ spec §四 C29 分账本吃到 `Eat^sep`。与净额账本
 /// （`strategy::ledger` R=Π-A-W、`nautilus::account_adapter` net_position）**正交并置**——P^sep 保留

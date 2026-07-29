@@ -3297,6 +3297,9 @@ mod tests {
         let bars = bars_from_closes(&vals);
 
         let run = |capture: bool| {
+            // ★#679 D1b：seam 在生产判径默认常开，故关臂须显式按下反证开关，否则本负控
+            // 两臂都是「开」，失去区分力。
+            crate::theta_v0::lineage_book::test_set_consumer(Some(capture));
             if capture {
                 rebase_txn::test_capture_start();
             }
@@ -3308,6 +3311,7 @@ mod tests {
                 out.push((c, tower));
             }
             let n = if capture { rebase_txn::test_capture_take().len() } else { 0 };
+            crate::theta_v0::lineage_book::test_set_consumer(None);
             (out, n)
         };
         let (off, _) = run(false);
