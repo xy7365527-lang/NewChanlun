@@ -621,3 +621,70 @@ use super::super::super::interp::{ActiveLeg, Buckets};
         let _ = p; // p̃ 可非零（若 ReverseOpen 候选准入），关键是 stale_non_root 不在 active。
     }
 
+    /// ★票#315（语义重放自 kimi 2ca040d9fa，#642）：`prev_active` 中**子在父之前**、且父与子都是
+    /// Stale/LivePresent 占位（都在本轮 `prev_active` 循环内才被 push 进 raw，都不在 base 树/
+    /// overlay_seen）——immediate 式修补（占位 push 当轮即解析 parent/attached_dir，main 侧修复前
+    /// 的 `held_stale_reregister_idx` 行为）在 push 子时父尚未 push，三级解析全查不到，误留
+    /// `parent:None, attached_dir:None`；循环后统一 fixup（`resolve_pending_parent_fixups`，两个
+    /// 物化循环结束、AncOK 判定前执行）此时父已在 raw，可正确解析。
+    ///
+    /// 子占位存活性不受影响（AncOK 用 `parent_id`——ElementId 结构映射，不读 `parent` 索引字段）；
+    /// 受影响的是**角色输入**（V/depth/units），这正是本票要堵的时序孔。
+    ///
+    /// **RED（immediate 式，修复前）**：子占位 V=Ambient + depth=0 ⟹ q_units=600，p̃=0（600 父根 −
+    /// 600 子）。**GREEN（统一 fixup，修复后）**：子占位 parent=Some(父idx)、attached_dir=Some(父eps)
+    /// ⟹ V=ReverseOpen（原 ShortDiff，#281 更名）（δ=−σ_p）+ depth=1 ⟹ q_units=300，p̃=+300（600 父 − 300 子）。
+    #[test]
+    fn held_leg_placeholder_parent_materializes_in_later_iteration() {
+        // 父：LivePresent 占位，∂ 根（parent_id=None，level 1，Long）——本身角色计算 trivial，
+        // 但在 prev_active 中排在子**之后**，本轮循环内是**晚于子**才被 push 进 raw 的元素。
+        let father_leg = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 8, lambda: 0,
+            id: eid(1, 0), parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let father_cov = CoverageElement {
+            lambda: 0, rho: 8, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: eid(1, 0), parent_id: None,
+        };
+        // 子：LivePresent 占位，parent_id=父（eid(1,0)），在 prev_active 中排在父**之前**
+        // （时序孔可达性：main 侧同 kimi 复现——本测试直接构造 prev_active 顺序复现同一时序孔）。
+        let child_leg = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 4, lambda: 0,
+            id: eid(0, 0), parent_id: Some(eid(1, 0)), is_boundary_root: false, op_parent: Some(eid(1, 0)),
+        };
+        let child_cov = CoverageElement {
+            lambda: 0, rho: 4, eps: VoiceSide::Short, level: 0,
+            parent: None, attached_dir: None, id: eid(0, 0), parent_id: Some(eid(1, 0)),
+        };
+        let snapshot = vec![child_cov, father_cov];
+        let reg = super::super::super::persistent::PersistentRegistry::new().merge(&snapshot, &[]);
+        let base: Vec<CoverageElement> = Vec::new();
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+
+        // prev_active 顺序：子在前、父在后（时序孔复现的必要条件）。
+        let (next_active, p_tilde, sep_legs, _idx) = coverage_step_from_buckets_sep(
+            view_split(&base, 0), &[child_leg, father_leg], &buckets, 1000.0, &cfg(), None, &reg,
+        );
+
+        // 承重坐实：子占位不受 helper 时序影响地存活（AncOK 判据是 parent_id，非 parent 索引）。
+        assert!(
+            next_active.iter().any(|l| l.id == eid(0, 0)),
+            "子占位 parent_id 链（父 eid(1,0)）经本轮统一 fixup 后已在 raw ⟹ AncOK 存活；实得 {next_active:?}"
+        );
+        let sep_child = sep_legs.iter().find(|s| s.id == eid(0, 0)).expect("子腿须在 sep_legs");
+        assert_eq!(
+            sep_child.role_v, Vertical::ReverseOpen,
+            "父晚物化（同 bar 更晚迭代）：循环后统一 fixup 应解析到父 ⟹ V=ReverseOpen（原 ShortDiff，#281 更名）（immediate 式修补会误留 Ambient）"
+        );
+        assert!(
+            (sep_child.q_units - 300.0).abs() < 1e-9,
+            "depth=1 ⟹ q=300（immediate 式修补残留 depth=0 ⟹ 600）；实得 {}", sep_child.q_units
+        );
+        let sep_father = sep_legs.iter().find(|s| s.id == eid(1, 0)).expect("父腿须在");
+        assert_eq!(sep_father.role_v, Vertical::Ambient, "父自身 ∂ 根，V=Ambient 不受本修复影响");
+        assert!(
+            (p_tilde - 300.0).abs() < 1e-9,
+            "p̃=+300（600 父 − 300 子）；immediate 式修补下应为 0（600−600）；实得 {p_tilde}"
+        );
+    }
+

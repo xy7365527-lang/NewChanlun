@@ -105,7 +105,7 @@ use leg::{apply_gross_cap, strategy_target_legs};
 #[cfg(test)]
 use leg::element_depth;
 
-use held::{HeldLegMatch, close_indices, element_as_leg, held_leg_tree_index_indexed, held_stale_reregister_idx, restore_ancestor_chain_from_registry};
+use held::{HeldLegMatch, close_indices, element_as_leg, held_leg_tree_index_indexed, held_stale_reregister_idx, resolve_pending_parent_fixups, restore_ancestor_chain_from_registry};
 
 pub use step::coverage_step_classification;
 #[cfg(test)]

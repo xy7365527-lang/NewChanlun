@@ -138,6 +138,12 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
     // 拷贝（held 重注册**不得**复用——候选 eps 是信号方向、lambda==rho 点元素、parent_id 非本腿
     // op_parent，复用 = 持仓身份被候选属性覆盖，code-review Spec 轴 (c)1）。
     let overlay_cand_end = work.len();
+    // ★票#315（#284 评审 MED-1，对齐 #247）：held 腿占位（LivePresent/LiveDetached）新 push 的元素
+    // idx 累加器——immediate 式修补（push 当轮即解析 parent/attached_dir）在「父本轮更晚才物化进
+    // work（无论经哪条路径）」场景查不到父，误留 None/None（#247 缺口同类重现）。改为只收集 idx，
+    // 两个物化循环（本循环 + 下方 open 候选父链恢复）全部结束、AncOK 判定前，由
+    // `resolve_pending_parent_fixups` 统一重建（此时 id_idx/overlay_seen/raw 均为本 bar 终态）。
+    let mut pending_parent_fixup: Vec<usize> = Vec::new();
 
     // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）按 ElementId 对位回当前因果树元素；不在树 ⟹ 按
     // is_boundary_root 决定 root/prune（发现 A 修复：Stale 不伪造 parent:None）。
@@ -204,8 +210,11 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                         // 测试 held_leg_id_hits_candidate_copy_keeps_held_identity 实证。
                         // 按持久身份保留（I1），op_parent 驱动 AncOK。
                         // ★#216：重注册复用 restore push 现有 idx（见 [`held_stale_reregister_idx`]）。
-                        let idx =
-                            held_stale_reregister_idx(&mut work, &id_idx, &mut overlay_seen, overlay_cand_end, leg);
+                        // ★票#315：新 push 分支不再立即解析 parent/attached_dir，idx 收进
+                        // pending_parent_fixup，统一 fixup 见函数尾部。
+                        let idx = held_stale_reregister_idx(
+                            &mut work, &mut overlay_seen, overlay_cand_end, &mut pending_parent_fixup, leg,
+                        );
                         if !raw.contains(&idx) {
                             raw.push(idx);
                         }
@@ -227,8 +236,10 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                             );
                         }
                         // ★#216：重注册复用 restore push 现有 idx（见 [`held_stale_reregister_idx`]）。
-                        let idx =
-                            held_stale_reregister_idx(&mut work, &id_idx, &mut overlay_seen, overlay_cand_end, leg);
+                        // ★票#315：同上，新 push 分支延后统一 fixup。
+                        let idx = held_stale_reregister_idx(
+                            &mut work, &mut overlay_seen, overlay_cand_end, &mut pending_parent_fixup, leg,
+                        );
                         if !raw.contains(&idx) {
                             raw.push(idx);
                         }
@@ -362,6 +373,14 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
             }
         }
     }
+
+    // ★票#315：held 腿占位（LivePresent/LiveDetached 新 push 分支）统一 fixup——两个物化循环
+    // （上方 prev_active held 腿 + 本循环 open 候选父链恢复）均已结束、AncOK 判定前，对
+    // `pending_parent_fixup` 统一重建 parent/attached_dir。此时 id_idx/overlay_seen/raw 三张查表
+    // 均为本 bar 终态——immediate 式（push 当轮即修补）的时序孔（父在本轮更晚才物化进 work，无论
+    // 经 held 腿占位路径、restore 路径、或 open 候选/`Closed|Invalidated` 边界根直接 push 路径，
+    // 此刻都查不到）不再存在：父只要本轮曾被任一路径物化，统一 fixup 都能经三级解析命中。
+    resolve_pending_parent_fixups(&mut work, &pending_parent_fixup, &id_idx, &overlay_seen, &raw);
 
     // 步2：A_{t+1}=AncOK(A^raw)——剔除真 Compose 父容器不在 raw 的孤儿子腿（§13 持仓准入：未持父则剔除）。
     // ★#183 T4 归一（#179 裁决：结构对应是硬要求，子树清仓接线进生产 π loop）：

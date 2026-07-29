@@ -429,46 +429,81 @@ pub(super) fn restore_ancestor_chain_from_registry(
 /// 计 `restore_parent_unresolved`。
 ///
 /// **复用分支不回填**：`existing >= overlay_cand_end` 命中的是本 bar restore push 的元素，其
-/// `parent/attached_dir` 已由 restore 回填 ⟹ 不重写（树前缀/候选段属性零改，同 #247 口径）。
+/// `parent/attached_dir` 已由统一 fixup（[`resolve_pending_parent_fixups`]）回填 ⟹ 不重写（树前缀/
+/// 候选段属性零改，同 #247 口径）。
+///
+/// ★票#315（#284 评审 MED-1，对齐 #247）：新 push 分支**不再**在此处立即解析 `parent`/
+/// `attached_dir`——push 前 `op_parent` 是否已在 work 依调用点而异（`LiveDetached` 调用点前有
+/// `restore_ancestor_chain_from_registry` 先行、`LivePresent` 调用点无），但即便调用点已先行，父
+/// 仍可能在**本 bar更晚**才经其他路径物化（`Closed|Invalidated`+`is_boundary_root` 边界根直接
+/// push、后续 held 循环迭代、或 open 候选父链恢复）——immediate 式解析在那一刻查不到父，误固化
+/// None/None（#247 缺口同类重现）。改为新 push 的 idx 收进调用方 `pending_parent_fixup`
+/// 累加器，`parent`/`attached_dir` 留 None，两个物化循环全部结束后由
+/// [`resolve_pending_parent_fixups`] 统一解析（此时 id_idx/overlay_seen/raw 均为本 bar 终态）。
 pub(super) fn held_stale_reregister_idx(
     work: &mut ElementView,
-    id_idx: &std::collections::HashMap<ElementId, usize>,
     overlay_seen: &mut std::collections::HashMap<ElementId, usize>,
     overlay_cand_end: usize,
+    pending_parent_fixup: &mut Vec<usize>,
     leg: &ActiveLeg,
 ) -> usize {
     match overlay_seen.get(&leg.id) {
         Some(&existing) if existing >= overlay_cand_end => existing,
         _ => {
             let idx = work.len();
-            // ★#247 C2：角色输入 (σ_p, ℓ_p) 由 op_parent 解析（见函数 doc）。push 前解析——
-            // work 此刻尚不含本元素。op_parent **是否已在 work 依调用点而异**：
-            // - `LiveDetached` 调用点：`restore_ancestor_chain_from_registry` 先行 push 整条操作
-            //   祖先链 ⟹ op_parent 常态已在 work（链断/被关种子中断时仍可缺）；
-            // - `LivePresent` 调用点：**无 restore 先行** ⟹ op_parent 完全可能不在 work。
-            // 故此处不假定祖先在场：`and_then` 未命中即 resolved=None，parent/attached_dir 留 None
-            // （计 `restore_parent_unresolved`，语义裁定见函数 doc「父不在 work」一节）。
-            let resolved = leg
-                .op_parent
-                .and_then(|pid| id_idx.get(&pid).or_else(|| overlay_seen.get(&pid)).copied());
-            match (leg.op_parent, resolved) {
-                (Some(_), Some(_)) => ancok_probe_bump(|p| p.restore_parent_rebound += 1),
-                (Some(_), None) => ancok_probe_bump(|p| p.restore_parent_unresolved += 1),
-                (None, _) => {} // 真 ∂ 边界胚元：None/None 是正确语义，不计入任一探针。
-            }
-            let attached_dir = resolved.and_then(|pidx| work.get(pidx).map(|e| e.eps));
             work.push(CoverageElement {
                 lambda: leg.lambda,
                 rho: leg.source_index,
                 eps: leg.dir,
                 level: leg.level,
-                parent: resolved,
-                attached_dir,
+                parent: None,
+                attached_dir: None,
                 id: leg.id,
                 parent_id: leg.op_parent,
             });
             overlay_seen.entry(leg.id).or_insert(idx);
+            pending_parent_fixup.push(idx);
             idx
+        }
+    }
+}
+
+/// ★票#315（#284 评审 MED-1 + #347 评审 LOW-3）：本 bar `pending_parent_fixup` 累加器（held 腿占位
+/// [`held_stale_reregister_idx`] 新 push 分支）统一 fixup——两个物化循环（prev_active held 腿 + open
+/// 候选父链恢复）全部结束、AncOK 判定前调用。父 idx 解析三级：`id_idx`（base 段）→ `overlay_seen`
+/// （candidate+restore 段）→ `raw` 扫兜底（`Closed|Invalidated`+`is_boundary_root` 边界根直接 push
+/// 的元素不进 `overlay_seen`，唯一可查途径是扫 `raw`；`r != idx` 排除自环守卫，同 #347 LOW-1）。
+/// 解析成功计 `restore_parent_rebound`，父不可解析（真 ∂ 边界胚元 `parent_id=None`，或本 bar 内父
+/// 确未被任何路径物化）留 None/None、`parent_id=Some` 时计 `restore_parent_unresolved`（随后交由
+/// AncOK 按 `parent_id` 剪除，不伪造）。
+pub(super) fn resolve_pending_parent_fixups(
+    work: &mut ElementView,
+    pending: &[usize],
+    id_idx: &std::collections::HashMap<ElementId, usize>,
+    overlay_seen: &std::collections::HashMap<ElementId, usize>,
+    raw: &[usize],
+) {
+    for &idx in pending {
+        let pid = match work[idx].parent_id {
+            Some(pid) => pid,
+            None => continue, // 真边界胚元 ∂：parent/attached_dir 留 None 是正确语义，不计入探针。
+        };
+        let pidx = id_idx.get(&pid).copied().or_else(|| overlay_seen.get(&pid).copied()).or_else(|| {
+            raw.iter()
+                .copied()
+                .filter(|&r| r != idx)
+                .find(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false))
+        });
+        match pidx {
+            Some(pidx) => {
+                let sigma_p = work[pidx].eps;
+                if let Some(e) = work.overlay_mut(idx) {
+                    e.parent = Some(pidx);
+                    e.attached_dir = Some(sigma_p);
+                }
+                ancok_probe_bump(|p| p.restore_parent_rebound += 1);
+            }
+            None => ancok_probe_bump(|p| p.restore_parent_unresolved += 1),
         }
     }
 }
