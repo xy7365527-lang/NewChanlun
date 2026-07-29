@@ -1,7 +1,11 @@
 //! #550 真实数据事件通道电池。
 //!
 //! 用法：
-//! `cargo run --release --bin issue550_event_battery -- <btc_1m_full.json> [max_bars]`
+//! `cargo run --release --bin issue550_event_battery -- <btc_1m_full.json> [max_bars] [chain_every]`
+//!
+//! `chain_every` = #641（N3）链簿推进节拍（默认 5000，`.max(1)` 兜底）：链的覆盖边计算是
+//! O(n²)，逐 bar 推进在 10 万级窗口上不可行。该节拍是**显式声明**的口径，随读数一并印出
+//! （`ISSUE641_CHAIN` 行的 `advance_every`），不是静默采样。
 
 use newchan_rust::theta_v0::classifier::cand_event::{
     CandidateEvent, CandidateKey, CandidateKind, CandidateState,
@@ -107,7 +111,7 @@ fn run() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
     let path = args
         .next()
-        .ok_or("用法: issue550_event_battery <btc_1m_full.json> [max_bars]")?;
+        .ok_or("用法: issue550_event_battery <btc_1m_full.json> [max_bars] [chain_every]")?;
     let max_bars = args
         .next()
         .map(|value| value.parse::<usize>())
