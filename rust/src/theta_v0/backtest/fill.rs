@@ -3735,6 +3735,10 @@ where
             // 故须在其消费前取 χ 真值；关闭时不分配。
             // #563 L5 订正：「生产路径零额外指令」应读作「零额外**分配/写入**」——关闭时本
             // 分支仍逐 bar 求值一次 O(1) 布尔判断，只是不进入 collect 的分配与写入。行为无变。
+            // ★#712 收 #645 LOW-2：本订正原随 #600 Std MED-4 同步写回设计稿正文
+            // （`chanlun/review-results/gap2-gamma-candidate-dump-design-20260719.md` §4①），
+            // 该设计稿已随 main #504 归档整删；恢复指针 = kimi 侧 blob `d290516b34`（`git show
+            // 797c9ad35c:...` 树下，见 #614 合并报告 ⚠LOW-10）。
             let gamma_chi_admitted: Vec<usize> = if gamma_dump.is_some() {
                 step_gamma_trade.iter().map(|c| c.gamma_index).collect()
             } else {
