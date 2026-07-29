@@ -171,43 +171,8 @@ fn incremental_tower_preserves_b2_second_buy() {
 #[test]
 fn cascade_reset_on_frontier_interior_rewrite() {
     let cfg = ThetaConfig::default();
-    // ★task #142 延伸语义诚实重算：三组核心分离 fixture（同 end_to_end_second_buy_via_l1_l2_geometric
-    // 推导——组B 首段 hi=115<ZD_A=120、组C 首段 lo=115>ZG_B=114 ⟹ non-extension，PDF §5 Step3）。
-    let base = vec![
-        seg(Direction::Up,   0,  4, 110, 150),
-        seg(Direction::Down, 4,  8, 150, 120),
-        seg(Direction::Up,   8, 12, 120, 148),
-        seg(Direction::Down,12, 16, 115,  80),
-        seg(Direction::Up,  16, 20,  80, 125),
-        seg(Direction::Down,20, 24, 114,  85),
-        seg(Direction::Up,  24, 28, 115, 148),
-        seg(Direction::Down,28, 32, 148, 112),
-        seg(Direction::Up,  32, 36, 112, 147), // v1 末段
-    ];
-    let mut closes: Vec<i64> = Vec::new();
-    for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
-    for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
-    for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
-    let merged = Rc::new(bars_from_closes(&closes));
-
-    // v1: 末段 end_price=147。
-    let layer_v1 = ParseLayer { segments: Rc::new(base.clone()), merged_bars: merged.clone(), ..Default::default() };
-    // v2: 仅末段 end_price 改写 147→140（组 C 外缘内点，L1 投影不变，L0 sub_moves 变）。
-    let mut v2_segs = base.clone();
-    v2_segs[8].end_price = 140;
-    let layer_v2 = ParseLayer { segments: Rc::new(v2_segs), merged_bars: merged.clone(), ..Default::default() };
-
-    // 前提自检（codex 反例成立的必要条件）：L1 投影输入 v1==v2 bit-identical（守卫看不到变异），
-    // 但 L0 末段 sub_moves 已变（147→140）。若此前提不成立，本测试不构成反例。
-    let mk_l1_units = |segs: &Rc<Vec<Segment>>| {
-        let l0_units: Vec<UnitRange> = segs.iter().map(segment_to_unit).collect();
-        let moves_l0: Vec<LeveledMove> = l0_units.iter().enumerate()
-            .map(|(i,u)| LeveledMove::from_unit(u, recursive_tower::ElementId{level:0,ordinal:i as u64})).collect();
-        let (c, upper, _) = recursive_tower::compose_level(&l0_units, &moves_l0, true, 1);
-        recursive_tower::project_to_units(&upper, &decompose::decompose(&c))
-    };
-    assert_eq!(mk_l1_units(&layer_v1.segments), mk_l1_units(&layer_v2.segments),
-        "前提：L1 投影输入 v1==v2（守卫的本级投影比对看不到此变异）");
+    let (layer_v1, layer_v2) = frontier_interior_rewrite_fixture();
+    assert_frontier_rewrite_invisible_to_l1(&layer_v1, &layer_v2);
 
     // 共享 cache：先喂 v1（缓存 L0/L1），再喂 v2（frontier 内点改写）——模拟 per-bar 末段重划。
     let mut cache = TowerCache::new();
@@ -339,33 +304,9 @@ fn incremental_tower_scaling_dominates_full_synthetic() {
     let mut inc_times = Vec::new();
 
     for &n in &sizes {
-        let all_segments = synthetic_segments(n);
-        let closes: Vec<i64> = (0..(n * 4 + 8) as i64).map(|i| 100 + (i % 7) * 4).collect();
-
-        // 全量 per-bar 累积。
-        let t0 = std::time::Instant::now();
-        for k in 1..=n {
-            let layer = ParseLayer {
-                segments: Rc::new(all_segments[..k].to_vec()),
-                merged_bars: Rc::new(bars_from_closes(&closes)),
-                ..Default::default()
-            };
-            let _ = classify_with_tower(&layer, &cfg);
-        }
-        full_times.push(t0.elapsed().as_secs_f64());
-
-        // 增量 per-bar 累积（cache 跨步复用）。
-        let t0 = std::time::Instant::now();
-        let mut cache = TowerCache::new();
-        for k in 1..=n {
-            let layer = ParseLayer {
-                segments: Rc::new(all_segments[..k].to_vec()),
-                merged_bars: Rc::new(bars_from_closes(&closes)),
-                ..Default::default()
-            };
-            let _ = classify_with_tower_incremental(&layer, &cfg, &mut cache);
-        }
-        inc_times.push(t0.elapsed().as_secs_f64());
+        let (t_full, t_inc) = time_full_vs_incremental_accumulation(n, &cfg);
+        full_times.push(t_full);
+        inc_times.push(t_inc);
     }
 
     // exp 估计（log-log 斜率，sizes 翻倍）。
@@ -399,4 +340,75 @@ fn incremental_tower_scaling_dominates_full_synthetic() {
          full_exp≈{full_exp:.2}, inc_exp≈{inc_exp:.2}",
         sizes[2]
     );
+}
+
+/// [`cascade_reset_on_frontier_interior_rewrite`] 的 v1/v2 夹具。
+///
+/// ★task #142 延伸语义诚实重算：三组核心分离（同 `end_to_end_second_buy_via_l1_l2_geometric`
+/// 推导——组B 首段 hi=115<ZD_A=120、组C 首段 lo=115>ZG_B=114 ⟹ non-extension，PDF §5 Step3）。
+/// v1 末段 `end_price=147`；v2 仅末段 `end_price` 改写 147→140（组 C 外缘**内点**，L1 投影不变，
+/// L0 `sub_moves` 变）——这正是 codex 反例要求的「投影看不见、深字段变了」的形态。
+fn frontier_interior_rewrite_fixture() -> (ParseLayer, ParseLayer) {
+    let base = vec![
+        seg(Direction::Up,   0,  4, 110, 150),
+        seg(Direction::Down, 4,  8, 150, 120),
+        seg(Direction::Up,   8, 12, 120, 148),
+        seg(Direction::Down,12, 16, 115,  80),
+        seg(Direction::Up,  16, 20,  80, 125),
+        seg(Direction::Down,20, 24, 114,  85),
+        seg(Direction::Up,  24, 28, 115, 148),
+        seg(Direction::Down,28, 32, 148, 112),
+        seg(Direction::Up,  32, 36, 112, 147), // v1 末段
+    ];
+    let mut closes: Vec<i64> = Vec::new();
+    for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
+    for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
+    for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
+    let merged = Rc::new(bars_from_closes(&closes));
+
+    let layer_v1 = ParseLayer { segments: Rc::new(base.clone()), merged_bars: merged.clone(), ..Default::default() };
+    let mut v2_segs = base;
+    v2_segs[8].end_price = 140;
+    let layer_v2 = ParseLayer { segments: Rc::new(v2_segs), merged_bars: merged, ..Default::default() };
+    (layer_v1, layer_v2)
+}
+
+/// 前提自检（codex 反例成立的**必要条件**）：L1 投影输入 v1==v2 bit-identical（守卫看不到变异），
+/// 但 L0 末段 `sub_moves` 已变（147→140）。若此前提不成立，该测试不构成反例。
+fn assert_frontier_rewrite_invisible_to_l1(layer_v1: &ParseLayer, layer_v2: &ParseLayer) {
+    let mk_l1_units = |segs: &Rc<Vec<Segment>>| {
+        let l0_units: Vec<UnitRange> = segs.iter().map(segment_to_unit).collect();
+        let moves_l0: Vec<LeveledMove> = l0_units.iter().enumerate()
+            .map(|(i,u)| LeveledMove::from_unit(u, recursive_tower::ElementId{level:0,ordinal:i as u64})).collect();
+        let (c, upper, _) = recursive_tower::compose_level(&l0_units, &moves_l0, true, 1);
+        recursive_tower::project_to_units(&upper, &decompose::decompose(&c))
+    };
+    assert_eq!(mk_l1_units(&layer_v1.segments), mk_l1_units(&layer_v2.segments),
+        "前提：L1 投影输入 v1==v2（守卫的本级投影比对看不到此变异）");
+}
+
+/// 同一合成段账本上，全量与增量两条 per-bar 累积路径的墙钟耗时（秒）。
+///
+/// 全量：每步重跑 `classify_with_tower`；增量：`TowerCache` 跨步复用。
+fn time_full_vs_incremental_accumulation(n: usize, cfg: &ThetaConfig) -> (f64, f64) {
+    let all_segments = synthetic_segments(n);
+    let closes: Vec<i64> = (0..(n * 4 + 8) as i64).map(|i| 100 + (i % 7) * 4).collect();
+    let layer_at = |k: usize| ParseLayer {
+        segments: Rc::new(all_segments[..k].to_vec()),
+        merged_bars: Rc::new(bars_from_closes(&closes)),
+        ..Default::default()
+    };
+
+    let t0 = std::time::Instant::now();
+    for k in 1..=n {
+        let _ = classify_with_tower(&layer_at(k), cfg);
+    }
+    let t_full = t0.elapsed().as_secs_f64();
+
+    let t0 = std::time::Instant::now();
+    let mut cache = TowerCache::new();
+    for k in 1..=n {
+        let _ = classify_with_tower_incremental(&layer_at(k), cfg, &mut cache);
+    }
+    (t_full, t0.elapsed().as_secs_f64())
 }

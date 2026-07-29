@@ -174,146 +174,206 @@ pub(super) fn classify_level(units: &[UnitRange], is_l0: bool) -> (Vec<Center>, 
     (centers, blocks)
 }
 
-/// Θ_level + Θ_signal 分类内部实现（`classify` / `classify_with_tower` 共享单一来源）。
+/// #110 投影层 stamping（[`classify_impl`] 全量路径与增量塔 memo-miss/命中终装点的**单一来源**；
+/// 机制位关 = `None` 零开销）。
 ///
-/// `tower_snapshots[i]` = 处理第 i 级时 `compose_level` 前的 `moves_tower` 快照，下标与
-/// `Classification.levels` 同构（`tower_snapshots.len() == levels.len()`）：
-/// - 索引 0（L0 级）：全 `RMove::Segment`（递归底，`sub_moves` 空）。
-/// - 索引 ≥1（L(k) 级）：前一级产出的 `RMove::Compose` 序列（携次级别 subs，depth≥1 真嵌套）。
-pub(super) fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
-    let min_parts = config.level.min_parts_per_level as usize;
-    let l_max = config.level.l_max as usize;
-
-    // L0 输入单元 = parser 线段账本（reference:29 L0=1分钟线段账本）。
-    let mut units: Vec<UnitRange> = l0.segments.iter().map(segment_to_unit).collect();
-    // Q7-#1 裁定C：units 的方向锚资格（与 units 同步循环携带；L0 分支不消费，级别-N 在投影点派生）。
-    let mut units_anchors: Vec<Option<Direction>> = Vec::new();
-
-    // 空 L0：无可构造级别（自然终止于 L0 之前）。
-    if units.is_empty() {
-        return (Classification::default(), Vec::new());
+/// T3 (#172) 并门：机制位转派生（π 入口 `admission::chain_driven_level_projection`
+/// 唯一生产写入点，#168 裁定 3）——链活 ⟹ 层必载，链死不载。
+/// T2 (#171)：三元锚供给（`l0.fractals`/`l0.merged_bars`，ParseLayer `Rc` 共享只读借用，
+/// 零拷贝）随门开分支引入——门关分支零新增读。
+pub(super) fn build_level_projection(
+    config: &ThetaConfig,
+    level_ordinal: u32,
+    bsp: &Rc<Vec<BspPoint>>,
+    l0: &ParseLayer,
+) -> Option<projection::LevelProjectionLayer> {
+    if !config.level_projection.enabled {
+        return None;
     }
+    Some(projection::LevelProjectionLayer::from_level(
+        level_ordinal,
+        bsp,
+        &l0.fractals,
+        &l0.merged_bars,
+    ))
+}
 
-    // ★递归塔对象（#53 升级，still-MISSING-塔解除）：L0 走势单元 = 携坐标的 `RMove::Segment`
-    // （`LeveledMove`，递归底 level 0）。旧塔把每级走势单元折叠为无 subs 的 `UnitRange`，
-    // `extract_second_signals`（消费 `RMove::Compose` 的 descend 取回次级别走势）永产不出 B2/S2。
-    // 新塔每级走势单元携次级别走势 subs（`RMove::Compose`）+ source_index 坐标 ⟹ B2/S2 真可产。
-    // ★O(n) 重构：moves_tower/snapshots 用 Rc（与增量版同返回类型 `Vec<Rc<Vec<LeveledMove>>>`，
-    // bit-exact 测试逐字段比较 *rc）。全量版非 per-bar 热点（O(n) 单趟），Rc 仅为类型对齐。
-    let mut moves_tower: Rc<Vec<LeveledMove>> = Rc::new(
+/// L0 输入单元（reference:29 L0=1分钟线段账本）+ L0 走势塔（递归底）。
+///
+/// ★递归塔对象（#53 升级）：L0 走势单元 = 携坐标的 `RMove::Segment`（`LeveledMove`，递归底
+/// level 0）。返回 `None` ⟺ 空 L0（无线段）——调用方自然终止于 L0 之前。
+fn full_l0_inputs(l0: &ParseLayer) -> Option<(Vec<UnitRange>, Rc<Vec<LeveledMove>>)> {
+    let units: Vec<UnitRange> = l0.segments.iter().map(segment_to_unit).collect();
+    if units.is_empty() {
+        return None;
+    }
+    let tower: Rc<Vec<LeveledMove>> = Rc::new(
         units
             .iter()
             .enumerate()
             .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
             .collect(),
     );
+    Some((units, tower))
+}
 
-    // 第一类背驰 MACD：closes/close_src 在全递归层共享（L0 唯一可达 close 序列；上级走势的
-    // 次级别 close 区间由 source_index 坐标定位，见 macd 接入点）。
+/// [`classify_impl`] 的全量 MACD/坐标序列面（与增量路径的 `LevelSeries` 同内容，但全量版
+/// 每次调用重算一次、按值持有——非 per-bar 热点，无缓存面）。
+struct FullSeries {
+    hist: Vec<f64>,
+    dif: Vec<f64>,
+    closes_tick: Vec<Tick>,
+    close_src: Vec<usize>,
+}
+
+/// 第一类背驰 MACD：closes/close_src 在全递归层共享（L0 唯一可达 close 序列；上级走势的
+/// 次级别 close 区间由 `source_index` 坐标定位，见 macd 接入点）。
+///
+/// ★force_state 生产热路由（beta-route #115）：`dif`（黄白线）+ `closes_tick`（整数 close）供
+/// 一类候选 A/C 段 5 proxy（DIF 峰/振幅/速度）。hist/dif 同一 `compute_macd` 单趟产出
+/// （无额外 O(n) 扫描）。
+fn full_macd_series(l0: &ParseLayer, config: &ThetaConfig) -> FullSeries {
     let closes: Vec<f64> = l0.merged_bars.iter().map(|b| b.close as f64).collect();
     let close_src: Vec<usize> = l0.merged_bars.iter().map(|b| b.source_index).collect();
-    // ★force_state 生产热路由（beta-route #115）：dif（黄白线）+ closes_tick（整数 close）供一类候选
-    // A/C 段 5 proxy（DIF 峰/振幅/速度）。hist/dif 同一 compute_macd 单趟产出（无额外 O(n) 扫描）。
     let series = divergence::compute_macd(&closes, &config.macd);
-    let hist = series.hist;
-    let dif = series.dif;
-    let closes_tick: Vec<Tick> = l0.merged_bars.iter().map(|b| b.close).collect();
+    FullSeries {
+        hist: series.hist,
+        dif: series.dif,
+        closes_tick: l0.merged_bars.iter().map(|b| b.close).collect(),
+        close_src,
+    }
+}
+
+/// L(k+1) 走势塔 = 本级窗口化 compose（每中枢的构成三段次级别走势 → 一个上级 `RMove::Compose`，
+/// 契约锚 `Origin.RecursiveLevelSystem.composeStep` 窗口封装）。
+///
+/// `upper_moves` 是携坐标的上级走势序列（descend 取回构成它的次级别走势 ⟹ B2/S2 可产），
+/// 与 `centers` 一一对应。`debug_assert_eq!` 守 `compose_level` 与 `classify_level` 的中枢序列一致。
+fn compose_full_level(
+    units: &[UnitRange],
+    moves_tower: &[LeveledMove],
+    is_l0: bool,
+    level_idx: usize,
+    centers: &[Center],
+    units_anchors: &[Option<Direction>],
+) -> (Vec<LeveledMove>, Vec<CpScanOwnership>) {
+    let (centers_w, upper_moves, mut cp_ownership) =
+        compose_level(units, moves_tower, is_l0, level_idx as u32 + 1);
+    debug_assert_eq!(centers, centers_w, "compose_level 与 classify_level 中枢序列一致");
+    recursive_tower::advance_cp_lifecycles(
+        &mut cp_ownership,
+        &centers_w,
+        units,
+        moves_tower,
+        (!is_l0).then_some(units_anchors),
+        1,
+    );
+    (upper_moves, cp_ownership)
+}
+
+/// BSP 信号提取（reference:34-36）。三层覆盖：
+/// - **L0 线段层**（`extract_signals`）：第一类（破中枢几何 L0 ∧ MACD 背驰 L1 真算）+ 第三类
+///   （confirmed 结构几何）。L0 走势单元 = 线段（有方向），第一/三类在线段端点上 bit-exact 判定。
+///   ★force_state 生产热路由（beta-route #115）：传真 dif/closes_tick ⟹ 一类候选 `point.force`
+///   = `Some`（5 proxy），进 selector force_state 第 8 维。结构六 bit 不变（force 不进
+///   `class_index`/分桶 key，`PartialEq` 排除），GOLDEN 因 Debug 含 force 诚实翻转
+///   （signal.rs digest guard）。
+/// - **级别-N 一/三类**（codex-decide-20260703 裁定 A）：units 承担线段角色，复用 L0 判据（含 force）。
+/// - **递归组装层**（`extract_second_signals`，#53 接入）：第二类（B2/S2）由次级别第一类构成
+///   （买卖点定律一 §10.2）。对本级**每个上级走势** `RMove::Compose`，从 descend 取回的次级别
+///   走势序列内识别第二类走势结构（第一类离开 + 回拉不创新低/新高），产 B2/S2。背驰力度由
+///   `divergence_of` 闭包用 `divergence.rs` MACD 真算（次级别走势 close 区间 → 面积比较）。
+fn extract_full_level_bsp(
+    centers: &[Center],
+    units: &[UnitRange],
+    units_anchors: &[Option<Direction>],
+    upper_moves: &[LeveledMove],
+    l0: &ParseLayer,
+    is_l0: bool,
+    series: &FullSeries,
+    config: &ThetaConfig,
+) -> (Rc<Vec<BspPoint>>, Rc<Vec<signal::PanDivCert>>) {
+    let (mut bsp, pan_div): (Vec<BspPoint>, Vec<signal::PanDivCert>) = if is_l0 {
+        signal::extract_signals_with_hist(
+            centers, &l0.segments, &series.hist, &series.dif, &series.closes_tick,
+            &series.close_src, config.divergence_gauge,
+        )
+    } else {
+        extract_first_third_for_level(
+            centers, units, units_anchors, &series.hist, &series.dif, &series.closes_tick,
+            &series.close_src, config.divergence_gauge,
+        )
+    };
+    bsp.extend(extract_second_for_level(upper_moves, &series.hist, &series.close_src));
+    bsp.sort_by_key(|p| p.source_index);
+    (Rc::new(bsp), Rc::new(pan_div))
+}
+
+/// Θ_level + Θ_signal 分类内部实现（`classify` / `classify_with_tower` 共享单一来源）。
+///
+/// `tower_snapshots[i]` = 处理第 i 级时 `compose_level` 前的 `moves_tower` 快照，下标与
+/// `Classification.levels` 同构（`tower_snapshots.len() == levels.len()`）：
+/// - 索引 0（L0 级）：全 `RMove::Segment`（递归底，`sub_moves` 空）。
+/// - 索引 ≥1（L(k) 级）：前一级产出的 `RMove::Compose` 序列（携次级别 subs，depth≥1 真嵌套）。
+///
+/// ★递归塔对象（#53 升级，still-MISSING-塔解除）：L0 走势单元 = 携坐标的 `RMove::Segment`
+/// （`LeveledMove`，递归底 level 0）。旧塔把每级走势单元折叠为无 subs 的 `UnitRange`，
+/// `extract_second_signals`（消费 `RMove::Compose` 的 descend 取回次级别走势）永产不出 B2/S2。
+/// 新塔每级走势单元携次级别走势 subs（`RMove::Compose`）+ `source_index` 坐标 ⟹ B2/S2 真可产。
+/// ★O(n) 重构：`moves_tower`/snapshots 用 `Rc`（与增量版同返回类型 `Vec<Rc<Vec<LeveledMove>>>`，
+/// bit-exact 测试逐字段比较 `*rc`）。全量版非 per-bar 热点（O(n) 单趟），`Rc` 仅为类型对齐。
+///
+/// 递归级别构造：每级由下级走势单元构造（L0 直接是线段单元，从 L0 开始裁决）。自然终止
+/// （reference:30）：某层无 ≥`min_parts` 完成部件 ⟹ 无法产生完整走势，停止；本级无中枢 ⟹
+/// 无上级输入单元，同样停止。
+///
+/// L(k+1) 输入单元 = 上级走势塔的 `UnitRange` 投影（外缘区间 + 坐标 + 外缘趋势方向）。上级走势携
+/// subs（`RMove::Compose`），投影只为下一级几何中枢检测提供 `[lo,hi]` 区间——真递归 subs 在
+/// `moves_tower` 里保留（不丢弃，旧塔丢弃 subs 是 B2 不可产的根因）。Q7（task #145）：方向源 =
+/// 本级中枢 ownership 块方向（刚 push 的 `LevelState.moves` 单一来源）；Q7-#1 裁定C：锚资格与投影
+/// 方向同一 provenance 来源（`center_own_dir_at`，`None`=fallback）。
+pub(super) fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
+    let min_parts = config.level.min_parts_per_level as usize;
+    let l_max = config.level.l_max as usize;
+
+    let Some((mut units, mut moves_tower)) = full_l0_inputs(l0) else {
+        return (Classification::default(), Vec::new()); // 空 L0：自然终止于 L0 之前
+    };
+    let mut units_anchors: Vec<Option<Direction>> = Vec::new();
+    let series = full_macd_series(l0, config);
 
     let mut levels: Vec<LevelState> = Vec::new();
     let mut tower_snapshots: Vec<Rc<Vec<LeveledMove>>> = Vec::new();
 
-    // 递归级别构造：每级由下级走势单元构造（L0 直接是线段单元，从 L0 开始裁决）。
     for level_idx in 0..=l_max {
-        // 自然终止（reference:30）：某层无 ≥min_parts 完成部件 ⟹ 无法产生完整走势，停止。
         if units.len() < min_parts {
             break;
         }
-
         // 本级输入塔快照（compose_level 前，与 levels[level_idx] 对应——同步 index 不变量）。
         tower_snapshots.push(Rc::clone(&moves_tower));
 
         // L0（level_idx==0）用完整判据（方向交替，线段有方向）；上级用几何路径（外缘，单元无方向）。
         let is_l0 = level_idx == 0;
         let (centers, moves) = classify_level(&units, is_l0);
-
-        // L(k+1) 走势塔 = 本级窗口化 compose（每中枢的构成三段次级别走势 → 一个上级 `RMove::Compose`，
-        // 契约锚 `Origin.RecursiveLevelSystem.composeStep` 窗口封装）。`upper_moves` 是携坐标的上级走势
-        // 序列（descend 取回构成它的次级别走势 ⟹ B2/S2 可产），与 `centers` 一一对应。
-        let (centers_w, upper_moves, mut cp_ownership) = compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
-        debug_assert_eq!(centers, centers_w, "compose_level 与 classify_level 中枢序列一致");
-        recursive_tower::advance_cp_lifecycles(
-            &mut cp_ownership,
-            &centers_w,
-            &units,
-            &moves_tower,
-            (!is_l0).then_some(&units_anchors[..]),
-            1,
+        let (upper_moves, cp_ownership) = compose_full_level(
+            &units, &moves_tower[..], is_l0, level_idx, &centers, &units_anchors,
         );
-
-        // BSP 信号提取（reference:34-36）。三层覆盖：
-        // - **L0 线段层**（`extract_signals`）：第一类（破中枢几何 L0 ∧ MACD 背驰 L1 真算）+ 第三类
-        //   （confirmed 结构几何）。L0 走势单元 = 线段（有方向），第一/三类在线段端点上 bit-exact 判定。
-        // - **递归组装层**（`extract_second_signals`，#53 接入）：第二类（B2/S2）由次级别第一类构成
-        //   （买卖点定律一 §10.2）。对本级**每个上级走势** `RMove::Compose`，从 descend 取回的次级别
-        //   走势序列内识别第二类走势结构（第一类离开 + 回拉不创新低/新高），产 B2/S2。背驰力度由
-        //   `divergence_of` 闭包用 `divergence.rs` MACD 真算（次级别走势 close 区间 → 面积比较）。
-        let (mut bsp, pan_div): (Vec<BspPoint>, Vec<signal::PanDivCert>) = if is_l0 {
-            // ★force_state 生产热路由（beta-route #115）：传真 dif/closes_tick ⟹ 一类候选 point.force
-            // = Some（5 proxy），进 selector force_state 第 8 维。结构六 bit 不变（force 不进 class_index/
-            // 分桶 key，PartialEq 排除），GOLDEN 因 Debug 含 force 诚实翻转（signal.rs digest guard）。
-            signal::extract_signals_with_hist(
-                &centers, &l0.segments, &hist, &dif, &closes_tick, &close_src,
-                config.divergence_gauge,
-            )
-        } else {
-            // 级别-N 一/三类（codex-decide-20260703 裁定 A）：units 承担线段角色，复用 L0 判据（含 force）。
-            extract_first_third_for_level(
-                &centers, &units, &units_anchors, &hist, &dif, &closes_tick, &close_src,
-                config.divergence_gauge,
-            )
-        };
-        // 递归组装层 B2/S2（#53 接入）：对每个上级走势的次级别走势序列识别第二类结构。
-        bsp.extend(extract_second_for_level(&upper_moves, &hist, &close_src));
-        bsp.sort_by_key(|p| p.source_index);
-
-        let bsp = Rc::new(bsp);
-        // #110 投影层 stamping（机制位关 = None 零开销）。T3 (#172) 并门：本机制位转派生——
-        // 层载由链路径是否启用单一驱动（π 入口 `admission::chain_driven_level_projection`
-        // 唯一生产写入点，#168 裁定 3）；链活 ⟹ 层必载（含三元锚索引），链死不载。
-        // T2 (#171)：三元锚供给（`l0.fractals`/`l0.merged_bars`，ParseLayer `Rc` 共享只读
-        // 借用，零拷贝）随门开分支引入——门关分支零新增读。
-        let level_projection = if config.level_projection.enabled {
-            Some(projection::LevelProjectionLayer::from_level(
-                levels.len() as u32,
-                &bsp,
-                &l0.fractals,
-                &l0.merged_bars,
-            ))
-        } else {
-            None
-        };
+        let (bsp, pan_div) = extract_full_level_bsp(
+            &centers, &units, &units_anchors, &upper_moves, l0, is_l0, &series, config,
+        );
         levels.push(LevelState {
             moves,
             centers: Rc::new(centers.clone()),
             cp_ownership: Rc::new(cp_ownership),
+            level_projection: build_level_projection(config, levels.len() as u32, &bsp, l0),
             bsp,
-            pan_div: Rc::new(pan_div),
-            level_projection,
+            pan_div,
         });
 
-        // L(k+1) 输入单元 = 上级走势塔的 `UnitRange` 投影（外缘区间 + 坐标 + 外缘趋势方向）。
-        // 上级走势携 subs（`RMove::Compose`），投影只为下一级几何中枢检测提供 [lo,hi] 区间——
-        // 真递归 subs 在 `moves_tower` 里保留（不丢弃，旧塔丢弃 subs 是 B2 不可产的根因）。
-        // Q7（task #145）：方向源 = 本级中枢 ownership 块方向（刚 push 的 LevelState.moves 单一来源）。
-        {
-            let pb = &levels.last().expect("本级 LevelState 已 push").moves;
-            units = project_to_units(&upper_moves, pb);
-            // Q7-#1 裁定C：锚资格与投影方向同一 provenance 来源（center_own_dir_at，None=fallback）。
-            units_anchors = (0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect();
-        }
+        let pb = &levels.last().expect("本级 LevelState 已 push").moves;
+        units = project_to_units(&upper_moves, pb);
+        units_anchors = (0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect();
         moves_tower = Rc::new(upper_moves);
-
-        // 本级无中枢 ⟹ 无上级输入单元，停止递归（自然终止）。
         if units.is_empty() {
             break;
         }

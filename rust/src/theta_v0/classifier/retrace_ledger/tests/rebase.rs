@@ -358,6 +358,182 @@ fn reconcile_window_rejects_as_of_behind_gate_fail_loud() {
 // 事件」这一定位矛盾。
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 恢复点护栏叠加 `kill_as_rebased`（票 #635，修复 #632 窄口）：`kill_as_rebased` 与
+// `RebaseAsOfBehindGate` 各管各的门卫钟（该身份自己的 `last_as_of`），`guard_settle_after_recovery`
+// 管的是调用方声明的恢复点（[`RetraceLedger::fold_recovered`]）——两者独立叠加。此前恢复点护栏
+// 只挂在 `judge` 产出判胜/判败的两处入口，`kill_as_rebased` 这条独立终态落账路径未覆盖：一个
+// 通过 `RebaseAsOfBehindGate`（`as_of ≥` 旧档门卫钟）但早于恢复点的陈旧 `as_of` 此前能悄悄处死
+// 旧候选，与 #621 影子 MEDIUM-1 同形但更窄。两条调用路径（`observe` 碰撞分支、
+// `reconcile_window`）都经由本函数，护栏落在此处两路同时覆盖。
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// `observe` 碰撞分支：恢复点声明后，陈旧 `as_of`（晚于旧档门卫钟、早于恢复点）不得处死旧候选
+/// ——护栏在建仓前拦下，新档也未建仓（零改写）。
+#[test]
+fn observe_collision_rebase_with_as_of_behind_recovery_point_is_rejected_fail_loud() {
+    let mut live = ledger();
+    let old = frame(1_200);
+    live.observe(&up_input(old, 3, None, 500)).unwrap(); // registered_as_of = last_as_of = 500
+
+    // 崩溃/重启：调用方声明恢复点 = 4_000（重启前已知到这里）。
+    let mut restored = RetraceLedger::fold_recovered(provenance(), live.journal(), 4_000).unwrap();
+    let key = key_of(old, 3);
+    let before = restored.entry(&key).unwrap().clone();
+
+    let rebased = frame(1_400);
+    let rejection = restored.observe(&up_input(rebased, 3, None, 600)).unwrap_err();
+    assert_eq!(
+        rejection,
+        RetraceRejection::SettleBehindRecoveryPoint {
+            key,
+            recovery_as_of: 4_000,
+            as_of: 600,
+        },
+        "600 晚于旧档门卫钟 500（不触发 RebaseAsOfBehindGate）但早于恢复点 4000，仍须 fail-loud 拒收"
+    );
+
+    let entry = restored.entry(&key).unwrap();
+    assert_eq!(entry, &before, "拒收零改写：旧档一个 bit 不动");
+    assert_eq!(entry.state, RetraceState::Provisional, "旧候选未被处死");
+    assert!(restored.entry(&key_of(rebased, 3)).is_none(), "新档也未建仓——护栏在建仓前拦下");
+    assert_eq!(restored.len(), 1, "只有旧档一条留档");
+    assert_eq!(restored.alarms().center_rebased, 0, "护栏拒收不是改口");
+    assert_eq!(restored.alarms().registration_rejected, 1, "护栏拒收计入注册期拒收桶");
+    let record = restored.audit_log().last().copied().expect("护栏拒收落 audit 流");
+    assert_eq!(
+        record.event,
+        RetraceAuditEvent::ResidualRejected {
+            as_of: 600,
+            code: RetraceRejectionCode::SettleBehindRecoveryPoint,
+        }
+    );
+    settled(&restored);
+}
+
+/// 两门皆违反（`as_of` 同时早于旧档门卫钟与恢复点）：恢复点护栏先查，报出
+/// `SettleBehindRecoveryPoint` 而非 `RebaseAsOfBehindGate`——钉死实现顺序（两判据各自独立，谁先
+/// 查不影响拒收结论，仅影响错误变体）。
+#[test]
+fn observe_collision_rebase_violating_both_gates_reports_recovery_point_first() {
+    let mut live = ledger();
+    let old = frame(1_200);
+    live.observe(&up_input(old, 3, None, 1_000)).unwrap(); // registered_as_of = last_as_of = 1_000
+    live.observe(&up_input(old, 3, None, 2_000)).unwrap(); // 未决观察前移门卫钟至 2_000（不进日志）
+
+    // fold_recovered 折回后门卫钟退回留档下界（1_000），恢复点声明为 5_000。
+    let mut restored = RetraceLedger::fold_recovered(provenance(), live.journal(), 5_000).unwrap();
+    let key = key_of(old, 3);
+    assert_eq!(restored.entry(&key).unwrap().last_as_of, 1_000, "门卫钟退回留档下界");
+
+    let rebased = frame(1_400);
+    let rejection = restored.observe(&up_input(rebased, 3, None, 500)).unwrap_err();
+    assert_eq!(
+        rejection,
+        RetraceRejection::SettleBehindRecoveryPoint {
+            key,
+            recovery_as_of: 5_000,
+            as_of: 500,
+        },
+        "500 同时早于门卫钟 1000 与恢复点 5000——恢复点护栏先查，不报 RebaseAsOfBehindGate"
+    );
+    assert_eq!(restored.entry(&key).unwrap().state, RetraceState::Provisional, "零改写");
+    settled(&restored);
+}
+
+/// 边界：`as_of` 恰等于恢复点 ⟹ 非降语义放行（同门卫钟纪律），改口照常处死旧候选、注册新档。
+#[test]
+fn observe_collision_rebase_with_as_of_exactly_at_recovery_point_is_admitted() {
+    let mut live = ledger();
+    let old = frame(1_200);
+    live.observe(&up_input(old, 3, None, 500)).unwrap();
+
+    let mut restored = RetraceLedger::fold_recovered(provenance(), live.journal(), 600).unwrap();
+    let rebased = frame(1_400);
+    let step = restored.observe(&up_input(rebased, 3, None, 600)).unwrap();
+
+    assert_eq!(step.killed, Some(key_of(old, 3)), "恰等于恢复点 ⟹ 放行，旧档正常处死");
+    let old_entry = restored.entry(&key_of(old, 3)).unwrap();
+    assert_eq!(old_entry.state, RetraceState::Invalidated);
+    assert_eq!(old_entry.terminal_as_of, Some(600));
+    assert_eq!(
+        restored.entry(&key_of(rebased, 3)).unwrap().restarted_from(),
+        Some(key_of(old, 3))
+    );
+    assert_eq!(restored.alarms().center_rebased, 1);
+    assert_eq!(restored.alarms().registration_rejected, 0);
+    settled(&restored);
+}
+
+/// `reconcile_window` 通道的镜像：同一恢复点场景经显式核对路径同样 fail-loud 拒收，零改写。
+#[test]
+fn reconcile_window_rejects_as_of_behind_recovery_point_fail_loud() {
+    let mut live = ledger();
+    let old = frame(1_200);
+    live.observe(&up_input(old, 3, None, 500)).unwrap();
+
+    let mut restored = RetraceLedger::fold_recovered(provenance(), live.journal(), 4_000).unwrap();
+    let key = key_of(old, 3);
+    let before = restored.entry(&key).unwrap().clone();
+
+    let rejection = restored
+        .reconcile_window(old.anchor(), Some(frame(1_500)), 600)
+        .unwrap_err();
+    assert_eq!(
+        rejection,
+        RetraceRejection::SettleBehindRecoveryPoint {
+            key,
+            recovery_as_of: 4_000,
+            as_of: 600,
+        }
+    );
+
+    let entry = restored.entry(&key).unwrap();
+    assert_eq!(entry, &before, "拒收零改写");
+    assert_eq!(entry.state, RetraceState::Provisional);
+    assert_eq!(restored.alarms().center_rebased, 0);
+    assert_eq!(restored.alarms().registration_rejected, 1);
+    settled(&restored);
+}
+
+/// `reconcile_window` 边界：恰等于恢复点放行，处死照常发生。
+#[test]
+fn reconcile_window_admits_as_of_exactly_at_recovery_point() {
+    let mut live = ledger();
+    let old = frame(1_200);
+    live.observe(&up_input(old, 3, None, 500)).unwrap();
+
+    let mut restored = RetraceLedger::fold_recovered(provenance(), live.journal(), 600).unwrap();
+    let step = restored
+        .reconcile_window(old.anchor(), Some(frame(1_500)), 600)
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(step.state, RetraceState::Invalidated);
+    assert_eq!(restored.entry(&key_of(old, 3)).unwrap().terminal_as_of, Some(600));
+    assert_eq!(restored.alarms().center_rebased, 1);
+    assert_eq!(restored.alarms().registration_rejected, 0);
+    settled(&restored);
+}
+
+/// 未声明恢复点（普通 `fold`）：历史行为不变——陈旧知情时仍能处死旧候选（订正兼容承诺，未升级
+/// 调用方零约束）。
+#[test]
+fn plain_fold_without_recovery_point_still_lets_stale_as_of_kill_as_rebased() {
+    let mut live = ledger();
+    let old = frame(1_200);
+    live.observe(&up_input(old, 3, None, 500)).unwrap();
+
+    let mut restored = RetraceLedger::fold(provenance(), live.journal()).unwrap();
+    assert_eq!(restored.recovery_floor(), None, "普通 fold 不设恢复点");
+
+    let rebased = frame(1_400);
+    let step = restored.observe(&up_input(rebased, 3, None, 600)).unwrap();
+    assert_eq!(step.killed, Some(key_of(old, 3)), "未设恢复点 ⟹ 零约束，历史行为不变");
+    assert_eq!(restored.alarms().center_rebased, 1);
+    settled(&restored);
+}
+
 #[test]
 fn center_rebased_survives_fold_journal_round_trip() {
     let mut book = ledger();

@@ -8,7 +8,7 @@
 |---|---|---|
 | **内在级别** | 塔从走势结构自生的级别，不靠固定时间窗口。表示为 Classification.levels 的下标。 | 周期、时间框架 |
 | **级别视窗** | 每个内在级别的独立投影层（LevelProjectionLayer），像传统缠论切图一样可独立查看。 | 周期图、时间窗 |
-| **级别身份** | 现行实现中是参照系视图，非买卖点自身的存储事实；唯一存储事实是 `LevelProjectionLayer.identity.level`，调用方需要级别时按参照系独立传入。删除墓碑：`BspPoint.level_origin` 曾作为买卖点上的同形级别副本，但全仓恒为 0、无下游级别语义消费者，仅有恒真 equality 分量及 Debug/digest 机械消费，已由 SPEC #455 在 commit `2d1abf9786` 删除。 | 级别标签；在买卖点上存级别下标 |
+| **级别身份** | 现行实现中是参照系视图，非买卖点自身的存储事实；唯一存储事实是 `LevelProjectionLayer.identity.level`，调用方需要级别时按参照系独立传入。删除墓碑：`BspPoint.level_origin` 曾作为买卖点上的同形级别副本，但全仓恒为 0、无下游级别语义消费者，仅有恒真 equality 分量及 Debug/digest 机械消费，已由 #631 在 commit `d9f1860124` 删除（main 线 #455/`2d1abf9786` 同构先例）。 | 级别标签；在买卖点上存级别下标 |
 
 ## 区间套确认方向
 
@@ -41,4 +41,4 @@
 
 ## Flagged ambiguities
 
-- `level_origin` 删除墓碑：历史实现曾把它作为买卖点上的所属级别副本，但该字段全仓恒为 0，并未形成有效级别身份；SPEC #455 已在 commit `2d1abf9786` 删除它。现行代码中的级别参照由塔级别（`levels` 下标 / `LevelProjectionLayer.identity.level`）及调用方显式传入的 `lvl` 提供，证书事件另以 `event.level` 承载自身层级事实。
+- `level_origin` 删除墓碑：历史实现曾把它作为买卖点上的所属级别副本，但该字段全仓恒为 0，并未形成有效级别身份；#631 已在 commit `d9f1860124` 删除它（main 线 #455/`2d1abf9786` 同构先例）。现行代码中的级别参照由塔级别（`levels` 下标 / `LevelProjectionLayer.identity.level`）及调用方显式传入的 `lvl` 提供，证书事件另以 `event.level` 承载自身层级事实。

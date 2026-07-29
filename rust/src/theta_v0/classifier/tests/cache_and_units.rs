@@ -33,23 +33,8 @@ fn p52_frontier_diagnostics_are_level_scoped_and_resettable() {
 fn l0_units_stays_in_sync_with_tower0_on_segment_ledger_shrink() {
     let cfg = ThetaConfig::default();
     let mut cache = TowerCache::new();
+    let (long_layer, short_layer) = segment_ledger_shrink_fixture();
 
-    // 第一 bar：6 段账本（confirmed 前缀 5，末段未确认——古怪线段可重划）。
-    let long_segments = vec![
-        seg(Direction::Up, 0, 4, 100, 150),
-        seg(Direction::Down, 4, 8, 150, 120),
-        seg(Direction::Up, 8, 12, 120, 148),
-        seg(Direction::Down, 12, 16, 148, 110),
-        seg(Direction::Up, 16, 20, 110, 145),
-        seg(Direction::Down, 20, 24, 145, 115),
-    ];
-    let closes: Vec<i64> = (0..28).map(|i| 100 + if i % 2 == 0 { 20 } else { -20 }).collect();
-    let long_layer = ParseLayer {
-        segments: Rc::new(long_segments.clone()),
-        segments_confirmed_len: 5,
-        merged_bars: Rc::new(bars_from_closes(&closes)),
-        ..Default::default()
-    };
     let (_, tower_long) = classify_with_tower_incremental(&long_layer, &cfg, &mut cache);
     assert_eq!(
         cache.l0_units().len(),
@@ -57,13 +42,6 @@ fn l0_units_stays_in_sync_with_tower0_on_segment_ledger_shrink() {
         "非回缩 bar 本就同长"
     );
 
-    // 第二 bar：段账本**回缩**到 4 段（末两段被重划吞并）⟹ 走 `cache.clear()` 分支。
-    let short_layer = ParseLayer {
-        segments: Rc::new(long_segments[..4].to_vec()),
-        segments_confirmed_len: 3,
-        merged_bars: Rc::new(bars_from_closes(&closes)),
-        ..Default::default()
-    };
     let (_, tower_short) = classify_with_tower_incremental(&short_layer, &cfg, &mut cache);
 
     assert!(!tower_short.is_empty(), "4 段仍足以产出 L0 塔快照");
@@ -146,4 +124,33 @@ fn cand_cache_guard_accepts_incremental_contract() {
     // over-invalidate 方向保持：空 cache 对非空序列必不命中（退化全量，bit-exact）。
     assert!(!cache_series_ok(&TowerCache::new(), 5), "空 cache 必不命中（守卫仍 over-invalidate）");
     assert!(cache_series_ok(&TowerCache::new(), 0), "n=0：空 cache 与空序列自洽（与旧守卫同界）");
+}
+
+/// [`l0_units_stays_in_sync_with_tower0_on_segment_ledger_shrink`] 的两 bar 夹具。
+///
+/// - 第一 bar：6 段账本（confirmed 前缀 5，末段未确认——古怪线段可重划）；
+/// - 第二 bar：段账本**回缩**到 4 段（末两段被重划吞并）⟹ 走 `cache.clear()` 分支。
+fn segment_ledger_shrink_fixture() -> (ParseLayer, ParseLayer) {
+    let long_segments = vec![
+        seg(Direction::Up, 0, 4, 100, 150),
+        seg(Direction::Down, 4, 8, 150, 120),
+        seg(Direction::Up, 8, 12, 120, 148),
+        seg(Direction::Down, 12, 16, 148, 110),
+        seg(Direction::Up, 16, 20, 110, 145),
+        seg(Direction::Down, 20, 24, 145, 115),
+    ];
+    let closes: Vec<i64> = (0..28).map(|i| 100 + if i % 2 == 0 { 20 } else { -20 }).collect();
+    let long_layer = ParseLayer {
+        segments: Rc::new(long_segments.clone()),
+        segments_confirmed_len: 5,
+        merged_bars: Rc::new(bars_from_closes(&closes)),
+        ..Default::default()
+    };
+    let short_layer = ParseLayer {
+        segments: Rc::new(long_segments[..4].to_vec()),
+        segments_confirmed_len: 3,
+        merged_bars: Rc::new(bars_from_closes(&closes)),
+        ..Default::default()
+    };
+    (long_layer, short_layer)
 }

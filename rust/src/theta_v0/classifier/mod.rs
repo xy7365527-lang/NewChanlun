@@ -98,6 +98,10 @@ pub mod cand_predicate;
 /// #552（N2）：候选事件区间上的跨级 `C⊆C` 包含谓词与相邻级只读扫描探针。零消费接线。
 pub mod cand_sub;
 /// C2 走势消费 seam：显式 exact-three 投影、D3 方向绑定与 D2 A/C provider。
+/// #630 生产段拆分的 4 个子域（`projection`/`confirm`/`pan`/`pan_provider`）在
+/// #630 修复轮改为 `level_view` 内部子模块（目录模块，非 classifier 兄弟文件）——
+/// 43 项 `pub(super)` 的可见域随之从「classifier 24 个兄弟模块」收窄到「level_view 子树」
+/// （影子评审 #630 MEDIUM-2 指名路径；先例 #633 批7 `incremental/`）。
 pub mod level_view;
 /// C2 CompletedFreeze 的正式 append-only event-store adapter。
 pub mod level_view_store;

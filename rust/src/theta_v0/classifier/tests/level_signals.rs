@@ -4,6 +4,38 @@ use super::super::super::parser::ParseLayer;
 use super::super::super::types::{Direction, MoveKind};
 use super::{bars_from_closes, seg};
 
+/// 两个 `--ignored` 真实数据普查（[`level_signal_census_btc`] / [`type1_funnel_census_btc`]）
+/// 共享的 BTC 数据面：加载 → 可选切窗 → 解析。
+///
+/// 可选日期窗（`CENSUS_WINDOW="2020-10-01,2021-04-01"`）——检验 type1 的水平线依赖性：
+/// 全历史中枢链全局非单调 ⟹ `trend_class=Degenerate` ⟹ type1=0；单向牛/熊窗内某级链可单调
+/// ⟹ type1>0。
+fn census_btc_dataset(
+    tag: &str,
+    cfg: &ThetaConfig,
+) -> (super::super::super::backtest::data::Dataset, ParseLayer) {
+    use super::super::super::backtest::data::load_by_symbol;
+    use super::super::super::parser::parse_layer;
+    let full =
+        load_by_symbol("BTC", cfg).expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
+    let ds = match std::env::var("CENSUS_WINDOW") {
+        Ok(w) => {
+            let (s, e) = w.split_once(',').expect("CENSUS_WINDOW 格式 start,end");
+            eprintln!("[{tag}] window={s}..{e}");
+            full.slice_date_window(s, e)
+        }
+        Err(_) => full,
+    };
+    eprintln!("[{tag}] BTC bars={}", ds.bars.len());
+    let layer = parse_layer(&ds.bars, cfg);
+    eprintln!(
+        "[{tag}] L0 segments={} merged_bars={}",
+        layer.segments.len(),
+        layer.merged_bars.len()
+    );
+    (ds, layer)
+}
+
 /// ★端到端 B2 真产出（#53 验证门，L1 管线正确性）：升级后的递归塔（`RMove::Compose` 携 subs）
 /// 让 `extract_second_signals` **真接入生产路径**——classify 在真实结构输入上产出 B2 买点。
 ///
@@ -21,39 +53,7 @@ use super::{bars_from_closes, seg};
 #[test]
 fn end_to_end_second_buy_via_l1_l2_geometric() {
     let cfg = ThetaConfig::default();
-    // 9 段 L0：三组（每组 → 一个 L1 走势）。★中枢延伸语义下的诚实重算（PDF §5，task #142）：
-    // 组间首段必须与前组**冻结核心 [ZD,ZG]** 不相交（Step3 non-extension），否则整串被 Step2
-    // 吸收为 1 个延伸中枢 ⟹ 塔不生长（旧全触及 fixture 的坍缩后果）。推导：
-    // - 组A up-down-up：核心 K_A=[max(110,120,120),min(150,150,148)]=[120,148]，外缘 O_A=[110,150]。
-    // - 组B down-up-down：首段 [80,115] hi=115 < ZD_A=120 ⟹ non-extension（组间分离）；
-    //   核心 K_B=[max(80,80,85),min(115,125,114)]=[85,114]，外缘 O_B=[80,125]。
-    // - 组C up-down-up：首段 [115,148] lo=115 > ZG_B=114 ⟹ non-extension；
-    //   核心 K_C=[max(115,112,112),min(148,148,147)]=[115,147]，外缘 O_C=[112,148]。
-    // L2 核心（几何路径，三 L1 外缘交）= [max(110,80,112), min(150,125,148)] = [112,125] 非空。
-    // B2 结构：L1[1].lo=80 < ZD2=112 深破 L2 核心下沿（第一类离开候选，Side::Long）；
-    // L1[2] 回拉不创新低（lo=112 >= L1[1].lo=80）；L1[0]/L1[1] 外缘占位方向同 Down
-    // （末子 hi < 首子 hi：148<150 / 114<115）⟹ 背驰可配对（closes 前大后小）。
-    let segments = vec![
-        // 组A（L1[0]）：up-down-up，核心 [120,148]，外缘 [110,150]
-        seg(Direction::Up,   0,  4, 110, 150),
-        seg(Direction::Down, 4,  8, 150, 120),
-        seg(Direction::Up,   8, 12, 120, 148),
-        // 组B（L1[1]）：down-up-down，首段 hi=115<ZD_A=120 non-ext，lo=80 深破 L2 核心下沿 112
-        seg(Direction::Down,12, 16, 115,  80),
-        seg(Direction::Up,  16, 20,  80, 125),
-        seg(Direction::Down,20, 24, 114,  85),
-        // 组C（L1[2]）：up-down-up，首段 lo=115>ZG_B=114 non-ext，回拉不创新低（lo=112 >= 80）
-        seg(Direction::Up,  24, 28, 115, 148),
-        seg(Direction::Down,28, 32, 148, 112),
-        seg(Direction::Up,  32, 36, 112, 147),
-    ];
-    // closes 让 L1[1] 区间（source_index [12,24]）MACD 面积 < L1[0] 区间（[0,12]）= 背驰（真算）。
-    // 前段大幅波动（面积大），后段小幅（面积小）。
-    let mut closes: Vec<i64> = Vec::new();
-    for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); } // L1[0] 大幅
-    for i in 0..12 { closes.push(100 + if i % 2 == 0 { 5 } else { -5 }); }   // L1[1] 小幅（背驰）
-    for i in 0..16 { closes.push(100 + if i % 2 == 0 { 3 } else { -3 }); }   // L1[2] 更小
-    let layer = ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+    let layer = l1_l2_geometric_fixture();
     let out = classify(&layer, &cfg);
 
     // L1 级别（索引 1）含 L2 中枢 + B2（递归组装层产出）。
@@ -254,23 +254,8 @@ fn q7_ruling_c_first_class_structural_direction_third_class_provenance_kept() {
 #[test]
 #[ignore = "L2 真实数据普查：cargo test --lib -- --ignored --nocapture level_signal_census_btc"]
 fn level_signal_census_btc() {
-    use super::super::super::backtest::data::load_by_symbol;
-    use super::super::super::parser::parse_layer;
     let cfg = ThetaConfig::default();
-    let full = load_by_symbol("BTC", &cfg).expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
-    // 可选日期窗（CENSUS_WINDOW="2020-10-01,2021-04-01"）——检验 type1 的水平线依赖性：
-    // 全历史中枢链全局非单调 ⟹ trend_class=Degenerate ⟹ type1=0；单向牛/熊窗内某级链可单调 ⟹ type1>0。
-    let ds = match std::env::var("CENSUS_WINDOW") {
-        Ok(w) => {
-            let (s, e) = w.split_once(',').expect("CENSUS_WINDOW 格式 start,end");
-            eprintln!("[census] window={s}..{e}");
-            full.slice_date_window(s, e)
-        }
-        Err(_) => full,
-    };
-    eprintln!("[census] BTC bars={}", ds.bars.len());
-    let layer = parse_layer(&ds.bars, &cfg);
-    eprintln!("[census] L0 segments={} merged_bars={}", layer.segments.len(), layer.merged_bars.len());
+    let (_ds, layer) = census_btc_dataset("census", &cfg);
     let out = classify(&layer, &cfg);
     eprintln!("[census] levels={}", out.levels.len());
     for (li, lv) in out.levels.iter().enumerate() {
@@ -285,27 +270,31 @@ fn level_signal_census_btc() {
             "[census] L{li}: centers={} moves={}(trend={}) bsp={} pan_div={} | buy1={b1} sell1={s1} buy2={b2} sell2={s2} buy3={b3} sell3={s3}",
             lv.centers.len(), lv.moves.len(), trend, lv.bsp.len(), lv.pan_div.len()
         );
-        // 抽样：level≥1 的前 3 个一类端点（若有）+ 前 3 个三类端点（人工核结构合法性——
-        // source_index + center[zd,zg] + pivot（回试端点极值）；三类不重入判据由 judge_third 保证）。
         if li >= 1 {
-            let t1: Vec<_> = lv.bsp.iter().filter(|p| p.bits.buy1 || p.bits.sell1).take(3).collect();
-            for (k, p) in t1.iter().enumerate() {
-                eprintln!(
-                    "[census]   L{li} type1#{k}: src_idx={} buy1={} sell1={} break_dir={:?} pivot_low={} pivot_high={}",
-                    p.source_index, p.bits.buy1, p.bits.sell1, p.struct_break_dir, p.pivot_low, p.pivot_high
-                );
-            }
-            let t3: Vec<_> = lv.bsp.iter().filter(|p| p.bits.buy3 || p.bits.sell3).take(3).collect();
-            for (k, p) in t3.iter().enumerate() {
-                eprintln!(
-                    "[census]   L{li} type3#{k}: src_idx={} buy3={} sell3={} center_zd={:?} center_zg={:?} pivot_low={} pivot_high={}",
-                    p.source_index, p.bits.buy3, p.bits.sell3,
-                    p.center.and_then(|o| match o { signal::OwnerRef::Center(c) => Some(c.zd), _ => None }),
-                    p.center.and_then(|o| match o { signal::OwnerRef::Center(c) => Some(c.zg), _ => None }),
-                    p.pivot_low, p.pivot_high
-                );
-            }
+            report_level_ge1_endpoint_samples(li, lv);
         }
+    }
+}
+
+/// 抽样：level≥1 的前 3 个一类端点（若有）+ 前 3 个三类端点（人工核结构合法性——
+/// `source_index` + center`[zd,zg]` + pivot（回试端点极值）；三类不重入判据由 `judge_third` 保证）。
+fn report_level_ge1_endpoint_samples(li: usize, lv: &LevelState) {
+    let t1: Vec<_> = lv.bsp.iter().filter(|p| p.bits.buy1 || p.bits.sell1).take(3).collect();
+    for (k, p) in t1.iter().enumerate() {
+        eprintln!(
+            "[census]   L{li} type1#{k}: src_idx={} buy1={} sell1={} break_dir={:?} pivot_low={} pivot_high={}",
+            p.source_index, p.bits.buy1, p.bits.sell1, p.struct_break_dir, p.pivot_low, p.pivot_high
+        );
+    }
+    let t3: Vec<_> = lv.bsp.iter().filter(|p| p.bits.buy3 || p.bits.sell3).take(3).collect();
+    for (k, p) in t3.iter().enumerate() {
+        eprintln!(
+            "[census]   L{li} type3#{k}: src_idx={} buy3={} sell3={} center_zd={:?} center_zg={:?} pivot_low={} pivot_high={}",
+            p.source_index, p.bits.buy3, p.bits.sell3,
+            p.center.and_then(|o| match o { signal::OwnerRef::Center(c) => Some(c.zd), _ => None }),
+            p.center.and_then(|o| match o { signal::OwnerRef::Center(c) => Some(c.zg), _ => None }),
+            p.pivot_low, p.pivot_high
+        );
     }
 }
 
@@ -319,23 +308,8 @@ fn level_signal_census_btc() {
 #[test]
 #[ignore = "L2 真实数据漏斗普查：cargo test --release --lib -- --ignored --nocapture type1_funnel_census_btc"]
 fn type1_funnel_census_btc() {
-    use super::super::super::backtest::data::load_by_symbol;
-    use super::super::super::parser::parse_layer;
-    use super::super::center::{classify_relation, CenterRelation};
     let cfg = ThetaConfig::default();
-    let full = load_by_symbol("BTC", &cfg).expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
-    let ds = match std::env::var("CENSUS_WINDOW") {
-        Ok(w) => {
-            let (s, e) = w.split_once(',').expect("CENSUS_WINDOW 格式 start,end");
-            eprintln!("[funnel] window={s}..{e}");
-            full.slice_date_window(s, e)
-        }
-        Err(_) => full,
-    };
-    eprintln!("[funnel] BTC bars={}", ds.bars.len());
-    let layer = parse_layer(&ds.bars, &cfg);
-    eprintln!("[funnel] L0 segments={} merged_bars={}", layer.segments.len(), layer.merged_bars.len());
-
+    let (ds, layer) = census_btc_dataset("funnel", &cfg);
     // 生产对拍源（675号守卫：级别循环不分叉）。
     let out = classify(&layer, &cfg);
 
@@ -344,10 +318,7 @@ fn type1_funnel_census_btc() {
     let l_max = cfg.level.l_max as usize;
     let mut units: Vec<UnitRange> = layer.segments.iter().map(segment_to_unit).collect();
     assert!(!units.is_empty(), "空 L0 无漏斗对象");
-    let closes: Vec<f64> = layer.merged_bars.iter().map(|b| b.close as f64).collect();
-    let close_src: Vec<usize> = layer.merged_bars.iter().map(|b| b.source_index).collect();
-    let series = divergence::compute_macd(&closes, &cfg.macd);
-    let closes_tick: Vec<Tick> = layer.merged_bars.iter().map(|b| b.close).collect();
+    let (series, closes_tick, close_src) = funnel_probe_series(&layer, &cfg);
     let mut moves_tower: Rc<Vec<LeveledMove>> = Rc::new(
         units
             .iter()
@@ -367,112 +338,13 @@ fn type1_funnel_census_btc() {
             "L{level_idx} 中枢对拍（探针级别循环须与生产 classify 逐字段一致）"
         );
 
-        // ★task #142 量化验收：延伸段数分布（窗口段数 = seed 3 + 延伸段；同一 build 直调
-        // detect_centers_windowed_resume 取窗口，中枢序列与生产 classify_level 对拍）。
-        {
-            let build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center> = if is_l0 {
-                center::center_from_segments
-            } else {
-                center::center_from_window
-            };
-            let windowed = recursive_tower::detect_centers_windowed_resume(&units, build, 0).0;
-            assert_eq!(
-                windowed.iter().map(|(c, _)| *c).collect::<Vec<_>>(),
-                centers,
-                "L{level_idx} 窗口探针中枢序列 == 生产中枢序列"
-            );
-            let mut hist = [0usize; 4]; // 桶：=3（无延伸）/4-5/6-9/≥10 段
-            let mut max_w = 0usize;
-            for (_, (s, e)) in &windowed {
-                let w = e - s + 1;
-                max_w = max_w.max(w);
-                hist[if w <= 3 { 0 } else if w <= 5 { 1 } else if w <= 9 { 2 } else { 3 }] += 1;
-            }
-            eprintln!(
-                "[funnel] L{level_idx}: 窗口段数分布 =3段:{} 4-5:{} 6-9:{} ≥10:{} max={}",
-                hist[0], hist[1], hist[2], hist[3], max_w
-            );
-        }
+        report_window_span_histogram(level_idx, &units, is_l0, &centers);
+        let chain = center_chain_stats(&centers, &ds);
 
-        // 中枢链相邻关系直方图 + 前缀 τ 时间线 + 反事实局部同向 run。
-        let rels: Vec<CenterRelation> =
-            centers.windows(2).map(|w| classify_relation(&w[0], &w[1])).collect();
-        let n_up = rels.iter().filter(|r| **r == CenterRelation::UpContinuation).count();
-        let n_down = rels.iter().filter(|r| **r == CenterRelation::DownContinuation).count();
-        let n_exp = rels.iter().filter(|r| **r == CenterRelation::LevelExpansion).count();
-        // 前缀 τ：τ(前k中枢)=Trend ⟺ k≥2 ∧ rels[0..k-1] 全等且非 Expansion。锁死点=首个异关系下标。
-        let trend_open = !rels.is_empty() && rels[0] != CenterRelation::LevelExpansion;
-        let lock_at = if rels.is_empty() {
-            None
-        } else if !trend_open {
-            Some(0) // 首关系即 Expansion ⟹ 第3个中枢确认时 τ 已锁死 Degenerate
-        } else {
-            rels.iter().position(|r| *r != rels[0])
-        };
-        // 反事实（若走势分解为局部走势类型）：同向关系（Up/Down）的极大 run，每个 run 长 L = 局部
-        // 趋势含 L+1 个中枢。计 run 数与最长 run。
-        let (mut runs_ge1, mut longest_run, mut cur_run) = (0usize, 0usize, 0usize);
-        for (k, r) in rels.iter().enumerate() {
-            let same_dir = *r != CenterRelation::LevelExpansion;
-            let cont = same_dir && (k == 0 || rels[k - 1] == *r);
-            if same_dir {
-                cur_run = if cont { cur_run + 1 } else { 1 };
-                if cur_run == 1 {
-                    runs_ge1 += 1;
-                }
-                longest_run = longest_run.max(cur_run);
-            } else {
-                cur_run = 0;
-            }
-        }
-        let lock_desc = match lock_at {
-            None if trend_open => format!("全链同向（不锁死）"),
-            None => format!("链长<2 无关系"),
-            Some(i) => {
-                let c_end = centers[i + 1].end_index;
-                let date = ds.dates.get(c_end).map(|d| d.get(..10).unwrap_or("?")).unwrap_or("?");
-                format!("中枢#{}（end_src={} {date}）", i + 1, c_end)
-            }
-        };
-
-        let (segs, funnel_anchors): (Vec<Segment>, Option<Vec<Option<Direction>>>) = if is_l0 {
-            (layer.segments.to_vec(), None)
-        } else {
-            // Q7-#1 裁定C + 675号：漏斗探针锚与生产 units_anchors 同源（producer blocks 派生）。
-            let pb = &out.levels[level_idx - 1].moves;
-            (
-                units.iter().map(unit_to_segment).collect(),
-                Some((0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect()),
-            )
-        };
+        let (segs, funnel_anchors) = funnel_level_geometry(&layer, &out, &units, level_idx, is_l0);
         let f = signal::type1_funnel_dx(&centers, &segs, funnel_anchors.as_deref(), &series.hist, &series.dif, &closes_tick, &close_src);
-        eprintln!(
-            "[funnel] L{level_idx}: centers={} segs={} rel(up/down/exp)={}/{}/{} blocks(trend/consol)={}/{} 最长趋势块={}中枢 | 旧AllTrend锁死点={} 局部同向run≥2中枢数={} 最长run={}(={}中枢)",
-            f.n_centers, f.n_segments, n_up, n_down, n_exp, f.n_trend_blocks, f.n_consol_blocks,
-            f.longest_trend_run, lock_desc, runs_ge1, longest_run, longest_run + 1
-        );
-        eprintln!(
-            "[funnel] L{level_idx}: 环0候选(有最近中枢)={} → 环1有前驱中枢={} → 环2过局部趋势门={} → 环3破最后中枢={} → 环4 A/C配对={} → 环4b 037:20破b极值={} → 环5坐标映射={} → 环6背驰C<A={}",
-            f.s_with_center, f.s_pos_ge1, f.s_gate_open, f.s_broke, f.s_a_paired, f.s_extreme, f.s_mapped, f.s_diverge
-        );
-        // ★task #144 验收证据：2021 顶区 sell1 在全历史因果重放中出现（先例窗反差闭合的正验证，
-        // 生产 classify 输出直读——非探针另算）。窗口 = #141 外审切窗 2020-10-01..2021-04-15。
-        {
-            let top_sell1: Vec<&str> = out.levels[level_idx]
-                .bsp
-                .iter()
-                .filter(|p| p.bits.sell1)
-                .filter_map(|p| ds.dates.get(p.source_index).map(|d| d.get(..10).unwrap_or("?")))
-                .filter(|d| ("2020-10-01".."2021-04-15").contains(d))
-                .collect();
-            let n_sell1 =
-                out.levels[level_idx].bsp.iter().filter(|p| p.bits.sell1).count();
-            let n_buy1 = out.levels[level_idx].bsp.iter().filter(|p| p.bits.buy1).count();
-            eprintln!(
-                "[funnel] L{level_idx}: 全历史 buy1={} sell1={} | 2021顶区(2020-10-01..2021-04-15) sell1×{}: {:?}",
-                n_buy1, n_sell1, top_sell1.len(), top_sell1
-            );
-        }
+        report_funnel_line(level_idx, &f, &chain);
+        report_top_region_sell1(level_idx, &out.levels[level_idx], &ds);
 
         let (_cw, upper_moves, _) = compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
         units = project_to_units(&upper_moves, &out.levels[level_idx].moves); // Q7：生产同源块
@@ -481,4 +353,219 @@ fn type1_funnel_census_btc() {
             break;
         }
     }
+}
+
+/// ★task #142 量化验收：延伸段数分布（窗口段数 = seed 3 + 延伸段；同一 build 直调
+/// `detect_centers_windowed_resume` 取窗口，中枢序列与生产 `classify_level` 对拍）。
+fn report_window_span_histogram(
+    level_idx: usize,
+    units: &[UnitRange],
+    is_l0: bool,
+    centers: &[Center],
+) {
+    let build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center> = if is_l0 {
+        center::center_from_segments
+    } else {
+        center::center_from_window
+    };
+    let windowed = recursive_tower::detect_centers_windowed_resume(units, build, 0).0;
+    assert_eq!(
+        windowed.iter().map(|(c, _)| *c).collect::<Vec<_>>(),
+        centers,
+        "L{level_idx} 窗口探针中枢序列 == 生产中枢序列"
+    );
+    let mut hist = [0usize; 4]; // 桶：=3（无延伸）/4-5/6-9/≥10 段
+    let mut max_w = 0usize;
+    for (_, (s, e)) in &windowed {
+        let w = e - s + 1;
+        max_w = max_w.max(w);
+        hist[if w <= 3 { 0 } else if w <= 5 { 1 } else if w <= 9 { 2 } else { 3 }] += 1;
+    }
+    eprintln!(
+        "[funnel] L{level_idx}: 窗口段数分布 =3段:{} 4-5:{} 6-9:{} ≥10:{} max={}",
+        hist[0], hist[1], hist[2], hist[3], max_w
+    );
+}
+
+/// [`center_chain_stats`] 的产出：中枢链相邻关系直方图 + 前缀 τ 锁死点 + 反事实局部同向 run。
+struct CenterChainStats {
+    n_up: usize,
+    n_down: usize,
+    n_exp: usize,
+    runs_ge1: usize,
+    longest_run: usize,
+    lock_desc: String,
+}
+
+/// 中枢链相邻关系直方图 + 前缀 τ 时间线 + 反事实局部同向 run。
+///
+/// 前缀 τ：`τ(前k中枢)=Trend ⟺ k≥2 ∧ rels[0..k-1] 全等且非 Expansion`。锁死点 = 首个异关系下标。
+/// 反事实（若走势分解为局部走势类型）：同向关系（Up/Down）的极大 run，每个 run 长 L = 局部趋势
+/// 含 L+1 个中枢。计 run 数与最长 run。
+fn center_chain_stats(
+    centers: &[Center],
+    ds: &super::super::super::backtest::data::Dataset,
+) -> CenterChainStats {
+    use super::super::center::{classify_relation, CenterRelation};
+    let rels: Vec<CenterRelation> =
+        centers.windows(2).map(|w| classify_relation(&w[0], &w[1])).collect();
+    let n_up = rels.iter().filter(|r| **r == CenterRelation::UpContinuation).count();
+    let n_down = rels.iter().filter(|r| **r == CenterRelation::DownContinuation).count();
+    let n_exp = rels.iter().filter(|r| **r == CenterRelation::LevelExpansion).count();
+    let trend_open = !rels.is_empty() && rels[0] != CenterRelation::LevelExpansion;
+    let lock_at = if rels.is_empty() {
+        None
+    } else if !trend_open {
+        Some(0) // 首关系即 Expansion ⟹ 第3个中枢确认时 τ 已锁死 Degenerate
+    } else {
+        rels.iter().position(|r| *r != rels[0])
+    };
+    let (mut runs_ge1, mut longest_run, mut cur_run) = (0usize, 0usize, 0usize);
+    for (k, r) in rels.iter().enumerate() {
+        let same_dir = *r != CenterRelation::LevelExpansion;
+        let cont = same_dir && (k == 0 || rels[k - 1] == *r);
+        if same_dir {
+            cur_run = if cont { cur_run + 1 } else { 1 };
+            if cur_run == 1 {
+                runs_ge1 += 1;
+            }
+            longest_run = longest_run.max(cur_run);
+        } else {
+            cur_run = 0;
+        }
+    }
+    let lock_desc = match lock_at {
+        None if trend_open => "全链同向（不锁死）".to_string(),
+        None => "链长<2 无关系".to_string(),
+        Some(i) => {
+            let c_end = centers[i + 1].end_index;
+            let date = ds.dates.get(c_end).map(|d| d.get(..10).unwrap_or("?")).unwrap_or("?");
+            format!("中枢#{}（end_src={} {date}）", i + 1, c_end)
+        }
+    };
+    CenterChainStats { n_up, n_down, n_exp, runs_ge1, longest_run, lock_desc }
+}
+
+/// ★task #144 验收证据：2021 顶区 sell1 在全历史因果重放中出现（先例窗反差闭合的正验证，
+/// 生产 `classify` 输出直读——非探针另算）。窗口 = #141 外审切窗 2020-10-01..2021-04-15。
+fn report_top_region_sell1(
+    level_idx: usize,
+    lv: &LevelState,
+    ds: &super::super::super::backtest::data::Dataset,
+) {
+    let top_sell1: Vec<&str> = lv
+        .bsp
+        .iter()
+        .filter(|p| p.bits.sell1)
+        .filter_map(|p| ds.dates.get(p.source_index).map(|d| d.get(..10).unwrap_or("?")))
+        .filter(|d| ("2020-10-01".."2021-04-15").contains(d))
+        .collect();
+    let n_sell1 = lv.bsp.iter().filter(|p| p.bits.sell1).count();
+    let n_buy1 = lv.bsp.iter().filter(|p| p.bits.buy1).count();
+    eprintln!(
+        "[funnel] L{level_idx}: 全历史 buy1={} sell1={} | 2021顶区(2020-10-01..2021-04-15) sell1×{}: {:?}",
+        n_buy1, n_sell1, top_sell1.len(), top_sell1
+    );
+}
+
+/// 漏斗探针的 MACD/坐标序列面（与 `classify_impl` 的 `full_macd_series` 同口径：同一
+/// `compute_macd` 单趟 + 同一 `merged_bars` 投影）。
+fn funnel_probe_series(
+    layer: &ParseLayer,
+    cfg: &ThetaConfig,
+) -> (divergence::MacdSeries, Vec<Tick>, Vec<usize>) {
+    let closes: Vec<f64> = layer.merged_bars.iter().map(|b| b.close as f64).collect();
+    let close_src: Vec<usize> = layer.merged_bars.iter().map(|b| b.source_index).collect();
+    let series = divergence::compute_macd(&closes, &cfg.macd);
+    let closes_tick: Vec<Tick> = layer.merged_bars.iter().map(|b| b.close).collect();
+    (series, closes_tick, close_src)
+}
+
+/// 逐级漏斗两行报告：结构概览（中枢/段/关系/块/锁死点/反事实 run）+ 六环逐环计数。
+fn report_funnel_line(level_idx: usize, f: &signal::Type1Funnel, chain: &CenterChainStats) {
+    eprintln!(
+        "[funnel] L{level_idx}: centers={} segs={} rel(up/down/exp)={}/{}/{} blocks(trend/consol)={}/{} 最长趋势块={}中枢 | 旧AllTrend锁死点={} 局部同向run≥2中枢数={} 最长run={}(={}中枢)",
+        f.n_centers, f.n_segments, chain.n_up, chain.n_down, chain.n_exp,
+        f.n_trend_blocks, f.n_consol_blocks, f.longest_trend_run, chain.lock_desc,
+        chain.runs_ge1, chain.longest_run, chain.longest_run + 1
+    );
+    eprintln!(
+        "[funnel] L{level_idx}: 环0候选(有最近中枢)={} → 环1有前驱中枢={} → 环2过局部趋势门={} → 环3破最后中枢={} → 环4 A/C配对={} → 环4b 037:20破b极值={} → 环5坐标映射={} → 环6背驰C<A={}",
+        f.s_with_center, f.s_pos_ge1, f.s_gate_open, f.s_broke, f.s_a_paired, f.s_extreme, f.s_mapped, f.s_diverge
+    );
+}
+
+/// 漏斗探针的逐级几何输入：L0 用 parser 线段账本；L≥1 用 units→Segment 投影 + 方向锚。
+///
+/// Q7-#1 裁定C + 675号：探针锚与生产 `units_anchors` 同源（producer blocks 派生），不另起一套。
+fn funnel_level_geometry(
+    layer: &ParseLayer,
+    out: &Classification,
+    units: &[UnitRange],
+    level_idx: usize,
+    is_l0: bool,
+) -> (Vec<Segment>, Option<Vec<Option<Direction>>>) {
+    if is_l0 {
+        return (layer.segments.to_vec(), None);
+    }
+    let pb = &out.levels[level_idx - 1].moves;
+    (
+        units.iter().map(unit_to_segment).collect(),
+        Some((0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect()),
+    )
+}
+
+/// [`end_to_end_second_buy_via_l1_l2_geometric`] 的 9 段 L0 夹具（三组，每组 → 一个 L1 走势）。
+///
+/// ★中枢延伸语义下的诚实重算（PDF §5，task #142）：组间首段必须与前组**冻结核心 [ZD,ZG]**
+/// 不相交（Step3 non-extension），否则整串被 Step2 吸收为 1 个延伸中枢 ⟹ 塔不生长
+/// （旧全触及 fixture 的坍缩后果）。推导：
+/// - 组A up-down-up：核心 `K_A=[max(110,120,120),min(150,150,148)]=[120,148]`，外缘 `O_A=[110,150]`。
+/// - 组B down-up-down：首段 `[80,115]` hi=115 < ZD_A=120 ⟹ non-extension（组间分离）；
+///   核心 `K_B=[max(80,80,85),min(115,125,114)]=[85,114]`，外缘 `O_B=[80,125]`。
+/// - 组C up-down-up：首段 `[115,148]` lo=115 > ZG_B=114 ⟹ non-extension；
+///   核心 `K_C=[max(115,112,112),min(148,148,147)]=[115,147]`，外缘 `O_C=[112,148]`。
+///
+/// L2 核心（几何路径，三 L1 外缘交）= `[max(110,80,112), min(150,125,148)] = [112,125]` 非空。
+/// B2 结构：`L1[1].lo=80 < ZD2=112` 深破 L2 核心下沿（第一类离开候选，`Side::Long`）；
+/// `L1[2]` 回拉不创新低（`lo=112 >= L1[1].lo=80`）；`L1[0]`/`L1[1]` 外缘占位方向同 Down
+/// （末子 hi < 首子 hi：148<150 / 114<115）⟹ 背驰可配对（closes 前大后小）。
+///
+/// closes 让 `L1[1]` 区间（`source_index [12,24]`）MACD 面积 < `L1[0]` 区间（`[0,12]`）= 背驰
+/// （真算）：前段大幅波动（面积大），后段小幅（面积小）。
+fn l1_l2_geometric_fixture() -> ParseLayer {
+    // 9 段 L0：三组（每组 → 一个 L1 走势）。★中枢延伸语义下的诚实重算（PDF §5，task #142）：
+    // 组间首段必须与前组**冻结核心 [ZD,ZG]** 不相交（Step3 non-extension），否则整串被 Step2
+    // 吸收为 1 个延伸中枢 ⟹ 塔不生长（旧全触及 fixture 的坍缩后果）。推导：
+    // - 组A up-down-up：核心 K_A=[max(110,120,120),min(150,150,148)]=[120,148]，外缘 O_A=[110,150]。
+    // - 组B down-up-down：首段 [80,115] hi=115 < ZD_A=120 ⟹ non-extension（组间分离）；
+    //   核心 K_B=[max(80,80,85),min(115,125,114)]=[85,114]，外缘 O_B=[80,125]。
+    // - 组C up-down-up：首段 [115,148] lo=115 > ZG_B=114 ⟹ non-extension；
+    //   核心 K_C=[max(115,112,112),min(148,148,147)]=[115,147]，外缘 O_C=[112,148]。
+    // L2 核心（几何路径，三 L1 外缘交）= [max(110,80,112), min(150,125,148)] = [112,125] 非空。
+    // B2 结构：L1[1].lo=80 < ZD2=112 深破 L2 核心下沿（第一类离开候选，Side::Long）；
+    // L1[2] 回拉不创新低（lo=112 >= L1[1].lo=80）；L1[0]/L1[1] 外缘占位方向同 Down
+    // （末子 hi < 首子 hi：148<150 / 114<115）⟹ 背驰可配对（closes 前大后小）。
+    let segments = vec![
+        // 组A（L1[0]）：up-down-up，核心 [120,148]，外缘 [110,150]
+        seg(Direction::Up,   0,  4, 110, 150),
+        seg(Direction::Down, 4,  8, 150, 120),
+        seg(Direction::Up,   8, 12, 120, 148),
+        // 组B（L1[1]）：down-up-down，首段 hi=115<ZD_A=120 non-ext，lo=80 深破 L2 核心下沿 112
+        seg(Direction::Down,12, 16, 115,  80),
+        seg(Direction::Up,  16, 20,  80, 125),
+        seg(Direction::Down,20, 24, 114,  85),
+        // 组C（L1[2]）：up-down-up，首段 lo=115>ZG_B=114 non-ext，回拉不创新低（lo=112 >= 80）
+        seg(Direction::Up,  24, 28, 115, 148),
+        seg(Direction::Down,28, 32, 148, 112),
+        seg(Direction::Up,  32, 36, 112, 147),
+    ];
+    // closes 让 L1[1] 区间（source_index [12,24]）MACD 面积 < L1[0] 区间（[0,12]）= 背驰（真算）。
+    // 前段大幅波动（面积大），后段小幅（面积小）。
+    let mut closes: Vec<i64> = Vec::new();
+    for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); } // L1[0] 大幅
+    for i in 0..12 { closes.push(100 + if i % 2 == 0 { 5 } else { -5 }); }   // L1[1] 小幅（背驰）
+    for i in 0..16 { closes.push(100 + if i % 2 == 0 { 3 } else { -3 }); }   // L1[2] 更小
+    let layer = ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+    layer
 }
