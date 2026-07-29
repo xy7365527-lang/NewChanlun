@@ -542,6 +542,14 @@ struct ChainDump {
     book: classifier::chain_cert::ChainCertificateBook,
     every: usize,
     seq: u64,
+    /// 节拍探针（#676 LOW-2）：每次**真推进**（越过 [`ChainDump::observe`] 的节拍门）记下 `as_of`。
+    ///
+    /// 只在 `cfg(test)` 编译进结构（同 `chain_cert::chain_probe` 的先例）——生产面零字段、零成本。
+    /// 存在理由：节拍门的可观察后果（Delta 行）在空事件流上恒为零行，「节拍正确 / 永不推进 /
+    /// 每根都推进」三种实现在行数与 `seq` 上**完全同形**，不加探针则测试名承诺的节拍语义
+    /// 无一被夹住（#676 票面 LOW-2 = Standards MED-2）。
+    #[cfg(test)]
+    advanced_at: Vec<usize>,
 }
 
 impl ChainDump {
@@ -551,6 +559,8 @@ impl ChainDump {
             book: classifier::chain_cert::ChainCertificateBook::default(),
             every,
             seq: 0,
+            #[cfg(test)]
+            advanced_at: Vec::new(),
         }
     }
 
@@ -601,6 +611,8 @@ impl ChainDump {
         if !is_last && (as_of + 1) % self.every != 0 {
             return Ok(());
         }
+        #[cfg(test)]
+        self.advanced_at.push(as_of);
         let delta = self.book.advance(&cache.candidate_streams(), as_of);
         let lines: Vec<String> = delta
             .iter()
@@ -4241,17 +4253,33 @@ provider_window=5..70 b_center_start=20 intake_fallback=0"
     }
 
     /// #641 节拍：非末根只在 `(as_of+1) % every == 0` 时推进；末根无条件推进。
+    ///
+    /// **锁定手段照实（#676 LOW-2 实修）**：本测试断言的是 [`ChainDump::advanced_at`] 探针记下的
+    /// **真推进 `as_of` 序列本身**，不是它的可观察后果——空事件流上 Delta 恒空，行数/`seq` 在
+    /// 「节拍正确 / 永不推进 / 每根都推进」三种实现下同形为 0，靠它们判不出节拍。
+    ///
+    /// 反事实负控（#676 实做记录，非推想）：
+    /// - 把节拍门改成「永不推进」（`observe` 在门后直接 `return Ok(())`）⟹ 探针序列为 `[]`，
+    ///   本测试的 `advanced_at` 断言变红（left=`[]` right=`[2, 5, 6]`）；
+    /// - 改成「每根都推进」（删掉 `!is_last && (as_of + 1) % self.every != 0` 这道门）⟹ 探针序列
+    ///   为 `[0, 1, 2, 3, 4, 5, 6]`，同一条断言变红。
     #[test]
     fn chain_dump_cadence_advances_on_beat_and_on_last_bar() {
         let cache = classifier::TowerCache::new();
         let sink: Rc<RefCell<Vec<u8>>> = Rc::new(RefCell::new(Vec::new()));
         let mut dump = ChainDump::new(Some(Box::new(SharedSink(Rc::clone(&sink)))), 3);
-        // 空事件流 ⟹ Delta 恒空，但推进与否可由簿的 revision 数以外的可观测面判定：
-        // 这里断言的是**不 panic + 零行**（节拍分支被真走过，行数为 0 是空流的后果）。
-        for as_of in 0..5 {
-            dump.observe(&cache, as_of, as_of == 4).unwrap();
+        for as_of in 0..7 {
+            dump.observe(&cache, as_of, as_of == 6).unwrap();
         }
         dump.flush().unwrap();
+        // every=3、bars=0..=6：节拍根 = `(as_of+1)%3==0` 的 2 与 5；末根 6 无条件推进
+        // （`(6+1)%3 != 0`，故它只可能来自末根支）。三个数各锁一件事：
+        // 少了 2/5 ⟹ 节拍支没走；少了 6 ⟹ 末根支没走；多出 0/1/3/4 ⟹ 门没起作用。
+        assert_eq!(
+            dump.advanced_at,
+            vec![2, 5, 6],
+            "节拍门必须恰好在节拍根与末根放行（每根都推进 / 永不推进 / 相位错一位都在此变红）"
+        );
         assert!(String::from_utf8(sink.borrow().clone()).unwrap().is_empty());
         assert_eq!(dump.seq, 0, "空事件流 ⟹ 零 Delta ⟹ 零行序推进");
     }
