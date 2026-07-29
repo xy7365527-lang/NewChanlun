@@ -84,6 +84,14 @@ pub mod voice_eat;
 pub mod cand_predicate;
 /// C2 走势消费 seam：显式 exact-three 投影、D3 方向绑定与 D2 A/C provider。
 pub mod level_view;
+/// #630：`level_view` D1 投影域拆出——`ExactThreeProjection` seed 构造 + `LowerLeg`。
+pub mod level_view_projection;
+/// #630：`level_view` 趋势背驰确认核心拆出——`ConfirmKey`/`ConfirmResidence` + 全合取扫描引擎。
+pub mod level_view_confirm;
+/// #630：`level_view` 盘整/趋势候选事件 provider 的 run 语境身份与 memo 基础设施拆出。
+pub mod level_view_pan;
+/// #630：`level_view` typed provider 入口拆出——`provide_nest_candidate_events*`。
+pub mod level_view_pan_provider;
 /// 买卖点身份账本 S1（票 #621，#465 裁定 A 之 T3 首环）：观察适配器 → 三态状态机 →
 /// append-only 修订日志（JSONL 外化 + 重放折叠恢复）→ 成立档门户；全部经 [`ledger_kernel`] 表达。
 pub mod retrace_ledger;
