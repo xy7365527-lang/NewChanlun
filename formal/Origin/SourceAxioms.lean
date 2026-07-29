@@ -4,6 +4,11 @@ Origin/SourceAxioms.lean
 The origin layer starts from the strict mathematical reading of complete
 classification.  Source-specific Chanlun obligations are parameters or theorem
 hypotheses.  This file intentionally contains no Lean `axiom`.
+
+R5 槽位留痕（#651 → #662；#675 影子评论）：#651 建议保留
+`FixedTheta.leverage : Type` 作为 Θ 实例化工位；#662 票体随后裁定清理该全树零引用死槽，
+#675 影子评论要求登记这一裁定差异。将来若 `FixedTheta` 真正承载 Θ_leverage 实例化，
+须显式重加该槽并绑定 `LeverageCapital.LeverageAccount`；当前独立代数层不表示已经接通。
 -/
 
 namespace NewChanlun.Origin
