@@ -124,6 +124,10 @@ _Avoid_: 拿子的 A 段套父的 D 段当区间套判据（两边不同种对�
 塔内原生一等事件对象（2026-07-28 #540 裁定，ADR-0007）：承载 E2E-D1-D3 结构载荷 + 背驰段区间（C 段，interval_b 同口径）+ 状态与钟；classify_impl 主路径按级内联产出（非 sidecar 事后扫），每级 append-only 事件流存储，生命周期走 E2E-O 修订协议（修订只追加、observed/first_provable 一次写、终态不复活、同 as_of 重跑零 Delta）。身份键 = 结构身份键（level + 中枢对 + seg_a + c_start + B_p 指纹；c 段右端与 as_of 不入键，生长走修订）。
 _Avoid_: 当每个走势单元的固有字段（事件非属性）；用删除模拟失效；事后 sidecar 重扫冒充主路径产出
 
+**级别链证书（tower chain certificate）**:
+塔内原生一等谱系对象（2026-07-29 #636 裁定、#641 落地；`TowerChainCertificate` 独立于 NestCertificate）：节点 = 背驰段候选事件身份键（沿用 N1 键），边 = C⊆C Sub 包含（N2 谓词在存活端点间统一裁）+ skip 边（缺席/跳级如实记，禁伪造中间级证书）。终态：Closed = 链头 Confirmed + 链不可再扩展 + **≥1 有效链段**（谓词判过的边，含 skip 边，空集不真空成立）；Invalidated = 谓词判不过或链头 Invalidated（不复活）；否则 Open。证伪节点留痕不判死上级；Absent（查无）非证伪，不落 Invalidated。谱系 append-only，路径扩展走 extends_lineage_key（查簿命中才写）。
+_Avoid_: 链头独活真空 Closed；把查无当证伪判死；伪造中间级补链；与 NestCertificate 同名混用
+
 ### 运行边界
 
 **「生产」拆三义（three meanings of production）**:
