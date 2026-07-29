@@ -254,3 +254,18 @@
 ## 修订补记（2026-07-29，影子评审 LOW 触发，编排侧落）
 
 **§四 C 缺口登记补一条双实现风险位**：`rust/src/bin/p83_yield_remeasure.rs:383-393` 存在近邻统计实现（按 seed 在 moves 的 `center_indices` 中是否存在计数 `unassigned_projected`）——它不是 seed→CompletedMove 唯一性/fail-closed 证明（无 MissingSource/NoCompletedMove/AmbiguousCompletedMove 语义、非 fail-closed），不反证本报告 §四 C「唯一性证明仓内已消失」的断言；但 #640 落 provider 侧证明时须核对该统计实现，防双实现分叉。（影子评审 `shadow-624-t3-acceptance-review-20260729.md` LOW-3 指出，#640 票面已注明。）
+
+## 修订补记二（2026-07-29，对拍补测——F7/F7′ 同 center 输入复刻，影子评审 MEDIUM-1）
+
+**偏离登记**：§一 基线表登记的 F7 旧输入是 `new = RetraceIdentity { center: old.center, departure_move_index: 5 }`——新旧身份**共享同一个 `center`**（旧模块 Restart 分支 `active = RetraceIdentity { center: active.center, .. }` 同样明写 center 不变）。§三落测的 `f7_new_departure_after_reentry_opens_restarted_entry_instead_of_supersede_event`（F7）与
+`f7_new_departure_before_the_old_one_settles_is_rejected`（F7′）用的却是 `frame(1_200)` → `frame(1_400)`（同锚异框，`start_index` 相同但 `end_index` 不同），两表之间隐含的「同输入」在这两条上并不成立——本报告发出时未声明这一偏离，即影子评审 `shadow-624-t3-acceptance-review-20260729.md` MEDIUM-1。
+
+**补测**：`rust/src/theta_v0/classifier/retrace_ledger/tests/replay_parity.rs` 追加两个测试，逐条复刻旧 fixture 的真实输入面（同一个 `frame(1_200)` 贯穿两次 `observe`，departure 3→5，不换 frame）：
+
+- `f7_same_center_new_departure_after_reentry_opens_restarted_entry_instead_of_supersede_event`——同中枢版 F7：断言新档 `restarted_from() == Some(key_of(center, 3))`、词汇序 `Registered → SnapshotPinned → Restarted{previous} → Confirmed`、前任档 `state == Invalidated` 三项与异框版逐位相同；
+- `f7_prime_same_center_new_departure_before_the_old_one_settles_is_rejected`——同中枢版 F7′：断言 `RetraceRejection::ActiveCandidateNotSettled{active: key_of(center,3), incoming_departure_move_index:5}`、`book.len()==1`、`alarms().registration_rejected==1` 与异框版逐位相同。
+
+**结果**：`cargo test --lib retrace_ledger` 124 passed（基线 122 + 本次 2 条新增，0 failed，1 ignored 不变）；`cargo test --lib` 全量 2199 passed（2197 + 2，0 failed，138 ignored 不变）；既有测试零改动。同中枢与异框两组断言逐位一致，**验证 MEDIUM-1 指出的静态推理成立**——`guard_single_active`（`book.rs:264-266`）判据只看前档终态、`link_restart`（`book.rs:369`）按 `anchor = start_index` 路由（`mod.rs:196-198`），两者均不读 `end_index`，故同锚异框与同锚同框在当前实现下行为等价；本补测把这条此前「零测试覆盖」的旧 fixture 真实输入面钉为回归锚，MEDIUM-1 描述的漂移风险（未来若 `guard_single_active` 分支序改动到读 frame 全量而非仅锚）现由这两条测试覆盖。
+
+- **谱系引用**：MEDIUM-1（`shadow-624-t3-acceptance-review-20260729.md` §七）；#574 裁定一（身份=四条边快照）、裁定三（Restart 新档记前任、静默吸收）。
+- **影响声明**：仅追加 2 个 `#[test]`，零改动既有测试与生产代码；`replay_parity.rs` 内其余 5 条测试逐字未动。

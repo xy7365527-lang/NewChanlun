@@ -158,3 +158,74 @@ fn f8_without_any_observation_the_ledger_and_log_stay_empty() {
     assert_eq!(book.alarms(), RetraceAlarms::default());
     settled(&book);
 }
+
+/// F7 同中枢补测（影子评审 #624 T3 MEDIUM-1）。
+///
+/// 上面的 [`f7_new_departure_after_reentry_opens_restarted_entry_instead_of_supersede_event`]
+/// 用 `frame(1_200)` → `frame(1_400)`（同锚异框）；旧 fixture
+/// `lv_case2_new_departure_supersedes_then_restarts_with_new_identity` 的真实输入面是
+/// `new = RetraceIdentity { center: old.center, departure_move_index: 5 }`——**同一个 `center`**，
+/// 只有 `departure` 从 3 变 5。本测试逐条复刻这条输入面（同框，非同锚异框），补齐 MEDIUM-1
+/// 指出的「旧 fixture 的真实输入一条测试都没跑」缺口。
+#[test]
+fn f7_same_center_new_departure_after_reentry_opens_restarted_entry_instead_of_supersede_event() {
+    let mut book = ledger();
+    let center = frame(1_200);
+    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 500))
+        .unwrap();
+
+    let step = book
+        .observe(&up_input(center, 5, Some(RetraceOutcome::Success), 700))
+        .unwrap();
+    let entry = book.entry(&step.key).unwrap();
+    assert_eq!(
+        entry.restarted_from(),
+        Some(key_of(center, 3)),
+        "同中枢：新档谱系载荷记前任 = 旧 Supersede→Restart 的等价面"
+    );
+    assert_eq!(
+        kinds(entry),
+        vec![
+            RetraceRevisionKind::Registered,
+            RetraceRevisionKind::SnapshotPinned,
+            RetraceRevisionKind::Restarted {
+                previous: key_of(center, 3)
+            },
+            RetraceRevisionKind::Confirmed,
+        ],
+        "同中枢：新档词汇序不因异框/同框而变"
+    );
+    assert_eq!(
+        book.entry(&key_of(center, 3)).unwrap().state,
+        RetraceState::Invalidated,
+        "同中枢：前任档一个 bit 不动"
+    );
+    settled(&book);
+}
+
+/// F7' 同中枢补测（影子评审 #624 T3 MEDIUM-1）。
+///
+/// 复刻 [`f7_new_departure_before_the_old_one_settles_is_rejected`] 的判据，但换成与旧
+/// `RetraceIdentity { center: old.center, .. }` 一致的同一 `center`——验证「未获重启许可即换
+/// departure」的拒收判据不依赖 frame 是否同框。
+#[test]
+fn f7_prime_same_center_new_departure_before_the_old_one_settles_is_rejected() {
+    let mut book = ledger();
+    let center = frame(1_200);
+    book.observe(&up_input(center, 3, None, 500)).unwrap();
+
+    let rejection = book
+        .observe(&up_input(center, 5, Some(RetraceOutcome::Success), 700))
+        .unwrap_err();
+    assert_eq!(
+        rejection,
+        RetraceRejection::ActiveCandidateNotSettled {
+            active: key_of(center, 3),
+            incoming_departure_move_index: 5,
+        },
+        "同中枢：未判完即换 departure ⟹ 拒收（旧 PairDepartureMismatch 的对应面）"
+    );
+    assert_eq!(book.len(), 1, "拒收零建仓");
+    assert_eq!(book.alarms().registration_rejected, 1);
+    settled(&book);
+}
