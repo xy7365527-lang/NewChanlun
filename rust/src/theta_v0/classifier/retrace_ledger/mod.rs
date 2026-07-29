@@ -15,9 +15,9 @@
 //! | 一 | 身份 =（中枢四条边快照, departure）；活着期间窗口不动；Success 快照转正 | [`RetraceKey`] / [`CenterFrame`] / [`CenterDeathCertificate`] |
 //! | 二 | 同一中枢同时刻至多一个活跃候选；未判完新 departure 报错拒收 | [`book::RetraceLedger::observe`] + [`RetraceRejection::ActiveCandidateNotSettled`] |
 //! | 三 | 三态 + 判败四行语义 + 终态吸收 + 迟到静默吸收 + 警报 + 残废注册期拒收 + Restart 新档记前任 | [`RetraceState`] / [`NotConstitutedReason`] / [`RetraceAlarms`] / [`RetraceRevisionKind::Restarted`] |
-//! | 四 | Success 后同中枢永禁新轮（死人挂号拒收） | **S1 只计数不拒收**，见 [`RetraceAlarms::dead_center_registrations`] 与 §「留给 S2 的钩子」 |
+//! | 四 | Success 后同中枢永禁新轮（死人挂号拒收） | 票 #622 落地：[`book::RetraceLedger::observe`] 前置查 [`book::RetraceLedger::death_certificate`]，命中即 [`RetraceRejection::DeadCenterReentry`] |
 //! | 五 | 三钟（出生/落锤/门卫）+ 每条修订带知情时 + 位置进证据载荷 | [`RetraceEntry`] 三钟字段 + [`RetraceEvidence`] |
-//! | 六 | 唯一真相 = append-only 修订日志；状态 = 日志折叠；快照仅派生缓存带溯源 | [`log`] 模块（M5=A 裁定：留档外化 JSONL + 重放折叠恢复） |
+//! | 六 | 唯一真相 = append-only 修订日志；状态 = 日志折叠；快照仅派生缓存带溯源；拒收/警报另记 audit 流 | [`log`] 模块（M5=A 裁定）+ [`audit`] 模块（票 #622：四类警报 append-only JSONL） |
 //! | 七 | 缺席 ≠ 消失；永不超时处死 | 观察 `outcome = None` 即维持 `Provisional`，无任何超时路径 |
 //! | 八 | 三档消费门户 | **S1 只做成立档**（[`ThirdPointPack`]）；备战/短差档归 S3 |
 //!
@@ -30,16 +30,14 @@
 //!
 //! # 本票不做（范围外，勿在此模块寻找）
 //!
-//! - **S2**（#622）：引擎改口检测（[`NotConstitutedReason::CenterRebased`] 只留词汇位，S1 零产出路径）
-//!   与死人挂号拒收；
+//! - **S2**（#622，已落地）：引擎改口处死（[`NotConstitutedReason::CenterRebased`]）+ 死人挂号
+//!   拒收（[`RetraceRejection::DeadCenterReentry`]）+ 两拍证据一致性守卫
+//!   （[`RetraceRejection::TerminalEvidenceContradictsRegistration`]）+ 四类警报 audit 流
+//!   （[`audit`] 模块）；
 //! - **S3**（#623）：备战档 / 短差档门户；
 //! - **S4**：与 [`super::first_retrace_replay`] 的对拍与旧模块处置——本模块**只借用**其
-//!   [`StrictCompletedPair`] / [`RetraceOutcome`] 域词汇，一个字节不改它。
-//!
-//! # 留给 S2 的钩子
-//!
-//! [`book::RetraceLedger::death_certificate`]（按中枢锚查死亡证明）+
-//! [`RetraceAlarms::dead_center_registrations`]（S1 计数、S2 改判拒收）。
+//!   [`StrictCompletedPair`] / [`RetraceOutcome`] 域词汇，一个字节不改它；
+//!   MEDIUM-1（跨进程恢复后未决候选可被陈旧知情时落锤）待裁，本票未动门卫钟语义。
 
 use serde::{Deserialize, Serialize};
 
@@ -50,19 +48,29 @@ use super::ledger_kernel::{
 };
 
 pub mod adapter;
+pub mod audit;
 pub mod book;
 pub mod log;
+pub mod portal;
 
 #[cfg(test)]
 mod tests;
 
 pub use adapter::{admit_input, AdmittedObservation, RetraceInput, RetraceRejection};
+pub use audit::{
+    JsonlRetraceAuditStore, RetraceAuditError, RetraceAuditEvent, RetraceAuditRecord,
+    RetraceRejectionCode, AUDIT_SCHEMA_VERSION,
+};
 pub use book::{
     CenterDeathCertificate, RetraceAlarms, RetraceLedger, RetraceStep, ThirdPointPack,
 };
 pub use log::{
     JsonlRetraceLogStore, RetraceLogError, RetraceProvenance, RetraceRecord, RetraceSnapshot,
     RestoreRoute, SnapshotRejection, LOG_SCHEMA_VERSION,
+};
+pub use portal::{
+    FailureDisposalNotice, PanDivSubtype, ShortRetracePortal, ShortRetraceRecord,
+    ShortRetraceRejection, StandbyWatch, TradableSignal,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -98,8 +106,11 @@ impl CenterFrame {
 /// **跨代际稳定的中枢标识**：临时右边逐代变（延伸右扩），不能做锚；起时间边在中枢诞生那一刻
 /// 定死，延伸只右扩、扩张只动 ZG/ZD，起点均不动，故取起时间边。
 ///
-/// **边界条件（本锚失效的唯一情形）**：上游引擎重基/重切致中枢起点被改写。那正是裁定一
-/// 「引擎改口 → 处死记档进警报桶」要处理的情形，归 S2 `CenterRebased` 路径，S1 不承诺。
+/// **边界条件（本锚失效的唯一情形）**：上游引擎重基/重切致中枢起点被改写——旧锚下的候选从
+/// 观察者视角**等价于中枢消失**（新起点下是全新的锚，旧锚再也收不到任何观察）。那正是裁定一
+/// 「引擎改口 → 处死记档进警报桶」要处理的情形（票 #622 落地：`observed_window = None` 经
+/// [`book::RetraceLedger::reconcile_window`] 显式核对通道处死；同锚内仅右边变的常见改口则由
+/// [`book::RetraceLedger::observe`] 在注册碰撞时直接感知，无需外部显式核对）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct CenterAnchor(pub usize);
 
@@ -196,10 +207,16 @@ pub enum NotConstitutedReason {
     /// ③ **不派生任何中枢生命周期事件**（补充十四：延伸无事件）；
     /// ④ 判败事件是**盘背观测源**（027:16），归观测/短差通道，非终结非信号。
     RetestReentered,
-    /// 引擎改口致身份灭失（重基/重切致窗口变或中枢消失，对标 `RebaseVanished`）。
+    /// 引擎改口致身份灭失（重基/重切致窗口变或中枢消失，对标 `RebaseVanished` 哲学；票 #622 落地）。
     ///
-    /// **S1 零产出路径**——本票只落词汇位，检测与处死归 S2（#622）。
-    CenterRebased,
+    /// 身份灭失、非破坏（裁定一）；不与 [`Self::RetestReentered`] 混行——不是竞选失败，是判案锚
+    /// 本身没了。证据载荷带**新旧窗口对照**：
+    CenterRebased {
+        /// 注册拍钉下的旧窗口（该身份的 `key.frame`）。
+        registered_window: CenterFrame,
+        /// 引擎当拍报的新窗口；`None` = 中枢已从 provider 消失（两种偏离同一处死路径）。
+        observed_window: Option<CenterFrame>,
+    },
 }
 
 /// 修订词汇（append-only 留档的字母表）。
