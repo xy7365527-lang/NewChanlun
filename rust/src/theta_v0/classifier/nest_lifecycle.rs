@@ -638,8 +638,9 @@ pub struct PanLiveWindow {
 ///
 /// `seg_c_live` 右端 = `as_of` 与 `c_start` 的较大值：正常前进中 `as_of ≥ c_start`，
 /// 右端随 `as_of` 推进（[`PanLiveWindow`] 文档「右端随 as_of 前进」的落地）；`as_of == c_start`
-/// 两值相等语义无差。钳位分支（`as_of < c_start`，仅见于缓存重放路径按陈旧 `as_of` 重建窗口时）
-/// 退化为单点区间 `[c_start, c_start]`，防止产出右端早于左端的倒挂区间。
+/// 两值相等语义无差。钳位分支（`as_of < c_start`）为防御性兜底——2026-07-28 影子评审
+/// 探针实测 20k/100k 零命中，生产可达性未证实（声明等级：防御非实测路径）；
+/// 命中时退化为单点区间 `[c_start, c_start]`，防止产出右端早于左端的倒挂区间。
 pub fn active_window_right_edge(c_start: usize, as_of: usize) -> usize {
     as_of.max(c_start)
 }
