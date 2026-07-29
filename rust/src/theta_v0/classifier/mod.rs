@@ -4717,10 +4717,15 @@ mod tests {
         let mut book = chain_cert::ChainCertificateBook::default();
         let mut cache = TowerCache::new();
         for n in 1..=segments.len() {
-            if reuse == PrefixCacheReuse::FreshPerPrefix {
-                // 唯一的差别就这一行：丢弃上一前缀的记忆（等价于原 `_fresh_cache` 版本在循环**内**
-                // 建 cache），其余一切逐字同路。
-                cache = TowerCache::new();
+            // #691 LOW-4：`match` 穷尽两档而非 `==` 单项判断——扩展第三档时编译红，不会静默落入
+            // `SharedAcrossPrefixes` 分支（旧 `==` 写法对新增档零抵抗，见 commit message 反事实负控）。
+            match reuse {
+                PrefixCacheReuse::FreshPerPrefix => {
+                    // 唯一的差别就这一行：丢弃上一前缀的记忆（等价于原 `_fresh_cache` 版本在循环
+                    // **内**建 cache），其余一切逐字同路。
+                    cache = TowerCache::new();
+                }
+                PrefixCacheReuse::SharedAcrossPrefixes => {}
             }
             let end = segments[n - 1].end_index.min(closes.len() - 1);
             let layer = ParseLayer {
@@ -5024,7 +5029,8 @@ mod tests {
             .collect();
         assert!(
             common_differences.is_empty(),
-            "共有 key 的证书在候选全集计数以外的字段分叉；differences={common_differences:#?}"
+            "共有 key 的最新 revision 证书在候选全集计数以外的字段分叉；\
+             differences={common_differences:#?}"
         );
 
         // 照实登记（golden 锚，非规律断言）：`chain_fixture(120)` 上的实测差集形状。
