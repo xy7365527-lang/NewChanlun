@@ -751,8 +751,9 @@ fn breach_reason(child: &CandidateEvent, parent: &CandidateEvent) -> PredicateBr
 /// `print_chain_summary` 与 p123 的 `chain_dump_line`），既重复又不可测。放进库内 ⟹ 单测可锁、
 /// 报告数与测试数不可能对不上。
 ///
-/// **同源范围（照实，#641 S-2 收窄）**：只有 `issue550_event_battery::print_chain_summary`
-/// 真迁到了本结构体（`summarize()` + `digest()`）。p123 的 `chain_dump_line` 是**逐证书**
+/// **同源范围（照实，#641 S-2 收窄）**：只有 `issue550_event_battery::settle_chain_readout`
+/// （原 `print_chain_summary`，#676-2 拆分后改名）真迁到了本结构体（`summarize()` + `digest()`）。
+/// p123 的 `chain_dump_line` 是**逐证书**
 /// （per-certificate）的行格式化，粒度与本结构体的**全簿汇总**不同，**未迁**——它仍自带各档
 /// 节点/边的计数。故「同源」当前只成立于全簿 `summarize` / `digest` 一侧，不含 p123 的逐行 dump。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
