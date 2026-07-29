@@ -2321,6 +2321,40 @@ mod tests {
         assert_eq!(filled, first_class, "所有一类趋势背驰候选（A/C 可配对）point.force 均 Some");
     }
 
+    /// #606 S1 抛光车（终审 F-低2）：钉死「`level=None` 全量 fallback 路径不写 `GRADE_SIDECAR`」——
+    /// 只有 `extract_first_third_resume`（生产 incremental 重放）传 `Some(level)` 才触达捕获分支
+    /// （`judge_segment` 文档已述该契约，本测试补一条直接单测锁）。复用上一测试 fixture（保证产
+    /// 一个 buy1，否则测试空转）。
+    #[test]
+    fn fallback_full_recompute_does_not_capture_grade_sidecar() {
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 350, 250),
+            seg(Direction::Up, 5, 7, 250, 280),
+            seg(Direction::Down, 9, 11, 150, 80),
+        ];
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244,
+        ];
+        let (closes, src) = closes_seq(&prices);
+        let series = compute_macd(&closes, &MacdConfig::default());
+        let closes_tick: Vec<Tick> = closes.iter().map(|&c| c as Tick).collect();
+
+        otherwise_domain_sidecar_begin();
+        let (points, _pans) = extract_signals_with_hist_anchored(
+            &[c0, c1], &segs, None, &series.hist, &series.dif, &closes_tick, &src,
+            DivergenceGauge::default(),
+        );
+        assert!(points.iter().any(|p| p.bits.buy1), "fixture 仍需产一个 buy1（否则测试空转）");
+        let captured = otherwise_domain_sidecar_take();
+        assert!(
+            captured.is_empty(),
+            "level=None 全量 fallback 路径不应写入 GRADE_SIDECAR（只有 incremental resume 传 \
+             Some(level) 才捕获，见 judge_segment 文档 level 参数说明）"
+        );
+    }
+
     /// 三口径 D 判定接线（A2 #163）：同一 fixture 下 gauge 切换只改 buy1/sell1 置位，不改候选集合
     /// （struct_break_dir 无条件置——未背驰候选进样本，消选择偏差语义在三口径下保持）。
     #[test]

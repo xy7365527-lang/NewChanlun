@@ -2031,7 +2031,7 @@ fn otherwise_domain_wf8_grade_buckets() {
         .expect("系统时间晚于 epoch")
         .as_nanos();
     let dump_dir = std::env::temp_dir().join(format!(
-        "otherwise_domain_wf8_three_locks_{}_{}",
+        "otherwise_domain_wf8_grade_dump_{}_{}",
         std::process::id(),
         nonce
     ));
@@ -2048,20 +2048,34 @@ fn otherwise_domain_wf8_grade_buckets() {
     let sidecar = r.net_result.otherwise_domain_sidecar.expect("env 门开 ⟹ sidecar Some");
     assert!(sidecar.frames >= 1, "至少观察到一帧（wf8 非空窗）");
 
-    // ── 独立对照：`center_lifecycle.jsonl` 的 Reset 行数（一类确认事件 → Reset 广播，
-    // #489/#585 同口径，与 sidecar 记录数分别独立统计，供②基数对拍）──
+    // ── 独立对照：`center_lifecycle.jsonl` 的 Reset 行（一类确认事件 → Reset 广播，#489/#585
+    // 同口径，与 sidecar 记录数分别独立统计）——逐行同时取出 `level`/`trigger_side`/
+    // `alive_center_leak`，供②基数对拍 + 下方 D5 逐级对拍（两者共用同一次解析，不重复读盘）──
     let lifecycle_text = std::fs::read_to_string(dump_dir.join("center_lifecycle.jsonl"))
         .expect("OPSEM dump 启用 ⟹ center_lifecycle.jsonl 落盘");
     let _ = std::fs::remove_dir_all(&dump_dir);
-    let reset_count = lifecycle_text
+    let reset_rows: Vec<(u32, u8, bool)> = lifecycle_text
         .lines()
         .filter(|line| !line.is_empty())
-        .filter(|line| {
+        .filter_map(|line| {
             let v: serde_json::Value =
                 serde_json::from_str(line).expect("center_lifecycle.jsonl 行合法 JSON");
-            v["kind"].as_str() == Some("reset")
+            if v["kind"].as_str() != Some("reset") {
+                return None;
+            }
+            let level = v["level"].as_u64().expect("reset 行含 level") as u32;
+            let side_u8 = match v["trigger_side"].as_str().expect("reset 行含 trigger_side") {
+                "Long" => 0u8,
+                "Short" => 1u8,
+                other => panic!("reset 行 trigger_side 未知取值：{other}"),
+            };
+            let leak = v["alive_center_leak"]
+                .as_bool()
+                .expect("reset 行含 alive_center_leak");
+            Some((level, side_u8, leak))
         })
-        .count();
+        .collect();
+    let reset_count = reset_rows.len();
 
     // ── ③五桶分级分侧计数 + 分级分侧 native/otherwise 总表（供 #585 逐案对拍）。键唯一由
     // `OtherwiseDomainSidecarCollector` 内部 upsert `HashMap` 结构性保证（见其模块头谱系
@@ -2113,6 +2127,45 @@ fn otherwise_domain_wf8_grade_buckets() {
         grand_total,
         native_count + otherwise_count,
         "①账平：一类点总数 = 趋势一类(native) + 否则域(otherwise)（Present/Missing 二分恒等）"
+    );
+
+    // ── D5 逐级对拍（#606 S1 抛光车终审 F-中1）：② 只核对总数，本断言逐桶核对——records 按
+    // (level,side) 分桶总数（native+otherwise）与 center_lifecycle reset 行按 (level,trigger_side)
+    // 分桶重新分 leak=true/false 两类计数。两个独立数据源在每个桶上应满足
+    // `records桶总数 - leak=true桶计数 == leak=false桶计数`（若一桶 record 有多算/漏算，diff 会偏离该桶
+    // leak=false 计数，逐桶断言比②的总数断言更细，能抓总数抵消但分桶错位的情形）。照实测写，
+    // 不预先硬编码期望值。
+    let mut reset_leak_true: std::collections::BTreeMap<(u32, u8), usize> =
+        std::collections::BTreeMap::new();
+    let mut reset_leak_false: std::collections::BTreeMap<(u32, u8), usize> =
+        std::collections::BTreeMap::new();
+    for &(level, side_u8, leak) in &reset_rows {
+        let map = if leak { &mut reset_leak_true } else { &mut reset_leak_false };
+        *map.entry((level, side_u8)).or_insert(0) += 1;
+    }
+    let mut d5_keys: std::collections::BTreeSet<(u32, u8)> =
+        level_side_totals.keys().copied().collect();
+    d5_keys.extend(reset_leak_true.keys().copied());
+    d5_keys.extend(reset_leak_false.keys().copied());
+    for key in &d5_keys {
+        let record_count = level_side_totals.get(key).map(|(n, o)| n + o).unwrap_or(0);
+        let leak_true = reset_leak_true.get(key).copied().unwrap_or(0);
+        let leak_false = reset_leak_false.get(key).copied().unwrap_or(0);
+        let diff = record_count as i64 - leak_true as i64;
+        assert_eq!(
+            diff, leak_false as i64,
+            "D5 逐级对拍 (level={},side={}): records 桶总数({record_count}) - \
+             reset leak=true 桶计数({leak_true}) 应恰等于该桶 leak=false 计数({leak_false})",
+            key.0, key.1
+        );
+    }
+    eprintln!(
+        "[#606 S1 D5] 逐级对拍：records(level,side)→总数={:?}；reset(level,trigger_side)→\
+         leak=true 计数={reset_leak_true:?}；leak=false 计数={reset_leak_false:?}",
+        level_side_totals
+            .iter()
+            .map(|(k, (n, o))| (*k, n + o))
+            .collect::<std::collections::BTreeMap<_, _>>(),
     );
 
     eprintln!(
