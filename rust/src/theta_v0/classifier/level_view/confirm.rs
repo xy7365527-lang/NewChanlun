@@ -1,15 +1,15 @@
 //! C2 趋势背驰确认核心：`ConfirmKey`/`ConfirmResidence` run 语境键 + 全合取扫描引擎
 //!（#630 从 `level_view.rs` 拆出，纯移动零语义；来源票 #497 影子评审 MEDIUM-1）。
 
-use super::super::types::{Center, Direction, Segment, Side, Tick};
-use super::level_view::{C2VersionTuple, CoordinateWindow, LevelViewQuery};
-use super::level_view_store::{ConfirmCursor, ConfirmCursorStore, ConfirmState};
-use super::divergence::{
+use super::super::super::types::{Center, Direction, Segment, Side, Tick};
+use super::{C2VersionTuple, CoordinateWindow, LevelViewQuery};
+use super::super::level_view_store::{ConfirmCursor, ConfirmCursorStore, ConfirmState};
+use super::super::divergence::{
     dif_crosses_zero, move_range_envelope as range_envelope, same_color_area,
     same_dir_hist_peak, segment_dif_peak,
 };
-use super::recursive_tower::map_src_to_close_idx;
-use super::signal::trend_third_class_in_c;
+use super::super::recursive_tower::map_src_to_close_idx;
+use super::super::signal::trend_third_class_in_c;
 
 #[cfg(test)]
 std::thread_local! {
@@ -52,14 +52,20 @@ pub struct PairConfirmState {
 /// #69 5a：不含 `as_of` 与可增长 seg-c 末端的结构身份键。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConfirmKey {
-    pub(super) level: u32,
-    pub(super) run_window: CoordinateWindow,
-    pub(super) version: C2VersionTuple,
-    pub(super) pair_id: DivergencePairId,
-    pub(super) move_start: usize,
-    pub(super) seg_a: (usize, usize),
-    pub(super) c_start: usize,
-    pub(super) b_fingerprint: (usize, usize, Tick, Tick, Tick, Tick),
+    /// #630 修复轮（MEDIUM-2 目录化后 43 项收窄对照）：`level_view_store.rs` 的
+    /// `retain_run_starts`/`retain_active_for_run` 直读这两个字段，而该文件不在本次
+    /// 目录迁移范围内（仍是 classifier 直接子模块）——`pub(super)`（=level_view）不够，
+    /// 须显式钉到 classifier，故用 `pub(in super::super)` 而非随迁移自动收紧。
+    pub(in super::super) level: u32,
+    pub(in super::super) run_window: CoordinateWindow,
+    version: C2VersionTuple,
+    pair_id: DivergencePairId,
+    move_start: usize,
+    seg_a: (usize, usize),
+    c_start: usize,
+    b_fingerprint: (usize, usize, Tick, Tick, Tick, Tick),
+    /// `level_view::tests::confirm` 直接构造/读取本字段（结构代次剪枝断言），故留
+    /// `pub(super)`（=level_view 子树）——不同于其余仅 `for_pair` 内部消费的字段。
     pub(super) structure_generation: u64,
 }
 

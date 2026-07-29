@@ -2,12 +2,12 @@
 //! `level_view.rs` 拆出，纯移动零语义；来源票 #497 影子评审 MEDIUM-1）。
 //! provider 入口函数（`provide_nest_candidate_events*`）见 `level_view_pan_provider.rs`。
 
-use super::super::types::{Center, Direction, MoveKind, Segment, Tick};
-use super::decompose::{MoveBlock, MoveStatus};
-use super::divergence::{departure_move_c_start, locate_departure_move_a, self_anchors};
-use super::level_view::ProviderVersion;
-use super::level_view_confirm::{DivergencePair, DivergencePairId};
-use super::level_view_projection::{leg_as_segment, ExactThreeProjection, LowerLeg};
+use super::super::super::types::{Center, Direction, MoveKind, Segment, Tick};
+use super::super::decompose::{MoveBlock, MoveStatus};
+use super::super::divergence::{departure_move_c_start, locate_departure_move_a, self_anchors};
+use super::ProviderVersion;
+use super::confirm::{DivergencePair, DivergencePairId};
+use super::projection::{leg_as_segment, ExactThreeProjection, LowerLeg};
 use std::collections::HashMap;
 
 pub(super) fn structural_block_span(
@@ -151,7 +151,7 @@ pub(super) struct PanMemoKey {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct PanEventCore {
-    pub(super) structure: super::signal::PanDivStructure,
+    pub(super) structure: super::super::signal::PanDivStructure,
     pub(super) interval_a: (usize, usize),
     pub(super) intake_fallback: bool,
     pub(super) divergence_confirmed: bool,

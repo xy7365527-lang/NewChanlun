@@ -1,10 +1,10 @@
 //! C2 D1 投影域：`ExactThreeProjection` seed 构造 + `LowerLeg` 下级走势腿投影（#630 从
 //! `level_view.rs` 拆出，纯移动零语义；来源票 #497 影子评审 MEDIUM-1）。
 
-use super::super::types::{Center, Direction, Segment, Tick};
-use super::center::{center_from_segments, center_from_window, compute_dd, compute_gg, UnitRange};
-use super::level_view::ProviderVersion;
-use super::recursive_tower::{ElementId, LeveledMove};
+use super::super::super::types::{Center, Direction, Segment, Tick};
+use super::super::center::{center_from_segments, center_from_window, compute_dd, compute_gg, UnitRange};
+use super::ProviderVersion;
+use super::super::recursive_tower::{ElementId, LeveledMove};
 
 /// seed 核来源显式打标（#90 结裁 `chanlun/escalate/silent-dual-core-c1-seam-ruling-20260715.md`，
 /// 执行 codex-decide-20260704 :143 边界条件"不能伪装成普通 seed 中枢"）。
@@ -69,8 +69,8 @@ fn first_leaf_direction(value: &LeveledMove) -> Option<Direction> {
     let mut node = &value.rmove;
     loop {
         match node {
-            super::descend::RMove::Segment { direction, .. } => return Some(*direction),
-            super::descend::RMove::Compose { subs, .. } => match subs.first() {
+            super::super::descend::RMove::Segment { direction, .. } => return Some(*direction),
+            super::super::descend::RMove::Compose { subs, .. } => match subs.first() {
                 Some(first) => node = first,
                 None => return None,
             },
@@ -141,8 +141,8 @@ fn project_extended_windows_impl(
         }
         // 条款 1（#90 结裁）：准绳 = 塔 compose 携带核（#89 已证与重算 detect 逐窗 bit-equal）。
         let carried = match &window.rmove {
-            super::descend::RMove::Compose { centers, .. } => centers.first().copied(),
-            super::descend::RMove::Segment { .. } => None,
+            super::super::descend::RMove::Compose { centers, .. } => centers.first().copied(),
+            super::super::descend::RMove::Segment { .. } => None,
         }
         .ok_or(ProjectionError::MissingCarriedCenter { index })?;
         let (center, core_provenance) = match own_center {

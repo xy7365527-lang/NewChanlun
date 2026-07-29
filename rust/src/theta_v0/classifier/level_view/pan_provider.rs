@@ -2,18 +2,18 @@
 //!（#630 从 `level_view.rs` 拆出，纯移动零语义；来源票 #497 影子评审 MEDIUM-1）。
 //! run 语境身份/memo 基础设施见 `level_view_pan.rs`。
 
-use super::super::types::{Bar, Direction, Fractal, MoveKind, Side, Tick};
-use super::decompose::{center_block_kind, MoveBlock};
-use super::divergence::{move_range_envelope as range_envelope, segments_diverge_or};
-use super::level_view::LevelAsOfView;
-use super::level_view_confirm::{NestCandidateEvent, NestDivergenceKind};
-use super::level_view_pan::{
+use super::super::super::types::{Bar, Direction, Fractal, MoveKind, Side, Tick};
+use super::super::decompose::{center_block_kind, MoveBlock};
+use super::super::divergence::{move_range_envelope as range_envelope, segments_diverge_or};
+use super::LevelAsOfView;
+use super::confirm::{NestCandidateEvent, NestDivergenceKind};
+use super::pan::{
     pan_block_triple, pan_owner_block_index, structural_block_span, structural_pair_span,
     PanCenterIdentity, PanEventCore, PanMemoKey, PanMemoValue, PanResidence, PanSegmentIdentity,
 };
-use super::level_view_projection::{leg_as_segment, ExactThreeProjection, LowerLeg};
-use super::recursive_tower::map_src_to_close_idx;
-use super::signal::{
+use super::projection::{leg_as_segment, ExactThreeProjection, LowerLeg};
+use super::super::recursive_tower::map_src_to_close_idx;
+use super::super::signal::{
     locate_pan_div_structure, locate_pan_div_structure_front_anchor, nearest_confirmed_center_idx,
     pan_div_structure_extreme,
 };
@@ -122,8 +122,8 @@ pub(super) fn resolve_triple_anchor(
     fractals: &[Fractal],
     merged_bars: &[Bar],
 ) -> (Option<Tick>, Option<usize>) {
-    let price = super::super::parser::fractal::fractal_at_source(fractals, x).map(|f| f.price);
-    let anchor = super::super::parser::inclusion::merged_group_anchor(merged_bars, x);
+    let price = super::super::super::parser::fractal::fractal_at_source(fractals, x).map(|f| f.price);
+    let anchor = super::super::super::parser::inclusion::merged_group_anchor(merged_bars, x);
     (price, anchor)
 }
 

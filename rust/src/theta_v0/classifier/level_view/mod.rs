@@ -4,10 +4,21 @@
 //! exact-three seed；D2 只消费 D3 已结裁的 `MoveBlock.dir: Option<Direction>`。四个旧 seam
 //! provider 不在本模块出现，方向版本唯一绑定 `central-ggdd-v1`。
 //!
-//! #630：生产段按域拆分为 sibling 文件（本文件保留查询/版本元类型与顶层 assemble seam）——
-//! `level_view_projection.rs`（D1 投影 + LowerLeg）、`level_view_confirm.rs`（趋势背驰确认
-//! 核心）、`level_view_pan.rs` + `level_view_pan_provider.rs`（盘整/趋势候选事件 provider）。
-//! 全部 `pub` 项经下方 `pub use` 原样再导出，外部消费路径（`classifier::level_view::X`）零改动。
+//! #630：生产段按域拆分为子模块（本文件保留查询/版本元类型与顶层 assemble seam）——
+//! `projection`（D1 投影 + LowerLeg）、`confirm`（趋势背驰确认核心）、`pan` + `pan_provider`
+//! （盘整/趋势候选事件 provider）。全部 `pub` 项经下方 `pub use` 原样再导出，外部消费路径
+//! （`classifier::level_view::X`）零改动。
+//!
+//! #630 修复轮（影子评审 MEDIUM-2）：4 个子域由 classifier 兄弟文件改为本模块内部子模块
+//! （目录模块，`level_view.rs` → `level_view/mod.rs`），43 项 `pub(super)` 的 `super` 由
+//! classifier 变为 level_view——可见域从「classifier 24 个兄弟模块」收窄到「level_view 子树」
+//! （先例 #633 批7 `incremental/`）。`level_view_store`（`ConfirmCursor`/`ConfirmCursorStore`）
+//! 不在本次迁移范围内，仍是 classifier 兄弟模块。
+
+mod confirm;
+mod pan;
+mod pan_provider;
+mod projection;
 
 use super::super::types::{Direction, MoveKind, Side};
 use super::decompose::{MoveBlock, MoveStatus};
@@ -18,29 +29,31 @@ use std::collections::BTreeSet;
 /// 本行保 pub 路径不变（`p123_fast_replay.rs` 等既有消费方零改动）。
 pub use super::level_view_store::{ConfirmCursor, ConfirmCursorStore, ConfirmState};
 
-/// #630：`level_view_projection.rs` 的 pub 项原样再导出（D1 投影 + LowerLeg）。
-pub use super::level_view_projection::{
+/// #630：`projection` 子模块的 pub 项原样再导出（D1 投影 + LowerLeg）。
+pub use projection::{
     project_extended_windows, project_extended_windows_carried_only, lower_legs_from,
     ExactThreeProjection, ExactThreeSeed, LowerLeg, ProjectionError, ProjectionMaterial,
     SeedCoreProvenance,
 };
-use super::level_view_projection::leg_as_segment;
+use projection::leg_as_segment;
 
-/// #630：`level_view_confirm.rs` 的 pub 项原样再导出（趋势背驰确认核心）。
-pub use super::level_view_confirm::{
+/// #630：`confirm` 子模块的 pub 项原样再导出（趋势背驰确认核心）。
+pub use confirm::{
     ConfirmKey, ConfirmResidence, DivergencePair, DivergencePairId, NestCandidateEvent,
     NestDivergenceKind, PairConfirmState,
 };
-use super::level_view_confirm::{trend_confirm_state, trend_confirm_state_core};
+use confirm::{trend_confirm_state, trend_confirm_state_core};
 #[cfg(test)]
-use super::level_view_confirm::{confirm_core_calls, reset_confirm_core_calls, trend_confirm_time};
+use confirm::{confirm_core_calls, reset_confirm_core_calls, trend_confirm_time};
 
-/// #630：`level_view_pan.rs` 的 pub 项原样再导出（D2 provider + memo resident seam；
+/// #630：`pan` 子模块的 pub 项原样再导出（D2 provider + memo resident seam；
 /// `PanMemo`/`PanResidence` 由 `p123_fast_replay.rs` 直接消费，必须保 `pub`）。
-pub use super::level_view_pan::{provide_divergence_pairs, PanMemo, PanResidence};
+/// `PanMemoStats`（#630 修复轮 MEDIUM-1）：原拆分遗漏再导出，`classifier::level_view::
+/// PanMemoStats` 路径曾静默断裂（无消费者未破编译，仍是四件套自设口径的反例）。
+pub use pan::{provide_divergence_pairs, PanMemo, PanMemoStats, PanResidence};
 
-/// #630：`level_view_pan_provider.rs` 的 pub 项原样再导出（typed 候选事件 provider 入口）。
-pub use super::level_view_pan_provider::{
+/// #630：`pan_provider` 子模块的 pub 项原样再导出（typed 候选事件 provider 入口）。
+pub use pan_provider::{
     provide_nest_candidate_events, provide_nest_candidate_events_ext,
     provide_nest_candidate_events_ext_resident, provide_nest_candidate_events_resident,
     NestCandidateEventExt,
@@ -55,7 +68,7 @@ use super::super::types::{Bar, Center, Fractal, Tick};
 #[cfg(test)]
 use super::center::UnitRange;
 #[cfg(test)]
-use super::level_view_pan_provider::resolve_triple_anchor;
+use pan_provider::resolve_triple_anchor;
 #[cfg(test)]
 use super::recursive_tower::ElementId;
 
