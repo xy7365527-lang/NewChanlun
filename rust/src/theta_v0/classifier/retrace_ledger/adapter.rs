@@ -19,11 +19,10 @@
 //! 判定需要账本态，故由 [`super::book::RetraceLedger::observe`] 在本模块四桶之后施加。
 
 use super::super::super::types::Direction;
-use super::super::first_retrace_replay::{RetraceOutcome, StrictCompletedPair};
 use super::book::CenterDeathCertificate;
 use super::{
-    CenterAnchor, CenterFrame, RetraceEvidence, RetraceKey, RetraceObservation, RetracePoint,
-    RetraceSide,
+    CenterAnchor, CenterFrame, RetraceEvidence, RetraceKey, RetraceObservation, RetraceOutcome,
+    RetracePoint, RetraceSide, StrictCompletedPair,
 };
 
 /// 观察适配器的原始输入（票面「观察进」的唯一入口）。

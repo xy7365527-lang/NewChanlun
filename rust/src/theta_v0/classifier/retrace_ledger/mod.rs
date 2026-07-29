@@ -51,14 +51,14 @@
 //!   （[`RetraceRejection::TerminalEvidenceContradictsRegistration`]）+ 四类警报 audit 流
 //!   （[`audit`] 模块）；
 //! - **S3**（#623）：备战档 / 短差档门户；
-//! - **S4**：与 [`super::first_retrace_replay`] 的对拍与旧模块处置——本模块**只借用**其
-//!   [`StrictCompletedPair`] / [`RetraceOutcome`] 域词汇，一个字节不改它；
-//!   MEDIUM-1（跨进程恢复后未决候选可被陈旧知情时落锤）待裁，本票未动门卫钟语义。
+//! - **S4**（#624，已落地）：旧模块 `first_retrace_replay` 的 fixtures 行为等价面对拍
+//!   （[`tests::replay_parity`]）+ 事件日志 golden 锚（[`tests::golden_log`]）+ 消费方登记
+//!   （见下 §消费方登记）+ 旧模块删除（编排者 2026-07-29 裁定 A「5 删」）——其
+//!   [`StrictCompletedPair`] / [`RetraceOutcome`] 两枚域词汇迁入本模块，一个 bit 不改。
 
 use serde::{Deserialize, Serialize};
 
 use super::super::types::{Direction, Tick};
-use super::first_retrace_replay::{RetraceOutcome, StrictCompletedPair};
 use super::ledger_kernel::{
     first_write_clock, LedgerEntryCore, LedgerPolicy, LedgerRevision, LedgerState,
 };
@@ -88,6 +88,38 @@ pub use portal::{
     FailureDisposalNotice, PanDivSubtype, ShortRetracePortal, ShortRetraceRecord,
     ShortRetraceRejection, StandbyWatch, TradableSignal,
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 域词汇（票 #624：自旧模块 `first_retrace_replay` 迁入）
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// 严格相邻的已完成 Move pair：`leave` = 离开中枢那根，`retest` = 回抽那根。
+///
+/// **出处与迁入理由**：原 `classifier::first_retrace_replay`（D7 只读复核原语，`e942e1d3c1` 入库）。
+/// 编排者 2026-07-29 裁定 A（5 删）删除该模块时，本类型与 [`RetraceOutcome`] 是账本**仍在用**的
+/// 两枚域词汇，故迁入本模块；其余七项（D1 seed → 唯一 CompletedMove 映射、四类 fail-closed 错误码、
+/// 瞬态 replay 自动机及其两个错误码）随模块一并删除。逐条去向见
+/// `chanlun/review-results/issue624-fixture-replay-diff-20260729.md` §四。
+///
+/// **判据分工**：「严格相邻」（`retest == leave + 1`，补充十五紧邻语义）由
+/// [`adapter::admit_input`] 在注册期强制；`leave` / `retest` 各自是否唯一属于一根 Completed Move
+/// 是**上游 provider 的职责**——本账入口只接已配对 pair，不重做投影层的映射证明。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StrictCompletedPair {
+    /// 离开中枢那根 CompletedMove 的索引。
+    pub leave_move_index: usize,
+    /// 回抽那根 CompletedMove 的索引（严格 = `leave_move_index + 1`）。
+    pub retest_move_index: usize,
+}
+
+/// 回抽结局（同上，自旧模块迁入；一个 bit 不改）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RetraceOutcome {
+    /// 回抽重回中枢框内 ⟹ 判败（[`NotConstitutedReason::RetestReentered`]）。
+    RetestReenters,
+    /// 回抽不回 ⟹ 判胜（三类点成立，快照转正 + 中枢死亡证明）。
+    Success,
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 身份（裁定一）

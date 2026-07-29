@@ -20,7 +20,6 @@
 //! - [`golden_log`]（票 #624）：事件日志 golden 锚（JSONL 字节 + 指纹 + 重放一致，六场景覆盖）。
 
 use super::super::super::types::{Direction, Tick};
-use super::super::first_retrace_replay::{RetraceOutcome, StrictCompletedPair};
 use super::super::level_view::CoordinateWindow;
 use super::*;
 
