@@ -158,3 +158,140 @@ fn disposal_notices_are_emitted_for_every_registered_short_retrace_record() {
     assert_eq!(book.failure_disposal_notices().len(), 2, "直接派生口径同样两份");
     settled(&book);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 影子评审 #623 S3 修复轮：HIGH-1 / MEDIUM-1 / MEDIUM-2 / MEDIUM-3 正式测试化
+// （原探针 P3/P4/P5/P6/P7，见 chanlun/review-results/shadow-623-s3-review-20260729.md）
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// HIGH-1 订正（P3）：`consume` 对尚未登记的身份返回 `None` 且不写入 `consumed`——此后 `sync`
+/// 补登的真记录仍可正常消费。旧实现会先无条件插入 `consumed` 再查 `records`，把该身份永久
+/// 毒化，`sync` 之后再也取不出来。
+#[test]
+fn consume_on_unregistered_identity_does_not_poison_future_sync() {
+    let mut book = ledger();
+    let center = frame(1_200);
+    book.observe(&up_input(center, 3, None, 500)).unwrap();
+    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
+        .unwrap();
+    let identity = key_of(center, 3);
+
+    let mut portal = ShortRetracePortal::new();
+    assert_eq!(portal.consume(&identity), None, "尚未登记：显式拒绝");
+    portal.sync(&book);
+    assert_eq!(portal.len(), 1, "记录已登记");
+    assert!(portal.balances_with(&book), "账平断言照样成立");
+    assert!(
+        portal.consume(&identity).is_some(),
+        "未登记时的 consume 不得永久毒化该身份：sync 补登后仍可正常消费"
+    );
+    assert_eq!(portal.consume(&identity), None, "真正消费过一次后，幂等锁照常生效");
+    settled(&book);
+}
+
+/// MEDIUM-1 订正（P4）：账平断言按身份 + 内容双重比对，伪造身份混入即判不平（旧实现只比
+/// `len()`，两边身份集合完全不相交时仍会判「平」）。
+#[test]
+fn balances_with_rejects_bogus_identity_absent_from_ledger() {
+    let mut book = ledger();
+    let center = frame(1_200);
+    book.observe(&up_input(center, 3, None, 500)).unwrap();
+    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
+        .unwrap();
+    let real = book.short_retrace_records()[0];
+
+    let bogus = ShortRetraceRecord {
+        identity: key_of(other_frame(9_000), 99),
+        ..real
+    };
+    let mut portal = ShortRetracePortal::new();
+    portal.admit(bogus).unwrap();
+    assert!(
+        !portal.balances_with(&book),
+        "门户里是伪造身份、账本里是另一条真判败，条数相等但身份集合不相交——账不平"
+    );
+    settled(&book);
+}
+
+/// MEDIUM-1 订正（P5）：`sync` 以账本为真相——已登记身份若内容偏离账本（如被篡改的
+/// `retest_end`），重新 `sync` 后订正为账本值，不再静默保留旧值；订正后下发的处置通知
+/// 不再带错位置。
+#[test]
+fn sync_corrects_identity_whose_recorded_content_deviates_from_ledger() {
+    let mut book = ledger();
+    let center = frame(1_200);
+    book.observe(&up_input(center, 3, None, 500)).unwrap();
+    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
+        .unwrap();
+    let real = book.short_retrace_records()[0];
+
+    let tampered = ShortRetraceRecord {
+        retest_end: RetracePoint { index: 999_999, price: -1 },
+        ..real
+    };
+    let mut portal = ShortRetracePortal::new();
+    portal.admit(tampered).unwrap();
+    assert!(!portal.balances_with(&book), "同步前：内容偏离账本，账不平");
+
+    portal.sync(&book);
+    assert!(portal.balances_with(&book), "同步后：订正为账本值，账平");
+    let notices = portal.disposal_notices();
+    assert_eq!(notices.len(), 1);
+    assert_eq!(notices[0].position, real.retest_end, "通知位置已订正，不再带错位置");
+    settled(&book);
+}
+
+/// MEDIUM-2 订正（P6）：判败缺回抽位置的重放态在 `assert_invariants()` 处 fail-loud，不再留到
+/// 只读派生函数 `short_retrace_records()` 才 panic——与判胜侧既有的镜像不变量对称。
+#[test]
+#[should_panic(expected = "判败必带回抽位置")]
+fn assert_invariants_catches_tampered_failure_without_retest_position() {
+    let mut book = ledger();
+    let center = frame(1_200);
+    book.observe(&up_input(center, 3, None, 500)).unwrap();
+    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
+        .unwrap();
+
+    let mut journal = book.journal().to_vec();
+    let target = journal
+        .iter_mut()
+        .find(|record| {
+            matches!(
+                record.revision.kind,
+                RetraceRevisionKind::NotConstituted {
+                    reason: NotConstitutedReason::RetestReentered
+                }
+            )
+        })
+        .expect("判败落锤记录必在日志中");
+    target.revision.evidence.as_mut().unwrap().retest_end = None;
+
+    let tampered = RetraceLedger::fold(provenance(), &journal).unwrap();
+    tampered.assert_invariants(); // ← 应在此 fail-loud，而不是等到 short_retrace_records() 才 panic
+}
+
+/// MEDIUM-3 订正（P7）：`disposal_notices` 与 `consume` 共享同一 `consumed` 判重——记录被消费后
+/// 不再重复吐出通知。旧实现两路完全不相交：`consume` 幂等成立之后，`disposal_notices` 仍会
+/// 无条件重复发放同一条通知。
+#[test]
+fn disposal_notices_stop_after_the_record_is_consumed() {
+    let mut book = ledger();
+    let center = frame(1_200);
+    book.observe(&up_input(center, 3, None, 500)).unwrap();
+    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
+        .unwrap();
+    let identity = key_of(center, 3);
+
+    let mut portal = ShortRetracePortal::new();
+    portal.sync(&book);
+    assert_eq!(portal.disposal_notices().len(), 1, "消费前：通知照发");
+
+    assert!(portal.consume(&identity).is_some(), "首次消费成功");
+    assert_eq!(portal.consume(&identity), None, "幂等：重复消费不重复处置");
+    assert!(
+        portal.disposal_notices().is_empty(),
+        "已消费的记录不再重复吐出通知——通知路与消费锁共享同一判重"
+    );
+    assert_eq!(portal.len(), 1, "消费不删除记录，只标记：记录仍在档");
+    settled(&book);
+}

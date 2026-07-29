@@ -614,6 +614,17 @@ impl RetraceLedger {
             let evidence = entry.terminal_evidence().expect("Confirmed 必有落锤证据");
             assert!(evidence.retest_end.is_some(), "判胜必带回抽位置：{key:?}");
         }
+        // 判败侧镜像（影子评审 #623 S3 MEDIUM-2 订正）：Confirmed 一侧有上面这条不变量兜底
+        // 「判胜必带回抽位置」，`Invalidated{RetestReentered}` 一侧此前零断言——`portal.rs` 的
+        // `short_retrace_record_of` 对同一前提用 `expect`，活路上不可达（适配器挡死），但重放
+        // 路径不挡（`log.rs` 声明的在案敞口：JSONL 落盘后被外部改写）。补齐后，篡改在这里
+        // fail-loud，而不是留到 `short_retrace_records()` 这个只读派生函数才 panic。
+        if entry.not_constituted_reason() == Some(NotConstitutedReason::RetestReentered) {
+            let evidence = entry
+                .terminal_evidence()
+                .expect("Invalidated{RetestReentered} 必有落锤证据");
+            assert!(evidence.retest_end.is_some(), "判败必带回抽位置：{key:?}");
+        }
     }
 
     /// 裁定二：每个中枢锚至多一个未决候选，且路由投影恰指向该锚最后注册的身份。

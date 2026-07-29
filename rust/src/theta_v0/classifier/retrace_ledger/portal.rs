@@ -159,6 +159,12 @@ impl RetraceLedger {
     }
 
     /// 失败处置通知：短差档的伴生输出，逐条判败各发一份（名义「通知非信号」）。
+    ///
+    /// **无消费门控的原始源**（影子评审 #623 S3 MEDIUM-3 分工声明）：账本本身不持有任何门户
+    /// 实例、不知道「消费」是什么，此方法对当前判败集合的每一条都无条件各发一份。带幂等的
+    /// 那一路是 [`ShortRetracePortal::disposal_notices`]（消费同一 `consumed` 判重）——两路各
+    /// 有明确用途：本方法给「我要全量重新对拍」的调用方，门户那一路给「我要按增量消费」的
+    /// 调用方，不是同一份契约的两个不一致实现。
     pub fn failure_disposal_notices(&self) -> Vec<FailureDisposalNotice> {
         self.short_retrace_records().iter().map(FailureDisposalNotice::from_record).collect()
     }
@@ -207,11 +213,16 @@ pub enum ShortRetraceRejection {
 
 /// 短差档接收器：判败盘背观测记录的键唯一登记 + 幂等消费。
 ///
-/// **三锁**：
+/// **三锁**（影子评审 #623 S3 HIGH-1/MEDIUM-1 之后的口径，bijection 语义）：
 /// 1. **键唯一**——[`Self::admit`] 对已登记身份冲突拒绝（[`ShortRetraceRejection::DuplicateIdentity`]）；
-/// 2. **一一对应去重**——[`Self::sync`] 只登记账本判败集合中尚未登记的身份，账本自身按 `RetraceKey`
-///    去重（一个身份至多一条判败记录，内核终态禁复活保证），故同步天然一一对应；
-/// 3. **账平断言**——[`Self::balances_with`] 供验收行使用：本档条数须等于账本判败条数。
+/// 2. **一一对应去重**——[`Self::sync`] 以账本为真相：账本判败集合中的每一身份，门户里要么补齐
+///    要么订正为账本当前值（`insert` 覆盖，不是 `or_insert` 静默保留旧值）；[`Self::balances_with`]
+///    按身份 + 内容双重比对验证这一点，不止比条数；
+/// 3. **账平断言**——[`Self::balances_with`]：本档记录集合与账本判败集合逐条内容相等（bijection），
+///    供验收行使用；
+/// 4. **幂等消费**——[`Self::consume`] 只对**已登记**身份生效，同一身份首次消费返回记录并标记
+///    已消费、重复消费返回 `None`；对尚未登记的身份调用返回 `None` 但**不**写入消费标记，
+///    避免尚未同步的身份被永久毒化。
 #[derive(Debug, Clone, Default)]
 pub struct ShortRetracePortal {
     records: std::collections::BTreeMap<RetraceKey, ShortRetraceRecord>,
@@ -232,19 +243,28 @@ impl ShortRetracePortal {
         Ok(())
     }
 
-    /// 与账本判败集合同步：只登记尚未登记过的身份（锁二，一一对应去重）。
+    /// 与账本判败集合同步：账本是真相、门户是投影——已登记身份若内容偏离账本，订正为账本值
+    /// （锁二，一一对应去重；影子评审 #623 S3 MEDIUM-1 订正：`or_insert` 静默保留旧值会让伪造
+    /// /篡改内容永远盖不掉，改 `insert` 无条件以账本为准）。
     pub fn sync(&mut self, ledger: &RetraceLedger) {
         for record in ledger.short_retrace_records() {
-            self.records.entry(record.identity).or_insert(record);
+            self.records.insert(record.identity, record);
         }
     }
 
     /// 幂等消费：同一身份首次消费返回记录并标记已消费；重复消费返回 `None`（不重复处置）。
+    ///
+    /// **对尚未登记的身份显式拒绝，且不写 `consumed`**（影子评审 #623 S3 HIGH-1 订正）：旧实现
+    /// 先无条件插入 `consumed` 再查 `records`，对未同步身份调用一次即永久毒化——此后 `sync`
+    /// 补登的真记录再也取不出来，而 `len()`/`balances_with()` 显示正常，属静默丢失。现改为
+    /// 先查记录是否存在，不存在直接返回 `None`（显式拒绝，不留副作用）；只有真实存在的记录才
+    /// 进入 `consumed` 幂等锁。
     pub fn consume(&mut self, identity: &RetraceKey) -> Option<ShortRetraceRecord> {
+        let record = self.records.get(identity).copied()?;
         if !self.consumed.insert(*identity) {
             return None;
         }
-        self.records.get(identity).copied()
+        Some(record)
     }
 
     pub fn len(&self) -> usize {
@@ -255,13 +275,32 @@ impl ShortRetracePortal {
         self.records.is_empty()
     }
 
-    /// 账平断言（锁三）：本档条数 == 账本判败条数。
+    /// 账平断言（锁三）：本档记录集合与账本判败集合按身份**逐条内容**一一对应，不止条数相等
+    /// （影子评审 #623 S3 MEDIUM-1 订正：旧实现只比 `len()`，伪造身份混入或内容被 `sync` 静默
+    /// 保留的偏离记录都会被判「平」）。条数先行短路，再逐条比对账本每条记录在门户中是否存在
+    /// 且内容相等；结合等长前提，这就是双射判定，不需要反向再扫一遍。
     pub fn balances_with(&self, ledger: &RetraceLedger) -> bool {
-        self.records.len() == ledger.short_retrace_records().len()
+        let ledger_records = ledger.short_retrace_records();
+        if self.records.len() != ledger_records.len() {
+            return false;
+        }
+        ledger_records
+            .iter()
+            .all(|record| self.records.get(&record.identity) == Some(record))
     }
 
-    /// 失败处置通知：已登记的每条记录各发一份（名义「通知非信号」）。
+    /// 失败处置通知：已登记且**尚未消费**的记录各发一份（名义「通知非信号」）。
+    ///
+    /// 与 [`Self::consume`] 共享同一 `consumed` 判重（影子评审 #623 S3 MEDIUM-3 订正：旧实现
+    /// 对全部已登记记录一律发放，与 `consume` 的幂等锁互不相交——`consume` 幂等成立后
+    /// `disposal_notices` 仍会重复吐出同一条通知）。[`RetraceLedger::failure_disposal_notices`]
+    /// 是不同的另一条路径：账本层没有门户、没有 `consumed` 概念，是**未经消费门控的原始源**，
+    /// 门户是它之上带幂等的投影，两路分工到此为止。
     pub fn disposal_notices(&self) -> Vec<FailureDisposalNotice> {
-        self.records.values().map(FailureDisposalNotice::from_record).collect()
+        self.records
+            .values()
+            .filter(|record| !self.consumed.contains(&record.identity))
+            .map(FailureDisposalNotice::from_record)
+            .collect()
     }
 }
