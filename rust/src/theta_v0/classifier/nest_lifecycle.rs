@@ -2246,11 +2246,20 @@ pub fn active_l2_window_frontier(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 回放喂数出口（票 #426 主接缝；ADR-0003：结构完成 = 通道切换）
+// 回放喂数出口（票 #426 早期适配层；ADR-0003：结构完成 = 通道切换）
+//
+// **本段三件（`leg_as_segment_copy` / `PanLiveRun` / `provide_replay_live_windows`）
+// 现仅测试可达，不是生产主接缝**（票 #605 定档核实；影子评审 shadow-421-whole S-H2 /
+// shadow-527-review T-3 先期登记）：生产侧 sidecar 实走单 run typed 结果的
+// `provide_active_pan_live_windows`（本文件 `pub fn provide_active_pan_live_windows`），
+// p123_fast_replay.rs 自持独立 `lifecycle_leg_as_segment` 复制腿转段，均不调用本段三件。
+// 全库唯一调用点是本文件 `#[cfg(test)] mod tests` 内的夹具。是否清除/归档见票 #605
+// 交付报告的定档建议表，删除动作本身须编排者终审，本次只订正措辞对齐实装。
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// `level_view.rs:436` 私有 `leg_as_segment` 的接线侧复制（规格 Implementation Decisions
 /// 「在接线侧复制一份」而非提升可见性；`runner.rs` 诊断臂与 p409 探针已有同型先例）。
+/// **仅服务于下方 `provide_replay_live_windows`——该函数现仅测试可达**（票 #605）。
 fn leg_as_segment_copy(value: &LowerLeg) -> Segment {
     let (start_price, end_price) = match value.direction {
         Direction::Up => (value.lo, value.hi),
@@ -2266,6 +2275,7 @@ fn leg_as_segment_copy(value: &LowerLeg) -> Segment {
 }
 
 /// 单个 run 的行进中通道取数（回放引擎逐前缀评估循环内已具备的量）。
+/// **仅供下方 `provide_replay_live_windows` 与其测试夹具使用——生产侧不构造本结构**（票 #605）。
 #[derive(Debug, Clone, Copy)]
 pub struct PanLiveRun<'a> {
     pub level: u32,
@@ -2279,8 +2289,10 @@ pub struct PanLiveRun<'a> {
 
 /// 把同源 provider 的逐 run 结构展开为当前边界的活窗。
 ///
-/// 本函数是旧 trigger/provider 适配层的展开原语。生产逐 bar sidecar 在 p123 内按 p409
-/// 同构机制独立发现结构窗；后续 bar 保持身份字段不动，仅延展 `seg_c_live.1`。
+/// 本函数是旧 trigger/provider 适配层的展开原语，**全库唯一调用点在本文件
+/// `#[cfg(test)] mod tests`**（票 #605 核实）。生产逐 bar sidecar 在 p123 内按 p409
+/// 同构机制独立发现结构窗（走 `provide_active_pan_live_windows` 单 run 通道），
+/// 不经本函数；后续 bar 保持身份字段不动，仅延展 `seg_c_live.1`。
 pub fn provide_replay_live_windows(
     runs: &[PanLiveRun<'_>],
     as_of: usize,

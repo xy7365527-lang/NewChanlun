@@ -649,6 +649,52 @@ impl LifecycleReplayStats {
 }
 
 fn main() -> Result<(), String> {
+    let (config, loaded, max_bars) = parse_cli_and_load()?;
+    print_startup_banners(&loaded, max_bars);
+
+    let mut audit = ProviderAudit::default();
+    let terminal = run_terminal_pass(&loaded.bars[..max_bars], &config)?;
+    let terminal_events = collect_terminal_snapshot(&terminal, max_bars, &mut audit)?;
+    let targets = build_target_map(&terminal_events);
+
+    let (mut book, unresolved_targets) =
+        run_prefix_pass_and_report(&loaded.bars[..max_bars], &config, &targets, &mut audit)?;
+
+    let TerminalState {
+        l0,
+        classification,
+        tower,
+        cache,
+    } = terminal;
+    let final_events = finalize_judge_at(terminal_events, &book, max_bars);
+    observe_snapshot(
+        &classification,
+        final_events,
+        max_bars - 1,
+        &mut book,
+        &mut audit,
+    );
+
+    let (full_classification, full_tower) = classifier::classify_with_tower(&l0, &config);
+    let bit_diff = compute_bit_diff(&full_classification, &classification, &full_tower, &tower);
+    print_bit_diff_levels(
+        &full_classification,
+        &classification,
+        bit_diff.classification_diff,
+    );
+
+    let old = compute_old_semantic_counts(&l0, &classification, &tower, &config, &cache);
+
+    print_yield_cert_d3(&book);
+    print_baseline_and_provider(&book, &old, &audit, unresolved_targets);
+    print_bit_exact_and_r7(&bit_diff, &book, &audit, unresolved_targets);
+    report_missed_reconciliation(&book);
+
+    dump_flush();
+    Ok(())
+}
+
+fn parse_cli_and_load() -> Result<(ThetaConfig, LoadedBars, usize), String> {
     let mut args = std::env::args().skip(1);
     let path = args
         .next()
@@ -665,7 +711,10 @@ fn main() -> Result<(), String> {
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
         .map_or(loaded.bars.len(), |value| value.min(loaded.bars.len()));
+    Ok((config, loaded, max_bars))
+}
 
+fn print_startup_banners(loaded: &LoadedBars, max_bars: usize) {
     println!(
         "P123_INPUT bars={} replay_bars={} first_date={} last_date={}",
         loaded.bars.len(),
@@ -682,29 +731,47 @@ fn main() -> Result<(), String> {
     println!(
         "P123_SPARSE_MODE cache=per_level_run dirty=self_content,lower_content,leg_end_watermark,bsp_content term_recheck=fresh_or_book_changed trigger=forest_epoch+signal_signature_frozen"
     );
+}
 
-    let mut audit = ProviderAudit::default();
-    let terminal = run_terminal_pass(&loaded.bars[..max_bars], &config)?;
+fn collect_terminal_snapshot(
+    terminal: &TerminalState,
+    max_bars: usize,
+    audit: &mut ProviderAudit,
+) -> Result<Vec<Vec<NestCandidateEvent>>, String> {
     let (hist, close_src) = terminal.cache.causal_series();
     let dif = terminal.cache.macd_dif();
-    let terminal_events = collect_snapshot_candidates(
-        &terminal.tower,
-        max_bars - 1,
-        hist,
-        dif,
-        close_src,
-        &mut audit,
-    )?;
+    collect_snapshot_candidates(&terminal.tower, max_bars - 1, hist, dif, close_src, audit)
+}
+
+fn build_target_map(
+    terminal_events: &[Vec<NestCandidateEvent>],
+) -> BTreeMap<EventKey, NestCandidateEvent> {
     let mut targets = BTreeMap::new();
     for event in terminal_events.iter().flatten() {
         targets.insert(EventKey::from(event), *event);
     }
+    targets
+}
+
+fn run_prefix_pass_and_report(
+    bars: &[Bar],
+    config: &ThetaConfig,
+    targets: &BTreeMap<EventKey, NestCandidateEvent>,
+    audit: &mut ProviderAudit,
+) -> Result<(YieldBook, usize), String> {
     let prefix_started = Instant::now();
-    let (mut book, prefix_views, unresolved_targets, stats, lifecycle_stats) =
-        run_targeted_prefix_pass(&loaded.bars[..max_bars], &config, &targets)?;
+    let (book, prefix_views, unresolved_targets, stats, lifecycle_stats) =
+        run_targeted_prefix_pass(bars, config, targets)?;
     let prefix_elapsed = prefix_started.elapsed();
     audit.views += prefix_views;
     audit.snapshots += book.candidates.len();
+    print_sparse_summary(&stats, prefix_elapsed);
+    print_lifecycle_summary(&lifecycle_stats);
+    print_lifetime_summary(&lifecycle_stats.settlement);
+    Ok((book, unresolved_targets))
+}
+
+fn print_sparse_summary(stats: &SparseStats, prefix_elapsed: std::time::Duration) {
     eprintln!(
         "P123_SPARSE_SUMMARY triggers={} reevals={} reuses={} syncs_self={} syncs_lower={} wm_cross_with_lower={} wm_cross_without_lower={} term_rechecks={} term_skips={} shadow_checks={} shadow_mismatches={} shadow_term_mismatches={} pan_entries={} pan_hits={} pan_misses={} pan_writes={} pan_invalidations={} prefix_s={:.3}",
         stats.triggers,
@@ -736,6 +803,9 @@ fn main() -> Result<(), String> {
             "P123_SPARSE_LEVEL level={level} reevals={reevals} slow_would_views={slow_would}"
         );
     }
+}
+
+fn print_lifecycle_summary(lifecycle_stats: &LifecycleReplayStats) {
     let completion_force_unavailable_rate = if lifecycle_stats.completion_signals == 0 {
         0.0
     } else {
@@ -774,7 +844,9 @@ fn main() -> Result<(), String> {
             .collect::<Vec<_>>()
             .join(" ")
     );
-    let settlement = lifecycle_stats.settlement;
+}
+
+fn print_lifetime_summary(settlement: &LifecycleSettlementStats) {
     eprintln!(
         "P421_LIFETIME_SUMMARY entries={} first_provable={} provisional={} confirmed={} force_overtake={} force_overtake_claimed={} never_constituted={} identity_vanished_refuted={} identity_vanished_seam={} flash_terminal={} nonflash_count={} nonflash_min={:?} nonflash_median={:?} nonflash_max={:?} force_lifetime_count={} force_lifetime_min={:?} force_lifetime_median={:?} force_lifetime_max={:?}",
         settlement.entry_count,
@@ -796,12 +868,13 @@ fn main() -> Result<(), String> {
         settlement.force_overtake_lifetime.median,
         settlement.force_overtake_lifetime.max,
     );
+}
 
-    let l0 = terminal.l0;
-    let classification = terminal.classification;
-    let tower = terminal.tower;
-    let cache = terminal.cache;
-    let mut final_events = terminal_events;
+fn finalize_judge_at(
+    mut final_events: Vec<Vec<NestCandidateEvent>>,
+    book: &YieldBook,
+    max_bars: usize,
+) -> Vec<Vec<NestCandidateEvent>> {
     for events in &mut final_events {
         for event in events {
             let key = EventKey::from(&*event);
@@ -813,14 +886,24 @@ fn main() -> Result<(), String> {
                 .unwrap_or(max_bars - 1);
         }
     }
-    observe_snapshot(
-        &classification,
-        final_events,
-        max_bars - 1,
-        &mut book,
-        &mut audit,
-    );
-    let (full_classification, full_tower) = classifier::classify_with_tower(&l0, &config);
+    final_events
+}
+
+/// `main` 拆分抽取（票 #605）：全量分类/塔的字节级差异计数，供 `P123_BIT_EXACT` 与逐级
+/// `P123_BIT_DIFF_LEVEL` 共用同一份计数，避免两处重算分叉。
+struct BitDiffCounts {
+    classification_diff: usize,
+    tower_diff: usize,
+    old_semantic_diff: usize,
+    lifecycle_diff: usize,
+}
+
+fn compute_bit_diff(
+    full_classification: &classifier::Classification,
+    classification: &classifier::Classification,
+    full_tower: &[Rc<Vec<LeveledMove>>],
+    tower: &[Rc<Vec<LeveledMove>>],
+) -> BitDiffCounts {
     let classification_diff = usize::from(full_classification != classification);
     let tower_diff = usize::from(full_tower != tower);
     let mut old_semantic_diff = tower_diff;
@@ -844,30 +927,59 @@ fn main() -> Result<(), String> {
             _ => old_semantic_diff += 1,
         }
     }
-    if classification_diff != 0 {
-        let levels = full_classification
-            .levels
-            .len()
-            .max(classification.levels.len());
-        for level in 0..levels {
-            let full = full_classification.levels.get(level);
-            let incremental = classification.levels.get(level);
-            let summary = match (full, incremental) {
-                (Some(full), Some(incremental)) => format!(
-                    "moves={} centers={} ownership={} bsp={} pan={}",
-                    usize::from(full.moves != incremental.moves),
-                    usize::from(full.centers != incremental.centers),
-                    usize::from(full.cp_ownership != incremental.cp_ownership),
-                    usize::from(full.bsp != incremental.bsp),
-                    usize::from(full.pan_div != incremental.pan_div),
-                ),
-                _ => "missing_level=1".to_string(),
-            };
-            println!("P123_BIT_DIFF_LEVEL L{level} {summary}");
-        }
+    BitDiffCounts {
+        classification_diff,
+        tower_diff,
+        old_semantic_diff,
+        lifecycle_diff,
     }
+}
+
+fn print_bit_diff_levels(
+    full_classification: &classifier::Classification,
+    classification: &classifier::Classification,
+    classification_diff: usize,
+) {
+    if classification_diff == 0 {
+        return;
+    }
+    let levels = full_classification
+        .levels
+        .len()
+        .max(classification.levels.len());
+    for level in 0..levels {
+        let full = full_classification.levels.get(level);
+        let incremental = classification.levels.get(level);
+        let summary = match (full, incremental) {
+            (Some(full), Some(incremental)) => format!(
+                "moves={} centers={} ownership={} bsp={} pan={}",
+                usize::from(full.moves != incremental.moves),
+                usize::from(full.centers != incremental.centers),
+                usize::from(full.cp_ownership != incremental.cp_ownership),
+                usize::from(full.bsp != incremental.bsp),
+                usize::from(full.pan_div != incremental.pan_div),
+            ),
+            _ => "missing_level=1".to_string(),
+        };
+        println!("P123_BIT_DIFF_LEVEL L{level} {summary}");
+    }
+}
+
+struct OldSemanticCounts {
+    old_candidates: usize,
+    old_terminal: usize,
+    old_certificates: usize,
+}
+
+fn compute_old_semantic_counts(
+    l0: &ParseLayer,
+    classification: &classifier::Classification,
+    tower: &[Rc<Vec<LeveledMove>>],
+    config: &ThetaConfig,
+    cache: &classifier::TowerCache,
+) -> OldSemanticCounts {
     let old_events =
-        classifier::cand_delta_tower_cached(&l0, &classification, &tower, &config, &cache);
+        classifier::cand_delta_tower_cached(l0, classification, tower, config, cache);
     let old_candidates = old_events
         .iter()
         .flatten()
@@ -882,7 +994,7 @@ fn main() -> Result<(), String> {
                 .filter(|event| {
                     event.cand_delta
                         && terminal_bits_old(
-                            &classification,
+                            classification,
                             level,
                             event.c_episode_start,
                             event.confirm_src,
@@ -894,12 +1006,24 @@ fn main() -> Result<(), String> {
                 .count()
         })
         .sum::<usize>();
+    let old_certificates = compute_old_certificates(&old_events, classification);
+    OldSemanticCounts {
+        old_candidates,
+        old_terminal,
+        old_certificates,
+    }
+}
+
+fn compute_old_certificates(
+    old_events: &[Vec<classifier::recursive_tower::CandDeltaEvent>],
+    classification: &classifier::Classification,
+) -> usize {
     let mut old_certificates = 0usize;
     for exec in 0..old_events.len() {
         for top in exec..old_events.len() {
-            old_certificates += assemble_certificates_snapshot(&old_events, exec, top, |event| {
+            old_certificates += assemble_certificates_snapshot(old_events, exec, top, |event| {
                 terminal_bits_old(
-                    &classification,
+                    classification,
                     exec,
                     event.c_episode_start,
                     event.confirm_src,
@@ -910,7 +1034,10 @@ fn main() -> Result<(), String> {
             .len();
         }
     }
+    old_certificates
+}
 
+fn print_yield_cert_d3(book: &YieldBook) {
     let trend_candidates = book
         .candidates
         .keys()
@@ -954,11 +1081,19 @@ fn main() -> Result<(), String> {
         "P123_D3 edges={} violations={} rate={:.9}",
         book.d3_edges, book.d3_violations, d3_rate
     );
+}
+
+fn print_baseline_and_provider(
+    book: &YieldBook,
+    old: &OldSemanticCounts,
+    audit: &ProviderAudit,
+    unresolved_targets: usize,
+) {
     println!(
         "P123_BASELINE old_candidates={} old_terminal_confirmed={} old_certificates={} new_candidates={} new_terminal_confirmed={} new_B_certificates={}",
-        old_candidates,
-        old_terminal,
-        old_certificates,
+        old.old_candidates,
+        old.old_terminal,
+        old.old_certificates,
         book.candidates.len(),
         book.terminal_confirmed.len(),
         book.cert_b.len()
@@ -979,13 +1114,21 @@ fn main() -> Result<(), String> {
         audit.snapshot_future_violations,
         audit.snapshot_future_violations == 0
     );
+}
+
+fn print_bit_exact_and_r7(
+    bit_diff: &BitDiffCounts,
+    book: &YieldBook,
+    audit: &ProviderAudit,
+    unresolved_targets: usize,
+) {
     println!(
         "P123_BIT_EXACT old_path_diff={} tower_diff={} moves_centers_bsp_pan_diff={} lifecycle_cp_ownership_diff={} classification_total_diff={}",
-        old_semantic_diff,
-        tower_diff,
-        old_semantic_diff.saturating_sub(tower_diff),
-        lifecycle_diff,
-        classification_diff
+        bit_diff.old_semantic_diff,
+        bit_diff.tower_diff,
+        bit_diff.old_semantic_diff.saturating_sub(bit_diff.tower_diff),
+        bit_diff.lifecycle_diff,
+        bit_diff.classification_diff
     );
     println!(
         "P123_R7 provider_complete={} definition_faithful=true snapshot_no_forward={} B_zero={}",
@@ -993,7 +1136,10 @@ fn main() -> Result<(), String> {
         audit.snapshot_future_violations == 0,
         book.cert_b.is_empty()
     );
-    // #97: 遗漏对账 —— 钟位可证的候选却从未被任何 B 链吸收，逐条枚举。
+}
+
+/// #97: 遗漏对账 —— 钟位可证的候选却从未被任何 B 链吸收，逐条枚举。
+fn report_missed_reconciliation(book: &YieldBook) {
     let missed: Vec<&EventKey> = book
         .terminal_confirmed
         .iter()
@@ -1023,8 +1169,6 @@ fn main() -> Result<(), String> {
             book.intake_fallbacks.contains(*key)
         );
     }
-    dump_flush();
-    Ok(())
 }
 
 fn signal_signature(
@@ -1083,584 +1227,1052 @@ fn run_terminal_pass(bars: &[Bar], config: &ThetaConfig) -> Result<TerminalState
 /// 同一 pending 生命周期、同一事件应用循环（下方逐行保留并标注），仅「每次 trigger 对全部
 /// arrived run 全量重估」换为 per-(level,run) 缓存 + 四类 dirty 判据（模块头）。
 #[allow(clippy::too_many_arguments)]
+/// `(forest_epoch, signal_signature)`——targeted 与 lifecycle 两条通道共用的同一枚触发键。
+type TriggerKey = (u64, Vec<(usize, usize, usize, usize)>);
+
+/// `run_targeted_prefix_pass` 拆分抽取（票 #605）：逐 bar 稀疏重估循环的全部跨 bar 状态，
+/// 原样搬迁为字段——判据/口径一个比特不动，纯粹是状态载体从一串 `let mut` 改成一个结构体。
+struct TargetedPassState<'c> {
+    parser: ParseLayerIncr<'c>,
+    cache: classifier::TowerCache,
+    book: YieldBook,
+    turns: TurnBook,
+    pending: BTreeSet<EventKey>,
+    views: usize,
+    last_trigger: Option<TriggerKey>,
+    last_lifecycle_trigger: Option<TriggerKey>,
+    lifecycle_book: NestLifecycleBook,
+    lifecycle_stats: LifecycleReplayStats,
+    lifecycle_window_stems: Vec<LifecycleWindowStem>,
+    // 分级持有（#602）：两段各按自己的键刷新，合并后喂账本。
+    lifecycle_stems_lower: Vec<LifecycleWindowStem>,
+    lifecycle_stems_upper: Vec<LifecycleWindowStem>,
+    lower_frontier_carry: LowerFrontierCarry,
+    last_lifecycle_lower_key: Option<LifecycleLowerKey>,
+    last_lifecycle_upper_key: Option<LifecycleUpperKey>,
+    lifecycle_dump: Option<BufWriter<File>>,
+    // ── p123 稀疏状态 ──
+    derived: BTreeMap<usize, LevelDerived>,
+    entries: BTreeMap<(usize, usize), RunEntry>,
+    // 判据 (iv)：levels[book_level].bsp 上次**已查**内容快照（BspPoint PartialEq 排除
+    // force——force 不进 terminal_bits_in_book 判定，值比对对 TERM 语义充分）。
+    bsp_snaps: BTreeMap<usize, Vec<BspPoint>>,
+    stats: SparseStats,
+}
+
+impl<'c> TargetedPassState<'c> {
+    fn new(
+        config: &'c ThetaConfig,
+        targets: &BTreeMap<EventKey, NestCandidateEvent>,
+    ) -> Result<Self, String> {
+        let lifecycle_dump = std::env::var("P421_LIFECYCLE_DUMP")
+            .ok()
+            .map(|path| {
+                File::create(&path)
+                    .map(BufWriter::new)
+                    .map_err(|error| format!("创建 P421_LIFECYCLE_DUMP={path} 失败: {error}"))
+            })
+            .transpose()?;
+        Ok(Self {
+            parser: ParseLayerIncr::new(config),
+            cache: classifier::TowerCache::new(),
+            book: YieldBook::default(),
+            turns: TurnBook::default(),
+            pending: targets.keys().cloned().collect(),
+            views: 0,
+            last_trigger: None,
+            last_lifecycle_trigger: None,
+            lifecycle_book: NestLifecycleBook::new(),
+            lifecycle_stats: LifecycleReplayStats::default(),
+            lifecycle_window_stems: Vec::new(),
+            lifecycle_stems_lower: Vec::new(),
+            lifecycle_stems_upper: Vec::new(),
+            lower_frontier_carry: LowerFrontierCarry::default(),
+            last_lifecycle_lower_key: None,
+            last_lifecycle_upper_key: None,
+            lifecycle_dump,
+            derived: BTreeMap::new(),
+            entries: BTreeMap::new(),
+            bsp_snaps: BTreeMap::new(),
+            stats: SparseStats::default(),
+        })
+    }
+}
+
 fn run_targeted_prefix_pass(
     bars: &[Bar],
     config: &ThetaConfig,
     targets: &BTreeMap<EventKey, NestCandidateEvent>,
 ) -> Result<(YieldBook, usize, usize, SparseStats, LifecycleReplayStats), String> {
-    let mut parser = ParseLayerIncr::new(config);
-    let mut cache = classifier::TowerCache::new();
-    let mut book = YieldBook::default();
-    let mut turns = TurnBook::default();
-    let mut pending: BTreeSet<EventKey> = targets.keys().cloned().collect();
-    let mut views = 0usize;
-    let mut last_trigger = None;
-    let mut last_lifecycle_trigger = None;
-    let mut lifecycle_book = NestLifecycleBook::new();
-    let mut lifecycle_stats = LifecycleReplayStats::default();
-    // #527：活窗结构分量在「confirmed 侧变（forest_epoch）∨ active C frontier 变」时重算；
-    // 两次重算之间逐 bar 只延展右端（身份分量不动）。frontier 是纯值 ⟹ 值不变 ⟹ 定位输出
-    // 不变（locate/extreme 都是其纯函数），跳过重算是等价优化而非行为改动。
-    //
-    // #601：L2 活窗的 C 腿另有一个输入——L1 层扫描断点（`level_scan_cursor(1)`，重扫锚）。
-    // 它可以在 `forest_epoch` 不变时前进（不成立支 `i += 1` 推进 `consumed`/`resume_from`
-    // 而无窗口产出 ⟹ 塔字节未变 ⟹ epoch 不 bump），故必须**独立**进重算判据，否则 L2 的
-    // 派生会读到陈旧锚。三元组任一变即重算（保守、等价，不改行为）。
-    //
-    // #613（#609 F1）：L2 confirmed 侧的整窗截断口径 `tower_confirmed_len(1)` 是**第四个**输入，
-    // 必须独立进判据——**不是**保守冗余，是正确性所需。
-    //
-    // 「三元组已覆盖水线的全部变化源」这条推论（长度变 ⟹ epoch bump；`last_window_emitted`
-    // 变 ⟹ `l1_scan` 变）**被实测否定**：BTC 100k 上有 4 个 bar 三元组逐值不变而水线变化
-    // （as_of=53461 88→91、85046 156→157、94694 180→181、97241 186→187）。根因是
-    // `LevelCache::confirmed_watermark` 是**有状态量**：cascade bar 走 `min(P)`（保留前缀）
-    // 与 `min(w_nat)` 把水线压到自然值以下，该压低值跨 bar 保留，直到某个非 cascade bar 才
-    // 直接取 `w_nat` 恢复；而 `forest_epoch`/`scan_cursor` 是当前塔状态的无状态派生量，
-    // 恢复那一步不经过它们。漏掉这项 ⟹ 那 4 个 bar 继续用偏保守的 confirmed 侧（少 1–3 个
-    // 已确认单元）派生活窗。四项任一变即重算。
-    //
-    // #602：L3 的 C 腿是**再上一层**的同型派生，其两个塔侧输入（L2 层扫描断点
-    // `level_scan_cursor(2)`、`tower[2]` 确认水线 `tower_confirmed_len(2)`）与 L1 层的那两项
-    // **同理不可由 `forest_epoch` 覆盖**（前者可在塔字节不变时前进，后者是有状态量）。但它们
-    // **另立一把键**（[`LifecycleUpperKey`]）而不是并进上面这四项：L1/L2 不消费这两项，并键
-    // = 用不相干的输入去失效可复用的结果（局部依赖原则）。这不是洁癖——并键版实测把
-    // `l1:window` 从 610 顶到 615（重算变频 ⟹ 含 `as_of` 的 `FrontierAheadOfClock` 守卫在更早
-    // 的 bar 被重判 ⟹ L1/L2 产出真的变），会破「L1/L2 逐位零回归」。
-    //
-    // **units 内容不进判据键**（登记，防误读为遗漏）：`level_scan_units(k)` 的内容是
-    // `tower[k-1]` 的纯函数投影（`project_to_units`：坐标/外缘来自元素本身、方向来自
-    // `decompose(centers)`，而 centers 与 upper_moves 1:1），塔字节不变 ⟹ 投影逐值不变 ⟹
-    // 已被 `forest_epoch` 覆盖。逐 bar 比较 units 内容是 O(n)/bar，不为已覆盖的量付这个代价。
-    let mut lifecycle_window_stems: Vec<LifecycleWindowStem> = Vec::new();
-    // 分级持有（#602）：两段各按自己的键刷新，合并后喂账本。
-    let mut lifecycle_stems_lower: Vec<LifecycleWindowStem> = Vec::new();
-    let mut lifecycle_stems_upper: Vec<LifecycleWindowStem> = Vec::new();
-    let mut lower_frontier_carry = LowerFrontierCarry::default();
-    let mut last_lifecycle_lower_key: Option<LifecycleLowerKey> = None;
-    let mut last_lifecycle_upper_key: Option<LifecycleUpperKey> = None;
-    let mut lifecycle_dump = std::env::var("P421_LIFECYCLE_DUMP")
-        .ok()
-        .map(|path| {
-            File::create(&path)
-                .map(BufWriter::new)
-                .map_err(|error| format!("创建 P421_LIFECYCLE_DUMP={path} 失败: {error}"))
-        })
-        .transpose()?;
-    let started = Instant::now();
+    let mut state = TargetedPassState::new(config, targets)?;
     // #103 侧信道：P116_CKPT=<K> 时每 K bars 做一次全量快照装配并 dump（只写不判）。
     let ckpt_every: usize = std::env::var("P116_CKPT")
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(0);
-    // ── p123 稀疏状态 ──
-    let mut derived: BTreeMap<usize, LevelDerived> = BTreeMap::new();
-    let mut entries: BTreeMap<(usize, usize), RunEntry> = BTreeMap::new();
-    // 判据 (iv)：levels[book_level].bsp 上次**已查**内容快照（BspPoint PartialEq 排除
-    // force——force 不进 terminal_bits_in_book 判定（nest.rs:520-534 只读
-    // source_index/bits.confirm_side），值比对对 TERM 语义充分）。
-    let mut bsp_snaps: BTreeMap<usize, Vec<BspPoint>> = BTreeMap::new();
-    let mut stats = SparseStats::default();
     // §6.3 shadow 强制对拍开关（长期回归开关；stderr 诊断，不进 dump/stdout 验收面）。
     let shadow = std::env::var("P123_SHADOW").ok().as_deref() == Some("1");
+    let started = Instant::now();
     for (index, bar) in bars.iter().copied().enumerate() {
-        let l0 = parser.append(bar);
-        let (classification, tower) =
-            classifier::classify_with_tower_incremental(&l0, config, &mut cache);
-        // #116: TURN 逐 bar 观察（摊还 O(新稳定块数)，不经 trigger 门——pending 空后仍落盘）。
-        turns.observe(&classification);
-        let forest_epoch = cache.forest_epoch();
-        // #527 L1 活窗：C 只能是 parser 的行进中段（active frontier），禁 confirmed 段回放重建。
-        let frontier = active_segment_frontier(&l0);
-        // #601 L2 活窗：C 腿由「L0 units（confirmed）+ 上面这段虚拟追加」在 L1 层重扫派生，
-        // 重扫锚取塔自己的 L1 层扫描断点（只读视图，塔存储零改动）。
-        // #602 L3 活窗：同型再上一层——L2 层扫描断点 + `tower[1]` 投影 units（同样只读）。
-        let l1_view = TowerScanView {
-            units: cache.level_scan_units(1),
-            cursor: cache.level_scan_cursor(1),
-            // #613（#609 F1）：本级 confirmed 侧的整窗截断水线（见上方判据文档）。
-            confirmed_len: cache.tower_confirmed_len(1),
-        };
-        let l2_view = TowerScanView {
-            units: cache.level_scan_units(2),
-            cursor: cache.level_scan_cursor(2),
-            confirmed_len: cache.tower_confirmed_len(2),
-        };
-        let lower_key = LifecycleLowerKey {
-            forest_epoch,
-            frontier,
-            l1_scan: l1_view.cursor,
-            l1_confirmed_len: l1_view.confirmed_len,
-        };
-        let upper_key = LifecycleUpperKey {
-            l2_scan: l2_view.cursor,
-            l2_confirmed_len: l2_view.confirmed_len,
-        };
-        // L1/L2 段按自己的四项键重算（与 #613 逐位相同）；L3 段的输入是**该键 ∪ 上两项**
-        // ——lower 变则 L3 的虚拟单元也变，故 `lower_due ⟹ upper_due`（单向，不反向）。
-        let lower_due = last_lifecycle_lower_key != Some(lower_key);
-        let upper_due = lower_due || last_lifecycle_upper_key != Some(upper_key);
-        if lower_due || upper_due {
-            let before = lifecycle_window_stems.len();
-            let mut diag_rows: Vec<L1LiveDiagRow> = Vec::new();
-            if lower_due {
-                lifecycle_stems_lower = recompute_lifecycle_window_stems(
-                    1..3,
-                    &tower,
-                    frontier.as_ref(),
-                    l1_view,
-                    l2_view,
-                    &mut lower_frontier_carry,
-                    index,
-                    &mut lifecycle_stats.l1_live_outcomes,
-                    &mut diag_rows,
-                );
-            }
-            if upper_due {
-                lifecycle_stems_upper = recompute_lifecycle_window_stems(
-                    3..4,
-                    &tower,
-                    frontier.as_ref(),
-                    l1_view,
-                    l2_view,
-                    &mut lower_frontier_carry,
-                    index,
-                    &mut lifecycle_stats.l1_live_outcomes,
-                    &mut diag_rows,
-                );
-            }
-            // 合并两段（`LifecycleWindowStem` 的 Ord 以 level 为首字段 ⟹ 拼接后重排即全局有序；
-            // 两段级别不相交 ⟹ dedup 不会跨段吞并）。
-            lifecycle_window_stems = lifecycle_stems_lower
-                .iter()
-                .chain(lifecycle_stems_upper.iter())
-                .copied()
-                .collect();
-            lifecycle_window_stems.sort();
-            lifecycle_window_stems.dedup();
-            // #559 C2 观测面：末 L0 单元终点（衔接差 = frontier.start − 该值）与段账本完整性。
-            let confirmed_last_end = tower
-                .first()
-                .and_then(|level0| level0.last())
-                .map_or(usize::MAX, |unit| unit.end_index);
-            let tower0_units = tower.first().map(|level0| level0.len());
-            // **只在 lower 段重算时计数**（口径不动）：本观测面问的是「产 L1/L2 活窗那一刻
-            // 段账本是否完整」，与 L3 的两项塔侧输入无关——挂到 union 上会让读数随 #602
-            // 新增的重算次数漂移，那是把不相干的量混进同一个分母。
-            if lower_due {
-                match tower0_units {
-                    None => lifecycle_stats.seg_ledger_no_tower += 1,
-                    Some(units) if units == l0.segments.len() => {
-                        lifecycle_stats.seg_ledger_complete += 1
-                    }
-                    Some(_) => lifecycle_stats.seg_ledger_short += 1,
-                }
-            }
-            let tower0_units = tower0_units.map_or(usize::MAX, |units| units);
-            // 票 #601：行 tag 去掉写死的 "L1_"（同一诊断面现在同时承载 L1/L2），级别改由
-            // 显式 `level=` 字段携带——tag 名与实际级别不符是声明膨胀（090）。
-            for row in diag_rows {
-                let tag = if row.c_start.is_some() {
-                    "PAN_LIVE_HIT"
-                } else {
-                    "PAN_LIVE_MISS"
-                };
-                write_lifecycle_line(
-                    &mut lifecycle_dump,
-                    format_args!(
-                        "{tag} as_of={index} level={} frontier_start={} reason={} b_center_start={} c_start={} gap_len={} seg_a={}",
-                        row.level,
-                        frontier.map_or(usize::MAX, |f| f.start_index),
-                        row.reason,
-                        row.b_center_start.map_or(usize::MAX, |value| value),
-                        row.c_start.map_or(usize::MAX, |value| value),
-                        row.gap_len.map_or(usize::MAX, |value| value),
-                        row.seg_a.map_or("none".to_string(), |(a, b)| format!("({a},{b})")),
-                    ),
-                )?;
-            }
-            // 定位现场只在结构分量变化时落一行（诊断只写不判；每 bar 写会淹没 dump）。
-            write_lifecycle_line(
-                &mut lifecycle_dump,
-                format_args!(
-                    "PAN_LIVE_RECOMPUTE as_of={index} frontier={} l1_resume_from={} l2_resume_from={} confirmed_last_end={confirmed_last_end} tower0_units={tower0_units} l0_segments={} stems_before={before} stems_after={}",
-                    frontier.map_or("none".to_string(), |f| format!(
-                        "({},{},{:?})",
-                        f.start_index, f.extreme_at, f.direction
-                    )),
-                    l1_view.cursor.map_or(usize::MAX, |cursor| cursor.resume_from),
-                    l2_view.cursor.map_or(usize::MAX, |cursor| cursor.resume_from),
-                    l0.segments.len(),
-                    lifecycle_window_stems.len(),
-                ),
-            )?;
-            last_lifecycle_lower_key = Some(lower_key);
-            last_lifecycle_upper_key = Some(upper_key);
-        }
-        let trigger = (forest_epoch, signal_signature(&classification));
-        let lifecycle_due = last_lifecycle_trigger.as_ref() != Some(&trigger);
-        if last_trigger.as_ref() != Some(&trigger) && !pending.is_empty() {
-            stats.triggers += 1;
-            let (hist, close_src) = cache.causal_series();
-            let dif = cache.macd_dif();
-            // arrived 分组：与慢版 collect_target_candidates 首段逐行一致。
-            let mut runs_by_level: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
-            for key in &pending {
-                let Some(event) = targets.get(key) else {
-                    continue;
-                };
-                // snapshot 无前视的结构下，turn_source 尚未到达时该对象不可能成为 Cand。
-                // 提前投影这些终态目标只增加扫描量，不可能改变首次可证钟。
-                if event.turn_source <= index {
-                    runs_by_level
-                        .entry(event.level as usize)
-                        .or_default()
-                        .insert(event.provider_window.0);
-                }
-            }
-            // 判据 (iv) 预备：本 trigger 全部 arrived 级的账本级做值比对并刷新快照。
-            // 「变 ⟹ 反查」覆盖慢版每个可能新 Some 的 trigger；账本只在 trigger bar 可变
-            // （模块头 (iv) 签字），故跨 trigger 快照比对 = 跨 bar 比对。
-            let mut bsp_changed: BTreeMap<usize, bool> = BTreeMap::new();
-            for &level in runs_by_level.keys() {
-                let Some(book_level) = event_bsp_book_level(level as u32) else {
-                    continue;
-                };
-                let Some(state) = classification.levels.get(book_level) else {
-                    continue;
-                };
-                let current = &state.bsp[..];
-                let changed = bsp_snaps
-                    .get(&book_level)
-                    .is_none_or(|snap| snap[..] != *current);
-                if changed {
-                    bsp_snaps.insert(book_level, current.to_vec());
-                }
-                bsp_changed.insert(book_level, changed);
-            }
-            let mut out: Vec<NestCandidateEvent> = Vec::new();
-            let mut fresh_levels: BTreeSet<usize> = BTreeSet::new();
-            for (level, run_sources) in runs_by_level {
-                if level == 0 || level >= tower.len() {
-                    continue;
-                }
-                // ── 派生缓存同步（targeted 与 lifecycle 共用同一 LevelDerived）──
-                let (self_synced, lower_synced) = sync_level_derived(level, &tower, &mut derived)?;
-                if self_synced {
-                    stats.syncs_self += 1;
-                }
-                if lower_synced {
-                    stats.syncs_lower += 1;
-                }
-                let level_derived = derived.get_mut(&level).expect("刚同步的 level 必须存在");
-                let active_run_starts: Vec<_> = level_derived.run_ranges.keys().copied().collect();
-                level_derived
-                    .confirm_cursors
-                    .retain_run_starts(level as u32, active_run_starts);
-                let stable_lower_len = cache.tower_confirmed_len(level - 1);
-                let pan_freeze_boundary = cache.freeze_boundary(level - 1).unwrap_or(0);
-                for run_source_start in run_sources {
-                    // 慢版：run 不在当前分区 ⟹ 本 trigger 无产出（continue）。条目保留不应用——
-                    // run 重现时代次差（分区已随内容变同步过）⟹ dirty ⟹ 重估，无陈旧复用。
-                    let Some(&(start, end)) = level_derived.run_ranges.get(&run_source_start)
-                    else {
-                        continue;
-                    };
-                    *stats.per_level_views_slow_would.entry(level).or_default() += 1;
-                    let watermark_crossed = entries
-                        .get(&(level, run_source_start))
-                        .and_then(|entry| entry.target_last_as_of)
-                        .is_some_and(|last_as_of| {
-                            let before = level_derived
-                                .lower_ends
-                                .partition_point(|&end_index| end_index <= last_as_of);
-                            let now = level_derived
-                                .lower_ends
-                                .partition_point(|&end_index| end_index <= index);
-                            now != before
-                        });
-                    let dirty = match entries.get(&(level, run_source_start)) {
-                        None => true, // 冷条目：首次评估
-                        Some(entry) => {
-                            let self_changed =
-                                entry.target_self_gen != Some(level_derived.self_gen);
-                            let lower_changed =
-                                entry.target_lower_gen != Some(level_derived.lower_gen);
-                            if watermark_crossed {
-                                if lower_changed {
-                                    stats.wm_cross_with_lower += 1;
-                                } else {
-                                    // 模块头证明 (iii)⊂(ii)：此计数恒 0，非 0 即 bug。
-                                    stats.wm_cross_without_lower += 1;
-                                }
-                            }
-                            self_changed || lower_changed || watermark_crossed
-                        }
-                    };
-                    if dirty {
-                        let structure_generation = level_derived.self_gen;
-                        let entry = entries.entry((level, run_source_start)).or_insert_with(|| {
-                            RunEntry::new(
-                                level_derived.self_gen,
-                                level_derived.lower_gen,
-                                index,
-                                Vec::new(),
-                                Vec::new(),
-                                Vec::new(),
-                            )
-                        });
-                        let (centers, kinds, events) = {
-                            let lower_legs = &level_derived.lower_legs;
-                            let confirm_cursors = &mut level_derived.confirm_cursors;
-                            evaluate_run(
-                                level,
-                                &tower[level],
-                                (start, end),
-                                lower_legs,
-                                index,
-                                hist,
-                                dif,
-                                close_src,
-                                Some(ConfirmResidence {
-                                    store: confirm_cursors,
-                                    stable_lower_len,
-                                    structure_generation,
-                                }),
-                                Some(PanResidence {
-                                    memo: &mut entry.pan_memo,
-                                    freeze_boundary_src: pan_freeze_boundary,
-                                }),
-                            )
-                        }?;
-                        views += 1;
-                        stats.reevals += 1;
-                        *stats.per_level_reevals.entry(level).or_default() += 1;
-                        fresh_levels.insert(level);
-                        entry.update(
-                            level_derived.self_gen,
-                            level_derived.lower_gen,
-                            index,
-                            centers,
-                            kinds,
-                            events,
-                        );
-                        entry.target_self_gen = Some(level_derived.self_gen);
-                        entry.target_lower_gen = Some(level_derived.lower_gen);
-                        entry.target_last_as_of = Some(index);
-                    } else {
-                        stats.reuses += 1;
-                    }
-                    // 应用（保序）：缓存事件 ∩ 当前 pending。pending 只缩不增 ⟹
-                    // 等价慢版「本 trigger 全量重估后 ∩ pending」（模块头判据完备性）。
-                    let applied_start = out.len();
-                    if let Some(entry) = entries.get(&(level, run_source_start)) {
-                        out.extend(
-                            entry
-                                .events
-                                .iter()
-                                .copied()
-                                .filter(|event| pending.contains(&EventKey::from(event))),
-                        );
-                    }
-                    // §6.3 shadow 强制对拍（P123_SHADOW=1 开启，长期回归开关）：无视 dirty
-                    // 判定强制全量重估，与缓存路径应用集逐字比对（judge_at 是 as_of 戳，
-                    // 不消费，不参与比对）。任何 mismatch = dirty 判据漏判现场（090 停线）。
-                    if shadow {
-                        let (_, _, forced) = evaluate_run(
-                            level,
-                            &tower[level],
-                            (start, end),
-                            &level_derived.lower_legs,
-                            index,
-                            hist,
-                            dif,
-                            close_src,
-                            None,
-                            None,
-                        )?;
-                        let forced: Vec<NestCandidateEvent> = forced
-                            .into_iter()
-                            .filter(|event| pending.contains(&EventKey::from(event)))
-                            .collect();
-                        stats.shadow_checks += 1;
-                        let applied = &out[applied_start..];
-                        let same = applied.len() == forced.len()
-                            && applied.iter().zip(forced.iter()).all(|(a, b)| {
-                                EventKey::from(a) == EventKey::from(b)
-                                    && a.divergence_confirmed == b.divergence_confirmed
-                            });
-                        if !same {
-                            stats.shadow_mismatches += 1;
-                            if stats.shadow_mismatches <= 20 {
-                                eprintln!(
-                                    "P123_SHADOW_MISMATCH level={level} run_source={run_source_start} as_of={index} dirty={dirty} applied={:?} forced={:?}",
-                                    applied
-                                        .iter()
-                                        .map(|e| (EventKey::from(e), e.divergence_confirmed))
-                                        .collect::<Vec<_>>(),
-                                    forced
-                                        .iter()
-                                        .map(|e| (EventKey::from(e), e.divergence_confirmed))
-                                        .collect::<Vec<_>>(),
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            // ── 事件应用循环：与 p116 逐行一致，仅 TERM 查法加判据 (iv) 门控 ──
-            for event in out {
-                let key = EventKey::from(&event);
-                if !pending.contains(&key) {
-                    continue;
-                }
-                book.candidates.entry(key.clone()).or_insert(index);
-                let target = targets.get(&key).expect("pending target");
-                if event.divergence_confirmed {
-                    // #116: DIV = divergences 账本首次插入瞬间（账本语义同 p92 or_insert）。
-                    if !book.divergences.contains_key(&key) {
-                        dump_line(format_args!(
-                            "DIV level={} end={} kind={} side={:?}",
-                            event.level,
-                            event.turn_source,
-                            nest_kind_tag(event.kind),
-                            event.side,
-                        ));
-                    }
-                    book.divergences.entry(key.clone()).or_insert(index);
-                }
-                // #116: TERM = 事件键首次终端 bits 确认（dump 专用 term_seen，不动账本）。
-                // p123 判据 (iv)：fresh（本 trigger 重估过 ⟹ 窗口可能变）∨ 账本内容变
-                // ⟹ 反查；其余情形结果为上次已查的同一 None（纯函数同输入），跳过逐位等价。
-                let recheck = fresh_levels.contains(&(event.level as usize))
-                    || event_bsp_book_level(event.level).is_some_and(|book_level| {
-                        bsp_changed.get(&book_level).copied().unwrap_or(true)
-                    });
-                if recheck {
-                    stats.term_rechecks += 1;
-                    if !book.term_seen.contains(&key)
-                        && terminal_bits_new(&classification, &event).is_some()
-                    {
-                        book.term_seen.insert(key.clone());
-                        dump_line(format_args!(
-                            "TERM level={} bar={} side={:?}",
-                            event.level, event.turn_source, event.side,
-                        ));
-                    }
-                } else {
-                    stats.term_skips += 1;
-                    // §6.3 shadow (iv) 门控对拍：跳过的 TERM 检查若本 trigger 实为 Some 且
-                    // term_seen 未录 ⟹ 慢版本 trigger 会首见而 sparse 漏 = 判据 (iv) 漏判。
-                    if shadow
-                        && !book.term_seen.contains(&key)
-                        && terminal_bits_new(&classification, &event).is_some()
-                    {
-                        stats.shadow_term_mismatches += 1;
-                        if stats.shadow_term_mismatches <= 20 {
-                            eprintln!(
-                                "P123_SHADOW_TERM_MISMATCH level={} as_of={index} key={key:?}",
-                                event.level,
-                            );
-                        }
-                    }
-                }
-                if event.divergence_confirmed == target.divergence_confirmed {
-                    pending.remove(&key);
-                }
-            }
-            last_trigger = Some(trigger.clone());
-        }
-        // #421：targeted 先按原物理 views 口径更新共享条目；sidecar 的 provider trigger
-        // 随后只补 dirty 非目标 run，并刷新完成事件。活窗由上方独立 p409 同构循环发现，
-        // 不借生产 RunEntry 的完成时刻快照。账本本身每根 bar 都喂。
-        let mut completion_events = Vec::new();
-        if lifecycle_due {
-            let (hist, close_src) = cache.causal_series();
-            let dif = cache.macd_dif();
-            let active_runs = refresh_lifecycle_cache(
-                &cache,
-                RefreshWorld {
-                    tower: &tower,
-                    as_of: index,
-                    series: CausalSeries {
-                        hist,
-                        dif,
-                        close_src,
-                    },
-                },
-                &mut LifecycleCacheState {
-                    derived: &mut derived,
-                    entries: &mut entries,
-                    stats: &mut lifecycle_stats,
-                },
-            )?;
-            completion_events = active_runs
-                .iter()
-                .flat_map(|key| entries[key].events.iter().copied())
-                .collect();
-            lifecycle_stats.provider_triggers += 1;
-            last_lifecycle_trigger = Some(trigger);
-        }
-        let bar_windows: Vec<PanLiveWindow> = lifecycle_window_stems
-            .iter()
-            .copied()
-            .map(|stem| stem.window_at(index))
-            .collect();
-        // #527：完成相是显式 typed 输出——每条完成事件都必须能在塔上查到那只已完成的
-        // lower unit（身份 + 物理完成 bar），否则停线（禁按 kind 猜 provenance）。
-        let phases = lifecycle_bar_phases(&tower, &bar_windows, &completion_events, index)?;
-        let (hist, close_src) = cache.causal_series();
-        let dif = cache.macd_dif();
-        feed_lifecycle_bar(
-            &mut lifecycle_book,
-            &phases,
+        process_targeted_bar(
+            &mut state, bar, index, bars.len(), targets, config, shadow, ckpt_every, started,
+        )?;
+    }
+    finalize_targeted_pass(state)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn process_targeted_bar(
+    state: &mut TargetedPassState<'_>,
+    bar: Bar,
+    index: usize,
+    bars_len: usize,
+    targets: &BTreeMap<EventKey, NestCandidateEvent>,
+    config: &ThetaConfig,
+    shadow: bool,
+    ckpt_every: usize,
+    started: Instant,
+) -> Result<(), String> {
+    let l0 = state.parser.append(bar);
+    let (classification, tower) =
+        classifier::classify_with_tower_incremental(&l0, config, &mut state.cache);
+    // #116: TURN 逐 bar 观察（摊还 O(新稳定块数)，不经 trigger 门——pending 空后仍落盘）。
+    state.turns.observe(&classification);
+    let forest_epoch = state.cache.forest_epoch();
+
+    let keys = compute_lifecycle_due_keys(state, &l0, forest_epoch);
+    if keys.lower_due || keys.upper_due {
+        recompute_stems_if_due(state, &tower, &l0, keys, index)?;
+    }
+
+    let trigger = (forest_epoch, signal_signature(&classification));
+    let lifecycle_due = state.last_lifecycle_trigger.as_ref() != Some(&trigger);
+    if state.last_trigger.as_ref() != Some(&trigger) && !state.pending.is_empty() {
+        evaluate_and_apply_targeted_trigger(state, &tower, &classification, targets, index, shadow)?;
+        state.last_trigger = Some(trigger.clone());
+    }
+    feed_lifecycle_and_checkpoint(
+        state, &tower, &classification, index, lifecycle_due, trigger, bars_len, targets.len(),
+        ckpt_every, started,
+    )?;
+    Ok(())
+}
+
+/// #527/#601/#602 活窗重算判据的当前 bar 读数（键 + 是否到期）。**不携带** `TowerScanView`
+/// 的借用面（`units: &[UnitRange]` 借自 `state.cache`）——那会拖着对 `state` 的不可变借用跨过
+/// [`recompute_stems_if_due`] 需要的可变借用；`l1_view`/`l2_view` 由该函数按需重取
+/// （`TowerCache` 的四个访问器都是纯读、零副作用，重取与传参同值同效）。
+#[derive(Clone, Copy)]
+struct DueKeys {
+    frontier: Option<ActiveSegmentFrontier>,
+    lower_key: LifecycleLowerKey,
+    upper_key: LifecycleUpperKey,
+    lower_due: bool,
+    upper_due: bool,
+}
+
+/// #527：活窗结构分量在「confirmed 侧变（forest_epoch）∨ active C frontier 变」时重算；
+/// 两次重算之间逐 bar 只延展右端。#601/#613：L2 另需 L1 层扫描断点 + confirmed 侧整窗截断
+/// 水线两项（均可在 `forest_epoch` 不变时前进/为有状态量）——BTC 100k 实测 4 例三元组不变
+/// 而水线变化（as_of=53461/85046/94694/97241），根因是 `confirmed_watermark` 的 cascade
+/// 压低值跨 bar 保留、恢复步不经过 epoch/cursor。#602：L3 的两项塔侧输入同理不可由
+/// `forest_epoch` 覆盖，但**另立一把键**（[`LifecycleUpperKey`]）——并键会过度失效 L1/L2
+/// （实测 `l1:window` 610→615），故两段各按自己的键重算，`lower_due ⟹ upper_due`（单向）。
+fn compute_lifecycle_due_keys(
+    state: &TargetedPassState<'_>,
+    l0: &ParseLayer,
+    forest_epoch: u64,
+) -> DueKeys {
+    // #527 L1 活窗：C 只能是 parser 的行进中段（active frontier），禁 confirmed 段回放重建。
+    let frontier = active_segment_frontier(l0);
+    let lower_key = LifecycleLowerKey {
+        forest_epoch,
+        frontier,
+        l1_scan: state.cache.level_scan_cursor(1),
+        l1_confirmed_len: state.cache.tower_confirmed_len(1),
+    };
+    let upper_key = LifecycleUpperKey {
+        l2_scan: state.cache.level_scan_cursor(2),
+        l2_confirmed_len: state.cache.tower_confirmed_len(2),
+    };
+    let lower_due = state.last_lifecycle_lower_key != Some(lower_key);
+    let upper_due = lower_due || state.last_lifecycle_upper_key != Some(upper_key);
+    DueKeys {
+        frontier,
+        lower_key,
+        upper_key,
+        lower_due,
+        upper_due,
+    }
+}
+
+fn recompute_stems_if_due(
+    state: &mut TargetedPassState<'_>,
+    tower: &[Rc<Vec<LeveledMove>>],
+    l0: &ParseLayer,
+    keys: DueKeys,
+    index: usize,
+) -> Result<(), String> {
+    let before = state.lifecycle_window_stems.len();
+    let diag_rows = recompute_and_merge_stems(state, tower, keys, index);
+
+    let seg_ledger =
+        record_seg_ledger_observation(&mut state.lifecycle_stats, tower, l0, keys.lower_due);
+    write_pan_live_diag_rows(&mut state.lifecycle_dump, diag_rows, keys.frontier, index)?;
+    // 重取用于本行落盘（与判据/重算同源同值，`TowerCache` 访问器纯读零副作用，重取不改变
+    // 行为，只避免借用跨越上面 `recompute_and_merge_stems` 需要的 `&mut state`）。
+    let l1_view = TowerScanView {
+        units: state.cache.level_scan_units(1),
+        cursor: state.cache.level_scan_cursor(1),
+        confirmed_len: state.cache.tower_confirmed_len(1),
+    };
+    let l2_view = TowerScanView {
+        units: state.cache.level_scan_units(2),
+        cursor: state.cache.level_scan_cursor(2),
+        confirmed_len: state.cache.tower_confirmed_len(2),
+    };
+    write_pan_live_recompute_line(
+        &mut state.lifecycle_dump,
+        index,
+        keys.frontier,
+        l1_view,
+        l2_view,
+        l0.segments.len(),
+        seg_ledger.confirmed_last_end,
+        seg_ledger.tower0_units,
+        before,
+        state.lifecycle_window_stems.len(),
+    )?;
+    state.last_lifecycle_lower_key = Some(keys.lower_key);
+    state.last_lifecycle_upper_key = Some(keys.upper_key);
+    Ok(())
+}
+
+fn merge_lifecycle_stems(state: &mut TargetedPassState<'_>) {
+    // 合并两段（`LifecycleWindowStem` 的 Ord 以 level 为首字段 ⟹ 拼接后重排即全局有序；
+    // 两段级别不相交 ⟹ dedup 不会跨段吞并）。
+    state.lifecycle_window_stems = state
+        .lifecycle_stems_lower
+        .iter()
+        .chain(state.lifecycle_stems_upper.iter())
+        .copied()
+        .collect();
+    state.lifecycle_window_stems.sort();
+    state.lifecycle_window_stems.dedup();
+}
+
+fn recompute_and_merge_stems(
+    state: &mut TargetedPassState<'_>,
+    tower: &[Rc<Vec<LeveledMove>>],
+    keys: DueKeys,
+    index: usize,
+) -> Vec<L1LiveDiagRow> {
+    // #601/#602 L2/L3 活窗的塔侧只读输入三元——只在真到期时取（与判据键同源同值）。
+    let l1_view = TowerScanView {
+        units: state.cache.level_scan_units(1),
+        cursor: state.cache.level_scan_cursor(1),
+        confirmed_len: state.cache.tower_confirmed_len(1),
+    };
+    let l2_view = TowerScanView {
+        units: state.cache.level_scan_units(2),
+        cursor: state.cache.level_scan_cursor(2),
+        confirmed_len: state.cache.tower_confirmed_len(2),
+    };
+    let mut diag_rows: Vec<L1LiveDiagRow> = Vec::new();
+    if keys.lower_due {
+        state.lifecycle_stems_lower = recompute_lifecycle_window_stems(
+            1..3,
+            tower,
+            keys.frontier.as_ref(),
+            l1_view,
+            l2_view,
+            &mut state.lower_frontier_carry,
             index,
-            CausalSeries {
+            &mut state.lifecycle_stats.l1_live_outcomes,
+            &mut diag_rows,
+        );
+    }
+    if keys.upper_due {
+        state.lifecycle_stems_upper = recompute_lifecycle_window_stems(
+            3..4,
+            tower,
+            keys.frontier.as_ref(),
+            l1_view,
+            l2_view,
+            &mut state.lower_frontier_carry,
+            index,
+            &mut state.lifecycle_stats.l1_live_outcomes,
+            &mut diag_rows,
+        );
+    }
+    merge_lifecycle_stems(state);
+    diag_rows
+}
+
+/// #559 C2 观测面读数：末 L0 单元终点 + 段账本完整性分类。
+struct SegLedgerObservation {
+    confirmed_last_end: usize,
+    tower0_units: usize,
+}
+
+fn record_seg_ledger_observation(
+    lifecycle_stats: &mut LifecycleReplayStats,
+    tower: &[Rc<Vec<LeveledMove>>],
+    l0: &ParseLayer,
+    lower_due: bool,
+) -> SegLedgerObservation {
+    // #559 C2 观测面：末 L0 单元终点（衔接差 = frontier.start − 该值）与段账本完整性。
+    let confirmed_last_end = tower
+        .first()
+        .and_then(|level0| level0.last())
+        .map_or(usize::MAX, |unit| unit.end_index);
+    let tower0_units_raw = tower.first().map(|level0| level0.len());
+    // **只在 lower 段重算时计数**（口径不动）：本观测面问的是「产 L1/L2 活窗那一刻段账本
+    // 是否完整」，与 L3 的两项塔侧输入无关——挂到 union 上会让读数随 #602 新增重算次数漂移。
+    if lower_due {
+        match tower0_units_raw {
+            None => lifecycle_stats.seg_ledger_no_tower += 1,
+            Some(units) if units == l0.segments.len() => {
+                lifecycle_stats.seg_ledger_complete += 1
+            }
+            Some(_) => lifecycle_stats.seg_ledger_short += 1,
+        }
+    }
+    SegLedgerObservation {
+        confirmed_last_end,
+        tower0_units: tower0_units_raw.map_or(usize::MAX, |units| units),
+    }
+}
+
+fn write_pan_live_diag_rows(
+    dump: &mut Option<BufWriter<File>>,
+    diag_rows: Vec<L1LiveDiagRow>,
+    frontier: Option<ActiveSegmentFrontier>,
+    index: usize,
+) -> Result<(), String> {
+    // 票 #601：行 tag 去掉写死的 "L1_"（同一诊断面现在同时承载 L1/L2），级别改由
+    // 显式 `level=` 字段携带——tag 名与实际级别不符是声明膨胀（090）。
+    for row in diag_rows {
+        let tag = if row.c_start.is_some() {
+            "PAN_LIVE_HIT"
+        } else {
+            "PAN_LIVE_MISS"
+        };
+        write_lifecycle_line(
+            dump,
+            format_args!(
+                "{tag} as_of={index} level={} frontier_start={} reason={} b_center_start={} c_start={} gap_len={} seg_a={}",
+                row.level,
+                frontier.map_or(usize::MAX, |f| f.start_index),
+                row.reason,
+                row.b_center_start.map_or(usize::MAX, |value| value),
+                row.c_start.map_or(usize::MAX, |value| value),
+                row.gap_len.map_or(usize::MAX, |value| value),
+                row.seg_a.map_or("none".to_string(), |(a, b)| format!("({a},{b})")),
+            ),
+        )?;
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn write_pan_live_recompute_line(
+    dump: &mut Option<BufWriter<File>>,
+    index: usize,
+    frontier: Option<ActiveSegmentFrontier>,
+    l1_view: TowerScanView<'_>,
+    l2_view: TowerScanView<'_>,
+    l0_segments_len: usize,
+    confirmed_last_end: usize,
+    tower0_units: usize,
+    before: usize,
+    stems_after: usize,
+) -> Result<(), String> {
+    // 定位现场只在结构分量变化时落一行（诊断只写不判；每 bar 写会淹没 dump）。
+    write_lifecycle_line(
+        dump,
+        format_args!(
+            "PAN_LIVE_RECOMPUTE as_of={index} frontier={} l1_resume_from={} l2_resume_from={} confirmed_last_end={confirmed_last_end} tower0_units={tower0_units} l0_segments={} stems_before={before} stems_after={}",
+            frontier.map_or("none".to_string(), |f| format!(
+                "({},{},{:?})",
+                f.start_index, f.extreme_at, f.direction
+            )),
+            l1_view.cursor.map_or(usize::MAX, |cursor| cursor.resume_from),
+            l2_view.cursor.map_or(usize::MAX, |cursor| cursor.resume_from),
+            l0_segments_len,
+            stems_after,
+        ),
+    )
+}
+
+fn evaluate_and_apply_targeted_trigger(
+    state: &mut TargetedPassState<'_>,
+    tower: &[Rc<Vec<LeveledMove>>],
+    classification: &classifier::Classification,
+    targets: &BTreeMap<EventKey, NestCandidateEvent>,
+    index: usize,
+    shadow: bool,
+) -> Result<(), String> {
+    state.stats.triggers += 1;
+    let runs_by_level = group_pending_runs_by_level(&state.pending, targets, index);
+    let bsp_changed = refresh_bsp_snapshots(&runs_by_level, classification, &mut state.bsp_snaps);
+
+    let mut out: Vec<NestCandidateEvent> = Vec::new();
+    let mut fresh_levels: BTreeSet<usize> = BTreeSet::new();
+    for (level, run_sources) in runs_by_level {
+        if level == 0 || level >= tower.len() {
+            continue;
+        }
+        evaluate_level_runs(
+            state, level, run_sources, tower, index, shadow, &mut out, &mut fresh_levels,
+        )?;
+    }
+    apply_targeted_events(state, out, targets, classification, &fresh_levels, &bsp_changed, index, shadow);
+    Ok(())
+}
+
+fn group_pending_runs_by_level(
+    pending: &BTreeSet<EventKey>,
+    targets: &BTreeMap<EventKey, NestCandidateEvent>,
+    index: usize,
+) -> BTreeMap<usize, BTreeSet<usize>> {
+    // arrived 分组：与慢版 collect_target_candidates 首段逐行一致。
+    let mut runs_by_level: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
+    for key in pending {
+        let Some(event) = targets.get(key) else {
+            continue;
+        };
+        // snapshot 无前视的结构下，turn_source 尚未到达时该对象不可能成为 Cand。
+        // 提前投影这些终态目标只增加扫描量，不可能改变首次可证钟。
+        if event.turn_source <= index {
+            runs_by_level
+                .entry(event.level as usize)
+                .or_default()
+                .insert(event.provider_window.0);
+        }
+    }
+    runs_by_level
+}
+
+fn refresh_bsp_snapshots(
+    runs_by_level: &BTreeMap<usize, BTreeSet<usize>>,
+    classification: &classifier::Classification,
+    bsp_snaps: &mut BTreeMap<usize, Vec<BspPoint>>,
+) -> BTreeMap<usize, bool> {
+    // 判据 (iv) 预备：本 trigger 全部 arrived 级的账本级做值比对并刷新快照。
+    // 「变 ⟹ 反查」覆盖慢版每个可能新 Some 的 trigger；账本只在 trigger bar 可变
+    // （模块头 (iv) 签字），故跨 trigger 快照比对 = 跨 bar 比对。
+    let mut bsp_changed: BTreeMap<usize, bool> = BTreeMap::new();
+    for &level in runs_by_level.keys() {
+        let Some(book_level) = event_bsp_book_level(level as u32) else {
+            continue;
+        };
+        let Some(level_state) = classification.levels.get(book_level) else {
+            continue;
+        };
+        let current = &level_state.bsp[..];
+        let changed = bsp_snaps
+            .get(&book_level)
+            .is_none_or(|snap| snap[..] != *current);
+        if changed {
+            bsp_snaps.insert(book_level, current.to_vec());
+        }
+        bsp_changed.insert(book_level, changed);
+    }
+    bsp_changed
+}
+
+#[allow(clippy::too_many_arguments)]
+fn evaluate_level_runs(
+    state: &mut TargetedPassState<'_>,
+    level: usize,
+    run_sources: BTreeSet<usize>,
+    tower: &[Rc<Vec<LeveledMove>>],
+    index: usize,
+    shadow: bool,
+    out: &mut Vec<NestCandidateEvent>,
+    fresh_levels: &mut BTreeSet<usize>,
+) -> Result<(), String> {
+    // ── 派生缓存同步（targeted 与 lifecycle 共用同一 LevelDerived）──
+    let (self_synced, lower_synced) = sync_level_derived(level, tower, &mut state.derived)?;
+    if self_synced {
+        state.stats.syncs_self += 1;
+    }
+    if lower_synced {
+        state.stats.syncs_lower += 1;
+    }
+    {
+        let level_derived = state.derived.get_mut(&level).expect("刚同步的 level 必须存在");
+        let active_run_starts: Vec<_> = level_derived.run_ranges.keys().copied().collect();
+        level_derived
+            .confirm_cursors
+            .retain_run_starts(level as u32, active_run_starts);
+    }
+    let stable_lower_len = state.cache.tower_confirmed_len(level - 1);
+    let pan_freeze_boundary = state.cache.freeze_boundary(level - 1).unwrap_or(0);
+    for run_source_start in run_sources {
+        evaluate_single_run(
+            state,
+            level,
+            run_source_start,
+            tower,
+            stable_lower_len,
+            pan_freeze_boundary,
+            index,
+            shadow,
+            out,
+            fresh_levels,
+        )?;
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn evaluate_single_run(
+    state: &mut TargetedPassState<'_>,
+    level: usize,
+    run_source_start: usize,
+    tower: &[Rc<Vec<LeveledMove>>],
+    stable_lower_len: usize,
+    pan_freeze_boundary: usize,
+    index: usize,
+    shadow: bool,
+    out: &mut Vec<NestCandidateEvent>,
+    fresh_levels: &mut BTreeSet<usize>,
+) -> Result<(), String> {
+    // 慢版：run 不在当前分区 ⟹ 本 trigger 无产出（continue）。条目保留不应用——
+    // run 重现时代次差（分区已随内容变同步过）⟹ dirty ⟹ 重估，无陈旧复用。
+    let Some(&range) = state.derived[&level].run_ranges.get(&run_source_start) else {
+        return Ok(());
+    };
+    *state.stats.per_level_views_slow_would.entry(level).or_default() += 1;
+    let watermark_crossed = compute_watermark_crossed(state, level, run_source_start, index);
+    let dirty = compute_dirty(state, level, run_source_start, watermark_crossed);
+
+    if dirty {
+        reevaluate_run(
+            state, level, run_source_start, range, tower, stable_lower_len, pan_freeze_boundary,
+            index,
+        )?;
+        fresh_levels.insert(level);
+    } else {
+        state.stats.reuses += 1;
+    }
+    apply_run_events_and_shadow_check(
+        state, level, run_source_start, range, tower, index, shadow, dirty, out,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_run_events_and_shadow_check(
+    state: &mut TargetedPassState<'_>,
+    level: usize,
+    run_source_start: usize,
+    range: (usize, usize),
+    tower: &[Rc<Vec<LeveledMove>>],
+    index: usize,
+    shadow: bool,
+    dirty: bool,
+    out: &mut Vec<NestCandidateEvent>,
+) -> Result<(), String> {
+    // 应用（保序）：缓存事件 ∩ 当前 pending。pending 只缩不增 ⟹
+    // 等价慢版「本 trigger 全量重估后 ∩ pending」（模块头判据完备性）。
+    let applied_start = out.len();
+    if let Some(entry) = state.entries.get(&(level, run_source_start)) {
+        out.extend(
+            entry
+                .events
+                .iter()
+                .copied()
+                .filter(|event| state.pending.contains(&EventKey::from(event))),
+        );
+    }
+    // §6.3 shadow 强制对拍（P123_SHADOW=1 开启，长期回归开关）：无视 dirty 判定强制全量
+    // 重估，与缓存路径应用集逐字比对。任何 mismatch = dirty 判据漏判现场（090 停线）。
+    if shadow {
+        shadow_check_run(
+            state, level, run_source_start, range, tower, index, dirty, &out[applied_start..],
+        )?;
+    }
+    Ok(())
+}
+
+fn compute_watermark_crossed(
+    state: &TargetedPassState<'_>,
+    level: usize,
+    run_source_start: usize,
+    index: usize,
+) -> bool {
+    let level_derived = &state.derived[&level];
+    state
+        .entries
+        .get(&(level, run_source_start))
+        .and_then(|entry| entry.target_last_as_of)
+        .is_some_and(|last_as_of| {
+            let before = level_derived
+                .lower_ends
+                .partition_point(|&end_index| end_index <= last_as_of);
+            let now = level_derived
+                .lower_ends
+                .partition_point(|&end_index| end_index <= index);
+            now != before
+        })
+}
+
+fn compute_dirty(
+    state: &mut TargetedPassState<'_>,
+    level: usize,
+    run_source_start: usize,
+    watermark_crossed: bool,
+) -> bool {
+    let level_derived = &state.derived[&level];
+    match state.entries.get(&(level, run_source_start)) {
+        None => true, // 冷条目：首次评估
+        Some(entry) => {
+            let self_changed = entry.target_self_gen != Some(level_derived.self_gen);
+            let lower_changed = entry.target_lower_gen != Some(level_derived.lower_gen);
+            if watermark_crossed {
+                if lower_changed {
+                    state.stats.wm_cross_with_lower += 1;
+                } else {
+                    // 模块头证明 (iii)⊂(ii)：此计数恒 0，非 0 即 bug。
+                    state.stats.wm_cross_without_lower += 1;
+                }
+            }
+            self_changed || lower_changed || watermark_crossed
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn get_or_insert_run_entry(
+    entries: &mut BTreeMap<(usize, usize), RunEntry>,
+    level: usize,
+    run_source_start: usize,
+    self_gen: u64,
+    lower_gen: u64,
+    index: usize,
+) -> &mut RunEntry {
+    entries.entry((level, run_source_start)).or_insert_with(|| {
+        RunEntry::new(self_gen, lower_gen, index, Vec::new(), Vec::new(), Vec::new())
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn call_evaluate_run(
+    level: usize,
+    tower: &[Rc<Vec<LeveledMove>>],
+    range: (usize, usize),
+    level_derived: &mut LevelDerived,
+    entry: &mut RunEntry,
+    index: usize,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+    stable_lower_len: usize,
+    pan_freeze_boundary: usize,
+    structure_generation: u64,
+) -> Result<(Vec<Center>, Vec<Option<MoveKind>>, Vec<NestCandidateEvent>), String> {
+    let lower_legs = &level_derived.lower_legs;
+    let confirm_cursors = &mut level_derived.confirm_cursors;
+    evaluate_run(
+        level,
+        &tower[level],
+        range,
+        lower_legs,
+        index,
+        hist,
+        dif,
+        close_src,
+        Some(ConfirmResidence {
+            store: confirm_cursors,
+            stable_lower_len,
+            structure_generation,
+        }),
+        Some(PanResidence {
+            memo: &mut entry.pan_memo,
+            freeze_boundary_src: pan_freeze_boundary,
+        }),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn reevaluate_run(
+    state: &mut TargetedPassState<'_>,
+    level: usize,
+    run_source_start: usize,
+    range: (usize, usize),
+    tower: &[Rc<Vec<LeveledMove>>],
+    stable_lower_len: usize,
+    pan_freeze_boundary: usize,
+    index: usize,
+) -> Result<(), String> {
+    let (hist, close_src) = state.cache.causal_series();
+    let dif = state.cache.macd_dif();
+    let level_derived = state.derived.get_mut(&level).expect("刚同步的 level 必须存在");
+    let structure_generation = level_derived.self_gen;
+    let entry = get_or_insert_run_entry(
+        &mut state.entries,
+        level,
+        run_source_start,
+        level_derived.self_gen,
+        level_derived.lower_gen,
+        index,
+    );
+    let (centers, kinds, events) = call_evaluate_run(
+        level,
+        tower,
+        range,
+        level_derived,
+        entry,
+        index,
+        hist,
+        dif,
+        close_src,
+        stable_lower_len,
+        pan_freeze_boundary,
+        structure_generation,
+    )?;
+    record_reevaluation_result(
+        &mut state.views,
+        &mut state.stats,
+        level,
+        entry,
+        level_derived.self_gen,
+        level_derived.lower_gen,
+        index,
+        centers,
+        kinds,
+        events,
+    );
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_reevaluation_result(
+    views: &mut usize,
+    stats: &mut SparseStats,
+    level: usize,
+    entry: &mut RunEntry,
+    self_gen: u64,
+    lower_gen: u64,
+    index: usize,
+    centers: Vec<Center>,
+    kinds: Vec<Option<MoveKind>>,
+    events: Vec<NestCandidateEvent>,
+) {
+    *views += 1;
+    stats.reevals += 1;
+    *stats.per_level_reevals.entry(level).or_default() += 1;
+    entry.update(self_gen, lower_gen, index, centers, kinds, events);
+    entry.target_self_gen = Some(self_gen);
+    entry.target_lower_gen = Some(lower_gen);
+    entry.target_last_as_of = Some(index);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn shadow_check_run(
+    state: &mut TargetedPassState<'_>,
+    level: usize,
+    run_source_start: usize,
+    range: (usize, usize),
+    tower: &[Rc<Vec<LeveledMove>>],
+    index: usize,
+    dirty: bool,
+    applied: &[NestCandidateEvent],
+) -> Result<(), String> {
+    let (hist, close_src) = state.cache.causal_series();
+    let dif = state.cache.macd_dif();
+    let lower_legs = &state.derived[&level].lower_legs;
+    let (_, _, forced) = evaluate_run(
+        level, &tower[level], range, lower_legs, index, hist, dif, close_src, None, None,
+    )?;
+    let forced: Vec<NestCandidateEvent> = forced
+        .into_iter()
+        .filter(|event| state.pending.contains(&EventKey::from(event)))
+        .collect();
+    state.stats.shadow_checks += 1;
+    let same = applied.len() == forced.len()
+        && applied.iter().zip(forced.iter()).all(|(a, b)| {
+            EventKey::from(a) == EventKey::from(b) && a.divergence_confirmed == b.divergence_confirmed
+        });
+    if !same {
+        state.stats.shadow_mismatches += 1;
+        if state.stats.shadow_mismatches <= 20 {
+            eprintln!(
+                "P123_SHADOW_MISMATCH level={level} run_source={run_source_start} as_of={index} dirty={dirty} applied={:?} forced={:?}",
+                applied
+                    .iter()
+                    .map(|e| (EventKey::from(e), e.divergence_confirmed))
+                    .collect::<Vec<_>>(),
+                forced
+                    .iter()
+                    .map(|e| (EventKey::from(e), e.divergence_confirmed))
+                    .collect::<Vec<_>>(),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn apply_targeted_events(
+    state: &mut TargetedPassState<'_>,
+    out: Vec<NestCandidateEvent>,
+    targets: &BTreeMap<EventKey, NestCandidateEvent>,
+    classification: &classifier::Classification,
+    fresh_levels: &BTreeSet<usize>,
+    bsp_changed: &BTreeMap<usize, bool>,
+    index: usize,
+    shadow: bool,
+) {
+    // ── 事件应用循环：与 p116 逐行一致，仅 TERM 查法加判据 (iv) 门控 ──
+    for event in out {
+        let key = EventKey::from(&event);
+        if !state.pending.contains(&key) {
+            continue;
+        }
+        state.book.candidates.entry(key.clone()).or_insert(index);
+        let target = targets.get(&key).expect("pending target");
+        if event.divergence_confirmed {
+            // #116: DIV = divergences 账本首次插入瞬间（账本语义同 p92 or_insert）。
+            if !state.book.divergences.contains_key(&key) {
+                dump_line(format_args!(
+                    "DIV level={} end={} kind={} side={:?}",
+                    event.level,
+                    event.turn_source,
+                    nest_kind_tag(event.kind),
+                    event.side,
+                ));
+            }
+            state.book.divergences.entry(key.clone()).or_insert(index);
+        }
+        record_term_signal(state, &key, &event, classification, fresh_levels, bsp_changed, index, shadow);
+        if event.divergence_confirmed == target.divergence_confirmed {
+            state.pending.remove(&key);
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_term_signal(
+    state: &mut TargetedPassState<'_>,
+    key: &EventKey,
+    event: &NestCandidateEvent,
+    classification: &classifier::Classification,
+    fresh_levels: &BTreeSet<usize>,
+    bsp_changed: &BTreeMap<usize, bool>,
+    index: usize,
+    shadow: bool,
+) {
+    // #116: TERM = 事件键首次终端 bits 确认（dump 专用 term_seen，不动账本）。
+    // p123 判据 (iv)：fresh（本 trigger 重估过 ⟹ 窗口可能变）∨ 账本内容变
+    // ⟹ 反查；其余情形结果为上次已查的同一 None（纯函数同输入），跳过逐位等价。
+    let recheck = fresh_levels.contains(&(event.level as usize))
+        || event_bsp_book_level(event.level).is_some_and(|book_level| {
+            bsp_changed.get(&book_level).copied().unwrap_or(true)
+        });
+    if recheck {
+        state.stats.term_rechecks += 1;
+        if !state.book.term_seen.contains(key) && terminal_bits_new(classification, event).is_some() {
+            state.book.term_seen.insert(key.clone());
+            dump_line(format_args!(
+                "TERM level={} bar={} side={:?}",
+                event.level, event.turn_source, event.side,
+            ));
+        }
+    } else {
+        state.stats.term_skips += 1;
+        // §6.3 shadow (iv) 门控对拍：跳过的 TERM 检查若本 trigger 实为 Some 且
+        // term_seen 未录 ⟹ 慢版本 trigger 会首见而 sparse 漏 = 判据 (iv) 漏判。
+        if shadow
+            && !state.book.term_seen.contains(key)
+            && terminal_bits_new(classification, event).is_some()
+        {
+            state.stats.shadow_term_mismatches += 1;
+            if state.stats.shadow_term_mismatches <= 20 {
+                eprintln!(
+                    "P123_SHADOW_TERM_MISMATCH level={} as_of={index} key={key:?}",
+                    event.level,
+                );
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn feed_lifecycle_and_checkpoint(
+    state: &mut TargetedPassState<'_>,
+    tower: &[Rc<Vec<LeveledMove>>],
+    classification: &classifier::Classification,
+    index: usize,
+    lifecycle_due: bool,
+    trigger: TriggerKey,
+    bars_len: usize,
+    targets_len: usize,
+    ckpt_every: usize,
+    started: Instant,
+) -> Result<(), String> {
+    // #421：targeted 先按原物理 views 口径更新共享条目；sidecar 的 provider trigger
+    // 随后只补 dirty 非目标 run，并刷新完成事件。活窗由上方独立 p409 同构循环发现，
+    // 不借生产 RunEntry 的完成时刻快照。账本本身每根 bar 都喂。
+    let completion_events = refresh_lifecycle_if_due(state, tower, index, lifecycle_due, trigger)?;
+    feed_lifecycle_bar_and_dump(state, tower, index, &completion_events)?;
+    run_periodic_checkpoint(state, tower, classification, index, ckpt_every)?;
+    print_prefix_progress(state, index, bars_len, targets_len, started);
+    Ok(())
+}
+
+fn refresh_lifecycle_if_due(
+    state: &mut TargetedPassState<'_>,
+    tower: &[Rc<Vec<LeveledMove>>],
+    index: usize,
+    lifecycle_due: bool,
+    trigger: TriggerKey,
+) -> Result<Vec<NestCandidateEvent>, String> {
+    if !lifecycle_due {
+        return Ok(Vec::new());
+    }
+    let (hist, close_src) = state.cache.causal_series();
+    let dif = state.cache.macd_dif();
+    let active_runs = refresh_lifecycle_cache(
+        &state.cache,
+        RefreshWorld {
+            tower,
+            as_of: index,
+            series: CausalSeries {
                 hist,
                 dif,
                 close_src,
             },
-            &mut LifecycleDumpSink {
-                sink: &mut lifecycle_dump,
-                stats: &mut lifecycle_stats,
-            },
-        )?;
-        lifecycle_book.assert_invariants();
-        if ckpt_every > 0 && index > 0 && index % ckpt_every == 0 {
-            let (hist, close_src) = cache.causal_series();
-            let dif = cache.macd_dif();
-            let mut ckpt_audit = ProviderAudit::default();
-            match collect_snapshot_candidates(&tower, index, hist, dif, close_src, &mut ckpt_audit)
-            {
-                Ok(by_level) => checkpoint_certificates(&by_level, &classification, index),
-                Err(error) => {
-                    dump_line(format_args!("CKPT_ERR as_of={index} err={error}"));
-                }
-            }
-        }
-        if index > 0 && index % 500_000 == 0 {
-            eprintln!(
-                "P123_PREFIX_PROGRESS bar={index}/{} elapsed={:.1}s pending={}/{} views={views} triggers={} reevals={}",
-                bars.len(),
-                started.elapsed().as_secs_f64(),
-                pending.len(),
-                targets.len(),
-                stats.triggers,
-                stats.reevals,
-            );
+        },
+        &mut LifecycleCacheState {
+            derived: &mut state.derived,
+            entries: &mut state.entries,
+            stats: &mut state.lifecycle_stats,
+        },
+    )?;
+    let completion_events = active_runs
+        .iter()
+        .flat_map(|key| state.entries[key].events.iter().copied())
+        .collect();
+    state.lifecycle_stats.provider_triggers += 1;
+    state.last_lifecycle_trigger = Some(trigger);
+    Ok(completion_events)
+}
+
+fn feed_lifecycle_bar_and_dump(
+    state: &mut TargetedPassState<'_>,
+    tower: &[Rc<Vec<LeveledMove>>],
+    index: usize,
+    completion_events: &[NestCandidateEvent],
+) -> Result<(), String> {
+    let bar_windows: Vec<PanLiveWindow> = state
+        .lifecycle_window_stems
+        .iter()
+        .copied()
+        .map(|stem| stem.window_at(index))
+        .collect();
+    // #527：完成相是显式 typed 输出——每条完成事件都必须能在塔上查到那只已完成的
+    // lower unit（身份 + 物理完成 bar），否则停线（禁按 kind 猜 provenance）。
+    let phases = lifecycle_bar_phases(tower, &bar_windows, completion_events, index)?;
+    let (hist, close_src) = state.cache.causal_series();
+    let dif = state.cache.macd_dif();
+    feed_lifecycle_bar(
+        &mut state.lifecycle_book,
+        &phases,
+        index,
+        CausalSeries {
+            hist,
+            dif,
+            close_src,
+        },
+        &mut LifecycleDumpSink {
+            sink: &mut state.lifecycle_dump,
+            stats: &mut state.lifecycle_stats,
+        },
+    )?;
+    state.lifecycle_book.assert_invariants();
+    Ok(())
+}
+
+fn run_periodic_checkpoint(
+    state: &TargetedPassState<'_>,
+    tower: &[Rc<Vec<LeveledMove>>],
+    classification: &classifier::Classification,
+    index: usize,
+    ckpt_every: usize,
+) -> Result<(), String> {
+    if !(ckpt_every > 0 && index > 0 && index % ckpt_every == 0) {
+        return Ok(());
+    }
+    let (hist, close_src) = state.cache.causal_series();
+    let dif = state.cache.macd_dif();
+    let mut ckpt_audit = ProviderAudit::default();
+    match collect_snapshot_candidates(tower, index, hist, dif, close_src, &mut ckpt_audit) {
+        Ok(by_level) => checkpoint_certificates(&by_level, classification, index),
+        Err(error) => {
+            dump_line(format_args!("CKPT_ERR as_of={index} err={error}"));
         }
     }
-    for entry in entries.values() {
+    Ok(())
+}
+
+fn print_prefix_progress(
+    state: &TargetedPassState<'_>,
+    index: usize,
+    bars_len: usize,
+    targets_len: usize,
+    started: Instant,
+) {
+    if !(index > 0 && index % 500_000 == 0) {
+        return;
+    }
+    eprintln!(
+        "P123_PREFIX_PROGRESS bar={index}/{} elapsed={:.1}s pending={}/{} views={} triggers={} reevals={}",
+        bars_len,
+        started.elapsed().as_secs_f64(),
+        state.pending.len(),
+        targets_len,
+        state.views,
+        state.stats.triggers,
+        state.stats.reevals,
+    );
+}
+
+fn finalize_targeted_pass(
+    mut state: TargetedPassState<'_>,
+) -> Result<(YieldBook, usize, usize, SparseStats, LifecycleReplayStats), String> {
+    for entry in state.entries.values() {
         let pan = entry.pan_memo.stats();
-        stats.pan_entries += entry.pan_memo.len();
-        stats.pan_hits += pan.hits;
-        stats.pan_misses += pan.misses;
-        stats.pan_writes += pan.writes;
-        stats.pan_invalidations += pan.invalidations;
+        state.stats.pan_entries += entry.pan_memo.len();
+        state.stats.pan_hits += pan.hits;
+        state.stats.pan_misses += pan.misses;
+        state.stats.pan_writes += pan.writes;
+        state.stats.pan_invalidations += pan.invalidations;
     }
-    lifecycle_stats.settlement = lifecycle_book.settlement_stats();
-    let settlement = lifecycle_stats.settlement;
+    state.lifecycle_stats.settlement = state.lifecycle_book.settlement_stats();
+    write_lifetime_dump_line(&mut state.lifecycle_dump, state.lifecycle_stats.settlement)?;
+    if let Some(writer) = state.lifecycle_dump.as_mut() {
+        writer
+            .flush()
+            .map_err(|error| format!("刷新 P421_LIFECYCLE_DUMP 失败: {error}"))?;
+    }
+    let pending_len = state.pending.len();
+    Ok((
+        state.book,
+        state.views,
+        pending_len,
+        state.stats,
+        state.lifecycle_stats,
+    ))
+}
+
+fn write_lifetime_dump_line(
+    dump: &mut Option<BufWriter<File>>,
+    settlement: LifecycleSettlementStats,
+) -> Result<(), String> {
     write_lifecycle_line(
-        &mut lifecycle_dump,
+        dump,
         format_args!(
             "LIFETIME entries={} first_provable={} provisional={} confirmed={} force_overtake={} never_constituted={} identity_vanished_refuted={} identity_vanished_seam={} flash_terminal={} nonflash_count={} nonflash_min={:?} nonflash_median={:?} nonflash_max={:?} force_lifetime_count={} force_lifetime_min={:?} force_lifetime_median={:?} force_lifetime_max={:?}",
             settlement.entry_count,
@@ -1681,13 +2293,7 @@ fn run_targeted_prefix_pass(
             settlement.force_overtake_lifetime.median,
             settlement.force_overtake_lifetime.max,
         ),
-    )?;
-    if let Some(writer) = lifecycle_dump.as_mut() {
-        writer
-            .flush()
-            .map_err(|error| format!("刷新 P421_LIFECYCLE_DUMP 失败: {error}"))?;
-    }
-    Ok((book, views, pending.len(), stats, lifecycle_stats))
+    )
 }
 
 fn write_lifecycle_line(
