@@ -3,6 +3,7 @@
 //!
 //! 契约锚与铁律见 [`super`] 模块头。
 
+use super::sublevel::extract_second_for_level;
 use super::*;
 
 /// 单级别分类状态（R6 态 + 走势类型 + 中枢 + 买卖点）。
