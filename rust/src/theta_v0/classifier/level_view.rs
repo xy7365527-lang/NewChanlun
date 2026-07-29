@@ -19,6 +19,10 @@ use super::signal::{
 };
 use std::collections::{BTreeSet, HashMap};
 
+/// #497：`ConfirmCursor`/`ConfirmCursorStore`/`ConfirmState` 归位 `level_view_store`；
+/// 本行保 pub 路径不变（`p123_fast_replay.rs` 等既有消费方零改动）。
+pub use super::level_view_store::{ConfirmCursor, ConfirmCursorStore, ConfirmState};
+
 #[cfg(test)]
 std::thread_local! {
     static CONFIRM_CORE_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
@@ -487,24 +491,6 @@ pub struct DivergencePair {
     pub seg_c: (usize, usize),
 }
 
-/// #69 5a：趋势确认的已证状态。`TerminalFalse` 仅表示单调力度关系已经终假；
-/// 结构或坐标仍不可验时必须保持 `Scanning`。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConfirmState {
-    Confirmed(usize),
-    TerminalFalse,
-    Scanning,
-}
-
-impl ConfirmState {
-    pub fn as_option(self) -> Option<usize> {
-        match self {
-            Self::Confirmed(t) => Some(t),
-            Self::TerminalFalse | Self::Scanning => None,
-        }
-    }
-}
-
 /// 与 `LevelAsOfView::pairs` 同源的确认 sidecar；消费时必须按 `pair_id` 查找。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PairConfirmState {
@@ -512,42 +498,11 @@ pub struct PairConfirmState {
     pub state: ConfirmState,
 }
 
-/// #69 5a：单个 divergence pair 在已封 lower-leg 前缀上的扫描累积。
-#[derive(Debug, Clone)]
-pub struct ConfirmCursor {
-    /// 下一个尚未消费的 lower-leg 下标；只允许落在确认水线内。
-    k0: usize,
-    env: Option<(Tick, Tick)>,
-    acc_hi: Option<usize>,
-    area_c: f64,
-    dif_max: f64,
-    dif_min: f64,
-    hist_max: f64,
-    hist_min: f64,
-    state: ConfirmState,
-}
-
-impl Default for ConfirmCursor {
-    fn default() -> Self {
-        Self {
-            k0: 0,
-            env: None,
-            acc_hi: None,
-            area_c: 0.0,
-            dif_max: f64::NEG_INFINITY,
-            dif_min: f64::INFINITY,
-            hist_max: f64::NEG_INFINITY,
-            hist_min: f64::INFINITY,
-            state: ConfirmState::Scanning,
-        }
-    }
-}
-
 /// #69 5a：不含 `as_of` 与可增长 seg-c 末端的结构身份键。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConfirmKey {
-    level: u32,
-    run_window: CoordinateWindow,
+    pub(super) level: u32,
+    pub(super) run_window: CoordinateWindow,
     version: C2VersionTuple,
     pair_id: DivergencePairId,
     move_start: usize,
@@ -581,48 +536,6 @@ impl ConfirmKey {
                 last.gg,
             ),
             structure_generation,
-        }
-    }
-}
-
-/// #69 5a：per-level divergence-pair cursor 映射；实际持有者在 bin `LevelDerived`。
-#[derive(Debug, Default)]
-pub struct ConfirmCursorStore {
-    cursors: HashMap<ConfirmKey, ConfirmCursor>,
-}
-
-impl ConfirmCursorStore {
-    pub fn len(&self) -> usize {
-        self.cursors.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.cursors.is_empty()
-    }
-
-    /// 上层 run 分区变化时删除已消失 run，避免陈旧 key 永久驻留。
-    pub fn retain_run_starts(&mut self, level: u32, run_starts: impl IntoIterator<Item = usize>) {
-        let run_starts: BTreeSet<_> = run_starts.into_iter().collect();
-        self.cursors
-            .retain(|key, _| key.level != level || run_starts.contains(&key.run_window.start));
-    }
-
-    fn retain_active_for_run(&mut self, level: u32, run_start: usize, active: &[ConfirmKey]) {
-        self.cursors.retain(|key, _| {
-            key.level != level
-                || key.run_window.start != run_start
-                || active.iter().any(|candidate| candidate == key)
-        });
-    }
-
-    fn cursor_mut(&mut self, key: ConfirmKey) -> &mut ConfirmCursor {
-        self.cursors.entry(key).or_default()
-    }
-
-    #[cfg(test)]
-    fn poison_for_test(&mut self, state: ConfirmState) {
-        for cursor in self.cursors.values_mut() {
-            cursor.state = state;
         }
     }
 }
