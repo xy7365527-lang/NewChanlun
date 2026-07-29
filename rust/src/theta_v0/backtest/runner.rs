@@ -2127,7 +2127,23 @@ mod tests {
             c.levels[0] = LevelState::default(); // 仅父 L1 buy@12（子卖点未现）
             c
         };
-        let cls_open = e_classification(false); // + 子 L0 sell@16（无子平触发）
+        // ★#647 fixture 尺度自洽（非行为变更）：本测试用默认 `tick_size=1e-8` + `px=1e10 tick`
+        // （≈100 美元），而 `e_classification` 的结构价按 E1 场景（`tick_size=1.0`，tick=美元）
+        // 写死（子卖点 `pivot_high=210`）。两个尺度混用 ⟹ 子空腿的结构止损 210 tick 落在入场价
+        // 1e10 tick **下方** = 空仓逆侧，被 #647 入场结构复检门按「结构已破」正确拒单。这是
+        // fixture 自身不自洽（原注释「子 stop=210 全程安全」在本尺度下不成立），非门误伤：把子
+        // 卖点 pivot 抬到同尺度的 200 美元（2e10 tick），恢复 fixture 原意「止损在上方、不触及」。
+        let cls_open = {
+            let mut c = e_classification(false); // + 子 L0 sell@16（无子平触发）
+            let mut l0 = c.levels[0].bsp.as_ref().clone();
+            for p in l0.iter_mut() {
+                if p.bits.sell1 || p.bits.sell2 {
+                    p.pivot_high = 20_000_000_000; // 200 美元 @1e-8 > 入场价 100
+                }
+            }
+            c.levels[0] = LevelState { bsp: Rc::new(l0), ..c.levels[0].clone() };
+            c
+        };
         let tower = e_tower();
         let classify = move |i: usize| {
             let cls = if i >= 17 {

@@ -1286,6 +1286,7 @@ fn m8_e2e_all_systems_oos() {
         // ★#625 收尾（review-625.md 发现1/3）：跑批前归零两个观测探针（纯计数旁路，
         // 不改本窗判定/订单流），跑批后读快照接 wf8 验收行。
         super::fill::entry_stop_reverse_probe_reset();
+        super::fill::entry_stop_recheck_probe_reset(); // #647 入场结构复检拒单计数
         super::super::strategy::coverage::cap_binding_probe_reset();
         super::super::strategy::coverage::cap_binding_attribution_reset(); // #628 阶段一归因
         let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
@@ -1299,6 +1300,13 @@ fn m8_e2e_all_systems_oos() {
             entry_stop_reverse.short_reverse,
             cap_binding.hi_binding,
             cap_binding.lo_binding,
+        );
+        // ★#647：入场结构复检门拒单读数（分侧 × 分级）——门落地后 entry_stop_reverse 两桶应归 0
+        // （逆侧候选在开仓前即被剔除），拒单计数承接原先那部分入场。
+        let recheck = super::fill::entry_stop_recheck_probe_snapshot();
+        eprintln!(
+            "[m8][#647] {tag}: entry_stop_recheck 拒单 long={} short={} | by_level long={:?} short={:?}",
+            recheck.long_rejected, recheck.short_rejected, recheck.by_level_long, recheck.by_level_short,
         );
         // ★#628 阶段一归因：逐次 binding 事件——分桶方向(hi=held Long/lo=held Short)与 p̃ 符号
         // 一致/相反计数 + 反事实 Δp*（p_star_actual − p_star_cf）分布。

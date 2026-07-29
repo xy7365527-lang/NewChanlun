@@ -125,3 +125,191 @@ pub(crate) fn entry_structural_stop(
     };
     structural_stop(stop_side, &bsp.bits, &stop_in)
 }
+
+/// ★#647 入场结构复检：候选的结构止损是否**已落在入场价逆侧**（多仓 `stop_px ≥ entry_px` /
+/// 空仓 `stop_px ≤ entry_px`）——真 ⟹ 该候选**自身的结构位**已被价格越过，应拒开仓。
+///
+/// ## 定稿裁定（issue #647，2026-07-29 用户 HITL，地图 #654 链 #655→#659→#657→#658→#656）
+///
+/// **门 = 破自己的底即拒（全类别同判），力度轴不进生产门。**（中途曾裁定缩到三类、二类全放，
+/// 已在本次定稿中撤销，恢复全类别形状——判据代码本身自始未分类别，缩类是一次已撤销的中间态）
+///
+/// - **判据本体**：入场时价格已越过候选自身的结构位（1/2 类 = 点自己的 pivot 极值，3 类 =
+///   中枢 ZG/ZD，与 `entry_structural_stop` 同源）⟹「结构位已破 ⟹ 不值得建仓」。
+///   与内部一致性同看：**同一个 stop 值**在出场侧（`admission.rs` `k_theta_risk_gate` →
+///   `stop_hit`）是「必须退出」的谓词——入场侧不校验即自相矛盾，wf8 实测曾有 45/45 笔在下一
+///   bar 即被自己的止损判据切掉（持仓恰 1 bar，全部 RiskExit）：系统自身已判其「不能搞」，
+///   却仍先买进去。
+/// - **101 课最弱二类天然放行**：「二类买点跌破一类买点 = 最弱情况，这是完全可以的」——该子类
+///   的二类底本就**低于**一类底，只要价格未跌破**二类自己的底**，本门判据不触发，自动放行，
+///   与 101 课零冲突（本门只拒「破自己的底」，不拒「底比别人低」）。
+/// - **45 笔全是破自己的底（点未成立），101 课最弱二类零出现**：三轴归因
+///   `.chanlun/review-results/reverse-3axis-attribution-20260729.md` 逐笔核验 45/45——待定
+///   10 笔（力度成立∧破 pivot 未超限）/ 拒·力度 22 笔 / 拒·超限 13 笔，**待定格裁定也拒**：
+///   「入场时点力度」判据口径下严格不可判（背驰比较的是两个已走完的段，入场发生在段中途，
+///   四套构造口径皆是近似而非判据本身，见该报告 §7 第 2 条）；三类候选的力度对照更无判据先例
+///   （三类判据是纯几何，仓内不存在三类面积比较口径，见该报告 §7 第 3 条）。**力度轴不进生产门**
+///   ——区间套（27 课）/小级别盘背（79 课）才是力度判据的教义正解，属未来新线，本门不越权代判。
+/// - **名分**：本门 = 系统自设风控参数（#659 登记，非缠论判据；结构止损价本身的名分见
+///   `entry_structural_stop` 同案）。**本门不表达点是否成立，只表达是否值得建仓**——点的
+///   成立与否由分类器单一权威判定，本门只在其后做风控层的二次否决。
+///
+/// 边界口径：**恰等（`stop_px == entry_px`）判逆侧 ⟹ 拒**。理由二重：① 止损距离 d=0
+/// （`entry_stop_dist` 分母退化）；② `stop_hit` 用 `low ≤ stop`/`high ≥ stop`（含等号）⟹ 成交
+/// bar 即触及，与「拒」同结果，不留自相矛盾的中间态。
+///
+/// `entry_structural_stop` 返 `None`（非该方向交易点 / BspPoint 缺失）⟹ **不判**（返 false，
+/// 诚实缺口口径与 `entry_stop_dist`/`k_theta_risk_gate` 一致，不冒充判据）。
+pub(crate) fn entry_stop_recheck_reject(
+    c: &super::super::strategy::interp::Candidate,
+    classification: &super::super::classifier::Classification,
+    entry_px: f64,
+    tick_size: f64,
+) -> bool {
+    use super::super::strategy::voice::VoiceSide;
+    let Some(stop) = entry_structural_stop(c, classification) else {
+        return false;
+    };
+    let stop_px = stop as f64 * tick_size;
+    match c.dir {
+        VoiceSide::Long => stop_px >= entry_px,
+        VoiceSide::Short => stop_px <= entry_px,
+        VoiceSide::Flat => false, // Flat 不开仓，无入场前提可复检
+    }
+}
+
+#[cfg(test)]
+mod entry_stop_recheck_tests {
+    use super::*;
+    use super::super::super::classifier::bsp::{BspPoint, OwnerRef};
+    use super::super::super::classifier::{Classification, LevelState};
+    use super::super::super::strategy::coverage::{Dir, GradeRel, Horizontal, OperationRole, Vertical};
+    use super::super::super::strategy::interp::Candidate;
+    use super::super::super::strategy::voice::VoiceSide;
+    use super::super::super::types::{BspBits, Center};
+
+    const TS: f64 = 1.0; // tick_size=1 ⟹ tick 数即美元价，断言读数即结构价
+
+    fn point(bits: BspBits, pivot_low: i64, pivot_high: i64, center: Option<Center>) -> BspPoint {
+        BspPoint {
+            source_index: 7,
+            bits,
+            pivot_low,
+            pivot_high,
+            center: center.map(OwnerRef::Center),
+            struct_break_dir: None,
+            force: None,
+        }
+    }
+
+    fn classification_with(p: BspPoint) -> Classification {
+        Classification { levels: vec![LevelState { bsp: Rc::new(vec![p]), ..LevelState::default() }] }
+    }
+
+    fn cand(dir: VoiceSide, bits: BspBits, bsp_class: u8) -> Candidate {
+        Candidate {
+            level: 0,
+            source_index: 7,
+            bits,
+            dir,
+            bsp_class,
+            role: OperationRole {
+                h: Horizontal::First,
+                v: Vertical::Ambient,
+                delta: match dir {
+                    VoiceSide::Short => Dir::Minus,
+                    _ => Dir::Plus,
+                },
+                grade: GradeRel::SameLevel,
+            },
+            nest_confirmed: true,
+            gamma_index: 0,
+            force: None,
+        }
+    }
+
+    fn center_at(zd: i64, zg: i64) -> Center {
+        Center { zd, zg, dd: zd - 5, gg: zg + 5, start_index: 0, end_index: 5 }
+    }
+
+    /// 二类买（止损 = pivot_low）：入场价已在 pivot_low **之下** ⟹ 结构已破 ⟹ 拒。
+    #[test]
+    fn long_type2_stop_above_entry_is_rejected() {
+        let bits = BspBits { buy2: true, ..BspBits::default() };
+        let cl = classification_with(point(bits, 110, 0, None));
+        assert!(entry_stop_recheck_reject(&cand(VoiceSide::Long, bits, 2), &cl, 100.0, TS));
+    }
+
+    /// 顺侧（止损在入场价下方）⟹ 放行——门只拒逆侧，不动正常入场。
+    #[test]
+    fn long_type2_stop_below_entry_is_admitted() {
+        let bits = BspBits { buy2: true, ..BspBits::default() };
+        let cl = classification_with(point(bits, 90, 0, None));
+        assert!(!entry_stop_recheck_reject(&cand(VoiceSide::Long, bits, 2), &cl, 100.0, TS));
+    }
+
+    /// 边界恰等（stop == entry）：判逆侧 ⟹ 拒（d=0 且 `stop_hit` 含等号即触及）。
+    #[test]
+    fn stop_exactly_at_entry_is_rejected_both_sides() {
+        let bl = BspBits { buy2: true, ..BspBits::default() };
+        let cl_l = classification_with(point(bl, 100, 0, None));
+        assert!(entry_stop_recheck_reject(&cand(VoiceSide::Long, bl, 2), &cl_l, 100.0, TS));
+        let bs = BspBits { sell2: true, ..BspBits::default() };
+        let cl_s = classification_with(point(bs, 0, 100, None));
+        assert!(entry_stop_recheck_reject(&cand(VoiceSide::Short, bs, 2), &cl_s, 100.0, TS));
+    }
+
+    /// 二类卖镜像：止损 = pivot_high 已在入场价**之下** ⟹ 拒；在上方 ⟹ 放行。
+    #[test]
+    fn short_type2_mirror() {
+        let bits = BspBits { sell2: true, ..BspBits::default() };
+        let low = classification_with(point(bits, 0, 90, None));
+        assert!(entry_stop_recheck_reject(&cand(VoiceSide::Short, bits, 2), &low, 100.0, TS));
+        let high = classification_with(point(bits, 0, 110, None));
+        assert!(!entry_stop_recheck_reject(&cand(VoiceSide::Short, bits, 2), &high, 100.0, TS));
+    }
+
+    /// 三类买（止损 = ZG）：入场价已跌回 ZG 之下 ⟹「回抽不破 ZG」被证伪 ⟹ 拒；仍在 ZG 上 ⟹ 放行。
+    #[test]
+    fn long_type3_uses_zg() {
+        let bits = BspBits { buy3: true, ..BspBits::default() };
+        let broken = classification_with(point(bits, 0, 0, Some(center_at(80, 110))));
+        assert!(entry_stop_recheck_reject(&cand(VoiceSide::Long, bits, 3), &broken, 100.0, TS));
+        let intact = classification_with(point(bits, 0, 0, Some(center_at(70, 90))));
+        assert!(!entry_stop_recheck_reject(&cand(VoiceSide::Long, bits, 3), &intact, 100.0, TS));
+    }
+
+    /// 三类卖镜像（止损 = ZD）。
+    #[test]
+    fn short_type3_uses_zd() {
+        let bits = BspBits { sell3: true, ..BspBits::default() };
+        let broken = classification_with(point(bits, 0, 0, Some(center_at(90, 120))));
+        assert!(entry_stop_recheck_reject(&cand(VoiceSide::Short, bits, 3), &broken, 100.0, TS));
+        let intact = classification_with(point(bits, 0, 0, Some(center_at(110, 130))));
+        assert!(!entry_stop_recheck_reject(&cand(VoiceSide::Short, bits, 3), &intact, 100.0, TS));
+    }
+
+    /// 无结构止损（该方向无买卖点位 ⟹ `entry_structural_stop` 返 None）⟹ **不判**（放行），
+    /// 与 `entry_stop_dist`/逐 bar 风控门的诚实缺口口径一致——门不冒充自己没有的判据。
+    #[test]
+    fn missing_stop_is_not_judged() {
+        let bits = BspBits { sell2: true, ..BspBits::default() }; // 卖位，按 Long 查无买位
+        let cl = classification_with(point(bits, 0, 90, None));
+        assert!(!entry_stop_recheck_reject(
+            &cand(VoiceSide::Long, BspBits::default(), 2),
+            &cl,
+            100.0,
+            TS
+        ));
+    }
+
+    /// 候选 `(level, source_index)` 在分类中查无 BspPoint ⟹ None ⟹ 不判（放行）。
+    #[test]
+    fn missing_bsp_point_is_not_judged() {
+        let bits = BspBits { buy2: true, ..BspBits::default() };
+        let mut p = point(bits, 110, 0, None);
+        p.source_index = 999; // 与候选 source_index=7 不匹配
+        let cl = classification_with(p);
+        assert!(!entry_stop_recheck_reject(&cand(VoiceSide::Long, bits, 2), &cl, 100.0, TS));
+    }
+}
