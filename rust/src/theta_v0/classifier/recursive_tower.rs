@@ -2148,7 +2148,7 @@ pub fn level_cand_delta(
         let c_start_entry = departure_move_c_start(sorted, anchors, c, dir, seg.start_index);
         let Some(pf) = signal::judge_first_cached(
             c, dir, seg, anchors[i], hist, dif, closes_tick, close_src, a_seg_entry,
-            c_start_entry, gauge,
+            c_start_entry, gauge, sorted, None,
         ) else {
             continue; // 未破中枢/未破 b 极值（037:20）/A 不可配对/不可映射 ⟹ 非结构候选（与生产路径同一 gate）。
         };
@@ -2165,6 +2165,11 @@ pub fn level_cand_delta(
             .is_some();
         let confirm_src = pf.source_index;
         let interval_end = seg.end_index;
+        // #607 D2 登记：pf.bits.buy1/sell1 与生产路径同受 T3-in-c 否则域大闸门控
+        // （Missing ⟹ 二次门控清零，见 signal.rs judge_first_cached）——cand_delta 事件
+        // 集合随之缩小。D2 之前的 strict_nest_check/p107/p124 等诊断 bin 历史读数是旧口径
+        // （否则域点仍计入 cand_delta），不得与 D2 之后的读数直接混比；如需复现旧口径，
+        // 用 THETA_T3INC_SKIP=1 重跑（见 issue607-impl 报告 §5）。
         let cand_delta = pf.bits.buy1 || pf.bits.sell1;
         let (
             b_parent,
@@ -2254,6 +2259,7 @@ mod p1_tests {
             seg(Direction::Down, 3, 5, 350, 250),
             seg(Direction::Up, 5, 7, 250, 280),
             seg(Direction::Down, 9, 11, 150, 80),
+            seg(Direction::Up, 11, 13, 80, 90), // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
         ];
         let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
         let closes: Vec<f64> = prices.iter().map(|&p| p as f64).collect();

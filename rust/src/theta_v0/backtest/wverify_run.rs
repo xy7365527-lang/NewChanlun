@@ -2011,7 +2011,7 @@ fn center_lifecycle_wf8_events_replay() {
 /// env `THETA_OTHERWISE_DOMAIN_SIDECAR=1`（测试内部设置，无需外部前缀）。
 /// `cargo test --release --lib theta_v0::backtest::wverify_run::otherwise_domain_wf8_grade_buckets -- --ignored --nocapture`
 #[test]
-#[ignore = "#606 S1 第三修复车 D4：wf8 全窗一类点分级观测三项口径 + 五桶；需 BTC 数据（DATA BLOCKER 不伪造）"]
+#[ignore = "#606 S1 D4 / #607 S2 口径切换：wf8 全窗一类点分级观测三项口径 + 五桶（Reset 只属趋势一类）；需 BTC 数据（DATA BLOCKER 不伪造）"]
 fn otherwise_domain_wf8_grade_buckets() {
     use super::super::classifier::signal::{T3InCGrade, T3InCGradeReason};
     use super::super::types::Side;
@@ -2128,12 +2128,16 @@ fn otherwise_domain_wf8_grade_buckets() {
         }
     }
 
-    // ── ②基数对拍：sidecar 记录数 = center_lifecycle Reset 行数（两个独立数据源的总数核对，
-    // 非按 (level,source_index,side) 逐键核对独立 bsp 计数——不排除漏一多一相抵，见上文档）──
+    // ── ②基数对拍（#607 S2 口径切换）：D2 大闸后 Reset 只属趋势一类（native，T3-in-c Present
+    // ⟹ 置一类 bit ⟹ 广播 Reset）；否则域（otherwise，T3-in-c Missing）不置一类 bit ⟹ lifecycle
+    // 不产 Reset。旧口径（#606 S1，D2 未接线）sidecar 记录数(59) == Reset 行数曾经成立（因彼时
+    // 一类 bit 只由 diverged 决定，与 T3-in-c 分级无关）；D2 生效后二者分裂，历史 59/59 基线
+    // 留档不与本口径混比。
     let grand_total = sidecar.records.len();
     assert_eq!(
-        grand_total, reset_count,
-        "②基数对拍：sidecar 记录数({grand_total}) == center_lifecycle Reset 行数({reset_count})"
+        native_count, reset_count,
+        "②基数对拍（#607 S2 新口径）：sidecar native 记录数({native_count}) == center_lifecycle \
+         Reset 行数({reset_count})——Reset 只属趋势一类"
     );
 
     // ── ①账平（构造性恒等，非独立验证，仅供 #585 对拍统计口径行；见上文档）──
@@ -2143,12 +2147,12 @@ fn otherwise_domain_wf8_grade_buckets() {
         "①账平：一类点总数 = 趋势一类(native) + 否则域(otherwise)（Present/Missing 二分恒等）"
     );
 
-    // ── D5 逐级对拍（#606 S1 抛光车终审 F-中1）：② 只核对总数，本断言逐桶核对——records 按
-    // (level,side) 分桶总数（native+otherwise）与 center_lifecycle reset 行按 (level,trigger_side)
-    // 分桶重新分 leak=true/false 两类计数。两个独立数据源在每个桶上应满足
-    // `records桶总数 - leak=true桶计数 == leak=false桶计数`（若一桶 record 有多算/漏算，diff 会偏离该桶
-    // leak=false 计数，逐桶断言比②的总数断言更细，能抓总数抵消但分桶错位的情形）。照实测写，
-    // 不预先硬编码期望值。
+    // ── D5 逐级对拍（#607 S2 口径切换）：D2 大闸后 Reset 只属趋势一类——records 按 (level,side)
+    // 分桶改用 **native** 计数（非 native+otherwise 总数，#606 S1 版口径）与 center_lifecycle
+    // reset 行按 (level,trigger_side) 分桶重新分 leak=true/false 两类计数比对。两个独立数据源
+    // 在每个桶上应满足 `native 桶计数 - leak=true桶计数 == leak=false桶计数`（若一桶 record 有
+    // 多算/漏算，diff 会偏离该桶 leak=false 计数，逐桶断言比②的总数断言更细，能抓总数抵消但
+    // 分桶错位的情形）。照实测写，不预先硬编码期望值。
     let mut reset_leak_true: std::collections::BTreeMap<(u32, u8), usize> =
         std::collections::BTreeMap::new();
     let mut reset_leak_false: std::collections::BTreeMap<(u32, u8), usize> =
@@ -2162,29 +2166,29 @@ fn otherwise_domain_wf8_grade_buckets() {
     d5_keys.extend(reset_leak_true.keys().copied());
     d5_keys.extend(reset_leak_false.keys().copied());
     for key in &d5_keys {
-        let record_count = level_side_totals.get(key).map(|(n, o)| n + o).unwrap_or(0);
+        let native_bucket = level_side_totals.get(key).map(|(n, _o)| *n).unwrap_or(0);
         let leak_true = reset_leak_true.get(key).copied().unwrap_or(0);
         let leak_false = reset_leak_false.get(key).copied().unwrap_or(0);
-        let diff = record_count as i64 - leak_true as i64;
+        let diff = native_bucket as i64 - leak_true as i64;
         assert_eq!(
             diff, leak_false as i64,
-            "D5 逐级对拍 (level={},side={}): records 桶总数({record_count}) - \
+            "D5 逐级对拍（#607 S2 新口径） (level={},side={}): records native 桶计数({native_bucket}) - \
              reset leak=true 桶计数({leak_true}) 应恰等于该桶 leak=false 计数({leak_false})",
             key.0, key.1
         );
     }
     eprintln!(
-        "[#606 S1 D5] 逐级对拍：records(level,side)→总数={:?}；reset(level,trigger_side)→\
-         leak=true 计数={reset_leak_true:?}；leak=false 计数={reset_leak_false:?}",
+        "[#607 S2 D5] 逐级对拍（native 口径）：records(level,side)→native 计数={:?}；\
+         reset(level,trigger_side)→leak=true 计数={reset_leak_true:?}；leak=false 计数={reset_leak_false:?}",
         level_side_totals
             .iter()
-            .map(|(k, (n, o))| (*k, n + o))
+            .map(|(k, (n, _o))| (*k, *n))
             .collect::<std::collections::BTreeMap<_, _>>(),
     );
 
     eprintln!(
-        "[#606 S1 D4] wf8 一类点 T3-in-c 分级观测：frames={} 一类点总数={grand_total} \
-         (center_lifecycle reset={reset_count}) native(趋势一类)={native_count} \
+        "[#607 S2 D4] wf8 一类点 T3-in-c 分级观测：frames={} 一类点总数={grand_total} \
+         (center_lifecycle reset={reset_count}, 新口径=Reset 只属趋势一类) native(趋势一类)={native_count} \
          otherwise(否则域)={otherwise_count} \
          (level,side=0long/1short)→(native,otherwise)={level_side_totals:?} \
          ③五桶(level,side)→[missing_leave,missing_retest,same_direction,\
