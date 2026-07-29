@@ -4422,6 +4422,27 @@ mod tests {
         book
     }
 
+    /// 与 `chain_book_over_prefixes` 同步推进同一个链簿，但每个前缀都用 fresh cache 全量重建事件流。
+    fn chain_book_over_prefixes_fresh_cache(
+        segments: &[Segment],
+        closes: &[i64],
+        cfg: &ThetaConfig,
+    ) -> chain_cert::ChainCertificateBook {
+        let mut book = chain_cert::ChainCertificateBook::default();
+        for n in 1..=segments.len() {
+            let end = segments[n - 1].end_index.min(closes.len() - 1);
+            let layer = ParseLayer {
+                segments: Rc::new(segments[..n].to_vec()),
+                merged_bars: Rc::new(bars_from_closes(&closes[..=end])),
+                ..Default::default()
+            };
+            let mut cache = TowerCache::new();
+            let streams = classify_with_tower_events_incremental(&layer, cfg, &mut cache).2;
+            book.advance(&streams, end);
+        }
+        book
+    }
+
     fn chain_fixture(count: usize) -> (Vec<Segment>, Vec<i64>) {
         let segments = candidate_rich_segments(count);
         let closes: Vec<i64> = (0..=segments.last().expect("非空").end_index)
@@ -4430,29 +4451,163 @@ mod tests {
         (segments, closes)
     }
 
-    /// ★#641 双路径逐字节一致：跨步增量推进的链簿 ≡ 每步从零全历史重建的链簿。
+    /// ★#641 链簿真双路径：同一候选事件生命史下，跨步增量宿主 ≡ 每步从零全历史重放。
     ///
-    /// 与 #550 主缝②同款纪律：链簿是**有状态**对象（终态封口、钟一次写入、修订计数），若增量
-    /// 宿主与全历史重建有任何分叉，逐 revision 的 `PartialEq` 当场变红。
+    /// 输入序列只由一个共享 `TowerCache` 生成一次；两侧唯一变量是
+    /// `ChainCertificateBook` 持续推进，还是每个前缀都用新簿从第一步重放。若链簿将来引入依赖
+    /// 调用次数的隐藏缓存/去重状态，逐步快照与全历史重放会当场分叉。
+    ///
+    /// **夹具规模照实**：原 40 段夹具上四条链**全部在末步一次落簿**
+    /// （`distinct_as_of == {124}`），逐步重放这一侧退化成前 39 步空簿比空簿——比对恒过但没锁
+    /// 住任何东西。改用 120 段（与下方 golden 同规模）后落簿跨 8 个 `as_of`
+    /// （`{124, 232, 280, 320, 396, 420, 444, 464}`、38 条 revision），重放对照才有内容。
+    /// 规模是**加大**取覆盖，不是缩小避分叉：40 段上双路径比对本来就全过。
     #[test]
     fn chain_certificate_book_incremental_equals_full_replay() {
         let cfg = ThetaConfig::default();
-        let (segments, closes) = chain_fixture(40);
-        let mut incremental_cache = TowerCache::new();
-        let incremental = chain_book_over_prefixes(&segments, &closes, &cfg, &mut incremental_cache);
-
+        let (segments, closes) = chain_fixture(120);
+        let mut cache = TowerCache::new();
+        let mut inputs = Vec::with_capacity(segments.len());
         for n in 1..=segments.len() {
-            let mut replay_cache = TowerCache::new();
-            let replay =
-                chain_book_over_prefixes(&segments[..n], &closes, &cfg, &mut replay_cache);
-            let mut rerun_cache = TowerCache::new();
-            let prefix_incremental =
-                chain_book_over_prefixes(&segments[..n], &closes, &cfg, &mut rerun_cache);
-            assert_eq!(replay, prefix_incremental, "step={n}: 全历史重建≡增量链簿");
+            let end = segments[n - 1].end_index.min(closes.len() - 1);
+            let layer = ParseLayer {
+                segments: Rc::new(segments[..n].to_vec()),
+                merged_bars: Rc::new(bars_from_closes(&closes[..=end])),
+                ..Default::default()
+            };
+            let streams = classify_with_tower_events_incremental(&layer, &cfg, &mut cache).2;
+            inputs.push((streams, end));
         }
+
+        let mut incremental = chain_cert::ChainCertificateBook::default();
+        let mut snapshots = Vec::with_capacity(inputs.len());
+        for (streams, end) in &inputs {
+            incremental.advance(streams, *end);
+            snapshots.push(incremental.clone());
+        }
+
+        for (step_index, snapshot_a) in snapshots.iter().enumerate() {
+            let step = step_index + 1;
+            let mut replay_b = chain_cert::ChainCertificateBook::default();
+            for (streams, end) in inputs.iter().take(step) {
+                replay_b.advance(streams, *end);
+            }
+
+            let certificates_a = snapshot_a.certificates();
+            let certificates_b = replay_b.certificates();
+            assert_eq!(
+                certificates_a.len(),
+                certificates_b.len(),
+                "step={step}: certificate 数量分叉；side_a={} side_b={}",
+                certificates_a.len(),
+                certificates_b.len()
+            );
+            for (index, (certificate_a, certificate_b)) in
+                certificates_a.iter().zip(certificates_b.iter()).enumerate()
+            {
+                if certificate_a != certificate_b {
+                    panic!(
+                        "step={step}: 第一处分叉 index={index}；\
+                         side_a={certificate_a:#?} side_b={certificate_b:#?}"
+                    );
+                }
+            }
+            assert_eq!(
+                snapshot_a, &replay_b,
+                "step={step}: certificates 已逐条一致，ChainCertificateBook 内部状态分叉"
+            );
+        }
+
+        let final_book = snapshots.last().expect("fixture 必须至少产生一个输入步骤");
+        let certificates = final_book.certificates();
+        let certificate_count = certificates.len();
         assert!(
-            !incremental.certificates().is_empty(),
-            "非真空锁：链簿必须真产出（真空绿等于没锁）"
+            certificate_count > 0,
+            "非真空锁：最终 book 的 certificates 必须非空；certificates={certificate_count}"
+        );
+        // 多 `as_of` 生命史的非真空锁：链必须在**两个以上不同 `as_of`** 上落过簿，否则整条
+        // 双路径比对退化成「单点快照比单点快照」，逐步重放这一侧等于没走。
+        //
+        // 090 照实：本合成夹具上每条链**一次成型**（`revision` 全 0、候选事件 `revision` 亦
+        // 全 0——链首次可见即定型，同下方 golden 对 `payload_revision` 的照实声明），故此处
+        // 不断言 `revision > 0`；同 key 多修订的生命史由 `chain_cert::tests` 的
+        // `resident_open_chain_becomes_extendable_and_appends_a_payload_revision` 覆盖。
+        let distinct_as_of: std::collections::BTreeSet<usize> = certificates
+            .iter()
+            .map(|certificate| certificate.revision_at)
+            .collect();
+        assert!(
+            distinct_as_of.len() > 1,
+            "生命史锁：链簿必须跨多个 as_of 落簿；distinct_as_of={distinct_as_of:?} \
+             certificates={certificate_count}"
+        );
+        let with_edges_count = certificates
+            .iter()
+            .filter(|certificate| !certificate.edges.is_empty())
+            .count();
+        assert!(
+            with_edges_count > 0,
+            "边非真空锁：至少一条 certificate 的 edges 非空；\
+             with_edges={with_edges_count} certificates={certificate_count}"
+        );
+    }
+
+    /// 因果簿驱动与终态窗口投影驱动都是 `chain_cert` 声明支持的输入语义
+    /// （见 `ChainNodeStatus::Absent` 文档），但二者已知不等价：共享 cache 会永久保留曾出现的
+    /// 候选身份，fresh cache 只投影当步终态。本测试锁住实测语义差的形态，不把差异当作 bug。
+    #[test]
+    fn causal_book_drive_is_a_superset_of_terminal_projection_drive() {
+        let cfg = ThetaConfig::default();
+        let (segments, closes) = chain_fixture(40);
+        let mut causal_cache = TowerCache::new();
+        let causal_book = chain_book_over_prefixes(&segments, &closes, &cfg, &mut causal_cache);
+        let terminal_projection_book =
+            chain_book_over_prefixes_fresh_cache(&segments, &closes, &cfg);
+
+        let causal_heads = causal_book.heads();
+        let terminal_projection_heads = terminal_projection_book.heads();
+        let terminal_only: Vec<_> = terminal_projection_heads
+            .iter()
+            .filter(|terminal| !causal_heads.iter().any(|causal| causal.key == terminal.key))
+            .map(|terminal| &terminal.key)
+            .collect();
+        assert!(
+            terminal_only.is_empty(),
+            "终态窗口投影的链身份必须是因果簿的子集；causal={} terminal_projection={} \
+             terminal_only={terminal_only:#?}",
+            causal_heads.len(),
+            terminal_projection_heads.len()
+        );
+
+        let causal_only: Vec<_> = causal_heads
+            .iter()
+            .filter(|causal| {
+                !terminal_projection_heads
+                    .iter()
+                    .any(|terminal| terminal.key == causal.key)
+            })
+            .map(|causal| &causal.key)
+            .collect();
+        assert!(
+            !causal_only.is_empty(),
+            "两种驱动的链身份差集必须非空；causal={} terminal_projection={} \
+             causal_only={causal_only:#?}",
+            causal_heads.len(),
+            terminal_projection_heads.len()
+        );
+
+        let common_differences: Vec<_> = terminal_projection_heads
+            .iter()
+            .filter_map(|terminal| {
+                let causal = causal_heads
+                    .iter()
+                    .find(|causal| causal.key == terminal.key)?;
+                (*causal != *terminal).then_some((*causal, *terminal))
+            })
+            .collect();
+        assert!(
+            common_differences.is_empty(),
+            "共有 key 的最新 revision 逐字段分叉；differences={common_differences:#?}"
         );
     }
 
