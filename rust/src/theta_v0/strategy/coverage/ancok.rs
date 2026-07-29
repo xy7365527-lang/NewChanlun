@@ -81,6 +81,14 @@ pub struct AncokProbe {
     /// release 下 `debug_assert!` 被编译消除 ⟹ 该不变量在 release 静默失守（生产 dump 实锤，
     /// p3fold carrier ElementId(0,162)）——此计数在 release/debug 都累计，供真实跑批逐窗验收。
     pub duplicate_active_id_violations: u64,
+    /// ★#694（语义重放自 kimi #346/#347 LOW-1，改用本仓已确立的 fuel 硬门惯例而非原提交的
+    /// 静默 `seen` HashSet break——见 [`ancestors_by_id_lookup`] 函数头）：`ancestors_by_id_lookup`
+    /// 沿 `parent_id` 链上溯步数超过 `elements.len()` ⟹ 图含环，命中即计入本探针**并显式 panic**
+    /// （与 [`element_depth`] 的 `element_depth_fuel_exhausted`/#247 C1 同族同风格：钳制/静默截断
+    /// 会把环化 `parent_id` 图伪装成一条合法（但残缺）的祖先链，本函数唯一生产消费方
+    /// `apply_gross_cap`（G7 毛头寸约束，`risk.enforce_gross_cap` 门控，非 default）据此分组，
+    /// 静默失真会让分组归属被脏数据污染而无告警面）。
+    pub ancestors_by_id_lookup_fuel_exhausted: u64,
 }
 
 thread_local! {
@@ -102,6 +110,7 @@ thread_local! {
         element_depth_fuel_exhausted: 0,
         risk_seed_carrier_ambiguous: 0,
         duplicate_active_id_violations: 0,
+        ancestors_by_id_lookup_fuel_exhausted: 0,
     }) };
 }
 
@@ -150,16 +159,43 @@ pub fn ancestors(elements: &[CoverageElement], e_idx: usize) -> Vec<usize> {
 /// "子级短差腿存在 ⟹ 父容器存在"）；§13 生产 AncOK 闭合已由
 /// [`super::super::exit::step_active_set_with_subtree_close`] 接管（#183 归一）。
 ///
-/// 树深有限 ⟹ 链有限，无 fuel 需要。环不可能——parent_id 严格指向更高级别（`push_element_tree`
-/// 父 level > 子 level，descend 级别严格递减保证）。
+/// 树深有限 ⟹ 链有限——对 `push_element_tree` 产的真树元素成立（父 level > 子 level，descend
+/// 级别严格递减保证环不可能）。
+///
+/// ★#694 订正（语义重放自 kimi #346/#347 LOW-1）：唯一生产消费方 [`super::leg::apply_gross_cap`]
+/// 的 `root_key` 分组（G7 毛头寸约束，`risk.enforce_gross_cap` 门控——default false，非默认生产
+/// 路径，仅 wverify 类实跑经环境变量开启）喂入的 `e_idx` 可来自 held-leg 占位——其 `parent_id`
+/// 来自外部 `ActiveLeg::op_parent`，**不**经 `push_element_tree` 构造，不受"父 level 严格更高"
+/// 约束（同 held.rs `resolve_pending_parent_fixups` 头部 #347 LOW-1 记述的同族数据来源）。若
+/// `op_parent` 环形指向自身或更早祖先（数据错误/上游 bug），上方"环不可能"前提被违反，本函数
+/// 裸 `while let` 会**挂起**（同 #247 C1 `element_depth` 记述的失效模式，parent_id 图无环性同样
+/// "不能白拿"）。
+///
+/// 硬门风格与本仓已确立惯例统一（`element_depth` #247 C1 / `subtree_close`/
+/// `step_active_set_with_subtree_close` 的 `steps > bound`）：上溯步数 `> elements.len()` ⟹
+/// 图必含环（简单路径最长 `len−1` 条边）⟹ 计入探针
+/// [`AncokProbe::ancestors_by_id_lookup_fuel_exhausted`] 后**显式 panic**——不静默截断成一条
+/// 合法但残缺的祖先链（钳制会让分组 `root_key` 被脏数据污染且无告警面，`element_depth` 同一
+/// 纪律）。
 pub(super) fn ancestors_by_id_lookup(
     elements: &ElementView,
     e_idx: usize,
     lookup: &impl Fn(&ElementId) -> Option<usize>,
 ) -> Vec<ElementId> {
+    let fuel = elements.len();
     let mut chain = Vec::new();
     let mut cur = elements.get(e_idx).and_then(|e| e.parent_id);
+    let mut steps = 0usize;
     while let Some(pid) = cur {
+        steps += 1;
+        if steps > fuel {
+            ancok_probe_bump(|p| p.ancestors_by_id_lookup_fuel_exhausted += 1);
+            panic!(
+                "#694 环路硬门：ancestors_by_id_lookup 自 idx={e_idx} 上溯 {steps} 步超过 fuel \
+                 上界 {fuel}（=elements.len()）⟹ parent_id 图含环（held-leg 占位 op_parent 无环性\
+                 无写入侧保障）。显式失败，不静默截断。"
+            );
+        }
         chain.push(pid);
         // 按 parent_id 查下一级祖先（双段 lookup：base 缓存 + overlay，§16 tree 前缀不变）。
         cur = lookup(&pid).and_then(|pidx| elements.get(pidx).and_then(|e| e.parent_id));
