@@ -71,3 +71,25 @@ Standards 评审 S-1 / Spec 评审 FAIL-1 指出
    降级登记见 #641 关票评论。
 
 未改任何判据、未改 `chain_cert/`、未放宽任何断言。
+
+## 订正（#676-5，同日追记）：处置 2 的子集断言被 120 段实测证伪
+
+处置 2 落地的 `causal_book_drive_is_a_superset_of_terminal_projection_drive` 在
+`chain_fixture(40)` 上「terminal_projection ⊆ causal」为真，测试当时按此写死断言。把夹具升到
+`chain_fixture(120)`（与 golden 同规模）后子集关系**当场破裂**：
+
+| 读数 | 因果簿 | 终态投影 | 共有 | causal_only | terminal_only |
+|---|---|---|---|---|---|
+| 120 段 | 38 | 31 | 20 | 18 | **11**（非空 ⟹ 子集不成立） |
+
+40 段上 `terminal_only=0` 是规模偏差造成的巧合，不是规律；两条驱动的候选身份集合**互有
+对方没有的 key**，谁都不是谁的子集。`terminal_only` 非空这一侧（因果簿反而漏了终态投影
+独有的 key）此前未被诊断覆盖，根因追查另开 #681。
+
+测试已改名 `causal_and_terminal_projection_drives_agree_on_common_chain_keys`，硬锁收窄为
+「共有 key 的证书逐字段相同」，且这条硬锁本身在 120 段上也先被击穿过一轮：20 个共有 key 里
+4 个证书分叉，定位到分叉全部集中在 `edges[].skipped_levels[].alive_at_level` /
+`.inside_parent`（候选全集里该级别当场存活/落入父端点区间的候选计数——候选全集本就由
+驱动决定，两驱动在这两个数字上天然不同）。剔除这两个字段后 20 个共有 key 逐字段完全相同，
+这才是两驱动唯一站得住的不变量。双向差集计数（`causal_only=18` / `terminal_only=11`）固化
+为 golden 锚，不升格为规律。

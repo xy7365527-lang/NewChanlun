@@ -4464,12 +4464,13 @@ mod tests {
     /// 驻留簿逐字段相等）、**无进程级/迭代序不确定性**。「跨步隐藏状态」**不在分辨力内**：
     /// 两侧推进节拍逐字相同，依赖调用次数的隐藏状态会在两侧同样累积、不产生分叉；而链簿
     /// 生命史（三只钟 / revision）按定义依赖推进节拍，节拍不同的对照物在本模块不可构造
-    /// （两驱动的真实语义差由 `causal_book_drive_is_a_superset_of_terminal_projection_drive`
+    /// （两驱动的真实语义差由 `causal_and_terminal_projection_drives_agree_on_common_chain_keys`
     /// 固化，见分叉归因报告）。
     ///
-    /// **口径降级登记（#667 C-2）**：#641 Acceptance 1 字面「全量/增量双路径逐字节一致」在链侧
-    /// 不可满足（终态投影驱动的候选身份是因果簿的真子集，两驱动本就不该逐字节相等），验收物
-    /// 降级替换为本测试 + superset 固化；降级在 #641 关票评论登记。
+    /// **口径降级登记（#667 C-2；#676-5 订正）**：#641 Acceptance 1 字面「全量/增量双路径逐
+    /// 字节一致」在链侧不可满足（两驱动候选身份集合互有对方没有的 key，谁都不是谁的子集——
+    /// 40 段夹具上曾误判为终态投影⊆因果簿，120 段上子集关系已证伪，见 #676-5/#681），验收物
+    /// 降级替换为本测试 + 共有 key 一致性固化；降级在 #641 关票评论登记。
     ///
     /// **夹具规模照实**：原 40 段夹具上四条链**全部在末步一次落簿**
     /// （`distinct_as_of == {124}`），逐步重放这一侧退化成前 39 步空簿比空簿——比对恒过但没锁
@@ -4566,13 +4567,81 @@ mod tests {
         );
     }
 
+    /// [`causal_and_terminal_projection_drives_agree_on_common_chain_keys`] 的比对口径：
+    /// 逐字段相同，唯一豁免 `edges[].skipped_levels[].alive_at_level` / `.inside_parent`——
+    /// 这两个数字是「该级别在**候选全集**里存活多少候选」的当场快照，候选全集本就由驱动
+    /// 决定（因果簿的候选全集是 append-only 累积，终态投影每步 fresh），两驱动在此项上
+    /// 天然不同不代表链身份/生命史分叉。除这两个数字外，`ChainEdge` 的其余字段
+    /// （`parent`/`child`/`kind`/`skipped_levels[].level`/`crossed_nodes`/`predicate_holds`/
+    /// `breach`）与证书的其余字段（`key`/`extends`/`nodes`/`status`/`revision_at` 等）逐一
+    /// 参与比对，不豁免。
+    fn certificates_agree_ignoring_alive_candidate_universe_counts(
+        causal: &chain_cert::TowerChainCertificate,
+        terminal: &chain_cert::TowerChainCertificate,
+    ) -> bool {
+        let edges_agree = causal.edges.len() == terminal.edges.len()
+            && causal
+                .edges
+                .iter()
+                .zip(terminal.edges.iter())
+                .all(|(a, b)| {
+                    a.parent == b.parent
+                        && a.child == b.child
+                        && a.kind == b.kind
+                        && a.crossed_nodes == b.crossed_nodes
+                        && a.predicate_holds == b.predicate_holds
+                        && a.breach == b.breach
+                        && a.skipped_levels.len() == b.skipped_levels.len()
+                        && a.skipped_levels
+                            .iter()
+                            .zip(b.skipped_levels.iter())
+                            .all(|(sa, sb)| sa.level == sb.level)
+                });
+        edges_agree
+            && causal.key == terminal.key
+            && causal.extends == terminal.extends
+            && causal.root_level == terminal.root_level
+            && causal.leaf_level == terminal.leaf_level
+            && causal.nodes == terminal.nodes
+            && causal.extendable == terminal.extendable
+            && causal.status == terminal.status
+            && causal.observed_at == terminal.observed_at
+            && causal.closed_at == terminal.closed_at
+            && causal.invalidated_at == terminal.invalidated_at
+            && causal.invalidation_cause == terminal.invalidation_cause
+            && causal.revision == terminal.revision
+            && causal.supersedes_revision == terminal.supersedes_revision
+            && causal.revision_at == terminal.revision_at
+    }
+
     /// 因果簿驱动与终态窗口投影驱动都是 `chain_cert` 声明支持的输入语义
-    /// （见 `ChainNodeStatus::Absent` 文档），但二者已知不等价：共享 cache 会永久保留曾出现的
-    /// 候选身份，fresh cache 只投影当步终态。本测试锁住实测语义差的形态，不把差异当作 bug。
+    /// （见 `ChainNodeStatus::Absent` 文档）。#676-5（编排 2026-07-29 重裁）：`chain_fixture(40)`
+    /// 上曾实测到「terminal_projection ⊆ causal」，把这条巧合升格成了断言
+    /// （`causal_book_drive_is_a_superset_of_terminal_projection_drive`）；升到 `chain_fixture(120)`
+    /// 后子集关系当场破裂——`terminal_only` 非空（因果簿反而**漏**了 11 个终态投影侧独有的
+    /// key），说明超集关系不是规律，是 40 段夹具的规模偏差。
+    ///
+    /// 归因追查（为何终态投影会出现因果簿没有的 key）另开 #681，不在本测试分辨力内。
+    ///
+    /// **硬锁口径二次收窄（本轮实测新发现）**：先按「共有 key 的证书逐字段相同」起草硬锁，
+    /// 在 120 段夹具上实测**当场击穿**——20 个共有 key 里 4 个证书分叉，逐字段比对后分叉
+    /// 精确定位在 `edges[].skipped_levels[].alive_at_level` / `.inside_parent`（候选全集里
+    /// 该级别当场存活/落入父端点区间的候选计数），其余全部字段（含 `nodes`/`status`/
+    /// `revision_at`/边的 `parent`/`child`/`kind`/`predicate_holds`/`breach`）逐一相同。
+    /// 这两个数字统计的是候选全集，而候选全集本就由驱动决定（因果簿 append-only 累积、
+    /// 终态投影每步 fresh），两驱动在此项上天然不同——不是链簿重建被破坏，是统计口径
+    /// 引用了驱动相关的外部量。硬锁因此收窄为
+    /// [`certificates_agree_ignoring_alive_candidate_universe_counts`]：链身份/生命史/边拓扑
+    /// 逐字段相同，唯独候选全集计数不参与比对。
+    ///
+    /// 双向差集（`causal_only` / `terminal_only`）不是不变量，只照实登记为本夹具上的
+    /// **实测形状**：`causal_only` 方向的语义差由 #551 裁定甲管；`terminal_only` 方向
+    /// （即本次发现的反常子集破裂）根因在查，见 #681 与报告锚
+    /// `chanlun/review-results/issue641-chain-dualpath-divergence-20260729.md`。
     #[test]
-    fn causal_book_drive_is_a_superset_of_terminal_projection_drive() {
+    fn causal_and_terminal_projection_drives_agree_on_common_chain_keys() {
         let cfg = ThetaConfig::default();
-        let (segments, closes) = chain_fixture(40);
+        let (segments, closes) = chain_fixture(120);
         let causal_book = chain_book_over_prefixes(
             &segments,
             &closes,
@@ -4584,48 +4653,59 @@ mod tests {
 
         let causal_heads = causal_book.heads();
         let terminal_projection_heads = terminal_projection_book.heads();
-        let terminal_only: Vec<_> = terminal_projection_heads
-            .iter()
-            .filter(|terminal| !causal_heads.iter().any(|causal| causal.key == terminal.key))
-            .map(|terminal| &terminal.key)
-            .collect();
-        assert!(
-            terminal_only.is_empty(),
-            "终态窗口投影的链身份必须是因果簿的子集；causal={} terminal_projection={} \
-             terminal_only={terminal_only:#?}",
-            causal_heads.len(),
-            terminal_projection_heads.len()
-        );
 
-        let causal_only: Vec<_> = causal_heads
-            .iter()
-            .filter(|causal| {
-                !terminal_projection_heads
-                    .iter()
-                    .any(|terminal| terminal.key == causal.key)
-            })
-            .map(|causal| &causal.key)
-            .collect();
-        assert!(
-            !causal_only.is_empty(),
-            "两种驱动的链身份差集必须非空；causal={} terminal_projection={} \
-             causal_only={causal_only:#?}",
-            causal_heads.len(),
-            terminal_projection_heads.len()
-        );
-
+        // 硬锁（唯一不变量）：两驱动共有 key 的证书逐字段相同，唯独候选全集计数
+        // （`alive_at_level` / `inside_parent`）豁免——理由见上方函数文档。
         let common_differences: Vec<_> = terminal_projection_heads
             .iter()
             .filter_map(|terminal| {
                 let causal = causal_heads
                     .iter()
                     .find(|causal| causal.key == terminal.key)?;
-                (*causal != *terminal).then_some((*causal, *terminal))
+                (!certificates_agree_ignoring_alive_candidate_universe_counts(causal, terminal))
+                    .then_some((*causal, *terminal))
             })
             .collect();
         assert!(
             common_differences.is_empty(),
-            "共有 key 的最新 revision 逐字段分叉；differences={common_differences:#?}"
+            "共有 key 的证书在候选全集计数以外的字段分叉；differences={common_differences:#?}"
+        );
+
+        // 照实登记（golden 锚，非规律断言）：`chain_fixture(120)` 上的实测差集形状。
+        // 40 段时 terminal_only=0（超集关系「成立」）纯属规模巧合；120 段上子集关系不成立，
+        // causal_only/terminal_only 双向计数按此固定，漂移即改证据、不悄悄放宽。
+        let common_count = terminal_projection_heads
+            .iter()
+            .filter(|terminal| causal_heads.iter().any(|causal| causal.key == terminal.key))
+            .count();
+        let causal_only_count = causal_heads
+            .iter()
+            .filter(|causal| {
+                !terminal_projection_heads
+                    .iter()
+                    .any(|terminal| terminal.key == causal.key)
+            })
+            .count();
+        let terminal_only_count = terminal_projection_heads
+            .iter()
+            .filter(|terminal| !causal_heads.iter().any(|causal| causal.key == terminal.key))
+            .count();
+        assert_eq!(
+            (
+                causal_heads.len(),
+                terminal_projection_heads.len(),
+                common_count
+            ),
+            (38, 31, 20),
+            "驱动身份总数 golden 漂移（causal, terminal_projection, common）"
+        );
+        assert_eq!(
+            causal_only_count, 18,
+            "causal_only 计数 golden 漂移（#551 甲管方向）"
+        );
+        assert_eq!(
+            terminal_only_count, 11,
+            "terminal_only 计数 golden 漂移（子集关系破裂方向，根因在查 #681）"
         );
     }
 
