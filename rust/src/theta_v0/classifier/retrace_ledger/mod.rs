@@ -21,6 +21,22 @@
 //! | 七 | 缺席 ≠ 消失；永不超时处死 | 观察 `outcome = None` 即维持 `Provisional`，无任何超时路径 |
 //! | 八 | 三档消费门户 | **S1 只做成立档**（[`ThirdPointPack`]）；备战/短差档归 S3 |
 //!
+//! # 消费方登记（票 #624 S4 ③；#575 验收「无消费方不接生产」）
+//!
+//! 三档门户各自的消费方、消费面、**接线状态**逐条登记如下。「未接线」= 本账已产出该消费面、
+//! 但仓内**尚无**生产路径读它——这是显式登记的在案状态，不是遗漏；本账不因此自行接线
+//! （接线是各消费方自己的票）。
+//!
+//! | # | 消费面（本账产出） | 消费方 | 接线状态 | 接线票 / 缺口 |
+//! |---:|---|---|---|---|
+//! | 1 | [`CenterDeathCertificate`]（[`book::RetraceLedger::death_certificate`] + [`ThirdPointPack::death_certificate`]） | 中枢生命周期账（`crate::trading::center_book::CenterBook`） | **未接线** | `CenterBook` 现从 BSP 事件锚自行 diff 派生 `CenterEvent`，不读本证明；接通归中枢账的票（#574 裁定一「发中枢账登记 Broken」） |
+//! | 2 | [`ThirdPointPack`]（[`book::RetraceLedger::established`] / [`book::RetraceLedger::established_pack`]） | 交易层（`crate::trading` 线） | **未接线** | 迟到三类点过滤 #587 已裁归交易层自理；本账不进口外部状态（裁定八总禁区） |
+//! | 2' | [`StandbyWatch`]（[`book::RetraceLedger::standby`]）——同一消费方的**备战**面 | 交易层（盯次级别回切入点，024:36） | **未接线** | 禁区：不许被消费成买入信号，类型面隔离已由 [`portal::TradableSignal`] 编译期把关 |
+//! | 3 | [`ShortRetraceRecord`] / [`ShortRetracePortal`] / [`FailureDisposalNotice`]（亚型签 [`PanDivSubtype`]） | 盘背短差通道（`signal::locate_pan_div_structure` 一线的 #606/#607 票） | **未接线** | 本账只供判败事件源（spec §出界：pan_div_diag 实装不在本线） |
+//!
+//! 生产接线点计数（登记时点 2026-07-29）：**0/3**。本模块在 `lib` 内被
+//! [`super`](super) 注册、被测试群全面消费，除此之外零生产调用点——与登记表一致。
+//!
 //! # 「状态 = 日志折叠」的结构性兑现
 //!
 //! [`RetraceEntry`] **只保留三钟 + 三态 + 计数 + 留档**六项内核必需字段；注册快照、侧、位置、
