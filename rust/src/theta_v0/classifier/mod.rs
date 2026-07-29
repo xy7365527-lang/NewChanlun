@@ -2220,6 +2220,7 @@ pub fn classify_with_tower_incremental(
         // == popped_upper）时**不置 dirty**——这是把 bump 率从 did_extend 的 ~96% 压回 forest 真变率
         // 0.78% 的机制（实证订正：初版 `|=!tail_upper.is_empty()` 对每 bar 重扫复现的相同窗口误 bump）。
         // over-invalidate 保留：长度或任一值不等即 dirty。O(tail) 比对，非全塔。
+        forest_dirty |= tail_upper != popped_upper;
         // ★#543 D1a 产出点②③⑤（新 tail 已由 `compose_level_resume` 返回，old/new 完整、写回前的
         // 自然 emit 点——调研 §5.2 第 2/3 点；一窗产 k 个子中枢的关系由 `WinMeta.emitted` 带进事务，
         // 第 5 点）。**纯观测**：只读 tail 与上面的旧快照，不改任何状态、不回馈决策。
