@@ -405,6 +405,8 @@ impl RetraceLedger {
     }
 
     /// 恢复：缓存过溯源校验则采纳 + 折叠尾段，否则扔掉缓存全量重放。
+    /// **本通道无恢复点护栏**（#632 L1 在案）：落锤护栏仅 `fold_recovered` 通道生效；
+    /// 生产恢复路径若须护栏，改用 `fold_recovered` 或在接入层显式传恢复点（S4/消费方接入登记）。
     pub fn restore(
         provenance: RetraceProvenance,
         cache: Option<&RetraceSnapshot>,
