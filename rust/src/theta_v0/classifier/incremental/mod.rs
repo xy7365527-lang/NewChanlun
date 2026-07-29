@@ -3,7 +3,7 @@
 //!
 //! bit-exact 保证 / 硬契约 / 增量有效性 / 边界见函数文档；缓存本体见 [`super::tower_cache`]。
 
-use super::pipeline::segment_to_unit;
+use super::pipeline::{build_level_projection, segment_to_unit};
 use super::sublevel::extract_second_resume;
 use super::tower_cache::{compute_macd_hist_incremental, update_closes_cache, AreaCache, LevelCache};
 use super::*;

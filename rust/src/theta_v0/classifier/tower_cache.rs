@@ -480,22 +480,22 @@ pub(super) fn update_closes_cache(
     }
 }
 
-pub(super) fn compute_macd_hist_incremental(
+/// 空/单 bar 的 MACD 边界短路。返回 `true` 表示已处理完毕，调用方直接返回。
+///
+/// - 空 closes：无 MACD 可算，清空 cache MACD 域（防御性，classify 入口已防空 layer）。
+/// - 单 bar：`state = init(closes[0])`，hist = `[0.0]`（首 bar DIF=DEA=hist=0）。state 覆盖 `closes[..1]`。
+fn macd_boundary_shortcut(
     closes: &[f64],
-    confirmed_len: usize,
     cfg: &super::super::config::MacdConfig,
     cache: &mut TowerCache,
-) {
-    // 空 closes：无 MACD 可算，清空 cache MACD 域（防御性，classify 入口已防空 layer）。
+) -> bool {
     if closes.is_empty() {
         cache.macd_state = None;
         cache.macd_hist.clear();
         cache.macd_dif.clear();
         cache.macd_state_len = 0;
-        return;
+        return true;
     }
-
-    // 单 bar：state = init(closes[0])，hist = [0.0]（首 bar DIF=DEA=hist=0）。state 覆盖 closes[..1]。
     if closes.len() == 1 {
         let state = MacdState::init(closes[0], cfg);
         let p = state.current_point();
@@ -503,6 +503,50 @@ pub(super) fn compute_macd_hist_incremental(
         cache.macd_dif = vec![p.dif]; // 首 bar DIF=0（close-close），与 hist 同点派生。
         cache.macd_state = Some(state);
         cache.macd_state_len = 1;
+        return true;
+    }
+    false
+}
+
+/// 取本 bar 的续推起点 state：复用 `resume_from` 处的增量 state，或重建。
+///
+/// `macd_dif` 与 `macd_hist` **逐 bar 锁步**：同一 truncate/clear/push 边界，同一 `current_point`
+/// 派生（dif 是 hist 的子表达式）。任一分支对 hist 的操作都对 dif 做同样操作 ⟹ len 恒等、bit-exact。
+///
+/// 增量支要求 state **恰好**表示 `closes[..resume_from]`——若 `macd_state_len > resume_from`
+/// （confirmed_len 收缩截断），state 比 `resume_from` 多消费了已失效的 close ⟹ 不能直接用，
+/// 须从头重推。故仅 `macd_state_len == resume_from` 时复用。
+fn macd_resume_state(
+    closes: &[f64],
+    resume_from: usize,
+    cfg: &super::super::config::MacdConfig,
+    cache: &mut TowerCache,
+) -> MacdState {
+    if resume_from > 0 && cache.macd_state.is_some() {
+        if cache.macd_state_len == resume_from {
+            cache.macd_hist.truncate(resume_from);
+            cache.macd_dif.truncate(resume_from);
+            return cache.macd_state.clone().expect("is_some 已判");
+        }
+        cache.macd_hist.clear();
+        cache.macd_dif.clear();
+        return rebuild_macd_state_to(
+            closes, resume_from, cfg, &mut cache.macd_hist, &mut cache.macd_dif,
+        );
+    }
+    // 全量重建（resume_from=0 或 state 空）。
+    cache.macd_hist.clear();
+    cache.macd_dif.clear();
+    rebuild_macd_state_to(closes, 0, cfg, &mut cache.macd_hist, &mut cache.macd_dif)
+}
+
+pub(super) fn compute_macd_hist_incremental(
+    closes: &[f64],
+    confirmed_len: usize,
+    cfg: &super::super::config::MacdConfig,
+    cache: &mut TowerCache,
+) {
+    if macd_boundary_shortcut(closes, cfg, cache) {
         return;
     }
 
@@ -518,28 +562,7 @@ pub(super) fn compute_macd_hist_incremental(
     // resume_from > stable_prefix 不可能（resume_from <= macd_state_len <= 上轮 stable < 本轮 stable）；
     // 但 confirmed_len 收缩（相 A→B fold_all=0）⟹ resume_from=0 ⟹ 从头全量重推（bit-exact 退化）。
     let resume_from = cache.macd_state_len.min(confirmed_len).min(stable_prefix);
-
-    // macd_dif 与 macd_hist **逐 bar 锁步**：同一 truncate/clear/push 边界，同一 `current_point` 派生
-    // （dif 是 hist 的子表达式）。任一分支对 hist 的操作都对 dif 做同样操作 ⟹ len 恒等、bit-exact。
-    let mut state = if resume_from > 0 && cache.macd_state.is_some() {
-        // 增量：从 resume_from 的 state 续推。需要 state 恰好表示 closes[..resume_from]——
-        // 若 macd_state_len > resume_from（confirmed_len 收缩截断），state 比 resume_from 多消费了
-        // 已失效的 close ⟹ 不能直接用，须从头重推。故仅 macd_state_len == resume_from 时复用。
-        if cache.macd_state_len == resume_from {
-            cache.macd_hist.truncate(resume_from);
-            cache.macd_dif.truncate(resume_from);
-            cache.macd_state.clone().expect("is_some 已判")
-        } else {
-            cache.macd_hist.clear();
-            cache.macd_dif.clear();
-            rebuild_macd_state_to(closes, resume_from, cfg, &mut cache.macd_hist, &mut cache.macd_dif)
-        }
-    } else {
-        // 全量重建（resume_from=0 或 state 空）。
-        cache.macd_hist.clear();
-        cache.macd_dif.clear();
-        rebuild_macd_state_to(closes, 0, cfg, &mut cache.macd_hist, &mut cache.macd_dif)
-    };
+    let mut state = macd_resume_state(closes, resume_from, cfg, cache);
 
     // 续推 closes[hist.len()..stable_prefix]（新稳定 bar）+ 尾 bar（不稳定）hist/dif。
     for &c in &closes[cache.macd_hist.len()..stable_prefix] {

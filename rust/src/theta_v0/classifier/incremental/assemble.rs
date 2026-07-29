@@ -136,29 +136,6 @@ fn extract_first_third_tail(
     }
 }
 
-/// #110 投影层 stamping（增量塔 memo-miss/命中终装点同口径；机制位关 = `None` 零开销）。
-///
-/// T3 (#172) 并门：机制位转派生（π 入口 `admission::chain_driven_level_projection`
-/// 唯一生产写入点，#168 裁定 3）——链活 ⟹ 层必载，链死不载。
-/// T2 (#171)：三元锚供给（`l0.fractals`/`l0.merged_bars`，ParseLayer `Rc` 共享只读借用，
-/// 零拷贝）随门开分支引入——门关分支零新增读。
-pub(super) fn build_level_projection(
-    config: &ThetaConfig,
-    level_ordinal: u32,
-    bsp: &Rc<Vec<BspPoint>>,
-    l0: &ParseLayer,
-) -> Option<projection::LevelProjectionLayer> {
-    if !config.level_projection.enabled {
-        return None;
-    }
-    Some(projection::LevelProjectionLayer::from_level(
-        level_ordinal,
-        bsp,
-        &l0.fractals,
-        &l0.merged_bars,
-    ))
-}
-
 /// 下一级输入 = 上级走势塔投影（前缀来自缓存 `upper_moves` 前缀，尾部来自续扫）。
 ///
 /// ★O(n²) 真修（#106）：增量投影——只对 `upper_moves` 新 tail 投影（`rmove.lo()/hi()` 递归整棵
