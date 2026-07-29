@@ -102,6 +102,9 @@ pub mod cand_sub;
 /// #641（N3）：级别链证书塔对象（节点=候选事件、边=C⊆C 覆盖关系、E2E-L 三态谱系 + skip edge）。
 /// 纯产出零消费接线。
 pub mod chain_cert;
+/// #668（N4）：事件↔BSP 稳定身份桥接对象（身份=（N1 事件键，BSP 结构键 v2）对，双向产出、
+/// 端死边死、E2E-O 修订协议）。纯产出零消费接线（p92/π runner 拼缝本票不动，#666 裁定⑥）。
+pub mod bsp_bridge;
 /// C2 走势消费 seam：显式 exact-three 投影、D3 方向绑定与 D2 A/C provider。
 /// #630 生产段拆分的 4 个子域（`projection`/`confirm`/`pan`/`pan_provider`）在
 /// #630 修复轮改为 `level_view` 内部子模块（目录模块，非 classifier 兄弟文件）——

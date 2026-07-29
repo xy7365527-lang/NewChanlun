@@ -128,6 +128,29 @@ _Avoid_: 当每个走势单元的固有字段（事件非属性）；用删除�
 塔内原生一等谱系对象（2026-07-29 #636 裁定、#641 落地；`TowerChainCertificate` 独立于 NestCertificate）：节点 = 背驰段候选事件身份键（沿用 N1 键），边 = C⊆C Sub 包含（N2 谓词在存活端点间统一裁）+ skip 边（缺席/跳级如实记，禁伪造中间级证书）。终态：Closed = 链头 Confirmed + 链不可再扩展 + **≥1 有效链段**（谓词判过的边，含 skip 边，空集不真空成立）；Invalidated = 谓词判不过或链头 Invalidated（不复活）；否则 Open。证伪节点留痕不判死上级；Absent（查无）非证伪，不落 Invalidated。谱系 append-only，路径扩展走 extends_lineage_key（查簿命中才写）。
 _Avoid_: 链头独活真空 Closed；把查无当证伪判死；伪造中间级补链；与 NestCertificate 同名混用
 
+**事件↔BSP 桥接边（event-BSP bridge edge）**:
+塔内原生一等关系对象（2026-07-29 #666 裁定、#668 落地；`BspBridgeEdge` 独立户口，`CandidateEvent`/
+`BspPoint` 两个老对象零改动，ADR-0008）：身份 = （N1 事件键沿用 CandidateKey，BSP 结构身份键 v2）
+对。双向产出——一/二/三类点产出时回挂其对应候选事件（一类=自身破中枢 C 段候选、二类=继承一类锚
+自己的候选、三类=离开段候选），均走「查簿命中才写」（同 extends_lineage_key 先例）；查无 = Absent
+非证伪，不产边、不产占位记录。边活死单一来源 = N1 事件侧状态：事件转 Invalidated ⟹ 边同步终态、
+留痕不复活；BSP 侧无独立状态机（一次置位即冻结事实）。append-only + E2E-O 修订协议全套（同 as_of
+重跑零 Delta）。**已知残留**：BTC 实测配对覆盖率偏低（三类尤甚——Trend 候选结构门与三类离开段几何
+判据不同构；一类自身命中率实测约三至四成，根因未查），覆盖率是**配对密度**问题，与键**唯一性**
+（已证成立）是两件事，不可互相反推。
+_Avoid_: 把 Absent 当证伪判 Invalidated；拿配对覆盖率低反推键公式错误；改判据函数去凑配对命中率
+
+**BSP 结构身份键 v2（BSP structural key v2）**:
+BspPoint 六 bit 之一的结构身份 = 被破/所离中枢指纹（ParentFingerprint 同款）+ 方向 + 点类 + 锚段
+坐标（2026-07-29 #666 supersede 裁定，ADR-0008）：v1（无锚段）在 BTC 三窗被真值表证伪
+（ambiguous_keys=10/74/260）；v2 加锚段坐标后同三窗 ambiguous_keys=0——一类=(seg_a, c_start)、
+三类=(leave_interval, retest_interval 左端)、二类=一类锚坐标（回抽段坐标 structurally 不可得，
+诚实退化为 v1）。**右端/as_of 不入键纪律**（与 CandidateKey「C 右端与 as_of 不入键」同一纪律）：
+本点自身所在段的右端恒等于其 source_index，塞进锚会让键对 source_index 平凡单射、真值表恒判
+「唯一」（methodologically 空洞），一律排除。
+_Avoid_: 把本点自身 source_index 塞进锚（伪阳性唯一性）；三类回试段右端入锚；二类冒充有真实回抽
+段坐标
+
 ### 运行边界
 
 **「生产」拆三义（three meanings of production）**:
