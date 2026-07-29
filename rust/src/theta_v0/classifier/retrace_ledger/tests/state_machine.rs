@@ -211,25 +211,30 @@ fn distinct_centers_keep_independent_active_candidates() {
     settled(&book);
 }
 
-/// 裁定四：Success 后同中枢新注册——**S1 只计数不拒收**，拒收归 S2（#622）。
+/// 裁定四：Success 后同中枢新注册——**S2 落地拒收**（票 #622，修复影子评审 #621 MEDIUM-4：
+/// 判据统一为 `death_certificate(anchor)` 查法，本计数与实际拒收次数恒等）。
 #[test]
-fn confirmed_center_new_departure_is_counted_for_s2_hook() {
+fn confirmed_center_new_departure_is_rejected_as_dead_center_reentry() {
     let mut book = ledger();
     let center = frame(1_200);
     book.observe(&up_input(center, 3, Some(RetraceOutcome::Success), 500))
         .unwrap();
-    assert!(book.death_certificate(center.anchor()).is_some());
+    let certificate = book.death_certificate(center.anchor()).unwrap();
 
-    let step = book.observe(&up_input(frame(1_400), 5, None, 700)).unwrap();
+    let attempted = key_of(frame(1_400), 5);
+    let rejection = book.observe(&up_input(frame(1_400), 5, None, 700)).unwrap_err();
     assert_eq!(
-        book.alarms().dead_center_registrations,
-        1,
-        "死人挂号计数即 S2 的接手点"
+        rejection,
+        RetraceRejection::DeadCenterReentry {
+            anchor: center.anchor(),
+            attempted,
+            death_certificate: certificate,
+        },
+        "死人挂号：给死人挂号 fail-loud 拒收（裁定四）"
     );
-    assert_eq!(
-        book.entry(&step.key).unwrap().restarted_from(),
-        Some(key_of(center, 3))
-    );
+    assert_eq!(book.alarms().dead_center_registrations, 1, "计数与拒收次数恒等");
+    assert_eq!(book.len(), 1, "拒收零建仓，新档从未进账");
+    assert!(book.entry(&attempted).is_none());
     settled(&book);
 }
 

@@ -7,7 +7,12 @@
 //! - [`log_replay`]：日志重放一致性（`fold(log)=state`、prefix 一致、缓存溯源校验、JSONL 边界）；
 //! - [`portal`]：成立档只读面（证据包齐、死亡证明载荷齐）；
 //! - [`standby`]（票 #623）：备战档只读面（未决可枚举 + 类型面隔离）；
-//! - [`short_retrace`]（票 #623）：短差档只读面（亚型签固定 + 三锁 + 失败处置通知）。
+//! - [`short_retrace`]（票 #623）：短差档只读面（亚型签固定 + 三锁 + 失败处置通知）；
+//! - [`rebase`]（票 #622）：引擎改口处死（窗口变 / 中枢消失 / 同窗口重确认零动作，`observe`
+//!   碰撞路径 + `reconcile_window` 显式核对路径）；
+//! - [`dead_center`]（票 #622）：死人挂号拒收 vs 同身份迟到静默吸收（两路不混）；
+//! - [`two_pass_evidence`]（票 #622）：注册拍 / 落锤拍证据一致性守卫（影子评审 #621 MEDIUM-2）；
+//! - [`rebase_audit`]（票 #622）：四类警报 audit 流（落流 + append-only + 不进折叠 + 篡改隔离）。
 
 use super::super::super::types::{Direction, Tick};
 use super::super::first_retrace_replay::{RetraceOutcome, StrictCompletedPair};
@@ -15,11 +20,15 @@ use super::super::level_view::CoordinateWindow;
 use super::*;
 
 mod clocks;
+mod dead_center;
 mod log_replay;
 mod portal;
+mod rebase;
+mod rebase_audit;
 mod short_retrace;
 mod standby;
 mod state_machine;
+mod two_pass_evidence;
 
 /// 合成中枢核心区间下沿。
 const ZD: Tick = 100;
