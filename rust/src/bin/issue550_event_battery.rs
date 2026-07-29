@@ -7,6 +7,7 @@ use newchan_rust::theta_v0::classifier::cand_event::{
     CandidateEvent, CandidateKey, CandidateKind, CandidateState,
 };
 use newchan_rust::theta_v0::classifier::cand_sub;
+use newchan_rust::theta_v0::classifier::chain_cert;
 use newchan_rust::theta_v0::classifier::streaming::OwnedIncrementalClassifier;
 use newchan_rust::theta_v0::classifier::{self, TowerCache};
 use newchan_rust::theta_v0::config::ThetaConfig;
@@ -113,18 +114,127 @@ fn run() -> Result<(), String> {
         .transpose()
         .map_err(|error| format!("max_bars 非法: {error}"))?
         .unwrap_or(100_000);
+    // #641（N3）链簿推进节拍：每 N 根 bar 推进一次（末根必推）。链的覆盖边计算是 O(n²)，
+    // 逐 bar 推进在 10 万级窗口上不可行；节拍是**显式声明**的口径，随读数一并印出，不是静默采样。
+    let chain_every = args
+        .next()
+        .map(|value| value.parse::<usize>())
+        .transpose()
+        .map_err(|error| format!("chain_every 非法: {error}"))?
+        .unwrap_or(5_000)
+        .max(1);
     let config = ThetaConfig::default();
     let bars = load(Path::new(&path), config.tick.tick_size, max_bars)?;
     if bars.is_empty() {
         return Err("输入窗口为空".to_string());
     }
 
-    let terminal_streams = compare_streams(&bars, &config)?;
+    let (terminal_streams, chain_run) = compare_streams(&bars, &config, chain_every)?;
     print_summary(&bars, &terminal_streams);
     print_lifecycle_summary(&terminal_streams);
     print_containment_summary(&terminal_streams);
     print_projection_fork(&bars, &config, &terminal_streams)?;
+    print_chain_summary(&bars, chain_run);
     Ok(())
+}
+
+/// #641（N3）：真实数据上的链证书簿读数（照实登记，不预设任何数值）。
+///
+/// 与 `ISSUE552_CONTAIN` 同款纪律——印出的每个数都是生产判据本身的判定结果
+/// （[`chain_cert::ChainCertificateBook::advance`] 内部逐对调 `candidate_is_sub`），
+/// bin 侧只做**分桶计数**，不重写任何判据。
+///
+/// 链簿挂在 #550 既有的逐 bar 对拍循环上（[`ChainRun`]），**不另跑一遍全量分类**：
+/// 500k 窗口上多一遍逐 bar 因果重放会把电池整体推过 10 分钟（实测中止在案，见实施报告）。
+/// 挂载点只**读**该循环已经产出的事件流，不改其输入、判定与输出——既有行逐字节不动。
+fn print_chain_summary(bars: &[Bar], run: ChainRun) {
+    let ChainRun {
+        mut book,
+        every,
+        advances,
+        last_streams,
+        last_as_of,
+    } = run;
+    let heads = book.heads();
+    let mut by_status = BTreeMap::<&'static str, usize>::new();
+    let mut by_path_len = BTreeMap::<usize, usize>::new();
+    let mut by_root_level = BTreeMap::<u32, usize>::new();
+    let (mut adjacent, mut skip, mut fact) = (0usize, 0usize, 0usize);
+    let (mut alive, mut falsified, mut absent) = (0usize, 0usize, 0usize);
+    let (mut lvl_missing, mut lvl_broken_outside, mut lvl_broken_inside) = (0usize, 0usize, 0usize);
+    let (mut extends_some, mut crossed) = (0usize, 0usize);
+    for certificate in &heads {
+        *by_status
+            .entry(chain_status_name(certificate.status))
+            .or_default() += 1;
+        *by_path_len.entry(certificate.key.path.len()).or_default() += 1;
+        *by_root_level.entry(certificate.root_level).or_default() += 1;
+        if certificate.extends.is_some() {
+            extends_some += 1;
+        }
+        for node in &certificate.nodes {
+            match node.status {
+                chain_cert::ChainNodeStatus::Alive => alive += 1,
+                chain_cert::ChainNodeStatus::Falsified => falsified += 1,
+                chain_cert::ChainNodeStatus::Absent => absent += 1,
+            }
+        }
+        for edge in &certificate.edges {
+            match edge.kind {
+                chain_cert::ChainEdgeKind::Adjacent => adjacent += 1,
+                chain_cert::ChainEdgeKind::Skip => skip += 1,
+            }
+            if !edge.is_segment() {
+                fact += 1;
+            }
+            crossed += edge.crossed_nodes.len();
+            for level in &edge.skipped_levels {
+                if level.alive_at_level == 0 {
+                    lvl_missing += 1;
+                } else if level.inside_parent == 0 {
+                    lvl_broken_outside += 1;
+                } else {
+                    lvl_broken_inside += 1;
+                }
+            }
+        }
+    }
+    let edges = adjacent + skip;
+    let (chains, revisions) = (heads.len(), book.certificates().len());
+    drop(heads);
+
+    // 幂等：同一 as_of、同一事件流重跑必须零 Delta。非零即为红（此处照实印出，不吞）。
+    let replay = book.advance(&last_streams, last_as_of).len();
+
+    println!(
+        "ISSUE641_CHAIN bars={} chains={chains} revisions={revisions} advance_every={every} advances={advances} \
+         statuses={by_status:?} path_lens={by_path_len:?} root_levels={by_root_level:?} \
+         extends_some={extends_some} idempotent_replay_delta={replay}",
+        bars.len(),
+    );
+    println!(
+        "ISSUE641_CHAIN_EDGE edges={edges} adjacent={adjacent} skip={skip} fact_edges={fact} \
+         skip_ratio={:.4} crossed_nodes={crossed}",
+        if edges == 0 {
+            0.0
+        } else {
+            skip as f64 / edges as f64
+        },
+    );
+    println!(
+        "ISSUE641_CHAIN_TRACE nodes_alive={alive} nodes_falsified={falsified} \
+         nodes_absent={absent} skipped_level_missing={lvl_missing} \
+         skipped_level_broken_outside={lvl_broken_outside} \
+         skipped_level_broken_inside={lvl_broken_inside}"
+    );
+}
+
+fn chain_status_name(status: chain_cert::ChainStatus) -> &'static str {
+    match status {
+        chain_cert::ChainStatus::Open => "Open",
+        chain_cert::ChainStatus::Closed => "Closed",
+        chain_cert::ChainStatus::Invalidated => "Invalidated",
+    }
 }
 
 /// #552（N2）：真实事件流上的相邻级 `C⊆C` 包含只读探针 + 覆盖计数（防真空绿）。
@@ -336,14 +446,31 @@ fn print_projection_fork(
     Ok(())
 }
 
+/// #641 链簿在 #550 对拍循环上的挂载态（只读该循环的事件流产出）。
+struct ChainRun {
+    book: chain_cert::ChainCertificateBook,
+    every: usize,
+    advances: usize,
+    last_streams: classifier::cand_event::CandidateStreams,
+    last_as_of: usize,
+}
+
 fn compare_streams(
     bars: &[Bar],
     config: &ThetaConfig,
-) -> Result<classifier::cand_event::CandidateStreams, String> {
+    chain_every: usize,
+) -> Result<(classifier::cand_event::CandidateStreams, ChainRun), String> {
     let mut parser = ParseLayerIncr::new(config);
     let mut cache = TowerCache::new();
     let mut owned = OwnedIncrementalClassifier::new(config.clone());
     let mut terminal_streams = Rc::new(Vec::new());
+    let mut chain = ChainRun {
+        book: chain_cert::ChainCertificateBook::default(),
+        every: chain_every,
+        advances: 0,
+        last_streams: Rc::new(Vec::new()),
+        last_as_of: 0,
+    };
     for (i, bar) in bars.iter().copied().enumerate() {
         let l0 = parser.append(bar);
         let direct = classifier::classify_with_tower_events_incremental(&l0, config, &mut cache);
@@ -352,8 +479,14 @@ fn compare_streams(
             return Err(format!("逐 bar 三元通道不等: bar={i}"));
         }
         terminal_streams = streamed.2;
+        if (i + 1) % chain_every == 0 || i + 1 == bars.len() {
+            chain.book.advance(&terminal_streams, i);
+            chain.advances += 1;
+            chain.last_streams = Rc::clone(&terminal_streams);
+            chain.last_as_of = i;
+        }
     }
-    Ok(terminal_streams)
+    Ok((terminal_streams, chain))
 }
 
 fn print_summary(bars: &[Bar], terminal_streams: &classifier::cand_event::CandidateStreams) {
