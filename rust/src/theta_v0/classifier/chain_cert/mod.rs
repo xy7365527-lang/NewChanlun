@@ -149,6 +149,12 @@ pub enum ChainNodeStatus {
     /// （`classify_with_tower_events` 每次 fresh book）驱动时可达：fresh 无记忆，上一 `as_of`
     /// 的身份可以整个消失。两种驱动本模块都支持，故本变体是真实可达分支，按「不属存活端点」
     /// 处理并单列计数（[`chain_probe::ChainProbe::absent_node`]），不与 `Falsified` 混同。
+    ///
+    /// **Absent 链头落 `Open`（#641 收口批，裁定②字面收窄）的连带后果照实（#667 INFO-3）**：
+    /// 终态投影驱动下，该链**永久驻留**重评集合不再封口，且链头在 `Absent ↔ Alive` 间抖动会
+    /// 反复刷 payload revision。两个消费 bin（`issue550_event_battery` / `p123_fast_replay`）
+    /// 均为因果簿驱动，故真实数据面上 `nodes_absent` 恒 0、该驻留/增长面不可达；N7 若选
+    /// fresh-book 驱动须先知此二事。
     Absent,
 }
 
@@ -179,8 +185,9 @@ pub struct ChainNodeTrace {
 
 /// 链段资格的唯一判定谓词的**指名**（`cand_sub` 的跨级 `C⊆C`，本模块不重写任何区间不等式）。
 ///
-/// **deprecated 待退役**（世代宪法 §1 登记，#641 S-6）：零非测试外部调用者——当前只有本模块内
-/// 与 `tests.rs` 用。**不删**：N4 的「事件 ↔ BSP 稳定身份边」是候选消费面，退役须另票裁定。
+/// **pub 导出面待收窄**（#667 LOW-1 订正 #641 S-6 登记）：零跨模块非测试调用者，可降
+/// `pub(crate)`；但模块内生产路径在用（`build_edge` 写入每条事实边的 `breach.predicate`），
+/// 按世代宪法 §1 名分 = **现役**，不是 deprecated。收窄与否则另票裁定。
 pub const CHAIN_SEGMENT_PREDICATE: &str = "cand_sub::candidate_is_sub";
 
 /// 事实边（谓词判不过）判不过的**直接原因**，按 [`candidate_is_sub`] 的合取项分档。
@@ -804,8 +811,9 @@ impl ChainCertificateBook {
 
     /// 按 [`ChainKey`] 取该链身份的最新 revision（无此 key 则 `None`）。
     ///
-    /// **deprecated 待退役**（世代宪法 §1 登记，#641 S-6）：零非测试外部调用者——当前只有本模块内
-    /// 与 `tests.rs` 用。**不删**：N4 的「事件 ↔ BSP 稳定身份边」是候选消费面，退役须另票裁定。
+    /// **pub 导出面待收窄**（#667 LOW-1 订正 #641 S-6 登记）：零跨模块非测试调用者，可降
+    /// `pub(crate)`；但模块内生产路径在用（`apply` 取上一 revision），按世代宪法 §1
+    /// 名分 = **现役**，不是 deprecated。收窄与否则另票裁定。
     pub fn latest_of(&self, key: &ChainKey) -> Option<&TowerChainCertificate> {
         self.latest.get(key).map(|index| &self.certificates[*index])
     }
@@ -1075,7 +1083,11 @@ pub mod chain_probe {
         /// 既无存活父也无存活子的孤立候选（不成链，单列不静默丢）。
         pub isolated_roots: u64,
         /// ★地板条款（#641 comment-5121572134）拦下的 `Closed`：链头存活且 `Confirmed`、不可再
-        /// 扩展，但**链段集合为空** ⟹ 判 `Open` 而非 `Closed`。
+        /// 扩展、**全边皆链段**，但**链段集合为空** ⟹ 判 `Open` 而非 `Closed`。
+        ///
+        /// 触发面照实（#667 LOW-3 订正）：`!has_segment && all_segments` 等价于 **`edges` 全空**
+        /// （有事实边时「链段集合为空」也成立，但那种链走 `PredicateFailed` 判死支，不记本格）；
+        /// 加「链头存活」后精确对应**链头独活**这一情形。
         ///
         /// 非零 = 地板合取真被走到（不是靠注释声明的条款）。BTC 三窗实测该情形零触发，故这条
         /// 只由 `chain_cert::tests` 的语义锁覆盖，见报告 §五。
