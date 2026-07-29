@@ -66,8 +66,11 @@ pub struct RetraceAlarms {
     pub retrograde_rejected: u64,
     /// 死中枢新注册次数（裁定四「给死人挂号」）。
     ///
-    /// **S1 只计数不拒收**：检测与 fail-loud 拒收归 S2（#622）。计数即 S2 的接手点——
-    /// 改判后本计数应恒等于 S2 的拒收数。
+    /// **S1 只计数不拒收**：检测与 fail-loud 拒收归 S2（#622）。计数即 S2 的接手点。
+    /// **边界如实**（影子评审 #621 MEDIUM-4）：本计数按「前一注册是否 Confirmed」判定，而裁定四
+    /// 的死人判据是「该锚下是否存在任何 Confirmed」（`death_certificate` 的查法）——两查法在隔代
+    /// 序列上不等价（Confirmed → 判败 → 新注册：本计数漏计，死亡证明仍在）。「恒等于 S2 拒收数」
+    /// 不成立；判据统一属 S2 票面，S1 保持现状如实声明。
     pub dead_center_registrations: u64,
 }
 
@@ -85,6 +88,11 @@ pub struct CenterDeathCertificate {
 }
 
 /// 成立档证据包（裁定八②：交易层「三类点成立」+ 全套证据）。
+///
+/// **两拍口径**（影子评审 #621 MEDIUM-2 如实声明）：`frame`/`identity` 取自**注册拍**（frame 是
+/// 身份一部分），`side`/`leave_end`/`retest_end` 取自**落锤拍**（终态证据载荷）——同一证据包
+/// 内部横跨两拍。真实引擎两拍同值（leave 笔已走完才有 departure，既成事实）；provider 两拍
+/// 改口的一致性守卫（裁定二 fail-loud 同族）上浮 S2 待裁，S1 无守卫如实声明。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ThirdPointPack {
     pub identity: RetraceKey,
@@ -110,7 +118,8 @@ pub struct ThirdPointPack {
 /// 买卖点身份账本。
 ///
 /// **真相是 `journal`**（append-only 修订记录，裁定六）；`book` 与 `active_by_anchor` 是它的
-/// 折叠投影，由 [`RetraceLedger::assert_invariants`] 逐轮钉死（`fold(journal) == book`）。
+/// 折叠投影，由 [`RetraceLedger::assert_invariants`] 逐轮钉死（`fold(journal) == book`，
+/// 拆分口径见 `log` 模块头）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct RetraceLedger {
     pub(super) book: LedgerBook<RetracePolicy>,
@@ -388,7 +397,7 @@ impl RetraceLedger {
 
     // ── 不变量 ──
 
-    /// 内核骨架 + 域不变量 + **日志唯一真相**（`fold(journal) == book`）。
+    /// 内核骨架 + 域不变量 + **日志唯一真相**（`fold(journal) == book`，拆分口径见 `log` 模块头）。
     pub fn assert_invariants(&self) {
         self.book.assert_core_invariants();
         for entry in self.book.values() {
