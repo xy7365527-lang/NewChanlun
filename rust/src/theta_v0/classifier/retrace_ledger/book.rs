@@ -21,6 +21,7 @@ use super::super::ledger_kernel::{
     LedgerAdmission, LedgerBook, LedgerDelta, LedgerEntryCore, LedgerSettlement, LedgerState,
 };
 use super::adapter::{admit_input, AdmittedObservation, RetraceInput, RetraceRejection};
+use super::audit::{RetraceAuditEvent, RetraceAuditRecord, RetraceRejectionCode};
 use super::log::{RetraceProvenance, RetraceRecord};
 use super::{
     CenterAnchor, CenterFrame, NotConstitutedReason, RetraceEntry, RetraceEvidence, RetraceKey,
@@ -55,23 +56,26 @@ impl RetraceStep {
     }
 }
 
-/// 警报计数（裁定六：拒收/警报另记 audit 流，**不进真相恢复路径**——它们不改状态）。
+/// 警报计数（裁定六：四类拒收/警报另记 audit 流，**不进真相恢复路径**——它们不改状态）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RetraceAlarms {
     /// 终态后同身份迟到输入静默吸收次数（显著非零 ⟹ 查 provider）。
     pub late_absorbed: u64,
-    /// 注册期拒收次数（残废四桶 + 单活跃候选纪律）。
+    /// 注册期拒收次数（残废四桶 + 单活跃候选纪律 + 两拍证据一致性守卫，票 #622 补）。
     pub registration_rejected: u64,
     /// 门卫钟倒退拒收次数（内核注记现算）。
     pub retrograde_rejected: u64,
-    /// 死中枢新注册次数（裁定四「给死人挂号」）。
+    /// 死中枢新注册拒收次数（裁定四「给死人挂号」）。
     ///
-    /// **S1 只计数不拒收**：检测与 fail-loud 拒收归 S2（#622）。计数即 S2 的接手点。
-    /// **边界如实**（影子评审 #621 MEDIUM-4）：本计数按「前一注册是否 Confirmed」判定，而裁定四
-    /// 的死人判据是「该锚下是否存在任何 Confirmed」（`death_certificate` 的查法）——两查法在隔代
-    /// 序列上不等价（Confirmed → 判败 → 新注册：本计数漏计，死亡证明仍在）。「恒等于 S2 拒收数」
-    /// 不成立；判据统一属 S2 票面，S1 保持现状如实声明。
+    /// **S2 落地拒收**（票 #622，修复影子评审 #621 MEDIUM-4）：判据统一为
+    /// [`RetraceLedger::death_certificate`]（「该锚下是否存在任何 Confirmed」），在
+    /// [`RetraceLedger::observe`] 的注册前置检查中直接 fail-loud 拒收——本计数与实际拒收次数
+    /// 恒等（同一次自增即同一次拒收，S1 时代「两查法不等价」的漏计已随统一查法消失）。
     pub dead_center_registrations: u64,
+    /// 引擎改口处死次数（裁定一：窗口变 / 中枢从 provider 消失 ⟹ `NotConstituted{CenterRebased}`，
+    /// 票 #622）。**不进四类 audit 流**——这是真实终态事件，走 [`super::log`] 的修订日志本体，
+    /// 本计数只是工程侧的快速可观测面。
+    pub center_rebased: u64,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -129,6 +133,9 @@ pub struct RetraceLedger {
     pub(super) late_absorbed: u64,
     pub(super) registration_rejected: u64,
     pub(super) dead_center_registrations: u64,
+    pub(super) center_rebased: u64,
+    /// 四类警报的 append-only 记录（裁定六：审计归审计，`fold` 不吃本字段）。
+    pub(super) audit_log: Vec<RetraceAuditRecord>,
     pub(super) provenance: RetraceProvenance,
 }
 
@@ -141,8 +148,16 @@ impl RetraceLedger {
             late_absorbed: 0,
             registration_rejected: 0,
             dead_center_registrations: 0,
+            center_rebased: 0,
+            audit_log: Vec::new(),
             provenance,
         }
+    }
+
+    /// 追加一条 audit 事件（四类警报统一入口，序号即产生序）。
+    fn push_audit(&mut self, event: RetraceAuditEvent) {
+        let sequence = self.audit_log.len() as u64;
+        self.audit_log.push(RetraceAuditRecord { sequence, event });
     }
 
     // ── 观察进 ──
@@ -151,24 +166,29 @@ impl RetraceLedger {
     pub fn observe(&mut self, input: &RetraceInput) -> Result<RetraceStep, RetraceRejection> {
         let admitted = admit_input(input).map_err(|rejection| {
             self.registration_rejected += 1;
+            self.push_audit(RetraceAuditEvent::ResidualRejected {
+                as_of: input.as_of,
+                code: adapter_rejection_code(&rejection),
+            });
             rejection
         })?;
         if self.book.contains(&admitted.observation.key) {
-            Ok(self.advance_existing(&admitted))
+            self.advance_existing(&admitted)
         } else {
             self.register_new(&admitted)
         }
     }
 
-    /// 首次注册：单活跃候选纪律 → 建项 → 钉快照 → Restart 谱系 → 判决。
+    /// 首次注册：死人挂号前置拒收 → 单活跃候选纪律（含引擎改口处死）→ 建项 → 钉快照 →
+    /// Restart 谱系 → 判决。
     fn register_new(
         &mut self,
         admitted: &AdmittedObservation,
     ) -> Result<RetraceStep, RetraceRejection> {
         let observation = admitted.observation;
         let key = observation.key;
-        self.guard_single_active(key)?;
         let mut delta = LedgerDelta::new();
+        self.guard_single_active(key, observation.as_of, &mut delta)?;
         let opened = self
             .book
             .open_on_observation(&observation, observation.as_of)
@@ -186,8 +206,30 @@ impl RetraceLedger {
         Ok(self.step(key, delta, None))
     }
 
-    /// 裁定二：同一中枢同时刻至多一个活跃候选；未判完而新 departure 来 ⟹ 报错拒收。
-    fn guard_single_active(&mut self, incoming: RetraceKey) -> Result<(), RetraceRejection> {
+    /// 裁定四：死人挂号前置拒收（自查 [`Self::death_certificate`]，不依赖外部）→
+    /// 裁定二/裁定一：同一中枢同时刻至多一个活跃候选——同 departure 而窗口变 ⟹ 引擎改口处死
+    /// （旧候选进 [`kill_as_rebased`](Self::kill_as_rebased)，本次注册继续）；不同 departure 而
+    /// 旧候选未判完 ⟹ provider 有病，报错拒收。
+    fn guard_single_active(
+        &mut self,
+        incoming: RetraceKey,
+        as_of: usize,
+        delta: &mut LedgerDelta<RetracePolicy>,
+    ) -> Result<(), RetraceRejection> {
+        if let Some(certificate) = self.death_certificate(incoming.anchor()) {
+            self.dead_center_registrations += 1;
+            self.push_audit(RetraceAuditEvent::DeadCenterRejected {
+                anchor: incoming.anchor(),
+                attempted: incoming,
+                death_issued_as_of: certificate.issued_as_of,
+                as_of,
+            });
+            return Err(RetraceRejection::DeadCenterReentry {
+                anchor: incoming.anchor(),
+                attempted: incoming,
+                death_certificate: certificate,
+            });
+        }
         let Some(active) = self.active_by_anchor.get(&incoming.anchor()).copied() else {
             return Ok(());
         };
@@ -199,14 +241,75 @@ impl RetraceLedger {
         if state.is_terminal() {
             return Ok(());
         }
+        if incoming.departure_move_index == active.departure_move_index {
+            // 同一 departure、不同窗口（键不同故走到本分支）⟹ 引擎改口（裁定一：活着期间每次
+            // 观察比对窗口，偏离 ⟹ 处死记档）。**不算倒退**（裁定五），无论 as_of 相对旧候选如何。
+            self.kill_as_rebased(delta, active, Some(incoming.frame), as_of);
+            return Ok(());
+        }
         self.registration_rejected += 1;
+        self.push_audit(RetraceAuditEvent::ResidualRejected {
+            as_of,
+            code: RetraceRejectionCode::ActiveCandidateNotSettled,
+        });
         Err(RetraceRejection::ActiveCandidateNotSettled {
             active,
             incoming_departure_move_index: incoming.departure_move_index,
         })
     }
 
-    /// Restart = 新档注册 + 谱系载荷记前任（裁定三）；前任已判胜时另记死人挂号计数（裁定四）。
+    /// 引擎改口处死：活跃候选 Provisional → Invalidated{CenterRebased}，证据带新旧窗口对照
+    /// （沿用注册快照的侧/离开边，无买卖判定语义——处死不是判案）。
+    fn kill_as_rebased(
+        &mut self,
+        delta: &mut LedgerDelta<RetracePolicy>,
+        key: RetraceKey,
+        observed_window: Option<CenterFrame>,
+        as_of: usize,
+    ) {
+        let evidence = self.book.get(&key).and_then(|entry| entry.registration());
+        let reason = NotConstitutedReason::CenterRebased {
+            registered_window: key.frame,
+            observed_window,
+        };
+        let settlement = LedgerSettlement {
+            state: LedgerState::Invalidated,
+            kind: RetraceRevisionKind::NotConstituted { reason },
+            reason: Some(reason),
+            evidence,
+        };
+        let entry = self.book.get_mut(&key).expect("活跃候选必在账");
+        if as_of > entry.last_as_of {
+            entry.last_as_of = as_of;
+        }
+        let revision = entry.settle(settlement, as_of);
+        self.record(delta, revision);
+        self.center_rebased += 1;
+    }
+
+    /// per-中枢锚窗口核对（裁定一「活着期间每次观察比对当前中枢窗口与注册快照」的显式通道）：
+    /// 供引擎在**无新 departure** 时汇报当前窗口——`current_window = None` 即「中枢从 provider
+    /// 消失」。无活跃候选 / 候选已终态 ⟹ 零动作；窗口同注册快照 ⟹ **同窗口重确认零动作**
+    /// （裁定一，连门卫钟都不动——真是零动作，不是零输出）；偏离 ⟹ 处死记档进警报桶。
+    pub fn reconcile_window(
+        &mut self,
+        anchor: CenterAnchor,
+        current_window: Option<CenterFrame>,
+        as_of: usize,
+    ) -> Option<RetraceStep> {
+        let active = self.active_by_anchor.get(&anchor).copied()?;
+        let entry = self.book.get(&active).expect("路由投影只指向已建仓身份");
+        if entry.state.is_terminal() || current_window == Some(active.frame) {
+            return None;
+        }
+        let mut delta = LedgerDelta::new();
+        self.kill_as_rebased(&mut delta, active, current_window, as_of);
+        Some(self.step(active, delta, None))
+    }
+
+    /// Restart = 新档注册 + 谱系载荷记前任（裁定三）：anchor 上曾有过任何前任（无论因判败重回
+    /// 还是引擎改口而不再活跃）都记录谱系——死人挂号的前任不会走到这里（`guard_single_active`
+    /// 已在死亡证明命中时前置拒收，本函数运行时该锚绝无 Confirmed 前任）。
     fn link_restart(
         &mut self,
         delta: &mut LedgerDelta<RetracePolicy>,
@@ -216,24 +319,70 @@ impl RetraceLedger {
         let Some(previous) = self.active_by_anchor.insert(key.anchor(), key) else {
             return;
         };
-        if self.book.get(&previous).map(|entry| entry.state) == Some(LedgerState::Confirmed) {
-            self.dead_center_registrations += 1;
-        }
         let restarted = self.push(key, RetraceRevisionKind::Restarted { previous }, as_of, None);
         self.record(delta, restarted);
     }
 
-    /// 已建仓身份的推进：倒退拒绝 / 终态吸收（+ 警报计数）/ 判决。
-    fn advance_existing(&mut self, admitted: &AdmittedObservation) -> RetraceStep {
+    /// 已建仓身份的推进：两拍证据一致性守卫（零改写）→ 倒退拒绝 / 终态吸收（+ 警报）/ 判决。
+    fn advance_existing(
+        &mut self,
+        admitted: &AdmittedObservation,
+    ) -> Result<RetraceStep, RetraceRejection> {
         let key = admitted.observation.key;
+        if admitted.observation.outcome.is_some() {
+            self.guard_terminal_evidence_consistency(key, admitted)?;
+        }
         let mut delta = LedgerDelta::new();
         let admission = self.book.admit(&key, admitted.observation.as_of);
         match admission {
-            LedgerAdmission::RetrogradeRejected => {}
-            LedgerAdmission::TerminalAbsorbed => self.late_absorbed += 1,
+            LedgerAdmission::RetrogradeRejected => {
+                let entry = self.book.get(&key).expect("准入要求条目已建仓");
+                self.push_audit(RetraceAuditEvent::RetrogradeRejected {
+                    key,
+                    last_as_of: entry.last_as_of,
+                    rejected_as_of: admitted.observation.as_of,
+                });
+            }
+            LedgerAdmission::TerminalAbsorbed => {
+                self.late_absorbed += 1;
+                let entry = self.book.get(&key).expect("准入要求条目已建仓");
+                self.push_audit(RetraceAuditEvent::LateAbsorbed {
+                    key,
+                    terminal_as_of: entry.terminal_as_of.expect("终态吸收必有落锤钟"),
+                    late_as_of: admitted.observation.as_of,
+                });
+            }
             LedgerAdmission::Accepted => self.judge(&mut delta, admitted),
         }
-        self.step(key, delta, Some(admission))
+        Ok(self.step(key, delta, Some(admission)))
+    }
+
+    /// 两拍证据一致性守卫（裁定二 fail-loud 同族；影子评审 #621 MEDIUM-2 补，票 #622）：
+    /// 落锤拍的侧 / 离开边须与注册拍一致，否则 provider 两拍改口 ⟹ 报错拒收（零改写——检查发生
+    /// 在 `admit` 之前）。前缀态（尚无注册快照）无从比对，放行给后续路径自然处理。
+    fn guard_terminal_evidence_consistency(
+        &mut self,
+        key: RetraceKey,
+        admitted: &AdmittedObservation,
+    ) -> Result<(), RetraceRejection> {
+        let Some(registered) = self.book.get(&key).and_then(|entry| entry.registration()) else {
+            return Ok(());
+        };
+        if registered.side == admitted.evidence.side && registered.leave_end == admitted.evidence.leave_end {
+            return Ok(());
+        }
+        self.registration_rejected += 1;
+        self.push_audit(RetraceAuditEvent::ResidualRejected {
+            as_of: admitted.observation.as_of,
+            code: RetraceRejectionCode::TerminalEvidenceContradictsRegistration,
+        });
+        Err(RetraceRejection::TerminalEvidenceContradictsRegistration {
+            key,
+            registered_side: registered.side,
+            registered_leave_end: registered.leave_end,
+            incoming_side: admitted.evidence.side,
+            incoming_leave_end: admitted.evidence.leave_end,
+        })
     }
 
     /// 判决：`None` 结局 ⟹ 维持 `Provisional`（裁定七，永不超时处死）。
@@ -343,7 +492,13 @@ impl RetraceLedger {
             registration_rejected: self.registration_rejected,
             retrograde_rejected: self.book.retrograde_rejections().len() as u64,
             dead_center_registrations: self.dead_center_registrations,
+            center_rebased: self.center_rebased,
         }
+    }
+
+    /// Audit 流只读面（裁定六：四类警报的 append-only 记录，不进真相恢复路径）。
+    pub fn audit_log(&self) -> &[RetraceAuditRecord] {
+        &self.audit_log
     }
 
     // ── 成立档门户（裁定八②） ──
@@ -404,7 +559,36 @@ impl RetraceLedger {
             Self::assert_entry_invariants(entry);
         }
         self.assert_anchor_invariants();
+        self.assert_dead_center_invariant();
+        self.assert_at_most_one_confirmed_per_anchor();
         self.assert_log_is_truth();
+    }
+
+    /// 死人挂号拒收落地后的不可达状态（票 #622）：一旦某锚有死亡证明，该锚不可能再有未决候选
+    /// ——任何试图挂号的新 departure 都在 `guard_single_active` 前置拒收，从未建仓。
+    fn assert_dead_center_invariant(&self) {
+        for entry in self.book.values() {
+            if entry.state != LedgerState::Provisional {
+                continue;
+            }
+            assert!(
+                self.death_certificate(entry.key.anchor()).is_none(),
+                "死人挂号拒收后不可达：{:?} 的锚已有死亡证明，仍有未决候选",
+                entry.key
+            );
+        }
+    }
+
+    /// 死人挂号拒收的推论（订正影子评审 #621 LOW-2）：同一中枢锚至多一个 `Confirmed`——
+    /// 拒收落地后再无法产出第二个，死亡证明查询的键序取首个不再有歧义。
+    fn assert_at_most_one_confirmed_per_anchor(&self) {
+        let mut seen: BTreeMap<CenterAnchor, RetraceKey> = BTreeMap::new();
+        for entry in self.book.in_state(LedgerState::Confirmed) {
+            let anchor = entry.key.anchor();
+            if let Some(existing) = seen.insert(anchor, entry.key) {
+                panic!("同一中枢锚至多一个 Confirmed：{anchor:?} 同时有 {existing:?} 与 {:?}", entry.key);
+            }
+        }
     }
 
     fn assert_entry_invariants(entry: &RetraceEntry) {
@@ -446,6 +630,28 @@ impl RetraceLedger {
         }
         for (anchor, count) in provisional {
             assert_eq!(count, 1, "同一中枢至多一个未决候选：{anchor:?}");
+        }
+    }
+}
+
+/// [`RetraceRejection`] → [`RetraceRejectionCode`]（audit 流轻量标签，`observe` 的
+/// `admit_input` 错误映射点专用；`ActiveCandidateNotSettled`/`DeadCenterReentry`/
+/// `TerminalEvidenceContradictsRegistration` 由本模块直接产出、直接自选对应码，不经此函数）。
+fn adapter_rejection_code(rejection: &RetraceRejection) -> RetraceRejectionCode {
+    match rejection {
+        RetraceRejection::MalformedFrame { .. } => RetraceRejectionCode::MalformedFrame,
+        RetraceRejection::MissingRetestPosition { .. } => RetraceRejectionCode::MissingRetestPosition,
+        RetraceRejection::LeaveNotOutsideCenter { .. } => RetraceRejectionCode::LeaveNotOutsideCenter,
+        RetraceRejection::RetestSameDirection { .. } => RetraceRejectionCode::RetestSameDirection,
+        RetraceRejection::NotAdjacent { .. } => RetraceRejectionCode::NotAdjacent,
+        RetraceRejection::ActiveCandidateNotSettled { .. } => {
+            RetraceRejectionCode::ActiveCandidateNotSettled
+        }
+        RetraceRejection::DeadCenterReentry { .. } => {
+            unreachable!("死人挂号走独立 DeadCenterRejected 事件，admit_input 不产出本变体")
+        }
+        RetraceRejection::TerminalEvidenceContradictsRegistration { .. } => {
+            unreachable!("两拍守卫走 guard_terminal_evidence_consistency 自选码，admit_input 不产出本变体")
         }
     }
 }
