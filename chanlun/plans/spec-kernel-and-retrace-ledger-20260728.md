@@ -85,7 +85,26 @@ T1：把 11 个对象无关责任点抽成泛型内核模块，nest_lifecycle �
 
 ### T3 章：买卖点身份账本（契约 → 组件映射）
 
-- 新模块：买卖点身份账本，建立在 T1 内核上（内核接口形状待 T1 落地后回填本章）。
+- 新模块：买卖点身份账本，建立在 T1 内核上；内核接口实形见下「T1 内核接口」节。
+- **T1 内核接口（2026-07-28 回填，#573 落地实形）**：
+  - 模块：`rust/src/theta_v0/classifier/ledger_kernel/`（`94acacd4d2` expand + `d40607d805` migrate +
+    `b8f5dcf03c` 修复轮；impl/影子报告见 `chanlun/review-results/issue573-t1-*` 与 `shadow-573-t1-*`）。
+  - 政策 trait（票面「四组类型参数」的落地实形 = 六关联类型，影子评审 M4 登记照实）：
+    `LedgerPolicy { Key: Copy+Ord+Debug; Observation; RevisionKind: Copy+PartialEq+Debug;
+    Reason: Copy+PartialEq+Debug; Evidence: Copy+PartialEq+Debug; Entry: LedgerEntryCore<Self> }`
+    + `observation_key()` + `opened_revision_kind()`。
+  - 「TransitionPolicy」未以独立类型参数落地，拆为两半：**判据留域侧**（内核不认识业务条件）；
+    **拒绝与终态映射进内核**——`LedgerAdmission`（倒退拒绝 + 终态吸收）与
+    `LedgerSettlement{state, kind, reason, evidence}`（终态落账，含禁复活守卫）。
+  - 「ReasonPayload」拆为 `Reason` + `Evidence` 两枚（可空性独立：正向终态无原因码、材料缺时证据
+    诚实为 `None`）；`Entry` 为第五结构性参数，供域自选字段布局。
+  - 本账消费的主要原语：`open_on_observation`（首建）、`admit`（倒退拒绝 + 终态吸收）、`settle`
+    （终态落账）、`push_revision`（append-only 唯一追加点）、`first_write_clock`（钟首写）、
+    `LedgerDelta`（增量返回）、只读门户（`values`/`in_state` 等）、`assert_core_invariants`。
+    `migrate`（迁移留史）本账不用（契约已载）。
+  - 持久化方向（M5，编排者 2026-07-28 裁 A）：**日志 = 修订留档的外化序列化**——entry 内
+    append-only revisions 即 per-identity 日志本体；持久化 = 序列化为 JSONL（CompletedFreezeReducer
+    先例）；恢复 = 重放折叠回 entry 状态；快照仅派生缓存带溯源。内核运行时形状不动（不改事件溯源）。
 - 观察适配器：输入（strict adjacent pair, outcome, 当前中枢窗口, as_of）；残废件注册期拒收报错
   （leave 未出中枢/同向/不紧邻/missing）；死中枢新 departure 拒收报错（自查死亡证明）。
 - 状态机：Provisional / Confirmed / NotConstituted{RetestReentered|CenterRebased}；终态吸收 +
@@ -93,8 +112,9 @@ T1：把 11 个对象无关责任点抽成泛型内核模块，nest_lifecycle �
 - 窗口纪律：注册拍四条边快照；活着不动；Success 快照转正 + 产中枢死亡证明；重回快照作废；
   引擎改口处死记档 + 警报桶。
 - 钟：出生钟/落锤钟（首写不改）+ 门卫钟（倒退拒收 + 警报）；每条修订带知情时；位置进证据载荷。
-- 持久化：append-only 修订日志唯一真相（CompletedFreezeReducer 先例：JSONL、幂等重放、冲突拒绝）；
-  状态 = 折叠；快照仅派生缓存带溯源；拒收/警报另记 audit 流；日志按 run/窗口分界带头 provenance。
+- 持久化（按 2026-07-28 M5=A 裁定）：entry 内 append-only 修订留档 = 日志本体，外化序列化为 JSONL
+  （CompletedFreezeReducer 先例：幂等重放、冲突拒绝）；恢复 = 重放折叠回状态；快照仅派生缓存带溯源、
+  校验失败回退重放；拒收/警报另记 audit 流；日志按 run/窗口分界带头 provenance。
 - 门户三档：备战档（未决：位置 + 快照只读，禁消费成买入信号）；成立档（Confirmed：中枢死亡证明 +
   交易层证据包）；短差档（判败：盘背通道亚型签 + 三锁 + 失败处置通知）。
 - 事件与警报词汇：注册/判胜/判败/改口处死/Restart（新档）+ 残废拒收/死人挂号/倒退拒收/迟到吸收
@@ -126,7 +146,8 @@ T1：把 11 个对象无关责任点抽成泛型内核模块，nest_lifecycle �
 
 ## 附注
 
-- T3 章内核接口节待 T1 落地后回填（防早产抽象，双消费方定形精神）。
+- T3 章内核接口节已于 2026-07-28 回填（#573 落地实形 + 影子评审 M4 照实登记 + M5=A 裁定；
+  原为防早产抽象留白，双消费方定形精神不变）。
 - 消费方登记归 #575 验收项（无消费方不接生产）。
 - 模型档：T1 高难（opus）；T3 子弹票按面定档（sonnet/opus）。
 - 两处上报（不阻塞本 spec）：清算线张力建议开 follow-up 票；ADR 补充十三引用档
