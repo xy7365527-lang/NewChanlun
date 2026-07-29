@@ -3269,6 +3269,24 @@ mod tests {
         }
     }
 
+    /// 票 #497：19 处调用共享 `level=1`；折叠该常量参数，语义与直调
+    /// `provide_nest_candidate_events_resident(1, ...)` 逐字等价。
+    #[allow(clippy::too_many_arguments)]
+    fn pan_resident(
+        projection: &ExactThreeProjection,
+        blocks: &[MoveBlock],
+        legs: &[LowerLeg],
+        view: &LevelAsOfView,
+        hist: &[f64],
+        dif: &[f64],
+        close_src: &[usize],
+        residence: Option<PanResidence<'_>>,
+    ) -> Vec<NestCandidateEvent> {
+        provide_nest_candidate_events_resident(
+            1, projection, blocks, legs, view, hist, dif, close_src, residence,
+        )
+    }
+
     /// #69 5b / T0：先锁冷路径盘背事件的全部物理字段；resident `None` 必须逐字段等于旧入口。
     #[test]
     fn pan_memo_cold_path_characterization() {
@@ -3283,8 +3301,7 @@ mod tests {
             &fixture.dif,
             &fixture.close_src,
         );
-        let resident_none = provide_nest_candidate_events_resident(
-            1,
+        let resident_none = pan_resident(
             &fixture.projection,
             &fixture.blocks,
             &fixture.legs,
@@ -3434,8 +3451,7 @@ mod tests {
         );
         let mut memo = PanMemo::default();
 
-        let first = provide_nest_candidate_events_resident(
-            1,
+        let first = pan_resident(
             &fixture.projection,
             &fixture.blocks,
             &fixture.legs,
@@ -3453,8 +3469,7 @@ mod tests {
         assert_eq!(memo.stats().writes, 1);
         assert_eq!(memo.stats().hits, 0);
 
-        let grown = provide_nest_candidate_events_resident(
-            1,
+        let grown = pan_resident(
             &fixture.projection,
             &fixture.blocks,
             &fixture.legs,
@@ -3472,8 +3487,7 @@ mod tests {
         assert_eq!(memo.stats().writes, 1, "已证 entry 不得重算回写");
         assert_eq!(memo.stats().hits, 1);
 
-        let rolled = provide_nest_candidate_events_resident(
-            1,
+        let rolled = pan_resident(
             &fixture.projection,
             &fixture.blocks,
             &fixture.legs,
@@ -3499,8 +3513,7 @@ mod tests {
         let fixture = pan_provider_fixture();
         let mut memo = PanMemo::default();
         let incomplete_src = &fixture.close_src[..10];
-        let incomplete = provide_nest_candidate_events_resident(
-            1,
+        let incomplete = pan_resident(
             &fixture.projection,
             &fixture.blocks,
             &fixture.legs,
@@ -3521,8 +3534,7 @@ mod tests {
         assert_eq!(memo.len(), 0);
         assert_eq!(memo.stats().writes, 0);
 
-        let complete = provide_nest_candidate_events_resident(
-            1,
+        let complete = pan_resident(
             &fixture.projection,
             &fixture.blocks,
             &fixture.legs,
@@ -3565,8 +3577,7 @@ mod tests {
                 &fixture.close_src,
             );
             let mut memo = PanMemo::default();
-            let resident = provide_nest_candidate_events_resident(
-                1,
+            let resident = pan_resident(
                 &fixture.projection,
                 blocks,
                 &fixture.legs,
@@ -3593,8 +3604,7 @@ mod tests {
     fn pan_memo_block_shrink_rewrite_and_append_discipline() {
         let fixture = pan_provider_fixture();
         let mut memo = PanMemo::default();
-        let first = provide_nest_candidate_events_resident(
-            1,
+        let first = pan_resident(
             &fixture.projection,
             &fixture.blocks,
             &fixture.legs,
@@ -3618,8 +3628,7 @@ mod tests {
             dir: None,
             status: MoveStatus::Active,
         });
-        let appended_out = provide_nest_candidate_events_resident(
-            1,
+        let appended_out = pan_resident(
             &fixture.projection,
             &appended,
             &fixture.legs,
@@ -3647,8 +3656,7 @@ mod tests {
             &fixture.dif,
             &fixture.close_src,
         );
-        let resident_shrunk = provide_nest_candidate_events_resident(
-            1,
+        let resident_shrunk = pan_resident(
             &fixture.projection,
             shrunk,
             &fixture.legs,
@@ -3667,8 +3675,7 @@ mod tests {
         assert!(memo.stats().invalidations >= 1);
 
         let mut memo = PanMemo::default();
-        let _ = provide_nest_candidate_events_resident(
-            1,
+        let _ = pan_resident(
             &fixture.projection,
             &fixture.blocks,
             &fixture.legs,
@@ -3694,8 +3701,7 @@ mod tests {
             &fixture.dif,
             &fixture.close_src,
         );
-        let resident_rewritten = provide_nest_candidate_events_resident(
-            1,
+        let resident_rewritten = pan_resident(
             &fixture.projection,
             &rewritten,
             &fixture.legs,
@@ -3719,8 +3725,7 @@ mod tests {
     fn pan_memo_rematerializes_dynamic_fields_and_invalidates_read_prefix() {
         let fixture = pan_provider_fixture();
         let mut memo = PanMemo::default();
-        let _ = provide_nest_candidate_events_resident(
-            1,
+        let _ = pan_resident(
             &fixture.projection,
             &fixture.blocks,
             &fixture.legs,
@@ -3736,8 +3741,7 @@ mod tests {
 
         let mut later_view = fixture.view.clone();
         later_view.query.as_of = 40;
-        let later = provide_nest_candidate_events_resident(
-            1,
+        let later = pan_resident(
             &fixture.projection,
             &fixture.blocks,
             &fixture.legs,
@@ -3773,8 +3777,7 @@ mod tests {
             &fixture.dif,
             &fixture.close_src,
         );
-        let resident_rewritten = provide_nest_candidate_events_resident(
-            1,
+        let resident_rewritten = pan_resident(
             &fixture.projection,
             &fixture.blocks,
             &rewritten_legs,
@@ -3894,8 +3897,7 @@ mod tests {
         non_divergent_hist[11] = -10.0;
         let mut memo = PanMemo::default();
         for expected_hits in 0..=1 {
-            let events = provide_nest_candidate_events_resident(
-                1,
+            let events = pan_resident(
                 &fixture.projection,
                 &fixture.blocks,
                 &fixture.legs,
@@ -3935,8 +3937,7 @@ mod tests {
             &fixture.close_src,
         );
         let mut memo = PanMemo::default();
-        let _ = provide_nest_candidate_events_resident(
-            1,
+        let _ = pan_resident(
             &fixture.projection,
             &fixture.blocks,
             &fixture.legs,
@@ -3950,8 +3951,7 @@ mod tests {
             }),
         );
         memo.poison_for_test();
-        let poisoned = provide_nest_candidate_events_resident(
-            1,
+        let poisoned = pan_resident(
             &fixture.projection,
             &fixture.blocks,
             &fixture.legs,
@@ -3967,8 +3967,7 @@ mod tests {
         assert_ne!(poisoned, cold, "污染须能被 shadow 比对观察到");
         let stats_before_forced = memo.stats();
         let len_before_forced = memo.len();
-        let forced = provide_nest_candidate_events_resident(
-            1,
+        let forced = pan_resident(
             &fixture.projection,
             &fixture.blocks,
             &fixture.legs,
