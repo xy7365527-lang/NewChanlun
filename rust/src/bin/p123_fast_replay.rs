@@ -387,11 +387,17 @@ const EVENT_DUMP_ENV: &str = "P123_EVENT_DUMP";
 /// 的写失败经调用点的 `?` 上抛（调用点在 prefix replay 的事件应用循环
 /// [`run_targeted_prefix_pass`]），会**中止 prefix pass**；此时收尾的既有
 /// `P421_LIFECYCLE_DUMP` sidecar 收尾 flush（先执行）与随后的 [`EventDump::flush`] 一并
-/// 被跳过（函数提前返回，两条收尾语句均不可达）。这与 `#421` 的 `P421_LIFECYCLE_DUMP`
-/// 侧信道写失败同形（同样经 [`write_lifecycle_line`] 以 `?` 上抛），与既有 [`dump_line`]
-///（`P116_DUMP`）的**吞错**口径不同款——`dump_line` 写失败被 `let _ = ...` 吸收，不上抛、
-/// 不中止重放。关灯路径（env 未设 ⟹ `writer=None`）不受本边界影响：`observe` 首行即
-/// 返回 `Ok(())`，不存在写失败面，第 3 条「env 未设 ⟹ 零行为差异」的声明不因本边界而弱化。
+/// 被跳过（函数提前返回，两条收尾语句均不可达）。**上抛不止于此**：该 `Err` 继续经
+/// `main` 内 [`run_targeted_prefix_pass`] 调用点的 `?` 逃出 `main`，`main` 尾部的
+/// [`dump_flush`] 调用**同样不可达**；而 [`DUMP`] 是 `static OnceLock<..BufWriter..>`，
+/// Rust 的 `static` **不执行 `Drop`** ⟹ 既有 `P116_DUMP` 的缓冲尾字节**静默丢失**
+///（受损面 = 既有封印文件；本结构自己的 `BufWriter` 是局部变量、drop 时会冲刷）。
+/// 这与 `#421` 的 `P421_LIFECYCLE_DUMP` 侧信道写失败同形（同样经 [`write_lifecycle_line`]
+/// 以 `?` 上抛，同样使 [`dump_flush`] 不可达）——**既有形状，非本路新引入**；与既有
+/// [`dump_line`]（`P116_DUMP`）的**吞错**口径不同款——`dump_line` 写失败被 `let _ = ...`
+/// 吸收，不上抛、不中止重放。关灯路径（env 未设 ⟹ `writer=None`）不受本边界影响：
+/// `observe` 首行即返回 `Ok(())`，不存在写失败面，第 3 条「env 未设 ⟹ 零行为差异」的
+/// 声明不因本边界而弱化。
 ///
 /// 行口径（一行一条候选事件观察，字段序固定；见验收报告 §dump 口径）：
 /// ```text
