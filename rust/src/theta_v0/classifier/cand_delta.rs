@@ -10,7 +10,7 @@ use super::*;
 /// P1 谓词闭包驱动器（strict-nesting-divergence-plan-20260708 §P1）：对既有分类输出逐级跑
 /// [`recursive_tower::level_cand_delta`]（Cand^δ_ℓ 背驰段谓词，「级别→A/C 定位配对」层）。
 ///
-/// 每级输入重建与 [`classify_impl`] 单一来源同构：
+/// 每级输入重建与 `classify_impl`（pipeline.rs）单一来源同构：
 /// - ℓ0：`l0.segments`（L0 线段账本；anchor=None ⟹ 段方向即锚方向，L0 域定理）；
 /// - ℓ≥1：`units = project_to_units(&tower_snapshots[ℓ], &levels[ℓ-1].moves)`
 ///   （`tower_snapshots[ℓ]` = 第 ℓ 级输入塔 = 第 ℓ-1 级 upper_moves，classify_impl 同步
@@ -51,7 +51,7 @@ pub fn cand_delta_tower(
 /// 消掉 per-bar O(n) 项。
 ///
 /// ★缓存一致性守卫（over-invalidate 方向）：任一序列长度 ≠ `merged_bars.len()` 或
-/// `macd_state_len` 不合覆盖契约（n≤1 ⟹ n；n≥2 ⟹ n-1，见 [`cache_series_ok`]）⟹
+/// `macd_state_len` 不合覆盖契约（n≤1 ⟹ n；n≥2 ⟹ n-1，见 `cache_series_ok`）⟹
 /// 退化调全量版（bit-exact，非增量）。`DIAG_CANDCACHE=1` 时
 /// 每 bar 与全量版对拍断言（前缀验证用，同 `DIAG_L0UNITS` 模式）。
 pub fn cand_delta_tower_cached(

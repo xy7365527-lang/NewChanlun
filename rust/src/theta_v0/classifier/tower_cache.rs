@@ -8,7 +8,7 @@
 //!
 //! ## 增量策略（严格有效域声明，formalization-validity-domain 231号）
 //!
-//! **有效域**：`tower_snapshots`（Vec<Vec<LeveledMove>>）+ `LevelState.centers` 的**中枢扫描构造**
+//! **有效域**：`tower_snapshots`（`Vec<Vec<LeveledMove>>`）+ `LevelState.centers` 的**中枢扫描构造**
 //! 可增量——`detect_centers_windowed` 是确定性左折叠（见 recursive_tower.rs 增量证明），已产出
 //! 中枢是不可变前缀，尾部追加续扫产出 bit-exact 尾部。
 //!
@@ -199,7 +199,7 @@ pub struct TowerCache {
     /// `closes_tick[i] == merged_bars[i].close`（Tick 本身，非 f64 往返）——与 `extract_signals_force`
     /// 的 `closes as f64 as Tick` 逐值一致（整值 Tick 往返 f64 精确）。热路径 mem::take 出借，用毕放回。
     pub(super) closes_tick: Vec<Tick>,
-    /// ★工位 4g：塔变更代次（generation）——下游 [`super::strategy::interp::TreeCache`] 用其 O(1) 判断
+    /// ★工位 4g：塔变更代次（generation）——下游 [`crate::theta_v0::strategy::interp::TreeCache`] 用其 O(1) 判断
     /// 是否复用缓存树，**跳过每 bar O(tree) 的 `TreeKey::of(tower)` 全量重算**（exp≈2.0 真因）。
     ///
     /// **单调递增**，仅当 `extract_elements(tower)` **可观察输出可能变化**时 +1。维护点（codex 异质审
@@ -211,7 +211,7 @@ pub struct TowerCache {
     /// 非空级，但 `sub_moves: Vec<LeveledMove>` 值拷贝（compose 时 `subs.to_vec()`）⟹ 低级静默变异必经
     /// cascade 重建父级才更新副本（codex Q1 确认无静默路径）。
     pub(super) generation: u64,
-    /// ★forest_epoch（on2w2：K_i 判据，独立于 `generation`）——下游 [`super::strategy::interp::TreeCache`]
+    /// ★forest_epoch（on2w2：K_i 判据，独立于 `generation`）——下游 [`crate::theta_v0::strategy::interp::TreeCache`]
     /// 用其 O(1) 命中判断 `extract_carrier_forest(tower)`（K_i，读**全塔含 L0**）是否可复用，取代每 bar
     /// O(全塔) 的 [`super::strategy::interp::TreeKey::of_forest`] 指纹（H6 O(n²) 真因）。
     ///
@@ -243,7 +243,7 @@ impl TowerCache {
         self.generation
     }
 
-    /// ★on2w2：当前塔森林代次（`forest_epoch`）——下游 [`super::strategy::interp::TreeCache`] 用其 O(1)
+    /// ★on2w2：当前塔森林代次（`forest_epoch`）——下游 [`crate::theta_v0::strategy::interp::TreeCache`] 用其 O(1)
     /// 判断 `extract_carrier_forest(tower)`（K_i）是否可复用，取代每 bar O(全塔) 的 `TreeKey::of_forest`。
     /// 同代次 ⟹ K_i 森林输出逐字节不变（soundness 见 `forest_epoch` 字段文档 + on2w2-epoch-design §4）。
     pub fn forest_epoch(&self) -> u64 {
@@ -253,7 +253,7 @@ impl TowerCache {
     /// ★#93 水线证书（单一来源，禁第二查法）：`tower[level][..w]` **跨 bar bit-stable 下界**。
     ///
     /// 语义（与 `classify_with_tower_incremental` 返回的 `tower_snapshots` 同下标）：
-    /// - `level == 0`：= `l0.segments_confirmed_len`（parser 证书，tower[0][i] 为 segments[i]
+    /// - `level == 0`：= `l0.segments_confirmed_len`（parser 证书，tower\[0]\[i] 为 segments\[i]
     ///   纯函数 ⟹ 前缀稳定同传）；
     /// - `level >= 1`：`tower[level]` 与 `levels[level-1].upper_moves` 共享 Rc ⟹
     ///   = `levels[level-1].confirmed_watermark`（维护站点见该字段文档）；
@@ -288,7 +288,7 @@ impl TowerCache {
         self.levels.get(level - 1).map(|lc| lc.scan_cursor)
     }
 
-    /// ★#601：L0 输入单元（`l0.segments` 的 [`segment_to_unit`] 投影）只读切片。
+    /// ★#601：L0 输入单元（`l0.segments` 的 `segment_to_unit`（pipeline.rs）投影）只读切片。
     ///
     /// 与 `tower[0]` 同序同长同源（`LeveledMove::from_unit` 的输入即本切片），是 L1 层窗口
     /// 扫描的输入 units——provider 侧派生「若把行进中 L0 段计入、L1 层会形成的候选窗口」时
