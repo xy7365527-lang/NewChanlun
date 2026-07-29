@@ -137,7 +137,9 @@ pub struct CompletedMoveId {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FrozenCompletedMove {
     pub id: CompletedMoveId,
-    pub judge_at: usize,
+    /// 冻结钟，非判定钟：记录本条 Completed 快照被写入冻结态时的 as_of，
+    /// 不是该走势完成的判定时刻。
+    pub frozen_at: usize,
     pub entry_bar: Option<usize>,
     pub end_index: usize,
     pub direction: Option<Direction>,
@@ -152,7 +154,7 @@ impl FrozenCompletedMove {
                 level,
                 start_index: value.start_index,
             },
-            judge_at: as_of,
+            frozen_at: as_of,
             entry_bar: as_of.checked_add(1),
             end_index: value.end_index,
             direction: value.direction,
@@ -404,7 +406,7 @@ impl CompletedFreezeAdapter {
             else {
                 return Err(StoreError::CompletedFreezeViolation(id.clone()));
             };
-            let Some(candidate) = FrozenCompletedMove::from_move(id.level, frozen.judge_at, now)
+            let Some(candidate) = FrozenCompletedMove::from_move(id.level, frozen.frozen_at, now)
             else {
                 return Err(StoreError::CompletedFreezeViolation(id.clone()));
             };
@@ -526,7 +528,7 @@ impl WireSnapshot {
         Self {
             level: value.id.level,
             start_index: value.id.start_index,
-            judge_at: value.judge_at,
+            judge_at: value.frozen_at,
             entry_bar: value.entry_bar,
             end_index: value.end_index,
             direction: value.direction.map(|direction| match direction {
@@ -568,7 +570,7 @@ impl WireSnapshot {
                 level: self.level,
                 start_index: self.start_index,
             },
-            judge_at: self.judge_at,
+            frozen_at: self.judge_at,
             entry_bar: self.entry_bar,
             end_index: self.end_index,
             direction,
