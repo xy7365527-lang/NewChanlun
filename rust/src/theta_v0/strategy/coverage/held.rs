@@ -290,14 +290,14 @@ pub(super) fn restore_ancestor_chain_from_registry(
     overlay_seen: &mut std::collections::HashMap<ElementId, usize>,
     // ★#226：当 bar 关闭种子（见函数 doc）。
     closed_seeds: &[ActiveLeg],
+    // ★票#350（#247/#315 同类第三位点）：本轮新 push 的恢复元素 idx 追加于此（调用方持有，跨本
+    // 函数的多次调用 + held 腿占位共用同一累加器，见 [`held_stale_reregister_idx`]）——不在本函数
+    // 内修补，见函数头 #350 说明。
+    pending_parent_fixup: &mut Vec<usize>,
 ) {
     ancok_probe_bump(|p| p.restore_calls += 1);
     let mut broke = false;
     let mut cur = Some(start_pid);
-    // ★#247 缺口二：本次 walk **新 push** 的恢复元素 idx（不含复用的现有 idx——那些元素的
-    // parent/attached_dir 由其原产地（树前缀 / 前序 restore）已定，不重写）。walk 自下而上，
-    // 父在子之后 push ⟹ push 时父尚不在 work，故 parent 索引在 walk 结束后统一回填。
-    let mut pushed: Vec<usize> = Vec::new();
     while let Some(pid) = cur {
         // 已在 raw 中？⟹ 闭包满足，停止递归。
         let already_in_raw = raw.iter().any(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false));
@@ -334,6 +334,10 @@ pub(super) fn restore_ancestor_chain_from_registry(
         };
         let parent_pid = pe.structural_parent_id;
         let op_idx = work.len();
+        // parent/attached_dir 先以 None 占位：恢复循环**子先父后**上溯，push 子元素时真父 idx
+        // 通常尚未知（父在后续轮次才复用/push，或跨本函数的另一次调用、或 held 腿占位路径才
+        // push）⟹ 统一由调用方在本 bar 全部物化路径结束后修补（票#247 引入、票#350 移出本函数
+        // 至调用方统一，见 [`resolve_pending_parent_fixups`]）。
         work.push(CoverageElement {
             lambda: pe.lambda,
             rho: pe.rho,
@@ -345,47 +349,13 @@ pub(super) fn restore_ancestor_chain_from_registry(
             parent_id: pe.structural_parent_id,
         });
         overlay_seen.entry(pe.pid).or_insert(op_idx); // 记录新 push 的 overlay idx（首次出现序，复用查 O(1)）。
-        pushed.push(op_idx);
+        pending_parent_fixup.push(op_idx); // 票#350：追加调用方累加器，本 bar 全部物化路径结束后统一修补。
         raw.push(op_idx);
         cur = parent_pid; // 上溯祖先链
     }
     if !broke {
         // 自然收敛（cur=None 抵达真根）：整条操作祖先链已恢复/复用完毕。
         ancok_probe_bump(|p| p.restore_complete += 1);
-    }
-    // ★#247 缺口二（角色输入重建）：恢复元素落 work 时 `parent_id` 已知却写死 `parent:None,
-    // attached_dir:None` ⟹ `parent_sign(None)=0 ⟹ V=Ambient`、`ell_p=ell_g ⟹ G=SameLevel`——
-    // 一条自称「不应到达」的防御分支（[`operation_role_two_segment`] 的 `父越界/None` 归并）被
-    // registry 恢复路径恒定命中，角色进 `dir_weight`/`w_grade`/`element_depth` ⟹ 改变下单权重。
-    //
-    // 回填（**只作用本次 walk 新 push 的元素**，复用的现有 idx 不动 ⟹ 树前缀/候选段属性零改）：
-    //   `parent_id` → work idx（与 walk 同一解析序 base `id_idx` 优先、再 overlay_seen——保持与
-    //   「复用现有 idx」判定同源，不引入第二套查表语义），命中 ⟹ `parent=Some(idx)`、
-    //   `attached_dir=Some(work[idx].eps)`（σ_p 取父元素绝对方向，与 638 附着候选同口径）。
-    //
-    // **父不在 work 的语义裁定（与防御分支分离）**：`parent_id=Some` 但链断（registry 丢失 /
-    // 当 bar 关闭种子中断 / fuel 型提前 break）⟹ `parent` 留 None、`parent_id` **保持 Some**。
-    // 该元素**不是** ∂ 边界胚元（`is_boundary_root=parent_id.is_none()=false`），统一 AncOK
-    // （[`super::super::exit::step_active_set_with_subtree_close`]）按 `parent_id` 判祖先不在集 ⟹ **必被
-    // 剪除**，从不进 `next_idx` ⟹ [`strategy_target_legs`] 从不对它求角色。故防御分支回归
-    // 「不应到达」不是注释宣称，而是「链断 ⟹ AncOK 剪除」这条不变量的推论（见测试
-    // `restore_broken_chain_element_pruned_never_scored`）。计数入 `restore_parent_unresolved`。
-    for &i in &pushed {
-        let pid = match work[i].parent_id {
-            Some(pid) => pid,
-            None => continue, // 真边界胚元 ∂：parent=None/attached_dir=None 是**正确**语义（V=Ambient）。
-        };
-        match id_idx.get(&pid).or_else(|| overlay_seen.get(&pid)) {
-            Some(&pidx) => {
-                let sigma_p = work[pidx].eps;
-                if let Some(e) = work.overlay_mut(i) {
-                    e.parent = Some(pidx);
-                    e.attached_dir = Some(sigma_p);
-                    ancok_probe_bump(|p| p.restore_parent_rebound += 1);
-                }
-            }
-            None => ancok_probe_bump(|p| p.restore_parent_unresolved += 1),
-        }
     }
 }
 

@@ -233,6 +233,7 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                             // 锁定），语义/轨迹 bit-exact 不变。
                             restore_ancestor_chain_from_registry(
                                 &mut work, &mut raw, registry, op_pid, &id_idx, &mut overlay_seen, &[],
+                                &mut pending_parent_fixup,
                             );
                         }
                         // ★#216：重注册复用 restore push 现有 idx（见 [`held_stale_reregister_idx`]）。
@@ -368,6 +369,7 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                         &id_idx,
                         &mut overlay_seen,
                         &direct_close_seeds,
+                        &mut pending_parent_fixup,
                     );
                 }
             }

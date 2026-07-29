@@ -93,7 +93,8 @@ use super::super::super::interp::{ActiveLeg, Buckets, Candidate};
 
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, carrier, &id_idx, &mut overlay_seen, &[]);
+        let mut pending = Vec::new();
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, carrier, &id_idx, &mut overlay_seen, &[], &mut pending);
 
         assert_eq!(work.len(), 1, "restore 不得 push 重复 id 元素（应复用 work[0]，overlay 空）");
         assert_eq!(raw, vec![0], "raw 须复用现有 idx 0，非追加新 idx");
@@ -135,9 +136,12 @@ use super::super::super::interp::{ActiveLeg, Buckets, Candidate};
         let mut raw: Vec<usize> = Vec::new();
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
+        let mut pending = Vec::new();
         restore_ancestor_chain_from_registry(
-            &mut work, &mut raw, &reg, child, &id_idx, &mut overlay_seen, &[],
+            &mut work, &mut raw, &reg, child, &id_idx, &mut overlay_seen, &[], &mut pending,
         );
+        // ★票#350：parent/attached_dir 不再在函数内立即解析，测试须补跑生产统一 fixup 才能观测。
+        resolve_pending_parent_fixups(&mut work, &pending, &id_idx, &overlay_seen, &raw);
         assert_eq!(raw, vec![0, 1], "walk 自下而上恢复 child(0) → parent(1)");
         assert_eq!(work[0].parent, Some(1), "恢复元素 parent 索引须由 parent_id 重建（#247 缺口二）");
         assert_eq!(
@@ -400,10 +404,13 @@ use super::super::super::interp::{ActiveLeg, Buckets, Candidate};
         let mut raw: Vec<usize> = Vec::new();
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
+        let mut pending = Vec::new();
         ancok_probe_reset();
         restore_ancestor_chain_from_registry(
-            &mut work, &mut raw, &reg, child, &id_idx, &mut overlay_seen, &[],
+            &mut work, &mut raw, &reg, child, &id_idx, &mut overlay_seen, &[], &mut pending,
         );
+        // ★票#350：unresolved 判定（含 probe 计数）移到统一 fixup 时点。
+        resolve_pending_parent_fixups(&mut work, &pending, &id_idx, &overlay_seen, &raw);
         assert_eq!(work[0].parent, None, "链断 ⟹ parent 无法解析，留 None");
         assert_eq!(work[0].parent_id, Some(lost_parent), "parent_id **保持 Some**（不是 ∂ 根）");
         let probe = ancok_probe_snapshot();

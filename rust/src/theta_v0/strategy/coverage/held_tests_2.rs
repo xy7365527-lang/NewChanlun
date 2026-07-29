@@ -688,3 +688,82 @@ use super::super::super::interp::{ActiveLeg, Buckets};
         );
     }
 
+    /// ★票#350（语义重放自 kimi 760c3520c5，#642）：`restore_ancestor_chain_from_registry` 同 bar
+    /// 可能被多次调用（多条 held 腿逐条触发）。本测试坐实：某恢复元素 Q 的祖先 P 在**该次 restore
+    /// 调用内**因 registry `invalidated` 命中 `restore_break_registry_lost` 断链（Q 的 idx 汇入
+    /// `pending_parent_fixup`，此时不修补）；但 P 本身作为**另一条** held 腿，在本 bar **更晚**经
+    /// `Closed|Invalidated` + `is_boundary_root` 分支**直接 push** 入 raw（不经 registry、不经
+    /// `overlay_seen`）——这条路径 main 侧本就存在（#446/#315 移植时保留）。
+    ///
+    /// 统一 fixup（`resolve_pending_parent_fixups`）的 raw 扫兜底须能在此场景下补上 Q→P 的连接：
+    /// P 不在 `id_idx`/`overlay_seen`（未经两张查表登记的路径），唯有扫 `raw` 才能命中。
+    ///
+    /// **RED（若 restore 仍在函数内立即修补，#350 修复前main侧的等价行为）**：Q 的 fixup 会在
+    /// D 腿处理时点（P 尚未 push）立即执行 ⟹ 固化 None/None，即便 P 随后入 raw 也不会重跑
+    /// ⟹ Q 的角色计算仍读到 Ambient/depth=0/q_units=600（#247 缺口重现）。
+    /// **GREEN（票#350 修复后：统一延后 fixup）**：统一 fixup 时点 P 已在 raw ⟹ raw 扫命中
+    /// ⟹ Q.parent=Some(P idx)、attached_dir=Some(P.eps) ⟹ V=ReverseOpen、depth=1、q_units=300。
+    #[test]
+    fn restore_chain_ancestor_unresolved_when_shared_ancestor_only_materializes_via_later_boundary_root_push() {
+        let p = eid(2, 0); // 共享祖先：仍是 held 腿（boundary_root）+ registry 侧已 invalidated。
+        let q = eid(1, 0); // 中间祖先：仅 registry 存在（非 held 腿），链上 D→Q→P。
+        let d = eid(0, 0); // 触发腿：LiveDetached，op_parent=Q。
+
+        let p_cov = CoverageElement {
+            lambda: 0, rho: 20, eps: VoiceSide::Long, level: 2,
+            parent: None, attached_dir: None, id: p, parent_id: None,
+        };
+        let q_cov = CoverageElement {
+            lambda: 0, rho: 12, eps: VoiceSide::Short, level: 1,
+            parent: None, attached_dir: None, id: q, parent_id: Some(p),
+        };
+        // bar1：P/Q 均在 snapshot 中登记（真实存在过的走势元素）。
+        let reg1 = super::super::super::persistent::PersistentRegistry::new().merge(&[p_cov, q_cov], &[]);
+
+        let d_leg = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 4, lambda: 0,
+            id: d, parent_id: None, is_boundary_root: false, op_parent: Some(q),
+        };
+        // bar2：tree 空（P/Q 均不在新快照）⟹ 增量重置两者 snapshot_present=false；
+        // held_legs=[d_leg] 令 D 自身登记为 LiveDetached 占位（op_parent=Q 的 registry 影子条目
+        // 因 Q 已存在于 registry 而被 or_insert 跳过，不覆盖 Q 真实的 structural_parent_id=Some(P)）。
+        let mut reg2 = reg1.merge(&[], &[d_leg]);
+        // 独立结构性作废信号（与 P 是否仍是 held 腿无关）。
+        reg2.invalidate(&p);
+
+        let p_leg = ActiveLeg {
+            level: 2, dir: VoiceSide::Long, source_index: 20, lambda: 0,
+            id: p, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let base: Vec<CoverageElement> = Vec::new();
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+
+        // prev_active 顺序：D 先（触发对 Q 的 restore，链上溯到 P 时 registry_lost 断链）、
+        // P 后（更晚一次处理，Closed|Invalidated + is_boundary_root ⟹ 直接 push 入 raw）。
+        ancok_probe_reset();
+        let (next_active, _p_tilde, sep_legs, _idx) = coverage_step_from_buckets_sep(
+            view_split(&base, 0), &[d_leg, p_leg], &buckets, 1000.0, &cfg(), None, &reg2,
+        );
+        let probe = ancok_probe_snapshot();
+        assert!(
+            probe.restore_break_registry_lost >= 1,
+            "Q 的链须命中 registry_lost（P invalidated）；实得 {}", probe.restore_break_registry_lost
+        );
+
+        assert!(
+            next_active.iter().any(|l| l.id == q),
+            "Q 的祖先链（parent_id: Q→P）在 raw 中已全齐（P 更晚入 raw）⟹ AncOK 应判 Q 存活；实得 {next_active:?}"
+        );
+        let sep_q = sep_legs.iter().find(|s| s.id == q).expect("Q 须在 sep_legs（AncOK 存活）");
+        assert_eq!(
+            sep_q.role_v, Vertical::ReverseOpen,
+            "Q 存活进 next_idx 且 P 已在 raw（AncOK 判定祖先齐全）⟹ 角色计算须体现 V=ReverseOpen（原\
+             ShortDiff）；若为 Ambient 则坐实 #350 时序孔（P 由更晚一次非 restore push 物化，Q 的 fixup 未跟上）"
+        );
+        assert!(
+            (sep_q.q_units - 300.0).abs() < 1e-9,
+            "depth=1 ⟹ q_units=300（时序孔存在时会是 depth=0 ⟹ 600）；实得 {}",
+            sep_q.q_units
+        );
+    }
+
