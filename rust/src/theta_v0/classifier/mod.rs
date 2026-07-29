@@ -73,6 +73,9 @@ pub mod descend;
 pub mod rmove_compose;
 pub mod recursive_tower;
 pub mod nest;
+/// 账本内核（票 #573 T1）：per-key 注册/首建/append-only 修订/倒退拒绝/终态吸收/钟首写/
+/// 增量返回/身份迁移/只读枚举/不变量骨架的对象无关泛型承载体（四组类型参数）。
+pub mod ledger_kernel;
 /// V3 活假设状态机：NestLifecycleBook sidecar 注册表（三态 + 五钟；#231 重建，spec #232）。
 pub mod nest_lifecycle;
 /// #92/#93 证书索引：确认事件 → typed 证书（身份主键；构建口径 B + CWindow）。
