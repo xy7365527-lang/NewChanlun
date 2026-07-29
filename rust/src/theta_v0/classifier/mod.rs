@@ -1807,6 +1807,48 @@ pub fn classify_with_tower_incremental(
     let min_parts = config.level.min_parts_per_level as usize;
     let l_max = config.level.l_max as usize;
 
+    // ★#543 D1a 构造证书 seam（`rebase_txn`，纯观测）：env `OPSEM_DUMP_DIR` 未设 ⟹ `txn_on=false`，
+    // 下面全部快照/装配/落盘点一律不进（生产路径逐字节不变，同 opsem-dump 先例）。
+    // `txn_bar` = 本 bar 末 merged bar 的 source_index——与 trades/tower_events/rebase_observability
+    // 的 `bar` 同一坐标系（== 下方 `close_src` 末位，`update_closes_cache` 逐 bar push 同一字段）。
+    // 声明前移到回缩检测（下方）之前——回缩检测的 txn 快照块需要 `txn_on`/`txn_cleared` 已在作用域内
+    // （#712 收 #645 HIGH-1 随动：回缩检测本身前移到 `l0_units_cache` 构建之前，见下）。
+    let txn_on = rebase_txn::enabled();
+    let txn_bar = if txn_on { l0.merged_bars.last().map_or(0, |b| b.source_index) } else { 0 };
+    // 整塔缓存全清（段账本回缩退化路径）丢弃的旧输出，按级别下标暂存；由下面的级别循环在同 bar
+    // 全量重扫后配成 old→new 事务（未走到的级别在循环后补一条 removed-only 证书）。
+    let mut txn_cleared: Vec<Vec<rebase_txn::TxnNode>> = Vec::new();
+
+    // 前缀不变量校验：段账本回缩 ⟹ 清空重扫（bit-exact 退化，非增量）。
+    //
+    // ★#613（#609 F2 根因收口，#712 收 #645 HIGH-1）：本检测**必须**在 `l0_units_cache` 构建之前。
+    // 它曾位于构建之后（旧序：00_l0_units_build → Rc::clone 出借 → 回缩 clear），于是回缩 bar 上
+    // `TowerCache::clear` 把刚建好的 `l0_units_cache` 清空（该方法逐字段清塔缓存），而本 bar 的塔
+    // 构造消费的是 clear **之前** `Rc::clone` 出的局部 `l0_units`（写时复制 ⟹ 值完整）⟹ 函数返回后
+    // `l0_units_cache` 为空而 `tower[0]` 满载，`level_scan_units(1)` 的只读契约「与 tower[0] 同序
+    // 同长同源」被破（影子评审 #645 HIGH-1 实测：段账本回缩 bar 上 `0` vs `4`）。提前后
+    // `l0_units_cache` 已清 ⟹ 下方 `00_l0_units_build` 的 reuse=0 ⟹ 本 bar 全量重建，与同样在 clear
+    // 之后全量重建的 `moves_tower_l0` 口径归一，不变式成立（回归见
+    // `tests::l0_units_stays_in_sync_with_tower0_on_segment_ledger_shrink`）。
+    // 值不变（bit-exact）：复用前缀受 `segments_confirmed_len` 证书约束（parser 保证
+    // `segments[..confirmed_len]` 跨 bar 逐字节稳定），回缩只发生在未确认尾部 ⟹ 全量重建 ==
+    // 复用重建。
+    if l0.segments.len() < cache.last_l0_segments_len {
+        // ★#543 D1a 产出点⑥b：整塔全清在**级别循环之外**发生——它丢弃的旧输出既不经 frontier
+        // pop、也不经 cascade 后缀失效，若不在 clear 前快照，这批旧身份就是三流里的"凭空消失"
+        // （wf8 实测 seq=49/64 两次重基正是此路径）。
+        if txn_on {
+            txn_cleared = cache
+                .levels
+                .iter()
+                .map(|lc| {
+                    rebase_txn::snapshot_nodes("old", &lc.upper_moves, &lc.centers, &lc.win_meta)
+                })
+                .collect();
+        }
+        cache.clear();
+    }
+
     // L0 输入单元 = parser 线段账本。#106 证书增量（同 moves_tower_l0，消除每 bar 全量 collect）。
     // 返回 `reuse` = L0 units 复用前缀长度 = dirty_from[0]（§2.3：L0 不可变前缀，units[..reuse]
     // 逐字段等上 bar，units[reuse..] 本 bar 新 extend）。
@@ -1838,16 +1880,6 @@ pub fn classify_with_tower_incremental(
             );
         }
     }
-
-    // ★#543 D1a 构造证书 seam（`rebase_txn`，纯观测）：env `OPSEM_DUMP_DIR` 未设 ⟹ `txn_on=false`，
-    // 下面全部快照/装配/落盘点一律不进（生产路径逐字节不变，同 opsem-dump 先例）。
-    // `txn_bar` = 本 bar 末 merged bar 的 source_index——与 trades/tower_events/rebase_observability
-    // 的 `bar` 同一坐标系（== 下方 `close_src` 末位，`update_closes_cache` 逐 bar push 同一字段）。
-    let txn_on = rebase_txn::enabled();
-    let txn_bar = if txn_on { l0.merged_bars.last().map_or(0, |b| b.source_index) } else { 0 };
-    // 整塔缓存全清（段账本回缩退化路径）丢弃的旧输出，按级别下标暂存；由下面的级别循环在同 bar
-    // 全量重扫后配成 old→new 事务（未走到的级别在循环后补一条 removed-only 证书）。
-    let mut txn_cleared: Vec<Vec<rebase_txn::TxnNode>> = Vec::new();
 
     // 空 L0：无可构造级别 + 清空缓存（下次从头扫）。
     if l0_units.is_empty() {
@@ -1888,22 +1920,6 @@ pub fn classify_with_tower_incremental(
         return (Classification::default(), Vec::new());
     }
 
-    // 前缀不变量校验：段账本回缩 ⟹ 清空重扫（bit-exact 退化，非增量）。
-    if l0.segments.len() < cache.last_l0_segments_len {
-        // ★#543 D1a 产出点⑥b：整塔全清在**级别循环之外**发生——它丢弃的旧输出既不经 frontier
-        // pop、也不经 cascade 后缀失效，若不在 clear 前快照，这批旧身份就是三流里的"凭空消失"
-        // （wf8 实测 seq=49/64 两次重基正是此路径）。
-        if txn_on {
-            txn_cleared = cache
-                .levels
-                .iter()
-                .map(|lc| {
-                    rebase_txn::snapshot_nodes("old", &lc.upper_moves, &lc.centers, &lc.win_meta)
-                })
-                .collect();
-        }
-        cache.clear();
-    }
     cache.last_l0_segments_len = l0.segments.len();
     // ★#93：落账本 bar L0 确认前缀（tower[0] 水线，见字段文档）。min 防御 parser 古怪末段计数。
     cache.l0_confirmed_len = l0.segments_confirmed_len.min(l0.segments.len());
@@ -2754,7 +2770,27 @@ pub fn classify_with_tower_incremental(
         cascade_reset,
     );
 
+    debug_assert_l0_units_in_sync(cache, &tower_snapshots);
     (Classification { levels }, tower_snapshots)
+}
+
+/// ★#613（#609 F2，#712 收 #645 MED-1 随入）：[`TowerCache::level_scan_units`]（level=1，即
+/// L0 units）只读契约的不变式——**塔已产出 L0 级快照时**，`l0_units_cache` 与 `tower[0]` 同长
+/// （同源同序由 `moves_tower_l0` 的构造保证：两者都是 `l0.segments` 的逐元素纯函数投影，且
+/// `l0_units_cache` 只有一处写入站点，见 `classify_with_tower_incremental` 内 `00_l0_units_build`）。
+///
+/// 限定「非空」是结构事实而非放宽：段数不足以构造任何级别时 `tower_snapshots` 为空而
+/// `l0_units_cache` 已有内容，此时消费方（`p123_fast_replay`）走 `tower_level_absent` 显式
+/// 原因码，根本不读 `l0_units` ⟹ 无契约面。
+fn debug_assert_l0_units_in_sync(cache: &TowerCache, tower_snapshots: &[Rc<Vec<LeveledMove>>]) {
+    debug_assert!(
+        tower_snapshots
+            .first()
+            .is_none_or(|l0_tower| l0_tower.len() == cache.l0_units_cache.len()),
+        "level_scan_units(1) 契约违反：l0_units_cache.len()={} 与 tower[0].len()={:?} 失步（#613/#609 F2）",
+        cache.l0_units_cache.len(),
+        tower_snapshots.first().map(|t| t.len())
+    );
 }
 
 /// [`classify_with_tower_incremental`] 的 #550 三元事件通道。
@@ -3171,6 +3207,73 @@ mod tests {
                 "bar {k}: closes_tick ≠ merged_bars.close"
             );
         }
+    }
+
+    /// ★#613（收 #609 F2，#712 收 #645 MED-1 随入）：段账本回缩 bar 上 `level_scan_units(1)`
+    /// （L0 units 只读契约）与 `tower[0]` 必须仍同长。
+    ///
+    /// 回归的是这条真 bug：回缩检测的 `cache.clear()` 曾位于 `l0_units_cache` 构建**之后**，
+    /// 于是该 bar 上访问器返回空而 `tower[0]` 满载。消费方（`p123_fast_replay` 的 L2 活窗派生）
+    /// 拿空切片重扫，只在 `resume_from > 0` 时被越界守卫恰好接住；`resume_from == 0` 时会静默
+    /// 落 `no_window_formed`。
+    #[test]
+    fn l0_units_stays_in_sync_with_tower0_on_segment_ledger_shrink() {
+        let cfg = ThetaConfig::default();
+        let mut cache = TowerCache::new();
+        let (long_layer, short_layer) = segment_ledger_shrink_fixture();
+
+        let (_, tower_long) = classify_with_tower_incremental(&long_layer, &cfg, &mut cache);
+        assert_eq!(
+            cache.level_scan_units(1).map(|u| u.len()),
+            Some(tower_long[0].len()),
+            "非回缩 bar 本就同长"
+        );
+
+        let (_, tower_short) = classify_with_tower_incremental(&short_layer, &cfg, &mut cache);
+
+        assert!(!tower_short.is_empty(), "4 段仍足以产出 L0 塔快照");
+        assert_eq!(tower_short[0].len(), 4, "回缩后 tower[0] = 新段账本全量重建");
+        assert_eq!(
+            cache.level_scan_units(1).map(|u| u.len()),
+            Some(tower_short[0].len()),
+            "★F2 不变式：回缩 bar 上 level_scan_units(1) 不得为空/失步（#613 收 #609 F2）"
+        );
+        // 同长之外再钉同源：逐元素等于新段账本的 `segment_to_unit` 投影。
+        let expected: Vec<UnitRange> = short_layer.segments.iter().map(segment_to_unit).collect();
+        assert_eq!(
+            cache.level_scan_units(1),
+            Some(expected.as_slice()),
+            "同序同源，非仅同长"
+        );
+    }
+
+    /// [`l0_units_stays_in_sync_with_tower0_on_segment_ledger_shrink`] 的两 bar 夹具。
+    ///
+    /// - 第一 bar：6 段账本（confirmed 前缀 5，末段未确认——古怪线段可重划）；
+    /// - 第二 bar：段账本**回缩**到 4 段（末两段被重划吞并）⟹ 走 `cache.clear()` 分支。
+    fn segment_ledger_shrink_fixture() -> (ParseLayer, ParseLayer) {
+        let long_segments = vec![
+            seg(Direction::Up, 0, 4, 100, 150),
+            seg(Direction::Down, 4, 8, 150, 120),
+            seg(Direction::Up, 8, 12, 120, 148),
+            seg(Direction::Down, 12, 16, 148, 110),
+            seg(Direction::Up, 16, 20, 110, 145),
+            seg(Direction::Down, 20, 24, 145, 115),
+        ];
+        let closes: Vec<i64> = (0..28).map(|i| 100 + if i % 2 == 0 { 20 } else { -20 }).collect();
+        let long_layer = ParseLayer {
+            segments: Rc::new(long_segments.clone()),
+            segments_confirmed_len: 5,
+            merged_bars: Rc::new(bars_from_closes(&closes)),
+            ..Default::default()
+        };
+        let short_layer = ParseLayer {
+            segments: Rc::new(long_segments[..4].to_vec()),
+            segments_confirmed_len: 3,
+            merged_bars: Rc::new(bars_from_closes(&closes)),
+            ..Default::default()
+        };
+        (long_layer, short_layer)
     }
 
     /// parser BUG-04 回归：缓存守卫按真实覆盖契约校验——`compute_macd_hist_incremental`
