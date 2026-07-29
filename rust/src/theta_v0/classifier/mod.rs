@@ -4399,45 +4399,47 @@ mod tests {
         );
     }
 
+    /// [`chain_book_over_prefixes`] 的**唯一变量**：`TowerCache` 是否跨前缀复用。
+    ///
+    /// #676-3（尾部 LOW-4 / Fowler #2）：原先两个 18 行逐字重复的 helper
+    /// （`chain_book_over_prefixes` / `chain_book_over_prefixes_fresh_cache`）只差 cache 建在
+    /// 循环外还是循环内。合成一个函数 + 本枚举后，「两侧唯一差别就是 cache 复用与否」这件事
+    /// 由类型自证，不再靠读者逐行对比两份代码。
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum PrefixCacheReuse {
+        /// 全程共享一个 cache（**因果簿**驱动：事件流 append-only，曾出现的候选身份永存）。
+        SharedAcrossPrefixes,
+        /// 每个前缀新建 cache（**终态窗口投影**驱动：fresh 无记忆，只投影当步终态）。
+        FreshPerPrefix,
+    }
+
     /// #641（N3）逐段前缀推进的链簿夹具（与 #550 主缝②同一段序列口径，规模收小以夹住 O(n²)）。
     ///
     /// 每一步把该前缀喂给候选事件通道，再把**当步的事件流**喂给链簿推进一次——链簿因此走的是
     /// 真实的多 `as_of` 生命史（覆盖边重算、可扩展性翻转、证伪跨越、终态封口），不是单点快照。
+    ///
+    /// `reuse` 选事件流的驱动语义（见 [`PrefixCacheReuse`]）；除它之外两种驱动逐字同路：同一段
+    /// 前缀序列、同一 `ParseLayer` 构造、同一 `as_of`（`end`）、同一推进次数与顺序。
     fn chain_book_over_prefixes(
         segments: &[Segment],
         closes: &[i64],
         cfg: &ThetaConfig,
-        cache: &mut TowerCache,
+        reuse: PrefixCacheReuse,
     ) -> chain_cert::ChainCertificateBook {
         let mut book = chain_cert::ChainCertificateBook::default();
+        let mut cache = TowerCache::new();
         for n in 1..=segments.len() {
+            if reuse == PrefixCacheReuse::FreshPerPrefix {
+                // 唯一的差别就这一行：丢弃上一前缀的记忆（等价于原 `_fresh_cache` 版本在循环**内**
+                // 建 cache），其余一切逐字同路。
+                cache = TowerCache::new();
+            }
             let end = segments[n - 1].end_index.min(closes.len() - 1);
             let layer = ParseLayer {
                 segments: Rc::new(segments[..n].to_vec()),
                 merged_bars: Rc::new(bars_from_closes(&closes[..=end])),
                 ..Default::default()
             };
-            let streams = classify_with_tower_events_incremental(&layer, cfg, cache).2;
-            book.advance(&streams, end);
-        }
-        book
-    }
-
-    /// 与 `chain_book_over_prefixes` 同步推进同一个链簿，但每个前缀都用 fresh cache 全量重建事件流。
-    fn chain_book_over_prefixes_fresh_cache(
-        segments: &[Segment],
-        closes: &[i64],
-        cfg: &ThetaConfig,
-    ) -> chain_cert::ChainCertificateBook {
-        let mut book = chain_cert::ChainCertificateBook::default();
-        for n in 1..=segments.len() {
-            let end = segments[n - 1].end_index.min(closes.len() - 1);
-            let layer = ParseLayer {
-                segments: Rc::new(segments[..n].to_vec()),
-                merged_bars: Rc::new(bars_from_closes(&closes[..=end])),
-                ..Default::default()
-            };
-            let mut cache = TowerCache::new();
             let streams = classify_with_tower_events_incremental(&layer, cfg, &mut cache).2;
             book.advance(&streams, end);
         }
@@ -4571,10 +4573,14 @@ mod tests {
     fn causal_book_drive_is_a_superset_of_terminal_projection_drive() {
         let cfg = ThetaConfig::default();
         let (segments, closes) = chain_fixture(40);
-        let mut causal_cache = TowerCache::new();
-        let causal_book = chain_book_over_prefixes(&segments, &closes, &cfg, &mut causal_cache);
+        let causal_book = chain_book_over_prefixes(
+            &segments,
+            &closes,
+            &cfg,
+            PrefixCacheReuse::SharedAcrossPrefixes,
+        );
         let terminal_projection_book =
-            chain_book_over_prefixes_fresh_cache(&segments, &closes, &cfg);
+            chain_book_over_prefixes(&segments, &closes, &cfg, PrefixCacheReuse::FreshPerPrefix);
 
         let causal_heads = causal_book.heads();
         let terminal_projection_heads = terminal_projection_book.heads();
@@ -4629,8 +4635,12 @@ mod tests {
         chain_cert::chain_probe::reset();
         let cfg = ThetaConfig::default();
         let (segments, closes) = chain_fixture(120);
-        let mut cache = TowerCache::new();
-        let book = chain_book_over_prefixes(&segments, &closes, &cfg, &mut cache);
+        let book = chain_book_over_prefixes(
+            &segments,
+            &closes,
+            &cfg,
+            PrefixCacheReuse::SharedAcrossPrefixes,
+        );
 
         let heads = book.heads();
         assert!(!heads.is_empty(), "非真空锁：链身份非空");
