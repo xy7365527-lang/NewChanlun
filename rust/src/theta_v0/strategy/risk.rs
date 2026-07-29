@@ -699,6 +699,11 @@ impl MarginScheduleBook {
 /// datum**（venue+symbol 维度、结算周期对齐、版本化快照；费率标定是 L2 缺口，datum 到位即插，
 /// 签名不变）。
 ///
+/// ★venue 适用性（#303 裁定 2026-07-26）：资金费是**永续**venue 的科目；本仓 BTC 数据窗 =
+/// **Binance 现货**（无 funding），故本簿在当前生产路径**不注入**（`m6_cost_model()` 走无向
+/// 保底通道，现货语义 = 资金占用机会成本，见 [`CostModel`] 节头）。本类型是真永续接入的
+/// 预冻结承接位——真 funding 数据接入是另票（#62 数据源 + datum 版本管理），本票不做。
+///
 /// - `as_of` 零前视：`bar_ts` 落在哪段 `[from,to)`（from 含/to 不含）；无覆盖段 ⟹ `None`
 ///   （有效域外，不借用未来快照，不外推跨段）。
 /// - fail-loud 构造：空 / `from>=to` / 重叠或乱序 / 非有限费率 ⟹ `Err`（禁静默退化）。
@@ -753,6 +758,34 @@ impl FundingScheduleBook {
 /// （v3：历史数据只验证代码正确性）。datum 注入后升 `[L2费率标定: datum 版本哈希]`（不得跳级）。
 pub const RATE_UNCALIBRATED_LABEL: &str = "[L1机制/费率未标定]";
 
+/// **口径标签构造子**（A10 附则B / #360）：按 `ExecConfig` 的 venue 费率标定状态给出报告标签。
+///
+/// - `fee_schedule = None` ⟹ [`RATE_UNCALIBRATED_LABEL`]（三常数保底，禁作 alpha 论据）；
+/// - `Some(datum)` ⟹ `[L2费率标定: datum <sha256 前 12 位>]`——**不得跳级**：哈希取自 datum
+///   文件内容（`venue_fee::load_datum` 已与 sidecar `<file>.sha256` 核对通过），故标签里的
+///   12 位前缀可反查到那份费率表快照。
+///
+/// **有效域（231号）**：L2 只覆盖**佣金/监管/清算**科目。`slippage_bps` 仍未标定，持有成本三项
+/// （funding/borrow/liq）的标定另有其票——带这两类成本的 R 报告须自行判断标签，不因成交费率
+/// 升级而整体升级。
+pub fn rate_calibration_label(exec: &super::super::config::ExecConfig) -> String {
+    match &exec.fee_schedule {
+        None => RATE_UNCALIBRATED_LABEL.to_string(),
+        Some(s) => {
+            // 经 `venue_fee::load_datum` 的 schedule 必是 64 位小写 hex（构造期已校验）；
+            // 字段 pub ⟹ 可徒手构造，故此处**不做字节切片**（短串/非 ASCII 会 panic 在报告
+            // 生成路径上）——按字符取前 12，debug 下 fail-loud 揪出非法 datum 哈希。
+            debug_assert!(
+                s.datum_sha256.len() == 64 && s.datum_sha256.chars().all(|c| c.is_ascii_hexdigit()),
+                "datum_sha256 须为 64 位 hex（实得 {:?}）",
+                s.datum_sha256
+            );
+            let prefix: String = s.datum_sha256.chars().take(12).collect();
+            format!("[L2费率标定: datum {prefix}]")
+        }
+    }
+}
+
 /// 去杠杆/只平仓缓冲 B1/B2（Θ_risk 协变参数，§2.3；**非**交易所数据）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RiskCushions {
@@ -804,27 +837,73 @@ pub fn margin_inputs(
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-//  M6 持仓期/强平成本模型：Funding（资金费）+ Borrow（杠杆借贷）+ LiquidationLoss（强平罚金）
+//  M6 持仓期/强平成本模型：周期性持有成本（科目名 Funding）+ Borrow（杠杆借贷）
+//  + LiquidationLoss（强平罚金）
 //  （TARGET_STRATEGY_MAXFULL.md M6 / 路线.pdf p16 第十一关：
 //   R = Σ N_t ΔP_t − Commission − Slippage − Funding − Borrow − LiquidationLoss）
 //
+//  ★venue 口径（#303 编排者裁定 2026-07-26，切 **spot**）：本仓价格数据 = **Binance 现货**
+//  （`btc_1m_full.json` ← data.binance.vision/data/**spot**/monthly/klines，
+//  `scripts/download_btc_binance.py:38-40`）。现货**无资金费（funding）**——三通道在现货口径下
+//  分别是：周期通道 = **资金占用机会成本**（按 |净名义| 每周期一次），Borrow = **现货杠杆借贷
+//  利息**（按借入名义 max(0,|N|−E) 逐 bar），LiquidationLoss = **现货杠杆强平罚金**。
+//  永续资金费（正负互付、8h 结算）机制在此**保留但不适用于本数据窗**：`FundingScheduleBook`
+//  + `funding_accrual_signed` 是 perp datum 的预冻结承接位（A10 C2），真 funding 数据接入是
+//  **另票**（#62 数据源 + datum 版本管理），本票不做。
+//  命名落差照实登记（090，不掩盖）：字段/科目仍叫 `funding_*` / `Funding`，是 A10 C2/F2 冻结的
+//  历史命名（签名逐字不动），**不代表本数据窗收取资金费**；其现货语义以本节与各字段 doc 为准。
+//
+//  ★两通道基数重叠 ⟹ 持有成本是**上界**（照实登记，#303 影子评审 C1）：周期通道按 |N| **全额**
+//  计，borrow 按借入名义 max(0,|N|−E) 计——借入的那部分被两个通道同时计入（机会成本 + 借币利息）。
+//  永续语义下二者是互不重叠的科目（资金费按全名义、借贷按借入额），改判现货语义后重叠显形。
+//  当前**不改计算**（票 #303 裁定「按现参数」，且重叠方向是**高估成本**＝保守，不美化回测结果）；
+//  严格分解（自有 min(|N|,E) → 机会成本、借入 max(0,|N|−E) → 借币利息）是**费率标定（L2）时**
+//  与 datum 一并落的待办，不在本票。故三项之和读作持有成本上界，非精确分科。
+//
+//  ★交易成本一侧的同类落差照实登记（#326 评审 MED-1 浮出，#340 补登，**登记不改**）：spot 裁定
+//  同样适用于 `ExecConfig`（`theta_v0::config::ExecConfig`）的 commission 1bp + slippage
+//  2bp = **3bp/side**，而 #285 报告 §2.1 记的一手数字是 Binance 现货 VIP0 taker **10bp/side**——
+//  差 ≈3.3 倍（`tax_bps` 默认 0，不参与该和），且方向与持有成本相反（交易成本一侧是**低估**，
+//  不保守）。此处**不改值**：这两个参数均未按 venue 标定
+//  （`commission_bps` doc 标 `[设计选择;L3经验待标定]`，`slippage_bps` 标 L3），标定连同 venue
+//  档位、maker/taker 分档一并归 **venue 费率实装票（#285 后继标定票）**；本票只登记落差、不动
+//  数值（改值 ⟹ 改全部在册数值结论，须独立裁定）。
+//  ★#360 实装后的现状（登记更新，**结论不变**）：标定出口已建成——
+//  [`ExecConfig::fee_schedule`](super::super::config::ExecConfig::fee_schedule) `Some(datum)` ⟹
+//  BTC 走 Binance **现货** VIP0 档（10/10 bp/side，BNB 抵扣档 7.5；与本节 spot 裁定同口径，
+//  perp 费率表未核不入簿），成交费率科目标签升 `[L2费率标定: datum <hash>]`
+//  （[`rate_calibration_label`]）。**default 仍是 `None`**（三常数 3bp/side）⟹ 上述落差与全部
+//  在册数值结论**逐位不变**；把 default 切成标定档是**另一次裁定**（改值 ⟹ 改全部在册结论），
+//  #360 不做。持有成本三项（funding/borrow/liq）不在 #360 覆盖面，仍 [`RATE_UNCALIBRATED_LABEL`]。**同性质**（非同处理）的 Python maker 落差见
+//  `analysis/btc_2week_1s_backtest.py` 模块 docstring：那侧除登记外还做了**有效域悬置**（其数值
+//  结论不作任何等级依据），本侧只登记不改——rust 这三通道 + fee_rate 的数值结论仍照常在册。
+//
+//  ★牵连面（#326 评审 LOW-1 浮出，#340 补登）：spot 裁定使 `backtest::dual_ledger` 模块头 §诚实
+//  有效域第一条的**触发前提成立**——`q_short` 是真空头（期货/永续域），现货标的须部署层 gate=0。
+//  #303 判该文件「本已 venue 分叉正确」无误（代码无需改），但该下游推论此前未进牵连面清单；
+//  gate 的部署层落实归 #62 / 部署层清单，非本票。
+//
 //  存在论：Commission/Slippage 已由 ExecConfig fee_rate 进 apply_fill；本模型补上验收公式剩余
 //  三项。**有效域声明（231号 / formalization-validity-domain）**：v0 用**参数化常费率**——真实
-//  永续资金费历史 / 借贷利率曲线是**外部数据源缺口**（L2），A10 waiver 豁免的正是这类外部数据源，
-//  **不豁免机制实装**。机制在此真实装（逐 bar 计提、进 PnL、进 R 分解、守恒断言），费率标定待
-//  外部数据（结果包声明）。认识论 L1（机制正确性，非 L2 盈利）。
+//  现货借贷利率曲线 / 机会成本基准（以及将来真永续的资金费历史）是**外部数据源缺口**（L2），
+//  A10 waiver 豁免的正是这类外部数据源，**不豁免机制实装**。机制在此真实装（逐 bar 计提、进
+//  PnL、进 R 分解、守恒断言），费率标定待外部数据（结果包声明）。认识论 L1（机制正确性，非 L2
+//  盈利）。
 // ──────────────────────────────────────────────────────────────────────────
 
 /// M6 成本模型（`ThetaConfig.cost_model`）。`None` ⟹ 三项成本恒 0（bit-exact 现状，M6 前口径）。
 ///
-/// 字段语义：
-/// - `funding_rate_per_period`：每 funding 周期资金费率（作用于 |净名义|，永续 8h 常费率参数化）。
-///   v0 取 |N| 绝对持有成本（**不分多空方向**）——真实 funding long/short 互付有方向性，常费率下
-///   方向由外部数据定，取绝对值 = 保守持有成本近似（诚实缺口，见节头 231号声明）。
-/// - `funding_period_bars`：funding 周期的 bar 数（8h ÷ bar 间隔，调用方按数据周期算；≥1）。
+/// 字段语义（venue 口径 = **spot**，#303 裁定；命名落差见节头）：
+/// - `funding_rate_per_period`：**周期性持有成本率**，作用于 |净名义|，每 `funding_period_bars`
+///   收一次。现货口径 ⟹ **资金占用机会成本**（现货无资金费）；永续口径 ⟹ 资金费率（本数据窗
+///   不适用）。v0 取 |N| 绝对持有成本（**不分多空方向**）——机会成本对多空同向发生，取绝对值即
+///   其严格形态；永续资金费 long/short 互付的方向性由 [`CostModel::funding_accrual_signed`] + datum 承载
+///   （另票），常费率保底不表达方向（诚实缺口，见节头 231号声明）。
+/// - `funding_period_bars`：周期通道的结算 bar 数（≥1；调用方按数据 bar 间隔换算结算周期）。
 /// - `borrow_rate_per_bar`：每 bar 借贷成本率（作用于**借入名义** = max(0, |N|−E)——杠杆超出自有
-///   权益的部分是借入的）。
-/// - `liq_penalty_rate`：强平罚金率（作用于强平时刻 |净名义|——交易所强平清算费/滑点罚金）。
+///   权益的部分是借入的；现货口径 = 现货杠杆借币利息）。
+/// - `liq_penalty_rate`：强平罚金率（作用于强平时刻 |净名义|——交易所强平清算费/滑点罚金；现货
+///   口径 = 现货杠杆强平）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CostModel {
     pub funding_rate_per_period: f64,
@@ -862,9 +941,9 @@ impl CostModel {
         })
     }
 
-    /// 单 bar 资金费计提（美元，≥0）。仅在 funding 周期边界 bar 收取（`bar_index>0 ∧
-    /// bar_index % funding_period_bars == 0`）——每周期一次，非逐 bar；`|net_notional_usd|` × 费率。
-    /// 空仓（N=0）⟹ 0。
+    /// 单 bar 周期性持有成本计提（美元，≥0；现货口径 = 资金占用机会成本，#303）。仅在周期边界
+    /// bar 收取（`bar_index>0 ∧ bar_index % funding_period_bars == 0`）——每周期一次，非逐 bar；
+    /// `|net_notional_usd|` × 费率。空仓（N=0）⟹ 0。
     pub fn funding_accrual(&self, bar_index: usize, net_notional_usd: f64) -> f64 {
         let period = self.funding_period_bars as usize;
         if bar_index == 0 || bar_index % period != 0 {
@@ -874,7 +953,10 @@ impl CostModel {
     }
 
     /// **有向 funding 计提**（A10 C2 裁定 additive 接口预冻结；美元，**带符号**：正=付费成本，
-    /// 负=收费收入）。周期边界口径与 [`funding_accrual`](Self::funding_accrual) 逐字一致
+    /// 负=收费收入）。★venue 适用性（#303）：有向互付是**永续**资金费的形态——本仓 BTC 数据窗是
+    /// **现货**（无 funding），故本方法在当前生产路径**不被调用**（`FundingScheduleBook` 亦不注入）；
+    /// 它是真永续接入（另票：#62 datum + datum 版本管理）的预冻结承接位，签名/语义在此保持不动。
+    /// 周期边界口径与 [`funding_accrual`](Self::funding_accrual) 逐字一致
     /// （`bar_index>0 ∧ bar_index % funding_period_bars == 0`），只换费率来源与方向语义：
     ///
     /// - `signed_rate`：带符号费率 datum（由 [`FundingScheduleBook::as_of`] 零前视取得——
@@ -913,7 +995,9 @@ impl CostModel {
 ///
 /// - `price_pnl_gross` = `Σ_t N_t·ΔP_t`：mark-to-market 逐 bar 价格贡献（含浮盈），**不含**任何费用。
 /// - `commission_slippage`：ExecConfig fee_rate（commission+slippage+tax）扣的成交费（含税项）。
-/// - `funding`/`borrow`/`liquidation_loss`：本模型三项（None ⟹ 全 0）。
+/// - `funding`/`borrow`/`liquidation_loss`：本模型三项（None ⟹ 全 0）。★口径（#303，spot）：
+///   `funding` 行记的是**周期性持有成本**——现货口径 = 资金占用机会成本（本仓 BTC 数据窗），
+///   非永续资金费；科目名沿用 p16 验收公式的 `Funding`（命名落差见 [`CostModel`] 节头）。
 /// - `net_r` = `price_pnl_gross − commission_slippage − funding − borrow − liquidation_loss`。
 /// - `ledger_delta`：账本**独立**测得的净变动 = `final_equity_abs − nav0`（含浮盈强平）。
 /// - `conservation_residual` = `net_r − ledger_delta`：守恒残差，应 ≈0（浮点容差）。非零 = 资金泄漏 bug。
@@ -1632,6 +1716,34 @@ mod tests {
     #[test]
     fn a10_rate_uncalibrated_label_frozen() {
         assert_eq!(RATE_UNCALIBRATED_LABEL, "[L1机制/费率未标定]", "标签逐字值冻结（090 措辞纪律）");
+    }
+
+    /// ★#360 升级契约（risk.rs:709「datum 注入后升 `[L2费率标定: datum 版本哈希]`，不得跳级」）：
+    /// 标签由 `ExecConfig::fee_schedule` **单一决定**——None ⟹ 逐字 L1；Some ⟹ L2 带 datum
+    /// 哈希前 12 位（可反查那份费率表快照）。**跳级不可能**：没有第三条分支。
+    #[test]
+    fn rate_calibration_label_follows_fee_schedule() {
+        use super::super::super::config::ExecConfig;
+        use super::super::super::venue_fee::{FeeUnit, VenueFeeSchedule};
+
+        let plain = ExecConfig::default();
+        assert_eq!(rate_calibration_label(&plain), RATE_UNCALIBRATED_LABEL, "默认档不得自升 L2");
+
+        let sha = "a".repeat(52) + "0123456789ab";
+        let mut cal = ExecConfig::default();
+        cal.fee_schedule = Some(VenueFeeSchedule {
+            venue: "V".into(),
+            symbol: "S".into(),
+            tier: "T".into(),
+            unit: FeeUnit::Notional { maker_bps: 10.0, taker_bps: 10.0 },
+            datum_sha256: sha.clone(),
+        });
+        assert_eq!(
+            rate_calibration_label(&cal),
+            format!("[L2费率标定: datum {}]", &sha[..12]),
+            "标定档标签逐字形状冻结（前 12 位哈希前缀）"
+        );
+        assert_ne!(rate_calibration_label(&cal), RATE_UNCALIBRATED_LABEL);
     }
 
     // ──────────────────────────────────────────────────────────────────────

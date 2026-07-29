@@ -75,11 +75,12 @@ pub struct TypedTrade {
     /// ★B1（步骤4，dw-sizing-diag-20260705，codex review conditional 修复）：**入场时刻 sizing
     /// target 快照**——开腿当步 `SepLeg.q_units`（=`base_units×w_depth×w_dir`，含 dir_weight；post
     /// gross-cap；coverage.rs:2321 从 `LegTarget.units` 透传）。**非逐 bar fill 后实际腿级持仓**——是
-    /// 入场决策点的目标单位，不是执行期 fill 累计。**不进 μ estimand**（μ 保持单位边际 qty=1.0，696 域，
-    /// `build_mu_from_bars` 不读本字段）。
+    /// 入场决策点的目标单位，不是执行期 fill 累计。**不进 μ estimand**（#65 量纲③：
+    /// `build_mu_from_bars` 以 qty=1 构造费扣分子后逐笔 ÷entry_px），避免 sizing 污染结构相对收益。
     ///
-    /// **诊断边界（codex review）**：本字段供"入场 sizing target 逐笔分布"诊断——对比 μ 单位边际
-    /// qty=1.0，看 dir_weight 改变了哪些腿的入场规模。**账户级 execution R 分解由 `r_decomp` 负责**
+    /// **诊断边界（codex review）**：本字段供"入场 sizing target 逐笔分布"诊断——对比 μ 的
+    /// #65 持仓期相对收益，看 dir_weight 改变了哪些腿的入场规模。**账户级 execution R 分解由
+    /// `r_decomp` 负责**
     /// （runner.rs:1489 `RDecomposition::assemble`，`cum_price_pnl=Σ units·Δpx` 真实账户 sizing 加权），
     /// 本字段**不用于逐笔 execution P&L**——真要逐笔 execution P&L 需 per-bar exposure / fill ledger，
     /// 非本字段（本字段仅入场 target 快照）。
@@ -115,7 +116,8 @@ pub struct VoiceVerdictRec {
 ///
 /// **B30 prereg 前置清单联动声明（不静默，team-lead 令）**：μ **样本** schema
 /// （[`MuObservation`](super::mu_estimator::MuObservation) = `{class, x_gamma}`）**未变**——
-/// A7（`exit_z`）/B1（`units`）只在账本层增列，μ 消费侧仍按 `entry_z` 单位边际（qty=1.0，696 域）。
+/// A7（`exit_z`）/B1（`units`）只在账本层增列，μ 消费侧仍按 `entry_z` 的 #65 量纲③
+/// 持仓期相对收益（qty=1 分子后 ÷entry_px；696 域）。
 /// 任何后续把 `exit_z`/`units` 接入 μ 分桶键或 sizing 加权的工位（codex 裁决后）须新开 prereg
 /// 冻结口径，不得静默改 estimand（formalization-validity-domain / B30 前置清单 / 696）。
 pub const TYPED_TRADE_SCHEMA_VERSION: u32 = 4;

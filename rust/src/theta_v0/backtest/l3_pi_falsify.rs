@@ -4,6 +4,11 @@
 //! 但驱动 `run_theta_v0_pi`（非 v1 `run_theta_v0`/recognize）。**独立**否证（新七链 ≠ 已被否证
 //! 的买卖点 v1，memory `newchanlun-v1-fullwindow-l3-falsified`）。
 //!
+//! **档处置（验收统计推断核·档2-修砍单，`chanlun/escalate/chi-line-falsification-ruling-20260728.md`
+//! §1②，2026-07-28）**：显著性否证 harness 作为新协议仪器已砍。诊断件保留（禁删）；本模块历史产出
+//! 的 INCONCLUSIVE 否证结论照旧有效——砍的是仪器，不是历史裁决。登记详见
+//! `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
 //! ## 阶段1探针结论 → 本阶段用可行子集（非全窗）
 //!
 //! pi substrate = per-bar 前缀重分类 = **O(n²)**（探针实测 exp≈2.0–2.66；CL OOS 870K bar 全窗
@@ -146,6 +151,12 @@ fn l3_pi_falsify_multi_symbol_significance() {
         let _ = base_sharpe;
 
         // ①收益口径 significance（block bootstrap + 操作语义随机对照）。
+        // ★#423 第二阶段复核（照实登记，不擅自扩面）：`fee_rate` 自 ★#423 起按档位三分叉
+        //   （未标定档 / 按金额对称档 ⟹ `Some(常数)`；按股档 / 按金额非对称档 ⟹ `None`）。本跑批的
+        //   `config = ThetaConfig::default()`（本文件 :64），且**无 datum 注入通道**（无 env 钩子、
+        //   无参数）⟹ 本路径恒在未标定档，下面的 `expect` 在现有调用面上不可达。
+        //   故本处**无读数可解禁、口径无须重标**：本路径从来就在标量良定义档内、拿的是常率。
+        //   `expect` 保留不动——它是"未来若接 datum 注入则 fail-loud"的防线，不是当前的活分支。
         let sig = metrics::significance(
             pnls,
             &res.daily_returns,

@@ -48,6 +48,18 @@ fn main() -> std::process::ExitCode {
         None
     };
 
+    // ── #344 LOW-3：非 BTC 品种在 ⑤ 段（in-crate 回测）起跑前 fail-fast。 ──
+    // 复用 ⑥ 段同一门控（`require_btc_symbol`，#343），单一事实源——避免非 BTC 品种
+    // 白跑一遍全量 in-crate 回测才在 ⑥ 段真实 Nautilus 引擎处才发现不支持。⑥ 段入口
+    // （`run_theta_backtest` 内部）的门控调用保留，两处调用同一函数不构成重复门控。
+    //
+    // 冒烟验证：`cargo run --release --features backtest_bin --bin theta_backtest -- ES`
+    // 应立即 fail-fast 打印门控错误并退出，不打印任何 "=== S_Θ 回测结果 ===" 输出。
+    if let Err(e) = newchan_rust::theta_v0::nautilus::backtest_engine::require_btc_symbol(symbol) {
+        eprintln!("{e}");
+        return std::process::ExitCode::FAILURE;
+    }
+
     let config = ThetaConfig::default();
 
     // ── 数据加载（data → S_Θ 边界）。未知品种/读取失败 fail-loud。 ──

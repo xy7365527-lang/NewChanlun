@@ -172,12 +172,12 @@ class TestThreeSegNoOverlap:
 
 
 # =====================================================================
-# 3) ZG == ZD 精确相切 → 不产生中枢
+# 3) ZG <= ZD 边界（zg<zd 分离 / zg==zd 退化相切）→ 不产生中枢
 # =====================================================================
 
-class TestBoundaryZgEqZd:
-    def test_zg_eq_zd_no_zhongshu(self):
-        """ZG == ZD → 不满足严格不等，不产生中枢。"""
+class TestBoundaryZgLeZd:
+    def test_zg_lt_zd_no_zhongshu(self):
+        """zg < zd（三段区间分离）→ 不满足成立条件 ZG > ZD，不产生中枢。"""
         segs = [
             _seg(0, "up",   15, 10),   # [10, 15]
             _seg(1, "down", 20, 15),   # [15, 20]
@@ -188,8 +188,8 @@ class TestBoundaryZgEqZd:
         result = zhongshu_from_segments(segs)
         assert len(result) == 0
 
-    def test_exact_touch(self):
-        """精确相切 ZG == ZD 的另一个构造。"""
+    def test_zg_eq_zd_no_zhongshu(self):
+        """精确相切 ZG == ZD（单点退化）→ 不满足成立条件 ZG > ZD，不产生中枢。"""
         segs = [
             _seg(0, "up",   20, 10),   # [10, 20]
             _seg(1, "down", 25, 15),   # [15, 25]

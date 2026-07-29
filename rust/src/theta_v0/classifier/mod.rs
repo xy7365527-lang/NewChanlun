@@ -94,13 +94,28 @@ pub mod voice_eat;
 pub mod cand_predicate;
 /// C2 走势消费 seam：显式 exact-three 投影、D3 方向绑定与 D2 A/C provider。
 pub mod level_view;
-/// D7 firstRetrace 只读复核：严格 CompletedMove pair 映射与对象重启事件语义。
-/// 不接生产订单路径；只消费 C2 view，默认关闭的 seam 不受影响。
-pub mod first_retrace_replay;
 /// C2 CompletedFreeze 的正式 append-only event-store adapter。
 pub mod level_view_store;
 /// 区间套必要条件——递归塔原生检查器（条款 9，任务 #106；只读，不回写判据 bit）。
 pub mod interval_necessity;
+
+// ── #614 并线：kimi 线（`kimi-nest-mainline-20260717`）独有的三个新模块 ─────────────
+// 说明：kimi 线把本文件的主体拆成 `pipeline`/`cand_delta`/`tower_cache`/`incremental`/
+// `sublevel` 等私有子模块；本合并树取 main 线的内联主体（见 #614 合并报告），故那些拆分
+// 模块**不**在此声明（同一份代码，声明即重复定义）。下列三个是 kimi 线**新增能力**，
+// 无 main 侧对应物，且已有消费方在合并树中：
+//   - `ledger_kernel` ← `nest_lifecycle.rs:101` 消费
+//   - `streaming`     ← `nautilus/strategy.rs:36` 消费（#345 增量分类路径）
+//   - `retrace_ledger`← #624 裁定 A 之下 `first_retrace_replay` 的迁入去处（旧模块已随 kimi
+//                        线 `8b8905def2` 删除，其 D7 只读复核原语迁至本模块）
+/// 账本内核（票 #573 T1）：per-key 注册/首建/append-only 修订/倒退拒绝/终态吸收/钟首写/
+/// 增量返回/身份迁移/只读枚举/不变量骨架的对象无关泛型承载体（四组类型参数）。
+pub mod ledger_kernel;
+/// 买卖点身份账本 S1（票 #621，#465 裁定 A 之 T3 首环）：观察适配器 → 三态状态机 →
+/// append-only 修订日志（JSONL 外化 + 重放折叠恢复）→ 成立档门户；全部经 [`ledger_kernel`] 表达。
+pub mod retrace_ledger;
+/// #345：自持缓冲区增量分类器变体（Nautilus 流式适配，无条件编译——见模块头）。
+pub mod streaming;
 
 /// P52 全量增量重放专用的 frontier 只读计数器。
 ///

@@ -70,15 +70,61 @@ fn main() -> std::process::ExitCode {
         None => println!("日期窗          : 全量"),
     }
     println!("bar 数          : {}", r.n_bars);
-    println!("--- 净额执行层（net_result，与 run_theta_v0_pi bit-exact）---");
-    println!("净额订单数      : {}", r.net_result.n_orders);
+    // #313（#305 评审 LOW-2）：`net_result` 的口径随 env `VOICE_EXEC` 分叉——backtest/runner.rs 的
+    // `net_result`/`voice_exec` 字段注释明载：VOICE_EXEC=1 时本结构承载**声部执行投影**
+    // （n_orders = 声部 fill 事件数 ≡ `voice_exec.n_voice_fills`，equity/trade_pnls/r_decomp =
+    // 声部账户），决策层（typed_ledger/TW/sep_legs）仍与净额臂逐字节一致；VOICE_EXEC=0（默认）
+    // 时本段读数逐字节即净额执行层，与 run_theta_v0_pi bit-exact（该路径语义声明不变）。
+    // 标签照实分列，两读数禁互相冒充（090 声明=能力）。
+    println!(
+        "--- 执行层读数（net_result：VOICE_EXEC=0 默认=净额执行层，与 run_theta_v0_pi bit-exact；=1 时为声部执行投影）---"
+    );
+    println!("净额/声部订单数 : {}", r.net_result.n_orders);
     println!("成交交易笔数    : {}", r.net_result.metrics.n_trades);
     println!("strat_return    : {:.6}", r.net_result.metrics.strat_return);
     println!("--- ★M5 overlay 逐声部账本（多空对冲.pdf p16 关卡10）---");
     println!("活动声部数      : {}", r.overlay.active_voices().count());
     println!("已离场声部数    : {}", r.overlay.closed_voices().len());
-    println!("overlay 声部总数: {}", r.n_overlay_voices);
+    println!("overlay 声部总数: {}", r.n_overlay_voices); // (#295 修字段名；#305 评审 LOW-1 口径注：本值≡活动+已离场声部数，恰与上两行之和相等；gap4/FIX §4.3 双字段方案（n_overlay_fill_events+补行）未采用——数值影响为零，选择单字段直观口径，登记在案）
     println!("终态净敞口 N    : {}", r.overlay.net());
+    // ★LEE M1/M2 结果包（multi-level-native-execution-design-20260719 §D）：#289 影子评审 MED ①
+    //   要求恒等证据在 **release** 下非平凡可读——两组读数都在 fill loop 内逐决策点累计
+    //   （非 debug_assert，release 同样执行），「残差恒 0」必须配「量级 > 0」才算见证成立。
+    let lee = r.level_ledger.lee_net_witness();
+    let lee_m2 = r.level_order;
+    println!("--- ★LEE M1 级别账本（Σ_ℓ net_ℓ ≡ N 加性细化；§D M1）---");
+    println!("活动级别桶      : {:?}", r.level_ledger.levels().collect::<Vec<_>>());
+    println!(
+        "LEE-Net 见证    : obs={} max|Σ_ℓ net_ℓ−N|={} max|N|={} ⟹ {}",
+        lee.n_observations,
+        lee.max_abs_residual,
+        lee.max_abs_net,
+        if lee.identity_witnessed() { "PASS（残差 0 且非平凡）" } else { "FAIL/平凡（残差≠0 或 max|N|=0）" }
+    );
+    println!("--- ★LEE M2 订单归因（物理订单量 = Σ_ℓ Δq_ℓ；§D M2）---");
+    println!(
+        "决策点/生成订单 : {} / {}（max|Σ_ℓ Δq_ℓ|={} max|p_t|={}）",
+        lee_m2.n_decisions, lee_m2.n_orders_generated, lee_m2.max_abs_order_units, lee_m2.max_abs_net_units
+    );
+    println!(
+        "L0 构造护栏     : max||Σ_ℓ Δq_ℓ|−qty|={}（同义反复，非实证证据）",
+        lee_m2.max_abs_order_residual
+    );
+    println!(
+        "L1 归因完备     : max|Σ_ℓ held_ℓ−p_t|={} ⟹ {}（跨延迟/部分/拒单，可证伪）",
+        lee_m2.max_abs_held_residual,
+        if lee_m2.identity_witnessed() { "PASS（残差 0 且非平凡）" } else { "FAIL/平凡" }
+    );
+    println!(
+        "L2 结构分歧     : max|Σ_ℓ net_ℓ−T|={} 比例缩放 {} 次 / 账户层残差桶 {} 次",
+        lee_m2.max_abs_struct_gap, lee_m2.n_rescaled, lee_m2.n_residual_bucket
+    );
+    println!(
+        "                （L2 为**纯观测无断言**：分歧≠0 = 级别结构说的仓位 ≠ 账户层能下的仓位，"
+    );
+    println!(
+        "                 M2 按结构比例吸收并登记，M3/M4 须正面裁决——不冒充已解决）"
+    );
     println!("--- ★M7 treasury 层（三阶段 TW 账本终态，overlay 臂主 loop 内建）---");
     match &r.tw_final {
         Some(tw) => println!(
@@ -103,7 +149,7 @@ fn main() -> std::process::ExitCode {
         let key = match c.role_v {
             Vertical::Ambient => "Ambient(根声部)",
             Vertical::FollowParent => "FollowParent(顺父)",
-            Vertical::ReverseOpen => "ReverseOpen(首开反向/反父对冲)",
+            Vertical::ReverseOpen => "ShortDiff(反向子/对冲)",
         };
         let e = by_role.entry(key).or_insert((0, 0.0));
         e.0 += 1;

@@ -11,7 +11,31 @@
 复刻 theta_v0 的 divide_segments 算法（segment.rs:282-329 + analyze_termination:215-259），
 用同一笔序列，看能否复现 406。能复现 → 逐变量切回参考，看哪个变量使段数收敛到 237。
 
-参考语义 = a_segment_v1.segments_from_strokes_v1（编排者裁定唯一口径）。
+参考语义 = a_segment_v1.segments_from_strokes_v1，**2026-06-26 当时的口径**（本文件成文时
+的编排者裁定口径）。
+
+## ⚠退役登记（#317 MED-1；#302 影子评审，chanlun/review-results/shadow-review-288-20260726.md）
+
+**本 harness 已退役：不得作为任何口径的参考基线引用，下方数字是历史记录。**
+
+#246 裁定（#277 裁路①、#288 落码 2026-07-26）把相切边界改为「相切=重合」：
+`three_stroke_overlap` 含端点 `<=`、缺口谓词严格 `>`。本文件**未随之切换**——它承载的是已完结
+的 #84 归因证据（无消费者、无票承接，2026-07-26 查 tracker 零命中），切口径会使下方实测数字彻底不可复现（其实参考侧 live import 已使其部分不可复现，见下——
+  退役理由随此失效论证订正，#318 评审 MED-1 残余）。**这不叫「冻结」**：脚本只有复刻侧停在旧口径，参考侧是 live import，会跟着生产走
+（090——不声明本文件不具备的确定性）。
+
+现状逐条登记（说清而不冒充一致）：
+- `three_stroke_overlap`（:170）仍是旧口径 `max_lo < min_hi`——它复刻的是 **theta_v0 侧**
+  `divide_segments` 的起点搜索（用于 `divide_segments_theta`，非参考侧），而 theta_v0 生产侧
+  已切 `<=`（`rust/src/theta_v0/parser/segment.rs`，锁见 #248/#312）⟹ 该复刻相对其标的已过时；
+- `iv_gap`（:164）是 `<=` 含端点——复刻 theta_v0 `Interval::overlaps`，该侧自始含等号。
+  故文件内两谓词口径不同**自成文即如此**（复刻两个不同来源），非 #288 引入的回归；
+- 参考侧不是复刻而是 **live import**（:288 `from newchan.a_segment_v1 import ...`）⟹ 自 #288
+  起参考侧已跟随新口径，下方「237 / 221 / 237」是**旧口径下的历史记录**，重跑必然漂移。
+
+⟹ 本脚本当前跑出来的是「旧口径复刻侧 vs 新口径参考侧」的混合数，两侧都不代表当前生产。
+复用前提：先把复刻侧两谓词按 #246 切齐、重跑取新数，不可直接引用下方数字。裁定书：
+chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md
 
 ## 实测结论（认识论诚实，formalization-validity-domain）
 
@@ -144,6 +168,12 @@ def iv_gap(e1: tuple[int, int], e2: tuple[int, int]) -> bool:
 
 
 def three_stroke_overlap(a: Stk, b: Stk, c: Stk) -> bool:
+    """theta_v0 起点搜索的复刻，**停在旧口径**（严格 `<`，相切不算重合）。
+
+    ⚠#317 MED-1：其复刻标的（theta_v0 `parser/segment.rs::three_stroke_overlap`）已按 #246
+    切为含端点 `<=`。本文件按退役登记（见模块 docstring）保留旧口径以维持 #84 归因数字，
+    **不是**当前生产口径，复用须先切齐。
+    """
     max_lo = max(a.lo, b.lo, c.lo)
     min_hi = min(a.hi, b.hi, c.hi)
     return max_lo < min_hi
@@ -236,6 +266,12 @@ def divide_segments_theta(strokes: list[Stk], incl_mode: str) -> list[tuple[int,
 
 
 def main() -> int:
+    # #317 MED-1：退役登记须在运行时也可见，否则声明只活在 docstring 里（090）。
+    print(
+        "⚠ 本 harness 已退役（#317 MED-1）：复刻侧停在 2026-06-26 旧口径、参考侧是 live import，\n"
+        "  故以下是「旧口径复刻 vs 新口径参考」的混合数，两侧都不代表当前生产口径。\n"
+        "  复用须先按 #246 切齐复刻侧两谓词并重跑。详见模块 docstring 的退役登记。"
+    )
     strokes, rust_seg_count = load_strokes()
     print(f"笔数={len(strokes)}  导出的 Rust 段数(参考)={rust_seg_count}")
 

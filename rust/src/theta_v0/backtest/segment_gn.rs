@@ -1,5 +1,9 @@
 //! S2 段口径复核 + λ_gap 校准（task #10，R3 §4 遗留）。
 //!
+//! **档处置（验收统计推断核·档2-修砍单，`chanlun/escalate/chi-line-falsification-ruling-20260728.md`
+//! §1②，2026-07-28）**：λ_gap 校准分布作为新协议推断仪器已砍。诊断件保留（禁删）；历史裁决照旧有效。
+//! 登记详见 `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
 //! R3（gn-feasibility-btc-20260707.md）用 zigzag 代理证必要条件；本模块把口径换成
 //! **引擎内缠论段**（parser::segment，67 课特征序列法，与生产回测同一构造），重跑
 //! R3 表格同款统计，并给出 λ_gap 止损穿越分布分位——**只产报告不定参**（定参在

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "venue": "IBKR_PRO_US_EQUITY",
+  "source_url": "https://www.interactivebrokers.com/en/pricing/commissions-stocks.php",
+  "retrieved_at_utc": "2026-07-26",
+  "note": "IBKR Pro 美股佣金 + 监管/清算费一手数字，见 chanlun/review-results/venue-fee-source-research-20260726.md 2.3/2.5（SEC Section 31 = 0.0000206 卖出额、FY2026 自 2026-04-04 生效；FINRA TAF = $0.000195/股 上限 $9.79/笔，自 2026-01-01）。执行 venue 假设 = IBKR（仓内实盘集成即 IBKR，src/newchan/cli.py:18-19）。只登记 OKLO——其余品种的 venue 假设未核（报告 4.5/4.6），不入簿。",
+  "entries": [
+    {
+      "symbol": "OKLO",
+      "tier": "PRO_TIERED_LE_300K_SHARES",
+      "unit": "per_share",
+      "commission_per_share_usd": 0.0035,
+      "min_commission_usd": 0.35,
+      "max_commission_frac_of_notional": 0.01,
+      "clearing_per_share_usd": 0.0002,
+      "cat_per_share_usd": 0.000003,
+      "sell_sec_fee_frac": 0.0000206,
+      "sell_taf_per_share_usd": 0.000195,
+      "sell_taf_cap_usd": 9.79,
+      "passthru_exchange_frac_of_commission": 0.000175,
+      "passthru_finra_frac_of_commission": 0.000565,
+      "note": "Tiered 月量 <= 30 万股档。SEC/TAF 仅卖出；CAT 与 NSCC/DTC 清算双边（来源页按股计，未标仅卖出）；pass-through NYSE/FINRA 按佣金比例。"
+    }
+  ]
+}

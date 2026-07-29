@@ -51,7 +51,12 @@ pub struct Fee {
 }
 
 /// 资金费 `Funding`（契约锚 `Origin.CompleteStateEvent.Funding`，FULL §20 line 1425）。
-/// 持仓资金费（永续合约 funding，正负皆可）。
+/// 持仓资金费（**永续合约** funding，正负皆可）——契约锚语义不动。
+/// ★venue 适用性（#303 裁定 2026-07-26）：本仓 BTC 数据窗 = Binance **现货**（无资金费）。
+/// 本类型当前**无生产构造点**（唯二构造：[`ExternalEvent::price_only`] 的 `amount: 0`，与
+/// `complete::mod` 的模块测试 `amount: -1`），
+/// 回测侧持有成本走另一条路径 `strategy::risk::CostModel`（现货口径 = 资金占用机会成本 + 现货
+/// 杠杆借币 + 强平罚金）。真永续接入是另票（#62 datum + datum 版本管理）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Funding {
     pub amount: i64,

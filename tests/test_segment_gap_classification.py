@@ -160,7 +160,7 @@ class TestGapWithSeq2Fractal:
         """构造 gap 场景：
         向上段，特征序列（down 笔 at 1,3,5,7,9）：
           FB(1, h=12, l=8)
-          FB(3, h=25, l=18)  ← 跳空 gap: 18 >= 12（b_l >= a_h）
+          FB(3, h=25, l=18)  ← 跳空 gap: 18 > 12（b_l > a_h，#246 新口径严格）
           FB(5, h=22, l=14)  ← 分型 c
           → 顶分型 at 3, gap_type=second
           FB(7, h=20, l=10)  ← 第二序列元素
@@ -174,7 +174,7 @@ class TestGapWithSeq2Fractal:
             _s(0, 5, "up",    15, 5),
             _s(5, 10, "down", 12, 8),
             _s(10, 15, "up",  30, 16),
-            _s(15, 20, "down", 25, 18),   # gap: 18 >= 12
+            _s(15, 20, "down", 25, 18),   # gap: 18 > 12（严格，#246 口径）
             _s(20, 25, "up",  28, 13),
             _s(25, 30, "down", 22, 14),   # 分型 c
             _s(30, 35, "up",  26, 9),
@@ -223,7 +223,7 @@ class TestGapNoSeq2Yet:
             _s(0, 5, "up",    10, 5),
             _s(5, 10, "down", 8, 6),      # feat elem a
             _s(10, 15, "up",  20, 12),
-            _s(15, 20, "down", 22, 15),    # gap: 15 >= 8; feat elem b
+            _s(15, 20, "down", 22, 15),    # gap: 15 > 8（严格，#246 口径）; feat elem b
             _s(20, 25, "up",  24, 14),
             _s(25, 30, "down", 18, 12),    # feat elem c
             # 只有 c 之后一个元素 → 不足以形成第二序列分型
@@ -379,7 +379,7 @@ class TestStrictVsOptimizedExtendMode:
 
         char seq (down strokes):
           a: [h=12, l=8]  (s1)
-          b: [h=22, l=14] (s3) — gap: b_l(14) >= a_h(12) ✓
+          b: [h=22, l=14] (s3) — gap: b_l(14) > a_h(12) ✓（严格，#246 口径）
           c: [h=18, l=11] (s5) — top fractal: b_h(22) > a_h(12) ✓, b_h(22) > c_h(18) ✓
                                   c closes gap: c_l(11) <= a_h(12) ✓
 

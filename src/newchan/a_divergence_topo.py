@@ -119,10 +119,10 @@ def topo_force(
 
 
 def _diagram_array(barcode: PersistenceBarcode, dimension: int):
-    """把指定维度的 bar 转成 persim 需要的 (n, 2) [birth, death] 数组。
+    """把指定维度的 bar 转成 (n, 2) [birth, death] 的持续图数组。
 
-    barcode 中所有 death 均有限（H0 已封顶、H1 已丢弃 inf），可直接喂给
-    persim.wasserstein。
+    barcode 中所有 death 均有限（H0 已封顶、H1 已丢弃 inf），满足
+    a_wasserstein.wasserstein_1 的有限性要求，可直接喂入。
     """
     import numpy as np
 
@@ -168,16 +168,14 @@ def topo_divergence(
 
     dominant = barcode_c.max_persistence(dimension)
 
-    diagram_a = _diagram_array(barcode_a, dimension)
-    diagram_c = _diagram_array(barcode_c, dimension)
-    if diagram_a.shape == diagram_c.shape and (diagram_a == diagram_c).all():
-        # W(D, D) 按定义精确为 0。绕过 Hungarian 求解器，避免不同
-        # scipy/persim 平台对同一 diagram 留下非零浮点残差。
-        w_ac = 0.0
-    else:
-        import persim
+    # 自实装 W1 匹配（cdist 代价矩阵），不走 persim.wasserstein——后者的
+    # sklearn 平方展开在零距离处留 ~1e-7 平台相关残差（#324 裁定）。
+    from newchan.a_wasserstein import wasserstein_1
 
-        w_ac = float(persim.wasserstein(diagram_a, diagram_c))
+    w_ac = wasserstein_1(
+        _diagram_array(barcode_a, dimension),
+        _diagram_array(barcode_c, dimension),
+    )
 
     return TopoDivergence(
         force_a=force_a,

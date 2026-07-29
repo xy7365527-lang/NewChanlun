@@ -330,7 +330,8 @@ class TestTopoDivergence:
         t = np.linspace(0, 6 * np.pi, 200)
         prices = (10 + np.sin(t)).tolist()
         div = topo_divergence_from_prices(prices, prices, dimension=0)
-        assert div.wasserstein_ac == pytest.approx(0.0, abs=1e-9)
+        # cdist 代价矩阵：恒等 diagram 的 W1 精确为 0.0、平台无关（#324）
+        assert div.wasserstein_ac == 0.0
         assert div.ratio == pytest.approx(1.0)
         assert not div.is_divergent  # force_c == force_a 不算衰减
 

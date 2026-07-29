@@ -1,0 +1,83 @@
+DIV level=1 end=1352 kind=pan side=Long
+DIV level=1 end=3015 kind=pan side=Short
+DIV level=1 end=3336 kind=pan side=Long
+DIV level=1 end=4394 kind=pan side=Short
+DIV level=1 end=5119 kind=pan side=Short
+DIV level=1 end=5324 kind=pan side=Short
+DIV level=1 end=5905 kind=pan side=Long
+DIV level=1 end=6221 kind=pan side=Long
+DIV level=1 end=6747 kind=pan side=Long
+DIV level=1 end=6897 kind=pan side=Short
+TERM level=1 bar=6897 side=Short
+DIV level=1 end=10549 kind=pan side=Short
+DIV level=1 end=10949 kind=pan side=Short
+TERM level=1 bar=10949 side=Short
+DIV level=2 end=3477 kind=pan side=Long
+DIV level=2 end=5622 kind=pan side=Long
+DIV level=2 end=5905 kind=pan side=Long
+DIV level=2 end=9253 kind=pan side=Long
+DIV level=2 end=15821 kind=pan side=Long
+DIV level=2 end=17018 kind=pan side=Short
+DIV level=1 end=12727 kind=pan side=Long
+DIV level=1 end=14170 kind=pan side=Short
+TERM level=1 bar=14170 side=Short
+DIV level=1 end=14567 kind=pan side=Short
+TERM level=1 bar=14567 side=Short
+DIV level=1 end=15821 kind=pan side=Long
+DIV level=1 end=15994 kind=pan side=Long
+DIV level=1 end=16165 kind=pan side=Long
+TERM level=1 bar=16165 side=Long
+DIV level=1 end=16863 kind=pan side=Short
+DIV level=1 end=17018 kind=pan side=Short
+DIV level=1 end=17170 kind=pan side=Long
+DIV level=1 end=17255 kind=pan side=Short
+DIV level=1 end=17446 kind=pan side=Short
+DIV level=1 end=18447 kind=pan side=Short
+DIV level=1 end=18581 kind=pan side=Short
+DIV level=1 end=18846 kind=pan side=Short
+TERM level=1 bar=19825 side=Long
+DIV level=1 end=19855 kind=pan side=Short
+TERM level=1 bar=19855 side=Short
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Long turn_source=12727 seg_a=(11984, 12091) interval_a=(11233, 19682) interval_b=(12633, 12727) divergence_confirmed=true judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Long turn_source=15994 seg_a=(14739, 14926) interval_a=(11233, 19682) interval_b=(15969, 15994) divergence_confirmed=true judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Long turn_source=15821 seg_a=(15191, 15441) interval_a=(11233, 19682) interval_b=(15738, 15821) divergence_confirmed=true judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Long turn_source=16165 seg_a=(15738, 15821) interval_a=(11233, 19682) interval_b=(16057, 16165) divergence_confirmed=true judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Long turn_source=17170 seg_a=(16650, 16714) interval_a=(11233, 19682) interval_b=(17031, 17170) divergence_confirmed=true judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Long turn_source=19682 seg_a=(18232, 18387) interval_a=(11233, 19682) interval_b=(19486, 19682) divergence_confirmed=false judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Long turn_source=19210 seg_a=(18850, 18911) interval_a=(11233, 19682) interval_b=(19170, 19210) divergence_confirmed=false judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Short turn_source=14170 seg_a=(13291, 13892) interval_a=(11233, 19682) interval_b=(13908, 14170) divergence_confirmed=true judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Short turn_source=14567 seg_a=(13291, 13892) interval_a=(11233, 19682) interval_b=(13908, 14567) divergence_confirmed=true judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Short turn_source=15738 seg_a=(14389, 14567) interval_a=(11233, 19682) interval_b=(15441, 15738) divergence_confirmed=false judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Short turn_source=16863 seg_a=(16182, 16275) interval_a=(11233, 19682) interval_b=(16724, 16863) divergence_confirmed=true judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Short turn_source=17255 seg_a=(16372, 16599) interval_a=(11233, 19682) interval_b=(17170, 17255) divergence_confirmed=true judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Short turn_source=17018 seg_a=(16724, 16863) interval_a=(11233, 19682) interval_b=(16968, 17018) divergence_confirmed=true judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Short turn_source=17446 seg_a=(16968, 17018) interval_a=(11233, 19682) interval_b=(17399, 17446) divergence_confirmed=true judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Short turn_source=17949 seg_a=(17170, 17255) interval_a=(11233, 19682) interval_b=(17785, 17949) divergence_confirmed=false judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Short turn_source=18210 seg_a=(17170, 17255) interval_a=(11233, 19682) interval_b=(17785, 18210) divergence_confirmed=false judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Short turn_source=18447 seg_a=(17514, 17581) interval_a=(11233, 19682) interval_b=(18390, 18447) divergence_confirmed=true judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Short turn_source=18581 seg_a=(17514, 17581) interval_a=(11233, 19682) interval_b=(18390, 18581) divergence_confirmed=true judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Short turn_source=18846 seg_a=(18101, 18210) interval_a=(11233, 19682) interval_b=(18648, 18846) divergence_confirmed=true judge_at=19758
+FALLBACK as_of=19999 level=1 kind=Consolidation side=Short turn_source=19855 seg_a=(19682, 19769) interval_a=(11233, 19682) interval_b=(19830, 19855) divergence_confirmed=true judge_at=19911
+FALLBACK as_of=19999 level=2 kind=Consolidation side=Long turn_source=3477 seg_a=(1654, 2287) interval_a=(35, 17785) interval_b=(3223, 3477) divergence_confirmed=true judge_at=17902
+FALLBACK as_of=19999 level=2 kind=Consolidation side=Long turn_source=5622 seg_a=(1654, 2287) interval_a=(35, 17785) interval_b=(5123, 5622) divergence_confirmed=true judge_at=17902
+FALLBACK as_of=19999 level=2 kind=Consolidation side=Long turn_source=5905 seg_a=(2551, 2905) interval_a=(35, 17785) interval_b=(5622, 5905) divergence_confirmed=true judge_at=17902
+FALLBACK as_of=19999 level=2 kind=Consolidation side=Long turn_source=9253 seg_a=(5123, 5622) interval_a=(35, 17785) interval_b=(8073, 9253) divergence_confirmed=true judge_at=17902
+FALLBACK as_of=19999 level=2 kind=Consolidation side=Long turn_source=15821 seg_a=(12205, 12513) interval_a=(35, 17785) interval_b=(15191, 15821) divergence_confirmed=true judge_at=17902
+FALLBACK as_of=19999 level=2 kind=Consolidation side=Short turn_source=17018 seg_a=(14709, 15180) interval_a=(35, 17785) interval_b=(16724, 17018) divergence_confirmed=true judge_at=17902
+FALLBACK as_of=19999 level=2 kind=Consolidation side=Short turn_source=18387 seg_a=(15862, 16275) interval_a=(35, 17785) interval_b=(17785, 18387) divergence_confirmed=false judge_at=18485
+FALLBACK as_of=19999 level=2 kind=Consolidation side=Short turn_source=19156 seg_a=(15862, 16275) interval_a=(35, 17785) interval_b=(17785, 19156) divergence_confirmed=false judge_at=19211
+FALLBACK as_of=19999 level=2 kind=Consolidation side=Short turn_source=17785 seg_a=(16724, 17018) interval_a=(35, 17785) interval_b=(17399, 17785) divergence_confirmed=false judge_at=17902
+CERT caliber=A exec=1 top=1 as_of=19999 side=Long bucket=pan kinds=Consolidation judge_at=19758 ids=1:16165:16057-16165
+CERT caliber=A exec=1 top=1 as_of=19999 side=Short bucket=pan kinds=Consolidation judge_at=8665 ids=1:6897:6854-6897
+CERT caliber=A exec=1 top=1 as_of=19999 side=Short bucket=pan kinds=Consolidation judge_at=12577 ids=1:10949:10640-10949
+CERT caliber=A exec=1 top=1 as_of=19999 side=Short bucket=pan kinds=Consolidation judge_at=19758 ids=1:14170:13908-14170
+CERT caliber=A exec=1 top=1 as_of=19999 side=Short bucket=pan kinds=Consolidation judge_at=19758 ids=1:14567:13908-14567
+CERT caliber=A exec=1 top=1 as_of=19999 side=Short bucket=pan kinds=Consolidation judge_at=19911 ids=1:19855:19830-19855
+CERT caliber=B exec=1 top=1 as_of=19999 side=Long bucket=pan kinds=Consolidation judge_at=19758 ids=1:16165:16057-16165
+CERT caliber=B exec=1 top=1 as_of=19999 side=Short bucket=pan kinds=Consolidation judge_at=8665 ids=1:6897:6854-6897
+CERT caliber=B exec=1 top=1 as_of=19999 side=Short bucket=pan kinds=Consolidation judge_at=12577 ids=1:10949:10640-10949
+CERT caliber=B exec=1 top=1 as_of=19999 side=Short bucket=pan kinds=Consolidation judge_at=19758 ids=1:14170:13908-14170
+CERT caliber=B exec=1 top=1 as_of=19999 side=Short bucket=pan kinds=Consolidation judge_at=19758 ids=1:14567:13908-14567
+CERT caliber=B exec=1 top=1 as_of=19999 side=Short bucket=pan kinds=Consolidation judge_at=19911 ids=1:19855:19830-19855
+CERT caliber=A exec=1 top=2 as_of=19999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=17902,8665 ids=2:17018:16724-17018|1:6897:6854-6897
+CERT caliber=A exec=1 top=2 as_of=19999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=17902,12577 ids=2:17018:16724-17018|1:10949:10640-10949

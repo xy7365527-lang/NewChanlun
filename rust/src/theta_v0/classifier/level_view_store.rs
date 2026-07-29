@@ -3,17 +3,117 @@
 //! JSONL 是正式持久化边界：只追加，不覆盖；缓存键包含 D1/D2/D3 三 provider 版本。reopen 先把
 //! legacy v0 行迁移为 v1，再经同一 reducer 重建冻结态。重复重放相同事件是幂等的，冲突事件拒绝。
 
-use super::super::types::{Direction, MoveKind};
+use super::super::types::{Direction, MoveKind, Tick};
 use super::level_view::{
-    AssembledMove, C2CacheKey, C2PersistenceKey, CompletionStatus, LevelAsOfView, LevelViewQuery,
+    AssembledMove, C2CacheKey, C2PersistenceKey, CompletionStatus, ConfirmKey, LevelAsOfView,
+    LevelViewQuery,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
 pub const EVENT_SCHEMA_VERSION: u32 = 1;
+
+/// #69 5a：趋势确认的已证状态。`TerminalFalse` 仅表示单调力度关系已经终假；
+/// 结构或坐标仍不可验时必须保持 `Scanning`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfirmState {
+    Confirmed(usize),
+    TerminalFalse,
+    Scanning,
+}
+
+impl ConfirmState {
+    pub fn as_option(self) -> Option<usize> {
+        match self {
+            Self::Confirmed(t) => Some(t),
+            Self::TerminalFalse | Self::Scanning => None,
+        }
+    }
+}
+
+/// #69 5a：单个 divergence pair 在已封 lower-leg 前缀上的扫描累积。
+///
+/// 字段 `pub(super)`（非 `pub`）：跨 `level_view.rs`/`level_view::tests`（`classifier` 子树内
+/// 兄弟模块）访问，同时不对 crate 外及 `classifier` 之外暴露内部字段（#497 归位）。
+#[derive(Debug, Clone)]
+pub struct ConfirmCursor {
+    /// 下一个尚未消费的 lower-leg 下标；只允许落在确认水线内。
+    pub(super) k0: usize,
+    pub(super) env: Option<(Tick, Tick)>,
+    pub(super) acc_hi: Option<usize>,
+    pub(super) area_c: f64,
+    pub(super) dif_max: f64,
+    pub(super) dif_min: f64,
+    pub(super) hist_max: f64,
+    pub(super) hist_min: f64,
+    pub(super) state: ConfirmState,
+}
+
+impl Default for ConfirmCursor {
+    fn default() -> Self {
+        Self {
+            k0: 0,
+            env: None,
+            acc_hi: None,
+            area_c: 0.0,
+            dif_max: f64::NEG_INFINITY,
+            dif_min: f64::INFINITY,
+            hist_max: f64::NEG_INFINITY,
+            hist_min: f64::INFINITY,
+            state: ConfirmState::Scanning,
+        }
+    }
+}
+
+/// #69 5a：per-level divergence-pair cursor 映射；实际持有者在 bin `LevelDerived`。
+#[derive(Debug, Default)]
+pub struct ConfirmCursorStore {
+    pub(super) cursors: HashMap<ConfirmKey, ConfirmCursor>,
+}
+
+impl ConfirmCursorStore {
+    pub fn len(&self) -> usize {
+        self.cursors.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.cursors.is_empty()
+    }
+
+    /// 上层 run 分区变化时删除已消失 run，避免陈旧 key 永久驻留。
+    pub fn retain_run_starts(&mut self, level: u32, run_starts: impl IntoIterator<Item = usize>) {
+        let run_starts: BTreeSet<_> = run_starts.into_iter().collect();
+        self.cursors
+            .retain(|key, _| key.level != level || run_starts.contains(&key.run_window.start));
+    }
+
+    pub(super) fn retain_active_for_run(
+        &mut self,
+        level: u32,
+        run_start: usize,
+        active: &[ConfirmKey],
+    ) {
+        self.cursors.retain(|key, _| {
+            key.level != level
+                || key.run_window.start != run_start
+                || active.iter().any(|candidate| candidate == key)
+        });
+    }
+
+    pub(super) fn cursor_mut(&mut self, key: ConfirmKey) -> &mut ConfirmCursor {
+        self.cursors.entry(key).or_default()
+    }
+
+    #[cfg(test)]
+    pub(super) fn poison_for_test(&mut self, state: ConfirmState) {
+        for cursor in self.cursors.values_mut() {
+            cursor.state = state;
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CompletedMoveId {
@@ -498,6 +598,7 @@ mod tests {
             query,
             cache_key: key,
             pairs: Vec::new(),
+            pair_confirmations: Vec::new(),
             moves: vec![AssembledMove {
                 start_index: 0,
                 end_index: 89,

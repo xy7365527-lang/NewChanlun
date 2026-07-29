@@ -30,7 +30,10 @@ P1v2 用引擎**直出**的精确 bar 锚定：L2/L3 走势 first_seg_s0/last_se
 ## 引擎
 
 newchan_rust.RecursiveOrchestrator(max_levels=6, stroke_mode="wide")，与正典引擎
-bit-exact。残差退化 bar（O=H=L=C=r）。全量 2.03M bar 单线程 ~8-12 min。
+bit-exact（=Rust≡Python 等价，新口径下仍成立；但 ≠ 与旧口径历史输出逐位一致：
+段层相切边界 2026-07-26 起按 #246 裁定（supersede #84 点3；#277 裁路①、#288 落码）
+两侧同批切——裁定书 chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md）。
+残差退化 bar（O=H=L=C=r）。全量 2.03M bar 单线程 ~8-12 min。
 
 用法：
     PYTHONPATH=src .venv/bin/python analysis/p1v2_hodge_star_L2L3.py
@@ -488,7 +491,10 @@ def write_report(data: dict, an: dict) -> None:
     L.append("- **残差**：`r = log(DX) − 0.576·log(USD6E)`，协整系数既定"
              "（memory: project_residual_to_flow_no_bridge，占 DX 方差 33.8%）。")
     L.append("- **走势/方向/力度**：缠论正典走势由中枢定义，方向=上行/下行，力度=persistence。"
-             "由 newchan_rust.RecursiveOrchestrator 产出（与正典引擎 bit-exact）。")
+             "由 newchan_rust.RecursiveOrchestrator 产出（与正典引擎 bit-exact=Rust≡Python 等价，"
+             "新口径下仍成立；≠ 与旧口径历史输出逐位一致：段层相切边界 2026-07-26 起按 #246"
+             " 裁定（supersede #84 点3；#277 裁路①、#288 落码）两侧同批切——裁定书"
+             " chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md）。")
     L.append("- **persistence = H0 闭式**：`rust/src/ph.rs:37` `compute_move_persistence`，"
              "走势内中枢中心 (dd,gg) 序列的 max−min，引擎自标 L0。")
     L.append("- **L2/L3 bar 锚定**：`rust/src/level.rs:265` first_seg_s0/last_seg_s1 = comp_start/"
