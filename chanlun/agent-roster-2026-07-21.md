@@ -37,3 +37,29 @@
 | [claude-sonnet]#592-有洞frontier研究 | kimi编排→claude sonnet | 45% 分布量化+语义分类+分档影响，落 issue592 报告 | 已交付（60-62% recompute 有洞、窗命中占 42.6-53.6%、缺段证伪/合法形态坐实；B 全拒损 39 Confirmed 非纯降噪；荐 A+gap_len 诊断字段让消费者分档，待编排者裁） |
 | [kimi]#591/#592-裁定 | kimi编排（编排者 2026-07-28 照办） | #591 疑点结项（时序差无害）comment-5109292871；#592 选 A+gap_len 诊断字段 comment-5109293006 | 已落地 |
 | [claude-sonnet]#592-gap_len实装 | kimi编排→claude sonnet | gap_len 落账本+dump/统计同步+措辞限定 | 已交付（3a77c504ac；kimi 抽验：2031/1 唯一红 #491、主流 cmp=0、dump 剥列逐字节同、100k 共端点 282/608 对拍一致；#591/#592 双关、map 已记） |
+| [kimi]map#597-开图 | kimi编排（编排者三裁：新图/并行/主菜小菜都要） | [wayfinder:map] PanLive 全层级完成前可见（L2/L3 + 身份桥接语义）；Destination=46 只 L2/L3 达 L1 同口径+α/β 照实捞回；雾=L2/L3 实装/桥接实装/β 架构/完成钟延伸 | 已落地 |
+| [claude-sonnet]#598-塔载体选型 | kimi编排→claude sonnet | provider 只读 frontier 视图 vs 塔上 active sidecar，落 issue598 报告 | 已交付（关键发现：活动语义已私有存在于 WindowScanCursor/WinMeta 只是未暴露；荐路线(i) 只读视图+先 L2 后 L3；L2 均滞后 823/L3 2182 bar 信息量更大；待编排者裁） |
+| [claude-sonnet]#599-桥接放宽档位 | kimi编排→claude sonnet | 档位枚举+逐档量化+教义边界，落 issue599 报告 | 已交付（修正 #580 探针 bug 后全量扫 202 只：档2 pending 槽排队挽回 33 教义干净、档1 严格同锚挽回 2、组合 34/46 覆盖率→94.1%；档1 使反超 35→33 是纠误；跨锚越界不荐、档3 无边际收益；待编排者裁） |
+| [kimi]#598-裁+开票 | kimi编排（编排者 2026-07-28 可以） | 裁路线(i)+先 L2 后 L3；#598 关；开 #601（L2 实装，frontier）/#602（L3，blocked-by #601）；map #597 已记 | 已落地 |
+| [claude-opus]#601-L2-PanLive实装 | kimi编排→claude opus（塔架构=高难档） | 只读访问器暴露 WindowScanCursor/WinMeta + provider 侧派生 L2 活窗接账本，L1 同口径验收 | 派发中 |
+| [kimi]#599-裁+开票 | kimi编排（编排者 2026-07-28 同意） | 裁档1严格同锚+档2排队组合（覆盖率→94.1%、反超纠误 35→33）；#599 关；开 #603（桥接实装，blocked-by #601）；档3/跨锚判出范围；map #597 已记 | 已落地 |
+| [claude-opus]#601-L2-PanLive实装 | kimi编排→claude opus（塔架构=高难档） | 只读访问器暴露 WindowScanCursor/WinMeta + provider 侧派生 L2 活窗 | 已交付（961a4260ee：L2 38/38 有归因、earlier Live 0→19 50%、反超 0→2、L1/L3 零回归、护栏全 cmp=0、测试 2040/1；confirmed/active 重叠 844→93 修复在案；#533 golden 待重锚已批） |
+| [claude-sonnet]#533-golden重锚 | kimi编排→claude sonnet（编排侧批准重锚） | #601 lifecycle dump 故意漂移重锚，stdout golden 零变化自证，门跑绿 | 派发中 |
+| [claude-sonnet]#533-golden重锚 | kimi编排→claude sonnet（编排侧批准重锚） | #601 lifecycle dump 故意漂移重锚 | 已交付（9a6aa0e885：只动 dump 行、stdout SHA 与旧 golden 逐字同、门 2/2 绿、lib 2040/1） |
+| [claude-opus]#609-影子评审-#601 | kimi编排→claude opus（评审档） | 两轴新上下文禁自评，重点核五项 Acceptance+重叠修复+零回归+重锚纪律+flaky/未追项，落 shadow-601-review-20260728.md | 派发中 |
+| [claude-opus]#609-影子评审-#601 | kimi编排→claude opus（评审档） | 两轴新上下文禁自评，落 shadow-601-review-20260728.md | 已交付（PWC：实质验收独立复现坐实；F1 单 pop 只修对一半/F2 l0_units 失步 0vs547 两 MED + F3/golden 纪律/F9 共 5 条件；警告 #602 会继承 F1/F2 须先收口） |
+| [kimi]#609-纪律项补齐 | kimi编排 | #601 报告+#609 报告入库 6e34dc57d7；重锚批准留痕 #601；F9 增量登 #454；开 #613（F1/F2 收口票）并挂 #602 blocked-by #613 | 已落地 |
+| [claude-opus]#613-F1F2收口 | kimi编排→claude opus | F2 先钉因（失步根因）→F1 整窗口径或证明→F3 子桶表；L2 归因闭合不破+L1/L3 零回归 | 派发中 |
+| [claude-opus]#613-F1F2收口 | kimi编排→claude opus | F2 根因（cache.clear 时序）+F1 整窗水线口径+F3 子桶表 | 已交付（6ebe18eda1；l2:frontier_not_after 93→0、window 314→342、护栏 cmp=0、2041/1；#613/#609/#601 三关、map 已记；#602/#603 解锁） |
+| [claude-opus]#603-桥接放宽实装 | kimi编排→claude opus | 档2 pending 槽队列（depth=3）+档1 暂认中枢严格同锚；覆盖率→94.1% 对拍、反超 35→33 纠误、L2 零回归 | 派发中 |
+| [kimi]#603-裁a落地 | kimi编排（编排者 2026-07-28 裁 a） | 档2 回退+档1 保留+覆盖率照实改 78.7%+两真因开票 #617/#618，记票 comment-5111127257 | 已落地 |
+| [claude-sonnet]#603-档2回退 | kimi编排→claude sonnet | 手术摘除 ActiveFrontierQueue 及三约束，档1 全保留（纠误 35→33），复测对拍+护栏 | 派发中 |
+| [claude-sonnet]#617-批量确认研究 | kimi编排→claude sonnet | 18 只从未入槽：批量确认机制钉界+教义判定+L2/L3 同构，落 issue617 报告 | 已交付（append 内 while 批确认、批内中间段任何粒度不可观测=教义上不存在的非缺口；塔层同构代数必然——#602 勿假设塔侧队列更有效，开工前先探针实测；荐接受不可观测+专门原因码，OpenTail 向量化需编排者表态） |
+| [claude-sonnet]#618-投影不同源研究 | kimi编排→claude sonnet | 17 只 B 恒不变：两投影对照+统一冲击量化+与 #591/#592 同族刻画，落 issue618 报告 | 派发中 |
+| [claude-sonnet]#603-档2回退 | kimi编排→claude sonnet | 手术摘除 ActiveFrontierQueue，档1 全保留 | 已交付（0e0d011da2：档1 净增量精确=382+3 行零档2 残留、纠误 3 条逐位同、六面 cmp=0、2044/1；意外反证：原 dump 变化全来自档2） |
+| [kimi]#617/#618-收口 | kimi编排（编排者 2026-07-28 照办） | 双研究关票记 map #597；统一刻画在案（三票=同架构特征三时间切面）；#602 口径按 #617 改写（先探针+专门原因码） | 已落地 |
+| [claude-sonnet]#618-小修包 | kimi编排→claude sonnet | 诊断行补 seg_a 完整锚（消粗键歧义）+ #603 报告措辞订正 + 归因脚本同步 | 派发中 |
+| [claude-sonnet]#618-小修包 | kimi编排→claude sonnet | 诊断行补 seg_a + #603 报告措辞订正 + 归因脚本升级 | 已交付（dc2b7dd48b：归因脚本完整锚后 3 只误配转桶归位、stdout cmp=0、2043/2=唯一真红 #491+已知计时 flaky；遗留：revert 报告 §6-1(b) 同述误诊待编排侧订正） |
+| [claude-opus]#619-影子评审-#603链 | kimi编排→claude opus（评审档） | 档1 语义/回退彻底性/小修包/护栏链/文档链 两轴评审，落 shadow-603-review-20260728.md | 派发中 |
+| [claude-opus]#619-影子评审-#603链 | kimi编排→claude opus（评审档） | 两轴评审，落 shadow-603-review-20260728.md | 已交付（PWC：交付事实全独立复现；H1 claimed 关联被桥迁移覆盖/H2 center_upgrade_match 盲选 两条口径面 HIGH+M3/L9/L10/L12；真值定盘=回退报告档1-only 列，impl 旧数作废） |
+| [claude-opus]#619-条件收口 | kimi编排→claude opus | migrate_entry 统一迁移写入点（兼消 L12 重复）+center_upgrade_match 确定性优选+M3/L9/L10/revert 报告订正 | 派发中 |
