@@ -1,21 +1,26 @@
 //! #668（N4）BSP 结构身份键唯一性真值表实查——v2 键公式（#666 supersede 回炉裁定）。
 //!
 //! v1 键（被破中枢指纹 + 方向 + 点类）已被真值表证伪（三窗 ambiguous=10/74/260，报告
-//! `issue668-n4-impl-ticket668-20260729.md`）。v2 = v1 + **锚段坐标**：
-//! - 一类：背驰确认段坐标 = `(key.seg_a, interval)`（`interval=(c_start, source_index)`），
-//!   经生产候选事件流（[`cand_event::CandidateStreams`]，`classify_with_tower_events` 第三个
-//!   返回值，v1 探针原弃用）按 `(level, side, parent_fingerprint, interval.1==point.source_index)`
-//!   反查同一次塔扫描产出的 Trend 候选（`CandidateKey.seg_a`/`c_start` 与本点共用同一
-//!   `first_structural_gates` 结构门，见 `cand_event::trend_observation`）。
-//! - 三类：离开段+回试段对 = 既有 `bits.third_class_entry`（`ThirdClassEntryIdentity`，#542
-//!   随证书直传，零新增）的 `(leave_interval, retest_interval)`，无需查表。
-//! - 二类：一类锚身份（既有 `OwnerRef::Type1Anchor` 坐标）+ 回抽段坐标——**限**：回抽走势
-//!   （`RMove` 次级别走势）在 `extract_second_signals` 入参层已坐标剥离（signal.rs 注释
-//!   「坐标 still-MISSING」），生产路径只把回拉走势*终点*（= 本点 `source_index` 自身）经
-//!   `index_of` 传出，起点未接线到任何输出结构；反查需重跑 `find_second_type_structure`
-//!   （新判定路径，违反「零改动/不重算」方法学），故本轮**只用回拉终点**（即
-//!   `(source_index, source_index)`，对键无增量区分力，见报告 §方法 限制登记）近似占位，
-//!   不冒充真实回抽段坐标。
+//! `issue668-n4-impl-ticket668-20260729.md`）。v2 = v1 + **锚段坐标**，并守「右端/as_of 不入
+//! 键」纪律（与 `CandidateKey`「C 右端与 as_of 均不在键中」同一纪律——本点自身所在段的右端
+//! 恒等于 `point.source_index`，塞进锚会让键对 source_index 平凡单射、真值表恒判「唯一」，
+//! methodologically 空洞，一律排除；已闭合、不再随 as_of 增长的历史段坐标全字段保留）：
+//! - 一类：背驰确认段坐标 = `(key.seg_a, key.c_start)`（**不含** `interval.1`=本点
+//!   `source_index`），经生产候选事件流（[`cand_event::CandidateStreams`]，
+//!   `classify_with_tower_events` 第三个返回值，v1 探针原弃用）按
+//!   `(level, side, parent_fingerprint, interval.1==point.source_index)` 反查同一次塔扫描
+//!   产出的 Trend 候选（`CandidateKey.seg_a`/`c_start` 与本点共用同一 `first_structural_gates`
+//!   结构门，见 `cand_event::trend_observation`）——查找键用 source_index，**入锚的不用**。
+//! - 三类：离开段+回试段起点 = 既有 `bits.third_class_entry`（`ThirdClassEntryIdentity`，#542
+//!   随证书直传，零新增）的 `(leave_interval, retest_interval.0)`（**不含**
+//!   `retest_interval.1`=本点 `source_index`；`leave_interval` 是已闭合的前一段，全字段保留，
+//!   与 `CandidateKey.seg_a` 同精神），无需查表。
+//! - 二类：一类锚身份（既有 `OwnerRef::Type1Anchor` 坐标，已闭合的历史点，全量保留）——**限**：
+//!   回抽段坐标 structurally 不可得：右端按纪律排除（即本点 `source_index` 自身），左端
+//!   （`RMove` 次级别走势起点）在 `extract_second_signals` 入参层已坐标剥离（signal.rs 注释
+//!   「坐标 still-MISSING」），生产路径只把回拉走势*终点*经 `index_of` 传出，起点未接线到任何
+//!   输出结构；反查需重跑 `find_second_type_structure`（新判定路径，违反「零改动/不重算」
+//!   方法学）。故二类 v2 诚实退化为 v1（仅一类锚身份，无回抽段分量），如实登记，不冒充。
 //!
 //! 本 bin 仍**只读**：跑生产 `classify_with_tower_events` 一次（fresh-full），零改动任何
 //! `judge_*`/`extract_*` 判据函数，只新增读取既有输出字段（`third_class_entry`/候选事件流）
@@ -255,26 +260,32 @@ fn main() -> std::process::ExitCode {
                 };
                 let parent = (fp.center_start, fp.zd, fp.zg);
                 let side = class.side();
-                // 锚段坐标（v2 新增分量，见模块头方法学；一/三类查真实段坐标，
-                // 二类仅回拉终点占位——查不到锚段计入 anchor_seg_unresolved，不进分组。
+                // 锚段坐标（v2 新增分量，见模块头方法学）——★「右端/as_of 不入键」纪律
+                // （E2E-O + CandidateKey「C 右端与 as_of 均不在键中」同一纪律）：本点**自身**
+                // 所在段的右端恒等于 `point.source_index`（一类=C段右端、三类=回试段右端），
+                // 把它塞进锚会让键对 source_index 平凡单射、真值表恒判「唯一」（伪阳性，methodologically
+                // 空洞）——一律**排除**。历史上早已闭合、不再随 as_of 增长的段（一类 A 段/三类
+                // 离开段/二类一类锚）全字段保留（同 `CandidateKey.seg_a`/`previous_center_start`
+                // 先例）。
                 let anchor = match class {
                     PointClass::Buy1 | PointClass::Sell1 => trend_index
                         .get(&(level_idx as u32, side, parent, point.source_index))
-                        .map(|event| vec![event.key.seg_a, event.interval]),
-                    PointClass::Buy3 | PointClass::Sell3 => {
-                        point.bits.third_class_entry.map(|entry| {
-                            vec![entry.leave_interval, entry.retest_interval]
-                        })
-                    }
+                        .map(|event| vec![event.key.seg_a, (event.key.c_start, event.key.c_start)]),
+                    PointClass::Buy3 | PointClass::Sell3 => point.bits.third_class_entry.map(|entry| {
+                        vec![
+                            entry.leave_interval,
+                            (entry.retest_interval.0, entry.retest_interval.0),
+                        ]
+                    }),
                     PointClass::Buy2 | PointClass::Sell2 => {
                         let anchor_idx = match point.center {
                             Some(OwnerRef::Type1Anchor(idx)) => idx,
                             _ => unreachable!("resolve_fingerprint 已保证 Type1Anchor 存在"),
                         };
-                        Some(vec![
-                            (anchor_idx, anchor_idx),
-                            (point.source_index, point.source_index),
-                        ])
+                        // 回抽段坐标 structurally 不可得（见模块头限制登记）：段右端按纪律排除
+                        // 自身即为 source_index），段左端未接线到任何输出结构——诚实退化为 v1
+                        // （仅一类锚身份，无回抽段分量）。
+                        Some(vec![(anchor_idx, anchor_idx)])
                     }
                 };
                 let Some(anchor) = anchor else {
