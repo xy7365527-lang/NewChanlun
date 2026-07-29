@@ -1799,6 +1799,16 @@ fn recompute_lifecycle_window_stems(
     outcome_tally: &mut BTreeMap<(u32, &'static str), usize>,
     diag_rows: &mut Vec<L1LiveDiagRow>,
 ) -> Vec<LifecycleWindowStem> {
+    // 调用点约定（票 #629 S3 订正）：本函数目前只由两处驱动——`1..3`（L1/L2，`levels.start==1`）
+    // 与 `3..4`（L3）——其并集覆盖 `level ∈ {1,2,3}`，是下方 `match level` 穷尽 `1`/`2|3` 两臂
+    // 以及 L1 臂 `frontier.expect(...)` 成立的前提。本函数不接受第三个调用点，该断言是对
+    // 「调用点约定」本身的显式核验，而非对循环上界的核验（`for level in levels` 没有写死的
+    // 上界，`levels` 由调用方传入）。
+    debug_assert!(
+        levels.clone() == (1..3) || levels.clone() == (3..4),
+        "recompute_lifecycle_window_stems 仅由两个调用点驱动（1..3 / 3..4）；\
+         其它 levels 范围未经验证，match level 的穷尽性与 L1 臂的 frontier.expect 均系于此约定"
+    );
     let mut windows_out = Vec::new();
     /// 记一条未命中诊断（tally + dump 行，两处同码同源——禁两处各写一遍产生漂移）。
     fn miss(
@@ -1854,8 +1864,13 @@ fn recompute_lifecycle_window_stems(
         // 该级别的 active C 腿 + confirmed 侧的整窗截断水线（`None` = 本级不截断，仅 L1）。
         let (active, truncate_to) = match level {
             1 => (
+                // 本臂能成立系于调用点约定（函数头 debug_assert，票 #629 S3）：level==1 只在
+                // `levels.start==1` 的那次调用（即 `1..3`）里出现，而该调用在 `frontier.is_none()`
+                // 时已于上面 `levels.start == 1` 分支早退——故走到这里时 `frontier` 恒为 `Some`。
+                // 这不是本函数内部可推导的不变式，是调用点保证；`levels` 若被传入其它范围，
+                // 本 `.expect` 与函数头断言会同时失守。
                 frontier
-                    .expect("levels.start==1 ⟹ frontier 为 None 时已在上面早退")
+                    .expect("levels.start==1 ⟹ frontier 为 None 时已在上面早退（调用点约定，见函数头 debug_assert）")
                     .as_segment(),
                 None,
             ),
@@ -1906,6 +1921,15 @@ fn recompute_lifecycle_window_stems(
                     // L3：虚拟单元 = L2 那一段派生的行进中 L1 窗口单元；首叶方向表 = 同一段
                     // 的 `lower_legs_from(tower[1])`。两者缺失（L2 派生失败或本 bar 无行进中
                     // L0 段）⟹ 本级落 `no_lower_frontier`，成因在同 bar 的 L2 诊断行上。
+                    //
+                    // 登记（票 #629 S2，订正登记口径）：下面这个 `min()` 对 `l1_leg_dirs` 与
+                    // `scan_units` 做静默截齐，使 `ActiveWindowOutcome::LowerLegDirsOutOfSync`
+                    // 守卫在**本调用点**结构性不可达——`lower_legs_from`/`project_to_units` 均是
+                    // 对 `tower[1]` 的 1:1 map（长度天然相等），且上面的 `scan_units_out_of_sync`
+                    // 已先拦同长破坏，两者不可能不等长走到这里。这与 `scan_units_absent`/
+                    // `lower_legs_unprojectable` 的「数据性未触发」（能力已具备、本窗数据未命中）
+                    // 不是同一类——那两码在生产数据变化下可能触发，这一条在当前唯一调用点上
+                    // 恒不可达。守卫本身对 API 的其它潜在调用方仍然有效，不删除。
                     active_l2_window_frontier(
                         scan_units,
                         &carry.l1_leg_dirs[..carry.l1_leg_dirs.len().min(scan_units.len())],
@@ -1922,7 +1946,13 @@ fn recompute_lifecycle_window_stems(
                 }
                 (active_window.as_segment(), Some(view.confirmed_len))
             }
-            _ => unreachable!("循环上界写死 `for level in 1..4` ⟹ level ∈ {{1,2,3}}"),
+            // level ∈ {1,2,3} 不是循环上界写死的结果——`levels` 是调用方传入的参数，本函数
+            // 内部不设上界。成立系于调用点约定（票 #629 S3）：仅 `1..3` ∪ `3..4` 两处调用，
+            // 并集恰为 {1,2,3}（函数头 debug_assert 核验该约定）。
+            _ => unreachable!(
+                "level ∈ {{1,2,3}} 由调用点保证（1..3 ∪ 3..4，见函数头 debug_assert），\
+                 非循环上界写死"
+            ),
         };
         // ★confirmed 与 active 不得重叠（L1 的对应事实：parser 的 `l0.segments` 天然不含
         // pending 段）。塔在这一点上**不同**：`tower[k]` 的末窗即使仍开放（未被 non-extension
