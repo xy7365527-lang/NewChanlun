@@ -872,3 +872,70 @@ fn isolated_candidates_are_counted_not_silently_dropped() {
 fn single_node_path_is_not_a_chain() {
     let _ = ChainKey::new(vec![key(1, 10)]);
 }
+
+/// `breach_reason` 只读 `interval_is_sub` 已判过的端点值（不复算），构造直接的 [`CandidateEvent`]
+/// 覆盖四个失败合取项，逐项核验 `breach_reason` 命中的档确是 `candidate_is_sub` 判假的直接原因。
+/// 一致性锁（#653 影子评审 LOW-2）：若未来 `interval_is_sub` 口径变动（相切规则、容差、
+/// 半开区间），此测试须同步改写，否则会当场变红——防止两侧口径静默漂移。
+fn candidate_event_for_breach(level: u32, interval: (usize, usize)) -> CandidateEvent {
+    CandidateEvent {
+        key: key(level, interval.0),
+        kind: CandidateKind::Trend,
+        event_level: level,
+        center_ids: Some((10, 20)),
+        candidate_group_id: 1,
+        pair_id: 2,
+        structural_predicates: StructuralPredicates {
+            direction: true,
+            comparable: true,
+            extreme: true,
+        },
+        extreme_proof: (11, 19),
+        third_class_proof: None,
+        interval,
+        state: CandidateState::Provisional,
+        observed_at: 0,
+        first_provable_at: Some(interval.1),
+        confirmed_at: None,
+        invalidated_at: None,
+        revision: 0,
+        supersedes_revision: None,
+        revision_at: 0,
+    }
+}
+
+#[test]
+fn breach_reason_matches_interval_is_sub_conjuncts() {
+    let parent_level = 2;
+    let child_level = 1;
+    let cases: &[((usize, usize), (usize, usize), PredicateBreachReason)] = &[
+        (
+            (5, 3),
+            (0, 10),
+            PredicateBreachReason::ChildIntervalDegenerate,
+        ),
+        (
+            (2, 4),
+            (10, 8),
+            PredicateBreachReason::ParentIntervalDegenerate,
+        ),
+        ((0, 5), (2, 10), PredicateBreachReason::LeftOverhang),
+        ((5, 15), (2, 10), PredicateBreachReason::RightOverhang),
+        ((0, 15), (2, 10), PredicateBreachReason::BothEndsOverhang),
+    ];
+
+    for &(child_interval, parent_interval, expected) in cases {
+        let child = candidate_event_for_breach(child_level, child_interval);
+        let parent = candidate_event_for_breach(parent_level, parent_interval);
+
+        assert!(
+            !candidate_is_sub(&child, &parent),
+            "夹具用例必须真实判假：child={child_interval:?} parent={parent_interval:?}"
+        );
+        assert_eq!(
+            breach_reason(&child, &parent),
+            expected,
+            "child={child_interval:?} parent={parent_interval:?}"
+        );
+    }
+}
