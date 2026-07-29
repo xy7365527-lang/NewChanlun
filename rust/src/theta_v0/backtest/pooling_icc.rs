@@ -1,6 +1,11 @@
 //! **跨品种 pooling + ICC 同质性检验 + leave-one-asset-out 迁移检验**
 //! （第5份PDF《全互斥定义策略2》§15-§16，task #86 sg-pooling-icc）。
 //!
+//! **档处置（决策统计族·χ线撤销，`chanlun/escalate/chi-line-falsification-ruling-20260728.md` §1①，
+//! 2026-07-28）**：本模块攻的 pooling 目标（延长 μ 估计样本量）随 μ/χ 门族一并撤销——不再作为准入
+//! 机制的功效补强手段。诊断件保留（禁删）；历史裁决照旧有效。登记详见
+//! `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
 //! ## 动机（§33 功效不足约束）
 //!
 //! 高级别稀疏类要功效充足，必须**延长样本 / 跨品种 pooling / 强先验**之一。本模块攻 pooling：

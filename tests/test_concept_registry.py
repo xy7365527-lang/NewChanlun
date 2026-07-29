@@ -13,7 +13,6 @@ from scripts.concept_registry import (
     export_registry,
     load_registry,
 )
-from scripts.migrate_to_block_topology import _relations_is_lfs_pointer
 
 
 @pytest.fixture
@@ -391,16 +390,10 @@ def test_to_dict_sorted_by_term(tmp_base):
 # --- 11. Real data count (integration) ---
 
 
-def test_real_data_count():
+@pytest.mark.integration
+def test_real_data_count(real_relations):
     """Integration: real relations.jsonl should produce ~997 unique concepts."""
-    from pathlib import Path
-
-    real_base = Path(".chanlun/block-topology")
-    if not (real_base / "relations.jsonl").exists():
-        pytest.skip("No real data available")
-    if _relations_is_lfs_pointer(real_base):
-        pytest.skip("relations.jsonl is an unresolved Git LFS pointer")
-
+    real_base = real_relations.parent
     reg = build_concept_registry(real_base)
     # 从实际数据中统计到 997 个唯一概念
     assert len(reg.entries) >= 900, f"Expected ~997 concepts, got {len(reg.entries)}"

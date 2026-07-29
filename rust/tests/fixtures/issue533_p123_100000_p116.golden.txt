@@ -1,0 +1,314 @@
+DIV level=1 end=1352 kind=pan side=Long
+DIV level=1 end=3015 kind=pan side=Short
+DIV level=1 end=3336 kind=pan side=Long
+DIV level=1 end=4394 kind=pan side=Short
+DIV level=1 end=5119 kind=pan side=Short
+DIV level=1 end=5324 kind=pan side=Short
+DIV level=1 end=5905 kind=pan side=Long
+DIV level=1 end=6221 kind=pan side=Long
+DIV level=1 end=6747 kind=pan side=Long
+DIV level=1 end=6897 kind=pan side=Short
+TERM level=1 bar=6897 side=Short
+DIV level=1 end=10549 kind=pan side=Short
+DIV level=1 end=10949 kind=pan side=Short
+TERM level=1 bar=10949 side=Short
+DIV level=1 end=12224 kind=trend side=Short
+DIV level=1 end=12727 kind=pan side=Long
+DIV level=1 end=14170 kind=pan side=Short
+TERM level=1 bar=14170 side=Short
+DIV level=1 end=14567 kind=pan side=Short
+TERM level=1 bar=14567 side=Short
+DIV level=1 end=15821 kind=pan side=Long
+DIV level=1 end=15994 kind=pan side=Long
+DIV level=1 end=16165 kind=pan side=Long
+TERM level=1 bar=16165 side=Long
+DIV level=1 end=16863 kind=pan side=Short
+DIV level=1 end=17018 kind=pan side=Short
+DIV level=1 end=17170 kind=pan side=Long
+DIV level=1 end=17255 kind=pan side=Short
+DIV level=1 end=17446 kind=pan side=Short
+DIV level=1 end=18447 kind=pan side=Short
+DIV level=1 end=18581 kind=pan side=Short
+DIV level=1 end=18846 kind=pan side=Short
+DIV level=1 end=19855 kind=pan side=Short
+TERM level=1 bar=19855 side=Short
+DIV level=1 end=20105 kind=pan side=Short
+DIV level=1 end=20222 kind=pan side=Short
+DIV level=1 end=20668 kind=pan side=Short
+DIV level=1 end=20910 kind=pan side=Short
+DIV level=1 end=22680 kind=trend side=Short
+DIV level=1 end=24334 kind=pan side=Long
+DIV level=1 end=24543 kind=pan side=Short
+DIV level=1 end=24728 kind=pan side=Short
+DIV level=1 end=25543 kind=pan side=Short
+DIV level=1 end=27008 kind=pan side=Long
+DIV level=1 end=27226 kind=pan side=Long
+DIV level=1 end=29334 kind=trend side=Short
+TURN level=0 end=34061 start=35 kind=Consolidation
+DIV level=1 end=30062 kind=pan side=Long
+DIV level=1 end=30266 kind=pan side=Short
+DIV level=1 end=32089 kind=pan side=Long
+DIV level=1 end=32702 kind=pan side=Long
+DIV level=1 end=33111 kind=pan side=Short
+DIV level=1 end=33586 kind=pan side=Long
+DIV level=1 end=33799 kind=pan side=Long
+TERM level=1 bar=33799 side=Long
+DIV level=1 end=34061 kind=pan side=Long
+DIV level=1 end=38625 kind=trend side=Long
+TERM level=1 bar=38625 side=Long
+DIV level=1 end=37287 kind=trend side=Short
+TERM level=1 bar=37287 side=Short
+DIV level=1 end=36320 kind=pan side=Short
+DIV level=1 end=36611 kind=pan side=Short
+TERM level=1 bar=37885 side=Long
+TERM level=1 bar=38147 side=Long
+DIV level=1 end=38564 kind=pan side=Long
+DIV level=1 end=38704 kind=pan side=Long
+DIV level=1 end=39312 kind=pan side=Long
+DIV level=1 end=39574 kind=pan side=Short
+DIV level=1 end=39984 kind=pan side=Short
+DIV level=1 end=40061 kind=pan side=Long
+DIV level=1 end=40187 kind=pan side=Long
+TURN level=0 end=34632 start=33274 kind=Trend
+DIV level=1 end=41155 kind=trend side=Long
+TURN level=0 end=41835 start=34191 kind=Consolidation
+DIV level=1 end=41697 kind=pan side=Long
+DIV level=2 end=3477 kind=pan side=Long
+DIV level=2 end=5622 kind=pan side=Long
+DIV level=2 end=5905 kind=pan side=Long
+DIV level=2 end=9253 kind=pan side=Long
+DIV level=2 end=15821 kind=pan side=Long
+DIV level=2 end=17018 kind=pan side=Short
+DIV level=2 end=21929 kind=pan side=Short
+DIV level=2 end=22889 kind=pan side=Short
+DIV level=2 end=29456 kind=pan side=Short
+DIV level=2 end=30165 kind=pan side=Short
+TERM level=2 bar=30165 side=Short
+DIV level=2 end=37195 kind=pan side=Short
+DIV level=2 end=38704 kind=pan side=Long
+DIV level=2 end=39312 kind=pan side=Long
+DIV level=2 end=40390 kind=pan side=Long
+TURN level=0 end=42315 start=41414 kind=Trend
+DIV level=1 end=42759 kind=trend side=Short
+TERM level=1 bar=42759 side=Short
+TURN level=0 end=45356 start=42118 kind=Consolidation
+DIV level=1 end=42841 kind=pan side=Short
+TERM level=1 bar=42841 side=Short
+DIV level=1 end=42998 kind=pan side=Short
+DIV level=1 end=44699 kind=pan side=Long
+DIV level=1 end=45356 kind=pan side=Short
+DIV level=1 end=45646 kind=pan side=Short
+DIV level=1 end=48054 kind=pan side=Long
+DIV level=1 end=48286 kind=pan side=Long
+TERM level=1 bar=49991 side=Long
+DIV level=1 end=51194 kind=trend side=Long
+DIV level=1 end=51723 kind=pan side=Short
+DIV level=1 end=51815 kind=pan side=Long
+DIV level=1 end=52430 kind=pan side=Long
+DIV level=1 end=52815 kind=pan side=Short
+DIV level=2 end=46813 kind=pan side=Short
+DIV level=2 end=48941 kind=pan side=Short
+DIV level=1 end=53994 kind=pan side=Short
+DIV level=1 end=54719 kind=pan side=Long
+DIV level=1 end=55030 kind=pan side=Short
+DIV level=1 end=55193 kind=pan side=Short
+DIV level=1 end=55270 kind=pan side=Long
+TERM level=1 bar=55820 side=Short
+DIV level=1 end=56457 kind=pan side=Short
+DIV level=1 end=57205 kind=pan side=Short
+DIV level=1 end=57267 kind=pan side=Long
+DIV level=1 end=58234 kind=pan side=Long
+DIV level=1 end=58899 kind=pan side=Short
+DIV level=2 end=56635 kind=pan side=Short
+DIV level=2 end=57657 kind=pan side=Short
+TERM level=2 bar=57657 side=Short
+DIV level=1 end=63901 kind=trend side=Short
+DIV level=1 end=64459 kind=pan side=Long
+DIV level=1 end=64914 kind=pan side=Long
+DIV level=1 end=65046 kind=pan side=Long
+DIV level=1 end=65211 kind=pan side=Long
+DIV level=1 end=65376 kind=pan side=Short
+TERM level=1 bar=65376 side=Short
+DIV level=1 end=66922 kind=pan side=Long
+DIV level=1 end=67110 kind=pan side=Long
+DIV level=1 end=67179 kind=pan side=Short
+DIV level=2 end=65096 kind=pan side=Short
+DIV level=2 end=65516 kind=pan side=Long
+TERM level=2 bar=65516 side=Long
+DIV level=2 end=65618 kind=pan side=Short
+DIV level=2 end=67371 kind=pan side=Short
+TERM level=2 bar=67371 side=Short
+DIV level=2 end=68002 kind=pan side=Long
+TURN level=0 end=46813 start=44825 kind=Trend
+DIV level=1 end=69347 kind=trend side=Long
+TERM level=1 bar=69347 side=Long
+TURN level=0 end=76706 start=46318 kind=Consolidation
+DIV level=1 end=69503 kind=pan side=Long
+DIV level=1 end=69793 kind=pan side=Long
+DIV level=1 end=69888 kind=pan side=Short
+DIV level=1 end=70322 kind=pan side=Short
+DIV level=1 end=70393 kind=pan side=Long
+DIV level=1 end=71195 kind=pan side=Short
+DIV level=1 end=71266 kind=pan side=Short
+DIV level=1 end=71911 kind=pan side=Short
+DIV level=1 end=72778 kind=pan side=Long
+TERM level=1 bar=74384 side=Short
+DIV level=1 end=76706 kind=pan side=Short
+TURN level=0 end=77211 start=76060 kind=Trend
+TURN level=0 end=80343 start=76749 kind=Consolidation
+DIV level=1 end=77955 kind=pan side=Short
+DIV level=1 end=78324 kind=pan side=Short
+DIV level=1 end=78751 kind=pan side=Long
+TERM level=1 bar=79510 side=Short
+TERM level=1 bar=80030 side=Short
+DIV level=1 end=80343 kind=pan side=Short
+TURN level=0 end=80880 start=79510 kind=Trend
+DIV level=1 end=81297 kind=trend side=Short
+TERM level=1 bar=81297 side=Short
+TURN level=0 end=81489 start=80607 kind=Consolidation
+TURN level=0 end=81766 start=80928 kind=Trend
+DIV level=1 end=84353 kind=trend side=Short
+TURN level=0 end=83501 start=81584 kind=Consolidation
+DIV level=1 end=82697 kind=pan side=Long
+TURN level=1 end=80343 start=35 kind=Consolidation
+DIV level=2 end=72223 kind=pan side=Short
+DIV level=2 end=73334 kind=pan side=Short
+DIV level=2 end=74621 kind=pan side=Short
+TURN level=0 end=84283 start=83174 kind=Trend
+TURN level=0 end=88608 start=83527 kind=Consolidation
+DIV level=1 end=85804 kind=pan side=Short
+DIV level=1 end=86082 kind=pan side=Short
+DIV level=1 end=86799 kind=pan side=Short
+DIV level=1 end=86948 kind=pan side=Short
+TERM level=1 bar=87383 side=Long
+DIV level=1 end=87526 kind=pan side=Long
+DIV level=1 end=87716 kind=pan side=Short
+DIV level=1 end=88150 kind=pan side=Long
+DIV level=1 end=88300 kind=pan side=Short
+DIV level=1 end=88608 kind=pan side=Long
+DIV level=1 end=88790 kind=pan side=Long
+TURN level=1 end=82480 start=76749 kind=Trend
+TURN level=1 end=88608 start=81584 kind=Consolidation
+DIV level=2 end=92905 kind=trend side=Short
+DIV level=1 end=89729 kind=pan side=Short
+DIV level=1 end=89974 kind=pan side=Short
+DIV level=1 end=90164 kind=pan side=Short
+DIV level=1 end=90400 kind=pan side=Short
+DIV level=1 end=90647 kind=pan side=Short
+DIV level=1 end=90881 kind=pan side=Short
+DIV level=1 end=92179 kind=pan side=Long
+TERM level=1 bar=92179 side=Long
+DIV level=1 end=92948 kind=trend side=Short
+DIV level=1 end=93582 kind=pan side=Short
+TERM level=1 bar=94093 side=Long
+DIV level=1 end=94156 kind=pan side=Short
+DIV level=1 end=95283 kind=pan side=Long
+TERM level=1 bar=95283 side=Long
+TERM level=1 bar=95451 side=Short
+TURN level=2 end=74040 start=35 kind=Consolidation
+DIV level=2 end=92411 kind=pan side=Short
+DIV level=2 end=93840 kind=pan side=Short
+DIV level=3 end=18387 kind=pan side=Short
+DIV level=3 end=20613 kind=pan side=Short
+DIV level=3 end=32117 kind=pan side=Short
+DIV level=3 end=34061 kind=pan side=Long
+DIV level=3 end=36254 kind=pan side=Long
+DIV level=3 end=40390 kind=pan side=Long
+DIV level=3 end=59517 kind=pan side=Short
+DIV level=3 end=67371 kind=pan side=Short
+DIV level=3 end=71033 kind=pan side=Short
+TERM level=3 bar=71033 side=Short
+DIV level=3 end=76706 kind=pan side=Short
+DIV level=1 end=96694 kind=trend side=Long
+DIV level=2 end=99207 kind=pan side=Long
+DIV level=1 end=97239 kind=pan side=Short
+TERM level=1 bar=97239 side=Short
+TERM level=1 bar=99749 side=Short
+TERM level=1 bar=99749 side=Short
+TERM level=1 bar=99952 side=Long
+TERM level=1 bar=99952 side=Long
+TERM level=1 bar=99952 side=Long
+FALLBACK as_of=99999 level=2 kind=Consolidation side=Long turn_source=99207 seg_a=(95451, 95826) interval_a=(92416, 98636) interval_b=(98664, 99207) divergence_confirmed=true judge_at=99354
+CERT caliber=A exec=1 top=1 as_of=99999 side=Long bucket=trend kinds=Trend judge_at=38693 ids=1:38625:34638-38625
+CERT caliber=A exec=1 top=1 as_of=99999 side=Long bucket=trend kinds=Trend judge_at=77260 ids=1:69347:67683-69347
+CERT caliber=A exec=1 top=1 as_of=99999 side=Long bucket=pan kinds=Consolidation judge_at=22786 ids=1:16165:16057-16165
+CERT caliber=A exec=1 top=1 as_of=99999 side=Long bucket=pan kinds=Consolidation judge_at=35288 ids=1:33799:33670-33799
+CERT caliber=A exec=1 top=1 as_of=99999 side=Long bucket=pan kinds=Consolidation judge_at=93235 ids=1:92179:92006-92179
+CERT caliber=A exec=1 top=1 as_of=99999 side=Long bucket=pan kinds=Consolidation judge_at=97240 ids=1:95283:95144-95283
+CERT caliber=A exec=1 top=1 as_of=99999 side=Short bucket=trend kinds=Trend judge_at=38860 ids=1:37287:35223-37287
+CERT caliber=A exec=1 top=1 as_of=99999 side=Short bucket=trend kinds=Trend judge_at=46658 ids=1:42759:42503-42759
+CERT caliber=A exec=1 top=1 as_of=99999 side=Short bucket=trend kinds=Trend judge_at=81822 ids=1:81297:80815-81297
+CERT caliber=A exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=8665 ids=1:6897:6854-6897
+CERT caliber=A exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=12577 ids=1:10949:10640-10949
+CERT caliber=A exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=22786 ids=1:14170:13908-14170
+CERT caliber=A exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=22786 ids=1:14567:13908-14567
+CERT caliber=A exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=22786 ids=1:19855:19830-19855
+CERT caliber=A exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=47243 ids=1:42841:42759-42841
+CERT caliber=A exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=66130 ids=1:65376:65356-65376
+CERT caliber=A exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=99825 ids=1:97239:97188-97239
+CERT caliber=B exec=1 top=1 as_of=99999 side=Long bucket=trend kinds=Trend judge_at=38693 ids=1:38625:34638-38625
+CERT caliber=B exec=1 top=1 as_of=99999 side=Long bucket=trend kinds=Trend judge_at=77260 ids=1:69347:67683-69347
+CERT caliber=B exec=1 top=1 as_of=99999 side=Long bucket=pan kinds=Consolidation judge_at=22786 ids=1:16165:16057-16165
+CERT caliber=B exec=1 top=1 as_of=99999 side=Long bucket=pan kinds=Consolidation judge_at=35288 ids=1:33799:33670-33799
+CERT caliber=B exec=1 top=1 as_of=99999 side=Long bucket=pan kinds=Consolidation judge_at=93235 ids=1:92179:92006-92179
+CERT caliber=B exec=1 top=1 as_of=99999 side=Long bucket=pan kinds=Consolidation judge_at=97240 ids=1:95283:95144-95283
+CERT caliber=B exec=1 top=1 as_of=99999 side=Short bucket=trend kinds=Trend judge_at=38860 ids=1:37287:35223-37287
+CERT caliber=B exec=1 top=1 as_of=99999 side=Short bucket=trend kinds=Trend judge_at=46658 ids=1:42759:42503-42759
+CERT caliber=B exec=1 top=1 as_of=99999 side=Short bucket=trend kinds=Trend judge_at=81822 ids=1:81297:80815-81297
+CERT caliber=B exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=8665 ids=1:6897:6854-6897
+CERT caliber=B exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=12577 ids=1:10949:10640-10949
+CERT caliber=B exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=22786 ids=1:14170:13908-14170
+CERT caliber=B exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=22786 ids=1:14567:13908-14567
+CERT caliber=B exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=22786 ids=1:19855:19830-19855
+CERT caliber=B exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=47243 ids=1:42841:42759-42841
+CERT caliber=B exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=66130 ids=1:65376:65356-65376
+CERT caliber=B exec=1 top=1 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=99825 ids=1:97239:97188-97239
+CERT caliber=A exec=1 top=2 as_of=99999 side=Long bucket=mixed kinds=Consolidation,Trend judge_at=43441,38693 ids=2:3477:3223-3477|1:38625:34638-38625
+CERT caliber=A exec=1 top=2 as_of=99999 side=Long bucket=trend kinds=Trend,Trend judge_at=99354,77260 ids=2:99207:69347-99207|1:69347:67683-69347
+CERT caliber=A exec=1 top=2 as_of=99999 side=Long bucket=pan kinds=Consolidation,Consolidation judge_at=43441,22786 ids=2:3477:3223-3477|1:16165:16057-16165
+CERT caliber=A exec=1 top=2 as_of=99999 side=Long bucket=pan kinds=Consolidation,Consolidation judge_at=43441,35288 ids=2:3477:3223-3477|1:33799:33670-33799
+CERT caliber=A exec=1 top=2 as_of=99999 side=Long bucket=pan kinds=Consolidation,Consolidation judge_at=99354,97240 ids=2:99207:98664-99207|1:95283:95144-95283
+CERT caliber=A exec=1 top=2 as_of=99999 side=Short bucket=mixed kinds=Consolidation,Trend judge_at=43441,38860 ids=2:17018:16724-17018|1:37287:35223-37287
+CERT caliber=A exec=1 top=2 as_of=99999 side=Short bucket=mixed kinds=Consolidation,Trend judge_at=54173,46658 ids=2:46813:46318-46813|1:42759:42503-42759
+CERT caliber=A exec=1 top=2 as_of=99999 side=Short bucket=mixed kinds=Consolidation,Trend judge_at=85045,81822 ids=2:72223:71812-72223|1:81297:80815-81297
+CERT caliber=A exec=1 top=2 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=43441,8665 ids=2:17018:16724-17018|1:6897:6854-6897
+CERT caliber=A exec=1 top=2 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=43441,12577 ids=2:17018:16724-17018|1:10949:10640-10949
+CERT caliber=A exec=1 top=2 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=43441,22786 ids=2:17018:16724-17018|1:14170:13908-14170
+CERT caliber=A exec=1 top=2 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=43441,22786 ids=2:17018:16724-17018|1:14567:13908-14567
+CERT caliber=A exec=1 top=2 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=43441,22786 ids=2:17018:16724-17018|1:19855:19830-19855
+CERT caliber=A exec=1 top=2 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=54173,47243 ids=2:46813:46318-46813|1:42841:42759-42841
+CERT caliber=A exec=1 top=2 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=71854,66130 ids=2:65096:64944-65096|1:65376:65356-65376
+CERT caliber=B exec=1 top=2 as_of=99999 side=Long bucket=mixed kinds=Trend,Consolidation judge_at=99354,93235 ids=2:99207:69347-99207|1:92179:92006-92179
+CERT caliber=B exec=1 top=2 as_of=99999 side=Long bucket=mixed kinds=Trend,Consolidation judge_at=99354,97240 ids=2:99207:69347-99207|1:95283:95144-95283
+CERT caliber=B exec=1 top=2 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=43441,22786 ids=2:20613:17785-20613|1:19855:19830-19855
+CERT caliber=A exec=1 top=3 as_of=99999 side=Long bucket=mixed kinds=Consolidation,Consolidation,Trend judge_at=97889,43441,38693 ids=3:34061:32117-34061|2:3477:3223-3477|1:38625:34638-38625
+CERT caliber=A exec=1 top=3 as_of=99999 side=Long bucket=mixed kinds=Consolidation,Trend,Trend judge_at=97889,99354,77260 ids=3:34061:32117-34061|2:99207:69347-99207|1:69347:67683-69347
+CERT caliber=A exec=1 top=3 as_of=99999 side=Long bucket=pan kinds=Consolidation,Consolidation,Consolidation judge_at=97889,43441,22786 ids=3:34061:32117-34061|2:3477:3223-3477|1:16165:16057-16165
+CERT caliber=A exec=1 top=3 as_of=99999 side=Long bucket=pan kinds=Consolidation,Consolidation,Consolidation judge_at=97889,43441,35288 ids=3:34061:32117-34061|2:3477:3223-3477|1:33799:33670-33799
+CERT caliber=A exec=1 top=3 as_of=99999 side=Short bucket=mixed kinds=Consolidation,Consolidation,Trend judge_at=97889,43441,38860 ids=3:18387:16724-18387|2:17018:16724-17018|1:37287:35223-37287
+CERT caliber=A exec=1 top=3 as_of=99999 side=Short bucket=mixed kinds=Consolidation,Consolidation,Trend judge_at=97889,54173,46658 ids=3:18387:16724-18387|2:46813:46318-46813|1:42759:42503-42759
+CERT caliber=A exec=1 top=3 as_of=99999 side=Short bucket=mixed kinds=Consolidation,Consolidation,Trend judge_at=97889,85045,81822 ids=3:18387:16724-18387|2:72223:71812-72223|1:81297:80815-81297
+CERT caliber=A exec=1 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation,Consolidation judge_at=97889,43441,8665 ids=3:18387:16724-18387|2:17018:16724-17018|1:6897:6854-6897
+CERT caliber=A exec=1 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation,Consolidation judge_at=97889,43441,12577 ids=3:18387:16724-18387|2:17018:16724-17018|1:10949:10640-10949
+CERT caliber=A exec=1 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation,Consolidation judge_at=97889,43441,22786 ids=3:18387:16724-18387|2:17018:16724-17018|1:14170:13908-14170
+CERT caliber=A exec=1 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation,Consolidation judge_at=97889,43441,22786 ids=3:18387:16724-18387|2:17018:16724-17018|1:14567:13908-14567
+CERT caliber=A exec=1 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation,Consolidation judge_at=97889,43441,22786 ids=3:18387:16724-18387|2:17018:16724-17018|1:19855:19830-19855
+CERT caliber=A exec=1 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation,Consolidation judge_at=97889,54173,47243 ids=3:18387:16724-18387|2:46813:46318-46813|1:42841:42759-42841
+CERT caliber=A exec=1 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation,Consolidation judge_at=97889,71854,66130 ids=3:18387:16724-18387|2:65096:64944-65096|1:65376:65356-65376
+CERT caliber=B exec=1 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation,Consolidation judge_at=97889,43441,22786 ids=3:20613:16724-20613|2:20613:17785-20613|1:19855:19830-19855
+CERT caliber=A exec=2 top=2 as_of=99999 side=Long bucket=pan kinds=Consolidation judge_at=71854 ids=2:65516:65096-65516
+CERT caliber=A exec=2 top=2 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=43441 ids=2:30165:29852-30165
+CERT caliber=A exec=2 top=2 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=64613 ids=2:57657:56425-57657
+CERT caliber=A exec=2 top=2 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=71854 ids=2:67371:66937-67371
+CERT caliber=B exec=2 top=2 as_of=99999 side=Long bucket=pan kinds=Consolidation judge_at=71854 ids=2:65516:65096-65516
+CERT caliber=B exec=2 top=2 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=43441 ids=2:30165:29852-30165
+CERT caliber=B exec=2 top=2 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=64613 ids=2:57657:56425-57657
+CERT caliber=B exec=2 top=2 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=71854 ids=2:67371:66937-67371
+CERT caliber=A exec=2 top=3 as_of=99999 side=Long bucket=pan kinds=Consolidation,Consolidation judge_at=97889,71854 ids=3:34061:32117-34061|2:65516:65096-65516
+CERT caliber=A exec=2 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=97889,43441 ids=3:18387:16724-18387|2:30165:29852-30165
+CERT caliber=A exec=2 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=97889,64613 ids=3:18387:16724-18387|2:57657:56425-57657
+CERT caliber=A exec=2 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=97889,71854 ids=3:18387:16724-18387|2:67371:66937-67371
+CERT caliber=B exec=2 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=97889,64613 ids=3:59517:56425-59517|2:57657:56425-57657
+CERT caliber=B exec=2 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation,Consolidation judge_at=97889,71854 ids=3:67371:56425-67371|2:67371:66937-67371
+CERT caliber=A exec=3 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=97889 ids=3:71033:67403-71033
+CERT caliber=B exec=3 top=3 as_of=99999 side=Short bucket=pan kinds=Consolidation judge_at=97889 ids=3:71033:67403-71033

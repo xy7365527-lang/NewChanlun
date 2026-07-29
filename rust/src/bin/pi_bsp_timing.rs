@@ -57,7 +57,7 @@ use newchan_rust::theta_v0::backtest::data::load_by_symbol;
 use newchan_rust::theta_v0::backtest::incremental::IncrementalClassifier;
 use newchan_rust::theta_v0::backtest::metrics::{self, TradeRecord};
 use newchan_rust::theta_v0::backtest::mu_estimator::{
-    marginal_return, MuClass, MuEstimator, MuObservation, PositionState,
+    chi_dimension_three_return, MuClass, MuEstimator, MuObservation, PositionState,
 };
 use newchan_rust::theta_v0::backtest::selector::chi_open_gate_lcb;
 use newchan_rust::theta_v0::classifier::recursive_tower::ElementId;
@@ -267,6 +267,9 @@ struct PassResult {
     diag_lift_pass: usize,
     /// χ 门否决的开仓证书数（μ(z)≤θ ∨ ¬RiskOK ∨ ¬ConflictOK）。Pass 1（χ≡1）恒 0。
     chi_rejected: usize,
+    /// #563 M7：entry_px≤0 被跳过喂 μ 的笔数（真实标的池预期恒 0，见 mu_estimator.rs 的
+    /// `chi_dimension_three_return` 前置条件文档）。
+    diag_nonpositive_px: usize,
 }
 
 /// 跑一遍 π_Θ^bsp 多声部状态机（§1-19）。
@@ -306,6 +309,7 @@ fn run_state_machine(
     let mut diag_parent_active_found = 0usize;
     let mut diag_lift_pass = 0usize;
     let mut chi_rejected = 0usize;
+    let mut diag_nonpositive_px = 0usize;
 
     for i in 0..n {
         let (classification, tower) = classifier.classify_at(i);
@@ -370,15 +374,24 @@ fn run_state_machine(
             let voice = voices[v];
             let entry_px = prices[voice.entry_bar.min(n - 1)];
             let exit_px = prices[i]; // τ_γ=i：出场证书命中的当前 bar close（F_i-可测，非后视）
-            let x_gamma = marginal_return(entry_px, exit_px, voice.qty, fee_rate, voice.dir);
-            let z = MuClass::from_certificate(
-                voice.level,
-                voice.dir,
-                voice.bits,
-                parent_dir_of(&voices, v),
-                if voice.parent.is_some() { PositionState::Child } else { PositionState::Root },
-            );
-            mu_est.observe(MuObservation { class: z, x_gamma });
+            // #563 M7：entry_px≤0 ⟹ chi_dimension_three_return 的量纲③分母 entry_notional≤0，
+            // release 下 debug_assert 失守会让 Inf/NaN 进 Welford 永久污染整桶——显式守卫跳过该笔，
+            // 与 l3_delta_r_alpha.rs 的 LedgerDisposition::NonPositivePx 同一防线（本 bin 无 ledger 层，
+            // 守卫落在 μ 喂入点）。不跳过平仓本身（voice 仍须从 active 移除，只是不喂 μ）。
+            if entry_px > 0.0 {
+                let x_gamma =
+                    chi_dimension_three_return(entry_px, exit_px, voice.qty, fee_rate, voice.dir);
+                let z = MuClass::from_certificate(
+                    voice.level,
+                    voice.dir,
+                    voice.bits,
+                    parent_dir_of(&voices, v),
+                    if voice.parent.is_some() { PositionState::Child } else { PositionState::Root },
+                );
+                mu_est.observe(MuObservation { class: z, x_gamma });
+            } else {
+                diag_nonpositive_px += 1;
+            }
             active.remove(&v);
         }
 
@@ -467,15 +480,22 @@ fn run_state_machine(
             if last_bar > voice.entry_bar {
                 let entry_px = prices[voice.entry_bar.min(last_bar)];
                 let exit_px = prices[last_bar];
-                let x_gamma = marginal_return(entry_px, exit_px, voice.qty, fee_rate, voice.dir);
-                let z = MuClass::from_certificate(
-                    voice.level,
-                    voice.dir,
-                    voice.bits,
-                    parent_dir_of(&voices, v),
-                    if voice.parent.is_some() { PositionState::Child } else { PositionState::Root },
-                );
-                mu_est.observe(MuObservation { class: z, x_gamma });
+                // #563 M7：同上——entry_px≤0 时不喂 μ，只计数（守卫见平仓分支注释）。
+                if entry_px > 0.0 {
+                    let x_gamma = chi_dimension_three_return(
+                        entry_px, exit_px, voice.qty, fee_rate, voice.dir,
+                    );
+                    let z = MuClass::from_certificate(
+                        voice.level,
+                        voice.dir,
+                        voice.bits,
+                        parent_dir_of(&voices, v),
+                        if voice.parent.is_some() { PositionState::Child } else { PositionState::Root },
+                    );
+                    mu_est.observe(MuObservation { class: z, x_gamma });
+                } else {
+                    diag_nonpositive_px += 1;
+                }
             }
         }
     }
@@ -490,6 +510,7 @@ fn run_state_machine(
         diag_parent_active_found,
         diag_lift_pass,
         chi_rejected,
+        diag_nonpositive_px,
     }
 }
 
@@ -723,6 +744,13 @@ fn main() -> std::process::ExitCode {
     println!("--- χ_t=1[μ>θ] 阈值过滤对比（alpha2 §13，task #41；L1 过滤生效，非 L2 alpha）---");
     println!("θ（Θ_risk 参数）: {theta:.6}（成本+风险门槛，**非缠论可导**，诚实标注）");
     println!("χ 否决开仓证书数 : {}（μ(z)≤θ 被滤；Pass 1 χ≡1 恒 0）", pass2.chi_rejected);
+    // #563 M7：entry_px≤0 跳过喂 μ 的笔数（真实标的池预期恒 0，见 chi_dimension_three_return 前置条件）。
+    println!(
+        "entry_px≤0 跳过μ : {}（Pass1={} Pass2={}，>0 ⟹ 数据面异常需另查）",
+        pass1.diag_nonpositive_px + pass2.diag_nonpositive_px,
+        pass1.diag_nonpositive_px,
+        pass2.diag_nonpositive_px,
+    );
     println!("声部数 χ≡1/χ滤  : {pass1_voices} / {pass2_voices}（过滤后 ≤ 全覆盖，§13 Γ^trade⊆Γ）");
     println!("ΔN 序列差异 bar  : {n_diff_bars} / {n}（非全等={sequences_differ}）");
     if sequences_differ {
@@ -733,7 +761,8 @@ fn main() -> std::process::ExitCode {
         println!("  ⚠ χ 有否决但 ΔN 全等——被滤声部不影响净额（被 anc_ok 剪/重复 carrier）。诚实标注。");
     }
     // ── μ(z,a) 类别条件边际收益表（alpha2 §12，task #39，L2 真实数据可否证）──
-    // 按 z=(ℓ,δ,I_γ,父向,短差,仓位态) 分桶；μ(z)=E[X_γ|z]=ΣX_γ/|S_z| 绝对收益（与 metrics 同单位）。
+    // 按 z=(ℓ,δ,I_γ,父向,短差,仓位态) 分桶；#65 量纲③：
+    // μ(z)=E[X_γ|z]，X_γ=费扣后持仓期相对收益（逐笔 ÷qty·entry_px）。
     // ★μ(z)>0 ⟹ 该类买卖点在此退出规则/成本/样本下有正边际期望（alpha 候选）；μ(z)≤0 ⟹ 无正期望
     // （§12 line 2186）——否定性结果（formalization-validity-domain：μ≤0 比确认更有信息增量）。
     let mut mu_rows: Vec<(MuClass, f64, u64)> = mu_est
@@ -754,7 +783,7 @@ fn main() -> std::process::ExitCode {
     } else {
         println!(
             "{:>3} {:>3} {:>4} {:>5} {:>6} {:>6} {:>6} {:>14}",
-            "ℓ", "δ", "Iγ", "父向", "短差", "仓位", "|S_z|", "μ(z)绝对"
+            "ℓ", "δ", "Iγ", "父向", "短差", "仓位", "|S_z|", "μ(z)相对"
         );
         for (z, mu, cnt) in &mu_rows {
             let alpha = if *mu > 0.0 { "+" } else { "≤0" };
@@ -798,3 +827,18 @@ fn main() -> std::process::ExitCode {
 #[cfg(test)]
 #[path = "pi_bsp_timing/cli_args_tests.rs"]
 mod cli_args_tests;
+
+// #614 并线：kimi 线的量纲③回归测试（#65 裁定）与 main 线的 #412 外置 CLI 测试互不相干，
+// 并集保留——外置模块 `cli_args_tests` 覆盖 CLI 解析，本内联模块覆盖 χ 量纲③的 qty 免疫。
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 量纲③重锚（#65 裁定 2026-07-21）：逐笔 ÷(qty·entry_px)，χ 观测对 qty 免疫。
+    #[test]
+    fn chi_feed_dimension_three_is_qty_immune() {
+        let one = chi_dimension_three_return(100.0, 110.0, 1.0, 0.001, 1);
+        let five = chi_dimension_three_return(100.0, 110.0, 5.0, 0.001, 1);
+        assert!((one - five).abs() < 1e-15, "量纲③逐笔归一化后必须 qty 免疫：{one} vs {five}");
+    }
+}

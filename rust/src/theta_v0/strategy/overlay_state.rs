@@ -48,7 +48,7 @@ use super::voice::VoiceSide;
 use crate::theta_v0::classifier::recursive_tower::ElementId;
 
 /// σ_v 的符号（Long=+1 多 / Short=−1 空 / Flat=0 不入活动集，防御性）。
-fn side_sign(s: VoiceSide) -> i64 {
+pub(crate) fn side_sign(s: VoiceSide) -> i64 {
     match s {
         VoiceSide::Long => 1,
         VoiceSide::Short => -1,

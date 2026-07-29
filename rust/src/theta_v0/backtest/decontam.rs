@@ -1,5 +1,10 @@
 //! beta 去污三态判据评估层（acc-alpha 预注册 §3，冻结判据的可执行落点）。
 //!
+//! **档处置（连带枚举·断粮定档，`chanlun/escalate/chi-line-falsification-ruling-20260728.md` §1②
+//! 连带段，2026-07-28）**：本模块三态判据消费 `perm_test.rs` 生产的逐桶 `perm_p`——该生产者已随
+//! 档2-修砍单撤销，本模块推断链随之断粮，一并定档。诊断件保留（禁删）；历史裁决照旧有效。登记详见
+//! `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
 //! ## 存在论位置
 //!
 //! 本模块是 acc-alpha acceptance 工位「beta 去污后 LCB>0 占比」判据的**纯逻辑内核**。

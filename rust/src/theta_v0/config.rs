@@ -163,7 +163,7 @@ impl Default for VoiceConfig {
 }
 
 /// Θ_risk 参数（reference-theta-v0.md:44-47）。全部 [设计选择,默认值;L3经验待标定]。
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RiskConfig {
     /// 单声部风险 `ρ=0.005 NAV`。L3。
     pub rho: f64,
@@ -197,6 +197,21 @@ pub struct RiskConfig {
     /// 逐根子树 KKT 投影，见 coverage.rs `apply_gross_cap`）。毛 cap **复用** `gamma`（与净 cap
     /// 共用同一 Θ_risk 参数，#122 裁定暂不拆 gross_gamma/net_gamma）。
     pub enforce_gross_cap: bool,
+    /// ★M4 级别资金权 `w_ℓ`（multi-level-native-execution-design-20260719 §D M4）。**Θ_risk
+    /// 参数，非缠论可导**（090/v3 纪律：级别之间怎么分钱是风险配置选择，不是缠论结构推导）。
+    ///
+    /// 按 level 索引取权重（对齐 [`super::strategy::voice::depth_weight`] 的取值方式：
+    /// `level_weights.get(level as usize)`，越界或空表 ⟹ 0.0，未用部分保留现金不重分配，
+    /// 同 `depth_weights` 纪律）。**default 空表**——`enforce_level_cap=false` 时空表不参与
+    /// 任何路径（M0–M3 bit-exact 不变）；启用后须满足 `Σ w_ℓ ≤ 1`（见
+    /// [`super::strategy::level_risk::level_weights_sum_le_one`]，机器断言，非文档承诺）。
+    pub level_weights: Vec<f64>,
+    /// ★M4 级别级风险帽开关（G7 `enforce_gross_cap` 同款模式）。`false`（default）⟹ 不激活，
+    /// LEE 结构基准不经级别帽裁剪（frozen M0–M3 bit-exact 不变）；`true` ⟹
+    /// `fill.rs::plan_level_gated_order` 在门控重估后、账户层投影前，对每个真实级别 ℓ 的
+    /// 结构基准施加 `cap_ℓ = w_ℓ·γ̄·U_ℓ`（[`super::strategy::level_risk::level_cap`]，𝒦_Θ
+    /// 协变 cap `γ̄·U_ℓ` 按级别用 w_ℓ 分解，见该函数文档「协变分解守恒」）。
+    pub enforce_level_cap: bool,
 }
 
 impl Default for RiskConfig {
@@ -210,21 +225,91 @@ impl Default for RiskConfig {
             chi_theta: None,
             chi_z_alpha: 0.0,
             enforce_gross_cap: false,
+            level_weights: Vec::new(),
+            enforce_level_cap: false,
         }
     }
 }
 
 /// Θ_exec 参数（reference-theta-v0.md:49-54）。
-#[derive(Debug, Clone, Copy, PartialEq)]
+///
+/// ★venue 口径（#303 裁定 = **spot**）与默认费率落差（3bp/side vs 现货 VIP0 taker 10bp/side）：
+/// 结论的唯一权威登记见 [`CostModel`](super::strategy::risk::CostModel) 节头，此处不复制。
+/// **落差的建模出口（#360）= [`fee_schedule`](ExecConfig::fee_schedule)**：`None` 保持三常数
+/// 未标定 fallback（现状逐位），`Some(datum)` 走 venue 真实费率表（BTC 档 = Binance **现货**
+/// VIP0，与 #303 的 spot 裁定同口径；perp 费率表未核，报告 §4.1，不入簿）。
+///
+/// ★**尚不是端到端可执行出口**（#374 MED-B，090 照实）：全仓 `Some(...)` 赋值点**只在测试内**
+/// ——`ExecConfig::default()` 恒 `None`，CLI（`bin::theta_backtest`）无 datum 注入参数 ⟹ 生产
+/// 口径上 datum/quoter/标签构造子三件等价 no-op，`rate_calibration_label` 永输
+/// [`RATE_UNCALIBRATED_LABEL`](super::strategy::risk::RATE_UNCALIBRATED_LABEL)。注入通道
+/// （CLI/配置面接 datum 路径 + 档位）**是 #360/#374 票体外的独立工作，此处仅登记不实装**。
+///
+/// **`Copy` 已移除（#360）**：`fee_schedule` 持 datum 字符串（venue/symbol/tier/sha256），
+/// 无法 `Copy`。`ExecConfig` 仍 `Clone`——按值传递处改 `.clone()` 或借用。
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExecConfig {
     /// 信号确认后延迟成交的基础 K 根数。default 1（reference-theta-v0.md:50）。
     pub entry_delay_bars: u32,
     /// commission（bp/side）。default 1。[设计选择;L3经验待标定]
+    ///
+    /// ★#360 后语义收窄：本字段（与 `slippage_bps`/`tax_bps` 合成的常率）是
+    /// **`fee_schedule = None` 时的未标定 fallback**，口径标签 `[L1机制/费率未标定]`。
     pub commission_bps: f64,
     /// slippage（bp/side）。default 2。L3。
+    ///
+    /// ★#360 不覆盖滑点：滑点本质是价差/冲击 datum（报告 §1.6 裂缝 3，另立 datum 是另票），
+    /// 标定档下本字段**仍未标定**——venue 费率表只标定佣金/监管/清算科目。
     pub slippage_bps: f64,
     /// tax（bp/side）。default 0。L3。
+    ///
+    /// **标定档下必须为 0**——本处只是该约束的**声明处**，唯一**强制处**是
+    /// `backtest::treasury::fee_quoter` 内的 `assert!`（`fee_schedule.is_none() || tax_bps == 0.0`）。
+    /// 理由见 [`fee_schedule`](Self::fee_schedule)：两个在册 venue 的交易税费科目已由 datum 逐项
+    /// 承载，再叠一个笼统 `tax_bps` 会重复计。本处不做任何运行时检查（把声明处读成强制处会高估
+    /// 强度）。
     pub tax_bps: f64,
+    /// ★venue 真实费率档（#360；datum + sha256 版本哈希，见 [`venue_fee`](super::venue_fee)）。
+    ///
+    /// - `None`（default）⟹ 上面三常数合成的单一 per-notional 常率，**与改动前逐位相同**；
+    /// - `Some(s)` ⟹ 成交点按 datum 逐笔解析等效单边费率（per-notional 档恒定；per-share 档
+    ///   随单量/价/买卖方向变——最低佣金、名义额上限、卖出监管费），**再加 `slippage_bps`**
+    ///   （datum 只覆盖佣金/监管/清算，滑点是价差/冲击性质，报告 §3.3 明文保留未标定）；
+    ///   同时要求 `tax_bps == 0`（`treasury::fee_quoter` fail-loud，禁与 datum 内的监管税费重复计）。
+    ///
+    /// **品种绑定**：本档是**按品种**的 datum 条目，成交回路无 symbol 上下文 ⟹ 绑定校验放在
+    /// `backtest::data::load_by_symbol`（数据集品种 ≠ `schedule.symbol` ⟹ `Err`，禁跨品种借档）。
+    ///
+    /// **已收编的消费面**（解析器 = `backtest::treasury::fee_quoter`，报告 §3.1 item 3 的单源
+    /// 门面）：`backtest::fill` 的四条生产成交回路（`simulate_fills` /
+    /// `pi_theta_fill_loop_overlay` / `plan_and_fill_mtm` / `plan_and_fill_mtm_dual`），含其
+    /// 窗口终点强平；以及 `strategy::overlay_state::VoiceExecBook` 的开/平/强平三个扣费点
+    /// （簿是 (σ_v, q_v) 的真值源，故解析下沉到簿内逐声部做）。
+    ///
+    /// **部分收编（★#423）**：`backtest::runner::RunResult::fee_rate` 是**单标量**成本口径
+    /// （随机对照/成本剥离用），不能走逐笔解析器 ⟹ 其收编条件是"本档存在一个与 (qty, px, side)
+    /// 无关的常数等效费率"。取值走 `backtest::treasury::scalar_cost_rate_opt`（#374 MED-A 起从
+    /// 文字登记升级为代码锁；#388 T2 起由 `Option` 类型承载，此前是 `scalar_cost_rate` 构造期
+    /// panic），★#423 起**按档位形态三分叉**：
+    ///
+    /// - **按金额档（per-notional）且 maker/taker 逐位对称** ⟹ **已收编**，标量 = 档 bps/1e4 +
+    ///   `slippage_bps`/1e4 + `tax_bps`/1e4（撮合角色取自编译期常量
+    ///   `venue_fee::PRODUCTION_LIQUIDITY_ROLE`；判定本体 =
+    ///   `venue_fee::VenueFeeSchedule::constant_effective_rate`）；
+    /// - **per-share 档 / per-notional 非对称档** ⟹ **未收编**，给 `None` 而非一个不对称口径的
+    ///   常数，消费面须 fail-loud（同一条 `SCALAR_COST_RATE_UNDEFINED`）或标注读数不可用。这两档
+    ///   的解锁需给消费面接 (qty, px, side) 缝（随滑点/价差 datum 一并，报告 §1.6 裂缝 3 同族），
+    ///   属另票。
+    ///
+    /// **未收编（照实登记，不膨胀）**——以下位点一律取未标定常率，且当前**无 datum 注入通道**
+    /// （它们都用 `ExecConfig::default()` ⟹ `None` ⟹ 与改动前逐位相同）：
+    ///
+    /// - `strategy::exec::apply_fees`：tick 域价格偏移变体，无成交量/方向上下文，且当前
+    ///   **无生产调用方**（仅其自身单测）；
+    /// - 研究跑批与诊断：`backtest::econ_positive` / `backtest::l3_delta_r_alpha` /
+    ///   `bin::pure_bsp_timing` / `bin::pi_bsp_timing` 各有自带 PnL 引擎，收编需逐引擎接
+    ///   (qty, side) 缝，属另票。
+    pub fee_schedule: Option<super::venue_fee::VenueFeeSchedule>,
 }
 
 impl Default for ExecConfig {
@@ -234,6 +319,7 @@ impl Default for ExecConfig {
             commission_bps: 1.0,
             slippage_bps: 2.0,
             tax_bps: 0.0,
+            fee_schedule: None,
         }
     }
 }
@@ -312,9 +398,10 @@ pub struct ThetaConfig {
     pub margin: Option<super::strategy::risk::MarginModel>,
     /// M6 成本模型（TARGET_STRATEGY_MAXFULL.md M6 / 路线.pdf p16 第十一关剩余三项：Funding/Borrow/
     /// LiquidationLoss）。`None` ⟹ 三项成本恒 0（bit-exact 现状——Commission/Slippage 仍由 `exec`
-    /// fee_rate 承担，不受影响）；`Some` ⟹ 逐 bar 计提资金费/借贷 + 强平罚金进 PnL、进 R 分解、
-    /// 守恒断言。**有效域（231号）**：v0 参数化常费率，真实 funding/借贷历史是外部数据缺口（L2），
-    /// 机制真实装、费率待外部标定（A10 waiver 豁免外部数据源，不豁免机制）。
+    /// fee_rate 承担，不受影响）；`Some` ⟹ 逐 bar 计提周期性持有成本/借贷 + 强平罚金进 PnL、进 R
+    /// 分解、守恒断言。★venue 口径（#303 裁定 = **spot**）见 [`CostModel`](super::strategy::risk::CostModel)
+    /// 节头（唯一权威声明处）。**有效域（231号）**：v0 参数化常费率，真实现货借贷/机会成本利率曲线
+    /// 是外部数据缺口（L2），机制真实装、费率待外部标定（A10 waiver 豁免外部数据源，不豁免机制）。
     pub cost_model: Option<super::strategy::risk::CostModel>,
     /// κ 风险政策（A10 附则A 裁定接口冻结）：`None` ⟹ `RiskPolicy::baseline()` κ=0，与现路径
     /// **逐字节相同（bit-exact）**；`Some` ⟹ π loop `tw_policy` 取之（`stage_progression` 的

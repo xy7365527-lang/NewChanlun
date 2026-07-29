@@ -292,6 +292,19 @@ pub fn load_by_symbol(symbol: &str, config: &ThetaConfig) -> Result<Dataset, Str
         .find(|(s, _, _)| s.eq_ignore_ascii_case(symbol))
         .map(|(_, f, g)| (*f, *g))
         .ok_or_else(|| format!("未知品种 `{symbol}`（不在 SYMBOLS 表）"))?;
+    // ★#360 venue 费率档与品种的绑定校验（fail-loud，禁跨品种借档）：`ExecConfig::fee_schedule`
+    //   是**按品种分档**的 datum 条目（票体 What to build 第一条），而成交回路无 symbol 上下文
+    //   ⟹ 唯一能对上号的地方就是这里（数据集品种与配置在此相遇）。不校验的话，把 OKLO 的
+    //   per-share 档（$0.0035/**股**）配到 BTC 跑批不会报错，静默产出无意义费用。
+    if let Some(sched) = &config.exec.fee_schedule {
+        if !sched.symbol.eq_ignore_ascii_case(symbol) {
+            return Err(format!(
+                "venue 费率档品种不符：schedule.symbol=`{}`（venue={} tier={}）≠ 数据集 `{symbol}`\
+                 ——per-share/名义额档位对另一品种无意义，禁静默借档（#360）",
+                sched.symbol, sched.venue, sched.tier
+            ));
+        }
+    }
     let path = data_dir().join(file);
     // 粒度随品种取自 SYMBOLS 表（C 点）。现有 8 品种 bar_seconds=60 ⟹ 仍传 60 ⟹ 1m 路径 bit-exact。
     load_symbol(&path, symbol, config, bar_seconds)
@@ -300,6 +313,45 @@ pub fn load_by_symbol(symbol: &str, config: &ThetaConfig) -> Result<Dataset, Str
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ★#360：venue 费率档品种与数据集品种不符 ⟹ fail-loud（校验先于读盘 ⟹ 不依赖数据文件）。
+    ///
+    /// **认识论 L1**（管线校验正确性，零市场信息增量）。
+    #[test]
+    fn fee_schedule_symbol_must_match_dataset() {
+        use super::super::super::venue_fee::{FeeUnit, PerShareFees, VenueFeeSchedule};
+        let mut cfg = ThetaConfig::default();
+        cfg.exec.fee_schedule = Some(VenueFeeSchedule {
+            venue: "IBKR_PRO_US_EQUITY".into(),
+            symbol: "OKLO".into(),
+            tier: "PRO_TIERED_LE_300K_SHARES".into(),
+            unit: FeeUnit::PerShare(PerShareFees {
+                commission_per_share_usd: 0.0035,
+                min_commission_usd: 0.35,
+                max_commission_frac_of_notional: 0.01,
+                clearing_per_share_usd: 0.0002,
+                cat_per_share_usd: 0.000003,
+                sell_sec_fee_frac: 0.0000206,
+                sell_taf_per_share_usd: 0.000195,
+                sell_taf_cap_usd: 9.79,
+                passthru_exchange_frac_of_commission: 0.000175,
+                passthru_finra_frac_of_commission: 0.000565,
+            }),
+            datum_sha256: "0".repeat(64),
+        });
+        let err = load_by_symbol("BTC", &cfg).expect_err("跨品种借档必须 Err");
+        assert!(err.contains("品种不符"), "错误须点名品种不符：{err}");
+        // 同品种（大小写不敏感，与 SYMBOLS 查表同口径）⟹ 不被本校验拦下。
+        let mut ok_cfg = cfg.clone();
+        if let Some(s) = ok_cfg.exec.fee_schedule.as_mut() {
+            s.symbol = "oklo".into();
+        }
+        let r = load_by_symbol("OKLO", &ok_cfg);
+        assert!(
+            r.is_ok() || !r.as_ref().unwrap_err().contains("品种不符"),
+            "同品种不得被品种校验拦下：{r:?}"
+        );
+    }
 
     /// date_to_timestamp 单调性（同序列内严格递增即可，绝对值无语义）。
     #[test]

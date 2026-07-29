@@ -1,0 +1,13 @@
+P123_INPUT bars=4613599 replay_bars=2000 first_date=2017-08-17 04:00:00 last_date=2026-05-31 23:59:00
+P123_RULE cand=dir_and_comparable_and_extreme weak=divergence_stage interval_production=B typed=trend_or_consolidation d3=sidecar terminal=BspBits_confirm_side clock=first_prefix created_at=forbidden
+P123_PROBE turn=completed_typed_structure_ge2_successors turn_end=turning_center_end_index div=first_prefix_divergence_confirmed div_end=turn_source term=event_terminal_bits_first_seen term_bar=turn_source
+P123_SPARSE_MODE cache=per_level_run dirty=self_content,lower_content,leg_end_watermark,bsp_content term_recheck=fresh_or_book_changed trigger=forest_epoch+signal_signature_frozen
+P123_YIELD candidates=2 trend_candidates=0 pan_candidates=2 divergence_confirmed=2 trend_divergence=0 pan_divergence=2 terminal_confirmed=0
+P123_CERT caliber_A=0 A_trend=0 A_pan=0 A_mixed=0 caliber_B=0 B_trend=0 B_pan=0 B_mixed=0
+P123_D3 edges=0 violations=0 rate=0.000000000
+P123_BASELINE old_candidates=0 old_terminal_confirmed=0 old_certificates=0 new_candidates=2 new_terminal_confirmed=0 new_B_certificates=0
+P123_PROVIDER snapshots=3 views=3 too_short=0 invalid_seed=0 missing_carried_center=0 other=0 unresolved_targets=0 complete=true
+P123_SNAPSHOT future_violations=0 created_at_reads=0 no_forward=true
+P123_BIT_EXACT old_path_diff=0 tower_diff=0 moves_centers_bsp_pan_diff=0 lifecycle_cp_ownership_diff=0 classification_total_diff=0
+P123_R7 provider_complete=true definition_faithful=true snapshot_no_forward=true B_zero=true
+P123_MISSED terminal_confirmed=0 covered_b=0 intake_fallback_events=2 missed=0

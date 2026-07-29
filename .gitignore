@@ -76,7 +76,12 @@ scripts/.ph_push_state.json
 rust/target/
 
 # Analysis 数据缓存与可视化产物（3.9G+，可从脚本重建，不入库）
-analysis/data_cache/
+#   目录写法改 `/*`（#360）：目录级排除无法被后续 `!` 重新纳入（git 规则），而 venue 费率
+#   datum 必须入仓——它是 KB 级人工核录的版本化快照，**不可由脚本重建**，且 sha256 契约
+#   要求任何 clone 都能 `shasum -a 256 -c` 复核。行情缓存的排除范围不变。
+analysis/data_cache/*
+!analysis/data_cache/venue_fee_*.json
+!analysis/data_cache/venue_fee_*.json.sha256
 analysis/charts/
 
 # newchan_rust wheel shadow 安装（.so 二进制 + __pycache__，可由 maturin 重建）

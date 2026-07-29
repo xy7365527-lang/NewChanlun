@@ -6,7 +6,7 @@
 
 - **ZD**（中枢下沿）= max(seg_i.low for i in 初始3段)
 - **ZG**（中枢上沿）= min(seg_i.high for i in 初始3段)
-- **成立条件**：ZG > ZD（严格不等，ZG == ZD 不算重叠）
+- **成立条件**：ZG > ZD——中枢区间须非退化（正长度）；初始三段共同重叠退化为单点（zg == zd）不构成中枢（构造性非退化要求，**非**「相切算不算重合」的相反答案；延伸层的相切=重叠见 §3。判①事实账见 #298 评论）
 - **价格区间来源**：Segment.high / Segment.low（段内所有笔极值）
 
 ## 2. 生命周期
@@ -28,7 +28,7 @@
 
 初始 3 段确定 [ZD, ZG] 后，延伸段只判重叠，**不改变**中枢区间。
 
-延伸判定：`seg.high > ZD AND seg.low < ZG`（与中枢区间有交集）。
+延伸判定：`seg.high >= ZD AND seg.low <= ZG`（与中枢区间有交集，弱口径含相切——照代码 `src/newchan/a_zhongshu_v1.py` 的 `_extend_zhongshu` 弱不等实现与中心定理一（`docs/chanlun/text/blog/020-第20课.md:56`，`dn>ZG 或 gn<ZD` 严格脱离 ⟺ 相切仍算延伸/重叠）；原写严格不等 `>`/`<` 为 spec 陈旧，以代码与定理一为准）。
 
 ## 4. 续进策略（D4）
 

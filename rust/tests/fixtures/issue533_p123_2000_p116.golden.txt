@@ -1,0 +1,4 @@
+DIV level=1 end=1352 kind=pan side=Long
+DIV level=1 end=1852 kind=pan side=Short
+FALLBACK as_of=1999 level=1 kind=Consolidation side=Long turn_source=1352 seg_a=(628, 718) interval_a=(35, 1633) interval_b=(1334, 1352) divergence_confirmed=true judge_at=1693
+FALLBACK as_of=1999 level=1 kind=Consolidation side=Short turn_source=1852 seg_a=(1205, 1334) interval_a=(35, 1633) interval_b=(1727, 1852) divergence_confirmed=true judge_at=1909

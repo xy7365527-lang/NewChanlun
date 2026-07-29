@@ -52,6 +52,12 @@ fn parse_a0(s: Option<&str>) -> A0Source {
 /// `segments_from_strokes_v1` 输出对齐。仅 `confirmed AND settled` 线段作为 a₀ 单元
 /// （与 v3 `zhongshu_from_segments` 过滤口径一致，保证 T/v3 在同一 a₀ 上对照）。
 ///
+/// ⚠口径变更（#246 裁定，supersede Lead #84 点3；#277 裁路①、#288 落码 2026-07-26）：
+/// `segs` 上游来源 `segments_from_strokes_v1` 相切边界已切新口径（相切=重合，
+/// 两侧同批）。本接口只消费段端点/方向/confirmed/kind 字段，不读
+/// `break_evidence.gap_type`；实测段端点零变化，上述对齐声明在新口径下继续成立。
+/// 裁定书：`chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`。
+///
 /// `seg_areas`（可选）：每段 `(area_pos, area_neg)`，**与 `segs` 同序同长**（过滤前对齐）。
 /// 调用方经 `macd::macd_area_for_range` + `merged_to_raw` 算出（均取非负，绿柱用 `.abs()`），
 /// 供 `And`/`Or` 模式的 MACD 面积背驰判据。`None` → area 全 0（纯结构，与历史单参数调用

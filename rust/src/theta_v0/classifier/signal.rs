@@ -1424,6 +1424,19 @@ pub fn extract_signals_with_hist_anchored(
     (points, pan_divs)
 }
 
+/// 07a/5b 共用的唯一 e_src 公式（source_index 量纲）。
+///
+/// `prefix_count < 2`、越界或缺级都返回 0：稳定集为空但本 bar 冷算照常进行。
+/// 合法生产调用满足 `prefix_count <= centers.len()`；越界分支只作保守失效护栏。
+pub fn freeze_boundary_src(centers: &[Center], prefix_count: usize, dirty_e: usize) -> usize {
+    if prefix_count < 2 {
+        return 0;
+    }
+    centers
+        .get(prefix_count - 2)
+        .map_or(0, |center| center.end_index.min(dirty_e))
+}
+
 /// ★on2w3-07a 一/三类 frontier-resume（消 07a O(n²) 主导项，algo-opt-plan B2 泳道）。
 ///
 /// 07a `extract_signals_with_hist{,_anchored}` 每 memo-miss 全量重判全部 S 段（第一/盘整/三类），
@@ -1489,12 +1502,8 @@ pub fn extract_first_third_resume(
     let any_consol = blocks.iter().any(|b| b.kind == MoveKind::Consolidation);
 
     // 冻结边界 e_src → 可封段数 stable_seg（segments 按 start 升序 ∧ 非重叠 ⟹ end 亦升序 ⟹
-    // partition_point 二分）。prefix_count<2 ⟹ 无 2 个 confirmed 中枢作锚 ⟹ e_src=0（全判）。
-    let e_src = if prefix_count >= 2 {
-        centers[prefix_count - 2].end_index.min(dirty_e)
-    } else {
-        0
-    };
+    // partition_point 二分）。公式由 `freeze_boundary_src` 单一持有，供 resume 与 p123 读同源。
+    let e_src = freeze_boundary_src(centers, prefix_count, dirty_e);
     let stable_seg = segments.partition_point(|s| s.end_index < e_src);
 
     // 单调守卫（confirmed 前缀单调非降 ⟹ 正常永不触发；cascade 前缀回缩由 caller 别处 clear +
@@ -2879,6 +2888,33 @@ mod tests {
 
     // ── Q4（task #145）：盘整背驰证书（PanDivCert）——盘整块内破中枢+背驰，零一类 bit ────
 
+    /// #69 5b / T1：e_src 公式必须只有一个 source_index 量纲来源；等于边界的段仍属可变尾。
+    #[test]
+    fn freeze_boundary_src_grid_and_strict_segment_gate() {
+        let centers = [
+            dc(100, 200, 90, 210, 10),
+            dc(300, 400, 290, 410, 20),
+            dc(500, 600, 490, 610, 30),
+        ];
+        assert_eq!(freeze_boundary_src(&centers, 0, usize::MAX), 0);
+        assert_eq!(freeze_boundary_src(&centers, 1, usize::MAX), 0);
+        assert_eq!(freeze_boundary_src(&centers, 2, usize::MAX), 10);
+        assert_eq!(freeze_boundary_src(&centers, 3, usize::MAX), 20);
+        assert_eq!(freeze_boundary_src(&centers, 3, 17), 17);
+
+        let segments = [
+            seg(Direction::Down, 1, 16, 200, 100),
+            seg(Direction::Up, 16, 17, 100, 180),
+            seg(Direction::Down, 17, 18, 180, 90),
+        ];
+        let e_src = freeze_boundary_src(&centers, 3, 17);
+        assert_eq!(
+            segments.partition_point(|segment| segment.end_index < e_src),
+            1,
+            "segment.end_index == e_src 必须留在冷算尾部"
+        );
+    }
+
     /// Q4 正例：段的最近中枢落在 Consolidation 块（沿用 first_buy_rejected_when_segment_in_
     /// consolidation_block 的中枢链）+ 同一中枢两次同向离开（A 破核心 → 回中枢段 → C 破核心）
     /// + C<A 背驰 ⟹ 产 PanDivCert；**零 BspPoint 一类 bit**（盘整背驰不冒充 B1/S1）。
@@ -4131,6 +4167,18 @@ fn diag_first_buy() {
         //         `0x56ed_dd65_1c59_5733`（force 引入前，struct_break_dir 后）；
         //         `0x37d2_45a7_cdc5_505a`（P2-R2 前，struct_break_dir 引入前）；
         //         `0x06b3_7c2f_3a5e_9d41`（更早，与 git HEAD oracle 不一致的历史电池状态）。
+        //
+        // ★#614 并线并入 kimi 线 #610 的归因取证（2026-07-29）：上表 `0x90c7_9ee6_17e1_1392`
+        // → `0xe6a2_63e3_43e4_3845` 这一跳的引入提交经 git bisect 定为 `bbbd8f89fa`
+        // （2026-07-24「P1→#214→#218 证书索引口径三部曲」，合法口径演进）——该提交对
+        // `BspPoint` 做了两处同时进入 `#[derive(Debug)]` 的改动：新增 `level_origin: u32`
+        // （恒 0，#110 面）+ `center: Option<Center>` → `Option<OwnerRef>`（#218 面 A，二类点
+        // 值本身也变为 `OwnerRef::Type1Anchor` 坐标，非仅包裹形态）。GOLDEN 未随该提交同步
+        // 重锚，致 guard 自 `bbbd8f89fa` 起在 kimi 线持续红（#491 发现）。归因证据：
+        // `chanlun/review-results/issue610-digest-guard-attribution-20260728.md`（bisect +
+        // 逐行 diff）+ `issue610-id65-supplement-20260729.md`（level_origin 面补记）。
+        // ⚠本合并树取 **#455 之后**口径（`level_origin` 已删，见 `bsp.rs` 无该字段），
+        // 故现行值为下方 main 侧值，kimi 线的 `0xe6a2…` 即上表「该字段删除前」那一版。
         const GOLDEN: u64 = 0xe371_3897_d9bf_978c;
         let digest = bit_exact_battery_digest();
         assert_eq!(

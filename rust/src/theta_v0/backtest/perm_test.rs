@@ -1,5 +1,11 @@
 //! 路径 A 分层内 δ 置换检验（**残差口径**，alpha分离.pdf §4.2 + acc-alpha 预注册 §1.4，perm_p 生产者）。
 //!
+//! **档处置（验收统计推断核·档2-修砍单，`chanlun/escalate/chi-line-falsification-ruling-20260728.md`
+//! §1②，2026-07-28）**：置换检验 p 值作为新协议仪器已砍——与 χ 门同构的概率推断决策面，随本裁定一并
+//! 清除。诊断件保留（禁删）；本模块历史产出的 perm_p 供过的历史裁决照旧有效。下游 `decontam.rs` 消费
+//! `perm_p` 随本模块断粮，另行定档。登记详见
+//! `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
 //! decontam.rs 三态判据消费逐桶 perm_p 但不生产它（Welford 聚合量算不出置换——需逐笔明细）。
 //! 本模块消费 [`ResidualTrade`]（逐笔 δ-free 残差基 r_i=H_i−B̂_i + 成本 C_i + 分层维 h桶/time block），
 //! 按 alpha分离.pdf §4.2（p5-6）产出逐桶 perm_p。

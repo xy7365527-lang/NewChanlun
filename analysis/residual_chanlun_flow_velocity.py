@@ -406,10 +406,10 @@ def write_report(data: dict, an: dict) -> None:
     lines.append("- **残差**：`r = log(DX) − 0.576·log(USD6E)`，协整系数 0.576 既定"
                  "（memory: project_residual_to_flow_no_bridge，占 DX 方差 33.8%）。")
     lines.append("- **走势/级别**：缠论正典走势由中枢定义，级别由递归涌现"
-                 "（newchan_rust.RecursiveOrchestrator，与正典引擎 bit-exact；"
-                 "段层相切边界 2026-07-26 起按 #246 裁定/#277 落码两侧同批切，"
-                 "等价在新口径下成立，相切边界不再对齐旧口径基线——裁定书 "
-                 "chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md）。"
+                 "（newchan_rust.RecursiveOrchestrator，与正典引擎 bit-exact=Rust≡Python 等价，"
+                 "新口径下仍成立；≠ 与旧口径历史输出逐位一致：段层相切边界 2026-07-26 起按 #246"
+                 " 裁定（supersede #84 点3；#277 裁路①、#288 落码）两侧同批切"
+                 "——裁定书 chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md）。"
                  "残差退化 bar（O=H=L=C=r）下分型识别等价于对 r 序列直接找顶/底分型"
                  "（build_residual_series.py 已声明）。")
     lines.append("- **力度**：取走势价格振幅（amplitude=high−low），非 MACD 面积"

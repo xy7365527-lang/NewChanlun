@@ -71,6 +71,36 @@ pub mod persistent;
 pub mod overlay_state;
 /// #197 执行账归属键与并行记账视图（AccountIdentity 三身份 + AccountOrder + 分实例账本）。
 pub mod account;
+/// **LEE M1 级别账本只读旁路 LevelLedgerMirror**（multi-level-native-execution-design-20260719 §D M1）。
+///
+/// OverlayState 的同一份 SepLeg 暴露按 `id.level`≡formation_level 分桶的只读镜像账本 Ledger_ℓ；
+/// LEE-Net 恒等 `Σ_ℓ net_ℓ ≡ N`（加性细化，认识论 L1）；不改净额主路径，bit-exact。
+pub mod level_ledger;
+/// **LEE 级别归因算子层**（无状态整数算子；从 [`level_order`] 抽出）。
+///
+/// `attribute_total` 把物理总量按结构基准确定性划分到各级（`Σ_ℓ out_ℓ ≡ total` 整数精确，
+/// 最大余数法，无浮点重排）+ 逐级归并原语。认识论 L0（全构造性，零信息增量）。
+pub mod level_attrib;
+/// **LEE M2/M3 级别订单台账 LevelOrderLedger**（multi-level-native-execution-design-20260719
+/// §D M2、M3）。
+///
+/// M2：物理订单的**量**改由 `Σ_ℓ Δq_ℓ` 生成，订单流与 M0 逐 bar bit-exact。
+/// **M3 起口径反转**：台账持**两个**级别态（已成交 `held_ℓ` / 结构计划 `q_ℓ^plan`），目标只在
+/// [`level_clock`] 事件时点重估，**订单流与 M0 分叉**（契约本身，非缺陷）。
+pub mod level_order;
+/// **LEE M3 级别事件钟 clock_ℓ**（multi-level-native-execution-design-20260719 §C.2 变化部分① / §D M3）。
+///
+/// 定义「哪些时点是级别 ℓ 的钟点」——`Ledger_ℓ` 只在 clock_ℓ 事件时点重估目标，无事件 bar
+/// 目标=前值。事件集的最小完备定义与 `classifier::LevelState` 的逐字段对齐（§F 未决项②）
+/// 落档在该模块头；结构钟 / 风控钟的域分离是 §F③ 的落点。
+pub mod level_clock;
+/// **LEE M4 级别资金权 w_ℓ + 级别级风险帽**（multi-level-native-execution-design-20260719
+/// §D M4）。
+///
+/// 定义每个塔级别的资金权重 `w_ℓ`（`Σw_ℓ≤1` 机器断言）与其取值方式；与 `voice.rs`
+/// `depth_weights` 的对偶统一声明（谁主谁从，禁双重定价）落档在该模块头。帽的实际裁剪在
+/// `coverage.rs::clamp_levels_to_weighted_cap`（账户/风控域，§F③ 同纪律）。
+pub mod level_risk;
 /// 中枢震荡独立候选与有身份 ReverseOpen 配对子腿契约（组合 R：DB-B / DB-O3 / DB-S5）。
 pub mod oscillation;
 /// 狭义短差动作本体（SPEC #274 T2，issue #292）：触发 + 减补动作 + 挂起出口二分（回补/终结）+

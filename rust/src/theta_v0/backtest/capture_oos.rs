@@ -1,5 +1,9 @@
 //! S3 捕获率回测（task #11）——充分性检验，R3/S2 明确未证部分。
 //!
+//! **档处置（验收统计推断核·档2-修砍单，`chanlun/escalate/chi-line-falsification-ruling-20260728.md`
+//! §1②，2026-07-28）**：捕获率回测作为新协议推断仪器已砍。诊断件保留（禁删）；历史裁决照旧有效。
+//! 登记详见 `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
 //! ## 预声明口径（跑批前冻结，treasury-execution-plan-20260707.md S3）
 //!
 //! - **切分协议**：复用 `prereg_windows::PREREG_WINDOWS` BTC anchored walk-forward 窗

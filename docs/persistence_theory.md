@@ -281,7 +281,8 @@ force_a = topo_force(barcode_a, dimension)   # = total_persistence = W1 到对�
 force_c = topo_force(barcode_c, dimension)
 ratio   = force_c / force_a
 is_divergent = (force_a > noise_floor) and (force_c < force_a)
-wasserstein_ac = persim.wasserstein(diagram_a, diagram_c)   # 结构重组程度，MACD 给不出
+wasserstein_ac = wasserstein_1(diagram_a, diagram_c)   # 结构重组程度，MACD 给不出
+                                                       # a_wasserstein 自实装（#324：cdist 代价矩阵）
 ```
 - `dimension=1`（默认）：中枢 loop，信息最独立于 ker(D)，是 PH 真正的独立贡献。
 - `dimension=0`：与振幅力度高度相关，可能与方向性力度（∉ ker(D)）判定不一致——

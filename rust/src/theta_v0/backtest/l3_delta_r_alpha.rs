@@ -1,5 +1,10 @@
 //! **Phase-3 L2/L3 ΔR 净额增量 alpha 否证**（acc-delta-r-alpha，task #42）。
 //!
+//! **档处置（决策统计族·χ线撤销，`chanlun/escalate/chi-line-falsification-ruling-20260728.md` §1①，
+//! 2026-07-28）**：本 walk-forward harness 检验的 χ_t(γ) 选择器已撤销——本模块不再作为新协议仪器
+//! 使用；其历史否证结论（INCONCLUSIVE 系列）照旧有效，不因撤销而失效。诊断件保留（禁删）。登记详见
+//! `chanlun/review-results/prob-inference-disposition-registry-20260728.md`。
+//!
 //! 检验 χ_t(γ)=1[μ(z)>θ] 选择器（[`super::selector`]）是否产生**正净额增量 alpha**——
 //! 对齐买卖点alpha2.pdf Doc2 §10-§14 + Doc3 §11-§16：
 //!
@@ -38,7 +43,7 @@
 //! （`typed_ledger_from_bars`，χ≡1）产腿级 `TypedTrade`——入场 = interpret open 桶 + AncOK
 //! 准入的开腿信号（z 经 [`super::selector::z_of_candidate`] 塔真值），出场 = typed exit
 //! （P5/P6/P7 反向关腿 / §13 结构剪枝 / train 末 **censored Hold**——codex Q1 边界泄漏 guard），
-//! 兑现 X_γ（[`super::mu_estimator::marginal_return`]）。PDF §9 点名废弃的 τ^reverse
+//! 兑现 X_γ（量纲③，[`super::mu_estimator::chi_dimension_three_return`]，裁定 #65）。PDF §9 点名废弃的 τ^reverse
 //! （下一个任意反向信号出场）已删除。θ 常数（不从样本 μ 分布选，无 in-sample 泄漏）。
 //! test 窗的 χ 决策只读 frozen μ 表。
 //!
@@ -62,7 +67,8 @@ use std::rc::Rc;
 use super::data::{self, Dataset};
 use super::incremental::IncrementalClassifier;
 use super::mu_estimator::{
-    h_bucket, marginal_return, MuClass, MuEstimator, MuObservation, PositionState, ResidualTrade,
+    chi_dimension_three_return, h_bucket, marginal_return, MuClass, MuEstimator, MuObservation,
+    PositionState, ResidualTrade,
 };
 use super::prereg_windows::PREREG_WINDOWS;
 use super::runner::run_theta_v0_pi_chi;
@@ -263,10 +269,12 @@ pub fn build_mu_from_bars(
             LedgerDisposition::Kept => {}
             LedgerDisposition::SameBarCensored | LedgerDisposition::NonPositivePx => continue,
         }
-        // X_γ = δ(P_exit−P_entry) − C（qty=1 名义单位，μ 是单位边际收益的类条件均值）。
+        // #65 量纲③：X_γ = (δ(P_exit−P_entry)−fee)/P_entry。
+        // qty=1 只用于保持既有费扣分子；χ 喂入是持仓期相对收益，不是绝对额。
         // δ 从 entry_z 取（开腿候选方向；opened 腿非 Flat，interpret 规则1 保证 δ∈{±1}）。
         let delta = t.entry_z.delta;
-        let x_gamma = marginal_return(t.entry_px, t.exit_px, 1.0, fee_rate, delta);
+        let x_gamma =
+            chi_dimension_three_return(t.entry_px, t.exit_px, 1.0, fee_rate, delta);
         est.observe(MuObservation { class: t.entry_z, x_gamma });
 
         // ── 残差记录（alpha分离.pdf §1/§4.1，task #82——B̂/成本/分层维逻辑不变，G4 只换出场源）──
@@ -856,8 +864,30 @@ fn crossfit_l2() {
 /// 成本在 entry/exit bar 离散发生：每条 trade 在 `entry_bar` 扣 `qty·entry_px·fee_rate`、在
 /// `exit_bar` 扣 `qty·exit_px·fee_rate`（双边费，与 [`marginal_return`] 同口径）。返回长度
 /// `n_bars` 的逐 bar 成本序列（nav0 归一化），`cost[t]` = 第 t bar 发生的成交费用 / nav0。
+///
+/// **有效域（#374 MED-A / 231号 / ★#423）**：`res.fee_rate` 是单标量成本口径，只在**存在一个与
+/// (qty, px, side) 无关的常数等效费率**的档上有值（`treasury::scalar_cost_rate_opt` 三分叉）。
+/// 本函数因此分两种情形：
+///
+/// - **未标定档**（`fee_schedule = None`）与**按金额对称标定档**（per-notional，maker/taker 逐位
+///   对称）：`fee_rate = Some(常数)` ⟹ 本函数可运行。**按金额档的成本序列不因走标量而失真**：
+///   该档逐笔实付费用本就 = 常数 × 名义额，故下面的逐笔 `qty·px·fee` 与成交侧
+///   `treasury::fee_quoter` 的逐笔解析**同值**，逐 bar 分布（成本落在 entry/exit bar 上）一并保住，
+///   标量只在"费率"这一维取常数、不在"何时发生多少"这一维做平均；
+/// - **按股档 / 按金额非对称档**：`fee_rate = None` ⟹ 下面 `expect` fail-loud。这两档的逐笔费率是
+///   (qty, px, side) 的函数，标量只能保总额、保不住分布 ⟹ 要接鞅守卫须把成本改由成交侧逐笔实付
+///   累计（或 `fee_quoter` 逐笔重算）供给，不是换一个常数。
+///
+/// **本函数的实际消费面（照实登记，★#423 第二阶段核实）**：唯一调用方 = 同文件的 `#[ignore]` 鞅
+/// 守卫测试（[`martingale_impossibility_guard`]，输入 = [`synthetic_martingale`] 合成鞅 ⟹ 认识论
+/// L1）。它的 `config = ThetaConfig::default()` ⟹ `fee_schedule = None` ⟹ **上述三分叉在本函数的现有调用面上只触达
+/// 未标定档一支**。本函数**不在 m8 跑批路径内**（m8 的层4 只调 `metrics::significance`）——上面对
+/// 按金额档的可运行性论证是**有效域声明**，不是"已被跑到"的经验事实（231号：不为它虚构消费面）。
 fn rebuild_cost_series(res: &super::runner::RunResult, n_bars: usize, nav0: f64) -> Vec<f64> {
     let mut cost = vec![0.0f64; n_bars];
+    // ★#388 T2 / ★#423：`fee_rate=None`（按股档 / 按金额非对称档）⟹ 此处 fail-loud（原口径 =
+    //   构造期 panic，语义等价，位点移到消费期）。按金额对称档自 ★#423 起给 `Some(常数)` ⟹ 走下面
+    //   的逐笔 `qty·px·fee`，与成交侧 fee_quoter 同值、逐 bar 分布不丢（见本函数有效域节）。
     let fee = res.fee_rate;
     for tr in &res.trades {
         // 成交价从 RunResult.prices（与账本 apply_order 成交价一致，close 口径）取。
@@ -1801,7 +1831,12 @@ fn degeneracy_diagnosis() {
         }
 
         // ── 假设3：θ scan（θ<0 是否解退化）──
-        eprintln!("  [假设3 θ过严] θ scan（test候选按 train μ 表过滤后的 χ=1 候选数）:");
+        // #563 L2 订正（与 M1 同源，`chi-dimension-ruling-20260721.md` 裁定 #65）：本网格
+        // [-1e-6,-1e-3,-1e-1] 是量纲③（费扣后持仓期**相对收益**，O(1e-3~1e-1) 量级）落地前、
+        // 沿用量纲①（绝对额，BTC 场景 O(10~1e4) 量级）时代的旧刻度——在①量纲下 -1e-6/-1e-3 相对
+        // 典型 PnL 近似 −∞（无分辨力），③量纲下未重新校准，同样近似 −∞（本诊断的旧刻度失分辨力，
+        // 需要真正的分辨力须先解 M1 τ² 冻结先验重锚，本 LOW 项只订正标注不改数值——诊断脚本，非生产口径）。
+        eprintln!("  [假设3 θ过严] θ scan（test候选按 train μ 表过滤后的 χ=1 候选数；网格为量纲①遗留旧刻度，见上方订正注）:");
         for &theta in &[0.0f64, -1e-6, -1e-3, -1e-1, f64::NEG_INFINITY] {
             // 全覆盖语义 = θ=−∞ 且 treat_empty=true 才成立；这里固定 treat_empty=false（与实证同口径），
             // 仅扫 θ 看已观测类放行数（未见类恒滤，与实证一致）。θ=−∞ 时放行所有已观测类。
@@ -1980,6 +2015,14 @@ fn pooling_icc_multi_symbol() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 量纲③重锚（#65 裁定 2026-07-21）：ledger χ 观测必须是费扣后持仓期相对收益。
+    #[test]
+    fn chi_feed_uses_entry_notional_relative_return() {
+        let got = chi_dimension_three_return(100.0, 110.0, 1.0, 0.001, 1);
+        let expected = marginal_return(100.0, 110.0, 1.0, 0.001, 1) / 100.0;
+        assert!((got - expected).abs() < 1e-15, "量纲③ X_γ={expected}，实得 {got}");
+    }
 
     /// ★G4 诊断（#134，L2 冒烟）：真实 BTC train 窗上 typed ledger 非空 + exit_type 分布 +
     /// μ 表统计——τ^reverse → typed exit 语义变更的量级证据（#135 全量重跑前的管线可用性见证）。

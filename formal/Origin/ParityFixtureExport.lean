@@ -42,6 +42,7 @@ import Origin.CenterStates
 import Origin.BspClassification
 import Origin.SellPointRecog
 import Origin.SellClosedLoop
+import Origin.SegmentFeatureSeq
 import Lean.Data.Json
 
 open NewChanlun.Origin
@@ -76,6 +77,38 @@ def positionStr : CenterPosition → String
 
 /-- 标准初始账户态（base A，Π=W=0；transition 见证用，与 rust parity 测试同口径）。 -/
 def baseAccount (baseA : Int) : ChanlunAccount := { ledger := mkLedger 0 baseA 0 }
+
+/-- #246 相切=重合裁定（2026-07-25，编排者裁定书
+    `chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`，ticket #248）
+    单区间对的 HasGap/Overlaps 机器见证导出。真值字段来自 `decide` 机器求值（禁手填）。
+
+    ★端点机器耦合（ticket #319，#316 影子评审 MED-1）：除两个真值外，本函数还导出用例的
+    四个**输入端点**（`a.low`/`a.high`/`b.low`/`b.high`，直接读 `FeatureElem` 字段求值，
+    非手填）。此前端点只存在于本导出器的 `feOf` 参数中、rust 两处（`parser/gap_overlap_fixture.rs`
+    与主缝 `theta_v0_lean_parity.rs` §7）各自人工誊写一份：Lean 端点改而 rust 漏改，两侧都不会红。
+    端点入 fixture 后，rust 两处改读 fixture，端点漂移沿「Lean 改端点 ⟹ fixture 变 ⟹ rust 用例输入变
+    ⟹ rust 谓词结果与导出真值不符」即红。
+
+    ★Overlaps 直化（ticket #296）：`Overlaps` 已补 `Decidable` instance
+    （SegmentFeatureSeq.lean:114，与 :105 HasGap 同范式），本字段直接 `decide (Overlaps a b)`
+    求值。历史（090 留痕）：#248 落地时 Overlaps 无 instance，曾绕道 `decide (¬ HasGap a b)`
+    ——经已证 `gap_iff_not_overlap`（SegmentFeatureSeq.lean:118，`HasGap ↔ ¬ Overlaps`）
+    严格互推，数学等价零 gap；本票是直化不是补缺，导出值不变。 -/
+def gapOverlapJson (a b : FeatureElem) : Json :=
+  Json.mkObj [
+    ("a_low",    Json.num a.low),
+    ("a_high",   Json.num a.high),
+    ("b_low",    Json.num b.low),
+    ("b_high",   Json.num b.high),
+    ("has_gap",  Json.bool (decide (HasGap a b))),
+    ("overlaps", Json.bool (decide (Overlaps a b)))
+  ]
+
+/-- gap/overlap 用例区间构造（`valid` 由 omega 直推；区间端点是用例输入，与
+    `classifyPosition sampleCenter.core 5` 的 `5` 同性质——本文件是这组端点的**唯一权威源**，
+    经 `gapOverlapJson` 读 `FeatureElem` 字段导出（#319），rust 侧不再誊写；
+    导出字段 has_gap/overlaps 与四端点全部机器求值）。 -/
+def feOf (lo hi : Int) (h : lo ≤ hi) : FeatureElem := { low := lo, high := hi, valid := h }
 
 /--
   ★完整 parity fixture（所有字段来自真函数求值，机器产，非手填）。
@@ -157,6 +190,22 @@ def fixtureJson : Json :=
       ("at_30", Json.str (positionStr (classifyPosition sampleCenter.core 30))),
       ("zd",    Json.num sampleCenter.core.zd),
       ("zg",    Json.num sampleCenter.core.zg)
+    ]),
+    -- #246 相切=重合裁定机器见证（ticket #248，gapOverlapJson 真值 decide 真求值 + 四端点
+    -- 机器导出（#319，rust 两处改读 fixture 端点，端点转录漂移已消））。
+    -- 用例：相切两形态（a.high==b.low / b.high==a.low）+ 严格分离（正/反向）+ 严格重叠对照。
+    -- 三笔形态（max(lows)==min(highs)）不适用：Lean 形式化层无三笔重合谓词（Overlaps 为两区间版），
+    -- 其三笔相切语义与两区间形态 a.high==b.low 同构，已由 tangent_a_high_eq_b_low 覆盖；
+    -- rust 侧 three_stroke_overlap 的口径由 crate 内单测 three_stroke_overlap_lean_fixture_bit_exact
+    -- 读本段真值锁定（ticket #312，退化三笔 (a,b,b) 降到两区间语义）；三笔**互异**相切形态在 Lean
+    -- 侧仍无见证（#276 MED-1 已知缺角），rust 侧由手填单测
+    -- three_stroke_overlap_distinct_triple_tangent 覆盖，非机器耦合。
+    ("gap_overlap", Json.mkObj [
+      ("tangent_a_high_eq_b_low", gapOverlapJson (feOf 5 10 (by omega)) (feOf 10 20 (by omega))),
+      ("tangent_b_high_eq_a_low", gapOverlapJson (feOf 10 20 (by omega)) (feOf 5 10 (by omega))),
+      ("strict_disjoint",         gapOverlapJson (feOf 5 10 (by omega)) (feOf 11 20 (by omega))),
+      ("strict_disjoint_rev",     gapOverlapJson (feOf 11 20 (by omega)) (feOf 5 10 (by omega))),
+      ("strict_overlap",          gapOverlapJson (feOf 5 12 (by omega)) (feOf 8 20 (by omega)))
     ])
   ]
 

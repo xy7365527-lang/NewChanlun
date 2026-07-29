@@ -4,13 +4,13 @@
 //! `segments_from_strokes_v1` 的输出与 Python `segments_from_strokes_v1(strokes,
 //! min_seg_strokes, extend_mode, _resume=None)` 逐字段相等。
 //!
-//! ⚠口径变更（#246 裁定，supersede Lead #84 点3；#277 落码 2026-07-26）：相切边界
-//! 两谓词切换——`three_stroke_overlap` 改含端点 `<=`（相切=重合）、`is_fractal_and_gap`
-//! 缺口谓词改严格 `>`（相切=重合 ⟹ 无缺口），对齐 Lean `Overlaps`/`HasGap`；Python
-//! 参考 `a_segment_v1.py` 同批切换，上述逐字段相等声明在**新口径**下继续成立，但在
-//! 相切边界**不再 bit-exact 对齐 2026-07-26 前旧口径的历史输出/基线**（实测段端点
-//! 零变化，仅 `break_evidence.gap_type` 标签级翻转）。
-//! 裁定书：`chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`。
+//! ⚠口径变更（#246 裁定，supersede Lead #84 点3；#277 裁路①、#288 落码 2026-07-26）：
+//! 相切边界两谓词切换——`three_stroke_overlap` 改含端点 `<=`（相切=重合）、
+//! `is_fractal_and_gap` 缺口谓词改严格 `>`（相切=重合 ⟹ 无缺口），对齐 Lean
+//! `Overlaps`/`HasGap`；Python 参考 `a_segment_v1.py` 同批切换，上述逐字段相等
+//! 声明在**新口径**下继续成立，但在相切边界**不再 bit-exact 对齐 2026-07-26 前
+//! 旧口径的历史输出/基线**（实测段端点零变化，仅 `break_evidence.gap_type`
+//! 标签级翻转）。裁定书：`chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md`。
 //! 本模块其余声明不受影响。
 //!
 //! ## 逐位等价要点
@@ -118,7 +118,7 @@ pub struct Segment {
 
 /// 三笔交集重叠判定。移植自 `_three_stroke_overlap`。
 ///
-/// ★口径（#246 裁定，supersede Lead #84 点3；#277 落码）：含端点 `<=`
+/// ★口径（#246 裁定，supersede Lead #84 点3；#277 裁路①、#288 落码）：含端点 `<=`
 /// （相切=重合 ⟹ `max(lows) == min(highs)` 时判 true），对齐 Lean
 /// `Origin.SegmentFeatureSeq.Overlaps`（闭区间；一维 Helly：两两相交 ⟺ 公共交集
 /// 非空），与 theta_v0 `Interval::overlaps` 同形。Python 参考 `a_segment_v1.py`
@@ -358,7 +358,7 @@ fn has_any_fractal(elements: &[(f64, f64)]) -> bool {
 
 /// 检测 (a,b,c) 是否构成目标分型，及 a-b 间是否有缺口。移植自 `_is_fractal_and_gap`。
 ///
-/// ★口径（#246 裁定，supersede Lead #84 点3；#277 落码）：相切（仅公共端点，
+/// ★口径（#246 裁定，supersede Lead #84 点3；#277 裁路①、#288 落码）：相切（仅公共端点，
 /// 如 `b_l == a_h`）**不算缺口**——相切=重合 ⟹ 无缺口，缺口谓词为严格 `>`，
 /// 对齐 Lean `Origin.SegmentFeatureSeq.HasGap`（严格 `<`）及 `gap_iff_not_overlap`。
 /// Python 参考 `a_segment_v1.py` 同批切换，Rust↔Python 逐位等价在新口径下继续成立。
@@ -795,64 +795,5 @@ pub fn segments_from_strokes_v1_into(
     ensure_last_unconfirmed(segments, strokes);
 }
 
-// ════════════════════════════════════════════════════════════
-// 测试
-// ════════════════════════════════════════════════════════════
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn stroke(direction: Direction, i0: usize, i1: usize, high: f64, low: f64) -> Stroke {
-        let (p0, p1) = match direction {
-            Direction::Up => (low, high),
-            Direction::Down => (high, low),
-        };
-        Stroke {
-            i0,
-            i1,
-            direction,
-            high,
-            low,
-            p0,
-            p1,
-            confirmed: true,
-        }
-    }
-
-    // ★相切用例（#246 裁定：相切=重合，supersede Lead #84 点3；#277 legacy+Python
-    // 同批切）。既有 golden/parity 构造全为严格不等，对本口径变化不敏感（SPEC 测试
-    // 真空注记属实）；以下相切用例才是本次口径的保障。
-    // 裁定书：chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md
-
-    #[test]
-    fn three_stroke_overlap_tangent_counts_as_overlap() {
-        // 三笔区间 [5,10]、[8,12]、[10,14]：max(lows)=10 == min(highs)=10，
-        // 三笔仅公共端点 10（相切）。相切=重合 ⟹ 有重叠 → true。
-        let a = stroke(Direction::Up, 0, 4, 10.0, 5.0);
-        let b = stroke(Direction::Down, 4, 8, 12.0, 8.0);
-        let c = stroke(Direction::Up, 8, 12, 14.0, 10.0);
-        assert!(three_stroke_overlap(&a, &b, &c));
-        // 对照：严格分离（无公共端点）仍无重叠。
-        let d = stroke(Direction::Up, 8, 12, 14.0, 11.0);
-        assert!(!three_stroke_overlap(&a, &b, &d)); // max_lo=11 > min_hi=10
-    }
-
-    #[test]
-    fn is_fractal_and_gap_tangent_up_no_gap() {
-        // 向上段顶分型，b 与 a 仅公共端点（b_l == a_h == 10，相切）。
-        // 相切=重合 ⟹ 无缺口：has_gap 必须为 false。
-        let (f, g) = is_fractal_and_gap(10.0, 5.0, 20.0, 10.0, 8.0, 3.0, Direction::Up);
-        assert!(f); // 20 > 10 && 20 > 8
-        assert!(!g); // b_l=10 相切 a_h=10 → 有重合 → 无缺口
-    }
-
-    #[test]
-    fn is_fractal_and_gap_tangent_down_no_gap() {
-        // 向下段底分型，a 与 b 仅公共端点（a_l == b_h == 10，相切）。
-        // 相切=重合 ⟹ 无缺口：has_gap 必须为 false。
-        let (f, g) = is_fractal_and_gap(15.0, 10.0, 10.0, 3.0, 18.0, 14.0, Direction::Down);
-        assert!(f); // 3 < 10 && 3 < 14
-        assert!(!g); // a_l=10 相切 b_h=10 → 有重合 → 无缺口
-    }
-}
+#[cfg(test)] #[path = "segment_tangency_tests.rs"] // 相切口径回归锁（#317），立项事实见其模块头
+mod tests;
