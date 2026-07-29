@@ -29,13 +29,15 @@
 //!
 //! | # | 消费面（本账产出） | 消费方 | 接线状态 | 接线票 / 缺口 |
 //! |---:|---|---|---|---|
-//! | 1 | [`CenterDeathCertificate`]（[`book::RetraceLedger::death_certificate`] + [`ThirdPointPack::death_certificate`]） | 中枢生命周期账（`crate::trading::center_book::CenterBook`） | **未接线** | `CenterBook` 现从 BSP 事件锚自行 diff 派生 `CenterEvent`，不读本证明；接通归中枢账的票（#574 裁定一「发中枢账登记 Broken」） |
+//! | 1 | [`CenterDeathCertificate`]（[`book::RetraceLedger::death_certificate`] + [`ThirdPointPack::death_certificate`]） | 中枢生命周期账（`crate::trading::center_book::CenterBook`） | **已接线（#637）：消费入口已立** | `CenterBook::consume_death_certificate` 消费本证明、对判同锚登记 Broken（票 #637 修复轮，2026-07-29 编排者裁定 3A：票面「生产调用点 ≥1」按字面结，`CenterDeathCertificate` 出现于生产代码即达标）；驱动入口的上游生产链——`RetraceLedger` 本身接生产驱动 + 交易层消费 `ThirdPointPack`——归 #575 后续票 |
 //! | 2 | [`ThirdPointPack`]（[`book::RetraceLedger::established`] / [`book::RetraceLedger::established_pack`]） | 交易层（`crate::trading` 线） | **未接线** | 迟到三类点过滤 #587 已裁归交易层自理；本账不进口外部状态（裁定八总禁区） |
 //! | 2' | [`StandbyWatch`]（[`book::RetraceLedger::standby`]）——同一消费方的**备战**面 | 交易层（盯次级别回切入点，024:36） | **未接线** | 禁区：不许被消费成买入信号，类型面隔离已由 [`portal::TradableSignal`] 编译期把关 |
 //! | 3 | [`ShortRetraceRecord`] / [`ShortRetracePortal`] / [`FailureDisposalNotice`]（亚型签 [`PanDivSubtype`]） | 盘背短差通道（`signal::locate_pan_div_structure` 一线的 #606/#607 票） | **未接线** | 本账只供判败事件源（spec §出界：pan_div_diag 实装不在本线） |
 //!
-//! 生产接线点计数（登记时点 2026-07-29）：**0/3**。本模块在 `lib` 内被
-//! [`super`](super) 注册、被测试群全面消费，除此之外零生产调用点——与登记表一致。
+//! 生产接线点计数（登记时点 2026-07-29，#637 修复轮更新）：**1/3（入口计数口径）**。本模块在
+//! `lib` 内被 [`super`](super) 注册；#1 消费面经 `CenterBook::consume_death_certificate` 接线
+//! （消费入口已立，非驱动链全通——`RetraceLedger` 自身仍无生产实例，见 #575 后续票），
+//! 其余两面仍为测试群消费，除此之外零生产调用点——与登记表一致。
 //!
 //! # 「状态 = 日志折叠」的结构性兑现
 //!
