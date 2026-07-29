@@ -22,7 +22,7 @@
   全部 **L0**（纯定义/代数，不依赖数据）。机器可检验命题：
   - `net_le_gross`：N_t ≤ G_t（净名义 ≤ 毛名义，三角不等式 |Σ| ≤ Σ|·|）。
   - `lev_net_le_gross`：E_t > 0 ⟹ L^N_t ≤ L^G_t（净杠杆 ≤ 毛杠杆，除以正权益保序）。
-  - `gross_cap_implies_net_cap`：L^G ≤ L̄^G ∧ L̄^N ≥ L̄^G ⟹ L^N ≤ L̄^N（毛帽蕴含净帽，若净帽不紧）。
+  - `gross_cap_implies_net_cap`：G_t ≤ Ḡ ∧ Ḡ ≤ N̄ ⟹ N_t ≤ N̄（毛名义帽蕴含净名义帽，若净帽不紧）。
   Lean build 通过 = 这些代数命题正确（L0），**不**是「杠杆上限 L̄^G/L̄^N 经验校准最优」
   （那是 L2 EmpiricalDomain，本文件不声称——上限值是 Θ_leverage 参数，非缠论可导）。
 
@@ -175,7 +175,8 @@ theorem hedged_gross_high_net_zero (k : Nat) (_hk : 0 < k) :
   - `positions : List VoicePosition`：当前所有声部名义头寸。
   - `equity : Int`：账户权益 E_t（要求 > 0，杠杆分母）。
   - `grossCap : Int`、`netCap : Int`：毛/净杠杆上限对应的**名义上限** G̅ = L̄^G·E、N̅ = L̄^N·E
-    （把 L^G ≤ L̄^G ⟺ G ≤ L̄^G·E 化为整数名义比较，避免有理数除法——bit-exact 对齐 rust 实装）。
+    （运行时约束把 L^G ≤ L̄^G ⟺ G ≤ L̄^G·E 化为整数名义比较，避免有理数除法——bit-exact
+    对齐 rust 实装；本文件仍以 `Rat` 给出 canonical 的精确比值定义与保序定理）。
 
   ★诚实标注：equity / grossCap / netCap 全是账户/Θ_leverage 层运行时输入（非缠论可导）。
   把杠杆比 L^G ≤ L̄^G 等价转写为名义 G ≤ L̄^G·E（grossCap），是「除以正权益保序」的整数化。
@@ -192,6 +193,14 @@ def LeverageAccount.gross (a : LeverageAccount) : Int := (grossNotional a.positi
 /-- ★净敞口（整数名义，L0）：N_t。 -/
 def LeverageAccount.net (a : LeverageAccount) : Int := (netNotional a.positions : Int)
 
+/-- ★毛杠杆（精确有理数比值，L0）：L^G_t = G_t / E_t。 -/
+def LeverageAccount.levG (a : LeverageAccount) : Rat :=
+  (a.gross : Rat) / (a.equity : Rat)
+
+/-- ★净杠杆（精确有理数比值，L0）：L^N_t = N_t / E_t。 -/
+def LeverageAccount.levN (a : LeverageAccount) : Rat :=
+  (a.net : Rat) / (a.equity : Rat)
+
 /-- ★毛杠杆约束满足（L0）：G_t ≤ G̅（= L^G ≤ L̄^G 的整数名义形式）。 -/
 def LeverageAccount.grossOk (a : LeverageAccount) : Prop := a.gross ≤ a.grossCap
 
@@ -202,6 +211,18 @@ def LeverageAccount.netOk (a : LeverageAccount) : Prop := a.net ≤ a.netCap
 theorem LeverageAccount.netLeGross (a : LeverageAccount) : a.net ≤ a.gross := by
   unfold LeverageAccount.net LeverageAccount.gross
   exact_mod_cast net_le_gross a.positions
+
+/--
+  ★★净杠杆 ≤ 毛杠杆（L0）：正权益 `E_t > 0` 时，有理数除法保序，
+  `L^N_t = N_t / E_t ≤ G_t / E_t = L^G_t`。
+-/
+theorem lev_net_le_gross (a : LeverageAccount) (hequity : 0 < a.equity) :
+    a.levN ≤ a.levG := by
+  unfold LeverageAccount.levN LeverageAccount.levG
+  rw [Rat.div_def, Rat.div_def]
+  exact Rat.mul_le_mul_of_nonneg_right
+    (Rat.intCast_le_intCast.mpr a.netLeGross)
+    (Rat.le_of_lt (Rat.inv_pos.mpr (Rat.intCast_pos.mpr hequity)))
 
 /--
   ★★毛帽蕴含净帽（条件性，L0）：**若净上限不紧于毛上限**（G̅ ≤ N̅）则 G ≤ G̅ ⟹ N ≤ N̅。

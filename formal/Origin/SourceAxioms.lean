@@ -74,7 +74,6 @@ structure FixedTheta where
   voice : Type
   phase : Type
   ledger : Type
-  leverage : Type
   risk : Type
   execution : Type
   tieBreak : Type

@@ -233,7 +233,8 @@ deriving DecidableEq, Repr
 
 /--
   ★风险模式输入（L0，strict §11 line 370-373）：账户层运行时量（非缠论可导）。
-  - `equity` = E_t、`maintMargin` = MM_t、`buffer1` = B1、`buffer2` = B2（实数）；`liqFlag` = LiqFlag。
+  - `equity` = E_t、`maintMargin` = MM_t、`buffer1` = B1、`buffer2` = B2（整数 tick）；
+    `bufferOrder` = `0 < B1 < B2`；`liqFlag` = LiqFlag。
   ★诚实标注：全部是外部事件 e_{t+1}/ν_t（strict §1:47），不由缠论/Θ 推导。
 -/
 structure RiskModeInput where
@@ -241,6 +242,7 @@ structure RiskModeInput where
   maintMargin : Int   -- MM_t
   buffer1 : Int       -- B1
   buffer2 : Int       -- B2
+  bufferOrder : 0 < buffer1 ∧ buffer1 < buffer2
   liqFlag : Bool      -- LiqFlag_t
 
 /--
