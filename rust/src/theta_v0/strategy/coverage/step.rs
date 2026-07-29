@@ -487,15 +487,23 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
     // ★(I-1) 双计守卫（codex 异质审查）：next_active 每 ElementId 必唯一——同 carrier 不得在 raw 中以
     // 两个 idx（树前缀 + registry 追加）出现，否则 strategy_target_legs 双计 ⟹ p̃ 伪证。
     // 唯一性由三处注册路径闭合保证：restore_ancestor_chain_from_registry 复用现有 idx、held Stale
-    // 重注册复用 overlay 现有 idx、open 候选按 id 判重（同向首现）/反向成对湮灭（#216）；此 assert 锁不变量防回归。
-    debug_assert!(
-        {
-            let mut ids: Vec<_> = next_active.iter().map(|l| l.id).collect();
-            ids.sort_by_key(|id| (id.level, id.ordinal));
-            ids.windows(2).all(|w| w[0] != w[1])
-        },
-        "next_active 含重复 ElementId ⟹ strategy_target_legs 双计 p̃（活动集注册路径未按 id 判重，#216）"
-    );
+    // 重注册复用 overlay 现有 idx、open 候选按 id 判重（同向首现）/反向成对湮灭（#216）。
+    // ★#446：`debug_assert!` 单独把关在 release 编译消除 ⟹ 违规静默——改为 release/debug 都计数
+    // （`duplicate_active_id_violations`），debug 额外 fail-fast，供真实跑批逐窗硬断言。
+    let mut active_id_seen: std::collections::HashMap<ElementId, usize> =
+        std::collections::HashMap::new();
+    let duplicate_active_id = next_active_idx.iter().find_map(|&idx| {
+        let id = work[idx].id;
+        active_id_seen.insert(id, idx).map(|prior_idx| (id, prior_idx, idx))
+    });
+    if let Some((id, first_idx, second_idx)) = duplicate_active_id {
+        ancok_probe_bump(|p| p.duplicate_active_id_violations += 1);
+        debug_assert!(
+            false,
+            "next_active 含重复 ElementId {id:?}（idx {first_idx} 与 idx {second_idx}）⟹ \
+             strategy_target_legs 双计 p̃（活动集注册路径未按 id 判重，#216/#446）"
+        );
+    }
     // ★M5 sep 暴露（多空对冲.pdf p16）：把已算 `legs`（post G7 cap）按 work-index e_idx 对位到
     // carrier ElementId + role(v) + parent(v)，打包 SepLeg。**只读重打包，不新计算**——
     // `net_target_units(&legs)==p_tilde` 恒等 ⟹ `Σ σ_v·q_units == Net(P^sep)` 与净额路径一致。

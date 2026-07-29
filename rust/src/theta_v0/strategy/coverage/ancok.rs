@@ -67,6 +67,11 @@ pub struct AncokProbe {
     /// campaign 仍照常 RiskExit，但因身份歧义未能补 risk-close seed ⟹ 该子树后代不被连坐
     /// 清除，残留裸腿（#577 评审尾巴①暴露面：该丢弃此前零可观测）。
     pub risk_seed_carrier_ambiguous: u64,
+    /// ★#446：`next_idx`（活动集推进产出）中至少出现一对重复 `ElementId` 的 step 次数。三处
+    /// 注册路径（held 重注册/restore 复用/open 候选按 id 判重，#216）按 ID 闭合后应恒为 0；
+    /// release 下 `debug_assert!` 被编译消除 ⟹ 该不变量在 release 静默失守（生产 dump 实锤，
+    /// p3fold carrier ElementId(0,162)）——此计数在 release/debug 都累计，供真实跑批逐窗验收。
+    pub duplicate_active_id_violations: u64,
 }
 
 thread_local! {
@@ -86,6 +91,7 @@ thread_local! {
         restore_parent_unresolved: 0,
         element_depth_fuel_exhausted: 0,
         risk_seed_carrier_ambiguous: 0,
+        duplicate_active_id_violations: 0,
     }) };
 }
 

@@ -1289,8 +1289,21 @@ fn m8_e2e_all_systems_oos() {
         super::fill::entry_stop_recheck_probe_reset(); // #647 入场结构复检拒单计数
         super::super::strategy::coverage::cap_binding_probe_reset();
         super::super::strategy::coverage::cap_binding_attribution_reset(); // #628 阶段一归因
+        super::super::strategy::coverage::ancok_probe_reset(); // #446 活动集同 ElementId 双计逐窗清零
         let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
         super::admission::t5a_chain_dump::close();
+        // ★#446（语义重放）：release/debug 均计数的活动集 ElementId 唯一性硬断言——
+        // debug_assert! 单独把关在 release 编译消除，此计数不依赖构建 profile。
+        let duplicate_id_violations =
+            super::super::strategy::coverage::ancok_probe_snapshot().duplicate_active_id_violations;
+        eprintln!("[m8][#446] {tag}: duplicate_active_id_violations={duplicate_id_violations}");
+        assert_eq!(
+            duplicate_id_violations, 0,
+            "#446 {tag} 活动集仍出现重复 ElementId（release/debug 均计数）"
+        );
+        report.push_str(&format!(
+            "<!-- #446 {tag}: duplicate_active_id_violations=0（逐窗硬断言，见 stderr） -->\n"
+        ));
         let entry_stop_reverse = super::fill::entry_stop_reverse_probe_snapshot();
         let cap_binding = super::super::strategy::coverage::cap_binding_probe_snapshot();
         eprintln!(
