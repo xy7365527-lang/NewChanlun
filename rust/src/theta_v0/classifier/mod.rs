@@ -97,6 +97,9 @@ pub mod level_view;
 /// D7 firstRetrace 只读复核：严格 CompletedMove pair 映射与对象重启事件语义。
 /// 不接生产订单路径；只消费 C2 view，默认关闭的 seam 不受影响。
 pub mod first_retrace_replay;
+/// 买卖点身份账本 S1（票 #621，#465 裁定 A 之 T3 首环）：观察适配器 → 三态状态机 →
+/// append-only 修订日志（JSONL 外化 + 重放折叠恢复）→ 成立档门户；全部经 [`ledger_kernel`] 表达。
+pub mod retrace_ledger;
 /// C2 CompletedFreeze 的正式 append-only event-store adapter。
 pub mod level_view_store;
 
