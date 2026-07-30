@@ -107,3 +107,34 @@
 - 每条判定均遵循"票面原句 / #743 决策+commit / 仓内当前事实"三段证据结构。
 - "作废"档为空并非因为放松标准，而是12条决策中除 C6/C7-E1 外全部为零行为改动或纯注释标记，真正物理删除的文件（`pipeline.rs`、`classifier/incremental/*` 等）当前没有任何 open issue 直接以其为唯一目标（#648 的目标是"扶正 kimi 格局"而非"操作这些具体死壳文件"，故判需改写而非作废）。
 - "待人判"仅 #485 一条，系因其为 SPEC 级大票、测试接缝断言条目多，超出本次三段证据核验的合理篇幅，如实标注而非勉强判定。
+
+---
+
+## 4. 订正节（2026-07-30 晚，#485 专项核对回报后追加）
+
+本报告第 1 节「待人判（1 条）」已由专项核对结清。**四分计数订正：作废 0 / 需改写 4 / 不受影响 56 / 待人判 0。**
+
+### #485 改判为「不受影响」
+
+Testing Decisions 段点名的六处接缝逐条实查，无一失效：
+
+| 接缝 | 状态 | 证据 |
+|---|---|---|
+| `q7_ruling_c_first_and_third_class_structural_direction_authorized` | 在原处现役，`classifier/mod.rs:2825` | `git diff 8515416539^ 8515416539 -- mod.rs` 对该函数名零命中——C4 未改函数体，行号由 3900 挪至 2825（上方诊断逻辑迁出所致） |
+| C7-E1 删除的同名族兄弟 | 非同一份夹具 | 被删者为 `q7_ruling_c_first_class_structural_direction_third_class_provenance_kept`（`buy3=0`，与现役 `buy3=1` 断言方向相反），被 `mod.rs:3049` 内联 `mod tests {}` 遮蔽、从未进编译树；系 #486 已裁废的旧口径死壳 |
+| `judge_first_cached_provenance_gate_preserved_for_direct_callers` | 在原处现役，`signal.rs:2674` | C2 迁移 diff 零命中 |
+| `center_oscillation_wiring_tests` 族（24 个 `#[test]`） | 在原处现役，`fill.rs:2532` | C1 对 fill.rs 仅 rustfmt 重排，该 mod 名零命中 |
+| `gate_on_chain_rebase_migrates_survivor_and_writes_off_vanished_suspension` | 在原处现役，`fill.rs:3206` | 同上 |
+| `m8_e2e_all_systems_oos` | 在原处现役，`wverify_run.rs:1535` | 该文件不在十二条决策任一改动列表内 |
+
+### 本报告第 1 节的一处引数错误
+
+第 46 行「现役口径由 `mod.rs:3783` 覆盖」中的行号不准——实际 C4 前 3900、C4 后 2825。**结论方向不变**（现役版本存在、非 C7-E1 删除对象），仅引数错。
+
+### 附带发现（与 #743 漂移无关，独立事实）
+
+**#485 的「范围 1（anchor 门）」在 #743 之前已作为 #486 落地合并进 main**：`8e3cc9bd14 fix(classifier): #486 高级别三类改用结构方向锚` + `a3bd8ac008 merge: #486 anchor 门结构方向授权`；现役夹具文档注释自载「★ADR 补充十三 / #486 / Spec #485」。
+
+范围 2（归属链框四边配对）/ 范围 3（终态切换）实现状态本次未深查，线索一条：`SuspensionTerminationSource`（`strategy/center_oscillation_trade.rs:327`）当前仅 `BrokenByThirdClassBuy` / `BrokenByThirdClassSell` / `RebaseVanished` 三变体、无独立 `Reset` 分支，提示范围 3 可能亦已部分动过。
+
+处置（#485 是否缩为「范围 2/3 收尾票」）归 [#786](https://github.com/xy7365527-lang/NewChanlun/issues/786)。
