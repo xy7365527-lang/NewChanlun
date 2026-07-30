@@ -318,6 +318,11 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
     // LiveDetached 存活——故 open 候选自身入 raw **不足以**让父在场。下方补 open 候选父链注入（no-patch：
     // 缺失逻辑补全，非 AncOK 加特例）。
     // ★#216：本循环 push 的候选 id→(idx,eps)（同 bar 多候选同 carrier 判重/湮灭用，见下）。
+    // ★#752（issue752-bx-dup-guard-20260729.md）：本循环 + `restore_ancestor_chain_from_registry`
+    // 是 B_x 段（raw[a_t_end..]）能进 `raw` 的全部途径（穷举 `raw.push`/`raw.retain` 调用点得证），
+    // 二者均以 ElementId 值为键、在 push 前对当前完整 `raw`（含 A_t 段 + 本循环已推入部分）做
+    // 在场检查——B_x 段 raw 级同 id 重复因此结构性不可构造，`exit.rs` 的 `raw_ids` 折叠对合法
+    // 输入恒为 no-op，不需要额外 release 硬门。
     let mut open_pushed: std::collections::HashMap<ElementId, (usize, VoiceSide)> =
         std::collections::HashMap::new();
     for c in &buckets.open {
