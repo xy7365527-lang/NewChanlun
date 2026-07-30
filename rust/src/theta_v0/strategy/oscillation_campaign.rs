@@ -1010,9 +1010,37 @@ pub struct CampaignWiringWitness {
     /// ★#442 探针：键增 level 维 `(级别, 侧, 终局)`（纯观测）——与 `suspension_by_source` 同步
     /// 加维，两桶逐 (级别, 侧) 总数仍恒相等，对账关系不因加维破坏。
     pub settlement_by_side: BTreeMap<(u32, &'static str, &'static str), usize>,
-    /// ★#487：精确挂起绑定授权、且目标已滑出 alive/prev_slot 的 historical-bound
-    /// 路由命中数（按级别）。这是显式路由分支的审计读数；不参与任何清算判据。
+    /// ★#487：精确挂起绑定授权的 historical-bound 投递**送达**数（按级别，含 `Alive`/
+    /// `Tolerated`/`HistoricalBound` 三分支——只要 `broken_total` 因这次投递而增量即计一次）。
+    /// 这是显式路由分支的审计读数；不参与任何清算判据。
+    ///
+    /// ★#689 教训（两轮审计曾被误导）：本桶原文档曾写成「目标已滑出 alive/prev_slot 的
+    /// historical-bound 路由命中数」——被自家反证臂实测证伪（main HEAD 该桶 `={}`，反证臂
+    /// `={1: 6}`，这 6 次恰恰**没有**滑出主格/容读格，仍计入本桶）。真实语义是「投递送达」，
+    /// 不区分具体落在哪个分支。
+    ///
+    /// 与 [`Self::historical_bound_attempted_by_level`] / [`Self::historical_bound_failed_by_level`]
+    /// 并读，但**三桶不构成恒等式**：`attempted` 落在调用 `push_point_historical_bound` 之前，
+    /// 该次调用若解到 `KillResolution::ArenaEmpty` 则返回 `Ok(PointOutcome::Silent)`
+    /// （`center_lifecycle.rs:687`）——既不是送达（本桶不动）也不是 `MisKill`（failed 桶不动）。
+    /// 同 bar 内前一个 bound 点先杀掉主格、后续 bound 点落空即走这条路径（#487/A3 多 Owner
+    /// 同事件的常规形态）。故只保证 `attempted >= 本桶 + failed`，wf8 未触发不等于该路径不存在。
     pub historical_bound_by_level: BTreeMap<u32, usize>,
+    /// ★#689：historical-bound 投递**尝试**总数（按级别，成功+失败之和）——修那个「只认成功
+    /// 分支」的失明：不管这次尝试最终落 [`Self::historical_bound_by_level`] 还是
+    /// [`Self::historical_bound_failed_by_level`]，尝试本身先在这里落一次。
+    pub historical_bound_attempted_by_level: BTreeMap<u32, usize>,
+    /// ★#689：historical-bound 投递尝试后以 `MisKill` 收场的次数（按级别）——「通道被调用但
+    /// 失败」的显式可见读数，专治 [`Self::historical_bound_by_level`] 文档所述的失明教训。
+    pub historical_bound_failed_by_level: BTreeMap<u32, usize>,
+    /// ★#689：`CenterEventMachine::historical_bound_kills()` 逐级别快照（run 结束时一次性
+    /// 采集，非逐事件累加）——「#487 特批分支命中数」在报告行的生产可查读数。此前该数字只
+    /// 活在 `cl_machines` 内部，报告行完全没接，出现「查不出特批分支到底有没有命中」的失明
+    /// （评审 #689 面2 指出的反向新增）。
+    pub historical_bound_kills_by_level: BTreeMap<u32, usize>,
+    /// ★#689：`CenterEventMachine::historical_bound_reroutes()` 逐级别快照，采集方式同
+    /// [`Self::historical_bound_kills_by_level`]——改道成功命中数的生产可查读数。
+    pub historical_bound_reroutes_by_level: BTreeMap<u32, usize>,
     /// ★#487/A3：同一 `(source_index, 买卖侧)` 紧邻证同时绑定多个冻结 Owner 时，
     /// 每多出一个 Owner 记一次（按级别）。这是合法多投递的观测读数，不参与路由或清算判据。
     pub historical_multi_owner_same_event: BTreeMap<u32, usize>,
@@ -1384,9 +1412,20 @@ impl CampaignWiringWitness {
         *self.settlement_by_side.entry((level, side_label(side), label)).or_insert(0) += 1;
     }
 
-    /// ★#487：记一次已滑出容读窗的精确 historical-bound 命中。
+    /// ★#487：记一次已滑出容读窗的精确 historical-bound 命中（成功分支）。
     pub fn record_historical_bound(&mut self, level: u32) {
         *self.historical_bound_by_level.entry(level).or_insert(0) += 1;
+    }
+
+    /// ★#689：记一次 historical-bound 投递尝试（成功/失败之前，调用点先落一次）。
+    pub fn record_historical_bound_attempted(&mut self, level: u32) {
+        *self.historical_bound_attempted_by_level.entry(level).or_insert(0) += 1;
+    }
+
+    /// ★#689：记一次 historical-bound 投递尝试以 `MisKill` 收场（失败分支，专治「只认成功
+    /// 分支」的失明——见 [`Self::historical_bound_by_level`] 文档的两轮审计教训）。
+    pub fn record_historical_bound_failed(&mut self, level: u32) {
+        *self.historical_bound_failed_by_level.entry(level).or_insert(0) += 1;
     }
 
     /// ★#487/A3：记一次同事件新增的合法冻结 Owner 绑定。
@@ -3067,5 +3106,30 @@ mod tests {
         assert_eq!(cover.units, 120, "floor(1200/10)=120 份");
         assert_eq!(cover.earning_units_gained, 20, "★空头侧净增 20 份（挣的是空头份数）");
         assert!(cover.earning_replenish);
+    }
+
+    /// ★#689：attempted/success/failed 三桶各自独立分级别计数，互不覆盖——修
+    /// `historical_bound_by_level`「只认成功分支」的失明（两轮审计曾因此误判「通道零命中」）。
+    #[test]
+    fn historical_bound_attempted_success_failed_buckets_are_independent_by_level() {
+        let mut w = CampaignWiringWitness::new();
+        w.record_historical_bound_attempted(0);
+        w.record_historical_bound_attempted(0);
+        w.record_historical_bound_attempted(1);
+        w.record_historical_bound(0);
+        w.record_historical_bound_failed(0);
+        w.record_historical_bound_failed(1);
+
+        assert_eq!(w.historical_bound_attempted_by_level.get(&0), Some(&2));
+        assert_eq!(w.historical_bound_attempted_by_level.get(&1), Some(&1));
+        assert_eq!(
+            w.historical_bound_by_level.get(&0),
+            Some(&1),
+            "级别 0 的一次尝试成功、一次失败——成功桶只认那一次"
+        );
+        assert_eq!(w.historical_bound_by_level.get(&1), None, "级别 1 唯一一次尝试即失败，成功桶空");
+        assert_eq!(w.historical_bound_failed_by_level.get(&0), Some(&1));
+        assert_eq!(w.historical_bound_failed_by_level.get(&1), Some(&1));
+        // 级别 0：attempted(2) = success(1) + failed(1)。级别 1：attempted(1) = success(0) + failed(1)。
     }
 }

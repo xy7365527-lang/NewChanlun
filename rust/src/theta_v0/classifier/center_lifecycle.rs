@@ -399,6 +399,11 @@ pub struct CenterEventMachine {
     tolerated_total: usize,
     /// ★#487：精确挂起绑定授权、且已滑出主格/容读格的历史三类点命中累计。
     historical_bound_total: usize,
+    /// ★#689：锚不在本级塔链上、经接线层提供的当前修订身份改道后才定位成功的历史三类点
+    /// 命中累计。这是「改道」本身的读数，与 `historical_bound_total` 正交——改道成功可能落
+    /// 在 `Alive`/`Tolerated`（不计入 `historical_bound_total`，见 `resolve_kill_target` 尾部
+    /// 改道分支）也可能仍落 `HistoricalBound`（计入两者）。
+    historical_bound_reroute_total: usize,
     /// ★#337（MINOR 补查）：最近一次被**教义死亡事件**杀掉的链尾身份（`alive` 转 None 那一刻
     /// 记下）。唯一用途 = 重基复活判据（见 [`CenterEventMachine::adopt`]）。
     dead_tail: Option<CenterId>,
@@ -461,6 +466,7 @@ impl CenterEventMachine {
             superseded_total: 0,
             tolerated_total: 0,
             historical_bound_total: 0,
+            historical_bound_reroute_total: 0,
             dead_tail: None,
             revived_total: 0,
         }
@@ -604,7 +610,7 @@ impl CenterEventMachine {
         source_index: usize,
         target: Option<CenterId>,
     ) -> Result<PointOutcome, CenterMisKill> {
-        self.push_point_impl(bits, source_index, target, None)
+        self.push_point_impl(bits, source_index, target, None, None)
     }
 
     /// ★#487：喂入由接线层以**精确挂起绑定**授权的历史中枢三类点。
@@ -612,14 +618,20 @@ impl CenterEventMachine {
     /// 本入口不扩张容读窗：授权快照仅在三类点、身份命中已消费链且已滑出 alive/prev_slot 时
     /// 生效；其它点型与既有 [`Self::push_point`] 完全同路。结构机不读取 strategy 状态，调用方
     /// 必须先以挂起表的精确 `CenterId` 完成授权。
+    ///
+    /// ★#689：`reroute_target`——`bound_center`（锚，首次挂起时冻结的身份）在本级塔链上找不到
+    /// 时，可再试一次的**当前修订身份**（接线层经 [`crate::theta_v0::strategy::center_oscillation_trade::CenterOscillationBook::current_identity_of`]
+    /// 折回；`None` = 无映射，不重试）。锚本身能定位时优先用锚，不碰改道；改道也定位不到时
+    /// 保持原 `MisKill` 不变（fail closed，见 [`Self::resolve_kill_target`] 尾部）。
     pub fn push_point_historical_bound(
         &mut self,
         bits: BspBits,
         source_index: usize,
         bound_center: Center,
+        reroute_target: Option<CenterId>,
     ) -> Result<PointOutcome, CenterMisKill> {
         let target = Some(CenterId::of(&bound_center));
-        self.push_point_impl(bits, source_index, target, Some(bound_center))
+        self.push_point_impl(bits, source_index, target, Some(bound_center), reroute_target)
     }
 
     fn push_point_impl(
@@ -628,6 +640,7 @@ impl CenterEventMachine {
         source_index: usize,
         target: Option<CenterId>,
         historical_bound: Option<Center>,
+        reroute_target: Option<CenterId>,
     ) -> Result<PointOutcome, CenterMisKill> {
         // 一类优先（1B/3B 前提冲突互斥，理论不同位；防御性规定，模块头已标注）。
         let first = if bits.buy1 {
@@ -667,6 +680,7 @@ impl CenterEventMachine {
                 breaker_side,
                 target,
                 historical_bound,
+                reroute_target,
             )? {
                 KillResolution::Stale(st) => return Ok(PointOutcome::Stale(st)),
                 // 场为空 ⟹ 诚实 no-op（不杀不存在的中枢）。
@@ -717,6 +731,13 @@ impl CenterEventMachine {
     /// - 载体命中**已消费链前缀里的其它实例** ⟹ [`KillResolution::Stale`]：时序滞后，不计误杀。
     /// - ★#487 三类点载体命中其它历史实例，且接线层提供同一身份的精确挂起绑定快照
     ///   ⟹ [`KillResolution::HistoricalBound`]：只杀该实例，主格/容读格不动。
+    /// - ★#689（用户 2026-07-29 裁定）：锚（`target`）在本级塔链上彻底定位不到（不在主格、
+    ///   不在容读格、也不在已消费链前缀）时，若接线层提供了改道用的**当前修订身份**
+    ///   `reroute_target`（锚经 `CenterOscillationBook::current_identity_of` 折回的谱系后继），
+    ///   再用它试一次同一套定位判据——命中 ⟹ 按其落点复用 `Alive`/`Tolerated`/`HistoricalBound`
+    ///   对应分支（改道读数单独计数，见 [`Self::historical_bound_reroutes`]，正交于原分支计数）；
+    ///   折不回（无映射）或改道后仍定位不到 ⟹ 不吞错，原样落 [`Err(CenterMisKill)`]
+    ///   （fail closed，不猜测）。
     /// - 其余（载体不在本级链上，含 `None`）⟹ [`Err(CenterMisKill)`](CenterMisKill)，状态不动。
     fn resolve_kill_target(
         &mut self,
@@ -725,6 +746,7 @@ impl CenterEventMachine {
         trigger_side: Side,
         target: Option<CenterId>,
         historical_bound: Option<Center>,
+        reroute_target: Option<CenterId>,
     ) -> Result<KillResolution, CenterMisKill> {
         let Some((alive_center, alive_chain_index)) = self.alive else {
             if matches!(trigger, KillTrigger::ThirdClass) {
@@ -784,6 +806,39 @@ impl CenterEventMachine {
                 }));
             }
         }
+        // ★#689：锚彻底定位不到（不在主格/容读格/已消费链）——只对 #487 历史绑定投递
+        // （`historical_bound.is_some()`）用接线层折回的当前修订身份再试一次同一套定位判据。
+        // `reroute_target` 缺失、等于刚失败的 `target`（无新信息，避免空转）、或改道后仍定位
+        // 不到 ⟹ 直接跳过，落到下面不变的 fail closed（原锚 `MisKill`）。
+        if matches!(trigger, KillTrigger::ThirdClass) && historical_bound.is_some() {
+            if let Some(rt) = reroute_target.filter(|rt| Some(*rt) != target) {
+                if rt == alive {
+                    self.historical_bound_reroute_total += 1;
+                    return Ok(KillResolution::Alive);
+                }
+                if let Some((prev_center, prev_chain_index)) = self.prev_slot {
+                    if CenterId::of(&prev_center) == rt {
+                        debug_assert_eq!(
+                            prev_chain_index + 1,
+                            alive_chain_index,
+                            "容读格恒为链尾前一格（Δidx=−1）"
+                        );
+                        self.historical_bound_reroute_total += 1;
+                        return Ok(KillResolution::Tolerated(prev_center, prev_chain_index));
+                    }
+                }
+                if let Some(target_chain_index) = self.consumed.iter().rposition(|c| *c == rt) {
+                    // 折回后仍只在已消费链里——沿用 #487 语义只杀 `bound_center` 那个冻结历史
+                    // 实例（主格/容读格不动）；frame 仍是首次挂起冻结的旧框，不是当前身份的
+                    // 新框（ADR 补充十四：清算仍按冻结旧框判，改道只改路由 target，不改载荷）。
+                    self.historical_bound_reroute_total += 1;
+                    return Ok(KillResolution::HistoricalBound(
+                        historical_bound.expect("checked historical_bound.is_some() above"),
+                        target_chain_index,
+                    ));
+                }
+            }
+        }
         self.miskill_total += 1;
         Err(CenterMisKill {
             level: self.level,
@@ -834,6 +889,12 @@ impl CenterEventMachine {
     /// ★#487：精确挂起绑定授权的历史三类点命中累计。
     pub fn historical_bound_kills(&self) -> usize {
         self.historical_bound_total
+    }
+
+    /// ★#689：锚在本级塔链上定位不到、改道当前修订身份后才定位成功的历史三类点命中累计。
+    /// 正交于 [`Self::historical_bound_kills`]——改道成功落 `Alive`/`Tolerated` 时不计入后者。
+    pub fn historical_bound_reroutes(&self) -> usize {
+        self.historical_bound_reroute_total
     }
 
     /// ★#337（MINOR 补查）：重基把已被教义死亡杀掉的链尾实例重新扶上场的累计次数
@@ -1532,5 +1593,172 @@ mod tests {
             other => panic!("应发出 Reset 广播，实得 {other:?}"),
         };
         assert_eq!(reset.killed_center_id(), None, "Reset 的 died_* 是漏发见证，不是死亡身份");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★#689（用户 2026-07-29 裁定）：历史绑定投递改道——锚彻底不在本级塔链上时，
+    //  经接线层提供的当前修订身份再定位一次；改道命中按落点复用 Alive/Tolerated/
+    //  HistoricalBound；折不回或改道后仍定位不到 ⟹ fail closed，原样报锚的 MisKill。
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// 改道命中链尾主格（`Alive`）：锚已被重基整体移出 `consumed`（`adopt()` 全量替换），
+    /// 无改道目标时 fail closed 不变；给出改道目标 = 当前链尾身份时命中 `Alive`，真杀在场
+    /// 实例（`alive_center()` 清空），载荷是**当前**在场实例快照（不是锚冻结框——`Broken.center`
+    /// 与锚不同，接线层另有独立折回把结算读数拉回锚，见 `CenterOscillationBook::on_lifecycle_event`）。
+    #[test]
+    fn push_point_historical_bound_reroutes_to_alive_when_anchor_rebased_away() {
+        let mut m = CenterEventMachine::new(0);
+        let anchor = center(0, 10, 100, 200);
+        let current = center(0, 10, 90, 200); // 同 seed 窗重算：start 不变、zd 修订（迁移后身份）
+        assert_eq!(m.consume_chain(&[current]), ChainConsumed::Adopted { adopted: 1 });
+        assert_eq!(m.alive_center(), Some((current, 0)));
+
+        // 无改道目标 ⟹ 锚彻底定位不到，行为不变（fail closed）。
+        let no_reroute = m.push_point_historical_bound(bits_3b(), 100, anchor, None);
+        assert_eq!(
+            no_reroute,
+            Err(CenterMisKill {
+                level: 0,
+                trigger: KillTrigger::ThirdClass,
+                trigger_source_index: 100,
+                trigger_side: Side::Long,
+                alive: CenterId::of(&current),
+                target: Some(CenterId::of(&anchor)),
+            })
+        );
+        assert_eq!(m.mis_kills(), 1);
+        assert_eq!(m.historical_bound_kills(), 0);
+        assert_eq!(m.historical_bound_reroutes(), 0);
+
+        // 改道目标 = 当前链尾主格身份 ⟹ 命中 Alive，真杀在场实例。
+        let rerouted =
+            m.push_point_historical_bound(bits_3b(), 101, anchor, Some(CenterId::of(&current)));
+        assert_eq!(
+            rerouted,
+            Ok(PointOutcome::Event(CenterLifecycleEvent::Broken {
+                level: 0,
+                center: current,
+                chain_index: 0,
+                breaker_source_index: 101,
+                breaker_side: Side::Long,
+            }))
+        );
+        assert_eq!(m.alive_center(), None, "改道命中 Alive ⟹ 真杀在场实例，主格清空");
+        assert_eq!(m.historical_bound_reroutes(), 1);
+        assert_eq!(m.historical_bound_kills(), 0, "改道落 Alive 分支，不计入 HistoricalBound 计数");
+        assert_eq!(m.mis_kills(), 1, "改道成功不追加误杀计数（读数仍是上一次不同请求的）");
+    }
+
+    /// 改道命中容读格（`Tolerated`）：锚折回后的当前身份恰好落在链尾前一格。
+    #[test]
+    fn push_point_historical_bound_reroutes_to_tolerated_slot() {
+        let mut m = CenterEventMachine::new(0);
+        let anchor = center(0, 10, 100, 200);
+        let current = center(0, 10, 90, 200);
+        let tail = center(20, 30, 300, 400);
+        assert_eq!(m.consume_chain(&[current, tail]), ChainConsumed::Adopted { adopted: 2 });
+        assert_eq!(m.alive_center(), Some((tail, 1)));
+
+        let rerouted =
+            m.push_point_historical_bound(bits_3b(), 200, anchor, Some(CenterId::of(&current)));
+        assert_eq!(
+            rerouted,
+            Ok(PointOutcome::Event(CenterLifecycleEvent::Broken {
+                level: 0,
+                center: current,
+                chain_index: 0,
+                breaker_source_index: 200,
+                breaker_side: Side::Long,
+            }))
+        );
+        assert_eq!(m.alive_center(), Some((tail, 1)), "容读放行不动链尾主格");
+        assert_eq!(m.tolerated_kills(), 1);
+        assert_eq!(m.historical_bound_reroutes(), 1);
+        assert_eq!(m.historical_bound_kills(), 0, "改道落 Tolerated 分支，不计入 HistoricalBound 计数");
+        assert_eq!(m.mis_kills(), 0);
+    }
+
+    /// 改道命中已消费链深处（既非主格也非容读格）：沿用 #487 语义只杀锚冻结的那个历史实例，
+    /// 主格/容读格不动；载荷仍是**锚**的冻结框（ADR 补充十四：清算按冻结旧框判，改道只改
+    /// 路由 target，不改载荷），且计入 `historical_bound_kills`（与非改道的 HistoricalBound
+    /// 分支同一计数口径）。
+    #[test]
+    fn push_point_historical_bound_reroute_hitting_consumed_reuses_historical_bound_branch() {
+        let mut m = CenterEventMachine::new(0);
+        let anchor = center(0, 10, 100, 200);
+        let current = center(0, 10, 90, 200);
+        let prev = center(20, 30, 300, 400);
+        let tail = center(40, 50, 500, 600);
+        assert_eq!(
+            m.consume_chain(&[current, prev, tail]),
+            ChainConsumed::Adopted { adopted: 3 }
+        );
+        assert_eq!(m.alive_center(), Some((tail, 2)));
+
+        let rerouted =
+            m.push_point_historical_bound(bits_3s(), 300, anchor, Some(CenterId::of(&current)));
+        assert_eq!(
+            rerouted,
+            Ok(PointOutcome::Event(CenterLifecycleEvent::Broken {
+                level: 0,
+                center: anchor,
+                chain_index: 0,
+                breaker_source_index: 300,
+                breaker_side: Side::Short,
+            })),
+            "改道落链深处 ⟹ 复用 HistoricalBound 语义，载荷是锚的冻结框，不是 current 的框"
+        );
+        assert_eq!(m.alive_center(), Some((tail, 2)), "主格不动");
+        assert_eq!(m.historical_bound_reroutes(), 1);
+        assert_eq!(m.historical_bound_kills(), 1, "落 HistoricalBound 分支，与非改道同一计数口径");
+        assert_eq!(m.mis_kills(), 0);
+    }
+
+    /// 折不回：改道目标本身也不在链上（例如谱系簿给出的映射自己也已经陈旧）⟹ 不猜测，
+    /// 原样落锚的 `MisKill`（fail closed，用户 2026-07-29 裁定「折不回保持现状显式拒绝」）。
+    #[test]
+    fn push_point_historical_bound_reroute_target_not_on_chain_stays_mis_kill() {
+        let mut m = CenterEventMachine::new(0);
+        let anchor = center(0, 10, 100, 200);
+        let current = center(0, 10, 90, 200);
+        let ghost = center(999, 1000, 1, 2);
+        assert_eq!(m.consume_chain(&[current]), ChainConsumed::Adopted { adopted: 1 });
+
+        let out =
+            m.push_point_historical_bound(bits_3b(), 100, anchor, Some(CenterId::of(&ghost)));
+        assert_eq!(
+            out,
+            Err(CenterMisKill {
+                level: 0,
+                trigger: KillTrigger::ThirdClass,
+                trigger_source_index: 100,
+                trigger_side: Side::Long,
+                alive: CenterId::of(&current),
+                target: Some(CenterId::of(&anchor)),
+            }),
+            "改道目标本身也定位不到 ⟹ fail closed，报的仍是原锚的 MisKill（不猜、不吞错）"
+        );
+        assert_eq!(m.mis_kills(), 1);
+        assert_eq!(m.historical_bound_reroutes(), 0);
+        assert_eq!(m.historical_bound_kills(), 0);
+    }
+
+    /// 改道目标与失败的锚相同（无新信息）⟹ 不重试，直接落 `MisKill`，不产生额外副作用。
+    #[test]
+    fn push_point_historical_bound_reroute_target_equal_to_anchor_is_not_retried() {
+        let mut m = CenterEventMachine::new(0);
+        let anchor = center(0, 10, 100, 200);
+        let current = center(20, 30, 300, 400);
+        assert_eq!(m.consume_chain(&[current]), ChainConsumed::Adopted { adopted: 1 });
+
+        let out = m.push_point_historical_bound(
+            bits_3b(),
+            100,
+            anchor,
+            Some(CenterId::of(&anchor)),
+        );
+        assert!(out.is_err());
+        assert_eq!(m.mis_kills(), 1);
+        assert_eq!(m.historical_bound_reroutes(), 0);
     }
 }
