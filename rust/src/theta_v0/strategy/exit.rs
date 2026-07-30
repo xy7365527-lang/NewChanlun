@@ -327,6 +327,13 @@ pub fn step_active_set_with_subtree_close(
     // (A_t ∖ 𝒟_x^†) ∪ ℬ_x（id 去重，保序：存量在前、新开在后）。
     let mut raw: Vec<ActiveLeg> =
         active.iter().filter(|l| !closed_ids.contains(&l.id)).copied().collect();
+    // ★#752（issue752-bx-dup-guard-20260729.md）：下方 `raw_ids.insert` 对 `opened`（调用方
+    // `step.rs` 的 B_x 段）的静默去重，在 main 生产路径上对合法输入恒为 no-op——`step.rs`
+    // open 循环的 `#216` 判重（`open_pushed` 按 ElementId 键判重/湮灭 + `already_in_raw`
+    // 门禁，见 `held.rs::restore_ancestor_chain_from_registry`）已在推入 `raw` 之前逐点
+    // 拦截同 id 重复，B_x 段本身结构性不可能含重复 ElementId（穷举 B_x 段全部推入点得到
+    // 的排他性证明，见报告）。此处保留去重是防御性纵深（防未来调用点/测试用例误传重复
+    // `opened`），不是当前唯一防线，故不为其单独补 release 硬门。
     let mut raw_ids: HashSet<ElementId> = raw.iter().map(|l| l.id).collect();
     for &b in opened {
         if raw_ids.insert(b.id) {
