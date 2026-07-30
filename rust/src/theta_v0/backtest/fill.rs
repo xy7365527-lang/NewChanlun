@@ -5191,52 +5191,58 @@ where
             //    ——不在此重复。
             //    ★#644 票面边界：本读数**只读**——不消费 `ticks.ticked_levels()` 去门控任何目标
             //    重估（kimi 侧 `plan_level_gated_order`/`level_order.regate` 不在本票范围，归
-            //    #755）。`level_clock_stats.observe` 是纯累计，不改 `order`/`cash`/`units`。 ──
-            let clock_ticks = {
-                use super::super::strategy::level_clock::collect_ticks;
-                let bsp_levels: Vec<u32> = classification_step
-                    .levels
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, ls)| !ls.bsp.is_empty())
-                    .map(|(lvl, _)| lvl as u32)
-                    .collect();
-                let closed_levels: Vec<u32> = step_trace
-                    .closed
-                    .iter()
-                    .map(|(leg, _, _)| leg.level)
-                    .collect();
-                let opened_levels: Vec<u32> =
-                    step_trace.opened.iter().map(|(_, leg)| leg.level).collect();
-                let silent_levels: Vec<u32> = step_trace
-                    .silent_drops
-                    .iter()
-                    .map(|leg| leg.level)
-                    .collect();
-                let overlay_levels: Vec<u32> = step_trace
-                    .overlay_closes
-                    .iter()
-                    .map(|leg| leg.level)
-                    .collect();
-                let risk_levels: Vec<u32> =
-                    step_trace.risk_exits.iter().map(|leg| leg.level).collect();
-                collect_ticks(
-                    &bsp_levels,
-                    &closed_levels,
-                    &opened_levels,
-                    &silent_levels,
-                    &overlay_levels,
-                    &risk_levels,
-                    &pan_levels,
-                )
-            };
-            level_clock_stats.observe(&clock_ticks);
-            // ── ★LEE 归因算子（`strategy::level_attrib::attribute_total`，#644 语义重放）逐 bar
-            //    **只读**诊断：把本 bar 已经由生产 M0 路径算出的净额目标 `standard_p_star`
-            //    （本读数只读消费，不回写、不改 `order`）按结构基准 `level_nets(sep_legs)` 归因
-            //    到各级——纯粹的记账读数，`out` 本身丢弃，只留统计。基准与 M1 镜像 `level_nets`
-            //    单源（同 `level_ledger.rs` 文档「M2 归因基准单源」纪律）。 ──
-            {
+            //    #755）。`level_clock_stats.observe` 是纯累计，不改 `order`/`cash`/`units`。
+            //    ★#758 issue766 MED-3 订正：两段读数的唯一出口是 `OverlayRunResult`
+            //    （`runner.rs::level_clock`/`level_attrib_n_*`），只有 `level_ledger=Some` 的
+            //    overlay 臂会把它们接出去；净额臂（`pi_theta_fill_loop`）与声部臂
+            //    （`pi_theta_fill_loop_voice`）都以 `level_ledger=None` 调用本函数，产物落进
+            //    `RunResult`（无此二字段）逐 bar 白算白丢。门控与 `level_ledger` 同一个 `Option`
+            //    信号（M1 段既有纪律），零新增状态位。 ──
+            if level_ledger.is_some() {
+                let clock_ticks = {
+                    use super::super::strategy::level_clock::collect_ticks;
+                    let bsp_levels: Vec<u32> = classification_step
+                        .levels
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, ls)| !ls.bsp.is_empty())
+                        .map(|(lvl, _)| lvl as u32)
+                        .collect();
+                    let closed_levels: Vec<u32> = step_trace
+                        .closed
+                        .iter()
+                        .map(|(leg, _, _)| leg.level)
+                        .collect();
+                    let opened_levels: Vec<u32> =
+                        step_trace.opened.iter().map(|(_, leg)| leg.level).collect();
+                    let silent_levels: Vec<u32> = step_trace
+                        .silent_drops
+                        .iter()
+                        .map(|leg| leg.level)
+                        .collect();
+                    let overlay_levels: Vec<u32> = step_trace
+                        .overlay_closes
+                        .iter()
+                        .map(|leg| leg.level)
+                        .collect();
+                    let risk_levels: Vec<u32> =
+                        step_trace.risk_exits.iter().map(|leg| leg.level).collect();
+                    collect_ticks(
+                        &bsp_levels,
+                        &closed_levels,
+                        &opened_levels,
+                        &silent_levels,
+                        &overlay_levels,
+                        &risk_levels,
+                        &pan_levels,
+                    )
+                };
+                level_clock_stats.observe(&clock_ticks);
+                // ── ★LEE 归因算子（`strategy::level_attrib::attribute_total`，#644 语义重放）逐 bar
+                //    **只读**诊断：把本 bar 已经由生产 M0 路径算出的净额目标 `standard_p_star`
+                //    （本读数只读消费，不回写、不改 `order`）按结构基准 `level_nets(sep_legs)` 归因
+                //    到各级——纯粹的记账读数，`out` 本身丢弃，只留统计。基准与 M1 镜像 `level_nets`
+                //    单源（同 `level_ledger.rs` 文档「M2 归因基准单源」纪律）。 ──
                 let lot = config.risk.default_lot.max(1) as i64;
                 let basis =
                     super::super::strategy::level_ledger::level_nets(&step_trace.sep_legs, lot);
