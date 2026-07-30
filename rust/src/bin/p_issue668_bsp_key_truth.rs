@@ -15,9 +15,11 @@
 //! 说明两个不同破中枢事件的区间重叠，是数据/候选扫描层面的问题，不是本对象能吞的歧义）。
 //! 生产代码 `bsp_bridge::find_episode` 用 `debug_assert` 机器化同一不变量。
 //!
-//! 二类同样按其一类锚坐标验证 episode 归属唯一（HIGH-2 修复覆盖二类）；三类判据本轮未改
-//! （leave_interval.1 精确等值，评审已验不空洞），仍报覆盖率但不纳入「归属唯一」检验（三类近零
-//! 覆盖是候选域结构性错位，归 #688，不在本票范围）。
+//! 二类同样按其一类锚坐标验证 episode 归属唯一（HIGH-2 修复覆盖二类）；三类判据本身第四轮
+//! supersede 已迁移到同款 episode 区间覆盖（`bsp_bridge::resolve_bridge` 三类分支，
+//! `chanlun/review-results/issue668-n4-fix-round2-20260729.md` MED 修复），但本 bin 仍报覆盖率
+//! 不纳入「归属唯一」检验（三类近零覆盖是候选域结构性错位，归 #688，扩大本 bin 检验域不在本轮
+//! 修复单范围内）。
 //!
 //! 用法：`cargo run --release --bin p_issue668_bsp_key_truth -- <btc_1m_full.json> [max_bars]`
 
@@ -214,7 +216,8 @@ fn resolve_fingerprint(level: &LevelState, class: PointClass, idx_in_level: usiz
 }
 
 /// 反查坐标：一/二类用「本点自身 `source_index`」查其所属 episode（一类）或「一类锚坐标」
-/// （二类）；三类未改判据，不走本函数（仍用 leave_interval.1 精确等值，另计）。
+/// （二类）；三类不走本函数——本 bin 检验域仍只覆盖一/二类归属唯一性，三类覆盖率另计不纳入
+/// （见模块头，扩大检验域不在本轮修复单范围内）。
 fn owner_query_source_index(level: &LevelState, class: PointClass, idx_in_level: usize) -> Option<usize> {
     let point = &level.bsp[idx_in_level];
     match class {

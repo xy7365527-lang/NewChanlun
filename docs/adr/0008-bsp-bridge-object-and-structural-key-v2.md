@@ -12,8 +12,11 @@
 一类点、同一中枢可被反复离开回试产多个三类点，报告
 `chanlun/review-results/issue668-n4-impl-ticket668-20260729.md`）。回炉裁定 v2 = v1 + 锚段坐标
 （一类=背驰确认段 `seg_a`+`c_start`、三类=离开段+回试段起点、二类=一类锚坐标——回抽段坐标
-structurally 不可得，诚实退化）；v2 在同三窗实测 **ambiguous_keys=0**（报告
-`chanlun/review-results/issue668-n4-impl-ticket668b-20260729.md`），本 ADR 落地这把键。
+structurally 不可得，诚实退化）；~~v2 在同三窗实测 **ambiguous_keys=0**（报告
+`chanlun/review-results/issue668-n4-impl-ticket668b-20260729.md`）~~，本 ADR 落地这把键。
+**订正（R2-LOW-1，见「第四轮 supersede」段）**：`ambiguous_keys=0` 出自已撤回的「键唯一性」
+旧口径检验，是检验域被同一判据预先窄化的算术必然，不是键的区分力实证——见下文「第三轮
+supersede」段的完整订正；现行真值表 bin 已不再产出这个字段。
 
 ## Considered Options
 
@@ -30,7 +33,10 @@ structurally 不可得，诚实退化）；v2 在同三窗实测 **ambiguous_key
 - **二类回抽段坐标真实接线**（重跑 `find_second_type_structure` 取次级别走势起点）：搁置。
   `extract_second_signals` 入参层已把回拉走势坐标剥离（signal.rs「坐标 still-MISSING」），真实
   接线需要新判定路径，违反本对象「零改动 judge_*/extract_* 判据函数」的方法学；二类 v2 诚实退化为
-  v1（仅一类锚坐标），如实登记，真值表在此退化下仍 0 ambiguous。
+  v1（仅一类锚坐标），如实登记。~~真值表在此退化下仍 0 ambiguous。~~ **订正（R2-LOW-1）**：同上，
+  该读数出自已撤回的旧口径；且二类在生产数据上实测 0/280 命中（`resolve_second_class_anchor`
+  的第二个条件——反查锚点自身是否持有一类 bit——恒假，见「第四轮 supersede」段 R2-MED-2），
+  该正面断言当前无检验域支撑，按未实测处置。
 
 ## Consequences
 
@@ -75,3 +81,66 @@ episode 内部而非右端上的点被记作 `anchor_seg_unresolved` 直接丢�
 - 一类/二类覆盖率缺口已定位为判据错误并修复（不是独立候选域结构性问题）；三类近零覆盖仍归 #688。
 - 「覆盖率与键唯一性正交，不可互相反推」这一论断整体撤回：本票的实测史正是「低覆盖率反推判据可疑」
   这条路径的正面案例，`chanlun/CONTEXT.md` 对应 `_Avoid_` 词条已订正。
+
+## 第四轮 supersede（2026-07-29，#670 影子评审第 2 轮 FAIL 回炉，修复轮报告
+`chanlun/review-results/issue668-n4-fix-round2-20260729.md`）
+
+`#670` 影子评审第 2 轮发现第三轮 supersede 裁定①（「同一 episode 内的多个物理一类点是同一
+候选身份的修订史」）在**实现**上被映射成了错误的载荷形态：`resolve_first_class_episode_edges`
+把 k 个同时并存的物理点按 `source_index` 升序产出 k 条**独立观察**，全部共享同一 `BridgeKey`，
+交给 `apply()` 顺序处理——而 `apply()` 的幂等/终态判据（prior vs next 二元比较）隐含假设**每次
+`observe()` 每个 key 只产一条观察**。k 条独立观察打破这个前提：
+1. **幂等破**（R2-HIGH-1）：同一 `(classification, streams, as_of)` 重跑，k 个点被重新逐个
+   `apply`，与「当前链头」比较逐一不等 ⟹ 无条件 append k 条 churn revision，300k 窗实测每次
+   重跑 +12、边数无上界增长（29→41→53…）。
+2. **终态挡提前生效**（R2-HIGH-2）：失效时，遍历序第一个物理点的 `apply` 已把该 key 判
+   `Invalidated`（终态），后续物理点的 `apply` 因终态挡直接 `return None`——链头因此**回退**到
+   遍历序第一个物理点（而非最新物理点），其余物理点的 `Invalidated` 永不落簿，查询入口
+   `edges_for_bsp_point`（按 `heads()` 过滤）永久丢失这些点（300k 窗实测 7/29 点查无）。
+
+裁定：
+1. **载荷形态改集合**：`BspBridgeEdge::bsp_source_index: usize` 升级为
+   `bsp_source_indices: Vec<usize>`（有序去重的物理点集合，`head_source_index()` 取集合内最大值
+   为链头/兼容旧单点语义）。`observe()` 内部先产原始逐点观察（`RawPointObservation`），再**按
+   `BridgeKey` 分组折叠**（`BTreeSet<usize>` 归并）成一条 `BridgeObservation`——保证每个 key
+   每次 `observe()` 恰好一条观察，`apply()` 的幂等/终态二元比较前提重新成立。这不是撤销裁定①，
+   是把裁定①的语义（多物理点=同一身份的并发载荷，非顺序时间序）正确落地到实现里。
+2. **三类判据同步迁移到 episode 区间覆盖**（撤销第三轮裁定 2「三类判据未改」的例外）：三类原用
+   `leave_interval.1` 对 `trend_index_by_interval_end`（右端精确等值）反查，与一类修复前的
+   失效模式相同——Trend 候选 `growth_revision` 后索引键随当前 `interval.1` 漂移，而三类点自身
+   记录的 `leave_interval.1` 是过去时，二者错位后点永久失联。迁移到 `find_episode` 区间覆盖
+   反查后与一类/二类同构，`trend_index_by_interval_end` 连同其 `debug_assert`/单测一并移除
+   （静默覆盖风险迁移到统一的 `find_episode`，新增
+   `overlapping_episodes_trip_find_episode_debug_assert` 覆盖）。
+3. **查询入口改集合语义**：`edges_for_bsp_point` 从 `bsp_source_index == source_index` 精确匹配
+   改为 `bsp_source_indices.contains(&source_index)`，300k 窗查询完备性从 22/29 回升到 29/29。
+4. **跨 `as_of` 平价锁换真形态**（撤销第三轮替代验收物①的具体实现，保留其「跨 as_of 平价锁」
+   意图）：旧测试 `bridge_book_incremental_equals_full_replay_across_as_of` 是「同一 `inputs`
+   列表跑两遍」（`f(x)==f(x)`，结构上不可能失败，对齐的是 N3 最弱一面且未抄 N3 的三条非真空
+   锁）。新测试 `bridge_book_incremental_final_state_equals_fresh_full_replay_from_empty` 改为
+   两个真正不同的驱动（对齐 N1 `..._full_replay_equals_incremental` 先例）：驱动 A = 逐 `as_of`
+   递进推进的增量簿；驱动 B = 仅用终态一步输入、从空簿单次 `advance`。经实测核实（poison 注入
+   验证，见修复报告）：该锁对「同一 `observe()` 调用内多条同 key 原始观察被错误顺序 `apply`」
+   这类缺陷**不具判别力**——因为该缺陷是 `observe()`+`apply()` 管线内部对固定终态输入的确定性
+   函数，driver A 与 driver B 最终都会经过同一条（可能有缺陷的）管线收敛到同一个（可能错误的）
+   不动点，二者不会分道。该锁的真实职责收窄为「验证增量簿的记账不携带隐藏状态偏移」——一个不同
+   于 R2-HIGH-1/R2-HIGH-2 但同样值得锁住的性质。R2-HIGH-1/R2-HIGH-2 这类缺陷的实际回归锁是本轮
+   新增的 4 条直接单测（`multi_point_episode_same_as_of_rerun_is_zero_delta`/
+   `invalidation_after_multi_point_episode_covers_all_points_and_stays_queryable` 等）——已用
+   poison 注入法逐条验证：临时还原「不分组」的旧实现后，这 4 条单测（含三类同构版）确实转红，
+   现行实现下全绿。
+5. 二类结构性不可解（`resolve_second_class_anchor` 第二条件在生产数据上恒假，0/280 命中）、
+   `find_episode` 的 `debug_assert` 在一类路径无机器保证、真值表检验域 20k=0 报 SUCCESS 是空域
+   重言式——三者（评审 #670 第 2 轮 R2-HIGH-3/R2-MED-2）**本轮不处置**，dispatch 明确将其排除
+   在本次修复单之外，交编排者另裁范围与优先级。
+
+## Consequences（第四轮更新）
+
+- R2-HIGH-1/R2-HIGH-2 根因（多物理点载荷形态映射错误）已修复；300k 窗实测：同输入连续
+  `advance` 三次 delta2=delta3=0、边数稳定（22 条 revision，覆盖 29 个物理点不变）；失效后
+  查询完备性 29/29（原 22/29）。三类判据与一类同构（迁移到 episode 区间覆盖），MED-1 三类残留
+  处置为「已同构，`trend_index_by_interval_end` 移除」。
+- 跨 `as_of` 平价锁改真两驱动形态，但据实登记其对本次缺陷类别不具判别力（见上）——不作为
+  R2-HIGH-1/R2-HIGH-2 的证明义务方，直接单测才是。
+- R2-HIGH-3（episode 归属唯一机器保证缺位）、R2-MED-2（二类锚生产不可解）、R2-MED-3（对拍规模
+  信息量）**未处置**，留待编排者下一轮裁定范围。
