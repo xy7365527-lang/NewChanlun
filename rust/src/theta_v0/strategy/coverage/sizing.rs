@@ -248,8 +248,10 @@ pub(crate) fn level_cap(level: u32, base_units: f64, risk: &RiskConfig) -> f64 {
 /// main 侧接线点「目前均不存在于代码」，且字段名误写为 `capped_levels`——均不确。真实字段名是
 /// [`super::super::level_order::LevelOrderPlan::cap_narrowed_levels`]（`level_order.rs:384`），
 /// **该字段本身、其统计 [`super::super::level_order::LevelOrderStats::n_cap_narrowed`]、逐级
-/// sparsity 判据（`level_order.rs:593`）、m8 报表列（`wverify_run/m8.rs`、`report.rs`）四层
-/// 均已在场**——缺的只是**唯一填入者**：`plan_gated`（`level_order.rs:545-553`）恒把
+/// sparsity 判据（`level_order.rs:593`）三层均已在场**——kimi 侧原 m8 报表列消费方
+/// （`wverify_run/{m8,report}.rs`）随 #644 判定「清理」出仓（未声明死文件，main 侧 `m8_e2e_all_systems_oos`
+/// 已有等价内联报表，见 `wverify_run.rs`）；本条不再指向它们。缺的只是**唯一填入者**：
+/// `plan_gated`（`level_order.rs:545-553`）恒把
 /// `cap_narrowed_levels` 置空表，未调用本函数填入实际裁剪结果。接线成本因此不是「从头设计
 /// 接口」而是「补一个生产者填充既有字段」，但填入前需先决定是否、如何对齐 main 自己
 /// #355/#363/#369/#376 谱系写下的既有接口形状——仍超出本票语义重放范围，留作独立跟进项（见
