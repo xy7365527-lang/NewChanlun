@@ -76,7 +76,7 @@ episode 内部而非右端上的点被记作 `anchor_seg_unresolved` 直接丢�
    判据会让边永久卡在生长前的旧状态，新判据下必须继续跟随事件转 Invalidated）。
 4. 对象骨架（append-only、终态不复活、幂等、零消费接线）与三类锚公式**不动**，回炉不推倒。
 
-## Consequences（第三轮更新）
+### Consequences（第三轮更新）
 
 - 一类/二类覆盖率缺口已定位为判据错误并修复（不是独立候选域结构性问题）；三类近零覆盖仍归 #688。
 - 「覆盖率与键唯一性正交，不可互相反推」这一论断整体撤回：本票的实测史正是「低覆盖率反推判据可疑」
@@ -134,7 +134,7 @@ episode 内部而非右端上的点被记作 `anchor_seg_unresolved` 直接丢�
    重言式——三者（评审 #670 第 2 轮 R2-HIGH-3/R2-MED-2）**本轮不处置**，dispatch 明确将其排除
    在本次修复单之外，交编排者另裁范围与优先级。
 
-## Consequences（第四轮更新）
+### Consequences（第四轮更新）
 
 - R2-HIGH-1/R2-HIGH-2 根因（多物理点载荷形态映射错误）已修复；300k 窗实测：同输入连续
   `advance` 三次 delta2=delta3=0、边数稳定（22 条 revision，覆盖 29 个物理点不变）；失效后
@@ -144,3 +144,62 @@ episode 内部而非右端上的点被记作 `anchor_seg_unresolved` 直接丢�
   R2-HIGH-1/R2-HIGH-2 的证明义务方，直接单测才是。
 - R2-HIGH-3（episode 归属唯一机器保证缺位）、R2-MED-2（二类锚生产不可解）、R2-MED-3（对拍规模
   信息量）**未处置**，留待编排者下一轮裁定范围。
+
+## 第五轮 supersede（2026-07-29，#670 影子评审第 2 轮遗留补修，修复报告
+`chanlun/review-results/issue668-n4-fix-round3-20260729.md`）
+
+第四轮 supersede §5 登记的三条遗留（R2-HIGH-3/R2-MED-2/R2-MED-3）本轮全部处置（含 R2-LOW-2/
+R2-LOW-3 文书订正）：
+
+1. **R2-HIGH-3 之一：一类路径补齐机器保证**。`resolve_first_class_episode_points` 此前绕过
+   `find_episode` 内联同款过滤逻辑，判据相同但「episode 归属唯一」的 `debug_assert` 覆盖不到
+   一类路径——一个一类点若同时落入两个 episode，旧实现会静默产两条边、零机器信号。改为逐点调用
+   `find_episode` 反查，一/二/三类三条路径至此才真正共用同一个带 `debug_assert` 的查找函数
+   （此前模块头「三条路径共用同一函数」是文书断言先于实现）。新增单测
+   `overlapping_episodes_trip_find_episode_debug_assert_via_first_class_path`（poison 注入
+   验证：临时还原旧实现后该测试确实转红，「未 panic」）。
+2. **R2-HIGH-3 之二：真值表检验域纳入判级**。`p_issue668_bsp_key_truth` 新增 `domain_size`（=
+   `episode_owned_zero+one+many`，排除 `fingerprint_unresolved`/`owner_query_unresolved` 后
+   真正走到「反查 episode 归属」这一步的样本数），退出码三分：`episode_owned_many>0` ⟹ FAIL；
+   `domain_size==0` ⟹ EMPTY_DOMAIN（新增退出码 2，不冒充 PASS）；否则 PASS。三窗复跑：20k
+   `domain_size=0`（EMPTY_DOMAIN，此前报 SUCCESS 是空域重言式）、100k `domain_size=3`（PASS）、
+   300k `domain_size=29`（PASS）。同时撤回本 ADR 与真值表 bin 头注里「HIGH-2 修复覆盖二类」的
+   不实断言（见下条）。
+3. **R2-MED-2：二类锚归属结构性不可解，停手照实上报，不改动判据**。`resolve_second_class_anchor`
+   现有的「反查同级 `source_index==anchor` 且持有一类 bit 的点」*已经就是* dispatch 点名的
+   「结构可查的那条路径」——本函数逻辑未改动。新增 `ISSUE668_MED2_ANCHOR_BREAKDOWN` 分解诊断
+   （`p_issue668_bsp_key_truth`）拆开两个子条件：条件一「本点携 `Type1Anchor`」三窗
+   100% 满足（20k:17/17、100k:88/88、300k:280/280）；条件二「该锚坐标确有点持有一类 bit」三窗
+   均 **0**——`OwnerRef::Type1Anchor(type1_src)` 载的是该走势 m1 终点坐标（`signal.rs`
+   `extract_second_signals`），m1 终点要过背驰确认门才是一类点，二者生产上不重合，结构性不可得，
+   非实现错误。按 dispatch「结构性不可得则停手照实上报，禁发明坐标、禁放宽判据假装修复」处置：
+   `resolve_second_class_anchor` 保持原判据（恒判 `None`）。是否归 #688（候选域结构性错位）
+   还是二类键公式本身选错了锚，交编排者另裁。
+4. **R2-MED-3：对拍 bin 增加分点类计数**。`p_issue668_bsp_bridge_battery` 新增
+   `ISSUE668_BRIDGE_BATTERY_BY_CLASS`：逐点类（Buy1/Buy2/Buy3/Sell1/Sell2/Sell3）拆开报
+   reference/produced/missing/extra/cmp，两侧同为 0 的点类显式标注「此类空域，cmp 无信息量」——
+   三窗合计参与比对的边全部是一类（Buy1/Sell1），二/三类六窗全部空域，总 `cmp=0` 此前会让读者
+   误以为三窗对六个点类都验了东西。
+5. **R2-LOW-2**（文书）：`p_issue668_bsp_bridge_battery.rs` 头注「不可执行」论证里点名的三条
+   障碍——`NestCandidateEvent` 跨对象族、`OwnerAnchorCtx`（owner 判同 oracle）、
+   `event_bsp_book_level` 级别移位——经复核只有 `NestCandidateEvent` 成立（全仓无 lib 侧构造
+   入口）；`OwnerAnchorCtx` 与 `event_bsp_book_level` 均不构成障碍（`p92` 自身传的是 4 行
+   `never` stub，`event_bsp_book_level` 是一行公开函数）。结论不变（此路仍判不可执行，不退回），
+   但论证收窄为只留 `NestCandidateEvent` 这一条承重的（订正详见修复报告 §附）。
+6. **R2-LOW-3**（文书）：`issue668-n4-fix-round1-20260729.md` §五「443→约 570 行」订正为实测
+   597 行（round2 后为 638 行，round3 未改动本体逻辑，行数不变）；本 ADR 原有三个 `## Consequences`
+   H2 标题（结构上与 0003/0004 先例「单个 Consequences 段」不符）——本轮把第三/四轮的两个改为
+   `### Consequences（第 N 轮更新）` H3 子节，挂在各自的 supersede H2 段下，只保留原始
+   `## Consequences` 一个 H2（内容零改动，仅调整标题层级）；ADR 编号跳号（0005-0007 无实体）
+   本轮复核确认仍为既有事实，无新处置（照实登记，非隐瞒）。
+
+### Consequences（第五轮更新）
+
+- 「episode 归属唯一」的机器保证现覆盖一/二/三类三条路径（此前只覆盖二/三类），真值表 bin
+  的退出码不再对空检验域报 SUCCESS。
+- 二类锚生产不可解定性为**结构性**（`Type1Anchor` 坐标语义与「已确认一类点坐标」错位），非本
+  对象实现缺陷，判据本身未改动，留待编排者裁二类键公式或候选域归因。
+- 对拍 bin 的信息量披露更完整：读者现在能看到「哪些点类实际被验过、哪些点类两侧同为空域」，
+  不再被总 `cmp=0` 一个数字掩盖检验域窄化。
+- R2-HIGH-3/R2-MED-2/R2-MED-3/R2-LOW-2/R2-LOW-3 至此全部处置（R2-HIGH-1/2/4、R2-MED-1、
+  R2-LOW-1 已在第四轮处置，见上）——#670 影子评审第 2 轮全部 10 条发现均有明确处置记录。

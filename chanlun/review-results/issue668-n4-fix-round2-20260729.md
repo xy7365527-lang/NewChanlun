@@ -205,4 +205,23 @@ bars=300000 bit_instances=1199 fingerprint_unresolved=280 episode_owned_one=29 e
 `third_class_point_survives_trend_event_growth_via_episode_covering`/
 `third_class_multiple_points_sharing_leave_segment_collapse_to_revision_history`。
 
+## 十、订正（append-only，2026-07-29，修复轮 3 补记，不改写以上原文）
+
+- **R2-LOW-2**：`p_issue668_bsp_bridge_battery.rs` 头注「现役拼缝跨对象族不可执行」的论证列了
+  三条障碍——`NestCandidateEvent` 跨对象族、`OwnerAnchorCtx`（owner 判同 oracle）、
+  `event_bsp_book_level` 级别移位。复核（评审 #670 第 2 轮 R2-LOW-2）：只有 `NestCandidateEvent`
+  成立且是唯一承重的一条（全仓无 lib 侧构造入口，产出只在 p92/p123/p124 bin 内的
+  `collect_target_candidates`）；`OwnerAnchorCtx` 不成立——p92 自己传的是 4 行 `never` stub
+  （p92:1038-1043，注释明言「本 bin 是归档研究/审计工具，未接事件锚账本」），复制它零成本；
+  `event_bsp_book_level` 不成立——`nest.rs:493` 一行 `pub fn`，一行调用。结论不变（此路仍判
+  不可执行，不退回），但论证里两条虚障碍应删，只留承重那条。本条已在修复轮 3 落地到
+  `p_issue668_bsp_bridge_battery.rs` 头注（删除线标注 + 订正段）。
+- **R2-LOW-3**（本报告 §九密度对照的行数订正，本段本身不改写 §九原文）：`bsp_bridge.rs` 实现
+  行数复核为 638 行（本报告 §九已是此数，无需再订正）；`issue668-n4-fix-round1-20260729.md`
+  §五「443→约 570 行」的实测值应为 597 行（该报告为修复轮 1 产物，订正落在该报告自身的
+  append-only 订正段，见其文件）。ADR-0008 三个 `## Consequences` H2 标题（与 0003/0004 先例
+  「单个 Consequences 段」不符）已在修复轮 3「第五轮 supersede」段处置：第三/四轮的两段改为
+  `### Consequences（第 N 轮更新）` H3 子节，只保留原始 `## Consequences` 一个 H2。ADR 编号
+  跳号（0005-0007 无实体）复核确认仍为既有事实，无新处置，照实登记非隐瞒。
+
 不关票。
