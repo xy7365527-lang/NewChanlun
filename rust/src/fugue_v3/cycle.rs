@@ -1,5 +1,8 @@
 //! τ 操作（D∞ word 的核心字母）：sink（σ⁻¹∘τ 下沉）/ recover（σ∘τ 升回）/ liquidate（边界 A）。
 //!
+//! GUARD-ROLE: t-engine-accounting-basis——名分：现役（详见 `fugue_v3/mod.rs`
+//! 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! ## 不硬编码四步循环（用户裁决 2026-06-17）
 //! 引擎**不预设**「平多→开空→平空→做多」四步序。它只有两个 τ 原子：
 //! - `sink_chunk`（nf_sell[k] 触发）：从 k 取 f·u_k，**翻手性**下沉到 k−1（σ⁻¹∘τ，穿手性缝）。

@@ -1,5 +1,8 @@
 //! PyO3 导出：`SpiralStream`（流式，对标 `UnnStream`）+ `run_spiral`（批量）。
 //!
+//! GUARD-ROLE: legacy-generation-loadbearing-for-fugue-v3——名分：现役（详见
+//! `spiral/mod.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 设计来源：架构 §9.2/§9.3。批量 + 流式**共享 `SpiralEngineCore::step/finish`** ⇒
 //! 逐 bar 累积的 `finish()` 与批量逐位等价（bit-exact 由构造保证，非对齐努力）。
 //!

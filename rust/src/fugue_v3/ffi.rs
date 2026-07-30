@@ -1,5 +1,8 @@
 //! PyO3 导出：`FugueV3Stream`（流式，对标 `UnnStream`/`SpiralStream`）+ `run_fugue_v3`（批量）。
 //!
+//! GUARD-ROLE: t-engine-accounting-basis——名分：现役（详见 `fugue_v3/mod.rs`
+//! 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 批量 + 流式**共享 `FugueEngineCore::step/finish`** ⇒ 逐 bar 累积的 `finish()` 与批量逐位等价
 //! （bit-exact 由构造保证）。push_bar 参数签名与 `SpiralStream`/`UnnStream` 11 参数一致 ⇒ 直接
 //! 复用 Python 侧 `organic_signals.push_signal` 适配器。

@@ -1,5 +1,8 @@
 //! 螺旋引擎运行结果（trade 行 + 守恒/观测计数器）。
 //!
+//! GUARD-ROLE: legacy-generation-loadbearing-for-fugue-v3——名分：现役（详见
+//! `spiral/mod.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 设计来源：架构 §7（prove 观测面）+ §9.3（trade11 契约）。复用
 //! `trading::positional::LayerTrade` 作 trade 行（trade11 marshal 契约固定）。
 //!

@@ -32,6 +32,26 @@
 //! G1（整数股数 f64 掩盖）/ G2（A 强平非群——`operation::Operation::Liquidate.group_action()`
 //! 返 None 显形）/ G3（confirm 向心 vs 前向延异，已 escalate）/ G4（第三类）/ G5（θ 配额节点）。
 
+// GUARD-ROLE: legacy-generation-loadbearing-for-fugue-v3
+//
+// ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#762 C7-E3 执行票核定）
+//
+// - **名分**：**现役**（机械判据：有非测试调用者 ∧ 无 `#[deprecated]` 标记 ∧ 在唯一 git 线
+//   main 上）。名分表（`.chanlun/review-results/legacy-generation-census-20260729.md` §1.1/§2）
+//   原判本族"deprecated 待退役"——本票扩面复核（全仓 python 含 `analysis/`，非仅
+//   `trading_system/`）新增证据推翻该判：`trading_system/backtest_spiral_stream.py:148`
+//   `nr.SpiralStream(...)` 是名分表未列出的第二处真实 python 调用方（原表只列
+//   `compare_spiral_unn.py:60` 一处，同批冷调用，`git log -1` 均 = 2026-06-21）。此外本族
+//   `signal.rs` 被 `fugue_v3::{axis,engine,observe,morphology,operate}.rs`（本仓下一族，同
+//   处置票 #762 处置范围）**生产代码**（非 `#[cfg(test)]`）直接 `use`（`PendingLocate`/
+//   `SignalState`/`SpiralResult`/`GroupEventFrame`/`prove_chain`/`prove_t52_gauge_fix`），是
+//   fugue_v3 的编译期硬依赖——删除会立即打断 fugue_v3 编译。
+// - **对照什么**：两条独立证据链均指向"现役、不可删"——(1) 两处 python 直接调用（虽冷，
+//   2026-06-21，早于 ADR-0004 2026-07-28 五周，但文件仍在主线树未删）；(2) fugue_v3 信号层
+//   的编译期硬依赖。theta_v0（π，唯一现役引擎）对本族生产引用 = 0（§0 全局核查复验一致）。
+// - **与现役差在哪**：π 完全自包含未复用本族一行；本族继续挂起等待"四族/散件"批次统一处置
+//   （名分表 §5 执行票切票建议 N+3~N+5），非独立可判死代码。
+// - **禁回灌**：本次仅加标记，未删除/未移动任何代码。
 pub mod accounting;
 pub mod closure;
 pub mod engine;

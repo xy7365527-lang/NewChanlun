@@ -1,5 +1,8 @@
 //! **递归 T 走势树消费驱动**（flat 逻辑递归化，编排者裁决 2026-06-21）。
 //!
+//! GUARD-ROLE: t-engine-rec-branch-zero-external-caller——名分：deprecated 待退役
+//! （详见 `rec_engine.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 把 iterate 真树投影为 `LevelView`（= flat `TSignalView`，按 level）+ 驱动 `TRoot.on_bar`
 //! （= flat `step`）。**无递归自创约束**（C1/candidate/连续 level=父-1 全删）——操作逻辑完全在
 //! `TRoot`（对照 flat route_bsp/sink/recover/flip/enter/ascend）。

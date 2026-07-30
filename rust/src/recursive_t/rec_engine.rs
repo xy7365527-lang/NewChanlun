@@ -4,6 +4,36 @@
 //! 结构承载 flat 的已验证操作逻辑，**不加不减**。编排者裁决：删除所有递归引擎自创的约束
 //! （C1 永不翻空 / candidate gate / 连续 level=父-1 / 方向 gate），逐行对照 flat 重新实装。
 //!
+//! GUARD-ROLE: t-engine-rec-branch-live-python-caller
+//!
+//! ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#762 C7-E3 执行票核定，
+//! ## 评审 FAIL 后订正——原稿"deprecated 待退役"判定不成立，见下）
+//!
+//! - **名分**：**现役**（机械判据：有非测试调用者 ∧ 无 `#[deprecated]` 标记 ∧ 在唯一 git 线
+//!   main 上）。本文件 + `rec_stream.rs` + `rec_driver.rs` + `ffi.rs::PyRecStream`（PyO3 导出名
+//!   `RecTStream`，`ffi.rs:291` `#[pyclass(name="RecTStream")]`）构成"递归 T"分支——与 `stream.rs`
+//!   头部 GUARD-ROLE 块所述"flat T"分支（现役）是同目录**两个互不调用但均现役的并行实现**
+//!   （本文件文档自述"是 flat `t_engine.rs` 的递归架构表达"，即对照对象非依赖对象）。
+//!   `backtest.rs`/`backtest_run.rs`（`#[cfg(test)]` 模块级门控）不在本支现役范围内，是
+//!   独立的 deprecated 待退役核（见该二文件头部）。
+//! - **对照什么**：对照 `stream.rs`/`t_engine.rs` 现役支——(1) python 调用面：**判据固定为
+//!   从 `lib.rs` pymodule 导出名反查**（`lib.rs:2660-2671` 八个导出名），非 Rust 侧类型名
+//!   grep python——`PyRecStream` 的 PyO3 导出名是 `RecTStream`（rename），按此名反查命中
+//!   4 处真实非测试调用者：`trading_system/strategy/rec_t_strategy.py:45`（**NT 生产策略**，
+//!   在册 2026-06-21）、`analysis/capture_ratio_matrix.py:84`、
+//!   `analysis/t3_exit_trigger_diag.py:35`、`backtest/rec_backtest.py:8`（原稿按 Rust 内部名
+//!   `\.RecStream(` grep 得"零命中"，因 rename 而漏查，非真实零调用）；(2) 生产可达面：
+//!   `rec_stream.rs:24` 生产 `use super::rec_driver`，`RecStream`/`rec_engine::` 类型经
+//!   `ffi.rs::PyRecStream`→PyO3 导出→python 调用者可达——链 `RecTStream`→`PyRecStream`→
+//!   `rec_stream`→{`rec_engine`,`rec_driver`} 全生产可达。`backtest.rs`/`stream.rs`/
+//!   `t_engine.rs` 均不导入本子簇任何符号（`grep -rn "rec_engine::\|RecStream"
+//!   rust/src/recursive_t/{stream,t_engine,backtest}.rs` 零命中，这一点原判不变）——但这只
+//!   说明本子簇与 flat 支互不调用，不代表本子簇生产不可达（生产可达面是"到 python 调用者"，
+//!   不是"到 flat 支"）。
+//! - **与现役差在哪**：无——本子簇经改判与 flat 支同为现役，仅调用路径不同（flat 支走
+//!   `TFugueStream`，本子簇走 `RecTStream`），均有 NT/analysis/backtest 侧真实调用者。
+//! - **禁回灌**：本次仅加标记，未删除/未移动任何代码（六文件均保留原状，测试套件不受影响）。
+//!
 //! ## 与 flat 的映射（递归化 = 同行为换载体）
 //! - flat `layers: Vec<Layer>`（绝对 ladder 数组）→ `instances: Vec<TInstance>`（按 level 索引）。
 //! - flat `nearest_active_parent(j)` = `(j+1..MAX).find(active)` → 遍历 instances 找 level>j 最低 active。

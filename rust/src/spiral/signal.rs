@@ -1,5 +1,8 @@
 //! 信号层消费：BarSig → 群事件映射（架构 §8）。
 //!
+//! GUARD-ROLE: legacy-generation-loadbearing-for-fugue-v3——名分：现役（详见
+//! `spiral/mod.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! v2 **不重写信号层**，消费现有契约（`trading::tape::BarSig` + `BspEvent`）。信号层是
 //! 操作层的**唯一定义域单元**。本模块把信号产出映射为螺旋群事件：
 //! - `buy1/sell1` confirmed type1 @ ladder k → φ=0 奇点在 r=k（候选 F/C 势源）。

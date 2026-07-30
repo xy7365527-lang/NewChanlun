@@ -1,5 +1,8 @@
 //! **groupoid 观察轴桥接**（ObserveBridge impl ObserveAxis）：包装向心 confirm + 区间套定位。
 //!
+//! GUARD-ROLE: t-engine-accounting-basis——名分：现役（详见 `fugue_v3/mod.rs`
+//! 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 用户裁决（2026-06-17）：把现有向心回溯（`helix_centripetal_confirm`，T49）包装成 ObserveAxis
 //! trait。把信号层 confirm/located 产出暴露为接口——operate 不直接 reach into
 //! SignalState.located_sell/located_buy。

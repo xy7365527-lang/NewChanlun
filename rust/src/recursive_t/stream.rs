@@ -4,6 +4,33 @@
 //! （`StreamingSignalReader.process_bar` → `push_signal`）。T 是 standalone Rust，故信号层 +
 //! 仓位层**全部内聚 Rust**：`push_bar(o,h,l,c)` 只传 4 个 float，零复杂跨界 marshal。
 //!
+//! GUARD-ROLE: t-engine-flat-branch-live-python-caller
+//!
+//! ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#762 C7-E3 执行票核定）
+//!
+//! - **名分**：**现役**（机械判据：有非测试调用者 ∧ 无 `#[deprecated]` 标记 ∧ 在唯一 git 线
+//!   main 上）。名分表（`.chanlun/review-results/legacy-generation-census-20260729.md` §1.3(b)/§2）
+//!   把 recursive_t/(b) T 引擎（12062 行）整体判"deprecated 待退役"，未区分内部两条互不相通的
+//!   子分支。本票逐文件核查发现 (b) 实际是两个独立子簇，名分不同：**本文件（`stream.rs`，
+//!   `TFugueStreamCore`）+ `t_engine.rs`（`TPositionEngine`）+ `prove_guards.rs`（共享守卫）+
+//!   `ffi.rs::{PyTFugueStream,run_t_fugue}`** 这一支有真实非测试调用者——`ffi.rs:16`
+//!   `use super::stream::TFugueStreamCore;`（生产路径，PyTFugueStream 的核心委托对象）+
+//!   `trading_system/backtest_t_fugue.py:166` `nr.TFugueStream(self.config.mode)`（`git log -1`
+//!   = 2026-06-21，冷但真实，文件仍在主线树）。
+//! - **对照什么**：与同目录另一支（`rec_engine.rs`/`rec_stream.rs`/`rec_driver.rs` +
+//!   `ffi.rs::PyRecStream`，见 `rec_engine.rs` 头部 GUARD-ROLE 块）对照：**评审 FAIL 后订正
+//!   ——那一支同样现役**，非本文件此前所述的"deprecated"。原判"全仓零 python 调用方"是按
+//!   Rust 内部名 `RecStream` grep 得出，而 PyO3 导出名是 `RecTStream`（`ffi.rs:291` rename），
+//!   按导出名反查有 4 处真实 python 调用者（含 NT 生产策略 `rec_t_strategy.py`）。两支的
+//!   真实差异是**互不调用**（本支走 `TFugueStream`/`stream.rs`，另一支走
+//!   `RecTStream`/`rec_stream.rs`，各自独立可达 python），不是"一支现役一支 deprecated"。
+//!   仅 `backtest.rs`/`backtest_run.rs`（`#[cfg(test)]` 模块级门控，`t_engine_run.rs` 是测试
+//!   本支的独立 harness）生产零可达 ∧ 仅测试调用者，维持 deprecated 待退役——不可整
+//!   12062 行文件集合笼统判定，须按"flat 支 / rec 支 / backtest 独立核"三分处理。
+//! - **与现役差在哪**：π（theta_v0）完全自包含未复用本支一行（§0 全局核查复验一致），本支的
+//!   "现役"仅指"仍有非测试调用者"，非"π 生产路径"。继续挂起等待批次统一处置。
+//! - **禁回灌**：本次仅加标记，未删除/未移动任何代码。
+//!
 //! ## 真流式（方案 B 精确重跑，非方案 C 查表）
 //! 逐 bar：
 //! 1. `orch.process_bar(o,h,l,c)`（复用纯 Rust `RecursiveOrchestrator` 产笔/段）；

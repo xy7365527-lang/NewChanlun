@@ -1,5 +1,8 @@
 //! 螺旋状态与 D∞ 群作用（v2 第一性原理核心，L0）。
 //!
+//! GUARD-ROLE: legacy-generation-loadbearing-for-fugue-v3——名分：现役（详见
+//! `spiral/mod.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 设计来源：`docs/spiral_engine_v2_architecture.md` §4.1/§4.2 + §1.1 三坐标表 +
 //! `docs/necessity_derivation.md` T56–T59（群关系定理）。
 //!

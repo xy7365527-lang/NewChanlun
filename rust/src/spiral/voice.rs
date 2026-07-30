@@ -1,5 +1,8 @@
 //! Voice 森林骨架（携带 SpiralState）。
 //!
+//! GUARD-ROLE: legacy-generation-loadbearing-for-fugue-v3——名分：现役（详见
+//! `spiral/mod.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 设计来源：`docs/spiral_engine_v2_architecture.md` §4.3。语义 bit-exact 复用
 //! unn 引擎 `VoiceLedger`（R5/R6），但状态用 `SpiralState`（携带 φ/r/ε 三坐标）。
 //!

@@ -1,5 +1,8 @@
 //! 赋格引擎 v3 **三轴组装器**（`FugueEngineCore`）：每 bar 协调 H⁰/groupoid/H¹ 三轴。
 //!
+//! GUARD-ROLE: t-engine-accounting-basis——名分：现役（详见 `fugue_v3/mod.rs`
+//! 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 用户裁决（2026-06-17）：三轴**分开实装**，轴间通过 trait 接口耦合。本文件是组装层——
 //! 持有信号层（H⁰+groupoid 计算内聚）+ `OperateEngine`（H¹ = D∞ word 处理器），每 bar：
 //!

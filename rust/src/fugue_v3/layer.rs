@@ -1,5 +1,8 @@
 //! 层结构数据：`Layer`（每级别一个净仓位，五字段）+ `FugueResult`（报告契约）。
 //!
+//! GUARD-ROLE: t-engine-accounting-basis——名分：现役（详见 `fugue_v3/mod.rs`
+//! 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 设计来源：用户裁决 2026-06-17 —— Layer **无 CyclePhase**（CyclePhase=硬编码四步相位，被否定）。
 //! direction 是 D∞ 坐标 ε 的投影（τ 翻转之），units 是系数模 M（σ-不变 Casimir T48），basis/
 //! entry_bar 是会计投影所需（P&L 锚 + trade 行）。一个级别一个方向（相邻级别方向相反 ⟹ 手性

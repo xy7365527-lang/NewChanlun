@@ -58,6 +58,27 @@
 //! - G2（穿 ε=−1 做空载体：BTC 永续=真做空；现货退化平凡环路，§3.2）。
 //! - G3（confirm 向心 vs 前向延异，已 escalate：2026-06-15-confirm-arming-differance.md）。
 
+// GUARD-ROLE: t-engine-accounting-basis
+//
+// ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#762 C7-E3 执行票核定）
+//
+// - **名分**：**现役**（机械判据：有非测试调用者 ∧ 无 `#[deprecated]` 标记 ∧ 在唯一 git 线
+//   main 上）。名分表（`.chanlun/review-results/legacy-generation-census-20260729.md` §1.2/§2）
+//   原判本族"生产 0，PyO3 导出但零 python 调用方"——本票扩面复核（全仓 python 含
+//   `analysis/`，非仅原表核查的 `trading_system/` 三份脚本）发现该"零调用"判断不成立，
+//   存在两处真实调用方：`trading_system/backtest_fugue_v3.py:181,225`
+//   `nr.FugueV3Stream(...)` / `nr.run_fugue_v3(...)`（`git log -1` = 2026-06-21）+
+//   `analysis/t_vs_v3_comparison.py:81` `R.FugueV3Stream(floor_ladder=2)`（`git log -1` =
+//   2026-06-18）。此外本族是 `recursive_t/`（下一族，同处置票 #762 处置范围）**T 引擎现役
+//   支**（`stream.rs`/`t_engine.rs`/`prove_guards.rs`）的会计基座——`accounting`/`layer::
+//   {FugueResult,Layer}`/`prove::prove_nav_neutral` 在 `t_engine.rs:47-52`、`stream.rs:27`、
+//   `ffi.rs:18` 等生产路径（非 `#[cfg(test)]`）被直接 `use`，是编译期硬依赖。
+// - **对照什么**：三条独立证据链均指向"现役、不可删"——(1)(2) 两处 python 直接调用；
+//   (3) recursive_t T 引擎现役支的编译期硬依赖。theta_v0（π，唯一现役引擎）对本族生产
+//   引用 = 0（§0 全局核查复验一致）。
+// - **与现役差在哪**：π 完全自包含未复用本族一行；本族继续挂起等待"四族/散件"批次统一
+//   处置（名分表 §5 执行票切票建议 N+3~N+5），非独立可判死代码。
+// - **禁回灌**：本次仅加标记，未删除/未移动任何代码。
 pub mod accounting;
 pub mod axis;
 pub mod cycle;

@@ -1,5 +1,9 @@
 //! **prove 守卫族**（递归 T + flat 共享，编排者裁决 2026-06-21）。
 //!
+//! GUARD-ROLE: t-engine-shared-guard-live-via-flat-branch——名分：现役（被 `stream.rs`
+//! 现役支 + `rec_stream.rs`/`rec_engine.rs` deprecated 支共同消费，二者任一现役即令
+//! 本文件不可删；详见 `stream.rs`/`rec_engine.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 在 `prove_tw_neutral`（总财富守恒，唯一已有守卫）之上补全四个结构/会计不变量守卫。守卫 =
 //! 验收标准（非回测指标）：把"走势终完美""带通滤波器独立正贡献"等缠论/架构断言落成可观测的
 //! 检查点，让真实数据划定每条不变量的有效域边界。

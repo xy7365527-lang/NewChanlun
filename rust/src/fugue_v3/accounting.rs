@@ -1,5 +1,8 @@
 //! 会计层（两投影之会计投影，reinterp §1/§5：操作层 ⊥ 会计层）。
 //!
+//! GUARD-ROLE: t-engine-accounting-basis——名分：现役（详见 `fugue_v3/mod.rs`
+//! 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! ## NAV（物理单真值，sign(ε) 模型）
 //! `NAV = free + Σ_k sign(d_k)·u_k·c`（Long:+u·c 市值 / Short:−u·c 负债 MtM）。每个 reduce/add
 //! 现金流在同价 c 下 NAV 中性（手算：reduce_at(Long) free+=m·c 抵消市值 −m·c；空头层镜像）。

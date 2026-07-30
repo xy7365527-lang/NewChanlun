@@ -1,5 +1,8 @@
 //! 三轴接口（operation_route_exhaustion §6B：级别间关系沿三轴正交分布）。
 //!
+//! GUARD-ROLE: t-engine-accounting-basis——名分：现役（详见 `fugue_v3/mod.rs`
+//! 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 用户裁决（2026-06-17）：三轴**分开实装**，每轴用自己的穷尽工具，轴间**只通过信号接口耦合**
 //! （trait），不直接互相调用内部状态。
 //!
