@@ -1,3 +1,9 @@
+//! ★#758 issue766 终审（2026-07-29 编排者裁 1）恢复禁删在册件（登记册 A6，
+//! `chanlun/review-results/prob-inference-disposition-registry-20260728.md`）——文件字节
+//! 已恢复，但未随之恢复 `backtest/mod.rs` 的 `mod m8;` 声明，当前**未进编译**（诊断存档，
+//! 供追溯，非生产/测试路径消费）。若要重新接入编译需先补该声明并核对与 `wverify_run.rs`
+//! 内已内联同名符号（如 `q4_shift_back_6m`/`q4_prev_day`）是否冲突。
+
 use super::*;
 
 /// `d`（ISO "YYYY-MM-DD"）前推 6 个月，day 钳到 28（合法日期；slice_date_window 字典序比较）。
@@ -222,7 +228,7 @@ pub(super) fn parse_fee_datum_spec(spec: &str) -> crate::theta_v0::venue_fee::Ve
 /// 设置 ⟹ 注入 [`parse_fee_datum_spec`] 解析出的档，跑批升为**标定臂（臂D）**，
 /// 产物标签自动升 `[L2费率标定: datum <前12位>]`（`risk::rate_calibration_label` 契约）。
 fn apply_m8_fee_datum_from_env(cfg: &mut ThetaConfig) {
-    if let Ok(spec) = std::env::var("M8_FEE_DATUM") {
+    if let Ok(spec) = std::env::var(crate::theta_v0::env_registry::M8_FEE_DATUM) {
         cfg.exec.fee_schedule = Some(parse_fee_datum_spec(&spec));
     }
 }
@@ -269,7 +275,12 @@ pub(super) fn apply_m8_level_cap(cfg: &mut ThetaConfig, spec: Option<&str>) {
 
 /// [`apply_m8_level_cap`] 的 env 入口（`M8_LEVEL_CAP`）。
 fn apply_m8_level_cap_from_env(cfg: &mut ThetaConfig) {
-    apply_m8_level_cap(cfg, std::env::var("M8_LEVEL_CAP").ok().as_deref());
+    apply_m8_level_cap(
+        cfg,
+        std::env::var(crate::theta_v0::env_registry::M8_LEVEL_CAP)
+            .ok()
+            .as_deref(),
+    );
 }
 
 /// ★M8 端到端全策略 OOS 跑批（TARGET_STRATEGY_MAXFULL.md M8:161-168 / 路线.pdf p17,p20-21）：
@@ -377,7 +388,11 @@ pub(super) fn run_m8_e2e_all_systems_oos() {
         apply_m8_level_cap_from_env(&mut c);
         c
     };
-    let symbol = resolve_m8_symbol(std::env::var("M8_SYMBOL").ok().as_deref());
+    let symbol = resolve_m8_symbol(
+        std::env::var(crate::theta_v0::env_registry::M8_SYMBOL)
+            .ok()
+            .as_deref(),
+    );
     let ds = data::load_by_symbol(&symbol, &plain_cfg)
         .unwrap_or_else(|e| panic!("{symbol} 数据加载失败：{e}"));
     let nav_of = |d: &data::Dataset| {
@@ -389,7 +404,7 @@ pub(super) fn run_m8_e2e_all_systems_oos() {
     let mut wins = m8_windows(&symbol);
     // ★T3 (#172)/#164 复现副本同款先例：`M8_WIN_FILTER=<tag>` ⟹ 只跑指定窗（逐窗重放/shadow
     // dump 分窗落盘需要；未设 = 全窗清单不变，bit-exact 中性——只跳过其他窗，窗内行为逐字节同）。
-    let win_filter = std::env::var("M8_WIN_FILTER").ok();
+    let win_filter = std::env::var(crate::theta_v0::env_registry::M8_WIN_FILTER).ok();
     if let Some(filter) = &win_filter {
         wins.retain(|(tag, _, _)| tag == filter);
     }
@@ -709,7 +724,11 @@ pub(super) fn run_m8_e2e_all_systems_oos() {
     for row in &fee_rows {
         report.push_str(row);
     }
-    let report_path = resolve_m8_report_path(std::env::var("M8_REPORT_PATH").ok().as_deref());
+    let report_path = resolve_m8_report_path(
+        std::env::var(crate::theta_v0::env_registry::M8_REPORT_PATH)
+            .ok()
+            .as_deref(),
+    );
     std::fs::write(&report_path, &report)
         .unwrap_or_else(|e| panic!("m8 报告落盘失败 {report_path}：{e}"));
     eprintln!("[m8] 端到端四层报告落盘 {report_path}");

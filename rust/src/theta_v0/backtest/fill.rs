@@ -5072,6 +5072,13 @@ where
                         let trigger = pan_div_state.prepare(gated);
                         protocol_events = protocol_events.with_center_oscillation(trigger);
                         // ★LEE M3 clock_ℓ（#644）：首见并过门 ⟹ 本级入 PanDivCert 钟点通道。
+                        // ★#758 issue766 MED-4 登记：本行无条件 push，是 kimi
+                        // `fill.rs::pan_candidates`（只收 `PreparedPanDiv::Candidate` 分支，
+                        // `Record(_reason)`——"无合法 parent/lot identity 时不伪造候选"——不入）
+                        // 的**真超集**：main 侧 `prepare` 经 #282 收缩后已无 Candidate/Record
+                        // 二分，多收"首见过门但无合法 parent/lot"的那部分。这不是 bug——更贴合
+                        // 本模块头 E6 定义"首见并过门"——但与 kimi 的取数源不等价，接口清单须登记
+                        // （#693 裁定②，见 issue766-644-tail 报告项4/6）。
                         pan_levels.push(lvl as u32);
                     }
                 }
@@ -5191,52 +5198,58 @@ where
             //    ——不在此重复。
             //    ★#644 票面边界：本读数**只读**——不消费 `ticks.ticked_levels()` 去门控任何目标
             //    重估（kimi 侧 `plan_level_gated_order`/`level_order.regate` 不在本票范围，归
-            //    #755）。`level_clock_stats.observe` 是纯累计，不改 `order`/`cash`/`units`。 ──
-            let clock_ticks = {
-                use super::super::strategy::level_clock::collect_ticks;
-                let bsp_levels: Vec<u32> = classification_step
-                    .levels
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, ls)| !ls.bsp.is_empty())
-                    .map(|(lvl, _)| lvl as u32)
-                    .collect();
-                let closed_levels: Vec<u32> = step_trace
-                    .closed
-                    .iter()
-                    .map(|(leg, _, _)| leg.level)
-                    .collect();
-                let opened_levels: Vec<u32> =
-                    step_trace.opened.iter().map(|(_, leg)| leg.level).collect();
-                let silent_levels: Vec<u32> = step_trace
-                    .silent_drops
-                    .iter()
-                    .map(|leg| leg.level)
-                    .collect();
-                let overlay_levels: Vec<u32> = step_trace
-                    .overlay_closes
-                    .iter()
-                    .map(|leg| leg.level)
-                    .collect();
-                let risk_levels: Vec<u32> =
-                    step_trace.risk_exits.iter().map(|leg| leg.level).collect();
-                collect_ticks(
-                    &bsp_levels,
-                    &closed_levels,
-                    &opened_levels,
-                    &silent_levels,
-                    &overlay_levels,
-                    &risk_levels,
-                    &pan_levels,
-                )
-            };
-            level_clock_stats.observe(&clock_ticks);
-            // ── ★LEE 归因算子（`strategy::level_attrib::attribute_total`，#644 语义重放）逐 bar
-            //    **只读**诊断：把本 bar 已经由生产 M0 路径算出的净额目标 `standard_p_star`
-            //    （本读数只读消费，不回写、不改 `order`）按结构基准 `level_nets(sep_legs)` 归因
-            //    到各级——纯粹的记账读数，`out` 本身丢弃，只留统计。基准与 M1 镜像 `level_nets`
-            //    单源（同 `level_ledger.rs` 文档「M2 归因基准单源」纪律）。 ──
-            {
+            //    #755）。`level_clock_stats.observe` 是纯累计，不改 `order`/`cash`/`units`。
+            //    ★#758 issue766 MED-3 订正：两段读数的唯一出口是 `OverlayRunResult`
+            //    （`runner.rs::level_clock`/`level_attrib_n_*`），只有 `level_ledger=Some` 的
+            //    overlay 臂会把它们接出去；净额臂（`pi_theta_fill_loop`）与声部臂
+            //    （`pi_theta_fill_loop_voice`）都以 `level_ledger=None` 调用本函数，产物落进
+            //    `RunResult`（无此二字段）逐 bar 白算白丢。门控与 `level_ledger` 同一个 `Option`
+            //    信号（M1 段既有纪律），零新增状态位。 ──
+            if level_ledger.is_some() {
+                let clock_ticks = {
+                    use super::super::strategy::level_clock::collect_ticks;
+                    let bsp_levels: Vec<u32> = classification_step
+                        .levels
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, ls)| !ls.bsp.is_empty())
+                        .map(|(lvl, _)| lvl as u32)
+                        .collect();
+                    let closed_levels: Vec<u32> = step_trace
+                        .closed
+                        .iter()
+                        .map(|(leg, _, _)| leg.level)
+                        .collect();
+                    let opened_levels: Vec<u32> =
+                        step_trace.opened.iter().map(|(_, leg)| leg.level).collect();
+                    let silent_levels: Vec<u32> = step_trace
+                        .silent_drops
+                        .iter()
+                        .map(|leg| leg.level)
+                        .collect();
+                    let overlay_levels: Vec<u32> = step_trace
+                        .overlay_closes
+                        .iter()
+                        .map(|leg| leg.level)
+                        .collect();
+                    let risk_levels: Vec<u32> =
+                        step_trace.risk_exits.iter().map(|leg| leg.level).collect();
+                    collect_ticks(
+                        &bsp_levels,
+                        &closed_levels,
+                        &opened_levels,
+                        &silent_levels,
+                        &overlay_levels,
+                        &risk_levels,
+                        &pan_levels,
+                    )
+                };
+                level_clock_stats.observe(&clock_ticks);
+                // ── ★LEE 归因算子（`strategy::level_attrib::attribute_total`，#644 语义重放）逐 bar
+                //    **只读**诊断：把本 bar 已经由生产 M0 路径算出的净额目标 `standard_p_star`
+                //    （本读数只读消费，不回写、不改 `order`）按结构基准 `level_nets(sep_legs)` 归因
+                //    到各级——纯粹的记账读数，`out` 本身丢弃，只留统计。基准与 M1 镜像 `level_nets`
+                //    单源（同 `level_ledger.rs` 文档「M2 归因基准单源」纪律）。 ──
                 let lot = config.risk.default_lot.max(1) as i64;
                 let basis =
                     super::super::strategy::level_ledger::level_nets(&step_trace.sep_legs, lot);
@@ -5881,7 +5894,11 @@ where
 
     // ── 窗口终点强平锚：末可交易 bar 与其收盘价（#289 LOW-1 单源化，#644 语义重放——overlay
     //    与 LEE M1 镜像两处曾逐字重复同一 last_i/last_px 推导，任一侧口径改动会静默漂移。单源
-    //    后「同价同 bar」由构造保证，不再靠两段代码碰巧一致）。 ──
+    //    后「同价同 bar」由构造保证，不再靠两段代码碰巧一致）。
+    //    ★#758 issue766 LOW-3 登记：单源化把 `(0..n).rev().find(...)` 提到两个
+    //    `if let Some(...)` 之外——overlay 与 level_ledger **均为 None**（净额臂/声部臂）时
+    //    也会反向扫一遍 `bars` 找末可交易 bar（O(n)，全窗一次，非逐 bar）。与 kimi 原版一致
+    //    （kimi `fill.rs:1952` 同款无条件扫描），数值零影响；不为此偏离 kimi 形状，登记备查。 ──
     let forced_flat_anchor = (0..n)
         .rev()
         .find(|&j| !bars[j].untradable && bars[j].close > 0)

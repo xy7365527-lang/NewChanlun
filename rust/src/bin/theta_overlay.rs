@@ -130,8 +130,11 @@ fn main() -> std::process::ExitCode {
         }
     );
     println!("--- ★LEE 归因算子（`level_attrib::attribute_total`，#644 只读诊断）---");
+    // ★#758 issue766 LOW-2：残差桶⊆缩放（attribute_total 的 Σbasis=0 分支同时置两标记，
+    // 见 level_attrib.rs 文档）——「缩放」数不是「残差桶」数之外的独立计数，非零残差桶时
+    // 两数不应被误读为可相加的互斥子集。
     println!(
-        "决策点/残差桶/缩放 : {} / {} / {}",
+        "决策点/残差桶/缩放(⊇残差桶) : {} / {} / {}",
         r.level_attrib_n_bars, r.level_attrib_n_residual_bars, r.level_attrib_n_rescaled_bars
     );
     println!("--- ★M7 treasury 层（三阶段 TW 账本终态，overlay 臂主 loop 内建）---");

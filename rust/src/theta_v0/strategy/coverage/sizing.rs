@@ -270,8 +270,14 @@ pub(crate) fn level_cap(level: u32, base_units: f64, risk: &RiskConfig) -> f64 {
 /// [`super::super::level_order::LevelOrderPlan::cap_narrowed_levels`]（`level_order.rs:384`），
 /// **该字段本身、其统计 [`super::super::level_order::LevelOrderStats::n_cap_narrowed`]、逐级
 /// sparsity 判据（`level_order.rs:593`）三层均已在场**——kimi 侧原 m8 报表列消费方
-/// （`wverify_run/{m8,report}.rs`）随 #644 判定「清理」出仓（未声明死文件，main 侧 `m8_e2e_all_systems_oos`
-/// 已有等价内联报表，见 `wverify_run.rs`）；本条不再指向它们。缺的只是**唯一填入者**：
+/// （`wverify_run/{m8,report}.rs`）曾随 #644 判定「清理」出仓；**#758 issue766 终审已回滚该删除**
+/// （`report.rs::lee_row_cells` 第四层报表单元格生成器文件字节已恢复，见 `report.rs:378`），
+/// 但两文件仍未随之恢复 `mod m8;`/`mod report;` 声明——它们目前是**未进编译的诊断存档件**
+/// （`backtest/mod.rs` 只 `mod wverify_run;`），main 侧 `m8_e2e_all_systems_oos` 已有等价内联
+/// 报表（见 `wverify_run.rs`）仍是唯一**实际编译进产物**的报表路径。第二档（#755）接线若要
+/// 复用 `lee_row_cells` 而非重写内联版，需先补 `mod report;` 声明（不在本票范围）；缺的除
+/// **唯一填入者**外还有这一步接线，#755 成本估算应据此回填（登记见 issue766-644-tail 报告
+/// 项 2）。缺的只是**唯一填入者**：
 /// `plan_gated`（`level_order.rs:545-553`）恒把
 /// `cap_narrowed_levels` 置空表，未调用本函数填入实际裁剪结果。接线成本因此不是「从头设计
 /// 接口」而是「补一个生产者填充既有字段」，但填入前需先决定是否、如何对齐 main 自己

@@ -1,3 +1,9 @@
+//! ★#758 issue766 终审（2026-07-29 编排者裁 1）恢复删除件（`chanlun/review-results/
+//! prob-inference-disposition-registry-20260728.md` 明确排除本文件、未纳入 15 件禁删清单，
+//! 但终审一并回滚）——文件字节已恢复，但未随之恢复 `backtest/mod.rs` 的 `mod report;` 声明，
+//! 当前**未进编译**（诊断存档，供追溯；`lee_row_cells` 等符号非生产/测试路径消费）。第二档
+//! （#755 M4 接线）若要复用本文件符号（而非重写 main `wverify_run.rs` 内联版）需先补该声明。
+
 use super::*;
 
 /// ★A1（prereg-rev2-20260704）：force_state 第 8 维的 dump 编码（离线 round-trip 无损）。
@@ -150,7 +156,7 @@ pub(super) fn sigma_pre_oos(ds: &data::Dataset, cfg: &ThetaConfig) -> (f64, usiz
 /// （见 [`deltafree_verdict`]），不消费本文件。保 records 顺序（walk-forward 时间序）⟹ effective_n
 /// 的成交时间序前提成立（decontam 口径）。
 pub(super) fn dump_deltafree_pertrade(records: &[ResidualTrade]) {
-    let path = std::env::var("DELTAFREE_DUMP")
+    let path = std::env::var(crate::theta_v0::env_registry::DELTAFREE_DUMP)
         .ok()
         .filter(|p| !p.is_empty())
         .unwrap_or_else(|| "/tmp/wv_full_zdecision.tsv".into());

@@ -9291,6 +9291,12 @@ fn lee_readonly_layer_does_not_perturb_net_result_644() {
         "只读接线 ⟹ strat_return bit-exact"
     );
     // LEE-Net 恒等非平凡见证（#289 MED ① 同款纪律）：确有步进，非死代码。
+    // ★#758 issue766 MED-5 第2点核实：本函数的 60-bar 手工锯齿价格未触发任何真实买卖点/结构
+    // （实测 max_abs_net=0、n_bars_with_structural_tick=0）——`identity_witnessed()`/
+    // `sparsity_witnessed()` 在此数据上恒 false，换上去会让本永远跑的 bit-exact 回归锁变红。
+    // 强见证需要真实行情结构，不是这条锁能造的数据——移到 [`lee_readonly_layer_btc_structural_witness_644`]
+    // （`#[ignore]`，BTC 21360-bar 真实窗口）单独断言，这里保留原弱检查（非死代码，仍有价值：
+    // 至少确认两条读数管线真的跑过、真的产出了 `LeeNetWitness`/`LevelClockStats` 实例）。
     let w = ov.level_ledger.lee_net_witness();
     assert!(w.n_observations > 0, "level_ledger 确有步进（非死代码）");
     assert!(
@@ -9299,6 +9305,60 @@ fn lee_readonly_layer_does_not_perturb_net_result_644() {
     );
     // clock 与 attrib 都在同一 `!bar.untradable && px>0.0` 守卫下逐 bar 无条件累计一次
     // （见 fill.rs 接线注释）⟹ 决策点计数必须逐位相等。
+    assert_eq!(
+        ov.level_clock.n_decisions, ov.level_attrib_n_bars,
+        "level_clock 与 level_attrib 逐 bar 同一决策点集合，口径必须相等"
+    );
+}
+
+/// ★#758 issue766 item5——「对拍载体」：#644 §件4 的三条结构不变量此前只在手跑（无脚本、无
+/// #[ignore] 测试、无留痕命令）里出现，"只能采信不能复核"。本测把同一窗口（BTC 1 分钟，
+/// 2017-08-17..2017-08-31，21360 bar，#644 报告原始选择理由：数据集首段+首 10 条离场声部
+/// pnl_v 幅度均>10 万、非空转、无需精选窗争议）落成可复跑命令：
+/// `cargo test --release --lib theta_v0::backtest::runner::tests::lee_readonly_layer_btc_structural_witness_644 -- --ignored --nocapture`
+///
+/// 断言用**强见证**（[`identity_witnessed`](super::super::super::strategy::level_ledger::LeeNetWitness::identity_witnessed)/
+/// [`sparsity_witnessed`](super::super::super::strategy::level_clock::LevelClockStats::sparsity_witnessed)），
+/// 是 `lee_readonly_layer_does_not_perturb_net_result_644` 那条 60-bar 合成锁想换但换不上去的
+/// 那两条（合成锯齿数据无真实买卖点结构，见该测注释）——真实 BTC 窗口有结构，在此断言才有意义。
+#[test]
+#[ignore = "BTC 真实数据对拍载体（#758 issue766 item5，手工触发，需数据）"]
+fn lee_readonly_layer_btc_structural_witness_644() {
+    use super::super::data;
+    let config = ThetaConfig::default();
+    let ds_full = match data::load_by_symbol("BTC", &config) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("BTC 加载失败：{e}（DATA BLOCKER）");
+            return;
+        }
+    };
+    let ds = ds_full.slice_date_window("2017-08-17", "2017-08-31");
+    eprintln!("[lee-btc-witness] window bar 数 = {}", ds.bars.len());
+    let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+    let w = ov.level_ledger.lee_net_witness();
+    eprintln!(
+        "[lee-btc-witness] LeeNetWitness: n_observations={} max_abs_residual={} max_abs_net={}",
+        w.n_observations, w.max_abs_residual, w.max_abs_net
+    );
+    eprintln!(
+        "[lee-btc-witness] LevelClockStats: n_decisions={} n_bars_with_structural_tick={} n_bars_with_risk_tick={}",
+        ov.level_clock.n_decisions,
+        ov.level_clock.n_bars_with_structural_tick,
+        ov.level_clock.n_bars_with_risk_tick
+    );
+    eprintln!(
+        "[lee-btc-witness] level_attrib: n_bars={} n_residual_bars={} n_rescaled_bars={}",
+        ov.level_attrib_n_bars, ov.level_attrib_n_residual_bars, ov.level_attrib_n_rescaled_bars
+    );
+    assert!(
+        w.identity_witnessed(),
+        "LEE-Net 恒等见证须非平凡成立（残差0 且 max|N|>0）——真实 BTC 窗口应有非空持仓"
+    );
+    assert!(
+        ov.level_clock.sparsity_witnessed(),
+        "clock_ℓ 结构钟稀疏度见证须非平凡成立（响过且严格稀疏于全体决策点）"
+    );
     assert_eq!(
         ov.level_clock.n_decisions, ov.level_attrib_n_bars,
         "level_clock 与 level_attrib 逐 bar 同一决策点集合，口径必须相等"
