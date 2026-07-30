@@ -6,7 +6,7 @@
 use super::super::super::types::{Center, Direction, Segment, Side, Tick};
 use super::super::decompose::decompose;
 use super::key::{
-    CandidateKey, CandidateKind, CandidateState, ParentFingerprint, StructuralPredicates,
+    CandidateKey, CandidateKind, ObservedState, ParentFingerprint, StructuralPredicates,
     CANDIDATE_RULE_VERSION,
 };
 use super::observe::{structural_observations_for_level, CandidateObservation};
@@ -38,7 +38,7 @@ pub(super) fn segment(
     }
 }
 
-pub(super) fn observation(interval: (usize, usize), state: CandidateState) -> CandidateObservation {
+pub(super) fn observation(interval: (usize, usize), state: ObservedState) -> CandidateObservation {
     let key = CandidateKey {
         rule_version: CANDIDATE_RULE_VERSION,
         level: 0,
@@ -69,7 +69,7 @@ pub(super) fn observation(interval: (usize, usize), state: CandidateState) -> Ca
         interval,
         state,
         // 与生产口径一致：未决观察不带首证钟。
-        first_provable_at: (state != CandidateState::Unresolved).then_some(35),
+        first_provable_at: (state != ObservedState::Unresolved).then_some(35),
         confirmed_at: None,
     }
 }

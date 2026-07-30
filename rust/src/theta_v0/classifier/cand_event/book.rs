@@ -7,7 +7,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use super::key::{CandidateEvent, CandidateKey, CandidateKind, CandidateState, CandidateStreams};
+use super::key::{
+    CandidateEvent, CandidateKey, CandidateKind, CandidateState, CandidateStreams, ObservedState,
+};
 use super::observe::CandidateObservation;
 
 /// 每级 append-only 修订簿。终态不复活；同投影重跑零 Delta。
@@ -39,7 +41,13 @@ impl CandidateEventBook {
         let mut delta = Vec::new();
         let mut seen = BTreeSet::new();
         for observation in observations {
-            reject_unobservable_invalidation(observation);
+            // #612/#634：此处原有 `reject_unobservable_invalidation` 运行期 assert，守 E2E-D5
+            // 禁止边 `∅ → Invalidated` / 「活候选 →（被观察为）Invalidated」。观察侧状态改用
+            // 三态 [`super::key::ObservedState`] 后该边在**编译期**已不可表达（携带
+            // `Invalidated` 的观察构造不出来），锁遂退役——取舍理由见 `ObservedState` 文档与
+            // #634 报告。事件侧的深度防御仍在 `event_probe::on_append` 的两处 `unreachable!`
+            // （二者的唯一调用点 `event_probe::on_append(..)` 带 `#[cfg(test)]`——只在 test
+            // build 下被触发，生产二进制不执行；#634 影子评审 LOW-3 实测在案）。
             seen.insert(observation.key);
             if let Some(event) = self.advance_observation(observation, as_of) {
                 delta.push(event);
@@ -199,14 +207,19 @@ pub mod event_probe {
     /// ★`next.state == Invalidated` 在本函数是**不可达**的，两处 `unreachable!` 是该事实的机器载体
     /// （不是「应该不会发生」的注释声明）。推导链：
     /// 1. 本函数的唯一调用点是 [`super::CandidateEventBook::advance_observation`] 的落簿处，
-    ///    其 `next` 由 [`super::make_revision`] 产出 ⟹ `next.state == observation.state`（逐字复制）。
-    /// 2. 观察进事件簿的唯一入口 [`super::CandidateEventBook::advance`] 已由
-    ///    [`super::reject_unobservable_invalidation`] 把 `observation.state == Invalidated` 全部挡下
-    ///    ⟹ 走到本函数的 `next.state` 值域 = {`Provisional`, `Unresolved`, `Confirmed`}。
+    ///    其 `next` 由 [`super::make_revision`] 产出 ⟹ `next.state == observation.state.into()`。
+    /// 2. `observation.state` 的类型是三态 [`super::super::key::ObservedState`]（#612/#634 观察/
+    ///    事件类型分离），`From<ObservedState> for CandidateState` 的像 = {`Provisional`,
+    ///    `Unresolved`, `Confirmed`} ⟹ 走到本函数的 `next.state` 值域**在编译期**就不含
+    ///    `Invalidated`。（拆分前这一步靠运行期 assert `reject_unobservable_invalidation` 保证，
+    ///    该锁已随类型分离退役。）
     /// 3. 两条真实失效路径（缺席 / 回缩）调 [`super::invalidate`] 后走 [`on_invalidate`]，不经本函数。
     ///
-    /// 故 `∅ → Invalidated` 与「活候选 → Invalidated」两条 E2E-D5 禁止边在此当场失败，
-    /// 而不是记零或静默滑过——静默滑过会让「该边从未发生」与「该边发生过但没人看见」不可区分。
+    /// 第 2 条已把 E2E-D5 禁止边挡在编译期，故本函数的两处 `unreachable!` 退为**深度防御**：
+    /// 入参是四态的 [`CandidateEvent`]（事件侧必须能表达 `Invalidated`——那是 [`super::invalidate`]
+    /// 的产物），「非失效路径才调 on_append」是调用点纪律而非类型保证。保留它们使该纪律一旦
+    /// 被破坏就当场失败，而不是记零或静默滑过——静默滑过会让「该边从未发生」与「该边发生过
+    /// 但没人看见」不可区分。
     pub fn on_append(prior: Option<&CandidateEvent>, next: &CandidateEvent) {
         PROBE.with(|p| {
             let mut p = p.borrow_mut();
@@ -276,34 +289,6 @@ pub mod event_probe {
     }
 }
 
-/// E2E-D5 禁止边 `∅ → Invalidated`（以及「活候选 →（被观察为）Invalidated」）的机器锁，
-/// 位于事件簿的**唯一观察入口** [`CandidateEventBook::advance`]。
-///
-/// 推导链（为什么 `Invalidated` 不是可观察状态）：
-/// 1. `Invalidated` 的唯一构造点是 [`invalidate`]——它写 `invalidated_at = Some(as_of)`、
-///    递增 `revision`、置 `supersedes_revision`。两条失效路径（缺席
-///    [`CandidateEventBook::invalidate_unseen`]、回缩 [`CandidateEventBook::advance_observation`]）
-///    都走它，且都要求存在 `prior`：失效是**事件簿对既有 revision 的判决**，不是外部观察的输入。
-/// 2. 观察侧走的是 [`make_revision`]，它硬编码 `invalidated_at: None`。因此一条
-///    `state = Invalidated` 的观察若被放行，落簿的是「终态但无失效钟」的畸形事件；
-///    又因 [`CandidateState::is_terminal`] 为真，该 key 的后续全部修订被永久挡回（禁复活），
-///    畸形态就此钉死且不可修复。
-/// 3. 故 `∅ → Invalidated`（候选一出生即终态）在 E2E-D5 状态机里是禁止边，
-///    「活候选被观察为 Invalidated」同理——两者的前提都是 `observation.state == Invalidated`。
-///
-/// 本函数是这条禁止边的**机器**载体：一旦被走到就当场失败，而不是静默滑过。
-/// 生产恒不触发（结构域观察的状态由 [`super::key::StructuralPredicates::resolved_state`] 派生，
-/// 值域 = {`Provisional`, `Unresolved`}；Pan 域恒 `Confirmed`），
-/// 但 [`CandidateObservation`] 是 `pub` 且字段全开 ⟹ 该边在类型层可表达，必须在运行期拒绝。
-fn reject_unobservable_invalidation(observation: &CandidateObservation) {
-    assert!(
-        observation.state != CandidateState::Invalidated,
-        "E2E-D5 禁止边：`Invalidated` 是事件簿自产终态（唯一构造点 invalidate()），不是可观察状态；\
-         key={:?} 的观察携带 Invalidated ⟹ 拒绝入簿",
-        observation.key
-    );
-}
-
 fn invalidate(prior: &CandidateEvent, as_of: usize) -> CandidateEvent {
     let mut invalidated = prior.clone();
     invalidated.state = CandidateState::Invalidated;
@@ -336,10 +321,11 @@ fn make_revision(
         extreme_proof: observation.extreme_proof,
         third_class_proof: observation.third_class_proof,
         interval: observation.interval,
-        state: observation.state,
+        // 观察侧三态 → 事件侧四态的唯一提升点（#612/#634），像不含 `Invalidated`。
+        state: observation.state.into(),
         observed_at,
         first_provable_at,
-        confirmed_at: if observation.state == CandidateState::Confirmed {
+        confirmed_at: if observation.state == ObservedState::Confirmed {
             prior
                 .and_then(|event| event.confirmed_at)
                 .or_else(|| {
@@ -375,11 +361,11 @@ mod tests {
     #[test]
     fn append_only_revisions_keep_identity_and_clocks_and_same_as_of_is_idempotent() {
         let mut book = CandidateEventBook::default();
-        let first = observation((30, 35), CandidateState::Provisional);
+        let first = observation((30, 35), ObservedState::Provisional);
         assert_eq!(book.advance(std::slice::from_ref(&first), 37).len(), 1);
         assert!(book.advance(std::slice::from_ref(&first), 37).is_empty());
 
-        let grown = observation((30, 40), CandidateState::Confirmed);
+        let grown = observation((30, 40), ObservedState::Confirmed);
         assert_eq!(book.advance(std::slice::from_ref(&grown), 40).len(), 1);
         let stream = &book.streams()[0];
         assert_eq!(stream.len(), 2);
@@ -395,7 +381,7 @@ mod tests {
     #[test]
     fn confirmed_clock_uses_first_observation_as_of_not_geometry_clock() {
         let mut book = CandidateEventBook::default();
-        let mut confirmed = observation((30, 35), CandidateState::Confirmed);
+        let mut confirmed = observation((30, 35), ObservedState::Confirmed);
         confirmed.kind = CandidateKind::Pan;
         confirmed.key.kind = CandidateKind::Pan;
         confirmed.confirmed_at = Some(35);
@@ -408,7 +394,7 @@ mod tests {
     #[test]
     fn same_right_endpoint_projection_change_appends_revision() {
         let mut book = CandidateEventBook::default();
-        let first = observation((30, 35), CandidateState::Provisional);
+        let first = observation((30, 35), ObservedState::Provisional);
         book.advance(std::slice::from_ref(&first), 35);
         let mut changed = first;
         changed.center_ids = Some((10, 21));
@@ -421,9 +407,9 @@ mod tests {
     #[test]
     fn interval_shrink_appends_invalidation() {
         let mut book = CandidateEventBook::default();
-        let first = observation((30, 40), CandidateState::Provisional);
+        let first = observation((30, 40), ObservedState::Provisional);
         book.advance(std::slice::from_ref(&first), 40);
-        let shrunk = observation((30, 35), CandidateState::Provisional);
+        let shrunk = observation((30, 35), ObservedState::Provisional);
         let delta = book.advance(&[shrunk], 41);
         assert_eq!(delta.len(), 1);
         assert_eq!(delta[0].state, CandidateState::Invalidated);
@@ -433,35 +419,13 @@ mod tests {
     #[test]
     fn disappearance_appends_invalidation_and_terminal_never_revives() {
         let mut book = CandidateEventBook::default();
-        let candidate = observation((30, 35), CandidateState::Unresolved);
+        let candidate = observation((30, 35), ObservedState::Unresolved);
         book.advance(std::slice::from_ref(&candidate), 35);
         let invalidated = book.advance(&[], 36);
         assert_eq!(invalidated[0].state, CandidateState::Invalidated);
         assert_eq!(invalidated[0].invalidated_at, Some(36));
         assert!(book.advance(&[candidate], 37).is_empty());
         assert_eq!(book.streams()[0].len(), 2);
-    }
-
-    #[test]
-    #[should_panic(expected = "E2E-D5 禁止边")]
-    fn observed_invalidation_at_birth_is_rejected_by_the_book_entry_lock() {
-        // ★#551 E2E-D5 禁止边 ∅→Invalidated 的机器锁见证：候选不得一出生即失效终态。
-        // 反事实（本锁之前）：该观察静默入簿，落成「state=Invalidated 但 invalidated_at=None」的
-        // 畸形终态事件，并因 is_terminal() 永久挡回该 key 的后续修订 —— 无人看得见。
-        let mut book = CandidateEventBook::default();
-        book.advance(&[observation((30, 35), CandidateState::Invalidated)], 35);
-    }
-
-    #[test]
-    #[should_panic(expected = "E2E-D5 禁止边")]
-    fn observed_invalidation_on_live_candidate_is_rejected_by_the_same_lock() {
-        // ★同一条锁的第二个入口：活候选被**观察为** Invalidated（on_append 的 :Some(prior) 侧禁止边）。
-        // 合法失效走 invalidate()（缺席/回缩两路径），不经观察 —— 见
-        // disappearance_appends_invalidation_and_terminal_never_revives / interval_shrink_appends_invalidation。
-        let mut book = CandidateEventBook::default();
-        let live = observation((30, 35), CandidateState::Provisional);
-        book.advance(std::slice::from_ref(&live), 35);
-        book.advance(&[observation((30, 40), CandidateState::Invalidated)], 40);
     }
 
     #[test]
@@ -475,8 +439,8 @@ mod tests {
         assert_eq!(early.len(), 1);
         assert_eq!(late.len(), 1);
         assert_eq!(early[0].key, late[0].key, "右端不入键 ⟹ 同一候选身份");
-        assert_eq!(early[0].state, CandidateState::Unresolved);
-        assert_eq!(late[0].state, CandidateState::Provisional);
+        assert_eq!(early[0].state, ObservedState::Unresolved);
+        assert_eq!(late[0].state, ObservedState::Provisional);
 
         let mut book = CandidateEventBook::default();
         assert_eq!(book.advance(&early, 11).len(), 1);
@@ -522,9 +486,9 @@ mod tests {
         // ★首证钟「一次写入不后移」的反向边：已可证的候选后续观察退回 Unresolved 时，钟不被抹去、
         // 不被改写（#535 红线②的对偶——既禁未来回填，也禁既有首证被后续未决擦除）。
         let mut book = CandidateEventBook::default();
-        let provable = observation((30, 35), CandidateState::Provisional);
+        let provable = observation((30, 35), ObservedState::Provisional);
         book.advance(std::slice::from_ref(&provable), 35);
-        let mut regressed = observation((30, 40), CandidateState::Unresolved);
+        let mut regressed = observation((30, 40), ObservedState::Unresolved);
         regressed.key = provable.key;
         let delta = book.advance(&[regressed], 40);
         assert_eq!(delta.len(), 1);
@@ -538,7 +502,7 @@ mod tests {
         // 旧 key 因不再被观察走消失路径判终态，新 key 从 ∅ 起，旧 key 事后再现也被终态挡回。
         event_probe::reset();
         let mut book = CandidateEventBook::default();
-        let old = observation((30, 35), CandidateState::Provisional);
+        let old = observation((30, 35), ObservedState::Provisional);
         book.advance(std::slice::from_ref(&old), 35);
 
         let mut renewed = old.clone();
@@ -577,8 +541,8 @@ mod tests {
         assert_eq!(early.len(), 1);
         assert_eq!(late.len(), 1);
         assert_eq!(early[0].key, late[0].key, "右端不入键 ⟹ 同一候选身份");
-        assert_eq!(early[0].state, CandidateState::Provisional);
-        assert_eq!(late[0].state, CandidateState::Provisional);
+        assert_eq!(early[0].state, ObservedState::Provisional);
+        assert_eq!(late[0].state, ObservedState::Provisional);
         assert_eq!(early[0].interval, (9, 15));
         assert_eq!(late[0].interval, (9, 19), "同 episode 续腿 ⟹ I(C) 右端生长");
 
@@ -600,9 +564,9 @@ mod tests {
         // 与缺席失效是两条独立路径，必须分别可见：本测同时钉死 absent 计数为零，防两路混记。
         event_probe::reset();
         let mut book = CandidateEventBook::default();
-        let first = observation((30, 40), CandidateState::Provisional);
+        let first = observation((30, 40), ObservedState::Provisional);
         assert_eq!(book.advance(std::slice::from_ref(&first), 40).len(), 1);
-        let shrunk = observation((30, 35), CandidateState::Provisional);
+        let shrunk = observation((30, 35), ObservedState::Provisional);
         let delta = book.advance(&[shrunk], 41);
         assert_eq!(delta.len(), 1);
         assert_eq!(delta[0].state, CandidateState::Invalidated);
@@ -627,7 +591,7 @@ mod tests {
         };
         let observations = pan_observations_for_level(0, std::slice::from_ref(&cert));
         assert_eq!(observations.len(), 1);
-        assert_eq!(observations[0].state, CandidateState::Confirmed);
+        assert_eq!(observations[0].state, ObservedState::Confirmed);
 
         let mut book = CandidateEventBook::default();
         let delta = book.advance(&observations, 42);

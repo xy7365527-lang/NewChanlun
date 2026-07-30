@@ -33,8 +33,8 @@ pub use book::{event_probe, CandidateEventBook};
 pub use key::{
     interval_is_degenerate, interval_is_sub, intervals_are_disjoint, intervals_touch,
     CandidateEvent, CandidateKey, CandidateKind, CandidateProjection, CandidateState,
-    CandidateStreams, ParentFingerprint, StructuralPredicates, CANDIDATE_RULE_VERSION,
-    FNV_OFFSET_BASIS, FNV_PRIME,
+    CandidateStreams, ObservedState, ParentFingerprint, StructuralPredicates,
+    CANDIDATE_RULE_VERSION, FNV_OFFSET_BASIS, FNV_PRIME,
 };
 pub(crate) use observe::observations_for_level;
 pub use observe::CandidateObservation;

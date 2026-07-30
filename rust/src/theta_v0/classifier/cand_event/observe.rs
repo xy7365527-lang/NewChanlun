@@ -15,7 +15,7 @@ use super::super::divergence::{
 };
 use super::super::signal;
 use super::key::{
-    CandidateKey, CandidateKind, CandidateState, ParentFingerprint, StructuralPredicates,
+    CandidateKey, CandidateKind, ObservedState, ParentFingerprint, StructuralPredicates,
     CANDIDATE_RULE_VERSION, FNV_OFFSET_BASIS, FNV_PRIME,
 };
 
@@ -36,7 +36,7 @@ pub struct CandidateObservation {
     pub extreme_proof: (usize, usize),
     pub third_class_proof: Option<usize>,
     pub interval: (usize, usize),
-    pub state: CandidateState,
+    pub state: ObservedState,
     /// 本次观察若使结构宽候选完全成立，则为该次的结构位；未决观察为 `None`。
     /// 事件簿只在首证钟尚空时采纳它（一次写入不后移）。
     pub first_provable_at: Option<usize>,
@@ -117,7 +117,7 @@ fn merged(acc: &CandidateObservation, leg: &CandidateObservation) -> CandidateOb
     };
     let state = structural_predicates.resolved_state();
     let first_provable_at = match state {
-        CandidateState::Provisional => acc
+        ObservedState::Provisional => acc
             .first_provable_at
             .or(leg.first_provable_at)
             .or(Some(carrier.interval.1)),
@@ -212,7 +212,7 @@ fn trend_observation(
         interval: (gates.lambda_c, segment.end_index),
         state,
         // 首证钟只在本次观察使结构宽候选完全成立时才有值——未决观察不提前落钟。
-        first_provable_at: (state == CandidateState::Provisional).then_some(segment.end_index),
+        first_provable_at: (state == ObservedState::Provisional).then_some(segment.end_index),
         confirmed_at: None,
     }
 }
@@ -254,7 +254,7 @@ pub(crate) fn pan_observations_for_level(
                 extreme_proof: cert.seg_a,
                 third_class_proof: None,
                 interval: cert.seg_c,
-                state: CandidateState::Confirmed,
+                state: ObservedState::Confirmed,
                 first_provable_at: Some(cert.source_index),
                 confirmed_at: None,
             }
@@ -343,7 +343,7 @@ mod tests {
         );
         assert_eq!(observations[0].key.side, Side::Long);
         assert_eq!(observations[0].first_provable_at, Some(11));
-        assert_eq!(observations[0].state, CandidateState::Provisional);
+        assert_eq!(observations[0].state, ObservedState::Provisional);
         assert!(observations[0].structural_predicates.all_hold());
     }
 
@@ -361,7 +361,7 @@ mod tests {
             "破核心段必产候选观察（结构宽候选域）"
         );
         let observation = &observations[0];
-        assert_eq!(observation.state, CandidateState::Unresolved);
+        assert_eq!(observation.state, ObservedState::Unresolved);
         assert!(observation.structural_predicates.direction, "破中枢门成立");
         assert!(
             observation.structural_predicates.comparable,
@@ -390,7 +390,7 @@ mod tests {
             observations[0].structural_predicates.extreme,
             "腿2 破极值 ⟹ I(C) 已破"
         );
-        assert_eq!(observations[0].state, CandidateState::Provisional);
+        assert_eq!(observations[0].state, ObservedState::Provisional);
         assert_eq!(
             observations[0].first_provable_at,
             Some(15),

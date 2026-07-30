@@ -3081,7 +3081,7 @@ mod tests {
             extreme_proof: key.seg_a,
             third_class_proof: None,
             interval: (c_start, end),
-            state: cand_event::CandidateState::Provisional,
+            state: cand_event::ObservedState::Provisional,
             first_provable_at: Some(end),
             confirmed_at: None,
         }
@@ -4644,7 +4644,7 @@ mod tests {
             extreme_proof: sample.extreme_proof,
             third_class_proof: sample.third_class_proof,
             interval: sample.interval,
-            state: cand_event::CandidateState::Provisional,
+            state: cand_event::ObservedState::Provisional,
             first_provable_at: sample.first_provable_at,
             confirmed_at: None,
         };

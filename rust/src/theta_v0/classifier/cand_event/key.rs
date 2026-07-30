@@ -66,6 +66,41 @@ impl CandidateState {
     }
 }
 
+/// **观察侧**候选状态（#612 观察/事件类型分离，#634 落地）——[`CandidateState`] 去掉
+/// `Invalidated` 后的三态子域。
+///
+/// 为什么要分两个类型：`Invalidated` 是**事件簿自产终态**（唯一构造点 `book::invalidate`，
+/// 它写 `invalidated_at`、递增 `revision`、置 `supersedes_revision`），不是外部观察能提供的
+/// 输入。两条失效路径（观察缺席、区间回缩）都由事件簿对**既有 revision** 判出，都要求存在
+/// `prior`。观察侧共用四态枚举时，`∅ → Invalidated` 这条 E2E-D5 禁止边在类型层可表达，
+/// 只能靠运行期 assert 拦（拆分前的 `book::reject_unobservable_invalidation`）；
+/// 而放行的后果是落簿一条「终态但无失效钟」的畸形事件，又因 [`CandidateState::is_terminal`]
+/// 为真而永久挡回该 key 的后续修订——畸形态钉死且不可修复。
+///
+/// 本类型把那条禁止边移到**编译期**：`ObservedState` 没有 `Invalidated` 变体
+/// ⟹ 携带 `Invalidated` 的观察根本构造不出来 ⟹ 运行期锁无边可守，遂退役
+/// （#634 报告「panic 锁取舍」一节）。观察落簿时经 [`From<ObservedState>`] 提升回四态域。
+///
+/// 值域即三条活假设：结构宽候选成立（`Provisional`）、结构未决（`Unresolved`）、
+/// 已确认（`Confirmed`，Pan 域证书投影恒此值）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ObservedState {
+    Provisional,
+    Unresolved,
+    Confirmed,
+}
+
+impl From<ObservedState> for CandidateState {
+    /// 观察状态 → 事件状态的**唯一**提升点（单射，像 = 四态域去掉 `Invalidated`）。
+    fn from(state: ObservedState) -> Self {
+        match state {
+            ObservedState::Provisional => Self::Provisional,
+            ObservedState::Unresolved => Self::Unresolved,
+            ObservedState::Confirmed => Self::Confirmed,
+        }
+    }
+}
+
 /// 结构谓词证据；字段值来自同一次塔扫描的 [`super::super::signal::FirstStructuralGates`]，
 /// 不在本模块重判。
 ///
@@ -75,8 +110,8 @@ impl CandidateState {
 /// - `comparable`：I(A)/I(C) 均可映射到 closes 下标（MACD 面积坐标系上 A/C 可比较）。
 /// - `extreme`：037:20，c 端点严格破 b = I(A) 包络极值。
 ///
-/// `comparable ∧ extreme` ⟺ 结构宽候选完全成立 ⟺ [`CandidateState::Provisional`]；任一不成立
-/// ⟹ [`CandidateState::Unresolved`]（结构未决，非失效——同一 key 的 C 段后续可延伸至成立）。
+/// `comparable ∧ extreme` ⟺ 结构宽候选完全成立 ⟺ [`ObservedState::Provisional`]；任一不成立
+/// ⟹ [`ObservedState::Unresolved`]（结构未决，非失效——同一 key 的 C 段后续可延伸至成立）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructuralPredicates {
     pub direction: bool,
@@ -91,11 +126,14 @@ impl StructuralPredicates {
     }
 
     /// 由谓词组合派生的活假设状态（Trend 域状态映射单一来源）。
-    pub fn resolved_state(self) -> CandidateState {
+    ///
+    /// #612/#634 起返回**观察侧**三态 [`ObservedState`]：结构谓词组合无论怎么取值都派生不出
+    /// `Invalidated`（失效是事件簿的判决，不是结构门的读数），这个事实由返回类型承载。
+    pub fn resolved_state(self) -> ObservedState {
         if self.all_hold() {
-            CandidateState::Provisional
+            ObservedState::Provisional
         } else {
-            CandidateState::Unresolved
+            ObservedState::Unresolved
         }
     }
 }
@@ -221,6 +259,50 @@ impl CandidateEvent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn observed_state_domain_excludes_invalidated_and_lifts_pointwise() {
+        // ★#612/#634 E2E-D5 禁止边 `∅→Invalidated` /「活候选→(被观察为)Invalidated」的**编译期**
+        // 载体见证，接替拆分前那两个 `should_panic` 运行期锁测（
+        // observed_invalidation_at_birth_is_rejected_by_the_book_entry_lock /
+        // observed_invalidation_on_live_candidate_is_rejected_by_the_same_lock）：
+        // 观察侧状态类型 `ObservedState` 没有 `Invalidated` 变体 ⟹ 那两个测试要构造的观察
+        // **构造不出来**，边不是「被拦住」而是不可表达，运行期 assert 无边可守遂退役。
+        //
+        // 本测把该事实钉成机器锁的方式是**穷举 match**：若将来给 `ObservedState` 加变体
+        // （尤其是把 `Invalidated` 加回观察侧），下面的 match 立刻编译失败——不是运行期红，
+        // 是编译期红。反事实（本锁之前 = 共用四态枚举）：畸形观察静默入簿，落成
+        // 「state=Invalidated 但 invalidated_at=None」的终态事件，并因 is_terminal() 永久挡回
+        // 该 key 的后续修订 —— 无人看得见。
+        //
+        // 落位：本测只触及 ObservedState/CandidateState/From/is_terminal()，全部定义在本文件
+        // （key 域），零 book 域依赖（不建 CandidateEventBook、不调 advance）——按「主要被测对象」
+        // 归入 key::tests（#634 影子评审 LOW-2；原落 book::tests 是继承自其接替的两个
+        // should_panic 测试的历史位置，不是按被测对象分配的）。
+        for state in [
+            ObservedState::Provisional,
+            ObservedState::Unresolved,
+            ObservedState::Confirmed,
+        ] {
+            let lifted: CandidateState = state.into();
+            // 穷举（无 `_ =>` 兜底）：变体集恰是三条活假设。
+            match state {
+                ObservedState::Provisional => assert_eq!(lifted, CandidateState::Provisional),
+                ObservedState::Unresolved => assert_eq!(lifted, CandidateState::Unresolved),
+                ObservedState::Confirmed => assert_eq!(lifted, CandidateState::Confirmed),
+            }
+            assert_ne!(
+                lifted,
+                CandidateState::Invalidated,
+                "提升映射的像不得含事件簿自产终态"
+            );
+            assert_eq!(
+                lifted.is_terminal(),
+                state == ObservedState::Confirmed,
+                "观察可达的终态只有 Confirmed（Pan 域证书投影）"
+            );
+        }
+    }
 
     #[test]
     fn closed_interval_sub_truth_table_includes_touching_endpoints() {
