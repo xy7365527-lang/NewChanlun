@@ -19,23 +19,16 @@
 //! 同义反复，231号）。**只有喂真实历史数据跑出的扣成本指标才是 L2**。严禁用合成数据
 //! 跑通管线后声称"回测已验证 Θ v0"。
 //!
-//! ## 等引擎阻塞点（管线尾部当前是骨架占位，必须显式标注）
+//! ## 现状订正（#744：此前描述的「阻塞点 A/B」已解除，不再是当前架构）
 //!
-//! theta_v0 管线数据流当前**断裂**（这是冻结的设计中间态，非 harness 缺陷）：
-//!
-//! - `parser::parse_layer(bars, config) -> ParseLayer`：签名冻结，前 4 步已实装
-//!   （inclusion/fractal/stroke/segment）；中枢/canonical/tail 待 #78 收尾。
-//! - `classifier::classify(l0, config) -> Classification`：签名冻结，**当前返回空**
-//!   （骨架占位，task #79 cc-classifier 实装中）。⟸ **阻塞点 A**
-//! - `strategy::plan_orders(config) -> Vec<Order>`：签名冻结，**当前返回空**，且
-//!   **尚未接入 `Classification` 输入**（strategy.rs 注释："为避免骨架阶段引入未实装
-//!   的数据流耦合，此处先不接线"）。task #80 cc-strategy 实装时会改签名接入
-//!   classification。⟸ **阻塞点 B（接口签名会变）**
-//!
-//! 因此 [`runner`] 的管线串联函数 [`runner::run_theta_v0`] 当前对接**冻结的当前接口
-//! 形态**，但在 classify/plan_orders 返回空时，订单流为空 ⇒ 无交易 ⇒ 指标退化为
-//! buy&hold 对照基线。**这不是 L2 回测**——真正的 L2 需要阻塞点 A+B 解除（classifier
-//! 产出非空 BSP + strategy 接入 classification 产出订单）。harness 不伪造管线已通。
+//! `classifier::classify` 产出非空 [`Classification`]（BSP/走势/中枢标签齐全，π 生产路径
+//! 的分类前端，`IncrementalClassifier::classify_at` 逐 bar 调）；`strategy::recognize`
+//! 仍是存活公开 API（`StrategyFamily::pi` strategy/mod.rs:1070 在调）。**已退役的是 v1
+//! *runner***（`run_theta_v0`/`plan_and_fill_mtm`，每 bsp 一 `VoiceDecision`，离散择时；
+//! #499 退役，全窗 L3 8/8 已否证）。**生产路径**是 [`runner::run_theta_v0_pi`]/
+//! `run_theta_v0_pi_chi`/`run_theta_v0_pi_chi_shrink`——七链 π_Θ 引擎
+//! （`coverage::pi_theta_step`），只是生产 π 路径不经 `recognize`，per-bar 三适配器驱动
+//! 订单产出，详见该函数组的 doc。
 //!
 //! ## 子模块拓扑
 //!
