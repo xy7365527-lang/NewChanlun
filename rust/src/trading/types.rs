@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! 交易层类型基座 — 有机赋格 v2（`analysis/organic_fugue_v2_design.md`）。
 //!
 //! 设计来源：v2 §4 类型系统汇总 + C6（BspClass 六变体穷举）+ K10（v1R 类型基座）。

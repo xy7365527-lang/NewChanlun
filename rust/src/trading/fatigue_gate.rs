@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! FatigueGate — 41课守门员，v2 点态衰竭语义（C7）。
 //!
 //! v1 积累证据集（"曾出现过衰竭证据"）在高密度层恒真（M-d：segment 层证据集

@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! LevelOperatingUnit — 38课操盘程式 FSM（voice 实例），v2 转换表 T1-T7（§5.1）。
 //!
 //! ## v2 矛盾修正的代码落点

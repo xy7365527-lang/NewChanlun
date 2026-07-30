@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! recursive_nested_fugue — 递归嵌套多重赋格（"平多≠开空"推到极限；mode = "rnf"）。
 //!
 //! 设计源头：`docs/concept_movement_chain.md`（23 环）+ `docs/nested_fugue_

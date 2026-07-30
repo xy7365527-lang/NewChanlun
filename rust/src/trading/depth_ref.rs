@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! DepthRef — 锚中枢相对振幅的因果滚动参照（θ 自适应深度门，2026-06-11 任务）。
 //!
 //! 动机：固定 θ=1% 在 OKLO/BRN（中枢振幅大）工作，QQQ 的 1 分钟中枢振幅

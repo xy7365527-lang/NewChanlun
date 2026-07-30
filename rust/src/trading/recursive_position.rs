@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! RecursivePosition — 递归建仓：量 = 确认深度的递增函数（2026-06-11 任务）。
 //!
 //! 存在论（concurrent_fugue_deep_think Part II 的仓位投影）：级别不是事前

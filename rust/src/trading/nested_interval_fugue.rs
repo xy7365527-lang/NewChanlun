@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! nested_interval_fugue — 区间套递归赋格（mode = "nif{N}"，N = min_trade_ladder）。
 //!
 //! 设计源头：`analysis/why_not_profitable.md`（alpha 瓶颈 L3 诊断）+

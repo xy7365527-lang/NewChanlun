@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! unified_necessity — 统一必然性引擎（mode = "unn"）。
 //!
 //! 设计源头：编排者 2026-06-14"你要严格验证必然性，这是通过推论证明的……

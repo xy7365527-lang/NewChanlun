@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! master 出场判定 — C1 类型隔离（532号谱系的编译期形态）。
 //!
 //! 532号结算（L3，3/3 标的满分母）：master 出场判定与 voice 反向腿触发是

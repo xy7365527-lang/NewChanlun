@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! positional — 多级别仓位分层（positional fugue，26/44课直接形式化）。
 //!
 //! 设计：`analysis/positional_fugue_design.md`（D1-D9 决断表 + 预注册判据 P1-P3）。

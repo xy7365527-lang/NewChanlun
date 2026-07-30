@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! isolated_fugue — 逐仓独立声部森林（mode = "iso"）。
 //!
 //! 设计源头：`docs/nested_fugue_accounting.md`（§1-§8 严格会计 + §11 审计有效域）

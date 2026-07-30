@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! axiom_voice — 公理演绎统一 voice FSM（fusion_va；2026-06-12 编排者方法论定型轮）。
 //!
 //! 方法论：FSM 不是设计出来的，是五条公理各自自我否定后的扬弃之总和

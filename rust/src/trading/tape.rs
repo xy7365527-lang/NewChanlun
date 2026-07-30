@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! SignalTape — 信号磁带（`fugue_version_i.BarSignalI` 的 Rust 形态）。
 //!
 //! 一次构造（PyO3 边界 marshal 一次），多变体共享只读引用——compute-once 原则。

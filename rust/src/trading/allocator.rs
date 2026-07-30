@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! SizeAllocator — 40课结构规模：中枢振幅占比归一 frac[k]（K6 逐字保留）。
 //!
 //! A_k = (ZG_k − ZD_k)/c（k 层当前存活中枢相对振幅）；无存活中枢 → A_k=0
