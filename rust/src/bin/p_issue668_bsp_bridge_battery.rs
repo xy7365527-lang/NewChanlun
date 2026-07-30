@@ -1,25 +1,35 @@
 //! #668（N4）桥接对象验收对拍——修复轮 1（#670 影子评审 HIGH-3 回炉，
-//! `chanlun/review-results/issue668-n4-fix-round1-20260729.md`）。
+//! `chanlun/review-results/issue668-n4-fix-round1-20260729.md`）+ 修复轮 2（#670 影子评审第 2 轮
+//! FAIL 回炉两条新 HIGH，`chanlun/review-results/issue668-n4-fix-round2-20260729.md`）。
 //!
 //! ## 门重定（HIGH-3 处置）
 //!
 //! 旧版本的参照集与生产模块共享同一 v2 键公式**且逐字段同构复写**——两侧共享全部设计判断，
 //! 包括错的那些，验不出判据层错误（HIGH-2 就在它眼前而它 cmp=0）。裁定第三轮 supersede ⑤
 //! 明文给的替代方案 = 「跨 as_of 平价锁 + 一条会因 HIGH-2 式漏配变红的负控」：
-//! - **跨 as_of 平价锁**：`bsp_bridge::tests::bridge_book_incremental_equals_full_replay_across_as_of`
-//!   （对齐 N1/N3 先例，单测覆盖，非本 bin 职责）。
+//! - **跨 as_of 真平价锁**：`bsp_bridge::tests::bridge_book_incremental_final_state_equals_fresh_full_replay_from_empty`
+//!   （对齐 N1 先例——增量推进 vs 从空簿单次全量重放两个不同驱动，单测覆盖，非本 bin 职责）。
 //! - **负控**：`bsp_bridge::tests::trend_event_growth_does_not_orphan_earlier_first_class_point`
 //!   （在旧右端等值判据下必然失败，锁住 HIGH-2 那条根因不再复发）。
 //!
 //! 本 bin 保留的职责收窄为**真独立参照集**——不再对拍 `bridge.heads()`（只含链头，同 episode
 //! 多物理点会被折叠），改对拍 `bridge.edges()`（append-only 全量修订历史；单次 fresh-full
-//! 窗口内，一个 episode 覆盖的全部物理点都会在同一次 `advance` 里顺序追加成 revision 链，
-//! 见 `bsp_bridge.rs` `resolve_first_class_episode_edges` 文档）——参照集独立实现「episode
+//! 窗口内，一个 episode 覆盖的全部物理点在同一次 `advance` 里折叠成一条覆盖点集合，见
+//! `bsp_bridge.rs` `resolve_first_class_episode_points` 文档）——参照集独立实现「episode
 //! 区间覆盖」这同一条已由 dispatch 第三轮 supersede 裁定settled 的判据（判据本身不再是本 bin
 //! 的论证对象，`bsp_bridge.rs` 模块头 + 真值表已界定），但**代码路径不共享**：本 bin 用线性扫描
 //! + 独立数据结构，零调用 `bsp_bridge` 内部索引/折叠函数——仍能捕获实现层错误（字段取错/
 //! off-by-one/漏判类/边界开闭错），只是不再重新论证「episode 覆盖是不是对的判据」（那件事已经
 //! 由三轮 supersede + 单元测试负控关闭）。
+//!
+//! ## 幂等 + 查询完备性回归门（修复轮 2，R2-HIGH-1/R2-HIGH-2）
+//!
+//! 修复轮 1 的这条对拍 bin 只 `advance` 一次，测不出「同输入重跑」与「查询入口完备性」——正是
+//! 修复轮 1 遗留的两条新 HIGH 藏身之处（评审 #670 第 2 轮）。本轮新增两条硬门，写入退出码：
+//! - **幂等**（`ISSUE668_IDEMPOTENCE`）：同一 `(classification, streams, as_of)` 连续 `advance`
+//!   三次，第 2/3 次必须零 Delta、边数不再增长。
+//! - **查询完备性**（`ISSUE668_QUERY_ENTRY`）：`edges()` 里出现的每个物理点都必须能经
+//!   `edges_for_bsp_point` 查到（`query_lost` 必须为 0）。
 //!
 //! ## 现役拼缝跨对象族不可直接对拍（HIGH-3 ①，如实登记不可执行）
 //!
@@ -274,14 +284,32 @@ fn main() -> std::process::ExitCode {
     );
 
     let mut bridge = BspBridgeBook::default();
-    bridge.advance(&classification, &streams, as_of);
-    // 对拍全量修订历史（非 heads()）：同 episode 多物理点在单次 fresh-full advance 里会顺序
-    // 追加成 revision 链，每个被覆盖的物理点都应在 edges() 里留痕（HIGH-3 处置：真独立参照集
-    // 对全量历史，不是只对链头）。
+    let delta1 = bridge.advance(&classification, &streams, as_of).len();
+    let edges1 = bridge.edges().len();
+    // 第四轮 supersede 幂等回归门（R2-HIGH-1）：同一 (classification, streams, as_of) 重跑必须
+    // 零 Delta——修复轮 1 在此处每次重跑追加 len(covered) 条 churn revision（评审 #670 复核探针
+    // 300k 窗实测每次 +12，边数 29→41→53 无上界增长）。
+    let delta2 = bridge.advance(&classification, &streams, as_of).len();
+    let edges2 = bridge.edges().len();
+    let delta3 = bridge.advance(&classification, &streams, as_of).len();
+    let edges3 = bridge.edges().len();
+    println!(
+        "ISSUE668_IDEMPOTENCE bars={} delta1={delta1} edges1={edges1} delta2={delta2} edges2={edges2} \
+         delta3={delta3} edges3={edges3}",
+        bars.len(),
+    );
+
+    // 对拍全量修订历史（非 heads()）：同 episode 多物理点在单次 fresh-full advance 里折叠为一条
+    // revision，覆盖点集合（`bsp_source_indices`，第四轮 supersede）里的每个物理点都应在参照集
+    // 里留痕（HIGH-3 处置：真独立参照集对全量历史，不是只对链头）。
     let produced: BTreeSet<(u32, usize, &'static str, CandidateKey)> = bridge
         .edges()
         .iter()
-        .map(|edge| (edge.bsp_level, edge.bsp_source_index, class_name(edge.key.bsp.class), edge.key.event))
+        .flat_map(|edge| {
+            edge.bsp_source_indices
+                .iter()
+                .map(move |source_index| (edge.bsp_level, *source_index, class_name(edge.key.bsp.class), edge.key.event))
+        })
         .collect();
 
     let missing_in_bridge: Vec<_> = reference.difference(&produced).collect();
@@ -304,7 +332,26 @@ fn main() -> std::process::ExitCode {
     for item in extra_in_bridge.iter().take(5) {
         println!("ISSUE668_BRIDGE_EXTRA {item:?}");
     }
-    if cmp == 0 {
+
+    // 查询入口完备性回归门（R2-HIGH-2）：edges() 里出现的每个物理点都必须能经
+    // edges_for_bsp_point 查到——修复轮 1 在此处 300k 窗实测 7/29 点静默查无（失效后链头回退
+    // 到遍历序首个物理点，其余点从 heads() 过滤后的查询入口消失）。
+    let distinct_points: BTreeSet<(u32, usize)> =
+        bridge.edges().iter().flat_map(|edge| edge.bsp_source_indices.iter().map(move |src| (edge.bsp_level, *src))).collect();
+    let query_lost = distinct_points
+        .iter()
+        .filter(|&&(level, source_index)| bridge.edges_for_bsp_point(level, source_index).is_empty())
+        .count();
+    println!(
+        "ISSUE668_QUERY_ENTRY bars={} distinct_points_with_edges={} query_reachable={} query_lost={}",
+        bars.len(),
+        distinct_points.len(),
+        distinct_points.len() - query_lost,
+        query_lost,
+    );
+
+    let idempotence_ok = delta2 == 0 && delta3 == 0 && edges1 == edges2 && edges2 == edges3;
+    if cmp == 0 && idempotence_ok && query_lost == 0 {
         std::process::ExitCode::SUCCESS
     } else {
         std::process::ExitCode::FAILURE
