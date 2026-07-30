@@ -240,8 +240,8 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                             // 锁定），语义/轨迹 bit-exact 不变。
                             let restore_start = work.len();
                             restore_ancestor_chain_from_registry(
-                                &mut work, &mut raw, registry, op_pid, &id_idx, &mut overlay_seen, &[],
-                                &mut pending_parent_fixup,
+                                &mut work, &mut raw, registry, op_pid, &id_idx, &mut overlay_seen,
+                                overlay_cand_end, &[], &mut pending_parent_fixup,
                             );
                             for idx in restore_start..work.len() {
                                 appended_source.entry(idx).or_insert("registry-restore");
@@ -384,6 +384,7 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                         parent_pid,
                         &id_idx,
                         &mut overlay_seen,
+                        overlay_cand_end,
                         &direct_close_seeds,
                         &mut pending_parent_fixup,
                     );

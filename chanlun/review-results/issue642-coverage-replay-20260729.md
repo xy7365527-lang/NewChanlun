@@ -78,6 +78,22 @@ main 自己尚未兑现的文档承诺（#355/#363/#369/#376），要接线需�
 承诺——超出本票"12 提交语义重放"的范围，标记为独立跟进项。两函数当前 `#[allow(dead_code)]`
 且未被生产路径调用，`enforce_level_cap` default=false ⟹ 零行为改变。
 
+> **订正（#714 MED-2，2026-07-29，同步 #693；只追加订正，不改写原证词）**：本条目原文
+> 「该函数、以及文档提到的 `plan_level_gated_order`/`LevelOrderPlan.capped_levels`
+> **从未在代码中实现**（纯文档承诺）」与「main 侧该接线点目前**完全不存在**」均不确，且
+> 字段名写错。实测：字段名是 **`cap_narrowed_levels`**（非 `capped_levels`），且该字段
+> **存在**（`level_order.rs:384`），并有完整消费链——统计 `LevelOrderStats::n_cap_narrowed`
+> （`level_order.rs:205/640-641`）、逐级 sparsity 判据 `plan.cap_narrowed_levels.contains(&lvl)`
+> （`level_order.rs:593`）、m8 报表列（`backtest/wverify_run/m8.rs:624/668/675`、
+> `report.rs:376-381`）。真实缺口只是**唯一填入者缺位**：`plan_gated`（`level_order.rs:
+> 545-553`）恒把该字段置空表，从未调用 `clamp_levels_to_weighted_cap` 填入实际裁剪结果。
+>
+> 接线成本因此不是「零实现、需从头设计接口」，而是「字段/统计/报表/判据四层俱在，缺一个
+> 生产者」——原表述系统性放大了接线成本与风险评估。是否、如何补上这个生产者仍需先对齐
+> main 自己 #355/#363/#369/#376 谱系写下的既有接口形状，本订正不改变「留作独立跟进项」的
+> 结论，只订正对现状的描述。生产代码 doc（`coverage/sizing.rs::clamp_levels_to_weighted_cap`）
+> 同一处错误陈述已同步订正。
+
 ### 5. #351 19aea33a26 — M4 级别帽四 MED 补课 [P1][未完成，阻塞于条目 4]
 
 **未做**。整个提交内容（Σw 校验接线、`plan_gated` 归因缩放后二次 clamp、`cap_narrowed`

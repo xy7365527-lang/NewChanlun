@@ -288,6 +288,11 @@ pub(super) fn restore_ancestor_chain_from_registry(
     // O(work)/层=O(n²)。raw.any 不动（raw 有界，prev_active~O(log n) 实测 9@16K）。
     id_idx: &std::collections::HashMap<ElementId, usize>,
     overlay_seen: &mut std::collections::HashMap<ElementId, usize>,
+    // ★#446 补移植（影子评审 HIGH-1，2026-07-29）：候选段终点。overlay_seen 命中 idx < 此值 ⟹ 候选段
+    // 拷贝——门禁语义同 [`held_stale_reregister_idx`]（`held.rs:369-373`）：候选 eps 是信号方向、
+    // lambda==rho 点元素、parent_id 非持久 structural_parent_id，复用会让上溯改沿候选伪 parent_id
+    // 走、且被复用元素角色输入失真（详见下方修补处注释）。
+    overlay_cand_end: usize,
     // ★#226：当 bar 关闭种子（见函数 doc）。
     closed_seeds: &[ActiveLeg],
     // ★票#350（#247/#315 同类第三位点）：本轮新 push 的恢复元素 idx 追加于此（调用方持有，跨本
@@ -317,7 +322,18 @@ pub(super) fn restore_ancestor_chain_from_registry(
         // （不 push 重复 id，否则 strategy_target_legs 双计 p̃ 伪证）。查表 O(1)：先 base id_idx 再 overlay_seen。
         // bit-exact == 旧 work.iter().position：position 返首个匹配 idx，base 段在 overlay 前 ⟹ base 优先与
         // position 序一致；overlay_seen 用 or_insert 存首次 push idx ⟹ 与 position 在 overlay 段首个匹配一致。
-        if let Some(&existing_idx) = id_idx.get(&pid).or_else(|| overlay_seen.get(&pid)) {
+        //
+        // ★#446 补移植（影子评审 HIGH-1）：overlay_seen 命中若落在候选段（idx < overlay_cand_end）是
+        // **候选拷贝**——同 [`held_stale_reregister_idx`] 门禁语义（held.rs:369-373），不可复用：候选
+        // eps 是信号方向（可与真祖先持久方向相反）、lambda==rho 点元素（坐标失真）、parent_id 是候选
+        // 自身 Compose 父（非该祖先持久 structural_parent_id）。复用会使本次上溯 `cur` 沿候选伪
+        // parent_id 走（可能提前收敛或走错分支）、且该 idx 被 element_as_leg 采纳候选属性（角色输入
+        // 污染，同条目 1 held 侧缺口二同类风险）。base（id_idx）恒安全（树前缀持久身份）不受此门禁
+        // 约束；overlay_seen 只放行 restore 本 bar 已 push 的持久身份（idx >= overlay_cand_end）。
+        let existing_idx = id_idx.get(&pid).copied().or_else(|| {
+            overlay_seen.get(&pid).copied().filter(|&idx| idx >= overlay_cand_end)
+        });
+        if let Some(existing_idx) = existing_idx {
             raw.push(existing_idx);
             cur = work[existing_idx].parent_id; // 沿已有元素的结构父链上溯
             continue;

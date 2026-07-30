@@ -242,10 +242,18 @@ pub(crate) fn level_cap(level: u32, base_units: f64, risk: &RiskConfig) -> f64 {
 /// ★#642 语义重放偏差照实声明：本函数是 #310 的核心数学原语（level_cap 协变分解 + 逐级
 /// clamp），语义与 kimi 侧 `coverage.rs::clamp_levels_to_weighted_cap` 逐字等价；但 kimi 侧
 /// `fill.rs` 的实际调用点（`plan_level_gated_order`，把本函数接进 `LevelOrderLedger::regate`
-/// 输出的两处施加点）**未随本次移植接线**——main 侧 `level_order.rs` 文档已预写该调用点存在
-/// （`capped_levels`/`plan_level_gated_order` 等提法，源自 main 自己更晚的 #355/#363/#369/#376
-/// 谱系），但实际未实现，接线需要与那条谱系的既有文档承诺对齐，超出本票语义重放范围，留作
-/// 独立跟进项（见 issue642-coverage-replay 报告）。`enforce_level_cap` default=false 且本函数
+/// 输出的两处施加点）**未随本次移植接线**。
+///
+/// ★#714 MED-2 订正（影子评审 shadow-642-review-20260729.md，同步 #693）：上一版本段曾声称
+/// main 侧接线点「目前均不存在于代码」，且字段名误写为 `capped_levels`——均不确。真实字段名是
+/// [`super::super::level_order::LevelOrderPlan::cap_narrowed_levels`]（`level_order.rs:384`），
+/// **该字段本身、其统计 [`super::super::level_order::LevelOrderStats::n_cap_narrowed`]、逐级
+/// sparsity 判据（`level_order.rs:593`）、m8 报表列（`wverify_run/m8.rs`、`report.rs`）四层
+/// 均已在场**——缺的只是**唯一填入者**：`plan_gated`（`level_order.rs:545-553`）恒把
+/// `cap_narrowed_levels` 置空表，未调用本函数填入实际裁剪结果。接线成本因此不是「从头设计
+/// 接口」而是「补一个生产者填充既有字段」，但填入前需先决定是否、如何对齐 main 自己
+/// #355/#363/#369/#376 谱系写下的既有接口形状——仍超出本票语义重放范围，留作独立跟进项（见
+/// issue642-coverage-replay 报告条目 4 订正段）。`enforce_level_cap` default=false 且本函数
 /// 未被生产路径调用 ⟹ 零行为改变（M0-M3 bit-exact 不变，同 kimi 原提交声明）。
 #[allow(dead_code)]
 pub(crate) fn clamp_levels_to_weighted_cap(
