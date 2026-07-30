@@ -143,3 +143,7 @@ grep -rn "^\s*\(pub \)\?mod cand_delta;\|^\s*\(pub \)\?mod tower_cache;\|^\s*\(p
 ---
 
 *本报告基于亲手 grep/Read 核查，未使用 Task/子代理。全部命令与命中行号见正文各节代码块与引用；未在此报告中逐条粘贴的中间命令输出可用报告中给出的 grep 表达式在仓库当前 HEAD（`6e4193bf4e`）复现。*
+
+## 订正（2026-07-29，#761 实装发现 + 影子评审坐实）
+
+§1.3（recursive_t 族）判「standalone T 算子可独立删除」**有误**：遗漏反向依赖核查——standalone T 算子 6 文件（center/trend/divergence/operator/types/mod::iterate）被同目录 T 引擎（b）的**生产代码**（stream.rs/rec_stream.rs/backtest.rs 等）直接调用，删除会打断 (b) 编译。订正后处置 = **GUARD-ROLE 留档不删**（#761 已落地，零逻辑改动）；E3（#762）处置 T 引擎时须连同此基座一起裁（耦合同批原则覆盖到它）。
