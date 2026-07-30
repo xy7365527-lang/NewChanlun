@@ -222,7 +222,102 @@ fn run_window(bars: &[Bar], w: usize, config: &ThetaConfig) -> Result<(), String
     println!("P127_WINDOW window={w} bars={w}");
     census(w, &heads);
     hit_rate(w, bars, &heads, &latest_by_key);
+    cut1_inside_outside_separation(w, &heads);
+    cut2_skip_edge_position(w, &heads);
     Ok(())
+}
+
+/// #736 刀一（假设 1）：`SkippedLevel` 的「断-在父外」（`alive_at_level>0 && inside_parent==0`）
+/// vs 「断-在父内接不上」（`inside_parent>0`）两档，在链结局（Closed/Invalidated/Open）×
+/// 方向（Long/Short，取链头 `root.key.side`）两维上是否呈系统差异。只写分桶计数，不在探针里
+/// 下判——分离度判定口径与阈值在报告里给出（`chanlun/review-results/issue736-*.md`）。
+///
+/// 「缺」（`alive_at_level==0`）不是本刀的比较对象（票面只点名断-在父外 vs 断-在父内），故不计入
+/// 本刀输出（`P127_CENSUS`/`P127_DIAG` 的 `skipped_level_missing` 已覆盖，不重复）。
+fn cut1_inside_outside_separation(w: usize, heads: &[&TowerChainCertificate]) {
+    #[derive(Default, Clone, Copy)]
+    struct Bucket {
+        outside: usize,
+        inside: usize,
+    }
+    let mut by_status_side = BTreeMap::<(ChainStatus, Side), Bucket>::new();
+    let mut total = Bucket::default();
+
+    for cert in heads {
+        let root_side = cert.nodes[0].key.side;
+        for edge in &cert.edges {
+            for level in &edge.skipped_levels {
+                if level.alive_at_level == 0 {
+                    continue;
+                }
+                let entry = by_status_side.entry((cert.status, root_side)).or_default();
+                if level.inside_parent == 0 {
+                    entry.outside += 1;
+                    total.outside += 1;
+                } else {
+                    entry.inside += 1;
+                    total.inside += 1;
+                }
+            }
+        }
+    }
+
+    for ((status, side), bucket) in &by_status_side {
+        println!(
+            "P736_CUT1 window={w} status={status:?} side={side:?} broken_outside={} \
+             broken_inside={}",
+            bucket.outside, bucket.inside
+        );
+    }
+    println!(
+        "P736_CUT1_TOTAL window={w} broken_outside={} broken_inside={} \
+         outside_share={:.4}",
+        total.outside,
+        total.inside,
+        ratio(total.outside, total.outside + total.inside),
+    );
+}
+
+/// #736 刀二（假设 5）：`ChainEdgeKind::Skip` 边在链路径（root→leaf，`cert.edges` 按 root→leaf
+/// 排序）中的位置——首边（`idx==0`，紧邻链头/大级别端）/ 末边（`idx==len-1`，紧邻链尾/小级别端）/
+/// 中间边 / 单边链（`len==1`，首末重合，单列不占首末计数）。只写分桶，不判——44 课「小转大」
+/// 方向性对应的读法是「系统性靠末边（leaf 端）」，几何噪声对应的读法是「均匀或靠首边（root
+/// 端）」，具体判定口径与阈值在报告里给出。
+fn cut2_skip_edge_position(w: usize, heads: &[&TowerChainCertificate]) {
+    let mut first = 0usize;
+    let mut middle = 0usize;
+    let mut last = 0usize;
+    let mut single = 0usize;
+    let mut total_skip = 0usize;
+
+    for cert in heads {
+        let len = cert.edges.len();
+        for (idx, edge) in cert.edges.iter().enumerate() {
+            if edge.kind != ChainEdgeKind::Skip {
+                continue;
+            }
+            total_skip += 1;
+            if len == 1 {
+                single += 1;
+            } else if idx == 0 {
+                first += 1;
+            } else if idx == len - 1 {
+                last += 1;
+            } else {
+                middle += 1;
+            }
+        }
+    }
+
+    println!(
+        "P736_CUT2 window={w} total_skip_edges={total_skip} first={first} middle={middle} \
+         last={last} single={single} first_share={:.4} middle_share={:.4} last_share={:.4} \
+         single_share={:.4}",
+        ratio(first, total_skip),
+        ratio(middle, total_skip),
+        ratio(last, total_skip),
+        ratio(single, total_skip),
+    );
 }
 
 fn census(w: usize, heads: &[&TowerChainCertificate]) {
