@@ -4423,8 +4423,8 @@ provider_window=5..70 b_center_start=20 intake_fallback=0"
     #[test]
     fn chain_dump_meta_and_line_format_are_stable() {
         use newchan_rust::theta_v0::classifier::cand_event::{
-            CandidateEventBook, CandidateKey, CandidateKind, CandidateObservation, CandidateState,
-            ParentFingerprint, StructuralPredicates, CANDIDATE_RULE_VERSION,
+            CandidateEventBook, CandidateKey, CandidateKind, CandidateObservation,
+            ObservedState, ParentFingerprint, StructuralPredicates, CANDIDATE_RULE_VERSION,
         };
         let observation =
             |level: u32, c_start: usize, interval: (usize, usize)| CandidateObservation {
@@ -4454,7 +4454,7 @@ provider_window=5..70 b_center_start=20 intake_fallback=0"
                 extreme_proof: (11, 19),
                 third_class_proof: None,
                 interval,
-                state: CandidateState::Provisional,
+                state: ObservedState::Provisional,
                 first_provable_at: Some(interval.1),
                 confirmed_at: None,
             };

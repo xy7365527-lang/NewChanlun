@@ -285,8 +285,8 @@ fn count_same_level(by_level: &BTreeMap<u32, Vec<&CandidateEvent>>) -> SameLevel
 mod tests {
     use super::super::super::types::Side;
     use super::super::cand_event::{
-        CandidateEventBook, CandidateKind, CandidateObservation, CandidateState, ParentFingerprint,
-        StructuralPredicates, CANDIDATE_RULE_VERSION,
+        CandidateEventBook, CandidateKind, CandidateObservation, CandidateState, ObservedState,
+        ParentFingerprint, StructuralPredicates, CANDIDATE_RULE_VERSION,
     };
     use super::*;
 
@@ -420,7 +420,7 @@ mod tests {
             extreme_proof: (11, 19),
             third_class_proof: None,
             interval,
-            state: CandidateState::Provisional,
+            state: ObservedState::Provisional,
             first_provable_at: Some(interval.1),
             confirmed_at: None,
         }

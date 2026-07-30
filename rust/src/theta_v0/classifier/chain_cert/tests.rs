@@ -6,7 +6,8 @@
 use super::super::super::types::Side;
 use super::super::cand_event::{
     CandidateEventBook, CandidateKey, CandidateKind, CandidateObservation, CandidateState,
-    CandidateStreams, ParentFingerprint, StructuralPredicates, CANDIDATE_RULE_VERSION,
+    CandidateStreams, ObservedState, ParentFingerprint, StructuralPredicates,
+    CANDIDATE_RULE_VERSION,
 };
 use super::*;
 
@@ -43,7 +44,7 @@ fn obs(level: u32, c_start: usize, interval: (usize, usize)) -> CandidateObserva
         extreme_proof: (11, 19),
         third_class_proof: None,
         interval,
-        state: CandidateState::Provisional,
+        state: ObservedState::Provisional,
         first_provable_at: Some(interval.1),
         confirmed_at: None,
     }
@@ -56,7 +57,7 @@ fn confirmed(level: u32, c_start: usize, interval: (usize, usize)) -> CandidateO
     observation.key.previous_center_start = None;
     observation.kind = CandidateKind::Pan;
     observation.center_ids = None;
-    observation.state = CandidateState::Confirmed;
+    observation.state = ObservedState::Confirmed;
     observation
 }
 
@@ -271,7 +272,7 @@ fn all_fact_edges_do_not_increment_floor_blocked_probe() {
     );
 
     let mut head_confirmed = obs(2, 0, (0, 30));
-    head_confirmed.state = CandidateState::Confirmed;
+    head_confirmed.state = ObservedState::Confirmed;
     book.advance(&streams_of(&[head_confirmed, obs(1, 10, (10, 40))], 40), 40);
 
     let certificate = head(&book, &[key(2, 0), key(1, 10)]);
@@ -507,7 +508,7 @@ fn absent_head_after_prior_confirmed_stays_open_and_is_not_invalidated() {
     // 头转 Confirmed；同轮喂入一枚不在路径内的更低级候选令 leaf 保持可扩展——防止本轮本身先
     // 误判 Closed（这只是本用例站稳「头曾 Confirmed」这一前提的手段，不是待测结论）。
     let mut confirmed_head = obs(3, 0, (0, 100));
-    confirmed_head.state = CandidateState::Confirmed;
+    confirmed_head.state = ObservedState::Confirmed;
     book.advance(
         &streams_of(
             &[
@@ -802,7 +803,7 @@ fn head_only_survivor_stays_open_by_floor_conjunct() {
 
     // 头转 `Confirmed`（同一身份，区间不变）+ 唯一下级缺席失效 ⟹ 链段集合为空。
     let mut head_confirmed = obs(2, 400, (400, 500));
-    head_confirmed.state = CandidateState::Confirmed;
+    head_confirmed.state = ObservedState::Confirmed;
     candidates.advance(&[head_confirmed], 510);
     book.advance(&candidates.streams(), 510);
 
