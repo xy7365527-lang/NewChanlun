@@ -17,6 +17,11 @@
 //! ```
 //!
 //! 现有引擎模块（orchestrator/bi_zhongshu_bsp/…）零改动——交易层只 use 引擎枚举。
+//!
+//! **图外挂件（票 #638）**：[`third_point_book`]（三类点成立登记账）**零入边**——上图任何模块都
+//! 不 use 它，它也不进 `runner` 主循环（V0≡P5 parity 承重面不受影响）。它只依赖 `theta_v0`
+//! 买卖点账本的公开产出面，是该账「成立档」的交易层消费入口（观测登记侧，非入场判据侧；理由与
+//! 裁定登记见该模块头）。
 
 pub mod allocator;
 pub mod center_book;
@@ -42,6 +47,7 @@ pub mod axiom_voice;
 pub mod dual_voice;
 pub mod runner;
 pub mod tape;
+pub mod third_point_book;
 #[cfg(test)]
 mod consolidation_ablation;
 #[cfg(test)]

@@ -331,3 +331,29 @@ use super::super::super::interp::ActiveLeg;
         );
     }
 
+    /// ★#694（语义重放自 kimi #346/#347 LOW-1）：环形 `parent_id`（自指，`e.id == e.parent_id`）
+    /// 不得使 `ancestors_by_id_lookup` 挂起——本仓 fuel 硬门风格（同 `element_depth` #247 C1）下
+    /// 应改为**显式 panic**（非静默截断、非挂起）。构造单元素、`parent_id` 指向自身、`lookup`
+    /// 闭包能解析回自己（模拟 held-leg 占位 `op_parent` 自环，函数头 #694 订正记述的数据来源）。
+    #[test]
+    #[should_panic(expected = "环路硬门")]
+    fn ancestors_by_id_lookup_self_parent_id_panics_not_hangs() {
+        let self_id = eid(7, 7);
+        let base = vec![CoverageElement {
+            lambda: 0,
+            rho: 4,
+            eps: VoiceSide::Short,
+            level: 0,
+            parent: None,
+            attached_dir: None,
+            id: self_id,
+            parent_id: Some(self_id), // ★环形：自己的父就是自己。
+        }];
+        let view = ElementView::new(&base);
+        let lookup = |pid: &ElementId| -> Option<usize> {
+            if *pid == self_id { Some(0) } else { None }
+        };
+        ancok_probe_reset();
+        let _ = ancestors_by_id_lookup(&view, 0, &lookup);
+    }
+

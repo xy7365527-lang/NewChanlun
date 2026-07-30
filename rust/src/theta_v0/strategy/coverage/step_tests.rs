@@ -130,6 +130,58 @@ use super::super::super::interp::Buckets;
         assert_eq!(p, 0.0);
     }
 
+    /// ★#714 MED-1（语义重放自 kimi 8d8895c652，#512）：coverage 生产边界遇活动集重复 ElementId
+    /// 必须 fail-loud（不静默返回双计 p̃/P^sep），补 kimi 侧同名测试在 main 缺失的回归覆盖
+    /// （影子评审 `shadow-642-review-20260729.md` MED-1：`#512` 新落防线此前零测试见证）。
+    ///
+    /// 构造：`prev_active` 含两条字面量相等的持仓腿（同 id、均真边界根、registry 未登记 ⟹
+    /// `HeldLegState::Invalidated`）——held 循环对二者各自命中 `Closed|Invalidated` 分支的
+    /// `is_boundary_root` 保留子路径，各自新 push 一个 `parent_id:None` 元素入 `raw`，产生同一
+    /// `ElementId` 的两个 work idx（"boundary-root-retain" 来源）。
+    ///
+    /// **架构差异取舍（与 kimi 语义重放的必要偏离，非疏漏）**：main 在 `raw` 层另有更早的
+    /// `#183` 硬门（`step.rs:464-471`，`debug_assert!` 检查「raw 内 ElementId 唯一」，kimi
+    /// 侧无此对应机制）——本构造下 raw 必产生该重复，**debug 构建**（`cargo test --lib`）先
+    /// 命中 `#183`（message 不含重复 ID 细节，只报「唯一性破裂」）；`#183` 是 `debug_assert!`，
+    /// **release 构建**编译期消除后才继续到 `#512` 本体（`step.rs:511` 的 `panic!`，与 build
+    /// profile 无关恒定触发）——此时 `next_idx` 的两条重复引用已被 `raw_id_idx`（`step.rs:478`
+    /// 的 `HashMap`，同 id 只留最后一次 push 的 idx）折叠为**同一个** idx，故 message 呈现
+    /// 「idx N(...) 与 idx N(...)」（两侧 idx 值相同），不是 kimi 侧「idx 0 与 idx 1」（两个不同
+    /// idx）——kimi 无 `raw_id_idx` 折叠层，其两个 idx 独立保留。两条防线合起来才是 kimi
+    /// commit message「release/debug 均 panic」的 main 侧等价形态：debug 由 `#183` 兜底、
+    /// release 由 `#512` 本体兜底，本测试对两者均判定为「fail-loud 验证通过」（否则判定为
+    /// 静默双计的真回归）。
+    ///
+    /// 定义依据：影子评审 `shadow-642-review-20260729.md` MED-1；kimi
+    /// `step_tests.rs::duplicate_active_id_panics_with_id_indices_and_sources_in_release`；
+    /// 留痕 `chanlun/review-results/issue714-642-fixbatch-20260729.md` MED-1 取舍段。
+    #[test]
+    fn duplicate_active_id_panics_with_id_indices_and_sources_in_release() {
+        let duplicate = aleg(0, VoiceSide::Long, 777, 777);
+        let prev = [duplicate, duplicate];
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+        let tree: Vec<CoverageElement> = vec![];
+        let reg = super::super::super::persistent::PersistentRegistry::new();
+
+        let payload = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            coverage_step_from_buckets(view_split(&tree, 0), &prev, &buckets, 1000.0, &cfg(), None, &reg)
+        }))
+        .expect_err("coverage 生产边界不得对重复活动 ID 静默返回双计结果——必须 panic（#183 debug 早防线或 #512 release 本体）");
+        let message = payload
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| payload.downcast_ref::<&str>().copied())
+            .expect("panic payload 必须是可审计文本");
+
+        let hit_183_debug_guard = message.contains("raw 内 ElementId 唯一性破裂");
+        let hit_512_release_guard = message.contains("重复 ElementId ElementId { level: 0, ordinal: 777 }")
+            && message.contains("boundary-root-retain");
+        assert!(
+            hit_183_debug_guard || hit_512_release_guard,
+            "既未命中 #183 debug 早防线也未命中 #512 release 本体，可能已静默返回双计结果；实得 panic message={message}"
+        );
+    }
+
     /// ★环5+环6 端到端：Classification（一买点）→ Γ → 解释器 → A_{t+1} → p̃。
     #[test]
     fn classification_end_to_end_ring5_ring6() {

@@ -1292,17 +1292,19 @@ fn m8_e2e_all_systems_oos() {
         super::super::strategy::coverage::ancok_probe_reset(); // #446 活动集同 ElementId 双计逐窗清零
         let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
         super::admission::t5a_chain_dump::close();
-        // ★#446（语义重放）：release/debug 均计数的活动集 ElementId 唯一性硬断言——
-        // debug_assert! 单独把关在 release 编译消除，此计数不依赖构建 profile。
+        // ★#714 MED-3 订正（影子评审 shadow-642-review-20260729.md）：本行此前是逐窗硬
+        // `assert_eq!`，但 #512（`coverage/step.rs:505-528`）已把唯一性检查前移到 `next_idx`
+        // 刚产出、任何 p̃ 计算之前，命中即当场 `panic!`（release/debug 均炸，无 catch-all）——
+        // 该 panic 与本函数调用 `run_theta_v0_pi_overlay` 同一调用栈，一旦触发本行永远执行不到；
+        // 违规发生时进程已在更早处终止。此断言恒真（`duplicate_id_violations` 到达此处必为 0），
+        // 降级为纯观测读数（与 `step.rs:503` 注释「m8 wverify_run 的窗口后置断言相应降级为纯观
+        // 测」对齐——此前代码与注释不符，本次订正代码使其相符），不再重复设第二个断言点。
         let duplicate_id_violations =
             super::super::strategy::coverage::ancok_probe_snapshot().duplicate_active_id_violations;
         eprintln!("[m8][#446] {tag}: duplicate_active_id_violations={duplicate_id_violations}");
-        assert_eq!(
-            duplicate_id_violations, 0,
-            "#446 {tag} 活动集仍出现重复 ElementId（release/debug 均计数）"
-        );
         report.push_str(&format!(
-            "<!-- #446 {tag}: duplicate_active_id_violations=0（逐窗硬断言，见 stderr） -->\n"
+            "<!-- #446 {tag}: duplicate_active_id_violations={duplicate_id_violations}（纯观测，\
+             唯一硬防线在 coverage/step.rs #512 生产边界 panic!） -->\n"
         ));
         let entry_stop_reverse = super::fill::entry_stop_reverse_probe_snapshot();
         let cap_binding = super::super::strategy::coverage::cap_binding_probe_snapshot();
@@ -1316,10 +1318,16 @@ fn m8_e2e_all_systems_oos() {
         );
         // ★#647：入场结构复检门拒单读数（分侧 × 分级）——门落地后 entry_stop_reverse 两桶应归 0
         // （逆侧候选在开仓前即被剔除），拒单计数承接原先那部分入场。
+        // ★#678：同一快照增补分类别读数（by_class_* 下标 0/1/2 = 一/二/三类），纯观测面，
+        // 判据仍全类别同判——不改变上一行 long_rejected/short_rejected/by_level_* 的含义。
         let recheck = super::fill::entry_stop_recheck_probe_snapshot();
         eprintln!(
             "[m8][#647] {tag}: entry_stop_recheck 拒单 long={} short={} | by_level long={:?} short={:?}",
             recheck.long_rejected, recheck.short_rejected, recheck.by_level_long, recheck.by_level_short,
+        );
+        eprintln!(
+            "[m8][#678] {tag}: entry_stop_recheck by_class（1/2/3类）long={:?} short={:?}",
+            recheck.by_class_long, recheck.by_class_short,
         );
         // ★#628 阶段一归因：逐次 binding 事件——分桶方向(hi=held Long/lo=held Short)与 p̃ 符号
         // 一致/相反计数 + 反事实 Δp*（p_star_actual − p_star_cf）分布。

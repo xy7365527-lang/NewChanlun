@@ -30,15 +30,17 @@
 //! | # | 消费面（本账产出） | 消费方 | 接线状态 | 接线票 / 缺口 |
 //! |---:|---|---|---|---|
 //! | 1 | [`CenterDeathCertificate`]（[`book::RetraceLedger::death_certificate`] + [`ThirdPointPack::death_certificate`]） | 中枢生命周期账（`crate::trading::center_book::CenterBook`） | **已接线（#637）：消费入口已立** | `CenterBook::consume_death_certificate` 消费本证明、对判同锚登记 Broken（票 #637 修复轮，2026-07-29 编排者裁定 3A：票面「生产调用点 ≥1」按字面结，`CenterDeathCertificate` 出现于生产代码即达标）；驱动入口的上游生产链——`RetraceLedger` 本身接生产驱动 + 交易层消费 `ThirdPointPack`——归 #575 后续票 |
-//! | 2 | [`ThirdPointPack`]（[`book::RetraceLedger::established`] / [`book::RetraceLedger::established_pack`]） | 交易层（`crate::trading` 线） | **未接线** | 迟到三类点过滤 #587 已裁归交易层自理；本账不进口外部状态（裁定八总禁区） |
+//! | 2 | [`ThirdPointPack`]（[`book::RetraceLedger::established`] / [`book::RetraceLedger::established_pack`]） | 交易层三类点成立登记账（`crate::trading::third_point_book::ThirdPointBook`——票 #638） | **已接线（#638）：消费入口已立；驱动链归 #575 后续票** | ①消费入口 = `ThirdPointBook::register`（签名 bound `S: TradableSignal + Into<ThirdPointPack>` **即禁区闸门**，见 #2' 行）+ `sync_from_ledger`（读 [`book::RetraceLedger::established`]）/ `register_from_ledger`（读 [`book::RetraceLedger::established_pack`]）；登记 = 照实全字段在册 + 幂等 + 同身份改口 fail-loud，**零投影零判据**；②迟到处置 = **照实登记、不产独立信号**（#587 字面「不追……登记观测，不作独立信号消费」，ADR-0001 补充十六 `docs/adr/0001-graded-exit-and-shortdiff-doctrine.md:273`）——交易层**不新造迟到判据**（2026-07-29 编排者裁定一），量化判据留白归 **#680**（GitHub 依赖边 `blocked_by #638`——#638 是缘起 / 登记面提供者，**#680 自身声明的前置条件是 #575 驱动票落地**（`RetraceLedger` 接生产驱动、有真实 pack 数据流），不是 #638；修复轮订正：勿把 `blocked_by` 读成「#638 是 #680 的前置条件」；理由：交易层 bar 坐标与本账知情时是两套引擎坐标，仓内无对齐依据，同 #637 裁定 2A 跨量纲禁比）；**本账侧零参与**（不进口外部状态，裁定八总禁区）；③驱动链——`RetraceLedger` 接生产驱动 + trading ladder ↔ 本账 `RetraceProvenance.level` 坐标对齐——归 #575 后续票（2026-07-29 编排者裁定二，同 #637 裁定 3A / #639 裁定 B 口径）；票面「生产调用点 ≥1（grep 可证）」达标口径 = 类型 / `established_pack` 出现于生产代码即达标，非「已被生产调用方驱动」；④[`ThirdPointPack`] 自带 `side` ⟹ #664（`CenterDeathCertificate` 无 side 的方向盲区）**不约束**本消费面；若后续票把 `pack.death_certificate` 转投 #1 行的 `CenterBook::consume_death_certificate`，#664 盲区照旧适用（走 #664 修，#638 不修）；⑤本登记账**不发**中枢生死语义——它是同一教义事件（18 课定理三）的**第三条观测通道**（前两条 = `CenterBook::ingest` 的 confirmed Type3 kill 分支与 #1 行的证明消费面），三通道互不代劳 |
 //! | 2' | [`StandbyWatch`]（[`book::RetraceLedger::standby`]）——同一消费方的**备战**面 | 交易层（盯次级别回切入点，024:36） | **未接线** | 禁区：不许被消费成买入信号，类型面隔离已由 [`portal::TradableSignal`] 编译期把关 |
 //! | 3 | [`ShortRetraceRecord`] / [`ShortRetracePortal`] / [`FailureDisposalNotice`]（亚型签 [`PanDivSubtype`]） | 盘背短差通道（`signal::drain_pan_div_short_retrace_observations`，pan_div_diag/signal 一线——票 #639） | **已接线（#639）：消费入口已立，管线未起** | ①消费入口 = 本票新立 `signal::drain_pan_div_short_retrace_observations`，物理位置与 #606 S1 一类点分级 sidecar 同构，但**非管线同构**——本票未起 collector/summary/runner 骨架（理由：`RetraceLedger` 尚无驱动源，无驱动源支撑的骨架即死代码；collector 形态归 #575 驱动票按当时真实驱动需要决定，不由本票预先猜形）；②与仓内既有 pan_div 生产主链**零连接**——该主链——`signal::locate_pan_div_structure` → `PanDivCert` → `strategy::oscillation::PanDivTrigger`（#292 后已降格为可选辅助，`backtest::fill::step_center_oscillation` 不再消费它，见 `fill.rs:761`；中枢震荡交易语义改由次级别买卖点驱动，产出 `strategy::center_oscillation_trade::CenterOscillationTrigger`，024:36/46 上沿减/下沿补语义落在该链末端 `short_diff_bucket`/`oscillation_campaign`）——自身盘背产出，本票交付物一行未动，两条产线并行、互不知情；③驱动链——`RetraceLedger` 本身接生产驱动（喂真实 replay 判败事件）——归 #575 后续票（2026-07-29 编排者裁定 B，同 #637 裁定 3A 口径）；票面「生产调用点 ≥1」的达标口径 = 类型 `ShortRetraceRecord`/`ShortRetracePortal` 出现于生产代码即达标（裁定 B / #637 裁定 3A 同口径），非「本函数已被生产调用方驱动」；`drain` 的 `consume` 与 [`portal::ShortRetracePortal::disposal_notices`] 共享同一 `consumed` 判重集——通道侧目前无「已入场者通知」消费方（grep 实证，当前无实害），但接线后若通知面与本通道挂在**同一个** [`portal::ShortRetracePortal`] 实例上，通道每 drain 一条、通知面就少一条（通道先跑则通知面恒空）；[`FailureDisposalNotice`]/`disposal_notices` **不是**「已备好待接」（原措辞已失准），#575 后续票接通知面时须给两面各自独立门户实例、或给 `disposal_notices` 另设判重 |
 //!
-//! 生产接线点计数（登记时点 2026-07-29，#639 接线轮更新）：**2/3（入口计数口径）**。本模块在
+//! 生产接线点计数（登记时点 2026-07-29，#638 接线轮更新）：**3/3（入口计数口径）**。本模块在
 //! `lib` 内被 [`super`](super) 注册；#1 消费面经 `CenterBook::consume_death_certificate` 接线、
-//! #3 消费面经 `signal::drain_pan_div_short_retrace_observations` 接线（两面均为消费入口已立、
-//! 非驱动链全通——`RetraceLedger` 自身仍无生产实例，见 #575 后续票）；#2/2' 两面仍为测试群
-//! 消费，除此之外零生产调用点——与登记表一致。
+//! #2 消费面经 `trading::third_point_book::ThirdPointBook`（`register` / `sync_from_ledger` /
+//! `register_from_ledger`）接线、#3 消费面经 `signal::drain_pan_div_short_retrace_observations`
+//! 接线（三面**均为消费入口已立、非驱动链全通**——`RetraceLedger` 自身仍无生产实例，见 #575
+//! 后续票）；**#2'（[`StandbyWatch`] 备战档）仍是「未接线」且按裁定八禁区不进本轮计数**——它
+//! 只有测试群消费，除此之外零生产调用点，与登记表一致。
 //!
 //! # 「状态 = 日志折叠」的结构性兑现
 //!
