@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! unified_osc — 统一配置 U 的 osc 层：相位递归路由（Phase-Recursive Routing）。
 //!
 //! 设计：`analysis/unified_config_regime_research.md` §3（候选架构）。

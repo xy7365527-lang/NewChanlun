@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! 盘背卖递归正则化三消融位回测（2026-06-11 任务）— 纯 Rust 链路。
 //!
 //! 调研报告：`analysis/consolidation_div_regularization_research.md`

@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! 配置与变体表 — 有机赋格 v2 消融轴（v2 §8.1）。
 //!
 //! 与 Python v1 `OrganicConfig` 的轴差异（v2 矛盾修正的配置面）：

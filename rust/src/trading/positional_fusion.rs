@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! positional_fusion — hold26 × CounterSeg 合流（B+C 合体，2026-06-12 任务）。
 //!
 //! 谱系位置：534号（嵌套递归会计语义概念分离）的实装——矛盾消解点 =

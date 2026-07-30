@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! positioning_chain_fugue — 区间套定位链驱动赋格（mode = "pcf"）。
 //!
 //! 设计源头：编排者 2026-06-14"那你要实现啊" → "他某种意义上是必然递归的，

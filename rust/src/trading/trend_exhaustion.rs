@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! TrendExhaustion — 41课门的父级别走势衰竭追踪器（P1 双门任务，2026-06-11）。
 //!
 //! 41课原文："大级别走势没有任何衰竭迹象时参与反向小级别买卖点是刀口舔血"。

@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! nested_fugue — 嵌套递归赋格 v4（严格会计体系；mode = "nrf"）。
 //!
 //! 设计规格：`docs/nested_fugue_accounting.md`（2026-06-12 编排者）。

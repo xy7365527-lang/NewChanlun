@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! 交易行为分解数据产出（2026-06-11 编排者任务）— 纯 Rust，不走 Python→PyO3。
 //!
 //! 职责：从磁带二进制（`analysis/_dump_tape_rust.py` 落盘，信号事件全部来自

@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! run_organic — 有机赋格回测主循环。
 //!
 //! 控制流逐字移植 Python `organic_fugue.run_organic`（V0≡P5 逐位等价的承重面）：

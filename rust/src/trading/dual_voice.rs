@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! dual_voice — 双书独立逐仓 voice + 区间套递归到 a0（fusion_vd/vn/vdn；
 //! 2026-06-12 任务）。
 //!

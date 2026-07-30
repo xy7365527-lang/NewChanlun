@@ -1,3 +1,5 @@
+//! GUARD-ROLE: organic-fugue-v2-trading-layer——名分：现役（详见 `trading/mod.rs` 头部 GUARD-ROLE 块，#763 C7-E4 核定；零删除/零移入 legacy/）。
+//!
 //! unified_recursive — 统一递归系统（从概念运动链 23 环直接翻译；mode = "urs"）。
 //!
 //! 设计源头：`docs/concept_movement_chain.md`（23 环）+ `docs/nested_fugue_
