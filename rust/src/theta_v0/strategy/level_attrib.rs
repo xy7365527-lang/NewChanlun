@@ -50,6 +50,12 @@ pub type LevelUnits = Vec<(u32, i64)>;
 ///
 /// 返回 `(各级量, 是否动用残差桶, 是否经比例缩放)`。三分支见模块头「归因算子」段。
 ///
+/// ★#758 issue766 LOW-2 登记：残差桶分支（`Σ basis_ℓ==0`）**同时**返回
+/// `(true, true)`——残差桶集合是比例缩放集合的**子集**（`n_rescaled_bars ⊇ n_residual_bars`），
+/// 不是两个互斥事件。下游逐 bar 计数消费点（`backtest/fill.rs` 的
+/// `level_attrib_n_residual_bars`/`level_attrib_n_rescaled_bars`、`bin/theta_overlay.rs`
+/// 的三数并列打印）三数并列呈现时须点明这层包含关系，避免读者把同一批 bar 数两次。
+///
 /// 最大余数法细则：`num_ℓ = basis_ℓ · total`（i128 防溢出），`q_ℓ = num_ℓ / B`（Rust 整除向零
 /// 截断），余数 `r_ℓ = num_ℓ % B`；亏空 `d = total − Σ q_ℓ`（`|d| < 级别数`）按 `|r_ℓ|` 降序、
 /// 同余数按 level 升序逐个补 `sign(d)`——**全序确定**（level 唯一 ⟹ 无平局歧义）。

@@ -5894,7 +5894,11 @@ where
 
     // ── 窗口终点强平锚：末可交易 bar 与其收盘价（#289 LOW-1 单源化，#644 语义重放——overlay
     //    与 LEE M1 镜像两处曾逐字重复同一 last_i/last_px 推导，任一侧口径改动会静默漂移。单源
-    //    后「同价同 bar」由构造保证，不再靠两段代码碰巧一致）。 ──
+    //    后「同价同 bar」由构造保证，不再靠两段代码碰巧一致）。
+    //    ★#758 issue766 LOW-3 登记：单源化把 `(0..n).rev().find(...)` 提到两个
+    //    `if let Some(...)` 之外——overlay 与 level_ledger **均为 None**（净额臂/声部臂）时
+    //    也会反向扫一遍 `bars` 找末可交易 bar（O(n)，全窗一次，非逐 bar）。与 kimi 原版一致
+    //    （kimi `fill.rs:1952` 同款无条件扫描），数值零影响；不为此偏离 kimi 形状，登记备查。 ──
     let forced_flat_anchor = (0..n)
         .rev()
         .find(|&j| !bars[j].untradable && bars[j].close > 0)
