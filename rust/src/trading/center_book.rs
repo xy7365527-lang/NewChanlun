@@ -7,11 +7,12 @@
 //! 多消费者各自 diff 是分歧温床（C6 候选 D 的否定论证）。数据源边界声明见
 //! `types::CenterEvent` docstring（BSP 事件锚派生，非信号层 zhongshus diff）。
 //!
-//! **收窄（票 #637 尾部评审）**：上述"唯一 diff 点"指 `ingest`；
+//! **收窄（票 #637 尾部评审；方向语义已由票 #664 闭合）**：上述"唯一 diff 点"指 `ingest`；
 //! [`CenterBook::consume_death_certificate`] 是第二条会改 `dead` 但**不经**该 diff 点的路径——
-//! 它不产生 `CenterEvent`。`CenterEvent` 流自 #637 起**不再是 `dead` 的忠实投影**：
-//! cert 杀会让 `dead` 前进，而 `CenterEvent` 流对此保持沉默。细节见
-//! [`CenterBook::consume_death_certificate`] doc 与 #664。
+//! 它现在按证明自带的 `side`（票 #664）独立补发 `CenterEvent::Terminated`（首次登记 Broken 时
+//! 一次，`AlreadyBroken` 幂等确认不重发，避免同一教义事件被两条通道各报一次）。`CenterEvent`
+//! 流因此仍非单点 diff（两条通道各自派生各自的事件，非共享一个 diff 点），但方向不再沉默——
+//! 细节见 [`CenterBook::consume_death_certificate`] doc 与 #664。
 //!
 //! # 两个死亡登记入口（票 #637 修复轮，2026-07-29 编排者裁定 1A/2A/4A）
 //!
@@ -21,18 +22,29 @@
 //! 外部证明。两条通道撞车（同一锚先后被两边杀）是**幂等确认**，不是分歧——判定次序与
 //! `KilledByOtherCause`（已删除该错误变体）见 [`CenterBook::consume_death_certificate`] doc。
 //!
-//! **⚠ 方向盲区（本票不修，已上浮 #664）**：`CenterDeathCertificate` 不带 `side` 字段，
-//! 故 `consume_death_certificate` 杀中枢时**不进 `dead_down`、不置 `frozen`、不发
-//! `CenterEvent::Terminated`**——`is_dead_down` 的生产消费方（`level_operating_unit.rs`
-//! `unified_osc.rs` `axiom_voice.rs`）对 cert 杀恒读 false，若证明实为三卖会被误读成三买
-//! 向上终结。见 [`CenterBook::consume_death_certificate`] doc 与 #664。
+//! **方向盲区已闭合（票 #664；修复轮改口——先杀落位、后不覆写）**：`CenterDeathCertificate`
+//! 现带 `side` 字段（三买/三卖），`consume_death_certificate` **仅在本次是真正首次死亡登记时**
+//! 据此登记 `dead_down`（Sell）/ `frozen`（Buy，`hard_type3` 门控，与 `ingest` 同判据）/ 补发
+//! `CenterEvent::Terminated`（direction 同 `ingest` 的 Buy→Up/Sell→Down 映射）——`is_dead_down`
+//! 的生产消费方（`level_operating_unit.rs` `unified_osc.rs` `axiom_voice.rs`）对 cert 杀不再
+//! 恒读 false。若锚已被另一通道先杀（`AlreadyBroken`），本次（cert）消费**不覆写**已落位的
+//! 方向——但这条纪律**单侧成立**（影子评审 MEDIUM-1，如实登记非绝对断言）：`dead_down` 与
+//! `CenterEvent::Terminated` 补发在两条通道间确实"先杀落位、后不覆写"（`ingest` 侧 `dead_down`
+//! 写在 `!dead.contains(&cs)` 守卫内、cert 侧收窄进 `!already_dead`）；`frozen` 有一条 Python
+//! parity 携带的例外——`ingest` 的 `frozen` 置位（`hard_type3 && side==Buy`）在该守卫**外**
+//! （`#664` 之前即有的既有形状，非本票引入），故 cert 先以 `Sell` 杀锚（`frozen` 保持 `None`）
+//! 后、`ingest` 收到同锚 confirmed hard `Buy3`，`frozen` 仍会被无条件翻成 `Some`（不推
+//! `version`、不补发第二次 `Terminated`）——`frozen` 上"先杀为准"不成立，实际以 `ingest` 的
+//! parity 行为为准。跨通道方向冲突的一般裁定仍是"先杀者为准，不设 fail-loud"，`frozen` 是
+//! 其中的已知单侧例外，检测/收口归后续票。见 [`CenterBook::consume_death_certificate`] doc
+//! 与 #664。
 
 use std::collections::{HashMap, HashSet};
 
 use super::types::*;
 use crate::buysellpoint::{BspKind, Side};
 use crate::stroke::Direction;
-use crate::theta_v0::classifier::retrace_ledger::{CenterDeathCertificate, CenterFrame};
+use crate::theta_v0::classifier::retrace_ledger::{CenterDeathCertificate, CenterFrame, RetraceSide};
 
 /// H2 力度收敛门的三态判据读数（49课行38；`up_strength_verdict`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -381,7 +393,7 @@ impl CenterBook {
     ///    中枢」的准确含义；不含"被新中枢取代"，见下）。
     /// 3. 否则登记：`dead` 插 `anchor`；`broken_by_certificate` 存档本证明的框；若
     ///    `pending_departure[ladder]` 的锚 == `anchor` 则清除该窗口（对齐 `ingest` 杀路径
-    ///    `:147-149` 的收尾——窗口滞留会让 [`Self::negate_pending_departure`] 往 `up_strength`
+    ///    `:188-190` 的收尾——窗口滞留会让 [`Self::negate_pending_departure`] 往 `up_strength`
     ///    推非法样本）。`is_dead(ladder, anchor)` 此前已为真（`ingest` 先杀）⟹
     ///    `Ok(AlreadyBroken)`（`version` 不再前进——死亡早已登记，本证明是同一教义事件的
     ///    第二次观测，幂等确认，非分歧）；否则 ⟹ `Ok(Broken)`，`version += 1`。
@@ -396,14 +408,50 @@ impl CenterBook {
     /// `LiveCenter` 判同时只用 `start_index` 一条（裁定 2A 收窄）；`zd`/`zg`/`end_index` 三边
     /// 不参与对 `LiveCenter` 的判同，只在"同证明 vs 同证明"（步骤 1）时全四边比较。
     ///
-    /// **⚠ 方向盲区（本票不修，已上浮 #664）**：`CenterDeathCertificate` 无 `side` 字段，故
-    /// 本方法登记 Broken 时**不进 `dead_down`、不置 `frozen`、不发 `CenterEvent::Terminated`**
-    /// ——`is_dead_down` 的生产消费方对 cert 杀恒读 false（≈ 一律当三买向上终结），若证明
-    /// 实为三卖，"三卖不能回补"（49 课）会被读反。见模块头声明与 #664。
+    /// **方向登记（票 #664，闭合上述盲区；#664 修复轮改口——先杀落位、后不覆写）**：
+    /// `cert.side` 携带杀路径方向（三买/三卖），**只在本次是真正首次死亡登记（下方 `Broken`
+    /// 分支，即 `!already_dead`）时**据此落位：
+    /// - `Sell`（向下离开终结）⟹ `anchor` 插 `dead_down`——`is_dead_down` 的生产消费方
+    ///   （`level_operating_unit.rs` / `unified_osc.rs` / `axiom_voice.rs`）自此对 cert 杀
+    ///   读到正确方向，"三卖不能回补"（49 课）不再被读反成三买回补；
+    /// - `Buy` 且入参 `hard_type3` 为真 ⟹ `frozen[ladder] = Some(anchor)`——判据字面等同
+    ///   `ingest` 的 `hard_type3 && side==Buy`（`:183-184`），只是入参来源从"`ingest` 调用时的
+    ///   运行时旗标"换成"本方法调用方显式传入同一旗标"（cert 路径无 `ingest` 那样的天然
+    ///   config 上下文，改为参数化传入，语义零改写）；
+    /// - `CenterEvent::Terminated { seg_start: anchor, direction }` 补发（`events_out` 非
+    ///   `None` 时），`direction` 映射同 `ingest`（Buy→Up / Sell→Down）。
+    ///
+    /// `AlreadyBroken`（步骤 1 早退的同框重复消费，或步骤 3 落到 `already_dead` 为真——
+    /// `ingest` 已先行以 BSP 事件锚杀该锚）**本方法（consume_death_certificate 自身）一律
+    /// 不动 `dead_down`/`frozen`、不补发事件**：本方法只在真 `Broken` 分支写方向，
+    /// `AlreadyBroken` 分支零动作——这半条纪律无条件成立，若仍照 `cert.side` 写一遍会不推
+    /// `version` 使版本门控方感知不到方向读数的静默变化，本票已堵死。
+    ///
+    /// **但"先杀通道方向从不缺失、故不覆写"这条纪律对 `dead_down` 成立、对 `frozen` 不成立
+    /// （影子评审 MEDIUM-1，如实登记，非本票引入的问题）**：`ingest` 的 confirmed Type3 kill
+    /// 分支里，`dead_down` 写在 `!dead.contains(&cs)` 守卫内（`:165-172`），对已死锚不会重复
+    /// 触碰；但 `frozen` 置位（`hard_type3 && side==Buy`，`:183-184`）在该守卫**外**——这是
+    /// Python parity 逐字对应的既有形状（`#664` 之前即如此，非本票引入，parity 禁区不改
+    /// 代码），`ingest` 每次处理 confirmed Type3 事件都无条件执行，不问该锚是否已被 cert
+    /// 先杀。故时序「cert 先以 `Sell` 杀锚（`frozen` 保持 `None`）→ `ingest` 后到同锚
+    /// confirmed hard `Buy3`」下，`ingest` 的 `dead.contains` 已真、kill 块整体跳过，但
+    /// `frozen` 仍会被**无条件翻成** `Some`（不推 `version`、不发第二次 `Terminated`，因为
+    /// kill 块被跳过）——`frozen` 上"先杀为准"不成立，实际以 `ingest` 的 parity 行为为准。
+    /// 跨通道方向冲突（两通道对同一锚给出不同 `side`）= **先杀者为准，`frozen` 是其中单侧
+    /// 例外**，本票不设 fail-loud 检查——检测/收口归后续票（编排方立票中）。
+    ///
+    /// **`events_out` 传 `None` 的警示（影子评审 LOW-1）**：本方法对同一锚的 `Broken` 分支
+    /// 只走一次（`AlreadyBroken` 不重发），若调用方在真 `Broken` 那一次调用传了 `None`，
+    /// 该次 `CenterEvent::Terminated` **永久丢失**——不同于 `ingest` 侧（漏一次还能靠后续
+    /// `Formed`/`Extended` 事件补），cert 杀路径对同一锚只登记一次死亡，之后再传
+    /// `Some(out)` 也补不回来。当前无生产调用点（4 条测试传 `None` 皆为负控），故无实害；
+    /// #575 驱动票接线时须传 `Some`。
     pub fn consume_death_certificate(
         &mut self,
         ladder: usize,
         cert: &CenterDeathCertificate,
+        hard_type3: bool,
+        events_out: Option<&mut Vec<CenterEvent>>,
     ) -> Result<DeathCertificateOutcome, DeathCertificateError> {
         let anchor = cert.center.start_index as i64;
         if let Some(frame) =
@@ -427,9 +475,23 @@ impl CenterBook {
             self.pending_departure[ladder] = None;
         }
         if already_dead {
+            // 先杀者（ingest）已落位方向；本证明是同一教义事件的第二次观测，不覆写。
             Ok(DeathCertificateOutcome::AlreadyBroken)
         } else {
+            if cert.side == RetraceSide::Sell {
+                self.dead_down[ladder].get_or_insert_with(HashSet::new).insert(anchor);
+            }
+            if hard_type3 && cert.side == RetraceSide::Buy {
+                self.frozen[ladder] = Some(anchor);
+            }
             self.version += 1;
+            if let Some(out) = events_out {
+                let direction = match cert.side {
+                    RetraceSide::Buy => Direction::Up,
+                    RetraceSide::Sell => Direction::Down,
+                };
+                out.push(CenterEvent::Terminated { seg_start: anchor, direction });
+            }
             Ok(DeathCertificateOutcome::Broken)
         }
     }
@@ -673,21 +735,31 @@ mod tests {
 
     /// 手搓证明——只用于负控构造（判同失败 / 幂等 / 改口边界）。真实产出路径见
     /// [`real_death_certificate`]（票面验收第 1 条「端到端」的正确用法，影子 MEDIUM-2）。
-    fn cert(start_index: usize, zd: i64, zg: i64, issued_as_of: usize) -> CenterDeathCertificate {
+    fn cert(
+        start_index: usize,
+        zd: i64,
+        zg: i64,
+        issued_as_of: usize,
+        side: RetraceSide,
+    ) -> CenterDeathCertificate {
         CenterDeathCertificate {
             center: CenterFrame { zd, zg, start_index, end_index: start_index + 5 },
+            side,
             issued_as_of,
         }
     }
 
     /// 真实产出一张死亡证明：经 `RetraceLedger::observe` 判胜（Success）落锤，
     /// 从 `RetraceLedger::death_certificate` 取出——不手搓 `CenterFrame` 字面量。
+    /// `leave_direction` 决定证明的 `side`（`Up`→`Buy`/`Down`→`Sell`，见
+    /// `RetraceSide::from_departure`），供票 #664 方向端到端测试驱动两侧场景。
     fn real_death_certificate(
         start_index: usize,
         zd: i64,
         zg: i64,
         end_index: usize,
         confirmed_as_of: usize,
+        leave_direction: LedgerDirection,
     ) -> CenterDeathCertificate {
         let center = CenterFrame { zd, zg, start_index, end_index };
         let mut ledger = RetraceLedger::new(RetraceProvenance {
@@ -695,13 +767,21 @@ mod tests {
             window: CoordinateWindow { start: 0, end: 9_999 },
             data_basis: "center_book-test".to_owned(),
         });
+        let retest_direction = match leave_direction {
+            LedgerDirection::Up => LedgerDirection::Down,
+            LedgerDirection::Down => LedgerDirection::Up,
+        };
+        let (leave_price, retest_price) = match leave_direction {
+            LedgerDirection::Up => (zg + 50, zg + 10),
+            LedgerDirection::Down => (zd - 50, zd - 10),
+        };
         let input = RetraceInput {
             center,
             pair: StrictCompletedPair { leave_move_index: 3, retest_move_index: 4 },
-            leave_direction: LedgerDirection::Up,
-            retest_direction: LedgerDirection::Down,
-            leave_end: LedgerPoint { index: end_index + 10, price: zg + 50 },
-            retest_end: Some(LedgerPoint { index: end_index + 20, price: zg + 10 }),
+            leave_direction,
+            retest_direction,
+            leave_end: LedgerPoint { index: end_index + 10, price: leave_price },
+            retest_end: Some(LedgerPoint { index: end_index + 20, price: retest_price }),
             outcome: Some(RetraceOutcome::Success),
             as_of: confirmed_as_of,
         };
@@ -717,8 +797,8 @@ mod tests {
         assert!(book.alive(2).is_some());
         let v_before = book.version;
         // 真实产证明：经 RetraceLedger 判胜落锤（非手搓字面量，锚判同 start_index=10）
-        let c = real_death_certificate(10, 1, 2, 15, 99);
-        let outcome = book.consume_death_certificate(2, &c);
+        let c = real_death_certificate(10, 1, 2, 15, 99, LedgerDirection::Up);
+        let outcome = book.consume_death_certificate(2, &c, true, None);
         assert_eq!(outcome, Ok(DeathCertificateOutcome::Broken));
         // 中枢态 Broken：is_dead 为真，alive 归空，version 前进
         assert!(book.is_dead(2, 10));
@@ -726,13 +806,170 @@ mod tests {
         assert!(book.version > v_before);
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // 票 #664：cert 杀路径方向语义（dead_down / frozen / CenterEvent::Terminated）
+    // ═══════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn sell_certificate_end_to_end_registers_dead_down_with_correct_direction_reads() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        // 真实产证明：leave_direction=Down ⟹ side=Sell（三卖，向下离开终结）
+        let c = real_death_certificate(10, 1, 2, 15, 99, LedgerDirection::Down);
+        assert_eq!(c.side, RetraceSide::Sell);
+        let mut out = Vec::new();
+        let outcome = book.consume_death_certificate(2, &c, true, Some(&mut out));
+        assert_eq!(outcome, Ok(DeathCertificateOutcome::Broken));
+        // 生产消费方读数方向正确：三卖终结 ⟹ is_dead_down 为真，"不能回补"
+        assert!(book.is_dead(2, 10));
+        assert!(book.is_dead_down(2, 10));
+        // Sell 侧不置 frozen（frozen 只对 Buy 侧、hard_type3 生效，同 ingest 判据）
+        assert!(!book.is_frozen(2));
+        assert_eq!(out.len(), 1);
+        assert!(matches!(
+            out[0],
+            CenterEvent::Terminated { seg_start: 10, direction: Direction::Down }
+        ));
+    }
+
+    #[test]
+    fn buy_certificate_end_to_end_registers_up_direction_and_frozen_semantics() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        // 真实产证明：leave_direction=Up ⟹ side=Buy（三买，向上离开终结）
+        let c = real_death_certificate(10, 1, 2, 15, 99, LedgerDirection::Up);
+        assert_eq!(c.side, RetraceSide::Buy);
+        let mut out = Vec::new();
+        let outcome = book.consume_death_certificate(2, &c, true, Some(&mut out));
+        assert_eq!(outcome, Ok(DeathCertificateOutcome::Broken));
+        // Buy 侧不进 dead_down（三买按"立即回补"，非"不能回补"）
+        assert!(book.is_dead(2, 10));
+        assert!(!book.is_dead_down(2, 10));
+        // frozen 语义按设计落定：hard_type3=true + Buy ⟹ 置 frozen（判据字面同 ingest）
+        assert!(book.is_frozen(2));
+        assert_eq!(out.len(), 1);
+        assert!(matches!(
+            out[0],
+            CenterEvent::Terminated { seg_start: 10, direction: Direction::Up }
+        ));
+    }
+
+    #[test]
+    fn buy_certificate_without_hard_type3_does_not_freeze() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        let c = real_death_certificate(10, 1, 2, 15, 99, LedgerDirection::Up);
+        // hard_type3=false（入参，同 ingest 语义）⟹ 即便 Buy 侧也不置 frozen
+        let outcome = book.consume_death_certificate(2, &c, false, None);
+        assert_eq!(outcome, Ok(DeathCertificateOutcome::Broken));
+        assert!(!book.is_frozen(2));
+    }
+
+    #[test]
+    fn already_broken_outcome_does_not_reemit_terminated_event() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        let c = cert(10, 1, 2, 5, RetraceSide::Sell);
+        let mut out = Vec::new();
+        assert_eq!(
+            book.consume_death_certificate(2, &c, true, Some(&mut out)),
+            Ok(DeathCertificateOutcome::Broken)
+        );
+        assert_eq!(out.len(), 1);
+        // 同一证明重复消费 → AlreadyBroken，零动作——不重发 CenterEvent（避免同一教义
+        // 事件被两条通道各报一次）
+        out.clear();
+        assert_eq!(
+            book.consume_death_certificate(2, &c, true, Some(&mut out)),
+            Ok(DeathCertificateOutcome::AlreadyBroken)
+        );
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn ingest_kill_then_same_side_certificate_does_not_overwrite_direction() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        // confirmed Sell3（ingest 自身的三类点杀链，向下离开）先终结该中枢
+        book.ingest(2, &[ev(BspClass::Sell3, true, 10, 1.0, 2.0)], true, None);
+        assert!(book.is_dead(2, 10));
+        assert!(book.is_dead_down(2, 10)); // ingest（先杀通道）已正确落位
+        let v_after_ingest_kill = book.version;
+        // 证明后到，同锚同方向——AlreadyBroken，不覆写：方向读数保持 ingest 落位的原值
+        let c = cert(10, 1, 2, 0, RetraceSide::Sell);
+        let mut out = Vec::new();
+        assert_eq!(
+            book.consume_death_certificate(2, &c, true, Some(&mut out)),
+            Ok(DeathCertificateOutcome::AlreadyBroken)
+        );
+        assert_eq!(book.version, v_after_ingest_kill);
+        assert!(book.is_dead_down(2, 10)); // 未被 cert 触碰，仍是 ingest 落位的值
+        assert!(out.is_empty()); // AlreadyBroken 不重发事件
+    }
+
+    #[test]
+    fn ingest_kill_then_conflicting_side_certificate_does_not_overwrite_frozen() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        // confirmed Sell3（ingest 先杀，向下离开）——frozen 从不因 Sell 侧置位
+        book.ingest(2, &[ev(BspClass::Sell3, true, 10, 1.0, 2.0)], true, None);
+        assert!(book.is_dead(2, 10));
+        assert!(book.is_dead_down(2, 10));
+        assert!(!book.is_frozen(2));
+        let v_after_ingest_kill = book.version;
+        // cert 后到，方向与先杀者冲突（Buy）——AlreadyBroken：本票不设 fail-loud，
+        // 但也不覆写；先杀者（ingest Sell）落位的方向读数原样保持，frozen 不被
+        // cert 的 Buy 侧静默翻成 Some，也不补发第二次 Terminated
+        let c = cert(10, 1, 2, 0, RetraceSide::Buy);
+        let mut out = Vec::new();
+        assert_eq!(
+            book.consume_death_certificate(2, &c, true, Some(&mut out)),
+            Ok(DeathCertificateOutcome::AlreadyBroken)
+        );
+        assert_eq!(book.version, v_after_ingest_kill);
+        assert!(book.is_dead_down(2, 10)); // 未被覆写/清除
+        assert!(!book.is_frozen(2)); // 未被静默翻转
+        assert!(out.is_empty()); // 无第二次 Terminated
+    }
+
+    /// 影子评审 MEDIUM-2：镜像上一条负控——`ingest` 先以 hard Buy3 杀（`frozen` 落位，
+    /// `dead_down` 保持 false），cert 携冲突方向 Sell 后到 ⟹ `AlreadyBroken`，`dead_down`
+    /// 必须保持 false（不被 cert 的 Sell 静默插入）。这是「最危险的静默翻转」的真负控——
+    /// 若把 `:474-476` 的 `dead_down` 写移出 `!already_dead` 守卫（回退到首轮实现），本测试
+    /// 必须失败；此前 `ingest_kill_then_same_side_certificate_does_not_overwrite_direction`
+    /// （同方向 Sell/Sell）无法区分"不写"与"写成同值"，不构成该分支的负控。
+    #[test]
+    fn ingest_kill_then_conflicting_side_certificate_does_not_overwrite_dead_down() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        // confirmed Buy3（ingest 先杀，向上离开，hard_type3=true）——dead_down 从不因 Buy 侧置位
+        book.ingest(2, &[ev(BspClass::Buy3, true, 10, 1.0, 2.0)], true, None);
+        assert!(book.is_dead(2, 10));
+        assert!(!book.is_dead_down(2, 10));
+        assert!(book.is_frozen(2));
+        let v_after_ingest_kill = book.version;
+        // cert 后到，方向与先杀者冲突（Sell）——AlreadyBroken：不覆写；先杀者（ingest Buy）
+        // 落位的方向读数原样保持，dead_down 不被 cert 的 Sell 侧静默插入，也不补发第二次
+        // Terminated
+        let c = cert(10, 1, 2, 0, RetraceSide::Sell);
+        let mut out = Vec::new();
+        assert_eq!(
+            book.consume_death_certificate(2, &c, true, Some(&mut out)),
+            Ok(DeathCertificateOutcome::AlreadyBroken)
+        );
+        assert_eq!(book.version, v_after_ingest_kill);
+        assert!(!book.is_dead_down(2, 10)); // 未被静默插入
+        assert!(book.is_frozen(2)); // 未被覆写/清除
+        assert!(out.is_empty()); // 无第二次 Terminated
+    }
+
     #[test]
     fn no_matching_center_never_seen_fails_loud() {
         let mut book = CenterBook::new();
         // 该层从未见过任何中枢——anchor 不在 known 集
-        let c = cert(10, 1, 2, 0);
+        let c = cert(10, 1, 2, 0, RetraceSide::Sell);
         assert_eq!(
-            book.consume_death_certificate(2, &c),
+            book.consume_death_certificate(2, &c, true, None),
             Err(DeathCertificateError::NoMatchingCenter { ladder: 2, anchor: 10 })
         );
     }
@@ -745,8 +982,11 @@ mod tests {
         book.ingest(2, &[ev(BspClass::Sell1, true, 20, 3.0, 4.0)], true, None);
         assert!(book.alive(2).map(|lc| lc.seg_start) == Some(20));
         // 裁定 1A：被更替 ≠ 无此中枢——迟到证明照登记 Broken（补充十一/#583）
-        let c = cert(10, 1, 2, 1);
-        assert_eq!(book.consume_death_certificate(2, &c), Ok(DeathCertificateOutcome::Broken));
+        let c = cert(10, 1, 2, 1, RetraceSide::Sell);
+        assert_eq!(
+            book.consume_death_certificate(2, &c, true, None),
+            Ok(DeathCertificateOutcome::Broken)
+        );
         assert!(book.is_dead(2, 10));
         // 新中枢不受影响
         assert!(book.alive(2).map(|lc| lc.seg_start) == Some(20));
@@ -761,9 +1001,9 @@ mod tests {
         assert!(book.is_dead(2, 10));
         let v_after_ingest_kill = book.version;
         // 证明后到——同一教义事件的第二次观测（定理三充要），幂等确认，version 不再前进
-        let c = cert(10, 1, 2, 0);
+        let c = cert(10, 1, 2, 0, RetraceSide::Buy);
         assert_eq!(
-            book.consume_death_certificate(2, &c),
+            book.consume_death_certificate(2, &c, true, None),
             Ok(DeathCertificateOutcome::AlreadyBroken)
         );
         assert_eq!(book.version, v_after_ingest_kill);
@@ -778,11 +1018,17 @@ mod tests {
     fn repeated_consumption_is_idempotent_zero_action() {
         let mut book = CenterBook::new();
         book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
-        let c = cert(10, 1, 2, 5);
-        assert_eq!(book.consume_death_certificate(2, &c), Ok(DeathCertificateOutcome::Broken));
+        let c = cert(10, 1, 2, 5, RetraceSide::Sell);
+        assert_eq!(
+            book.consume_death_certificate(2, &c, true, None),
+            Ok(DeathCertificateOutcome::Broken)
+        );
         let v_after_first = book.version;
         // 同一证明重复消费 → 零动作（幂等），版本号不再前进
-        assert_eq!(book.consume_death_certificate(2, &c), Ok(DeathCertificateOutcome::AlreadyBroken));
+        assert_eq!(
+            book.consume_death_certificate(2, &c, true, None),
+            Ok(DeathCertificateOutcome::AlreadyBroken)
+        );
         assert_eq!(book.version, v_after_first);
         assert!(book.is_dead(2, 10));
     }
@@ -791,12 +1037,15 @@ mod tests {
     fn conflicting_certificate_same_anchor_different_frame_fails_loud() {
         let mut book = CenterBook::new();
         book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
-        let first = cert(10, 1, 2, 5);
-        assert_eq!(book.consume_death_certificate(2, &first), Ok(DeathCertificateOutcome::Broken));
-        // 同锚不同框——上游改口，fail-loud（影子 MEDIUM-1：幂等键从锚收紧为锚+框）
-        let conflicting = cert(10, 999, 999, 0);
+        let first = cert(10, 1, 2, 5, RetraceSide::Sell);
         assert_eq!(
-            book.consume_death_certificate(2, &conflicting),
+            book.consume_death_certificate(2, &first, true, None),
+            Ok(DeathCertificateOutcome::Broken)
+        );
+        // 同锚不同框——上游改口，fail-loud（影子 MEDIUM-1：幂等键从锚收紧为锚+框）
+        let conflicting = cert(10, 999, 999, 0, RetraceSide::Sell);
+        assert_eq!(
+            book.consume_death_certificate(2, &conflicting, true, None),
             Err(DeathCertificateError::ConflictingCertificate { ladder: 2, anchor: 10 })
         );
     }
@@ -810,9 +1059,12 @@ mod tests {
         assert!(book.has_pending_departure(2));
         let sg_records_before = book.sg_records;
         let cf_negations_before = book.cf_negations;
-        // cert 杀 → 窗口应解除（影子 HIGH-5：对齐 ingest 杀路径的收尾）
-        let c = cert(10, 1, 2, 0);
-        assert_eq!(book.consume_death_certificate(2, &c), Ok(DeathCertificateOutcome::Broken));
+        // cert 杀（同一向上离开段的三买终结）→ 窗口应解除（影子 HIGH-5：对齐 ingest 杀路径的收尾）
+        let c = cert(10, 1, 2, 0, RetraceSide::Buy);
+        assert_eq!(
+            book.consume_death_certificate(2, &c, true, None),
+            Ok(DeathCertificateOutcome::Broken)
+        );
         assert!(!book.has_pending_departure(2));
         // 后续 negate_pending_departure 不应推 up_strength（窗口已不存在，函数早退）
         book.negate_pending_departure(2, 1.9);
@@ -826,8 +1078,11 @@ mod tests {
         let mut book = CenterBook::new();
         book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
         // 迟到证明（issued_as_of 很小）+ 锚仍是当前 last——不问迟到，正常登记 Broken
-        let c = cert(10, 1, 2, 1);
-        assert_eq!(book.consume_death_certificate(2, &c), Ok(DeathCertificateOutcome::Broken));
+        let c = cert(10, 1, 2, 1, RetraceSide::Sell);
+        assert_eq!(
+            book.consume_death_certificate(2, &c, true, None),
+            Ok(DeathCertificateOutcome::Broken)
+        );
         assert!(book.is_dead(2, 10));
     }
 }
