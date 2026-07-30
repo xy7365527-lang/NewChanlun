@@ -26,7 +26,7 @@ tracker 物理操作（map/子票/blocking/frontier/claim/resolve 的 gh 命令�
 
 分流三条：
 
-- **一个问题、对话能 settle 完** → 单会话 `/grilling`，不开图；
+- **一个问题、对话能 settle 完** → 单会话 `/grill-with-docs`，不开图；
 - **路已见底、只差写清楚怎么做** → 直接走 `/to-spec` → `/to-tickets` → `/implement` 链，不开图；
 - **与在飞决策不挂钩的文本欠账 / 杂活** → 走 triage 挂 `debt`，**不进图**（[丁类/戊类票的归属 #782](https://github.com/xy7365527-lang/NewChanlun/issues/782) 裁定②）。图的子票要么解阻塞、要么交付 destination，两头不沾的不进图。
 
@@ -62,7 +62,7 @@ skill 原文本就允许这个例外口（「An effort can override this in its 
 
 四型的准入判据只问一件事：**这张票做完，是解开了一个决策，还是交付了一件成果？**
 
-- **grilling**（HITL，默认型）：「该是什么 / 该不该」类裁定，靠对话与推理就能 settle。配 `/grilling` + `/domain-modeling`，**一次一问**，agent 不得替人答。
+- **grilling**（HITL，默认型）：「该是什么 / 该不该」类裁定，靠对话与推理就能 settle。入口 = `/grill-with-docs`（其正文即 `/grilling` + `/domain-modeling`，用合成名是因为分开写会漏掉后半程的落文档），**一次一问**，agent 不得替人答。
   resolution 含 `/domain-modeling` 的落文档（必要时含零行为变更的代码注释），**落完文档才关票**；不另起「落文书」小票（[#782](https://github.com/xy7365527-lang/NewChanlun/issues/782) 裁定①）。代价明写：事情已经定了，票却可能因一句注释没改而一直开着——换来的是「票关了 = 真的完了」这个信号不打折。裁定票 resolution 碰代码注释**不撞 #770 的甲类禁令**：交付的是决策的记录，不是功能成果，纯决策图不必因此补实装声明。
 
 - **research**（AFK）：决策等在仓外事实（文档、三方 API、外部知识库）上。开图当场由 subagent 并行解决，结论落票。
@@ -115,7 +115,7 @@ skill 原文本就允许这个例外口（「An effort can override this in its 
 
 人的时间是这条管线上唯一的稀缺资源。四条纪律都是拿它做优化目标（[#776](https://github.com/xy7365527-lang/NewChanlun/issues/776) 裁定③④⑥ + [#779](https://github.com/xy7365527-lang/NewChanlun/issues/779) 裁定①）。
 
-- **节奏：一次一问。** grilling 票默认入口 = `/grilling` + `/domain-modeling`。#776 裁定①曾把默认改成 `/batch-grill-me` 的一轮一 frontier 节奏，**已被 #779 覆盖作废**（连带其「超 4 题拆两轮」一并归零）。代价如实记：一次一问的 HITL 吞吐低于 batch，瓶颈是真的；但 #776 自己就是 batch 节奏的一次实证失败——它在疲劳上下文里一轮裁六条，其中一条直接与仓内正本冲突而无人察觉。
+- **节奏：一次一问。** grilling 票默认入口 = `/grill-with-docs`。#776 裁定①曾把默认改成 `/batch-grill-me` 的一轮一 frontier 节奏，**已被 #779 覆盖作废**（连带其「超 4 题拆两轮」一并归零）。代价如实记：一次一问的 HITL 吞吐低于 batch，瓶颈是真的；但 #776 自己就是 batch 节奏的一次实证失败——它在疲劳上下文里一轮裁六条，其中一条直接与仓内正本冲突而无人察觉。
 - **票内查事实：按代价分。** 单条 read/grep、一两个文件 → 主控自查；多文件扫描、跨仓调研、要读大量上下文 → **强制派子代理**。
 - **push right：按可逆性分界，不按工作量。** 改代码 / 写入仓库的合入点，逐次批准不动（不可逆，错了要回滚）；纯决策、纯读的环节（事实查证、选项整理、多票结论汇总）右移，攒成一份 brief 一次递上。
 - **Notes 预授权**（真杠杆，四条子规则）：
