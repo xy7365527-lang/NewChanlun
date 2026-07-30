@@ -467,6 +467,40 @@ pub(super) struct ChainLevelGenealogy {
     pub(super) n_causal_clean: usize,
     /// 级内最深链深（仅归因，不线性放大）。
     pub(super) rungs: usize,
+    /// #797 诊断旁挂：missing_cert 四类拆分所需的只读计数（**不进任何判定**——
+    /// 唯一消费者 = `t5a_chain_dump` 的 jsonl 落盘）。
+    pub(super) diag: MissingCertDiag,
+}
+
+/// #797 诊断载体（零行为变更）：`missing_cert` 单标签下的四类成因拆分抓手。
+///
+/// 判别口径（在 `chain_lookup` 内按本级键 `(event_level, price, anchor)` 现场读出）：
+/// - `max_event_level` = `sync_events` 实际派生过的最高事件级（= tower `n_levels-1`）；
+///   `event_level > max_event_level` ⟹ **④ 结构性不可满足**（键永不被生产）。
+/// - `reg_same_price > 0` ⟹ 同级同极值价**有**已登记（确认 ∧ 锚可解）事件，只是组锚不同
+///   ⟹ 键错配（**⑤**，票面四类之外的第五类，照实分列）。
+/// - `unconf_exact > 0` ⟹ 该三元键上曾产出事件但被 `!divergence_confirmed` 丢弃
+///   ⟹ **② 谓词不成立**（精确命中）；`unconf_same_price > 0` = 同级同价异锚的未确认事件（②'）。
+/// - `miss_same_price > 0` ⟹ 同级同价有确认事件但组锚解析不出 ⟹ **③ 装配缺口**（精确命中）；
+///   `miss_no_price` / `unconf_no_anchor` 为该级全局计数（极值价都解不出 ⟹ 无法归到具体键，
+///   只能作上界，照实标不可分）。
+/// - 以上全零 ⟹ **① 产出缺口**（该级该脚 provider 根本没产出任何事件）。
+///
+/// 计数语义注记：未确认事件不过 `seen` 去重（`absorb_exts` 在 dedup 之前 `continue`），
+/// 故 `unconf_*` 为**逐次出现计数**（跨 bar 重复派生会累加），只可作「有/无」判据，
+/// 不可与已登记事件数直接比大小。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) struct MissingCertDiag {
+    pub(super) max_event_level: u32,
+    pub(super) reg_same_price: usize,
+    pub(super) unconf_exact: usize,
+    pub(super) unconf_same_price: usize,
+    pub(super) unconf_no_anchor: usize,
+    pub(super) miss_same_price: usize,
+    pub(super) miss_no_price: usize,
+    /// 旁注（票面末条）：键域有身份但 `index.get(id)` 落空而 `continue` 的张数——
+    /// 这些会把「索引缺失」记进 `missing_causal`。
+    pub(super) index_miss: usize,
 }
 
 /// T3 链裁决三态（admit 消费位）。
@@ -589,6 +623,22 @@ pub(super) struct NestChainGate {
     pub(super) n_provider_errors: usize,
     /// 派生产出的全部事件数（含未确认——诊断用，区分「零产出」与「全未确认」）。
     pub(super) n_events_seen: usize,
+    /// #797 诊断账本（**只写不读入判定**，唯一读者 = `chain_lookup` 填 [`MissingCertDiag`]
+    /// → dump jsonl）。逐项语义见 [`MissingCertDiag`]。
+    pub(super) diag_unconf_triple: std::collections::HashMap<
+        (u32, super::super::types::Tick, usize),
+        usize,
+    >,
+    pub(super) diag_unconf_price:
+        std::collections::HashMap<(u32, super::super::types::Tick), usize>,
+    pub(super) diag_unconf_no_anchor: std::collections::HashMap<u32, usize>,
+    pub(super) diag_reg_price:
+        std::collections::HashMap<(u32, super::super::types::Tick), usize>,
+    pub(super) diag_miss_price:
+        std::collections::HashMap<(u32, super::super::types::Tick), usize>,
+    pub(super) diag_miss_no_price: std::collections::HashMap<u32, usize>,
+    /// `sync_events` 实际派生过的最高事件级（= tower `n_levels - 1`）。
+    pub(super) diag_max_event_level: u32,
 }
 
 impl NestChainGate {
@@ -619,6 +669,13 @@ impl NestChainGate {
             n_index_builds: 0,
             n_provider_errors: 0,
             n_events_seen: 0,
+            diag_unconf_triple: std::collections::HashMap::new(),
+            diag_unconf_price: std::collections::HashMap::new(),
+            diag_unconf_no_anchor: std::collections::HashMap::new(),
+            diag_reg_price: std::collections::HashMap::new(),
+            diag_miss_price: std::collections::HashMap::new(),
+            diag_miss_no_price: std::collections::HashMap::new(),
+            diag_max_event_level: 0,
         }
     }
 
@@ -644,6 +701,13 @@ impl NestChainGate {
             n_index_builds: 0,
             n_provider_errors: 0,
             n_events_seen: 0,
+            diag_unconf_triple: std::collections::HashMap::new(),
+            diag_unconf_price: std::collections::HashMap::new(),
+            diag_unconf_no_anchor: std::collections::HashMap::new(),
+            diag_reg_price: std::collections::HashMap::new(),
+            diag_miss_price: std::collections::HashMap::new(),
+            diag_miss_no_price: std::collections::HashMap::new(),
+            diag_max_event_level: 0,
         }
     }
 
@@ -673,6 +737,10 @@ impl NestChainGate {
         as_of: usize,
     ) {
         let n_levels = tower.len();
+        // #797 诊断（只写不读入判定）：本次派生覆盖的最高事件级 = n_levels-1（循环 1..n_levels）。
+        self.diag_max_event_level = self
+            .diag_max_event_level
+            .max(n_levels.saturating_sub(1) as u32);
         if n_levels > self.events_by_level.len() {
             self.events_by_level.resize_with(n_levels, Vec::new);
             self.derived.resize_with(n_levels, || None);
@@ -796,6 +864,22 @@ impl NestChainGate {
             let event = ext.event;
             self.n_events_seen += 1;
             if !event.divergence_confirmed {
+                // #797 诊断计数（② 谓词不成立的唯一抓手）：只写诊断账本，`continue` 逐字保留。
+                match (ext.extreme_price, ext.group_anchor) {
+                    (Some(price), Some(anchor)) => {
+                        *self
+                            .diag_unconf_triple
+                            .entry((event.level, price, anchor))
+                            .or_insert(0) += 1;
+                        *self
+                            .diag_unconf_price
+                            .entry((event.level, price))
+                            .or_insert(0) += 1;
+                    }
+                    _ => {
+                        *self.diag_unconf_no_anchor.entry(event.level).or_insert(0) += 1;
+                    }
+                }
                 continue;
             }
             let id = classifier::nest::NestEventIdentity::of(&event);
@@ -815,8 +899,25 @@ impl NestChainGate {
                 // #218 面 B：事件侧两元锚正查账本（同源写入，零新增解析）——二类判同
                 // 的事件锚经 build_nest_certificate_index 透传进核（spec ID-2）。
                 self.anchor_by_id.insert(id, (price, anchor));
+                // #797 诊断计数（⑤ 键错配抓手：同级同价已登记但组锚不同）。
+                *self
+                    .diag_reg_price
+                    .entry((event.level, price))
+                    .or_insert(0) += 1;
             } else {
                 self.n_anchor_misses += 1;
+                // #797 诊断计数（③ 装配缺口）：极值价可解 ⟹ 可归到 (级, 价)；否则只能按级计。
+                match ext.extreme_price {
+                    Some(price) => {
+                        *self
+                            .diag_miss_price
+                            .entry((event.level, price))
+                            .or_insert(0) += 1;
+                    }
+                    None => {
+                        *self.diag_miss_no_price.entry(event.level).or_insert(0) += 1;
+                    }
+                }
             }
             let slot = event.level as usize;
             if slot >= self.events_by_level.len() {
@@ -986,6 +1087,41 @@ impl NestChainGate {
         let mut levels: Vec<ChainLevelGenealogy> = Vec::with_capacity(chain_top + 1);
         for book in 0..=chain_top {
             let event_level = book as u32 + 1;
+            // #797 诊断旁挂（只读既有诊断账本，不进任何判定）。
+            let diag = MissingCertDiag {
+                max_event_level: self.diag_max_event_level,
+                reg_same_price: self
+                    .diag_reg_price
+                    .get(&(event_level, price))
+                    .copied()
+                    .unwrap_or(0),
+                unconf_exact: self
+                    .diag_unconf_triple
+                    .get(&(event_level, price, anchor))
+                    .copied()
+                    .unwrap_or(0),
+                unconf_same_price: self
+                    .diag_unconf_price
+                    .get(&(event_level, price))
+                    .copied()
+                    .unwrap_or(0),
+                unconf_no_anchor: self
+                    .diag_unconf_no_anchor
+                    .get(&event_level)
+                    .copied()
+                    .unwrap_or(0),
+                miss_same_price: self
+                    .diag_miss_price
+                    .get(&(event_level, price))
+                    .copied()
+                    .unwrap_or(0),
+                miss_no_price: self
+                    .diag_miss_no_price
+                    .get(&event_level)
+                    .copied()
+                    .unwrap_or(0),
+                index_miss: 0,
+            };
             if !existence[book] {
                 levels.push(ChainLevelGenealogy {
                     level: book as u32,
@@ -995,9 +1131,11 @@ impl NestChainGate {
                     n_certs: 0,
                     n_causal_clean: 0,
                     rungs: 0,
+                    diag,
                 });
                 continue;
             }
+            let mut diag = diag;
             let mut n_certs = 0usize;
             let mut n_clean = 0usize;
             let mut pass = false;
@@ -1006,6 +1144,8 @@ impl NestChainGate {
                 n_certs = ids.len();
                 for id in ids {
                     let Some(cert) = self.index.get(id) else {
+                        // #797 旁注计数：索引缺失被记为 missing_causal 的张数（诊断，不改流程）。
+                        diag.index_miss += 1;
                         continue;
                     };
                     // 因果守卫：链上任一确认钟越过锚定 bar ⟹ 整证剔除（现语义逐字）。
@@ -1037,6 +1177,7 @@ impl NestChainGate {
                 n_certs,
                 n_causal_clean: n_clean,
                 rungs,
+                diag,
             });
         }
         // 缺/断位置极性（自链顶向下扫：上方有闭合 ⟹ 断，否则缺）+ 连续闭合前缀 + 首位归因。
@@ -1545,6 +1686,17 @@ pub(super) mod t5a_chain_dump {
                         "certs": g.n_certs,
                         "clean": g.n_causal_clean,
                         "rungs": g.rungs,
+                        // #797 诊断旁挂（missing_cert 四类拆分；语义见 MissingCertDiag）。
+                        "diag": {
+                            "max_event_level": g.diag.max_event_level,
+                            "reg_same_price": g.diag.reg_same_price,
+                            "unconf_exact": g.diag.unconf_exact,
+                            "unconf_same_price": g.diag.unconf_same_price,
+                            "unconf_no_anchor": g.diag.unconf_no_anchor,
+                            "miss_same_price": g.diag.miss_same_price,
+                            "miss_no_price": g.diag.miss_no_price,
+                            "index_miss": g.diag.index_miss,
+                        },
                     })
                 })
                 .collect();
