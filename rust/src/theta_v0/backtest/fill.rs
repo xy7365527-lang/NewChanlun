@@ -4168,6 +4168,10 @@ fn entry_stop_reverse_dump_line(line: &str) {
 
 /// 逆侧命中一笔的归因明细（#647 阶段一）：候选坐标 / 证书类型 / pivot / 中枢 / 止损 /
 /// 决策 bar 收盘 / exec bar OHLC——供离线逐笔核对机制。
+///
+/// 单源：`(level, source_index) → BspPoint` 查询改调 [`classifier::bsp::bsp_at`]（issue #747 C1，
+/// 与 `signal.rs::entry_structural_stop` 逐字节并集单源；newtype 边界降级为不做，理由见
+/// `classifier::bsp` 族头注释）。
 #[allow(clippy::too_many_arguments)]
 fn entry_stop_reverse_dump_row(
     c: &super::super::strategy::interp::Candidate,
@@ -4179,6 +4183,7 @@ fn entry_stop_reverse_dump_row(
     stop: super::super::types::Tick,
     config: &ThetaConfig,
 ) {
+    use classifier::bsp::bsp_at;
     // env 未设时 dump_line 内部 no-op，但字符串拼装在此之前 ⟹ 先探一次开关，避免常态开销。
     if ENTRY_STOP_REVERSE_DUMP.with(|c| matches!(&*c.borrow(), Some(None))) {
         return;
@@ -4187,7 +4192,7 @@ fn entry_stop_reverse_dump_row(
     let bsp = classification
         .levels
         .get(c.level as usize)
-        .and_then(|lvl| lvl.bsp.iter().find(|p| p.source_index == c.source_index));
+        .and_then(|lvl| bsp_at(&lvl.bsp, c.source_index));
     let (pivot_low, pivot_high, zg, zd, owner) = match bsp {
         Some(p) => {
             let (zg, zd, owner) = match p.center {

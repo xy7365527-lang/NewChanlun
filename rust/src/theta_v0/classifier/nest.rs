@@ -704,6 +704,15 @@ fn terminal_bits_in_book_core(
         },
     };
     match m {
+        // issue #747 C1 口径订正（评审 review-747.log 条目③）：本行（`TerminalMatch::Exact`）
+        // 字面同构 `bsp::bind_turn`（同 crate `classifier/bsp.rs`）单源函数体，但**不是**「生产
+        // 绑定规则原始手写发生地」——`Exact` 仅诊断 bin（p117_s1a:759 / p125:474）与单测可达，
+        // 生产恒走下方 `TerminalMatch::CWindow` 窗口臂（`min_by_key`，与本行不同形）。不改调
+        // 单源 API 的理由是 GUARD-ROLE 对照臂「保持独立实现」纪律本身（本文件头 GUARD-ROLE
+        // 声明），**不是** ADR-0005 禁令所迫——ADR-0005 条款 9 的禁令方向是「判据 crate 禁引
+        // nest 产物」，nest.rs 反向调用同 crate `bsp` helper（本文件已 `use super::bsp::…`）
+        // 不在该禁令射程内。其余 16+ 处同形态诊断复制点已单源改调 `bind_turn`/`bsp_at`/
+        // `bsp_bit_at`；此处逐字保留独立实现，是对照臂设计意图，非引用规避。
         TerminalMatch::Exact => (
             bsp.iter()
                 .find(|point| point.source_index == turn_source && point.bits.confirm_side(side))

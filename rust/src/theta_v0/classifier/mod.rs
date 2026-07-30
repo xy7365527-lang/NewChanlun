@@ -89,6 +89,9 @@ pub use turn_class::{
     classify_certificate_turn, classify_nest_turns, is_defer_orphan_event, CertKey, NestTurnClass,
     XzdEvidence,
 };
+/// #668（N4）：事件↔BSP 稳定身份桥接对象（身份=（N1 事件键，BSP 结构键 v2）对，双向产出、
+/// 端死边死、E2E-O 修订协议）。纯产出零消费接线（p92/π runner 拼缝本票不动，#666 裁定⑥）。
+pub mod bsp_bridge;
 /// #550：塔内原生背驰段候选事件（对象、append-only 修订流与 C⊆C 谓词）。
 pub mod cand_event;
 pub mod cand_predicate;
@@ -97,9 +100,6 @@ pub mod cand_sub;
 /// #641（N3）：级别链证书塔对象（节点=候选事件、边=C⊆C 覆盖关系、E2E-L 三态谱系 + skip edge）。
 /// 纯产出零消费接线。
 pub mod chain_cert;
-/// #668（N4）：事件↔BSP 稳定身份桥接对象（身份=（N1 事件键，BSP 结构键 v2）对，双向产出、
-/// 端死边死、E2E-O 修订协议）。纯产出零消费接线（p92/π runner 拼缝本票不动，#666 裁定⑥）。
-pub mod bsp_bridge;
 /// 区间套必要条件——递归塔原生检查器（条款 9，任务 #106；只读，不回写判据 bit）。
 pub mod interval_necessity;
 /// C2 走势消费 seam：显式 exact-three 投影、D3 方向绑定与 D2 A/C provider。

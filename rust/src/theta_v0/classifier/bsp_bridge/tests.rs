@@ -17,7 +17,11 @@ use super::super::{Classification, LevelState};
 use super::*;
 
 fn parent_fp() -> ParentFingerprint {
-    ParentFingerprint { center_start: 20, zd: 100, zg: 110 }
+    ParentFingerprint {
+        center_start: 20,
+        zd: 100,
+        zg: 110,
+    }
 }
 
 fn trend_key(level: u32, seg_a: (usize, usize), c_start: usize) -> CandidateKey {
@@ -40,7 +44,11 @@ fn trend_observation(key: CandidateKey, interval: (usize, usize)) -> CandidateOb
         center_ids: Some((5, 20)),
         candidate_group_id: 1,
         pair_id: 2,
-        structural_predicates: StructuralPredicates { direction: true, comparable: true, extreme: true },
+        structural_predicates: StructuralPredicates {
+            direction: true,
+            comparable: true,
+            extreme: true,
+        },
         extreme_proof: key.seg_a,
         third_class_proof: None,
         interval,
@@ -51,7 +59,14 @@ fn trend_observation(key: CandidateKey, interval: (usize, usize)) -> CandidateOb
 }
 
 fn center_at(start_index: usize) -> Center {
-    Center { zd: 100, zg: 110, dd: 100, gg: 110, start_index, end_index: start_index + 3 }
+    Center {
+        zd: 100,
+        zg: 110,
+        dd: 100,
+        gg: 110,
+        start_index,
+        end_index: start_index + 3,
+    }
 }
 
 fn level_with(points: Vec<BspPoint>) -> LevelState {
@@ -68,7 +83,10 @@ fn level_with(points: Vec<BspPoint>) -> LevelState {
 fn buy1_point(source_index: usize, center_start: usize) -> BspPoint {
     BspPoint {
         source_index,
-        bits: BspBits { buy1: true, ..Default::default() },
+        bits: BspBits {
+            buy1: true,
+            ..Default::default()
+        },
         pivot_low: 0,
         pivot_high: 0,
         center: Some(OwnerRef::Center(center_at(center_start))),
@@ -86,7 +104,9 @@ fn first_class_point_pairs_with_matching_trend_event() {
     book.advance(&[trend_observation(key, (25, 40))], 40);
     let streams = book.streams();
 
-    let classification = Classification { levels: vec![level_with(vec![buy1_point(40, 20)])] };
+    let classification = Classification {
+        levels: vec![level_with(vec![buy1_point(40, 20)])],
+    };
     let mut bridge = BspBridgeBook::default();
     let delta = bridge.advance(&classification, &streams, 40);
 
@@ -94,7 +114,11 @@ fn first_class_point_pairs_with_matching_trend_event() {
     let edge = &delta[0];
     assert_eq!(edge.key.event, key);
     assert_eq!(edge.key.bsp.class, BspPointClass::Buy1);
-    assert_eq!(edge.key.bsp.anchor, vec![(6, 19), (25, 25)], "锚不含本点自身 source_index=40");
+    assert_eq!(
+        edge.key.bsp.anchor,
+        vec![(6, 19), (25, 25)],
+        "锚不含本点自身 source_index=40"
+    );
     assert_eq!(edge.bsp_source_indices, vec![40]);
     assert_eq!(edge.head_source_index(), 40);
     assert_eq!(edge.status, BridgeStatus::Open);
@@ -109,7 +133,9 @@ fn no_matching_event_is_absent_not_an_error() {
     book.advance(&[trend_observation(key, (25, 40))], 40);
     let streams = book.streams();
 
-    let classification = Classification { levels: vec![level_with(vec![buy1_point(40, 999)])] };
+    let classification = Classification {
+        levels: vec![level_with(vec![buy1_point(40, 999)])],
+    };
     let mut bridge = BspBridgeBook::default();
     let delta = bridge.advance(&classification, &streams, 40);
 
@@ -125,7 +151,9 @@ fn invalidated_event_freezes_edge_terminal_with_history_preserved() {
     let mut book = CandidateEventBook::default();
     book.advance(&[trend_observation(key, (25, 40))], 40);
 
-    let classification = Classification { levels: vec![level_with(vec![buy1_point(40, 20)])] };
+    let classification = Classification {
+        levels: vec![level_with(vec![buy1_point(40, 20)])],
+    };
     let mut bridge = BspBridgeBook::default();
     let opened = bridge.advance(&classification, &book.streams(), 40);
     assert_eq!(opened[0].status, BridgeStatus::Open);
@@ -143,7 +171,11 @@ fn invalidated_event_freezes_edge_terminal_with_history_preserved() {
     // 终态不复活：再 advance 一次（同一份已终态的流），不应再追加 revision。
     let rerun = bridge.advance(&classification, &book.streams(), 60);
     assert!(rerun.is_empty(), "终态边不复活，advance 静默跳过");
-    assert_eq!(bridge.edges().len(), 2, "旧 revision 留痕，append-only 不删除");
+    assert_eq!(
+        bridge.edges().len(),
+        2,
+        "旧 revision 留痕，append-only 不删除"
+    );
 }
 
 #[test]
@@ -153,12 +185,17 @@ fn same_as_of_rerun_is_zero_delta() {
     book.advance(&[trend_observation(key, (25, 40))], 40);
     let streams = book.streams();
 
-    let classification = Classification { levels: vec![level_with(vec![buy1_point(40, 20)])] };
+    let classification = Classification {
+        levels: vec![level_with(vec![buy1_point(40, 20)])],
+    };
     let mut bridge = BspBridgeBook::default();
     let first = bridge.advance(&classification, &streams, 40);
     assert_eq!(first.len(), 1);
     let second = bridge.advance(&classification, &streams, 40);
-    assert!(second.is_empty(), "投影未变 ⟹ 幂等跳过，同 as_of 重跑零 Delta");
+    assert!(
+        second.is_empty(),
+        "投影未变 ⟹ 幂等跳过，同 as_of 重跑零 Delta"
+    );
 }
 
 // ── 二类：继承一类锚的事件键 ──────────────────────────────────────────────────────────────
@@ -172,10 +209,15 @@ fn second_class_point_inherits_anchor_first_class_event_key() {
 
     let anchor = buy1_point(40, 20);
     let mut second = buy1_point(70, 20);
-    second.bits = BspBits { buy2: true, ..Default::default() };
+    second.bits = BspBits {
+        buy2: true,
+        ..Default::default()
+    };
     second.center = Some(OwnerRef::Type1Anchor(40));
 
-    let classification = Classification { levels: vec![level_with(vec![anchor, second])] };
+    let classification = Classification {
+        levels: vec![level_with(vec![anchor, second])],
+    };
     let mut bridge = BspBridgeBook::default();
     let delta = bridge.advance(&classification, &streams, 70);
 
@@ -208,22 +250,35 @@ fn third_class_point_pairs_with_leave_segment_trend_event() {
     };
     let point = BspPoint {
         source_index: 22,
-        bits: BspBits { buy3: true, third_class_entry: Some(third_entry), ..Default::default() },
+        bits: BspBits {
+            buy3: true,
+            third_class_entry: Some(third_entry),
+            ..Default::default()
+        },
         pivot_low: 0,
         pivot_high: 0,
         center: Some(OwnerRef::Center(center_at(20))),
         struct_break_dir: None,
         force: None,
     };
-    let classification = Classification { levels: vec![level_with(vec![point])] };
+    let classification = Classification {
+        levels: vec![level_with(vec![point])],
+    };
     let mut bridge = BspBridgeBook::default();
     let delta = bridge.advance(&classification, &streams, 22);
 
     assert_eq!(delta.len(), 1);
     let edge = &delta[0];
-    assert_eq!(edge.key.event, key, "三类边取离开段所在的 Trend 候选（不要求背驰确认）");
+    assert_eq!(
+        edge.key.event, key,
+        "三类边取离开段所在的 Trend 候选（不要求背驰确认）"
+    );
     assert_eq!(edge.key.bsp.class, BspPointClass::Buy3);
-    assert_eq!(edge.key.bsp.anchor, vec![(6, 15), (16, 16)], "回试段仅左端入锚，右端=自身 source_index 排除");
+    assert_eq!(
+        edge.key.bsp.anchor,
+        vec![(6, 15), (16, 16)],
+        "回试段仅左端入锚，右端=自身 source_index 排除"
+    );
     assert_eq!(edge.bsp_source_indices, vec![22]);
 }
 
@@ -246,14 +301,20 @@ fn third_class_point_survives_trend_event_growth_via_episode_covering() {
     };
     let point = BspPoint {
         source_index: 22,
-        bits: BspBits { buy3: true, third_class_entry: Some(third_entry), ..Default::default() },
+        bits: BspBits {
+            buy3: true,
+            third_class_entry: Some(third_entry),
+            ..Default::default()
+        },
         pivot_low: 0,
         pivot_high: 0,
         center: Some(OwnerRef::Center(center_at(20))),
         struct_break_dir: None,
         force: None,
     };
-    let classification = Classification { levels: vec![level_with(vec![point])] };
+    let classification = Classification {
+        levels: vec![level_with(vec![point])],
+    };
     let mut bridge = BspBridgeBook::default();
     let first = bridge.advance(&classification, &book.streams(), 22);
     assert_eq!(first.len(), 1);
@@ -262,12 +323,23 @@ fn third_class_point_survives_trend_event_growth_via_episode_covering() {
     // Trend 候选继续生长（右端从 15 → 30），三类点自身 leave_interval 不变（历史坐标）。
     book.advance(&[trend_observation(key, (6, 30))], 30);
     let grown = bridge.advance(&classification, &book.streams(), 30);
-    assert!(grown.is_empty(), "载荷未变（覆盖集合/状态均不变），幂等零 Delta——不是漏观察");
-    assert_eq!(bridge.heads()[0].status, BridgeStatus::Open, "生长后三类边仍必须可观察，不能失联");
+    assert!(
+        grown.is_empty(),
+        "载荷未变（覆盖集合/状态均不变），幂等零 Delta——不是漏观察"
+    );
+    assert_eq!(
+        bridge.heads()[0].status,
+        BridgeStatus::Open,
+        "生长后三类边仍必须可观察，不能失联"
+    );
 
     book.advance(&[], 40);
     let invalidated = bridge.advance(&classification, &book.streams(), 40);
-    assert_eq!(invalidated.len(), 1, "事件失效必须同步传导——若上一步已失联，本行在旧判据下恒为 0");
+    assert_eq!(
+        invalidated.len(),
+        1,
+        "事件失效必须同步传导——若上一步已失联，本行在旧判据下恒为 0"
+    );
     assert_eq!(bridge.heads()[0].status, BridgeStatus::Invalidated);
 }
 
@@ -290,7 +362,11 @@ fn third_class_multiple_points_sharing_leave_segment_collapse_to_revision_histor
     };
     let point_a = BspPoint {
         source_index: 18,
-        bits: BspBits { buy3: true, third_class_entry: Some(entry), ..Default::default() },
+        bits: BspBits {
+            buy3: true,
+            third_class_entry: Some(entry),
+            ..Default::default()
+        },
         pivot_low: 0,
         pivot_high: 0,
         center: Some(OwnerRef::Center(center_at(20))),
@@ -300,11 +376,17 @@ fn third_class_multiple_points_sharing_leave_segment_collapse_to_revision_histor
     let mut point_b = point_a;
     point_b.source_index = 20;
 
-    let classification = Classification { levels: vec![level_with(vec![point_a, point_b])] };
+    let classification = Classification {
+        levels: vec![level_with(vec![point_a, point_b])],
+    };
     let mut bridge = BspBridgeBook::default();
     let delta = bridge.advance(&classification, &streams, 20);
 
-    assert_eq!(delta.len(), 1, "共享 leave_interval/retest_interval 起点的两个三类物理点折叠为 1 条 revision");
+    assert_eq!(
+        delta.len(),
+        1,
+        "共享 leave_interval/retest_interval 起点的两个三类物理点折叠为 1 条 revision"
+    );
     assert_eq!(delta[0].bsp_source_indices, vec![18, 20]);
 }
 
@@ -317,7 +399,9 @@ fn edges_for_bsp_point_finds_by_level_and_source_index() {
     book.advance(&[trend_observation(key, (25, 40))], 40);
     let streams = book.streams();
 
-    let classification = Classification { levels: vec![level_with(vec![buy1_point(40, 20)])] };
+    let classification = Classification {
+        levels: vec![level_with(vec![buy1_point(40, 20)])],
+    };
     let mut bridge = BspBridgeBook::default();
     bridge.advance(&classification, &streams, 40);
 
@@ -344,13 +428,29 @@ fn first_class_multiple_points_observed_simultaneously_collapse_to_one_revision(
     let mut bridge = BspBridgeBook::default();
     let delta = bridge.advance(&classification, &streams, 55);
 
-    assert_eq!(delta.len(), 1, "同时并存的两个物理点折叠为一条 revision，不是两条");
-    assert_eq!(delta[0].bsp_source_indices, vec![40, 55], "覆盖点集升序去重");
-    assert_eq!(bridge.edges().len(), 1, "append-only：本次观察只留一条 revision");
+    assert_eq!(
+        delta.len(),
+        1,
+        "同时并存的两个物理点折叠为一条 revision，不是两条"
+    );
+    assert_eq!(
+        delta[0].bsp_source_indices,
+        vec![40, 55],
+        "覆盖点集升序去重"
+    );
+    assert_eq!(
+        bridge.edges().len(),
+        1,
+        "append-only：本次观察只留一条 revision"
+    );
     let heads = bridge.heads();
     assert_eq!(heads.len(), 1, "簿内该 episode 只有一条链头（身份唯一）");
     assert_eq!(heads[0].bsp_source_indices, vec![40, 55]);
-    assert_eq!(heads[0].head_source_index(), 55, "链头 = 集合内最大 source_index（目前所见最新递进点）");
+    assert_eq!(
+        heads[0].head_source_index(),
+        55,
+        "链头 = 集合内最大 source_index（目前所见最新递进点）"
+    );
 }
 
 #[test]
@@ -364,7 +464,9 @@ fn first_class_new_point_added_later_appends_revision_with_expanded_covered_set(
     let mut bridge = BspBridgeBook::default();
 
     let first_delta = bridge.advance(
-        &Classification { levels: vec![level_with(vec![buy1_point(40, 20)])] },
+        &Classification {
+            levels: vec![level_with(vec![buy1_point(40, 20)])],
+        },
         &book.streams(),
         40,
     );
@@ -374,16 +476,26 @@ fn first_class_new_point_added_later_appends_revision_with_expanded_covered_set(
 
     book.advance(&[trend_observation(key, (25, 55))], 55);
     let second_delta = bridge.advance(
-        &Classification { levels: vec![level_with(vec![buy1_point(40, 20), buy1_point(55, 20)])] },
+        &Classification {
+            levels: vec![level_with(vec![buy1_point(40, 20), buy1_point(55, 20)])],
+        },
         &book.streams(),
         55,
     );
-    assert_eq!(second_delta.len(), 1, "点集扩大 ⟹ 追加恰好 1 条 revision（不是逐点各追加一条）");
+    assert_eq!(
+        second_delta.len(),
+        1,
+        "点集扩大 ⟹ 追加恰好 1 条 revision（不是逐点各追加一条）"
+    );
     assert_eq!(second_delta[0].bsp_source_indices, vec![40, 55]);
     assert_eq!(second_delta[0].revision, 1);
     assert_eq!(second_delta[0].supersedes_revision, Some(0));
     assert_eq!(bridge.edges().len(), 2, "append-only：两条 revision 都留痕");
-    assert_eq!(bridge.heads().len(), 1, "身份唯一：仍是同一个 episode/BridgeKey");
+    assert_eq!(
+        bridge.heads().len(),
+        1,
+        "身份唯一：仍是同一个 episode/BridgeKey"
+    );
 }
 
 #[test]
@@ -404,10 +516,17 @@ fn multi_point_episode_same_as_of_rerun_is_zero_delta() {
     assert_eq!(bridge.edges().len(), 1);
 
     let second = bridge.advance(&classification, &streams, 55);
-    assert!(second.is_empty(), "同输入重跑，多物理点 episode 下仍须零 Delta");
+    assert!(
+        second.is_empty(),
+        "同输入重跑，多物理点 episode 下仍须零 Delta"
+    );
     let third = bridge.advance(&classification, &streams, 55);
     assert!(third.is_empty());
-    assert_eq!(bridge.edges().len(), 1, "重跑不追加任何 revision（无上界增长的回归锁）");
+    assert_eq!(
+        bridge.edges().len(),
+        1,
+        "重跑不追加任何 revision（无上界增长的回归锁）"
+    );
 }
 
 #[test]
@@ -428,17 +547,36 @@ fn invalidation_after_multi_point_episode_covers_all_points_and_stays_queryable(
 
     book.advance(&[], 60); // 缺席即失效。
     let invalidated = bridge.advance(&classification, &book.streams(), 60);
-    assert_eq!(invalidated.len(), 1, "失效应恰好追加 1 条 revision（覆盖集合不变，仅状态转终态）");
+    assert_eq!(
+        invalidated.len(),
+        1,
+        "失效应恰好追加 1 条 revision（覆盖集合不变，仅状态转终态）"
+    );
     assert_eq!(bridge.edges().len(), 2);
 
     let head = &bridge.heads()[0];
     assert_eq!(head.status, BridgeStatus::Invalidated);
-    assert_eq!(head.bsp_source_indices, vec![40, 55], "链头不应回退——全部物理点仍在同一条终态 revision 里");
+    assert_eq!(
+        head.bsp_source_indices,
+        vec![40, 55],
+        "链头不应回退——全部物理点仍在同一条终态 revision 里"
+    );
     assert_eq!(head.head_source_index(), 55);
 
-    assert_eq!(bridge.edges_for_bsp_point(0, 40).len(), 1, "point 40 失效后仍可查");
-    assert_eq!(bridge.edges_for_bsp_point(0, 55).len(), 1, "point 55 失效后仍可查（旧实现在此静默丢失）");
-    assert_eq!(bridge.edges_for_bsp_point(0, 40)[0].status, BridgeStatus::Invalidated);
+    assert_eq!(
+        bridge.edges_for_bsp_point(0, 40).len(),
+        1,
+        "point 40 失效后仍可查"
+    );
+    assert_eq!(
+        bridge.edges_for_bsp_point(0, 55).len(),
+        1,
+        "point 55 失效后仍可查（旧实现在此静默丢失）"
+    );
+    assert_eq!(
+        bridge.edges_for_bsp_point(0, 40)[0].status,
+        BridgeStatus::Invalidated
+    );
 }
 
 #[test]
@@ -452,7 +590,9 @@ fn trend_event_growth_does_not_orphan_earlier_first_class_point() {
     let key = trend_key(0, (6, 19), 25);
     let mut book = CandidateEventBook::default();
     book.advance(&[trend_observation(key, (25, 40))], 40);
-    let classification = Classification { levels: vec![level_with(vec![buy1_point(40, 20)])] };
+    let classification = Classification {
+        levels: vec![level_with(vec![buy1_point(40, 20)])],
+    };
     let mut bridge = BspBridgeBook::default();
     let first = bridge.advance(&classification, &book.streams(), 40);
     assert_eq!(first.len(), 1);
@@ -462,14 +602,21 @@ fn trend_event_growth_does_not_orphan_earlier_first_class_point() {
     // （不是漏观察——`apply` 仍被调用，只是投影相等而跳过 append）。
     book.advance(&[trend_observation(key, (25, 55))], 55);
     let grown = bridge.advance(&classification, &book.streams(), 55);
-    assert!(grown.is_empty(), "载荷未变，幂等零 Delta（同 same_as_of_rerun_is_zero_delta 精神，跨 as_of 亦然）");
+    assert!(
+        grown.is_empty(),
+        "载荷未变，幂等零 Delta（同 same_as_of_rerun_is_zero_delta 精神，跨 as_of 亦然）"
+    );
     assert_eq!(bridge.heads()[0].bsp_source_indices, vec![40]);
     assert_eq!(bridge.heads()[0].status, BridgeStatus::Open);
 
     // 事件后续失效：边必须同步转终态，不能卡在生长前的旧状态（MED-1 核心断言）。
     book.advance(&[], 60);
     let invalidated = bridge.advance(&classification, &book.streams(), 60);
-    assert_eq!(invalidated.len(), 1, "事件转 Invalidated 应追加一条新 revision");
+    assert_eq!(
+        invalidated.len(),
+        1,
+        "事件转 Invalidated 应追加一条新 revision"
+    );
     assert_eq!(
         bridge.heads()[0].status,
         BridgeStatus::Invalidated,
@@ -485,7 +632,10 @@ fn distinct_episodes_never_share_a_bridge_key() {
     let key_b = trend_key(0, (60, 79), 90);
     let mut book = CandidateEventBook::default();
     book.advance(
-        &[trend_observation(key_a, (25, 40)), trend_observation(key_b, (90, 110))],
+        &[
+            trend_observation(key_a, (25, 40)),
+            trend_observation(key_b, (90, 110)),
+        ],
         110,
     );
     let streams = book.streams();
@@ -507,7 +657,10 @@ fn distinct_episodes_never_share_a_bridge_key() {
         .find(|e| e.bsp_source_indices == vec![110])
         .expect("point 110 应产边")
         .key;
-    assert_ne!(key_for_40, key_for_110, "不同 episode 必须产生不同 BridgeKey，不得因同 parent 而误合并");
+    assert_ne!(
+        key_for_40, key_for_110,
+        "不同 episode 必须产生不同 BridgeKey，不得因同 parent 而误合并"
+    );
     assert_eq!(key_for_40.event, key_a);
     assert_eq!(key_for_110.event, key_b);
 }
@@ -531,7 +684,10 @@ fn first_class_point_pairs_at_non_zero_level() {
     assert_eq!(delta[0].bsp_level, 1);
     assert_eq!(delta[0].key.event, key);
     assert_eq!(delta[0].key.bsp.level, 1);
-    assert!(bridge.edges_for_bsp_point(0, 40).is_empty(), "level 0 不应误配");
+    assert!(
+        bridge.edges_for_bsp_point(0, 40).is_empty(),
+        "level 0 不应误配"
+    );
     assert_eq!(bridge.edges_for_bsp_point(1, 40).len(), 1);
 }
 
@@ -548,7 +704,13 @@ fn overlapping_episodes_trip_find_episode_debug_assert() {
     let key_a = trend_key(0, (6, 19), 25);
     let key_b = trend_key(0, (10, 24), 30); // c_start=30，区间 [30,60] 与 key_a 的 [25,60] 重叠
     let mut book = CandidateEventBook::default();
-    book.advance(&[trend_observation(key_a, (25, 60)), trend_observation(key_b, (30, 60))], 60);
+    book.advance(
+        &[
+            trend_observation(key_a, (25, 60)),
+            trend_observation(key_b, (30, 60)),
+        ],
+        60,
+    );
     let streams = book.streams();
 
     let third_entry = ThirdClassEntryIdentity {
@@ -560,14 +722,20 @@ fn overlapping_episodes_trip_find_episode_debug_assert() {
     };
     let point = BspPoint {
         source_index: 50,
-        bits: BspBits { buy3: true, third_class_entry: Some(third_entry), ..Default::default() },
+        bits: BspBits {
+            buy3: true,
+            third_class_entry: Some(third_entry),
+            ..Default::default()
+        },
         pivot_low: 0,
         pivot_high: 0,
         center: Some(OwnerRef::Center(center_at(20))),
         struct_break_dir: None,
         force: None,
     };
-    let classification = Classification { levels: vec![level_with(vec![point])] };
+    let classification = Classification {
+        levels: vec![level_with(vec![point])],
+    };
     let mut bridge = BspBridgeBook::default();
     bridge.advance(&classification, &streams, 60);
 }
@@ -584,10 +752,18 @@ fn overlapping_episodes_trip_find_episode_debug_assert_via_first_class_path() {
     let key_a = trend_key(0, (6, 19), 25);
     let key_b = trend_key(0, (10, 24), 30); // c_start=30，区间 [30,60] 与 key_a 的 [25,60] 重叠
     let mut book = CandidateEventBook::default();
-    book.advance(&[trend_observation(key_a, (25, 60)), trend_observation(key_b, (30, 60))], 60);
+    book.advance(
+        &[
+            trend_observation(key_a, (25, 60)),
+            trend_observation(key_b, (30, 60)),
+        ],
+        60,
+    );
     let streams = book.streams();
 
-    let classification = Classification { levels: vec![level_with(vec![buy1_point(50, 20)])] }; // 50 ∈ [25,60] ∩ [30,60]
+    let classification = Classification {
+        levels: vec![level_with(vec![buy1_point(50, 20)])],
+    }; // 50 ∈ [25,60] ∩ [30,60]
     let mut bridge = BspBridgeBook::default();
     bridge.advance(&classification, &streams, 60);
 }
@@ -610,7 +786,9 @@ fn bridge_book_incremental_final_state_equals_fresh_full_replay_from_empty() {
 
     cand_book.advance(&[trend_observation(key, (25, 40))], 40);
     inputs.push((
-        Classification { levels: vec![level_with(vec![buy1_point(40, 20)])] },
+        Classification {
+            levels: vec![level_with(vec![buy1_point(40, 20)])],
+        },
         cand_book.streams(),
         40,
     ));
@@ -618,17 +796,28 @@ fn bridge_book_incremental_final_state_equals_fresh_full_replay_from_empty() {
     // 步骤 2：C 段生长 + 新增第二个同 episode 物理点（多物理点场景嵌入平价锁）。
     cand_book.advance(&[trend_observation(key, (25, 55))], 55);
     inputs.push((
-        Classification { levels: vec![level_with(vec![buy1_point(40, 20), buy1_point(55, 20)])] },
+        Classification {
+            levels: vec![level_with(vec![buy1_point(40, 20), buy1_point(55, 20)])],
+        },
         cand_book.streams(),
         55,
     ));
 
     // 步骤 3：新增二类点（继承一类锚，锚点本身也已生长过一次）。
     let mut second = buy1_point(80, 20);
-    second.bits = BspBits { buy2: true, ..Default::default() };
+    second.bits = BspBits {
+        buy2: true,
+        ..Default::default()
+    };
     second.center = Some(OwnerRef::Type1Anchor(55));
     inputs.push((
-        Classification { levels: vec![level_with(vec![buy1_point(40, 20), buy1_point(55, 20), second])] },
+        Classification {
+            levels: vec![level_with(vec![
+                buy1_point(40, 20),
+                buy1_point(55, 20),
+                second,
+            ])],
+        },
         cand_book.streams(),
         80,
     ));
@@ -636,12 +825,21 @@ fn bridge_book_incremental_final_state_equals_fresh_full_replay_from_empty() {
     // 步骤 4：事件失效。
     cand_book.advance(&[], 90);
     inputs.push((
-        Classification { levels: vec![level_with(vec![buy1_point(40, 20), buy1_point(55, 20), second])] },
+        Classification {
+            levels: vec![level_with(vec![
+                buy1_point(40, 20),
+                buy1_point(55, 20),
+                second,
+            ])],
+        },
         cand_book.streams(),
         90,
     ));
 
-    assert!(inputs.len() > 1, "非真空锁①：跨多 as_of 步骤（对齐 N3 distinct_as_of>1）");
+    assert!(
+        inputs.len() > 1,
+        "非真空锁①：跨多 as_of 步骤（对齐 N3 distinct_as_of>1）"
+    );
 
     // 驱动 A：增量推进。
     let mut incremental = BspBridgeBook::default();
@@ -654,7 +852,10 @@ fn bridge_book_incremental_final_state_equals_fresh_full_replay_from_empty() {
         "非真空锁②：增量序列必须产生 >1 条 revision（对齐 N3 with_edges>0——否则无法证明\
          「增量」真的经过了中间态，不是一步到位）"
     );
-    assert!(!incremental.heads().is_empty(), "非真空锁③：终态簿非空（对齐 N3 certificates 非空）");
+    assert!(
+        !incremental.heads().is_empty(),
+        "非真空锁③：终态簿非空（对齐 N3 certificates 非空）"
+    );
 
     // 驱动 B：仅用终态输入，从空簿单次 advance（不是同一序列跑两遍——只喂最后一步）。
     let (final_classification, final_streams, final_as_of) = inputs.last().unwrap();
@@ -666,10 +867,17 @@ fn bridge_book_incremental_final_state_equals_fresh_full_replay_from_empty() {
         incremental.heads().len(),
         "两驱动在终态时刻的 key 集合基数必须一致"
     );
-    let mut keys: Vec<_> = incremental.heads().iter().map(|edge| edge.key.clone()).collect();
+    let mut keys: Vec<_> = incremental
+        .heads()
+        .iter()
+        .map(|edge| edge.key.clone())
+        .collect();
     keys.sort();
     for key in &keys {
-        let a = incremental.latest_of(key).expect("驱动 A 必须持有该 key").projection();
+        let a = incremental
+            .latest_of(key)
+            .expect("驱动 A 必须持有该 key")
+            .projection();
         let b = fresh
             .latest_of(key)
             .unwrap_or_else(|| panic!("驱动 B 必须观察到相同的 key={key:?}（否则两驱动分道）"))

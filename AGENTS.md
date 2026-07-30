@@ -21,7 +21,7 @@
 - **Issue tracker**：GitHub `xy7365527-lang/NewChanlun`（private，`gh` 已认证）；操作口径 `docs/agents/issue-tracker.md`。
 - **Triage labels**：`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`。
 - **Domain docs**：单 context——根 `CONTEXT.md` + `docs/adr/`（惰性创建）。
-- **纪律族**（docs/agents/）：`generation-constitution.md`（名分四态+现役线名单+开票门）、`delivery-discipline.md`（关票门五子句+开票门+豁免+编号）、`stat-provenance.md`（统计口径两档）。
+- **纪律族**（docs/agents/）：`generation-constitution.md`（名分四态+现役线名单+开票门）、`delivery-discipline.md`（关票门五子句+开票门+豁免+编号）、`stat-provenance.md`（统计口径两档）、`wayfinder-workflow.md`（五段管线+票型口径+两段式）。
 - **TradingView MCP**（Claude Code 专用，`~/.claude/.mcp.json`）：TV Desktop 须 debug 模式；工具映射与约束见 git 历史版 CLAUDE.md 或 `docs/chanlun/README.md`。
 
 ## 记忆（高信号持久事实，continual-learning 维护）

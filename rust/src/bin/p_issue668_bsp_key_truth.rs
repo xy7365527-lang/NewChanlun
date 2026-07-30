@@ -35,7 +35,7 @@
 //!
 //! 用法：`cargo run --release --bin p_issue668_bsp_key_truth -- <btc_1m_full.json> [max_bars]`
 
-use newchan_rust::theta_v0::classifier::bsp::OwnerRef;
+use newchan_rust::theta_v0::classifier::bsp::{bsp_bit_at, OwnerRef};
 use newchan_rust::theta_v0::classifier::cand_event::{
     CandidateEvent, CandidateKind, CandidateStreams, ParentFingerprint,
 };
@@ -76,8 +76,8 @@ fn load(path: &Path, tick_size: f64, limit: usize) -> Result<Vec<Bar>, String> {
         .replace("-Infinity", "null")
         .replace("Infinity", "null")
         .replace("NaN", "null");
-    let raw: RawBars =
-        serde_json::from_str(&text).map_err(|error| format!("解析 {} 失败: {error}", path.display()))?;
+    let raw: RawBars = serde_json::from_str(&text)
+        .map_err(|error| format!("解析 {} 失败: {error}", path.display()))?;
     let n = raw
         .closes
         .len()
@@ -175,12 +175,15 @@ fn episodes_by_level(streams: &CandidateStreams) -> BTreeMap<u32, Vec<Episode>> 
         if event.kind != CandidateKind::Trend {
             continue;
         }
-        by_level.entry(event.event_level).or_default().push(Episode {
-            parent: event.key.parent,
-            side: event.key.side,
-            c_start: event.key.c_start,
-            interval_end: event.interval.1,
-        });
+        by_level
+            .entry(event.event_level)
+            .or_default()
+            .push(Episode {
+                parent: event.key.parent,
+                side: event.key.side,
+                c_start: event.key.c_start,
+                interval_end: event.interval.1,
+            });
     }
     by_level
 }
@@ -193,17 +196,32 @@ fn owning_episodes<'a>(
 ) -> Vec<&'a Episode> {
     episodes
         .iter()
-        .filter(|ep| ep.side == side && ep.parent == parent && ep.c_start <= source_index && source_index <= ep.interval_end)
+        .filter(|ep| {
+            ep.side == side
+                && ep.parent == parent
+                && ep.c_start <= source_index
+                && source_index <= ep.interval_end
+        })
         .collect()
 }
 
-fn resolve_fingerprint(level: &LevelState, class: PointClass, idx_in_level: usize) -> Option<ParentFingerprint> {
+fn resolve_fingerprint(
+    level: &LevelState,
+    class: PointClass,
+    idx_in_level: usize,
+) -> Option<ParentFingerprint> {
     let point = &level.bsp[idx_in_level];
     match class {
-        PointClass::Buy1 | PointClass::Sell1 | PointClass::Buy3 | PointClass::Sell3 => match point.center {
-            Some(OwnerRef::Center(c)) => Some(ParentFingerprint { center_start: c.start_index, zd: c.zd, zg: c.zg }),
-            _ => None,
-        },
+        PointClass::Buy1 | PointClass::Sell1 | PointClass::Buy3 | PointClass::Sell3 => {
+            match point.center {
+                Some(OwnerRef::Center(c)) => Some(ParentFingerprint {
+                    center_start: c.start_index,
+                    zd: c.zd,
+                    zg: c.zg,
+                }),
+                _ => None,
+            }
+        }
         PointClass::Buy2 | PointClass::Sell2 => {
             let anchor = match point.center {
                 Some(OwnerRef::Type1Anchor(idx)) => idx,
@@ -219,7 +237,11 @@ fn resolve_fingerprint(level: &LevelState, class: PointClass, idx_in_level: usiz
                     return None;
                 }
                 match p.center {
-                    Some(OwnerRef::Center(c)) => Some(ParentFingerprint { center_start: c.start_index, zd: c.zd, zg: c.zg }),
+                    Some(OwnerRef::Center(c)) => Some(ParentFingerprint {
+                        center_start: c.start_index,
+                        zd: c.zd,
+                        zg: c.zg,
+                    }),
                     _ => None,
                 }
             })
@@ -238,17 +260,24 @@ fn b2_anchor_diag(level: &LevelState, class: PointClass, idx_in_level: usize) ->
         _ => return (false, false),
     };
     let want_bit = matches!(class, PointClass::Buy2);
-    let hosts = level
-        .bsp
-        .iter()
-        .any(|p| p.source_index == anchor_idx && if want_bit { p.bits.buy1 } else { p.bits.sell1 });
+    let hosts = bsp_bit_at(&level.bsp, anchor_idx, |bits| {
+        if want_bit {
+            bits.buy1
+        } else {
+            bits.sell1
+        }
+    });
     (true, hosts)
 }
 
 /// 反查坐标：一/二类用「本点自身 `source_index`」查其所属 episode（一类）或「一类锚坐标」
 /// （二类）；三类不走本函数——本 bin 检验域仍只覆盖一/二类归属唯一性，三类覆盖率另计不纳入
 /// （见模块头，扩大检验域不在本轮修复单范围内）。
-fn owner_query_source_index(level: &LevelState, class: PointClass, idx_in_level: usize) -> Option<usize> {
+fn owner_query_source_index(
+    level: &LevelState,
+    class: PointClass,
+    idx_in_level: usize,
+) -> Option<usize> {
     let point = &level.bsp[idx_in_level];
     match class {
         PointClass::Buy1 | PointClass::Sell1 => Some(point.source_index),
@@ -338,7 +367,8 @@ fn main() -> std::process::ExitCode {
                     fingerprint_unresolved += 1;
                     continue;
                 };
-                let Some(query_source_index) = owner_query_source_index(level, class, idx_in_level) else {
+                let Some(query_source_index) = owner_query_source_index(level, class, idx_in_level)
+                else {
                     owner_query_unresolved += 1;
                     continue;
                 };
@@ -356,7 +386,12 @@ fn main() -> std::process::ExitCode {
                         episode_owned_many += 1;
                         *by_class_many.entry(class.name()).or_default() += 1;
                         if many_examples.len() < 8 {
-                            many_examples.push((class.name().to_string(), level_idx, point.source_index, n));
+                            many_examples.push((
+                                class.name().to_string(),
+                                level_idx,
+                                point.source_index,
+                                n,
+                            ));
                         }
                     }
                 }
@@ -407,7 +442,9 @@ fn main() -> std::process::ExitCode {
     } else if domain_size == 0 {
         // R2-HIGH-3 订正：检验域为 0 时不得报 SUCCESS（空域重言式）——用独立退出码标出「这一窗
         // 没有验到任何东西」，与真正 PASS（域非空且无撞键）区分。
-        println!("ISSUE668_TRUTH_V3_VERDICT EMPTY_DOMAIN（domain_size=0，未验到任何样本，非 PASS）");
+        println!(
+            "ISSUE668_TRUTH_V3_VERDICT EMPTY_DOMAIN（domain_size=0，未验到任何样本，非 PASS）"
+        );
         std::process::ExitCode::from(2)
     } else {
         println!("ISSUE668_TRUTH_V3_VERDICT PASS（domain_size={domain_size}>0 且无撞键）");

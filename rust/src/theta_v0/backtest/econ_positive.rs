@@ -1469,13 +1469,13 @@ pub(super) fn gate_pan_div_for_production(
 /// B1/B3（`extract_signals_with_hist`）与 B2（`extract_second_for_level`）在 mod.rs 是独立提取 +
 /// extend + sort，**非按 source_index merge**。Type3-only 信号自身 `bits.buy2=false`，直读自身 bits
 /// 拿不到共生 B2 ⟹ 必须显式查同级列表。匹配 δ 侧的 buy2/sell2。
+///
+/// 单源：改调 [`classifier::bsp::bsp_bit_at`]（issue #747 C1）——find-first 换 any 的族内独立
+/// 成员（同锚点可多类点共存，不与 `bsp_at` 同构，不强并）。
 fn xzd_type2_confirmed(bsp_of_level: &[BspPoint], source_index: usize, side: Side) -> bool {
-    bsp_of_level.iter().any(|q| {
-        q.source_index == source_index
-            && match side {
-                Side::Long => q.bits.buy2,
-                Side::Short => q.bits.sell2,
-            }
+    super::super::classifier::bsp::bsp_bit_at(bsp_of_level, source_index, |bits| match side {
+        Side::Long => bits.buy2,
+        Side::Short => bits.sell2,
     })
 }
 

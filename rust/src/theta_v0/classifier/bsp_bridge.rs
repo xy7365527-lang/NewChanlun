@@ -88,10 +88,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::bsp::OwnerRef;
-use super::cand_event::{CandidateEvent, CandidateKey, CandidateKind, CandidateState, CandidateStreams, ParentFingerprint};
-use super::{Classification, LevelState};
 use super::super::types::Side;
+use super::bsp::OwnerRef;
+use super::cand_event::{
+    CandidateEvent, CandidateKey, CandidateKind, CandidateState, CandidateStreams,
+    ParentFingerprint,
+};
+use super::{Classification, LevelState};
 
 /// 桥接判定规则版本（E2E-O「上游身份或规则版本变 ⟹ 新 key，禁复活旧 key」的版本分量，
 /// 与 [`super::cand_event::CANDIDATE_RULE_VERSION`]/[`super::chain_cert::CHAIN_RULE_VERSION`]
@@ -431,7 +434,14 @@ fn resolve_bridge(
                 (entry.retest_interval.0, entry.retest_interval.0),
             ];
             Some((
-                BspStructuralKey { rule_version: BRIDGE_RULE_VERSION, level: level_idx, parent, side, class, anchor },
+                BspStructuralKey {
+                    rule_version: BRIDGE_RULE_VERSION,
+                    level: level_idx,
+                    parent,
+                    side,
+                    class,
+                    anchor,
+                },
                 episode.key,
             ))
         }
@@ -442,7 +452,14 @@ fn resolve_bridge(
             let episode = find_episode(episodes, level_idx, side, parent, anchor_idx)?;
             let anchor = vec![(anchor_idx, anchor_idx)];
             Some((
-                BspStructuralKey { rule_version: BRIDGE_RULE_VERSION, level: level_idx, parent, side, class, anchor },
+                BspStructuralKey {
+                    rule_version: BRIDGE_RULE_VERSION,
+                    level: level_idx,
+                    parent,
+                    side,
+                    class,
+                    anchor,
+                },
                 episode.key,
             ))
         }
@@ -457,7 +474,10 @@ fn first_class_structural_key(episode: &TrendEpisode, class: BspPointClass) -> B
         parent: episode.parent,
         side: episode.side,
         class,
-        anchor: vec![episode.key.seg_a, (episode.key.c_start, episode.key.c_start)],
+        anchor: vec![
+            episode.key.seg_a,
+            (episode.key.c_start, episode.key.c_start),
+        ],
     }
 }
 
@@ -494,7 +514,10 @@ fn resolve_first_class_episode_points(
                 let bsp_key = first_class_structural_key(episode, class);
                 let event_state = latest[&episode.key].state;
                 raw.push(RawPointObservation {
-                    key: BridgeKey { event: episode.key, bsp: bsp_key },
+                    key: BridgeKey {
+                        event: episode.key,
+                        bsp: bsp_key,
+                    },
                     bsp_level: level_idx as u32,
                     source_index: point.source_index,
                     event_state,
@@ -528,7 +551,10 @@ fn resolve_point_driven_observations(
                 // event_key 保证在 latest 中存在（episodes 由 latest 折叠而来）。
                 let event_state = latest[&event_key].state;
                 raw.push(RawPointObservation {
-                    key: BridgeKey { event: event_key, bsp: bsp_key },
+                    key: BridgeKey {
+                        event: event_key,
+                        bsp: bsp_key,
+                    },
                     bsp_level: level_idx as u32,
                     source_index: level.bsp[idx_in_level].source_index,
                     event_state,
@@ -550,11 +576,22 @@ fn observe(classification: &Classification, streams: &CandidateStreams) -> Vec<B
     let episodes = trend_episodes(&latest);
 
     let mut raw = resolve_first_class_episode_points(classification, &episodes, &latest);
-    raw.extend(resolve_point_driven_observations(classification, &episodes, &latest));
+    raw.extend(resolve_point_driven_observations(
+        classification,
+        &episodes,
+        &latest,
+    ));
 
-    let mut grouped: BTreeMap<BridgeKey, (u32, BTreeSet<usize>, CandidateState, BridgeStatus)> = BTreeMap::new();
+    let mut grouped: BTreeMap<BridgeKey, (u32, BTreeSet<usize>, CandidateState, BridgeStatus)> =
+        BTreeMap::new();
     for point in raw {
-        let RawPointObservation { key, bsp_level, source_index, event_state, status } = point;
+        let RawPointObservation {
+            key,
+            bsp_level,
+            source_index,
+            event_state,
+            status,
+        } = point;
         let entry = grouped
             .entry(key)
             .or_insert_with(|| (bsp_level, BTreeSet::new(), event_state, status));
@@ -563,13 +600,15 @@ fn observe(classification: &Classification, streams: &CandidateStreams) -> Vec<B
 
     grouped
         .into_iter()
-        .map(|(key, (bsp_level, points, event_state, status))| BridgeObservation {
-            key,
-            bsp_level,
-            bsp_source_indices: points.into_iter().collect(),
-            event_state,
-            status,
-        })
+        .map(
+            |(key, (bsp_level, points, event_state, status))| BridgeObservation {
+                key,
+                bsp_level,
+                bsp_source_indices: points.into_iter().collect(),
+                event_state,
+                status,
+            },
+        )
         .collect()
 }
 
@@ -593,7 +632,10 @@ impl BspBridgeBook {
 
     /// 每 key 最新 revision，key 升序。
     pub fn heads(&self) -> Vec<&BspBridgeEdge> {
-        self.latest.values().map(|index| &self.edges[*index]).collect()
+        self.latest
+            .values()
+            .map(|index| &self.edges[*index])
+            .collect()
     }
 
     /// 查询入口（#666 裁定⑦ 验收对拍用）：给定 BSP 点坐标，返回其全部现存边（各点类各一条，
@@ -604,7 +646,9 @@ impl BspBridgeBook {
     pub fn edges_for_bsp_point(&self, level: u32, source_index: usize) -> Vec<&BspBridgeEdge> {
         self.heads()
             .into_iter()
-            .filter(|edge| edge.bsp_level == level && edge.bsp_source_indices.contains(&source_index))
+            .filter(|edge| {
+                edge.bsp_level == level && edge.bsp_source_indices.contains(&source_index)
+            })
             .collect()
     }
 
@@ -614,7 +658,12 @@ impl BspBridgeBook {
     /// 某 `as_of` 置位即为冻结事实（append-only 单调，见模块头「端死边死」段），故每次全量重扫
     /// `classification` 天然覆盖此前观察过的全部点；唯一会变化的是 N1 事件侧状态（在 `latest`
     /// 折叠里天然读到最新值），无需额外携带簿内旧 key 补扫。
-    pub fn advance(&mut self, classification: &Classification, streams: &CandidateStreams, as_of: usize) -> Vec<BspBridgeEdge> {
+    pub fn advance(
+        &mut self,
+        classification: &Classification,
+        streams: &CandidateStreams,
+        as_of: usize,
+    ) -> Vec<BspBridgeEdge> {
         let mut delta = Vec::new();
         for observation in observe(classification, streams) {
             if let Some(edge) = self.apply(observation, as_of) {
@@ -630,7 +679,10 @@ impl BspBridgeBook {
             return None; // 终态不复活。
         }
         let next = make_revision(prior.as_ref(), observation, as_of);
-        if prior.as_ref().is_some_and(|edge| edge.projection() == next.projection()) {
+        if prior
+            .as_ref()
+            .is_some_and(|edge| edge.projection() == next.projection())
+        {
             return None; // 同 as_of 重跑零 Delta（幂等跳过）。
         }
         self.append(next.clone());
@@ -644,7 +696,11 @@ impl BspBridgeBook {
     }
 }
 
-fn make_revision(prior: Option<&BspBridgeEdge>, observation: BridgeObservation, as_of: usize) -> BspBridgeEdge {
+fn make_revision(
+    prior: Option<&BspBridgeEdge>,
+    observation: BridgeObservation,
+    as_of: usize,
+) -> BspBridgeEdge {
     // observed_at / invalidated_at 均为「一次写入不后移」：已在案的值优先。
     let observed_at = prior.map_or(as_of, |edge| edge.observed_at);
     let invalidated_at = prior

@@ -163,15 +163,14 @@ fn terminal_bits_new(
     classification: &Classification,
     event: &NestCandidateEvent,
 ) -> Option<BspBits> {
-    classification
-        .levels
-        .get(event.level as usize)?
-        .bsp
-        .iter()
-        .find(|point| {
-            point.source_index == event.turn_source && point.bits.confirm_side(event.side)
-        })
-        .map(|point| point.bits)
+    // issue #747 C1 单源：改调 classifier::bsp::bind_turn（生产绑定规则原型 nest.rs:681 语义，
+    // bin 侧诊断复制点收敛，见 issue747-impl 报告）。
+    newchan_rust::theta_v0::classifier::bsp::bind_turn(
+        &classification.levels.get(event.level as usize)?.bsp,
+        event.turn_source,
+        event.side,
+    )
+    .map(|point| point.bits)
 }
 
 fn v2_tuple() -> C2VersionTuple {
@@ -551,13 +550,14 @@ fn reconcile_chain(
             .iter()
             .map(|&i| {
                 let e = &events_of(0)[i];
+                // issue #747 C1 单源：改调 classifier::bsp::bsp_at（无 side 过滤的等值存在性查询，
+                // 与 bind_turn 族内独立成员——bin 侧诊断复制点收敛，见 issue747-impl 报告）。
                 let any_bsp = classification
                     .levels
                     .get(e.level as usize)
                     .map(|lvl| {
-                        lvl.bsp
-                            .iter()
-                            .any(|point| point.source_index == e.turn_source)
+                        newchan_rust::theta_v0::classifier::bsp::bsp_at(&lvl.bsp, e.turn_source)
+                            .is_some()
                     })
                     .unwrap_or(false);
                 format!(

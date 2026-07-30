@@ -98,10 +98,15 @@ pub(crate) fn newly_confirmed_step(
 ///
 /// 与逐 bar 止损门 [`k_theta_risk_gate`] 共享同一 `structural_stop` 真值——本函数在**入场时**用候选
 /// 坐标查得，冻结后供逐 bar 门读出（消除旧路径用 drifted `leg.source_index` 回查的覆盖度缺陷）。
+///
+/// 单源：`(level, source_index) → BspPoint` 查询改调 [`classifier::bsp::bsp_at`]（issue #747 C1，
+/// 与 `fill.rs::entry_stop_reverse_dump_row` 逐字节并集单源；newtype 边界降级为不做，理由见
+/// `classifier::bsp` 族头注释）。
 pub(crate) fn entry_structural_stop(
     c: &super::super::strategy::interp::Candidate,
     classification: &super::super::classifier::Classification,
 ) -> Option<super::super::types::Tick> {
+    use super::super::classifier::bsp::bsp_at;
     use super::super::strategy::risk::{structural_stop, StopInput, StopSide};
     use super::super::strategy::voice::VoiceSide;
     use super::super::types::Center;
@@ -111,7 +116,7 @@ pub(crate) fn entry_structural_stop(
         VoiceSide::Flat => return None, // Flat 候选不开仓，无止损可言
     };
     let lvl = classification.levels.get(c.level as usize)?;
-    let bsp = lvl.bsp.iter().find(|p| p.source_index == c.source_index)?;
+    let bsp = bsp_at(&lvl.bsp, c.source_index)?;
     let stop_in = StopInput {
         pivot_low: bsp.pivot_low,
         pivot_high: bsp.pivot_high,

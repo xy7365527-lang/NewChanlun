@@ -62,7 +62,9 @@ use std::path::Path;
 
 use newchan_rust::theta_v0::classifier::bsp::OwnerRef;
 use newchan_rust::theta_v0::classifier::bsp_bridge::{BspBridgeBook, BspPointClass};
-use newchan_rust::theta_v0::classifier::cand_event::{CandidateEvent, CandidateKey, CandidateKind, CandidateStreams};
+use newchan_rust::theta_v0::classifier::cand_event::{
+    CandidateEvent, CandidateKey, CandidateKind, CandidateStreams,
+};
 use newchan_rust::theta_v0::classifier::{self, Classification};
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::ParseLayerIncr;
@@ -82,8 +84,15 @@ struct RawBars {
 }
 
 fn timestamp(date: &str) -> i64 {
-    let digits: String = date.chars().take_while(|c| *c != '+').filter(char::is_ascii_digit).take(14).collect();
-    digits.parse().unwrap_or_else(|_| panic!("日期 {date:?} 解析失败"))
+    let digits: String = date
+        .chars()
+        .take_while(|c| *c != '+')
+        .filter(char::is_ascii_digit)
+        .take(14)
+        .collect();
+    digits
+        .parse()
+        .unwrap_or_else(|_| panic!("日期 {date:?} 解析失败"))
 }
 
 fn load(path: &Path, tick_size: f64, limit: usize) -> Vec<Bar> {
@@ -93,7 +102,14 @@ fn load(path: &Path, tick_size: f64, limit: usize) -> Vec<Bar> {
         .replace("Infinity", "null")
         .replace("NaN", "null");
     let raw: RawBars = serde_json::from_str(&text).unwrap_or_else(|e| panic!("解析失败: {e}"));
-    let n = raw.closes.len().min(raw.opens.len()).min(raw.highs.len()).min(raw.lows.len()).min(raw.dates.len()).min(limit);
+    let n = raw
+        .closes
+        .len()
+        .min(raw.opens.len())
+        .min(raw.highs.len())
+        .min(raw.lows.len())
+        .min(raw.dates.len())
+        .min(limit);
     let mut bars = Vec::with_capacity(n);
     for i in 0..n {
         let prior = bars.last().map_or(0, |bar: &Bar| bar.close);
@@ -103,7 +119,13 @@ fn load(path: &Path, tick_size: f64, limit: usize) -> Vec<Bar> {
                 let invalid = high < open.max(close).max(low)
                     || low > open.min(close).min(high)
                     || [open, high, low, close].iter().any(|price| *price <= 0.0);
-                (quantize(open, tick_size), quantize(high, tick_size), quantize(low, tick_size), quantize(close, tick_size), invalid)
+                (
+                    quantize(open, tick_size),
+                    quantize(high, tick_size),
+                    quantize(low, tick_size),
+                    quantize(close, tick_size),
+                    invalid,
+                )
             }
             _ => (prior, prior, prior, prior, true),
         };
@@ -129,7 +151,10 @@ fn load(path: &Path, tick_size: f64, limit: usize) -> Vec<Bar> {
 /// 分支已迁移的 episode 覆盖判据不同构，「本轮未改」在修复轮 2 之后已成事实错误。订正为：
 /// `leave_interval.1` 同样按 episode 区间覆盖反查——复用 `find_covering`，与一/二类同一独立扫描
 /// 实现，不复写生产 `find_episode`）。
-fn reference_join(classification: &Classification, streams: &CandidateStreams) -> BTreeSet<(u32, usize, &'static str, CandidateKey)> {
+fn reference_join(
+    classification: &Classification,
+    streams: &CandidateStreams,
+) -> BTreeSet<(u32, usize, &'static str, CandidateKey)> {
     let mut latest: BTreeMap<CandidateKey, CandidateEvent> = BTreeMap::new();
     for batch in streams.iter() {
         for event in batch.iter() {
@@ -142,15 +167,35 @@ fn reference_join(classification: &Classification, streams: &CandidateStreams) -
         .values()
         .filter(|event| event.kind == CandidateKind::Trend)
         .map(|event| {
-            let p = (event.key.parent.center_start, event.key.parent.zd, event.key.parent.zg);
-            (event.event_level, event.key.side, p, event.key.c_start, event.interval.1, event.key)
+            let p = (
+                event.key.parent.center_start,
+                event.key.parent.zd,
+                event.key.parent.zg,
+            );
+            (
+                event.event_level,
+                event.key.side,
+                p,
+                event.key.c_start,
+                event.interval.1,
+                event.key,
+            )
         })
         .collect();
 
-    let find_covering = |level: u32, side: Side, parent: (usize, i64, i64), source_index: usize| -> Option<CandidateKey> {
+    let find_covering = |level: u32,
+                         side: Side,
+                         parent: (usize, i64, i64),
+                         source_index: usize|
+     -> Option<CandidateKey> {
         let mut found: Option<CandidateKey> = None;
         for &(el, es, ep, c_start, interval_end, key) in &trend_events {
-            if el == level && es == side && ep == parent && c_start <= source_index && source_index <= interval_end {
+            if el == level
+                && es == side
+                && ep == parent
+                && c_start <= source_index
+                && source_index <= interval_end
+            {
                 found = Some(key);
                 break; // 独立扫描不断言唯一性（生产侧的 debug_assert 已在单测覆盖），取首个。
             }
@@ -166,23 +211,34 @@ fn reference_join(classification: &Classification, streams: &CandidateStreams) -
                 _ => None,
             };
             // 一类：episode 区间覆盖。
-            for (set, side, name) in [(point.bits.buy1, Side::Long, "Buy1"), (point.bits.sell1, Side::Short, "Sell1")] {
+            for (set, side, name) in [
+                (point.bits.buy1, Side::Long, "Buy1"),
+                (point.bits.sell1, Side::Short, "Sell1"),
+            ] {
                 if !set {
                     continue;
                 }
                 let Some(parent) = center_fp else { continue };
-                if let Some(ek) = find_covering(level_idx as u32, side, parent, point.source_index) {
+                if let Some(ek) = find_covering(level_idx as u32, side, parent, point.source_index)
+                {
                     out.insert((level_idx as u32, point.source_index, name, ek));
                 }
             }
             // 三类：leave_interval.1 按 episode 区间覆盖反查（订正，2026-07-29 #670 三审
             // R3-MED-2：与生产 resolve_bridge 三类分支同构，不再是精确等值）。
-            for (set, side, name) in [(point.bits.buy3, Side::Long, "Buy3"), (point.bits.sell3, Side::Short, "Sell3")] {
+            for (set, side, name) in [
+                (point.bits.buy3, Side::Long, "Buy3"),
+                (point.bits.sell3, Side::Short, "Sell3"),
+            ] {
                 if !set {
                     continue;
                 }
-                let (Some(parent), Some(entry)) = (center_fp, point.bits.third_class_entry) else { continue };
-                if let Some(ek) = find_covering(level_idx as u32, side, parent, entry.leave_interval.1) {
+                let (Some(parent), Some(entry)) = (center_fp, point.bits.third_class_entry) else {
+                    continue;
+                };
+                if let Some(ek) =
+                    find_covering(level_idx as u32, side, parent, entry.leave_interval.1)
+                {
                     out.insert((level_idx as u32, point.source_index, name, ek));
                 }
             }
@@ -213,7 +269,9 @@ fn reference_join(classification: &Classification, streams: &CandidateStreams) -
                         _ => None,
                     }
                 });
-                let Some(parent) = anchor_parent else { continue };
+                let Some(parent) = anchor_parent else {
+                    continue;
+                };
                 if let Some(ek) = find_covering(level_idx as u32, side, parent, anchor_idx) {
                     out.insert((level_idx as u32, point.source_index, name, ek));
                 }
@@ -240,7 +298,10 @@ fn main() -> std::process::ExitCode {
         eprintln!("用法: p_issue668_bsp_bridge_battery <btc_1m_full.json> [max_bars]");
         return std::process::ExitCode::FAILURE;
     };
-    let max_bars = args.next().map(|v| v.parse::<usize>().expect("max_bars 非法")).unwrap_or(100_000);
+    let max_bars = args
+        .next()
+        .map(|v| v.parse::<usize>().expect("max_bars 非法"))
+        .unwrap_or(100_000);
     let config = ThetaConfig::default();
     let bars = load(Path::new(&path), config.tick.tick_size, max_bars);
     if bars.is_empty() {
@@ -324,9 +385,14 @@ fn main() -> std::process::ExitCode {
         .edges()
         .iter()
         .flat_map(|edge| {
-            edge.bsp_source_indices
-                .iter()
-                .map(move |source_index| (edge.bsp_level, *source_index, class_name(edge.key.bsp.class), edge.key.event))
+            edge.bsp_source_indices.iter().map(move |source_index| {
+                (
+                    edge.bsp_level,
+                    *source_index,
+                    class_name(edge.key.bsp.class),
+                    edge.key.event,
+                )
+            })
         })
         .collect();
 
@@ -357,10 +423,20 @@ fn main() -> std::process::ExitCode {
     for class in ["Buy1", "Buy2", "Buy3", "Sell1", "Sell2", "Sell3"] {
         let ref_n = reference.iter().filter(|item| item.2 == class).count();
         let prod_n = produced.iter().filter(|item| item.2 == class).count();
-        let miss_n = missing_in_bridge.iter().filter(|item| item.2 == class).count();
-        let extra_n = extra_in_bridge.iter().filter(|item| item.2 == class).count();
+        let miss_n = missing_in_bridge
+            .iter()
+            .filter(|item| item.2 == class)
+            .count();
+        let extra_n = extra_in_bridge
+            .iter()
+            .filter(|item| item.2 == class)
+            .count();
         let class_cmp = miss_n + extra_n;
-        let note = if ref_n == 0 && prod_n == 0 { " note=此类空域，cmp无信息量" } else { "" };
+        let note = if ref_n == 0 && prod_n == 0 {
+            " note=此类空域，cmp无信息量"
+        } else {
+            ""
+        };
         println!(
             "ISSUE668_BRIDGE_BATTERY_BY_CLASS bars={} class={class} reference={ref_n} produced={prod_n} \
              missing={miss_n} extra={extra_n} cmp={class_cmp}{note}",
@@ -371,11 +447,20 @@ fn main() -> std::process::ExitCode {
     // 查询入口完备性回归门（R2-HIGH-2）：edges() 里出现的每个物理点都必须能经
     // edges_for_bsp_point 查到——修复轮 1 在此处 300k 窗实测 7/29 点静默查无（失效后链头回退
     // 到遍历序首个物理点，其余点从 heads() 过滤后的查询入口消失）。
-    let distinct_points: BTreeSet<(u32, usize)> =
-        bridge.edges().iter().flat_map(|edge| edge.bsp_source_indices.iter().map(move |src| (edge.bsp_level, *src))).collect();
+    let distinct_points: BTreeSet<(u32, usize)> = bridge
+        .edges()
+        .iter()
+        .flat_map(|edge| {
+            edge.bsp_source_indices
+                .iter()
+                .map(move |src| (edge.bsp_level, *src))
+        })
+        .collect();
     let query_lost = distinct_points
         .iter()
-        .filter(|&&(level, source_index)| bridge.edges_for_bsp_point(level, source_index).is_empty())
+        .filter(|&&(level, source_index)| {
+            bridge.edges_for_bsp_point(level, source_index).is_empty()
+        })
         .count();
     println!(
         "ISSUE668_QUERY_ENTRY bars={} distinct_points_with_edges={} query_reachable={} query_lost={}",

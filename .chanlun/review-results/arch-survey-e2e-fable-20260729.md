@@ -34,7 +34,7 @@ data.rs（Dataset；契约「source_index == 数组下标」data.rs:140,161）
 
 | # | 位置 | 形态 | 定性 |
 |---|---|---|---|
-| 1 | `classifier/nest.rs:681` | `point.source_index == turn_source && bits.confirm_side(side)` | **生产绑定规则原型**（BSP↔证书事件绑定） |
+| 1 | `classifier/nest.rs:690`（原勘察记 `:681`，行号随后续注释订正漂移） | `point.source_index == turn_source && bits.confirm_side(side)` | **订正**（issue #747 修复轮，评审 review-747.log 条目③）：非「生产绑定规则原型」——本行属 `TerminalMatch::Exact` 分支，仅诊断 bin/单测可达；生产恒走 `TerminalMatch::CWindow`（窗口 + `min_by_key`，与本行不同形）。正确定性 = ADR-0005 GUARD-ROLE 对照臂的独立实现语句，字面同构 `classifier::bsp::bind_turn` 单源体，供诊断侧 16+ 处复制点对齐 |
 | 2 | `backtest/admission.rs:883` | `.find(\|e\| e.source_index == c.source_index)` | nest gate 物化锚（a* 解析；`:394,:862` 注释「禁第二查法」；测试侧语义 pin 在 runner.rs:5019） |
 | 3 | `backtest/signal.rs:114` | `lvl.bsp.iter().find(\|p\| p.source_index == c.source_index)` | 入场结构止损回查（(level, source_index) 查 BspPoint，:95 自述「bsp 确认点坐标，稳定不漂移」） |
 | 4 | `backtest/fill.rs:3134` | 同上形态 | #647 逆侧归因 dump 回查（观测面） |
@@ -44,6 +44,11 @@ data.rs（Dataset；契约「source_index == 数组下标」data.rs:140,161）
 | 8 | `parser/fractal.rs:80,140` | 组内序号契约 | parser 内部（合并组语义，自洽） |
 
 **bin 侧 12+ 处**（复制生产绑定规则；`p107_level_funnel_audit.rs:232` 注释明示「绑定规则（生产）：BSP.source_index == event.turn_source 且 confirm_side」）：p102:356、p107_level_funnel_audit:550/566、p108:836、p109:171/557、p111:156、p112:544/656、p113:736、p117:1053/1282、pi_bsp_timing:102。
+
+**范围声明（issue #747 修复轮，评审 review-747.log 条目⑥）**：以下三处不入 18 处收敛枚举，各有独立理由——
+- 第 7 行 `strategy/interp.rs:254`：字段等值嵌在 `trigger_projection_sound` 一个多子句复合布尔表达式内部（非独立的 `.find`/`.any`/`.filter` 查找调用），是投影一致性判定的一个子条件，不是「(level, source_index[, confirm_side]) → BspPoint」这一绑定规则的手写复制——不同形态，不入族；
+- 第 8 行 `parser/fractal.rs:80`：`fractal_at_source` 本身就是单源函数（`fractals.partition_point` 二分查找体），作用类型是 `Fractal` 非 `BspPoint`，是另一个已经单源化、不同类型上的独立查询——不是待收敛的手写复制点；
+- 测试侧 `backtest/l3_pi_probe.rs:492`：`slice_step` 内的 `source_index==i` 过滤位于 `#[ignore]` 探针 `pi_probe_delta_candidates_unlock_orders` 内部，注释自述「已被 `runner::newly_confirmed_step` 取代」——是保留存档的死代码探针，不参与生产/诊断路径，不计入 18 处收敛枚举。
 
 **泄漏定性**：绑定规则「(level, source_index[, confirm_side]) → BspPoint/证书」**无单源函数**——生产 5 处手写 + 诊断 bin 12+ 处逐字复制。改绑定口径（如未来按 #206 值桥锚重写）需同步 17+ 处；诊断读数与生产判定可静默分叉（p107 类 bin 的历史读数已因 #607 大闸不可比，正是这种分叉的实例）。K 序号在包含合并下漂移不作身份依据是 CONTEXT.md 不变量条明文；现状是「确认点坐标稳定」的口头契约撑着，无类型防护。
 

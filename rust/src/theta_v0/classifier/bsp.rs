@@ -209,6 +209,56 @@ impl PartialEq for BspPoint {
 /// 标记 `Eq`：除 force 外全字段均 `Eq`，手写 `eq` 自反/对称/传递（force 恒不参与 ⟹ 关系合法）。
 impl Eq for BspPoint {}
 
+/// 单源绑定查询族（issue #747 C1，spec #756）：收敛「(level, source_index[, confirm_side]) →
+/// BspPoint/存在性」历史 17+ 处手写复制（`.chanlun/review-results/arch-survey-e2e-fable-20260729.md`
+/// §1.2 全枚举）。语义 = 生产 4 处手写规则逐字节并集——`nest.rs:681` 除外：该处是 ADR-0005
+/// GUARD-ROLE 对照臂（判据 crate 禁引 nest 产物是禁令方向，不禁止 nest.rs 反过来调同 crate
+/// 内的本族 helper；不改调是 GUARD-ROLE「保持独立实现」纪律本身的要求，非 ADR-0005 禁令所迫），
+/// 语义对齐 [`bind_turn`] 但不改调该处调用（照实登记差异，不强并，见票内「先核语义是否逐字
+/// 同构」条；订正见 nest.rs:681 函数头注释与 `.chanlun/review-results/issue747-impl-*.md` §3）。
+///
+/// 三个家族成员对应三种不逐字同构的历史手写形态（未强并为一）：
+/// - [`bsp_at`]：纯 `source_index` 等值 find-first，无 side 过滤
+///   （`signal.rs::entry_structural_stop` / `fill.rs::entry_stop_reverse_dump_row` 并集）；
+/// - [`bsp_bit_at`]：`source_index` 等值 + 自定义 bit 谓词求**存在性**（find-first 换 any——
+///   同锚点可多类点共存，语义与 `bsp_at` 不可互换，`econ_positive.rs::xzd_type2_confirmed` 单源）；
+/// - [`bind_turn`]：`source_index` 等值 + `confirm_side` find-first——**诊断/单测面**的绑定规则
+///   单源体（`nest.rs:690` 的 `TerminalMatch::Exact` 分支仅诊断 bin 与单测可达；生产恒走
+///   `TerminalMatch::CWindow` 窗口臂 + `min_by_key`，与本函数不同形，不冒充「生产原型」——
+///   订正见 nest.rs:681 函数头注释），供其余同形态诊断复制点对齐，nest.rs 自身不改调。
+///
+/// newtype 边界（issue #747 C1「时刻分组键 vs 身份 join 类型层分开」条）：**执行降级，不做**。
+/// 试点曾引入 `BspSourceIndex(pub usize)` newtype 覆盖 [`bsp_at`] 两处生产身份 join 调用点，
+/// 但 `Candidate.source_index`（`strategy/interp.rs`）同一字段在 88+ 处消费点上身兼「时刻分组键」
+/// 与「身份 join」两种语义（`strategy/mod.rs:543/759` 的时刻分组过滤即读同一字段），真正的类型层
+/// 分开需改字段类型触达全部消费点，改动面远超两处 wrap/unwrap 的字面覆盖，跨边界收益不抵改动面
+/// ——降级为不做，试点已回退（详见 `.chanlun/review-results/issue747-impl-*.md` §3，spec #756
+/// C1 该条已同步降级登记）。
+
+/// 按 `source_index` 精确等值查首个 [`BspPoint`]（无 side 过滤）——单源函数体，见族头注释。
+pub fn bsp_at(bsp: &[BspPoint], source_index: usize) -> Option<&BspPoint> {
+    bsp.iter().find(|p| p.source_index == source_index)
+}
+
+/// 按 `source_index` 精确等值 + bit 谓词求存在性——单源函数体，见族头注释。
+pub fn bsp_bit_at(bsp: &[BspPoint], source_index: usize, pred: impl Fn(&BspBits) -> bool) -> bool {
+    bsp.iter()
+        .any(|p| p.source_index == source_index && pred(&p.bits))
+}
+
+/// 按 `turn_source` 精确等值 + `confirm_side` 查首个 [`BspPoint`]——单源函数体，见族头注释。
+pub fn bind_turn(bsp: &[BspPoint], turn_source: usize, side: Side) -> Option<&BspPoint> {
+    bsp.iter()
+        .find(|p| p.source_index == turn_source && p.bits.confirm_side(side))
+}
+
+/// 按 `source_index` 精确等值取**全部**命中点（诊断面枚举用——同锚点多类点共存，`.find()`
+/// 只取首个会丢信息，`bin/p112_trend_predicate_caseaudit.rs::at_turn` 单源，issue #747 C1）。
+/// 族内独立成员：不与 `bsp_at`（find-first）/`bsp_bit_at`（谓词 any）同构，逐字保留原过滤语义。
+pub fn bsp_all_at(bsp: &[BspPoint], source_index: usize) -> impl Iterator<Item = &BspPoint> {
+    bsp.iter().filter(move |p| p.source_index == source_index)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -458,6 +508,198 @@ mod tests {
                 _ => None,
             }),
             Some(800)
+        );
+    }
+
+    fn minimal_point(source_index: usize, bits: BspBits) -> BspPoint {
+        BspPoint {
+            source_index,
+            bits,
+            pivot_low: 0,
+            pivot_high: 0,
+            center: None,
+            struct_break_dir: None,
+            force: None,
+        }
+    }
+
+    /// issue #747 C1：单源绑定查询族——`bsp_at` 纯等值 find-first，无 side 过滤。
+    #[test]
+    fn bsp_at_finds_first_by_source_index_only() {
+        let pts = vec![
+            minimal_point(
+                5,
+                BspBits {
+                    sell1: true,
+                    ..Default::default()
+                },
+            ),
+            minimal_point(
+                7,
+                BspBits {
+                    buy1: true,
+                    ..Default::default()
+                },
+            ),
+        ];
+        assert_eq!(bsp_at(&pts, 7).map(|p| p.source_index), Some(7));
+        assert!(bsp_at(&pts, 999).is_none());
+    }
+
+    /// issue #747 C1：`bsp_bit_at` = 等值 + bit 谓词求存在性——同锚点多类点共存时用 any 而非
+    /// find-first（`econ_positive.rs::xzd_type2_confirmed` 单源语义，见族头注释）。
+    #[test]
+    fn bsp_bit_at_checks_existence_not_first_match() {
+        let pts = vec![
+            minimal_point(
+                3,
+                BspBits {
+                    buy1: true,
+                    ..Default::default()
+                },
+            ),
+            minimal_point(
+                3,
+                BspBits {
+                    buy2: true,
+                    ..Default::default()
+                },
+            ),
+        ];
+        // 首个同 source_index 条目是 buy1，但 buy2 在第二条目——find-first 会漏，any 不会。
+        assert!(bsp_bit_at(&pts, 3, |b| b.buy2));
+        assert!(!bsp_bit_at(&pts, 3, |b| b.sell1));
+        assert!(!bsp_bit_at(&pts, 999, |b| b.buy1));
+    }
+
+    /// issue #747 C1：`bind_turn` = 等值 + `confirm_side` find-first（`nest.rs:681` 生产绑定规则
+    /// 原型语义单源；nest.rs 自身保持独立实现不改调，仅登记口径见其函数头注释）。
+    #[test]
+    fn bind_turn_requires_confirm_side() {
+        let pts = vec![minimal_point(
+            7,
+            BspBits {
+                buy1: true,
+                ..Default::default()
+            },
+        )];
+        assert!(bind_turn(&pts, 7, Side::Long).is_some());
+        assert!(bind_turn(&pts, 7, Side::Short).is_none());
+        assert!(bind_turn(&pts, 8, Side::Long).is_none());
+    }
+
+    /// issue #747 C1：`bsp_all_at` 取全部同 source_index 命中点（诊断枚举用，不同于 find-first）。
+    #[test]
+    fn bsp_all_at_collects_every_match() {
+        let pts = vec![
+            minimal_point(
+                3,
+                BspBits {
+                    buy1: true,
+                    ..Default::default()
+                },
+            ),
+            minimal_point(
+                3,
+                BspBits {
+                    buy2: true,
+                    ..Default::default()
+                },
+            ),
+            minimal_point(
+                4,
+                BspBits {
+                    sell1: true,
+                    ..Default::default()
+                },
+            ),
+        ];
+        let at3: Vec<_> = bsp_all_at(&pts, 3).collect();
+        assert_eq!(at3.len(), 2);
+        assert!(bsp_all_at(&pts, 999).next().is_none());
+    }
+
+    /// 全枚举对拍守卫（issue #747 spec #756 Testing Decisions「17+ 处调用点全枚举对拍」，评审
+    /// review-747.log 条目①先例：`env_registry::tests::no_stray_env_literals_outside_registry`）：
+    /// 全仓（本文件除外）grep 手写绑定规则形态——`.find(|x| x.source_index == …)` /
+    /// `.any(|x| … x.source_index == …)` / `.filter(|x| x.source_index == …)`——命中点必须逐一
+    /// 落在下方白名单（file:line）内，否则说明有新的手写复制点绕过了单源 API 族，测试见红。
+    /// 新增/移动白名单外命中点须先并入 `bsp_at`/`bsp_bit_at`/`bind_turn`/`bsp_all_at`，或明确
+    /// 登记进本白名单并写清不并入理由——证据是「真收口」而非「多一份影子清单」。
+    #[test]
+    fn no_stray_bsp_binding_rewrites_outside_registry() {
+        // 白名单（file:line，相对 rust/src）：均已核实为非「本族绑定规则」手写复制点。
+        const WHITELIST: &[&str] = &[
+            // #747 合并态（main a4c24e86d1）行号随合入改动重排，逐条重核，理由不变：
+            //
+            // 真复制点已改调单源 API：
+            // bin/p_issue668_bsp_key_truth.rs:266（`.any(source_index==anchor_idx && bit)`）
+            // 已改调 `bsp_bit_at`，不再命中本 grep——不登记进白名单。
+            //
+            // Fractal 类型的单源函数体（作用于 `Fractal`，非 `BspPoint`，不入本族）。
+            "theta_v0/parser/fractal.rs:82",
+            // #[ignore] 死探针（已被 runner::newly_confirmed_step 取代，issue #747 条目6 登记不入
+            // 18 处枚举）。
+            "theta_v0/backtest/l3_pi_probe.rs:596",
+            // ADR-0005 GUARD-ROLE 对照臂原型语句本体（单列登记，不改调，见函数头注释订正）。
+            "theta_v0/classifier/nest.rs:718",
+            // `CrossLevelConfirmationQuery::entry_at` 单源函数体（作用于 `TripleAnchorEntry`，
+            // 与本族 `BspPoint` 三件并行不同型，见 projection.rs 函数头注释）。
+            "theta_v0/classifier/projection.rs:215",
+            // #[cfg(test)] mod 内断言用字面量 source_index 过滤——测试夹具，非生产绑定规则。
+            "theta_v0/classifier/signal.rs:2470",
+            "theta_v0/classifier/signal.rs:2747",
+            "theta_v0/classifier/signal.rs:3154",
+            "theta_v0/classifier/signal.rs:3187",
+            "theta_v0/classifier/signal.rs:3443",
+            "theta_v0/classifier/signal.rs:3507",
+            // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
+            "theta_v0/strategy/mod.rs:551",
+            "theta_v0/strategy/mod.rs:773",
+        ];
+
+        let src_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let output = std::process::Command::new("grep")
+            .args([
+                "-rnE",
+                r"\.(find|any|filter)\(\s*\|[a-zA-Z_]+\|[^)]*\.source_index\s*==",
+                "--include=*.rs",
+            ])
+            .arg(&src_dir)
+            .output()
+            .expect("grep 不可执行（完备性单测依赖系统 grep）");
+        let src_dir_prefix = format!("{}/", src_dir.display());
+        let whitelist: std::collections::BTreeSet<&str> = WHITELIST.iter().copied().collect();
+        let mut hits: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for line in String::from_utf8_lossy(&output.stdout).lines() {
+            let Some(rest) = line.strip_prefix(&src_dir_prefix) else {
+                continue;
+            };
+            let Some((path, tail)) = rest.split_once(':') else {
+                continue;
+            };
+            let Some((lineno, _content)) = tail.split_once(':') else {
+                continue;
+            };
+            // 本文件（bsp.rs）持有单源函数体本身，不算「手写复制点」，排除自身。
+            if path == "theta_v0/classifier/bsp.rs" {
+                continue;
+            }
+            hits.insert(format!("{path}:{lineno}"));
+        }
+        let stray: Vec<&String> = hits
+            .iter()
+            .filter(|h| !whitelist.contains(h.as_str()))
+            .collect();
+        assert!(
+            stray.is_empty(),
+            "以下命中点是白名单外的手写绑定规则复制点，应改调 bsp_at/bsp_bit_at/bind_turn/bsp_all_at，\
+             或登记进 WHITELIST 并写明理由：{stray:?}"
+        );
+        let stale: Vec<&&str> = whitelist.iter().filter(|w| !hits.contains(**w)).collect();
+        assert!(
+            stale.is_empty(),
+            "以下白名单条目未在当前 grep 命中中出现（代码已迁移/删除，白名单应同步清理）：{stale:?}"
         );
     }
 }
