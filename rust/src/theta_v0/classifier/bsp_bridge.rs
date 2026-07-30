@@ -34,7 +34,10 @@
 //! 每个 key 恰好被调用一次，幂等/终态挡的「prior vs next 二元比较」前提重新成立。
 //!
 //! 「episode 归属唯一」（一个物理点只能落入一个 episode）——[`find_episode`] 的 `debug_assert`
-//! 机器化此不变量。**订正（第五轮 supersede，修复 #670 R2-HIGH-3）**：此前一类路径
+//! 机器化此不变量（**仅 debug profile 生效，release 编译为空操作**——release 下若归属不再唯一，
+//! `find_episode` 静默取遍历序首个 episode；三窗验收 bin 全部在 release 跑，release 下唯一可见的
+//! 探测是真值表 bin 独立实现的 `episode_owned_many` 计数，不在库内路径上，评审 #670 三审 R3-LOW-3）。
+//! **订正（第五轮 supersede，修复 #670 R2-HIGH-3）**：此前一类路径
 //! （[`resolve_first_class_episode_points`]）绕过 [`find_episode`] 自行内联同款过滤，判据
 //! 重复但机器保证覆盖不到——若一类点同时落入两个 episode，旧实现会静默产两条边、零信号。
 //! 现改为逐点调用 [`find_episode`]，一/二/三类三条路径至此才真正共用同一个带 `debug_assert`

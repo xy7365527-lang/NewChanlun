@@ -123,8 +123,12 @@ fn load(path: &Path, tick_size: f64, limit: usize) -> Vec<Bar> {
 
 /// 独立参照集（真独立：不调用 `bsp_bridge` 任何函数/索引结构，线性扫描 + 自有数据形状）：
 /// 一类 = episode 区间覆盖（`c_start <= source_index <= interval.1`，同 level/side/中枢指纹）；
-/// 二类 = 其一类锚坐标同样按 episode 区间覆盖反查；三类 = `leave_interval.1` 精确等值（v2 三类
-/// 锚本轮未改，评审 #670 已验不空洞）。
+/// 二类 = 其一类锚坐标同样按 episode 区间覆盖反查；三类 = ~~`leave_interval.1` 精确等值（v2 三类
+/// 锚本轮未改，评审 #670 已验不空洞）~~（**已撤销，2026-07-29 #670 三审 R3-MED-2**：此前本参照集
+/// 三类仍留第四轮 supersede 之前的精确等值老判据，与生产 `bsp_bridge.rs::resolve_bridge` 三类
+/// 分支已迁移的 episode 覆盖判据不同构，「本轮未改」在修复轮 2 之后已成事实错误。订正为：
+/// `leave_interval.1` 同样按 episode 区间覆盖反查——复用 `find_covering`，与一/二类同一独立扫描
+/// 实现，不复写生产 `find_episode`）。
 fn reference_join(classification: &Classification, streams: &CandidateStreams) -> BTreeSet<(u32, usize, &'static str, CandidateKey)> {
     let mut latest: BTreeMap<CandidateKey, CandidateEvent> = BTreeMap::new();
     for batch in streams.iter() {
@@ -141,10 +145,6 @@ fn reference_join(classification: &Classification, streams: &CandidateStreams) -
             let p = (event.key.parent.center_start, event.key.parent.zd, event.key.parent.zg);
             (event.event_level, event.key.side, p, event.key.c_start, event.interval.1, event.key)
         })
-        .collect();
-    let trend_by_exact_end: BTreeMap<(u32, Side, (usize, i64, i64), usize), CandidateKey> = trend_events
-        .iter()
-        .map(|&(level, side, p, _, end, key)| ((level, side, p, end), key))
         .collect();
 
     let find_covering = |level: u32, side: Side, parent: (usize, i64, i64), source_index: usize| -> Option<CandidateKey> {
@@ -175,17 +175,20 @@ fn reference_join(classification: &Classification, streams: &CandidateStreams) -
                     out.insert((level_idx as u32, point.source_index, name, ek));
                 }
             }
-            // 三类：leave_interval.1 精确等值（未改判据）。
+            // 三类：leave_interval.1 按 episode 区间覆盖反查（订正，2026-07-29 #670 三审
+            // R3-MED-2：与生产 resolve_bridge 三类分支同构，不再是精确等值）。
             for (set, side, name) in [(point.bits.buy3, Side::Long, "Buy3"), (point.bits.sell3, Side::Short, "Sell3")] {
                 if !set {
                     continue;
                 }
                 let (Some(parent), Some(entry)) = (center_fp, point.bits.third_class_entry) else { continue };
-                if let Some(&ek) = trend_by_exact_end.get(&(level_idx as u32, side, parent, entry.leave_interval.1)) {
+                if let Some(ek) = find_covering(level_idx as u32, side, parent, entry.leave_interval.1) {
                     out.insert((level_idx as u32, point.source_index, name, ek));
                 }
             }
-            // 二类：反查同级一类锚，同样按 episode 区间覆盖（HIGH-2 修复覆盖二类）。
+            // 二类：反查同级一类锚，同样按 episode 区间覆盖（~~HIGH-2 修复覆盖二类~~——已撤销，
+            // 2026-07-29 #670 三审 R3-LOW-1：真值表 bin 头注 + ADR 第五轮 §3 已订正，二类锚坐标
+            // 在生产上恒判 `None`、零命中，此判据未实测，非「已覆盖」）。
             for (set, side, name, want_buy1) in [
                 (point.bits.buy2, Side::Long, "Buy2", true),
                 (point.bits.sell2, Side::Short, "Sell2", false),
