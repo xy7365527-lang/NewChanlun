@@ -37,6 +37,20 @@
 //! 不依赖经验数据——给定笔 b 与声部活动序列，`Eat` 是纯布尔判定。Rust 实装对齐
 //! C06 的 L0 结构定义 = L1 一致性（判定逻辑 bit-exact），**不冒充 L2**（不声明
 //! 「声部吃到 ⟹ 实盘盈利」——那是 C16/C21 毛收益 + L2/L3 验证范畴，本模块不涉及）。
+//!
+//! GUARD-ROLE: lean-mirror-reference
+//!
+//! ## 名分（ADR-0004 C6 名分程序，#745）
+//!
+//! - **名分**：对照件——五态判据下属「现役」（`pub mod voice_eat;` 挂在 main 线，无
+//!   deprecated 标记），角色是完全分类 spec C06 的结构镜像，非主判据决策路径。
+//! - **对照什么**：spec `.chanlun/specs/2026-06-28-complete-classification-pdf-extract.md`
+//!   C06 `Eat(v,b)`（对齐 `formal/Origin/VoiceEat.lean`）。
+//! - **与现役差在哪**：现役交易执行链（`strategy::voice`/`exec`）没有单独的「吃到」判定
+//!   消费点——本模块全仓零生产调用者（仅自身 `#[cfg(test)]` 验证判定逻辑），是 spec 对照
+//!   骨架而非接线中的判据。
+//! - **禁回灌**：不得把本模块的 `Eat` 判定回灌进 `strategy::voice`/`exec` 当交易门控用——
+//!   接线是独立票的事，本文件本身不产生任何生产侧行为变化。
 
 use super::super::strategy::voice::VoiceSide;
 use super::super::types::{Direction, Stroke};

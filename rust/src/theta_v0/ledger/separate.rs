@@ -62,6 +62,22 @@
 //!
 //! 谱系：C25/C26/C29（PDF §一/§四 页11–13）→ 230号（直积退化：双开 (Q,Q)↦0 净额退化）→
 //!       本文件 R2（P^sep rust 根 + Eat^sep 判定，对照 Lean SeparateLedger/VoiceEat）。
+//!
+//! GUARD-ROLE: lean-mirror-reference
+//!
+//! ## 名分（ADR-0004 C6 名分程序，#745）
+//!
+//! - **名分**：对照件——五态判据下属「现役」（`pub mod separate;` 挂在 main 线，无
+//!   deprecated 标记），角色是分账本头寸空间 P^sep 与 `formal/Origin/SeparateLedger.lean`
+//!   的结构对照实装，非主判据决策路径。
+//! - **对照什么**：`Origin.SeparateLedger`（`Leg`/`SepPosition`/`legNet`/`Net`/`legZero`/
+//!   `legLong`/`legShort`/`legHedged`，C25/C26/C29）。
+//! - **与现役差在哪**：现役敞口记账走 `strategy::ledger`（净额账本 R=Π-A-W）与
+//!   `nautilus::account_adapter`（net_position）——本文件显式声明**不依赖**二者、只复用
+//!   `types::Side`，是与净额账本正交并置的独立代数结构，全仓零生产调用者（仅自身
+//!   `#[cfg(test)]`）。
+//! - **禁回灌**：不得把 P^sep 分腿结构回灌进 `strategy::ledger`/`account_adapter` 替换现役
+//!   净额记账——净额账本度量净敞口是既定设计，P^sep 是层分离而非待合并的分叉。
 
 use crate::theta_v0::types::Side;
 

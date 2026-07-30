@@ -17,6 +17,21 @@
 //! 全部 **L1**（bit-exact 一致性：rust 六态/信号位输出与 Lean `TrendSixState` 形式化对齐 = 验证管线
 //! 正确，不验证 r/b 在市场上有效）。Lean 侧六态 partition ∃! + 信号位真 6 维非塌缩是 **L0**
 //! （machine-checked）；本模块测试是 L1（管线正确性镜像，零信息增量）。L2/L3 不声称。
+//!
+//! GUARD-ROLE: lean-mirror-reference
+//!
+//! ## 名分（ADR-0004 C6 名分程序，#745）
+//!
+//! - **名分**：对照件——五态判据下属「现役」（`pub mod six_state;` 挂在 main 线，无
+//!   deprecated 标记），角色是 rust 实装 ↔ Lean `Origin.TrendSixState` 的 canonical 命名
+//!   对照 + parity 断言层，非主判据决策路径。
+//! - **对照什么**：`Origin.TrendSixState`（走势六态 r 的构造子顺序 + 信号位 2B/3B 可重合、
+//!   1B/2B 互斥性质）。
+//! - **与现役差在哪**：本模块**不重复实装**判据——六态 r 的真实产出在
+//!   [`super::level_state::RLevel`]，信号位 b 的真实置位在 [`super::bsp::endpoint_to_bsp`]；
+//!   本文件只建立命名对照表 + parity 断言，全仓零生产调用者（仅自身 `#[cfg(test)]`）。
+//! - **禁回灌**：不得反过来让 `level_state`/`bsp` 依赖本模块的命名表做判定——依赖方向单向
+//!   （本模块读它们，不可逆），本文件也不得新增判据逻辑（那会制造第二份实现分叉）。
 
 use super::level_state::{rlevel_of, RContext, RLevel};
 use super::bsp::{endpoint_to_bsp, EndpointSituation};

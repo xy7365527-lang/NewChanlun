@@ -838,7 +838,7 @@ fn cand_delta_type2_completion(
 /// **保护边界 = 中枢 ZG/ZD**（离开中枢回抽不入 `c.zg`/`c.zd`，几何见 `descend.rs`
 /// `sub_broke_above`/`sub_broke_below`）——与 Type2 的「一类点极值」锚点/失效条件不同，故 Type3
 /// **不复用 Type2 顶层谓词**（codex：「Type2 保护位是一类点极值，Type3 保护边界是中枢区间边界」）。
-/// ZG/ZD 边界由上游 `six_state.rs` 置 buy3/sell3 位时强制（V型反转回试不入中枢已判），本谓词不在
+/// ZG/ZD 边界由上游 `bsp.rs`（`endpoint_to_bsp`）置 buy3/sell3 位时强制（V型反转回试不入中枢已判），本谓词不在
 /// Cand 层重门 ZG/ZD（上游已滤 ⟹ 双门=dead gate，信号集差 0）——保护边界**归属**记录于此，语义与
 /// Type2 分离。存在性锚复用 `descend_type1_anchor_depth`（codex 允许「Type3 最多复用 Type2 的
 /// 反向走势完成 helper」）：精确点=次级别 Type1（定律一下沉）；`lvl==0` 免门，`None`=小转大门拒。
