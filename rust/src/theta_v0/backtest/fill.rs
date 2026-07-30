@@ -727,7 +727,8 @@ where
 {
     // ★M5 wrapper：overlay=None ⟹ 现有净额路径逐字节不变（bit-exact）。overlay 簿接线走
     // [`pi_theta_fill_loop_overlay`]（run_theta_v0_pi_overlay arm 传 Some）。
-    pi_theta_fill_loop_overlay(classify_at, bars, initial_nav, config, chi, None, None)
+    // ★LEE M1：level_ledger=None ⟹ 级别账本镜像整段跳过（bit-exact 回归锁，#644）。
+    pi_theta_fill_loop_overlay(classify_at, bars, initial_nav, config, chi, None, None, None)
 }
 
 /// ★W1 声部独立执行臂（churn 修复，netting-vs-voice-execution-audit-20260719 §7）：与
@@ -750,7 +751,7 @@ pub(super) fn pi_theta_fill_loop_voice<F>(
 where
     F: FnMut(usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, Vec<usize>, u64, u64),
 {
-    pi_theta_fill_loop_overlay(classify_at, bars, initial_nav, config, chi, None, Some(voice))
+    pi_theta_fill_loop_overlay(classify_at, bars, initial_nav, config, chi, None, None, Some(voice))
 }
 
 /// #292（T2 落点门控接线；★★触发源改码，用户裁定 2026-07-26）：单 bar 内驱动中枢生命周期
@@ -3414,6 +3415,13 @@ pub(super) fn pi_theta_fill_loop_overlay<F>(
     config: &ThetaConfig,
     chi: Option<ChiFilterCtx>,
     mut overlay: Option<&mut super::super::strategy::overlay_state::OverlayState>,
+    // ★LEE M1 `level_ledger`（multi-level-native-execution-design-20260719 §D M1，#644 语义
+    // 重放自 kimi-nest-mainline）：与 overlay 并列的第二重只读旁路——同一决策点同一
+    // `step_trace.sep_legs` 按 `id.level`≡formation_level 分桶步进
+    // [`LevelLedgerMirror`](super::super::strategy::level_ledger::LevelLedgerMirror)。`None` ⟹
+    // 整段跳过，逐字节不变（bit-exact 回归锁）。**只读**：不改 `order`/`cash`/`units`/`p_t`
+    // 任何决策变量（#644 票面边界——level_order/level_risk sizing 接线不在本票，归 #755）。
+    mut level_ledger: Option<&mut super::super::strategy::level_ledger::LevelLedgerMirror>,
     mut voice_exec: Option<&mut super::super::strategy::overlay_state::VoiceExecBook>,
 ) -> FillOutput
 where
@@ -3553,6 +3561,16 @@ where
     // 镜像开/关腿生命周期事件过账，不改净额路径任何语义（三把 bit-exact 锁为界）；
     // 消费这些类型修复归属现病属修复票 #198/#199/#200。
     let mut account_view = strategy::account::ParallelAccountLedger::new();
+    // ★LEE M3 `clock_ℓ`（multi-level-native-execution-design-20260719 §D M3，#644 语义重放）：
+    // clock_ℓ 钟点的逐决策点累计读数（**release 可见**——「稀疏」若只有定义没有读数等于没有
+    // 证据）。**只读**：本读数不参与任何门控（`level_order.regate` 不在 #644 范围，归 #755），
+    // 纯粹的诊断累计，不影响 `order`/`cash`/`units`。
+    let mut level_clock_stats = super::super::strategy::level_clock::LevelClockStats::default();
+    // ★LEE 归因算子（`strategy::level_attrib::attribute_total`，#644 语义重放）逐 bar 只读诊断
+    // 计数：决策点总数 / 落残差桶决策点数 / 经比例缩放决策点数（见下方调用点注释）。
+    let mut level_attrib_n_bars: u64 = 0;
+    let mut level_attrib_n_residual_bars: u64 = 0;
+    let mut level_attrib_n_rescaled_bars: u64 = 0;
     // ★opsem-dump（基因 073a/274号）：env `OPSEM_DUMP_DIR` 启用时开两个 JSONL 写入器。
     // 未启用 ⟹ None，所有 write_trade/diff_tower 调用 no-op ⟹ 生产路径 bit-exact 不变。
     let mut opsem = OpsemDump::from_env();
@@ -4016,6 +4034,9 @@ where
             // 产触发事件上协议轨（#274 原料）。父腿快照/sync、候选路由、P10 Record、
             // 账面 apply 与净额叠加出口全部随 S6 账面形态删除。
             let mut protocol_events = super::super::strategy::protocol::ProtocolEventSet::hold(0);
+            // ★LEE M3 clock_ℓ（#644 语义重放）：本 bar 首见并过门的盘整背驰证书所在级别——
+            // `strategy::level_clock` 模块头「E6 结构：该级盘整背驰证书首见并过门」通道。
+            let mut pan_levels: Vec<u32> = Vec::new();
             // #292（B 裁定，用户 2026-07-26）：PanDivTrigger 降格为可选辅助——不再驱动开启臂
             // 生产触发（驱动源已改为次级别买卖点，见下方 `step_center_oscillation` 调用）。本段
             // 仍保留盘背证据上协议轨（#274 原料，与 #292 触发源解耦，不喂 `step_center_oscillation`）。
@@ -4052,6 +4073,8 @@ where
                         // DA-Q2：PanDiv 触发证据留在协议轨（#274 消费点；本层不产订单）。
                         let trigger = pan_div_state.prepare(gated);
                         protocol_events = protocol_events.with_center_oscillation(trigger);
+                        // ★LEE M3 clock_ℓ（#644）：首见并过门 ⟹ 本级入 PanDivCert 钟点通道。
+                        pan_levels.push(lvl as u32);
                     }
                 }
                 // #292（T2 接线点二，触发源改码）：级数对齐 + 逐级驱动本 bar 中枢生命周期事件
@@ -4165,6 +4188,66 @@ where
                 &step_parent_projections,
                 &step_trace,
             );
+            // ── ★LEE M3 clock_ℓ 事件钟（multi-level-native-execution-design-20260719 §C.2 变化
+            //    部分① / §D M3，#644 语义重放自 kimi-nest-mainline）：本 bar 各级事件集。七通道
+            //    全部取自**已有**产出（禁第二查法、禁重算结构）：新确认 BSP 走 `classification_step`
+            //    （`newly_confirmed_step` 的 append-only diff），腿生命周期五通道走 `step_trace`，
+            //    盘整背驰走本 bar 首见并过门的 `pan_levels`（上方 PanDivCert 循环收集）。事件集
+            //    的最小完备定义、与 `LevelState` 的逐字段对齐见 `strategy::level_clock` 模块头
+            //    ——不在此重复。
+            //    ★#644 票面边界：本读数**只读**——不消费 `ticks.ticked_levels()` 去门控任何目标
+            //    重估（kimi 侧 `plan_level_gated_order`/`level_order.regate` 不在本票范围，归
+            //    #755）。`level_clock_stats.observe` 是纯累计，不改 `order`/`cash`/`units`。 ──
+            let clock_ticks = {
+                use super::super::strategy::level_clock::collect_ticks;
+                let bsp_levels: Vec<u32> = classification_step
+                    .levels
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, ls)| !ls.bsp.is_empty())
+                    .map(|(lvl, _)| lvl as u32)
+                    .collect();
+                let closed_levels: Vec<u32> =
+                    step_trace.closed.iter().map(|(leg, _, _)| leg.level).collect();
+                let opened_levels: Vec<u32> =
+                    step_trace.opened.iter().map(|(_, leg)| leg.level).collect();
+                let silent_levels: Vec<u32> =
+                    step_trace.silent_drops.iter().map(|leg| leg.level).collect();
+                let overlay_levels: Vec<u32> =
+                    step_trace.overlay_closes.iter().map(|leg| leg.level).collect();
+                let risk_levels: Vec<u32> =
+                    step_trace.risk_exits.iter().map(|leg| leg.level).collect();
+                collect_ticks(
+                    &bsp_levels,
+                    &closed_levels,
+                    &opened_levels,
+                    &silent_levels,
+                    &overlay_levels,
+                    &risk_levels,
+                    &pan_levels,
+                )
+            };
+            level_clock_stats.observe(&clock_ticks);
+            // ── ★LEE 归因算子（`strategy::level_attrib::attribute_total`，#644 语义重放）逐 bar
+            //    **只读**诊断：把本 bar 已经由生产 M0 路径算出的净额目标 `standard_p_star`
+            //    （本读数只读消费，不回写、不改 `order`）按结构基准 `level_nets(sep_legs)` 归因
+            //    到各级——纯粹的记账读数，`out` 本身丢弃，只留统计。基准与 M1 镜像 `level_nets`
+            //    单源（同 `level_ledger.rs` 文档「M2 归因基准单源」纪律）。 ──
+            {
+                let lot = config.risk.default_lot.max(1) as i64;
+                let basis =
+                    super::super::strategy::level_ledger::level_nets(&step_trace.sep_legs, lot);
+                let total = standard_p_star.round() as i64;
+                let (_out, residual, rescaled) =
+                    super::super::strategy::level_attrib::attribute_total(&basis, total);
+                level_attrib_n_bars += 1;
+                if residual {
+                    level_attrib_n_residual_bars += 1;
+                }
+                if rescaled {
+                    level_attrib_n_rescaled_bars += 1;
+                }
+            }
             // #282（#280 裁定）：门内执行段（select_for_bar 优先级、KΘ 容量/P9 经济减仓
             // 门、pan_div_state.apply 账面写入、signed_live_child_units 净额叠加出口）已随
             // S6 开空腿账面形态删除——门内只余触发链（上方 protocol_events 上轨），
@@ -4181,6 +4264,29 @@ where
                     "M5 ΔN 守恒违例：order={} ≠ N_t−N_{{t−1}}={}−{}",
                     ostep.order, ostep.net_after, ostep.net_before
                 );
+            }
+            // ── ★LEE M1 级别账本镜像步进（multi-level-native-execution-design-20260719 §D M1，
+            //    #644 语义重放）：同一决策点同一 sep_legs 按 id.level≡formation_level 分桶重放
+            //    （与 overlay 并列的只读旁路，不改净额 fill 任何状态）。level_ledger=None ⟹
+            //    整段跳过（bit-exact 回归锁）。 ──
+            if let Some(ll) = level_ledger.as_deref_mut() {
+                let lstep = ll.step(&step_trace.sep_legs, px, i, config.risk.default_lot.max(1) as i64);
+                // ★LEE-Net 恒等（M1 验收断言，设计文档 §C.2）：Σ_ℓ net_ℓ 恒 = overlay 净敞口 N——
+                // 逐级分解是 Net 的加性细化（整数手数求和，精确成立非 eps 容差）。恒等的验证锚
+                // 需要 overlay 同时 Some 才有独立真值可比对；overlay=None 时镜像仍步进（账本本身
+                // 自洽），只是本 bar 不产 witness 读数。
+                if let Some(ov) = overlay.as_deref() {
+                    debug_assert_eq!(
+                        lstep.total_net,
+                        ov.net(),
+                        "LEE-Net 恒等违例（M1 加性细化）：Σ_ℓ net_ℓ={} ≠ N={} @bar{}",
+                        lstep.total_net, ov.net(), i
+                    );
+                    // ★#289 影子评审 MED ① 同款纪律：恒等的 release 非平凡证据——逐决策点累计
+                    // max|Σ_ℓ net_ℓ − N| 与 max|N|，release 同样执行；「残差 0 且 max|N|>0」才算
+                    // 见证成立。
+                    ll.observe_lee_net(ov.net());
+                }
             }
             // ── ③'' G4 typed ledger（#134）：消费 StepTrace 腿级生命周期事件。 ──
             // ★#200 次序（先平后开，`A_raw=(A_t∖D_t)∪O_t` 买卖点2 p.6/14 §9）：**关闭消费
@@ -4715,12 +4821,24 @@ where
         }
     }
 
+    // ── 窗口终点强平锚：末可交易 bar 与其收盘价（#289 LOW-1 单源化，#644 语义重放——overlay
+    //    与 LEE M1 镜像两处曾逐字重复同一 last_i/last_px 推导，任一侧口径改动会静默漂移。单源
+    //    后「同价同 bar」由构造保证，不再靠两段代码碰巧一致）。 ──
+    let forced_flat_anchor = (0..n)
+        .rev()
+        .find(|&j| !bars[j].untradable && bars[j].close > 0)
+        .map(|last_i| (last_i, bars[last_i].close as f64 * config.tick.tick_size));
     // ── ★M5 overlay 窗口终点强平：全部活动声部按末可交易 bar close 离场（记 exit_v/冻结 pnl_v）。
     //    价格 PnL 已在末决策点 step 累计到末价 ⟹ 此处只搬账本行（含浮盈口径，与净额侧同理）。 ──
     if let Some(ov) = overlay.as_deref_mut() {
-        if let Some(last_i) = (0..n).rev().find(|&j| !bars[j].untradable && bars[j].close > 0) {
-            let last_px = bars[last_i].close as f64 * config.tick.tick_size;
+        if let Some((last_i, last_px)) = forced_flat_anchor {
             ov.force_flat(last_px, last_i);
+        }
+    }
+    // ── ★LEE M1 级别账本镜像窗口终点强平（#644 语义重放）：与 overlay 同价同 bar 按级重排。 ──
+    if let Some(ll) = level_ledger.as_deref_mut() {
+        if let Some((last_i, last_px)) = forced_flat_anchor {
+            ll.force_flat(last_px, last_i);
         }
     }
 
@@ -5013,6 +5131,10 @@ where
         center_oscillation_actions: osc_actions,
         campaign_book,
         campaign_witness,
+        level_clock: level_clock_stats,
+        level_attrib_n_bars,
+        level_attrib_n_residual_bars,
+        level_attrib_n_rescaled_bars,
     }
 }
 
@@ -5061,6 +5183,14 @@ pub(super) struct FillOutput {
     /// issue #357 验收③：enabled=true wf8 产物级见证读数（减补动作归属分桶/`CenterNotAlive`
     /// 丢弃率/挂起归宿/campaign 生死事件）。v1/dual 路径未接线 ⟹ 恒 `default()`。
     pub(super) campaign_witness: super::super::strategy::oscillation_campaign::CampaignWiringWitness,
+    /// ★LEE M3 `clock_ℓ`（#644 语义重放）：逐 bar 事件钟点只读累计读数（`level_ledger` 参数与
+    /// 本读数彼此独立——本读数不需要 `level_ledger=Some` 才产出，逐 bar 无条件计入）。
+    pub(super) level_clock: super::super::strategy::level_clock::LevelClockStats,
+    /// ★LEE 归因算子（#644 语义重放）逐 bar 只读诊断计数——见 [`super::runner::OverlayRunResult`]
+    /// 同名字段文档（单源，不在此重复）。
+    pub(super) level_attrib_n_bars: u64,
+    pub(super) level_attrib_n_residual_bars: u64,
+    pub(super) level_attrib_n_rescaled_bars: u64,
 }
 
 
