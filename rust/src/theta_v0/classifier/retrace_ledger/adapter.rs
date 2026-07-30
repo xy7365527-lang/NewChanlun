@@ -215,9 +215,7 @@ fn check_retest_opposes_leave(input: &RetraceInput) -> Result<(), RetraceRejecti
 /// missing 桶之二：给了结局就必须给判案位置（未决则允许缺）。
 fn check_material_completeness(input: &RetraceInput) -> Result<(), RetraceRejection> {
     if input.outcome.is_some() && input.retest_end.is_none() {
-        return Err(RetraceRejection::MissingRetestPosition {
-            as_of: input.as_of,
-        });
+        return Err(RetraceRejection::MissingRetestPosition { as_of: input.as_of });
     }
     Ok(())
 }

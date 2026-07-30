@@ -20,8 +20,8 @@
 //! 全函数。R6 态**不**由缠论结构公理单独导出——依赖 Θ_parse(最后中枢) + Θ_signal(3B/3S
 //! 判据)。本工位实装「给定 RContext 后的全函数」（L0），不声称 6 态是无参数完全分类。
 
-use super::super::types::{BspBits, Center};
 use super::super::types::Tick;
+use super::super::types::{BspBits, Center};
 use super::center::{classify_position, RelativePosition};
 
 /// R6 位置态（契约锚 `Origin.CenterStates.CenterPosition` 精化，互斥 sum type）。
@@ -107,13 +107,25 @@ mod tests {
     use super::*;
 
     fn center(dd: Tick, zd: Tick, zg: Tick, gg: Tick) -> Center {
-        Center { zd, zg, dd, gg, start_index: 0, end_index: 0 }
+        Center {
+            zd,
+            zg,
+            dd,
+            gg,
+            start_index: 0,
+            end_index: 0,
+        }
     }
 
     #[test]
     fn rlevel_bot_when_no_center_bit_exact() {
         // 无中枢 → Bot（rlevelOf_eq_bot）。
-        let ctx = RContext { last_center: None, price: 100, b3: true, s3: true };
+        let ctx = RContext {
+            last_center: None,
+            price: 100,
+            b3: true,
+            s3: true,
+        };
         assert_eq!(rlevel_of(&ctx), RLevel::Bot);
     }
 
@@ -121,7 +133,12 @@ mod tests {
     fn rlevel_inside_when_within_bit_exact() {
         // 核心 [0,10]，p=5 within → Inside（不按第三类拆分）。
         let c = center(-5, 0, 10, 15);
-        let ctx = RContext { last_center: Some(c), price: 5, b3: true, s3: true };
+        let ctx = RContext {
+            last_center: Some(c),
+            price: 5,
+            b3: true,
+            s3: true,
+        };
         assert_eq!(rlevel_of(&ctx), RLevel::Inside);
     }
 
@@ -129,9 +146,19 @@ mod tests {
     fn rlevel_above_splits_by_b3_bit_exact() {
         // 核心 [0,10]，p=20 above；b3 裂 AboveB3 / AboveNo3B。
         let c = center(-5, 0, 10, 15);
-        let with_b3 = RContext { last_center: Some(c), price: 20, b3: true, s3: false };
+        let with_b3 = RContext {
+            last_center: Some(c),
+            price: 20,
+            b3: true,
+            s3: false,
+        };
         assert_eq!(rlevel_of(&with_b3), RLevel::AboveB3);
-        let no_b3 = RContext { last_center: Some(c), price: 20, b3: false, s3: false };
+        let no_b3 = RContext {
+            last_center: Some(c),
+            price: 20,
+            b3: false,
+            s3: false,
+        };
         assert_eq!(rlevel_of(&no_b3), RLevel::AboveNo3B);
     }
 
@@ -139,9 +166,19 @@ mod tests {
     fn rlevel_below_splits_by_s3_bit_exact() {
         // 核心 [0,10]，p=-5 below；s3 裂 BelowS3 / BelowNo3S。
         let c = center(-10, 0, 10, 15);
-        let with_s3 = RContext { last_center: Some(c), price: -5, b3: false, s3: true };
+        let with_s3 = RContext {
+            last_center: Some(c),
+            price: -5,
+            b3: false,
+            s3: true,
+        };
         assert_eq!(rlevel_of(&with_s3), RLevel::BelowS3);
-        let no_s3 = RContext { last_center: Some(c), price: -5, b3: false, s3: false };
+        let no_s3 = RContext {
+            last_center: Some(c),
+            price: -5,
+            b3: false,
+            s3: false,
+        };
         assert_eq!(rlevel_of(&no_s3), RLevel::BelowNo3S);
     }
 
@@ -151,7 +188,12 @@ mod tests {
         let c = center(-5, 0, 10, 15);
         for b3 in [true, false] {
             for s3 in [true, false] {
-                let ctx = RContext { last_center: Some(c), price: 5, b3, s3 };
+                let ctx = RContext {
+                    last_center: Some(c),
+                    price: 5,
+                    b3,
+                    s3,
+                };
                 assert_eq!(rlevel_of(&ctx), RLevel::Inside);
             }
         }
@@ -161,7 +203,12 @@ mod tests {
     fn rlevel_boundary_zg_is_inside() {
         // p=zg 归 within → Inside（闭核心区间，破 zg 才 above）。
         let c = center(-5, 0, 10, 15);
-        let ctx = RContext { last_center: Some(c), price: 10, b3: true, s3: true };
+        let ctx = RContext {
+            last_center: Some(c),
+            price: 10,
+            b3: true,
+            s3: true,
+        };
         assert_eq!(rlevel_of(&ctx), RLevel::Inside);
     }
 
@@ -174,7 +221,12 @@ mod tests {
             for p in [-20, -5, 0, 5, 10, 20] {
                 for b3 in [true, false] {
                     for s3 in [true, false] {
-                        let ctx = RContext { last_center: lc, price: p, b3, s3 };
+                        let ctx = RContext {
+                            last_center: lc,
+                            price: p,
+                            b3,
+                            s3,
+                        };
                         let r = rlevel_of(&ctx);
                         assert!(matches!(
                             r,

@@ -76,7 +76,10 @@ fn bsp_class(kind: u8, side: u8) -> BspClass {
 pub(super) fn load_tape(sym: &str) -> SignalTape {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(format!("../analysis/data_cache/_tape_v2r_{sym}.bin"));
-    let mut r = Rd { b: fs::read(&path).unwrap_or_else(|e| panic!("读磁带 {path:?}: {e}")), p: 0 };
+    let mut r = Rd {
+        b: fs::read(&path).unwrap_or_else(|e| panic!("读磁带 {path:?}: {e}")),
+        p: 0,
+    };
     assert_eq!(r.u64(), MAGIC, "磁带 magic 不匹配——dump 格式代次错位");
     let n = r.u64() as usize;
     let n_bsp = r.u64() as usize;
@@ -133,8 +136,16 @@ pub(super) fn load_tape(sym: &str) -> SignalTape {
     for _ in 0..n_div {
         let bar = r.i64() as usize;
         let lad = r.u8() as usize;
-        let kind = if r.u8() == 0 { DivKind::Trend } else { DivKind::Consolidation };
-        let direction = if r.u8() == 0 { Direction::Up } else { Direction::Down };
+        let kind = if r.u8() == 0 {
+            DivKind::Trend
+        } else {
+            DivKind::Consolidation
+        };
+        let direction = if r.u8() == 0 {
+            Direction::Up
+        } else {
+            Direction::Down
+        };
         let seg_idx = r.i64();
         let force_a = r.f64();
         let force_c = r.f64();
@@ -142,18 +153,34 @@ pub(super) fn load_tape(sym: &str) -> SignalTape {
         bars[bar]
             .div_events
             .get_or_insert_with(|| Box::new(<[Vec<DivEvent>; MAX_LADDER]>::default()))[lad]
-            .push(DivEvent { kind, direction, seg_idx, force_a, force_c, price });
+            .push(DivEvent {
+                kind,
+                direction,
+                seg_idx,
+                force_a,
+                force_c,
+                price,
+            });
     }
     let dir_flips: Vec<(i64, u8, Direction)> = (0..n_flip)
         .map(|_| {
             let bar = r.i64();
             let lad = r.u8();
-            let d = if r.u8() == 0 { Direction::Up } else { Direction::Down };
+            let d = if r.u8() == 0 {
+                Direction::Up
+            } else {
+                Direction::Down
+            };
             (bar, lad, d)
         })
         .collect();
     assert_eq!(r.p, r.b.len(), "磁带尾部有未消费字节——格式错位");
-    SignalTape { bars, dir_flips: Some(dir_flips), run_high: None, trend_flips: None }
+    SignalTape {
+        bars,
+        dir_flips: Some(dir_flips),
+        run_high: None,
+        trend_flips: None,
+    }
 }
 
 fn opt_i64(v: Option<i64>) -> String {
@@ -190,9 +217,16 @@ fn run_and_dump(sym: &str, exp: &Expect) {
     assert_eq!(c.n_rev_close_t6, exp.t6, "t6 与在册不符");
     assert_eq!(c.n_rev_close_t7, exp.t7, "t7 与在册不符");
     assert_eq!(c.n_rev_zd_close, exp.zd, "zd_close 与在册不符");
-    assert_eq!(c.n_rev_mismatch_holds, exp.mismatch, "mismatch_holds 与在册不符");
+    assert_eq!(
+        c.n_rev_mismatch_holds, exp.mismatch,
+        "mismatch_holds 与在册不符"
+    );
     assert_eq!(c.rev_osc_pairs, exp.pairs, "rev_osc_pairs 与在册不符");
-    assert_eq!(c.rev_open_log.len() as u64, exp.open, "open_log 行数 ≠ n_rev_open");
+    assert_eq!(
+        c.rev_open_log.len() as u64,
+        exp.open,
+        "open_log 行数 ≠ n_rev_open"
+    );
     assert_eq!(
         c.rev_close_log.len() as u64,
         exp.t5 + exp.t6 + exp.t7 + exp.zd,
@@ -249,8 +283,14 @@ fn run_and_dump(sym: &str, exp: &Expect) {
             first = false;
             s.push_str(&format!(
                 "\n[{},{},{:?},{},{:?},{:?},{:?},{:?}]",
-                lt.slot.ladder, lt.sell_bar, lt.sell_price, lt.buy_bar, lt.buy_price,
-                lt.shares, lt.diff, lt.profit
+                lt.slot.ladder,
+                lt.sell_bar,
+                lt.sell_price,
+                lt.buy_bar,
+                lt.buy_price,
+                lt.shares,
+                lt.diff,
+                lt.profit
             ));
         }
     }
@@ -281,7 +321,16 @@ fn run_and_dump(sym: &str, exp: &Expect) {
 fn trade_behavior_oklo() {
     run_and_dump(
         "OKLO",
-        &Expect { open: 185, osc: 185, t5: 0, t6: 116, t7: 29, zd: 38, mismatch: 18, pairs: 183 },
+        &Expect {
+            open: 185,
+            osc: 185,
+            t5: 0,
+            t6: 116,
+            t7: 29,
+            zd: 38,
+            mismatch: 18,
+            pairs: 183,
+        },
     );
 }
 
@@ -290,6 +339,15 @@ fn trade_behavior_oklo() {
 fn trade_behavior_brn() {
     run_and_dump(
         "BRN",
-        &Expect { open: 77, osc: 77, t5: 0, t6: 39, t7: 20, zd: 18, mismatch: 21, pairs: 77 },
+        &Expect {
+            open: 77,
+            osc: 77,
+            t5: 0,
+            t6: 39,
+            t7: 20,
+            zd: 18,
+            mismatch: 21,
+            pairs: 77,
+        },
     );
 }

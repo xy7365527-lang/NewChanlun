@@ -59,19 +59,30 @@ pub(crate) struct ElementView<'a> {
     /// 表），由调用方从 [`super::super::interp::TreeCache`] 注入（命中返 `Rc::clone` O(1)）。`None` ⟹ 消费者
     /// fallback 现建（[`coverage_step_from_buckets`] 测试路径/无缓存）。§16 tree 前缀不变 ⟹ 索引随
     /// tree 缓存复用，消除每 bar `build_prev_sibling_index`/`build_tree_id_index` O(tree)/bar=O(n²)。
-    pub(crate) base_sibling_idx: Option<Rc<std::collections::HashMap<(Option<usize>, u32), Vec<usize>>>>,
+    pub(crate) base_sibling_idx:
+        Option<Rc<std::collections::HashMap<(Option<usize>, u32), Vec<usize>>>>,
     pub(crate) base_id_idx: Option<Rc<std::collections::HashMap<ElementId, usize>>>,
 }
 
 impl<'a> ElementView<'a> {
     pub(crate) fn new(base: &'a [CoverageElement]) -> Self {
-        ElementView { base, overlay: Vec::new(), base_sibling_idx: None, base_id_idx: None }
+        ElementView {
+            base,
+            overlay: Vec::new(),
+            base_sibling_idx: None,
+            base_id_idx: None,
+        }
     }
 
     /// 双段构造（base=持久树前缀借用零拷贝 + overlay=本 bar candidate 段 owned）。
     /// `_cached` 返回 `(tree_rc, candidates)` 后由消费者组装——消除旧 `tree.clone()` O(tree)/bar。
     pub(crate) fn from_parts(base: &'a [CoverageElement], overlay: Vec<CoverageElement>) -> Self {
-        ElementView { base, overlay, base_sibling_idx: None, base_id_idx: None }
+        ElementView {
+            base,
+            overlay,
+            base_sibling_idx: None,
+            base_id_idx: None,
+        }
     }
 
     /// ★工位 4d：注入 base 段缓存索引（runner 从 [`super::super::interp::TreeCache`] 取，bit-exact 与现建相等）。
@@ -127,13 +138,17 @@ impl<'a> ElementView<'a> {
     /// 恢复元素恒在 overlay）。idx < base.len() ⟹ None（不越权改树前缀）。
     pub(crate) fn overlay_mut(&mut self, idx: usize) -> Option<&mut CoverageElement> {
         let base_len = self.base.len();
-        idx.checked_sub(base_len).and_then(move |i| self.overlay.get_mut(i))
+        idx.checked_sub(base_len)
+            .and_then(move |i| self.overlay.get_mut(i))
     }
 
     /// 首个满足 `pred` 的元素全局 idx，= 旧 `work.iter().position(pred)`（base 在前 overlay 在后）。
     pub(crate) fn position(&self, mut pred: impl FnMut(&CoverageElement) -> bool) -> Option<usize> {
         self.base.iter().position(&mut pred).or_else(|| {
-            self.overlay.iter().position(pred).map(|i| self.base.len() + i)
+            self.overlay
+                .iter()
+                .position(pred)
+                .map(|i| self.base.len() + i)
         })
     }
 
@@ -153,7 +168,13 @@ impl<'a> ElementView<'a> {
         if self.overlay.is_empty() {
             std::borrow::Cow::Borrowed(self.base)
         } else {
-            std::borrow::Cow::Owned(self.base.iter().chain(self.overlay.iter()).copied().collect())
+            std::borrow::Cow::Owned(
+                self.base
+                    .iter()
+                    .chain(self.overlay.iter())
+                    .copied()
+                    .collect(),
+            )
         }
     }
 }
@@ -228,22 +249,28 @@ pub fn extract_carrier_forest(tower: &[Rc<Vec<LeveledMove>>]) -> Vec<CoverageEle
         }
     }
     // dedup（codex NO#2）：同一 ElementId 多次出现（作低级根 + 作高级父的 sub），保带真 parent_id 者。
-    let mut best_idx: std::collections::HashMap<ElementId, usize> = std::collections::HashMap::new();
+    let mut best_idx: std::collections::HashMap<ElementId, usize> =
+        std::collections::HashMap::new();
     for (i, e) in elements.iter().enumerate() {
         match best_idx.get(&e.id) {
             // 已有记录：仅当新出现带真 parent_id 而旧的无父时，替换（父链更全，host^op 父链所需）。
             Some(&old) if elements[old].parent_id.is_none() && e.parent_id.is_some() => {
                 best_idx.insert(e.id, i);
             }
-            Some(_) => {}                  // 旧已带父或新也无父 ⟹ 保旧（首次出现序）。
-            None => { best_idx.insert(e.id, i); }
+            Some(_) => {} // 旧已带父或新也无父 ⟹ 保旧（首次出现序）。
+            None => {
+                best_idx.insert(e.id, i);
+            }
         }
     }
     // 重建去重 Vec：选中元素按原 idx 升序（父在子前不变量保持），parent 索引重映射到去重后位置。
     let mut selected: Vec<usize> = best_idx.values().copied().collect();
     selected.sort_unstable();
-    let pos_of: std::collections::HashMap<usize, usize> =
-        selected.iter().enumerate().map(|(new, &old)| (old, new)).collect();
+    let pos_of: std::collections::HashMap<usize, usize> = selected
+        .iter()
+        .enumerate()
+        .map(|(new, &old)| (old, new))
+        .collect();
     selected
         .iter()
         .map(|&old| {
@@ -252,7 +279,9 @@ pub fn extract_carrier_forest(tower: &[Rc<Vec<LeveledMove>>]) -> Vec<CoverageEle
                 // parent（per-bar Vec 索引）重映射：旧 parent idx → 其 id 的去重后选中位置。
                 parent: e.parent.and_then(|pidx| {
                     let pid = elements[pidx].id;
-                    best_idx.get(&pid).and_then(|&sel| pos_of.get(&sel).copied())
+                    best_idx
+                        .get(&pid)
+                        .and_then(|&sel| pos_of.get(&sel).copied())
                 }),
                 ..e
             }
@@ -284,7 +313,10 @@ pub fn dual_view_consistency(
         std::collections::HashMap::with_capacity(k_i.len());
     for e in k_i {
         if k_by_id.insert(e.id, e).is_some() {
-            return Err(format!("K_i ElementId 重复：{:?}（dedup 破裂，host^op 二义）", e.id));
+            return Err(format!(
+                "K_i ElementId 重复：{:?}（dedup 破裂，host^op 二义）",
+                e.id
+            ));
         }
     }
     let mut k_endpoints: std::collections::HashSet<(u32, usize)> =
@@ -457,8 +489,7 @@ pub fn attach_bsp_to_tree(
 pub fn build_tree_endpoint_index(
     tree: &[CoverageElement],
 ) -> std::collections::HashMap<(u32, usize), usize> {
-    let mut idx: std::collections::HashMap<(u32, usize), usize> =
-        std::collections::HashMap::new();
+    let mut idx: std::collections::HashMap<(u32, usize), usize> = std::collections::HashMap::new();
     for (i, e) in tree.iter().enumerate() {
         // ρ 同级唯一 ⟹ 后插入不会覆盖已存在的（compose 非重叠）。用 entry 保首个（与 .find() 首个一致）。
         idx.entry((e.level, e.rho)).or_insert(i);
@@ -572,7 +603,10 @@ pub fn from_classification_levels(classification: &Classification) -> Vec<Covera
                 parent: None,
                 attached_dir: None,
                 // 扁平入口无真塔 ⟹ 确定性 ID 退化为 (level, center 序号)；parent_id=None=∂。
-                id: ElementId { level: level_idx as u32, ordinal: elements.len() as u64 },
+                id: ElementId {
+                    level: level_idx as u32,
+                    ordinal: elements.len() as u64,
+                },
                 parent_id: None,
             });
         }
@@ -623,7 +657,6 @@ pub(crate) fn build_tree_id_index(
     }
     idx
 }
-
 
 #[cfg(test)]
 #[path = "element_tests.rs"]

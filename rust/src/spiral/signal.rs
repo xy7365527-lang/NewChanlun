@@ -69,8 +69,14 @@ fn cascade_arm(
     compress_bar: i64,
     confirm_bar: i64,
 ) {
-    debug_assert!(source >= PENDING_LO, "pending 只在 move(L1) 及以上注册；source={source}");
-    debug_assert!(compress_bar < confirm_bar, "540号严格时序：压缩 < 展开（同 bar=伪确认）");
+    debug_assert!(
+        source >= PENDING_LO,
+        "pending 只在 move(L1) 及以上注册；source={source}"
+    );
+    debug_assert!(
+        compress_bar < confirm_bar,
+        "540号严格时序：压缩 < 展开（同 bar=伪确认）"
+    );
     for slot in located.iter_mut().take(source + 1).skip(FIRST_BSP_LADDER) {
         let overwrite = slot.map_or(true, |e| source >= e.source_ladder);
         if overwrite {
@@ -87,7 +93,9 @@ fn cascade_arm(
 
 /// 级联链顶 S（最高有 located 的层）。
 fn chain_source(located: &[Option<PendingLocate>; MAX_LADDER]) -> Option<usize> {
-    (FIRST_BSP_LADDER..MAX_LADDER).rev().find(|&k| located[k].is_some())
+    (FIRST_BSP_LADDER..MAX_LADDER)
+        .rev()
+        .find(|&k| located[k].is_some())
 }
 
 /// 升序 bar 序列中 ≤ `ub` 的最大值（向心回溯内圈末段 settle bar）。
@@ -193,7 +201,12 @@ impl SignalState {
         let empty: [Vec<BspEvent>; MAX_LADDER] = Default::default();
         let evrows: &[Vec<BspEvent>; MAX_LADDER] = sig.bsp_events.as_deref().unwrap_or(&empty);
         if sig.bsp_events.is_some() {
-            for (lad, row) in evrows.iter().enumerate().take(MAX_LADDER).skip(FIRST_BSP_LADDER) {
+            for (lad, row) in evrows
+                .iter()
+                .enumerate()
+                .take(MAX_LADDER)
+                .skip(FIRST_BSP_LADDER)
+            {
                 self.book.ingest(lad, row, true, None);
             }
             self.depth.observe(&self.book, c);
@@ -223,15 +236,26 @@ impl SignalState {
                         type2_seen += 1;
                     }
                     let sellside = matches!(e.class.side(), Side::Sell);
-                    let win = if sellside { &mut self.nest_sell[k] } else { &mut self.nest_buy[k] };
+                    let win = if sellside {
+                        &mut self.nest_sell[k]
+                    } else {
+                        &mut self.nest_buy[k]
+                    };
                     if e.confirmed {
                         *win = None;
                     } else {
                         let (ext, since) = win.map_or((e.price, bar), |w| {
-                            let ext = if sellside { w.extreme.max(e.price) } else { w.extreme.min(e.price) };
+                            let ext = if sellside {
+                                w.extreme.max(e.price)
+                            } else {
+                                w.extreme.min(e.price)
+                            };
                             (ext, w.since_bar)
                         });
-                        *win = Some(Pending { extreme: ext, since_bar: since });
+                        *win = Some(Pending {
+                            extreme: ext,
+                            since_bar: since,
+                        });
                         res.n_arms_by_ladder[k] += 1;
                     }
                     if e.class.kind() == BspKind::Type2 {
@@ -241,7 +265,9 @@ impl SignalState {
             }
             // ③ 向心 confirm（T49）：母线逐圈贯通 ∧ since<bar ⇒ confirm@k。
             if let Some(w) = self.nest_sell[k] {
-                if w.since_bar < bar && helix_centripetal_confirm(&self.type1_hist, k, Side::Sell, w.since_bar) {
+                if w.since_bar < bar
+                    && helix_centripetal_confirm(&self.type1_hist, k, Side::Sell, w.since_bar)
+                {
                     confirm_sell[k] = Some((w.extreme, w.since_bar));
                     nf_sell[k] = Some(w.extreme);
                     res.n_fire_sell_by_ladder[k] += 1;
@@ -249,7 +275,9 @@ impl SignalState {
                 }
             }
             if let Some(w) = self.nest_buy[k] {
-                if w.since_bar < bar && helix_centripetal_confirm(&self.type1_hist, k, Side::Buy, w.since_bar) {
+                if w.since_bar < bar
+                    && helix_centripetal_confirm(&self.type1_hist, k, Side::Buy, w.since_bar)
+                {
                     confirm_buy[k] = Some((w.extreme, w.since_bar));
                     nf_buy[k] = Some(w.extreme);
                     res.n_fire_buy_by_ladder[k] += 1;
@@ -261,7 +289,13 @@ impl SignalState {
 
         // ── 记录本 bar 各层 type1 settle（向心回溯历史；confirm 之后记录）──
         if sig.bsp_events.is_some() {
-            for (j, hist_j) in self.type1_hist.iter_mut().enumerate().take(MAX_LADDER).skip(FIRST_BSP_LADDER) {
+            for (j, hist_j) in self
+                .type1_hist
+                .iter_mut()
+                .enumerate()
+                .take(MAX_LADDER)
+                .skip(FIRST_BSP_LADDER)
+            {
                 for e in &evrows[j] {
                     if e.class.kind() == BspKind::Type1 {
                         let si = match e.class.side() {
@@ -285,7 +319,13 @@ impl SignalState {
                 cascade_arm(&mut self.located_buy, Side::Buy, k, ext, since, bar);
             }
         }
-        prove_t53_connection_assoc(&pre_sell, &confirm_sell, Side::Sell, bar, &self.located_sell);
+        prove_t53_connection_assoc(
+            &pre_sell,
+            &confirm_sell,
+            Side::Sell,
+            bar,
+            &self.located_sell,
+        );
         prove_t53_connection_assoc(&pre_buy, &confirm_buy, Side::Buy, bar, &self.located_buy);
         // 破极值否定（级联统一极值 ⇒ 整链同破）。
         for k in FIRST_BSP_LADDER..MAX_LADDER {
@@ -321,19 +361,36 @@ pub fn prove_chain(
     bar: i64,
     op: &str,
 ) {
-    assert!(s >= PENDING_LO, "N5 违反@bar {bar} {op}：source={s} < move(L1)={PENDING_LO}（segment 非势源）");
+    assert!(
+        s >= PENDING_LO,
+        "N5 违反@bar {bar} {op}：source={s} < move(L1)={PENDING_LO}（segment 非势源）"
+    );
     let top = located[s].unwrap_or_else(|| panic!("N5 违反@bar {bar} {op}：source={s} 无 located"));
-    assert_eq!(top.source_ladder, s, "N5 违反@bar {bar} {op}：located[{s}].source_ladder≠{s}");
-    assert_eq!(top.direction, dir, "N5 违反@bar {bar} {op}：located[{s}].direction 方向错配");
+    assert_eq!(
+        top.source_ladder, s,
+        "N5 违反@bar {bar} {op}：located[{s}].source_ladder≠{s}"
+    );
+    assert_eq!(
+        top.direction, dir,
+        "N5 违反@bar {bar} {op}：located[{s}].direction 方向错配"
+    );
     assert!(
         top.compress_bar < top.confirm_bar,
         "N6 违反@bar {bar} {op}：压缩 {} ≥ 展开 {}（伪确认）",
-        top.compress_bar, top.confirm_bar
+        top.compress_bar,
+        top.confirm_bar
     );
-    assert!(top.confirm_bar <= bar, "N6 违反@bar {bar} {op}：confirm_bar={} > bar（未来武装）", top.confirm_bar);
+    assert!(
+        top.confirm_bar <= bar,
+        "N6 违反@bar {bar} {op}：confirm_bar={} > bar（未来武装）",
+        top.confirm_bar
+    );
     for k in FIRST_BSP_LADDER..=s {
         let e = located[k].unwrap_or_else(|| panic!("N5 违反@bar {bar} {op}：定位链层 {k} 断裂"));
-        assert_eq!(e.source_ladder, s, "N5 违反@bar {bar} {op}：located[{k}].source_ladder≠链顶 {s}");
+        assert_eq!(
+            e.source_ladder, s,
+            "N5 违反@bar {bar} {op}：located[{k}].source_ladder≠链顶 {s}"
+        );
     }
 }
 
@@ -342,12 +399,22 @@ pub fn prove_chain(
 pub fn prove_n5_cascade(located: &[Option<PendingLocate>; MAX_LADDER], bar: i64, side: &str) {
     if let Some(s) = chain_source(located) {
         for k in FIRST_BSP_LADDER..=s {
-            let e = located[k].unwrap_or_else(|| panic!("N5 违反@bar {bar} {side}：层 {k} 空（非连续前缀）"));
-            assert!(e.source_ladder >= k, "N5 违反@bar {bar} {side}：located[{k}].source_ladder<{k}（自下而上）");
-            assert!(e.source_ladder >= PENDING_LO, "N5 违反@bar {bar} {side}：source<move(L1)");
+            let e = located[k]
+                .unwrap_or_else(|| panic!("N5 违反@bar {bar} {side}：层 {k} 空（非连续前缀）"));
+            assert!(
+                e.source_ladder >= k,
+                "N5 违反@bar {bar} {side}：located[{k}].source_ladder<{k}（自下而上）"
+            );
+            assert!(
+                e.source_ladder >= PENDING_LO,
+                "N5 违反@bar {bar} {side}：source<move(L1)"
+            );
         }
         for k in (s + 1)..MAX_LADDER {
-            assert!(located[k].is_none(), "N5 违反@bar {bar} {side}：源层 {s} 之上层 {k} 有 located（非前缀）");
+            assert!(
+                located[k].is_none(),
+                "N5 违反@bar {bar} {side}：源层 {s} 之上层 {k} 有 located（非前缀）"
+            );
         }
     }
 }
@@ -355,13 +422,21 @@ pub fn prove_n5_cascade(located: &[Option<PendingLocate>; MAX_LADDER], bar: i64,
 /// **T52（走势多义性，第33课 → 区间套规范固定）**：整个 fiber 由同一区间套 confirm
 /// 事件确定（统一 `(compress,confirm)`）= 单一 gauge。与 prove_chain 不重叠（后者不验
 /// (compress,confirm) 跨层统一）。violation = panic。
-pub fn prove_t52_gauge_fix(located: &[Option<PendingLocate>; MAX_LADDER], s: usize, bar: i64, op: &str) {
-    let top = located[s].unwrap_or_else(|| panic!("T52 违反@bar {bar} {op}：塔顶 source={s} 无 located"));
+pub fn prove_t52_gauge_fix(
+    located: &[Option<PendingLocate>; MAX_LADDER],
+    s: usize,
+    bar: i64,
+    op: &str,
+) {
+    let top =
+        located[s].unwrap_or_else(|| panic!("T52 违反@bar {bar} {op}：塔顶 source={s} 无 located"));
     let gauge = (top.compress_bar, top.confirm_bar);
     for k in FIRST_BSP_LADDER..=s {
-        let e = located[k].unwrap_or_else(|| panic!("T52 违反@bar {bar} {op}：fiber 层 {k} 缺提升"));
+        let e =
+            located[k].unwrap_or_else(|| panic!("T52 违反@bar {bar} {op}：fiber 层 {k} 缺提升"));
         assert_eq!(
-            (e.compress_bar, e.confirm_bar), gauge,
+            (e.compress_bar, e.confirm_bar),
+            gauge,
             "T52 违反@bar {bar} {op}：fiber 层 {k} gauge≠塔顶（多义性被逐层随意拼接）"
         );
     }

@@ -44,7 +44,9 @@ use std::collections::{HashMap, HashSet};
 use super::types::*;
 use crate::buysellpoint::{BspKind, Side};
 use crate::stroke::Direction;
-use crate::theta_v0::classifier::retrace_ledger::{CenterDeathCertificate, CenterFrame, RetraceSide};
+use crate::theta_v0::classifier::retrace_ledger::{
+    CenterDeathCertificate, CenterFrame, RetraceSide,
+};
 
 /// H2 力度收敛门的三态判据读数（49课行38；`up_strength_verdict`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -159,7 +161,9 @@ impl CenterBook {
             let Some(cs) = ev.cs else { continue };
             // 票 #637 修复轮：凡带 cs 的事件即记入"见过"锚集，不分 kill/last 分支——
             // 供 consume_death_certificate 区分"从未见过"与"见过但已被更替/已死"。
-            self.known[ladder].get_or_insert_with(HashSet::new).insert(cs);
+            self.known[ladder]
+                .get_or_insert_with(HashSet::new)
+                .insert(cs);
             let dead = self.dead[ladder].get_or_insert_with(HashSet::new);
             if ev.confirmed && ev.class.kind() == BspKind::Type3 {
                 if !dead.contains(&cs) {
@@ -177,7 +181,10 @@ impl CenterBook {
                             Side::Buy => Direction::Up,
                             Side::Sell => Direction::Down,
                         };
-                        out.push(CenterEvent::Terminated { seg_start: cs, direction });
+                        out.push(CenterEvent::Terminated {
+                            seg_start: cs,
+                            direction,
+                        });
                     }
                 }
                 if hard_type3 && ev.class.side() == Side::Buy {
@@ -194,11 +201,7 @@ impl CenterBook {
                 let prev = self.last[ladder];
                 let changed = match prev {
                     None => true,
-                    Some(lc) => {
-                        lc.seg_start != cs
-                            || Some(lc.zd) != ev.zd
-                            || Some(lc.zg) != ev.zg
-                    }
+                    Some(lc) => lc.seg_start != cs || Some(lc.zd) != ev.zd || Some(lc.zg) != ev.zg,
                 };
                 if changed {
                     self.version += 1;
@@ -259,7 +262,9 @@ impl CenterBook {
     /// 边界（中枢延伸时随之更新）。NaN 边界比较恒 false ⇒ 不否定（保守
     /// 方向，与 osc 开腿 NaN 语义同构——生产磁带 zd/zg 恒非 None）。
     pub fn negate_pending_departure(&mut self, ladder: usize, c: f64) {
-        let Some((cs, side)) = self.pending_departure[ladder] else { return };
+        let Some((cs, side)) = self.pending_departure[ladder] else {
+            return;
+        };
         let Some(lc) = self.last[ladder] else { return };
         debug_assert_eq!(
             lc.seg_start, cs,
@@ -360,14 +365,18 @@ impl CenterBook {
     }
 
     pub fn is_dead(&self, ladder: usize, seg_start: i64) -> bool {
-        self.dead[ladder].as_ref().is_some_and(|d| d.contains(&seg_start))
+        self.dead[ladder]
+            .as_ref()
+            .is_some_and(|d| d.contains(&seg_start))
     }
 
     /// 该中枢是否被三卖（confirmed Sell3，向下离开）终结。49课严格形式的
     /// 方向判据："一旦出现第三类卖点，就不能回补了"只覆盖向下终结——
     /// 三买（向上终结）按"中枢向上移动时就应该满仓"必须立即回补。
     pub fn is_dead_down(&self, ladder: usize, seg_start: i64) -> bool {
-        self.dead_down[ladder].as_ref().is_some_and(|d| d.contains(&seg_start))
+        self.dead_down[ladder]
+            .as_ref()
+            .is_some_and(|d| d.contains(&seg_start))
     }
 
     pub fn is_frozen(&self, ladder: usize) -> bool {
@@ -454,8 +463,9 @@ impl CenterBook {
         events_out: Option<&mut Vec<CenterEvent>>,
     ) -> Result<DeathCertificateOutcome, DeathCertificateError> {
         let anchor = cert.center.start_index as i64;
-        if let Some(frame) =
-            self.broken_by_certificate[ladder].as_ref().and_then(|m| m.get(&anchor))
+        if let Some(frame) = self.broken_by_certificate[ladder]
+            .as_ref()
+            .and_then(|m| m.get(&anchor))
         {
             return if *frame == cert.center {
                 Ok(DeathCertificateOutcome::AlreadyBroken)
@@ -463,11 +473,16 @@ impl CenterBook {
                 Err(DeathCertificateError::ConflictingCertificate { ladder, anchor })
             };
         }
-        if !self.known[ladder].as_ref().is_some_and(|k| k.contains(&anchor)) {
+        if !self.known[ladder]
+            .as_ref()
+            .is_some_and(|k| k.contains(&anchor))
+        {
             return Err(DeathCertificateError::NoMatchingCenter { ladder, anchor });
         }
         let already_dead = self.is_dead(ladder, anchor);
-        self.dead[ladder].get_or_insert_with(HashSet::new).insert(anchor);
+        self.dead[ladder]
+            .get_or_insert_with(HashSet::new)
+            .insert(anchor);
         self.broken_by_certificate[ladder]
             .get_or_insert_with(HashMap::new)
             .insert(anchor, cert.center);
@@ -479,7 +494,9 @@ impl CenterBook {
             Ok(DeathCertificateOutcome::AlreadyBroken)
         } else {
             if cert.side == RetraceSide::Sell {
-                self.dead_down[ladder].get_or_insert_with(HashSet::new).insert(anchor);
+                self.dead_down[ladder]
+                    .get_or_insert_with(HashSet::new)
+                    .insert(anchor);
             }
             if hard_type3 && cert.side == RetraceSide::Buy {
                 self.frozen[ladder] = Some(anchor);
@@ -490,7 +507,10 @@ impl CenterBook {
                     RetraceSide::Buy => Direction::Up,
                     RetraceSide::Sell => Direction::Down,
                 };
-                out.push(CenterEvent::Terminated { seg_start: anchor, direction });
+                out.push(CenterEvent::Terminated {
+                    seg_start: anchor,
+                    direction,
+                });
             }
             Ok(DeathCertificateOutcome::Broken)
         }
@@ -539,32 +559,60 @@ mod tests {
         let mut book = CenterBook::new();
         let mut out = Vec::new();
         // 新中枢 → Formed + version+1
-        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, Some(&mut out));
+        book.ingest(
+            2,
+            &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)],
+            true,
+            Some(&mut out),
+        );
         assert_eq!(book.version, 1);
         assert!(matches!(out[0], CenterEvent::Formed { seg_start: 10, .. }));
         assert!(book.alive(2).is_some());
         // 同 cs 边界更新 → Extended
         out.clear();
-        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.5)], true, Some(&mut out));
+        book.ingest(
+            2,
+            &[ev(BspClass::Sell1, true, 10, 1.0, 2.5)],
+            true,
+            Some(&mut out),
+        );
         assert!(matches!(out[0], CenterEvent::Extended { seg_start: 10 }));
         // 同 cs 同边界 → 无事件无版本号
         out.clear();
         let v = book.version;
-        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.5)], true, Some(&mut out));
+        book.ingest(
+            2,
+            &[ev(BspClass::Sell1, true, 10, 1.0, 2.5)],
+            true,
+            Some(&mut out),
+        );
         assert!(out.is_empty());
         assert_eq!(book.version, v);
         // confirmed Buy3 → Terminated{Up} + 冻结
         out.clear();
-        book.ingest(2, &[ev(BspClass::Buy3, true, 10, 1.0, 2.5)], true, Some(&mut out));
+        book.ingest(
+            2,
+            &[ev(BspClass::Buy3, true, 10, 1.0, 2.5)],
+            true,
+            Some(&mut out),
+        );
         assert!(matches!(
             out[0],
-            CenterEvent::Terminated { seg_start: 10, direction: Direction::Up }
+            CenterEvent::Terminated {
+                seg_start: 10,
+                direction: Direction::Up
+            }
         ));
         assert!(book.is_frozen(2));
         assert!(book.alive(2).is_none()); // last 仍在但已死
-        // 新中枢出现 → 解冻 + Formed
+                                          // 新中枢出现 → 解冻 + Formed
         out.clear();
-        book.ingest(2, &[ev(BspClass::Sell1, true, 20, 3.0, 4.0)], true, Some(&mut out));
+        book.ingest(
+            2,
+            &[ev(BspClass::Sell1, true, 20, 3.0, 4.0)],
+            true,
+            Some(&mut out),
+        );
         assert!(!book.is_frozen(2));
         assert!(matches!(out[0], CenterEvent::Formed { seg_start: 20, .. }));
     }
@@ -641,16 +689,22 @@ mod tests {
         book.negate_pending_departure(2, 2.5);
         book.negate_pending_departure(2, 1.9); // 否定 → 推入 0.5
         assert_eq!(book.up_strength_verdict(2, 10), UpStrengthVerdict::Newborn); // 仅1条
-        // 第二次离开力度 0.3 < 0.5 → 收敛放行
+                                                                                 // 第二次离开力度 0.3 < 0.5 → 收敛放行
         book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.0)], true, None);
         book.negate_pending_departure(2, 2.3);
         book.negate_pending_departure(2, 1.8);
-        assert_eq!(book.up_strength_verdict(2, 10), UpStrengthVerdict::Converged);
+        assert_eq!(
+            book.up_strength_verdict(2, 10),
+            UpStrengthVerdict::Converged
+        );
         // 第三次离开力度 0.9 > 0.3（环形最近两次比较）→ 扩张拒开
         book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.0)], true, None);
         book.negate_pending_departure(2, 2.9);
         book.negate_pending_departure(2, 1.5);
-        assert_eq!(book.up_strength_verdict(2, 10), UpStrengthVerdict::Expanding);
+        assert_eq!(
+            book.up_strength_verdict(2, 10),
+            UpStrengthVerdict::Expanding
+        );
     }
 
     #[test]
@@ -659,14 +713,17 @@ mod tests {
         book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
         book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.0)], true, None);
         book.negate_pending_departure(2, 3.0); // exc = 1.0（ZG=2.0）
-        // 中枢延伸 ZG → 2.5：后续 excursion 相对当下 ZG（当下性声明）
+                                               // 中枢延伸 ZG → 2.5：后续 excursion 相对当下 ZG（当下性声明）
         book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.5)], true, None);
         book.negate_pending_departure(2, 3.2); // exc = 0.7 < 1.0 不更新
         book.negate_pending_departure(2, 2.4); // c < 2.5 否定 → 推入 1.0
         book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.5)], true, None);
         book.negate_pending_departure(2, 3.4); // exc = 0.9 < 1.0
         book.negate_pending_departure(2, 2.0); // 推入 0.9 → 收敛
-        assert_eq!(book.up_strength_verdict(2, 10), UpStrengthVerdict::Converged);
+        assert_eq!(
+            book.up_strength_verdict(2, 10),
+            UpStrengthVerdict::Converged
+        );
     }
 
     #[test]
@@ -690,7 +747,10 @@ mod tests {
             book.negate_pending_departure(2, c_peak);
             book.negate_pending_departure(2, 1.5);
         }
-        assert_eq!(book.up_strength_verdict(2, 10), UpStrengthVerdict::Converged);
+        assert_eq!(
+            book.up_strength_verdict(2, 10),
+            UpStrengthVerdict::Converged
+        );
         // 新中枢（cs=20）→ 历史与中枢同生命周期，新锚查询回 Newborn
         book.ingest(2, &[ev(BspClass::Sell1, true, 20, 3.0, 4.0)], true, None);
         assert_eq!(book.up_strength_verdict(2, 20), UpStrengthVerdict::Newborn);
@@ -743,7 +803,12 @@ mod tests {
         side: RetraceSide,
     ) -> CenterDeathCertificate {
         CenterDeathCertificate {
-            center: CenterFrame { zd, zg, start_index, end_index: start_index + 5 },
+            center: CenterFrame {
+                zd,
+                zg,
+                start_index,
+                end_index: start_index + 5,
+            },
             side,
             issued_as_of,
         }
@@ -761,10 +826,18 @@ mod tests {
         confirmed_as_of: usize,
         leave_direction: LedgerDirection,
     ) -> CenterDeathCertificate {
-        let center = CenterFrame { zd, zg, start_index, end_index };
+        let center = CenterFrame {
+            zd,
+            zg,
+            start_index,
+            end_index,
+        };
         let mut ledger = RetraceLedger::new(RetraceProvenance {
             level: 2,
-            window: CoordinateWindow { start: 0, end: 9_999 },
+            window: CoordinateWindow {
+                start: 0,
+                end: 9_999,
+            },
             data_basis: "center_book-test".to_owned(),
         });
         let retest_direction = match leave_direction {
@@ -777,11 +850,20 @@ mod tests {
         };
         let input = RetraceInput {
             center,
-            pair: StrictCompletedPair { leave_move_index: 3, retest_move_index: 4 },
+            pair: StrictCompletedPair {
+                leave_move_index: 3,
+                retest_move_index: 4,
+            },
             leave_direction,
             retest_direction,
-            leave_end: LedgerPoint { index: end_index + 10, price: leave_price },
-            retest_end: Some(LedgerPoint { index: end_index + 20, price: retest_price }),
+            leave_end: LedgerPoint {
+                index: end_index + 10,
+                price: leave_price,
+            },
+            retest_end: Some(LedgerPoint {
+                index: end_index + 20,
+                price: retest_price,
+            }),
             outcome: Some(RetraceOutcome::Success),
             as_of: confirmed_as_of,
         };
@@ -828,7 +910,10 @@ mod tests {
         assert_eq!(out.len(), 1);
         assert!(matches!(
             out[0],
-            CenterEvent::Terminated { seg_start: 10, direction: Direction::Down }
+            CenterEvent::Terminated {
+                seg_start: 10,
+                direction: Direction::Down
+            }
         ));
     }
 
@@ -850,7 +935,10 @@ mod tests {
         assert_eq!(out.len(), 1);
         assert!(matches!(
             out[0],
-            CenterEvent::Terminated { seg_start: 10, direction: Direction::Up }
+            CenterEvent::Terminated {
+                seg_start: 10,
+                direction: Direction::Up
+            }
         ));
     }
 
@@ -970,7 +1058,10 @@ mod tests {
         let c = cert(10, 1, 2, 0, RetraceSide::Sell);
         assert_eq!(
             book.consume_death_certificate(2, &c, true, None),
-            Err(DeathCertificateError::NoMatchingCenter { ladder: 2, anchor: 10 })
+            Err(DeathCertificateError::NoMatchingCenter {
+                ladder: 2,
+                anchor: 10
+            })
         );
     }
 
@@ -1009,7 +1100,9 @@ mod tests {
         assert_eq!(book.version, v_after_ingest_kill);
         // 框已存档（供后续重复证明判幂等 / 判改口）
         assert_eq!(
-            book.broken_by_certificate[2].as_ref().and_then(|m| m.get(&10)),
+            book.broken_by_certificate[2]
+                .as_ref()
+                .and_then(|m| m.get(&10)),
             Some(&c.center)
         );
     }
@@ -1046,7 +1139,10 @@ mod tests {
         let conflicting = cert(10, 999, 999, 0, RetraceSide::Sell);
         assert_eq!(
             book.consume_death_certificate(2, &conflicting, true, None),
-            Err(DeathCertificateError::ConflictingCertificate { ladder: 2, anchor: 10 })
+            Err(DeathCertificateError::ConflictingCertificate {
+                ladder: 2,
+                anchor: 10
+            })
         );
     }
 

@@ -376,8 +376,18 @@ mod incremental_moves_tests {
                 assert_eq!(a.settled, b.settled, "前缀{} settled", k + 1);
                 assert_eq!(a.high.to_bits(), b.high.to_bits(), "前缀{} high", k + 1);
                 assert_eq!(a.low.to_bits(), b.low.to_bits(), "前缀{} low", k + 1);
-                assert_eq!(a.zg_max.to_bits(), b.zg_max.to_bits(), "前缀{} zg_max", k + 1);
-                assert_eq!(a.zd_min.to_bits(), b.zd_min.to_bits(), "前缀{} zd_min", k + 1);
+                assert_eq!(
+                    a.zg_max.to_bits(),
+                    b.zg_max.to_bits(),
+                    "前缀{} zg_max",
+                    k + 1
+                );
+                assert_eq!(
+                    a.zd_min.to_bits(),
+                    b.zd_min.to_bits(),
+                    "前缀{} zd_min",
+                    k + 1
+                );
                 assert_eq!(a.first_seg_s0, b.first_seg_s0, "前缀{} first_seg_s0", k + 1);
                 assert_eq!(a.last_seg_s1, b.last_seg_s1, "前缀{} last_seg_s1", k + 1);
             }

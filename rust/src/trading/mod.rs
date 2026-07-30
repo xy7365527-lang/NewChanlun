@@ -24,35 +24,35 @@
 //! 裁定登记见该模块头）。
 
 pub mod allocator;
+pub mod axiom_voice;
 pub mod center_book;
 pub mod config;
+#[cfg(test)]
+mod consolidation_ablation;
 pub mod depth_ref;
+pub mod dual_voice;
 pub mod fatigue_gate;
+pub mod isolated_fugue;
 pub mod ledger;
 pub mod level_operating_unit;
-pub mod isolated_fugue;
 pub mod master;
 pub mod nested_fugue;
 pub mod nested_interval_fugue;
-pub mod positioning_chain_fugue;
-pub mod recursive_nested_fugue;
-pub mod unified_necessity;
-pub mod unified_recursive;
 pub mod positional;
 pub mod positional_fusion;
+pub mod positioning_chain_fugue;
+pub mod recursive_nested_fugue;
 pub mod recursive_position;
-pub mod unified_osc;
-pub mod unified_voice;
-pub mod axiom_voice;
-pub mod dual_voice;
 pub mod runner;
-pub mod tape;
-pub mod third_point_book;
-#[cfg(test)]
-mod consolidation_ablation;
 #[cfg(test)]
 mod sublevel_confirmation_ablation;
+pub mod tape;
+pub mod third_point_book;
 #[cfg(test)]
 mod trade_behavior;
 pub mod trend_exhaustion;
 pub mod types;
+pub mod unified_necessity;
+pub mod unified_osc;
+pub mod unified_recursive;
+pub mod unified_voice;

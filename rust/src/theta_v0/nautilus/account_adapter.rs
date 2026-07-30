@@ -69,7 +69,12 @@ mod tests {
     use super::*;
 
     fn snap(nav: f64, net: f64) -> PortfolioSnapshot {
-        PortfolioSnapshot { nav, net_position: net, realized_pnl: 0.0, unrealized_pnl: 0.0 }
+        PortfolioSnapshot {
+            nav,
+            net_position: net,
+            realized_pnl: 0.0,
+            unrealized_pnl: 0.0,
+        }
     }
 
     /// net_position → voice_qty[0]，nav 透传。
@@ -78,7 +83,10 @@ mod tests {
         let acct = to_account_state(&snap(1_000_000.0, 300.0), 4);
         assert_eq!(acct.nav, 1_000_000.0);
         assert_eq!(acct.voice_qty.len(), 4);
-        assert_eq!(acct.voice_qty[0], 300, "v0 单声部 ⟹ net_position 归 voice_qty[0]");
+        assert_eq!(
+            acct.voice_qty[0], 300,
+            "v0 单声部 ⟹ net_position 归 voice_qty[0]"
+        );
         assert_eq!(acct.voice_qty[1], 0);
     }
 

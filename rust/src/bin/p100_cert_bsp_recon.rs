@@ -204,9 +204,7 @@ fn main() -> std::process::ExitCode {
                 let target = c.judge_max + d;
                 events
                     .iter()
-                    .find(|e| {
-                        e.0 == target && (if c.side.contains("Long") { e.2 } else { e.3 })
-                    })
+                    .find(|e| e.0 == target && (if c.side.contains("Long") { e.2 } else { e.3 }))
                     .map(|e| e.1)
             });
             println!(
@@ -223,7 +221,11 @@ fn main() -> std::process::ExitCode {
             }
         }
         dts.sort_unstable();
-        let median = if dts.is_empty() { -1 } else { dts[dts.len() / 2] };
+        let median = if dts.is_empty() {
+            -1
+        } else {
+            dts[dts.len() / 2]
+        };
         println!(
             "P100_SUMMARY caliber={caliber} n={} w0={} w5={} w30={} w240={} w1440={} median_abs_dt={median}",
             dts.len(),

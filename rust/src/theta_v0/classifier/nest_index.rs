@@ -280,10 +280,15 @@ pub fn build_nest_certificate_index(
             // #214：测量入口与生产判定共核，同一次账本遍历产出判定 + 失败分类副产品
             // （ID-2/ID-3 口径）；判定 bits 与既有闭包逐 bit 一致。
             // #218 面 B：判同参照包随事件构造（oracle 借用 + 事件两元锚透传）。
-            let ctx = OwnerAnchorCtx { anchor_at, event_anchor: event_anchor_of(base) };
+            let ctx = OwnerAnchorCtx {
+                anchor_at,
+                event_anchor: event_anchor_of(base),
+            };
             let (endorsement, probe) =
                 terminal_bits_at_event_measured(classification, base, TerminalMatch::CWindow, &ctx);
-            index.instrument.observe_base(exec, base.kind, endorsement.is_some(), &probe);
+            index
+                .instrument
+                .observe_base(exec, base.kind, endorsement.is_some(), &probe);
             let terminal_bits = endorsement.map(|e| e.bits);
             let terminal_of = move |_: &NestCandidateEvent| terminal_bits;
             // 最深可行链：top 自塔顶向下回退，取首个可装配级（单级合法）。

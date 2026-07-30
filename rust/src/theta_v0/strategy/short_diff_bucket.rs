@@ -139,11 +139,11 @@ fn short_diff_cash_gate(s: TwState) -> Result<TwState, TransitionError> {
     match cash_sound_gate(s) {
         Ok(ok) => Ok(ok),
         // 唯一放行族：现金为负、而货与已退本金均非负 ⟹ 真实亏损往返，如实入账。
-        Err(TransitionError::CashUnsound { free, holding, withdrawn })
-            if free < 0 && holding >= 0 && withdrawn >= 0 =>
-        {
-            Ok(s)
-        }
+        Err(TransitionError::CashUnsound {
+            free,
+            holding,
+            withdrawn,
+        }) if free < 0 && holding >= 0 && withdrawn >= 0 => Ok(s),
         Err(other) => Err(other),
     }
 }
@@ -279,7 +279,9 @@ impl ShortDiffBucket {
     /// 恒仓断言（边界核验）：往返必须闭合（挂起在途量归零）才算「同股数进出」守恒。
     pub fn assert_conserved(&self) -> Result<(), ShortDiffViolation> {
         if self.open_units != 0 {
-            return Err(ShortDiffViolation::UnclosedRoundTrip { open_units: self.open_units });
+            return Err(ShortDiffViolation::UnclosedRoundTrip {
+                open_units: self.open_units,
+            });
         }
         Ok(())
     }
@@ -315,19 +317,23 @@ impl ShortDiffEvents {
     /// 现金-sound 检查，非逐事件都做现金-sound 检查）。
     pub fn apply(&self, tw: &TwState) -> Result<TwState, ShortDiffViolation> {
         if !self.short_diff.is_legal_from(tw) {
-            return Err(ShortDiffViolation::ChannelRejected(TransitionError::Oq9Illegal {
-                event: self.short_diff,
-                stage: tw.stage,
-            }));
+            return Err(ShortDiffViolation::ChannelRejected(
+                TransitionError::Oq9Illegal {
+                    event: self.short_diff,
+                    stage: tw.stage,
+                },
+            ));
         }
         let tw_after_short_diff = tw_step(tw, self.short_diff);
         let tw_after_realize = match self.realize {
             Some(ev) => {
                 if !ev.is_legal_from(&tw_after_short_diff) {
-                    return Err(ShortDiffViolation::ChannelRejected(TransitionError::Oq9Illegal {
-                        event: ev,
-                        stage: tw_after_short_diff.stage,
-                    }));
+                    return Err(ShortDiffViolation::ChannelRejected(
+                        TransitionError::Oq9Illegal {
+                            event: ev,
+                            stage: tw_after_short_diff.stage,
+                        },
+                    ));
                 }
                 tw_step(&tw_after_short_diff, ev)
             }
@@ -386,7 +392,11 @@ impl ShortDiffAccount {
 
     /// ★#381：分侧构造。
     pub fn new_side(cost_basis: CoreCostBasisSnapshot, side: VoiceSide) -> Self {
-        Self { bucket: ShortDiffBucket::new(), cost_basis, side }
+        Self {
+            bucket: ShortDiffBucket::new(),
+            cost_basis,
+            side,
+        }
     }
 
     /// 本账所属持仓侧（只读）。
@@ -477,7 +487,10 @@ impl ShortDiffAccount {
         };
         if let Some(recorded) = self.bucket.open_avg_cost {
             if recorded != avg_cost {
-                return Err(ShortDiffViolation::AvgCostMismatch { recorded, derived: avg_cost });
+                return Err(ShortDiffViolation::AvgCostMismatch {
+                    recorded,
+                    derived: avg_cost,
+                });
             }
         }
         // ★#381 空头镜像：`ShortDiff`（成本基划转）两侧逐字节相同——`Reduce` 恒释放
@@ -491,8 +504,11 @@ impl ShortDiffAccount {
             CenterOscillationAction::Reduce => {
                 self.bucket.open_units += units;
                 self.bucket.open_avg_cost = Some(avg_cost);
-                let realize =
-                    if short_side { units * (avg_cost - price) } else { units * (price - avg_cost) };
+                let realize = if short_side {
+                    units * (avg_cost - price)
+                } else {
+                    units * (price - avg_cost)
+                };
                 ShortDiffEvents {
                     short_diff: TwEvent::ShortDiff(units * avg_cost),
                     realize: Some(TwEvent::Realize(realize)),
@@ -508,8 +524,11 @@ impl ShortDiffAccount {
                 }
                 self.bucket.open_units = remaining;
                 self.bucket.open_avg_cost = if remaining == 0 { None } else { Some(avg_cost) };
-                let realize =
-                    if short_side { units * (price - avg_cost) } else { units * (avg_cost - price) };
+                let realize = if short_side {
+                    units * (price - avg_cost)
+                } else {
+                    units * (avg_cost - price)
+                };
                 ShortDiffEvents {
                     short_diff: TwEvent::ShortDiff(-(units * avg_cost)),
                     realize: Some(TwEvent::Realize(realize)),
@@ -656,10 +675,12 @@ impl ShortDiffAccount {
         } else {
             None
         };
-        let applied = events.apply(tw).and_then(|tw_after_close| match extra_events {
-            Some(ex) => ex.apply(&tw_after_close),
-            None => Ok(tw_after_close),
-        });
+        let applied = events
+            .apply(tw)
+            .and_then(|tw_after_close| match extra_events {
+                Some(ex) => ex.apply(&tw_after_close),
+                None => Ok(tw_after_close),
+            });
         match applied {
             Ok(next_tw) => {
                 // 增股腿无 `Realize`（新建仓不产已实现盈亏）⟹ R 账本只镜像收口腿那一笔。
@@ -711,21 +732,46 @@ mod tests {
     #[test]
     fn reduce_splits_into_short_diff_and_realize_bucket_delta_equals_sum() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(9));
-        let events = acct.record_action(CenterOscillationAction::Reduce, 10, 12, acct.cost_basis().units()).unwrap();
-        assert_eq!(events.short_diff, TwEvent::ShortDiff(90), "成本基划转=units·avg_cost=10·9=90");
+        let events = acct
+            .record_action(
+                CenterOscillationAction::Reduce,
+                10,
+                12,
+                acct.cost_basis().units(),
+            )
+            .unwrap();
+        assert_eq!(
+            events.short_diff,
+            TwEvent::ShortDiff(90),
+            "成本基划转=units·avg_cost=10·9=90"
+        );
         assert_eq!(
             events.realize,
             Some(TwEvent::Realize(30)),
             "已实现短差盈亏=units·(price−avg_cost)=10·(12−9)=30"
         );
-        assert_eq!(acct.bucket.realized_cash(), 120, "桶净现金读数=units·price=10·12=120（报告层口径不变）");
-        assert_eq!(events.total_d_cash(), 120, "两笔金额之和=桶净现金增量（新禁双写口径）");
+        assert_eq!(
+            acct.bucket.realized_cash(),
+            120,
+            "桶净现金读数=units·price=10·12=120（报告层口径不变）"
+        );
+        assert_eq!(
+            events.total_d_cash(),
+            120,
+            "两笔金额之和=桶净现金增量（新禁双写口径）"
+        );
 
         // ★P2-E 通道切换：apply 经 closed_loop cash_sound_gate，需 holding 足额覆盖成本基划转。
-        let tw0 = TwState { holding: 90, ..TwState::initial() };
+        let tw0 = TwState {
+            holding: 90,
+            ..TwState::initial()
+        };
         let tw1 = events.apply(&tw0).unwrap();
         let tw1_manual = tw_step(&tw_step(&tw0, events.short_diff), events.realize.unwrap());
-        assert_eq!(tw1, tw1_manual, "通道放行路径 = raw 两步 tw_step 逐字节相同（通道不改变合法转移的数值）");
+        assert_eq!(
+            tw1, tw1_manual,
+            "通道放行路径 = raw 两步 tw_step 逐字节相同（通道不改变合法转移的数值）"
+        );
     }
 
     /// P1 续修核心用例（issue #293 复审浮出）：`Replenish` 对偶拆两笔——
@@ -736,8 +782,21 @@ mod tests {
     fn replenish_splits_into_short_diff_and_realize_dual_to_reduce() {
         // 买价(7) < 均价(9) ⟹ 买便宜为正=赚。
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(9));
-        acct.record_action(CenterOscillationAction::Reduce, 10, 12, acct.cost_basis().units()).unwrap();
-        let cheap = acct.record_action(CenterOscillationAction::Replenish, 10, 7, acct.cost_basis().units()).unwrap();
+        acct.record_action(
+            CenterOscillationAction::Reduce,
+            10,
+            12,
+            acct.cost_basis().units(),
+        )
+        .unwrap();
+        let cheap = acct
+            .record_action(
+                CenterOscillationAction::Replenish,
+                10,
+                7,
+                acct.cost_basis().units(),
+            )
+            .unwrap();
         assert_eq!(
             cheap.short_diff,
             TwEvent::ShortDiff(-90),
@@ -751,9 +810,27 @@ mod tests {
 
         // 买价(11) > 均价(9) ⟹ 买贵为负=亏。
         let mut acct2 = ShortDiffAccount::new(avg_cost_snapshot(9));
-        acct2.record_action(CenterOscillationAction::Reduce, 10, 12, acct2.cost_basis().units()).unwrap();
-        let expensive = acct2.record_action(CenterOscillationAction::Replenish, 10, 11, acct2.cost_basis().units()).unwrap();
-        assert_eq!(expensive.short_diff, TwEvent::ShortDiff(-90), "成本基划回同样=-90，与成交价无关");
+        acct2
+            .record_action(
+                CenterOscillationAction::Reduce,
+                10,
+                12,
+                acct2.cost_basis().units(),
+            )
+            .unwrap();
+        let expensive = acct2
+            .record_action(
+                CenterOscillationAction::Replenish,
+                10,
+                11,
+                acct2.cost_basis().units(),
+            )
+            .unwrap();
+        assert_eq!(
+            expensive.short_diff,
+            TwEvent::ShortDiff(-90),
+            "成本基划回同样=-90，与成交价无关"
+        );
         assert_eq!(
             expensive.realize,
             Some(TwEvent::Realize(-20)),
@@ -768,14 +845,27 @@ mod tests {
     #[test]
     fn p1_reduce_produces_visible_realize_event_not_silently_absorbed() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(9));
-        let events = acct.record_action(CenterOscillationAction::Reduce, 10, 12, acct.cost_basis().units()).unwrap();
+        let events = acct
+            .record_action(
+                CenterOscillationAction::Reduce,
+                10,
+                12,
+                acct.cost_basis().units(),
+            )
+            .unwrap();
         match events.realize {
             Some(TwEvent::Realize(d)) => {
-                assert_eq!(d, 30, "短差盈亏必须作为独立 Realize 落账（非 0/None——0/None 是静默吸收的症状）")
+                assert_eq!(
+                    d, 30,
+                    "短差盈亏必须作为独立 Realize 落账（非 0/None——0/None 是静默吸收的症状）"
+                )
             }
             other => panic!("Reduce 必须产出 Realize 事件，实际={other:?}"),
         }
-        let tw0 = TwState { holding: 90, ..TwState::initial() };
+        let tw0 = TwState {
+            holding: 90,
+            ..TwState::initial()
+        };
         let tw1 = events.apply(&tw0).unwrap();
         assert_eq!(
             tw1.tw() - tw0.tw(),
@@ -793,8 +883,21 @@ mod tests {
     #[test]
     fn p1_replenish_produces_visible_realize_event_not_silently_absorbed() {
         let mut acct = ShortDiffAccount::new(snapshot(300, 3_000)); // 均价10=3000/300，300股
-        acct.record_action(CenterOscillationAction::Reduce, 10, 12, acct.cost_basis().units()).unwrap(); // 卖10@12
-        let events = acct.record_action(CenterOscillationAction::Replenish, 10, 9, acct.cost_basis().units()).unwrap(); // 买回10@9
+        acct.record_action(
+            CenterOscillationAction::Reduce,
+            10,
+            12,
+            acct.cost_basis().units(),
+        )
+        .unwrap(); // 卖10@12
+        let events = acct
+            .record_action(
+                CenterOscillationAction::Replenish,
+                10,
+                9,
+                acct.cost_basis().units(),
+            )
+            .unwrap(); // 买回10@9
         assert_eq!(
             events.short_diff,
             TwEvent::ShortDiff(-100),
@@ -808,7 +911,10 @@ mod tests {
             other => panic!("Replenish 必须产出 Realize 事件，实际={other:?}"),
         }
         // 单独核验回补侧事件的 TW 效应：free 需覆盖 ShortDiff(-100) 的买回现金支出。
-        let tw0 = TwState { free: 100, ..TwState::initial() };
+        let tw0 = TwState {
+            free: 100,
+            ..TwState::initial()
+        };
         let tw1 = events.apply(&tw0).unwrap();
         assert_eq!(
             tw1.tw() - tw0.tw(),
@@ -824,15 +930,33 @@ mod tests {
     #[test]
     fn write_off_unclosed_clears_open_units_and_keeps_cash_intact() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(10));
-        acct.record_action(CenterOscillationAction::Reduce, 100, 12, acct.cost_basis().units()).unwrap();
+        acct.record_action(
+            CenterOscillationAction::Reduce,
+            100,
+            12,
+            acct.cost_basis().units(),
+        )
+        .unwrap();
         assert_eq!(acct.bucket().open_units(), 100);
         let cash_before = acct.bucket().realized_cash();
 
         acct.write_off_unclosed(100).unwrap();
         assert_eq!(acct.bucket().open_units(), 0, "在途量归位（承诺已终局）");
-        assert_eq!(acct.bucket().written_off_units(), 100, "核销量留痕（不装没发生）");
-        assert_eq!(acct.bucket().realized_cash(), cash_before, "桶实收现金照留，不被核销冲掉");
-        assert_eq!(acct.bucket().open_avg_cost(), None, "无挂起批次 ⟹ 均价守卫状态清空");
+        assert_eq!(
+            acct.bucket().written_off_units(),
+            100,
+            "核销量留痕（不装没发生）"
+        );
+        assert_eq!(
+            acct.bucket().realized_cash(),
+            cash_before,
+            "桶实收现金照留，不被核销冲掉"
+        );
+        assert_eq!(
+            acct.bucket().open_avg_cost(),
+            None,
+            "无挂起批次 ⟹ 均价守卫状态清空"
+        );
         assert!(acct.assert_conserved().is_ok(), "核销后无悬而未决的在途量");
     }
 
@@ -840,25 +964,47 @@ mod tests {
     #[test]
     fn write_off_unclosed_partial_keeps_remaining_open_units() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(10));
-        acct.record_action(CenterOscillationAction::Reduce, 100, 12, acct.cost_basis().units()).unwrap();
+        acct.record_action(
+            CenterOscillationAction::Reduce,
+            100,
+            12,
+            acct.cost_basis().units(),
+        )
+        .unwrap();
         acct.write_off_unclosed(40).unwrap();
         assert_eq!(acct.bucket().open_units(), 60);
         assert_eq!(acct.bucket().written_off_units(), 40);
-        assert_eq!(acct.bucket().open_avg_cost(), Some(10), "仍有挂起 ⟹ 均价守卫状态保留");
+        assert_eq!(
+            acct.bucket().open_avg_cost(),
+            Some(10),
+            "仍有挂起 ⟹ 均价守卫状态保留"
+        );
     }
 
     /// 违规显式失败：核销量超过在途量 / 非正 ⟹ typed `Err`，账本状态不变（不静默钳制）。
     #[test]
     fn write_off_unclosed_rejects_over_and_non_positive_without_mutating() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(10));
-        acct.record_action(CenterOscillationAction::Reduce, 100, 12, acct.cost_basis().units()).unwrap();
+        acct.record_action(
+            CenterOscillationAction::Reduce,
+            100,
+            12,
+            acct.cost_basis().units(),
+        )
+        .unwrap();
         let before = acct;
         assert_eq!(
             acct.write_off_unclosed(101),
-            Err(ShortDiffViolation::WriteOffExceedsOpen { open_units: 100, attempted: 101 })
+            Err(ShortDiffViolation::WriteOffExceedsOpen {
+                open_units: 100,
+                attempted: 101
+            })
         );
         assert_eq!(acct, before, "越界拒绝 ⟹ 状态不变");
-        assert_eq!(acct.write_off_unclosed(0), Err(ShortDiffViolation::NonPositiveUnits(0)));
+        assert_eq!(
+            acct.write_off_unclosed(0),
+            Err(ShortDiffViolation::NonPositiveUnits(0))
+        );
         assert_eq!(acct, before);
     }
 
@@ -869,11 +1015,27 @@ mod tests {
     #[test]
     fn full_round_trip_conserves_units_and_realizes_cash() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(10));
-        acct.record_action(CenterOscillationAction::Reduce, 10, 12, acct.cost_basis().units()).unwrap(); // 卖10@12，均价10
-        acct.record_action(CenterOscillationAction::Replenish, 10, 9, acct.cost_basis().units()).unwrap(); // 买回10@9，均价10
+        acct.record_action(
+            CenterOscillationAction::Reduce,
+            10,
+            12,
+            acct.cost_basis().units(),
+        )
+        .unwrap(); // 卖10@12，均价10
+        acct.record_action(
+            CenterOscillationAction::Replenish,
+            10,
+            9,
+            acct.cost_basis().units(),
+        )
+        .unwrap(); // 买回10@9，均价10
         assert_eq!(acct.bucket.open_units(), 0, "同股数进出 ⟹ 挂起在途量归零");
         assert!(acct.assert_conserved().is_ok(), "往返闭合 ⟹ 恒仓断言过");
-        assert_eq!(acct.bucket.realized_cash(), 10 * 12 - 10 * 9, "桶累计=往返净现金=30（高抛低吸获利）");
+        assert_eq!(
+            acct.bucket.realized_cash(),
+            10 * 12 - 10 * 9,
+            "桶累计=往返净现金=30（高抛低吸获利）"
+        );
     }
 
     /// 多轮往返（高抛→回补→再高抛→再回补）逐轮都守恒，累计现金逐轮叠加。
@@ -884,13 +1046,40 @@ mod tests {
     #[test]
     fn multi_round_trips_each_conserve_independently() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(17));
-        acct.record_action(CenterOscillationAction::Reduce, 5, 20, acct.cost_basis().units()).unwrap();
-        acct.record_action(CenterOscillationAction::Replenish, 5, 18, acct.cost_basis().units()).unwrap();
+        acct.record_action(
+            CenterOscillationAction::Reduce,
+            5,
+            20,
+            acct.cost_basis().units(),
+        )
+        .unwrap();
+        acct.record_action(
+            CenterOscillationAction::Replenish,
+            5,
+            18,
+            acct.cost_basis().units(),
+        )
+        .unwrap();
         assert!(acct.assert_conserved().is_ok());
-        acct.record_action(CenterOscillationAction::Reduce, 7, 22, acct.cost_basis().units()).unwrap();
-        acct.record_action(CenterOscillationAction::Replenish, 7, 19, acct.cost_basis().units()).unwrap();
+        acct.record_action(
+            CenterOscillationAction::Reduce,
+            7,
+            22,
+            acct.cost_basis().units(),
+        )
+        .unwrap();
+        acct.record_action(
+            CenterOscillationAction::Replenish,
+            7,
+            19,
+            acct.cost_basis().units(),
+        )
+        .unwrap();
         assert!(acct.assert_conserved().is_ok());
-        assert_eq!(acct.bucket.realized_cash(), (5 * 20 - 5 * 18) + (7 * 22 - 7 * 19));
+        assert_eq!(
+            acct.bucket.realized_cash(),
+            (5 * 20 - 5 * 18) + (7 * 22 - 7 * 19)
+        );
     }
 
     // ── 恒仓断言：违规显式失败（用户裁定：严格） ────────────────────────────
@@ -900,11 +1089,21 @@ mod tests {
     fn nonpositive_units_is_explicit_violation() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(8));
         assert_eq!(
-            acct.record_action(CenterOscillationAction::Reduce, 0, 10, acct.cost_basis().units()),
+            acct.record_action(
+                CenterOscillationAction::Reduce,
+                0,
+                10,
+                acct.cost_basis().units()
+            ),
             Err(ShortDiffViolation::NonPositiveUnits(0))
         );
         assert_eq!(
-            acct.record_action(CenterOscillationAction::Reduce, -3, 10, acct.cost_basis().units()),
+            acct.record_action(
+                CenterOscillationAction::Reduce,
+                -3,
+                10,
+                acct.cost_basis().units()
+            ),
             Err(ShortDiffViolation::NonPositiveUnits(-3))
         );
         assert_eq!(acct.bucket.realized_cash(), 0, "拒绝的调用不落笔");
@@ -918,10 +1117,18 @@ mod tests {
     #[test]
     fn units_exceed_cost_basis_is_explicit_violation() {
         let mut acct = ShortDiffAccount::new(snapshot(5, 40)); // 本仓仅持 5 股（均价 8）
-        let result = acct.record_action(CenterOscillationAction::Reduce, 10, 12, acct.cost_basis().units()); // 试图卖 10 股
+        let result = acct.record_action(
+            CenterOscillationAction::Reduce,
+            10,
+            12,
+            acct.cost_basis().units(),
+        ); // 试图卖 10 股
         assert_eq!(
             result,
-            Err(ShortDiffViolation::UnitsExceedCostBasis { held: 5, attempted: 10 }),
+            Err(ShortDiffViolation::UnitsExceedCostBasis {
+                held: 5,
+                attempted: 10
+            }),
             "卖出(10)>本仓实际持有(5) ⟹ 显式拒绝"
         );
         assert_eq!(acct.bucket.realized_cash(), 0, "拒绝的调用不落笔");
@@ -937,12 +1144,19 @@ mod tests {
         let result = acct.record_action(CenterOscillationAction::Reduce, 100, 12, 50);
         assert_eq!(
             result,
-            Err(ShortDiffViolation::UnitsExceedCostBasis { held: 50, attempted: 100 }),
+            Err(ShortDiffViolation::UnitsExceedCostBasis {
+                held: 50,
+                attempted: 100
+            }),
             "卖出(100)>当时真实持仓(50) ⟹ 显式拒绝（held 读当前，非冻结快照 300）"
         );
         assert_eq!(acct.bucket.realized_cash(), 0, "拒绝的调用不落笔");
         assert_eq!(acct.bucket.open_units(), 0, "拒绝的调用不改在途量");
-        assert_eq!(acct.cost_basis(), snapshot(300, 3_000), "冻结快照不因防线拒绝而改变（基准只管算量）");
+        assert_eq!(
+            acct.cost_basis(),
+            snapshot(300, 3_000),
+            "冻结快照不因防线拒绝而改变（基准只管算量）"
+        );
     }
 
     /// ★#380 项二对偶：当时真实持仓**高于**开局冻结快照（加仓后）——按冻结快照算的量不该被
@@ -951,10 +1165,20 @@ mod tests {
     #[test]
     fn defense_reads_current_holding_allows_units_above_frozen_snapshot() {
         let mut acct = ShortDiffAccount::new(snapshot(100, 1_000)); // 冻结：100 股，均价 10
-        let events = acct.record_action(CenterOscillationAction::Reduce, 150, 12, 400).unwrap();
-        assert_eq!(events.short_diff, TwEvent::ShortDiff(150 * 10), "avg_cost 仍按冻结快照现算=10");
+        let events = acct
+            .record_action(CenterOscillationAction::Reduce, 150, 12, 400)
+            .unwrap();
+        assert_eq!(
+            events.short_diff,
+            TwEvent::ShortDiff(150 * 10),
+            "avg_cost 仍按冻结快照现算=10"
+        );
         assert_eq!(events.realize, Some(TwEvent::Realize(150 * 2)));
-        assert_eq!(acct.bucket.open_units(), 150, "当时真实持仓(400)足够 ⟹ 放行入账");
+        assert_eq!(
+            acct.bucket.open_units(),
+            150,
+            "当时真实持仓(400)足够 ⟹ 放行入账"
+        );
     }
 
     /// ★#380 影子评审硬条件核心用例（累计判据）：冻结快照 300 股（sizing 恒 100），主仓其间被
@@ -973,7 +1197,10 @@ mod tests {
         let second = acct.record_action(CenterOscillationAction::Reduce, 100, 12, 150);
         assert_eq!(
             second,
-            Err(ShortDiffViolation::UnitsExceedCostBasis { held: 150, attempted: 200 }),
+            Err(ShortDiffViolation::UnitsExceedCostBasis {
+                held: 150,
+                attempted: 200
+            }),
             "第二笔：在途(100)+当笔(100)=200 > 当时真实持仓(150) ⟹ 累计判据显式拒绝"
         );
         assert_eq!(acct, before, "拒绝的调用不改任何状态（桶/在途量均不落笔）");
@@ -984,14 +1211,19 @@ mod tests {
     #[test]
     fn cumulative_defense_releases_in_flight_units_after_replenish() {
         let mut acct = ShortDiffAccount::new(snapshot(300, 3_000));
-        acct.record_action(CenterOscillationAction::Reduce, 100, 12, 150).unwrap();
+        acct.record_action(CenterOscillationAction::Reduce, 100, 12, 150)
+            .unwrap();
         assert_eq!(
             acct.record_action(CenterOscillationAction::Reduce, 100, 12, 150),
-            Err(ShortDiffViolation::UnitsExceedCostBasis { held: 150, attempted: 200 }),
+            Err(ShortDiffViolation::UnitsExceedCostBasis {
+                held: 150,
+                attempted: 200
+            }),
             "在途 100 未收口 ⟹ 累计拒绝"
         );
 
-        acct.record_action(CenterOscillationAction::Replenish, 100, 9, 150).unwrap(); // 回补收口
+        acct.record_action(CenterOscillationAction::Replenish, 100, 9, 150)
+            .unwrap(); // 回补收口
         assert_eq!(acct.bucket.open_units(), 0, "回补后在途量释放归零");
         acct.record_action(CenterOscillationAction::Reduce, 100, 12, 150)
             .expect("在途已释放 ⟹ 0+100 ≤ 150 ⟹ 同一笔重新放行");
@@ -1004,22 +1236,41 @@ mod tests {
     #[test]
     fn replenish_is_not_bounded_by_current_holding_only_by_open_units() {
         let mut acct = ShortDiffAccount::new(snapshot(300, 3_000));
-        acct.record_action(CenterOscillationAction::Reduce, 100, 12, 300).unwrap();
+        acct.record_action(CenterOscillationAction::Reduce, 100, 12, 300)
+            .unwrap();
         // 主仓其间被减到 0：回补 100（=挂起在途量）仍须放行。
-        acct.record_action(CenterOscillationAction::Replenish, 100, 9, 0).unwrap();
-        assert!(acct.assert_conserved().is_ok(), "当前持仓为 0 也不阻断收口 ⟹ 往返闭合");
+        acct.record_action(CenterOscillationAction::Replenish, 100, 9, 0)
+            .unwrap();
+        assert!(
+            acct.assert_conserved().is_ok(),
+            "当前持仓为 0 也不阻断收口 ⟹ 往返闭合"
+        );
     }
 
     /// 超额回补（买回多于挂起在途量）当场拒绝——不静默钳制到「只买回挂起的那部分」。
     #[test]
     fn over_replenish_is_explicit_violation_and_state_unchanged() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(8));
-        acct.record_action(CenterOscillationAction::Reduce, 5, 10, acct.cost_basis().units()).unwrap(); // 卖5，挂起=5
+        acct.record_action(
+            CenterOscillationAction::Reduce,
+            5,
+            10,
+            acct.cost_basis().units(),
+        )
+        .unwrap(); // 卖5，挂起=5
         let before = acct;
-        let result = acct.record_action(CenterOscillationAction::Replenish, 8, 9, acct.cost_basis().units()); // 试图买8
+        let result = acct.record_action(
+            CenterOscillationAction::Replenish,
+            8,
+            9,
+            acct.cost_basis().units(),
+        ); // 试图买8
         assert_eq!(
             result,
-            Err(ShortDiffViolation::OverReplenish { open_units: 5, attempted: 8 }),
+            Err(ShortDiffViolation::OverReplenish {
+                open_units: 5,
+                attempted: 8
+            }),
             "买回(8)>挂起(5) ⟹ 显式拒绝"
         );
         assert_eq!(acct, before, "拒绝的调用不改任何状态（桶/在途量均不落笔）");
@@ -1031,10 +1282,28 @@ mod tests {
     #[test]
     fn n_to_one_mismatch_is_not_immediately_illegal_but_fails_boundary_assertion() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(17));
-        acct.record_action(CenterOscillationAction::Reduce, 10, 20, acct.cost_basis().units()).unwrap(); // 卖10
-        let partial = acct.record_action(CenterOscillationAction::Replenish, 1, 18, acct.cost_basis().units()); // 只买1
-        assert!(partial.is_ok(), "部分回补（1<10）当场合法——往返可以分批收口");
-        assert_eq!(acct.bucket.open_units(), 9, "N:1（10:1）⟹ 挂起在途量=9，未闭合");
+        acct.record_action(
+            CenterOscillationAction::Reduce,
+            10,
+            20,
+            acct.cost_basis().units(),
+        )
+        .unwrap(); // 卖10
+        let partial = acct.record_action(
+            CenterOscillationAction::Replenish,
+            1,
+            18,
+            acct.cost_basis().units(),
+        ); // 只买1
+        assert!(
+            partial.is_ok(),
+            "部分回补（1<10）当场合法——往返可以分批收口"
+        );
+        assert_eq!(
+            acct.bucket.open_units(),
+            9,
+            "N:1（10:1）⟹ 挂起在途量=9，未闭合"
+        );
         assert_eq!(
             acct.assert_conserved(),
             Err(ShortDiffViolation::UnclosedRoundTrip { open_units: 9 }),
@@ -1052,13 +1321,28 @@ mod tests {
     #[test]
     fn avg_cost_mismatch_after_bucket_transplant_is_explicit_violation() {
         let mut opened = ShortDiffAccount::new(avg_cost_snapshot(10));
-        opened.record_action(CenterOscillationAction::Reduce, 10, 12, opened.cost_basis().units()).unwrap(); // 挂起批次记 avg_cost=10
+        opened
+            .record_action(
+                CenterOscillationAction::Reduce,
+                10,
+                12,
+                opened.cost_basis().units(),
+            )
+            .unwrap(); // 挂起批次记 avg_cost=10
         let mut mismatched = ShortDiffAccount::new(avg_cost_snapshot(20)); // 不同 cost_basis
         mismatched.bucket = opened.bucket; // 唯一仍可行的不一致引入路径（私有字段，同文件测试可见）
-        let result = mismatched.record_action(CenterOscillationAction::Replenish, 10, 9, mismatched.cost_basis().units());
+        let result = mismatched.record_action(
+            CenterOscillationAction::Replenish,
+            10,
+            9,
+            mismatched.cost_basis().units(),
+        );
         assert_eq!(
             result,
-            Err(ShortDiffViolation::AvgCostMismatch { recorded: 10, derived: 20 }),
+            Err(ShortDiffViolation::AvgCostMismatch {
+                recorded: 10,
+                derived: 20
+            }),
             "挂起批次记录的 avg_cost(10) 与本账本现算派生的 avg_cost(20) 不一致 ⟹ 显式拒绝"
         );
     }
@@ -1070,10 +1354,28 @@ mod tests {
     #[test]
     fn bucket_accessor_reads_current_state() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(9));
-        acct.record_action(CenterOscillationAction::Reduce, 10, 12, acct.cost_basis().units()).unwrap();
-        assert_eq!(acct.bucket().open_units(), 10, "访问器读到的挂起在途量与直接字段读一致");
-        assert_eq!(acct.bucket().realized_cash(), 120, "访问器读到的累计现金与直接字段读一致");
-        assert_eq!(acct.bucket(), acct.bucket, "访问器返回值与私有字段逐位相等（Copy 只读，非另存一份）");
+        acct.record_action(
+            CenterOscillationAction::Reduce,
+            10,
+            12,
+            acct.cost_basis().units(),
+        )
+        .unwrap();
+        assert_eq!(
+            acct.bucket().open_units(),
+            10,
+            "访问器读到的挂起在途量与直接字段读一致"
+        );
+        assert_eq!(
+            acct.bucket().realized_cash(),
+            120,
+            "访问器读到的累计现金与直接字段读一致"
+        );
+        assert_eq!(
+            acct.bucket(),
+            acct.bucket,
+            "访问器返回值与私有字段逐位相等（Copy 只读，非另存一份）"
+        );
     }
 
     // ── 本仓成本基不动断言 ───────────────────────────────────────────────
@@ -1085,11 +1387,31 @@ mod tests {
         let original = snapshot(1_000, 50_000);
         let mut acct = ShortDiffAccount::new(original);
         for _ in 0..3 {
-            acct.record_action(CenterOscillationAction::Reduce, 10, 15, acct.cost_basis().units()).unwrap();
-            acct.record_action(CenterOscillationAction::Replenish, 10, 11, acct.cost_basis().units()).unwrap();
+            acct.record_action(
+                CenterOscillationAction::Reduce,
+                10,
+                15,
+                acct.cost_basis().units(),
+            )
+            .unwrap();
+            acct.record_action(
+                CenterOscillationAction::Replenish,
+                10,
+                11,
+                acct.cost_basis().units(),
+            )
+            .unwrap();
         }
-        assert_eq!(acct.cost_basis(), original, "本仓成本基（均价口径）往返后逐位不变");
-        assert_eq!(acct.bucket.realized_cash(), 3 * (10 * 15 - 10 * 11), "桶累计另列，不并入成本基");
+        assert_eq!(
+            acct.cost_basis(),
+            original,
+            "本仓成本基（均价口径）往返后逐位不变"
+        );
+        assert_eq!(
+            acct.bucket.realized_cash(),
+            3 * (10 * 15 - 10 * 11),
+            "桶累计另列，不并入成本基"
+        );
         assert!(acct.assert_conserved().is_ok());
     }
 
@@ -1098,8 +1420,19 @@ mod tests {
     fn cost_basis_untouched_even_when_short_diff_call_is_rejected() {
         let original = snapshot(200, 8_000);
         let mut acct = ShortDiffAccount::new(original);
-        acct.record_action(CenterOscillationAction::Reduce, 5, 10, acct.cost_basis().units()).unwrap();
-        let _ = acct.record_action(CenterOscillationAction::Replenish, 99, 9, acct.cost_basis().units()); // 拒绝
+        acct.record_action(
+            CenterOscillationAction::Reduce,
+            5,
+            10,
+            acct.cost_basis().units(),
+        )
+        .unwrap();
+        let _ = acct.record_action(
+            CenterOscillationAction::Replenish,
+            99,
+            9,
+            acct.cost_basis().units(),
+        ); // 拒绝
         assert_eq!(acct.cost_basis(), original);
     }
 
@@ -1112,25 +1445,71 @@ mod tests {
     #[test]
     fn tw_drift_equals_sum_of_realize_through_short_diff_round_trip() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(6));
-        let tw0 = TwState { free: 1_000, holding: 500, ..TwState::initial() };
+        let tw0 = TwState {
+            free: 1_000,
+            holding: 500,
+            ..TwState::initial()
+        };
         let tw0_total = tw0.tw();
 
         // Reduce(20@8，均价6) ⟹ ShortDiff(20·6=120)（守恒）+ Realize(20·(8−6)=40)（漂移+40）。
-        let events1 = acct.record_action(CenterOscillationAction::Reduce, 20, 8, acct.cost_basis().units()).unwrap();
+        let events1 = acct
+            .record_action(
+                CenterOscillationAction::Reduce,
+                20,
+                8,
+                acct.cost_basis().units(),
+            )
+            .unwrap();
         let tw1 = events1.apply(&tw0).unwrap();
-        assert_eq!(tw1.free, tw0.free + 120 + 40, "free 吸收成本基划转(120)+已实现盈亏(40)");
-        assert_eq!(tw1.holding, tw0.holding - 120, "holding 只减成本基份额(120)，非全额卖出款(160)");
-        assert_eq!(tw1.tw() - tw0_total, 40, "TW 漂移=本轮 Realize=40（非 0——旧口径的症状）");
+        assert_eq!(
+            tw1.free,
+            tw0.free + 120 + 40,
+            "free 吸收成本基划转(120)+已实现盈亏(40)"
+        );
+        assert_eq!(
+            tw1.holding,
+            tw0.holding - 120,
+            "holding 只减成本基份额(120)，非全额卖出款(160)"
+        );
+        assert_eq!(
+            tw1.tw() - tw0_total,
+            40,
+            "TW 漂移=本轮 Realize=40（非 0——旧口径的症状）"
+        );
 
         // Replenish(20@6，均价6) ⟹ ShortDiff(-20·6=-120)（守恒）+ Realize(20·(6−6)=0)——买回价
         // 恰等于均价，本轮无盈亏，但仍是显式 Realize(0) 事件（非 None，对偶拆分恒产出两笔）。
-        let events2 = acct.record_action(CenterOscillationAction::Replenish, 20, 6, acct.cost_basis().units()).unwrap();
-        assert_eq!(events2.realize, Some(TwEvent::Realize(0)), "买价=均价 ⟹ Realize(0)，非 None");
+        let events2 = acct
+            .record_action(
+                CenterOscillationAction::Replenish,
+                20,
+                6,
+                acct.cost_basis().units(),
+            )
+            .unwrap();
+        assert_eq!(
+            events2.realize,
+            Some(TwEvent::Realize(0)),
+            "买价=均价 ⟹ Realize(0)，非 None"
+        );
         let tw2 = events2.apply(&tw1).unwrap();
-        assert_eq!(tw2.tw(), tw1.tw(), "本轮 Realize=0 ⟹ TW 不再漂移（ShortDiff 恒守恒）");
+        assert_eq!(
+            tw2.tw(),
+            tw1.tw(),
+            "本轮 Realize=0 ⟹ TW 不再漂移（ShortDiff 恒守恒）"
+        );
 
-        assert_eq!(tw2.tw() - tw0_total, 40, "全程 TW 总漂移=Σ Realize=40（唯一一次非零 Realize）");
-        assert_eq!(acct.bucket.realized_cash(), 160 - 120, "桶净现金读数=往返净现金=40（报告层口径不变）");
+        assert_eq!(
+            tw2.tw() - tw0_total,
+            40,
+            "全程 TW 总漂移=Σ Realize=40（唯一一次非零 Realize）"
+        );
+        assert_eq!(
+            acct.bucket.realized_cash(),
+            160 - 120,
+            "桶净现金读数=往返净现金=40（报告层口径不变）"
+        );
     }
 
     /// ★全往返对账核心用例（issue #293 复审要求，P1 续修）：卖侧
@@ -1141,17 +1520,42 @@ mod tests {
     #[test]
     fn full_round_trip_holding_returns_to_original_and_tw_drift_equals_sum_of_realize() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(6));
-        let tw0 = TwState { free: 1_000, holding: 500, ..TwState::initial() };
+        let tw0 = TwState {
+            free: 1_000,
+            holding: 500,
+            ..TwState::initial()
+        };
 
         // 卖20@8，均价6 ⟹ ShortDiff(120) + Realize(20·(8−6)=40)。
-        let sell = acct.record_action(CenterOscillationAction::Reduce, 20, 8, acct.cost_basis().units()).unwrap();
+        let sell = acct
+            .record_action(
+                CenterOscillationAction::Reduce,
+                20,
+                8,
+                acct.cost_basis().units(),
+            )
+            .unwrap();
         let tw1 = sell.apply(&tw0).unwrap();
-        assert_eq!(tw1.holding, tw0.holding - 120, "holding 减成本基份额=units·avg_cost=120");
+        assert_eq!(
+            tw1.holding,
+            tw0.holding - 120,
+            "holding 减成本基份额=units·avg_cost=120"
+        );
 
         // 买回20@5（买便宜），均价6（同一持仓，成本基不变）⟹ ShortDiff(-120) + Realize(20·(6−5)=20)。
-        let buy = acct.record_action(CenterOscillationAction::Replenish, 20, 5, acct.cost_basis().units()).unwrap();
+        let buy = acct
+            .record_action(
+                CenterOscillationAction::Replenish,
+                20,
+                5,
+                acct.cost_basis().units(),
+            )
+            .unwrap();
         let tw2 = buy.apply(&tw1).unwrap();
-        assert_eq!(tw2.holding, tw0.holding, "ShortDiff 两笔相消 ⟹ holding 回到往返前原值（净 0）");
+        assert_eq!(
+            tw2.holding, tw0.holding,
+            "ShortDiff 两笔相消 ⟹ holding 回到往返前原值（净 0）"
+        );
 
         let sum_realize = match (sell.realize, buy.realize) {
             (Some(TwEvent::Realize(a)), Some(TwEvent::Realize(b))) => a + b,
@@ -1161,8 +1565,16 @@ mod tests {
             sum_realize, 60,
             "ΣRealize=40+20=60=units·(price_sell−price_buy)=20·(8−5)=60，与 avg_cost 无关"
         );
-        assert_eq!(tw2.tw() - tw0.tw(), sum_realize, "TW 全程漂移=ΣRealize=真实现金差价");
-        assert_eq!(acct.bucket.realized_cash(), 20 * 8 - 20 * 5, "桶净现金读数=往返净现金=60（报告层口径不变）");
+        assert_eq!(
+            tw2.tw() - tw0.tw(),
+            sum_realize,
+            "TW 全程漂移=ΣRealize=真实现金差价"
+        );
+        assert_eq!(
+            acct.bucket.realized_cash(),
+            20 * 8 - 20 * 5,
+            "桶净现金读数=往返净现金=60（报告层口径不变）"
+        );
         assert!(acct.assert_conserved().is_ok(), "同股数进出 ⟹ 恒仓断言过");
     }
 
@@ -1181,22 +1593,51 @@ mod tests {
     #[test]
     fn loss_round_trip_is_recorded_with_negative_free_not_rejected() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(12));
-        let tw0 = TwState { holding: 120, ..TwState::initial() };
-        let tw1 = acct.record_and_apply(&tw0, CenterOscillationAction::Reduce, 10, 12, acct.cost_basis().units()).unwrap();
+        let tw0 = TwState {
+            holding: 120,
+            ..TwState::initial()
+        };
+        let tw1 = acct
+            .record_and_apply(
+                &tw0,
+                CenterOscillationAction::Reduce,
+                10,
+                12,
+                acct.cost_basis().units(),
+            )
+            .unwrap();
         assert_eq!(tw1.free, 120, "卖出按均价成交，无盈亏（Realize=0）");
-        assert_eq!(tw1.holding, 0, "holding 全额划出（成本基=120，全部回流 free）");
+        assert_eq!(
+            tw1.holding, 0,
+            "holding 全额划出（成本基=120，全部回流 free）"
+        );
 
         let tw2 = acct
-            .record_and_apply(&tw1, CenterOscillationAction::Replenish, 10, 50, acct.cost_basis().units())
+            .record_and_apply(
+                &tw1,
+                CenterOscillationAction::Replenish,
+                10,
+                50,
+                acct.cost_basis().units(),
+            )
             .expect("★亏损往返如实入账（ADR 补充七项四）——不再整笔拒绝回滚");
-        assert_eq!(tw2.free, -380, "桶现金收负=-380（短差累计倒贴，主仓成本基承担）");
-        assert_eq!(tw2.holding, 120, "成本基按原均价划回（ShortDiff 恒守恒，与成交价 50 无关）");
+        assert_eq!(
+            tw2.free, -380,
+            "桶现金收负=-380（短差累计倒贴，主仓成本基承担）"
+        );
+        assert_eq!(
+            tw2.holding, 120,
+            "成本基按原均价划回（ShortDiff 恒守恒，与成交价 50 无关）"
+        );
         assert_eq!(
             acct.bucket().realized_cash(),
             10 * 12 - 10 * 50,
             "报告层读数如实收负=-380（旧口径下这笔根本不入账 ⟹ 短差盈亏上偏）"
         );
-        assert!(acct.assert_conserved().is_ok(), "亏损往返同样闭合（同股数进出，恒仓断言不受影响）");
+        assert!(
+            acct.assert_conserved().is_ok(),
+            "亏损往返同样闭合（同股数进出，恒仓断言不受影响）"
+        );
     }
 
     /// ★#380 项一对偶（分两族的另一族）：`holding<0`（货透支——卖出的成本基份额超过 TW 持仓）
@@ -1204,16 +1645,27 @@ mod tests {
     #[test]
     fn holding_negative_is_still_explicit_channel_rejection() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(12));
-        let tw0 = TwState { holding: 60, ..TwState::initial() }; // TW 持仓只覆盖 5 股的成本基
+        let tw0 = TwState {
+            holding: 60,
+            ..TwState::initial()
+        }; // TW 持仓只覆盖 5 股的成本基
         let before = acct;
-        let result = acct.record_and_apply(&tw0, CenterOscillationAction::Reduce, 10, 12, acct.cost_basis().units());
+        let result = acct.record_and_apply(
+            &tw0,
+            CenterOscillationAction::Reduce,
+            10,
+            12,
+            acct.cost_basis().units(),
+        );
         assert_eq!(
             result,
-            Err(ShortDiffViolation::ChannelRejected(TransitionError::CashUnsound {
-                free: 120,
-                holding: -60,
-                withdrawn: 0,
-            })),
+            Err(ShortDiffViolation::ChannelRejected(
+                TransitionError::CashUnsound {
+                    free: 120,
+                    holding: -60,
+                    withdrawn: 0,
+                }
+            )),
             "货透支（holding<0）=记账错误 ⟹ 照拒不误（违规显式失败纪律不变）"
         );
         assert_eq!(acct, before, "拒绝 ⟹ 原子回滚，账本状态不变");
@@ -1222,7 +1674,14 @@ mod tests {
     // ── #292 → #293 端到端桥接：真实 `CenterOscillationAction` 落成 TW 事件 ──
 
     fn cid(start_index: usize, zd: i64, zg: i64) -> CenterId {
-        CenterId::of(&Center { zd, zg, dd: zd - 2, gg: zg + 2, start_index, end_index: start_index + 50 })
+        CenterId::of(&Center {
+            zd,
+            zg,
+            dd: zd - 2,
+            gg: zg + 2,
+            start_index,
+            end_index: start_index + 50,
+        })
     }
 
     /// ★端到端契约衔接证据：#292 `CenterOscillationBook::on_trigger` 产出的真实
@@ -1243,16 +1702,33 @@ mod tests {
         let id = cid(5, 100, 200);
         let mut book = CenterOscillationBook::new(0);
         let mut acct = ShortDiffAccount::new(snapshot(500, 20_000));
-        let tw0 = TwState { holding: 20_000, ..TwState::initial() };
-        assert!(tw0.holding >= 0, "起手态 holding 不得为负（真实持仓不可能为负）");
+        let tw0 = TwState {
+            holding: 20_000,
+            ..TwState::initial()
+        };
+        assert!(
+            tw0.holding >= 0,
+            "起手态 holding 不得为负（真实持仓不可能为负）"
+        );
         let avg_cost = 20_000 / 500; // 本仓成本基（均价口径，见 snapshot），= 40，供断言消息复算用。
 
         // 上沿高抛：次级别卖点，价格=中枢上沿 zg（真实 #292 触发构造，非合成值）。
-        let reduce_trigger =
-            CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Short, id.zg, 10).unwrap();
-        let reduce_action = book.on_trigger(reduce_trigger).expect("上沿触碰产出 Reduce");
+        let reduce_trigger = CenterOscillationTrigger::new(
+            0,
+            Some(id),
+            CenterDrift::NoDownShift,
+            VoiceSide::Short,
+            id.zg,
+            10,
+        )
+        .unwrap();
+        let reduce_action = book
+            .on_trigger(reduce_trigger)
+            .expect("上沿触碰产出 Reduce");
         assert_eq!(reduce_action, CenterOscillationAction::Reduce);
-        let tw1 = acct.record_and_apply(&tw0, reduce_action, 15, id.zg, acct.cost_basis().units()).unwrap();
+        let tw1 = acct
+            .record_and_apply(&tw0, reduce_action, 15, id.zg, acct.cost_basis().units())
+            .unwrap();
         assert_eq!(
             tw1.tw() - tw0.tw(),
             15 * (id.zg - avg_cost),
@@ -1262,11 +1738,22 @@ mod tests {
 
         // 下沿回补：次级别买点，价格=中枢下沿 zd；avg_cost 仍是同一持仓的原均价（现算派生，
         // 不因回补而变——本账本 cost_basis 全程不变）。
-        let cover_trigger =
-            CenterOscillationTrigger::new(0, Some(id), CenterDrift::NoDownShift, VoiceSide::Long, id.zd, 20).unwrap();
-        let cover_action = book.on_trigger(cover_trigger).expect("挂起中 ⟹ 下沿触碰产出 Replenish");
+        let cover_trigger = CenterOscillationTrigger::new(
+            0,
+            Some(id),
+            CenterDrift::NoDownShift,
+            VoiceSide::Long,
+            id.zd,
+            20,
+        )
+        .unwrap();
+        let cover_action = book
+            .on_trigger(cover_trigger)
+            .expect("挂起中 ⟹ 下沿触碰产出 Replenish");
         assert_eq!(cover_action, CenterOscillationAction::Replenish);
-        let tw2 = acct.record_and_apply(&tw1, cover_action, 15, id.zd, acct.cost_basis().units()).unwrap();
+        let tw2 = acct
+            .record_and_apply(&tw1, cover_action, 15, id.zd, acct.cost_basis().units())
+            .unwrap();
         assert_eq!(
             tw2.tw() - tw1.tw(),
             15 * (avg_cost - id.zd),
@@ -1274,14 +1761,25 @@ mod tests {
         );
 
         assert!(acct.assert_conserved().is_ok(), "同股数进出 ⟹ 恒仓断言过");
-        assert_eq!(acct.bucket.realized_cash(), 15 * id.zg - 15 * id.zd, "桶累计=高抛低吸净现金（报告层口径不变）");
+        assert_eq!(
+            acct.bucket.realized_cash(),
+            15 * id.zg - 15 * id.zd,
+            "桶累计=高抛低吸净现金（报告层口径不变）"
+        );
         assert_eq!(
             tw2.tw() - tw0.tw(),
             15 * (id.zg - id.zd),
             "全程 TW 总漂移=ΣRealize=真实现金差价=units·(price_sell−price_buy)，与 avg_cost 无关"
         );
-        assert_eq!(acct.cost_basis(), snapshot(500, 20_000), "本仓成本基全程不动");
-        assert!(!book.is_suspended(id), "回补出口=挂起清空（#292 既有语义不受影响）");
+        assert_eq!(
+            acct.cost_basis(),
+            snapshot(500, 20_000),
+            "本仓成本基全程不动"
+        );
+        assert!(
+            !book.is_suspended(id),
+            "回补出口=挂起清空（#292 既有语义不受影响）"
+        );
     }
 
     // ── #381：空头侧镜像记账 ─────────────────────────────────────────────
@@ -1294,9 +1792,18 @@ mod tests {
         let mut short_acct = ShortDiffAccount::new_side(avg_cost_snapshot(10), VoiceSide::Short);
         assert_eq!(short_acct.side(), VoiceSide::Short);
         let reduce = short_acct
-            .record_action(CenterOscillationAction::Reduce, 10, 8, short_acct.cost_basis().units())
+            .record_action(
+                CenterOscillationAction::Reduce,
+                10,
+                8,
+                short_acct.cost_basis().units(),
+            )
             .unwrap();
-        assert_eq!(reduce.short_diff, TwEvent::ShortDiff(100), "成本基划转=units·avg_cost=100（与多头侧同）");
+        assert_eq!(
+            reduce.short_diff,
+            TwEvent::ShortDiff(100),
+            "成本基划转=units·avg_cost=100（与多头侧同）"
+        );
         assert_eq!(
             reduce.realize,
             Some(TwEvent::Realize(20)),
@@ -1304,9 +1811,18 @@ mod tests {
         );
 
         let replenish = short_acct
-            .record_action(CenterOscillationAction::Replenish, 10, 12, short_acct.cost_basis().units())
+            .record_action(
+                CenterOscillationAction::Replenish,
+                10,
+                12,
+                short_acct.cost_basis().units(),
+            )
             .unwrap();
-        assert_eq!(replenish.short_diff, TwEvent::ShortDiff(-100), "按原均价划回（与多头侧同）");
+        assert_eq!(
+            replenish.short_diff,
+            TwEvent::ShortDiff(-100),
+            "按原均价划回（与多头侧同）"
+        );
         assert_eq!(
             replenish.realize,
             Some(TwEvent::Realize(20)),
@@ -1316,15 +1832,39 @@ mod tests {
         // 多头账同一对价格：符号恰好相反（对偶的直接对照）。
         let mut long_acct = ShortDiffAccount::new(avg_cost_snapshot(10));
         let l_reduce = long_acct
-            .record_action(CenterOscillationAction::Reduce, 10, 8, long_acct.cost_basis().units())
+            .record_action(
+                CenterOscillationAction::Reduce,
+                10,
+                8,
+                long_acct.cost_basis().units(),
+            )
             .unwrap();
         let l_replenish = long_acct
-            .record_action(CenterOscillationAction::Replenish, 10, 12, long_acct.cost_basis().units())
+            .record_action(
+                CenterOscillationAction::Replenish,
+                10,
+                12,
+                long_acct.cost_basis().units(),
+            )
             .unwrap();
-        assert_eq!(l_reduce.realize, Some(TwEvent::Realize(-20)), "多头减在低价=亏（空头侧的镜像）");
-        assert_eq!(l_replenish.realize, Some(TwEvent::Realize(-20)), "多头补在高价=亏");
-        assert_eq!(l_reduce.short_diff, reduce.short_diff, "ShortDiff 腿两侧逐字节相同");
-        assert_eq!(l_replenish.short_diff, replenish.short_diff, "ShortDiff 腿两侧逐字节相同");
+        assert_eq!(
+            l_reduce.realize,
+            Some(TwEvent::Realize(-20)),
+            "多头减在低价=亏（空头侧的镜像）"
+        );
+        assert_eq!(
+            l_replenish.realize,
+            Some(TwEvent::Realize(-20)),
+            "多头补在高价=亏"
+        );
+        assert_eq!(
+            l_reduce.short_diff, reduce.short_diff,
+            "ShortDiff 腿两侧逐字节相同"
+        );
+        assert_eq!(
+            l_replenish.short_diff, replenish.short_diff,
+            "ShortDiff 腿两侧逐字节相同"
+        );
     }
 
     /// ★#381：整轮往返收口后，两侧的桶累计各自等于该侧真实盈利——多头 `units·(p_减−p_补)`
@@ -1333,18 +1873,53 @@ mod tests {
     fn round_trip_bucket_accumulates_side_specific_profit() {
         let mut short_acct = ShortDiffAccount::new_side(avg_cost_snapshot(10), VoiceSide::Short);
         short_acct
-            .record_action(CenterOscillationAction::Reduce, 10, 8, short_acct.cost_basis().units())
+            .record_action(
+                CenterOscillationAction::Reduce,
+                10,
+                8,
+                short_acct.cost_basis().units(),
+            )
             .unwrap();
         short_acct
-            .record_action(CenterOscillationAction::Replenish, 10, 12, short_acct.cost_basis().units())
+            .record_action(
+                CenterOscillationAction::Replenish,
+                10,
+                12,
+                short_acct.cost_basis().units(),
+            )
             .unwrap();
-        assert_eq!(short_acct.bucket().realized_cash(), 10 * (12 - 8), "空头累计=units·(p_补−p_减)=+40");
-        assert!(short_acct.assert_conserved().is_ok(), "同股数进出 ⟹ 恒仓断言过（两侧同规格）");
+        assert_eq!(
+            short_acct.bucket().realized_cash(),
+            10 * (12 - 8),
+            "空头累计=units·(p_补−p_减)=+40"
+        );
+        assert!(
+            short_acct.assert_conserved().is_ok(),
+            "同股数进出 ⟹ 恒仓断言过（两侧同规格）"
+        );
 
         let mut long_acct = ShortDiffAccount::new(avg_cost_snapshot(10));
-        long_acct.record_action(CenterOscillationAction::Reduce, 10, 12, long_acct.cost_basis().units()).unwrap();
-        long_acct.record_action(CenterOscillationAction::Replenish, 10, 8, long_acct.cost_basis().units()).unwrap();
-        assert_eq!(long_acct.bucket().realized_cash(), 10 * (12 - 8), "多头累计=units·(p_减−p_补)=+40（同构）");
+        long_acct
+            .record_action(
+                CenterOscillationAction::Reduce,
+                10,
+                12,
+                long_acct.cost_basis().units(),
+            )
+            .unwrap();
+        long_acct
+            .record_action(
+                CenterOscillationAction::Replenish,
+                10,
+                8,
+                long_acct.cost_basis().units(),
+            )
+            .unwrap();
+        assert_eq!(
+            long_acct.bucket().realized_cash(),
+            10 * (12 - 8),
+            "多头累计=units·(p_减−p_补)=+40（同构）"
+        );
     }
 
     /// ★#381：`ShortDiffEvents::apply` 后 TW 漂移 = Σ Realize 的桥接定理对空头侧同样成立
@@ -1352,17 +1927,37 @@ mod tests {
     #[test]
     fn short_side_tw_drift_equals_sum_of_realize() {
         let mut acct = ShortDiffAccount::new_side(avg_cost_snapshot(10), VoiceSide::Short);
-        let tw0 = TwState { holding: 100, ..TwState::initial() };
+        let tw0 = TwState {
+            holding: 100,
+            ..TwState::initial()
+        };
         let reduce = acct
-            .record_action(CenterOscillationAction::Reduce, 10, 8, acct.cost_basis().units())
+            .record_action(
+                CenterOscillationAction::Reduce,
+                10,
+                8,
+                acct.cost_basis().units(),
+            )
             .unwrap();
         let tw1 = reduce.apply(&tw0).unwrap();
         let replenish = acct
-            .record_action(CenterOscillationAction::Replenish, 10, 12, acct.cost_basis().units())
+            .record_action(
+                CenterOscillationAction::Replenish,
+                10,
+                12,
+                acct.cost_basis().units(),
+            )
             .unwrap();
         let tw2 = replenish.apply(&tw1).unwrap();
-        assert_eq!(tw2.tw() - tw0.tw(), 40, "TW 漂移=Σ Realize=20+20（空头侧同定理）");
-        assert_eq!(tw2.holding, tw0.holding, "ShortDiff 两腿相消 ⟹ 在险成本基回原值");
+        assert_eq!(
+            tw2.tw() - tw0.tw(),
+            40,
+            "TW 漂移=Σ Realize=20+20（空头侧同定理）"
+        );
+        assert_eq!(
+            tw2.holding, tw0.holding,
+            "ShortDiff 两腿相消 ⟹ 在险成本基回原值"
+        );
     }
 
     // ── #383：等金额回补的增股腿（`extra_units`） ───────────────────────
@@ -1371,12 +1966,23 @@ mod tests {
     /// 相同（阶段一/既有全部路径恒传 0）——用同一起手态跑单腿版 `record_and_apply` 对照。
     #[test]
     fn extra_units_zero_is_byte_identical_to_pre_383_path() {
-        let tw0 = TwState { holding: 10_000, ..TwState::initial() };
+        let tw0 = TwState {
+            holding: 10_000,
+            ..TwState::initial()
+        };
         let ledger0 = LedgerComp::initial(10_000);
 
         let mut dual = ShortDiffAccount::new(avg_cost_snapshot(10));
         let (tw_dual, _) = dual
-            .record_and_apply_dual(&tw0, &ledger0, CenterOscillationAction::Reduce, 100, 0, 12, 10_000)
+            .record_and_apply_dual(
+                &tw0,
+                &ledger0,
+                CenterOscillationAction::Reduce,
+                100,
+                0,
+                12,
+                10_000,
+            )
             .unwrap();
 
         let mut single = ShortDiffAccount::new(avg_cost_snapshot(10));
@@ -1394,9 +2000,20 @@ mod tests {
     fn extra_shares_leg_is_cost_basis_only_no_realize_and_leaves_open_units_alone() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(10));
         let events = acct.record_extra_shares(50, 8).unwrap();
-        assert_eq!(events.short_diff, TwEvent::ShortDiff(-400), "-extra·price=-50·8");
-        assert_eq!(events.realize, None, "新买入的股不产生已实现盈亏（记 Realize 就是凭空造利润）");
-        assert_eq!(acct.bucket().open_units(), 0, "增股腿不动挂起在途量（补充八题二「股数不设门」）");
+        assert_eq!(
+            events.short_diff,
+            TwEvent::ShortDiff(-400),
+            "-extra·price=-50·8"
+        );
+        assert_eq!(
+            events.realize, None,
+            "新买入的股不产生已实现盈亏（记 Realize 就是凭空造利润）"
+        );
+        assert_eq!(
+            acct.bucket().open_units(),
+            0,
+            "增股腿不动挂起在途量（补充八题二「股数不设门」）"
+        );
         assert_eq!(acct.bucket().realized_cash(), -400, "桶现金按成交额支出");
         assert_eq!(
             acct.record_extra_shares(0, 8),
@@ -1410,17 +2027,40 @@ mod tests {
     #[test]
     fn replenish_with_extra_units_applies_both_legs_atomically() {
         let mut acct = ShortDiffAccount::new(avg_cost_snapshot(10));
-        let tw0 = TwState { holding: 10_000, ..TwState::initial() };
+        let tw0 = TwState {
+            holding: 10_000,
+            ..TwState::initial()
+        };
         let ledger0 = LedgerComp::initial(10_000);
         let (tw1, ledger1) = acct
-            .record_and_apply_dual(&tw0, &ledger0, CenterOscillationAction::Reduce, 100, 0, 12, 10_000)
+            .record_and_apply_dual(
+                &tw0,
+                &ledger0,
+                CenterOscillationAction::Reduce,
+                100,
+                0,
+                12,
+                10_000,
+            )
             .unwrap();
         assert_eq!(tw1.free, 1_200, "减出腿收 100·12");
 
         let (tw2, ledger2) = acct
-            .record_and_apply_dual(&tw1, &ledger1, CenterOscillationAction::Replenish, 100, 50, 8, 10_000)
+            .record_and_apply_dual(
+                &tw1,
+                &ledger1,
+                CenterOscillationAction::Replenish,
+                100,
+                50,
+                8,
+                10_000,
+            )
             .unwrap();
-        assert_eq!(tw2.free, 1_200 - 150 * 8, "两腿合计花 150·8（收口 100 + 增股 50）");
+        assert_eq!(
+            tw2.free,
+            1_200 - 150 * 8,
+            "两腿合计花 150·8（收口 100 + 增股 50）"
+        );
         assert_eq!(acct.bucket().open_units(), 0, "收口腿把挂起归零");
         assert_eq!(
             ledger2.pi - ledger1.pi,

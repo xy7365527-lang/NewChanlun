@@ -106,7 +106,11 @@ pub(crate) fn add_levels(a: &[(u32, i64)], b: &[(u32, i64)]) -> LevelUnits {
 }
 
 /// 两张按 level 升序表的逐级归并（level 之并，缺席视为 0，结果仍按 level 升序）。
-pub(crate) fn merge_levels(a: &[(u32, i64)], b: &[(u32, i64)], f: impl Fn(i64, i64) -> i64) -> LevelUnits {
+pub(crate) fn merge_levels(
+    a: &[(u32, i64)],
+    b: &[(u32, i64)],
+    f: impl Fn(i64, i64) -> i64,
+) -> LevelUnits {
     let mut out: LevelUnits = Vec::with_capacity(a.len() + b.len());
     let (mut i, mut j) = (0usize, 0usize);
     while i < a.len() || j < b.len() {
@@ -146,7 +150,6 @@ pub(crate) fn upsert(out: &mut LevelUnits, level: u32, q: i64) {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,27 +159,36 @@ mod tests {
     fn attribute_total_sums_exactly_for_all_shapes() {
         let cases: Vec<(Vec<(u32, i64)>, i64)> = vec![
             (vec![], 0),
-            (vec![], 7),                                   // 空基准 + 非零目标 ⟹ 残差桶
-            (vec![(1, 10), (2, 6), (3, -4)], 12),          // 恒等（Σ basis == total）
-            (vec![(1, 10), (2, 6), (3, -4)], 6),           // 缩放（cap binding 同形）
-            (vec![(1, 10), (2, 6), (3, -4)], 0),           // 缩放到 0
-            (vec![(1, 10), (2, 6), (3, -4)], -5),          // 反号缩放
-            (vec![(1, 7), (2, 7), (3, 7)], 10),            // 三等分 10 ⟹ 余数补位
-            (vec![(1, 5), (2, -5)], 3),                    // Σ basis == 0 ⟹ 残差桶
-            (vec![(0, 1)], i32::MAX as i64),               // 大数（i128 防溢出）
-            (vec![(1, -3), (2, -9)], -4),                  // 全负基准
+            (vec![], 7),                          // 空基准 + 非零目标 ⟹ 残差桶
+            (vec![(1, 10), (2, 6), (3, -4)], 12), // 恒等（Σ basis == total）
+            (vec![(1, 10), (2, 6), (3, -4)], 6),  // 缩放（cap binding 同形）
+            (vec![(1, 10), (2, 6), (3, -4)], 0),  // 缩放到 0
+            (vec![(1, 10), (2, 6), (3, -4)], -5), // 反号缩放
+            (vec![(1, 7), (2, 7), (3, 7)], 10),   // 三等分 10 ⟹ 余数补位
+            (vec![(1, 5), (2, -5)], 3),           // Σ basis == 0 ⟹ 残差桶
+            (vec![(0, 1)], i32::MAX as i64),      // 大数（i128 防溢出）
+            (vec![(1, -3), (2, -9)], -4),         // 全负基准
         ];
         for (basis, total) in cases {
             let (out, residual, _) = attribute_total(&basis, total);
             let sum: i64 = out.iter().map(|&(_, q)| q).sum();
-            assert_eq!(sum, total, "Σ_ℓ out_ℓ ≡ total（basis={basis:?}, total={total}）");
+            assert_eq!(
+                sum, total,
+                "Σ_ℓ out_ℓ ≡ total（basis={basis:?}, total={total}）"
+            );
             // level 升序 + 无重复（确定序，bit-exact 可复现前置）。
             for w in out.windows(2) {
                 assert!(w[0].0 < w[1].0, "level 升序无重复：{out:?}");
             }
             // 残差桶只在无结构基准时动用。
-            let has_res = out.iter().any(|&(l, q)| l == LEVEL_ACCOUNT_RESIDUAL && q != 0);
-            assert_eq!(has_res, residual && total != 0, "残差桶标记与内容一致：{out:?}");
+            let has_res = out
+                .iter()
+                .any(|&(l, q)| l == LEVEL_ACCOUNT_RESIDUAL && q != 0);
+            assert_eq!(
+                has_res,
+                residual && total != 0,
+                "残差桶标记与内容一致：{out:?}"
+            );
         }
     }
 

@@ -50,7 +50,13 @@ fn profile_parse_layer_scaling() {
         }
         let bars = &ds.bars[..n];
         // 迭代次数随规模递减（保持总测量时间可控）。
-        let iters = if n <= 8000 { 20 } else if n <= 32000 { 6 } else { 2 };
+        let iters = if n <= 8000 {
+            20
+        } else if n <= 32000 {
+            6
+        } else {
+            2
+        };
 
         let t_parse = bench(iters, || {
             let _ = parse_layer(bars, &cfg);
@@ -104,7 +110,10 @@ fn diag_segment_window_effect() {
     let sizes = [4000usize, 8000, 16000, 32000, 64000, 128000];
     let windows = [0u32, 50, 200];
     eprintln!("段划分 window 效应（μs）+ 与 window=0 输出等价性");
-    eprintln!("{:>8} | {:>12} {:>12} {:>12} | seg_n  eq50 eq200", "n", "w=0", "w=50", "w=200");
+    eprintln!(
+        "{:>8} | {:>12} {:>12} {:>12} | seg_n  eq50 eq200",
+        "n", "w=0", "w=50", "w=200"
+    );
     for &n in &sizes {
         if n > ds.bars.len() {
             break;
@@ -119,7 +128,10 @@ fn diag_segment_window_effect() {
         let mut base_segs = Vec::new();
         let mut eqs = [true; 3];
         for (wi, &w) in windows.iter().enumerate() {
-            let pc = ParseConfig { second_seq_scan_window: w, ..cfg.parse };
+            let pc = ParseConfig {
+                second_seq_scan_window: w,
+                ..cfg.parse
+            };
             times[wi] = bench(iters, || {
                 let _ = segment::divide_segments(&strokes, &pc);
             });
@@ -132,7 +144,13 @@ fn diag_segment_window_effect() {
         }
         eprintln!(
             "{:>8} | {:>12.1} {:>12.1} {:>12.1} | {:>5}  {:>4} {:>4}",
-            n, times[0], times[1], times[2], base_segs.len(), eqs[1], eqs[2]
+            n,
+            times[0],
+            times[1],
+            times[2],
+            base_segs.len(),
+            eqs[1],
+            eqs[2]
         );
     }
 }
@@ -184,10 +202,7 @@ fn profile_parse_layer_incr_scaling() {
         let n_merged = incl.merged.len();
 
         let (ie, fe) = match prev {
-            Some((pn, pi, pf)) => (
-                exp(pn, pi, n, t_incr),
-                exp(pn, pf, n, t_full),
-            ),
+            Some((pn, pi, pf)) => (exp(pn, pi, n, t_incr), exp(pn, pf, n, t_full)),
             None => (0.0, 0.0),
         };
         eprintln!(

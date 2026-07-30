@@ -168,7 +168,11 @@ impl MacdState {
     /// DIF = ema_fast - ema_slow；hist = DIF - DEA。与全量版对应位置逐位相等。
     pub fn current_point(&self) -> MacdPoint {
         let dif = self.ema_fast - self.ema_slow;
-        MacdPoint { dif, dea: self.dea, hist: dif - self.dea }
+        MacdPoint {
+            dif,
+            dea: self.dea,
+            hist: dif - self.dea,
+        }
     }
 
     /// 增量延伸一个 bar（O(1)），返回新状态。
@@ -263,11 +267,7 @@ pub fn is_divergence(prev_area: f64, curr_area: f64) -> bool {
 /// ponytail: MACD-area-only 力度判据，真走势力度（振幅/速度/量能，第17课定义）留待后续大工程；
 /// 本 gap 已诚实标注（编排者裁定：识别并标注，不顺手实装）。升级路径 = ForceMeasure 增非-MACD
 /// strength 实例（价格振幅/速度），MACD area 降为多 proxy 之一，与 P2「MACD 降 feature」同精神。
-pub fn segments_diverge(
-    hist: &[f64],
-    prev_seg: (usize, usize),
-    curr_seg: (usize, usize),
-) -> bool {
+pub fn segments_diverge(hist: &[f64], prev_seg: (usize, usize), curr_seg: (usize, usize)) -> bool {
     let prev_area = segment_macd_area(hist, prev_seg.0, prev_seg.1);
     let curr_area = segment_macd_area(hist, curr_seg.0, curr_seg.1);
     is_divergence(prev_area, curr_area)
@@ -343,7 +343,8 @@ pub fn segments_diverge_or(
         Side::Short => Direction::Up,
     };
     same_color_area(hist, c_idx.0, c_idx.1, side) < same_color_area(hist, a_idx.0, a_idx.1, side)
-        || segment_dif_peak(dif, c_idx.0, c_idx.1, dir) < segment_dif_peak(dif, a_idx.0, a_idx.1, dir)
+        || segment_dif_peak(dif, c_idx.0, c_idx.1, dir)
+            < segment_dif_peak(dif, a_idx.0, a_idx.1, dir)
         || same_dir_hist_peak(hist, c_idx.0, c_idx.1, side)
             < same_dir_hist_peak(hist, a_idx.0, a_idx.1, side)
 }
@@ -464,7 +465,10 @@ impl ForceProxies {
         let cmps = [
             (c.macd_area < a.macd_area, c.macd_area > a.macd_area),
             (c.dif_peak < a.dif_peak, c.dif_peak > a.dif_peak),
-            (c.price_amplitude < a.price_amplitude, c.price_amplitude > a.price_amplitude),
+            (
+                c.price_amplitude < a.price_amplitude,
+                c.price_amplitude > a.price_amplitude,
+            ),
             (c.price_speed < a.price_speed, c.price_speed > a.price_speed),
             (c.tv < a.tv, c.tv > a.tv),
         ];
@@ -573,7 +577,11 @@ pub fn confirm_divergence(
     macd_c_lt_a: bool,
     force: Option<&ForceProxies>,
 ) -> bool {
-    let dominated = || force.map(|f| f.force_state() == ForceStateA5::Dominated).unwrap_or(false);
+    let dominated = || {
+        force
+            .map(|f| f.force_state() == ForceStateA5::Dominated)
+            .unwrap_or(false)
+    };
     // Θ_LEX：级别内词典序 Weak(C,A)=1（DIF 主 ▷ 面积次，第17课）。force 无源 ⟹ false（诚实不判）。
     let lex_weak = || {
         force
@@ -603,9 +611,18 @@ pub fn segment_dif_peak(dif: &[f64], start: usize, end: usize, direction: Direct
     let slice = &dif[start..=end];
     match direction {
         // 向上段：黄白线正峰（max）。缠师顶背驰看黄白线新高与否。
-        Direction::Up => slice.iter().copied().fold(f64::NEG_INFINITY, f64::max).max(0.0),
+        Direction::Up => slice
+            .iter()
+            .copied()
+            .fold(f64::NEG_INFINITY, f64::max)
+            .max(0.0),
         // 向下段：黄白线负峰（|min|）。底背驰看黄白线新低。
-        Direction::Down => slice.iter().copied().fold(f64::INFINITY, f64::min).min(0.0).abs(),
+        Direction::Down => slice
+            .iter()
+            .copied()
+            .fold(f64::INFINITY, f64::min)
+            .min(0.0)
+            .abs(),
     }
 }
 
@@ -640,7 +657,10 @@ pub fn segment_total_variation(closes: &[Tick], start: usize, end: usize) -> i64
     if start >= end || end >= closes.len() {
         return 0;
     }
-    closes[start..=end].windows(2).map(|w| (w[1] - w[0]).abs()).sum()
+    closes[start..=end]
+        .windows(2)
+        .map(|w| (w[1] - w[0]).abs())
+        .sum()
 }
 
 /// 从段区间算全部力度 proxy（`ForceFeatures`）——MACD 面积 + DIF 峰值 + 价格振幅 + 速度 + TV。
@@ -824,7 +844,11 @@ pub fn episode_start_in(
                 Direction::Up => s.end_price <= c.zg,
             }
     };
-    let boundary = win.iter().rev().find(|s| reenters(s)).map_or(0, |r| r.end_index);
+    let boundary = win
+        .iter()
+        .rev()
+        .find(|s| reenters(s))
+        .map_or(0, |r| r.end_index);
     win.iter()
         .zip(anchors)
         .find(|(s, a)| **a == Some(dir) && s.start_index >= boundary)
@@ -861,7 +885,10 @@ pub fn departure_move_c_start(
 /// （`move_range_envelope as range_envelope`，三调用点零改动）——BSP 侧（signal.rs
 /// `judge_first_cached` 037:20 合取）与 D2 侧（R1 T2）共用同一原语同区间语义，禁口径 fork
 /// （675 号单一来源纪律、`departure_move_c_start`「无坐标 fork」先例）。
-pub(crate) fn move_range_envelope(segments: &[Segment], span: (usize, usize)) -> Option<(Tick, Tick)> {
+pub(crate) fn move_range_envelope(
+    segments: &[Segment],
+    span: (usize, usize),
+) -> Option<(Tick, Tick)> {
     segments
         .iter()
         .filter(|segment| segment.start_index >= span.0 && segment.end_index <= span.1)
@@ -880,7 +907,14 @@ mod tests {
     use super::*;
 
     fn ctr(zd: Tick, zg: Tick, dd: Tick, gg: Tick, ei: usize) -> Center {
-        Center { zd, zg, dd, gg, start_index: 0, end_index: ei }
+        Center {
+            zd,
+            zg,
+            dd,
+            gg,
+            start_index: 0,
+            end_index: ei,
+        }
     }
     use super::super::super::types::Tick;
 
@@ -891,13 +925,17 @@ mod tests {
     #[test]
     fn move_range_envelope_span_filter_and_fold() {
         let seg = |dir: Direction, si: usize, ei: usize, sp: Tick, ep: Tick| Segment {
-            direction: dir, start_index: si, end_index: ei, start_price: sp, end_price: ep,
+            direction: dir,
+            start_index: si,
+            end_index: ei,
+            start_price: sp,
+            end_price: ep,
         };
         let segs = vec![
-            seg(Direction::Down, 8, 12, 500, 300),  // 左跨界（start<10）⟹ 排除
+            seg(Direction::Down, 8, 12, 500, 300), // 左跨界（start<10）⟹ 排除
             seg(Direction::Down, 10, 14, 400, 250), // 整支落入：lo=250, hi=400
-            seg(Direction::Up, 14, 18, 250, 450),   // 整支落入（反向段同样折叠）：lo=250, hi=450
-            seg(Direction::Up, 18, 22, 450, 460),   // 右跨界（end>20）⟹ 排除
+            seg(Direction::Up, 14, 18, 250, 450),  // 整支落入（反向段同样折叠）：lo=250, hi=450
+            seg(Direction::Up, 18, 22, 450, 460),  // 右跨界（end>20）⟹ 排除
         ];
         // span 过滤 + 全区间 fold（含反向段；跨界段不贡献极值——500/460 被吸收即错）。
         assert_eq!(move_range_envelope(&segs, (10, 20)), Some((250, 450)));
@@ -915,7 +953,7 @@ mod tests {
         let src = vec![10.0, 20.0, 30.0];
         let out = ema(&src, 2);
         assert_eq!(out[0], 10.0); // 首值 = src[0]
-        // α=2/3：out[1]=2/3*20+1/3*10=16.666...
+                                  // α=2/3：out[1]=2/3*20+1/3*10=16.666...
         let alpha = 2.0 / 3.0;
         assert!((out[1] - (alpha * 20.0 + (1.0 - alpha) * 10.0)).abs() < 1e-12);
     }
@@ -977,7 +1015,7 @@ mod tests {
         // 前段 [0,1] 面积大，后段 [2,3] 面积小 ⟹ 背驰。
         let hist = vec![5.0, -5.0, 1.0, -1.0];
         assert!(segments_diverge(&hist, (0, 1), (2, 3))); // 10 vs 2 → 严格小
-        // 反向：后段面积大 ⟹ 不背驰。
+                                                          // 反向：后段面积大 ⟹ 不背驰。
         assert!(!segments_diverge(&hist, (2, 3), (0, 1)));
     }
 
@@ -1000,7 +1038,11 @@ mod tests {
     fn same_color_area_counts_only_move_color_bars() {
         // 060:44 同色口径：Long=向下离开 ⟹ 只计绿柱（hist<0）；Short 只计红柱（hist>0）。
         let hist = vec![3.0, -1.0, -2.0, 5.0, -4.0];
-        assert_eq!(same_color_area(&hist, 0, 4, Side::Long), 7.0, "绿柱 |−1|+|−2|+|−4|");
+        assert_eq!(
+            same_color_area(&hist, 0, 4, Side::Long),
+            7.0,
+            "绿柱 |−1|+|−2|+|−4|"
+        );
         assert_eq!(same_color_area(&hist, 0, 4, Side::Short), 8.0, "红柱 3+5");
         // 子区间与越界。
         assert_eq!(same_color_area(&hist, 1, 2, Side::Long), 3.0);
@@ -1008,7 +1050,11 @@ mod tests {
         // 全反向柱 ⟹ 同色面积 0（060:44 下无力度可读，区别于混合柱 Σ|hist|>0）。
         let opp = vec![2.0, 4.0];
         assert_eq!(same_color_area(&opp, 0, 1, Side::Long), 0.0);
-        assert_eq!(segment_macd_area(&opp, 0, 1), 6.0, "对照：混合柱把反向柱计入");
+        assert_eq!(
+            segment_macd_area(&opp, 0, 1),
+            6.0,
+            "对照：混合柱把反向柱计入"
+        );
     }
 
     #[test]
@@ -1017,7 +1063,11 @@ mod tests {
         let hist = vec![3.0, -1.0, -2.0, 5.0, -4.0];
         assert_eq!(same_dir_hist_peak(&hist, 0, 4, Side::Long), 4.0);
         assert_eq!(same_dir_hist_peak(&hist, 0, 4, Side::Short), 5.0);
-        assert_eq!(same_dir_hist_peak(&hist, 0, 0, Side::Long), 0.0, "该 bar 无绿柱");
+        assert_eq!(
+            same_dir_hist_peak(&hist, 0, 0, Side::Long),
+            0.0,
+            "该 bar 无绿柱"
+        );
         assert_eq!(same_dir_hist_peak(&hist, 0, 99, Side::Short), 0.0);
     }
 
@@ -1027,13 +1077,22 @@ mod tests {
         let hist = vec![4.0, -4.0, 1.0, -1.0]; // A=[0,1] 红柱4/绿柱4；C=[2,3] 红柱1/绿柱1
         let dif = vec![10.0, 12.0, 9.0, 8.0];
         // 三通道全衰减（面积 1<4、柱峰 1<4、dif 峰 9<12）⟹ true。
-        assert!(segments_diverge_or(&hist, &dif, Side::Short, (0, 1), (2, 3)));
+        assert!(segments_diverge_or(
+            &hist,
+            &dif,
+            Side::Short,
+            (0, 1),
+            (2, 3)
+        ));
         // 混合柱口径对照：混合面积 C=2 < A=8 也 true——但下例展示分离情形。
         assert!(segments_diverge(&hist, (0, 1), (2, 3)));
 
         // 分离情形①：混合面积 C≥A（反向柱喂大 C），同色面积 C<A ⟹ 或关系救回（p113 turn=739707 标本型）。
         let hist2 = vec![-6.0, 1.0, -2.0, 5.0]; // A=[0,1] 绿柱6；C=[2,3] 绿柱2+红柱5
-        assert!(!segments_diverge(&hist2, (0, 1), (2, 3)), "混合面积 7>6 判负");
+        assert!(
+            !segments_diverge(&hist2, (0, 1), (2, 3)),
+            "混合面积 7>6 判负"
+        );
         let dif2 = vec![-9.0, -9.0, -9.0, -9.0]; // dif 峰持平（等值不算衰减）
         assert!(
             segments_diverge_or(&hist2, &dif2, Side::Long, (0, 1), (2, 3)),
@@ -1043,12 +1102,24 @@ mod tests {
         // 分离情形②：面积两口径都不衰减，黄白线峰 C<A ⟹ 单通道成立（026:521）。
         let hist3 = vec![-2.0, -2.0, -3.0, -3.0];
         let dif3 = vec![-8.0, -10.0, -5.0, -6.0]; // A 负峰 10 > C 负峰 6
-        assert!(segments_diverge_or(&hist3, &dif3, Side::Long, (0, 1), (2, 3)));
+        assert!(segments_diverge_or(
+            &hist3,
+            &dif3,
+            Side::Long,
+            (0, 1),
+            (2, 3)
+        ));
 
         // 全无衰减 ⟹ false（033:26 无衰减即无盘背，市场事实边界）。
         let hist4 = vec![-2.0, -2.0, -9.0, -9.0];
         let dif4 = vec![-5.0, -6.0, -8.0, -10.0];
-        assert!(!segments_diverge_or(&hist4, &dif4, Side::Long, (0, 1), (2, 3)));
+        assert!(!segments_diverge_or(
+            &hist4,
+            &dif4,
+            Side::Long,
+            (0, 1),
+            (2, 3)
+        ));
     }
 
     #[test]
@@ -1059,7 +1130,10 @@ mod tests {
         assert!(!dif_crosses_zero(&[1.0, 0.5, 2.0], 0, 2), "同号无回拉");
         assert!(!dif_crosses_zero(&[1.0, 2.0], 0, 99), "越界不可验 ⟹ false");
         // 首 bar 不与区间外 bar 配对（t > lo 才比 t-1）。
-        assert!(!dif_crosses_zero(&[-1.0, 2.0, 3.0], 1, 2), "区间起点不与左邻配对");
+        assert!(
+            !dif_crosses_zero(&[-1.0, 2.0, 3.0], 1, 2),
+            "区间起点不与左邻配对"
+        );
     }
 
     // ── § B. A/B/C 框架层：趋势背驰 A 段定位（locate_trend_seg_a）─────────────────
@@ -1073,13 +1147,47 @@ mod tests {
         let segments = vec![
             // start_index 升序。向下段在 [5,12) 区间内（离开走势的组成段）。中间反向段端点 295
             // < prev_c.zd=300——趋势内部正常回撤，未回中枢核心 ⟹ 同一 episode（codex ac4 #1）。
-            Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
-            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 295 },
-            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 295, end_price: 250 },
-            Segment { direction: Direction::Down, start_index: 13, end_index: 15, start_price: 200, end_price: 80 }, // 在 last_center 之后（C 区，非 A）
+            Segment {
+                direction: Direction::Down,
+                start_index: 6,
+                end_index: 8,
+                start_price: 380,
+                end_price: 280,
+            },
+            Segment {
+                direction: Direction::Up,
+                start_index: 8,
+                end_index: 10,
+                start_price: 280,
+                end_price: 295,
+            },
+            Segment {
+                direction: Direction::Down,
+                start_index: 10,
+                end_index: 11,
+                start_price: 295,
+                end_price: 250,
+            },
+            Segment {
+                direction: Direction::Down,
+                start_index: 13,
+                end_index: 15,
+                start_price: 200,
+                end_price: 80,
+            }, // 在 last_center 之后（C 区，非 A）
         ];
-        let seg_a = locate_departure_move_a(&segments, &self_anchors(&segments), &prev_c, &last_c, Direction::Down);
-        assert_eq!(seg_a, Some((6, 11)), "Q5：A = 整个离开走势区间（首匹配段起点..末匹配段终点，含中间反向段）");
+        let seg_a = locate_departure_move_a(
+            &segments,
+            &self_anchors(&segments),
+            &prev_c,
+            &last_c,
+            Direction::Down,
+        );
+        assert_eq!(
+            seg_a,
+            Some((6, 11)),
+            "Q5：A = 整个离开走势区间（首匹配段起点..末匹配段终点，含中间反向段）"
+        );
     }
 
     #[test]
@@ -1090,20 +1198,76 @@ mod tests {
         let prev_c = ctr(300, 400, 290, 410, 5);
         let last_c = ctr(100, 200, 90, 210, 12);
         let segments = vec![
-            Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
-            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 395 }, // 回中枢：end 395 ≥ zd=300
-            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 395, end_price: 250 },
+            Segment {
+                direction: Direction::Down,
+                start_index: 6,
+                end_index: 8,
+                start_price: 380,
+                end_price: 280,
+            },
+            Segment {
+                direction: Direction::Up,
+                start_index: 8,
+                end_index: 10,
+                start_price: 280,
+                end_price: 395,
+            }, // 回中枢：end 395 ≥ zd=300
+            Segment {
+                direction: Direction::Down,
+                start_index: 10,
+                end_index: 11,
+                start_price: 395,
+                end_price: 250,
+            },
         ];
-        let seg_a = locate_departure_move_a(&segments, &self_anchors(&segments), &prev_c, &last_c, Direction::Down);
-        assert_eq!(seg_a, Some((10, 11)), "回中枢段切开两个 episode ⟹ A = 当前（最后）episode，不桥接");
+        let seg_a = locate_departure_move_a(
+            &segments,
+            &self_anchors(&segments),
+            &prev_c,
+            &last_c,
+            Direction::Down,
+        );
+        assert_eq!(
+            seg_a,
+            Some((10, 11)),
+            "回中枢段切开两个 episode ⟹ A = 当前（最后）episode，不桥接"
+        );
         // 对照：中间反向段未回核心（end 280 < zd=300）⟹ 同一 episode ⟹ 全区间（covers_whole_interval 语义）。
         let no_reentry = vec![
-            Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
-            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 295 },
-            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 295, end_price: 250 },
+            Segment {
+                direction: Direction::Down,
+                start_index: 6,
+                end_index: 8,
+                start_price: 380,
+                end_price: 280,
+            },
+            Segment {
+                direction: Direction::Up,
+                start_index: 8,
+                end_index: 10,
+                start_price: 280,
+                end_price: 295,
+            },
+            Segment {
+                direction: Direction::Down,
+                start_index: 10,
+                end_index: 11,
+                start_price: 295,
+                end_price: 250,
+            },
         ];
-        let seg_a2 = locate_departure_move_a(&no_reentry, &self_anchors(&no_reentry), &prev_c, &last_c, Direction::Down);
-        assert_eq!(seg_a2, Some((6, 11)), "反向段未回核心 ⟹ 同一 episode ⟹ 整区间");
+        let seg_a2 = locate_departure_move_a(
+            &no_reentry,
+            &self_anchors(&no_reentry),
+            &prev_c,
+            &last_c,
+            Direction::Down,
+        );
+        assert_eq!(
+            seg_a2,
+            Some((6, 11)),
+            "反向段未回核心 ⟹ 同一 episode ⟹ 整区间"
+        );
     }
 
     #[test]
@@ -1112,15 +1276,45 @@ mod tests {
         // 重新离开 [10,11]（判破段）。λ_C = 10（当前 episode 起点），非旧口径 6（首个同向段）。
         let c = ctr(300, 400, 290, 410, 5);
         let segments = vec![
-            Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
-            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 395 },
-            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 395, end_price: 250 },
+            Segment {
+                direction: Direction::Down,
+                start_index: 6,
+                end_index: 8,
+                start_price: 380,
+                end_price: 280,
+            },
+            Segment {
+                direction: Direction::Up,
+                start_index: 8,
+                end_index: 10,
+                start_price: 280,
+                end_price: 395,
+            },
+            Segment {
+                direction: Direction::Down,
+                start_index: 10,
+                end_index: 11,
+                start_price: 395,
+                end_price: 250,
+            },
         ];
-        assert_eq!(departure_move_c_start(&segments, &self_anchors(&segments), &c, Direction::Down, 10), Some(10),
-            "回中枢段之后重新离开 ⟹ λ_C = 当前 episode 首同向段起点");
+        assert_eq!(
+            departure_move_c_start(&segments, &self_anchors(&segments), &c, Direction::Down, 10),
+            Some(10),
+            "回中枢段之后重新离开 ⟹ λ_C = 当前 episode 首同向段起点"
+        );
         // 无回中枢段 ⟹ 整窗口一个 episode ⟹ λ_C = 首个同向段起点（单段兼容口径）。
-        assert_eq!(departure_move_c_start(&segments[..1], &self_anchors(&segments[..1]), &c, Direction::Down, 6), Some(6),
-            "无回中枢段 ⟹ λ_C = 中枢后首个同向段起点");
+        assert_eq!(
+            departure_move_c_start(
+                &segments[..1],
+                &self_anchors(&segments[..1]),
+                &c,
+                Direction::Down,
+                6
+            ),
+            Some(6),
+            "无回中枢段 ⟹ λ_C = 中枢后首个同向段起点"
+        );
     }
 
     #[test]
@@ -1129,11 +1323,33 @@ mod tests {
         let prev_c = ctr(300, 400, 290, 410, 5);
         let last_c = ctr(100, 200, 90, 210, 12);
         let segments = vec![
-            Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
-            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 295 }, // 未回核心（<zd=300）
+            Segment {
+                direction: Direction::Down,
+                start_index: 6,
+                end_index: 8,
+                start_price: 380,
+                end_price: 280,
+            },
+            Segment {
+                direction: Direction::Up,
+                start_index: 8,
+                end_index: 10,
+                start_price: 280,
+                end_price: 295,
+            }, // 未回核心（<zd=300）
         ];
-        let seg_a = locate_departure_move_a(&segments, &self_anchors(&segments), &prev_c, &last_c, Direction::Down);
-        assert_eq!(seg_a, Some((6, 8)), "单匹配段 ⟹ 与旧单段返回值 bit 相同（兼容）");
+        let seg_a = locate_departure_move_a(
+            &segments,
+            &self_anchors(&segments),
+            &prev_c,
+            &last_c,
+            Direction::Down,
+        );
+        assert_eq!(
+            seg_a,
+            Some((6, 8)),
+            "单匹配段 ⟹ 与旧单段返回值 bit 相同（兼容）"
+        );
     }
 
     #[test]
@@ -1143,9 +1359,21 @@ mod tests {
         let last_c = ctr(100, 200, 90, 210, 12);
         let segments = vec![
             // [5,12) 内只有向上段，无向下离开段 ⟹ A（向下）无候选。
-            Segment { direction: Direction::Up, start_index: 6, end_index: 8, start_price: 280, end_price: 380 },
+            Segment {
+                direction: Direction::Up,
+                start_index: 6,
+                end_index: 8,
+                start_price: 280,
+                end_price: 380,
+            },
         ];
-        let seg_a = locate_departure_move_a(&segments, &self_anchors(&segments), &prev_c, &last_c, Direction::Down);
+        let seg_a = locate_departure_move_a(
+            &segments,
+            &self_anchors(&segments),
+            &prev_c,
+            &last_c,
+            Direction::Down,
+        );
         assert_eq!(seg_a, None, "无 prev_center 同向离开段 ⟹ A 无法定位");
     }
 
@@ -1153,11 +1381,25 @@ mod tests {
     fn abc_divergence_trend_diverges_via_area() {
         // AbcDivergence 趋势背驰：A 段面积大、C 段面积小 ⟹ 背驰（C<A 力度原语）。
         let hist = vec![5.0, -5.0, 1.0, -1.0]; // A=[0,1] 面积10，C=[2,3] 面积2
-        let abc = AbcDivergence { seg_a: (0, 1), seg_c: (2, 3), is_trend: true };
-        assert!(abc.diverges(&hist, (0, 1), (2, 3)), "C段面积2 < A段面积10 ⟹ 趋势背驰");
+        let abc = AbcDivergence {
+            seg_a: (0, 1),
+            seg_c: (2, 3),
+            is_trend: true,
+        };
+        assert!(
+            abc.diverges(&hist, (0, 1), (2, 3)),
+            "C段面积2 < A段面积10 ⟹ 趋势背驰"
+        );
         // 反向：C 段面积大 ⟹ 力度延续 ⟹ 非背驰。
-        let abc_cont = AbcDivergence { seg_a: (2, 3), seg_c: (0, 1), is_trend: true };
-        assert!(!abc_cont.diverges(&hist, (2, 3), (0, 1)), "C段面积10 ≥ A段面积2 ⟹ 力度延续=非背驰");
+        let abc_cont = AbcDivergence {
+            seg_a: (2, 3),
+            seg_c: (0, 1),
+            is_trend: true,
+        };
+        assert!(
+            !abc_cont.diverges(&hist, (2, 3), (0, 1)),
+            "C段面积10 ≥ A段面积2 ⟹ 力度延续=非背驰"
+        );
     }
 
     // ===== § A2. 多力度原语 + Weak_Θ 词典序（P2 §4/§7 改点5，L1 接口正确性）=====
@@ -1208,9 +1450,15 @@ mod tests {
         // A 段力度大，C 段力度小 ⟹ 各 mode 都判 Weak（背驰=力度衰减）。
         let a = ff(10.0, 8.0, 100, 20.0);
         let c = ff(5.0, 4.0, 50, 10.0);
-        assert!(weak_theta(WeakThetaMode::MacdArea, &a, &c), "C.area<A.area ⟹ Weak");
+        assert!(
+            weak_theta(WeakThetaMode::MacdArea, &a, &c),
+            "C.area<A.area ⟹ Weak"
+        );
         assert!(weak_theta(WeakThetaMode::Dif, &a, &c), "C.dif<A.dif ⟹ Weak");
-        assert!(weak_theta(WeakThetaMode::PriceAmplitude, &a, &c), "C.amp<A.amp ⟹ Weak");
+        assert!(
+            weak_theta(WeakThetaMode::PriceAmplitude, &a, &c),
+            "C.amp<A.amp ⟹ Weak"
+        );
         // C 力度 ≥ A ⟹ 各 mode 非 Weak（力度延续）。
         assert!(!weak_theta(WeakThetaMode::MacdArea, &c, &a));
         assert!(!weak_theta(WeakThetaMode::Dif, &c, &a));
@@ -1230,7 +1478,10 @@ mod tests {
         // 口径冲突：C.area 弱但 C.dif 强 ⟹ Incomparable。
         let mixed_a = ff(10.0, 4.0, 100, 20.0);
         let mixed_c = ff(5.0, 8.0, 50, 10.0);
-        assert_eq!(fp(mixed_a, mixed_c).force_state(), ForceStateA5::Incomparable);
+        assert_eq!(
+            fp(mixed_a, mixed_c).force_state(),
+            ForceStateA5::Incomparable
+        );
     }
 
     /// 三口径 D 判定（A2 #163，prereg-a2-thetadom-oos-20260704 冻结判据的 L1 验证）。
@@ -1241,19 +1492,47 @@ mod tests {
         let weak = ff(5.0, 4.0, 50, 10.0);
         let dominated = fp(strong, weak); // C 全弱 ⟹ Dominated
         let mixed = fp(ff(10.0, 4.0, 100, 20.0), ff(5.0, 8.0, 50, 10.0)); // Incomparable
-        // G1 MacdArea：D ≡ macd_c_lt_a（force 不参与，None 也判）。
+                                                                          // G1 MacdArea：D ≡ macd_c_lt_a（force 不参与，None 也判）。
         assert!(confirm_divergence(DivergenceGauge::MacdArea, true, None));
-        assert!(!confirm_divergence(DivergenceGauge::MacdArea, false, Some(&dominated)));
+        assert!(!confirm_divergence(
+            DivergenceGauge::MacdArea,
+            false,
+            Some(&dominated)
+        ));
         // G2 ThetaDom：D ≡ Dominated（macd_c_lt_a 不参与）；Incomparable 不作背驰确认。
-        assert!(confirm_divergence(DivergenceGauge::ThetaDom, false, Some(&dominated)));
-        assert!(!confirm_divergence(DivergenceGauge::ThetaDom, true, Some(&mixed)));
+        assert!(confirm_divergence(
+            DivergenceGauge::ThetaDom,
+            false,
+            Some(&dominated)
+        ));
+        assert!(!confirm_divergence(
+            DivergenceGauge::ThetaDom,
+            true,
+            Some(&mixed)
+        ));
         // G2/G3 force 无源 ⟹ false（诚实不判，不 fallback 回 MACD）。
         assert!(!confirm_divergence(DivergenceGauge::ThetaDom, true, None));
-        assert!(!confirm_divergence(DivergenceGauge::Conjunction, true, None));
+        assert!(!confirm_divergence(
+            DivergenceGauge::Conjunction,
+            true,
+            None
+        ));
         // G3 Conjunction：两者同真才确认。
-        assert!(confirm_divergence(DivergenceGauge::Conjunction, true, Some(&dominated)));
-        assert!(!confirm_divergence(DivergenceGauge::Conjunction, false, Some(&dominated)));
-        assert!(!confirm_divergence(DivergenceGauge::Conjunction, true, Some(&mixed)));
+        assert!(confirm_divergence(
+            DivergenceGauge::Conjunction,
+            true,
+            Some(&dominated)
+        ));
+        assert!(!confirm_divergence(
+            DivergenceGauge::Conjunction,
+            false,
+            Some(&dominated)
+        ));
+        assert!(!confirm_divergence(
+            DivergenceGauge::Conjunction,
+            true,
+            Some(&mixed)
+        ));
         // 默认口径 = MacdArea（bit-exact 铁律：不显式配置不切换）。
         assert_eq!(DivergenceGauge::default(), DivergenceGauge::MacdArea);
     }
@@ -1266,27 +1545,42 @@ mod tests {
         let fp = |a, c| ForceProxies { seg_a: a, seg_c: c };
         // C.dif < A.dif（DIF 主判据衰减）⟹ Weak ⟹ D，**即使 macd_c_lt_a=false**（DIF 压过面积/MACD）。
         let dif_weak = fp(ff(5.0, 8.0, 0, 0.0), ff(10.0, 4.0, 0, 0.0)); // C.dif(4)<A.dif(8) 但 C.area(10)>A.area(5)
-        assert!(confirm_divergence(DivergenceGauge::ThetaLex, false, Some(&dif_weak)),
-            "ThetaLex：C.dif<A.dif ⟹ Weak ⟹ D（DIF 主，macd_c_lt_a 不参与）");
+        assert!(
+            confirm_divergence(DivergenceGauge::ThetaLex, false, Some(&dif_weak)),
+            "ThetaLex：C.dif<A.dif ⟹ Weak ⟹ D（DIF 主，macd_c_lt_a 不参与）"
+        );
         // 对照：MacdArea 口径同输入 D=false（面积延续）——证 ThetaLex ≠ MacdArea。
-        assert!(!confirm_divergence(DivergenceGauge::MacdArea, false, Some(&dif_weak)));
+        assert!(!confirm_divergence(
+            DivergenceGauge::MacdArea,
+            false,
+            Some(&dif_weak)
+        ));
         // DIF 相等（不可判）⟹ 退面积次判据：C.area<A.area ⟹ Weak ⟹ D。
         let dif_tie_area_weak = fp(ff(10.0, 5.0, 0, 0.0), ff(4.0, 5.0, 0, 0.0));
-        assert!(confirm_divergence(DivergenceGauge::ThetaLex, false, Some(&dif_tie_area_weak)),
-            "ThetaLex：DIF 相等 ⟹ 退面积，C.area<A.area ⟹ Weak");
+        assert!(
+            confirm_divergence(DivergenceGauge::ThetaLex, false, Some(&dif_tie_area_weak)),
+            "ThetaLex：DIF 相等 ⟹ 退面积，C.area<A.area ⟹ Weak"
+        );
         // C 力度延续（C.dif>A.dif）⟹ 非 Weak ⟹ D=false。
         let dif_strong = fp(ff(5.0, 4.0, 0, 0.0), ff(10.0, 8.0, 0, 0.0));
-        assert!(!confirm_divergence(DivergenceGauge::ThetaLex, true, Some(&dif_strong)),
-            "ThetaLex：C.dif>A.dif ⟹ 力度延续 ⟹ 非背驰（即使 macd_c_lt_a=true）");
+        assert!(
+            !confirm_divergence(DivergenceGauge::ThetaLex, true, Some(&dif_strong)),
+            "ThetaLex：C.dif>A.dif ⟹ 力度延续 ⟹ 非背驰（即使 macd_c_lt_a=true）"
+        );
         // force 无源 ⟹ false（诚实不判，不 fallback 回 MACD，与 ThetaDom 同纪律）。
-        assert!(!confirm_divergence(DivergenceGauge::ThetaLex, true, None),
-            "ThetaLex force 无源 ⟹ D=false（无 5-proxy 不判，no-workaround）");
+        assert!(
+            !confirm_divergence(DivergenceGauge::ThetaLex, true, None),
+            "ThetaLex force 无源 ⟹ D=false（无 5-proxy 不判，no-workaround）"
+        );
     }
 
     /// Θ_SCORE β_norm + K=3 分箱（prereg 冻结边界 0/0.33 的 L1 验证）。
     #[test]
     fn theta_score_and_bin_frozen_boundaries() {
-        let fp = |da: f64, dc: f64| ForceProxies { seg_a: ff(0.0, da, 0, 0.0), seg_c: ff(0.0, dc, 0, 0.0) };
+        let fp = |da: f64, dc: f64| ForceProxies {
+            seg_a: ff(0.0, da, 0, 0.0),
+            seg_c: ff(0.0, dc, 0, 0.0),
+        };
         // β_norm = (m_A−m_C)/(m_A+m_C)：C 弱 ⟹ 正（背驰域）；C 强 ⟹ 负。
         assert!((fp(8.0, 4.0).theta_score() - (4.0 / 12.0)).abs() < 1e-12);
         assert!(fp(4.0, 8.0).theta_score() < 0.0);
@@ -1299,30 +1593,41 @@ mod tests {
         assert_eq!(theta_score_bin(0.33), ThetaScoreBin::Strong);
         assert_eq!(theta_score_bin(1.0), ThetaScoreBin::Strong);
         // β_norm=1/3 > 0.33 ⟹ fp(8,4) 落 Strong（冻结边界与归一化差的联动例）。
-        assert_eq!(theta_score_bin(fp(8.0, 4.0).theta_score()), ThetaScoreBin::Strong);
+        assert_eq!(
+            theta_score_bin(fp(8.0, 4.0).theta_score()),
+            ThetaScoreBin::Strong
+        );
     }
 
     /// ★Lex 词典序核心（第17课「黄白线主 ▷ 面积次」，非 AND/OR）：DIF 可判用 DIF，DIF 相等退面积。
     #[test]
     fn weak_theta_lex_dif_dominates_area_secondary() {
         // (1) DIF 严格可判：C.dif<A.dif ⟹ Weak，**即使面积相反**（DIF 主判据压过面积）。
-        let a1 = ff(5.0, 8.0, 0, 0.0);  // A: 面积小、DIF 大
+        let a1 = ff(5.0, 8.0, 0, 0.0); // A: 面积小、DIF 大
         let c1 = ff(10.0, 4.0, 0, 0.0); // C: 面积大、DIF 小
-        assert!(weak_theta(WeakThetaMode::Lex, &a1, &c1),
-            "DIF 主：C.dif(4)<A.dif(8) ⟹ Weak，即使 C.area(10)>A.area(5)（黄白线压过面积）");
+        assert!(
+            weak_theta(WeakThetaMode::Lex, &a1, &c1),
+            "DIF 主：C.dif(4)<A.dif(8) ⟹ Weak，即使 C.area(10)>A.area(5)（黄白线压过面积）"
+        );
         // 对照：纯面积 mode 会判非 Weak（面积延续）——证明 Lex ≠ 纯面积。
-        assert!(!weak_theta(WeakThetaMode::MacdArea, &a1, &c1),
-            "纯面积：C.area(10)≥A.area(5) ⟹ 非 Weak（与 Lex 分歧，证 DIF 主判据生效）");
+        assert!(
+            !weak_theta(WeakThetaMode::MacdArea, &a1, &c1),
+            "纯面积：C.area(10)≥A.area(5) ⟹ 非 Weak（与 Lex 分歧，证 DIF 主判据生效）"
+        );
 
         // (2) DIF 相等（不可判）⟹ 退面积次判据：C.area<A.area ⟹ Weak。
         let a2 = ff(10.0, 5.0, 0, 0.0);
         let c2 = ff(4.0, 5.0, 0, 0.0); // DIF 相等（5==5）⟹ 退面积
-        assert!(weak_theta(WeakThetaMode::Lex, &a2, &c2),
-            "DIF 相等 ⟹ 退面积次判据：C.area(4)<A.area(10) ⟹ Weak");
+        assert!(
+            weak_theta(WeakThetaMode::Lex, &a2, &c2),
+            "DIF 相等 ⟹ 退面积次判据：C.area(4)<A.area(10) ⟹ Weak"
+        );
         // DIF 相等 + 面积也延续 ⟹ 非 Weak。
         let c3 = ff(20.0, 5.0, 0, 0.0);
-        assert!(!weak_theta(WeakThetaMode::Lex, &a2, &c3),
-            "DIF 相等 + C.area(20)≥A.area(10) ⟹ 非 Weak");
+        assert!(
+            !weak_theta(WeakThetaMode::Lex, &a2, &c3),
+            "DIF 相等 + C.area(20)≥A.area(10) ⟹ 非 Weak"
+        );
     }
 
     #[test]
@@ -1336,9 +1641,12 @@ mod tests {
         assert_eq!(a.dif_peak, 4.0); // up 段 max(dif[0..=1])=max(2,4)=4
         assert_eq!(a.price_amplitude, 10); // |110−100|
         assert_eq!(a.tv, 10); // Σ|Δ| = |110−100|（单跳段 TV=振幅）
-        // Weak_Θ Lex：A=[0,1] vs C=[2,3]（C.dif_peak=max(1,0.5)=1<A.dif=4 ⟹ Weak）。
+                              // Weak_Θ Lex：A=[0,1] vs C=[2,3]（C.dif_peak=max(1,0.5)=1<A.dif=4 ⟹ Weak）。
         let c = force_features(&hist, &dif, &closes, 2, 3, Direction::Up);
-        assert!(weak_theta(WeakThetaMode::Lex, &a, &c), "C 段 DIF 峰(1)<A 段 DIF 峰(4) ⟹ Lex Weak");
+        assert!(
+            weak_theta(WeakThetaMode::Lex, &a, &c),
+            "C 段 DIF 峰(1)<A 段 DIF 峰(4) ⟹ Lex Weak"
+        );
     }
 
     // ===== 增量 MACD API（231号纯性能，bit-exact 对照全量版）=====
@@ -1426,15 +1734,31 @@ mod tests {
         let closes: Vec<f64> = (0..60)
             .map(|i| 200.0 + 5.0 * ((i as f64) * 0.7).cos())
             .collect();
-        let cfg = MacdConfig { fast: 5, slow: 20, signal: 5 };
+        let cfg = MacdConfig {
+            fast: 5,
+            slow: 20,
+            signal: 5,
+        };
         let full = compute_macd(&closes, &cfg);
         let mut state = MacdState::init(closes[0], &cfg);
         for i in 1..closes.len() {
             state = compute_macd_append(&state, closes[i]);
             let p = state.current_point();
-            assert!((p.dif - full.dif[i]).abs() < 1e-12, "custom cfg bar {} DIF", i);
-            assert!((p.dea - full.dea[i]).abs() < 1e-12, "custom cfg bar {} DEA", i);
-            assert!((p.hist - full.hist[i]).abs() < 1e-12, "custom cfg bar {} hist", i);
+            assert!(
+                (p.dif - full.dif[i]).abs() < 1e-12,
+                "custom cfg bar {} DIF",
+                i
+            );
+            assert!(
+                (p.dea - full.dea[i]).abs() < 1e-12,
+                "custom cfg bar {} DEA",
+                i
+            );
+            assert!(
+                (p.hist - full.hist[i]).abs() < 1e-12,
+                "custom cfg bar {} hist",
+                i
+            );
         }
     }
 
@@ -1447,8 +1771,9 @@ mod tests {
         let cfg = MacdConfig::default();
         // 在两个不同规模下测量「再 append 1 bar」的耗时——O(1) 则两者相近。
         let bench = |n_pre: usize| -> u128 {
-            let closes_pre: Vec<f64> =
-                (0..n_pre).map(|i| 100.0 + ((i as f64) * 0.1).sin()).collect();
+            let closes_pre: Vec<f64> = (0..n_pre)
+                .map(|i| 100.0 + ((i as f64) * 0.1).sin())
+                .collect();
             let state0 = macd_state_from_closes(&closes_pre, &cfg);
             let new_close = 105.0;
             // 重复 append（丢弃，仅测单次 append 在已处理 n_pre 后的耗时）。

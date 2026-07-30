@@ -15,9 +15,14 @@ fn args(v: &[&str]) -> Vec<String> {
 /// 「窗口参数出现 ⟹ `window.is_some()`」这一条不变量，不再依赖参数总个数。
 #[test]
 fn window_plus_theta_still_slices() {
-    let parsed =
-        parse_cli_args(&args(&["pi_bsp_timing", "OKLO", "2026-06-01", "2026-06-24", "0.0"]))
-            .expect("5 个参数应解析成功");
+    let parsed = parse_cli_args(&args(&[
+        "pi_bsp_timing",
+        "OKLO",
+        "2026-06-01",
+        "2026-06-24",
+        "0.0",
+    ]))
+    .expect("5 个参数应解析成功");
     assert_eq!(
         parsed.window,
         Some(("2026-06-01".to_string(), "2026-06-24".to_string())),
@@ -38,7 +43,10 @@ fn window_plus_theta_plus_z_alpha_still_slices() {
         "0.1",
     ]))
     .expect("6 个参数应解析成功");
-    assert_eq!(parsed.window, Some(("2026-06-01".to_string(), "2026-06-24".to_string())));
+    assert_eq!(
+        parsed.window,
+        Some(("2026-06-01".to_string(), "2026-06-24".to_string()))
+    );
     assert_eq!(parsed.theta, 0.05);
     assert_eq!(parsed.z_alpha, 0.1);
 }
@@ -48,14 +56,24 @@ fn symbol_only_has_no_window() {
     let parsed = parse_cli_args(&args(&["pi_bsp_timing", "OKLO"])).expect("2 个参数应解析成功");
     assert_eq!(
         parsed,
-        CliArgs { symbol: "OKLO".to_string(), window: None, theta: 0.0, z_alpha: 0.0 }
+        CliArgs {
+            symbol: "OKLO".to_string(),
+            window: None,
+            theta: 0.0,
+            z_alpha: 0.0
+        }
     );
 }
 
 #[test]
 fn window_without_theta_still_slices() {
-    let parsed = parse_cli_args(&args(&["pi_bsp_timing", "OKLO", "2026-06-01", "2026-06-24"]))
-        .expect("4 个参数应解析成功");
+    let parsed = parse_cli_args(&args(&[
+        "pi_bsp_timing",
+        "OKLO",
+        "2026-06-01",
+        "2026-06-24",
+    ]))
+    .expect("4 个参数应解析成功");
     assert!(parsed.window.is_some());
     assert_eq!(parsed.theta, 0.0);
 }
@@ -76,7 +94,13 @@ fn incomplete_window_errors() {
 #[test]
 fn too_many_args_errors() {
     assert!(parse_cli_args(&args(&[
-        "pi_bsp_timing", "OKLO", "2026-06-01", "2026-06-24", "0.0", "0.1", "extra"
+        "pi_bsp_timing",
+        "OKLO",
+        "2026-06-01",
+        "2026-06-24",
+        "0.0",
+        "0.1",
+        "extra"
     ]))
     .is_err());
 }
@@ -92,7 +116,10 @@ fn malformed_theta_errors() {
         "not_a_number",
     ]))
     .unwrap_err();
-    assert!(err.contains("THETA"), "错误信息应指明是 THETA 解析失败: {err}");
+    assert!(
+        err.contains("THETA"),
+        "错误信息应指明是 THETA 解析失败: {err}"
+    );
 }
 
 /// 静默必须变响亮：Z_ALPHA 解析失败（非法浮点数）报错，不悄悄吞掉。
@@ -107,5 +134,8 @@ fn malformed_z_alpha_errors() {
         "not_a_number",
     ]))
     .unwrap_err();
-    assert!(err.contains("Z_ALPHA"), "错误信息应指明是 Z_ALPHA 解析失败: {err}");
+    assert!(
+        err.contains("Z_ALPHA"),
+        "错误信息应指明是 Z_ALPHA 解析失败: {err}"
+    );
 }

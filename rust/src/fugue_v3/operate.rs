@@ -31,12 +31,19 @@ use super::prove::{
     count_chiral_violations, prove_conservation, prove_epsilon_symmetry, prove_nav_neutral,
     prove_no_double_act, prove_recursive_consistency,
 };
-use super::{EQUITY_SAMPLE_BARS, INITIAL_CAPITAL, PENDING_LO, SUB_COST_K, SUB_FRICTION_RT, SUB_LIQ_FACTOR};
+use super::{
+    EQUITY_SAMPLE_BARS, INITIAL_CAPITAL, PENDING_LO, SUB_COST_K, SUB_FRICTION_RT, SUB_LIQ_FACTOR,
+};
 
 /// 核心仓涌现归属级别 E*（T5/A5 第20环）：核心仓操作级别随走势向更高级别发展向上单调生长——
 /// 会计重组（relabel），不触发物理交易。通过 MorphologyAxis 读方向/锚/上界。
 /// `core_polarity`：根极性（Long→向上涌现检查 Up 方向；Short→向下涌现检查 Down 方向）。
-fn core_emergent_ladder(core_ladder: usize, core_entry_bar: i64, h0: &dyn MorphologyAxis, core_polarity: Polarity) -> usize {
+fn core_emergent_ladder(
+    core_ladder: usize,
+    core_entry_bar: i64,
+    h0: &dyn MorphologyAxis,
+    core_polarity: Polarity,
+) -> usize {
     let ceiling = h0.emergent_ceiling();
     let expected_dir = match core_polarity {
         Polarity::Long => Direction::Up,
@@ -49,7 +56,10 @@ fn core_emergent_ladder(core_ladder: usize, core_entry_bar: i64, h0: &dyn Morpho
     {
         lad += 1;
     }
-    assert!(lad >= core_ladder, "A5(T30) 违反：核心仓涌现层 {lad} < 入场层 {core_ladder}");
+    assert!(
+        lad >= core_ladder,
+        "A5(T30) 违反：核心仓涌现层 {lad} < 入场层 {core_ladder}"
+    );
     lad
 }
 
@@ -127,7 +137,10 @@ impl OperateEngine {
         let mut s = String::new();
         for (i, l) in self.layers.iter().enumerate() {
             if l.units > 1e-12 {
-                s.push_str(&format!("L{}={:?}:{:.1}@{:.1} ", i, l.direction, l.units, l.basis));
+                s.push_str(&format!(
+                    "L{}={:?}:{:.1}@{:.1} ",
+                    i, l.direction, l.units, l.basis
+                ));
             }
         }
         eprintln!(
@@ -145,7 +158,16 @@ impl OperateEngine {
         for k in 0..self.layers.len() {
             if self.layers[k].units > 0.0 {
                 let u = self.layers[k].units;
-                reduce_at(&mut self.layers, k, u, &mut self.free, c, bar, &mut self.res, reason);
+                reduce_at(
+                    &mut self.layers,
+                    k,
+                    u,
+                    &mut self.free,
+                    c,
+                    bar,
+                    &mut self.res,
+                    reason,
+                );
                 if !acted.contains(&k) {
                     acted.push(k);
                 }
@@ -161,7 +183,9 @@ impl OperateEngine {
         if let Some(lb) = last_bar {
             let c_last = self.last_close;
             if lb % EQUITY_SAMPLE_BARS != 0 {
-                self.res.equity.push((lb, nav(&self.layers, self.free, c_last)));
+                self.res
+                    .equity
+                    .push((lb, nav(&self.layers, self.free, c_last)));
             }
             if self.has_position() {
                 let mut acted = Vec::new();
@@ -184,7 +208,11 @@ impl OperateEngine {
         eprintln!("\n========== FUGUE_DBG 汇报（recover 失败=空头僵尸根因）==========");
         eprintln!(
             "recover 总: attempt={att} ok={ok} ({:.1}% 成功) | ascend={}",
-            if att > 0 { ok as f64 / att as f64 * 100.0 } else { 0.0 },
+            if att > 0 {
+                ok as f64 / att as f64 * 100.0
+            } else {
+                0.0
+            },
             self.dbg_ascend
         );
         eprintln!(
@@ -221,7 +249,11 @@ impl OperateEngine {
 
     /// 状态快照: (nav, long_units, short_units, n_active_voices)。
     pub fn snapshot(&self) -> (f64, f64, f64, usize) {
-        let c = if self.last_close.is_finite() { self.last_close } else { 0.0 };
+        let c = if self.last_close.is_finite() {
+            self.last_close
+        } else {
+            0.0
+        };
         let navv = nav(&self.layers, self.free, c);
         let (lu, su) = exposure(&self.layers);
         (navv, lu, su, active_voice_count(&self.layers))
@@ -230,7 +262,11 @@ impl OperateEngine {
     /// 测试只读访问器。
     #[cfg(test)]
     pub(crate) fn total_long_at_entry(&self) -> f64 {
-        self.layers.iter().filter(|l| l.direction == Polarity::Long).map(|l| l.units).sum()
+        self.layers
+            .iter()
+            .filter(|l| l.direction == Polarity::Long)
+            .map(|l| l.units)
+            .sum()
     }
 }
 
@@ -268,8 +304,12 @@ impl OperateAxis for OperateEngine {
             };
             if liquidate {
                 let m = match l.direction {
-                    Polarity::Short => liquidate_short(&mut self.layers, k, &mut self.free, c, bar, &mut self.res),
-                    Polarity::Long => liquidate_long(&mut self.layers, k, &mut self.free, c, bar, &mut self.res),
+                    Polarity::Short => {
+                        liquidate_short(&mut self.layers, k, &mut self.free, c, bar, &mut self.res)
+                    }
+                    Polarity::Long => {
+                        liquidate_long(&mut self.layers, k, &mut self.free, c, bar, &mut self.res)
+                    }
                 };
                 self.n_base -= m;
                 touched[k] = true;
@@ -279,8 +319,16 @@ impl OperateAxis for OperateEngine {
 
         // ── σ-ascend（OP_ASCEND relabel）：核心仓涌现升级（units/nav 不变）──
         if self.has_position() {
-            let re = core_emergent_ladder(self.core_ladder, self.core_entry_bar, h0, self.core_polarity);
-            if re > self.core_ladder && self.layers[self.core_ladder].units > 0.0 && self.layers[re].units == 0.0 {
+            let re = core_emergent_ladder(
+                self.core_ladder,
+                self.core_entry_bar,
+                h0,
+                self.core_polarity,
+            );
+            if re > self.core_ladder
+                && self.layers[self.core_ladder].units > 0.0
+                && self.layers[re].units == 0.0
+            {
                 let core = self.layers[self.core_ladder];
                 self.layers[re] = Layer { ladder: re, ..core };
                 self.layers[self.core_ladder] = Layer::idle(self.core_ladder);
@@ -299,7 +347,13 @@ impl OperateAxis for OperateEngine {
                 Polarity::Long => {
                     if let Some(s) = obs.sell_source() {
                         if s >= self.core_ladder && h0.sell1(s) {
-                            prove_chain(obs.located_sell_chain(), Side::Sell, s, bar, "C-clear-long");
+                            prove_chain(
+                                obs.located_sell_chain(),
+                                Side::Sell,
+                                s,
+                                bar,
+                                "C-clear-long",
+                            );
                             prove_t52_gauge_fix(obs.located_sell_chain(), s, bar, "C-clear-long");
                             self.clear_to_cash(bar, c, "core_clear", &mut acted);
                             self.res.n_core_clears_by_ladder[s] += 1;
@@ -311,7 +365,13 @@ impl OperateAxis for OperateEngine {
                 Polarity::Short => {
                     if let Some(s) = obs.buy_source() {
                         if s >= self.core_ladder && h0.buy1(s) {
-                            prove_chain(obs.located_buy_chain(), Side::Buy, s, bar, "C-clear-short");
+                            prove_chain(
+                                obs.located_buy_chain(),
+                                Side::Buy,
+                                s,
+                                bar,
+                                "C-clear-short",
+                            );
                             prove_t52_gauge_fix(obs.located_buy_chain(), s, bar, "C-clear-short");
                             self.clear_to_cash(bar, c, "core_clear_short", &mut acted);
                             self.res.n_core_clears_by_ladder[s] += 1;
@@ -346,7 +406,15 @@ impl OperateAxis for OperateEngine {
                 let par_l = self.layers[k];
                 let is_core = sub == self.core_ladder;
                 let expected = flip(parent_dir);
-                let ok = recover_chunk(&mut self.layers, k, parent_dir, &mut self.free, c, bar, &mut self.res);
+                let ok = recover_chunk(
+                    &mut self.layers,
+                    k,
+                    parent_dir,
+                    &mut self.free,
+                    c,
+                    bar,
+                    &mut self.res,
+                );
                 if ok {
                     self.dbg_recover_ok[k] += 1;
                     touched[k] = true;
@@ -427,7 +495,12 @@ impl OperateAxis for OperateEngine {
                 // root 方向决定入场极性 + 时机信号侧（source 只定时机/层级，不定方向）。
                 let (polarity, source_opt, source_side, reason) = match root_dir {
                     Direction::Up => (Polarity::Long, obs.buy_source(), Side::Buy, "F-entry-long"),
-                    Direction::Down => (Polarity::Short, obs.sell_source(), Side::Sell, "F-entry-short"),
+                    Direction::Down => (
+                        Polarity::Short,
+                        obs.sell_source(),
+                        Side::Sell,
+                        "F-entry-short",
+                    ),
                 };
                 if let Some(s) = source_opt {
                     let bsp_fire = match source_side {
@@ -450,7 +523,16 @@ impl OperateAxis for OperateEngine {
                             };
                             prove_chain(chain, source_side, s, bar, reason);
                             prove_t52_gauge_fix(chain, s, bar, reason);
-                            add_at(&mut self.layers, s, total, polarity, &mut self.free, c, bar, &mut self.res);
+                            add_at(
+                                &mut self.layers,
+                                s,
+                                total,
+                                polarity,
+                                &mut self.free,
+                                c,
+                                bar,
+                                &mut self.res,
+                            );
                             self.core_ladder = s;
                             self.core_entry_bar = bar;
                             self.core_polarity = polarity;
@@ -489,7 +571,9 @@ impl OperateAxis for OperateEngine {
             self.res.phys_short_bars += 1;
         }
         accrue_held_bars(&mut self.res, &self.layers);
-        self.max_concurrent_seen = self.max_concurrent_seen.max(active_voice_count(&self.layers));
+        self.max_concurrent_seen = self
+            .max_concurrent_seen
+            .max(active_voice_count(&self.layers));
         if self.has_position() {
             self.dbg_core_ladder_hist[self.core_ladder.min(MAX_LADDER - 1)] += 1;
         }

@@ -66,7 +66,8 @@ fn main() -> Result<(), String> {
     let terminal = run_terminal_pass(&loaded.bars[..max_bars], &config)?;
     let (hist, close_src) = terminal.cache.causal_series();
     let dif = terminal.cache.macd_dif();
-    let (events, proj_errors) = collect_terminal_events(&terminal.tower, max_bars - 1, hist, dif, close_src)?;
+    let (events, proj_errors) =
+        collect_terminal_events(&terminal.tower, max_bars - 1, hist, dif, close_src)?;
     println!(
         "P107_EVENTS levels={} total={} projection_errors={}",
         events.len(),
@@ -110,22 +111,16 @@ fn main() -> Result<(), String> {
                 total_div += div;
                 total_term += term;
                 total_term_nodiv += term_nodiv;
-                for e in pool
-                    .iter()
-                    .filter(|e| {
-                        e.divergence_confirmed
-                            && terminal_bits_new(&terminal.classification, e).is_some()
-                    })
-                {
+                for e in pool.iter().filter(|e| {
+                    e.divergence_confirmed
+                        && terminal_bits_new(&terminal.classification, e).is_some()
+                }) {
                     term_ids.push((level, side, kind, e.turn_source));
                 }
-                for e in pool
-                    .iter()
-                    .filter(|e| {
-                        !e.divergence_confirmed
-                            && terminal_bits_new(&terminal.classification, e).is_some()
-                    })
-                {
+                for e in pool.iter().filter(|e| {
+                    !e.divergence_confirmed
+                        && terminal_bits_new(&terminal.classification, e).is_some()
+                }) {
                     println!(
                         "P107_TERM_NODIV_ID lvl={} side={:?} kind={:?} turn_source={} interval_b=({}, {})",
                         level, side, kind, e.turn_source, e.interval_b.0, e.interval_b.1
@@ -156,16 +151,20 @@ fn main() -> Result<(), String> {
     let mut certs_b: Vec<(usize, usize, TypedNestCertificate)> = Vec::new();
     for exec in 1..events.len() {
         for top in exec..events.len() {
-            for cert in assemble_typed_certificates(&events, exec, top, NestIntervalCaliber::A, |e| {
-                terminal_bits_new(&terminal.classification, e)
-            }) {
+            for cert in
+                assemble_typed_certificates(&events, exec, top, NestIntervalCaliber::A, |e| {
+                    terminal_bits_new(&terminal.classification, e)
+                })
+            {
                 if seen_a.insert(certificate_key(exec, top, &cert)) {
                     certs_a.push((exec, top, cert));
                 }
             }
-            for cert in assemble_typed_certificates(&events, exec, top, NestIntervalCaliber::B, |e| {
-                terminal_bits_new(&terminal.classification, e)
-            }) {
+            for cert in
+                assemble_typed_certificates(&events, exec, top, NestIntervalCaliber::B, |e| {
+                    terminal_bits_new(&terminal.classification, e)
+                })
+            {
                 if seen_b.insert(certificate_key(exec, top, &cert)) {
                     certs_b.push((exec, top, cert));
                 }
@@ -294,7 +293,10 @@ fn main() -> Result<(), String> {
             let Some(base) = events[*exec].iter().find(|e| {
                 e.turn_source == base_id.turn_source && e.interval_b == base_id.interval_b
             }) else {
-                println!("P107_DOWN_WARN caliber={} base not found: {base_id:?}", caliber);
+                println!(
+                    "P107_DOWN_WARN caliber={} base not found: {base_id:?}",
+                    caliber
+                );
                 continue;
             };
             let side = cert.certificate().side();
@@ -401,8 +403,13 @@ fn main() -> Result<(), String> {
     // ── 六、(c) L0 影响面参照：旧 CandDeltaEvent 路径（含 L0）逐级分解 ──
     // 注意口径边界：旧路径事件语义与终端门（confirm_src 绑定）与新路径不同，
     // 仅作『唯一现存的 L0 监听实装』量级参照，不作新路径反事实。
-    let old_events =
-        classifier::cand_delta_tower_cached(&terminal.l0, &terminal.classification, &terminal.tower, &config, &terminal.cache);
+    let old_events = classifier::cand_delta_tower_cached(
+        &terminal.l0,
+        &terminal.classification,
+        &terminal.tower,
+        &config,
+        &terminal.cache,
+    );
     let mut old_total_cands = 0usize;
     let mut old_total_term = 0usize;
     for level in 0..old_events.len() {
@@ -417,10 +424,7 @@ fn main() -> Result<(), String> {
             .count();
         old_total_cands += cands;
         old_total_term += term;
-        println!(
-            "P107_OLD_LVL lvl={} cands={} term={}",
-            level, cands, term
-        );
+        println!("P107_OLD_LVL lvl={} cands={} term={}", level, cands, term);
     }
     let mut old_certs = 0usize;
     let mut old_certs_by_exec: BTreeMap<usize, usize> = BTreeMap::new();
@@ -428,7 +432,12 @@ fn main() -> Result<(), String> {
     for exec in 0..old_events.len() {
         for top in exec..old_events.len() {
             let n = assemble_certificates_snapshot(&old_events, exec, top, |event| {
-                terminal_bits_old(&terminal.classification, exec, event.confirm_src, event.side)
+                terminal_bits_old(
+                    &terminal.classification,
+                    exec,
+                    event.confirm_src,
+                    event.side,
+                )
             })
             .len();
             old_certs += n;
@@ -510,7 +519,12 @@ fn typed_iv(event: &NestCandidateEvent, caliber: NestIntervalCaliber) -> NestInt
 fn ids_key(cert: &TypedNestCertificate) -> String {
     cert.identities()
         .iter()
-        .map(|id| format!("{}:{}:{}-{}", id.level, id.turn_source, id.interval_b.0, id.interval_b.1))
+        .map(|id| {
+            format!(
+                "{}:{}:{}-{}",
+                id.level, id.turn_source, id.interval_b.0, id.interval_b.1
+            )
+        })
         .collect::<Vec<_>>()
         .join("|")
 }
@@ -630,7 +644,12 @@ fn run_terminal_pass(bars: &[Bar], config: &ThetaConfig) -> Result<TerminalState
         }
     }
     let (l0, classification, tower) = terminal.ok_or("空 replay")?;
-    Ok(TerminalState { l0, classification, tower, cache })
+    Ok(TerminalState {
+        l0,
+        classification,
+        tower,
+        cache,
+    })
 }
 
 /// 与 p92 `collect_snapshot_candidates` / p102 `collect_terminal_events` 同管线：
@@ -651,7 +670,9 @@ fn collect_terminal_events(
         let mut run_start = None;
         for index in 0..=windows.len() {
             let valid = index < windows.len()
-                && match project_extended_windows_carried_only(std::slice::from_ref(&windows[index])) {
+                && match project_extended_windows_carried_only(std::slice::from_ref(
+                    &windows[index],
+                )) {
                     Ok(_) => true,
                     Err(_) => {
                         errors += 1;
@@ -716,8 +737,23 @@ fn collect_terminal_events(
             )
         });
         events.dedup_by(|left, right| {
-            (left.level, left.side, left.kind, left.seg_a, left.interval_b, left.interval_a, left.turn_source)
-                == (right.level, right.side, right.kind, right.seg_a, right.interval_b, right.interval_a, right.turn_source)
+            (
+                left.level,
+                left.side,
+                left.kind,
+                left.seg_a,
+                left.interval_b,
+                left.interval_a,
+                left.turn_source,
+            ) == (
+                right.level,
+                right.side,
+                right.kind,
+                right.seg_a,
+                right.interval_b,
+                right.interval_a,
+                right.turn_source,
+            )
         });
     }
     Ok((by_level, errors))

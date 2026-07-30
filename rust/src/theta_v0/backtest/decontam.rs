@@ -83,7 +83,10 @@ pub fn effective_n(x: &[f64]) -> f64 {
     }
     let max_lag = n / 2; // bandwidth 上限：每个 ρk 至少 ⌊n/2⌋ 个样本对
     let rho = |k: usize| -> f64 {
-        (0..n - k).map(|i| (x[i] - mean) * (x[i + k] - mean)).sum::<f64>() / c0
+        (0..n - k)
+            .map(|i| (x[i] - mean) * (x[i + k] - mean))
+            .sum::<f64>()
+            / c0
     };
     let sum_rho = geyer_paired_sum(rho, max_lag);
     let tau = (1.0 + 2.0 * sum_rho).max(1.0); // clamp：反相关不增有效样本（n_eff≤n）
@@ -209,9 +212,18 @@ mod tests {
     #[test]
     fn global_verdict_priority() {
         use AlphaState::*;
-        assert_eq!(global_verdict(&[Validated, Falsified, Inconclusive]), AcceptanceVerdict::Pass);
-        assert_eq!(global_verdict(&[Falsified, Inconclusive]), AcceptanceVerdict::Inconclusive);
-        assert_eq!(global_verdict(&[Falsified, Falsified]), AcceptanceVerdict::Falsified);
+        assert_eq!(
+            global_verdict(&[Validated, Falsified, Inconclusive]),
+            AcceptanceVerdict::Pass
+        );
+        assert_eq!(
+            global_verdict(&[Falsified, Inconclusive]),
+            AcceptanceVerdict::Inconclusive
+        );
+        assert_eq!(
+            global_verdict(&[Falsified, Falsified]),
+            AcceptanceVerdict::Falsified
+        );
         // 空桶集 ⟹ Inconclusive（无证据不 161）。
         assert_eq!(global_verdict(&[]), AcceptanceVerdict::Inconclusive);
     }
@@ -225,7 +237,9 @@ mod tests {
         assert_eq!(effective_n(&[3.0, 3.0, 3.0, 3.0]), 4.0); // 常数：c0=0 退回 n
         let ramp: Vec<f64> = (0..40).map(|i| i as f64).collect();
         assert!(effective_n(&ramp) < 40.0); // 强正自相关 ⟹ Σρk>0 ⟹ n_eff 显著缩水
-        let alt: Vec<f64> = (0..40).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
+        let alt: Vec<f64> = (0..40)
+            .map(|i| if i % 2 == 0 { 1.0 } else { -1.0 })
+            .collect();
         assert!((effective_n(&alt) - 40.0).abs() < 1e-9); // 反相关 τ<1 ⟹ clamp τ=1 ⟹ n_eff=n
         assert!(effective_n(&[1.0, f64::NAN, 2.0, 3.0]).is_nan()); // 非有限值上浮 NaN
     }
@@ -252,8 +266,17 @@ mod tests {
         };
         // 配对法：Γ_0=1+0.5>0 加 ρ_1；Γ_1=ρ_2+ρ_3=0.25>0 加 ρ_2+ρ_3；Γ_2=ρ_4+ρ_5=-0.30≤0 截断。
         let paired = geyer_paired_sum(rho, max_lag);
-        assert!((single - 0.5).abs() < 1e-12, "单 lag 截断于噪声 dip: {single}");
-        assert!((paired - 0.75).abs() < 1e-12, "配对捕获正尾 ρ_1+ρ_2+ρ_3: {paired}");
-        assert!(paired >= single, "配对 Σρk ≥ 单 lag（保守方向）: {paired} vs {single}");
+        assert!(
+            (single - 0.5).abs() < 1e-12,
+            "单 lag 截断于噪声 dip: {single}"
+        );
+        assert!(
+            (paired - 0.75).abs() < 1e-12,
+            "配对捕获正尾 ρ_1+ρ_2+ρ_3: {paired}"
+        );
+        assert!(
+            paired >= single,
+            "配对 Σρk ≥ 单 lag（保守方向）: {paired} vs {single}"
+        );
     }
 }

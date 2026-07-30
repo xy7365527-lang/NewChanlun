@@ -117,7 +117,11 @@ pub fn decompose_resume(
     }
     while state.frozen_rels < frozen_target {
         let i = state.frozen_rels;
-        fold_rel(&mut state.frozen, classify_relation(&centers[i], &centers[i + 1]), i);
+        fold_rel(
+            &mut state.frozen,
+            classify_relation(&centers[i], &centers[i + 1]),
+            i,
+        );
         state.frozen_rels += 1;
     }
     let mut out = state.frozen.clone();
@@ -184,7 +188,10 @@ pub fn center_own_dir_at(blocks: &[MoveBlock], i: usize) -> Option<Direction> {
     // 关系 R(i-1,i)（关系下标 i-1）属块 b ⟺ b.start_center ≤ i-1 < b.end_center ⟺ start < i ≤ end。
     // blocks 按 span 升序（fold 从左到右）⟹ partition_point 二分。
     let bi = blocks.partition_point(|b| b.end_center < i);
-    blocks.get(bi).filter(|b| b.start_center < i).and_then(|b| b.dir)
+    blocks
+        .get(bi)
+        .filter(|b| b.start_center < i)
+        .and_then(|b| b.dir)
 }
 
 /// 单中枢 ownership 块类别查询（[`center_block_kind`] 的逐点版，on2w3-07a resume tail 消费——
@@ -201,7 +208,10 @@ pub fn center_block_kind_at(blocks: &[MoveBlock], i: usize) -> Option<MoveKind> 
     }
     // 关系 R(i-1,i) 属块 b ⟺ i ∈ (start_center, end_center] ⟺ start_center < i ≤ end_center。
     let bi = blocks.partition_point(|b| b.end_center < i);
-    blocks.get(bi).filter(|b| b.start_center < i).map(|b| b.kind)
+    blocks
+        .get(bi)
+        .filter(|b| b.start_center < i)
+        .map(|b| b.kind)
 }
 
 /// 每中枢 ownership 块类别（Q4 盘整背驰承接路由，task #145——signal.rs 盘整块判定消费）。
@@ -214,7 +224,8 @@ pub fn center_block_kind(n_centers: usize, blocks: &[MoveBlock]) -> Vec<Option<M
     let mut kinds = vec![None; n_centers];
     for b in blocks {
         // 关系 R(i-1,i) 属块 b ⟺ i ∈ (start_center, end_center]（ownership：转折中枢归前块）。
-        for k in &mut kinds[(b.start_center + 1).min(n_centers)..(b.end_center + 1).min(n_centers)] {
+        for k in &mut kinds[(b.start_center + 1).min(n_centers)..(b.end_center + 1).min(n_centers)]
+        {
             *k = Some(b.kind);
         }
     }
@@ -231,15 +242,32 @@ mod tests {
 
     /// 外缘依次上移的中枢族（对齐 level.rs 旧测试见证）：k=0,1,2… 产 [4k, 4k+3] 外缘。
     fn c_up(k: i64) -> Center {
-        Center { dd: 4 * k, zd: 4 * k + 1, zg: 4 * k + 2, gg: 4 * k + 3, start_index: 0, end_index: 0 }
+        Center {
+            dd: 4 * k,
+            zd: 4 * k + 1,
+            zg: 4 * k + 2,
+            gg: 4 * k + 3,
+            start_index: 0,
+            end_index: 0,
+        }
     }
     /// 与 c_up(k) 外缘重叠的中枢（LevelExpansion 关系）。
     fn c_overlap(k: i64) -> Center {
-        Center { dd: 4 * k + 1, zd: 4 * k + 2, zg: 4 * k + 2, gg: 4 * k + 4, start_index: 0, end_index: 0 }
+        Center {
+            dd: 4 * k + 1,
+            zd: 4 * k + 2,
+            zg: 4 * k + 2,
+            gg: 4 * k + 4,
+            start_index: 0,
+            end_index: 0,
+        }
     }
 
     fn kinds(blocks: &[MoveBlock]) -> Vec<(MoveKind, Option<Direction>, usize, usize)> {
-        blocks.iter().map(|b| (b.kind, b.dir, b.start_center, b.end_center)).collect()
+        blocks
+            .iter()
+            .map(|b| (b.kind, b.dir, b.start_center, b.end_center))
+            .collect()
     }
 
     #[test]
@@ -255,7 +283,10 @@ mod tests {
         // 全链同向 = 分解恰 1 块（与旧 AllTrend 谓词唯一重合情形）。
         let cs = [c_up(0), c_up(1), c_up(2)];
         let b = decompose(&cs);
-        assert_eq!(kinds(&b), vec![(MoveKind::Trend, Some(Direction::Up), 0, 2)]);
+        assert_eq!(
+            kinds(&b),
+            vec![(MoveKind::Trend, Some(Direction::Up), 0, 2)]
+        );
     }
 
     #[test]
@@ -277,7 +308,16 @@ mod tests {
         assert_eq!(b[1].status, MoveStatus::Active);
         // 门：块首（关系起点中枢）不开门，块内后继开门。
         let gate = center_trend_gate(cs.len(), &b);
-        assert_eq!(gate, vec![None, None, Some(Direction::Up), Some(Direction::Up), Some(Direction::Up)]);
+        assert_eq!(
+            gate,
+            vec![
+                None,
+                None,
+                Some(Direction::Up),
+                Some(Direction::Up),
+                Some(Direction::Up)
+            ]
+        );
     }
 
     #[test]
@@ -307,8 +347,12 @@ mod tests {
             let blocks = decompose(cs);
             let gate = center_trend_gate(cs.len(), &blocks);
             for i in 0..cs.len() {
-                assert_eq!(center_own_dir_at(&blocks, i), gate[i],
-                    "逐点 ownership 方向须 == trend gate[{i}]（链长 {}）", cs.len());
+                assert_eq!(
+                    center_own_dir_at(&blocks, i),
+                    gate[i],
+                    "逐点 ownership 方向须 == trend gate[{i}]（链长 {}）",
+                    cs.len()
+                );
             }
         }
     }
@@ -317,7 +361,10 @@ mod tests {
     fn center_block_kind_ownership_partition() {
         // 单中枢：blocks=[Consolidation 0..0] ⟹ C_0 归 B₁ = Consolidation。
         let single = decompose(&[c_up(0)]);
-        assert_eq!(center_block_kind(1, &single), vec![Some(MoveKind::Consolidation)]);
+        assert_eq!(
+            center_block_kind(1, &single),
+            vec![Some(MoveKind::Consolidation)]
+        );
         // 混合链 [Consolidation 0..1, Trend(Up) 1..4]：C_0 归 B₁（盘整）、C_1 转折中枢归前块
         // （盘整）、C_2..C_4 归趋势块——与 center_trend_gate 同 blocks 单一来源，ownership 分区。
         let cs = [c_up(0), c_overlap(0), c_up(2), c_up(3), c_up(4)];
@@ -349,8 +396,10 @@ mod tests {
             let vec_kind = center_block_kind(cs.len(), &blocks);
             for i in 0..cs.len() {
                 assert_eq!(
-                    center_block_kind_at(&blocks, i), vec_kind[i],
-                    "逐点 kind 须 == center_block_kind[{i}]（链长 {}）", cs.len()
+                    center_block_kind_at(&blocks, i),
+                    vec_kind[i],
+                    "逐点 kind 须 == center_block_kind[{i}]（链长 {}）",
+                    cs.len()
                 );
             }
         }
@@ -367,7 +416,10 @@ mod tests {
         assert_eq!(blocks.last().unwrap().end_center, m - 1);
         let mut rels = 0usize;
         for w in blocks.windows(2) {
-            assert_eq!(w[1].start_center, w[0].end_center, "span 连续（ownership 分区）");
+            assert_eq!(
+                w[1].start_center, w[0].end_center,
+                "span 连续（ownership 分区）"
+            );
             assert!(
                 (w[0].kind, w[0].dir) != (w[1].kind, w[1].dir),
                 "maximality：相邻块必异标签"
@@ -408,7 +460,9 @@ mod tests {
         // 无 proptest 依赖：LCG 自造随机链 + 增量事件流（追加/frontier 改写/回缩）。
         let mut seed: u64 = 0x5eed_cafe;
         let mut rng = move || {
-            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             (seed >> 33) as i64
         };
         for _ in 0..200 {
@@ -433,7 +487,9 @@ mod tests {
                 assert_complete(&centers, &full);
                 if let Some(last) = full.last() {
                     assert_eq!(last.status, MoveStatus::Active);
-                    assert!(full[..full.len() - 1].iter().all(|b| b.status == MoveStatus::Completed));
+                    assert!(full[..full.len() - 1]
+                        .iter()
+                        .all(|b| b.status == MoveStatus::Completed));
                 }
             }
         }

@@ -17,8 +17,10 @@ use super::runner::{LedgerOpen, TypedTrade};
 pub(super) struct RebaseObservationInput {
     pub(super) level: u32,
     pub(super) chain: classifier::center_lifecycle::ChainRebaseObservation,
-    pub(super) suspended_before:
-        Vec<(strategy::voice::VoiceSide, classifier::center_lifecycle::CenterId)>,
+    pub(super) suspended_before: Vec<(
+        strategy::voice::VoiceSide,
+        classifier::center_lifecycle::CenterId,
+    )>,
     pub(super) revived: bool,
 }
 
@@ -51,14 +53,8 @@ fn center_id_counts(
 /// 自动判 continued/split/genuinely_removed。
 fn rebase_mapping_json(
     old: classifier::center_lifecycle::CenterId,
-    before_counts: &std::collections::BTreeMap<
-        classifier::center_lifecycle::CenterId,
-        usize,
-    >,
-    after_counts: &std::collections::BTreeMap<
-        classifier::center_lifecycle::CenterId,
-        usize,
-    >,
+    before_counts: &std::collections::BTreeMap<classifier::center_lifecycle::CenterId, usize>,
+    after_counts: &std::collections::BTreeMap<classifier::center_lifecycle::CenterId, usize>,
     added: &std::collections::BTreeSet<classifier::center_lifecycle::CenterId>,
     source_occurrences_override: Option<usize>,
 ) -> serde_json::Value {
@@ -69,12 +65,21 @@ fn rebase_mapping_json(
     let injective = after_occurrences > 0 && before_occurrences == 1;
     let unique = functional && injective;
     let result = if unique { "continued" } else { "ambiguous" };
-    let mapped_new_ids =
-        if after_occurrences > 0 { center_ids_json([old]) } else { Vec::new() };
-    let same_start_added: Vec<_> =
-        added.iter().copied().filter(|id| id.start_index == old.start_index).collect();
-    let same_core_added: Vec<_> =
-        added.iter().copied().filter(|id| id.zd == old.zd && id.zg == old.zg).collect();
+    let mapped_new_ids = if after_occurrences > 0 {
+        center_ids_json([old])
+    } else {
+        Vec::new()
+    };
+    let same_start_added: Vec<_> = added
+        .iter()
+        .copied()
+        .filter(|id| id.start_index == old.start_index)
+        .collect();
+    let same_core_added: Vec<_> = added
+        .iter()
+        .copied()
+        .filter(|id| id.zd == old.zd && id.zg == old.zg)
+        .collect();
     let possible_results: Vec<&str> = if unique {
         Vec::new()
     } else {
@@ -133,7 +138,10 @@ pub(super) struct StrictNestSidecarCollector {
 
 impl StrictNestSidecarCollector {
     pub(super) fn new(enabled: bool) -> Self {
-        Self { enabled, summary: StrictNestSidecarSummary::default() }
+        Self {
+            enabled,
+            summary: StrictNestSidecarSummary::default(),
+        }
     }
 
     pub(super) fn observe_frame(
@@ -153,10 +161,14 @@ impl StrictNestSidecarCollector {
         if let Some(l0_level) = classification.levels.first() {
             for p in l0_level.bsp.iter() {
                 if p.bits.buy1 {
-                    terminal_by_key.entry((p.source_index, 1i8)).or_insert(p.bits);
+                    terminal_by_key
+                        .entry((p.source_index, 1i8))
+                        .or_insert(p.bits);
                 }
                 if p.bits.sell1 {
-                    terminal_by_key.entry((p.source_index, -1i8)).or_insert(p.bits);
+                    terminal_by_key
+                        .entry((p.source_index, -1i8))
+                        .or_insert(p.bits);
                 }
             }
         }
@@ -189,7 +201,10 @@ pub(super) fn summarize_strict_nest_certificates(
     terminal_by_key: &std::collections::HashMap<(usize, i8), super::super::types::BspBits>,
 ) -> StrictNestSidecarSummary {
     let mut summary = StrictNestSidecarSummary {
-        base_count: cand.first().map(|evs| evs.iter().filter(|e| e.cand_delta).count()).unwrap_or(0),
+        base_count: cand
+            .first()
+            .map(|evs| evs.iter().filter(|e| e.cand_delta).count())
+            .unwrap_or(0),
         ..StrictNestSidecarSummary::default()
     };
     // F-06：terminal_missing 以“唯一 L0 基例”计数——此前在每个 top 的装配回调里累加，
@@ -218,10 +233,16 @@ pub(super) fn summarize_strict_nest_certificates(
             },
         );
         summary.cert_per_top.push((top, certs.len()));
-        summary.certificates.extend(certs.into_iter().map(|certificate| StrictNestCertificateRecord {
-            top_level: top,
-            certificate,
-        }));
+        summary
+            .certificates
+            .extend(
+                certs
+                    .into_iter()
+                    .map(|certificate| StrictNestCertificateRecord {
+                        top_level: top,
+                        certificate,
+                    }),
+            );
     }
     summary.cert_total = summary.certificates.len();
     summary
@@ -229,7 +250,12 @@ pub(super) fn summarize_strict_nest_certificates(
 
 pub(super) fn strict_nest_sidecar_enabled() -> bool {
     std::env::var(crate::theta_v0::env_registry::THETA_STRICT_NEST_SIDECAR)
-        .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON"))
+        .map(|v| {
+            matches!(
+                v.as_str(),
+                "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON"
+            )
+        })
         .unwrap_or(false)
 }
 
@@ -284,8 +310,14 @@ pub(crate) struct OtherwiseDomainSidecarSummary {
 /// 不含 `center_end_index`——中枢身份对齐 `CenterId`（si,zd,zg）语义，延伸（`end_index` 增长）
 /// 不改变身份。若含 `end_index`，frontier 下同一中枢延伸时旧键/新键不同，collector 会把同一个
 /// 逻辑点存成两条。
-type OtherwiseDomainKey =
-    (u32, usize, bool, usize, super::super::types::Tick, super::super::types::Tick);
+type OtherwiseDomainKey = (
+    u32,
+    usize,
+    bool,
+    usize,
+    super::super::types::Tick,
+    super::super::types::Tick,
+);
 
 fn otherwise_domain_key(r: &classifier::signal::FirstClassGradeRecord) -> OtherwiseDomainKey {
     (
@@ -307,7 +339,10 @@ fn otherwise_domain_key(r: &classifier::signal::FirstClassGradeRecord) -> Otherw
 /// 抽成自由函数（不带 `&mut self`）以便单测直接喂合成捕获批次，不必绕经 thread-local 与生产
 /// `judge_segment` 调用链。
 fn upsert_frame_captures(
-    records: &mut std::collections::HashMap<OtherwiseDomainKey, classifier::signal::FirstClassGradeRecord>,
+    records: &mut std::collections::HashMap<
+        OtherwiseDomainKey,
+        classifier::signal::FirstClassGradeRecord,
+    >,
     drained: Vec<classifier::signal::FirstClassGradeRecord>,
 ) {
     for rec in drained {
@@ -318,7 +353,8 @@ fn upsert_frame_captures(
 pub(super) struct OtherwiseDomainSidecarCollector {
     pub(super) enabled: bool,
     frames: usize,
-    records: std::collections::HashMap<OtherwiseDomainKey, classifier::signal::FirstClassGradeRecord>,
+    records:
+        std::collections::HashMap<OtherwiseDomainKey, classifier::signal::FirstClassGradeRecord>,
 }
 
 impl OtherwiseDomainSidecarCollector {
@@ -326,7 +362,11 @@ impl OtherwiseDomainSidecarCollector {
         if enabled {
             classifier::signal::otherwise_domain_sidecar_begin();
         }
-        Self { enabled, frames: 0, records: std::collections::HashMap::new() }
+        Self {
+            enabled,
+            frames: 0,
+            records: std::collections::HashMap::new(),
+        }
     }
 
     /// 本调用帧末（`classify_at` 已返回）取走 signal.rs 侧 thread-local 本调用帧捕获（memo
@@ -364,7 +404,12 @@ impl OtherwiseDomainSidecarCollector {
 
 pub(super) fn otherwise_domain_sidecar_enabled() -> bool {
     std::env::var(crate::theta_v0::env_registry::THETA_OTHERWISE_DOMAIN_SIDECAR)
-        .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON"))
+        .map(|v| {
+            matches!(
+                v.as_str(),
+                "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON"
+            )
+        })
         .unwrap_or(false)
 }
 
@@ -448,7 +493,9 @@ impl OpsemDump {
                 return Self::at_dir(&dir);
             }
         }
-        let dir = std::env::var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR).ok().filter(|s| !s.is_empty())?;
+        let dir = std::env::var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR)
+            .ok()
+            .filter(|s| !s.is_empty())?;
         Self::at_dir(std::path::Path::new(&dir))
     }
 
@@ -557,17 +604,20 @@ impl OpsemDump {
                 .insert("side".into(), serde_json::json!(voice_side_str(side)));
             suspended_before.push(mapping);
         }
-        let suspended_ambiguous =
-            input.suspended_before.len().saturating_sub(suspended_continued);
+        let suspended_ambiguous = input
+            .suspended_before
+            .len()
+            .saturating_sub(suspended_continued);
 
         let before_ids_unique = before_counts.values().all(|count| *count == 1);
         let after_ids_unique = after_counts.values().all(|count| *count == 1);
-        let exact_mapping_left_unique =
-            exact.iter().all(|id| before_counts.get(id).copied() == Some(1));
-        let exact_mapping_right_unique =
-            exact.iter().all(|id| after_counts.get(id).copied() == Some(1));
-        let exact_mapping_bijective =
-            exact_mapping_left_unique && exact_mapping_right_unique;
+        let exact_mapping_left_unique = exact
+            .iter()
+            .all(|id| before_counts.get(id).copied() == Some(1));
+        let exact_mapping_right_unique = exact
+            .iter()
+            .all(|id| after_counts.get(id).copied() == Some(1));
+        let exact_mapping_bijective = exact_mapping_left_unique && exact_mapping_right_unique;
         let complete_bijection = before_ids_unique
             && after_ids_unique
             && removed.is_empty()
@@ -746,14 +796,17 @@ impl OpsemDump {
         s.push_str("\"interpreter_at_entry\":{");
         s.push_str(&format!(
             "\"gamma_count_chi_filtered\":{},\"prev_active_count\":{},\"lex_argmin_top3\":{}",
-            o.gamma_count, o.prev_active_count, lex_top3_json(&o.lex_top3),
+            o.gamma_count,
+            o.prev_active_count,
+            lex_top3_json(&o.lex_top3),
         ));
         s.push_str("},");
         // 声部树快照。
         s.push_str("\"voice_tree_at_entry\":{");
         s.push_str(&format!(
             "\"parent_id\":{},\"is_boundary_root_absent\":{},\"active_count_inclusive\":{}}},",
-            opt_pair_str(o.parent_id), o.parent_id.is_none(),
+            opt_pair_str(o.parent_id),
+            o.parent_id.is_none(),
             o.prev_active_count.saturating_add(1),
         ));
         // 背驰判定输入。
@@ -851,10 +904,8 @@ impl OpsemDump {
             }
             Some(prev_vec) => {
                 for (lvl, moves) in tower_i.iter().enumerate() {
-                    let prev_moves: &[LeveledMove] = prev_vec
-                        .get(lvl)
-                        .map(|rc| rc.as_slice())
-                        .unwrap_or(&[]);
+                    let prev_moves: &[LeveledMove] =
+                        prev_vec.get(lvl).map(|rc| rc.as_slice()).unwrap_or(&[]);
                     // 升级：该级别在 prev 不存在（或为空）且现非空 ⟹ 新级别涌现。
                     if prev_moves.is_empty() && !moves.is_empty() {
                         let _ = self.write_tower_event(
@@ -877,7 +928,12 @@ impl OpsemDump {
                                         "new_center",
                                         &format!(
                                             "L{} #{} zd={} zg={} si={} ei={}",
-                                            lvl, m.id.ordinal, c.zd, c.zg, m.start_index, m.end_index
+                                            lvl,
+                                            m.id.ordinal,
+                                            c.zd,
+                                            c.zg,
+                                            m.start_index,
+                                            m.end_index
                                         ),
                                     );
                                 }
@@ -891,7 +947,12 @@ impl OpsemDump {
                                             "extend",
                                             &format!(
                                                 "L{} #{} zd={} zg={} ei {}->{}",
-                                                lvl, m.id.ordinal, c.zd, c.zg, pm.end_index, m.end_index
+                                                lvl,
+                                                m.id.ordinal,
+                                                c.zd,
+                                                c.zg,
+                                                pm.end_index,
+                                                m.end_index
                                             ),
                                         );
                                     }
@@ -968,7 +1029,9 @@ impl OpsemDump {
         classification: &classifier::Classification,
         step: &classifier::Classification,
     ) {
-        use classifier::center_lifecycle::{CenterEventMachine, CenterId, ChainConsumed, PointOutcome};
+        use classifier::center_lifecycle::{
+            CenterEventMachine, CenterId, ChainConsumed, PointOutcome,
+        };
 
         // 事件域 = 交易活跃区间（与 write_tower_event 同门）。
         let active = match (self.active_start, self.active_end) {
@@ -1000,18 +1063,24 @@ impl OpsemDump {
             match self.cl_machines[lvl].consume_chain(chain) {
                 // ★#337：`superseded`（在场终结）已升为**逐实例事件**（带身份+链下标），随
                 // `events` 一并落行 ⟹ 旧的「每 bar 每级一行带 count」聚合行**退役**。
-                ChainConsumed::Advanced { events, superseded: _ } => {
+                ChainConsumed::Advanced {
+                    events,
+                    superseded: _,
+                } => {
                     for ev in events.iter() {
                         let _ = self.write_cl_event(bar, ev);
                     }
                 }
                 ChainConsumed::Adopted { adopted } => {
-                    let _ = self
-                        .write_cl_chain_sync(bar, lvl as u32, "adopt", adopted, chain, false);
-                }
-                ChainConsumed::Rebased { at, len: _, revived } => {
                     let _ =
-                        self.write_cl_chain_sync(bar, lvl as u32, "rebase", at, chain, revived);
+                        self.write_cl_chain_sync(bar, lvl as u32, "adopt", adopted, chain, false);
+                }
+                ChainConsumed::Rebased {
+                    at,
+                    len: _,
+                    revived,
+                } => {
+                    let _ = self.write_cl_chain_sync(bar, lvl as u32, "rebase", at, chain, revived);
                     self.cl_resync_total += 1;
                 }
             }
@@ -1067,12 +1136,19 @@ impl OpsemDump {
     ) -> std::io::Result<()> {
         use std::io::Write;
         let id_or_null = |c: Option<&super::super::types::Center>| match c {
-            Some(c) => (c.start_index.to_string(), c.zd.to_string(), c.zg.to_string()),
+            Some(c) => (
+                c.start_index.to_string(),
+                c.zd.to_string(),
+                c.zg.to_string(),
+            ),
             None => ("null".into(), "null".into(), "null".into()),
         };
         let (tsi, tzd, tzg) = id_or_null(chain.last());
-        let (psi, pzd, pzg) =
-            id_or_null(if chain.len() >= 2 { chain.get(chain.len() - 2) } else { None });
+        let (psi, pzd, pzg) = id_or_null(if chain.len() >= 2 {
+            chain.get(chain.len() - 2)
+        } else {
+            None
+        });
         let len = chain.len();
         let json = format!(
             "{{\"bar\":{bar},\"level\":{level},\"kind\":\"chain_sync\",\"reason\":\"{reason}\",\
@@ -1124,8 +1200,9 @@ impl OpsemDump {
     /// #291：工程再同步诊断行（非教义生死；对账排除）。
     fn write_cl_resync(&mut self, bar: usize, level: u32, reason: &str) -> std::io::Result<()> {
         use std::io::Write;
-        let json =
-            format!("{{\"bar\":{bar},\"level\":{level},\"kind\":\"resync\",\"reason\":\"{reason}\"}}\n");
+        let json = format!(
+            "{{\"bar\":{bar},\"level\":{level},\"kind\":\"resync\",\"reason\":\"{reason}\"}}\n"
+        );
         self.center_lifecycle_buf.write_all(json.as_bytes())
     }
 
@@ -1147,7 +1224,11 @@ impl OpsemDump {
             super::super::types::Side::Short => "Short",
         };
         let (tsi, tzd, tzg) = match mk.target {
-            Some(t) => (t.start_index.to_string(), t.zd.to_string(), t.zg.to_string()),
+            Some(t) => (
+                t.start_index.to_string(),
+                t.zd.to_string(),
+                t.zg.to_string(),
+            ),
             None => ("null".into(), "null".into(), "null".into()),
         };
         let json = format!(
@@ -1410,7 +1491,9 @@ pub(super) fn eta_bucket_str(e: super::super::strategy::ledger::EtaBucket) -> &'
 }
 
 /// 辅助：ForceStateA5 → 字符串。
-pub(super) fn force_state_str(s: super::super::classifier::divergence::ForceStateA5) -> &'static str {
+pub(super) fn force_state_str(
+    s: super::super::classifier::divergence::ForceStateA5,
+) -> &'static str {
     use super::super::classifier::divergence::ForceStateA5;
     match s {
         ForceStateA5::Dominated => "Dominated(Weak=背驰)",
@@ -1430,7 +1513,11 @@ mod rebase_observability_tests {
     use strategy::voice::VoiceSide;
 
     fn cid(start_index: usize, zd: i64, zg: i64) -> CenterId {
-        CenterId { start_index, zd, zg }
+        CenterId {
+            start_index,
+            zd,
+            zg,
+        }
     }
 
     struct FailingWriter {
@@ -1488,7 +1575,11 @@ mod rebase_observability_tests {
             assert_eq!(dump.rebase_seq, 0, "整行失败不得提交序号");
 
             dump.write_rebase_observation_fail_open(43, &input);
-            assert_eq!(write_calls.get(), 1, "失败后关闭旁路，候选序号不得被重试复用");
+            assert_eq!(
+                write_calls.get(),
+                1,
+                "失败后关闭旁路，候选序号不得被重试复用"
+            );
             assert_eq!(dump.rebase_observability_failure_count, 1);
             assert_eq!(dump.rebase_seq, 0);
 
@@ -1528,7 +1619,8 @@ mod rebase_observability_tests {
         };
 
         let mut dump = OpsemDump::at_dir(&dir).expect("测试 dump writer 应可创建");
-        dump.write_rebase_observation(42, &input).expect("D0 JSONL 应可落盘");
+        dump.write_rebase_observation(42, &input)
+            .expect("D0 JSONL 应可落盘");
         drop(dump);
 
         let raw = std::fs::read_to_string(dir.join("rebase_observability.jsonl"))
@@ -1543,7 +1635,10 @@ mod rebase_observability_tests {
         assert_eq!(row["rebase_seq"], 1);
         assert_eq!(row["bar"], 42);
         assert_eq!(row["level"], 1);
-        assert_eq!(row["removed_ids"].as_array().expect("removed 数组").len(), 1);
+        assert_eq!(
+            row["removed_ids"].as_array().expect("removed 数组").len(),
+            1
+        );
         assert_eq!(row["added_ids"].as_array().expect("added 数组").len(), 1);
         assert_eq!(
             row["mapping_result_domain"],
@@ -1557,8 +1652,7 @@ mod rebase_observability_tests {
         assert_eq!(suspended[0]["unique"], false);
         assert_eq!(suspended[0]["bijective"], false);
         assert_eq!(
-            suspended[0]["non_lineage_hints"]["same_start_added_count"],
-            1,
+            suspended[0]["non_lineage_hints"]["same_start_added_count"], 1,
             "同 start 只作非谱系提示，不得把 ambiguous 偷换成 continued"
         );
         assert_eq!(suspended[1]["side"], "Short");
@@ -1595,8 +1689,20 @@ mod otherwise_domain_tests {
     use super::*;
     use classifier::signal::{FirstClassGradeRecord, T3InCGrade, T3InCGradeReason};
 
-    fn center(start_index: usize, end_index: usize, zd: Tick, zg: Tick) -> super::super::super::types::Center {
-        super::super::super::types::Center { zd, zg, dd: zd, gg: zg, start_index, end_index }
+    fn center(
+        start_index: usize,
+        end_index: usize,
+        zd: Tick,
+        zg: Tick,
+    ) -> super::super::super::types::Center {
+        super::super::super::types::Center {
+            zd,
+            zg,
+            dd: zd,
+            gg: zg,
+            start_index,
+            end_index,
+        }
     }
 
     fn grade_rec(
@@ -1649,9 +1755,16 @@ mod otherwise_domain_tests {
         upsert_frame_captures(&mut records, vec![rec1]);
         upsert_frame_captures(&mut records, vec![rec2]);
 
-        assert_eq!(records.len(), 1, "同 CenterId 同 level 不同 end_index（延伸）应只留一条记录");
+        assert_eq!(
+            records.len(),
+            1,
+            "同 CenterId 同 level 不同 end_index（延伸）应只留一条记录"
+        );
         let only = records.values().next().expect("恰一条");
-        assert_eq!(only.center_end_index, 150, "应保留最新一帧（延伸后）的 end_index");
+        assert_eq!(
+            only.center_end_index, 150,
+            "应保留最新一帧（延伸后）的 end_index"
+        );
     }
 
     /// ★新增（#606 S1 第三修复车）：两个不同级别在同一帧巧合产出完全相同的
@@ -1671,6 +1784,10 @@ mod otherwise_domain_tests {
         assert_eq!(records.len(), 2, "跨级同身份两条都应保留，结构保证不互吞");
         let levels_seen: std::collections::BTreeSet<u32> =
             records.values().map(|r| r.level).collect();
-        assert_eq!(levels_seen, [0u32, 1u32].into_iter().collect(), "两条应分落 level0/level1");
+        assert_eq!(
+            levels_seen,
+            [0u32, 1u32].into_iter().collect(),
+            "两条应分落 level0/level1"
+        );
     }
 }

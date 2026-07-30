@@ -53,7 +53,10 @@ fn three_stroke_overlap_distinct_triple_tangent() {
     let c = stroke_hl(Direction::Up, 8, 12, 15.0, 10.0);
     let lo = a.low.max(b.low).max(c.low);
     let hi = a.high.min(b.high).min(c.high);
-    assert_eq!(lo, hi, "前件：本用例须是真相切（max(lows)==min(highs)），否则断言退化");
+    assert_eq!(
+        lo, hi,
+        "前件：本用例须是真相切（max(lows)==min(highs)），否则断言退化"
+    );
     assert!(
         three_stroke_overlap(&a, &b, &c),
         "三笔互异真相切（max_lo==min_hi==10）须判有重合——#246 新口径 `<=`；若红，\
@@ -104,9 +107,11 @@ fn is_fractal_and_gap_up_tangent_no_gap() {
     let (b_h, b_l) = (20.0, 10.0);
     let (c_h, c_l) = (12.0, 6.0);
     assert_eq!(b_l, a_h, "前件：本用例须是真相切（b_l == a_h）");
-    let (is_fractal, has_gap) =
-        is_fractal_and_gap(a_h, a_l, b_h, b_l, c_h, c_l, Direction::Up);
-    assert!(is_fractal, "前件：向上段顶分型须成立，否则 has_gap 断言退化");
+    let (is_fractal, has_gap) = is_fractal_and_gap(a_h, a_l, b_h, b_l, c_h, c_l, Direction::Up);
+    assert!(
+        is_fractal,
+        "前件：向上段顶分型须成立，否则 has_gap 断言退化"
+    );
     assert!(
         !has_gap,
         "向上段 a-b 真相切（b_l == a_h == 10）须判无缺口——#246 新口径严格 `>`；若红，\
@@ -121,9 +126,11 @@ fn is_fractal_and_gap_down_tangent_no_gap() {
     let (b_h, b_l) = (10.0, 2.0);
     let (c_h, c_l) = (18.0, 8.0);
     assert_eq!(a_l, b_h, "前件：本用例须是真相切（a_l == b_h）");
-    let (is_fractal, has_gap) =
-        is_fractal_and_gap(a_h, a_l, b_h, b_l, c_h, c_l, Direction::Down);
-    assert!(is_fractal, "前件：向下段底分型须成立，否则 has_gap 断言退化");
+    let (is_fractal, has_gap) = is_fractal_and_gap(a_h, a_l, b_h, b_l, c_h, c_l, Direction::Down);
+    assert!(
+        is_fractal,
+        "前件：向下段底分型须成立，否则 has_gap 断言退化"
+    );
     assert!(
         !has_gap,
         "向下段 a-b 真相切（a_l == b_h == 10）须判无缺口——#246 新口径严格 `>`；若红，\

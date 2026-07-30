@@ -137,7 +137,10 @@ pub fn summarize(verdicts: &[Vec<IntervalNecessity>]) -> Vec<IntervalNecessitySu
         .iter()
         .enumerate()
         .map(|(lvl, rows)| {
-            let mut s = IntervalNecessitySummary { level: lvl as u32, ..Default::default() };
+            let mut s = IntervalNecessitySummary {
+                level: lvl as u32,
+                ..Default::default()
+            };
             for r in rows {
                 s.total += 1;
                 if r.satisfied {
@@ -178,7 +181,14 @@ mod tests {
     }
 
     fn center(start: usize, end: usize) -> Center {
-        Center { zd: 0, zg: 1, dd: 0, gg: 1, start_index: start, end_index: end }
+        Center {
+            zd: 0,
+            zg: 1,
+            dd: 0,
+            gg: 1,
+            start_index: start,
+            end_index: end,
+        }
     }
 
     fn level(centers: Vec<Center>, bsp: Vec<BspPoint>) -> LevelState {
@@ -196,7 +206,10 @@ mod tests {
         let c = Classification {
             levels: vec![
                 level(vec![], vec![pt(10, true), pt(40, false)]),
-                level(vec![center(2, 8)], vec![pt(12, true), pt(30, true), pt(9, false)]),
+                level(
+                    vec![center(2, 8)],
+                    vec![pt(12, true), pt(30, true), pt(9, false)],
+                ),
             ],
         };
         let v = interval_necessity_tower(&c);
@@ -208,9 +221,15 @@ mod tests {
         );
         assert_eq!((v[1][1].satisfied, v[1][1].witness), (true, Some(10)));
         let miss = &v[1][2];
-        assert_eq!((miss.side, miss.satisfied, miss.witness), (Side::Short, false, None));
+        assert_eq!(
+            (miss.side, miss.satisfied, miss.witness),
+            (Side::Short, false, None)
+        );
         let s = summarize(&v);
-        assert_eq!((s[1].total, s[1].satisfied, s[1].missing, s[1].undecidable), (3, 2, 1, 0));
+        assert_eq!(
+            (s[1].total, s[1].satisfied, s[1].missing, s[1].undecidable),
+            (3, 2, 1, 0)
+        );
     }
 
     #[test]
@@ -218,7 +237,7 @@ mod tests {
         // 窗口内只有异侧点 ⟹ 不得见证（同侧纪律）。
         let c = Classification {
             levels: vec![
-                level(vec![], vec![pt(10, false)]), // lvl0 只有卖点
+                level(vec![], vec![pt(10, false)]),            // lvl0 只有卖点
                 level(vec![center(2, 8)], vec![pt(12, true)]), // lvl1 买点，窗口 [8,12]
             ],
         };

@@ -42,7 +42,7 @@
 //!   买点被当作新信号。fills 日志可审计。
 
 use super::tape::SignalTape;
-use super::types::{BspEvent, INITIAL_CAPITAL, FIRST_BSP_LADDER, MAX_LADDER};
+use super::types::{BspEvent, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER};
 use crate::buysellpoint::Side;
 
 /// 级别权重函数。Exp2 = 2^(k−floor)（级别时间尺度几何递增的镜像，主变体）；
@@ -156,7 +156,10 @@ pub fn run_recursive(
         return Err("递归建仓要求事件磁带（bsp_events 全空）".to_string());
     }
 
-    let mut st = Slices { shares: [0.0; MAX_LADDER], cash: INITIAL_CAPITAL };
+    let mut st = Slices {
+        shares: [0.0; MAX_LADDER],
+        cash: INITIAL_CAPITAL,
+    };
     let mut res = RecursiveResult::default();
     let mut peak = INITIAL_CAPITAL;
     let mut invested_frac_sum = 0.0;
@@ -176,7 +179,18 @@ pub fn run_recursive(
                     {
                         continue;
                     }
-                    apply_event(&mut st, &mut res, e, lad, floor_ladder, base_frac, weight, c, i as i64, with_fills);
+                    apply_event(
+                        &mut st,
+                        &mut res,
+                        e,
+                        lad,
+                        floor_ladder,
+                        base_frac,
+                        weight,
+                        c,
+                        i as i64,
+                        with_fills,
+                    );
                 }
             }
         }
@@ -195,8 +209,11 @@ pub fn run_recursive(
     let final_eq = st.equity(last_close);
     res.final_return_pct = (final_eq - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100.0;
     res.avg_invested_frac = invested_frac_sum / n as f64;
-    res.final_invested_frac =
-        if final_eq > 0.0 { st.invested(last_close) / final_eq } else { 0.0 };
+    res.final_invested_frac = if final_eq > 0.0 {
+        st.invested(last_close) / final_eq
+    } else {
+        0.0
+    };
     Ok(res)
 }
 
@@ -274,9 +291,9 @@ fn apply_event(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::tape::BarSig;
     use super::super::types::BspClass;
+    use super::*;
 
     fn ev(class: BspClass, confirmed: bool) -> BspEvent {
         BspEvent {
@@ -291,7 +308,10 @@ mod tests {
     }
 
     fn bar(close: f64, events: Vec<(usize, BspEvent)>) -> BarSig {
-        let mut b = BarSig { close, ..Default::default() };
+        let mut b = BarSig {
+            close,
+            ..Default::default()
+        };
         if !events.is_empty() {
             let mut rows: Box<[Vec<BspEvent>; MAX_LADDER]> = Box::default();
             for (lad, e) in events {
@@ -303,7 +323,10 @@ mod tests {
     }
 
     fn tape(bars: Vec<BarSig>) -> SignalTape {
-        SignalTape { bars, ..Default::default() }
+        SignalTape {
+            bars,
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -392,7 +415,7 @@ mod tests {
         let r = run_recursive(&t, 2, 0.1, WeightFn::Exp2, true, false).unwrap();
         assert_eq!(r.sell_clears[2], 1);
         assert_eq!(r.sell_noops[2], 0); // 被忽略的卖点不入 noop 计数
-        // 100 股 @100 → @130 清 → +3000 = +3%
+                                        // 100 股 @100 → @130 清 → +3000 = +3%
         assert!((r.final_return_pct - 3.0).abs() < 1e-9);
     }
 

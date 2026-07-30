@@ -308,13 +308,21 @@ mod tests {
         start_index: usize,
         end_index: usize,
     ) -> Center {
-        Center { zd, zg, dd, gg, start_index, end_index }
+        Center {
+            zd,
+            zg,
+            dd,
+            gg,
+            start_index,
+            end_index,
+        }
     }
 
     /// `BspPoint` 夹具：`center` 按 `make_third_point` 契约填（3 类点必 `Some`，bsp.rs 不变量；
     /// #218 面 A 载体形态：Center 变体包装）。
     fn pt(source_index: usize, bits: BspBits, center: Option<Center>) -> BspPoint {
-        BspPoint { source_index,
+        BspPoint {
+            source_index,
             bits,
             pivot_low: 0,
             pivot_high: 0,
@@ -345,11 +353,29 @@ mod tests {
     // 链 (top=2, exec=1) 成证，confirmed 向量 = [false, true]（高→低）。
 
     fn xzd_base_event() -> NestCandidateEvent {
-        typed_event(1, Side::Short, NestDivergenceKind::Trend, (44, 48), (36, 48), 48, 48, true)
+        typed_event(
+            1,
+            Side::Short,
+            NestDivergenceKind::Trend,
+            (44, 48),
+            (36, 48),
+            48,
+            48,
+            true,
+        )
     }
 
     fn xzd_parent_event(confirmed: bool) -> NestCandidateEvent {
-        typed_event(2, Side::Short, NestDivergenceKind::Trend, (33, 50), (25, 50), 50, 50, confirmed)
+        typed_event(
+            2,
+            Side::Short,
+            NestDivergenceKind::Trend,
+            (33, 50),
+            (25, 50),
+            50,
+            50,
+            confirmed,
+        )
     }
 
     fn c_prime() -> Center {
@@ -365,17 +391,17 @@ mod tests {
     }
 
     fn xzd_events() -> Vec<Vec<NestCandidateEvent>> {
-        vec![vec![], vec![xzd_base_event()], vec![xzd_parent_event(false)]]
+        vec![
+            vec![],
+            vec![xzd_base_event()],
+            vec![xzd_parent_event(false)],
+        ]
     }
 
     fn xzd_certificate(events: &[Vec<NestCandidateEvent>]) -> TypedNestCertificate {
-        assemble_typed_certificate(
-            events,
-            &events[1][0],
-            2,
-            NestIntervalCaliber::B,
-            &|_| Some(sell1_bits()),
-        )
+        assemble_typed_certificate(events, &events[1][0], 2, NestIntervalCaliber::B, &|_| {
+            Some(sell1_bits())
+        })
         .expect("044:16 形态几何：基例 C=(44,48) ⊆ 父 C=(33,50)，链 (top=2,exec=1) 成证")
     }
 
@@ -442,7 +468,10 @@ mod tests {
         let events = xzd_events();
         let cert = xzd_certificate(&events);
         // levels[0].centers 无包含中枢 ⟹ ExecEvidenceOnly（044:18：c 至少含一个次级别中枢）。
-        let no_center = ledger(vec![LevelState::default(), level(parent_book_centers(), vec![])]);
+        let no_center = ledger(vec![
+            LevelState::default(),
+            level(parent_book_centers(), vec![]),
+        ]);
         assert_eq!(
             classify_certificate_turn(&cert, &no_center),
             NestTurnClass::ExecEvidenceOnly
@@ -477,7 +506,10 @@ mod tests {
         let cert = xzd_certificate(&events);
         // c′ 在但 levels[0].bsp 无三类点 ⟹ ExecEvidenceOnly
         //（044:20「在最后一个次级别中枢正常震荡的，都不可能转化成大级别的转折」）。
-        let no_bsp = ledger(vec![level(vec![c_prime()], vec![]), level(parent_book_centers(), vec![])]);
+        let no_bsp = ledger(vec![
+            level(vec![c_prime()], vec![]),
+            level(parent_book_centers(), vec![]),
+        ]);
         assert_eq!(
             classify_certificate_turn(&cert, &no_bsp),
             NestTurnClass::ExecEvidenceOnly
@@ -509,19 +541,32 @@ mod tests {
     fn turn_class_platform_breakdown_negative_066_198() {
         // 底转镜像件（side=Long）：c′ 处只有 sell3（平台下破 = 方向反，066:198
         //「小转大的平台，是可以往下突破的」）⟹ 非候选；buy3 版 ⟹ 候选（044:26）。
-        let base =
-            typed_event(1, Side::Long, NestDivergenceKind::Trend, (44, 48), (36, 48), 48, 48, true);
-        let parent =
-            typed_event(2, Side::Long, NestDivergenceKind::Trend, (33, 50), (25, 50), 50, 50, false);
-        let events = vec![vec![], vec![base], vec![parent]];
-        let cert = assemble_typed_certificate(
-            &events,
-            &events[1][0],
+        let base = typed_event(
+            1,
+            Side::Long,
+            NestDivergenceKind::Trend,
+            (44, 48),
+            (36, 48),
+            48,
+            48,
+            true,
+        );
+        let parent = typed_event(
             2,
-            NestIntervalCaliber::B,
-            &|_| Some(buy1_bits()),
-        )
-        .expect("Long 镜像链成证");
+            Side::Long,
+            NestDivergenceKind::Trend,
+            (33, 50),
+            (25, 50),
+            50,
+            50,
+            false,
+        );
+        let events = vec![vec![], vec![base], vec![parent]];
+        let cert =
+            assemble_typed_certificate(&events, &events[1][0], 2, NestIntervalCaliber::B, &|_| {
+                Some(buy1_bits())
+            })
+            .expect("Long 镜像链成证");
         assert_eq!(cert.confirmed(), &[false, true]);
         let sell_side = ledger(vec![
             level(vec![c_prime()], vec![pt(52, sell3_bits(), Some(c_prime()))]),
@@ -567,27 +612,36 @@ mod tests {
     fn turn_class_defer_orphan_event_039_34() {
         // 父事件不被任何链消费（方向不合）⟹ 账本含 DeferOrphan{identity} 且不带候选语义；
         // 孤儿事件 100% 有类。
-        let base =
-            typed_event(1, Side::Long, NestDivergenceKind::Trend, (44, 48), (36, 48), 48, 48, true);
-        let orphan =
-            typed_event(2, Side::Short, NestDivergenceKind::Trend, (33, 50), (25, 50), 50, 50, false);
-        let events = vec![vec![], vec![base], vec![orphan.clone()]];
-        let cert = assemble_typed_certificate(
-            &events,
-            &events[1][0],
+        let base = typed_event(
             1,
-            NestIntervalCaliber::B,
-            &|_| Some(buy1_bits()),
-        )
-        .expect("单级链成证");
+            Side::Long,
+            NestDivergenceKind::Trend,
+            (44, 48),
+            (36, 48),
+            48,
+            48,
+            true,
+        );
+        let orphan = typed_event(
+            2,
+            Side::Short,
+            NestDivergenceKind::Trend,
+            (33, 50),
+            (25, 50),
+            50,
+            50,
+            false,
+        );
+        let events = vec![vec![], vec![base], vec![orphan.clone()]];
+        let cert =
+            assemble_typed_certificate(&events, &events[1][0], 1, NestIntervalCaliber::B, &|_| {
+                Some(buy1_bits())
+            })
+            .expect("单级链成证");
         assert!(
-            assemble_typed_certificate(
-                &events,
-                &events[1][0],
-                2,
-                NestIntervalCaliber::B,
-                &|_| Some(buy1_bits()),
-            )
+            assemble_typed_certificate(&events, &events[1][0], 2, NestIntervalCaliber::B, &|_| {
+                Some(buy1_bits())
+            },)
             .is_none(),
             "方向不合 ⟹ (exec=1,top=2) 装配失败，父事件孤儿化"
         );
@@ -603,12 +657,20 @@ mod tests {
             .iter()
             .filter(|(_, class)| matches!(class, NestTurnClass::DeferOrphan { .. }))
             .collect();
-        assert_eq!(defer_entries.len(), 1, "孤儿事件 100% 有类（039:34 defer 域）");
+        assert_eq!(
+            defer_entries.len(),
+            1,
+            "孤儿事件 100% 有类（039:34 defer 域）"
+        );
         let NestTurnClass::DeferOrphan { identity } = defer_entries[0].1 else {
             unreachable!();
         };
         assert_eq!(identity, orphan_identity);
-        assert_eq!(defer_entries[0].0, vec![orphan_identity], "孤儿主键 = 单元素身份向量");
+        assert_eq!(
+            defer_entries[0].0,
+            vec![orphan_identity],
+            "孤儿主键 = 单元素身份向量"
+        );
         // 孤儿不带候选语义：账本无任何 XiaozhuandaCandidate 条目。
         assert!(out
             .iter()
@@ -622,7 +684,16 @@ mod tests {
         // 枚举合成链（depth 1..3 × rung confirmed 全组合 × c′ 状态）⟹ 每证恰一类；
         // sidecar 中性：同输入重装配逐字段相等（含 confirmed），证书真值 n_delta 不动。
         let base = || {
-            typed_event(1, Side::Short, NestDivergenceKind::Trend, (44, 48), (36, 48), 48, 48, true)
+            typed_event(
+                1,
+                Side::Short,
+                NestDivergenceKind::Trend,
+                (44, 48),
+                (36, 48),
+                48,
+                48,
+                true,
+            )
         };
         let mid = |confirmed| {
             typed_event(
@@ -649,7 +720,8 @@ mod tests {
             )
         };
         let sell1 = &|_: &NestCandidateEvent| Some(sell1_bits());
-        let mut cases: Vec<(Vec<Vec<NestCandidateEvent>>, usize)> = vec![(vec![vec![], vec![base()]], 1)];
+        let mut cases: Vec<(Vec<Vec<NestCandidateEvent>>, usize)> =
+            vec![(vec![vec![], vec![base()]], 1)];
         for &mc in &[true, false] {
             cases.push((vec![vec![], vec![base()], vec![mid(mc)]], 2));
         }
@@ -686,10 +758,15 @@ mod tests {
                 .unwrap();
                 assert_eq!(cert, reassembled, "同输入重装配逐字段相等（含 sidecar）");
                 assert_eq!(cert.confirmed().len(), cert.identities().len());
-                assert_eq!(cert.confirmed().last(), Some(&true), "基例门恒 confirmed=true");
+                assert_eq!(
+                    cert.confirmed().last(),
+                    Some(&true),
+                    "基例门恒 confirmed=true"
+                );
                 assert!(cert.certificate().n_delta(), "sidecar 不进证书真值");
                 // partition：每证恰一类。
-                let out = classify_nest_turns(&events, std::slice::from_ref(&cert), &classification);
+                let out =
+                    classify_nest_turns(&events, std::slice::from_ref(&cert), &classification);
                 let key = cert.identities().to_vec();
                 let cert_entries: Vec<_> = out.iter().filter(|(k, _)| *k == key).collect();
                 assert_eq!(cert_entries.len(), 1, "每证恰一类（depth={top}）");
@@ -699,7 +776,8 @@ mod tests {
                 } else {
                     assert!(matches!(
                         class,
-                        NestTurnClass::XiaozhuandaCandidate { .. } | NestTurnClass::ExecEvidenceOnly
+                        NestTurnClass::XiaozhuandaCandidate { .. }
+                            | NestTurnClass::ExecEvidenceOnly
                     ));
                 }
                 // 链消费掉的全部事件不作孤儿：本用例无任何 DeferOrphan 条目。
@@ -717,10 +795,21 @@ mod tests {
         // 编译期构造保证的文档化断言（非注释承诺）：XzdEvidence 完全解构只有
         // (Center, usize, Option<usize>) 三坐标字段——无 BspBits 成员、无 confirm_side
         // 方法；字段面变化即编译失败，强制复议。
-        let evidence = XzdEvidence { c_prime: c_prime(), third_src: 52, second_class: Some(49) };
-        let XzdEvidence { c_prime, third_src, second_class } = evidence;
+        let evidence = XzdEvidence {
+            c_prime: c_prime(),
+            third_src: 52,
+            second_class: Some(49),
+        };
+        let XzdEvidence {
+            c_prime,
+            third_src,
+            second_class,
+        } = evidence;
         let coords: (Center, usize, Option<usize>) = (c_prime, third_src, second_class);
-        assert_eq!((coords.0.zd, coords.0.zg, coords.1, coords.2), (420, 440, 52, Some(49)));
+        assert_eq!(
+            (coords.0.zd, coords.0.zg, coords.1, coords.2),
+            (420, 440, 52, Some(49))
+        );
         // NestTurnClass 四构造子穷尽匹配（无通配臂）：新增变体即编译失败——partition
         // 类型面锁定；候选臂只携坐标，不进任何 six-bit 置位路径、不作终端背书。
         let identity = NestEventIdentity::of(&xzd_parent_event(false));
@@ -748,7 +837,12 @@ mod tests {
         }
         assert_eq!(
             names,
-            ["NestedConfirmed", "XiaozhuandaCandidate", "ExecEvidenceOnly", "DeferOrphan"]
+            [
+                "NestedConfirmed",
+                "XiaozhuandaCandidate",
+                "ExecEvidenceOnly",
+                "DeferOrphan"
+            ]
         );
     }
 
@@ -759,22 +853,47 @@ mod tests {
         // 链顶 nest 级 ℓ ⟹ c′ 账本 = levels[ℓ-2]（ℓ≥2），父级二类点账本 = levels[ℓ-1]。
         // ℓ=3 链验证：c′ 只在 levels[1] ⟹ 候选；同一 c′ 只在 levels[0] / levels[2] ⟹
         // ExecEvidenceOnly（不错读邻级账本——与 p117 T1 终端背书移位 ℓ→ℓ-1 同源事实链）。
-        let base =
-            typed_event(1, Side::Short, NestDivergenceKind::Trend, (44, 48), (36, 48), 48, 48, true);
-        let mid =
-            typed_event(2, Side::Short, NestDivergenceKind::Trend, (33, 50), (25, 50), 50, 50, true);
-        let top =
-            typed_event(3, Side::Short, NestDivergenceKind::Trend, (20, 60), (10, 60), 60, 60, false);
-        let events = vec![vec![], vec![base], vec![mid], vec![top]];
-        let cert = assemble_typed_certificate(
-            &events,
-            &events[1][0],
+        let base = typed_event(
+            1,
+            Side::Short,
+            NestDivergenceKind::Trend,
+            (44, 48),
+            (36, 48),
+            48,
+            48,
+            true,
+        );
+        let mid = typed_event(
+            2,
+            Side::Short,
+            NestDivergenceKind::Trend,
+            (33, 50),
+            (25, 50),
+            50,
+            50,
+            true,
+        );
+        let top = typed_event(
             3,
-            NestIntervalCaliber::B,
-            &|_| Some(sell1_bits()),
-        )
-        .expect("ℓ=3 链成证");
-        assert_eq!(cert.confirmed(), &[false, true, true], "sidecar 高→低含基例");
+            Side::Short,
+            NestDivergenceKind::Trend,
+            (20, 60),
+            (10, 60),
+            60,
+            60,
+            false,
+        );
+        let events = vec![vec![], vec![base], vec![mid], vec![top]];
+        let cert =
+            assemble_typed_certificate(&events, &events[1][0], 3, NestIntervalCaliber::B, &|_| {
+                Some(sell1_bits())
+            })
+            .expect("ℓ=3 链成证");
+        assert_eq!(
+            cert.confirmed(),
+            &[false, true, true],
+            "sidecar 高→低含基例"
+        );
         let c_prime = c_prime(); // (40,46) ⊆ 链顶 interval_b=(20,60)，end=46 ≤ 基例.turn=48。
         let third = pt(52, sell3_bits(), Some(c_prime));
         // 正例：c′ ∈ levels[1]（= levels[ℓ-2]，ℓ=3）。

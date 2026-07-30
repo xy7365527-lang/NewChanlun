@@ -73,7 +73,9 @@ fn min_gauge(a: Candidate, b: Candidate) -> Candidate {
 ///
 /// 边界条件：候选为空 ⟹ `None`（无可选截面）。
 pub fn gauge_fix(cands: &[Candidate]) -> Option<Candidate> {
-    cands.split_first().map(|(&head, rest)| rest.iter().fold(head, |acc, &c| min_gauge(acc, c)))
+    cands
+        .split_first()
+        .map(|(&head, rest)| rest.iter().fold(head, |acc, &c| min_gauge(acc, c)))
 }
 
 /// canonical 分解（reference-theta-v0.md:24）——线段序列的 canonical 端点扫描。
@@ -113,8 +115,8 @@ pub fn canonical_endpoints(segments: &[Segment]) -> Vec<Candidate> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::super::types::Direction;
+    use super::*;
 
     fn cand(t: Timestamp, lvl: u32, idx: usize) -> Candidate {
         Candidate {
@@ -200,7 +202,10 @@ mod tests {
     /// property：canonical 端点的 source_index 与段末 index 一致（端点 = 段确认边界）。
     #[test]
     fn property_canonical_endpoint_matches_segment_end() {
-        let segs = vec![seg(Direction::Up, 0, 4, 0, 10), seg(Direction::Down, 4, 9, 10, 3)];
+        let segs = vec![
+            seg(Direction::Up, 0, 4, 0, 10),
+            seg(Direction::Down, 4, 9, 10, 3),
+        ];
         let cands = canonical_endpoints(&segs);
         for (cand, seg) in cands.iter().zip(segs.iter()) {
             assert_eq!(cand.source_index, seg.end_index);

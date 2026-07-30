@@ -69,7 +69,11 @@ pub enum ThetaMode {
     Fixed,
     /// θ_t(k) = 该层最近 window 个中枢相对振幅的 q 分位（nearest-rank，
     /// 排除当前锚自身）；样本 < min_obs 回退 cfg.theta_depth。
-    AdaptiveQuantile { q: f64, window: usize, min_obs: usize },
+    AdaptiveQuantile {
+        q: f64,
+        window: usize,
+        min_obs: usize,
+    },
 }
 
 /// REV 声部循环模式（38课循环 voice 实装，2026-06-11）。
@@ -696,7 +700,10 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
         // V1：rev 裸开（无 G1/tranche/门）——v1 O1v 的 v2 语义类比
         // （差异仅 C2 osc 不截断 + C5 单 tranche 区间套读出退化为 home 层），
         // 与在册 O1v 基线（Δ=−63.7/−41.4/−186.2pp）直接可比，隔离 C2 的因果。
-        "V1" => Some(OrganicConfig { rev_mode: true, ..base }),
+        "V1" => Some(OrganicConfig {
+            rev_mode: true,
+            ..base
+        }),
         // V1f：G1 锚定的独立因果（一次性 frac_k = O1v+G1）
         "V1f" => Some(OrganicConfig {
             rev_mode: true,
@@ -813,12 +820,20 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
         // 注意：与首验 V2oa25（纯自适应，OKLO+520/BRN+71.5pp）不逐位可比
         // ——首验数字在 theta_adaptive_backtest.json 在册，本定义是落地形态。
         "V2oa25" => Some(OrganicConfig {
-            theta_mode: ThetaMode::AdaptiveQuantile { q: 0.25, window: 50, min_obs: 10 },
+            theta_mode: ThetaMode::AdaptiveQuantile {
+                q: 0.25,
+                window: 50,
+                min_obs: 10,
+            },
             rev_l41_gate: true,
             ..variant("V2of").expect("V2of 在上方注册")
         }),
         "V2oa50" => Some(OrganicConfig {
-            theta_mode: ThetaMode::AdaptiveQuantile { q: 0.50, window: 50, min_obs: 10 },
+            theta_mode: ThetaMode::AdaptiveQuantile {
+                q: 0.50,
+                window: 50,
+                min_obs: 10,
+            },
             ..variant("V2of").expect("V2of 在上方注册")
         }),
         // ── 并发赋格最小可验证实验（2026-06-11；deep_think Part II §17
@@ -1050,7 +1065,9 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             ..variant("V2oa25").expect("V2oa25 在上方注册")
         }),
         "V2oa25_rec3" => Some(OrganicConfig {
-            entry_mode: EntryMode::Recursive { base_frac: 1.0 / 3.0 },
+            entry_mode: EntryMode::Recursive {
+                base_frac: 1.0 / 3.0,
+            },
             ..variant("V2oa25").expect("V2oa25 在上方注册")
         }),
         "V2oa25_rec5" => Some(OrganicConfig {
@@ -1365,7 +1382,11 @@ mod tests {
             let cfg = variant(name).unwrap();
             assert_eq!(
                 cfg.theta_mode,
-                ThetaMode::AdaptiveQuantile { q, window: 50, min_obs: 10 }
+                ThetaMode::AdaptiveQuantile {
+                    q,
+                    window: 50,
+                    min_obs: 10
+                }
             );
             // 与 V2of 逐位一致的继承面（含 θ=1% 回退值）
             assert_eq!(cfg.theta_depth, 0.01);
@@ -1391,7 +1412,11 @@ mod tests {
         // 其余继承 V2oa25：θ 自适应 + 成本门下界 + 震荡型触发集
         assert_eq!(
             cfg.theta_mode,
-            ThetaMode::AdaptiveQuantile { q: 0.25, window: 50, min_obs: 10 }
+            ThetaMode::AdaptiveQuantile {
+                q: 0.25,
+                window: 50,
+                min_obs: 10
+            }
         );
         assert!(cfg.rev_mode && cfg.rev_paired && !cfg.rev_escape_open);
         assert_eq!(cfg.theta_cost_k, 2.0);
@@ -1402,7 +1427,10 @@ mod tests {
     #[test]
     fn cycle38_close_ablation_variants_single_axis() {
         // 默认/在册：rev_cycle_close=SubAny（C38base 零接触）
-        assert_eq!(OrganicConfig::default().rev_cycle_close, RevCycleClose::SubAny);
+        assert_eq!(
+            OrganicConfig::default().rev_cycle_close,
+            RevCycleClose::SubAny
+        );
         let base = variant("V2oa25C38").unwrap();
         assert_eq!(base.rev_cycle_close, RevCycleClose::SubAny);
         // 三臂只动 rev_cycle_close 一轴——其余字段与 V2oa25C38 逐位相同
@@ -1417,8 +1445,10 @@ mod tests {
             let cfg = variant(name).unwrap();
             assert_eq!(cfg.rev_cycle_close, want, "{name}");
             assert_eq!(cfg.rev_cycle, RevCycle::Cycle38, "{name}");
-            let normalized =
-                OrganicConfig { rev_cycle_close: RevCycleClose::SubAny, ..cfg };
+            let normalized = OrganicConfig {
+                rev_cycle_close: RevCycleClose::SubAny,
+                ..cfg
+            };
             // Vec 字段（open_kinds）相等 + 标量字段逐位（Debug 串比较——
             // OrganicConfig 未派生 PartialEq，f64 字段在变体表中全为字面常数）
             assert_eq!(format!("{normalized:?}"), format!("{base:?}"), "{name}");
@@ -1437,12 +1467,21 @@ mod tests {
         let base = variant("V2oa25").unwrap();
         assert_eq!(base.entry_mode, EntryMode::Full);
         // 三臂只动 entry_mode 一轴——其余字段与 V2oa25 逐位相同
-        for (name, frac) in
-            [("V2oa25_rec", 0.2), ("V2oa25_rec3", 1.0 / 3.0), ("V2oa25_rec5", 0.5)]
-        {
+        for (name, frac) in [
+            ("V2oa25_rec", 0.2),
+            ("V2oa25_rec3", 1.0 / 3.0),
+            ("V2oa25_rec5", 0.5),
+        ] {
             let cfg = variant(name).unwrap();
-            assert_eq!(cfg.entry_mode, EntryMode::Recursive { base_frac: frac }, "{name}");
-            let normalized = OrganicConfig { entry_mode: EntryMode::Full, ..cfg };
+            assert_eq!(
+                cfg.entry_mode,
+                EntryMode::Recursive { base_frac: frac },
+                "{name}"
+            );
+            let normalized = OrganicConfig {
+                entry_mode: EntryMode::Full,
+                ..cfg
+            };
             assert_eq!(format!("{normalized:?}"), format!("{base:?}"), "{name}");
         }
     }
@@ -1462,7 +1501,10 @@ mod tests {
         ] {
             let cfg = variant(name).unwrap();
             assert_eq!(cfg.exit_mode, want, "{name}");
-            let normalized = OrganicConfig { exit_mode: ExitMode::Signal, ..cfg };
+            let normalized = OrganicConfig {
+                exit_mode: ExitMode::Signal,
+                ..cfg
+            };
             assert_eq!(format!("{normalized:?}"), format!("{base:?}"), "{name}");
         }
         // HoldTrend 的数据基础前提：V2oa25 的 rev_l41_gate 已要求 D3 行 +
@@ -1480,7 +1522,10 @@ mod tests {
         let cfg = variant("V2oa25_ht_o41").unwrap();
         assert!(cfg.osc_l41_gate && cfg.osc_mode && cfg.rev_l41_gate);
         assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
-        let normalized = OrganicConfig { osc_l41_gate: false, ..cfg };
+        let normalized = OrganicConfig {
+            osc_l41_gate: false,
+            ..cfg
+        };
         assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
     }
 
@@ -1495,7 +1540,10 @@ mod tests {
         assert_eq!(cfg.osc_domain, OscDomain::ConsolidationOnly);
         assert!(cfg.osc_mode && !cfg.osc_l41_gate);
         assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
-        let normalized = OrganicConfig { osc_domain: OscDomain::Any, ..cfg };
+        let normalized = OrganicConfig {
+            osc_domain: OscDomain::Any,
+            ..cfg
+        };
         assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
     }
 
@@ -1510,7 +1558,10 @@ mod tests {
         let cfg = variant("V2oa25_ht_sc").unwrap();
         assert!(cfg.osc_shift_close && cfg.osc_mode);
         assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
-        let normalized = OrganicConfig { osc_shift_close: false, ..cfg };
+        let normalized = OrganicConfig {
+            osc_shift_close: false,
+            ..cfg
+        };
         assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
     }
 
@@ -1531,9 +1582,15 @@ mod tests {
         // 与两个单轴变体的关系：scco = sc ∪ co（各自归一化另一轴后相等）
         let sc = variant("V2oa25_ht_sc").unwrap();
         let co = variant("V2oa25_ht_co").unwrap();
-        let as_sc = OrganicConfig { osc_domain: OscDomain::Any, ..cfg.clone() };
+        let as_sc = OrganicConfig {
+            osc_domain: OscDomain::Any,
+            ..cfg.clone()
+        };
         assert_eq!(format!("{as_sc:?}"), format!("{sc:?}"));
-        let as_co = OrganicConfig { osc_shift_close: false, ..cfg };
+        let as_co = OrganicConfig {
+            osc_shift_close: false,
+            ..cfg
+        };
         assert_eq!(format!("{as_co:?}"), format!("{co:?}"));
     }
 
@@ -1548,7 +1605,10 @@ mod tests {
         let cfg = variant("V2oa25_ht_h1").unwrap();
         assert!(cfg.osc_candidate_freeze && cfg.osc_mode);
         assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
-        let normalized = OrganicConfig { osc_candidate_freeze: false, ..cfg };
+        let normalized = OrganicConfig {
+            osc_candidate_freeze: false,
+            ..cfg
+        };
         assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
     }
 
@@ -1563,17 +1623,26 @@ mod tests {
         let cfg = variant("V2oa25_ht_h2").unwrap();
         assert!(cfg.osc_strength_gate && cfg.osc_mode && !cfg.osc_candidate_freeze);
         assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
-        let normalized = OrganicConfig { osc_strength_gate: false, ..cfg };
+        let normalized = OrganicConfig {
+            osc_strength_gate: false,
+            ..cfg
+        };
         assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
         // h1h2 = h1 ∪ h2（各自归一化另一轴后与单轴变体逐位相同）
         let combo = variant("V2oa25_ht_h1h2").unwrap();
         assert!(combo.osc_candidate_freeze && combo.osc_strength_gate);
-        let as_h1 = OrganicConfig { osc_strength_gate: false, ..combo.clone() };
+        let as_h1 = OrganicConfig {
+            osc_strength_gate: false,
+            ..combo.clone()
+        };
         assert_eq!(
             format!("{as_h1:?}"),
             format!("{:?}", variant("V2oa25_ht_h1").unwrap())
         );
-        let as_h2 = OrganicConfig { osc_candidate_freeze: false, ..combo };
+        let as_h2 = OrganicConfig {
+            osc_candidate_freeze: false,
+            ..combo
+        };
         assert_eq!(
             format!("{as_h2:?}"),
             format!("{:?}", variant("V2oa25_ht_h2").unwrap())
@@ -1596,7 +1665,10 @@ mod tests {
         assert_eq!(cfg.theta_cost_k, 2.0);
         assert_eq!(cfg.friction_rt, 0.001);
         assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
-        let normalized = OrganicConfig { osc_amp_gate: false, ..cfg };
+        let normalized = OrganicConfig {
+            osc_amp_gate: false,
+            ..cfg
+        };
         assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
     }
 
@@ -1635,7 +1707,10 @@ mod tests {
         let nrf1 = variant("NRF1").unwrap();
         assert!(nrf1.entry_voice);
         assert_eq!(nrf1.exit_mode, ExitMode::Emergent { hold_trend: true });
-        let normalized = OrganicConfig { entry_voice: false, ..nrf1.clone() };
+        let normalized = OrganicConfig {
+            entry_voice: false,
+            ..nrf1.clone()
+        };
         assert_eq!(format!("{normalized:?}"), format!("{emht:?}"));
         // NRF2 = NRF1 + {rev_sub_depth=2, CounterSeg, sub_cost_gate} 三位
         let nrf2 = variant("NRF2").unwrap();
@@ -1652,10 +1727,16 @@ mod tests {
         // NRF2q = NRF2 + sizing Structure 单轴；emht_q = emht + 同单轴
         let nrf2q = variant("NRF2q").unwrap();
         assert_eq!(nrf2q.sizing, Sizing::Structure);
-        let normalized = OrganicConfig { sizing: Sizing::Equal, ..nrf2q };
+        let normalized = OrganicConfig {
+            sizing: Sizing::Equal,
+            ..nrf2q
+        };
         assert_eq!(format!("{normalized:?}"), format!("{nrf2:?}"));
         let emht_q = variant("V2oa25_emht_q").unwrap();
-        let normalized = OrganicConfig { sizing: Sizing::Equal, ..emht_q };
+        let normalized = OrganicConfig {
+            sizing: Sizing::Equal,
+            ..emht_q
+        };
         assert_eq!(format!("{normalized:?}"), format!("{emht:?}"));
         // scco 合成臂 = 各自基臂 + {sc, co} 两位
         for (name, base) in [
@@ -1685,7 +1766,11 @@ mod tests {
         let cfg = variant("V2oa25F1").unwrap();
         assert_eq!(
             cfg.theta_mode,
-            ThetaMode::AdaptiveQuantile { q: 0.25, window: 50, min_obs: 10 }
+            ThetaMode::AdaptiveQuantile {
+                q: 0.25,
+                window: 50,
+                min_obs: 10
+            }
         );
         assert!(cfg.rev_l41_gate);
         assert_eq!(cfg.rev_sub_depth, 1);

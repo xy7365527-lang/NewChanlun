@@ -158,14 +158,12 @@ mod tests {
 
     #[test]
     fn pan_div_class_one_like_never_enters_standard_b1_bucket() {
-        let z = MuClass::from_certificate(
-            1,
-            -1,
-            BspBits::default(),
-            1,
-            PositionState::Child,
+        let z = MuClass::from_certificate(1, -1, BspBits::default(), 1, PositionState::Child);
+        assert_eq!(
+            z.bsp_class(),
+            0,
+            "PanDiv 只能走独立原因，标准 B1 桶必须为零"
         );
-        assert_eq!(z.bsp_class(), 0, "PanDiv 只能走独立原因，标准 B1 桶必须为零");
     }
 
     #[test]
@@ -199,11 +197,7 @@ mod tests {
         let live_reverse_open = -40.0;
         let composed_anchor = standard_parent_target + live_reverse_open;
         assert_eq!(
-            KThetaRiskGate::open().delta_capacity_units(
-                100.0,
-                composed_anchor,
-                VoiceSide::Long,
-            ),
+            KThetaRiskGate::open().delta_capacity_units(100.0, composed_anchor, VoiceSide::Long,),
             40,
             "父目标已在 cap 时，仍必须能从组合净目标 60 回补到 100"
         );

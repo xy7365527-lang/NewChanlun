@@ -290,7 +290,9 @@ impl LevelOrderStats {
     /// 等于要求「M3 没有分叉」，与 M3 契约直接矛盾（设计文档 §D M3）。本谓词因此收敛为
     /// 它唯一真正见证过的东西：**跨延迟/部分/拒单的实际成交归因完备**。
     pub fn identity_witnessed(&self) -> bool {
-        self.max_abs_held_residual == 0 && self.max_abs_order_units > 0 && self.max_abs_net_units > 0
+        self.max_abs_held_residual == 0
+            && self.max_abs_order_units > 0
+            && self.max_abs_net_units > 0
     }
 
     /// ★M3 门控见证成立：门控真的挡下过重估（`n_levels_held_by_clock > 0`）**且**没有把
@@ -407,10 +409,22 @@ impl LevelOrderPlan {
     pub fn into_order(&self, action: StrictAction, holding: bool, exec_index: usize) -> Order {
         let qty = self.order_units.abs();
         if qty == 0 {
-            let action = if holding { StrictAction::Hold } else { StrictAction::Wait };
-            return Order { action, qty: 0, exec_index };
+            let action = if holding {
+                StrictAction::Hold
+            } else {
+                StrictAction::Wait
+            };
+            return Order {
+                action,
+                qty: 0,
+                exec_index,
+            };
         }
-        Order { action, qty, exec_index }
+        Order {
+            action,
+            qty,
+            exec_index,
+        }
     }
 }
 
@@ -496,11 +510,7 @@ impl LevelOrderLedger {
     ///
     /// 值域覆盖 `planned ∪ basis` 的级别之并，按 level 升序，零项**保留**（级别封闭可读，与
     /// [`LevelOrderPlan::deltas`] 同纪律）。逐 `(决策点, 级别)` 累计门控计数到 `stats`。
-    pub fn regate(
-        &mut self,
-        basis: &[(u32, i64)],
-        ticked: &BTreeSet<u32>,
-    ) -> LevelUnits {
+    pub fn regate(&mut self, basis: &[(u32, i64)], ticked: &BTreeSet<u32>) -> LevelUnits {
         // level 之并的骨架（值取 planned 侧前值；basis 独有级别前值为 0）。
         let skeleton = merge_levels(&self.planned, basis, |prev, _| prev);
         let mut gated: LevelUnits = Vec::with_capacity(skeleton.len());
@@ -626,8 +636,9 @@ impl LevelOrderLedger {
             }
         }
         s.max_abs_order_units = s.max_abs_order_units.max(plan.order_units.abs());
-        s.max_abs_order_residual =
-            s.max_abs_order_residual.max((plan.order_units.abs() - qty_m0).abs());
+        s.max_abs_order_residual = s
+            .max_abs_order_residual
+            .max((plan.order_units.abs() - qty_m0).abs());
         s.max_abs_held_residual = s.max_abs_held_residual.max((held_total - p_t).abs());
         s.max_abs_net_units = s.max_abs_net_units.max(p_t.abs());
         s.max_abs_plan_fill_gap = s.max_abs_plan_fill_gap.max((planned_total - p_t).abs());
@@ -665,7 +676,11 @@ mod tests {
 
     /// 全级别 tick 的便捷集（M3 前语义的等价形态：每 bar 全级别重估）。
     fn all_ticked(basis: &[(u32, i64)], planned: &[(u32, i64)]) -> BTreeSet<u32> {
-        basis.iter().chain(planned.iter()).map(|&(l, _)| l).collect()
+        basis
+            .iter()
+            .chain(planned.iter())
+            .map(|&(l, _)| l)
+            .collect()
     }
 
     /// ★台账 Σ_ℓ Δq_ℓ ≡ T_lee − Σ_ℓ q_ℓ^plan（M3 订单量恒等）：开→加→帽回缩→全平四步。
@@ -707,7 +722,11 @@ mod tests {
         led.on_fill(&p3.deltas, p3.order_units);
         assert_eq!(led.held_total(), 0);
         assert_eq!(led.planned_total(), 0);
-        assert!(led.held().iter().all(|&(_, q)| q == 0), "全平后各级归因清零：{:?}", led.held());
+        assert!(
+            led.held().iter().all(|&(_, q)| q == 0),
+            "全平后各级归因清零：{:?}",
+            led.held()
+        );
     }
 
     /// ★★M3 稀疏性是**构造性**的（不是实测碰巧）：无 tick 的级别保前值 ⟹ `Δq_ℓ ≡ 0`。
@@ -730,7 +749,11 @@ mod tests {
             // T_lee = Σ gated（无风控/帽介入）⟹ 恒等分支。
             let p = led.plan_gated(&g, g.iter().map(|&(_, q)| q).sum());
             assert_eq!(p.order_units, 0, "无事件 bar ⟹ Δq_ℓ ≡ 0（稀疏性构造成立）");
-            assert!(p.deltas.iter().all(|&(_, d)| d == 0), "逐级增量全 0：{:?}", p.deltas);
+            assert!(
+                p.deltas.iter().all(|&(_, d)| d == 0),
+                "逐级增量全 0：{:?}",
+                p.deltas
+            );
             led.commit_planned(&p.targets);
         }
         // t4：L1 再次有事件 ⟹ 重估到当前 net_ℓ，产增量。
@@ -755,9 +778,15 @@ mod tests {
         let g1 = led.regate(&[(1, 6), (2, 4)], &BTreeSet::new());
         assert_eq!(g1, vec![(1, 6), (2, 4)], "结构计划保前值");
         let p1 = led.plan_gated(&g1, 0);
-        assert_eq!(p1.order_units, -10, "force_flat ⟹ 平掉全部 10 手（无事件也照平）");
+        assert_eq!(
+            p1.order_units, -10,
+            "force_flat ⟹ 平掉全部 10 手（无事件也照平）"
+        );
         assert_eq!(p1.targets, vec![(1, 0), (2, 0)], "各级目标按比例归零");
-        assert_eq!(p1.struct_gap, 10, "结构计划(10) − 投影目标(0) = 10（帽/风控吃掉的部分）");
+        assert_eq!(
+            p1.struct_gap, 10,
+            "结构计划(10) − 投影目标(0) = 10（帽/风控吃掉的部分）"
+        );
     }
 
     /// ★部分成交/拒单：实际成交 < 计划 ⟹ 归因按计划比例回缩，`Σ_ℓ held_ℓ ≡ 实际成交` 不失配；
@@ -771,10 +800,28 @@ mod tests {
         led.commit_planned(&plan.targets);
         led.on_fill(&plan.deltas, 37); // 现金约束拒掉 63 手
         assert_eq!(led.held_total(), 37, "Σ held ≡ 实际成交（非计划量）");
-        assert_eq!(led.held(), &[(1, 22), (2, 15)], "60:40 比例回缩到 37（22+15）");
+        assert_eq!(
+            led.held(),
+            &[(1, 22), (2, 15)],
+            "60:40 比例回缩到 37（22+15）"
+        );
         assert_eq!(led.planned_total(), 100, "计划态不因拒单回退");
-        led.observe_decision(&plan, DecisionObs { p_t: 37, qty_m0: 100, has_structural_tick: true, risk_or_cap_active: false, risk_gate_active: false, ticked: &[1u32, 2].into_iter().collect() });
-        assert_eq!(led.stats().max_abs_plan_fill_gap, 63, "未兑现缺口 100−37 如实登记");
+        led.observe_decision(
+            &plan,
+            DecisionObs {
+                p_t: 37,
+                qty_m0: 100,
+                has_structural_tick: true,
+                risk_or_cap_active: false,
+                risk_gate_active: false,
+                ticked: &[1u32, 2].into_iter().collect(),
+            },
+        );
+        assert_eq!(
+            led.stats().max_abs_plan_fill_gap,
+            63,
+            "未兑现缺口 100−37 如实登记"
+        );
     }
 
     /// ★见证读数非平凡（#289 MED 同款纪律）：归因残差 0 **且** 量级 > 0 才算见证成立；
@@ -782,16 +829,39 @@ mod tests {
     #[test]
     fn stats_witness_requires_nontrivial_magnitude() {
         let empty = LevelOrderLedger::new();
-        assert!(!empty.stats().identity_witnessed(), "零决策 ⟹ 见证不成立（平凡）");
+        assert!(
+            !empty.stats().identity_witnessed(),
+            "零决策 ⟹ 见证不成立（平凡）"
+        );
         let mut led = LevelOrderLedger::new();
         let g = led.regate(&[(1, 10)], &[1u32].into_iter().collect());
         let plan = led.plan_gated(&g, 10);
-        led.observe_decision(&plan, DecisionObs { p_t: 0, qty_m0: 10, has_structural_tick: true, risk_or_cap_active: false, risk_gate_active: false, ticked: &[1u32].into_iter().collect() });
+        led.observe_decision(
+            &plan,
+            DecisionObs {
+                p_t: 0,
+                qty_m0: 10,
+                has_structural_tick: true,
+                risk_or_cap_active: false,
+                risk_gate_active: false,
+                ticked: &[1u32].into_iter().collect(),
+            },
+        );
         led.commit_planned(&plan.targets);
         led.on_fill(&plan.deltas, 10);
         let g2 = led.regate(&[(1, 10)], &BTreeSet::new());
         let plan2 = led.plan_gated(&g2, 10);
-        led.observe_decision(&plan2, DecisionObs { p_t: 10, qty_m0: 0, has_structural_tick: false, risk_or_cap_active: false, risk_gate_active: false, ticked: &BTreeSet::new() });
+        led.observe_decision(
+            &plan2,
+            DecisionObs {
+                p_t: 10,
+                qty_m0: 0,
+                has_structural_tick: false,
+                risk_or_cap_active: false,
+                risk_gate_active: false,
+                ticked: &BTreeSet::new(),
+            },
+        );
         let s = led.stats();
         assert_eq!(s.max_abs_held_residual, 0, "归因完备残差恒 0（L1）");
         assert_eq!(s.max_abs_order_units, 10);
@@ -799,8 +869,14 @@ mod tests {
         assert_eq!(s.n_decisions, 2);
         assert_eq!(s.n_orders_generated, 1, "第二步 Δ=0 ⟹ 不产订单");
         assert!(s.identity_witnessed(), "归因完备 + 量级 >0 ⟹ 见证成立");
-        assert!(s.gating_witnessed(), "门控挡过 1 次、放行过 1 次 ⟹ 门控见证成立");
-        assert_eq!(s.n_orders_off_structural_clock, 0, "第二步无订单 ⟹ 不计稀疏性反例");
+        assert!(
+            s.gating_witnessed(),
+            "门控挡过 1 次、放行过 1 次 ⟹ 门控见证成立"
+        );
+        assert_eq!(
+            s.n_orders_off_structural_clock, 0,
+            "第二步无订单 ⟹ 不计稀疏性反例"
+        );
         assert!(s.sparsity_has_no_unexplained_violation());
     }
 
@@ -815,17 +891,40 @@ mod tests {
         let g2 = led.regate(&[(1, 10)], &BTreeSet::new());
         let flat = led.plan_gated(&g2, 0);
         assert_eq!(flat.order_units, -10);
-        led.observe_decision(&flat, DecisionObs { p_t: 10, qty_m0: 10, has_structural_tick: false, risk_or_cap_active: true, risk_gate_active: true, ticked: &BTreeSet::new() });
+        led.observe_decision(
+            &flat,
+            DecisionObs {
+                p_t: 10,
+                qty_m0: 10,
+                has_structural_tick: false,
+                risk_or_cap_active: true,
+                risk_gate_active: true,
+                ticked: &BTreeSet::new(),
+            },
+        );
         let s = led.stats();
         assert_eq!(s.n_orders_off_structural_clock, 1);
         assert_eq!(s.n_orders_off_structural_clock_risk_explained, 1);
-        assert!(s.sparsity_has_no_unexplained_violation(), "全部反例可由风控解释");
+        assert!(
+            s.sparsity_has_no_unexplained_violation(),
+            "全部反例可由风控解释"
+        );
 
         // 无结构钟点 + 风控不 active ⟹ 未解释违例。
         let mut bad = LevelOrderLedger::new();
         let gb = bad.regate(&[(1, 10)], &[1u32].into_iter().collect());
         let pb = bad.plan_gated(&gb, 10);
-        bad.observe_decision(&pb, DecisionObs { p_t: 0, qty_m0: 10, has_structural_tick: false, risk_or_cap_active: false, risk_gate_active: false, ticked: &BTreeSet::new() });
+        bad.observe_decision(
+            &pb,
+            DecisionObs {
+                p_t: 0,
+                qty_m0: 10,
+                has_structural_tick: false,
+                risk_or_cap_active: false,
+                risk_gate_active: false,
+                ticked: &BTreeSet::new(),
+            },
+        );
         assert!(
             !bad.stats().sparsity_has_no_unexplained_violation(),
             "无钟点、无风控却产订单 = 真实违例，必须被抓到"
@@ -843,8 +942,14 @@ mod tests {
         assert_eq!(o.action, StrictAction::Buy);
         assert_eq!(o.exec_index, 5);
         let zero = led.plan_gated(&[], 0);
-        assert_eq!(zero.into_order(StrictAction::Buy, true, 5).action, StrictAction::Hold);
-        assert_eq!(zero.into_order(StrictAction::Buy, false, 5).action, StrictAction::Wait);
+        assert_eq!(
+            zero.into_order(StrictAction::Buy, true, 5).action,
+            StrictAction::Hold
+        );
+        assert_eq!(
+            zero.into_order(StrictAction::Buy, false, 5).action,
+            StrictAction::Wait
+        );
         assert_eq!(zero.into_order(StrictAction::Buy, true, 5).qty, 0);
     }
 }

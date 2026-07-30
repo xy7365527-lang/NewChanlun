@@ -46,10 +46,10 @@
 //!   数值轨迹，Origin canonical 当前是抽象契约层，无此可执行实例）——本模块诚实声明 conformance
 //!   对象是协议契约，非 Lean 数值轨迹。
 
-use super::state::AssemblyState;
-use super::transition::{hybrid_step_baseline, AssemblyEvent};
 use super::super::strategy::intent::{classify_adapter, ClassLabel};
 use super::super::types::StrictAction;
+use super::state::AssemblyState;
+use super::transition::{hybrid_step_baseline, AssemblyEvent};
 
 /// theta_v0 闭环引擎对 `Origin.EngineBridge.RustEngineContract` 的具体实例化。
 ///
@@ -108,20 +108,24 @@ impl ThetaV0Contract {
     /// `.expect()` 把「conformance step 恒合法」显式化为契约（与 StepSpec 全函数语义一致；Err 仅对
     /// 外部注入非法 OrderOut 触发，不经 conformance step 路径）。
     pub fn step(s: &AssemblyState, e: &AssemblyEvent) -> AssemblyState {
-        hybrid_step_baseline(s, e).expect("conformance step 走生产路径恒 Ok（schedule 只派 ShortDiff）")
+        hybrid_step_baseline(s, e)
+            .expect("conformance step 走生产路径恒 Ok（schedule 只派 ShortDiff）")
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::super::strategy::ledger::{RiskPolicy, TStage};
     use super::super::state::MicroEvent;
     use super::super::transition::{policy_output, transition_adapter};
-    use super::super::super::strategy::ledger::{RiskPolicy, TStage};
+    use super::*;
 
     fn bar_event(rising: bool) -> AssemblyEvent {
         // price=1：L0 单位价归一（值模型退化为旧单位模型，重估 credit=0，一致性测试语义不变）。
-        AssemblyEvent { parse_event: MicroEvent::NewBar(rising), price: 1 }
+        AssemblyEvent {
+            parse_event: MicroEvent::NewBar(rising),
+            price: 1,
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -149,15 +153,25 @@ mod tests {
                 ..ThetaV0Contract::initial(2_000_000)
             },
         ];
-        let events = [bar_event(true), bar_event(false),
-            AssemblyEvent { parse_event: MicroEvent::NewStroke(super::super::super::types::Direction::Up), price: 1 }];
+        let events = [
+            bar_event(true),
+            bar_event(false),
+            AssemblyEvent {
+                parse_event: MicroEvent::NewStroke(super::super::super::types::Direction::Up),
+                price: 1,
+            },
+        ];
 
         for s in &states {
             for e in &events {
                 let s1 = ThetaV0Contract::step(s, e);
                 let s2 = ThetaV0Contract::step(s, e);
                 // StepSpec 确定唯一：同 (s,e) ⟹ 逐字段相等的同一 s'（非「存在某 s'」）。
-                assert_eq!(s1, s2, "step({:?}, {:?}) 非确定（StepSpec 唯一性破坏）", s, e);
+                assert_eq!(
+                    s1, s2,
+                    "step({:?}, {:?}) 非确定（StepSpec 唯一性破坏）",
+                    s, e
+                );
             }
         }
     }
@@ -168,7 +182,10 @@ mod tests {
         let s = ThetaV0Contract::initial(1_000_000);
         assert_eq!(ThetaV0Contract::classify(&s), ThetaV0Contract::classify(&s));
         let s2 = AssemblyState { positions: 7, ..s };
-        assert_eq!(ThetaV0Contract::classify(&s2), ThetaV0Contract::classify(&s2));
+        assert_eq!(
+            ThetaV0Contract::classify(&s2),
+            ThetaV0Contract::classify(&s2)
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -185,9 +202,16 @@ mod tests {
     fn step_factors_through_policy_then_transition_per_event() {
         let mut s = ThetaV0Contract::initial(1_000_000);
         let trace = [
-            bar_event(true), bar_event(false), bar_event(true), bar_event(true),
-            AssemblyEvent { parse_event: MicroEvent::NewStroke(super::super::super::types::Direction::Down), price: 1 },
-            bar_event(false), bar_event(true),
+            bar_event(true),
+            bar_event(false),
+            bar_event(true),
+            bar_event(true),
+            AssemblyEvent {
+                parse_event: MicroEvent::NewStroke(super::super::super::types::Direction::Down),
+                price: 1,
+            },
+            bar_event(false),
+            bar_event(true),
         ];
         for e in &trace {
             // 逐态展开：step = transition_adapter(s, policy_output(s, e), e, baseline)。
@@ -220,7 +244,11 @@ mod tests {
             // TW 守恒（Origin.TotalWealth.twStep_preserves_tw）。
             assert_eq!(s.tw_state.tw(), tw0, "事件 {} 后 TW 守恒破坏", i);
             // stage 单向（Origin.TotalWealth.stage_rank_monotone）。
-            assert!(prev_stage_rank <= s.tw_state.stage.rank(), "事件 {} 后 stage 回退", i);
+            assert!(
+                prev_stage_rank <= s.tw_state.stage.rank(),
+                "事件 {} 后 stage 回退",
+                i
+            );
             // OQ-9 gate（Origin.TotalWealth.oq9inv_preserved）：earning ⟹ legacy 腿=0。
             if s.tw_state.stage == TStage::EarningShares {
                 assert_eq!(s.tw_state.open_legacy_legs, 0, "事件 {} OQ-9 gate 破坏", i);
@@ -240,9 +268,16 @@ mod tests {
     #[test]
     fn full_trace_state_by_state_reproducible() {
         let trace = [
-            bar_event(true), bar_event(false), bar_event(true),
-            AssemblyEvent { parse_event: MicroEvent::NewStroke(super::super::super::types::Direction::Up), price: 1 },
-            bar_event(false), bar_event(true), bar_event(false),
+            bar_event(true),
+            bar_event(false),
+            bar_event(true),
+            AssemblyEvent {
+                parse_event: MicroEvent::NewStroke(super::super::super::types::Direction::Up),
+                price: 1,
+            },
+            bar_event(false),
+            bar_event(true),
+            bar_event(false),
         ];
         // 两次独立运行，逐态记录轨迹。
         let run = |trace: &[AssemblyEvent]| -> Vec<AssemblyState> {
@@ -271,6 +306,10 @@ mod tests {
         assert_eq!(s.tw_state.tw(), 0, "initial TW=0");
         // classify/action 在初态全函数确定（无 panic / 确定标签）。
         let _ = ThetaV0Contract::classify(&s);
-        assert_eq!(ThetaV0Contract::action(&s), StrictAction::Wait, "空仓初态 ⟹ Wait");
+        assert_eq!(
+            ThetaV0Contract::action(&s),
+            StrictAction::Wait,
+            "空仓初态 ⟹ Wait"
+        );
     }
 }

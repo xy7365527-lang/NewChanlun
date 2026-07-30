@@ -43,8 +43,8 @@ use newchan_rust::theta_v0::classifier::divergence::{
 use newchan_rust::theta_v0::classifier::level_view::{
     assemble_level_view, lower_legs_from, project_extended_windows_carried_only,
     provide_nest_candidate_events, C2LevelViewConfig, C2VersionTuple, CompletionEvidence,
-    CompletionStatus, CoordinateWindow, LevelViewMaterial, LevelViewQuery,
-    NestCandidateEvent, NestDivergenceKind, ProjectionMaterial,
+    CompletionStatus, CoordinateWindow, LevelViewMaterial, LevelViewQuery, NestCandidateEvent,
+    NestDivergenceKind, ProjectionMaterial,
 };
 use newchan_rust::theta_v0::classifier::nest::{is_sub, NestInterval};
 use newchan_rust::theta_v0::classifier::recursive_tower::{
@@ -153,7 +153,6 @@ fn verdict_of(a: &CaseAudit, t4: bool) -> Verdict {
         Verdict::D2Overwide
     }
 }
-
 
 /// level_view.rs:492 `range_envelope` 同口径复刻（段须整支落入 span）。
 fn range_envelope(segments: &[Segment], span: (usize, usize)) -> Option<(Tick, Tick)> {
@@ -439,8 +438,10 @@ fn measure_level(
                     .filter(|m| matches!(m.completion, CompletionStatus::Completed { .. }))
                     .count();
                 for pair in view.moves.windows(2) {
-                    let (CompletionStatus::Completed { evidence: ev0, .. }, CompletionStatus::Completed { .. }) =
-                        (&pair[0].completion, &pair[1].completion)
+                    let (
+                        CompletionStatus::Completed { evidence: ev0, .. },
+                        CompletionStatus::Completed { .. },
+                    ) = (&pair[0].completion, &pair[1].completion)
                     else {
                         continue;
                     };
@@ -448,7 +449,10 @@ fn measure_level(
                         start: pair[0].start_index,
                         end: pair[1].end_index,
                         leave_kind: pair[0].kind,
-                        leave_via_divergence: matches!(ev0, CompletionEvidence::TerminalDivergence { .. }),
+                        leave_via_divergence: matches!(
+                            ev0,
+                            CompletionEvidence::TerminalDivergence { .. }
+                        ),
                     });
                 }
                 data.events.extend(provide_nest_candidate_events(
@@ -534,7 +538,10 @@ fn collect_pair_audit(
     }
 }
 
-fn terminal_bits_new(classification: &Classification, event: &NestCandidateEvent) -> Option<BspBits> {
+fn terminal_bits_new(
+    classification: &Classification,
+    event: &NestCandidateEvent,
+) -> Option<BspBits> {
     classification
         .levels
         .get(event.level as usize)?
@@ -545,7 +552,6 @@ fn terminal_bits_new(classification: &Classification, event: &NestCandidateEvent
         })
         .map(|point| point.bits)
 }
-
 
 /// 枚举全部全深度链（同 p109 enumerate_chains：L1 起逐级向上，闭包含边）。
 fn enumerate_chains(levels: &[LevelData], cap: usize) -> (Vec<Vec<(usize, usize)>>, bool) {
@@ -612,7 +618,10 @@ fn audit_case(
     let direction = ctx.direction;
     let t1 = ctx.n_block_centers >= 2;
     // T2（037:20）：c 包络破 b 包络极值（同 D2 Extreme 门原语）。
-    let t2 = match (range_envelope(segs_l0, seg_a), range_envelope(segs_l0, seg_c)) {
+    let t2 = match (
+        range_envelope(segs_l0, seg_a),
+        range_envelope(segs_l0, seg_c),
+    ) {
         (Some(a), Some(c)) => match direction {
             Direction::Down => c.0 < a.0,
             Direction::Up => c.1 > a.1,
@@ -633,7 +642,13 @@ fn audit_case(
     };
     // T4（025:761）：黄白线回拉 0 轴（B 中枢 span）。
     let (t4_cross_dif, t4_cross_both, t4_r10, t4_r25, dif_min, dea_min, band_max) =
-        pullback_to_zero(dif, dea, close_src, (ctx.last.start_index, ctx.last.end_index), (seg_a.0, seg_c.1));
+        pullback_to_zero(
+            dif,
+            dea,
+            close_src,
+            (ctx.last.start_index, ctx.last.end_index),
+            (seg_a.0, seg_c.1),
+        );
     // T5（§3 MACD 面积 c<b，segments_diverge 原语复算）。
     let (area_a, area_c, t5) = match (
         map_src_to_close_idx(close_src, seg_a.0, seg_a.1),
@@ -660,7 +675,12 @@ fn audit_case(
     } else {
         let confirm = at_turn.iter().any(|p| p.bits.confirm_side(side));
         let any_bits = at_turn.iter().any(|p| {
-            p.bits.buy1 || p.bits.buy2 || p.bits.buy3 || p.bits.sell1 || p.bits.sell2 || p.bits.sell3
+            p.bits.buy1
+                || p.bits.buy2
+                || p.bits.buy3
+                || p.bits.sell1
+                || p.bits.sell2
+                || p.bits.sell3
         });
         let third_same_side = at_turn.iter().any(|p| match side {
             Side::Long => p.bits.buy3,
@@ -668,7 +688,10 @@ fn audit_case(
         });
         format!(
             "points={} confirm={} any_bits={} third_same_side={}",
-            at_turn.len(), confirm, any_bits, third_same_side
+            at_turn.len(),
+            confirm,
+            any_bits,
+            third_same_side
         )
     };
     CaseAudit {
@@ -721,7 +744,11 @@ fn main() -> Result<(), String> {
     let as_of = bars.len() - 1;
     println!(
         "P112_INPUT bars={} replay_bars={} as_of={} first_date={} last_date={}",
-        loaded.bars.len(), max_bars, as_of, loaded.first_date, loaded.last_date
+        loaded.bars.len(),
+        max_bars,
+        as_of,
+        loaded.first_date,
+        loaded.last_date
     );
     let layer = parse_layer(bars, &config);
     let (classification, tower) = classify_with_tower(&layer, &config);
@@ -918,7 +945,11 @@ fn main() -> Result<(), String> {
             bsp_book,
         ));
     }
-    println!("P112_AUDIT cases={} miss_ctx={}（miss_ctx 须为 0）", audits.len(), miss_ctx);
+    println!(
+        "P112_AUDIT cases={} miss_ctx={}（miss_ctx 须为 0）",
+        audits.len(),
+        miss_ctx
+    );
 
     // ── 调试（P112_DEBUG=N）：前 N 案 dump c 窗口段序列与三买逐项几何 ──
     if let Ok(n) = std::env::var("P112_DEBUG").map(|v| v.parse::<usize>().unwrap_or(0)) {
@@ -930,7 +961,11 @@ fn main() -> Result<(), String> {
             );
             println!(
                 "P112_DEBUG seg_c={seg_c:?} last_zd={} last_zg={} last_span=({}, {}) win_legs={}",
-                ctx.last.zd, ctx.last.zg, ctx.last.start_index, ctx.last.end_index, hi - lo
+                ctx.last.zd,
+                ctx.last.zg,
+                ctx.last.start_index,
+                ctx.last.end_index,
+                hi - lo
             );
             for s in &segs_l0[lo..hi] {
                 println!(
@@ -965,7 +1000,10 @@ fn main() -> Result<(), String> {
         );
     }
     // 主口径逐案判定表（event 级）。
-    let primary: Vec<Verdict> = audits.iter().map(|a| verdict_of(a, a.t4_cross_dif)).collect();
+    let primary: Vec<Verdict> = audits
+        .iter()
+        .map(|a| verdict_of(a, a.t4_cross_dif))
+        .collect();
 
     // ── 链级归属（优先序 i > ii > iii；链可能有多个趋势基例事件）──
     let key_to_verdict: BTreeMap<((usize, usize), (usize, usize)), Verdict> = audits

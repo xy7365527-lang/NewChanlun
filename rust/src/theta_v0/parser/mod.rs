@@ -54,14 +54,14 @@ use super::config::ThetaConfig;
 use super::types::{Bar, Fractal, PendingTail, Segment, Stroke};
 use std::rc::Rc;
 
+pub mod canonical;
+pub mod feature_seq;
+pub mod fractal;
 /// Θ_parse 流水线分步实现（聚焦小文件，coding-style <400 行/文件）。
 pub mod inclusion;
-pub mod fractal;
-pub mod stroke;
-pub mod segment;
-pub mod feature_seq;
 pub mod second_kind;
-pub mod canonical;
+pub mod segment;
+pub mod stroke;
 pub mod tail;
 
 /// 性能 profile（cfg(test) only，#93 标度测量，不入产物）。

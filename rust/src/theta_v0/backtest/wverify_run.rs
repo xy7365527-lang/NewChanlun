@@ -77,11 +77,19 @@ fn forcestate_delta_orthogonality(records: &[ResidualTrade]) -> String {
         }
     }
     let mut fail_states: Vec<String> = Vec::new();
-    let mut rows = String::from("| force_state | n(δ+1) | n(δ−1) | 交换自由度 |\n|---|---|---|---|\n");
+    let mut rows =
+        String::from("| force_state | n(δ+1) | n(δ−1) | 交换自由度 |\n|---|---|---|---|\n");
     for (&code, &(np, nm)) in &counts {
         let lbl = force_state_label(force_state_decode(code));
         let ok = np >= 1 && nm >= 1;
-        rows.push_str(&format!("| {lbl} | {np} | {nm} | {} |\n", if ok { "有(非共线)" } else { "无(单向共线)" }));
+        rows.push_str(&format!(
+            "| {lbl} | {np} | {nm} | {} |\n",
+            if ok {
+                "有(非共线)"
+            } else {
+                "无(单向共线)"
+            }
+        ));
         if !ok {
             fail_states.push(format!("{lbl}(n+={np},n−={nm})"));
         }
@@ -188,12 +196,16 @@ fn apply_theta_dir_preset_from_env(cfg: &mut ThetaConfig) {
     // g3 三套 OOS 入口（prereg-rev5 §5.1）：THETA_DIR_PRESET env 切 Follow/Adversary。无 env=Neutral。
     // η 冻结（135号）：eta_adv=[0.70,0.70,0.70,0.50,0.50,0.50]/eta_same=[0.70,0.50,0.70,0.70,0.70,0.70]。
     match std::env::var(crate::theta_v0::env_registry::THETA_DIR_PRESET).as_deref() {
-        Ok("follow") => cfg.voice.theta_dir = ThetaDirPreset::Follow {
-            eta_adv: vec![0.70, 0.70, 0.70, 0.50, 0.50, 0.50],
-        },
-        Ok("adversary") => cfg.voice.theta_dir = ThetaDirPreset::Adversary {
-            eta_same: vec![0.70, 0.50, 0.70, 0.70, 0.70, 0.70],
-        },
+        Ok("follow") => {
+            cfg.voice.theta_dir = ThetaDirPreset::Follow {
+                eta_adv: vec![0.70, 0.70, 0.70, 0.50, 0.50, 0.50],
+            }
+        }
+        Ok("adversary") => {
+            cfg.voice.theta_dir = ThetaDirPreset::Adversary {
+                eta_same: vec![0.70, 0.50, 0.70, 0.70, 0.70, 0.70],
+            }
+        }
         _ => {} // Neutral default（w_dir≡1.0，bit-exact == v0）
     }
 }
@@ -213,7 +225,8 @@ fn apply_enforce_gross_cap_from_env(cfg: &mut ThetaConfig) {
 /// .enabled`）——跑批入口同 [`apply_theta_dir_preset_from_env`] 先例。无 env/非 "1" = default
 /// false 不变（既有 `m8_e2e_all_systems_oos` 默认关轨迹逐字节不变，bit-exact 回归锁）。
 fn apply_center_oscillation_from_env(cfg: &mut ThetaConfig) {
-    if std::env::var(crate::theta_v0::env_registry::THETA_CENTER_OSCILLATION).as_deref() == Ok("1") {
+    if std::env::var(crate::theta_v0::env_registry::THETA_CENTER_OSCILLATION).as_deref() == Ok("1")
+    {
         cfg.center_oscillation.enabled = true;
     }
 }
@@ -242,12 +255,19 @@ fn walk_forward_oos_residuals(
             continue;
         }
         // time_block_base = 品种偏移 + 窗偏移（跨品种 stratum 隔离，预注册 §3）。BTC 单标的 index 0 ⟹ bit-exact。
-        let (_est, records) =
-            build_mu_from_bars(&test_ds.bars, cfg, symbol_index * SYMBOL_STRIDE + win.i * WF_TIME_STRIDE);
+        let (_est, records) = build_mu_from_bars(
+            &test_ds.bars,
+            cfg,
+            symbol_index * SYMBOL_STRIDE + win.i * WF_TIME_STRIDE,
+        );
         agg.extend(records.iter().copied());
         eprintln!(
             "[wf-oos] win{} {}→{} bars={} residuals={}",
-            win.i, win.test_start, win.test_end, test_ds.bars.len(), records.len()
+            win.i,
+            win.test_start,
+            win.test_end,
+            test_ds.bars.len(),
+            records.len()
         );
         time_blocks.push((win.i, records));
     }
@@ -277,9 +297,16 @@ fn dump_deltafree_pertrade(records: &[ResidualTrade]) {
     for r in records {
         out.push_str(&format!(
             "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:016x}\t{:016x}\t{:016x}\t{}\n",
-            r.class.level, r.class.bsp_class(), r.class.delta, r.class.parent_dir,
+            r.class.level,
+            r.class.bsp_class(),
+            r.class.delta,
+            r.class.parent_dir,
             force_state_code(r.class.force_state),
-            r.h_bucket, r.time_block, r.resid_base.to_bits(), r.cost.to_bits(), r.d.to_bits(),
+            r.h_bucket,
+            r.time_block,
+            r.resid_base.to_bits(),
+            r.cost.to_bits(),
+            r.d.to_bits(),
             exit_type_code(r.exit_type)
         ));
     }
@@ -308,7 +335,12 @@ const _DELTAFREE_KEY_SHAPE_FROZEN: fn(
 /// 时间序（effective_n 成交时间序前提）；BTreeMap 输出确定序。
 fn deltafree_verdict(
     records: &[ResidualTrade],
-) -> (String, decontam::AcceptanceVerdict, (usize, usize, usize), String) {
+) -> (
+    String,
+    decontam::AcceptanceVerdict,
+    (usize, usize, usize),
+    String,
+) {
     // δ-free 主裁决基 (level,bsp_class,parent_dir,force_state)：池化两 δ 方向，保时间序 Y 序列
     // （records 已按 walk-forward 序）。★A1（prereg-rev2-20260704）：force_state 第 8 维进主裁决基
     // （dfonline-a2 §4 两注入点之一，与 perm_test.rs base_map 键同步——否则 records Some(态) vs 键缺维
@@ -316,11 +348,20 @@ fn deltafree_verdict(
     let mut series: BTreeMap<perm_test::DeltaFreeKey, Vec<f64>> = BTreeMap::new();
     for r in records {
         series
-            .entry((r.class.level, r.class.bsp_class(), r.class.parent_dir, r.class.force_state))
+            .entry((
+                r.class.level,
+                r.class.bsp_class(),
+                r.class.parent_dir,
+                r.class.force_state,
+            ))
             .or_default()
             .push(r.y());
     }
-    let pp = perm_test::stratified_delta_perm_p_deltafree(records, perm_test::N_PERM, perm_test::PERM_SEED);
+    let pp = perm_test::stratified_delta_perm_p_deltafree(
+        records,
+        perm_test::N_PERM,
+        perm_test::PERM_SEED,
+    );
     let (za, pa) = (1.645_f64, 0.05_f64);
 
     let mut rows = String::from(
@@ -339,7 +380,11 @@ fn deltafree_verdict(
         };
         let se = std / (n as f64).sqrt();
         let (lcb, ucb) = (mean - za * se, mean + za * se);
-        let cv = if mean == 0.0 { f64::INFINITY } else { std / mean.abs() };
+        let cv = if mean == 0.0 {
+            f64::INFINITY
+        } else {
+            std / mean.abs()
+        };
         let n_eff = decontam::effective_n(ys); // 精确 Geyer IPS
         let perm_p = *pp.get(&(*lv, *bc, *pd, *fs)).unwrap_or(&1.0);
         let st = decontam::classify_bucket(mean, lcb, ucb, perm_p, n_eff, cv, za, pa);
@@ -353,10 +398,23 @@ fn deltafree_verdict(
         ));
     }
     let v = decontam::global_verdict(&states);
-    let nv = states.iter().filter(|s| matches!(s, decontam::AlphaState::Validated)).count();
-    let nf = states.iter().filter(|s| matches!(s, decontam::AlphaState::Falsified)).count();
-    let ni = states.iter().filter(|s| matches!(s, decontam::AlphaState::Inconclusive)).count();
-    let lcb_summary = if lcb_pos.is_empty() { "无".into() } else { lcb_pos.join("; ") };
+    let nv = states
+        .iter()
+        .filter(|s| matches!(s, decontam::AlphaState::Validated))
+        .count();
+    let nf = states
+        .iter()
+        .filter(|s| matches!(s, decontam::AlphaState::Falsified))
+        .count();
+    let ni = states
+        .iter()
+        .filter(|s| matches!(s, decontam::AlphaState::Inconclusive))
+        .count();
+    let lcb_summary = if lcb_pos.is_empty() {
+        "无".into()
+    } else {
+        lcb_pos.join("; ")
+    };
     (rows, v, (nv, nf, ni), lcb_summary)
 }
 
@@ -375,17 +433,30 @@ fn exit_type_breakdown(records: &[ResidualTrade]) -> String {
         ExitType::RiskExit,
         ExitType::Hold,
     ];
-    let mut rows = String::from(
-        "| exit_type | n | 占比 | mean(Y) |\n|---|---|---|---|\n",
-    );
+    let mut rows = String::from("| exit_type | n | 占比 | mean(Y) |\n|---|---|---|---|\n");
     for et in variants {
-        let ys: Vec<f64> = records.iter().filter(|r| r.exit_type == et).map(|r| r.y()).collect();
+        let ys: Vec<f64> = records
+            .iter()
+            .filter(|r| r.exit_type == et)
+            .map(|r| r.y())
+            .collect();
         let n = ys.len();
-        let frac = if n_total == 0 { 0.0 } else { n as f64 / n_total as f64 };
-        let mean = if n == 0 { f64::NAN } else { ys.iter().sum::<f64>() / n as f64 };
+        let frac = if n_total == 0 {
+            0.0
+        } else {
+            n as f64 / n_total as f64
+        };
+        let mean = if n == 0 {
+            f64::NAN
+        } else {
+            ys.iter().sum::<f64>() / n as f64
+        };
         rows.push_str(&format!(
             "| {} | {} | {:.4} | {:+.6} |\n",
-            exit_type_label(et), n, frac, mean
+            exit_type_label(et),
+            n,
+            frac,
+            mean
         ));
     }
     format!(
@@ -406,7 +477,10 @@ fn wverify_full() {
     assert!(!oos_sanity.bars.is_empty(), "OOS 窗空——数据漂移");
     // walk-forward OOS 残差聚合（G-A4）：逐窗 test 段独立估计，残差来自真样本外区间。
     let (records, time_blocks) = walk_forward_oos_residuals("BTC", 0, &ds, &cfg);
-    assert!(!records.is_empty(), "walk-forward OOS 聚合未产出残差——窗口/数据不匹配");
+    assert!(
+        !records.is_empty(),
+        "walk-forward OOS 聚合未产出残差——窗口/数据不匹配"
+    );
 
     // ── Z_decision 逐笔序列（问题F 一等输出，无条件落盘）──
     // δ-free 主裁决键 Z_decision=(level,bsp_class,parent_dir) 逐笔外化，resid_base/cost 落 f64 bit 模式
@@ -418,7 +492,12 @@ fn wverify_full() {
     let mut agg: BTreeMap<(u32, u8, i8, i8), (u64, f64, f64)> = BTreeMap::new();
     let mut series: BTreeMap<(u32, u8, i8, i8), Vec<f64>> = BTreeMap::new();
     for r in &records {
-        let key = (r.class.level, r.class.bsp_class(), r.class.delta, r.class.parent_dir);
+        let key = (
+            r.class.level,
+            r.class.bsp_class(),
+            r.class.delta,
+            r.class.parent_dir,
+        );
         let y = r.y();
         let e = agg.entry(key).or_insert((0, 0.0, 0.0));
         e.0 += 1;
@@ -435,12 +514,23 @@ fn wverify_full() {
         "| L | bsp | δ | σ^H | n | n_eff | mean(Y) | lcb | ucb | cv | perm_p | 删尾mean(−3) | 翻转 | state |\n",
     );
     for (&(lv, bc, d, pd), &(n, mean, m2)) in &agg {
-        let std = if n < 2 { f64::NAN } else { (m2 / (n - 1) as f64).sqrt() };
+        let std = if n < 2 {
+            f64::NAN
+        } else {
+            (m2 / (n - 1) as f64).sqrt()
+        };
         let se = std / (n as f64).sqrt();
         let (lcb, ucb) = (mean - za * se, mean + za * se);
-        let cv = if mean == 0.0 { f64::INFINITY } else { std / mean.abs() };
+        let cv = if mean == 0.0 {
+            f64::INFINITY
+        } else {
+            std / mean.abs()
+        };
         let perm_p = *pp.get(&(lv, bc, d, pd)).unwrap_or(&1.0);
-        let ys = series.get(&(lv, bc, d, pd)).map(Vec::as_slice).unwrap_or(&[]);
+        let ys = series
+            .get(&(lv, bc, d, pd))
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
         let n_eff = decontam::effective_n(ys); // 665 neff/nraw 事件聚集校正
         let (trim_mean, flipped) = perm_test::drop_top_k_mean(ys, TRIM_K); // 删尾稳健（§6）
         let st = decontam::classify_bucket(mean, lcb, ucb, perm_p, n_eff, cv, za, pa);
@@ -451,26 +541,52 @@ fn wverify_full() {
         ));
     }
     let v = decontam::global_verdict(&states);
-    let nv = states.iter().filter(|s| matches!(s, decontam::AlphaState::Validated)).count();
-    let nf = states.iter().filter(|s| matches!(s, decontam::AlphaState::Falsified)).count();
-    let ni = states.iter().filter(|s| matches!(s, decontam::AlphaState::Inconclusive)).count();
+    let nv = states
+        .iter()
+        .filter(|s| matches!(s, decontam::AlphaState::Validated))
+        .count();
+    let nf = states
+        .iter()
+        .filter(|s| matches!(s, decontam::AlphaState::Falsified))
+        .count();
+    let ni = states
+        .iter()
+        .filter(|s| matches!(s, decontam::AlphaState::Inconclusive))
+        .count();
     let mut lv_set: Vec<u32> = agg.keys().map(|k| k.0).collect();
     lv_set.sort();
     lv_set.dedup();
 
     // ── H2 方向不对称（alpha检验.pdf §7-§8）：逐级别 β=μ_sell−μ_buy block bootstrap 单边 p ──
-    let mut h2_rows = String::from("| L | n_buy | n_sell | mean_buy(Y) | mean_sell(Y) | β=μ_sell−μ_buy | boot_p(H0:β≤0) |\n");
+    let mut h2_rows = String::from(
+        "| L | n_buy | n_sell | mean_buy(Y) | mean_sell(Y) | β=μ_sell−μ_buy | boot_p(H0:β≤0) |\n",
+    );
     for &lv in &lv_set {
-        let buy: Vec<f64> = records.iter().filter(|r| r.class.level == lv && r.class.delta == 1).map(|r| r.y()).collect();
-        let sell: Vec<f64> = records.iter().filter(|r| r.class.level == lv && r.class.delta == -1).map(|r| r.y()).collect();
+        let buy: Vec<f64> = records
+            .iter()
+            .filter(|r| r.class.level == lv && r.class.delta == 1)
+            .map(|r| r.y())
+            .collect();
+        let sell: Vec<f64> = records
+            .iter()
+            .filter(|r| r.class.level == lv && r.class.delta == -1)
+            .map(|r| r.y())
+            .collect();
         if buy.is_empty() || sell.is_empty() {
             continue;
         }
         let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
-        let (beta, p) = perm_test::direction_asymmetry_beta_pvalue(&buy, &sell, 1000, 20, perm_test::PERM_SEED);
+        let (beta, p) =
+            perm_test::direction_asymmetry_beta_pvalue(&buy, &sell, 1000, 20, perm_test::PERM_SEED);
         h2_rows.push_str(&format!(
             "| L{} | {} | {} | {:.6} | {:.6} | {:.6} | {:.4} |\n",
-            lv, buy.len(), sell.len(), mean(&buy), mean(&sell), beta, p
+            lv,
+            buy.len(),
+            sell.len(),
+            mean(&buy),
+            mean(&sell),
+            beta,
+            p
         ));
     }
 
@@ -549,20 +665,43 @@ fn wverify_full() {
     .ok();
 
     // time block 报告（G-A2）：逐窗独立分桶残差均值，σ^H + 窗序号(time block)（h桶已并入 perm 分层）。
-    let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC 在 PREREG_WINDOWS");
-    let mut wf_rows = String::from("| window_i | test_start | test_end | L | bsp | δ | σ^H | n | mean(Y) |\n");
+    let sw = PREREG_WINDOWS
+        .iter()
+        .find(|w| w.symbol == "BTC")
+        .expect("BTC 在 PREREG_WINDOWS");
+    let mut wf_rows =
+        String::from("| window_i | test_start | test_end | L | bsp | δ | σ^H | n | mean(Y) |\n");
     for (wi, recs) in &time_blocks {
         let mut bucket: BTreeMap<(u32, u8, i8, i8), (u64, f64)> = BTreeMap::new();
         for r in recs {
-            let e = bucket.entry((r.class.level, r.class.bsp_class(), r.class.delta, r.class.parent_dir)).or_insert((0, 0.0));
+            let e = bucket
+                .entry((
+                    r.class.level,
+                    r.class.bsp_class(),
+                    r.class.delta,
+                    r.class.parent_dir,
+                ))
+                .or_insert((0, 0.0));
             e.0 += 1;
             e.1 += r.y();
         }
-        let win = sw.wf_anchored.iter().find(|w| w.i == *wi).expect("窗序号来自同一 wf_anchored 序列");
+        let win = sw
+            .wf_anchored
+            .iter()
+            .find(|w| w.i == *wi)
+            .expect("窗序号来自同一 wf_anchored 序列");
         for (&(lv, bc, d, pd), &(n, sum)) in &bucket {
             wf_rows.push_str(&format!(
                 "| {} | {} | {} | L{} | {} | {:+} | σ{:+} | {} | {:.6} |\n",
-                wi, win.test_start, win.test_end, lv, bc, d, pd, n, sum / n as f64
+                wi,
+                win.test_start,
+                win.test_end,
+                lv,
+                bc,
+                d,
+                pd,
+                n,
+                sum / n as f64
             ));
         }
     }
@@ -591,11 +730,23 @@ struct BucketStat {
 /// 残差记录 → 逐桶 (ℓ,bsp,δ,σ^H) 三态判定（与 wverify_full 同口径：Welford + 残差分层 δ 置换 + decontam）。
 /// 返回 (逐桶统计 map, markdown 表, 全局裁决 debug 串, (V,F,I) 计数)。frontier 列标注 ℓ≥2（预注册 §4.1；
 /// 污染已于 c546b5633c 修复解除，见列内字符串）。
-fn bucket_verdict(records: &[ResidualTrade]) -> (BTreeMap<(u32, u8, i8, i8), BucketStat>, String, String, (usize, usize, usize)) {
+fn bucket_verdict(
+    records: &[ResidualTrade],
+) -> (
+    BTreeMap<(u32, u8, i8, i8), BucketStat>,
+    String,
+    String,
+    (usize, usize, usize),
+) {
     let mut agg: BTreeMap<(u32, u8, i8, i8), (u64, f64, f64)> = BTreeMap::new();
     let mut series: BTreeMap<(u32, u8, i8, i8), Vec<f64>> = BTreeMap::new();
     for r in records {
-        let key = (r.class.level, r.class.bsp_class(), r.class.delta, r.class.parent_dir);
+        let key = (
+            r.class.level,
+            r.class.bsp_class(),
+            r.class.delta,
+            r.class.parent_dir,
+        );
         let y = r.y();
         let e = agg.entry(key).or_insert((0, 0.0, 0.0));
         e.0 += 1;
@@ -610,26 +761,62 @@ fn bucket_verdict(records: &[ResidualTrade]) -> (BTreeMap<(u32, u8, i8, i8), Buc
     let mut states = Vec::new();
     let mut rows = String::from("| L | bsp | δ | σ^H | n | n_eff | mean(Y) | lcb | ucb | cv | perm_p | state | frontier(≥2) |\n");
     for (&(lv, bc, d, pd), &(n, mean, m2)) in &agg {
-        let std = if n < 2 { f64::NAN } else { (m2 / (n - 1) as f64).sqrt() };
+        let std = if n < 2 {
+            f64::NAN
+        } else {
+            (m2 / (n - 1) as f64).sqrt()
+        };
         let se = std / (n as f64).sqrt();
         let (lcb, ucb) = (mean - za * se, mean + za * se);
-        let cv = if mean == 0.0 { f64::INFINITY } else { std / mean.abs() };
+        let cv = if mean == 0.0 {
+            f64::INFINITY
+        } else {
+            std / mean.abs()
+        };
         let perm_p = *pp.get(&(lv, bc, d, pd)).unwrap_or(&1.0);
-        let ys = series.get(&(lv, bc, d, pd)).map(Vec::as_slice).unwrap_or(&[]);
+        let ys = series
+            .get(&(lv, bc, d, pd))
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
         let n_eff = decontam::effective_n(ys);
         let st = decontam::classify_bucket(mean, lcb, ucb, perm_p, n_eff, cv, za, pa);
         states.push(st);
-        let frontier = if lv >= 2 { "frontier已修(c546b5633c bit-exact)，污染标注解除" } else { "—" };
+        let frontier = if lv >= 2 {
+            "frontier已修(c546b5633c bit-exact)，污染标注解除"
+        } else {
+            "—"
+        };
         rows.push_str(&format!(
             "| L{} | {} | {:+} | σ{:+} | {} | {:.2} | {:.6} | {:.6} | {:.6} | {:.3} | {:.3} | {:?} | {} |\n",
             lv, bc, d, pd, n, n_eff, mean, lcb, ucb, cv, perm_p, st, frontier
         ));
-        stats.insert((lv, bc, d, pd), BucketStat { n, n_eff, mean, lcb, ucb, cv, perm_p, state: st });
+        stats.insert(
+            (lv, bc, d, pd),
+            BucketStat {
+                n,
+                n_eff,
+                mean,
+                lcb,
+                ucb,
+                cv,
+                perm_p,
+                state: st,
+            },
+        );
     }
     let v = decontam::global_verdict(&states);
-    let nv = states.iter().filter(|s| matches!(s, decontam::AlphaState::Validated)).count();
-    let nf = states.iter().filter(|s| matches!(s, decontam::AlphaState::Falsified)).count();
-    let ni = states.iter().filter(|s| matches!(s, decontam::AlphaState::Inconclusive)).count();
+    let nv = states
+        .iter()
+        .filter(|s| matches!(s, decontam::AlphaState::Validated))
+        .count();
+    let nf = states
+        .iter()
+        .filter(|s| matches!(s, decontam::AlphaState::Falsified))
+        .count();
+    let ni = states
+        .iter()
+        .filter(|s| matches!(s, decontam::AlphaState::Inconclusive))
+        .count();
     (stats, rows, format!("{v:?}"), (nv, nf, ni))
 }
 
@@ -647,7 +834,8 @@ fn wverify_cross_symbol() {
     let mut sigma_md = String::from("| symbol | σ̂_symbol | pre-OOS bars |\n|---|---|---|\n");
     let mut btc_main: Option<BucketStat> = None;
     for (idx, &sym) in L3_UNIVERSE.iter().enumerate() {
-        let ds = data::load_by_symbol(sym, &cfg).unwrap_or_else(|e| panic!("{sym} 数据加载失败：{e}"));
+        let ds =
+            data::load_by_symbol(sym, &cfg).unwrap_or_else(|e| panic!("{sym} 数据加载失败：{e}"));
         let (mut recs, _tb) = walk_forward_oos_residuals(sym, idx as u32, &ds, &cfg);
         // ── σ̂ 归一化（prereg-l3norm-20260703）：Ỹ=Y/σ̂，缩放 resid_base+cost 两字段 ⟹ y()=δ·resid_base−cost 自动归一化。
         //    perm_test/decontam/bucket_verdict 透明消费归一化 records（零改动 bit-exact）。σ̂ 因果无前视（见 sigma_pre_oos）。
@@ -658,15 +846,24 @@ fn wverify_cross_symbol() {
             r.resid_base /= sigma;
             r.cost /= sigma;
         }
-        eprintln!("[xsym] {sym} residuals={} σ̂={sigma:.6} pre_bars={n_pre}", recs.len());
+        eprintln!(
+            "[xsym] {sym} residuals={} σ̂={sigma:.6} pre_bars={n_pre}",
+            recs.len()
+        );
         let (mut stats, rows, verdict, (nv, nf, ni)) = bucket_verdict(&recs);
-        per_symbol_md.push_str(&format!("\n### {sym}（residuals={}, verdict={verdict} V={nv}/F={nf}/I={ni}）\n\n{rows}", recs.len()));
+        per_symbol_md.push_str(&format!(
+            "\n### {sym}（residuals={}, verdict={verdict} V={nv}/F={nf}/I={ni}）\n\n{rows}",
+            recs.len()
+        ));
         if sym == "BTC" {
             btc_main = stats.remove(&MAIN);
         }
         pooled.extend(recs);
     }
-    assert!(!pooled.is_empty(), "池化残差空——7 品种全无产出（数据/窗口不匹配）");
+    assert!(
+        !pooled.is_empty(),
+        "池化残差空——7 品种全无产出（数据/窗口不匹配）"
+    );
 
     let (pstats, prows, pverdict, (nv, nf, ni)) = bucket_verdict(&pooled);
     let pooled_main = pstats.get(&MAIN);
@@ -714,12 +911,22 @@ fn verdict_by<K: Ord + Copy + std::fmt::Debug + std::hash::Hash>(
     }
     let (za, pa) = (1.645_f64, 0.05_f64);
     let mut states = Vec::new();
-    let mut rows = String::from("| key | n | n_eff | mean(Y) | lcb | ucb | cv | perm_p | state | frontier(≥2) |\n");
+    let mut rows = String::from(
+        "| key | n | n_eff | mean(Y) | lcb | ucb | cv | perm_p | state | frontier(≥2) |\n",
+    );
     for (key, &(n, mean, m2)) in &agg {
-        let std = if n < 2 { f64::NAN } else { (m2 / (n - 1) as f64).sqrt() };
+        let std = if n < 2 {
+            f64::NAN
+        } else {
+            (m2 / (n - 1) as f64).sqrt()
+        };
         let se = std / (n as f64).sqrt();
         let (lcb, ucb) = (mean - za * se, mean + za * se);
-        let cv = if mean == 0.0 { f64::INFINITY } else { std / mean.abs() };
+        let cv = if mean == 0.0 {
+            f64::INFINITY
+        } else {
+            std / mean.abs()
+        };
         let perm_p = *perm.get(key).unwrap_or(&1.0);
         let ys = series.get(key).map(Vec::as_slice).unwrap_or(&[]);
         let n_eff = decontam::effective_n(ys);
@@ -734,9 +941,18 @@ fn verdict_by<K: Ord + Copy + std::fmt::Debug + std::hash::Hash>(
         ));
     }
     let v = decontam::global_verdict(&states);
-    let nv = states.iter().filter(|s| matches!(s, decontam::AlphaState::Validated)).count();
-    let nf = states.iter().filter(|s| matches!(s, decontam::AlphaState::Falsified)).count();
-    let ni = states.iter().filter(|s| matches!(s, decontam::AlphaState::Inconclusive)).count();
+    let nv = states
+        .iter()
+        .filter(|s| matches!(s, decontam::AlphaState::Validated))
+        .count();
+    let nf = states
+        .iter()
+        .filter(|s| matches!(s, decontam::AlphaState::Falsified))
+        .count();
+    let ni = states
+        .iter()
+        .filter(|s| matches!(s, decontam::AlphaState::Inconclusive))
+        .count();
     (rows, format!("{v:?}"), (nv, nf, ni))
 }
 
@@ -750,14 +966,23 @@ fn wverify_fullz() {
     let cfg = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &cfg).expect("BTC 数据加载（btc_1m_full.json）");
     let (records, _tb) = walk_forward_oos_residuals("BTC", 0, &ds, &cfg);
-    assert!(!records.is_empty(), "walk-forward OOS 残差空——窗口/数据不匹配");
+    assert!(
+        !records.is_empty(),
+        "walk-forward OOS 残差空——窗口/数据不匹配"
+    );
 
     // ★A6（#159）fill loop 侧 force_state 探针：records 经 fill loop z_of_candidate 现携
     // Candidate.force 真值——一类交易（i_class 含 buy1|sell1，bit0|bit3）必有 A/C 段配对 ⟹
     // force_state 须 Some。透传断裂（fullz 置换 force_state 恒 None）在此 fire。
     // 零一类交易的窗不假失败（force 仅一类 A/C 对候选有源，与 econ #115 (e) 同口径）。
-    let n_type1_rec = records.iter().filter(|r| r.class.i_class & 0b001_001 != 0).count();
-    let n_force_some_rec = records.iter().filter(|r| r.class.force_state.is_some()).count();
+    let n_type1_rec = records
+        .iter()
+        .filter(|r| r.class.i_class & 0b001_001 != 0)
+        .count();
+    let n_force_some_rec = records
+        .iter()
+        .filter(|r| r.class.force_state.is_some())
+        .count();
     assert!(
         n_type1_rec == 0 || n_force_some_rec > 0,
         "A6 透传断裂：fullz 置换 records 有 {n_type1_rec} 条一类交易但 force_state 全 None"
@@ -765,7 +990,8 @@ fn wverify_fullz() {
     eprintln!("WV_FULLZ force probe: type1={n_type1_rec} force_some={n_force_some_rec}（A6 #159：一类>0 ⟹ force 非全 None）");
 
     // full-z（MuClass 8 维，horizontal=Some 走生产路径；σ_higher 投影 None 与 perm 表键同口径——G2）。
-    let pf = perm_test::stratified_delta_perm_p_fullz(&records, perm_test::N_PERM, perm_test::PERM_SEED);
+    let pf =
+        perm_test::stratified_delta_perm_p_fullz(&records, perm_test::N_PERM, perm_test::PERM_SEED);
     // G3 第 10-13 维同投影（#138）：records 侧 risk_mode=Some(bar 真值)/origin_level=Some(level)，
     // perm 表键侧四维显式 None——判定键必须同投影，否则重演 G2 修过的全表 miss。
     let fullz_key = |c: &MuClass| MuClass {
@@ -778,20 +1004,43 @@ fn wverify_fullz() {
         eta_bucket: None, // #175 第 15 维同投影（records 侧 Some(bar γ_t)，键侧 None——同 t_stage）
         ..*c
     };
-    let (frows, fverdict, (fv, ff, fi)) = verdict_by(&records, fullz_key, &pf, |k: &MuClass| Some(k.level));
-    let n_fullz = { let mut s: Vec<MuClass> = records.iter().map(|r| fullz_key(&r.class)).collect(); s.sort(); s.dedup(); s.len() };
+    let (frows, fverdict, (fv, ff, fi)) =
+        verdict_by(&records, fullz_key, &pf, |k: &MuClass| Some(k.level));
+    let n_fullz = {
+        let mut s: Vec<MuClass> = records.iter().map(|r| fullz_key(&r.class)).collect();
+        s.sort();
+        s.dedup();
+        s.len()
+    };
 
     // UClass 降维并列（(level_bucket,δ,role,divergence)，抗碎裂）。
-    let pu = perm_test::stratified_delta_perm_p_uclass(&records, perm_test::N_PERM, perm_test::PERM_SEED);
-    let (urows, uverdict, (uv, uf, ui)) = verdict_by(&records, UClass::project_to_u, &pu, |_k: &UClass| None);
-    let n_uclass = { let mut s: Vec<UClass> = records.iter().map(|r| UClass::project_to_u(&r.class)).collect(); s.sort(); s.dedup(); s.len() };
+    let pu = perm_test::stratified_delta_perm_p_uclass(
+        &records,
+        perm_test::N_PERM,
+        perm_test::PERM_SEED,
+    );
+    let (urows, uverdict, (uv, uf, ui)) =
+        verdict_by(&records, UClass::project_to_u, &pu, |_k: &UClass| None);
+    let n_uclass = {
+        let mut s: Vec<UClass> = records
+            .iter()
+            .map(|r| UClass::project_to_u(&r.class))
+            .collect();
+        s.sort();
+        s.dedup();
+        s.len()
+    };
 
     eprintln!(
         "WV_FULLZ residuals={} | full-z: buckets={n_fullz} verdict={fverdict} V={fv}/F={ff}/I={fi} | UClass: buckets={n_uclass} verdict={uverdict} V={uv}/F={uf}/I={ui}",
         records.len()
     );
     std::fs::write("/tmp/wv_fullz_rows.md", format!("# full-z（MuClass 8 维，σ_higher 不进 prereg 桶键）verdict={fverdict} V={fv}/F={ff}/I={fi}\n\n{frows}")).ok();
-    std::fs::write("/tmp/wv_uclass_rows.md", format!("# UClass 降维并列 verdict={uverdict} V={uv}/F={uf}/I={ui}\n\n{urows}")).ok();
+    std::fs::write(
+        "/tmp/wv_uclass_rows.md",
+        format!("# UClass 降维并列 verdict={uverdict} V={uv}/F={uf}/I={ui}\n\n{urows}"),
+    )
+    .ok();
 }
 
 /// 四口径 D 判定 OOS 批（A2 #163 三口径 + A3 #164 ThetaLex，prereg-a2-thetadom-oos-20260704
@@ -827,15 +1076,29 @@ fn thetadom_three_gauge_oos() {
         let (records, _tb) = walk_forward_oos_residuals("BTC", 0, &ds, &cfg);
         // 一类交易计数（i_class bit0=buy1 / bit3=sell1，与 wverify_fullz 探针同口径）——G2/G3 相对
         // G1 的信号收缩量是 prereg 预期方向（Dominated ⊆ 宽判）的 L1 观测点。
-        let n_t1 = records.iter().filter(|r| r.class.i_class & 0b001_001 != 0).count();
+        let n_t1 = records
+            .iter()
+            .filter(|r| r.class.i_class & 0b001_001 != 0)
+            .count();
         let (_stats, rows, verdict, (v, f, i)) = bucket_verdict(&records);
         report.push_str(&format!(
             "## {name}\n- residuals={} type1_trades={} verdict={} V={}/F={}/I={}\n\n{}\n",
-            records.len(), n_t1, verdict, v, f, i, rows
+            records.len(),
+            n_t1,
+            verdict,
+            v,
+            f,
+            i,
+            rows
         ));
         eprintln!(
             "THETADOM_OOS {name}: residuals={} type1={} verdict={} V={}/F={}/I={}",
-            records.len(), n_t1, verdict, v, f, i
+            records.len(),
+            n_t1,
+            verdict,
+            v,
+            f,
+            i
         );
     }
     std::fs::write("/tmp/thetadom_three_gauge_oos.md", &report).ok();
@@ -865,7 +1128,10 @@ fn policy_backtest() {
     for sym in ["BTC", "CL"] {
         let ds = match data::load_by_symbol(sym, &base_cfg) {
             Ok(d) => d,
-            Err(e) => { report.push_str(&format!("## {sym}\n加载失败：{e}\n\n")); continue; }
+            Err(e) => {
+                report.push_str(&format!("## {sym}\n加载失败：{e}\n\n"));
+                continue;
+            }
         };
         let train_ds = ds.slice_date_window(train_lo, train_hi);
         let test_ds = ds.slice_date_window(test_lo, test_hi);
@@ -873,10 +1139,18 @@ fn policy_backtest() {
             report.push_str(&format!("## {sym}\ntrain/test 段空（数据不覆盖窗口）\n\n"));
             continue;
         }
-        eprintln!("[policy] {sym} train_bars={} test_bars={} 建 est…", train_ds.bars.len(), test_ds.bars.len());
+        eprintln!(
+            "[policy] {sym} train_bars={} test_bars={} 建 est…",
+            train_ds.bars.len(),
+            test_ds.bars.len()
+        );
         let (est, _r) = build_mu_from_bars(&train_ds.bars, &base_cfg, 0);
-        let first_px = test_ds.bars.iter().find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * base_cfg.tick.tick_size).unwrap_or(1.0);
+        let first_px = test_ds
+            .bars
+            .iter()
+            .find(|b| !b.untradable && b.close > 0)
+            .map(|b| b.close as f64 * base_cfg.tick.tick_size)
+            .unwrap_or(1.0);
         let nav = first_px * 1000.0;
         let years = test_ds.bars.len() as f64 / (365.25 * 24.0 * 60.0);
 
@@ -887,7 +1161,11 @@ fn policy_backtest() {
         sd_off_cfg.voice.disable_reverse_open = true;
         let sd_off_r = run_theta_v0_pi(&test_ds, &sd_off_cfg, years, nav);
         let sum = |v: &[f64]| v.iter().sum::<f64>();
-        let (chi_pnl, base_pnl, sd_off_pnl) = (sum(&chi_r.trade_pnls_with_forced), sum(&base_r.trade_pnls_with_forced), sum(&sd_off_r.trade_pnls_with_forced));
+        let (chi_pnl, base_pnl, sd_off_pnl) = (
+            sum(&chi_r.trade_pnls_with_forced),
+            sum(&base_r.trade_pnls_with_forced),
+            sum(&sd_off_r.trade_pnls_with_forced),
+        );
         report.push_str(&format!(
             "## {sym}（μ̂ 桶数={}, test_bars={}）\n\
              - χ门 μ̂  : Σpnl={chi_pnl:+.2} max_dd={:.4} n_orders={} n_trades={} strat_return={:+.4}\n\
@@ -942,7 +1220,9 @@ fn q4_prev_day(d: &str) -> String {
 /// ★pub(crate)：阶段 3a 前置实装（M7_WITNESS_A10 env gate，p126 runbook §2.1）——runner.rs 三个
 /// #[ignore] witness/网格/多窗测试与 m8_e2e 同函数同源注入（禁第二查法），可见性由模块私有提 crate。
 pub(crate) fn q4_margin_model(nav0: f64) -> super::super::strategy::risk::MarginModel {
-    use super::super::strategy::risk::{MarginModel, MarginSchedule, MarginScheduleBook, RiskCushions};
+    use super::super::strategy::risk::{
+        MarginModel, MarginSchedule, MarginScheduleBook, RiskCushions,
+    };
     let sched = MarginSchedule::cme_simple(0.37, 1.10).expect("CME-simple 参数合法（冻结值）");
     let book = MarginScheduleBook::new(vec![(i64::MIN, i64::MAX, sched)]).expect("单段全域快照簿");
     let cushions = RiskCushions::new(0.02 * nav0, 0.05 * nav0).expect("0<B1<B2（冻结比例）");
@@ -984,7 +1264,10 @@ fn q4_fullpi_policy() {
         let pnl: f64 = r.trade_pnls_with_forced.iter().sum();
         format!(
             "| {name} | {pnl:+.2} | {:.4} | {} | {} | {:+.4} |\n",
-            r.metrics.max_drawdown, r.n_orders, r.trade_pnls_with_forced.len(), r.metrics.strat_return
+            r.metrics.max_drawdown,
+            r.n_orders,
+            r.trade_pnls_with_forced.len(),
+            r.metrics.strat_return
         )
     };
 
@@ -1002,14 +1285,20 @@ fn q4_fullpi_policy() {
         };
         // 窗清单：p3 可比单折 + anchored walk-forward（test_start≥OOS_START，train=前推 6 月）。
         let mut wins: Vec<(String, String, String, String, String)> = vec![(
-            "p3fold".into(), "2022-07-01".into(), "2022-12-31".into(), "2023-01-01".into(), "2023-06-30".into(),
+            "p3fold".into(),
+            "2022-07-01".into(),
+            "2022-12-31".into(),
+            "2023-01-01".into(),
+            "2023-06-30".into(),
         )];
         if let Some(sw) = PREREG_WINDOWS.iter().find(|w| w.symbol == sym) {
             for w in sw.wf_anchored.iter().filter(|w| w.test_start >= OOS_START) {
                 wins.push((
                     format!("wf{}{}", w.i, if w.clipped { "*" } else { "" }),
-                    q4_shift_back_6m(w.test_start), q4_prev_day(w.test_start),
-                    w.test_start.into(), w.test_end.into(),
+                    q4_shift_back_6m(w.test_start),
+                    q4_prev_day(w.test_start),
+                    w.test_start.into(),
+                    w.test_end.into(),
                 ));
             }
         }
@@ -1019,7 +1308,9 @@ fn q4_fullpi_policy() {
             let train = ds.slice_date_window(tr_lo, tr_hi);
             let test = ds.slice_date_window(te_lo, te_hi);
             if train.bars.is_empty() || test.bars.is_empty() {
-                report.push_str(&format!("## {sym} {tag}\ntrain/test 段空（数据不覆盖）\n\n"));
+                report.push_str(&format!(
+                    "## {sym} {tag}\ntrain/test 段空（数据不覆盖）\n\n"
+                ));
                 continue;
             }
             let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
@@ -1029,7 +1320,11 @@ fn q4_fullpi_policy() {
             fullpi_tr.margin = Some(q4_margin_model(nav_of(&train, &plain_cfg)));
             let mut fullpi_te = mk_chi(true);
             fullpi_te.margin = Some(q4_margin_model(nav_te));
-            eprintln!("[q4] {sym} {tag} train={tr_lo}..{tr_hi}({}) test={te_lo}..{te_hi}({}) est×2…", train.bars.len(), test.bars.len());
+            eprintln!(
+                "[q4] {sym} {tag} train={tr_lo}..{tr_hi}({}) test={te_lo}..{te_hi}({}) est×2…",
+                train.bars.len(),
+                test.bars.len()
+            );
             let (est_fullpi, _) = build_mu_from_bars(&train.bars, &fullpi_tr, 0);
             let (est_plain, _) = build_mu_from_bars(&train.bars, &plain_cfg, 0);
 
@@ -1043,7 +1338,12 @@ fn q4_fullpi_policy() {
                  | 臂 | Σpnl | max_dd | n_orders | n_trades | strat_return |\n|---|---|---|---|---|---|\n",
                 est_fullpi.n_classes(), est_plain.n_classes()
             ));
-            for (name, r) in [("Arm0 无χ", &arm0), ("Arm1 π^full", &arm1), ("Arm2 teap=true", &arm2), ("Arm3 隔离", &arm3)] {
+            for (name, r) in [
+                ("Arm0 无χ", &arm0),
+                ("Arm1 π^full", &arm1),
+                ("Arm2 teap=true", &arm2),
+                ("Arm3 隔离", &arm3),
+            ] {
                 report.push_str(&fmt_arm(name, r));
             }
             let p = |r: &RunResult| r.trade_pnls_with_forced.iter().sum::<f64>();
@@ -1054,10 +1354,22 @@ fn q4_fullpi_policy() {
             ));
             eprintln!(
                 "Q4 {sym} {tag}: A0={:+.0}/{} A1={:+.0}/{} A2={:+.0}/{} A3={:+.0}/{} (Σpnl/orders)",
-                p(&arm0), arm0.n_orders, p(&arm1), arm1.n_orders, p(&arm2), arm2.n_orders, p(&arm3), arm3.n_orders
+                p(&arm0),
+                arm0.n_orders,
+                p(&arm1),
+                arm1.n_orders,
+                p(&arm2),
+                arm2.n_orders,
+                p(&arm3),
+                arm3.n_orders
             );
             if *tag != "p3fold" {
-                for (k, r) in [("Arm0", &arm0), ("Arm1", &arm1), ("Arm2", &arm2), ("Arm3", &arm3)] {
+                for (k, r) in [
+                    ("Arm0", &arm0),
+                    ("Arm1", &arm1),
+                    ("Arm2", &arm2),
+                    ("Arm3", &arm3),
+                ] {
                     let e = agg.entry(k).or_insert((0.0, 0));
                     e.0 += p(r);
                     e.1 += r.n_orders as u64;
@@ -1103,8 +1415,12 @@ fn m6_btc_oos_r_decomposition() {
     let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
 
     let nav_of = |d: &data::Dataset| {
-        d.bars.iter().find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * plain_cfg.tick.tick_size).unwrap_or(1.0) * 1000.0
+        d.bars
+            .iter()
+            .find(|b| !b.untradable && b.close > 0)
+            .map(|b| b.close as f64 * plain_cfg.tick.tick_size)
+            .unwrap_or(1.0)
+            * 1000.0
     };
 
     let mut report = String::from(
@@ -1124,11 +1440,15 @@ fn m6_btc_oos_r_decomposition() {
     ));
 
     // OOS 窗清单：p3 可比单折 + 前两个 anchored walk-forward（够 R 分解物证；全窗跑批在 M8）。
-    let mut wins: Vec<(String, String, String)> = vec![
-        ("p3fold".into(), "2023-01-01".into(), "2023-06-30".into()),
-    ];
+    let mut wins: Vec<(String, String, String)> =
+        vec![("p3fold".into(), "2023-01-01".into(), "2023-06-30".into())];
     if let Some(sw) = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC") {
-        for w in sw.wf_anchored.iter().filter(|w| w.test_start >= OOS_START).take(2) {
+        for w in sw
+            .wf_anchored
+            .iter()
+            .filter(|w| w.test_start >= OOS_START)
+            .take(2)
+        {
             wins.push((format!("wf{}", w.i), w.test_start.into(), w.test_end.into()));
         }
     }
@@ -1145,7 +1465,10 @@ fn m6_btc_oos_r_decomposition() {
         let mut m6_cfg = ThetaConfig::default();
         m6_cfg.margin = Some(q4_margin_model(nav_te));
         m6_cfg.cost_model = Some(m6_cost_model());
-        eprintln!("[m6] BTC {tag} test={te_lo}..{te_hi}({}) run…", test.bars.len());
+        eprintln!(
+            "[m6] BTC {tag} test={te_lo}..{te_hi}({}) run…",
+            test.bars.len()
+        );
         let r = run_theta_v0_pi(&test, &m6_cfg, years, nav_te);
         match r.r_decomp {
             Some(d) => {
@@ -1165,13 +1488,19 @@ fn m6_btc_oos_r_decomposition() {
                 let tol = 1e-3_f64.max(1e-9 * (nav_te.abs() + d.price_pnl_gross.abs()));
                 assert!(
                     d.conservation_residual.abs() <= tol,
-                    "M6 {tag} 守恒残差 {} 超容差 {}（资金泄漏）", d.conservation_residual, tol
+                    "M6 {tag} 守恒残差 {} 超容差 {}（资金泄漏）",
+                    d.conservation_residual,
+                    tol
                 );
             }
-            None => report.push_str(&format!("| {tag} | M6 | R 分解缺失（非 π 路径？）| | | | | | | | |\n")),
+            None => report.push_str(&format!(
+                "| {tag} | M6 | R 分解缺失（非 π 路径？）| | | | | | | | |\n"
+            )),
         }
     }
-    report.push_str("\n**守恒断言**：各窗 |守恒残差| ≤ 容差（价格 PnL − 五项成本 = 账本净变动，无泄漏）。\n");
+    report.push_str(
+        "\n**守恒断言**：各窗 |守恒残差| ≤ 容差（价格 PnL − 五项成本 = 账本净变动，无泄漏）。\n",
+    );
     std::fs::write("/tmp/m6_btc_oos_r_decomposition.md", &report).ok();
     eprintln!("[m6] R 分解报告落盘 /tmp/m6_btc_oos_r_decomposition.md");
 }
@@ -1204,24 +1533,32 @@ fn m6_btc_oos_r_decomposition() {
 #[test]
 #[ignore]
 fn m8_e2e_all_systems_oos() {
-    use super::metrics::significance;
-    use super::runner::run_theta_v0_pi_overlay;
     use super::super::strategy::coverage::Vertical;
     use super::super::strategy::ledger::{RiskPolicy, TStage};
+    use super::metrics::significance;
+    use super::runner::run_theta_v0_pi_overlay;
 
     let plain_cfg = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
     let nav_of = |d: &data::Dataset| {
-        d.bars.iter().find(|b| !b.untradable && b.close > 0)
-            .map(|b| b.close as f64 * plain_cfg.tick.tick_size).unwrap_or(1.0) * 1000.0
+        d.bars
+            .iter()
+            .find(|b| !b.untradable && b.close > 0)
+            .map(|b| b.close as f64 * plain_cfg.tick.tick_size)
+            .unwrap_or(1.0)
+            * 1000.0
     };
 
     // OOS 窗清单：p3 单折 + 前两个 anchored walk-forward（与 M6 跑批同窗，可差分对照）。
-    let mut wins: Vec<(String, String, String)> = vec![
-        ("p3fold".into(), "2023-01-01".into(), "2023-06-30".into()),
-    ];
+    let mut wins: Vec<(String, String, String)> =
+        vec![("p3fold".into(), "2023-01-01".into(), "2023-06-30".into())];
     if let Some(sw) = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC") {
-        for w in sw.wf_anchored.iter().filter(|w| w.test_start >= OOS_START).take(2) {
+        for w in sw
+            .wf_anchored
+            .iter()
+            .filter(|w| w.test_start >= OOS_START)
+            .take(2)
+        {
             wins.push((format!("wf{}", w.i), w.test_start.into(), w.test_end.into()));
         }
     }
@@ -1264,7 +1601,9 @@ fn m8_e2e_all_systems_oos() {
     for (tag, te_lo, te_hi) in &wins {
         let test = ds.slice_date_window(te_lo, te_hi);
         if test.bars.is_empty() {
-            report.push_str(&format!("| {tag} | test 段空 | | | | | | | | | | | | | | | | | |\n"));
+            report.push_str(&format!(
+                "| {tag} | test 段空 | | | | | | | | | | | | | | | | | |\n"
+            ));
             continue;
         }
         let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
@@ -1279,7 +1618,10 @@ fn m8_e2e_all_systems_oos() {
         apply_center_oscillation_from_env(&mut cfg); // issue #357 验收③：THETA_CENTER_OSCILLATION=1 覆盖
         cfg.margin = Some(q4_margin_model(nav_te));
         cfg.cost_model = Some(m6_cost_model());
-        eprintln!("[m8] BTC {tag} test={te_lo}..{te_hi}({}) 三系统同开 run…", test.bars.len());
+        eprintln!(
+            "[m8] BTC {tag} test={te_lo}..{te_hi}({}) 三系统同开 run…",
+            test.bars.len()
+        );
         // ★T5a (#207) shadow dump 分窗接线（T3_SHADOW_DUMP 同型）：env T5A_CHAIN_DUMP_DIR
         // 设置时逐窗开 `<dir>/t5a_chain_dump_<tag>.jsonl`；未设 = no-op（bit-exact 中性）。
         super::admission::t5a_chain_dump::open_for_window(&tag);
@@ -1332,8 +1674,10 @@ fn m8_e2e_all_systems_oos() {
         // ★#628 阶段一归因：逐次 binding 事件——分桶方向(hi=held Long/lo=held Short)与 p̃ 符号
         // 一致/相反计数 + 反事实 Δp*（p_star_actual − p_star_cf）分布。
         let attribution = super::super::strategy::coverage::cap_binding_attribution_snapshot();
-        let (mut hi_aligned, mut hi_opposite, mut hi_zero_delta, mut hi_nonzero_delta) = (0u64, 0u64, 0u64, 0u64);
-        let (mut lo_aligned, mut lo_opposite, mut lo_zero_delta, mut lo_nonzero_delta) = (0u64, 0u64, 0u64, 0u64);
+        let (mut hi_aligned, mut hi_opposite, mut hi_zero_delta, mut hi_nonzero_delta) =
+            (0u64, 0u64, 0u64, 0u64);
+        let (mut lo_aligned, mut lo_opposite, mut lo_zero_delta, mut lo_nonzero_delta) =
+            (0u64, 0u64, 0u64, 0u64);
         let mut hi_deltas: Vec<f64> = Vec::new();
         let mut lo_deltas: Vec<f64> = Vec::new();
         for ev in &attribution {
@@ -1389,17 +1733,32 @@ fn m8_e2e_all_systems_oos() {
             "[m8][#628] {tag}: hi(held Long) n={} 一致(p̃>0)={} 相反(p̃≤0)={} | Δp*≠0={} Δp*=0={} \
              |Δp*| mean={:.4} median={:.4} max={:.4}",
             attribution.iter().filter(|e| e.hi_triggered).count(),
-            hi_aligned, hi_opposite, hi_nonzero_delta, hi_zero_delta, hi_mean, hi_median, hi_max,
+            hi_aligned,
+            hi_opposite,
+            hi_nonzero_delta,
+            hi_zero_delta,
+            hi_mean,
+            hi_median,
+            hi_max,
         );
         eprintln!(
             "[m8][#628] {tag}: lo(held Short) n={} 一致(p̃<0)={} 相反(p̃≥0)={} | Δp*≠0={} Δp*=0={} \
              |Δp*| mean={:.4} median={:.4} max={:.4}",
             attribution.iter().filter(|e| e.lo_triggered).count(),
-            lo_aligned, lo_opposite, lo_nonzero_delta, lo_zero_delta, lo_mean, lo_median, lo_max,
+            lo_aligned,
+            lo_opposite,
+            lo_nonzero_delta,
+            lo_zero_delta,
+            lo_mean,
+            lo_median,
+            lo_max,
         );
 
         // 层2 execution：R 分解 + MaxDD + 逐声部归因。
-        let d = r.net_result.r_decomp.expect("overlay 臂经生产 π loop ⟹ 产 R 分解");
+        let d = r
+            .net_result
+            .r_decomp
+            .expect("overlay 臂经生产 π loop ⟹ 产 R 分解");
         let maxdd = r.net_result.metrics.max_drawdown;
         let (mut n_amb, mut n_short, mut n_follow) = (0usize, 0usize, 0usize);
         for c in r.overlay.closed_voices() {
@@ -1411,7 +1770,9 @@ fn m8_e2e_all_systems_oos() {
         }
 
         // 层3 treasury：TW 终态（新接的 tw_final）。
-        let tw = r.tw_final.expect("overlay 臂主 loop 内建 TW 账本 ⟹ tw_final=Some");
+        let tw = r
+            .tw_final
+            .expect("overlay 臂主 loop 内建 TW 账本 ⟹ tw_final=Some");
         let stage_str = match tw.stage {
             TStage::CostReduction => "I(降成本)",
             TStage::CapitalRecovered => "II(已回本)",
@@ -1436,7 +1797,7 @@ fn m8_e2e_all_systems_oos() {
             r.net_result.theta_return_mtm,
         );
         let lcb_r = sig.boot_ci95_lo; // LCB_OOS(R) = block bootstrap 总收益 2.5 分位下界
-        // 三态（完整策略层，M8:168）：LCB>0 ⟹ confirmed；R>0∧LCB≤0 ⟹ INCONCLUSIVE；R≤0 ⟹ 无（本层）。
+                                      // 三态（完整策略层，M8:168）：LCB>0 ⟹ confirmed；R>0∧LCB≤0 ⟹ INCONCLUSIVE；R≤0 ⟹ 无（本层）。
         let verdict = if lcb_r > 0.0 {
             "CONFIRMED"
         } else if r_total > 0.0 {
@@ -1596,10 +1957,17 @@ fn m8_e2e_all_systems_oos() {
         let tol = 1e-3_f64.max(1e-9 * (nav_te.abs() + d.price_pnl_gross.abs()));
         assert!(
             d.conservation_residual.abs() <= tol,
-            "M8 {tag} R 守恒残差 {} 超容差 {}（资金泄漏）", d.conservation_residual, tol,
+            "M8 {tag} R 守恒残差 {} 超容差 {}（资金泄漏）",
+            d.conservation_residual,
+            tol,
         );
         // treasury 单向不可逆：stage.rank ≤ 2（EarningShares 上界），且 W_T≤notional_in（退本金不超投入）。
-        assert!(tw.withdrawn <= tw.notional_in, "W_T={} 不得超 notional_in={}", tw.withdrawn, tw.notional_in);
+        assert!(
+            tw.withdrawn <= tw.notional_in,
+            "W_T={} 不得超 notional_in={}",
+            tw.withdrawn,
+            tw.notional_in
+        );
     }
 
     report.push_str(&format!(
@@ -1655,27 +2023,60 @@ fn flip_guard_wf8_onebar_prune_replay() {
     /// 40 笔保护集中 #269 复核「仍杀」的 37 笔键（level, ordinal, entry_bar）——
     /// 旧轨（bug 态）hold>1 真翻向笔，事件口径下必须仍判 prune。
     const FLIP_GUARD_PROT_STILL_37: [(u32, u64, i64); 37] = [
-        (1, 21, 11520), (3, 2, 18252), (0, 163, 20309), (0, 193, 23249),
-        (0, 236, 28030), (0, 242, 28532), (1, 75, 35531), (0, 363, 42241),
-        (0, 397, 45517), (0, 399, 45688), (1, 99, 45938), (0, 476, 54875),
-        (1, 127, 59416), (1, 127, 59966), (0, 643, 73841), (1, 161, 75428),
-        (1, 245, 117139), (1, 262, 126454), (1, 271, 131111), (0, 1218, 138803),
-        (0, 1227, 139741), (1, 315, 149455), (0, 1334, 151638), (1, 328, 154603),
-        (0, 1459, 165520), (3, 21, 177410), (0, 1632, 185949), (1, 387, 186470),
-        (1, 421, 204718), (0, 1783, 204945), (1, 423, 205795), (0, 2009, 233150),
-        (1, 487, 235755), (0, 2081, 241132), (2, 122, 243225), (1, 542, 259968),
+        (1, 21, 11520),
+        (3, 2, 18252),
+        (0, 163, 20309),
+        (0, 193, 23249),
+        (0, 236, 28030),
+        (0, 242, 28532),
+        (1, 75, 35531),
+        (0, 363, 42241),
+        (0, 397, 45517),
+        (0, 399, 45688),
+        (1, 99, 45938),
+        (0, 476, 54875),
+        (1, 127, 59416),
+        (1, 127, 59966),
+        (0, 643, 73841),
+        (1, 161, 75428),
+        (1, 245, 117139),
+        (1, 262, 126454),
+        (1, 271, 131111),
+        (0, 1218, 138803),
+        (0, 1227, 139741),
+        (1, 315, 149455),
+        (0, 1334, 151638),
+        (1, 328, 154603),
+        (0, 1459, 165520),
+        (3, 21, 177410),
+        (0, 1632, 185949),
+        (1, 387, 186470),
+        (1, 421, 204718),
+        (0, 1783, 204945),
+        (1, 423, 205795),
+        (0, 2009, 233150),
+        (1, 487, 235755),
+        (0, 2081, 241132),
+        (2, 122, 243225),
+        (1, 542, 259968),
         (1, 548, 263584),
     ];
     /// 判不出 3 笔（#269 §5 如实列出交编排者）：若复现必须仍判 prune；缺席为在案状态。
-    const FLIP_GUARD_PROT_UNKNOWN_3: [(u32, u64, i64); 3] = [
-        (0, 101, 11761), (1, 51, 25893), (0, 664, 75926),
-    ];
+    const FLIP_GUARD_PROT_UNKNOWN_3: [(u32, u64, i64); 3] =
+        [(0, 101, 11761), (1, 51, 25893), (0, 664, 75926)];
 
     // ── wf8 窗重放（与 m8_e2e_all_systems_oos 的 M8_WIN_FILTER=wf8 臂同窗同配置）──
     let plain_cfg = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
-    let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
-    let w = sw.wf_anchored.iter().find(|w| w.i == 8).expect("wf8 窗（#264 症状窗）");
+    let sw = PREREG_WINDOWS
+        .iter()
+        .find(|w| w.symbol == "BTC")
+        .expect("BTC prereg 窗");
+    let w = sw
+        .wf_anchored
+        .iter()
+        .find(|w| w.i == 8)
+        .expect("wf8 窗（#264 症状窗）");
     let test = ds.slice_date_window(w.test_start, w.test_end);
     assert!(!test.bars.is_empty(), "wf8 test 段非空（否则测试空转）");
     let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
@@ -1727,7 +2128,9 @@ fn flip_guard_wf8_onebar_prune_replay() {
             ordinal: v["voice_id"]["ordinal"].as_u64().expect("ordinal"),
             entry_bar: v["entry_bar"].as_i64().expect("entry_bar"),
             exit_bar: v["exit_bar"].as_i64().expect("exit_bar"),
-            prune: v["via_structural_prune"].as_bool().expect("via_structural_prune"),
+            prune: v["via_structural_prune"]
+                .as_bool()
+                .expect("via_structural_prune"),
         });
     }
     assert!(!rows.is_empty(), "wf8 dump 非空（否则测试空转）");
@@ -1736,7 +2139,10 @@ fn flip_guard_wf8_onebar_prune_replay() {
     for lv in [1u32, 3u32] {
         let ts: Vec<&Row> = rows.iter().filter(|r| r.level == lv).collect();
         assert!(!ts.is_empty(), "wf8 L{lv} 笔集非空（否则断言空转）");
-        let one = ts.iter().filter(|r| r.prune && r.exit_bar - r.entry_bar <= 1).count();
+        let one = ts
+            .iter()
+            .filter(|r| r.prune && r.exit_bar - r.entry_bar <= 1)
+            .count();
         let share = one as f64 / ts.len() as f64;
         let mut holds: Vec<i64> = ts.iter().map(|r| r.exit_bar - r.entry_bar).collect();
         holds.sort_unstable();
@@ -1851,7 +2257,10 @@ fn center_lifecycle_wf8_events_replay() {
     // ── wf8 窗重放（与 flip_guard_wf8_onebar_prune_replay 同窗同配置）──
     let plain_cfg = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
-    let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
+    let sw = PREREG_WINDOWS
+        .iter()
+        .find(|w| w.symbol == "BTC")
+        .expect("BTC prereg 窗");
     let w = sw.wf_anchored.iter().find(|w| w.i == 8).expect("wf8 窗");
     let test = ds.slice_date_window(w.test_start, w.test_end);
     assert!(!test.bars.is_empty(), "wf8 test 段非空（否则测试空转）");
@@ -1930,19 +2339,26 @@ fn center_lifecycle_wf8_events_replay() {
                 let zd = v["zd"].as_i64().expect("zd");
                 let zg = v["zg"].as_i64().expect("zg");
                 assert!(zd <= zg, "born 核心非空不变量：zd={zd} ≤ zg={zg}");
-                assert!(v["chain_idx"].as_u64().is_some(), "★R3：born 含链下标 chain_idx");
+                assert!(
+                    v["chain_idx"].as_u64().is_some(),
+                    "★R3：born 含链下标 chain_idx"
+                );
                 // ★#337 MAJOR-A：出生**身份**入集合（锁死解除的举证锚，见头注）。
-                born_ids
-                    .entry(level)
-                    .or_default()
-                    .insert((v["si"].as_i64().expect("born 含 si"), zd, zg));
+                born_ids.entry(level).or_default().insert((
+                    v["si"].as_i64().expect("born 含 si"),
+                    zd,
+                    zg,
+                ));
                 e.0 += 1;
             }
             "broken" => {
                 let zd = v["zd"].as_i64().expect("zd");
                 let zg = v["zg"].as_i64().expect("zg");
                 assert!(zd <= zg, "broken 死中枢核心非空：zd={zd} ≤ zg={zg}");
-                assert!(v["chain_idx"].as_u64().is_some(), "★R3：broken 含链下标 chain_idx");
+                assert!(
+                    v["chain_idx"].as_u64().is_some(),
+                    "★R3：broken 含链下标 chain_idx"
+                );
                 assert_eq!(
                     v["death_form"].as_str(),
                     Some("doctrinal"),
@@ -1986,10 +2402,23 @@ fn center_lifecycle_wf8_events_replay() {
             // ★#329：误杀拒绝诊断行（触发点载体身份 ≠ 在场中枢身份 ⟹ 事件机拒杀）。非教义
             // 事件，与 resync 同属诊断行，单列不进 born/broken/reset 计数。
             "miskill" => {
-                assert!(v["alive_si"].as_u64().is_some(), "miskill 行含在场中枢身份 alive_si");
-                assert!(v["alive_zd"].as_i64().is_some(), "miskill 行含在场中枢 alive_zd");
-                assert!(v["alive_zg"].as_i64().is_some(), "miskill 行含在场中枢 alive_zg");
-                assert_eq!(v["trigger"].as_str(), Some("third"), "Reset 不具有 miskill 能力");
+                assert!(
+                    v["alive_si"].as_u64().is_some(),
+                    "miskill 行含在场中枢身份 alive_si"
+                );
+                assert!(
+                    v["alive_zd"].as_i64().is_some(),
+                    "miskill 行含在场中枢 alive_zd"
+                );
+                assert!(
+                    v["alive_zg"].as_i64().is_some(),
+                    "miskill 行含在场中枢 alive_zg"
+                );
+                assert_eq!(
+                    v["trigger"].as_str(),
+                    Some("third"),
+                    "Reset 不具有 miskill 能力"
+                );
                 n_miskill += 1;
             }
             // ★#336 R3 诊断行：链同步（adopt/rebase）——静默采纳，不伪造出生/死亡。
@@ -2029,7 +2458,9 @@ fn center_lifecycle_wf8_events_replay() {
                     "★#337：被取代 = 在场终结形态"
                 );
                 let idx = v["chain_idx"].as_u64().expect("superseded 含 chain_idx");
-                let by = v["by_chain_idx"].as_u64().expect("superseded 含 by_chain_idx");
+                let by = v["by_chain_idx"]
+                    .as_u64()
+                    .expect("superseded 含 by_chain_idx");
                 assert_eq!(by, idx + 1, "取代者恒为链上紧邻后一格（idx={idx} by={by}）");
                 n_superseded += 1;
             }
@@ -2057,7 +2488,11 @@ fn center_lifecycle_wf8_events_replay() {
                          此前无任何教义死亡登记 ⟹ 容读格本应放行"
                     );
                 }
-                assert_eq!(v["trigger"].as_str(), Some("third"), "Reset 不具有 stale 杀伤请求");
+                assert_eq!(
+                    v["trigger"].as_str(),
+                    Some("third"),
+                    "Reset 不具有 stale 杀伤请求"
+                );
                 n_stale += 1;
             }
             other => panic!("未知事件类：{other}"),
@@ -2134,10 +2569,14 @@ fn otherwise_domain_wf8_grade_buckets() {
     use super::runner::run_theta_v0_pi_overlay;
 
     // #608 S3：M8_WIN_FILTER 选窗（同 m8_e2e_all_systems_oos 口径），未设保持 wf8 原行为不变。
-    let win_tag = std::env::var(crate::theta_v0::env_registry::M8_WIN_FILTER).unwrap_or_else(|_| "wf8".into());
+    let win_tag = std::env::var(crate::theta_v0::env_registry::M8_WIN_FILTER)
+        .unwrap_or_else(|_| "wf8".into());
     let plain_cfg = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
-    let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
+    let sw = PREREG_WINDOWS
+        .iter()
+        .find(|w| w.symbol == "BTC")
+        .expect("BTC prereg 窗");
     let (test_start, test_end): (&str, &str) = match win_tag.as_str() {
         "p3fold" => ("2023-01-01", "2023-06-30"),
         "wf7" => {
@@ -2150,7 +2589,10 @@ fn otherwise_domain_wf8_grade_buckets() {
         }
     };
     let test = ds.slice_date_window(test_start, test_end);
-    assert!(!test.bars.is_empty(), "{win_tag} test 段非空（否则测试空转）");
+    assert!(
+        !test.bars.is_empty(),
+        "{win_tag} test 段非空（否则测试空转）"
+    );
     let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
     let nav_te = test
         .bars
@@ -2180,14 +2622,20 @@ fn otherwise_domain_wf8_grade_buckets() {
     super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = Some(dump_dir.clone()));
     super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
     std::env::set_var(crate::theta_v0::env_registry::THETA_CENTER_OSCILLATION, "1");
-    std::env::set_var(crate::theta_v0::env_registry::THETA_OTHERWISE_DOMAIN_SIDECAR, "1");
+    std::env::set_var(
+        crate::theta_v0::env_registry::THETA_OTHERWISE_DOMAIN_SIDECAR,
+        "1",
+    );
     let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
     std::env::remove_var(crate::theta_v0::env_registry::THETA_OTHERWISE_DOMAIN_SIDECAR);
     std::env::remove_var(crate::theta_v0::env_registry::THETA_CENTER_OSCILLATION);
     super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
     super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = None);
 
-    let sidecar = r.net_result.otherwise_domain_sidecar.expect("env 门开 ⟹ sidecar Some");
+    let sidecar = r
+        .net_result
+        .otherwise_domain_sidecar
+        .expect("env 门开 ⟹ sidecar Some");
     assert!(sidecar.frames >= 1, "至少观察到一帧（wf8 非空窗）");
 
     // ── 独立对照：`center_lifecycle.jsonl` 的 Reset 行（一类确认事件 → Reset 广播，#489/#585
@@ -2235,7 +2683,9 @@ fn otherwise_domain_wf8_grade_buckets() {
             Side::Long => 0u8,
             Side::Short => 1u8,
         };
-        let totals = level_side_totals.entry((rec.level, side_u8)).or_insert((0, 0));
+        let totals = level_side_totals
+            .entry((rec.level, side_u8))
+            .or_insert((0, 0));
         match rec.grade {
             T3InCGrade::Present { .. } => {
                 native_count += 1;
@@ -2286,7 +2736,11 @@ fn otherwise_domain_wf8_grade_buckets() {
     let mut reset_leak_false: std::collections::BTreeMap<(u32, u8), usize> =
         std::collections::BTreeMap::new();
     for &(level, side_u8, leak) in &reset_rows {
-        let map = if leak { &mut reset_leak_true } else { &mut reset_leak_false };
+        let map = if leak {
+            &mut reset_leak_true
+        } else {
+            &mut reset_leak_false
+        };
         *map.entry((level, side_u8)).or_insert(0) += 1;
     }
     let mut d5_keys: std::collections::BTreeSet<(u32, u8)> =
@@ -2367,7 +2821,13 @@ fn c327_seg_to_unit(seg: &Segment) -> UnitRange {
     } else {
         (seg.end_price, seg.start_price)
     };
-    UnitRange { start_index: seg.start_index, end_index: seg.end_index, direction: seg.direction, lo, hi }
+    UnitRange {
+        start_index: seg.start_index,
+        end_index: seg.end_index,
+        direction: seg.direction,
+        lo,
+        hi,
+    }
 }
 
 /// 核心上沿 `computeZG` = min(三段 hi)（`center::compute_zg` 私有，本地镜像，口径 B 全三段）。
@@ -2516,7 +2976,15 @@ fn cascade_dual(l0: &ParseLayer, config: &ThetaConfig, weak: bool) -> C327Arm {
     let mut tower: Vec<LeveledMove> = units
         .iter()
         .enumerate()
-        .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
+        .map(|(i, u)| {
+            LeveledMove::from_unit(
+                u,
+                ElementId {
+                    level: 0,
+                    ordinal: i as u64,
+                },
+            )
+        })
         .collect();
 
     for level_idx in 0..=l_max {
@@ -2562,7 +3030,10 @@ fn cascade_dual(l0: &ParseLayer, config: &ThetaConfig, weak: bool) -> C327Arm {
                     &tower[win.0..=win.1],
                     *c,
                     level_idx as u32 + 1,
-                    ElementId { level: level_idx as u32 + 1, ordinal: i as u64 },
+                    ElementId {
+                        level: level_idx as u32 + 1,
+                        ordinal: i as u64,
+                    },
                 )
             })
             .collect();
@@ -2602,7 +3073,11 @@ fn c327_lcs_len(a: &[Center], b: &[Center]) -> usize {
     let mut cur = vec![0usize; m + 1];
     for x in a {
         for j in 1..=m {
-            cur[j] = if *x == b[j - 1] { prev[j - 1] + 1 } else { prev[j].max(cur[j - 1]) };
+            cur[j] = if *x == b[j - 1] {
+                prev[j - 1] + 1
+            } else {
+                prev[j].max(cur[j - 1])
+            };
         }
         std::mem::swap(&mut prev, &mut cur);
         cur.iter_mut().for_each(|v| *v = 0);
@@ -2778,7 +3253,13 @@ fn center_strict_zd_eq_zg_full_btc_cascade_witness() {
     );
     drop(layer);
 
-    c327_run_witness("full", &ds, &cfg, &C327_FULL_BTC_LEVELS, &C327_FULL_BTC_HITS);
+    c327_run_witness(
+        "full",
+        &ds,
+        &cfg,
+        &C327_FULL_BTC_LEVELS,
+        &C327_FULL_BTC_HITS,
+    );
 
     // ── #323 §2.1 级联重排计数逐级对账（L0..L4；L5 空级不在报告表内）──
     for (k, expect) in C327_CASCADE_REARRANGE_323.iter().enumerate() {
@@ -2792,7 +3273,10 @@ fn center_strict_zd_eq_zg_full_btc_cascade_witness() {
     }
     eprintln!(
         "[#327/full] #323 §2.1 级联重排对账通过：逐级 {:?} == 报告 {:?}",
-        C327_FULL_BTC_LEVELS[..5].iter().map(|r| r.rearranged()).collect::<Vec<_>>(),
+        C327_FULL_BTC_LEVELS[..5]
+            .iter()
+            .map(|r| r.rearranged())
+            .collect::<Vec<_>>(),
         C327_CASCADE_REARRANGE_323,
     );
 }
@@ -2885,9 +3369,7 @@ fn center_strict_zd_eq_zg_change_block_witness() {
     eprintln!(
         "[#327/block] 变动块见证成立：{C327_BLOCK_HIT_DAY} 两处单点核心（{}）判不成立，\
          L0 重排 {} 个中枢并级联至 L1 重排 {} 个",
-        l0_hits[0].core,
-        C327_BLOCK_REARRANGE[0],
-        C327_BLOCK_REARRANGE[1],
+        l0_hits[0].core, C327_BLOCK_REARRANGE[0], C327_BLOCK_REARRANGE[1],
     );
 }
 
@@ -2899,7 +3381,8 @@ fn center_strict_zd_eq_zg_change_block_witness() {
 fn load_deltafree_dump(path: &str) -> Vec<ResidualTrade> {
     use super::mu_estimator::PositionState;
     use crate::theta_v0::types::BspBits;
-    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("δ-free dump 读取失败 {path}：{e}"));
+    let text = std::fs::read_to_string(path)
+        .unwrap_or_else(|e| panic!("δ-free dump 读取失败 {path}：{e}"));
     let mut out = Vec::new();
     for line in text.lines().skip(1) {
         // 跳表头
@@ -2920,18 +3403,44 @@ fn load_deltafree_dump(path: &str) -> Vec<ResidualTrade> {
         let d = f64::from_bits(u64::from_str_radix(f[9], 16).unwrap());
         let exit_type = exit_type_decode(f[10].parse().unwrap()); // 诊断切片还原（不进裁决键）
         let bits = match (bsp, delta > 0) {
-            (1, true) => BspBits { buy1: true, ..Default::default() },
-            (1, false) => BspBits { sell1: true, ..Default::default() },
-            (2, true) => BspBits { buy2: true, ..Default::default() },
-            (2, false) => BspBits { sell2: true, ..Default::default() },
-            (_, true) => BspBits { buy3: true, ..Default::default() },
-            (_, false) => BspBits { sell3: true, ..Default::default() },
+            (1, true) => BspBits {
+                buy1: true,
+                ..Default::default()
+            },
+            (1, false) => BspBits {
+                sell1: true,
+                ..Default::default()
+            },
+            (2, true) => BspBits {
+                buy2: true,
+                ..Default::default()
+            },
+            (2, false) => BspBits {
+                sell2: true,
+                ..Default::default()
+            },
+            (_, true) => BspBits {
+                buy3: true,
+                ..Default::default()
+            },
+            (_, false) => BspBits {
+                sell3: true,
+                ..Default::default()
+            },
         };
         let class = MuClass {
             force_state, // A1：δ-free 主裁决基第 8 维还原
             ..MuClass::from_certificate(level, delta, bits, sigma_h, PositionState::Root)
         };
-        out.push(ResidualTrade { class, resid_base, cost, h_bucket, time_block, d, exit_type });
+        out.push(ResidualTrade {
+            class,
+            resid_base,
+            cost,
+            h_bucket,
+            time_block,
+            d,
+            exit_type,
+        });
     }
     out
 }
@@ -2947,9 +3456,13 @@ fn load_deltafree_dump(path: &str) -> Vec<ResidualTrade> {
 #[test]
 #[ignore]
 fn deltafree_exact_recompute() {
-    let dump = std::env::var(crate::theta_v0::env_registry::DELTAFREE_DUMP).unwrap_or_else(|_| "/tmp/finalpha/deltafree_pertrade.tsv".into());
+    let dump = std::env::var(crate::theta_v0::env_registry::DELTAFREE_DUMP)
+        .unwrap_or_else(|_| "/tmp/finalpha/deltafree_pertrade.tsv".into());
     let records = load_deltafree_dump(&dump);
-    assert!(!records.is_empty(), "δ-free dump 空——先跑 DELTAFREE_DUMP=<path> wverify_full 落盘");
+    assert!(
+        !records.is_empty(),
+        "δ-free dump 空——先跑 DELTAFREE_DUMP=<path> wverify_full 落盘"
+    );
 
     // 与在线 wverify_full 主路径共用 deltafree_verdict（单一口径）——dump 还原 records 与在线 records
     // 逐字节相等（round-trip 精确，见 deltafree_dump_roundtrip_and_pooling），故本复现 = 在线主裁决。
@@ -2977,9 +3490,13 @@ fn m3_partition_btc_fullhistory() {
     use super::runner::typed_ledger_from_bars;
     let cfg = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &cfg).expect("BTC 数据加载（btc_1m_full.json）");
-    let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
+    let sw = PREREG_WINDOWS
+        .iter()
+        .find(|w| w.symbol == "BTC")
+        .expect("BTC prereg 窗");
 
-    let (mut tot_ledger, mut tot_kept, mut tot_records, mut n_win) = (0usize, 0usize, 0usize, 0usize);
+    let (mut tot_ledger, mut tot_kept, mut tot_records, mut n_win) =
+        (0usize, 0usize, 0usize, 0usize);
     for win in sw.wf_anchored {
         if win.test_start < OOS_START {
             continue; // IS 期窗不算 OOS 证据（与 walk_forward_oos_residuals 同过滤）
@@ -2990,17 +3507,25 @@ fn m3_partition_btc_fullhistory() {
         }
         // 同源：ledger 与 records 由同一 bars 切片产出（build_mu_from_bars 内部即调 typed_ledger_from_bars）。
         let ledger = typed_ledger_from_bars(&test_ds.bars, &cfg);
-        let (_est, records) =
-            build_mu_from_bars(&test_ds.bars, &cfg, win.i * WF_TIME_STRIDE);
+        let (_est, records) = build_mu_from_bars(&test_ds.bars, &cfg, win.i * WF_TIME_STRIDE);
         // 逐窗零违例（内部 panic = 该窗分区破缺，停下上浮）。
         assert_m3_partition(&ledger, &records);
-        let kept = ledger.iter().filter(|t| matches!(
-            super::l3_delta_r_alpha::ledger_disposition(t),
-            super::l3_delta_r_alpha::LedgerDisposition::Kept
-        )).count();
+        let kept = ledger
+            .iter()
+            .filter(|t| {
+                matches!(
+                    super::l3_delta_r_alpha::ledger_disposition(t),
+                    super::l3_delta_r_alpha::LedgerDisposition::Kept
+                )
+            })
+            .count();
         eprintln!(
             "[m3-full] win{} {}→{} |ledger|={} kept={kept} |records|={}",
-            win.i, win.test_start, win.test_end, ledger.len(), records.len()
+            win.i,
+            win.test_start,
+            win.test_end,
+            ledger.len(),
+            records.len()
         );
         tot_ledger += ledger.len();
         tot_kept += kept;
@@ -3008,7 +3533,10 @@ fn m3_partition_btc_fullhistory() {
         n_win += 1;
     }
     assert!(n_win > 0, "BTC OOS 窗非空（否则测试空转）");
-    assert_eq!(tot_kept, tot_records, "全窗聚合 kept ≡ |records|（穷尽守恒跨窗一致）");
+    assert_eq!(
+        tot_kept, tot_records,
+        "全窗聚合 kept ≡ |records|（穷尽守恒跨窗一致）"
+    );
     eprintln!(
         "[m3-full] BTC 全历史 {n_win} 窗 M3 分区零违例：Σ|ledger|={tot_ledger} Σkept={tot_kept} Σ|records|={tot_records}"
     );
@@ -3027,14 +3555,45 @@ mod tests {
         use crate::theta_v0::types::BspBits;
         // ① round-trip：dump 写盘→load 还原逐字节相等（f64 bit 模式精确）。
         let mk = |delta: i8, resid: f64, tb: u32, et: ExitType| {
-            let bits = if delta > 0 { BspBits { buy3: true, ..Default::default() } } else { BspBits { sell3: true, ..Default::default() } };
+            let bits = if delta > 0 {
+                BspBits {
+                    buy3: true,
+                    ..Default::default()
+                }
+            } else {
+                BspBits {
+                    sell3: true,
+                    ..Default::default()
+                }
+            };
             let class = MuClass::from_certificate(0, delta, bits, 1, PositionState::Root);
-            ResidualTrade { class, resid_base: resid, cost: 0.1, h_bucket: 0, time_block: tb, d: 1.0, exit_type: et }
+            ResidualTrade {
+                class,
+                resid_base: resid,
+                cost: 0.1,
+                h_bucket: 0,
+                time_block: tb,
+                d: 1.0,
+                exit_type: et,
+            }
         };
         // exit_type 循环覆盖 5 变体 ⟹ round-trip 实际穿过新诊断列（否则该列是死代码）。
-        let ets = [ExitType::CloseRoot, ExitType::ReduceCore, ExitType::CloseReverseOpen, ExitType::RiskExit, ExitType::Hold];
+        let ets = [
+            ExitType::CloseRoot,
+            ExitType::ReduceCore,
+            ExitType::CloseReverseOpen,
+            ExitType::RiskExit,
+            ExitType::Hold,
+        ];
         let recs: Vec<ResidualTrade> = (0..40)
-            .map(|i| mk(if i % 2 == 0 { 1 } else { -1 }, 3.14159_f64 * (i as f64 + 1.0), (i % 2) as u32, ets[i % 5]))
+            .map(|i| {
+                mk(
+                    if i % 2 == 0 { 1 } else { -1 },
+                    3.14159_f64 * (i as f64 + 1.0),
+                    (i % 2) as u32,
+                    ets[i % 5],
+                )
+            })
             .collect();
         let path = std::env::temp_dir().join("deltafree_roundtrip_test.tsv");
         let p = path.to_str().unwrap();
@@ -3045,7 +3604,11 @@ mod tests {
         let loaded = load_deltafree_dump(p);
         assert_eq!(loaded.len(), recs.len(), "round-trip 笔数");
         for (a, b) in recs.iter().zip(&loaded) {
-            assert_eq!(a.resid_base.to_bits(), b.resid_base.to_bits(), "resid_base bit-exact");
+            assert_eq!(
+                a.resid_base.to_bits(),
+                b.resid_base.to_bits(),
+                "resid_base bit-exact"
+            );
             assert_eq!(a.cost.to_bits(), b.cost.to_bits(), "cost bit-exact");
             assert_eq!(a.class.delta, b.class.delta);
             assert_eq!(a.class.bsp_class(), b.class.bsp_class());
@@ -3060,12 +3623,28 @@ mod tests {
         //    （同批置换、只读出侧池化）：H0 独立 δ ⟹ 池化 perm_p 不显著（>0.05）。
         let mut h0: Vec<ResidualTrade> = Vec::new();
         for i in 0..60 {
-            h0.push(mk(if i % 2 == 0 { 1 } else { -1 }, (i % 5) as f64 - 2.0, 0, ExitType::Hold));
+            h0.push(mk(
+                if i % 2 == 0 { 1 } else { -1 },
+                (i % 5) as f64 - 2.0,
+                0,
+                ExitType::Hold,
+            ));
         }
-        let pp = perm_test::stratified_delta_perm_p_deltafree(&h0, perm_test::N_PERM, perm_test::PERM_SEED);
+        let pp = perm_test::stratified_delta_perm_p_deltafree(
+            &h0,
+            perm_test::N_PERM,
+            perm_test::PERM_SEED,
+        );
         // A1：δ-free 基键含 force_state 第 8 维——mk 走 from_certificate ⟹ force_state=None。
-        assert!(pp.contains_key(&(0, 3, 1, None)), "δ-free 基键 (0,3,+1,None) 应存在");
-        assert!(pp[&(0, 3, 1, None)] > 0.05, "H0 独立 δ ⟹ δ-free 池化 perm_p 不显著: {}", pp[&(0, 3, 1, None)]);
+        assert!(
+            pp.contains_key(&(0, 3, 1, None)),
+            "δ-free 基键 (0,3,+1,None) 应存在"
+        );
+        assert!(
+            pp[&(0, 3, 1, None)] > 0.05,
+            "H0 独立 δ ⟹ δ-free 池化 perm_p 不显著: {}",
+            pp[&(0, 3, 1, None)]
+        );
     }
 
     /// L1 自检（预注册 §3 承重不变量）：单品种 time_block 值域必须 < SYMBOL_STRIDE，否则跨品种 stratum
@@ -3073,13 +3652,23 @@ mod tests {
     /// 必须落在一个 SYMBOL_STRIDE 内；7 品种偏移不溢出 u32。破了这条 = 跨品种隔离失效。
     #[test]
     fn symbol_stride_isolates_strata() {
-        let max_windows = PREREG_WINDOWS.iter().map(|w| w.wf_anchored.len()).max().unwrap() as u32;
+        let max_windows = PREREG_WINDOWS
+            .iter()
+            .map(|w| w.wf_anchored.len())
+            .max()
+            .unwrap() as u32;
         // 窗内 time_block = entry_bar/43_200；6 月窗 1min ≤ ~260K bar ⟹ 窗内块上界 ~10 < WF_TIME_STRIDE。
         let per_symbol_span = max_windows * WF_TIME_STRIDE + WF_TIME_STRIDE;
         assert!(per_symbol_span < SYMBOL_STRIDE, "单品种 time_block 值域 {per_symbol_span} 须 < SYMBOL_STRIDE {SYMBOL_STRIDE}（跨品种 stratum 隔离）");
         let max_offset = (L3_UNIVERSE.len() as u32 - 1) * SYMBOL_STRIDE + per_symbol_span;
-        assert!(max_offset < u32::MAX, "7 品种最大 time_block 偏移不溢出 u32");
-        assert!(!L3_UNIVERSE.contains(&"OKLO"), "OKLO 剔除（Observation 池，无 walk-forward OOS）");
+        assert!(
+            max_offset < u32::MAX,
+            "7 品种最大 time_block 偏移不溢出 u32"
+        );
+        assert!(
+            !L3_UNIVERSE.contains(&"OKLO"),
+            "OKLO 剔除（Observation 池，无 walk-forward OOS）"
+        );
     }
 
     /// L1 自检（q4 harness 日期算术，零信息增量）：前推 6 月跨年/钳日 + 前一天跨月。
@@ -3098,7 +3687,11 @@ mod tests {
     #[test]
     fn sigma_stdev_matches_hand_calc() {
         assert!((stdev_consecutive_diffs(&[1.0, 2.0, 4.0, 7.0]) - 1.0).abs() < 1e-12);
-        assert_eq!(stdev_consecutive_diffs(&[5.0]), 0.0, "单点无差分 ⟹ 0（守卫）");
+        assert_eq!(
+            stdev_consecutive_diffs(&[5.0]),
+            0.0,
+            "单点无差分 ⟹ 0（守卫）"
+        );
         assert_eq!(stdev_consecutive_diffs(&[]), 0.0, "空序列 ⟹ 0（守卫）");
     }
 
@@ -3125,7 +3718,9 @@ mod tests {
         let mut sink = 0u64;
         for i in 0..n {
             let (_cls, _tower) = clf.classify_at(i);
-            sink = sink.wrapping_add(clf.tower_generation()).wrapping_add(clf.forest_epoch());
+            sink = sink
+                .wrapping_add(clf.tower_generation())
+                .wrapping_add(clf.forest_epoch());
         }
         let classify_ms = t0.elapsed().as_secs_f64() * 1e3;
         eprintln!("[est2-profile] ① 单次全 bar 分类 pass = {classify_ms:.1} ms (sink={sink})");
@@ -3139,7 +3734,10 @@ mod tests {
         let t1 = Instant::now();
         let (est_a, _) = build_mu_from_bars(&train.bars, &chi, 0);
         let build_one_ms = t1.elapsed().as_secs_f64() * 1e3;
-        eprintln!("[est2-profile] ② 单次 build_mu(fullpi) = {build_one_ms:.1} ms (n_classes={})", est_a.n_classes());
+        eprintln!(
+            "[est2-profile] ② 单次 build_mu(fullpi) = {build_one_ms:.1} ms (n_classes={})",
+            est_a.n_classes()
+        );
         super::super::super::classifier::stage_profile::dump();
 
         // ③ est×2 现状：连跑两次（fullpi + plain）。
@@ -3193,18 +3791,50 @@ mod tests {
 
         // 构造：给定 (level, bsp主类, δ, parent_dir, force_state) 的残差记录。bits 按 δ 选买/卖侧
         // （同 perm_test::tests::rt 模式）——bsp_class() 对买卖同类归并，键不受 δ 侧影响。
-        let rt = |level: u32, bsp: u8, delta: i8, parent_dir: i8, fs: Option<ForceStateA5>, resid: f64| {
+        let rt = |level: u32,
+                  bsp: u8,
+                  delta: i8,
+                  parent_dir: i8,
+                  fs: Option<ForceStateA5>,
+                  resid: f64| {
             let bits = match (bsp, delta > 0) {
-                (1, true) => BspBits { buy1: true, ..Default::default() },
-                (1, false) => BspBits { sell1: true, ..Default::default() },
-                (2, true) => BspBits { buy2: true, ..Default::default() },
-                (2, false) => BspBits { sell2: true, ..Default::default() },
-                (_, true) => BspBits { buy3: true, ..Default::default() },
-                (_, false) => BspBits { sell3: true, ..Default::default() },
+                (1, true) => BspBits {
+                    buy1: true,
+                    ..Default::default()
+                },
+                (1, false) => BspBits {
+                    sell1: true,
+                    ..Default::default()
+                },
+                (2, true) => BspBits {
+                    buy2: true,
+                    ..Default::default()
+                },
+                (2, false) => BspBits {
+                    sell2: true,
+                    ..Default::default()
+                },
+                (_, true) => BspBits {
+                    buy3: true,
+                    ..Default::default()
+                },
+                (_, false) => BspBits {
+                    sell3: true,
+                    ..Default::default()
+                },
             };
-            let mut class = MuClass::from_certificate(level, delta, bits, parent_dir, PositionState::Root);
+            let mut class =
+                MuClass::from_certificate(level, delta, bits, parent_dir, PositionState::Root);
             class.force_state = fs; // from_certificate 诚实 None，测试显式注入第 8 维
-            ResidualTrade { class, resid_base: resid, cost: 0.0, h_bucket: 0, time_block: 0, d: 1.0, exit_type: ExitType::Hold }
+            ResidualTrade {
+                class,
+                resid_base: resid,
+                cost: 0.0,
+                h_bucket: 0,
+                time_block: 0,
+                d: 1.0,
+                exit_type: ExitType::Hold,
+            }
         };
         // 桶数 = V+F+I 三态计数总和（deltafree_verdict 每桶恰产一个 AlphaState）。
         let n_buckets = |records: &[ResidualTrade]| {
@@ -3215,10 +3845,20 @@ mod tests {
         // ① δ 池化：仅 δ 不同、(level=1,bsp=1,σ_p=+1,force=Dominated) 全同 → 恰 1 桶。
         let base_fs = Some(ForceStateA5::Dominated);
         let pooled: Vec<ResidualTrade> = (0..8)
-            .map(|i| rt(1, 1, if i % 2 == 0 { 1 } else { -1 }, 1, base_fs, i as f64 * 0.7 - 2.0))
+            .map(|i| {
+                rt(
+                    1,
+                    1,
+                    if i % 2 == 0 { 1 } else { -1 },
+                    1,
+                    base_fs,
+                    i as f64 * 0.7 - 2.0,
+                )
+            })
             .collect();
         assert_eq!(
-            n_buckets(&pooled), 1,
+            n_buckets(&pooled),
+            1,
             "仅 δ 不同的记录必须池化进同一 δ-free 主裁决桶（=1）；>1 ⟹ 主裁决键混入了 δ 分量"
         );
 

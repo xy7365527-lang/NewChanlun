@@ -151,9 +151,8 @@ fn run_p123(max_bars: usize, dump_path: &Path, p116_path: &Path) -> P123Run {
             dump_path.display()
         )
     });
-    let p116 = std::fs::read(p116_path).unwrap_or_else(|e| {
-        panic!("读 P116_DUMP 产物 {} 失败：{e}", p116_path.display())
-    });
+    let p116 = std::fs::read(p116_path)
+        .unwrap_or_else(|e| panic!("读 P116_DUMP 产物 {} 失败：{e}", p116_path.display()));
     P123Run {
         stdout: output.stdout,
         dump,

@@ -119,13 +119,22 @@ mod tests {
     use super::*;
 
     fn mk_order(action: StrictAction, qty: i64) -> Order {
-        Order { action, qty, exec_index: 1 }
+        Order {
+            action,
+            qty,
+            exec_index: 1,
+        }
     }
 
     /// Buy → OrderSide::Buy，非 reduce，带限价。
     #[test]
     fn buy_maps_to_buy_side_limit() {
-        let oi = to_order_intent(&mk_order(StrictAction::Buy, 10), PositionDir::Flat, Some(100)).unwrap();
+        let oi = to_order_intent(
+            &mk_order(StrictAction::Buy, 10),
+            PositionDir::Flat,
+            Some(100),
+        )
+        .unwrap();
         assert_eq!(oi.side, OrderSideLike::Buy);
         assert_eq!(oi.qty, 10);
         assert!(!oi.reduce_only);
@@ -135,7 +144,8 @@ mod tests {
     /// Close 持多 → Sell + reduce_only。
     #[test]
     fn close_long_maps_to_sell_reduce_only() {
-        let oi = to_order_intent(&mk_order(StrictAction::Close, 5), PositionDir::Long, None).unwrap();
+        let oi =
+            to_order_intent(&mk_order(StrictAction::Close, 5), PositionDir::Long, None).unwrap();
         assert_eq!(oi.side, OrderSideLike::Sell);
         assert!(oi.reduce_only);
     }
@@ -143,7 +153,8 @@ mod tests {
     /// Close 持空 → Buy + reduce_only。
     #[test]
     fn close_short_maps_to_buy_reduce_only() {
-        let oi = to_order_intent(&mk_order(StrictAction::Close, 5), PositionDir::Short, None).unwrap();
+        let oi =
+            to_order_intent(&mk_order(StrictAction::Close, 5), PositionDir::Short, None).unwrap();
         assert_eq!(oi.side, OrderSideLike::Buy);
         assert!(oi.reduce_only);
     }
@@ -151,19 +162,30 @@ mod tests {
     /// Close 但 Flat ⟹ None（无仓可平）。
     #[test]
     fn close_flat_yields_none() {
-        assert!(to_order_intent(&mk_order(StrictAction::Close, 5), PositionDir::Flat, None).is_none());
+        assert!(
+            to_order_intent(&mk_order(StrictAction::Close, 5), PositionDir::Flat, None).is_none()
+        );
     }
 
     /// Hold/Wait ⟹ 不下单。
     #[test]
     fn hold_wait_yield_none() {
-        assert!(to_order_intent(&mk_order(StrictAction::Hold, 5), PositionDir::Long, None).is_none());
-        assert!(to_order_intent(&mk_order(StrictAction::Wait, 5), PositionDir::Flat, None).is_none());
+        assert!(
+            to_order_intent(&mk_order(StrictAction::Hold, 5), PositionDir::Long, None).is_none()
+        );
+        assert!(
+            to_order_intent(&mk_order(StrictAction::Wait, 5), PositionDir::Flat, None).is_none()
+        );
     }
 
     /// qty<=0 ⟹ 不交易（spec:47）。
     #[test]
     fn nonpos_qty_yields_none() {
-        assert!(to_order_intent(&mk_order(StrictAction::Buy, 0), PositionDir::Flat, Some(100)).is_none());
+        assert!(to_order_intent(
+            &mk_order(StrictAction::Buy, 0),
+            PositionDir::Flat,
+            Some(100)
+        )
+        .is_none());
     }
 }

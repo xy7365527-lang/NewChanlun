@@ -52,10 +52,10 @@
 
 use std::rc::Rc;
 
+use super::super::types::{Direction, Side};
 use super::descend::RMove;
 use super::divergence::{is_divergence, segment_macd_area};
-use super::recursive_tower::{LeveledMove, find_move_by_end_index};
-use super::super::types::{Direction, Side};
+use super::recursive_tower::{find_move_by_end_index, LeveledMove};
 
 /// δ 交易方向（Long=买/+1，Short=卖/−1）。
 /// 复用 types::Side（与 NestCertificate.side 同类型）。
@@ -105,7 +105,12 @@ pub fn rmove_dir(rmove: &RMove) -> Direction {
 ///
 /// 任一条件不满足 ⟹ false（`Cand=0`，合法定位失败，非 bug）。
 pub fn div_cand(input: &DivCandInput<'_>) -> bool {
-    let DivCandInput { context, target_idx, hist, delta } = input;
+    let DivCandInput {
+        context,
+        target_idx,
+        hist,
+        delta,
+    } = input;
     let context = *context;
     let target_idx = *target_idx;
     let hist = *hist;
@@ -121,8 +126,8 @@ pub fn div_cand(input: &DivCandInput<'_>) -> bool {
 
     // 条件1：dir(s) = −δ。
     let expected_dir = match delta {
-        Side::Long => Direction::Down,  // δ=买 → 背驰段方向 = 下跌
-        Side::Short => Direction::Up,   // δ=卖 → 背驰段方向 = 上涨
+        Side::Long => Direction::Down, // δ=买 → 背驰段方向 = 下跌
+        Side::Short => Direction::Up,  // δ=卖 → 背驰段方向 = 上涨
     };
     if s_dir != expected_dir {
         return false;
@@ -137,8 +142,8 @@ pub fn div_cand(input: &DivCandInput<'_>) -> bool {
 
     // 条件3：Extreme。
     let extreme_ok = match delta {
-        Side::Long => s.rmove.lo() < s_prev.rmove.lo(),   // 下跌段更低低点
-        Side::Short => s.rmove.hi() > s_prev.rmove.hi(),  // 上涨段更高高点
+        Side::Long => s.rmove.lo() < s_prev.rmove.lo(), // 下跌段更低低点
+        Side::Short => s.rmove.hi() > s_prev.rmove.hi(), // 上涨段更高高点
     };
     if !extreme_ok {
         return false;
@@ -186,9 +191,10 @@ pub fn bsp_div_cand(
 
     // 2. 在上级（tower[level+1]）找包含 s 的 Compose，取其 sub_moves 作 context。
     let upper_moves = tower.get(level + 1).map(|rc| rc.as_slice()).unwrap_or(&[]);
-    let Some(parent) = upper_moves.iter().find(|p| {
-        p.start_index <= s.start_index && p.end_index >= s.end_index
-    }) else {
+    let Some(parent) = upper_moves
+        .iter()
+        .find(|p| p.start_index <= s.start_index && p.end_index >= s.end_index)
+    else {
         return false; // 无上级语境
     };
     let context_subs = &parent.sub_moves;
@@ -201,7 +207,12 @@ pub fn bsp_div_cand(
         return false;
     };
 
-    div_cand(&DivCandInput { context: context_subs.as_slice(), target_idx, hist, delta })
+    div_cand(&DivCandInput {
+        context: context_subs.as_slice(),
+        target_idx,
+        hist,
+        delta,
+    })
 }
 
 #[cfg(test)]
@@ -217,7 +228,10 @@ mod tests {
             start_index: start,
             end_index: end,
             sub_moves: Rc::new(vec![]),
-            id: ElementId { level: 0, ordinal: 0 },
+            id: ElementId {
+                level: 0,
+                ordinal: 0,
+            },
         }
     }
 
@@ -245,7 +259,12 @@ mod tests {
             up_seg(60, 120, 5, 9),   // s=Up（方向不满足 δ=Long）
         ];
         let hist = flat_hist(1.0, 10);
-        let input = DivCandInput { context: &context, target_idx: 1, hist: &hist, delta: Side::Long };
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 1,
+            hist: &hist,
+            delta: Side::Long,
+        };
         assert!(!div_cand(&input), "方向不反 ⟹ Cand=0");
     }
 
@@ -257,7 +276,12 @@ mod tests {
             down_seg(40, 90, 5, 9), // s=Down，δ=Short 要求 Up
         ];
         let hist = flat_hist(1.0, 10);
-        let input = DivCandInput { context: &context, target_idx: 1, hist: &hist, delta: Side::Short };
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 1,
+            hist: &hist,
+            delta: Side::Short,
+        };
         assert!(!div_cand(&input), "方向不反（Short × Down）⟹ Cand=0");
     }
 
@@ -269,7 +293,12 @@ mod tests {
         // target_idx=0：前序为空，无 s'。
         let context = vec![down_seg(50, 100, 0, 4)];
         let hist = flat_hist(1.0, 5);
-        let input = DivCandInput { context: &context, target_idx: 0, hist: &hist, delta: Side::Long };
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 0,
+            hist: &hist,
+            delta: Side::Long,
+        };
         assert!(!div_cand(&input), "无前序同向段 ⟹ Cand=0");
     }
 
@@ -277,12 +306,17 @@ mod tests {
     #[test]
     fn cond2_only_opposite_dir_prev_returns_false() {
         let context = vec![
-            up_seg(50, 100, 0, 4), // 方向 Up，与 δ=Long 的候选段 Down 不同向
-            up_seg(60, 110, 5, 9), // 同上，非同向
+            up_seg(50, 100, 0, 4),    // 方向 Up，与 δ=Long 的候选段 Down 不同向
+            up_seg(60, 110, 5, 9),    // 同上，非同向
             down_seg(30, 90, 10, 14), // s，δ=Long 方向 Down 正确
         ];
         let hist = flat_hist(1.0, 15);
-        let input = DivCandInput { context: &context, target_idx: 2, hist: &hist, delta: Side::Long };
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 2,
+            hist: &hist,
+            delta: Side::Long,
+        };
         assert!(!div_cand(&input), "前序无同向段 ⟹ 条件2 不满足");
     }
 
@@ -292,16 +326,21 @@ mod tests {
     #[test]
     fn cond3_lo_not_lower_long_delta_returns_false() {
         let context = vec![
-            up_seg(50, 100, 0, 4),   // 反向段（中间段，形成结构）
-            down_seg(40, 90, 5, 9),  // s'，lo=40
-            up_seg(45, 95, 10, 14),  // 反向
+            up_seg(50, 100, 0, 4),    // 反向段（中间段，形成结构）
+            down_seg(40, 90, 5, 9),   // s'，lo=40
+            up_seg(45, 95, 10, 14),   // 反向
             down_seg(45, 90, 15, 19), // s，lo=45 >= lo(s')=40 ⟹ 不满足 Extreme
         ];
         // 前序最近同向段 = context[1]（Down，lo=40）
         let hist = flat_hist(2.0, 20);
         // 设 area(s')=10，area(s)=8（力度满足），但 Extreme 不满足。
         let hist_adj: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.5 }).collect();
-        let input = DivCandInput { context: &context, target_idx: 3, hist: &hist_adj, delta: Side::Long };
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 3,
+            hist: &hist_adj,
+            delta: Side::Long,
+        };
         assert!(!div_cand(&input), "lo 不更低 ⟹ 条件3 不满足");
     }
 
@@ -315,7 +354,12 @@ mod tests {
             up_seg(55, 95, 15, 19),   // s，hi=95 <= hi(s')=100 ⟹ 不满足 Extreme
         ];
         let hist = flat_hist(2.0, 20);
-        let input = DivCandInput { context: &context, target_idx: 3, hist: &hist, delta: Side::Short };
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 3,
+            hist: &hist,
+            delta: Side::Short,
+        };
         assert!(!div_cand(&input), "hi 不更高 ⟹ 条件3 不满足");
     }
 
@@ -331,7 +375,12 @@ mod tests {
             down_seg(30, 85, 15, 19), // s，lo=30 < 40（Extreme ✓），area=5*3=15 > 10（不衰减）
         ];
         let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 3.0 }).collect();
-        let input = DivCandInput { context: &context, target_idx: 3, hist: &hist, delta: Side::Long };
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 3,
+            hist: &hist,
+            delta: Side::Long,
+        };
         assert!(!div_cand(&input), "area(s) > area(s') ⟹ 条件4 不满足");
     }
 
@@ -349,7 +398,12 @@ mod tests {
             down_seg(30, 85, 15, 19), // s：Down，lo=30（< 40），area=5*1=5（< 10）
         ];
         let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
-        let input = DivCandInput { context: &context, target_idx: 3, hist: &hist, delta: Side::Long };
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 3,
+            hist: &hist,
+            delta: Side::Long,
+        };
         assert!(div_cand(&input), "四条件全满足 δ=Long ⟹ Cand=1");
     }
 
@@ -365,7 +419,12 @@ mod tests {
             up_seg(55, 120, 15, 19),  // s：Up，hi=120（> 100），area=5
         ];
         let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
-        let input = DivCandInput { context: &context, target_idx: 3, hist: &hist, delta: Side::Short };
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 3,
+            hist: &hist,
+            delta: Side::Short,
+        };
         assert!(div_cand(&input), "四条件全满足 δ=Short ⟹ Cand=1");
     }
 
@@ -389,7 +448,7 @@ mod tests {
         let context = vec![down_seg(40, 90, 0, 4)];
         let input = DivCandInput {
             context: &context,
-            target_idx: 5,  // 越界
+            target_idx: 5, // 越界
             hist: &flat_hist(1.0, 10),
             delta: Side::Long,
         };
@@ -401,7 +460,7 @@ mod tests {
     fn empty_hist_area_zero_divergence_fails() {
         let context = vec![
             up_seg(50, 100, 0, 4),
-            down_seg(40, 90, 5, 9),   // s'
+            down_seg(40, 90, 5, 9), // s'
             up_seg(45, 95, 10, 14),
             down_seg(30, 85, 15, 19), // s，Extreme ✓
         ];
@@ -418,13 +477,18 @@ mod tests {
     /// 验证 Cand 向上游传播为 NestCertificate 的 0 值（规格 N^δ：任一级 Cand=0 ⟹ 整体 0）。
     #[test]
     fn cand_false_propagates_to_n_delta_zero() {
-        use super::super::nest::{NestCertificate, NestInterval, NestRung};
         use super::super::super::types::{BspBits, Side as CertSide};
+        use super::super::nest::{NestCertificate, NestInterval, NestRung};
 
         // Cand=false 场景（前序无同向段）。
         let context = vec![down_seg(50, 100, 0, 4)];
         let hist = flat_hist(1.0, 5);
-        let input = DivCandInput { context: &context, target_idx: 0, hist: &hist, delta: CertSide::Long };
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 0,
+            hist: &hist,
+            delta: CertSide::Long,
+        };
         let cand = div_cand(&input); // false
         assert!(!cand);
 
@@ -434,30 +498,46 @@ mod tests {
         let cert = NestCertificate::from_parts(
             CertSide::Long,
             terminal,
-            NestInterval { end_time: 4, start_time: 0, idx: 0 },
+            NestInterval {
+                end_time: 4,
+                start_time: 0,
+                idx: 0,
+            },
             vec![NestRung::new(
-                NestInterval { end_time: 9, start_time: 0, idx: 0 },
+                NestInterval {
+                    end_time: 9,
+                    start_time: 0,
+                    idx: 0,
+                },
                 cand, // false
             )],
         );
-        assert!(!cert.n_delta(), "任一级 Cand=false ⟹ n_delta()=false（N^δ 定义）");
+        assert!(
+            !cert.n_delta(),
+            "任一级 Cand=false ⟹ n_delta()=false（N^δ 定义）"
+        );
     }
 
     /// Cand=true ⟹ NestCertificate 其他条件满足时 n_delta()=true（多级链正例）。
     #[test]
     fn cand_true_with_valid_chain_n_delta_true() {
-        use super::super::nest::{NestCertificate, NestInterval, NestRung};
         use super::super::super::types::{BspBits, Side as CertSide};
+        use super::super::nest::{NestCertificate, NestInterval, NestRung};
 
         // Cand=true（四条件全满足）。
         let context = vec![
             up_seg(50, 100, 0, 4),
-            down_seg(40, 90, 5, 9),   // s'
+            down_seg(40, 90, 5, 9), // s'
             up_seg(45, 95, 10, 14),
             down_seg(30, 85, 15, 19), // s
         ];
         let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
-        let input = DivCandInput { context: &context, target_idx: 3, hist: &hist, delta: CertSide::Long };
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 3,
+            hist: &hist,
+            delta: CertSide::Long,
+        };
         let cand = div_cand(&input);
         assert!(cand, "前置：四条件满足 Cand=true");
 
@@ -465,37 +545,57 @@ mod tests {
         let mut terminal = BspBits::default();
         terminal.buy1 = true;
         // 执行级区间 [15,19]，操作级区间 [0,19]（⊇ 执行级）。
-        let base = NestInterval { end_time: 19, start_time: 15, idx: 0 };
+        let base = NestInterval {
+            end_time: 19,
+            start_time: 15,
+            idx: 0,
+        };
         let op_rung = NestRung::new(
-            NestInterval { end_time: 19, start_time: 0, idx: 0 },
+            NestInterval {
+                end_time: 19,
+                start_time: 0,
+                idx: 0,
+            },
             cand,
         );
-        let cert = NestCertificate::from_parts(
-            CertSide::Long,
-            terminal,
-            base,
-            vec![op_rung],
-        );
+        let cert = NestCertificate::from_parts(CertSide::Long, terminal, base, vec![op_rung]);
         // is_sub(base, op_rung.interval)：[15,19] ⊆ [0,19] ✓。
-        assert!(cert.n_delta(), "Cand=true + 区间套成立 + Conf^+ ⟹ n_delta()=true");
+        assert!(
+            cert.n_delta(),
+            "Cand=true + 区间套成立 + Conf^+ ⟹ n_delta()=true"
+        );
     }
 
     // ── bsp_div_cand：从塔定位候选段并计算 DivCand ──────────────────────────
 
-    use super::super::recursive_tower::{ElementId, LeveledMove};
-    use super::super::descend::RMove as TestRMove;
     use super::super::super::types::Center;
+    use super::super::descend::RMove as TestRMove;
+    use super::super::recursive_tower::{ElementId, LeveledMove};
 
     /// 构建合成 LeveledMove（L0 Segment）。
-    fn seg_move(dir: Direction, lo: i64, hi: i64, start: usize, end: usize, ord: u64) -> LeveledMove {
+    fn seg_move(
+        dir: Direction,
+        lo: i64,
+        hi: i64,
+        start: usize,
+        end: usize,
+        ord: u64,
+    ) -> LeveledMove {
         use std::rc::Rc;
-        let rmove = TestRMove::Segment { direction: dir, lo, hi };
+        let rmove = TestRMove::Segment {
+            direction: dir,
+            lo,
+            hi,
+        };
         LeveledMove {
             rmove,
             start_index: start,
             end_index: end,
             sub_moves: Rc::new(Vec::new()),
-            id: ElementId { level: 0, ordinal: ord },
+            id: ElementId {
+                level: 0,
+                ordinal: ord,
+            },
         }
     }
 
@@ -508,13 +608,23 @@ mod tests {
         LeveledMove {
             rmove: TestRMove::Compose {
                 subs: Rc::new(sub_rmoves),
-                centers: vec![Center { zd: lo_of(&subs), zg: hi_of(&subs), dd: lo_of(&subs), gg: hi_of(&subs), start_index: start, end_index: end }],
+                centers: vec![Center {
+                    zd: lo_of(&subs),
+                    zg: hi_of(&subs),
+                    dd: lo_of(&subs),
+                    gg: hi_of(&subs),
+                    start_index: start,
+                    end_index: end,
+                }],
                 level,
             },
             start_index: start,
             end_index: end,
             sub_moves: Rc::new(subs),
-            id: ElementId { level, ordinal: ord },
+            id: ElementId {
+                level,
+                ordinal: ord,
+            },
         }
     }
 
@@ -536,8 +646,10 @@ mod tests {
         let tower: Vec<Rc<Vec<LeveledMove>>> = vec![];
         let hist = flat_hist(1.0, 10);
         // 函数不存在时这里会编译错误（RED）。
-        assert!(!super::bsp_div_cand(&tower, 0, 5, Side::Long, &hist),
-            "空塔 ⟹ false");
+        assert!(
+            !super::bsp_div_cand(&tower, 0, 5, Side::Long, &hist),
+            "空塔 ⟹ false"
+        );
     }
 
     /// bsp_div_cand：塔中有父 Compose，但 sub_moves 中无前序同向段 ⟹ false（条件2 不满足）。
@@ -546,23 +658,25 @@ mod tests {
         use std::rc::Rc;
 
         // L0：4段（up/down/up/down），目标段 source_index=19（最后一段 Down end=19）
-        let s0 = seg_move(Direction::Up,   50, 100, 0,  4,  0);
-        let s1 = seg_move(Direction::Down, 40,  90, 5,  9,  1);
-        let s2 = seg_move(Direction::Up,   45,  95, 10, 14, 2);
-        let s3 = seg_move(Direction::Down, 30,  85, 15, 19, 3); // target
+        let s0 = seg_move(Direction::Up, 50, 100, 0, 4, 0);
+        let s1 = seg_move(Direction::Down, 40, 90, 5, 9, 1);
+        let s2 = seg_move(Direction::Up, 45, 95, 10, 14, 2);
+        let s3 = seg_move(Direction::Down, 30, 85, 15, 19, 3); // target
 
         // L1：Compose（包含全部4个 L0 段）
         let parent = compose_move(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()], 1, 0);
 
         let tower: Vec<Rc<Vec<_>>> = vec![
-            Rc::new(vec![s0, s1, s2, s3]),    // L0
-            Rc::new(vec![parent]),             // L1
+            Rc::new(vec![s0, s1, s2, s3]), // L0
+            Rc::new(vec![parent]),         // L1
         ];
         // s3（Down）的前序同向段=s1（Down）→ 应有前序同向段；但 s3.lo=30 < s1.lo=40（Extreme ✓）。
         // 力度：若 hist 全 0 ⟹ area=0 ⟹ 0 < 0 = false（条件4 不满足）。
         let hist = flat_hist(0.0, 20);
-        assert!(!super::bsp_div_cand(&tower, 0, 19, Side::Long, &hist),
-            "hist=0 ⟹ 条件4 不满足 ⟹ false");
+        assert!(
+            !super::bsp_div_cand(&tower, 0, 19, Side::Long, &hist),
+            "hist=0 ⟹ 条件4 不满足 ⟹ false"
+        );
     }
 
     /// bsp_div_cand：四条件全满足 ⟹ true。
@@ -571,19 +685,18 @@ mod tests {
         use std::rc::Rc;
 
         // 同 all_four_conditions_satisfied_long_returns_true 的结构。
-        let s0 = seg_move(Direction::Up,   50, 100,  0,  4, 0);
-        let s1 = seg_move(Direction::Down, 40,  90,  5,  9, 1); // s'：Down，lo=40
-        let s2 = seg_move(Direction::Up,   45,  95, 10, 14, 2);
-        let s3 = seg_move(Direction::Down, 30,  85, 15, 19, 3); // s：Down，lo=30 < 40
+        let s0 = seg_move(Direction::Up, 50, 100, 0, 4, 0);
+        let s1 = seg_move(Direction::Down, 40, 90, 5, 9, 1); // s'：Down，lo=40
+        let s2 = seg_move(Direction::Up, 45, 95, 10, 14, 2);
+        let s3 = seg_move(Direction::Down, 30, 85, 15, 19, 3); // s：Down，lo=30 < 40
 
         let parent = compose_move(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()], 1, 0);
-        let tower: Vec<Rc<Vec<_>>> = vec![
-            Rc::new(vec![s0, s1, s2, s3]),
-            Rc::new(vec![parent]),
-        ];
+        let tower: Vec<Rc<Vec<_>>> = vec![Rc::new(vec![s0, s1, s2, s3]), Rc::new(vec![parent])];
         // hist：s'(5-9) area=5*2=10，s(15-19) area=5*1=5 < 10（条件4 ✓）。
         let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
-        assert!(super::bsp_div_cand(&tower, 0, 19, Side::Long, &hist),
-            "四条件全满足 ⟹ bsp_div_cand = true");
+        assert!(
+            super::bsp_div_cand(&tower, 0, 19, Side::Long, &hist),
+            "四条件全满足 ⟹ bsp_div_cand = true"
+        );
     }
 }

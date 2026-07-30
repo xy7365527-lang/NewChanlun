@@ -38,8 +38,8 @@ pub fn sink_chunk(
     }
     let d_k = layers[k].direction;
     let sub = k - 1; // Δr=−1（k≥PENDING_LO>FIRST_BSP ⇒ k−1≥FIRST_BSP，有次级别）
-    // 子层方向相容前提（add_at 层内单一 direction 不变量）：sink 把 flip(d_k) 开到 sub。
-    // 若 sub 已占用且方向 != flip(d_k)（= 与父同向，建仓阶段相邻同向 Long）⟹ 无法开短差 ⟹ 拒绝（操作不适用，N4 类比）。
+                     // 子层方向相容前提（add_at 层内单一 direction 不变量）：sink 把 flip(d_k) 开到 sub。
+                     // 若 sub 已占用且方向 != flip(d_k)（= 与父同向，建仓阶段相邻同向 Long）⟹ 无法开短差 ⟹ 拒绝（操作不适用，N4 类比）。
     if layers[sub].units > 1e-12 && layers[sub].direction != flip(d_k) {
         return false;
     }

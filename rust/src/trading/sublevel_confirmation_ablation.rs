@@ -37,7 +37,11 @@ struct LegStats {
 
 impl LegStats {
     fn new() -> Self {
-        LegStats { n: 0, wins: 0, net: 0.0 }
+        LegStats {
+            n: 0,
+            wins: 0,
+            net: 0.0,
+        }
     }
     fn add(&mut self, p: f64) {
         self.n += 1;
@@ -65,7 +69,15 @@ mod sc_unit {
     use crate::trading::types::*;
 
     fn ev(class: BspClass, confirmed: bool, cs: i64, zd: f64, zg: f64) -> BspEvent {
-        BspEvent { class, seg_idx: 0, confirmed, cs: Some(cs), zd: Some(zd), zg: Some(zg), price: 10.0 }
+        BspEvent {
+            class,
+            seg_idx: 0,
+            confirmed,
+            cs: Some(cs),
+            zd: Some(zd),
+            zg: Some(zg),
+            price: 10.0,
+        }
     }
 
     fn dev_sell() -> DivEvent {
@@ -108,21 +120,41 @@ mod sc_unit {
         let anchors = [0i64; MAX_LADDER];
         // 无任何证据 → 拒
         {
-            let r = rows_with(&evs, &devs, &dir_row, &anchors, LadderMask(0), LadderMask(0));
+            let r = rows_with(
+                &evs,
+                &devs,
+                &dir_row,
+                &anchors,
+                LadderMask(0),
+                LadderMask(0),
+            );
             assert!(!r.sub_confirm(2, Side::Sell));
             assert!(!r.sub_confirm(2, Side::Buy));
         }
         // 事件证据：sell_any[k−1] 置位 → Sell 确认（Buy 仍拒）
         {
-            let r =
-                rows_with(&evs, &devs, &dir_row, &anchors, LadderMask(0), LadderMask(1 << 1));
+            let r = rows_with(
+                &evs,
+                &devs,
+                &dir_row,
+                &anchors,
+                LadderMask(0),
+                LadderMask(1 << 1),
+            );
             assert!(r.sub_confirm(2, Side::Sell));
             assert!(!r.sub_confirm(2, Side::Buy));
         }
         // 事件证据：次级别卖侧背驰 → Sell 确认
         devs[1] = vec![dev_sell()];
         {
-            let r = rows_with(&evs, &devs, &dir_row, &anchors, LadderMask(0), LadderMask(0));
+            let r = rows_with(
+                &evs,
+                &devs,
+                &dir_row,
+                &anchors,
+                LadderMask(0),
+                LadderMask(0),
+            );
             assert!(r.sub_confirm(2, Side::Sell));
         }
         devs[1].clear();
@@ -130,14 +162,28 @@ mod sc_unit {
         // R1 空定义域陷阱的消除点）
         dir_row[1] = Some(Direction::Down);
         {
-            let r = rows_with(&evs, &devs, &dir_row, &anchors, LadderMask(0), LadderMask(0));
+            let r = rows_with(
+                &evs,
+                &devs,
+                &dir_row,
+                &anchors,
+                LadderMask(0),
+                LadderMask(0),
+            );
             assert!(r.sub_confirm(2, Side::Sell));
             assert!(!r.sub_confirm(2, Side::Buy));
         }
         // dir 翻 Up → Buy 确认
         dir_row[1] = Some(Direction::Up);
         {
-            let r = rows_with(&evs, &devs, &dir_row, &anchors, LadderMask(0), LadderMask(0));
+            let r = rows_with(
+                &evs,
+                &devs,
+                &dir_row,
+                &anchors,
+                LadderMask(0),
+                LadderMask(0),
+            );
             assert!(r.sub_confirm(2, Side::Buy));
             assert!(!r.sub_confirm(2, Side::Sell));
         }
@@ -173,17 +219,54 @@ mod sc_unit {
         let anchors = [0i64; MAX_LADDER];
         let mut v = VoiceUnit::new(2);
         {
-            let rows =
-                rows_with(&evs, &devs, &dir_row, &anchors, LadderMask(0), LadderMask(0));
-            v.step(&cfg, &rows, &[], 9.6, 1, &mut ledger, &book, &gate, 4, &|_| 0.5, &mut counters);
+            let rows = rows_with(
+                &evs,
+                &devs,
+                &dir_row,
+                &anchors,
+                LadderMask(0),
+                LadderMask(0),
+            );
+            v.step(
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut ledger,
+                &book,
+                &gate,
+                4,
+                &|_| 0.5,
+                &mut counters,
+            );
         }
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(counters.n_sc_rev_open_rejects, 1);
         assert_eq!(counters.n_rev_open, 0);
         // 次级别方向翻 Down → 确认成立，开腿
         dir_row[1] = Some(Direction::Down);
-        let rows = rows_with(&evs, &devs, &dir_row, &anchors, LadderMask(0), LadderMask(0));
-        v.step(&cfg, &rows, &[], 9.6, 2, &mut ledger, &book, &gate, 4, &|_| 0.5, &mut counters);
+        let rows = rows_with(
+            &evs,
+            &devs,
+            &dir_row,
+            &anchors,
+            LadderMask(0),
+            LadderMask(0),
+        );
+        v.step(
+            &cfg,
+            &rows,
+            &[],
+            9.6,
+            2,
+            &mut ledger,
+            &book,
+            &gate,
+            4,
+            &|_| 0.5,
+            &mut counters,
+        );
         assert_eq!(v.phase, VoicePhase::DownLeg);
         assert_eq!(counters.n_rev_open, 1);
     }
@@ -209,25 +292,79 @@ mod sc_unit {
         let anchors = [0i64; MAX_LADDER];
         let mut v = VoiceUnit::new(2);
         {
-            let rows =
-                rows_with(&evs, &devs, &dir_row, &anchors, LadderMask(0), LadderMask(0));
-            v.step(&cfg, &rows, &[], 9.6, 1, &mut ledger, &book, &gate, 4, &|_| 0.5, &mut counters);
+            let rows = rows_with(
+                &evs,
+                &devs,
+                &dir_row,
+                &anchors,
+                LadderMask(0),
+                LadderMask(0),
+            );
+            v.step(
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut ledger,
+                &book,
+                &gate,
+                4,
+                &|_| 0.5,
+                &mut counters,
+            );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
         // confirmed Buy3，无次级别买证据 → 持有
         evs[2] = vec![ev(BspClass::Buy3, true, 1, 9.0, 9.5)];
         {
-            let rows =
-                rows_with(&evs, &devs, &dir_row, &anchors, LadderMask(0), LadderMask(0));
-            v.step(&cfg, &rows, &[], 9.8, 2, &mut ledger, &book, &gate, 4, &|_| 0.5, &mut counters);
+            let rows = rows_with(
+                &evs,
+                &devs,
+                &dir_row,
+                &anchors,
+                LadderMask(0),
+                LadderMask(0),
+            );
+            v.step(
+                &cfg,
+                &rows,
+                &[],
+                9.8,
+                2,
+                &mut ledger,
+                &book,
+                &gate,
+                4,
+                &|_| 0.5,
+                &mut counters,
+            );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
         assert_eq!(counters.n_sc_t7_holds, 1);
         assert_eq!(counters.n_rev_close_t7, 0);
         // buy_any[1] 置位 → T7 闭腿
-        let rows =
-            rows_with(&evs, &devs, &dir_row, &anchors, LadderMask(1 << 1), LadderMask(0));
-        v.step(&cfg, &rows, &[], 9.8, 3, &mut ledger, &book, &gate, 4, &|_| 0.5, &mut counters);
+        let rows = rows_with(
+            &evs,
+            &devs,
+            &dir_row,
+            &anchors,
+            LadderMask(1 << 1),
+            LadderMask(0),
+        );
+        v.step(
+            &cfg,
+            &rows,
+            &[],
+            9.8,
+            3,
+            &mut ledger,
+            &book,
+            &gate,
+            4,
+            &|_| 0.5,
+            &mut counters,
+        );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(counters.n_rev_close_t7, 1);
     }
@@ -316,7 +453,11 @@ fn sublevel_confirm_oklo() {
                 println!(
                     "    leg={kind:4} n={:4} 胜率={:.1}% 净={:+.0}",
                     s.n,
-                    if s.n > 0 { s.wins as f64 / s.n as f64 * 100.0 } else { 0.0 },
+                    if s.n > 0 {
+                        s.wins as f64 / s.n as f64 * 100.0
+                    } else {
+                        0.0
+                    },
                     s.net
                 );
             }
@@ -362,7 +503,10 @@ fn sublevel_confirm_oklo() {
             .iter()
             .filter_map(|k| {
                 by_leg.get(*k).map(|s| {
-                    format!("\"{k}\": {{\"n\": {}, \"wins\": {}, \"net\": {:.2}}}", s.n, s.wins, s.net)
+                    format!(
+                        "\"{k}\": {{\"n\": {}, \"wins\": {}, \"net\": {:.2}}}",
+                        s.n, s.wins, s.net
+                    )
                 })
             })
             .collect();

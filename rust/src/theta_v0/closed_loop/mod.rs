@@ -52,7 +52,7 @@
 //! conformance 的对象是 `RustEngineContract` 协议（Origin 为 Rust 引擎显式留的对齐接口，
 //! EngineBridge.lean），逐态比对 = Rust `step` 满足 `StepSpec` 全函数确定唯一 + 六段语义同构。
 
-pub mod state;
-pub mod transition;
 pub mod buy;
 pub mod conformance;
+pub mod state;
+pub mod transition;

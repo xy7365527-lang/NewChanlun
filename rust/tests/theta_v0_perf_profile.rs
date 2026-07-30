@@ -74,22 +74,22 @@ fn load_btc_bars(tick_size: f64) -> Vec<Bar> {
     for i in 0..n {
         let (o, h, l, c) = (raw.opens[i], raw.highs[i], raw.lows[i], raw.closes[i]);
         let v = raw.volumes.get(i).and_then(|x| *x).unwrap_or(0.0);
-        let (oq, hq, lq, cq, untradable) = if let (Some(o), Some(h), Some(l), Some(c)) = (o, h, l, c)
-        {
-            let bad_range = h < o.max(c).max(l) || l > o.min(c).min(h);
-            let bad_price = o <= 0.0 || h <= 0.0 || l <= 0.0 || c <= 0.0;
-            let untradable = bad_range || bad_price || v <= 0.0;
-            (
-                quantize(o, tick_size),
-                quantize(h, tick_size),
-                quantize(l, tick_size),
-                quantize(c, tick_size),
-                untradable,
-            )
-        } else {
-            let prev = bars.last().map(|b: &Bar| b.close).unwrap_or(0);
-            (prev, prev, prev, prev, true)
-        };
+        let (oq, hq, lq, cq, untradable) =
+            if let (Some(o), Some(h), Some(l), Some(c)) = (o, h, l, c) {
+                let bad_range = h < o.max(c).max(l) || l > o.min(c).min(h);
+                let bad_price = o <= 0.0 || h <= 0.0 || l <= 0.0 || c <= 0.0;
+                let untradable = bad_range || bad_price || v <= 0.0;
+                (
+                    quantize(o, tick_size),
+                    quantize(h, tick_size),
+                    quantize(l, tick_size),
+                    quantize(c, tick_size),
+                    untradable,
+                )
+            } else {
+                let prev = bars.last().map(|b: &Bar| b.close).unwrap_or(0);
+                (prev, prev, prev, prev, true)
+            };
         bars.push(Bar {
             source_index: i,
             timestamp: i as i64, // 单调键（profile 不需历法换算；同序列单调即可）
@@ -113,8 +113,12 @@ fn profile_fullwindow_bottleneck() {
     let all_bars = load_btc_bars(config.tick.tick_size);
     let load_secs = t_load.elapsed().as_secs_f64();
     let n_full = all_bars.len();
-    eprintln!("\n===== 全窗瓶颈 profile（BTC 前三段 parse/classify/recognize，release，L1 度量）=====");
-    eprintln!("[load] BTC 全集 bars={n_full} 加载耗时={load_secs:.2}s（owner=data.rs，IO+JSON解析）");
+    eprintln!(
+        "\n===== 全窗瓶颈 profile（BTC 前三段 parse/classify/recognize，release，L1 度量）====="
+    );
+    eprintln!(
+        "[load] BTC 全集 bars={n_full} 加载耗时={load_secs:.2}s（owner=data.rs，IO+JSON解析）"
+    );
 
     // 多窗口大小（截取前 N bar）：每段耗时 / n 翻倍倍数推断复杂度量级。
     // 从小窗起步，逐窗 flush 进度（避免大窗 CPU-bound 时看不到中间结果）。窗口大小可通过
@@ -123,10 +127,18 @@ fn profile_fullwindow_bottleneck() {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(400_000);
-    let window_sizes: Vec<usize> = [25_000usize, 50_000, 100_000, 200_000, 400_000, 800_000, n_full]
-        .into_iter()
-        .filter(|&n| n <= max_bars.min(n_full))
-        .collect();
+    let window_sizes: Vec<usize> = [
+        25_000usize,
+        50_000,
+        100_000,
+        200_000,
+        400_000,
+        800_000,
+        n_full,
+    ]
+    .into_iter()
+    .filter(|&n| n <= max_bars.min(n_full))
+    .collect();
 
     // (n, parse, classify, recognize, n_segs, n_bsp, n_dec)
     let mut rows: Vec<(usize, f64, f64, f64, usize, usize, usize)> = Vec::new();
@@ -157,9 +169,7 @@ fn profile_fullwindow_bottleneck() {
         let n_dec = decisions.len();
 
         let total = t_parse + t_classify + t_recognize;
-        eprintln!(
-            "\n[n={n}] segs={n_segs} bsp={n_bsp} decisions={n_dec}  前三段总={total:.3}s"
-        );
+        eprintln!("\n[n={n}] segs={n_segs} bsp={n_bsp} decisions={n_dec}  前三段总={total:.3}s");
         eprintln!(
             "  parse     ={t_parse:8.3}s  {:5.1}%  (owner=parser)",
             100.0 * t_parse / total.max(1e-9)

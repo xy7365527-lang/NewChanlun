@@ -59,7 +59,13 @@ pub struct DualLedger {
 impl DualLedger {
     /// 以初始现金建账（双腿空仓，成本基 0）。
     pub fn new(cash: f64) -> Self {
-        DualLedger { cash, q_long: 0.0, q_short: 0.0, cost_long: 0.0, cost_short: 0.0 }
+        DualLedger {
+            cash,
+            q_long: 0.0,
+            q_short: 0.0,
+            cost_long: 0.0,
+            cost_short: 0.0,
+        }
     }
 
     /// 净额投影 `Net(p)=Σ(q⁺−q⁻)`（M14 另行定义的净额映射；正=净多，负=净空）。
@@ -144,7 +150,10 @@ pub fn apply_fill_dual(
     trade_pnls: &mut Vec<f64>,
 ) -> FillOutcomeDual {
     let qty = lo.order.qty as f64;
-    let mut out = FillOutcomeDual { requested_qty: qty.max(0.0), ..FillOutcomeDual::noop() };
+    let mut out = FillOutcomeDual {
+        requested_qty: qty.max(0.0),
+        ..FillOutcomeDual::noop()
+    };
     if qty <= 0.0 || px <= 0.0 {
         out.rejected_qty = qty.max(0.0);
         return out;
@@ -246,7 +255,11 @@ pub fn compatible_leg_orders(o: &Order, units: f64) -> Vec<LegOrder> {
         return out;
     }
     let mk = |action: StrictAction, q: f64, leg: VoiceSide, close: bool| LegOrder {
-        order: Order { action, qty: q as i64, exec_index: o.exec_index },
+        order: Order {
+            action,
+            qty: q as i64,
+            exec_index: o.exec_index,
+        },
         leg,
         close,
     };
@@ -288,8 +301,8 @@ pub fn compatible_leg_orders(o: &Order, units: f64) -> Vec<LegOrder> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::runner;
+    use super::*;
 
     const FEE: f64 = 0.0003;
 
@@ -303,7 +316,15 @@ mod tests {
                 VoiceSide::Flat => StrictAction::Wait,
             }
         };
-        LegOrder { order: Order { action, qty, exec_index: 0 }, leg, close }
+        LegOrder {
+            order: Order {
+                action,
+                qty,
+                exec_index: 0,
+            },
+            leg,
+            close,
+        }
     }
 
     fn ledger_with(cash: f64) -> DualLedger {
@@ -341,10 +362,26 @@ mod tests {
         let mut pnls = Vec::new();
         let px = 100.0;
         let n = 10.0;
-        apply_fill_dual(&lo(VoiceSide::Long, false, n as i64), px, FEE, &mut l, &mut pnls);
-        apply_fill_dual(&lo(VoiceSide::Short, false, n as i64), px, FEE, &mut l, &mut pnls);
+        apply_fill_dual(
+            &lo(VoiceSide::Long, false, n as i64),
+            px,
+            FEE,
+            &mut l,
+            &mut pnls,
+        );
+        apply_fill_dual(
+            &lo(VoiceSide::Short, false, n as i64),
+            px,
+            FEE,
+            &mut l,
+            &mut pnls,
+        );
         assert_eq!(l.net_units(), 0.0, "双开共存净额为零");
-        assert_eq!(l.gross_units(), 2.0 * n, "毛敞口=两腿和（净约束平凡满足但毛敞口真实化）");
+        assert_eq!(
+            l.gross_units(),
+            2.0 * n,
+            "毛敞口=两腿和（净约束平凡满足但毛敞口真实化）"
+        );
         let expect = nav + (-n * px * (1.0 + FEE)) + (n * px * (1.0 - FEE));
         assert_eq!(l.cash, expect);
         // 净投影估值：equity == cash（net=0），两腿浮盈亏在净值上抵消（M30）。
@@ -357,8 +394,20 @@ mod tests {
     fn dual_close_long_realizes_per_leg() {
         let mut l = ledger_with(1_000_000.0);
         let mut pnls = Vec::new();
-        apply_fill_dual(&lo(VoiceSide::Long, false, 4), 100.0, FEE, &mut l, &mut pnls);
-        apply_fill_dual(&lo(VoiceSide::Long, false, 4), 110.0, FEE, &mut l, &mut pnls);
+        apply_fill_dual(
+            &lo(VoiceSide::Long, false, 4),
+            100.0,
+            FEE,
+            &mut l,
+            &mut pnls,
+        );
+        apply_fill_dual(
+            &lo(VoiceSide::Long, false, 4),
+            110.0,
+            FEE,
+            &mut l,
+            &mut pnls,
+        );
         // 加权成本基 = (100(1+f)·4 + 110(1+f)·4)/8 = 105(1+f)。
         let cost = (100.0 * (1.0 + FEE) * 4.0 + 110.0 * (1.0 + FEE) * 4.0) / 8.0;
         assert_eq!(l.cost_long, cost);
@@ -378,8 +427,20 @@ mod tests {
     fn dual_close_short_realizes_per_leg() {
         let mut l = ledger_with(1_000_000.0);
         let mut pnls = Vec::new();
-        apply_fill_dual(&lo(VoiceSide::Short, false, 4), 100.0, FEE, &mut l, &mut pnls);
-        apply_fill_dual(&lo(VoiceSide::Short, false, 4), 90.0, FEE, &mut l, &mut pnls);
+        apply_fill_dual(
+            &lo(VoiceSide::Short, false, 4),
+            100.0,
+            FEE,
+            &mut l,
+            &mut pnls,
+        );
+        apply_fill_dual(
+            &lo(VoiceSide::Short, false, 4),
+            90.0,
+            FEE,
+            &mut l,
+            &mut pnls,
+        );
         let cost = (100.0 * (1.0 - FEE) * 4.0 + 90.0 * (1.0 - FEE) * 4.0) / 8.0;
         assert_eq!(l.cost_short, cost);
         let px = 80.0;
@@ -396,15 +457,33 @@ mod tests {
     fn dual_close_clamp_no_reverse() {
         let mut l = ledger_with(1_000_000.0);
         let mut pnls = Vec::new();
-        apply_fill_dual(&lo(VoiceSide::Long, false, 5), 100.0, FEE, &mut l, &mut pnls);
-        let f = apply_fill_dual(&lo(VoiceSide::Long, true, 10), 110.0, FEE, &mut l, &mut pnls);
+        apply_fill_dual(
+            &lo(VoiceSide::Long, false, 5),
+            100.0,
+            FEE,
+            &mut l,
+            &mut pnls,
+        );
+        let f = apply_fill_dual(
+            &lo(VoiceSide::Long, true, 10),
+            110.0,
+            FEE,
+            &mut l,
+            &mut pnls,
+        );
         assert_eq!(l.q_long, 0.0, "平到 0");
         assert_eq!(f.executed_qty, 5.0);
         assert_eq!(f.rejected_qty, 5.0, "超腿余量被拒（close_only）");
         assert_eq!(l.q_short, 0.0, "不借机开反向仓");
         assert_eq!(l.cost_long, 0.0, "全平 ⟹ 成本基归零");
         // 空腿侧同样 clamp：空腿上空平 ⟹ 全拒。
-        let f2 = apply_fill_dual(&lo(VoiceSide::Short, true, 3), 110.0, FEE, &mut l, &mut pnls);
+        let f2 = apply_fill_dual(
+            &lo(VoiceSide::Short, true, 3),
+            110.0,
+            FEE,
+            &mut l,
+            &mut pnls,
+        );
         assert_eq!(f2.executed_qty, 0.0);
         assert_eq!(f2.rejected_qty, 3.0);
     }
@@ -414,14 +493,26 @@ mod tests {
     fn dual_cash_constraint_long_open() {
         let mut l = ledger_with(100.0);
         let mut pnls = Vec::new();
-        let f = apply_fill_dual(&lo(VoiceSide::Long, false, 10), 100.0, FEE, &mut l, &mut pnls);
+        let f = apply_fill_dual(
+            &lo(VoiceSide::Long, false, 10),
+            100.0,
+            FEE,
+            &mut l,
+            &mut pnls,
+        );
         assert_eq!(f.opened_long, 0.0);
         assert_eq!(f.rejected_qty, 10.0);
         assert_eq!(l.q_long, 0.0);
         assert_eq!(l.cash, 100.0, "拒绝 ⟹ 现金不动");
         assert_eq!(f.fee, 0.0, "拒绝段不计费（同 :3241 提前返回口径）");
         // 开空无预付（保证金未建模声明）：现金不足仍成交。
-        let f2 = apply_fill_dual(&lo(VoiceSide::Short, false, 10), 100.0, FEE, &mut l, &mut pnls);
+        let f2 = apply_fill_dual(
+            &lo(VoiceSide::Short, false, 10),
+            100.0,
+            FEE,
+            &mut l,
+            &mut pnls,
+        );
         assert_eq!(f2.opened_short, 10.0);
     }
 
@@ -431,8 +522,20 @@ mod tests {
     fn dual_equity_linearity_coexisting() {
         let mut l = ledger_with(1_000_000.0);
         let mut pnls = Vec::new();
-        apply_fill_dual(&lo(VoiceSide::Long, false, 10), 100.0, FEE, &mut l, &mut pnls);
-        apply_fill_dual(&lo(VoiceSide::Short, false, 6), 105.0, FEE, &mut l, &mut pnls);
+        apply_fill_dual(
+            &lo(VoiceSide::Long, false, 10),
+            100.0,
+            FEE,
+            &mut l,
+            &mut pnls,
+        );
+        apply_fill_dual(
+            &lo(VoiceSide::Short, false, 6),
+            105.0,
+            FEE,
+            &mut l,
+            &mut pnls,
+        );
         for px in [95.0, 100.0, 110.0] {
             assert_eq!(l.equity(px), l.cash + l.net_units() * px);
         }
@@ -449,16 +552,16 @@ mod tests {
     fn dual_bitexact_embedding_vs_apply_fill() {
         // 净语义订单流（确定性脚本，非随机——v3 禁概率推断）。
         let script: Vec<(StrictAction, i64, f64)> = vec![
-            (StrictAction::Buy, 10, 100.0),   // 开多 10
-            (StrictAction::Add, 6, 105.0),    // 加多 6 ⟹ 16
-            (StrictAction::Sell, 20, 112.0),  // 平多 16 + 开空 4（翻转）
-            (StrictAction::Sell, 6, 108.0),   // 加空 6 ⟹ −10
-            (StrictAction::Buy, 15, 95.0),    // 平空 10 + 开多 5（翻转）
-            (StrictAction::Reduce, 3, 98.0),  // 减多 3 ⟹ +2
-            (StrictAction::Close, 5, 101.0),  // 平多 2（clamp）+ 余量 3 拒
-            (StrictAction::Sell, 4, 101.0),   // 开空 4
-            (StrictAction::Close, 4, 90.0),   // 平空 4
-            (StrictAction::Buy, 2, 90.0),     // 开多 2（收尾持仓）
+            (StrictAction::Buy, 10, 100.0),  // 开多 10
+            (StrictAction::Add, 6, 105.0),   // 加多 6 ⟹ 16
+            (StrictAction::Sell, 20, 112.0), // 平多 16 + 开空 4（翻转）
+            (StrictAction::Sell, 6, 108.0),  // 加空 6 ⟹ −10
+            (StrictAction::Buy, 15, 95.0),   // 平空 10 + 开多 5（翻转）
+            (StrictAction::Reduce, 3, 98.0), // 减多 3 ⟹ +2
+            (StrictAction::Close, 5, 101.0), // 平多 2（clamp）+ 余量 3 拒
+            (StrictAction::Sell, 4, 101.0),  // 开空 4
+            (StrictAction::Close, 4, 90.0),  // 平空 4
+            (StrictAction::Buy, 2, 90.0),    // 开多 2（收尾持仓）
         ];
         // 净账本（现行路径）。
         let mut cash = 1_000_000.0;
@@ -474,12 +577,22 @@ mod tests {
         let mut dual_fee = 0.0;
 
         for (action, qty, px) in script {
-            let o = Order { action, qty, exec_index: 0 };
+            let o = Order {
+                action,
+                qty,
+                exec_index: 0,
+            };
             // 先取兼容腿标记（读取本订单成交**前**的有符号 units，与 apply_order 内部同前态），
             // 再两边各自成交（净侧 apply_order 先平后开两段；双侧按腿序列逐腿成交，同序）。
             let leg_orders = compatible_leg_orders(&o, units);
             let nf = runner::apply_order(
-                &o, px, FEE, &mut cash, &mut units, &mut entry_cost, &mut net_pnls,
+                &o,
+                px,
+                FEE,
+                &mut cash,
+                &mut units,
+                &mut entry_cost,
+                &mut net_pnls,
             );
             net_realized += nf.realized;
             net_fee += nf.fee;
@@ -493,16 +606,28 @@ mod tests {
                 df_rejected += df.rejected_qty;
             }
             // 恒等 1（现金流逐笔恒等）：cash 逐字节相同。
-            assert_eq!(dual.cash.to_bits(), cash.to_bits(), "cash 恒等 @({action:?},{qty},{px})");
+            assert_eq!(
+                dual.cash.to_bits(),
+                cash.to_bits(),
+                "cash 恒等 @({action:?},{qty},{px})"
+            );
             // 恒等 2（估值恒等）：q⁺−q⁻ == units 逐笔保持 ⟹ equity 逐字节相同。
-            assert_eq!(dual.net_units().to_bits(), units.to_bits(), "Net==units @({action:?},{qty},{px})");
+            assert_eq!(
+                dual.net_units().to_bits(),
+                units.to_bits(),
+                "Net==units @({action:?},{qty},{px})"
+            );
             assert_eq!(
                 dual.equity(px).to_bits(),
                 (cash + units * px).to_bits(),
                 "equity 恒等 @({action:?},{qty},{px})"
             );
             // 恒等 3（realized 恒等）：本笔 realized（平仓腿和）逐字节相同。
-            assert_eq!(dual_realized.to_bits(), net_realized.to_bits(), "realized 累计恒等");
+            assert_eq!(
+                dual_realized.to_bits(),
+                net_realized.to_bits(),
+                "realized 累计恒等"
+            );
             // 恒等 4（费用恒等）：分腿累计 == 两段合计。
             assert_eq!(dual_fee.to_bits(), net_fee.to_bits(), "fee 累计恒等");
             // 成本基恒等：在仓方向的成本基逐字节相同（空仓则归零相同）。
@@ -513,7 +638,11 @@ mod tests {
             } else {
                 0.0
             };
-            assert_eq!(dual_cost.to_bits(), entry_cost.to_bits(), "成本基恒等 @({action:?},{qty},{px})");
+            assert_eq!(
+                dual_cost.to_bits(),
+                entry_cost.to_bits(),
+                "成本基恒等 @({action:?},{qty},{px})"
+            );
             // 成交/拒绝量恒等（clamp+reject 口径一致）。
             assert_eq!(df_exec, nf.executed_qty, "executed 恒等");
             assert_eq!(df_rejected, nf.rejected_qty, "rejected 恒等");

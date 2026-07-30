@@ -75,16 +75,31 @@ fn golden_path() -> PathBuf {
 fn anchored() -> RetraceLedger {
     let mut book = ledger();
     book.observe(&up_input(frame(1_200), 3, None, 500)).unwrap();
-    book.observe(&up_input(frame(1_200), 3, Some(RetraceOutcome::RetestReenters), 600))
-        .unwrap();
+    book.observe(&up_input(
+        frame(1_200),
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        600,
+    ))
+    .unwrap();
     book.observe(&up_input(frame(1_400), 5, None, 700)).unwrap();
     book.reconcile_window(CenterAnchor(ANCHOR_START), Some(frame(1_500)), 800)
         .unwrap()
         .expect("改口处死必产一拍");
-    book.observe(&up_input(frame(1_500), 7, Some(RetraceOutcome::Success), 900))
-        .unwrap();
-    book.observe(&up_input(frame(1_500), 7, Some(RetraceOutcome::Success), 1_000))
-        .unwrap();
+    book.observe(&up_input(
+        frame(1_500),
+        7,
+        Some(RetraceOutcome::Success),
+        900,
+    ))
+    .unwrap();
+    book.observe(&up_input(
+        frame(1_500),
+        7,
+        Some(RetraceOutcome::Success),
+        1_000,
+    ))
+    .unwrap();
     book.observe(&up_input(frame(1_600), 9, None, 1_100))
         .unwrap_err();
     book.assert_invariants();
@@ -164,7 +179,11 @@ fn golden_log_folds_back_to_the_anchored_ledger_state() {
     for entry in live.entries() {
         let replayed = folded.entry(&entry.key).unwrap();
         assert_eq!(replayed.state, entry.state, "三态：{:?}", entry.key);
-        assert_eq!(replayed.revisions, entry.revisions, "留档逐条：{:?}", entry.key);
+        assert_eq!(
+            replayed.revisions, entry.revisions,
+            "留档逐条：{:?}",
+            entry.key
+        );
         assert_eq!(replayed.registered_as_of, entry.registered_as_of);
         assert_eq!(replayed.terminal_as_of, entry.terminal_as_of);
         assert_eq!(replayed.restarted_from(), entry.restarted_from());
@@ -230,14 +249,14 @@ fn golden_scenario_covers_the_two_audit_only_faces() {
     assert_eq!(alarms.late_absorbed, 1, "迟到吸收计数");
     assert_eq!(alarms.dead_center_registrations, 1, "死人挂号拒收计数");
     assert_eq!(alarms.center_rebased, 1, "改口处死计数（现算自折叠投影）");
-    assert!(live.audit_log().iter().any(|record| matches!(
-        record.event,
-        RetraceAuditEvent::LateAbsorbed { .. }
-    )));
-    assert!(live.audit_log().iter().any(|record| matches!(
-        record.event,
-        RetraceAuditEvent::DeadCenterRejected { .. }
-    )));
+    assert!(live
+        .audit_log()
+        .iter()
+        .any(|record| matches!(record.event, RetraceAuditEvent::LateAbsorbed { .. })));
+    assert!(live
+        .audit_log()
+        .iter()
+        .any(|record| matches!(record.event, RetraceAuditEvent::DeadCenterRejected { .. })));
 
     // 死亡证明：判胜那一档的快照转正（成立档消费面）。
     let pack = live.established();

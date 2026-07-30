@@ -171,7 +171,11 @@ pub struct CenterId {
 impl CenterId {
     /// 从既有 [`Center`] 读出实例身份（零新增字段）。
     pub fn of(c: &Center) -> Self {
-        Self { start_index: c.start_index, zd: c.zd, zg: c.zg }
+        Self {
+            start_index: c.start_index,
+            zd: c.zd,
+            zg: c.zg,
+        }
     }
 }
 
@@ -318,7 +322,10 @@ pub enum CenterLifecycleEvent {
 pub enum ChainConsumed {
     /// 前缀一致 ⟹ 正常推进。`events` = 按链序产出的 [`CenterLifecycleEvent::Born`]（可能空）；
     /// `superseded` = 本次推进中被链推进取代（从未收到死亡事件）的在场实例数。
-    Advanced { events: Vec<CenterLifecycleEvent>, superseded: usize },
+    Advanced {
+        events: Vec<CenterLifecycleEvent>,
+        superseded: usize,
+    },
     /// **首次消费**（本机尚未与链同步）⟹ 静默采纳既有链前缀为历史，游标落链尾。
     /// 不伪造出生 bar——这些中枢是在本机开机（首个交易活跃 bar）之前就在链上的。
     /// 与 `tower_events` 同款纪律（旁路层首个活跃 bar 亦不重播既有 Compose）。
@@ -328,7 +335,11 @@ pub enum ChainConsumed {
     /// ★#337 `revived` = 本次重基是否让**此前已被教义死亡事件杀掉的链尾实例重新在场**
     /// （#336 未能判定项 4 的可机检形式；重基是工程再同步、非教义生死，故不撤销那次死亡登记，
     /// 只把复活如实计数）。
-    Rebased { at: usize, len: usize, revived: bool },
+    Rebased {
+        at: usize,
+        len: usize,
+        revived: bool,
+    },
 }
 
 /// ★#466 D0：一次工程重基在 `adopt()` 覆盖链游标前后的只读身份快照。
@@ -499,7 +510,12 @@ impl CenterEventMachine {
         if !self.synced {
             self.synced = true;
             let _ = self.adopt(chain); // 首次消费不可能复活（本机此前未杀过任何实例）。
-            return (ChainConsumed::Adopted { adopted: chain.len() }, None);
+            return (
+                ChainConsumed::Adopted {
+                    adopted: chain.len(),
+                },
+                None,
+            );
         }
         // ② 前缀分叉守卫（O(1)/bar/级）：链回缩 或 已消费末条身份被改写 ⟹ 工程重基。
         //
@@ -535,7 +551,11 @@ impl CenterEventMachine {
                     after: chain.iter().map(CenterId::of).collect(),
                 });
                 return (
-                    ChainConsumed::Rebased { at, len: chain.len(), revived },
+                    ChainConsumed::Rebased {
+                        at,
+                        len: chain.len(),
+                        revived,
+                    },
                     observation,
                 );
             }
@@ -631,7 +651,13 @@ impl CenterEventMachine {
         reroute_target: Option<CenterId>,
     ) -> Result<PointOutcome, CenterMisKill> {
         let target = Some(CenterId::of(&bound_center));
-        self.push_point_impl(bits, source_index, target, Some(bound_center), reroute_target)
+        self.push_point_impl(
+            bits,
+            source_index,
+            target,
+            Some(bound_center),
+            reroute_target,
+        )
     }
 
     fn push_point_impl(
@@ -751,9 +777,7 @@ impl CenterEventMachine {
         let Some((alive_center, alive_chain_index)) = self.alive else {
             if matches!(trigger, KillTrigger::ThirdClass) {
                 if let Some(t) = target {
-                    if let Some(bound_center) =
-                        historical_bound.filter(|c| CenterId::of(c) == t)
-                    {
+                    if let Some(bound_center) = historical_bound.filter(|c| CenterId::of(c) == t) {
                         if let Some(target_chain_index) =
                             self.consumed.iter().rposition(|c| *c == t)
                         {
@@ -918,14 +942,46 @@ mod tests {
 
     /// 造一个中枢（核心 [zd,zg]，外缘 [dd,gg]，源区间 [si,ei]）。
     fn center(si: usize, ei: usize, zd: Tick, zg: Tick) -> Center {
-        Center { zd, zg, dd: zd - 2, gg: zg + 2, start_index: si, end_index: ei }
+        Center {
+            zd,
+            zg,
+            dd: zd - 2,
+            gg: zg + 2,
+            start_index: si,
+            end_index: ei,
+        }
     }
 
-    fn bits_1b() -> BspBits { BspBits { buy1: true, ..Default::default() } }
-    fn bits_1s() -> BspBits { BspBits { sell1: true, ..Default::default() } }
-    fn bits_3b() -> BspBits { BspBits { buy3: true, ..Default::default() } }
-    fn bits_3s() -> BspBits { BspBits { sell3: true, ..Default::default() } }
-    fn bits_2b() -> BspBits { BspBits { buy2: true, ..Default::default() } }
+    fn bits_1b() -> BspBits {
+        BspBits {
+            buy1: true,
+            ..Default::default()
+        }
+    }
+    fn bits_1s() -> BspBits {
+        BspBits {
+            sell1: true,
+            ..Default::default()
+        }
+    }
+    fn bits_3b() -> BspBits {
+        BspBits {
+            buy3: true,
+            ..Default::default()
+        }
+    }
+    fn bits_3s() -> BspBits {
+        BspBits {
+            sell3: true,
+            ..Default::default()
+        }
+    }
+    fn bits_2b() -> BspBits {
+        BspBits {
+            buy2: true,
+            ..Default::default()
+        }
+    }
 
     // ──────────────────────────────────────────────────────────────────────
     //  ★R3 片一：事件源 = 塔链消费（born 由链推进直接推出）
@@ -944,7 +1000,11 @@ mod tests {
         );
         assert_eq!(m.counts(), (0, 0, 0), "采纳不计出生（不伪造出生 bar）");
         assert_eq!(m.chain_len(), 2);
-        assert_eq!(m.alive_center(), Some((chain[1], 1)), "场 = 链尾实例（游标单点）");
+        assert_eq!(
+            m.alive_center(),
+            Some((chain[1], 1)),
+            "场 = 链尾实例（游标单点）"
+        );
     }
 
     /// ★空链首次消费 ⟹ 采纳 0 条；此后链上每新增一个中枢都产 born（本机开机后出生的中枢
@@ -952,12 +1012,20 @@ mod tests {
     #[test]
     fn chain_growth_after_sync_births_each_new_center() {
         let mut m = CenterEventMachine::new(0);
-        assert_eq!(m.consume_chain(&[]), ChainConsumed::Adopted { adopted: 0 }, "空链采纳 0 条");
+        assert_eq!(
+            m.consume_chain(&[]),
+            ChainConsumed::Adopted { adopted: 0 },
+            "空链采纳 0 条"
+        );
         let c0 = center(5, 260, 100, 200);
         assert_eq!(
             m.consume_chain(&[c0]),
             ChainConsumed::Advanced {
-                events: vec![CenterLifecycleEvent::Born { level: 0, center: c0, chain_index: 0 }],
+                events: vec![CenterLifecycleEvent::Born {
+                    level: 0,
+                    center: c0,
+                    chain_index: 0
+                }],
                 superseded: 0,
             },
             "链新增 ⟹ born（链下标 0）"
@@ -967,7 +1035,10 @@ mod tests {
         // 幂等：链未增长 ⟹ 无事件（每 bar 调用不重复产出）。
         assert_eq!(
             m.consume_chain(&[c0]),
-            ChainConsumed::Advanced { events: Vec::new(), superseded: 0 },
+            ChainConsumed::Advanced {
+                events: Vec::new(),
+                superseded: 0
+            },
             "链未增长 ⟹ 幂等无事件"
         );
         assert_eq!(m.counts(), (1, 0, 0));
@@ -981,35 +1052,59 @@ mod tests {
     fn one_arena_holds_by_chain_cursor_and_undead_predecessors_are_superseded() {
         let mut m = CenterEventMachine::new(0);
         m.consume_chain(&[]);
-        let (c0, c1, c2) = (center(5, 260, 100, 200), center(300, 600, 150, 250), center(700, 900, 180, 280));
+        let (c0, c1, c2) = (
+            center(5, 260, 100, 200),
+            center(300, 600, 150, 250),
+            center(700, 900, 180, 280),
+        );
         let got = m.consume_chain(&[c0, c1, c2]);
         assert_eq!(
             got,
             ChainConsumed::Advanced {
                 events: vec![
-                    CenterLifecycleEvent::Born { level: 0, center: c0, chain_index: 0 },
+                    CenterLifecycleEvent::Born {
+                        level: 0,
+                        center: c0,
+                        chain_index: 0
+                    },
                     CenterLifecycleEvent::Superseded {
                         level: 0,
                         center: c0,
                         chain_index: 0,
                         by_chain_index: 1,
                     },
-                    CenterLifecycleEvent::Born { level: 0, center: c1, chain_index: 1 },
+                    CenterLifecycleEvent::Born {
+                        level: 0,
+                        center: c1,
+                        chain_index: 1
+                    },
                     CenterLifecycleEvent::Superseded {
                         level: 0,
                         center: c1,
                         chain_index: 1,
                         by_chain_index: 2,
                     },
-                    CenterLifecycleEvent::Born { level: 0, center: c2, chain_index: 2 },
+                    CenterLifecycleEvent::Born {
+                        level: 0,
+                        center: c2,
+                        chain_index: 2
+                    },
                 ],
                 superseded: 2,
             },
             "3 个新中枢 ⟹ 3 born（按链序）+ 2 条在场终结（取代）"
         );
-        assert_eq!(m.counts(), (3, 0, 0), "取代不计 broken（无三类点即无教义破坏）");
+        assert_eq!(
+            m.counts(),
+            (3, 0, 0),
+            "取代不计 broken（无三类点即无教义破坏）"
+        );
         assert_eq!(m.superseded(), 2);
-        assert_eq!(m.alive_center(), Some((c2, 2)), "场 = 链尾单点（一中枢一场按构造成立）");
+        assert_eq!(
+            m.alive_center(),
+            Some((c2, 2)),
+            "场 = 链尾单点（一中枢一场按构造成立）"
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -1053,7 +1148,11 @@ mod tests {
         assert_eq!(
             got,
             ChainConsumed::Advanced {
-                events: vec![CenterLifecycleEvent::Born { level: 0, center: c1, chain_index: 1 }],
+                events: vec![CenterLifecycleEvent::Born {
+                    level: 0,
+                    center: c1,
+                    chain_index: 1
+                }],
                 superseded: 0,
             },
             "场为空时链推进 ⟹ born 接场，superseded=0（前一实例已被合法杀掉）"
@@ -1095,14 +1194,25 @@ mod tests {
     fn first_class_wins_over_third_class_on_same_point() {
         let c0 = center(5, 260, 100, 200);
         let mut m = machine_on_chain(&[c0]);
-        let both = BspBits { buy1: true, buy3: true, ..Default::default() };
+        let both = BspBits {
+            buy1: true,
+            buy3: true,
+            ..Default::default()
+        };
         let ev = m.push_point(both, 60, Some(CenterId::of(&c0)));
         assert!(
-            matches!(ev, Ok(PointOutcome::Event(CenterLifecycleEvent::Reset { .. }))),
+            matches!(
+                ev,
+                Ok(PointOutcome::Event(CenterLifecycleEvent::Reset { .. }))
+            ),
             "一类+三类同点 ⟹ 一类优先"
         );
         assert_eq!(m.counts(), (1, 0, 1));
-        assert_eq!(m.alive_center(), Some((c0, 0)), "Reset 优先也不能 take 在场中枢");
+        assert_eq!(
+            m.alive_center(),
+            Some((c0, 0)),
+            "Reset 优先也不能 take 在场中枢"
+        );
     }
 
     /// ★二类点不产事件（不在 born/broken/reset 生命周期事件内），且不动在场实例。
@@ -1111,7 +1221,11 @@ mod tests {
         let c0 = center(5, 260, 100, 200);
         let mut m = machine_on_chain(&[c0]);
         // 二类点载体是 Type1Anchor（无中枢身份）⟹ target=None；不产事件 ⟹ 身份校验不触发。
-        assert_eq!(m.push_point(bits_2b(), 70, None), Ok(PointOutcome::Silent), "二类点不产事件");
+        assert_eq!(
+            m.push_point(bits_2b(), 70, None),
+            Ok(PointOutcome::Silent),
+            "二类点不产事件"
+        );
         assert_eq!(m.counts(), (1, 0, 0));
         assert_eq!(m.mis_kills(), 0, "二类点不进身份校验");
         assert!(m.alive_center().is_some(), "二类点不动在场实例");
@@ -1121,11 +1235,18 @@ mod tests {
     /// 一类点仍如实记录边界（died=None）。
     #[test]
     fn identity_check_inert_when_arena_empty() {
-        let stale_id = CenterId { start_index: 9999, zd: 1, zg: 2 };
+        let stale_id = CenterId {
+            start_index: 9999,
+            zd: 1,
+            zg: 2,
+        };
         let mut m = CenterEventMachine::new(0);
         m.consume_chain(&[]);
         assert_eq!(m.alive_center(), None, "前置：链空 ⟹ 场为空");
-        assert_eq!(m.push_point(bits_3b(), 10, Some(stale_id)), Ok(PointOutcome::Silent));
+        assert_eq!(
+            m.push_point(bits_3b(), 10, Some(stale_id)),
+            Ok(PointOutcome::Silent)
+        );
         assert_eq!(m.mis_kills(), 0, "场为空 ⟹ 不是误杀");
         let ev = m.push_point(bits_1b(), 11, Some(stale_id));
         assert_eq!(
@@ -1159,12 +1280,20 @@ mod tests {
     fn stale_request_when_target_was_already_legitimately_killed() {
         let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
         let mut m = machine_on_chain(&[c0]);
-        assert!(m.push_point(bits_3b(), 100, Some(CenterId::of(&c0))).is_ok());
+        assert!(m
+            .push_point(bits_3b(), 100, Some(CenterId::of(&c0)))
+            .is_ok());
         m.consume_chain(&[c0, c1]);
         assert_eq!(m.alive_center(), Some((c1, 1)));
         let got = m.push_point(bits_3s(), 700, Some(CenterId::of(&c0)));
         assert!(
-            matches!(got, Ok(PointOutcome::Stale(StaleKillRequest { target_chain_index: 0, .. }))),
+            matches!(
+                got,
+                Ok(PointOutcome::Stale(StaleKillRequest {
+                    target_chain_index: 0,
+                    ..
+                }))
+            ),
             "已被合法杀掉的实例再被声明 ⟹ 陈旧请求，实得 {got:?}"
         );
         assert_eq!(m.counts(), (2, 1, 0), "陈旧的三类点不产第二次 broken");
@@ -1177,9 +1306,19 @@ mod tests {
     fn mis_kill_rejected_when_target_absent_from_chain() {
         let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
         // 链外身份：核心与源坐标都不在 [c0,c1] 里（wf8 实测「target 核心在塔链查无」那一面）。
-        let off_chain = CenterId { start_index: 90_000, zd: 777, zg: 888 };
+        let off_chain = CenterId {
+            start_index: 90_000,
+            zd: 777,
+            zg: 888,
+        };
         for (label, target, bits, side, src) in [
-            ("三类×链外身份", Some(off_chain), bits_3b(), Side::Long, 100usize),
+            (
+                "三类×链外身份",
+                Some(off_chain),
+                bits_3b(),
+                Side::Long,
+                100usize,
+            ),
             ("三类×载体缺席", None, bits_3s(), Side::Short, 101),
         ] {
             let mut m = machine_on_chain(&[c0, c1]);
@@ -1203,7 +1342,13 @@ mod tests {
         }
 
         for (label, target, bits, side, src) in [
-            ("一类×链外身份", Some(off_chain), bits_1b(), Side::Long, 102usize),
+            (
+                "一类×链外身份",
+                Some(off_chain),
+                bits_1b(),
+                Side::Long,
+                102usize,
+            ),
             ("一类×载体缺席", None, bits_1s(), Side::Short, 103),
         ] {
             let mut m = machine_on_chain(&[c0, c1]);
@@ -1230,11 +1375,25 @@ mod tests {
         let c0 = center(5, 260, 100, 200);
         let mut m = machine_on_chain(&[c0]);
         // 塔侧同一中枢被延伸：ei 推进、外缘放大，核心 (zd,zg) 与出生坐标 si 不变。
-        let extended = Center { zd: 100, zg: 200, dd: 50, gg: 300, start_index: 5, end_index: 4444 };
-        assert_eq!(CenterId::of(&extended), CenterId::of(&c0), "延伸不改身份（核心不变）");
+        let extended = Center {
+            zd: 100,
+            zg: 200,
+            dd: 50,
+            gg: 300,
+            start_index: 5,
+            end_index: 4444,
+        };
+        assert_eq!(
+            CenterId::of(&extended),
+            CenterId::of(&c0),
+            "延伸不改身份（核心不变）"
+        );
         let got = m.push_point(bits_3b(), 300, Some(CenterId::of(&extended)));
         assert!(
-            matches!(got, Ok(PointOutcome::Event(CenterLifecycleEvent::Broken { .. }))),
+            matches!(
+                got,
+                Ok(PointOutcome::Event(CenterLifecycleEvent::Broken { .. }))
+            ),
             "延伸后的同一中枢 ⟹ 身份仍匹配，破坏放行"
         );
         assert_eq!(m.mis_kills(), 0);
@@ -1248,14 +1407,22 @@ mod tests {
     /// ★链回缩（该级塔缓存全量重置）⟹ 重基：静默采纳当前链，游标落链尾，**不产 born/broken**。
     #[test]
     fn chain_shrink_triggers_rebase_without_fabricating_events() {
-        let (c0, c1, c2) = (center(5, 260, 100, 200), center(300, 600, 150, 250), center(700, 900, 180, 280));
+        let (c0, c1, c2) = (
+            center(5, 260, 100, 200),
+            center(300, 600, 150, 250),
+            center(700, 900, 180, 280),
+        );
         let mut m = machine_on_chain(&[c0, c1, c2]);
         assert_eq!(m.chain_len(), 3);
         assert_eq!(m.counts(), (3, 0, 0));
         let got = m.consume_chain(&[c0, c1]);
         assert_eq!(
             got,
-            ChainConsumed::Rebased { at: 2, len: 2, revived: false },
+            ChainConsumed::Rebased {
+                at: 2,
+                len: 2,
+                revived: false
+            },
             "链回缩 ⟹ 重基（at = 首个缺失下标）；在场实例未被杀过 ⟹ 不是复活"
         );
         assert_eq!(m.counts(), (3, 0, 0), "重基不伪造 born/broken");
@@ -1274,7 +1441,11 @@ mod tests {
         let got = m.consume_chain(&[c0, c1_recut]);
         assert_eq!(
             got,
-            ChainConsumed::Rebased { at: 1, len: 2, revived: false },
+            ChainConsumed::Rebased {
+                at: 1,
+                len: 2,
+                revived: false
+            },
             "已消费末条身份被改写 ⟹ 重基（at = 检出分叉的下标）"
         );
         assert_eq!(m.counts(), (2, 0, 0), "重基不伪造 born");
@@ -1292,13 +1463,27 @@ mod tests {
 
         let (got, observation) = m.consume_chain_observed(&[c0, c1_recut, c2]);
 
-        assert_eq!(got, ChainConsumed::Rebased { at: 1, len: 3, revived: false });
+        assert_eq!(
+            got,
+            ChainConsumed::Rebased {
+                at: 1,
+                len: 3,
+                revived: false
+            }
+        );
         let observation = observation.expect("Rebased 必须带一笔 D0 链事务观测");
         assert_eq!(observation.at, 1);
-        assert_eq!(observation.before, vec![CenterId::of(&c0), CenterId::of(&c1)]);
+        assert_eq!(
+            observation.before,
+            vec![CenterId::of(&c0), CenterId::of(&c1)]
+        );
         assert_eq!(
             observation.after,
-            vec![CenterId::of(&c0), CenterId::of(&c1_recut), CenterId::of(&c2)]
+            vec![
+                CenterId::of(&c0),
+                CenterId::of(&c1_recut),
+                CenterId::of(&c2)
+            ]
         );
         assert_eq!(m.chain_len(), 3, "观测不得改变 adopt 后的既有链状态");
         assert_eq!(m.alive_center(), Some((c2, 2)), "观测不得改变既有在场选择");
@@ -1315,7 +1500,11 @@ mod tests {
     fn tolerated_kill_when_target_is_chain_tail_predecessor() {
         let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
         let mut m = machine_on_chain(&[c0, c1]);
-        assert_eq!(m.alive_center(), Some((c1, 1)), "前置：场 = 链尾 c1，c0 已被取代");
+        assert_eq!(
+            m.alive_center(),
+            Some((c1, 1)),
+            "前置：场 = 链尾 c1，c0 已被取代"
+        );
         let got = m.push_point(bits_3s(), 500, Some(CenterId::of(&c0)));
         assert_eq!(
             got,
@@ -1328,7 +1517,11 @@ mod tests {
             })),
             "★#337 容读法：链尾前一格（被取代）的死亡通知合法放行 ⟹ 破坏 c0"
         );
-        assert_eq!(m.alive_center(), Some((c1, 1)), "容读放行不动链尾（只杀载体所指实例）");
+        assert_eq!(
+            m.alive_center(),
+            Some((c1, 1)),
+            "容读放行不动链尾（只杀载体所指实例）"
+        );
         assert_eq!(m.counts(), (2, 1, 0), "容读放行计入 broken");
         assert_eq!(m.tolerated_kills(), 1, "放行落在容读格 ⟹ 单独分桶");
         assert_eq!(m.stale_requests(), 0, "★口径改判：Δidx=−1 不再是 stale");
@@ -1362,15 +1555,22 @@ mod tests {
             m.push_point(bits_3s(), 641, Some(CenterId::of(&c0))),
             Ok(PointOutcome::Event(CenterLifecycleEvent::Broken { center, .. })) if center == c0
         ));
-        assert_eq!(m.alive_center(), Some((c1, 1)), "三类点只破坏其容读格目标，主格仍不动");
+        assert_eq!(
+            m.alive_center(),
+            Some((c1, 1)),
+            "三类点只破坏其容读格目标，主格仍不动"
+        );
         assert_eq!(m.tolerated_kills(), 1, "容读格仍留给真正的三类死亡证明");
     }
 
     /// ★Δidx ≤ −2 仍是 stale（容读窗只有一格；再远的滞后不放行）。
     #[test]
     fn stale_kept_when_target_is_two_or_more_slots_upstream() {
-        let (c0, c1, c2) =
-            (center(5, 260, 100, 200), center(300, 600, 150, 250), center(700, 900, 180, 280));
+        let (c0, c1, c2) = (
+            center(5, 260, 100, 200),
+            center(300, 600, 150, 250),
+            center(700, 900, 180, 280),
+        );
         let mut m = machine_on_chain(&[c0, c1, c2]);
         assert_eq!(m.alive_center(), Some((c2, 2)), "前置：场 = 链尾 c2");
         let got = m.push_point(bits_3b(), 950, Some(CenterId::of(&c0)));
@@ -1399,11 +1599,21 @@ mod tests {
     fn tolerated_slot_consumed_after_first_doctrinal_death() {
         let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
         let mut m = machine_on_chain(&[c0, c1]);
-        assert!(m.push_point(bits_3s(), 500, Some(CenterId::of(&c0))).is_ok(), "首次容读放行");
+        assert!(
+            m.push_point(bits_3s(), 500, Some(CenterId::of(&c0)))
+                .is_ok(),
+            "首次容读放行"
+        );
         assert_eq!(m.tolerated_kills(), 1);
         let again = m.push_point(bits_3b(), 700, Some(CenterId::of(&c0)));
         assert!(
-            matches!(again, Ok(PointOutcome::Stale(StaleKillRequest { target_chain_index: 0, .. }))),
+            matches!(
+                again,
+                Ok(PointOutcome::Stale(StaleKillRequest {
+                    target_chain_index: 0,
+                    ..
+                }))
+            ),
             "已收教义死亡的容读格实例不得二次死亡 ⟹ 陈旧，实得 {again:?}"
         );
         assert_eq!(m.counts(), (2, 1, 0), "第二次不计 broken");
@@ -1417,12 +1627,22 @@ mod tests {
     fn tolerated_slot_closed_for_already_killed_predecessor() {
         let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
         let mut m = machine_on_chain(&[c0]);
-        assert!(m.push_point(bits_3b(), 100, Some(CenterId::of(&c0))).is_ok(), "c0 被合法破坏");
+        assert!(
+            m.push_point(bits_3b(), 100, Some(CenterId::of(&c0)))
+                .is_ok(),
+            "c0 被合法破坏"
+        );
         m.consume_chain(&[c0, c1]);
         assert_eq!(m.alive_center(), Some((c1, 1)));
         let got = m.push_point(bits_3s(), 700, Some(CenterId::of(&c0)));
         assert!(
-            matches!(got, Ok(PointOutcome::Stale(StaleKillRequest { target_chain_index: 0, .. }))),
+            matches!(
+                got,
+                Ok(PointOutcome::Stale(StaleKillRequest {
+                    target_chain_index: 0,
+                    ..
+                }))
+            ),
             "c0 的退场方式是教义死亡（非被取代）⟹ 容读窗不开，实得 {got:?}"
         );
         assert_eq!(m.tolerated_kills(), 0);
@@ -1435,7 +1655,11 @@ mod tests {
     fn tolerated_window_closed_when_arena_empty() {
         let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
         let mut m = machine_on_chain(&[c0, c1]);
-        assert!(m.push_point(bits_3b(), 620, Some(CenterId::of(&c1))).is_ok(), "链尾 c1 被合法破坏");
+        assert!(
+            m.push_point(bits_3b(), 620, Some(CenterId::of(&c1)))
+                .is_ok(),
+            "链尾 c1 被合法破坏"
+        );
         assert_eq!(m.alive_center(), None, "前置：场为空");
         assert_eq!(
             m.push_point(bits_3s(), 800, Some(CenterId::of(&c0))),
@@ -1457,7 +1681,11 @@ mod tests {
     #[test]
     fn death_forms_bucket_doctrinal_versus_arena_termination() {
         let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
-        let born = CenterLifecycleEvent::Born { level: 0, center: c0, chain_index: 0 };
+        let born = CenterLifecycleEvent::Born {
+            level: 0,
+            center: c0,
+            chain_index: 0,
+        };
         let superseded = CenterLifecycleEvent::Superseded {
             level: 0,
             center: c0,
@@ -1487,7 +1715,11 @@ mod tests {
         };
         for (label, ev, form) in [
             ("出生不死人", born, None),
-            ("被取代 ⟹ 在场终结", superseded, Some(DeathForm::ArenaTermination)),
+            (
+                "被取代 ⟹ 在场终结",
+                superseded,
+                Some(DeathForm::ArenaTermination),
+            ),
             ("三类破坏 ⟹ 教义死亡", broken, Some(DeathForm::Doctrinal)),
             ("活中枢在场的 Reset ⟹ 只记漏发见证", reset_died, None),
             ("场为空的 Reset ⟹ 纯广播", reset_empty, None),
@@ -1523,14 +1755,22 @@ mod tests {
                 .expect("链推进取代 ⟹ 产在场终结事件"),
             other => panic!("应为链推进，实得 {other:?}"),
         };
-        assert_eq!(arena_end.killed_center_id(), Some(CenterId::of(&c0)), "在场终结登记 c0");
+        assert_eq!(
+            arena_end.killed_center_id(),
+            Some(CenterId::of(&c0)),
+            "在场终结登记 c0"
+        );
 
         let doctrinal = match m.push_point(bits_3s(), 900, Some(CenterId::of(&c0))) {
             Ok(PointOutcome::Event(ev)) => ev,
             other => panic!("容读放行应产教义死亡，实得 {other:?}"),
         };
         assert_eq!(doctrinal.death_form(), Some(DeathForm::Doctrinal));
-        assert_eq!(doctrinal.killed_center_id(), Some(CenterId::of(&c0)), "教义死亡也登记 c0");
+        assert_eq!(
+            doctrinal.killed_center_id(),
+            Some(CenterId::of(&c0)),
+            "教义死亡也登记 c0"
+        );
         assert_eq!(m.superseded(), 1);
         assert_eq!(m.tolerated_kills(), 1);
     }
@@ -1545,12 +1785,20 @@ mod tests {
     fn rebase_flags_revival_of_doctrinally_killed_tail() {
         let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
         let mut m = machine_on_chain(&[c0, c1]);
-        assert!(m.push_point(bits_3b(), 620, Some(CenterId::of(&c1))).is_ok(), "链尾 c1 被合法破坏");
+        assert!(
+            m.push_point(bits_3b(), 620, Some(CenterId::of(&c1)))
+                .is_ok(),
+            "链尾 c1 被合法破坏"
+        );
         assert_eq!(m.alive_center(), None, "前置：场为空");
         let got = m.consume_chain(&[c1]);
         assert_eq!(
             got,
-            ChainConsumed::Rebased { at: 1, len: 1, revived: true },
+            ChainConsumed::Rebased {
+                at: 1,
+                len: 1,
+                revived: true
+            },
             "重基后链尾 == 被杀身份 ⟹ 复活如实登记"
         );
         assert_eq!(m.alive_center(), Some((c1, 0)), "复活 = 被杀实例重新在场");
@@ -1563,11 +1811,17 @@ mod tests {
     fn rebase_not_flagged_when_reseated_tail_is_a_different_instance() {
         let (c0, c1) = (center(5, 260, 100, 200), center(300, 600, 150, 250));
         let mut m = machine_on_chain(&[c0, c1]);
-        assert!(m.push_point(bits_3b(), 620, Some(CenterId::of(&c1))).is_ok());
+        assert!(m
+            .push_point(bits_3b(), 620, Some(CenterId::of(&c1)))
+            .is_ok());
         let got = m.consume_chain(&[c0]);
         assert_eq!(
             got,
-            ChainConsumed::Rebased { at: 1, len: 1, revived: false },
+            ChainConsumed::Rebased {
+                at: 1,
+                len: 1,
+                revived: false
+            },
             "重基后链尾是别的实例 ⟹ 不是复活"
         );
         assert_eq!(m.revivals(), 0);
@@ -1577,22 +1831,38 @@ mod tests {
     #[test]
     fn events_expose_killed_center_id() {
         let c0 = center(5, 260, 100, 200);
-        let born_ev = CenterLifecycleEvent::Born { level: 0, center: c0, chain_index: 0 };
-        assert_eq!(born_ev.killed_center_id(), None, "出生不杀中枢 ⟹ 无死亡身份");
+        let born_ev = CenterLifecycleEvent::Born {
+            level: 0,
+            center: c0,
+            chain_index: 0,
+        };
+        assert_eq!(
+            born_ev.killed_center_id(),
+            None,
+            "出生不杀中枢 ⟹ 无死亡身份"
+        );
 
         let mut m = machine_on_chain(&[c0]);
         let broken = match m.push_point(bits_3b(), 100, Some(CenterId::of(&c0))) {
             Ok(PointOutcome::Event(ev)) => ev,
             other => panic!("应放行破坏，实得 {other:?}"),
         };
-        assert_eq!(broken.killed_center_id(), Some(CenterId::of(&c0)), "破坏事件携带死亡身份");
+        assert_eq!(
+            broken.killed_center_id(),
+            Some(CenterId::of(&c0)),
+            "破坏事件携带死亡身份"
+        );
 
         let mut m2 = machine_on_chain(&[c0]);
         let reset = match m2.push_point(bits_1s(), 200, Some(CenterId::of(&c0))) {
             Ok(PointOutcome::Event(ev)) => ev,
             other => panic!("应发出 Reset 广播，实得 {other:?}"),
         };
-        assert_eq!(reset.killed_center_id(), None, "Reset 的 died_* 是漏发见证，不是死亡身份");
+        assert_eq!(
+            reset.killed_center_id(),
+            None,
+            "Reset 的 died_* 是漏发见证，不是死亡身份"
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -1610,7 +1880,10 @@ mod tests {
         let mut m = CenterEventMachine::new(0);
         let anchor = center(0, 10, 100, 200);
         let current = center(0, 10, 90, 200); // 同 seed 窗重算：start 不变、zd 修订（迁移后身份）
-        assert_eq!(m.consume_chain(&[current]), ChainConsumed::Adopted { adopted: 1 });
+        assert_eq!(
+            m.consume_chain(&[current]),
+            ChainConsumed::Adopted { adopted: 1 }
+        );
         assert_eq!(m.alive_center(), Some((current, 0)));
 
         // 无改道目标 ⟹ 锚彻底定位不到，行为不变（fail closed）。
@@ -1643,10 +1916,22 @@ mod tests {
                 breaker_side: Side::Long,
             }))
         );
-        assert_eq!(m.alive_center(), None, "改道命中 Alive ⟹ 真杀在场实例，主格清空");
+        assert_eq!(
+            m.alive_center(),
+            None,
+            "改道命中 Alive ⟹ 真杀在场实例，主格清空"
+        );
         assert_eq!(m.historical_bound_reroutes(), 1);
-        assert_eq!(m.historical_bound_kills(), 0, "改道落 Alive 分支，不计入 HistoricalBound 计数");
-        assert_eq!(m.mis_kills(), 1, "改道成功不追加误杀计数（读数仍是上一次不同请求的）");
+        assert_eq!(
+            m.historical_bound_kills(),
+            0,
+            "改道落 Alive 分支，不计入 HistoricalBound 计数"
+        );
+        assert_eq!(
+            m.mis_kills(),
+            1,
+            "改道成功不追加误杀计数（读数仍是上一次不同请求的）"
+        );
     }
 
     /// 改道命中容读格（`Tolerated`）：锚折回后的当前身份恰好落在链尾前一格。
@@ -1656,7 +1941,10 @@ mod tests {
         let anchor = center(0, 10, 100, 200);
         let current = center(0, 10, 90, 200);
         let tail = center(20, 30, 300, 400);
-        assert_eq!(m.consume_chain(&[current, tail]), ChainConsumed::Adopted { adopted: 2 });
+        assert_eq!(
+            m.consume_chain(&[current, tail]),
+            ChainConsumed::Adopted { adopted: 2 }
+        );
         assert_eq!(m.alive_center(), Some((tail, 1)));
 
         let rerouted =
@@ -1674,7 +1962,11 @@ mod tests {
         assert_eq!(m.alive_center(), Some((tail, 1)), "容读放行不动链尾主格");
         assert_eq!(m.tolerated_kills(), 1);
         assert_eq!(m.historical_bound_reroutes(), 1);
-        assert_eq!(m.historical_bound_kills(), 0, "改道落 Tolerated 分支，不计入 HistoricalBound 计数");
+        assert_eq!(
+            m.historical_bound_kills(),
+            0,
+            "改道落 Tolerated 分支，不计入 HistoricalBound 计数"
+        );
         assert_eq!(m.mis_kills(), 0);
     }
 
@@ -1710,7 +2002,11 @@ mod tests {
         );
         assert_eq!(m.alive_center(), Some((tail, 2)), "主格不动");
         assert_eq!(m.historical_bound_reroutes(), 1);
-        assert_eq!(m.historical_bound_kills(), 1, "落 HistoricalBound 分支，与非改道同一计数口径");
+        assert_eq!(
+            m.historical_bound_kills(),
+            1,
+            "落 HistoricalBound 分支，与非改道同一计数口径"
+        );
         assert_eq!(m.mis_kills(), 0);
     }
 
@@ -1722,10 +2018,12 @@ mod tests {
         let anchor = center(0, 10, 100, 200);
         let current = center(0, 10, 90, 200);
         let ghost = center(999, 1000, 1, 2);
-        assert_eq!(m.consume_chain(&[current]), ChainConsumed::Adopted { adopted: 1 });
+        assert_eq!(
+            m.consume_chain(&[current]),
+            ChainConsumed::Adopted { adopted: 1 }
+        );
 
-        let out =
-            m.push_point_historical_bound(bits_3b(), 100, anchor, Some(CenterId::of(&ghost)));
+        let out = m.push_point_historical_bound(bits_3b(), 100, anchor, Some(CenterId::of(&ghost)));
         assert_eq!(
             out,
             Err(CenterMisKill {
@@ -1749,14 +2047,13 @@ mod tests {
         let mut m = CenterEventMachine::new(0);
         let anchor = center(0, 10, 100, 200);
         let current = center(20, 30, 300, 400);
-        assert_eq!(m.consume_chain(&[current]), ChainConsumed::Adopted { adopted: 1 });
-
-        let out = m.push_point_historical_bound(
-            bits_3b(),
-            100,
-            anchor,
-            Some(CenterId::of(&anchor)),
+        assert_eq!(
+            m.consume_chain(&[current]),
+            ChainConsumed::Adopted { adopted: 1 }
         );
+
+        let out =
+            m.push_point_historical_bound(bits_3b(), 100, anchor, Some(CenterId::of(&anchor)));
         assert!(out.is_err());
         assert_eq!(m.mis_kills(), 1);
         assert_eq!(m.historical_bound_reroutes(), 0);

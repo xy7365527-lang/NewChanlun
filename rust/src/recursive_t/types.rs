@@ -276,10 +276,10 @@ impl EndpointLabels {
     pub fn type1_exclusive(&self) -> bool {
         let has_t1_buy = self.has(BSPKind::Type1Buy);
         let has_t1_sell = self.has(BSPKind::Type1Sell);
-        let buy_violation = has_t1_buy
-            && (self.has(BSPKind::Type2Buy) || self.has(BSPKind::Type3Buy));
-        let sell_violation = has_t1_sell
-            && (self.has(BSPKind::Type2Sell) || self.has(BSPKind::Type3Sell));
+        let buy_violation =
+            has_t1_buy && (self.has(BSPKind::Type2Buy) || self.has(BSPKind::Type3Buy));
+        let sell_violation =
+            has_t1_sell && (self.has(BSPKind::Type2Sell) || self.has(BSPKind::Type3Sell));
         !(buy_violation || sell_violation)
     }
 }
@@ -378,7 +378,10 @@ impl RecursiveTree {
 
     /// 收集全塔所有买卖点（含跨级 type2 投影）。
     pub fn all_bsps(&self) -> Vec<BSP> {
-        self.levels.iter().flat_map(|l| l.bsps.iter().cloned()).collect()
+        self.levels
+            .iter()
+            .flat_map(|l| l.bsps.iter().cloned())
+            .collect()
     }
 }
 
@@ -417,7 +420,12 @@ mod label_set_tests {
     /// 非空端点标签集 totality 成立。
     #[test]
     fn 非空端点标签集_totality成立() {
-        let b = BSP { kind: BSPKind::Type1Buy, bar: 3, price: 10.0, level: 1 };
+        let b = BSP {
+            kind: BSPKind::Type1Buy,
+            bar: 3,
+            price: 10.0,
+            level: 1,
+        };
         let e = EndpointLabels::from_bsps(&[b]).expect("非空");
         assert!(e.is_total());
         assert_eq!(e.labels().len(), 1);
@@ -426,8 +434,18 @@ mod label_set_tests {
     /// ★2B/3B 可重合（codex 硬修正2，maimai.md:170）：互斥 enum 不可表达，标签集可。
     #[test]
     fn 二B三B同端点可重合() {
-        let b2 = BSP { kind: BSPKind::Type2Buy, bar: 7, price: 12.0, level: 1 };
-        let b3 = BSP { kind: BSPKind::Type3Buy, bar: 7, price: 12.0, level: 1 };
+        let b2 = BSP {
+            kind: BSPKind::Type2Buy,
+            bar: 7,
+            price: 12.0,
+            level: 1,
+        };
+        let b3 = BSP {
+            kind: BSPKind::Type3Buy,
+            bar: 7,
+            price: 12.0,
+            level: 1,
+        };
         let e = EndpointLabels::from_bsps(&[b2, b3]).expect("非空");
         assert!(e.has(BSPKind::Type2Buy));
         assert!(e.has(BSPKind::Type3Buy));
@@ -439,8 +457,18 @@ mod label_set_tests {
     /// 第一类互斥律（maimai.md:170）：1B 与同向 2B/3B 不可重合。
     #[test]
     fn 一B与二B同端点违反互斥律() {
-        let b1 = BSP { kind: BSPKind::Type1Buy, bar: 9, price: 5.0, level: 0 };
-        let b2 = BSP { kind: BSPKind::Type2Buy, bar: 9, price: 5.0, level: 0 };
+        let b1 = BSP {
+            kind: BSPKind::Type1Buy,
+            bar: 9,
+            price: 5.0,
+            level: 0,
+        };
+        let b2 = BSP {
+            kind: BSPKind::Type2Buy,
+            bar: 9,
+            price: 5.0,
+            level: 0,
+        };
         let e = EndpointLabels::from_bsps(&[b1, b2]).expect("非空");
         assert!(!e.type1_exclusive(), "1B+2B 同端点应判违反互斥律");
     }
@@ -448,8 +476,18 @@ mod label_set_tests {
     /// 去重：同 kind 多次不重复进标签集。
     #[test]
     fn 标签集去重() {
-        let a = BSP { kind: BSPKind::Type1Sell, bar: 2, price: 8.0, level: 0 };
-        let b = BSP { kind: BSPKind::Type1Sell, bar: 2, price: 8.0, level: 0 };
+        let a = BSP {
+            kind: BSPKind::Type1Sell,
+            bar: 2,
+            price: 8.0,
+            level: 0,
+        };
+        let b = BSP {
+            kind: BSPKind::Type1Sell,
+            bar: 2,
+            price: 8.0,
+            level: 0,
+        };
         let e = EndpointLabels::from_bsps(&[a, b]).expect("非空");
         assert_eq!(e.labels().len(), 1);
     }
@@ -458,9 +496,24 @@ mod label_set_tests {
     #[test]
     fn 按端点聚合标签集() {
         let bsps = vec![
-            BSP { kind: BSPKind::Type2Buy, bar: 7, price: 12.0, level: 1 },
-            BSP { kind: BSPKind::Type3Buy, bar: 7, price: 12.0, level: 1 },
-            BSP { kind: BSPKind::Type1Sell, bar: 20, price: 30.0, level: 1 },
+            BSP {
+                kind: BSPKind::Type2Buy,
+                bar: 7,
+                price: 12.0,
+                level: 1,
+            },
+            BSP {
+                kind: BSPKind::Type3Buy,
+                bar: 7,
+                price: 12.0,
+                level: 1,
+            },
+            BSP {
+                kind: BSPKind::Type1Sell,
+                bar: 20,
+                price: 30.0,
+                level: 1,
+            },
         ];
         let endpoints = aggregate_endpoints(&bsps);
         assert_eq!(endpoints.len(), 2, "两个不同端点");

@@ -183,7 +183,10 @@ fn main() -> std::process::ExitCode {
     };
     let bars = &dataset.bars;
     let n = bars.len();
-    println!("P105_INPUT bars={n} certs_total={} A={n_a} B={n_b}", certs.len());
+    println!(
+        "P105_INPUT bars={n} certs_total={} A={n_a} B={n_b}",
+        certs.len()
+    );
 
     // ── 一、证书级别身份（纯 dump 侧，无需塔）────────────────────────────
     for caliber in ["A", "B"] {
@@ -337,7 +340,10 @@ fn main() -> std::process::ExitCode {
                     .insert(src);
             }
             if by_id.contains_key(&(top_id.level, top_id.turn_source)) {
-                mark_top.entry(top_id.level).or_default().insert(top_id.turn_source);
+                mark_top
+                    .entry(top_id.level)
+                    .or_default()
+                    .insert(top_id.turn_source);
                 mark_top_side
                     .entry((top_id.level, c.side.clone()))
                     .or_default()

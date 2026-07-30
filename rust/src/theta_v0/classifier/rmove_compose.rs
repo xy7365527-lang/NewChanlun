@@ -327,7 +327,8 @@ mod tests {
             hi: 3,
         };
         let parent = compose_move(vec![m1_wit(), m2_break], vec![c1_wit()], 1);
-        let result = find_second_type_structure(&parent, Side::Long, |_m| c1_wit(), |m| m.lo() == -10);
+        let result =
+            find_second_type_structure(&parent, Side::Long, |_m| c1_wit(), |m| m.lo() == -10);
         assert_eq!(result, None);
     }
 

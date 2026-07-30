@@ -252,7 +252,10 @@ pub(super) fn strategy_target_legs(
     let mut overlay_sibling: std::collections::HashMap<(Option<usize>, u32), Vec<usize>> =
         std::collections::HashMap::new();
     for (i, e) in elements.overlay.iter().enumerate() {
-        overlay_sibling.entry((e.parent, e.level)).or_default().push(base_len + i);
+        overlay_sibling
+            .entry((e.parent, e.level))
+            .or_default()
+            .push(base_len + i);
     }
     // base 段兄弟：缓存命中复用 Rc（O(1)），缺失 fallback 现建 O(tree)（测试/无缓存路径）。
     let base_sibling_owned;
@@ -267,7 +270,14 @@ pub(super) fn strategy_target_legs(
     active
         .iter()
         .map(|&e_idx| {
-            leg_target_two_segment(elements, e_idx, base_units, config, base_sibling, &overlay_sibling)
+            leg_target_two_segment(
+                elements,
+                e_idx,
+                base_units,
+                config,
+                base_sibling,
+                &overlay_sibling,
+            )
         })
         .collect()
 }
@@ -378,18 +388,28 @@ pub(super) fn apply_gross_cap(
         overlay_id_idx.entry(e.id).or_insert(base_len + i);
     }
     let lookup = |pid: &ElementId| -> Option<usize> {
-        base_id_idx.get(pid).copied().or_else(|| overlay_id_idx.get(pid).copied())
+        base_id_idx
+            .get(pid)
+            .copied()
+            .or_else(|| overlay_id_idx.get(pid).copied())
     };
     // 腿的根键 = parent_id 链顶端 id（无父 ⟹ 自身即根）。链顶可为不在本 view 的 id（registry
     // 祖先未恢复的极端情形）——ElementId 跨 bar 稳定，作组键仍确定。
     let root_key = |e_idx: usize| -> ElementId {
-        let e_id = elements.get(e_idx).map(|e| e.id).expect("legs.e_idx 来自 next_idx，必在 view 内");
-        ancestors_by_id_lookup(elements, e_idx, &lookup).last().copied().unwrap_or(e_id)
+        let e_id = elements
+            .get(e_idx)
+            .map(|e| e.id)
+            .expect("legs.e_idx 来自 next_idx，必在 view 内");
+        ancestors_by_id_lookup(elements, e_idx, &lookup)
+            .last()
+            .copied()
+            .unwrap_or(e_id)
     };
 
     // 每根聚合 (G_r, A_r)：分组按腿序首次出现（确定序）。
     let mut order: Vec<ElementId> = Vec::new();
-    let mut group_of: std::collections::HashMap<ElementId, usize> = std::collections::HashMap::new();
+    let mut group_of: std::collections::HashMap<ElementId, usize> =
+        std::collections::HashMap::new();
     let mut leg_group: Vec<usize> = Vec::with_capacity(legs.len());
     let mut g_r: Vec<f64> = Vec::new();
     let mut a_r: Vec<f64> = Vec::new();
@@ -414,7 +434,9 @@ pub(super) fn apply_gross_cap(
         threshold(a)
             .partial_cmp(&threshold(b))
             .expect("有限 units 平方和 ⟹ 阈值有限可序")
-            .then_with(|| (order[a].level, order[a].ordinal).cmp(&(order[b].level, order[b].ordinal)))
+            .then_with(|| {
+                (order[a].level, order[a].ordinal).cmp(&(order[b].level, order[b].ordinal))
+            })
     });
     // 后缀和 SG_i=Σ_{j≥i}G_r、SQ_i=Σ_{j≥i}G_r/t_r（=G_r²/2A_r），单趟反向扫（求和顺序固定）。
     let n = idxs.len();
@@ -493,7 +515,6 @@ pub fn overlay_net_delta(legs: &[LegTarget]) -> f64 {
 //   rustdoc 上挂在 [`restore_ancestor_chain_from_registry`]，**不在** [`coverage_step_from_buckets_sep`] doc）
 //        （spec §13 line 1172 活动集 + §14 line 1243 头寸，七链 **环6** rust 兑现）
 // ════════════════════════════════════════════════════════════════════════════
-
 
 #[cfg(test)]
 #[path = "leg_tests.rs"]

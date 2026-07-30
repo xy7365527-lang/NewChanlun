@@ -30,7 +30,13 @@ pub struct Layer {
 impl Layer {
     /// 构造空闲层（无仓位，Long 占位）。
     pub fn idle(ladder: usize) -> Self {
-        Layer { ladder, direction: Polarity::Long, units: 0.0, basis: f64::NAN, entry_bar: -1 }
+        Layer {
+            ladder,
+            direction: Polarity::Long,
+            units: 0.0,
+            basis: f64::NAN,
+            entry_bar: -1,
+        }
     }
 
     /// 是否占用（有仓位）。

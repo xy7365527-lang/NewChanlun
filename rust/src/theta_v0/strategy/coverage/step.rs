@@ -14,7 +14,13 @@ pub(super) fn coverage_step_from_buckets(
     registry: &super::super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64) {
     let (next_active, p_tilde, _sep, _idx) = coverage_step_from_buckets_sep(
-        work, prev_active, buckets, base_units, config, risk, registry,
+        work,
+        prev_active,
+        buckets,
+        base_units,
+        config,
+        risk,
+        registry,
     );
     (next_active, p_tilde)
 }
@@ -45,7 +51,14 @@ pub(super) fn coverage_step_from_buckets_sep(
     registry: &super::super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64, Vec<SepLeg>, Vec<usize>) {
     coverage_step_from_buckets_sep_with_risk_seeds(
-        work, prev_active, buckets, &[], base_units, config, risk, registry,
+        work,
+        prev_active,
+        buckets,
+        &[],
+        base_units,
+        config,
+        risk,
+        registry,
     )
 }
 
@@ -72,9 +85,7 @@ fn risk_seed_carrier(tree: &[CoverageElement], seed: &ActiveLeg) -> Option<Activ
     }
 
     let mut spans = tree.iter().filter(|e| {
-        e.level == seed.level
-            && e.lambda < seed.source_index
-            && seed.source_index <= e.rho
+        e.level == seed.level && e.lambda < seed.source_index && seed.source_index <= e.rho
     });
     match (spans.next(), spans.next()) {
         (Some(e), None) => Some(element_as_leg(e)),
@@ -217,7 +228,11 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                         // ★票#315：新 push 分支不再立即解析 parent/attached_dir，idx 收进
                         // pending_parent_fixup，统一 fixup 见函数尾部。
                         let idx = held_stale_reregister_idx(
-                            &mut work, &mut overlay_seen, overlay_cand_end, &mut pending_parent_fixup, leg,
+                            &mut work,
+                            &mut overlay_seen,
+                            overlay_cand_end,
+                            &mut pending_parent_fixup,
+                            leg,
                         );
                         if idx >= overlay_cand_end {
                             appended_source.entry(idx).or_insert("held-reregister");
@@ -240,8 +255,15 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                             // 锁定），语义/轨迹 bit-exact 不变。
                             let restore_start = work.len();
                             restore_ancestor_chain_from_registry(
-                                &mut work, &mut raw, registry, op_pid, &id_idx, &mut overlay_seen,
-                                overlay_cand_end, &[], &mut pending_parent_fixup,
+                                &mut work,
+                                &mut raw,
+                                registry,
+                                op_pid,
+                                &id_idx,
+                                &mut overlay_seen,
+                                overlay_cand_end,
+                                &[],
+                                &mut pending_parent_fixup,
                             );
                             for idx in restore_start..work.len() {
                                 appended_source.entry(idx).or_insert("registry-restore");
@@ -250,7 +272,11 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                         // ★#216：重注册复用 restore push 现有 idx（见 [`held_stale_reregister_idx`]）。
                         // ★票#315：同上，新 push 分支延后统一 fixup。
                         let idx = held_stale_reregister_idx(
-                            &mut work, &mut overlay_seen, overlay_cand_end, &mut pending_parent_fixup, leg,
+                            &mut work,
+                            &mut overlay_seen,
+                            overlay_cand_end,
+                            &mut pending_parent_fixup,
+                            leg,
                         );
                         if idx >= overlay_cand_end {
                             appended_source.entry(idx).or_insert("held-reregister");
@@ -259,7 +285,8 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                             raw.push(idx);
                         }
                     }
-                    super::super::persistent::HeldLegState::Closed | super::super::persistent::HeldLegState::Invalidated => {
+                    super::super::persistent::HeldLegState::Closed
+                    | super::super::persistent::HeldLegState::Invalidated => {
                         // 显式关闭/作废 → prune（§9 rule 5：只有 close/risk close/invalidation 才退出 live）。
                         if leg.is_boundary_root {
                             ancok_probe_bump(|p| p.closed_inval_boundary_kept += 1);
@@ -348,8 +375,9 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
                     open_pushed.remove(&cid);
                 }
             } else {
-                let id_in_raw =
-                    raw.iter().any(|&r| work.get(r).map(|e| e.id == cid).unwrap_or(false));
+                let id_in_raw = raw
+                    .iter()
+                    .any(|&r| work.get(r).map(|e| e.id == cid).unwrap_or(false));
                 if !id_in_raw {
                     raw.push(idx);
                     open_pushed.insert(cid, (idx, cdir));
@@ -378,8 +406,9 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
         // 断裂 ⟹ 统一 AncOK 正常剪除；反手候选自身元素不经 restore，ID-3 反手不受影响。
         if idx < work.len() {
             if let Some(parent_pid) = work[idx].parent_id {
-                let parent_in_raw =
-                    raw.iter().any(|&r| work.get(r).map(|e| e.id == parent_pid).unwrap_or(false));
+                let parent_in_raw = raw
+                    .iter()
+                    .any(|&r| work.get(r).map(|e| e.id == parent_pid).unwrap_or(false));
                 if !parent_in_raw && registry.registry_live(&parent_pid) {
                     let restore_start = work.len();
                     restore_ancestor_chain_from_registry(
@@ -407,8 +436,13 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
     // 均为本 bar 终态——immediate 式（push 当轮即修补）的时序孔（父在本轮更晚才物化进 work，无论
     // 经 held 腿占位路径、restore 路径、或 open 候选/`Closed|Invalidated` 边界根直接 push 路径，
     // 此刻都查不到）不再存在：父只要本轮曾被任一路径物化，统一 fixup 都能经三级解析命中。
-    let unresolved_pending_fixup =
-        resolve_pending_parent_fixups(&mut work, &pending_parent_fixup, &id_idx, &overlay_seen, &raw);
+    let unresolved_pending_fixup = resolve_pending_parent_fixups(
+        &mut work,
+        &pending_parent_fixup,
+        &id_idx,
+        &overlay_seen,
+        &raw,
+    );
 
     // 步2：A_{t+1}=AncOK(A^raw)——剔除真 Compose 父容器不在 raw 的孤儿子腿（§13 持仓准入：未持父则剔除）。
     // ★#183 T4 归一（#179 裁决：结构对应是硬要求，子树清仓接线进生产 π loop）：
@@ -453,8 +487,11 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
         .chain(flipped_seeds.iter())
         .copied()
         .collect();
-    let next_legs =
-        super::super::exit::step_active_set_with_subtree_close(&a_t_legs, &close_and_flip_seeds, &b_x_legs);
+    let next_legs = super::super::exit::step_active_set_with_subtree_close(
+        &a_t_legs,
+        &close_and_flip_seeds,
+        &b_x_legs,
+    );
     // ★#183 生产路径不变量见证（#148 验收2「镜像层测试升级为生产路径测试」）：每步活动集
     // 推进后 ∀v∈A, Anc(v)⊆A 恒成立（step L0 构造内蕴）。debug 构建逐 bar 核验——**debug
     // profile 下**全测试库的每一次生产推进都是本不变量的见证实例（release 构建编译消除，
@@ -495,7 +532,10 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
     // `placeholder_pruned_by_ancok`（使 probe doc「可与 AncOK 剪除计数交叉核对」可执行）。
     if !unresolved_pending_fixup.is_empty() {
         let next_idx_set: std::collections::HashSet<usize> = next_idx.iter().copied().collect();
-        let pruned = unresolved_pending_fixup.iter().filter(|&&idx| !next_idx_set.contains(&idx)).count();
+        let pruned = unresolved_pending_fixup
+            .iter()
+            .filter(|&&idx| !next_idx_set.contains(&idx))
+            .count();
         if pruned > 0 {
             ancok_probe_bump(|p| p.placeholder_pruned_by_ancok += pruned as u64);
         }
@@ -518,7 +558,9 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
         std::collections::HashMap::new();
     let duplicate_active_id = next_idx.iter().find_map(|&idx| {
         let id = work[idx].id;
-        active_id_idx.insert(id, idx).map(|prior_idx| (id, prior_idx, idx))
+        active_id_idx
+            .insert(id, idx)
+            .map(|prior_idx| (id, prior_idx, idx))
     });
     if let Some((id, first_idx, second_idx)) = duplicate_active_id {
         ancok_probe_bump(|p| p.duplicate_active_id_violations += 1);
@@ -532,7 +574,10 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
             } else if idx < overlay_cand_end {
                 "candidate-copy"
             } else {
-                appended_source.get(&idx).copied().unwrap_or("post-overlay-unregistered")
+                appended_source
+                    .get(&idx)
+                    .copied()
+                    .unwrap_or("post-overlay-unregistered")
             }
         };
         panic!(
@@ -573,16 +618,21 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
     let next_active_idx: Vec<usize> = if gross_zeroed.is_empty() {
         next_idx.clone()
     } else {
-        let open_idx: std::collections::HashSet<usize> =
-            buckets.open.iter().map(|c| candidate_start + c.gamma_index).collect();
+        let open_idx: std::collections::HashSet<usize> = buckets
+            .open
+            .iter()
+            .map(|c| candidate_start + c.gamma_index)
+            .collect();
         next_idx
             .iter()
             .copied()
             .filter(|&i| !(open_idx.contains(&i) && gross_zeroed.contains(&i)))
             .collect()
     };
-    let next_active: Vec<ActiveLeg> =
-        next_active_idx.iter().map(|&i| element_as_leg(&work[i])).collect();
+    let next_active: Vec<ActiveLeg> = next_active_idx
+        .iter()
+        .map(|&i| element_as_leg(&work[i]))
+        .collect();
     // ★(I-1) 双计守卫（codex 异质审查）：next_active 每 ElementId 必唯一——同 carrier 不得在 raw 中以
     // 两个 idx（树前缀 + registry 追加）出现，否则 strategy_target_legs 双计 ⟹ p̃ 伪证。唯一性由
     // 三处注册路径闭合保证（restore 复用现有 idx、held Stale 重注册复用 overlay 现有 idx、open
@@ -649,7 +699,15 @@ pub fn coverage_step_classification(
     let (tree, candidates, gamma) =
         interp::coverage_elements_and_gamma_with_tower(classification, tower);
     let work = ElementView::from_parts(&tree, candidates);
-    coverage_step_prebuilt(work, &gamma, prev_active, base_units, config, risk, registry)
+    coverage_step_prebuilt(
+        work,
+        &gamma,
+        prev_active,
+        base_units,
+        config,
+        risk,
+        registry,
+    )
 }
 
 /// **工位 K 性能：环5+环6 用预建 `(elements, candidate_start, gamma)`**（消除 runner per-bar
@@ -669,7 +727,15 @@ pub(crate) fn coverage_step_prebuilt(
     let buckets = interp::interpret(gamma, prev_active);
     // 环6：A_{t+1}=AncOK[(A_t∖𝒟_x)∪ℬ_x] + p̃（§13 持仓准入：ReverseOpen 未持父则剔除，639(c)）
     //      + G7 毛头寸约束（legs 折叠前，risk.enforce_gross_cap 门控）。
-    coverage_step_from_buckets(work, prev_active, &buckets, base_units, config, risk, registry)
+    coverage_step_from_buckets(
+        work,
+        prev_active,
+        &buckets,
+        base_units,
+        config,
+        risk,
+        registry,
+    )
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -679,7 +745,6 @@ pub(crate) fn coverage_step_prebuilt(
 //
 //  π_Θ(x) = Schedule_Θ[ LexArgmin_{p∈𝒦_Θ(x)} J_x(p) − p_t ]   （spec line 756 方框）
 // ════════════════════════════════════════════════════════════════════════════
-
 
 #[cfg(test)]
 #[path = "step_tests.rs"]

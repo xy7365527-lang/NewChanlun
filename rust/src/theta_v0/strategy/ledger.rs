@@ -278,7 +278,10 @@ impl RiskPolicy {
     /// 最小基线政策（κ=0，PDF §10 canonical 默认）：`η⋆=L^wc`，仅覆盖最坏损失无额外缓冲。
     /// κ=0/1（num/den）canonical——`κ·Q=0` 恒成立，κ=0 路径与旧 i64 实现 bit-exact。
     pub fn baseline() -> RiskPolicy {
-        RiskPolicy { kappa_num: 0, kappa_den: 1 }
+        RiskPolicy {
+            kappa_num: 0,
+            kappa_den: 1,
+        }
     }
 
     /// **整数 κ 构造闸 `try_new`（codex #5：κ≥0 Rust 不变量）**：κ<0 ⟹ `None`（负缓冲=不覆盖 L^wc
@@ -297,7 +300,10 @@ impl RiskPolicy {
         }
         let g = gcd(num, den);
         // den>0 ⟹ g>0（gcd(_, den>0)≥1）；num=0 ⟹ g=den ⟹ 归一到 0/1。
-        Some(RiskPolicy { kappa_num: num / g, kappa_den: den / g })
+        Some(RiskPolicy {
+            kappa_num: num / g,
+            kappa_den: den / g,
+        })
     }
 
     /// κ 分子只读访问（字段私有，`num≥0 ∧ den>0` 由构造保证）。
@@ -417,7 +423,13 @@ impl RiskPolicy {
     /// ★F4 同源约束（裁定 C5 第 4 条）：η_bucket（ZExt 第 15 维）与本判据左操作数必须同源
     /// 修正——生产侧同一 `cum_holding_cost` 变量同时喂
     /// [`eta_bucket_eta_corrected`](Self::eta_bucket_eta_corrected) 与本方法（runner π loop 单点）。
-    pub fn enter_ready_eta_corrected(&self, s: &TwState, i0: i64, risk_normal: bool, eta_correction: i64) -> bool {
+    pub fn enter_ready_eta_corrected(
+        &self,
+        s: &TwState,
+        i0: i64,
+        risk_normal: bool,
+        eta_correction: i64,
+    ) -> bool {
         s.stage == TStage::CapitalRecovered
             && s.withdrawn >= i0
             && s.open_legacy_legs == 0
@@ -646,7 +658,13 @@ impl LedgerComp {
     /// 初始账本 `ledger0(I0)`（契约锚 `Origin.FullDefinitionStrategy.mkLedger 0 0 0`）：开局账本
     /// ——Π=A=W=R=0，恒等显然成立（Origin `mkLedger` 的 `R := Pi - A - W = 0`）。
     pub fn initial(i0: i64) -> LedgerComp {
-        LedgerComp { i0, pi: 0, a: 0, w: 0, r: 0 }
+        LedgerComp {
+            i0,
+            pi: 0,
+            a: 0,
+            w: 0,
+            r: 0,
+        }
     }
 
     /// 账本恒等检查 `R == Π - A - W`（契约锚 `Origin.FullDefinitionStrategy.LedgerState.inv`）。
@@ -806,7 +824,13 @@ mod tests {
     /// Noop 不改账本（恒等保持，四量不变）。
     #[test]
     fn ledger_noop_identity() {
-        let l = LedgerComp { i0: 1000, pi: 10, a: 3, w: 2, r: 5 };
+        let l = LedgerComp {
+            i0: 1000,
+            pi: 10,
+            a: 3,
+            w: 2,
+            r: 5,
+        };
         assert_eq!(ledger_step(&l, LedgerEvent::Noop), l);
     }
 
@@ -833,13 +857,13 @@ mod tests {
         let tw0 = s0.tw();
         // 非 Realize 的七构造子（含 Revalue 诊断-only）全守恒。
         let events = [
-            TwEvent::ShortDiff(100),   // holding→free
-            TwEvent::ShortDiff(-50),   // free→holding
-            TwEvent::OpenShareLeg,     // 无 TW 变动
-            TwEvent::CloseShareLeg(-20), // profit 进 cum_net_cash，不进 TW
+            TwEvent::ShortDiff(100),      // holding→free
+            TwEvent::ShortDiff(-50),      // free→holding
+            TwEvent::OpenShareLeg,        // 无 TW 变动
+            TwEvent::CloseShareLeg(-20),  // profit 进 cum_net_cash，不进 TW
             TwEvent::RecoverCapital(200), // free→withdrawn
-            TwEvent::EnterEarning,     // 无资金变动
-            TwEvent::Revalue(30),      // 诊断高水位推进，TW 三量不变（C' 后保守恒）
+            TwEvent::EnterEarning,        // 无资金变动
+            TwEvent::Revalue(30),         // 诊断高水位推进，TW 三量不变（C' 后保守恒）
         ];
         let mut s = s0;
         for e in events {
@@ -855,16 +879,21 @@ mod tests {
         let mut drift: i64 = 0;
         for e in [
             TwEvent::ShortDiff(100),
-            TwEvent::Realize(70),      // 平仓盈利入账
+            TwEvent::Realize(70), // 平仓盈利入账
             TwEvent::RecoverCapital(200),
-            TwEvent::Realize(-30),     // 平仓亏损入账（可负，非棘轮）
+            TwEvent::Realize(-30), // 平仓亏损入账（可负，非棘轮）
             TwEvent::Revalue(5),
         ] {
             s2 = tw_step(&s2, e);
             if let TwEvent::Realize(d) = e {
                 drift += d;
             }
-            assert_eq!(s2.tw(), tw0 + drift, "混合事件流 TW 漂移 ≠ Σd_pi（事件 {:?}）", e);
+            assert_eq!(
+                s2.tw(),
+                tw0 + drift,
+                "混合事件流 TW 漂移 ≠ Σd_pi（事件 {:?}）",
+                e
+            );
         }
         assert_eq!(s2.tw(), tw0 + 40, "终态 TW 漂移 = Σd_pi = 70−30 = 40");
     }
@@ -900,8 +929,14 @@ mod tests {
             assert_eq!(s1.stage, s0.stage, "stage 不动（Realize 非阶段推进）");
             assert_eq!(s1.open_legacy_legs, s0.open_legacy_legs, "legacy 腿不动");
             assert_eq!(s1.cum_net_cash, s0.cum_net_cash, "cum_net_cash 口径量不动");
-            assert_eq!(s1.hwm_gain, s0.hwm_gain, "诊断高水位不动（已实现 ≠ 未实现）");
-            assert!(TwEvent::Realize(d_pi).is_legal_from(&s0), "Realize raw 恒合法（OQ-9）");
+            assert_eq!(
+                s1.hwm_gain, s0.hwm_gain,
+                "诊断高水位不动（已实现 ≠ 未实现）"
+            );
+            assert!(
+                TwEvent::Realize(d_pi).is_legal_from(&s0),
+                "Realize raw 恒合法（OQ-9）"
+            );
         }
         // Realize(0) 恒等。
         assert_eq!(tw_step(&s0, TwEvent::Realize(0)), s0, "Realize(0) 恒等");
@@ -914,9 +949,19 @@ mod tests {
             ..TwState::initial()
         };
         let after_loss = tw_step(&earning, TwEvent::Realize(-1000));
-        assert_eq!(after_loss.stage, TStage::EarningShares, "Realize 后不回退 stage（推导链第 8 条）");
-        assert_eq!(after_loss.free, -950, "亏损如实入账（raw 层不钳制；cash-sound 由消费端 gate 拦截）");
-        assert_eq!(after_loss.withdrawn, 500, "已退本金是历史事实，不被后续亏损否定");
+        assert_eq!(
+            after_loss.stage,
+            TStage::EarningShares,
+            "Realize 后不回退 stage（推导链第 8 条）"
+        );
+        assert_eq!(
+            after_loss.free, -950,
+            "亏损如实入账（raw 层不钳制；cash-sound 由消费端 gate 拦截）"
+        );
+        assert_eq!(
+            after_loss.withdrawn, 500,
+            "已退本金是历史事实，不被后续亏损否定"
+        );
     }
 
     /// ★★codex R3 C' 终局裁定后 `tw_step_revalue_diagnostic_only`（第 7 个构造子纯诊断，保 TW 守恒）。
@@ -940,11 +985,21 @@ mod tests {
         let g = 250;
         let s1 = tw_step(&s0, TwEvent::Revalue(g));
         // ★保 TW 守恒（承重已移除：Revalue 不再入账 free）。
-        assert_eq!(s1.tw(), tw0, "Revalue(g) 保 TW 守恒（诊断-only，不入账 free）");
+        assert_eq!(
+            s1.tw(),
+            tw0,
+            "Revalue(g) 保 TW 守恒（诊断-only，不入账 free）"
+        );
         // 只 hwm_gain 诊断高水位推进 g；free/cum_net_cash/其余分量全不变。
         assert_eq!(s1.hwm_gain, s0.hwm_gain + g, "诊断高水位推进 g");
-        assert_eq!(s1.free, s0.free, "free 不变（承重移除：浮盈不入可分配权益）");
-        assert_eq!(s1.cum_net_cash, s0.cum_net_cash, "cum_net_cash 不变（不桥接已实现口径）");
+        assert_eq!(
+            s1.free, s0.free,
+            "free 不变（承重移除：浮盈不入可分配权益）"
+        );
+        assert_eq!(
+            s1.cum_net_cash, s0.cum_net_cash,
+            "cum_net_cash 不变（不桥接已实现口径）"
+        );
         assert_eq!(s1.holding, s0.holding, "holding（成本基）不动");
         assert_eq!(s1.withdrawn, s0.withdrawn, "withdrawn 不动");
         assert_eq!(s1.stage, s0.stage, "stage 不动（重估非阶段推进）");
@@ -958,7 +1013,11 @@ mod tests {
     /// ★stage 单向不可逆（契约锚 `Origin.TotalWealth.stage_rank_monotone`）：非 clearCampaign 算子下 rank 只增不减。
     #[test]
     fn stage_rank_monotone() {
-        let stages = [TStage::CostReduction, TStage::CapitalRecovered, TStage::EarningShares];
+        let stages = [
+            TStage::CostReduction,
+            TStage::CapitalRecovered,
+            TStage::EarningShares,
+        ];
         let events = [
             TwEvent::ShortDiff(10),
             TwEvent::OpenShareLeg,
@@ -969,13 +1028,18 @@ mod tests {
             TwEvent::Realize(-100), // A'：亏损入账也不降 rank（推导链第 8 条）
         ]; // 全部非 ClearCampaign
         for stage in stages {
-            let s = TwState { stage, ..TwState::initial() };
+            let s = TwState {
+                stage,
+                ..TwState::initial()
+            };
             for e in events {
                 let s2 = tw_step(&s, e);
                 assert!(
                     s.stage.rank() <= s2.stage.rank(),
                     "stage 回退: {:?} --{:?}--> {:?}",
-                    s.stage, e, s2.stage
+                    s.stage,
+                    e,
+                    s2.stage
                 );
             }
         }
@@ -984,7 +1048,10 @@ mod tests {
     /// ★EarningShares 不可回退（契约锚 `Origin.TotalWealth.earning_no_regress`）：earning 态非 clearCampaign 算子保持 earning。
     #[test]
     fn earning_no_regress() {
-        let s = TwState { stage: TStage::EarningShares, ..TwState::initial() };
+        let s = TwState {
+            stage: TStage::EarningShares,
+            ..TwState::initial()
+        };
         let events = [
             TwEvent::ShortDiff(10),
             TwEvent::OpenShareLeg,
@@ -1011,17 +1078,35 @@ mod tests {
     /// OQ-9 入口证书：EnterEarning 须 open_legacy_legs==0（契约锚 `Origin.TotalWealth.LegalEnterEarning`）。
     #[test]
     fn oq9_enter_earning_gate() {
-        let with_leg = TwState { open_legacy_legs: 1, ..TwState::initial() };
-        let no_leg = TwState { open_legacy_legs: 0, ..TwState::initial() };
-        assert!(!TwEvent::EnterEarning.is_legal_from(&with_leg), "带 legacy 腿进 earning 非法");
-        assert!(TwEvent::EnterEarning.is_legal_from(&no_leg), "无 legacy 腿进 earning 合法");
+        let with_leg = TwState {
+            open_legacy_legs: 1,
+            ..TwState::initial()
+        };
+        let no_leg = TwState {
+            open_legacy_legs: 0,
+            ..TwState::initial()
+        };
+        assert!(
+            !TwEvent::EnterEarning.is_legal_from(&with_leg),
+            "带 legacy 腿进 earning 非法"
+        );
+        assert!(
+            TwEvent::EnterEarning.is_legal_from(&no_leg),
+            "无 legacy 腿进 earning 合法"
+        );
     }
 
     /// ★OQ-9 核心：earning 阶段开 legacy 腿非法（契约锚 `Origin.TotalWealth.LegalTransition` openShareLeg 修正1）。
     #[test]
     fn oq9_no_open_leg_in_earning() {
-        let earning = TwState { stage: TStage::EarningShares, ..TwState::initial() };
-        let cost_red = TwState { stage: TStage::CostReduction, ..TwState::initial() };
+        let earning = TwState {
+            stage: TStage::EarningShares,
+            ..TwState::initial()
+        };
+        let cost_red = TwState {
+            stage: TStage::CostReduction,
+            ..TwState::initial()
+        };
         assert!(
             !TwEvent::OpenShareLeg.is_legal_from(&earning),
             "earning 阶段开 legacy 腿非法（rank 2 < 2 假）"
@@ -1035,10 +1120,22 @@ mod tests {
     /// CloseShareLeg 须有腿（open_legacy_legs>=1），否则幽灵腿非法（契约锚 `Origin.TotalWealth` 修正4(c) `zero_close_is_ghost`）。
     #[test]
     fn oq9_no_ghost_close() {
-        let no_leg = TwState { open_legacy_legs: 0, ..TwState::initial() };
-        let one_leg = TwState { open_legacy_legs: 1, ..TwState::initial() };
-        assert!(!TwEvent::CloseShareLeg(0).is_legal_from(&no_leg), "无腿可闭 = 幽灵非法");
-        assert!(TwEvent::CloseShareLeg(0).is_legal_from(&one_leg), "有腿可闭合法");
+        let no_leg = TwState {
+            open_legacy_legs: 0,
+            ..TwState::initial()
+        };
+        let one_leg = TwState {
+            open_legacy_legs: 1,
+            ..TwState::initial()
+        };
+        assert!(
+            !TwEvent::CloseShareLeg(0).is_legal_from(&no_leg),
+            "无腿可闭 = 幽灵非法"
+        );
+        assert!(
+            TwEvent::CloseShareLeg(0).is_legal_from(&one_leg),
+            "有腿可闭合法"
+        );
     }
 
     /// ★OQ-9 端B（契约锚 `Origin.TotalWealth.legal_earning_no_legacy_leg_closure`）：合法进 earning 后闭 legacy 腿非法。
@@ -1046,8 +1143,14 @@ mod tests {
     #[test]
     fn oq9_earning_no_legacy_leg_closure() {
         // 合法进 earning 的前态：open_legacy_legs=0。
-        let pre = TwState { open_legacy_legs: 0, ..TwState::initial() };
-        assert!(TwEvent::EnterEarning.is_legal_from(&pre), "前提：合法进 earning");
+        let pre = TwState {
+            open_legacy_legs: 0,
+            ..TwState::initial()
+        };
+        assert!(
+            TwEvent::EnterEarning.is_legal_from(&pre),
+            "前提：合法进 earning"
+        );
         let post = tw_step(&pre, TwEvent::EnterEarning);
         assert_eq!(post.open_legacy_legs, 0, "进 earning 后 legacy 腿仍 0");
         // 端B：闭 legacy 腿非法（无腿可闭）。
@@ -1060,10 +1163,22 @@ mod tests {
     /// ClearCampaign 须先清 legacy 腿（契约锚 `Origin.TotalWealth.LegalTransition` 修正4(b)）。
     #[test]
     fn oq9_clear_campaign_gate() {
-        let with_leg = TwState { open_legacy_legs: 1, ..TwState::initial() };
-        let no_leg = TwState { open_legacy_legs: 0, ..TwState::initial() };
-        assert!(!TwEvent::ClearCampaign.is_legal_from(&with_leg), "带腿清 campaign 非法（不绕 gate）");
-        assert!(TwEvent::ClearCampaign.is_legal_from(&no_leg), "无腿清 campaign 合法");
+        let with_leg = TwState {
+            open_legacy_legs: 1,
+            ..TwState::initial()
+        };
+        let no_leg = TwState {
+            open_legacy_legs: 0,
+            ..TwState::initial()
+        };
+        assert!(
+            !TwEvent::ClearCampaign.is_legal_from(&with_leg),
+            "带腿清 campaign 非法（不绕 gate）"
+        );
+        assert!(
+            TwEvent::ClearCampaign.is_legal_from(&no_leg),
+            "无腿清 campaign 合法"
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -1073,23 +1188,60 @@ mod tests {
     /// κ≥0 不变量（PDF §11 `kappa_nonneg`）：baseline κ=0 满足；**外部构造闸 try_new 拒负 κ**（codex#5）。
     #[test]
     fn risk_policy_kappa_nonneg() {
-        assert!(RiskPolicy::baseline().kappa_nonneg(), "baseline κ=0 满足 κ≥0");
-        assert_eq!(RiskPolicy::baseline().kappa_num(), 0, "baseline κ=0/1（PDF §10 最小规范）");
-        assert_eq!(RiskPolicy::baseline().kappa_den(), 1, "baseline den=1（canonical）");
+        assert!(
+            RiskPolicy::baseline().kappa_nonneg(),
+            "baseline κ=0 满足 κ≥0"
+        );
+        assert_eq!(
+            RiskPolicy::baseline().kappa_num(),
+            0,
+            "baseline κ=0/1（PDF §10 最小规范）"
+        );
+        assert_eq!(
+            RiskPolicy::baseline().kappa_den(),
+            1,
+            "baseline den=1（canonical）"
+        );
         // ★外部构造闸 try_new：κ≥0 ⟹ Some（num 读回, den=1）；κ<0 ⟹ None（外部不可构造负 κ）。
-        assert_eq!(RiskPolicy::try_new(3).map(|p| (p.kappa_num(), p.kappa_den())), Some((3, 1)), "try_new(3)=Some(3/1)");
-        assert_eq!(RiskPolicy::try_new(0).map(|p| (p.kappa_num(), p.kappa_den())), Some((0, 1)), "try_new(0)=Some(0/1)");
-        assert!(RiskPolicy::try_new(-1).is_none(), "★try_new(-1)=None（外部 API 拒负 κ，codex R3 §9.4）");
+        assert_eq!(
+            RiskPolicy::try_new(3).map(|p| (p.kappa_num(), p.kappa_den())),
+            Some((3, 1)),
+            "try_new(3)=Some(3/1)"
+        );
+        assert_eq!(
+            RiskPolicy::try_new(0).map(|p| (p.kappa_num(), p.kappa_den())),
+            Some((0, 1)),
+            "try_new(0)=Some(0/1)"
+        );
+        assert!(
+            RiskPolicy::try_new(-1).is_none(),
+            "★try_new(-1)=None（外部 API 拒负 κ，codex R3 §9.4）"
+        );
         // ★有理构造闸 try_new_ratio：κ=0.5 由 1/2 承载（M7 L2 网格非整数点，codex `.kappa-ruling`）。
         let half = RiskPolicy::try_new_ratio(1, 2).expect("κ=1/2≥0 合法");
-        assert_eq!((half.kappa_num(), half.kappa_den()), (1, 2), "try_new_ratio(1,2)=1/2");
+        assert_eq!(
+            (half.kappa_num(), half.kappa_den()),
+            (1, 2),
+            "try_new_ratio(1,2)=1/2"
+        );
         assert!(half.kappa_nonneg(), "κ=1/2 满足 κ≥0");
         // 约分到最简：2/4==1/2（PartialEq 语义等）；0/5 归一到 0/1。
-        assert_eq!(RiskPolicy::try_new_ratio(2, 4), Some(half), "2/4 约分 == 1/2");
-        assert_eq!(RiskPolicy::try_new_ratio(0, 5), Some(RiskPolicy::baseline()), "0/5 归一到 baseline 0/1");
+        assert_eq!(
+            RiskPolicy::try_new_ratio(2, 4),
+            Some(half),
+            "2/4 约分 == 1/2"
+        );
+        assert_eq!(
+            RiskPolicy::try_new_ratio(0, 5),
+            Some(RiskPolicy::baseline()),
+            "0/5 归一到 baseline 0/1"
+        );
         // 非法：负分子 / 非正分母。
         assert!(RiskPolicy::try_new_ratio(-1, 2).is_none(), "负分子 ⟹ None");
-        assert!(RiskPolicy::try_new_ratio(1, 0).is_none(), "分母=0 ⟹ None（有理病态）");
+        assert!(
+            RiskPolicy::try_new_ratio(1, 0).is_none(),
+            "分母=0 ⟹ None（有理病态）"
+        );
         assert!(RiskPolicy::try_new_ratio(1, -2).is_none(), "分母<0 ⟹ None");
         // ★codex R3 §9.4：不保留反向见证（旧版 `RiskPolicy { kappa: -1 }` struct literal 已删）——
         // 负 κ / 非正分母的 RiskPolicy 值在任何路径都不存在（constructor-only 类型不变量），拒绝证据由
@@ -1099,27 +1251,63 @@ mod tests {
     /// L^wc = max(0, notional_in − withdrawn)（在险本金，退本金推进 ⟹ L^wc→0）。
     #[test]
     fn l_wc_is_at_risk_principal() {
-        let s0 = TwState { notional_in: 100, withdrawn: 0, ..TwState::initial() };
+        let s0 = TwState {
+            notional_in: 100,
+            withdrawn: 0,
+            ..TwState::initial()
+        };
         assert_eq!(s0.l_wc(), 100, "退本金前 L^wc=notional_in（全本金在险）");
-        let s_half = TwState { notional_in: 100, withdrawn: 40, ..TwState::initial() };
+        let s_half = TwState {
+            notional_in: 100,
+            withdrawn: 40,
+            ..TwState::initial()
+        };
         assert_eq!(s_half.l_wc(), 60, "退 40 ⟹ L^wc=60（在险本金递减）");
-        let s_full = TwState { notional_in: 100, withdrawn: 100, ..TwState::initial() };
+        let s_full = TwState {
+            notional_in: 100,
+            withdrawn: 100,
+            ..TwState::initial()
+        };
         assert_eq!(s_full.l_wc(), 0, "本金全退 ⟹ L^wc=0（缠师「成本为0」）");
-        let s_over = TwState { notional_in: 100, withdrawn: 130, ..TwState::initial() };
+        let s_over = TwState {
+            notional_in: 100,
+            withdrawn: 130,
+            ..TwState::initial()
+        };
         assert_eq!(s_over.l_wc(), 0, "超退 ⟹ L^wc=0（下界 0，不为负）");
     }
 
     /// 状态依赖 barrier η⋆ = L^wc + κ·Q（PDF §10）：κ=0 ⟹ η⋆=L^wc；κ>0 ⟹ 额外缓冲。
     #[test]
     fn eta_star_barrier() {
-        let s = TwState { notional_in: 100, withdrawn: 30, ..TwState::initial() }; // L^wc=70, Q=100
+        let s = TwState {
+            notional_in: 100,
+            withdrawn: 30,
+            ..TwState::initial()
+        }; // L^wc=70, Q=100
         assert_eq!(RiskPolicy::baseline().eta_star(&s), 70, "κ=0 ⟹ η⋆=L^wc=70");
-        assert_eq!(RiskPolicy::try_new(2).unwrap().eta_star(&s), 70 + 2 * 100, "κ=2 ⟹ η⋆=70+200=270");
+        assert_eq!(
+            RiskPolicy::try_new(2).unwrap().eta_star(&s),
+            70 + 2 * 100,
+            "κ=2 ⟹ η⋆=70+200=270"
+        );
         // ★有理定点 κ=0.5：η⋆=70+0.5·100=120（精确，Q=100 可整除 den=2，无上取整）。
-        assert_eq!(RiskPolicy::try_new_ratio(1, 2).unwrap().eta_star(&s), 120, "κ=1/2 ⟹ η⋆=70+50=120");
+        assert_eq!(
+            RiskPolicy::try_new_ratio(1, 2).unwrap().eta_star(&s),
+            120,
+            "κ=1/2 ⟹ η⋆=70+50=120"
+        );
         // ★上取整语义（非整除）：Q=101, κ=1/2 ⟹ η⋆=70+50.5=120.5 ⟹ ⌈⌉=121（对整数 η，η≥120.5 ⟺ η≥121）。
-        let s_odd = TwState { notional_in: 101, withdrawn: 31, ..TwState::initial() }; // L^wc=70, Q=101
-        assert_eq!(RiskPolicy::try_new_ratio(1, 2).unwrap().eta_star(&s_odd), 121, "κ=1/2, Q=101 ⟹ ⌈120.5⌉=121");
+        let s_odd = TwState {
+            notional_in: 101,
+            withdrawn: 31,
+            ..TwState::initial()
+        }; // L^wc=70, Q=101
+        assert_eq!(
+            RiskPolicy::try_new_ratio(1, 2).unwrap().eta_star(&s_odd),
+            121,
+            "κ=1/2, Q=101 ⟹ ⌈120.5⌉=121"
+        );
     }
 
     /// ★i128 有界域回归（codex 复审#6）：κ·Q 在 i64 域会 wrap 的量级，i128 中间域算精确值再 clamp
@@ -1128,10 +1316,18 @@ mod tests {
     #[test]
     fn eta_star_bounded_no_wrap() {
         // κ=i64::MAX, Q=large ⟹ i64 乘法会 wrap 成小/负值（误放行）；i128 算真值 > i64::MAX ⟹ clamp。
-        let big = TwState { notional_in: i64::MAX / 2, withdrawn: 0, ..TwState::initial() };
+        let big = TwState {
+            notional_in: i64::MAX / 2,
+            withdrawn: 0,
+            ..TwState::initial()
+        };
         let pol = RiskPolicy::try_new(i64::MAX).expect("κ=i64::MAX≥0 合法");
         // i64 直算 kappa*Q 会 wrap；i128 真值 = MAX·(MAX/2) ≫ i64::MAX ⟹ clamp 到 i64::MAX。
-        assert_eq!(pol.eta_star(&big), i64::MAX, "★超界 ⟹ η⋆=i64::MAX（失败安全，非 wrap 成小值）");
+        assert_eq!(
+            pol.eta_star(&big),
+            i64::MAX,
+            "★超界 ⟹ η⋆=i64::MAX（失败安全，非 wrap 成小值）"
+        );
         // buy_core_legal 同样 i128：巨额 a_n 不 wrap ⟹ 正确判非法（LHS≫RHS）。
         assert!(
             !pol.buy_core_legal(i64::MAX, 0, i64::MAX, 0, 0, 0),
@@ -1144,21 +1340,52 @@ mod tests {
     #[test]
     fn eta_bucket_four_value_boundaries() {
         let pol = RiskPolicy::baseline(); // κ=0 ⟹ η⋆=L^wc
-        // Deficit：η=-1<0（透支态，free 为负是真实现金透支的诚实镜像）。
-        let s_neg = TwState { free: -1, ..TwState::initial() };
+                                          // Deficit：η=-1<0（透支态，free 为负是真实现金透支的诚实镜像）。
+        let s_neg = TwState {
+            free: -1,
+            ..TwState::initial()
+        };
         assert_eq!(pol.eta_bucket(&s_neg), EtaBucket::Deficit, "η<0 ⟹ Deficit");
         // Zero：η=0，且 η⋆=0（notional_in=0 ⟹ L^wc=0）⟹ η≥η⋆ 同时成立——原文分支序 Zero 先判。
         let s_zero = TwState::initial();
-        assert_eq!(pol.eta_bucket(&s_zero), EtaBucket::Zero, "η=0 ⟹ Zero（分支序优先于 η≥η⋆）");
+        assert_eq!(
+            pol.eta_bucket(&s_zero),
+            EtaBucket::Zero,
+            "η=0 ⟹ Zero（分支序优先于 η≥η⋆）"
+        );
         // PositiveUnsafe：0<η(50)<η⋆(L^wc=100)。
-        let s_unsafe = TwState { free: 50, notional_in: 100, ..TwState::initial() };
-        assert_eq!(pol.eta_bucket(&s_unsafe), EtaBucket::PositiveUnsafe, "0<η<η⋆ ⟹ PositiveUnsafe");
+        let s_unsafe = TwState {
+            free: 50,
+            notional_in: 100,
+            ..TwState::initial()
+        };
+        assert_eq!(
+            pol.eta_bucket(&s_unsafe),
+            EtaBucket::PositiveUnsafe,
+            "0<η<η⋆ ⟹ PositiveUnsafe"
+        );
         // PositiveSafe 边界：η(100)=η⋆(100)——PDF η≥η⋆ 含等号。
-        let s_eq = TwState { free: 100, notional_in: 100, ..TwState::initial() };
-        assert_eq!(pol.eta_bucket(&s_eq), EtaBucket::PositiveSafe, "η=η⋆ ⟹ PositiveSafe（≥ 边界）");
+        let s_eq = TwState {
+            free: 100,
+            notional_in: 100,
+            ..TwState::initial()
+        };
+        assert_eq!(
+            pol.eta_bucket(&s_eq),
+            EtaBucket::PositiveSafe,
+            "η=η⋆ ⟹ PositiveSafe（≥ 边界）"
+        );
         // PositiveSafe 严格：η(150)>η⋆(100)。
-        let s_safe = TwState { free: 150, notional_in: 100, ..TwState::initial() };
-        assert_eq!(pol.eta_bucket(&s_safe), EtaBucket::PositiveSafe, "η>η⋆ ⟹ PositiveSafe");
+        let s_safe = TwState {
+            free: 150,
+            notional_in: 100,
+            ..TwState::initial()
+        };
+        assert_eq!(
+            pol.eta_bucket(&s_safe),
+            EtaBucket::PositiveSafe,
+            "η>η⋆ ⟹ PositiveSafe"
+        );
         // κ>0 抬 barrier：同一 s_eq 在 κ=1 下 η⋆=100+1·100=200 ⟹ 100 改判 PositiveUnsafe。
         assert_eq!(
             RiskPolicy::try_new(1).unwrap().eta_bucket(&s_eq),
@@ -1190,22 +1417,66 @@ mod tests {
         // free=0, holding=100, withdrawn=100, notional_in=100 ⟹ tw=200; L^wc=0 ⟹ η⋆(κ=0)=0; 200≥0 ✓。
         // ★注：tw=200 是 synthetic 态（合法性验证用），非 campaign 可达态（见上「诚实标注」）。
         let ready = TwState {
-            free: 0, holding: 100, withdrawn: 100, notional_in: 100,
-            stage: TStage::CapitalRecovered, open_legacy_legs: 0, cum_net_cash: 0, hwm_gain: 0,
+            free: 0,
+            holding: 100,
+            withdrawn: 100,
+            notional_in: 100,
+            stage: TStage::CapitalRecovered,
+            open_legacy_legs: 0,
+            cum_net_cash: 0,
+            hwm_gain: 0,
         };
         let pol = RiskPolicy::baseline();
-        assert!(pol.enter_ready(&ready, 100, true), "五条件全满足 ⟹ EnterReady");
+        assert!(
+            pol.enter_ready(&ready, 100, true),
+            "五条件全满足 ⟹ EnterReady"
+        );
         // 破坏 S=II：stage=CostReduction ⟹ 不 ready。
-        assert!(!pol.enter_ready(&TwState { stage: TStage::CostReduction, ..ready }, 100, true), "S≠II ⟹ 不 ready");
+        assert!(
+            !pol.enter_ready(
+                &TwState {
+                    stage: TStage::CostReduction,
+                    ..ready
+                },
+                100,
+                true
+            ),
+            "S≠II ⟹ 不 ready"
+        );
         // 破坏 W≥I0：withdrawn<i0 ⟹ 不 ready。
-        assert!(!pol.enter_ready(&TwState { withdrawn: 99, ..ready }, 100, true), "W<I0 ⟹ 不 ready");
+        assert!(
+            !pol.enter_ready(
+                &TwState {
+                    withdrawn: 99,
+                    ..ready
+                },
+                100,
+                true
+            ),
+            "W<I0 ⟹ 不 ready"
+        );
         // 破坏 legacy 腿=0：open_legacy_legs=1 ⟹ 不 ready（OQ-9 入口证书）。
-        assert!(!pol.enter_ready(&TwState { open_legacy_legs: 1, ..ready }, 100, true), "有 legacy 腿 ⟹ 不 ready");
+        assert!(
+            !pol.enter_ready(
+                &TwState {
+                    open_legacy_legs: 1,
+                    ..ready
+                },
+                100,
+                true
+            ),
+            "有 legacy 腿 ⟹ 不 ready"
+        );
         // 破坏 RiskNormal：risk_normal=false ⟹ 不 ready。
-        assert!(!pol.enter_ready(&ready, 100, false), "非 RiskNormal ⟹ 不 ready");
+        assert!(
+            !pol.enter_ready(&ready, 100, false),
+            "非 RiskNormal ⟹ 不 ready"
+        );
         // 破坏 η≥η⋆：κ 拉高 barrier 到 η 之上 ⟹ 不 ready（此处 L^wc=0，用 κ·Q 抬门）。
         assert!(
-            !RiskPolicy::try_new(3).unwrap().enter_ready(&ready, 100, true),
+            !RiskPolicy::try_new(3)
+                .unwrap()
+                .enter_ready(&ready, 100, true),
             "η(200)<η⋆(0+3·100=300) ⟹ barrier 未过 ⟹ 不 ready"
         );
     }
@@ -1220,16 +1491,44 @@ mod tests {
     #[test]
     fn a10_c5_zero_correction_bit_exact() {
         let states = [
-            TwState { free: 0, holding: 100, withdrawn: 100, notional_in: 100,
-                stage: TStage::CapitalRecovered, open_legacy_legs: 0, cum_net_cash: 0, hwm_gain: 0 },
-            TwState { free: -1, ..TwState::initial() },                       // η<0 Deficit
-            TwState::initial(),                                               // η=0 Zero
-            TwState { free: 50, notional_in: 100, ..TwState::initial() },     // PositiveUnsafe
-            TwState { free: 100, notional_in: 100, ..TwState::initial() },    // PositiveSafe 边界
-            TwState { free: 150, notional_in: 100, withdrawn: 100,
-                stage: TStage::EarningShares, ..TwState::initial() },         // 顶阶段
+            TwState {
+                free: 0,
+                holding: 100,
+                withdrawn: 100,
+                notional_in: 100,
+                stage: TStage::CapitalRecovered,
+                open_legacy_legs: 0,
+                cum_net_cash: 0,
+                hwm_gain: 0,
+            },
+            TwState {
+                free: -1,
+                ..TwState::initial()
+            }, // η<0 Deficit
+            TwState::initial(), // η=0 Zero
+            TwState {
+                free: 50,
+                notional_in: 100,
+                ..TwState::initial()
+            }, // PositiveUnsafe
+            TwState {
+                free: 100,
+                notional_in: 100,
+                ..TwState::initial()
+            }, // PositiveSafe 边界
+            TwState {
+                free: 150,
+                notional_in: 100,
+                withdrawn: 100,
+                stage: TStage::EarningShares,
+                ..TwState::initial()
+            }, // 顶阶段
         ];
-        for pol in [RiskPolicy::baseline(), RiskPolicy::try_new_ratio(1, 2).unwrap(), RiskPolicy::try_new(2).unwrap()] {
+        for pol in [
+            RiskPolicy::baseline(),
+            RiskPolicy::try_new_ratio(1, 2).unwrap(),
+            RiskPolicy::try_new(2).unwrap(),
+        ] {
             for s in &states {
                 for rn in [true, false] {
                     assert_eq!(
@@ -1254,13 +1553,25 @@ mod tests {
     fn a10_c5_eta_correction_tightens_enter_ready() {
         // ready 态：tw=200, L^wc=0（withdrawn=100=notional_in），κ=0 ⟹ η⋆=0 ⟹ 未修正恒 ready。
         let ready = TwState {
-            free: 0, holding: 100, withdrawn: 100, notional_in: 100,
-            stage: TStage::CapitalRecovered, open_legacy_legs: 0, cum_net_cash: 0, hwm_gain: 0,
+            free: 0,
+            holding: 100,
+            withdrawn: 100,
+            notional_in: 100,
+            stage: TStage::CapitalRecovered,
+            open_legacy_legs: 0,
+            cum_net_cash: 0,
+            hwm_gain: 0,
         };
         let pol = RiskPolicy::baseline();
-        assert!(pol.enter_ready(&ready, 100, true), "前提：未修正 ready（η=200≥η⋆=0）");
+        assert!(
+            pol.enter_ready(&ready, 100, true),
+            "前提：未修正 ready（η=200≥η⋆=0）"
+        );
         // 修正量 200 ⟹ η_corrected=0 ≥ η⋆=0 仍过（边界 ≥ 含等号）。
-        assert!(pol.enter_ready_eta_corrected(&ready, 100, true, 200), "η_corrected=0=η⋆ ⟹ 边界仍 ready");
+        assert!(
+            pol.enter_ready_eta_corrected(&ready, 100, true, 200),
+            "η_corrected=0=η⋆ ⟹ 边界仍 ready"
+        );
         // 修正量 201 ⟹ η_corrected=−1 < η⋆=0 ⟹ 不 ready（η 高估被消除后判据变严）。
         assert!(
             !pol.enter_ready_eta_corrected(&ready, 100, true, 201),
@@ -1274,8 +1585,14 @@ mod tests {
         // κ>0 下修正与 barrier 独立：κ=1/2 ⟹ η⋆=⌈0+50⌉=50；η_corrected=200−150=50=η⋆ 边界过，
         // 151 ⟹ 49<50 不过。
         let half = RiskPolicy::try_new_ratio(1, 2).unwrap();
-        assert!(half.enter_ready_eta_corrected(&ready, 100, true, 150), "κ=1/2：η_corrected=50=η⋆ 边界过");
-        assert!(!half.enter_ready_eta_corrected(&ready, 100, true, 151), "κ=1/2：η_corrected=49<η⋆=50 不过");
+        assert!(
+            half.enter_ready_eta_corrected(&ready, 100, true, 150),
+            "κ=1/2：η_corrected=50=η⋆ 边界过"
+        );
+        assert!(
+            !half.enter_ready_eta_corrected(&ready, 100, true, 151),
+            "κ=1/2：η_corrected=49<η⋆=50 不过"
+        );
     }
 
     /// ★T-N4/F4 同源约束（裁定 C5 第 4 条）：同一修正量下 η_bucket 与 enter_ready 的 η≥η⋆
@@ -1285,23 +1602,64 @@ mod tests {
     fn a10_c5_eta_bucket_enter_ready_same_source() {
         // 构造 η_corrected 扫过四桶边界的态（κ=0，L^wc=0 ⟹ η⋆=0；notional_in=withdrawn=100）。
         let base = TwState {
-            free: 0, holding: 100, withdrawn: 100, notional_in: 100,
-            stage: TStage::CapitalRecovered, open_legacy_legs: 0, cum_net_cash: 0, hwm_gain: 0,
+            free: 0,
+            holding: 100,
+            withdrawn: 100,
+            notional_in: 100,
+            stage: TStage::CapitalRecovered,
+            open_legacy_legs: 0,
+            cum_net_cash: 0,
+            hwm_gain: 0,
         };
         let pol = RiskPolicy::baseline(); // η⋆=0
-        // tw=200；修正量扫 {198, 199, 200, 201} ⟹ η_corrected ∈ {2, 1, 0, −1}。
-        assert_eq!(pol.eta_bucket_eta_corrected(&base, 198), EtaBucket::PositiveSafe, "η_corrected=2>0=η⋆ ⟹ Safe");
-        assert!(pol.enter_ready_eta_corrected(&base, 100, true, 198), "同源：η_corrected=2≥η⋆ ⟹ ready");
-        assert_eq!(pol.eta_bucket_eta_corrected(&base, 200), EtaBucket::Zero, "η_corrected=0 ⟹ Zero（分支序优先）");
-        assert!(pol.enter_ready_eta_corrected(&base, 100, true, 200), "同源：0≥0=η⋆ ⟹ ready（≥含等号，与 bucket=Zero 不冲突——bucket 是离散化）");
-        assert_eq!(pol.eta_bucket_eta_corrected(&base, 201), EtaBucket::Deficit, "η_corrected=−1 ⟹ Deficit");
-        assert!(!pol.enter_ready_eta_corrected(&base, 100, true, 201), "同源：−1<η⋆ ⟹ 不 ready");
+                                          // tw=200；修正量扫 {198, 199, 200, 201} ⟹ η_corrected ∈ {2, 1, 0, −1}。
+        assert_eq!(
+            pol.eta_bucket_eta_corrected(&base, 198),
+            EtaBucket::PositiveSafe,
+            "η_corrected=2>0=η⋆ ⟹ Safe"
+        );
+        assert!(
+            pol.enter_ready_eta_corrected(&base, 100, true, 198),
+            "同源：η_corrected=2≥η⋆ ⟹ ready"
+        );
+        assert_eq!(
+            pol.eta_bucket_eta_corrected(&base, 200),
+            EtaBucket::Zero,
+            "η_corrected=0 ⟹ Zero（分支序优先）"
+        );
+        assert!(
+            pol.enter_ready_eta_corrected(&base, 100, true, 200),
+            "同源：0≥0=η⋆ ⟹ ready（≥含等号，与 bucket=Zero 不冲突——bucket 是离散化）"
+        );
+        assert_eq!(
+            pol.eta_bucket_eta_corrected(&base, 201),
+            EtaBucket::Deficit,
+            "η_corrected=−1 ⟹ Deficit"
+        );
+        assert!(
+            !pol.enter_ready_eta_corrected(&base, 100, true, 201),
+            "同源：−1<η⋆ ⟹ 不 ready"
+        );
         // κ>0 抬 barrier 的同源一致：η⋆=50（κ=1/2）；修正 160 ⟹ η_corrected=40<50 ⟹ Unsafe ∧ 不 ready。
         let half = RiskPolicy::try_new_ratio(1, 2).unwrap();
-        assert_eq!(half.eta_bucket_eta_corrected(&base, 160), EtaBucket::PositiveUnsafe, "κ=1/2：0<40<50 ⟹ Unsafe");
-        assert!(!half.enter_ready_eta_corrected(&base, 100, true, 160), "κ=1/2 同源：40<η⋆=50 ⟹ 不 ready");
-        assert_eq!(half.eta_bucket_eta_corrected(&base, 150), EtaBucket::PositiveSafe, "κ=1/2：50=η⋆ ⟹ Safe（≥边界）");
-        assert!(half.enter_ready_eta_corrected(&base, 100, true, 150), "κ=1/2 同源：50≥η⋆ ⟹ ready");
+        assert_eq!(
+            half.eta_bucket_eta_corrected(&base, 160),
+            EtaBucket::PositiveUnsafe,
+            "κ=1/2：0<40<50 ⟹ Unsafe"
+        );
+        assert!(
+            !half.enter_ready_eta_corrected(&base, 100, true, 160),
+            "κ=1/2 同源：40<η⋆=50 ⟹ 不 ready"
+        );
+        assert_eq!(
+            half.eta_bucket_eta_corrected(&base, 150),
+            EtaBucket::PositiveSafe,
+            "κ=1/2：50=η⋆ ⟹ Safe（≥边界）"
+        );
+        assert!(
+            half.enter_ready_eta_corrected(&base, 100, true, 150),
+            "κ=1/2 同源：50≥η⋆ ⟹ ready"
+        );
     }
 
     /// BuyCore 合法性（PDF §10 步骤4 定理1 充要）：a_n+L^wc+κΔQ ≤ η+g−κQ。
@@ -1309,15 +1667,27 @@ mod tests {
     fn buy_core_legality() {
         let pol = RiskPolicy::try_new(1).unwrap();
         // a_n=10, l_wc_next=5, ΔQ=3, η=100, g=0, Q=20 ⟹ LHS=10+5+3=18, RHS=100+0-20=80 ⟹ 18≤80 ✓。
-        assert!(pol.buy_core_legal(10, 5, 3, 100, 0, 20), "建仓额小 ⟹ BuyCore 合法");
+        assert!(
+            pol.buy_core_legal(10, 5, 3, 100, 0, 20),
+            "建仓额小 ⟹ BuyCore 合法"
+        );
         // a_n=90（大建仓）⟹ LHS=90+5+3=98 > RHS=80 ⟹ 非法（超 barrier）。
-        assert!(!pol.buy_core_legal(90, 5, 3, 100, 0, 20), "建仓额过大 ⟹ 破 κ-floor ⟹ 非法");
+        assert!(
+            !pol.buy_core_legal(90, 5, 3, 100, 0, 20),
+            "建仓额过大 ⟹ 破 κ-floor ⟹ 非法"
+        );
         // ★有理 κ=1/2：两边乘 den=2 零截断。a_n=10,l_wc=5,ΔQ=3,η=100,g=0,Q=20 ⟹
         // LHS=(10+5)·2+1·3=33, RHS=(100+0)·2−1·20=180 ⟹ 33≤180 ✓。
         let half = RiskPolicy::try_new_ratio(1, 2).unwrap();
-        assert!(half.buy_core_legal(10, 5, 3, 100, 0, 20), "κ=1/2 建仓额小 ⟹ 合法（乘分母零截断）");
+        assert!(
+            half.buy_core_legal(10, 5, 3, 100, 0, 20),
+            "κ=1/2 建仓额小 ⟹ 合法（乘分母零截断）"
+        );
         // 边界：a_n=90 ⟹ LHS=(90+5)·2+3=193 > RHS=180 ⟹ 非法。
-        assert!(!half.buy_core_legal(90, 5, 3, 100, 0, 20), "κ=1/2 建仓额过大 ⟹ 非法");
+        assert!(
+            !half.buy_core_legal(90, 5, 3, 100, 0, 20),
+            "κ=1/2 建仓额过大 ⟹ 非法"
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -1332,18 +1702,30 @@ mod tests {
     #[test]
     fn projection_forgets_stage_non_injective() {
         let base = TwState {
-            free: 100, holding: 500, withdrawn: 30, notional_in: 500,
-            stage: TStage::CostReduction, open_legacy_legs: 2, cum_net_cash: 7, hwm_gain: 12,
+            free: 100,
+            holding: 500,
+            withdrawn: 30,
+            notional_in: 500,
+            stage: TStage::CostReduction,
+            open_legacy_legs: 2,
+            cum_net_cash: 7,
+            hwm_gain: 12,
         };
         // 仅 stage 不同 ⟹ 同一 view（stage 被遗忘 = not_isomorphic_stage_collapses）。
-        let differ_stage = TwState { stage: TStage::EarningShares, ..base };
+        let differ_stage = TwState {
+            stage: TStage::EarningShares,
+            ..base
+        };
         assert_eq!(
             forget_stage_to_ledger_view(&base),
             forget_stage_to_ledger_view(&differ_stage),
             "仅 stage 不同 ⟹ 投影相同（stage 被遗忘，非单射 ⟹ 无逆）"
         );
         // 仅 open_legacy_legs 不同 ⟹ 同一 view（OQ-9 腿计数被遗忘）。
-        let differ_legs = TwState { open_legacy_legs: 0, ..base };
+        let differ_legs = TwState {
+            open_legacy_legs: 0,
+            ..base
+        };
         assert_eq!(
             forget_stage_to_ledger_view(&base),
             forget_stage_to_ledger_view(&differ_legs),
@@ -1352,7 +1734,14 @@ mod tests {
         // 财务标量被保留（投影只丢状态机维度，不丢财务信息）。
         let v = forget_stage_to_ledger_view(&base);
         assert_eq!(
-            (v.free, v.holding, v.withdrawn, v.notional_in, v.cum_net_cash, v.hwm_gain),
+            (
+                v.free,
+                v.holding,
+                v.withdrawn,
+                v.notional_in,
+                v.cum_net_cash,
+                v.hwm_gain
+            ),
             (100, 500, 30, 500, 7, 12),
             "财务标量保留（stage-无关分量无损）"
         );

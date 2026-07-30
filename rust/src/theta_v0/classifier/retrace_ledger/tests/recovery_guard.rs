@@ -21,13 +21,21 @@ fn plain_fold_without_recovery_point_still_lets_stale_knowledge_settle() {
 
     let mut restored = RetraceLedger::fold(provenance(), live.journal()).unwrap();
     assert_eq!(restored.recovery_floor(), None, "普通 fold 不设恢复点");
-    assert_eq!(restored.entry(&key).unwrap().last_as_of, 500, "门卫钟退回留档下界（S1 不动）");
+    assert_eq!(
+        restored.entry(&key).unwrap().last_as_of,
+        500,
+        "门卫钟退回留档下界（S1 不动）"
+    );
 
     let step = restored
         .observe(&up_input(center, 3, Some(RetraceOutcome::Success), 600))
         .unwrap();
     assert!(!step.retrograde_rejected());
-    assert_eq!(step.state, RetraceState::Confirmed, "未设恢复点 ⟹ 零约束，历史行为不变");
+    assert_eq!(
+        step.state,
+        RetraceState::Confirmed,
+        "未设恢复点 ⟹ 零约束，历史行为不变"
+    );
     settled(&restored);
 }
 
@@ -44,7 +52,11 @@ fn recovered_settle_with_as_of_behind_recovery_point_is_rejected_fail_loud() {
     // 崩溃/重启：调用方独立维护的续跑断点声明恢复点 = 4_000（重启前已知到这里）。
     let mut restored = RetraceLedger::fold_recovered(provenance(), live.journal(), 4_000).unwrap();
     assert_eq!(restored.recovery_floor(), Some(4_000));
-    assert_eq!(restored.entry(&key).unwrap().last_as_of, 500, "门卫钟仍退回留档下界，S1 语义不动");
+    assert_eq!(
+        restored.entry(&key).unwrap().last_as_of,
+        500,
+        "门卫钟仍退回留档下界，S1 语义不动"
+    );
     let before = restored.entry(&key).unwrap().clone();
 
     let rejection = restored
@@ -64,8 +76,16 @@ fn recovered_settle_with_as_of_behind_recovery_point_is_rejected_fail_loud() {
     assert_eq!(entry, &before, "拒收零改写：身份一个 bit 不动");
     assert_eq!(entry.state, RetraceState::Provisional, "未决身份不落锤");
     assert!(entry.terminal_as_of.is_none(), "落锤钟未被写坏");
-    assert_eq!(restored.alarms().registration_rejected, 1, "护栏拒收计入注册期拒收桶");
-    let record = restored.audit_log().last().copied().expect("护栏拒收落 audit 流");
+    assert_eq!(
+        restored.alarms().registration_rejected,
+        1,
+        "护栏拒收计入注册期拒收桶"
+    );
+    let record = restored
+        .audit_log()
+        .last()
+        .copied()
+        .expect("护栏拒收落 audit 流");
     assert_eq!(
         record.event,
         RetraceAuditEvent::ResidualRejected {
@@ -94,7 +114,11 @@ fn identity_can_still_settle_normally_once_as_of_catches_up_to_recovery_point() 
         .observe(&up_input(center, 3, Some(RetraceOutcome::Success), 4_500))
         .unwrap();
     assert!(!step.retrograde_rejected());
-    assert_eq!(step.state, RetraceState::Confirmed, "恢复点之后的知情时正常落锤");
+    assert_eq!(
+        step.state,
+        RetraceState::Confirmed,
+        "恢复点之后的知情时正常落锤"
+    );
     assert_eq!(restored.entry(&key).unwrap().terminal_as_of, Some(4_500));
     settled(&restored);
 }
@@ -115,7 +139,11 @@ fn settle_exactly_at_recovery_point_is_admitted() {
         .observe(&up_input(center, 3, Some(RetraceOutcome::Success), 600))
         .unwrap();
     assert!(!step.retrograde_rejected());
-    assert_eq!(step.state, RetraceState::Confirmed, "恰等于恢复点 ⟹ 非降语义放行（同门卫钟纪律）");
+    assert_eq!(
+        step.state,
+        RetraceState::Confirmed,
+        "恰等于恢复点 ⟹ 非降语义放行（同门卫钟纪律）"
+    );
     assert_eq!(restored.entry(&key).unwrap().terminal_as_of, Some(600));
     assert_eq!(restored.alarms().registration_rejected, 0);
     settled(&restored);
@@ -163,11 +191,19 @@ fn already_terminal_identity_is_unaffected_by_recovery_point_late_absorption_sti
     let step = restored
         .observe(&up_input(center, 3, Some(RetraceOutcome::Success), 501))
         .unwrap();
-    assert!(step.absorbed_late(), "终态后迟到输入仍走既有静默吸收，不经恢复点护栏");
-    assert_eq!(restored.entry(&key).unwrap().terminal_as_of, Some(500), "落锤钟不动");
+    assert!(
+        step.absorbed_late(),
+        "终态后迟到输入仍走既有静默吸收，不经恢复点护栏"
+    );
+    assert_eq!(
+        restored.entry(&key).unwrap().terminal_as_of,
+        Some(500),
+        "落锤钟不动"
+    );
     assert_eq!(restored.alarms().late_absorbed, 1);
     assert_eq!(
-        restored.alarms().registration_rejected, 0,
+        restored.alarms().registration_rejected,
+        0,
         "终态身份的迟到输入不应被恢复点护栏计入拒收——护栏只管未决身份的落锤"
     );
     settled(&restored);
@@ -197,7 +233,11 @@ fn plain_fold_leaves_recovery_floor_unset() {
     let center = frame(1_200);
     live.observe(&up_input(center, 3, None, 500)).unwrap();
     let folded = RetraceLedger::fold(provenance(), live.journal()).unwrap();
-    assert_eq!(folded.recovery_floor(), None, "fold_recovered 是纯增设，fold 不受影响");
+    assert_eq!(
+        folded.recovery_floor(),
+        None,
+        "fold_recovered 是纯增设，fold 不受影响"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -211,7 +251,8 @@ fn plain_fold_leaves_recovery_floor_unset() {
 fn brand_new_identity_settling_below_recovery_point_on_first_observation_is_rejected() {
     let mut live = ledger();
     // journal 里放一条无关记录，只为让 fold_recovered 有内容可折（身份本身与新候选无关）。
-    live.observe(&up_input(other_frame(300), 11, None, 100)).unwrap();
+    live.observe(&up_input(other_frame(300), 11, None, 100))
+        .unwrap();
 
     let mut restored = RetraceLedger::fold_recovered(provenance(), live.journal(), 4_000).unwrap();
     let center = frame(1_200);
@@ -227,7 +268,10 @@ fn brand_new_identity_settling_below_recovery_point_on_first_observation_is_reje
             as_of: 600,
         }
     );
-    assert!(restored.entry(&key).is_none(), "护栏在建仓前拦下，新身份未建仓（零改写）");
+    assert!(
+        restored.entry(&key).is_none(),
+        "护栏在建仓前拦下，新身份未建仓（零改写）"
+    );
     assert_eq!(restored.len(), 1, "只有 journal 里那条无关身份");
     settled(&restored);
 }
@@ -236,7 +280,8 @@ fn brand_new_identity_settling_below_recovery_point_on_first_observation_is_reje
 #[test]
 fn brand_new_identity_settling_at_or_after_recovery_point_on_first_observation_succeeds() {
     let mut live = ledger();
-    live.observe(&up_input(other_frame(300), 11, None, 100)).unwrap();
+    live.observe(&up_input(other_frame(300), 11, None, 100))
+        .unwrap();
 
     let mut restored = RetraceLedger::fold_recovered(provenance(), live.journal(), 4_000).unwrap();
     let center = frame(1_200);

@@ -82,7 +82,12 @@ pub fn level_nets(sep_legs: &[SepLeg], lot: i64) -> Vec<(u32, i64)> {
     build_level_targets(sep_legs, lot)
         .into_iter()
         .map(|(lvl, book)| {
-            (lvl, book.values().map(|(side, q, _, _)| side_sign(*side) * q).sum::<i64>())
+            (
+                lvl,
+                book.values()
+                    .map(|(side, q, _, _)| side_sign(*side) * q)
+                    .sum::<i64>(),
+            )
         })
         .collect()
 }
@@ -233,7 +238,11 @@ impl LevelLedgerMirror {
         // 离场：books 中不在 target 的声部 → 记 exit_v/冻结 pnl_v，移出该级簿。
         for (lvl, book) in self.books.iter_mut() {
             let gone: Vec<u64> = match target.get(lvl) {
-                Some(t) => book.keys().filter(|ord| !t.contains_key(ord)).copied().collect(),
+                Some(t) => book
+                    .keys()
+                    .filter(|ord| !t.contains_key(ord))
+                    .copied()
+                    .collect(),
                 None => book.keys().copied().collect(),
             };
             for ord in gone {
@@ -268,16 +277,22 @@ impl LevelLedgerMirror {
                         b.side = *side; // 恒等（防御性覆盖，同 overlay）
                     }
                     None => {
-                        book.insert(*ord, VoiceBook {
-                            id: ElementId { level: *lvl, ordinal: *ord },
-                            side: *side,
-                            q: *q,
-                            role_v: *role_v,
-                            parent_id: *parent_id,
-                            entry_bar: bar,
-                            entry_px: px,
-                            pnl_v: 0.0,
-                        });
+                        book.insert(
+                            *ord,
+                            VoiceBook {
+                                id: ElementId {
+                                    level: *lvl,
+                                    ordinal: *ord,
+                                },
+                                side: *side,
+                                q: *q,
+                                role_v: *role_v,
+                                parent_id: *parent_id,
+                                entry_bar: bar,
+                                entry_px: px,
+                                pnl_v: 0.0,
+                            },
+                        );
                     }
                 }
             }
@@ -290,7 +305,10 @@ impl LevelLedgerMirror {
             .map(|(lvl, book)| (*lvl, book.values().map(|b| side_sign(b.side) * b.q).sum()))
             .collect();
         let total_net = self.nets.values().sum();
-        LevelLedgerStep { total_net, n_active_levels: self.books.len() }
+        LevelLedgerStep {
+            total_net,
+            n_active_levels: self.books.len(),
+        }
     }
 
     /// 窗口终点强平（含浮盈口径）：全部级别全部活动声部按末价 px 离场（记 exit_v/冻结 pnl_v）。
@@ -321,9 +339,9 @@ impl LevelLedgerMirror {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::coverage::{SepLeg, Vertical};
     use super::super::overlay_state::OverlayState;
+    use super::*;
     use std::collections::HashMap;
 
     fn eid(level: u32, ordinal: u64) -> ElementId {
@@ -331,7 +349,13 @@ mod tests {
     }
 
     fn leg(id: ElementId, side: VoiceSide, q_units: f64, role_v: Vertical) -> SepLeg {
-        SepLeg { id, side, q_units, role_v, parent_id: None }
+        SepLeg {
+            id,
+            side,
+            q_units,
+            role_v,
+            parent_id: None,
+        }
     }
 
     /// ★LEE-Net 恒等（M1 验收锚，设计文档 §C.2）：多级别持仓下逐 step `Σ_ℓ net_ℓ == overlay N`——
@@ -348,7 +372,10 @@ mod tests {
         ];
         let so = ov.step(&t0, 100.0, 0, 1);
         let sl = ll.step(&t0, 100.0, 0, 1);
-        assert_eq!(sl.total_net, so.net_after, "LEE-Net 恒等 @t0：Σ_ℓ net_ℓ == N_t");
+        assert_eq!(
+            sl.total_net, so.net_after,
+            "LEE-Net 恒等 @t0：Σ_ℓ net_ℓ == N_t"
+        );
         assert_eq!(sl.total_net, ov.net());
         assert_eq!(ll.net_at(1), 10);
         assert_eq!(ll.net_at(2), 6);
@@ -370,8 +397,16 @@ mod tests {
         assert_eq!(sl.n_active_levels, 2);
         // 离场分区：L3 声部进 closed[3]，与 overlay.closed 分区完备。
         assert_eq!(ll.closed_voices(3).len(), 1, "L3 离场行进 closed[3] 桶");
-        assert_eq!(ll.closed_voices(3)[0].id.level, 3, "级别封闭：closed[3] 只含 id.level=3");
-        assert_eq!(ll.n_closed(), ov.closed_voices().len(), "closed 按级分区完备");
+        assert_eq!(
+            ll.closed_voices(3)[0].id.level,
+            3,
+            "级别封闭：closed[3] 只含 id.level=3"
+        );
+        assert_eq!(
+            ll.n_closed(),
+            ov.closed_voices().len(),
+            "closed 按级分区完备"
+        );
         // t2：全平（空目标）⟹ 双账归零。
         let so = ov.step(&[], 102.0, 2, 1);
         let sl = ll.step(&[], 102.0, 2, 1);
@@ -380,7 +415,11 @@ mod tests {
         assert_eq!(sl.total_net, ov.net(), "LEE-Net 恒等 @t2（归零）");
         assert_eq!(ll.n_active(), 0);
         assert_eq!(sl.n_active_levels, 0);
-        assert_eq!(ll.n_closed(), ov.closed_voices().len(), "全平后 closed 分区完备");
+        assert_eq!(
+            ll.n_closed(),
+            ov.closed_voices().len(),
+            "全平后 closed 分区完备"
+        );
         assert_eq!(ll.n_closed(), 3, "3 声部全部离场");
     }
 
@@ -394,11 +433,19 @@ mod tests {
         child.parent_id = Some(parent);
         ll.step(&[child], 100.0, 0, 1);
         assert_eq!(ll.net_at(3), 5, "子腿按自身 id.level=3 落桶");
-        assert_eq!(ll.net_at(2), 0, "父缺席不落桶（镜像是 sep_legs 暴露的按级重排，不补父）");
+        assert_eq!(
+            ll.net_at(2),
+            0,
+            "父缺席不落桶（镜像是 sep_legs 暴露的按级重排，不补父）"
+        );
         let rows: Vec<&VoiceBook> = ll.active_voices(3).collect();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].id.level, 3, "级别封闭：L3 桶只含 id.level=3 的行");
-        assert_eq!(rows[0].parent_id, Some(parent), "parent(v) 跨级引用作元数据保留（不落账）");
+        assert_eq!(
+            rows[0].parent_id,
+            Some(parent),
+            "parent(v) 跨级引用作元数据保留（不落账）"
+        );
         assert!(ll.active_voices(2).next().is_none());
     }
 
@@ -450,17 +497,36 @@ mod tests {
         ov.force_flat(109.0, 4);
         ll.force_flat(109.0, 4);
         // 分区完备 + 行级逐位对拍。
-        assert_eq!(ll.n_closed(), ov.closed_voices().len(), "closed 按级分区完备");
+        assert_eq!(
+            ll.n_closed(),
+            ov.closed_voices().len(),
+            "closed 按级分区完备"
+        );
         assert_eq!(ll.n_closed(), 2);
         let ov_rows: HashMap<ElementId, &ClosedVoice> =
             ov.closed_voices().iter().map(|r| (r.id, r)).collect();
         for lvl in [1u32, 2] {
             for m in ll.closed_voices(lvl) {
-                assert_eq!(m.id.level, lvl, "级别封闭：closed[{lvl}] 只含 id.level={lvl}");
+                assert_eq!(
+                    m.id.level, lvl,
+                    "级别封闭：closed[{lvl}] 只含 id.level={lvl}"
+                );
                 let o = ov_rows[&m.id];
-                assert_eq!(m.entry_px.to_bits(), o.entry_px.to_bits(), "entry_px bit-equal");
-                assert_eq!(m.exit_px.to_bits(), o.exit_px.to_bits(), "exit_px bit-equal");
-                assert_eq!(m.pnl_v.to_bits(), o.pnl_v.to_bits(), "pnl_v bit-equal（同式同序重放）");
+                assert_eq!(
+                    m.entry_px.to_bits(),
+                    o.entry_px.to_bits(),
+                    "entry_px bit-equal"
+                );
+                assert_eq!(
+                    m.exit_px.to_bits(),
+                    o.exit_px.to_bits(),
+                    "exit_px bit-equal"
+                );
+                assert_eq!(
+                    m.pnl_v.to_bits(),
+                    o.pnl_v.to_bits(),
+                    "pnl_v bit-equal（同式同序重放）"
+                );
                 assert_eq!(m.entry_bar, o.entry_bar);
                 assert_eq!(m.exit_bar, o.exit_bar);
                 assert_eq!(m.side, o.side);
@@ -472,7 +538,10 @@ mod tests {
             .map(|&l| ll.closed_voices(l).iter().map(|r| r.pnl_v).sum::<f64>())
             .sum();
         let sum_ov: f64 = ov.closed_voices().iter().map(|r| r.pnl_v).sum();
-        assert!((sum_ll - sum_ov).abs() < 1e-9, "Σ_ℓ closed pnl ≈ overlay Σ closed pnl");
+        assert!(
+            (sum_ll - sum_ov).abs() < 1e-9,
+            "Σ_ℓ closed pnl ≈ overlay Σ closed pnl"
+        );
         assert_eq!(ll.total_net(), ov.net(), "LEE-Net 恒等（强平后归零）");
         assert_eq!(ll.n_active(), 0);
     }
@@ -508,7 +577,10 @@ mod tests {
             ll.step(legs, 100.0, 0, 1);
             let via_fn = level_nets(legs, 1);
             let via_mirror: Vec<(u32, i64)> = ll.nets().iter().map(|(&l, &q)| (l, q)).collect();
-            assert_eq!(via_fn, via_mirror, "level_nets ≡ mirror.nets()（legs={legs:?}）");
+            assert_eq!(
+                via_fn, via_mirror,
+                "level_nets ≡ mirror.nets()（legs={legs:?}）"
+            );
         }
     }
 
@@ -517,12 +589,23 @@ mod tests {
     #[test]
     fn lee_net_witness_requires_nonzero_net() {
         let mut ll = LevelLedgerMirror::new();
-        assert!(!ll.lee_net_witness().identity_witnessed(), "零观测 ⟹ 见证不成立");
+        assert!(
+            !ll.lee_net_witness().identity_witnessed(),
+            "零观测 ⟹ 见证不成立"
+        );
         // 空账观测（N=0）：残差 0 但量级 0 ⟹ 仍不成立（正是 #289 指出的平凡通过）。
         ll.observe_lee_net(0);
-        assert!(!ll.lee_net_witness().identity_witnessed(), "N≡0 的空账观测 ⟹ 见证仍不成立");
+        assert!(
+            !ll.lee_net_witness().identity_witnessed(),
+            "N≡0 的空账观测 ⟹ 见证仍不成立"
+        );
         // 真持仓观测：Σ_ℓ net_ℓ = 10 = N ⟹ 残差 0 且量级 10。
-        ll.step(&[leg(eid(1, 0), VoiceSide::Long, 10.0, Vertical::Ambient)], 100.0, 1, 1);
+        ll.step(
+            &[leg(eid(1, 0), VoiceSide::Long, 10.0, Vertical::Ambient)],
+            100.0,
+            1,
+            1,
+        );
         ll.observe_lee_net(10);
         let w = ll.lee_net_witness();
         assert_eq!(w.max_abs_residual, 0);
@@ -531,7 +614,11 @@ mod tests {
         assert!(w.identity_witnessed(), "残差 0 + max|N|>0 ⟹ 见证成立");
         // 违例可见：喂错 N ⟹ 残差非零被记录（见证转 false）。
         ll.observe_lee_net(7);
-        assert_eq!(ll.lee_net_witness().max_abs_residual, 3, "残差如实记录，不吞");
+        assert_eq!(
+            ll.lee_net_witness().max_abs_residual,
+            3,
+            "残差如实记录，不吞"
+        );
         assert!(!ll.lee_net_witness().identity_witnessed());
     }
 
@@ -557,13 +644,22 @@ mod tests {
     #[test]
     fn persistent_target_is_pure_hold() {
         let mut ll = LevelLedgerMirror::new();
-        let t = [leg(eid(2, 0), VoiceSide::Long, 10.0, Vertical::FollowParent)];
+        let t = [leg(
+            eid(2, 0),
+            VoiceSide::Long,
+            10.0,
+            Vertical::FollowParent,
+        )];
         ll.step(&t, 100.0, 0, 1);
         let s = ll.step(&t, 100.0, 1, 1); // 同目标同价重喂
         assert_eq!(s.total_net, 10);
         assert_eq!(ll.n_closed(), 0, "目标不变 ⟹ 零离场");
         assert_eq!(ll.active_voices(2).next().expect("L2 在飞").q, 10, "q 不变");
-        assert_eq!(ll.active_voices(2).next().expect("L2 在飞").entry_bar, 0, "entry_v 不重写");
+        assert_eq!(
+            ll.active_voices(2).next().expect("L2 在飞").entry_bar,
+            0,
+            "entry_v 不重写"
+        );
     }
 
     /// ★窗口终点强平按级分区（与 [`OverlayState::force_flat`] 同语义按级重排）：

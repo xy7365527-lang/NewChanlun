@@ -42,10 +42,8 @@ fn is_fractal_pattern(buf: &[MergeBar]) -> bool {
     let (h_prev, l_prev) = (buf[length - 3].h, buf[length - 3].l);
     let (h_curr, l_curr) = (buf[length - 2].h, buf[length - 2].l);
     let (h_next, l_next) = (buf[length - 1].h, buf[length - 1].l);
-    let is_top =
-        h_curr > h_prev && h_curr > h_next && l_curr > l_prev && l_curr > l_next;
-    let is_bottom =
-        l_curr < l_prev && l_curr < l_next && h_curr < h_prev && h_curr < h_next;
+    let is_top = h_curr > h_prev && h_curr > h_next && l_curr > l_prev && l_curr > l_next;
+    let is_bottom = l_curr < l_prev && l_curr < l_next && h_curr < h_prev && h_curr < h_next;
     is_top || is_bottom
 }
 
@@ -89,7 +87,14 @@ fn advance_checkpoint_step(
         return;
     }
 
-    if !check_gap(&start, &cand, use_new_bi, min_gap, merged_to_raw, new_raw_gap_min) {
+    if !check_gap(
+        &start,
+        &cand,
+        use_new_bi,
+        min_gap,
+        merged_to_raw,
+        new_raw_gap_min,
+    ) {
         *cp_j = j + 1;
         return;
     }
@@ -240,8 +245,7 @@ impl BiEngine {
         let last_h = last.h;
         let last_l = last.l;
 
-        let has_inclusion =
-            (last_h >= h && last_l <= l) || (h >= last_h && l <= last_l);
+        let has_inclusion = (last_h >= h && last_l <= l) || (h >= last_h && l <= last_l);
 
         if has_inclusion {
             let effective_up = match self.merge_dir_state {
@@ -333,8 +337,17 @@ impl BiEngine {
             !((ah >= bh && al <= bl) || (bh >= ah && bl <= al))
         };
         assert!(
-            non_inclusive(self.m_highs[m - 3], self.m_lows[m - 3], self.m_highs[m - 2], self.m_lows[m - 2])
-                && non_inclusive(self.m_highs[m - 2], self.m_lows[m - 2], self.m_highs[m - 1], self.m_lows[m - 1]),
+            non_inclusive(
+                self.m_highs[m - 3],
+                self.m_lows[m - 3],
+                self.m_highs[m - 2],
+                self.m_lows[m - 2]
+            ) && non_inclusive(
+                self.m_highs[m - 2],
+                self.m_lows[m - 2],
+                self.m_highs[m - 1],
+                self.m_lows[m - 1]
+            ),
             "S5(T6) 违反@merged {}：分型三根 merged bar 存在包含残留（合并未完成，包含处理 bug）",
             m - 2
         );
@@ -434,9 +447,8 @@ impl BiEngine {
             _ => n_fxs,
         };
 
-        let append_pending = pending.is_some()
-            && n_fxs > 0
-            && pending.unwrap().kind != fxs[n_fxs - 1].kind;
+        let append_pending =
+            pending.is_some() && n_fxs > 0 && pending.unwrap().kind != fxs[n_fxs - 1].kind;
 
         let total_len = tail_fxs_len + if append_pending { 1 } else { 0 };
 

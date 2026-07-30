@@ -111,7 +111,11 @@ impl FugueEngineCore {
             return;
         }
         self.finished = true;
-        let last_bar = if self.cur_bar > 0 { Some(self.cur_bar - 1) } else { None };
+        let last_bar = if self.cur_bar > 0 {
+            Some(self.cur_bar - 1)
+        } else {
+            None
+        };
         self.operate.finish(last_bar);
         let res = self.operate.result_mut();
         for k in 0..MAX_LADDER {
@@ -144,13 +148,19 @@ impl FugueEngineCore {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::INITIAL_CAPITAL;
+    use super::*;
     use crate::trading::types::{BspClass, BspEvent, LadderMask};
 
     const NO_FLIP: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
 
-    fn mk_bar(close: f64, buy1: u16, sell1: u16, max_ladder: u8, events: Vec<(usize, BspClass, bool, f64)>) -> BarSig {
+    fn mk_bar(
+        close: f64,
+        buy1: u16,
+        sell1: u16,
+        max_ladder: u8,
+        events: Vec<(usize, BspClass, bool, f64)>,
+    ) -> BarSig {
         let mut sig = BarSig {
             close,
             buy1: LadderMask(buy1),
@@ -161,7 +171,15 @@ mod tests {
         if !events.is_empty() {
             let mut arr: [Vec<BspEvent>; MAX_LADDER] = Default::default();
             for (lad, class, confirmed, price) in events {
-                arr[lad].push(BspEvent { class, seg_idx: lad as i64, confirmed, cs: None, zd: None, zg: None, price });
+                arr[lad].push(BspEvent {
+                    class,
+                    seg_idx: lad as i64,
+                    confirmed,
+                    cs: None,
+                    zd: None,
+                    zg: None,
+                    price,
+                });
             }
             sig.bsp_events = Some(Box::new(arr));
         }
@@ -196,17 +214,35 @@ mod tests {
         let mut core = FugueEngineCore::new(FIRST_BSP_LADDER).expect("floor=FIRST_BSP");
         let mut flip0: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
         flip0[3] = Some(Direction::Down); // L3 跌末（type1 buy 端点必然方向）
-        flip0[4] = Some(Direction::Up);   // L4 涨（root_direction=Up，顺势做多）
+        flip0[4] = Some(Direction::Up); // L4 涨（root_direction=Up，顺势做多）
         core.step(
-            &mk_bar(100.0, 0, 0, 4, vec![(2, BspClass::Buy1, true, 100.0), (3, BspClass::Buy1, false, 100.0)]),
+            &mk_bar(
+                100.0,
+                0,
+                0,
+                4,
+                vec![
+                    (2, BspClass::Buy1, true, 100.0),
+                    (3, BspClass::Buy1, false, 100.0),
+                ],
+            ),
             &flip0,
         );
         core.step(&mk_bar(100.0, 1 << 3, 0, 4, vec![]), &NO_FLIP);
         let (_, nav_after, long_u, short_u, _) = core.snapshot();
         // 满仓 total = 100000/100 = 1000 units，全 Long ⇒ long_u=1000、short_u=0。
-        assert!((long_u - 1000.0).abs() < 1e-6, "满仓 1000 units 全 Long，得 {long_u}");
-        assert_eq!(short_u, 0.0, "建仓后无空头（1/3 拆分是后续 τ 涌现，非建仓硬编码）");
-        assert!((nav_after - INITIAL_CAPITAL).abs() < 1e-4, "F 建仓 NAV 中性");
+        assert!(
+            (long_u - 1000.0).abs() < 1e-6,
+            "满仓 1000 units 全 Long，得 {long_u}"
+        );
+        assert_eq!(
+            short_u, 0.0,
+            "建仓后无空头（1/3 拆分是后续 τ 涌现，非建仓硬编码）"
+        );
+        assert!(
+            (nav_after - INITIAL_CAPITAL).abs() < 1e-4,
+            "F 建仓 NAV 中性"
+        );
         // flat 至 eod，同价进出 ⇒ final_nav = 初始资本。
         core.step(&mk_bar(100.0, 0, 0, 4, vec![]), &NO_FLIP);
         core.finish();

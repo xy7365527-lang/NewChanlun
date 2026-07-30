@@ -126,7 +126,10 @@ impl GroupElement {
     /// **非重言**：它验证的是"`power` 实现 + helix 作用"使 `h²³` 等于这个独立
     /// 定义的 `σ`，传入错误环数（如 22）会 fire。
     pub fn sigma() -> Self {
-        GroupElement { a: N_CONCEPT_RINGS, t: 0 }
+        GroupElement {
+            a: N_CONCEPT_RINGS,
+            t: 0,
+        }
     }
 
     /// 群乘法（正规形归约）。
@@ -155,7 +158,11 @@ impl GroupElement {
     /// 群幂 `gⁿ`（`n` 可负，`g⁻ⁿ = (g⁻¹)ⁿ`）。通用循环（不依赖闭式，
     /// 让 `prove_h23` 经由 `compose` 链验证实现正确性）。
     pub fn power(self, n: i32) -> GroupElement {
-        let (base, count) = if n >= 0 { (self, n) } else { (self.inverse(), -n) };
+        let (base, count) = if n >= 0 {
+            (self, n)
+        } else {
+            (self.inverse(), -n)
+        };
         let mut acc = GroupElement::identity();
         for _ in 0..count {
             acc = acc.compose(base);
@@ -233,7 +240,9 @@ impl GroupAction {
                 let n = s.helix() + 1;
                 let new = SpiralState::from_helix(n, s.eps);
                 if (new.r as usize) >= MAX_LADDER {
-                    Err(GroupViolation::RadialOverflowAtCeiling { attempted_r: new.r as usize })
+                    Err(GroupViolation::RadialOverflowAtCeiling {
+                        attempted_r: new.r as usize,
+                    })
                 } else {
                     Ok(new)
                 }
@@ -243,7 +252,11 @@ impl GroupAction {
                 if !s.is_singular() {
                     Err(GroupViolation::ChiralSeamOffSingular { phi: s.phi })
                 } else {
-                    Ok(SpiralState { phi: s.phi, r: s.r, eps: -s.eps })
+                    Ok(SpiralState {
+                        phi: s.phi,
+                        r: s.r,
+                        eps: -s.eps,
+                    })
                 }
             }
             GroupAction::RadialAscend => {
@@ -252,7 +265,11 @@ impl GroupAction {
                 if nr >= MAX_LADDER {
                     Err(GroupViolation::RadialOverflowAtCeiling { attempted_r: nr })
                 } else {
-                    Ok(SpiralState { phi: s.phi, r: nr as u8, eps: s.eps })
+                    Ok(SpiralState {
+                        phi: s.phi,
+                        r: nr as u8,
+                        eps: s.eps,
+                    })
                 }
             }
             GroupAction::RadialDescend => {
@@ -260,7 +277,11 @@ impl GroupAction {
                 if s.r == 0 {
                     Err(GroupViolation::RadialUnderflowAtFloor)
                 } else {
-                    Ok(SpiralState { phi: s.phi, r: s.r - 1, eps: s.eps })
+                    Ok(SpiralState {
+                        phi: s.phi,
+                        r: s.r - 1,
+                        eps: s.eps,
+                    })
                 }
             }
         }
@@ -299,7 +320,11 @@ mod tests {
     #[test]
     fn compose_identity_neutral() {
         let e = GroupElement::identity();
-        for g in [GroupElement::h(), GroupElement::tau(), GroupElement::sigma()] {
+        for g in [
+            GroupElement::h(),
+            GroupElement::tau(),
+            GroupElement::sigma(),
+        ] {
             assert_eq!(e.compose(g), g, "e·g≠g：{g:?}");
             assert_eq!(g.compose(e), g, "g·e≠g：{g:?}");
         }
@@ -314,8 +339,16 @@ mod tests {
             GroupElement { a: 5, t: 1 },
             GroupElement { a: -7, t: 0 },
         ] {
-            assert_eq!(g.compose(g.inverse()), GroupElement::identity(), "g·g⁻¹≠e：{g:?}");
-            assert_eq!(g.inverse().compose(g), GroupElement::identity(), "g⁻¹·g≠e：{g:?}");
+            assert_eq!(
+                g.compose(g.inverse()),
+                GroupElement::identity(),
+                "g·g⁻¹≠e：{g:?}"
+            );
+            assert_eq!(
+                g.inverse().compose(g),
+                GroupElement::identity(),
+                "g⁻¹·g≠e：{g:?}"
+            );
         }
     }
 
@@ -399,7 +432,9 @@ mod tests {
         let s = SpiralState::new(0, MAX_LADDER as u8 - 1, 1);
         assert_eq!(
             GroupAction::RadialAscend.apply(s),
-            Err(GroupViolation::RadialOverflowAtCeiling { attempted_r: MAX_LADDER })
+            Err(GroupViolation::RadialOverflowAtCeiling {
+                attempted_r: MAX_LADDER
+            })
         );
     }
 

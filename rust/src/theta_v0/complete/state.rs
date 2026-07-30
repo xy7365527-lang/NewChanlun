@@ -33,8 +33,8 @@
 //! `Vec<Center>`/`Vec<Move>`）作 `D_t` 的结构承载——这是引擎真实产出的类型，非占位桩（对齐 Lean
 //! `CompleteState.recStruct : ParseStruct`，`ParseStruct` 同样是这些列表的乘积）。
 
-use super::super::types::{Bar, Center, MoveKind, Segment, Stroke};
 use super::super::strategy::ledger::LedgerComp;
+use super::super::types::{Bar, Center, MoveKind, Segment, Stroke};
 
 /// 根方向 `σ_{r,t} ∈ {-1,0,+1}`（契约锚 `Origin.CompleteStateEvent.RootDirection`，FULL §3 line 150）。
 ///
@@ -278,7 +278,11 @@ impl CompleteState {
             root_dir: RootDirection::Flat,
             voices: VoiceForest {
                 // 开局只有根声部（空仓未激活），无子声部。
-                voices: vec![VoiceState { q: 0, active: false, phase: OrderPhase::Flat }],
+                voices: vec![VoiceState {
+                    q: 0,
+                    active: false,
+                    phase: OrderPhase::Flat,
+                }],
                 parent: vec![None],
                 root_index: 0,
             },
@@ -288,7 +292,10 @@ impl CompleteState {
             equity: i0,
             cash: i0,
             open_orders: Vec::new(),
-            memory: SignalMemory { consumed_signals: Vec::new(), last_bar_seen: -1 },
+            memory: SignalMemory {
+                consumed_signals: Vec::new(),
+                last_bar_seen: -1,
+            },
             venue: VenueState {
                 borrowable: true,
                 margin_used: 0,

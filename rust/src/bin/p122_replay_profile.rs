@@ -176,13 +176,8 @@ fn main() -> Result<(), String> {
     let dif = terminal.cache.macd_dif();
     // ── 段 2：终态快照 → targets（同 p92 collect_snapshot_candidates，仅计时）──
     let snap_started = Instant::now();
-    let terminal_events = collect_snapshot_candidates(
-        &terminal.tower,
-        max_bars - 1,
-        hist,
-        dif,
-        close_src,
-    )?;
+    let terminal_events =
+        collect_snapshot_candidates(&terminal.tower, max_bars - 1, hist, dif, close_src)?;
     clock.snapshot_terminal = snap_started.elapsed();
     let mut targets = BTreeMap::new();
     for event in terminal_events.iter().flatten() {
@@ -254,8 +249,16 @@ fn main() -> Result<(), String> {
         println!("P122_STAGE name={name} secs={secs:.3} pct={pct:.2}");
     }
     for (level, views) in &counters.per_level_views {
-        let ns = counters.per_level_ns.get(level).copied().unwrap_or_default();
-        let rw = counters.per_level_run_windows.get(level).copied().unwrap_or(0);
+        let ns = counters
+            .per_level_ns
+            .get(level)
+            .copied()
+            .unwrap_or_default();
+        let rw = counters
+            .per_level_run_windows
+            .get(level)
+            .copied()
+            .unwrap_or(0);
         let per_view_ms = if *views > 0 {
             ns.as_secs_f64() * 1000.0 / *views as f64
         } else {
@@ -469,11 +472,9 @@ fn run_targeted_prefix_pass(
         let trigger = (cache.forest_epoch(), signal_signature(&classification));
         clock.signal_sig += t2.elapsed();
         // ── Phase 0：trigger 逐 bar 变化分解（bar0 首次观察不进 trig_changes）──
-        let (epoch_changed, sig_changed) = prev_trigger
-            .as_ref()
-            .map_or((true, true), |prev| {
-                (prev.0 != trigger.0, prev.1 != trigger.1)
-            });
+        let (epoch_changed, sig_changed) = prev_trigger.as_ref().map_or((true, true), |prev| {
+            (prev.0 != trigger.0, prev.1 != trigger.1)
+        });
         if prev_trigger.is_some() && prev_trigger.as_ref() != Some(&trigger) {
             counters.trig_changes += 1;
             match (epoch_changed, sig_changed) {
@@ -592,7 +593,9 @@ fn collect_target_candidates(
     let mut runs_by_level: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
     let mut arrived = 0usize;
     for key in pending {
-        let Some(event) = targets.get(key) else { continue };
+        let Some(event) = targets.get(key) else {
+            continue;
+        };
         if event.turn_source <= as_of {
             arrived += 1;
             runs_by_level

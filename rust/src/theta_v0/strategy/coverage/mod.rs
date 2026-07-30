@@ -46,21 +46,21 @@
 //! immutable 风格：所有构造新对象，不原地修改（活动集递归返回新集合，不 mutate 旧集合）。
 
 use super::super::classifier::descend::RMove;
-use super::super::classifier::recursive_tower::{ElementId, LeveledMove};
 #[cfg(test)]
 use super::super::classifier::recursive_tower::{compose_level, compose_level_resume};
-use std::rc::Rc;
+use super::super::classifier::recursive_tower::{ElementId, LeveledMove};
 use super::super::classifier::Classification;
-use super::super::config::{RiskConfig, ThetaDirPreset, VoiceConfig};
-use super::super::types::{Direction, Order, StrictAction};
 use super::super::closed_loop::state::RiskMode;
 use super::super::closed_loop::transition::stage_progression_eta_corrected;
+use super::super::config::{RiskConfig, ThetaDirPreset, VoiceConfig};
+use super::super::types::{Direction, Order, StrictAction};
 use super::account;
 use super::intent::{lex_argmin, lex_argmin_top_k, JThetaKey, LexCandidate};
 use super::interp::{self, ActiveLeg, Buckets, Candidate};
 use super::ledger::{RiskPolicy, TStage, TwEvent, TwState};
 use super::protocol::{ProtocolEvent, ProtocolEventSet};
 use super::voice::{depth_weight, VoiceSide};
+use std::rc::Rc;
 
 /// DA-Q2 订单轨决策类型（保持既有 `Order` 逐字段语义）。
 pub type OrderDecision = Order;
@@ -76,51 +76,69 @@ pub type PiThetaDecision = (OrderDecision, ProtocolEvent);
 // 计数纯旁路，不改任何 work/raw 控制流 ⟹ 生产 bit-exact 不变。
 
 mod ancok;
-mod element;
-mod role;
-mod leg;
-mod held;
-mod step;
-mod sizing;
 mod compose;
+mod element;
+mod held;
+mod leg;
+mod role;
+mod sizing;
+mod step;
 #[cfg(test)]
 mod test_support;
 
-pub use ancok::{AncokProbe, active_set_step, ancestors, ancok_probe_reset, ancok_probe_snapshot};
-pub use sizing::{CapBindingProbe, cap_binding_probe_reset, cap_binding_probe_snapshot};
-pub use sizing::{
-    CapBindingAttributionEvent, cap_binding_attribution_reset, cap_binding_attribution_snapshot,
-};
+pub use ancok::{active_set_step, ancestors, ancok_probe_reset, ancok_probe_snapshot, AncokProbe};
 use ancok::{ancestors_by_id_lookup, ancok_probe_bump};
+pub use sizing::{
+    cap_binding_attribution_reset, cap_binding_attribution_snapshot, CapBindingAttributionEvent,
+};
+pub use sizing::{cap_binding_probe_reset, cap_binding_probe_snapshot, CapBindingProbe};
 
-pub use element::{CoverageElement, attach_bsp_carrier_indexed, attach_bsp_parent_carrier_indexed, attach_bsp_to_tree, attach_bsp_to_tree_indexed, build_tree_endpoint_index, dual_view_consistency, ending_set, extract_carrier_forest, extract_elements, from_classification_levels, starting_set};
-pub(crate) use element::{ElementView, build_tree_id_index};
+pub use element::{
+    attach_bsp_carrier_indexed, attach_bsp_parent_carrier_indexed, attach_bsp_to_tree,
+    attach_bsp_to_tree_indexed, build_tree_endpoint_index, dual_view_consistency, ending_set,
+    extract_carrier_forest, extract_elements, from_classification_levels, starting_set,
+    CoverageElement,
+};
+pub(crate) use element::{build_tree_id_index, ElementView};
 
-pub use role::{Dir, GradeRel, Horizontal, OperationRole, Vertical, build_prev_sibling_index, grade_relation, horizontal_relation, operation_role, vertical_relation};
 pub(crate) use role::operation_role_indexed_split;
+pub use role::{
+    build_prev_sibling_index, grade_relation, horizontal_relation, operation_role,
+    vertical_relation, Dir, GradeRel, Horizontal, OperationRole, Vertical,
+};
 use role::{dir_sign, operation_role_two_segment};
 
-pub use leg::{LegTarget, SepLeg, dir_weight, gross_target_units, leg_target, net_target_units, overlay_net_delta, w_grade};
-use leg::{apply_gross_cap, strategy_target_legs};
 #[cfg(test)]
 use leg::element_depth;
+use leg::{apply_gross_cap, strategy_target_legs};
+pub use leg::{
+    dir_weight, gross_target_units, leg_target, net_target_units, overlay_net_delta, w_grade,
+    LegTarget, SepLeg,
+};
 
-use held::{HeldLegMatch, close_indices, element_as_leg, held_leg_tree_index_indexed, held_stale_reregister_idx, resolve_pending_parent_fixups, restore_ancestor_chain_from_registry};
+use held::{
+    close_indices, element_as_leg, held_leg_tree_index_indexed, held_stale_reregister_idx,
+    resolve_pending_parent_fixups, restore_ancestor_chain_from_registry, HeldLegMatch,
+};
 
 pub use step::coverage_step_classification;
 #[cfg(test)]
-pub(crate) use step::coverage_step_prebuilt;
+use step::coverage_step_from_buckets;
 use step::coverage_step_from_buckets_sep;
 #[cfg(test)]
-use step::coverage_step_from_buckets;
+pub(crate) use step::coverage_step_prebuilt;
 
-pub use sizing::{KThetaRiskGate, PiThetaWeights, pi_theta_position, pi_theta_step, schedule_order};
 use sizing::feasible_lex_candidates;
 #[cfg(test)]
 use sizing::pi_theta_step_prebuilt;
+pub use sizing::{
+    pi_theta_position, pi_theta_step, schedule_order, KThetaRiskGate, PiThetaWeights,
+};
 
-pub use compose::{t1_target_residual_probe_bump, t1_target_residual_probe_count, t1_target_zero_probe_bump, t1_target_zero_probe_count, t1_target_zero_probe_reset};
 pub(crate) use compose::{
-    StepTrace, TwStepCtx, VoiceVerdict, pi_theta_step_traced,
-    pi_theta_step_traced_with_risk_seeds,
+    pi_theta_step_traced, pi_theta_step_traced_with_risk_seeds, StepTrace, TwStepCtx, VoiceVerdict,
+};
+pub use compose::{
+    t1_target_residual_probe_bump, t1_target_residual_probe_count, t1_target_zero_probe_bump,
+    t1_target_zero_probe_count, t1_target_zero_probe_reset,
 };

@@ -60,7 +60,9 @@ pub struct TrendExhaustion {
 
 impl TrendExhaustion {
     pub fn new() -> Self {
-        TrendExhaustion { states: [LadderState::default(); MAX_LADDER] }
+        TrendExhaustion {
+            states: [LadderState::default(); MAX_LADDER],
+        }
     }
 
     /// 每 bar 观测（市场性质，与持仓状态无关——runner 在 FLAT/ARMED/LONG
@@ -140,7 +142,9 @@ impl TrendExhaustion {
     /// 内无盘整背驰（Consolidation×Up）。ladder 越界（无父级别可观测）或
     /// 段对不可定义 ⇒ false——判据是正面的趋势延续证据，证据缺失不拒开。
     pub fn up_unexhausted(&self, ladder: usize) -> bool {
-        let Some(st) = self.states.get(ladder) else { return false };
+        let Some(st) = self.states.get(ladder) else {
+            return false;
+        };
         !st.consol_up_seen
             && matches!(
                 (st.prev_up_high, st.cur_up_high),
@@ -207,7 +211,7 @@ mod tests {
         te.observe(&dir, &devs, 9.0);
         te.observe(&dir, &devs, 10.0);
         assert!(!te.up_unexhausted(3)); // 段对不足
-        // 回调 Down 段
+                                        // 回调 Down 段
         dir[3] = Some(Direction::Down);
         te.observe(&dir, &devs, 9.5);
         // Up 段2：创新高 11.0，无盘整背驰 → 上涨趋势未完

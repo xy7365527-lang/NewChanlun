@@ -151,7 +151,9 @@ pub fn resolve_second_kind(strokes: &[Stroke], apex: &Interval) -> SecondKindRes
         return SecondKindResult::Pending;
     };
     if second_kind_confirmed(strokes, apex_offset) {
-        SecondKindResult::Confirmed { end_offset: apex_offset }
+        SecondKindResult::Confirmed {
+            end_offset: apex_offset,
+        }
     } else {
         SecondKindResult::Pending
     }
@@ -173,7 +175,13 @@ mod tests {
     use super::*;
 
     fn stroke(dir: Direction, si: usize, ei: usize, sp: Tick, ep: Tick) -> Stroke {
-        Stroke { direction: dir, start_index: si, end_index: ei, start_price: sp, end_price: ep }
+        Stroke {
+            direction: dir,
+            start_index: si,
+            end_index: ei,
+            start_price: sp,
+            end_price: ep,
+        }
     }
 
     #[test]
@@ -211,7 +219,10 @@ mod tests {
 
     #[test]
     fn has_any_fractal_fewer_than_three_none() {
-        assert!(!has_any_feature_fractal(&[Interval { lo: 1, hi: 5 }, Interval { lo: 2, hi: 6 }]));
+        assert!(!has_any_feature_fractal(&[
+            Interval { lo: 1, hi: 5 },
+            Interval { lo: 2, hi: 6 }
+        ]));
     }
 
     /// golden：向上线段 SecondKind，第二特征序列（向上笔）出现分型 → 确认。
@@ -222,13 +233,13 @@ mod tests {
         // 第二特征序列三元素须**互不包含**（否则包含处理坍缩）+ 中间 hi 最高成顶分型。
         // 取 Up 笔区间 [5,12] / [10,20] / [8,16]：两两互不包含，中间 hi=20 最高 → 顶分型。
         let strokes = vec![
-            stroke(Direction::Up, 0, 4, 0, 25),    // seg_dir=Up
-            stroke(Direction::Down, 4, 8, 25, 5),  // apex 反向笔（offset 1）
-            stroke(Direction::Up, 8, 12, 5, 12),   // 第二特征序列元素1 [5,12]
+            stroke(Direction::Up, 0, 4, 0, 25),   // seg_dir=Up
+            stroke(Direction::Down, 4, 8, 25, 5), // apex 反向笔（offset 1）
+            stroke(Direction::Up, 8, 12, 5, 12),  // 第二特征序列元素1 [5,12]
             stroke(Direction::Down, 12, 16, 12, 4),
             stroke(Direction::Up, 16, 20, 10, 20), // 元素2 [10,20] hi=20 最高
             stroke(Direction::Down, 20, 24, 20, 6),
-            stroke(Direction::Up, 24, 28, 8, 16),  // 元素3 [8,16] → 顶分型（中间最高）
+            stroke(Direction::Up, 24, 28, 8, 16), // 元素3 [8,16] → 顶分型（中间最高）
         ];
         // apex_offset=1。第二特征序列 = offset>1 的向上笔 [5,12]/[10,20]/[8,16]（互不含）→ 顶分型。
         assert!(second_kind_confirmed(&strokes, 1));
@@ -241,9 +252,9 @@ mod tests {
         let strokes = vec![
             stroke(Direction::Up, 0, 4, 0, 20),
             stroke(Direction::Down, 4, 8, 20, 5),
-            stroke(Direction::Up, 8, 12, 5, 8),    // [5,8]
+            stroke(Direction::Up, 8, 12, 5, 8), // [5,8]
             stroke(Direction::Down, 12, 16, 8, 4),
-            stroke(Direction::Up, 16, 20, 9, 12),  // [9,12]
+            stroke(Direction::Up, 16, 20, 9, 12), // [9,12]
             stroke(Direction::Down, 20, 24, 12, 6),
             stroke(Direction::Up, 24, 28, 13, 16), // [13,16] 单调递增（互不含）→ 无分型
         ];
@@ -264,7 +275,10 @@ mod tests {
             stroke(Direction::Up, 8, 12, 5, 25),
         ];
         let apex = Interval { lo: 100, hi: 200 }; // 不重叠任何笔
-        assert_eq!(resolve_second_kind(&strokes, &apex), SecondKindResult::Pending);
+        assert_eq!(
+            resolve_second_kind(&strokes, &apex),
+            SecondKindResult::Pending
+        );
     }
 
     /// property：second_kind_confirmed 严格——无分型时恒不确认（Lead 硬约束：不产假线段）。

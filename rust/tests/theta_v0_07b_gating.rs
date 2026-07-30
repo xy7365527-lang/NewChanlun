@@ -141,7 +141,11 @@ fn profile_07b_cl() {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(1_000_000);
-    let bars = load_bars("analysis/data_cache/cl_1m_databento_10y.json", config.tick.tick_size, n);
+    let bars = load_bars(
+        "analysis/data_cache/cl_1m_databento_10y.json",
+        config.tick.tick_size,
+        n,
+    );
     let n = bars.len();
     if std::env::var("THETA_PROFILE_STAGES").is_err() {
         eprintln!("★未设 THETA_PROFILE_STAGES=1 ⟹ stage dump 为空。");

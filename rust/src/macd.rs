@@ -325,8 +325,14 @@ pub fn macd_area_for_range(hist: &[f64], raw_i0: i64, raw_i1: i64) -> MacdArea {
     }
     let slice = &hist[i0 as usize..=i1 as usize];
     // clip(lower=0): 负数→0.0；clip(upper=0): 正数→0.0。
-    let pos: Vec<f64> = slice.iter().map(|&v| if v < 0.0 { 0.0 } else { v }).collect();
-    let neg: Vec<f64> = slice.iter().map(|&v| if v > 0.0 { 0.0 } else { v }).collect();
+    let pos: Vec<f64> = slice
+        .iter()
+        .map(|&v| if v < 0.0 { 0.0 } else { v })
+        .collect();
+    let neg: Vec<f64> = slice
+        .iter()
+        .map(|&v| if v > 0.0 { 0.0 } else { v })
+        .collect();
 
     MacdArea {
         area_total: round6(pairwise_sum(slice)),
@@ -341,12 +347,7 @@ pub fn macd_area_for_range(hist: &[f64], raw_i0: i64, raw_i1: i64) -> MacdArea {
 /// trend_direction "up" → max(0, max(dif))；"down" → abs(min(0, min(dif)))。
 /// 非法范围返回 0.0。max/min 顺序约简（与 Python `Series.max()/min()` = numpy 一致，
 /// numpy max/min 是逐元素比较，无重排，bit-exact）。
-pub fn dif_peak_for_range(
-    macd: &[f64],
-    raw_i0: i64,
-    raw_i1: i64,
-    up: bool,
-) -> f64 {
+pub fn dif_peak_for_range(macd: &[f64], raw_i0: i64, raw_i1: i64, up: bool) -> f64 {
     let len = macd.len() as i64;
     if raw_i0 > raw_i1 || raw_i0 < 0 || raw_i1 >= len {
         return 0.0;
@@ -365,12 +366,7 @@ pub fn dif_peak_for_range(
 }
 
 /// HIST（柱子）区间峰值 —— 逐位等价于 Python `histogram_peak_for_range`。
-pub fn histogram_peak_for_range(
-    hist: &[f64],
-    raw_i0: i64,
-    raw_i1: i64,
-    up: bool,
-) -> f64 {
+pub fn histogram_peak_for_range(hist: &[f64], raw_i0: i64, raw_i1: i64, up: bool) -> f64 {
     let len = hist.len() as i64;
     if raw_i0 > raw_i1 || raw_i0 < 0 || raw_i1 >= len {
         return 0.0;

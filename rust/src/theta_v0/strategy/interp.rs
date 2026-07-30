@@ -44,17 +44,17 @@
 //! 经验市场数据，无择时盈利声明。`≺_Θ` 全序 + fold 确定性使 ∃! 成立是 L0 同义反复（定义内蕴）。
 //! 18 类角色经验可达性（哪些组合真实出现）是 **L2 未覆盖**（spec 疑点5）——**不**声称已验证。
 
-use super::super::classifier::recursive_tower::{ElementId, LeveledMove};
-use std::rc::Rc;
-use super::super::classifier::Classification;
 use super::super::classifier::bsp::BspPoint;
 use super::super::classifier::divergence::ForceProxies;
+use super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+use super::super::classifier::Classification;
 use super::super::types::{BspBits, Side};
 use super::coverage::{self, CoverageElement, Dir, Horizontal, OperationRole, Vertical};
 use super::exec::reverse_signal;
 use super::nest::{self, Interval, NestLevel};
 use super::voice::{root_sel, RootCandidates, VoiceSide};
 use std::cmp::{Ordering, Reverse};
+use std::rc::Rc;
 
 /// Γ(x) 的单个候选 g（环3：**级别 × 买卖点 × 区间套确认**的元组，spec §12 line 597-605）。
 ///
@@ -442,7 +442,15 @@ pub fn assemble_gamma(classification: &Classification) -> Vec<Candidate> {
     // 平行 CoverageElement（独立根 parent=None=边界胚元 ∂，去根化 ⟹ V=Ambient），供 operation_role
     // 取 18 类角色（只读复用 coverage）。eps=候选方向（Flat 占位 Long——其角色不被执行，归 𝒦）。
     let mut elements: Vec<CoverageElement> = Vec::new();
-    let mut raw: Vec<(u32, usize, BspBits, VoiceSide, u8, bool, Option<ForceProxies>)> = Vec::new();
+    let mut raw: Vec<(
+        u32,
+        usize,
+        BspBits,
+        VoiceSide,
+        u8,
+        bool,
+        Option<ForceProxies>,
+    )> = Vec::new();
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
         for point in level.bsp.iter() {
@@ -457,27 +465,40 @@ pub fn assemble_gamma(classification: &Classification) -> Vec<Candidate> {
                     d => d,
                 },
                 level: lvl,
-                parent: None,        // 独立根（§5 多独立根；去根化父=∂）
-                attached_dir: None,  // σ_{p(g)}=0 ⟹ V=Ambient
-                id: ElementId { level: lvl, ordinal: elements.len() as u64 },
+                parent: None,       // 独立根（§5 多独立根；去根化父=∂）
+                attached_dir: None, // σ_{p(g)}=0 ⟹ V=Ambient
+                id: ElementId {
+                    level: lvl,
+                    ordinal: elements.len() as u64,
+                },
                 parent_id: None,
             });
-            raw.push((lvl, point.source_index, point.bits, dir, cls, nest_ok, point.force));
+            raw.push((
+                lvl,
+                point.source_index,
+                point.bits,
+                dir,
+                cls,
+                nest_ok,
+                point.force,
+            ));
         }
     }
     raw.iter()
         .enumerate()
-        .map(|(i, &(level, source_index, bits, dir, bsp_class, nest_confirmed, force))| Candidate {
-            level,
-            source_index,
-            bits,
-            dir,
-            bsp_class,
-            role: coverage::operation_role(&elements, i),
-            nest_confirmed,
-            gamma_index: i,
-            force,
-        })
+        .map(
+            |(i, &(level, source_index, bits, dir, bsp_class, nest_confirmed, force))| Candidate {
+                level,
+                source_index,
+                bits,
+                dir,
+                bsp_class,
+                role: coverage::operation_role(&elements, i),
+                nest_confirmed,
+                gamma_index: i,
+                force,
+            },
+        )
         .collect()
 }
 
@@ -545,7 +566,12 @@ fn min_class(bits: &BspBits, dir: VoiceSide) -> u8 {
 /// **出场复用**（nest-exit-gate-impl-20260719，唯一签名改动 `fn` → `pub(crate)`）：
 /// 出场门（v1/dual，已随 #499 退役）曾经此谓词对反向候选读同一证书基例——进出场
 /// **同一台机器**（`nest::chi_bool`）、同一谓词（N^δ base case Conf^δ_e）、方向镜像。
-pub(crate) fn nest_confirm(level: u32, source_index: usize, bits: &BspBits, dir: VoiceSide) -> bool {
+pub(crate) fn nest_confirm(
+    level: u32,
+    source_index: usize,
+    bits: &BspBits,
+    dir: VoiceSide,
+) -> bool {
     let confirm_ok = match dir {
         VoiceSide::Long => bits.conf_plus(),
         VoiceSide::Short => bits.conf_minus(),
@@ -597,8 +623,7 @@ pub fn coverage_elements_with_tower(
 ) -> (Vec<CoverageElement>, usize) {
     // 委托 parts 版后合并成连续 Vec（tree ++ candidates）——非热路径（诊断/l3_fullwindow），
     // materialize 一次可接受。bit-exact == 旧版（同 extract_elements tree + 同候选序）。
-    let (tree, candidates, _gamma) =
-        coverage_elements_and_gamma_with_tower(classification, tower);
+    let (tree, candidates, _gamma) = coverage_elements_and_gamma_with_tower(classification, tower);
     let candidate_start = tree.len();
     let mut elements = (*tree).clone();
     elements.extend(candidates);
@@ -623,8 +648,7 @@ pub fn assemble_gamma_with_tower(
     tower: &[Rc<Vec<LeveledMove>>],
 ) -> Vec<Candidate> {
     // 委托 parts 版，丢弃 tree/candidates 仅返 gamma。bit-exact == 旧版（同候选序 + role）。
-    let (_tree, _candidates, gamma) =
-        coverage_elements_and_gamma_with_tower(classification, tower);
+    let (_tree, _candidates, gamma) = coverage_elements_and_gamma_with_tower(classification, tower);
     gamma
 }
 
@@ -639,7 +663,11 @@ pub fn assemble_gamma_with_tower(
 pub fn coverage_elements_and_gamma_with_tower(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
-) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>, Vec<Candidate>) {
+) -> (
+    Rc<Vec<CoverageElement>>,
+    Vec<CoverageElement>,
+    Vec<Candidate>,
+) {
     coverage_elements_and_gamma_with_tower_cached(classification, tower, &mut None)
 }
 
@@ -848,7 +876,11 @@ fn tree_segment_cached_gen(
             if hit {
                 debug_assert_eq!(c.tree.as_ref(), &coverage::extract_carrier_forest(tower),
                     "TreeCache 假命中——§16 不变量破裂或 forest_epoch 漏 bump（枚举不完备，on2w2 §3.1）");
-                (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx))
+                (
+                    Rc::clone(&c.tree),
+                    Rc::clone(&c.endpoint_idx),
+                    Rc::clone(&c.sibling_idx),
+                )
             } else {
                 let t = Rc::new(coverage::extract_carrier_forest(tower));
                 // A12 双向映射一致性（debug 构建，仅重建分支——miss 稀少不进热路径）：
@@ -867,7 +899,11 @@ fn tree_segment_cached_gen(
                 c.key = TreeKey::of_forest(tower);
                 c.key_epoch = forest_epoch;
                 c.valid = true;
-                (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx))
+                (
+                    Rc::clone(&c.tree),
+                    Rc::clone(&c.endpoint_idx),
+                    Rc::clone(&c.sibling_idx),
+                )
             }
         }
         None => {
@@ -903,7 +939,10 @@ fn build_candidate_element(
         level: lvl,
         parent,
         attached_dir,
-        id: carrier_id.unwrap_or(ElementId { level: lvl, ordinal: ci as u64 }),
+        id: carrier_id.unwrap_or(ElementId {
+            level: lvl,
+            ordinal: ci as u64,
+        }),
         parent_id: parent.and_then(|pidx| tree.get(pidx).map(|e: &CoverageElement| e.id)),
     }
 }
@@ -1096,7 +1135,13 @@ pub fn coverage_elements_with_tower_cached_gen(
         }
         for (off, point) in level.bsp[cached..].iter().enumerate() {
             let ci = level_offset + cached + off;
-            seg.push(build_candidate_element(&tree, &tree_endpoint_idx, lvl, point, ci));
+            seg.push(build_candidate_element(
+                &tree,
+                &tree_endpoint_idx,
+                lvl,
+                point,
+                ci,
+            ));
             fp.push(bsp_fingerprint(point));
         }
         cand_cache.base_ci[level_idx] = level_offset;
@@ -1124,7 +1169,11 @@ pub fn coverage_elements_and_gamma_with_tower_cached(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
     cache: &mut Option<&mut TreeCache>,
-) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>, Vec<Candidate>) {
+) -> (
+    Rc<Vec<CoverageElement>>,
+    Vec<CoverageElement>,
+    Vec<Candidate>,
+) {
     // 向后兼容入口（无 generation / 无 forest_epoch——合成闭包/全量路径走 of_forest 指纹比较，
     // O(tree)/bar；这些路径不在 per-bar 热循环，无 O(n²) 暴露，§5.4 fallback）。
     coverage_elements_and_gamma_with_tower_cached_gen(classification, tower, cache, None, None)
@@ -1146,14 +1195,18 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
     cache: &mut Option<&mut TreeCache>,
     tower_gen: Option<u64>,
     forest_epoch: Option<u64>,
-) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>, Vec<Candidate>) {
+) -> (
+    Rc<Vec<CoverageElement>>,
+    Vec<CoverageElement>,
+    Vec<Candidate>,
+) {
     let _ = tower_gen; // A12：gen 快路对 K_i 不 sound 已删（见函数文档）；参数保留签名兼容。
-    // ★热点②③ O(n²) 消除：树前缀 + 两个派生索引 `Rc` 共享（命中返 `Rc::clone` O(1)，旧每 bar
-    // `extract_elements` + `build_*_index` 全是 O(tree)/bar=O(n²)）。candidate 段不进树/索引 clone，
-    // 单独 `candidates` Vec + candidate-only 兄弟 overlay 承载（消费者 ElementView + split 查询双段组装）。
-    // ★热点②③ O(n²) 消除：森林前缀 + 派生索引 Rc 共享。抽出 tree_segment_cached_gen 单一来源
-    // （PART1 gamma-free 路径共享同逻辑，no-patch 不复制缓存）。A12：宇宙=K_i（tower_gen 只供
-    // candidate 段 CandidateCache 消费，K_i 段判据=of_forest）。
+                       // ★热点②③ O(n²) 消除：树前缀 + 两个派生索引 `Rc` 共享（命中返 `Rc::clone` O(1)，旧每 bar
+                       // `extract_elements` + `build_*_index` 全是 O(tree)/bar=O(n²)）。candidate 段不进树/索引 clone，
+                       // 单独 `candidates` Vec + candidate-only 兄弟 overlay 承载（消费者 ElementView + split 查询双段组装）。
+                       // ★热点②③ O(n²) 消除：森林前缀 + 派生索引 Rc 共享。抽出 tree_segment_cached_gen 单一来源
+                       // （PART1 gamma-free 路径共享同逻辑，no-patch 不复制缓存）。A12：宇宙=K_i（tower_gen 只供
+                       // candidate 段 CandidateCache 消费，K_i 段判据=of_forest）。
     let (tree, tree_endpoint_idx, tree_sibling_idx) =
         tree_segment_cached_gen(classification, tower, cache, forest_epoch);
     let candidate_start = tree.len();
@@ -1195,7 +1248,10 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
                 dir,
                 bsp_class: min_class(&point.bits, dir),
                 role: coverage::operation_role_indexed_split(
-                    &view, ci, &tree_sibling_idx, &cand_sibling_idx,
+                    &view,
+                    ci,
+                    &tree_sibling_idx,
+                    &cand_sibling_idx,
                 ),
                 nest_confirmed: nest_confirm(lvl, point.source_index, &point.bits, dir),
                 gamma_index: gamma.len(),
@@ -1444,11 +1500,16 @@ fn fold_theta(
     //    空转、working 全 false ⟹ 下方循环即纯候选驱动本体。
     let mut ext_trigger_keys: std::collections::HashSet<usize> = std::collections::HashSet::new();
     for &(i, trig) in external_closes {
-        let (leg, was_closed) = working
-            .get_mut(i)
-            .map(|(l, c)| (*l, c))
-            .unwrap_or_else(|| panic!("external 关闭索引越界：active_idx={i} ≥ |active|={}", active.len()));
-        debug_assert!(!*was_closed, "external 关闭重复喂入同一腿（active_idx={i}）");
+        let (leg, was_closed) = working.get_mut(i).map(|(l, c)| (*l, c)).unwrap_or_else(|| {
+            panic!(
+                "external 关闭索引越界：active_idx={i} ≥ |active|={}",
+                active.len()
+            )
+        });
+        debug_assert!(
+            !*was_closed,
+            "external 关闭重复喂入同一腿（active_idx={i}）"
+        );
         *was_closed = true;
         buckets.close.push(leg);
         close_triggers.push(trig);
@@ -1531,11 +1592,10 @@ fn fold_theta(
         // 规则3/4：开启 vs 记录（slot = (level, σ_g)）。
         // ponytail: H8 slot_in_at 用 level 索引查同 level 腿里是否有未关闭且 dir==c.dir 者
         // == 旧 working.iter().any(|(leg,closed)| !closed && leg.level==c.level && leg.dir==c.dir)。
-        let slot_in_at = level_idx
-            .get(&c.level)
-            .is_some_and(|idxs| {
-                idxs.iter().any(|&i| !working[i].1 && working[i].0.dir == c.dir)
-            });
+        let slot_in_at = level_idx.get(&c.level).is_some_and(|idxs| {
+            idxs.iter()
+                .any(|&i| !working[i].1 && working[i].0.dir == c.dir)
+        });
         let slot_this_fold = opened.iter().any(|&(lv, d)| lv == c.level && d == c.dir);
         if !slot_in_at && !slot_this_fold {
             buckets.open.push(*c); // 规则3：开启
@@ -1568,22 +1628,39 @@ fn fold_theta(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::super::classifier::bsp::BspPoint;
     use super::super::super::classifier::LevelState;
     use super::super::super::types::Center;
+    use super::*;
 
     fn buy_point(source_index: usize, class: u8) -> BspPoint {
         let bits = match class {
-            1 => BspBits { buy1: true, ..Default::default() },
-            2 => BspBits { buy2: true, ..Default::default() },
-            _ => BspBits { buy3: true, ..Default::default() },
+            1 => BspBits {
+                buy1: true,
+                ..Default::default()
+            },
+            2 => BspBits {
+                buy2: true,
+                ..Default::default()
+            },
+            _ => BspBits {
+                buy3: true,
+                ..Default::default()
+            },
         };
-        BspPoint { source_index,
+        BspPoint {
+            source_index,
             bits,
             pivot_low: 90,
             pivot_high: 0,
-            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 })),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center {
+                zd: 100,
+                zg: 200,
+                dd: 90,
+                gg: 210,
+                start_index: 0,
+                end_index: 9,
+            })),
             struct_break_dir: None,
             force: None,
         }
@@ -1591,15 +1668,32 @@ mod tests {
 
     fn sell_point(source_index: usize, class: u8) -> BspPoint {
         let bits = match class {
-            1 => BspBits { sell1: true, ..Default::default() },
-            2 => BspBits { sell2: true, ..Default::default() },
-            _ => BspBits { sell3: true, ..Default::default() },
+            1 => BspBits {
+                sell1: true,
+                ..Default::default()
+            },
+            2 => BspBits {
+                sell2: true,
+                ..Default::default()
+            },
+            _ => BspBits {
+                sell3: true,
+                ..Default::default()
+            },
         };
-        BspPoint { source_index,
+        BspPoint {
+            source_index,
             bits,
             pivot_low: 0,
             pivot_high: 210,
-            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 })),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center {
+                zd: 100,
+                zg: 200,
+                dd: 90,
+                gg: 210,
+                start_index: 0,
+                end_index: 9,
+            })),
             struct_break_dir: None,
             force: None,
         }
@@ -1609,14 +1703,25 @@ mod tests {
         Classification {
             levels: levels
                 .into_iter()
-                .map(|bsp| LevelState { bsp: Rc::new(bsp), ..Default::default() })
+                .map(|bsp| LevelState {
+                    bsp: Rc::new(bsp),
+                    ..Default::default()
+                })
                 .collect(),
         }
     }
 
     /// BspPoint 构造：给定 bits + struct_break_dir（P2-R2 守卫测试用）。
     fn pt(bits: BspBits, sbd: Option<Side>) -> BspPoint {
-        BspPoint { source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: None, struct_break_dir: sbd, force: None }
+        BspPoint {
+            source_index: 0,
+            bits,
+            pivot_low: 0,
+            pivot_high: 0,
+            center: None,
+            struct_break_dir: sbd,
+            force: None,
+        }
     }
 
     /// ★P2-R2 护栏2（codex-review-20260701-2251 [guard]）：struct_break_dir 恢复方向**只改
@@ -1626,8 +1731,16 @@ mod tests {
     fn struct_break_dir_recovers_direction_without_touching_class_index() {
         // 零 bit + struct_break_dir=Some(Long) ⟹ candidate_dir 恢复 Long，class_index 仍 0（六 bit 全零）。
         let zero_long = pt(BspBits::default(), Some(Side::Long));
-        assert_eq!(candidate_dir(&zero_long), VoiceSide::Long, "零 bit 破中枢候选恢复 Long 方向");
-        assert_eq!(zero_long.bits.class_index(), 0, "六 bit 全零 ⟹ class_index=0（struct_break_dir 不进桶键）");
+        assert_eq!(
+            candidate_dir(&zero_long),
+            VoiceSide::Long,
+            "零 bit 破中枢候选恢复 Long 方向"
+        );
+        assert_eq!(
+            zero_long.bits.class_index(),
+            0,
+            "六 bit 全零 ⟹ class_index=0（struct_break_dir 不进桶键）"
+        );
 
         // 零 bit + Some(Short) ⟹ Short，class_index 仍 0。
         let zero_short = pt(BspBits::default(), Some(Side::Short));
@@ -1636,7 +1749,11 @@ mod tests {
 
         // 零 bit + None（非破中枢候选）⟹ Flat（无恢复源），class_index 0。
         let zero_none = pt(BspBits::default(), None);
-        assert_eq!(candidate_dir(&zero_none), VoiceSide::Flat, "无 struct_break_dir ⟹ 保持 Flat");
+        assert_eq!(
+            candidate_dir(&zero_none),
+            VoiceSide::Flat,
+            "无 struct_break_dir ⟹ 保持 Flat"
+        );
         assert_eq!(zero_none.bits.class_index(), 0);
     }
 
@@ -1644,7 +1761,10 @@ mod tests {
     /// **不覆盖**其方向。且 class_index 由六 bit 唯一决定，与 struct_break_dir 无关（同 bits 下不变）。
     #[test]
     fn six_bit_direction_not_overridden_by_struct_break_dir() {
-        let buy1_bits = BspBits { buy1: true, ..Default::default() };
+        let buy1_bits = BspBits {
+            buy1: true,
+            ..Default::default()
+        };
         // buy1 候选（Long）+ 矛盾的 struct_break_dir=Some(Short)：candidate_dir 仍 Long（六 bit 优先）。
         let buy1_conflict_sbd = pt(buy1_bits, Some(Side::Short));
         assert_eq!(candidate_dir(&buy1_conflict_sbd), VoiceSide::Long,
@@ -1652,8 +1772,11 @@ mod tests {
         // class_index 只由六 bit：buy1=true ⟹ 1，与 struct_break_dir 取值无关（None/Some 同值）。
         assert_eq!(pt(buy1_bits, None).bits.class_index(), 1);
         assert_eq!(pt(buy1_bits, Some(Side::Short)).bits.class_index(), 1);
-        assert_eq!(pt(buy1_bits, Some(Side::Long)).bits.class_index(), 1,
-            "class_index 恒 =1（buy1），struct_break_dir 三种取值下逐字节不变");
+        assert_eq!(
+            pt(buy1_bits, Some(Side::Long)).bits.class_index(),
+            1,
+            "class_index 恒 =1（buy1），struct_break_dir 三种取值下逐字节不变"
+        );
     }
 
     /// ★A6（#159）透传护栏：`BspPoint.force` → `Candidate.force` 纯透传（扁平 assemble_gamma 与
@@ -1668,13 +1791,20 @@ mod tests {
             price_speed: 3.0 * s,
             tv: (90.0 * s) as i64,
         };
-        let fp = ForceProxies { seg_a: ff(1.0), seg_c: ff(0.5) };
+        let fp = ForceProxies {
+            seg_a: ff(1.0),
+            seg_c: ff(0.5),
+        };
         let mut p1 = buy_point(3, 1);
         p1.force = Some(fp); // 一类 A/C 对候选携力度
         let p2 = buy_point(7, 2); // 二类无 A/C 对 ⟹ force=None
         let gamma = assemble_gamma(&classification(vec![vec![p1, p2]]));
         assert_eq!(gamma.len(), 2);
-        assert_eq!(gamma[0].force, Some(fp), "扁平组装：BspPoint.force 逐字段透传进 Candidate");
+        assert_eq!(
+            gamma[0].force,
+            Some(fp),
+            "扁平组装：BspPoint.force 逐字段透传进 Candidate"
+        );
         assert_eq!(gamma[1].force, None, "无力度源候选诚实 None（不兜底）");
         // 塔路径同款透传（与扁平版同产候选序；缺塔 ⟹ 空 tree 边界，透传不依赖塔）。
         let gamma_t = assemble_gamma_with_tower(&classification(vec![vec![p1, p2]]), &[]);
@@ -1686,9 +1816,7 @@ mod tests {
     #[test]
     fn third_class_entry_identity_survives_candidate_clone_and_copy_without_crosstalk() {
         use super::super::super::classifier::signal::judge_third_cert;
-        use super::super::super::types::{
-            Direction, Segment, ThirdClassEntryIdentity,
-        };
+        use super::super::super::types::{Direction, Segment, ThirdClassEntryIdentity};
 
         let signed_point = |center: Center, leave: Segment, retest: Segment| {
             judge_third_cert(&center, &leave, Some(Direction::Up), &retest)
@@ -1771,8 +1899,7 @@ mod tests {
         assert_eq!(copied_first.bits.third_class_entry, Some(first_expected));
         assert_eq!(copied_second.bits.third_class_entry, Some(second_expected));
         assert_ne!(
-            copied_first.bits.third_class_entry,
-            copied_second.bits.third_class_entry,
+            copied_first.bits.third_class_entry, copied_second.bits.third_class_entry,
             "相邻 Candidate 的归因载荷不得串位"
         );
     }
@@ -1780,14 +1907,25 @@ mod tests {
     /// ★A12 orphan 见证塔（648 裁决 D）：L2 根只收 c2a/c2b，c1（L1）整棵子树掉出 T_i=↓r_i
     /// ——c1 及其 L0 subs 是 orphan frontier。K_i（extract_carrier_forest）全含。
     fn a12_orphan_tower() -> Vec<Rc<Vec<LeveledMove>>> {
-        use super::super::super::classifier::recursive_tower::ElementId;
         use super::super::super::classifier::center::UnitRange;
+        use super::super::super::classifier::recursive_tower::ElementId;
         use super::super::super::types::Direction;
         let u = |si: usize, ei: usize, dir: Direction| UnitRange {
-            start_index: si, end_index: ei, direction: dir, lo: 0, hi: 10,
+            start_index: si,
+            end_index: ei,
+            direction: dir,
+            lo: 0,
+            hi: 10,
         };
         let e = |level: u32, ordinal: u64| ElementId { level, ordinal };
-        let c = |s: usize, x: usize| Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: s, end_index: x };
+        let c = |s: usize, x: usize| Center {
+            zd: 5,
+            zg: 10,
+            dd: 0,
+            gg: 15,
+            start_index: s,
+            end_index: x,
+        };
         let s0 = LeveledMove::from_unit(&u(0, 4, Direction::Up), e(0, 0));
         let s1 = LeveledMove::from_unit(&u(4, 8, Direction::Down), e(0, 1));
         let s2 = LeveledMove::from_unit(&u(8, 12, Direction::Up), e(0, 2));
@@ -1801,7 +1939,11 @@ mod tests {
         let v2 = LeveledMove::from_unit(&u(32, 36, Direction::Up), e(0, 8));
         let c2b = LeveledMove::compose(&[v0, v1, v2], c(24, 36), 1, e(1, 2));
         let l2 = LeveledMove::compose(&[c2a.clone(), c2b.clone()], c(12, 36), 2, e(2, 0));
-        vec![Rc::new(Vec::new()), Rc::new(vec![c1, c2a, c2b]), Rc::new(vec![l2])]
+        vec![
+            Rc::new(Vec::new()),
+            Rc::new(vec![c1, c2a, c2b]),
+            Rc::new(vec![l2]),
+        ]
     }
 
     /// ★A12（648 裁决 D / P1-3 / 676）生产组装线子声部激活见证：orphan frontier 上的反向 bsp
@@ -1813,7 +1955,8 @@ mod tests {
         use super::super::coverage::Vertical;
         let tower = a12_orphan_tower();
         // L0 卖点 @ s1.ρ=8（orphan c1 的中间子；δ_g=Short = −σ_{p(g)}，父 c1=Long）。
-        let gamma = assemble_gamma_with_tower(&classification(vec![vec![sell_point(8, 3)]]), &tower);
+        let gamma =
+            assemble_gamma_with_tower(&classification(vec![vec![sell_point(8, 3)]]), &tower);
         assert_eq!(gamma.len(), 1);
         assert_eq!(
             gamma[0].role.v,
@@ -1821,8 +1964,13 @@ mod tests {
             "host^op(K_i) 命中 s1 真父 c1(Long)，Short=−σ_p ⟹ ReverseOpen（子声部对冲腿）"
         );
         // 同向（Long）bsp ⟹ FollowParent（顺父）——V 轴两个非 Ambient 值都可达。
-        let gamma_b = assemble_gamma_with_tower(&classification(vec![vec![buy_point(8, 3)]]), &tower);
-        assert_eq!(gamma_b[0].role.v, Vertical::FollowParent, "同向 ⟹ FollowParent");
+        let gamma_b =
+            assemble_gamma_with_tower(&classification(vec![vec![buy_point(8, 3)]]), &tower);
+        assert_eq!(
+            gamma_b[0].role.v,
+            Vertical::FollowParent,
+            "同向 ⟹ FollowParent"
+        );
     }
 
     /// ★A12 缓存键 soundness：旧 [`TreeKey::of`] 只指纹最高非空级——对「最高级不变、低级变」
@@ -1830,31 +1978,67 @@ mod tests {
     /// gen 也不 bump——bar 3020）。[`TreeKey::of_forest`] 全级别指纹看见该变异。
     #[test]
     fn a12_of_forest_sees_low_level_change_of_is_blind() {
-        use super::super::super::classifier::recursive_tower::ElementId;
         use super::super::super::classifier::center::UnitRange;
+        use super::super::super::classifier::recursive_tower::ElementId;
         use super::super::super::types::Direction;
         let mk = |x_end: usize| {
             let x = LeveledMove::from_unit(
-                &UnitRange { start_index: 0, end_index: x_end, direction: Direction::Up, lo: 0, hi: 10 },
-                ElementId { level: 0, ordinal: 9 },
+                &UnitRange {
+                    start_index: 0,
+                    end_index: x_end,
+                    direction: Direction::Up,
+                    lo: 0,
+                    hi: 10,
+                },
+                ElementId {
+                    level: 0,
+                    ordinal: 9,
+                },
             );
             let s0 = LeveledMove::from_unit(
-                &UnitRange { start_index: 12, end_index: 16, direction: Direction::Up, lo: 0, hi: 10 },
-                ElementId { level: 0, ordinal: 10 },
+                &UnitRange {
+                    start_index: 12,
+                    end_index: 16,
+                    direction: Direction::Up,
+                    lo: 0,
+                    hi: 10,
+                },
+                ElementId {
+                    level: 0,
+                    ordinal: 10,
+                },
             );
             let l1 = LeveledMove::compose(
                 &[s0],
-                Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 12, end_index: 16 },
+                Center {
+                    zd: 5,
+                    zg: 10,
+                    dd: 0,
+                    gg: 15,
+                    start_index: 12,
+                    end_index: 16,
+                },
                 1,
-                ElementId { level: 1, ordinal: 0 },
+                ElementId {
+                    level: 1,
+                    ordinal: 0,
+                },
             );
             // x 是 orphan L0（不被 l1 收录）：改 x 只动 L0 级，最高级 L1 逐字节不变。
             vec![Rc::new(vec![x]), Rc::new(vec![l1])]
         };
         let a = mk(4);
         let b = mk(8);
-        assert_eq!(TreeKey::of(&a), TreeKey::of(&b), "旧 of 只看最高级 ⟹ 对 L0 变异盲");
-        assert_ne!(TreeKey::of_forest(&a), TreeKey::of_forest(&b), "of_forest 全级别 ⟹ 看见");
+        assert_eq!(
+            TreeKey::of(&a),
+            TreeKey::of(&b),
+            "旧 of 只看最高级 ⟹ 对 L0 变异盲"
+        );
+        assert_ne!(
+            TreeKey::of_forest(&a),
+            TreeKey::of_forest(&b),
+            "of_forest 全级别 ⟹ 看见"
+        );
         // K_i 输出确实不同——of 若作 K_i 缓存键即假命中返陈旧森林（本测试钉死切换必要性）。
         assert_ne!(
             coverage::extract_carrier_forest(&a),
@@ -1869,9 +2053,16 @@ mod tests {
     /// 会误改向——本测试锁定严格零 bit `!conf_plus && !conf_minus` 排除 (1,1)。
     #[test]
     fn double_trigger_conflict_stays_flat_not_recovered() {
-        let conflict_bits = BspBits { buy1: true, sell1: true, ..Default::default() };
+        let conflict_bits = BspBits {
+            buy1: true,
+            sell1: true,
+            ..Default::default()
+        };
         // root_sel(1,1)=Flat（voice.rs:270），但 conf_plus()=true ⟹ 严格零 bit 前提不满足 ⟹ 不恢复。
-        assert!(conflict_bits.conf_plus() && conflict_bits.conf_minus(), "前提：(1,1) 双触发");
+        assert!(
+            conflict_bits.conf_plus() && conflict_bits.conf_minus(),
+            "前提：(1,1) 双触发"
+        );
         let conflict = pt(conflict_bits, Some(Side::Long));
         assert_eq!(candidate_dir(&conflict), VoiceSide::Flat,
             "(1,1) 冲突候选保持 Flat——struct_break_dir=Some(Long) 不误改向（护栏1 严格零 bit 排除 (1,1)）");
@@ -1897,8 +2088,13 @@ mod tests {
     /// 环3：Flat 方向候选（双侧 bits 经 root_sel 镜像反对称消歧为 0）仍入 Γ（下游归 𝒦）。
     #[test]
     fn assemble_gamma_includes_flat_dir_candidate() {
-        let both = BspPoint { source_index: 0,
-            bits: BspBits { buy1: true, sell1: true, ..Default::default() }, // (1,1) → root_sel=Flat
+        let both = BspPoint {
+            source_index: 0,
+            bits: BspBits {
+                buy1: true,
+                sell1: true,
+                ..Default::default()
+            }, // (1,1) → root_sel=Flat
             pivot_low: 90,
             pivot_high: 210,
             center: None,
@@ -1907,7 +2103,11 @@ mod tests {
         };
         let gamma = assemble_gamma(&classification(vec![vec![both]]));
         assert_eq!(gamma.len(), 1);
-        assert_eq!(gamma[0].dir, VoiceSide::Flat, "(1,1) 镜像不动点 ⟹ Flat（root_sel）");
+        assert_eq!(
+            gamma[0].dir,
+            VoiceSide::Flat,
+            "(1,1) 镜像不动点 ⟹ Flat（root_sel）"
+        );
         assert!(!gamma[0].nest_confirmed, "Flat ⟹ 无方向确认");
     }
 
@@ -1915,7 +2115,7 @@ mod tests {
     #[test]
     fn interpret_reverse_candidate_closes_active_leg() {
         let gamma = assemble_gamma(&classification(vec![vec![sell_point(10, 1)]]));
-        let active = [aleg(0, VoiceSide::Long, 0, 0 )];
+        let active = [aleg(0, VoiceSide::Long, 0, 0)];
         let b = interpret(&gamma, &active);
         assert_eq!(b.close.len(), 1, "反向卖候选关闭持仓 Long 腿（𝒟_x 非空）");
         assert_eq!(b.close[0].dir, VoiceSide::Long);
@@ -1932,7 +2132,10 @@ mod tests {
             vec![sell_point(10, 1)], // L0 一类卖 → 关 L0 Long 腿
             vec![sell_point(12, 3)], // L1 三类卖 → 关 L1 Long 腿
         ]));
-        let active = [aleg(0, VoiceSide::Long, 0, 0), aleg(1, VoiceSide::Long, 2, 2)];
+        let active = [
+            aleg(0, VoiceSide::Long, 0, 0),
+            aleg(1, VoiceSide::Long, 2, 2),
+        ];
         let (b, triggers) = interpret_with_close_triggers(&gamma, &active);
         assert_eq!(b.close.len(), 2, "两腿各被反向候选关闭");
         assert_eq!(triggers.len(), b.close.len(), "归因与 close 桶一一对应");
@@ -1961,15 +2164,25 @@ mod tests {
     fn type1_candidate_closes_all_same_level_reverse_legs() {
         // 同级别两条核心腿（Ambient 根 + 级联形态，fold 层只见级别/方向）+ 一类卖候选。
         let gamma = assemble_gamma(&classification(vec![vec![sell_point(10, 1)]]));
-        let active = [aleg(0, VoiceSide::Long, 0, 0), aleg(0, VoiceSide::Long, 2, 2)];
+        let active = [
+            aleg(0, VoiceSide::Long, 0, 0),
+            aleg(0, VoiceSide::Long, 2, 2),
+        ];
         let (b, triggers) = interpret_with_close_triggers(&gamma, &active);
-        assert_eq!(b.close.len(), 2, "一类候选 ⟹ 该级别全部反向腿全关（S7 全平）");
+        assert_eq!(
+            b.close.len(),
+            2,
+            "一类候选 ⟹ 该级别全部反向腿全关（S7 全平）"
+        );
         assert_eq!(triggers.len(), 2, "每腿恰一触发归因（一一对应不变量）");
         assert!(
             triggers.iter().all(|t| t.bsp_class == 1 && t.level == 0),
             "两腿归因同一一类候选"
         );
-        assert!(b.open.is_empty(), "一类消费即止（允许反手非要求，v1 不反手）");
+        assert!(
+            b.open.is_empty(),
+            "一类消费即止（允许反手非要求，v1 不反手）"
+        );
         // 委托单源 bit-exact：interpret == interpret_with_close_triggers.0。
         let b2 = interpret(&gamma, &active);
         assert_eq!(b.close, b2.close);
@@ -1981,13 +2194,24 @@ mod tests {
     fn type2_type3_still_close_first_leg_only() {
         for class in [2u8, 3] {
             let gamma = assemble_gamma(&classification(vec![vec![sell_point(10, class)]]));
-            let active = [aleg(0, VoiceSide::Long, 0, 0), aleg(0, VoiceSide::Long, 2, 2)];
+            let active = [
+                aleg(0, VoiceSide::Long, 0, 0),
+                aleg(0, VoiceSide::Long, 2, 2),
+            ];
             let (b, triggers) = interpret_with_close_triggers(&gamma, &active);
-            assert_eq!(b.close.len(), 1, "{class} 类仍只关首条同级反向腿（find 首个）");
+            assert_eq!(
+                b.close.len(),
+                1,
+                "{class} 类仍只关首条同级反向腿（find 首个）"
+            );
             assert_eq!(b.close[0].source_index, 0, "{class} 类关的是首条命中腿");
             assert_eq!(triggers.len(), 1);
             if class == 2 {
-                assert_eq!(b.open.len(), 1, "二类先平后开（#200 OpenShort 通道不受影响）");
+                assert_eq!(
+                    b.open.len(),
+                    1,
+                    "二类先平后开（#200 OpenShort 通道不受影响）"
+                );
                 assert_eq!(b.open[0].dir, VoiceSide::Short, "补开反向腿");
             } else {
                 assert!(b.open.is_empty(), "三类消费即止（不补开）");
@@ -2004,12 +2228,18 @@ mod tests {
         // 同级同向两 Long 腿 + 一类卖候选：idx0 经 external（channel 裁决）预置关闭，
         // idx1（散装域剩余腿）由 fold 规则2 一类全平关闭——两腿归因同一候选。
         let gamma = assemble_gamma(&classification(vec![vec![sell_point(10, 1)]]));
-        let active = [aleg(0, VoiceSide::Long, 0, 0), aleg(0, VoiceSide::Long, 2, 2)];
+        let active = [
+            aleg(0, VoiceSide::Long, 0, 0),
+            aleg(0, VoiceSide::Long, 2, 2),
+        ];
         let external = [(0usize, gamma[0])];
         let (b, triggers) = interpret_with_external_closes(&gamma, &active, &external);
         assert_eq!(b.close.len(), 2, "external 腿 + fold 规则2 剩余腿全关");
         assert_eq!(triggers.len(), 2, "每腿恰一触发归因（一一对应不变量）");
-        assert!(triggers.iter().all(|t| *t == gamma[0]), "两腿归因同一一类候选");
+        assert!(
+            triggers.iter().all(|t| *t == gamma[0]),
+            "两腿归因同一一类候选"
+        );
         assert_eq!(b.close[0].source_index, 0, "同候选内归因序 = active 次序");
         assert_eq!(b.close[1].source_index, 2);
         assert!(b.open.is_empty(), "一类消费即止（v1 不反手）");
@@ -2026,7 +2256,11 @@ mod tests {
         let (b, triggers) = interpret_with_external_closes(&gamma2, &active, &external);
         assert_eq!(b.close.len(), 1);
         assert_eq!(triggers.len(), 1);
-        assert_eq!(b.open.len(), 1, "二类 external 触发 ⟹ dual-effect 补开反向腿");
+        assert_eq!(
+            b.open.len(),
+            1,
+            "二类 external 触发 ⟹ dual-effect 补开反向腿"
+        );
         assert_eq!(b.open[0].dir, VoiceSide::Short);
 
         let gamma1 = assemble_gamma(&classification(vec![vec![sell_point(10, 1)]]));
@@ -2044,7 +2278,10 @@ mod tests {
             vec![sell_point(10, 1)], // L0 一类卖（θ 后）
             vec![sell_point(12, 3)], // L1 三类卖（θ 先：高 level 先）
         ]));
-        let active = [aleg(0, VoiceSide::Long, 0, 0), aleg(1, VoiceSide::Long, 2, 2)];
+        let active = [
+            aleg(0, VoiceSide::Long, 0, 0),
+            aleg(1, VoiceSide::Long, 2, 2),
+        ];
         // L1 腿（idx1）经 external 预置关闭（触发 sell3@L1）；L0 腿由 fold 规则2 关。
         let external = [(1usize, gamma[1])];
         let (b, triggers) = interpret_with_external_closes(&gamma, &active, &external);
@@ -2168,7 +2405,10 @@ mod tests {
             vec![buy_point(0, 3), sell_point(10, 1)],
             vec![sell_point(12, 2)],
         ]));
-        let active = [aleg(0, VoiceSide::Long, 0, 0), aleg(1, VoiceSide::Long, 2, 2)];
+        let active = [
+            aleg(0, VoiceSide::Long, 0, 0),
+            aleg(1, VoiceSide::Long, 2, 2),
+        ];
         let (b0, t0) = interpret_with_close_triggers(&gamma, &active);
         let (b1, t1) = interpret_with_external_closes(&gamma, &active, &[]);
         assert_eq!(b0.close, b1.close);
@@ -2189,8 +2429,14 @@ mod tests {
     fn reverse_exit_type_criteria_table() {
         use ExitType::*;
         // ReverseOpen 腿：任何触发类都是 CloseReverseOpen（子声部关闭语义压过触发类）。
-        assert_eq!(reverse_exit_type(Vertical::ReverseOpen, 1), CloseReverseOpen);
-        assert_eq!(reverse_exit_type(Vertical::ReverseOpen, 3), CloseReverseOpen);
+        assert_eq!(
+            reverse_exit_type(Vertical::ReverseOpen, 1),
+            CloseReverseOpen
+        );
+        assert_eq!(
+            reverse_exit_type(Vertical::ReverseOpen, 3),
+            CloseReverseOpen
+        );
         // 根腿（Ambient）：三类反向 → ReduceCore；一/二类 → CloseRoot。
         assert_eq!(reverse_exit_type(Vertical::Ambient, 3), ReduceCore);
         assert_eq!(reverse_exit_type(Vertical::Ambient, 1), CloseRoot);
@@ -2239,7 +2485,10 @@ mod tests {
     #[test]
     fn interpret_duplicate_slot_records_loser() {
         // 同级别两个买候选（同向），≺_Θ 排序后第一个 open，第二个 record。
-        let gamma = assemble_gamma(&classification(vec![vec![buy_point(0, 3), buy_point(3, 3)]]));
+        let gamma = assemble_gamma(&classification(vec![vec![
+            buy_point(0, 3),
+            buy_point(3, 3),
+        ]]));
         let b = interpret(&gamma, &[]);
         assert_eq!(b.open.len(), 1, "同 slot 仅一个开启（唯一化）");
         assert_eq!(b.record.len(), 1, "重复同向候选记录不执行");
@@ -2249,7 +2498,7 @@ mod tests {
     #[test]
     fn interpret_same_dir_as_active_records() {
         let gamma = assemble_gamma(&classification(vec![vec![buy_point(0, 1)]]));
-        let active = [aleg(0, VoiceSide::Long, 0, 0 )];
+        let active = [aleg(0, VoiceSide::Long, 0, 0)];
         let b = interpret(&gamma, &active);
         assert!(b.close.is_empty());
         assert!(b.open.is_empty());
@@ -2259,8 +2508,13 @@ mod tests {
     /// 环5 非方向候选（Flat）⟹ 𝒦_x。
     #[test]
     fn interpret_flat_candidate_records() {
-        let both = BspPoint { source_index: 0,
-            bits: BspBits { buy1: true, sell1: true, ..Default::default() },
+        let both = BspPoint {
+            source_index: 0,
+            bits: BspBits {
+                buy1: true,
+                sell1: true,
+                ..Default::default()
+            },
             pivot_low: 90,
             pivot_high: 210,
             center: None,
@@ -2276,11 +2530,14 @@ mod tests {
     /// ★∃! 唯一性（spec §12 line 627）：输入顺序无关——interpret(Γ,A)=interpret(perm(Γ),A)。
     #[test]
     fn interpret_deterministic_order_independent() {
-        let g1 = assemble_gamma(&classification(vec![vec![buy_point(0, 3)], vec![sell_point(5, 2)]]));
+        let g1 = assemble_gamma(&classification(vec![
+            vec![buy_point(0, 3)],
+            vec![sell_point(5, 2)],
+        ]));
         // 反序 Γ（同候选集，不同输入顺序）。
         let mut g2 = g1.clone();
         g2.reverse();
-        let active = [aleg(1, VoiceSide::Long, 0, 0 )];
+        let active = [aleg(1, VoiceSide::Long, 0, 0)];
         let b1 = interpret(&g1, &active);
         let b2 = interpret(&g2, &active);
         // 三桶逐元素相等（gamma_index 终局键 ⟹ 排序后同序）。
@@ -2313,7 +2570,11 @@ mod tests {
         };
         let s0 = shift(g0, 2);
         let s1 = shift(g1, 2);
-        assert_eq!(before, theta_lt(&s0, &s1), "≺_Θ 在级别平移 S_k 下不变（自相似全序）");
+        assert_eq!(
+            before,
+            theta_lt(&s0, &s1),
+            "≺_Θ 在级别平移 S_k 下不变（自相似全序）"
+        );
     }
 
     /// 环5 互斥分流：每个候选恰落一桶（ℬ⊎𝒦 over 候选；𝒟 over 活动腿）。计数守恒。
@@ -2324,7 +2585,7 @@ mod tests {
             buy_point(3, 3),  // 同向重复 → record
             sell_point(7, 1), // 反向 → 关闭活动 Long
         ]]));
-        let active = [aleg(0, VoiceSide::Long, 0, 0 )];
+        let active = [aleg(0, VoiceSide::Long, 0, 0)];
         let b = interpret(&gamma, &active);
         // 每个候选恰落 open 或 record（关闭触发候选被消费，不入 open/record）。
         let consumed_as_close = b.close.len(); // 反向候选数（消费为关闭）
@@ -2343,7 +2604,13 @@ mod tests {
     use super::super::super::types::{Direction, Tick};
 
     fn unit_r(si: usize, ei: usize, dir: Direction, lo: Tick, hi: Tick) -> UnitRange {
-        UnitRange { start_index: si, end_index: ei, direction: dir, lo, hi }
+        UnitRange {
+            start_index: si,
+            end_index: ei,
+            direction: dir,
+            lo,
+            hi,
+        }
     }
 
     /// 测试用 ElementId。
@@ -2359,20 +2626,57 @@ mod tests {
     #[test]
     fn position_node_id_distinguishes_campaigns_by_generation() {
         let carrier = eid(0, 5);
-        let cert = Some(EntryCertificate { level: 0, source_index: 3 });
-        let gen0 = PositionNodeId { carrier, entry_certificate: cert, side: VoiceSide::Long, generation: 0 };
-        let gen1 = PositionNodeId { carrier, entry_certificate: cert, side: VoiceSide::Long, generation: 1 };
+        let cert = Some(EntryCertificate {
+            level: 0,
+            source_index: 3,
+        });
+        let gen0 = PositionNodeId {
+            carrier,
+            entry_certificate: cert,
+            side: VoiceSide::Long,
+            generation: 0,
+        };
+        let gen1 = PositionNodeId {
+            carrier,
+            entry_certificate: cert,
+            side: VoiceSide::Long,
+            generation: 1,
+        };
         // carrier-id 层：两次 campaign 共享同一 carrier（混淆源）。
-        assert_eq!(gen0.carrier, gen1.carrier, "两次 campaign 同 carrier（carrier-id 会混淆）");
+        assert_eq!(
+            gen0.carrier, gen1.carrier,
+            "两次 campaign 同 carrier（carrier-id 会混淆）"
+        );
         // 四元组层：generation 区分 ⟹ 不同 position instance ⟹ hash 不碰撞。
         assert_ne!(gen0, gen1, "generation 异 ⟹ 四元组不等（campaign 不混淆）");
-        assert_ne!(gen0.hash64(), gen1.hash64(), "generation 异 ⟹ posId hash 不碰撞");
+        assert_ne!(
+            gen0.hash64(),
+            gen1.hash64(),
+            "generation 异 ⟹ posId hash 不碰撞"
+        );
         // side/entry_certificate 也各自区分（四元组完整性）。
-        let short = PositionNodeId { carrier, entry_certificate: cert, side: VoiceSide::Short, generation: 0 };
+        let short = PositionNodeId {
+            carrier,
+            entry_certificate: cert,
+            side: VoiceSide::Short,
+            generation: 0,
+        };
         assert_ne!(gen0.hash64(), short.hash64(), "side 异 ⟹ posId 不碰撞");
-        let cert2 = Some(EntryCertificate { level: 0, source_index: 9 });
-        let entry2 = PositionNodeId { carrier, entry_certificate: cert2, side: VoiceSide::Long, generation: 0 };
-        assert_ne!(gen0.hash64(), entry2.hash64(), "entry_certificate 异 ⟹ posId 不碰撞");
+        let cert2 = Some(EntryCertificate {
+            level: 0,
+            source_index: 9,
+        });
+        let entry2 = PositionNodeId {
+            carrier,
+            entry_certificate: cert2,
+            side: VoiceSide::Long,
+            generation: 0,
+        };
+        assert_ne!(
+            gen0.hash64(),
+            entry2.hash64(),
+            "entry_certificate 异 ⟹ posId 不碰撞"
+        );
     }
 
     /// ★A9：hash64 确定性（`DefaultHasher::new()` 固定初始键 ⟹ 同四元组跨调用产同 u64，非 RandomState）。
@@ -2380,7 +2684,10 @@ mod tests {
     fn position_node_id_hash_is_deterministic() {
         let p = PositionNodeId {
             carrier: eid(1, 2),
-            entry_certificate: Some(EntryCertificate { level: 1, source_index: 7 }),
+            entry_certificate: Some(EntryCertificate {
+                level: 1,
+                source_index: 7,
+            }),
             side: VoiceSide::Short,
             generation: 3,
         };
@@ -2401,7 +2708,10 @@ mod tests {
             dir,
             source_index,
             lambda,
-            id: ElementId { level, ordinal: source_index as u64 },
+            id: ElementId {
+                level,
+                ordinal: source_index as u64,
+            },
             parent_id: None,
             is_boundary_root: true,
             op_parent: None,
@@ -2413,7 +2723,14 @@ mod tests {
         let s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10), eid(0, 0));
         let s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12), eid(0, 1));
         let s2 = LM::from_unit(&unit_r(8, 12, Direction::Up, 5, 15), eid(0, 2));
-        let c = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
+        let c = Center {
+            zd: 5,
+            zg: 10,
+            dd: 0,
+            gg: 15,
+            start_index: 0,
+            end_index: 12,
+        };
         let l1 = LM::compose(&[s0, s1, s2], c, 1, eid(1, 0)); // 外缘 10→15 ⟹ Long（σ_p=+1）
         rc_tower(vec![Vec::new(), vec![l1]])
     }
@@ -2422,14 +2739,36 @@ mod tests {
     fn two_parent_tower() -> Vec<Rc<Vec<LM>>> {
         let mk = |si, ei, d, lo, hi, ord| LM::from_unit(&unit_r(si, ei, d, lo, hi), eid(0, ord));
         let ca = LM::compose(
-            &[mk(0, 4, Direction::Up, 0, 10, 0), mk(4, 8, Direction::Down, 3, 12, 1), mk(8, 12, Direction::Up, 5, 15, 2)],
-            Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 },
+            &[
+                mk(0, 4, Direction::Up, 0, 10, 0),
+                mk(4, 8, Direction::Down, 3, 12, 1),
+                mk(8, 12, Direction::Up, 5, 15, 2),
+            ],
+            Center {
+                zd: 5,
+                zg: 10,
+                dd: 0,
+                gg: 15,
+                start_index: 0,
+                end_index: 12,
+            },
             1,
             eid(1, 0),
         ); // Long
         let cb = LM::compose(
-            &[mk(12, 16, Direction::Up, 5, 15, 3), mk(16, 20, Direction::Down, 3, 12, 4), mk(20, 24, Direction::Down, 0, 8, 5)],
-            Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 12, end_index: 24 },
+            &[
+                mk(12, 16, Direction::Up, 5, 15, 3),
+                mk(16, 20, Direction::Down, 3, 12, 4),
+                mk(20, 24, Direction::Down, 0, 8, 5),
+            ],
+            Center {
+                zd: 5,
+                zg: 10,
+                dd: 0,
+                gg: 15,
+                start_index: 12,
+                end_index: 24,
+            },
             1,
             eid(1, 1),
         ); // Short
@@ -2473,8 +2812,15 @@ mod tests {
         let g0 = assemble_gamma_with_tower(&classification(vec![vec![buy_point(12, 1)]]), &tower);
         assert_eq!(g0[0].role.v, Vertical::FollowParent, "L0 host=a2 真父 Long");
         // L1、src=12 ⟹ host=compose_a（顶层根）⟹ Ambient（级别防误命中 L0 host）。
-        let g1 = assemble_gamma_with_tower(&classification(vec![vec![], vec![buy_point(12, 1)]]), &tower);
-        assert_eq!(g1[0].role.v, Vertical::Ambient, "L1 host=compose_a 是根 ⟹ Ambient");
+        let g1 = assemble_gamma_with_tower(
+            &classification(vec![vec![], vec![buy_point(12, 1)]]),
+            &tower,
+        );
+        assert_eq!(
+            g1[0].role.v,
+            Vertical::Ambient,
+            "L1 host=compose_a 是根 ⟹ Ambient"
+        );
     }
 
     /// 漏洞③ ordinal 身份：结构全等 host（a2/b0）按 (level,ρ) 区分 ⟹ 角色 V 不同（非结构相等）。
@@ -2483,10 +2829,18 @@ mod tests {
         let tower = two_parent_tower();
         // src=12 → a2(父 Long)：卖 ⟹ ReverseOpen。
         let g12 = assemble_gamma_with_tower(&classification(vec![vec![sell_point(12, 1)]]), &tower);
-        assert_eq!(g12[0].role.v, Vertical::ReverseOpen, "host=a2(Long父) 卖 ⟹ ReverseOpen");
+        assert_eq!(
+            g12[0].role.v,
+            Vertical::ReverseOpen,
+            "host=a2(Long父) 卖 ⟹ ReverseOpen"
+        );
         // src=16 → b0(父 Short，与 a2 结构全等)：卖 ⟹ FollowParent。
         let g16 = assemble_gamma_with_tower(&classification(vec![vec![sell_point(16, 1)]]), &tower);
-        assert_eq!(g16[0].role.v, Vertical::FollowParent, "host=b0(Short父) 卖 ⟹ FollowParent（ordinal 区分）");
+        assert_eq!(
+            g16[0].role.v,
+            Vertical::FollowParent,
+            "host=b0(Short父) 卖 ⟹ FollowParent（ordinal 区分）"
+        );
     }
 
     /// guard：tower.len()<2（仅 L0 全根）⟹ V 恒 Ambient，与扁平 assemble_gamma 逐候选一致。
@@ -2498,8 +2852,15 @@ mod tests {
         let c = classification(vec![vec![buy_point(4, 1)]]);
         let with = assemble_gamma_with_tower(&c, &tower);
         let flat = assemble_gamma(&c);
-        assert_eq!(with[0].role.v, Vertical::Ambient, "缺塔 ⟹ host 是根 ⟹ Ambient（诚实退化）");
-        assert_eq!(with[0].role.v, flat[0].role.v, "缺塔退化与扁平 assemble_gamma 一致");
+        assert_eq!(
+            with[0].role.v,
+            Vertical::Ambient,
+            "缺塔 ⟹ host 是根 ⟹ Ambient（诚实退化）"
+        );
+        assert_eq!(
+            with[0].role.v, flat[0].role.v,
+            "缺塔退化与扁平 assemble_gamma 一致"
+        );
     }
 
     /// ★工位 H 不变量 I1/I3/I4（级别容器.pdf §11/§13）：开仓激活的位置节点身份 = **carrier 容器**
@@ -2542,10 +2903,17 @@ mod tests {
         let tower = long_parent_tower();
         let c = classification(vec![vec![sell_point(8, 1)]]);
         let (elements, cstart) = coverage_elements_with_tower(&c, &tower);
-        assert_eq!(elements[cstart].parent, Some(0), "附着候选继承 host(s1) 真父 compose(idx0)");
+        assert_eq!(
+            elements[cstart].parent,
+            Some(0),
+            "附着候选继承 host(s1) 真父 compose(idx0)"
+        );
         // raw 只含候选（不含祖先 compose idx0）⟹ AncOK 真剪枝（t=999 无 B/D，raw=active）。
         let pruned = coverage::active_set_step(&elements, &[cstart], 999);
-        assert!(pruned.is_empty(), "孤儿附着候选（祖先 compose 不在场）被 AncOK 真剪枝");
+        assert!(
+            pruned.is_empty(),
+            "孤儿附着候选（祖先 compose 不在场）被 AncOK 真剪枝"
+        );
         // raw 含祖先 compose(idx0) + 候选 ⟹ 保留（祖先齐全，覆盖闭合）。
         let kept = coverage::active_set_step(&elements, &[0, cstart], 999);
         assert!(kept.contains(&cstart), "祖先 compose 在场 ⟹ 附着候选保留");
@@ -2557,9 +2925,16 @@ mod tests {
         let tower = long_parent_tower();
         let c = classification(vec![vec![sell_point(8, 1)]]); // 卖 under Long 父 ⟹ ReverseOpen
         let (elements, cstart) = coverage_elements_with_tower(&c, &tower);
-        assert_eq!(coverage::operation_role(&elements, cstart).v, Vertical::ReverseOpen);
+        assert_eq!(
+            coverage::operation_role(&elements, cstart).v,
+            Vertical::ReverseOpen
+        );
         let leg = coverage::leg_target(&elements, cstart, 100.0, &VoiceConfig::default());
-        assert_eq!(leg.side, VoiceSide::Short, "ReverseOpen 对冲腿方向 Short（反 Long 父声部）");
+        assert_eq!(
+            leg.side,
+            VoiceSide::Short,
+            "ReverseOpen 对冲腿方向 Short（反 Long 父声部）"
+        );
         assert_eq!(leg.role.v, Vertical::ReverseOpen);
         assert!(
             (leg.units - 30.0).abs() < 1e-9,
@@ -2619,7 +2994,14 @@ mod tests {
         let a_s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10), eid(0, 0));
         let a_s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12), eid(0, 1));
         let a_s2 = LM::from_unit(&unit_r(8, 12, Direction::Up, 5, 15), eid(0, 2));
-        let ca = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
+        let ca = Center {
+            zd: 5,
+            zg: 10,
+            dd: 0,
+            gg: 15,
+            start_index: 0,
+            end_index: 12,
+        };
         let a_l1 = LM::compose(&[a_s0, a_s1, a_s2], ca, 1, eid(1, 0));
         let tower_a = rc_tower(vec![Vec::new(), vec![a_l1]]);
 
@@ -2628,18 +3010,33 @@ mod tests {
         let b_s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10), eid(0, 0));
         let b_s1 = LM::from_unit(&unit_r(4, 8, Direction::Up, 99, 199), eid(0, 1)); // 重划！
         let b_s2 = LM::from_unit(&unit_r(8, 12, Direction::Up, 5, 15), eid(0, 2));
-        let cb = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
+        let cb = Center {
+            zd: 5,
+            zg: 10,
+            dd: 0,
+            gg: 15,
+            start_index: 0,
+            end_index: 12,
+        };
         let b_l1 = LM::compose(&[b_s0, b_s1, b_s2], cb, 1, eid(1, 0));
         let tower_b = rc_tower(vec![Vec::new(), vec![b_l1]]);
 
         // 前提坐实：旧浅指纹（顶层 level/ordinal/end_index/子数）两 tower 相同（漏的来源）。
         let shallow = |t: &[Rc<Vec<LM>>]| -> Vec<(u32, u64, usize, usize)> {
-            t.iter().rev().find(|l| !l.is_empty()).map_or(Vec::new(), |l| {
-                l.iter().map(|m| (m.id.level, m.id.ordinal, m.end_index, m.sub_moves.len())).collect()
-            })
+            t.iter()
+                .rev()
+                .find(|l| !l.is_empty())
+                .map_or(Vec::new(), |l| {
+                    l.iter()
+                        .map(|m| (m.id.level, m.id.ordinal, m.end_index, m.sub_moves.len()))
+                        .collect()
+                })
         };
-        assert_eq!(shallow(&tower_a), shallow(&tower_b),
-            "前提：旧浅指纹两 tower 相同（这正是漏洞——浅指纹不区分 interior 重划）");
+        assert_eq!(
+            shallow(&tower_a),
+            shallow(&tower_b),
+            "前提：旧浅指纹两 tower 相同（这正是漏洞——浅指纹不区分 interior 重划）"
+        );
 
         // 反例坐实：extract_elements 输出确实发散（深层改写真改输出，非伪反例）。
         let ea = coverage::extract_elements(&tower_a);
@@ -2648,8 +3045,11 @@ mod tests {
             "interior 重划改变 extract_elements 输出（s1 的 eps/lambda/rho 变）——缓存返陈旧树会污染 ΔSharpe");
 
         // 修复坐实：递归指纹捕获深层变化 ⟹ TreeKey 不同 ⟹ 缓存不会假命中。
-        assert_ne!(TreeKey::of(&tower_a), TreeKey::of(&tower_b),
-            "递归发射指纹捕获 interior 子走势的坐标/方向改写（644：第3次有损指纹否定）");
+        assert_ne!(
+            TreeKey::of(&tower_a),
+            TreeKey::of(&tower_b),
+            "递归发射指纹捕获 interior 子走势的坐标/方向改写（644：第3次有损指纹否定）"
+        );
     }
 
     /// **L2 逐 bar 对拍**（真实 CL 数据，cached vs nocache extract_elements 全字段一致）。
@@ -2660,8 +3060,8 @@ mod tests {
     #[ignore = "工位 O L2：真实 CL 逐 bar cached-vs-nocache 对拍；需 CL；--release --ignored"]
     fn bit_exact_per_bar_cached_vs_nocache() {
         use super::super::super::backtest::data;
-        use super::super::super::{classifier, parser};
         use super::super::super::config::ThetaConfig;
+        use super::super::super::{classifier, parser};
         let config = ThetaConfig::default();
         let ds = data::load_by_symbol("CL", &config).expect("CL");
         let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
@@ -2678,9 +3078,14 @@ mod tests {
             // （extract_carrier_forest），非 T_i（extract_elements）——oracle 须同源（旧比 extract_elements
             // 是 A12 前遗留的陈旧断言，K_i≠T_i 必然发散）。on2w2 订正为 carrier_forest（生产判据同源）。
             let nocache_elems = coverage::extract_carrier_forest(&tower);
-            assert_eq!(cached_tree[..], nocache_elems[..],
-                "bar {i}：cached Rc 树 ≠ nocache（TreeCache 假命中——陈旧树 / epoch 漏 bump）");
-            if cache.valid { hits += 1; }
+            assert_eq!(
+                cached_tree[..],
+                nocache_elems[..],
+                "bar {i}：cached Rc 树 ≠ nocache（TreeCache 假命中——陈旧树 / epoch 漏 bump）"
+            );
+            if cache.valid {
+                hits += 1;
+            }
         }
         eprintln!("bit_exact_per_bar：{n} bars 全部 cached==nocache，{hits} bars 缓存有效");
     }
@@ -2694,37 +3099,70 @@ mod tests {
     /// 断言：步3 返回的森林 == towerA 现算 extract_carrier_forest（非 towerB 陈旧）。
     #[test]
     fn tree_cache_dual_key_some_none_alternation_no_stale() {
-        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::classifier::center::UnitRange;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::types::Direction;
         // 两个不同的单级 tower（森林不同：坐标不同）。from_unit 从 UnitRange 建（同生产构造路径）。
         let mv = |lo: i64, hi: i64, dir: Direction, ord: u64| {
-            let u = UnitRange { start_index: ord as usize, end_index: ord as usize + 1,
-                direction: dir, lo, hi };
-            LeveledMove::from_unit(&u, ElementId { level: 0, ordinal: ord })
+            let u = UnitRange {
+                start_index: ord as usize,
+                end_index: ord as usize + 1,
+                direction: dir,
+                lo,
+                hi,
+            };
+            LeveledMove::from_unit(
+                &u,
+                ElementId {
+                    level: 0,
+                    ordinal: ord,
+                },
+            )
         };
         let tower_a: Vec<Rc<Vec<LeveledMove>>> = vec![Rc::new(vec![
-            mv(100, 150, Direction::Up, 0), mv(120, 150, Direction::Down, 1), mv(120, 160, Direction::Up, 2),
+            mv(100, 150, Direction::Up, 0),
+            mv(120, 150, Direction::Down, 1),
+            mv(120, 160, Direction::Up, 2),
         ])];
         let tower_b: Vec<Rc<Vec<LeveledMove>>> = vec![Rc::new(vec![
-            mv(200, 250, Direction::Up, 0), mv(210, 250, Direction::Down, 1), mv(210, 280, Direction::Up, 2),
+            mv(200, 250, Direction::Up, 0),
+            mv(210, 250, Direction::Down, 1),
+            mv(210, 280, Direction::Up, 2),
         ])];
         let cls = Classification::default();
         let mut cache = TreeCache::new();
 
         // 步1：Some(e0) 建 towerA。
         let (_a1, _, _) = coverage_elements_and_gamma_with_tower_cached_gen(
-            &cls, &tower_a, &mut Some(&mut cache), None, Some(42));
+            &cls,
+            &tower_a,
+            &mut Some(&mut cache),
+            None,
+            Some(42),
+        );
         // 步2：None 喂 towerB（of_forest 判据 ⟹ miss 重建 towerB，双 key 同刷 key_epoch=None）。
         let (_b, _, _) = coverage_elements_and_gamma_with_tower_cached_gen(
-            &cls, &tower_b, &mut Some(&mut cache), None, None);
+            &cls,
+            &tower_b,
+            &mut Some(&mut cache),
+            None,
+            None,
+        );
         // 步3：Some(e0=42) 再喂 towerA —— 双 key 失效不变量下 key_epoch 已被步2 刷成 None ⟹ miss 重建。
         let (a3, _, _) = coverage_elements_and_gamma_with_tower_cached_gen(
-            &cls, &tower_a, &mut Some(&mut cache), None, Some(42));
+            &cls,
+            &tower_a,
+            &mut Some(&mut cache),
+            None,
+            Some(42),
+        );
 
         let expect_a = coverage::extract_carrier_forest(&tower_a);
-        assert_eq!(a3[..], expect_a[..],
-            "双 key 失效不变量破裂：Some/None 交替后 Some(42) 假命中返 towerB 陈旧森林");
+        assert_eq!(
+            a3[..],
+            expect_a[..],
+            "双 key 失效不变量破裂：Some/None 交替后 Some(42) 假命中返 towerB 陈旧森林"
+        );
     }
 }
 
@@ -2733,13 +3171,13 @@ mod candidate_profile {
     //! 工位 #4h profile（L2）：candidate(gamma)段成本分布 + 标度 exp。
     //! 隔离遍历1（candidates 构建）vs 遍历2（role/gamma 组装），量化 caller B 丢弃 gamma 后
     //! 遍历2 是否纯浪费 + candidate 段是否 O(n²) 主导。
-    use super::*;
-    use super::super::super::backtest::incremental::IncrementalClassifier;
     use super::super::super::backtest::data;
-    use super::super::super::config::ThetaConfig;
+    use super::super::super::backtest::incremental::IncrementalClassifier;
     use super::super::super::classifier::bsp::BspPoint;
     use super::super::super::classifier::{Classification, LevelState};
+    use super::super::super::config::ThetaConfig;
     use super::super::super::types::BspBits;
+    use super::*;
 
     /// ★工位 4h 回归守卫（codex 实施审 QUESTION A/C UNSOUND 反例，合成 L1）：fallback ordinal id
     /// 依赖全局 flat ci（依赖**所有前置级** bsp 数）。前置级（L0）增长 ⟹ 后置级（L1）fallback-id 元素
@@ -2755,13 +3193,29 @@ mod candidate_profile {
     #[test]
     fn candidate_cache_fallback_ordinal_prefix_shift() {
         fn buy3(si: usize) -> BspPoint {
-            BspPoint { source_index: si, bits: BspBits { buy3: true, ..Default::default() },
-                pivot_low: 1, pivot_high: 0, center: None, struct_break_dir: None, force: None }
+            BspPoint {
+                source_index: si,
+                bits: BspBits {
+                    buy3: true,
+                    ..Default::default()
+                },
+                pivot_low: 1,
+                pivot_high: 0,
+                center: None,
+                struct_break_dir: None,
+                force: None,
+            }
         }
         let cls = |l0: Vec<usize>, l1: Vec<usize>| Classification {
             levels: vec![
-                LevelState { bsp: l0.into_iter().map(buy3).collect::<Vec<_>>().into(), ..Default::default() },
-                LevelState { bsp: l1.into_iter().map(buy3).collect::<Vec<_>>().into(), ..Default::default() },
+                LevelState {
+                    bsp: l0.into_iter().map(buy3).collect::<Vec<_>>().into(),
+                    ..Default::default()
+                },
+                LevelState {
+                    bsp: l1.into_iter().map(buy3).collect::<Vec<_>>().into(),
+                    ..Default::default()
+                },
             ],
         };
         // 空 tower ⟹ extract_elements 空 ⟹ tree 空 ⟹ 全 candidate carrier-miss（fallback ordinal）。
@@ -2773,22 +3227,55 @@ mod candidate_profile {
 
         // bar t：L0=[10,20], L1=[30]。
         let cls_t = cls(vec![10, 20], vec![30]);
-        let (_t0, _c0) = coverage_elements_with_tower_cached_gen(&cls_t, &tower, &mut tree_cache, &mut cand_cache, gen, None);
+        let (_t0, _c0) = coverage_elements_with_tower_cached_gen(
+            &cls_t,
+            &tower,
+            &mut tree_cache,
+            &mut cand_cache,
+            gen,
+            None,
+        );
 
         // bar t+1：L0 增长到 3（[10,20,25]），L1 前缀不变（[30]）。
         let cls_t1 = cls(vec![10, 20, 25], vec![30]);
-        let (_t1, inc) = coverage_elements_with_tower_cached_gen(&cls_t1, &tower, &mut tree_cache, &mut cand_cache, gen, None);
+        let (_t1, inc) = coverage_elements_with_tower_cached_gen(
+            &cls_t1,
+            &tower,
+            &mut tree_cache,
+            &mut cand_cache,
+            gen,
+            None,
+        );
 
         // 全量基准（fresh cache，从零全量 build）。
         let mut fresh_tree = TreeCache::new();
         let mut fresh_cand = CandidateCache::new();
-        let (_tf, full) = coverage_elements_with_tower_cached_gen(&cls_t1, &tower, &mut fresh_tree, &mut fresh_cand, gen, None);
+        let (_tf, full) = coverage_elements_with_tower_cached_gen(
+            &cls_t1,
+            &tower,
+            &mut fresh_tree,
+            &mut fresh_cand,
+            gen,
+            None,
+        );
 
-        assert_eq!(inc, full, "base_ci 偏移修复：L0 增长后 L1 fallback ordinal 须重建（codex A/C 反例）");
+        assert_eq!(
+            inc, full,
+            "base_ci 偏移修复：L0 增长后 L1 fallback ordinal 须重建（codex A/C 反例）"
+        );
         // 显式验证 L1 fallback ordinal = 全局 flat idx 3（candidate_start=0 + L0 3 个 + L1 第 0 个）。
-        let l1 = inc.iter().find(|e| e.level == 1).expect("L1 candidate 存在");
-        assert_eq!(l1.id, ElementId { level: 1, ordinal: 3 },
-            "L1 fallback ordinal = 全局 flat ci = 3（L0 增长到 3 后偏移；未修则陈旧为 2）");
+        let l1 = inc
+            .iter()
+            .find(|e| e.level == 1)
+            .expect("L1 candidate 存在");
+        assert_eq!(
+            l1.id,
+            ElementId {
+                level: 1,
+                ordinal: 3
+            },
+            "L1 fallback ordinal = 全局 flat ci = 3（L0 增长到 3 后偏移；未修则陈旧为 2）"
+        );
     }
 
     /// ★工位 4h bit-exact 守卫（L1 管线正确性，硬约束2）：caller B gamma-free + 前缀缓存路径
@@ -2817,15 +3304,27 @@ mod candidate_profile {
             let fe = incr.forest_epoch();
             // 全路径（含遍历2，丢 gamma 取 candidates）。
             let (_t_full, cand_full, _g) = coverage_elements_and_gamma_with_tower_cached_gen(
-                &cls, &tower, &mut Some(&mut tree_cache_full), Some(gen), Some(fe),
+                &cls,
+                &tower,
+                &mut Some(&mut tree_cache_full),
+                Some(gen),
+                Some(fe),
             );
             // gamma-free + 前缀缓存路径。
             let (_t_gf, cand_gf) = coverage_elements_with_tower_cached_gen(
-                &cls, &tower, &mut tree_cache_gf, &mut cand_cache, Some(gen), Some(fe),
+                &cls,
+                &tower,
+                &mut tree_cache_gf,
+                &mut cand_cache,
+                Some(gen),
+                Some(fe),
             );
-            assert_eq!(cand_gf, cand_full,
-                "bar {i}: gamma-free 增量 candidates != 全路径（前缀复用陈旧/gen 假命中/ci 错位）");
-            if cand_cache.valid && matches!((Some(gen), cand_cache.gen), (Some(a),Some(b)) if a==b) {
+            assert_eq!(
+                cand_gf, cand_full,
+                "bar {i}: gamma-free 增量 candidates != 全路径（前缀复用陈旧/gen 假命中/ci 错位）"
+            );
+            if cand_cache.valid && matches!((Some(gen), cand_cache.gen), (Some(a),Some(b)) if a==b)
+            {
                 hits += 1;
             }
         }
@@ -2852,7 +3351,9 @@ mod candidate_profile {
         let mut used = Vec::new();
 
         for &n in &sizes {
-            if n > oos.bars.len() { break; }
+            if n > oos.bars.len() {
+                break;
+            }
             let bars = &oos.bars[..n];
 
             // 旧全量路径（_cached_gen，含遍历2）累积。
@@ -2864,7 +3365,12 @@ mod candidate_profile {
                 let gen = incr.tower_generation();
                 let fe = incr.forest_epoch();
                 let _ = coverage_elements_and_gamma_with_tower_cached_gen(
-                    &cls, &tower, &mut Some(&mut tc), Some(gen), Some(fe));
+                    &cls,
+                    &tower,
+                    &mut Some(&mut tc),
+                    Some(gen),
+                    Some(fe),
+                );
             }
             old_t.push(t0.elapsed().as_secs_f64());
 
@@ -2878,13 +3384,22 @@ mod candidate_profile {
                 let gen = incr2.tower_generation();
                 let fe = incr2.forest_epoch();
                 let _ = coverage_elements_with_tower_cached_gen(
-                    &cls, &tower, &mut tc2, &mut cc, Some(gen), Some(fe));
+                    &cls,
+                    &tower,
+                    &mut tc2,
+                    &mut cc,
+                    Some(gen),
+                    Some(fe),
+                );
             }
             new_t.push(t1.elapsed().as_secs_f64());
             used.push(n);
-            eprintln!("n={n}: old={:.3}s new={:.3}s (new/old={:.2}x)",
-                old_t.last().unwrap(), new_t.last().unwrap(),
-                new_t.last().unwrap() / old_t.last().unwrap().max(1e-12));
+            eprintln!(
+                "n={n}: old={:.3}s new={:.3}s (new/old={:.2}x)",
+                old_t.last().unwrap(),
+                new_t.last().unwrap(),
+                new_t.last().unwrap() / old_t.last().unwrap().max(1e-12)
+            );
         }
 
         eprintln!("\n===== 工位 4h candidate 旧全量 vs 新增量标度（CL per-bar）=====");
@@ -2894,8 +3409,10 @@ mod candidate_profile {
             let i1 = i0 + 1;
             let oe = (old_t[i1] / old_t[i0].max(1e-12)).ln() / (n1 as f64 / n0 as f64).ln();
             let ne = (new_t[i1] / new_t[i0].max(1e-12)).ln() / (n1 as f64 / n0 as f64).ln();
-            eprintln!("  [{n0}→{n1}] old exp≈{oe:.2} ({:.3}s) | new exp≈{ne:.2} ({:.3}s)",
-                old_t[i1], new_t[i1]);
+            eprintln!(
+                "  [{n0}→{n1}] old exp≈{oe:.2} ({:.3}s) | new exp≈{ne:.2} ({:.3}s)",
+                old_t[i1], new_t[i1]
+            );
         }
     }
 }

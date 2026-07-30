@@ -215,8 +215,20 @@ pub(crate) fn pi_theta_step_traced(
     protocol: &ProtocolEventSet,
 ) -> (Vec<ActiveLeg>, f64, PiThetaDecision, StepTrace) {
     pi_theta_step_traced_with_risk_seeds(
-        work, gamma, prev_active, p_t, exec_index, base_units, risk, weights, gate, &[], config,
-        registry, tw, protocol,
+        work,
+        gamma,
+        prev_active,
+        p_t,
+        exec_index,
+        base_units,
+        risk,
+        weights,
+        gate,
+        &[],
+        config,
+        registry,
+        tw,
+        protocol,
     )
 }
 
@@ -262,7 +274,10 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
                 // #201：P1 分支每持仓声部恰一枚 RiskExit 裁决（prev_active 次序）。
                 verdicts: prev_active
                     .iter()
-                    .map(|&leg| VoiceVerdict { leg, exit: interp::ExitType::RiskExit })
+                    .map(|&leg| VoiceVerdict {
+                        leg,
+                        exit: interp::ExitType::RiskExit,
+                    })
                     .collect(),
                 ..Default::default()
             },
@@ -299,7 +314,13 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
                 };
                 let (next_active, p_tilde, sep_legs, _idx) =
                     super::step::coverage_step_from_buckets_sep_with_risk_seeds(
-                        work, prev_active, &buckets, &risk_exits, base_units, config, Some(risk),
+                        work,
+                        prev_active,
+                        &buckets,
+                        &risk_exits,
+                        base_units,
+                        config,
+                        Some(risk),
                         registry,
                     );
                 let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
@@ -318,11 +339,20 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
                     .iter()
                     .filter_map(|l| {
                         if risk_exit_ids.contains(&l.id) {
-                            Some(VoiceVerdict { leg: *l, exit: interp::ExitType::RiskExit })
+                            Some(VoiceVerdict {
+                                leg: *l,
+                                exit: interp::ExitType::RiskExit,
+                            })
                         } else if overlay_ids.contains(&l.id) {
-                            Some(VoiceVerdict { leg: *l, exit: interp::ExitType::CloseReverseOpen })
+                            Some(VoiceVerdict {
+                                leg: *l,
+                                exit: interp::ExitType::CloseReverseOpen,
+                            })
                         } else if next_ids.contains(&l.id) {
-                            Some(VoiceVerdict { leg: *l, exit: interp::ExitType::Hold })
+                            Some(VoiceVerdict {
+                                leg: *l,
+                                exit: interp::ExitType::Hold,
+                            })
                         } else {
                             None
                         }
@@ -351,7 +381,12 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
         // （tw_step）由消费端 runner 单点做（组合层只读 ctx，不 mutate 账本）。
         // ★A10 C5：η 修正经 stage_progression_eta_corrected（twc.eta_correction =
         // cum_holding_cost shadow；0 ⟹ bit-exact）。
-        if let Some(ev) = stage_progression_eta_corrected(twc.policy, twc.state, twc.risk_mode, twc.eta_correction) {
+        if let Some(ev) = stage_progression_eta_corrected(
+            twc.policy,
+            twc.state,
+            twc.risk_mode,
+            twc.eta_correction,
+        ) {
             let buckets = Buckets {
                 close: Vec::new(),
                 open: Vec::new(),
@@ -359,7 +394,13 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
             };
             let (next_active, p_tilde, sep_legs, _idx) =
                 super::step::coverage_step_from_buckets_sep_with_risk_seeds(
-                    work, prev_active, &buckets, &risk_exits, base_units, config, Some(risk),
+                    work,
+                    prev_active,
+                    &buckets,
+                    &risk_exits,
+                    base_units,
+                    config,
+                    Some(risk),
                     registry,
                 );
             let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
@@ -374,9 +415,15 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
                 .iter()
                 .filter_map(|&leg| {
                     if risk_exit_ids.contains(&leg.id) {
-                        Some(VoiceVerdict { leg, exit: interp::ExitType::RiskExit })
+                        Some(VoiceVerdict {
+                            leg,
+                            exit: interp::ExitType::RiskExit,
+                        })
                     } else if next_ids.contains(&leg.id) {
-                        Some(VoiceVerdict { leg, exit: interp::ExitType::Hold })
+                        Some(VoiceVerdict {
+                            leg,
+                            exit: interp::ExitType::Hold,
+                        })
                     } else {
                         None
                     }
@@ -431,15 +478,21 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
     // ★#220 路④：第 4 分量 next_active_idx（与 next_active 逐位对位的 work idx）= opened 配对键。
     let (next_active, p_tilde, sep_legs, next_active_idx) =
         super::step::coverage_step_from_buckets_sep_with_risk_seeds(
-            work, prev_active, &buckets, &risk_exits, base_units, config, Some(risk), registry,
+            work,
+            prev_active,
+            &buckets,
+            &risk_exits,
+            base_units,
+            config,
+            Some(risk),
+            registry,
         );
     // 环7：LexArgmin + Schedule（原样单源）。
     let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
     let order = schedule_order(p_star, p_t, exec_index);
 
     // ── trace 差分（决策已定，纯只读观测）──
-    let next_ids: std::collections::HashSet<ElementId> =
-        next_active.iter().map(|l| l.id).collect();
+    let next_ids: std::collections::HashSet<ElementId> = next_active.iter().map(|l| l.id).collect();
     // #145 T1 typed 裁决（组合层单点）：entry_v 从在飞映射取；tw=None/腿不在映射 ⟹ 回退
     // Ambient（诚实语义见 `StepTrace::closed` doc——回退值不被 ledger 消费）。#202：C 组腿
     // 的 typed 与 channel 裁决同单源（reverse_exit_type(entry_v, trigger.class) 逐字同判据）。
@@ -516,11 +569,17 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
         .iter()
         .filter_map(|l| {
             if risk_exit_ids.contains(&l.id) {
-                Some(VoiceVerdict { leg: *l, exit: interp::ExitType::RiskExit })
+                Some(VoiceVerdict {
+                    leg: *l,
+                    exit: interp::ExitType::RiskExit,
+                })
             } else if let Some(&exit) = closed_typed.get(&l.id) {
                 Some(VoiceVerdict { leg: *l, exit })
             } else if next_ids.contains(&l.id) {
-                Some(VoiceVerdict { leg: *l, exit: interp::ExitType::Hold })
+                Some(VoiceVerdict {
+                    leg: *l,
+                    exit: interp::ExitType::Hold,
+                })
             } else {
                 None
             }
@@ -564,7 +623,10 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
     let lex_top3 = if opened.is_empty() {
         Vec::new()
     } else {
-        lex_argmin_top_k(&feasible_lex_candidates(p_tilde, p_t, base_units, risk, weights, gate), 3)
+        lex_argmin_top_k(
+            &feasible_lex_candidates(p_tilde, p_t, base_units, risk, weights, gate),
+            3,
+        )
     };
 
     (
@@ -583,7 +645,6 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
         },
     )
 }
-
 
 #[cfg(test)]
 #[path = "compose_tests_1.rs"]

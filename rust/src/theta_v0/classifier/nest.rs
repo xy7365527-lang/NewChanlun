@@ -173,7 +173,12 @@ impl NestRung {
     /// `cand` 仍是 0/1 谓词**取值**输入（裁决① `Cand^δ` 定义式在 recursive_tower/cand_predicate
     /// 上游），本构造器不重判、不臆造判据。
     pub(crate) fn new(interval: NestInterval, cand: bool) -> Self {
-        Self { confirm_src: None, child_interval: None, interval, cand }
+        Self {
+            confirm_src: None,
+            child_interval: None,
+            interval,
+            cand,
+        }
     }
     /// 严格装配路径构造：保留独立确认时点及边的 `I(A_child) ⊆ D_parent` 见证。
     fn assembled(
@@ -267,8 +272,14 @@ impl NestCertificate {
         base_interval: NestInterval,
         rungs: Vec<NestRung>,
     ) -> Self {
-        NestCertificateBuilder { side, terminal, base_confirm_src: None, base_interval, rungs }
-            .finish()
+        NestCertificateBuilder {
+            side,
+            terminal,
+            base_confirm_src: None,
+            base_interval,
+            rungs,
+        }
+        .finish()
     }
 
     /// 方向 δ（固定于整条证书）。
@@ -326,7 +337,12 @@ impl NestCertificate {
     }
 
     /// `N^δ` 的级别递归核（mirror Lean (ℓ-e):Nat 结构递归）。`rungs` 从高(ℓ)到低(e+1)。
-    fn n_delta_rec(side: Side, terminal: &BspBits, base: &NestInterval, rungs: &[NestRung]) -> bool {
+    fn n_delta_rec(
+        side: Side,
+        terminal: &BspBits,
+        base: &NestInterval,
+        rungs: &[NestRung],
+    ) -> bool {
         match rungs.split_first() {
             // 基例 ℓ=e：N^δ_{e↓e} = Conf^δ_e。
             None => terminal.confirm_side(side),
@@ -357,17 +373,14 @@ struct NestCertificateBuilder {
 impl NestCertificateBuilder {
     fn finish(self) -> NestCertificate {
         debug_assert!(
-            self.rungs
-                .iter()
-                .enumerate()
-                .all(|(i, rung)| {
-                    let child = rung.child_interval.as_ref().unwrap_or_else(|| {
-                        self.rungs
-                            .get(i + 1)
-                            .map_or(&self.base_interval, |next| &next.interval)
-                    });
-                    is_sub(child, &rung.interval)
-                }),
+            self.rungs.iter().enumerate().all(|(i, rung)| {
+                let child = rung.child_interval.as_ref().unwrap_or_else(|| {
+                    self.rungs
+                        .get(i + 1)
+                        .map_or(&self.base_interval, |next| &next.interval)
+                });
+                is_sub(child, &rung.interval)
+            }),
             "cert F-01 builder：嵌套边破裂 I(A_child)⊆D_parent：base={:?} rungs={:?}",
             self.base_interval,
             self.rungs
@@ -462,7 +475,11 @@ impl TypedNestCertificate {
     /// D3 sidecar：父级首次可证钟应不晚于子级。这里只计数，不参与证书真值。
     pub fn d3_descent_stats(&self) -> (usize, usize) {
         let edges = self.judge_at.len().saturating_sub(1);
-        let violations = self.judge_at.windows(2).filter(|pair| pair[0] > pair[1]).count();
+        let violations = self
+            .judge_at
+            .windows(2)
+            .filter(|pair| pair[0] > pair[1])
+            .count();
         (edges, violations)
     }
 }
@@ -629,7 +646,18 @@ pub fn terminal_bits_in_book(
     m: TerminalMatch,
     anchor_ctx: &OwnerAnchorCtx,
 ) -> Option<TerminalEndorsement> {
-    terminal_bits_in_book_core(bsp, centers, c_start, turn_source, side, kind, b_center_start, m, anchor_ctx).0
+    terminal_bits_in_book_core(
+        bsp,
+        centers,
+        c_start,
+        turn_source,
+        side,
+        kind,
+        b_center_start,
+        m,
+        anchor_ctx,
+    )
+    .0
 }
 
 /// #214 判定核（核化：原 `terminal_bits_in_book` 判定逻辑收进私有核，合取序/窗口/方向
@@ -684,7 +712,10 @@ fn terminal_bits_in_book_core(
             EndorsementProbe::default(),
         ),
         TerminalMatch::CWindow => {
-            let mut probe = EndorsementProbe { book_total: bsp.len(), ..Default::default() };
+            let mut probe = EndorsementProbe {
+                book_total: bsp.len(),
+                ..Default::default()
+            };
             let mut best: Option<&BspPoint> = None;
             for point in bsp {
                 if !(c_start <= point.source_index && point.source_index <= turn_source) {
@@ -816,7 +847,13 @@ pub fn terminal_bits_at_event_measured(
     let Some(book) = event_bsp_book_level(e.level).and_then(|level| c.levels.get(level)) else {
         // 账本级别缺失/越界（nest 不听 L0 之外的结构性 None）——ID-2「无合法点」
         // 子计数单列；生产入口同路径返回 None（语义不动）。
-        return (None, EndorsementProbe { book_missing: true, ..Default::default() });
+        return (
+            None,
+            EndorsementProbe {
+                book_missing: true,
+                ..Default::default()
+            },
+        );
     };
     terminal_bits_in_book_core(
         &book.bsp,
@@ -932,7 +969,11 @@ fn extend_typed_upward(
     let mut order: Vec<_> = (0..events.len()).collect();
     order.sort_by_key(|&index| {
         let event = &events[index];
-        (typed_interval(event, caliber).sel_key(), event.turn_source, index)
+        (
+            typed_interval(event, caliber).sel_key(),
+            event.turn_source,
+            index,
+        )
     });
     for index in order {
         let event = &events[index];
@@ -990,9 +1031,12 @@ where
     let Some(bases) = events_by_level.get(exec_level) else {
         return Vec::new();
     };
-    bases.iter().filter_map(|base| {
-        assemble_typed_certificate(events_by_level, base, top_level, caliber, &terminal_of)
-    }).collect()
+    bases
+        .iter()
+        .filter_map(|base| {
+            assemble_typed_certificate(events_by_level, base, top_level, caliber, &terminal_of)
+        })
+        .collect()
 }
 
 // ═════════ P2 证书生产装配层（strict-nesting-divergence-plan-20260708 §P2）═════════
@@ -1012,7 +1056,10 @@ where
 ///
 /// 历史兼容区间 `event.interval == event.c_episode_interval`；不得将本函数输出冒充完整 `c_p`。
 pub fn d_parent_interval(ev: &CandDeltaEvent) -> NestInterval {
-    debug_assert_eq!(ev.c_episode_start, ev.interval.0, "episode 左端别名必须一致");
+    debug_assert_eq!(
+        ev.c_episode_start, ev.interval.0,
+        "episode 左端别名必须一致"
+    );
     NestInterval {
         end_time: ev.interval.1 as u64,
         start_time: ev.enter_src as u64,
@@ -1113,17 +1160,11 @@ pub fn assemble_certificate_terminal(
     top_level: usize,
     terminal: BspBits,
 ) -> Option<NestCertificate> {
-    assemble_certificate_with(
-        events_by_level,
-        base,
-        top_level,
-        terminal,
-        &|event| {
-            objects_by_level
-                .get(event.level as usize)
-                .and_then(|objects| d_parent_interval_terminal(event, objects))
-        },
-    )
+    assemble_certificate_with(events_by_level, base, top_level, terminal, &|event| {
+        objects_by_level
+            .get(event.level as usize)
+            .and_then(|objects| d_parent_interval_terminal(event, objects))
+    })
 }
 
 fn assemble_certificate_with<F>(
@@ -1164,7 +1205,10 @@ where
         rungs: acc,
     }
     .finish();
-    debug_assert!(cert.n_delta(), "装配即校验：产出证书必过 n_delta（三门合取）");
+    debug_assert!(
+        cert.n_delta(),
+        "装配即校验：产出证书必过 n_delta（三门合取）"
+    );
     Some(cert)
 }
 
@@ -1309,16 +1353,25 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::super::LevelState;
     use super::super::super::types::Center;
+    use super::super::LevelState;
     use super::*;
 
     fn interval(et: u64, st: u64, idx: u64) -> NestInterval {
-        NestInterval { end_time: et, start_time: st, idx }
+        NestInterval {
+            end_time: et,
+            start_time: st,
+            idx,
+        }
     }
 
     fn rung(et: u64, st: u64, idx: u64, cand: bool) -> NestRung {
-        NestRung { confirm_src: None, child_interval: None, interval: interval(et, st, idx), cand }
+        NestRung {
+            confirm_src: None,
+            child_interval: None,
+            interval: interval(et, st, idx),
+            cand,
+        }
     }
 
     fn buy1_bits() -> BspBits {
@@ -1442,9 +1495,18 @@ mod tests {
     fn chi_nest_valid_and_confirmed() {
         // 区间套逐级缩小 + 终端确认 ⟹ χ confirmed。
         let chain = vec![
-            LevelNode { cands: vec![interval(100, 0, 0)], chosen: interval(100, 0, 0) },
-            LevelNode { cands: vec![interval(80, 10, 0)], chosen: interval(80, 10, 0) },
-            LevelNode { cands: vec![interval(60, 20, 0)], chosen: interval(60, 20, 0) },
+            LevelNode {
+                cands: vec![interval(100, 0, 0)],
+                chosen: interval(100, 0, 0),
+            },
+            LevelNode {
+                cands: vec![interval(80, 10, 0)],
+                chosen: interval(80, 10, 0),
+            },
+            LevelNode {
+                cands: vec![interval(60, 20, 0)],
+                chosen: interval(60, 20, 0),
+            },
         ];
         let mut terminal = BspBits::default();
         terminal.buy1 = true;
@@ -1458,8 +1520,14 @@ mod tests {
     fn chi_broken_nesting_not_valid() {
         // 区间套不缩小（下级 end 超过上级）⟹ nest 不良构。
         let chain = vec![
-            LevelNode { cands: vec![interval(60, 20, 0)], chosen: interval(60, 20, 0) },
-            LevelNode { cands: vec![interval(100, 0, 0)], chosen: interval(100, 0, 0) }, // end 超界
+            LevelNode {
+                cands: vec![interval(60, 20, 0)],
+                chosen: interval(60, 20, 0),
+            },
+            LevelNode {
+                cands: vec![interval(100, 0, 0)],
+                chosen: interval(100, 0, 0),
+            }, // end 超界
         ];
         let mut terminal = BspBits::default();
         terminal.buy1 = true;
@@ -1474,7 +1542,10 @@ mod tests {
         let mut terminal = BspBits::default();
         terminal.buy3 = true;
         let chi = Chi {
-            chain: vec![LevelNode { cands: vec![interval(50, 0, 0)], chosen: interval(50, 0, 0) }],
+            chain: vec![LevelNode {
+                cands: vec![interval(50, 0, 0)],
+                chosen: interval(50, 0, 0),
+            }],
             terminal,
         };
         assert!(chi.nest_valid());
@@ -1492,8 +1563,11 @@ mod tests {
             rungs: vec![],
         };
         assert!(cert.n_delta()); // 买侧确认 + Long ⟹ 1
-        // 方向翻转：买侧 bit 对 Short 不确认 ⟹ 0。
-        let cert_short = NestCertificate { side: Side::Short, ..cert.clone() };
+                                 // 方向翻转：买侧 bit 对 Short 不确认 ⟹ 0。
+        let cert_short = NestCertificate {
+            side: Side::Short,
+            ..cert.clone()
+        };
         assert!(!cert_short.n_delta());
     }
 
@@ -1570,8 +1644,8 @@ mod tests {
             side: Side::Long,
             terminal: buy1_bits(),
             base_confirm_src: None,
-            base_interval: interval(60, 20, 0),                          // J^δ_e
-            rungs: vec![rung(100, 0, 0, true), rung(80, 10, 0, true)],   // ℓ, ℓ-1
+            base_interval: interval(60, 20, 0), // J^δ_e
+            rungs: vec![rung(100, 0, 0, true), rung(80, 10, 0, true)], // ℓ, ℓ-1
         };
         assert!(cert.n_delta());
         // 中间级 Cand=0 ⟹ 逐级合取翻转为 0。
@@ -1594,7 +1668,10 @@ mod tests {
         };
         assert!(cert.n_delta());
         // 同结构换 Long：卖侧 bit 对 Long 不确认 ⟹ 0。
-        let cert_long = NestCertificate { side: Side::Long, ..cert.clone() };
+        let cert_long = NestCertificate {
+            side: Side::Long,
+            ..cert.clone()
+        };
         assert!(!cert_long.n_delta());
     }
 
@@ -1694,9 +1771,15 @@ mod tests {
             .expect("拆绑后完整链应出证书");
 
         assert_eq!(cert.base_confirm_src, Some(90));
-        assert_ne!(cert.base_confirm_src.unwrap() as u64, cert.base_interval.end_time);
+        assert_ne!(
+            cert.base_confirm_src.unwrap() as u64,
+            cert.base_interval.end_time
+        );
         assert_eq!(cert.rungs[0].confirm_src, Some(70));
-        assert_ne!(cert.rungs[0].confirm_src.unwrap() as u64, cert.rungs[0].interval.end_time);
+        assert_ne!(
+            cert.rungs[0].confirm_src.unwrap() as u64,
+            cert.rungs[0].interval.end_time
+        );
         assert!(cert.n_delta());
     }
 
@@ -1801,9 +1884,7 @@ mod tests {
         // 基例 Conf^δ_e=false（全零 bits）⟹ 前置即拒。
         let base = cev(0, Side::Long, 60, 20, 60, true);
         let evs = vec![vec![base.clone()]];
-        assert!(
-            assemble_certificate_snapshot(&evs, &base, 0, BspBits::default()).is_none()
-        );
+        assert!(assemble_certificate_snapshot(&evs, &base, 0, BspBits::default()).is_none());
     }
 
     #[test]
@@ -1817,8 +1898,8 @@ mod tests {
                 cev(1, Side::Long, 50, 10, 80, true), // 次早可行
             ],
         ];
-        let cert = assemble_certificate_snapshot(&evs, &base, 1, buy1_bits())
-            .expect("回溯应找到可行父");
+        let cert =
+            assemble_certificate_snapshot(&evs, &base, 1, buy1_bits()).expect("回溯应找到可行父");
         assert_eq!(cert.rungs[0].interval, interval(80, 10, 0));
     }
 
@@ -1889,24 +1970,42 @@ mod tests {
     #[test]
     fn p92_typed_b_uses_c_interval_and_d3_is_sidecar_only() {
         let base = typed_event(
-            1, Side::Long, NestDivergenceKind::Trend,
-            (30, 50), (10, 70), 50, 100, true,
+            1,
+            Side::Long,
+            NestDivergenceKind::Trend,
+            (30, 50),
+            (10, 70),
+            50,
+            100,
+            true,
         );
         let parent = typed_event(
-            2, Side::Long, NestDivergenceKind::Consolidation,
-            (20, 80), (0, 100), 80, 200, true,
+            2,
+            Side::Long,
+            NestDivergenceKind::Consolidation,
+            (20, 80),
+            (0, 100),
+            80,
+            200,
+            true,
         );
         let events = vec![Vec::new(), vec![base.clone()], vec![parent]];
-        let certificate = assemble_typed_certificate(
-            &events, &base, 2, NestIntervalCaliber::B, &|_| Some(buy1_bits()),
-        ).expect("B: child C [30,50] ⊆ parent C [20,80]");
-        assert_eq!(certificate.certificate().base_interval(), interval(50, 30, 50));
+        let certificate =
+            assemble_typed_certificate(&events, &base, 2, NestIntervalCaliber::B, &|_| {
+                Some(buy1_bits())
+            })
+            .expect("B: child C [30,50] ⊆ parent C [20,80]");
+        assert_eq!(
+            certificate.certificate().base_interval(),
+            interval(50, 30, 50)
+        );
         assert_eq!(
             certificate.kinds(),
             &[NestDivergenceKind::Consolidation, NestDivergenceKind::Trend]
         );
         assert_eq!(
-            certificate.d3_descent_stats(), (1, 1),
+            certificate.d3_descent_stats(),
+            (1, 1),
             "逆序只计 sidecar，不否决证书"
         );
         assert!(certificate.certificate().n_delta());
@@ -1915,18 +2014,32 @@ mod tests {
     #[test]
     fn p97_rung_screening_is_structural_and_identities_align() {
         let base = typed_event(
-            1, Side::Long, NestDivergenceKind::Consolidation,
-            (30, 50), (10, 70), 50, 100, true,
+            1,
+            Side::Long,
+            NestDivergenceKind::Consolidation,
+            (30, 50),
+            (10, 70),
+            50,
+            100,
+            true,
         );
         // 父级 rung 力度未确认（divergence_confirmed=false）：D1 裁定下只看结构，不得否决链。
         let parent = typed_event(
-            2, Side::Long, NestDivergenceKind::Consolidation,
-            (20, 80), (0, 100), 80, 200, false,
+            2,
+            Side::Long,
+            NestDivergenceKind::Consolidation,
+            (20, 80),
+            (0, 100),
+            80,
+            200,
+            false,
         );
         let events = vec![Vec::new(), vec![base.clone()], vec![parent.clone()]];
-        let certificate = assemble_typed_certificate(
-            &events, &base, 2, NestIntervalCaliber::B, &|_| Some(buy1_bits()),
-        ).expect("#97: rung 初筛只看结构，父级力度未确认不否决链");
+        let certificate =
+            assemble_typed_certificate(&events, &base, 2, NestIntervalCaliber::B, &|_| {
+                Some(buy1_bits())
+            })
+            .expect("#97: rung 初筛只看结构，父级力度未确认不否决链");
         assert_eq!(
             certificate.identities(),
             &[NestEventIdentity::of(&parent), NestEventIdentity::of(&base)],
@@ -1940,31 +2053,43 @@ mod tests {
     #[test]
     fn p92_typed_weak_stage_and_terminal_bits_remain_independent() {
         let pan = typed_event(
-            1, Side::Long, NestDivergenceKind::Consolidation,
-            (30, 50), (10, 70), 50, 100, false,
+            1,
+            Side::Long,
+            NestDivergenceKind::Consolidation,
+            (30, 50),
+            (10, 70),
+            50,
+            100,
+            false,
         );
         let events = vec![Vec::new(), vec![pan.clone()]];
         assert!(
-            assemble_typed_certificate(
-                &events, &pan, 1, NestIntervalCaliber::B, &|_| Some(buy1_bits()),
-            ).is_none(),
+            assemble_typed_certificate(&events, &pan, 1, NestIntervalCaliber::B, &|_| Some(
+                buy1_bits()
+            ),)
+            .is_none(),
             "力度未确认不产背驰段证书，但不改变上游 Cand 身份"
         );
 
-        let confirmed = NestCandidateEvent { divergence_confirmed: true, ..pan };
+        let confirmed = NestCandidateEvent {
+            divergence_confirmed: true,
+            ..pan
+        };
         let events = vec![Vec::new(), vec![confirmed.clone()]];
         assert!(
-            assemble_typed_certificate(
-                &events, &confirmed, 1, NestIntervalCaliber::B, &|_| Some(BspBits::default()),
-            ).is_none(),
+            assemble_typed_certificate(&events, &confirmed, 1, NestIntervalCaliber::B, &|_| Some(
+                BspBits::default()
+            ),)
+            .is_none(),
             "盘背不得强置同级 B1；终端仍须真实 Λ 非空"
         );
         let mut buy2 = BspBits::default();
         buy2.buy2 = true;
         assert!(
-            assemble_typed_certificate(
-                &events, &confirmed, 1, NestIntervalCaliber::B, &|_| Some(buy2),
-            ).is_some(),
+            assemble_typed_certificate(&events, &confirmed, 1, NestIntervalCaliber::B, &|_| Some(
+                buy2
+            ),)
+            .is_some(),
             "真实 B2 可满足既有 confirm_side 析取"
         );
     }
@@ -1978,7 +2103,8 @@ mod tests {
     }
 
     fn pt(source_index: usize, bits: BspBits) -> BspPoint {
-        BspPoint { source_index,
+        BspPoint {
+            source_index,
             bits,
             pivot_low: 0,
             pivot_high: 0,
@@ -1997,7 +2123,14 @@ mod tests {
     /// `ctr(0, 0, B_START)` 作 B 即带判等；要判负用 `ptb` 显式给异带中枢。
     fn ptc(source_index: usize, bits: BspBits, center_start: usize) -> BspPoint {
         BspPoint {
-            center: Some(super::super::bsp::OwnerRef::Center(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: center_start, end_index: 0 })),
+            center: Some(super::super::bsp::OwnerRef::Center(Center {
+                zd: 0,
+                zg: 0,
+                dd: 0,
+                gg: 0,
+                start_index: center_start,
+                end_index: 0,
+            })),
             ..pt(source_index, bits)
         }
     }
@@ -2012,9 +2145,14 @@ mod tests {
         NestCandidateEvent {
             b_center_start: B_START,
             ..typed_event(
-                1, Side::Long, NestDivergenceKind::Trend,
-                interval_b, (interval_b.0.saturating_sub(10), turn_source + 10),
-                turn_source, turn_source, true,
+                1,
+                Side::Long,
+                NestDivergenceKind::Trend,
+                interval_b,
+                (interval_b.0.saturating_sub(10), turn_source + 10),
+                turn_source,
+                turn_source,
+                true,
             )
         }
     }
@@ -2022,9 +2160,14 @@ mod tests {
     /// 关③ Pan 域事件夹具：kind=Consolidation（owner 快照不入判，置 0）。
     fn pan_ev(interval_b: (usize, usize), turn_source: usize) -> NestCandidateEvent {
         typed_event(
-            1, Side::Long, NestDivergenceKind::Consolidation,
-            interval_b, (interval_b.0.saturating_sub(10), turn_source + 10),
-            turn_source, turn_source, true,
+            1,
+            Side::Long,
+            NestDivergenceKind::Consolidation,
+            interval_b,
+            (interval_b.0.saturating_sub(10), turn_source + 10),
+            turn_source,
+            turn_source,
+            true,
         )
     }
 
@@ -2032,8 +2175,14 @@ mod tests {
     fn book2(l0: Vec<BspPoint>, l1: Vec<BspPoint>) -> Classification {
         Classification {
             levels: vec![
-                LevelState { bsp: std::rc::Rc::new(l0), ..Default::default() },
-                LevelState { bsp: std::rc::Rc::new(l1), ..Default::default() },
+                LevelState {
+                    bsp: std::rc::Rc::new(l0),
+                    ..Default::default()
+                },
+                LevelState {
+                    bsp: std::rc::Rc::new(l1),
+                    ..Default::default()
+                },
             ],
         }
     }
@@ -2051,22 +2200,51 @@ mod tests {
         // levels[0] 有 confirm 点@100 ⟹ 命中（C-a 平移语义；Exact = 诊断常数，关③ 不收紧）。
         let c = book2(vec![pt(100, buy1_bits())], vec![]);
         let ev = typed_event(
-            1, Side::Long, NestDivergenceKind::Trend,
-            (90, 100), (80, 110), 100, 100, true,
+            1,
+            Side::Long,
+            NestDivergenceKind::Trend,
+            (90, 100),
+            (80, 110),
+            100,
+            100,
+            true,
         );
-        assert_eq!(bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::Exact, &ctx_degenerate())), Some(buy1_bits()));
+        assert_eq!(
+            bits_of(terminal_bits_at_event(
+                &c,
+                &ev,
+                TerminalMatch::Exact,
+                &ctx_degenerate()
+            )),
+            Some(buy1_bits())
+        );
         // 仅 levels[1] 有 ⟹ None（新语义防回归：移位后不再读 levels[ℓ]）。
         let c_l1_only = book2(vec![], vec![pt(100, buy1_bits())]);
-        assert_eq!(terminal_bits_at_event(&c_l1_only, &ev, TerminalMatch::Exact, &ctx_degenerate()), None);
+        assert_eq!(
+            terminal_bits_at_event(&c_l1_only, &ev, TerminalMatch::Exact, &ctx_degenerate()),
+            None
+        );
         // side 反 ⟹ None。
-        let ev_short = NestCandidateEvent { side: Side::Short, ..ev };
-        assert_eq!(terminal_bits_at_event(&c, &ev_short, TerminalMatch::Exact, &ctx_degenerate()), None);
+        let ev_short = NestCandidateEvent {
+            side: Side::Short,
+            ..ev
+        };
+        assert_eq!(
+            terminal_bits_at_event(&c, &ev_short, TerminalMatch::Exact, &ctx_degenerate()),
+            None
+        );
         // event.level=0 ⟹ None（nest 不听 L0）。
         let ev_l0 = NestCandidateEvent { level: 0, ..ev };
-        assert_eq!(terminal_bits_at_event(&c, &ev_l0, TerminalMatch::Exact, &ctx_degenerate()), None);
+        assert_eq!(
+            terminal_bits_at_event(&c, &ev_l0, TerminalMatch::Exact, &ctx_degenerate()),
+            None
+        );
         // level 越界 ⟹ None。
         let ev_oob = NestCandidateEvent { level: 5, ..ev };
-        assert_eq!(terminal_bits_at_event(&c, &ev_oob, TerminalMatch::Exact, &ctx_degenerate()), None);
+        assert_eq!(
+            terminal_bits_at_event(&c, &ev_oob, TerminalMatch::Exact, &ctx_degenerate()),
+            None
+        );
     }
 
     #[test]
@@ -2086,13 +2264,21 @@ mod tests {
         );
         let ev = trend_ev((100, 200), 200);
         assert_eq!(
-            bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate())),
+            bits_of(terminal_bits_at_event(
+                &c,
+                &ev,
+                TerminalMatch::CWindow,
+                &ctx_degenerate()
+            )),
             Some(buy1_bits()),
             "窗口 [100,200] 内最早合法点 @120（一类 ∧ owner=B）"
         );
         // 空窗（窗口内无任何点）⟹ None。
         let c_empty = book2(vec![pt(99, buy1_bits()), pt(201, buy1_bits())], vec![]);
-        assert_eq!(terminal_bits_at_event(&c_empty, &ev, TerminalMatch::CWindow, &ctx_degenerate()), None);
+        assert_eq!(
+            terminal_bits_at_event(&c_empty, &ev, TerminalMatch::CWindow, &ctx_degenerate()),
+            None
+        );
     }
 
     #[test]
@@ -2100,34 +2286,50 @@ mod tests {
         let base = NestCandidateEvent {
             b_center_start: B_START,
             ..typed_event(
-                1, Side::Long, NestDivergenceKind::Trend,
-                (30, 50), (10, 70), 50, 100, true,
+                1,
+                Side::Long,
+                NestDivergenceKind::Trend,
+                (30, 50),
+                (10, 70),
+                50,
+                100,
+                true,
             )
         };
         let events = vec![Vec::new(), vec![base]];
         // 基例 level=1 confirmed + levels[0] 窗内合法背书点（一类 ∧ owner=B）@40 ⟹ Some(cert)。
         // #218 面 B（机械改写归因：带等值构造）：levels[0] 带判等点 @40。
-        let c = book2c(vec![ptc(40, buy1_bits(), B_START)], vec![], vec![ctr(0, 0, B_START)]);
-        let cert = assemble_typed_certificate(
-            &events, &base, 1, NestIntervalCaliber::B,
-            &|e| bits_of(terminal_bits_at_event(&c, e, TerminalMatch::CWindow, &ctx_degenerate())),
-        )
+        let c = book2c(
+            vec![ptc(40, buy1_bits(), B_START)],
+            vec![],
+            vec![ctr(0, 0, B_START)],
+        );
+        let cert = assemble_typed_certificate(&events, &base, 1, NestIntervalCaliber::B, &|e| {
+            bits_of(terminal_bits_at_event(
+                &c,
+                e,
+                TerminalMatch::CWindow,
+                &ctx_degenerate(),
+            ))
+        })
         .expect("levels[0] 窗内背书点 ⟹ 证书成立");
         assert_eq!(cert.certificate().terminal(), &buy1_bits());
         // 删该点 ⟹ None。
         let c_none = book2(vec![], vec![]);
-        assert!(assemble_typed_certificate(
-            &events, &base, 1, NestIntervalCaliber::B,
-            &|e| bits_of(terminal_bits_at_event(&c_none, e, TerminalMatch::CWindow, &ctx_degenerate())),
-        )
-        .is_none());
+        assert!(
+            assemble_typed_certificate(&events, &base, 1, NestIntervalCaliber::B, &|e| bits_of(
+                terminal_bits_at_event(&c_none, e, TerminalMatch::CWindow, &ctx_degenerate())
+            ),)
+            .is_none()
+        );
         // 点只在 levels[1]（levels[0] 空）⟹ None——移位后不再读 levels[1]，防旧语义回潮。
         let c_l1_only = book2(vec![], vec![ptc(40, buy1_bits(), B_START)]);
-        assert!(assemble_typed_certificate(
-            &events, &base, 1, NestIntervalCaliber::B,
-            &|e| bits_of(terminal_bits_at_event(&c_l1_only, e, TerminalMatch::CWindow, &ctx_degenerate())),
-        )
-        .is_none());
+        assert!(
+            assemble_typed_certificate(&events, &base, 1, NestIntervalCaliber::B, &|e| bits_of(
+                terminal_bits_at_event(&c_l1_only, e, TerminalMatch::CWindow, &ctx_degenerate())
+            ),)
+            .is_none()
+        );
     }
 
     // ───── S0 图 §5.1 八夹具按 C-b 口径改写吸收 ─────
@@ -2140,8 +2342,14 @@ mod tests {
         NestCandidateEvent {
             b_center_start: B_START,
             ..typed_event(
-                1, Side::Long, NestDivergenceKind::Trend,
-                (726527, t_star), (726400, t_star), t_star, t_star, true,
+                1,
+                Side::Long,
+                NestDivergenceKind::Trend,
+                (726527, t_star),
+                (726400, t_star),
+                t_star,
+                t_star,
+                true,
             )
         }
     }
@@ -2151,10 +2359,30 @@ mod tests {
     #[test]
     fn c_window_hit_at_tstar_degenerates_to_exact() {
         // #218 面 B（机械改写归因：序号等值 → 带等值构造）。
-        let c = book2c(vec![ptc(726600, buy1_bits(), B_START)], vec![], vec![ctr(0, 0, B_START)]);
+        let c = book2c(
+            vec![ptc(726600, buy1_bits(), B_START)],
+            vec![],
+            vec![ctr(0, 0, B_START)],
+        );
         let ev = s0_event(726600);
-        assert_eq!(bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate())), Some(buy1_bits()));
-        assert_eq!(bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::Exact, &ctx_degenerate())), Some(buy1_bits()));
+        assert_eq!(
+            bits_of(terminal_bits_at_event(
+                &c,
+                &ev,
+                TerminalMatch::CWindow,
+                &ctx_degenerate()
+            )),
+            Some(buy1_bits())
+        );
+        assert_eq!(
+            bits_of(terminal_bits_at_event(
+                &c,
+                &ev,
+                TerminalMatch::Exact,
+                &ctx_degenerate()
+            )),
+            Some(buy1_bits())
+        );
     }
 
     /// 原 `terminal_bridge_skips_center_being_left_unit`：B 自身结构代表点 @726520
@@ -2164,7 +2392,10 @@ mod tests {
     fn c_window_left_edge_excludes_prior_structure_point() {
         let c = book2(vec![pt(726520, buy1_bits())], vec![]);
         let ev = s0_event(726560);
-        assert_eq!(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate()), None);
+        assert_eq!(
+            terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate()),
+            None
+        );
     }
 
     /// 原 `terminal_bridge_selects_first_c_unit_covering_tstar`：t*=726650 深在 c 内，
@@ -2179,16 +2410,30 @@ mod tests {
             vec![ctr(0, 0, B_START)],
         );
         let ev = s0_event(726650);
-        assert_eq!(bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate())), Some(buy1_bits()));
+        assert_eq!(
+            bits_of(terminal_bits_at_event(
+                &c,
+                &ev,
+                TerminalMatch::CWindow,
+                &ctx_degenerate()
+            )),
+            Some(buy1_bits())
+        );
     }
 
     /// 原 `terminal_bridge_witness_not_formed_returns_none`：窗口 [726527,726560] 内
     /// 无任何点（@726520/@726600 皆窗外）⟹ None——037:18 否则条款域的诚实判负。
     #[test]
     fn c_window_witness_absent_returns_none() {
-        let c = book2(vec![pt(726520, buy1_bits()), pt(726600, buy1_bits())], vec![]);
+        let c = book2(
+            vec![pt(726520, buy1_bits()), pt(726600, buy1_bits())],
+            vec![],
+        );
         let ev = s0_event(726560);
-        assert_eq!(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate()), None);
+        assert_eq!(
+            terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate()),
+            None
+        );
     }
 
     /// 原 `terminal_bridge_wrong_side_rejected`：窗口内仅 sell1@726600 ⟹ Long 事件
@@ -2197,7 +2442,10 @@ mod tests {
     fn c_window_wrong_side_rejected() {
         let c = book2(vec![pt(726600, sell1_bits())], vec![]);
         let ev = s0_event(726600);
-        assert_eq!(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate()), None);
+        assert_eq!(
+            terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate()),
+            None
+        );
     }
 
     /// 原 `terminal_bridge_first_confirm_at_shared_endpoint`：同坐标三点（零 bit + buy1
@@ -2216,7 +2464,15 @@ mod tests {
             vec![ctr(0, 0, B_START)],
         );
         let ev = s0_event(726600);
-        assert_eq!(bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate())), Some(buy1_bits()));
+        assert_eq!(
+            bits_of(terminal_bits_at_event(
+                &c,
+                &ev,
+                TerminalMatch::CWindow,
+                &ctx_degenerate()
+            )),
+            Some(buy1_bits())
+        );
     }
 
     /// 原 `terminal_bridge_pan_event_same_contract`：kind=Consolidation 事件共用同一
@@ -2226,10 +2482,24 @@ mod tests {
     fn c_window_pan_event_same_contract() {
         let c = book2(vec![pt(726600, buy1_bits())], vec![]);
         let ev = typed_event(
-            1, Side::Long, NestDivergenceKind::Consolidation,
-            (726541, 726600), (726400, 726600), 726600, 726600, true,
+            1,
+            Side::Long,
+            NestDivergenceKind::Consolidation,
+            (726541, 726600),
+            (726400, 726600),
+            726600,
+            726600,
+            true,
         );
-        assert_eq!(bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate())), Some(buy1_bits()));
+        assert_eq!(
+            bits_of(terminal_bits_at_event(
+                &c,
+                &ev,
+                TerminalMatch::CWindow,
+                &ctx_degenerate()
+            )),
+            Some(buy1_bits())
+        );
     }
 
     /// 原 `terminal_bridge_past_last_unit_returns_none` 的 C-b 消解：t*=726999 越过
@@ -2245,7 +2515,15 @@ mod tests {
             vec![ctr(0, 0, B_START)],
         );
         let ev = s0_event(726999);
-        assert_eq!(bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate())), Some(buy1_bits()));
+        assert_eq!(
+            bits_of(terminal_bits_at_event(
+                &c,
+                &ev,
+                TerminalMatch::CWindow,
+                &ctx_degenerate()
+            )),
+            Some(buy1_bits())
+        );
     }
 
     // ───────── 关③ P3 confirm_side 收紧：点类分域 + owner=B start_index 判同 ─────────
@@ -2255,12 +2533,20 @@ mod tests {
     fn c_window_trend_type1_owner_b_hits() {
         // #218 面 B（机械改写归因：序号等值 → 带等值构造——判同机制换核心区间带判同）：
         // 点 center 带 == B 带 ⟹ 判等；owner_center_start 归因快照语义不动（Center 载体）。
-        let c = book2c(vec![ptc(150, buy1_bits(), B_START)], vec![], vec![ctr(0, 0, B_START)]);
+        let c = book2c(
+            vec![ptc(150, buy1_bits(), B_START)],
+            vec![],
+            vec![ctr(0, 0, B_START)],
+        );
         let ev = trend_ev((100, 200), 200);
         let endo = terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate())
             .expect("一类 ∧ owner=B（带判同）⟹ 合法背书");
         assert_eq!(endo.bits, buy1_bits());
-        assert_eq!(endo.owner_center_start, Some(B_START), "归因快照 = Center 载体 start_index（非判定输入）");
+        assert_eq!(
+            endo.owner_center_start,
+            Some(B_START),
+            "归因快照 = Center 载体 start_index（非判定输入）"
+        );
     }
 
     /// 关③ P1.3：Trend 域 一类 owner≠B 拒（窗内他中枢一类点——prev/OTHER/新生中枢——
@@ -2297,7 +2583,10 @@ mod tests {
         // 二类点一类锚坐标 30，oracle(30)=(900,70) == 事件两元锚 ⟹ 判等。
         static ORACLE: &[(usize, (Tick, usize))] = &[(30, (900, 70))];
         let oracle = synth_oracle(ORACLE);
-        let ctx = OwnerAnchorCtx { anchor_at: &oracle, event_anchor: (Some(900), Some(70)) };
+        let ctx = OwnerAnchorCtx {
+            anchor_at: &oracle,
+            event_anchor: (Some(900), Some(70)),
+        };
         let mut buy3 = BspBits::default();
         buy3.buy3 = true;
         let c = book2c(
@@ -2318,7 +2607,10 @@ mod tests {
         // 取最早同向 owner 判等点 @120 buy2（锚判等），不取后至一类。
         static ORACLE: &[(usize, (Tick, usize))] = &[(30, (900, 70))];
         let oracle = synth_oracle(ORACLE);
-        let ctx = OwnerAnchorCtx { anchor_at: &oracle, event_anchor: (Some(900), Some(70)) };
+        let ctx = OwnerAnchorCtx {
+            anchor_at: &oracle,
+            event_anchor: (Some(900), Some(70)),
+        };
         let c = book2c(
             vec![pta(120, buy2_bits(), 30), ptc(150, buy1_bits(), B_START)],
             vec![],
@@ -2327,7 +2619,11 @@ mod tests {
         let ev = trend_ev((100, 200), 200);
         let endo = terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx)
             .expect("P1 重议 + #218：二类锚判等合法");
-        assert_eq!(endo.bits, buy2_bits(), "P1 重议：取最早同向 owner 判等点 @120 buy2");
+        assert_eq!(
+            endo.bits,
+            buy2_bits(),
+            "P1 重议：取最早同向 owner 判等点 @120 buy2"
+        );
         assert_eq!(
             endo.owner_center_start, None,
             "二类点载体 = 一类点锚（Type1Anchor）无中枢序号，归因快照如实 None（#218 面 A）"
@@ -2343,18 +2639,33 @@ mod tests {
     fn c_window_trend_owner_band_judges_over_start_index() {
         let mut extended = ptc(150, buy1_bits(), B_START);
         extended.center = Some(super::super::bsp::OwnerRef::Center(Center {
-            zd: 100, zg: 200, dd: 90, gg: 210, start_index: B_START + 77, end_index: 999,
+            zd: 100,
+            zg: 200,
+            dd: 90,
+            gg: 210,
+            start_index: B_START + 77,
+            end_index: 999,
         }));
         let c = book2c(vec![extended], vec![], vec![ctr(100, 200, B_START)]);
         let ev = trend_ev((100, 200), 200);
         assert_eq!(
-            bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate())),
+            bits_of(terminal_bits_at_event(
+                &c,
+                &ev,
+                TerminalMatch::CWindow,
+                &ctx_degenerate()
+            )),
             Some(buy1_bits()),
             "(a) 带同但序号/外包络全异 ⟹ 带判同判等（序号判同必判负）"
         );
         let mut drifted = ptc(150, buy1_bits(), B_START);
         drifted.center = Some(super::super::bsp::OwnerRef::Center(Center {
-            zd: 100, zg: 201, dd: 90, gg: 210, start_index: B_START, end_index: 0,
+            zd: 100,
+            zg: 201,
+            dd: 90,
+            gg: 210,
+            start_index: B_START,
+            end_index: 0,
         }));
         let c2 = book2c(vec![drifted], vec![], vec![ctr(100, 200, B_START)]);
         assert_eq!(
@@ -2378,7 +2689,12 @@ mod tests {
         ] {
             let c = book2(vec![pt(150, bits)], vec![]); // center=None 不拒
             assert_eq!(
-                bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate())),
+                bits_of(terminal_bits_at_event(
+                    &c,
+                    &ev,
+                    TerminalMatch::CWindow,
+                    &ctx_degenerate()
+                )),
                 Some(bits),
                 "Pan 域 {tag}"
             );
@@ -2386,7 +2702,12 @@ mod tests {
         // 最早性不论点类：三类早于一类 ⟹ 取三类。
         let c = book2(vec![pt(120, buy3), pt(150, buy1_bits())], vec![]);
         assert_eq!(
-            bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow, &ctx_degenerate())),
+            bits_of(terminal_bits_at_event(
+                &c,
+                &ev,
+                TerminalMatch::CWindow,
+                &ctx_degenerate()
+            )),
             Some(buy3),
             "Pan 域取最早同向点（点类不参与最早性）"
         );
@@ -2408,10 +2729,18 @@ mod tests {
             "Long 事件窗内仅反向（sell）点 ⟹ None（证伪域与背书域结构性无交）"
         );
         // 镜像：Short 盘背事件 + 同向 sell3 ⟹ 合法。
-        let ev_short = NestCandidateEvent { side: Side::Short, ..pan_ev((100, 200), 200) };
+        let ev_short = NestCandidateEvent {
+            side: Side::Short,
+            ..pan_ev((100, 200), 200)
+        };
         let c_short = book2(vec![pt(130, sell3)], vec![]);
         assert_eq!(
-            bits_of(terminal_bits_at_event(&c_short, &ev_short, TerminalMatch::CWindow, &ctx_degenerate())),
+            bits_of(terminal_bits_at_event(
+                &c_short,
+                &ev_short,
+                TerminalMatch::CWindow,
+                &ctx_degenerate()
+            )),
             Some(sell3),
             "Short 事件同向三类合法"
         );
@@ -2422,30 +2751,66 @@ mod tests {
     fn c_window_kind_trend_pan_same_behavior() {
         // #218 面 B（机械改写归因：带等值构造）：Trend 侧 owner 带判等同构 Pan 侧零门。
         let c = book2c(
-            vec![ptc(120, buy2_bits(), B_START), ptc(150, buy1_bits(), B_START)],
+            vec![
+                ptc(120, buy2_bits(), B_START),
+                ptc(150, buy1_bits(), B_START),
+            ],
             vec![],
             vec![ctr(0, 0, B_START)],
         );
         let trend = trend_ev((100, 200), 200);
         let pan = pan_ev((100, 200), 200);
         assert_eq!(
-            bits_of(terminal_bits_at_event(&c, &trend, TerminalMatch::CWindow, &ctx_degenerate())),
+            bits_of(terminal_bits_at_event(
+                &c,
+                &trend,
+                TerminalMatch::CWindow,
+                &ctx_degenerate()
+            )),
             Some(buy2_bits()),
             "Trend 域：P1 重议后取最早同向 owner 判等点"
         );
         assert_eq!(
-            bits_of(terminal_bits_at_event(&c, &pan, TerminalMatch::CWindow, &ctx_degenerate())),
+            bits_of(terminal_bits_at_event(
+                &c,
+                &pan,
+                TerminalMatch::CWindow,
+                &ctx_degenerate()
+            )),
             Some(buy2_bits()),
             "Pan 域：最早同向点（二类）合法"
         );
-        let c1 = book2c(vec![ptc(150, buy1_bits(), B_START)], vec![], vec![ctr(0, 0, B_START)]);
-        assert_eq!(
-            bits_of(terminal_bits_at_event(&c1, &trend, TerminalMatch::CWindow, &ctx_degenerate())),
-            bits_of(terminal_bits_at_event(&c1, &pan, TerminalMatch::CWindow, &ctx_degenerate())),
+        let c1 = book2c(
+            vec![ptc(150, buy1_bits(), B_START)],
+            vec![],
+            vec![ctr(0, 0, B_START)],
         );
-        let c2 = book2c(vec![ptc(120, buy2_bits(), B_START)], vec![], vec![ctr(0, 0, B_START)]);
-        assert!(terminal_bits_at_event(&c2, &trend, TerminalMatch::CWindow, &ctx_degenerate()).is_some());
-        assert!(terminal_bits_at_event(&c2, &pan, TerminalMatch::CWindow, &ctx_degenerate()).is_some());
+        assert_eq!(
+            bits_of(terminal_bits_at_event(
+                &c1,
+                &trend,
+                TerminalMatch::CWindow,
+                &ctx_degenerate()
+            )),
+            bits_of(terminal_bits_at_event(
+                &c1,
+                &pan,
+                TerminalMatch::CWindow,
+                &ctx_degenerate()
+            )),
+        );
+        let c2 = book2c(
+            vec![ptc(120, buy2_bits(), B_START)],
+            vec![],
+            vec![ctr(0, 0, B_START)],
+        );
+        assert!(
+            terminal_bits_at_event(&c2, &trend, TerminalMatch::CWindow, &ctx_degenerate())
+                .is_some()
+        );
+        assert!(
+            terminal_bits_at_event(&c2, &pan, TerminalMatch::CWindow, &ctx_degenerate()).is_some()
+        );
     }
 
     // ───────── #214 背书失败原因测量装置（spec endorsement-failure-instrument-20260724，
@@ -2465,7 +2830,11 @@ mod tests {
         evs: Vec<Vec<NestCandidateEvent>>,
     ) -> super::super::nest_index::NestCertificateIndex {
         super::super::nest_index::build_nest_certificate_index(
-            c, &evs, NestIntervalCaliber::B, &never_anchor, &no_event_anchor,
+            c,
+            &evs,
+            NestIntervalCaliber::B,
+            &never_anchor,
+            &no_event_anchor,
         )
     }
 
@@ -2488,13 +2857,25 @@ mod tests {
         let inst = index.instrument();
         assert_eq!(inst.trend_owner_anchor_neq, 2, "两事件同归 owner 锚不等桶");
         assert_eq!(
-            inst.trend_success + inst.trend_out_of_window
-                + inst.trend_opposite_side + inst.trend_no_valid_point,
+            inst.trend_success
+                + inst.trend_out_of_window
+                + inst.trend_opposite_side
+                + inst.trend_no_valid_point,
             0
         );
-        assert_eq!(inst.owner_real_neq_pts, 2, "实不等点逐事件窗各计（钉口径① 事件窗内）");
-        assert_eq!(inst.owner_anchor_missing_pts, 2, "无载体归锚不可解子计数（#218 语义重定）");
-        assert_eq!(inst.trend_pts[0], [0, 4], "一类点 2 点 × 2 事件窗 = 4，全 owner 不等");
+        assert_eq!(
+            inst.owner_real_neq_pts, 2,
+            "实不等点逐事件窗各计（钉口径① 事件窗内）"
+        );
+        assert_eq!(
+            inst.owner_anchor_missing_pts, 2,
+            "无载体归锚不可解子计数（#218 语义重定）"
+        );
+        assert_eq!(
+            inst.trend_pts[0],
+            [0, 4],
+            "一类点 2 点 × 2 事件窗 = 4，全 owner 不等"
+        );
         assert_eq!(index.stats().base_events, 2);
         assert_eq!(index.stats().assembled, 0);
         assert!(index.is_empty());
@@ -2514,8 +2895,14 @@ mod tests {
         let index = i214_build(&c, vec![vec![], vec![ev]]);
         let inst = index.instrument();
         assert_eq!(inst.trend_out_of_window, 1);
-        assert_eq!(inst.trend_no_valid_point, 0, "账本有点（虽窗外）不归无合法点");
-        assert_eq!(inst.trend_success + inst.trend_owner_anchor_neq + inst.trend_opposite_side, 0);
+        assert_eq!(
+            inst.trend_no_valid_point, 0,
+            "账本有点（虽窗外）不归无合法点"
+        );
+        assert_eq!(
+            inst.trend_success + inst.trend_owner_anchor_neq + inst.trend_opposite_side,
+            0
+        );
     }
 
     /// ID-2 规则2：窗内有点但同向点数 0（异向/零 bit 点在场）⟹ 异向桶。
@@ -2523,8 +2910,8 @@ mod tests {
     fn i214_opposite_side_bucket() {
         let c = book2(
             vec![
-                pt(150, sell1_bits()),         // 异向
-                pt(160, BspBits::default()),   // 零 bit（非 confirm_side）——窗内有点但同向 0
+                pt(150, sell1_bits()),       // 异向
+                pt(160, BspBits::default()), // 零 bit（非 confirm_side）——窗内有点但同向 0
             ],
             vec![],
         );
@@ -2533,8 +2920,10 @@ mod tests {
         let inst = index.instrument();
         assert_eq!(inst.trend_opposite_side, 1);
         assert_eq!(
-            inst.trend_success + inst.trend_owner_anchor_neq
-                + inst.trend_out_of_window + inst.trend_no_valid_point,
+            inst.trend_success
+                + inst.trend_owner_anchor_neq
+                + inst.trend_out_of_window
+                + inst.trend_no_valid_point,
             0
         );
     }
@@ -2548,7 +2937,14 @@ mod tests {
         let ev_missing = NestCandidateEvent {
             b_center_start: B_START,
             ..typed_event(
-                3, Side::Short, NestDivergenceKind::Trend, (100, 200), (90, 210), 200, 200, true,
+                3,
+                Side::Short,
+                NestDivergenceKind::Trend,
+                (100, 200),
+                (90, 210),
+                200,
+                200,
+                true,
             )
         }; // level3 → 读 levels[2]（越界）
         let index = i214_build(&c, vec![vec![], vec![ev_empty], vec![], vec![ev_missing]]);
@@ -2557,7 +2953,10 @@ mod tests {
         assert_eq!(inst.nvp_book_empty, 1, "账本空（任何点都无）");
         assert_eq!(inst.nvp_book_missing, 1, "级别越界结构性 None 单列");
         assert_eq!(inst.trend_out_of_window, 0);
-        assert_eq!(inst.trend_success + inst.trend_owner_anchor_neq + inst.trend_opposite_side, 0);
+        assert_eq!(
+            inst.trend_success + inst.trend_owner_anchor_neq + inst.trend_opposite_side,
+            0
+        );
     }
 
     /// ID-2 规则4 + ID-3：窗内有同向 owner 判等点 ⟹ 判定必命中（成功不计桶）；
@@ -2570,9 +2969,9 @@ mod tests {
         let event_anchor = |_: &NestCandidateEvent| (Some(900), Some(70));
         let c = book2c(
             vec![
-                pta(120, buy2_bits(), 30),              // 二类锚判等 ⟹ 成功（P1 重议 + #218）
+                pta(120, buy2_bits(), 30), // 二类锚判等 ⟹ 成功（P1 重议 + #218）
                 ptb(130, buy1_bits(), ctr(0, 1, B_START + 5)), // 一类带不等 ⟹ 实不等
-                pt(140, sell1_bits()),                  // 异向不入点级
+                pt(140, sell1_bits()),     // 异向不入点级
             ],
             vec![],
             vec![ctr(0, 0, B_START)],
@@ -2582,8 +2981,10 @@ mod tests {
         let inst = index.instrument();
         assert_eq!(inst.trend_success, 1);
         assert_eq!(
-            inst.trend_owner_anchor_neq + inst.trend_out_of_window
-                + inst.trend_opposite_side + inst.trend_no_valid_point,
+            inst.trend_owner_anchor_neq
+                + inst.trend_out_of_window
+                + inst.trend_opposite_side
+                + inst.trend_no_valid_point,
             0,
             "成功事件不计桶"
         );
@@ -2616,13 +3017,27 @@ mod tests {
         let ev_n = NestCandidateEvent {
             b_center_start: B_START,
             ..typed_event(
-                2, Side::Short, NestDivergenceKind::Trend, (100, 200), (90, 210), 200, 200, true,
+                2,
+                Side::Short,
+                NestDivergenceKind::Trend,
+                (100, 200),
+                (90, 210),
+                200,
+                200,
+                true,
             )
         };
         let ev_m = NestCandidateEvent {
             b_center_start: B_START,
             ..typed_event(
-                3, Side::Short, NestDivergenceKind::Trend, (100, 200), (90, 210), 200, 200, true,
+                3,
+                Side::Short,
+                NestDivergenceKind::Trend,
+                (100, 200),
+                (90, 210),
+                200,
+                200,
+                true,
             )
         }; // level3 ⟹ 账本越界（book_missing）
         let index = i214_build(
@@ -2638,12 +3053,25 @@ mod tests {
         assert_eq!(inst.nvp_book_empty + inst.nvp_book_missing, 2);
         let trend_total = inst.trend_total();
         assert_eq!(trend_total, 6, "Trend 域事件总数 = 成功 + 四桶合计");
-        assert_eq!(inst.base_trend(), 6, "kind 分解 Trend 计数 = 事件级平账总数");
+        assert_eq!(
+            inst.base_trend(),
+            6,
+            "kind 分解 Trend 计数 = 事件级平账总数"
+        );
         assert_eq!(inst.base_consolidation(), 0);
         // 按级 × kind 两维分解（行 = 级别槽，槽 0 恒零；列 [Trend, Consolidation]）
-        assert_eq!(inst.base_by_level_kind, vec![[0, 0], [4, 0], [1, 0], [1, 0]]);
-        assert_eq!(inst.assembled_by_level_kind, vec![[0, 0], [1, 0], [0, 0], [0, 0]]);
-        assert_eq!(inst.indexed_by_level_kind, vec![[0, 0], [1, 0], [0, 0], [0, 0]]);
+        assert_eq!(
+            inst.base_by_level_kind,
+            vec![[0, 0], [4, 0], [1, 0], [1, 0]]
+        );
+        assert_eq!(
+            inst.assembled_by_level_kind,
+            vec![[0, 0], [1, 0], [0, 0], [0, 0]]
+        );
+        assert_eq!(
+            inst.indexed_by_level_kind,
+            vec![[0, 0], [1, 0], [0, 0], [0, 0]]
+        );
         // 既有六字段语义不动（与装置计数对账）
         let st = index.stats();
         assert_eq!((st.base_events, st.assembled, st.indexed), (6, 1, 1));
@@ -2665,13 +3093,13 @@ mod tests {
         buy12.buy2 = true; // 一位两类（合成形状：一、二类行各计一次）
         let c = book2c(
             vec![
-                ptc(50, buy1_bits(), B_START + 9),  // 窗外 ⟹ 不计
-                ptc(110, buy1_bits(), B_START),     // c1 带判等
-                pta(120, buy2_bits(), 30),          // c2 锚实不等（点侧 900 vs 事件侧 901）
-                ptc(130, buy3, B_START),            // c3 带判等
-                pt(140, buy2_bits()),               // c2 锚不可解（无载体）
-                ptc(150, buy12, B_START),           // c1 带判等 + c2 带判等（多位点逐行各计）
-                pt(160, sell1_bits()),              // 异向 ⟹ 不计
+                ptc(50, buy1_bits(), B_START + 9), // 窗外 ⟹ 不计
+                ptc(110, buy1_bits(), B_START),    // c1 带判等
+                pta(120, buy2_bits(), 30),         // c2 锚实不等（点侧 900 vs 事件侧 901）
+                ptc(130, buy3, B_START),           // c3 带判等
+                pt(140, buy2_bits()),              // c2 锚不可解（无载体）
+                ptc(150, buy12, B_START),          // c1 带判等 + c2 带判等（多位点逐行各计）
+                pt(160, sell1_bits()),             // 异向 ⟹ 不计
             ],
             vec![],
             vec![ctr(0, 0, B_START)],
@@ -2679,12 +3107,23 @@ mod tests {
         let ev = trend_ev((100, 200), 200);
         let index = i218_build(&c, vec![vec![], vec![ev]], &oracle, &event_anchor);
         let inst = index.instrument();
-        assert_eq!(inst.trend_pts[0], [2, 0], "一类：eq 2（@110 + 多位点 @150）");
-        assert_eq!(inst.trend_pts[1], [1, 2], "二类：eq 1（@150 带判等）；ne 2（@120 锚实不等 + @140 锚不可解）");
+        assert_eq!(
+            inst.trend_pts[0],
+            [2, 0],
+            "一类：eq 2（@110 + 多位点 @150）"
+        );
+        assert_eq!(
+            inst.trend_pts[1],
+            [1, 2],
+            "二类：eq 1（@150 带判等）；ne 2（@120 锚实不等 + @140 锚不可解）"
+        );
         assert_eq!(inst.trend_pts[2], [1, 0], "三类：eq 1（@130）");
         assert_eq!(inst.owner_real_neq_pts, 1);
         assert_eq!(inst.owner_anchor_missing_pts, 1);
-        assert_eq!(inst.trend_success, 1, "owner 判等点在场 ⟹ 命中（最早合法 @110）");
+        assert_eq!(
+            inst.trend_success, 1,
+            "owner 判等点在场 ⟹ 命中（最早合法 @110）"
+        );
     }
 
     /// ID-4 按级 × kind 分解 + Pan 域只计成功/失败总数（钉口径⑥：四桶不适用 Pan）。
@@ -2697,7 +3136,7 @@ mod tests {
                 pt(310, sell1_bits()),          // ev_b Trend 异向
                 pt(510, buy1_bits()),           // ev_c Pan 成功（center=None 合法，P2）
             ],
-            vec![pt(110, buy2_bits())],          // ev_e Pan 成功（levels[1] 账）
+            vec![pt(110, buy2_bits())], // ev_e Pan 成功（levels[1] 账）
             vec![ctr(0, 0, B_START)],
         );
         let ev_a = trend_ev((100, 200), 200);
@@ -2707,11 +3146,25 @@ mod tests {
             // level2 Trend：窗 [700,800] 内无点、账本窗外有点 ⟹ 窗口外桶
             b_center_start: B_START,
             ..typed_event(
-                2, Side::Long, NestDivergenceKind::Trend, (700, 800), (690, 810), 800, 800, true,
+                2,
+                Side::Long,
+                NestDivergenceKind::Trend,
+                (700, 800),
+                (690, 810),
+                800,
+                800,
+                true,
             )
         };
         let ev_e = typed_event(
-            2, Side::Long, NestDivergenceKind::Consolidation, (100, 200), (90, 210), 200, 200, true,
+            2,
+            Side::Long,
+            NestDivergenceKind::Consolidation,
+            (100, 200),
+            (90, 210),
+            200,
+            200,
+            true,
         );
         let index = i214_build(&c, vec![vec![], vec![ev_a, ev_b, ev_c], vec![ev_d, ev_e]]);
         let inst = index.instrument();
@@ -2750,8 +3203,11 @@ mod tests {
         assert_eq!(inst.pan_success, 1);
         assert_eq!(inst.pan_fail, 2, "Pan 域失败只计总数，不分桶");
         assert_eq!(
-            inst.trend_success + inst.trend_owner_anchor_neq + inst.trend_out_of_window
-                + inst.trend_opposite_side + inst.trend_no_valid_point,
+            inst.trend_success
+                + inst.trend_owner_anchor_neq
+                + inst.trend_out_of_window
+                + inst.trend_opposite_side
+                + inst.trend_no_valid_point,
             0
         );
         assert_eq!(inst.trend_pts, [[0, 0]; 3]);
@@ -2764,27 +3220,39 @@ mod tests {
     #[test]
     fn i214_index_invariance_vs_production_assembly() {
         // #218 面 B（机械改写归因：带判等构造；同一 ctx 双路对照）。
-        let c = book2c(vec![ptc(120, buy1_bits(), B_START)], vec![], vec![ctr(0, 0, B_START)]);
+        let c = book2c(
+            vec![ptc(120, buy1_bits(), B_START)],
+            vec![],
+            vec![ctr(0, 0, B_START)],
+        );
         let base = trend_ev((100, 200), 200);
         let parent = NestCandidateEvent {
             b_center_start: B_START,
             ..typed_event(
-                2, Side::Long, NestDivergenceKind::Trend, (50, 300), (40, 310), 300, 300, true,
+                2,
+                Side::Long,
+                NestDivergenceKind::Trend,
+                (50, 300),
+                (40, 310),
+                300,
+                300,
+                true,
             )
         };
         let evs = vec![vec![], vec![base], vec![parent]];
         let index = i214_build(&c, evs.clone());
         // 生产路径直装（装置合入前的唯一查法形状）
-        let direct = assemble_typed_certificate(
-            &evs,
-            &base,
-            2,
-            NestIntervalCaliber::B,
-            &|e| terminal_bits_at_event(&c, e, TerminalMatch::CWindow, &ctx_degenerate()).map(|t| t.bits),
-        )
+        let direct = assemble_typed_certificate(&evs, &base, 2, NestIntervalCaliber::B, &|e| {
+            terminal_bits_at_event(&c, e, TerminalMatch::CWindow, &ctx_degenerate()).map(|t| t.bits)
+        })
         .expect("父区间包含 ⟹ 链深 1 证书");
-        let via_index = index.get(&NestEventIdentity::of(&base)).expect("索引内含基例证书");
-        assert_eq!(via_index, &direct, "索引证书与生产直装逐字段相等（装置零干预）");
+        let via_index = index
+            .get(&NestEventIdentity::of(&base))
+            .expect("索引内含基例证书");
+        assert_eq!(
+            via_index, &direct,
+            "索引证书与生产直装逐字段相等（装置零干预）"
+        );
         let st = index.stats();
         assert_eq!((st.base_events, st.assembled, st.indexed), (2, 1, 1));
         assert_eq!((st.rungs_0, st.rungs_1, st.rungs_2_plus), (0, 1, 0));
@@ -2803,11 +3271,11 @@ mod tests {
         // #218 面 B（机械改写归因：带等值/带不等构造；同一 ctx 喂双入口）。
         let c = book2c(
             vec![
-                pt(99, buy1_bits()),            // 窗外
-                ptc(120, buy2_bits(), B_START), // 二类带判等（CWindow 命中点）
+                pt(99, buy1_bits()),                           // 窗外
+                ptc(120, buy2_bits(), B_START),                // 二类带判等（CWindow 命中点）
                 ptb(150, buy1_bits(), ctr(0, 1, B_START + 9)), // 带不等 ⟹ owner 实不等
-                pt(160, sell1_bits()),          // 异向
-                pt(201, buy1_bits()),           // 窗外
+                pt(160, sell1_bits()),                         // 异向
+                pt(201, buy1_bits()),                          // 窗外
             ],
             vec![],
             vec![ctr(0, 0, B_START)],
@@ -2829,20 +3297,30 @@ mod tests {
     fn i214_measured_entry_exact_probe_empty_and_book_missing() {
         let c = book2(vec![pt(100, buy1_bits())], vec![]);
         let ev = trend_ev((90, 100), 100);
-        let (hit, probe) = terminal_bits_at_event_measured(&c, &ev, TerminalMatch::Exact, &ctx_degenerate());
-        assert_eq!(hit.map(|t| t.bits), Some(buy1_bits()), "Exact 臂判定与生产入口一致");
+        let (hit, probe) =
+            terminal_bits_at_event_measured(&c, &ev, TerminalMatch::Exact, &ctx_degenerate());
+        assert_eq!(
+            hit.map(|t| t.bits),
+            Some(buy1_bits()),
+            "Exact 臂判定与生产入口一致"
+        );
         assert_eq!(probe, EndorsementProbe::default(), "Exact 诊断臂不产计数");
         // 生产薄包装丢弃探针、语义不变
         assert_eq!(
-            terminal_bits_at_event(&c, &ev, TerminalMatch::Exact, &ctx_degenerate()).map(|t| t.bits),
+            terminal_bits_at_event(&c, &ev, TerminalMatch::Exact, &ctx_degenerate())
+                .map(|t| t.bits),
             Some(buy1_bits())
         );
         // 账本级别越界：测量入口以 book_missing 带出；生产入口仍 None（语义不动）
         let ev_oob = NestCandidateEvent { level: 5, ..ev };
-        let (miss, probe_oob) = terminal_bits_at_event_measured(&c, &ev_oob, TerminalMatch::CWindow, &ctx_degenerate());
+        let (miss, probe_oob) =
+            terminal_bits_at_event_measured(&c, &ev_oob, TerminalMatch::CWindow, &ctx_degenerate());
         assert_eq!(miss, None);
         assert!(probe_oob.book_missing, "级别越界 ⟹ book_missing 子计数标记");
-        assert_eq!(terminal_bits_at_event(&c, &ev_oob, TerminalMatch::CWindow, &ctx_degenerate()), None);
+        assert_eq!(
+            terminal_bits_at_event(&c, &ev_oob, TerminalMatch::CWindow, &ctx_degenerate()),
+            None
+        );
     }
 
     // ───────── #218 面 B（spec owner-attribution-fix-20260724 ID-2/ID-4；#211 路线 B 终裁）：
@@ -2856,17 +3334,30 @@ mod tests {
 
     /// 中枢夹具（zd/zg/start_index 显式给；dd/gg/end 判同不入——带判同只看核心区间）。
     fn ctr(zd: i64, zg: i64, start_index: usize) -> Center {
-        Center { zd, zg, dd: 0, gg: 0, start_index, end_index: 0 }
+        Center {
+            zd,
+            zg,
+            dd: 0,
+            gg: 0,
+            start_index,
+            end_index: 0,
+        }
     }
 
     /// 携中枢参照载体的账本点夹具（一/三类；#218 面 A 载体形态）。
     fn ptb(source_index: usize, bits: BspBits, center: Center) -> BspPoint {
-        BspPoint { center: Some(OwnerRef::Center(center)), ..pt(source_index, bits) }
+        BspPoint {
+            center: Some(OwnerRef::Center(center)),
+            ..pt(source_index, bits)
+        }
     }
 
     /// 携一类点锚载体的账本点夹具（二类；anchor_src = 该走势一类点坐标）。
     fn pta(source_index: usize, bits: BspBits, anchor_src: usize) -> BspPoint {
-        BspPoint { center: Some(OwnerRef::Type1Anchor(anchor_src)), ..pt(source_index, bits) }
+        BspPoint {
+            center: Some(OwnerRef::Type1Anchor(anchor_src)),
+            ..pt(source_index, bits)
+        }
     }
 
     /// 带 centers 的两级分类夹具（面 B：一/三类判同需账本 centers 查 B 带；B 只当查找键）。
@@ -2878,7 +3369,10 @@ mod tests {
                     centers: std::rc::Rc::new(centers0),
                     ..Default::default()
                 },
-                LevelState { bsp: std::rc::Rc::new(l1), ..Default::default() },
+                LevelState {
+                    bsp: std::rc::Rc::new(l1),
+                    ..Default::default()
+                },
             ],
         }
     }
@@ -2889,13 +3383,18 @@ mod tests {
     }
 
     /// 合成 oracle：坐标 → 两元锚（锚供给缺失坐标 = None ⟹ 锚不可解）。
-    fn synth_oracle(entries: &'static [(usize, (Tick, usize))]) -> impl Fn(usize) -> Option<(Tick, usize)> {
+    fn synth_oracle(
+        entries: &'static [(usize, (Tick, usize))],
+    ) -> impl Fn(usize) -> Option<(Tick, usize)> {
         move |x| entries.iter().find(|(s, _)| *s == x).map(|(_, a)| *a)
     }
 
     /// Pan/Exact/非 owner 用例参照包（锚判同不入判，供给置空）。
     fn ctx_degenerate() -> OwnerAnchorCtx<'static> {
-        OwnerAnchorCtx { anchor_at: &never_anchor, event_anchor: (None, None) }
+        OwnerAnchorCtx {
+            anchor_at: &never_anchor,
+            event_anchor: (None, None),
+        }
     }
 
     /// #218 主接缝薄封装：caliber 固定生产口径 B（同 i214_build 先例），锚供给显式入参。
@@ -2906,7 +3405,11 @@ mod tests {
         event_anchor_of: &dyn Fn(&NestCandidateEvent) -> (Option<Tick>, Option<usize>),
     ) -> super::super::nest_index::NestCertificateIndex {
         super::super::nest_index::build_nest_certificate_index(
-            c, &evs, NestIntervalCaliber::B, anchor_at, event_anchor_of,
+            c,
+            &evs,
+            NestIntervalCaliber::B,
+            anchor_at,
+            event_anchor_of,
         )
     }
 
@@ -2929,9 +3432,15 @@ mod tests {
         let ev = trend_ev((100, 200), 200);
         let index = i218_build(&c, vec![vec![], vec![ev]], &never_anchor, &no_event_anchor);
         let inst = index.instrument();
-        assert_eq!(inst.trend_success, 1, "带判同：序号漂移不杀背书（(zd,zg) 同 ⟹ owner 判等）");
+        assert_eq!(
+            inst.trend_success, 1,
+            "带判同：序号漂移不杀背书（(zd,zg) 同 ⟹ owner 判等）"
+        );
         assert_eq!(inst.trend_pts[0], [1, 0], "一类点带判同等值 1");
-        assert_eq!(inst.band_eq_start_neq_pts, 1, "带等但序号不等 = 带碰撞观察读数（US-08）");
+        assert_eq!(
+            inst.band_eq_start_neq_pts, 1,
+            "带等但序号不等 = 带碰撞观察读数（US-08）"
+        );
         assert_eq!(index.stats().assembled, 1);
         assert!(index.get(&NestEventIdentity::of(&ev)).is_some());
     }
@@ -2949,7 +3458,10 @@ mod tests {
         let ev = trend_ev((100, 200), 200);
         let index = i218_build(&c, vec![vec![], vec![ev]], &never_anchor, &no_event_anchor);
         let inst = index.instrument();
-        assert_eq!(inst.trend_owner_anchor_neq, 1, "带不等 ⟹ owner 锚不等桶（序号判同会误判等）");
+        assert_eq!(
+            inst.trend_owner_anchor_neq, 1,
+            "带不等 ⟹ owner 锚不等桶（序号判同会误判等）"
+        );
         assert_eq!(inst.trend_success, 0);
         assert_eq!(inst.owner_real_neq_pts, 1, "两侧皆可判且实不等（带不等）");
         assert_eq!(inst.trend_pts[0], [0, 1]);
@@ -2963,11 +3475,18 @@ mod tests {
         static ORACLE: &[(usize, (Tick, usize))] = &[(30, (900, 70))];
         let oracle = synth_oracle(ORACLE);
         let event_anchor = |_: &NestCandidateEvent| (Some(900), Some(70));
-        let c = book2c(vec![pta(150, buy2_bits(), 30)], vec![], vec![ctr(100, 200, B_START)]);
+        let c = book2c(
+            vec![pta(150, buy2_bits(), 30)],
+            vec![],
+            vec![ctr(100, 200, B_START)],
+        );
         let ev = trend_ev((100, 200), 200);
         let index = i218_build(&c, vec![vec![], vec![ev]], &oracle, &event_anchor);
         let inst = index.instrument();
-        assert_eq!(inst.trend_success, 1, "二类点一类锚 == 事件 extreme 锚 ⟹ 判等背书");
+        assert_eq!(
+            inst.trend_success, 1,
+            "二类点一类锚 == 事件 extreme 锚 ⟹ 判等背书"
+        );
         assert_eq!(inst.trend_pts[1], [1, 0], "二类点锚判同等值 1");
         assert_eq!(inst.owner_anchor_missing_pts, 0);
         assert_eq!(index.stats().assembled, 1);
@@ -2979,12 +3498,19 @@ mod tests {
         static ORACLE: &[(usize, (Tick, usize))] = &[(30, (900, 70))];
         let oracle = synth_oracle(ORACLE);
         let event_anchor = |_: &NestCandidateEvent| (Some(901), Some(70)); // 极值价差 1 tick
-        let c = book2c(vec![pta(150, buy2_bits(), 30)], vec![], vec![ctr(100, 200, B_START)]);
+        let c = book2c(
+            vec![pta(150, buy2_bits(), 30)],
+            vec![],
+            vec![ctr(100, 200, B_START)],
+        );
         let ev = trend_ev((100, 200), 200);
         let index = i218_build(&c, vec![vec![], vec![ev]], &oracle, &event_anchor);
         let inst = index.instrument();
         assert_eq!(inst.trend_owner_anchor_neq, 1);
-        assert_eq!(inst.owner_real_neq_pts, 1, "锚实不等（精确等值无容差，v3 硬禁令）");
+        assert_eq!(
+            inst.owner_real_neq_pts, 1,
+            "锚实不等（精确等值无容差，v3 硬禁令）"
+        );
         assert_eq!(inst.owner_anchor_missing_pts, 0);
         assert_eq!(inst.trend_success, 0);
         assert_eq!(inst.trend_pts[1], [0, 1]);
@@ -2996,21 +3522,38 @@ mod tests {
     fn i218_type2_anchor_unresolvable_subcount() {
         // (a) 点侧缺失：oracle 不覆盖坐标 30。
         let event_anchor = |_: &NestCandidateEvent| (Some(900), Some(70));
-        let c = book2c(vec![pta(150, buy2_bits(), 30)], vec![], vec![ctr(100, 200, B_START)]);
+        let c = book2c(
+            vec![pta(150, buy2_bits(), 30)],
+            vec![],
+            vec![ctr(100, 200, B_START)],
+        );
         let ev = trend_ev((100, 200), 200);
         let index = i218_build(&c, vec![vec![], vec![ev]], &never_anchor, &event_anchor);
         let inst = index.instrument();
-        assert_eq!(inst.trend_owner_anchor_neq, 1, "锚不可解 ⟹ 诚实判负入 owner 锚不等桶");
-        assert_eq!(inst.owner_anchor_missing_pts, 1, "点侧锚供给缺失 ⟹ 锚不可解子计数");
+        assert_eq!(
+            inst.trend_owner_anchor_neq, 1,
+            "锚不可解 ⟹ 诚实判负入 owner 锚不等桶"
+        );
+        assert_eq!(
+            inst.owner_anchor_missing_pts, 1,
+            "点侧锚供给缺失 ⟹ 锚不可解子计数"
+        );
         assert_eq!(inst.owner_real_neq_pts, 0);
-        assert_eq!(inst.trend_pts[1], [0, 1], "不可解归 owner 不等列（与实不等同列、子计数分列）");
+        assert_eq!(
+            inst.trend_pts[1],
+            [0, 1],
+            "不可解归 owner 不等列（与实不等同列、子计数分列）"
+        );
         // (b) 事件侧缺失：oracle 可解但事件锚 None。
         static ORACLE: &[(usize, (Tick, usize))] = &[(30, (900, 70))];
         let oracle = synth_oracle(ORACLE);
         let index_b = i218_build(&c, vec![vec![], vec![ev]], &oracle, &no_event_anchor);
         let inst_b = index_b.instrument();
         assert_eq!(inst_b.trend_owner_anchor_neq, 1);
-        assert_eq!(inst_b.owner_anchor_missing_pts, 1, "事件侧锚供给缺失同归锚不可解");
+        assert_eq!(
+            inst_b.owner_anchor_missing_pts, 1,
+            "事件侧锚供给缺失同归锚不可解"
+        );
         assert_eq!(inst_b.owner_real_neq_pts, 0);
     }
 
@@ -3027,7 +3570,10 @@ mod tests {
         let index = i218_build(&c, vec![vec![], vec![ev]], &never_anchor, &no_event_anchor);
         let inst = index.instrument();
         assert_eq!(inst.trend_owner_anchor_neq, 1);
-        assert_eq!(inst.owner_anchor_missing_pts, 1, "B 查找失败 = 身份合取不可证 ⟹ 锚不可解");
+        assert_eq!(
+            inst.owner_anchor_missing_pts, 1,
+            "B 查找失败 = 身份合取不可证 ⟹ 锚不可解"
+        );
         assert_eq!(inst.owner_real_neq_pts, 0);
         assert_eq!(inst.trend_success, 0);
     }
@@ -3068,16 +3614,27 @@ mod tests {
         assert_eq!(inst.trend_out_of_window, 1);
         assert_eq!(inst.trend_opposite_side, 1);
         assert_eq!(inst.trend_no_valid_point, 0);
-        assert_eq!(inst.trend_total(), 5, "Trend 总数 = 成功 + 四桶（完备性平账）");
+        assert_eq!(
+            inst.trend_total(),
+            5,
+            "Trend 总数 = 成功 + 四桶（完备性平账）"
+        );
         assert_eq!(inst.base_trend(), 5);
         // 点级计数：ev_s 窗内一类带等 1；ev_s2 窗内二类锚等 1；ev_o 窗内三类带不等 1。
         assert_eq!(inst.trend_pts[0], [1, 0]);
         assert_eq!(inst.trend_pts[1], [1, 0]);
         assert_eq!(inst.trend_pts[2], [0, 1]);
         assert_eq!(inst.owner_real_neq_pts, 1);
-        assert_eq!(inst.band_eq_start_neq_pts, 1, "一类点带等同带异序号 ⟹ 带碰撞 1");
+        assert_eq!(
+            inst.band_eq_start_neq_pts, 1,
+            "一类点带等同带异序号 ⟹ 带碰撞 1"
+        );
         // 遍历计数（不变量断言集读数）：账本 4 点；各事件窗内/同向逐窗各计。
-        assert_eq!(inst.scan_book_total, 4 * 5, "5 事件 × 账本 4 点（每事件一次全账遍历）");
+        assert_eq!(
+            inst.scan_book_total,
+            4 * 5,
+            "5 事件 × 账本 4 点（每事件一次全账遍历）"
+        );
         assert_eq!(inst.scan_in_window, 1 + 1 + 1 + 0 + 1);
         assert_eq!(inst.scan_in_window_same_side, 1 + 1 + 1 + 0 + 0);
         assert_eq!(index.stats().assembled, 2);
@@ -3089,29 +3646,46 @@ mod tests {
     fn i218_non_owner_invariants_bit_identical() {
         let c = book2c(
             vec![
-                pt(99, sell1_bits()),            // 窗左外（异向亦计「账本窗外有点」，宽口径）
+                pt(99, sell1_bits()), // 窗左外（异向亦计「账本窗外有点」，宽口径）
                 ptb(250, buy1_bits(), ctr(100, 200, B_START)), // 窗右外同向
-                pt(150, sell1_bits()),           // 异向
-                pt(160, BspBits::default()),     // 零 bit
+                pt(150, sell1_bits()), // 异向
+                pt(160, BspBits::default()), // 零 bit
             ],
             vec![],
             vec![ctr(100, 200, B_START)],
         );
         let ev_w = trend_ev((100, 200), 200); // 窗内有 2 点全异向/零 bit？——@150/@160 在窗内
-        let index = i218_build(&c, vec![vec![], vec![ev_w]], &never_anchor, &no_event_anchor);
+        let index = i218_build(
+            &c,
+            vec![vec![], vec![ev_w]],
+            &never_anchor,
+            &no_event_anchor,
+        );
         let inst = index.instrument();
-        assert_eq!(inst.trend_opposite_side, 1, "窗内有点但同向 0 ⟹ 异向桶（方向谓词不动）");
+        assert_eq!(
+            inst.trend_opposite_side, 1,
+            "窗内有点但同向 0 ⟹ 异向桶（方向谓词不动）"
+        );
         assert_eq!(inst.scan_in_window, 2);
         assert_eq!(inst.scan_in_window_same_side, 0);
         // Pan 域：同向一/二/三类全合法（confirm_side 即精确语义，owner 不入判）——
         // center=None 合法，与旧口径逐值一致。
         let c2 = book2(vec![pt(150, buy2_bits())], vec![]);
         let ev_pan = pan_ev((100, 200), 200);
-        let index_pan = i218_build(&c2, vec![vec![], vec![ev_pan]], &never_anchor, &no_event_anchor);
+        let index_pan = i218_build(
+            &c2,
+            vec![vec![], vec![ev_pan]],
+            &never_anchor,
+            &no_event_anchor,
+        );
         let inst_pan = index_pan.instrument();
         assert_eq!(inst_pan.pan_success, 1);
         assert_eq!(inst_pan.pan_fail, 0);
-        assert_eq!(inst_pan.trend_pts, [[0, 0]; 3], "Pan 域点级零计数（钉口径⑥ 不动）");
+        assert_eq!(
+            inst_pan.trend_pts,
+            [[0, 0]; 3],
+            "Pan 域点级零计数（钉口径⑥ 不动）"
+        );
     }
 
     /// Exact 诊断臂不消费锚参照包（C-a 常数不动）：新签名下判定与探针零值照旧。
@@ -3119,9 +3693,14 @@ mod tests {
     fn i218_exact_arm_untouched_by_anchor_ctx() {
         let c = book2(vec![pt(100, buy1_bits())], vec![]);
         let ev = trend_ev((90, 100), 100);
-        let (hit, probe) = terminal_bits_at_event_measured(&c, &ev, TerminalMatch::Exact, &ctx_degenerate());
+        let (hit, probe) =
+            terminal_bits_at_event_measured(&c, &ev, TerminalMatch::Exact, &ctx_degenerate());
         assert_eq!(hit.map(|t| t.bits), Some(buy1_bits()));
-        assert_eq!(probe, EndorsementProbe::default(), "Exact 臂不产计数（探针零值照旧）");
+        assert_eq!(
+            probe,
+            EndorsementProbe::default(),
+            "Exact 臂不产计数（探针零值照旧）"
+        );
     }
 
     /// fail-closed 合一（codex 评审 2026-07-24 采纳）：`b_center_start = None`（旧事件
@@ -3131,18 +3710,41 @@ mod tests {
     fn i218_b_identity_missing_fails_closed_both_families() {
         static ORACLE: &[(usize, (Tick, usize))] = &[(30, (900, 70))];
         let oracle = synth_oracle(ORACLE);
-        let ctx = OwnerAnchorCtx { anchor_at: &oracle, event_anchor: (Some(900), Some(70)) };
-        let book = [ptb(150, buy1_bits(), ctr(100, 200, B_START)), pta(151, buy2_bits(), 30)];
+        let ctx = OwnerAnchorCtx {
+            anchor_at: &oracle,
+            event_anchor: (Some(900), Some(70)),
+        };
+        let book = [
+            ptb(150, buy1_bits(), ctr(100, 200, B_START)),
+            pta(151, buy2_bits(), 30),
+        ];
         let centers = [ctr(100, 200, B_START)];
         for (i, tag) in [(0usize, "一类（中枢判同族）"), (1, "二类（点判同族）")] {
             let hit = terminal_bits_in_book(
-                &book[i..i + 1], &centers, 100, 200, Side::Long,
-                NestDivergenceKind::Trend, None, TerminalMatch::CWindow, &ctx,
+                &book[i..i + 1],
+                &centers,
+                100,
+                200,
+                Side::Long,
+                NestDivergenceKind::Trend,
+                None,
+                TerminalMatch::CWindow,
+                &ctx,
             );
-            assert_eq!(hit, None, "b_center_start=None ⟹ {tag} 亦诚实判负（fail-closed 合一）");
+            assert_eq!(
+                hit, None,
+                "b_center_start=None ⟹ {tag} 亦诚实判负（fail-closed 合一）"
+            );
             let (_h, probe) = terminal_bits_in_book_core(
-                &book[i..i + 1], &centers, 100, 200, Side::Long,
-                NestDivergenceKind::Trend, None, TerminalMatch::CWindow, &ctx,
+                &book[i..i + 1],
+                &centers,
+                100,
+                200,
+                Side::Long,
+                NestDivergenceKind::Trend,
+                None,
+                TerminalMatch::CWindow,
+                &ctx,
             );
             assert_eq!(probe.owner_anchor_missing_pts, 1, "{tag} 归锚不可解子计数");
             assert_eq!(probe.in_window_owner_eq, 0);

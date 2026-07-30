@@ -311,9 +311,16 @@ impl RetraceLedger {
             folded.active_by_anchor == self.active_by_anchor,
             "fold(journal) 必须复现路由投影"
         );
-        assert_eq!(folded.book.len(), self.book.len(), "fold(journal) 身份集相同");
+        assert_eq!(
+            folded.book.len(),
+            self.book.len(),
+            "fold(journal) 身份集相同"
+        );
         for live in self.book.values() {
-            let replayed = folded.book.get(&live.key).expect("fold(journal) 必含同一身份");
+            let replayed = folded
+                .book
+                .get(&live.key)
+                .expect("fold(journal) 必含同一身份");
             assert_identity_facts_match(live, replayed);
         }
     }

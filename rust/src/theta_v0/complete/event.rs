@@ -91,7 +91,11 @@ pub struct CorpAction {
 impl CorpAction {
     /// 「无公司行为」实例（拆股比 1:1、零分红）——每步缺省值。
     pub fn none_action() -> CorpAction {
-        CorpAction { split_num: 1, split_den: 1, dividend: 0 }
+        CorpAction {
+            split_num: 1,
+            split_den: 1,
+            dividend: 0,
+        }
     }
 }
 
@@ -131,11 +135,17 @@ impl ExternalEvent {
         ExternalEvent {
             bar,
             fill: None,
-            reject: Reject { rejected: false, order_ref: -1 },
+            reject: Reject {
+                rejected: false,
+                order_ref: -1,
+            },
             fee: Fee { amount: 0 },
             funding: Funding { amount: 0 },
             margin_update: MarginUpdate { new_margin_used: 0 },
-            borrow_update: BorrowUpdate { borrowable: true, borrow_cost: 0 },
+            borrow_update: BorrowUpdate {
+                borrowable: true,
+                borrow_cost: 0,
+            },
             corp_action: CorpAction::none_action(),
         }
     }

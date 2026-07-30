@@ -39,7 +39,7 @@ use crate::buysellpoint::{
     build_type1_bsp, build_type2_bsp, build_type3_bsp, detect_overlap, BspKind, BuySellPoint,
 };
 use crate::divergence::{detect_one, DivKind, Divergence, MoveView, SegView, ZsView};
-use crate::segment::{Segment, SegKind};
+use crate::segment::{SegKind, Segment};
 use crate::zhongshu::{resume_index_after, scan_zhongshu_range, BreakDir, Component, Zhongshu};
 
 // ════════════════════════════════════════════════════════════
@@ -369,7 +369,11 @@ impl IncrementalSegBsp {
             }
             let lo = (mv.seg_start.max(src_from)) as usize;
             let hi = (mv.seg_end as usize).min(n_seg.saturating_sub(1));
-            for slot in win_lookup.iter_mut().take(hi + 1 - win_lo).skip(lo - win_lo) {
+            for slot in win_lookup
+                .iter_mut()
+                .take(hi + 1 - win_lo)
+                .skip(lo - win_lo)
+            {
                 if slot.is_none() {
                     *slot = Some(mi);
                 }
@@ -398,7 +402,9 @@ impl IncrementalSegBsp {
             if div.kind != DivKind::Trend || div.seg_c_end < self.stable_anchor {
                 continue;
             }
-            if let Some(bp) = build_type1_bsp(div, segs, zss, moves, self.level_id, self.require_settled) {
+            if let Some(bp) =
+                build_type1_bsp(div, segs, zss, moves, self.level_id, self.require_settled)
+            {
                 tail_type1.push(bp);
             }
         }
@@ -414,7 +420,14 @@ impl IncrementalSegBsp {
             .collect();
         let mut tail_type2: Vec<BuySellPoint> = Vec::new();
         for t1 in stable_t1.iter().chain(tail_type1.iter()) {
-            if let Some(bp) = build_type2_bsp(t1, segs, moves, self.level_id, &lookup_find, self.require_settled) {
+            if let Some(bp) = build_type2_bsp(
+                t1,
+                segs,
+                moves,
+                self.level_id,
+                &lookup_find,
+                self.require_settled,
+            ) {
                 tail_type2.push(bp);
             }
         }
@@ -428,9 +441,16 @@ impl IncrementalSegBsp {
             if !settled || break_dir == BreakDir::None || break_seg < src_from {
                 continue;
             }
-            if let Some(bp) =
-                build_type3_bsp(&zss[zi], break_dir, break_seg, segs, moves, self.level_id, &lookup_find, self.require_settled)
-            {
+            if let Some(bp) = build_type3_bsp(
+                &zss[zi],
+                break_dir,
+                break_seg,
+                segs,
+                moves,
+                self.level_id,
+                &lookup_find,
+                self.require_settled,
+            ) {
                 tail_type3.push(bp);
             }
         }
@@ -484,7 +504,11 @@ mod incremental_tests {
         for k in 0..prices.len().saturating_sub(1) {
             let p0 = prices[k];
             let p1 = prices[k + 1];
-            let direction = if p1 > p0 { Direction::Up } else { Direction::Down };
+            let direction = if p1 > p0 {
+                Direction::Up
+            } else {
+                Direction::Down
+            };
             out.push(Stroke {
                 i0: k,
                 i1: k + 1,
@@ -561,21 +585,45 @@ mod incremental_tests {
     }
 
     fn assert_zs_eq(inc: &[Zhongshu], full: &[Zhongshu], prefix: usize) {
-        assert_eq!(inc.len(), full.len(), "前缀{} 中枢数 inc={} full={}", prefix, inc.len(), full.len());
+        assert_eq!(
+            inc.len(),
+            full.len(),
+            "前缀{} 中枢数 inc={} full={}",
+            prefix,
+            inc.len(),
+            full.len()
+        );
         for (k, (a, b)) in inc.iter().zip(full.iter()).enumerate() {
-            assert_eq!(a, b, "前缀{} 中枢[{}] 发散\n  inc ={:?}\n  full={:?}", prefix, k, a, b);
+            assert_eq!(
+                a, b,
+                "前缀{} 中枢[{}] 发散\n  inc ={:?}\n  full={:?}",
+                prefix, k, a, b
+            );
         }
     }
 
     fn div_key(d: &Divergence) -> (i64, i64, i64, i64, usize, u64, u64, bool) {
         (
-            d.seg_a_start, d.seg_a_end, d.seg_c_start, d.seg_c_end, d.center_idx,
-            d.force_a.to_bits(), d.force_c.to_bits(), d.confirmed,
+            d.seg_a_start,
+            d.seg_a_end,
+            d.seg_c_start,
+            d.seg_c_end,
+            d.center_idx,
+            d.force_a.to_bits(),
+            d.force_c.to_bits(),
+            d.confirmed,
         )
     }
 
     fn assert_div_eq(inc: &[Divergence], full: &[Divergence], prefix: usize) {
-        assert_eq!(inc.len(), full.len(), "前缀{} 背驰数 inc={} full={}", prefix, inc.len(), full.len());
+        assert_eq!(
+            inc.len(),
+            full.len(),
+            "前缀{} 背驰数 inc={} full={}",
+            prefix,
+            inc.len(),
+            full.len()
+        );
         for (k, (a, b)) in inc.iter().zip(full.iter()).enumerate() {
             assert_eq!(a.kind, b.kind, "前缀{} div[{}] kind", prefix, k);
             assert_eq!(a.direction, b.direction, "前缀{} div[{}] dir", prefix, k);
@@ -598,7 +646,16 @@ mod incremental_tests {
             let full_zs = zhongshu_from_segments(
                 &segments
                     .iter()
-                    .map(|x| (x.s0, x.s1, x.high, x.low, x.confirmed, x.kind == SegKind::Settled))
+                    .map(|x| {
+                        (
+                            x.s0,
+                            x.s1,
+                            x.high,
+                            x.low,
+                            x.confirmed,
+                            x.kind == SegKind::Settled,
+                        )
+                    })
                     .collect::<Vec<_>>(),
             );
             assert_zs_eq(inc_zs.zhongshus(), &full_zs, m);
@@ -616,7 +673,9 @@ mod incremental_tests {
 
     #[test]
     fn matches_full_equal_zigzag() {
-        let prices: Vec<f64> = (0..50).map(|k| if k % 2 == 0 { 100.0 } else { 110.0 }).collect();
+        let prices: Vec<f64> = (0..50)
+            .map(|k| if k % 2 == 0 { 100.0 } else { 110.0 })
+            .collect();
         assert_inc_matches_full(&mk_strokes(&prices));
     }
 
@@ -709,7 +768,11 @@ mod perf_profile {
         for k in 0..prices.len().saturating_sub(1) {
             let p0 = prices[k];
             let p1 = prices[k + 1];
-            let direction = if p1 > p0 { Direction::Up } else { Direction::Down };
+            let direction = if p1 > p0 {
+                Direction::Up
+            } else {
+                Direction::Down
+            };
             out.push(Stroke {
                 i0: k,
                 i1: k + 1,

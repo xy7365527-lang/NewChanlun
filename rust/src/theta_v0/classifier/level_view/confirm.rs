@@ -2,14 +2,14 @@
 //!（#630 从 `level_view.rs` 拆出，纯移动零语义；来源票 #497 影子评审 MEDIUM-1）。
 
 use super::super::super::types::{Center, Direction, Segment, Side, Tick};
-use super::{C2VersionTuple, CoordinateWindow, LevelViewQuery};
-use super::super::level_view_store::{ConfirmCursor, ConfirmCursorStore, ConfirmState};
 use super::super::divergence::{
-    dif_crosses_zero, move_range_envelope as range_envelope, same_color_area,
-    same_dir_hist_peak, segment_dif_peak,
+    dif_crosses_zero, move_range_envelope as range_envelope, same_color_area, same_dir_hist_peak,
+    segment_dif_peak,
 };
+use super::super::level_view_store::{ConfirmCursor, ConfirmCursorStore, ConfirmState};
 use super::super::recursive_tower::map_src_to_close_idx;
 use super::super::signal::trend_third_class_in_c;
+use super::{C2VersionTuple, CoordinateWindow, LevelViewQuery};
 
 #[cfg(test)]
 std::thread_local! {

@@ -126,8 +126,8 @@ pub fn chi_t(
     treat_empty_as_pass: bool,
 ) -> bool {
     let mu_pass = match mu {
-        Some(m) => m > theta,            // 有样本：μ(γ) > θ（§13 严格大于）
-        None => treat_empty_as_pass,      // 空类：未观测，由语义参数定（非伪造 μ=0）
+        Some(m) => m > theta,        // 有样本：μ(γ) > θ（§13 严格大于）
+        None => treat_empty_as_pass, // 空类：未观测，由语义参数定（非伪造 μ=0）
     };
     mu_pass && risk_ok && conflict_ok
 }
@@ -187,7 +187,13 @@ pub fn chi_open_gate_lcb(
     conflict_ok: bool,
     treat_empty_as_pass: bool,
 ) -> bool {
-    chi_t(est.mu_lcb(z, z_alpha), theta, risk_ok, conflict_ok, treat_empty_as_pass)
+    chi_t(
+        est.mu_lcb(z, z_alpha),
+        theta,
+        risk_ok,
+        conflict_ok,
+        treat_empty_as_pass,
+    )
 }
 
 /// σ_higher：信号所在 level 的上级层（tower[level+1]）末走势端点价净差符号（666 号，见
@@ -198,7 +204,9 @@ pub fn chi_open_gate_lcb(
 /// （SignalDecomp.sigma_higher）共用本函数——训练表与生产 χ 查询同口径，防"训练填真值/
 /// 查询填 None"的静默桶不命中（H 轴接入时修过的同类陷阱，z-bucket-impl 边界条件(a)）。
 pub(super) fn sigma_higher_at(tower: &[Rc<Vec<LeveledMove>>], bars: &[Bar], level: usize) -> i8 {
-    let Some(upper) = tower.get(level + 1) else { return 0 };
+    let Some(upper) = tower.get(level + 1) else {
+        return 0;
+    };
     let Some(m) = upper.last() else { return 0 };
     let (s, e) = (bars.get(m.start_index), bars.get(m.end_index));
     match (s, e) {
@@ -255,7 +263,11 @@ pub fn z_of_candidate(
     };
     // G3 恒等式护栏（§6 ℓ=e+Ndepth，Nest 通道）：链顶 ℓ 与深度同时给出时必须自洽。
     if let (Some(ol), Some(d)) = (ext.origin_level, ext.nest_depth) {
-        debug_assert_eq!(ol, c.level + d as u32, "origin_level ≠ level + nest_depth（区间套链恒等式破）");
+        debug_assert_eq!(
+            ol,
+            c.level + d as u32,
+            "origin_level ≠ level + nest_depth（区间套链恒等式破）"
+        );
     }
     // H 轴（codex #81 `h_axis_in_canonical_z: accept`）：真候选带 role.h ⟹ 填 Some(h)，升 canonical z
     // 到完整 R(g)=(H,V,δ)。from_certificate 只填 V 投影 + horizontal=None，此处 struct-update 覆盖 H。
@@ -347,7 +359,15 @@ pub fn filter_gamma(
     ext: &ZExt,
 ) -> Vec<Candidate> {
     filter_gamma_with_admission(
-        gamma, est, theta, z_alpha, None, treat_empty_as_pass, tower, bars, ext,
+        gamma,
+        est,
+        theta,
+        z_alpha,
+        None,
+        treat_empty_as_pass,
+        tower,
+        bars,
+        ext,
     )
 }
 
@@ -402,7 +422,10 @@ mod tests {
         MuClass::from_certificate(
             3,
             1,
-            BspBits { buy1: true, ..Default::default() },
+            BspBits {
+                buy1: true,
+                ..Default::default()
+            },
             0,
             PositionState::Root,
         )
@@ -442,8 +465,18 @@ mod tests {
         assert!(chi_open_gate(&est, &z, f64::NEG_INFINITY, true, true, true));
         // 已观测负 μ + θ=−∞ ⟹ μ > −∞ 恒真 ⟹ 开（全覆盖不滤任何已观测类）。
         let mut est2 = MuEstimator::new();
-        est2.observe(MuObservation { class: z, x_gamma: -999.0 });
-        assert!(chi_open_gate(&est2, &z, f64::NEG_INFINITY, true, true, true));
+        est2.observe(MuObservation {
+            class: z,
+            x_gamma: -999.0,
+        });
+        assert!(chi_open_gate(
+            &est2,
+            &z,
+            f64::NEG_INFINITY,
+            true,
+            true,
+            true
+        ));
     }
 
     /// 空类语义二分：treat_empty_as_pass 控制未观测 z 的 χ（§13 未明确的边界，二者皆合法）。
@@ -479,7 +512,7 @@ mod tests {
     fn pi_bar_returns_hold_when_all_below_theta() {
         let actions = [("buy", 1.0), ("short", 2.0)];
         assert_eq!(pi_bar(&actions, 5.0), None); // 无候选 μ>θ=5 ⟹ Hold/Flat
-        // 空候选集 ⟹ Hold/Flat（§17 每个 z 都有动作，最坏 Hold）。
+                                                 // 空候选集 ⟹ Hold/Flat（§17 每个 z 都有动作，最坏 Hold）。
         assert_eq!(pi_bar::<&str>(&[], 0.0), None);
     }
 
@@ -492,15 +525,23 @@ mod tests {
         let z_alpha = 1.645; // 95% 单边
         let mut est = MuEstimator::new();
         // 两样本 [110, -80]：mean=15>θ=5（裸 μ 准入），但 std≈134 极大 ⟹ LCB=15−1.645·134/√2≈−141<θ。
-        est.observe(MuObservation { class: z, x_gamma: 110.0 });
-        est.observe(MuObservation { class: z, x_gamma: -80.0 });
+        est.observe(MuObservation {
+            class: z,
+            x_gamma: 110.0,
+        });
+        est.observe(MuObservation {
+            class: z,
+            x_gamma: -80.0,
+        });
         let mu = est.mu(&z).unwrap();
         let lcb = est.mu_lcb(&z, z_alpha).unwrap();
         assert!(mu > theta, "裸 μ={mu} 应 >θ={theta}（裸门准入）");
         assert!(lcb < theta, "LCB={lcb} 应 <θ={theta}（高方差收缩拒绝）");
         // 裸 μ 门：准入。LCB 门：拒绝。决策分离（可证伪）。
         assert!(chi_open_gate(&est, &z, theta, true, true, false));
-        assert!(!chi_open_gate_lcb(&est, &z, theta, z_alpha, true, true, false));
+        assert!(!chi_open_gate_lcb(
+            &est, &z, theta, z_alpha, true, true, false
+        ));
         // filter_gamma 同路：z_alpha=0（裸 μ）准入 vs z_alpha=1.645（LCB）拒绝——但 filter_gamma 走
         // Candidate，此处直接验便利包装已足（z_of_candidate 桥接由 chi_is_conjunction 等覆盖）。
     }
@@ -516,7 +557,10 @@ mod tests {
         // 大样本（n=2000）窄分布（围绕 10±0.5）⟹ std 小、√n 大 ⟹ std/√n→0 ⟹ LCB→mean≈10>θ。
         for i in 0..2000 {
             let x = if i % 2 == 0 { 10.5 } else { 9.5 }; // mean=10, 小方差
-            est.observe(MuObservation { class: z, x_gamma: x });
+            est.observe(MuObservation {
+                class: z,
+                x_gamma: x,
+            });
         }
         let mu = est.mu(&z).unwrap();
         let lcb = est.mu_lcb(&z, z_alpha).unwrap();
@@ -537,13 +581,43 @@ mod tests {
         let z_alpha = 1.645;
         // n≥2 高方差类：θ=−∞ ⟹ 即使 LCB 极负也 >−∞ ⟹ 准入（全覆盖不滤已观测 n≥2 类）。
         let mut est = MuEstimator::new();
-        est.observe(MuObservation { class: z, x_gamma: 110.0 });
-        est.observe(MuObservation { class: z, x_gamma: -80.0 });
-        assert!(chi_open_gate_lcb(&est, &z, f64::NEG_INFINITY, z_alpha, true, true, true));
+        est.observe(MuObservation {
+            class: z,
+            x_gamma: 110.0,
+        });
+        est.observe(MuObservation {
+            class: z,
+            x_gamma: -80.0,
+        });
+        assert!(chi_open_gate_lcb(
+            &est,
+            &z,
+            f64::NEG_INFINITY,
+            z_alpha,
+            true,
+            true,
+            true
+        ));
         // None 类（空类）：θ=−∞ 不改 treat_empty_as_pass 裁决——true 放行，false 拒绝。
         let empty = MuEstimator::new();
-        assert!(chi_open_gate_lcb(&empty, &z, f64::NEG_INFINITY, z_alpha, true, true, true));
-        assert!(!chi_open_gate_lcb(&empty, &z, f64::NEG_INFINITY, z_alpha, true, true, false));
+        assert!(chi_open_gate_lcb(
+            &empty,
+            &z,
+            f64::NEG_INFINITY,
+            z_alpha,
+            true,
+            true,
+            true
+        ));
+        assert!(!chi_open_gate_lcb(
+            &empty,
+            &z,
+            f64::NEG_INFINITY,
+            z_alpha,
+            true,
+            true,
+            false
+        ));
     }
 
     /// None 语义统一（任务 §3）：n<2 单样本（mu_lcb=None）与空类同走 treat_empty_as_pass，
@@ -553,11 +627,16 @@ mod tests {
         let z = buy_z();
         let z_alpha = 1.645;
         let mut est = MuEstimator::new();
-        est.observe(MuObservation { class: z, x_gamma: 100.0 }); // n=1 ⟹ 方差未定义 ⟹ mu_lcb=None
+        est.observe(MuObservation {
+            class: z,
+            x_gamma: 100.0,
+        }); // n=1 ⟹ 方差未定义 ⟹ mu_lcb=None
         assert_eq!(est.mu_lcb(&z, z_alpha), None, "n=1 ⟹ mu_lcb None");
         assert_eq!(est.mu(&z), Some(100.0), "但裸 μ 有值（n=1 均值已定义）");
         // 无 LCB 证据：false ⟹ 不交易（诚实），true ⟹ 全覆盖放行——与空类同。
-        assert!(!chi_open_gate_lcb(&est, &z, 0.0, z_alpha, true, true, false));
+        assert!(!chi_open_gate_lcb(
+            &est, &z, 0.0, z_alpha, true, true, false
+        ));
         assert!(chi_open_gate_lcb(&est, &z, 0.0, z_alpha, true, true, true));
     }
 
@@ -566,16 +645,26 @@ mod tests {
     #[test]
     fn g3_ext_dims_assembled_into_z() {
         use crate::theta_v0::backtest::econ_positive::NestTrigger;
-        use crate::theta_v0::strategy::coverage::{Dir, GradeRel, Horizontal, OperationRole, Vertical};
+        use crate::theta_v0::strategy::coverage::{
+            Dir, GradeRel, Horizontal, OperationRole, Vertical,
+        };
         use crate::theta_v0::strategy::risk::RiskMode;
 
         let c = Candidate {
             level: 2,
             source_index: 5,
-            bits: BspBits { buy2: true, ..Default::default() },
+            bits: BspBits {
+                buy2: true,
+                ..Default::default()
+            },
             dir: VoiceSide::Long,
             bsp_class: 2,
-            role: OperationRole { h: Horizontal::First, v: Vertical::Ambient, delta: Dir::Plus, grade: GradeRel::SameLevel },
+            role: OperationRole {
+                h: Horizontal::First,
+                v: Vertical::Ambient,
+                delta: Dir::Plus,
+                grade: GradeRel::SameLevel,
+            },
             nest_confirmed: false,
             gamma_index: 0,
             force: None,
@@ -587,7 +676,10 @@ mod tests {
         assert_eq!(z0.origin_level, Some(2), "无链覆盖 ⟹ 起始=执行级（真值）");
         assert_eq!(z0.risk_mode, None);
         assert_eq!(z0.t_stage, None, "#149：无 TW 账本口径 ⟹ t_stage 诚实 None");
-        assert_eq!(z0.eta_bucket, None, "#175：无 TW 账本口径 ⟹ eta_bucket 诚实 None");
+        assert_eq!(
+            z0.eta_bucket, None,
+            "#175：无 TW 账本口径 ⟹ eta_bucket 诚实 None"
+        );
         // Nest 门口径：扩展维真值透传 + ℓ=e+depth 恒等式（debug_assert 同款自洽输入）。
         let ext = ZExt {
             cand_channel: Some(NestTrigger::Type23SublevelType1),
@@ -613,7 +705,10 @@ mod tests {
             "#175：eta_bucket 经 ZExt 透传进 z"
         );
         // 形态维（1-9）不受 ext 影响（新维正交于形态维）。
-        assert_eq!((z0.level, z0.delta, z0.i_class, z0.horizontal), (z1.level, z1.delta, z1.i_class, z1.horizontal));
+        assert_eq!(
+            (z0.level, z0.delta, z0.i_class, z0.horizontal),
+            (z1.level, z1.delta, z1.i_class, z1.horizontal)
+        );
     }
 
     /// A6（#159）force 透传：z_of_candidate 从 c.force 经唯一支配序原语 ForceProxies::force_state()
@@ -621,7 +716,9 @@ mod tests {
     #[test]
     fn a6_force_state_assembled_from_candidate_force() {
         use crate::theta_v0::classifier::divergence::{ForceFeatures, ForceProxies, ForceStateA5};
-        use crate::theta_v0::strategy::coverage::{Dir, GradeRel, Horizontal, OperationRole, Vertical};
+        use crate::theta_v0::strategy::coverage::{
+            Dir, GradeRel, Horizontal, OperationRole, Vertical,
+        };
 
         let ff = |s: f64| ForceFeatures {
             macd_area: 10.0 * s,
@@ -633,13 +730,24 @@ mod tests {
         let mut c = Candidate {
             level: 0,
             source_index: 3,
-            bits: BspBits { buy1: true, ..Default::default() },
+            bits: BspBits {
+                buy1: true,
+                ..Default::default()
+            },
             dir: VoiceSide::Long,
             bsp_class: 1,
-            role: OperationRole { h: Horizontal::First, v: Vertical::Ambient, delta: Dir::Plus, grade: GradeRel::SameLevel },
+            role: OperationRole {
+                h: Horizontal::First,
+                v: Vertical::Ambient,
+                delta: Dir::Plus,
+                grade: GradeRel::SameLevel,
+            },
             nest_confirmed: false,
             gamma_index: 0,
-            force: Some(ForceProxies { seg_a: ff(1.0), seg_c: ff(0.5) }), // C 全 5 proxy < A ⟹ Dominated（背驰）
+            force: Some(ForceProxies {
+                seg_a: ff(1.0),
+                seg_c: ff(0.5),
+            }), // C 全 5 proxy < A ⟹ Dominated（背驰）
         };
         assert_eq!(
             z_of_candidate(&c, &[], &[], &ZExt::NONE).force_state,
@@ -669,10 +777,14 @@ mod tests {
             origin_level: Some(5),
             risk_mode: Some(RiskMode::Deleverage),
             t_stage: Some(crate::theta_v0::strategy::ledger::TStage::EarningShares), // #149 同约束②
-            eta_bucket: Some(EtaBucket::Deficit), // #175 同约束②
+            eta_bucket: Some(EtaBucket::Deficit),                                    // #175 同约束②
             ..base
         };
-        assert_eq!(UClass::project_to_u(&base), UClass::project_to_u(&decorated), "ϕ:Z→U 折叠 G3/#149/#175 新维");
+        assert_eq!(
+            UClass::project_to_u(&base),
+            UClass::project_to_u(&decorated),
+            "ϕ:Z→U 折叠 G3/#149/#175 新维"
+        );
     }
 
     /// z_alpha=0 退化（向后兼容）：LCB=mean−0=mean ⟹ LCB 门 ≡ 裸 μ 门（filter_gamma/runner
@@ -681,9 +793,15 @@ mod tests {
     fn lcb_z_alpha_zero_equals_naive_mu() {
         let z = buy_z();
         let mut est = MuEstimator::new();
-        est.observe(MuObservation { class: z, x_gamma: 10.0 });
-        est.observe(MuObservation { class: z, x_gamma: 8.0 }); // n=2，LCB 有定义
-        // z_alpha=0 ⟹ LCB=mean=9，与裸 μ 门同决策。
+        est.observe(MuObservation {
+            class: z,
+            x_gamma: 10.0,
+        });
+        est.observe(MuObservation {
+            class: z,
+            x_gamma: 8.0,
+        }); // n=2，LCB 有定义
+            // z_alpha=0 ⟹ LCB=mean=9，与裸 μ 门同决策。
         assert_eq!(est.mu_lcb(&z, 0.0), est.mu(&z));
         for theta in [-1.0, 8.5, 9.0, 100.0] {
             assert_eq!(
@@ -716,8 +834,14 @@ mod tests {
 
         // 案例1：高方差 n=2 类——裸 μ=15>θ=5 但 LCB≈−141<θ ⟹ 拒绝。
         let mut est_high_var = MuEstimator::new();
-        est_high_var.observe(MuObservation { class: z, x_gamma: 110.0 });
-        est_high_var.observe(MuObservation { class: z, x_gamma: -80.0 });
+        est_high_var.observe(MuObservation {
+            class: z,
+            x_gamma: 110.0,
+        });
+        est_high_var.observe(MuObservation {
+            class: z,
+            x_gamma: -80.0,
+        });
         assert!(
             !chi_open_gate_lcb(&est_high_var, &z, theta, z_alpha, true, true, true),
             "高方差 n=2：LCB<θ ⟹ 调用点口径下拒绝"
@@ -725,8 +849,15 @@ mod tests {
 
         // 案例2：n<2 单样本——mu_lcb=None，调用点固定 treat_empty_as_pass=true ⟹ 放行。
         let mut est_single = MuEstimator::new();
-        est_single.observe(MuObservation { class: z, x_gamma: 100.0 });
-        assert_eq!(est_single.mu_lcb(&z, z_alpha), None, "n=1 ⟹ mu_lcb None（前提核对）");
+        est_single.observe(MuObservation {
+            class: z,
+            x_gamma: 100.0,
+        });
+        assert_eq!(
+            est_single.mu_lcb(&z, z_alpha),
+            None,
+            "n=1 ⟹ mu_lcb None（前提核对）"
+        );
         assert!(
             chi_open_gate_lcb(&est_single, &z, theta, z_alpha, true, true, true),
             "n<2 空证据 + treat_empty_as_pass=true ⟹ 放行（Pass 2 ⊆ Pass 1 不变量）"
@@ -736,7 +867,10 @@ mod tests {
         let mut est_large_n = MuEstimator::new();
         for i in 0..2000 {
             let x = if i % 2 == 0 { 10.5 } else { 9.5 };
-            est_large_n.observe(MuObservation { class: z, x_gamma: x });
+            est_large_n.observe(MuObservation {
+                class: z,
+                x_gamma: x,
+            });
         }
         assert!(
             chi_open_gate_lcb(&est_large_n, &z, theta, z_alpha, true, true, true),

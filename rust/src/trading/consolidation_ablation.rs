@@ -42,7 +42,13 @@ struct TriggerStats {
 
 impl TriggerStats {
     fn new() -> Self {
-        TriggerStats { n: 0, wins: 0, gross_win: 0.0, gross_loss: 0.0, net: 0.0 }
+        TriggerStats {
+            n: 0,
+            wins: 0,
+            gross_win: 0.0,
+            gross_loss: 0.0,
+            net: 0.0,
+        }
     }
     fn add(&mut self, p: f64) {
         self.n += 1;
@@ -124,10 +130,16 @@ fn consol_ablation_oklo() {
         let compound = (equity - 1.0) * 100.0;
 
         // ── 逐腿 join：open_log(trigger) ⋈ close_log(reason) ⋈ LegTrace(profit) ──
-        let trig: HashMap<(u8, i64), u8> =
-            c.rev_open_log.iter().map(|o| ((o.ladder, o.bar), o.trigger)).collect();
-        let reason: HashMap<(u8, i64), u8> =
-            c.rev_close_log.iter().map(|cl| ((cl.ladder, cl.open_bar), cl.reason)).collect();
+        let trig: HashMap<(u8, i64), u8> = c
+            .rev_open_log
+            .iter()
+            .map(|o| ((o.ladder, o.bar), o.trigger))
+            .collect();
+        let reason: HashMap<(u8, i64), u8> = c
+            .rev_close_log
+            .iter()
+            .map(|cl| ((cl.ladder, cl.open_bar), cl.reason))
+            .collect();
         let mut legs: Vec<LegRow> = Vec::new();
         for td in res.diag.as_ref().expect("diag=true") {
             for lt in &td.diffs {
@@ -156,8 +168,14 @@ fn consol_ablation_oklo() {
                 3 => "both",
                 _ => "other",
             };
-            by_trig.entry(tkey).or_insert_with(TriggerStats::new).add(l.profit);
-            by_reason.entry(l.reason).or_insert_with(TriggerStats::new).add(l.profit);
+            by_trig
+                .entry(tkey)
+                .or_insert_with(TriggerStats::new)
+                .add(l.profit);
+            by_reason
+                .entry(l.reason)
+                .or_insert_with(TriggerStats::new)
+                .add(l.profit);
             if l.trigger & 2 != 0 {
                 consol_by_reason
                     .entry(l.reason)
@@ -168,23 +186,28 @@ fn consol_ablation_oklo() {
 
         let rev_net: f64 = legs.iter().map(|l| l.profit).sum();
         let rev_wins = legs.iter().filter(|l| l.profit > 0.0).count();
-        let avg_held =
-            if legs.is_empty() { 0.0 } else {
-                legs.iter().map(|l| l.held as f64).sum::<f64>() / legs.len() as f64
-            };
+        let avg_held = if legs.is_empty() {
+            0.0
+        } else {
+            legs.iter().map(|l| l.held as f64).sum::<f64>() / legs.len() as f64
+        };
 
         println!(
             "[{name:8}] 复利={compound:+9.2}% trades={} 胜率={:.1}% maxDD={max_dd:.1}% | \
              rev开={}(R1拒={}) 腿={} rev胜率={} rev净={rev_net:+.0} | \
              t5={} t6={}(R3抑={}) t7={} zd={} zg={}",
             res.trades.len(),
-            if res.trades.is_empty() { 0.0 } else {
+            if res.trades.is_empty() {
+                0.0
+            } else {
                 t_wins as f64 / res.trades.len() as f64 * 100.0
             },
             c.n_rev_open,
             c.n_rev_r1_rejects,
             legs.len(),
-            fmt_opt(if legs.is_empty() { None } else {
+            fmt_opt(if legs.is_empty() {
+                None
+            } else {
                 Some(rev_wins as f64 / legs.len() as f64 * 100.0)
             }),
             c.n_rev_close_t5,
@@ -194,9 +217,13 @@ fn consol_ablation_oklo() {
             c.n_rev_zd_close,
             c.n_rev_zg_close,
         );
-        for (tkey, st) in [("sell1", &by_trig), ("consol", &by_trig), ("both", &by_trig)]
-            .iter()
-            .filter_map(|(k, m)| m.get(*k).map(|s| (*k, s)))
+        for (tkey, st) in [
+            ("sell1", &by_trig),
+            ("consol", &by_trig),
+            ("both", &by_trig),
+        ]
+        .iter()
+        .filter_map(|(k, m)| m.get(*k).map(|s| (*k, s)))
         {
             println!(
                 "    trigger={tkey:6} n={:3} 胜率={} payoff={} 净={:+.0}",
@@ -224,10 +251,21 @@ fn consol_ablation_oklo() {
              \"n_rev_close_t7\": {}, \"n_rev_zd_close\": {}, \"n_rev_zg_close\": {}, \
              \"n_rev_r3_holds\": {}, \"n_rev_mismatch_holds\": {}, \"rev_osc_pairs\": {}, \
              \"rev_osc_wins\": {}, \"rev_osc_cash\": {:.2}}}, ",
-            c.n_rev_attempts, c.n_rev_open, c.n_rev_open_osc, c.n_rev_r1_rejects,
-            c.n_rev_depth_rejects, c.n_rev_nocenter_rejects, c.n_rev_close_t5,
-            c.n_rev_close_t6, c.n_rev_close_t7, c.n_rev_zd_close, c.n_rev_zg_close,
-            c.n_rev_r3_holds, c.n_rev_mismatch_holds, c.rev_osc_pairs, c.rev_osc_wins,
+            c.n_rev_attempts,
+            c.n_rev_open,
+            c.n_rev_open_osc,
+            c.n_rev_r1_rejects,
+            c.n_rev_depth_rejects,
+            c.n_rev_nocenter_rejects,
+            c.n_rev_close_t5,
+            c.n_rev_close_t6,
+            c.n_rev_close_t7,
+            c.n_rev_zd_close,
+            c.n_rev_zg_close,
+            c.n_rev_r3_holds,
+            c.n_rev_mismatch_holds,
+            c.rev_osc_pairs,
+            c.rev_osc_wins,
             c.rev_osc_cash
         ));
         json.push_str(&format!(
@@ -245,7 +283,9 @@ fn consol_ablation_oklo() {
                     format!(
                         "\"{k}\": {{\"n\": {}, \"wins\": {}, \"net\": {:.2}, \
                          \"win_rate\": {}, \"payoff\": {}}}",
-                        s.n, s.wins, s.net,
+                        s.n,
+                        s.wins,
+                        s.net,
                         fmt_opt(s.win_rate()),
                         fmt_opt(s.payoff())
                     )
@@ -263,7 +303,9 @@ fn consol_ablation_oklo() {
                     format!(
                         "\"{k}\": {{\"n\": {}, \"wins\": {}, \"net\": {:.2}, \
                          \"win_rate\": {}, \"payoff\": {}}}",
-                        s.n, s.wins, s.net,
+                        s.n,
+                        s.wins,
+                        s.net,
                         fmt_opt(s.win_rate()),
                         fmt_opt(s.payoff())
                     )

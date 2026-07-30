@@ -390,8 +390,9 @@ fn recursive_replay(
             break;
         }
         let raw_flat = flatten_runs(&raw_runs);
-        let (stats, valid_runs) =
-            measure_level(level, &raw_runs, &lower, mode, as_of, hist, dif, close_src, None)?;
+        let (stats, valid_runs) = measure_level(
+            level, &raw_runs, &lower, mode, as_of, hist, dif, close_src, None,
+        )?;
         replay.raw.insert(level, raw_flat.clone());
         replay.stats.insert(level, stats);
         let next = compose_next(level + 1, &valid_runs, mode)?;

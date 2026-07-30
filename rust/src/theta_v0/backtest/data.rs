@@ -163,10 +163,18 @@ impl Dataset {
         let end = end.min(self.bars.len());
         let (mut bars, mut dates) = (Vec::new(), Vec::new());
         for i in start..end {
-            bars.push(Bar { source_index: bars.len(), ..self.bars[i] });
+            bars.push(Bar {
+                source_index: bars.len(),
+                ..self.bars[i]
+            });
             dates.push(self.dates[i].clone());
         }
-        Dataset { symbol: self.symbol.clone(), bars, dates, bar_seconds: self.bar_seconds }
+        Dataset {
+            symbol: self.symbol.clone(),
+            bars,
+            dates,
+            bar_seconds: self.bar_seconds,
+        }
     }
 }
 
@@ -225,9 +233,7 @@ pub fn load_symbol(
         ("dates", raw.dates.len()),
     ] {
         if len != n {
-            return Err(format!(
-                "{path:?} 列长度不一致：{name}={len} vs closes={n}"
-            ));
+            return Err(format!("{path:?} 列长度不一致：{name}={len} vs closes={n}"));
         }
     }
 
@@ -245,24 +251,23 @@ pub fn load_symbol(
         // 坏 bar 用前一根 close 填充价格（保序列连续，但标 untradable 不在其上成交）；
         // 首根坏 bar 无前值时用 0（量化后 tick=0，untradable 已标注，执行层不触碰）。
         let valid_ohlc = matches!((o, h, l, c), (Some(_), Some(_), Some(_), Some(_)));
-        let (oq, hq, lq, cq, untradable) = if let (Some(o), Some(h), Some(l), Some(c)) =
-            (o, h, l, c)
-        {
-            let bad_range = h < o.max(c).max(l) || l > o.min(c).min(h);
-            let bad_price = o <= 0.0 || h <= 0.0 || l <= 0.0 || c <= 0.0;
-            let untradable = bad_range || bad_price || v <= 0.0;
-            (
-                quantize(o, tick_size),
-                quantize(h, tick_size),
-                quantize(l, tick_size),
-                quantize(c, tick_size),
-                untradable,
-            )
-        } else {
-            // 缺 OHLC：用前一根 close 占位（连续性），标 untradable。
-            let prev = bars.last().map(|b: &Bar| b.close).unwrap_or(0);
-            (prev, prev, prev, prev, true)
-        };
+        let (oq, hq, lq, cq, untradable) =
+            if let (Some(o), Some(h), Some(l), Some(c)) = (o, h, l, c) {
+                let bad_range = h < o.max(c).max(l) || l > o.min(c).min(h);
+                let bad_price = o <= 0.0 || h <= 0.0 || l <= 0.0 || c <= 0.0;
+                let untradable = bad_range || bad_price || v <= 0.0;
+                (
+                    quantize(o, tick_size),
+                    quantize(h, tick_size),
+                    quantize(l, tick_size),
+                    quantize(c, tick_size),
+                    untradable,
+                )
+            } else {
+                // 缺 OHLC：用前一根 close 占位（连续性），标 untradable。
+                let prev = bars.last().map(|b: &Bar| b.close).unwrap_or(0);
+                (prev, prev, prev, prev, true)
+            };
         let _ = valid_ohlc; // 语义已并入上面的 if let
 
         bars.push(Bar {
@@ -395,7 +400,11 @@ mod tests {
         let m0 = date_to_timestamp("2016-01-03 23:00:00+00:00");
         let m1 = date_to_timestamp("2016-01-03 23:01:00+00:00");
         // 旧 12 位值 ×100（秒=00），相对差比例不变 ⟹ 排序结果同。
-        assert_eq!(m0, 201_601_032_300 * 100, "1m bar 秒=00 ⟹ 14 位 = 旧 12 位 ×100");
+        assert_eq!(
+            m0,
+            201_601_032_300 * 100,
+            "1m bar 秒=00 ⟹ 14 位 = 旧 12 位 ×100"
+        );
         assert!(m0 < m1, "1m 相对序不变（bit-exact 平局键不受影响）");
     }
 
@@ -427,7 +436,11 @@ mod tests {
         };
         // OOS 窗（协议 §2.1）：2023-01-01 → 2025-06-30。
         let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
-        assert_eq!(oos.bars.len(), 2, "含 2023-01-01 与 2023-01-02，不含 2022/2025-07");
+        assert_eq!(
+            oos.bars.len(),
+            2,
+            "含 2023-01-01 与 2023-01-02，不含 2022/2025-07"
+        );
         // Holdout 窗：2025-07-01 → 末尾。
         let holdout = ds.slice_date_window("2025-07-01", "2030-01-01");
         assert_eq!(holdout.bars.len(), 1, "仅 2025-07-01");
@@ -473,7 +486,10 @@ mod tests {
             .find(|(s, _, _)| s.eq_ignore_ascii_case("BTC"))
             .map(|(_, _, g)| *g)
             .expect("BTC 在 SYMBOLS 表");
-        assert_eq!(btc, 60, "load_by_symbol(\"BTC\") 传给 load_symbol 的粒度 = 60");
+        assert_eq!(
+            btc, 60,
+            "load_by_symbol(\"BTC\") 传给 load_symbol 的粒度 = 60"
+        );
     }
 
     /// untradable_ratio 计算（协议 §5.5/§1.2）。

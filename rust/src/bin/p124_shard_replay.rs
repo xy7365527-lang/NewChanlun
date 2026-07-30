@@ -90,9 +90,9 @@ use newchan_rust::theta_v0::classifier;
 use newchan_rust::theta_v0::classifier::decompose;
 use newchan_rust::theta_v0::classifier::level_view::{
     assemble_level_view, lower_legs_from, project_extended_windows_carried_only,
-    provide_nest_candidate_events,
-    C2LevelViewConfig, C2VersionTuple, CoordinateWindow, LevelViewMaterial, LevelViewQuery,
-    NestCandidateEvent, NestDivergenceKind, ProjectionError, ProjectionMaterial,
+    provide_nest_candidate_events, C2LevelViewConfig, C2VersionTuple, CoordinateWindow,
+    LevelViewMaterial, LevelViewQuery, NestCandidateEvent, NestDivergenceKind, ProjectionError,
+    ProjectionMaterial,
 };
 use newchan_rust::theta_v0::classifier::nest::{
     assemble_certificates_snapshot, assemble_typed_certificates, event_bsp_book_level,
@@ -137,7 +137,9 @@ fn dump_line(args: std::fmt::Arguments<'_>) {
     });
     if let Some(sink) = sink {
         if let Ok(mut writer) = sink.lock() {
-            let _ = writer.write_fmt(args).and_then(|()| writer.write_all(b"\n"));
+            let _ = writer
+                .write_fmt(args)
+                .and_then(|()| writer.write_all(b"\n"));
         }
     }
 }
@@ -242,7 +244,11 @@ fn enc_key(key: &EventKey) -> String {
         "L{},s{},k{},sa{}-{},ib{}-{},ia{}-{},ts{}",
         key.level,
         u8::from(key.short),
-        if key.kind == NestDivergenceKind::Trend { "t" } else { "p" },
+        if key.kind == NestDivergenceKind::Trend {
+            "t"
+        } else {
+            "p"
+        },
         key.seg_a.0,
         key.seg_a.1,
         key.interval_b.0,
@@ -353,7 +359,11 @@ impl TurnBook {
             }
             let seen = self.seen.entry(level).or_default();
             for block in &state.moves[from..ready] {
-                let key = (block.start_center, block.end_center, move_kind_tag(block.kind));
+                let key = (
+                    block.start_center,
+                    block.end_center,
+                    move_kind_tag(block.kind),
+                );
                 if !seen.insert(key) {
                     continue;
                 }
@@ -453,8 +463,14 @@ fn main() -> Result<(), String> {
     let terminal_views = audit.views;
     let (hist, close_src) = terminal.cache.causal_series();
     let dif = terminal.cache.macd_dif();
-    let terminal_events =
-        collect_snapshot_candidates(&terminal.tower, max_bars - 1, hist, dif, close_src, &mut audit)?;
+    let terminal_events = collect_snapshot_candidates(
+        &terminal.tower,
+        max_bars - 1,
+        hist,
+        dif,
+        close_src,
+        &mut audit,
+    )?;
     let terminal_views = audit.views - terminal_views;
     let mut all_targets = BTreeMap::new();
     for event in terminal_events.iter().flatten() {
@@ -498,8 +514,13 @@ fn main() -> Result<(), String> {
         run_buckets.len(),
         ckpt_every,
     );
-    let (mut book, prefix_views, prefix_pending) =
-        run_targeted_prefix_pass(&loaded.bars[..max_bars], &config, &targets, ckpt_every, probes)?;
+    let (mut book, prefix_views, prefix_pending) = run_targeted_prefix_pass(
+        &loaded.bars[..max_bars],
+        &config,
+        &targets,
+        ckpt_every,
+        probes,
+    )?;
     let unresolved_targets = prefix_pending.len();
     audit.views += prefix_views;
     audit.snapshots += book.candidates.len();
@@ -607,7 +628,11 @@ fn main() -> Result<(), String> {
     let missed: Vec<&EventKey> = book
         .terminal_confirmed
         .iter()
-        .filter(|key| !book.covered_b.contains(&(key.level, key.turn_source, key.interval_b)))
+        .filter(|key| {
+            !book
+                .covered_b
+                .contains(&(key.level, key.turn_source, key.interval_b))
+        })
         .collect();
     dump_line(format_args!(
         "LEDGER_META shard={} shards={} v=1 hash={} max_bars={} ckpt={} probes={} targets={} run_buckets={} prefix_views={} terminal_views={} too_short={} invalid_seed={} missing_carried_center={} other={} unresolved={} candidates_final={} divergences_final={} terminal_confirmed={} missed={}",
@@ -808,8 +833,12 @@ fn parse_shard_spec(spec: &str) -> Result<(usize, usize), String> {
     let (i, s) = spec
         .split_once('/')
         .ok_or_else(|| format!("P124_SHARD={spec} 形如 <i>/<S>"))?;
-    let i: usize = i.parse().map_err(|_| format!("P124_SHARD i 非整数: {spec}"))?;
-    let s: usize = s.parse().map_err(|_| format!("P124_SHARD S 非整数: {spec}"))?;
+    let i: usize = i
+        .parse()
+        .map_err(|_| format!("P124_SHARD i 非整数: {spec}"))?;
+    let s: usize = s
+        .parse()
+        .map_err(|_| format!("P124_SHARD S 非整数: {spec}"))?;
     if s == 0 || i >= s {
         return Err(format!("P124_SHARD 需 0<=i<S: {spec}"));
     }
@@ -956,10 +985,16 @@ fn run_targeted_prefix_pass(
             let (hist, close_src) = cache.causal_series();
             let dif = cache.macd_dif();
             let mut ckpt_audit = ProviderAudit::default();
-            match collect_snapshot_candidates(&tower, index, hist, dif, close_src, &mut ckpt_audit) {
+            match collect_snapshot_candidates(&tower, index, hist, dif, close_src, &mut ckpt_audit)
+            {
                 Ok(by_level) => checkpoint_certificates(&by_level, &classification, index),
                 Err(error) => {
-                    dump_row(index, None, None, format!("CKPT_ERR as_of={index} err={error}"));
+                    dump_row(
+                        index,
+                        None,
+                        None,
+                        format!("CKPT_ERR as_of={index} err={error}"),
+                    );
                 }
             }
         }
@@ -988,7 +1023,9 @@ fn collect_target_candidates(
 ) -> Result<(Vec<NestCandidateEvent>, usize), String> {
     let mut runs_by_level: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
     for key in pending {
-        let Some(event) = targets.get(key) else { continue };
+        let Some(event) = targets.get(key) else {
+            continue;
+        };
         // snapshot 无前视的结构下，turn_source 尚未到达时该对象不可能成为 Cand。
         // 提前投影这些终态目标只增加扫描量，不可能改变首次可证钟。
         if event.turn_source <= as_of {
@@ -1013,7 +1050,10 @@ fn collect_target_candidates(
         let mut run_source = None;
         for index in 0..=windows.len() {
             let seed_start = (index < windows.len())
-                .then(|| project_extended_windows_carried_only(std::slice::from_ref(&windows[index])).ok())
+                .then(|| {
+                    project_extended_windows_carried_only(std::slice::from_ref(&windows[index]))
+                        .ok()
+                })
                 .flatten()
                 .and_then(|projection| projection.seeds.first().map(|seed| seed.start_index));
             match (run_start, seed_start) {
@@ -1030,7 +1070,9 @@ fn collect_target_candidates(
             }
         }
         for run_source_start in run_sources {
-            let Some(&(start, end)) = run_ranges.get(&run_source_start) else { continue };
+            let Some(&(start, end)) = run_ranges.get(&run_source_start) else {
+                continue;
+            };
             let projection = project_extended_windows_carried_only(&windows[start..end])
                 .map_err(|error| format!("L{level} targeted projection 失败: {error:?}"))?;
             let centers: Vec<_> = projection.seeds.iter().map(|seed| seed.center).collect();
@@ -1269,7 +1311,10 @@ fn bin_anchor_ctx() -> newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx<
     fn never(_: usize) -> Option<(newchan_rust::theta_v0::types::Tick, usize)> {
         None
     }
-    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx { anchor_at: &never, event_anchor: (None, None) }
+    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx {
+        anchor_at: &never,
+        event_anchor: (None, None),
+    }
 }
 
 const TERMINAL_MATCH: TerminalMatch = TerminalMatch::CWindow;
@@ -1295,15 +1340,24 @@ fn terminal_bits_old(
     side: Side,
     b_center_start: Option<usize>,
 ) -> Option<BspBits> {
-    let book_level = classification.levels.get(event_bsp_book_level(level as u32)?)?;
+    let book_level = classification
+        .levels
+        .get(event_bsp_book_level(level as u32)?)?;
     let book = &book_level.bsp;
     // 关③ P3 平移：旧事件 = Cand^δ 趋势族线（pan_div_diag 为 cand_delta=false 纯诊断，
     // 结构性不入终端查询）⟹ kind=Trend；B 身份 = 事件自带 `b_parent.source_interval.0`
     //（ParentCenterIdentity 已携 B start_index 快照，单一来源，无第二查法）。
     // #218 面 B：一/三类判同的 B 带由同层 `centers` 查出（b_center_start 只当查找键）。
     terminal_bits_in_book(
-        book, &book_level.centers, c_start, source, side, NestDivergenceKind::Trend,
-        b_center_start, TERMINAL_MATCH, &bin_anchor_ctx(),
+        book,
+        &book_level.centers,
+        c_start,
+        source,
+        side,
+        NestDivergenceKind::Trend,
+        b_center_start,
+        TERMINAL_MATCH,
+        &bin_anchor_ctx(),
     )
     .map(|t| t.bits)
 }
@@ -1451,15 +1505,10 @@ mod shard_balance_tests {
     /// target-carrying run，Σrun_buckets=5）下 L1 独块从 s2 挪到 s0，其余片不动。
     #[test]
     fn level_rr_non_l1_identical_to_hash() {
-        let runs: BTreeSet<(u32, usize)> = [
-            (1u32, 35usize),
-            (2, 35),
-            (3, 35),
-            (4, 35),
-            (5, 160_931),
-        ]
-        .into_iter()
-        .collect();
+        let runs: BTreeSet<(u32, usize)> =
+            [(1u32, 35usize), (2, 35), (3, 35), (4, 35), (5, 160_931)]
+                .into_iter()
+                .collect();
         let rank = l1_rr_rank(&runs);
         assert_eq!(rank.get(&35), Some(&0));
         for &(level, source) in &runs {

@@ -36,7 +36,11 @@ pub struct Interval {
 impl Interval {
     /// 构造候选区间。
     pub fn new(end_time: u64, start_time: u64, idx: u64) -> Interval {
-        Interval { end_time, start_time, idx }
+        Interval {
+            end_time,
+            start_time,
+            idx,
+        }
     }
 
     /// Sel_Θ 字典序键 `(end_time, start_time, idx)`（对照 Lean `selKey`）。
@@ -132,10 +136,7 @@ pub fn chi_bool(ev: u32, chain: &[NestLevel]) -> bool {
                 let mut tail = Vec::with_capacity(rest.len() + 1);
                 tail.push(next.clone());
                 tail.extend_from_slice(rest);
-                head.candidate_ok
-                    && next.lvl < head.lvl
-                    && sub_b(next, head)
-                    && chi_bool(ev, &tail)
+                head.candidate_ok && next.lvl < head.lvl && sub_b(next, head) && chi_bool(ev, &tail)
             } else {
                 // head.lvl < ev：链反向（违反 o_v > … > e_v）⟹ 0
                 false
@@ -216,13 +217,28 @@ mod tests {
     // ── 测试用区间套节点（对照 Lean witExec/witMid/witOp 同值） ────────────────────
 
     fn wit_exec() -> NestLevel {
-        NestLevel { lvl: 0, cands: vec![Interval::new(20, 10, 5)], candidate_ok: true, confirm_ok: true }
+        NestLevel {
+            lvl: 0,
+            cands: vec![Interval::new(20, 10, 5)],
+            candidate_ok: true,
+            confirm_ok: true,
+        }
     }
     fn wit_mid() -> NestLevel {
-        NestLevel { lvl: 1, cands: vec![Interval::new(22, 8, 3)], candidate_ok: true, confirm_ok: false }
+        NestLevel {
+            lvl: 1,
+            cands: vec![Interval::new(22, 8, 3)],
+            candidate_ok: true,
+            confirm_ok: false,
+        }
     }
     fn wit_op() -> NestLevel {
-        NestLevel { lvl: 2, cands: vec![Interval::new(25, 5, 1)], candidate_ok: true, confirm_ok: false }
+        NestLevel {
+            lvl: 2,
+            cands: vec![Interval::new(25, 5, 1)],
+            candidate_ok: true,
+            confirm_ok: false,
+        }
     }
 
     /// 对照 Lean `witness_chiBool_one`：三级区间套链 χ^δ = 1（[5,25]⊇[8,22]⊇[10,20]）。
@@ -259,7 +275,12 @@ mod tests {
     /// 即使级别号匹配 + confirm = true，无候选仍 0（无候选 = 0 覆盖到终端层）。
     #[test]
     fn chi_bool_singleton_no_cand_zero() {
-        let no_cand = NestLevel { lvl: 0, cands: vec![], candidate_ok: true, confirm_ok: true };
+        let no_cand = NestLevel {
+            lvl: 0,
+            cands: vec![],
+            candidate_ok: true,
+            confirm_ok: true,
+        };
         assert!(!chi_bool(0, &[no_cand]));
     }
 
@@ -274,7 +295,12 @@ mod tests {
     #[test]
     fn chi_bool_non_decreasing_levels_zero() {
         // 次级 lvl=2 ≥ 本级 lvl=2（未严格递减）⟹ 链不良构 ⟹ 0
-        let same_op = NestLevel { lvl: 2, cands: vec![Interval::new(22, 8, 3)], candidate_ok: true, confirm_ok: false };
+        let same_op = NestLevel {
+            lvl: 2,
+            cands: vec![Interval::new(22, 8, 3)],
+            candidate_ok: true,
+            confirm_ok: false,
+        };
         assert!(!chi_bool(0, &[wit_op(), same_op, wit_exec()]));
     }
 }

@@ -1038,8 +1038,7 @@ fn terminal_event_projection(
                             terminal.third_class_in_c = Some(certificate.third_class_in_c);
                             terminal.c_interval_full = Some(certificate.c_interval_full);
                             terminal.full_trend_evidence = certificate.full_trend_evidence;
-                            terminal.full_trend_c_qualified =
-                                certificate.full_trend_c_qualified;
+                            terminal.full_trend_c_qualified = certificate.full_trend_c_qualified;
                         }
                         None => {
                             terminal.cp_certificate_confirm_src = None;
@@ -1490,10 +1489,7 @@ fn run() -> Result<bool, String> {
                     );
                 }
                 for (&(lvl, src, side), &bar) in &tracker.first_t3 {
-                    let _ = writeln!(
-                        w,
-                        "BSP_T3 lvl={lvl} src={src} side={side} first_bar={bar}"
-                    );
+                    let _ = writeln!(w, "BSP_T3 lvl={lvl} src={src} side={side} first_bar={bar}");
                 }
                 for (t, c) in trades.iter().zip(&calcs) {
                     let _ = writeln!(
@@ -1584,17 +1580,12 @@ fn run() -> Result<bool, String> {
         );
         old_funnel[top].certificates = old_count;
         old_cert_per_top.push((top, old_count));
-        let certs = assemble_certificates_terminal(
-            &event_time_cand_f,
-            &objects_by_level,
-            0,
-            top,
-            |b| {
-            terminal_by_key
-                .get(&(b.confirm_src, side_i8(b.side)))
-                .copied()
-            },
-        );
+        let certs =
+            assemble_certificates_terminal(&event_time_cand_f, &objects_by_level, 0, top, |b| {
+                terminal_by_key
+                    .get(&(b.confirm_src, side_i8(b.side)))
+                    .copied()
+            });
         let replay_count =
             count_certificates_for_mode(&cand_f, &terminal_by_key, top, ParentWindowMode::FullCp);
         new_assembler_matches &= replay_count == certs.len();
@@ -2078,7 +2069,13 @@ fn run() -> Result<bool, String> {
         );
     }
     let _ = writeln!(rw, "\n分布 `== / < / > / c_start 缺失` = **{rel_eq} / {rel_lt} / {rel_gt} / {rel_missing}**。若 `>` 非零，其表中 `B_p -> departure_move_id` 说明被排除前缀归属于 B 而非完整 c；本次不以 episode 值替代。所有可表达左端均来自扫描侧车的 non-extension 离开单元；`mapping_ok={mapping_ok}`，证明未读取父 A 起点或整趋势起点。");
-    let _ = writeln!(rw, "父事件总数 = **{}**；完整 `c_interval_full` = **{}**；未闭合并被拒绝 = **{}**。", parent_events.len(), complete_parent_events, incomplete_parent_events);
+    let _ = writeln!(
+        rw,
+        "父事件总数 = **{}**；完整 `c_interval_full` = **{}**；未闭合并被拒绝 = **{}**。",
+        parent_events.len(),
+        complete_parent_events,
+        incomplete_parent_events
+    );
 
     let _ = writeln!(rw, "\n## 3. §7.B 新旧漏斗");
     if old_baseline_ok {

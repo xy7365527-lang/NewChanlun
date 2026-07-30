@@ -1,5 +1,5 @@
-use super::*;
 use super::fixtures::{extended_windows, query, trend_block};
+use super::*;
 
 /// ★R1 负例（037:18 必要合取）：同一夹具但 as_of=129 截断回试腿 ⟹ c 内无三买（T3 构造性
 /// 不成立），即便面积/T2 俱备也不得 Completed——锁定「全合取缺三买即未确认」边界。

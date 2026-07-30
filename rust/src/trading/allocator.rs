@@ -21,7 +21,10 @@ pub struct SizeAllocator {
 
 impl Default for SizeAllocator {
     fn default() -> Self {
-        SizeAllocator { frac: [0.0; MAX_LADDER], version: None }
+        SizeAllocator {
+            frac: [0.0; MAX_LADDER],
+            version: None,
+        }
     }
 }
 
@@ -68,8 +71,8 @@ impl SizeAllocator {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::types::{BspClass, BspEvent};
+    use super::*;
 
     fn formed(cs: i64, zd: f64, zg: f64) -> BspEvent {
         BspEvent {

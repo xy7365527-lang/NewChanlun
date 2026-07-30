@@ -1,5 +1,5 @@
-use super::*;
 use super::fixtures::{extended_windows, trend_block};
+use super::*;
 
 /// #69 5a / T0：先锁住冷核的首证钟与未决投影；resident 化不得改写现行
 /// `Option<usize>` 可观察结果。
@@ -410,13 +410,9 @@ fn cold_none_oracle_is_isolated_from_poisoned_resident_store() {
     .unwrap();
     store.poison_for_test(ConfirmState::TerminalFalse);
 
-    let forced_cold = assemble_level_view_resident(
-        C2LevelViewConfig { enabled: true },
-        query,
-        material(),
-        None,
-    )
-    .unwrap();
+    let forced_cold =
+        assemble_level_view_resident(C2LevelViewConfig { enabled: true }, query, material(), None)
+            .unwrap();
     assert_eq!(
         forced_cold.pair_confirmations[0].state,
         ConfirmState::Confirmed(139)

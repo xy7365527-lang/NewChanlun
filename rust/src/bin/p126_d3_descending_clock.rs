@@ -23,7 +23,9 @@
 //! 用法：`cargo run --release --bin p126_d3_descending_clock -- <btc_1m_full.json> [w1,w2,...]`
 //! （窗口默认 `20000,100000,300000`，#641 电池窗口口径同款）。
 
-use newchan_rust::theta_v0::classifier::cand_event::{CandidateEvent, CandidateKey, CandidateStreams};
+use newchan_rust::theta_v0::classifier::cand_event::{
+    CandidateEvent, CandidateKey, CandidateStreams,
+};
 use newchan_rust::theta_v0::classifier::cand_sub::candidate_is_sub;
 use newchan_rust::theta_v0::classifier::{self};
 use newchan_rust::theta_v0::config::ThetaConfig;
@@ -237,8 +239,15 @@ fn scan_window(path: &Path, config: &ThetaConfig, max_bars: usize) -> Result<(),
     let mut buckets = BTreeMap::<(u32, u32, &'static str), Bucket>::new();
     let mut side_mismatch_pairs = 0usize;
     let mut attribution = AttributionCounts::default();
-    let mut violations: Vec<(u32, u32, &'static str, &CandidateEvent, &CandidateEvent, usize, usize)> =
-        Vec::new();
+    let mut violations: Vec<(
+        u32,
+        u32,
+        &'static str,
+        &CandidateEvent,
+        &CandidateEvent,
+        usize,
+        usize,
+    )> = Vec::new();
 
     for (&child_level, children) in &by_level {
         let parent_level = child_level + 1;

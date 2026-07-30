@@ -193,9 +193,7 @@ use super::positional::{LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::{BarSig, SignalTape};
 use super::types::{BspEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER};
-use crate::buysellpoint::{
-    prove_s11_s9_located, prove_s12_center, BspKind, SigLocatedState, Side,
-};
+use crate::buysellpoint::{prove_s11_s9_located, prove_s12_center, BspKind, Side, SigLocatedState};
 use crate::stroke::Direction;
 
 /// pending 势源下界（N5/N6）：move(L1)。segment（=FIRST_BSP_LADDER）非势源——
@@ -241,7 +239,10 @@ fn cascade_arm(
     compress_bar: i64,
     confirm_bar: i64,
 ) {
-    debug_assert!(source >= PENDING_LO, "pending 只在 move(L1) 及以上注册；source={source}");
+    debug_assert!(
+        source >= PENDING_LO,
+        "pending 只在 move(L1) 及以上注册；source={source}"
+    );
     // ② 后续走势验证（第29课:52/54）：compress < confirm 严格小于——同 bar 武装即确认
     //    = 无后续走势 = 伪确认（degenerate located 死因）。调用点 `since_bar < bar` 保证。
     debug_assert!(compress_bar < confirm_bar, "第29课:52/54+540号严格时序：压缩 {compress_bar} ≥ 展开 {confirm_bar}（同 bar/逆序确认=无后续走势验证=伪确认）");
@@ -263,7 +264,9 @@ fn cascade_arm(
 /// 非空时恒为连续前缀 `[FIRST_BSP_LADDER..=S]`。PCF/URS 两个独立层选择部件（E\* +
 /// top）的合一替代——层选择 ≡ 链确认。
 fn chain_source(located: &[Option<PendingLocate>; MAX_LADDER]) -> Option<usize> {
-    (FIRST_BSP_LADDER..MAX_LADDER).rev().find(|&k| located[k].is_some())
+    (FIRST_BSP_LADDER..MAX_LADDER)
+        .rev()
+        .find(|&k| located[k].is_some())
 }
 
 /// 升序 bar 序列中 ≤ `ub` 的最大值（向心回溯：内圈末段 sub-component 的 settle bar）。
@@ -334,7 +337,10 @@ fn root_emergent_ladder(
     }
     // **A5/T30 单调性运行时证明（release-active）**：根涌现层单调非降（爬升只升不降）。
     // 升 assert!（原 debug_assert! release 失效，GAP-C）——T30 核心命题须 release 守卫。
-    assert!(lad >= root_ladder, "A5(T30) 违反：根涌现层 {lad} < 入场层 {root_ladder}（爬升应单调非降，relabel 不可降级）");
+    assert!(
+        lad >= root_ladder,
+        "A5(T30) 违反：根涌现层 {lad} < 入场层 {root_ladder}（爬升应单调非降，relabel 不可降级）"
+    );
     lad
 }
 
@@ -343,7 +349,13 @@ fn root_emergent_ladder(
 /// 不增删 voice ⇒ rid 仍是唯一 active root，N1）；③ units 守恒（flip 不改 units ⇒
 /// n_base 不变，A2/§8.1）。NAV 价值中性（MtM 根空头）由 step 末 prove_n8 守卫。
 /// violation = panic（make-decision-observable，137号）。
-fn prove_t14_root_flip(voices: &[VoiceLedger], rid: usize, old_dir: Polarity, units_pre: f64, bar: i64) {
+fn prove_t14_root_flip(
+    voices: &[VoiceLedger],
+    rid: usize,
+    old_dir: Polarity,
+    units_pre: f64,
+    bar: i64,
+) {
     assert_ne!(
         voices[rid].dir, old_dir,
         "T14 违反@bar {bar}：根就地翻转后极性未反转（dir 仍 {old_dir:?}）"
@@ -353,7 +365,10 @@ fn prove_t14_root_flip(voices: &[VoiceLedger], rid: usize, old_dir: Polarity, un
         "T14 违反@bar {bar}：根翻转改变了 units（{units_pre}→{}，同股数翻转 M=N 破，A10）",
         voices[rid].units
     );
-    let roots = voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed) && v.parent.is_none()).count();
+    let roots = voices
+        .iter()
+        .filter(|v| !matches!(v.status, VoiceStatus::Closed) && v.parent.is_none())
+        .count();
     assert_eq!(
         roots, 1,
         "T14 违反@bar {bar}：翻转后 {roots} 个 active root（in-place flip 应保持单根，N1）"
@@ -392,7 +407,10 @@ fn prove_n1_forest(voices: &[VoiceLedger], bar: i64) -> usize {
                 roots += 1;
             } else {
                 let p = v.parent.expect("非根有父");
-                assert!(p < voices.len(), "N1 违反@bar {bar}：voice {id} 父 id {p} 越界");
+                assert!(
+                    p < voices.len(),
+                    "N1 违反@bar {bar}：voice {id} 父 id {p} 越界"
+                );
                 assert!(
                     !matches!(voices[p].status, VoiceStatus::Closed),
                     "N1 违反@bar {bar}：孤儿——active voice {id} 的父 {p} 已 Closed（后序 close 应已级联关子）"
@@ -403,10 +421,17 @@ fn prove_n1_forest(voices: &[VoiceLedger], bar: i64) -> usize {
                 );
             }
         }
-        let live_kids = v.children.iter().filter(|&&k| !matches!(voices[k].status, VoiceStatus::Closed)).count();
+        let live_kids = v
+            .children
+            .iter()
+            .filter(|&&k| !matches!(voices[k].status, VoiceStatus::Closed))
+            .count();
         max_children = max_children.max(live_kids);
     }
-    assert!(roots <= 1, "N1 违反@bar {bar}：{roots} 个 active root（单根不变量——清仓/EOD 前森林单根）");
+    assert!(
+        roots <= 1,
+        "N1 违反@bar {bar}：{roots} 个 active root（单根不变量——清仓/EOD 前森林单根）"
+    );
     max_children
 }
 
@@ -418,7 +443,10 @@ fn prove_n1_forest(voices: &[VoiceLedger], bar: i64) -> usize {
 fn prove_n2_per_voice(acted_ids: &[usize], bar: i64) {
     for (i, &a) in acted_ids.iter().enumerate() {
         for &b in &acted_ids[i + 1..] {
-            assert!(a != b, "N2 违反@bar {bar}：voice {a} 同 bar 双动（per-voice acted_bar 失效）");
+            assert!(
+                a != b,
+                "N2 违反@bar {bar}：voice {a} 同 bar 双动（per-voice acted_bar 失效）"
+            );
         }
     }
 }
@@ -450,10 +478,17 @@ fn prove_chain(
         s >= PENDING_LO,
         "N5 违反@bar {bar} {op}：source={s} < move(L1)={PENDING_LO}（segment 非势源）"
     );
-    let top = located[s]
-        .unwrap_or_else(|| panic!("N5 违反@bar {bar} {op}：source={s} 无 located（无定位链的操作=bug）"));
-    assert_eq!(top.source_ladder, s, "N5 违反@bar {bar} {op}：located[{s}].source_ladder≠{s}（链顶不一致）");
-    assert_eq!(top.direction, dir, "N5 违反@bar {bar} {op}：located[{s}].direction 方向错配");
+    let top = located[s].unwrap_or_else(|| {
+        panic!("N5 违反@bar {bar} {op}：source={s} 无 located（无定位链的操作=bug）")
+    });
+    assert_eq!(
+        top.source_ladder, s,
+        "N5 违反@bar {bar} {op}：located[{s}].source_ladder≠{s}（链顶不一致）"
+    );
+    assert_eq!(
+        top.direction, dir,
+        "N5 违反@bar {bar} {op}：located[{s}].direction 方向错配"
+    );
     assert!(
         top.compress_bar < top.confirm_bar,
         "N6 违反@bar {bar} {op}：第29课:52/54+540号 压缩 {} ≥ 展开 {}（同 bar/逆序确认=无后续走势验证=伪确认，degenerate located）",
@@ -465,8 +500,9 @@ fn prove_chain(
         top.confirm_bar
     );
     for k in FIRST_BSP_LADDER..=s {
-        let e = located[k]
-            .unwrap_or_else(|| panic!("N5 违反@bar {bar} {op}：定位链 [{FIRST_BSP_LADDER}..={s}] 在层 {k} 断裂"));
+        let e = located[k].unwrap_or_else(|| {
+            panic!("N5 违反@bar {bar} {op}：定位链 [{FIRST_BSP_LADDER}..={s}] 在层 {k} 断裂")
+        });
         assert_eq!(
             e.source_ladder, s,
             "N5 违反@bar {bar} {op}：located[{k}].source_ladder={} ≠ 链顶 {s}（级联非统一 source）",
@@ -486,25 +522,37 @@ fn prove_chain(
 /// **一个** confirm 折叠整个多义性而非随意 per-level patch（与 prove_chain 不重叠——后者不验
 /// (compress,confirm) 跨层统一）。**赋格**：多义性 = 同一主题"走势终完美"在多个声部（级别）
 /// 可演奏；规范固定 = 选定塔顶声部为主奏（根 voice 的级别）。violation = panic。
-fn prove_t52_gauge_fix(located: &[Option<PendingLocate>; MAX_LADDER], s: usize, bar: i64, op: &str) {
-    let top = located[s]
-        .unwrap_or_else(|| panic!("T52 违反@bar {bar} {op}：塔顶 source={s} 无 located（区间套规范不存在）"));
+fn prove_t52_gauge_fix(
+    located: &[Option<PendingLocate>; MAX_LADDER],
+    s: usize,
+    bar: i64,
+    op: &str,
+) {
+    let top = located[s].unwrap_or_else(|| {
+        panic!("T52 违反@bar {bar} {op}：塔顶 source={s} 无 located（区间套规范不存在）")
+    });
     let gauge = (top.compress_bar, top.confirm_bar);
     for k in FIRST_BSP_LADDER..=s {
         let e = located[k].unwrap_or_else(|| {
             panic!("T52 违反@bar {bar} {op}：多义性塔 [{FIRST_BSP_LADDER}..={s}] 层 {k} 缺提升（fiber 断）")
         });
         assert_eq!(
-            (e.compress_bar, e.confirm_bar), gauge,
+            (e.compress_bar, e.confirm_bar),
+            gauge,
             "T52 违反@bar {bar} {op}：fiber 层 {k} (compress,confirm)=({},{}) ≠ 塔顶 gauge ({},{})\
              ——规范未固定（多义性被逐层随意拼接，非同一区间套 confirm 事件折叠整个 fiber）",
-            e.compress_bar, e.confirm_bar, gauge.0, gauge.1
+            e.compress_bar,
+            e.confirm_bar,
+            gauge.0,
+            gauge.1
         );
     }
     // 多义性可数（观测；S>FIRST_BSP_LADDER ⇒ ≥2 合法提升 = 覆盖空间多重提升非平凡）。连续塔
     // 由 prove_n5_cascade 守（此处不重复 panic——避免重言；仅 debug 观测 fiber 高度 = 塔高）。
     debug_assert_eq!(
-        (FIRST_BSP_LADDER..=s).filter(|&k| located[k].is_some()).count(),
+        (FIRST_BSP_LADDER..=s)
+            .filter(|&k| located[k].is_some())
+            .count(),
         s - FIRST_BSP_LADDER + 1,
         "T52@bar {bar} {op}：fiber 高度 ≠ 塔高（连续性由 prove_n5_cascade 守）"
     );
@@ -525,10 +573,16 @@ fn prove_n5_cascade(located: &[Option<PendingLocate>; MAX_LADDER], bar: i64, sid
                 "N5 违反@bar {bar} {side}：located[{k}].source_ladder={} < {k}（自下而上独立武装，非级联自上而下）",
                 e.source_ladder
             );
-            assert!(e.source_ladder >= PENDING_LO, "N5 违反@bar {bar} {side}：source<move(L1)（segment 武装为势源）");
+            assert!(
+                e.source_ladder >= PENDING_LO,
+                "N5 违反@bar {bar} {side}：source<move(L1)（segment 武装为势源）"
+            );
         }
         for k in (s + 1)..MAX_LADDER {
-            assert!(located[k].is_none(), "N5 违反@bar {bar} {side}：源层 {s} 之上层 {k} 有 located（非前缀）");
+            assert!(
+                located[k].is_none(),
+                "N5 违反@bar {bar} {side}：源层 {s} 之上层 {k} 有 located（非前缀）"
+            );
         }
     }
 }
@@ -560,7 +614,8 @@ fn prove_t53_connection_assoc(
             alt[k] == post[k],
             "T53 违反@bar {bar} {dir:?}：级联连接非结合——层 {k} 升序 fold={:?} ≠ 降序 fold={:?}\
              （走势连接顺序依赖，第36课 (A+B)+C≠A+(B+C)）",
-            alt[k], post[k]
+            alt[k],
+            post[k]
         );
     }
 }
@@ -597,8 +652,8 @@ fn self_level_counter_fire(
     nf_buy: &[Option<f64>; MAX_LADDER],
 ) -> bool {
     match dir {
-        Polarity::Long => nf_sell[ladder].is_some(),  // 多头：自层卖点走势完美（counter）⇒ E spawn 空子 / D 回补
-        Polarity::Short => nf_buy[ladder].is_some(),  // 空头：自层买点走势完美（counter）⇒ E spawn 多子 / D 回补
+        Polarity::Long => nf_sell[ladder].is_some(), // 多头：自层卖点走势完美（counter）⇒ E spawn 空子 / D 回补
+        Polarity::Short => nf_buy[ladder].is_some(), // 空头：自层买点走势完美（counter）⇒ E spawn 多子 / D 回补
     }
 }
 
@@ -641,7 +696,11 @@ fn prove_n8_conservation(
     nav_post: f64,
     bar: i64,
 ) {
-    let sum_units: f64 = voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).map(|v| v.units).sum();
+    let sum_units: f64 = voices
+        .iter()
+        .filter(|v| !matches!(v.status, VoiceStatus::Closed))
+        .map(|v| v.units)
+        .sum();
     assert!(
         (sum_units - n_base).abs() <= 1e-6 * n_base.max(1.0),
         "N8 违反@bar {bar}：Σunits={sum_units} ≠ N_base={n_base}（股数守恒 §8.1）"
@@ -869,8 +928,10 @@ impl T55Observation {
         if self.total_bars == 0 || self.n_target_fire == 0 || self.n_ratio_fire == 0 {
             return None;
         }
-        Some((self.n_dual_line as f64 * self.total_bars as f64)
-            / (self.n_target_fire as f64 * self.n_ratio_fire as f64))
+        Some(
+            (self.n_dual_line as f64 * self.total_bars as f64)
+                / (self.n_target_fire as f64 * self.n_ratio_fire as f64),
+        )
     }
 }
 
@@ -971,7 +1032,11 @@ fn try_spawn_cost_gated(
     let p_capital = voices[parent_id].capital;
     // N4：递归基 = bi(a0)。p_ladder == FIRST_BSP_LADDER ⇒ sub = bi 层，theta(bi)=None
     // ⇒ 下方 noref_reject 自然终止（无 floor 检查——纯成本门）。
-    let sub = if p_ladder <= 3 { p_ladder } else { p_ladder - 1 };
+    let sub = if p_ladder <= 3 {
+        p_ladder
+    } else {
+        p_ladder - 1
+    };
     match depth_ref.theta(sub, None, SUB_COST_Q, SUB_COST_MIN_OBS) {
         None => {
             res.n_nrf_noref_rejects_by_ladder[sub] += 1; // N4：势不可测=势不存在（递归终止）
@@ -1016,7 +1081,11 @@ fn try_spawn_cost_gated(
                 units: m,
                 basis: c,
                 cost_pool: m * c,
-                capital: if child_dir == Polarity::Short { m * c } else { 0.0 },
+                capital: if child_dir == Polarity::Short {
+                    m * c
+                } else {
+                    0.0
+                },
                 entry_bar: bar,
                 negate_line: None, // 删否定线：子 voice 生命周期纯买卖点驱动（D 回补 / A 强平）
                 status: VoiceStatus::Active,
@@ -1145,7 +1214,8 @@ impl UnnStreamCore {
             }
             self.depth_ref.observe(&self.book, c);
         }
-        let evrows: &[Vec<BspEvent>; MAX_LADDER] = sig.bsp_events.as_deref().unwrap_or(&self.empty_evs);
+        let evrows: &[Vec<BspEvent>; MAX_LADDER] =
+            sig.bsp_events.as_deref().unwrap_or(&self.empty_evs);
 
         // ── pending 窗口维护（双侧，k ≥ PENDING_LO）：① 破极值否定 → ② candidate
         //    武装（N3：type2 经 side() 同等武装，无 continue）/ confirmed 清窗 →
@@ -1177,15 +1247,26 @@ impl UnnStreamCore {
                         Side::Sell => true,
                         Side::Buy => false,
                     };
-                    let win = if sellside { &mut self.nest_sell[k] } else { &mut self.nest_buy[k] };
+                    let win = if sellside {
+                        &mut self.nest_sell[k]
+                    } else {
+                        &mut self.nest_buy[k]
+                    };
                     if e.confirmed {
                         *win = None; // confirmed 同侧让位（本 bar 走 confirmed 路径）
                     } else {
                         let (ext, since) = win.map_or((e.price, bar), |w| {
-                            let ext = if sellside { w.extreme.max(e.price) } else { w.extreme.min(e.price) };
+                            let ext = if sellside {
+                                w.extreme.max(e.price)
+                            } else {
+                                w.extreme.min(e.price)
+                            };
                             (ext, w.since_bar) // 压缩起始保留（540号；frontier 已删——T49 向心回溯无跨 bar 累积）
                         });
-                        *win = Some(Pending { extreme: ext, since_bar: since });
+                        *win = Some(Pending {
+                            extreme: ext,
+                            since_bar: since,
+                        });
                         self.res.n_nest_arms_by_ladder[k] += 1;
                     }
                     if e.class.kind() == BspKind::Type2 {
@@ -1237,7 +1318,13 @@ impl UnnStreamCore {
         //    不被本 bar 向心消费（向心只取 settle bar ≤ since 的内圈过去 type1）；供后续 bar
         //    的 candidate 回溯。borrow：evs 借 sig（不借 self），self.type1_hist 可变借不冲突。──
         if let Some(evs) = sig.bsp_events.as_deref() {
-            for (j, hist_j) in self.type1_hist.iter_mut().enumerate().take(MAX_LADDER).skip(FIRST_BSP_LADDER) {
+            for (j, hist_j) in self
+                .type1_hist
+                .iter_mut()
+                .enumerate()
+                .take(MAX_LADDER)
+                .skip(FIRST_BSP_LADDER)
+            {
                 for e in &evs[j] {
                     if e.class.kind() == BspKind::Type1 {
                         let si = match e.class.side() {
@@ -1264,7 +1351,13 @@ impl UnnStreamCore {
             }
         }
         // T53：本 bar confirm 级联连接的结合律（降序 fold == 升序 fold；破极值前比较）。
-        prove_t53_connection_assoc(&pre_sell, &confirm_sell, Side::Sell, bar, &self.located_sell);
+        prove_t53_connection_assoc(
+            &pre_sell,
+            &confirm_sell,
+            Side::Sell,
+            bar,
+            &self.located_sell,
+        );
         prove_t53_connection_assoc(&pre_buy, &confirm_buy, Side::Buy, bar, &self.located_buy);
         // 破极值否定（027:25）：级联统一极值 ⇒ 整链同破。
         for k in FIRST_BSP_LADDER..MAX_LADDER {
@@ -1287,7 +1380,10 @@ impl UnnStreamCore {
         let mut acted_ids: Vec<usize> = Vec::new();
         // T1（不主动清仓）入口快照：森林"非空→空"只能经 A 强平（被动会计终局，设
         // root_liquidated），引擎无主动清仓路径——prove_t1_no_voluntary_exit 守卫。
-        let was_active = self.voices.iter().any(|v| !matches!(v.status, VoiceStatus::Closed));
+        let was_active = self
+            .voices
+            .iter()
+            .any(|v| !matches!(v.status, VoiceStatus::Closed));
         let mut root_liquidated = false;
 
         // ── A. 强平兜底（逐活跃空头 voice；per-voice——强平某 voice 不阻断其他）。
@@ -1295,7 +1391,9 @@ impl UnnStreamCore {
         //    离场，非引擎主动操作（编排者裁决：恒仓约束引擎主动行为，不约束市场强平）。──
         let snap: Vec<usize> = (0..self.voices.len()).collect();
         for &id in &snap {
-            if matches!(self.voices[id].status, VoiceStatus::Closed) || self.voices[id].dir != Polarity::Short {
+            if matches!(self.voices[id].status, VoiceStatus::Closed)
+                || self.voices[id].dir != Polarity::Short
+            {
                 continue;
             }
             let v = &self.voices[id];
@@ -1303,7 +1401,18 @@ impl UnnStreamCore {
                 let lad = v.ladder;
                 let is_root = v.parent.is_none();
                 let b = 2.0 * v.basis;
-                close_voice(id, bar, b, c, "liq", false, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
+                close_voice(
+                    id,
+                    bar,
+                    b,
+                    c,
+                    "liq",
+                    false,
+                    &mut self.voices,
+                    &mut self.free,
+                    &mut self.n_base,
+                    &mut self.res,
+                );
                 self.res.n_short_liquidations_by_ladder[lad] += 1;
                 if is_root {
                     root_liquidated = true; // 根空头被市场强平 ⇒ 森林清空（被动；F 下一 BSP 重建）
@@ -1327,16 +1436,22 @@ impl UnnStreamCore {
         //      ∧ prove_chain ⇒ 单根时**翻多 in-place**（空→长，cover+rebuy 守恒）。
         //    多 voice（根有降成本子）⇒ C no-op，子先经 D 独立回补（逐仓不 collapse）。
         let mut cleared = false;
-        let root_id = self.voices
-            .iter()
-            .position(|v| !matches!(v.status, VoiceStatus::Closed) && v.parent.is_none() && v.units > 0.0
-                && v.acted_bar != bar); // N2 防双动：跳过本 bar 已被 A 操作的根
+        let root_id = self.voices.iter().position(|v| {
+            !matches!(v.status, VoiceStatus::Closed)
+                && v.parent.is_none()
+                && v.units > 0.0
+                && v.acted_bar != bar
+        }); // N2 防双动：跳过本 bar 已被 A 操作的根
         if let Some(rid) = root_id {
             let root_dir = self.voices[rid].dir;
             // T5/A5 会计重组（root_emergent_ladder 向上单调升级，纯 relabel）。
             let re = root_emergent_ladder(
-                self.voices[rid].ladder, self.voices[rid].entry_bar, root_dir,
-                &self.dir_state, &self.anchor_state, max_l,
+                self.voices[rid].ladder,
+                self.voices[rid].entry_bar,
+                root_dir,
+                &self.dir_state,
+                &self.anchor_state,
+                max_l,
             );
             if re > self.voices[rid].ladder {
                 // A5（T30 涌现=会计重组）：relabel 前后 units/NAV 快照对比（重组非加仓）。
@@ -1352,7 +1467,11 @@ impl UnnStreamCore {
                 );
             }
             let root_ladder = self.voices[rid].ladder;
-            let active_count = self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
+            let active_count = self
+                .voices
+                .iter()
+                .filter(|v| !matches!(v.status, VoiceStatus::Closed))
+                .count();
             let single_root = active_count == 1;
             match root_dir {
                 Polarity::Long => {
@@ -1465,7 +1584,18 @@ impl UnnStreamCore {
                     // N7：D 回补触发层==voice 层（nf@v.ladder 自层向心确认，与 E 对称）。
                     prove_n7_spawn_self_level(v.ladder, v.ladder, bar);
                     self.voices[id].acted_bar = bar;
-                    close_voice(id, bar, c, c, "recover", true, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
+                    close_voice(
+                        id,
+                        bar,
+                        c,
+                        c,
+                        "recover",
+                        true,
+                        &mut self.voices,
+                        &mut self.free,
+                        &mut self.n_base,
+                        &mut self.res,
+                    );
                     acted_ids.push(id);
                 }
             }
@@ -1507,7 +1637,14 @@ impl UnnStreamCore {
                 if e_trigger {
                     // N7：触发是自层（nf@ladder 向心确认）——证明触发层==voice 层。
                     prove_n7_spawn_self_level(ladder, ladder, bar);
-                    if try_spawn_cost_gated(id, bar, c, &self.depth_ref, &mut self.voices, &mut self.res) {
+                    if try_spawn_cost_gated(
+                        id,
+                        bar,
+                        c,
+                        &self.depth_ref,
+                        &mut self.voices,
+                        &mut self.res,
+                    ) {
                         self.voices[id].acted_bar = bar;
                         acted_ids.push(id);
                     }
@@ -1522,7 +1659,10 @@ impl UnnStreamCore {
         //    EOD，遇 F-eligible buy1@located 链顶即重建）。**保持 N5 门控**（buy_source =
         //    located 级联链顶 ≥ move(L1)），不实装裸入场——后者 ⊥ N5（segment 非势源，
         //    prove_chain 硬断言 s≥PENDING_LO；裸扫描入场 = 539 号 constitutive_throughput_falsified）。──
-        let any_active = self.voices.iter().any(|v| !matches!(v.status, VoiceStatus::Closed));
+        let any_active = self
+            .voices
+            .iter()
+            .any(|v| !matches!(v.status, VoiceStatus::Closed));
         // T1② 立即重建判据：森林空 ∧ F-eligible（buy_source ∧ buy1@s ∧ free>0 有买点+资本）⇒
         // F 必入场。f_eligible 在 F 入场前判定；若 eligible 但 F 后仍空 ⇒ 漏建仓（prove_t1②）。
         let f_eligible = !cleared
@@ -1570,10 +1710,16 @@ impl UnnStreamCore {
         prove_n2_per_voice(&acted_ids, bar);
         let nav_post = nav(&self.voices, self.free, c);
         prove_n8_conservation(&self.voices, self.n_base, nav_pre, nav_post, bar);
-        self.max_children_seen = self.max_children_seen.max(prove_n1_forest(&self.voices, bar));
+        self.max_children_seen = self
+            .max_children_seen
+            .max(prove_n1_forest(&self.voices, bar));
 
         // 观测：森林规模 + 物理暴露 + 各层视图持有 bar 计数。
-        let active_count = self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
+        let active_count = self
+            .voices
+            .iter()
+            .filter(|v| !matches!(v.status, VoiceStatus::Closed))
+            .count();
         // T1（不主动清仓，第23环恒仓）：①森林非空→空只经 A 强平（被动 root_liquidated），非强平
         // 致空仓=引擎主动清仓=否定线/观测态残留；②强平后空仓 ∧ F-eligible 买点但未重建=漏建仓。
         prove_t1_no_voluntary_exit(
@@ -1586,7 +1732,11 @@ impl UnnStreamCore {
         self.res.nrf_depth_bars[active_count.min(MAX_LADDER - 1)] += 1;
         let mut long_units = 0.0;
         let mut short_units = 0.0;
-        for v in self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)) {
+        for v in self
+            .voices
+            .iter()
+            .filter(|v| !matches!(v.status, VoiceStatus::Closed))
+        {
             match v.dir {
                 Polarity::Long => long_units += v.units,
                 Polarity::Short => short_units += v.units,
@@ -1633,8 +1783,16 @@ impl UnnStreamCore {
                 .position(|v| !matches!(v.status, VoiceStatus::Closed) && v.parent.is_none())
             {
                 close_voice(
-                    root_id, last_bar, c_last, c_last, "eod", false,
-                    &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res,
+                    root_id,
+                    last_bar,
+                    c_last,
+                    c_last,
+                    "eod",
+                    false,
+                    &mut self.voices,
+                    &mut self.free,
+                    &mut self.n_base,
+                    &mut self.res,
                 );
             }
         }
@@ -1661,7 +1819,8 @@ impl UnnStreamCore {
         self.res.nrf_t56_radial_coverage = prove_t56_angular_radial_holonomy(&self.res); // panic: segment 无 fire
         self.res.nrf_t57_onesided_layers = prove_t57_chirality_mirror(&self.res); // ~观测：镜像退化层
         self.res.nrf_t58_active_levels = prove_t58_angular_basic_domain(&self.res); // panic: fire⟹arm
-        self.res.nrf_t59_degenerate_layers = prove_t59_scale_invariance(&self.res); // ~观测：自相似退化层
+        self.res.nrf_t59_degenerate_layers = prove_t59_scale_invariance(&self.res);
+        // ~观测：自相似退化层
     }
 
     /// 已累计 trade 数（lib.rs push_bar 切出本 bar 新增）。
@@ -1686,7 +1845,11 @@ impl UnnStreamCore {
         let mut long_u = 0.0;
         let mut short_u = 0.0;
         let mut active = 0usize;
-        for v in self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)) {
+        for v in self
+            .voices
+            .iter()
+            .filter(|v| !matches!(v.status, VoiceStatus::Closed))
+        {
             active += 1;
             match v.dir {
                 Polarity::Long => long_u += v.units,
@@ -1750,16 +1913,34 @@ mod tests {
     const UNN: PolarityMode = PolarityMode::UnifiedNecessity;
 
     fn bar(close: f64) -> BarSig {
-        BarSig { close, max_ladder: 5, ..Default::default() }
+        BarSig {
+            close,
+            max_ladder: 5,
+            ..Default::default()
+        }
     }
 
     fn ev_full(class: BspClass, confirmed: bool, price: f64, cs: Option<i64>) -> BspEvent {
-        let (zd, zg) = if cs.is_some() { (Some(50.0), Some(60.0)) } else { (None, None) };
-        BspEvent { class, seg_idx: 0, confirmed, cs, zd, zg, price }
+        let (zd, zg) = if cs.is_some() {
+            (Some(50.0), Some(60.0))
+        } else {
+            (None, None)
+        };
+        BspEvent {
+            class,
+            seg_idx: 0,
+            confirmed,
+            cs,
+            zd,
+            zg,
+            price,
+        }
     }
 
     fn with_ev(mut b: BarSig, lad: usize, e: BspEvent) -> BarSig {
-        let rows = b.bsp_events.get_or_insert_with(|| Box::new(<[Vec<BspEvent>; MAX_LADDER]>::default()));
+        let rows = b
+            .bsp_events
+            .get_or_insert_with(|| Box::new(<[Vec<BspEvent>; MAX_LADDER]>::default()));
         rows[lad].push(e);
         b
     }
@@ -1783,7 +1964,11 @@ mod tests {
     fn warmup234() -> Vec<BarSig> {
         let mut bars = Vec::new();
         for j in 0..SUB_COST_MIN_OBS as i64 {
-            let mut b = with_ev(bar(100.0), 2, ev_full(BspClass::Sell2, false, 0.0, Some(1 + j)));
+            let mut b = with_ev(
+                bar(100.0),
+                2,
+                ev_full(BspClass::Sell2, false, 0.0, Some(1 + j)),
+            );
             b = with_ev(b, 3, ev_full(BspClass::Sell2, false, 0.0, Some(10 + j)));
             b = with_ev(b, 4, ev_full(BspClass::Sell2, false, 0.0, Some(100 + j)));
             let rows = b.bsp_events.as_deref_mut().unwrap();
@@ -1799,7 +1984,11 @@ mod tests {
     }
 
     fn run(bars: Vec<BarSig>, dir_flips: Vec<(i64, u8, Direction)>) -> PositionalResult {
-        let t = SignalTape { bars, dir_flips: Some(dir_flips), ..Default::default() };
+        let t = SignalTape {
+            bars,
+            dir_flips: Some(dir_flips),
+            ..Default::default()
+        };
         run_positional(&t, 2, UNN).unwrap()
     }
 
@@ -1812,7 +2001,11 @@ mod tests {
         let mut bars = warmup234();
         bars.push(with_ev(bar(94.0), 2, buy1_ev(0.0))); // type1 买@2（最内圈，最早 settle，过去）
         bars.push(with_ev(bar(95.0), 3, buy1_ev(0.0))); // type1 买@3（move L1，settle 晚于@2，仍过去）
-        bars.push(with_ev(bar(96.0), 4, ev_full(BspClass::Buy1, false, 86.0, None))); // candidate@4 armed (since)
+        bars.push(with_ev(
+            bar(96.0),
+            4,
+            ev_full(BspClass::Buy1, false, 86.0, None),
+        )); // candidate@4 armed (since)
         let b = buy1pt(bar(97.0), 4); // 下一 bar：since<bar ∧ 向心母线 [2,3] 贯通 ⇒ confirm@4 ⇒ F 入场@4
         bars.push(b);
         let evidence_bar = bars.len() as i64 - 1;
@@ -1824,9 +2017,21 @@ mod tests {
     /// 在 candidate 之过去（已 settle），后 candidate@4 卖出现 + sell1@4 ⇒ 向心 confirm@4
     /// （母线 [2,3] 嵌套贯通）⇒ C 翻空@4。
     fn append_sell_chain_at4(bars: &mut Vec<BarSig>) {
-        bars.push(with_ev(bar(106.0), 2, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@2（最内圈，过去）
-        bars.push(with_ev(bar(107.0), 3, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@3（move L1，过去）
-        bars.push(with_ev(bar(108.0), 4, ev_full(BspClass::Sell1, false, 110.0, None))); // candidate@4 armed (since)
+        bars.push(with_ev(
+            bar(106.0),
+            2,
+            ev_full(BspClass::Sell1, false, 0.0, None),
+        )); // type1 卖@2（最内圈，过去）
+        bars.push(with_ev(
+            bar(107.0),
+            3,
+            ev_full(BspClass::Sell1, false, 0.0, None),
+        )); // type1 卖@3（move L1，过去）
+        bars.push(with_ev(
+            bar(108.0),
+            4,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        )); // candidate@4 armed (since)
         let b = sell1pt(bar(103.0), 4); // 下一 bar：向心母线贯通 ⇒ confirm@4 ⇒ C 翻空@4
         bars.push(b);
         bars.push(bar(102.0));
@@ -1841,15 +2046,23 @@ mod tests {
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
-        assert!(run_positional(&t, 2, UNN).unwrap_err().contains("bsp_events"));
+        assert!(run_positional(&t, 2, UNN)
+            .unwrap_err()
+            .contains("bsp_events"));
         // 缺 dir_flips ⇒ Err（div_events 不再是必然性输入——T49 向心回溯用 type1_hist，
         // 仅 dir_flips 是 confirm 递归基证据，故守卫只查 has_dir_rows）。
         let t2 = SignalTape {
-            bars: vec![with_ev(bar(100.0), 3, ev_full(BspClass::Buy1, true, 100.0, None))],
+            bars: vec![with_ev(
+                bar(100.0),
+                3,
+                ev_full(BspClass::Buy1, true, 100.0, None),
+            )],
             dir_flips: None,
             ..Default::default()
         };
-        assert!(run_positional(&t2, 2, UNN).unwrap_err().contains("dir_flips"));
+        assert!(run_positional(&t2, 2, UNN)
+            .unwrap_err()
+            .contains("dir_flips"));
     }
 
     #[test]
@@ -1857,9 +2070,19 @@ mod tests {
         // N5/N6：买 pending 级联到 source=4 ∧ buy1@4 ⇒ 根入场@source=4（满仓恒仓）。
         let (bars, flips) = full_bull_entry();
         let r = run(bars, flips);
-        assert_eq!(r.n_nrf_root_entries_by_ladder[4], 1, "买链 source=4 ⇒ 根入场@4");
-        let entry = r.trades.iter().find(|t| t.polarity == Polarity::Long).unwrap();
-        assert!((entry.shares * entry.entry_price - INITIAL_CAPITAL).abs() < 1e-6, "满仓恒仓");
+        assert_eq!(
+            r.n_nrf_root_entries_by_ladder[4], 1,
+            "买链 source=4 ⇒ 根入场@4"
+        );
+        let entry = r
+            .trades
+            .iter()
+            .find(|t| t.polarity == Polarity::Long)
+            .unwrap();
+        assert!(
+            (entry.shares * entry.entry_price - INITIAL_CAPITAL).abs() < 1e-6,
+            "满仓恒仓"
+        );
     }
 
     #[test]
@@ -1871,7 +2094,11 @@ mod tests {
         let evidence_bar = bars.len() as i64 - 1;
         bars.push(bar(97.0));
         let r = run(bars, vec![(evidence_bar, 1, Direction::Up)]);
-        assert_eq!(r.n_nrf_root_entries_by_ladder.iter().sum::<u64>(), 0, "segment 非势源 ⇒ 零入场");
+        assert_eq!(
+            r.n_nrf_root_entries_by_ladder.iter().sum::<u64>(),
+            0,
+            "segment 非势源 ⇒ 零入场"
+        );
         assert!((r.final_nav - INITIAL_CAPITAL).abs() < 1e-9, "全程现金");
     }
 
@@ -1887,14 +2114,32 @@ mod tests {
         // （type2/3 走 E，§9）。**confirmed_root raw 残余已删**：E 用 nf_sell[4]（向心确认 φ=0），
         // 非 raw sell_any@4——无内圈 type1 卖历史则 helix 母线不贯通、nf 不 fire、E 不 spawn。
         let (mut bars, flips) = full_bull_entry(); // root long@4
-        bars.push(with_ev(bar(106.0), 2, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@2（最内圈，过去）
-        bars.push(with_ev(bar(107.0), 3, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@3（move L1，过去）
-        bars.push(with_ev(bar(108.0), 4, ev_full(BspClass::Sell2, false, 110.0, Some(200)))); // type2 candidate@4（since）
+        bars.push(with_ev(
+            bar(106.0),
+            2,
+            ev_full(BspClass::Sell1, false, 0.0, None),
+        )); // type1 卖@2（最内圈，过去）
+        bars.push(with_ev(
+            bar(107.0),
+            3,
+            ev_full(BspClass::Sell1, false, 0.0, None),
+        )); // type1 卖@3（move L1，过去）
+        bars.push(with_ev(
+            bar(108.0),
+            4,
+            ev_full(BspClass::Sell2, false, 110.0, Some(200)),
+        )); // type2 candidate@4（since）
         bars.push(bar(104.0)); // 下一 bar：since<bar ∧ 向心母线 [3,2] 贯通 ⇒ confirm@4 ⇒ nf_sell[4]
         bars.push(bar(104.0));
         let r = run(bars, flips);
-        assert_eq!(r.n_nrf_spawns_by_ladder[3], 1, "N7：根自层向心确认卖 ⇒ E 降成本 spawn 子空@3");
-        assert!(r.trades.iter().all(|t| t.exit_reason != "sellpt"), "非清仓（type2/3 走 E）");
+        assert_eq!(
+            r.n_nrf_spawns_by_ladder[3], 1,
+            "N7：根自层向心确认卖 ⇒ E 降成本 spawn 子空@3"
+        );
+        assert!(
+            r.trades.iter().all(|t| t.exit_reason != "sellpt"),
+            "非清仓（type2/3 走 E）"
+        );
     }
 
     #[test]
@@ -1905,9 +2150,18 @@ mod tests {
         let (mut bars, flips) = full_bull_entry();
         append_sell_chain_at4(&mut bars);
         let r = run(bars, flips);
-        assert_eq!(r.n_nrf_root_flips_by_ladder[4], 1, "type1@4 + 区间套递归到底 ∧ 单根 ⇒ in-place 翻空@4");
-        assert!(r.trades.iter().any(|t| t.exit_reason == "flip_short"), "翻空记长腿 trade");
-        assert!(r.trades.iter().all(|t| t.exit_reason != "sellpt"), "翻转非清仓");
+        assert_eq!(
+            r.n_nrf_root_flips_by_ladder[4], 1,
+            "type1@4 + 区间套递归到底 ∧ 单根 ⇒ in-place 翻空@4"
+        );
+        assert!(
+            r.trades.iter().any(|t| t.exit_reason == "flip_short"),
+            "翻空记长腿 trade"
+        );
+        assert!(
+            r.trades.iter().all(|t| t.exit_reason != "sellpt"),
+            "翻转非清仓"
+        );
     }
 
     #[test]
@@ -1916,18 +2170,35 @@ mod tests {
         // in-place 翻多@4。验证两次翻转 + N8 守恒 + 根空头 MtM（下跌相利润沉淀）。
         let (mut bars, flips) = full_bull_entry(); // root long@4
         append_sell_chain_at4(&mut bars); // → 翻空@4（价跌到 102）
-        // ── 翻多：下跌相后**向心**买链（T49）⇒ located_buy@4 ∧ buy1@4 ⇒ flip 空→长@4 ──
-        //    内圈 type1 买@2、@3 在 candidate 之过去（已 settle），后 candidate@4 + buy1@4。
+                                          // ── 翻多：下跌相后**向心**买链（T49）⇒ located_buy@4 ∧ buy1@4 ⇒ flip 空→长@4 ──
+                                          //    内圈 type1 买@2、@3 在 candidate 之过去（已 settle），后 candidate@4 + buy1@4。
         bars.push(with_ev(bar(89.0), 2, buy1_ev(0.0))); // type1 买@2（最内圈，过去）
         bars.push(with_ev(bar(90.0), 3, buy1_ev(0.0))); // type1 买@3（move L1，过去）
-        bars.push(with_ev(bar(91.0), 4, ev_full(BspClass::Buy1, false, 80.0, None))); // candidate@4 armed
+        bars.push(with_ev(
+            bar(91.0),
+            4,
+            ev_full(BspClass::Buy1, false, 80.0, None),
+        )); // candidate@4 armed
         bars.push(buy1pt(bar(92.0), 4)); // 向心母线贯通 ⇒ confirm@4 ⇒ flip 空→长@4
         bars.push(bar(93.0));
         let r = run(bars, flips);
-        assert!(r.n_nrf_root_flips_by_ladder[4] >= 2, "两次 in-place 翻转@4（长→空→长）");
-        assert!(r.trades.iter().any(|t| t.exit_reason == "flip_short"), "长腿记 trade");
-        assert!(r.trades.iter().any(|t| t.exit_reason == "flip_long"), "空腿记 trade（下跌 P&L 归因）");
-        assert!(r.final_nav.is_finite() && r.final_nav > 0.0, "N8 守恒跑通 final_nav={}", r.final_nav);
+        assert!(
+            r.n_nrf_root_flips_by_ladder[4] >= 2,
+            "两次 in-place 翻转@4（长→空→长）"
+        );
+        assert!(
+            r.trades.iter().any(|t| t.exit_reason == "flip_short"),
+            "长腿记 trade"
+        );
+        assert!(
+            r.trades.iter().any(|t| t.exit_reason == "flip_long"),
+            "空腿记 trade（下跌 P&L 归因）"
+        );
+        assert!(
+            r.final_nav.is_finite() && r.final_nav > 0.0,
+            "N8 守恒跑通 final_nav={}",
+            r.final_nav
+        );
     }
 
     #[test]
@@ -1941,13 +2212,28 @@ mod tests {
         bars.push(bar(84.0)); // 价继续下行 ⇒ 仍无操作（无买卖点）
         let r = run(bars, flips);
         // 删否定线：价跌不触发任何操作（无 spawn 对冲、无 negate close、无清仓翻转）。
-        assert_eq!(r.n_nrf_spawns_by_ladder.iter().sum::<u64>(), 0, "无次级别卖点 ⇒ 不 spawn（价跌非买卖点）");
-        assert!(r.trades.iter().all(|t| t.exit_reason != "sellpt" && t.exit_reason != "negate"
-            && t.exit_reason != "flip_short" && t.exit_reason != "negate_observe"),
-            "删否定线：价跌不触发清仓/否定/翻转/观测（操作只在买卖点，第11环）");
+        assert_eq!(
+            r.n_nrf_spawns_by_ladder.iter().sum::<u64>(),
+            0,
+            "无次级别卖点 ⇒ 不 spawn（价跌非买卖点）"
+        );
+        assert!(
+            r.trades.iter().all(|t| t.exit_reason != "sellpt"
+                && t.exit_reason != "negate"
+                && t.exit_reason != "flip_short"
+                && t.exit_reason != "negate_observe"),
+            "删否定线：价跌不触发清仓/否定/翻转/观测（操作只在买卖点，第11环）"
+        );
         // 永远在场：根保持多头持仓到 eod（建仓后恒非空，prove_t1_no_voluntary_exit 守卫）。
-        assert!(r.nrf_phys_long_bars >= 2, "根保持多头在场（永远有仓位，否定线删除后价跌不离场）");
-        assert!(r.final_nav.is_finite() && r.final_nav > 0.0, "N8 守恒 final_nav={}", r.final_nav);
+        assert!(
+            r.nrf_phys_long_bars >= 2,
+            "根保持多头在场（永远有仓位，否定线删除后价跌不离场）"
+        );
+        assert!(
+            r.final_nav.is_finite() && r.final_nav > 0.0,
+            "N8 守恒 final_nav={}",
+            r.final_nav
+        );
     }
 
     #[test]
@@ -1958,16 +2244,35 @@ mod tests {
         // （非 raw sell_any@4）——首段建内圈 type1 卖母线，两次 candidate@4 各触发一次 confirm。
         let (mut bars, flips) = full_bull_entry();
         // 建内圈 type1 卖历史（向心 confirm 母线 [3,2] 基础，settle 在 candidate 之过去）。
-        bars.push(with_ev(bar(106.0), 2, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@2
-        bars.push(with_ev(bar(107.0), 3, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@3
-        // 第一次向心卖确认@4（type2，不置 sell1）⇒ E spawn child@3 (#1)。
-        bars.push(with_ev(bar(108.0), 4, ev_full(BspClass::Sell2, false, 110.0, Some(200))));
+        bars.push(with_ev(
+            bar(106.0),
+            2,
+            ev_full(BspClass::Sell1, false, 0.0, None),
+        )); // type1 卖@2
+        bars.push(with_ev(
+            bar(107.0),
+            3,
+            ev_full(BspClass::Sell1, false, 0.0, None),
+        )); // type1 卖@3
+            // 第一次向心卖确认@4（type2，不置 sell1）⇒ E spawn child@3 (#1)。
+        bars.push(with_ev(
+            bar(108.0),
+            4,
+            ev_full(BspClass::Sell2, false, 110.0, Some(200)),
+        ));
         bars.push(bar(104.0)); // confirm@4 ⇒ nf_sell[4] ⇒ spawn #1
-        // 第二次向心卖确认@4（重新武装 candidate，母线历史已在）⇒ E spawn child@3 (#2)。
-        bars.push(with_ev(bar(108.0), 4, ev_full(BspClass::Sell2, false, 110.0, Some(201))));
+                               // 第二次向心卖确认@4（重新武装 candidate，母线历史已在）⇒ E spawn child@3 (#2)。
+        bars.push(with_ev(
+            bar(108.0),
+            4,
+            ev_full(BspClass::Sell2, false, 110.0, Some(201)),
+        ));
         bars.push(bar(103.0)); // confirm@4 ⇒ nf_sell[4] ⇒ spawn #2
         let r = run(bars, flips);
-        assert!(r.n_nrf_spawns_by_ladder[3] >= 2, "森林：根长出 ≥2 child@3（栈只吃一个）");
+        assert!(
+            r.n_nrf_spawns_by_ladder[3] >= 2,
+            "森林：根长出 ≥2 child@3（栈只吃一个）"
+        );
         assert!(r.nrf_max_children >= 2, "N1 实证：max_children≥2");
     }
 
@@ -1977,7 +2282,11 @@ mod tests {
         // 跑通即通过）。final_nav 有限正。
         let (bars, flips) = full_bull_entry();
         let r = run(bars, flips);
-        assert!(r.final_nav.is_finite() && r.final_nav > 0.0, "final_nav={}", r.final_nav);
+        assert!(
+            r.final_nav.is_finite() && r.final_nav > 0.0,
+            "final_nav={}",
+            r.final_nav
+        );
     }
 
     #[test]
@@ -1986,7 +2295,11 @@ mod tests {
         // （θ(2) 存在），bi@1 由 θ=None 自然终止（noref_reject）。跑通即 N4 成立。
         let (bars, flips) = full_bull_entry();
         let r = run(bars, flips);
-        assert_eq!(r.n_nrf_floor_stops_by_ladder.iter().sum::<u64>(), 0, "N4：零 floor_stop");
+        assert_eq!(
+            r.n_nrf_floor_stops_by_ladder.iter().sum::<u64>(),
+            0,
+            "N4：零 floor_stop"
+        );
     }
 
     #[test]
@@ -1994,13 +2307,20 @@ mod tests {
         // N3：type2 卖点（中枢回测确认）武装区间套窗口（无 continue 跳过）⇒ 计入武装。
         let (mut bars, mut flips) = full_bull_entry();
         // Type2 卖@4（candidate，sell1 不置）武装卖窗。
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell2, false, 110.0, None)));
+        bars.push(with_ev(
+            bar(105.0),
+            4,
+            ev_full(BspClass::Sell2, false, 110.0, None),
+        ));
         bars.push(bar(104.0));
         let sell_ev_bar = bars.len() as i64 - 1;
         bars.push(bar(104.0));
         flips.push((sell_ev_bar, 1, Direction::Down));
         let r = run(bars, flips);
-        assert!(r.n_nest_arms_by_ladder[4] >= 1, "N3：Type2 计入武装（非 continue 跳过）");
+        assert!(
+            r.n_nest_arms_by_ladder[4] >= 1,
+            "N3：Type2 计入武装（非 continue 跳过）"
+        );
     }
 
     // ════════════ 区间套递归到底（时序）修复验证（编排者 2026-06-15）════════════
@@ -2012,13 +2332,22 @@ mod tests {
         // candidate@4 + sell1@4 ⇒ 向心回溯在内圈 @3 找不到已 settle type1 ⇒ 母线断 ⇒ 无
         // located ⇒ 不翻空（不跳级——中间级别走势未完美不能跳过）。
         let (mut bars, flips) = full_bull_entry();
-        bars.push(with_ev(bar(106.0), 2, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@2（过去），跳过 @3
-        bars.push(with_ev(bar(108.0), 4, ev_full(BspClass::Sell1, false, 110.0, None))); // candidate@4 armed
+        bars.push(with_ev(
+            bar(106.0),
+            2,
+            ev_full(BspClass::Sell1, false, 0.0, None),
+        )); // type1 卖@2（过去），跳过 @3
+        bars.push(with_ev(
+            bar(108.0),
+            4,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        )); // candidate@4 armed
         bars.push(sell1pt(bar(103.0), 4)); // 向心回溯 @3 缺已 settle type1 ⇒ 母线断 ⇒ 不 confirm
         bars.push(bar(102.0));
         let r = run(bars, flips);
         assert_eq!(
-            r.n_nrf_root_flips_by_ladder.iter().sum::<u64>(), 0,
+            r.n_nrf_root_flips_by_ladder.iter().sum::<u64>(),
+            0,
             "向心回溯内圈 @3 缺已 settle type1 ⇒ 母线断 ⇒ 无 located ⇒ 不翻空（区间套不跳级）"
         );
     }
@@ -2031,7 +2360,10 @@ mod tests {
         // patch）。跑通（无 panic）即 T52 在多提升塔上成立——规范由区间套确定非随意。
         let (bars, flips) = full_bull_entry();
         let r = run(bars, flips);
-        assert_eq!(r.n_nrf_root_entries_by_ladder[4], 1, "多提升塔顶 S=4 规范固定 ⇒ 入场@4（第33课）");
+        assert_eq!(
+            r.n_nrf_root_entries_by_ladder[4], 1,
+            "多提升塔顶 S=4 规范固定 ⇒ 入场@4（第33课）"
+        );
     }
 
     #[test]
@@ -2042,7 +2374,10 @@ mod tests {
         let (mut bars, flips) = full_bull_entry();
         append_sell_chain_at4(&mut bars);
         let r = run(bars, flips);
-        assert!(r.n_nrf_root_flips_by_ladder[4] >= 1, "级联连接结合律下翻转正常（T53 守卫零 panic）");
+        assert!(
+            r.n_nrf_root_flips_by_ladder[4] >= 1,
+            "级联连接结合律下翻转正常（T53 守卫零 panic）"
+        );
     }
 
     #[test]
@@ -2051,16 +2386,26 @@ mod tests {
         // ① 完全重合（标的=比价 fire）⇒ 双线定位满 + 独立性比 ≫1（正相关 = 比价非独立退化）。
         let corr = prove_t55_dual_line_observe(&[10, 20, 30], &[10, 20, 30], 0, 1000);
         assert_eq!(corr.n_dual_line, 3, "完全重合 ⇒ 3 个双线定位");
-        assert!(corr.independence_ratio().unwrap() > 10.0, "正相关 ⇒ 独立性比 ≫1（比价退化为单螺旋）");
+        assert!(
+            corr.independence_ratio().unwrap() > 10.0,
+            "正相关 ⇒ 独立性比 ≫1（比价退化为单螺旋）"
+        );
         // ② 错开（window=0 不命中）⇒ 零双线定位（两螺旋 φ=0 不同时）。
         let disj = prove_t55_dual_line_observe(&[10, 20, 30], &[15, 25, 35], 0, 1000);
         assert_eq!(disj.n_dual_line, 0, "φ=0 错开 ⇒ 零双线定位");
-        assert_eq!(disj.independence_ratio(), Some(0.0), "无同时性 ⇒ 独立性比 0（负相关/对冲）");
+        assert_eq!(
+            disj.independence_ratio(),
+            Some(0.0),
+            "无同时性 ⇒ 独立性比 0（负相关/对冲）"
+        );
         // ③ 窗口容差：±5 内命中 ⇒ 双线定位（纤维积 (0,0) 母线邻域同时性）。
         let win = prove_t55_dual_line_observe(&[10, 20, 30], &[12, 22, 32], 5, 1000);
         assert_eq!(win.n_dual_line, 3, "±5 窗口内 ⇒ 3 个双线定位");
         // ④ 边界：任一流空 ⇒ 独立性比 None（无定义）。
-        assert_eq!(prove_t55_dual_line_observe(&[], &[10], 0, 100).independence_ratio(), None);
+        assert_eq!(
+            prove_t55_dual_line_observe(&[], &[10], 0, 100).independence_ratio(),
+            None
+        );
     }
 
     #[test]
@@ -2071,9 +2416,15 @@ mod tests {
         // ⇒ 规范未固定 ⇒ 必 panic。这是真实 bug 类（cascade_arm 前缀部分写入致 fiber 拼接非单一
         // confirm）的检出能力证明。
         let mut located: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER];
-        let e = |compress, confirm| Some(PendingLocate {
-            extreme: 100.0, source_ladder: 4, direction: Side::Buy, compress_bar: compress, confirm_bar: confirm,
-        });
+        let e = |compress, confirm| {
+            Some(PendingLocate {
+                extreme: 100.0,
+                source_ladder: 4,
+                direction: Side::Buy,
+                compress_bar: compress,
+                confirm_bar: confirm,
+            })
+        };
         located[2] = e(5, 9);
         located[3] = e(5, 9);
         located[4] = e(7, 9); // 塔顶 gauge=(7,9) ≠ 层2/3 (5,9) ⇒ T52 fire
@@ -2099,9 +2450,20 @@ mod tests {
         //   type1 卖@2/@3 在过去已贯通母线，向心 confirm 的 `since < bar` 守卫仍拦截（无后续走势
         //   bar = 无 ② 验证）⇒ 不武装 located ⇒ 不翻空（degenerate located 被拦）。
         let (mut bars, flips) = full_bull_entry(); // root long@4
-        bars.push(with_ev(bar(106.0), 2, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@2（过去）
-        bars.push(with_ev(bar(107.0), 3, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@3（过去）
-        bars.push(sell1pt(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)), 4)); // candidate@4 + sell1@4 同 bar，无后续 bar
+        bars.push(with_ev(
+            bar(106.0),
+            2,
+            ev_full(BspClass::Sell1, false, 0.0, None),
+        )); // type1 卖@2（过去）
+        bars.push(with_ev(
+            bar(107.0),
+            3,
+            ev_full(BspClass::Sell1, false, 0.0, None),
+        )); // type1 卖@3（过去）
+        bars.push(sell1pt(
+            with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)),
+            4,
+        )); // candidate@4 + sell1@4 同 bar，无后续 bar
         let r = run(bars, flips);
         assert_eq!(
             r.n_nrf_root_flips_by_ladder.iter().sum::<u64>(), 0,
@@ -2121,11 +2483,19 @@ mod tests {
         let radial = prove_t56_angular_radial_holonomy(&r); // 不 panic（segment 无角向圈）
         let active = prove_t58_angular_basic_domain(&r); // 不 panic（fire⟹arm 生命周期）
         assert_eq!(
-            r.n_nest_fire_sell_by_ladder[FIRST_BSP_LADDER] + r.n_nest_fire_buy_by_ladder[FIRST_BSP_LADDER],
-            0, "T56：segment(径向塔基) 无角向圈 confirm fire"
+            r.n_nest_fire_sell_by_ladder[FIRST_BSP_LADDER]
+                + r.n_nest_fire_buy_by_ladder[FIRST_BSP_LADDER],
+            0,
+            "T56：segment(径向塔基) 无角向圈 confirm fire"
         );
-        assert!(radial >= 1, "T56：confirm fire 覆盖 ≥1 径向层（一圈角向↦一级径向，h²³=σ）");
-        assert!(active >= 1, "T58：≥1 级别完成 arm→fire 生命周期（23环辩证链闭合）");
+        assert!(
+            radial >= 1,
+            "T56：confirm fire 覆盖 ≥1 径向层（一圈角向↦一级径向，h²³=σ）"
+        );
+        assert!(
+            active >= 1,
+            "T58：≥1 级别完成 arm→fire 生命周期（23环辩证链闭合）"
+        );
         // T57/T59 观测型（~ regime 依赖）不 panic，返回退化层计数。
         let _ = prove_t57_chirality_mirror(&r);
         let _ = prove_t59_scale_invariance(&r);
@@ -2160,7 +2530,7 @@ mod tests {
         // p_units 得同一配额（f 跨级别恒定 = σ-不变）⇒ prove 零 panic。
         let p_units = 100.0;
         let m_quota = sigma_invariant_quota(p_units); // = p_units × 1/λ
-        // 同一 m_quota 在不同级别 sub 均满足规范（规范不取 sub ⇒ 级别无关）。
+                                                      // 同一 m_quota 在不同级别 sub 均满足规范（规范不取 sub ⇒ 级别无关）。
         prove_theta_sigma_invariant(m_quota, p_units, 2, 10);
         prove_theta_sigma_invariant(m_quota, p_units, 3, 10);
         prove_theta_sigma_invariant(m_quota, p_units, 9, 10);

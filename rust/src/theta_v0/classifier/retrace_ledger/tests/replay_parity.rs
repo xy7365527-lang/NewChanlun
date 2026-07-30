@@ -54,8 +54,13 @@ fn f4_leave_and_retest_on_the_same_move_is_rejected_as_not_adjacent() {
 fn f6_same_identity_late_success_after_reentry_is_absorbed_not_errored() {
     let mut book = ledger();
     let center = frame(1_200);
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 500))
-        .unwrap();
+    book.observe(&up_input(
+        center,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        500,
+    ))
+    .unwrap();
     let before = book.entry(&key_of(center, 3)).unwrap().clone();
 
     let late = book
@@ -66,13 +71,20 @@ fn f6_same_identity_late_success_after_reentry_is_absorbed_not_errored() {
     assert_eq!(late.state, RetraceState::Invalidated, "禁复活");
 
     let after = book.entry(&key_of(center, 3)).unwrap();
-    assert_eq!(after.revisions, before.revisions, "消费一次性：留档一个 bit 不动");
+    assert_eq!(
+        after.revisions, before.revisions,
+        "消费一次性：留档一个 bit 不动"
+    );
     assert_eq!(
         after.not_constituted_reason(),
         Some(NotConstitutedReason::RetestReentered),
         "判败名分不被晚到成功改写"
     );
-    assert_eq!(book.alarms().late_absorbed, 1, "旧模块的报错面 ⟹ 新账本的警报计数");
+    assert_eq!(
+        book.alarms().late_absorbed,
+        1,
+        "旧模块的报错面 ⟹ 新账本的警报计数"
+    );
     settled(&book);
 }
 
@@ -86,11 +98,21 @@ fn f6_same_identity_late_success_after_reentry_is_absorbed_not_errored() {
 fn f7_new_departure_after_reentry_opens_restarted_entry_instead_of_supersede_event() {
     let mut book = ledger();
     let first = frame(1_200);
-    book.observe(&up_input(first, 3, Some(RetraceOutcome::RetestReenters), 500))
-        .unwrap();
+    book.observe(&up_input(
+        first,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        500,
+    ))
+    .unwrap();
 
     let step = book
-        .observe(&up_input(frame(1_400), 5, Some(RetraceOutcome::Success), 700))
+        .observe(&up_input(
+            frame(1_400),
+            5,
+            Some(RetraceOutcome::Success),
+            700,
+        ))
         .unwrap();
     let entry = book.entry(&step.key).unwrap();
     assert_eq!(
@@ -130,7 +152,12 @@ fn f7_new_departure_before_the_old_one_settles_is_rejected() {
     book.observe(&up_input(center, 3, None, 500)).unwrap();
 
     let rejection = book
-        .observe(&up_input(frame(1_400), 5, Some(RetraceOutcome::Success), 700))
+        .observe(&up_input(
+            frame(1_400),
+            5,
+            Some(RetraceOutcome::Success),
+            700,
+        ))
         .unwrap_err();
     assert_eq!(
         rejection,
@@ -171,8 +198,13 @@ fn f8_without_any_observation_the_ledger_and_log_stay_empty() {
 fn f7_same_center_new_departure_after_reentry_opens_restarted_entry_instead_of_supersede_event() {
     let mut book = ledger();
     let center = frame(1_200);
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 500))
-        .unwrap();
+    book.observe(&up_input(
+        center,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        500,
+    ))
+    .unwrap();
 
     let step = book
         .observe(&up_input(center, 5, Some(RetraceOutcome::Success), 700))

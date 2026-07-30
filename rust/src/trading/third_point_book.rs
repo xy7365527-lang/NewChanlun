@@ -313,7 +313,10 @@ mod tests {
     fn ledger() -> RetraceLedger {
         RetraceLedger::new(RetraceProvenance {
             level: 2,
-            window: CoordinateWindow { start: 0, end: 9_999 },
+            window: CoordinateWindow {
+                start: 0,
+                end: 9_999,
+            },
             data_basis: "third_point_book-test".to_owned(),
         })
     }
@@ -371,8 +374,13 @@ mod tests {
         departure: usize,
         as_of: usize,
     ) -> ThirdPointPack {
-        book.observe(&up_input(center, departure, Some(RetraceOutcome::Success), as_of))
-            .unwrap();
+        book.observe(&up_input(
+            center,
+            departure,
+            Some(RetraceOutcome::Success),
+            as_of,
+        ))
+        .unwrap();
         book.established_pack(&key_of(center, departure))
             .expect("判胜落锤后必有成立档")
     }
@@ -393,7 +401,11 @@ mod tests {
         // 照实登记（裁定一）：全字段原样在案，交易层不投影、不改写、不过滤。
         assert_eq!(book.pack(&pack.identity), Some(pack));
         assert_eq!(book.established(), vec![pack]);
-        assert_eq!(book.established(), ledger.established(), "登记面 ≡ 账本产出面");
+        assert_eq!(
+            book.established(),
+            ledger.established(),
+            "登记面 ≡ 账本产出面"
+        );
         assert_eq!(book.len(), 1);
         assert_eq!(book.registrations, 1);
         assert_eq!(book.idempotent_repeats, 0);
@@ -449,7 +461,11 @@ mod tests {
                 identity: pack.identity
             })
         );
-        assert_eq!(book.pack(&pack.identity), Some(pack), "在册内容不被改口覆盖");
+        assert_eq!(
+            book.pack(&pack.identity),
+            Some(pack),
+            "在册内容不被改口覆盖"
+        );
     }
 
     /// 影子 MEDIUM-2：`sync_from_ledger` 的冲突早退是模块唯一「带早退 + 留下部分副作用」的
@@ -493,7 +509,10 @@ mod tests {
             Some(stale),
             "在册旧内容不被冲突覆盖"
         );
-        assert_eq!(book.registrations, 2, "stale 预登记 1 + earlier 冲突前登记 1 = 2");
+        assert_eq!(
+            book.registrations, 2,
+            "stale 预登记 1 + earlier 冲突前登记 1 = 2"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -536,7 +555,9 @@ mod tests {
         let mut ledger = ledger();
         let pack = confirmed_pack(&mut ledger, frame(100), 3, 860);
         // 另一中枢上留一个未决候选（备战档素材）。
-        ledger.observe(&up_input(frame(400), 11, None, 880)).unwrap();
+        ledger
+            .observe(&up_input(frame(400), 11, None, 880))
+            .unwrap();
         let watch: StandbyWatch = ledger.standby()[0];
 
         // ① 正面：入口 bound 即禁区闸门——成立档过 `TradableSignal`（`register` 签名同 bound）。
@@ -567,7 +588,9 @@ mod tests {
     fn provisional_and_failed_identities_never_reach_the_book() {
         let mut ledger = ledger();
         let confirmed = confirmed_pack(&mut ledger, frame(100), 3, 860);
-        ledger.observe(&up_input(frame(400), 11, None, 880)).unwrap();
+        ledger
+            .observe(&up_input(frame(400), 11, None, 880))
+            .unwrap();
         ledger
             .observe(&up_input(
                 frame(700),
@@ -581,14 +604,19 @@ mod tests {
         assert_eq!(book.sync_from_ledger(&ledger).unwrap(), vec![confirmed]);
         assert_eq!(book.len(), 1, "未决 / 判败身份不进成立档登记账");
         assert!(!book.contains(&key_of(frame(400), 11)), "未决身份不在册");
-        assert!(book.pack(&key_of(frame(700), 21)).is_none(), "判败身份不在册");
+        assert!(
+            book.pack(&key_of(frame(700), 21)).is_none(),
+            "判败身份不在册"
+        );
     }
 
     #[test]
     fn register_from_ledger_reads_the_single_identity_portal() {
         let mut ledger = ledger();
         let pack = confirmed_pack(&mut ledger, frame(100), 3, 860);
-        ledger.observe(&up_input(frame(400), 11, None, 880)).unwrap();
+        ledger
+            .observe(&up_input(frame(400), 11, None, 880))
+            .unwrap();
         let mut book = ThirdPointBook::new();
 
         // Confirmed 身份 → 登记；非 Confirmed 身份 → `Ok(None)`（账本无成立档，照实不登记）。

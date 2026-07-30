@@ -94,7 +94,15 @@ fn level_bsps(
         })
         .collect();
     let divs = divergences_from_moves_v1(&segs, &zs_views, &move_views, level_id, None);
-    buysellpoints_from_level(&segs, &zs_views, &zs_break, &move_views, &divs, level_id, false)
+    buysellpoints_from_level(
+        &segs,
+        &zs_views,
+        &zs_break,
+        &move_views,
+        &divs,
+        level_id,
+        false,
+    )
 }
 
 /// (kind, confirmed) 计数。
@@ -194,9 +202,16 @@ fn c_segment_oklo_447k_per_level_bsp() {
     let snaps = orch.recursive().to_vec();
     let l1_moves = orch.moves().to_vec();
     for (i, snap) in snaps.iter().enumerate() {
-        let prev_moves: &[Move] = if i == 0 { &l1_moves } else { &snaps[i - 1].moves };
+        let prev_moves: &[Move] = if i == 0 {
+            &l1_moves
+        } else {
+            &snaps[i - 1].moves
+        };
         let bsps = level_bsps(prev_moves, &snap.zhongshus, &snap.moves, snap.level_id);
-        per_level.push((format!("ladder{}_L{}", snap.level_id + 2, snap.level_id), bsps));
+        per_level.push((
+            format!("ladder{}_L{}", snap.level_id + 2, snap.level_id),
+            bsps,
+        ));
     }
 
     let n_levels = per_level.len();
@@ -234,11 +249,17 @@ fn c_segment_oklo_447k_per_level_bsp() {
     let ladder2 = find("ladder2").expect("笔中枢级必须存在");
     let l2_t1 = kind_total(ladder2, BspKind::Type1);
     let l2_t2 = kind_total(ladder2, BspKind::Type2);
-    assert!(l2_t1 > 100, "ladder2 type1 应 >100（修复前=1，实测374），实际 {l2_t1}");
+    assert!(
+        l2_t1 > 100,
+        "ladder2 type1 应 >100（修复前=1，实测374），实际 {l2_t1}"
+    );
     assert!(l2_t2 > 0, "ladder2 type2 应 >0（修复前=0），实际 {l2_t2}");
     let ladder4 = find("ladder4").expect("ladder4（递归 L2）必须涌现");
     let l4_t1 = kind_total(ladder4, BspKind::Type1);
-    assert!(l4_t1 > 0, "ladder4 type1 应 >0（修复前=0 全 type3），实际 {l4_t1}");
+    assert!(
+        l4_t1 > 0,
+        "ladder4 type1 应 >0（修复前=0 全 type3），实际 {l4_t1}"
+    );
 }
 
 /// tranche 重验（任务卡【tranche递归建仓重验】）：
@@ -265,12 +286,18 @@ fn c_segment_oklo_447k_tranche_side_split() {
     }
 
     // ladder → BSP 集合（与上一测同口径构造）。
-    let mut per_level: Vec<(usize, Vec<BuySellPoint>)> =
-        vec![(2, bi_zhongshu_bsps(&orch)), (3, orch.buysellpoints().to_vec())];
+    let mut per_level: Vec<(usize, Vec<BuySellPoint>)> = vec![
+        (2, bi_zhongshu_bsps(&orch)),
+        (3, orch.buysellpoints().to_vec()),
+    ];
     let snaps = orch.recursive().to_vec();
     let l1_moves = orch.moves().to_vec();
     for (i, snap) in snaps.iter().enumerate() {
-        let prev_moves: &[Move] = if i == 0 { &l1_moves } else { &snaps[i - 1].moves };
+        let prev_moves: &[Move] = if i == 0 {
+            &l1_moves
+        } else {
+            &snaps[i - 1].moves
+        };
         let bsps = level_bsps(prev_moves, &snap.zhongshus, &snap.moves, snap.level_id);
         per_level.push(((snap.level_id + 2) as usize, bsps));
     }
@@ -311,13 +338,17 @@ fn c_segment_oklo_447k_tranche_side_split() {
     let tranche_layers = entry_cap.saturating_sub(tranche_lo + 1);
     report.push_str(&format!("  \"buy1_ladders\": {buy1_ladders:?},\n"));
     report.push_str(&format!("  \"entry_cap\": {entry_cap},\n"));
-    report.push_str(&format!("  \"tranche_interval\": \"({tranche_lo}, {}]\",\n",
-        entry_cap.saturating_sub(1)));
+    report.push_str(&format!(
+        "  \"tranche_interval\": \"({tranche_lo}, {}]\",\n",
+        entry_cap.saturating_sub(1)
+    ));
     report.push_str(&format!("  \"tranche_nonempty\": {tranche_nonempty},\n"));
     report.push_str(&format!("  \"tranche_layers\": {tranche_layers}\n"));
     report.push_str("}\n");
-    println!("buy1_ladders={buy1_ladders:?} entry_cap={entry_cap} \
-              tranche_nonempty={tranche_nonempty} layers={tranche_layers}");
+    println!(
+        "buy1_ladders={buy1_ladders:?} entry_cap={entry_cap} \
+              tranche_nonempty={tranche_nonempty} layers={tranche_layers}"
+    );
 
     let out = Path::new(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -358,8 +389,7 @@ fn stream_confirmed_events(
     require_settled: bool,
 ) -> std::collections::HashSet<(u8, bool, i64)> {
     use std::collections::HashSet;
-    let mut orch =
-        RecursiveOrchestrator::new(8, "wide", 5, false, 3, false, true, require_settled);
+    let mut orch = RecursiveOrchestrator::new(8, "wide", 5, false, 3, false, true, require_settled);
     let mut seen: HashSet<(u8, bool, i64)> = HashSet::new();
     let mut last_epoch = orch.bsp_epoch();
     let mut first = true;
@@ -433,7 +463,11 @@ fn require_settled_oklo_447k_ablation() {
     println!(
         "合计 confirmed 事件: base={tb} gated={tg} 伪信号={} ({:.1}%)",
         tb.saturating_sub(tg),
-        if tb > 0 { (tb - tg) as f64 / tb as f64 * 100.0 } else { 0.0 }
+        if tb > 0 {
+            (tb - tg) as f64 / tb as f64 * 100.0
+        } else {
+            0.0
+        }
     );
 
     let out = Path::new(concat!(
@@ -470,19 +504,35 @@ fn recursive_bsp_oklo_447k_sparsity() {
     report.push_str(&format!("  \"n_recursive_levels\": {},\n", snaps.len()));
     report.push_str("  \"levels\": {\n");
     for (i, snap) in snaps.iter().enumerate() {
-        let prev_moves: &[Move] = if i == 0 { &l1_moves } else { &snaps[i - 1].moves };
+        let prev_moves: &[Move] = if i == 0 {
+            &l1_moves
+        } else {
+            &snaps[i - 1].moves
+        };
         let adapter = level_bsps(prev_moves, &snap.zhongshus, &snap.moves, snap.level_id);
         assert_eq!(
-            snap.buysellpoints.len(), adapter.len(),
+            snap.buysellpoints.len(),
+            adapter.len(),
             "level {} 生产路径 BSP 数 {} ≠ 适配器 {}",
-            snap.level_id, snap.buysellpoints.len(), adapter.len()
+            snap.level_id,
+            snap.buysellpoints.len(),
+            adapter.len()
         );
         for (a, b) in snap.buysellpoints.iter().zip(adapter.iter()) {
             assert_eq!(a.kind, b.kind, "level {} kind", snap.level_id);
             assert_eq!(a.side, b.side, "level {} side", snap.level_id);
             assert_eq!(a.seg_idx, b.seg_idx, "level {} seg_idx", snap.level_id);
-            assert_eq!(a.confirmed, b.confirmed, "level {} confirmed", snap.level_id);
-            assert_eq!(a.price.to_bits(), b.price.to_bits(), "level {} price", snap.level_id);
+            assert_eq!(
+                a.confirmed, b.confirmed,
+                "level {} confirmed",
+                snap.level_id
+            );
+            assert_eq!(
+                a.price.to_bits(),
+                b.price.to_bits(),
+                "level {} price",
+                snap.level_id
+            );
         }
         let cc = count_by_kind_conf(&snap.buysellpoints);
         let cf = |k: &str| *cc.get(&(k, true)).unwrap_or(&0);
@@ -495,8 +545,15 @@ fn recursive_bsp_oklo_447k_sparsity() {
         ));
         println!(
             "ladder{}_L{}: moves={} zhongshus={} bsp_total={} confirmed(t1={} t2={} t3={})=共{}",
-            snap.level_id + 2, snap.level_id, snap.moves.len(), snap.zhongshus.len(),
-            snap.buysellpoints.len(), cf("type1"), cf("type2"), cf("type3"), conf_total
+            snap.level_id + 2,
+            snap.level_id,
+            snap.moves.len(),
+            snap.zhongshus.len(),
+            snap.buysellpoints.len(),
+            cf("type1"),
+            cf("type2"),
+            cf("type3"),
+            conf_total
         );
     }
     report.push_str("    \"_note\": \"生产路径 orch.recursive().buysellpoints 已等价守卫通过\"\n");

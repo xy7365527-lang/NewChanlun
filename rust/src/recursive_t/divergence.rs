@@ -43,9 +43,7 @@
 //! 这条「level=0 用振幅、level≥1 用嵌套深度」的划分不是补丁，是第64/65课原文对
 //! 基底层与递归层的区分（设计文档 §2.5 + §6.5）。
 
-use super::types::{
-    BSPKind, Direction, PerfectionMode, TrendKind, TrendType, Unit, Zhongshu, BSP,
-};
+use super::types::{BSPKind, Direction, PerfectionMode, TrendKind, TrendType, Unit, Zhongshu, BSP};
 
 // 诊断（编排者 2026-06-21）：盘整背驰 Down 失败原因计数（查 L4 ConsolDown type1_buy=0 根因）。
 // [level][0=no_new_low(离开不创新低), 1=no_force_decay(力度不衰减), 2=produced(产 type1_buy),
@@ -561,11 +559,17 @@ pub fn nest_chain_complete(
             Some(c) => *c,
             None => return false,
         };
-        let child_win =
-            match select_child_in_window(candidates, parent_win, core_dir, want_buy, mode, use_diverge) {
-                Some(w) => w,
-                None => return false, // 父窗内无子背驰(段) → 链断
-            };
+        let child_win = match select_child_in_window(
+            candidates,
+            parent_win,
+            core_dir,
+            want_buy,
+            mode,
+            use_diverge,
+        ) {
+            Some(w) => w,
+            None => return false, // 父窗内无子背驰(段) → 链断
+        };
         parent_win = child_win;
     }
     true
@@ -632,17 +636,31 @@ mod tests {
     fn 背驰上涨趋势() -> TrendType {
         // 中枢1 [12,20]（段0-2），强进入段振幅大；离开段创新高但振幅小。
         let units = vec![
-            bi(10.0, 30.0, 0, 1, Direction::Up),  // a 段进入：振幅 20（强）
+            bi(10.0, 30.0, 0, 1, Direction::Up), // a 段进入：振幅 20（强）
             bi(12.0, 22.0, 1, 2, Direction::Down),
             bi(11.0, 21.0, 2, 3, Direction::Up),
-            bi(21.0, 41.0, 3, 4, Direction::Up),  // 离开向上到中枢2
+            bi(21.0, 41.0, 3, 4, Direction::Up), // 离开向上到中枢2
             bi(38.0, 48.0, 4, 5, Direction::Down),
             bi(40.0, 50.0, 5, 6, Direction::Up),
             bi(39.0, 49.0, 6, 7, Direction::Down),
-            bi(49.0, 52.0, 7, 8, Direction::Up),  // c 段创新高 52 但振幅仅 3（弱）
+            bi(49.0, 52.0, 7, 8, Direction::Up), // c 段创新高 52 但振幅仅 3（弱）
         ];
-        let z1 = Zhongshu { high: 20.0, low: 12.0, gg: 30.0, dd: 10.0, units: vec![0, 1, 2], level: 1 };
-        let z2 = Zhongshu { high: 48.0, low: 40.0, gg: 50.0, dd: 38.0, units: vec![4, 5, 6], level: 1 };
+        let z1 = Zhongshu {
+            high: 20.0,
+            low: 12.0,
+            gg: 30.0,
+            dd: 10.0,
+            units: vec![0, 1, 2],
+            level: 1,
+        };
+        let z2 = Zhongshu {
+            high: 48.0,
+            low: 40.0,
+            gg: 50.0,
+            dd: 38.0,
+            units: vec![4, 5, 6],
+            level: 1,
+        };
         TrendType {
             kind: TrendKind::UpTrend,
             zhongshus: vec![z1, z2],
@@ -704,8 +722,22 @@ mod tests {
             mk(39.0, 49.0, 6, 7, Direction::Down, 2),
             mk(49.0, 60.0, 7, 8, Direction::Up, 2), // c 创新高 60，含 2 次级别中枢(nest=2)，弱于 a
         ];
-        let z1 = Zhongshu { high: 20.0, low: 12.0, gg: 30.0, dd: 10.0, units: vec![0, 1, 2], level: 2 };
-        let z2 = Zhongshu { high: 48.0, low: 40.0, gg: 50.0, dd: 38.0, units: vec![4, 5, 6], level: 2 };
+        let z1 = Zhongshu {
+            high: 20.0,
+            low: 12.0,
+            gg: 30.0,
+            dd: 10.0,
+            units: vec![0, 1, 2],
+            level: 2,
+        };
+        let z2 = Zhongshu {
+            high: 48.0,
+            low: 40.0,
+            gg: 50.0,
+            dd: 38.0,
+            units: vec![4, 5, 6],
+            level: 2,
+        };
         let t = TrendType {
             kind: TrendKind::UpTrend,
             zhongshus: vec![z1, z2],
@@ -725,8 +757,15 @@ mod tests {
     #[test]
     fn 真背驰_条件5_c段中枢不足2_拒绝() {
         let mk = |low, high, s, e, d, nest| Unit {
-            high, low, start_bar: s, end_bar: e, direction: d, level: 1, inner_zhongshu_count: nest,
-            area_pos: 0.0, area_neg: 0.0,
+            high,
+            low,
+            start_bar: s,
+            end_bar: e,
+            direction: d,
+            level: 1,
+            inner_zhongshu_count: nest,
+            area_pos: 0.0,
+            area_neg: 0.0,
         };
         let units = vec![
             mk(10.0, 30.0, 0, 1, Direction::Up, 3),
@@ -738,21 +777,50 @@ mod tests {
             mk(39.0, 49.0, 6, 7, Direction::Down, 2),
             mk(49.0, 60.0, 7, 8, Direction::Up, 1), // c 段 nest=1 <2 → 条件5 不满足
         ];
-        let z1 = Zhongshu { high: 20.0, low: 12.0, gg: 30.0, dd: 10.0, units: vec![0, 1, 2], level: 2 };
-        let z2 = Zhongshu { high: 48.0, low: 40.0, gg: 50.0, dd: 38.0, units: vec![4, 5, 6], level: 2 };
-        let t = TrendType {
-            kind: TrendKind::UpTrend, zhongshus: vec![z1, z2], units, level: 2,
-            direction: Direction::Up, completed: false, bsp: None,
+        let z1 = Zhongshu {
+            high: 20.0,
+            low: 12.0,
+            gg: 30.0,
+            dd: 10.0,
+            units: vec![0, 1, 2],
+            level: 2,
         };
-        assert!(judge_divergence(&t, PerfectionMode::Structural).is_none(), "c 段非次级别趋势（中枢<2）应拒绝");
+        let z2 = Zhongshu {
+            high: 48.0,
+            low: 40.0,
+            gg: 50.0,
+            dd: 38.0,
+            units: vec![4, 5, 6],
+            level: 2,
+        };
+        let t = TrendType {
+            kind: TrendKind::UpTrend,
+            zhongshus: vec![z1, z2],
+            units,
+            level: 2,
+            direction: Direction::Up,
+            completed: false,
+            bsp: None,
+        };
+        assert!(
+            judge_divergence(&t, PerfectionMode::Structural).is_none(),
+            "c 段非次级别趋势（中枢<2）应拒绝"
+        );
     }
 
     /// 真背驰条件2不满足：c 段回抽跌破 B 中枢上沿 ZG（无类三买结构）→ 拒绝。
     #[test]
     fn 真背驰_条件2_回抽破中枢上沿_拒绝() {
         let mk = |low, high, s, e, d, nest| Unit {
-            high, low, start_bar: s, end_bar: e, direction: d, level: 1, inner_zhongshu_count: nest,
-            area_pos: 0.0, area_neg: 0.0,
+            high,
+            low,
+            start_bar: s,
+            end_bar: e,
+            direction: d,
+            level: 1,
+            inner_zhongshu_count: nest,
+            area_pos: 0.0,
+            area_neg: 0.0,
         };
         let units = vec![
             mk(10.0, 30.0, 0, 1, Direction::Up, 3),
@@ -764,13 +832,35 @@ mod tests {
             mk(39.0, 49.0, 6, 7, Direction::Down, 2),
             mk(47.0, 60.0, 7, 8, Direction::Up, 2), // c low=47 < B.ZG=48 → 回抽破中枢上沿
         ];
-        let z1 = Zhongshu { high: 20.0, low: 12.0, gg: 30.0, dd: 10.0, units: vec![0, 1, 2], level: 2 };
-        let z2 = Zhongshu { high: 48.0, low: 40.0, gg: 50.0, dd: 38.0, units: vec![4, 5, 6], level: 2 };
-        let t = TrendType {
-            kind: TrendKind::UpTrend, zhongshus: vec![z1, z2], units, level: 2,
-            direction: Direction::Up, completed: false, bsp: None,
+        let z1 = Zhongshu {
+            high: 20.0,
+            low: 12.0,
+            gg: 30.0,
+            dd: 10.0,
+            units: vec![0, 1, 2],
+            level: 2,
         };
-        assert!(judge_divergence(&t, PerfectionMode::Structural).is_none(), "c 段回抽破 ZG（无类三买）应拒绝");
+        let z2 = Zhongshu {
+            high: 48.0,
+            low: 40.0,
+            gg: 50.0,
+            dd: 38.0,
+            units: vec![4, 5, 6],
+            level: 2,
+        };
+        let t = TrendType {
+            kind: TrendKind::UpTrend,
+            zhongshus: vec![z1, z2],
+            units,
+            level: 2,
+            direction: Direction::Up,
+            completed: false,
+            bsp: None,
+        };
+        assert!(
+            judge_divergence(&t, PerfectionMode::Structural).is_none(),
+            "c 段回抽破 ZG（无类三买）应拒绝"
+        );
     }
 
     /// 类背驰（a₀ 基底，无嵌套）：第64课「线段以下用类背驰」——仅条件1+4+力度，
@@ -787,11 +877,30 @@ mod tests {
             bi(39.0, 49.0, 6, 7, Direction::Down),
             bi(49.0, 52.0, 7, 8, Direction::Up), // c 创新高 52，振幅 3（弱）
         ];
-        let z1 = Zhongshu { high: 20.0, low: 12.0, gg: 30.0, dd: 10.0, units: vec![0, 1, 2], level: 1 };
-        let z2 = Zhongshu { high: 48.0, low: 40.0, gg: 50.0, dd: 38.0, units: vec![4, 5, 6], level: 1 };
+        let z1 = Zhongshu {
+            high: 20.0,
+            low: 12.0,
+            gg: 30.0,
+            dd: 10.0,
+            units: vec![0, 1, 2],
+            level: 1,
+        };
+        let z2 = Zhongshu {
+            high: 48.0,
+            low: 40.0,
+            gg: 50.0,
+            dd: 38.0,
+            units: vec![4, 5, 6],
+            level: 1,
+        };
         let t = TrendType {
-            kind: TrendKind::UpTrend, zhongshus: vec![z1, z2], units, level: 0,
-            direction: Direction::Up, completed: false, bsp: None,
+            kind: TrendKind::UpTrend,
+            zhongshus: vec![z1, z2],
+            units,
+            level: 0,
+            direction: Direction::Up,
+            completed: false,
+            bsp: None,
         };
         let bsp = judge_divergence(&t, PerfectionMode::Structural).expect("类背驰应产一卖");
         assert_eq!(bsp.kind, BSPKind::Type1Sell);
@@ -805,8 +914,15 @@ mod tests {
     #[test]
     fn 三中枢趋势_b段锚最后两中枢_不吞中间中枢() {
         let mk = |low, high, s, e, d, nest| Unit {
-            high, low, start_bar: s, end_bar: e, direction: d, level: 2, inner_zhongshu_count: nest,
-            area_pos: 0.0, area_neg: 0.0,
+            high,
+            low,
+            start_bar: s,
+            end_bar: e,
+            direction: d,
+            level: 2,
+            inner_zhongshu_count: nest,
+            area_pos: 0.0,
+            area_neg: 0.0,
         };
         let units = vec![
             mk(8.0, 22.0, 0, 1, Direction::Up, 2), // z1
@@ -821,16 +937,43 @@ mod tests {
             mk(63.0, 75.0, 9, 10, Direction::Up, 2), // c 段：离开 z3 向上，low=63 > ZG=60（守沿）
             mk(70.0, 80.0, 10, 11, Direction::Up, 2), // c 创新高 80，c_nest=2+2=4
         ];
-        let z1 = Zhongshu { high: 20.0, low: 10.0, gg: 22.0, dd: 8.0, units: vec![0, 1, 2], level: 2 };
-        let z2 = Zhongshu { high: 40.0, low: 30.0, gg: 42.0, dd: 28.0, units: vec![3, 4, 5], level: 2 };
-        let z3 = Zhongshu { high: 60.0, low: 50.0, gg: 62.0, dd: 48.0, units: vec![6, 7, 8], level: 2 };
+        let z1 = Zhongshu {
+            high: 20.0,
+            low: 10.0,
+            gg: 22.0,
+            dd: 8.0,
+            units: vec![0, 1, 2],
+            level: 2,
+        };
+        let z2 = Zhongshu {
+            high: 40.0,
+            low: 30.0,
+            gg: 42.0,
+            dd: 28.0,
+            units: vec![3, 4, 5],
+            level: 2,
+        };
+        let z3 = Zhongshu {
+            high: 60.0,
+            low: 50.0,
+            gg: 62.0,
+            dd: 48.0,
+            units: vec![6, 7, 8],
+            level: 2,
+        };
         let t = TrendType {
-            kind: TrendKind::UpTrend, zhongshus: vec![z1, z2, z3], units, level: 2,
-            direction: Direction::Up, completed: false, bsp: None,
+            kind: TrendKind::UpTrend,
+            zhongshus: vec![z1, z2, z3],
+            units,
+            level: 2,
+            direction: Direction::Up,
+            completed: false,
+            bsp: None,
         };
         // a 段=units[0..=5](entry+z1+z2) nest=15；b 段=z2↔z3 间(空) b_nest=0≤c_nest=4；
         // c 创新高 80、守 ZG=60、力度 4<15 → 5 条件全过。
-        let bsp = judge_divergence(&t, PerfectionMode::Structural).expect("3 中枢趋势 b 段锚最后两中枢应产一卖");
+        let bsp = judge_divergence(&t, PerfectionMode::Structural)
+            .expect("3 中枢趋势 b 段锚最后两中枢应产一卖");
         assert_eq!(bsp.kind, BSPKind::Type1Sell);
         assert_eq!(bsp.price, 80.0);
     }
@@ -841,8 +984,15 @@ mod tests {
     fn 模式and_结构完美但macd未衰减_仅and拒绝() {
         // (low,high,s,e,dir,area_pos,area_neg)；上涨段只用 area_pos（红柱）。
         let mk = |low, high, s, e, d, ap: f64, an: f64| Unit {
-            high, low, start_bar: s, end_bar: e, direction: d, level: 0,
-            inner_zhongshu_count: 0, area_pos: ap, area_neg: an,
+            high,
+            low,
+            start_bar: s,
+            end_bar: e,
+            direction: d,
+            level: 0,
+            inner_zhongshu_count: 0,
+            area_pos: ap,
+            area_neg: an,
         };
         let units = vec![
             mk(10.0, 30.0, 0, 1, Direction::Up, 10.0, 0.0), // a 进入：振幅20，area_pos=10
@@ -854,17 +1004,39 @@ mod tests {
             mk(39.0, 49.0, 6, 7, Direction::Down, 0.0, 0.0),
             mk(49.0, 52.0, 7, 8, Direction::Up, 20.0, 0.0), // c 创新高52、振幅3（结构衰减）；area_pos=20（MACD 未衰减）
         ];
-        let z1 = Zhongshu { high: 20.0, low: 12.0, gg: 30.0, dd: 10.0, units: vec![0, 1, 2], level: 1 };
-        let z2 = Zhongshu { high: 48.0, low: 40.0, gg: 50.0, dd: 38.0, units: vec![4, 5, 6], level: 1 };
+        let z1 = Zhongshu {
+            high: 20.0,
+            low: 12.0,
+            gg: 30.0,
+            dd: 10.0,
+            units: vec![0, 1, 2],
+            level: 1,
+        };
+        let z2 = Zhongshu {
+            high: 48.0,
+            low: 40.0,
+            gg: 50.0,
+            dd: 38.0,
+            units: vec![4, 5, 6],
+            level: 1,
+        };
         let t = TrendType {
-            kind: TrendKind::UpTrend, zhongshus: vec![z1, z2], units, level: 0,
-            direction: Direction::Up, completed: false, bsp: None,
+            kind: TrendKind::UpTrend,
+            zhongshus: vec![z1, z2],
+            units,
+            level: 0,
+            direction: Direction::Up,
+            completed: false,
+            bsp: None,
         };
         // force_a=Σarea_pos(units[0..=2])=10；force_c=area_pos(units[7])=20 → 20<10 false（MACD 未衰减）。
         let s = judge_divergence(&t, PerfectionMode::Structural).expect("纯结构应产一卖");
         assert_eq!(s.kind, BSPKind::Type1Sell);
         assert_eq!(s.price, 52.0);
-        assert!(judge_divergence(&t, PerfectionMode::And).is_none(), "And：MACD 未衰减应否决");
+        assert!(
+            judge_divergence(&t, PerfectionMode::And).is_none(),
+            "And：MACD 未衰减应否决"
+        );
         let o = judge_divergence(&t, PerfectionMode::Or).expect("Or：结构完美即足");
         assert_eq!(o.price, 52.0);
     }
@@ -874,8 +1046,15 @@ mod tests {
     #[test]
     fn 模式or_结构力度不衰减但macd衰减_仅or产点() {
         let mk = |low, high, s, e, d, ap: f64, an: f64| Unit {
-            high, low, start_bar: s, end_bar: e, direction: d, level: 0,
-            inner_zhongshu_count: 0, area_pos: ap, area_neg: an,
+            high,
+            low,
+            start_bar: s,
+            end_bar: e,
+            direction: d,
+            level: 0,
+            inner_zhongshu_count: 0,
+            area_pos: ap,
+            area_neg: an,
         };
         let units = vec![
             mk(10.0, 30.0, 0, 1, Direction::Up, 50.0, 0.0), // a 进入：振幅20，area_pos=50（强）
@@ -887,15 +1066,40 @@ mod tests {
             mk(39.0, 49.0, 6, 7, Direction::Down, 0.0, 0.0),
             mk(49.0, 90.0, 7, 8, Direction::Up, 5.0, 0.0), // c 创新高90、振幅41（结构力度**不**衰减）；area_pos=5（MACD 衰减）
         ];
-        let z1 = Zhongshu { high: 20.0, low: 12.0, gg: 30.0, dd: 10.0, units: vec![0, 1, 2], level: 1 };
-        let z2 = Zhongshu { high: 48.0, low: 40.0, gg: 50.0, dd: 38.0, units: vec![4, 5, 6], level: 1 };
+        let z1 = Zhongshu {
+            high: 20.0,
+            low: 12.0,
+            gg: 30.0,
+            dd: 10.0,
+            units: vec![0, 1, 2],
+            level: 1,
+        };
+        let z2 = Zhongshu {
+            high: 48.0,
+            low: 40.0,
+            gg: 50.0,
+            dd: 38.0,
+            units: vec![4, 5, 6],
+            level: 1,
+        };
         let t = TrendType {
-            kind: TrendKind::UpTrend, zhongshus: vec![z1, z2], units, level: 0,
-            direction: Direction::Up, completed: false, bsp: None,
+            kind: TrendKind::UpTrend,
+            zhongshus: vec![z1, z2],
+            units,
+            level: 0,
+            direction: Direction::Up,
+            completed: false,
+            bsp: None,
         };
         // 结构力度：c 振幅41 ≥ a 振幅20 → S=false。MACD：force_a=50, force_c=5 → 5<50 true。
-        assert!(judge_divergence(&t, PerfectionMode::Structural).is_none(), "纯结构：力度不衰减应拒绝");
-        assert!(judge_divergence(&t, PerfectionMode::And).is_none(), "And：结构 false → 合取 false");
+        assert!(
+            judge_divergence(&t, PerfectionMode::Structural).is_none(),
+            "纯结构：力度不衰减应拒绝"
+        );
+        assert!(
+            judge_divergence(&t, PerfectionMode::And).is_none(),
+            "And：结构 false → 合取 false"
+        );
         let o = judge_divergence(&t, PerfectionMode::Or).expect("Or：MACD 衰减即足");
         assert_eq!(o.kind, BSPKind::Type1Sell);
         assert_eq!(o.price, 90.0);
@@ -907,8 +1111,15 @@ mod tests {
     #[test]
     fn 模式or_macd绕过条件5结构滤网() {
         let mk = |low, high, s, e, d, nest, ap: f64, an: f64| Unit {
-            high, low, start_bar: s, end_bar: e, direction: d, level: 1,
-            inner_zhongshu_count: nest, area_pos: ap, area_neg: an,
+            high,
+            low,
+            start_bar: s,
+            end_bar: e,
+            direction: d,
+            level: 1,
+            inner_zhongshu_count: nest,
+            area_pos: ap,
+            area_neg: an,
         };
         let units = vec![
             mk(10.0, 30.0, 0, 1, Direction::Up, 3, 50.0, 0.0), // a 进入：nest 深、area_pos=50
@@ -920,15 +1131,40 @@ mod tests {
             mk(39.0, 49.0, 6, 7, Direction::Down, 2, 0.0, 0.0),
             mk(49.0, 60.0, 7, 8, Direction::Up, 1, 5.0, 0.0), // c nest=1<2（条件5 fail）；area_pos=5（MACD 衰减）
         ];
-        let z1 = Zhongshu { high: 20.0, low: 12.0, gg: 30.0, dd: 10.0, units: vec![0, 1, 2], level: 2 };
-        let z2 = Zhongshu { high: 48.0, low: 40.0, gg: 50.0, dd: 38.0, units: vec![4, 5, 6], level: 2 };
+        let z1 = Zhongshu {
+            high: 20.0,
+            low: 12.0,
+            gg: 30.0,
+            dd: 10.0,
+            units: vec![0, 1, 2],
+            level: 2,
+        };
+        let z2 = Zhongshu {
+            high: 48.0,
+            low: 40.0,
+            gg: 50.0,
+            dd: 38.0,
+            units: vec![4, 5, 6],
+            level: 2,
+        };
         let t = TrendType {
-            kind: TrendKind::UpTrend, zhongshus: vec![z1, z2], units, level: 2,
-            direction: Direction::Up, completed: false, bsp: None,
+            kind: TrendKind::UpTrend,
+            zhongshus: vec![z1, z2],
+            units,
+            level: 2,
+            direction: Direction::Up,
+            completed: false,
+            bsp: None,
         };
         // 结构：条件5 c_nest=1<2 → F false → structural false。MACD：force_a=50, force_c=5 → true。
-        assert!(judge_divergence(&t, PerfectionMode::Structural).is_none(), "纯结构：条件5 不满足应拒绝");
-        assert!(judge_divergence(&t, PerfectionMode::And).is_none(), "And：结构 false → 拒绝");
+        assert!(
+            judge_divergence(&t, PerfectionMode::Structural).is_none(),
+            "纯结构：条件5 不满足应拒绝"
+        );
+        assert!(
+            judge_divergence(&t, PerfectionMode::And).is_none(),
+            "And：结构 false → 拒绝"
+        );
         let o = judge_divergence(&t, PerfectionMode::Or).expect("Or：MACD 绕过条件5");
         assert_eq!(o.price, 60.0);
     }

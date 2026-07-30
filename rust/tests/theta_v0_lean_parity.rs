@@ -122,7 +122,10 @@ fn lean_gap_overlap_tangent_bit_exact() {
             &fx.gap_overlap.tangent_b_high_eq_a_low,
             "tangent_b_high_eq_a_low（反向相切）",
         ),
-        (&fx.gap_overlap.strict_disjoint, "strict_disjoint（严格分离）"),
+        (
+            &fx.gap_overlap.strict_disjoint,
+            "strict_disjoint（严格分离）",
+        ),
         (
             &fx.gap_overlap.strict_disjoint_rev,
             "strict_disjoint_rev（反向严格分离）",

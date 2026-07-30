@@ -149,8 +149,7 @@ fn compute_confirmed_strokes(
     // confirmed 段最后一个 source_index（边界）。
     let boundary_si = alt_prefix[confirmed_alt_len - 1].0.source_index;
     // end_index <= boundary_si 的笔为 confirmed（端点在 confirmed alt 段内）。
-    let confirmed_strokes_len = strokes
-        .partition_point(|s| s.end_index <= boundary_si);
+    let confirmed_strokes_len = strokes.partition_point(|s| s.end_index <= boundary_si);
     let last_end_alt_idx = if confirmed_strokes_len == 0 {
         0
     } else {
@@ -160,7 +159,6 @@ fn compute_confirmed_strokes(
     };
     (confirmed_strokes_len, last_end_alt_idx)
 }
-
 
 /// 增量 stroke 状态（bit-exact 对齐 `build_strokes`）。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -232,15 +230,11 @@ impl IncrStrokes {
         }
         // 重建 confirmed 索引（O(n) 一次性，断点续算非热路径）。
         let confirmed_bound = fractals.len().saturating_sub(1);
-        let confirmed_alt_len = alt_prefix
-            .partition_point(|(_, fi)| *fi < confirmed_bound);
+        let confirmed_alt_len = alt_prefix.partition_point(|(_, fi)| *fi < confirmed_bound);
         // confirmed strokes：端点 source_index < alt_prefix[confirmed_alt_len] 的 source_index
         //（alt 按 source_index 单调递增，strokes 按 end_index 单调递增）。
-        let (confirmed_strokes_len, last_end_alt_idx) = compute_confirmed_strokes(
-            strokes,
-            &alt_prefix,
-            confirmed_alt_len,
-        );
+        let (confirmed_strokes_len, last_end_alt_idx) =
+            compute_confirmed_strokes(strokes, &alt_prefix, confirmed_alt_len);
         IncrStrokes {
             alt_prefix,
             strokes: Rc::new(strokes.to_vec()),
@@ -406,10 +400,7 @@ mod tests {
     #[test]
     fn collapse_keeps_higher_top_and_lower_bottom() {
         // 连续两顶 [idx1 p10, idx3 p12] → 保留更高 p12(idx3)。
-        let fs = vec![
-            frac(FractalKind::Top, 1, 10),
-            frac(FractalKind::Top, 3, 12),
-        ];
+        let fs = vec![frac(FractalKind::Top, 1, 10), frac(FractalKind::Top, 3, 12)];
         let c = collapse_consecutive(&fs);
         assert_eq!(c.len(), 1);
         assert_eq!(c[0].price, 12);
@@ -419,10 +410,7 @@ mod tests {
     #[test]
     fn collapse_equal_keeps_earlier() {
         // 连续两顶等价 p10 → 保留更早 idx1。
-        let fs = vec![
-            frac(FractalKind::Top, 1, 10),
-            frac(FractalKind::Top, 5, 10),
-        ];
+        let fs = vec![frac(FractalKind::Top, 1, 10), frac(FractalKind::Top, 5, 10)];
         let c = collapse_consecutive(&fs);
         assert_eq!(c[0].source_index, 1);
     }

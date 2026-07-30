@@ -227,8 +227,7 @@ pub(super) fn pop_tail(
                         // §7 earning：纯利润在买点买入 Δ，N 重定基；
                         // basis 加权更新（视图锚与物理一致）。
                         let dq = excess / c;
-                        parent.basis = (parent.basis * parent.units + excess)
-                            / (parent.units + dq);
+                        parent.basis = (parent.basis * parent.units + excess) / (parent.units + dq);
                         parent.units += dq;
                         *n_base += dq;
                         res.n_nrf_earning_adds_by_ladder[parent.ladder] += 1;
@@ -280,7 +279,11 @@ pub(super) fn unwind_to(
     while chain.len() > g {
         let j = chain.len() - 1;
         let lad = chain[j].ladder;
-        let (px, why) = if j == g { (g_price, reason) } else { (c, "cascade") };
+        let (px, why) = if j == g {
+            (g_price, reason)
+        } else {
+            (c, "cascade")
+        };
         if j > g {
             res.n_nrf_cascade_closes_by_ladder[lad] += 1;
         }
@@ -317,8 +320,7 @@ pub(crate) fn run_nested_fugue(
     // 构成性贯通的 R6′ regime 门读 trend_state（17课走势完全分类）——缺
     // trend_flips 行则 regime 判据残缺（fail-fast，非静默退化为恒盘整）。
     // V4 不读 trend_state ⟹ 不要求该行（在册基座 bit-exact）。
-    if matches!(clearance, ClearanceMode::ConstitutiveThroughput { .. }) && !tape.has_trend_rows()
-    {
+    if matches!(clearance, ClearanceMode::ConstitutiveThroughput { .. }) && !tape.has_trend_rows() {
         return Err(
             "nrf_ct（构成性贯通）要求磁带 trend_flips 行——R6′ regime 门 = \
              清仓层走势类型（17课趋势完全分类：趋势-type1 清仓 / 盘整-type1 \
@@ -408,7 +410,11 @@ pub(crate) fn run_nested_fugue(
                         BspClass::Buy1 | BspClass::Buy3 => false,
                         BspClass::Sell2 | BspClass::Buy2 => continue,
                     };
-                    let win = if sellside { &mut nest_sell[k] } else { &mut nest_buy[k] };
+                    let win = if sellside {
+                        &mut nest_sell[k]
+                    } else {
+                        &mut nest_buy[k]
+                    };
                     if e.confirmed {
                         *win = None; // confirmed 同侧让位（本 bar 走 confirmed 路径）
                     } else {
@@ -460,20 +466,27 @@ pub(crate) fn run_nested_fugue(
         }
 
         // 当前最高 θ 涌现层（C 清仓判据层 + F 入场层）。
-        let top = (floor_ladder..MAX_LADDER)
-            .rev()
-            .find(|&k| depth_ref.theta(k, None, SUB_COST_Q, SUB_COST_MIN_OBS).is_some());
+        let top = (floor_ladder..MAX_LADDER).rev().find(|&k| {
+            depth_ref
+                .theta(k, None, SUB_COST_Q, SUB_COST_MIN_OBS)
+                .is_some()
+        });
 
         // ── A. 强平兜底（尾空头 capital + u×(basis − c) ≤ 0；1x 逐仓
         //    解析强平——trade 行记 2×basis，物理按 capital 可买量缩水）──
         let mut acted = false;
         if let Some(tail) = chain.last().copied() {
-            if tail.dir == Polarity::Short
-                && tail.capital + tail.units * (tail.basis - c) <= 0.0
-            {
+            if tail.dir == Polarity::Short && tail.capital + tail.units * (tail.basis - c) <= 0.0 {
                 pop_tail(
-                    bar, 2.0 * tail.basis, c, "liq", false, &mut chain, &mut free,
-                    &mut n_base, &mut res,
+                    bar,
+                    2.0 * tail.basis,
+                    c,
+                    "liq",
+                    false,
+                    &mut chain,
+                    &mut free,
+                    &mut n_base,
+                    &mut res,
                 );
                 res.n_short_liquidations_by_ladder[tail.ladder] += 1;
                 acted = true;
@@ -490,7 +503,17 @@ pub(crate) fn run_nested_fugue(
             });
             if let Some(g) = broke {
                 let lad = chain[g].ladder;
-                unwind_to(g, bar, c, c, "negate", &mut chain, &mut free, &mut n_base, &mut res);
+                unwind_to(
+                    g,
+                    bar,
+                    c,
+                    c,
+                    "negate",
+                    &mut chain,
+                    &mut free,
+                    &mut n_base,
+                    &mut res,
+                );
                 res.n_nrf_negate_closes_by_ladder[lad] += 1;
                 acted = true;
             }
@@ -523,7 +546,17 @@ pub(crate) fn run_nested_fugue(
                     }),
             };
             if fire {
-                unwind_to(0, bar, c, c, "sellpt", &mut chain, &mut free, &mut n_base, &mut res);
+                unwind_to(
+                    0,
+                    bar,
+                    c,
+                    c,
+                    "sellpt",
+                    &mut chain,
+                    &mut free,
+                    &mut n_base,
+                    &mut res,
+                );
                 located_sell = [None; MAX_LADDER];
                 acted = true;
             }
@@ -538,7 +571,17 @@ pub(crate) fn run_nested_fugue(
                 Polarity::Long => sig.sell_any.get(tail.ladder),
             };
             if perfected {
-                pop_tail(bar, c, c, "recover", true, &mut chain, &mut free, &mut n_base, &mut res);
+                pop_tail(
+                    bar,
+                    c,
+                    c,
+                    "recover",
+                    true,
+                    &mut chain,
+                    &mut free,
+                    &mut n_base,
+                    &mut res,
+                );
                 acted = true;
             }
         }
@@ -694,7 +737,17 @@ pub(crate) fn run_nested_fugue(
     if !chain.is_empty() {
         let c_last = tape.bars.last().map_or(f64::NAN, |b| b.close);
         let last_bar = (n as i64) - 1;
-        unwind_to(0, last_bar, c_last, c_last, "eod", &mut chain, &mut free, &mut n_base, &mut res);
+        unwind_to(
+            0,
+            last_bar,
+            c_last,
+            c_last,
+            "eod",
+            &mut chain,
+            &mut free,
+            &mut n_base,
+            &mut res,
+        );
     }
     res.final_nav = free;
     Ok(res)
@@ -707,21 +760,43 @@ mod tests {
     use crate::trading::tape::BarSig;
     use crate::trading::types::LadderMask;
 
-    const V4: PolarityMode = PolarityMode::NestedRecursive { clearance: ClearanceMode::V4 };
+    const V4: PolarityMode = PolarityMode::NestedRecursive {
+        clearance: ClearanceMode::V4,
+    };
     const CT: PolarityMode = PolarityMode::NestedRecursive {
-        clearance: ClearanceMode::ConstitutiveThroughput { regime: RegimeGate::TopLevelTrend },
+        clearance: ClearanceMode::ConstitutiveThroughput {
+            regime: RegimeGate::TopLevelTrend,
+        },
     };
     const CT_ANC: PolarityMode = PolarityMode::NestedRecursive {
-        clearance: ClearanceMode::ConstitutiveThroughput { regime: RegimeGate::AncestorDown },
+        clearance: ClearanceMode::ConstitutiveThroughput {
+            regime: RegimeGate::AncestorDown,
+        },
     };
 
     fn bar(close: f64) -> BarSig {
-        BarSig { close, max_ladder: 5, ..Default::default() }
+        BarSig {
+            close,
+            max_ladder: 5,
+            ..Default::default()
+        }
     }
 
     fn ev_full(class: BspClass, confirmed: bool, price: f64, cs: Option<i64>) -> BspEvent {
-        let (zd, zg) = if cs.is_some() { (Some(50.0), Some(60.0)) } else { (None, None) };
-        BspEvent { class, seg_idx: 0, confirmed, cs, zd, zg, price }
+        let (zd, zg) = if cs.is_some() {
+            (Some(50.0), Some(60.0))
+        } else {
+            (None, None)
+        };
+        BspEvent {
+            class,
+            seg_idx: 0,
+            confirmed,
+            cs,
+            zd,
+            zg,
+            price,
+        }
     }
 
     fn with_ev(mut b: BarSig, lad: usize, e: BspEvent) -> BarSig {
@@ -760,7 +835,11 @@ mod tests {
     fn warmup34() -> Vec<BarSig> {
         let mut bars = Vec::new();
         for j in 0..SUB_COST_MIN_OBS as i64 {
-            let mut b = with_ev(bar(100.0), 3, ev_full(BspClass::Sell1, false, 0.0, Some(10 + j)));
+            let mut b = with_ev(
+                bar(100.0),
+                3,
+                ev_full(BspClass::Sell1, false, 0.0, Some(10 + j)),
+            );
             b = with_ev(b, 4, ev_full(BspClass::Sell1, false, 0.0, Some(100 + j)));
             let rows = b.bsp_events.as_deref_mut().unwrap();
             rows[3][0].zd = Some(50.0);
@@ -775,7 +854,11 @@ mod tests {
     /// 层 2 预热补充（θ₂=0.5%；含层 2 时 θ_total=4.5%）。
     fn warmup2(bars: &mut Vec<BarSig>) {
         for j in 0..SUB_COST_MIN_OBS as i64 {
-            let mut b = with_ev(bar(100.0), 2, ev_full(BspClass::Sell1, false, 0.0, Some(500 + j)));
+            let mut b = with_ev(
+                bar(100.0),
+                2,
+                ev_full(BspClass::Sell1, false, 0.0, Some(500 + j)),
+            );
             let rows = b.bsp_events.as_deref_mut().unwrap();
             rows[2][0].zd = Some(50.0);
             rows[2][0].zg = Some(50.5);
@@ -827,7 +910,11 @@ mod tests {
         assert_eq!(PolarityMode::parse("nrf_ct"), Some(CT));
         assert_eq!(PolarityMode::parse("nrf_ct_anc"), Some(CT_ANC));
         let t = SignalTape {
-            bars: vec![with_ev(bar(100.0), 3, ev_full(BspClass::Buy1, true, 100.0, None))],
+            bars: vec![with_ev(
+                bar(100.0),
+                3,
+                ev_full(BspClass::Buy1, true, 100.0, None),
+            )],
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
@@ -841,7 +928,9 @@ mod tests {
             dir_flips: None,
             ..Default::default()
         };
-        assert!(run_positional(&t2, 2, V4).unwrap_err().contains("dir_flips"));
+        assert!(run_positional(&t2, 2, V4)
+            .unwrap_err()
+            .contains("dir_flips"));
         // nrf_ct 能力守卫：缺 trend_flips 行 ⇒ R6′ regime 门判据残缺 ⇒ Err
         // （fail-fast，非静默退化为恒盘整不清仓）。
         let t3 = SignalTape {
@@ -854,7 +943,9 @@ mod tests {
             trend_flips: None,
             ..Default::default()
         };
-        assert!(run_positional(&t3, 2, CT).unwrap_err().contains("trend_flips"));
+        assert!(run_positional(&t3, 2, CT)
+            .unwrap_err()
+            .contains("trend_flips"));
     }
 
     #[test]
@@ -867,7 +958,10 @@ mod tests {
         assert_eq!(r.n_nrf_root_entries_by_ladder[4], 1, "根开在最高 θ 涌现层");
         let t = &r.trades[0];
         assert_eq!((t.ladder, t.polarity), (4, Polarity::Long));
-        assert!((t.shares - INITIAL_CAPITAL / 100.0).abs() < 1e-9, "满仓：units = 全部资金/价");
+        assert!(
+            (t.shares - INITIAL_CAPITAL / 100.0).abs() < 1e-9,
+            "满仓：units = 全部资金/价"
+        );
         assert!((r.final_nav - 101_000.0).abs() < 1e-6);
     }
 
@@ -877,20 +971,40 @@ mod tests {
         // 子空，根保留 750 股（不清仓原则）。Σ 在手 = N 守恒。
         let mut bars = warmup34();
         bars.push(buypt(bar(100.0), 4)); // 根 1000 股 @100
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
-        bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, true, 0.0, None))); // 证据@3
+        bars.push(with_ev(
+            bar(105.0),
+            4,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        ));
+        bars.push(with_ev(
+            bar(104.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // 证据@3
         bars.push(bar(104.0));
         let r = run(bars);
         assert_eq!(r.n_nrf_spawns_by_ladder[3], 1, "子空@3 诞生");
         // eod 解栈：子空 104→104 平（pnl 0，cascade），根 1000 股@104 变现。
-        let short = r.trades.iter().find(|t| t.polarity == Polarity::Short).unwrap();
+        let short = r
+            .trades
+            .iter()
+            .find(|t| t.polarity == Polarity::Short)
+            .unwrap();
         assert!((short.shares - 250.0).abs() < 1e-9, "θ 配额 m = 1000×1/4");
         // 解栈先平子（回流 250 股）再结算根——根行显示回满后的 1000 股；
         // spawn 后链上在手 = 750 + 250 由 §8.1 不变量逐 bar 保证。
-        let root = r.trades.iter().find(|t| t.polarity == Polarity::Long).unwrap();
+        let root = r
+            .trades
+            .iter()
+            .find(|t| t.polarity == Polarity::Long)
+            .unwrap();
         assert!((root.shares - 1000.0).abs() < 1e-9, "根行 = 回补后满仓");
         // NAV：750×104 + 26_000(子 capital) = 104_000。
-        assert!((r.final_nav - 104_000.0).abs() < 1e-6, "final={}", r.final_nav);
+        assert!(
+            (r.final_nav - 104_000.0).abs() < 1e-6,
+            "final={}",
+            r.final_nav
+        );
     }
 
     #[test]
@@ -898,12 +1012,24 @@ mod tests {
         // §3 回补原子：confirmed 买@3 ⇒ 平子 + 父回满 N + 降成本现金沉淀。
         let mut bars = warmup34();
         bars.push(buypt(bar(100.0), 4)); // 1000 股 @100，cost_pool=100_000
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
-        bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, true, 0.0, None))); // 子空 250@104
+        bars.push(with_ev(
+            bar(105.0),
+            4,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        ));
+        bars.push(with_ev(
+            bar(104.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // 子空 250@104
         bars.push(buypt(bar(96.0), 3)); // 走势完美 ⇒ 回补@96
         bars.push(bar(96.0));
         let r = run(bars);
-        let rec = r.trades.iter().find(|t| t.exit_reason == "recover").unwrap();
+        let rec = r
+            .trades
+            .iter()
+            .find(|t| t.exit_reason == "recover")
+            .unwrap();
         assert_eq!((rec.ladder, rec.polarity), (3, Polarity::Short));
         // 子 P&L = 250×(104−96) = 2000 ≡ 父降成本（现金沉淀 free）。
         let pnl = rec.shares * (rec.entry_price - rec.exit_price);
@@ -911,7 +1037,11 @@ mod tests {
         // 根回满 1000 股；eod NAV = 2000 + 1000×96 = 98_000。
         let root = r.trades.iter().find(|t| t.exit_reason == "eod").unwrap();
         assert!((root.shares - 1000.0).abs() < 1e-9, "父回满 N");
-        assert!((r.final_nav - 98_000.0).abs() < 1e-6, "final={}", r.final_nav);
+        assert!(
+            (r.final_nav - 98_000.0).abs() < 1e-6,
+            "final={}",
+            r.final_nav
+        );
     }
 
     #[test]
@@ -920,8 +1050,16 @@ mod tests {
         // 重定基（亏损的物理形式——§8.1 守恒在重定基下保持）。
         let mut bars = warmup34();
         bars.push(buypt(bar(100.0), 4)); // 1000 股
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
-        bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, true, 0.0, None))); // 子空 250@104，线 110
+        bars.push(with_ev(
+            bar(105.0),
+            4,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        ));
+        bars.push(with_ev(
+            bar(104.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // 子空 250@104，线 110
         bars.push(bar(111.0)); // 破 110 ⇒ 否定
         bars.push(bar(111.0));
         let r = run(bars);
@@ -930,7 +1068,10 @@ mod tests {
         let expect_back = 26_000.0 / 111.0;
         assert!((r.nrf_shrink_units - (250.0 - expect_back)).abs() < 1e-9);
         let root = r.trades.iter().find(|t| t.exit_reason == "eod").unwrap();
-        assert!((root.shares - (750.0 + expect_back)).abs() < 1e-9, "根 = 750 + 缩水回补");
+        assert!(
+            (root.shares - (750.0 + expect_back)).abs() < 1e-9,
+            "根 = 750 + 缩水回补"
+        );
         // NAV = (750 + 234.23)×111 = 109_250（守恒：83250 + 26000）。
         assert!((r.final_nav - (750.0 * 111.0 + 26_000.0)).abs() < 1e-6);
     }
@@ -942,8 +1083,16 @@ mod tests {
         // 这是唯一的清仓途径——子空随级联结算。
         let mut bars = warmup34();
         bars.push(buypt(bar(100.0), 4));
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
-        bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, true, 0.0, None))); // nf@4 ⇒ located
+        bars.push(with_ev(
+            bar(105.0),
+            4,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        ));
+        bars.push(with_ev(
+            bar(104.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // nf@4 ⇒ located
         bars.push(sell1pt(bar(103.0), 4)); // 最高涌现级别 confirmed 背驰
         bars.push(bar(103.0));
         let r = run(bars);
@@ -953,7 +1102,11 @@ mod tests {
         assert!(r.nrf_depth_bars[0] > 0, "清仓后回 Idle（真正的空仓 gap）");
         // NAV = 子回补@103（250 股，capital 26000 剩 250×1 = 250 利润）
         //     + 根 750+250 = 1000 股 ×103 = 103_000 + 250。
-        assert!((r.final_nav - 103_250.0).abs() < 1e-6, "final={}", r.final_nav);
+        assert!(
+            (r.final_nav - 103_250.0).abs() < 1e-6,
+            "final={}",
+            r.final_nav
+        );
     }
 
     /// CT 清仓场景骨架（与 liquidation_only 同构）：root@4 + nest 卖@4 武装
@@ -961,8 +1114,16 @@ mod tests {
     fn ct_clearance_bars() -> Vec<BarSig> {
         let mut bars = warmup34();
         bars.push(buypt(bar(100.0), 4));
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
-        bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, true, 0.0, None)));
+        bars.push(with_ev(
+            bar(105.0),
+            4,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        ));
+        bars.push(with_ev(
+            bar(104.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        ));
         bars.push(sell1pt(bar(103.0), 4)); // sell1[4] ∧ located[4] ⇒ A′ top*=4
         bars.push(bar(103.0));
         bars
@@ -977,7 +1138,11 @@ mod tests {
         assert_eq!(root.exit_reason, "sellpt", "趋势-type1 ⇒ 清仓");
         assert_eq!(r.n_nrf_cascade_closes_by_ladder[3], 1, "子随级联结算");
         assert!(r.nrf_depth_bars[0] > 0, "清仓后回 Idle");
-        assert!((r.final_nav - 103_250.0).abs() < 1e-6, "final={}", r.final_nav);
+        assert!(
+            (r.final_nav - 103_250.0).abs() < 1e-6,
+            "final={}",
+            r.final_nav
+        );
     }
 
     #[test]
@@ -991,7 +1156,10 @@ mod tests {
             r.trades.iter().all(|t| t.exit_reason != "sellpt"),
             "盘整-type1 ⇒ regime 门拦截，永不清仓"
         );
-        assert_eq!(r.n_nrf_spawns_by_ladder[3], 1, "盘整中 sell1@top 走 E 降成本");
+        assert_eq!(
+            r.n_nrf_spawns_by_ladder[3], 1,
+            "盘整中 sell1@top 走 E 降成本"
+        );
         let root = r.trades.iter().find(|t| t.ladder == 4).unwrap();
         assert_eq!(root.exit_reason, "eod", "根持有至 eod（未清仓）");
     }
@@ -1062,7 +1230,10 @@ mod tests {
         bars.push(sellpt(bar(105.0), 4)); // top 层 confirmed 卖（非背驰/未定位）⇒ spawn
         bars.push(bar(105.0));
         let r = run(bars);
-        assert!(r.trades.iter().all(|t| t.exit_reason != "sellpt"), "永不清仓");
+        assert!(
+            r.trades.iter().all(|t| t.exit_reason != "sellpt"),
+            "永不清仓"
+        );
         assert_eq!(r.n_nrf_spawns_by_ladder[3], 1, "confirmed 卖走 E 降成本");
         let root = r.trades.iter().find(|t| t.exit_reason == "eod").unwrap();
         assert_eq!(root.ladder, 4);
@@ -1076,10 +1247,26 @@ mod tests {
         let mut bars = warmup34();
         warmup2(&mut bars); // θ₂=0.5% ⇒ θ_total=4.5%
         bars.push(buypt(bar(100.0), 4)); // 1000 股
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
-        bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, true, 0.0, None))); // 子空@3
-        bars.push(with_ev(bar(98.0), 3, ev_full(BspClass::Buy1, false, 97.0, None))); // 买窗@3
-        bars.push(with_ev(bar(99.0), 2, ev_full(BspClass::Buy1, true, 0.0, None))); // 证据@2 ⇒ 孙多@2
+        bars.push(with_ev(
+            bar(105.0),
+            4,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        ));
+        bars.push(with_ev(
+            bar(104.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // 子空@3
+        bars.push(with_ev(
+            bar(98.0),
+            3,
+            ev_full(BspClass::Buy1, false, 97.0, None),
+        )); // 买窗@3
+        bars.push(with_ev(
+            bar(99.0),
+            2,
+            ev_full(BspClass::Buy1, true, 0.0, None),
+        )); // 证据@2 ⇒ 孙多@2
         bars.push(bar(99.0));
         let r = run(bars);
         assert_eq!(r.n_nrf_spawns_by_ladder[2], 1, "孙多@2 诞生（深度 3 链）");
@@ -1089,7 +1276,11 @@ mod tests {
         // m（@4 spawn）= 1000×1/4.5 = 222.2…；m2 = 222.2×0.5/4.5 = 24.69…
         let m = 1000.0 * 1.0 / 4.5;
         let m2 = m * 0.5 / 4.5;
-        assert!((gc.shares - m2).abs() < 1e-9, "孙配额 m2={m2} got={}", gc.shares);
+        assert!(
+            (gc.shares - m2).abs() < 1e-9,
+            "孙配额 m2={m2} got={}",
+            gc.shares
+        );
     }
 
     #[test]
@@ -1115,7 +1306,10 @@ mod tests {
             "池磨穿后 earning 增仓应发生：units={}",
             r.nrf_earning_units
         );
-        assert!(r.n_nrf_earning_adds_by_ladder[4] > 0, "增仓发生在根层（买点时机）");
+        assert!(
+            r.n_nrf_earning_adds_by_ladder[4] > 0,
+            "增仓发生在根层（买点时机）"
+        );
         // 守恒：引擎内部 §8.1 检查未 Err 即重定基一致。
         assert!(r.final_nav > 100_000.0, "50 轮短差利润沉淀 NAV 上升");
     }
@@ -1126,10 +1320,26 @@ mod tests {
         let mut bars = warmup34();
         warmup2(&mut bars);
         bars.push(buypt(bar(100.0), 4)); // 1000 股 @100
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
-        bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, true, 0.0, None))); // 子空 m@104
-        bars.push(with_ev(bar(98.0), 3, ev_full(BspClass::Buy1, false, 97.0, None)));
-        bars.push(with_ev(bar(97.0), 2, ev_full(BspClass::Buy1, true, 0.0, None))); // 孙多 m2@97
+        bars.push(with_ev(
+            bar(105.0),
+            4,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        ));
+        bars.push(with_ev(
+            bar(104.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // 子空 m@104
+        bars.push(with_ev(
+            bar(98.0),
+            3,
+            ev_full(BspClass::Buy1, false, 97.0, None),
+        ));
+        bars.push(with_ev(
+            bar(97.0),
+            2,
+            ev_full(BspClass::Buy1, true, 0.0, None),
+        )); // 孙多 m2@97
         bars.push(sellpt(bar(99.0), 2)); // 孙走势完美 ⇒ 平孙回流子 capital
         bars.push(buypt(bar(95.0), 3)); // 子走势完美 ⇒ 回补，父回满
         bars.push(bar(95.0));
@@ -1141,9 +1351,16 @@ mod tests {
         // eod NAV = (1000−m+m)×95… 根回满 1000 股×95 + 利润现金。
         let profit = m * (104.0 - 95.0) + m2 * (99.0 - 97.0);
         let expect = 1000.0 * 95.0 + profit;
-        assert!((r.final_nav - expect).abs() < 1e-6, "final={} expect={expect}", r.final_nav);
-        let rec_rows: Vec<_> =
-            r.trades.iter().filter(|t| t.exit_reason == "recover").collect();
+        assert!(
+            (r.final_nav - expect).abs() < 1e-6,
+            "final={} expect={expect}",
+            r.final_nav
+        );
+        let rec_rows: Vec<_> = r
+            .trades
+            .iter()
+            .filter(|t| t.exit_reason == "recover")
+            .collect();
         assert_eq!(rec_rows.len(), 2, "孙、子各一次走势完美回补");
     }
 }

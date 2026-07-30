@@ -135,7 +135,11 @@ pub fn recog_chanlun_buy(e: &BuyEndpoint) -> BuyDecision {
     if e.broke_center && e.is_divergence {
         // 第24课 / §10.1 第一类买点：跌破中枢 + 底背驰 ⟹ 建根仓（Lean :152-154，无 side 检查）。
         BuyDecision::OpenRoot
-    } else if e.side == Side::Long && e.left_center && e.first_retrace && e.center_zg < e.retrace_price {
+    } else if e.side == Side::Long
+        && e.left_center
+        && e.first_retrace
+        && e.center_zg < e.retrace_price
+    {
         // §10.1 第三类买点：离开中枢 + 第一次回抽 + 不破 ZG ⟹ 增核（Lean :155-158）。
         BuyDecision::AccreteCore
     } else {
@@ -160,9 +164,9 @@ pub fn recog_chanlun_buy(e: &BuyEndpoint) -> BuyDecision {
 /// still-MISSING，不硬塞进单账本买侧）。
 pub fn buy_decision_ledger_delta(d: BuyDecision) -> (i64, i64, i64) {
     match d {
-        BuyDecision::OpenRoot => (0, 1, 0),    // 建根仓：allocate A+1（Lean :257）
+        BuyDecision::OpenRoot => (0, 1, 0), // 建根仓：allocate A+1（Lean :257）
         BuyDecision::AccreteCore => (0, 2, 0), // 增核：allocate A+2（≠ 建根仓，非退化，Lean :258）
-        BuyDecision::Hold => (0, 0, 0),        // 保持：noop（Lean :259）
+        BuyDecision::Hold => (0, 0, 0),     // 保持：noop（Lean :259）
     }
 }
 
@@ -214,8 +218,8 @@ pub fn buy_transition(x: &AssemblyState, e: &BuyEndpoint) -> AssemblyState {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::super::strategy::ledger::LedgerComp;
+    use super::*;
 
     /// 第一类买点见证（port Lean `eventType1`，ThetaInstantiation.lean:358-369）：破中枢 + 底背驰。
     ///
@@ -224,12 +228,12 @@ mod tests {
     fn sample_type1_buy() -> BuyEndpoint {
         BuyEndpoint {
             side: Side::Long,
-            broke_center: true,    // Lean eventType1.bsp.brokeCenter = true
-            is_divergence: true,   // Lean IsDivergence{forceA:=8, forceC:=2} = (2 < 8) = true
-            left_center: false,    // Lean eventType1.bsp.leftCenter = false
-            first_retrace: false,  // Lean eventType1.bsp.firstRetrace = false
-            retrace_price: 5,      // Lean eventType1.bsp.retracePrice = 5
-            center_zg: 20,         // Lean witnessCenter.zg = 20（5<20 ⟹ 不满足第三类「zg<retrace」）
+            broke_center: true,   // Lean eventType1.bsp.brokeCenter = true
+            is_divergence: true,  // Lean IsDivergence{forceA:=8, forceC:=2} = (2 < 8) = true
+            left_center: false,   // Lean eventType1.bsp.leftCenter = false
+            first_retrace: false, // Lean eventType1.bsp.firstRetrace = false
+            retrace_price: 5,     // Lean eventType1.bsp.retracePrice = 5
+            center_zg: 20,        // Lean witnessCenter.zg = 20（5<20 ⟹ 不满足第三类「zg<retrace」）
         }
     }
 
@@ -240,12 +244,12 @@ mod tests {
     fn sample_type3_buy() -> BuyEndpoint {
         BuyEndpoint {
             side: Side::Long,
-            broke_center: false,   // Lean eventType3.bsp.brokeCenter = false（未破中枢，区别第一类）
-            is_divergence: false,  // Lean eventType3.bsp.divPair 力度延续（forceA=3,forceC=3 ⟹ 非背驰）
-            left_center: true,     // Lean eventType3.bsp.leftCenter = true
-            first_retrace: true,   // Lean eventType3.bsp.firstRetrace = true
-            retrace_price: 25,     // Lean eventType3.bsp.retracePrice = 25（25 > zg=20 ⟹ 不破 ZG）
-            center_zg: 20,         // Lean witnessCenter.zg = 20
+            broke_center: false, // Lean eventType3.bsp.brokeCenter = false（未破中枢，区别第一类）
+            is_divergence: false, // Lean eventType3.bsp.divPair 力度延续（forceA=3,forceC=3 ⟹ 非背驰）
+            left_center: true,    // Lean eventType3.bsp.leftCenter = true
+            first_retrace: true,  // Lean eventType3.bsp.firstRetrace = true
+            retrace_price: 25,    // Lean eventType3.bsp.retracePrice = 25（25 > zg=20 ⟹ 不破 ZG）
+            center_zg: 20,        // Lean witnessCenter.zg = 20
         }
     }
 
@@ -256,11 +260,20 @@ mod tests {
     fn type1_buy_judgment() {
         assert!(is_type1_buy(&sample_type1_buy()));
         // 未破中枢 ⟹ 非第一类买点（破中枢是第一类必要前件，Lean :152）。
-        let no_break = BuyEndpoint { broke_center: false, ..sample_type1_buy() };
+        let no_break = BuyEndpoint {
+            broke_center: false,
+            ..sample_type1_buy()
+        };
         assert!(!is_type1_buy(&no_break));
         // ★忠实 Lean :152 无 side 检查：side=Short 仍满足第一类（破中枢+背驰）。
-        let short_side = BuyEndpoint { side: Side::Short, ..sample_type1_buy() };
-        assert!(is_type1_buy(&short_side), "Lean :152 第一类不检查 side（底背驰共用力度序判据）");
+        let short_side = BuyEndpoint {
+            side: Side::Short,
+            ..sample_type1_buy()
+        };
+        assert!(
+            is_type1_buy(&short_side),
+            "Lean :152 第一类不检查 side（底背驰共用力度序判据）"
+        );
     }
 
     /// sampleType3Buy 满足第三类买点判据（Lean `eventType3_isType3Buy` :394）。
@@ -268,10 +281,16 @@ mod tests {
     fn type3_buy_judgment() {
         assert!(is_type3_buy(&sample_type3_buy()));
         // 破 ZG（retrace <= zg）⟹ 非第三类买点（不破 ZG 是第三类位置前件，Lean :156）。
-        let break_zg = BuyEndpoint { retrace_price: 15, ..sample_type3_buy() };
+        let break_zg = BuyEndpoint {
+            retrace_price: 15,
+            ..sample_type3_buy()
+        };
         assert!(!is_type3_buy(&break_zg), "破 ZG 重入中枢 ⟹ 非第三类买点");
         // 非 long ⟹ 非第三类买点（Lean :155 检查 side=long）。
-        let short_side = BuyEndpoint { side: Side::Short, ..sample_type3_buy() };
+        let short_side = BuyEndpoint {
+            side: Side::Short,
+            ..sample_type3_buy()
+        };
         assert!(!is_type3_buy(&short_side), "Lean :155 第三类检查 side=long");
     }
 
@@ -280,13 +299,19 @@ mod tests {
     /// recog 真消费第一类买点判据（Lean `eventType1_recog_openRoot` :398）。
     #[test]
     fn recog_type1_open_root() {
-        assert_eq!(recog_chanlun_buy(&sample_type1_buy()), BuyDecision::OpenRoot);
+        assert_eq!(
+            recog_chanlun_buy(&sample_type1_buy()),
+            BuyDecision::OpenRoot
+        );
     }
 
     /// recog 真消费第三类买点判据（Lean `eventType3_recog_accreteCore` :402）。
     #[test]
     fn recog_type3_accrete_core() {
-        assert_eq!(recog_chanlun_buy(&sample_type3_buy()), BuyDecision::AccreteCore);
+        assert_eq!(
+            recog_chanlun_buy(&sample_type3_buy()),
+            BuyDecision::AccreteCore
+        );
     }
 
     /// recog 力度延续 → hold（Lean `recog_continuation_hold` :199）：非背驰 ∧ 未离开中枢 ⟹ hold。
@@ -314,14 +339,20 @@ mod tests {
                         for fr in [false, true] {
                             for rp in [5i64, 25] {
                                 let e = BuyEndpoint {
-                                    side, broke_center: bc, is_divergence: div,
-                                    left_center: lc, first_retrace: fr,
-                                    retrace_price: rp, center_zg: 20,
+                                    side,
+                                    broke_center: bc,
+                                    is_divergence: div,
+                                    left_center: lc,
+                                    first_retrace: fr,
+                                    retrace_price: rp,
+                                    center_zg: 20,
                                 };
                                 let d = recog_chanlun_buy(&e);
                                 assert!(matches!(
                                     d,
-                                    BuyDecision::OpenRoot | BuyDecision::AccreteCore | BuyDecision::Hold
+                                    BuyDecision::OpenRoot
+                                        | BuyDecision::AccreteCore
+                                        | BuyDecision::Hold
                                 ));
                             }
                         }
@@ -336,14 +367,18 @@ mod tests {
     fn recog_type1_priority_over_type3() {
         let both = BuyEndpoint {
             side: Side::Long,
-            broke_center: true,   // 第一类前提
-            is_divergence: true,  // 第一类前提
-            left_center: true,    // 第三类前提
-            first_retrace: true,  // 第三类前提
-            retrace_price: 25,    // > zg ⟹ 第三类前提
+            broke_center: true,  // 第一类前提
+            is_divergence: true, // 第一类前提
+            left_center: true,   // 第三类前提
+            first_retrace: true, // 第三类前提
+            retrace_price: 25,   // > zg ⟹ 第三类前提
             center_zg: 20,
         };
-        assert_eq!(recog_chanlun_buy(&both), BuyDecision::OpenRoot, "第一类优先（Lean :151 分支序）");
+        assert_eq!(
+            recog_chanlun_buy(&both),
+            BuyDecision::OpenRoot,
+            "第一类优先（Lean :151 分支序）"
+        );
     }
 
     // ── 买侧 ledger delta（port ThetaInstantiation decisionLedgerDelta :256）─────────
@@ -352,7 +387,10 @@ mod tests {
     #[test]
     fn buy_ledger_delta_bit_exact() {
         assert_eq!(buy_decision_ledger_delta(BuyDecision::OpenRoot), (0, 1, 0));
-        assert_eq!(buy_decision_ledger_delta(BuyDecision::AccreteCore), (0, 2, 0));
+        assert_eq!(
+            buy_decision_ledger_delta(BuyDecision::AccreteCore),
+            (0, 2, 0)
+        );
         assert_eq!(buy_decision_ledger_delta(BuyDecision::Hold), (0, 0, 0));
     }
 
@@ -364,7 +402,11 @@ mod tests {
         let x0 = AssemblyState::initial(1_000_000);
         for e in [sample_type1_buy(), sample_type3_buy()] {
             let x1 = buy_transition(&x0, &e);
-            assert!(x1.ledger_state.inv_holds(), "买侧闭环破坏 R=Π-A-W: {:?}", x1.ledger_state);
+            assert!(
+                x1.ledger_state.inv_holds(),
+                "买侧闭环破坏 R=Π-A-W: {:?}",
+                x1.ledger_state
+            );
         }
     }
 
@@ -372,20 +414,39 @@ mod tests {
     #[test]
     fn buy_transition_type1_allocates() {
         let x0 = AssemblyState {
-            ledger_state: LedgerComp { i0: 1_000_000, pi: 0, a: 5, w: 0, r: -5 },
+            ledger_state: LedgerComp {
+                i0: 1_000_000,
+                pi: 0,
+                a: 5,
+                w: 0,
+                r: -5,
+            },
             ..AssemblyState::initial(1_000_000)
         };
         let x1 = buy_transition(&x0, &sample_type1_buy());
-        assert_eq!(x1.ledger_state.a, x0.ledger_state.a + 1, "第一类建根仓 A+=1");
+        assert_eq!(
+            x1.ledger_state.a,
+            x0.ledger_state.a + 1,
+            "第一类建根仓 A+=1"
+        );
         // ★买侧 Π 不变（买入无实现损益，Lean openRoot dΠ=0）。
-        assert_eq!(x1.ledger_state.pi, x0.ledger_state.pi, "买侧第一类 Π 不变（dΠ=0）");
+        assert_eq!(
+            x1.ledger_state.pi, x0.ledger_state.pi,
+            "买侧第一类 Π 不变（dΠ=0）"
+        );
     }
 
     /// 第三类增核真改 A（Lean `chanlunTransition_type3_allocates` :331）：A = base + 2。
     #[test]
     fn buy_transition_type3_allocates() {
         let x0 = AssemblyState {
-            ledger_state: LedgerComp { i0: 1_000_000, pi: 0, a: 5, w: 0, r: -5 },
+            ledger_state: LedgerComp {
+                i0: 1_000_000,
+                pi: 0,
+                a: 5,
+                w: 0,
+                r: -5,
+            },
             ..AssemblyState::initial(1_000_000)
         };
         let x1 = buy_transition(&x0, &sample_type3_buy());
@@ -396,7 +457,13 @@ mod tests {
     #[test]
     fn buy_transition_distinguishes_classes() {
         let x0 = AssemblyState {
-            ledger_state: LedgerComp { i0: 1_000_000, pi: 0, a: 10, w: 0, r: -10 },
+            ledger_state: LedgerComp {
+                i0: 1_000_000,
+                pi: 0,
+                a: 10,
+                w: 0,
+                r: -10,
+            },
             ..AssemblyState::initial(1_000_000)
         };
         let a1 = buy_transition(&x0, &sample_type1_buy()).ledger_state.a; // base + 1
@@ -410,13 +477,24 @@ mod tests {
     #[test]
     fn buy_transition_hold_noop() {
         let x0 = AssemblyState {
-            ledger_state: LedgerComp { i0: 1_000_000, pi: 3, a: 5, w: 1, r: -3 },
+            ledger_state: LedgerComp {
+                i0: 1_000_000,
+                pi: 3,
+                a: 5,
+                w: 1,
+                r: -3,
+            },
             positions: 7,
             ..AssemblyState::initial(1_000_000)
         };
         let cont = BuyEndpoint {
-            side: Side::Long, broke_center: false, is_divergence: false,
-            left_center: false, first_retrace: false, retrace_price: 0, center_zg: 20,
+            side: Side::Long,
+            broke_center: false,
+            is_divergence: false,
+            left_center: false,
+            first_retrace: false,
+            retrace_price: 0,
+            center_zg: 20,
         };
         let x1 = buy_transition(&x0, &cont);
         assert_eq!(x1.ledger_state, x0.ledger_state, "hold 不改 ledger");

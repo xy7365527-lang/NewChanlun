@@ -226,16 +226,32 @@ mod tests {
     /// 构造覆盖区间 [start,end) 全整点、全激活正仓的样本序列（Eat 真例的活动流）。
     fn full_active_samples(start: usize, end: usize, units: u32) -> Vec<VoiceActivitySample> {
         (start..end)
-            .map(|t| VoiceActivitySample { index: t, active: true, units })
+            .map(|t| VoiceActivitySample {
+                index: t,
+                active: true,
+                units,
+            })
             .collect()
     }
 
     fn up_stroke(start: usize, end: usize) -> Stroke {
-        Stroke { direction: Direction::Up, start_index: start, end_index: end, start_price: 100, end_price: 200 }
+        Stroke {
+            direction: Direction::Up,
+            start_index: start,
+            end_index: end,
+            start_price: 100,
+            end_price: 200,
+        }
     }
 
     fn down_stroke(start: usize, end: usize) -> Stroke {
-        Stroke { direction: Direction::Down, start_index: start, end_index: end, start_price: 200, end_price: 100 }
+        Stroke {
+            direction: Direction::Down,
+            start_index: start,
+            end_index: end,
+            start_price: 200,
+            end_price: 100,
+        }
     }
 
     /// ★Eat 真例：向上笔 [3,6) + 多头声部 + 整区间逐时激活正仓 ⟹ Eat=true。
@@ -323,12 +339,18 @@ mod tests {
 
     // ── ∀e∈E WF-Contain 验证器（gap-B 数据层确证，MR2/§D）──────────────────
 
-    use super::super::recursive_tower::{compose_level, ElementId};
     use super::super::center::UnitRange;
     use super::super::descend::RMove;
+    use super::super::recursive_tower::{compose_level, ElementId};
 
     fn unit(start: usize, end: usize, dir: Direction, lo: i64, hi: i64) -> UnitRange {
-        UnitRange { start_index: start, end_index: end, direction: dir, lo, hi }
+        UnitRange {
+            start_index: start,
+            end_index: end,
+            direction: dir,
+            lo,
+            hi,
+        }
     }
 
     /// 构造真实多级塔（compose_level 滑窗，生产路径 `n`）：≥3 段 L0 线段 → 上级走势塔。
@@ -349,7 +371,15 @@ mod tests {
         let l0: Vec<LeveledMove> = units
             .iter()
             .enumerate()
-            .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
+            .map(|(i, u)| {
+                LeveledMove::from_unit(
+                    u,
+                    ElementId {
+                        level: 0,
+                        ordinal: i as u64,
+                    },
+                )
+            })
             .collect();
         let (_c, l1, _) = compose_level(&units, &l0, true, 1);
         vec![l0, l1]
@@ -362,7 +392,10 @@ mod tests {
         let tower = build_real_tower();
         let refs: Vec<&[LeveledMove]> = tower.iter().map(|v| v.as_slice()).collect();
         let report = verify_containment(&refs);
-        assert!(report.total_elements > 0, "塔须含上级走势（sub_moves 非空）");
+        assert!(
+            report.total_elements > 0,
+            "塔须含上级走势（sub_moves 非空）"
+        );
         assert_eq!(
             report.uncovered_elements, 0,
             "情况 A：par=host^struct 构成父 ⟹ WF-Contain 恒成立 ⟹ ∀e Eat(e) 数据层必要条件满足"
@@ -375,22 +408,39 @@ mod tests {
     fn verify_containment_catches_dependency_host_counterexample() {
         // 子 e=[2,8)，父 a=[0,5)：ρ_e=8 > ρ_a=5 违反 WF-Contain（依附 host，非构成父）。
         let child = LeveledMove {
-            rmove: RMove::Segment { direction: Direction::Up, lo: 0, hi: 1 },
+            rmove: RMove::Segment {
+                direction: Direction::Up,
+                lo: 0,
+                hi: 1,
+            },
             start_index: 2,
             end_index: 8,
             sub_moves: std::rc::Rc::new(Vec::new()),
-            id: ElementId { level: 0, ordinal: 0 },
+            id: ElementId {
+                level: 0,
+                ordinal: 0,
+            },
         };
         let parent = LeveledMove {
-            rmove: RMove::Segment { direction: Direction::Up, lo: 0, hi: 1 },
+            rmove: RMove::Segment {
+                direction: Direction::Up,
+                lo: 0,
+                hi: 1,
+            },
             start_index: 0,
             end_index: 5,
             sub_moves: std::rc::Rc::new(vec![child]),
-            id: ElementId { level: 1, ordinal: 0 },
+            id: ElementId {
+                level: 1,
+                ordinal: 0,
+            },
         };
         let level = vec![parent];
         let refs: Vec<&[LeveledMove]> = vec![level.as_slice()];
         let report = verify_containment(&refs);
-        assert_eq!(report.uncovered_elements, 1, "依附 host 反例须被验证器抓到（否则 verifier 是死代码）");
+        assert_eq!(
+            report.uncovered_elements, 1,
+            "依附 host 反例须被验证器抓到（否则 verifier 是死代码）"
+        );
     }
 }

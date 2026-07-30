@@ -22,10 +22,10 @@
 //!
 //! 跑法：`cargo test --release --lib theta_v0::backtest::l3_pi_probe -- --ignored --nocapture`
 
-use std::rc::Rc;
+use super::super::config::ThetaConfig;
 use super::data::{self, Dataset};
 use super::runner::run_theta_v0_pi;
-use super::super::config::ThetaConfig;
+use std::rc::Rc;
 
 /// NAV 与品种价量级匹配（首可交易价×1000，下限 1e6）——与 l3_fullwindow 同口径。
 fn nav_for(win: &Dataset, config: &ThetaConfig) -> f64 {
@@ -67,7 +67,9 @@ fn pi_probe_scaling_single_symbol() {
     };
     let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
     let avail = oos.bars.len();
-    eprintln!("\n===== Phase-1 pi substrate 探针：symbol={symbol} OOS=[2023-01-01,2025-06-30] =====");
+    eprintln!(
+        "\n===== Phase-1 pi substrate 探针：symbol={symbol} OOS=[2023-01-01,2025-06-30] ====="
+    );
     eprintln!("OOS 全窗可用 bar 数 = {avail}（全窗 O(n²) 外推目标）");
     eprintln!(
         "{:>8} {:>10} {:>9} {:>7} {:>7} {:>9} {:>12}",
@@ -154,7 +156,10 @@ fn pi_probe_scaling_single_symbol() {
     }
 
     // 探针不变量：至少跑通最小窗（管线在真实数据上不崩）。
-    assert!(!measured.is_empty(), "探针至少完成最小窗（pi 管线真实数据跑通）");
+    assert!(
+        !measured.is_empty(),
+        "探针至少完成最小窗（pi 管线真实数据跑通）"
+    );
     let (_, _, _, n_ord_min) = measured[0];
     eprintln!(
         "\n探针完成：{} 个尺度测点。最小窗 n_orders={n_ord_min}（>0 ⟹ pi 产订单流，L2 有输入）",
@@ -163,14 +168,21 @@ fn pi_probe_scaling_single_symbol() {
 }
 
 /// 单次全窗 classify（O(n) 单趟，非 per-bar O(n²)）的结构统计——塔层数 + 逐级 bsp/moves 计数。
-fn classify_structure_stats(win: &Dataset, config: &ThetaConfig) -> (usize, usize, usize, Vec<usize>) {
+fn classify_structure_stats(
+    win: &Dataset,
+    config: &ThetaConfig,
+) -> (usize, usize, usize, Vec<usize>) {
     use super::super::{classifier, parser};
     let l0 = parser::parse_layer(&win.bars, config);
     let (classification, tower) = classifier::classify_with_tower(&l0, config);
     let tower_depth = tower.len();
     let total_bsp: usize = classification.levels.iter().map(|lv| lv.bsp.len()).sum();
     let total_moves: usize = classification.levels.iter().map(|lv| lv.moves.len()).sum();
-    let per_level_bsp: Vec<usize> = classification.levels.iter().map(|lv| lv.bsp.len()).collect();
+    let per_level_bsp: Vec<usize> = classification
+        .levels
+        .iter()
+        .map(|lv| lv.bsp.len())
+        .collect();
     (tower_depth, total_bsp, total_moves, per_level_bsp)
 }
 
@@ -194,7 +206,10 @@ fn pi_probe_phase1_gate_structure() {
     eprintln!("\n========== Phase-1 GATE：(a)引擎空 vs (c)结构饥饿（path-1 O(n) 单趟）==========");
 
     /// 逐级 (centers, moves, bsp) + bsp 类别拆分（buy1/2/3, sell1/2/3）。
-    fn rich_stats(win: &Dataset, config: &ThetaConfig) -> (usize, Vec<(usize, usize, usize)>, [usize; 6]) {
+    fn rich_stats(
+        win: &Dataset,
+        config: &ThetaConfig,
+    ) -> (usize, Vec<(usize, usize, usize)>, [usize; 6]) {
         let l0 = parser::parse_layer(&win.bars, config);
         let (classification, tower) = classifier::classify_with_tower(&l0, config);
         let per: Vec<(usize, usize, usize)> = classification
@@ -204,15 +219,29 @@ fn pi_probe_phase1_gate_structure() {
             .collect();
         let mut cls = [0usize; 6]; // b1,b2,b3,s1,s2,s3
         let count = |b: &BspPoint, cls: &mut [usize; 6]| {
-            if b.bits.buy1 { cls[0] += 1; }
-            if b.bits.buy2 { cls[1] += 1; }
-            if b.bits.buy3 { cls[2] += 1; }
-            if b.bits.sell1 { cls[3] += 1; }
-            if b.bits.sell2 { cls[4] += 1; }
-            if b.bits.sell3 { cls[5] += 1; }
+            if b.bits.buy1 {
+                cls[0] += 1;
+            }
+            if b.bits.buy2 {
+                cls[1] += 1;
+            }
+            if b.bits.buy3 {
+                cls[2] += 1;
+            }
+            if b.bits.sell1 {
+                cls[3] += 1;
+            }
+            if b.bits.sell2 {
+                cls[4] += 1;
+            }
+            if b.bits.sell3 {
+                cls[5] += 1;
+            }
         };
         for lv in &classification.levels {
-            for b in lv.bsp.iter() { count(b, &mut cls); }
+            for b in lv.bsp.iter() {
+                count(b, &mut cls);
+            }
         }
         (tower.len(), per, cls)
     }
@@ -220,17 +249,32 @@ fn pi_probe_phase1_gate_structure() {
     let mut any_c = false;
     let mut verdicts: Vec<(String, usize, &'static str)> = Vec::new();
 
-    for (sym, oos_win) in [("CL", ("2023-01-01", "2025-06-30")), ("BTC", ("2023-01-01", "2025-06-30"))] {
+    for (sym, oos_win) in [
+        ("CL", ("2023-01-01", "2025-06-30")),
+        ("BTC", ("2023-01-01", "2025-06-30")),
+    ] {
         let ds = match data::load_by_symbol(sym, &config) {
             Ok(d) => d,
-            Err(e) => { eprintln!("{sym} 加载失败：{e}（跳过）"); continue; }
+            Err(e) => {
+                eprintln!("{sym} 加载失败：{e}（跳过）");
+                continue;
+            }
         };
         let oos = ds.slice_date_window(oos_win.0, oos_win.1);
         let avail = oos.bars.len();
-        eprintln!("\n----- {sym} OOS=[{},{}] 可用 {avail} bar -----", oos_win.0, oos_win.1);
-        eprintln!("{:>8} {:>6} {:>9} {:>9} {:>9} {:>9}  {}", "n_bars", "塔层", "tower_s", "Σcenters", "Σmoves", "Σbsp", "per_level(c,mv,bsp)");
+        eprintln!(
+            "\n----- {sym} OOS=[{},{}] 可用 {avail} bar -----",
+            oos_win.0, oos_win.1
+        );
+        eprintln!(
+            "{:>8} {:>6} {:>9} {:>9} {:>9} {:>9}  {}",
+            "n_bars", "塔层", "tower_s", "Σcenters", "Σmoves", "Σbsp", "per_level(c,mv,bsp)"
+        );
         for &n in &[4_000usize, 16_000, 64_000, 256_000] {
-            if n > avail { eprintln!("(n={n} > {avail}，停)"); break; }
+            if n > avail {
+                eprintln!("(n={n} > {avail}，停)");
+                break;
+            }
             let win = prefix(&oos, n);
             let t0 = std::time::Instant::now();
             let (depth, per, cls) = rich_stats(&win, &config);
@@ -239,11 +283,22 @@ fn pi_probe_phase1_gate_structure() {
             let sum_mv: usize = per.iter().map(|x| x.1).sum();
             let sum_bsp: usize = per.iter().map(|x| x.2).sum();
             eprintln!("{n:>8} {depth:>6} {dt:>8.2}s {sum_c:>9} {sum_mv:>9} {sum_bsp:>9}  {per:?}");
-            eprintln!("         bsp类别 b1={} b2={} b3={} s1={} s2={} s3={}", cls[0], cls[1], cls[2], cls[3], cls[4], cls[5]);
+            eprintln!(
+                "         bsp类别 b1={} b2={} b3={} s1={} s2={} s3={}",
+                cls[0], cls[1], cls[2], cls[3], cls[4], cls[5]
+            );
             // gate 判据：本窗 bsp>0 ∧ depth>=2 ⟹ (c) 候选（取最大窗的判定为准）。
-            let verdict = if sum_bsp > 0 && depth >= 2 { "(c)结构饥饿" } else if sum_bsp == 0 { "(a)bsp空" } else { "(a)单级塔" };
+            let verdict = if sum_bsp > 0 && depth >= 2 {
+                "(c)结构饥饿"
+            } else if sum_bsp == 0 {
+                "(a)bsp空"
+            } else {
+                "(a)单级塔"
+            };
             verdicts.push((format!("{sym}@{n}"), depth, verdict));
-            if sum_bsp > 0 && depth >= 2 { any_c = true; }
+            if sum_bsp > 0 && depth >= 2 {
+                any_c = true;
+            }
         }
     }
 
@@ -262,7 +317,10 @@ fn pi_probe_phase1_gate_structure() {
              （更深的分类器缺口，另立工位）。停。"
         }
     );
-    assert!(!verdicts.is_empty(), "GATE 探针至少完成一个品种一个窗（真实数据跑通）");
+    assert!(
+        !verdicts.is_empty(),
+        "GATE 探针至少完成一个品种一个窗（真实数据跑通）"
+    );
 }
 
 /// **★Phase-2 可行性探针：theta_v0 parse+classify 管线的「稳定前缀」性质实测**。
@@ -309,18 +367,26 @@ fn pi_probe_phase2_stable_prefix() {
     let sym = "CL";
     let ds = match data::load_by_symbol(sym, &config) {
         Ok(d) => d,
-        Err(e) => { eprintln!("DATA BLOCKER: {sym} 加载失败：{e}"); panic!("需真实数据"); }
+        Err(e) => {
+            eprintln!("DATA BLOCKER: {sym} 加载失败：{e}");
+            panic!("需真实数据");
+        }
     };
     let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
     // 中等窗逐步增长（每步 classify 单趟 O(cut)，cut≤24K 单趟亚秒；测稳定性不需大窗）。
     let cuts: Vec<usize> = (2_000..=24_000).step_by(2_000).collect();
-    eprintln!("{:>8} {:>8} {:>10} {:>10} {:>9} {:>10}", "cut", "n_bsp", "stable_si", "cut-stbl", "drift", "new_tail");
+    eprintln!(
+        "{:>8} {:>8} {:>10} {:>10} {:>9} {:>10}",
+        "cut", "n_bsp", "stable_si", "cut-stbl", "drift", "new_tail"
+    );
     let mut prev: Option<Vec<(u32, usize, BspBits)>> = None;
     let mut prev_cut = 0usize;
     let mut max_drift = 0usize;
     let mut max_margin = 0usize;
     for &cut in &cuts {
-        if cut > oos.bars.len() { break; }
+        if cut > oos.bars.len() {
+            break;
+        }
         let win = prefix(&oos, cut);
         let cur = flat_bsp(&win, &config);
         if let Some(p) = &prev {
@@ -343,9 +409,19 @@ fn pi_probe_phase2_stable_prefix() {
             let margin = cut.saturating_sub(stable_si);
             max_drift = max_drift.max(drift);
             max_margin = max_margin.max(margin);
-            eprintln!("{cut:>8} {:>8} {stable_si:>10} {margin:>10} {drift:>9} {new_tail:>10}", cur.len());
+            eprintln!(
+                "{cut:>8} {:>8} {stable_si:>10} {margin:>10} {drift:>9} {new_tail:>10}",
+                cur.len()
+            );
         } else {
-            eprintln!("{cut:>8} {:>8} {:>10} {:>10} {:>9} {:>10}", cur.len(), "—", "—", "—", "—");
+            eprintln!(
+                "{cut:>8} {:>8} {:>10} {:>10} {:>9} {:>10}",
+                cur.len(),
+                "—",
+                "—",
+                "—",
+                "—"
+            );
         }
         prev = Some(cur);
         prev_cut = cut;
@@ -384,9 +460,14 @@ fn pi_probe_phase2_candidate_starvation() {
     use super::super::types::BspBits;
 
     let config = ThetaConfig::default();
-    eprintln!("\n========== Phase-2 根因：bsp→订单转化（slice source_index==i 候选饥饿）==========");
+    eprintln!(
+        "\n========== Phase-2 根因：bsp→订单转化（slice source_index==i 候选饥饿）=========="
+    );
 
-    fn flat(win_bars: &[super::super::types::Bar], config: &ThetaConfig) -> Vec<(u32, usize, BspBits)> {
+    fn flat(
+        win_bars: &[super::super::types::Bar],
+        config: &ThetaConfig,
+    ) -> Vec<(u32, usize, BspBits)> {
         let l0 = parser::parse_layer(win_bars, config);
         let (cls, _) = classifier::classify_with_tower(&l0, config);
         let mut v = Vec::new();
@@ -401,7 +482,10 @@ fn pi_probe_phase2_candidate_starvation() {
     let sym = "CL";
     let ds = match data::load_by_symbol(sym, &config) {
         Ok(d) => d,
-        Err(e) => { eprintln!("DATA BLOCKER: {sym} {e}"); panic!("需真实数据"); }
+        Err(e) => {
+            eprintln!("DATA BLOCKER: {sym} {e}");
+            panic!("需真实数据");
+        }
     };
     let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
     let n: usize = 8_000.min(oos.bars.len());
@@ -409,11 +493,11 @@ fn pi_probe_phase2_candidate_starvation() {
     eprintln!("窗口 N={n}（O(N²) 逐 bar 前缀 classify，与 runner substrate 同口径）");
 
     let mut prev: Vec<(u32, usize, BspBits)> = Vec::new();
-    let mut sum_slice = 0usize;       // Σ_i bsp(source_index==i)（当前候选）
-    let mut sum_delta = 0usize;       // Σ_i 新确认 bsp（因果候选）
+    let mut sum_slice = 0usize; // Σ_i bsp(source_index==i)（当前候选）
+    let mut sum_delta = 0usize; // Σ_i 新确认 bsp（因果候选）
     let mut bars_with_slice = 0usize; // 有 source_index==i 候选的 bar 数
     let mut bars_with_delta = 0usize; // 有新确认候选的 bar 数
-    let mut lag_sum = 0u64;           // Σ (i − source_index) over delta bsp
+    let mut lag_sum = 0u64; // Σ (i − source_index) over delta bsp
     let mut lag_max = 0usize;
     let t0 = std::time::Instant::now();
     for i in 0..n {
@@ -421,8 +505,12 @@ fn pi_probe_phase2_candidate_starvation() {
         let slice_i = cur.iter().filter(|(_, si, _)| *si == i).count();
         // delta：cur 中不在 prev 的（level,source_index,bits）。
         let delta: Vec<_> = cur.iter().filter(|t| !prev.contains(*t)).collect();
-        if slice_i > 0 { bars_with_slice += 1; }
-        if !delta.is_empty() { bars_with_delta += 1; }
+        if slice_i > 0 {
+            bars_with_slice += 1;
+        }
+        if !delta.is_empty() {
+            bars_with_delta += 1;
+        }
         sum_slice += slice_i;
         sum_delta += delta.len();
         for (_, si, _) in &delta {
@@ -437,9 +525,14 @@ fn pi_probe_phase2_candidate_starvation() {
     eprintln!("\n----- 候选计数（窗口 N={n}，{dt:.1}s）-----");
     eprintln!("全窗 prefix-N bsp 总数         = {total_full}");
     eprintln!("Σ slice(source_index==i)       = {sum_slice}（{bars_with_slice} 个 bar 有候选）← 当前 substrate");
-    eprintln!("Σ delta(本步新确认 bsp)        = {sum_delta}（{bars_with_delta} 个 bar 有候选）← 因果候选");
+    eprintln!(
+        "Σ delta(本步新确认 bsp)        = {sum_delta}（{bars_with_delta} 个 bar 有候选）← 因果候选"
+    );
     if sum_delta > 0 {
-        eprintln!("delta 候选 lag(i−source_index)：mean={:.0} max={lag_max} bar（确认点落后信号点）", lag_sum as f64 / sum_delta as f64);
+        eprintln!(
+            "delta 候选 lag(i−source_index)：mean={:.0} max={lag_max} bar（确认点落后信号点）",
+            lag_sum as f64 / sum_delta as f64
+        );
     }
     eprintln!(
         "\n判读：{}",
@@ -474,42 +567,79 @@ fn pi_probe_phase2_candidate_starvation() {
 #[test]
 #[ignore = "Phase-2/3 解锁证明：delta vs slice 候选 → pi_theta_step n_orders；需 CL；--release O(N²) 12K"]
 fn pi_probe_delta_candidates_unlock_orders() {
-    use super::super::classifier::{self, bsp::BspPoint, LevelState, Classification};
+    use super::super::classifier::{self, bsp::BspPoint, Classification, LevelState};
     use super::super::parser;
     use super::super::strategy::coverage::{pi_theta_step, KThetaRiskGate, PiThetaWeights};
     use super::super::strategy::interp::ActiveLeg;
     use super::super::strategy::protocol::ProtocolEventSet;
 
     let config = ThetaConfig::default();
-    eprintln!("\n========== Phase-2/3 解锁证明：delta vs slice 候选 → pi_theta_step n_orders ==========");
+    eprintln!(
+        "\n========== Phase-2/3 解锁证明：delta vs slice 候选 → pi_theta_step n_orders =========="
+    );
 
     // slice 候选（**旧**口径，已被 runner::newly_confirmed_step 取代）：bsp where source_index==i，保级别结构。
     fn slice_step(cur: &Classification, i: usize) -> Classification {
         Classification {
-            levels: cur.levels.iter().map(|ls| LevelState {
-                moves: Vec::new(), centers: Rc::new(Vec::new()), cp_ownership: Rc::new(Vec::new()), pan_div: Rc::new(Vec::new()),
-                level_projection: None, // #110 门关口径
-                bsp: ls.bsp.iter().filter(|b| b.source_index == i).cloned().collect::<Vec<_>>().into(),
-            }).collect(),
+            levels: cur
+                .levels
+                .iter()
+                .map(|ls| LevelState {
+                    moves: Vec::new(),
+                    centers: Rc::new(Vec::new()),
+                    cp_ownership: Rc::new(Vec::new()),
+                    pan_div: Rc::new(Vec::new()),
+                    level_projection: None, // #110 门关口径
+                    bsp: ls
+                        .bsp
+                        .iter()
+                        .filter(|b| b.source_index == i)
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .into(),
+                })
+                .collect(),
         }
     }
     // delta 候选（本步新确认）：bsp ∈ cur ∖ prev（按级别 + BspPoint 相等），保级别结构。
     fn delta_step(cur: &Classification, prev: &Classification) -> Classification {
         Classification {
-            levels: cur.levels.iter().enumerate().map(|(lvl, ls)| {
-                let pb: &[BspPoint] = prev.levels.get(lvl).map(|p| p.bsp.as_slice()).unwrap_or(&[]);
-                LevelState {
-                    moves: Vec::new(), centers: Rc::new(Vec::new()), cp_ownership: Rc::new(Vec::new()), pan_div: Rc::new(Vec::new()),
-                    level_projection: None, // #110 门关口径
-                    bsp: ls.bsp.iter().filter(|b| !pb.contains(b)).cloned().collect::<Vec<_>>().into(),
-                }
-            }).collect(),
+            levels: cur
+                .levels
+                .iter()
+                .enumerate()
+                .map(|(lvl, ls)| {
+                    let pb: &[BspPoint] = prev
+                        .levels
+                        .get(lvl)
+                        .map(|p| p.bsp.as_slice())
+                        .unwrap_or(&[]);
+                    LevelState {
+                        moves: Vec::new(),
+                        centers: Rc::new(Vec::new()),
+                        cp_ownership: Rc::new(Vec::new()),
+                        pan_div: Rc::new(Vec::new()),
+                        level_projection: None, // #110 门关口径
+                        bsp: ls
+                            .bsp
+                            .iter()
+                            .filter(|b| !pb.contains(b))
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .into(),
+                    }
+                })
+                .collect(),
         }
     }
 
     let sym = "CL";
     let ds = match data::load_by_symbol(sym, &config) {
-        Ok(d) => d, Err(e) => { eprintln!("DATA BLOCKER: {sym} {e}"); panic!("需真实数据"); }
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("DATA BLOCKER: {sym} {e}");
+            panic!("需真实数据");
+        }
     };
     let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
     let n: usize = 12_000.min(oos.bars.len());
@@ -528,7 +658,9 @@ fn pi_probe_delta_candidates_unlock_orders() {
     for i in 0..n {
         let bar = &win.bars[i];
         let px = bar.close as f64 * config.tick.tick_size;
-        if bar.untradable || px <= 0.0 { continue; }
+        if bar.untradable || px <= 0.0 {
+            continue;
+        }
         let l0 = parser::parse_layer(&win.bars[..=i], &config);
         let (cur_full, tower_i) = classifier::classify_with_tower(&l0, &config);
         let base_units = nav / px;
@@ -537,29 +669,55 @@ fn pi_probe_delta_candidates_unlock_orders() {
         let s_step = slice_step(&cur_full, i);
         let s_reg = super::super::strategy::persistent::PersistentRegistry::new();
         let (s_next, _s_star_, (s_order, _)) = pi_theta_step(
-            &s_step, &tower_i, &slice_active, slice_pt, i, base_units,
-            &config.voice, &config.risk, weights, KThetaRiskGate::open(),
-            &ProtocolEventSet::hold(0), &s_reg,
+            &s_step,
+            &tower_i,
+            &slice_active,
+            slice_pt,
+            i,
+            base_units,
+            &config.voice,
+            &config.risk,
+            weights,
+            KThetaRiskGate::open(),
+            &ProtocolEventSet::hold(0),
+            &s_reg,
         );
-        if s_order.qty > 0 { slice_orders += 1; slice_pt = _s_star_; }
+        if s_order.qty > 0 {
+            slice_orders += 1;
+            slice_pt = _s_star_;
+        }
         slice_active = s_next;
 
         // 线程 B：delta 候选（本步新确认）。
         let d_step = delta_step(&cur_full, &prev_full);
         let d_reg = super::super::strategy::persistent::PersistentRegistry::new();
         let (d_next, d_star, (d_order, _)) = pi_theta_step(
-            &d_step, &tower_i, &delta_active, delta_pt, i, base_units,
-            &config.voice, &config.risk, weights, KThetaRiskGate::open(),
-            &ProtocolEventSet::hold(0), &d_reg,
+            &d_step,
+            &tower_i,
+            &delta_active,
+            delta_pt,
+            i,
+            base_units,
+            &config.voice,
+            &config.risk,
+            weights,
+            KThetaRiskGate::open(),
+            &ProtocolEventSet::hold(0),
+            &d_reg,
         );
-        if d_order.qty > 0 { delta_orders += 1; delta_pt = d_star; }
+        if d_order.qty > 0 {
+            delta_orders += 1;
+            delta_pt = d_star;
+        }
         delta_active = d_next;
 
         prev_full = cur_full;
     }
     let dt = t0.elapsed().as_secs_f64();
     eprintln!("\n----- n_orders 对比（窗口 N={n}，{dt:.1}s）-----");
-    eprintln!("slice(source_index==i) 候选 → n_orders = {slice_orders}  ← 当前 substrate（编排者实测 0）");
+    eprintln!(
+        "slice(source_index==i) 候选 → n_orders = {slice_orders}  ← 当前 substrate（编排者实测 0）"
+    );
     eprintln!("delta(本步新确认 bsp)   候选 → n_orders = {delta_orders}  ← 候选坐标修复");
     eprintln!(
         "\n判读：{}",
@@ -591,7 +749,10 @@ fn pi_production_orders_at_64k() {
     let config = ThetaConfig::default();
     let ds = match data::load_by_symbol("CL", &config) {
         Ok(d) => d,
-        Err(e) => { eprintln!("DATA BLOCKER: CL {e}"); panic!("需真实数据"); }
+        Err(e) => {
+            eprintln!("DATA BLOCKER: CL {e}");
+            panic!("需真实数据");
+        }
     };
     let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
     let n = 65_536.min(oos.bars.len());
@@ -604,7 +765,10 @@ fn pi_production_orders_at_64k() {
     let real = res.trades.iter().filter(|t| !t.forced_close).count();
     eprintln!(
         "N={n} wall={dt:.1}s n_orders={} trades={} real_trades={} is_l2={}",
-        res.n_orders, res.trades.len(), real, res.is_l2
+        res.n_orders,
+        res.trades.len(),
+        real,
+        res.is_l2
     );
     eprintln!(
         "判读：{}",
@@ -614,7 +778,11 @@ fn pi_production_orders_at_64k() {
             "n_orders=0——确认-bar 部署未解锁（与 16K 8617 单矛盾，检查窗口/坐标）。"
         }
     );
-    assert!(res.n_orders > 0, "硬指标：≥64K n_orders>0（实得 {}）", res.n_orders);
+    assert!(
+        res.n_orders > 0,
+        "硬指标：≥64K n_orders>0（实得 {}）",
+        res.n_orders
+    );
 }
 
 /// **★Phase-1 诊断探针：区分 (a) 硬工程断流 vs (c) 结构饥饿**（zero-orders 根因定位）。
@@ -634,15 +802,26 @@ fn pi_probe_zero_orders_root_cause() {
 
     // ── 路 1：单次全窗 classify 结构统计（O(n)，可行到大窗）──
     eprintln!("\n----- 路1：单趟全窗 classify_with_tower 结构（O(n) 单趟）-----");
-    eprintln!("{:>8} {:>6} {:>11} {:>9} {:>11}  {}", "n_bars", "塔层", "tower_s", "total_bsp", "total_mv", "per_level_bsp");
-    for (sym, oos_win) in [("CL", ("2023-01-01", "2025-06-30")), ("BTC", ("2023-01-01", "2025-06-30"))] {
+    eprintln!(
+        "{:>8} {:>6} {:>11} {:>9} {:>11}  {}",
+        "n_bars", "塔层", "tower_s", "total_bsp", "total_mv", "per_level_bsp"
+    );
+    for (sym, oos_win) in [
+        ("CL", ("2023-01-01", "2025-06-30")),
+        ("BTC", ("2023-01-01", "2025-06-30")),
+    ] {
         let ds = match data::load_by_symbol(sym, &config) {
             Ok(d) => d,
-            Err(e) => { eprintln!("{sym} 加载失败：{e}"); continue; }
+            Err(e) => {
+                eprintln!("{sym} 加载失败：{e}");
+                continue;
+            }
         };
         let oos = ds.slice_date_window(oos_win.0, oos_win.1);
         for &n in &[16_000usize, 64_000, 256_000] {
-            if n > oos.bars.len() { continue; }
+            if n > oos.bars.len() {
+                continue;
+            }
             let win = prefix(&oos, n);
             let t0 = std::time::Instant::now();
             let (depth, bsp, mv, per) = classify_structure_stats(&win, &config);
@@ -653,16 +832,27 @@ fn pi_probe_zero_orders_root_cause() {
 
     // ── 路 2：per-bar pi 在可行边缘测 n_orders 是否曾非零（多品种）──
     eprintln!("\n----- 路2：per-bar pi n_orders 可行边缘（O(n²)，单窗预算内）-----");
-    eprintln!("{:>4} {:>8} {:>9} {:>7} {:>9}", "sym", "n_bars", "wall_s", "n_ord", "real_trd");
+    eprintln!(
+        "{:>4} {:>8} {:>9} {:>7} {:>9}",
+        "sym", "n_bars", "wall_s", "n_ord", "real_trd"
+    );
     const EDGE_BUDGET_S: f64 = 300.0;
-    for (sym, oos_win) in [("CL", ("2023-01-01", "2025-06-30")), ("BTC", ("2023-01-01", "2025-06-30"))] {
+    for (sym, oos_win) in [
+        ("CL", ("2023-01-01", "2025-06-30")),
+        ("BTC", ("2023-01-01", "2025-06-30")),
+    ] {
         let ds = match data::load_by_symbol(sym, &config) {
             Ok(d) => d,
-            Err(e) => { eprintln!("{sym} 加载失败：{e}"); continue; }
+            Err(e) => {
+                eprintln!("{sym} 加载失败：{e}");
+                continue;
+            }
         };
         let oos = ds.slice_date_window(oos_win.0, oos_win.1);
         for &n in &[32_000usize, 64_000] {
-            if n > oos.bars.len() { continue; }
+            if n > oos.bars.len() {
+                continue;
+            }
             let win = prefix(&oos, n);
             let nav = nav_for(&win, &config);
             let t0 = std::time::Instant::now();
@@ -670,7 +860,10 @@ fn pi_probe_zero_orders_root_cause() {
             let dt = t0.elapsed().as_secs_f64();
             let n_real = res.trades.iter().filter(|t| !t.forced_close).count();
             eprintln!("{sym:<4} {n:>8} {dt:>8.1}s {:>7} {n_real:>9}", res.n_orders);
-            if dt > EDGE_BUDGET_S { eprintln!("({sym} n={n} {dt:.0}s>预算，停)"); break; }
+            if dt > EDGE_BUDGET_S {
+                eprintln!("({sym} n={n} {dt:.0}s>预算，停)");
+                break;
+            }
         }
     }
     eprintln!(

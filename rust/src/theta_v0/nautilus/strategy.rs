@@ -150,8 +150,13 @@ impl ThetaCore {
         // interpret 规则2 已消费的反向触发（close 决策携入场快照 bsp，非当 bar 信号）与
         // ReverseOpen 子决策的反父 bits 均不入池（M13：父仓穿越次级反向信号持有，短差由子腿
         // 承担，非父平仓触发）——与 runner 双账路径（plan_and_fill_mtm_dual）同口径。
-        self.groups
-            .push(decisions.iter().filter(|d| !d.exit && d.depth == 0).copied().collect());
+        self.groups.push(
+            decisions
+                .iter()
+                .filter(|d| !d.exit && d.depth == 0)
+                .copied()
+                .collect(),
+        );
 
         let mut intents: Vec<OrderIntent> = Vec::new();
 
@@ -175,9 +180,15 @@ impl ThetaCore {
             }
             // ★关⑤：parent_invalid 实义化（父槽空仓 ∨ 父 exit_pending，exit.rs:121 恒假占位消除）。
             let parent_invalid = parent_invalid_at(&self.held, depth);
-            if let Some(exit_d) =
-                exit_decision_for_nested(&hv, depth, &self.bars[i], i, &groups_view, equity_now, parent_invalid)
-            {
+            if let Some(exit_d) = exit_decision_for_nested(
+                &hv,
+                depth,
+                &self.bars[i],
+                i,
+                &groups_view,
+                equity_now,
+                parent_invalid,
+            ) {
                 // ★关⑤级联发射（M16 AncOK 父关则子关，最深优先）：父退出 ⟹ 全部更深
                 // held 强制退出（pending 槽跳过，fill 前抑制）。
                 // ★#183 T4 归一：生产级联归一到镜像函数（held 槽压缩链投影 → subtree_close；
@@ -209,7 +220,10 @@ impl ThetaCore {
         for o in &open_orders {
             // 开仓订单（Buy/Sell/Add）⟹ 记台账（退出生成器读它）。按方向匹配决策回找
             // depth/止损源（与 runner `matched` 同逻辑——decisions↔orders 非一一，按方向 + depth 配）。
-            if matches!(o.action, StrictAction::Buy | StrictAction::Sell | StrictAction::Add) {
+            if matches!(
+                o.action,
+                StrictAction::Buy | StrictAction::Sell | StrictAction::Add
+            ) {
                 if let Some(d) = decisions.iter().find(|d| {
                     let side = voice::voice_side(d.root_side, d.depth);
                     matches!(
@@ -221,8 +235,7 @@ impl ThetaCore {
                     record_held_voice(&mut self.held, d);
                 }
             }
-            if let Some(intent) =
-                order_adapter::to_order_intent(o, pos_dir, self.entry_tick_for(o))
+            if let Some(intent) = order_adapter::to_order_intent(o, pos_dir, self.entry_tick_for(o))
             {
                 intents.push(intent);
             }
@@ -325,7 +338,12 @@ mod tests {
     }
 
     fn flat_snap() -> PortfolioSnapshot {
-        PortfolioSnapshot { nav: 1_000_000.0, net_position: 0.0, realized_pnl: 0.0, unrealized_pnl: 0.0 }
+        PortfolioSnapshot {
+            nav: 1_000_000.0,
+            net_position: 0.0,
+            realized_pnl: 0.0,
+            unrealized_pnl: 0.0,
+        }
     }
 
     /// L0 骨架退化验证：无结构 bar 序列 ⟹ 空下单意图（对齐 runner 诚实退化）。
@@ -341,7 +359,10 @@ mod tests {
         for i in 0..50 {
             intents = core.plan_for_bar(mk_bar(i, 1000 + i as i64), &snap);
         }
-        assert!(intents.is_empty(), "单调数据无结构 ⟹ 空下单意图（诚实退化，非缺陷）");
+        assert!(
+            intents.is_empty(),
+            "单调数据无结构 ⟹ 空下单意图（诚实退化，非缺陷）"
+        );
         assert_eq!(core.bars.len(), 50, "bar 窗口累积到 50");
     }
 
@@ -388,8 +409,15 @@ mod tests {
 
             let l0 = parser::parse_layer(&core.bars, &config);
             let (legacy_cls, legacy_tower) = classifier::classify_with_tower(&l0, &config);
-            assert_eq!(owned_cls, legacy_cls, "bar {i}: plan_for_bar 内部增量分类 != legacy 全量");
-            assert_eq!(owned_tower.len(), legacy_tower.len(), "bar {i}: tower 层数不同");
+            assert_eq!(
+                owned_cls, legacy_cls,
+                "bar {i}: plan_for_bar 内部增量分类 != legacy 全量"
+            );
+            assert_eq!(
+                owned_tower.len(),
+                legacy_tower.len(),
+                "bar {i}: tower 层数不同"
+            );
             for (lvl, (ol, ll)) in owned_tower.iter().zip(legacy_tower.iter()).enumerate() {
                 assert_eq!(ol, ll, "bar {i} lvl {lvl}: LeveledMove 不同");
             }
@@ -416,7 +444,12 @@ mod tests {
 
     /// 持多 snap（net_position>0 ⟹ portfolio 持多，voice_qty[0]>0）。
     fn long_snap(nav: f64, qty: f64) -> PortfolioSnapshot {
-        PortfolioSnapshot { nav, net_position: qty, realized_pnl: 0.0, unrealized_pnl: 0.0 }
+        PortfolioSnapshot {
+            nav,
+            net_position: qty,
+            realized_pnl: 0.0,
+            unrealized_pnl: 0.0,
+        }
     }
 
     /// 入场决策快照（depth 0 做多根 1 买，止损 pivot/center 源 → structural_stop 算 hv.stop）。
@@ -426,12 +459,22 @@ mod tests {
             root_side: VoiceSide::Long,
             exit: false,
             enter_ok: true,
-            bsp: BspBits { buy1: true, ..Default::default() },
+            bsp: BspBits {
+                buy1: true,
+                ..Default::default()
+            },
             signal_index,
             stop_in: StopInput {
                 pivot_low: 950,
                 pivot_high: 1100,
-                center: Center { zd: 1000, zg: 1080, dd: 940, gg: 1090, start_index: 0, end_index: 5 },
+                center: Center {
+                    zd: 1000,
+                    zg: 1080,
+                    dd: 940,
+                    gg: 1090,
+                    start_index: 0,
+                    end_index: 5,
+                },
             },
             entry: 1000,
             cost_per_unit: 0.0,
@@ -480,9 +523,9 @@ mod tests {
         };
         core.bars.push(stop_bar);
         core.groups.push(Vec::new()); // bar 0 无开仓决策（手动注入台账，非 recog 路径）
-        // ★#346 MED-2 锁步护栏：手动 push bar 0 到 self.bars 时须同步喂分类器（生产路径每根
-        // bar 恒过 recognize_current→append_bar，手动注入台账不是绕过分类器的理由——分类器
-        // 内部 bar_count 与 self.bars.len() 一旦失配，护栏在下一次 plan_for_bar 必炸）。
+                                      // ★#346 MED-2 锁步护栏：手动 push bar 0 到 self.bars 时须同步喂分类器（生产路径每根
+                                      // bar 恒过 recognize_current→append_bar，手动注入台账不是绕过分类器的理由——分类器
+                                      // 内部 bar_count 与 self.bars.len() 一旦失配，护栏在下一次 plan_for_bar 必炸）。
         core.classifier.append_bar(stop_bar);
         core.held[0] = Some(HeldVoice {
             side: VoiceSide::Long,
@@ -541,8 +584,14 @@ mod tests {
             exit_pending: true, // 已 pending
         });
         let stop_bar = Bar {
-            source_index: 1, timestamp: 1, open: 900, high: 905, low: 890, close: 895,
-            volume: 100, untradable: false,
+            source_index: 1,
+            timestamp: 1,
+            open: 900,
+            high: 905,
+            low: 890,
+            close: 895,
+            volume: 100,
+            untradable: false,
         };
         let intents = core.plan_for_bar(stop_bar, &snap);
         assert!(

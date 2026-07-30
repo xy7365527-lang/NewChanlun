@@ -71,12 +71,14 @@ pub(crate) fn load_clean_ohlc(path: &PathBuf) -> (Vec<f64>, Vec<f64>, Vec<f64>, 
         .replace("-Infinity", "null")
         .replace("Infinity", "null")
         .replace("NaN", "null");
-    let raw: RawData = serde_json::from_str(&text).unwrap_or_else(|e| panic!("解析 {path:?} 失败: {e}"));
+    let raw: RawData =
+        serde_json::from_str(&text).unwrap_or_else(|e| panic!("解析 {path:?} 失败: {e}"));
     drop(text);
 
     let nan = f64::NAN;
     // 统一为 parallel-array（bars-schema 拆列）；None（缺失 / NaN / Inf）→ NaN，下方清洗删除。
-    let (o_in, h_in, l_in, c_in): (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) = if !raw.bars.is_empty() {
+    let (o_in, h_in, l_in, c_in): (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) = if !raw.bars.is_empty()
+    {
         (
             raw.bars.iter().map(|b| b.open.unwrap_or(nan)).collect(),
             raw.bars.iter().map(|b| b.high.unwrap_or(nan)).collect(),
@@ -121,7 +123,11 @@ pub(crate) fn load_clean_ohlc(path: &PathBuf) -> (Vec<f64>, Vec<f64>, Vec<f64>, 
     }
     if drop.iter().any(|&d| d) {
         let keep = |v: &[f64]| -> Vec<f64> {
-            v.iter().enumerate().filter(|(i, _)| !drop[*i]).map(|(_, &x)| x).collect()
+            v.iter()
+                .enumerate()
+                .filter(|(i, _)| !drop[*i])
+                .map(|(_, &x)| x)
+                .collect()
         };
         (keep(&o), keep(&h), keep(&l), keep(&c))
     } else {
@@ -146,7 +152,8 @@ pub(crate) fn load_clean_ohlc_window(
         .replace("-Infinity", "null")
         .replace("Infinity", "null")
         .replace("NaN", "null");
-    let raw: RawData = serde_json::from_str(&text).unwrap_or_else(|e| panic!("解析 {path:?} 失败: {e}"));
+    let raw: RawData =
+        serde_json::from_str(&text).unwrap_or_else(|e| panic!("解析 {path:?} 失败: {e}"));
     drop(text);
     assert!(
         raw.bars.is_empty(),
@@ -156,10 +163,17 @@ pub(crate) fn load_clean_ohlc_window(
         !raw.dates.is_empty(),
         "load_clean_ohlc_window 需要 dates 列做时间窗切片（{path:?} 无 dates）"
     );
-    assert!(day_start <= day_end, "窗口非法：day_start `{day_start}` > day_end `{day_end}`");
+    assert!(
+        day_start <= day_end,
+        "窗口非法：day_start `{day_start}` > day_end `{day_end}`"
+    );
     let nan = f64::NAN;
     let n_raw = raw.closes.len();
-    assert_eq!(raw.dates.len(), n_raw, "{path:?} dates 与 closes 长度不一致");
+    assert_eq!(
+        raw.dates.len(),
+        n_raw,
+        "{path:?} dates 与 closes 长度不一致"
+    );
 
     // 切片（清洗前，按原始 index）：dates 日部分落入 [day_start, day_end] 闭区间。
     let mut o = Vec::new();
@@ -202,7 +216,11 @@ pub(crate) fn load_clean_ohlc_window(
     }
     if drop.iter().any(|&d| d) {
         let keep = |v: &[f64]| -> Vec<f64> {
-            v.iter().enumerate().filter(|(i, _)| !drop[*i]).map(|(_, &x)| x).collect()
+            v.iter()
+                .enumerate()
+                .filter(|(i, _)| !drop[*i])
+                .map(|(_, &x)| x)
+                .collect()
         };
         (keep(&o), keep(&h), keep(&l), keep(&c))
     } else {
@@ -217,9 +235,15 @@ pub(crate) fn load_clean_ohlc_window(
 fn iso_day_to_unix_ns(day: &str) -> i64 {
     let parts: Vec<&str> = day.split('-').collect();
     assert_eq!(parts.len(), 3, "日期格式应为 YYYY-MM-DD，得 `{day}`");
-    let y: i64 = parts[0].parse().unwrap_or_else(|_| panic!("年解析失败 `{day}`"));
-    let m: i64 = parts[1].parse().unwrap_or_else(|_| panic!("月解析失败 `{day}`"));
-    let d: i64 = parts[2].parse().unwrap_or_else(|_| panic!("日解析失败 `{day}`"));
+    let y: i64 = parts[0]
+        .parse()
+        .unwrap_or_else(|_| panic!("年解析失败 `{day}`"));
+    let m: i64 = parts[1]
+        .parse()
+        .unwrap_or_else(|_| panic!("月解析失败 `{day}`"));
+    let d: i64 = parts[2]
+        .parse()
+        .unwrap_or_else(|_| panic!("日解析失败 `{day}`"));
     assert!((1..=12).contains(&m), "月越界 `{day}`");
     assert!((1..=31).contains(&d), "日越界 `{day}`");
     // days_from_civil（Hinnant）：返回 1970-01-01 起的天数（可负）。
@@ -249,15 +273,23 @@ pub(crate) fn load_clean_ohlc_window_ns(
         .replace("-Infinity", "null")
         .replace("Infinity", "null")
         .replace("NaN", "null");
-    let raw: RawData = serde_json::from_str(&text).unwrap_or_else(|e| panic!("解析 {path:?} 失败: {e}"));
+    let raw: RawData =
+        serde_json::from_str(&text).unwrap_or_else(|e| panic!("解析 {path:?} 失败: {e}"));
     drop(text);
     assert!(
         !raw.timestamps_ns.is_empty(),
         "load_clean_ohlc_window_ns 需要 timestamps_ns 列做时间窗切片（{path:?} 无此列）"
     );
-    assert!(day_start <= day_end, "窗口非法：day_start `{day_start}` > day_end `{day_end}`");
+    assert!(
+        day_start <= day_end,
+        "窗口非法：day_start `{day_start}` > day_end `{day_end}`"
+    );
     let n_raw = raw.closes.len();
-    assert_eq!(raw.timestamps_ns.len(), n_raw, "{path:?} timestamps_ns 与 closes 长度不一致");
+    assert_eq!(
+        raw.timestamps_ns.len(),
+        n_raw,
+        "{path:?} timestamps_ns 与 closes 长度不一致"
+    );
 
     let start_ns = iso_day_to_unix_ns(day_start);
     // day_end 含当天 → 上界 = day_end 当天 23:59:59... < 次日 00:00（+1 天纳秒）。
@@ -303,7 +335,11 @@ pub(crate) fn load_clean_ohlc_window_ns(
     }
     if drop.iter().any(|&d| d) {
         let keep = |v: &[f64]| -> Vec<f64> {
-            v.iter().enumerate().filter(|(i, _)| !drop[*i]).map(|(_, &x)| x).collect()
+            v.iter()
+                .enumerate()
+                .filter(|(i, _)| !drop[*i])
+                .map(|(_, &x)| x)
+                .collect()
         };
         (keep(&o), keep(&h), keep(&l), keep(&c))
     } else {
@@ -320,12 +356,21 @@ fn iso_day_to_unix_ns_锚点与边界() {
     assert_eq!(iso_day_to_unix_ns("2025-04-01"), 1_743_465_600_000_000_000);
     assert_eq!(iso_day_to_unix_ns("2026-05-29"), 1_780_012_800_000_000_000); // es_1s_2week 首戳
     assert_eq!(iso_day_to_unix_ns("1970-01-01"), 0); // 纪元原点
-    // 相邻日恰差 1 天纳秒（end-excl = day_end + 1 天，闭区间语义的算术基础）。
-    assert_eq!(iso_day_to_unix_ns("2025-04-02") - iso_day_to_unix_ns("2025-04-01"), NS_DAY);
+                                                     // 相邻日恰差 1 天纳秒（end-excl = day_end + 1 天，闭区间语义的算术基础）。
+    assert_eq!(
+        iso_day_to_unix_ns("2025-04-02") - iso_day_to_unix_ns("2025-04-01"),
+        NS_DAY
+    );
     // 闰年 2 月：2024-02-29 存在，2024-03-01 = 2024-02-29 + 1 天。
-    assert_eq!(iso_day_to_unix_ns("2024-03-01") - iso_day_to_unix_ns("2024-02-29"), NS_DAY);
+    assert_eq!(
+        iso_day_to_unix_ns("2024-03-01") - iso_day_to_unix_ns("2024-02-29"),
+        NS_DAY
+    );
     // 月/年跨界连续。
-    assert_eq!(iso_day_to_unix_ns("2025-01-01") - iso_day_to_unix_ns("2024-12-31"), NS_DAY);
+    assert_eq!(
+        iso_day_to_unix_ns("2025-01-01") - iso_day_to_unix_ns("2024-12-31"),
+        NS_DAY
+    );
 }
 
 /// 8 标的（DEFAULT_SYMS，与 t_vs_v3_comparison.py 一致）→ 数据文件名。
@@ -364,7 +409,12 @@ fn t_backtest_8x3() {
     // 可选标的白名单（逗号分隔，如 `BT_SYMBOLS=OKLO,CL`）；空 = 全部 8 标的。
     let only: Vec<String> = std::env::var("BT_SYMBOLS")
         .ok()
-        .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+        .map(|s| {
+            s.split(',')
+                .map(|x| x.trim().to_uppercase())
+                .filter(|x| !x.is_empty())
+                .collect()
+        })
         .unwrap_or_default();
     // a₀ 来源 A/B 开关（`T_A0=stroke` 切笔底座，526号；默认 segment=线段基线，bit-exact）。
     let a0_source = match std::env::var("T_A0").ok().as_deref() {
@@ -425,7 +475,8 @@ fn t_backtest_8x3() {
             let res = run_backtest(a0_base.clone(), *mode, &c, &m2r, n_segs);
             // 写 JSON。
             let out = data_dir.join(format!("t_backtest_{sym}_{}.json", mode.as_str()));
-            std::fs::write(&out, result_to_json(sym, &res)).unwrap_or_else(|e| panic!("写 {out:?} 失败: {e}"));
+            std::fs::write(&out, result_to_json(sym, &res))
+                .unwrap_or_else(|e| panic!("写 {out:?} 失败: {e}"));
             row.bh_pct = res.summary.bh_pct;
             row.strat[mi] = res.summary.strat_pct;
             row.trades[mi] = res.summary.n_trades;
@@ -493,7 +544,12 @@ fn t_cseg_diagnostic() {
     // 默认只跑 BTC（裁决标的）；BT_SYMBOLS 覆盖。
     let only: Vec<String> = std::env::var("BT_SYMBOLS")
         .ok()
-        .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+        .map(|s| {
+            s.split(',')
+                .map(|x| x.trim().to_uppercase())
+                .filter(|x| !x.is_empty())
+                .collect()
+        })
         .unwrap_or_else(|| vec!["BTC".to_string()]);
 
     for (sym, file) in SYMBOLS {
@@ -517,7 +573,11 @@ fn t_cseg_diagnostic() {
         let tree = iterate(a0, PerfectionMode::Structural);
 
         println!("\n===== [{sym}] c段恢复 + type1 密度（Structural）=====");
-        println!("bars={n_bars} segs={} r*={}", segs.len(), tree.emergent_ceiling());
+        println!(
+            "bars={n_bars} segs={} r*={}",
+            segs.len(),
+            tree.emergent_ceiling()
+        );
         println!(
             "{:>5} {:>10} {:>12} {:>10} {:>10} {:>8} {:>8}",
             "level", "n_trend≥2", "n_有c段", "c段率%", "n_type1", "t1_buy", "t1_sell"
@@ -527,7 +587,9 @@ fn t_cseg_diagnostic() {
             let mut n_trend = 0usize;
             let mut n_c = 0usize;
             for t in &lvl.trends {
-                if matches!(t.kind, TrendKind::UpTrend | TrendKind::DownTrend) && t.zhongshus.len() >= 2 {
+                if matches!(t.kind, TrendKind::UpTrend | TrendKind::DownTrend)
+                    && t.zhongshus.len() >= 2
+                {
                     n_trend += 1;
                     let last_c = t.zhongshus.last().unwrap();
                     if let Some(&end) = last_c.units.last() {
@@ -537,10 +599,26 @@ fn t_cseg_diagnostic() {
                     }
                 }
             }
-            let n_t1 = lvl.bsps.iter().filter(|b| matches!(b.kind, BSPKind::Type1Buy | BSPKind::Type1Sell)).count();
-            let n_t1b = lvl.bsps.iter().filter(|b| b.kind == BSPKind::Type1Buy).count();
-            let n_t1s = lvl.bsps.iter().filter(|b| b.kind == BSPKind::Type1Sell).count();
-            let rate = if n_trend > 0 { 100.0 * n_c as f64 / n_trend as f64 } else { 0.0 };
+            let n_t1 = lvl
+                .bsps
+                .iter()
+                .filter(|b| matches!(b.kind, BSPKind::Type1Buy | BSPKind::Type1Sell))
+                .count();
+            let n_t1b = lvl
+                .bsps
+                .iter()
+                .filter(|b| b.kind == BSPKind::Type1Buy)
+                .count();
+            let n_t1s = lvl
+                .bsps
+                .iter()
+                .filter(|b| b.kind == BSPKind::Type1Sell)
+                .count();
+            let rate = if n_trend > 0 {
+                100.0 * n_c as f64 / n_trend as f64
+            } else {
+                0.0
+            };
             println!(
                 "{:>5} {:>10} {:>12} {:>9.1}% {:>10} {:>8} {:>8}",
                 lvl.level, n_trend, n_c, rate, n_t1, n_t1b, n_t1s
@@ -549,12 +627,19 @@ fn t_cseg_diagnostic() {
             tot_c += n_c;
             tot_t1 += n_t1;
         }
-        let tot_rate = if tot_trend > 0 { 100.0 * tot_c as f64 / tot_trend as f64 } else { 0.0 };
+        let tot_rate = if tot_trend > 0 {
+            100.0 * tot_c as f64 / tot_trend as f64
+        } else {
+            0.0
+        };
         println!(
             "{:>5} {:>10} {:>12} {:>9.1}% {:>10}",
             "合计", tot_trend, tot_c, tot_rate, tot_t1
         );
-        println!("c段缺失率 = {:.1}%（趋势走势中无离开段的占比）", 100.0 - tot_rate);
+        println!(
+            "c段缺失率 = {:.1}%（趋势走势中无离开段的占比）",
+            100.0 - tot_rate
+        );
     }
 }
 
@@ -579,7 +664,12 @@ fn t_consol_no_leave_diagnostic() {
         .join("analysis/data_cache");
     let only: Vec<String> = std::env::var("BT_SYMBOLS")
         .ok()
-        .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+        .map(|s| {
+            s.split(',')
+                .map(|x| x.trim().to_uppercase())
+                .filter(|x| !x.is_empty())
+                .collect()
+        })
         .unwrap_or_else(|| vec!["BTC".to_string()]);
 
     for (sym, file) in SYMBOLS {
@@ -602,7 +692,10 @@ fn t_consol_no_leave_diagnostic() {
         let a0 = build_a0_from_segments(&segs, &m2r, &c);
         let tree = iterate(a0, PerfectionMode::Structural);
 
-        println!("\n===== [{sym}] 盘整无离开段诊断（batch 最终态，Structural）r*={} =====", tree.emergent_ceiling());
+        println!(
+            "\n===== [{sym}] 盘整无离开段诊断（batch 最终态，Structural）r*={} =====",
+            tree.emergent_ceiling()
+        );
         println!(
             "{:>5} {:>8} {:>9} {:>10} {:>14} {:>9} {:>9}",
             "level", "n_consol", "consolDn", "no_leave", "compl&&无bsp", "末组数", "中间数"

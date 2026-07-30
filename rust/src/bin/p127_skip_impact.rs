@@ -33,7 +33,9 @@
 //! 只在装载时多留够 margin，不影响任何结构判据——结构窗口严格只喂前 W 根给
 //! `ParseLayerIncr`）。
 
-use newchan_rust::theta_v0::classifier::cand_event::{CandidateEvent, CandidateKey, CandidateState};
+use newchan_rust::theta_v0::classifier::cand_event::{
+    CandidateEvent, CandidateKey, CandidateState,
+};
 use newchan_rust::theta_v0::classifier::chain_cert::{
     ChainCertificateBook, ChainEdgeKind, ChainNodeStatus, ChainStatus, TowerChainCertificate,
 };
@@ -101,8 +103,8 @@ fn load(path: &Path, tick_size: f64, limit: usize) -> Result<Vec<Bar>, String> {
         .replace("-Infinity", "null")
         .replace("Infinity", "null")
         .replace("NaN", "null");
-    let raw: RawBars =
-        serde_json::from_str(&text).map_err(|error| format!("解析 {} 失败: {error}", path.display()))?;
+    let raw: RawBars = serde_json::from_str(&text)
+        .map_err(|error| format!("解析 {} 失败: {error}", path.display()))?;
     let n = raw
         .closes
         .len()
@@ -173,7 +175,10 @@ fn main() -> Result<(), String> {
 
     for &w in &WINDOWS {
         if w > bars.len() {
-            println!("P127_WINDOW_SKIP window={w} reason=insufficient_data available={}", bars.len());
+            println!(
+                "P127_WINDOW_SKIP window={w} reason=insufficient_data available={}",
+                bars.len()
+            );
             continue;
         }
         run_window(&bars, w, &config)?;
@@ -341,7 +346,9 @@ fn census(w: usize, heads: &[&TowerChainCertificate]) {
             if edge.kind == ChainEdgeKind::Skip {
                 total_skip_edges += 1;
                 has_skip = true;
-                *skip_pos.entry((edge.parent.level, edge.child.level)).or_default() += 1;
+                *skip_pos
+                    .entry((edge.parent.level, edge.child.level))
+                    .or_default() += 1;
             }
             if !edge.crossed_nodes.is_empty() {
                 has_broken = true;

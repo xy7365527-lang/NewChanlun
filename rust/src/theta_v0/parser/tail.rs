@@ -36,7 +36,9 @@
 //! （步骤5，移交 classifier）、`PendingMove` 是级别递归层（classifier 递归级别）——二者不在
 //! parser 单层流水线职责内，由 classifier 产出（不在本文件冒充）。
 
-use super::super::types::{Bar, Direction, Fractal, FractalKind, PendingTail, Segment, Stroke, Tick};
+use super::super::types::{
+    Bar, Direction, Fractal, FractalKind, PendingTail, Segment, Stroke, Tick,
+};
 
 // ============================================================================
 // 增量 tail O(n²) 修复（#93 incr_total exp 1.89 残余：tail 全量重算 O(merged_i)/bar）。
@@ -105,11 +107,7 @@ fn pending_segment(strokes: &[Stroke], pending_start: usize) -> Option<PendingTa
 /// 时产生 PendingStroke。判据严格基于确认结构（最后笔 + 悬挂分型），不猜测。
 ///
 /// 边界条件：分型 < 1 或无悬挂延伸 ⟹ `None`。
-fn pending_stroke(
-    strokes: &[Stroke],
-    fractals: &[Fractal],
-    merged: &[Bar],
-) -> Option<PendingTail> {
+fn pending_stroke(strokes: &[Stroke], fractals: &[Fractal], merged: &[Bar]) -> Option<PendingTail> {
     let last_fractal = fractals.last()?;
     // 已确认笔的最后笔尾原始 index（无笔时用首个分型 index 作起点）。
     let (anchor_index, anchor_kind) = match strokes.last() {
@@ -161,8 +159,7 @@ fn pending_fractal(fractals: &[Fractal], merged: &[Bar]) -> Option<PendingTail> 
     let last = fractals.last()?;
     // 最后确认分型在 merged 中的位置（按 source_index 定位）。
     // ponytail: 二分查找替代线性 position（O(log n) vs O(n)）。merged.source_index 严格单调递增。
-    let last_pos = merged
-        .partition_point(|b| b.source_index < last.source_index);
+    let last_pos = merged.partition_point(|b| b.source_index < last.source_index);
     if last_pos >= merged.len() || merged[last_pos].source_index != last.source_index {
         return None;
     }
@@ -209,8 +206,7 @@ fn pending_fractal(fractals: &[Fractal], merged: &[Bar]) -> Option<PendingTail> 
 /// merged.source_index 严格单调递增（inclusion 左折叠不变量）。
 fn extreme_after(merged: &[Bar], anchor_index: usize, direction: Direction) -> Option<Tick> {
     // 二分定位首个 source_index > anchor_index 的位置。
-    let start = merged
-        .partition_point(|b| b.source_index <= anchor_index);
+    let start = merged.partition_point(|b| b.source_index <= anchor_index);
     let after = merged.get(start..)?;
     if after.is_empty() {
         return None;
@@ -270,8 +266,8 @@ pub fn build_tail(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::super::types::Timestamp;
+    use super::*;
 
     fn bar(i: usize, high: Tick, low: Tick) -> Bar {
         Bar {
@@ -361,7 +357,10 @@ mod tests {
     fn pending_stroke_no_hanging_fractal_none() {
         // 最后分型 idx=4 = 最后笔尾 → 无悬挂延伸 → None。
         let strokes = vec![stroke(Direction::Up, 0, 4, 0, 10)];
-        let fractals = vec![frac(FractalKind::Bottom, 0, 0), frac(FractalKind::Top, 4, 10)];
+        let fractals = vec![
+            frac(FractalKind::Bottom, 0, 0),
+            frac(FractalKind::Top, 4, 10),
+        ];
         let merged = vec![bar(0, 1, 0), bar(4, 10, 9)];
         assert!(pending_stroke(&strokes, &fractals, &merged).is_none());
     }
@@ -369,7 +368,10 @@ mod tests {
     #[test]
     fn pending_fractal_after_last_confirmed() {
         // 最后确认分型 Top idx=4，之后 merged 延伸到 idx 6,8（找底，最低 low=2 在 idx8）。
-        let fractals = vec![frac(FractalKind::Bottom, 0, 0), frac(FractalKind::Top, 4, 10)];
+        let fractals = vec![
+            frac(FractalKind::Bottom, 0, 0),
+            frac(FractalKind::Top, 4, 10),
+        ];
         let merged = vec![bar(0, 1, 0), bar(4, 10, 9), bar(6, 8, 5), bar(8, 4, 2)];
         let pt = pending_fractal(&fractals, &merged).unwrap();
         match pt {
@@ -415,12 +417,7 @@ mod tests {
             frac(FractalKind::Bottom, 8, 3),
             frac(FractalKind::Top, 12, 14), // 悬挂（> 最后笔尾 8）
         ];
-        let merged = vec![
-            bar(0, 1, 0),
-            bar(4, 10, 9),
-            bar(8, 4, 3),
-            bar(12, 14, 13),
-        ];
+        let merged = vec![bar(0, 1, 0), bar(4, 10, 9), bar(8, 4, 3), bar(12, 14, 13)];
         let tail = build_tail(&merged, &fractals, &strokes, &[], Some(0));
         // 至少含 PendingSegment（剩余笔不足成段）。
         assert!(tail

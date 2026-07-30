@@ -194,7 +194,12 @@ impl StepPredicateCtx {
             Some(TwEvent::EnterEarning) => (false, true),
             _ => (false, false),
         };
-        StepPredicateCtx { force_flat, tw_close_overlay, tw_withdraw, tw_enter_earning }
+        StepPredicateCtx {
+            force_flat,
+            tw_close_overlay,
+            tw_withdraw,
+            tw_enter_earning,
+        }
     }
 }
 
@@ -255,13 +260,15 @@ pub fn predicates_of(
     // typed 经 reverse_exit_type(入场角色, 触发类) 单源——与 runner ledger 消费端同函数。
     let closed_leg = working
         .iter()
-        .find(|(l, closed)| !closed && l.level == c.level && super::exec::reverse_signal(l.dir, &c.bits))
+        .find(|(l, closed)| {
+            !closed && l.level == c.level && super::exec::reverse_signal(l.dir, &c.bits)
+        })
         .map(|(l, _)| l);
     if let Some(leg) = closed_leg {
         match reverse_exit_type(entry_v_of(leg), c.bsp_class) {
             ExitType::CloseReverseOpen => p.close_reverse_open = true, // P7
-            ExitType::ReduceCore => p.reduce_core = true,          // P6
-            ExitType::CloseRoot => p.close_root = true,            // P5
+            ExitType::ReduceCore => p.reduce_core = true,              // P6
+            ExitType::CloseRoot => p.close_root = true,                // P5
             ExitType::RiskExit | ExitType::Hold => {
                 unreachable!("reverse_exit_type 只产三 close 枚举")
             }
@@ -272,7 +279,9 @@ pub fn predicates_of(
     let slot_occupied = working
         .iter()
         .any(|(l, closed)| !closed && l.level == c.level && l.dir == c.dir)
-        || opened_slots.iter().any(|&(lv, d)| lv == c.level && d == c.dir);
+        || opened_slots
+            .iter()
+            .any(|&(lv, d)| lv == c.level && d == c.dir);
     if slot_occupied {
         p.record_struct_break = true;
         return p;
@@ -280,7 +289,7 @@ pub fn predicates_of(
     // slot 空 ⟹ 开仓：P9 Open ReverseOpen（ReverseOpen 角色）/ P8 Open Root（其余）。
     match c.role.v {
         Vertical::ReverseOpen => p.open_reverse_open = true, // P9
-        _ => p.open_root = true,                         // P8
+        _ => p.open_root = true,                             // P8
     }
     p
 }
@@ -343,7 +352,11 @@ mod tests {
     #[test]
     fn priority_p1_masks_all() {
         let p = decode((1 << M) - 1); // 全 true
-        assert_eq!(mutex_class(&p), MutexClass::Cj(1), "P1 成立 ⟹ C_1（屏蔽 P2..P10）");
+        assert_eq!(
+            mutex_class(&p),
+            MutexClass::Cj(1),
+            "P1 成立 ⟹ C_1（屏蔽 P2..P10）"
+        );
     }
 
     /// bar 级链序：P2 CloseOverlay 屏蔽 P3/P4（TW 事件）与 P5..P10；P3 屏蔽 P4..P10。
@@ -356,7 +369,12 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(mutex_class(&p2), MutexClass::Cj(2), "P2 ≻ P3 ≻ P5");
-        let p3 = Predicates { tw_withdraw: true, tw_enter_earning: true, open_root: true, ..Default::default() };
+        let p3 = Predicates {
+            tw_withdraw: true,
+            tw_enter_earning: true,
+            open_root: true,
+            ..Default::default()
+        };
         assert_eq!(mutex_class(&p3), MutexClass::Cj(3), "P3 ≻ P4 ≻ P8");
     }
 
@@ -364,8 +382,8 @@ mod tests {
     #[test]
     fn priority_min_index() {
         let p = Predicates {
-            reduce_core: true,      // P6
-            open_reverse_open: true,  // P9
+            reduce_core: true,         // P6
+            open_reverse_open: true,   // P9
             record_struct_break: true, // P10
             ..Default::default()
         };
@@ -401,11 +419,20 @@ mod tests {
     fn step_ctx_from_tw_predicates() {
         let pol = RiskPolicy::baseline();
         // P2：StageII + 有重叠腿。
-        let s2 = TwState { stage: TStage::CapitalRecovered, open_legacy_legs: 1, ..TwState::initial() };
+        let s2 = TwState {
+            stage: TStage::CapitalRecovered,
+            open_legacy_legs: 1,
+            ..TwState::initial()
+        };
         let c2 = StepPredicateCtx::from_tw(false, &s2, &pol, RiskMode::Normal, true);
         assert!(c2.tw_close_overlay && !c2.tw_withdraw && !c2.tw_enter_earning);
         // P3：CostReduction + holding≥notional_in + free 足额。
-        let s3 = TwState { free: 100, holding: 100, notional_in: 100, ..TwState::initial() };
+        let s3 = TwState {
+            free: 100,
+            holding: 100,
+            notional_in: 100,
+            ..TwState::initial()
+        };
         let c3 = StepPredicateCtx::from_tw(false, &s3, &pol, RiskMode::Normal, false);
         assert!(c3.tw_withdraw && !c3.tw_close_overlay && !c3.tw_enter_earning);
         // P4：EnterReady 五合取。
@@ -418,7 +445,8 @@ mod tests {
         let c4 = StepPredicateCtx::from_tw(false, &s4, &pol, RiskMode::Normal, false);
         assert!(c4.tw_enter_earning && !c4.tw_withdraw);
         // inert：initial（notional_in=0）全 false。
-        let c0 = StepPredicateCtx::from_tw(false, &TwState::initial(), &pol, RiskMode::Normal, false);
+        let c0 =
+            StepPredicateCtx::from_tw(false, &TwState::initial(), &pol, RiskMode::Normal, false);
         assert_eq!(c0, StepPredicateCtx::default());
     }
 
@@ -429,14 +457,45 @@ mod tests {
         let c = cand(0, 0, 10, VoiceSide::Long, 1, buy(1), Vertical::Ambient);
         let ambient = |_: &ActiveLeg| Vertical::Ambient;
         for (ctx, expect) in [
-            (StepPredicateCtx { force_flat: true, ..Default::default() }, MutexClass::Cj(1)),
-            (StepPredicateCtx { tw_close_overlay: true, ..Default::default() }, MutexClass::Cj(2)),
-            (StepPredicateCtx { tw_withdraw: true, ..Default::default() }, MutexClass::Cj(3)),
-            (StepPredicateCtx { tw_enter_earning: true, ..Default::default() }, MutexClass::Cj(4)),
+            (
+                StepPredicateCtx {
+                    force_flat: true,
+                    ..Default::default()
+                },
+                MutexClass::Cj(1),
+            ),
+            (
+                StepPredicateCtx {
+                    tw_close_overlay: true,
+                    ..Default::default()
+                },
+                MutexClass::Cj(2),
+            ),
+            (
+                StepPredicateCtx {
+                    tw_withdraw: true,
+                    ..Default::default()
+                },
+                MutexClass::Cj(3),
+            ),
+            (
+                StepPredicateCtx {
+                    tw_enter_earning: true,
+                    ..Default::default()
+                },
+                MutexClass::Cj(4),
+            ),
         ] {
             let cls = mutex_class(&predicates_of(&ctx, &c, &[], &[], &ambient));
-            assert_eq!(cls, expect, "bar 级谓词 ⟹ 候选裁决落对应 C_j（open 候选被屏蔽）");
-            assert_eq!(bridge_bucket(cls), None, "C_1..C_4 = bar 级全局分支，无候选桶归属");
+            assert_eq!(
+                cls, expect,
+                "bar 级谓词 ⟹ 候选裁决落对应 C_j（open 候选被屏蔽）"
+            );
+            assert_eq!(
+                bridge_bucket(cls),
+                None,
+                "C_1..C_4 = bar 级全局分支，无候选桶归属"
+            );
         }
     }
 
@@ -445,14 +504,19 @@ mod tests {
     //  桶级一致必须过；typed close 场景另断言精确 Cj（P5/P6/P7 与消费端判据同源见证）。
     // ──────────────────────────────────────────────────────────────────────
     use super::super::super::classifier::recursive_tower::ElementId;
+    use super::super::super::types::BspBits;
     use super::super::coverage::{Dir, GradeRel, Horizontal, OperationRole};
     use super::super::exec::reverse_signal;
     use super::super::interp::{interpret, theta_key};
-    use super::super::super::types::BspBits;
     use std::collections::HashSet;
 
     fn role(v: Vertical) -> OperationRole {
-        OperationRole { h: Horizontal::First, v, delta: Dir::Plus, grade: GradeRel::SameLevel }
+        OperationRole {
+            h: Horizontal::First,
+            v,
+            delta: Dir::Plus,
+            grade: GradeRel::SameLevel,
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -484,7 +548,10 @@ mod tests {
             dir,
             source_index: src,
             lambda: src,
-            id: ElementId { level, ordinal: src as u64 },
+            id: ElementId {
+                level,
+                ordinal: src as u64,
+            },
             parent_id: None,
             is_boundary_root: true,
             op_parent: None,
@@ -493,16 +560,34 @@ mod tests {
 
     fn buy(k: u8) -> BspBits {
         match k {
-            1 => BspBits { buy1: true, ..Default::default() },
-            2 => BspBits { buy2: true, ..Default::default() },
-            _ => BspBits { buy3: true, ..Default::default() },
+            1 => BspBits {
+                buy1: true,
+                ..Default::default()
+            },
+            2 => BspBits {
+                buy2: true,
+                ..Default::default()
+            },
+            _ => BspBits {
+                buy3: true,
+                ..Default::default()
+            },
         }
     }
     fn sell(k: u8) -> BspBits {
         match k {
-            1 => BspBits { sell1: true, ..Default::default() },
-            2 => BspBits { sell2: true, ..Default::default() },
-            _ => BspBits { sell3: true, ..Default::default() },
+            1 => BspBits {
+                sell1: true,
+                ..Default::default()
+            },
+            2 => BspBits {
+                sell2: true,
+                ..Default::default()
+            },
+            _ => BspBits {
+                sell3: true,
+                ..Default::default()
+            },
         }
     }
 
@@ -529,17 +614,17 @@ mod tests {
 
         for c in ordered {
             let cls = mutex_class(&predicates_of(&ctx, c, &working, &opened, entry_v_of));
-            let mbucket = bridge_bucket(cls)
-                .expect("ctx 全 false ⟹ 候选级裁决 C5..C10/C0，恒有桶归属");
+            let mbucket =
+                bridge_bucket(cls).expect("ctx 全 false ⟹ 候选级裁决 C5..C10/C0，恒有桶归属");
             // ★#200 先平后开（spec WP-2 修复 c）：二类反向候选命中同级反向在飞腿时，interp
             // 先 𝒟_x 关闭、再按规则3/4 同款 slot 判据落 ℬ_x/𝒦_x（dual-effect）；mutex C_j
             // 单候选单桶只裁**关闭侧**（P5/P6/P7），桶级对拍以关闭侧为准，开仓侧按 slot
             // 状态另行核对（下方推进段）。一/三类无 dual-effect（维持消费即止）。
             let dual_close = c.bsp_class == 2
                 && c.nest_confirmed
-                && working.iter().any(|(l, cl)| {
-                    !cl && l.level == c.level && reverse_signal(l.dir, &c.bits)
-                });
+                && working
+                    .iter()
+                    .any(|(l, cl)| !cl && l.level == c.level && reverse_signal(l.dir, &c.bits));
             let ibucket = if dual_close {
                 ActionBucket::Close // 先平：𝒟_x 认领（dual-effect 的关闭侧）
             } else if open_idx.contains(&c.gamma_index) {
@@ -565,10 +650,9 @@ mod tests {
             // 推进 shadow 状态镜像 interp（authoritative = ibucket）。
             match ibucket {
                 ActionBucket::Close => {
-                    if let Some(i) = working
-                        .iter()
-                        .position(|(l, cl)| !cl && l.level == c.level && reverse_signal(l.dir, &c.bits))
-                    {
+                    if let Some(i) = working.iter().position(|(l, cl)| {
+                        !cl && l.level == c.level && reverse_signal(l.dir, &c.bits)
+                    }) {
                         working[i].1 = true;
                     }
                     // #200 dual-effect 开仓侧：关闭后按同款 slot 判据——slot 空闲 ⟹ 候选
@@ -615,14 +699,20 @@ mod tests {
 
         // S1 空 active，两 slot 开仓（跨级 + 多空）。
         assert_bucket_equiv_typed(
-            &[cand(0, 0, 10, l, 1, buy(1), Ambient), cand(1, 1, 11, s, 1, sell(1), Ambient)],
+            &[
+                cand(0, 0, 10, l, 1, buy(1), Ambient),
+                cand(1, 1, 11, s, 1, sell(1), Ambient),
+            ],
             &[],
             &ambient,
             &[(0, 8), (1, 8)], // P8 Open Root
         );
         // S2 fold 内重复同 slot：第一开（P8），第二记录（P10 slot_this_fold）。
         assert_bucket_equiv_typed(
-            &[cand(0, 0, 10, l, 1, buy(1), Ambient), cand(1, 0, 12, l, 2, buy(2), Ambient)],
+            &[
+                cand(0, 0, 10, l, 1, buy(1), Ambient),
+                cand(1, 0, 12, l, 2, buy(2), Ambient),
+            ],
             &[],
             &ambient,
             &[(0, 8), (1, 10)],

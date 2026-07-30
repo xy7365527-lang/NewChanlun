@@ -52,7 +52,9 @@ fn main() -> std::process::ExitCode {
     if args.len() != 2 && args.len() != 4 {
         eprintln!(
             "用法: {} <SYMBOL> [START_DATE END_DATE]\n  SYMBOL: BTC/ES/CL/GC/BRN/DX/QQQ/OKLO",
-            args.first().map(String::as_str).unwrap_or("pure_bsp_timing")
+            args.first()
+                .map(String::as_str)
+                .unwrap_or("pure_bsp_timing")
         );
         return std::process::ExitCode::from(2);
     }
@@ -268,15 +270,24 @@ fn main() -> std::process::ExitCode {
     println!("profit_factor   : {:.4}", m.profit_factor);
     println!("--- 同口径随机对照（§4，seed 冻结）---");
     println!("theta_same_caliber : {:.6}", sig.theta_return_same_caliber);
-    println!("shift  mean/p   : {:.6} / {:.4}", sig.shift_mean_return, sig.shift_pvalue);
-    println!("indep  mean/p   : {:.6} / {:.4}", sig.indep_mean_return, sig.indep_pvalue);
+    println!(
+        "shift  mean/p   : {:.6} / {:.4}",
+        sig.shift_mean_return, sig.shift_pvalue
+    );
+    println!(
+        "indep  mean/p   : {:.6} / {:.4}",
+        sig.indep_mean_return, sig.indep_pvalue
+    );
     println!("beats_random    : {}", sig.theta_beats_random);
     println!("controls_degen  : {}", sig.controls_degenerate);
     println!("--- 认识论 L2（真实数据，可否证）---");
     if trades.is_empty() {
         println!("等级: L1（无第一类买卖点确认 ⟹ 无交易，inconclusive）");
     } else {
-        println!("等级: L2——纯择时 Sharpe={:.4} 可与 π_Θ 覆盖 Sharpe 对照", m.sharpe);
+        println!(
+            "等级: L2——纯择时 Sharpe={:.4} 可与 π_Θ 覆盖 Sharpe 对照",
+            m.sharpe
+        );
     }
     std::process::ExitCode::SUCCESS
 }

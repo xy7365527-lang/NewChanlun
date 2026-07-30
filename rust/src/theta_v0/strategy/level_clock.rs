@@ -180,7 +180,11 @@ impl LevelClockTicks {
 
     /// 本 bar 有**结构**钟点的级别集合（稀疏性分母；风控类不计）。
     pub fn structural_levels(&self) -> BTreeSet<u32> {
-        self.ticks.iter().filter(|t| t.kind.is_structural()).map(|t| t.level).collect()
+        self.ticks
+            .iter()
+            .filter(|t| t.kind.is_structural())
+            .map(|t| t.level)
+            .collect()
     }
 
     /// 本 bar 是否存在任何结构钟点（稀疏性判据左端的取反）。
@@ -327,8 +331,16 @@ mod tests {
             LevelEventKind::LegRiskExit,
         ];
         let non_struct: Vec<_> = all.iter().filter(|k| !k.is_structural()).collect();
-        assert_eq!(non_struct, vec![&LevelEventKind::LegRiskExit], "风控域恰一类");
-        assert_eq!(all.iter().filter(|k| k.is_structural()).count(), 6, "结构域六类");
+        assert_eq!(
+            non_struct,
+            vec![&LevelEventKind::LegRiskExit],
+            "风控域恰一类"
+        );
+        assert_eq!(
+            all.iter().filter(|k| k.is_structural()).count(),
+            6,
+            "结构域六类"
+        );
     }
 
     /// ★钟点集确定序 + 幂等：同 `(level, kind)` 重复登记不产生重复项，迭代按 `(level, kind)` 升序。
@@ -344,9 +356,18 @@ mod tests {
         assert_eq!(
             seq,
             vec![
-                LevelClockTick { level: 1, kind: LevelEventKind::BspConfirmed },
-                LevelClockTick { level: 1, kind: LevelEventKind::LegClosed },
-                LevelClockTick { level: 2, kind: LevelEventKind::LegOpened },
+                LevelClockTick {
+                    level: 1,
+                    kind: LevelEventKind::BspConfirmed
+                },
+                LevelClockTick {
+                    level: 1,
+                    kind: LevelEventKind::LegClosed
+                },
+                LevelClockTick {
+                    level: 2,
+                    kind: LevelEventKind::LegOpened
+                },
             ],
             "按 (level, kind) 升序"
         );
@@ -358,7 +379,11 @@ mod tests {
     fn risk_tick_gates_target_but_not_sparsity_denominator() {
         let mut t = LevelClockTicks::empty();
         t.insert(3, LevelEventKind::LegRiskExit);
-        assert_eq!(t.ticked_levels(), [3u32].into_iter().collect(), "风控 tick ⟹ 该级目标须重估");
+        assert_eq!(
+            t.ticked_levels(),
+            [3u32].into_iter().collect(),
+            "风控 tick ⟹ 该级目标须重估"
+        );
         assert!(t.structural_levels().is_empty(), "风控 tick 不进结构级别集");
         assert!(!t.has_structural(), "无结构钟点");
         assert!(t.has_risk(), "有风控钟点");
@@ -372,16 +397,40 @@ mod tests {
         assert_eq!(
             got,
             vec![
-                LevelClockTick { level: 0, kind: LevelEventKind::BspConfirmed },
-                LevelClockTick { level: 1, kind: LevelEventKind::LegClosed },
-                LevelClockTick { level: 2, kind: LevelEventKind::LegOpened },
-                LevelClockTick { level: 3, kind: LevelEventKind::LegSilentDrop },
-                LevelClockTick { level: 4, kind: LevelEventKind::LegOverlayClose },
-                LevelClockTick { level: 5, kind: LevelEventKind::LegRiskExit },
-                LevelClockTick { level: 6, kind: LevelEventKind::PanDivCert },
+                LevelClockTick {
+                    level: 0,
+                    kind: LevelEventKind::BspConfirmed
+                },
+                LevelClockTick {
+                    level: 1,
+                    kind: LevelEventKind::LegClosed
+                },
+                LevelClockTick {
+                    level: 2,
+                    kind: LevelEventKind::LegOpened
+                },
+                LevelClockTick {
+                    level: 3,
+                    kind: LevelEventKind::LegSilentDrop
+                },
+                LevelClockTick {
+                    level: 4,
+                    kind: LevelEventKind::LegOverlayClose
+                },
+                LevelClockTick {
+                    level: 5,
+                    kind: LevelEventKind::LegRiskExit
+                },
+                LevelClockTick {
+                    level: 6,
+                    kind: LevelEventKind::PanDivCert
+                },
             ]
         );
-        assert!(collect_ticks(&[], &[], &[], &[], &[], &[], &[]).is_empty(), "全空 ⟹ 空钟");
+        assert!(
+            collect_ticks(&[], &[], &[], &[], &[], &[], &[]).is_empty(),
+            "全空 ⟹ 空钟"
+        );
     }
 
     /// ★稀疏度见证的**双侧**要求：恒不响（空转）与每 bar 都响（退化回 bar tick）都不算见证。
@@ -399,7 +448,10 @@ mod tests {
             t.insert(1, LevelEventKind::BspConfirmed);
             always.observe(&t);
         }
-        assert!(!always.sparsity_witnessed(), "每 bar 都响 ⟹ 退化回 M0 bar tick，不算见证");
+        assert!(
+            !always.sparsity_witnessed(),
+            "每 bar 都响 ⟹ 退化回 M0 bar tick，不算见证"
+        );
 
         let mut sparse = LevelClockStats::default();
         for i in 0..10 {

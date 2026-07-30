@@ -24,28 +24,28 @@ mod buysellpoint;
 mod c_segment_verify;
 mod divergence;
 mod fractal;
+/// 赋格引擎 v3（递归嵌套多重赋格 = 操作必然结构）。层结构四步循环操作引擎，复用
+/// spiral 信号层，核心仓 H⁰(2/3) ⊕ 机动仓 H¹(1/3 四步 1-cycle 穿 ε=−1)。`pub` 导出。
+pub mod fugue_v3;
 mod level;
 mod macd;
 mod moves;
 mod orchestrator;
 mod ph;
+/// 统一递归算子 T（缠师第65课 `aₙ=f(aₙ₋₁)` 形式化）。`pub` 导出避免 dead_code 误报——
+/// 设计阶段脚手架，尚未接入 PyO3（文档 docs/unified_recursive_operator_T.md）。
+pub mod recursive_t;
 mod segment;
 mod segment_layers;
 /// 螺旋引擎 v2（D∞ 群结构第一性原理）。`pub` 导出使其成为 crate 公开 API 表面，
 /// Step 0 尚未接入 PyO3/orchestrator 时避免 dead_code 误报（架构 §3）。
 pub mod spiral;
-/// 赋格引擎 v3（递归嵌套多重赋格 = 操作必然结构）。层结构四步循环操作引擎，复用
-/// spiral 信号层，核心仓 H⁰(2/3) ⊕ 机动仓 H¹(1/3 四步 1-cycle 穿 ε=−1)。`pub` 导出。
-pub mod fugue_v3;
-/// 统一递归算子 T（缠师第65课 `aₙ=f(aₙ₋₁)` 形式化）。`pub` 导出避免 dead_code 误报——
-/// 设计阶段脚手架，尚未接入 PyO3（文档 docs/unified_recursive_operator_T.md）。
-pub mod recursive_t;
+mod stroke;
 /// Reference Θ v0 — bit-exact 缠论可执行系统引擎（Phase 2，task #38）。对齐
 /// `formal/Strict/*.lean` 的 L0 spec（非 Python-等价旧 ladder）。parser→classifier→
 /// strategy 三子模块，所有 Θ 参数显式 config（Phase 6 扫描入口）。`pub` 导出避免
 /// 骨架阶段（未接入 PyO3）的 dead_code 误报。文档 docs/reference-theta-v0.md。
 pub mod theta_v0;
-mod stroke;
 mod trading;
 mod zhongshu;
 
@@ -61,7 +61,17 @@ use buysellpoint::{BspKind, Side};
 ///    (ep0_i, ep0_price, ep0_type, ep1_i, ep1_price, ep1_type, p0, p1),
 ///    Option<(trigger_stroke_k, (a, b, c), gap_type)>)
 type SegmentTuple = (
-    (usize, usize, usize, usize, &'static str, f64, f64, bool, &'static str),
+    (
+        usize,
+        usize,
+        usize,
+        usize,
+        &'static str,
+        f64,
+        f64,
+        bool,
+        &'static str,
+    ),
     (usize, f64, &'static str, usize, f64, &'static str, f64, f64),
     Option<(usize, (usize, usize, usize), &'static str)>,
 );
@@ -193,9 +203,9 @@ fn segments_from_strokes_v1(
 
     segs.iter()
         .map(|s| {
-            let be = s.break_evidence.map(|b| {
-                (b.trigger_stroke_k, b.fractal_abc, b.gap_type.as_str())
-            });
+            let be = s
+                .break_evidence
+                .map(|b| (b.trigger_stroke_k, b.fractal_abc, b.gap_type.as_str()));
             (
                 (
                     s.s0,
@@ -276,9 +286,7 @@ fn zhongshu_from_segments(
 ///
 /// `strokes`: list[(i0, i1, high, low, confirmed)]，过滤在 Rust 内做。
 #[pyfunction]
-fn zhongshu_from_strokes(
-    strokes: Vec<(usize, usize, f64, f64, bool)>,
-) -> Vec<ZhongshuTuple> {
+fn zhongshu_from_strokes(strokes: Vec<(usize, usize, f64, f64, bool)>) -> Vec<ZhongshuTuple> {
     zhongshu::zhongshu_from_strokes(&strokes)
         .iter()
         .map(zhongshu_to_tuple)
@@ -315,7 +323,16 @@ type ZhongshuInput = (
 ///   ((kind, direction, seg_start, seg_end, zs_start, zs_end, zs_count, settled),
 ///    (high, low, first_seg_s0, last_seg_s1, zg_max, zd_min, persistence))
 type MoveTuple = (
-    (&'static str, &'static str, i64, i64, usize, usize, usize, bool),
+    (
+        &'static str,
+        &'static str,
+        i64,
+        i64,
+        usize,
+        usize,
+        usize,
+        bool,
+    ),
     (f64, f64, usize, usize, f64, f64, f64),
 );
 
@@ -504,18 +521,20 @@ type MoveInput = (String, String, i64, i64, usize, usize, usize, bool);
 fn to_move_views(moves: &[MoveInput]) -> Vec<divergence::MoveView> {
     moves
         .iter()
-        .map(|(kind, dir, seg_start, seg_end, zs_start, zs_end, zs_count, settled)| {
-            divergence::MoveView {
-                kind: parse_move_kind(kind),
-                direction: parse_direction(dir),
-                seg_start: *seg_start,
-                seg_end: *seg_end,
-                zs_start: *zs_start,
-                zs_end: *zs_end,
-                zs_count: *zs_count,
-                settled: *settled,
-            }
-        })
+        .map(
+            |(kind, dir, seg_start, seg_end, zs_start, zs_end, zs_count, settled)| {
+                divergence::MoveView {
+                    kind: parse_move_kind(kind),
+                    direction: parse_direction(dir),
+                    seg_start: *seg_start,
+                    seg_end: *seg_end,
+                    zs_start: *zs_start,
+                    zs_end: *zs_end,
+                    zs_count: *zs_count,
+                    settled: *settled,
+                }
+            },
+        )
         .collect()
 }
 
@@ -576,13 +595,15 @@ fn divergences_from_moves_v1(
     let segs = to_seg_views(&segments);
     let zss: Vec<divergence::ZsView> = zhongshus
         .iter()
-        .map(|&(zd, zg, seg_start, seg_end, settled)| divergence::ZsView {
-            zd,
-            zg,
-            seg_start,
-            seg_end,
-            settled,
-        })
+        .map(
+            |&(zd, zg, seg_start, seg_end, settled)| divergence::ZsView {
+                zd,
+                zg,
+                seg_start,
+                seg_end,
+                settled,
+            },
+        )
         .collect();
     let mvs = to_move_views(&moves);
 
@@ -649,13 +670,15 @@ fn buysellpoints_from_level(
     let segs = to_seg_views(&segments);
     let zss: Vec<divergence::ZsView> = zhongshus
         .iter()
-        .map(|&(zd, zg, seg_start, seg_end, settled, _, _)| divergence::ZsView {
-            zd,
-            zg,
-            seg_start,
-            seg_end,
-            settled,
-        })
+        .map(
+            |&(zd, zg, seg_start, seg_end, settled, _, _)| divergence::ZsView {
+                zd,
+                zg,
+                seg_start,
+                seg_end,
+                settled,
+            },
+        )
         .collect();
     let zs_break: Vec<(bool, zhongshu::BreakDir, i64)> = zhongshus
         .iter()
@@ -961,9 +984,7 @@ impl PyRecursiveOrchestrator {
         self.trend_div_seen.clear();
     }
 
-    fn current_strokes(
-        &self,
-    ) -> Vec<(usize, usize, &'static str, f64, f64, f64, f64, bool)> {
+    fn current_strokes(&self) -> Vec<(usize, usize, &'static str, f64, f64, f64, f64, bool)> {
         self.inner
             .strokes()
             .iter()
@@ -987,7 +1008,11 @@ impl PyRecursiveOrchestrator {
     }
 
     fn current_zhongshus(&self) -> Vec<ZhongshuTuple> {
-        self.inner.zhongshus().iter().map(zhongshu_to_tuple).collect()
+        self.inner
+            .zhongshus()
+            .iter()
+            .map(zhongshu_to_tuple)
+            .collect()
     }
 
     fn current_moves(&self) -> Vec<MoveTuple> {
@@ -1000,11 +1025,19 @@ impl PyRecursiveOrchestrator {
     /// settled move。消除每-epoch 全量 `current_moves()` marshal + Python `diff_moves`
     /// （O(B·n_moves) 超线性 → 端到端 O(n_seg·新结算)）。move_epoch 未变 ⟹ 返回空（O(1)）。
     fn take_move_settle_events(&mut self) -> Vec<MoveTuple> {
-        self.inner.move_settle_delta().iter().map(move_to_tuple).collect()
+        self.inner
+            .move_settle_delta()
+            .iter()
+            .map(move_to_tuple)
+            .collect()
     }
 
     fn current_buysellpoints(&self) -> Vec<BspTuple> {
-        self.inner.buysellpoints().iter().map(bsp_to_tuple).collect()
+        self.inner
+            .buysellpoints()
+            .iter()
+            .map(bsp_to_tuple)
+            .collect()
     }
 
     fn current_recursive(&self) -> Vec<LevelSnapshotTuple> {
@@ -1172,7 +1205,10 @@ impl PyRecursiveOrchestrator {
     #[pyo3(signature = (level_id = 1))]
     fn bi_zhongshu_last_move_dir(&mut self, level_id: i64) -> Option<&'static str> {
         self.sync_inc(level_id);
-        self.inc_bz.as_ref().and_then(|e| e.last_move_direction()).map(|d| d.as_str())
+        self.inc_bz
+            .as_ref()
+            .and_then(|e| e.last_move_direction())
+            .map(|d| d.as_str())
     }
 
     /// D3 dir_row[3]：走势级（L1）尾 move 方向（O(1) 只读）。无走势 → None。
@@ -1186,7 +1222,10 @@ impl PyRecursiveOrchestrator {
     #[pyo3(signature = (level_id = 1))]
     fn bi_zhongshu_last_move_kind(&mut self, level_id: i64) -> Option<&'static str> {
         self.sync_inc(level_id);
-        self.inc_bz.as_ref().and_then(|e| e.last_move_kind()).map(|k| k.as_str())
+        self.inc_bz
+            .as_ref()
+            .and_then(|e| e.last_move_kind())
+            .map(|k| k.as_str())
     }
 
     /// 趋势态行 trend_row[3]：走势级（L1）尾 move kind（O(1) 只读）。无走势 → None。
@@ -1200,9 +1239,7 @@ impl PyRecursiveOrchestrator {
     /// inc 中枢 / prev_moves / macd_ctx=None）。有效域 = enable_macd_divergence=false
     /// （macd 路径下 inc_seg_div 不更新，直接 panic——契约违例非数据问题）。
     /// 缓存随 bsp_key 重算更新 → 调用方用 bsp_epoch 门控与 current_buysellpoints 同步。
-    fn current_trend_divergences(
-        &self,
-    ) -> Vec<(&'static str, &'static str, i64, f64, f64, f64)> {
+    fn current_trend_divergences(&self) -> Vec<(&'static str, &'static str, i64, f64, f64, f64)> {
         if self.inner.macd_divergence_enabled() {
             // MACD 路径：inc_seg_div 缓存不更新，返回空 Vec
             return Vec::new();
@@ -1265,7 +1302,16 @@ impl PyRecursiveOrchestrator {
         bool,
         bool,
         bool,
-        Vec<(&'static str, &'static str, i64, bool, Option<usize>, f64, f64, f64)>,
+        Vec<(
+            &'static str,
+            &'static str,
+            i64,
+            bool,
+            Option<usize>,
+            f64,
+            f64,
+            f64,
+        )>,
     ) {
         self.sync_inc(level_id);
         self.inc_bz
@@ -1316,8 +1362,7 @@ impl PyRecursiveOrchestrator {
         }
         self.trend_last_bsp_epoch = epoch;
 
-        let (mut b1, mut s1, mut sa, mut ba, mut type2_buy) =
-            (false, false, false, false, false);
+        let (mut b1, mut s1, mut sa, mut ba, mut type2_buy) = (false, false, false, false, false);
         for bp in self.inner.buysellpoints() {
             // ── _scan_new 部分：confirmed 必需，键 (kind, side, seg_idx) ──
             if bp.confirmed {
@@ -1371,7 +1416,16 @@ impl PyRecursiveOrchestrator {
         bool,
         bool,
         bool,
-        Vec<(&'static str, &'static str, i64, bool, Option<usize>, f64, f64, f64)>,
+        Vec<(
+            &'static str,
+            &'static str,
+            i64,
+            bool,
+            Option<usize>,
+            f64,
+            f64,
+            f64,
+        )>,
     ) {
         let (mut b1, mut s1, mut sa, mut ba) = (false, false, false, false);
         let mut events = Vec::new();
@@ -1417,9 +1471,7 @@ impl PyRecursiveOrchestrator {
     /// (kind, direction, seg_c_end) 下沉 Rust，marshal 只含新行。
     /// 有效域同源接口：enable_macd_divergence=false（macd 路径 inc_seg_div 不更新，
     /// 直接 panic——契约违例非数据问题）。调用契约：仅 bsp_epoch 变化 bar 调用。
-    fn take_trend_div_events(
-        &mut self,
-    ) -> Vec<(&'static str, &'static str, i64, f64, f64, f64)> {
+    fn take_trend_div_events(&mut self) -> Vec<(&'static str, &'static str, i64, f64, f64, f64)> {
         if self.inner.macd_divergence_enabled() {
             // MACD 路径：inc_seg_div 缓存不更新，返回空 Vec
             // BSP 层已用 MACD 面积力竭判定背驰，surfacing 层暂空
@@ -1470,7 +1522,6 @@ impl PyRecursiveOrchestrator {
     fn recursive_epoch(&self) -> u64 {
         self.inner.recursive_epoch()
     }
-
 }
 
 impl PyRecursiveOrchestrator {
@@ -1517,7 +1568,9 @@ fn parse_bsp_kind(s: &str) -> PyResult<BspKind> {
         "type1" => Ok(BspKind::Type1),
         "type2" => Ok(BspKind::Type2),
         "type3" => Ok(BspKind::Type3),
-        _ => Err(pyo3::exceptions::PyValueError::new_err(format!("非法 BSP kind: {s:?}"))),
+        _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "非法 BSP kind: {s:?}"
+        ))),
     }
 }
 
@@ -1525,7 +1578,9 @@ fn parse_side(s: &str) -> PyResult<Side> {
     match s {
         "buy" => Ok(Side::Buy),
         "sell" => Ok(Side::Sell),
-        _ => Err(pyo3::exceptions::PyValueError::new_err(format!("非法 side: {s:?}"))),
+        _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "非法 side: {s:?}"
+        ))),
     }
 }
 
@@ -1553,14 +1608,27 @@ impl PyOrganicTape {
         up_settled: Vec<u16>,
         max_ladder: Vec<u8>,
         type2_buy: Vec<bool>,
-        bsp_flat: Vec<(i64, u8, String, String, i64, bool, Option<i64>, Option<f64>, Option<f64>, f64)>,
+        bsp_flat: Vec<(
+            i64,
+            u8,
+            String,
+            String,
+            i64,
+            bool,
+            Option<i64>,
+            Option<f64>,
+            Option<f64>,
+            f64,
+        )>,
         div_flat: Vec<(i64, u8, String, String, i64, f64, f64, f64)>,
         dir_flips: Option<Vec<(i64, u8, String)>>,
         run_high: Option<Vec<f64>>,
         trend_flips: Option<Vec<(i64, u8, bool)>>,
     ) -> PyResult<Self> {
         use trading::tape::{BarSig, SignalTape};
-        use trading::types::{BspClass, BspEvent as TBspEvent, DivEvent as TDivEvent, LadderMask, MAX_LADDER};
+        use trading::types::{
+            BspClass, BspEvent as TBspEvent, DivEvent as TDivEvent, LadderMask, MAX_LADDER,
+        };
         let n = closes.len();
         for (name, len) in [
             ("buy1", buy1.len()),
@@ -1578,18 +1646,16 @@ impl PyOrganicTape {
             }
         }
         let mut bars: Vec<BarSig> = (0..n)
-            .map(|i| {
-                BarSig {
-                    close: closes[i],
-                    buy1: LadderMask(buy1[i]),
-                    sell1: LadderMask(sell1[i]),
-                    sell_any: LadderMask(sell_any[i]),
-                    buy_any: LadderMask(buy_any[i]),
-                    max_ladder: max_ladder[i],
-                    type2_buy: type2_buy[i],
-                    up_move_settled: LadderMask(up_settled[i]),
-                    ..Default::default()
-                }
+            .map(|i| BarSig {
+                close: closes[i],
+                buy1: LadderMask(buy1[i]),
+                sell1: LadderMask(sell1[i]),
+                sell_any: LadderMask(sell_any[i]),
+                buy_any: LadderMask(buy_any[i]),
+                max_ladder: max_ladder[i],
+                type2_buy: type2_buy[i],
+                up_move_settled: LadderMask(up_settled[i]),
+                ..Default::default()
             })
             .collect();
         for (i, &c) in closes.iter().enumerate() {
@@ -1614,9 +1680,16 @@ impl PyOrganicTape {
             let class = BspClass::from_parts(parse_bsp_kind(&kind)?, parse_side(&side)?);
             bars[bar_us]
                 .bsp_events
-                .get_or_insert_with(|| Box::new(<[Vec<TBspEvent>; MAX_LADDER]>::default()))
-                [lad_us]
-                .push(TBspEvent { class, seg_idx, confirmed, cs, zd, zg, price });
+                .get_or_insert_with(|| Box::new(<[Vec<TBspEvent>; MAX_LADDER]>::default()))[lad_us]
+                .push(TBspEvent {
+                    class,
+                    seg_idx,
+                    confirmed,
+                    cs,
+                    zd,
+                    zg,
+                    price,
+                });
         }
         for (bar, lad, kind, direction, seg_idx, force_a, force_c, price) in div_flat {
             let (bar_us, lad_us) = (bar as usize, lad as usize);
@@ -1645,9 +1718,15 @@ impl PyOrganicTape {
             };
             bars[bar_us]
                 .div_events
-                .get_or_insert_with(|| Box::new(<[Vec<TDivEvent>; MAX_LADDER]>::default()))
-                [lad_us]
-                .push(TDivEvent { kind: dkind, direction: dir, seg_idx, force_a, force_c, price });
+                .get_or_insert_with(|| Box::new(<[Vec<TDivEvent>; MAX_LADDER]>::default()))[lad_us]
+                .push(TDivEvent {
+                    kind: dkind,
+                    direction: dir,
+                    seg_idx,
+                    force_a,
+                    force_c,
+                    price,
+                });
         }
         let dir_flips_parsed = match dir_flips {
             None => None,
@@ -1698,7 +1777,12 @@ impl PyOrganicTape {
             }
         }
         Ok(PyOrganicTape {
-            inner: SignalTape { bars, dir_flips: dir_flips_parsed, run_high, trend_flips },
+            inner: SignalTape {
+                bars,
+                dir_flips: dir_flips_parsed,
+                run_high,
+                trend_flips,
+            },
         })
     }
 
@@ -1720,9 +1804,8 @@ fn run_organic_rust(
     diag: bool,
 ) -> PyResult<PyObject> {
     use pyo3::types::PyDict;
-    let cfg = trading::config::variant(variant).ok_or_else(|| {
-        pyo3::exceptions::PyValueError::new_err(format!("未知变体: {variant:?}"))
-    })?;
+    let cfg = trading::config::variant(variant)
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(format!("未知变体: {variant:?}")))?;
     let sm = trading::config::StopMode::parse(stop_mode).ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err(format!("非法 stop_mode: {stop_mode:?}"))
     })?;
@@ -1764,7 +1847,10 @@ fn run_organic_rust(
     // 循环短差逐腿 (reason, profit) 日志——按买点类型的 payoff 分布读数
     counters.set_item("c38_close_profits", res.counters.c38_close_profits.clone())?;
     // 41课域腿门拒开逐事件 (ladder, bar) 日志——regime 分段统计数据基础
-    counters.set_item("osc_l41_reject_log", res.counters.osc_l41_reject_log.clone())?;
+    counters.set_item(
+        "osc_l41_reject_log",
+        res.counters.osc_l41_reject_log.clone(),
+    )?;
     // osc 操作域域外不开逐事件 (ladder, bar) 日志（osc_domain=ConsolidationOnly）
     counters.set_item(
         "osc_domain_reject_log",
@@ -1788,7 +1874,10 @@ fn run_organic_rust(
         res.counters.osc_upshift_open_log.clone(),
     )?;
     out.set_item("counters", counters)?;
-    out.set_item("rev_attempts_by_ladder", res.rev_attempts_by_ladder.to_vec())?;
+    out.set_item(
+        "rev_attempts_by_ladder",
+        res.rev_attempts_by_ladder.to_vec(),
+    )?;
     out.set_item("rev_opens_by_ladder", res.rev_opens_by_ladder.to_vec())?;
     out.set_item("ladder_attribution", res.ladder_attribution.to_vec())?;
     out.set_item("ladder_held_bars", res.ladder_held_bars.to_vec())?;
@@ -1806,7 +1895,10 @@ fn run_organic_rust(
             #[allow(clippy::type_complexity)]
             let rows: Vec<(
                 (i64, f64, i64, f64, String, usize, f64, f64, f64, bool),
-                Vec<((i64, &'static str, i64, f64, i64, f64), (f64, f64, f64, bool, f64, f64, f64))>,
+                Vec<(
+                    (i64, &'static str, i64, f64, i64, f64),
+                    (f64, f64, f64, bool, f64, f64, f64),
+                )>,
             )> = diags
                 .iter()
                 .map(|d| {
@@ -1831,7 +1923,11 @@ fn run_organic_rust(
                                     r.slot.py_key(),
                                     // H3 上移腿投影为 "osc_up"（回测按腿分解上移腿
                                     // 盈亏）；非 H3 变体 upshift 恒 false ⇒ 逐位不变
-                                    if r.upshift { "osc_up" } else { r.slot.leg_kind() },
+                                    if r.upshift {
+                                        "osc_up"
+                                    } else {
+                                        r.slot.leg_kind()
+                                    },
                                     r.sell_bar,
                                     r.sell_price,
                                     r.buy_bar,
@@ -1878,8 +1974,15 @@ fn run_recursive_rust(
     let wf = WeightFn::parse(weight).ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err(format!("非法 weight: {weight:?}"))
     })?;
-    let res = run_recursive(&tape.inner, floor_ladder, base_frac, wf, sell_t1_only, with_fills)
-        .map_err(pyo3::exceptions::PyValueError::new_err)?;
+    let res = run_recursive(
+        &tape.inner,
+        floor_ladder,
+        base_frac,
+        wf,
+        sell_t1_only,
+        with_fills,
+    )
+    .map_err(pyo3::exceptions::PyValueError::new_err)?;
     let out = PyDict::new(py);
     out.set_item("final_return_pct", res.final_return_pct)?;
     out.set_item("max_dd_pct", res.max_dd_pct)?;
@@ -1894,7 +1997,17 @@ fn run_recursive_rust(
     let fills: Vec<(i64, u8, u8, f64, f64, f64, f64)> = res
         .fills
         .iter()
-        .map(|f| (f.bar, f.ladder, f.side, f.shares, f.price, f.cash_after, f.equity_after))
+        .map(|f| {
+            (
+                f.bar,
+                f.ladder,
+                f.side,
+                f.shares,
+                f.price,
+                f.cash_after,
+                f.equity_after,
+            )
+        })
         .collect();
     out.set_item("fills", fills)?;
     Ok(out.into())
@@ -1920,9 +2033,8 @@ fn run_positional_rust(
     mode: &str,
 ) -> PyResult<PyObject> {
     use trading::positional::{run_positional, PolarityMode};
-    let pm = PolarityMode::parse(mode).ok_or_else(|| {
-        pyo3::exceptions::PyValueError::new_err(format!("非法 mode: {mode:?}"))
-    })?;
+    let pm = PolarityMode::parse(mode)
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(format!("非法 mode: {mode:?}")))?;
     let res = run_positional(&tape.inner, floor_ladder, pm)
         .map_err(pyo3::exceptions::PyValueError::new_err)?;
     Ok(positional_result_to_dict(py, &res)?.into())
@@ -1940,25 +2052,37 @@ fn positional_result_to_dict<'py>(
     //             shares, weight_at_entry, deferred_bars, partial, exit_reason,
     //             polarity)。polarity ∈ {"long","short"}：Short 行现金流镜像
     //             （开空收 proceeds / 平空付买回款），NAV 重建按此分派符号。
-    let trades: Vec<(u8, i64, f64, i64, f64, f64, f64, i64, bool, &'static str, &'static str)> =
-        res.trades
-            .iter()
-            .map(|t| {
-                (
-                    t.ladder,
-                    t.entry_bar,
-                    t.entry_price,
-                    t.exit_bar,
-                    t.exit_price,
-                    t.shares,
-                    t.weight_at_entry,
-                    t.deferred_bars,
-                    t.partial,
-                    t.exit_reason,
-                    t.polarity.as_str(),
-                )
-            })
-            .collect();
+    let trades: Vec<(
+        u8,
+        i64,
+        f64,
+        i64,
+        f64,
+        f64,
+        f64,
+        i64,
+        bool,
+        &'static str,
+        &'static str,
+    )> = res
+        .trades
+        .iter()
+        .map(|t| {
+            (
+                t.ladder,
+                t.entry_bar,
+                t.entry_price,
+                t.exit_bar,
+                t.exit_price,
+                t.shares,
+                t.weight_at_entry,
+                t.deferred_bars,
+                t.partial,
+                t.exit_reason,
+                t.polarity.as_str(),
+            )
+        })
+        .collect();
     out.set_item("trades", trades)?;
     out.set_item("equity", res.equity.clone())?;
     out.set_item("final_nav", res.final_nav)?;
@@ -1970,7 +2094,10 @@ fn positional_result_to_dict<'py>(
         "n_pending_cancels_by_ladder",
         res.n_pending_cancels_by_ladder.to_vec(),
     )?;
-    out.set_item("n_noref_skips_by_ladder", res.n_noref_skips_by_ladder.to_vec())?;
+    out.set_item(
+        "n_noref_skips_by_ladder",
+        res.n_noref_skips_by_ladder.to_vec(),
+    )?;
     out.set_item("n_partial_by_ladder", res.n_partial_by_ladder.to_vec())?;
     out.set_item("n_deferred_by_ladder", res.n_deferred_by_ladder.to_vec())?;
     out.set_item(
@@ -1982,14 +2109,23 @@ fn positional_result_to_dict<'py>(
         res.n_gate41_blocks_by_ladder.to_vec(),
     )?;
     // Fusion（B+C 合体）观测面（legacy 模式恒零）
-    out.set_item("n_trend_holds_by_ladder", res.n_trend_holds_by_ladder.to_vec())?;
+    out.set_item(
+        "n_trend_holds_by_ladder",
+        res.n_trend_holds_by_ladder.to_vec(),
+    )?;
     out.set_item("n_sub_opens_by_ladder", res.n_sub_opens_by_ladder.to_vec())?;
-    out.set_item("n_sub_restores_by_ladder", res.n_sub_restores_by_ladder.to_vec())?;
+    out.set_item(
+        "n_sub_restores_by_ladder",
+        res.n_sub_restores_by_ladder.to_vec(),
+    )?;
     out.set_item(
         "n_sub_kbuy_restores_by_ladder",
         res.n_sub_kbuy_restores_by_ladder.to_vec(),
     )?;
-    out.set_item("n_sub_escalates_by_ladder", res.n_sub_escalates_by_ladder.to_vec())?;
+    out.set_item(
+        "n_sub_escalates_by_ladder",
+        res.n_sub_escalates_by_ladder.to_vec(),
+    )?;
     out.set_item(
         "n_sub_phase_closes_by_ladder",
         res.n_sub_phase_closes_by_ladder.to_vec(),
@@ -2007,7 +2143,10 @@ fn positional_result_to_dict<'py>(
         "n_sub_pool_topup_by_ladder",
         res.n_sub_pool_topup_by_ladder.to_vec(),
     )?;
-    out.set_item("sub_net_cash_by_ladder", res.sub_net_cash_by_ladder.to_vec())?;
+    out.set_item(
+        "sub_net_cash_by_ladder",
+        res.sub_net_cash_by_ladder.to_vec(),
+    )?;
     // 统一配置 U（fusion_u）观测面（P3 机制可观测性；其余模式恒零）
     out.set_item("n_osc_opens_by_ladder", res.n_osc_opens_by_ladder.to_vec())?;
     out.set_item(
@@ -2015,7 +2154,10 @@ fn positional_result_to_dict<'py>(
         res.n_osc_upshift_opens_by_ladder.to_vec(),
     )?;
     out.set_item("n_osc_open_at_level", res.n_osc_open_at_level.to_vec())?;
-    out.set_item("n_osc_out_bars_by_ladder", res.n_osc_out_bars_by_ladder.to_vec())?;
+    out.set_item(
+        "n_osc_out_bars_by_ladder",
+        res.n_osc_out_bars_by_ladder.to_vec(),
+    )?;
     out.set_item(
         "n_osc_up_out_bars_by_ladder",
         res.n_osc_up_out_bars_by_ladder.to_vec(),
@@ -2028,7 +2170,10 @@ fn positional_result_to_dict<'py>(
     out.set_item("n_route_weak_noref", res.n_route_weak_noref.to_vec())?;
     // H1 candidate 冻结 + Sequence38 子腿观测面（全量普适组合 2026-06-12）
     out.set_item("n_route_h1_freezes", res.n_route_h1_freezes.to_vec())?;
-    out.set_item("n_seq38_opens_by_ladder", res.n_seq38_opens_by_ladder.to_vec())?;
+    out.set_item(
+        "n_seq38_opens_by_ladder",
+        res.n_seq38_opens_by_ladder.to_vec(),
+    )?;
     out.set_item(
         "n_seq38_consbuy_closes_by_ladder",
         res.n_seq38_consbuy_closes_by_ladder.to_vec(),
@@ -2070,7 +2215,10 @@ fn positional_result_to_dict<'py>(
         "n_osc_due_restores_by_ladder",
         res.n_osc_due_restores_by_ladder.to_vec(),
     )?;
-    out.set_item("n_osc_escalates_by_ladder", res.n_osc_escalates_by_ladder.to_vec())?;
+    out.set_item(
+        "n_osc_escalates_by_ladder",
+        res.n_osc_escalates_by_ladder.to_vec(),
+    )?;
     out.set_item(
         "n_osc_trend_hold_sells_by_ladder",
         res.n_osc_trend_hold_sells_by_ladder.to_vec(),
@@ -2080,7 +2228,10 @@ fn positional_result_to_dict<'py>(
         res.n_osc_sell3_vetos_by_ladder.to_vec(),
     )?;
     out.set_item("n_osc_restore_defer_bars", res.n_osc_restore_defer_bars)?;
-    out.set_item("osc_net_cash_by_ladder", res.osc_net_cash_by_ladder.to_vec())?;
+    out.set_item(
+        "osc_net_cash_by_ladder",
+        res.osc_net_cash_by_ladder.to_vec(),
+    )?;
     out.set_item("osc_net_cash_at_level", res.osc_net_cash_at_level.to_vec())?;
     // ── P6 相位机观测面（fusion_p/fusion_pu；其余模式恒零）──
     out.set_item(
@@ -2107,8 +2258,14 @@ fn positional_result_to_dict<'py>(
         "n_phase_dn_closes_by_ladder",
         res.n_phase_dn_closes_by_ladder.to_vec(),
     )?;
-    out.set_item("phase_up_bars_by_ladder", res.phase_up_bars_by_ladder.to_vec())?;
-    out.set_item("phase_dn_bars_by_ladder", res.phase_dn_bars_by_ladder.to_vec())?;
+    out.set_item(
+        "phase_up_bars_by_ladder",
+        res.phase_up_bars_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "phase_dn_bars_by_ladder",
+        res.phase_dn_bars_by_ladder.to_vec(),
+    )?;
     out.set_item(
         "n_r2_pos_blocks_by_ladder",
         res.n_r2_pos_blocks_by_ladder.to_vec(),
@@ -2129,15 +2286,27 @@ fn positional_result_to_dict<'py>(
         "n_nest_fire_buy_by_ladder",
         res.n_nest_fire_buy_by_ladder.to_vec(),
     )?;
-    out.set_item("n_nest_breaks_by_ladder", res.n_nest_breaks_by_ladder.to_vec())?;
+    out.set_item(
+        "n_nest_breaks_by_ladder",
+        res.n_nest_breaks_by_ladder.to_vec(),
+    )?;
     out.set_item("nest_lead_bars_sum", res.nest_lead_bars_sum)?;
     out.set_item("nest_lead_n", res.nest_lead_n)?;
     // 统一递归 voice FSM（fusion_v）观测面（其余模式恒零）
-    out.set_item("freeze_up_bars_by_ladder", res.freeze_up_bars_by_ladder.to_vec())?;
-    out.set_item("freeze_dn_bars_by_ladder", res.freeze_dn_bars_by_ladder.to_vec())?;
+    out.set_item(
+        "freeze_up_bars_by_ladder",
+        res.freeze_up_bars_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "freeze_dn_bars_by_ladder",
+        res.freeze_dn_bars_by_ladder.to_vec(),
+    )?;
     out.set_item("n_t2w_arms_by_ladder", res.n_t2w_arms_by_ladder.to_vec())?;
     out.set_item("n_t2w_fires_by_ladder", res.n_t2w_fires_by_ladder.to_vec())?;
-    out.set_item("n_t2w_negates_by_ladder", res.n_t2w_negates_by_ladder.to_vec())?;
+    out.set_item(
+        "n_t2w_negates_by_ladder",
+        res.n_t2w_negates_by_ladder.to_vec(),
+    )?;
     // 双书独立逐仓 voice（fusion_vd/vdn）观测面（其余模式恒零）
     out.set_item(
         "n_dual_short_opens_by_ladder",
@@ -2152,8 +2321,14 @@ fn positional_result_to_dict<'py>(
         res.dual_both_held_bars_by_ladder.to_vec(),
     )?;
     // 双向条件轴 S1-S4（fusion_btr/fusion_btra）观测面（其余模式恒零）
-    out.set_item("n_flip_shorts_by_ladder", res.n_flip_shorts_by_ladder.to_vec())?;
-    out.set_item("n_short_covers_by_ladder", res.n_short_covers_by_ladder.to_vec())?;
+    out.set_item(
+        "n_flip_shorts_by_ladder",
+        res.n_flip_shorts_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_short_covers_by_ladder",
+        res.n_short_covers_by_ladder.to_vec(),
+    )?;
     out.set_item(
         "n_short_moveup_covers_by_ladder",
         res.n_short_moveup_covers_by_ladder.to_vec(),
@@ -2183,7 +2358,10 @@ fn positional_result_to_dict<'py>(
         res.short_net_cash_by_ladder.to_vec(),
     )?;
     // 纯回复门消融臂（fusion_btrg）观测面（其余模式恒零）
-    out.set_item("n_gate_enters_by_ladder", res.n_gate_enters_by_ladder.to_vec())?;
+    out.set_item(
+        "n_gate_enters_by_ladder",
+        res.n_gate_enters_by_ladder.to_vec(),
+    )?;
     out.set_item(
         "n_gate_restores_by_ladder",
         res.n_gate_restores_by_ladder.to_vec(),
@@ -2201,7 +2379,10 @@ fn positional_result_to_dict<'py>(
         "n_nrf_root_entries_by_ladder",
         res.n_nrf_root_entries_by_ladder.to_vec(),
     )?;
-    out.set_item("n_nrf_spawns_by_ladder", res.n_nrf_spawns_by_ladder.to_vec())?;
+    out.set_item(
+        "n_nrf_spawns_by_ladder",
+        res.n_nrf_spawns_by_ladder.to_vec(),
+    )?;
     out.set_item(
         "n_nrf_negate_closes_by_ladder",
         res.n_nrf_negate_closes_by_ladder.to_vec(),
@@ -2244,7 +2425,10 @@ fn positional_result_to_dict<'py>(
     out.set_item("nrf_max_children", res.nrf_max_children)?;
     // unn 螺旋 eod ~观测（结构化输出，引擎纯函数；其余模式恒 0）——
     // formalization-validity-domain.md：~观测须可被下游 L2/L3 结构化消费而非 eprintln 丢弃。
-    out.set_item("nrf_t50_monotone_violations", res.nrf_t50_monotone_violations)?;
+    out.set_item(
+        "nrf_t50_monotone_violations",
+        res.nrf_t50_monotone_violations,
+    )?;
     out.set_item("nrf_t56_radial_coverage", res.nrf_t56_radial_coverage)?;
     out.set_item("nrf_t57_onesided_layers", res.nrf_t57_onesided_layers)?;
     out.set_item("nrf_t58_active_levels", res.nrf_t58_active_levels)?;
@@ -2299,12 +2483,38 @@ impl PyUnnStream {
         up_settled: u16,
         max_ladder: u8,
         type2_buy: bool,
-        bsp_rows: Vec<(u8, String, String, i64, bool, Option<i64>, Option<f64>, Option<f64>, f64)>,
+        bsp_rows: Vec<(
+            u8,
+            String,
+            String,
+            i64,
+            bool,
+            Option<i64>,
+            Option<f64>,
+            Option<f64>,
+            f64,
+        )>,
         div_rows: Vec<(u8, String, String, i64, f64, f64, f64)>,
         flip_rows: Vec<(u8, String)>,
-    ) -> PyResult<Vec<(u8, i64, f64, i64, f64, f64, f64, i64, bool, &'static str, &'static str)>> {
+    ) -> PyResult<
+        Vec<(
+            u8,
+            i64,
+            f64,
+            i64,
+            f64,
+            f64,
+            f64,
+            i64,
+            bool,
+            &'static str,
+            &'static str,
+        )>,
+    > {
         use trading::tape::BarSig;
-        use trading::types::{BspClass, BspEvent as TBspEvent, DivEvent as TDivEvent, LadderMask, MAX_LADDER};
+        use trading::types::{
+            BspClass, BspEvent as TBspEvent, DivEvent as TDivEvent, LadderMask, MAX_LADDER,
+        };
         if !close.is_finite() {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "close 含非有限值——NaN 必须在数据清洗期删除（T7 纪律）",
@@ -2335,9 +2545,16 @@ impl PyUnnStream {
             }
             let class = BspClass::from_parts(parse_bsp_kind(&kind)?, parse_side(&side)?);
             sig.bsp_events
-                .get_or_insert_with(|| Box::new(<[Vec<TBspEvent>; MAX_LADDER]>::default()))
-                [lad_us]
-                .push(TBspEvent { class, seg_idx, confirmed, cs, zd, zg, price });
+                .get_or_insert_with(|| Box::new(<[Vec<TBspEvent>; MAX_LADDER]>::default()))[lad_us]
+                .push(TBspEvent {
+                    class,
+                    seg_idx,
+                    confirmed,
+                    cs,
+                    zd,
+                    zg,
+                    price,
+                });
         }
         for (lad, kind, direction, seg_idx, force_a, force_c, price) in div_rows {
             let lad_us = lad as usize;
@@ -2365,9 +2582,15 @@ impl PyUnnStream {
                 }
             };
             sig.div_events
-                .get_or_insert_with(|| Box::new(<[Vec<TDivEvent>; MAX_LADDER]>::default()))
-                [lad_us]
-                .push(TDivEvent { kind: dkind, direction: dir, seg_idx, force_a, force_c, price });
+                .get_or_insert_with(|| Box::new(<[Vec<TDivEvent>; MAX_LADDER]>::default()))[lad_us]
+                .push(TDivEvent {
+                    kind: dkind,
+                    direction: dir,
+                    seg_idx,
+                    force_a,
+                    force_c,
+                    price,
+                });
         }
         // flip_edge（本 bar）：从 flip_rows 构造（批量从 flips 数组按 bar 切，语义同）。
         let mut flip_edge: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];

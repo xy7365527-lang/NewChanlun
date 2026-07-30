@@ -82,12 +82,10 @@ pub use audit::{
     JsonlRetraceAuditStore, RetraceAuditError, RetraceAuditEvent, RetraceAuditRecord,
     RetraceRejectionCode, AUDIT_SCHEMA_VERSION,
 };
-pub use book::{
-    CenterDeathCertificate, RetraceAlarms, RetraceLedger, RetraceStep, ThirdPointPack,
-};
+pub use book::{CenterDeathCertificate, RetraceAlarms, RetraceLedger, RetraceStep, ThirdPointPack};
 pub use log::{
-    JsonlRetraceLogStore, RetraceLogError, RetraceProvenance, RetraceRecord, RetraceSnapshot,
-    RestoreRoute, SnapshotRejection, LOG_SCHEMA_VERSION,
+    JsonlRetraceLogStore, RestoreRoute, RetraceLogError, RetraceProvenance, RetraceRecord,
+    RetraceSnapshot, SnapshotRejection, LOG_SCHEMA_VERSION,
 };
 pub use portal::{
     FailureDisposalNotice, PanDivSubtype, ShortRetracePortal, ShortRetraceRecord,
@@ -391,18 +389,22 @@ impl RetraceEntry {
 
     /// Restart 前任身份（现算：`Restarted` 修订载荷）。
     pub fn restarted_from(&self) -> Option<RetraceKey> {
-        self.revisions.iter().find_map(|revision| match revision.kind {
-            RetraceRevisionKind::Restarted { previous } => Some(previous),
-            _ => None,
-        })
+        self.revisions
+            .iter()
+            .find_map(|revision| match revision.kind {
+                RetraceRevisionKind::Restarted { previous } => Some(previous),
+                _ => None,
+            })
     }
 
     /// 判败原因码（现算：`NotConstituted` 修订载荷）。
     pub fn not_constituted_reason(&self) -> Option<NotConstitutedReason> {
-        self.revisions.iter().find_map(|revision| match revision.kind {
-            RetraceRevisionKind::NotConstituted { reason } => Some(reason),
-            _ => None,
-        })
+        self.revisions
+            .iter()
+            .find_map(|revision| match revision.kind {
+                RetraceRevisionKind::NotConstituted { reason } => Some(reason),
+                _ => None,
+            })
     }
 
     /// 落锤证据（现算：终态修订的证据载荷）。

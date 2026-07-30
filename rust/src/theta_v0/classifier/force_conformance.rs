@@ -140,8 +140,8 @@ impl ForceMeasureAdapter {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::super::config::MacdConfig;
+    use super::*;
 
     fn macd_hist(closes: &[f64]) -> Vec<f64> {
         divergence::compute_macd(closes, &MacdConfig::default()).hist
@@ -173,7 +173,10 @@ mod tests {
         let hist = vec![1.2, 1.1];
         let stronger = fm.strength(&hist, 0, 0);
         let weaker = fm.strength(&hist, 1, 1);
-        assert!(stronger > weaker, "1.2 > 1.1 必须映成严格更大的 Nat strength");
+        assert!(
+            stronger > weaker,
+            "1.2 > 1.1 必须映成严格更大的 Nat strength"
+        );
         assert!(fm.mono_holds(&hist, (0, 0), (1, 1)));
         assert!(fm.faithful_holds(&hist, (1, 1), (0, 0)));
     }
@@ -206,7 +209,9 @@ mod tests {
             for b_end in 0..n.min(10) {
                 assert!(
                     fm.mono_holds(&hist, (0, a_end), (0, b_end)),
-                    "mono 公理破坏 a=[0,{}] b=[0,{}]", a_end, b_end
+                    "mono 公理破坏 a=[0,{}] b=[0,{}]",
+                    a_end,
+                    b_end
                 );
             }
         }
@@ -223,7 +228,9 @@ mod tests {
             for b_end in 0..n.min(10) {
                 assert!(
                     fm.faithful_holds(&hist, (0, a_end), (0, b_end)),
-                    "faithful 公理破坏 a=[0,{}] b=[0,{}]", a_end, b_end
+                    "faithful 公理破坏 a=[0,{}] b=[0,{}]",
+                    a_end,
+                    b_end
                 );
             }
         }
@@ -241,6 +248,9 @@ mod tests {
         // divergenceVia_implies_strength_le：背驰 ⟹ strength c ≤ strength a。
         let str_a = fm.strength(&hist, seg_a.0, seg_a.1);
         let str_c = fm.strength(&hist, seg_c.0, seg_c.1);
-        assert!(str_c <= str_a, "背驰 ⟹ strength c ≤ strength a（faithful 推论）");
+        assert!(
+            str_c <= str_a,
+            "背驰 ⟹ strength c ≤ strength a（faithful 推论）"
+        );
     }
 }

@@ -344,7 +344,9 @@ impl PersistentRegistry {
         //     tree/candidate 段同一闭包 ⟹ χ 域外候选 flip-flop 同路径守卫（票面第 4 条）。
         //     翻向的**终结事件化**（父关闭 + 子树连清 + 新世代登记，#227 裁决蓝图两步形）在
         //     coverage 对位层（`held_leg_tree_index_indexed` 方向守卫）兑现——本层是持久防线。
-        let upsert = |elements: &mut std::collections::HashMap<ElementId, PersistentElement>, e: &CoverageElement, cand_segment: bool| {
+        let upsert = |elements: &mut std::collections::HashMap<ElementId, PersistentElement>,
+                      e: &CoverageElement,
+                      cand_segment: bool| {
             let pid = e.id;
             let entry = elements.entry(pid).or_insert(PersistentElement {
                 pid,
@@ -565,7 +567,14 @@ mod tests {
         }
     }
 
-    fn cov_elem(level: u32, ordinal: u64, lambda: usize, rho: usize, dir: VoiceSide, parent_id: Option<ElementId>) -> CoverageElement {
+    fn cov_elem(
+        level: u32,
+        ordinal: u64,
+        lambda: usize,
+        rho: usize,
+        dir: VoiceSide,
+        parent_id: Option<ElementId>,
+    ) -> CoverageElement {
         CoverageElement {
             lambda,
             rho,
@@ -578,7 +587,14 @@ mod tests {
         }
     }
 
-    fn active_leg(level: u32, ordinal: u64, lambda: usize, rho: usize, dir: VoiceSide, parent_id: Option<ElementId>) -> ActiveLeg {
+    fn active_leg(
+        level: u32,
+        ordinal: u64,
+        lambda: usize,
+        rho: usize,
+        dir: VoiceSide,
+        parent_id: Option<ElementId>,
+    ) -> ActiveLeg {
         ActiveLeg {
             level,
             dir,
@@ -599,19 +615,46 @@ mod tests {
         // bar 0: 只有一个 L0 元素
         let e0 = cov_elem(0, 0, 0, 10, VoiceSide::Long, None);
         reg = reg.merge(&[e0], &[]);
-        assert!(reg.registry_live(&ElementId { level: 0, ordinal: 0 }));
-        assert!(reg.snapshot_present(&ElementId { level: 0, ordinal: 0 }));
+        assert!(reg.registry_live(&ElementId {
+            level: 0,
+            ordinal: 0
+        }));
+        assert!(reg.snapshot_present(&ElementId {
+            level: 0,
+            ordinal: 0
+        }));
 
         // bar 1: 涌现 L1 父容器，L0 元素 ID 不变（I3），只是 structural_parent_id 更新
         let l1 = cov_elem(1, 0, 0, 20, VoiceSide::Long, None);
-        let e0_b1 = cov_elem(0, 0, 0, 10, VoiceSide::Long, Some(ElementId { level: 1, ordinal: 0 }));
+        let e0_b1 = cov_elem(
+            0,
+            0,
+            0,
+            10,
+            VoiceSide::Long,
+            Some(ElementId {
+                level: 1,
+                ordinal: 0,
+            }),
+        );
         reg = reg.merge(&[l1, e0_b1], &[]);
         // L0 元素 ID 不变（I3），仍在 registry
-        assert!(reg.registry_live(&ElementId { level: 0, ordinal: 0 }));
+        assert!(reg.registry_live(&ElementId {
+            level: 0,
+            ordinal: 0
+        }));
         // structural_parent_id 更新为 L1（关系可变，身份不变）
         assert_eq!(
-            reg.get(&ElementId { level: 0, ordinal: 0 }).unwrap().structural_parent_id,
-            Some(ElementId { level: 1, ordinal: 0 })
+            reg.get(&ElementId {
+                level: 0,
+                ordinal: 0
+            })
+            .unwrap()
+            .structural_parent_id,
+            Some(ElementId {
+                level: 1,
+                ordinal: 0
+            })
         );
     }
 
@@ -619,21 +662,36 @@ mod tests {
     #[test]
     fn test_reparent_pid_stable() {
         let mut reg = PersistentRegistry::new();
-        let parent_a = ElementId { level: 1, ordinal: 0 };
-        let parent_b = ElementId { level: 1, ordinal: 1 };
-        let child = ElementId { level: 0, ordinal: 0 };
+        let parent_a = ElementId {
+            level: 1,
+            ordinal: 0,
+        };
+        let parent_b = ElementId {
+            level: 1,
+            ordinal: 1,
+        };
+        let child = ElementId {
+            level: 0,
+            ordinal: 0,
+        };
 
         // bar 0: child 的 parent 是 A
         let a = cov_elem(1, 0, 0, 10, VoiceSide::Long, None);
         let c0 = cov_elem(0, 0, 0, 5, VoiceSide::Short, Some(parent_a));
         reg = reg.merge(&[a, c0], &[]);
-        assert_eq!(reg.get(&child).unwrap().structural_parent_id, Some(parent_a));
+        assert_eq!(
+            reg.get(&child).unwrap().structural_parent_id,
+            Some(parent_a)
+        );
 
         // bar 1: child 的 parent 变成 B（reparent），child pid 不变
         let b = cov_elem(1, 1, 0, 10, VoiceSide::Long, None);
         let c1 = cov_elem(0, 0, 0, 5, VoiceSide::Short, Some(parent_b));
         reg = reg.merge(&[b, c1], &[]);
-        assert_eq!(reg.get(&child).unwrap().structural_parent_id, Some(parent_b));
+        assert_eq!(
+            reg.get(&child).unwrap().structural_parent_id,
+            Some(parent_b)
+        );
         // child pid 不变
         assert!(reg.registry_live(&child));
     }
@@ -643,11 +701,34 @@ mod tests {
     #[test]
     fn test_held_detached_not_stale() {
         let mut reg = PersistentRegistry::new();
-        let leg_id = ElementId { level: 0, ordinal: 5 };
-        let leg = active_leg(0, 5, 10, 20, VoiceSide::Long, Some(ElementId { level: 1, ordinal: 0 }));
+        let leg_id = ElementId {
+            level: 0,
+            ordinal: 5,
+        };
+        let leg = active_leg(
+            0,
+            5,
+            10,
+            20,
+            VoiceSide::Long,
+            Some(ElementId {
+                level: 1,
+                ordinal: 0,
+            }),
+        );
 
         // bar 0: held 腿在 snapshot 中
-        let e = cov_elem(0, 5, 10, 20, VoiceSide::Long, Some(ElementId { level: 1, ordinal: 0 }));
+        let e = cov_elem(
+            0,
+            5,
+            10,
+            20,
+            VoiceSide::Long,
+            Some(ElementId {
+                level: 1,
+                ordinal: 0,
+            }),
+        );
         reg = reg.merge(&[e], &[leg]);
         assert_eq!(reg.held_state(&leg), HeldLegState::LivePresent);
 
@@ -666,7 +747,10 @@ mod tests {
     #[test]
     fn test_no_fake_root_detached_parent_preserved() {
         let mut reg = PersistentRegistry::new();
-        let op_parent = ElementId { level: 1, ordinal: 0 };
+        let op_parent = ElementId {
+            level: 1,
+            ordinal: 0,
+        };
         let leg = active_leg(0, 5, 10, 20, VoiceSide::Short, Some(op_parent));
 
         // bar 0: held 腿在 snapshot，parent=op_parent
@@ -687,7 +771,10 @@ mod tests {
     #[test]
     fn test_op_parent_persistent_alive() {
         let mut reg = PersistentRegistry::new();
-        let op_parent_id = ElementId { level: 1, ordinal: 0 };
+        let op_parent_id = ElementId {
+            level: 1,
+            ordinal: 0,
+        };
         let child_leg = active_leg(0, 3, 10, 15, VoiceSide::Short, Some(op_parent_id));
 
         // bar 0: 父子都在 snapshot
@@ -705,7 +792,10 @@ mod tests {
     #[test]
     fn test_explicit_close_exits_live() {
         let mut reg = PersistentRegistry::new();
-        let leg_id = ElementId { level: 0, ordinal: 0 };
+        let leg_id = ElementId {
+            level: 0,
+            ordinal: 0,
+        };
         let leg = active_leg(0, 0, 5, 10, VoiceSide::Long, None);
 
         // bar 0: 入场
@@ -727,7 +817,10 @@ mod tests {
     #[test]
     fn test_i2_direction_invariant() {
         let mut reg = PersistentRegistry::new();
-        let pid = ElementId { level: 0, ordinal: 0 };
+        let pid = ElementId {
+            level: 0,
+            ordinal: 0,
+        };
         let e0 = cov_elem(0, 0, 0, 10, VoiceSide::Long, None);
         reg = reg.merge(&[e0], &[]);
         assert_eq!(reg.get(&pid).unwrap().dir, VoiceSide::Long);
@@ -744,7 +837,10 @@ mod tests {
     #[test]
     fn test_i1_persistence_until_close() {
         let mut reg = PersistentRegistry::new();
-        let leg_id = ElementId { level: 0, ordinal: 0 };
+        let leg_id = ElementId {
+            level: 0,
+            ordinal: 0,
+        };
         let leg = active_leg(0, 0, 5, 10, VoiceSide::Long, None);
 
         reg = reg.merge(&[cov_elem(0, 0, 5, 10, VoiceSide::Long, None)], &[leg]);
@@ -770,7 +866,10 @@ mod tests {
     fn i2_direction_guard_blocks_silent_dir_overwrite() {
         flip_guard_probe_reset();
         let mut reg = PersistentRegistry::new();
-        let pid = ElementId { level: 0, ordinal: 0 };
+        let pid = ElementId {
+            level: 0,
+            ordinal: 0,
+        };
         let e0 = cov_elem(0, 0, 0, 10, VoiceSide::Long, None);
         reg = reg.merge(&[e0], &[]);
         assert_eq!(reg.get(&pid).unwrap().dir, VoiceSide::Long);
@@ -784,7 +883,10 @@ mod tests {
             VoiceSide::Long,
             "I2：同一持久元素方向不变——守卫拒绝静默覆写（#233 机器锁）"
         );
-        assert_eq!(pe.rho, 15, "rho 照刷（§9 rule 1 snapshot 坐标刷新不收守卫影响）");
+        assert_eq!(
+            pe.rho, 15,
+            "rho 照刷（§9 rule 1 snapshot 坐标刷新不收守卫影响）"
+        );
         assert!(pe.snapshot_present, "snapshot_present 照刷（§9 rule 1）");
         assert_eq!(
             flip_guard_probe_snapshot().tree_blocked,
@@ -809,7 +911,10 @@ mod tests {
     fn i2_direction_guard_candidate_segment_same_guard() {
         flip_guard_probe_reset();
         let mut reg = PersistentRegistry::new();
-        let pid = ElementId { level: 2, ordinal: 98 };
+        let pid = ElementId {
+            level: 2,
+            ordinal: 98,
+        };
         let tree_elem = cov_elem(2, 98, 10, 20, VoiceSide::Short, None);
         // 双段 merge：tree 段首见 Short 登记；candidate 段同 id 同向 upsert（无冲突基线）。
         reg.merge_in_place_split(&[tree_elem], true, &[tree_elem], true, &[]);
@@ -840,10 +945,22 @@ mod tests {
     #[test]
     fn first_seen_source_recorded_per_registration_path() {
         let mut reg = PersistentRegistry::new();
-        let tree_pid = ElementId { level: 1, ordinal: 1 };
-        let cand_pid = ElementId { level: 0, ordinal: 2 };
-        let held_pid = ElementId { level: 0, ordinal: 3 };
-        let op_pid = ElementId { level: 1, ordinal: 9 };
+        let tree_pid = ElementId {
+            level: 1,
+            ordinal: 1,
+        };
+        let cand_pid = ElementId {
+            level: 0,
+            ordinal: 2,
+        };
+        let held_pid = ElementId {
+            level: 0,
+            ordinal: 3,
+        };
+        let op_pid = ElementId {
+            level: 1,
+            ordinal: 9,
+        };
         let leg = active_leg(0, 3, 0, 5, VoiceSide::Long, Some(op_pid));
         reg.merge_in_place_split(
             &[cov_elem(1, 1, 0, 10, VoiceSide::Long, None)],
@@ -852,9 +969,18 @@ mod tests {
             true,
             &[leg],
         );
-        assert_eq!(reg.get(&tree_pid).unwrap().first_seen, FirstSeenSource::Tree);
-        assert_eq!(reg.get(&cand_pid).unwrap().first_seen, FirstSeenSource::Candidate);
-        assert_eq!(reg.get(&held_pid).unwrap().first_seen, FirstSeenSource::Held);
+        assert_eq!(
+            reg.get(&tree_pid).unwrap().first_seen,
+            FirstSeenSource::Tree
+        );
+        assert_eq!(
+            reg.get(&cand_pid).unwrap().first_seen,
+            FirstSeenSource::Candidate
+        );
+        assert_eq!(
+            reg.get(&held_pid).unwrap().first_seen,
+            FirstSeenSource::Held
+        );
         assert_eq!(
             reg.get(&op_pid).unwrap().first_seen,
             FirstSeenSource::Held,
@@ -872,15 +998,33 @@ mod tests {
         flip_guard_probe_reset();
         let mut reg = PersistentRegistry::new();
         // ① candidate 首见（σ=Long），树元素同 id 为 ε=Short：分歧但非事件。
-        let cand_pid = ElementId { level: 0, ordinal: 7 };
-        reg.merge_in_place_split(&[], true, &[cov_elem(0, 7, 0, 4, VoiceSide::Long, None)], true, &[]);
+        let cand_pid = ElementId {
+            level: 0,
+            ordinal: 7,
+        };
+        reg.merge_in_place_split(
+            &[],
+            true,
+            &[cov_elem(0, 7, 0, 4, VoiceSide::Long, None)],
+            true,
+            &[],
+        );
         assert!(
             !reg.direction_flip_event_active(&cand_pid, VoiceSide::Short),
             "candidate 首见的方向分歧 = 两轴出生分层，不是翻向事件（枚举『不算』条可执行）"
         );
         // ② held 兜底首见（σ=Long），同 id 树元素 ε=Short：同样不是事件。
-        let held_pid = ElementId { level: 0, ordinal: 8 };
-        reg.merge_in_place_split(&[], true, &[], true, &[active_leg(0, 8, 0, 5, VoiceSide::Long, None)]);
+        let held_pid = ElementId {
+            level: 0,
+            ordinal: 8,
+        };
+        reg.merge_in_place_split(
+            &[],
+            true,
+            &[],
+            true,
+            &[active_leg(0, 8, 0, 5, VoiceSide::Long, None)],
+        );
         assert!(!reg.direction_flip_event_active(&held_pid, VoiceSide::Short));
         assert_eq!(
             flip_guard_probe_snapshot().nontree_origin_divergence,
@@ -888,8 +1032,17 @@ mod tests {
             "非 tree 来源分歧如实计数（忽略但不静默）"
         );
         // ③ tree 首见（ε=Long）+ 树改判 Short ⟹ 真翻向事件，照常开火。
-        let tree_pid = ElementId { level: 0, ordinal: 9 };
-        reg.merge_in_place_split(&[cov_elem(0, 9, 0, 10, VoiceSide::Long, None)], true, &[], true, &[]);
+        let tree_pid = ElementId {
+            level: 0,
+            ordinal: 9,
+        };
+        reg.merge_in_place_split(
+            &[cov_elem(0, 9, 0, 10, VoiceSide::Long, None)],
+            true,
+            &[],
+            true,
+            &[],
+        );
         assert!(
             reg.direction_flip_event_active(&tree_pid, VoiceSide::Short),
             "tree 来源分歧 = 载体被 frontier 重组改判 ⟹ 翻向事件（#269 口径不倒退）"

@@ -133,7 +133,9 @@ impl ProveGuards {
         match self.cur_trigger {
             OpTrigger::None => {
                 self.n_ops_without_trigger += 1;
-                panic!("走势跟随残留：主动操作 `{op}` 无 BSP/emergence/eod 触发源（cur_trigger=None）");
+                panic!(
+                    "走势跟随残留：主动操作 `{op}` 无 BSP/emergence/eod 触发源（cur_trigger=None）"
+                );
             }
             OpTrigger::Bsp => self.ops_by_trigger[0] += 1,
             OpTrigger::Emergence => self.ops_by_trigger[1] += 1,
@@ -473,7 +475,11 @@ mod tests {
     #[test]
     fn adjacent_same_dir_交替零计数() {
         // 多空相间（手性交替）⇒ 同向对 = 0。
-        let occ = [Some(Polarity::Long), Some(Polarity::Short), Some(Polarity::Long)];
+        let occ = [
+            Some(Polarity::Long),
+            Some(Polarity::Short),
+            Some(Polarity::Long),
+        ];
         assert_eq!(count_adjacent_same_dir(&occ), 0);
         // 相邻同向（emergence 间隙两侧同向 sink 腿）⇒ 计数 1（观测，不 panic）。
         let occ2 = [Some(Polarity::Long), Some(Polarity::Long), None];

@@ -43,8 +43,8 @@ use super::prereg_windows::PREREG_WINDOWS;
 // F-01 迁移（bughunt 2026-07-10）：旧 `run_theta_v0` 全窗分类含结构确认前视，已
 // deprecated；本文件产出 L3 声明，必须走无前视因果入口 `run_theta_v0_pi`。
 // 既有全窗 L3 结论（基于旧入口）作废，须以本口径重跑后方可引用。
-use super::runner::run_theta_v0_pi;
 use super::super::config::ThetaConfig;
+use super::runner::run_theta_v0_pi;
 
 /// OOS 窗年跨（自 l3_falsify 内私有 `oos_years` 等价复现——纯日期算术，零概念，年化基数用）。
 /// 朴素序数日差 / 365.25，闰年误差 ≤1 日对年化量级无影响（与 l3_falsify 同口径）。
@@ -77,8 +77,17 @@ fn l3_fullwindow_multi_symbol_significance() {
     eprintln!("★口径：boot_p 用已实现 trade_pnls；随机对照（shift/indep）用含浮盈 total_return；beats?=两对照 p≤0.05");
     eprintln!(
         "{:<6} {:>12} {:>6} {:>6} {:>8} {:>9} {:>7} {:>7} {:>7} {:>6} {}",
-        "symbol", "oos_bars/T", "real", "trd", "MtM%", "bh%",
-        "boot_p", "shift_p", "indep_p", "beats?", "归因",
+        "symbol",
+        "oos_bars/T",
+        "real",
+        "trd",
+        "MtM%",
+        "bh%",
+        "boot_p",
+        "shift_p",
+        "indep_p",
+        "beats?",
+        "归因",
     );
     eprintln!("（real=非强平笔数(门槛)；trd=已实现笔数；MtM%=含浮盈≠成交盈亏；shift_p/indep_p=随机对照 p_upper）");
 
@@ -203,15 +212,27 @@ fn l3_fullwindow_multi_symbol_significance() {
         );
 
         // 不变量（每品种）：管线不崩 + 检验值合法 + 标注一致 + 全窗确认。
-        assert!(res.metrics.strat_return.is_finite(), "{} strat(MtM) 有限", w.symbol);
+        assert!(
+            res.metrics.strat_return.is_finite(),
+            "{} strat(MtM) 有限",
+            w.symbol
+        );
         assert!(res.metrics.bh_return.is_finite(), "{} bh 有限", w.symbol);
         assert!(
             (0.0..=1.0).contains(&sig.boot_pvalue_pnl_le_0),
             "{} boot p∈[0,1]",
             w.symbol
         );
-        assert!((0.0..=1.0).contains(&sig.shift_pvalue), "{} shift p∈[0,1]", w.symbol);
-        assert!((0.0..=1.0).contains(&sig.indep_pvalue), "{} indep p∈[0,1]", w.symbol);
+        assert!(
+            (0.0..=1.0).contains(&sig.shift_pvalue),
+            "{} shift p∈[0,1]",
+            w.symbol
+        );
+        assert!(
+            (0.0..=1.0).contains(&sig.indep_pvalue),
+            "{} indep p∈[0,1]",
+            w.symbol
+        );
         assert_eq!(res.is_l2, res.n_orders > 0, "{} is_l2 ⟺ 订单非空", w.symbol);
         assert_eq!(cut, oos_full.bars.len(), "{} cut=全窗（无截断）", w.symbol);
     }
@@ -269,13 +290,13 @@ fn l3_fullwindow_multi_symbol_significance() {
 //  区分 (a) ρ漂移保守剪枝 vs (b) 结构不产 depth>0 腿。
 //  跑法：cargo test --release --lib l3_pi_depth_diag -- --ignored --nocapture
 // ════════════════════════════════════════════════════════════════════════════
-use super::super::strategy::coverage;
-use super::super::strategy::interp;
-use super::super::strategy::coverage::{CoverageElement, Vertical};
-use super::super::strategy::interp::ActiveLeg;
-use super::super::strategy::voice::depth_weight;
 use super::super::classifier;
 use super::super::parser;
+use super::super::strategy::coverage;
+use super::super::strategy::coverage::{CoverageElement, Vertical};
+use super::super::strategy::interp;
+use super::super::strategy::interp::ActiveLeg;
+use super::super::strategy::voice::depth_weight;
 
 /// #5 深度诊断 per-bar instrument 计数器。
 #[derive(Default, Debug)]
@@ -537,9 +558,22 @@ fn instrument_bar(
     }
     // ★工位 G：各级 bsp 实测数量（classifier 输出，自举前置——level>=1 须真有 bsp）。
     // 每 bar 全量重提取 ⟹ 用**最后一 bar**的全窗 classification 计数（overwrite，非 sum，防累加膨胀）。
-    diag.bsp_lvl0 = classification_i.levels.first().map(|l| l.bsp.len() as u64).unwrap_or(0);
-    diag.bsp_lvl1 = classification_i.levels.get(1).map(|l| l.bsp.len() as u64).unwrap_or(0);
-    diag.bsp_lvl_ge2 = classification_i.levels.iter().skip(2).map(|l| l.bsp.len() as u64).sum();
+    diag.bsp_lvl0 = classification_i
+        .levels
+        .first()
+        .map(|l| l.bsp.len() as u64)
+        .unwrap_or(0);
+    diag.bsp_lvl1 = classification_i
+        .levels
+        .get(1)
+        .map(|l| l.bsp.len() as u64)
+        .unwrap_or(0);
+    diag.bsp_lvl_ge2 = classification_i
+        .levels
+        .iter()
+        .skip(2)
+        .map(|l| l.bsp.len() as u64)
+        .sum();
     diag.n_levels = classification_i.levels.len() as u64;
 
     for leg in prev_active {
@@ -788,9 +822,14 @@ fn l3_pi_depth_diag_cl_btc() {
 
     eprintln!("\n===== #5 深度贡献根因诊断：max_depth=3 七链 depth>0 腿为何 ΔSharpe=0 =====");
     eprintln!("★区分 (a) ρ漂移保守剪枝（CoordDrift 计数应低=修复未生效）vs (b) 结构不产（tower depth>=2 少/ReverseOpen=0）");
-    eprintln!("★诚实标注：open_*/active_* 是 per-bar 全量候选/活动角色（非新增订单 diff），结构诊断用。");
+    eprintln!(
+        "★诚实标注：open_*/active_* 是 per-bar 全量候选/活动角色（非新增订单 diff），结构诊断用。"
+    );
 
-    for w in PREREG_WINDOWS.iter().filter(|w| w.symbol == "CL" || w.symbol == "BTC") {
+    for w in PREREG_WINDOWS
+        .iter()
+        .filter(|w| w.symbol == "CL" || w.symbol == "BTC")
+    {
         let ds = match data::load_by_symbol(w.symbol, &config) {
             Ok(d) => d,
             Err(e) => {
@@ -810,7 +849,14 @@ fn l3_pi_depth_diag_cl_btc() {
             bar_seconds: 60,
         };
 
-        eprintln!("\n──── {:<6} ({} bars, OOS {}→{}, cut={}) ────", w.symbol, oos.bars.len(), w.oos.0, w.oos.1, cut);
+        eprintln!(
+            "\n──── {:<6} ({} bars, OOS {}→{}, cut={}) ────",
+            w.symbol,
+            oos.bars.len(),
+            w.oos.0,
+            w.oos.1,
+            cut
+        );
 
         let t0 = std::time::Instant::now();
         let diag = instrument_loop(&oos.bars, &config);
@@ -819,7 +865,11 @@ fn l3_pi_depth_diag_cl_btc() {
         eprintln!("  bars_processed         : {}", diag.bars_processed);
         eprintln!();
         eprintln!("  ── (1) 塔结构深度分布 ──");
-        eprintln!("  bars_with_tower_ge2    : {}  ({:.1}% of bars)", diag.bars_with_tower_ge2, 100.0 * diag.bars_with_tower_ge2 as f64 / diag.bars_processed.max(1) as f64);
+        eprintln!(
+            "  bars_with_tower_ge2    : {}  ({:.1}% of bars)",
+            diag.bars_with_tower_ge2,
+            100.0 * diag.bars_with_tower_ge2 as f64 / diag.bars_processed.max(1) as f64
+        );
         eprintln!("  bars_with_empty_tree   : {}", diag.bars_with_empty_tree);
         eprintln!("  tower_depth0 (根)      : {}", diag.tower_depth0);
         eprintln!("  tower_depth1 (子)      : {}", diag.tower_depth1);
@@ -831,25 +881,50 @@ fn l3_pi_depth_diag_cl_btc() {
         eprintln!("  open_total             : {}", diag.open_total);
         eprintln!("  open_ambient           : {}", diag.open_ambient);
         eprintln!("  open_followparent      : {}", diag.open_followparent);
-        eprintln!("  ★open_reverse_open     : {}  (反向对冲腿源)", diag.open_reverse_open);
+        eprintln!(
+            "  ★open_reverse_open     : {}  (反向对冲腿源)",
+            diag.open_reverse_open
+        );
         eprintln!("  close_total            : {}", diag.close_total);
         eprintln!("  record_total           : {}", diag.record_total);
         eprintln!();
         eprintln!("  ── (3) active 集深度贡献（AncOK 后真链准入腿，按生产 next_active parent_id 链算 depth）──");
         eprintln!("  ★坐标系统一：depth 沿 leg.parent_id 链（生产 AncOK 同字段同集合），restore overlay 单独计");
-        eprintln!("  active_depth0 腿       : {}  units={:.2}", diag.active_depth0, diag.active_depth0_units);
-        eprintln!("  active_depth1 腿       : {}  units={:.2}  (w=0.30)", diag.active_depth1, diag.active_depth1_units);
-        eprintln!("  active_depth2 腿       : {}  units={:.2}  (w=0.10)", diag.active_depth2, diag.active_depth2_units);
+        eprintln!(
+            "  active_depth0 腿       : {}  units={:.2}",
+            diag.active_depth0, diag.active_depth0_units
+        );
+        eprintln!(
+            "  active_depth1 腿       : {}  units={:.2}  (w=0.30)",
+            diag.active_depth1, diag.active_depth1_units
+        );
+        eprintln!(
+            "  active_depth2 腿       : {}  units={:.2}  (w=0.10)",
+            diag.active_depth2, diag.active_depth2_units
+        );
         eprintln!("  ★active_depth_ge3 腿  : {}  (真 1→2→3 AncOK 链准入；应=0 与 samebar/sd_parent_held 一致)", diag.active_depth_ge3);
         eprintln!("  ── restore overlay 腿（生产 work 追加，单独计，不混入 active_depth*）──");
-        eprintln!("  ★active_restored     : {}  (restore_ancestor_chain / Stale 腿，非真 carry/open)", diag.active_restored);
+        eprintln!(
+            "  ★active_restored     : {}  (restore_ancestor_chain / Stale 腿，非真 carry/open)",
+            diag.active_restored
+        );
         eprintln!("    restored depth0/1/2/>=3 : {} / {} / {} / {}  (restore 腿按 parent_id 链真实 depth)",
             diag.restored_depth0, diag.restored_depth1, diag.restored_depth2, diag.restored_depth_ge3);
-        let total_u = diag.active_depth0_units + diag.active_depth1_units + diag.active_depth2_units;
+        let total_u =
+            diag.active_depth0_units + diag.active_depth1_units + diag.active_depth2_units;
         if total_u > 0.0 {
-            eprintln!("  depth0 占比            : {:.1}%", 100.0 * diag.active_depth0_units / total_u);
-            eprintln!("  depth1 占比            : {:.1}%", 100.0 * diag.active_depth1_units / total_u);
-            eprintln!("  depth2 占比            : {:.1}%", 100.0 * diag.active_depth2_units / total_u);
+            eprintln!(
+                "  depth0 占比            : {:.1}%",
+                100.0 * diag.active_depth0_units / total_u
+            );
+            eprintln!(
+                "  depth1 占比            : {:.1}%",
+                100.0 * diag.active_depth1_units / total_u
+            );
+            eprintln!(
+                "  depth2 占比            : {:.1}%",
+                100.0 * diag.active_depth2_units / total_u
+            );
         }
         eprintln!();
         eprintln!("  ── (4) AncOK 剪枝 ──");
@@ -862,20 +937,44 @@ fn l3_pi_depth_diag_cl_btc() {
         eprintln!("  ── (5) held_leg_tree_index 分支 ──");
         eprintln!("  held_total             : {}", diag.held_total);
         eprintln!("  held_exact (ρ未漂移)   : {}", diag.held_exact);
-        eprintln!("  ★held_coord_drift     : {}  (ρ漂移=父延伸)", diag.held_coord_drift);
+        eprintln!(
+            "  ★held_coord_drift     : {}  (ρ漂移=父延伸)",
+            diag.held_coord_drift
+        );
         eprintln!("  held_stale (父真失效)  : {}", diag.held_stale);
         eprintln!();
         eprintln!("  ── (5b) ★persistent overlay 指标（anc.pdf §12）──");
-        eprintln!("  held_snapshot_exact    : {}  (snapshot 中找到，可能永远不高)", diag.held_snapshot_exact);
-        eprintln!("  ★held_registry_alive  : {}  (目标≈100%——未显式关闭的腿)", diag.held_registry_alive);
-        eprintln!("  ★held_op_parent_alive  : {}  (depth>0 腿的 op_parent 在 registry 存活)", diag.held_operation_parent_alive);
-        eprintln!("  held_live_detached     : {}  (LiveDetached——修复后保留非 stale)", diag.held_live_detached);
-        eprintln!("  ★samebar_depth>0_admit : {}  (工位G: 同 bar 容器BSP+子共现 AncOK 准入 depth>0)", diag.samebar_depth_gt0_admitted);
+        eprintln!(
+            "  held_snapshot_exact    : {}  (snapshot 中找到，可能永远不高)",
+            diag.held_snapshot_exact
+        );
+        eprintln!(
+            "  ★held_registry_alive  : {}  (目标≈100%——未显式关闭的腿)",
+            diag.held_registry_alive
+        );
+        eprintln!(
+            "  ★held_op_parent_alive  : {}  (depth>0 腿的 op_parent 在 registry 存活)",
+            diag.held_operation_parent_alive
+        );
+        eprintln!(
+            "  held_live_detached     : {}  (LiveDetached——修复后保留非 stale)",
+            diag.held_live_detached
+        );
+        eprintln!(
+            "  ★samebar_depth>0_admit : {}  (工位G: 同 bar 容器BSP+子共现 AncOK 准入 depth>0)",
+            diag.samebar_depth_gt0_admitted
+        );
         eprintln!();
         eprintln!("  ── (6) ★工位 G：open 候选 level 直方图 + 全窗各级 bsp ──");
-        eprintln!("  open_lvl0 / lvl1 / lvl>=2 : {} / {} / {}", diag.open_lvl0, diag.open_lvl1, diag.open_lvl_ge2);
+        eprintln!(
+            "  open_lvl0 / lvl1 / lvl>=2 : {} / {} / {}",
+            diag.open_lvl0, diag.open_lvl1, diag.open_lvl_ge2
+        );
         eprintln!("  全窗 n_levels            : {}", diag.n_levels);
-        eprintln!("  全窗 bsp_lvl0 / lvl1 / >=2: {} / {} / {}", diag.bsp_lvl0, diag.bsp_lvl1, diag.bsp_lvl_ge2);
+        eprintln!(
+            "  全窗 bsp_lvl0 / lvl1 / >=2: {} / {} / {}",
+            diag.bsp_lvl0, diag.bsp_lvl1, diag.bsp_lvl_ge2
+        );
         eprintln!();
         eprintln!("  ── (6b) ★ChatGPT §11：raw BSP vs parent-carrier accepted certificate（判 depth1/2=0 根因）──");
         eprintln!("  open_cert_with_carrier  : {}  (发出侧：open 候选携真 parent_id，被包装成父 carrier 子证书)", diag.open_cert_with_carrier);
@@ -886,20 +985,43 @@ fn l3_pi_depth_diag_cl_btc() {
         eprintln!("        raw_bsp_lvl(ℓ+1)>0 但 open_cert_with_carrier=0 ⟹ 解释器未包装成 parent-carrier cert(可修缺口)。");
         eprintln!();
         eprintln!("  ── (7) ★工位 H 根因区分：ReverseOpen 子的真父是否已持仓 ──");
-        eprintln!("  reverse_open_total     : {}  (ReverseOpen 子候选总数)", diag.reverse_open_total);
-        eprintln!("  ★sd_parent_held       : {}  (>0=父持仓但子被剪=真bug；=0=父从不持仓=639(c)正确剪枝)", diag.sd_parent_held);
-        eprintln!("  sd_parent_registry_alive: {}  (父在 registry live，含 LiveDetached)", diag.sd_parent_registry_alive);
+        eprintln!(
+            "  reverse_open_total     : {}  (ReverseOpen 子候选总数)",
+            diag.reverse_open_total
+        );
+        eprintln!(
+            "  ★sd_parent_held       : {}  (>0=父持仓但子被剪=真bug；=0=父从不持仓=639(c)正确剪枝)",
+            diag.sd_parent_held
+        );
+        eprintln!(
+            "  sd_parent_registry_alive: {}  (父在 registry live，含 LiveDetached)",
+            diag.sd_parent_registry_alive
+        );
         eprintln!("  [{:.1}s]", elapsed);
 
         eprintln!();
         eprintln!("  ── (8) ★工位 P：‖ΔN‖₁ 净头寸位移（ChatGPT§5定理2，决定性 b1/b2 判据）──");
-        eprintln!("  N_t = Σ sign(dir)·base_units·w(d)（net_target_units 口径，base_units={:.0}）", 1000.0_f64);
+        eprintln!(
+            "  N_t = Σ sign(dir)·base_units·w(d)（net_target_units 口径，base_units={:.0}）",
+            1000.0_f64
+        );
         eprintln!("  ★‖ΔN‖₁ = Σ|N_t^#5 − N_t^base| : {:.4}", diag.delta_n_l1);
-        eprintln!("  ΔN_t≠0 的 bar 数             : {} / {} bars", diag.delta_n_nonzero_bars, diag.bars_processed);
-        eprintln!("  Σ N_t^#5 / Σ N_t^base        : {:.2} / {:.2}", diag.sum_n_full, diag.sum_n_base);
-        eprintln!("  |ΔN_t| 量级分布 =0 / (0,1] / (1,100] / (100,1000] / >1000 : {} / {} / {} / {} / {}",
-            diag.delta_n_mag_eq0, diag.delta_n_mag_le1, diag.delta_n_mag_le100,
-            diag.delta_n_mag_le1000, diag.delta_n_mag_gt1000);
+        eprintln!(
+            "  ΔN_t≠0 的 bar 数             : {} / {} bars",
+            diag.delta_n_nonzero_bars, diag.bars_processed
+        );
+        eprintln!(
+            "  Σ N_t^#5 / Σ N_t^base        : {:.2} / {:.2}",
+            diag.sum_n_full, diag.sum_n_base
+        );
+        eprintln!(
+            "  |ΔN_t| 量级分布 =0 / (0,1] / (1,100] / (100,1000] / >1000 : {} / {} / {} / {} / {}",
+            diag.delta_n_mag_eq0,
+            diag.delta_n_mag_le1,
+            diag.delta_n_mag_le100,
+            diag.delta_n_mag_le1000,
+            diag.delta_n_mag_gt1000
+        );
         if diag.delta_n_l1 < 1e-9 {
             eprintln!("  → ★b2：‖ΔN‖₁=0 ∀t — depth>0 腿存在但净额化后净头寸根本没变（多空腿压缩）。#5 alpha（若有）在毛分账本层，需 overlay IR/保证金归一化度量（非 standalone Sharpe）。");
         } else {
@@ -921,7 +1043,10 @@ fn l3_pi_depth_diag_cl_btc() {
             // 已基于 delta_n_l1 判出的 b1/b2，与 line 877-881 自相矛盾（工位 N 误采信此行）。
             // 净头寸是否真被改变由 ‖ΔN‖₁ 唯一判定，不由 "depth_active>0 && ΔSharpe=0" 推 net-cancel。
             if diag.delta_n_l1 < 1e-9 {
-                eprintln!("  → (b2) active depth>0={} 但 ‖ΔN‖₁=0：净额化抹平，#5 净头寸未变（见上 b2）。", depth_active);
+                eprintln!(
+                    "  → (b2) active depth>0={} 但 ‖ΔN‖₁=0：净额化抹平，#5 净头寸未变（见上 b2）。",
+                    depth_active
+                );
             } else {
                 eprintln!("  → (b1) active depth>0={}，‖ΔN‖₁={:.0}>0：净敞口确被改变，ΔSharpe=0 是经验无 alpha（非 net-cancel 抵消，见上 b1）。", depth_active, diag.delta_n_l1);
             }

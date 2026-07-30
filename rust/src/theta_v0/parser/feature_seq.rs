@@ -189,7 +189,9 @@ fn apply_inclusion(
     l: Tick,
     dir_state: Option<Direction>,
 ) -> Option<Direction> {
-    let (last_h, last_l) = *elements.last().expect("apply_inclusion 调用前 elements 非空");
+    let (last_h, last_l) = *elements
+        .last()
+        .expect("apply_inclusion 调用前 elements 非空");
     let left_inc = last_h >= h && last_l <= l;
     let right_inc = h >= last_h && l <= last_l;
     if left_inc || right_inc {
@@ -367,7 +369,11 @@ impl FeatureSeqState {
     /// - 无分型 → pop 回退，按方向性 K 线包含规则合并。
     pub fn append(&mut self, stroke_idx: usize, high: Tick, low: Tick, strokes: &[Stroke]) {
         if self.std.is_empty() {
-            self.std.push(FeatElem { high, low, stroke_idx });
+            self.std.push(FeatElem {
+                high,
+                low,
+                stroke_idx,
+            });
             return;
         }
         let last = *self.std.last().unwrap();
@@ -378,7 +384,11 @@ impl FeatureSeqState {
 
         if has_inclusion {
             // 假设转折点：先 push 试探，看是否触发分型（第71课:42）。
-            self.std.push(FeatElem { high, low, stroke_idx });
+            self.std.push(FeatElem {
+                high,
+                low,
+                stroke_idx,
+            });
             if self.scan_trigger(strokes).is_some() {
                 return;
             }
@@ -402,7 +412,11 @@ impl FeatureSeqState {
             } else if high < last_h && low < last_l {
                 self.dir_state = Some(Direction::Down);
             }
-            self.std.push(FeatElem { high, low, stroke_idx });
+            self.std.push(FeatElem {
+                high,
+                low,
+                stroke_idx,
+            });
         }
     }
 
@@ -455,7 +469,10 @@ impl FeatureSeqState {
                 continue;
             }
             self.last_checked = i.saturating_sub(1);
-            return Some(TriggerHit { k: b_stroke, gap_second: has_gap });
+            return Some(TriggerHit {
+                k: b_stroke,
+                gap_second: has_gap,
+            });
         }
         None
     }
@@ -466,7 +483,13 @@ mod tests {
     use super::*;
 
     fn stroke(dir: Direction, si: usize, ei: usize, sp: Tick, ep: Tick) -> Stroke {
-        Stroke { direction: dir, start_index: si, end_index: ei, start_price: sp, end_price: ep }
+        Stroke {
+            direction: dir,
+            start_index: si,
+            end_index: ei,
+            start_price: sp,
+            end_price: ep,
+        }
     }
 
     #[test]
@@ -617,7 +640,13 @@ mod tests {
         st.append(3, 20, 8, &[]);
         st.append(5, 8, 3, &[]);
         let hit = st.scan_trigger(&[]);
-        assert_eq!(hit, Some(TriggerHit { k: 3, gap_second: false }));
+        assert_eq!(
+            hit,
+            Some(TriggerHit {
+                k: 3,
+                gap_second: false
+            })
+        );
     }
 
     #[test]
@@ -705,7 +734,10 @@ mod tests {
         for (i, strokes) in cases.iter().enumerate() {
             let early = second_seq_has_fractal(strokes, Direction::Up, 0, 0);
             let full = reference_second_seq_has_fractal(strokes, Direction::Up, 0);
-            assert_eq!(early, full, "case {i}: early-terminate ({early}) != full-scan ({full})");
+            assert_eq!(
+                early, full,
+                "case {i}: early-terminate ({early}) != full-scan ({full})"
+            );
         }
     }
 }

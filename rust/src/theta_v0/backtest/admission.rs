@@ -36,7 +36,10 @@ pub(super) fn voice_exec_gate() -> bool {
             return v;
         }
     }
-    std::env::var(crate::theta_v0::env_registry::VOICE_EXEC).ok().as_deref() == Some("1")
+    std::env::var(crate::theta_v0::env_registry::VOICE_EXEC)
+        .ok()
+        .as_deref()
+        == Some("1")
 }
 
 #[cfg(test)]
@@ -63,7 +66,10 @@ pub(super) fn nest_cert_gate_enabled() -> bool {
             return v;
         }
     }
-    std::env::var(crate::theta_v0::env_registry::THETA_NEST_CERT_GATE).ok().as_deref() == Some("1")
+    std::env::var(crate::theta_v0::env_registry::THETA_NEST_CERT_GATE)
+        .ok()
+        .as_deref()
+        == Some("1")
 }
 
 /// T3 (#172) 并门（#168 裁定 3）：**层载由链路径是否启用单一驱动**——链活（nest 证书门开）
@@ -292,7 +298,14 @@ pub(super) fn nest_gate_admit(
     ) {
         Some(super::econ_positive::GateCertificate::Nest(cert)) => {
             let pass = cert.n_delta();
-            (pass, if pass { "nest_pass" } else { "nest_n_delta_false" })
+            (
+                pass,
+                if pass {
+                    "nest_pass"
+                } else {
+                    "nest_n_delta_false"
+                },
+            )
         }
         Some(super::econ_positive::GateCertificate::Xzd(ev)) => {
             let pass = ev.gate_pass();
@@ -700,8 +713,8 @@ impl NestChainGate {
     ) -> Vec<classifier::level_view::NestCandidateEventExt> {
         use classifier::level_view::{
             assemble_level_view, lower_legs_from, project_extended_windows_carried_only,
-            provide_nest_candidate_events_ext, C2LevelViewConfig, C2VersionTuple,
-            CoordinateWindow, LevelViewMaterial, LevelViewQuery, ProjectionMaterial,
+            provide_nest_candidate_events_ext, C2LevelViewConfig, C2VersionTuple, CoordinateWindow,
+            LevelViewMaterial, LevelViewQuery, ProjectionMaterial,
         };
         let lower = match lower_legs_from(&tower[level - 1]) {
             Ok(legs) => legs,
@@ -868,9 +881,12 @@ impl NestChainGate {
         c: &super::super::strategy::interp::Candidate,
         classification: &classifier::Classification,
     ) -> (Option<super::super::types::Tick>, Option<usize>) {
-        let price = super::super::parser::fractal::fractal_at_source(&self.fractals, c.source_index)
-            .map(|f| f.price);
-        let Some(price) = price else { return (None, None) };
+        let price =
+            super::super::parser::fractal::fractal_at_source(&self.fractals, c.source_index)
+                .map(|f| f.price);
+        let Some(price) = price else {
+            return (None, None);
+        };
         let anchor = classification
             .levels
             .get(c.level as usize)
@@ -941,7 +957,11 @@ impl NestChainGate {
         let (price, anchor) = self.resolve_foot(c, classification);
         let (Some(price), Some(anchor)) = (price, anchor) else {
             // 锚不可解（x 处无分型 / 本级层未载 / 该脚未登记）⟹ NoChain（Xzd 回退）。
-            return ChainProbe { price, anchor, ..Default::default() };
+            return ChainProbe {
+                price,
+                anchor,
+                ..Default::default()
+            };
         };
         // 恰好存在扫描（逐级 T2 层；不问分型类型——同点跨型各级自为真）。
         let mut existence: Vec<bool> = Vec::with_capacity(classification.levels.len());
@@ -957,7 +977,11 @@ impl NestChainGate {
         }
         let Some(chain_top) = existence.iter().rposition(|&e| e) else {
             // 结构不可达（本级已解析出 a* ⟹ 本级必有存在），保守 NoChain。
-            return ChainProbe { price: Some(price), anchor: Some(anchor), ..Default::default() };
+            return ChainProbe {
+                price: Some(price),
+                anchor: Some(anchor),
+                ..Default::default()
+            };
         };
         // 链区间 [L0, 链顶] 逐级证书查询（事件键级 = 账本级 + 1；键域不滤方向）。
         let mut levels: Vec<ChainLevelGenealogy> = Vec::with_capacity(chain_top + 1);
@@ -982,7 +1006,9 @@ impl NestChainGate {
             if let Some(ids) = self.by_triple_anchor.get(&(event_level, price, anchor)) {
                 n_certs = ids.len();
                 for id in ids {
-                    let Some(cert) = self.index.get(id) else { continue };
+                    let Some(cert) = self.index.get(id) else {
+                        continue;
+                    };
                     // 因果守卫：链上任一确认钟越过锚定 bar ⟹ 整证剔除（现语义逐字）。
                     if cert.judge_at().iter().any(|&t| t > anchor_index) {
                         continue;
@@ -1110,7 +1136,8 @@ impl NestChainGate {
         // Xzd 回退——同点递归链回答「这个点是不是确认的拐点」，买卖标签回答「做哪边」）。
         let chain = self.chain_lookup(c, confirm_index, classification);
         // L2 旧臂对照读出（链判定不消费；链 NoChain 时其 Xzd 通道被复用）。
-        let (old_admit, old_channel) = nest_gate_admit(tower, c, hist, confirm_index, classification);
+        let (old_admit, old_channel) =
+            nest_gate_admit(tower, c, hist, confirm_index, classification);
         let (admit, channel, xzd_fallback, reused_old_xzd) = match chain.verdict {
             ChainVerdict::Pass => (true, "nest_pass", false, false),
             ChainVerdict::Reject => (false, "nest_n_delta_false", false, false),
@@ -1143,7 +1170,12 @@ impl NestChainGate {
                     ) {
                         Some(ev) => {
                             let pass = ev.gate_pass();
-                            (pass, if pass { "xzd_pass" } else { "xzd_gate_fail" }, true, false)
+                            (
+                                pass,
+                                if pass { "xzd_pass" } else { "xzd_gate_fail" },
+                                true,
+                                false,
+                            )
                         }
                         None => (false, "cert_none", true, false),
                     }
@@ -1167,7 +1199,6 @@ impl NestChainGate {
         (admit, channel, obs)
     }
 }
-
 
 /// [close_pred 折 𝒦_Θ] 计算 [`KThetaRiskGate`]（Q2：风控 stop/risk 作可行集约束门，非第二出口）。
 ///
@@ -1278,9 +1309,9 @@ pub(super) fn k_theta_risk_gate(
             "#625：持仓方向双源（position_node_id.side / entry_z.delta）须同源于开仓候选 c.dir"
         );
         let exit_side = match held_side {
-            VoiceSide::Long => FillSide::Sell,   // 平多 = 卖，止损在下方
-            VoiceSide::Short => FillSide::Buy,   // 平空 = 买，止损在上方
-            VoiceSide::Flat => continue,         // 台账只记 Long/Short（防御性）
+            VoiceSide::Long => FillSide::Sell, // 平多 = 卖，止损在下方
+            VoiceSide::Short => FillSide::Buy, // 平空 = 买，止损在上方
+            VoiceSide::Flat => continue,       // 台账只记 Long/Short（防御性）
         };
         if !bar.untradable && stop_hit(bar, stop, exit_side) {
             stop_risk_seeds.push(*leg);
@@ -1363,10 +1394,14 @@ pub(super) fn kappa_policy_resolved(config_policy: Option<RiskPolicy>) -> RiskPo
 
 /// κ 优先序纯函数（A10 附则A 写死：env>config>baseline；可测——不碰进程 env）。
 /// env 非法值 panic（与 env knob 语义一致）；env=None ⟹ config 或 baseline。
-pub(super) fn kappa_priority_resolve(env: Option<(i64, i64)>, config_policy: Option<RiskPolicy>) -> RiskPolicy {
+pub(super) fn kappa_priority_resolve(
+    env: Option<(i64, i64)>,
+    config_policy: Option<RiskPolicy>,
+) -> RiskPolicy {
     match env {
-        Some((num, den)) => RiskPolicy::try_new_ratio(num, den)
-            .unwrap_or_else(|| panic!("非法 κ barrier grid 值 num={num} den={den}（要求 num≥0 ∧ den>0）")),
+        Some((num, den)) => RiskPolicy::try_new_ratio(num, den).unwrap_or_else(|| {
+            panic!("非法 κ barrier grid 值 num={num} den={den}（要求 num≥0 ∧ den>0）")
+        }),
         None => config_policy.unwrap_or_else(RiskPolicy::baseline),
     }
 }
@@ -1404,7 +1439,9 @@ pub(super) mod t5a_chain_dump {
     /// m8 分窗接线：env `T5A_CHAIN_DUMP_DIR` 设置时开 `<dir>/t5a_chain_dump_<tag>.jsonl`；
     /// 未设 ⟹ no-op（返回 false）。每窗调用一次（wverify m8 测试窗首），窗末 [`close`]。
     pub(crate) fn open_for_window(tag: &str) -> bool {
-        let Ok(dir) = std::env::var(crate::theta_v0::env_registry::T5A_CHAIN_DUMP_DIR) else { return false };
+        let Ok(dir) = std::env::var(crate::theta_v0::env_registry::T5A_CHAIN_DUMP_DIR) else {
+            return false;
+        };
         if dir.is_empty() {
             return false;
         }
@@ -1417,7 +1454,10 @@ pub(super) mod t5a_chain_dump {
                 true
             }
             Err(e) => {
-                eprintln!("[t5a_dump] 开窗 dump 创建失败 {}：{e}（no-op 继续，不击穿回测）", path.display());
+                eprintln!(
+                    "[t5a_dump] 开窗 dump 创建失败 {}：{e}（no-op 继续，不击穿回测）",
+                    path.display()
+                );
                 false
             }
         }
@@ -1433,14 +1473,19 @@ pub(super) mod t5a_chain_dump {
     /// PATH 模式惰性打开（每线程一次）：env `T5A_CHAIN_DUMP_PATH` 未设 ⟹ 保持无写入器。
     fn lazy_open_from_env() {
         LAZY_TRIED.with(|t| t.set(true));
-        let Ok(path) = std::env::var(crate::theta_v0::env_registry::T5A_CHAIN_DUMP_PATH) else { return };
+        let Ok(path) = std::env::var(crate::theta_v0::env_registry::T5A_CHAIN_DUMP_PATH) else {
+            return;
+        };
         if path.is_empty() {
             return;
         }
         match std::fs::File::create(&path) {
             Ok(f) => {
                 WRITER.with(|w| *w.borrow_mut() = Some(std::io::BufWriter::new(f)));
-                WINDOW.with(|w| *w.borrow_mut() = std::env::var(crate::theta_v0::env_registry::M8_WIN_FILTER).ok());
+                WINDOW.with(|w| {
+                    *w.borrow_mut() =
+                        std::env::var(crate::theta_v0::env_registry::M8_WIN_FILTER).ok()
+                });
                 eprintln!("[t5a_dump] PATH 模式 → {path}");
             }
             Err(e) => eprintln!("[t5a_dump] dump 创建失败 {path}：{e}（no-op 继续）"),
@@ -1461,7 +1506,8 @@ pub(super) mod t5a_chain_dump {
         c: &super::super::super::strategy::interp::Candidate,
         obs: &NestGateObs,
         admit: bool,
-        channel: &str) {
+        channel: &str,
+    ) {
         use super::super::super::strategy::voice::VoiceSide;
         let tried = LAZY_TRIED.with(|t| t.get());
         if !tried {
@@ -1530,7 +1576,6 @@ pub(super) mod t5a_chain_dump {
         });
     }
 }
-
 
 #[cfg(test)]
 mod issue467_exit_candidate_tests {

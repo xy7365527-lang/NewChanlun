@@ -108,7 +108,9 @@ use super::nested_fugue::{nav, pop_tail, rec_sub_evidence, unwind_to, Voice};
 use super::positional::{theta_weights, PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
 use super::tape::SignalTape;
-use super::types::{BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER};
+use super::types::{
+    BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
+};
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
 
@@ -191,7 +193,9 @@ fn cascade_arm(
 /// 这是 PCF 的唯一层选择机制——替代 URS 的 `root_emergent_ladder`(E\*) +
 /// `top`(最高 θ 层) 两个独立部件。层选择 ≡ 链确认（合一）。
 fn chain_source(located: &[Option<PendingLocate>; MAX_LADDER]) -> Option<usize> {
-    (FIRST_BSP_LADDER..MAX_LADDER).rev().find(|&k| located[k].is_some())
+    (FIRST_BSP_LADDER..MAX_LADDER)
+        .rev()
+        .find(|&k| located[k].is_some())
 }
 
 /// 必然性检验（第14环严格形式的**运行时证明**）：证明一个操作的 source 是一条
@@ -346,7 +350,11 @@ pub(crate) fn run_positioning_chain_fugue(
                         BspClass::Buy1 | BspClass::Buy3 => false,
                         BspClass::Sell2 | BspClass::Buy2 => continue,
                     };
-                    let win = if sellside { &mut nest_sell[k] } else { &mut nest_buy[k] };
+                    let win = if sellside {
+                        &mut nest_sell[k]
+                    } else {
+                        &mut nest_buy[k]
+                    };
                     if e.confirmed {
                         *win = None;
                     } else {
@@ -360,7 +368,10 @@ pub(crate) fn run_positioning_chain_fugue(
                             };
                             (ext, w.since_bar)
                         });
-                        *win = Some(Pending { extreme: ext, since_bar: since });
+                        *win = Some(Pending {
+                            extreme: ext,
+                            since_bar: since,
+                        });
                         res.n_nest_arms_by_ladder[k] += 1;
                     }
                 }
@@ -439,7 +450,14 @@ pub(crate) fn run_positioning_chain_fugue(
         if let Some(tail) = chain.last().copied() {
             if tail.dir == Polarity::Short && tail.capital + tail.units * (tail.basis - c) <= 0.0 {
                 pop_tail(
-                    bar, 2.0 * tail.basis, c, "liq", false, &mut chain, &mut free, &mut n_base,
+                    bar,
+                    2.0 * tail.basis,
+                    c,
+                    "liq",
+                    false,
+                    &mut chain,
+                    &mut free,
+                    &mut n_base,
                     &mut res,
                 );
                 res.n_short_liquidations_by_ladder[tail.ladder] += 1;
@@ -457,7 +475,17 @@ pub(crate) fn run_positioning_chain_fugue(
             });
             if let Some(g) = broke {
                 let lad = chain[g].ladder;
-                unwind_to(g, bar, c, c, "negate", &mut chain, &mut free, &mut n_base, &mut res);
+                unwind_to(
+                    g,
+                    bar,
+                    c,
+                    c,
+                    "negate",
+                    &mut chain,
+                    &mut free,
+                    &mut n_base,
+                    &mut res,
+                );
                 res.n_nrf_negate_closes_by_ladder[lad] += 1;
                 acted = true;
             }
@@ -500,7 +528,17 @@ pub(crate) fn run_positioning_chain_fugue(
                         acted = true;
                     } else if chain.len() == 1 && chain[0].ladder == FIRST_BSP_LADDER {
                         // 根已在链底 ⇒ 无更低子级别 ⇒ 清仓到现金。
-                        unwind_to(0, bar, c, c, "sellpt", &mut chain, &mut free, &mut n_base, &mut res);
+                        unwind_to(
+                            0,
+                            bar,
+                            c,
+                            c,
+                            "sellpt",
+                            &mut chain,
+                            &mut free,
+                            &mut n_base,
+                            &mut res,
+                        );
                         located_sell = [None; MAX_LADDER];
                         acted = true;
                     }
@@ -521,7 +559,17 @@ pub(crate) fn run_positioning_chain_fugue(
             if let Some(s) = rev_source {
                 if s >= tail.ladder {
                     prove_chain(rev_located, rev_dir, s, bar, "D-recover");
-                    pop_tail(bar, c, c, "recover", true, &mut chain, &mut free, &mut n_base, &mut res);
+                    pop_tail(
+                        bar,
+                        c,
+                        c,
+                        "recover",
+                        true,
+                        &mut chain,
+                        &mut free,
+                        &mut n_base,
+                        &mut res,
+                    );
                     acted = true;
                 }
             }
@@ -645,9 +693,16 @@ pub(crate) fn run_positioning_chain_fugue(
 
         // 观测：链深度 + 物理暴露 + 各层视图持有 bar 计数。
         res.nrf_depth_bars[chain.len().min(MAX_LADDER - 1)] += 1;
-        let long_units: f64 = chain.iter().filter(|v| v.dir == Polarity::Long).map(|v| v.units).sum();
-        let short_units: f64 =
-            chain.iter().filter(|v| v.dir == Polarity::Short).map(|v| v.units).sum();
+        let long_units: f64 = chain
+            .iter()
+            .filter(|v| v.dir == Polarity::Long)
+            .map(|v| v.units)
+            .sum();
+        let short_units: f64 = chain
+            .iter()
+            .filter(|v| v.dir == Polarity::Short)
+            .map(|v| v.units)
+            .sum();
         if long_units > 0.0 {
             res.nrf_phys_long_bars += 1;
         }
@@ -670,7 +725,17 @@ pub(crate) fn run_positioning_chain_fugue(
     if !chain.is_empty() {
         let c_last = tape.bars.last().map_or(f64::NAN, |b| b.close);
         let last_bar = (n as i64) - 1;
-        unwind_to(0, last_bar, c_last, c_last, "eod", &mut chain, &mut free, &mut n_base, &mut res);
+        unwind_to(
+            0,
+            last_bar,
+            c_last,
+            c_last,
+            "eod",
+            &mut chain,
+            &mut free,
+            &mut n_base,
+            &mut res,
+        );
     }
     res.final_nav = free;
     Ok(res)
@@ -686,17 +751,34 @@ mod tests {
     const PCF: PolarityMode = PolarityMode::PositioningChain;
 
     fn bar(close: f64) -> BarSig {
-        BarSig { close, max_ladder: 5, ..Default::default() }
+        BarSig {
+            close,
+            max_ladder: 5,
+            ..Default::default()
+        }
     }
 
     fn ev_full(class: BspClass, confirmed: bool, price: f64, cs: Option<i64>) -> BspEvent {
-        let (zd, zg) = if cs.is_some() { (Some(50.0), Some(60.0)) } else { (None, None) };
-        BspEvent { class, seg_idx: 0, confirmed, cs, zd, zg, price }
+        let (zd, zg) = if cs.is_some() {
+            (Some(50.0), Some(60.0))
+        } else {
+            (None, None)
+        };
+        BspEvent {
+            class,
+            seg_idx: 0,
+            confirmed,
+            cs,
+            zd,
+            zg,
+            price,
+        }
     }
 
     fn with_ev(mut b: BarSig, lad: usize, e: BspEvent) -> BarSig {
-        let rows =
-            b.bsp_events.get_or_insert_with(|| Box::new(<[Vec<BspEvent>; MAX_LADDER]>::default()));
+        let rows = b
+            .bsp_events
+            .get_or_insert_with(|| Box::new(<[Vec<BspEvent>; MAX_LADDER]>::default()));
         rows[lad].push(e);
         b
     }
@@ -715,7 +797,11 @@ mod tests {
     fn warmup234() -> Vec<BarSig> {
         let mut bars = Vec::new();
         for j in 0..SUB_COST_MIN_OBS as i64 {
-            let mut b = with_ev(bar(100.0), 2, ev_full(BspClass::Sell1, false, 0.0, Some(1 + j)));
+            let mut b = with_ev(
+                bar(100.0),
+                2,
+                ev_full(BspClass::Sell1, false, 0.0, Some(1 + j)),
+            );
             b = with_ev(b, 3, ev_full(BspClass::Sell1, false, 0.0, Some(10 + j)));
             b = with_ev(b, 4, ev_full(BspClass::Sell1, false, 0.0, Some(100 + j)));
             let rows = b.bsp_events.as_deref_mut().unwrap();
@@ -731,7 +817,11 @@ mod tests {
     }
 
     fn run(bars: Vec<BarSig>, dir_flips: Vec<(i64, u8, Direction)>) -> PositionalResult {
-        let t = SignalTape { bars, dir_flips: Some(dir_flips), ..Default::default() };
+        let t = SignalTape {
+            bars,
+            dir_flips: Some(dir_flips),
+            ..Default::default()
+        };
         run_positional(&t, 2, PCF).unwrap()
     }
 
@@ -740,18 +830,28 @@ mod tests {
         assert_eq!(PolarityMode::parse("pcf"), Some(PCF));
         // 缺背驰磁带 ⇒ Err。
         let t = SignalTape {
-            bars: vec![with_ev(bar(100.0), 3, ev_full(BspClass::Buy1, true, 100.0, None))],
+            bars: vec![with_ev(
+                bar(100.0),
+                3,
+                ev_full(BspClass::Buy1, true, 100.0, None),
+            )],
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
         assert!(run_positional(&t, 2, PCF).unwrap_err().contains("背驰磁带"));
         // 缺 dir_flips ⇒ Err。
         let t2 = SignalTape {
-            bars: vec![with_empty_div(with_ev(bar(100.0), 3, ev_full(BspClass::Buy1, true, 100.0, None)))],
+            bars: vec![with_empty_div(with_ev(
+                bar(100.0),
+                3,
+                ev_full(BspClass::Buy1, true, 100.0, None),
+            ))],
             dir_flips: None,
             ..Default::default()
         };
-        assert!(run_positional(&t2, 2, PCF).unwrap_err().contains("dir_flips"));
+        assert!(run_positional(&t2, 2, PCF)
+            .unwrap_err()
+            .contains("dir_flips"));
     }
 
     #[test]
@@ -763,7 +863,10 @@ mod tests {
         cascade_arm(&mut loc, Side::Sell, 4, 110.0, 5, 7);
         for k in [2usize, 3, 4] {
             let e = loc[k].expect("级联武装 [2..4] 全层");
-            assert_eq!(e.source_ladder, 4, "全层统一 source=链顶 4（含 segment 被覆盖）");
+            assert_eq!(
+                e.source_ladder, 4,
+                "全层统一 source=链顶 4（含 segment 被覆盖）"
+            );
             assert_eq!(e.extreme, 110.0, "全层统一极值=源层 027:25 否定线");
             assert_eq!(e.direction, Side::Sell);
             assert_eq!(e.compress_bar, 5, "压缩↑ bar 全层统一");
@@ -773,7 +876,11 @@ mod tests {
         assert!(loc[5].is_none(), "源层之上不武装");
         // 高 source 优先：低级别 confirm@3（ext 90）不降级既有 source=4。
         cascade_arm(&mut loc, Side::Sell, 3, 90.0, 6, 8);
-        assert_eq!(loc[2].unwrap().source_ladder, 4, "低 source 不降级（高 source 主导）");
+        assert_eq!(
+            loc[2].unwrap().source_ladder,
+            4,
+            "低 source 不降级（高 source 主导）"
+        );
         assert_eq!(loc[2].unwrap().extreme, 110.0, "极值仍为源层 4");
         // 更高 source@6（ext 200）⇒ 覆盖全部 [2..6] 为统一 6/200（含原 [2,3,4]）。
         cascade_arm(&mut loc, Side::Sell, 6, 200.0, 7, 9);
@@ -812,7 +919,11 @@ mod tests {
         // 关键区分：单独高级别 pending（无需中间层独立 candidate）即给出高 source。
         let mut loc2: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER];
         cascade_arm(&mut loc2, Side::Sell, 6, 150.0, 0, 0);
-        assert_eq!(chain_source(&loc2), Some(6), "高级别单独 pending 级联 ⇒ source=6 不坍缩");
+        assert_eq!(
+            chain_source(&loc2),
+            Some(6),
+            "高级别单独 pending 级联 ⇒ source=6 不坍缩"
+        );
     }
 
     /// pending_locate 本质检验：**只**武装高级别 pending@4（无 2/3 独立 candidate），
@@ -821,8 +932,12 @@ mod tests {
     #[test]
     fn high_pending_with_segment_confirm_cascades_to_flip() {
         let (mut bars, mut flips) = full_bull_entry(); // 根入场@source=4
-        // 仅武装 nest_sell@4（高级别单独 pending，无 2/3）。
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
+                                                       // 仅武装 nest_sell@4（高级别单独 pending，无 2/3）。
+        bars.push(with_ev(
+            bar(105.0),
+            4,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        ));
         bars.push(bar(104.0)); // bi 翻 Down（segment/a0 confirm）⇒ confirm@4 ⇒ 级联 source=4
         let sell_ev_bar = bars.len() as i64 - 1;
         bars.push(sellanypt(bar(102.0), 4));
@@ -841,7 +956,11 @@ mod tests {
     fn segment_candidate_alone_no_entry() {
         let mut bars = warmup234();
         // 仅 segment（k=2）买 candidate + bi 向上翻（segment 自身的 confirm）。
-        bars.push(with_ev(bar(95.0), 2, ev_full(BspClass::Buy1, false, 90.0, None)));
+        bars.push(with_ev(
+            bar(95.0),
+            2,
+            ev_full(BspClass::Buy1, false, 90.0, None),
+        ));
         bars.push(bar(96.0));
         let evidence_bar = bars.len() as i64 - 1;
         bars.push(bar(97.0));
@@ -876,9 +995,16 @@ mod tests {
     fn root_enters_at_buy_chain_source() {
         let (bars, flips) = full_bull_entry();
         let r = run(bars, flips);
-        assert_eq!(r.n_nrf_root_entries_by_ladder[4], 1, "买 pending 级联到 source=4 ⇒ 根入场@source=4");
+        assert_eq!(
+            r.n_nrf_root_entries_by_ladder[4], 1,
+            "买 pending 级联到 source=4 ⇒ 根入场@source=4"
+        );
         // 满仓恒仓（价格无关不变量）：shares × entry_price == 全部初始资金。
-        let entry = r.trades.iter().find(|t| t.polarity == Polarity::Long).unwrap();
+        let entry = r
+            .trades
+            .iter()
+            .find(|t| t.polarity == Polarity::Long)
+            .unwrap();
         assert!(
             (entry.shares * entry.entry_price - INITIAL_CAPITAL).abs() < 1e-6,
             "满仓恒仓（全部资金入场）shares={} px={}",
@@ -891,10 +1017,18 @@ mod tests {
     fn no_buy_chain_no_entry() {
         // 仅孤立高级别 candidate@4（无 bi 翻 confirm）⇒ pending 未兑现 ⇒ 不入场。
         let mut bars = warmup234();
-        bars.push(with_ev(bar(95.0), 4, ev_full(BspClass::Buy1, false, 90.0, None)));
+        bars.push(with_ev(
+            bar(95.0),
+            4,
+            ev_full(BspClass::Buy1, false, 90.0, None),
+        ));
         bars.push(bar(96.0));
         let r = run(bars, vec![]); // 无 bi 翻 ⇒ confirm 不成立
-        assert_eq!(r.n_nrf_root_entries_by_ladder.iter().sum::<u64>(), 0, "无 confirm ⇒ 零入场");
+        assert_eq!(
+            r.n_nrf_root_entries_by_ladder.iter().sum::<u64>(),
+            0,
+            "无 confirm ⇒ 零入场"
+        );
         assert!((r.final_nav - INITIAL_CAPITAL).abs() < 1e-9, "全程现金");
     }
 
@@ -912,8 +1046,14 @@ mod tests {
         bars.push(bar(104.0));
         flips.push((sell_ev_bar, 1, Direction::Down)); // bi 翻 Down ⇒ confirm_sell[3]
         let r = run(bars, flips);
-        assert_eq!(r.n_nrf_spawns_by_ladder[3], 1, "卖 pending source=3 < root.ladder=4 ⇒ 降成本 spawn@3");
-        assert!(r.trades.iter().all(|t| t.exit_reason != "sellpt"), "次级别反转非清仓");
+        assert_eq!(
+            r.n_nrf_spawns_by_ladder[3], 1,
+            "卖 pending source=3 < root.ladder=4 ⇒ 降成本 spawn@3"
+        );
+        assert!(
+            r.trades.iter().all(|t| t.exit_reason != "sellpt"),
+            "次级别反转非清仓"
+        );
     }
 
     /// 完整卖 pending 到 source ≥ root.ladder ⇒ 根翻转。
@@ -940,7 +1080,10 @@ mod tests {
             r.n_nrf_root_flips_by_ladder[3], 1,
             "卖 pending source=4 ≥ root.ladder=4 ∧ len==1 ⇒ 翻转为子空@3"
         );
-        assert!(r.trades.iter().all(|t| t.exit_reason != "sellpt"), "翻转非清仓");
+        assert!(
+            r.trades.iter().all(|t| t.exit_reason != "sellpt"),
+            "翻转非清仓"
+        );
     }
 
     #[test]
@@ -962,6 +1105,10 @@ mod tests {
         let (bars, flips) = full_bear_chain_at_root();
         let r = run(bars, flips);
         // 翻转后子空持有；eod 全链解栈，final_nav 有限。
-        assert!(r.final_nav.is_finite() && r.final_nav > 0.0, "final_nav={}", r.final_nav);
+        assert!(
+            r.final_nav.is_finite() && r.final_nav > 0.0,
+            "final_nav={}",
+            r.final_nav
+        );
     }
 }

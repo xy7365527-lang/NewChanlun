@@ -24,9 +24,17 @@ fn registration_pins_four_edge_snapshot_as_identity() {
     );
     let registration = entry.registration().unwrap();
     assert_eq!(registration.frame, center, "身份锚 = 注册拍的四条边");
-    assert_eq!(registration.side, RetraceSide::Buy, "向上离开 ⟹ 三类买点候选");
+    assert_eq!(
+        registration.side,
+        RetraceSide::Buy,
+        "向上离开 ⟹ 三类买点候选"
+    );
     assert_eq!(entry.registered_as_of, 500);
-    assert_eq!(step.key.pair().retest_move_index, 4, "严格相邻 pair 是身份的纯函数");
+    assert_eq!(
+        step.key.pair().retest_move_index,
+        4,
+        "严格相邻 pair 是身份的纯函数"
+    );
     settled(&book);
 }
 
@@ -35,7 +43,10 @@ fn down_departure_registers_sell_side_candidate() {
     let mut book = ledger();
     let center = frame(1_200);
     let step = book.observe(&down_input(center, 7, None, 500)).unwrap();
-    assert_eq!(book.entry(&step.key).unwrap().side(), Some(RetraceSide::Sell));
+    assert_eq!(
+        book.entry(&step.key).unwrap().side(),
+        Some(RetraceSide::Sell)
+    );
     settled(&book);
 }
 
@@ -46,7 +57,11 @@ fn pending_observations_keep_provisional_without_any_timeout() {
     book.observe(&up_input(center, 3, None, 500)).unwrap();
     for as_of in [600, 700, 10_000, 1_000_000] {
         let step = book.observe(&up_input(center, 3, None, as_of)).unwrap();
-        assert_eq!(step.state, RetraceState::Provisional, "缺席 ≠ 消失（裁定七）");
+        assert_eq!(
+            step.state,
+            RetraceState::Provisional,
+            "缺席 ≠ 消失（裁定七）"
+        );
         assert!(step.delta.is_empty(), "未决观察不产修订");
     }
     let entry = book.entry(&key_of(center, 3)).unwrap();
@@ -88,7 +103,12 @@ fn retest_reentry_settles_not_constituted_without_center_event() {
     let mut book = ledger();
     let center = frame(1_200);
     let step = book
-        .observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 500))
+        .observe(&up_input(
+            center,
+            3,
+            Some(RetraceOutcome::RetestReenters),
+            500,
+        ))
         .unwrap();
 
     assert_eq!(step.state, RetraceState::Invalidated);
@@ -120,7 +140,12 @@ fn terminal_absorbs_late_input_silently_and_counts_alarm() {
 
     for as_of in [501, 502, 600] {
         let late = book
-            .observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), as_of))
+            .observe(&up_input(
+                center,
+                3,
+                Some(RetraceOutcome::RetestReenters),
+                as_of,
+            ))
             .unwrap();
         assert!(late.absorbed_late(), "终态后同身份迟到输入 ⟹ 静默吸收");
         assert!(late.delta.is_empty(), "静默 = 零修订");
@@ -142,8 +167,13 @@ fn terminal_absorbs_late_input_silently_and_counts_alarm() {
 fn restart_opens_new_entry_carrying_previous_identity() {
     let mut book = ledger();
     let first = frame(1_200);
-    book.observe(&up_input(first, 3, Some(RetraceOutcome::RetestReenters), 500))
-        .unwrap();
+    book.observe(&up_input(
+        first,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        500,
+    ))
+    .unwrap();
 
     // 重回 ⟹ 快照作废，下一代候选按延展后的新窗口重新拍照（裁定一）。
     let extended = frame(1_400);
@@ -222,7 +252,9 @@ fn confirmed_center_new_departure_is_rejected_as_dead_center_reentry() {
     let certificate = book.death_certificate(center.anchor()).unwrap();
 
     let attempted = key_of(frame(1_400), 5);
-    let rejection = book.observe(&up_input(frame(1_400), 5, None, 700)).unwrap_err();
+    let rejection = book
+        .observe(&up_input(frame(1_400), 5, None, 700))
+        .unwrap_err();
     assert_eq!(
         rejection,
         RetraceRejection::DeadCenterReentry {
@@ -232,7 +264,11 @@ fn confirmed_center_new_departure_is_rejected_as_dead_center_reentry() {
         },
         "死人挂号：给死人挂号 fail-loud 拒收（裁定四）"
     );
-    assert_eq!(book.alarms().dead_center_registrations, 1, "计数与拒收次数恒等");
+    assert_eq!(
+        book.alarms().dead_center_registrations,
+        1,
+        "计数与拒收次数恒等"
+    );
     assert_eq!(book.len(), 1, "拒收零建仓，新档从未进账");
     assert!(book.entry(&attempted).is_none());
     settled(&book);
@@ -263,7 +299,8 @@ fn malformed_frame_rejected_at_registration() {
         end_index: ANCHOR_START,
     };
     assert_eq!(
-        book.observe(&up_input(degenerate, 3, None, 500)).unwrap_err(),
+        book.observe(&up_input(degenerate, 3, None, 500))
+            .unwrap_err(),
         RetraceRejection::MalformedFrame { frame: degenerate }
     );
     settled(&book);
@@ -348,7 +385,11 @@ fn rejections_never_touch_the_ledger() {
     }
     assert!(book.is_empty(), "残废件根本没资格进账本");
     assert!(book.journal().is_empty(), "拒收不进日志（不改状态）");
-    assert_eq!(book.alarms().registration_rejected, 4, "拒收另记 audit 计数");
+    assert_eq!(
+        book.alarms().registration_rejected,
+        4,
+        "拒收另记 audit 计数"
+    );
     settled(&book);
 }
 
@@ -479,7 +520,9 @@ fn transition_table_is_total_over_state_by_outcome() {
         let mut book = ledger();
         let center = frame(1_200);
         seed(&mut book, center, row.from);
-        let step = book.observe(&up_input(center, 3, row.outcome, 600)).unwrap();
+        let step = book
+            .observe(&up_input(center, 3, row.outcome, 600))
+            .unwrap();
         let produced: Vec<_> = step
             .delta
             .as_slice()

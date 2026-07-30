@@ -82,7 +82,12 @@ impl<'a> MorphologyBridge<'a> {
         frame: &'a GroupEventFrame,
         morph: &'a MorphologyState,
     ) -> Self {
-        MorphologyBridge { sig, signal, frame, morph }
+        MorphologyBridge {
+            sig,
+            signal,
+            frame,
+            morph,
+        }
     }
 }
 
@@ -111,6 +116,8 @@ impl MorphologyAxis for MorphologyBridge<'_> {
 
     fn theta(&self, sub: usize) -> Option<f64> {
         // 成本门 N4：复用 unn DepthRef θ 机件（None=参照集 < min_obs，势不可测）。
-        self.signal.depth.theta(sub, None, SUB_COST_Q, SUB_COST_MIN_OBS)
+        self.signal
+            .depth
+            .theta(sub, None, SUB_COST_Q, SUB_COST_MIN_OBS)
     }
 }

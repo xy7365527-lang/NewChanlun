@@ -70,7 +70,15 @@ pub(super) fn simulate_fills(
             if bar.untradable || px <= 0.0 || o.qty <= 0 {
                 continue; // 不可交易 / 非法 qty ⇒ 跳过（reference:47 qty<=0 不交易）。
             }
-            apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+            apply_order(
+                o,
+                px,
+                fee_rate,
+                &mut cash,
+                &mut units,
+                &mut entry_cost,
+                &mut trade_pnls,
+            );
         }
 
         // MtM 权益 = 现金 + 持仓市值，归一化（÷NAV → 收益率口径，初始=1.0）。
@@ -138,7 +146,9 @@ pub(crate) fn apply_order(
         }
         StrictAction::Hold | StrictAction::Wait => return FillOutcome::noop(), // 不动
     };
-    apply_fill(delta, qty, close_only, px, fee_rate, cash, units, entry_cost, trade_pnls)
+    apply_fill(
+        delta, qty, close_only, px, fee_rate, cash, units, entry_cost, trade_pnls,
+    )
 }
 
 /// **方向中性成交**（v1 做空腿核心，先平后开）：有符号方向 `delta`（+1 买/−1 卖）× 绝对手数 `qty`。
@@ -195,10 +205,10 @@ pub(crate) fn apply_fill(
             // 统一：cash += −delta × qty × px × (1 + delta×fee_rate)。
             let cash_flow = -delta * close_qty * px * (1.0 + delta * fee_rate);
             fee_paid += close_qty * px * fee_rate; // 平仓成交费（commission+slippage+tax）
-            // PnL = 持仓方向收益。持仓方向 sign = units.signum()（多=+1，空=−1）。
-            // 平多（持多，sign+1）：PnL = proceeds − cost = (qty×px×(1−fee)) − (qty×entry_cost)。
-            // 平空（持空，sign−1）：PnL = 开空净收 − 平空支出 = (qty×entry_cost) − (qty×px×(1+fee))。
-            // 统一：PnL = sign × (px_exit_net − entry_cost) × qty，其中 px_exit_net 对多=px(1−fee)，对空=px(1+fee)。
+                                                   // PnL = 持仓方向收益。持仓方向 sign = units.signum()（多=+1，空=−1）。
+                                                   // 平多（持多，sign+1）：PnL = proceeds − cost = (qty×px×(1−fee)) − (qty×entry_cost)。
+                                                   // 平空（持空，sign−1）：PnL = 开空净收 − 平空支出 = (qty×entry_cost) − (qty×px×(1+fee))。
+                                                   // 统一：PnL = sign × (px_exit_net − entry_cost) × qty，其中 px_exit_net 对多=px(1−fee)，对空=px(1+fee)。
             let pos_sign = units.signum();
             let px_exit_net = px * (1.0 - pos_sign * fee_rate);
             let pnl = pos_sign * (px_exit_net - *entry_cost) * close_qty;
@@ -238,8 +248,8 @@ pub(crate) fn apply_fill(
             };
         }
         fee_paid += remaining * px * fee_rate; // 开仓成交费（commission+slippage+tax）
-        // 每单位含费成本基（多=买入均价含买入费；空=卖出均价扣卖出费净收）。
-        // 单笔成交成本基 = px × (1 + delta×fee_rate)：多 px(1+fee)，空 px(1−fee)。
+                                               // 每单位含费成本基（多=买入均价含买入费；空=卖出均价扣卖出费净收）。
+                                               // 单笔成交成本基 = px × (1 + delta×fee_rate)：多 px(1+fee)，空 px(1−fee)。
         let unit_cost = px * (1.0 + delta * fee_rate);
         let old_units_abs = units.abs();
         let new_units = *units + delta * remaining;
@@ -314,31 +324,32 @@ pub(super) fn bar_returns(equity: &[f64]) -> Vec<f64> {
 // #200 先平后开、#209/#237 断言硬门、#90 TwLedgerThread、#75 nest 真链门、W1 声部臂、
 // L2-P5/P6 opsem 富化）；ours 独有探针/镜像/shadow 辅助区随 loop 同迁（见下方合并节）。
 
-use std::rc::Rc;
 use super::super::classifier;
 use super::super::closed_loop::state::AssemblyState;
 use super::super::closed_loop::transition::{hybrid_step, AssemblyEvent};
-use super::super::strategy::ledger::{TwEvent, TwState};
-use super::super::strategy;
 use super::super::parser;
+use super::super::strategy;
+use super::super::strategy::ledger::{TwEvent, TwState};
+use super::admission::ChiFilterCtx;
+use super::admission::{
+    exit_candidate_would_close, k_theta_risk_gate, kappa_policy_resolved, nest_cert_gate_enabled,
+    voice_exec_gate, NestChainGate, NestGateStats,
+};
+#[cfg(test)]
+use super::admission::{NEST_CERT_GATE_OVERRIDE, VOICE_EXEC_OVERRIDE};
 use super::data::Dataset;
+use super::ledger::{
+    track_position_transition, LedgerOpen, OpsemEntrySnapshot, TwLedgerThread, TypedTrade,
+    VoiceVerdictRec, TYPED_TRADE_SCHEMA_VERSION,
+};
 use super::metrics::{self, Metrics};
-use super::signal::{entry_structural_stop, newly_confirmed_step};
 use super::opsem_dump::{
     eta_bucket_str, force_state_str, operation_role_str, risk_mode_str,
     strict_nest_sidecar_enabled, summarize_strict_nest_certificates, t_stage_str, voice_side_str,
     OpsemDump, RebaseObservationInput, StrictNestSidecarCollector,
 };
-use super::admission::{
-    voice_exec_gate, nest_cert_gate_enabled,
-    exit_candidate_would_close, NestGateStats,
-    NestChainGate,
-    k_theta_risk_gate, kappa_policy_resolved,
-};
-use super::admission::ChiFilterCtx;
-use super::ledger::{track_position_transition, LedgerOpen, OpsemEntrySnapshot, TwLedgerThread, TypedTrade, TYPED_TRADE_SCHEMA_VERSION, VoiceVerdictRec};
-#[cfg(test)]
-use super::admission::{VOICE_EXEC_OVERRIDE, NEST_CERT_GATE_OVERRIDE};
+use super::signal::{entry_structural_stop, newly_confirmed_step};
+use std::rc::Rc;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 三方合并 ours 独有面（教义线 #196-#200/#209/#237）：断言探针三件套、账户镜像、
@@ -374,7 +385,12 @@ fn non_reverse_open_qty_snapshot(
 ) -> std::collections::HashMap<strategy::account::AccountKey, f64> {
     view.instances()
         .iter()
-        .filter(|(k, _)| !matches!(k.account, strategy::account::AccountIdentity::ReverseOpen { .. }))
+        .filter(|(k, _)| {
+            !matches!(
+                k.account,
+                strategy::account::AccountIdentity::ReverseOpen { .. }
+            )
+        })
         .map(|(k, i)| (*k, i.qty))
         .collect()
 }
@@ -395,11 +411,12 @@ fn debug_assert_reverse_open_isolation(
     view: &strategy::account::ParallelAccountLedger,
     pre: &std::collections::HashMap<strategy::account::AccountKey, f64>,
 ) {
-    for (k, inst) in view
-        .instances()
-        .iter()
-        .filter(|(k, _)| !matches!(k.account, strategy::account::AccountIdentity::ReverseOpen { .. }))
-    {
+    for (k, inst) in view.instances().iter().filter(|(k, _)| {
+        !matches!(
+            k.account,
+            strategy::account::AccountIdentity::ReverseOpen { .. }
+        )
+    }) {
         let before = pre.get(k).copied().unwrap_or(0.0);
         debug_assert_eq!(
             inst.qty, before,
@@ -410,7 +427,10 @@ fn debug_assert_reverse_open_isolation(
     debug_assert_eq!(
         view.instances()
             .keys()
-            .filter(|k| !matches!(k.account, strategy::account::AccountIdentity::ReverseOpen { .. }))
+            .filter(|k| !matches!(
+                k.account,
+                strategy::account::AccountIdentity::ReverseOpen { .. }
+            ))
             .count(),
         pre.len(),
         "#198 断言4 首开反向隔离违例：ReverseOpen fill 新增 Core/Short 分实例"
@@ -532,13 +552,19 @@ fn account_mirror_post(
     };
     // ★#198 断言4 探针（恒在计数）：ReverseOpen fill 笔数（生产路径见证——
     // 「首开反向隔离断言真实触发」以探针 >0 为凭，断言本体见下方 debug 构建逐笔核对）。
-    if matches!(account_id, strategy::account::AccountIdentity::ReverseOpen { .. }) {
+    if matches!(
+        account_id,
+        strategy::account::AccountIdentity::ReverseOpen { .. }
+    ) {
         reverse_open_isolation_probe_bump();
     }
     // 断言4 前置快照（仅 ReverseOpen 过账时；debug 构建，release 编译消除）。
     #[cfg(debug_assertions)]
-    let pre_non_reverse_open = matches!(account_id, strategy::account::AccountIdentity::ReverseOpen { .. })
-        .then(|| non_reverse_open_qty_snapshot(view));
+    let pre_non_reverse_open = matches!(
+        account_id,
+        strategy::account::AccountIdentity::ReverseOpen { .. }
+    )
+    .then(|| non_reverse_open_qty_snapshot(view));
     // ★#199 断言③探针（恒在计数）+ 硬门（debug 逐笔核对，release 编译消除）：
     // - 前半「二类卖身份」：ReverseType2 仅落 ReverseOpen/Short 两身份，永不落 Core 账；
     // - 后半「仅残余才纠错」：CoreResidualCorrection 仅在核心残余实测非零时触发
@@ -620,10 +646,10 @@ fn account_mirror_open(
     };
     // #200：开仓理由 = 通道归属（二类 × Short 账户 ⟹ OpenShort）；identity None（Flat）时
     // 理由不被消费（post 跳过），给 Open 与全域口径一致（不伪造通道标注）。
-    let reason = strategy::account::identity_of(c.role.v, c.dir, level).map_or(
-        strategy::account::ActionReason::Open,
-        |a| strategy::account::reason_of_open(a, c.bsp_class),
-    );
+    let reason = strategy::account::identity_of(c.role.v, c.dir, level)
+        .map_or(strategy::account::ActionReason::Open, |a| {
+            strategy::account::reason_of_open(a, c.bsp_class)
+        });
     account_mirror_post(
         view,
         c.role.v,
@@ -683,7 +709,9 @@ fn account_mirror_close(
 /// 结构剪枝归 `CloseRoot`），W-VERIFY 5 变体拆解与 `typed_ledger_btc_smoke` 分桶计数按
 /// 新口径阅读（BTC train 窗实证翻动：CloseRoot 6→8、CloseReverseOpen 10→8，五枚举总数
 /// 25 不变，见 `btc_prune_leg_exit_type_matches_account_identity` 见证注释）。
-pub(super) fn silent_drop_exit_type(entry_v: strategy::coverage::Vertical) -> strategy::interp::ExitType {
+pub(super) fn silent_drop_exit_type(
+    entry_v: strategy::coverage::Vertical,
+) -> strategy::interp::ExitType {
     // ★#198 新口径（#185 修复 a）：仅首开反向腿记 CloseReverseOpen；Ambient/FollowParent 归
     // CloseRoot（core structural exit——账户侧 Core{level}+StructuralPrune，经 #197 映射）。
     if entry_v == strategy::coverage::Vertical::ReverseOpen {
@@ -723,12 +751,29 @@ pub(super) fn pi_theta_fill_loop<F>(
     chi: Option<ChiFilterCtx>,
 ) -> FillOutput
 where
-    F: FnMut(usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, Vec<usize>, u64, u64),
+    F: FnMut(
+        usize,
+    ) -> (
+        classifier::Classification,
+        Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>,
+        Vec<usize>,
+        u64,
+        u64,
+    ),
 {
     // ★M5 wrapper：overlay=None ⟹ 现有净额路径逐字节不变（bit-exact）。overlay 簿接线走
     // [`pi_theta_fill_loop_overlay`]（run_theta_v0_pi_overlay arm 传 Some）。
     // ★LEE M1：level_ledger=None ⟹ 级别账本镜像整段跳过（bit-exact 回归锁，#644）。
-    pi_theta_fill_loop_overlay(classify_at, bars, initial_nav, config, chi, None, None, None)
+    pi_theta_fill_loop_overlay(
+        classify_at,
+        bars,
+        initial_nav,
+        config,
+        chi,
+        None,
+        None,
+        None,
+    )
 }
 
 /// ★W1 声部独立执行臂（churn 修复，netting-vs-voice-execution-audit-20260719 §7）：与
@@ -749,9 +794,26 @@ pub(super) fn pi_theta_fill_loop_voice<F>(
     voice: &mut super::super::strategy::overlay_state::VoiceExecBook,
 ) -> FillOutput
 where
-    F: FnMut(usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, Vec<usize>, u64, u64),
+    F: FnMut(
+        usize,
+    ) -> (
+        classifier::Classification,
+        Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>,
+        Vec<usize>,
+        u64,
+        u64,
+    ),
 {
-    pi_theta_fill_loop_overlay(classify_at, bars, initial_nav, config, chi, None, None, Some(voice))
+    pi_theta_fill_loop_overlay(
+        classify_at,
+        bars,
+        initial_nav,
+        config,
+        chi,
+        None,
+        None,
+        Some(voice),
+    )
 }
 
 /// #292（T2 落点门控接线；★★触发源改码，用户裁定 2026-07-26）：单 bar 内驱动中枢生命周期
@@ -874,17 +936,15 @@ fn step_center_oscillation_impl(
     osc_books: &mut Vec<super::super::strategy::center_oscillation_trade::CenterOscillationBook>,
     witness: &mut super::super::strategy::oscillation_campaign::CampaignWiringWitness,
     tower_i: Option<&[Rc<Vec<classifier::recursive_tower::LeveledMove>>]>,
-    mut historical_seen: Option<
-        &mut std::collections::HashSet<HistoricalSeenKey>,
-    >,
+    mut historical_seen: Option<&mut std::collections::HashSet<HistoricalSeenKey>>,
     observe_rebase: bool,
 ) -> CenterOscillationStepOutput {
-    use classifier::center_lifecycle::{CenterEventMachine, CenterId, ChainConsumed, PointOutcome};
     use super::super::strategy::center_oscillation_trade::{
-        CenterDrift, CenterOscillationActionRecord, CenterOscillationBook, CenterOscillationTrigger,
-        LineageLookup, TerminationSettlement, UnclosedWriteOffRequest,
+        CenterDrift, CenterOscillationActionRecord, CenterOscillationBook,
+        CenterOscillationTrigger, LineageLookup, TerminationSettlement, UnclosedWriteOffRequest,
     };
     use super::super::strategy::voice::VoiceSide;
+    use classifier::center_lifecycle::{CenterEventMachine, CenterId, ChainConsumed, PointOutcome};
 
     let mut actions = Vec::new();
     let mut write_offs: Vec<UnclosedWriteOffRequest> = Vec::new();
@@ -944,13 +1004,12 @@ fn step_center_oscillation_impl(
             ChainConsumed::Rebased { revived, .. } => {
                 // ★#466 D0：挂起表必须在既有 on_chain_rebase 删除 vanished 条目前抓取。
                 // 这里只读复制；下面核销/动作/见证路径逐字不改。
-                let rebase_observation =
-                    chain_observation.map(|chain| RebaseObservationInput {
-                        level: lvl as u32,
-                        chain,
-                        suspended_before: osc_books[lvl].suspended_identities(),
-                        revived,
-                    });
+                let rebase_observation = chain_observation.map(|chain| RebaseObservationInput {
+                    level: lvl as u32,
+                    chain,
+                    suspended_before: osc_books[lvl].suspended_identities(),
+                    revived,
+                });
                 // ★#679 D1b：挂起随谱系迁移。谱系簿由本 bar 的塔构造事务证书建成
                 // （`classifier::rebase_txn::emit` → `lineage_book::record_edges`，同线程同 bar），
                 // 这里按 `(bar, level)` 取视图交给挂起簿判定；`THETA_REBASE_MIGRATE_SKIP=1` ⟹
@@ -1162,7 +1221,9 @@ fn step_center_oscillation_impl(
     // 同一读法）。level 0 无次级别（L0 是递归底），故从 lvl=1 起。盘背证据不参与（B 裁定：
     // 非必要条件）。
     for lvl in 1..n_levels {
-        let Some(sub_level) = classification_step.levels.get(lvl - 1) else { continue };
+        let Some(sub_level) = classification_step.levels.get(lvl - 1) else {
+            continue;
+        };
         let alive_with_index = cl_machines[lvl].alive_center();
         let alive = alive_with_index.map(|(c, _)| CenterId::of(&c));
         // ★#366：本级中枢链的位移态（89 课「中枢不下移」前置过滤的唯一算料）——在场中枢与
@@ -1233,7 +1294,11 @@ fn step_center_oscillation_impl(
             }
         }
     }
-    CenterOscillationStepOutput { actions, write_offs, rebase_observations }
+    CenterOscillationStepOutput {
+        actions,
+        write_offs,
+        rebase_observations,
+    }
 }
 
 /// ★#366：`step_center_oscillation` 的单 bar 产出——减/补动作 + 「未闭合减出」核销请求两路。
@@ -1297,7 +1362,11 @@ fn drive_campaign_wiring(
         // 存续期刷新 campaign 的 `current_units`（防线读当前的现值来源）。
         for side in [VoiceSide::Long, VoiceSide::Short] {
             let signed = account_view.balance_side(account, side);
-            let held = if matches!(side, VoiceSide::Short) { -signed } else { signed };
+            let held = if matches!(side, VoiceSide::Short) {
+                -signed
+            } else {
+                signed
+            };
             let snapshot = super::super::strategy::short_diff_bucket::CoreCostBasisSnapshot::new(
                 held as i64,
                 account_view.cost_basis_side(account, side) as i64,
@@ -1309,7 +1378,9 @@ fn drive_campaign_wiring(
     }
     for rec in new_osc_actions {
         witness.record_action(rec.level, rec.side, rec.action);
-        match campaign_book.apply_action(rec.level, rec.side, rec.action, price, risk_mode, rec.center) {
+        match campaign_book.apply_action(
+            rec.level, rec.side, rec.action, price, risk_mode, rec.center,
+        ) {
             // ★#380 项三/项一/项四：旧版 `Ok(_outcome) => {}` 把成功产出整个丢弃——阶段推进事件
             // （`RecoverCapital`/`EnterEarning`，#368 切换开关的唯一可读证据）、亏损入账、挂起
             // 冲抵归属全部不可见。现逐项落 witness（纯观测，不改变任何决策）。
@@ -1362,17 +1433,21 @@ mod campaign_wiring_tests {
     //! 记账。覆盖：① 本仓口径落地（account_view 取数正确）；② sizing=1/3 落地（经
     //! `oscillation_campaign::OscillationCampaign::reduce_units` 间接见证）；③ campaign
     //! sync_position 随真实持仓事件流生死；④ witness 计数正确。
-    use super::*;
-    use super::super::super::strategy::account::{AccountIdentity, AccountKey, AccountOrder, ActionReason};
+    use super::super::super::classifier::recursive_tower::ElementId;
+    use super::super::super::closed_loop::state::RiskMode;
+    use super::super::super::strategy::account::{
+        AccountIdentity, AccountKey, AccountOrder, ActionReason,
+    };
     use super::super::super::strategy::center_oscillation_trade::{
         CenterOscillationAction, CenterOscillationActionRecord,
     };
     use super::super::super::strategy::interp::{EntryCertificate, PositionNodeId};
     use super::super::super::strategy::ledger::TStage;
-    use super::super::super::strategy::oscillation_campaign::{CampaignBook, CampaignWiringWitness};
+    use super::super::super::strategy::oscillation_campaign::{
+        CampaignBook, CampaignWiringWitness,
+    };
     use super::super::super::strategy::voice::VoiceSide;
-    use super::super::super::classifier::recursive_tower::ElementId;
-    use super::super::super::closed_loop::state::RiskMode;
+    use super::*;
 
     fn core_key(level: u32) -> AccountKey {
         AccountKey::new(
@@ -1380,7 +1455,10 @@ mod campaign_wiring_tests {
             level,
             PositionNodeId {
                 carrier: ElementId { level, ordinal: 0 },
-                entry_certificate: Some(EntryCertificate { level, source_index: 0 }),
+                entry_certificate: Some(EntryCertificate {
+                    level,
+                    source_index: 0,
+                }),
                 side: VoiceSide::Long,
                 generation: 0,
             },
@@ -1401,14 +1479,16 @@ mod campaign_wiring_tests {
             side,
             bar: 0,
             level,
-            center: classifier::center_lifecycle::CenterId::of(&super::super::super::types::Center {
-                zd: 100,
-                zg: 200,
-                dd: 98,
-                gg: 202,
-                start_index: 0,
-                end_index: 10,
-            }),
+            center: classifier::center_lifecycle::CenterId::of(
+                &super::super::super::types::Center {
+                    zd: 100,
+                    zg: 200,
+                    dd: 98,
+                    gg: 202,
+                    start_index: 0,
+                    end_index: 10,
+                },
+            ),
             action,
         }
     }
@@ -1429,13 +1509,33 @@ mod campaign_wiring_tests {
 
         let mut book = CampaignBook::new();
         let mut witness = CampaignWiringWitness::new();
-        drive_campaign_wiring(0, 1, &account_view, &[], &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
 
-        let campaign = book.campaign(0, VoiceSide::Long).expect("Core{0} 持仓非空 ⟹ 应已开局 campaign");
-        assert_eq!(campaign.tw().notional_in, 3_000, "notional_in=本仓口径取数 cost_basis（非编造）");
+        let campaign = book
+            .campaign(0, VoiceSide::Long)
+            .expect("Core{0} 持仓非空 ⟹ 应已开局 campaign");
+        assert_eq!(
+            campaign.tw().notional_in,
+            3_000,
+            "notional_in=本仓口径取数 cost_basis（非编造）"
+        );
         assert_eq!(campaign.tw().holding, 3_000);
         assert_eq!(campaign.tw().stage, TStage::CostReduction);
-        assert_eq!(witness.lifecycle_opened.get("long"), Some(&1), "witness 分侧记录一次开仓生事件（多头侧）");
+        assert_eq!(
+            witness.lifecycle_opened.get("long"),
+            Some(&1),
+            "witness 分侧记录一次开仓生事件（多头侧）"
+        );
     }
 
     /// ★#366（补充裁定 2026-07-27）端到端：`drive_campaign_wiring` 消费「未闭合减出」核销请求
@@ -1444,27 +1544,72 @@ mod campaign_wiring_tests {
     fn drive_campaign_wiring_settles_write_off_and_reports_gap_and_cash_separately() {
         let mut account_view = strategy::account::ParallelAccountLedger::new();
         account_view.post(
-            AccountOrder { key: core_key(0), reason: ActionReason::Open, qty_delta: 300.0, decision_bar: 0 },
+            AccountOrder {
+                key: core_key(0),
+                reason: ActionReason::Open,
+                qty_delta: 300.0,
+                decision_bar: 0,
+            },
             10.0,
             0,
         );
         let mut book = CampaignBook::new();
         let mut witness = CampaignWiringWitness::new();
-        drive_campaign_wiring(0, 1, &account_view, &[], &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
         let actions = vec![record(0, CenterOscillationAction::Reduce)];
-        drive_campaign_wiring(0, 1, &account_view, &actions, &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &actions,
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
         let tw_before = book.campaign(0, VoiceSide::Long).unwrap().tw();
 
-        let write_offs = vec![super::super::super::strategy::center_oscillation_trade::UnclosedWriteOffRequest {
-            bar: 1,
-            level: 0,
-            center: record(0, CenterOscillationAction::Reduce).center,
-            side: VoiceSide::Long,
-        }];
-        drive_campaign_wiring(1, 1, &account_view, &[], &write_offs, 9, RiskMode::Normal, &mut book, &mut witness);
+        let write_offs = vec![
+            super::super::super::strategy::center_oscillation_trade::UnclosedWriteOffRequest {
+                bar: 1,
+                level: 0,
+                center: record(0, CenterOscillationAction::Reduce).center,
+                side: VoiceSide::Long,
+            },
+        ];
+        drive_campaign_wiring(
+            1,
+            1,
+            &account_view,
+            &[],
+            &write_offs,
+            9,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
 
-        assert_eq!(witness.unclosed_write_off_count.get("long"), Some(&1), "核销恰一条");
-        assert_eq!(witness.unclosed_write_off_units_gap.get("long"), Some(&100), "货缺口=100 股");
+        assert_eq!(
+            witness.unclosed_write_off_count.get("long"),
+            Some(&1),
+            "核销恰一条"
+        );
+        assert_eq!(
+            witness.unclosed_write_off_units_gap.get("long"),
+            Some(&100),
+            "货缺口=100 股"
+        );
         assert_eq!(
             witness.unclosed_write_off_cash_booked.get("long"),
             Some(&1_200),
@@ -1473,7 +1618,11 @@ mod campaign_wiring_tests {
         let campaign = book.campaign(0, VoiceSide::Long).unwrap();
         assert_eq!(campaign.tw(), tw_before, "核销不产 TwEvent ⟹ TW 不漂移");
         assert_eq!(campaign.short_diff().bucket().open_units(), 0, "在途量归位");
-        assert_eq!(campaign.short_diff().bucket().written_off_units(), 100, "核销量留痕");
+        assert_eq!(
+            campaign.short_diff().bucket().written_off_units(),
+            100,
+            "核销量留痕"
+        );
         assert_eq!(witness.other_violation_count, 0, "正常核销路径不落违规桶");
     }
 
@@ -1484,40 +1633,101 @@ mod campaign_wiring_tests {
     fn drive_campaign_wiring_writes_off_suspensions_when_campaign_dies() {
         let mut account_view = strategy::account::ParallelAccountLedger::new();
         account_view.post(
-            AccountOrder { key: core_key(0), reason: ActionReason::Open, qty_delta: 300.0, decision_bar: 0 },
+            AccountOrder {
+                key: core_key(0),
+                reason: ActionReason::Open,
+                qty_delta: 300.0,
+                decision_bar: 0,
+            },
             10.0,
             0,
         );
         let mut book = CampaignBook::new();
         let mut witness = CampaignWiringWitness::new();
-        drive_campaign_wiring(0, 1, &account_view, &[], &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
         let actions = vec![record(0, CenterOscillationAction::Reduce)];
-        drive_campaign_wiring(0, 1, &account_view, &actions, &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &actions,
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
         assert_eq!(
-            book.campaign(0, VoiceSide::Long).unwrap().short_diff().bucket().open_units(),
+            book.campaign(0, VoiceSide::Long)
+                .unwrap()
+                .short_diff()
+                .bucket()
+                .open_units(),
             100,
             "高抛后挂起在途量=100（未收口）"
         );
 
         // 主仓全平（本仓 300 股清空）⟹ 下一次接线调用即判死亡。
         account_view.post(
-            AccountOrder { key: core_key(0), reason: ActionReason::ReverseType1, qty_delta: -300.0, decision_bar: 1 },
+            AccountOrder {
+                key: core_key(0),
+                reason: ActionReason::ReverseType1,
+                qty_delta: -300.0,
+                decision_bar: 1,
+            },
             9.0,
             1,
         );
-        drive_campaign_wiring(1, 1, &account_view, &[], &[], 9, RiskMode::Normal, &mut book, &mut witness);
+        drive_campaign_wiring(
+            1,
+            1,
+            &account_view,
+            &[],
+            &[],
+            9,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
 
-        assert!(book.campaign(0, VoiceSide::Long).is_none(), "全平 ⟹ campaign 终结");
+        assert!(
+            book.campaign(0, VoiceSide::Long).is_none(),
+            "全平 ⟹ campaign 终结"
+        );
         assert_eq!(witness.lifecycle_died.get("long"), Some(&1));
-        assert_eq!(witness.death_write_off_count.get("long"), Some(&1), "死亡吞挂起恰一条");
-        assert_eq!(witness.death_write_off_units_gap.get("long"), Some(&100), "货缺口=100 股");
+        assert_eq!(
+            witness.death_write_off_count.get("long"),
+            Some(&1),
+            "死亡吞挂起恰一条"
+        );
+        assert_eq!(
+            witness.death_write_off_units_gap.get("long"),
+            Some(&100),
+            "货缺口=100 股"
+        );
         assert_eq!(
             witness.death_write_off_cash_booked.get("long"),
             Some(&1_200),
             "多头侧桶实收=units·price=100·12（与货缺口分列，不相减）"
         );
-        assert!(witness.unclosed_write_off_count.is_empty(), "不落结构终结核销桶（两条清算路径分列）");
-        assert_eq!(witness.other_violation_count, 0, "正常死亡核销路径不落违规桶");
+        assert!(
+            witness.unclosed_write_off_count.is_empty(),
+            "不落结构终结核销桶（两条清算路径分列）"
+        );
+        assert_eq!(
+            witness.other_violation_count, 0,
+            "正常死亡核销路径不落违规桶"
+        );
     }
 
     /// ★#366：核销请求到达但无可核销（该中枢无挂起批次）⟹ 落独立观测桶，不与真实核销读数
@@ -1526,22 +1736,55 @@ mod campaign_wiring_tests {
     fn drive_campaign_wiring_records_nothing_to_settle_when_no_open_batch() {
         let mut account_view = strategy::account::ParallelAccountLedger::new();
         account_view.post(
-            AccountOrder { key: core_key(0), reason: ActionReason::Open, qty_delta: 300.0, decision_bar: 0 },
+            AccountOrder {
+                key: core_key(0),
+                reason: ActionReason::Open,
+                qty_delta: 300.0,
+                decision_bar: 0,
+            },
             10.0,
             0,
         );
         let mut book = CampaignBook::new();
         let mut witness = CampaignWiringWitness::new();
-        drive_campaign_wiring(0, 1, &account_view, &[], &[], 12, RiskMode::Normal, &mut book, &mut witness);
-        let write_offs = vec![super::super::super::strategy::center_oscillation_trade::UnclosedWriteOffRequest {
-            bar: 0,
-            level: 0,
-            center: record(0, CenterOscillationAction::Reduce).center,
-            side: VoiceSide::Long,
-        }];
-        drive_campaign_wiring(0, 1, &account_view, &[], &write_offs, 12, RiskMode::Normal, &mut book, &mut witness);
-        assert_eq!(witness.unclosed_write_off_nothing_to_settle.get("long"), Some(&1));
-        assert!(witness.unclosed_write_off_count.is_empty(), "无核销即无核销读数（不编造）");
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
+        let write_offs = vec![
+            super::super::super::strategy::center_oscillation_trade::UnclosedWriteOffRequest {
+                bar: 0,
+                level: 0,
+                center: record(0, CenterOscillationAction::Reduce).center,
+                side: VoiceSide::Long,
+            },
+        ];
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &write_offs,
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
+        assert_eq!(
+            witness.unclosed_write_off_nothing_to_settle.get("long"),
+            Some(&1)
+        );
+        assert!(
+            witness.unclosed_write_off_count.is_empty(),
+            "无核销即无核销读数（不编造）"
+        );
         assert_eq!(witness.other_violation_count, 0);
     }
 
@@ -1556,22 +1799,60 @@ mod campaign_wiring_tests {
     fn drive_campaign_wiring_lands_stage_events_and_earning_readings_end_to_end() {
         let mut account_view = strategy::account::ParallelAccountLedger::new();
         account_view.post(
-            AccountOrder { key: core_key(0), reason: ActionReason::Open, qty_delta: 300.0, decision_bar: 0 },
+            AccountOrder {
+                key: core_key(0),
+                reason: ActionReason::Open,
+                qty_delta: 300.0,
+                decision_bar: 0,
+            },
             10.0,
             0,
         );
         let mut book = CampaignBook::new();
         let mut witness = CampaignWiringWitness::new();
-        drive_campaign_wiring(0, 1, &account_view, &[], &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
 
         let reduce = vec![record(0, CenterOscillationAction::Reduce)];
         let replenish = vec![record(0, CenterOscillationAction::Replenish)];
         for round in 1..=8usize {
-            drive_campaign_wiring(2 * round - 1, 1, &account_view, &reduce, &[], 12, RiskMode::Normal, &mut book, &mut witness);
-            drive_campaign_wiring(2 * round, 1, &account_view, &replenish, &[], 8, RiskMode::Normal, &mut book, &mut witness);
+            drive_campaign_wiring(
+                2 * round - 1,
+                1,
+                &account_view,
+                &reduce,
+                &[],
+                12,
+                RiskMode::Normal,
+                &mut book,
+                &mut witness,
+            );
+            drive_campaign_wiring(
+                2 * round,
+                1,
+                &account_view,
+                &replenish,
+                &[],
+                8,
+                RiskMode::Normal,
+                &mut book,
+                &mut witness,
+            );
         }
         // bar 16 的回补上退本金——由生产接线自己记进 witness（非单测手调 record_stage_event）。
-        assert_eq!(witness.stage_recover_capital_count, 1, "★RecoverCapital 经生产路径落 witness");
+        assert_eq!(
+            witness.stage_recover_capital_count, 1,
+            "★RecoverCapital 经生产路径落 witness"
+        );
         assert_eq!(
             witness.stage_events[0],
             super::super::super::strategy::oscillation_campaign::StageEventRecord {
@@ -1587,8 +1868,21 @@ mod campaign_wiring_tests {
 
         // bar 17 的高抛：free 已够但挂起非空 ⟹ 阶段推进被前置拦下（★2026-07-27 判据订正，
         // ADR 补充十），观测桶记一次、不静默。
-        drive_campaign_wiring(17, 1, &account_view, &reduce, &[], 12, RiskMode::Normal, &mut book, &mut witness);
-        assert_eq!(witness.stage_enter_earning_count, 0, "★挂起非空 ⟹ 本 bar 不派 EnterEarning");
+        drive_campaign_wiring(
+            17,
+            1,
+            &account_view,
+            &reduce,
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
+        assert_eq!(
+            witness.stage_enter_earning_count, 0,
+            "★挂起非空 ⟹ 本 bar 不派 EnterEarning"
+        );
         assert_eq!(
             witness.profit_ready_but_suspended.get("long"),
             Some(&1),
@@ -1596,8 +1890,21 @@ mod campaign_wiring_tests {
         );
 
         // bar 18：旧账（bar 17 卖出，阶段一锁定）等量收口 ⟹ 挂起归零，同 bar 派 EnterEarning。
-        drive_campaign_wiring(18, 1, &account_view, &replenish, &[], 8, RiskMode::Normal, &mut book, &mut witness);
-        assert_eq!(witness.stage_enter_earning_count, 1, "★EnterEarning 经生产路径落 witness");
+        drive_campaign_wiring(
+            18,
+            1,
+            &account_view,
+            &replenish,
+            &[],
+            8,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
+        assert_eq!(
+            witness.stage_enter_earning_count, 1,
+            "★EnterEarning 经生产路径落 witness"
+        );
         assert_eq!(witness.stage_events[1].kind, "enter_earning");
         assert_eq!(witness.stage_events[1].bar, 18);
         assert_eq!(
@@ -1605,18 +1912,61 @@ mod campaign_wiring_tests {
             Some(&19),
             "★切换时点读数=次 bar（19）"
         );
-        assert!(!book.campaign(0, VoiceSide::Long).unwrap().earning_active(), "事件 bar 上尚未换尺");
-        assert!(witness.earning_replenish_count.is_empty(), "旧账收口不算等金额回补（卖出时锁定）");
+        assert!(
+            !book.campaign(0, VoiceSide::Long).unwrap().earning_active(),
+            "事件 bar 上尚未换尺"
+        );
+        assert!(
+            witness.earning_replenish_count.is_empty(),
+            "旧账收口不算等金额回补（卖出时锁定）"
+        );
 
         // bar 19 高抛@12（次 bar 起模式生效 ⟹ 阶段三锁定，1_200 进池）→ bar 20 等金额回补@8
         // = floor(1200/8)=150。
-        drive_campaign_wiring(19, 1, &account_view, &reduce, &[], 12, RiskMode::Normal, &mut book, &mut witness);
-        assert!(book.campaign(0, VoiceSide::Long).unwrap().earning_active(), "★次 bar 起模式生效");
-        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().earning_pool(), 1_200);
-        drive_campaign_wiring(20, 1, &account_view, &replenish, &[], 8, RiskMode::Normal, &mut book, &mut witness);
-        assert_eq!(witness.earning_replenish_count.get("long"), Some(&1), "★等金额回补次数");
-        assert_eq!(witness.earning_units_gained.get("long"), Some(&50), "★阶段三累计净增股数=150−100");
-        assert!(witness.earning_cash_unsound_count.is_empty(), "阶段三硬门未触发（floor 取整保证不透支）");
+        drive_campaign_wiring(
+            19,
+            1,
+            &account_view,
+            &reduce,
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
+        assert!(
+            book.campaign(0, VoiceSide::Long).unwrap().earning_active(),
+            "★次 bar 起模式生效"
+        );
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().earning_pool(),
+            1_200
+        );
+        drive_campaign_wiring(
+            20,
+            1,
+            &account_view,
+            &replenish,
+            &[],
+            8,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
+        assert_eq!(
+            witness.earning_replenish_count.get("long"),
+            Some(&1),
+            "★等金额回补次数"
+        );
+        assert_eq!(
+            witness.earning_units_gained.get("long"),
+            Some(&50),
+            "★阶段三累计净增股数=150−100"
+        );
+        assert!(
+            witness.earning_cash_unsound_count.is_empty(),
+            "阶段三硬门未触发（floor 取整保证不透支）"
+        );
         assert_eq!(witness.other_violation_count, 0, "全程接线无记账错误");
     }
 
@@ -1636,9 +1986,29 @@ mod campaign_wiring_tests {
         let mut book = CampaignBook::new();
         let mut witness = CampaignWiringWitness::new();
         // 先开局（无动作），再喂一条 Reduce。
-        drive_campaign_wiring(0, 1, &account_view, &[], &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
         let actions = vec![record(0, CenterOscillationAction::Reduce)];
-        drive_campaign_wiring(0, 1, &account_view, &actions, &[], 12, RiskMode::Normal, &mut book, &mut witness);
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &actions,
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
 
         let campaign = book.campaign(0, VoiceSide::Long).unwrap();
         assert_eq!(
@@ -1646,9 +2016,19 @@ mod campaign_wiring_tests {
             100,
             "sizing=当时持仓(300)/3=100（#348 裁定，整数除法）落地"
         );
-        assert_eq!(witness.action_by_level.get(&(0, "long", "reduce")), Some(&1), "归属分桶：level 0 Reduce 恰一次");
-        assert!(witness.no_active_campaign_count.is_empty(), "campaign 已开局 ⟹ 无 NoActiveCampaign 拒绝");
-        assert_eq!(witness.other_violation_count, 0, "接线正常路径下其余通道拒绝恒 0");
+        assert_eq!(
+            witness.action_by_level.get(&(0, "long", "reduce")),
+            Some(&1),
+            "归属分桶：level 0 Reduce 恰一次"
+        );
+        assert!(
+            witness.no_active_campaign_count.is_empty(),
+            "campaign 已开局 ⟹ 无 NoActiveCampaign 拒绝"
+        );
+        assert_eq!(
+            witness.other_violation_count, 0,
+            "接线正常路径下其余通道拒绝恒 0"
+        );
     }
 
     /// ★#526 P2 / #386 G5（#590 MEDIUM-3 措辞订正）：经 `drive_campaign_wiring`（非全 bar 循环
@@ -1713,7 +2093,10 @@ mod campaign_wiring_tests {
             tw_realized, child_realized,
             "G5 同数：R 账本 Π 增量 == TW Realize 漂移 == 子腿已实现盈亏"
         );
-        assert_eq!(short_diff_basis, 1_000, "ShortDiff 成本基腿=100×均价10，单独守恒");
+        assert_eq!(
+            short_diff_basis, 1_000,
+            "ShortDiff 成本基腿=100×均价10，单独守恒"
+        );
         assert_eq!(
             bucket_cash,
             short_diff_basis + child_realized,
@@ -1723,8 +2106,14 @@ mod campaign_wiring_tests {
         // ★#590 LOW 脆锁风险注明：`is_err()` 只判「报错与否」不判错误变体——`assert_conserved`
         // 若未来改造出与「在途未回补」无关的新错误分支，本断言仍会绿，不构成该分支的判别力；
         // 本锁的判别力落在其上方三条 assert_eq!（数值同数/成本基/桶现金）。
-        assert!(after.short_diff().assert_conserved().is_err(), "半轮 Reduce 在途未回补，恒仓锁应如实未闭合");
-        assert_eq!(witness.other_violation_count, 0, "生产接线正常路径无记账拒绝");
+        assert!(
+            after.short_diff().assert_conserved().is_err(),
+            "半轮 Reduce 在途未回补，恒仓锁应如实未闭合"
+        );
+        assert_eq!(
+            witness.other_violation_count, 0,
+            "生产接线正常路径无记账拒绝"
+        );
     }
 
     /// ★campaign 随真实事件流生死：Core{0} 从空仓→持仓→全平，`drive_campaign_wiring` 逐 bar
@@ -1736,7 +2125,17 @@ mod campaign_wiring_tests {
         let mut witness = CampaignWiringWitness::new();
 
         // bar0：仍空仓——no-op。
-        drive_campaign_wiring(0, 1, &account_view, &[], &[], 10, RiskMode::Normal, &mut book, &mut witness);
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &[],
+            10,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
         assert!(book.campaign(0, VoiceSide::Long).is_none());
 
         // bar1：真实开仓 fill（200 股 @15）——campaign 应开局。
@@ -1747,8 +2146,21 @@ mod campaign_wiring_tests {
             decision_bar: 1,
         };
         account_view.post(open, 15.0, 1);
-        drive_campaign_wiring(0, 1, &account_view, &[], &[], 15, RiskMode::Normal, &mut book, &mut witness);
-        assert!(book.campaign(0, VoiceSide::Long).is_some(), "真实持仓事件流 ⟹ campaign 开局");
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &[],
+            15,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
+        assert!(
+            book.campaign(0, VoiceSide::Long).is_some(),
+            "真实持仓事件流 ⟹ campaign 开局"
+        );
         assert_eq!(witness.lifecycle_opened.get("long"), Some(&1));
 
         // bar2：真实全平 fill——campaign 应终结。
@@ -1759,8 +2171,21 @@ mod campaign_wiring_tests {
             decision_bar: 2,
         };
         account_view.post(close, 18.0, 2);
-        drive_campaign_wiring(0, 1, &account_view, &[], &[], 18, RiskMode::Normal, &mut book, &mut witness);
-        assert!(book.campaign(0, VoiceSide::Long).is_none(), "真实全平事件流 ⟹ campaign 终结");
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &[],
+            18,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
+        assert!(
+            book.campaign(0, VoiceSide::Long).is_none(),
+            "真实全平事件流 ⟹ campaign 终结"
+        );
         assert_eq!(witness.lifecycle_died.get("long"), Some(&1));
     }
 
@@ -1774,9 +2199,26 @@ mod campaign_wiring_tests {
         let mut book = CampaignBook::new();
         let mut witness = CampaignWiringWitness::new();
         let actions = vec![record(0, CenterOscillationAction::Reduce)];
-        drive_campaign_wiring(0, 1, &account_view, &actions, &[], 12, RiskMode::Normal, &mut book, &mut witness);
-        assert_eq!(witness.no_active_campaign_count.get("long"), Some(&1), "空仓级别喂动作 ⟹ NoActiveCampaign 按侧分桶计数（预期读数）");
-        assert_eq!(witness.other_violation_count, 0, "非 NoActiveCampaign 的其余违规恒 0（本用例不触发）");
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &actions,
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
+        assert_eq!(
+            witness.no_active_campaign_count.get("long"),
+            Some(&1),
+            "空仓级别喂动作 ⟹ NoActiveCampaign 按侧分桶计数（预期读数）"
+        );
+        assert_eq!(
+            witness.other_violation_count, 0,
+            "非 NoActiveCampaign 的其余违规恒 0（本用例不触发）"
+        );
     }
 
     fn short_key(level: u32) -> AccountKey {
@@ -1785,7 +2227,10 @@ mod campaign_wiring_tests {
             level,
             PositionNodeId {
                 carrier: ElementId { level, ordinal: 0 },
-                entry_certificate: Some(EntryCertificate { level, source_index: 0 }),
+                entry_certificate: Some(EntryCertificate {
+                    level,
+                    source_index: 0,
+                }),
                 side: VoiceSide::Short,
                 generation: 0,
             },
@@ -1810,25 +2255,69 @@ mod campaign_wiring_tests {
 
         let mut book = CampaignBook::new();
         let mut witness = CampaignWiringWitness::new();
-        drive_campaign_wiring(0, 1, &account_view, &[], &[], 20, RiskMode::Normal, &mut book, &mut witness);
-        assert!(book.campaign(0, VoiceSide::Long).is_none(), "多头侧真空仓 ⟹ 多头 campaign 不开局");
-        let short_campaign =
-            book.campaign(0, VoiceSide::Short).expect("★#381：空头侧持仓 ⟹ 空头 campaign 开局");
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &[],
+            20,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
+        assert!(
+            book.campaign(0, VoiceSide::Long).is_none(),
+            "多头侧真空仓 ⟹ 多头 campaign 不开局"
+        );
+        let short_campaign = book
+            .campaign(0, VoiceSide::Short)
+            .expect("★#381：空头侧持仓 ⟹ 空头 campaign 开局");
         assert_eq!(short_campaign.side(), VoiceSide::Short);
-        assert_eq!(short_campaign.current_units(), 50, "units=分侧余额翻符号（多正空负，−(−50)=50）");
-        assert_eq!(short_campaign.tw().notional_in, 1_000, "notional_in=空头侧成本基（在险市值 50×20）");
+        assert_eq!(
+            short_campaign.current_units(),
+            50,
+            "units=分侧余额翻符号（多正空负，−(−50)=50）"
+        );
+        assert_eq!(
+            short_campaign.tw().notional_in,
+            1_000,
+            "notional_in=空头侧成本基（在险市值 50×20）"
+        );
         assert_eq!(
             witness.lifecycle_opened.get("short"),
             Some(&1),
             "恰一次开仓生（空头侧）"
         );
-        assert_eq!(witness.lifecycle_opened.get("long"), None, "多头侧无仓 ⟹ 该侧桶不出现");
+        assert_eq!(
+            witness.lifecycle_opened.get("long"),
+            None,
+            "多头侧无仓 ⟹ 该侧桶不出现"
+        );
 
         // 空头侧「减」=回补空头：sizing=开局冻结 50/3=16，落空头 campaign 而非多头。
-        let actions = vec![record_side(0, VoiceSide::Short, CenterOscillationAction::Reduce)];
-        drive_campaign_wiring(0, 1, &account_view, &actions, &[], 18, RiskMode::Normal, &mut book, &mut witness);
+        let actions = vec![record_side(
+            0,
+            VoiceSide::Short,
+            CenterOscillationAction::Reduce,
+        )];
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &actions,
+            &[],
+            18,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
         assert_eq!(
-            book.campaign(0, VoiceSide::Short).unwrap().short_diff().bucket().open_units(),
+            book.campaign(0, VoiceSide::Short)
+                .unwrap()
+                .short_diff()
+                .bucket()
+                .open_units(),
             16,
             "空头侧 sizing=当时持仓(50)/3=16（整数除法），记入空头 campaign"
         );
@@ -1837,7 +2326,10 @@ mod campaign_wiring_tests {
             Some(&1),
             "动作分桶带持仓侧（#381 键增侧维）"
         );
-        assert!(witness.no_active_campaign_count.is_empty(), "空头侧已开局 ⟹ 无 NoActiveCampaign 拒绝");
+        assert!(
+            witness.no_active_campaign_count.is_empty(),
+            "空头侧已开局 ⟹ 无 NoActiveCampaign 拒绝"
+        );
         assert_eq!(witness.other_violation_count, 0, "正常记账路径无警报");
     }
 
@@ -1847,28 +2339,59 @@ mod campaign_wiring_tests {
     fn drive_campaign_wiring_long_and_short_campaigns_coexist_without_contamination() {
         let mut account_view = strategy::account::ParallelAccountLedger::new();
         account_view.post(
-            AccountOrder { key: core_key(0), reason: ActionReason::Open, qty_delta: 300.0, decision_bar: 0 },
+            AccountOrder {
+                key: core_key(0),
+                reason: ActionReason::Open,
+                qty_delta: 300.0,
+                decision_bar: 0,
+            },
             10.0,
             0,
         );
         account_view.post(
-            AccountOrder { key: short_key(0), reason: ActionReason::Open, qty_delta: -50.0, decision_bar: 0 },
+            AccountOrder {
+                key: short_key(0),
+                reason: ActionReason::Open,
+                qty_delta: -50.0,
+                decision_bar: 0,
+            },
             20.0,
             0,
         );
 
         let mut book = CampaignBook::new();
         let mut witness = CampaignWiringWitness::new();
-        drive_campaign_wiring(0, 1, &account_view, &[], &[], 15, RiskMode::Normal, &mut book, &mut witness);
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &[],
+            15,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
 
         let long = book.campaign(0, VoiceSide::Long).expect("多头侧 campaign");
         let short = book.campaign(0, VoiceSide::Short).expect("空头侧 campaign");
-        assert_eq!(long.tw().notional_in, 3_000, "多头侧 notional_in 不含空头侧的 1000");
-        assert_eq!(short.tw().notional_in, 1_000, "空头侧 notional_in 不含多头侧的 3000");
+        assert_eq!(
+            long.tw().notional_in,
+            3_000,
+            "多头侧 notional_in 不含空头侧的 1000"
+        );
+        assert_eq!(
+            short.tw().notional_in,
+            1_000,
+            "空头侧 notional_in 不含多头侧的 3000"
+        );
         assert_eq!(long.current_units(), 300);
         assert_eq!(short.current_units(), 50);
         assert_eq!(
-            (witness.lifecycle_opened.get("long"), witness.lifecycle_opened.get("short")),
+            (
+                witness.lifecycle_opened.get("long"),
+                witness.lifecycle_opened.get("short")
+            ),
             (Some(&1), Some(&1)),
             "两侧各一次开仓生——★#381 关票修复：分侧计数，不得相加成 2"
         );
@@ -1878,14 +2401,32 @@ mod campaign_wiring_tests {
             record_side(0, VoiceSide::Long, CenterOscillationAction::Reduce),
             record_side(0, VoiceSide::Short, CenterOscillationAction::Reduce),
         ];
-        drive_campaign_wiring(0, 1, &account_view, &actions, &[], 15, RiskMode::Normal, &mut book, &mut witness);
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &actions,
+            &[],
+            15,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
         assert_eq!(
-            book.campaign(0, VoiceSide::Long).unwrap().short_diff().bucket().open_units(),
+            book.campaign(0, VoiceSide::Long)
+                .unwrap()
+                .short_diff()
+                .bucket()
+                .open_units(),
             100,
             "多头侧挂起=300/3"
         );
         assert_eq!(
-            book.campaign(0, VoiceSide::Short).unwrap().short_diff().bucket().open_units(),
+            book.campaign(0, VoiceSide::Short)
+                .unwrap()
+                .short_diff()
+                .bucket()
+                .open_units(),
             16,
             "空头侧挂起=50/3，与多头侧互不污染"
         );
@@ -1901,11 +2442,30 @@ mod campaign_wiring_tests {
             16.0,
             1,
         );
-        drive_campaign_wiring(1, 1, &account_view, &[], &[], 16, RiskMode::Normal, &mut book, &mut witness);
-        assert!(book.campaign(0, VoiceSide::Long).is_none(), "多头侧全平 ⟹ 多头 campaign 死");
-        assert!(book.campaign(0, VoiceSide::Short).is_some(), "空头侧仓位未动 ⟹ 空头 campaign 存活");
+        drive_campaign_wiring(
+            1,
+            1,
+            &account_view,
+            &[],
+            &[],
+            16,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
+        assert!(
+            book.campaign(0, VoiceSide::Long).is_none(),
+            "多头侧全平 ⟹ 多头 campaign 死"
+        );
+        assert!(
+            book.campaign(0, VoiceSide::Short).is_some(),
+            "空头侧仓位未动 ⟹ 空头 campaign 存活"
+        );
         assert_eq!(
-            (witness.lifecycle_died.get("long"), witness.lifecycle_died.get("short")),
+            (
+                witness.lifecycle_died.get("long"),
+                witness.lifecycle_died.get("short")
+            ),
             (Some(&1), None),
             "恰一次死亡事件且归属多头侧（空头侧存活 ⟹ 该侧无死亡计数）"
         );
@@ -1936,13 +2496,32 @@ mod campaign_wiring_tests {
 
         let mut book = CampaignBook::new();
         let mut witness = CampaignWiringWitness::new();
-        drive_campaign_wiring(0, 1, &account_view, &[], &[], 15, RiskMode::Normal, &mut book, &mut witness);
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &[],
+            15,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+        );
 
-        let campaign = book.campaign(0, VoiceSide::Long).expect("多头侧持仓非空 ⟹ 应已开局 campaign");
-        assert_eq!(campaign.tw().notional_in, 3_000, "notional_in=多头侧成本基（3000），不含空头侧的1000");
+        let campaign = book
+            .campaign(0, VoiceSide::Long)
+            .expect("多头侧持仓非空 ⟹ 应已开局 campaign");
+        assert_eq!(
+            campaign.tw().notional_in,
+            3_000,
+            "notional_in=多头侧成本基（3000），不含空头侧的1000"
+        );
         assert_eq!(campaign.tw().holding, 3_000);
         assert_eq!(
-            (witness.lifecycle_opened.get("long"), witness.lifecycle_opened.get("short")),
+            (
+                witness.lifecycle_opened.get("long"),
+                witness.lifecycle_opened.get("short")
+            ),
             (Some(&1), Some(&1)),
             "★#381：多头侧 + 空头侧各开局一次（分侧可判读）"
         );
@@ -1965,29 +2544,41 @@ mod center_oscillation_wiring_tests {
     //! - #292 续修（二轮评审）：链重基（`ChainConsumed::Rebased`）到达时挂起按身份核对新链——
     //!   仍在链上⟹跟随迁移，从新链消失⟹终结，端到端经 `step_center_oscillation` 可见（见
     //!   `gate_on_chain_rebase_migrates_survivor_and_terminates_vanished_suspension`）。
+    use super::super::super::strategy::center_oscillation_trade::{
+        CenterDrift, CenterOscillationAction, CenterOscillationBook, CenterOscillationTrigger,
+    };
+    use super::super::super::strategy::voice::VoiceSide;
+    use super::super::super::types::{BspBits, Center, Direction, Side, Tick};
     use super::*;
     use classifier::center::UnitRange;
     use classifier::center_lifecycle::CenterId;
     use classifier::recursive_tower::{ElementId, LeveledMove};
     use classifier::{bsp::BspPoint, bsp::OwnerRef, Classification, LevelState};
-    use super::super::super::strategy::center_oscillation_trade::{
-        CenterDrift, CenterOscillationAction, CenterOscillationBook,
-        CenterOscillationTrigger,
-    };
-    use super::super::super::strategy::voice::VoiceSide;
-    use super::super::super::types::{BspBits, Center, Direction, Side, Tick};
     use std::rc::Rc;
 
     fn center(start_index: usize, end_index: usize, zd: i64, zg: i64) -> Center {
-        Center { zd, zg, dd: zd - 2, gg: zg + 2, start_index, end_index }
+        Center {
+            zd,
+            zg,
+            dd: zd - 2,
+            gg: zg + 2,
+            start_index,
+            end_index,
+        }
     }
 
     fn level_with_centers(centers: Vec<Center>) -> LevelState {
-        LevelState { centers: Rc::new(centers), ..LevelState::default() }
+        LevelState {
+            centers: Rc::new(centers),
+            ..LevelState::default()
+        }
     }
 
     fn level_with_bsp(points: Vec<BspPoint>) -> LevelState {
-        LevelState { bsp: Rc::new(points), ..LevelState::default() }
+        LevelState {
+            bsp: Rc::new(points),
+            ..LevelState::default()
+        }
     }
 
     fn l0_move(
@@ -1999,16 +2590,18 @@ mod center_oscillation_wiring_tests {
         hi: Tick,
     ) -> LeveledMove {
         LeveledMove::from_unit(
-            &UnitRange { start_index, end_index, direction, lo, hi },
+            &UnitRange {
+                start_index,
+                end_index,
+                direction,
+                lo,
+                hi,
+            },
             ElementId { level: 0, ordinal },
         )
     }
 
-    fn bind_side(
-        book: &mut CenterOscillationBook,
-        center: Center,
-        side: VoiceSide,
-    ) {
+    fn bind_side(book: &mut CenterOscillationBook, center: Center, side: VoiceSide) {
         let (signal_side, price) = match side {
             VoiceSide::Long => (VoiceSide::Short, center.zg),
             VoiceSide::Short => (VoiceSide::Long, center.zd),
@@ -2033,15 +2626,15 @@ mod center_oscillation_wiring_tests {
         empty_step: Classification,
         cl_machines: Vec<classifier::center_lifecycle::CenterEventMachine>,
         osc_books: Vec<CenterOscillationBook>,
-        witness:
-            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness,
+        witness: super::super::super::strategy::oscillation_campaign::CampaignWiringWitness,
         historical_seen: std::collections::HashSet<HistoricalSeenKey>,
     }
 
     impl HistoricalWiringFixture {
         fn new(initial_centers: Vec<Center>) -> Self {
-            let empty_step =
-                Classification { levels: vec![LevelState::default()] };
+            let empty_step = Classification {
+                levels: vec![LevelState::default()],
+            };
             let initial = Classification {
                 levels: vec![level_with_centers(initial_centers)],
             };
@@ -2049,8 +2642,9 @@ mod center_oscillation_wiring_tests {
                 empty_step,
                 cl_machines: Vec::new(),
                 osc_books: Vec::new(),
-                witness: super::super::super::strategy::oscillation_campaign::
-                    CampaignWiringWitness::new(),
+                witness:
+                    super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new(
+                    ),
                 historical_seen: std::collections::HashSet::new(),
             };
             let _ = step_center_oscillation(
@@ -2125,7 +2719,10 @@ mod center_oscillation_wiring_tests {
     fn third_class_buy_break(source_index: usize, owner: Center) -> BspPoint {
         BspPoint {
             source_index,
-            bits: BspBits { buy3: true, ..BspBits::default() },
+            bits: BspBits {
+                buy3: true,
+                ..BspBits::default()
+            },
             pivot_low: 0,
             pivot_high: 0,
             center: Some(OwnerRef::Center(owner)),
@@ -2139,7 +2736,10 @@ mod center_oscillation_wiring_tests {
     fn third_class_sell_break(source_index: usize, owner: Center) -> BspPoint {
         BspPoint {
             source_index,
-            bits: BspBits { sell3: true, ..BspBits::default() },
+            bits: BspBits {
+                sell3: true,
+                ..BspBits::default()
+            },
             pivot_low: 0,
             pivot_high: 0,
             center: Some(OwnerRef::Center(owner)),
@@ -2151,8 +2751,14 @@ mod center_oscillation_wiring_tests {
     /// ★#489：本级一类点只广播 Reset；`owner` 仅保留生产点形状，不再授权杀中枢。
     fn first_class_reset(source_index: usize, owner: Center, side: Side) -> BspPoint {
         let bits = match side {
-            Side::Long => BspBits { buy1: true, ..BspBits::default() },
-            Side::Short => BspBits { sell1: true, ..BspBits::default() },
+            Side::Long => BspBits {
+                buy1: true,
+                ..BspBits::default()
+            },
+            Side::Short => BspBits {
+                sell1: true,
+                ..BspBits::default()
+            },
         };
         BspPoint {
             source_index,
@@ -2172,8 +2778,22 @@ mod center_oscillation_wiring_tests {
     /// `alive_center()` + 次级别信号方向，`center: None` 即证无门读取次级别账户/结构状态）。
     fn sub_level_bsp_point(source_index: usize, side: VoiceSide, price: Tick) -> BspPoint {
         let (bits, pivot_low, pivot_high) = match side {
-            VoiceSide::Long => (BspBits { buy1: true, ..BspBits::default() }, price, 0),
-            VoiceSide::Short => (BspBits { sell1: true, ..BspBits::default() }, 0, price),
+            VoiceSide::Long => (
+                BspBits {
+                    buy1: true,
+                    ..BspBits::default()
+                },
+                price,
+                0,
+            ),
+            VoiceSide::Short => (
+                BspBits {
+                    sell1: true,
+                    ..BspBits::default()
+                },
+                0,
+                price,
+            ),
             VoiceSide::Flat => (BspBits::default(), 0, 0),
         };
         BspPoint {
@@ -2189,7 +2809,9 @@ mod center_oscillation_wiring_tests {
 
     /// 两级 Classification：level 0（次级别，仅本 bar bsp）+ level 1（本级中枢在场）。
     fn two_level_step(sub_bsp: Vec<BspPoint>) -> Classification {
-        Classification { levels: vec![level_with_bsp(sub_bsp), LevelState::default()] }
+        Classification {
+            levels: vec![level_with_bsp(sub_bsp), LevelState::default()],
+        }
     }
 
     /// 门控开启臂 · 触发通路（B 裁定）：本级（level 1）中枢在场（born 由 consume_chain 推出）
@@ -2199,20 +2821,40 @@ mod center_oscillation_wiring_tests {
     #[test]
     fn gate_on_sub_level_sell_point_produces_visible_reduce_action() {
         let c0 = center(5, 10, 100, 200);
-        let classification =
-            Classification { levels: vec![LevelState::default(), level_with_centers(vec![c0])] };
+        let classification = Classification {
+            levels: vec![LevelState::default(), level_with_centers(vec![c0])],
+        };
         let step = two_level_step(vec![sub_level_bsp_point(11, VoiceSide::Short, 200)]); // 中轴150，200≥中轴=上半区
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
-        let mut witness = super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
-        let actions = step_center_oscillation(7, &classification, &step, &mut cl_machines, &mut osc_books, &mut witness).actions;
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let actions = step_center_oscillation(
+            7,
+            &classification,
+            &step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        )
+        .actions;
         assert_eq!(actions.len(), 1, "门开+在场+次级别卖点 ⟹ 恰一条动作可见");
         assert_eq!(actions[0].bar, 7);
-        assert_eq!(actions[0].level, 1, "触发落在本级（level 1），非次级别（level 0）");
+        assert_eq!(
+            actions[0].level, 1,
+            "触发落在本级（level 1），非次级别（level 0）"
+        );
         assert_eq!(actions[0].center, CenterId::of(&c0), "身份=alive_center()");
-        assert_eq!(actions[0].action, CenterOscillationAction::Reduce, "次级别卖点=上沿高抛");
+        assert_eq!(
+            actions[0].action,
+            CenterOscillationAction::Reduce,
+            "次级别卖点=上沿高抛"
+        );
         assert!(osc_books[1].is_suspended(CenterId::of(&c0)));
-        assert_eq!(witness.trigger_attempts, 1, "★issue #357：触发构造尝试计入 witness");
+        assert_eq!(
+            witness.trigger_attempts, 1,
+            "★issue #357：触发构造尝试计入 witness"
+        );
         assert_eq!(witness.dropped_center_not_alive, 0, "本级在场 ⟹ 不丢弃");
     }
 
@@ -2221,30 +2863,70 @@ mod center_oscillation_wiring_tests {
     #[test]
     fn gate_on_sub_level_buy_point_produces_visible_replenish_action() {
         let c0 = center(5, 10, 100, 200);
-        let classification =
-            Classification { levels: vec![LevelState::default(), level_with_centers(vec![c0])] };
+        let classification = Classification {
+            levels: vec![LevelState::default(), level_with_centers(vec![c0])],
+        };
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
-        let mut witness = super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
         let empty_step = two_level_step(Vec::new());
         let reduce_step = two_level_step(vec![sub_level_bsp_point(10, VoiceSide::Short, 200)]);
-        let _ = step_center_oscillation(0, &classification, &empty_step, &mut cl_machines, &mut osc_books, &mut witness).actions;
-        let reduce_actions =
-            step_center_oscillation(1, &classification, &reduce_step, &mut cl_machines, &mut osc_books, &mut witness).actions;
+        let _ = step_center_oscillation(
+            0,
+            &classification,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        )
+        .actions;
+        let reduce_actions = step_center_oscillation(
+            1,
+            &classification,
+            &reduce_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        )
+        .actions;
         assert_eq!(reduce_actions[0].action, CenterOscillationAction::Reduce);
         assert!(osc_books[1].is_suspended(CenterId::of(&c0)));
 
         let cover_step = two_level_step(vec![sub_level_bsp_point(20, VoiceSide::Long, 100)]); // 100≤中轴150=下半区
-        let actions = step_center_oscillation(2, &classification, &cover_step, &mut cl_machines, &mut osc_books, &mut witness).actions;
+        let actions = step_center_oscillation(
+            2,
+            &classification,
+            &cover_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        )
+        .actions;
         // ★#381：同一次下沿触发对两侧各产一条镜像动作——多头侧收口（`Replenish`，回补买入），
         // 空头侧开局（`Reduce`，回补空头）。侧序固定 Long→Short。
-        assert_eq!(actions.len(), 2, "门开+挂起+次级别买点 ⟹ 多头回补 + 空头开局各一条");
+        assert_eq!(
+            actions.len(),
+            2,
+            "门开+挂起+次级别买点 ⟹ 多头回补 + 空头开局各一条"
+        );
         assert_eq!(actions[0].side, VoiceSide::Long);
-        assert_eq!(actions[0].action, CenterOscillationAction::Replenish, "次级别买点=多头侧下沿回补");
+        assert_eq!(
+            actions[0].action,
+            CenterOscillationAction::Replenish,
+            "次级别买点=多头侧下沿回补"
+        );
         assert_eq!(actions[0].center, CenterId::of(&c0));
         assert_eq!(actions[1].side, VoiceSide::Short);
-        assert_eq!(actions[1].action, CenterOscillationAction::Reduce, "空头侧镜像：下沿=减（回补空头）");
-        assert!(!osc_books[1].is_suspended(CenterId::of(&c0)), "多头侧回补出口=该侧挂起清空");
+        assert_eq!(
+            actions[1].action,
+            CenterOscillationAction::Reduce,
+            "空头侧镜像：下沿=减（回补空头）"
+        );
+        assert!(
+            !osc_books[1].is_suspended(CenterId::of(&c0)),
+            "多头侧回补出口=该侧挂起清空"
+        );
         assert!(
             osc_books[1].is_suspended_side(VoiceSide::Short, CenterId::of(&c0)),
             "空头侧此刻转为挂起（镜像开局腿）"
@@ -2256,18 +2938,32 @@ mod center_oscillation_wiring_tests {
     #[test]
     fn gate_on_lifecycle_broken_event_produces_visible_replenish_action() {
         let c0 = center(5, 10, 100, 200);
-        let classification = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let classification = Classification {
+            levels: vec![level_with_centers(vec![c0])],
+        };
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
-        let mut witness = super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
         // 先驱动一次空 step 让链同步（Adopted）+ 触发一次高抛挂起（不经本函数：直接摆状态）。
-        let empty_step = Classification { levels: vec![LevelState::default()] };
-        let _ = step_center_oscillation(0, &classification, &empty_step, &mut cl_machines, &mut osc_books, &mut witness).actions;
+        let empty_step = Classification {
+            levels: vec![LevelState::default()],
+        };
+        let _ = step_center_oscillation(
+            0,
+            &classification,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        )
+        .actions;
         osc_books[0].on_trigger(
             super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
                 0,
                 Some(CenterId::of(&c0)),
-                CenterDrift::NoDownShift, VoiceSide::Short,
+                CenterDrift::NoDownShift,
+                VoiceSide::Short,
                 200, // == ZG：向上离开中枢（★#366 判据；旧中轴二分注记已作废）
                 5,
             )
@@ -2276,19 +2972,32 @@ mod center_oscillation_wiring_tests {
         assert!(osc_books[0].is_suspended(CenterId::of(&c0)));
 
         // 本 bar 喂一枚三类买点破坏（buy3=Long 破坏），载体=在场实例 c0。
-        let step_with_bsp =
-            Classification { levels: vec![level_with_bsp(vec![third_class_buy_break(20, c0)])] };
-        let actions =
-            step_center_oscillation(1, &classification, &step_with_bsp, &mut cl_machines, &mut osc_books, &mut witness).actions;
+        let step_with_bsp = Classification {
+            levels: vec![level_with_bsp(vec![third_class_buy_break(20, c0)])],
+        };
+        let actions = step_center_oscillation(
+            1,
+            &classification,
+            &step_with_bsp,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        )
+        .actions;
         assert_eq!(actions.len(), 1, "三类买点破坏终结 ⟹ 收手回补动作可见");
         assert_eq!(actions[0].action, CenterOscillationAction::Replenish);
         assert_eq!(actions[0].center, CenterId::of(&c0));
         assert_eq!(
-            witness.suspension_by_source.get(&(0, "long", "broken_by_third_class_buy")),
+            witness
+                .suspension_by_source
+                .get(&(0, "long", "broken_by_third_class_buy")),
             Some(&1),
             "★issue #357：挂起归宿分桶记录三类买点破坏终结来源"
         );
-        assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "终结=挂起清空");
+        assert!(
+            !osc_books[0].is_suspended(CenterId::of(&c0)),
+            "终结=挂起清空"
+        );
     }
 
     /// ★#489：Reset 事件照发，但只记「到场时仍有活中枢」漏发警报；不 take 中枢、不终结
@@ -2296,11 +3005,16 @@ mod center_oscillation_wiring_tests {
     #[test]
     fn gate_reset_broadcast_keeps_center_and_suspension_until_third_class_point() {
         let c0 = center(5, 10, 100, 200);
-        let classification = Classification { levels: vec![level_with_centers(vec![c0])] };
-        let empty_step = Classification { levels: vec![LevelState::default()] };
+        let classification = Classification {
+            levels: vec![level_with_centers(vec![c0])],
+        };
+        let empty_step = Classification {
+            levels: vec![LevelState::default()],
+        };
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
-        let mut witness = super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
         let _ = step_center_oscillation(
             0,
             &classification,
@@ -2323,18 +3037,37 @@ mod center_oscillation_wiring_tests {
             &mut witness,
         );
         assert_eq!(cl_machines[0].counts(), (0, 0, 1), "Reset 事件照发并计数");
-        assert_eq!(cl_machines[0].alive_center(), Some((c0, 0)), "Reset 不 take 在场中枢");
-        assert!(osc_books[0].is_suspended(CenterId::of(&c0)), "Reset 不终结挂起");
-        assert!(reset_out.actions.is_empty(), "Reset 不产生回补动作");
-        assert!(reset_out.write_offs.is_empty(), "Reset 不产生未闭合减出核销");
         assert_eq!(
-            witness.reset_alive_center_leak_by_level_side.get(&(0, "short")),
+            cl_machines[0].alive_center(),
+            Some((c0, 0)),
+            "Reset 不 take 在场中枢"
+        );
+        assert!(
+            osc_books[0].is_suspended(CenterId::of(&c0)),
+            "Reset 不终结挂起"
+        );
+        assert!(reset_out.actions.is_empty(), "Reset 不产生回补动作");
+        assert!(
+            reset_out.write_offs.is_empty(),
+            "Reset 不产生未闭合减出核销"
+        );
+        assert_eq!(
+            witness
+                .reset_alive_center_leak_by_level_side
+                .get(&(0, "short")),
             Some(&1),
             "漏发警报按 Reset 级别与买卖侧分桶"
         );
         // 0 的原因是本次真实 Reset 消费输出为空，不是类型上不可能出现非零。
-        assert_eq!(witness.reset_settlement_count(), 0, "Reset 实测消费输出为空");
-        assert!(witness.center_mis_kill_by_level.is_empty(), "Reset 广播不进入 MisKill");
+        assert_eq!(
+            witness.reset_settlement_count(),
+            0,
+            "Reset 实测消费输出为空"
+        );
+        assert!(
+            witness.center_mis_kill_by_level.is_empty(),
+            "Reset 广播不进入 MisKill"
+        );
 
         let broken_step = Classification {
             levels: vec![level_with_bsp(vec![third_class_buy_break(21, c0)])],
@@ -2347,9 +3080,16 @@ mod center_oscillation_wiring_tests {
             &mut osc_books,
             &mut witness,
         );
-        assert_eq!(broken_out.actions.len(), 1, "挂起活到自己的三类买点并收手回补");
+        assert_eq!(
+            broken_out.actions.len(),
+            1,
+            "挂起活到自己的三类买点并收手回补"
+        );
         assert!(broken_out.write_offs.is_empty(), "三买走闭合终局，不核销");
-        assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "三类点才终结挂起");
+        assert!(
+            !osc_books[0].is_suspended(CenterId::of(&c0)),
+            "三类点才终结挂起"
+        );
     }
 
     /// ★#366（补充裁定 2026-07-27）门控开启臂 · **三卖终局**通路：先触发挂起，再喂本级三类
@@ -2357,12 +3097,25 @@ mod center_oscillation_wiring_tests {
     #[test]
     fn gate_on_third_class_sell_produces_write_off_request_not_a_cover_action() {
         let c0 = center(5, 10, 100, 200);
-        let classification = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let classification = Classification {
+            levels: vec![level_with_centers(vec![c0])],
+        };
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
-        let mut witness = super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
-        let empty_step = Classification { levels: vec![LevelState::default()] };
-        let _ = step_center_oscillation(0, &classification, &empty_step, &mut cl_machines, &mut osc_books, &mut witness).actions;
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let empty_step = Classification {
+            levels: vec![LevelState::default()],
+        };
+        let _ = step_center_oscillation(
+            0,
+            &classification,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        )
+        .actions;
         osc_books[0].on_trigger(
             super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
                 0,
@@ -2374,10 +3127,17 @@ mod center_oscillation_wiring_tests {
             )
             .unwrap(),
         );
-        let step_with_bsp =
-            Classification { levels: vec![level_with_bsp(vec![third_class_sell_break(20, c0)])] };
-        let out =
-            step_center_oscillation(1, &classification, &step_with_bsp, &mut cl_machines, &mut osc_books, &mut witness);
+        let step_with_bsp = Classification {
+            levels: vec![level_with_bsp(vec![third_class_sell_break(20, c0)])],
+        };
+        let out = step_center_oscillation(
+            1,
+            &classification,
+            &step_with_bsp,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
         assert!(out.actions.is_empty(), "三卖终局不回补 ⟹ 无动作");
         assert_eq!(out.write_offs.len(), 1, "改产一条未闭合减出核销请求");
         assert_eq!(out.write_offs[0].center, CenterId::of(&c0));
@@ -2389,12 +3149,25 @@ mod center_oscillation_wiring_tests {
     #[test]
     fn gate_on_third_class_buy_produces_cover_action_and_no_write_off() {
         let c0 = center(5, 10, 100, 200);
-        let classification = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let classification = Classification {
+            levels: vec![level_with_centers(vec![c0])],
+        };
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
-        let mut witness = super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
-        let empty_step = Classification { levels: vec![LevelState::default()] };
-        let _ = step_center_oscillation(0, &classification, &empty_step, &mut cl_machines, &mut osc_books, &mut witness).actions;
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let empty_step = Classification {
+            levels: vec![LevelState::default()],
+        };
+        let _ = step_center_oscillation(
+            0,
+            &classification,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        )
+        .actions;
         osc_books[0].on_trigger(
             super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
                 0,
@@ -2406,13 +3179,23 @@ mod center_oscillation_wiring_tests {
             )
             .unwrap(),
         );
-        let step_with_bsp =
-            Classification { levels: vec![level_with_bsp(vec![third_class_buy_break(20, c0)])] };
-        let out =
-            step_center_oscillation(1, &classification, &step_with_bsp, &mut cl_machines, &mut osc_books, &mut witness);
+        let step_with_bsp = Classification {
+            levels: vec![level_with_bsp(vec![third_class_buy_break(20, c0)])],
+        };
+        let out = step_center_oscillation(
+            1,
+            &classification,
+            &step_with_bsp,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
         assert_eq!(out.actions.len(), 1);
         assert_eq!(out.actions[0].action, CenterOscillationAction::Replenish);
-        assert!(out.write_offs.is_empty(), "闭合终局走回补，不再核销（两终局互斥）");
+        assert!(
+            out.write_offs.is_empty(),
+            "闭合终局走回补，不再核销（两终局互斥）"
+        );
     }
 
     /// #292 续修（issue #292 二轮评审：挂起悬空泄漏）端到端接线证据：`step_center_oscillation`
@@ -2426,19 +3209,33 @@ mod center_oscillation_wiring_tests {
         let c2 = center(22, 27, 500, 600);
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
-        let mut witness = super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
 
         // bar0：链=[c0]，首次消费（Adopted），不产生任何生命周期事件。
-        let bar0_classification = Classification { levels: vec![level_with_centers(vec![c0])] };
-        let empty_step = Classification { levels: vec![LevelState::default()] };
-        let _ = step_center_oscillation(0, &bar0_classification, &empty_step, &mut cl_machines, &mut osc_books, &mut witness).actions;
+        let bar0_classification = Classification {
+            levels: vec![level_with_centers(vec![c0])],
+        };
+        let empty_step = Classification {
+            levels: vec![LevelState::default()],
+        };
+        let _ = step_center_oscillation(
+            0,
+            &bar0_classification,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        )
+        .actions;
 
         // 直接摆两笔挂起（c0 已在场；c1 尚未在链上——挂起按身份匹配，不要求当前在场，D 裁定）。
         osc_books[0].on_trigger(
             super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
                 0,
                 Some(CenterId::of(&c0)),
-                CenterDrift::NoDownShift, VoiceSide::Short,
+                CenterDrift::NoDownShift,
+                VoiceSide::Short,
                 200, // c0 中轴150，200≥中轴=上半区
                 1,
             )
@@ -2448,7 +3245,8 @@ mod center_oscillation_wiring_tests {
             super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
                 0,
                 Some(CenterId::of(&c1)),
-                CenterDrift::NoDownShift, VoiceSide::Short,
+                CenterDrift::NoDownShift,
+                VoiceSide::Short,
                 400, // c1 中轴350，400≥中轴=上半区
                 2,
             )
@@ -2459,7 +3257,9 @@ mod center_oscillation_wiring_tests {
 
         // bar1：链前缀分叉为 [c1, c2]（已消费的第 0 格身份从 c0 改写为 c1）⟹ Rebased。
         // 新链含 c1、不含 c0。
-        let bar1_classification = Classification { levels: vec![level_with_centers(vec![c1, c2])] };
+        let bar1_classification = Classification {
+            levels: vec![level_with_centers(vec![c1, c2])],
+        };
         let out = step_center_oscillation_observed(
             1,
             &bar1_classification,
@@ -2468,24 +3268,47 @@ mod center_oscillation_wiring_tests {
             &mut osc_books,
             &mut witness,
         );
-        assert_eq!(out.rebase_observations.len(), 1, "一笔 Rebased 必须产一笔 D0 事务观测");
+        assert_eq!(
+            out.rebase_observations.len(),
+            1,
+            "一笔 Rebased 必须产一笔 D0 事务观测"
+        );
         let rebase = &out.rebase_observations[0];
         assert_eq!(rebase.level, 0);
         assert_eq!(rebase.chain.before, vec![CenterId::of(&c0)]);
-        assert_eq!(rebase.chain.after, vec![CenterId::of(&c1), CenterId::of(&c2)]);
+        assert_eq!(
+            rebase.chain.after,
+            vec![CenterId::of(&c1), CenterId::of(&c2)]
+        );
         assert_eq!(
             rebase.suspended_before,
-            vec![(VoiceSide::Long, CenterId::of(&c0)), (VoiceSide::Long, CenterId::of(&c1))],
+            vec![
+                (VoiceSide::Long, CenterId::of(&c0)),
+                (VoiceSide::Long, CenterId::of(&c1))
+            ],
             "必须在 on_chain_rebase 删除 vanished 挂起前抓取完整分侧挂起表"
         );
-        assert!(out.actions.is_empty(), "RebaseVanished 终结不回补，本 bar 无 cover_action 可见动作");
-        assert_eq!(out.write_offs.len(), 1, "Rebased 路径必须产出一条未闭合减出核销请求");
+        assert!(
+            out.actions.is_empty(),
+            "RebaseVanished 终结不回补，本 bar 无 cover_action 可见动作"
+        );
+        assert_eq!(
+            out.write_offs.len(),
+            1,
+            "Rebased 路径必须产出一条未闭合减出核销请求"
+        );
         assert_eq!(out.write_offs[0].bar, 1);
         assert_eq!(out.write_offs[0].level, 0);
         assert_eq!(out.write_offs[0].center, CenterId::of(&c0));
         assert_eq!(out.write_offs[0].side, VoiceSide::Long);
-        assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "c0 已从新链消失⟹终结，不再悬空");
-        assert!(osc_books[0].is_suspended(CenterId::of(&c1)), "c1 仍在新链上⟹跟随迁移，挂起原样保留");
+        assert!(
+            !osc_books[0].is_suspended(CenterId::of(&c0)),
+            "c0 已从新链消失⟹终结，不再悬空"
+        );
+        assert!(
+            osc_books[0].is_suspended(CenterId::of(&c1)),
+            "c1 仍在新链上⟹跟随迁移，挂起原样保留"
+        );
     }
 
     /// ★★#679 D1b 端到端接线证据：同一 bar 的塔构造证书在谱系簿里给出 `c0 → c1` 的 1→1 边时，
@@ -2501,7 +3324,9 @@ mod center_oscillation_wiring_tests {
         let c0 = center(5, 10, 100, 200);
         let c1 = center(5, 12, 110, 200); // 同 seed 窗重算：start 不变、zd 修订（wf8 seq=3 型）
         let c2 = center(22, 27, 500, 600);
-        let empty_step = Classification { levels: vec![LevelState::default()] };
+        let empty_step = Classification {
+            levels: vec![LevelState::default()],
+        };
 
         // 两臂共用的建仓段：bar0 采纳链 [c0]，在 c0 上挂起一笔多头。
         let arm = |migrate_on: bool| {
@@ -2511,9 +3336,16 @@ mod center_oscillation_wiring_tests {
             let mut osc_books = Vec::new();
             let mut witness =
                 super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
-            let bar0 = Classification { levels: vec![level_with_centers(vec![c0])] };
+            let bar0 = Classification {
+                levels: vec![level_with_centers(vec![c0])],
+            };
             let _ = step_center_oscillation(
-                0, &bar0, &empty_step, &mut cl_machines, &mut osc_books, &mut witness,
+                0,
+                &bar0,
+                &empty_step,
+                &mut cl_machines,
+                &mut osc_books,
+                &mut witness,
             );
             osc_books[0].on_trigger(
                 super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
@@ -2534,9 +3366,16 @@ mod center_oscillation_wiring_tests {
                 &[(CenterId::of(&c0), CenterId::of(&c1))],
                 &[(CenterId::of(&c0), CenterId::of(&c1))],
             );
-            let bar1 = Classification { levels: vec![level_with_centers(vec![c1, c2])] };
+            let bar1 = Classification {
+                levels: vec![level_with_centers(vec![c1, c2])],
+            };
             let out = step_center_oscillation(
-                1, &bar1, &empty_step, &mut cl_machines, &mut osc_books, &mut witness,
+                1,
+                &bar1,
+                &empty_step,
+                &mut cl_machines,
+                &mut osc_books,
+                &mut witness,
             );
             lineage_book::test_set_consumer(None);
             lineage_book::reset_book();
@@ -2548,8 +3387,14 @@ mod center_oscillation_wiring_tests {
             migrated.write_offs.is_empty(),
             "有 1→1 构造证书 ⟹ 挂起随谱系迁移，不产未闭合减出核销"
         );
-        assert!(books[0].is_suspended(CenterId::of(&c1)), "新链身份可问到这条挂起");
-        assert!(books[0].is_suspended(CenterId::of(&c0)), "首次绑定身份经别名仍可问到");
+        assert!(
+            books[0].is_suspended(CenterId::of(&c1)),
+            "新链身份可问到这条挂起"
+        );
+        assert!(
+            books[0].is_suspended(CenterId::of(&c0)),
+            "首次绑定身份经别名仍可问到"
+        );
         assert_eq!(
             books[0].resolve(CenterId::of(&c1)),
             CenterId::of(&c0),
@@ -2557,7 +3402,11 @@ mod center_oscillation_wiring_tests {
         );
 
         let (kept, books) = arm(false);
-        assert_eq!(kept.write_offs.len(), 1, "反证臂：逐字回到 RebaseVanished 核销");
+        assert_eq!(
+            kept.write_offs.len(),
+            1,
+            "反证臂：逐字回到 RebaseVanished 核销"
+        );
         assert_eq!(kept.write_offs[0].center, CenterId::of(&c0));
         assert!(!books[0].is_suspended(CenterId::of(&c0)));
         assert!(!books[0].is_suspended(CenterId::of(&c1)));
@@ -2575,12 +3424,25 @@ mod center_oscillation_wiring_tests {
         let c1 = center(20, 25, 300, 400);
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
-        let mut witness = super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
-        let empty_step = Classification { levels: vec![LevelState::default()] };
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let empty_step = Classification {
+            levels: vec![LevelState::default()],
+        };
 
         // bar0：链=[c0] 首次消费（Adopted），随后在 c0 上开一笔挂起（上沿高抛）。
-        let bar0 = Classification { levels: vec![level_with_centers(vec![c0])] };
-        let _ = step_center_oscillation(0, &bar0, &empty_step, &mut cl_machines, &mut osc_books, &mut witness).actions;
+        let bar0 = Classification {
+            levels: vec![level_with_centers(vec![c0])],
+        };
+        let _ = step_center_oscillation(
+            0,
+            &bar0,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        )
+        .actions;
         osc_books[0].on_trigger(
             super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
                 0,
@@ -2595,8 +3457,17 @@ mod center_oscillation_wiring_tests {
         assert!(osc_books[0].is_suspended(CenterId::of(&c0)));
 
         // bar1：链推进为 [c0, c1] ⟹ Advanced{Superseded(c0), Born(c1)}。
-        let bar1 = Classification { levels: vec![level_with_centers(vec![c0, c1])] };
-        let step1 = step_center_oscillation(1, &bar1, &empty_step, &mut cl_machines, &mut osc_books, &mut witness);
+        let bar1 = Classification {
+            levels: vec![level_with_centers(vec![c0, c1])],
+        };
+        let step1 = step_center_oscillation(
+            1,
+            &bar1,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
         assert!(step1.actions.is_empty(), "取代不产任何动作");
         assert!(step1.write_offs.is_empty(), "取代不产核销请求");
         assert!(
@@ -2615,22 +3486,46 @@ mod center_oscillation_wiring_tests {
         );
 
         // bar2：原中枢 c0（容读格）上的三类买点 ⟹ #366 闭合终局（收手回补）。
-        let step2_bsp = Classification { levels: vec![level_with_bsp(vec![third_class_buy_break(77, c0)])] };
-        let step2 = step_center_oscillation(2, &bar1, &step2_bsp, &mut cl_machines, &mut osc_books, &mut witness);
-        assert_eq!(step2.actions.len(), 1, "延续的挂起在原中枢三类买点上收手回补");
-        assert_eq!(step2.actions[0].action, CenterOscillationAction::Replenish);
-        assert_eq!(step2.actions[0].center, CenterId::of(&c0), "归属原中枢，不误挂到新在场的 c1");
+        let step2_bsp = Classification {
+            levels: vec![level_with_bsp(vec![third_class_buy_break(77, c0)])],
+        };
+        let step2 = step_center_oscillation(
+            2,
+            &bar1,
+            &step2_bsp,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
         assert_eq!(
-            witness.suspension_by_source.get(&(0, "long", "broken_by_third_class_buy")),
+            step2.actions.len(),
+            1,
+            "延续的挂起在原中枢三类买点上收手回补"
+        );
+        assert_eq!(step2.actions[0].action, CenterOscillationAction::Replenish);
+        assert_eq!(
+            step2.actions[0].center,
+            CenterId::of(&c0),
+            "归属原中枢，不误挂到新在场的 c1"
+        );
+        assert_eq!(
+            witness
+                .suspension_by_source
+                .get(&(0, "long", "broken_by_third_class_buy")),
             Some(&1),
             "归宿=三类买点（清算分流读数）"
         );
         assert_eq!(
-            witness.settlement_by_side.get(&(0, "long", "cover_and_close")),
+            witness
+                .settlement_by_side
+                .get(&(0, "long", "cover_and_close")),
             Some(&1),
             "终局=闭合（与未闭合减出核销分列）"
         );
-        assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "清算后挂起离场");
+        assert!(
+            !osc_books[0].is_suspended(CenterId::of(&c0)),
+            "清算后挂起离场"
+        );
     }
 
     /// ★#487：目标已滑出主格/容读格，但精确挂起绑定授权其 Owner 三类点命中历史分支。
@@ -2644,8 +3539,9 @@ mod center_oscillation_wiring_tests {
         fixture.bind(c0, VoiceSide::Long);
         fixture.bind(c0, VoiceSide::Short);
 
-        let advanced =
-            Classification { levels: vec![level_with_centers(vec![c0, c1, c2])] };
+        let advanced = Classification {
+            levels: vec![level_with_centers(vec![c0, c1, c2])],
+        };
         let _ = fixture.consume(1, &advanced);
         fixture.bind(c1, VoiceSide::Long);
 
@@ -2653,28 +3549,23 @@ mod center_oscillation_wiring_tests {
             l0_move(0, Direction::Up, 10, 15, 190, 260),
             l0_move(1, Direction::Down, 15, 20, 240, 280),
         ])];
-        let out = fixture.historical(
-            2,
-            &advanced,
-            None,
-            &tower,
-            false,
-        );
+        let out = fixture.historical(2, &advanced, None, &tower, false);
 
         assert_eq!(out.actions.len(), 1, "买三只为多头产 cover_and_close");
         assert_eq!(out.actions[0].center, CenterId::of(&c0));
         assert_eq!(out.actions[0].side, VoiceSide::Long);
         assert_eq!(out.actions[0].action, CenterOscillationAction::Replenish);
-        assert_eq!(out.write_offs.len(), 1, "同一买三对空头走 write_off_unclosed");
+        assert_eq!(
+            out.write_offs.len(),
+            1,
+            "同一买三对空头走 write_off_unclosed"
+        );
         assert_eq!(out.write_offs[0].center, CenterId::of(&c0));
         assert_eq!(out.write_offs[0].side, VoiceSide::Short);
-        assert!(!fixture.osc_books[0]
-            .is_suspended_side(VoiceSide::Long, CenterId::of(&c0)));
-        assert!(!fixture.osc_books[0]
-            .is_suspended_side(VoiceSide::Short, CenterId::of(&c0)));
+        assert!(!fixture.osc_books[0].is_suspended_side(VoiceSide::Long, CenterId::of(&c0)));
+        assert!(!fixture.osc_books[0].is_suspended_side(VoiceSide::Short, CenterId::of(&c0)));
         assert!(
-            fixture.osc_books[0]
-                .is_suspended_side(VoiceSide::Long, CenterId::of(&c1)),
+            fixture.osc_books[0].is_suspended_side(VoiceSide::Long, CenterId::of(&c1)),
             "同一三类事件不得连坐其它 Owner"
         );
         assert_eq!(fixture.cl_machines[0].historical_bound_kills(), 1);
@@ -2703,17 +3594,14 @@ mod center_oscillation_wiring_tests {
         let c1 = center(20, 30, 300, 400);
         let c2 = center(40, 50, 500, 600);
         let mut fixture = HistoricalWiringFixture::new(vec![c0]);
-        let advanced =
-            Classification { levels: vec![level_with_centers(vec![c0, c1, c2])] };
+        let advanced = Classification {
+            levels: vec![level_with_centers(vec![c0, c1, c2])],
+        };
         let _ = fixture.consume(1, &advanced);
         let point = Classification {
             levels: vec![level_with_bsp(vec![third_class_buy_break(77, c0)])],
         };
-        let out = fixture.regular(
-            2,
-            &advanced,
-            &point,
-        );
+        let out = fixture.regular(2, &advanced, &point);
 
         assert!(out.actions.is_empty());
         assert!(out.write_offs.is_empty());
@@ -2728,7 +3616,10 @@ mod center_oscillation_wiring_tests {
     #[test]
     fn gate_true_immediate_pair_reaches_one_owner_and_suppresses_regular_duplicate() {
         let c0 = center(0, 10, 100, 200);
-        let c0_extended = Center { end_index: 30, ..c0 };
+        let c0_extended = Center {
+            end_index: 30,
+            ..c0
+        };
         let c1 = center(40, 50, 300, 400);
         let c2 = center(60, 70, 500, 600);
         let mut fixture = HistoricalWiringFixture::new(vec![c0]);
@@ -2747,13 +3638,7 @@ mod center_oscillation_wiring_tests {
         let regular_duplicate = Classification {
             levels: vec![level_with_bsp(vec![third_class_buy_break(20, c2)])],
         };
-        let out = fixture.historical(
-            1,
-            &advanced,
-            Some(&regular_duplicate),
-            &tower,
-            false,
-        );
+        let out = fixture.historical(1, &advanced, Some(&regular_duplicate), &tower, false);
 
         assert_eq!(out.actions.len(), 1);
         assert_eq!(out.actions[0].center, CenterId::of(&c0));
@@ -2763,7 +3648,9 @@ mod center_oscillation_wiring_tests {
         assert_eq!(fixture.cl_machines[0].mis_kills(), 0);
         assert_eq!(fixture.witness.historical_bound_by_level.get(&0), Some(&1));
         assert_eq!(
-            fixture.cl_machines[0].alive_center().map(|(c, _)| CenterId::of(&c)),
+            fixture.cl_machines[0]
+                .alive_center()
+                .map(|(c, _)| CenterId::of(&c)),
             Some(CenterId::of(&c2)),
             "一事件一 Owner 一清算：regular 副本被抑制，alive c2 不得连坐"
         );
@@ -2778,21 +3665,16 @@ mod center_oscillation_wiring_tests {
         let c2 = center(40, 50, 500, 600);
         let mut fixture = HistoricalWiringFixture::new(vec![c0]);
         fixture.bind(c0, VoiceSide::Long);
-        let advanced =
-            Classification { levels: vec![level_with_centers(vec![c0, c1, c2])] };
+        let advanced = Classification {
+            levels: vec![level_with_centers(vec![c0, c1, c2])],
+        };
         let tower = vec![Rc::new(vec![
             l0_move(0, Direction::Up, 10, 15, 150, 190),
             l0_move(1, Direction::Up, 15, 20, 190, 260),
             l0_move(2, Direction::Down, 20, 25, 240, 280),
         ])];
 
-        let out = fixture.historical(
-            1,
-            &advanced,
-            None,
-            &tower,
-            false,
-        );
+        let out = fixture.historical(1, &advanced, None, &tower, false);
 
         assert!(out.actions.is_empty());
         assert!(out.write_offs.is_empty());
@@ -2810,8 +3692,9 @@ mod center_oscillation_wiring_tests {
         let c2 = center(50, 60, 500, 600);
         let mut fixture = HistoricalWiringFixture::new(vec![c0]);
         fixture.bind(c0, VoiceSide::Long);
-        let advanced =
-            Classification { levels: vec![level_with_centers(vec![c0, c1, c2])] };
+        let advanced = Classification {
+            levels: vec![level_with_centers(vec![c0, c1, c2])],
+        };
         let tower = vec![Rc::new(vec![
             l0_move(0, Direction::Up, 10, 15, 190, 260),
             l0_move(1, Direction::Down, 15, 20, 150, 280),
@@ -2822,13 +3705,7 @@ mod center_oscillation_wiring_tests {
             levels: vec![level_with_bsp(vec![third_class_buy_break(30, c0)])],
         };
 
-        let out = fixture.historical(
-            1,
-            &advanced,
-            Some(&remote_point),
-            &tower,
-            false,
-        );
+        let out = fixture.historical(1, &advanced, Some(&remote_point), &tower, false);
 
         assert!(out.actions.is_empty());
         assert!(out.write_offs.is_empty());
@@ -2873,10 +3750,7 @@ mod center_oscillation_wiring_tests {
             .collect();
         assert_eq!(
             owner_sources,
-            std::collections::HashSet::from([
-                (CenterId::of(&c0), 20),
-                (CenterId::of(&c1), 40),
-            ]),
+            std::collections::HashSet::from([(CenterId::of(&c0), 20), (CenterId::of(&c1), 40),]),
             "旧框只认 source=20；晚框 source=40 只归晚框 Owner"
         );
         assert_eq!(fixture.cl_machines[0].historical_bound_kills(), 2);
@@ -2891,8 +3765,9 @@ mod center_oscillation_wiring_tests {
         let c1 = center(20, 30, 300, 400);
         let mut fixture = HistoricalWiringFixture::new(vec![c0]);
         fixture.bind(c0, VoiceSide::Long);
-        let advanced =
-            Classification { levels: vec![level_with_centers(vec![c0, c1])] };
+        let advanced = Classification {
+            levels: vec![level_with_centers(vec![c0, c1])],
+        };
         let kill_new_tail = Classification {
             levels: vec![level_with_bsp(vec![third_class_buy_break(31, c1)])],
         };
@@ -2989,8 +3864,9 @@ mod center_oscillation_wiring_tests {
         let mut fixture = HistoricalWiringFixture::new(vec![c0]);
         fixture.bind(c0, VoiceSide::Long);
         fixture.bind(c1, VoiceSide::Long);
-        let rebased =
-            Classification { levels: vec![level_with_centers(vec![c1, c2])] };
+        let rebased = Classification {
+            levels: vec![level_with_centers(vec![c1, c2])],
+        };
         let empty_tower = vec![Rc::new(Vec::new())];
 
         let out = fixture.historical(1, &rebased, None, &empty_tower, true);
@@ -3036,15 +3912,25 @@ mod center_oscillation_wiring_tests {
         let c0 = center(5, 10, 100, 200); // 中轴 = 150
         let sell_point = sub_level_bsp_point(3, VoiceSide::Short, 200); // 200≥中轴=上半区
         let classification = Classification {
-            levels: vec![level_with_bsp(vec![sell_point]), level_with_centers(vec![c0])],
+            levels: vec![
+                level_with_bsp(vec![sell_point]),
+                level_with_centers(vec![c0]),
+            ],
         };
 
         let config_off = super::super::super::config::ThetaConfig::default();
-        assert!(!config_off.center_oscillation.enabled, "默认门关（回归锁前提）");
+        assert!(
+            !config_off.center_oscillation.enabled,
+            "默认门关（回归锁前提）"
+        );
         let cls_off = classification.clone();
         let out_off = pi_theta_fill_loop(
             move |i| {
-                let cls = if i == 0 { cls_off.clone() } else { Classification::default() };
+                let cls = if i == 0 {
+                    cls_off.clone()
+                } else {
+                    Classification::default()
+                };
                 (cls, Vec::new(), Vec::new(), i as u64, i as u64)
             },
             &bars,
@@ -3062,7 +3948,11 @@ mod center_oscillation_wiring_tests {
         let cls_on = classification;
         let out_on = pi_theta_fill_loop(
             move |i| {
-                let cls = if i == 0 { cls_on.clone() } else { Classification::default() };
+                let cls = if i == 0 {
+                    cls_on.clone()
+                } else {
+                    Classification::default()
+                };
                 (cls, Vec::new(), Vec::new(), i as u64, i as u64)
             },
             &bars,
@@ -3075,7 +3965,10 @@ mod center_oscillation_wiring_tests {
             1,
             "门开：同一非空 bars + 同一触发条件 ⟹ 恰一条可见动作（真判别力）"
         );
-        assert_eq!(out_on.center_oscillation_actions[0].action, CenterOscillationAction::Reduce);
+        assert_eq!(
+            out_on.center_oscillation_actions[0].action,
+            CenterOscillationAction::Reduce
+        );
     }
 
     /// ★★#689 端到端接线证据（用户 2026-07-29 裁定）：锚（首次挂起冻结的旧身份）经谱系簿
@@ -3093,7 +3986,9 @@ mod center_oscillation_wiring_tests {
         use super::super::super::lineage_book;
         let c0 = center(0, 10, 100, 200);
         let c1 = center(0, 10, 90, 200); // 迁移后的当前修订身份（同 seed 窗重算：start 不变、zd 修订）
-        let empty_step = Classification { levels: vec![LevelState::default()] };
+        let empty_step = Classification {
+            levels: vec![LevelState::default()],
+        };
         let mut cl_machines = Vec::new();
         let mut osc_books = Vec::new();
         let mut witness =
@@ -3104,9 +3999,16 @@ mod center_oscillation_wiring_tests {
         lineage_book::test_set_consumer(Some(true));
 
         // bar0：链=[c0]，首次采纳；c0 上挂起一笔多头。
-        let bar0 = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let bar0 = Classification {
+            levels: vec![level_with_centers(vec![c0])],
+        };
         let _ = step_center_oscillation(
-            0, &bar0, &empty_step, &mut cl_machines, &mut osc_books, &mut witness,
+            0,
+            &bar0,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
         );
         bind_side(&mut osc_books[0], c0, VoiceSide::Long);
         assert!(osc_books[0].is_suspended(CenterId::of(&c0)));
@@ -3121,14 +4023,28 @@ mod center_oscillation_wiring_tests {
             &[(CenterId::of(&c0), CenterId::of(&c1))],
             &[(CenterId::of(&c0), CenterId::of(&c1))],
         );
-        let bar1 = Classification { levels: vec![level_with_centers(vec![c1])] };
+        let bar1 = Classification {
+            levels: vec![level_with_centers(vec![c1])],
+        };
         let _ = step_center_oscillation(
-            1, &bar1, &empty_step, &mut cl_machines, &mut osc_books, &mut witness,
+            1,
+            &bar1,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
         );
         lineage_book::test_set_consumer(None);
         lineage_book::reset_book();
-        assert_eq!(cl_machines[0].alive_center(), Some((c1, 0)), "链尾主格=迁移后身份");
-        assert!(osc_books[0].is_suspended(CenterId::of(&c0)), "挂起随谱系迁移，未核销");
+        assert_eq!(
+            cl_machines[0].alive_center(),
+            Some((c1, 0)),
+            "链尾主格=迁移后身份"
+        );
+        assert!(
+            osc_books[0].is_suspended(CenterId::of(&c0)),
+            "挂起随谱系迁移，未核销"
+        );
         assert_eq!(
             osc_books[0].current_identity_of(CenterId::of(&c0)),
             Some(CenterId::of(&c1)),
@@ -3153,18 +4069,28 @@ mod center_oscillation_wiring_tests {
             false,
         );
 
-        assert_eq!(out.actions.len(), 1, "改道命中 Alive ⟹ 三类买点仍正常产出收手回补");
+        assert_eq!(
+            out.actions.len(),
+            1,
+            "改道命中 Alive ⟹ 三类买点仍正常产出收手回补"
+        );
         assert_eq!(
             out.actions[0].center,
             CenterId::of(&c0),
             "结算读数经 on_lifecycle_event 独立折回锚（ADR 补充十四：清算仍按冻结旧框判）"
         );
         assert_eq!(out.actions[0].action, CenterOscillationAction::Replenish);
-        assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "挂起已清算离场");
+        assert!(
+            !osc_books[0].is_suspended(CenterId::of(&c0)),
+            "挂起已清算离场"
+        );
         assert_eq!(cl_machines[0].mis_kills(), 0, "改道生效后不再落 MisKill");
         assert_eq!(cl_machines[0].historical_bound_reroutes(), 1);
 
-        assert_eq!(witness.historical_bound_attempted_by_level.get(&0), Some(&1));
+        assert_eq!(
+            witness.historical_bound_attempted_by_level.get(&0),
+            Some(&1)
+        );
         assert_eq!(
             witness.historical_bound_by_level.get(&0),
             Some(&1),
@@ -3221,9 +4147,17 @@ fn entry_stop_reverse_dump_line(line: &str) {
     ENTRY_STOP_REVERSE_DUMP.with(|c| {
         let mut slot = c.borrow_mut();
         if slot.is_none() {
-            *slot = Some(std::env::var(crate::theta_v0::env_registry::ENTRY_STOP_REVERSE_DUMP).ok().and_then(|p| {
-                std::fs::OpenOptions::new().create(true).append(true).open(p).ok()
-            }));
+            *slot = Some(
+                std::env::var(crate::theta_v0::env_registry::ENTRY_STOP_REVERSE_DUMP)
+                    .ok()
+                    .and_then(|p| {
+                        std::fs::OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open(p)
+                            .ok()
+                    }),
+            );
         }
         if let Some(Some(f)) = slot.as_mut() {
             use std::io::Write;
@@ -3257,8 +4191,12 @@ fn entry_stop_reverse_dump_row(
     let (pivot_low, pivot_high, zg, zd, owner) = match bsp {
         Some(p) => {
             let (zg, zd, owner) = match p.center {
-                Some(super::super::classifier::bsp::OwnerRef::Center(ct)) => (ct.zg, ct.zd, "center"),
-                Some(super::super::classifier::bsp::OwnerRef::Type1Anchor(_)) => (0, 0, "type1anchor"),
+                Some(super::super::classifier::bsp::OwnerRef::Center(ct)) => {
+                    (ct.zg, ct.zd, "center")
+                }
+                Some(super::super::classifier::bsp::OwnerRef::Type1Anchor(_)) => {
+                    (0, 0, "type1anchor")
+                }
                 None => (0, 0, "none"),
             };
             (p.pivot_low, p.pivot_high, zg, zd, owner)
@@ -3362,7 +4300,9 @@ pub(super) fn entry_stop_recheck_probe_snapshot() -> EntryStopRecheckProbe {
 pub(super) fn entry_stop_recheck_skip() -> bool {
     static SKIP: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *SKIP.get_or_init(|| {
-        std::env::var(crate::theta_v0::env_registry::THETA_ENTRY_STOP_RECHECK_SKIP).map(|v| v == "1").unwrap_or(false)
+        std::env::var(crate::theta_v0::env_registry::THETA_ENTRY_STOP_RECHECK_SKIP)
+            .map(|v| v == "1")
+            .unwrap_or(false)
     })
 }
 
@@ -3372,7 +4312,9 @@ pub(super) fn entry_stop_recheck_skip() -> bool {
 fn histbind_reroute_skip() -> bool {
     static SKIP: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *SKIP.get_or_init(|| {
-        std::env::var(crate::theta_v0::env_registry::THETA_HISTBIND_REROUTE_SKIP).map(|v| v == "1").unwrap_or(false)
+        std::env::var(crate::theta_v0::env_registry::THETA_HISTBIND_REROUTE_SKIP)
+            .map(|v| v == "1")
+            .unwrap_or(false)
     })
 }
 
@@ -3392,7 +4334,11 @@ fn entry_stop_recheck_probe_bump(dir: strategy::voice::VoiceSide, level: u32, bs
         } else {
             p.short_rejected += 1;
         }
-        let by_level = if long { &mut p.by_level_long } else { &mut p.by_level_short };
+        let by_level = if long {
+            &mut p.by_level_long
+        } else {
+            &mut p.by_level_short
+        };
         let idx = level as usize;
         if by_level.len() <= idx {
             by_level.resize(idx + 1, 0);
@@ -3400,9 +4346,16 @@ fn entry_stop_recheck_probe_bump(dir: strategy::voice::VoiceSide, level: u32, bs
         by_level[idx] += 1;
         // 到达本门的候选恒有效分类（`interp::min_class` 1/2/3；Flat 已在上方 return，
         // MAX 无类候选不构成可交易 candidate，不会流入 step_gamma_trade）。
-        debug_assert!((1..=3).contains(&bsp_class), "candidate bsp_class 越界: {bsp_class}");
+        debug_assert!(
+            (1..=3).contains(&bsp_class),
+            "candidate bsp_class 越界: {bsp_class}"
+        );
         if (1..=3).contains(&bsp_class) {
-            let by_class = if long { &mut p.by_class_long } else { &mut p.by_class_short };
+            let by_class = if long {
+                &mut p.by_class_long
+            } else {
+                &mut p.by_class_short
+            };
             by_class[(bsp_class - 1) as usize] += 1;
         }
     });
@@ -3427,7 +4380,15 @@ pub(super) fn pi_theta_fill_loop_overlay<F>(
 where
     // ★工位 4g/on2w2：闭包返回四元组——第三个 u64 = 塔代次（candidate 段判据）；第四个 u64 =
     // forest_epoch（K_i 森林段 O(1) 命中判据，on2w2 O(n²) 修复）。
-    F: FnMut(usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, Vec<usize>, u64, u64),
+    F: FnMut(
+        usize,
+    ) -> (
+        classifier::Classification,
+        Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>,
+        Vec<usize>,
+        u64,
+        u64,
+    ),
 {
     use super::super::strategy::coverage::{self, PiThetaWeights};
     use super::super::strategy::exec::fill_bar_index;
@@ -3453,7 +4414,8 @@ where
     // Pi+1 = merge(Pi, Ei+1, held legs)（§9）：snapshot 匹配刷新 + held 找不到标记 LiveDetached。
     let mut registry = super::super::strategy::persistent::PersistentRegistry::new();
     // ★确认-bar 部署 seen-set（append-only "只增不改"；已部署买卖点身份键，stream.rs:162 同构）。
-    let mut seen_bsps: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+    let mut seen_bsps: std::collections::HashSet<(usize, usize, u8)> =
+        std::collections::HashSet::new();
     // ★#487：挂起候选三类证书按 (level, 精确 Owner, source, bits) 去重。Owner 必须入键：
     // 同一 retest 对不同四边框的配对是不同归属证书，不能复用普通 BSP 不含 Owner 的 seen 键。
     let mut seen_historical_bound_bsps: std::collections::HashSet<HistoricalSeenKey> =
@@ -3477,24 +4439,24 @@ where
     // （新级涌现补建）；门关（`config.center_oscillation.enabled=false`）⟹ 本段整体不构造
     // 不驱动，零开销，订单轨逐字节不变（bit-exact 不破）。
     let mut cl_machines: Vec<classifier::center_lifecycle::CenterEventMachine> = Vec::new();
-    let mut osc_books: Vec<super::super::strategy::center_oscillation_trade::CenterOscillationBook> =
-        Vec::new();
-    let mut osc_actions: Vec<super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord> =
-        Vec::new();
+    let mut osc_books: Vec<
+        super::super::strategy::center_oscillation_trade::CenterOscillationBook,
+    > = Vec::new();
+    let mut osc_actions: Vec<
+        super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord,
+    > = Vec::new();
     // ★issue #357（#294/#278 生产接线最后一公里）：每仓 campaign 账簿（每级别一台，惰性按级
     // 增长，同 osc_books 粒度）+ 生产接线观测统计。门关 ⟹ 本段整体不驱动（下方消费点全在
     // `pan_div_hist` 门内），二者恒 default/空，零开销，订单轨逐字节不变（bit-exact 不破）。
     let mut campaign_book = super::super::strategy::oscillation_campaign::CampaignBook::new();
-    let mut campaign_witness = super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+    let mut campaign_witness =
+        super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
     let pan_div_hist = if config.center_oscillation.enabled && !bars.is_empty() {
         let closes: Vec<f64> = bars
             .iter()
             .map(|bar| bar.close as f64 / config.tick.tick_size)
             .collect();
-        Some(super::super::classifier::divergence::compute_macd(
-            &closes,
-            &config.macd,
-        ).hist)
+        Some(super::super::classifier::divergence::compute_macd(&closes, &config.macd).hist)
     } else {
         None
     };
@@ -3511,10 +4473,7 @@ where
                     .iter()
                     .map(|bar| bar.close as f64 / config.tick.tick_size)
                     .collect();
-                Some(super::super::classifier::divergence::compute_macd(
-                    &closes,
-                    &config.macd,
-                ).hist)
+                Some(super::super::classifier::divergence::compute_macd(&closes, &config.macd).hist)
             }
         }
     } else {
@@ -3541,7 +4500,11 @@ where
     //    持仓 + 事件驱动 fill + 开仓冻结 sizing），输出层（equity/trade_pnls/trades/n_orders/
     //    r_decomp）换声部账户口径。None ⟹ 本块全部变量闲置、声部分支全跳过（bit-exact 回归锁）。──
     let voice_enabled = voice_exec.is_some();
-    let mut pending_voice: Vec<Vec<VoiceOrder>> = if voice_enabled { vec![Vec::new(); n] } else { Vec::new() };
+    let mut pending_voice: Vec<Vec<VoiceOrder>> = if voice_enabled {
+        vec![Vec::new(); n]
+    } else {
+        Vec::new()
+    };
     let mut n_voice_fills: usize = 0;
     let mut voice_trade_pnls: Vec<f64> = Vec::new(); // 声部平仓 fill 费后已实现（不含强平）
     let mut voice_trades: Vec<metrics::TradeRecord> = Vec::new();
@@ -3592,10 +4555,8 @@ where
     //   高水位 +1（首次入场 = 0）。`ActiveLeg::id`/`voice_id` 会跨 campaign 复用（close 后同 carrier
     //   可再 open，见 interpret 无历史 tombstone + open_trades.insert 二次覆盖），高水位表使
     //   position_node_id 四元组严格不碰撞（时序再入场可达，codex a9-posnode 裁定 C）。
-    let mut gen_hiwater: std::collections::HashMap<
-        classifier::recursive_tower::ElementId,
-        u32,
-    > = std::collections::HashMap::new();
+    let mut gen_hiwater: std::collections::HashMap<classifier::recursive_tower::ElementId, u32> =
+        std::collections::HashMap::new();
     // ── #124 裁定4：TW 账本单一生产真值源（TwState 接入 π 路径；run_closed_loop 降级纯结构
     //    验证工具）。注资口径 = funded_campaign 同款（state.rs:219）：整窗 = 一个 campaign，
     //    投入 = 初始 NAV 取整（free = notional_in = ⌊nav0⌋）。i64 取整粒度诚实声明：TW 账本是
@@ -3648,7 +4609,10 @@ where
         // ★W1：声部簿价格 PnL 累计（同一 Δpx 口径——簿内持仓是前 bar 收盘持仓，在本 bar
         //    声部 fill 之前累计，与上方净额影子累计同一时点）。
         if voice_enabled {
-            voice_exec.as_deref_mut().expect("voice_enabled ⟹ Some").mark_to_market(px);
+            voice_exec
+                .as_deref_mut()
+                .expect("voice_enabled ⟹ Some")
+                .mark_to_market(px);
         }
 
         // ── ① 延迟成交：本 bar 到达 exec_index 的挂单 fill（apply_order，先平后开）。 ──
@@ -3658,12 +4622,27 @@ where
                 if o.qty > 0 {
                     let units_before = units;
                     // A'（清单③）：累加本 fill 的费后已实现 PnL（多 fill 同 bar 聚合——推导链第 9 条）。
-                    let fill = apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+                    let fill = apply_order(
+                        o,
+                        px,
+                        fee_rate,
+                        &mut cash,
+                        &mut units,
+                        &mut entry_cost,
+                        &mut trade_pnls,
+                    );
                     tw_thread.add_realized(fill.realized);
                     cum_fee += fill.fee;
                     if fill.executed_qty > 0.0 {
                         // 轨迹与执行计数只消费真实成交；全拒单不再伪造 L2 执行事实。
-                        track_position_transition(&mut trades, &mut pos_entry_bar, units_before, units, i, false);
+                        track_position_transition(
+                            &mut trades,
+                            &mut pos_entry_bar,
+                            units_before,
+                            units,
+                            i,
+                            false,
+                        );
                         n_orders_executed += 1;
                     }
                 }
@@ -3676,7 +4655,9 @@ where
             let vb = voice_exec.as_deref_mut().expect("voice_enabled ⟹ Some");
             for vo in &vos {
                 let out = match vo.kind {
-                    VoiceOrderKind::Open => vb.apply_open(vo.voice, vo.side, vo.qty, px, i, fee_rate),
+                    VoiceOrderKind::Open => {
+                        vb.apply_open(vo.voice, vo.side, vo.qty, px, i, fee_rate)
+                    }
                     VoiceOrderKind::Close => vb.apply_close(vo.voice, px, i, fee_rate),
                 };
                 if out.executed_qty > 0.0 {
@@ -3751,7 +4732,8 @@ where
         if !bar.untradable && px > 0.0 {
             // ── ③ [A] 前缀因果重分类（classify_at(i)=classify_with_tower(l0[0..=i]) → 因果塔 + 因果
             //      分类，只用 ≤i 数据 → 因果）+ 切当步候选 + [B] base_units U_ℓ + [C] thread + 风控门。 ──
-            let (classification_i, tower_i, confirmed_lens, tower_gen, forest_epoch) = classify_at(i);
+            let (classification_i, tower_i, confirmed_lens, tower_gen, forest_epoch) =
+                classify_at(i);
             // ★opsem-dump：diff tower_i vs prev_tower → 写塔事件（仅交易活跃区间，env-gated）。
             if let Some(dump) = opsem.as_mut() {
                 dump.diff_tower(i, &tower_i);
@@ -3767,7 +4749,7 @@ where
                 dump.feed_center_lifecycle(i, &classification_i, &classification_step);
             }
             let base_units = equity_nav / px; // U_ℓ：NAV/价 = 可建名义手数（方案A协变）
-            // 风控门也用**前缀因果分类**（leg 止损 bsp 因果查得，非全窗非因果——与 σ_p 同因果口径）。
+                                              // 风控门也用**前缀因果分类**（leg 止损 bsp 因果查得，非全窗非因果——与 σ_p 同因果口径）。
             let (gate, risk_mode_i, stop_risk_seeds) = k_theta_risk_gate(
                 &prev_active,
                 &open_trades,
@@ -3843,7 +4825,11 @@ where
             let ext_i = super::selector::ZExt {
                 risk_mode: Some(risk_mode_i),
                 t_stage: Some(tw_thread.tw.stage),
-                eta_bucket: Some(tw_thread.policy.eta_bucket_eta_corrected(&tw_thread.tw, cum_holding_cost)),
+                eta_bucket: Some(
+                    tw_thread
+                        .policy
+                        .eta_bucket_eta_corrected(&tw_thread.tw, cum_holding_cost),
+                ),
                 ..super::selector::ZExt::NONE
             };
             // A7（#165）：记录当前决策点账本态——窗口终点 censored Hold（主循环外）取此末值作 exit_z
@@ -3858,7 +4844,11 @@ where
             let (step_tree, step_candidates, step_gamma) = {
                 let _g = classifier::stage_profile::stage("cand_build_step");
                 interp::coverage_elements_and_gamma_with_tower_cached_gen(
-                    &classification_step, &tower_i, &mut Some(&mut tree_cache), Some(tower_gen), Some(forest_epoch),
+                    &classification_step,
+                    &tower_i,
+                    &mut Some(&mut tree_cache),
+                    Some(tower_gen),
+                    Some(forest_epoch),
                 )
             };
             // ★工位 4d 热点①②：注入缓存的 base（tree 前缀）兄弟/ID 索引（命中 Rc::clone O(1)），消除
@@ -3875,8 +4865,15 @@ where
                 // σ_higher 真值穿透（codex-q1 G2 护航点）：生产 χ 查询与训练表同经塔真值构 z——
                 // 训练 Some/查询 None 的静默"未见类别"退化在此被接口封死。
                 Some(ctx) => super::selector::filter_gamma_with_admission(
-                    &step_gamma, ctx.est, ctx.theta, ctx.z_alpha, ctx.shrink_tau_sq,
-                    ctx.treat_empty_as_pass, &tower_i, bars, &ext_i,
+                    &step_gamma,
+                    ctx.est,
+                    ctx.theta,
+                    ctx.z_alpha,
+                    ctx.shrink_tau_sq,
+                    ctx.treat_empty_as_pass,
+                    &tower_i,
+                    bars,
+                    &ext_i,
                 ),
                 None => step_gamma.clone(), // χ≡1：原候选集（bit-exact 不变）
             };
@@ -3992,13 +4989,14 @@ where
             //    `interp::parent_certificate_projection` 逐候选构造；cand_elems = step_work
             //    candidate 段只读切片、tree = step_tree，与生产同一份数据；χ 后口径——
             //    step_gamma_trade 之外的候选不产投影）。──
-            let step_parent_projections: Vec<super::super::strategy::interp::ParentCertificateProjection> =
-                step_gamma_trade
-                    .iter()
-                    .filter_map(|c| {
-                        interp::parent_certificate_projection(c, step_work.overlay(), &step_tree)
-                    })
-                    .collect();
+            let step_parent_projections: Vec<
+                super::super::strategy::interp::ParentCertificateProjection,
+            > = step_gamma_trade
+                .iter()
+                .filter_map(|c| {
+                    interp::parent_certificate_projection(c, step_work.overlay(), &step_tree)
+                })
+                .collect();
             // ── #124 裁定4 TW 谓词 ctx（P2/P3/P4 进 fold）：在飞腿 entry_v 映射从 typed ledger
             //    在飞表取（entry_v 入场固定，与 TW open_legacy_legs 计数同源）。#145 T1：由原
             //    ShortDiff id 半镜像升级为全量 entry_v 映射——P2 过滤在组合层按
@@ -4128,27 +5126,23 @@ where
                 );
                 osc_actions.extend(new_osc_actions);
             }
-            let (
-                next_active,
-                standard_p_star,
-                (mut order, _protocol_event),
-                step_trace,
-            ) = coverage::pi_theta_step_traced_with_risk_seeds(
-                step_work,
-                &step_gamma_trade,
-                &prev_active,
-                p_t,
-                exec_index.unwrap_or(i),
-                base_units,
-                &config.risk,
-                weights,
-                gate,
-                &stop_risk_seeds,
-                &config.voice,
-                &registry,
-                Some(&twc),
-                &protocol_events,
-            );
+            let (next_active, standard_p_star, (mut order, _protocol_event), step_trace) =
+                coverage::pi_theta_step_traced_with_risk_seeds(
+                    step_work,
+                    &step_gamma_trade,
+                    &prev_active,
+                    p_t,
+                    exec_index.unwrap_or(i),
+                    base_units,
+                    &config.risk,
+                    weights,
+                    gate,
+                    &stop_risk_seeds,
+                    &config.voice,
+                    &registry,
+                    Some(&twc),
+                    &protocol_events,
+                );
             // #71 钩子符号重锚：#69 合流后 PanDiv 的候选准备已移到 step_trace 之前；此处仍是
             // step_gamma/生产 χ 成员/step_trace 三者首次同时在手、且在 PanDiv 最终选址消费前。
             if let Some(dump) = gamma_dump.as_mut() {
@@ -4207,14 +5201,23 @@ where
                     .filter(|(_, ls)| !ls.bsp.is_empty())
                     .map(|(lvl, _)| lvl as u32)
                     .collect();
-                let closed_levels: Vec<u32> =
-                    step_trace.closed.iter().map(|(leg, _, _)| leg.level).collect();
+                let closed_levels: Vec<u32> = step_trace
+                    .closed
+                    .iter()
+                    .map(|(leg, _, _)| leg.level)
+                    .collect();
                 let opened_levels: Vec<u32> =
                     step_trace.opened.iter().map(|(_, leg)| leg.level).collect();
-                let silent_levels: Vec<u32> =
-                    step_trace.silent_drops.iter().map(|leg| leg.level).collect();
-                let overlay_levels: Vec<u32> =
-                    step_trace.overlay_closes.iter().map(|leg| leg.level).collect();
+                let silent_levels: Vec<u32> = step_trace
+                    .silent_drops
+                    .iter()
+                    .map(|leg| leg.level)
+                    .collect();
+                let overlay_levels: Vec<u32> = step_trace
+                    .overlay_closes
+                    .iter()
+                    .map(|leg| leg.level)
+                    .collect();
                 let risk_levels: Vec<u32> =
                     step_trace.risk_exits.iter().map(|leg| leg.level).collect();
                 collect_ticks(
@@ -4256,13 +5259,20 @@ where
             //    逐声部账本 → ΔN 订单 + 逐声部 pnl_v 累计。只读旁路（不改净额 fill 的 cash/units/
             //    trade_pnls ⟹ 现有臂 bit-exact）。overlay=None（现有臂）⟹ 整段跳过。 ──
             if let Some(ov) = overlay.as_deref_mut() {
-                let ostep = ov.step(&step_trace.sep_legs, px, i, config.risk.default_lot.max(1) as i64);
+                let ostep = ov.step(
+                    &step_trace.sep_legs,
+                    px,
+                    i,
+                    config.risk.default_lot.max(1) as i64,
+                );
                 // ★ΔN 守恒（验收断言1，PDF p16 `Order_t=N_t−N_{t−1}`）：overlay 订单恒 = 净敞口增量。
                 debug_assert_eq!(
                     ostep.order,
                     ostep.net_after - ostep.net_before,
                     "M5 ΔN 守恒违例：order={} ≠ N_t−N_{{t−1}}={}−{}",
-                    ostep.order, ostep.net_after, ostep.net_before
+                    ostep.order,
+                    ostep.net_after,
+                    ostep.net_before
                 );
             }
             // ── ★LEE M1 级别账本镜像步进（multi-level-native-execution-design-20260719 §D M1，
@@ -4270,7 +5280,12 @@ where
             //    （与 overlay 并列的只读旁路，不改净额 fill 任何状态）。level_ledger=None ⟹
             //    整段跳过（bit-exact 回归锁）。 ──
             if let Some(ll) = level_ledger.as_deref_mut() {
-                let lstep = ll.step(&step_trace.sep_legs, px, i, config.risk.default_lot.max(1) as i64);
+                let lstep = ll.step(
+                    &step_trace.sep_legs,
+                    px,
+                    i,
+                    config.risk.default_lot.max(1) as i64,
+                );
                 // ★LEE-Net 恒等（M1 验收断言，设计文档 §C.2）：Σ_ℓ net_ℓ 恒 = overlay 净敞口 N——
                 // 逐级分解是 Net 的加性细化（整数手数求和，精确成立非 eps 容差）。恒等的验证锚
                 // 需要 overlay 同时 Some 才有独立真值可比对；overlay=None 时镜像仍步进（账本本身
@@ -4280,7 +5295,9 @@ where
                         lstep.total_net,
                         ov.net(),
                         "LEE-Net 恒等违例（M1 加性细化）：Σ_ℓ net_ℓ={} ≠ N={} @bar{}",
-                        lstep.total_net, ov.net(), i
+                        lstep.total_net,
+                        ov.net(),
+                        i
                     );
                     // ★#289 影子评审 MED ① 同款纪律：恒等的 release 非平凡证据——逐决策点累计
                     // max|Σ_ℓ net_ℓ − N| 与 max|N|，release 同样执行；「残差 0 且 max|N|>0」才算
@@ -4346,8 +5363,7 @@ where
                         open.position_node_id.side,
                         leg.id.level,
                     );
-                    let core_residual =
-                        account_id.is_some_and(|a| account_view.has_residual(a));
+                    let core_residual = account_id.is_some_and(|a| account_view.has_residual(a));
                     if let Some(reason) = account_id.and_then(|a| {
                         strategy::account::reason_of_reverse_close(a, trig.bsp_class, core_residual)
                     }) {
@@ -4520,7 +5536,11 @@ where
             //    （阶段 C 换内核在本契约上对齐）。只入本轨；不改 typed_ledger/account_view/
             //    opsem/TW 任何既有轨（Hold 无成交，不入 TypedTrade）。──
             for v in &step_trace.verdicts {
-                verdict_ledger.push(VoiceVerdictRec { bar: i, leg: v.leg, exit_type: v.exit });
+                verdict_ledger.push(VoiceVerdictRec {
+                    bar: i,
+                    leg: v.leg,
+                    exit_type: v.exit,
+                });
             }
             // 开腿：准入信号腿登记（z 塔真值，与生产 χ 查询同经 z_of_candidate——训练/查询同口径）。
             // A6（#159）：z_of_candidate 内读 c.force（Candidate 透传 BspPoint.force）填 force_state
@@ -4565,7 +5585,14 @@ where
                                 cell.set(p);
                             });
                             entry_stop_reverse_dump_row(
-                                c, &classification_i, bars, i, exec_index, px, stop, config,
+                                c,
+                                &classification_i,
+                                bars,
+                                i,
+                                exec_index,
+                                px,
+                                stop,
+                                config,
                             );
                         }
                         strategy::voice::VoiceSide::Short if stop_px <= px => {
@@ -4575,7 +5602,14 @@ where
                                 cell.set(p);
                             });
                             entry_stop_reverse_dump_row(
-                                c, &classification_i, bars, i, exec_index, px, stop, config,
+                                c,
+                                &classification_i,
+                                bars,
+                                i,
+                                exec_index,
+                                px,
+                                stop,
+                                config,
                             );
                         }
                         _ => {}
@@ -4636,7 +5670,9 @@ where
                         cand_nest_confirmed: c.nest_confirmed,
                         // R5-c：区间套深度（纯结构读数，与生产门 rungs.len() 同口径，不依赖 hist）。
                         nest_depth: super::econ_positive::structural_nest_depth(
-                            &tower_i, c.level as usize, c.source_index,
+                            &tower_i,
+                            c.level as usize,
+                            c.source_index,
                         ),
                         cand_role: Box::leak(operation_role_str(c.role).into_boxed_str()),
                         seg_a_macd_area: sa_macd,
@@ -4672,20 +5708,31 @@ where
                     leg.id
                 );
                 let leg_units = b1_sep.map(|s| s.q_units).unwrap_or(0.0);
-                open_trades.insert(leg.id, LedgerOpen {
-                    entry_bar: i,
-                    entry_px: px,
-                    entry_stop,
-                    entry_stop_dist,
-                    // G3：与本 bar χ 查询共用同一 ext_i（训练/查询同口径，共享变量层保证）。
-                    entry_z: super::selector::z_of_candidate(c, &tower_i, bars, &ext_i),
-                    entry_v: c.role.v,
-                    position_node_id,
-                    opsem: opsem_snap,
-                    units: leg_units,
-                });
+                open_trades.insert(
+                    leg.id,
+                    LedgerOpen {
+                        entry_bar: i,
+                        entry_px: px,
+                        entry_stop,
+                        entry_stop_dist,
+                        // G3：与本 bar χ 查询共用同一 ext_i（训练/查询同口径，共享变量层保证）。
+                        entry_z: super::selector::z_of_candidate(c, &tower_i, bars, &ext_i),
+                        entry_v: c.role.v,
+                        position_node_id,
+                        opsem: opsem_snap,
+                        units: leg_units,
+                    },
+                );
                 // #197 并行记账视图：开腿镜像（只读旁路，不改净额路径；账户身份 = entry_v × 方向）。
-                account_mirror_open(&mut account_view, c, leg.id.level, position_node_id, leg_units, px, i);
+                account_mirror_open(
+                    &mut account_view,
+                    c,
+                    leg.id.level,
+                    position_node_id,
+                    leg_units,
+                    px,
+                    i,
+                );
             }
             // TW 腿事件（#124）：legacy ReverseOpen 腿开仓驱动 open_legacy_legs 计数（P2 的 H
             // 判据与生产腿同源同步；关侧在上方四个消费循环内经 open.entry_v 判定派
@@ -4774,20 +5821,31 @@ where
                 let (tree_ref, candidates_ref) = {
                     let _g = classifier::stage_profile::stage("cand_build_merge");
                     interp::coverage_elements_with_tower_cached_gen(
-                        &classification_i, &tower_i, &mut tree_cache, &mut cand_cache, Some(tower_gen), Some(forest_epoch),
+                        &classification_i,
+                        &tower_i,
+                        &mut tree_cache,
+                        &mut cand_cache,
+                        Some(tower_gen),
+                        Some(forest_epoch),
                     )
                 };
                 classifier::stage_profile::record_span("cand_count", candidates_ref.len() as u64);
                 let cand_dirty = cand_cache.dirty; // ★on2w3：candidates 逐字节变？否 ⟹ merge cand 段跳过。
-                // ★工位 4f：双段 merge（消 as_contiguous materialize O(tree) + step 1'/2' tree 全量 O(tree)）。
-                // tree_dirty=false（Rc::ptr_eq 命中，tree 同上 bar）⟹ 跳过 tree 段（断言1-3 bit-exact）。
+                                                   // ★工位 4f：双段 merge（消 as_contiguous materialize O(tree) + step 1'/2' tree 全量 O(tree)）。
+                                                   // tree_dirty=false（Rc::ptr_eq 命中，tree 同上 bar）⟹ 跳过 tree 段（断言1-3 bit-exact）。
                 let tree_dirty = prev_merge_tree
                     .as_ref()
                     .map(|p| !std::rc::Rc::ptr_eq(p, &tree_ref))
                     .unwrap_or(true);
                 {
                     let _g = classifier::stage_profile::stage("cand_merge_consume");
-                    registry.merge_in_place_split(&tree_ref, tree_dirty, &candidates_ref, cand_dirty, &next_active);
+                    registry.merge_in_place_split(
+                        &tree_ref,
+                        tree_dirty,
+                        &candidates_ref,
+                        cand_dirty,
+                        &next_active,
+                    );
                 }
                 prev_merge_tree = Some(tree_ref);
             }
@@ -4843,11 +5901,18 @@ where
     }
 
     // ── 窗口终点强平（含浮盈口径，编排者铁律「不把浮盈算上不合理」）──
-    let mut trade_pnls_with_forced = if voice_enabled { voice_trade_pnls.clone() } else { trade_pnls.clone() };
+    let mut trade_pnls_with_forced = if voice_enabled {
+        voice_trade_pnls.clone()
+    } else {
+        trade_pnls.clone()
+    };
     // ★W1：声部臂 final equity 的真值 = cash_v + N_derived·final_px——在下方虚拟兑现（清空
     //    positions）之前捕获 N_derived（cash_v 不被虚拟兑现改动，r_decomp 装配处直读）。
     let voice_end_net: i64 = if voice_enabled {
-        voice_exec.as_deref().expect("voice_enabled ⟹ Some").net_signed()
+        voice_exec
+            .as_deref()
+            .expect("voice_enabled ⟹ Some")
+            .net_signed()
     } else {
         0
     };
@@ -4898,7 +5963,10 @@ where
 
     // ── G4 typed ledger 窗口终点 censored（PDF §9 P0 Hold）：未离场腿兑现到末可交易 bar
     //    close（与旧 build_mu_from_bars censored 语义/窗口终点强平含浮盈同理，不偷看窗外）。──
-    if let Some(last_i) = (0..n).rev().find(|&j| !bars[j].untradable && bars[j].close > 0) {
+    if let Some(last_i) = (0..n)
+        .rev()
+        .find(|&j| !bars[j].untradable && bars[j].close > 0)
+    {
         let last_px = bars[last_i].close as f64 * config.tick.tick_size;
         // 确定序输出（HashMap 迭代序不定 ⟹ 按 (entry_bar, voice_id) 排序，bit-exact 可复现）。
         let mut censored: Vec<(classifier::recursive_tower::ElementId, LedgerOpen)> =
@@ -4968,10 +6036,24 @@ where
             (cum_funding_v + cum_borrow_v + cum_liq_v) as i64,
         )
     } else {
-        (cum_price_pnl, cum_fee, cum_funding, cum_borrow, cum_liq_loss, ledger_delta, tw_holding_cost_bridge)
+        (
+            cum_price_pnl,
+            cum_fee,
+            cum_funding,
+            cum_borrow,
+            cum_liq_loss,
+            ledger_delta,
+            tw_holding_cost_bridge,
+        )
     };
     let r_decomp = super::super::strategy::risk::RDecomposition::assemble(
-        r_price, r_fee, r_fund, r_borr, r_liq, r_ledger_delta, r_bridge,
+        r_price,
+        r_fee,
+        r_fund,
+        r_borr,
+        r_liq,
+        r_ledger_delta,
+        r_bridge,
     );
     // 守恒断言（no-patch-mentality：残差超容差 = 真实资金泄漏 bug，不静默）。容差按名义规模缩放
     // （f64 累加 O(n) 舍入；nav0 量级 + 累计项量级）——绝对容差 max(1e-6, 1e-9·(|nav0|+|price_pnl|)）。
@@ -4979,7 +6061,10 @@ where
     debug_assert!(
         r_decomp.conservation_residual.abs() <= cons_tol,
         "M6 R 分解守恒残差 {} 超容差 {}（net_r={} vs ledger_delta={}）——资金泄漏",
-        r_decomp.conservation_residual, cons_tol, r_decomp.net_r, r_ledger_delta
+        r_decomp.conservation_residual,
+        cons_tol,
+        r_decomp.net_r,
+        r_ledger_delta
     );
 
     let daily_returns = bar_returns(&equity_curve);
@@ -5107,11 +6192,15 @@ where
     for (lvl, m) in cl_machines.iter().enumerate() {
         let kills = m.historical_bound_kills();
         if kills > 0 {
-            campaign_witness.historical_bound_kills_by_level.insert(lvl as u32, kills);
+            campaign_witness
+                .historical_bound_kills_by_level
+                .insert(lvl as u32, kills);
         }
         let reroutes = m.historical_bound_reroutes();
         if reroutes > 0 {
-            campaign_witness.historical_bound_reroutes_by_level.insert(lvl as u32, reroutes);
+            campaign_witness
+                .historical_bound_reroutes_by_level
+                .insert(lvl as u32, reroutes);
         }
     }
     FillOutput {
@@ -5119,10 +6208,18 @@ where
         daily_returns,
         // ★W1：声部臂输出声部账户口径（平仓 fill 费后已实现/逐声部 TradeRecord/声部 fill
         //    事件数）——设计性改变（审计 §7.4 如实登记），非回归；净额影子对应量不进输出。
-        trade_pnls_realized: if voice_enabled { voice_trade_pnls } else { trade_pnls },
+        trade_pnls_realized: if voice_enabled {
+            voice_trade_pnls
+        } else {
+            trade_pnls
+        },
         trade_pnls_with_forced,
         trades: if voice_enabled { voice_trades } else { trades },
-        n_orders: if voice_enabled { n_voice_fills } else { n_orders_executed },
+        n_orders: if voice_enabled {
+            n_voice_fills
+        } else {
+            n_orders_executed
+        },
         typed_ledger,
         voice_verdicts: verdict_ledger,
         tw_final: Some(tw_thread.finish()),
@@ -5182,7 +6279,8 @@ pub(super) struct FillOutput {
     pub(super) campaign_book: super::super::strategy::oscillation_campaign::CampaignBook,
     /// issue #357 验收③：enabled=true wf8 产物级见证读数（减补动作归属分桶/`CenterNotAlive`
     /// 丢弃率/挂起归宿/campaign 生死事件）。v1/dual 路径未接线 ⟹ 恒 `default()`。
-    pub(super) campaign_witness: super::super::strategy::oscillation_campaign::CampaignWiringWitness,
+    pub(super) campaign_witness:
+        super::super::strategy::oscillation_campaign::CampaignWiringWitness,
     /// ★LEE M3 `clock_ℓ`（#644 语义重放）：逐 bar 事件钟点只读累计读数（`level_ledger` 参数与
     /// 本读数彼此独立——本读数不需要 `level_ledger=Some` 才产出，逐 bar 无条件计入）。
     pub(super) level_clock: super::super::strategy::level_clock::LevelClockStats,
@@ -5192,10 +6290,6 @@ pub(super) struct FillOutput {
     pub(super) level_attrib_n_residual_bars: u64,
     pub(super) level_attrib_n_rescaled_bars: u64,
 }
-
-
-
-
 
 /// voice_qty 同步（fill 后更新；depth 超界跳过，诚实边界不应发生）。
 ///
@@ -5224,11 +6318,11 @@ pub(super) fn apply_voice_fill(voice_qty: &mut [u32], depth: usize, fill: FillOu
 mod entry_stop_recheck_gate_tests {
     //! 门在**生产 fill 循环**里的判别力：同一场景只改结构止损价的一侧，逆侧候选不得开仓、
     //! 顺侧候选照常开仓（对照臂同时锁住「门没把正常入场也拒掉」与「测试确有判别力」）。
+    use super::super::super::types::{Bar, BspBits, Direction, Tick};
     use super::*;
     use classifier::center::UnitRange;
     use classifier::recursive_tower::{ElementId, LeveledMove};
     use classifier::{bsp::BspPoint, Classification, LevelState};
-    use super::super::super::types::{Bar, BspBits, Direction, Tick};
     use std::rc::Rc;
 
     /// 入场价（tick）：tick_size=1e-8 ⟹ 100.00 美元。
@@ -5251,7 +6345,10 @@ mod entry_stop_recheck_gate_tests {
     fn buy1_point(source_index: usize, pivot_low: Tick) -> BspPoint {
         BspPoint {
             source_index,
-            bits: BspBits { buy1: true, ..BspBits::default() },
+            bits: BspBits {
+                buy1: true,
+                ..BspBits::default()
+            },
             pivot_low,
             pivot_high: 0,
             center: None,
@@ -5264,7 +6361,10 @@ mod entry_stop_recheck_gate_tests {
     fn buy2_point(source_index: usize, pivot_low: Tick) -> BspPoint {
         BspPoint {
             source_index,
-            bits: BspBits { buy2: true, ..BspBits::default() },
+            bits: BspBits {
+                buy2: true,
+                ..BspBits::default()
+            },
             pivot_low,
             pivot_high: 0,
             center: None,
@@ -5277,7 +6377,10 @@ mod entry_stop_recheck_gate_tests {
     fn buy3_point(source_index: usize, pivot_low: Tick) -> BspPoint {
         BspPoint {
             source_index,
-            bits: BspBits { buy3: true, ..BspBits::default() },
+            bits: BspBits {
+                buy3: true,
+                ..BspBits::default()
+            },
             pivot_low,
             pivot_high: 0,
             center: None,
@@ -5296,18 +6399,34 @@ mod entry_stop_recheck_gate_tests {
     fn run_with_points(points: Vec<BspPoint>) -> FillOutput {
         let bars: Vec<Bar> = (0..8).map(flat_bar).collect();
         let mv = LeveledMove::from_unit(
-            &UnitRange { start_index: 0, end_index: 2, direction: Direction::Up, lo: PX, hi: PX },
-            ElementId { level: 0, ordinal: 0 },
+            &UnitRange {
+                start_index: 0,
+                end_index: 2,
+                direction: Direction::Up,
+                lo: PX,
+                hi: PX,
+            },
+            ElementId {
+                level: 0,
+                ordinal: 0,
+            },
         );
         let cls = Classification {
-            levels: vec![LevelState { bsp: Rc::new(points), ..LevelState::default() }],
+            levels: vec![LevelState {
+                bsp: Rc::new(points),
+                ..LevelState::default()
+            }],
         };
         let tower: Vec<Rc<Vec<LeveledMove>>> = vec![Rc::new(vec![mv])];
         let config = super::super::super::config::ThetaConfig::default();
         pi_theta_fill_loop(
             move |i| {
                 // bar 2 起该买卖点已在因果分类里（首次出现 ⟹ 本 bar 确认 ⟹ 部署）。
-                let c = if i >= 2 { cls.clone() } else { Classification::default() };
+                let c = if i >= 2 {
+                    cls.clone()
+                } else {
+                    Classification::default()
+                };
                 (c, tower.clone(), vec![1], i as u64, i as u64)
             },
             &bars,
@@ -5344,7 +6463,11 @@ mod entry_stop_recheck_gate_tests {
         assert_eq!(p.long_rejected, 1, "多仓侧拒单计数");
         assert_eq!(p.short_rejected, 0);
         assert_eq!(p.by_level_long, vec![1], "分级计数落 level 0");
-        assert_eq!(p.by_class_long, [0, 1, 0], "#678 二类买点落 by_class_long 下标1");
+        assert_eq!(
+            p.by_class_long,
+            [0, 1, 0],
+            "#678 二类买点落 by_class_long 下标1"
+        );
         assert_eq!(p.by_class_short, [0, 0, 0]);
     }
 
