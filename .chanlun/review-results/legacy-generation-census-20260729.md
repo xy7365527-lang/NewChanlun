@@ -147,3 +147,9 @@ grep -rn "^\s*\(pub \)\?mod cand_delta;\|^\s*\(pub \)\?mod tower_cache;\|^\s*\(p
 ## 订正（2026-07-29，#761 实装发现 + 影子评审坐实）
 
 §1.3（recursive_t 族）判「standalone T 算子可独立删除」**有误**：遗漏反向依赖核查——standalone T 算子 6 文件（center/trend/divergence/operator/types/mod::iterate）被同目录 T 引擎（b）的**生产代码**（stream.rs/rec_stream.rs/backtest.rs 等）直接调用，删除会打断 (b) 编译。订正后处置 = **GUARD-ROLE 留档不删**（#761 已落地，零逻辑改动）；E3（#762）处置 T 引擎时须连同此基座一起裁（耦合同批原则覆盖到它）。
+
+## 二次订正（2026-07-29，#762 核查扩面 + 影子评审坐实）
+
+本报告五族名分**被子簇级核查全面推翻**（#762，issue762-impl-20260730.md）：spiral/ 改判**现役**（fugue_v3 生产代码硬依赖其 signal 层 + python 冷调用 2 处）；fugue_v3/ 改判**现役**（recursive_t flat 支硬依赖其会计层 + python 调用 3 处，原「零调用」不成立）；recursive_t(b) 内部再分裂——flat 支现役、rec 支**亦现役**（评审抓回：PyO3 导出名 `RecTStream` 系 rename，用 Rust 类型名 grep 漏查，`trading_system/strategy/rec_t_strategy.py:45` NT 生产策略等 4 处真实调用），deprecated 收窄至 backtest.rs/backtest_run.rs 独立核。最终处置 = 34 文件 GUARD-ROLE 标记、**零删除**。
+
+**方法论（入档）**：python 调用面核查一律从 `lib.rs` pymodule 导出名反查（lib.rs:2660-2671 八导出名），禁用 Rust 侧类型名 grep（rename 即漏，PyRecStream→RecTStream 正是漏点）。本报告原五族 deprecated 判定自此仅作历史留痕，不作处置依据。
