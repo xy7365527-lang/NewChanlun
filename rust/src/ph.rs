@@ -1,3 +1,5 @@
+//! GUARD-ROLE: toplevel-loose-files——名分：现役（详见 `lib.rs` 头部 GUARD-ROLE 块，#764 C7-E5 核定；零删除/零移入 legacy/）。
+//!
 //! PH 计算层 — 逐位等价移植自 src/newchan/ph_layer.py
 //!
 //! 为递归级别的 Move 附着 persistence 值，并给出递归终止判据。

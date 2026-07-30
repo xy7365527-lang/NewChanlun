@@ -1,3 +1,5 @@
+//! GUARD-ROLE: toplevel-loose-files——名分：现役（详见 `lib.rs` 头部 GUARD-ROLE 块，#764 C7-E5 核定；零删除/零移入 legacy/）。
+//!
 //! bi_zhongshu_bsp.rs — 笔中枢买卖点**全链增量引擎**。
 //!
 //! 组合四层增量器，bit-exact 等价于逐前缀全量

@@ -1,3 +1,5 @@
+//! GUARD-ROLE: toplevel-loose-files——名分：现役（详见 `lib.rs` 头部 GUARD-ROLE 块，#764 C7-E5 核定；零删除/零移入 legacy/）。
+//!
 //! orchestrator.rs — 递归编排器（组合层）逐位等价移植自
 //! src/newchan/orchestrator/recursive.py 的 `RecursiveOrchestrator`
 //! + src/newchan/core/recursion/ 的五层有状态引擎 + recursive_stack.py。

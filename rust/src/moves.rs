@@ -1,3 +1,5 @@
+//! GUARD-ROLE: toplevel-loose-files——名分：现役（详见 `lib.rs` 头部 GUARD-ROLE 块，#764 C7-E5 核定；零删除/零移入 legacy/）。
+//!
 //! 走势类型实例 v1 — 逐位等价移植自 src/newchan/a_move_v1.py
 //!
 //! 从已闭合中枢列表贪心分组构造 Move（盘整=1中枢 / 趋势=2+同向中枢）。

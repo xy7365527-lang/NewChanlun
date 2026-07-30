@@ -1,3 +1,5 @@
+//! GUARD-ROLE: toplevel-loose-files——名分：现役（详见 `lib.rs` 头部 GUARD-ROLE 块，#764 C7-E5 核定；零删除/零移入 legacy/）。
+//!
 //! segment.rs — 线段 v1 特征序列法，逐位等价移植自 `src/newchan/a_segment_v1.py`
 //!
 //! 契约：批量等价。给定同一笔列表（`Vec<Stroke>`，逐位等价于 Python `Stroke`），

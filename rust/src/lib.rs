@@ -17,6 +17,35 @@
 //! `a_divergence_v1` 的 `dif_peak_for_range` / `histogram_peak_for_range` /
 //! `_b_segment_crosses_zero`。背驰 MACD 三维度路径（T2/T6/T7 + T4）随之接通。
 
+// GUARD-ROLE: toplevel-loose-files
+//
+// ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#764 C7-E5 执行票核定）
+//
+// - **名分**：**现役**（机械判据：有非测试调用者 ∧ 无 `#[deprecated]` 标记 ∧ 在唯一 git 线
+//   main 上）。适用于 `bi_engine`/`bi_zhongshu_bsp`/`buysellpoint`/`divergence`/`fractal`/
+//   `level`/`macd`/`moves`/`orchestrator`/`ph`/`segment`/`segment_layers`/`stroke`/`zhongshu`
+//   共 14 文件（`c_segment_verify`/`segment_tangency_tests` 名分单列，见各自文件头，不随批
+//   升现役）。`.chanlun/review-results/issue764-impl-20260730.md` §2 核查：(1) theta_v0（π）
+//   对本组文件生产引用 = 0；(2) spiral/fugue_v3/recursive_t/trading 四族（#761/#762/#763 已
+//   判现役）逐一硬依赖本组类型/函数（`stroke`/`buysellpoint`/`divergence`/`segment`/`level`/
+//   `macd`/`moves`/`orchestrator` 均被消费）；(3) `lib.rs` 本文件 `#[pymodule]`（:2652-2688）
+//   直接导出 `PyBiEngine`/`segments_from_strokes_v1`/`zhongshu_from_segments`/
+//   `zhongshu_from_strokes`/`moves_from_zhongshus`/`divergences_from_moves_v1`/
+//   `buysellpoints_from_level`/`compute_macd`/`macd_area_for_range`/`dif_peak_for_range`/
+//   `histogram_peak_for_range`/`b_segment_crosses_zero` 共 12 个顶层散件函数的直接 PyO3
+//   包装；(4) `analysis/` 经 `RecursiveOrchestrator`（`orchestrator.rs`/`bi_zhongshu_bsp.rs`/
+//   `divergence.rs`）消费本组产出（#764 评审 MEDIUM-1 订正：非两份 07-26 脚本直调导出名，
+//   系经 orchestrator 中转）。
+// - **对照什么**：两条独立证据链均指向"现役、不可删/不可移"——(1) 四族现役判定对本组的
+//   编译期硬依赖；(2) pymodule 12 导出 + `RecursiveOrchestrator` 中转的生产消费面。π
+//   完全自包含未复用本组一行。
+// - **与现役差在哪**：本组与 π 并列为两条独立现役线，互不相交（π 零引用本组，本组零
+//   引用 π）；本组是"四族 + pymodule 直达"两面消费的**共同底座**，非四族的附属物。
+// - **禁回灌**：本次仅加标记，未删除/未移动任何代码；`c_segment_verify.rs`/
+//   `segment_tangency_tests.rs` 名分单列（各自文件头），不随本批"现役"标记覆盖。
+// - **处置**：**GUARD-ROLE 留档，零删除，零移入 `legacy/`**（沿 #761/#762/#763 先例，C7
+//   战役五个执行票 E1-E5 全部落地为"确权在案"而非"清理瘦身"）。
+
 mod bi_engine;
 mod bi_zhongshu_bsp;
 mod buysellpoint;

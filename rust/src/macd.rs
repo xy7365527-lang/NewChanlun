@@ -1,3 +1,5 @@
+//! GUARD-ROLE: toplevel-loose-files——名分：现役（详见 `lib.rs` 头部 GUARD-ROLE 块，#764 C7-E5 核定；零删除/零移入 legacy/）。
+//!
 //! MACD 力度层 — 逐位等价移植自 src/newchan/a_macd.py + a_divergence_v1.py（MACD 维度）。
 //!
 //! 第七层。从原始 close 价格完整算出 MACD（EMA → DIF/DEA/hist → area/peak），
