@@ -95,6 +95,7 @@
 
 use super::super::parser::ParseLayer;
 use super::super::types::{Center, Direction, MoveKind, PendingTail, Segment, Side, Tick};
+use super::center::{center_from_segments, center_from_window, UnitRange};
 use super::divergence::{
     same_color_area, same_dir_hist_peak, segment_dif_peak, segments_diverge_or,
 };
@@ -103,11 +104,10 @@ use super::ledger_kernel::{
     LedgerRetrogradeRejection, LedgerRevision, LedgerSettlement, LedgerState,
 };
 use super::level_view::{LowerLeg, NestCandidateEvent, NestDivergenceKind};
-use super::center::{center_from_segments, center_from_window, UnitRange};
 use super::recursive_tower::{detect_centers_windowed_resume, map_src_to_close_idx, ElementId};
 use super::signal::{
-    locate_pan_div_structure, locate_pan_div_structure_front_anchor,
-    nearest_confirmed_center_idx, pan_div_structure_extreme,
+    locate_pan_div_structure, locate_pan_div_structure_front_anchor, nearest_confirmed_center_idx,
+    pan_div_structure_extreme,
 };
 use std::collections::BTreeMap;
 
@@ -140,7 +140,16 @@ fn side_tag(side: Side) -> u8 {
 }
 
 impl LifecycleKey {
-    fn sort_tuple(&self) -> (u32, u8, NestDivergenceKind, (usize, usize), (usize, usize), usize) {
+    fn sort_tuple(
+        &self,
+    ) -> (
+        u32,
+        u8,
+        NestDivergenceKind,
+        (usize, usize),
+        (usize, usize),
+        usize,
+    ) {
         (
             self.level,
             side_tag(self.side),
@@ -1003,32 +1012,31 @@ impl NestLifecycleBook {
                     stats.confirmed_count += 1;
                     (entry.confirmed_at, false)
                 }
-                NestEventState::Invalidated => match entry
-                    .invalidated_reason
-                    .expect("Invalidated 必有原因码")
-                {
-                    InvalidatedReason::ForceOvertake => {
-                        stats.force_overtake_count += 1;
-                        stats.force_overtake_claimed_count +=
-                            usize::from(claimed.contains(&entry.key));
-                        (entry.invalidated_at, true)
-                    }
-                    InvalidatedReason::NeverConstituted => {
-                        stats.never_constituted_count += 1;
-                        (entry.invalidated_at, false)
-                    }
-                    InvalidatedReason::IdentityVanished { cause } => {
-                        match cause {
-                            VanishCause::HypothesisRefuted => {
-                                stats.identity_vanished_refuted_count += 1
-                            }
-                            VanishCause::ObservationSeam { .. } => {
-                                stats.identity_vanished_seam_count += 1
-                            }
+                NestEventState::Invalidated => {
+                    match entry.invalidated_reason.expect("Invalidated 必有原因码") {
+                        InvalidatedReason::ForceOvertake => {
+                            stats.force_overtake_count += 1;
+                            stats.force_overtake_claimed_count +=
+                                usize::from(claimed.contains(&entry.key));
+                            (entry.invalidated_at, true)
                         }
-                        (entry.invalidated_at, false)
+                        InvalidatedReason::NeverConstituted => {
+                            stats.never_constituted_count += 1;
+                            (entry.invalidated_at, false)
+                        }
+                        InvalidatedReason::IdentityVanished { cause } => {
+                            match cause {
+                                VanishCause::HypothesisRefuted => {
+                                    stats.identity_vanished_refuted_count += 1
+                                }
+                                VanishCause::ObservationSeam { .. } => {
+                                    stats.identity_vanished_seam_count += 1
+                                }
+                            }
+                            (entry.invalidated_at, false)
+                        }
                     }
-                },
+                }
             };
             let Some(terminal_at) = terminal_at else {
                 continue;
@@ -1046,8 +1054,7 @@ impl NestLifecycleBook {
             }
         }
         stats.nonflash_lifetime = LifetimeDistribution::from_values(nonflash_lifetimes);
-        stats.force_overtake_lifetime =
-            LifetimeDistribution::from_values(force_overtake_lifetimes);
+        stats.force_overtake_lifetime = LifetimeDistribution::from_values(force_overtake_lifetimes);
         stats
     }
 
@@ -1225,11 +1232,8 @@ impl NestLifecycleBook {
             // 「曾经弱过」冒充，E2E §4.1:151；复核用本 prefix 现算 force，不沿用旧值）。
             if obs.structure_completed() {
                 if first_write_clock(&mut entry.structure_end_at, as_of) {
-                    let revision = entry.push_revision(
-                        LifecycleRevisionKind::StructureCompleted,
-                        as_of,
-                        None,
-                    );
+                    let revision =
+                        entry.push_revision(LifecycleRevisionKind::StructureCompleted, as_of, None);
                     delta.record(revision);
                 }
                 if entry.first_provable_at.is_some() && force == ForceCheck::Verified(true) {
@@ -1330,7 +1334,10 @@ impl NestLifecycleBook {
                     "observed ≤ structure_end ≤ last_as_of：{key:?}"
                 );
                 if let Some(first) = entry.first_provable_at {
-                    assert!(first <= structure_end, "first_provable ≤ structure_end：{key:?}");
+                    assert!(
+                        first <= structure_end,
+                        "first_provable ≤ structure_end：{key:?}"
+                    );
                 }
             }
             // 票 #559 新不变量（全态覆盖）：`vanish_cause` 有值 ⟺ 原因码是 IdentityVanished。
@@ -1363,7 +1370,9 @@ impl NestLifecycleBook {
                     assert!(entry.invalidated_at.is_none(), "终态互斥：{key:?}");
                 }
                 NestEventState::Invalidated => {
-                    let invalidated = entry.invalidated_at.expect("Invalidated 必有 invalidated_at");
+                    let invalidated = entry
+                        .invalidated_at
+                        .expect("Invalidated 必有 invalidated_at");
                     assert!(
                         entry.observed_at <= invalidated,
                         "observed ≤ invalidated：{key:?}"
@@ -1375,9 +1384,15 @@ impl NestLifecycleBook {
                             let first = entry
                                 .first_provable_at
                                 .expect("反超定义要求曾可证（卡 §4.1）");
-                            assert!(first <= invalidated, "反超 invalidated ≥ first_provable：{key:?}");
+                            assert!(
+                                first <= invalidated,
+                                "反超 invalidated ≥ first_provable：{key:?}"
+                            );
                             // 反超发生于该身份被投喂的 prefix（last_as_of 已先推进到当 prefix）。
-                            assert!(invalidated <= entry.last_as_of, "反超 invalidated ≤ last_as_of：{key:?}");
+                            assert!(
+                                invalidated <= entry.last_as_of,
+                                "反超 invalidated ≤ last_as_of：{key:?}"
+                            );
                         }
                         InvalidatedReason::NeverConstituted => {
                             // 从未构成（061:28）与被反超（061:26）严格互补：前者恒无
@@ -1612,34 +1627,35 @@ pub fn provide_pan_live_windows(
     // BTreeMap 保序 ⟹ 产出确定性（v3 硬禁令）。
     let mut latest: BTreeMap<(usize, u8, (usize, usize), usize), PanLiveWindow> = BTreeMap::new();
     for segment in segments.iter().filter(|s| s.end_index <= as_of) {
-        let Some(center_index) = nearest_confirmed_center_idx(centers, segment.start_index)
-        else {
+        let Some(center_index) = nearest_confirmed_center_idx(centers, segment.start_index) else {
             continue;
         };
         if kinds.get(center_index) != Some(&Some(MoveKind::Consolidation)) {
             continue;
         }
         // 窄锚优先、A′ 回退（061:28 中枢前最近同向段）——与 provider pan 分支同序同判。
-        let Some(structure) = locate_pan_div_structure(
-            &centers[center_index],
-            segment,
-            segments,
-            anchors_self,
-        )
-        .filter(|structure| pan_div_structure_extreme(structure, segments))
-        .or_else(|| {
-            locate_pan_div_structure_front_anchor(
-                &centers[center_index],
-                segment,
-                segments,
-                anchors_self,
-            )
-            .filter(|structure| pan_div_structure_extreme(structure, segments))
-        }) else {
+        let Some(structure) =
+            locate_pan_div_structure(&centers[center_index], segment, segments, anchors_self)
+                .filter(|structure| pan_div_structure_extreme(structure, segments))
+                .or_else(|| {
+                    locate_pan_div_structure_front_anchor(
+                        &centers[center_index],
+                        segment,
+                        segments,
+                        anchors_self,
+                    )
+                    .filter(|structure| pan_div_structure_extreme(structure, segments))
+                })
+        else {
             continue;
         };
         latest.insert(
-            (center_index, side_tag(structure.side), structure.seg_a, structure.seg_c.0),
+            (
+                center_index,
+                side_tag(structure.side),
+                structure.seg_a,
+                structure.seg_c.0,
+            ),
             PanLiveWindow {
                 level,
                 side: structure.side,
@@ -1852,22 +1868,19 @@ pub fn provide_active_pan_live_windows(
     if kinds.get(center_index) != Some(&Some(MoveKind::Consolidation)) {
         return PanLiveOutcome::CenterNotConsolidation;
     }
-    let Some(structure) = locate_pan_div_structure(
-        &centers[center_index],
-        &active,
-        &segments,
-        &anchors_self,
-    )
-    .filter(|structure| pan_div_structure_extreme(structure, &segments))
-    .or_else(|| {
-        locate_pan_div_structure_front_anchor(
-            &centers[center_index],
-            &active,
-            &segments,
-            &anchors_self,
-        )
-        .filter(|structure| pan_div_structure_extreme(structure, &segments))
-    }) else {
+    let Some(structure) =
+        locate_pan_div_structure(&centers[center_index], &active, &segments, &anchors_self)
+            .filter(|structure| pan_div_structure_extreme(structure, &segments))
+            .or_else(|| {
+                locate_pan_div_structure_front_anchor(
+                    &centers[center_index],
+                    &active,
+                    &segments,
+                    &anchors_self,
+                )
+                .filter(|structure| pan_div_structure_extreme(structure, &segments))
+            })
+    else {
         return PanLiveOutcome::StructureNotLocatable;
     };
     PanLiveOutcome::Window(PanLiveWindow {
@@ -2153,15 +2166,11 @@ pub fn active_l1_window_frontier(
         lo: frontier.start_price.min(frontier.extreme),
         hi: frontier.start_price.max(frontier.extreme),
     };
-    let scan = match scan_active_window(
-        l0_units,
-        virtual_unit,
-        l1_resume_from,
-        center_from_segments,
-    ) {
-        Ok(scan) => scan,
-        Err(outcome) => return outcome,
-    };
+    let scan =
+        match scan_active_window(l0_units, virtual_unit, l1_resume_from, center_from_segments) {
+            Ok(scan) => scan,
+            Err(outcome) => return outcome,
+        };
     ActiveWindowOutcome::Frontier(ActiveWindowFrontier {
         // L1 层的窗口首单元就是一根 L0 段单元，其 `direction` **即**首叶方向
         // （`segment_to_unit` 直传段方向 ⟹ 与 `lower_legs_from(tower[0])` 的
@@ -2227,11 +2236,11 @@ pub fn active_l2_window_frontier(
         lo: frontier.lo,
         hi: frontier.hi,
     };
-    let scan =
-        match scan_active_window(l1_units, virtual_unit, l2_resume_from, center_from_window) {
-            Ok(scan) => scan,
-            Err(outcome) => return outcome,
-        };
+    let scan = match scan_active_window(l1_units, virtual_unit, l2_resume_from, center_from_window)
+    {
+        Ok(scan) => scan,
+        Err(outcome) => return outcome,
+    };
     ActiveWindowOutcome::Frontier(ActiveWindowFrontier {
         direction: if scan.win_start < l1_leg_dirs.len() {
             l1_leg_dirs[scan.win_start]
@@ -2295,10 +2304,7 @@ pub struct PanLiveRun<'a> {
 /// `#[cfg(test)] mod tests`**（票 #605 核实）。生产逐 bar sidecar 在 p123 内按 p409
 /// 同构机制独立发现结构窗（走 `provide_active_pan_live_windows` 单 run 通道），
 /// 不经本函数；后续 bar 保持身份字段不动，仅延展 `seg_c_live.1`。
-pub fn provide_replay_live_windows(
-    runs: &[PanLiveRun<'_>],
-    as_of: usize,
-) -> Vec<PanLiveWindow> {
+pub fn provide_replay_live_windows(runs: &[PanLiveRun<'_>], as_of: usize) -> Vec<PanLiveWindow> {
     let mut live_windows = Vec::new();
     for run in runs {
         let segments: Vec<Segment> = run.legs.iter().map(leg_as_segment_copy).collect();
@@ -2504,17 +2510,17 @@ pub fn feed_replay_bar(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::super::types::Tick;
     use super::super::center::UnitRange;
     use super::super::decompose::{center_block_kind, MoveBlock, MoveStatus};
     use super::super::divergence::self_anchors;
     use super::super::level_view::{
-        assemble_level_view, lower_legs_from, provide_nest_candidate_events,
-        project_extended_windows_carried_only, C2LevelViewConfig, C2VersionTuple,
-        CoordinateWindow, LevelViewMaterial, LevelViewQuery, ProjectionMaterial,
+        assemble_level_view, lower_legs_from, project_extended_windows_carried_only,
+        provide_nest_candidate_events, C2LevelViewConfig, C2VersionTuple, CoordinateWindow,
+        LevelViewMaterial, LevelViewQuery, ProjectionMaterial,
     };
     use super::super::recursive_tower::{ElementId, LeveledMove};
-    use super::super::super::types::Tick;
+    use super::*;
 
     // ── 合成观察构造 ────────────────────────────────────────────────────────
 
@@ -2623,44 +2629,76 @@ mod tests {
         // as_of=149：未确认事件（interval_b = 全离开段 (120,149)）——force=Verified(false)
         // 但从未可证 ⟹ 滞留 Provisional（反超定义要求「曾可证」，卡 §4.1）。
         let d = book.advance(
-            &[LifecycleObservation::event(trend_event((120, 149), false, 149, 149), false)],
+            &[LifecycleObservation::event(
+                trend_event((120, 149), false, 149, 149),
+                false,
+            )],
             149,
             &m,
         );
         assert_eq!(d.len(), 1);
         assert!(matches!(d[0].kind, LifecycleRevisionKind::Observed));
-        assert_eq!(book.get(&key_trend((120, 149))).unwrap().state, NestEventState::Provisional);
+        assert_eq!(
+            book.get(&key_trend((120, 149))).unwrap().state,
+            NestEventState::Provisional
+        );
 
         // as_of=155：确认事件（t*=155，interval_b 收束 (120,155)）——桥迁移 + first_provable。
         let d = book.advance(
-            &[LifecycleObservation::event(trend_event((120, 155), true, 155, 155), false)],
+            &[LifecycleObservation::event(
+                trend_event((120, 155), true, 155, 155),
+                false,
+            )],
             155,
             &m,
         );
         assert_eq!(d.len(), 2);
-        assert!(matches!(d[0].kind, LifecycleRevisionKind::Supersedes { from } if from == key_trend((120, 149))));
+        assert!(
+            matches!(d[0].kind, LifecycleRevisionKind::Supersedes { from } if from == key_trend((120, 149)))
+        );
         assert!(matches!(d[1].kind, LifecycleRevisionKind::FirstProvable));
 
         // as_of=169：T5-OR 终假，provider 回扩坐标改发未确认事件 (120,169)——桥迁移后
         // Verified(false) ∧ 曾可证 ⟹ Invalidated(ForceOvertake)。
         let d = book.advance(
-            &[LifecycleObservation::event(trend_event((120, 169), false, 169, 169), false)],
+            &[LifecycleObservation::event(
+                trend_event((120, 169), false, 169, 169),
+                false,
+            )],
             169,
             &m,
         );
         assert_eq!(d.len(), 2);
-        assert!(matches!(d[0].kind, LifecycleRevisionKind::Supersedes { from } if from == key_trend((120, 155))));
+        assert!(
+            matches!(d[0].kind, LifecycleRevisionKind::Supersedes { from } if from == key_trend((120, 155)))
+        );
         assert!(matches!(
             d[1].kind,
-            LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::ForceOvertake }
+            LifecycleRevisionKind::Invalidated {
+                reason: InvalidatedReason::ForceOvertake
+            }
         ));
         let entry = book.entries().next().unwrap().1;
-        assert_eq!(entry.observed_at, 149, "observed_at 跨迁移不后移（E2E §1:83）");
-        assert_eq!(entry.first_provable_at, Some(155), "first_provable = t*（不后移）");
+        assert_eq!(
+            entry.observed_at, 149,
+            "observed_at 跨迁移不后移（E2E §1:83）"
+        );
+        assert_eq!(
+            entry.first_provable_at,
+            Some(155),
+            "first_provable = t*（不后移）"
+        );
         assert_eq!(entry.invalidated_at, Some(169));
         assert_eq!(entry.state, NestEventState::Invalidated);
-        assert_eq!(entry.invalidated_reason, Some(InvalidatedReason::ForceOvertake));
-        assert_eq!(entry.superseded_from, Some(key_trend((120, 155))), "迁移链留痕");
+        assert_eq!(
+            entry.invalidated_reason,
+            Some(InvalidatedReason::ForceOvertake)
+        );
+        assert_eq!(
+            entry.superseded_from,
+            Some(key_trend((120, 155))),
+            "迁移链留痕"
+        );
         // 反超证据载荷可查账（US-03）：c 三通道全面反超 a。
         let ev = entry.force_evidence.expect("ForceOvertake 留证据载荷");
         assert_eq!((ev.area_a, ev.area_c), (60.0, 150.0));
@@ -2669,7 +2707,10 @@ mod tests {
 
         // t=179 终态吸收：同 key 任何后续观察零输出（禁复活，E2E §1:83）。
         let d = book.advance(
-            &[LifecycleObservation::event(trend_event((120, 169), false, 169, 179), false)],
+            &[LifecycleObservation::event(
+                trend_event((120, 169), false, 169, 179),
+                false,
+            )],
             179,
             &m,
         );
@@ -2695,13 +2736,18 @@ mod tests {
         let mut book = NestLifecycleBook::new();
         let m = material(&hist, &dif, &close_src);
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 129),
+                false,
+            )],
             129,
             &m,
         );
         assert_eq!(d.len(), 2, "Observed + FirstProvable");
         assert_eq!(
-            book.get(&key_pan((50, 59), (70, 129))).unwrap().first_provable_at,
+            book.get(&key_pan((50, 59), (70, 129)))
+                .unwrap()
+                .first_provable_at,
             Some(129)
         );
 
@@ -2711,13 +2757,18 @@ mod tests {
         dif[130..=139].fill(-6.0);
         let m = material(&hist, &dif, &close_src);
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 139), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 139),
+                false,
+            )],
             139,
             &m,
         );
         assert!(d.iter().any(|r| matches!(
             r.kind,
-            LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::ForceOvertake }
+            LifecycleRevisionKind::Invalidated {
+                reason: InvalidatedReason::ForceOvertake
+            }
         )));
         let entry = book.entries().next().unwrap().1;
         assert_eq!(entry.state, NestEventState::Invalidated);
@@ -2737,7 +2788,10 @@ mod tests {
         let mut book_eq = NestLifecycleBook::new();
         let m = material(&hist_eq, &dif_eq, &close_src);
         book_eq.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 79), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 79),
+                false,
+            )],
             79,
             &m,
         );
@@ -2747,14 +2801,19 @@ mod tests {
         dif_eq[80] = -5.0;
         let m = material(&hist_eq, &dif_eq, &close_src);
         let d = book_eq.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 99), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 99),
+                false,
+            )],
             99,
             &m,
         );
         assert!(
             d.iter().any(|r| matches!(
                 r.kind,
-                LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::ForceOvertake }
+                LifecycleRevisionKind::Invalidated {
+                    reason: InvalidatedReason::ForceOvertake
+                }
             )),
             "等力亦失效（严格 < 口径，divergence.rs:331-333；工程口径不冒充教义逐字）"
         );
@@ -2778,18 +2837,26 @@ mod tests {
         let m = material(&hist, &dif, &close_src);
         let mut book = NestLifecycleBook::new();
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 129),
+                false,
+            )],
             129,
             &m,
         );
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 139), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 139),
+                false,
+            )],
             139,
             &m,
         );
         assert!(d.iter().any(|r| matches!(
             r.kind,
-            LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::ForceOvertake }
+            LifecycleRevisionKind::Invalidated {
+                reason: InvalidatedReason::ForceOvertake
+            }
         )));
         let revisions_at_invalidation = book.entries().next().unwrap().1.revision;
 
@@ -2802,14 +2869,20 @@ mod tests {
 
         // 状态机层 (a)：延展窗（右端前进）——桥匹配到终态 entry ⟹ 终态吸收。
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 149), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 149),
+                false,
+            )],
             149,
             &m,
         );
         assert!(d.is_empty(), "延展窗零新 revision");
         // 状态机层 (b)：构造性「复活」弱窗（右端回缩到 129）——同样桥匹配终态 ⟹ 吸收。
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 129),
+                false,
+            )],
             149,
             &m,
         );
@@ -2837,27 +2910,43 @@ mod tests {
         let mut book = NestLifecycleBook::new();
         // as_of=125：observed=125、first_provable=125 一次写入。
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 125), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 125),
+                false,
+            )],
             125,
             &m,
         );
         // as_of=130/135：活窗延展（桥迁移 Supersedes），钟不后移。
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 130), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 130),
+                false,
+            )],
             130,
             &m,
         );
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 135), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 135),
+                false,
+            )],
             135,
             &m,
         );
         let entry = book.entries().next().unwrap().1;
         assert_eq!(entry.observed_at, 125, "observed_at 写入不后移");
-        assert_eq!(entry.first_provable_at, Some(125), "first_provable 写入不后移");
+        assert_eq!(
+            entry.first_provable_at,
+            Some(125),
+            "first_provable 写入不后移"
+        );
         // 同 as_of 重复 advance 幂等零 delta（E2E §1:83 as_of = state_as_of 最小形态）。
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 135), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 135),
+                false,
+            )],
             135,
             &m,
         );
@@ -2924,13 +3013,32 @@ mod tests {
         .unwrap();
 
         // 不挂 book：provider 输出基线。
-        let baseline =
-            provide_nest_candidate_events(1, &projection, &blocks, &legs, &view, &hist, &dif, &close_src);
-        assert!(!baseline.is_empty(), "夹具应产事件（R1 全合取 confirmed 在案）");
+        let baseline = provide_nest_candidate_events(
+            1,
+            &projection,
+            &blocks,
+            &legs,
+            &view,
+            &hist,
+            &dif,
+            &close_src,
+        );
+        assert!(
+            !baseline.is_empty(),
+            "夹具应产事件（R1 全合取 confirmed 在案）"
+        );
 
         // 挂 book：同输入重跑 provider + 全量事件喂 advance。
-        let attached =
-            provide_nest_candidate_events(1, &projection, &blocks, &legs, &view, &hist, &dif, &close_src);
+        let attached = provide_nest_candidate_events(
+            1,
+            &projection,
+            &blocks,
+            &legs,
+            &view,
+            &hist,
+            &dif,
+            &close_src,
+        );
         let observations: Vec<_> = attached
             .iter()
             .map(|event| LifecycleObservation::event(*event, true))
@@ -2940,7 +3048,10 @@ mod tests {
         let _ = book.advance(&observations, 139, &m);
 
         // 双判相等：PartialEq + Debug 序列化逐字节。
-        assert_eq!(attached, baseline, "挂 book 后 provider 事件流逐字段相等（PartialEq）");
+        assert_eq!(
+            attached, baseline,
+            "挂 book 后 provider 事件流逐字段相等（PartialEq）"
+        );
         assert_eq!(
             format!("{attached:?}"),
             format!("{baseline:?}"),
@@ -2974,15 +3085,25 @@ mod tests {
         let mut book = NestLifecycleBook::new();
         // as_of=89：窄锚身份（seg_a=(50,69)，c 活窗 (70,89)）。
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 69), 70, 89), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 69), 70, 89),
+                false,
+            )],
             89,
             &m,
         );
-        assert_eq!(d.len(), 1, "仅 Observed（零力度序列 ⟹ Verified(false)，从未可证不判负）");
+        assert_eq!(
+            d.len(),
+            1,
+            "仅 Observed（零力度序列 ⟹ Verified(false)，从未可证不判负）"
+        );
         // as_of=99：结构选择切换为 A′ 回退（seg_a=(20,39)）——seg_a 改变 ⟹ 桥不判同身份
         // （白名单不越界）；旧 key 本 prefix 不再产出 ⟹ Invalidated(IdentityVanished)@99。
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((20, 39), 70, 99), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((20, 39), 70, 99),
+                false,
+            )],
             99,
             &m,
         );
@@ -3003,7 +3124,10 @@ mod tests {
             "成因入账本字段（票 #559 裁定：不是只写 dump 文本）"
         );
         assert_eq!(old.invalidated_at, Some(99));
-        assert!(old.force_evidence.is_none(), "IdentityVanished 恒无力度证据");
+        assert!(
+            old.force_evidence.is_none(),
+            "IdentityVanished 恒无力度证据"
+        );
         assert!(
             matches!(
                 old.revisions.last().unwrap().kind,
@@ -3040,18 +3164,28 @@ mod tests {
         let mut book = NestLifecycleBook::new();
         // as_of=89：锚 seg_a=(50,69)，C 段左端 70。
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 69), 70, 89), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 69), 70, 89),
+                false,
+            )],
             89,
             &m,
         );
         assert_eq!(d.len(), 1, "仅 Observed");
         // as_of=99：同锚（seg_a 不变），C 左端换成 90 ⟹ 桥不判同 ⟹ 旧 key 消失。
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 69), 90, 99), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 69), 90, 99),
+                false,
+            )],
             99,
             &m,
         );
-        assert_eq!(d.len(), 2, "新 C 身份 Observed + 旧 C 身份 IdentityVanished");
+        assert_eq!(
+            d.len(),
+            2,
+            "新 C 身份 Observed + 旧 C 身份 IdentityVanished"
+        );
         let old = book
             .get(&key_pan((50, 69), (70, 89)))
             .expect("旧 entry 保留");
@@ -3095,12 +3229,18 @@ mod tests {
         let mut book = NestLifecycleBook::new();
         let m = material(&hist, &dif, &close_src);
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 129),
+                false,
+            )],
             129,
             &m,
         );
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 139), true)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 139),
+                true,
+            )],
             139,
             &m,
         );
@@ -3110,7 +3250,11 @@ mod tests {
         assert_eq!(entry.first_provable_at, Some(129), "first_provable 不后移");
         assert_eq!(entry.structure_end_at, Some(139));
         assert_eq!(entry.confirmed_at, Some(139));
-        assert_eq!(book.consumable_closed().len(), 1, "Confirmed 进消费侧（Closed-only）");
+        assert_eq!(
+            book.consumable_closed().len(),
+            1,
+            "Confirmed 进消费侧（Closed-only）"
+        );
 
         // (b) 完成窗已反超 ⟹ 可从 Provisional 直接 Invalidated(ForceOvertake)，
         // 无需先经 StructureCompleted，且 confirmed_at 保持 None。
@@ -3119,23 +3263,36 @@ mod tests {
         let mut book_b = NestLifecycleBook::new();
         let m = material(&hist, &dif, &close_src);
         book_b.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 129),
+                false,
+            )],
             129,
             &m,
         );
         let d = book_b.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 139), true)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 139),
+                true,
+            )],
             139,
             &m,
         );
         assert!(d.iter().any(|r| matches!(
             r.kind,
-            LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::ForceOvertake }
+            LifecycleRevisionKind::Invalidated {
+                reason: InvalidatedReason::ForceOvertake
+            }
         )));
-        assert!(d.iter().all(|r| !matches!(r.kind, LifecycleRevisionKind::Confirmed)));
+        assert!(d
+            .iter()
+            .all(|r| !matches!(r.kind, LifecycleRevisionKind::Confirmed)));
         let entry_b = book_b.entries().next().unwrap().1;
         assert_eq!(entry_b.state, NestEventState::Invalidated);
-        assert_eq!(entry_b.confirmed_at, None, "完成窗已反超不得 Confirmed（024:24）");
+        assert_eq!(
+            entry_b.confirmed_at, None,
+            "完成窗已反超不得 Confirmed（024:24）"
+        );
         assert_eq!(
             entry_b.structure_end_at, None,
             "Q3 第二终局路径不伪造 StructureCompleted"
@@ -3159,32 +3316,55 @@ mod tests {
         let m = ForceMaterial::unavailable(&close_src); // 事件通道恒 Verified，无需力度序列
         let mut book = NestLifecycleBook::new();
         book.advance(
-            &[LifecycleObservation::event(trend_event((120, 149), false, 149, 149), false)],
+            &[LifecycleObservation::event(
+                trend_event((120, 149), false, 149, 149),
+                false,
+            )],
             149,
             &m,
         );
         // 确认收束 [120,149] → [120,155]：记 Supersedes（迁移链留痕、钟不动、无 Invalidated）。
         let d = book.advance(
-            &[LifecycleObservation::event(trend_event((120, 155), true, 155, 155), false)],
+            &[LifecycleObservation::event(
+                trend_event((120, 155), true, 155, 155),
+                false,
+            )],
             155,
             &m,
         );
         assert_eq!(d.len(), 2);
-        assert!(matches!(d[0].kind, LifecycleRevisionKind::Supersedes { from } if from == key_trend((120, 149))));
-        assert_eq!(book.len(), 1, "迁移即替换（唯一 remove 点，仅 Provisional 可达）");
+        assert!(
+            matches!(d[0].kind, LifecycleRevisionKind::Supersedes { from } if from == key_trend((120, 149)))
+        );
+        assert_eq!(
+            book.len(),
+            1,
+            "迁移即替换（唯一 remove 点，仅 Provisional 可达）"
+        );
         let entry = book.entries().next().unwrap().1;
-        assert_eq!(entry.superseded_from, Some(key_trend((120, 149))), "迁移链留痕");
+        assert_eq!(
+            entry.superseded_from,
+            Some(key_trend((120, 149))),
+            "迁移链留痕"
+        );
         assert_eq!(entry.observed_at, 149, "钟不动");
         assert_eq!(entry.first_provable_at, Some(155));
         assert!(
-            entry.revisions.iter().all(|r| !matches!(r.kind, LifecycleRevisionKind::Invalidated { .. })),
+            entry
+                .revisions
+                .iter()
+                .all(|r| !matches!(r.kind, LifecycleRevisionKind::Invalidated { .. })),
             "白名单迁移不记 Invalidated"
         );
 
         // 负面对照：seg_a 改变 ⟹ 白名单不越界 ⟹ 旧 key 走身份消失路径。
         let mut seg_a_changed = trend_event((120, 169), false, 169, 169);
         seg_a_changed.seg_a = (60, 109);
-        let d = book.advance(&[LifecycleObservation::event(seg_a_changed, false)], 169, &m);
+        let d = book.advance(
+            &[LifecycleObservation::event(seg_a_changed, false)],
+            169,
+            &m,
+        );
         assert!(d.iter().any(|r| matches!(
             r.kind,
             LifecycleRevisionKind::Invalidated {
@@ -3192,10 +3372,19 @@ mod tests {
             }
         )));
         let new_entry = book
-            .get(&LifecycleKey { seg_a: (60, 109), ..key_trend((120, 169)) })
+            .get(&LifecycleKey {
+                seg_a: (60, 109),
+                ..key_trend((120, 169))
+            })
             .unwrap();
         assert!(
-            matches!(new_entry.revisions.as_slice(), [LifecycleRevision { kind: LifecycleRevisionKind::Observed, .. }]),
+            matches!(
+                new_entry.revisions.as_slice(),
+                [LifecycleRevision {
+                    kind: LifecycleRevisionKind::Observed,
+                    ..
+                }]
+            ),
             "seg_a 改变 ⟹ 新身份建仓（无 Supersedes——白名单不越界）"
         );
         book.assert_invariants();
@@ -3238,21 +3427,51 @@ mod tests {
         ];
         let w0 = LeveledMove::compose(
             &lower[0..4],
-            Center { zd: 98, zg: 110, dd: 90, gg: 116, start_index: 0, end_index: 39 },
+            Center {
+                zd: 98,
+                zg: 110,
+                dd: 90,
+                gg: 116,
+                start_index: 0,
+                end_index: 39,
+            },
             1,
-            ElementId { level: 1, ordinal: 0 },
+            ElementId {
+                level: 1,
+                ordinal: 0,
+            },
         );
         let w1 = LeveledMove::compose(
             &lower[4..8],
-            Center { zd: 135, zg: 140, dd: 125, gg: 150, start_index: 40, end_index: 79 },
+            Center {
+                zd: 135,
+                zg: 140,
+                dd: 125,
+                gg: 150,
+                start_index: 40,
+                end_index: 79,
+            },
             1,
-            ElementId { level: 1, ordinal: 1 },
+            ElementId {
+                level: 1,
+                ordinal: 1,
+            },
         );
         let w2 = LeveledMove::compose(
             &lower[8..12],
-            Center { zd: 160, zg: 165, dd: 140, gg: 175, start_index: 80, end_index: 119 },
+            Center {
+                zd: 160,
+                zg: 165,
+                dd: 140,
+                gg: 175,
+                start_index: 80,
+                end_index: 119,
+            },
             1,
-            ElementId { level: 1, ordinal: 2 },
+            ElementId {
+                level: 1,
+                ordinal: 2,
+            },
         );
         (vec![w0, w1, w2], lower)
     }
@@ -3276,7 +3495,14 @@ mod tests {
         Vec<f64>,
         Vec<usize>,
     ) {
-        let center = Center { zd: 100, zg: 110, dd: 90, gg: 120, start_index: 20, end_index: 49 };
+        let center = Center {
+            zd: 100,
+            zg: 110,
+            dd: 90,
+            gg: 120,
+            start_index: 20,
+            end_index: 49,
+        };
         // 单中枢链 blocks=[Consolidation 0..0] ⟹ C_0 归 B₁ = Consolidation
         // （decompose.rs center_block_kind ownership 分区同口径）。
         let kinds = center_block_kind(
@@ -3290,11 +3516,41 @@ mod tests {
             }],
         );
         let segments = vec![
-            Segment { direction: Direction::Down, start_index: 50, end_index: 59, start_price: 105, end_price: 95 },
-            Segment { direction: Direction::Up, start_index: 59, end_index: 69, start_price: 96, end_price: 104 },
-            Segment { direction: Direction::Down, start_index: 69, end_index: 79, start_price: 103, end_price: 93 },
-            Segment { direction: Direction::Up, start_index: 79, end_index: 89, start_price: 94, end_price: 99 },
-            Segment { direction: Direction::Down, start_index: 89, end_index: 99, start_price: 98, end_price: 92 },
+            Segment {
+                direction: Direction::Down,
+                start_index: 50,
+                end_index: 59,
+                start_price: 105,
+                end_price: 95,
+            },
+            Segment {
+                direction: Direction::Up,
+                start_index: 59,
+                end_index: 69,
+                start_price: 96,
+                end_price: 104,
+            },
+            Segment {
+                direction: Direction::Down,
+                start_index: 69,
+                end_index: 79,
+                start_price: 103,
+                end_price: 93,
+            },
+            Segment {
+                direction: Direction::Up,
+                start_index: 79,
+                end_index: 89,
+                start_price: 94,
+                end_price: 99,
+            },
+            Segment {
+                direction: Direction::Down,
+                start_index: 89,
+                end_index: 99,
+                start_price: 98,
+                end_price: 92,
+            },
         ];
         let anchors = self_anchors(&segments);
         let mut hist = vec![0.0; 120];
@@ -3316,7 +3572,8 @@ mod tests {
     #[test]
     fn t11_real_provider_pan_live_force_overtake_auditable() {
         // c 延展段灌强柱：hist -3.0（面积 +60、柱峰 3.0）、dif -6.0（黄白线峰 6.0）。
-        let (centers, kinds, segments, anchors, hist, dif, close_src) = pan_real_fixture(-3.0, -6.0);
+        let (centers, kinds, segments, anchors, hist, dif, close_src) =
+            pan_real_fixture(-3.0, -6.0);
         let m = material(&hist, &dif, &close_src);
         let mut book = NestLifecycleBook::new();
 
@@ -3324,24 +3581,46 @@ mod tests {
         // （5<20、1<5、0.5<2）⟹ first_provable=79。
         let windows = provide_pan_live_windows(1, &centers, &kinds, &segments, &anchors, 79);
         assert_eq!(windows.len(), 1, "单一身份活窗");
-        assert_eq!(windows[0].seg_a, (50, 59), "窄锚 A 经真实 locate_pan_div_structure 锚定");
-        assert_eq!(windows[0].seg_c_live, (69, 79), "c_start_live 与完成后 seg_c.0 同锚（卡 §3）");
-        let obs: Vec<_> = windows.iter().map(|w| LifecycleObservation::pan_live(*w, false)).collect();
+        assert_eq!(
+            windows[0].seg_a,
+            (50, 59),
+            "窄锚 A 经真实 locate_pan_div_structure 锚定"
+        );
+        assert_eq!(
+            windows[0].seg_c_live,
+            (69, 79),
+            "c_start_live 与完成后 seg_c.0 同锚（卡 §3）"
+        );
+        let obs: Vec<_> = windows
+            .iter()
+            .map(|w| LifecycleObservation::pan_live(*w, false))
+            .collect();
         book.advance(&obs, 79, &m);
         assert_eq!(
-            book.get(&key_pan((50, 59), (69, 79))).unwrap().first_provable_at,
+            book.get(&key_pan((50, 59), (69, 79)))
+                .unwrap()
+                .first_provable_at,
             Some(79)
         );
 
         // as_of=99：活窗延展，真实现算三通道全假 ⟹ Invalidated(ForceOvertake) 可审计。
         let windows = provide_pan_live_windows(1, &centers, &kinds, &segments, &anchors, 99);
         assert_eq!(windows.len(), 1);
-        assert_eq!(windows[0].seg_c_live, (69, 99), "活窗右端随 as_of 前进（设计内行为）");
-        let obs: Vec<_> = windows.iter().map(|w| LifecycleObservation::pan_live(*w, false)).collect();
+        assert_eq!(
+            windows[0].seg_c_live,
+            (69, 99),
+            "活窗右端随 as_of 前进（设计内行为）"
+        );
+        let obs: Vec<_> = windows
+            .iter()
+            .map(|w| LifecycleObservation::pan_live(*w, false))
+            .collect();
         let d = book.advance(&obs, 99, &m);
         assert!(d.iter().any(|r| matches!(
             r.kind,
-            LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::ForceOvertake }
+            LifecycleRevisionKind::Invalidated {
+                reason: InvalidatedReason::ForceOvertake
+            }
         )));
         let entry = book.entries().next().unwrap().1;
         assert_eq!(entry.state, NestEventState::Invalidated);
@@ -3353,10 +3632,16 @@ mod tests {
         assert_eq!((ev.dif_peak_a, ev.dif_peak_c), (5.0, 6.0));
         assert_eq!((ev.hist_peak_a, ev.hist_peak_c), (2.0, 3.0));
         // 终态留档不可消费（消费侧 Closed-only，裁定 #64 §2(a)）。
-        assert!(book.consumable_closed().is_empty(), "Invalidated 可查账、不开放消费");
+        assert!(
+            book.consumable_closed().is_empty(),
+            "Invalidated 可查账、不开放消费"
+        );
         // 终态吸收（含桥匹配）：as_of=109 活窗延展 (69,109) 仍零输出。
         let windows = provide_pan_live_windows(1, &centers, &kinds, &segments, &anchors, 109);
-        let obs: Vec<_> = windows.iter().map(|w| LifecycleObservation::pan_live(*w, false)).collect();
+        let obs: Vec<_> = windows
+            .iter()
+            .map(|w| LifecycleObservation::pan_live(*w, false))
+            .collect();
         let d = book.advance(&obs, 109, &m);
         assert!(d.is_empty(), "终态吸收（含桥匹配到终态）零输出");
         book.assert_invariants();
@@ -3368,33 +3653,50 @@ mod tests {
     #[test]
     fn t14_unavailable_never_invalidates() {
         // c 延展段保持弱（面积 +2、柱峰 0.1、黄白线峰 0.5）——恢复推进应至 Confirmed。
-        let (centers, kinds, segments, anchors, hist, dif, close_src) = pan_real_fixture(-0.1, -0.5);
+        let (centers, kinds, segments, anchors, hist, dif, close_src) =
+            pan_real_fixture(-0.1, -0.5);
         let mut book = NestLifecycleBook::new();
 
         // as_of=79：缺 hist/dif ⟹ MissingForceSeries 注记；无 Invalidated、不写 first_provable。
         let windows = provide_pan_live_windows(1, &centers, &kinds, &segments, &anchors, 79);
-        let obs: Vec<_> = windows.iter().map(|w| LifecycleObservation::pan_live(*w, false)).collect();
+        let obs: Vec<_> = windows
+            .iter()
+            .map(|w| LifecycleObservation::pan_live(*w, false))
+            .collect();
         let no_force = ForceMaterial::unavailable(&close_src);
         let d = book.advance(&obs, 79, &no_force);
         assert!(d.iter().any(|r| matches!(
             r.kind,
-            LifecycleRevisionKind::ForceUnavailable { reason: UnavailReason::MissingForceSeries }
+            LifecycleRevisionKind::ForceUnavailable {
+                reason: UnavailReason::MissingForceSeries
+            }
         )));
         let key79 = key_pan((50, 59), (69, 79));
         let e = book.get(&key79).unwrap();
-        assert_eq!(e.state, NestEventState::Provisional, "「不可验」≠「不再弱」");
+        assert_eq!(
+            e.state,
+            NestEventState::Provisional,
+            "「不可验」≠「不再弱」"
+        );
         assert_eq!(e.first_provable_at, None, "Unavailable 不写 first_provable");
         assert_eq!(e.invalidated_at, None, "Unavailable 不判 Invalidated");
 
         // 同 as_of 注记幂等：重复 advance 零新 revision。
         let d = book.advance(&obs, 79, &no_force);
         assert!(d.is_empty(), "同 as_of 注记幂等去重");
-        assert_eq!(book.get(&key79).unwrap().revisions.len(), 2, "Observed + 一条注记");
+        assert_eq!(
+            book.get(&key79).unwrap().revisions.len(),
+            2,
+            "Observed + 一条注记"
+        );
 
         // as_of=89：坐标映射失败子场景（close_src 截断到 69 之前 ⟹ c 窗映射失败）
         // ⟹ CoordinateMapFailed 注记，仍不判 Invalidated。
         let windows = provide_pan_live_windows(1, &centers, &kinds, &segments, &anchors, 89);
-        let obs89: Vec<_> = windows.iter().map(|w| LifecycleObservation::pan_live(*w, false)).collect();
+        let obs89: Vec<_> = windows
+            .iter()
+            .map(|w| LifecycleObservation::pan_live(*w, false))
+            .collect();
         let short_src = identity_close_src(69);
         let m_trunc = ForceMaterial {
             hist: Some(&hist),
@@ -3404,27 +3706,47 @@ mod tests {
         let d = book.advance(&obs89, 89, &m_trunc);
         assert!(d.iter().any(|r| matches!(
             r.kind,
-            LifecycleRevisionKind::ForceUnavailable { reason: UnavailReason::CoordinateMapFailed }
+            LifecycleRevisionKind::ForceUnavailable {
+                reason: UnavailReason::CoordinateMapFailed
+            }
         )));
-        assert_eq!(book.entries().next().unwrap().1.state, NestEventState::Provisional);
+        assert_eq!(
+            book.entries().next().unwrap().1.state,
+            NestEventState::Provisional
+        );
 
         // as_of=99：数据补齐 + 结构完成 ⟹ 恢复推进至 Confirmed（force_unavailable_at
         // 只作去重基准，不留残留状态阻塞）。
         let windows = provide_pan_live_windows(1, &centers, &kinds, &segments, &anchors, 99);
-        let obs99: Vec<_> = windows.iter().map(|w| LifecycleObservation::pan_live(*w, true)).collect();
+        let obs99: Vec<_> = windows
+            .iter()
+            .map(|w| LifecycleObservation::pan_live(*w, true))
+            .collect();
         let m = material(&hist, &dif, &close_src);
         let d = book.advance(&obs99, 99, &m);
-        assert!(d.iter().any(|r| matches!(r.kind, LifecycleRevisionKind::Confirmed)));
+        assert!(d
+            .iter()
+            .any(|r| matches!(r.kind, LifecycleRevisionKind::Confirmed)));
         let entry = book.entries().next().unwrap().1;
         assert_eq!(entry.state, NestEventState::Confirmed);
-        assert_eq!(entry.first_provable_at, Some(99), "补齐后 first_provable 正常写入");
+        assert_eq!(
+            entry.first_provable_at,
+            Some(99),
+            "补齐后 first_provable 正常写入"
+        );
         assert_eq!(entry.structure_end_at, Some(99));
         assert_eq!(entry.confirmed_at, Some(99));
-        assert_eq!(book.consumable_closed().len(), 1, "Confirmed 可消费（Closed-only 边界内）");
+        assert_eq!(
+            book.consumable_closed().len(),
+            1,
+            "Confirmed 可消费（Closed-only 边界内）"
+        );
         // 谱系构建读面（裁定 #64 §2(a)「构建放开」）：全 entry 可见；消费侧仍 Closed-only。
         assert_eq!(book.lineage_nodes().len(), 1);
         // 全程零 Invalidated（Unavailable 从未假杀身份——#78 修复 1 语义）。
-        assert!(book.entries().all(|(_, e)| e.state != NestEventState::Invalidated));
+        assert!(book
+            .entries()
+            .all(|(_, e)| e.state != NestEventState::Invalidated));
         book.assert_invariants();
     }
 
@@ -3450,35 +3772,57 @@ mod tests {
         // (a) 结构未完成期间：诚实滞留活假设（只有 Observed，无终态钟）。
         let mut book = NestLifecycleBook::new();
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 99), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 99),
+                false,
+            )],
             99,
             &m,
         );
         assert_eq!(d.len(), 1, "结构未完成 ⟹ 仅 Observed");
         let alive = book.get(&key_pan((50, 59), (70, 99))).unwrap();
-        assert_eq!(alive.state, NestEventState::Provisional, "结构未完成不提前判负");
+        assert_eq!(
+            alive.state,
+            NestEventState::Provisional,
+            "结构未完成不提前判负"
+        );
         assert_eq!(alive.first_provable_at, None, "从未可证");
 
         // 结构完成（ADR-0003：通道切换即完成信号）⟹ 转终态 + NeverConstituted。
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 109), true)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 109),
+                true,
+            )],
             109,
             &m,
         );
         assert_eq!(d.len(), 3, "Supersedes + StructureCompleted + Invalidated");
         assert!(matches!(
             d[2].kind,
-            LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::NeverConstituted }
+            LifecycleRevisionKind::Invalidated {
+                reason: InvalidatedReason::NeverConstituted
+            }
         ));
         let key = key_pan((50, 59), (70, 109));
         let entry = book.get(&key).expect("终态留档不删（谱系保留）");
         assert_eq!(entry.state, NestEventState::Invalidated);
-        assert_eq!(entry.invalidated_reason, Some(InvalidatedReason::NeverConstituted));
+        assert_eq!(
+            entry.invalidated_reason,
+            Some(InvalidatedReason::NeverConstituted)
+        );
         assert_eq!(entry.first_provable_at, None, "从未构成 ⟹ 首次可证时点恒空");
         assert_eq!(entry.structure_end_at, Some(109));
         assert_eq!(entry.invalidated_at, Some(109), "结构完成即结算，不再挂账");
-        assert_eq!(entry.revisions.len(), 4, "Observed + Supersedes + StructureCompleted + Invalidated");
-        assert!(book.consumable_closed().is_empty(), "终态不进消费侧（Closed-only）");
+        assert_eq!(
+            entry.revisions.len(),
+            4,
+            "Observed + Supersedes + StructureCompleted + Invalidated"
+        );
+        assert!(
+            book.consumable_closed().is_empty(),
+            "终态不进消费侧（Closed-only）"
+        );
         // 力度证据入载荷（模块头 090 登记 4「原因码与力度证据入载荷」）：c 三通道全面强于 a
         // ——审计者据此复核「从未构成」结论（a 面积 10×0.5、c 面积 40×3.0）。
         let ev = entry.force_evidence.expect("从未构成留力度证据载荷");
@@ -3488,7 +3832,10 @@ mod tests {
 
         // 终态吸收（禁复活）：同身份后续活窗延展零输出。
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 119), true)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 119),
+                true,
+            )],
             119,
             &m,
         );
@@ -3507,22 +3854,32 @@ mod tests {
         let m_weak = material(&hist_weak, &dif_weak, &close_src);
         let mut book_weak = NestLifecycleBook::new();
         book_weak.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 99), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 99),
+                false,
+            )],
             99,
             &m_weak,
         );
         let d = book_weak.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 109), true)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 109),
+                true,
+            )],
             109,
             &m_weak,
         );
         assert!(
-            d.iter().any(|r| matches!(r.kind, LifecycleRevisionKind::Confirmed)),
+            d.iter()
+                .any(|r| matches!(r.kind, LifecycleRevisionKind::Confirmed)),
             "反例：c 窗真弱 ⟹ 结构完成走 Confirmed"
         );
         let entry_weak = book_weak.entries().next().unwrap().1;
         assert_eq!(entry_weak.state, NestEventState::Confirmed);
-        assert_eq!(entry_weak.invalidated_reason, None, "反例：NeverConstituted 不落");
+        assert_eq!(
+            entry_weak.invalidated_reason, None,
+            "反例：NeverConstituted 不落"
+        );
         book_weak.assert_invariants();
     }
 
@@ -3547,37 +3904,62 @@ mod tests {
         // as_of=99：结构完成信号已到，但力度序列缺失 ⟹ 只留注记，不结算。
         let no_force = ForceMaterial::unavailable(&close_src);
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 99), true)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 99),
+                true,
+            )],
             99,
             &no_force,
         );
         assert!(d.iter().any(|r| matches!(
             r.kind,
-            LifecycleRevisionKind::ForceUnavailable { reason: UnavailReason::MissingForceSeries }
+            LifecycleRevisionKind::ForceUnavailable {
+                reason: UnavailReason::MissingForceSeries
+            }
         )));
         assert!(
-            d.iter().all(|r| !matches!(r.kind, LifecycleRevisionKind::Invalidated { .. })),
+            d.iter()
+                .all(|r| !matches!(r.kind, LifecycleRevisionKind::Invalidated { .. })),
             "力度不可验 ⟹ 不判负（不伪造从未构成）"
         );
         let entry = book.get(&key_pan((50, 59), (70, 99))).unwrap();
-        assert_eq!(entry.state, NestEventState::Provisional, "滞留活假设，诚实存疑");
+        assert_eq!(
+            entry.state,
+            NestEventState::Provisional,
+            "滞留活假设，诚实存疑"
+        );
         assert_eq!(entry.invalidated_reason, None);
-        assert_eq!(entry.structure_end_at, None, "不可验 prefix 的完成信号不留痕（#78 原语义）");
+        assert_eq!(
+            entry.structure_end_at, None,
+            "不可验 prefix 的完成信号不留痕（#78 原语义）"
+        );
 
         // as_of=109：数据补齐 + 完成信号重发 ⟹ 此时才结算为「从未构成」。
         let m = material(&hist, &dif, &close_src);
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 109), true)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 109),
+                true,
+            )],
             109,
             &m,
         );
         assert!(d.iter().any(|r| matches!(
             r.kind,
-            LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::NeverConstituted }
+            LifecycleRevisionKind::Invalidated {
+                reason: InvalidatedReason::NeverConstituted
+            }
         )));
         let entry = book.get(&key_pan((50, 59), (70, 109))).unwrap();
-        assert_eq!(entry.invalidated_reason, Some(InvalidatedReason::NeverConstituted));
-        assert_eq!(entry.structure_end_at, Some(109), "结算推迟到数据补齐的那一 prefix");
+        assert_eq!(
+            entry.invalidated_reason,
+            Some(InvalidatedReason::NeverConstituted)
+        );
+        assert_eq!(
+            entry.structure_end_at,
+            Some(109),
+            "结算推迟到数据补齐的那一 prefix"
+        );
         book.assert_invariants();
     }
 
@@ -3599,7 +3981,10 @@ mod tests {
 
         // as_of=100 建仓（三通道成立 ⟹ 同 prefix 写 first_provable）。
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 100), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 100),
+                false,
+            )],
             100,
             &m,
         );
@@ -3610,7 +3995,10 @@ mod tests {
         // 分支 ⟹ 显式拒绝（不迁移、不建仓、零 revision）。
         let bridged = key_pan((50, 59), (70, 110));
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 110), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 110),
+                false,
+            )],
             90,
             &m,
         );
@@ -3642,7 +4030,10 @@ mod tests {
 
         // 合法前进照常：同一窗 as_of=110 ⟹ 桥迁移 Supersedes（拒绝不留残疾）。
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 110), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 110),
+                false,
+            )],
             110,
             &m,
         );
@@ -3742,7 +4133,10 @@ mod tests {
 
         // ① 原因码相反。
         assert_eq!(a.invalidated_reason, Some(InvalidatedReason::ForceOvertake));
-        assert_eq!(b.invalidated_reason, Some(InvalidatedReason::NeverConstituted));
+        assert_eq!(
+            b.invalidated_reason,
+            Some(InvalidatedReason::NeverConstituted)
+        );
         assert_ne!(
             a.invalidated_reason, b.invalidated_reason,
             "两类否证不得共用一个原因码"
@@ -3757,11 +4151,15 @@ mod tests {
         // 修订载荷同样可分辨（诊断查账走 revisions，不只走 entry 字段）。
         assert!(matches!(
             a.revisions.last().unwrap().kind,
-            LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::ForceOvertake }
+            LifecycleRevisionKind::Invalidated {
+                reason: InvalidatedReason::ForceOvertake
+            }
         ));
         assert!(matches!(
             b.revisions.last().unwrap().kind,
-            LifecycleRevisionKind::Invalidated { reason: InvalidatedReason::NeverConstituted }
+            LifecycleRevisionKind::Invalidated {
+                reason: InvalidatedReason::NeverConstituted
+            }
         ));
 
         // 分桶恰好一对一（不是「两条都落进同一桶」的蒙混）。
@@ -3800,7 +4198,10 @@ mod tests {
 
         // as_of=100：建仓 + first_provable（30×0.25=7.5<20、0.25<2、1<5 三通道成立）。
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 100), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 100),
+                false,
+            )],
             100,
             &m,
         );
@@ -3809,7 +4210,10 @@ mod tests {
 
         // 倒退 as_of=90 喂同 key ⟹ 显式拒绝：零 revision、entry 零改动、注记在案。
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 100), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 100),
+                false,
+            )],
             90,
             &m,
         );
@@ -3817,7 +4221,11 @@ mod tests {
         assert_eq!(book.get(&key).unwrap(), &before, "entry 零改动");
         assert_eq!(
             book.retrograde_rejections(),
-            &[RetrogradeRejection { key, last_as_of: 100, rejected_as_of: 90 }]
+            &[RetrogradeRejection {
+                key,
+                last_as_of: 100,
+                rejected_as_of: 90
+            }]
         );
 
         // 倒退 prefix 不制造 IdentityVanished：空投喂 @90，last_as_of=100 > 90 的身份跳过。
@@ -3831,7 +4239,10 @@ mod tests {
 
         // 同 as_of 幂等：重复 advance 零 delta。
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 100), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 100),
+                false,
+            )],
             100,
             &m,
         );
@@ -3839,12 +4250,18 @@ mod tests {
 
         // 合法前进照常：as_of=110 活窗延展（桥迁移 Supersedes，无新注记）。
         let d = book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 110), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 110),
+                false,
+            )],
             110,
             &m,
         );
         assert_eq!(d.len(), 1);
-        assert!(matches!(d[0].kind, LifecycleRevisionKind::Supersedes { .. }));
+        assert!(matches!(
+            d[0].kind,
+            LifecycleRevisionKind::Supersedes { .. }
+        ));
         assert_eq!(book.retrograde_rejections().len(), 1, "合法前进无新注记");
         book.assert_invariants();
     }
@@ -3911,7 +4328,14 @@ mod tests {
                 completed_at,
             }));
         }
-        feed_replay_bar(book, &ReplayBarFeed { as_of, phases: &phases }, material)
+        feed_replay_bar(
+            book,
+            &ReplayBarFeed {
+                as_of,
+                phases: &phases,
+            },
+            material,
+        )
     }
 
     /// 测试夹具：把活窗/完成事件直接组装为两相（逐 bar 出口的最小构造）。
@@ -4091,8 +4515,7 @@ mod tests {
                 "切换前已可证（反超定义要求曾构成）"
             );
             let events = [pan_event((50, 59), (69, 99), event_confirmed, 99)];
-            let delta = feed_prefix_phases(&mut book, &runs, &events, 99, &m)
-            .0;
+            let delta = feed_prefix_phases(&mut book, &runs, &events, 99, &m).0;
             let overtaken = delta.iter().any(|r| {
                 matches!(
                     r.kind,
@@ -4384,7 +4807,10 @@ mod tests {
             terminal.invalidated_reason,
             Some(InvalidatedReason::ForceOvertake)
         );
-        assert_eq!(terminal.structure_end_at, None, "Q3 第二终局路径不经结构完成");
+        assert_eq!(
+            terminal.structure_end_at, None,
+            "Q3 第二终局路径不经结构完成"
+        );
 
         let events = [pan_event((50, 59), (69, 99), true, 99)];
         let (_, stats) = feed_prefix_phases(&mut book, &[], &events, 109, &m);
@@ -4409,7 +4835,10 @@ mod tests {
         let mut book = NestLifecycleBook::new();
         let (delta, stats) = feed_prefix_phases(&mut book, &[], &events, 99, &m);
         assert_eq!(stats.completion_signals, 1);
-        assert!(matches!(delta.first().unwrap().kind, LifecycleRevisionKind::Observed));
+        assert!(matches!(
+            delta.first().unwrap().kind,
+            LifecycleRevisionKind::Observed
+        ));
         assert!(delta
             .iter()
             .any(|revision| matches!(revision.kind, LifecycleRevisionKind::StructureCompleted)));
@@ -4614,8 +5043,14 @@ mod tests {
         assert_eq!(frontier.direction, Direction::Down);
         assert_eq!(frontier.start_index, 90);
         assert_eq!(frontier.start_price, 98);
-        assert_eq!(frontier.extreme, 92, "与 parser tail 的 current_extreme 同口径");
-        assert_eq!(frontier.extreme_at, 95, "极值结构点 = 极值所在笔端点，非 as_of");
+        assert_eq!(
+            frontier.extreme, 92,
+            "与 parser tail 的 current_extreme 同口径"
+        );
+        assert_eq!(
+            frontier.extreme_at, 95,
+            "极值结构点 = 极值所在笔端点，非 as_of"
+        );
         assert_eq!(
             frontier.as_segment(),
             Segment {
@@ -4661,8 +5096,14 @@ mod tests {
             extreme: 92,
             extreme_at: 95,
         };
-        let outcome =
-            provide_active_pan_live_windows(1, &centers, &kinds, confirmed, frontier.as_segment(), 95);
+        let outcome = provide_active_pan_live_windows(
+            1,
+            &centers,
+            &kinds,
+            confirmed,
+            frontier.as_segment(),
+            95,
+        );
         let window = outcome.window().expect("行进中 C 破核心新低 ⟹ 活窗可见");
         assert_eq!(window.seg_a, (50, 59), "A 锚取 confirmed 侧窄锚");
         assert_eq!(window.b_center_start, 20, "B 中枢取 confirmed 侧");
@@ -4695,7 +5136,14 @@ mod tests {
         );
         // 负控二：结构点尚未到达当前 bar ⟹ 禁前视。
         assert_eq!(
-            provide_active_pan_live_windows(1, &centers, &kinds, confirmed, frontier.as_segment(), 94),
+            provide_active_pan_live_windows(
+                1,
+                &centers,
+                &kinds,
+                confirmed,
+                frontier.as_segment(),
+                94
+            ),
             PanLiveOutcome::FrontierAheadOfClock
         );
         // 有洞 frontier（票 #578 首次证实可达；票 #592 裁定：选 A 保持全收 + `gap_len`
@@ -4706,10 +5154,16 @@ mod tests {
             start_index: confirmed.last().unwrap().end_index + 1,
             ..frontier
         };
-        let gapped_window =
-            provide_active_pan_live_windows(1, &centers, &kinds, confirmed, gapped.as_segment(), 95)
-                .window()
-                .expect("有洞 frontier 当下被接受产窗（#592 选 A 裁定）");
+        let gapped_window = provide_active_pan_live_windows(
+            1,
+            &centers,
+            &kinds,
+            confirmed,
+            gapped.as_segment(),
+            95,
+        )
+        .window()
+        .expect("有洞 frontier 当下被接受产窗（#592 选 A 裁定）");
         assert_eq!(
             gapped_window.gap_len, 1,
             "gap_len = frontier.start_index(90) − confirmed.last().end_index(89) = 1"
@@ -4732,10 +5186,16 @@ mod tests {
             extreme: 92,
             extreme_at: 95,
         };
-        let window =
-            provide_active_pan_live_windows(1, &centers, &kinds, &segments[..4], frontier.as_segment(), 95)
-                .window()
-                .expect("完成前活窗");
+        let window = provide_active_pan_live_windows(
+            1,
+            &centers,
+            &kinds,
+            &segments[..4],
+            frontier.as_segment(),
+            95,
+        )
+        .window()
+        .expect("完成前活窗");
         let mut book = NestLifecycleBook::new();
         let live_phase = [PanProviderPhase::Live(window)];
         feed_replay_bar(
@@ -4918,8 +5378,14 @@ mod tests {
         assert_eq!(stats.completion_force_unavailable, 1);
 
         let (_, repeated) = feed_prefix_phases(&mut book, &runs, &events, 109, &no_force);
-        assert_eq!(repeated.completion_signals, 0, "跨 trigger 重发不重复抬高分母");
-        assert_eq!(repeated.channel_switches, 0, "同一信号重发不是第二次通道切换");
+        assert_eq!(
+            repeated.completion_signals, 0,
+            "跨 trigger 重发不重复抬高分母"
+        );
+        assert_eq!(
+            repeated.channel_switches, 0,
+            "同一信号重发不是第二次通道切换"
+        );
         assert_eq!(
             repeated.completion_force_unavailable, 0,
             "同一桥身份重发不重复抬高不可验分子"
@@ -4983,7 +5449,9 @@ mod tests {
             extreme_at: 40,
         };
         let outcome = active_l1_window_frontier(&units, Some(&l0_frontier), 0);
-        let frontier = outcome.frontier().expect("行进中 L0 段被吸收 ⟹ 有行进中 L1 单元");
+        let frontier = outcome
+            .frontier()
+            .expect("行进中 L0 段被吸收 ⟹ 有行进中 L1 单元");
         assert_eq!(outcome.reason_tag(), "active_window");
         assert_eq!(
             frontier.direction,
@@ -5451,7 +5919,10 @@ mod tests {
         // 暂认中枢 b=20 下建仓并首次可证。
         let mut book = NestLifecycleBook::new();
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 120), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 120),
+                false,
+            )],
             120,
             &m,
         );
@@ -5462,11 +5933,7 @@ mod tests {
             b_center_start: 30,
             ..pan_window((50, 59), 70, 129)
         };
-        let delta = book.advance(
-            &[LifecycleObservation::pan_live(upgraded, false)],
-            129,
-            &m,
-        );
+        let delta = book.advance(&[LifecycleObservation::pan_live(upgraded, false)], 129, &m);
         assert!(
             delta.iter().any(|revision| matches!(
                 revision.kind,
@@ -5479,7 +5946,10 @@ mod tests {
         assert_eq!(key.b_center_start, 30);
         assert_eq!(entry.observed_at, 120, "认领迁移不改写观察钟");
         assert_eq!(entry.first_provable_at, Some(120), "首次可证钟不后移");
-        assert_eq!(entry.superseded_from.map(|from| from.b_center_start), Some(20));
+        assert_eq!(
+            entry.superseded_from.map(|from| from.b_center_start),
+            Some(20)
+        );
         assert_eq!(entry.state, NestEventState::Provisional, "认领不产生终局");
         book.assert_invariants();
     }
@@ -5500,7 +5970,10 @@ mod tests {
         let mut book = NestLifecycleBook::new();
         let m = material(&hist, &dif, &close_src);
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 129),
+                false,
+            )],
             129,
             &m,
         );
@@ -5509,7 +5982,10 @@ mod tests {
         dif[130..=139].fill(-6.0);
         let m = material(&hist, &dif, &close_src);
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 139), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 139),
+                false,
+            )],
             139,
             &m,
         );
@@ -5524,11 +6000,7 @@ mod tests {
             b_center_start: 30,
             ..pan_window((50, 59), 70, 139)
         };
-        let delta = book.advance(
-            &[LifecycleObservation::pan_live(upgraded, false)],
-            139,
-            &m,
-        );
+        let delta = book.advance(&[LifecycleObservation::pan_live(upgraded, false)], 139, &m);
         assert!(
             delta
                 .iter()
@@ -5581,7 +6053,10 @@ mod tests {
             b_center_start: 30,
             ..base
         };
-        assert!(!bridge_by_center_upgrade(&base, &other_c), "C 左端不同不认领");
+        assert!(
+            !bridge_by_center_upgrade(&base, &other_c),
+            "C 左端不同不认领"
+        );
         let same_b = LifecycleKey {
             seg_c_full: (70, 139),
             ..base
@@ -5594,7 +6069,10 @@ mod tests {
             b_center_start: 30,
             ..base
         };
-        assert!(bridge_by_center_upgrade(&base, &upgraded), "严格同锚 + B 单调前进 ⟹ 认领");
+        assert!(
+            bridge_by_center_upgrade(&base, &upgraded),
+            "严格同锚 + B 单调前进 ⟹ 认领"
+        );
 
         // 端到端：跨锚身份到达时照常独立建仓，不产生任何认领修订。
         let close_src = identity_close_src(140);
@@ -5609,7 +6087,10 @@ mod tests {
         let m = material(&hist, &dif, &close_src);
         let mut book = NestLifecycleBook::new();
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 129),
+                false,
+            )],
             129,
             &m,
         );
@@ -5620,9 +6101,10 @@ mod tests {
         };
         let delta = book.advance(&[LifecycleObservation::pan_live(cross, false)], 129, &m);
         assert!(
-            !delta
-                .iter()
-                .any(|revision| matches!(revision.kind, LifecycleRevisionKind::CenterUpgraded { .. })),
+            !delta.iter().any(|revision| matches!(
+                revision.kind,
+                LifecycleRevisionKind::CenterUpgraded { .. }
+            )),
             "跨锚零实装：diff 自证无此路径"
         );
         assert_eq!(book.len(), 2, "两个独立假设各自成身份");
@@ -5650,7 +6132,10 @@ mod tests {
 
         let mut book = NestLifecycleBook::new();
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 129),
+                false,
+            )],
             129,
             &m,
         );
@@ -5665,7 +6150,10 @@ mod tests {
         dif[130..=149].fill(-6.0);
         let m = material(&hist, &dif, &close_src);
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 139), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 139),
+                false,
+            )],
             139,
             &m,
         );
@@ -5746,7 +6234,10 @@ mod tests {
 
         let mut book = NestLifecycleBook::new();
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 129),
+                false,
+            )],
             129,
             &m,
         );
@@ -5808,7 +6299,10 @@ mod tests {
 
         let mut book = NestLifecycleBook::new();
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 129), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 129),
+                false,
+            )],
             129,
             &m,
         );
@@ -5819,7 +6313,10 @@ mod tests {
         dif[130..=149].fill(-60.0);
         let m = material(&hist, &dif, &close_src);
         book.advance(
-            &[LifecycleObservation::pan_live(pan_window((50, 59), 70, 130), false)],
+            &[LifecycleObservation::pan_live(
+                pan_window((50, 59), 70, 130),
+                false,
+            )],
             130,
             &m,
         );

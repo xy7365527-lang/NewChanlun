@@ -21,8 +21,13 @@ fn scripted() -> RetraceLedger {
     let mut book = ledger();
     let first = frame(1_200);
     book.observe(&up_input(first, 3, None, 500)).unwrap();
-    book.observe(&up_input(first, 3, Some(RetraceOutcome::RetestReenters), 600))
-        .unwrap();
+    book.observe(&up_input(
+        first,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        600,
+    ))
+    .unwrap();
     let second = frame(1_400);
     book.observe(&up_input(second, 5, None, 700)).unwrap();
     book.observe(&up_input(second, 5, Some(RetraceOutcome::Success), 800))
@@ -68,7 +73,11 @@ fn gate_clock_recovers_to_the_bound_the_log_supports() {
     live.observe(&up_input(center, 3, None, 500)).unwrap();
     live.observe(&up_input(center, 3, None, 4_000)).unwrap();
     let key = key_of(center, 3);
-    assert_eq!(live.entry(&key).unwrap().last_as_of, 4_000, "活值随观察前移");
+    assert_eq!(
+        live.entry(&key).unwrap().last_as_of,
+        4_000,
+        "活值随观察前移"
+    );
     assert_eq!(live.entry(&key).unwrap().log_supported_gate(), 500);
 
     let replayed = RetraceLedger::fold(provenance(), live.journal()).unwrap();
@@ -131,7 +140,9 @@ fn replay_is_idempotent() {
 fn snapshot_cache_is_adopted_when_provenance_and_digest_match() {
     let live = scripted();
     let journal = live.journal().to_vec();
-    let cache = RetraceLedger::fold(provenance(), &journal[..3]).unwrap().snapshot();
+    let cache = RetraceLedger::fold(provenance(), &journal[..3])
+        .unwrap()
+        .snapshot();
     assert_eq!(cache.folded_through(), 3);
 
     let (restored, route) = RetraceLedger::restore(provenance(), Some(&cache), &journal).unwrap();
@@ -144,7 +155,9 @@ fn snapshot_cache_is_adopted_when_provenance_and_digest_match() {
 fn snapshot_cache_with_tampered_prefix_falls_back_to_full_replay() {
     let live = scripted();
     let mut journal = live.journal().to_vec();
-    let cache = RetraceLedger::fold(provenance(), &journal[..3]).unwrap().snapshot();
+    let cache = RetraceLedger::fold(provenance(), &journal[..3])
+        .unwrap()
+        .snapshot();
 
     // 改写前缀内一条记录的知情时 ⟹ 指纹对不上。
     journal[2].revision.as_of += 1;
@@ -264,10 +277,14 @@ fn jsonl_round_trip_only_appends_and_replays_idempotently() {
     let live = scripted();
     let path = temp_path("roundtrip");
     let store = JsonlRetraceLogStore::new(&path);
-    store.append_all(&provenance(), &live.journal()[..3]).unwrap();
+    store
+        .append_all(&provenance(), &live.journal()[..3])
+        .unwrap();
     let before = std::fs::read(&path).unwrap();
 
-    store.append_all(&provenance(), &live.journal()[3..]).unwrap();
+    store
+        .append_all(&provenance(), &live.journal()[3..])
+        .unwrap();
     let after = std::fs::read(&path).unwrap();
     assert!(after.starts_with(&before), "第二段必须只追加在旧字节之后");
 
@@ -278,7 +295,9 @@ fn jsonl_round_trip_only_appends_and_replays_idempotently() {
     restored.assert_invariants();
 
     // 同一段重复落盘 ⟹ 读回仍是同一条日志（幂等）。
-    store.append_all(&provenance(), &live.journal()[3..]).unwrap();
+    store
+        .append_all(&provenance(), &live.journal()[3..])
+        .unwrap();
     assert_eq!(store.load(&provenance()).unwrap(), live.journal());
     let _ = std::fs::remove_file(path);
 }

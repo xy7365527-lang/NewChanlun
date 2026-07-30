@@ -331,7 +331,14 @@ mod tests {
                     }
                     idxs.push(j);
                 }
-                centers.push(Zhongshu { high: zg, low: zd, gg, dd, units: idxs, level });
+                centers.push(Zhongshu {
+                    high: zg,
+                    low: zd,
+                    gg,
+                    dd,
+                    units: idxs,
+                    level,
+                });
                 i = last + 2;
             } else {
                 i += 1;
@@ -407,7 +414,10 @@ mod tests {
             }
             let diff = weak.len() != strict.len()
                 || weak.iter().zip(strict.iter()).any(|(a, b)| {
-                    a.low != b.low || a.high != b.high || a.dd != b.dd || a.gg != b.gg
+                    a.low != b.low
+                        || a.high != b.high
+                        || a.dd != b.dd
+                        || a.gg != b.gg
                         || a.units != b.units
                 });
             tot_tangent += tangent;

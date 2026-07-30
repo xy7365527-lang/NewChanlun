@@ -17,11 +17,11 @@
 //!
 //! X_{v,t} = ¬ParentValid ∨ χ^{σ_p}（反向信号）∨ Stop ∨ RiskClose。
 
+use super::super::types::{Bar, Tick};
 use super::exec::{close_pred, reverse_signal, stop_hit, CloseTriggers, FillSide};
 use super::risk::{global_risk_close, risk_mode, structural_stop, RiskModeInput, StopSide};
 use super::voice::{voice_side, VoiceSide};
 use super::VoiceDecision;
-use super::super::types::{Bar, Tick};
 
 /// 持仓声部台账项（退出决策生成器的状态，对齐 §9 closePred 读出所需的入场快照）。
 ///
@@ -58,7 +58,12 @@ pub fn record_held_voice(held: &mut [Option<HeldVoice>], d: &VoiceDecision) {
         None => return, // 无结构止损（不应到达——build_open_order 已 None）
     };
     if let Some(slot) = held.get_mut(d.depth as usize) {
-        *slot = Some(HeldVoice { side, stop, decision: *d, exit_pending: false });
+        *slot = Some(HeldVoice {
+            side,
+            stop,
+            decision: *d,
+            exit_pending: false,
+        });
     }
 }
 
@@ -112,7 +117,6 @@ pub fn exit_decision_for_nested(
 ) -> Option<VoiceDecision> {
     exit_decision_impl(hv, depth, bar, i, groups, equity_now, parent_invalid)
 }
-
 
 /// 退出判定共享实现（§9 closePred 四析取）。
 fn exit_decision_impl(
@@ -206,8 +210,8 @@ pub fn parent_invalid_at(held: &[Option<HeldVoice>], depth: usize) -> bool {
 //  归一即删除散装等价物（#183 no-patch 硬约束：不允许旧路径保留为 fallback）。
 // ════════════════════════════════════════════════════════════════════════════
 
-use super::interp::ActiveLeg;
 use super::super::classifier::recursive_tower::ElementId;
+use super::interp::ActiveLeg;
 use std::collections::{HashMap, HashSet};
 
 /// 声部层活动集不变量 `∀v∈A, Anc(v)⊆A`（#148 验收2；M16 AncOK 的声部层实例）。
@@ -221,8 +225,7 @@ use std::collections::{HashMap, HashSet};
 /// 防御性上界：链步数 > |A| ⟹ 判 false（fail-closed——parent_id 级别严格递增保证无环，
 /// 环只能来自数据损坏，不假设不变量成立）。
 pub fn anc_subset_of_active(active: &[ActiveLeg]) -> bool {
-    let by_id: HashMap<ElementId, &ActiveLeg> =
-        active.iter().map(|l| (l.id, l)).collect();
+    let by_id: HashMap<ElementId, &ActiveLeg> = active.iter().map(|l| (l.id, l)).collect();
     active.iter().all(|leg| {
         let mut cur = leg;
         let mut steps = 0usize;
@@ -244,7 +247,11 @@ pub fn anc_subset_of_active(active: &[ActiveLeg]) -> bool {
 
 /// 声部层代际深度：v 沿 `parent_id` 在 `by_id`（A 的 id 索引）内可上溯的步数
 /// （根锚/父缺失处终止；防御性上界 |A| 截断）。deepest-first 排序键。
-fn generation_depth(leg: &ActiveLeg, by_id: &HashMap<ElementId, &ActiveLeg>, bound: usize) -> usize {
+fn generation_depth(
+    leg: &ActiveLeg,
+    by_id: &HashMap<ElementId, &ActiveLeg>,
+    bound: usize,
+) -> usize {
     let mut depth = 0usize;
     let mut cur = leg;
     while !cur.is_boundary_root && depth <= bound {
@@ -274,8 +281,7 @@ fn generation_depth(leg: &ActiveLeg, by_id: &HashMap<ElementId, &ActiveLeg>, bou
 ///   父在 A 的既有路径（restore 复活被关父命中种子同清，#183 归一机制）零改。
 /// - 不可变：不 mutate 输入，产新 Vec。
 pub fn subtree_close(active: &[ActiveLeg], seeds: &[ActiveLeg]) -> Vec<ActiveLeg> {
-    let by_id: HashMap<ElementId, &ActiveLeg> =
-        active.iter().map(|l| (l.id, l)).collect();
+    let by_id: HashMap<ElementId, &ActiveLeg> = active.iter().map(|l| (l.id, l)).collect();
     let seed_ids: HashSet<ElementId> = seeds.iter().map(|l| l.id).collect();
     let bound = active.len();
     let mut closed: Vec<(usize, ActiveLeg)> = active
@@ -325,8 +331,11 @@ pub fn step_active_set_with_subtree_close(
     let closed_ids: HashSet<ElementId> =
         subtree_close(active, seeds).iter().map(|l| l.id).collect();
     // (A_t ∖ 𝒟_x^†) ∪ ℬ_x（id 去重，保序：存量在前、新开在后）。
-    let mut raw: Vec<ActiveLeg> =
-        active.iter().filter(|l| !closed_ids.contains(&l.id)).copied().collect();
+    let mut raw: Vec<ActiveLeg> = active
+        .iter()
+        .filter(|l| !closed_ids.contains(&l.id))
+        .copied()
+        .collect();
     // ★#752（issue752-bx-dup-guard-20260729.md）：下方 `raw_ids.insert` 对 `opened`（调用方
     // `step.rs` 的 B_x 段）的静默去重，在 main 生产路径上对合法输入恒为 no-op——`step.rs`
     // open 循环的 `#216` 判重（`open_pushed` 按 ElementId 键判重/湮灭 + `already_in_raw`
@@ -398,7 +407,10 @@ pub fn subtree_close_exit_decisions(
             Some(h) if !h.exit_pending => h,
             _ => continue, // 空槽/pending 槽不入链（fill 前抑制，等价旧 cascade skip）
         };
-        let id = ElementId { level: hv.decision.level, ordinal: depth as u64 };
+        let id = ElementId {
+            level: hv.decision.level,
+            ordinal: depth as u64,
+        };
         legs.push(ActiveLeg {
             level: hv.decision.level,
             dir: hv.side,
@@ -440,13 +452,13 @@ pub fn subtree_close_exit_decisions(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::super::classifier::recursive_tower::ElementId;
+    use super::super::super::types::{BspBits, Center};
     use super::super::channel::{decision_of, ChannelDecision, ChannelId, CHANNEL_M};
     use super::super::coverage::{Dir, GradeRel, Horizontal, OperationRole, Vertical};
     use super::super::interp::{interpret_with_close_triggers, ActiveLeg, Candidate, ExitType};
     use super::super::risk::StopInput;
-    use super::super::super::classifier::recursive_tower::ElementId;
-    use super::super::super::types::{BspBits, Center};
+    use super::*;
 
     // ── #148 T4 构造器：活动集层 ActiveLeg 树 ────────────────────────────
 
@@ -468,7 +480,10 @@ mod tests {
         Candidate {
             level,
             source_index: 99,
-            bits: BspBits { sell1: true, ..Default::default() },
+            bits: BspBits {
+                sell1: true,
+                ..Default::default()
+            },
             dir: VoiceSide::Short,
             bsp_class: 1,
             role: OperationRole {
@@ -522,7 +537,10 @@ mod tests {
         let (root, child, grand) = chain3();
         let active = vec![root, child, grand];
         let closed = subtree_close(&active, &[child]);
-        assert_eq!(closed.iter().map(|l| l.id).collect::<Vec<_>>(), vec![grand.id, child.id]);
+        assert_eq!(
+            closed.iter().map(|l| l.id).collect::<Vec<_>>(),
+            vec![grand.id, child.id]
+        );
         let next = step_active_set_with_subtree_close(&active, &[child], &[]);
         assert_eq!(next.len(), 1, "root 不在子树内 ⟹ 存活");
         assert_eq!(next[0].id, root.id);
@@ -568,15 +586,23 @@ mod tests {
         let root2 = tleg(3, 2, VoiceSide::Short, None);
         let child2 = tleg(2, 20, VoiceSide::Long, Some(root2.id));
         // 孤儿腿：父 id 不存在于任何活动集（须被剪除，不得入 A）。
-        let orphan = tleg(0, 999, VoiceSide::Long, Some(ElementId { level: 5, ordinal: 777 }));
+        let orphan = tleg(
+            0,
+            999,
+            VoiceSide::Long,
+            Some(ElementId {
+                level: 5,
+                ordinal: 777,
+            }),
+        );
         // 裁决序列：(关闭种子, 开启集) 逐步回放。
         let steps: Vec<(Vec<ActiveLeg>, Vec<ActiveLeg>)> = vec![
-            (vec![], vec![root]),                 // 开根
-            (vec![], vec![child, grand]),         // 开子/孙
-            (vec![], vec![root2, orphan]),        // 开第二根 + 孤儿（孤儿须剪）
-            (vec![child], vec![child2]),          // 关 child 子树 + 开 child2
-            (vec![root], vec![]),                 // 关 root 子树
-            (vec![root2], vec![orphan]),          // 关 root2 子树（child2 级联）+ 再喂孤儿
+            (vec![], vec![root]),          // 开根
+            (vec![], vec![child, grand]),  // 开子/孙
+            (vec![], vec![root2, orphan]), // 开第二根 + 孤儿（孤儿须剪）
+            (vec![child], vec![child2]),   // 关 child 子树 + 开 child2
+            (vec![root], vec![]),          // 关 root 子树
+            (vec![root2], vec![orphan]),   // 关 root2 子树（child2 级联）+ 再喂孤儿
         ];
         let mut active: Vec<ActiveLeg> = vec![];
         for (i, (seeds, opened)) in steps.iter().enumerate() {
@@ -590,7 +616,10 @@ mod tests {
                 "step {i}: 孤儿声部不得入活动集"
             );
         }
-        assert!(active.is_empty(), "全部子树清仓后 A=∅（root2 关 ⟹ child2 级联）");
+        assert!(
+            active.is_empty(),
+            "全部子树清仓后 A=∅（root2 关 ⟹ child2 级联）"
+        );
     }
 
     // ── #148 T4 验收3：子树清仓不占通道谓词槽位（P1–P8 冻结） ────────────
@@ -605,8 +634,14 @@ mod tests {
             (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold)),
             (ChannelId::Cj(1), ChannelDecision::Exit(ExitType::RiskExit)),
             (ChannelId::Cj(2), ChannelDecision::Exit(ExitType::CloseRoot)),
-            (ChannelId::Cj(3), ChannelDecision::Exit(ExitType::ReduceCore)),
-            (ChannelId::Cj(4), ChannelDecision::Exit(ExitType::CloseReverseOpen)),
+            (
+                ChannelId::Cj(3),
+                ChannelDecision::Exit(ExitType::ReduceCore),
+            ),
+            (
+                ChannelId::Cj(4),
+                ChannelDecision::Exit(ExitType::CloseReverseOpen),
+            ),
             (ChannelId::Cj(6), ChannelDecision::Open),
             (ChannelId::Cj(7), ChannelDecision::Record),
             (ChannelId::Cj(8), ChannelDecision::AddPosition),
@@ -629,10 +664,17 @@ mod tests {
         // 树侧序：孙、子、根（代际降序）。
         let tree_generations: Vec<u32> = closed.iter().map(|l| 2 - l.level).collect();
         // 生产级联侧（held 槽压缩链，depth0 触发）：[2, 1, 0]。
-        let held = vec![Some(held_at(0, false)), Some(held_at(1, false)), Some(held_at(2, false))];
+        let held = vec![
+            Some(held_at(0, false)),
+            Some(held_at(1, false)),
+            Some(held_at(2, false)),
+        ];
         let out = subtree_close_exit_decisions(&held, 0, trigger_of(&held[0].unwrap(), 3), 3);
         let cascade_depths: Vec<u32> = out.iter().map(|d| d.depth).collect();
-        assert_eq!(tree_generations, cascade_depths, "同一 deepest-first 序（线性特例一致）");
+        assert_eq!(
+            tree_generations, cascade_depths,
+            "同一 deepest-first 序（线性特例一致）"
+        );
     }
 
     fn bar_at(idx: usize, o: Tick, h: Tick, l: Tick, c: Tick) -> Bar {
@@ -660,12 +702,22 @@ mod tests {
                 root_side: VoiceSide::Long,
                 exit: false,
                 enter_ok: true,
-                bsp: BspBits { buy1: true, ..Default::default() },
+                bsp: BspBits {
+                    buy1: true,
+                    ..Default::default()
+                },
                 signal_index: depth as usize, // 区分各槽快照
                 stop_in: StopInput {
                     pivot_low: 950,
                     pivot_high: 1100,
-                    center: Center { zd: 1000, zg: 1080, dd: 940, gg: 1090, start_index: 0, end_index: 5 },
+                    center: Center {
+                        zd: 1000,
+                        zg: 1080,
+                        dd: 940,
+                        gg: 1090,
+                        start_index: 0,
+                        end_index: 5,
+                    },
                 },
                 entry: 1000,
                 cost_per_unit: 0.0,
@@ -715,7 +767,10 @@ mod tests {
         let bar = bar_at(3, 1000, 1010, 990, 1005); // 不触止损
         let mut reverse = h.decision;
         reverse.root_side = VoiceSide::Short;
-        reverse.bsp = BspBits { sell1: true, ..Default::default() };
+        reverse.bsp = BspBits {
+            sell1: true,
+            ..Default::default()
+        };
         let groups = vec![vec![], vec![], vec![], vec![&reverse]];
         let d = exit_decision_for_nested(&h, 0, &bar, 3, &groups, 1_000_000.0, false)
             .expect("持多遇卖侧根决策 ⟹ 反向项产 Close 决策");
@@ -727,14 +782,21 @@ mod tests {
     /// depth 0 触发退出 ⟹ 产 3 决策，序 [depth2, depth1, depth0]。
     #[test]
     fn subtree_close_parent_exit_closes_descendants_deepest_first() {
-        let held = vec![Some(held_at(0, false)), Some(held_at(1, false)), Some(held_at(2, false))];
+        let held = vec![
+            Some(held_at(0, false)),
+            Some(held_at(1, false)),
+            Some(held_at(2, false)),
+        ];
         let trigger = trigger_of(&held[0].unwrap(), 7);
         let out = subtree_close_exit_decisions(&held, 0, trigger, 7);
         assert_eq!(out.len(), 3, "两个更深声部强制退出 + 触发决策收尾");
         assert_eq!(out[0].depth, 2, "最深优先（代际降序 ⟺ j 降序）");
         assert_eq!(out[1].depth, 1);
         assert_eq!(out[2].depth, 0, "触发决策（父）收尾");
-        assert!(out.iter().all(|d| d.exit && !d.enter_ok), "全部 exit=true 退出态");
+        assert!(
+            out.iter().all(|d| d.exit && !d.enter_ok),
+            "全部 exit=true 退出态"
+        );
         assert!(out.iter().all(|d| d.signal_index == 7), "同一触发 bar");
     }
 
@@ -746,7 +808,7 @@ mod tests {
         let bar = bar_at(3, 1000, 1010, 990, 1005); // high 1010 < 1100 不触止损
         let groups: Vec<Vec<&VoiceDecision>> = vec![]; // 无反向信号
         let equity = 1_000_000.0; // >0 ⟹ RiskClose 假
-        // 父槽空 ⟹ parent_invalid_at=true（fail-closed）。
+                                  // 父槽空 ⟹ parent_invalid_at=true（fail-closed）。
         let held = vec![None, Some(h)];
         assert!(parent_invalid_at(&held, 1), "父槽空仓 ⟹ 父失效");
         let out = exit_decision_for_nested(&h, 1, &bar, 3, &groups, equity, true);
@@ -771,7 +833,10 @@ mod tests {
             Some(held_at(1, true)),  // 子已被上轮级联标 pending
             Some(held_at(2, false)), // 孙未触发
         ];
-        assert!(parent_invalid_at(&held_pending_parent, 1), "父 exit_pending ⟹ 子父失效");
+        assert!(
+            parent_invalid_at(&held_pending_parent, 1),
+            "父 exit_pending ⟹ 子父失效"
+        );
         // 发射面（生产调用契约：触发槽经外层循环过滤必非 pending）：已 pending 的 depth1
         // 不入投影链（跳过，不重复产退出），depth2 强制，触发者 depth0 收尾。
         let held = vec![

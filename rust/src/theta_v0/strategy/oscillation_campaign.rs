@@ -52,6 +52,7 @@
 use super::super::classifier::center_lifecycle::{CenterId, CenterLifecycleEvent};
 use super::super::closed_loop::state::RiskMode;
 use super::super::closed_loop::transition::{cash_sound_gate, stage_progression, TransitionError};
+use super::super::types::Side;
 use super::center_oscillation_trade::{
     CenterOscillationAction, SuspensionEventOutcome, SuspensionTerminationSource,
     TerminationSettlement, TriggerError,
@@ -59,7 +60,6 @@ use super::center_oscillation_trade::{
 use super::ledger::{tw_step, LedgerComp, RiskPolicy, TwEvent, TwState};
 use super::short_diff_bucket::{CoreCostBasisSnapshot, ShortDiffAccount, ShortDiffViolation};
 use super::voice::VoiceSide;
-use super::super::types::Side;
 use std::collections::BTreeMap;
 
 /// 本模块 typed 拒绝（无静默兜底，与 [`ShortDiffViolation`]/[`TransitionError`] 同规格）。
@@ -238,7 +238,11 @@ impl SuspensionAttribution {
     /// ★#414 项三：**某来源中枢**的挂起在途量——挂起绑定来源中枢后，回补的算量/放行判据都只
     /// 看这一个中枢的批次（不再拿别的中枢的挂起当自己的货）。
     fn open_units_of(&self, center: CenterId) -> i64 {
-        self.batches.iter().filter(|b| b.center == center).map(|b| b.units).sum()
+        self.batches
+            .iter()
+            .filter(|b| b.center == center)
+            .map(|b| b.units)
+            .sum()
     }
 
     /// ★#383：当前挂起在途量按**卖出时锁定的 sizing 模式**分列 `(阶段一等量, 阶段三等金额)`
@@ -246,10 +250,20 @@ impl SuspensionAttribution {
     /// ★#414 项三：只统计**同来源中枢**的批次（异中枢的挂起不参与本次回补的算量）。
     fn open_units_by_mode(&self, center: CenterId) -> (i64, i64) {
         let same = |b: &&SuspensionBatch| b.center == center;
-        let earning: i64 =
-            self.batches.iter().filter(same).filter(|b| b.earning).map(|b| b.units).sum();
-        let legacy: i64 =
-            self.batches.iter().filter(same).filter(|b| !b.earning).map(|b| b.units).sum();
+        let earning: i64 = self
+            .batches
+            .iter()
+            .filter(same)
+            .filter(|b| b.earning)
+            .map(|b| b.units)
+            .sum();
+        let legacy: i64 = self
+            .batches
+            .iter()
+            .filter(same)
+            .filter(|b| !b.earning)
+            .map(|b| b.units)
+            .sum();
         (legacy, earning)
     }
 
@@ -263,9 +277,18 @@ impl SuspensionAttribution {
     /// ——终结事件按中枢身份到达（#292 D 裁定），只核销它所指的那个中枢的减出，不连坐其他
     /// 中枢仍在等回补的挂起（那些中枢未死，「挂起继续等」，#366 补充裁定）。
     fn write_off(&mut self, center: CenterId) -> (i64, i64) {
-        let units: i64 = self.batches.iter().filter(|b| b.center == center).map(|b| b.units).sum();
-        let cash: i64 =
-            self.batches.iter().filter(|b| b.center == center).map(|b| b.cash_booked).sum();
+        let units: i64 = self
+            .batches
+            .iter()
+            .filter(|b| b.center == center)
+            .map(|b| b.units)
+            .sum();
+        let cash: i64 = self
+            .batches
+            .iter()
+            .filter(|b| b.center == center)
+            .map(|b| b.cash_booked)
+            .sum();
         self.batches.retain(|b| b.center != center);
         (units, cash)
     }
@@ -324,7 +347,12 @@ impl SuspensionAttribution {
             // `same_center` 恒 true（异中枢已在上面跳过）——字段保留是为让 witness 的
             // `("侧","other_center")` 桶继续存在并**恒 0**：它现在是本条纪律的警报读数
             // （非 0 = 中枢绑定被改坏），比删桶更能防回归。
-            assignments.push(CoverAssignment { center: b.center, units: take, seq: b.seq, same_center: true });
+            assignments.push(CoverAssignment {
+                center: b.center,
+                units: take,
+                seq: b.seq,
+                same_center: true,
+            });
         }
         self.batches.retain(|b| b.units > 0);
         assignments
@@ -384,7 +412,12 @@ struct ReplenishPlan {
 impl ReplenishPlan {
     /// `Reduce` 分支的惰性方案（回补侧字段全 0——高抛侧不受阶段影响，补充八题一）。
     fn inert() -> Self {
-        Self { close_units: 0, extra_units: 0, pool_spent: 0, earning_bought: 0 }
+        Self {
+            close_units: 0,
+            extra_units: 0,
+            pool_spent: 0,
+            earning_bought: 0,
+        }
     }
 }
 
@@ -415,13 +448,21 @@ pub struct DeathWriteOff {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CampaignLifecycleEvent {
     /// 开仓生：本仓成本基快照从空仓变为有持仓。★#381：`side`=本 campaign 的持仓侧。
-    Opened { level: u32, side: VoiceSide, notional_in: i64 },
+    Opened {
+        level: u32,
+        side: VoiceSide,
+        notional_in: i64,
+    },
     /// 全平死：本仓成本基快照回到空仓。
     ///
     /// ★#441（ADR 补充十二）：`settlement`=死亡时未收口挂起的**核销呈报**
     /// （[`DeathWriteOff`]；`None`=死亡时无挂起，不编造零读数记录）。旧单一股数标量字段已退役：
     /// 它与 `settlement.units_gap` 同源同量，却没有位置呈报现金，现统一改为未闭合减出核销。
-    Died { level: u32, side: VoiceSide, settlement: Option<DeathWriteOff> },
+    Died {
+        level: u32,
+        side: VoiceSide,
+        settlement: Option<DeathWriteOff>,
+    },
 }
 
 /// 单仓 campaign（[`TwState`] + [`LedgerComp`] 双账本并置 + [`ShortDiffAccount`] 短差桥）。
@@ -491,7 +532,8 @@ impl OscillationCampaign {
     /// ★#383（补充八题三）：阶段三等金额 sizing 是否**已生效**——`EnterEarning` 的**次 bar**
     /// 起为真（同 bar 不换：事件 bar 收盘后才确认，与「取数时点=前 bar 收盘」既有口径一致）。
     pub fn earning_active(&self) -> bool {
-        self.earning_event_bar.is_some_and(|b| self.last_sync_bar > b)
+        self.earning_event_bar
+            .is_some_and(|b| self.last_sync_bar > b)
     }
 
     /// 派发 `EnterEarning` 的那根 bar（`None`=尚未进阶段三；观测/见证读）。
@@ -664,7 +706,9 @@ impl OscillationCampaign {
         // 表述作废）——到 0 判据前置（挂起空 ∧ free≥本金）后，进阶段三时挂起为空 ⟹ 本门约束的
         // 对象只剩等金额腿，floor 取整保证其结构性不可达；阶段一/二 仍走 #380 项一的亏损放行。
         if self.earning_active() && tw_after_action.free < 0 {
-            return Err(CampaignViolation::EarningCashUnsound { free: tw_after_action.free });
+            return Err(CampaignViolation::EarningCashUnsound {
+                free: tw_after_action.free,
+            });
         }
         let cash_delta = short_diff.bucket().realized_cash() - cash_before;
         // ★#380 项四：记账放行后同步挂起归属账（Reduce 入队带中枢标签；Replenish 同中枢优先
@@ -707,10 +751,12 @@ impl OscillationCampaign {
         let (tw_final, stage_event) = match progression.filter(|_| suspended_open == 0) {
             Some(ev) => {
                 if !ev.is_legal_from(&tw_after_action) {
-                    return Err(CampaignViolation::StageTransition(TransitionError::Oq9Illegal {
-                        event: ev,
-                        stage: tw_after_action.stage,
-                    }));
+                    return Err(CampaignViolation::StageTransition(
+                        TransitionError::Oq9Illegal {
+                            event: ev,
+                            stage: tw_after_action.stage,
+                        },
+                    ));
                 }
                 let advanced = tw_step(&tw_after_action, ev);
                 let advanced =
@@ -772,7 +818,11 @@ impl OscillationCampaign {
         }
         let mut short_diff = self.short_diff;
         short_diff.write_off_unclosed(units_gap)?;
-        let next = Self { short_diff, suspension, ..self.clone() };
+        let next = Self {
+            short_diff,
+            suspension,
+            ..self.clone()
+        };
         Ok((
             next,
             Some(UnclosedReduction {
@@ -826,7 +876,11 @@ impl OscillationCampaign {
                 // 通道（`sync_position` 的生死签名不因观测路径改成 `Result`）。
                 debug_assert!(false, "桶拒绝了取自归属账的在途量核销（记账错误）");
             }
-            Some(DeathWriteOff { units_gap, cash_booked, centers })
+            Some(DeathWriteOff {
+                units_gap,
+                cash_booked,
+                centers,
+            })
         } else {
             None
         };
@@ -882,7 +936,8 @@ impl CampaignBook {
         let currently_open = self.campaigns.contains_key(&key);
         match (currently_open, snapshot.units() > 0) {
             (false, true) => {
-                self.campaigns.insert(key, OscillationCampaign::open(snapshot, bar, side));
+                self.campaigns
+                    .insert(key, OscillationCampaign::open(snapshot, bar, side));
                 Some(CampaignLifecycleEvent::Opened {
                     level,
                     side,
@@ -890,11 +945,18 @@ impl CampaignBook {
                 })
             }
             (true, false) => {
-                let campaign = self.campaigns.remove(&key).expect("contains_key 刚核验为 true");
+                let campaign = self
+                    .campaigns
+                    .remove(&key)
+                    .expect("contains_key 刚核验为 true");
                 // ★#441（ADR 补充十二）：死亡吞挂起在 `close` 内按「未闭合减出」核销，产出
                 // 分列呈报（货缺口/桶实收现金）；`None`=死亡时无挂起。
                 let (_final_tw, settlement) = campaign.close();
-                Some(CampaignLifecycleEvent::Died { level, side, settlement })
+                Some(CampaignLifecycleEvent::Died {
+                    level,
+                    side,
+                    settlement,
+                })
             }
             (true, true) => {
                 // 仍持仓：刷新防线基准（当时真实持仓），不产生生死事件、不动冻结快照。
@@ -922,7 +984,10 @@ impl CampaignBook {
         source_center: CenterId,
     ) -> Result<CampaignOutcome, CampaignViolation> {
         let key = (level, side);
-        let campaign = self.campaigns.get(&key).ok_or(CampaignViolation::NoActiveCampaign)?;
+        let campaign = self
+            .campaigns
+            .get(&key)
+            .ok_or(CampaignViolation::NoActiveCampaign)?;
         let (next, outcome) = campaign.apply_action(action, price, risk_mode, source_center)?;
         self.campaigns.insert(key, next);
         Ok(outcome)
@@ -944,7 +1009,9 @@ impl CampaignBook {
         center: CenterId,
     ) -> Result<Option<UnclosedReduction>, CampaignViolation> {
         let key = (level, side);
-        let Some(campaign) = self.campaigns.get(&key) else { return Ok(None) };
+        let Some(campaign) = self.campaigns.get(&key) else {
+            return Ok(None);
+        };
         let (next, reduction) = campaign.write_off_unclosed(level, center)?;
         self.campaigns.insert(key, next);
         Ok(reduction)
@@ -1244,7 +1311,8 @@ impl CampaignWiringWitness {
                 self.stage_enter_earning_count += 1;
                 // ★#383 报告层「切换时点读数」：等金额 sizing 的**生效** bar = 事件 bar + 1
                 // （题三「次 bar 换模式」），与 [`OscillationCampaign::earning_active`] 同判据。
-                self.earning_mode_switch_bar.insert((level, side_label(side)), bar + 1);
+                self.earning_mode_switch_bar
+                    .insert((level, side_label(side)), bar + 1);
                 ("enter_earning", 0)
             }
             _ => return,
@@ -1262,12 +1330,18 @@ impl CampaignWiringWitness {
     /// ★★#383 订正（ADR 补充十）：记一次「free 够本金、但挂起非空 ⟹ 阶段推进被前置拦下」
     /// （见 [`Self::profit_ready_but_suspended`]；正面读数，非警报）。
     pub fn record_profit_ready_but_suspended(&mut self, side: VoiceSide) {
-        *self.profit_ready_but_suspended.entry(side_label(side)).or_insert(0) += 1;
+        *self
+            .profit_ready_but_suspended
+            .entry(side_label(side))
+            .or_insert(0) += 1;
     }
 
     /// ★#380 项一：记一次「亏损往返如实入账」（本次动作落账后桶现金为负）。
     pub fn record_loss_accounted(&mut self, side: VoiceSide) {
-        *self.loss_round_trip_accounted_count.entry(side_label(side)).or_insert(0) += 1;
+        *self
+            .loss_round_trip_accounted_count
+            .entry(side_label(side))
+            .or_insert(0) += 1;
     }
 
     /// ★#383：记一次**等金额回补**（次数 + 本次净增股数；`gained` 可为 0——回补价高于卖出价
@@ -1281,8 +1355,15 @@ impl CampaignWiringWitness {
     /// ★#380 项四：记一次回补的逐批冲抵明细（同中枢/异中枢分桶，见证「同中枢优先」）。
     pub fn record_cover(&mut self, side: VoiceSide, cover: &[CoverAssignment]) {
         for c in cover {
-            let bucket = if c.same_center { "same_center" } else { "other_center" };
-            *self.cover_by_side.entry((side_label(side), bucket)).or_insert(0) += 1;
+            let bucket = if c.same_center {
+                "same_center"
+            } else {
+                "other_center"
+            };
+            *self
+                .cover_by_side
+                .entry((side_label(side), bucket))
+                .or_insert(0) += 1;
         }
     }
 
@@ -1310,7 +1391,10 @@ impl CampaignWiringWitness {
 
     /// ★#366/#472：记一次「核销请求到达但无可核销」（该侧空仓，或该中枢无挂起批次）。
     pub fn record_write_off_nothing_to_settle(&mut self, side: VoiceSide) {
-        *self.unclosed_write_off_nothing_to_settle.entry(side_label(side)).or_insert(0) += 1;
+        *self
+            .unclosed_write_off_nothing_to_settle
+            .entry(side_label(side))
+            .or_insert(0) += 1;
     }
 
     /// 记一次挂起终结来源（挂起归宿分桶）。★#381 关票修复：按 (持仓侧, 来源) 分桶——
@@ -1327,7 +1411,10 @@ impl CampaignWiringWitness {
             SuspensionTerminationSource::BrokenByThirdClassSell => "broken_by_third_class_sell",
             SuspensionTerminationSource::RebaseVanished => "rebase_vanished",
         };
-        *self.suspension_by_source.entry((level, side_label(side), label)).or_insert(0) += 1;
+        *self
+            .suspension_by_source
+            .entry((level, side_label(side), label))
+            .or_insert(0) += 1;
     }
 
     /// ★#489：把 Reset 事件里的活中枢只读见证记入漏发警报桶；不参与任何终结或清算判据。
@@ -1345,7 +1432,10 @@ impl CampaignWiringWitness {
             Side::Long => "long",
             Side::Short => "short",
         };
-        *self.reset_alive_center_leak_by_level_side.entry((*level, side)).or_insert(0) += 1;
+        *self
+            .reset_alive_center_leak_by_level_side
+            .entry((*level, side))
+            .or_insert(0) += 1;
     }
 
     /// ★#489 修复车：Reset 的实际生命周期消费输出只要有一路非空，就按事件记一次。
@@ -1397,19 +1487,30 @@ impl CampaignWiringWitness {
     /// 记成一次终结。
     /// ★#442：加 `level`（纯观测）——延续的级别分布是探针的裁决量。
     pub fn record_suspension_continued(&mut self, level: u32, side: VoiceSide) {
-        *self.suspension_continued_count.entry((level, side_label(side))).or_insert(0) += 1;
+        *self
+            .suspension_continued_count
+            .entry((level, side_label(side)))
+            .or_insert(0) += 1;
     }
 
     /// ★#414/#472：记一次终结的**清算终局**分流（闭合/核销二分）。与
     /// [`Self::suspension_by_source`]（按**来源**分桶）是同一批终结的两个正交切面：
     /// 来源答「谁杀的」，终局答「账怎么了结」。
     /// ★#442：加 `level`（纯观测）——与来源桶同步加维，保持两切面逐 (级别, 侧) 可对账。
-    pub fn record_settlement(&mut self, level: u32, side: VoiceSide, settlement: TerminationSettlement) {
+    pub fn record_settlement(
+        &mut self,
+        level: u32,
+        side: VoiceSide,
+        settlement: TerminationSettlement,
+    ) {
         let label = match settlement {
             TerminationSettlement::CoverAndClose => "cover_and_close",
             TerminationSettlement::WriteOffUnclosed => "write_off_unclosed",
         };
-        *self.settlement_by_side.entry((level, side_label(side), label)).or_insert(0) += 1;
+        *self
+            .settlement_by_side
+            .entry((level, side_label(side), label))
+            .or_insert(0) += 1;
     }
 
     /// ★#487：记一次已滑出容读窗的精确 historical-bound 命中（成功分支）。
@@ -1419,18 +1520,27 @@ impl CampaignWiringWitness {
 
     /// ★#689：记一次 historical-bound 投递尝试（成功/失败之前，调用点先落一次）。
     pub fn record_historical_bound_attempted(&mut self, level: u32) {
-        *self.historical_bound_attempted_by_level.entry(level).or_insert(0) += 1;
+        *self
+            .historical_bound_attempted_by_level
+            .entry(level)
+            .or_insert(0) += 1;
     }
 
     /// ★#689：记一次 historical-bound 投递尝试以 `MisKill` 收场（失败分支，专治「只认成功
     /// 分支」的失明——见 [`Self::historical_bound_by_level`] 文档的两轮审计教训）。
     pub fn record_historical_bound_failed(&mut self, level: u32) {
-        *self.historical_bound_failed_by_level.entry(level).or_insert(0) += 1;
+        *self
+            .historical_bound_failed_by_level
+            .entry(level)
+            .or_insert(0) += 1;
     }
 
     /// ★#487/A3：记一次同事件新增的合法冻结 Owner 绑定。
     pub fn record_historical_multi_owner_same_event(&mut self, level: u32) {
-        *self.historical_multi_owner_same_event.entry(level).or_insert(0) += 1;
+        *self
+            .historical_multi_owner_same_event
+            .entry(level)
+            .or_insert(0) += 1;
     }
 
     /// ★#487：记一次生命周期路由的错杀请求。
@@ -1444,7 +1554,10 @@ impl CampaignWiringWitness {
             CenterOscillationAction::Reduce => "reduce",
             CenterOscillationAction::Replenish => "replenish",
         };
-        *self.action_by_level.entry((level, side_label(side), label)).or_insert(0) += 1;
+        *self
+            .action_by_level
+            .entry((level, side_label(side), label))
+            .or_insert(0) += 1;
     }
 
     /// 记一次 campaign 生死事件。★#381 关票修复：按事件自带的 `side` 分侧累计（两侧不得相加）。
@@ -1455,7 +1568,9 @@ impl CampaignWiringWitness {
             }
             // ★#441（ADR 补充十二）：死亡吞挂起的核销读数在此落桶——生死计数不变（每次死亡
             // 恒记一次），核销三桶只在带挂起的那些死亡上累计（干净死不编造零记录）。
-            CampaignLifecycleEvent::Died { side, settlement, .. } => {
+            CampaignLifecycleEvent::Died {
+                side, settlement, ..
+            } => {
                 let sl = side_label(side);
                 *self.lifecycle_died.entry(sl).or_insert(0) += 1;
                 if let Some(w) = settlement {
@@ -1482,11 +1597,17 @@ impl CampaignWiringWitness {
             CampaignViolation::ShortDiff(ShortDiffViolation::ChannelRejected(
                 TransitionError::CashUnsound { holding, .. },
             )) if holding < 0 => {
-                *self.resource_exhausted_holding_negative_count.entry(sl).or_insert(0) += 1;
+                *self
+                    .resource_exhausted_holding_negative_count
+                    .entry(sl)
+                    .or_insert(0) += 1;
             }
             // ★#380 项四：「触发但货满」——预期经济场景，独立分桶。
             CampaignViolation::ReplenishWhileFull => {
-                *self.replenish_triggered_but_full_count.entry(sl).or_insert(0) += 1;
+                *self
+                    .replenish_triggered_but_full_count
+                    .entry(sl)
+                    .or_insert(0) += 1;
             }
             // ★#414 项三：「有货但不是这个中枢的」——预期经济场景，与「货满」分列。
             CampaignViolation::ReplenishForeignCenter { .. } => {
@@ -1494,7 +1615,10 @@ impl CampaignWiringWitness {
             }
             // ★#380 项二：防线（读当时真实持仓）拒绝的超卖——预期读数，独立分桶。
             CampaignViolation::ShortDiff(ShortDiffViolation::UnitsExceedCostBasis { .. }) => {
-                *self.defense_units_exceed_current_holding_count.entry(sl).or_insert(0) += 1;
+                *self
+                    .defense_units_exceed_current_holding_count
+                    .entry(sl)
+                    .or_insert(0) += 1;
             }
             // ★#383：阶段三硬门（桶现金永不为负）——生产恒 0，非 0 即警报，但归属明确故独立
             // 分桶（不埋进 `other_violation_by_kind` 的混合桶里）。
@@ -1503,7 +1627,10 @@ impl CampaignWiringWitness {
             }
             // ★#383：等金额腿买不起一股——预期经济场景，独立分桶。
             CampaignViolation::EarningSizingRoundsToZero { .. } => {
-                *self.earning_sizing_rounds_to_zero_count.entry(sl).or_insert(0) += 1;
+                *self
+                    .earning_sizing_rounds_to_zero_count
+                    .entry(sl)
+                    .or_insert(0) += 1;
             }
             other => {
                 self.other_violation_count += 1;
@@ -1538,16 +1665,16 @@ impl CampaignWiringWitness {
                     CampaignViolation::ShortDiff(ShortDiffViolation::OverReplenish { .. }) => {
                         "short_diff_over_replenish"
                     }
-                    CampaignViolation::ShortDiff(ShortDiffViolation::UnclosedRoundTrip { .. }) => {
-                        "short_diff_unclosed_round_trip"
-                    }
-                    CampaignViolation::ShortDiff(ShortDiffViolation::AvgCostMismatch { .. }) => {
-                        "short_diff_avg_cost_mismatch"
-                    }
+                    CampaignViolation::ShortDiff(ShortDiffViolation::UnclosedRoundTrip {
+                        ..
+                    }) => "short_diff_unclosed_round_trip",
+                    CampaignViolation::ShortDiff(ShortDiffViolation::AvgCostMismatch {
+                        ..
+                    }) => "short_diff_avg_cost_mismatch",
                     // 下两条已在上方分支各自分桶（#380 项二/项四），此处只为穷尽性。
-                    CampaignViolation::ShortDiff(ShortDiffViolation::UnitsExceedCostBasis { .. }) => {
-                        "short_diff_units_exceed_cost_basis_unreachable"
-                    }
+                    CampaignViolation::ShortDiff(ShortDiffViolation::UnitsExceedCostBasis {
+                        ..
+                    }) => "short_diff_units_exceed_cost_basis_unreachable",
                     CampaignViolation::ReplenishWhileFull => "replenish_while_full_unreachable",
                     // ★#414：已在上方分支分桶，此处只为穷尽性。
                     CampaignViolation::ReplenishForeignCenter { .. } => {
@@ -1575,10 +1702,10 @@ impl CampaignWiringWitness {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::ledger::TStage;
     use super::super::short_diff_bucket::CoreCostBasisSnapshot;
     use super::super::voice::VoiceSide;
+    use super::*;
 
     fn snapshot(units: i64, cost_basis: i64) -> CoreCostBasisSnapshot {
         CoreCostBasisSnapshot::new(units, cost_basis)
@@ -1602,19 +1729,48 @@ mod tests {
     fn sync_position_opens_campaign_on_transition_from_flat_to_held() {
         let mut book = CampaignBook::new();
         let outcome = book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
-        assert_eq!(outcome, Some(CampaignLifecycleEvent::Opened { level: 0, side: VoiceSide::Long, notional_in: 3_000 }));
-        let campaign = book.campaign(0, VoiceSide::Long).expect("开仓后应存在 campaign");
-        assert_eq!(campaign.tw().notional_in, 3_000, "notional_in=本仓成本基（缠师口径成本入账）");
-        assert_eq!(campaign.tw().holding, 3_000, "holding=本仓成本基（与 CoreCostBasisSnapshot 同步）");
-        assert_eq!(campaign.tw().stage, TStage::CostReduction, "开局即降成本阶段");
+        assert_eq!(
+            outcome,
+            Some(CampaignLifecycleEvent::Opened {
+                level: 0,
+                side: VoiceSide::Long,
+                notional_in: 3_000
+            })
+        );
+        let campaign = book
+            .campaign(0, VoiceSide::Long)
+            .expect("开仓后应存在 campaign");
+        assert_eq!(
+            campaign.tw().notional_in,
+            3_000,
+            "notional_in=本仓成本基（缠师口径成本入账）"
+        );
+        assert_eq!(
+            campaign.tw().holding,
+            3_000,
+            "holding=本仓成本基（与 CoreCostBasisSnapshot 同步）"
+        );
+        assert_eq!(
+            campaign.tw().stage,
+            TStage::CostReduction,
+            "开局即降成本阶段"
+        );
     }
 
     #[test]
     fn sync_position_is_noop_while_still_flat_or_still_held() {
         let mut book = CampaignBook::new();
-        assert_eq!(book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 0), None, "仍空仓 ⟹ no-op");
+        assert_eq!(
+            book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 0),
+            None,
+            "仍空仓 ⟹ no-op"
+        );
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
-        assert_eq!(book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0), None, "仍持仓 ⟹ no-op（加仓重算不在本模块范围）");
+        assert_eq!(
+            book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0),
+            None,
+            "仍持仓 ⟹ no-op（加仓重算不在本模块范围）"
+        );
         assert_eq!(book.active_count(), 1);
     }
 
@@ -1625,10 +1781,17 @@ mod tests {
         let outcome = book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 0);
         assert_eq!(
             outcome,
-            Some(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, settlement: None }),
+            Some(CampaignLifecycleEvent::Died {
+                level: 0,
+                side: VoiceSide::Long,
+                settlement: None
+            }),
             "无挂起在途量的全平死亡（无可核销 ⟹ 不产核销记录，#441）"
         );
-        assert!(book.campaign(0, VoiceSide::Long).is_none(), "全平后 campaign 实例被移除");
+        assert!(
+            book.campaign(0, VoiceSide::Long).is_none(),
+            "全平后 campaign 实例被移除"
+        );
         assert_eq!(book.active_count(), 0);
     }
 
@@ -1640,15 +1803,35 @@ mod tests {
     fn sync_position_death_writes_off_open_suspended_units_without_requiring_conservation() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // avg_cost=10
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap(); // 卖 100（1/3）
-        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().short_diff().bucket().open_units(), 100, "挂起在途量=100（半轮往返）");
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(0),
+        )
+        .unwrap(); // 卖 100（1/3）
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long)
+                .unwrap()
+                .short_diff()
+                .bucket()
+                .open_units(),
+            100,
+            "挂起在途量=100（半轮往返）"
+        );
         let outcome = book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 0); // 仓位全平（未先回补）
         assert_eq!(
             outcome,
             Some(CampaignLifecycleEvent::Died {
                 level: 0,
                 side: VoiceSide::Long,
-                settlement: Some(DeathWriteOff { units_gap: 100, cash_booked: 1_200, centers: 1 }),
+                settlement: Some(DeathWriteOff {
+                    units_gap: 100,
+                    cash_booked: 1_200,
+                    centers: 1
+                }),
             }),
             "★#441：挂起随死按未闭合减出核销并分列呈报（货缺口 100 股 / 桶实收 100·12=1200）"
         );
@@ -1662,7 +1845,11 @@ mod tests {
         book.sync_position(1, VoiceSide::Long, snapshot(500, 20_000), 0);
         assert_eq!(book.active_count(), 2);
         book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 0);
-        assert_eq!(book.active_count(), 1, "0 级死亡不影响 1 级 campaign（禁跨仓冲减，每级一本账强制）");
+        assert_eq!(
+            book.active_count(),
+            1,
+            "0 级死亡不影响 1 级 campaign（禁跨仓冲减，每级一本账强制）"
+        );
         assert!(book.campaign(1, VoiceSide::Long).is_some());
     }
 
@@ -1672,19 +1859,55 @@ mod tests {
     fn reduce_sizes_to_one_third_of_currently_held_units() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // avg_cost=10
-        let outcome = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
-        assert_eq!(outcome.units, 100, "sizing=当时持仓(300)/3=100（#348 裁定，整数除法）");
+        let outcome = book
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Reduce,
+                12,
+                RiskMode::Normal,
+                cid(0),
+            )
+            .unwrap();
+        assert_eq!(
+            outcome.units, 100,
+            "sizing=当时持仓(300)/3=100（#348 裁定，整数除法）"
+        );
     }
 
     #[test]
     fn replenish_sizes_to_full_open_units_hard_conservation_in_cost_reduction() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // avg_cost=10
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap(); // 卖 100
-        let outcome = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 9, RiskMode::Normal, cid(0)).unwrap();
-        assert_eq!(outcome.units, 100, "阶段一恒仓约束硬：Replenish 全额买回挂起在途量（同股数进出）");
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(0),
+        )
+        .unwrap(); // 卖 100
+        let outcome = book
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                9,
+                RiskMode::Normal,
+                cid(0),
+            )
+            .unwrap();
+        assert_eq!(
+            outcome.units, 100,
+            "阶段一恒仓约束硬：Replenish 全额买回挂起在途量（同股数进出）"
+        );
         assert!(
-            book.campaign(0, VoiceSide::Long).unwrap().short_diff().assert_conserved().is_ok(),
+            book.campaign(0, VoiceSide::Long)
+                .unwrap()
+                .short_diff()
+                .assert_conserved()
+                .is_ok(),
             "整轮收口 ⟹ 恒仓断言过"
         );
     }
@@ -1694,7 +1917,14 @@ mod tests {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(2, 20), 0); // 持仓仅 2 ⟹ 2/3=0
         assert_eq!(
-            book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 15, RiskMode::Normal, cid(0)),
+            book.apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Reduce,
+                15,
+                RiskMode::Normal,
+                cid(0)
+            ),
             Err(CampaignViolation::SizingRoundsToZero { held: 2 }),
             "1/3 取整到 0 时显式拒绝，不静默钳制为 1"
         );
@@ -1704,7 +1934,14 @@ mod tests {
     fn action_on_level_without_open_campaign_is_explicit_wiring_error() {
         let mut book = CampaignBook::new();
         assert_eq!(
-            book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 10, RiskMode::Normal, cid(0)),
+            book.apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Reduce,
+                10,
+                RiskMode::Normal,
+                cid(0)
+            ),
             Err(CampaignViolation::NoActiveCampaign)
         );
     }
@@ -1716,13 +1953,39 @@ mod tests {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // avg_cost=10
         let start_tw = book.campaign(0, VoiceSide::Long).unwrap().tw(); // 开局 tw()=holding(3000)+free(0)+withdrawn(0)=3000
-        let original_cost_basis = book.campaign(0, VoiceSide::Long).unwrap().short_diff().cost_basis();
+        let original_cost_basis = book
+            .campaign(0, VoiceSide::Long)
+            .unwrap()
+            .short_diff()
+            .cost_basis();
 
-        let reduce = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
-        assert_eq!(reduce.ledger.pi, 100 * (12 - 10), "R 账本 Π 镜像本轮 Realize=units·(price−avg_cost)=200");
+        let reduce = book
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Reduce,
+                12,
+                RiskMode::Normal,
+                cid(0),
+            )
+            .unwrap();
+        assert_eq!(
+            reduce.ledger.pi,
+            100 * (12 - 10),
+            "R 账本 Π 镜像本轮 Realize=units·(price−avg_cost)=200"
+        );
         assert!(reduce.ledger.inv_holds(), "R 账本恒等 R=Π-A-W 全程成立");
 
-        let replenish = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 9, RiskMode::Normal, cid(0)).unwrap();
+        let replenish = book
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                9,
+                RiskMode::Normal,
+                cid(0),
+            )
+            .unwrap();
         assert_eq!(
             replenish.ledger.pi,
             100 * (12 - 10) + 100 * (10 - 9),
@@ -1735,7 +1998,10 @@ mod tests {
         );
 
         assert_eq!(
-            book.campaign(0, VoiceSide::Long).unwrap().short_diff().cost_basis(),
+            book.campaign(0, VoiceSide::Long)
+                .unwrap()
+                .short_diff()
+                .cost_basis(),
             original_cost_basis,
             "本仓成本基（均价口径）全程不动（修7）"
         );
@@ -1755,19 +2021,58 @@ mod tests {
     fn first_witness_campaign_reaches_recover_capital_stage_ii() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
-        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().tw().stage, TStage::CostReduction, "起点：阶段机在 I（降成本）");
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().tw().stage,
+            TStage::CostReduction,
+            "起点：阶段机在 I（降成本）"
+        );
 
         let mut recovered_at_round = None;
         for round in 1..=8 {
-            let sell = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
-            assert_eq!(sell.units, 100, "每轮 sizing 恒=当时持仓(300)/3=100（本仓成本基不动，见下）");
+            let sell = book
+                .apply_action(
+                    0,
+                    VoiceSide::Long,
+                    CenterOscillationAction::Reduce,
+                    12,
+                    RiskMode::Normal,
+                    cid(0),
+                )
+                .unwrap();
+            assert_eq!(
+                sell.units, 100,
+                "每轮 sizing 恒=当时持仓(300)/3=100（本仓成本基不动，见下）"
+            );
             // 每轮卖出后立即核验恒仓状态：本轮挂起=100（尚未回补）。
-            assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().short_diff().bucket().open_units(), 100);
+            assert_eq!(
+                book.campaign(0, VoiceSide::Long)
+                    .unwrap()
+                    .short_diff()
+                    .bucket()
+                    .open_units(),
+                100
+            );
 
-            let cover = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0)).unwrap();
-            assert_eq!(cover.units, 100, "整轮收口：买回等量 100（阶段一恒仓约束硬）");
+            let cover = book
+                .apply_action(
+                    0,
+                    VoiceSide::Long,
+                    CenterOscillationAction::Replenish,
+                    8,
+                    RiskMode::Normal,
+                    cid(0),
+                )
+                .unwrap();
+            assert_eq!(
+                cover.units, 100,
+                "整轮收口：买回等量 100（阶段一恒仓约束硬）"
+            );
             assert!(
-                book.campaign(0, VoiceSide::Long).unwrap().short_diff().assert_conserved().is_ok(),
+                book.campaign(0, VoiceSide::Long)
+                    .unwrap()
+                    .short_diff()
+                    .assert_conserved()
+                    .is_ok(),
                 "第 {round} 轮往返闭合 ⟹ 恒仓断言逐笔过"
             );
 
@@ -1777,13 +2082,31 @@ mod tests {
             }
         }
 
-        let round = recovered_at_round.expect("★首见证：8 轮内必须派发 RecoverCapital（阶段机到达 II）");
-        assert_eq!(round, 8, "净赚 4/股 x100 units x8 轮=3200≥notional_in(3000) ⟹ 第 8 轮足额退本金");
+        let round =
+            recovered_at_round.expect("★首见证：8 轮内必须派发 RecoverCapital（阶段机到达 II）");
+        assert_eq!(
+            round, 8,
+            "净赚 4/股 x100 units x8 轮=3200≥notional_in(3000) ⟹ 第 8 轮足额退本金"
+        );
 
-        let campaign = book.campaign(0, VoiceSide::Long).expect("退本金不终结 campaign（仓位仍在，只是阶段推进）");
-        assert_eq!(campaign.tw().stage, TStage::CapitalRecovered, "★阶段机第一次真正到达 II");
-        assert_eq!(campaign.tw().withdrawn, 3_000, "退本金额=notional_in（足额一次性退回）");
-        assert_eq!(campaign.tw().l_wc(), 0, "在险本金归零（缠师「成本为 0」的现金口径落地）");
+        let campaign = book
+            .campaign(0, VoiceSide::Long)
+            .expect("退本金不终结 campaign（仓位仍在，只是阶段推进）");
+        assert_eq!(
+            campaign.tw().stage,
+            TStage::CapitalRecovered,
+            "★阶段机第一次真正到达 II"
+        );
+        assert_eq!(
+            campaign.tw().withdrawn,
+            3_000,
+            "退本金额=notional_in（足额一次性退回）"
+        );
+        assert_eq!(
+            campaign.tw().l_wc(),
+            0,
+            "在险本金归零（缠师「成本为 0」的现金口径落地）"
+        );
         assert_eq!(
             campaign.short_diff().cost_basis(),
             snapshot(300, 3_000),
@@ -1792,8 +2115,18 @@ mod tests {
 
         // 全平即 campaign 死亡（联动 #274 出口规则：仓位归零时终结，不因阶段推进而提前终结）。
         let death = book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 0);
-        assert_eq!(death, Some(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, settlement: None }));
-        assert!(book.campaign(0, VoiceSide::Long).is_none(), "全平即 campaign 死亡");
+        assert_eq!(
+            death,
+            Some(CampaignLifecycleEvent::Died {
+                level: 0,
+                side: VoiceSide::Long,
+                settlement: None
+            })
+        );
+        assert!(
+            book.campaign(0, VoiceSide::Long).is_none(),
+            "全平即 campaign 死亡"
+        );
     }
 
     /// 趋势窗对照：卖出与买回同价（11，无价差可赚）——每轮 `Reduce` 的 `Realize=units·(price−
@@ -1805,11 +2138,35 @@ mod tests {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // avg_cost=10
         for _ in 0..8 {
-            book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 11, RiskMode::Normal, cid(0)).unwrap();
-            let cover = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 11, RiskMode::Normal, cid(0)).unwrap();
-            assert_eq!(cover.stage_event, None, "同价往返净 Realize=0 ⟹ free 不积累 ⟹ 不推进");
+            book.apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Reduce,
+                11,
+                RiskMode::Normal,
+                cid(0),
+            )
+            .unwrap();
+            let cover = book
+                .apply_action(
+                    0,
+                    VoiceSide::Long,
+                    CenterOscillationAction::Replenish,
+                    11,
+                    RiskMode::Normal,
+                    cid(0),
+                )
+                .unwrap();
+            assert_eq!(
+                cover.stage_event, None,
+                "同价往返净 Realize=0 ⟹ free 不积累 ⟹ 不推进"
+            );
         }
-        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().tw().stage, TStage::CostReduction, "趋势单边同价窗：诚实停留在 I，非硬凑到 0");
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().tw().stage,
+            TStage::CostReduction,
+            "趋势单边同价窗：诚实停留在 I，非硬凑到 0"
+        );
     }
 
     // ── CampaignWiringWitness（issue #357 验收③：产物级见证读数） ──────────
@@ -1824,8 +2181,14 @@ mod tests {
         w.record_trigger_result::<()>(&Err(TriggerError::FlatSignal));
         w.record_trigger_result::<()>(&Err(TriggerError::PriceOutsideZone));
         assert_eq!(w.trigger_attempts, 5, "丢弃率分母=全部尝试次数");
-        assert_eq!(w.dropped_center_not_alive, 2, "CenterNotAlive 单独分桶（丢弃率分子）");
-        assert_eq!(w.dropped_other_trigger, 2, "FlatSignal/PriceOutsideZone 合桶（非 CenterNotAlive 关注点）");
+        assert_eq!(
+            w.dropped_center_not_alive, 2,
+            "CenterNotAlive 单独分桶（丢弃率分子）"
+        );
+        assert_eq!(
+            w.dropped_other_trigger, 2,
+            "FlatSignal/PriceOutsideZone 合桶（非 CenterNotAlive 关注点）"
+        );
     }
 
     #[test]
@@ -1866,31 +2229,66 @@ mod tests {
         w.record_action(0, VoiceSide::Long, CenterOscillationAction::Reduce);
         w.record_action(0, VoiceSide::Long, CenterOscillationAction::Reduce);
         w.record_action(1, VoiceSide::Long, CenterOscillationAction::Replenish);
-        assert_eq!(w.action_by_level.get(&(0, "long", "reduce")), Some(&2), "归属正确：level 0 两次 Reduce 分桶计数");
-        assert_eq!(w.action_by_level.get(&(1, "long", "replenish")), Some(&1), "level 1 Replenish 独立分桶，不与 level 0 混计");
+        assert_eq!(
+            w.action_by_level.get(&(0, "long", "reduce")),
+            Some(&2),
+            "归属正确：level 0 两次 Reduce 分桶计数"
+        );
+        assert_eq!(
+            w.action_by_level.get(&(1, "long", "replenish")),
+            Some(&1),
+            "level 1 Replenish 独立分桶，不与 level 0 混计"
+        );
 
         // ★#414/#489：`superseded` 与 `reset` 桶均退役；只用三类点与 RebaseVanished 锁分桶。
         // ★#442：键增 level 维——同侧同来源跨级别独立成桶（探针的裁决量）。
-        w.record_suspension_source(0, VoiceSide::Long, SuspensionTerminationSource::BrokenByThirdClassBuy);
-        w.record_suspension_source(0, VoiceSide::Long, SuspensionTerminationSource::BrokenByThirdClassSell);
-        w.record_suspension_source(0, VoiceSide::Long, SuspensionTerminationSource::BrokenByThirdClassSell);
-        w.record_suspension_source(0, VoiceSide::Short, SuspensionTerminationSource::BrokenByThirdClassBuy);
-        w.record_suspension_source(2, VoiceSide::Long, SuspensionTerminationSource::RebaseVanished);
-        assert_eq!(w.suspension_by_source.get(&(0, "long", "broken_by_third_class_buy")), Some(&1));
+        w.record_suspension_source(
+            0,
+            VoiceSide::Long,
+            SuspensionTerminationSource::BrokenByThirdClassBuy,
+        );
+        w.record_suspension_source(
+            0,
+            VoiceSide::Long,
+            SuspensionTerminationSource::BrokenByThirdClassSell,
+        );
+        w.record_suspension_source(
+            0,
+            VoiceSide::Long,
+            SuspensionTerminationSource::BrokenByThirdClassSell,
+        );
+        w.record_suspension_source(
+            0,
+            VoiceSide::Short,
+            SuspensionTerminationSource::BrokenByThirdClassBuy,
+        );
+        w.record_suspension_source(
+            2,
+            VoiceSide::Long,
+            SuspensionTerminationSource::RebaseVanished,
+        );
         assert_eq!(
-            w.suspension_by_source.get(&(0, "long", "broken_by_third_class_sell")),
+            w.suspension_by_source
+                .get(&(0, "long", "broken_by_third_class_buy")),
+            Some(&1)
+        );
+        assert_eq!(
+            w.suspension_by_source
+                .get(&(0, "long", "broken_by_third_class_sell")),
             Some(&2),
             "挂起归宿分桶按来源独立累计"
         );
         // ★#381 关票修复：同一来源两侧独立分桶——多空并存时不得相加成 3（同一事件逐侧各产一条
         // `SuspensionOutcome`，混计即计数翻倍且无法归属）。
         assert_eq!(
-            w.suspension_by_source.get(&(0, "short", "broken_by_third_class_buy")),
+            w.suspension_by_source
+                .get(&(0, "short", "broken_by_third_class_buy")),
             Some(&1),
             "空头侧同来源独立成桶"
         );
         assert_eq!(
-            w.suspension_by_source.get(&(0, "short", "broken_by_third_class_sell")),
+            w.suspension_by_source
+                .get(&(0, "short", "broken_by_third_class_sell")),
             None,
             "空头侧未发生的来源不出现（不被多头侧读数污染）"
         );
@@ -1916,28 +2314,72 @@ mod tests {
         w.record_suspension_continued(2, VoiceSide::Long);
         w.record_suspension_continued(2, VoiceSide::Long);
         assert_eq!(w.suspension_continued_count.get(&(0, "long")), Some(&1));
-        assert_eq!(w.suspension_continued_count.get(&(2, "long")), Some(&2), "延续按级别独立累计");
+        assert_eq!(
+            w.suspension_continued_count.get(&(2, "long")),
+            Some(&2),
+            "延续按级别独立累计"
+        );
         w.record_settlement(0, VoiceSide::Long, TerminationSettlement::CoverAndClose);
         w.record_settlement(2, VoiceSide::Long, TerminationSettlement::WriteOffUnclosed);
-        assert_eq!(w.settlement_by_side.get(&(0, "long", "cover_and_close")), Some(&1));
-        assert_eq!(w.settlement_by_side.get(&(2, "long", "write_off_unclosed")), Some(&1), "清算终局按级别独立分桶");
+        assert_eq!(
+            w.settlement_by_side.get(&(0, "long", "cover_and_close")),
+            Some(&1)
+        );
+        assert_eq!(
+            w.settlement_by_side.get(&(2, "long", "write_off_unclosed")),
+            Some(&1),
+            "清算终局按级别独立分桶"
+        );
 
-        w.record_lifecycle(CampaignLifecycleEvent::Opened { level: 0, side: VoiceSide::Long, notional_in: 3_000 });
-        w.record_lifecycle(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, settlement: None });
-        w.record_lifecycle(CampaignLifecycleEvent::Opened { level: 0, side: VoiceSide::Short, notional_in: 1_000 });
+        w.record_lifecycle(CampaignLifecycleEvent::Opened {
+            level: 0,
+            side: VoiceSide::Long,
+            notional_in: 3_000,
+        });
+        w.record_lifecycle(CampaignLifecycleEvent::Died {
+            level: 0,
+            side: VoiceSide::Long,
+            settlement: None,
+        });
+        w.record_lifecycle(CampaignLifecycleEvent::Opened {
+            level: 0,
+            side: VoiceSide::Short,
+            notional_in: 1_000,
+        });
         // ★#381 关票修复：生死两轴分侧——事件已带 `side`，标量累加即跨侧求和。
         assert_eq!(w.lifecycle_opened.get("long"), Some(&1));
-        assert_eq!(w.lifecycle_opened.get("short"), Some(&1), "空头侧开局独立计数，不与多头侧相加");
+        assert_eq!(
+            w.lifecycle_opened.get("short"),
+            Some(&1),
+            "空头侧开局独立计数，不与多头侧相加"
+        );
         assert_eq!(w.lifecycle_died.get("long"), Some(&1));
-        assert_eq!(w.lifecycle_died.get("short"), None, "空头侧未死 ⟹ 该侧桶不出现（非 0 值混入）");
+        assert_eq!(
+            w.lifecycle_died.get("short"),
+            None,
+            "空头侧未死 ⟹ 该侧桶不出现（非 0 值混入）"
+        );
 
         assert!(w.no_active_campaign_count.is_empty());
-        assert_eq!(w.other_violation_count, 0, "接线正常路径下其余通道拒绝计数恒 0");
+        assert_eq!(
+            w.other_violation_count, 0,
+            "接线正常路径下其余通道拒绝计数恒 0"
+        );
         w.record_violation(VoiceSide::Long, CampaignViolation::NoActiveCampaign);
-        assert_eq!(w.no_active_campaign_count.get("long"), Some(&1), "NoActiveCampaign ⟹ 该侧真空仓的预期经济场景，按侧分桶");
+        assert_eq!(
+            w.no_active_campaign_count.get("long"),
+            Some(&1),
+            "NoActiveCampaign ⟹ 该侧真空仓的预期经济场景，按侧分桶"
+        );
         assert_eq!(w.other_violation_count, 0, "不误落入其余违规桶");
-        w.record_violation(VoiceSide::Long, CampaignViolation::SizingRoundsToZero { held: 2 });
-        assert_eq!(w.other_violation_count, 1, "SizingRoundsToZero 是真正的记账异常，落其余桶");
+        w.record_violation(
+            VoiceSide::Long,
+            CampaignViolation::SizingRoundsToZero { held: 2 },
+        );
+        assert_eq!(
+            w.other_violation_count, 1,
+            "SizingRoundsToZero 是真正的记账异常，落其余桶"
+        );
     }
 
     #[test]
@@ -1993,8 +2435,16 @@ mod tests {
         let mut w = CampaignWiringWitness::new();
         w.record_violation(VoiceSide::Long, CampaignViolation::NoActiveCampaign);
         w.record_violation(VoiceSide::Short, CampaignViolation::NoActiveCampaign);
-        assert_eq!(w.no_active_campaign_count.get("long"), Some(&1), "两侧同义、但按侧分列");
-        assert_eq!(w.no_active_campaign_count.get("short"), Some(&1), "空头侧不再落已退役的未支持桶");
+        assert_eq!(
+            w.no_active_campaign_count.get("long"),
+            Some(&1),
+            "两侧同义、但按侧分列"
+        );
+        assert_eq!(
+            w.no_active_campaign_count.get("short"),
+            Some(&1),
+            "空头侧不再落已退役的未支持桶"
+        );
         assert_eq!(w.other_violation_count, 0, "非记账错误，不落警报桶");
     }
 
@@ -2004,25 +2454,46 @@ mod tests {
     #[test]
     fn witness_buckets_holding_negative_and_flags_retired_free_negative_path() {
         let mut w = CampaignWiringWitness::new();
-        w.record_violation(VoiceSide::Long, 
+        w.record_violation(
+            VoiceSide::Long,
             CampaignViolation::ShortDiff(ShortDiffViolation::ChannelRejected(
-                TransitionError::CashUnsound { free: 10, holding: -5, withdrawn: 0 },
+                TransitionError::CashUnsound {
+                    free: 10,
+                    holding: -5,
+                    withdrawn: 0,
+                },
             )),
         );
-        assert_eq!(w.resource_exhausted_holding_negative_count.get("long"), Some(&1), "holding<0 ⟹ 预算耗尽子桶（按侧）");
-        assert_eq!(w.other_violation_count, 0, "holding<0 落资源耗尽子桶，不误落其余违规桶");
+        assert_eq!(
+            w.resource_exhausted_holding_negative_count.get("long"),
+            Some(&1),
+            "holding<0 ⟹ 预算耗尽子桶（按侧）"
+        );
+        assert_eq!(
+            w.other_violation_count, 0,
+            "holding<0 落资源耗尽子桶，不误落其余违规桶"
+        );
 
         // ★#380 项一：free<0 路径经 `short_diff_cash_gate` 放行入账后**已不可达**——旧
         // `resource_exhausted_free_negative_count` 桶随之退役；若仍到达即为通道被改坏的真正
         // 警报，落其余违规桶（而非静默吞入某个资源桶）。
-        w.record_violation(VoiceSide::Long, 
+        w.record_violation(
+            VoiceSide::Long,
             CampaignViolation::ShortDiff(ShortDiffViolation::ChannelRejected(
-                TransitionError::CashUnsound { free: -3, holding: 100, withdrawn: 0 },
+                TransitionError::CashUnsound {
+                    free: -3,
+                    holding: 100,
+                    withdrawn: 0,
+                },
             )),
         );
-        assert_eq!(w.other_violation_count, 1, "free<0 拒绝现已不可达 ⟹ 到达即警报");
         assert_eq!(
-            w.other_violation_by_kind.get(&("long", "cash_unsound_free_negative_unreachable")),
+            w.other_violation_count, 1,
+            "free<0 拒绝现已不可达 ⟹ 到达即警报"
+        );
+        assert_eq!(
+            w.other_violation_by_kind
+                .get(&("long", "cash_unsound_free_negative_unreachable")),
             Some(&1),
             "退役桶的残余路径按不可达标签归类，不复用旧资源桶名"
         );
@@ -2037,25 +2508,59 @@ mod tests {
     fn loss_round_trip_is_accounted_with_negative_bucket_cash() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // avg_cost=10
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
         let cover = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 50, RiskMode::Normal, cid(1))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                50,
+                RiskMode::Normal,
+                cid(1),
+            )
             .expect("★亏损往返如实入账——不再整笔拒绝");
-        assert!(cover.loss_accounted, "本次落账后桶现金为负 ⟹ 亏损入账标志置真");
-        assert_eq!(cover.tw.free, 100 * 12 - 100 * 50, "桶现金=-3800（短差累计倒贴）");
+        assert!(
+            cover.loss_accounted,
+            "本次落账后桶现金为负 ⟹ 亏损入账标志置真"
+        );
         assert_eq!(
-            book.campaign(0, VoiceSide::Long).unwrap().short_diff().bucket().realized_cash(),
+            cover.tw.free,
+            100 * 12 - 100 * 50,
+            "桶现金=-3800（短差累计倒贴）"
+        );
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long)
+                .unwrap()
+                .short_diff()
+                .bucket()
+                .realized_cash(),
             100 * 12 - 100 * 50,
             "报告层短差盈亏如实收负（不再系统性上偏）"
         );
         assert!(
-            book.campaign(0, VoiceSide::Long).unwrap().short_diff().assert_conserved().is_ok(),
+            book.campaign(0, VoiceSide::Long)
+                .unwrap()
+                .short_diff()
+                .assert_conserved()
+                .is_ok(),
             "亏损往返同样闭合（恒仓断言不受影响）"
         );
 
         let mut w = CampaignWiringWitness::new();
         w.record_loss_accounted(VoiceSide::Long);
-        assert_eq!(w.loss_round_trip_accounted_count.get("long"), Some(&1), "亏损入账计数桶接替退役的 free<0 拒绝桶（按侧）");
+        assert_eq!(
+            w.loss_round_trip_accounted_count.get("long"),
+            Some(&1),
+            "亏损入账计数桶接替退役的 free<0 拒绝桶（按侧）"
+        );
     }
 
     // ── #380 项二：sizing 基准冻结 vs 防线读当前 ─────────────────────────
@@ -2068,28 +2573,57 @@ mod tests {
     fn defense_reads_current_holding_while_sizing_stays_frozen() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
-        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().current_units(), 300, "开局：当前持仓=冻结快照");
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().current_units(),
+            300,
+            "开局：当前持仓=冻结快照"
+        );
 
         // 主仓被减到 50（仍持仓 ⟹ 无生死事件），冻结快照与 notional_in 均不动。
-        assert_eq!(book.sync_position(0, VoiceSide::Long, snapshot(50, 500), 3), None, "仍持仓 ⟹ 无生死事件");
+        assert_eq!(
+            book.sync_position(0, VoiceSide::Long, snapshot(50, 500), 3),
+            None,
+            "仍持仓 ⟹ 无生死事件"
+        );
         let campaign = book.campaign(0, VoiceSide::Long).unwrap();
         assert_eq!(campaign.current_units(), 50, "防线基准刷新为当时真实持仓");
-        assert_eq!(campaign.short_diff().cost_basis(), snapshot(300, 3_000), "sizing 基准=开局冻结快照，不动");
-        assert_eq!(campaign.tw().notional_in, 3_000, "notional_in 不因持仓变动而改写");
+        assert_eq!(
+            campaign.short_diff().cost_basis(),
+            snapshot(300, 3_000),
+            "sizing 基准=开局冻结快照，不动"
+        );
+        assert_eq!(
+            campaign.tw().notional_in,
+            3_000,
+            "notional_in 不因持仓变动而改写"
+        );
 
-        let result = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1));
+        let result = book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(1),
+        );
         assert_eq!(
             result,
-            Err(CampaignViolation::ShortDiff(ShortDiffViolation::UnitsExceedCostBasis {
-                held: 50,
-                attempted: 100,
-            })),
+            Err(CampaignViolation::ShortDiff(
+                ShortDiffViolation::UnitsExceedCostBasis {
+                    held: 50,
+                    attempted: 100,
+                }
+            )),
             "按冻结基准算量(100)>当时真实持仓(50) ⟹ 「不卖没有的货」显式拒绝"
         );
 
         let mut w = CampaignWiringWitness::new();
         w.record_violation(VoiceSide::Long, result.unwrap_err());
-        assert_eq!(w.defense_units_exceed_current_holding_count.get("long"), Some(&1), "防线拒绝落独立分桶（按侧，预期读数）");
+        assert_eq!(
+            w.defense_units_exceed_current_holding_count.get("long"),
+            Some(&1),
+            "防线拒绝落独立分桶（按侧，预期读数）"
+        );
         assert_eq!(w.other_violation_count, 0, "不混入接线错误警报桶");
     }
 
@@ -2111,12 +2645,30 @@ mod tests {
         let mut recovered_bar = None;
         for round in 1..=8u32 {
             let bar = 5 + round as usize * 10;
-            book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+            book.apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Reduce,
+                12,
+                RiskMode::Normal,
+                cid(1),
+            )
+            .unwrap();
             let cover = book
-                .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(1))
+                .apply_action(
+                    0,
+                    VoiceSide::Long,
+                    CenterOscillationAction::Replenish,
+                    8,
+                    RiskMode::Normal,
+                    cid(1),
+                )
                 .unwrap();
             if let Some(ev) = cover.stage_event {
-                let bars_since_open = book.campaign(0, VoiceSide::Long).unwrap().bars_since_open(bar);
+                let bars_since_open = book
+                    .campaign(0, VoiceSide::Long)
+                    .unwrap()
+                    .bars_since_open(bar);
                 w.record_stage_event(0, VoiceSide::Long, bar, bars_since_open, ev);
                 recovered_bar = Some(bar);
                 break;
@@ -2149,13 +2701,42 @@ mod tests {
     fn cover_only_settles_same_center_batches_in_arrival_order() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // avg_cost=10，sizing=100
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(2)).unwrap();
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(2),
+        )
+        .unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
 
         let campaign = book.campaign(0, VoiceSide::Long).unwrap();
         assert_eq!(
-            campaign.suspension().batches().iter().map(|b| (b.center, b.units, b.seq)).collect::<Vec<_>>(),
+            campaign
+                .suspension()
+                .batches()
+                .iter()
+                .map(|b| (b.center, b.units, b.seq))
+                .collect::<Vec<_>>(),
             vec![(cid(1), 100, 0), (cid(2), 100, 1), (cid(1), 100, 2)],
             "挂起批次带来源中枢标签，按到达序排列"
         );
@@ -2166,20 +2747,45 @@ mod tests {
         );
 
         let outcome = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 9, RiskMode::Normal, cid(1))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                9,
+                RiskMode::Normal,
+                cid(1),
+            )
             .unwrap();
-        assert_eq!(outcome.units, 200, "★#414：算量只看同中枢（cid1 两批 100+100），不含 cid2");
+        assert_eq!(
+            outcome.units, 200,
+            "★#414：算量只看同中枢（cid1 两批 100+100），不含 cid2"
+        );
         assert_eq!(
             outcome.cover,
             vec![
-                CoverAssignment { center: cid(1), units: 100, seq: 0, same_center: true },
-                CoverAssignment { center: cid(1), units: 100, seq: 2, same_center: true },
+                CoverAssignment {
+                    center: cid(1),
+                    units: 100,
+                    seq: 0,
+                    same_center: true
+                },
+                CoverAssignment {
+                    center: cid(1),
+                    units: 100,
+                    seq: 2,
+                    same_center: true
+                },
             ],
             "★#414：只冲抵同中枢（cid1）两批，按到达序；cid2 不被静默冲抵"
         );
         let remaining = book.campaign(0, VoiceSide::Long).unwrap();
         assert_eq!(
-            remaining.suspension().batches().iter().map(|b| (b.center, b.units)).collect::<Vec<_>>(),
+            remaining
+                .suspension()
+                .batches()
+                .iter()
+                .map(|b| (b.center, b.units))
+                .collect::<Vec<_>>(),
             vec![(cid(2), 100)],
             "★#414：cid2 的挂起原样留着，等自己中枢的回补/三类点清算"
         );
@@ -2191,7 +2797,11 @@ mod tests {
 
         let mut w = CampaignWiringWitness::new();
         w.record_cover(VoiceSide::Long, &outcome.cover);
-        assert_eq!(w.cover_by_side.get(&("long", "same_center")), Some(&2), "同中枢冲抵计数（按侧）");
+        assert_eq!(
+            w.cover_by_side.get(&("long", "same_center")),
+            Some(&2),
+            "同中枢冲抵计数（按侧）"
+        );
         assert_eq!(
             w.cover_by_side.get(&("long", "other_center")),
             None,
@@ -2205,23 +2815,56 @@ mod tests {
     fn replenish_from_foreign_center_is_rejected_and_bucketed_separately() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
-        let result = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 9, RiskMode::Normal, cid(2));
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
+        let result = book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Replenish,
+            9,
+            RiskMode::Normal,
+            cid(2),
+        );
         assert_eq!(
             result,
-            Err(CampaignViolation::ReplenishForeignCenter { open_units_total: 100 }),
+            Err(CampaignViolation::ReplenishForeignCenter {
+                open_units_total: 100
+            }),
             "有货但不是这个中枢的 ⟹ 拒绝，不拿 cid2 的回补抹平 cid1 的挂起"
         );
         assert_eq!(
-            book.campaign(0, VoiceSide::Long).unwrap().suspension().open_units(),
+            book.campaign(0, VoiceSide::Long)
+                .unwrap()
+                .suspension()
+                .open_units(),
             100,
             "拒绝后账本一分不动"
         );
 
         let mut w = CampaignWiringWitness::new();
-        w.record_violation(VoiceSide::Long, CampaignViolation::ReplenishForeignCenter { open_units_total: 100 });
-        assert_eq!(w.replenish_foreign_center_count.get("long"), Some(&1), "独立分桶如实计数（按侧）");
-        assert_eq!(w.replenish_triggered_but_full_count.get("long"), None, "不与「货本就满」混桶");
+        w.record_violation(
+            VoiceSide::Long,
+            CampaignViolation::ReplenishForeignCenter {
+                open_units_total: 100,
+            },
+        );
+        assert_eq!(
+            w.replenish_foreign_center_count.get("long"),
+            Some(&1),
+            "独立分桶如实计数（按侧）"
+        );
+        assert_eq!(
+            w.replenish_triggered_but_full_count.get("long"),
+            None,
+            "不与「货本就满」混桶"
+        );
         assert_eq!(w.other_violation_count, 0, "预期经济场景，不落警报桶");
     }
 
@@ -2231,16 +2874,41 @@ mod tests {
     fn replenish_while_full_is_typed_and_bucketed_separately() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
-        let result = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 9, RiskMode::Normal, cid(1));
-        assert_eq!(result, Err(CampaignViolation::ReplenishWhileFull), "无挂起可回补 ⟹ 触发但货满");
+        let result = book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Replenish,
+            9,
+            RiskMode::Normal,
+            cid(1),
+        );
+        assert_eq!(
+            result,
+            Err(CampaignViolation::ReplenishWhileFull),
+            "无挂起可回补 ⟹ 触发但货满"
+        );
 
         let mut w = CampaignWiringWitness::new();
         w.record_violation(VoiceSide::Long, CampaignViolation::ReplenishWhileFull);
-        assert_eq!(w.replenish_triggered_but_full_count.get("long"), Some(&1), "「触发但货满」独立分桶如实计数（按侧）");
+        assert_eq!(
+            w.replenish_triggered_but_full_count.get("long"),
+            Some(&1),
+            "「触发但货满」独立分桶如实计数（按侧）"
+        );
         assert_eq!(w.other_violation_count, 0, "非记账错误，不落警报桶");
-        w.record_violation(VoiceSide::Long, CampaignViolation::SizingRoundsToZero { held: 2 });
-        assert_eq!(w.other_violation_count, 1, "sizing 取整异常仍是警报，两者不混计");
-        assert_eq!(w.replenish_triggered_but_full_count.get("long"), Some(&1), "货满桶不被误增");
+        w.record_violation(
+            VoiceSide::Long,
+            CampaignViolation::SizingRoundsToZero { held: 2 },
+        );
+        assert_eq!(
+            w.other_violation_count, 1,
+            "sizing 取整异常仍是警报，两者不混计"
+        );
+        assert_eq!(
+            w.replenish_triggered_but_full_count.get("long"),
+            Some(&1),
+            "货满桶不被误增"
+        );
     }
 
     // ── ★#366 未闭合减出核销（补充裁定 2026-07-27）：货缺口/桶实收现金分列，不冲销 ────
@@ -2252,9 +2920,33 @@ mod tests {
     fn write_off_settles_only_the_terminated_center_and_reports_gap_and_cash_separately() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // avg_cost=10，sizing=100
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(2)).unwrap();
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(2),
+        )
+        .unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
 
         let reduction = book
             .write_off_unclosed(0, VoiceSide::Long, cid(1))
@@ -2271,7 +2963,12 @@ mod tests {
 
         let campaign = book.campaign(0, VoiceSide::Long).unwrap();
         assert_eq!(
-            campaign.suspension().batches().iter().map(|b| (b.center, b.units)).collect::<Vec<_>>(),
+            campaign
+                .suspension()
+                .batches()
+                .iter()
+                .map(|b| (b.center, b.units))
+                .collect::<Vec<_>>(),
             vec![(cid(2), 100)],
             "只核销终局中枢那两批，cid(2) 的挂起继续等"
         );
@@ -2280,7 +2977,11 @@ mod tests {
             campaign.short_diff().bucket().open_units(),
             "核销后归属账与桶标量仍恒等（同步推进，不失同步）"
         );
-        assert_eq!(campaign.short_diff().bucket().written_off_units(), 200, "核销量留痕（不装没发生）");
+        assert_eq!(
+            campaign.short_diff().bucket().written_off_units(),
+            200,
+            "核销量留痕（不装没发生）"
+        );
     }
 
     /// ★不冲销的行为化断言：核销**不产任何 TW 事件**——TW 三量与 `realized_cash` 在核销前后
@@ -2289,19 +2990,37 @@ mod tests {
     fn write_off_does_not_offset_anything_tw_and_cash_are_byte_identical() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
         let before = book.campaign(0, VoiceSide::Long).unwrap().clone();
 
-        book.write_off_unclosed(0, VoiceSide::Long, cid(1)).unwrap().expect("有挂起可核销");
+        book.write_off_unclosed(0, VoiceSide::Long, cid(1))
+            .unwrap()
+            .expect("有挂起可核销");
         let after = book.campaign(0, VoiceSide::Long).unwrap();
-        assert_eq!(after.tw(), before.tw(), "核销不产 TwEvent ⟹ TW 三量不变（货缺口留在账上）");
+        assert_eq!(
+            after.tw(),
+            before.tw(),
+            "核销不产 TwEvent ⟹ TW 三量不变（货缺口留在账上）"
+        );
         assert_eq!(after.ledger(), before.ledger(), "R 账本同样不动");
         assert_eq!(
             after.short_diff().bucket().realized_cash(),
             before.short_diff().bucket().realized_cash(),
             "桶实收现金照留（减出腿当时已入账），不被核销冲掉"
         );
-        assert_eq!(after.short_diff().bucket().open_units(), 0, "在途量归位（承诺已终局，不再等回补）");
+        assert_eq!(
+            after.short_diff().bucket().open_units(),
+            0,
+            "在途量归位（承诺已终局，不再等回补）"
+        );
     }
 
     /// 无挂起可核销的两种诚实情形均返回 `Ok(None)`（非错误）：① 该中枢本就没有挂起批次；
@@ -2310,8 +3029,17 @@ mod tests {
     fn write_off_with_nothing_to_settle_is_ok_none_not_an_error() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
-        assert_eq!(book.write_off_unclosed(0, VoiceSide::Long, cid(1)).unwrap(), None, "该中枢无挂起批次");
-        assert_eq!(book.write_off_unclosed(0, VoiceSide::Short, cid(1)).unwrap(), None, "该侧无 campaign");
+        assert_eq!(
+            book.write_off_unclosed(0, VoiceSide::Long, cid(1)).unwrap(),
+            None,
+            "该中枢无挂起批次"
+        );
+        assert_eq!(
+            book.write_off_unclosed(0, VoiceSide::Short, cid(1))
+                .unwrap(),
+            None,
+            "该侧无 campaign"
+        );
     }
 
     /// 核销后**同中枢的幽灵回补路径**也随之关闭：在途量已归位 ⟹ 再来一次 `Replenish` 落
@@ -2320,10 +3048,27 @@ mod tests {
     fn replenish_after_write_off_is_rejected_as_full_not_resurrected() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
-        book.write_off_unclosed(0, VoiceSide::Long, cid(1)).unwrap().unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
+        book.write_off_unclosed(0, VoiceSide::Long, cid(1))
+            .unwrap()
+            .unwrap();
         assert_eq!(
-            book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 9, RiskMode::Normal, cid(1)),
+            book.apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                9,
+                RiskMode::Normal,
+                cid(1)
+            ),
             Err(CampaignViolation::ReplenishWhileFull),
             "已核销的货不得被后续回补复活"
         );
@@ -2341,21 +3086,53 @@ mod tests {
     fn write_off_applies_symmetrically_to_short_side() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 0); // avg_cost=10，sizing=100
-        let cash_before = book.campaign(0, VoiceSide::Short).unwrap().short_diff().bucket().realized_cash();
-        book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(1)).unwrap();
-        let cash_after = book.campaign(0, VoiceSide::Short).unwrap().short_diff().bucket().realized_cash();
+        let cash_before = book
+            .campaign(0, VoiceSide::Short)
+            .unwrap()
+            .short_diff()
+            .bucket()
+            .realized_cash();
+        book.apply_action(
+            0,
+            VoiceSide::Short,
+            CenterOscillationAction::Reduce,
+            8,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
+        let cash_after = book
+            .campaign(0, VoiceSide::Short)
+            .unwrap()
+            .short_diff()
+            .bucket()
+            .realized_cash();
         assert_eq!(
             cash_after - cash_before,
             100 * (2 * 10 - 8),
             "空头减出腿桶实收=units·avg_cost+units·(avg_cost−price)=units·(2·avg_cost−price)"
         );
 
-        let reduction = book.write_off_unclosed(0, VoiceSide::Short, cid(1)).unwrap().expect("空头侧同样可核销");
+        let reduction = book
+            .write_off_unclosed(0, VoiceSide::Short, cid(1))
+            .unwrap()
+            .expect("空头侧同样可核销");
         assert_eq!(reduction.side, VoiceSide::Short);
         assert_eq!(reduction.units_gap, 100);
-        assert_eq!(reduction.cash_booked, 1_200, "桶实收=100·(2·10−8)=1200，非成交额 100·8=800");
-        assert_eq!(reduction.cash_booked, cash_after - cash_before, "现金一笔恒等于桶实收增量，不另立公式");
-        assert_ne!(reduction.cash_booked, 100 * 8, "空头侧不得回退到 Σ units·price 旧口径");
+        assert_eq!(
+            reduction.cash_booked, 1_200,
+            "桶实收=100·(2·10−8)=1200，非成交额 100·8=800"
+        );
+        assert_eq!(
+            reduction.cash_booked,
+            cash_after - cash_before,
+            "现金一笔恒等于桶实收增量，不另立公式"
+        );
+        assert_ne!(
+            reduction.cash_booked,
+            100 * 8,
+            "空头侧不得回退到 Σ units·price 旧口径"
+        );
     }
 
     // ── ★#441 死亡吞挂起 = 未闭合减出核销（ADR 补充十二，2026-07-27 用户裁定） ────
@@ -2367,8 +3144,24 @@ mod tests {
     fn death_writes_off_open_suspensions_across_all_centers_and_reports_gap_and_cash_separately() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // avg_cost=10，sizing=100
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(2)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(2),
+        )
+        .unwrap();
 
         let outcome = book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 1);
         assert_eq!(
@@ -2380,7 +3173,10 @@ mod tests {
             }),
             "死亡吞挂起：两个来源中枢的挂起一并核销（货缺口 200 股 / 桶实收 200·12=2400，分列不相减）"
         );
-        assert!(book.campaign(0, VoiceSide::Long).is_none(), "全平后 campaign 实例被移除（生死语义不变）");
+        assert!(
+            book.campaign(0, VoiceSide::Long).is_none(),
+            "全平后 campaign 实例被移除（生死语义不变）"
+        );
     }
 
     /// 无挂起可核销的死亡照实记 `None`（不编造零读数记录）——高抛已自然收口，或本就没做过短差。
@@ -2390,7 +3186,11 @@ mod tests {
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
         assert_eq!(
             book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 1),
-            Some(CampaignLifecycleEvent::Died { level: 0, side: VoiceSide::Long, settlement: None }),
+            Some(CampaignLifecycleEvent::Died {
+                level: 0,
+                side: VoiceSide::Long,
+                settlement: None
+            }),
             "无挂起 ⟹ 无核销记录"
         );
     }
@@ -2401,14 +3201,26 @@ mod tests {
     fn death_write_off_applies_symmetrically_to_short_side() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 0); // avg_cost=10，sizing=100
-        book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(1)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Short,
+            CenterOscillationAction::Reduce,
+            8,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
         let outcome = book.sync_position(0, VoiceSide::Short, snapshot(0, 0), 1);
         assert_eq!(
             outcome,
             Some(CampaignLifecycleEvent::Died {
                 level: 0,
                 side: VoiceSide::Short,
-                settlement: Some(DeathWriteOff { units_gap: 100, cash_booked: 1_200, centers: 1 }),
+                settlement: Some(DeathWriteOff {
+                    units_gap: 100,
+                    cash_booked: 1_200,
+                    centers: 1
+                }),
             }),
             "空头侧桶实收=100·(2·10−8)=1200，不得回退到 Σ units·price=800 旧口径"
         );
@@ -2420,7 +3232,15 @@ mod tests {
     fn death_takes_precedence_over_continuation_third_class_settlement_finds_nothing() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
         book.sync_position(0, VoiceSide::Long, snapshot(0, 0), 1); // 死亡吞挂起
 
         assert_eq!(
@@ -2438,14 +3258,33 @@ mod tests {
         w.record_lifecycle(CampaignLifecycleEvent::Died {
             level: 0,
             side: VoiceSide::Long,
-            settlement: Some(DeathWriteOff { units_gap: 200, cash_booked: 2_400, centers: 2 }),
+            settlement: Some(DeathWriteOff {
+                units_gap: 200,
+                cash_booked: 2_400,
+                centers: 2,
+            }),
         });
-        w.record_lifecycle(CampaignLifecycleEvent::Died { level: 1, side: VoiceSide::Long, settlement: None });
-        assert_eq!(w.lifecycle_died.get("long"), Some(&2), "两次死亡（生死桶不受本票影响）");
-        assert_eq!(w.death_write_off_count.get("long"), Some(&1), "只有带挂起的那次记核销");
+        w.record_lifecycle(CampaignLifecycleEvent::Died {
+            level: 1,
+            side: VoiceSide::Long,
+            settlement: None,
+        });
+        assert_eq!(
+            w.lifecycle_died.get("long"),
+            Some(&2),
+            "两次死亡（生死桶不受本票影响）"
+        );
+        assert_eq!(
+            w.death_write_off_count.get("long"),
+            Some(&1),
+            "只有带挂起的那次记核销"
+        );
         assert_eq!(w.death_write_off_units_gap.get("long"), Some(&200));
         assert_eq!(w.death_write_off_cash_booked.get("long"), Some(&2_400));
-        assert!(w.unclosed_write_off_count.is_empty(), "死亡核销不落结构终结核销桶（两路径分列）");
+        assert!(
+            w.unclosed_write_off_count.is_empty(),
+            "死亡核销不落结构终结核销桶（两路径分列）"
+        );
     }
 
     // ── #381：空头 campaign（键含侧 + 镜像减补 + 多空并存不污染） ──────────
@@ -2460,24 +3299,51 @@ mod tests {
         let opened = book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 0); // avg_cost=10
         assert_eq!(
             opened,
-            Some(CampaignLifecycleEvent::Opened { level: 0, side: VoiceSide::Short, notional_in: 3_000 }),
+            Some(CampaignLifecycleEvent::Opened {
+                level: 0,
+                side: VoiceSide::Short,
+                notional_in: 3_000
+            }),
             "空头侧开局生（生死事件带侧）"
         );
-        let campaign = book.campaign(0, VoiceSide::Short).expect("空头 campaign 存在");
+        let campaign = book
+            .campaign(0, VoiceSide::Short)
+            .expect("空头 campaign 存在");
         assert_eq!(campaign.side(), VoiceSide::Short);
-        assert!(book.campaign(0, VoiceSide::Long).is_none(), "多头侧无仓 ⟹ 无多头 campaign");
+        assert!(
+            book.campaign(0, VoiceSide::Long).is_none(),
+            "多头侧无仓 ⟹ 无多头 campaign"
+        );
         let start_tw = campaign.tw();
 
         // 减=回补空头 @8（低于均价 10 ⟹ 空头获利）。
         let reduce = book
-            .apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(1))
+            .apply_action(
+                0,
+                VoiceSide::Short,
+                CenterOscillationAction::Reduce,
+                8,
+                RiskMode::Normal,
+                cid(1),
+            )
             .unwrap();
         assert_eq!(reduce.units, 100, "sizing 口径不分侧：当时持仓(300)/3");
-        assert_eq!(reduce.ledger.pi, 100 * (10 - 8), "空头减 Realize=units·(avg_cost−price)=+200（跌了才赚）");
+        assert_eq!(
+            reduce.ledger.pi,
+            100 * (10 - 8),
+            "空头减 Realize=units·(avg_cost−price)=+200（跌了才赚）"
+        );
 
         // 补=加回空头 @12（高于均价 ⟹ 卖得更高，同样为赚）。
         let replenish = book
-            .apply_action(0, VoiceSide::Short, CenterOscillationAction::Replenish, 12, RiskMode::Normal, cid(1))
+            .apply_action(
+                0,
+                VoiceSide::Short,
+                CenterOscillationAction::Replenish,
+                12,
+                RiskMode::Normal,
+                cid(1),
+            )
             .unwrap();
         assert_eq!(replenish.units, 100, "阶段一恒仓约束硬：全额加回挂起在途量");
         assert_eq!(
@@ -2492,10 +3358,25 @@ mod tests {
         );
 
         let after = book.campaign(0, VoiceSide::Short).unwrap();
-        assert_eq!(after.short_diff().bucket().realized_cash(), 100 * (12 - 8), "收口后累计=该侧真实盈利");
-        assert!(after.short_diff().assert_conserved().is_ok(), "同股数进出 ⟹ 恒仓断言过");
-        assert_eq!(after.tw().holding, start_tw.holding, "ShortDiff 两腿相消 ⟹ 在险成本基回原值（与多头侧同构）");
-        assert_eq!(after.short_diff().cost_basis(), snapshot(300, 3_000), "本仓成本基全程不动（修7，两侧同）");
+        assert_eq!(
+            after.short_diff().bucket().realized_cash(),
+            100 * (12 - 8),
+            "收口后累计=该侧真实盈利"
+        );
+        assert!(
+            after.short_diff().assert_conserved().is_ok(),
+            "同股数进出 ⟹ 恒仓断言过"
+        );
+        assert_eq!(
+            after.tw().holding,
+            start_tw.holding,
+            "ShortDiff 两腿相消 ⟹ 在险成本基回原值（与多头侧同构）"
+        );
+        assert_eq!(
+            after.short_diff().cost_basis(),
+            snapshot(300, 3_000),
+            "本仓成本基全程不动（修7，两侧同）"
+        );
     }
 
     /// ★#381 镜像的反面：空头侧「减」在价格**高于**均价时如实亏损入账（涨了回补空头=亏），
@@ -2504,14 +3385,36 @@ mod tests {
     fn short_campaign_loss_is_accounted_symmetrically() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 0); // avg_cost=10
-        book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(1))
-            .unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Short,
+            CenterOscillationAction::Reduce,
+            8,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
         let cover = book
-            .apply_action(0, VoiceSide::Short, CenterOscillationAction::Replenish, 4, RiskMode::Normal, cid(1))
+            .apply_action(
+                0,
+                VoiceSide::Short,
+                CenterOscillationAction::Replenish,
+                4,
+                RiskMode::Normal,
+                cid(1),
+            )
             .expect("★亏损往返如实入账（两侧对称）");
-        assert_eq!(cover.ledger.pi, 100 * (10 - 8) + 100 * (4 - 10), "加回价低于均价 ⟹ 本腿 Realize 为负");
         assert_eq!(
-            book.campaign(0, VoiceSide::Short).unwrap().short_diff().bucket().realized_cash(),
+            cover.ledger.pi,
+            100 * (10 - 8) + 100 * (4 - 10),
+            "加回价低于均价 ⟹ 本腿 Realize 为负"
+        );
+        assert_eq!(
+            book.campaign(0, VoiceSide::Short)
+                .unwrap()
+                .short_diff()
+                .bucket()
+                .realized_cash(),
             100 * (4 - 8),
             "整轮累计=units·(p_补−p_减)=−400，报告层如实收负"
         );
@@ -2525,17 +3428,48 @@ mod tests {
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
         book.sync_position(0, VoiceSide::Short, snapshot(50, 1_000), 0);
         assert_eq!(book.active_count(), 2, "同级两侧各一本账（键含侧，不覆盖）");
-        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().tw().notional_in, 3_000);
-        assert_eq!(book.campaign(0, VoiceSide::Short).unwrap().tw().notional_in, 1_000);
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().tw().notional_in,
+            3_000
+        );
+        assert_eq!(
+            book.campaign(0, VoiceSide::Short).unwrap().tw().notional_in,
+            1_000
+        );
 
         // 两侧各减一次：sizing 各按各侧冻结快照，互不冲抵。
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1))
-            .unwrap();
-        book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(1))
-            .unwrap();
-        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().short_diff().bucket().open_units(), 100);
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Short,
+            CenterOscillationAction::Reduce,
+            8,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
         assert_eq!(
-            book.campaign(0, VoiceSide::Short).unwrap().short_diff().bucket().open_units(),
+            book.campaign(0, VoiceSide::Long)
+                .unwrap()
+                .short_diff()
+                .bucket()
+                .open_units(),
+            100
+        );
+        assert_eq!(
+            book.campaign(0, VoiceSide::Short)
+                .unwrap()
+                .short_diff()
+                .bucket()
+                .open_units(),
             16,
             "空头侧 sizing=50/3=16，不被多头侧的 100 污染"
         );
@@ -2548,12 +3482,19 @@ mod tests {
                 side: VoiceSide::Short,
                 // ★#441：空头侧 avg_cost=1000/50=20、减出价 8 ⟹ 桶实收=16·(2·20−8)=512
                 // （非成交额 16·8——空头「减」是买回，见 `UnclosedReduction` 分列声明）。
-                settlement: Some(DeathWriteOff { units_gap: 16, cash_booked: 16 * (2 * 20 - 8), centers: 1 }),
+                settlement: Some(DeathWriteOff {
+                    units_gap: 16,
+                    cash_booked: 16 * (2 * 20 - 8),
+                    centers: 1
+                }),
             }),
             "空头侧全平死（挂起随死，带侧）"
         );
         assert_eq!(book.active_count(), 1);
-        assert!(book.campaign(0, VoiceSide::Long).is_some(), "多头侧不受牵连");
+        assert!(
+            book.campaign(0, VoiceSide::Long).is_some(),
+            "多头侧不受牵连"
+        );
     }
 
     /// ★#381：witness 的动作分桶与阶段事件明细均带持仓侧——两侧同级同动作不再混桶。
@@ -2564,7 +3505,11 @@ mod tests {
         w.record_action(0, VoiceSide::Short, CenterOscillationAction::Reduce);
         w.record_action(0, VoiceSide::Short, CenterOscillationAction::Reduce);
         assert_eq!(w.action_by_level.get(&(0, "long", "reduce")), Some(&1));
-        assert_eq!(w.action_by_level.get(&(0, "short", "reduce")), Some(&2), "同级同动作按侧分列");
+        assert_eq!(
+            w.action_by_level.get(&(0, "short", "reduce")),
+            Some(&2),
+            "同级同动作按侧分列"
+        );
 
         w.record_stage_event(0, VoiceSide::Short, 12, 7, TwEvent::RecoverCapital(1_000));
         assert_eq!(
@@ -2591,7 +3536,11 @@ mod tests {
         w.record_loss_accounted(VoiceSide::Short);
         w.record_loss_accounted(VoiceSide::Short);
         assert_eq!(w.loss_round_trip_accounted_count.get("long"), Some(&1));
-        assert_eq!(w.loss_round_trip_accounted_count.get("short"), Some(&2), "两侧不相加（同名不同义）");
+        assert_eq!(
+            w.loss_round_trip_accounted_count.get("short"),
+            Some(&2),
+            "两侧不相加（同名不同义）"
+        );
 
         w.record_violation(
             VoiceSide::Short,
@@ -2600,20 +3549,45 @@ mod tests {
                 attempted: 9,
             }),
         );
-        assert_eq!(w.defense_units_exceed_current_holding_count.get("short"), Some(&1));
-        assert_eq!(w.defense_units_exceed_current_holding_count.get("long"), None, "多头侧不被误增");
+        assert_eq!(
+            w.defense_units_exceed_current_holding_count.get("short"),
+            Some(&1)
+        );
+        assert_eq!(
+            w.defense_units_exceed_current_holding_count.get("long"),
+            None,
+            "多头侧不被误增"
+        );
 
         w.record_violation(VoiceSide::Short, CampaignViolation::ReplenishWhileFull);
         assert_eq!(w.replenish_triggered_but_full_count.get("short"), Some(&1));
 
         let cover = vec![
-            CoverAssignment { center: cid(1), units: 10, seq: 0, same_center: true },
-            CoverAssignment { center: cid(2), units: 10, seq: 1, same_center: false },
+            CoverAssignment {
+                center: cid(1),
+                units: 10,
+                seq: 0,
+                same_center: true,
+            },
+            CoverAssignment {
+                center: cid(2),
+                units: 10,
+                seq: 1,
+                same_center: false,
+            },
         ];
         w.record_cover(VoiceSide::Short, &cover);
-        assert_eq!(w.cover_by_side.get(&("short", "same_center")), Some(&1), "冲抵归属带侧");
+        assert_eq!(
+            w.cover_by_side.get(&("short", "same_center")),
+            Some(&1),
+            "冲抵归属带侧"
+        );
         assert_eq!(w.cover_by_side.get(&("short", "other_center")), Some(&1));
-        assert_eq!(w.cover_by_side.get(&("long", "same_center")), None, "多头侧冲抵桶不被空头污染");
+        assert_eq!(
+            w.cover_by_side.get(&("long", "same_center")),
+            None,
+            "多头侧冲抵桶不被空头污染"
+        );
 
         assert_eq!(w.other_violation_count, 0, "以上全为预期读数，非警报");
     }
@@ -2637,8 +3611,24 @@ mod tests {
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
         for round in 1..=8usize {
             book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), round);
-            book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
-            book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0)).unwrap();
+            book.apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Reduce,
+                12,
+                RiskMode::Normal,
+                cid(0),
+            )
+            .unwrap();
+            book.apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                8,
+                RiskMode::Normal,
+                cid(0),
+            )
+            .unwrap();
         }
         assert_eq!(
             book.campaign(0, VoiceSide::Long).unwrap().tw().stage,
@@ -2650,14 +3640,38 @@ mod tests {
         let event_bar = 9usize;
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), event_bar);
         let sell = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Reduce,
+                12,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
-        assert_eq!(sell.stage_event, None, "★挂起非空 ⟹ 阶段推进被前置拦下（判据订正）");
-        assert!(sell.stage_progress_suspended, "★拦下这一次可观测（free 够本金但挂起非空）");
+        assert_eq!(
+            sell.stage_event, None,
+            "★挂起非空 ⟹ 阶段推进被前置拦下（判据订正）"
+        );
+        assert!(
+            sell.stage_progress_suspended,
+            "★拦下这一次可观测（free 够本金但挂起非空）"
+        );
         let out = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                8,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
-        assert_eq!(out.stage_event, Some(TwEvent::EnterEarning), "收口后挂起归零 ⟹ 派 EnterEarning");
+        assert_eq!(
+            out.stage_event,
+            Some(TwEvent::EnterEarning),
+            "收口后挂起归零 ⟹ 派 EnterEarning"
+        );
         assert!(!out.stage_progress_suspended, "放行的那次不计入被拦桶");
         (book, event_bar, event_bar + 1)
     }
@@ -2669,11 +3683,26 @@ mod tests {
         let (mut book, event_bar, effective_bar) = book_at_earning_stage();
         let c = book.campaign(0, VoiceSide::Long).unwrap();
         assert_eq!(c.earning_event_bar(), Some(event_bar), "事件 bar 已记录");
-        assert!(!c.earning_active(), "★同 bar 不换尺：事件 bar 上等金额 sizing 尚未生效");
-        assert_eq!(c.suspension().open_units(), 0, "判据前置：派事件的那一刻挂起必为空");
+        assert!(
+            !c.earning_active(),
+            "★同 bar 不换尺：事件 bar 上等金额 sizing 尚未生效"
+        );
+        assert_eq!(
+            c.suspension().open_units(),
+            0,
+            "判据前置：派事件的那一刻挂起必为空"
+        );
 
         // 事件 bar 上再落一笔减出（100 股 @12）——尺未换 ⟹ 按阶段一锁定，不进等金额现金池。
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(0),
+        )
+        .unwrap();
         assert_eq!(
             book.campaign(0, VoiceSide::Long).unwrap().earning_pool(),
             0,
@@ -2682,15 +3711,28 @@ mod tests {
 
         // 该挂起在同 bar 收口 ⟹ 等量买回 100，无净增股数。
         let cover = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                8,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
-        assert_eq!(cover.units, 100, "旧账按卖出时锁定：阶段一卖出 ⟹ 回补永远等量");
+        assert_eq!(
+            cover.units, 100,
+            "旧账按卖出时锁定：阶段一卖出 ⟹ 回补永远等量"
+        );
         assert!(!cover.earning_replenish, "非等金额回补");
         assert_eq!(cover.earning_units_gained, 0, "等量口径无净增股数");
 
         // 次 bar：sync 推进 bar 时钟 ⟹ 模式生效。
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar);
-        assert!(book.campaign(0, VoiceSide::Long).unwrap().earning_active(), "★次 bar 换模式");
+        assert!(
+            book.campaign(0, VoiceSide::Long).unwrap().earning_active(),
+            "★次 bar 换模式"
+        );
     }
 
     /// ★题一（等金额 sizing）核心用例：阶段三生效后 `Reduce` 100@12 收 1_200 现金，
@@ -2703,9 +3745,19 @@ mod tests {
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar);
 
         let sell = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Reduce,
+                12,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
-        assert_eq!(sell.units, 100, "高抛侧维持持仓 1/3（阶段三只改回补侧，补充八题一）");
+        assert_eq!(
+            sell.units, 100,
+            "高抛侧维持持仓 1/3（阶段三只改回补侧，补充八题一）"
+        );
         assert_eq!(
             book.campaign(0, VoiceSide::Long).unwrap().earning_pool(),
             1_200,
@@ -2714,15 +3766,35 @@ mod tests {
 
         let free_before = book.campaign(0, VoiceSide::Long).unwrap().tw().free;
         let cover = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                8,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
-        assert_eq!(cover.units, 150, "★等金额回补 floor(1200/8)=150 股（抛出所得现金全额回补）");
+        assert_eq!(
+            cover.units, 150,
+            "★等金额回补 floor(1200/8)=150 股（抛出所得现金全额回补）"
+        );
         assert!(cover.earning_replenish, "本次是等金额口径");
-        assert_eq!(cover.earning_units_gained, 50, "★净增 50 股 = 150−100（挣股数）");
-        assert_eq!(cover.tw.free, free_before - 1_200, "桶现金恰扣 150·8=1200（现金不透支）");
+        assert_eq!(
+            cover.earning_units_gained, 50,
+            "★净增 50 股 = 150−100（挣股数）"
+        );
+        assert_eq!(
+            cover.tw.free,
+            free_before - 1_200,
+            "桶现金恰扣 150·8=1200（现金不透支）"
+        );
         let c = book.campaign(0, VoiceSide::Long).unwrap();
         assert_eq!(c.earning_pool(), 0, "整除 ⟹ 无零头");
-        assert!(c.short_diff().assert_conserved().is_ok(), "挂起在途量归零（收口腿等量冲抵）");
+        assert!(
+            c.short_diff().assert_conserved().is_ok(),
+            "挂起在途量归零（收口腿等量冲抵）"
+        );
         assert_eq!(
             c.short_diff().cost_basis(),
             snapshot(300, 3_000),
@@ -2737,23 +3809,65 @@ mod tests {
         let (mut book, _event_bar, effective_bar) = book_at_earning_stage();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar);
 
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(0),
+        )
+        .unwrap();
         let cover = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 7, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                7,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
         assert_eq!(cover.units, 171, "floor(1200/7)=171");
         assert_eq!(cover.earning_units_gained, 71);
-        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().earning_pool(), 3, "★零头 3 留桶");
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().earning_pool(),
+            3,
+            "★零头 3 留桶"
+        );
 
         // 下一轮：新减出 1_200 + 零头 3 = 1_203 ⟹ floor(1203/8)=150（零头累计进下次算量）。
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar + 1);
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
-        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().earning_pool(), 1_203, "零头累计进下次");
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(0),
+        )
+        .unwrap();
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().earning_pool(),
+            1_203,
+            "零头累计进下次"
+        );
         let cover2 = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                8,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
         assert_eq!(cover2.units, 150, "floor(1203/8)=150");
-        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().earning_pool(), 3, "1203−150·8=3 再留桶");
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().earning_pool(),
+            3,
+            "1203−150·8=3 再留桶"
+        );
     }
 
     /// ★题三（旧账按卖出时锁定）：阶段三生效**前**卖出的挂起 + 生效**后**卖出的挂起并存时，
@@ -2768,21 +3882,51 @@ mod tests {
         // 事件 bar 上落一笔阶段一锁定的挂起（100 股），**不收口**，留到阶段三与新挂起并存。
         // ★#414：两笔减出同属 cid(1)——本用例考的是「按卖出时模式分族算量」，与中枢绑定正交；
         // 分属两中枢会被新的同中枢绑定切开，掩盖本用例真正要锁的两族分流。
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar);
         // 阶段三锁定的第二笔减出：受累计防线约束（open 100 + 本笔 100 ≤ 当前 300）。
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(1)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(1),
+        )
+        .unwrap();
         let c = book.campaign(0, VoiceSide::Long).unwrap();
         assert_eq!(c.suspension().open_units(), 200, "两族挂起并存");
         assert_eq!(c.earning_pool(), 1_200, "只有阶段三锁定那笔进池");
 
         let cover = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(1))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                8,
+                RiskMode::Normal,
+                cid(1),
+            )
             .unwrap();
         // 等量族 100（旧账锁定）+ 等金额族 floor(1200/8)=150（收口 100 + 净增 50）。
         assert_eq!(cover.units, 250, "★两族分开算量：100（等量）+150（等金额）");
         assert_eq!(cover.earning_units_gained, 50);
-        assert!(book.campaign(0, VoiceSide::Long).unwrap().short_diff().assert_conserved().is_ok(), "两族均已收口");
+        assert!(
+            book.campaign(0, VoiceSide::Long)
+                .unwrap()
+                .short_diff()
+                .assert_conserved()
+                .is_ok(),
+            "两族均已收口"
+        );
     }
 
     /// ★题二（阶段三唯一硬门）：桶现金永不为负——违规显式失败，整笔不落账、状态不变。
@@ -2796,11 +3940,26 @@ mod tests {
     #[test]
     fn stage_three_hard_gate_rejects_negative_bucket_cash_without_mutating_state() {
         let (mut book, _event_bar, effective_bar) = book_at_earning_stage();
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(0),
+        )
+        .unwrap();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar);
         let before = book.campaign(0, VoiceSide::Long).unwrap().clone();
 
-        let result = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 900, RiskMode::Normal, cid(0));
+        let result = book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Replenish,
+            900,
+            RiskMode::Normal,
+            cid(0),
+        );
         assert!(
             matches!(result, Err(CampaignViolation::EarningCashUnsound { free }) if free < 0),
             "★阶段三硬门：桶现金转负 ⟹ 显式失败（实得 {result:?}）"
@@ -2813,7 +3972,11 @@ mod tests {
 
         let mut w = CampaignWiringWitness::new();
         w.record_violation(VoiceSide::Long, result.unwrap_err());
-        assert_eq!(w.earning_cash_unsound_count.get("long"), Some(&1), "硬门独立分桶");
+        assert_eq!(
+            w.earning_cash_unsound_count.get("long"),
+            Some(&1),
+            "硬门独立分桶"
+        );
         assert_eq!(w.other_violation_count, 0, "归属明确，不落混合警报桶");
     }
 
@@ -2823,16 +3986,37 @@ mod tests {
     fn earning_replenish_below_one_share_is_its_own_typed_rejection() {
         let (mut book, _event_bar, effective_bar) = book_at_earning_stage();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), effective_bar);
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(0),
+        )
+        .unwrap();
 
         // 池=1_200，回补价 5_000 ⟹ floor(1200/5000)=0 股。
-        let result = book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 5_000, RiskMode::Normal, cid(0));
-        assert_eq!(
-            result,
-            Err(CampaignViolation::EarningSizingRoundsToZero { pool: 1_200, price: 5_000 })
+        let result = book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Replenish,
+            5_000,
+            RiskMode::Normal,
+            cid(0),
         );
         assert_eq!(
-            book.campaign(0, VoiceSide::Long).unwrap().suspension().open_units(),
+            result,
+            Err(CampaignViolation::EarningSizingRoundsToZero {
+                pool: 1_200,
+                price: 5_000
+            })
+        );
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long)
+                .unwrap()
+                .suspension()
+                .open_units(),
             100,
             "挂起继续挂着（不静默补齐、不当作已收口）"
         );
@@ -2840,7 +4024,11 @@ mod tests {
         let mut w = CampaignWiringWitness::new();
         w.record_violation(VoiceSide::Long, result.unwrap_err());
         assert_eq!(w.earning_sizing_rounds_to_zero_count.get("long"), Some(&1));
-        assert_eq!(w.replenish_triggered_but_full_count.get("long"), None, "不与「货已满」混计");
+        assert_eq!(
+            w.replenish_triggered_but_full_count.get("long"),
+            None,
+            "不与「货已满」混计"
+        );
         assert_eq!(w.other_violation_count, 0, "预期经济场景，非警报");
     }
 
@@ -2851,10 +4039,33 @@ mod tests {
     fn replenish_plan_in_stage_one_is_full_open_units() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(0),
+        )
+        .unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(0),
+        )
+        .unwrap();
         let cover = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 9, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                9,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
         assert_eq!(cover.units, 200, "阶段一：全额买回挂起在途量（同股数进出）");
         assert!(!cover.earning_replenish);
@@ -2876,9 +4087,21 @@ mod tests {
         w.record_earning_replenish(VoiceSide::Long, 50);
         w.record_earning_replenish(VoiceSide::Long, 71);
         w.record_earning_replenish(VoiceSide::Short, 12);
-        assert_eq!(w.earning_replenish_count.get("long"), Some(&2), "等金额回补次数（分侧）");
-        assert_eq!(w.earning_units_gained.get("long"), Some(&121), "累计净增股数=50+71");
-        assert_eq!(w.earning_units_gained.get("short"), Some(&12), "两侧分列，不得相加");
+        assert_eq!(
+            w.earning_replenish_count.get("long"),
+            Some(&2),
+            "等金额回补次数（分侧）"
+        );
+        assert_eq!(
+            w.earning_units_gained.get("long"),
+            Some(&121),
+            "累计净增股数=50+71"
+        );
+        assert_eq!(
+            w.earning_units_gained.get("short"),
+            Some(&12),
+            "两侧分列，不得相加"
+        );
     }
 
     // ── #383 订正（2026-07-27 用户裁定，ADR 补充十）：到 0 判据 = 挂起空 ∧ free≥本金 ──
@@ -2899,8 +4122,24 @@ mod tests {
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
         for round in 1..=8usize {
             book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), round);
-            book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
-            book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0)).unwrap();
+            book.apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Reduce,
+                12,
+                RiskMode::Normal,
+                cid(0),
+            )
+            .unwrap();
+            book.apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                8,
+                RiskMode::Normal,
+                cid(0),
+            )
+            .unwrap();
         }
         assert_eq!(
             book.campaign(0, VoiceSide::Long).unwrap().tw().stage,
@@ -2911,35 +4150,73 @@ mod tests {
         // 第 9 轮减出腿：free≥本金（本金已全退，EnterReady 成立），但挂起 100 股在途。
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 9);
         let sell = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Reduce,
+                12,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
         assert_eq!(
-            book.campaign(0, VoiceSide::Long).unwrap().suspension().open_units(),
+            book.campaign(0, VoiceSide::Long)
+                .unwrap()
+                .suspension()
+                .open_units(),
             100,
             "前提：挂起非空（100 股卖出去还没买回来）"
         );
-        assert_eq!(sell.stage_event, None, "★挂起非空 ⟹ 不派发阶段推进事件（哪怕 free 已够本金）");
+        assert_eq!(
+            sell.stage_event, None,
+            "★挂起非空 ⟹ 不派发阶段推进事件（哪怕 free 已够本金）"
+        );
         assert!(sell.stage_progress_suspended, "★被拦这一次可观测，不静默");
         assert_eq!(
             book.campaign(0, VoiceSide::Long).unwrap().tw().stage,
             TStage::CapitalRecovered,
             "阶段机停在 II（未被推进）"
         );
-        assert!(!book.campaign(0, VoiceSide::Long).unwrap().earning_active(), "更未换尺");
+        assert!(
+            !book.campaign(0, VoiceSide::Long).unwrap().earning_active(),
+            "更未换尺"
+        );
 
         let mut w = CampaignWiringWitness::new();
         w.record_profit_ready_but_suspended(VoiceSide::Long);
-        assert_eq!(w.profit_ready_but_suspended.get("long"), Some(&1), "★观测桶=1（分侧）");
-        assert_eq!(w.profit_ready_but_suspended.get("short"), None, "两侧分列，不混计");
+        assert_eq!(
+            w.profit_ready_but_suspended.get("long"),
+            Some(&1),
+            "★观测桶=1（分侧）"
+        );
+        assert_eq!(
+            w.profit_ready_but_suspended.get("short"),
+            None,
+            "两侧分列，不混计"
+        );
         assert_eq!(w.other_violation_count, 0, "判据的正面读数，不是警报");
 
         // 回补收口 ⟹ 挂起归零 ⟹ 同一份 free 现在算数。
         let cover = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                8,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
-        assert_eq!(cover.stage_event, Some(TwEvent::EnterEarning), "★收口后正常派发");
+        assert_eq!(
+            cover.stage_event,
+            Some(TwEvent::EnterEarning),
+            "★收口后正常派发"
+        );
         assert!(!cover.stage_progress_suspended, "放行的那次不计入被拦桶");
-        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().tw().stage, TStage::EarningShares);
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().tw().stage,
+            TStage::EarningShares
+        );
     }
 
     /// ★对照（既有判据不破）：**挂起空 ∧ free<本金 ⟹ 仍不派发**，且不落被拦桶——「挂起空」是
@@ -2948,19 +4225,49 @@ mod tests {
     fn empty_suspension_without_enough_free_still_does_not_progress() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0);
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(0),
+        )
+        .unwrap();
         let cover = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                8,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
         assert_eq!(
-            book.campaign(0, VoiceSide::Long).unwrap().suspension().open_units(),
+            book.campaign(0, VoiceSide::Long)
+                .unwrap()
+                .suspension()
+                .open_units(),
             0,
             "前提：挂起已收口为空"
         );
-        assert_eq!(cover.tw.free, 400, "前提：free=400 < 本金 3_000（一轮只赚 4/股×100）");
-        assert_eq!(cover.stage_event, None, "★free 不足 ⟹ 仍不推进（既有判据不破）");
-        assert!(!cover.stage_progress_suspended, "不是「被挂起拦下」——不落该观测桶");
-        assert_eq!(book.campaign(0, VoiceSide::Long).unwrap().tw().stage, TStage::CostReduction);
+        assert_eq!(
+            cover.tw.free, 400,
+            "前提：free=400 < 本金 3_000（一轮只赚 4/股×100）"
+        );
+        assert_eq!(
+            cover.stage_event, None,
+            "★free 不足 ⟹ 仍不推进（既有判据不破）"
+        );
+        assert!(
+            !cover.stage_progress_suspended,
+            "不是「被挂起拦下」——不落该观测桶"
+        );
+        assert_eq!(
+            book.campaign(0, VoiceSide::Long).unwrap().tw().stage,
+            TStage::CostReduction
+        );
     }
 
     /// ★回归锁（评审 QUESTION 4.1，多头侧）：**增股腿下 TW 漂移 = ΣRealize**（ADR 补充九
@@ -2976,15 +4283,38 @@ mod tests {
         let c0 = book.campaign(0, VoiceSide::Long).unwrap();
         let (tw0, pi0) = (c0.tw(), c0.ledger().pi);
 
-        book.apply_action(0, VoiceSide::Long, CenterOscillationAction::Reduce, 12, RiskMode::Normal, cid(0)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+            12,
+            RiskMode::Normal,
+            cid(0),
+        )
+        .unwrap();
         let cover = book
-            .apply_action(0, VoiceSide::Long, CenterOscillationAction::Replenish, 8, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Replenish,
+                8,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
-        assert!(cover.earning_units_gained > 0, "前提：本次走的是增股腿（实得 {}）", cover.earning_units_gained);
+        assert!(
+            cover.earning_units_gained > 0,
+            "前提：本次走的是增股腿（实得 {}）",
+            cover.earning_units_gained
+        );
 
         let c2 = book.campaign(0, VoiceSide::Long).unwrap();
         let sum_realize = 100 * (12 - 10) + 100 * (10 - 8);
-        assert_eq!(c2.ledger().pi - pi0, sum_realize, "ΣRealize=400（增股腿不产 Realize）");
+        assert_eq!(
+            c2.ledger().pi - pi0,
+            sum_realize,
+            "ΣRealize=400（增股腿不产 Realize）"
+        );
         assert_eq!(
             c2.tw().tw() - tw0.tw(),
             sum_realize,
@@ -3001,28 +4331,85 @@ mod tests {
         book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 0);
         for round in 1..=8usize {
             book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), round);
-            book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(0)).unwrap();
-            book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Replenish, 12, RiskMode::Normal, cid(0)).unwrap();
+            book.apply_action(
+                0,
+                VoiceSide::Short,
+                CenterOscillationAction::Reduce,
+                8,
+                RiskMode::Normal,
+                cid(0),
+            )
+            .unwrap();
+            book.apply_action(
+                0,
+                VoiceSide::Short,
+                CenterOscillationAction::Replenish,
+                12,
+                RiskMode::Normal,
+                cid(0),
+            )
+            .unwrap();
         }
         book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 9);
-        book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(0)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Short,
+            CenterOscillationAction::Reduce,
+            8,
+            RiskMode::Normal,
+            cid(0),
+        )
+        .unwrap();
         let out = book
-            .apply_action(0, VoiceSide::Short, CenterOscillationAction::Replenish, 12, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Short,
+                CenterOscillationAction::Replenish,
+                12,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
-        assert_eq!(out.stage_event, Some(TwEvent::EnterEarning), "前提：空头侧已进阶段三");
+        assert_eq!(
+            out.stage_event,
+            Some(TwEvent::EnterEarning),
+            "前提：空头侧已进阶段三"
+        );
         book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 10);
 
         let c0 = book.campaign(0, VoiceSide::Short).unwrap();
         let (tw0, pi0) = (c0.tw(), c0.ledger().pi);
-        book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(0)).unwrap();
+        book.apply_action(
+            0,
+            VoiceSide::Short,
+            CenterOscillationAction::Reduce,
+            8,
+            RiskMode::Normal,
+            cid(0),
+        )
+        .unwrap();
         let cover = book
-            .apply_action(0, VoiceSide::Short, CenterOscillationAction::Replenish, 10, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Short,
+                CenterOscillationAction::Replenish,
+                10,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
-        assert_eq!(cover.earning_units_gained, 20, "前提：净增 20 份（floor(1200/10)=120，收口 100）");
+        assert_eq!(
+            cover.earning_units_gained, 20,
+            "前提：净增 20 份（floor(1200/10)=120，收口 100）"
+        );
 
         let c2 = book.campaign(0, VoiceSide::Short).unwrap();
         let sum_realize = 100 * (10 - 8) + 100 * (10 - 10);
-        assert_eq!(c2.ledger().pi - pi0, sum_realize, "ΣRealize=200（空头镜像，增股腿不产 Realize）");
+        assert_eq!(
+            c2.ledger().pi - pi0,
+            sum_realize,
+            "ΣRealize=200（空头镜像，增股腿不产 Realize）"
+        );
         assert_eq!(
             c2.tw().tw() - tw0.tw(),
             sum_realize,
@@ -3042,19 +4429,40 @@ mod tests {
     fn short_side_campaign_reaches_recover_capital_stage_ii() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 0);
-        assert_eq!(book.campaign(0, VoiceSide::Short).unwrap().tw().stage, TStage::CostReduction);
+        assert_eq!(
+            book.campaign(0, VoiceSide::Short).unwrap().tw().stage,
+            TStage::CostReduction
+        );
 
         let mut recovered_at_round = None;
         for round in 1..=8usize {
             let sell = book
-                .apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(0))
+                .apply_action(
+                    0,
+                    VoiceSide::Short,
+                    CenterOscillationAction::Reduce,
+                    8,
+                    RiskMode::Normal,
+                    cid(0),
+                )
                 .unwrap();
             assert_eq!(sell.units, 100, "空头侧 sizing 同尺：在险份数 300/3");
             let cover = book
-                .apply_action(0, VoiceSide::Short, CenterOscillationAction::Replenish, 12, RiskMode::Normal, cid(0))
+                .apply_action(
+                    0,
+                    VoiceSide::Short,
+                    CenterOscillationAction::Replenish,
+                    12,
+                    RiskMode::Normal,
+                    cid(0),
+                )
                 .unwrap();
             assert!(
-                book.campaign(0, VoiceSide::Short).unwrap().short_diff().assert_conserved().is_ok(),
+                book.campaign(0, VoiceSide::Short)
+                    .unwrap()
+                    .short_diff()
+                    .assert_conserved()
+                    .is_ok(),
                 "第 {round} 轮往返闭合"
             );
             if let Some(TwEvent::RecoverCapital(_)) = cover.stage_event {
@@ -3062,13 +4470,28 @@ mod tests {
                 break;
             }
         }
-        assert_eq!(recovered_at_round, Some(8), "★空头侧同样在第 8 轮足额退本金（与多头侧同定理）");
+        assert_eq!(
+            recovered_at_round,
+            Some(8),
+            "★空头侧同样在第 8 轮足额退本金（与多头侧同定理）"
+        );
         let c = book.campaign(0, VoiceSide::Short).unwrap();
-        assert_eq!(c.tw().stage, TStage::CapitalRecovered, "★空头阶段机第一次到达 II");
-        assert_eq!(c.tw().withdrawn, 3_000, "退本金额=notional_in（足额一次性退回）");
+        assert_eq!(
+            c.tw().stage,
+            TStage::CapitalRecovered,
+            "★空头阶段机第一次到达 II"
+        );
+        assert_eq!(
+            c.tw().withdrawn,
+            3_000,
+            "退本金额=notional_in（足额一次性退回）"
+        );
         assert_eq!(c.tw().l_wc(), 0, "空头侧在险本金同样归零");
         assert_eq!(c.side(), VoiceSide::Short);
-        assert!(book.campaign(0, VoiceSide::Long).is_none(), "多头侧不因空头侧推进而被凭空开局");
+        assert!(
+            book.campaign(0, VoiceSide::Long).is_none(),
+            "多头侧不因空头侧推进而被凭空开局"
+        );
     }
 
     /// ★评审挂账续：空头 campaign 继续推进到**阶段 III** 并做等金额回补——空头侧「补=加回
@@ -3080,31 +4503,90 @@ mod tests {
         book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 0);
         for round in 1..=8usize {
             book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), round);
-            book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(0)).unwrap();
-            book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Replenish, 12, RiskMode::Normal, cid(0)).unwrap();
+            book.apply_action(
+                0,
+                VoiceSide::Short,
+                CenterOscillationAction::Reduce,
+                8,
+                RiskMode::Normal,
+                cid(0),
+            )
+            .unwrap();
+            book.apply_action(
+                0,
+                VoiceSide::Short,
+                CenterOscillationAction::Replenish,
+                12,
+                RiskMode::Normal,
+                cid(0),
+            )
+            .unwrap();
         }
         book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 9);
         let sell = book
-            .apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Short,
+                CenterOscillationAction::Reduce,
+                8,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
         assert_eq!(sell.stage_event, None, "挂起非空 ⟹ 前置拦下（两侧同判据）");
         assert!(sell.stage_progress_suspended);
         let out = book
-            .apply_action(0, VoiceSide::Short, CenterOscillationAction::Replenish, 12, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Short,
+                CenterOscillationAction::Replenish,
+                12,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
-        assert_eq!(out.stage_event, Some(TwEvent::EnterEarning), "★空头阶段机到达 III（收口后）");
+        assert_eq!(
+            out.stage_event,
+            Some(TwEvent::EnterEarning),
+            "★空头阶段机到达 III（收口后）"
+        );
 
         book.sync_position(0, VoiceSide::Short, snapshot(300, 3_000), 10);
-        assert!(book.campaign(0, VoiceSide::Short).unwrap().earning_active(), "次 bar 生效（两侧同规矩）");
+        assert!(
+            book.campaign(0, VoiceSide::Short).unwrap().earning_active(),
+            "次 bar 生效（两侧同规矩）"
+        );
         // 空头侧「减=回补空头@8」的桶实收 = units·avg_cost + units·(avg_cost−price)
         // = 100·10 + 100·2 = 1_200（补充九口径：单腿桶实收≠单笔成交现金）。
-        book.apply_action(0, VoiceSide::Short, CenterOscillationAction::Reduce, 8, RiskMode::Normal, cid(0)).unwrap();
-        assert_eq!(book.campaign(0, VoiceSide::Short).unwrap().earning_pool(), 1_200, "空头侧算料=桶实收现金");
+        book.apply_action(
+            0,
+            VoiceSide::Short,
+            CenterOscillationAction::Reduce,
+            8,
+            RiskMode::Normal,
+            cid(0),
+        )
+        .unwrap();
+        assert_eq!(
+            book.campaign(0, VoiceSide::Short).unwrap().earning_pool(),
+            1_200,
+            "空头侧算料=桶实收现金"
+        );
         let cover = book
-            .apply_action(0, VoiceSide::Short, CenterOscillationAction::Replenish, 10, RiskMode::Normal, cid(0))
+            .apply_action(
+                0,
+                VoiceSide::Short,
+                CenterOscillationAction::Replenish,
+                10,
+                RiskMode::Normal,
+                cid(0),
+            )
             .unwrap();
         assert_eq!(cover.units, 120, "floor(1200/10)=120 份");
-        assert_eq!(cover.earning_units_gained, 20, "★空头侧净增 20 份（挣的是空头份数）");
+        assert_eq!(
+            cover.earning_units_gained, 20,
+            "★空头侧净增 20 份（挣的是空头份数）"
+        );
         assert!(cover.earning_replenish);
     }
 
@@ -3127,7 +4609,11 @@ mod tests {
             Some(&1),
             "级别 0 的一次尝试成功、一次失败——成功桶只认那一次"
         );
-        assert_eq!(w.historical_bound_by_level.get(&1), None, "级别 1 唯一一次尝试即失败，成功桶空");
+        assert_eq!(
+            w.historical_bound_by_level.get(&1),
+            None,
+            "级别 1 唯一一次尝试即失败，成功桶空"
+        );
         assert_eq!(w.historical_bound_failed_by_level.get(&0), Some(&1));
         assert_eq!(w.historical_bound_failed_by_level.get(&1), Some(&1));
         // 级别 0：attempted(2) = success(1) + failed(1)。级别 1：attempted(1) = success(0) + failed(1)。

@@ -397,14 +397,28 @@ mod tests {
         // Conf^+ = B1 ∨ B2 ∨ B3（spec P5 §6 line 283）：任一买点成立即确认，卖点不参与。
         assert!(!BspBits::default().conf_plus(), "全零 ⟹ 买侧未确认");
         for f in [
-            BspBits { buy1: true, ..Default::default() },
-            BspBits { buy2: true, ..Default::default() },
-            BspBits { buy3: true, ..Default::default() },
+            BspBits {
+                buy1: true,
+                ..Default::default()
+            },
+            BspBits {
+                buy2: true,
+                ..Default::default()
+            },
+            BspBits {
+                buy3: true,
+                ..Default::default()
+            },
         ] {
             assert!(f.conf_plus(), "任一买点 ⟹ Conf^+");
         }
         // 仅卖点置位 ⟹ Conf^+ 假（方向隔离）。
-        let only_sell = BspBits { sell1: true, sell2: true, sell3: true, ..Default::default() };
+        let only_sell = BspBits {
+            sell1: true,
+            sell2: true,
+            sell3: true,
+            ..Default::default()
+        };
         assert!(!only_sell.conf_plus());
         assert!(only_sell.conf_minus());
     }
@@ -414,13 +428,25 @@ mod tests {
         // Conf^- = S1 ∨ S2 ∨ S3（spec P5 §6 line 285），买卖对偶镜像。
         assert!(!BspBits::default().conf_minus());
         for f in [
-            BspBits { sell1: true, ..Default::default() },
-            BspBits { sell2: true, ..Default::default() },
-            BspBits { sell3: true, ..Default::default() },
+            BspBits {
+                sell1: true,
+                ..Default::default()
+            },
+            BspBits {
+                sell2: true,
+                ..Default::default()
+            },
+            BspBits {
+                sell3: true,
+                ..Default::default()
+            },
         ] {
             assert!(f.conf_minus());
         }
-        let only_buy = BspBits { buy1: true, ..Default::default() };
+        let only_buy = BspBits {
+            buy1: true,
+            ..Default::default()
+        };
         assert!(!only_buy.conf_minus());
         assert!(only_buy.conf_plus());
     }
@@ -440,8 +466,14 @@ mod tests {
     #[test]
     fn confirm_side_selects_direction() {
         // Conf^δ_e：Long → Conf^+，Short → Conf^-（区间套证书方向化基例）。
-        let buy = BspBits { buy1: true, ..Default::default() };
-        let sell = BspBits { sell3: true, ..Default::default() };
+        let buy = BspBits {
+            buy1: true,
+            ..Default::default()
+        };
+        let sell = BspBits {
+            sell3: true,
+            ..Default::default()
+        };
         assert!(buy.confirm_side(Side::Long) && !buy.confirm_side(Side::Short));
         assert!(sell.confirm_side(Side::Short) && !sell.confirm_side(Side::Long));
     }
@@ -503,8 +535,22 @@ mod tests {
     fn class_index_bit_weights_exact() {
         // bit 权重 (B1,B2,B3,S1,S2,S3)=(1,2,4,8,16,32)。
         assert_eq!(BspBits::default().class_index(), 0);
-        assert_eq!(BspBits { buy1: true, ..Default::default() }.class_index(), 1);
-        assert_eq!(BspBits { sell3: true, ..Default::default() }.class_index(), 32);
+        assert_eq!(
+            BspBits {
+                buy1: true,
+                ..Default::default()
+            }
+            .class_index(),
+            1
+        );
+        assert_eq!(
+            BspBits {
+                sell3: true,
+                ..Default::default()
+            }
+            .class_index(),
+            32
+        );
         let all = BspBits {
             buy1: true,
             buy2: true,

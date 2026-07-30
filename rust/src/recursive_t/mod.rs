@@ -49,8 +49,6 @@
 pub mod backtest;
 #[cfg(test)]
 mod backtest_run;
-#[cfg(test)]
-mod t_engine_run;
 pub mod center;
 pub mod divergence;
 pub mod ffi;
@@ -61,13 +59,15 @@ pub mod rec_engine;
 pub mod rec_stream;
 pub mod stream;
 pub mod t_engine;
+#[cfg(test)]
+mod t_engine_run;
 pub mod trend;
 pub mod types;
 
 pub use operator::apply_t;
 pub use types::{
-    aggregate_endpoints, A0Source, Direction, EndpointLabels, PerfectionMode, RecursiveTree,
-    TLevelOutput, TrendKind, TrendType, Unit, Zhongshu, BSPKind, BSP,
+    aggregate_endpoints, A0Source, BSPKind, Direction, EndpointLabels, PerfectionMode,
+    RecursiveTree, TLevelOutput, TrendKind, TrendType, Unit, Zhongshu, BSP,
 };
 
 /// Tᵏ 迭代驱动器：从 a₀（笔序列）迭代到涌现上界 r*。
@@ -183,7 +183,11 @@ mod tests {
     #[test]
     fn iterate_单级别上涨趋势() {
         let tree = iterate(上涨趋势八笔(), PerfectionMode::Structural);
-        assert_eq!(tree.levels.len(), 1, "8 笔只够 1 级（封装出 1 根上级单元，不足 3 根）");
+        assert_eq!(
+            tree.levels.len(),
+            1,
+            "8 笔只够 1 级（封装出 1 根上级单元，不足 3 根）"
+        );
         assert_eq!(tree.emergent_ceiling(), 1);
 
         let l0 = &tree.levels[0];
@@ -192,7 +196,10 @@ mod tests {
         assert_eq!(l0.trends.len(), 1);
         assert_eq!(l0.trends[0].kind, TrendKind::UpTrend);
 
-        let has_sell = l0.bsps.iter().any(|b| b.kind == BSPKind::Type1Sell && b.price == 45.0);
+        let has_sell = l0
+            .bsps
+            .iter()
+            .any(|b| b.kind == BSPKind::Type1Sell && b.price == 45.0);
         assert!(has_sell, "应涌现 45.0 处一类卖点");
     }
 
@@ -231,7 +238,10 @@ mod tests {
         let tree = iterate(units, PerfectionMode::Structural);
         let l0 = &tree.levels[0];
         assert_eq!(l0.trends[0].kind, TrendKind::DownTrend);
-        let has_buy = l0.bsps.iter().any(|b| b.kind == BSPKind::Type1Buy && b.price == -45.0);
+        let has_buy = l0
+            .bsps
+            .iter()
+            .any(|b| b.kind == BSPKind::Type1Buy && b.price == -45.0);
         assert!(has_buy, "下跌背驰应产生 -45.0 处一类买点");
     }
 
@@ -290,8 +300,18 @@ mod tests {
                 trends: vec![],
                 next_units: vec![],
                 bsps: vec![
-                    BSP { kind: BSPKind::Type1Buy, bar: 10, price: 5.0, level: 0 },
-                    BSP { kind: BSPKind::Type1Buy, bar: 20, price: 7.0, level: 0 },
+                    BSP {
+                        kind: BSPKind::Type1Buy,
+                        bar: 10,
+                        price: 5.0,
+                        level: 0,
+                    },
+                    BSP {
+                        kind: BSPKind::Type1Buy,
+                        bar: 20,
+                        price: 7.0,
+                        level: 0,
+                    },
                 ],
             },
             TLevelOutput {
@@ -299,7 +319,12 @@ mod tests {
                 centers: vec![],
                 trends: vec![],
                 next_units: vec![],
-                bsps: vec![BSP { kind: BSPKind::Type1Buy, bar: 10, price: 5.0, level: 1 }],
+                bsps: vec![BSP {
+                    kind: BSPKind::Type1Buy,
+                    bar: 10,
+                    price: 5.0,
+                    level: 1,
+                }],
             },
         ];
         project_type2(&mut levels);
@@ -317,8 +342,22 @@ mod tests {
         let bad = TrendType {
             kind: TrendKind::UpTrend,
             zhongshus: vec![
-                Zhongshu { high: 20.0, low: 12.0, gg: 22.0, dd: 10.0, units: vec![], level: 1 },
-                Zhongshu { high: 48.0, low: 40.0, gg: 50.0, dd: 38.0, units: vec![], level: 1 },
+                Zhongshu {
+                    high: 20.0,
+                    low: 12.0,
+                    gg: 22.0,
+                    dd: 10.0,
+                    units: vec![],
+                    level: 1,
+                },
+                Zhongshu {
+                    high: 48.0,
+                    low: 40.0,
+                    gg: 50.0,
+                    dd: 38.0,
+                    units: vec![],
+                    level: 1,
+                },
             ],
             units: vec![bi(8.0, 22.0, 0, 1, Direction::Up)],
             level: 1,

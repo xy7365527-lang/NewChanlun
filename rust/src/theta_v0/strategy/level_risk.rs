@@ -50,7 +50,10 @@ use super::super::config::RiskConfig;
 /// 经 `risk.enforce_level_cap` 开关短路本函数，否则会把所有级别帽误裁到 0（见
 /// [`super::coverage::clamp_levels_to_weighted_cap`] 的开关门禁）。
 pub fn level_weight(level: u32, risk: &RiskConfig) -> f64 {
-    risk.level_weights.get(level as usize).copied().unwrap_or(0.0)
+    risk.level_weights
+        .get(level as usize)
+        .copied()
+        .unwrap_or(0.0)
 }
 
 /// `Σ_ℓ w_ℓ`（配置表内全部级别权重之和，L0 代数求和）。
@@ -70,7 +73,10 @@ mod tests {
     use super::*;
 
     fn risk_with(weights: Vec<f64>) -> RiskConfig {
-        RiskConfig { level_weights: weights, ..RiskConfig::default() }
+        RiskConfig {
+            level_weights: weights,
+            ..RiskConfig::default()
+        }
     }
 
     /// ★按 level 索引取值，越界/空表 ⟹ 0.0（同 `depth_weight` 纪律）。
@@ -87,19 +93,31 @@ mod tests {
     /// ★Σw_ℓ ≤ 1 机器断言：合规/超限/边界/空表四态。
     #[test]
     fn level_weights_sum_le_one_covers_boundary() {
-        assert!(level_weights_sum_le_one(&risk_with(vec![0.5, 0.3, 0.2])), "Σ=1.0 合规（边界含）");
-        assert!(level_weights_sum_le_one(&risk_with(vec![0.3, 0.3])), "Σ=0.6<1 合规");
+        assert!(
+            level_weights_sum_le_one(&risk_with(vec![0.5, 0.3, 0.2])),
+            "Σ=1.0 合规（边界含）"
+        );
+        assert!(
+            level_weights_sum_le_one(&risk_with(vec![0.3, 0.3])),
+            "Σ=0.6<1 合规"
+        );
         assert!(
             !level_weights_sum_le_one(&risk_with(vec![0.6, 0.5])),
             "Σ=1.1>1 违规，必须被抓到"
         );
-        assert!(level_weights_sum_le_one(&RiskConfig::default()), "空表 Σ=0 平凡合规");
+        assert!(
+            level_weights_sum_le_one(&RiskConfig::default()),
+            "空表 Σ=0 平凡合规"
+        );
     }
 
     /// ★空表时禁止权重恰好落在合规边界之外的浮点误差误报（1e-9 容差）。
     #[test]
     fn level_weights_sum_le_one_tolerates_float_noise_at_boundary() {
         let risk = risk_with(vec![1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0]);
-        assert!(level_weights_sum_le_one(&risk), "1/3×3 的浮点和应在容差内判合规");
+        assert!(
+            level_weights_sum_le_one(&risk),
+            "1/3×3 的浮点和应在容差内判合规"
+        );
     }
 }

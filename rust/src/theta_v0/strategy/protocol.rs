@@ -320,9 +320,9 @@ impl ProtocolEvent {
 
     const fn center_oscillation(trigger: PanDivTrigger) -> Self {
         Self {
-            payload: EventPayload::CenterOscillation(
-                CenterOscillationEventEvidence::from_trigger(trigger),
-            ),
+            payload: EventPayload::CenterOscillation(CenterOscillationEventEvidence::from_trigger(
+                trigger,
+            )),
             reasons: ReasonSet::CENTER_OSCILLATION,
         }
     }
@@ -500,12 +500,12 @@ impl ProtocolState {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::oscillation::{
         ConsolidationDivergenceEvidence, OscillationCenterRef, OscillationEvidenceRef,
         PanDivTrigger,
     };
     use super::super::voice::VoiceSide;
+    use super::*;
 
     fn center(start: usize, end: usize, dd: i64, gg: i64) -> Center {
         Center {
@@ -784,7 +784,10 @@ mod tests {
         let pan_event = ProtocolEventSet::hold(2)
             .with_center_oscillation(pan_div_trigger(200))
             .selected();
-        assert_eq!(pan_event.maturity(), ProtocolMaturity::CompletedMoveEvidence);
+        assert_eq!(
+            pan_event.maturity(),
+            ProtocolMaturity::CompletedMoveEvidence
+        );
         assert!(pan_event.reasons().contains(ReasonSet::CENTER_OSCILLATION));
         assert_eq!(
             ProtocolState::initial(2).transition(pan_event).mode(),
@@ -802,9 +805,7 @@ mod tests {
         let selected = ProtocolEventSet::hold(2)
             .with_center_oscillation(pan_div_trigger(202))
             .with(ProtocolEvent::settled_center_relation(
-                2,
-                &previous,
-                &successor,
+                2, &previous, &successor,
             ))
             .selected();
         assert_eq!(selected.maturity(), ProtocolMaturity::SettledCenterRelation);

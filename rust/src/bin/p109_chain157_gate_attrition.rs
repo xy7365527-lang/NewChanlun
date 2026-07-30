@@ -32,9 +32,7 @@ use newchan_rust::theta_v0::classifier::recursive_tower::LeveledMove;
 use newchan_rust::theta_v0::classifier::Classification;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::parse_layer;
-use newchan_rust::theta_v0::types::{
-    quantize, Bar, BspBits, Direction, MoveKind, Side, Timestamp,
-};
+use newchan_rust::theta_v0::types::{quantize, Bar, BspBits, Direction, MoveKind, Side, Timestamp};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -161,7 +159,10 @@ fn ids_string(path: &[(u32, usize, (usize, usize))]) -> String {
         .join("|")
 }
 
-fn terminal_bits_new(classification: &Classification, event: &NestCandidateEvent) -> Option<BspBits> {
+fn terminal_bits_new(
+    classification: &Classification,
+    event: &NestCandidateEvent,
+) -> Option<BspBits> {
     classification
         .levels
         .get(event.level as usize)?
@@ -257,8 +258,10 @@ fn measure_level(
                     .filter(|m| matches!(m.completion, CompletionStatus::Completed { .. }))
                     .count();
                 for pair in view.moves.windows(2) {
-                    let (CompletionStatus::Completed { evidence: ev0, .. }, CompletionStatus::Completed { .. }) =
-                        (&pair[0].completion, &pair[1].completion)
+                    let (
+                        CompletionStatus::Completed { evidence: ev0, .. },
+                        CompletionStatus::Completed { .. },
+                    ) = (&pair[0].completion, &pair[1].completion)
                     else {
                         continue;
                     };
@@ -268,7 +271,10 @@ fn measure_level(
                         leave_kind: pair[0].kind,
                         leave_dir: pair[0].direction,
                         retest_kind: pair[1].kind,
-                        leave_via_divergence: matches!(ev0, CompletionEvidence::TerminalDivergence { .. }),
+                        leave_via_divergence: matches!(
+                            ev0,
+                            CompletionEvidence::TerminalDivergence { .. }
+                        ),
                     });
                 }
                 if collect_events {
@@ -329,7 +335,8 @@ fn chain_dp_count(levels: &[LevelData]) -> (u128, usize, u128) {
     if levels.is_empty() {
         return (0, 0, 0);
     }
-    let mut previous: Vec<(usize, u128)> = levels[0].pairs.iter().map(|_| (1usize, 1u128)).collect();
+    let mut previous: Vec<(usize, u128)> =
+        levels[0].pairs.iter().map(|_| (1usize, 1u128)).collect();
     let mut global_depth = usize::from(!previous.is_empty());
     let mut global_count = previous.len() as u128;
     for level_index in 1..levels.len() {
@@ -427,7 +434,6 @@ fn enumerate_chains(levels: &[LevelData], cap: usize) -> (Vec<Vec<(usize, usize)
     (out, truncated)
 }
 
-
 /// 逐门对账：门按生产装配管线序处理，候选集首次清空的那扇门即击杀门（∃ 语义）。
 #[allow(clippy::too_many_arguments)]
 fn reconcile_chain(
@@ -440,10 +446,7 @@ fn reconcile_chain(
     invariant_violations: &mut usize,
 ) -> ChainOutcome {
     let n = chain.len();
-    let pairs: Vec<PairRec> = chain
-        .iter()
-        .map(|(k, pi)| levels[*k].pairs[*pi])
-        .collect();
+    let pairs: Vec<PairRec> = chain.iter().map(|(k, pi)| levels[*k].pairs[*pi]).collect();
     let events_per_level: Vec<usize> = (0..n)
         .map(|k| {
             let (lk, pi) = chain[k];
@@ -690,7 +693,6 @@ fn reconcile_chain(
     outcome
 }
 
-
 /// 包含门击杀的最近父候选几何（p102 同款 left/right gap 与形态分类）。
 fn edge_gap_diag(
     child: &NestCandidateEvent,
@@ -859,9 +861,9 @@ fn reproduce_certs(
 
 fn main() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
-    let path = args.next().ok_or(
-        "用法: p109_chain157_gate_attrition <btc_1m_full.json> [p92_ckpt_dump.txt]",
-    )?;
+    let path = args
+        .next()
+        .ok_or("用法: p109_chain157_gate_attrition <btc_1m_full.json> [p92_ckpt_dump.txt]")?;
     let dump_path = args.next();
     if args.next().is_some() {
         return Err("参数过多".to_string());
@@ -917,9 +919,15 @@ fn main() -> Result<(), String> {
         let trend = data
             .events
             .iter()
-            .filter(|e| e.kind == newchan_rust::theta_v0::classifier::level_view::NestDivergenceKind::Trend)
+            .filter(|e| {
+                e.kind == newchan_rust::theta_v0::classifier::level_view::NestDivergenceKind::Trend
+            })
             .count();
-        let confirmed = data.events.iter().filter(|e| e.divergence_confirmed).count();
+        let confirmed = data
+            .events
+            .iter()
+            .filter(|e| e.divergence_confirmed)
+            .count();
         println!(
             "P109_LEVEL_V3 L{level} tower_windows={} runs={} invalid={} moves={} completed={} strict_pairs={} events={} trend_events={} divergence_confirmed={}",
             data.tower_windows,
@@ -971,14 +979,17 @@ fn main() -> Result<(), String> {
     let trend_events: usize = levels_v3
         .iter()
         .flat_map(|l| l.events.iter())
-        .filter(|e| e.kind == newchan_rust::theta_v0::classifier::level_view::NestDivergenceKind::Trend)
+        .filter(|e| {
+            e.kind == newchan_rust::theta_v0::classifier::level_view::NestDivergenceKind::Trend
+        })
         .count();
     let trend_confirmed: usize = levels_v3
         .iter()
         .flat_map(|l| l.events.iter())
         .filter(|e| {
             e.divergence_confirmed
-                && e.kind == newchan_rust::theta_v0::classifier::level_view::NestDivergenceKind::Trend
+                && e.kind
+                    == newchan_rust::theta_v0::classifier::level_view::NestDivergenceKind::Trend
         })
         .count();
     println!(
@@ -1058,9 +1069,10 @@ fn main() -> Result<(), String> {
             if match_maps[offset].contains_key(&(pair.start, pair.end)) {
                 hit += 1;
             } else {
-                let anchored = level.events.iter().any(|e| {
-                    e.interval_a.0 == pair.start || e.interval_a.1 == pair.end
-                });
+                let anchored = level
+                    .events
+                    .iter()
+                    .any(|e| e.interval_a.0 == pair.start || e.interval_a.1 == pair.end);
                 near += usize::from(anchored);
             }
         }
@@ -1112,9 +1124,8 @@ fn main() -> Result<(), String> {
                     .collect();
                 if prefix.len() == outcome.prefix_cert_depth {
                     let ids = ids_string(&prefix);
-                    outcome.prefix_cert_in_dump = Some(
-                        book.cert_ids_all.contains(&ids) || book.ckpt_ids_all.contains(&ids),
-                    );
+                    outcome.prefix_cert_in_dump =
+                        Some(book.cert_ids_all.contains(&ids) || book.ckpt_ids_all.contains(&ids));
                 }
             }
             if outcome.kill_gate == KillGate::Alive {
@@ -1267,10 +1278,7 @@ fn main() -> Result<(), String> {
     }
 
     // ── 交叉对账：基例入 66 证书身份、前缀证书 dump 在场 ──
-    let passing_terminal = outcomes
-        .iter()
-        .filter(|o| o.prefix_cert_depth >= 1)
-        .count();
+    let passing_terminal = outcomes.iter().filter(|o| o.prefix_cert_depth >= 1).count();
     let base_seen = outcomes
         .iter()
         .filter(|o| o.base_in_66 == Some(true))
@@ -1290,7 +1298,9 @@ fn main() -> Result<(), String> {
     // 前缀证书深度谱（exec=1 的 (1,m) 逻辑证书可达深度）。
     let mut prefix_spectrum: BTreeMap<usize, usize> = BTreeMap::new();
     for outcome in &outcomes {
-        *prefix_spectrum.entry(outcome.prefix_cert_depth).or_default() += 1;
+        *prefix_spectrum
+            .entry(outcome.prefix_cert_depth)
+            .or_default() += 1;
     }
     for (depth, count) in &prefix_spectrum {
         println!("P109_PREFIX_DEPTH depth={depth} chains={count}");
@@ -1328,7 +1338,10 @@ fn main() -> Result<(), String> {
             ids,
             outcome.clock_witness.clone().unwrap_or_else(|| "NA".to_string())
         );
-        println!("P109_CHAIN_DETAIL id={} detail={}", outcome.id, outcome.kill_detail);
+        println!(
+            "P109_CHAIN_DETAIL id={} detail={}",
+            outcome.id, outcome.kill_detail
+        );
     }
     println!("P109_DONE chains={total}");
     Ok(())

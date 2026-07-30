@@ -132,14 +132,14 @@ mod tests {
     /// 8 笔上涨趋势（2 中枢 + 背驰末段），验证 apply_t 一次迭代的完整产出。
     fn 上涨趋势八笔() -> Vec<Unit> {
         vec![
-            bi(8.0, 22.0, 0, 1, Direction::Up),   // a 进入段，振幅大
+            bi(8.0, 22.0, 0, 1, Direction::Up), // a 进入段，振幅大
             bi(12.0, 18.0, 1, 2, Direction::Down),
-            bi(10.0, 16.0, 2, 3, Direction::Up),  // 中枢1 = 0,1,2 核心[12,18]
-            bi(23.0, 35.0, 3, 4, Direction::Up),  // 离开向上
+            bi(10.0, 16.0, 2, 3, Direction::Up), // 中枢1 = 0,1,2 核心[12,18]
+            bi(23.0, 35.0, 3, 4, Direction::Up), // 离开向上
             bi(32.0, 40.0, 4, 5, Direction::Down),
-            bi(33.0, 42.0, 5, 6, Direction::Up),  // 中枢2 = 3,4,5,6 核心[32,35]
+            bi(33.0, 42.0, 5, 6, Direction::Up), // 中枢2 = 3,4,5,6 核心[32,35]
             bi(31.0, 39.0, 6, 7, Direction::Down),
-            bi(40.0, 45.0, 7, 8, Direction::Up),  // c 段创新高 45 但振幅弱
+            bi(40.0, 45.0, 7, 8, Direction::Up), // c 段创新高 45 但振幅弱
         ]
     }
 
@@ -212,7 +212,11 @@ mod tests {
         let out = apply_t(&units, 1, PerfectionMode::Structural);
         assert_eq!(out.level, 1);
         assert_eq!(out.centers.len(), 2);
-        let sells: Vec<_> = out.bsps.iter().filter(|b| b.kind == BSPKind::Type1Sell).collect();
+        let sells: Vec<_> = out
+            .bsps
+            .iter()
+            .filter(|b| b.kind == BSPKind::Type1Sell)
+            .collect();
         assert_eq!(sells.len(), 1);
         assert_eq!(out.next_units[0].level, 2, "封装到 level 2");
     }

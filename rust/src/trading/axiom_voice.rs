@@ -53,8 +53,7 @@
 use super::center_book::CenterBook;
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::positional::{
-    enter_or_defer, theta_weights, LayerState, LayerTrade, PositionalResult,
-    EQUITY_SAMPLE_BARS,
+    enter_or_defer, theta_weights, LayerState, LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS,
 };
 use super::positional_fusion::{PhaseView, SUB_FRICTION_RT};
 use super::tape::SignalTape;
@@ -100,8 +99,7 @@ fn nest_sub_evidence(
     flip_edge: Option<Direction>,
 ) -> bool {
     if sub >= FIRST_BSP_LADDER {
-        evs.iter().any(|e| e.class.side() == side)
-            || devs.iter().any(|d| d.side() == side)
+        evs.iter().any(|e| e.class.side() == side) || devs.iter().any(|d| d.side() == side)
     } else {
         let want = match side {
             Side::Sell => Direction::Down,
@@ -211,8 +209,7 @@ pub(crate) fn run_axiom_voice(
             }
             depth_ref.observe(&book, c);
         }
-        let evrows: &[Vec<BspEvent>; MAX_LADDER] =
-            sig.bsp_events.as_deref().unwrap_or(&empty_evs);
+        let evrows: &[Vec<BspEvent>; MAX_LADDER] = sig.bsp_events.as_deref().unwrap_or(&empty_evs);
         let devrows: &[Vec<DivEvent>; MAX_LADDER] =
             sig.div_events.as_deref().unwrap_or(&empty_devs);
         for lad in FIRST_BSP_LADDER..MAX_LADDER {
@@ -243,7 +240,11 @@ pub(crate) fn run_axiom_voice(
                         BspClass::Buy3 => (false, false),
                         BspClass::Sell2 | BspClass::Buy2 => continue,
                     };
-                    let win = if sellside { &mut nest_sell[k] } else { &mut nest_buy[k] };
+                    let win = if sellside {
+                        &mut nest_sell[k]
+                    } else {
+                        &mut nest_buy[k]
+                    };
                     if e.confirmed {
                         *win = None;
                     } else {
@@ -257,16 +258,17 @@ pub(crate) fn run_axiom_voice(
                                 w.src_t1 || is_t1,
                             )
                         });
-                        *win = Some(NestWin { extreme: ext, src_t1: t1 });
+                        *win = Some(NestWin {
+                            extreme: ext,
+                            src_t1: t1,
+                        });
                         res.n_nest_arms_by_ladder[k] += 1;
                     }
                 }
             }
             let sub = k - 1;
             if let Some(w) = nest_sell[k] {
-                if nest_sub_evidence(
-                    sub, Side::Sell, &evrows[sub], &devrows[sub], flip_edge[sub],
-                ) {
+                if nest_sub_evidence(sub, Side::Sell, &evrows[sub], &devrows[sub], flip_edge[sub]) {
                     nf_sell[k] = true;
                     nf_sell_t1[k] = w.src_t1;
                     nest_sell[k] = None;
@@ -274,9 +276,7 @@ pub(crate) fn run_axiom_voice(
                 }
             }
             if let Some(w) = nest_buy[k] {
-                if nest_sub_evidence(
-                    sub, Side::Buy, &evrows[sub], &devrows[sub], flip_edge[sub],
-                ) {
+                if nest_sub_evidence(sub, Side::Buy, &evrows[sub], &devrows[sub], flip_edge[sub]) {
                     nf_buy[k] = true;
                     nf_buy_t1[k] = w.src_t1;
                     nest_buy[k] = None;
@@ -313,18 +313,14 @@ pub(crate) fn run_axiom_voice(
         // ——kind 行是已完成走势的回溯计数，当下可判，不可锚到 Φ 相位
         // （P6 单边换窗口否证边界））。严格祖先 ∃j>k。
         let exempt_up = |k: usize| {
-            ((k + 1)..MAX_LADDER)
-                .any(|j| trend_state[j] && dir_state[j] == Some(Direction::Up))
+            ((k + 1)..MAX_LADDER).any(|j| trend_state[j] && dir_state[j] == Some(Direction::Up))
         };
         let exempt_dn = |k: usize| {
-            ((k + 1)..MAX_LADDER)
-                .any(|j| trend_state[j] && dir_state[j] == Some(Direction::Down))
+            ((k + 1)..MAX_LADDER).any(|j| trend_state[j] && dir_state[j] == Some(Direction::Down))
         };
         // 成本门 Q(k)（公理5）：defined(θ_mean) ∧ θ_mean ≥ C_rt，k_cost≡1。
         // 未定义短路拒绝（资格是需证据的存在谓词，053:26）。
-        let q_gate = |k: usize| {
-            depth_ref.theta_mean(k).is_some_and(|m| m >= C_ROUND_TRIP)
-        };
+        let q_gate = |k: usize| depth_ref.theta_mean(k).is_some_and(|m| m >= C_ROUND_TRIP);
 
         // 相位驻留观测。
         for k in floor_ladder..MAX_LADDER {
@@ -341,12 +337,21 @@ pub(crate) fn run_axiom_voice(
         // ── P1：PairedOut 出口集（义务优先——资金守恒+满仓义务）──
         for k in floor_ladder..MAX_LADDER {
             let Some(po) = pairs[k] else { continue };
-            let LayerState::Long { entry_bar, entry_price, shares, weight, deferred_bars, partial } =
-                layers[k]
+            let LayerState::Long {
+                entry_bar,
+                entry_price,
+                shares,
+                weight,
+                deferred_bars,
+                partial,
+            } = layers[k]
             else {
                 unreachable!("PairedOut 在外 ⇒ 本层恒 Long（载具生命周期内层不变迁）")
             };
-            debug_assert!((shares - po.shares).abs() < 1e-12, "全抛/如数接回 ⇒ 股数恒等");
+            debug_assert!(
+                (shares - po.shares).abs() < 1e-12,
+                "全抛/如数接回 ⇒ 股数恒等"
+            );
             // 接回闭包（M=N：同股数，049:64"如数接回"）。
             let mut restore = |reason: &'static str,
                                pool: &mut f64,
@@ -356,7 +361,10 @@ pub(crate) fn run_axiom_voice(
              -> bool {
                 let cost = po.shares * c;
                 if cost > *pool {
-                    pairs[k] = Some(PairedOut { restore_due: true, ..po });
+                    pairs[k] = Some(PairedOut {
+                        restore_due: true,
+                        ..po
+                    });
                     res.n_sub_restore_defer_bars += 1;
                     return false;
                 }
@@ -409,7 +417,10 @@ pub(crate) fn run_axiom_voice(
                 });
                 res.n_exits_by_ladder[k] += 1;
                 res.n_sub_escalates_by_ladder[k] += 1;
-                layers[k] = LayerState::Gated { entry_bar: i as i64, weight };
+                layers[k] = LayerState::Gated {
+                    entry_bar: i as i64,
+                    weight,
+                };
                 res.n_gate_enters_by_ladder[k] += 1;
                 pairs[k] = None;
             };
@@ -421,17 +432,31 @@ pub(crate) fn run_axiom_voice(
                 }
             } else if book.is_dead_down(k, po.anchor_cs) {
                 // 049:52"一旦出现第三类卖点，就不能回补了" ⇒ 升级翻转。
-                escalate("hinge_escalate", &mut pool, &mut layers, &mut pairs, &mut res);
+                escalate(
+                    "hinge_escalate",
+                    &mut pool,
+                    &mut layers,
+                    &mut pairs,
+                    &mut res,
+                );
             } else if t1_sell {
                 // 044:44：本层走势级出口先到 ⇒ 升级翻转。
-                escalate("hinge_escalate", &mut pool, &mut layers, &mut pairs, &mut res);
+                escalate(
+                    "hinge_escalate",
+                    &mut pool,
+                    &mut layers,
+                    &mut pairs,
+                    &mut res,
+                );
             } else if c <= po.anchor_zd {
                 // 049:64"在下方如数接回"——几何触线（特别裁决：唯一存活
                 // 接回形态；事件等待=三连败死因）。
                 if restore("sub_diff", &mut pool, &mut layers, &mut pairs, &mut res) {
                     res.n_osc_zd_restores_by_ladder[k] += 1;
                 }
-            } else if book.alive(k).is_some_and(|lc| lc.seg_start != po.anchor_cs && lc.zd > po.anchor_zg)
+            } else if book
+                .alive(k)
+                .is_some_and(|lc| lc.seg_start != po.anchor_cs && lc.zd > po.anchor_zg)
             {
                 // 中枢上移（新中枢 ZD > 锚 ZG）⇒ 接回（sc 在册 8/10 转正）。
                 if restore("sub_diff", &mut pool, &mut layers, &mut pairs, &mut res) {
@@ -450,8 +475,14 @@ pub(crate) fn run_axiom_voice(
             if pairs[k].is_some() {
                 continue;
             }
-            let LayerState::Long { entry_bar, entry_price, shares, weight, deferred_bars, partial } =
-                layers[k]
+            let LayerState::Long {
+                entry_bar,
+                entry_price,
+                shares,
+                weight,
+                deferred_bars,
+                partial,
+            } = layers[k]
             else {
                 continue;
             };
@@ -514,11 +545,18 @@ pub(crate) fn run_axiom_voice(
                 weight_at_entry: weight,
                 deferred_bars,
                 partial,
-                exit_reason: if !sig.sell_any.get(k) { "nest_sell" } else { "sellpt" },
+                exit_reason: if !sig.sell_any.get(k) {
+                    "nest_sell"
+                } else {
+                    "sellpt"
+                },
                 polarity: Polarity::Long,
             });
             res.n_exits_by_ladder[k] += 1;
-            layers[k] = LayerState::Gated { entry_bar: i as i64, weight };
+            layers[k] = LayerState::Gated {
+                entry_bar: i as i64,
+                weight,
+            };
             res.n_gate_enters_by_ladder[k] += 1;
         }
 
@@ -563,10 +601,21 @@ pub(crate) fn run_axiom_voice(
                     // 买回（翻多）：Move↑ 买点（049:60 三买后持股）∨
                     // Move↓ t1（背驰接回）∨ Osc 下方位置。
                     layers[k] = enter_or_defer(
-                        k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
-                        &mut pool, &mut res,
+                        k,
+                        i as i64,
+                        i as i64,
+                        c,
+                        bar_nav,
+                        &thetas,
+                        theta_total,
+                        &mut pool,
+                        &mut res,
                     );
-                    if was_gated && matches!(layers[k], LayerState::Long { .. } | LayerState::Pending { .. })
+                    if was_gated
+                        && matches!(
+                            layers[k],
+                            LayerState::Long { .. } | LayerState::Pending { .. }
+                        )
                     {
                         res.n_gate_restores_by_ladder[k] += 1;
                     }
@@ -577,8 +626,15 @@ pub(crate) fn run_axiom_voice(
                         layers[k] = LayerState::Flat;
                     } else {
                         layers[k] = enter_or_defer(
-                            k, confirm_bar, i as i64, c, bar_nav, &thetas, theta_total,
-                            &mut pool, &mut res,
+                            k,
+                            confirm_bar,
+                            i as i64,
+                            c,
+                            bar_nav,
+                            &thetas,
+                            theta_total,
+                            &mut pool,
+                            &mut res,
                         );
                     }
                 }
@@ -605,8 +661,14 @@ pub(crate) fn run_axiom_voice(
             layers[k] = LayerState::Flat;
             continue;
         }
-        let LayerState::Long { entry_bar, entry_price, shares, weight, deferred_bars, partial } =
-            layers[k]
+        let LayerState::Long {
+            entry_bar,
+            entry_price,
+            shares,
+            weight,
+            deferred_bars,
+            partial,
+        } = layers[k]
         else {
             continue;
         };
@@ -647,7 +709,11 @@ mod tests {
     use crate::trading::types::LadderMask;
 
     fn bar(close: f64) -> BarSig {
-        BarSig { close, max_ladder: 5, ..Default::default() }
+        BarSig {
+            close,
+            max_ladder: 5,
+            ..Default::default()
+        }
     }
 
     /// candidate 锚事件（中枢快照源）。
@@ -702,7 +768,11 @@ mod tests {
         (0..SUB_COST_MIN_OBS as i64)
             .map(|j| {
                 let b = with_anchor(bar(100.0), lad, 10 + j, 50.0, 51.0);
-                if j == 0 { with_empty_div(b) } else { b }
+                if j == 0 {
+                    with_empty_div(b)
+                } else {
+                    b
+                }
             })
             .collect()
     }
@@ -723,7 +793,10 @@ mod tests {
 
     #[test]
     fn parse_fusion_va() {
-        assert_eq!(PolarityMode::parse("fusion_va"), Some(PolarityMode::AxiomVoice));
+        assert_eq!(
+            PolarityMode::parse("fusion_va"),
+            Some(PolarityMode::AxiomVoice)
+        );
     }
 
     #[test]
@@ -768,16 +841,15 @@ mod tests {
         bars.push(sell_t1(bar(100.0), 2)); // t1 卖也被豁免域冻结
         bars.push(bar(100.0));
         let w = SUB_COST_MIN_OBS as i64;
-        let r = run_va(
-            bars,
-            vec![(w, 3, Direction::Up)],
-            vec![(w, 3, true)],
-        );
+        let r = run_va(bars, vec![(w, 3, Direction::Up)], vec![(w, 3, true)]);
         assert_eq!(r.n_trend_holds_by_ladder[2], 1);
         assert_eq!(r.n_anc_exempt_blocks_by_ladder[2], 1, "豁免域归因");
         assert_eq!(r.n_sub_opens_by_ladder[2], 0);
         assert_eq!(
-            r.trades.iter().filter(|t| t.ladder == 2 && t.exit_reason != "eod").count(),
+            r.trades
+                .iter()
+                .filter(|t| t.ladder == 2 && t.exit_reason != "eod")
+                .count(),
             0
         );
     }
@@ -798,8 +870,12 @@ mod tests {
         };
         let mut bars = warmup(2);
         bars.push(buypt(bar(40.0), 2)); // 入场
-        // confirmed Buy3 终结锚中枢（向上离开确认）⇒ Φ=Move↑。
-        bars.push(with_ev(bar(100.0), 2, conf_b3(10 + SUB_COST_MIN_OBS as i64 - 1)));
+                                        // confirmed Buy3 终结锚中枢（向上离开确认）⇒ Φ=Move↑。
+        bars.push(with_ev(
+            bar(100.0),
+            2,
+            conf_b3(10 + SUB_COST_MIN_OBS as i64 - 1),
+        ));
         bars.push(sellpt(bar(110.0), 2)); // 非 t1 卖 ⇒ 冻结
         bars.push(sell_t1(bar(108.0), 2)); // t1 背驰 ⇒ 放行翻转
         bars.push(bar(108.0));
@@ -830,7 +906,10 @@ mod tests {
         };
         let mut bars = warmup(2);
         bars.push(buypt(bar(40.0), 2)); // 入场
-        bars.push(sellpt(with_ev(bar(45.0), 2, conf_s3(10 + SUB_COST_MIN_OBS as i64 - 1)), 2));
+        bars.push(sellpt(
+            with_ev(bar(45.0), 2, conf_s3(10 + SUB_COST_MIN_OBS as i64 - 1)),
+            2,
+        ));
         // ↑ Sell3 终结中枢 ⇒ Φ=Move↓；同 bar 卖词汇 ⇒ 翻转轨道（逃命）→ Coin
         bars.push(buypt(bar(30.0), 2)); // Move↓ 非 t1 买 ⇒ 冻结（不接刀）
         let mut b = buypt(bar(28.0), 2);

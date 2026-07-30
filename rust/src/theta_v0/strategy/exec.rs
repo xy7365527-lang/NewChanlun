@@ -335,7 +335,7 @@ mod tests {
     #[test]
     fn fees_buy_adds_sell_subtracts() {
         let cfg = ExecConfig::default(); // 1+2+0 = 3 bp
-        // base=1_000_000 tick：adj = 1e6 * 3/10000 = 300。
+                                         // base=1_000_000 tick：adj = 1e6 * 3/10000 = 300。
         assert_eq!(apply_fees(1_000_000, FillSide::Buy, &cfg), 1_000_300);
         assert_eq!(apply_fees(1_000_000, FillSide::Sell, &cfg), 999_700);
     }
@@ -413,8 +413,8 @@ mod tests {
     //  closePred 镜像（§9 关闭谓词 X_{v,t}，对照 Origin.SubVoiceOpenClose.closePred）
     // ──────────────────────────────────────────────────────────────────────
 
-    use super::super::voice::VoiceSide;
     use super::super::super::types::BspBits;
+    use super::super::voice::VoiceSide;
 
     /// ★bit-exact 对照 `Origin.SubVoiceOpenClose.closePred`：四析取项任一为真 ⟹ X=true。
     /// 逐项验证 X = ¬ParentValid ∨ χ^{σ_p} ∨ Stop ∨ RiskClose（line 552-562）。
@@ -423,10 +423,22 @@ mod tests {
         // 全 false ⟹ X=false（无关闭触发，持仓延续）。
         assert!(!close_pred(&CloseTriggers::default()));
         // 任一项 true ⟹ X=true（逐项）。
-        assert!(close_pred(&CloseTriggers { parent_invalid: true, ..Default::default() }));
-        assert!(close_pred(&CloseTriggers { reverse_signal: true, ..Default::default() }));
-        assert!(close_pred(&CloseTriggers { stop: true, ..Default::default() }));
-        assert!(close_pred(&CloseTriggers { risk_close: true, ..Default::default() }));
+        assert!(close_pred(&CloseTriggers {
+            parent_invalid: true,
+            ..Default::default()
+        }));
+        assert!(close_pred(&CloseTriggers {
+            reverse_signal: true,
+            ..Default::default()
+        }));
+        assert!(close_pred(&CloseTriggers {
+            stop: true,
+            ..Default::default()
+        }));
+        assert!(close_pred(&CloseTriggers {
+            risk_close: true,
+            ..Default::default()
+        }));
         // 多项同真 ⟹ 仍 X=true（析取）。
         assert!(close_pred(&CloseTriggers {
             stop: true,
@@ -439,8 +451,14 @@ mod tests {
     /// 与 risk.rs `root_dir_next` case2（做多根遇 χ⁻ / 做空根遇 χ⁺ ⟹ 先平）bit-exact 同语义。
     #[test]
     fn reverse_signal_held_vs_bsp() {
-        let sell = BspBits { sell1: true, ..Default::default() };
-        let buy = BspBits { buy1: true, ..Default::default() };
+        let sell = BspBits {
+            sell1: true,
+            ..Default::default()
+        };
+        let buy = BspBits {
+            buy1: true,
+            ..Default::default()
+        };
         // 持多遇卖侧 ⟹ 反向（χ⁻）。
         assert!(reverse_signal(VoiceSide::Long, &sell));
         // 持多遇买侧（同向）⟹ 非反向。

@@ -306,7 +306,14 @@ mod tests {
     fn theorem_615_constructor_exhaustive_not_complete() {
         // (a) 穷尽性（Layer1）：全部 2^6 端点语义组合都落入某 BspBits 标签，无逃逸。
         for m in 0u8..64 {
-            let e = situ(m & 1 != 0, m & 2 != 0, m & 4 != 0, m & 16 != 0, m & 8 != 0, m & 32 != 0);
+            let e = situ(
+                m & 1 != 0,
+                m & 2 != 0,
+                m & 4 != 0,
+                m & 16 != 0,
+                m & 8 != 0,
+                m & 32 != 0,
+            );
             let _label: BspBits = endpoint_to_bsp(&e); // 全函数：任何输入必得标签（含空标签）
         }
         // (b) complete 失败：x、y 语义不等价（after_first_buy 历史字段不同 ⟹ ¬(x∼y)）
@@ -314,7 +321,11 @@ mod tests {
         let x = situ(false, false, true, true, false, false);
         let y = situ(true, false, true, true, false, false);
         assert_ne!(x, y, "语义层不等价：after_first_buy 历史不同");
-        assert_eq!(endpoint_to_bsp(&x), endpoint_to_bsp(&y), "标签层等同：同为 3B 单标签");
+        assert_eq!(
+            endpoint_to_bsp(&x),
+            endpoint_to_bsp(&y),
+            "标签层等同：同为 3B 单标签"
+        );
         let bits = endpoint_to_bsp(&x);
         assert!(bits.buy3 && !bits.buy1 && !bits.buy2);
     }
@@ -340,13 +351,23 @@ mod tests {
     }
 
     fn center(zd: Tick, zg: Tick) -> Center {
-        Center { zd, zg, dd: zd - 5, gg: zg + 5, start_index: 0, end_index: 0 }
+        Center {
+            zd,
+            zg,
+            dd: zd - 5,
+            gg: zg + 5,
+            start_index: 0,
+            end_index: 0,
+        }
     }
 
     #[test]
     fn bsp_point_carries_pivot_low_for_first_buy() {
         // 路 B single source：1 买条目携带 pivot_low（strategy 1/2 买止损源，零重算）。
-        let bits = BspBits { buy1: true, ..Default::default() };
+        let bits = BspBits {
+            buy1: true,
+            ..Default::default()
+        };
         let p = BspPoint {
             source_index: 42,
             bits,
@@ -364,7 +385,10 @@ mod tests {
     #[test]
     fn bsp_point_carries_center_for_third_buy() {
         // 路 B single source：3 买条目携带 center（strategy 3 买止损=center.zg，无歧义定位）。
-        let bits = BspBits { buy3: true, ..Default::default() };
+        let bits = BspBits {
+            buy3: true,
+            ..Default::default()
+        };
         let c = center(800, 1200);
         let p = BspPoint {
             source_index: 50,
@@ -377,7 +401,13 @@ mod tests {
         };
         // strategy 3 买止损 = center.zg（ZG，reference:46）——条目直接关联中枢，无需 strategy 猜。
         // （#218 面 A 载体形态：Center 变体读出，机械适配。）
-        assert_eq!(p.center.and_then(|o| match o { OwnerRef::Center(c) => Some(c.zg), _ => None }), Some(1200));
+        assert_eq!(
+            p.center.and_then(|o| match o {
+                OwnerRef::Center(c) => Some(c.zg),
+                _ => None,
+            }),
+            Some(1200)
+        );
         assert!(p.bits.buy3);
     }
 
@@ -406,7 +436,10 @@ mod tests {
     #[test]
     fn bsp_point_sell_side_carries_pivot_high_and_zd() {
         // 卖镜像：1/2 卖止损=pivot_high；3 卖止损=center.zd。
-        let bits = BspBits { sell1: true, ..Default::default() };
+        let bits = BspBits {
+            sell1: true,
+            ..Default::default()
+        };
         let c = center(800, 1200);
         let p = BspPoint {
             source_index: 7,
@@ -418,7 +451,13 @@ mod tests {
             force: None,
         };
         assert_eq!(p.pivot_high, 1500); // 1/2 卖止损源
-        // 3 卖止损源 center.zd（Center 变体读出，#218 面 A 载体形态机械适配）。
-        assert_eq!(p.center.and_then(|o| match o { OwnerRef::Center(c) => Some(c.zd), _ => None }), Some(800));
+                                        // 3 卖止损源 center.zd（Center 变体读出，#218 面 A 载体形态机械适配）。
+        assert_eq!(
+            p.center.and_then(|o| match o {
+                OwnerRef::Center(c) => Some(c.zd),
+                _ => None,
+            }),
+            Some(800)
+        );
     }
 }

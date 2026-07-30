@@ -27,7 +27,10 @@ use serde::Deserialize;
 use std::path::Path;
 
 fn segment_area(hist: &[f64], lo: usize, hi: usize) -> f64 {
-    hist[lo..=hi.min(hist.len() - 1)].iter().map(|v| v.abs()).sum()
+    hist[lo..=hi.min(hist.len() - 1)]
+        .iter()
+        .map(|v| v.abs())
+        .sum()
 }
 
 #[derive(Debug, Default, Clone)]
@@ -162,7 +165,11 @@ fn main() -> Result<(), String> {
                 funnel.diverge_false += 1;
                 let prev = segment_area(&hist, a_lo, a_hi);
                 let curr = segment_area(&hist, c_lo, c_hi);
-                let ratio = if prev > 0.0 { curr / prev } else { f64::INFINITY };
+                let ratio = if prev > 0.0 {
+                    curr / prev
+                } else {
+                    f64::INFINITY
+                };
                 funnel
                     .false_rows
                     .push((ratio, a_hi - a_lo + 1, c_hi - c_lo + 1, event.level));
@@ -205,7 +212,11 @@ fn main() -> Result<(), String> {
         };
         let prev = segment_area(&hist, a_lo, a_hi);
         let curr = segment_area(&hist, c_lo, c_hi);
-        let ratio = if prev > 0.0 { curr / prev } else { f64::INFINITY };
+        let ratio = if prev > 0.0 {
+            curr / prev
+        } else {
+            f64::INFINITY
+        };
         if ratio < 1.0 {
             cf_lt1 += 1;
         }

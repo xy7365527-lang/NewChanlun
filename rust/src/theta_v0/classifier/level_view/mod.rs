@@ -29,22 +29,22 @@ use std::collections::BTreeSet;
 /// 本行保 pub 路径不变（`p123_fast_replay.rs` 等既有消费方零改动）。
 pub use super::level_view_store::{ConfirmCursor, ConfirmCursorStore, ConfirmState};
 
+use projection::leg_as_segment;
 /// #630：`projection` 子模块的 pub 项原样再导出（D1 投影 + LowerLeg）。
 pub use projection::{
-    project_extended_windows, project_extended_windows_carried_only, lower_legs_from,
+    lower_legs_from, project_extended_windows, project_extended_windows_carried_only,
     ExactThreeProjection, ExactThreeSeed, LowerLeg, ProjectionError, ProjectionMaterial,
     SeedCoreProvenance,
 };
-use projection::leg_as_segment;
 
+#[cfg(test)]
+use confirm::{confirm_core_calls, reset_confirm_core_calls, trend_confirm_time};
+use confirm::{trend_confirm_state, trend_confirm_state_core};
 /// #630：`confirm` 子模块的 pub 项原样再导出（趋势背驰确认核心）。
 pub use confirm::{
     ConfirmKey, ConfirmResidence, DivergencePair, DivergencePairId, NestCandidateEvent,
     NestDivergenceKind, PairConfirmState,
 };
-use confirm::{trend_confirm_state, trend_confirm_state_core};
-#[cfg(test)]
-use confirm::{confirm_core_calls, reset_confirm_core_calls, trend_confirm_time};
 
 /// #630：`pan` 子模块的 pub 项原样再导出（D2 provider + memo resident seam；
 /// `PanMemo`/`PanResidence` 由 `p123_fast_replay.rs` 直接消费，必须保 `pub`）。
@@ -68,10 +68,9 @@ use super::super::types::{Bar, Center, Fractal, Tick};
 #[cfg(test)]
 use super::center::UnitRange;
 #[cfg(test)]
-use pan_provider::resolve_triple_anchor;
-#[cfg(test)]
 use super::recursive_tower::ElementId;
-
+#[cfg(test)]
+use pan_provider::resolve_triple_anchor;
 
 /// #73-#75 独立激活门。默认关闭，现有分类/交易路径不调用本 seam。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -285,7 +284,6 @@ impl C2PersistenceKey {
         &self.0
     }
 }
-
 
 #[derive(Debug, Clone, Copy)]
 pub struct LevelViewMaterial<'a> {

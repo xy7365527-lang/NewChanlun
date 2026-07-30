@@ -220,12 +220,30 @@ pub fn record_edges(
         }
         for &(old, new) in strict {
             if old != new {
-                insert(&mut b.strict, level, old, Witness { new, txn_id, txn_digest: txn_digest.to_string() });
+                insert(
+                    &mut b.strict,
+                    level,
+                    old,
+                    Witness {
+                        new,
+                        txn_id,
+                        txn_digest: txn_digest.to_string(),
+                    },
+                );
             }
         }
         for &(old, new) in wide {
             if old != new {
-                insert(&mut b.wide, level, old, Witness { new, txn_id, txn_digest: txn_digest.to_string() });
+                insert(
+                    &mut b.wide,
+                    level,
+                    old,
+                    Witness {
+                        new,
+                        txn_id,
+                        txn_digest: txn_digest.to_string(),
+                    },
+                );
             }
         }
     });
@@ -363,7 +381,11 @@ mod tests {
     use super::*;
 
     fn cid(start: usize, zd: i64, zg: i64) -> CenterId {
-        CenterId { start_index: start, zd, zg }
+        CenterId {
+            start_index: start,
+            zd,
+            zg,
+        }
     }
 
     /// 同 bar 登记的唯一 1→1 边可查出，且带证书 digest 见证。
@@ -392,7 +414,11 @@ mod tests {
         let old = cid(10, 100, 200);
         record_edges(7, 1, 1, "d", &[(old, cid(10, 90, 200))], &[]);
         assert_eq!(lookup(8, 1, old), Verdict::BarMismatch, "跨 bar 不做猜测");
-        assert_eq!(lookup(7, 1, cid(99, 1, 2)), Verdict::NoCert, "簿里没有 ⟹ 无证书");
+        assert_eq!(
+            lookup(7, 1, cid(99, 1, 2)),
+            Verdict::NoCert,
+            "簿里没有 ⟹ 无证书"
+        );
         assert_eq!(lookup(7, 2, old), Verdict::NoCert, "级别不符 ⟹ 无证书");
         // 同 bar 同级同旧身份被判到第二个后继 ⟹ 歧义。
         record_edges(7, 1, 2, "d2", &[(old, cid(10, 80, 200))], &[]);
@@ -429,9 +455,15 @@ mod tests {
     /// ——防裁定被静默改回严格默认。`THETA_REBASE_MIGRATE_STRICT` 未设时才有意义，故先断言。
     #[test]
     fn wide_reading_defaults_true_without_any_env_override() {
-        assert!(std::env::var(STRICT_ENV).is_err(), "本测试要求进程未设 {STRICT_ENV}");
+        assert!(
+            std::env::var(STRICT_ENV).is_err(),
+            "本测试要求进程未设 {STRICT_ENV}"
+        );
         test_set_wide(None);
-        assert!(wide_reading(), "#679 裁定：宽读法转生产默认，未置开关时须为真");
+        assert!(
+            wide_reading(),
+            "#679 裁定：宽读法转生产默认，未置开关时须为真"
+        );
     }
 
     /// 严格/宽两读法各自成簿，互不串味。

@@ -189,7 +189,8 @@ impl LeveledMove {
         });
         let start_index = subs.first().map(|m| m.start_index).unwrap_or(0);
         let end_index = subs.last().map(|m| m.end_index).unwrap_or(0);
-        let sub_moves = super::stage_profile::time("05c2b_submoves_alloc", || Rc::new(subs.to_vec()));
+        let sub_moves =
+            super::stage_profile::time("05c2b_submoves_alloc", || Rc::new(subs.to_vec()));
         LeveledMove {
             rmove: RMove::Compose {
                 subs: Rc::new(sub_rmoves),
@@ -316,7 +317,10 @@ pub fn compose_level(
             // ★task#40 fix A：win 是连续闭区间 ⟹ 直接借用连续切片，无临时数组 clone。
             // ★task#142：窗口变长（seed 三段 + 延伸段），subs = 中枢吸收的全部次级别走势。
             let subs = &subs_moves[win.0..=win.1];
-            let id = ElementId { level, ordinal: i as u64 };
+            let id = ElementId {
+                level,
+                ordinal: i as u64,
+            };
             LeveledMove::compose(subs, *c, level, id)
         })
         .collect();
@@ -573,24 +577,22 @@ pub fn audit_cp_recall_upper_bound(
 
     let mut results: Vec<CpRecallAuditCase> = objects
         .iter()
-        .map(|object| {
-            CpRecallAuditCase {
-                level,
-                b_center_id: object.b_center_id,
-                b_source_interval: (object.b_center.start_index, object.b_center.end_index),
-                b_core: (object.b_center.zd, object.b_center.zg),
-                cp_source_start: object.departure_interval.map(|interval| interval.0),
-                cp_departure_move_id: object.departure_move_id,
-                departure_move_id: None,
-                retest_move_id: None,
-                departure_interval: None,
-                retest_interval: None,
-                atom: if object.departure_move_id.is_some() && object.departure_interval.is_some() {
-                    CpRecallAtom::NoBOwnedAdjacentPair
-                } else {
-                    CpRecallAtom::NoDepartureMove
-                },
-            }
+        .map(|object| CpRecallAuditCase {
+            level,
+            b_center_id: object.b_center_id,
+            b_source_interval: (object.b_center.start_index, object.b_center.end_index),
+            b_core: (object.b_center.zd, object.b_center.zg),
+            cp_source_start: object.departure_interval.map(|interval| interval.0),
+            cp_departure_move_id: object.departure_move_id,
+            departure_move_id: None,
+            retest_move_id: None,
+            departure_interval: None,
+            retest_interval: None,
+            atom: if object.departure_move_id.is_some() && object.departure_interval.is_some() {
+                CpRecallAtom::NoBOwnedAdjacentPair
+            } else {
+                CpRecallAtom::NoDepartureMove
+            },
         })
         .collect();
 
@@ -598,12 +600,12 @@ pub fn audit_cp_recall_upper_bound(
     for retest_idx in 1..units.len() {
         let leave_idx = retest_idx - 1;
         let leave_unit = &units[leave_idx];
-        let Some(center_idx) = signal::nearest_confirmed_center_idx(centers, leave_unit.start_index)
+        let Some(center_idx) =
+            signal::nearest_confirmed_center_idx(centers, leave_unit.start_index)
         else {
             continue;
         };
-        let (Some(object), Some(result)) =
-            (objects.get(center_idx), results.get_mut(center_idx))
+        let (Some(object), Some(result)) = (objects.get(center_idx), results.get_mut(center_idx))
         else {
             continue;
         };
@@ -640,13 +642,8 @@ pub fn audit_cp_recall_upper_bound(
             Some(anchors) => anchors.get(leave_idx).copied().unwrap_or(None),
             None => Some(leave.direction),
         };
-        let atom = if signal::judge_third_cert(
-            &object.b_center,
-            &leave,
-            leave_anchor,
-            &retest,
-        )
-        .is_some()
+        let atom = if signal::judge_third_cert(&object.b_center, &leave, leave_anchor, &retest)
+            .is_some()
         {
             CpRecallAtom::Success
         } else {
@@ -681,16 +678,16 @@ fn cp_scan_ownership(
         departure_interval,
         lifecycle: CpLifecycleStatus::Pending,
         cp_certificate_confirm_src: None,
-        c_structure: departure_move_id.zip(departure_interval).map(|(move_id, interval)| {
-            CpStructureIdentity {
+        c_structure: departure_move_id
+            .zip(departure_interval)
+            .map(|(move_id, interval)| CpStructureIdentity {
                 level: move_id.level,
                 b_center_id,
                 departure_move_id: move_id,
                 terminal_move_id: None,
                 source_start: interval.0,
                 source_end: None,
-            }
-        }),
+            }),
         third_class_in_c: None,
         full_trend_evidence: None,
         full_trend_c_qualified: None,
@@ -724,7 +721,11 @@ pub fn detect_centers_windowed_resume(
     units: &[UnitRange],
     build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
     start_i: usize,
-) -> (Vec<(Center, (usize, usize))>, Vec<WinMeta>, WindowScanCursor) {
+) -> (
+    Vec<(Center, (usize, usize))>,
+    Vec<WinMeta>,
+    WindowScanCursor,
+) {
     let mut out = Vec::new();
     // ★on2w2-cascade：与 `out` 1:1 对齐的读域侧车（每 center 一条 WinMeta）。升级子中枢共享父窗口
     // `(i, j)` ⟹ 同一 read_end_src/win_start（设计 §3.5 整窗保留/失效性质的来源）。
@@ -756,7 +757,12 @@ pub fn detect_centers_windowed_resume(
                 let emitted = if n < UPGRADE_TOTAL_SEGMENTS {
                     // Q2 有效域（≤8 段）：一个延伸中枢，不拆碎片。
                     out.push((c, (i, j - 1)));
-                    metas.push(WinMeta { win_start: i, win_exit: j, read_end_src, emitted: 1 });
+                    metas.push(WinMeta {
+                        win_start: i,
+                        win_exit: j,
+                        read_end_src,
+                        emitted: 1,
+                    });
                     1
                 } else {
                     // ★#148 升级重切（第33课 + codex 裁定 A1/B-II/C1，codex-decide-20260704-001933）：
@@ -785,7 +791,12 @@ pub fn detect_centers_windowed_resume(
                         ));
                         // ★升级子中枢**共享父窗口** (i, j, read_end_src, k)——设计 §3.5：k 个子中枢
                         // 逐值相同 win_start/win_exit/read_end_src ⟹ partition_point 整窗保留或整窗失效。
-                        metas.push(WinMeta { win_start: i, win_exit: j, read_end_src, emitted: k });
+                        metas.push(WinMeta {
+                            win_start: i,
+                            win_exit: j,
+                            read_end_src,
+                            emitted: k,
+                        });
                     }
                     k
                 };
@@ -797,11 +808,23 @@ pub fn detect_centers_windowed_resume(
             }
         }
     }
-    debug_assert_eq!(out.len(), metas.len(), "WinMeta 侧车与 center 输出 1:1 对齐");
+    debug_assert_eq!(
+        out.len(),
+        metas.len(),
+        "WinMeta 侧车与 center 输出 1:1 对齐"
+    );
     // 无成立窗口 ⟹ resume_from = consumed（续进，不回退）、emitted = 0；有窗口 ⟹ 该窗口起点
     // + 整窗产出数（回退域 = 整窗：升级重切窗口的全部子中枢在窗口 sealed 前均可变）。
     let (resume_from, last_window_emitted) = last_window.unwrap_or((i, 0));
-    (out, metas, WindowScanCursor { consumed: i, resume_from, last_window_emitted })
+    (
+        out,
+        metas,
+        WindowScanCursor {
+            consumed: i,
+            resume_from,
+            last_window_emitted,
+        },
+    )
 }
 
 /// 增量 compose：从 `start_i` 续扫窗口 + 把新产出的窗口 compose 为上级 `LeveledMove`。
@@ -846,8 +869,9 @@ pub fn compose_level_resume(
     let (windowed, metas, cursor) = super::stage_profile::time("05a_detect_windowed", || {
         detect_centers_windowed_resume(units, build, start_i)
     });
-    let tail_centers: Vec<Center> =
-        super::stage_profile::time("05b_tail_centers", || windowed.iter().map(|(c, _)| *c).collect());
+    let tail_centers: Vec<Center> = super::stage_profile::time("05b_tail_centers", || {
+        windowed.iter().map(|(c, _)| *c).collect()
+    });
     // ★A3 task#40 阶段0插桩（保留，env-gated）+ fix A/B 落地：05c1（临时数组 clone）已由直接切片
     // 消灭（见下 `&subs_moves[win[0]..win[0]+3]`），05c2 内部再分 05c2a/05c2b（compose() 内，
     // fix B 后两者均 O(1)）。三者 stage-0 实测（1M CL）曾各占 05c ~23%——非单一大头，两处同修。
@@ -859,7 +883,10 @@ pub fn compose_level_resume(
                 // win 是连续闭区间（seed 三段 + 延伸段，task #142）——直接借用切片，不 clone 临时数组。
                 let subs = &subs_moves[win.0..=win.1];
                 // ★确定性 ID：tail ordinal 接续前缀（全量/增量产同 ID）。
-                let id = ElementId { level, ordinal: (prefix_count + i) as u64 };
+                let id = ElementId {
+                    level,
+                    ordinal: (prefix_count + i) as u64,
+                };
                 super::stage_profile::time("05c2_compose_call", || {
                     LeveledMove::compose(subs, *c, level, id)
                 })
@@ -914,14 +941,17 @@ pub fn project_to_units(moves: &[LeveledMove], blocks: &[MoveBlock]) -> Vec<Unit
         .iter()
         .enumerate()
         .map(|(idx, m)| {
-            let prev = if idx == 0 { None } else { Some(&moves[idx - 1]) };
+            let prev = if idx == 0 {
+                None
+            } else {
+                Some(&moves[idx - 1])
+            };
             // 全量投影是 mod.rs:1400 debug_assert 神谕的一侧——保留递归 `rmove.lo()/hi()`（非热路径，
             // 每 bar 仅 test 编译调一次），作 envelope() O(1) 增量投影的独立 bit-exact 对照面。
             UnitRange {
                 start_index: m.start_index,
                 end_index: m.end_index,
-                direction: center_own_dir_at(blocks, idx)
-                    .unwrap_or_else(|| m.fold_direction(prev)),
+                direction: center_own_dir_at(blocks, idx).unwrap_or_else(|| m.fold_direction(prev)),
                 lo: m.rmove.lo(),
                 hi: m.rmove.hi(),
             }
@@ -945,11 +975,18 @@ pub fn project_to_units_resume(
     blocks: &[MoveBlock],
     cache: &mut Vec<UnitRange>,
 ) {
-    debug_assert!(cache.len() <= moves.len(), "投影缓存比 moves 长 ⟹ 前缀回缩未清空（违反契约）");
+    debug_assert!(
+        cache.len() <= moves.len(),
+        "投影缓存比 moves 长 ⟹ 前缀回缩未清空（违反契约）"
+    );
     debug_assert_blocks_pair(moves.len(), blocks);
     for idx in cache.len()..moves.len() {
         let m = &moves[idx];
-        let prev = if idx == 0 { None } else { Some(&moves[idx - 1]) };
+        let prev = if idx == 0 {
+            None
+        } else {
+            Some(&moves[idx - 1])
+        };
         // ★#H1 O(n²)→O(n) 真修：`envelope()` 读携带 center O(1)，替代 `rmove.lo()/hi()` 递归深扫整棵
         // 子树（frontier 走势子树随窗口延伸 O(n)，每 bar 重投影 ⟹ O(n²)）。bit-exact 由 center.dd/gg
         // == rmove.lo()/hi() 投影契约保证 + mod.rs:1400 逐 bar debug_assert 神谕守护（见 envelope() 文档）。
@@ -998,7 +1035,11 @@ pub fn index_of_in(subs: &[LeveledMove], target: &RMove) -> usize {
 /// `close_src` 是 `merged_bars` 下标 → source_index 的升序映射（`hist[k]` 对应 `close_src[k]`）。
 /// 找首个 `>= start` 的下标 lo 与末个 `<= end` 的下标 hi。区间空（无 bar 落入）⟹ None。signal.rs
 /// 的同名函数私有，本塔在递归组装层接入背驰需独立的坐标映射（不跨 owner 改 signal.rs 暴露私有）。
-pub fn map_src_to_close_idx(close_src: &[usize], start: usize, end: usize) -> Option<(usize, usize)> {
+pub fn map_src_to_close_idx(
+    close_src: &[usize],
+    start: usize,
+    end: usize,
+) -> Option<(usize, usize)> {
     if start > end {
         return None;
     }
@@ -1290,7 +1331,10 @@ pub fn relaxed_cand_delta_entries(
         assert_eq!(c_structure.departure_move_id, cp_departure_move_id);
         assert_eq!(third_class_in_c.b_center_id, object.b_center_id);
         assert_eq!(third_class_in_c.cp_departure_move_id, cp_departure_move_id);
-        assert_eq!(third_class_in_c.point_source_index, cp_certificate_confirm_src);
+        assert_eq!(
+            third_class_in_c.point_source_index,
+            cp_certificate_confirm_src
+        );
 
         let matching_legacy = legacy_events.iter().filter(|event| {
             let legacy_identity = event
@@ -1477,8 +1521,7 @@ pub(crate) fn invalidate_cp_lifecycle_dirty_dependencies(
             pending_fallbacks += 1;
             certificate_clear_recomputes += 1;
             if let Some(departure) = object.departure_move_id {
-                lifecycle_scan_from =
-                    lifecycle_scan_from.min(departure.ordinal as usize + 1);
+                lifecycle_scan_from = lifecycle_scan_from.min(departure.ordinal as usize + 1);
             }
             object.lifecycle = CpLifecycleStatus::Pending;
             object.cp_certificate_confirm_src = None;
@@ -1588,7 +1631,11 @@ fn full_trend_qualification_evidence(
             CenterRelation::DownContinuation => Direction::Down,
             CenterRelation::LevelExpansion => return None,
         };
-        Some(TrendContext { predecessor_center_id, b_center_id, direction })
+        Some(TrendContext {
+            predecessor_center_id,
+            b_center_id,
+            direction,
+        })
     });
 
     let terminal_move_id = structure.terminal_move_id?;
@@ -1605,8 +1652,7 @@ fn full_trend_qualification_evidence(
     if components.first()?.start_index != structure.source_start
         || components.last()?.end_index != structure.source_end?
         || !components.windows(2).all(|pair| {
-            pair[0].id.level == pair[1].id.level
-                && pair[0].id.ordinal + 1 == pair[1].id.ordinal
+            pair[0].id.level == pair[1].id.level && pair[0].id.ordinal + 1 == pair[1].id.ordinal
         })
     {
         return None;
@@ -1744,7 +1790,9 @@ pub fn advance_cp_lifecycles(
             let (Some(structure), Some(third), Some(terminal_move_id)) = (
                 object.c_structure,
                 object.third_class_in_c,
-                object.c_structure.and_then(|structure| structure.terminal_move_id),
+                object
+                    .c_structure
+                    .and_then(|structure| structure.terminal_move_id),
             ) else {
                 continue;
             };
@@ -1773,7 +1821,8 @@ pub fn advance_cp_lifecycles(
 
         let leave_idx = retest_idx - 1;
         let leave_unit = &units[leave_idx];
-        let Some(center_idx) = signal::nearest_confirmed_center_idx(centers, leave_unit.start_index)
+        let Some(center_idx) =
+            signal::nearest_confirmed_center_idx(centers, leave_unit.start_index)
         else {
             continue;
         };
@@ -1812,12 +1861,8 @@ pub fn advance_cp_lifecycles(
             Some(anchors) => anchors.get(leave_idx).copied().unwrap_or(None),
             None => Some(leave.direction),
         };
-        let Some(cert) = signal::judge_third_cert(
-            &object.b_center,
-            &leave,
-            leave_anchor,
-            &retest,
-        ) else {
+        let Some(cert) = signal::judge_third_cert(&object.b_center, &leave, leave_anchor, &retest)
+        else {
             continue;
         };
         let third = ThirdClassInCp {
@@ -1949,10 +1994,17 @@ fn cp_event_objects(
                 .get(event_seg_idx)
                 .is_some_and(|end_move| third.retest_move_id.ordinal <= end_move.id.ordinal)
     });
-    let c_end_full = (is_complete_divergence && third_inside_component_span)
-        .then(|| third_obj.expect("third_inside_component_span 蕴含 third_obj Some").retest_interval.1);
-    let terminal_move_id = (is_complete_divergence && third_inside_component_span)
-        .then(|| third_obj.expect("third_inside_component_span 蕴含 third_obj Some").retest_move_id);
+    let c_end_full = (is_complete_divergence && third_inside_component_span).then(|| {
+        third_obj
+            .expect("third_inside_component_span 蕴含 third_obj Some")
+            .retest_interval
+            .1
+    });
+    let terminal_move_id = (is_complete_divergence && third_inside_component_span).then(|| {
+        third_obj
+            .expect("third_inside_component_span 蕴含 third_obj Some")
+            .retest_move_id
+    });
     let c_structure = Some(CpStructureIdentity {
         level,
         b_center_id: scan.b_center_id,
@@ -1969,10 +2021,8 @@ fn cp_event_objects(
     });
     // 事件证书只能消费事件时已经存在的走势；尤其不得提前看见 terminal 的未来后继。
     let visible_moves = unit_moves.get(..=event_seg_idx);
-    let full_trend_evidence = c_structure
-        .zip(third_obj)
-        .zip(visible_moves)
-        .and_then(|((structure, third), visible_moves)| {
+    let full_trend_evidence = c_structure.zip(third_obj).zip(visible_moves).and_then(
+        |((structure, third), visible_moves)| {
             full_trend_qualification_evidence(
                 centers,
                 c_idx,
@@ -1981,11 +2031,10 @@ fn cp_event_objects(
                 third,
                 visible_moves,
             )
-        });
-    let full_trend_c_qualified = c_structure
-        .zip(third_obj)
-        .zip(visible_moves)
-        .and_then(|((structure, third), visible_moves)| {
+        },
+    );
+    let full_trend_c_qualified = c_structure.zip(third_obj).zip(visible_moves).and_then(
+        |((structure, third), visible_moves)| {
             full_trend_c_qualification(
                 centers,
                 c_idx,
@@ -1994,7 +2043,8 @@ fn cp_event_objects(
                 third,
                 visible_moves,
             )
-        });
+        },
+    );
     (
         Some(b),
         c_structure,
@@ -2029,24 +2079,30 @@ pub fn level_cand_delta(
     // ── 以下 prelude 与 signal::extract_signals_with_hist_anchored 逐行同构 ──
     let sorted_owned: Vec<Segment>;
     let anchors_perm: Vec<Option<Direction>>;
-    let (sorted, anchors_in): (&[Segment], Option<&[Option<Direction>]>) =
-        if segments.windows(2).all(|w| w[0].start_index <= w[1].start_index) {
-            (segments, anchor_dirs)
-        } else {
-            let mut idx: Vec<usize> = (0..segments.len()).collect();
-            idx.sort_by_key(|&i| segments[i].start_index);
-            sorted_owned = idx.iter().map(|&i| segments[i].clone()).collect();
-            match anchor_dirs {
-                Some(a) => {
-                    anchors_perm = idx.iter().map(|&i| a[i]).collect();
-                    (&sorted_owned[..], Some(&anchors_perm[..]))
-                }
-                None => (&sorted_owned[..], None),
+    let (sorted, anchors_in): (&[Segment], Option<&[Option<Direction>]>) = if segments
+        .windows(2)
+        .all(|w| w[0].start_index <= w[1].start_index)
+    {
+        (segments, anchor_dirs)
+    } else {
+        let mut idx: Vec<usize> = (0..segments.len()).collect();
+        idx.sort_by_key(|&i| segments[i].start_index);
+        sorted_owned = idx.iter().map(|&i| segments[i].clone()).collect();
+        match anchor_dirs {
+            Some(a) => {
+                anchors_perm = idx.iter().map(|&i| a[i]).collect();
+                (&sorted_owned[..], Some(&anchors_perm[..]))
             }
-        };
+            None => (&sorted_owned[..], None),
+        }
+    };
     let anchors_self: Vec<Option<Direction>> = sorted.iter().map(|s| Some(s.direction)).collect();
     let anchors: &[Option<Direction>] = anchors_in.unwrap_or(&anchors_self);
-    debug_assert_eq!(anchors.len(), sorted.len(), "anchor_dirs 与 segments 必等长");
+    debug_assert_eq!(
+        anchors.len(),
+        sorted.len(),
+        "anchor_dirs 与 segments 必等长"
+    );
 
     let centers_owned: Vec<Center>;
     let centers_sorted: &[Center] = if centers.windows(2).all(|w| w[0].end_index <= w[1].end_index)
@@ -2065,14 +2121,18 @@ pub fn level_cand_delta(
     let center_gate = center_trend_gate(centers_sorted.len(), &blocks);
     let any_trend = center_gate.iter().any(|g| g.is_some());
     let center_kind = center_block_kind(centers_sorted.len(), &blocks);
-    let any_consol = center_kind.iter().any(|k| *k == Some(MoveKind::Consolidation));
+    let any_consol = center_kind
+        .iter()
+        .any(|k| *k == Some(MoveKind::Consolidation));
 
     let mut first_match_idx: std::collections::HashMap<(usize, Tick, Tick), usize> =
         std::collections::HashMap::new();
     if any_trend {
         first_match_idx.reserve(centers_sorted.len());
         for (idx, c) in centers_sorted.iter().enumerate() {
-            first_match_idx.entry((c.end_index, c.zd, c.zg)).or_insert(idx);
+            first_match_idx
+                .entry((c.end_index, c.zd, c.zg))
+                .or_insert(idx);
         }
     }
     let mut a_seg_cache: std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>> =
@@ -2105,9 +2165,14 @@ pub fn level_cand_delta(
             if any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation) {
                 let c = &centers_sorted[c_idx];
                 if let Some(cert) = signal::judge_pan_div_observation(
-                    c, seg, sorted, &anchors_self, hist, dif, close_src,
-                )
-                {
+                    c,
+                    seg,
+                    sorted,
+                    &anchors_self,
+                    hist,
+                    dif,
+                    close_src,
+                ) {
                     events.push(CandDeltaEvent {
                         level,
                         side: cert.side,
@@ -2138,29 +2203,47 @@ pub fn level_cand_delta(
         // ★p117 037:20（裁定 T3）：b 包络随 I(A) 同槽缓存（`move_range_envelope` 单一来源）。
         // 本 provider 是诊断消费点——provenance 锚保留（T2 窄域授权仅限生产第一类路径
         // `judge_segment`，不及此）；判据函数 037:20 合取随签名类型同步收缩。
-        let a_seg_entry = *a_seg_cache
-            .entry(c_idx)
-            .or_insert_with(|| {
-                locate_departure_move_a(sorted, anchors, prev_center, c, dir).and_then(|span| {
-                    move_range_envelope(sorted, span).map(|env| (span, env))
-                })
-            });
+        let a_seg_entry = *a_seg_cache.entry(c_idx).or_insert_with(|| {
+            locate_departure_move_a(sorted, anchors, prev_center, c, dir)
+                .and_then(|span| move_range_envelope(sorted, span).map(|env| (span, env)))
+        });
         let c_start_entry = departure_move_c_start(sorted, anchors, c, dir, seg.start_index);
         let Some(pf) = signal::judge_first_cached(
-            c, dir, seg, anchors[i], hist, dif, closes_tick, close_src, a_seg_entry,
-            c_start_entry, gauge, sorted, None,
+            c,
+            dir,
+            seg,
+            anchors[i],
+            hist,
+            dif,
+            closes_tick,
+            close_src,
+            a_seg_entry,
+            c_start_entry,
+            gauge,
+            sorted,
+            None,
         ) else {
             continue; // 未破中枢/未破 b 极值（037:20）/A 不可配对/不可映射 ⟹ 非结构候选（与生产路径同一 gate）。
         };
         // 事件字段全部从 judge 的入参/返回值派生（无第二套判据）：
         // judge Some ⟹ broke ∧ A 配对 ∧ 映射成立 ⟹ λ_C/I(A) 必 Some（judge 内部同断言）。
         let lambda_c = c_start_entry.expect("judge Some ⟹ λ_C Some");
-        let a_interval = a_seg_entry.map(|(span, _env)| span).expect("judge Some ⟹ I(A) Some");
-        let side = pf.struct_break_dir.expect("第一类结构候选必携 struct_break_dir（P2-R2 无条件置）");
+        let a_interval = a_seg_entry
+            .map(|(span, _env)| span)
+            .expect("judge Some ⟹ I(A) Some");
+        let side = pf
+            .struct_break_dir
+            .expect("第一类结构候选必携 struct_break_dir（P2-R2 无条件置）");
         let kind_consol = any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation);
         let pan_div_diag = kind_consol
             && signal::judge_pan_div_observation(
-                c, seg, sorted, &anchors_self, hist, dif, close_src,
+                c,
+                seg,
+                sorted,
+                &anchors_self,
+                hist,
+                dif,
+                close_src,
             )
             .is_some();
         let confirm_src = pf.source_index;
@@ -2179,21 +2262,20 @@ pub fn level_cand_delta(
             c_interval_full,
             full_trend_evidence,
             full_trend_c_qualified,
-        ) =
-            cp_event_objects(
-                level,
-                centers_sorted,
-                cp_scan.unwrap_or(&[]),
-                sorted,
-                anchors,
-                unit_moves.unwrap_or(&[]),
-                c_idx,
-                i,
-                interval_end,
-                cand_delta,
-            );
-        let cp_certificate_confirm_src = c_interval_full
-            .and_then(|_| third_class_in_c.map(|third| third.point_source_index));
+        ) = cp_event_objects(
+            level,
+            centers_sorted,
+            cp_scan.unwrap_or(&[]),
+            sorted,
+            anchors,
+            unit_moves.unwrap_or(&[]),
+            c_idx,
+            i,
+            interval_end,
+            cand_delta,
+        );
+        let cp_certificate_confirm_src =
+            c_interval_full.and_then(|_| third_class_in_c.map(|third| third.point_source_index));
         events.push(CandDeltaEvent {
             level,
             side,
@@ -2243,10 +2325,23 @@ mod p1_tests {
     use super::level_cand_delta;
 
     fn dc(zd: Tick, zg: Tick, dd: Tick, gg: Tick, ei: usize) -> Center {
-        Center { zd, zg, dd, gg, start_index: 0, end_index: ei }
+        Center {
+            zd,
+            zg,
+            dd,
+            gg,
+            start_index: 0,
+            end_index: ei,
+        }
     }
     fn seg(direction: Direction, s: usize, e: usize, sp: Tick, ep: Tick) -> Segment {
-        Segment { direction, start_index: s, end_index: e, start_price: sp, end_price: ep }
+        Segment {
+            direction,
+            start_index: s,
+            end_index: e,
+            start_price: sp,
+            end_price: ep,
+        }
     }
 
     /// P1 对拍（fixture 移植自 signal.rs::first_buy_extracted_with_trend_divergence，合成数据）：
@@ -2267,10 +2362,25 @@ mod p1_tests {
         let series = compute_macd(&closes, &MacdConfig::default());
         let centers = [c0, c1];
         let (points, _pan) = extract_signals_with_hist(
-            &centers, &segs, &series.hist, &series.dif, &prices, &src, DivergenceGauge::MacdArea,
+            &centers,
+            &segs,
+            &series.hist,
+            &series.dif,
+            &prices,
+            &src,
+            DivergenceGauge::MacdArea,
         );
         let events = level_cand_delta(
-            0, &centers, None, &segs, None, None, &series.hist, &series.dif, &prices, &src,
+            0,
+            &centers,
+            None,
+            &segs,
+            None,
+            None,
+            &series.hist,
+            &series.dif,
+            &prices,
+            &src,
             DivergenceGauge::MacdArea,
         );
         // 逐 bit：buy1/sell1 背驰确认支 ⟺ cand_delta=true 事件（(src, side) 多重集相等）。
@@ -2295,7 +2405,10 @@ mod p1_tests {
         lhs.sort_unstable();
         rhs.sort_unstable();
         assert!(!lhs.is_empty(), "fixture 必产 buy1（非空对拍）");
-        assert_eq!(lhs, rhs, "P1 铁律：谓词 cand_delta 与 buy1/sell1 背驰确认支逐 bit 一致");
+        assert_eq!(
+            lhs, rhs,
+            "P1 铁律：谓词 cand_delta 与 buy1/sell1 背驰确认支逐 bit 一致"
+        );
         assert_eq!(events.len(), 1, "唯一破中枢结构候选（C 段）");
         let e = &events[0];
         assert!(e.cand_delta, "C<A 背驰确认 ⟹ Cand^δ=true");
@@ -2318,8 +2431,8 @@ mod p1_tests {
         let c1 = dc(300, 400, 290, 410, 5); // c0→c1 上涨（趋势块）
         let c2 = dc(350, 450, 250, 460, 8); // c1→c2 扩张 ⟹ c2 按 ownership 落盘整块
         let segs = vec![
-            seg(Direction::Down, 9, 11, 460, 330),  // A：第一次离开（330 < zd=350 破核心）
-            seg(Direction::Up, 11, 13, 330, 380),   // 回中枢段（380 ≥ 350 回核心内侧）
+            seg(Direction::Down, 9, 11, 460, 330), // A：第一次离开（330 < zd=350 破核心）
+            seg(Direction::Up, 11, 13, 330, 380),  // 回中枢段（380 ≥ 350 回核心内侧）
             seg(Direction::Down, 13, 15, 380, 300), // C：第二次离开破核心（C<A 背驰）
         ];
         let prices: Vec<Tick> = vec![
@@ -2330,13 +2443,29 @@ mod p1_tests {
         let series = compute_macd(&closes, &MacdConfig::default());
         let centers = [c0, c1, c2];
         let events = level_cand_delta(
-            0, &centers, None, &segs, None, None, &series.hist, &series.dif, &prices, &src,
+            0,
+            &centers,
+            None,
+            &segs,
+            None,
+            None,
+            &series.hist,
+            &series.dif,
+            &prices,
+            &src,
             DivergenceGauge::default(),
         );
         // 恰一条纯诊断事件；零 cand_delta=true（诊断不入谓词）。
-        assert_eq!(events.len(), 1, "盘整块内恰一张 PanDivCert ⟹ 恰一条诊断事件");
+        assert_eq!(
+            events.len(),
+            1,
+            "盘整块内恰一张 PanDivCert ⟹ 恰一条诊断事件"
+        );
         let e = &events[0];
-        assert!(e.pan_div_diag, "cert F-02：盘整背驰诊断可达（修复前死分支恒 false）");
+        assert!(
+            e.pan_div_diag,
+            "cert F-02：盘整背驰诊断可达（修复前死分支恒 false）"
+        );
         assert!(
             !e.cand_delta,
             "裁决②：盘整背驰不入谓词 ⟹ cand_delta=false（装配器双重跳过 ⟹ 不入链）"
@@ -2367,7 +2496,16 @@ mod p1_tests {
         let src: Vec<usize> = (0..hist.len()).collect();
 
         let events = level_cand_delta(
-            0, &[c0, c1, c2], None, &segs, None, None, &hist, &[], &prices, &src,
+            0,
+            &[c0, c1, c2],
+            None,
+            &segs,
+            None,
+            None,
+            &hist,
+            &[],
+            &prices,
+            &src,
             DivergenceGauge::default(),
         );
 
@@ -2382,16 +2520,26 @@ mod p1_tests {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::descend::descend;
     use super::super::super::types::Tick;
+    use super::super::descend::descend;
+    use super::*;
 
     fn unit(si: usize, ei: usize, dir: Direction, lo: Tick, hi: Tick) -> UnitRange {
-        UnitRange { start_index: si, end_index: ei, direction: dir, lo, hi }
+        UnitRange {
+            start_index: si,
+            end_index: ei,
+            direction: dir,
+            lo,
+            hi,
+        }
     }
 
-    fn up() -> Direction { Direction::Up }
-    fn down() -> Direction { Direction::Down }
+    fn up() -> Direction {
+        Direction::Up
+    }
+    fn down() -> Direction {
+        Direction::Down
+    }
 
     /// 测试用 ID 生成器（codex Q4：确定性 ElementId）。
     fn eid(level: u32, ordinal: u64) -> ElementId {
@@ -2423,7 +2571,12 @@ mod tests {
         b_dd: Tick,
         internal_second: Center,
         use_composed_centers: bool,
-    ) -> (Vec<Center>, CpStructureIdentity, ThirdClassInCp, Vec<LeveledMove>) {
+    ) -> (
+        Vec<Center>,
+        CpStructureIdentity,
+        ThirdClassInCp,
+        Vec<LeveledMove>,
+    ) {
         let a = Center {
             zd: 300,
             zg: 400,
@@ -2506,21 +2659,17 @@ mod tests {
             start_index: 11,
             end_index: 13,
         };
-        let (centers, structure, third, movements) =
-            full_trend_fixture(90, second, true);
-        let certificate = full_trend_c_qualification(
-            &centers,
-            1,
-            eid(2, 1),
-            structure,
-            third,
-            &movements,
-        )
-        .expect("第18/20/22行与完成分解全部满足");
+        let (centers, structure, third, movements) = full_trend_fixture(90, second, true);
+        let certificate =
+            full_trend_c_qualification(&centers, 1, eid(2, 1), structure, third, &movements)
+                .expect("第18/20/22行与完成分解全部满足");
         assert_eq!(certificate.trend_context.direction, Direction::Down);
         assert_eq!(certificate.new_extreme_in_direction.reference_price, 90);
         assert_eq!(certificate.new_extreme_in_direction.extreme_price, 80);
-        assert_eq!(certificate.new_extreme_in_direction.extreme_move_id, eid(1, 10));
+        assert_eq!(
+            certificate.new_extreme_in_direction.extreme_move_id,
+            eid(1, 10)
+        );
         assert_eq!(certificate.new_extreme_in_direction.confirm_src, 11);
         assert_eq!(
             certificate.internal_sublevel_centers.center_ids,
@@ -2612,19 +2761,16 @@ mod tests {
             point_source_index: 13,
             side: Side::Long,
         };
-        let certificate = full_trend_c_qualification(
-            &centers,
-            1,
-            eid(2, 1),
-            structure,
-            third,
-            &movements,
-        )
-        .expect("上涨趋势中创新高且内部两中枢完成");
+        let certificate =
+            full_trend_c_qualification(&centers, 1, eid(2, 1), structure, third, &movements)
+                .expect("上涨趋势中创新高且内部两中枢完成");
         assert_eq!(certificate.trend_context.direction, Direction::Up);
         assert_eq!(certificate.new_extreme_in_direction.reference_price, 410);
         assert_eq!(certificate.new_extreme_in_direction.extreme_price, 610);
-        assert_eq!(certificate.new_extreme_in_direction.extreme_move_id, eid(1, 10));
+        assert_eq!(
+            certificate.new_extreme_in_direction.extreme_move_id,
+            eid(1, 10)
+        );
         assert_eq!(certificate.new_extreme_in_direction.confirm_src, 11);
     }
 
@@ -2678,16 +2824,28 @@ mod tests {
             .iter()
             .map(|movement| {
                 let (lo, hi) = movement.envelope();
-                unit(movement.start_index, movement.end_index, Direction::Down, lo, hi)
+                unit(
+                    movement.start_index,
+                    movement.end_index,
+                    Direction::Down,
+                    lo,
+                    hi,
+                )
             })
             .collect();
         advance_cp_lifecycles(&mut objects, &centers, &units, &movements, None, 2);
-        let evidence = objects[0].full_trend_evidence.as_ref().expect("后继到达后证据保留");
+        let evidence = objects[0]
+            .full_trend_evidence
+            .as_ref()
+            .expect("后继到达后证据保留");
         assert_eq!(evidence.decomposition_review_move_id, Some(eid(1, 2)));
         assert_eq!(evidence.decomposition_review_src, Some(15));
         assert!(evidence.completed_trend_decomposition.is_some());
         assert_eq!(
-            objects[0].full_trend_c_qualified.as_ref().map(|certificate| certificate.confirm_src),
+            objects[0]
+                .full_trend_c_qualified
+                .as_ref()
+                .map(|certificate| certificate.confirm_src),
             Some(15)
         );
         assert!(
@@ -2734,8 +2892,7 @@ mod tests {
         );
 
         let mut retained_prefix = objects.clone();
-        let invalidation =
-            invalidate_cp_lifecycle_dirty_dependencies(&mut retained_prefix, 2);
+        let invalidation = invalidate_cp_lifecycle_dirty_dependencies(&mut retained_prefix, 2);
         assert_eq!(invalidation.scan_from, 2);
         assert_eq!(invalidation.pending_fallbacks, 0);
         assert_eq!(invalidation.certificate_clear_recomputes, 1);
@@ -2751,7 +2908,13 @@ mod tests {
             .iter()
             .map(|movement| {
                 let (lo, hi) = movement.envelope();
-                unit(movement.start_index, movement.end_index, Direction::Down, lo, hi)
+                unit(
+                    movement.start_index,
+                    movement.end_index,
+                    Direction::Down,
+                    lo,
+                    hi,
+                )
             })
             .collect();
         advance_cp_lifecycles(
@@ -2781,17 +2944,11 @@ mod tests {
             start_index: 11,
             end_index: 13,
         };
-        let (centers, structure, third, movements) =
-            full_trend_fixture(50, second, true);
-        assert!(full_trend_c_qualification(
-            &centers,
-            1,
-            eid(2, 1),
-            structure,
-            third,
-            &movements,
-        )
-        .is_none());
+        let (centers, structure, third, movements) = full_trend_fixture(50, second, true);
+        assert!(
+            full_trend_c_qualification(&centers, 1, eid(2, 1), structure, third, &movements,)
+                .is_none()
+        );
     }
 
     #[test]
@@ -2804,18 +2961,15 @@ mod tests {
             start_index: 11,
             end_index: 13,
         };
-        let (centers, structure, third, movements) =
-            full_trend_fixture(90, second, false);
-        assert!(movements.len() >= 2, "反例刻意有两个以上 ID，但它们不是中枢 ID");
-        assert!(full_trend_c_qualification(
-            &centers,
-            1,
-            eid(2, 1),
-            structure,
-            third,
-            &movements,
-        )
-        .is_none());
+        let (centers, structure, third, movements) = full_trend_fixture(90, second, false);
+        assert!(
+            movements.len() >= 2,
+            "反例刻意有两个以上 ID，但它们不是中枢 ID"
+        );
+        assert!(
+            full_trend_c_qualification(&centers, 1, eid(2, 1), structure, third, &movements,)
+                .is_none()
+        );
     }
 
     #[test]
@@ -2828,17 +2982,11 @@ mod tests {
             start_index: 11,
             end_index: 13,
         };
-        let (centers, structure, third, movements) =
-            full_trend_fixture(90, second, true);
-        assert!(full_trend_c_qualification(
-            &centers,
-            1,
-            eid(2, 1),
-            structure,
-            third,
-            &movements,
-        )
-        .is_none());
+        let (centers, structure, third, movements) = full_trend_fixture(90, second, true);
+        assert!(
+            full_trend_c_qualification(&centers, 1, eid(2, 1), structure, third, &movements,)
+                .is_none()
+        );
     }
 
     fn cp_objects_fixture() -> (
@@ -2951,30 +3099,16 @@ mod tests {
             start_index: 0,
             end_index: 8,
         };
-        let units = vec![
-            unit(9, 11, down(), 80, 150),
-            unit(11, 13, up(), 80, 90),
-        ];
+        let units = vec![unit(9, 11, down(), 80, 150), unit(11, 13, up(), 80, 90)];
         let moves = vec![
             LeveledMove::from_unit(&units[0], eid(1, 7)),
             LeveledMove::from_unit(&units[1], eid(1, 8)),
         ];
-        let objects = vec![pending_cp_object(
-            center,
-            eid(2, 3),
-            eid(1, 7),
-            (9, 11),
-        )];
+        let objects = vec![pending_cp_object(center, eid(2, 3), eid(1, 7), (9, 11))];
         let anchors = vec![Some(Direction::Down), Some(Direction::Up)];
 
-        let cases = audit_cp_recall_upper_bound(
-            1,
-            &[center],
-            &objects,
-            &units,
-            &moves,
-            Some(&anchors),
-        );
+        let cases =
+            audit_cp_recall_upper_bound(1, &[center], &objects, &units, &moves, Some(&anchors));
 
         assert_eq!(cases.len(), 1);
         assert_eq!(cases[0].atom, CpRecallAtom::Success);
@@ -2995,30 +3129,16 @@ mod tests {
             start_index: 0,
             end_index: 8,
         };
-        let units = vec![
-            unit(9, 11, down(), 80, 150),
-            unit(11, 13, up(), 80, 120),
-        ];
+        let units = vec![unit(9, 11, down(), 80, 150), unit(11, 13, up(), 80, 120)];
         let moves = vec![
             LeveledMove::from_unit(&units[0], eid(1, 7)),
             LeveledMove::from_unit(&units[1], eid(1, 8)),
         ];
-        let objects = vec![pending_cp_object(
-            center,
-            eid(2, 3),
-            eid(1, 7),
-            (9, 11),
-        )];
+        let objects = vec![pending_cp_object(center, eid(2, 3), eid(1, 7), (9, 11))];
         let anchors = vec![Some(Direction::Down), Some(Direction::Up)];
 
-        let cases = audit_cp_recall_upper_bound(
-            1,
-            &[center],
-            &objects,
-            &units,
-            &moves,
-            Some(&anchors),
-        );
+        let cases =
+            audit_cp_recall_upper_bound(1, &[center], &objects, &units, &moves, Some(&anchors));
 
         assert_eq!(cases[0].atom, CpRecallAtom::RetestReentersB);
         assert_eq!(cases[0].departure_interval, Some((9, 11)));
@@ -3051,7 +3171,9 @@ mod tests {
                 )
             })
             .collect();
-        cp_event_objects(0, &centers, &cp, &segments, &anchors, &moves, 1, 3, 15, true)
+        cp_event_objects(
+            0, &centers, &cp, &segments, &anchors, &moves, 1, 3, 15, true,
+        )
     }
 
     #[test]
@@ -3114,8 +3236,9 @@ mod tests {
                 )
             })
             .collect();
-        let (_, c, third, edge, interval, _, _) =
-            cp_event_objects(0, &centers, &cp, &segments, &anchors, &moves, 1, 3, 15, true);
+        let (_, c, third, edge, interval, _, _) = cp_event_objects(
+            0, &centers, &cp, &segments, &anchors, &moves, 1, 3, 15, true,
+        );
         assert!(third.is_none());
         assert_eq!(
             c.and_then(|x| x.source_end),
@@ -3291,7 +3414,10 @@ mod tests {
 
         let entries = relaxed_cand_delta_entries(1, &[object], std::slice::from_ref(&legacy));
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].origin, CandDeltaEntryOrigin::ExistingCandDeltaFalse);
+        assert_eq!(
+            entries[0].origin,
+            CandDeltaEntryOrigin::ExistingCandDeltaFalse
+        );
         assert!(!legacy.cand_delta, "P53 不改写算法背驰历史真值");
     }
 
@@ -3327,12 +3453,7 @@ mod tests {
                 4_300_000_000_000,
             ),
         );
-        let pending = pending_cp_object(
-            center,
-            eid(2, 1509),
-            eid(1, 6705),
-            (3_306_500, 3_306_600),
-        );
+        let pending = pending_cp_object(center, eid(2, 1509), eid(1, 6705), (3_306_500, 3_306_600));
         let legacy = vec![
             legacy_event_for_edge(
                 1,
@@ -3358,7 +3479,10 @@ mod tests {
         let entries = relaxed_cand_delta_entries(1, &[closed, pending], &legacy);
         assert_eq!(legacy, before, "原 CandDeltaEvent 记录必须 bit-exact 保留");
         assert_eq!(entries.len(), 1, "只有几何闭合对象进入放宽后的 E");
-        assert_eq!(entries[0].origin, CandDeltaEntryOrigin::ExistingCandDeltaTrue);
+        assert_eq!(
+            entries[0].origin,
+            CandDeltaEntryOrigin::ExistingCandDeltaTrue
+        );
         assert_eq!(entries[0].cp_ownership.b_center_id, eid(2, 1508));
     }
 
@@ -3395,20 +3519,18 @@ mod tests {
             1,
         );
         let mut with_later_events = vec![initial];
-        advance_cp_lifecycles(
-            &mut with_later_events,
-            &[center],
-            &units,
-            &moves,
-            None,
-            1,
-        );
+        advance_cp_lifecycles(&mut with_later_events, &[center], &units, &moves, None, 1);
 
         assert_eq!(without_later_event[0], with_later_events[0]);
         assert_eq!(without_later_event[0].lifecycle, CpLifecycleStatus::Closed);
-        assert_eq!(without_later_event[0].cp_certificate_confirm_src, Some(42_759));
         assert_eq!(
-            without_later_event[0].c_structure.and_then(|c| c.source_end),
+            without_later_event[0].cp_certificate_confirm_src,
+            Some(42_759)
+        );
+        assert_eq!(
+            without_later_event[0]
+                .c_structure
+                .and_then(|c| c.source_end),
             Some(42_759),
             "不得写成后续 Cand 事件 42841/42998 的 seg.end"
         );
@@ -3507,7 +3629,10 @@ mod tests {
         );
         assert_eq!(objects[0].lifecycle, CpLifecycleStatus::Closed);
         assert_eq!(objects[0].cp_certificate_confirm_src, Some(3_306_426));
-        assert_eq!(objects[0].c_structure.and_then(|c| c.source_end), Some(3_306_426));
+        assert_eq!(
+            objects[0].c_structure.and_then(|c| c.source_end),
+            Some(3_306_426)
+        );
         assert!(
             cp_certificate_at_divergence(&snapshot_event).is_none(),
             "对象后来闭合不得前视改写确认时快照"
@@ -3525,7 +3650,14 @@ mod tests {
     fn from_unit_is_segment_with_coords() {
         let u = unit(4, 8, down(), 90, 150);
         let lm = LeveledMove::from_unit(&u, eid(0, 0));
-        assert_eq!(lm.rmove, RMove::Segment { direction: down(), lo: 90, hi: 150 });
+        assert_eq!(
+            lm.rmove,
+            RMove::Segment {
+                direction: down(),
+                lo: 90,
+                hi: 150
+            }
+        );
         assert_eq!((lm.start_index, lm.end_index), (4, 8));
         // 递归底：descend 得空（L0 线段无次级别）。
         assert!(descend(&lm.rmove).is_empty());
@@ -3537,11 +3669,21 @@ mod tests {
         let s0 = LeveledMove::from_unit(&unit(0, 4, up(), 0, 10), eid(0, 0));
         let s1 = LeveledMove::from_unit(&unit(4, 8, down(), 3, 12), eid(0, 1));
         let s2 = LeveledMove::from_unit(&unit(8, 12, up(), 5, 15), eid(0, 2));
-        let c = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
+        let c = Center {
+            zd: 5,
+            zg: 10,
+            dd: 0,
+            gg: 15,
+            start_index: 0,
+            end_index: 12,
+        };
         let parent = LeveledMove::compose(&[s0.clone(), s1.clone(), s2.clone()], c, 1, eid(1, 0));
         // descend 取回三段次级别 rmove（旧塔 UnitRange 折叠后 descend 得空）。
         let subs = descend(&parent.rmove);
-        assert_eq!(subs.to_vec(), vec![s0.rmove.clone(), s1.rmove.clone(), s2.rmove.clone()]);
+        assert_eq!(
+            subs.to_vec(),
+            vec![s0.rmove.clone(), s1.rmove.clone(), s2.rmove.clone()]
+        );
         // 上级走势坐标 = 窗口首起点..末终点。
         assert_eq!((parent.start_index, parent.end_index), (0, 12));
         // 级别 = 1（次级别 segment level 0 + 1）。
@@ -3573,14 +3715,29 @@ mod tests {
             unit(4, 8, down(), 3, 12),
             unit(8, 12, up(), 5, 15),
         ];
-        let moves: Vec<LeveledMove> = units.iter().enumerate().map(|(i, u)| LeveledMove::from_unit(u, eid(0, i as u64))).collect();
+        let moves: Vec<LeveledMove> = units
+            .iter()
+            .enumerate()
+            .map(|(i, u)| LeveledMove::from_unit(u, eid(0, i as u64)))
+            .collect();
         let (centers, upper, _) = compose_level(&units, &moves, true, 1);
         assert_eq!(centers.len(), 1, "上-下-上 全三段核心非空 ⟹ 一个中枢");
         assert_eq!(upper.len(), 1, "一个中枢 ⟹ 一个上级走势");
         // 上级走势是 RMove::Compose，descend 取回构成它的三段 L0 线段。
         let subs = descend(&upper[0].rmove);
-        assert_eq!(subs.len(), 3, "上级走势 descend 取回三段次级别走势（B2 可产的前提）");
-        assert_eq!(subs.to_vec(), vec![moves[0].rmove.clone(), moves[1].rmove.clone(), moves[2].rmove.clone()]);
+        assert_eq!(
+            subs.len(),
+            3,
+            "上级走势 descend 取回三段次级别走势（B2 可产的前提）"
+        );
+        assert_eq!(
+            subs.to_vec(),
+            vec![
+                moves[0].rmove.clone(),
+                moves[1].rmove.clone(),
+                moves[2].rmove.clone()
+            ]
+        );
     }
 
     #[test]
@@ -3633,7 +3790,11 @@ mod tests {
         assert_eq!(index_of_in(&subs, &s1.rmove), 8);
         assert_eq!(index_of_in(&subs, &s0.rmove), 4);
         // 未匹配 ⟹ 0（占位，调用方保证 target ∈ subs）。
-        let alien = RMove::Segment { direction: up(), lo: 99, hi: 100 };
+        let alien = RMove::Segment {
+            direction: up(),
+            lo: 99,
+            hi: 100,
+        };
         assert_eq!(index_of_in(&subs, &alien), 0);
     }
 
@@ -3643,7 +3804,14 @@ mod tests {
         let s0 = LeveledMove::from_unit(&unit(0, 4, up(), 0, 10), eid(0, 0));
         let s1 = LeveledMove::from_unit(&unit(4, 8, down(), 3, 12), eid(0, 1));
         let s2 = LeveledMove::from_unit(&unit(8, 12, up(), 5, 15), eid(0, 2));
-        let c = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
+        let c = Center {
+            zd: 5,
+            zg: 10,
+            dd: 0,
+            gg: 15,
+            start_index: 0,
+            end_index: 12,
+        };
         let parent = LeveledMove::compose(&[s0, s1, s2], c, 1, eid(1, 0));
         let units = project_to_units(&[parent.clone()], &[]); // 无块信息 ⟹ Q7 fallback（本测试只验坐标）
         assert_eq!(units.len(), 1);
@@ -3699,7 +3867,11 @@ mod tests {
 
         // 全量基准（升级重切：seed [0..=2] 吸收 3..=8 后 n=9 ⟹ 3 个子中枢，每 3 段一个）。
         let full = detect_centers_windowed(&all_units, build);
-        assert_eq!(full.len(), 3, "9 段全重叠 = 升级重切 3 个子中枢（第33课，#148）");
+        assert_eq!(
+            full.len(),
+            3,
+            "9 段全重叠 = 升级重切 3 个子中枢（第33课，#148）"
+        );
         assert_eq!(full[0].1, (0, 2), "子窗1 = seed 三段");
         assert_eq!(full[1].1, (3, 5), "子窗2");
         assert_eq!(full[2].1, (6, 8), "子窗3");
@@ -3713,7 +3885,10 @@ mod tests {
         }
         let (tail, _m9, cursor9) =
             detect_centers_windowed_resume(&all_units, build, cursor6.resume_from);
-        assert_eq!(cursor9.last_window_emitted, 3, "重扫后末窗口产出 3 个子中枢");
+        assert_eq!(
+            cursor9.last_window_emitted, 3,
+            "重扫后末窗口产出 3 个子中枢"
+        );
 
         // 拼接 == 全量（pop 1 产 3：窗口产出数量跨阈值改变）。
         let mut combined = prefix.clone();
@@ -3787,7 +3962,11 @@ mod tests {
         for (n, expect_k, last_win) in [(10, 3, (6, 9)), (11, 3, (6, 10)), (12, 4, (9, 11))] {
             let units = upgrade_units(n);
             let windowed = detect_centers_windowed(&units, build);
-            assert_eq!(windowed.len(), expect_k, "{n} 段 ⟹ ⌊n/3⌋={expect_k} 个子中枢");
+            assert_eq!(
+                windowed.len(),
+                expect_k,
+                "{n} 段 ⟹ ⌊n/3⌋={expect_k} 个子中枢"
+            );
             assert_eq!(windowed[expect_k - 1].1, last_win, "{n} 段末子窗吸收余数");
         }
     }
@@ -3798,8 +3977,11 @@ mod tests {
     #[test]
     fn upgraded_subcenters_seed_higher_level_center() {
         let units = upgrade_units(9);
-        let moves: Vec<LeveledMove> =
-            units.iter().enumerate().map(|(i, u)| from_unit(u, i as u64)).collect();
+        let moves: Vec<LeveledMove> = units
+            .iter()
+            .enumerate()
+            .map(|(i, u)| from_unit(u, i as u64))
+            .collect();
         // 本级：9 段 → 3 子中枢 → 3 个上级走势单元。
         let (centers, upper, _) = compose_level(&units, &moves, true, 1);
         assert_eq!(centers.len(), 3);
@@ -3812,7 +3994,11 @@ mod tests {
         let blocks = super::super::decompose::decompose(&centers);
         let l1_units = project_to_units(&upper, &blocks);
         let (l1_centers, _, _) = compose_level(&l1_units, &upper, false, 2);
-        assert_eq!(l1_centers.len(), 1, "升级涌现：高一级中枢由子中枢重叠自然 seed（第33课）");
+        assert_eq!(
+            l1_centers.len(),
+            1,
+            "升级涌现：高一级中枢由子中枢重叠自然 seed（第33课）"
+        );
     }
 
     /// ★compose_level_resume bit-exact：全量 `compose_level` == `compose_level_resume(.., 0)`，
@@ -3825,7 +4011,11 @@ mod tests {
                 unit(i * 4, i * 4 + 4, dir, 0, 100)
             })
             .collect();
-        let moves: Vec<LeveledMove> = units.iter().enumerate().map(|(i, u)| LeveledMove::from_unit(u, eid(0, i as u64))).collect();
+        let moves: Vec<LeveledMove> = units
+            .iter()
+            .enumerate()
+            .map(|(i, u)| LeveledMove::from_unit(u, eid(0, i as u64)))
+            .collect();
 
         // 全量 compose_level。
         let (full_c, full_u, full_cp) = compose_level(&units, &moves, true, 1);
@@ -3837,7 +4027,8 @@ mod tests {
         assert_eq!(rcp, full_cp, "resume(0) c_p 侧车 == 全量");
 
         // 增量：前 6 段 compose（产出 1 个开放中枢 + 其上级走势）。
-        let (mut pc, mut pu, mut pcp, _m6, cursor6) = compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0);
+        let (mut pc, mut pu, mut pcp, _m6, cursor6) =
+            compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0);
         // frontier 协议（task #142 充要条件 #1）：pop 末位开放中枢及其上级走势 + 从 resume_from 重扫。
         if cursor6.resume_from < cursor6.consumed {
             pc.pop();
@@ -3854,7 +4045,10 @@ mod tests {
         let mut comb_cp = pcp.clone();
         comb_cp.extend(tcp);
         assert_eq!(comb_c, full_c, "增量拼接 centers == 全量");
-        assert_eq!(comb_u, full_u, "增量拼接 upper == 全量（真 subs LeveledMove）");
+        assert_eq!(
+            comb_u, full_u,
+            "增量拼接 upper == 全量（真 subs LeveledMove）"
+        );
         assert_eq!(comb_cp, full_cp, "增量拼接 c_p 侧车 == 全量");
     }
 
@@ -3865,9 +4059,9 @@ mod tests {
         // 前 2 段同向（不交替，不成立支 +1 推进），第 3-5 段交替组中枢。
         let units = vec![
             unit(0, 4, up(), 0, 10),
-            unit(4, 8, up(), 5, 15),     // 同向，与 [0] 不交替
-            unit(8, 12, down(), 3, 12),  // 与 [1] 交替
-            unit(12, 16, up(), 5, 15),   // 与 [2] 交替 → [1,2,3] 组中枢
+            unit(4, 8, up(), 5, 15),    // 同向，与 [0] 不交替
+            unit(8, 12, down(), 3, 12), // 与 [1] 交替
+            unit(12, 16, up(), 5, 15),  // 与 [2] 交替 → [1,2,3] 组中枢
             unit(16, 20, down(), 4, 11),
         ];
         let build = super::super::center::center_from_segments;
@@ -3895,9 +4089,15 @@ mod tests {
         // 1 个延伸中枢，多级塔须组间 non-extension 分离——首段 d>ZG 终止前组延伸；
         // 三组外缘共同重叠 [152,180] 非空 ⟹ L2 几何中枢成立）。
         let ranges = [
-            (0, 50), (40, 200), (40, 50),        // 组1 核心 [40,50]，外缘 [0,200]
-            (55, 150), (52, 180), (55, 160),     // 组2 核心 [55,150]（首段 55>50 non-ext），外缘 [52,180]
-            (155, 300), (152, 280), (155, 290),  // 组3 核心 [155,280]（首段 155>150 non-ext），外缘 [152,300]
+            (0, 50),
+            (40, 200),
+            (40, 50), // 组1 核心 [40,50]，外缘 [0,200]
+            (55, 150),
+            (52, 180),
+            (55, 160), // 组2 核心 [55,150]（首段 55>50 non-ext），外缘 [52,180]
+            (155, 300),
+            (152, 280),
+            (155, 290), // 组3 核心 [155,280]（首段 155>150 non-ext），外缘 [152,300]
         ];
         let units: Vec<UnitRange> = ranges
             .iter()
@@ -3907,7 +4107,11 @@ mod tests {
                 unit(i * 4, i * 4 + 4, dir, lo, hi)
             })
             .collect();
-        let moves: Vec<LeveledMove> = units.iter().enumerate().map(|(i, u)| LeveledMove::from_unit(u, eid(0, i as u64))).collect();
+        let moves: Vec<LeveledMove> = units
+            .iter()
+            .enumerate()
+            .map(|(i, u)| LeveledMove::from_unit(u, eid(0, i as u64)))
+            .collect();
         // L0 → L1（完整判据，方向交替）。
         let (_c1, l1, _) = compose_level(&units, &moves, true, 1);
         assert_eq!(l1.len(), 3, "三组核心分离 → 3 个中枢 → 3 个 L1 走势");
@@ -3964,8 +4168,8 @@ mod tests {
     /// i==0（无入边关系）降级 fallback（prev=None ⟹ Up 占位）；full 与 resume 逐字段一致。
     #[test]
     fn project_to_units_block_dir_overrides_endpoint_fallback() {
-        use super::super::decompose::MoveStatus;
         use super::super::super::types::MoveKind;
+        use super::super::decompose::MoveStatus;
         // hi 严格递减（100,99,98）⟹ fold_direction 对 i≥1 给 Down。
         let moves: Vec<LeveledMove> = (0..3)
             .map(|i| {
@@ -3981,15 +4185,34 @@ mod tests {
             status: MoveStatus::Active,
         }];
         let full = project_to_units(&moves, &blocks);
-        assert_eq!(full[0].direction, Direction::Up, "i=0 无入边关系 ⟹ fallback（prev=None 占位 Up）");
-        assert_eq!(full[1].direction, Direction::Up, "Trend(Up) 块方向覆盖 endpoint Down");
-        assert_eq!(full[2].direction, Direction::Up, "Trend(Up) 块方向覆盖 endpoint Down");
+        assert_eq!(
+            full[0].direction,
+            Direction::Up,
+            "i=0 无入边关系 ⟹ fallback（prev=None 占位 Up）"
+        );
+        assert_eq!(
+            full[1].direction,
+            Direction::Up,
+            "Trend(Up) 块方向覆盖 endpoint Down"
+        );
+        assert_eq!(
+            full[2].direction,
+            Direction::Up,
+            "Trend(Up) 块方向覆盖 endpoint Down"
+        );
         // 对照：无块 ⟹ endpoint fallback 给 Down（证明上面的 Up 确实来自块，非 fold 巧合）。
         let no_blocks = project_to_units(&moves, &[]);
-        assert_eq!(no_blocks[1].direction, Direction::Down, "对照：空 blocks ⟹ endpoint Down");
+        assert_eq!(
+            no_blocks[1].direction,
+            Direction::Down,
+            "对照：空 blocks ⟹ endpoint Down"
+        );
         // resume 与 full 逐字段一致（含块方向路径）。前缀批次喂**前缀自身的**分解
         // （#332 同层配对：blocks 末块 end_center 必配当批 moves 末位），非全链 blocks。
-        let blocks_prefix = [MoveBlock { end_center: 1, ..blocks[0] }];
+        let blocks_prefix = [MoveBlock {
+            end_center: 1,
+            ..blocks[0]
+        }];
         let mut cache: Vec<UnitRange> = Vec::new();
         project_to_units_resume(&moves[..2], &blocks_prefix, &mut cache);
         project_to_units_resume(&moves, &blocks, &mut cache);
@@ -4017,18 +4240,37 @@ mod tests {
                 unit(i * 4, i * 4 + 4, dir, base + 40 - off, base + 60 + off)
             })
             .collect();
-        let moves: Vec<LeveledMove> =
-            units.iter().enumerate().map(|(i, u)| from_unit(u, i as u64)).collect();
+        let moves: Vec<LeveledMove> = units
+            .iter()
+            .enumerate()
+            .map(|(i, u)| from_unit(u, i as u64))
+            .collect();
         let (centers, upper, _) = compose_level(&units, &moves, true, 1);
-        assert_eq!((centers.len(), upper.len()), (3, 3), "9 段 → 3 中枢 → 3 条 L1 走势");
+        assert_eq!(
+            (centers.len(), upper.len()),
+            (3, 3),
+            "9 段 → 3 中枢 → 3 条 L1 走势"
+        );
         // blocks 索引的是 L1 中枢链（与 upper 1:1），不是 9 条 L0 走势。
         let blocks = super::super::decompose::decompose(&centers);
-        assert_eq!(blocks.last().unwrap().end_center, 2, "blocks 只覆盖中枢 0..2");
+        assert_eq!(
+            blocks.last().unwrap().end_center,
+            2,
+            "blocks 只覆盖中枢 0..2"
+        );
 
         // 错位读方向的显影：同一 blocks 在 L0 塔的 9 个下标上——1/2 拿到中枢链方向，3..9 全 None。
-        let cross: Vec<_> = (0..moves.len()).map(|i| center_own_dir_at(&blocks, i)).collect();
-        assert!(cross[1].is_some() && cross[2].is_some(), "L0 idx 1/2 被判成 L1 中枢的方向");
-        assert!(cross[3..].iter().all(Option::is_none), "L0 idx≥3 越出 blocks 覆盖 ⟹ 全 fallback");
+        let cross: Vec<_> = (0..moves.len())
+            .map(|i| center_own_dir_at(&blocks, i))
+            .collect();
+        assert!(
+            cross[1].is_some() && cross[2].is_some(),
+            "L0 idx 1/2 被判成 L1 中枢的方向"
+        );
+        assert!(
+            cross[3..].iter().all(Option::is_none),
+            "L0 idx≥3 越出 blocks 覆盖 ⟹ 全 fallback"
+        );
 
         // 同一 blocks 的正确配对面（upper，3 条）——对照：下标 1/2 才是它真正描述的对象。
         let _ok = project_to_units(&upper, &blocks);

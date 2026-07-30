@@ -98,7 +98,10 @@ fn feasible_lex_candidates_raw(
     let (lo_cap, hi_cap) = gate.caps_raw(cap);
     feasible_candidates(p_tilde, p_t, lo_cap, hi_cap, lot)
         .into_iter()
-        .map(|(p, gi)| LexCandidate { control: p, key: j_theta_key(p, p_tilde, p_t, weights, gi) })
+        .map(|(p, gi)| LexCandidate {
+            control: p,
+            key: j_theta_key(p, p_tilde, p_t, weights, gi),
+        })
         .collect()
 }
 
@@ -117,12 +120,24 @@ fn record_cap_binding_attribution(
         return;
     }
     let p_star_cf_hi = gate.stop_long.then(|| {
-        let cf_gate = KThetaRiskGate { stop_long: false, ..gate };
-        lex_argmin(&feasible_lex_candidates_raw(p_tilde, p_t, base_units, risk, weights, cf_gate)).unwrap_or(0.0)
+        let cf_gate = KThetaRiskGate {
+            stop_long: false,
+            ..gate
+        };
+        lex_argmin(&feasible_lex_candidates_raw(
+            p_tilde, p_t, base_units, risk, weights, cf_gate,
+        ))
+        .unwrap_or(0.0)
     });
     let p_star_cf_lo = gate.stop_short.then(|| {
-        let cf_gate = KThetaRiskGate { stop_short: false, ..gate };
-        lex_argmin(&feasible_lex_candidates_raw(p_tilde, p_t, base_units, risk, weights, cf_gate)).unwrap_or(0.0)
+        let cf_gate = KThetaRiskGate {
+            stop_short: false,
+            ..gate
+        };
+        lex_argmin(&feasible_lex_candidates_raw(
+            p_tilde, p_t, base_units, risk, weights, cf_gate,
+        ))
+        .unwrap_or(0.0)
     });
     CAP_BINDING_ATTRIBUTION.with(|c| {
         c.borrow_mut().push(CapBindingAttributionEvent {
@@ -166,7 +181,11 @@ impl PiThetaWeights {
     /// `w=1.0`（范数主键权重，满足 spec line 744 `w_a>0` 正定要求）；`λ=κ`（`RiskConfig.kappa`
     /// 成本倍数）；`ν=ρ`（`RiskConfig.rho` 单声部风险）。
     pub fn from_risk(risk: &RiskConfig) -> Self {
-        PiThetaWeights { w: 1.0, lambda: risk.kappa, nu: risk.rho }
+        PiThetaWeights {
+            w: 1.0,
+            lambda: risk.kappa,
+            nu: risk.rho,
+        }
     }
 }
 
@@ -183,7 +202,9 @@ const FLAT_EPS: f64 = 1e-9;
 /// `(x·J_SCALE).round()` 钳到 i64 值域（边界条件：p 有界于 ±cap、权重有限 ⟹ 常规配置不触钳制；
 /// 极端 base_units 触上界时钳到 i64::MAX，保字典序方向不翻转，非 bug）。
 fn scale_key(x: f64) -> i64 {
-    (x * J_SCALE).round().clamp(i64::MIN as f64, i64::MAX as f64) as i64
+    (x * J_SCALE)
+        .round()
+        .clamp(i64::MIN as f64, i64::MAX as f64) as i64
 }
 
 /// 净持仓 lot 对齐（向最近 lot 取整；`lot≥1` 由调用方 `RiskConfig.default_lot.max(1)` 保证）。
@@ -308,7 +329,12 @@ pub struct KThetaRiskGate {
 impl KThetaRiskGate {
     /// 无约束门（𝒦_Θ=[−cap,+cap] 全开，风控未触发）——执行层默认 + 既有 π_Θ 测试用。
     pub fn open() -> Self {
-        KThetaRiskGate { force_flat: false, stop_long: false, stop_short: false, no_increase_cap: None }
+        KThetaRiskGate {
+            force_flat: false,
+            stop_long: false,
+            stop_short: false,
+            no_increase_cap: None,
+        }
     }
 
     /// 应用约束门到对称 cap，产 `(lo_cap, hi_cap)` 幅度（`force_flat` 优先收到 {0}）——**无副作用版**
@@ -350,12 +376,7 @@ impl KThetaRiskGate {
     }
 
     /// 从 `anchor` 沿给定方向最多还能移动的整数单位；DC-E 以此作为 KΘ 上界。
-    pub(crate) fn delta_capacity_units(
-        &self,
-        cap: f64,
-        anchor: f64,
-        side: VoiceSide,
-    ) -> u64 {
+    pub(crate) fn delta_capacity_units(&self, cap: f64, anchor: f64, side: VoiceSide) -> u64 {
         let (lo, hi) = self.position_bounds(cap);
         let room = match side {
             VoiceSide::Long => hi - anchor,
@@ -387,7 +408,13 @@ impl KThetaRiskGate {
 /// ★凸性精确性（formalization-validity-domain，**非近似**）：主键跟踪误差 `w(p−p̃)²`（w>0）在 lot
 /// 离散区间的全局最小在 `clamp(p̃)` 相邻 lot 点取得；二点等距（p̃ 恰在 lot 中点）⟹ 跟踪并列 ⟹ 次键
 /// 成本破并列——两点均在本集 ⟹ **本代表集上 LexArgmin = 全 𝒦_Θ 网格 LexArgmin（精确相等）**。
-fn feasible_candidates(p_tilde: f64, p_t: f64, lo_cap: f64, hi_cap: f64, lot: f64) -> Vec<(f64, i64)> {
+fn feasible_candidates(
+    p_tilde: f64,
+    p_t: f64,
+    lo_cap: f64,
+    hi_cap: f64,
+    lot: f64,
+) -> Vec<(f64, i64)> {
     // 非对称 cap（𝒦_Θ 风控约束门 [`KThetaRiskGate::caps`] 注入）：hi_cap=净多上限、lo_cap=净空上限
     // （幅度）。对称全开时 lo_cap=hi_cap=cap（退化为旧 [−hi,hi]）；force_flat ⟹ 两者 0 ⟹ 𝒦_Θ={0}。
     let hi = ((hi_cap / lot).floor() * lot).max(0.0); // 净多最大 lot 对齐幅度 ≤ hi_cap
@@ -445,8 +472,10 @@ pub fn pi_theta_position(
     weights: PiThetaWeights,
     gate: KThetaRiskGate, // 𝒦_Θ 风控约束门（close_pred 折入，非第二出口；全开=open()）
 ) -> f64 {
-    let p_star =
-        lex_argmin(&feasible_lex_candidates(p_tilde, p_t, base_units, risk, weights, gate)).unwrap_or(0.0);
+    let p_star = lex_argmin(&feasible_lex_candidates(
+        p_tilde, p_t, base_units, risk, weights, gate,
+    ))
+    .unwrap_or(0.0);
     // ★#628 阶段一归因：binding 触发时记录反事实 p*（早退防护在函数内，非 binding 时零开销）。
     record_cap_binding_attribution(p_tilde, p_t, base_units, risk, weights, gate, p_star);
     p_star
@@ -525,7 +554,11 @@ pub fn schedule_order(p_star: f64, p_t: f64, exec_index: usize) -> Order {
             StrictAction::Sell
         }
     };
-    Order { action, qty, exec_index }
+    Order {
+        action,
+        qty,
+        exec_index,
+    }
 }
 
 /// **全链 π_Θ(x)：买卖点 Γ 入场（环5+6） → 全定义策略 π_Θ（环7） → 唯一订单 O_{t+1}**。
@@ -595,8 +628,15 @@ pub fn pi_theta_step(
 ) -> (Vec<ActiveLeg>, f64, PiThetaDecision) {
     // 环5+6：买卖点 Γ 入场 → A_{t+1} + p̃（GAP-5：入场源 = BspPoint.source_index 买卖点）。
     // 执行层 σ_p=父容器方向（639；coverage_step_classification 内 assemble_gamma_with_tower 喂因果塔）。
-    let (next_active, p_tilde) =
-        coverage_step_classification(classification, tower, prev_active, base_units, voice, Some(risk), registry);
+    let (next_active, p_tilde) = coverage_step_classification(
+        classification,
+        tower,
+        prev_active,
+        base_units,
+        voice,
+        Some(risk),
+        registry,
+    );
     // 环7：p* = LexArgmin J_x（𝒦_Θ，风控门收窄）→ O = Schedule_Θ(p*−p_t)（单一决策出口 §16）。
     let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
     let order = schedule_order(p_star, p_t, exec_index);
@@ -625,16 +665,22 @@ pub(super) fn pi_theta_step_prebuilt(
     registry: &super::super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64, PiThetaDecision) {
     let (next_active, p_star, decision, _trace) = pi_theta_step_traced(
-        work, gamma, prev_active, p_t, exec_index, base_units, risk, weights, gate, config, registry,
+        work,
+        gamma,
+        prev_active,
+        p_t,
+        exec_index,
+        base_units,
+        risk,
+        weights,
+        gate,
+        config,
+        registry,
         None, // 旧调用方无 TW 源：P2/P3/P4 不评估（bit-exact 原路径）
         protocol,
     );
     (next_active, p_star, decision)
 }
-
-
-
-
 
 #[cfg(test)]
 #[path = "sizing_tests_1.rs"]

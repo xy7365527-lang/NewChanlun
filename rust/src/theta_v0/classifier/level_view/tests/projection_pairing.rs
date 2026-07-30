@@ -1,5 +1,5 @@
-use super::*;
 use super::fixtures::{extended_windows, query, trend_block, unit};
+use super::*;
 
 #[test]
 fn unprojected_input_is_observable_and_produces_no_completed_move() {

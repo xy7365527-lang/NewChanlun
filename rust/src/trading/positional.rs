@@ -377,7 +377,12 @@ pub(crate) fn theta_weights(
 ) -> ([Option<f64>; MAX_LADDER], f64) {
     let mut thetas: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
     let mut total = 0.0f64;
-    for (k, slot) in thetas.iter_mut().enumerate().take(MAX_LADDER).skip(floor_ladder) {
+    for (k, slot) in thetas
+        .iter_mut()
+        .enumerate()
+        .take(MAX_LADDER)
+        .skip(floor_ladder)
+    {
         if let Some(t) = depth_ref.theta(k, None, SUB_COST_Q, SUB_COST_MIN_OBS) {
             if t > 0.0 && t.is_finite() {
                 *slot = Some(t);
@@ -728,7 +733,10 @@ impl PolarityMode {
                 counter_sub: false,
                 decoupled: false,
                 trend_opts: TrendAxisOpts::default(),
-                osc: OscRouting::Unified { strong_gate, h1_freeze: false },
+                osc: OscRouting::Unified {
+                    strong_gate,
+                    h1_freeze: false,
+                },
                 phase_clock: false,
                 r2_gate: false,
                 trend_scope: TrendScope::SelfLayer,
@@ -783,10 +791,14 @@ impl PolarityMode {
         };
         match s {
             "cycle45" => Some(PolarityMode::Cycle45),
-            "hold26" => Some(PolarityMode::Hold26 { sell_t1_only: false }),
+            "hold26" => Some(PolarityMode::Hold26 {
+                sell_t1_only: false,
+            }),
             "hold26_t1" => Some(PolarityMode::Hold26 { sell_t1_only: true }),
             "fusion_va" => Some(PolarityMode::AxiomVoice),
-            "nrf" => Some(PolarityMode::NestedRecursive { clearance: ClearanceMode::V4 }),
+            "nrf" => Some(PolarityMode::NestedRecursive {
+                clearance: ClearanceMode::V4,
+            }),
             "urs" => Some(PolarityMode::UnifiedRecursive),
             "pcf" => Some(PolarityMode::PositioningChain),
             "iso" => Some(PolarityMode::Isolated),
@@ -802,9 +814,18 @@ impl PolarityMode {
                     regime: RegimeGate::AncestorDown,
                 },
             }),
-            "fusion_vd" => Some(PolarityMode::DualVoice { dual_book: true, nest_deep: false }),
-            "fusion_vn" => Some(PolarityMode::DualVoice { dual_book: false, nest_deep: true }),
-            "fusion_vdn" => Some(PolarityMode::DualVoice { dual_book: true, nest_deep: true }),
+            "fusion_vd" => Some(PolarityMode::DualVoice {
+                dual_book: true,
+                nest_deep: false,
+            }),
+            "fusion_vn" => Some(PolarityMode::DualVoice {
+                dual_book: false,
+                nest_deep: true,
+            }),
+            "fusion_vdn" => Some(PolarityMode::DualVoice {
+                dual_book: true,
+                nest_deep: true,
+            }),
             "fusion_v" => Some(PolarityMode::UnifiedVoice { anc_freeze: true }),
             "fusion_v_self" => Some(PolarityMode::UnifiedVoice { anc_freeze: false }),
             "fusion" => fusion(true, true, false),
@@ -818,9 +839,21 @@ impl PolarityMode {
             "hold26_anc" => anc(TrendScope::Ancestor),
             "fusion_ta" => anc(TrendScope::SelfOrAncestor),
             "fusion_p" => phase(OscRouting::Off, false),
-            "fusion_pu" => phase(OscRouting::Unified { strong_gate: true, h1_freeze: false }, false),
+            "fusion_pu" => phase(
+                OscRouting::Unified {
+                    strong_gate: true,
+                    h1_freeze: false,
+                },
+                false,
+            ),
             "fusion_pr" => phase(OscRouting::Off, true),
-            "fusion_pur" => phase(OscRouting::Unified { strong_gate: true, h1_freeze: false }, true),
+            "fusion_pur" => phase(
+                OscRouting::Unified {
+                    strong_gate: true,
+                    h1_freeze: false,
+                },
+                true,
+            ),
             "fusion_tr" => Some(PolarityMode::Fusion {
                 trend_hold: true,
                 counter_sub: false,
@@ -862,7 +895,9 @@ impl PolarityMode {
                     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&lad) {
                         return None; // 越界级别（含 < segment / ≥ 顶层）非法
                     }
-                    return Some(PolarityMode::NestedInterval { min_trade_ladder: lad });
+                    return Some(PolarityMode::NestedInterval {
+                        min_trade_ladder: lad,
+                    });
                 }
                 // 双向条件轴 S1-S4 [镜像推导]：fusion_btr_s{digits} =
                 // fusion_tr 基座 + 置位层卖点翻空/买点翻多；fusion_btrg_s =
@@ -888,8 +923,7 @@ impl PolarityMode {
                     } else {
                         return None;
                     };
-                    let (mut nest, mut osc_u, mut h1, mut q38) =
-                        (false, false, false, false);
+                    let (mut nest, mut osc_u, mut h1, mut q38) = (false, false, false, false);
                     let mut last_rank = 0u8;
                     for ch in mods.chars() {
                         let rank = match ch {
@@ -933,7 +967,10 @@ impl PolarityMode {
                         decoupled: false,
                         trend_opts: TrendAxisOpts::default(),
                         osc: if osc_u {
-                            OscRouting::Unified { strong_gate: true, h1_freeze: h1 }
+                            OscRouting::Unified {
+                                strong_gate: true,
+                                h1_freeze: h1,
+                            }
                         } else {
                             OscRouting::Off
                         },
@@ -1025,7 +1062,11 @@ pub fn run_positional(
     if let PolarityMode::NestedRecursive { clearance } = mode {
         return super::nested_fugue::run_nested_fugue(tape, floor_ladder, clearance);
     }
-    if let PolarityMode::DualVoice { dual_book, nest_deep } = mode {
+    if let PolarityMode::DualVoice {
+        dual_book,
+        nest_deep,
+    } = mode
+    {
         return super::dual_voice::run_dual_voice(tape, floor_ladder, dual_book, nest_deep);
     }
     if let PolarityMode::UnifiedVoice { anc_freeze } = mode {
@@ -1097,10 +1138,10 @@ pub fn run_positional(
         // 卖点谓词（模式词汇）：Cycle45/Hold26_t1 = type1 卖；Hold26 = 任意
         // confirmed 卖点（26课"根据不同级别的卖点把仓位减少"）。
         let sell_hit = |k: usize| match mode {
-            PolarityMode::Cycle45 | PolarityMode::Hold26 { sell_t1_only: true } => {
-                sig.sell1.get(k)
-            }
-            PolarityMode::Hold26 { sell_t1_only: false } => sig.sell_any.get(k),
+            PolarityMode::Cycle45 | PolarityMode::Hold26 { sell_t1_only: true } => sig.sell1.get(k),
+            PolarityMode::Hold26 {
+                sell_t1_only: false,
+            } => sig.sell_any.get(k),
             PolarityMode::Fusion { .. }
             | PolarityMode::UnifiedVoice { .. }
             | PolarityMode::AxiomVoice
@@ -1117,7 +1158,9 @@ pub fn run_positional(
         };
         let exit_reason = match mode {
             PolarityMode::Cycle45 | PolarityMode::Hold26 { sell_t1_only: true } => "sell1",
-            PolarityMode::Hold26 { sell_t1_only: false } => "sellpt",
+            PolarityMode::Hold26 {
+                sell_t1_only: false,
+            } => "sellpt",
             PolarityMode::Fusion { .. }
             | PolarityMode::UnifiedVoice { .. }
             | PolarityMode::AxiomVoice
@@ -1183,12 +1226,19 @@ pub fn run_positional(
                     // 区间套确认：次级别任意买点（[0, k) 任一层）；超时 fallback
                     // 入场（在册 master ARMED 逐字同构，per-layer 化）。
                     let sub_mask = (1u16 << k) - 1;
-                    let confirmed = sig.buy_any.0 & sub_mask != 0
-                        || (i as i64 - arm_bar) > SUB_EXPIRY;
+                    let confirmed =
+                        sig.buy_any.0 & sub_mask != 0 || (i as i64 - arm_bar) > SUB_EXPIRY;
                     if confirmed {
                         layers[k] = enter_or_defer(
-                            k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
-                            &mut pool, &mut res,
+                            k,
+                            i as i64,
+                            i as i64,
+                            c,
+                            bar_nav,
+                            &thetas,
+                            theta_total,
+                            &mut pool,
+                            &mut res,
                         );
                     } else if sig.sell1.get(k) {
                         res.n_disarms_by_ladder[k] += 1;
@@ -1201,8 +1251,15 @@ pub fn run_positional(
                 (PolarityMode::Hold26 { .. }, LayerState::Flat) => {
                     if sig.buy_any.get(k) {
                         layers[k] = enter_or_defer(
-                            k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
-                            &mut pool, &mut res,
+                            k,
+                            i as i64,
+                            i as i64,
+                            c,
+                            bar_nav,
+                            &thetas,
+                            theta_total,
+                            &mut pool,
+                            &mut res,
                         );
                     }
                 }
@@ -1230,8 +1287,15 @@ pub fn run_positional(
                         layers[k] = LayerState::Flat;
                     } else {
                         layers[k] = enter_or_defer(
-                            k, confirm_bar, i as i64, c, bar_nav, &thetas, theta_total,
-                            &mut pool, &mut res,
+                            k,
+                            confirm_bar,
+                            i as i64,
+                            c,
+                            bar_nav,
+                            &thetas,
+                            theta_total,
+                            &mut pool,
+                            &mut res,
                         );
                     }
                 }
@@ -1338,7 +1402,11 @@ mod tests {
     use crate::trading::types::{BspClass, BspEvent, LadderMask};
 
     fn bar(close: f64) -> BarSig {
-        BarSig { close, max_ladder: 5, ..Default::default() }
+        BarSig {
+            close,
+            max_ladder: 5,
+            ..Default::default()
+        }
     }
 
     /// 带中枢锚的 candidate 事件——喂 CenterBook/DepthRef 参照集（不触发交易）。
@@ -1395,11 +1463,17 @@ mod tests {
         bars.push(buy1(bar(100.0), 2));
         bars.push(sub_confirm(bar(100.0), 1));
         bars.push(bar(100.0));
-        let t = SignalTape { bars, ..Default::default() };
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
         let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
         assert_eq!(r.n_entries_by_ladder[2], 1);
         let tr = &r.trades[0];
-        assert!((tr.weight_at_entry - 0.25).abs() < 1e-12, "w₂ = 1%/(1%+3%) = 0.25");
+        assert!(
+            (tr.weight_at_entry - 0.25).abs() < 1e-12,
+            "w₂ = 1%/(1%+3%) = 0.25"
+        );
         assert!((tr.shares - 0.25 * INITIAL_CAPITAL / 100.0).abs() < 1e-9);
         assert_eq!(tr.exit_reason, "eod");
     }
@@ -1412,7 +1486,10 @@ mod tests {
         bars.push(sub_confirm(bar(100.0), 1)); // 同时确认两层（bi 是双方次级别）
         bars.push(sell1(bar(110.0), 2));
         bars.push(bar(120.0));
-        let t = SignalTape { bars, ..Default::default() };
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
         let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
         assert_eq!(r.n_entries_by_ladder[2], 1);
         assert_eq!(r.n_entries_by_ladder[4], 1);
@@ -1435,7 +1512,10 @@ mod tests {
             sub_confirm(bar(100.0), 1),
             bar(100.0),
         ];
-        let t = SignalTape { bars, ..Default::default() };
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
         let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
         assert_eq!(r.n_entries_by_ladder[2], 0);
         assert_eq!(r.n_noref_skips_by_ladder[2], 1);
@@ -1459,7 +1539,10 @@ mod tests {
         bars.push(sub_confirm(bar(100.0), 1)); // 层 4 确认但 pool=0 → Pending
         bars.push(sell1(bar(100.0), 2)); // 层 2 出场释放 → 层 4 同 bar 入场
         bars.push(bar(100.0));
-        let t = SignalTape { bars, ..Default::default() };
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
         let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
         assert_eq!(r.n_entries_by_ladder[2], 1);
         assert_eq!(r.n_deferred_by_ladder[4], 1, "确认 bar 资金不足 → 推迟");
@@ -1485,7 +1568,10 @@ mod tests {
         bars.push(sub_confirm(bar(100.0), 1)); // 层 4 Pending（pool 空）
         bars.push(sell1(bar(100.0), 4)); // 层 4 的卖点先到 → 取消
         bars.push(bar(100.0));
-        let t = SignalTape { bars, ..Default::default() };
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
         let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
         assert_eq!(r.n_pending_cancels_by_ladder[4], 1);
         assert_eq!(r.n_entries_by_ladder[4], 0);
@@ -1497,7 +1583,10 @@ mod tests {
         bars.push(buy1(bar(100.0), 2));
         bars.push(sell1(bar(100.0), 2)); // 确认未到，sell1 撤防
         bars.push(bar(100.0));
-        let t = SignalTape { bars, ..Default::default() };
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
         let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
         assert_eq!(r.n_disarms_by_ladder[2], 1);
         assert_eq!(r.n_entries_by_ladder[2], 0);
@@ -1511,7 +1600,10 @@ mod tests {
         for _ in 0..(SUB_EXPIRY + 2) {
             bars.push(bar(100.0));
         }
-        let t = SignalTape { bars, ..Default::default() };
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
         let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
         assert_eq!(r.n_entries_by_ladder[2], 1);
     }
@@ -1524,7 +1616,10 @@ mod tests {
         bars.push(sub_confirm(bar(100.0), 1));
         bars.push(sell1(bar(100.0), 2));
         bars.push(bar(100.0));
-        let t = SignalTape { bars, ..Default::default() };
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
         let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
         assert!((r.final_nav - INITIAL_CAPITAL).abs() < 1e-9);
     }
@@ -1542,9 +1637,18 @@ mod tests {
         bars.push(sellpt(bar(110.0), 2)); // 卖点@2 → 削层2，层4 持有
         bars.push(sub_confirm(bar(105.0), 2)); // 买点@2 → 回复
         bars.push(bar(120.0));
-        let t = SignalTape { bars, ..Default::default() };
-        let r =
-            run_positional(&t, 2, PolarityMode::Hold26 { sell_t1_only: false }).unwrap();
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
+        let r = run_positional(
+            &t,
+            2,
+            PolarityMode::Hold26 {
+                sell_t1_only: false,
+            },
+        )
+        .unwrap();
         assert_eq!(r.n_entries_by_ladder[2], 2, "削减后买点回复");
         assert_eq!(r.n_entries_by_ladder[4], 1);
         let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
@@ -1564,9 +1668,11 @@ mod tests {
         bars.push(sub_confirm(bar(100.0), 2));
         bars.push(sellpt(bar(110.0), 2)); // 任意卖点置位但非 type1
         bars.push(bar(120.0));
-        let t = SignalTape { bars, ..Default::default() };
-        let r =
-            run_positional(&t, 2, PolarityMode::Hold26 { sell_t1_only: true }).unwrap();
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
+        let r = run_positional(&t, 2, PolarityMode::Hold26 { sell_t1_only: true }).unwrap();
         let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
         assert_eq!(t2.len(), 1);
         assert_eq!(t2[0].exit_reason, "eod", "hold26_t1 只认 type1 卖点");
@@ -1587,9 +1693,18 @@ mod tests {
         bars.push(sub_confirm(bar(100.0), 4)); // 层4 买点，pool 空 → Pending
         bars.push(sellpt(bar(100.0), 4)); // 层4 卖点 → 取消
         bars.push(bar(100.0));
-        let t = SignalTape { bars, ..Default::default() };
-        let r =
-            run_positional(&t, 2, PolarityMode::Hold26 { sell_t1_only: false }).unwrap();
+        let t = SignalTape {
+            bars,
+            ..Default::default()
+        };
+        let r = run_positional(
+            &t,
+            2,
+            PolarityMode::Hold26 {
+                sell_t1_only: false,
+            },
+        )
+        .unwrap();
         assert_eq!(r.n_deferred_by_ladder[4], 1);
         assert_eq!(r.n_pending_cancels_by_ladder[4], 1);
         assert_eq!(r.n_entries_by_ladder[4], 0);
@@ -1597,8 +1712,14 @@ mod tests {
 
     #[test]
     fn floor_guard_rejects_bar_level() {
-        let t = SignalTape { bars: vec![bar(100.0)], ..Default::default() };
+        let t = SignalTape {
+            bars: vec![bar(100.0)],
+            ..Default::default()
+        };
         assert!(run_positional(&t, 0, PolarityMode::Cycle45).is_err());
-        assert!(run_positional(&t, 2, PolarityMode::Cycle45).is_err(), "事件磁带全空也拒绝");
+        assert!(
+            run_positional(&t, 2, PolarityMode::Cycle45).is_err(),
+            "事件磁带全空也拒绝"
+        );
     }
 }

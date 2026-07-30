@@ -78,12 +78,21 @@ mod tests {
     #[test]
     fn cost_reduce_and_cover_are_sigma_inverse() {
         // E/D 是 σ⁻¹（Δr=−1）——H¹ 生成元。
-        assert_eq!(Operation::CostReduce { parent: 0 }.group_action(), Some(GroupAction::RadialDescend));
-        assert_eq!(Operation::Cover { vid: 0 }.group_action(), Some(GroupAction::RadialDescend));
+        assert_eq!(
+            Operation::CostReduce { parent: 0 }.group_action(),
+            Some(GroupAction::RadialDescend)
+        );
+        assert_eq!(
+            Operation::Cover { vid: 0 }.group_action(),
+            Some(GroupAction::RadialDescend)
+        );
     }
 
     #[test]
     fn flip_is_chiral_seam() {
-        assert_eq!(Operation::Flip { rid: 0 }.group_action(), Some(GroupAction::ChiralSeam));
+        assert_eq!(
+            Operation::Flip { rid: 0 }.group_action(),
+            Some(GroupAction::ChiralSeam)
+        );
     }
 }

@@ -130,7 +130,10 @@ fn dump_trades_json(res: &FugueResult, sym: &str, mode: &str, n_bars: usize) -> 
     }
     // 按级别诊断计数器（入场/sink/recover/强平）。
     let arr = |a: &[u64]| -> String {
-        a.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",")
+        a.iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
     };
     s.push_str(&format!(
         "],\"n_entries_by_ladder\":[{}],\"n_cycle_opens_by_ladder\":[{}],\
@@ -157,7 +160,12 @@ fn t_engine_8x3() {
     // 可选标的白名单（逗号分隔，如 `BT_SYMBOLS=OKLO,CL`）；空 = 全部 8 标的。
     let only: Vec<String> = std::env::var("BT_SYMBOLS")
         .ok()
-        .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+        .map(|s| {
+            s.split(',')
+                .map(|x| x.trim().to_uppercase())
+                .filter(|x| !x.is_empty())
+                .collect()
+        })
         .unwrap_or_default();
 
     let mut rows: Vec<Row> = Vec::new();
@@ -179,7 +187,10 @@ fn t_engine_8x3() {
         } else {
             0.0
         };
-        eprintln!("[{sym}] bars={n_bars} ({:.1}s) → 三模式操作层引擎回测…", t0.elapsed().as_secs_f64());
+        eprintln!(
+            "[{sym}] bars={n_bars} ({:.1}s) → 三模式操作层引擎回测…",
+            t0.elapsed().as_secs_f64()
+        );
 
         let mut row = Row {
             sym: sym.to_string(),
@@ -260,7 +271,13 @@ fn t_engine_8x3() {
             // 每级别独立盈亏明细（多尺度滤波器各 LevelEngine 的 cash 贡献；只列非零级别）。
             let lvl_pnl: Vec<String> = (BASE_LADDER..MAX_LADDER)
                 .filter(|&k| res.mobile_realized_pnl_by_ladder[k].abs() > 1e-6)
-                .map(|k| format!("L{}={:+.0}", k - BASE_LADDER, res.mobile_realized_pnl_by_ladder[k]))
+                .map(|k| {
+                    format!(
+                        "L{}={:+.0}",
+                        k - BASE_LADDER,
+                        res.mobile_realized_pnl_by_ladder[k]
+                    )
+                })
                 .collect();
             if !lvl_pnl.is_empty() {
                 eprintln!("      └ 每级别独立盈亏: {}", lvl_pnl.join("  "));
@@ -314,14 +331,20 @@ fn t_engine_8x3() {
         );
     }
     println!("{}", "-".repeat(78));
-    println!("{:<6} {:>9} | {:>12} {:>12} {:>12} |", "trades", "", "S", "A", "O");
+    println!(
+        "{:<6} {:>9} | {:>12} {:>12} {:>12} |",
+        "trades", "", "S", "A", "O"
+    );
     for r in &rows {
         println!(
             "{:<6} {:>9} | {:>12} {:>12} {:>12} |",
             r.sym, "", r.trades[0], r.trades[1], r.trades[2]
         );
     }
-    println!("{:<6} {:>9} | {:>12} {:>12} {:>12} |", "mdd%", "", "S", "A", "O");
+    println!(
+        "{:<6} {:>9} | {:>12} {:>12} {:>12} |",
+        "mdd%", "", "S", "A", "O"
+    );
     for r in &rows {
         println!(
             "{:<6} {:>9} | {:>11.1}% {:>11.1}% {:>11.1}% |",
@@ -357,7 +380,11 @@ fn t_engine_8x3() {
     for r in &rows {
         let mut any = false;
         for k in BASE_LADDER..MAX_LADDER {
-            let p = [r.pnl_by_ladder[0][k], r.pnl_by_ladder[1][k], r.pnl_by_ladder[2][k]];
+            let p = [
+                r.pnl_by_ladder[0][k],
+                r.pnl_by_ladder[1][k],
+                r.pnl_by_ladder[2][k],
+            ];
             if p.iter().all(|x| x.abs() < 1e-6) {
                 continue;
             }
@@ -415,7 +442,10 @@ fn t_level_structure_dump() {
     let segs = orch.segments();
     let m2r = orch.merged_to_raw();
     let a0 = build_a0_from_segments(segs, m2r, &c);
-    eprintln!("[{sym}] confirmed&&settled 段(a0)={} 单元，iterate(structural)…", a0.len());
+    eprintln!(
+        "[{sym}] confirmed&&settled 段(a0)={} 单元，iterate(structural)…",
+        a0.len()
+    );
     let tree = iterate(a0, PerfectionMode::Structural);
 
     let disc = |k: BSPKind| -> usize {
@@ -535,7 +565,10 @@ fn t_downtrend_diagnosis() {
             continue;
         }
         let lvl = &tree.levels[lvl_idx];
-        eprintln!("\n===== level {lvl_idx} (lad{}) 趋势走势逐条件诊断 =====", lvl_idx + 3);
+        eprintln!(
+            "\n===== level {lvl_idx} (lad{}) 趋势走势逐条件诊断 =====",
+            lvl_idx + 3
+        );
         for (i, t) in lvl.trends.iter().enumerate() {
             if !matches!(t.kind, TrendKind::UpTrend | TrendKind::DownTrend) {
                 continue;
@@ -544,7 +577,10 @@ fn t_downtrend_diagnosis() {
             let dir = t.direction;
             let actual = judge_divergence(t, PerfectionMode::Structural).map(|b| b.kind);
             if nc < 2 {
-                eprintln!("  #{i} {:?} 中枢={nc} → 【条件1 FAIL: 中枢<2】实际={actual:?}", t.kind);
+                eprintln!(
+                    "  #{i} {:?} 中枢={nc} → 【条件1 FAIL: 中枢<2】实际={actual:?}",
+                    t.kind
+                );
                 continue;
             }
             let prev_c = &t.zhongshus[nc - 2];
@@ -581,7 +617,10 @@ fn t_downtrend_diagnosis() {
                 let b_start = a_end + 1;
                 let b_endx = *last_c.units.first().unwrap();
                 let bn: usize = if b_start < b_endx {
-                    t.units[b_start..b_endx].iter().map(|u| u.inner_zhongshu_count).sum()
+                    t.units[b_start..b_endx]
+                        .iter()
+                        .map(|u| u.inner_zhongshu_count)
+                        .sum()
                 } else {
                     0
                 };
@@ -686,7 +725,12 @@ fn t_bsp_op_diagnosis() {
         .join("analysis/data_cache");
     let only: Vec<String> = std::env::var("BT_SYMBOLS")
         .ok()
-        .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+        .map(|s| {
+            s.split(',')
+                .map(|x| x.trim().to_uppercase())
+                .filter(|x| !x.is_empty())
+                .collect()
+        })
         .unwrap_or_else(|| vec!["BTC".to_string()]);
 
     for (sym, file) in SYMBOLS {
@@ -700,7 +744,11 @@ fn t_bsp_op_diagnosis() {
         }
         let (o, h, l, c) = load_clean_ohlc(&path);
         let n_bars = c.len();
-        let bh = if n_bars > 0 && c[0] > 0.0 { (c[n_bars - 1] / c[0] - 1.0) * 100.0 } else { 0.0 };
+        let bh = if n_bars > 0 && c[0] > 0.0 {
+            (c[n_bars - 1] / c[0] - 1.0) * 100.0
+        } else {
+            0.0
+        };
         let mut core = TFugueStreamCore::new(BacktestMode::Structural.to_perfection());
         for i in 0..n_bars {
             core.push_bar(o[i], h[i], l[i], c[i]);
@@ -710,122 +758,325 @@ fn t_bsp_op_diagnosis() {
         let d = core.op_diag();
         let strat = (res.final_nav / INITIAL_CAPITAL - 1.0) * 100.0;
 
-        let sells = d.sell_sink + d.sell_drain + d.sell_recover + d.sell_flip + d.sell_ascend + d.sell_enter + d.sell_noop;
-        let buys = d.buy_sink + d.buy_drain + d.buy_recover + d.buy_flip + d.buy_ascend + d.buy_enter + d.buy_noop;
-        let pct = |x: u64, tot: u64| if tot > 0 { 100.0 * x as f64 / tot as f64 } else { 0.0 };
+        let sells = d.sell_sink
+            + d.sell_drain
+            + d.sell_recover
+            + d.sell_flip
+            + d.sell_ascend
+            + d.sell_enter
+            + d.sell_noop;
+        let buys = d.buy_sink
+            + d.buy_drain
+            + d.buy_recover
+            + d.buy_flip
+            + d.buy_ascend
+            + d.buy_enter
+            + d.buy_noop;
+        let pct = |x: u64, tot: u64| {
+            if tot > 0 {
+                100.0 * x as f64 / tot as f64
+            } else {
+                0.0
+            }
+        };
 
         eprintln!("\n========== [{sym}] BSP 操作诊断（c段修复后, structural）==========");
         eprintln!("bars={n_bars}  strat={strat:+.1}%  bh={bh:+.1}%  final_nav={:.0}  翻转(campaign_resets)={}", res.final_nav, res.n_campaign_resets);
 
         // ════ 真空期/敞口诊断（编排者：绝对值敞口,零真空,绩效=Σ|涨跌幅|）════
-        let tot = (d.n_vacuum_bars + d.n_long_only_bars + d.n_short_only_bars + d.n_both_bars).max(1);
+        let tot =
+            (d.n_vacuum_bars + d.n_long_only_bars + d.n_short_only_bars + d.n_both_bars).max(1);
         let pp = |x: u64| 100.0 * x as f64 / tot as f64;
         eprintln!("\n╔══════ 真空期/敞口诊断（绝对值敞口? 零真空?）══════╗");
-        eprintln!("  完全无敞口(真空)   : {:>9} bar ({:>5.2}%)  ★绝对值敞口要求=0", d.n_vacuum_bars, pp(d.n_vacuum_bars));
-        eprintln!("  仅多头敞口         : {:>9} bar ({:>5.2}%)", d.n_long_only_bars, pp(d.n_long_only_bars));
-        eprintln!("  仅空头敞口         : {:>9} bar ({:>5.2}%)", d.n_short_only_bars, pp(d.n_short_only_bars));
-        eprintln!("  多空同时敞口       : {:>9} bar ({:>5.2}%)  ←sink短差(核心多+子级空对冲)", d.n_both_bars, pp(d.n_both_bars));
-        let span = if d.first_active_bar >= 0 && d.last_active_bar >= 0 { d.last_active_bar - d.first_active_bar + 1 } else { 0 };
-        eprintln!("  首次建仓bar={} 末次有敞口bar={} 跨度={} bar", d.first_active_bar, d.last_active_bar, span);
-        eprintln!("  首仓后最长连续真空 = {} bar ({:.2}% 跨度)  {}", d.max_vacuum_gap,
-            if span > 0 { 100.0 * d.max_vacuum_gap as f64 / span as f64 } else { 0.0 },
-            if d.max_vacuum_gap > (span / 100).max(1) { "★存在长真空=执行断链" } else { "无显著真空" });
+        eprintln!(
+            "  完全无敞口(真空)   : {:>9} bar ({:>5.2}%)  ★绝对值敞口要求=0",
+            d.n_vacuum_bars,
+            pp(d.n_vacuum_bars)
+        );
+        eprintln!(
+            "  仅多头敞口         : {:>9} bar ({:>5.2}%)",
+            d.n_long_only_bars,
+            pp(d.n_long_only_bars)
+        );
+        eprintln!(
+            "  仅空头敞口         : {:>9} bar ({:>5.2}%)",
+            d.n_short_only_bars,
+            pp(d.n_short_only_bars)
+        );
+        eprintln!(
+            "  多空同时敞口       : {:>9} bar ({:>5.2}%)  ←sink短差(核心多+子级空对冲)",
+            d.n_both_bars,
+            pp(d.n_both_bars)
+        );
+        let span = if d.first_active_bar >= 0 && d.last_active_bar >= 0 {
+            d.last_active_bar - d.first_active_bar + 1
+        } else {
+            0
+        };
+        eprintln!(
+            "  首次建仓bar={} 末次有敞口bar={} 跨度={} bar",
+            d.first_active_bar, d.last_active_bar, span
+        );
+        eprintln!(
+            "  首仓后最长连续真空 = {} bar ({:.2}% 跨度)  {}",
+            d.max_vacuum_gap,
+            if span > 0 {
+                100.0 * d.max_vacuum_gap as f64 / span as f64
+            } else {
+                0.0
+            },
+            if d.max_vacuum_gap > (span / 100).max(1) {
+                "★存在长真空=执行断链"
+            } else {
+                "无显著真空"
+            }
+        );
         eprintln!("╚════════════════════════════════════════════════╝");
         eprintln!("\n── Q1: 卖点信号({sells}个)触发的操作类型 ──");
-        eprintln!("  sink   (子级卖点→父多真减仓1/3+下放做空=正确短差) : {:>7} ({:>5.1}%)", d.sell_sink, pct(d.sell_sink, sells));
-        eprintln!("  drain  (子级卖点→减暴露1/3不翻转)              : {:>7} ({:>5.1}%)", d.sell_drain, pct(d.sell_drain, sells));
-        eprintln!("  recover(子级卖点→父空平空头短差升回)          : {:>7} ({:>5.1}%)", d.sell_recover, pct(d.sell_recover, sells));
-        eprintln!("  flip   (核心卖点→清全塔+翻空) ★过度减仓/翻空   : {:>7} ({:>5.1}%)", d.sell_flip, pct(d.sell_flip, sells));
-        eprintln!("  ascend (核心持空,更高卖点骑乘)                : {:>7} ({:>5.1}%)", d.sell_ascend, pct(d.sell_ascend, sells));
-        eprintln!("  enter  (全空卖点→首次建空)                    : {:>7} ({:>5.1}%)", d.sell_enter, pct(d.sell_enter, sells));
-        eprintln!("  noop   (卖点不动)                            : {:>7} ({:>5.1}%)", d.sell_noop, pct(d.sell_noop, sells));
+        eprintln!(
+            "  sink   (子级卖点→父多真减仓1/3+下放做空=正确短差) : {:>7} ({:>5.1}%)",
+            d.sell_sink,
+            pct(d.sell_sink, sells)
+        );
+        eprintln!(
+            "  drain  (子级卖点→减暴露1/3不翻转)              : {:>7} ({:>5.1}%)",
+            d.sell_drain,
+            pct(d.sell_drain, sells)
+        );
+        eprintln!(
+            "  recover(子级卖点→父空平空头短差升回)          : {:>7} ({:>5.1}%)",
+            d.sell_recover,
+            pct(d.sell_recover, sells)
+        );
+        eprintln!(
+            "  flip   (核心卖点→清全塔+翻空) ★过度减仓/翻空   : {:>7} ({:>5.1}%)",
+            d.sell_flip,
+            pct(d.sell_flip, sells)
+        );
+        eprintln!(
+            "  ascend (核心持空,更高卖点骑乘)                : {:>7} ({:>5.1}%)",
+            d.sell_ascend,
+            pct(d.sell_ascend, sells)
+        );
+        eprintln!(
+            "  enter  (全空卖点→首次建空)                    : {:>7} ({:>5.1}%)",
+            d.sell_enter,
+            pct(d.sell_enter, sells)
+        );
+        eprintln!(
+            "  noop   (卖点不动)                            : {:>7} ({:>5.1}%)",
+            d.sell_noop,
+            pct(d.sell_noop, sells)
+        );
         eprintln!("\n── Q2: 核心层(最高活跃ladder)units 变化 ──");
-        eprintln!("  sink 父级=核心层 (核心被短差直接减1/3) : {} 次, 累计减 {:.4} units", d.n_sink_on_core, d.sink_core_reduced_units);
-        eprintln!("  flip 翻空清掉核心多头 (清全塔)         : {} 次, 累计清 {:.4} 多头units", d.flip_from_long, d.flip_long_units_cleared);
-        eprintln!("  ⟹ 卖点对核心仓: 减1/3({}次sink-on-core) vs 全清({}次flip-from-long)", d.n_sink_on_core, d.flip_from_long);
+        eprintln!(
+            "  sink 父级=核心层 (核心被短差直接减1/3) : {} 次, 累计减 {:.4} units",
+            d.n_sink_on_core, d.sink_core_reduced_units
+        );
+        eprintln!(
+            "  flip 翻空清掉核心多头 (清全塔)         : {} 次, 累计清 {:.4} 多头units",
+            d.flip_from_long, d.flip_long_units_cleared
+        );
+        eprintln!(
+            "  ⟹ 卖点对核心仓: 减1/3({}次sink-on-core) vs 全清({}次flip-from-long)",
+            d.n_sink_on_core, d.flip_from_long
+        );
         eprintln!("\n── Q3: 翻空是否在强牛中做空亏钱 ──");
-        eprintln!("  卖点翻空(原核心持多, 强牛清多翻空) : {} 次", d.flip_from_long);
-        eprintln!("  买点翻多(原核心持空)               : {} 次", d.flip_from_short);
-        eprintln!("  短差/做空腿累计 realized pnl (short_leg_pnl) : {:+.0}  ⟸ <0 = 做空净亏", res.short_leg_pnl);
-        eprintln!("  物理在场 bar: 多头={} 空头={} (空/多比={:.2})", res.phys_long_bars, res.phys_short_bars,
-            if res.phys_long_bars > 0 { res.phys_short_bars as f64 / res.phys_long_bars as f64 } else { 0.0 });
+        eprintln!(
+            "  卖点翻空(原核心持多, 强牛清多翻空) : {} 次",
+            d.flip_from_long
+        );
+        eprintln!(
+            "  买点翻多(原核心持空)               : {} 次",
+            d.flip_from_short
+        );
+        eprintln!(
+            "  短差/做空腿累计 realized pnl (short_leg_pnl) : {:+.0}  ⟸ <0 = 做空净亏",
+            res.short_leg_pnl
+        );
+        eprintln!(
+            "  物理在场 bar: 多头={} 空头={} (空/多比={:.2})",
+            res.phys_long_bars,
+            res.phys_short_bars,
+            if res.phys_long_bars > 0 {
+                res.phys_short_bars as f64 / res.phys_long_bars as f64
+            } else {
+                0.0
+            }
+        );
         eprintln!("\n── 对照: 买点信号({buys}个) ──");
-        eprintln!("  sink={} drain={} recover={} flip={} ascend={} enter={} noop={}",
-            d.buy_sink, d.buy_drain, d.buy_recover, d.buy_flip, d.buy_ascend, d.buy_enter, d.buy_noop);
+        eprintln!(
+            "  sink={} drain={} recover={} flip={} ascend={} enter={} noop={}",
+            d.buy_sink,
+            d.buy_drain,
+            d.buy_recover,
+            d.buy_flip,
+            d.buy_ascend,
+            d.buy_enter,
+            d.buy_noop
+        );
 
         // ════ 「回来」诊断（编排者：卖是对的，问题在平空+做多）════
         eprintln!("\n╔══════ 「回来」诊断：平空+做多是否到位 ══════╗");
         eprintln!("\n── Q1: sink→recover 间隔（空头短差持仓时长 bar）──");
-        let avg_iv = if d.recover_interval_count > 0 { d.recover_interval_sum / d.recover_interval_count as f64 } else { 0.0 };
-        eprintln!("  recover 次数={} 平均持空={:.0} bar 最长持空={} bar", d.recover_interval_count, avg_iv, d.recover_interval_max);
+        let avg_iv = if d.recover_interval_count > 0 {
+            d.recover_interval_sum / d.recover_interval_count as f64
+        } else {
+            0.0
+        };
+        eprintln!(
+            "  recover 次数={} 平均持空={:.0} bar 最长持空={} bar",
+            d.recover_interval_count, avg_iv, d.recover_interval_max
+        );
 
         eprintln!("\n── Q2: 信号层密度（买点是否缺失，per ladder）──");
-        eprintln!("  {:>4} {:>9} {:>9} {:>7} | {:>9} {:>9} {:>9}", "lad", "卖信号", "买信号", "买/卖", "sink开空", "recover平", "残留空");
+        eprintln!(
+            "  {:>4} {:>9} {:>9} {:>7} | {:>9} {:>9} {:>9}",
+            "lad", "卖信号", "买信号", "买/卖", "sink开空", "recover平", "残留空"
+        );
         for k in BASE_LADDER..MAX_LADDER {
             let ss = d.sell_sig_by_ladder[k];
             let bs = d.buy_sig_by_ladder[k];
             let opens = res.n_cycle_opens_by_ladder[k];
             let closes = res.n_cycle_closes_by_ladder[k];
             let liq = res.n_liquidations_by_ladder[k];
-            if ss + bs + opens + closes == 0 { continue; }
+            if ss + bs + opens + closes == 0 {
+                continue;
+            }
             let resid = opens as i64 - closes as i64 - liq as i64;
             let ratio = if ss > 0 { bs as f64 / ss as f64 } else { 0.0 };
-            eprintln!("  L{:<3} {:>9} {:>9} {:>7.2} | {:>9} {:>9} {:>+9}",
-                k - BASE_LADDER, ss, bs, ratio, opens, closes, resid);
+            eprintln!(
+                "  L{:<3} {:>9} {:>9} {:>7.2} | {:>9} {:>9} {:>+9}",
+                k - BASE_LADDER,
+                ss,
+                bs,
+                ratio,
+                opens,
+                closes,
+                resid
+            );
         }
 
         eprintln!("\n── Q3: 平空后有没有重新做多 ──");
-        eprintln!("  buy_noop_no_short (买点触发但无空可平=平了空就停/不做多回来) : {}", d.buy_noop_no_short);
-        eprintln!("  recover (平空头同时升回父级=做多回来, 全量) : 卖侧{} 买侧{} 合计{}", d.sell_recover, d.buy_recover, d.sell_recover + d.buy_recover);
-        eprintln!("  ⟹ sink开空合计{} vs recover平空合计{} ⟹ 平空率={:.1}% (缺口={}个空未买回)",
+        eprintln!(
+            "  buy_noop_no_short (买点触发但无空可平=平了空就停/不做多回来) : {}",
+            d.buy_noop_no_short
+        );
+        eprintln!(
+            "  recover (平空头同时升回父级=做多回来, 全量) : 卖侧{} 买侧{} 合计{}",
+            d.sell_recover,
+            d.buy_recover,
+            d.sell_recover + d.buy_recover
+        );
+        eprintln!(
+            "  ⟹ sink开空合计{} vs recover平空合计{} ⟹ 平空率={:.1}% (缺口={}个空未买回)",
             res.n_cycle_opens_by_ladder.iter().sum::<u64>(),
             res.n_cycle_closes_by_ladder.iter().sum::<u64>(),
             if res.n_cycle_opens_by_ladder.iter().sum::<u64>() > 0 {
-                100.0 * res.n_cycle_closes_by_ladder.iter().sum::<u64>() as f64 / res.n_cycle_opens_by_ladder.iter().sum::<u64>() as f64
-            } else { 0.0 },
-            res.n_cycle_opens_by_ladder.iter().sum::<u64>() as i64 - res.n_cycle_closes_by_ladder.iter().sum::<u64>() as i64);
+                100.0 * res.n_cycle_closes_by_ladder.iter().sum::<u64>() as f64
+                    / res.n_cycle_opens_by_ladder.iter().sum::<u64>() as f64
+            } else {
+                0.0
+            },
+            res.n_cycle_opens_by_ladder.iter().sum::<u64>() as i64
+                - res.n_cycle_closes_by_ladder.iter().sum::<u64>() as i64
+        );
 
         eprintln!("\n── Q4: 核心仓 units 在「卖→空→平→多」周期后是否恢复 ──");
-        eprintln!("  核心被 sink 减 (累计)   : {:.2} units ({} 次)", d.sink_core_reduced_units, d.n_sink_on_core);
-        eprintln!("  核心被 recover 升回(累计): {:.2} units ({} 次)", d.recover_core_restored_units, d.n_recover_on_core);
-        let recov_ratio = if d.sink_core_reduced_units > 1e-9 { 100.0 * d.recover_core_restored_units / d.sink_core_reduced_units } else { 0.0 };
-        eprintln!("  ⟹ 核心恢复率 = {:.1}% {}", recov_ratio,
-            if recov_ratio < 90.0 { "★核心未充分恢复 = 踏空（减多升回少）" } else { "核心基本恢复" });
+        eprintln!(
+            "  核心被 sink 减 (累计)   : {:.2} units ({} 次)",
+            d.sink_core_reduced_units, d.n_sink_on_core
+        );
+        eprintln!(
+            "  核心被 recover 升回(累计): {:.2} units ({} 次)",
+            d.recover_core_restored_units, d.n_recover_on_core
+        );
+        let recov_ratio = if d.sink_core_reduced_units > 1e-9 {
+            100.0 * d.recover_core_restored_units / d.sink_core_reduced_units
+        } else {
+            0.0
+        };
+        eprintln!(
+            "  ⟹ 核心恢复率 = {:.1}% {}",
+            recov_ratio,
+            if recov_ratio < 90.0 {
+                "★核心未充分恢复 = 踏空（减多升回少）"
+            } else {
+                "核心基本恢复"
+            }
+        );
         eprintln!("╚════════════════════════════════════════════╝");
 
         // ════ 每笔空头 P&L（编排者：卖点100%对,空头应赚,亏=平空时机错=没在底部平）════
         {
             use crate::trading::types::Polarity;
-            let shorts: Vec<&_> = res.trades.iter().filter(|t| t.polarity == Polarity::Short).collect();
-            let spnl: Vec<f64> = shorts.iter().map(|t| t.shares * (t.entry_price - t.exit_price)).collect();
+            let shorts: Vec<&_> = res
+                .trades
+                .iter()
+                .filter(|t| t.polarity == Polarity::Short)
+                .collect();
+            let spnl: Vec<f64> = shorts
+                .iter()
+                .map(|t| t.shares * (t.entry_price - t.exit_price))
+                .collect();
             let tot_spnl: f64 = spnl.iter().sum();
             let win = spnl.iter().filter(|&&p| p > 1e-9).count();
             let lose = spnl.iter().filter(|&&p| p < -1e-9).count();
-            let n_higher = shorts.iter().filter(|t| t.exit_price > t.entry_price + 1e-9).count();
+            let n_higher = shorts
+                .iter()
+                .filter(|t| t.exit_price > t.entry_price + 1e-9)
+                .count();
             // 按 exit_reason 分组空头平仓（recover=正常平/eod=收尾强平/liq=强平/flip=翻转）。
             let by_reason = |r: &str| -> (usize, f64) {
-                let mut n = 0; let mut p = 0.0;
+                let mut n = 0;
+                let mut p = 0.0;
                 for (i, t) in shorts.iter().enumerate() {
-                    if t.exit_reason == r { n += 1; p += spnl[i]; }
+                    if t.exit_reason == r {
+                        n += 1;
+                        p += spnl[i];
+                    }
                 }
                 (n, p)
             };
             eprintln!("\n╔══════ 每笔空头 P&L（开空价 vs 平空价，编排者：空头应赚）══════╗");
-            eprintln!("  空头交易 {} 笔: 赚{} 亏{} 总pnl={:+.0}", shorts.len(), win, lose, tot_spnl);
-            eprintln!("  ★平空价>开空价(价格涨回来才平=做空亏): {} 笔 ({:.1}%)", n_higher, 100.0*n_higher as f64/shorts.len().max(1) as f64);
+            eprintln!(
+                "  空头交易 {} 笔: 赚{} 亏{} 总pnl={:+.0}",
+                shorts.len(),
+                win,
+                lose,
+                tot_spnl
+            );
+            eprintln!(
+                "  ★平空价>开空价(价格涨回来才平=做空亏): {} 笔 ({:.1}%)",
+                n_higher,
+                100.0 * n_higher as f64 / shorts.len().max(1) as f64
+            );
             for r in ["recover", "eod", "liq", "flip", "clear"] {
                 let (n, p) = by_reason(r);
-                if n > 0 { eprintln!("    平仓原因 {:>8}: {:>5}笔 pnl={:+.0}", r, n, p); }
+                if n > 0 {
+                    eprintln!("    平仓原因 {:>8}: {:>5}笔 pnl={:+.0}", r, n, p);
+                }
             }
             // top 10 亏损空头：开空价→平空价→期间最低价（c[entry..=exit] 的 min）。
             let mut idx: Vec<usize> = (0..shorts.len()).collect();
             idx.sort_by(|&a, &b| spnl[a].partial_cmp(&spnl[b]).unwrap());
-            eprintln!("  ── 亏损最大10笔: 开空@→平空@(涨跌%)|期间最低@|本可平@底盈亏|{}bar|原因 ──", "持仓");
+            eprintln!(
+                "  ── 亏损最大10笔: 开空@→平空@(涨跌%)|期间最低@|本可平@底盈亏|{}bar|原因 ──",
+                "持仓"
+            );
             for &i in idx.iter().take(10) {
                 let t = shorts[i];
                 let (eb, xb) = (t.entry_bar.max(0) as usize, t.exit_bar.max(0) as usize);
-                let lo = if eb <= xb && xb < c.len() { c[eb..=xb].iter().cloned().fold(f64::MAX, f64::min) } else { f64::NAN };
-                let chg = if t.entry_price > 0.0 { (t.exit_price/t.entry_price - 1.0)*100.0 } else { 0.0 };
+                let lo = if eb <= xb && xb < c.len() {
+                    c[eb..=xb].iter().cloned().fold(f64::MAX, f64::min)
+                } else {
+                    f64::NAN
+                };
+                let chg = if t.entry_price > 0.0 {
+                    (t.exit_price / t.entry_price - 1.0) * 100.0
+                } else {
+                    0.0
+                };
                 let could = t.shares * (t.entry_price - lo); // 若在期间最低平空的盈利
                 eprintln!("    lad{} 开@{:.0}→平@{:.0}({:+.1}%)|最低@{:.0}|底部本可+{:.0}|{}bar|{}|pnl={:+.0}",
                     t.ladder, t.entry_price, t.exit_price, chg, lo, could, t.exit_bar - t.entry_bar, t.exit_reason, spnl[i]);
@@ -840,9 +1091,18 @@ fn t_bsp_op_diagnosis() {
                 eprintln!("  L{} (lad{k}): {:+.0}", k - BASE_LADDER, p);
             }
         }
-        eprintln!("  sink次数/级别(n_cycle_opens): {:?}", &res.n_cycle_opens_by_ladder[BASE_LADDER..]);
-        eprintln!("  recover次数/级别(n_cycle_closes): {:?}", &res.n_cycle_closes_by_ladder[BASE_LADDER..]);
-        eprintln!("  强平次数/级别(n_liquidations): {:?}", &res.n_liquidations_by_ladder[BASE_LADDER..]);
+        eprintln!(
+            "  sink次数/级别(n_cycle_opens): {:?}",
+            &res.n_cycle_opens_by_ladder[BASE_LADDER..]
+        );
+        eprintln!(
+            "  recover次数/级别(n_cycle_closes): {:?}",
+            &res.n_cycle_closes_by_ladder[BASE_LADDER..]
+        );
+        eprintln!(
+            "  强平次数/级别(n_liquidations): {:?}",
+            &res.n_liquidations_by_ladder[BASE_LADDER..]
+        );
         eprintln!("================================================================\n");
     }
 }

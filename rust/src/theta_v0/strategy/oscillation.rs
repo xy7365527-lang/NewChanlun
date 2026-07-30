@@ -119,9 +119,7 @@ pub struct BareBoundaryTouch {
 }
 
 /// L0 否定式契约：裸触碰永远产 0 个中枢震荡触发。
-pub const fn triggers_from_bare_boundary_touch(
-    _touch: BareBoundaryTouch,
-) -> [PanDivTrigger; 0] {
+pub const fn triggers_from_bare_boundary_touch(_touch: BareBoundaryTouch) -> [PanDivTrigger; 0] {
     []
 }
 
@@ -216,15 +214,20 @@ mod tests {
     /// 触发链边界映射：Long 信号 = 中枢下沿、Short 信号 = 中枢上沿；级别/中枢/证据原样入账。
     #[test]
     fn trigger_maps_signal_side_to_opposite_boundary() {
-        let long = PanDivTrigger::from_gated_pan_div(2, VoiceSide::Long, center(), pan(200)).unwrap();
+        let long =
+            PanDivTrigger::from_gated_pan_div(2, VoiceSide::Long, center(), pan(200)).unwrap();
         assert_eq!(long.boundary_side(), BoundarySide::Below);
         assert_eq!(long.level(), 2);
         assert_eq!(long.signal_side(), VoiceSide::Long);
         assert_eq!(long.center(), center());
         assert_eq!(long.evidence(), pan(200));
-        let short = PanDivTrigger::from_gated_pan_div(1, VoiceSide::Short, center(), pan(201)).unwrap();
+        let short =
+            PanDivTrigger::from_gated_pan_div(1, VoiceSide::Short, center(), pan(201)).unwrap();
         assert_eq!(short.boundary_side(), BoundarySide::Above);
-        assert!(long > short, "派生全序确定性（协议轨合并键：字段序 level 先行）");
+        assert!(
+            long > short,
+            "派生全序确定性（协议轨合并键：字段序 level 先行）"
+        );
     }
 
     /// Flat 信号不构成触发（typed 拒绝，无静默兜底）。
@@ -242,6 +245,12 @@ mod tests {
     fn trigger_carries_no_bookkeeping_semantics() {
         let t = PanDivTrigger::from_gated_pan_div(2, VoiceSide::Long, center(), pan(203)).unwrap();
         // 触发事实五要素齐备（级别/方向/中枢/边界/证据），除此之外无其他字段。
-        let _ = (t.level(), t.signal_side(), t.center(), t.boundary_side(), t.evidence());
+        let _ = (
+            t.level(),
+            t.signal_side(),
+            t.center(),
+            t.boundary_side(),
+            t.evidence(),
+        );
     }
 }

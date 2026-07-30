@@ -310,8 +310,7 @@ fn main() -> Result<(), String> {
     let mut run_start: Option<usize> = None;
     for index in 0..=windows.len() {
         let valid = index < windows.len()
-            && match project_extended_windows_carried_only(std::slice::from_ref(&windows[index]))
-            {
+            && match project_extended_windows_carried_only(std::slice::from_ref(&windows[index])) {
                 Ok(_) => true,
                 Err(_) => {
                     invalid_windows += 1;
@@ -382,7 +381,13 @@ fn main() -> Result<(), String> {
                         retest_kind: retest.kind,
                     };
                     let outcome = decompose_pair(
-                        &strict, &blocks, &projection, &view, &events, &segments, &anchors,
+                        &strict,
+                        &blocks,
+                        &projection,
+                        &view,
+                        &events,
+                        &segments,
+                        &anchors,
                         as_of,
                     );
                     let side_tag = match outcome.side {
@@ -667,7 +672,10 @@ fn decompose_pair(
             side: Some(side),
             detail: format!(
                 "kind=trend;turn_source={};divergence_confirmed={};judge_at={};seg_c=({},{})",
-                event.turn_source, event.divergence_confirmed, event.judge_at, d2.seg_c.0,
+                event.turn_source,
+                event.divergence_confirmed,
+                event.judge_at,
+                d2.seg_c.0,
                 d2.seg_c.1
             ),
         },

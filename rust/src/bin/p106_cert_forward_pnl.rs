@@ -98,22 +98,22 @@ fn load_bars(path: &Path, config: &ThetaConfig) -> Result<(Vec<Bar>, Vec<String>
         let l = raw.lows[i];
         let c = raw.closes[i];
         let v = raw.volumes.get(i).and_then(|x| *x).unwrap_or(0.0);
-        let (oq, hq, lq, cq, untradable) = if let (Some(o), Some(h), Some(l), Some(c)) = (o, h, l, c)
-        {
-            let bad_range = h < o.max(c).max(l) || l > o.min(c).min(h);
-            let bad_price = o <= 0.0 || h <= 0.0 || l <= 0.0 || c <= 0.0;
-            let untradable = bad_range || bad_price || v <= 0.0;
-            (
-                quantize(o, tick_size),
-                quantize(h, tick_size),
-                quantize(l, tick_size),
-                quantize(c, tick_size),
-                untradable,
-            )
-        } else {
-            let prev = bars.last().map(|b: &Bar| b.close).unwrap_or(0);
-            (prev, prev, prev, prev, true)
-        };
+        let (oq, hq, lq, cq, untradable) =
+            if let (Some(o), Some(h), Some(l), Some(c)) = (o, h, l, c) {
+                let bad_range = h < o.max(c).max(l) || l > o.min(c).min(h);
+                let bad_price = o <= 0.0 || h <= 0.0 || l <= 0.0 || c <= 0.0;
+                let untradable = bad_range || bad_price || v <= 0.0;
+                (
+                    quantize(o, tick_size),
+                    quantize(h, tick_size),
+                    quantize(l, tick_size),
+                    quantize(c, tick_size),
+                    untradable,
+                )
+            } else {
+                let prev = bars.last().map(|b: &Bar| b.close).unwrap_or(0);
+                (prev, prev, prev, prev, true)
+            };
         bars.push(Bar {
             source_index: i,
             timestamp: date_to_timestamp(&raw.dates[i]),
@@ -377,7 +377,9 @@ struct KeyAttr {
 fn main() -> std::process::ExitCode {
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 4 {
-        eprintln!("用法: p106_cert_forward_pnl <btc_1m_full.json> <P92_DUMP路径> <trades.jsonl路径>");
+        eprintln!(
+            "用法: p106_cert_forward_pnl <btc_1m_full.json> <P92_DUMP路径> <trades.jsonl路径>"
+        );
         return std::process::ExitCode::from(2);
     }
     let config = ThetaConfig::default();
@@ -513,7 +515,8 @@ fn main() -> std::process::ExitCode {
             attr.min_abs_dt = dt.abs();
             attr.dt_of_min_abs = dt;
         }
-        attr.calibers.insert(c.caliber.chars().next().unwrap_or('?'));
+        attr.calibers
+            .insert(c.caliber.chars().next().unwrap_or('?'));
         attr.n_certs += 1;
         let e = counts
             .entry((c.caliber.clone(), s.to_string()))
@@ -610,8 +613,8 @@ fn main() -> std::process::ExitCode {
         let attr = bound_map.get(&key);
         // V2 敏感性口径：最近同侧 judge_max 距离 ≤1440。
         let judges = if is_long { &judge_long } else { &judge_short };
-        let v2_hit = nearest_dt_tie(judges, t.entry_bar as i64)
-            .is_some_and(|(dt, _)| dt.abs() <= 1440);
+        let v2_hit =
+            nearest_dt_tie(judges, t.entry_bar as i64).is_some_and(|(dt, _)| dt.abs() <= 1440);
 
         full_all.push(t);
         if t.seg_idx <= is_last {

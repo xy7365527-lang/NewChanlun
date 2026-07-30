@@ -305,7 +305,9 @@ pub(super) fn restore_ancestor_chain_from_registry(
     let mut cur = Some(start_pid);
     while let Some(pid) = cur {
         // 已在 raw 中？⟹ 闭包满足，停止递归。
-        let already_in_raw = raw.iter().any(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false));
+        let already_in_raw = raw
+            .iter()
+            .any(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false));
         if already_in_raw {
             ancok_probe_bump(|p| p.restore_break_already_in_raw += 1);
             broke = true;
@@ -331,7 +333,10 @@ pub(super) fn restore_ancestor_chain_from_registry(
         // 污染，同条目 1 held 侧缺口二同类风险）。base（id_idx）恒安全（树前缀持久身份）不受此门禁
         // 约束；overlay_seen 只放行 restore 本 bar 已 push 的持久身份（idx >= overlay_cand_end）。
         let existing_idx = id_idx.get(&pid).copied().or_else(|| {
-            overlay_seen.get(&pid).copied().filter(|&idx| idx >= overlay_cand_end)
+            overlay_seen
+                .get(&pid)
+                .copied()
+                .filter(|&idx| idx >= overlay_cand_end)
         });
         if let Some(existing_idx) = existing_idx {
             raw.push(existing_idx);
@@ -479,12 +484,16 @@ pub(super) fn resolve_pending_parent_fixups(
             Some(pid) => pid,
             None => continue, // 真边界胚元 ∂：parent/attached_dir 留 None 是正确语义，不计入探针。
         };
-        let pidx = id_idx.get(&pid).copied().or_else(|| overlay_seen.get(&pid).copied()).or_else(|| {
-            raw.iter()
-                .copied()
-                .filter(|&r| r != idx)
-                .find(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false))
-        });
+        let pidx = id_idx
+            .get(&pid)
+            .copied()
+            .or_else(|| overlay_seen.get(&pid).copied())
+            .or_else(|| {
+                raw.iter()
+                    .copied()
+                    .filter(|&r| r != idx)
+                    .find(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false))
+            });
         match pidx {
             Some(pidx) => {
                 let sigma_p = work[pidx].eps;
@@ -502,7 +511,6 @@ pub(super) fn resolve_pending_parent_fixups(
     }
     unresolved
 }
-
 
 #[cfg(test)]
 #[path = "held_tests_1.rs"]

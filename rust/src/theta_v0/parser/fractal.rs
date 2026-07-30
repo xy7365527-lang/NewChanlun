@@ -16,8 +16,8 @@
 //!   关系良定义（不会同时 high 高而 low 低）。
 //! - 分型的 `source_index`/`timestamp`/极值价取**中 K**（分型顶点所在 K）。
 
-use super::super::types::{Fractal, FractalKind};
 use super::super::types::Bar;
+use super::super::types::{Fractal, FractalKind};
 use std::rc::Rc;
 
 /// 在包含处理后的 merged K 序列上识别分型（reference-theta-v0.md:20）。
@@ -77,7 +77,10 @@ pub fn detect_fractals(merged: &[Bar]) -> Vec<Fractal> {
 /// （诚实 None，消费侧禁降级第二查法）。
 pub fn fractal_at_source(fractals: &[Fractal], source_index: usize) -> Option<Fractal> {
     let i = fractals.partition_point(|f| f.source_index < source_index);
-    fractals.get(i).filter(|f| f.source_index == source_index).copied()
+    fractals
+        .get(i)
+        .filter(|f| f.source_index == source_index)
+        .copied()
 }
 
 // ============================================================================
@@ -181,8 +184,7 @@ impl IncrFractals {
         let confirmed_mid_bound = old_len.saturating_sub(2).min(n.saturating_sub(2));
 
         // ponytail: partition_point O(log n) 定位 truncate 位置，替代 take_while O(n)。
-        let keep = mid_indices
-            .partition_point(|&mid_idx| mid_idx < confirmed_mid_bound);
+        let keep = mid_indices.partition_point(|&mid_idx| mid_idx < confirmed_mid_bound);
 
         // Rc::make_mut 突变 fractals_rc——strong_count==1（self 被消费，旧 ParseLayer 已 drop）
         // 时 O(1) in-place；strong_count>1 时 O(n) deep copy（调用方须丢弃上一轮 ParseLayer 保 O(1)）。
@@ -253,8 +255,8 @@ impl IncrFractals {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::super::types::Tick;
+    use super::*;
 
     fn bar(i: usize, high: Tick, low: Tick) -> Bar {
         Bar {
@@ -274,9 +276,24 @@ mod tests {
     #[test]
     fn fractal_at_source_hit_miss_and_order() {
         let fs = vec![
-            Fractal { kind: FractalKind::Top, source_index: 3, timestamp: 3, price: 150 },
-            Fractal { kind: FractalKind::Bottom, source_index: 8, timestamp: 8, price: 90 },
-            Fractal { kind: FractalKind::Top, source_index: 21, timestamp: 21, price: 170 },
+            Fractal {
+                kind: FractalKind::Top,
+                source_index: 3,
+                timestamp: 3,
+                price: 150,
+            },
+            Fractal {
+                kind: FractalKind::Bottom,
+                source_index: 8,
+                timestamp: 8,
+                price: 90,
+            },
+            Fractal {
+                kind: FractalKind::Top,
+                source_index: 21,
+                timestamp: 21,
+                price: 170,
+            },
         ];
         assert_eq!(
             fractal_at_source(&fs, 8).map(|f| (f.kind, f.price)),

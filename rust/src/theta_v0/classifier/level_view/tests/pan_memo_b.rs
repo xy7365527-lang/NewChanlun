@@ -1,6 +1,6 @@
-use super::*;
 use super::fixtures::mbar;
 use super::pan_memo_fixtures::{pan_provider_fixture, pan_resident};
+use super::*;
 
 /// #69 5b / T3（链②b）：追加第四块不清已证三块；后继消失或身份重折须立即失效。
 #[test]
@@ -283,8 +283,7 @@ fn pan_memo_rematerializes_anchor_and_separates_run_window() {
         }),
     );
     assert!(other_run.iter().any(|ext| {
-        ext.event.kind == NestDivergenceKind::Consolidation
-            && ext.event.provider_window == (0, 24)
+        ext.event.kind == NestDivergenceKind::Consolidation && ext.event.provider_window == (0, 24)
     }));
     assert!(memo.stats().invalidations >= 1);
     assert_eq!(memo.stats().writes, 2, "新 run 语境须冷算后独立回写");

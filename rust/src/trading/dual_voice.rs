@@ -70,15 +70,15 @@
 use super::center_book::CenterBook;
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::positional::{
-    enter_or_defer, theta_weights, LayerState, LayerTrade, PositionalResult,
-    EQUITY_SAMPLE_BARS, MIN_FILL_FRAC,
+    enter_or_defer, theta_weights, LayerState, LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS,
+    MIN_FILL_FRAC,
 };
 use super::positional_fusion::PhaseView;
 use super::tape::SignalTape;
-use super::unified_osc::{OscLayer, OscOut};
 use super::types::{
     BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
 };
+use super::unified_osc::{OscLayer, OscOut};
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
 
@@ -112,8 +112,7 @@ fn nest_sub_evidence(
     flip_edge: Option<Direction>,
 ) -> bool {
     if sub >= FIRST_BSP_LADDER {
-        evs.iter().any(|e| e.class.side() == side)
-            || devs.iter().any(|d| d.side() == side)
+        evs.iter().any(|e| e.class.side() == side) || devs.iter().any(|d| d.side() == side)
     } else {
         let want = match side {
             Side::Sell => Direction::Down,
@@ -135,7 +134,13 @@ fn nav_dv(
 ) -> f64 {
     let mut v = cash;
     for k in floor..MAX_LADDER {
-        if let ShortState::Short { entry_price, units, margin, .. } = shorts[k] {
+        if let ShortState::Short {
+            entry_price,
+            units,
+            margin,
+            ..
+        } = shorts[k]
+        {
             v += margin + units * (entry_price - c);
         }
         if oscs[k].is_some() {
@@ -143,7 +148,12 @@ fn nav_dv(
         }
         match layers[k] {
             LayerState::Long { shares, .. } => v += shares * c,
-            LayerState::Short { entry_price, units, margin, .. } => {
+            LayerState::Short {
+                entry_price,
+                units,
+                margin,
+                ..
+            } => {
                 v += margin + units * (entry_price - c);
             }
             _ => {}
@@ -237,8 +247,7 @@ pub(crate) fn run_dual_voice(
             }
             depth_ref.observe(&book, c);
         }
-        let evrows: &[Vec<BspEvent>; MAX_LADDER] =
-            sig.bsp_events.as_deref().unwrap_or(&empty_evs);
+        let evrows: &[Vec<BspEvent>; MAX_LADDER] = sig.bsp_events.as_deref().unwrap_or(&empty_evs);
         let devrows: &[Vec<DivEvent>; MAX_LADDER] =
             sig.div_events.as_deref().unwrap_or(&empty_devs);
         osc_layer.observe_refs(&book, &dir_state);
@@ -266,7 +275,11 @@ pub(crate) fn run_dual_voice(
                         BspClass::Buy1 | BspClass::Buy3 => false,
                         BspClass::Sell2 | BspClass::Buy2 => continue,
                     };
-                    let win = if sellside { &mut nest_sell[k] } else { &mut nest_buy[k] };
+                    let win = if sellside {
+                        &mut nest_sell[k]
+                    } else {
+                        &mut nest_buy[k]
+                    };
                     if e.confirmed {
                         *win = None;
                         if let Some(cs) = e.cs {
@@ -305,9 +318,7 @@ pub(crate) fn run_dual_voice(
                     (FIRST_BSP_LADDER..k).all(|j| nest_sell[j].is_some())
                         && flip_edge[1] == Some(Direction::Down)
                 } else {
-                    nest_sub_evidence(
-                        sub, Side::Sell, &evrows[sub], &devrows[sub], flip_edge[sub],
-                    )
+                    nest_sub_evidence(sub, Side::Sell, &evrows[sub], &devrows[sub], flip_edge[sub])
                 };
             }
             if nest_buy[k].is_some() {
@@ -315,9 +326,7 @@ pub(crate) fn run_dual_voice(
                     (FIRST_BSP_LADDER..k).all(|j| nest_buy[j].is_some())
                         && flip_edge[1] == Some(Direction::Up)
                 } else {
-                    nest_sub_evidence(
-                        sub, Side::Buy, &evrows[sub], &devrows[sub], flip_edge[sub],
-                    )
+                    nest_sub_evidence(sub, Side::Buy, &evrows[sub], &devrows[sub], flip_edge[sub])
                 };
             }
         }
@@ -363,14 +372,10 @@ pub(crate) fn run_dual_voice(
             }
         }
 
-        let r2_trim_blocked = |k: usize| {
-            phi(k) == PhaseView::Osc
-                && book.alive(k).is_some_and(|lc| !(c >= lc.zg))
-        };
-        let r2_restore_blocked = |k: usize| {
-            phi(k) == PhaseView::Osc
-                && book.alive(k).is_some_and(|lc| !(c <= lc.zd))
-        };
+        let r2_trim_blocked =
+            |k: usize| phi(k) == PhaseView::Osc && book.alive(k).is_some_and(|lc| !(c >= lc.zg));
+        let r2_restore_blocked =
+            |k: usize| phi(k) == PhaseView::Osc && book.alive(k).is_some_and(|lc| !(c <= lc.zd));
 
         // T2W 否定（R20）。
         for k in floor_ladder..MAX_LADDER {
@@ -398,10 +403,14 @@ pub(crate) fn run_dual_voice(
                 .fold(None, |m: Option<f64>, p| Some(m.map_or(p, |x| x.min(p))))
         };
         let conf_sell2 = |k: usize| {
-            evrows[k].iter().any(|e| e.confirmed && e.class == BspClass::Sell2)
+            evrows[k]
+                .iter()
+                .any(|e| e.confirmed && e.class == BspClass::Sell2)
         };
         let conf_buy2 = |k: usize| {
-            evrows[k].iter().any(|e| e.confirmed && e.class == BspClass::Buy2)
+            evrows[k]
+                .iter()
+                .any(|e| e.confirmed && e.class == BspClass::Buy2)
         };
 
         // 卖侧 T2W 消费标记（dual_book：A/A2 双书共享锁存，动作发生后统一
@@ -410,16 +419,31 @@ pub(crate) fn run_dual_voice(
 
         // ── 阶段 A：多头书出场（停削/位置门）∨ osc 在外腿出口 ──
         for k in floor_ladder..MAX_LADDER {
-            let LayerState::Long { entry_bar, entry_price, shares, weight, deferred_bars, partial } =
-                layers[k]
+            let LayerState::Long {
+                entry_bar,
+                entry_price,
+                shares,
+                weight,
+                deferred_bars,
+                partial,
+            } = layers[k]
             else {
                 continue;
             };
             res.held_bars_by_ladder[k] += 1;
             if osc_layer.outs[k].is_some() {
                 osc_layer.step_exit(
-                    k, c, i as i64, sig, nf_sell[k], nf_buy[k], &phi, &book,
-                    &mut layers, &mut pool, &mut res,
+                    k,
+                    c,
+                    i as i64,
+                    sig,
+                    nf_sell[k],
+                    nf_buy[k],
+                    &phi,
+                    &book,
+                    &mut layers,
+                    &mut pool,
+                    &mut res,
                 );
                 continue;
             }
@@ -577,8 +601,8 @@ pub(crate) fn run_dual_voice(
                     continue;
                 }
                 osc_layer.try_open(
-                    k, c, i as i64, sig, true, true, &phi, &book, &depth_ref,
-                    &layers, &mut pool, &mut res,
+                    k, c, i as i64, sig, true, true, &phi, &book, &depth_ref, &layers, &mut pool,
+                    &mut res,
                 );
             }
         }
@@ -592,8 +616,13 @@ pub(crate) fn run_dual_voice(
             // 强制平空 → 买点回补 ∧ 门）。平空不自动翻多——多头书由下方
             // 独立按买点词汇驱动（MoveUp 强制平空除外：满仓义务对齐在册，
             // 多头书 Flat 时同 bar enter_or_defer）。
-            if let ShortState::Short { entry_bar, entry_price, units, weight, margin } =
-                shorts[k]
+            if let ShortState::Short {
+                entry_bar,
+                entry_price,
+                units,
+                weight,
+                margin,
+            } = shorts[k]
             {
                 res.short_held_bars_by_ladder[k] += 1;
                 let equity_k = margin + units * (entry_price - c);
@@ -602,8 +631,7 @@ pub(crate) fn run_dual_voice(
                              pool: &mut f64,
                              res: &mut PositionalResult| {
                     *pool += margin + units * (entry_price - exit_price);
-                    res.short_net_cash_by_ladder[k] +=
-                        units * (entry_price - exit_price);
+                    res.short_net_cash_by_ladder[k] += units * (entry_price - exit_price);
                     res.trades.push(LayerTrade {
                         ladder: k as u8,
                         entry_bar,
@@ -634,8 +662,15 @@ pub(crate) fn run_dual_voice(
                     // （与在册翻多对齐——义务一致性声明见模块头）。
                     if layers[k] == LayerState::Flat {
                         layers[k] = enter_or_defer(
-                            k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
-                            &mut pool, &mut res,
+                            k,
+                            i as i64,
+                            i as i64,
+                            c,
+                            bar_nav,
+                            &thetas,
+                            theta_total,
+                            &mut pool,
+                            &mut res,
                         );
                     }
                 } else if sig.buy_any.get(k) || nf_buy[k] || t2w_bfire {
@@ -678,8 +713,15 @@ pub(crate) fn run_dual_voice(
                 LayerState::Flat => {
                     if sig.buy_any.get(k) || nf_buy[k] {
                         layers[k] = enter_or_defer(
-                            k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
-                            &mut pool, &mut res,
+                            k,
+                            i as i64,
+                            i as i64,
+                            c,
+                            bar_nav,
+                            &thetas,
+                            theta_total,
+                            &mut pool,
+                            &mut res,
                         );
                     }
                 }
@@ -689,8 +731,15 @@ pub(crate) fn run_dual_voice(
                         layers[k] = LayerState::Flat;
                     } else {
                         layers[k] = enter_or_defer(
-                            k, confirm_bar, i as i64, c, bar_nav, &thetas, theta_total,
-                            &mut pool, &mut res,
+                            k,
+                            confirm_bar,
+                            i as i64,
+                            c,
+                            bar_nav,
+                            &thetas,
+                            theta_total,
+                            &mut pool,
+                            &mut res,
                         );
                     }
                 }
@@ -700,7 +749,13 @@ pub(crate) fn run_dual_voice(
                 LayerState::Long { .. } => {}
                 // 在册单书翻转架构的 Short 层（dual_book=false 专属；
                 // unified_voice 逐字同构）。
-                LayerState::Short { entry_bar, entry_price, units, weight, margin } => {
+                LayerState::Short {
+                    entry_bar,
+                    entry_price,
+                    units,
+                    weight,
+                    margin,
+                } => {
                     debug_assert!(!dual_book, "dual_book 下多头书永不为 Short");
                     res.short_held_bars_by_ladder[k] += 1;
                     let equity_k = margin + units * (entry_price - c);
@@ -709,8 +764,7 @@ pub(crate) fn run_dual_voice(
                                  pool: &mut f64,
                                  res: &mut PositionalResult| {
                         *pool += margin + units * (entry_price - exit_price);
-                        res.short_net_cash_by_ladder[k] +=
-                            units * (entry_price - exit_price);
+                        res.short_net_cash_by_ladder[k] += units * (entry_price - exit_price);
                         res.trades.push(LayerTrade {
                             ladder: k as u8,
                             entry_bar,
@@ -736,8 +790,15 @@ pub(crate) fn run_dual_voice(
                         cover(c, "cover_moveup", &mut pool, &mut res);
                         res.n_short_moveup_covers_by_ladder[k] += 1;
                         layers[k] = enter_or_defer(
-                            k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
-                            &mut pool, &mut res,
+                            k,
+                            i as i64,
+                            i as i64,
+                            c,
+                            bar_nav,
+                            &thetas,
+                            theta_total,
+                            &mut pool,
+                            &mut res,
                         );
                         t2w_buy[k] = None;
                     } else if sig.buy_any.get(k) || nf_buy[k] || t2w_bfire {
@@ -747,8 +808,7 @@ pub(crate) fn run_dual_voice(
                                 if t2w_buy[k].is_none() {
                                     res.n_t2w_arms_by_ladder[k] += 1;
                                 }
-                                t2w_buy[k] =
-                                    Some(t2w_buy[k].map_or(px, |x| x.min(px)));
+                                t2w_buy[k] = Some(t2w_buy[k].map_or(px, |x| x.min(px)));
                             }
                         } else if r2_restore_blocked(k) {
                             res.n_short_r2_blocks_by_ladder[k] += 1;
@@ -756,8 +816,7 @@ pub(crate) fn run_dual_voice(
                                 if t2w_buy[k].is_none() {
                                     res.n_t2w_arms_by_ladder[k] += 1;
                                 }
-                                t2w_buy[k] =
-                                    Some(t2w_buy[k].map_or(px, |x| x.min(px)));
+                                t2w_buy[k] = Some(t2w_buy[k].map_or(px, |x| x.min(px)));
                             }
                         } else {
                             let reason = if sig.buy_any.get(k) {
@@ -773,8 +832,15 @@ pub(crate) fn run_dual_voice(
                             cover(c, reason, &mut pool, &mut res);
                             res.n_short_covers_by_ladder[k] += 1;
                             layers[k] = enter_or_defer(
-                                k, i as i64, i as i64, c, bar_nav, &thetas,
-                                theta_total, &mut pool, &mut res,
+                                k,
+                                i as i64,
+                                i as i64,
+                                c,
+                                bar_nav,
+                                &thetas,
+                                theta_total,
+                                &mut pool,
+                                &mut res,
                             );
                             t2w_buy[k] = None;
                         }
@@ -807,8 +873,13 @@ pub(crate) fn run_dual_voice(
     //    价记账；多头书在册收口）──
     let last_close = tape.bars[n - 1].close;
     for k in floor_ladder..MAX_LADDER {
-        if let ShortState::Short { entry_bar, entry_price, units, weight, margin } =
-            shorts[k]
+        if let ShortState::Short {
+            entry_bar,
+            entry_price,
+            units,
+            weight,
+            margin,
+        } = shorts[k]
         {
             let equity_k = margin + units * (entry_price - last_close);
             let (exit_price, exit_reason) = if equity_k <= 0.0 {
@@ -837,8 +908,13 @@ pub(crate) fn run_dual_voice(
             res.n_exits_by_ladder[k] += 1;
             shorts[k] = ShortState::Flat;
         }
-        if let LayerState::Short { entry_bar, entry_price, units, weight, margin } =
-            layers[k]
+        if let LayerState::Short {
+            entry_bar,
+            entry_price,
+            units,
+            weight,
+            margin,
+        } = layers[k]
         {
             let equity_k = margin + units * (entry_price - last_close);
             let (exit_price, exit_reason) = if equity_k <= 0.0 {
@@ -868,8 +944,14 @@ pub(crate) fn run_dual_voice(
             layers[k] = LayerState::Flat;
             continue;
         }
-        let LayerState::Long { entry_bar, entry_price, shares, weight, deferred_bars, partial } =
-            layers[k]
+        let LayerState::Long {
+            entry_bar,
+            entry_price,
+            shares,
+            weight,
+            deferred_bars,
+            partial,
+        } = layers[k]
         else {
             continue;
         };
@@ -910,7 +992,11 @@ mod tests {
     use crate::trading::types::LadderMask;
 
     fn bar(close: f64) -> BarSig {
-        BarSig { close, max_ladder: 5, ..Default::default() }
+        BarSig {
+            close,
+            max_ladder: 5,
+            ..Default::default()
+        }
     }
 
     fn anchor_ev(cs: i64, zd: f64, zg: f64) -> BspEvent {
@@ -956,7 +1042,11 @@ mod tests {
         (0..SUB_COST_MIN_OBS as i64)
             .map(|j| {
                 let b = with_anchor(bar(100.0), lad, 10 + j, 50.0, 51.0);
-                if j == 0 { with_empty_div(b) } else { b }
+                if j == 0 {
+                    with_empty_div(b)
+                } else {
+                    b
+                }
             })
             .collect()
     }
@@ -980,15 +1070,24 @@ mod tests {
     fn parse_dual_voice() {
         assert_eq!(
             PolarityMode::parse("fusion_vd"),
-            Some(PolarityMode::DualVoice { dual_book: true, nest_deep: false })
+            Some(PolarityMode::DualVoice {
+                dual_book: true,
+                nest_deep: false
+            })
         );
         assert_eq!(
             PolarityMode::parse("fusion_vn"),
-            Some(PolarityMode::DualVoice { dual_book: false, nest_deep: true })
+            Some(PolarityMode::DualVoice {
+                dual_book: false,
+                nest_deep: true
+            })
         );
         assert_eq!(
             PolarityMode::parse("fusion_vdn"),
-            Some(PolarityMode::DualVoice { dual_book: true, nest_deep: true })
+            Some(PolarityMode::DualVoice {
+                dual_book: true,
+                nest_deep: true
+            })
         );
     }
 
@@ -1000,64 +1099,99 @@ mod tests {
             let w = SUB_COST_MIN_OBS as i64;
             vec![
                 // 翻空 + 平空翻多
-                ({
-                    let mut bars = warmup(2);
-                    bars.push(buypt(bar(100.0), 2));
-                    bars.push(sellpt(bar(100.0), 2));
-                    bars.push(buypt(bar(40.0), 2));
-                    bars.push(bar(40.0));
-                    bars
-                }, vec![], vec![]),
+                (
+                    {
+                        let mut bars = warmup(2);
+                        bars.push(buypt(bar(100.0), 2));
+                        bars.push(sellpt(bar(100.0), 2));
+                        bars.push(buypt(bar(40.0), 2));
+                        bars.push(bar(40.0));
+                        bars
+                    },
+                    vec![],
+                    vec![],
+                ),
                 // 强平
-                ({
-                    let mut bars = warmup(2);
-                    bars.push(buypt(bar(100.0), 2));
-                    bars.push(sellpt(bar(100.0), 2));
-                    bars.push(bar(230.0));
-                    bars.push(bar(230.0));
-                    bars
-                }, vec![], vec![]),
+                (
+                    {
+                        let mut bars = warmup(2);
+                        bars.push(buypt(bar(100.0), 2));
+                        bars.push(sellpt(bar(100.0), 2));
+                        bars.push(bar(230.0));
+                        bars.push(bar(230.0));
+                        bars
+                    },
+                    vec![],
+                    vec![],
+                ),
                 // freeze 停削 + 翻 Osc 后翻空
-                ({
-                    let mut bars = warmup(2);
-                    bars.push(buypt(bar(100.0), 2));
-                    bars.push(sellpt(bar(110.0), 2));
-                    bars.push(sellpt(bar(110.0), 2));
-                    bars.push(bar(105.0));
-                    bars
-                }, vec![(w + 1, 3, Direction::Up)],
-                   vec![(w + 1, 3, true), (w + 2, 3, false)]),
+                (
+                    {
+                        let mut bars = warmup(2);
+                        bars.push(buypt(bar(100.0), 2));
+                        bars.push(sellpt(bar(110.0), 2));
+                        bars.push(sellpt(bar(110.0), 2));
+                        bars.push(bar(105.0));
+                        bars
+                    },
+                    vec![(w + 1, 3, Direction::Up)],
+                    vec![(w + 1, 3, true), (w + 2, 3, false)],
+                ),
                 // MoveDown 停回补
-                ({
-                    let mut bars = warmup(2);
-                    bars.push(buypt(bar(100.0), 2));
-                    bars.push(sellpt(bar(90.0), 2));
-                    bars.push(buypt(bar(40.0), 2));
-                    bars.push(buypt(bar(40.0), 2));
-                    bars.push(bar(40.0));
-                    bars
-                }, vec![(w, 2, Direction::Down)],
-                   vec![(w, 2, true), (w + 3, 2, false)]),
+                (
+                    {
+                        let mut bars = warmup(2);
+                        bars.push(buypt(bar(100.0), 2));
+                        bars.push(sellpt(bar(90.0), 2));
+                        bars.push(buypt(bar(40.0), 2));
+                        bars.push(buypt(bar(40.0), 2));
+                        bars.push(bar(40.0));
+                        bars
+                    },
+                    vec![(w, 2, Direction::Down)],
+                    vec![(w, 2, true), (w + 3, 2, false)],
+                ),
             ]
         };
         for (idx, (bars, df, tf)) in scenarios.into_iter().enumerate() {
             let a = run_mode(
-                bars.clone(), df.clone(), tf.clone(),
+                bars.clone(),
+                df.clone(),
+                tf.clone(),
                 PolarityMode::UnifiedVoice { anc_freeze: true },
             );
             let b = run_mode(
-                bars, df, tf,
-                PolarityMode::DualVoice { dual_book: false, nest_deep: false },
+                bars,
+                df,
+                tf,
+                PolarityMode::DualVoice {
+                    dual_book: false,
+                    nest_deep: false,
+                },
             );
             assert!(
                 (a.final_nav - b.final_nav).abs() < 1e-9,
-                "场景{idx}: nav 漂移 {} vs {}", a.final_nav, b.final_nav
+                "场景{idx}: nav 漂移 {} vs {}",
+                a.final_nav,
+                b.final_nav
             );
             assert_eq!(a.trades.len(), b.trades.len(), "场景{idx}: trades 数漂移");
             for (ta, tb) in a.trades.iter().zip(b.trades.iter()) {
                 assert_eq!(
-                    (ta.ladder, ta.entry_bar, ta.exit_bar, ta.exit_reason, ta.polarity),
-                    (tb.ladder, tb.entry_bar, tb.exit_bar, tb.exit_reason, tb.polarity),
+                    (
+                        ta.ladder,
+                        ta.entry_bar,
+                        ta.exit_bar,
+                        ta.exit_reason,
+                        ta.polarity
+                    ),
+                    (
+                        tb.ladder,
+                        tb.entry_bar,
+                        tb.exit_bar,
+                        tb.exit_reason,
+                        tb.polarity
+                    ),
                     "场景{idx}: trade 行漂移"
                 );
             }
@@ -1074,8 +1208,13 @@ mod tests {
         bars.push(buypt(bar(40.0), 2));
         bars.push(bar(40.0));
         let r = run_mode(
-            bars, vec![], vec![],
-            PolarityMode::DualVoice { dual_book: true, nest_deep: false },
+            bars,
+            vec![],
+            vec![],
+            PolarityMode::DualVoice {
+                dual_book: true,
+                nest_deep: false,
+            },
         );
         assert_eq!(r.n_flip_shorts_by_ladder[2], 0, "双书无翻转断面");
         assert_eq!(r.n_dual_short_opens_by_ladder[2], 1, "空头书独立开仓");
@@ -1093,11 +1232,12 @@ mod tests {
             .map(|j| {
                 let mut e3 = anchor_ev(1000 + j, 50.0, 51.0);
                 e3.class = BspClass::Buy1;
-                let b = with_ev(
-                    with_anchor(bar(100.0), 2, 10 + j, 50.0, 51.0),
-                    3, e3,
-                );
-                if j == 0 { with_empty_div(b) } else { b }
+                let b = with_ev(with_anchor(bar(100.0), 2, 10 + j, 50.0, 51.0), 3, e3);
+                if j == 0 {
+                    with_empty_div(b)
+                } else {
+                    b
+                }
             })
             .collect()
     }
@@ -1117,7 +1257,10 @@ mod tests {
             bars,
             vec![(w, 2, Direction::Down)],
             vec![(w, 2, true)],
-            PolarityMode::DualVoice { dual_book: true, nest_deep: false },
+            PolarityMode::DualVoice {
+                dual_book: true,
+                nest_deep: false,
+            },
         );
         assert_eq!(r.n_dual_short_opens_by_ladder[2], 1);
         assert_eq!(r.n_short_trend_holds_by_ladder[2], 1, "停回补拦截");
@@ -1136,7 +1279,10 @@ mod tests {
             bars,
             vec![(w + 1, 3, Direction::Up)],
             vec![(w + 1, 3, true)],
-            PolarityMode::DualVoice { dual_book: true, nest_deep: false },
+            PolarityMode::DualVoice {
+                dual_book: true,
+                nest_deep: false,
+            },
         );
         assert_eq!(r.n_trend_holds_by_ladder[2], 1, "多头停削");
         assert_eq!(r.n_dual_short_opens_by_ladder[2], 0, "空头不开仓");
@@ -1168,7 +1314,10 @@ mod tests {
             bars_a,
             vec![(w + 2, 1, Direction::Down)],
             vec![],
-            PolarityMode::DualVoice { dual_book: false, nest_deep: true },
+            PolarityMode::DualVoice {
+                dual_book: false,
+                nest_deep: true,
+            },
         );
         assert_eq!(r_a.n_nest_fire_sell_by_ladder[3], 0, "链不贯通不触发");
         // 场景 B：k=3 与层 2 同侧武装 + bi 翻转 ⇒ 触发。
@@ -1182,7 +1331,10 @@ mod tests {
             bars_b,
             vec![(w + 3, 1, Direction::Down)],
             vec![],
-            PolarityMode::DualVoice { dual_book: false, nest_deep: true },
+            PolarityMode::DualVoice {
+                dual_book: false,
+                nest_deep: true,
+            },
         );
         assert_eq!(r_b.n_nest_fire_sell_by_ladder[3], 1, "链贯通触发");
     }
@@ -1203,14 +1355,16 @@ mod tests {
                 bars,
                 vec![(w + 2, 1, Direction::Down)],
                 vec![],
-                PolarityMode::DualVoice { dual_book: false, nest_deep: deep },
+                PolarityMode::DualVoice {
+                    dual_book: false,
+                    nest_deep: deep,
+                },
             )
         };
         let shallow = make(false);
         let deep = make(true);
         assert_eq!(
-            shallow.n_nest_fire_sell_by_ladder[2],
-            deep.n_nest_fire_sell_by_ladder[2],
+            shallow.n_nest_fire_sell_by_ladder[2], deep.n_nest_fire_sell_by_ladder[2],
             "floor 层退化一致"
         );
         assert!((shallow.final_nav - deep.final_nav).abs() < 1e-9);

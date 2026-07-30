@@ -101,16 +101,30 @@ pub struct RetraceAuditRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RetraceAuditError {
     Io(String),
-    InvalidJson { line: usize, message: String },
-    UnsupportedSchema { line: usize, schema: u64 },
-    UnknownRecordTag { line: usize, tag: String },
+    InvalidJson {
+        line: usize,
+        message: String,
+    },
+    UnsupportedSchema {
+        line: usize,
+        schema: u64,
+    },
+    UnknownRecordTag {
+        line: usize,
+        tag: String,
+    },
     MissingProvenanceHeader,
     ProvenanceMismatch {
         expected: RetraceProvenance,
         actual: RetraceProvenance,
     },
-    NonAppendSequence { expected: u64, actual: u64 },
-    SequenceConflict { sequence: u64 },
+    NonAppendSequence {
+        expected: u64,
+        actual: u64,
+    },
+    SequenceConflict {
+        sequence: u64,
+    },
 }
 
 impl From<std::io::Error> for RetraceAuditError {
@@ -154,7 +168,10 @@ impl JsonlRetraceAuditStore {
         for record in records {
             lines.push(encode_record(record));
         }
-        let mut file = OpenOptions::new().create(true).append(true).open(&self.path)?;
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
         for line in lines {
             file.write_all(format!("{line}\n").as_bytes())?;
         }

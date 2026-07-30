@@ -122,8 +122,15 @@ fn scan_zhongshu(confirmed: &[Component]) -> Vec<Zhongshu> {
 ///   （unsettled regime——单中枢无限延伸——的 O(n²) 根因）。
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ScanResume {
-    Exhausted { i: usize },
-    Unsettled { i: usize, seg_end: usize, gg: f64, dd: f64 },
+    Exhausted {
+        i: usize,
+    },
+    Unsettled {
+        i: usize,
+        seg_end: usize,
+        gg: f64,
+        dd: f64,
+    },
 }
 
 /// 从指定起点 `start_i` 开始的滑窗扫描（绝对索引语义不变）。
@@ -142,7 +149,11 @@ pub(crate) fn scan_zhongshu_range(confirmed: &[Component], start_i: usize) -> Ve
 ///
 /// 与 `scan_zhongshu_range(confirmed, start_i)` 逐位等价（out 追加内容相同），
 /// 但暴露退出 `ScanResume` 供增量器续扫。`out` 不清空（调用方可预填不可变前缀）。
-fn scan_zhongshu_core(confirmed: &[Component], start_i: usize, out: &mut Vec<Zhongshu>) -> ScanResume {
+fn scan_zhongshu_core(
+    confirmed: &[Component],
+    start_i: usize,
+    out: &mut Vec<Zhongshu>,
+) -> ScanResume {
     scan_zhongshu_from(confirmed, start_i, None, out)
 }
 
@@ -160,7 +171,13 @@ pub(crate) fn scan_zhongshu_from(
     let n = confirmed.len();
 
     // unsettled resume：从缓存的 extend 断点续扫（可能产出 settled 或仍 unsettled）。
-    if let Some(ScanResume::Unsettled { i, seg_end: prev_seg_end, gg: prev_gg, dd: prev_dd }) = resume {
+    if let Some(ScanResume::Unsettled {
+        i,
+        seg_end: prev_seg_end,
+        gg: prev_gg,
+        dd: prev_dd,
+    }) = resume
+    {
         if i + 2 < n {
             let (s1, s2, s3) = (&confirmed[i], &confirmed[i + 1], &confirmed[i + 2]);
             let zd = s1.low.max(s2.low).max(s3.low);
@@ -205,7 +222,12 @@ pub(crate) fn scan_zhongshu_from(
                 let next = (break_seg_idx - 2).max(seg_end_idx as i64);
                 return scan_main_loop(confirmed, next as usize, out);
             } else {
-                return ScanResume::Unsettled { i, seg_end: seg_end_idx, gg, dd };
+                return ScanResume::Unsettled {
+                    i,
+                    seg_end: seg_end_idx,
+                    gg,
+                    dd,
+                };
             }
         }
         return ScanResume::Exhausted { i };
@@ -259,7 +281,12 @@ fn scan_main_loop(confirmed: &[Component], start_i: usize, out: &mut Vec<Zhongsh
             i = next as usize;
         } else {
             // unsettled 中枢：break，缓存 extend 断点（下次 push 续 extend 而非重扫）。
-            return ScanResume::Unsettled { i, seg_end: seg_end_idx, gg, dd };
+            return ScanResume::Unsettled {
+                i,
+                seg_end: seg_end_idx,
+                gg,
+                dd,
+            };
         }
     }
 
@@ -496,7 +523,9 @@ mod incremental_tests {
         // 确定性 LCG 生成多样 high/low，覆盖 overlap/break/extend/续进 各路径。
         let mut state: u64 = 0x9E3779B97F4A7C15;
         let mut next = || {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             (state >> 33) as f64 / (1u64 << 31) as f64 // [0,1)
         };
         let mut comps: Vec<Component> = Vec::new();
@@ -573,11 +602,31 @@ mod perf_profile {
         let mut center = 100.0_f64;
         for k in 0..n {
             let c = match k % 4 {
-                0 => Component { high: center + 6.0, low: center - 6.0, anchor_start: k, anchor_end: k },
-                1 => Component { high: center + 4.0, low: center - 4.0, anchor_start: k, anchor_end: k },
-                2 => Component { high: center + 5.0, low: center - 5.0, anchor_start: k, anchor_end: k },
+                0 => Component {
+                    high: center + 6.0,
+                    low: center - 6.0,
+                    anchor_start: k,
+                    anchor_end: k,
+                },
+                1 => Component {
+                    high: center + 4.0,
+                    low: center - 4.0,
+                    anchor_start: k,
+                    anchor_end: k,
+                },
+                2 => Component {
+                    high: center + 5.0,
+                    low: center - 5.0,
+                    anchor_start: k,
+                    anchor_end: k,
+                },
                 _ => {
-                    let c = Component { high: center + 30.0, low: center + 20.0, anchor_start: k, anchor_end: k };
+                    let c = Component {
+                        high: center + 30.0,
+                        low: center + 20.0,
+                        anchor_start: k,
+                        anchor_end: k,
+                    };
                     center += 25.0;
                     c
                 }

@@ -158,7 +158,8 @@ impl IncrementalBiZhongshuBsp {
                 seg_end: z.seg_end,
                 settled: z.settled,
             });
-            self.zbreak.push((z.settled, z.break_direction, z.break_seg));
+            self.zbreak
+                .push((z.settled, z.break_direction, z.break_seg));
         }
         self.prev_zs_stable = zs_stable;
         let zviews = &self.zviews;
@@ -286,7 +287,16 @@ impl IncrementalBiZhongshuBsp {
         bool,
         bool,
         bool,
-        Vec<(&'static str, &'static str, i64, bool, Option<usize>, f64, f64, f64)>,
+        Vec<(
+            &'static str,
+            &'static str,
+            i64,
+            bool,
+            Option<usize>,
+            f64,
+            f64,
+            f64,
+        )>,
     ) {
         let bsps = self.bsp.current();
         let (mut b1, mut s1, mut sa, mut ba) = (false, false, false, false);
@@ -337,9 +347,7 @@ impl IncrementalBiZhongshuBsp {
     /// (kind, direction, seg_c_end)（复刻调用方 _scan_div_events 的 seen）。
     /// 尾窗 = [div_anchor..]：divs[..stable_len] 为 closed 冻结前缀（行不可变 ⟹
     /// 其键已在历次调用入 seen），div_anchor 推进到本次 stable_len。
-    pub fn take_new_div_rows(
-        &mut self,
-    ) -> Vec<(&'static str, &'static str, i64, f64, f64, f64)> {
+    pub fn take_new_div_rows(&mut self) -> Vec<(&'static str, &'static str, i64, f64, f64, f64)> {
         let divs = self.divs.current();
         let mut out = Vec::new();
         for d in &divs[self.div_anchor.min(divs.len())..] {
@@ -449,16 +457,34 @@ mod differential_tests {
             assert_eq!(a.kind, b.kind, "前缀{} kind", prefix);
             assert_eq!(a.side, b.side, "前缀{} side", prefix);
             assert_eq!(a.seg_idx, b.seg_idx, "前缀{} seg_idx", prefix);
-            assert_eq!(a.move_seg_start, b.move_seg_start, "前缀{} move_seg_start", prefix);
+            assert_eq!(
+                a.move_seg_start, b.move_seg_start,
+                "前缀{} move_seg_start",
+                prefix
+            );
             assert_eq!(a.confirmed, b.confirmed, "前缀{} confirmed", prefix);
             assert_eq!(a.settled, b.settled, "前缀{} settled", prefix);
             assert_eq!(a.overlaps_with, b.overlaps_with, "前缀{} overlap", prefix);
             assert_eq!(a.divergence_key, b.divergence_key, "前缀{} div_key", prefix);
             assert_eq!(a.price.to_bits(), b.price.to_bits(), "前缀{} price", prefix);
             assert_eq!(a.bar_idx, b.bar_idx, "前缀{} bar_idx", prefix);
-            assert_eq!(a.center_zd.to_bits(), b.center_zd.to_bits(), "前缀{} zd", prefix);
-            assert_eq!(a.center_zg.to_bits(), b.center_zg.to_bits(), "前缀{} zg", prefix);
-            assert_eq!(a.center_seg_start, b.center_seg_start, "前缀{} center_seg_start", prefix);
+            assert_eq!(
+                a.center_zd.to_bits(),
+                b.center_zd.to_bits(),
+                "前缀{} zd",
+                prefix
+            );
+            assert_eq!(
+                a.center_zg.to_bits(),
+                b.center_zg.to_bits(),
+                "前缀{} zg",
+                prefix
+            );
+            assert_eq!(
+                a.center_seg_start, b.center_seg_start,
+                "前缀{} center_seg_start",
+                prefix
+            );
         }
     }
 
@@ -503,7 +529,13 @@ mod differential_tests {
                 low = p1;
             }
             let _ = (p0, p1);
-            out.push((i0, i1, high, low, if up { Direction::Up } else { Direction::Down }));
+            out.push((
+                i0,
+                i1,
+                high,
+                low,
+                if up { Direction::Up } else { Direction::Down },
+            ));
             price = if up { price + mag } else { price - mag };
             up = !up;
         }
@@ -530,4 +562,3 @@ mod differential_tests {
         }
     }
 }
-

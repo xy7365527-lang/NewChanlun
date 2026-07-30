@@ -342,14 +342,20 @@ fn cert_confirmed(c: &Candidate) -> bool {
 ///   且经 first-match 先落 P2/P3）。
 fn observe_sub_cycle(state: &VoiceState, input: &VoiceStepInput) -> SubCycleObs {
     if state.leg.is_none() || state.level == 0 {
-        return SubCycleObs { next: SubCycleTracker::default(), completed: None };
+        return SubCycleObs {
+            next: SubCycleTracker::default(),
+            completed: None,
+        };
     }
     let sub_level = state.level - 1;
     // 本级证书投影见证（当步）：本级确认证书候选，或 #149 父证书投影见证
     // （`parent_projections` 即 TriggerProjectionSound 数据面——投影子周期属短差域，
     // 必须排除出 P7，互斥约定见 [`P7Record`] doc 第 3 条）。
     let projection_now = !input.parent_projections.is_empty()
-        || input.candidates.iter().any(|c| c.level == state.level && cert_confirmed(c));
+        || input
+            .candidates
+            .iter()
+            .any(|c| c.level == state.level && cert_confirmed(c));
     let mut open = state.sub_cycle.open;
     if let Some(o) = &mut open {
         o.projected |= projection_now;
@@ -372,8 +378,16 @@ fn observe_sub_cycle(state: &VoiceState, input: &VoiceStepInput) -> SubCycleObs 
             // 收端点：反向确认 ⟹ 子周期完整走完（单步至多一枚完成观测）。
             Some(o) if completed.is_none() && reverse_signal(o.cand.dir, &c.bits) => {
                 completed = Some(CompletedSubCycle {
-                    open: SubEndpoint { cand: o.cand, step: o.step, kappa: o.kappa },
-                    close: SubEndpoint { cand: *c, step: state.step, kappa: input.parent_kappa },
+                    open: SubEndpoint {
+                        cand: o.cand,
+                        step: o.step,
+                        kappa: o.kappa,
+                    },
+                    close: SubEndpoint {
+                        cand: *c,
+                        step: state.step,
+                        kappa: input.parent_kappa,
+                    },
                     projected: o.projected,
                 });
                 open = None;
@@ -382,7 +396,10 @@ fn observe_sub_cycle(state: &VoiceState, input: &VoiceStepInput) -> SubCycleObs 
             Some(_) => {}
         }
     }
-    SubCycleObs { next: SubCycleTracker { open }, completed }
+    SubCycleObs {
+        next: SubCycleTracker { open },
+        completed,
+    }
 }
 
 /// #196 shadow（阶段 A 零行为变更）：只推进 P7 检测器/步计数（Hold 转移语义），
@@ -407,7 +424,10 @@ pub fn shadow_observe(state: &VoiceState, input: &VoiceStepInput) -> VoiceState 
 /// #282：P5（短差开启）判据与 `find_short_diff_open` 已删——反父 SubLevel ShortDiff
 /// confirmed certificate + sound parent projection 的开空腿通道属 S6 废止形态（谱系保留旧名）。
 pub fn voice_predicates(state: &VoiceState, input: &VoiceStepInput) -> ChannelPredicates {
-    let mut p = ChannelPredicates { risk_exit: input.force_flat, ..ChannelPredicates::default() };
+    let mut p = ChannelPredicates {
+        risk_exit: input.force_flat,
+        ..ChannelPredicates::default()
+    };
     // P2/P3：本级证书平仓——持仓 ∧ ≺_Θ 序首个本级反向已确认证书候选（[`cert_close_trigger`]
     // 判据+触发归因单源，#202），S2 二分经单源 reverse_exit_type。
     if let Some(leg) = &state.leg {
@@ -600,13 +620,18 @@ fn advance(state: VoiceState, input: &VoiceStepInput, dec: ChannelDecision) -> V
         }
         // #149 P4：只关闭 hedge voice；parent leg/entry_v 逐字段保持
         // （父持仓期未结束 ⟹ #150 检测器续武装）。
-        ChannelDecision::Exit(ExitType::CloseReverseOpen) => {
-            VoiceState { reverse_open: None, step, sub_cycle, ..state }
-        }
+        ChannelDecision::Exit(ExitType::CloseReverseOpen) => VoiceState {
+            reverse_open: None,
+            step,
+            sub_cycle,
+            ..state
+        },
         // 显式 Hold / P7 记录（仓位零变动，只推进检测器）。
-        ChannelDecision::Exit(ExitType::Hold) | ChannelDecision::Record => {
-            VoiceState { step, sub_cycle, ..state }
-        }
+        ChannelDecision::Exit(ExitType::Hold) | ChannelDecision::Record => VoiceState {
+            step,
+            sub_cycle,
+            ..state
+        },
         // 开仓：以 ≺_Θ 首个开仓候选建腿（entry_v = 候选角色垂直轴，入场固定）。
         // 新持仓期起点 ⟹ tracker 重置（空仓期观测不武装，observe 已返回 default）。
         ChannelDecision::Open => {
@@ -621,9 +646,11 @@ fn advance(state: VoiceState, input: &VoiceStepInput, dec: ChannelDecision) -> V
             }
         }
         // 占位通道（加仓票实装真转移）：仓位不变。
-        ChannelDecision::AddPosition => {
-            VoiceState { step, sub_cycle, ..state }
-        }
+        ChannelDecision::AddPosition => VoiceState {
+            step,
+            sub_cycle,
+            ..state
+        },
     }
 }
 
@@ -641,7 +668,10 @@ fn leg_from_candidate(c: &Candidate) -> ActiveLeg {
         dir: c.dir,
         source_index: c.source_index,
         lambda: c.source_index,
-        id: ElementId { level: c.level, ordinal: c.source_index as u64 },
+        id: ElementId {
+            level: c.level,
+            ordinal: c.source_index as u64,
+        },
         parent_id: None,
         is_boundary_root: true,
         op_parent: None,
@@ -650,15 +680,20 @@ fn leg_from_candidate(c: &Candidate) -> ActiveLeg {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::super::types::BspBits;
     use super::super::coverage::{CoverageElement, Dir, GradeRel, Horizontal, OperationRole};
     use super::super::interp::{parent_certificate_projection, ParentCertificateProjection};
-    use super::super::super::types::BspBits;
+    use super::*;
 
     // ── 构造器 ────────────────────────────────────────────────────────────
 
     fn role(v: Vertical) -> OperationRole {
-        OperationRole { h: Horizontal::First, v, delta: Dir::Plus, grade: GradeRel::SameLevel }
+        OperationRole {
+            h: Horizontal::First,
+            v,
+            delta: Dir::Plus,
+            grade: GradeRel::SameLevel,
+        }
     }
 
     fn child_role(v: Vertical, dir: VoiceSide) -> OperationRole {
@@ -676,20 +711,45 @@ mod tests {
 
     fn buy(k: u8) -> BspBits {
         match k {
-            1 => BspBits { buy1: true, ..Default::default() },
-            2 => BspBits { buy2: true, ..Default::default() },
-            _ => BspBits { buy3: true, ..Default::default() },
+            1 => BspBits {
+                buy1: true,
+                ..Default::default()
+            },
+            2 => BspBits {
+                buy2: true,
+                ..Default::default()
+            },
+            _ => BspBits {
+                buy3: true,
+                ..Default::default()
+            },
         }
     }
     fn sell(k: u8) -> BspBits {
         match k {
-            1 => BspBits { sell1: true, ..Default::default() },
-            2 => BspBits { sell2: true, ..Default::default() },
-            _ => BspBits { sell3: true, ..Default::default() },
+            1 => BspBits {
+                sell1: true,
+                ..Default::default()
+            },
+            2 => BspBits {
+                sell2: true,
+                ..Default::default()
+            },
+            _ => BspBits {
+                sell3: true,
+                ..Default::default()
+            },
         }
     }
 
-    fn cand(gi: usize, level: u32, dir: VoiceSide, cls: u8, bits: BspBits, v: Vertical) -> Candidate {
+    fn cand(
+        gi: usize,
+        level: u32,
+        dir: VoiceSide,
+        cls: u8,
+        bits: BspBits,
+        v: Vertical,
+    ) -> Candidate {
         Candidate {
             level,
             source_index: 10 + gi,
@@ -764,7 +824,10 @@ mod tests {
         bits: BspBits,
         v: Vertical,
     ) -> Candidate {
-        Candidate { role: child_role(v, dir), ..cand(gi, level, dir, cls, bits, v) }
+        Candidate {
+            role: child_role(v, dir),
+            ..cand(gi, level, dir, cls, bits, v)
+        }
     }
 
     /// 用真父子 `CoverageElement` 关系构造投影，测试不直接伪造 sound token。
@@ -786,7 +849,10 @@ mod tests {
             level: child.level,
             parent: Some(0),
             attached_dir: Some(parent.dir),
-            id: ElementId { level: child.level, ordinal: child.source_index as u64 },
+            id: ElementId {
+                level: child.level,
+                ordinal: child.source_index as u64,
+            },
             parent_id: Some(parent.id),
         };
         parent_certificate_projection(child, &[child_element], &[parent_element])
@@ -838,8 +904,15 @@ mod tests {
                     hit = Some(ChannelId::Cj(j as u8));
                 }
             }
-            assert_eq!(sum, 1, "bits={bits:08b}: Σ_j 1[C_j]={sum} ≠ 1（互斥性/穷尽性破裂）");
-            assert_eq!(first_match(&p), hit.unwrap(), "bits={bits:08b}: 实装 ≠ 独立重算");
+            assert_eq!(
+                sum, 1,
+                "bits={bits:08b}: Σ_j 1[C_j]={sum} ≠ 1（互斥性/穷尽性破裂）"
+            );
+            assert_eq!(
+                first_match(&p),
+                hit.unwrap(),
+                "bits={bits:08b}: 实装 ≠ 独立重算"
+            );
         }
     }
 
@@ -848,8 +921,15 @@ mod tests {
     fn risk_exit_masks_any_predicate_combination() {
         for rest in 0u32..(1 << (CHANNEL_M - 1)) {
             let p = decode(1 | (rest << 1));
-            assert_eq!(first_match(&p), ChannelId::Cj(1), "P1 成立必 C1（rest={rest:07b}）");
-            assert_eq!(decision_of(ChannelId::Cj(1)), ChannelDecision::Exit(ExitType::RiskExit));
+            assert_eq!(
+                first_match(&p),
+                ChannelId::Cj(1),
+                "P1 成立必 C1（rest={rest:07b}）"
+            );
+            assert_eq!(
+                decision_of(ChannelId::Cj(1)),
+                ChannelDecision::Exit(ExitType::RiskExit)
+            );
         }
     }
 
@@ -857,11 +937,26 @@ mod tests {
     /// （#282：C5 裁决随 P5 槽删除——`decision_of(Cj(5))` 不可达，不在本表断言。）
     #[test]
     fn decision_total_and_exit_type_single_source() {
-        assert_eq!(decision_of(ChannelId::C0), ChannelDecision::Exit(ExitType::Hold));
-        assert_eq!(decision_of(ChannelId::Cj(1)), ChannelDecision::Exit(ExitType::RiskExit));
-        assert_eq!(decision_of(ChannelId::Cj(2)), ChannelDecision::Exit(ExitType::CloseRoot));
-        assert_eq!(decision_of(ChannelId::Cj(3)), ChannelDecision::Exit(ExitType::ReduceCore));
-        assert_eq!(decision_of(ChannelId::Cj(4)), ChannelDecision::Exit(ExitType::CloseReverseOpen));
+        assert_eq!(
+            decision_of(ChannelId::C0),
+            ChannelDecision::Exit(ExitType::Hold)
+        );
+        assert_eq!(
+            decision_of(ChannelId::Cj(1)),
+            ChannelDecision::Exit(ExitType::RiskExit)
+        );
+        assert_eq!(
+            decision_of(ChannelId::Cj(2)),
+            ChannelDecision::Exit(ExitType::CloseRoot)
+        );
+        assert_eq!(
+            decision_of(ChannelId::Cj(3)),
+            ChannelDecision::Exit(ExitType::ReduceCore)
+        );
+        assert_eq!(
+            decision_of(ChannelId::Cj(4)),
+            ChannelDecision::Exit(ExitType::CloseReverseOpen)
+        );
         assert_eq!(decision_of(ChannelId::Cj(6)), ChannelDecision::Open);
         assert_eq!(decision_of(ChannelId::Cj(7)), ChannelDecision::Record);
         assert_eq!(decision_of(ChannelId::Cj(8)), ChannelDecision::AddPosition);
@@ -879,7 +974,17 @@ mod tests {
             (2u8, 2u8, ExitType::CloseRoot),
             (3u8, 3u8, ExitType::ReduceCore),
         ] {
-            let input = step(false, vec![cand(0, 0, VoiceSide::Short, cls, sell(cls), Vertical::Ambient)]);
+            let input = step(
+                false,
+                vec![cand(
+                    0,
+                    0,
+                    VoiceSide::Short,
+                    cls,
+                    sell(cls),
+                    Vertical::Ambient,
+                )],
+            );
             let (cid, dec) = step_voice(&st, &input);
             assert_eq!(cid, ChannelId::Cj(want_cj), "class={cls} S2 二分通道");
             assert_eq!(dec, ChannelDecision::Exit(want_et));
@@ -923,13 +1028,24 @@ mod tests {
         ] {
             let c = cand(0, 0, VoiceSide::Short, cls, sell(cls), Vertical::Ambient);
             let input = step(false, vec![c]);
-            let (trigger, exit) = cert_close_trigger(st.level, VoiceSide::Long, st.entry_v, &input.candidates)
-                .expect("已确认反向证书命中 P2/P3 判据");
-            assert_eq!(*trigger, c, "触发归因 = ≺_Θ 序首个本级反向已确认证书（class={cls}）");
-            assert_eq!(exit, want_et, "S2 二分 == reverse_exit_type 单源（class={cls}）");
+            let (trigger, exit) =
+                cert_close_trigger(st.level, VoiceSide::Long, st.entry_v, &input.candidates)
+                    .expect("已确认反向证书命中 P2/P3 判据");
+            assert_eq!(
+                *trigger, c,
+                "触发归因 = ≺_Θ 序首个本级反向已确认证书（class={cls}）"
+            );
+            assert_eq!(
+                exit, want_et,
+                "S2 二分 == reverse_exit_type 单源（class={cls}）"
+            );
             // 交叉：与 step_voice 的 P2/P3 裁决逐点一致（同判据，不镜像）。
             let (_cid, dec) = step_voice(&st, &input);
-            assert_eq!(dec, ChannelDecision::Exit(want_et), "通道裁决 == cert_close_trigger（class={cls}）");
+            assert_eq!(
+                dec,
+                ChannelDecision::Exit(want_et),
+                "通道裁决 == cert_close_trigger（class={cls}）"
+            );
         }
         // 无命中域：同向/跨级/未确认候选 ⟹ None（P2/P3 不成立）。
         let same_dir = cand(0, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient);
@@ -938,7 +1054,9 @@ mod tests {
         assert!(cert_close_trigger(0, VoiceSide::Long, Vertical::Ambient, &[cross]).is_none());
         let mut unconfirmed = cand(0, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient);
         unconfirmed.nest_confirmed = false;
-        assert!(cert_close_trigger(0, VoiceSide::Long, Vertical::Ambient, &[unconfirmed]).is_none());
+        assert!(
+            cert_close_trigger(0, VoiceSide::Long, Vertical::Ambient, &[unconfirmed]).is_none()
+        );
         // ReverseOpen 入场角色的本级反向：reverse_exit_type 产 CloseReverseOpen（P4 域原料，
         // 谓词层不置位 P2/P3）——单源如实产出，由调用方按账户域分流。
         let sd_cands = [cand(0, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient)];
@@ -951,16 +1069,28 @@ mod tests {
     fn risk_and_structural_same_instant_risk_first() {
         // 持仓 + 反向证书候选（P2 真）+ force_flat（P1 真）⟹ C1。
         let st = holding(0, VoiceSide::Long, Vertical::Ambient);
-        let input = step(true, vec![cand(0, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient)]);
+        let input = step(
+            true,
+            vec![cand(0, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient)],
+        );
         let p = voice_predicates(&st, &input);
         assert!(p.risk_exit && p.cert_close_root, "前提：P1 与 P2 同刻重叠");
-        assert_eq!(step_voice(&st, &input), (ChannelId::Cj(1), ChannelDecision::Exit(ExitType::RiskExit)));
+        assert_eq!(
+            step_voice(&st, &input),
+            (ChannelId::Cj(1), ChannelDecision::Exit(ExitType::RiskExit))
+        );
         // 空仓 + 开仓候选（P6 真）+ force_flat ⟹ 仍 C1。
         let st2 = empty_voice(0);
-        let input2 = step(true, vec![cand(0, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]);
+        let input2 = step(
+            true,
+            vec![cand(0, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+        );
         let p2 = voice_predicates(&st2, &input2);
         assert!(p2.risk_exit && p2.open_entry, "前提：P1 与 P6 同刻重叠");
-        assert_eq!(step_voice(&st2, &input2), (ChannelId::Cj(1), ChannelDecision::Exit(ExitType::RiskExit)));
+        assert_eq!(
+            step_voice(&st2, &input2),
+            (ChannelId::Cj(1), ChannelDecision::Exit(ExitType::RiskExit))
+        );
     }
 
     /// 全谓词为假 ⟹ C0/Hold 兜底（空候选 / 无关级别候选 / 持仓遇同向候选=加仓占位域）。
@@ -970,15 +1100,40 @@ mod tests {
         // 空候选、空仓。
         assert_eq!(step_voice(&empty_voice(0), &step(false, vec![])), hold);
         // 空候选、持仓。
-        assert_eq!(step_voice(&holding(0, VoiceSide::Long, Vertical::Ambient), &step(false, vec![])), hold);
+        assert_eq!(
+            step_voice(
+                &holding(0, VoiceSide::Long, Vertical::Ambient),
+                &step(false, vec![])
+            ),
+            hold
+        );
         // 跨级候选不进本声部（本级过滤）。
-        let cross = step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]);
+        let cross = step(
+            false,
+            vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+        );
         assert_eq!(step_voice(&empty_voice(0), &cross), hold);
         // 持仓 + 同向候选 = 加仓域（P8 占位恒 false）⟹ C0 Hold。
-        let same_dir = step(false, vec![cand(0, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]);
-        assert_eq!(step_voice(&holding(0, VoiceSide::Long, Vertical::Ambient), &same_dir), hold);
+        let same_dir = step(
+            false,
+            vec![cand(0, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+        );
+        assert_eq!(
+            step_voice(&holding(0, VoiceSide::Long, Vertical::Ambient), &same_dir),
+            hold
+        );
         // 不可交易候选（Flat/无类）不触发 P6。
-        let flat = step(false, vec![cand(0, 0, VoiceSide::Flat, u8::MAX, BspBits::default(), Vertical::Ambient)]);
+        let flat = step(
+            false,
+            vec![cand(
+                0,
+                0,
+                VoiceSide::Flat,
+                u8::MAX,
+                BspBits::default(),
+                Vertical::Ambient,
+            )],
+        );
         assert_eq!(step_voice(&empty_voice(0), &flat), hold);
     }
 
@@ -995,13 +1150,22 @@ mod tests {
     fn p7_end_to_end_sub_cycle_records_without_position_change() {
         let steps = vec![
             // step0：本级（ℓ=1）开仓 ⟹ C6。
-            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step(
+                false,
+                vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
             // step1：次级别（ℓ=0）买端点证书（父级中枢内）⟹ 子周期开端点，C0 Hold。
-            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+            step_k(
+                vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))],
+                ParentKappa::InsideCenter,
+            ),
             // step2：空事件 ⟹ Hold。
             step(false, vec![]),
             // step3：次级别卖端点证书（反向确认，父级中枢内）⟹ 子周期完整走完，全程无投影 ⟹ C7。
-            step_k(vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+            step_k(
+                vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))],
+                ParentKappa::InsideCenter,
+            ),
             // step4：空事件 ⟹ Hold（记录不改变仓位，声部继续持仓）。
             step(false, vec![]),
         ];
@@ -1025,8 +1189,16 @@ mod tests {
         assert_eq!(r.open.step, 1, "开端点落账步（可重放见证）");
         assert_eq!(r.close.step, 3, "收端点落账步（可重放见证）");
         assert_eq!(r.step, 3, "记录落账步 = 收端点步");
-        assert_eq!(r.open.kappa, ParentKappa::InsideCenter, "开端点父级中枢语境 κ");
-        assert_eq!(r.close.kappa, ParentKappa::InsideCenter, "收端点父级中枢语境 κ");
+        assert_eq!(
+            r.open.kappa,
+            ParentKappa::InsideCenter,
+            "开端点父级中枢语境 κ"
+        );
+        assert_eq!(
+            r.close.kappa,
+            ParentKappa::InsideCenter,
+            "收端点父级中枢语境 κ"
+        );
         assert!(r.no_projection, "无投影标记恒 true（P7 命中前提）");
     }
 
@@ -1036,17 +1208,30 @@ mod tests {
     fn p7_record_step_position_strictly_unchanged() {
         // 构造「持仓 + tracker 已挂开端点」状态：经 run 前两步到达。
         let pre_steps = vec![
-            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
-            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+            step(
+                false,
+                vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
+            step_k(
+                vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))],
+                ParentKappa::InsideCenter,
+            ),
         ];
         let mut st = empty_voice(1);
         for input in &pre_steps {
             let (_, dec) = step_voice(&st, input);
             st = advance(st, input, dec);
         }
-        let close_input = step_k(vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter);
+        let close_input = step_k(
+            vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))],
+            ParentKappa::InsideCenter,
+        );
         let (cid, dec) = step_voice(&st, &close_input);
-        assert_eq!((cid, dec), (ChannelId::Cj(7), ChannelDecision::Record), "前提：本步 C7 命中");
+        assert_eq!(
+            (cid, dec),
+            (ChannelId::Cj(7), ChannelDecision::Record),
+            "前提：本步 C7 命中"
+        );
         let nxt = advance(st, &close_input, dec);
         // 仓位零变动：腿（按 ElementId 身份 + 全字段）、entry_v、level 逐一相等。
         assert_eq!(nxt.leg.map(|l| l.id), st.leg.map(|l| l.id), "腿身份不变");
@@ -1062,33 +1247,68 @@ mod tests {
     fn p7_projected_sub_cycle_not_recorded() {
         // 投影时机三变体：子周期中段 / 开端点当步 / 收端点当步。
         let mid = vec![
-            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
-            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+            step(
+                false,
+                vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
+            step_k(
+                vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))],
+                ParentKappa::InsideCenter,
+            ),
             // 本级（ℓ=1）同向确认证书候选 = 证书投影（同向 ⟹ 不触发 P2/P3/P6，纯投影见证）。
-            step(false, vec![cand(2, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
-            step_k(vec![sub_cand(3, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+            step(
+                false,
+                vec![cand(2, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
+            step_k(
+                vec![sub_cand(3, 0, VoiceSide::Short, 1, sell(1))],
+                ParentKappa::InsideCenter,
+            ),
         ];
         let at_open = vec![
-            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step(
+                false,
+                vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
             step_k(
-                vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1)), cand(2, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+                vec![
+                    sub_cand(1, 0, VoiceSide::Long, 1, buy(1)),
+                    cand(2, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient),
+                ],
                 ParentKappa::InsideCenter,
             ),
-            step_k(vec![sub_cand(3, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+            step_k(
+                vec![sub_cand(3, 0, VoiceSide::Short, 1, sell(1))],
+                ParentKappa::InsideCenter,
+            ),
         ];
         let at_close = vec![
-            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
-            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+            step(
+                false,
+                vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
             step_k(
-                vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1)), cand(3, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+                vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))],
+                ParentKappa::InsideCenter,
+            ),
+            step_k(
+                vec![
+                    sub_cand(2, 0, VoiceSide::Short, 1, sell(1)),
+                    cand(3, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient),
+                ],
                 ParentKappa::InsideCenter,
             ),
         ];
-        for (name, steps) in [("中段投影", mid), ("开端点投影", at_open), ("收端点投影", at_close)] {
+        for (name, steps) in [
+            ("中段投影", mid),
+            ("开端点投影", at_open),
+            ("收端点投影", at_close),
+        ] {
             let (out, ledger) = run_voice_ledgered(empty_voice(1), &steps);
             assert!(ledger.p7.is_empty(), "{name}：有投影子周期不落 P7 记录桶");
             assert!(
-                out.iter().all(|(cid, _)| !matches!(cid, ChannelId::Cj(4 | 7))),
+                out.iter()
+                    .all(|(cid, _)| !matches!(cid, ChannelId::Cj(4 | 7))),
                 "{name}：互斥断言——投影子周期不命中 P7，也不产短差平仓裁决（P4）"
             );
         }
@@ -1102,20 +1322,41 @@ mod tests {
     #[test]
     fn p7_record_schema_covers_144_section5_fields() {
         let steps = vec![
-            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
-            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 2, buy(2))], ParentKappa::AfterThirdBuy),
-            step_k(vec![sub_cand(2, 0, VoiceSide::Short, 3, sell(3))], ParentKappa::AboveCenter),
+            step(
+                false,
+                vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
+            step_k(
+                vec![sub_cand(1, 0, VoiceSide::Long, 2, buy(2))],
+                ParentKappa::AfterThirdBuy,
+            ),
+            step_k(
+                vec![sub_cand(2, 0, VoiceSide::Short, 3, sell(3))],
+                ParentKappa::AboveCenter,
+            ),
         ];
         let (_, ledger) = run_voice_ledgered(empty_voice(1), &steps);
         assert_eq!(ledger.p7.len(), 1);
         let r = &ledger.p7[0];
         // 端点证书完整性（Candidate 单源整体入账，非摘要镜像）。
-        assert_eq!(r.open.cand.source_index, 11, "开端点 source_index（可重放见证）");
-        assert_eq!(r.close.cand.source_index, 12, "收端点 source_index（可重放见证）");
+        assert_eq!(
+            r.open.cand.source_index, 11,
+            "开端点 source_index（可重放见证）"
+        );
+        assert_eq!(
+            r.close.cand.source_index, 12,
+            "收端点 source_index（可重放见证）"
+        );
         assert_eq!(r.open.cand.bsp_class, 2, "开端点证书类号");
         assert_eq!(r.close.cand.bsp_class, 3, "收端点证书类号");
-        assert!(r.open.cand.bits.buy2 && r.close.cand.bits.sell3, "端点买卖点向量入账");
-        assert!(r.open.cand.nest_confirmed && r.close.cand.nest_confirmed, "端点区间套证书 Conf^δ");
+        assert!(
+            r.open.cand.bits.buy2 && r.close.cand.bits.sell3,
+            "端点买卖点向量入账"
+        );
+        assert!(
+            r.open.cand.nest_confirmed && r.close.cand.nest_confirmed,
+            "端点区间套证书 Conf^δ"
+        );
         assert_eq!(r.open.cand.dir, VoiceSide::Long);
         assert_eq!(r.close.cand.dir, VoiceSide::Short);
         // 端点各自 κ（ContextProjectionLaw 按买/卖端点分别应用）。
@@ -1131,8 +1372,14 @@ mod tests {
     fn p7_yields_to_earlier_channels_first_match() {
         // 变体 A：完成步 force_flat ⟹ C1 RiskExit，P7 谓词真但记录不写。
         let pre = vec![
-            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
-            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+            step(
+                false,
+                vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
+            step_k(
+                vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))],
+                ParentKappa::InsideCenter,
+            ),
         ];
         let mut st = empty_voice(1);
         for input in &pre {
@@ -1146,7 +1393,10 @@ mod tests {
             parent_projections: Vec::new(),
         };
         let p = voice_predicates(&st, &flat_close);
-        assert!(p.risk_exit && p.record, "前提：P1 与 P7 同刻重叠（谓词允许重叠）");
+        assert!(
+            p.risk_exit && p.record,
+            "前提：P1 与 P7 同刻重叠（谓词允许重叠）"
+        );
         assert_eq!(
             step_voice(&st, &flat_close),
             (ChannelId::Cj(1), ChannelDecision::Exit(ExitType::RiskExit)),
@@ -1159,11 +1409,17 @@ mod tests {
             st2 = advance(st2, input, dec);
         }
         let rev_close = step_k(
-            vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1)), cand(3, 1, VoiceSide::Short, 1, sell(1), Vertical::Ambient)],
+            vec![
+                sub_cand(2, 0, VoiceSide::Short, 1, sell(1)),
+                cand(3, 1, VoiceSide::Short, 1, sell(1), Vertical::Ambient),
+            ],
             ParentKappa::InsideCenter,
         );
         let p2 = voice_predicates(&st2, &rev_close);
-        assert!(p2.cert_close_root && !p2.record, "本级反向证书 = 投影 ⟹ P7 谓词假 + P2 真");
+        assert!(
+            p2.cert_close_root && !p2.record,
+            "本级反向证书 = 投影 ⟹ P7 谓词假 + P2 真"
+        );
         assert_eq!(
             step_voice(&st2, &rev_close),
             (ChannelId::Cj(2), ChannelDecision::Exit(ExitType::CloseRoot))
@@ -1177,46 +1433,100 @@ mod tests {
         // (a) 腿关闭重置：开仓 → 子买端点 → 本级反向平仓（C2，tracker 重置）→ 再开仓 →
         //     子卖端点 ⟹ 无记录（前半周期已随腿关闭作废）。
         let a = vec![
-            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
-            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
-            step(false, vec![cand(2, 1, VoiceSide::Short, 1, sell(1), Vertical::Ambient)]), // C2
-            step(false, vec![cand(3, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),   // C6 再开仓
-            step_k(vec![sub_cand(4, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+            step(
+                false,
+                vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
+            step_k(
+                vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))],
+                ParentKappa::InsideCenter,
+            ),
+            step(
+                false,
+                vec![cand(2, 1, VoiceSide::Short, 1, sell(1), Vertical::Ambient)],
+            ), // C2
+            step(
+                false,
+                vec![cand(3, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ), // C6 再开仓
+            step_k(
+                vec![sub_cand(4, 0, VoiceSide::Short, 1, sell(1))],
+                ParentKappa::InsideCenter,
+            ),
         ];
         let (_, la) = run_voice_ledgered(empty_voice(1), &a);
-        assert!(la.p7.is_empty(), "腿关闭 ⟹ tracker 重置，半周期不跨持仓期拼接");
+        assert!(
+            la.p7.is_empty(),
+            "腿关闭 ⟹ tracker 重置，半周期不跨持仓期拼接"
+        );
         // (b) 未确认/无类/Flat 子候选不构成端点。
-        let unconfirmed = Candidate { nest_confirmed: false, ..sub_cand(1, 0, VoiceSide::Long, 1, buy(1)) };
+        let unconfirmed = Candidate {
+            nest_confirmed: false,
+            ..sub_cand(1, 0, VoiceSide::Long, 1, buy(1))
+        };
         let b = vec![
-            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step(
+                false,
+                vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
             step_k(vec![unconfirmed], ParentKappa::InsideCenter),
-            step_k(vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+            step_k(
+                vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))],
+                ParentKappa::InsideCenter,
+            ),
         ];
         let (_, lb) = run_voice_ledgered(empty_voice(1), &b);
         assert!(lb.p7.is_empty(), "未确认子证书不构成子周期端点");
         // (c) 0 级声部无次级别（递归底），P7 恒不武装。
         let c = vec![
-            step(false, vec![cand(0, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step(
+                false,
+                vec![cand(0, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
             step(false, vec![]),
         ];
         let (_, lc) = run_voice_ledgered(empty_voice(0), &c);
         assert!(lc.p7.is_empty(), "ℓ=0 声部无次级别 ⟹ 无 P7");
         // (d) 同向子证书延伸不重置：买、买、卖 ⟹ 恰一条记录，开端点 = 首个买端点。
         let d = vec![
-            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
-            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
-            step_k(vec![sub_cand(2, 0, VoiceSide::Long, 2, buy(2))], ParentKappa::InsideCenter),
-            step_k(vec![sub_cand(3, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+            step(
+                false,
+                vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
+            step_k(
+                vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))],
+                ParentKappa::InsideCenter,
+            ),
+            step_k(
+                vec![sub_cand(2, 0, VoiceSide::Long, 2, buy(2))],
+                ParentKappa::InsideCenter,
+            ),
+            step_k(
+                vec![sub_cand(3, 0, VoiceSide::Short, 1, sell(1))],
+                ParentKappa::InsideCenter,
+            ),
         ];
         let (_, ld) = run_voice_ledgered(empty_voice(1), &d);
         assert_eq!(ld.p7.len(), 1);
-        assert_eq!(ld.p7[0].open.cand.source_index, 11, "开端点 = 首个子买端点（延伸不重置）");
+        assert_eq!(
+            ld.p7[0].open.cand.source_index, 11,
+            "开端点 = 首个子买端点（延伸不重置）"
+        );
         // (e) 空仓期间子证书不武装 tracker：先子买端点后本级开仓再子卖端点 ⟹ 无记录
         //     （「本级声部持仓期间」字面边界）。
         let e = vec![
-            step_k(vec![sub_cand(0, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
-            step(false, vec![cand(1, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
-            step_k(vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+            step_k(
+                vec![sub_cand(0, 0, VoiceSide::Long, 1, buy(1))],
+                ParentKappa::InsideCenter,
+            ),
+            step(
+                false,
+                vec![cand(1, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
+            step_k(
+                vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))],
+                ParentKappa::InsideCenter,
+            ),
         ];
         let (_, le) = run_voice_ledgered(empty_voice(1), &e);
         assert!(le.p7.is_empty(), "空仓期间子端点不武装（持仓期间字面边界）");
@@ -1226,34 +1536,67 @@ mod tests {
     #[test]
     fn p7_consecutive_sub_cycles_each_recorded() {
         let steps = vec![
-            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
-            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
-            step_k(vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
-            step_k(vec![sub_cand(3, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
-            step_k(vec![sub_cand(4, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+            step(
+                false,
+                vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
+            step_k(
+                vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))],
+                ParentKappa::InsideCenter,
+            ),
+            step_k(
+                vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))],
+                ParentKappa::InsideCenter,
+            ),
+            step_k(
+                vec![sub_cand(3, 0, VoiceSide::Long, 1, buy(1))],
+                ParentKappa::InsideCenter,
+            ),
+            step_k(
+                vec![sub_cand(4, 0, VoiceSide::Short, 1, sell(1))],
+                ParentKappa::InsideCenter,
+            ),
         ];
         let (out, ledger) = run_voice_ledgered(empty_voice(1), &steps);
         assert_eq!(ledger.p7.len(), 2, "两个完整无投影子周期 ⟹ 两条 P7 记录");
         assert_eq!(
-            out.iter().filter(|(cid, _)| *cid == ChannelId::Cj(7)).count(),
+            out.iter()
+                .filter(|(cid, _)| *cid == ChannelId::Cj(7))
+                .count(),
             2,
             "C7 命中两次"
         );
         assert_eq!(ledger.p7[0].close.step, 2);
-        assert_eq!(ledger.p7[1].open.step, 3, "记录后 tracker 重置，第二周期从新开端点起算");
+        assert_eq!(
+            ledger.p7[1].open.step, 3,
+            "记录后 tracker 重置，第二周期从新开端点起算"
+        );
     }
 
     /// run_voice 与 run_voice_ledgered 裁决序列一致（账本层不改变通道语义）。
     #[test]
     fn p7_run_voice_decision_sequence_unchanged_by_ledger() {
         let steps = vec![
-            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
-            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
-            step_k(vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+            step(
+                false,
+                vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
+            step_k(
+                vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))],
+                ParentKappa::InsideCenter,
+            ),
+            step_k(
+                vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))],
+                ParentKappa::InsideCenter,
+            ),
             step(true, vec![]),
         ];
         let (out_l, _) = run_voice_ledgered(empty_voice(1), &steps);
-        assert_eq!(run_voice(empty_voice(1), &steps), out_l, "run_voice ≡ run_voice_ledgered 裁决面");
+        assert_eq!(
+            run_voice(empty_voice(1), &steps),
+            out_l,
+            "run_voice ≡ run_voice_ledgered 裁决面"
+        );
     }
 
     /// #282 改写：原测试断言 ShortDiff 角色候选经 P5 开启、绝不落 P6；P5 槽删除后，
@@ -1265,14 +1608,7 @@ mod tests {
     #[test]
     fn reverse_open_role_candidate_never_routes_via_p6() {
         let parent = holding(1, VoiceSide::Long, Vertical::Ambient);
-        let child = child_cand(
-            0,
-            0,
-            VoiceSide::Short,
-            1,
-            sell(1),
-            Vertical::ReverseOpen,
-        );
+        let child = child_cand(0, 0, VoiceSide::Short, 1, sell(1), Vertical::ReverseOpen);
         let input = projected_step(parent.leg.unwrap(), child);
         let p = voice_predicates(&parent, &input);
         assert!(!p.open_entry, "ReverseOpen 角色候选不得漏入 P6");
@@ -1284,7 +1620,10 @@ mod tests {
         // 空仓侧同样不得经 P6 开 ReverseOpen 角色仓。
         let empty_input = step(false, vec![child]);
         let p_empty = voice_predicates(&empty_voice(1), &empty_input);
-        assert!(!p_empty.open_entry, "空仓 slot：ReverseOpen 角色候选不得触发 P6");
+        assert!(
+            !p_empty.open_entry,
+            "空仓 slot：ReverseOpen 角色候选不得触发 P6"
+        );
         assert_eq!(
             step_voice(&empty_voice(1), &empty_input),
             (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold))
@@ -1301,13 +1640,25 @@ mod tests {
     #[test]
     fn end_to_end_verdict_sequence_with_explicit_holds() {
         let steps = vec![
-            step(false, vec![cand(0, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]), // C6 开仓
-            step(false, vec![]),                                                          // C0 Hold
-            step(false, vec![cand(1, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient)]), // C2 CloseRoot
-            step(false, vec![]),                                                          // C0 Hold
-            step(false, vec![cand(2, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]), // C6 再开仓
-            step(true, vec![cand(3, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient)]), // C1 RiskExit ≻ P2
-            step(false, vec![]),                                                          // C0 Hold（已空仓）
+            step(
+                false,
+                vec![cand(0, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ), // C6 开仓
+            step(false, vec![]), // C0 Hold
+            step(
+                false,
+                vec![cand(1, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient)],
+            ), // C2 CloseRoot
+            step(false, vec![]), // C0 Hold
+            step(
+                false,
+                vec![cand(2, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ), // C6 再开仓
+            step(
+                true,
+                vec![cand(3, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient)],
+            ), // C1 RiskExit ≻ P2
+            step(false, vec![]), // C0 Hold（已空仓）
         ];
         let out = run_voice(empty_voice(0), &steps);
         assert_eq!(out.len(), steps.len(), "每时刻恰一枚裁决（无缺裁决时刻）");
@@ -1329,9 +1680,18 @@ mod tests {
     #[test]
     fn end_to_end_reduce_core_then_no_duplicate_close() {
         let steps = vec![
-            step(false, vec![cand(0, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
-            step(false, vec![cand(1, 0, VoiceSide::Short, 3, sell(3), Vertical::Ambient)]),
-            step(false, vec![cand(2, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient)]),
+            step(
+                false,
+                vec![cand(0, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+            ),
+            step(
+                false,
+                vec![cand(1, 0, VoiceSide::Short, 3, sell(3), Vertical::Ambient)],
+            ),
+            step(
+                false,
+                vec![cand(2, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient)],
+            ),
             step(false, vec![]),
         ];
         let out = run_voice(empty_voice(0), &steps);
@@ -1339,7 +1699,10 @@ mod tests {
             out,
             vec![
                 (ChannelId::Cj(6), ChannelDecision::Open),
-                (ChannelId::Cj(3), ChannelDecision::Exit(ExitType::ReduceCore)),
+                (
+                    ChannelId::Cj(3),
+                    ChannelDecision::Exit(ExitType::ReduceCore)
+                ),
                 (ChannelId::Cj(6), ChannelDecision::Open), // 非重复平仓：落开仓通道
                 (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold)),
             ]

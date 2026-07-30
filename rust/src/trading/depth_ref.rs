@@ -172,14 +172,14 @@ mod tests {
         let mut dr = DepthRef::new(2);
         let mut book = CenterBook::new();
         feed(&mut dr, &mut book, 10, 50.0, 51.0, 100.0); // 1%
-        // 同 cs 延伸：边界更新 → 原位改写，参照集仍 1 条
+                                                         // 同 cs 延伸：边界更新 → 原位改写，参照集仍 1 条
         feed(&mut dr, &mut book, 10, 50.0, 52.0, 100.0); // → 2%
         assert_eq!(dr.theta(2, None, 0.5, 1), Some(0.02));
         feed(&mut dr, &mut book, 20, 50.0, 53.0, 100.0); // 3%
         feed(&mut dr, &mut book, 30, 50.0, 54.0, 100.0); // 4% → 窗容量2，cs=10 逐出
         assert_eq!(dr.theta(2, None, 1.0, 1), Some(0.04));
         assert_eq!(dr.theta(2, None, 0.0, 1), Some(0.03)); // cs=10 已不在
-        // 日志保留全部中枢（调研面不受窗限制），延伸原位更新
+                                                           // 日志保留全部中枢（调研面不受窗限制），延伸原位更新
         let log = dr.take_log();
         assert_eq!(log.len(), 3);
         assert_eq!(log[0], (2, 10, 0.02));

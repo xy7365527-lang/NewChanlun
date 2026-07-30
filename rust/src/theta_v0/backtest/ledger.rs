@@ -164,8 +164,7 @@ pub(super) struct OpsemEntrySnapshot {
     /// 入场候选 bsp bits（6 bit 非互斥）。
     pub(super) cand_bits: u8,
     /// #542：生产者签发的三类完整身份；随决策层开仓候选冻结，缺席时 dump 显式写 null。
-    pub(super) third_class_entry:
-        Option<super::super::types::ThirdClassEntryIdentity>,
+    pub(super) third_class_entry: Option<super::super::types::ThirdClassEntryIdentity>,
     /// 入场候选方向 σ_g（VoiceSide 编码：Long/Short/Flat）。
     pub(super) cand_dir: &'static str,
     /// 入场候选最小成立类号（1/2/3，u8::MAX=无）。
@@ -261,7 +260,7 @@ pub(super) fn track_position_transition(
                 entry_bar,
                 exit_bar,
                 hold_bars,
-                qty: units_before.abs(), // 平掉的绝对手数 = |平仓前持仓|
+                qty: units_before.abs(),  // 平掉的绝对手数 = |平仓前持仓|
                 long: units_before > 0.0, // 方向 = 平仓前持仓方向（多/空）
                 forced_close: forced,
             });

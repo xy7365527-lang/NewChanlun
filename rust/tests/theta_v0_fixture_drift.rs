@@ -50,9 +50,7 @@ fn fixture_drift_gate() {
         .arg(&script)
         .current_dir(&root)
         .output()
-        .unwrap_or_else(|e| {
-            panic!("FIXTURE-GATE ENVIRONMENT（非漂移）：无法启动 {python}: {e}")
-        });
+        .unwrap_or_else(|e| panic!("FIXTURE-GATE ENVIRONMENT（非漂移）：无法启动 {python}: {e}"));
     let stdout = String::from_utf8_lossy(&out.stdout);
     let stderr = String::from_utf8_lossy(&out.stderr);
     // 透传脚本输出（字段级 diff / 环境报错），--nocapture 下可见。

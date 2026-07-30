@@ -151,5 +151,9 @@ fn settled(ledger: &RetraceLedger) -> &RetraceLedger {
 }
 
 fn kinds(entry: &RetraceEntry) -> Vec<RetraceRevisionKind> {
-    entry.revisions.iter().map(|revision| revision.kind).collect()
+    entry
+        .revisions
+        .iter()
+        .map(|revision| revision.kind)
+        .collect()
 }

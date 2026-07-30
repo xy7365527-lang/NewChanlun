@@ -141,12 +141,22 @@ fn audit_log_sequence_is_globally_monotonic_across_mixed_event_types() {
         end_index: 1,
     };
     book.observe(&up_input(broken, 1, None, 500)).ok(); // ResidualRejected #0
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::Success), 400)).ok(); // RetrogradeRejected #1（400 < 600）
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::Success), 700)).unwrap(); // LateAbsorbed #2（终态吸收）
+    book.observe(&up_input(center, 3, Some(RetraceOutcome::Success), 400))
+        .ok(); // RetrogradeRejected #1（400 < 600）
+    book.observe(&up_input(center, 3, Some(RetraceOutcome::Success), 700))
+        .unwrap(); // LateAbsorbed #2（终态吸收）
     book.observe(&up_input(frame(1_400), 5, None, 900)).ok(); // DeadCenterRejected #3（同锚已死）
 
-    let sequences: Vec<u64> = book.audit_log().iter().map(|record| record.sequence).collect();
-    assert_eq!(sequences, vec![0, 1, 2, 3], "全局序号单调、不因事件类型分道");
+    let sequences: Vec<u64> = book
+        .audit_log()
+        .iter()
+        .map(|record| record.sequence)
+        .collect();
+    assert_eq!(
+        sequences,
+        vec![0, 1, 2, 3],
+        "全局序号单调、不因事件类型分道"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -158,13 +168,19 @@ fn tampering_audit_log_never_affects_fold_journal_equals_book() {
     let mut book = ledger();
     let first = frame(1_200);
     book.observe(&up_input(first, 3, None, 500)).unwrap();
-    book.observe(&up_input(first, 3, Some(RetraceOutcome::RetestReenters), 600))
-        .unwrap();
+    book.observe(&up_input(
+        first,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        600,
+    ))
+    .unwrap();
     let second = frame(1_400);
     book.observe(&up_input(second, 5, Some(RetraceOutcome::Success), 700))
         .unwrap();
     // 触发全部四类警报，把 audit_log 填满非空内容。
-    book.observe(&up_input(second, 5, Some(RetraceOutcome::Success), 800)).unwrap(); // 迟到吸收
+    book.observe(&up_input(second, 5, Some(RetraceOutcome::Success), 800))
+        .unwrap(); // 迟到吸收
     book.observe(&up_input(second, 5, None, 10)).unwrap(); // 倒退拒收
     book.observe(&up_input(frame(1_600), 9, None, 900)).ok(); // 死人挂号拒收
     assert!(!book.audit_log().is_empty(), "剧本须真的产生 audit 记录");
@@ -214,7 +230,8 @@ fn jsonl_audit_round_trip_only_appends_and_replays_idempotently() {
     book.observe(&up_input(broken, 3, None, 500)).ok();
     let center = frame(1_200);
     book.observe(&up_input(center, 3, None, 500)).unwrap();
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::Success), 400)).ok();
+    book.observe(&up_input(center, 3, Some(RetraceOutcome::Success), 400))
+        .ok();
 
     let path = temp_path("roundtrip");
     let store = JsonlRetraceAuditStore::new(&path);
@@ -230,7 +247,10 @@ fn jsonl_audit_round_trip_only_appends_and_replays_idempotently() {
 
     // 重复落盘同一段 ⟹ 幂等。
     store.append_all(&provenance(), book.audit_log()).unwrap();
-    assert_eq!(store.load(&provenance()).unwrap(), book.audit_log().to_vec());
+    assert_eq!(
+        store.load(&provenance()).unwrap(),
+        book.audit_log().to_vec()
+    );
     let _ = std::fs::remove_file(path);
 }
 

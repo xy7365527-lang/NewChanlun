@@ -131,8 +131,14 @@ where
             let (mut sp, mut np, mut sm, mut nm) = (0.0_f64, 0usize, 0.0_f64, 0usize);
             for &idx in &members {
                 match delta0[idx] {
-                    1 => { sp += resid[idx] - cost[idx]; np += 1; }
-                    -1 => { sm += -resid[idx] - cost[idx]; nm += 1; }
+                    1 => {
+                        sp += resid[idx] - cost[idx];
+                        np += 1;
+                    }
+                    -1 => {
+                        sm += -resid[idx] - cost[idx];
+                        nm += 1;
+                    }
                     _ => {}
                 }
             }
@@ -167,8 +173,14 @@ where
             let (mut sp, mut np, mut sm, mut nm) = (0.0_f64, 0usize, 0.0_f64, 0usize);
             for &idx in &b.members {
                 match perm_delta[idx] {
-                    1 => { sp += resid[idx] - cost[idx]; np += 1; }
-                    -1 => { sm += -resid[idx] - cost[idx]; nm += 1; }
+                    1 => {
+                        sp += resid[idx] - cost[idx];
+                        np += 1;
+                    }
+                    -1 => {
+                        sm += -resid[idx] - cost[idx];
+                        nm += 1;
+                    }
                     _ => {}
                 }
             }
@@ -236,7 +248,16 @@ pub fn stratified_delta_perm_p_fullz(
         trades,
         n_perm,
         seed,
-        |c| (c.level, c.i_class, c.parent_dir, c.position, c.horizontal, c.force_state),
+        |c| {
+            (
+                c.level,
+                c.i_class,
+                c.parent_dir,
+                c.position,
+                c.horizontal,
+                c.force_state,
+            )
+        },
         |c, d| MuClass {
             delta: d,
             short_swing: c.parent_dir != 0 && d == -c.parent_dir,
@@ -267,7 +288,14 @@ pub fn stratified_delta_perm_p_uclass(
         trades,
         n_perm,
         seed,
-        |c| (UClass::level_bucket(c.level), c.position, c.parent_dir, c.i_class & 0b001001 != 0),
+        |c| {
+            (
+                UClass::level_bucket(c.level),
+                c.position,
+                c.parent_dir,
+                c.i_class & 0b001001 != 0,
+            )
+        },
         |c, d| {
             UClass::project_to_u(&MuClass {
                 delta: d,
@@ -317,13 +345,21 @@ pub fn stratified_delta_perm_p_deltafree(
     let mut base_map: BTreeMap<DeltaFreeKey, Vec<usize>> = BTreeMap::new();
     for (i, t) in trades.iter().enumerate() {
         base_map
-            .entry((t.class.level, t.class.bsp_class(), t.class.parent_dir, t.class.force_state))
+            .entry((
+                t.class.level,
+                t.class.bsp_class(),
+                t.class.parent_dir,
+                t.class.force_state,
+            ))
             .or_default()
             .push(i);
     }
     // 池化统计量 = 基内全成员 Y=δ·r−c 均值（δ 由传入向量决定：obs 用 delta0，置换用 perm_delta）。
     let pooled_mean = |members: &[usize], d: &[i8]| -> f64 {
-        let s: f64 = members.iter().map(|&idx| d[idx] as f64 * resid[idx] - cost[idx]).sum();
+        let s: f64 = members
+            .iter()
+            .map(|&idx| d[idx] as f64 * resid[idx] - cost[idx])
+            .sum();
         s / members.len() as f64
     };
     let mut bases: Vec<(DeltaFreeKey, Vec<usize>, f64, usize)> = base_map
@@ -355,7 +391,10 @@ pub fn stratified_delta_perm_p_deltafree(
             }
         }
     }
-    bases.into_iter().map(|(k, _m, _o, ge)| (k, ge as f64 / n_perm as f64)).collect()
+    bases
+        .into_iter()
+        .map(|(k, _m, _o, ge)| (k, ge as f64 / n_perm as f64))
+        .collect()
 }
 
 /// 删尾稳健：删除前 `k` 个最大值后的均值（alpha检验.pdf §6，p4：尾部依赖诊断）。
@@ -372,9 +411,8 @@ pub fn drop_top_k_mean(values: &[f64], k: usize) -> (f64, bool) {
     v.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
     let trimmed = &v[k..];
     let trimmed_mean = trimmed.iter().sum::<f64>() / trimmed.len() as f64;
-    let flipped = full_mean != 0.0
-        && trimmed_mean != 0.0
-        && full_mean.signum() != trimmed_mean.signum();
+    let flipped =
+        full_mean != 0.0 && trimmed_mean != 0.0 && full_mean.signum() != trimmed_mean.signum();
     (trimmed_mean, flipped)
 }
 
@@ -428,17 +466,51 @@ mod tests {
     use crate::theta_v0::types::BspBits;
 
     /// 构造残差记录：给定 (level, bsp主类, δ, σ^H, resid_base, h_bucket, time_block)，cost=0（置换检验主看基）。
-    fn rt(level: u32, bsp: u8, delta: i8, sigma_h: i8, resid_base: f64, h_bucket: u8, time_block: u32) -> ResidualTrade {
+    fn rt(
+        level: u32,
+        bsp: u8,
+        delta: i8,
+        sigma_h: i8,
+        resid_base: f64,
+        h_bucket: u8,
+        time_block: u32,
+    ) -> ResidualTrade {
         let bits = match (bsp, delta > 0) {
-            (1, true) => BspBits { buy1: true, ..Default::default() },
-            (1, false) => BspBits { sell1: true, ..Default::default() },
-            (2, true) => BspBits { buy2: true, ..Default::default() },
-            (2, false) => BspBits { sell2: true, ..Default::default() },
-            (_, true) => BspBits { buy3: true, ..Default::default() },
-            (_, false) => BspBits { sell3: true, ..Default::default() },
+            (1, true) => BspBits {
+                buy1: true,
+                ..Default::default()
+            },
+            (1, false) => BspBits {
+                sell1: true,
+                ..Default::default()
+            },
+            (2, true) => BspBits {
+                buy2: true,
+                ..Default::default()
+            },
+            (2, false) => BspBits {
+                sell2: true,
+                ..Default::default()
+            },
+            (_, true) => BspBits {
+                buy3: true,
+                ..Default::default()
+            },
+            (_, false) => BspBits {
+                sell3: true,
+                ..Default::default()
+            },
         };
         let class = MuClass::from_certificate(level, delta, bits, sigma_h, PositionState::Root);
-        ResidualTrade { class, resid_base, cost: 0.0, h_bucket, time_block, d: 1.0, exit_type: crate::theta_v0::strategy::interp::ExitType::Hold }
+        ResidualTrade {
+            class,
+            resid_base,
+            cost: 0.0,
+            h_bucket,
+            time_block,
+            d: 1.0,
+            exit_type: crate::theta_v0::strategy::interp::ExitType::Hold,
+        }
     }
 
     #[test]
@@ -467,11 +539,29 @@ mod tests {
     #[test]
     fn h0_independent_delta_not_significant() {
         let trades: Vec<ResidualTrade> = (0..40)
-            .map(|i| rt(0, 1, if i % 2 == 0 { 1 } else { -1 }, 0, (i % 5) as f64 - 2.0, 0, 0))
+            .map(|i| {
+                rt(
+                    0,
+                    1,
+                    if i % 2 == 0 { 1 } else { -1 },
+                    0,
+                    (i % 5) as f64 - 2.0,
+                    0,
+                    0,
+                )
+            })
             .collect();
         let p = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
-        assert!(p[&(0, 1, 1, 0)] > 0.05, "买桶 H0 不应显著: {}", p[&(0, 1, 1, 0)]);
-        assert!(p[&(0, 1, -1, 0)] > 0.05, "卖桶 H0 不应显著: {}", p[&(0, 1, -1, 0)]);
+        assert!(
+            p[&(0, 1, 1, 0)] > 0.05,
+            "买桶 H0 不应显著: {}",
+            p[&(0, 1, 1, 0)]
+        );
+        assert!(
+            p[&(0, 1, -1, 0)] > 0.05,
+            "卖桶 H0 不应显著: {}",
+            p[&(0, 1, -1, 0)]
+        );
     }
 
     /// 强关联（δ=+1 全高残差基、δ=−1 全低）：买桶残差均值层内极右 ⟹ perm_p 极小（检出）。
@@ -483,7 +573,11 @@ mod tests {
             trades.push(rt(2, 1, -1, 0, -10.0, 0, 0));
         }
         let p = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
-        assert!(p[&(2, 1, 1, 0)] < 0.05, "强信号买桶应显著: {}", p[&(2, 1, 1, 0)]);
+        assert!(
+            p[&(2, 1, 1, 0)] < 0.05,
+            "强信号买桶应显著: {}",
+            p[&(2, 1, 1, 0)]
+        );
     }
 
     /// h桶分层生效：跨 h桶的一致信号被分层置换检出（§4.2 gap#2）。h桶0 买 r=+10、h桶1 买 r=+20
@@ -498,7 +592,11 @@ mod tests {
             trades.push(rt(2, 1, -1, 0, -20.0, 1, 0)); // h桶1：卖 r=−20
         }
         let p = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
-        assert!(p[&(2, 1, 1, 0)] < 0.05, "跨 h桶一致买信号经分层置换应检出: {}", p[&(2, 1, 1, 0)]);
+        assert!(
+            p[&(2, 1, 1, 0)] < 0.05,
+            "跨 h桶一致买信号经分层置换应检出: {}",
+            p[&(2, 1, 1, 0)]
+        );
     }
 
     /// σ^H 分层生效：同 (ℓ,h桶) 但 σ^H 不同 ⟹ 不同层，各层独立检出（G-A1 保留）。
@@ -513,8 +611,16 @@ mod tests {
             trades.push(rt(2, 1, -1, -1, -10.0, 0, 0));
         }
         let p = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
-        assert!(p[&(2, 1, 1, 1)] < 0.05, "σ^H=+1 层买桶应独立检出: {}", p[&(2, 1, 1, 1)]);
-        assert!(p[&(2, 1, 1, -1)] < 0.05, "σ^H=−1 层买桶应独立检出: {}", p[&(2, 1, 1, -1)]);
+        assert!(
+            p[&(2, 1, 1, 1)] < 0.05,
+            "σ^H=+1 层买桶应独立检出: {}",
+            p[&(2, 1, 1, 1)]
+        );
+        assert!(
+            p[&(2, 1, 1, -1)] < 0.05,
+            "σ^H=−1 层买桶应独立检出: {}",
+            p[&(2, 1, 1, -1)]
+        );
         assert_eq!(p.len(), 4, "两个 σ^H 层各产 2 个 δ 桶");
     }
 
@@ -531,7 +637,11 @@ mod tests {
             trades.push(rt(1, 1, -1, 0, 5.0, 0, 0)); // 同 resid_base，δ 号相反
         }
         let p = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
-        assert!(p[&(1, 1, 1, 0)] > 0.5, "r 无结构 ⟹ 残差置换判无显著（区别于 X_γ 置换的虚假显著）: {}", p[&(1, 1, 1, 0)]);
+        assert!(
+            p[&(1, 1, 1, 0)] > 0.5,
+            "r 无结构 ⟹ 残差置换判无显著（区别于 X_γ 置换的虚假显著）: {}",
+            p[&(1, 1, 1, 0)]
+        );
     }
 
     /// full-z / UClass 扩维 L1 自检（prereg-fullz-policy A3.3）：(1) 同种子复现；(2) full-z 是 4 元组
@@ -565,10 +675,16 @@ mod tests {
         // (2) full-z 细化：每个 full-z 键投影为 4 元组必存在于 4 元组输出（细分不越出粗桶集）。
         let coarse = stratified_delta_perm_p(&t, N_PERM, PERM_SEED);
         let fullz = stratified_delta_perm_p_fullz(&t, N_PERM, PERM_SEED);
-        assert!(fullz.len() >= coarse.len(), "full-z 桶数 ≥ 4 元组桶数（细化）");
+        assert!(
+            fullz.len() >= coarse.len(),
+            "full-z 桶数 ≥ 4 元组桶数（细化）"
+        );
         for z in fullz.keys() {
             let proj = (z.level, z.bsp_class(), z.delta, z.parent_dir);
-            assert!(coarse.contains_key(&proj), "full-z 桶 {z:?} 投影 {proj:?} 须落在 4 元组输出");
+            assert!(
+                coarse.contains_key(&proj),
+                "full-z 桶 {z:?} 投影 {proj:?} 须落在 4 元组输出"
+            );
         }
     }
 
@@ -630,13 +746,23 @@ mod tests {
         let buy = vec![-5.0_f64; 60];
         let sell = vec![5.0_f64; 60];
         let (beta, p) = direction_asymmetry_beta_pvalue(&buy, &sell, 1000, 20, PERM_SEED);
-        assert!((beta - 10.0).abs() < 1e-9, "β=μ_sell−μ_buy=5−(−5)=10: {beta}");
+        assert!(
+            (beta - 10.0).abs() < 1e-9,
+            "β=μ_sell−μ_buy=5−(−5)=10: {beta}"
+        );
         assert!(p < 0.05, "sell≫buy ⟹ 拒绝 H0:β≤0: {p}");
         // 对称（buy=sell）⟹ β≈0 ⟹ p 不显著。
-        let (b2, p2) = direction_asymmetry_beta_pvalue(&vec![1.0; 40], &vec![1.0; 40], 1000, 20, PERM_SEED);
-        assert!((b2).abs() < 1e-9 && p2 > 0.05, "对称 ⟹ β=0 p 不显著: β={b2} p={p2}");
+        let (b2, p2) =
+            direction_asymmetry_beta_pvalue(&vec![1.0; 40], &vec![1.0; 40], 1000, 20, PERM_SEED);
+        assert!(
+            (b2).abs() < 1e-9 && p2 > 0.05,
+            "对称 ⟹ β=0 p 不显著: β={b2} p={p2}"
+        );
         // 空侧 ⟹ (0,1)。
-        assert_eq!(direction_asymmetry_beta_pvalue(&[], &sell, 1000, 20, PERM_SEED), (0.0, 1.0));
+        assert_eq!(
+            direction_asymmetry_beta_pvalue(&[], &sell, 1000, 20, PERM_SEED),
+            (0.0, 1.0)
+        );
     }
 
     // ── 跨进程复现（预注册 §4 硬约束的真语义，D1）──────────────────────────────
@@ -658,12 +784,12 @@ mod tests {
         let trades: Vec<ResidualTrade> = (0..88)
             .map(|i| {
                 rt(
-                    ((i / 44) % 2) as u32,        // level：前 44 level0 / 后 44 level1
+                    ((i / 44) % 2) as u32, // level：前 44 level0 / 后 44 level1
                     1,
                     if i % 2 == 0 { 1 } else { -1 }, // δ 每步交替（与 level/h 解耦 ⟹ 层内混合-δ）
                     0,
                     (i as f64) * 0.31 - 14.0,
-                    ((i / 22) % 2) as u8,          // h桶：每 22 一段
+                    ((i / 22) % 2) as u8, // h桶：每 22 一段
                     0,
                 )
             })
@@ -673,7 +799,10 @@ mod tests {
         keys.sort_unstable(); // 跨进程逐字节可比的前提
         let mut body = String::new();
         for k in keys {
-            body.push_str(&format!("{},{},{},{}={:.17}\n", k.0, k.1, k.2, k.3, out[&k]));
+            body.push_str(&format!(
+                "{},{},{},{}={:.17}\n",
+                k.0, k.1, k.2, k.3, out[&k]
+            ));
         }
         print!("{}{}{}", XPROC_BEGIN, body, XPROC_END);
     }
@@ -685,7 +814,11 @@ mod tests {
             .env("PERM_XPROC_SEED", seed.to_string())
             .output()
             .expect("spawn 子测试进程");
-        assert!(out.status.success(), "子进程失败: {}", String::from_utf8_lossy(&out.stderr));
+        assert!(
+            out.status.success(),
+            "子进程失败: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
         let s = String::from_utf8(out.stdout).expect("子进程 stdout 非 utf8");
         let b = s.find(XPROC_BEGIN).expect("子进程输出缺 BEGIN marker") + XPROC_BEGIN.len();
         let e = s.find(XPROC_END).expect("子进程输出缺 END marker");

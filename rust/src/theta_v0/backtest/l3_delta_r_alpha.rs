@@ -63,7 +63,10 @@
 //!
 //! 跑法：`cargo test --release --lib theta_v0::backtest::l3_delta_r_alpha -- --ignored --nocapture`
 
-use std::rc::Rc;
+use super::super::config::ThetaConfig;
+use super::super::strategy::interp::assemble_gamma_with_tower;
+use super::super::strategy::voice::VoiceSide;
+use super::super::types::{Bar, BspBits};
 use super::data::{self, Dataset};
 use super::incremental::IncrementalClassifier;
 use super::mu_estimator::{
@@ -73,10 +76,7 @@ use super::mu_estimator::{
 use super::prereg_windows::PREREG_WINDOWS;
 use super::runner::run_theta_v0_pi_chi;
 use super::selector::{z_of_candidate, ZExt};
-use super::super::config::ThetaConfig;
-use super::super::strategy::interp::assemble_gamma_with_tower;
-use super::super::strategy::voice::VoiceSide;
-use super::super::types::{Bar, BspBits};
+use std::rc::Rc;
 
 /// 预注册随机种子（§4，与 metrics 同值，bit-exact 可复现）。
 const PREREG_SEED: u64 = 20260625;
@@ -198,7 +198,12 @@ pub fn assert_m3_partition(ledger: &[super::runner::TypedTrade], records: &[Resi
     // ── 守恒 2（records→buckets 互斥穷尽 + 值域封闭）先行：只依赖 records，与 ledger 无关。──
     // 键分量值域封闭是 records 自身有效性，先验证；再做 ledger↔records 跨集守恒 1。
     let mut buckets: std::collections::BTreeMap<
-        (u32, u8, i8, Option<super::super::classifier::divergence::ForceStateA5>),
+        (
+            u32,
+            u8,
+            i8,
+            Option<super::super::classifier::divergence::ForceStateA5>,
+        ),
         usize,
     > = std::collections::BTreeMap::new();
     for r in records {
@@ -206,10 +211,21 @@ pub fn assert_m3_partition(ledger: &[super::runner::TypedTrade], records: &[Resi
         let pd = r.class.parent_dir;
         let d = r.class.delta;
         // 值域封闭（M3 声明域）：键分量落声明格，逃逸态 = 分类函数产出未声明分类 = 穷尽性破缺。
-        assert!(bc <= 3, "M3 值域违例：bsp_class={bc} 越界（声明域 {{0,1,2,3}}）");
-        assert!((-1..=1).contains(&pd), "M3 值域违例：parent_dir={pd} 越界（声明域 {{-1,0,1}}）");
-        assert!(d == 1 || d == -1, "M3 值域违例：delta={d} 越界（声明域 {{-1,1}}）");
-        *buckets.entry((r.class.level, bc, pd, r.class.force_state)).or_insert(0) += 1;
+        assert!(
+            bc <= 3,
+            "M3 值域违例：bsp_class={bc} 越界（声明域 {{0,1,2,3}}）"
+        );
+        assert!(
+            (-1..=1).contains(&pd),
+            "M3 值域违例：parent_dir={pd} 越界（声明域 {{-1,0,1}}）"
+        );
+        assert!(
+            d == 1 || d == -1,
+            "M3 值域违例：delta={d} 越界（声明域 {{-1,1}}）"
+        );
+        *buckets
+            .entry((r.class.level, bc, pd, r.class.force_state))
+            .or_insert(0) += 1;
     }
     let bucket_sum: usize = buckets.values().sum();
     assert_eq!(
@@ -273,9 +289,11 @@ pub fn build_mu_from_bars(
         // qty=1 只用于保持既有费扣分子；χ 喂入是持仓期相对收益，不是绝对额。
         // δ 从 entry_z 取（开腿候选方向；opened 腿非 Flat，interpret 规则1 保证 δ∈{±1}）。
         let delta = t.entry_z.delta;
-        let x_gamma =
-            chi_dimension_three_return(t.entry_px, t.exit_px, 1.0, fee_rate, delta);
-        est.observe(MuObservation { class: t.entry_z, x_gamma });
+        let x_gamma = chi_dimension_three_return(t.entry_px, t.exit_px, 1.0, fee_rate, delta);
+        est.observe(MuObservation {
+            class: t.entry_z,
+            x_gamma,
+        });
 
         // ── 残差记录（alpha分离.pdf §1/§4.1，task #82——B̂/成本/分层维逻辑不变，G4 只换出场源）──
         // H_i = P_out−P_in（δ-free 原始持有窗涨跌）；C_i = fee·(P_in+P_out)（双边费，与 marginal_return 同口径）。
@@ -343,7 +361,12 @@ struct DeltaRStats {
 /// ```
 /// 这是 §10 线性可加的 ΔR（除数恒 nav0）。**不用百分比收益** `daily_returns`（除数 path-dependent
 /// 的 E_{t−1}，两条 NAV 发散时 r^χ−r^0 ≠ ΔR/nav0，被 sizing 路径污染）。成本已扣进 equity ⟹ ΔC 自含。
-fn delta_r_stats(baseline_eq: &[f64], chi_eq: &[f64], nav0: f64, bars_per_year: f64) -> DeltaRStats {
+fn delta_r_stats(
+    baseline_eq: &[f64],
+    chi_eq: &[f64],
+    nav0: f64,
+    bars_per_year: f64,
+) -> DeltaRStats {
     // 逐 bar 绝对增量配对差 = ΔR/nav0（§10 线性可加；E 已÷nav0，∴增量配对差直接是 ΔR/nav0）。
     let len = baseline_eq.len().min(chi_eq.len());
     let dr_norm: Vec<f64> = (1..len)
@@ -351,13 +374,23 @@ fn delta_r_stats(baseline_eq: &[f64], chi_eq: &[f64], nav0: f64, bars_per_year: 
         .collect();
     let n = dr_norm.len();
     if n < 2 {
-        return DeltaRStats { n, mean: 0.0, sharpe: 0.0, boot_pvalue: 1.0, chi_changed_trades: false };
+        return DeltaRStats {
+            n,
+            mean: 0.0,
+            sharpe: 0.0,
+            boot_pvalue: 1.0,
+            chi_changed_trades: false,
+        };
     }
     let chi_changed = dr_norm.iter().any(|&d| d.abs() > 1e-15);
     let mean = dr_norm.iter().sum::<f64>() / n as f64;
     let var = dr_norm.iter().map(|d| (d - mean).powi(2)).sum::<f64>() / (n - 1) as f64;
     let std = var.sqrt();
-    let sharpe = if std > 1e-18 { mean / std * bars_per_year.sqrt() } else { 0.0 };
+    let sharpe = if std > 1e-18 {
+        mean / std * bars_per_year.sqrt()
+    } else {
+        0.0
+    };
 
     // ΔR 序列 block bootstrap（H0：mean ≤ 0）——seed 冻结，块长保留 bar 级自相关。
     let mut rng = SplitMix64::new(PREREG_SEED);
@@ -426,14 +459,25 @@ fn delta_r_alpha_multi_symbol() {
     // θ=0：只滤负边际期望类（§13 θ≥0 下界，θ=0 滤 μ≤0 已观测类）。
     let theta: f64 = 0.0;
 
-    eprintln!("\n===== Phase-3 ΔR 净额增量 alpha 否证：8 品种 OOS-split walk-forward（θ={theta}）=====");
+    eprintln!(
+        "\n===== Phase-3 ΔR 净额增量 alpha 否证：8 品种 OOS-split walk-forward（θ={theta}）====="
+    );
     eprintln!("★主口径 = ΔR 序列自身（codex：Sharpe(A)−Sharpe(B)≠Sharpe(A−B)）；ΔR=nav0·(r^χ−r^0) 逐 bar 配对差");
     eprintln!("★walk-forward μ：OOS 前半 train（估 μ，确认时点 z + 下反向信号/censored 兑现）→ 后半 test（χ 过滤）");
     eprintln!("★鞅定理（§11/§16）：无预测性则无 alpha——μ 表噪声 ⟹ ΔR 符号跨品种随机、均值≈0");
     eprintln!("★截断窗 {MAX_BARS}bar（O(n²) 全窗不可行）= 显式有效域边界（非全窗结论）");
     eprintln!(
         "{:<6} {:>8} {:>6} {:>7} {:>10} {:>9} {:>9} {:>8} {:>8} {}",
-        "symbol", "train", "test", "μ类", "mean(ΔR)", "Shrp(ΔR)", "boot_p", "ΔN≠0", "χ单/0单", "归因",
+        "symbol",
+        "train",
+        "test",
+        "μ类",
+        "mean(ΔR)",
+        "Shrp(ΔR)",
+        "boot_p",
+        "ΔN≠0",
+        "χ单/0单",
+        "归因",
     );
 
     let mut dr_means: Vec<(String, f64, bool)> = Vec::new(); // (symbol, mean(ΔR), is_l2_valid)
@@ -467,7 +511,12 @@ fn delta_r_alpha_multi_symbol() {
         let train = mk(0, split);
         let test = mk(split, cut);
         if train.bars.len() < MIN_TEST_BARS || test.bars.len() < MIN_TEST_BARS {
-            eprintln!("{:<6} train/test 样本不足（train={} test={}）⟹ inconclusive", w.symbol, train.bars.len(), test.bars.len());
+            eprintln!(
+                "{:<6} train/test 样本不足（train={} test={}）⟹ inconclusive",
+                w.symbol,
+                train.bars.len(),
+                test.bars.len()
+            );
             n_inconclusive += 1;
             n_done += 1;
             continue;
@@ -583,18 +632,33 @@ fn delta_r_alpha_multi_symbol() {
 
         // 不变量：管线不崩 + 检验值合法。
         assert!(st.mean.is_finite(), "{} mean(ΔR) 有限", w.symbol);
-        assert!((0.0..=1.0).contains(&st.boot_pvalue), "{} boot p∈[0,1]", w.symbol);
+        assert!(
+            (0.0..=1.0).contains(&st.boot_pvalue),
+            "{} boot p∈[0,1]",
+            w.symbol
+        );
     }
 
     // ── L3 跨品种系统性 alpha（符号检验，codex Q4）──
-    let l3_pool: Vec<f64> = dr_means.iter().filter(|(_, _, v)| *v).map(|(_, m, _)| *m).collect();
+    let l3_pool: Vec<f64> = dr_means
+        .iter()
+        .filter(|(_, _, v)| *v)
+        .map(|(_, m, _)| *m)
+        .collect();
     let n_l3 = l3_pool.len();
     let n_pos = l3_pool.iter().filter(|&&m| m > 0.0).count();
-    let l3_mean = if n_l3 > 0 { l3_pool.iter().sum::<f64>() / n_l3 as f64 } else { 0.0 };
+    let l3_mean = if n_l3 > 0 {
+        l3_pool.iter().sum::<f64>() / n_l3 as f64
+    } else {
+        0.0
+    };
     let sign_p = sign_test_pvalue(n_pos, n_l3);
 
     eprintln!("\n===== Phase-3 ΔR 跨品种聚合（8 品种 OOS-split walk-forward）=====");
-    eprintln!("完成品种数                          : {n_done}/{}", PREREG_WINDOWS.len());
+    eprintln!(
+        "完成品种数                          : {n_done}/{}",
+        PREREG_WINDOWS.len()
+    );
     eprintln!("(a)/(c) inconclusive(断流/χ未改/饥饿): {n_inconclusive}");
     eprintln!("(b) L2 否证(mean(ΔR)≤0 或 p>.05)     : {n_l2_falsify}");
     eprintln!("(c') L2 确认(mean(ΔR)>0 且 p≤.05)     : {n_l2_confirm}");
@@ -671,7 +735,9 @@ fn crossfit_l2() {
     eprintln!("\n===== ★cross-fit OOS K-fold purged（PDF §34, K={CROSSFIT_K}, gap={CROSSFIT_GAP}, θ={theta}）=====");
     eprintln!("★修单次 split §6 winner's curse：选择在 train folds、评估在 held-out fold ⟹ 选择性偏差不传导评估窗");
     eprintln!("★train 不连续(held-out 居中⟹前段+后段) ⟹ 各段独立 build_walk_forward_mu 后 merge（不拼接，防接缝伪相邻）");
-    eprintln!("★fold 边界 purge {CROSSFIT_GAP}bar ⟹ held-out 不含 train 退出兑现跨界泄漏（purged split）");
+    eprintln!(
+        "★fold 边界 purge {CROSSFIT_GAP}bar ⟹ held-out 不含 train 退出兑现跨界泄漏（purged split）"
+    );
     eprintln!("★对比基线 = delta_r_alpha_multi_symbol 单次 split（同 μ harness，唯一变量 = K-fold 选/评分离）");
     eprintln!(
         "{:<6} {:>8} {:>7} {:>10} {:>9} {:>9} {:>8} {}",
@@ -697,7 +763,10 @@ fn crossfit_l2() {
         let cut = MAX_BARS.min(oos_full.bars.len());
         let fold_len = cut / CROSSFIT_K;
         if fold_len < MIN_TEST_BARS {
-            eprintln!("{:<6} fold 太短（fold_len={fold_len}<{MIN_TEST_BARS}）⟹ inconclusive", w.symbol);
+            eprintln!(
+                "{:<6} fold 太短（fold_len={fold_len}<{MIN_TEST_BARS}）⟹ inconclusive",
+                w.symbol
+            );
             continue;
         }
         let mk = |lo: usize, hi: usize| Dataset {
@@ -717,7 +786,11 @@ fn crossfit_l2() {
         for k in 0..CROSSFIT_K {
             // held-out fold k = [k·fold_len, (k+1)·fold_len)（末 fold 吃 cut 余数）。
             let ho_lo = k * fold_len;
-            let ho_hi = if k == CROSSFIT_K - 1 { cut } else { (k + 1) * fold_len };
+            let ho_hi = if k == CROSSFIT_K - 1 {
+                cut
+            } else {
+                (k + 1) * fold_len
+            };
             let held = mk(ho_lo, ho_hi);
             if held.bars.len() < MIN_TEST_BARS {
                 continue;
@@ -780,7 +853,11 @@ fn crossfit_l2() {
             let mean = cf_dr.iter().sum::<f64>() / cf_n as f64;
             let var = cf_dr.iter().map(|d| (d - mean).powi(2)).sum::<f64>() / (cf_n - 1) as f64;
             let std = var.sqrt();
-            let sharpe = if std > 1e-18 { mean / std * bars_per_year.sqrt() } else { 0.0 };
+            let sharpe = if std > 1e-18 {
+                mean / std * bars_per_year.sqrt()
+            } else {
+                0.0
+            };
             let mut rng = SplitMix64::new(PREREG_SEED);
             let mut n_le_0 = 0usize;
             for _ in 0..1000 {
@@ -817,14 +894,26 @@ fn crossfit_l2() {
             w.symbol, cf_n, total_classes, cf_mean, cf_sharpe, cf_boot_p, chi_changed_any, verdict,
         );
         assert!(cf_mean.is_finite(), "{} cf_mean 有限", w.symbol);
-        assert!((0.0..=1.0).contains(&cf_boot_p), "{} cf boot p∈[0,1]", w.symbol);
+        assert!(
+            (0.0..=1.0).contains(&cf_boot_p),
+            "{} cf boot p∈[0,1]",
+            w.symbol
+        );
     }
 
     // ── L3 跨品种系统性（符号检验，与 multi_symbol 同口径）──
-    let l3: Vec<f64> = cf_means.iter().filter(|(_, _, v)| *v).map(|(_, m, _)| *m).collect();
+    let l3: Vec<f64> = cf_means
+        .iter()
+        .filter(|(_, _, v)| *v)
+        .map(|(_, m, _)| *m)
+        .collect();
     let n_l3 = l3.len();
     let n_pos = l3.iter().filter(|&&m| m > 0.0).count();
-    let l3_mean = if n_l3 > 0 { l3.iter().sum::<f64>() / n_l3 as f64 } else { 0.0 };
+    let l3_mean = if n_l3 > 0 {
+        l3.iter().sum::<f64>() / n_l3 as f64
+    } else {
+        0.0
+    };
     let sign_p = sign_test_pvalue(n_pos, n_l3);
     const MIN_L3_POWER: usize = 5;
 
@@ -915,7 +1004,11 @@ fn gross_stats(gross: &[f64], bars_per_year: f64) -> (f64, f64, f64) {
     let mean = gross.iter().sum::<f64>() / n as f64;
     let var = gross.iter().map(|d| (d - mean).powi(2)).sum::<f64>() / (n - 1) as f64;
     let std = var.sqrt();
-    let sharpe = if std > 1e-18 { mean / std * bars_per_year.sqrt() } else { 0.0 };
+    let sharpe = if std > 1e-18 {
+        mean / std * bars_per_year.sqrt()
+    } else {
+        0.0
+    };
 
     let mut rng = SplitMix64::new(PREREG_SEED);
     const N_RESAMPLE: usize = 1000;
@@ -978,8 +1071,15 @@ fn synthetic_martingale(n: usize, seed: u64, start_tick: i64) -> Dataset {
             untradable: false,
         });
     }
-    let dates = (0..n).map(|i| format!("2020-01-01 00:{:02}:00", i % 60)).collect();
-    Dataset { symbol: "MARTINGALE".to_string(), bars, dates, bar_seconds: 60 }
+    let dates = (0..n)
+        .map(|i| format!("2020-01-01 00:{:02}:00", i % 60))
+        .collect();
+    Dataset {
+        symbol: "MARTINGALE".to_string(),
+        bars,
+        dates,
+        bar_seconds: 60,
+    }
 }
 
 /// **★鞅不可能定理守卫：合成鞅上 χ 选择器无 alpha = harness 因果纯净（无未来函数泄漏）**。
@@ -1009,9 +1109,20 @@ fn martingale_impossibility_guard() {
     let config = ThetaConfig::default();
     let theta: f64 = 0.0; // 与 multi_symbol 同 θ 口径（滤 μ≤0 类）。
     let n = MAX_BARS; // 与真实数据同窗长（train+test 各 16K）。
-    let seeds: [u64; 8] = [PREREG_SEED, 0xC0FFEE, 0xDEADBEEF, 42, 0x1234_5678, 0xABCD, 7, 0xFACE];
+    let seeds: [u64; 8] = [
+        PREREG_SEED,
+        0xC0FFEE,
+        0xDEADBEEF,
+        42,
+        0x1234_5678,
+        0xABCD,
+        7,
+        0xFACE,
+    ];
 
-    eprintln!("\n===== 鞅不可能定理守卫：合成鞅 χ 选择器无毛 alpha 验证（θ={theta}, n={n}/种子）=====");
+    eprintln!(
+        "\n===== 鞅不可能定理守卫：合成鞅 χ 选择器无毛 alpha 验证（θ={theta}, n={n}/种子）====="
+    );
     eprintln!("★鞅定理（§11/§16, L0）：E[ΔP|F_t]=0 ∧ ΔN∈F_t ⟹ E[ΔN·ΔP]=0——毛额无预测性");
     eprintln!("★判据（认识论修正）：主判据=**跨独立种子** ΔGross 均值符号检验（H0:E=0⟹符号随机）；系统性同号=泄漏(FAIL)");
     eprintln!("★单路径 boot p / 单路径 mean 仅诊断——单条鞅路径样本均值必偏离0（√n波动），单路径检验会误判噪声为泄漏");
@@ -1019,7 +1130,16 @@ fn martingale_impossibility_guard() {
     eprintln!("★与 delta_r_alpha_multi_symbol 真实数据否证互为印证（真实无 alpha + 合成鞅无毛 alpha = χ 确无先验 alpha）");
     eprintln!(
         "{:<10} {:>7} {:>7} {:>6} {:>11} {:>11} {:>10} {:>9} {:>7} {}",
-        "seed", "train", "test", "μ类", "mean(ΔR净)", "mean(Gross)", "Shrp(Gr)", "boot_2p", "ΔN≠0", "毛符号",
+        "seed",
+        "train",
+        "test",
+        "μ类",
+        "mean(ΔR净)",
+        "mean(Gross)",
+        "Shrp(Gr)",
+        "boot_2p",
+        "ΔN≠0",
+        "毛符号",
     );
 
     let bars_per_year = data::bars_per_year(60);
@@ -1104,7 +1224,10 @@ fn martingale_impossibility_guard() {
         );
 
         assert!(gross_mean.is_finite(), "seed {seed:x} mean(ΔGross) 有限");
-        assert!((0.0..=1.0).contains(&gross_two_sided_p), "seed {seed:x} gross 双边 p∈[0,1]");
+        assert!(
+            (0.0..=1.0).contains(&gross_two_sided_p),
+            "seed {seed:x} gross 双边 p∈[0,1]"
+        );
     }
 
     // ── 跨种子（独立鞅路径）ΔGross 均值符号检验（主判据，H0:E[ΔGross]=0 ⟹ 符号随机 p=0.5）──
@@ -1118,7 +1241,10 @@ fn martingale_impossibility_guard() {
     let leak = n_eff >= 2 && two_sided_sign_p <= 0.05;
 
     eprintln!("\n===== 鞅守卫聚合（跨独立种子符号检验，主判据）=====");
-    eprintln!("有效检验种子数（χ 真改交易集）   : {n_evaluated}/{}", seeds.len());
+    eprintln!(
+        "有效检验种子数（χ 真改交易集）   : {n_evaluated}/{}",
+        seeds.len()
+    );
     eprintln!("ΔGross 均值 +/− 分布            : {n_pos} 正 / {n_neg} 负（共 {n_eff}）");
     eprintln!("跨种子双边符号检验 p（H0:E=0）   : {two_sided_sign_p:.4}");
     eprintln!("检出未来函数泄漏（系统性同号）   : {leak}");
@@ -1303,7 +1429,7 @@ fn lcb_vs_naive_l2() {
                 None => src_a += 1, // n<2：样本饥饿（非过拟合控制）
                 Some(l) if l <= theta => {
                     src_b += 1; // n≥2 高方差 LCB<θ
-                    // train-class n 分桶（est.count 是该 z 在 train μ 表的样本量）。
+                                // train-class n 分桶（est.count 是该 z 在 train μ 表的样本量）。
                     if est_diag.count(z) >= 10 {
                         src_b_robust += 1; // n≥10：方差估计鲁棒 ⟹ 真过拟合控制候选
                     } else {
@@ -1350,19 +1476,30 @@ fn lcb_vs_naive_l2() {
             abstention_mark,
         );
 
-        assert!(st_naive.mean.is_finite() && st_lcb.mean.is_finite(), "{} ΔR 有限", w.symbol);
+        assert!(
+            st_naive.mean.is_finite() && st_lcb.mean.is_finite(),
+            "{} ΔR 有限",
+            w.symbol
+        );
     }
 
     // ── 维度① 过拟合：退化品种数 + 两源分解（纪律2）──
     eprintln!("\n===== 维度①（过拟合控制，纪律2 两源分离）=====");
-    eprintln!("完成品种数                              : {n_done}/{}", PREREG_WINDOWS.len());
-    eprintln!("退化品种数（χ 全滤空仓）：裸 μ={n_degen_naive} | LCB={n_degen_lcb}（LCB≥裸 μ ⟹ 更保守）");
+    eprintln!(
+        "完成品种数                              : {n_done}/{}",
+        PREREG_WINDOWS.len()
+    );
+    eprintln!(
+        "退化品种数（χ 全滤空仓）：裸 μ={n_degen_naive} | LCB={n_degen_lcb}（LCB≥裸 μ ⟹ 更保守）"
+    );
     eprintln!("跨品种「裸 μ 放行 ∧ LCB 拒」两源分解（codex 攻击点1/3/4 修复后）：");
     eprintln!("  源(a) n<2 无 LCB 证据被拒（样本饥饿，非过拟合控制）       : {tot_src_a}");
     eprintln!("  源(b) n≥2 高方差 LCB<θ 被拒（总计，含伪高方差）           : {tot_src_b}");
     eprintln!("    ├ 源(b) 低自由度 n∈{{2..9}}（方差超敏伪高方差，剥离）   : {tot_src_b_lowdof}");
     eprintln!("    └ 源(b) 鲁棒 n≥10（方差估计可信）                       : {tot_src_b_robust}");
-    eprintln!("  源(b) 鲁棒 ∧ 非退化品种（★唯一 demonstrated alpha 候选）  : {tot_src_b_robust_nondegen}");
+    eprintln!(
+        "  源(b) 鲁棒 ∧ 非退化品种（★唯一 demonstrated alpha 候选）  : {tot_src_b_robust_nondegen}"
+    );
     eprintln!(
         "  ★诚实判据（剥离退化空仓 + 低自由度伪装后）：\n  \
          - tot_src_b_robust_nondegen>0 ⟹ 存在**非退化、n≥10**的高方差类被 LCB 正确拒 ⟹ LCB 有**有限**过拟合控制价值（窄结论）。\n  \
@@ -1377,14 +1514,22 @@ fn lcb_vs_naive_l2() {
     let l3 = |pool: &[f64]| -> (usize, usize, f64, f64) {
         let n = pool.len();
         let n_pos = pool.iter().filter(|&&m| m > 0.0).count();
-        let mean = if n > 0 { pool.iter().sum::<f64>() / n as f64 } else { 0.0 };
+        let mean = if n > 0 {
+            pool.iter().sum::<f64>() / n as f64
+        } else {
+            0.0
+        };
         (n, n_pos, mean, sign_test_pvalue(n_pos, n))
     };
     let (n_n, pos_n, mean_n, p_n) = l3(&dr_naive);
     let (n_l, pos_l, mean_l, p_l) = l3(&dr_lcb);
     eprintln!("\n===== 维度②（统计功效，纪律1：与维度①同源非正交——同一 rejection mass 两投影，不可混为「LCB 解决 inconclusive」）=====");
-    eprintln!("L3 符号检验（裸 μ）: n_L3={n_n} n_pos={pos_n}/{n_n} 池均值={mean_n:.3e} 符号 p={p_n:.4}");
-    eprintln!("L3 符号检验（LCB） : n_L3={n_l} n_pos={pos_l}/{n_l} 池均值={mean_l:.3e} 符号 p={p_l:.4}");
+    eprintln!(
+        "L3 符号检验（裸 μ）: n_L3={n_n} n_pos={pos_n}/{n_n} 池均值={mean_n:.3e} 符号 p={p_n:.4}"
+    );
+    eprintln!(
+        "L3 符号检验（LCB） : n_L3={n_l} n_pos={pos_l}/{n_l} 池均值={mean_l:.3e} 符号 p={p_l:.4}"
+    );
     let verdict = |n: usize, p: f64, mean: f64| -> &'static str {
         if n >= 2 && p < 0.05 && mean > 0.0 {
             "系统性 alpha 成立"
@@ -1417,7 +1562,11 @@ fn lcb_vs_naive_l2() {
     eprintln!(
         "\n[子集单调性诊断] LCB 退化数({n_degen_lcb}) {} 裸 μ 退化数({n_degen_naive})——\
          若 LCB<裸 μ 则 runner 级联非单调（值得查），若 ≥ 则与过滤层子集关系一致",
-        if n_degen_lcb >= n_degen_naive { "≥" } else { "<(非单调!)" }
+        if n_degen_lcb >= n_degen_naive {
+            "≥"
+        } else {
+            "<(非单调!)"
+        }
     );
 }
 
@@ -1549,7 +1698,11 @@ fn three_way_l2() {
         }
 
         // 退化品种 ΔR 标弃权（161号）：shrinkage 退化 ⟹ 其 ΔR 是弃权 PnL 非 alpha。
-        let mark = if degen_shrink { " [shrink弃权PnL]" } else { "" };
+        let mark = if degen_shrink {
+            " [shrink弃权PnL]"
+        } else {
+            ""
+        };
         eprintln!(
             "{:<6} {:>7} {:>7} {:>7} {:>7} {:>10.3e} {:>10.3e} {:>10.3e}{}",
             w.symbol,
@@ -1573,7 +1726,11 @@ fn three_way_l2() {
     let l3 = |pool: &[f64]| -> (usize, usize, f64, f64) {
         let n = pool.len();
         let n_pos = pool.iter().filter(|&&m| m > 0.0).count();
-        let mean = if n > 0 { pool.iter().sum::<f64>() / n as f64 } else { 0.0 };
+        let mean = if n > 0 {
+            pool.iter().sum::<f64>() / n as f64
+        } else {
+            0.0
+        };
         (n, n_pos, mean, sign_test_pvalue(n_pos, n))
     };
     let (n_n, pos_n, mean_n, p_n) = l3(&dr_naive);
@@ -1583,9 +1740,15 @@ fn three_way_l2() {
     eprintln!("\n===== 保功效维度（n_L3 池大小三路对比，shrinkage 卖点）=====");
     eprintln!("完成品种数 : {n_done}/{}", PREREG_WINDOWS.len());
     eprintln!("退化品种数（χ 全滤空仓）：裸μ={n_degen_naive} | LCB={n_degen_lcb} | shrink={n_degen_shrink}");
-    eprintln!("L3 符号检验（裸μ）  : n_L3={n_n} n_pos={pos_n}/{n_n} 池均值={mean_n:.3e} 符号 p={p_n:.4}");
-    eprintln!("L3 符号检验（LCB）  : n_L3={n_l} n_pos={pos_l}/{n_l} 池均值={mean_l:.3e} 符号 p={p_l:.4}");
-    eprintln!("L3 符号检验（shrink）: n_L3={n_s} n_pos={pos_s}/{n_s} 池均值={mean_s:.3e} 符号 p={p_s:.4}");
+    eprintln!(
+        "L3 符号检验（裸μ）  : n_L3={n_n} n_pos={pos_n}/{n_n} 池均值={mean_n:.3e} 符号 p={p_n:.4}"
+    );
+    eprintln!(
+        "L3 符号检验（LCB）  : n_L3={n_l} n_pos={pos_l}/{n_l} 池均值={mean_l:.3e} 符号 p={p_l:.4}"
+    );
+    eprintln!(
+        "L3 符号检验（shrink）: n_L3={n_s} n_pos={pos_s}/{n_s} 池均值={mean_s:.3e} 符号 p={p_s:.4}"
+    );
     const MIN_L3_POWER: usize = 5;
     let verdict = |n: usize, p: f64, mean: f64| -> &'static str {
         if n >= 2 && p < 0.05 && mean > 0.0 {
@@ -1630,7 +1793,12 @@ fn three_way_l2() {
 fn project_mu_for_enum_diag(est: &MuEstimator) -> MuEstimator {
     let mut p = MuEstimator::new();
     p.observe_all(est.trades().iter().map(|&(c, x)| MuObservation {
-        class: MuClass { risk_mode: None, t_stage: None, eta_bucket: None, ..c }, // #149/#175：t_stage/eta_bucket 同 risk_mode（fill loop 生态 Some/枚举 None）投影边缘化
+        class: MuClass {
+            risk_mode: None,
+            t_stage: None,
+            eta_bucket: None,
+            ..c
+        }, // #149/#175：t_stage/eta_bucket 同 risk_mode（fill loop 生态 Some/枚举 None）投影边缘化
         x_gamma: x,
     }));
     p
@@ -1669,7 +1837,11 @@ fn enumerate_candidate_z(ds: &Dataset, config: &ThetaConfig) -> Vec<MuClass> {
                             cp_ownership: Rc::new(Vec::new()),
                             pan_div: Rc::new(Vec::new()),
                             level_projection: None, // #110 门关口径
-                            bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
+                            bsp: Rc::new(if l2 == lvl {
+                                vec![p.clone()]
+                            } else {
+                                Vec::new()
+                            }),
                         })
                         .collect(),
                 };
@@ -1717,7 +1889,9 @@ fn degeneracy_diagnosis() {
 
     eprintln!("\n===== 退化品种根因诊断（task #49）：3 品种 χ 全滤空仓的四假设 =====");
     eprintln!("★假设2（成本符号bug）静态已否证：marginal_return 复用 trade_abs_pnl，单测 bit-exact（多空+双边费）");
-    eprintln!("★区分实装artifact（伪否定）vs 真无alpha（否定成立）——formalization-validity-domain 231号");
+    eprintln!(
+        "★区分实装artifact（伪否定）vs 真无alpha（否定成立）——formalization-validity-domain 231号"
+    );
 
     for sym in degenerate {
         let w = match PREREG_WINDOWS.iter().find(|w| w.symbol == sym) {
@@ -1752,7 +1926,11 @@ fn degeneracy_diagnosis() {
 
         let (est, n_sig) = build_walk_forward_mu(&train, &config);
 
-        eprintln!("\n────── {sym} (train={} test={} train_signals={n_sig}) ──────", train.bars.len(), test.bars.len());
+        eprintln!(
+            "\n────── {sym} (train={} test={} train_signals={n_sig}) ──────",
+            train.bars.len(),
+            test.bars.len()
+        );
 
         // ── 假设1：μ 表分布（各 z 类 μ, count）──
         let mut classes: Vec<(MuClass, f64, u64)> = est
@@ -1767,7 +1945,9 @@ fn degeneracy_diagnosis() {
         eprintln!(
             "  [假设1 μ坍缩] μ类数={n_classes} 总观测={total_obs} | μ>0类={n_pos_mu} | 单样本类(count<2)={n_singleton}"
         );
-        eprintln!("    判据：μ>0类=0 ⟹ θ=0 全否决（解释空仓）；单样本类占比高 ⟹ μ估计退化（噪声均值）");
+        eprintln!(
+            "    判据：μ>0类=0 ⟹ θ=0 全否决（解释空仓）；单样本类占比高 ⟹ μ估计退化（噪声均值）"
+        );
         eprintln!("    top μ 类（前 5）:");
         for (z, mu, c) in classes.iter().take(5) {
             eprintln!(
@@ -1809,7 +1989,13 @@ fn degeneracy_diagnosis() {
                 None => n_unseen += 1,
             }
         }
-        let pct = |x: usize| if n_test > 0 { 100.0 * x as f64 / n_test as f64 } else { 0.0 };
+        let pct = |x: usize| {
+            if n_test > 0 {
+                100.0 * x as f64 / n_test as f64
+            } else {
+                0.0
+            }
+        };
         eprintln!(
             "  [假设4 未见类] test候选={n_test} | 命中train={n_seen}({:.1}%) [μ>0={n_seen_pos} μ≤0={n_seen_nonpos}] | 未见={n_unseen}({:.1}%)",
             pct(n_seen), pct(n_unseen)
@@ -1821,7 +2007,12 @@ fn degeneracy_diagnosis() {
             // 若所有 Root（σp0）类 μ≤0 被滤 ⟹ 无父腿 ⟹ Child 短差腿无处依附 ⟹ 不开（级联否决，非矛盾）。
             eprintln!(
                 "    ★μ>0命中候选定位: z=(ℓ{} δ{} I{:#04b} σp{} sd{} {:?}) ⟹ {}",
-                z.level, z.delta, z.i_class, z.parent_dir, z.short_swing as u8, z.position,
+                z.level,
+                z.delta,
+                z.i_class,
+                z.parent_dir,
+                z.short_swing as u8,
+                z.position,
                 if z.position == PositionState::Child {
                     "Child(需父持仓依附；若Root全μ≤0被滤⟹无父⟹级联否决,非矛盾)"
                 } else {
@@ -1847,10 +2038,16 @@ fn degeneracy_diagnosis() {
                     None => false, // treat_empty=false（实证同口径）
                 })
                 .count();
-            let label = if theta == f64::NEG_INFINITY { "−∞".to_string() } else { format!("{theta:.0e}") };
+            let label = if theta == f64::NEG_INFINITY {
+                "−∞".to_string()
+            } else {
+                format!("{theta:.0e}")
+            };
             eprintln!("      θ={label:>7} ⟹ χ=1 候选数={pass}（仅已观测类，未见类恒滤）");
         }
-        eprintln!("    判据：θ=0→θ<0 候选数从 0 变 >0 ⟹ θ=0过严（μ略负的类被滤，实装artifact可放宽）");
+        eprintln!(
+            "    判据：θ=0→θ<0 候选数从 0 变 >0 ⟹ θ=0过严（μ略负的类被滤，实装artifact可放宽）"
+        );
         eprintln!("         θ=−∞ 仍=0（已观测类放行=0）⟹ 所有候选都是未见类 ⟹ 根因=假设4非假设3");
     }
 
@@ -1888,7 +2085,9 @@ fn pooling_icc_multi_symbol() {
     eprintln!("\n===== ★跨品种 pooling 同质性检验 L2/L3（acc-pooling-icc, task #86）=====");
     eprintln!("★§15 随机效应：μ_{{a,z}}=μ_z+η, η~N(0,τ²)；τ²=0→同分布→pooling 有效；τ²大→异质→强 pooling 引偏差");
     eprintln!("★§16 ICC=τ²/(τ²+σ²)∈[0,1]：→0 噪声主导(pooling 安全)；→1 品种差异主导(慎 pooling)");
-    eprintln!("★leave-one-asset-out：其他品种估 μ_{{−a}}，目标品种 OOS 测迁移——稳→pooling 可信/失败→拒绝");
+    eprintln!(
+        "★leave-one-asset-out：其他品种估 μ_{{−a}}，目标品种 OOS 测迁移——稳→pooling 可信/失败→拒绝"
+    );
     eprintln!("★{MAX_BARS}bar 截断 = 显式有效域边界（非全窗结论）");
 
     // 8 品种各建 walk-forward μ 表（train 窗，与 multi_symbol 同 split/因果保证）。
@@ -1919,19 +2118,30 @@ fn pooling_icc_multi_symbol() {
             continue;
         }
         let (est, n_sig) = build_walk_forward_mu(&train, &config);
-        eprintln!("{:<6} train={} μ类={} signals={n_sig}", w.symbol, train.bars.len(), est.n_classes());
+        eprintln!(
+            "{:<6} train={} μ类={} signals={n_sig}",
+            w.symbol,
+            train.bars.len(),
+            est.n_classes()
+        );
         ests.push((w.symbol, est));
     }
 
     if ests.len() < 2 {
-        eprintln!("\n[L3 BLOCKER] 有效品种<2（{}）⟹ 跨品种同质性不可检验（需 ≥2 品种估 between 散布）", ests.len());
+        eprintln!(
+            "\n[L3 BLOCKER] 有效品种<2（{}）⟹ 跨品种同质性不可检验（需 ≥2 品种估 between 散布）",
+            ests.len()
+        );
         eprintln!("  缩小样本量是 substrate/工程缺口（DATA BLOCKER / O(n²) 截断），非异质性结论。");
         return;
     }
 
     // 按 z 类跨品种聚合 → 逐类 ICC + leave-one-out。
     let by_class = collect_by_class(&ests);
-    eprintln!("\n跨品种聚合：唯一 z 类总数={}（≥{MIN_ASSETS_FOR_ICC} 品种共享的类才计入高功效 ICC 统计）", by_class.len());
+    eprintln!(
+        "\n跨品种聚合：唯一 z 类总数={}（≥{MIN_ASSETS_FOR_ICC} 品种共享的类才计入高功效 ICC 统计）",
+        by_class.len()
+    );
 
     // 高功效 ICC 池（≥MIN_ASSETS_FOR_ICC 品种 ∧ 至少 1 品种 n≥2 有 within 方差）。
     let mut icc_pool: Vec<f64> = Vec::new();
@@ -1955,7 +2165,11 @@ fn pooling_icc_multi_symbol() {
         n_shared_classes += 1;
         let r = icc(&stats);
         // 不变量（边界硬约束）。
-        assert!((0.0..=1.0).contains(&r.icc), "ICC∈[0,1]，实得 {} z={z:?}", r.icc);
+        assert!(
+            (0.0..=1.0).contains(&r.icc),
+            "ICC∈[0,1]，实得 {} z={z:?}",
+            r.icc
+        );
         assert!(r.tau_sq >= 0.0 && r.sigma_sq >= 0.0, "τ²/σ²≥0 z={z:?}");
         icc_pool.push(r.icc);
 
@@ -1970,8 +2184,17 @@ fn pooling_icc_multi_symbol() {
         if printed < 15 {
             eprintln!(
                 "ℓ{} δ{} I{:#04b} σp{} sd{} {:<10?}        {:>6} {:>6} {:>10.3e} {:>10.3e} {:>7.4}",
-                z.level, z.delta, z.i_class, z.parent_dir, z.short_swing as u8, z.position,
-                r.n_assets, r.n_total, r.tau_sq, r.sigma_sq, r.icc,
+                z.level,
+                z.delta,
+                z.i_class,
+                z.parent_dir,
+                z.short_swing as u8,
+                z.position,
+                r.n_assets,
+                r.n_total,
+                r.tau_sq,
+                r.sigma_sq,
+                r.icc,
             );
             printed += 1;
         }
@@ -1979,25 +2202,45 @@ fn pooling_icc_multi_symbol() {
 
     // ── L3 跨品种同质性聚合裁定 ──
     let median = |v: &mut [f64]| -> f64 {
-        if v.is_empty() { return f64::NAN; }
+        if v.is_empty() {
+            return f64::NAN;
+        }
         v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let m = v.len() / 2;
-        if v.len() % 2 == 0 { (v[m - 1] + v[m]) / 2.0 } else { v[m] }
+        if v.len() % 2 == 0 {
+            (v[m - 1] + v[m]) / 2.0
+        } else {
+            v[m]
+        }
     };
     let mut icc_sorted = icc_pool.clone();
     let icc_median = median(&mut icc_sorted);
-    let icc_mean = if icc_pool.is_empty() { f64::NAN } else { icc_pool.iter().sum::<f64>() / icc_pool.len() as f64 };
+    let icc_mean = if icc_pool.is_empty() {
+        f64::NAN
+    } else {
+        icc_pool.iter().sum::<f64>() / icc_pool.len() as f64
+    };
     let n_low_icc = icc_pool.iter().filter(|&&v| v < 0.3).count(); // 同质阈（ICC<0.3 弱品种相关）
     let n_high_icc = icc_pool.iter().filter(|&&v| v > 0.7).count(); // 异质阈（ICC>0.7 强品种相关）
     let mut terr_sorted = transfer_errs.clone();
     let terr_median = median(&mut terr_sorted);
 
     eprintln!("\n===== L3 跨品种同质性聚合 =====");
-    eprintln!("有效品种数                          : {}/{}", ests.len(), PREREG_WINDOWS.len());
+    eprintln!(
+        "有效品种数                          : {}/{}",
+        ests.len(),
+        PREREG_WINDOWS.len()
+    );
     eprintln!("≥{MIN_ASSETS_FOR_ICC} 品种共享且 within 可估的 z 类 : {n_shared_classes}");
     eprintln!("ICC 中位数 / 均值                   : {icc_median:.4} / {icc_mean:.4}");
-    eprintln!("低 ICC(<0.3 同质) / 高 ICC(>0.7 异质): {n_low_icc} / {n_high_icc}（共 {} 类）", icc_pool.len());
-    eprintln!("leave-one-out 迁移误差中位数        : {terr_median:.3e}（{} 个留一对）", transfer_errs.len());
+    eprintln!(
+        "低 ICC(<0.3 同质) / 高 ICC(>0.7 异质): {n_low_icc} / {n_high_icc}（共 {} 类）",
+        icc_pool.len()
+    );
+    eprintln!(
+        "leave-one-out 迁移误差中位数        : {terr_median:.3e}（{} 个留一对）",
+        transfer_errs.len()
+    );
     eprintln!(
         "\n★诚实裁定（§15/§16 + formalization-validity-domain 231号）：\n  \
          - (a) 跨品种同质（pooling 有效）⟺ ICC 多数低(<0.3) ∧ 迁移误差小 ⟹ τ²≈0 ⟹ pooling 安全提升功效。\n  \
@@ -2021,7 +2264,10 @@ mod tests {
     fn chi_feed_uses_entry_notional_relative_return() {
         let got = chi_dimension_three_return(100.0, 110.0, 1.0, 0.001, 1);
         let expected = marginal_return(100.0, 110.0, 1.0, 0.001, 1) / 100.0;
-        assert!((got - expected).abs() < 1e-15, "量纲③ X_γ={expected}，实得 {got}");
+        assert!(
+            (got - expected).abs() < 1e-15,
+            "量纲③ X_γ={expected}，实得 {got}"
+        );
     }
 
     /// ★G4 诊断（#134，L2 冒烟）：真实 BTC train 窗上 typed ledger 非空 + exit_type 分布 +
@@ -2032,7 +2278,10 @@ mod tests {
         use super::super::runner::typed_ledger_from_bars;
         use crate::theta_v0::strategy::interp::ExitType;
         let config = ThetaConfig::default();
-        let w = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
+        let w = PREREG_WINDOWS
+            .iter()
+            .find(|w| w.symbol == "BTC")
+            .expect("BTC prereg 窗");
         let ds = data::load_by_symbol(w.symbol, &config).expect("BTC 数据（DATA BLOCKER 不伪造）");
         let oos = ds.slice_date_window(w.oos.0, w.oos.1);
         let cut = MAX_BARS.min(oos.bars.len());
@@ -2040,12 +2289,21 @@ mod tests {
 
         let ledger = typed_ledger_from_bars(train_bars, &config);
         let count = |et: ExitType| ledger.iter().filter(|t| t.exit_type == et).count();
-        eprintln!("\n===== G4 typed ledger BTC 冒烟（train {} bars）=====", train_bars.len());
+        eprintln!(
+            "\n===== G4 typed ledger BTC 冒烟（train {} bars）=====",
+            train_bars.len()
+        );
         eprintln!("ledger 总腿数        : {}", ledger.len());
         eprintln!("CloseRoot (P5)       : {}", count(ExitType::CloseRoot));
         eprintln!("ReduceCore (P6)      : {}", count(ExitType::ReduceCore));
-        eprintln!("CloseReverseOpen (P7): {}", count(ExitType::CloseReverseOpen));
-        eprintln!("RiskExit (P1)        : {}（#124 P1 短路已落地——Insolvent/Liquidation 触发才非零）", count(ExitType::RiskExit));
+        eprintln!(
+            "CloseReverseOpen (P7): {}",
+            count(ExitType::CloseReverseOpen)
+        );
+        eprintln!(
+            "RiskExit (P1)        : {}（#124 P1 短路已落地——Insolvent/Liquidation 触发才非零）",
+            count(ExitType::RiskExit)
+        );
         eprintln!("Hold censored (P0)   : {}", count(ExitType::Hold));
         eprintln!(
             "via_structural_prune : {}（§13 剪枝腿，μ 侧可分离——ws-g5interp flag 采纳）",
@@ -2053,13 +2311,20 @@ mod tests {
         );
 
         let (est, records) = build_mu_from_bars(train_bars, &config, 0);
-        eprintln!("μ 表类数 / 残差记录  : {} / {}", est.n_classes(), records.len());
+        eprintln!(
+            "μ 表类数 / 残差记录  : {} / {}",
+            est.n_classes(),
+            records.len()
+        );
         assert!(!ledger.is_empty(), "真实 BTC train 窗产非空 typed ledger");
         assert!(est.n_classes() > 0, "μ 表非空（开腿信号真实兑现）");
         // 全分类完备：五枚举计数守恒。
         assert_eq!(
-            count(ExitType::CloseRoot) + count(ExitType::ReduceCore) + count(ExitType::CloseReverseOpen)
-                + count(ExitType::RiskExit) + count(ExitType::Hold),
+            count(ExitType::CloseRoot)
+                + count(ExitType::ReduceCore)
+                + count(ExitType::CloseReverseOpen)
+                + count(ExitType::RiskExit)
+                + count(ExitType::Hold),
             ledger.len(),
             "exit_type 五枚举全分类守恒"
         );
@@ -2077,12 +2342,18 @@ mod tests {
             sum_dp += dp;
             max_step = max_step.max(dp.abs());
             assert!(w[1].close >= 1, "close 恒 ≥1（量化非负 + 反射）");
-            assert_eq!(w[1].open, w[1].close, "OHLC 全=close（纯 close 鞅，无 intrabar 信息）");
+            assert_eq!(
+                w[1].open, w[1].close,
+                "OHLC 全=close（纯 close 鞅，无 intrabar 信息）"
+            );
         }
         assert!(max_step <= 1, "增量 ε∈{{−1,0,+1}}（|ε|≤1）");
         // 无系统性漂移：50K 步累计位移应远小于步数（鞅 ⟹ E[ΣΔP]=0，√n 量级波动）。
         let mean_dp = sum_dp as f64 / 49_999.0;
-        assert!(mean_dp.abs() < 0.01, "平均增量 ≈0（无漂移），实得 {mean_dp:.5}");
+        assert!(
+            mean_dp.abs() < 0.01,
+            "平均增量 ≈0（无漂移），实得 {mean_dp:.5}"
+        );
     }
 
     /// 同种子可复现（确定性 PRNG，bit-exact）。
@@ -2095,14 +2366,19 @@ mod tests {
         assert_ne!(a.bars, c.bars, "不同种子序列不同");
     }
 
-
     /// 符号检验 p 值已知值（二项 Bin(n,0.5) 上单边）。
     #[test]
     fn sign_test_known_values() {
         // 8 全正：P(X≥8|Bin(8,.5)) = 1/256 ≈ 0.0039。
-        assert!((sign_test_pvalue(8, 8) - 1.0 / 256.0).abs() < 1e-9, "8/8 正 p=1/256");
+        assert!(
+            (sign_test_pvalue(8, 8) - 1.0 / 256.0).abs() < 1e-9,
+            "8/8 正 p=1/256"
+        );
         // 7/8 正：P(X≥7) = (C(8,7)+C(8,8))/256 = 9/256 ≈ 0.0352 < 0.05。
-        assert!((sign_test_pvalue(7, 8) - 9.0 / 256.0).abs() < 1e-9, "7/8 正 p=9/256<0.05");
+        assert!(
+            (sign_test_pvalue(7, 8) - 9.0 / 256.0).abs() < 1e-9,
+            "7/8 正 p=9/256<0.05"
+        );
         // 6/8 正：P(X≥6) = (28+8+1)/256 = 37/256 ≈ 0.1445 > 0.05（codex：6/8 不够）。
         assert!(sign_test_pvalue(6, 8) > 0.05, "6/8 正 p>0.05（不达系统性）");
         // 4/8（半数）：p > 0.5（不显著）。
@@ -2123,26 +2399,45 @@ mod tests {
         let gap = CROSSFIT_GAP;
         for k in 0..CROSSFIT_K {
             let ho_lo = k * fold_len;
-            let ho_hi = if k == CROSSFIT_K - 1 { cut } else { (k + 1) * fold_len };
+            let ho_hi = if k == CROSSFIT_K - 1 {
+                cut
+            } else {
+                (k + 1) * fold_len
+            };
             // 前段 train [0, ho_lo−gap)：末端到 held-out 起隔 gap。
             if ho_lo >= gap + MIN_TEST_BARS {
                 let pre_hi = ho_lo - gap;
                 assert!(pre_hi <= ho_lo, "前段 train 不进 held-out");
-                assert!(ho_lo - pre_hi >= gap, "前段 train 与 held-out 隔 ≥gap：{}", ho_lo - pre_hi);
+                assert!(
+                    ho_lo - pre_hi >= gap,
+                    "前段 train 与 held-out 隔 ≥gap：{}",
+                    ho_lo - pre_hi
+                );
             }
             // 后段 train [ho_hi+gap, cut)：起点到 held-out 末隔 gap。
             if ho_hi + gap + MIN_TEST_BARS <= cut {
                 let post_lo = ho_hi + gap;
                 assert!(post_lo >= ho_hi, "后段 train 不进 held-out");
-                assert!(post_lo - ho_hi >= gap, "后段 train 与 held-out 隔 ≥gap：{}", post_lo - ho_hi);
+                assert!(
+                    post_lo - ho_hi >= gap,
+                    "后段 train 与 held-out 隔 ≥gap：{}",
+                    post_lo - ho_hi
+                );
             }
         }
         // fold 覆盖完备（末 fold 吃余数）：Σfold = cut，无缝隙无重叠。
         let mut covered = 0usize;
         for k in 0..CROSSFIT_K {
             let lo = k * fold_len;
-            let hi = if k == CROSSFIT_K - 1 { cut } else { (k + 1) * fold_len };
-            assert_eq!(lo, covered, "fold 无缝隙：fold {k} 起={lo} 应接上轮末={covered}");
+            let hi = if k == CROSSFIT_K - 1 {
+                cut
+            } else {
+                (k + 1) * fold_len
+            };
+            assert_eq!(
+                lo, covered,
+                "fold 无缝隙：fold {k} 起={lo} 应接上轮末={covered}"
+            );
             covered = hi;
         }
         assert_eq!(covered, cut, "K 个 fold 覆盖全 cut（末 fold 吃余数）");
@@ -2167,7 +2462,11 @@ mod tests {
         let st = delta_r_stats(&base, &chi, 1.0e6, 252.0);
         assert!(st.chi_changed_trades, "χ≠baseline ⟹ ΔN 非全等");
         assert!(st.mean > 0.0, "χ 主导 ⟹ mean(ΔR)>0，实得 {}", st.mean);
-        assert!(st.boot_pvalue < 0.05, "恒正 ΔR ⟹ bootstrap p<0.05（拒绝 H0:ΔR≤0），实得 {}", st.boot_pvalue);
+        assert!(
+            st.boot_pvalue < 0.05,
+            "恒正 ΔR ⟹ bootstrap p<0.05（拒绝 H0:ΔR≤0），实得 {}",
+            st.boot_pvalue
+        );
     }
 
     /// ΔR 序列统计：χ 权益增量恒小于 baseline ⟹ mean(ΔR)<0 ∧ boot p≈1（否证能力——不冒充正 alpha）。
@@ -2177,7 +2476,11 @@ mod tests {
         let chi = vec![1.0; 300]; // χ 权益恒定（增量 0）⟹ ΔR=0−base 增量<0
         let st = delta_r_stats(&base, &chi, 1.0e6, 252.0);
         assert!(st.mean < 0.0, "χ 劣于 baseline ⟹ mean(ΔR)<0");
-        assert!(st.boot_pvalue > 0.95, "恒负 ΔR ⟹ bootstrap p≈1（无法拒绝 H0，正确否证），实得 {}", st.boot_pvalue);
+        assert!(
+            st.boot_pvalue > 0.95,
+            "恒负 ΔR ⟹ bootstrap p≈1（无法拒绝 H0，正确否证），实得 {}",
+            st.boot_pvalue
+        );
     }
 
     /// **★P0 口径修复回归测试（delta-r-audit）**：NAV 路径发散时，绝对增量配对差 ≠ 百分比收益配对差。
@@ -2202,9 +2505,7 @@ mod tests {
         );
 
         // (2) 旧口径（百分比收益配对差）：r_t = E_t/E_{t−1}−1，除数发散 ⟹ 配对差 ≠0。
-        let pct = |e: &[f64]| -> Vec<f64> {
-            e.windows(2).map(|w| w[1] / w[0] - 1.0).collect()
-        };
+        let pct = |e: &[f64]| -> Vec<f64> { e.windows(2).map(|w| w[1] / w[0] - 1.0).collect() };
         let pct_base = pct(&base);
         let pct_chi = pct(&chi);
         let pct_pair_diff_mean: f64 = pct_chi
@@ -2232,7 +2533,10 @@ mod tests {
         let ds = synthetic_martingale(3000, 20260704, 100);
         let ledger = typed_ledger_from_bars(&ds.bars, &cfg);
         let (_est, records) = build_mu_from_bars(&ds.bars, &cfg, 0);
-        assert!(!ledger.is_empty(), "合成鞅 3000 bar 产非空 ledger（否则测试空转）");
+        assert!(
+            !ledger.is_empty(),
+            "合成鞅 3000 bar 产非空 ledger（否则测试空转）"
+        );
         // 主断言：两级守恒零违例（内部 panic = 分区破缺）。
         assert_m3_partition(&ledger, &records);
 
@@ -2245,7 +2549,11 @@ mod tests {
                 LedgerDisposition::NonPositivePx => nonpos += 1,
             }
         }
-        assert_eq!(kept + same_bar + nonpos, ledger.len(), "三态穷尽覆盖 ledger");
+        assert_eq!(
+            kept + same_bar + nonpos,
+            ledger.len(),
+            "三态穷尽覆盖 ledger"
+        );
         assert_eq!(kept, records.len(), "Kept ≡ |records|（生产口径一致）");
         eprintln!(
             "[m3-partition-synth] |ledger|={} kept={kept} same_bar={same_bar} nonpos={nonpos} |records|={}",
@@ -2261,16 +2569,43 @@ mod tests {
         use super::super::mu_estimator::{MuClass, PositionState, ResidualTrade};
         use crate::theta_v0::types::BspBits;
         // from_certificate 的 parent_dir 直接透传进 MuClass.parent_dir ⟹ 传 5 造越界 record。
-        let bits = BspBits { buy3: true, ..Default::default() };
+        let bits = BspBits {
+            buy3: true,
+            ..Default::default()
+        };
         let class = MuClass::from_certificate(0, 1, bits, 5, PositionState::Child);
-        let bad = ResidualTrade { class, resid_base: 1.0, cost: 0.1, h_bucket: 0, time_block: 0, d: 1.0, exit_type: crate::theta_v0::strategy::interp::ExitType::Hold };
-        let caught = std::panic::catch_unwind(|| assert_m3_partition(&[], std::slice::from_ref(&bad)));
-        assert!(caught.is_err(), "parent_dir=5 越界必触发 M3 值域封闭 panic（否则断言是死代码）");
+        let bad = ResidualTrade {
+            class,
+            resid_base: 1.0,
+            cost: 0.1,
+            h_bucket: 0,
+            time_block: 0,
+            d: 1.0,
+            exit_type: crate::theta_v0::strategy::interp::ExitType::Hold,
+        };
+        let caught =
+            std::panic::catch_unwind(|| assert_m3_partition(&[], std::slice::from_ref(&bad)));
+        assert!(
+            caught.is_err(),
+            "parent_dir=5 越界必触发 M3 值域封闭 panic（否则断言是死代码）"
+        );
 
         // 正向对照：合法 record 空 ledger ⟹ kept=0≠|records|=1，守恒 1 应 panic（穷尽守恒真实生效）。
         let good_class = MuClass::from_certificate(0, 1, bits, 1, PositionState::Root);
-        let good = ResidualTrade { class: good_class, resid_base: 1.0, cost: 0.1, h_bucket: 0, time_block: 0, d: 1.0, exit_type: crate::theta_v0::strategy::interp::ExitType::Hold };
-        let caught2 = std::panic::catch_unwind(|| assert_m3_partition(&[], std::slice::from_ref(&good)));
-        assert!(caught2.is_err(), "kept=0≠|records|=1 必触发穷尽守恒 panic（守恒 1 真实生效）");
+        let good = ResidualTrade {
+            class: good_class,
+            resid_base: 1.0,
+            cost: 0.1,
+            h_bucket: 0,
+            time_block: 0,
+            d: 1.0,
+            exit_type: crate::theta_v0::strategy::interp::ExitType::Hold,
+        };
+        let caught2 =
+            std::panic::catch_unwind(|| assert_m3_partition(&[], std::slice::from_ref(&good)));
+        assert!(
+            caught2.is_err(),
+            "kept=0≠|records|=1 必触发穷尽守恒 panic（守恒 1 真实生效）"
+        );
     }
 }

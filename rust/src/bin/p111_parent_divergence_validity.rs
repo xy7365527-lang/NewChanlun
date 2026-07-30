@@ -146,7 +146,10 @@ fn typed_b(e: &NestCandidateEvent) -> NestInterval {
     }
 }
 
-fn terminal_bits_new(classification: &Classification, event: &NestCandidateEvent) -> Option<BspBits> {
+fn terminal_bits_new(
+    classification: &Classification,
+    event: &NestCandidateEvent,
+) -> Option<BspBits> {
     classification
         .levels
         .get(event.level as usize)?
@@ -206,7 +209,8 @@ fn measure_level(
             (Some(start), false) => {
                 let projection = project_extended_windows_carried_only(&windows[start..index])
                     .map_err(|error| format!("L{level} run 投影失败: {error:?}"))?;
-                let centers: Vec<Center> = projection.seeds.iter().map(|seed| seed.center).collect();
+                let centers: Vec<Center> =
+                    projection.seeds.iter().map(|seed| seed.center).collect();
                 let blocks = decompose::decompose(&centers);
                 let query = LevelViewQuery {
                     level: level as u32,
@@ -232,8 +236,10 @@ fn measure_level(
                 .map_err(|error| format!("L{level} C2 assemble 失败: {error:?}"))?;
                 data.runs += 1;
                 for pair in view.moves.windows(2) {
-                    let (CompletionStatus::Completed { evidence: ev0, .. }, CompletionStatus::Completed { .. }) =
-                        (&pair[0].completion, &pair[1].completion)
+                    let (
+                        CompletionStatus::Completed { evidence: ev0, .. },
+                        CompletionStatus::Completed { .. },
+                    ) = (&pair[0].completion, &pair[1].completion)
                     else {
                         continue;
                     };
@@ -242,7 +248,10 @@ fn measure_level(
                         end: pair[1].end_index,
                         leave_kind: pair[0].kind,
                         leave_dir: pair[0].direction,
-                        leave_via_divergence: matches!(ev0, CompletionEvidence::TerminalDivergence { .. }),
+                        leave_via_divergence: matches!(
+                            ev0,
+                            CompletionEvidence::TerminalDivergence { .. }
+                        ),
                     });
                 }
                 let run_events = provide_nest_candidate_events(
@@ -340,7 +349,8 @@ fn chain_dp_count(levels: &[LevelData]) -> u128 {
     if levels.is_empty() {
         return 0;
     }
-    let mut previous: Vec<(usize, u128)> = levels[0].pairs.iter().map(|_| (1usize, 1u128)).collect();
+    let mut previous: Vec<(usize, u128)> =
+        levels[0].pairs.iter().map(|_| (1usize, 1u128)).collect();
     for level_index in 1..levels.len() {
         let lower_pairs = &levels[level_index - 1].pairs;
         let mut current = Vec::with_capacity(levels[level_index].pairs.len());
@@ -514,10 +524,8 @@ fn reconcile_chain(
                 inclusion_rows.push(InclusionRow {
                     chain_id: id,
                     kill_level: level,
-                    base_turn: events_of(0)[
-                        *term_bases.first().expect("nonempty term_bases")
-                    ]
-                    .turn_source,
+                    base_turn: events_of(0)[*term_bases.first().expect("nonempty term_bases")]
+                        .turn_source,
                     child: event_key(&events_of(k - 1)[child_idx]),
                     parents: pool.iter().map(|&i| event_key(&events_of(k)[i])).collect(),
                 });
@@ -624,16 +632,32 @@ fn test_parent(
     let (s, end) = e.interval_b;
     let long = matches!(e.side, Side::Long);
     let c_extreme: Tick = if long {
-        bars[s..=end].iter().map(|b| b.low).min().unwrap_or(Tick::MAX)
+        bars[s..=end]
+            .iter()
+            .map(|b| b.low)
+            .min()
+            .unwrap_or(Tick::MAX)
     } else {
-        bars[s..=end].iter().map(|b| b.high).max().unwrap_or(Tick::MIN)
+        bars[s..=end]
+            .iter()
+            .map(|b| b.high)
+            .max()
+            .unwrap_or(Tick::MIN)
     };
     let (threshold_name, threshold) = match (center, &e.kind) {
         (Some(c), NestDivergenceKind::Trend) => {
-            if long { ("DD(B)", c.dd) } else { ("GG(B)", c.gg) }
+            if long {
+                ("DD(B)", c.dd)
+            } else {
+                ("GG(B)", c.gg)
+            }
         }
         (Some(c), NestDivergenceKind::Consolidation) => {
-            if long { ("ZD(A)", c.zd) } else { ("ZG(A)", c.zg) }
+            if long {
+                ("ZD(A)", c.zd)
+            } else {
+                ("ZG(A)", c.zg)
+            }
         }
         (None, _) => ("NA", 0),
     };
@@ -643,13 +667,21 @@ fn test_parent(
         for i in (end + 1)..bars.len() {
             let b = &bars[i];
             if t_touch < 0 {
-                let touched = if long { b.high >= threshold } else { b.low <= threshold };
+                let touched = if long {
+                    b.high >= threshold
+                } else {
+                    b.low <= threshold
+                };
                 if touched {
                     t_touch = i as i64;
                 }
             }
             if t_break < 0 {
-                let broke = if long { b.low < c_extreme } else { b.high > c_extreme };
+                let broke = if long {
+                    b.low < c_extreme
+                } else {
+                    b.high > c_extreme
+                };
                 if broke {
                     t_break = i as i64;
                 }
@@ -674,9 +706,9 @@ fn test_parent(
                     "SAME_BAR" // 1m bar 内时序不可知，单列
                 }
             }
-            (true, false) => "TOUCH_NO_BREAK",   // (b)：定理后果已兑现，极值未再破
-            (false, true) => "BREAK_NO_TOUCH",   // (a*)：破极值且至数据末未触阈值
-            (false, false) => "NEITHER",         // 中枢下方横盘，单列观察
+            (true, false) => "TOUCH_NO_BREAK", // (b)：定理后果已兑现，极值未再破
+            (false, true) => "BREAK_NO_TOUCH", // (a*)：破极值且至数据末未触阈值
+            (false, false) => "NEITHER",       // 中枢下方横盘，单列观察
         }
     };
     ParentVerdict {
@@ -712,9 +744,10 @@ fn find_event<'a>(
     turn_source: usize,
     interval_b: (usize, usize),
 ) -> Option<&'a NestCandidateEvent> {
-    events_by_level.get(level)?.iter().find(|e| {
-        e.turn_source == turn_source && e.interval_b == interval_b
-    })
+    events_by_level
+        .get(level)?
+        .iter()
+        .find(|e| e.turn_source == turn_source && e.interval_b == interval_b)
 }
 
 // ───────────────────────── main ─────────────────────────
@@ -783,7 +816,11 @@ fn main() -> Result<(), String> {
         );
         levels.push(data);
     }
-    println!("P111_CENTER_RECOVERY recovered={} miss={}", centers_map.len(), center_miss);
+    println!(
+        "P111_CENTER_RECOVERY recovered={} miss={}",
+        centers_map.len(),
+        center_miss
+    );
 
     // ── 硬锚①：事件总数复现 P92_YIELD / P109_ANCHOR_EVENTS ──
     let total_events: usize = levels.iter().map(|l| l.events.len()).sum();
@@ -822,7 +859,10 @@ fn main() -> Result<(), String> {
                         .identities()
                         .iter()
                         .map(|id| {
-                            format!("{}:{}:{}-{}", id.level, id.turn_source, id.interval_b.0, id.interval_b.1)
+                            format!(
+                                "{}:{}:{}-{}",
+                                id.level, id.turn_source, id.interval_b.0, id.interval_b.1
+                            )
                         })
                         .collect::<Vec<_>>()
                         .join("|");
@@ -894,7 +934,10 @@ fn main() -> Result<(), String> {
             gate, count
         );
     }
-    println!("P111_INCLUSION_ROWS rows={}（frontier 子×父池全展开，可多于 30）", inclusion_rows.len());
+    println!(
+        "P111_INCLUSION_ROWS rows={}（frontier 子×父池全展开，可多于 30）",
+        inclusion_rows.len()
+    );
 
     // ── A 证书宇宙 is_sub@B 判负边（含 p102 五边锚）──
     // p102 §3 五条边：(base_turn, parent_turn)；前四条 L2→L1，末条 L3→L2。
@@ -999,7 +1042,10 @@ fn main() -> Result<(), String> {
         };
         let center = centers_map.get(key).copied();
         let mut v = test_parent(e, center, bars, *control);
-        v.edges_using = inclusion_rows.iter().filter(|r| r.parents.contains(key)).count()
+        v.edges_using = inclusion_rows
+            .iter()
+            .filter(|r| r.parents.contains(key))
+            .count()
             + cert_edges.iter().filter(|r| &r.parent == key).count();
         verdicts.insert(*key, v);
     }
@@ -1013,87 +1059,79 @@ fn main() -> Result<(), String> {
 
     let emit_edge = |src: &str,
                      id_label: String,
-         base_turn: usize,
-         kill_level: usize,
-         child_k: &EventKey,
-         parent_k: &EventKey,
-         verdicts: &BTreeMap<EventKey, ParentVerdict>,
-         events_by_level: &[Vec<NestCandidateEvent>],
-         edge_rows_out: &mut Vec<String>,
-         sub_counts: &mut BTreeMap<&'static str, usize>|
-         -> bool {
-            let Some(v) = verdicts.get(parent_k) else {
-                edge_rows_out.push(format!("P111_EDGE {src} {id_label} parent={} NO_VERDICT", fmt_key(parent_k)));
-                return false;
-            };
-            let child = find_event(
-                events_by_level,
-                child_k.0 as usize,
-                child_k.5,
-                child_k.4,
-            );
-            let parent = find_event(
-                events_by_level,
-                parent_k.0 as usize,
-                parent_k.5,
-                parent_k.4,
-            );
-            let (Some(child), Some(parent)) = (child, parent) else {
-                edge_rows_out.push(format!("P111_EDGE {src} {id_label} LOOKUP_FAIL"));
-                return false;
-            };
-            let child_b = child.interval_b;
-            let parent_b = parent.interval_b;
-            let left_gap = child_b.0 as i64 - parent_b.0 as i64;
-            let right_gap = parent_b.1 as i64 - child_b.1 as i64;
-            let shape = if child_b.0 > parent_b.1 {
-                "child_right_of_parent"
-            } else if child_b.1 < parent_b.0 {
-                "child_left_of_parent"
-            } else {
-                "overlap_not_contained"
-            };
-            let child_end = child_b.1 as i64;
-            let touch_in_window = v.t_touch >= 0 && v.t_touch <= child_end;
-            let break_in_window = v.t_break >= 0 && v.t_break <= child_end;
-            // (a*) 细分（doc §5.2）：仅 BREAK_* 且 shape=right 时重锚才有意义。
-            let mut sub = "-";
-            let mut area_a = f64::NAN;
-            let mut area_cx = f64::NAN;
-            let mut revivable = false;
-            if matches!(v.verdict, "BREAK_BEFORE_TOUCH" | "BREAK_NO_TOUCH") {
-                if !v.divergence_confirmed {
-                    sub = "a3"; // 父级层面本无背驰力度结构（级别误判型）
-                } else if shape == "child_right_of_parent" {
-                    let a_map = map_src_to_close_idx(&close_src, parent.seg_a.0, parent.seg_a.1);
-                    let cx_map = map_src_to_close_idx(&close_src, parent_b.0, child_b.1);
-                    if let (Some(a), Some(cx)) = (a_map, cx_map) {
-                        area_a = segment_macd_area(&hist, a.0, a.1);
-                        area_cx = segment_macd_area(&hist, cx.0, cx.1);
-                        if area_cx < area_a {
-                            sub = "a1"; // 背驰段仍在延伸 → 可重锚
-                            // 重锚父区间 (seg_c.0, child.end) 的闭包含检查。
-                            revivable = left_gap >= 0;
-                        } else {
-                            sub = "a2"; // 力度转强 → 父证无效
-                        }
+                     base_turn: usize,
+                     kill_level: usize,
+                     child_k: &EventKey,
+                     parent_k: &EventKey,
+                     verdicts: &BTreeMap<EventKey, ParentVerdict>,
+                     events_by_level: &[Vec<NestCandidateEvent>],
+                     edge_rows_out: &mut Vec<String>,
+                     sub_counts: &mut BTreeMap<&'static str, usize>|
+     -> bool {
+        let Some(v) = verdicts.get(parent_k) else {
+            edge_rows_out.push(format!(
+                "P111_EDGE {src} {id_label} parent={} NO_VERDICT",
+                fmt_key(parent_k)
+            ));
+            return false;
+        };
+        let child = find_event(events_by_level, child_k.0 as usize, child_k.5, child_k.4);
+        let parent = find_event(events_by_level, parent_k.0 as usize, parent_k.5, parent_k.4);
+        let (Some(child), Some(parent)) = (child, parent) else {
+            edge_rows_out.push(format!("P111_EDGE {src} {id_label} LOOKUP_FAIL"));
+            return false;
+        };
+        let child_b = child.interval_b;
+        let parent_b = parent.interval_b;
+        let left_gap = child_b.0 as i64 - parent_b.0 as i64;
+        let right_gap = parent_b.1 as i64 - child_b.1 as i64;
+        let shape = if child_b.0 > parent_b.1 {
+            "child_right_of_parent"
+        } else if child_b.1 < parent_b.0 {
+            "child_left_of_parent"
+        } else {
+            "overlap_not_contained"
+        };
+        let child_end = child_b.1 as i64;
+        let touch_in_window = v.t_touch >= 0 && v.t_touch <= child_end;
+        let break_in_window = v.t_break >= 0 && v.t_break <= child_end;
+        // (a*) 细分（doc §5.2）：仅 BREAK_* 且 shape=right 时重锚才有意义。
+        let mut sub = "-";
+        let mut area_a = f64::NAN;
+        let mut area_cx = f64::NAN;
+        let mut revivable = false;
+        if matches!(v.verdict, "BREAK_BEFORE_TOUCH" | "BREAK_NO_TOUCH") {
+            if !v.divergence_confirmed {
+                sub = "a3"; // 父级层面本无背驰力度结构（级别误判型）
+            } else if shape == "child_right_of_parent" {
+                let a_map = map_src_to_close_idx(&close_src, parent.seg_a.0, parent.seg_a.1);
+                let cx_map = map_src_to_close_idx(&close_src, parent_b.0, child_b.1);
+                if let (Some(a), Some(cx)) = (a_map, cx_map) {
+                    area_a = segment_macd_area(&hist, a.0, a.1);
+                    area_cx = segment_macd_area(&hist, cx.0, cx.1);
+                    if area_cx < area_a {
+                        sub = "a1"; // 背驰段仍在延伸 → 可重锚
+                                    // 重锚父区间 (seg_c.0, child.end) 的闭包含检查。
+                        revivable = left_gap >= 0;
                     } else {
-                        sub = "a_unmap";
+                        sub = "a2"; // 力度转强 → 父证无效
                     }
                 } else {
-                    sub = "a_shape_not_right";
+                    sub = "a_unmap";
                 }
+            } else {
+                sub = "a_shape_not_right";
             }
-            *sub_counts.entry(sub).or_insert(0) += 1;
-            edge_rows_out.push(format!(
+        }
+        *sub_counts.entry(sub).or_insert(0) += 1;
+        edge_rows_out.push(format!(
                 "P111_EDGE src={} {} base_turn={} edge_to_L{} child={} parent={} shape={} left_gap={} right_gap={} verdict={} sub={} t_touch={} t_break={} child_end={} touch_in_window={} break_in_window={} area_a={:.4} area_c_ext={:.4} revivable={}",
                 src, id_label, base_turn, kill_level, fmt_key(child_k), fmt_key(parent_k),
                 shape, left_gap, right_gap, v.verdict, sub, v.t_touch, v.t_break, child_end,
                 touch_in_window, break_in_window, area_a, area_cx, revivable
             ));
-            revivable
-        };
-
+        revivable
+    };
 
     for row in &inclusion_rows {
         for parent_k in &row.parents {
@@ -1119,7 +1157,10 @@ fn main() -> Result<(), String> {
     for row in &cert_edges {
         let ok = emit_edge(
             "CERTA",
-            format!("exec={} top={} side={:?} p102_anchor={}", row.exec, row.top, row.side, row.p102_anchor),
+            format!(
+                "exec={} top={} side={:?} p102_anchor={}",
+                row.exec, row.top, row.side, row.p102_anchor
+            ),
             row.base_turn,
             row.parent.0 as usize,
             &row.child,

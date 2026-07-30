@@ -217,7 +217,10 @@ pub fn prove_n1_forest(voices: &[SpiralVoice], bar: i64) -> usize {
                 roots += 1;
             } else {
                 let p = v.parent.expect("非根有父");
-                assert!(p < voices.len(), "N1 违反@bar {bar}：voice {id} 父 id {p} 越界");
+                assert!(
+                    p < voices.len(),
+                    "N1 违反@bar {bar}：voice {id} 父 id {p} 越界"
+                );
                 assert!(
                     voices[p].is_active(),
                     "N1 违反@bar {bar}：孤儿——active voice {id} 的父 {p} 已 Closed"
@@ -228,10 +231,17 @@ pub fn prove_n1_forest(voices: &[SpiralVoice], bar: i64) -> usize {
                 );
             }
         }
-        let live_kids = v.children.iter().filter(|&&k| voices[k].is_active()).count();
+        let live_kids = v
+            .children
+            .iter()
+            .filter(|&&k| voices[k].is_active())
+            .count();
         max_children = max_children.max(live_kids);
     }
-    assert!(roots <= 1, "N1 违反@bar {bar}：{roots} 个 active root（单根不变量）");
+    assert!(
+        roots <= 1,
+        "N1 违反@bar {bar}：{roots} 个 active root（单根不变量）"
+    );
     max_children
 }
 
@@ -240,7 +250,10 @@ pub fn prove_n1_forest(voices: &[SpiralVoice], bar: i64) -> usize {
 pub fn prove_n2_per_voice(acted_ids: &[usize], bar: i64) {
     for (i, &a) in acted_ids.iter().enumerate() {
         for &b in &acted_ids[i + 1..] {
-            assert!(a != b, "N2 违反@bar {bar}：voice {a} 同 bar 双动（per-voice acted_bar 失效）");
+            assert!(
+                a != b,
+                "N2 违反@bar {bar}：voice {a} 同 bar 双动（per-voice acted_bar 失效）"
+            );
         }
     }
 }
@@ -274,8 +287,18 @@ pub fn prove_n7_spawn_self_level(trigger_ladder: usize, voice_ladder: usize, bar
 
 /// **N8（双层会计多空嵌套守恒，第22环）**：① `Σ(active units) = n_base`（股数守恒）；
 /// ② 同价 c 操作前后 NAV 不变（价值中性）。violation = panic。
-pub fn prove_n8_conservation(voices: &[SpiralVoice], n_base: f64, nav_pre: f64, nav_post: f64, bar: i64) {
-    let sum_units: f64 = voices.iter().filter(|v| v.is_active()).map(|v| v.units).sum();
+pub fn prove_n8_conservation(
+    voices: &[SpiralVoice],
+    n_base: f64,
+    nav_pre: f64,
+    nav_post: f64,
+    bar: i64,
+) {
+    let sum_units: f64 = voices
+        .iter()
+        .filter(|v| v.is_active())
+        .map(|v| v.units)
+        .sum();
     assert!(
         (sum_units - n_base).abs() <= 1e-6 * n_base.max(1.0),
         "N8 违反@bar {bar}：Σunits={sum_units} ≠ N_base={n_base}（股数守恒 §8.1）"
@@ -301,9 +324,16 @@ pub fn prove_a5_relabel(units_post: f64, units_pre: f64, nav_post: f64, nav_pre:
 
 /// **T14（根多空对称翻转，第21环）+ A5 运行时证明**：根 in-place 翻转后 ① 极性反转；
 /// ② 森林仍单根；③ units 守恒（M=N）。violation = panic。
-pub fn prove_t14_root_flip(voices: &[SpiralVoice], rid: usize, old_dir: Polarity, units_pre: f64, bar: i64) {
+pub fn prove_t14_root_flip(
+    voices: &[SpiralVoice],
+    rid: usize,
+    old_dir: Polarity,
+    units_pre: f64,
+    bar: i64,
+) {
     assert_ne!(
-        voices[rid].dir(), old_dir,
+        voices[rid].dir(),
+        old_dir,
         "T14 违反@bar {bar}：根就地翻转后极性未反转（dir 仍 {old_dir:?}）"
     );
     assert!(
@@ -315,7 +345,10 @@ pub fn prove_t14_root_flip(voices: &[SpiralVoice], rid: usize, old_dir: Polarity
         .iter()
         .filter(|v| !matches!(v.status, VoiceStatus::Closed) && v.parent.is_none())
         .count();
-    assert_eq!(roots, 1, "T14 违反@bar {bar}：翻转后 {roots} 个 active root（in-place flip 应保持单根）");
+    assert_eq!(
+        roots, 1,
+        "T14 违反@bar {bar}：翻转后 {roots} 个 active root（in-place flip 应保持单根）"
+    );
 }
 
 /// **T1（不主动清仓，第23环恒仓）运行时证明**：① 森林"非空→空"⟹ `root_liquidated`
@@ -398,7 +431,11 @@ pub fn sub_level_counter_fire(
     nf_sell: &[Option<f64>; MAX_LADDER],
     nf_buy: &[Option<f64>; MAX_LADDER],
 ) -> (bool, usize) {
-    let close_ladder = if ladder > FIRST_BSP_LADDER { ladder - 1 } else { ladder };
+    let close_ladder = if ladder > FIRST_BSP_LADDER {
+        ladder - 1
+    } else {
+        ladder
+    };
     let fire = match dir {
         Polarity::Long => nf_sell[close_ladder].is_some(),
         Polarity::Short => nf_buy[close_ladder].is_some(),
@@ -568,9 +605,13 @@ mod tests {
         // 期望不符的场景——通过传入不该匹配 +1 的环境。这里直接验证：若 σ 的
         // 平移被错误期望为 +1（而实为 +23），断言 fire。手工构造错位：
         let g = GroupElement::sigma(); // 平移 +23
-        // 故意用 AngularStep 的期望（+1）对照 σ 的作用（+23）⇒ 不符 ⇒ panic。
+                                       // 故意用 AngularStep 的期望（+1）对照 σ 的作用（+23）⇒ 不符 ⇒ panic。
         for &n in &HELIX_SAMPLES {
-            assert_eq!(g.act_helix(n), n + 1, "act_helix 错位反证（σ 实为 +23 ≠ +1，n={n}）");
+            assert_eq!(
+                g.act_helix(n),
+                n + 1,
+                "act_helix 错位反证（σ 实为 +23 ≠ +1，n={n}）"
+            );
         }
     }
 
@@ -643,7 +684,10 @@ mod tests {
         let (fire, close_lad) =
             sub_level_counter_fire(Polarity::Short, FIRST_BSP_LADDER, &nf_sell, &nf_buy);
         assert!(fire, "边界：空头@FIRST_BSP 闭合读自层 nf_buy[FIRST_BSP]");
-        assert_eq!(close_lad, FIRST_BSP_LADDER, "边界保护：无次级别 ⇒ close_ladder=ladder");
+        assert_eq!(
+            close_lad, FIRST_BSP_LADDER,
+            "边界保护：无次级别 ⇒ close_ladder=ladder"
+        );
     }
 
     #[test]
@@ -663,7 +707,7 @@ mod tests {
         let mut nf_sell: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         let nf_buy: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
         nf_sell[3] = Some(10.0); // 次级别 fire（规范=true）
-        // 漂移实现读自层 nf_sell[4]=None ⇒ op_trigger=false，与规范 true 不符。
+                                 // 漂移实现读自层 nf_sell[4]=None ⇒ op_trigger=false，与规范 true 不符。
         prove_sub_level_symmetric(Polarity::Long, 4, false, 3, &nf_sell, &nf_buy, 0);
     }
 }

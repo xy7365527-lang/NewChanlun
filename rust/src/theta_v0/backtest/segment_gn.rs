@@ -41,7 +41,10 @@ mod tests {
         let config = ThetaConfig::default();
         let mut ds = data::load_by_symbol("BTC", &config)
             .expect("需 BTC 数据（analysis/data_cache/btc_1m_full.json）");
-        if let Some(k) = std::env::var(crate::theta_v0::env_registry::S2_BARS).ok().and_then(|s| s.parse::<usize>().ok()) {
+        if let Some(k) = std::env::var(crate::theta_v0::env_registry::S2_BARS)
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+        {
             ds.bars.truncate(k);
         }
         let layer = parse_layer(&ds.bars, &config);

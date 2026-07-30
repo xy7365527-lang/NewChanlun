@@ -60,7 +60,14 @@ impl SpiralVoice {
     ///
     /// Step 0 仅提供数据构造；basis/capital 的会计语义（多头 capital=0 /
     /// 空头冻结现金）在 Step 1 由 `accounting.rs` 强制。
-    pub fn new(state: SpiralState, units: f64, basis: f64, capital: f64, entry_bar: i64, parent: Option<usize>) -> Self {
+    pub fn new(
+        state: SpiralState,
+        units: f64,
+        basis: f64,
+        capital: f64,
+        entry_bar: i64,
+        parent: Option<usize>,
+    ) -> Self {
         SpiralVoice {
             state,
             units,

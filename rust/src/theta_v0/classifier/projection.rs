@@ -35,11 +35,12 @@ pub fn anchor_resolver<'a>(
     fractals: &'a [Fractal],
     merged_bars: &'a [Bar],
 ) -> impl Fn(usize) -> Option<(Tick, usize)> + 'a {
-    move |x| {
-        match (fractal_at_source(fractals, x), merged_group_anchor(merged_bars, x)) {
-            (Some(f), Some(a)) => Some((f.price, a)),
-            _ => None,
-        }
+    move |x| match (
+        fractal_at_source(fractals, x),
+        merged_group_anchor(merged_bars, x),
+    ) {
+        (Some(f), Some(a)) => Some((f.price, a)),
+        _ => None,
     }
 }
 
@@ -60,7 +61,9 @@ impl LevelProjectionConfig {
     /// 形态锁；独立双门被否：「链开层关」错位态须靠断言禁掉，等于承认两门本不可独立，
     /// #168 裁定 3）。
     pub fn for_chain(chain_enabled: bool) -> Self {
-        Self { enabled: chain_enabled }
+        Self {
+            enabled: chain_enabled,
+        }
     }
 }
 
@@ -202,16 +205,17 @@ impl LevelProjectionLayer {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::super::types::{BspBits, FractalKind};
+    use super::*;
 
     /// 门关守护：默认配置下不构造任何投影层（零开销红线）。
     #[test]
     fn constructs_nothing() {
         let config = LevelProjectionConfig::default();
         assert!(!config.enabled, "#110 门必须默认关");
-        let layer: Option<LevelProjectionLayer> =
-            config.enabled.then(|| unreachable!("门关分支不得构造 Layer"));
+        let layer: Option<LevelProjectionLayer> = config
+            .enabled
+            .then(|| unreachable!("门关分支不得构造 Layer"));
         assert!(layer.is_none());
     }
 
@@ -281,10 +285,15 @@ mod tests {
     #[test]
     fn triple_anchor_index_matches_t1_supply_lines() {
         let (fractals, merged) = supplies();
-        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let buy1 = BspBits {
+            buy1: true,
+            ..Default::default()
+        };
         let candidates = Rc::new(vec![point(4, buy1)]);
         let layer = LevelProjectionLayer::from_level(1, &candidates, &fractals, &merged);
-        let price = fractal_at_source(&fractals, 4).expect("夹具前提：x=4 有分型").price;
+        let price = fractal_at_source(&fractals, 4)
+            .expect("夹具前提：x=4 有分型")
+            .price;
         let anchor = merged_group_anchor(&merged, 4).expect("夹具前提：x=4 有组锚");
         let entries = layer
             .triple_anchor_index
@@ -292,7 +301,10 @@ mod tests {
             .expect("候选须按极值价登记（方向退役，不进键）");
         assert_eq!(
             entries.as_slice(),
-            &[TripleAnchorEntry { source_index: 4, group_anchor: anchor }],
+            &[TripleAnchorEntry {
+                source_index: 4,
+                group_anchor: anchor
+            }],
             "(极值价, 组锚) 须与 T1 供给线直出一致"
         );
         assert_eq!(layer.n_anchor_misses, 0);
@@ -303,25 +315,35 @@ mod tests {
     #[test]
     fn w_bottom_double_foot_same_key_distinct_anchors() {
         let (fractals, merged) = supplies();
-        let buy2 = BspBits { buy2: true, ..Default::default() };
+        let buy2 = BspBits {
+            buy2: true,
+            ..Default::default()
+        };
         let candidates = Rc::new(vec![point(4, buy2), point(10, buy2)]);
         let layer = LevelProjectionLayer::from_level(1, &candidates, &fractals, &merged);
-        let entries = layer
-            .triple_anchor_index
-            .get(&100)
-            .expect("同价双脚须同键");
+        let entries = layer.triple_anchor_index.get(&100).expect("同价双脚须同键");
         assert_eq!(
             entries.as_slice(),
             &[
-                TripleAnchorEntry { source_index: 4, group_anchor: 4 },
-                TripleAnchorEntry { source_index: 10, group_anchor: 10 },
+                TripleAnchorEntry {
+                    source_index: 4,
+                    group_anchor: 4
+                },
+                TripleAnchorEntry {
+                    source_index: 10,
+                    group_anchor: 10
+                },
             ],
             "双脚同键多条目、组锚各异、按坐标升序"
         );
         let receipt = layer.cross_level_query(100);
         assert_eq!(receipt.level, 1);
         assert_eq!(receipt.extreme_price, 100);
-        assert_eq!(receipt.matches.len(), 2, "描述体回执 = 双脚全量（计数 = len）");
+        assert_eq!(
+            receipt.matches.len(),
+            2,
+            "描述体回执 = 双脚全量（计数 = len）"
+        );
         assert_eq!(receipt.matches.as_slice(), entries.as_slice());
         // 异价前缀不命中 = 空回执（诚实无命中，非判负）。
         assert!(layer.cross_level_query(170).matches.is_empty());
@@ -333,11 +355,21 @@ mod tests {
     #[test]
     fn dual_side_confirmed_point_registers_under_both_keys() {
         let (fractals, merged) = supplies();
-        let both = BspBits { buy1: true, sell1: true, ..Default::default() };
+        let both = BspBits {
+            buy1: true,
+            sell1: true,
+            ..Default::default()
+        };
         let candidates = Rc::new(vec![point(8, both)]);
         let layer = LevelProjectionLayer::from_level(1, &candidates, &fractals, &merged);
-        let expected = [TripleAnchorEntry { source_index: 8, group_anchor: 8 }];
-        assert_eq!(layer.triple_anchor_index.get(&170).map(Vec::as_slice), Some(expected.as_slice()));
+        let expected = [TripleAnchorEntry {
+            source_index: 8,
+            group_anchor: 8,
+        }];
+        assert_eq!(
+            layer.triple_anchor_index.get(&170).map(Vec::as_slice),
+            Some(expected.as_slice())
+        );
         assert_eq!(
             layer.triple_anchor_index.len(),
             1,
@@ -355,14 +387,20 @@ mod tests {
     #[test]
     fn anchor_miss_skips_and_counts() {
         let (fractals, merged) = supplies();
-        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let buy1 = BspBits {
+            buy1: true,
+            ..Default::default()
+        };
         // x=5：合并组内（锚 4）但无分型 ⟹ 缺极值价；x=0：有分型（夹具外加）但先于首组 ⟹ 缺组锚。
         //（分型账本按 source_index 升序是 `fractal_at_source` 二分前提，插入须保序。）
         let mut fractals = fractals;
         fractals.insert(0, fractal(FractalKind::Bottom, 0, 42));
         let candidates = Rc::new(vec![point(5, buy1), point(0, buy1), point(4, buy1)]);
         let layer = LevelProjectionLayer::from_level(1, &candidates, &fractals, &merged);
-        assert_eq!(layer.n_anchor_misses, 2, "两种缺锚各计一次（有方向确认才计）");
+        assert_eq!(
+            layer.n_anchor_misses, 2,
+            "两种缺锚各计一次（有方向确认才计）"
+        );
         assert_eq!(
             layer.triple_anchor_index.len(),
             1,

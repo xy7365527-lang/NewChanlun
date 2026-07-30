@@ -94,9 +94,7 @@ use newchan_rust::theta_v0::classifier::nest::{
 use newchan_rust::theta_v0::classifier::recursive_tower::{map_src_to_close_idx, LeveledMove};
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::ParseLayerIncr;
-use newchan_rust::theta_v0::types::{
-    quantize, Bar, Center, Direction, Segment, Side, Timestamp,
-};
+use newchan_rust::theta_v0::types::{quantize, Bar, Center, Direction, Segment, Side, Timestamp};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -581,7 +579,6 @@ fn eval_l0_gate_chain(
     }
 }
 
-
 /// #218 面 B 研究 bin 锚供给说明（诚实，090）：owner 判同已换两族锚（一/三类核心区间
 /// 带判同经账本 `centers` 全功能；二类一类点身份锚判同需 T1 oracle + 事件锚账本）。
 /// 本 bin 是归档研究/审计工具，未接事件锚账本——二类判同锚不可解 = 诚实判负（与
@@ -590,7 +587,10 @@ fn bin_anchor_ctx() -> newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx<
     fn never(_: usize) -> Option<(newchan_rust::theta_v0::types::Tick, usize)> {
         None
     }
-    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx { anchor_at: &never, event_anchor: (None, None) }
+    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx {
+        anchor_at: &never,
+        event_anchor: (None, None),
+    }
 }
 
 fn main() -> Result<(), String> {
@@ -613,7 +613,11 @@ fn main() -> Result<(), String> {
     let as_of = max_bars - 1;
     println!(
         "P117_INPUT bars={} replay_bars={} as_of={} first_date={} last_date={}",
-        loaded.bars.len(), max_bars, as_of, loaded.first_date, loaded.last_date
+        loaded.bars.len(),
+        max_bars,
+        as_of,
+        loaded.first_date,
+        loaded.last_date
     );
     println!(
         "P117_RULE book=event_bsp_book_level(ℓ-1) window=CWindow[c_start,t*] hit=terminal_bits_at_event(生产单一来源) ca=Exact(敏感性对照) gates=L0叙事复刻(B=pair.last) verdict=event/pair_missing>tau>broke_core>a_pair>area>RESCUED>STILL_SILENT"
@@ -660,11 +664,10 @@ fn main() -> Result<(), String> {
         return Err("塔/分类级别不足（须 ≥2）".to_string());
     }
     // ── L0 门链材料（生产同源：段 = D2 侧 lower_legs_from(tower[0]) 同空间；anchors ≡ 自锚）──
-    let legs0 = lower_legs_from(&terminal.tower[0])
-        .map_err(|error| format!("L0 legs 失败: {error:?}"))?;
+    let legs0 =
+        lower_legs_from(&terminal.tower[0]).map_err(|error| format!("L0 legs 失败: {error:?}"))?;
     let segs_l0: Vec<Segment> = legs0.iter().map(leg_as_segment).collect();
-    let anchors0: Vec<Option<Direction>> =
-        segs_l0.iter().map(|s| Some(s.direction)).collect();
+    let anchors0: Vec<Option<Direction>> = segs_l0.iter().map(|s| Some(s.direction)).collect();
     let centers0 = &classification.levels[0].centers;
     let gate0 = center_trend_gate(centers0.len(), &classification.levels[0].moves);
     let (pair_map, pair_collisions) =
@@ -718,7 +721,9 @@ fn main() -> Result<(), String> {
                 }
             }
             None => {
-                warns.push("pair_missing —— #105 turn 重建无匹配 pair（复现缝隙，预期 0）".to_string());
+                warns.push(
+                    "pair_missing —— #105 turn 重建无匹配 pair（复现缝隙，预期 0）".to_string(),
+                );
             }
         }
         // ② 事件配对（R1 后：confirmed Trend，键 = side ∧ seg_a ∧ interval_b.0=c_start）。
@@ -754,30 +759,50 @@ fn main() -> Result<(), String> {
         let (level, book_level, window, hit, hit_idx, hit_ca) = match event {
             Some(e) => {
                 let book_level = event_bsp_book_level(e.level);
-                let hit = terminal_bits_at_event(classification, e, TerminalMatch::CWindow, &bin_anchor_ctx()).is_some();
-                let hit_ca =
-                    terminal_bits_at_event(classification, e, TerminalMatch::Exact, &bin_anchor_ctx()).is_some();
-                let hit_idx = book_level.and_then(|bl| {
-                    classification.levels.get(bl).map(|state| {
-                        state
-                            .bsp
-                            .iter()
-                            .filter(|p| {
-                                e.interval_b.0 <= p.source_index
-                                    && p.source_index <= e.turn_source
-                                    && p.bits.confirm_side(e.side)
-                            })
-                            .min_by_key(|p| p.source_index)
-                            .map(|p| p.source_index)
+                let hit = terminal_bits_at_event(
+                    classification,
+                    e,
+                    TerminalMatch::CWindow,
+                    &bin_anchor_ctx(),
+                )
+                .is_some();
+                let hit_ca = terminal_bits_at_event(
+                    classification,
+                    e,
+                    TerminalMatch::Exact,
+                    &bin_anchor_ctx(),
+                )
+                .is_some();
+                let hit_idx = book_level
+                    .and_then(|bl| {
+                        classification.levels.get(bl).map(|state| {
+                            state
+                                .bsp
+                                .iter()
+                                .filter(|p| {
+                                    e.interval_b.0 <= p.source_index
+                                        && p.source_index <= e.turn_source
+                                        && p.bits.confirm_side(e.side)
+                                })
+                                .min_by_key(|p| p.source_index)
+                                .map(|p| p.source_index)
+                        })
                     })
-                }).flatten();
+                    .flatten();
                 if hit_idx.is_some() != hit {
                     warns.push(format!(
                         "fork_mismatch production={} scan={hit_idx:?} —— 判定以生产函数为准",
                         hit
                     ));
                 }
-                (e.level, book_level, Some((e.interval_b.0, e.turn_source)), hit, hit_idx, hit_ca)
+                (
+                    e.level,
+                    book_level,
+                    Some((e.interval_b.0, e.turn_source)),
+                    hit,
+                    hit_idx,
+                    hit_ca,
+                )
             }
             None => (1, Some(0), None, false, None, false),
         };

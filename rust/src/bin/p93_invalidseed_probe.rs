@@ -16,9 +16,9 @@ use newchan_rust::theta_v0::classifier::descend::RMove;
 use newchan_rust::theta_v0::classifier::divergence::compute_macd;
 use newchan_rust::theta_v0::classifier::level_view::{
     assemble_level_view, lower_legs_from, project_extended_windows,
-    project_extended_windows_carried_only, provide_nest_candidate_events,
-    C2LevelViewConfig, C2VersionTuple, CoordinateWindow, LevelViewMaterial, LevelViewQuery,
-    NestCandidateEvent, ProjectionError, ProjectionMaterial,
+    project_extended_windows_carried_only, provide_nest_candidate_events, C2LevelViewConfig,
+    C2VersionTuple, CoordinateWindow, LevelViewMaterial, LevelViewQuery, NestCandidateEvent,
+    ProjectionError, ProjectionMaterial,
 };
 use newchan_rust::theta_v0::classifier::recursive_tower::{ElementId, LeveledMove};
 use newchan_rust::theta_v0::config::ThetaConfig;
@@ -116,10 +116,9 @@ fn main() -> Result<(), String> {
                 Err(ProjectionError::InvalidSeed { .. }) => {
                     per_level[level - 1] += 1;
                     let (carried, centers_len) = match &window.rmove {
-                        RMove::Compose { centers, .. } => (
-                            centers.first().map(|c| (c.zd, c.zg)),
-                            centers.len(),
-                        ),
+                        RMove::Compose { centers, .. } => {
+                            (centers.first().map(|c| (c.zd, c.zg)), centers.len())
+                        }
                         RMove::Segment { .. } => (None, 0),
                     };
                     // #94（0010:29）：走势中枢的延伸等价于任意区间 [dn,gn] 与 [ZD,ZG] 有重叠。
@@ -300,10 +299,7 @@ fn main() -> Result<(), String> {
         .filter(|r| r.overlap_same_level + r.overlap_cross_level > 0)
         .count();
     let both_runs = rows.iter().filter(|r| r.left_run && r.right_run).count();
-    let one_run = rows
-        .iter()
-        .filter(|r| r.left_run != r.right_run)
-        .count();
+    let one_run = rows.iter().filter(|r| r.left_run != r.right_run).count();
     let no_run = rows.iter().filter(|r| !r.left_run && !r.right_run).count();
     let clustered = rows
         .iter()

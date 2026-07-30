@@ -22,14 +22,16 @@
 //! T50/T56–T59 eod 观测。violation = panic = 验收标准失败。
 
 use super::accounting::{close_voice, make_root, nav, settle, try_spawn_cost_gated};
-use super::params::{EQUITY_SAMPLE_BARS, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER, PENDING_LO};
+use super::params::{
+    EQUITY_SAMPLE_BARS, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER, PENDING_LO,
+};
 use super::prove::{
-    self_level_counter_fire, prove_a5_relabel, prove_all_group_laws, prove_chirality_seam,
-    prove_cross_level_closure, prove_n1_forest, prove_n2_per_voice, prove_n4_cost_gate,
-    prove_n7_spawn_self_level, prove_n8_conservation, prove_self_level_symmetric,
-    prove_sub_level_symmetric, prove_t1_no_voluntary_exit, prove_t14_root_flip,
-    prove_t50_radial_scaling, prove_t56_angular_radial_holonomy, prove_t57_chirality_mirror,
-    prove_t58_angular_basic_domain, prove_t59_scale_invariance, sub_level_counter_fire,
+    prove_a5_relabel, prove_all_group_laws, prove_chirality_seam, prove_cross_level_closure,
+    prove_n1_forest, prove_n2_per_voice, prove_n4_cost_gate, prove_n7_spawn_self_level,
+    prove_n8_conservation, prove_self_level_symmetric, prove_sub_level_symmetric,
+    prove_t14_root_flip, prove_t1_no_voluntary_exit, prove_t50_radial_scaling,
+    prove_t56_angular_radial_holonomy, prove_t57_chirality_mirror, prove_t58_angular_basic_domain,
+    prove_t59_scale_invariance, self_level_counter_fire, sub_level_counter_fire,
 };
 use super::result::SpiralResult;
 use super::signal::{prove_chain, prove_t52_gauge_fix, SignalState};
@@ -55,10 +57,16 @@ fn root_emergent_ladder(
         Polarity::Short => Direction::Down,
     };
     let mut lad = root_ladder;
-    while lad + 1 < max_l && dir_state[lad + 1] == Some(want) && anchor_state[lad + 1] >= root_entry_bar {
+    while lad + 1 < max_l
+        && dir_state[lad + 1] == Some(want)
+        && anchor_state[lad + 1] >= root_entry_bar
+    {
         lad += 1;
     }
-    assert!(lad >= root_ladder, "A5(T30) 违反：根涌现层 {lad} < 入场层 {root_ladder}（爬升应单调）");
+    assert!(
+        lad >= root_ladder,
+        "A5(T30) 违反：根涌现层 {lad} < 入场层 {root_ladder}（爬升应单调）"
+    );
     lad
 }
 
@@ -134,7 +142,18 @@ impl SpiralEngineCore {
                 let is_root = v.parent.is_none();
                 // 强平记账价 = 2×basis（SUB_LIQ_FACTOR；trade 行展示，不影响现金守恒）。
                 let liq_px = super::params::SUB_LIQ_FACTOR * v.basis;
-                close_voice(id, bar, liq_px, c, "liq", false, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
+                close_voice(
+                    id,
+                    bar,
+                    liq_px,
+                    c,
+                    "liq",
+                    false,
+                    &mut self.voices,
+                    &mut self.free,
+                    &mut self.n_base,
+                    &mut self.res,
+                );
                 self.res.n_liquidations_by_ladder[lad] += 1;
                 if is_root {
                     root_liquidated = true;
@@ -163,7 +182,13 @@ impl SpiralEngineCore {
                 let units_pre_re = self.voices[rid].units;
                 let nav_pre_re = nav(&self.voices, self.free, c);
                 self.voices[rid].state.r = re as u8; // 会计重组：无物理交易
-                prove_a5_relabel(self.voices[rid].units, units_pre_re, nav(&self.voices, self.free, c), nav_pre_re, bar);
+                prove_a5_relabel(
+                    self.voices[rid].units,
+                    units_pre_re,
+                    nav(&self.voices, self.free, c),
+                    nav_pre_re,
+                    bar,
+                );
             }
             let root_ladder = self.voices[rid].ladder();
             let active_count = self.voices.iter().filter(|v| v.is_active()).count();
@@ -244,7 +269,9 @@ impl SpiralEngineCore {
                 let dir = self.voices[id].dir();
                 let ladder = self.voices[id].ladder();
                 let (perfected, close_lad) = sub_level_counter_fire(dir, ladder, &nf_sell, &nf_buy);
-                prove_sub_level_symmetric(dir, ladder, perfected, close_lad, &nf_sell, &nf_buy, bar);
+                prove_sub_level_symmetric(
+                    dir, ladder, perfected, close_lad, &nf_sell, &nf_buy, bar,
+                );
                 if perfected {
                     if close_lad < ladder {
                         // 常态：闭合向心下沉到次级别 r=k−1（CrossLevel H¹ 生成元 Δr=−1）。
@@ -255,7 +282,18 @@ impl SpiralEngineCore {
                         prove_n7_spawn_self_level(ladder, close_lad, bar);
                     }
                     self.voices[id].acted_bar = bar;
-                    close_voice(id, bar, c, c, "recover", true, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
+                    close_voice(
+                        id,
+                        bar,
+                        c,
+                        c,
+                        "recover",
+                        true,
+                        &mut self.voices,
+                        &mut self.free,
+                        &mut self.n_base,
+                        &mut self.res,
+                    );
                     acted_ids.push(id);
                 }
             }
@@ -279,7 +317,16 @@ impl SpiralEngineCore {
                 prove_self_level_symmetric(dir, ladder, e_trigger, &nf_sell, &nf_buy, bar);
                 if e_trigger {
                     prove_n7_spawn_self_level(ladder, ladder, bar);
-                    if try_spawn_cost_gated(id, bar, c, &self.signal.depth, &mut self.voices, &mut self.res).is_some() {
+                    if try_spawn_cost_gated(
+                        id,
+                        bar,
+                        c,
+                        &self.signal.depth,
+                        &mut self.voices,
+                        &mut self.res,
+                    )
+                    .is_some()
+                    {
                         self.voices[id].acted_bar = bar;
                         acted_ids.push(id);
                     }
@@ -316,7 +363,9 @@ impl SpiralEngineCore {
         prove_n2_per_voice(&acted_ids, bar);
         let nav_post = nav(&self.voices, self.free, c);
         prove_n8_conservation(&self.voices, self.n_base, nav_pre, nav_post, bar);
-        self.max_children_seen = self.max_children_seen.max(prove_n1_forest(&self.voices, bar));
+        self.max_children_seen = self
+            .max_children_seen
+            .max(prove_n1_forest(&self.voices, bar));
 
         let active_count = self.voices.iter().filter(|v| v.is_active()).count();
         prove_t1_no_voluntary_exit(
@@ -363,10 +412,27 @@ impl SpiralEngineCore {
             let last_bar = self.cur_bar - 1;
             let c_last = self.last_close;
             if last_bar % EQUITY_SAMPLE_BARS != 0 {
-                self.res.equity.push((last_bar, nav(&self.voices, self.free, c_last)));
+                self.res
+                    .equity
+                    .push((last_bar, nav(&self.voices, self.free, c_last)));
             }
-            if let Some(root_id) = self.voices.iter().position(|v| v.is_active() && v.parent.is_none()) {
-                close_voice(root_id, last_bar, c_last, c_last, "eod", false, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
+            if let Some(root_id) = self
+                .voices
+                .iter()
+                .position(|v| v.is_active() && v.parent.is_none())
+            {
+                close_voice(
+                    root_id,
+                    last_bar,
+                    c_last,
+                    c_last,
+                    "eod",
+                    false,
+                    &mut self.voices,
+                    &mut self.free,
+                    &mut self.n_base,
+                    &mut self.res,
+                );
             }
         }
         self.res.final_nav = self.free;
@@ -394,7 +460,11 @@ impl SpiralEngineCore {
 
     /// 状态快照: (cur_bar, nav, long_units, short_units, n_active_voices)。
     pub fn snapshot(&self) -> (i64, f64, f64, f64, usize) {
-        let c = if self.last_close.is_finite() { self.last_close } else { 0.0 };
+        let c = if self.last_close.is_finite() {
+            self.last_close
+        } else {
+            0.0
+        };
         let navv = nav(&self.voices, self.free, c);
         let mut lu = 0.0;
         let mut su = 0.0;
@@ -417,7 +487,13 @@ mod tests {
     use crate::trading::types::{BspClass, BspEvent, LadderMask, INITIAL_CAPITAL};
 
     /// 构造一个测试 BarSig。`events` = (ladder, class, confirmed, price)。
-    fn mk_bar(close: f64, buy1: u16, sell1: u16, max_ladder: u8, events: Vec<(usize, BspClass, bool, f64)>) -> BarSig {
+    fn mk_bar(
+        close: f64,
+        buy1: u16,
+        sell1: u16,
+        max_ladder: u8,
+        events: Vec<(usize, BspClass, bool, f64)>,
+    ) -> BarSig {
         let mut sig = BarSig {
             close,
             buy1: LadderMask(buy1),
@@ -471,10 +547,16 @@ mod tests {
         // bar0：segment(2) type1 Buy confirmed（记 type1_hist 内圈）+ move(3) type1 Buy
         //       candidate（武装 nest_buy[3]，since=0）。
         core.step(
-            &mk_bar(100.0, 0, 0, 3, vec![
-                (2, BspClass::Buy1, true, 100.0),
-                (3, BspClass::Buy1, false, 100.0),
-            ]),
+            &mk_bar(
+                100.0,
+                0,
+                0,
+                3,
+                vec![
+                    (2, BspClass::Buy1, true, 100.0),
+                    (3, BspClass::Buy1, false, 100.0),
+                ],
+            ),
             &NO_FLIP,
         );
         // bar1：since(0)<bar(1) ∧ helix 母线贯通（内圈 segment type1@bar0）⇒ confirm@3
@@ -483,10 +565,20 @@ mod tests {
         // F 入场已发生：根 @ ladder 3，满仓 units=1000。
         let (_, nav_after_entry, long_u, short_u, n_voices) = core.snapshot();
         assert_eq!(n_voices, 1, "F 入场后应有 1 个 active 根 voice");
-        assert!((long_u - 1000.0).abs() < 1e-6, "满仓 units=free/c=1000，得 {long_u}");
+        assert!(
+            (long_u - 1000.0).abs() < 1e-6,
+            "满仓 units=free/c=1000，得 {long_u}"
+        );
         assert_eq!(short_u, 0.0);
-        assert!((nav_after_entry - INITIAL_CAPITAL).abs() < 1e-4, "F 入场 NAV 中性");
-        assert_eq!(core.result().n_root_entries_by_ladder[3], 1, "根入场记 @ ladder 3");
+        assert!(
+            (nav_after_entry - INITIAL_CAPITAL).abs() < 1e-4,
+            "F 入场 NAV 中性"
+        );
+        assert_eq!(
+            core.result().n_root_entries_by_ladder[3],
+            1,
+            "根入场记 @ ladder 3"
+        );
         // flat 持仓 + eod cascade 关根（同价 100 ⇒ pnl=0 ⇒ free 返还 100000）。
         core.step(&mk_bar(100.0, 0, 0, 3, vec![]), &NO_FLIP);
         core.step(&mk_bar(100.0, 0, 0, 3, vec![]), &NO_FLIP);

@@ -385,7 +385,12 @@ impl RetraceLedger {
         let Some(previous) = self.active_by_anchor.insert(key.anchor(), key) else {
             return;
         };
-        let restarted = self.push(key, RetraceRevisionKind::Restarted { previous }, as_of, None);
+        let restarted = self.push(
+            key,
+            RetraceRevisionKind::Restarted { previous },
+            as_of,
+            None,
+        );
         self.record(delta, restarted);
     }
 
@@ -450,7 +455,9 @@ impl RetraceLedger {
         let Some(registered) = self.book.get(&key).and_then(|entry| entry.registration()) else {
             return Ok(());
         };
-        if registered.side == admitted.evidence.side && registered.leave_end == admitted.evidence.leave_end {
+        if registered.side == admitted.evidence.side
+            && registered.leave_end == admitted.evidence.leave_end
+        {
             return Ok(());
         }
         self.registration_rejected += 1;
@@ -678,7 +685,9 @@ impl RetraceLedger {
             side: evidence.side,
             frame: entry.key.frame,
             leave_end: evidence.leave_end,
-            retest_end: evidence.retest_end.expect("判胜必带回抽位置（适配器 missing 桶保证）"),
+            retest_end: evidence
+                .retest_end
+                .expect("判胜必带回抽位置（适配器 missing 桶保证）"),
             registered_as_of: entry.registered_as_of,
             confirmed_as_of: entry.terminal_as_of.expect("Confirmed 必有落锤钟"),
             death_certificate: Self::certificate_of(entry),
@@ -721,7 +730,10 @@ impl RetraceLedger {
         for entry in self.book.in_state(LedgerState::Confirmed) {
             let anchor = entry.key.anchor();
             if let Some(existing) = seen.insert(anchor, entry.key) {
-                panic!("同一中枢锚至多一个 Confirmed：{anchor:?} 同时有 {existing:?} 与 {:?}", entry.key);
+                panic!(
+                    "同一中枢锚至多一个 Confirmed：{anchor:?} 同时有 {existing:?} 与 {:?}",
+                    entry.key
+                );
             }
         }
     }
@@ -787,8 +799,12 @@ impl RetraceLedger {
 fn adapter_rejection_code(rejection: &RetraceRejection) -> RetraceRejectionCode {
     match rejection {
         RetraceRejection::MalformedFrame { .. } => RetraceRejectionCode::MalformedFrame,
-        RetraceRejection::MissingRetestPosition { .. } => RetraceRejectionCode::MissingRetestPosition,
-        RetraceRejection::LeaveNotOutsideCenter { .. } => RetraceRejectionCode::LeaveNotOutsideCenter,
+        RetraceRejection::MissingRetestPosition { .. } => {
+            RetraceRejectionCode::MissingRetestPosition
+        }
+        RetraceRejection::LeaveNotOutsideCenter { .. } => {
+            RetraceRejectionCode::LeaveNotOutsideCenter
+        }
         RetraceRejection::RetestSameDirection { .. } => RetraceRejectionCode::RetestSameDirection,
         RetraceRejection::NotAdjacent { .. } => RetraceRejectionCode::NotAdjacent,
         RetraceRejection::ActiveCandidateNotSettled { .. } => {
@@ -798,13 +814,17 @@ fn adapter_rejection_code(rejection: &RetraceRejection) -> RetraceRejectionCode 
             unreachable!("死人挂号走独立 DeadCenterRejected 事件，admit_input 不产出本变体")
         }
         RetraceRejection::TerminalEvidenceContradictsRegistration { .. } => {
-            unreachable!("两拍守卫走 guard_terminal_evidence_consistency 自选码，admit_input 不产出本变体")
+            unreachable!(
+                "两拍守卫走 guard_terminal_evidence_consistency 自选码，admit_input 不产出本变体"
+            )
         }
         RetraceRejection::RebaseAsOfBehindGate { .. } => {
             unreachable!("改口知情时护栏走 kill_as_rebased 自选码，admit_input 不产出本变体")
         }
         RetraceRejection::SettleBehindRecoveryPoint { .. } => {
-            unreachable!("恢复点落锤护栏走 guard_settle_after_recovery 自选码，admit_input 不产出本变体")
+            unreachable!(
+                "恢复点落锤护栏走 guard_settle_after_recovery 自选码，admit_input 不产出本变体"
+            )
         }
     }
 }

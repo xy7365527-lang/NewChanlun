@@ -52,7 +52,8 @@ fn main() -> Result<(), String> {
     let terminal = run_terminal_pass(&loaded.bars[..max_bars], &config)?;
     let (hist, close_src) = terminal.cache.causal_series();
     let dif = terminal.cache.macd_dif();
-    let (events, proj_errors) = collect_terminal_events(&terminal.tower, max_bars - 1, hist, dif, close_src)?;
+    let (events, proj_errors) =
+        collect_terminal_events(&terminal.tower, max_bars - 1, hist, dif, close_src)?;
     println!(
         "P102_EVENTS levels={} total={} projection_errors={}",
         events.len(),
@@ -63,16 +64,17 @@ fn main() -> Result<(), String> {
     // ── ① 候选池对称性：层级×方向 计数 / 确认数 / 区间宽度 p50 ──
     for level in 1..events.len() {
         for side in [Side::Long, Side::Short] {
-            let pool: Vec<&NestCandidateEvent> = events[level]
-                .iter()
-                .filter(|e| e.side == side)
-                .collect();
+            let pool: Vec<&NestCandidateEvent> =
+                events[level].iter().filter(|e| e.side == side).collect();
             if pool.is_empty() {
                 println!("P102_POOL level={level} side={side:?} candidates=0");
                 continue;
             }
             let confirmed = pool.iter().filter(|e| e.divergence_confirmed).count();
-            let mut wb: Vec<usize> = pool.iter().map(|e| e.interval_b.1 - e.interval_b.0).collect();
+            let mut wb: Vec<usize> = pool
+                .iter()
+                .map(|e| e.interval_b.1 - e.interval_b.0)
+                .collect();
             wb.sort_unstable();
             println!(
                 "P102_POOL level={} side={:?} candidates={} confirmed={} b_width_p50={}",
@@ -92,16 +94,20 @@ fn main() -> Result<(), String> {
     let mut certs_b: Vec<(usize, usize, TypedNestCertificate)> = Vec::new();
     for exec in 1..events.len() {
         for top in exec..events.len() {
-            for cert in assemble_typed_certificates(&events, exec, top, NestIntervalCaliber::A, |e| {
-                terminal_bits_new(&terminal.classification, e)
-            }) {
+            for cert in
+                assemble_typed_certificates(&events, exec, top, NestIntervalCaliber::A, |e| {
+                    terminal_bits_new(&terminal.classification, e)
+                })
+            {
                 if seen_a.insert(certificate_key(exec, top, &cert)) {
                     certs_a.push((exec, top, cert));
                 }
             }
-            for cert in assemble_typed_certificates(&events, exec, top, NestIntervalCaliber::B, |e| {
-                terminal_bits_new(&terminal.classification, e)
-            }) {
+            for cert in
+                assemble_typed_certificates(&events, exec, top, NestIntervalCaliber::B, |e| {
+                    terminal_bits_new(&terminal.classification, e)
+                })
+            {
                 if seen_b.insert(certificate_key(exec, top, &cert)) {
                     certs_b.push((exec, top, cert));
                 }
@@ -132,7 +138,12 @@ fn main() -> Result<(), String> {
             let ids = cert
                 .identities()
                 .iter()
-                .map(|id| format!("{}:{}:{}-{}", id.level, id.turn_source, id.interval_b.0, id.interval_b.1))
+                .map(|id| {
+                    format!(
+                        "{}:{}:{}-{}",
+                        id.level, id.turn_source, id.interval_b.0, id.interval_b.1
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join("|");
             println!(
@@ -165,10 +176,9 @@ fn main() -> Result<(), String> {
             let child_id = ids[k + 1];
             let child_level = child_id.level as usize;
             let parent_level = parent_id.level as usize;
-            let Some(child) = events[child_level]
-                .iter()
-                .find(|e| e.turn_source == child_id.turn_source && e.interval_b == child_id.interval_b)
-            else {
+            let Some(child) = events[child_level].iter().find(|e| {
+                e.turn_source == child_id.turn_source && e.interval_b == child_id.interval_b
+            }) else {
                 println!("P102_EDGE_WARN child not found: {child_id:?}");
                 continue;
             };
@@ -246,14 +256,17 @@ fn main() -> Result<(), String> {
             let child_id = ids[k + 1];
             let child_level = child_id.level as usize;
             let parent_level = ids[k].level as usize;
-            let Some(child) = events[child_level]
-                .iter()
-                .find(|e| e.turn_source == child_id.turn_source && e.interval_b == child_id.interval_b)
-            else { continue };
+            let Some(child) = events[child_level].iter().find(|e| {
+                e.turn_source == child_id.turn_source && e.interval_b == child_id.interval_b
+            }) else {
+                continue;
+            };
             let child_b = typed_iv(child, NestIntervalCaliber::B);
             let parents_b = events[parent_level]
                 .iter()
-                .filter(|e| e.side == Side::Short && is_sub(&child_b, &typed_iv(e, NestIntervalCaliber::B)))
+                .filter(|e| {
+                    e.side == Side::Short && is_sub(&child_b, &typed_iv(e, NestIntervalCaliber::B))
+                })
                 .count();
             println!(
                 "P102_CONTROL_SHORT edge=L{}->L{} child_b=({}, {}) parents_sub_B={}",
@@ -316,7 +329,12 @@ fn typed_iv(event: &NestCandidateEvent, caliber: NestIntervalCaliber) -> NestInt
 fn ids_key(cert: &TypedNestCertificate) -> String {
     cert.identities()
         .iter()
-        .map(|id| format!("{}:{}:{}-{}", id.level, id.turn_source, id.interval_b.0, id.interval_b.1))
+        .map(|id| {
+            format!(
+                "{}:{}:{}-{}",
+                id.level, id.turn_source, id.interval_b.0, id.interval_b.1
+            )
+        })
         .collect::<Vec<_>>()
         .join("|")
 }
@@ -386,7 +404,12 @@ fn run_terminal_pass(bars: &[Bar], config: &ThetaConfig) -> Result<TerminalState
         }
     }
     let (l0, classification, tower) = terminal.ok_or("空 replay")?;
-    Ok(TerminalState { l0, classification, tower, cache })
+    Ok(TerminalState {
+        l0,
+        classification,
+        tower,
+        cache,
+    })
 }
 
 /// 与 p92 `collect_snapshot_candidates` 同管线：终态 tower → 逐 run 投影 → C2 视图 → 候选事件。
@@ -407,7 +430,9 @@ fn collect_terminal_events(
         let mut run_start = None;
         for index in 0..=windows.len() {
             let valid = index < windows.len()
-                && match project_extended_windows_carried_only(std::slice::from_ref(&windows[index])) {
+                && match project_extended_windows_carried_only(std::slice::from_ref(
+                    &windows[index],
+                )) {
                     Ok(_) => true,
                     Err(_) => {
                         errors += 1;
@@ -472,8 +497,23 @@ fn collect_terminal_events(
             )
         });
         events.dedup_by(|left, right| {
-            (left.level, left.side, left.kind, left.seg_a, left.interval_b, left.interval_a, left.turn_source)
-                == (right.level, right.side, right.kind, right.seg_a, right.interval_b, right.interval_a, right.turn_source)
+            (
+                left.level,
+                left.side,
+                left.kind,
+                left.seg_a,
+                left.interval_b,
+                left.interval_a,
+                left.turn_source,
+            ) == (
+                right.level,
+                right.side,
+                right.kind,
+                right.seg_a,
+                right.interval_b,
+                right.interval_a,
+                right.turn_source,
+            )
         });
     }
     Ok((by_level, errors))

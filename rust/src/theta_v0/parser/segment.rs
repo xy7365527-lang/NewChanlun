@@ -214,7 +214,10 @@ pub(super) fn process_feature_inclusion(elements: &[Interval]) -> Vec<Interval> 
 /// 分型**。返回分型中心元素的索引（在标准特征序列里）+ 该分型的第1、2元素（判 case）。
 ///
 /// 顶分型：中元素 hi 严格高于左右 hi（特征序列元素当 K 线，严格分型）。底镜像。
-fn find_feature_fractal(seg_dir: Direction, std_feat: &[Interval]) -> Option<(usize, Interval, Interval)> {
+fn find_feature_fractal(
+    seg_dir: Direction,
+    std_feat: &[Interval],
+) -> Option<(usize, Interval, Interval)> {
     if std_feat.len() < 3 {
         return None;
     }
@@ -223,7 +226,7 @@ fn find_feature_fractal(seg_dir: Direction, std_feat: &[Interval]) -> Option<(us
         let is_top = m.hi > l.hi && m.hi > r.hi;
         let is_bottom = m.lo < l.lo && m.lo < r.lo;
         let matched = match seg_dir {
-            Direction::Up => is_top,    // 向上线段以顶分型终结
+            Direction::Up => is_top, // 向上线段以顶分型终结
             Direction::Down => is_bottom,
         };
         if matched {
@@ -309,12 +312,12 @@ pub fn analyze_termination(strokes: &[Stroke]) -> SegmentTermination {
         TerminationCase::SecondKind => {
             match second_kind::resolve_second_kind(strokes, &e2) {
                 // resolve 返回 apex 反向笔偏移；段端 = 其前一根同向笔（方向一致性，同 FirstKind）。
-                second_kind::SecondKindResult::Confirmed { end_offset: apex_off } => {
-                    match segment_end_from_apex(apex_off) {
-                        Some(end_offset) => SegmentTermination::SecondKindConfirmed { end_offset },
-                        None => SegmentTermination::SecondKindPending,
-                    }
-                }
+                second_kind::SecondKindResult::Confirmed {
+                    end_offset: apex_off,
+                } => match segment_end_from_apex(apex_off) {
+                    Some(end_offset) => SegmentTermination::SecondKindConfirmed { end_offset },
+                    None => SegmentTermination::SecondKindPending,
+                },
                 second_kind::SecondKindResult::Pending => SegmentTermination::SecondKindPending,
             }
         }
@@ -331,13 +334,29 @@ fn make_segment(strokes: &[Stroke], s0: usize, s1: usize, seg_dir: Direction) ->
     let (start_price, end_price) = match seg_dir {
         // 向上段：起点 = 段内最低、终点 = 段内最高（第78课标准化，使下游区间语义正确）。
         Direction::Up => {
-            let lo = strokes[s0..=s1].iter().map(|s| s.start_price.min(s.end_price)).min().unwrap();
-            let hi = strokes[s0..=s1].iter().map(|s| s.start_price.max(s.end_price)).max().unwrap();
+            let lo = strokes[s0..=s1]
+                .iter()
+                .map(|s| s.start_price.min(s.end_price))
+                .min()
+                .unwrap();
+            let hi = strokes[s0..=s1]
+                .iter()
+                .map(|s| s.start_price.max(s.end_price))
+                .max()
+                .unwrap();
             (lo, hi)
         }
         Direction::Down => {
-            let hi = strokes[s0..=s1].iter().map(|s| s.start_price.max(s.end_price)).max().unwrap();
-            let lo = strokes[s0..=s1].iter().map(|s| s.start_price.min(s.end_price)).min().unwrap();
+            let hi = strokes[s0..=s1]
+                .iter()
+                .map(|s| s.start_price.max(s.end_price))
+                .max()
+                .unwrap();
+            let lo = strokes[s0..=s1]
+                .iter()
+                .map(|s| s.start_price.min(s.end_price))
+                .min()
+                .unwrap();
             (hi, lo)
         }
     };
@@ -518,7 +537,11 @@ impl IncrSegments {
     /// 1 段回退。**仅在恢复前缀无 unsealed 候选时 bit-exact 安全**。生产路径是 `empty()` + 逐 bar
     /// `append`（skip 历史跨 append 持久累积），**不经** `from_full`（当前无生产调用者）。若未来要
     /// 在有 unsealed 前缀处恢复，须同时持久化/重建 `earliest_unsealed_from`。
-    pub fn from_full(segments: &[Segment], pending_start: Option<usize>, strokes: &[Stroke]) -> Self {
+    pub fn from_full(
+        segments: &[Segment],
+        pending_start: Option<usize>,
+        strokes: &[Stroke],
+    ) -> Self {
         // 重建 end_array_idx：段端 = strokes[s1].end_index，找 s1 在 strokes 中的位置。
         let mut end_indices: Vec<usize> = Vec::with_capacity(segments.len());
         let mut search_from = 0usize;
@@ -597,8 +620,7 @@ impl IncrSegments {
         };
 
         // ponytail: partition_point O(log n) 定位 truncate 位置，替代 take_while O(n)。
-        let keep = end_indices
-            .partition_point(|&end_idx| end_idx < confirmed_bound);
+        let keep = end_indices.partition_point(|&end_idx| end_idx < confirmed_bound);
 
         // Rc::make_mut 突变 segments_rc——strong_count==1 时 O(1) in-place。
         let new_segments = Rc::make_mut(&mut segments_rc);
@@ -617,7 +639,11 @@ impl IncrSegments {
                     return IncrSegments {
                         segments_rc,
                         end_indices,
-                        pending_start: if resume_seg_start < n { Some(resume_seg_start) } else { None },
+                        pending_start: if resume_seg_start < n {
+                            Some(resume_seg_start)
+                        } else {
+                            None
+                        },
                         strokes_len: n,
                         confirmed_len: keep,
                         last_stroke,
@@ -738,10 +764,7 @@ impl IncrSegments {
 
     /// 当前快照 segments（Vec<Segment>，与 `divide_segments_with_tail` bit-exact）。
     pub fn to_result_vec(&self) -> (Vec<Segment>, Option<usize>) {
-        (
-            self.segments_rc.to_vec(),
-            self.pending_start,
-        )
+        (self.segments_rc.to_vec(), self.pending_start)
     }
 
     /// 当前快照 segments 的 Rc 共享句柄（O(1) refcount bump）。
@@ -946,7 +969,10 @@ mod tests {
         ];
         // 向上线段的特征序列元素数 = 向下笔数。
         let feat = feature_elements(Direction::Up, &strokes);
-        let down_count = strokes.iter().filter(|s| s.direction == Direction::Down).count();
+        let down_count = strokes
+            .iter()
+            .filter(|s| s.direction == Direction::Down)
+            .count();
         assert_eq!(feat.len(), down_count);
     }
 
@@ -961,7 +987,13 @@ mod tests {
                     stroke(Direction::Up, b, b + 4, 5 + i as i64, 20 + i as i64),
                     stroke(Direction::Down, b + 4, b + 8, 20 + i as i64, 10 + i as i64),
                     stroke(Direction::Up, b + 8, b + 12, 10 + i as i64, 25 + i as i64),
-                    stroke(Direction::Down, b + 12, b + 16, 25 + i as i64, 12 + i as i64),
+                    stroke(
+                        Direction::Down,
+                        b + 12,
+                        b + 16,
+                        25 + i as i64,
+                        12 + i as i64,
+                    ),
                 ]
             })
             .collect();
@@ -989,16 +1021,26 @@ mod tests {
     fn gappy_strokes(n: usize, seed: u64) -> Vec<Stroke> {
         let mut s = seed;
         let mut next = |lo: i64, hi: i64| {
-            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            s = s
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             lo + ((s >> 33) as i64).rem_euclid(hi - lo + 1)
         };
         let mut out = Vec::with_capacity(n);
         let mut price: i64 = 100_000;
         let mut idx = 0usize;
         for i in 0..n {
-            let dir = if i % 2 == 0 { Direction::Up } else { Direction::Down };
+            let dir = if i % 2 == 0 {
+                Direction::Up
+            } else {
+                Direction::Down
+            };
             // 变幅：多数中等，偶发大跳（制造缺口）。
-            let amp = if next(0, 9) < 2 { next(400, 900) } else { next(60, 300) };
+            let amp = if next(0, 9) < 2 {
+                next(400, 900)
+            } else {
+                next(60, 300)
+            };
             let start = price;
             let end = match dir {
                 Direction::Up => price + amp,
@@ -1082,21 +1124,34 @@ mod tests {
         for end in 3..=strokes.len() {
             incr = incr.append(&strokes[..end], &cfg);
             let (full_segs, full_pending) = divide_segments_with_tail(&strokes[..end], &cfg);
-            assert_eq!(incr.to_result_vec(), (full_segs, full_pending),
-                "strokes len {end}: advancing 变体 bit-exact 破裂");
+            assert_eq!(
+                incr.to_result_vec(),
+                (full_segs, full_pending),
+                "strokes len {end}: advancing 变体 bit-exact 破裂"
+            );
             let euf = incr.earliest_unsealed_from();
             match (prev_euf, euf) {
-                (Some(_), None) => { saw_advance = true; advanced_once = true; }
-                (Some(a), Some(b)) if b > a => { saw_advance = true; advanced_once = true; }
-                (_, Some(_)) if advanced_once => { saw_reflag = true; }
+                (Some(_), None) => {
+                    saw_advance = true;
+                    advanced_once = true;
+                }
+                (Some(a), Some(b)) if b > a => {
+                    saw_advance = true;
+                    advanced_once = true;
+                }
+                (_, Some(_)) if advanced_once => {
+                    saw_reflag = true;
+                }
                 _ => {}
             }
             prev_euf = euf;
         }
         assert!(saw_advance,
             "覆盖为零：euf 从未前移/清零——persist-forever 未被证伪（advancing 未生效或序列不触发 resolve）");
-        assert!(saw_reflag,
-            "覆盖为零：前移后 euf 从未 reflag 到新位置——未覆盖 §六.3 later reflag 路径");
+        assert!(
+            saw_reflag,
+            "覆盖为零：前移后 euf 从未 reflag 到新位置——未覆盖 §六.3 later reflag 路径"
+        );
     }
 
     /// property：重复 append 同一输入幂等（相同输入早退路径）——第二次 append 同 strokes ⟹
@@ -1110,7 +1165,13 @@ mod tests {
                     stroke(Direction::Up, b, b + 4, 5 + i as i64, 20 + i as i64),
                     stroke(Direction::Down, b + 4, b + 8, 20 + i as i64, 10 + i as i64),
                     stroke(Direction::Up, b + 8, b + 12, 10 + i as i64, 25 + i as i64),
-                    stroke(Direction::Down, b + 12, b + 16, 25 + i as i64, 12 + i as i64),
+                    stroke(
+                        Direction::Down,
+                        b + 12,
+                        b + 16,
+                        25 + i as i64,
+                        12 + i as i64,
+                    ),
                 ]
             })
             .collect();

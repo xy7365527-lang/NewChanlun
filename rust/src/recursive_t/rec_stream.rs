@@ -132,7 +132,11 @@ impl RecStream {
     /// 实验）。**FFI/python 回测入口走此**（`PyRecStream::new`）⇒ 生产默认开启 Face A。Rust 内部测试/
     /// bit-exact 守卫继续走 `new`/`new_with_a0`（OFF 基线不变）。
     pub fn new_production(mode: PerfectionMode, a0_source: A0Source) -> Self {
-        Self::new_with_config(mode, a0_source, super::rec_engine::EngineConfig::production())
+        Self::new_with_config(
+            mode,
+            a0_source,
+            super::rec_engine::EngineConfig::production(),
+        )
     }
 
     /// 显式引擎配置（OFF / ANCHOR / NEST 受控对照，单进程多变体）。
@@ -195,8 +199,10 @@ impl RecStream {
         let (_, _, hist) = self.macd.update(c);
         let lp = *self.prefix_pos.last().unwrap();
         let ln = *self.prefix_neg.last().unwrap();
-        self.prefix_pos.push(lp + if hist > 0.0 { hist } else { 0.0 });
-        self.prefix_neg.push(ln + if hist < 0.0 { -hist } else { 0.0 });
+        self.prefix_pos
+            .push(lp + if hist > 0.0 { hist } else { 0.0 });
+        self.prefix_neg
+            .push(ln + if hist < 0.0 { -hist } else { 0.0 });
         let bar = self.cur_bar;
         self.last_close = c;
 
@@ -225,7 +231,18 @@ impl RecStream {
                 self.last_trigger = trig;
                 // 块内借 orch（segs+m2r）→ build_a0 → iterate → extract_chain（owned，块后释放借用）。
                 // 诊断：同时捕获本树全 6 类 BSP（回补质询：查产出/消费）。
-                let (v, new_bsps, trend_stats, cd_split, cd_dumps, top_div_info, level_div, d_top_arr, zd_arr, zg_arr) = {
+                let (
+                    v,
+                    new_bsps,
+                    trend_stats,
+                    cd_split,
+                    cd_dumps,
+                    top_div_info,
+                    level_div,
+                    d_top_arr,
+                    zd_arr,
+                    zg_arr,
+                ) = {
                     let segs = self.orch.segments();
                     let strokes = self.orch.strokes();
                     let m2r = self.orch.merged_to_raw();
@@ -258,7 +275,9 @@ impl RecStream {
                                 (TrendKind::Consolidation, Direction::Up) => ts[lv][2] += 1,
                                 (TrendKind::Consolidation, Direction::Down) => ts[lv][3] += 1,
                             }
-                            if tr.kind != TrendKind::Consolidation || tr.direction != Direction::Down {
+                            if tr.kind != TrendKind::Consolidation
+                                || tr.direction != Direction::Down
+                            {
                                 continue;
                             }
                             cds[lv][0] += 1; // ConsolDown 总数
@@ -306,15 +325,22 @@ impl RecStream {
                     //   上涨顶背驰段→Short（卖点 close+做空）/ 下跌底背驰段→Long（买点 cover+做多）。
                     let top_div_info = {
                         let top_lvl = tree.levels.iter().rposition(|l| !l.trends.is_empty());
-                        match top_lvl.and_then(|tl| tree.levels[tl].trends.last().map(|t| (tl, t))) {
+                        match top_lvl.and_then(|tl| tree.levels[tl].trends.last().map(|t| (tl, t)))
+                        {
                             Some((tl, top_trend)) => {
                                 let lvl = tree.levels[tl].level;
                                 let dir = top_trend.direction;
-                                let is_div = crate::recursive_t::divergence::trend_diverging_segment(top_trend, self.mode);
+                                let is_div =
+                                    crate::recursive_t::divergence::trend_diverging_segment(
+                                        top_trend, self.mode,
+                                    );
                                 // 失败归因划分（诊断 W 根因；背驰段含趋势+盘整）。
                                 let diag = if is_div {
                                     5 // 背驰段(armed)：趋势背驰段 ∨ 盘整背驰段
-                                } else if !matches!(top_trend.kind, TrendKind::UpTrend | TrendKind::DownTrend) {
+                                } else if !matches!(
+                                    top_trend.kind,
+                                    TrendKind::UpTrend | TrendKind::DownTrend
+                                ) {
                                     1 // 盘整但非背驰段（无离开段/力度未衰减）
                                 } else if top_trend.zhongshus.len() < 2 {
                                     2 // 趋势<2中枢
@@ -350,7 +376,9 @@ impl RecStream {
                                 continue;
                             }
                             if let Some(t) = lvl_out.trends.last() {
-                                if crate::recursive_t::divergence::trend_diverging_segment(t, self.mode) {
+                                if crate::recursive_t::divergence::trend_diverging_segment(
+                                    t, self.mode,
+                                ) {
                                     ld[lv] = Some(match t.direction {
                                         Direction::Up => crate::trading::types::Polarity::Short,
                                         Direction::Down => crate::trading::types::Polarity::Long,
@@ -366,14 +394,27 @@ impl RecStream {
                     //   确认保护主力骑牛）两路径消费（其余模式 d_top 全 false，bit-exact）。LegPair 次级别开空腿改用 `t3sell`
                     //   （第三类卖点=单层区间套转折，响应回调）⇒ 区间套确认深度按持仓尺度分级（主力 d_top 全深度 / 短差 t3sell 单层）。
                     let d_top_arr = if self.cfg.enable_reading_b || self.cfg.enable_reading_b_pair {
-                        let level_trends_all: Vec<&[crate::recursive_t::types::TrendType]> = (0..MAX_LEVEL)
-                            .map(|k| tree.levels.get(k).map(|lvl| lvl.trends.as_slice()).unwrap_or(&[]))
+                        let level_trends_all: Vec<&[crate::recursive_t::types::TrendType]> = (0
+                            ..MAX_LEVEL)
+                            .map(|k| {
+                                tree.levels
+                                    .get(k)
+                                    .map(|lvl| lvl.trends.as_slice())
+                                    .unwrap_or(&[])
+                            })
                             .collect();
                         let mut dt = [false; MAX_LEVEL];
                         for k in 0..MAX_LEVEL {
-                            if let Some(cc_trend) = tree.levels.get(k).and_then(|lvl| lvl.trends.last()) {
+                            if let Some(cc_trend) =
+                                tree.levels.get(k).and_then(|lvl| lvl.trends.last())
+                            {
                                 dt[k] = crate::recursive_t::divergence::d_top(
-                                    k, cc_trend, &level_trends_all, cc_trend.direction, self.mode, self.cfg.reading_b_diverge,
+                                    k,
+                                    cc_trend,
+                                    &level_trends_all,
+                                    cc_trend.direction,
+                                    self.mode,
+                                    self.cfg.reading_b_diverge,
                                 );
                             }
                         }
@@ -405,7 +446,18 @@ impl RecStream {
                     } else {
                         ([None; MAX_LEVEL], [None; MAX_LEVEL])
                     };
-                    (extract_view(&tree), bs, ts, cds, dumps, top_div_info, level_div, d_top_arr, zd_arr, zg_arr)
+                    (
+                        extract_view(&tree),
+                        bs,
+                        ts,
+                        cds,
+                        dumps,
+                        top_div_info,
+                        level_div,
+                        d_top_arr,
+                        zd_arr,
+                        zg_arr,
+                    )
                 };
                 view = v;
                 // 命题4 读法乙闸门注入 LevelView（engine nest_step 消费；OFF/ANCHOR 忽略 ⇒ bit-exact）。
@@ -481,7 +533,8 @@ impl RecStream {
                 }
                 self.prev_top_armed = top_armed;
                 // 最高级别 type1 完成（556 冻结的稀疏触发）：top level t1 本重跑 fire。
-                if top_lvl_val < MAX_LEVEL && (view.t1buy[top_lvl_val] || view.t1sell[top_lvl_val]) {
+                if top_lvl_val < MAX_LEVEL && (view.t1buy[top_lvl_val] || view.t1sell[top_lvl_val])
+                {
                     self.n_top_type1 += 1;
                 }
                 // 诊断：本次最高级别走势方向（emergent_top 极性）。
@@ -558,7 +611,11 @@ impl RecStream {
             return self.driver.root().free();
         }
         self.finished = true;
-        let c = if self.last_close.is_finite() { self.last_close } else { 0.0 };
+        let c = if self.last_close.is_finite() {
+            self.last_close
+        } else {
+            0.0
+        };
         self.driver.finish(c)
     }
 
@@ -570,7 +627,11 @@ impl RecStream {
     }
     /// 快照: (cur_bar, total_wealth, n_active_instances)。
     pub fn snapshot(&self) -> (i64, f64, usize) {
-        (self.cur_bar, self.driver.root().total_wealth(self.last_close), self.driver.root().n_active())
+        (
+            self.cur_bar,
+            self.driver.root().total_wealth(self.last_close),
+            self.driver.root().n_active(),
+        )
     }
 
     /// #149 per-element 会计 instrumentation（capture-ratio 验证工具，observation-only）。
@@ -623,7 +684,13 @@ impl RecStream {
         // merged bar → raw bar（start 取 raw_start，end 取 raw_end；越界兜底=原值）。
         let conv = |b: i64, is_end: bool| -> i64 {
             match m2r.get(b as usize) {
-                Some(&(rs, re)) => if is_end { re as i64 } else { rs as i64 },
+                Some(&(rs, re)) => {
+                    if is_end {
+                        re as i64
+                    } else {
+                        rs as i64
+                    }
+                }
                 None => b,
             }
         };
@@ -677,7 +744,13 @@ impl RecStream {
         );
         let conv = |b: i64, is_end: bool| -> i64 {
             match m2r.get(b as usize) {
-                Some(&(rs, re)) => if is_end { re as i64 } else { rs as i64 },
+                Some(&(rs, re)) => {
+                    if is_end {
+                        re as i64
+                    } else {
+                        rs as i64
+                    }
+                }
                 None => b,
             }
         };
@@ -780,35 +853,86 @@ mod tests {
             let mut cfg_noaudit = cfg_base;
             cfg_noaudit.enable_lconfirm_audit = false;
 
-            let mut s_a = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_audit);
-            let mut s_n = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_noaudit);
+            let mut s_a = RecStream::new_with_config(
+                PerfectionMode::Structural,
+                A0Source::Segment,
+                cfg_audit,
+            );
+            let mut s_n = RecStream::new_with_config(
+                PerfectionMode::Structural,
+                A0Source::Segment,
+                cfg_noaudit,
+            );
             let fin_a = drive(&mut s_a);
             let fin_n = drive(&mut s_n);
 
             // ① final_nav 逐位一致（核心 bit-exact 判据）。
-            assert_eq!(fin_a.to_bits(), fin_n.to_bits(), "[{base}] final_nav 非 bit-exact（audit ON≠OFF）");
+            assert_eq!(
+                fin_a.to_bits(),
+                fin_n.to_bits(),
+                "[{base}] final_nav 非 bit-exact（audit ON≠OFF）"
+            );
 
             let (ra, rn) = (s_a.driver().root(), s_n.driver().root());
             // ② 全 per-level pnl + opens/closes 逐位一致。
             for k in 0..MAX_LEVEL {
-                assert_eq!(ra.pair_long_pnl[k].to_bits(), rn.pair_long_pnl[k].to_bits(), "[{base}] L{k} long_pnl 非 bit-exact");
-                assert_eq!(ra.pair_short_pnl[k].to_bits(), rn.pair_short_pnl[k].to_bits(), "[{base}] L{k} short_pnl 非 bit-exact");
-                assert_eq!(ra.pair_long_opens[k], rn.pair_long_opens[k], "[{base}] L{k} long_opens 非一致");
-                assert_eq!(ra.pair_short_opens[k], rn.pair_short_opens[k], "[{base}] L{k} short_opens 非一致");
-                assert_eq!(ra.pair_long_closes[k], rn.pair_long_closes[k], "[{base}] L{k} long_closes 非一致");
-                assert_eq!(ra.pair_short_closes[k], rn.pair_short_closes[k], "[{base}] L{k} short_closes 非一致");
+                assert_eq!(
+                    ra.pair_long_pnl[k].to_bits(),
+                    rn.pair_long_pnl[k].to_bits(),
+                    "[{base}] L{k} long_pnl 非 bit-exact"
+                );
+                assert_eq!(
+                    ra.pair_short_pnl[k].to_bits(),
+                    rn.pair_short_pnl[k].to_bits(),
+                    "[{base}] L{k} short_pnl 非 bit-exact"
+                );
+                assert_eq!(
+                    ra.pair_long_opens[k], rn.pair_long_opens[k],
+                    "[{base}] L{k} long_opens 非一致"
+                );
+                assert_eq!(
+                    ra.pair_short_opens[k], rn.pair_short_opens[k],
+                    "[{base}] L{k} short_opens 非一致"
+                );
+                assert_eq!(
+                    ra.pair_long_closes[k], rn.pair_long_closes[k],
+                    "[{base}] L{k} long_closes 非一致"
+                );
+                assert_eq!(
+                    ra.pair_short_closes[k], rn.pair_short_closes[k],
+                    "[{base}] L{k} short_closes 非一致"
+                );
             }
             // ③ 决策计数器逐位一致。
-            assert_eq!(ra.pair_long_stops, rn.pair_long_stops, "[{base}] long_stops");
-            assert_eq!(ra.pair_short_stops, rn.pair_short_stops, "[{base}] short_stops");
-            assert_eq!(ra.pair_core_churns, rn.pair_core_churns, "[{base}] core_churns");
+            assert_eq!(
+                ra.pair_long_stops, rn.pair_long_stops,
+                "[{base}] long_stops"
+            );
+            assert_eq!(
+                ra.pair_short_stops, rn.pair_short_stops,
+                "[{base}] short_stops"
+            );
+            assert_eq!(
+                ra.pair_core_churns, rn.pair_core_churns,
+                "[{base}] core_churns"
+            );
             assert_eq!(ra.n_liquidations, rn.n_liquidations, "[{base}] liq");
-            assert_eq!(ra.leg_trades.len(), rn.leg_trades.len(), "[{base}] leg_trades 长度");
-            assert_eq!(ra.max_gross_exp_x100, rn.max_gross_exp_x100, "[{base}] max_gross");
+            assert_eq!(
+                ra.leg_trades.len(),
+                rn.leg_trades.len(),
+                "[{base}] leg_trades 长度"
+            );
+            assert_eq!(
+                ra.max_gross_exp_x100, rn.max_gross_exp_x100,
+                "[{base}] max_gross"
+            );
 
             // ④ audit OFF 路径：纤维格子恒 0（无消费者 ⇒ 不写）。
             let (fiber_n, _total_n, _) = rn.lconfirm_exhaustive_check();
-            assert_eq!(fiber_n, 0.0, "[{base}] audit OFF ⇒ 纤维格子应恒 0（未写入）");
+            assert_eq!(
+                fiber_n, 0.0,
+                "[{base}] audit OFF ⇒ 纤维格子应恒 0（未写入）"
+            );
         }
     }
 
@@ -839,20 +963,36 @@ mod tests {
         let mut cfg_iq_off = cfg_base;
         cfg_iq_off.enable_intrinsic_quota = false; // 显式 OFF（与 base 同）
 
-        let mut s_base = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_base);
-        let mut s_off = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_iq_off);
+        let mut s_base =
+            RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_base);
+        let mut s_off =
+            RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_iq_off);
         let fin_base = drive(&mut s_base);
         let fin_off = drive(&mut s_off);
 
         // ① final_nav 逐位一致（核心 bit-exact 判据）。
-        assert_eq!(fin_base.to_bits(), fin_off.to_bits(), "intrinsic OFF final_nav 非 bit-exact");
+        assert_eq!(
+            fin_base.to_bits(),
+            fin_off.to_bits(),
+            "intrinsic OFF final_nav 非 bit-exact"
+        );
 
         let (rb, ro) = (s_base.driver().root(), s_off.driver().root());
         // ② 全 per-level short pnl 逐位一致（sink/recover 的短差腿 pnl）。
         for k in 0..MAX_LEVEL {
-            assert_eq!(rb.short_pnl_by_level[k].to_bits(), ro.short_pnl_by_level[k].to_bits(), "L{k} short_pnl 非 bit-exact");
-            assert_eq!(rb.sink_by_level[k], ro.sink_by_level[k], "L{k} sink 计数非一致");
-            assert_eq!(rb.recover_by_level[k], ro.recover_by_level[k], "L{k} recover 计数非一致");
+            assert_eq!(
+                rb.short_pnl_by_level[k].to_bits(),
+                ro.short_pnl_by_level[k].to_bits(),
+                "L{k} short_pnl 非 bit-exact"
+            );
+            assert_eq!(
+                rb.sink_by_level[k], ro.sink_by_level[k],
+                "L{k} sink 计数非一致"
+            );
+            assert_eq!(
+                rb.recover_by_level[k], ro.recover_by_level[k],
+                "L{k} recover 计数非一致"
+            );
         }
         // ③ 操作计数逐位一致（sink/drain/add/recover/enter/flip）。
         assert_eq!(rb.n_sinks, ro.n_sinks, "n_sinks 非一致");
@@ -861,7 +1001,10 @@ mod tests {
         assert_eq!(rb.n_recovers, ro.n_recovers, "n_recovers 非一致");
         assert_eq!(rb.n_enters, ro.n_enters, "n_enters 非一致");
         assert_eq!(rb.n_flips, ro.n_flips, "n_flips 非一致");
-        assert_eq!(rb.n_liquidations, ro.n_liquidations, "n_liquidations 非一致");
+        assert_eq!(
+            rb.n_liquidations, ro.n_liquidations,
+            "n_liquidations 非一致"
+        );
     }
 
     /// **逐级内在配额：ON 激活路径零 panic + 配额偏离固定 1/3（task#84 子5，L1 管线验证）**。
@@ -883,12 +1026,22 @@ mod tests {
             }
             s.finish()
         }
-        let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, EngineConfig::intrinsic_quota());
+        let mut s = RecStream::new_with_config(
+            PerfectionMode::Structural,
+            A0Source::Segment,
+            EngineConfig::intrinsic_quota(),
+        );
         let fin = drive(&mut s);
-        assert!(fin.is_finite() && fin > 0.0, "ON intrinsic_quota final_nav 有限正（零 panic），得 {fin}");
+        assert!(
+            fin.is_finite() && fin > 0.0,
+            "ON intrinsic_quota final_nav 有限正（零 panic），得 {fin}"
+        );
         // ON 路径确被触发的硬证据：sink 数 >0（否则配额路径未走，测试退化）。
         let r = s.driver().root();
-        assert!(r.n_sinks > 0 || r.n_enters > 0, "ON 路径应有 sink/enter 操作（配额路径活跃）");
+        assert!(
+            r.n_sinks > 0 || r.n_enters > 0,
+            "ON 路径应有 sink/enter 操作（配额路径活跃）"
+        );
     }
 
     /// **payoff G 轴：OFF bit-exact（task#5，539 失血修复维，编排者硬约束「OFF 必须 bit-exact」）**。
@@ -918,30 +1071,71 @@ mod tests {
         let mut cfg_g_off = cfg_base;
         cfg_g_off.enable_g_axis = false; // 显式 OFF（与 base 同）
 
-        let mut s_base = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_base);
-        let mut s_off = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_g_off);
+        let mut s_base =
+            RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_base);
+        let mut s_off =
+            RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_g_off);
         let fin_base = drive(&mut s_base);
         let fin_off = drive(&mut s_off);
 
         // ① final_nav 逐位一致（核心 bit-exact 判据）。
-        assert_eq!(fin_base.to_bits(), fin_off.to_bits(), "G 轴 OFF final_nav 非 bit-exact");
+        assert_eq!(
+            fin_base.to_bits(),
+            fin_off.to_bits(),
+            "G 轴 OFF final_nav 非 bit-exact"
+        );
 
         let (rb, ro) = (s_base.driver().root(), s_off.driver().root());
         // ② 全 per-level long/short pnl 逐位一致（LegPair 路径腿 pnl）。
         for k in 0..MAX_LEVEL {
-            assert_eq!(rb.pair_long_pnl[k].to_bits(), ro.pair_long_pnl[k].to_bits(), "L{k} long_pnl 非 bit-exact");
-            assert_eq!(rb.pair_short_pnl[k].to_bits(), ro.pair_short_pnl[k].to_bits(), "L{k} short_pnl 非 bit-exact");
-            assert_eq!(rb.pair_long_opens[k], ro.pair_long_opens[k], "L{k} long_opens 非一致");
-            assert_eq!(rb.pair_short_opens[k], ro.pair_short_opens[k], "L{k} short_opens 非一致");
+            assert_eq!(
+                rb.pair_long_pnl[k].to_bits(),
+                ro.pair_long_pnl[k].to_bits(),
+                "L{k} long_pnl 非 bit-exact"
+            );
+            assert_eq!(
+                rb.pair_short_pnl[k].to_bits(),
+                ro.pair_short_pnl[k].to_bits(),
+                "L{k} short_pnl 非 bit-exact"
+            );
+            assert_eq!(
+                rb.pair_long_opens[k], ro.pair_long_opens[k],
+                "L{k} long_opens 非一致"
+            );
+            assert_eq!(
+                rb.pair_short_opens[k], ro.pair_short_opens[k],
+                "L{k} short_opens 非一致"
+            );
         }
         // ③ 止损/强平/churn 计数逐位一致 + G 轴观测计数恒 0（OFF 无消费者）。
-        assert_eq!(rb.pair_long_stops, ro.pair_long_stops, "pair_long_stops 非一致");
-        assert_eq!(rb.pair_short_stops, ro.pair_short_stops, "pair_short_stops 非一致");
-        assert_eq!(rb.pair_core_churns, ro.pair_core_churns, "pair_core_churns 非一致");
-        assert_eq!(rb.n_liquidations, ro.n_liquidations, "n_liquidations 非一致");
-        assert_eq!(rb.g_axis_align_blocked, 0, "OFF base g_axis_align_blocked 应恒 0");
-        assert_eq!(ro.g_axis_align_blocked, 0, "OFF g_axis_align_blocked 应恒 0");
-        assert_eq!(ro.g_axis_reach_stops_set, 0, "OFF g_axis_reach_stops_set 应恒 0");
+        assert_eq!(
+            rb.pair_long_stops, ro.pair_long_stops,
+            "pair_long_stops 非一致"
+        );
+        assert_eq!(
+            rb.pair_short_stops, ro.pair_short_stops,
+            "pair_short_stops 非一致"
+        );
+        assert_eq!(
+            rb.pair_core_churns, ro.pair_core_churns,
+            "pair_core_churns 非一致"
+        );
+        assert_eq!(
+            rb.n_liquidations, ro.n_liquidations,
+            "n_liquidations 非一致"
+        );
+        assert_eq!(
+            rb.g_axis_align_blocked, 0,
+            "OFF base g_axis_align_blocked 应恒 0"
+        );
+        assert_eq!(
+            ro.g_axis_align_blocked, 0,
+            "OFF g_axis_align_blocked 应恒 0"
+        );
+        assert_eq!(
+            ro.g_axis_reach_stops_set, 0,
+            "OFF g_axis_reach_stops_set 应恒 0"
+        );
     }
 
     /// **payoff G 轴：ON 激活路径零 panic + 方向误读孤儿被堵（task#5，L1 管线验证）**。
@@ -964,12 +1158,21 @@ mod tests {
             }
             s.finish()
         }
-        let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, EngineConfig::g_axis());
+        let mut s = RecStream::new_with_config(
+            PerfectionMode::Structural,
+            A0Source::Segment,
+            EngineConfig::g_axis(),
+        );
         let fin = drive(&mut s);
-        assert!(fin.is_finite() && fin > 0.0, "ON g_axis final_nav 有限正（零 panic），得 {fin}");
+        assert!(
+            fin.is_finite() && fin > 0.0,
+            "ON g_axis final_nav 有限正（零 panic），得 {fin}"
+        );
         // ON 路径确被触发的硬证据：开腿数 >0（否则 g_pair 路径未走，测试退化）。
         let r = s.driver().root();
-        let opens: u64 = (0..MAX_LEVEL).map(|k| r.pair_long_opens[k] + r.pair_short_opens[k]).sum();
+        let opens: u64 = (0..MAX_LEVEL)
+            .map(|k| r.pair_long_opens[k] + r.pair_short_opens[k])
+            .sum();
         assert!(opens > 0, "ON 路径应有开腿操作（g_pair 路径活跃）");
     }
 
@@ -989,22 +1192,35 @@ mod tests {
 
         // bar10：核心多腿 @L4，type1 买点（t1buy）⇒ (k=4, leg=H⁰, dir=R+, c=T1)。
         let mut v = LevelView::empty();
-        v.buy[4] = true; v.t1buy[4] = true;
+        v.buy[4] = true;
+        v.t1buy[4] = true;
         v.nodes[4] = Some(mk_node(0, 10, Direction::Up));
         r.on_bar(&v, 10, 100.0);
         assert!(r.leg_pair(4).long_active(), "核心多腿@L4 开仓");
-        assert_eq!(r.leg_pair(4).long_conf, ConfDepth::T1, "核心 type1 确认深度 c=T1");
-        assert!(r.leg_pair(4).long_is_core, "L4 = highest_active_long ⇒ H⁰核心");
+        assert_eq!(
+            r.leg_pair(4).long_conf,
+            ConfDepth::T1,
+            "核心 type1 确认深度 c=T1"
+        );
+        assert!(
+            r.leg_pair(4).long_is_core,
+            "L4 = highest_active_long ⇒ H⁰核心"
+        );
 
         // bar11：次级别空腿 @L1，type3 卖点（t3sell，k<核心4）⇒ (k=1, leg=H¹, dir=R−, c=T3)。
         let mut v = LevelView::empty();
-        v.sell[1] = true; v.t3sell[1] = true;
+        v.sell[1] = true;
+        v.t3sell[1] = true;
         v.nodes[1] = Some(mk_node(0, 11, Direction::Down));
         // 保持 L4 核心走势节点在场（highest_active_long 仍=4 ⇒ k=1<4 = below_core ⇒ H¹）。
         v.nodes[4] = Some(mk_node(0, 11, Direction::Up));
         r.on_bar(&v, 11, 100.0);
         assert!(r.leg_pair(1).short_active(), "次级别空腿@L1 开仓");
-        assert_eq!(r.leg_pair(1).short_conf, ConfDepth::T3, "次级别 type3 确认深度 c=T3");
+        assert_eq!(
+            r.leg_pair(1).short_conf,
+            ConfDepth::T3,
+            "次级别 type3 确认深度 c=T3"
+        );
         assert!(!r.leg_pair(1).short_is_core, "L1<核心4 ⇒ H¹短差");
 
         // bar12：L1 买点平空腿（涨到 95：空腿 basis=100 ⇒ short_pnl=+5/unit）。
@@ -1017,10 +1233,15 @@ mod tests {
 
         // bar13：L4 核心走势完成（d_top=type1 卖点）churn 平核心多腿（c=110 ⇒ long_pnl=+10/unit）。
         let mut v = LevelView::empty();
-        v.sell[4] = true; v.t1sell[4] = true; v.d_top[4] = true;
+        v.sell[4] = true;
+        v.t1sell[4] = true;
+        v.d_top[4] = true;
         v.nodes[4] = Some(mk_node(0, 13, Direction::Up));
         r.on_bar(&v, 13, 110.0);
-        assert!(!r.leg_pair(4).long_active(), "核心走势完成 churn 平核心多腿");
+        assert!(
+            !r.leg_pair(4).long_active(),
+            "核心走势完成 churn 平核心多腿"
+        );
 
         // ── 四轴归格正确性：核心多腿 pnl 在 (4,H⁰,R+,T1)；次级别空腿 pnl 在 (1,H¹,R−,T3）──
         let (core_pnl, core_cnt) = r.lconfirm_cell(4, 0, 0, ConfDepth::T1 as usize);
@@ -1053,7 +1274,10 @@ mod tests {
             s.push_bar(c - 0.1, c + 0.5, c - 0.5, c);
         }
         let fin = s.finish();
-        assert!(fin.is_finite() && fin > 0.0, "笔底座 final_nav 有限正，得 {fin}");
+        assert!(
+            fin.is_finite() && fin > 0.0,
+            "笔底座 final_nav 有限正，得 {fin}"
+        );
     }
 
     /// **递归流式 new 默认 = Segment 来源**：`new` ⟺ `new_with_a0(Segment)`（bit-exact final_nav + 重跑数）。
@@ -1097,14 +1321,22 @@ mod tests {
             let t = i as f64;
             let period = 700.0;
             let phase = (t % period) / period; // 0..1
-            let tri = if phase < 0.5 { phase * 2.0 } else { 2.0 - phase * 2.0 }; // 0→1→0 三角波
+            let tri = if phase < 0.5 {
+                phase * 2.0
+            } else {
+                2.0 - phase * 2.0
+            }; // 0→1→0 三角波
             let macro_trend = 70.0 * tri; // 强方向宏观趋势（升 → 降）
             let mid = 12.0 * (t / 47.0).sin();
             let micro = 3.5 * (t / 13.0).sin();
             let c = 100.0 + macro_trend + mid + micro;
             (c - 0.1, c + 0.6, c - 0.6, c)
         }
-        for &mode in &[PerfectionMode::Structural, PerfectionMode::And, PerfectionMode::Or] {
+        for &mode in &[
+            PerfectionMode::Structural,
+            PerfectionMode::And,
+            PerfectionMode::Or,
+        ] {
             let mut flat = TFugueStreamCore::new(mode);
             let mut rec = RecStream::new(mode);
             for i in 0..4200 {
@@ -1115,14 +1347,16 @@ mod tests {
             flat.finish();
             let rec_nav = rec.finish();
             assert_eq!(
-                flat.result().final_nav, rec_nav,
+                flat.result().final_nav,
+                rec_nav,
                 "rec≡flat final_nav 逐位一致（mode={mode:?}，对称改证据）"
             );
             // 走势完成清仓路径在两引擎触发次数逐位一致（不变量：IF 触发则对称触发）。
             // 合成序列高层 type1 稀疏可能不触发新路径；新路径**确被触发的 bit-exact 硬证据**见
             // `rec_flat_btc_bit_exact`（真实 BTC，clears>0 且 flat==rec）。
             assert_eq!(
-                flat.n_trend_done_clears(), rec.driver().root().n_trend_done_clears,
+                flat.n_trend_done_clears(),
+                rec.driver().root().n_trend_done_clears,
                 "rec≡flat 走势完成清仓次数逐位一致（mode={mode:?}，新路径对称触发）"
             );
         }
@@ -1162,11 +1396,24 @@ mod tests {
         let rec_clears = rec.driver().root().n_trend_done_clears;
         eprintln!(
             "BTC rec≡flat: flat_nav={} rec_nav={} | 走势完成清仓 flat={} rec={}",
-            flat.result().final_nav, rec_nav, flat_clears, rec_clears
+            flat.result().final_nav,
+            rec_nav,
+            flat_clears,
+            rec_clears
         );
-        assert_eq!(flat.result().final_nav, rec_nav, "rec≡flat final_nav 逐位一致（BTC，新路径活跃）");
-        assert_eq!(flat_clears, rec_clears, "rec≡flat 走势完成清仓次数逐位一致（BTC）");
-        assert!(flat_clears > 0, "走势完成清仓路径在 BTC 真实触发（clears>0 ⇒ bit-exact 覆盖新路径）");
+        assert_eq!(
+            flat.result().final_nav,
+            rec_nav,
+            "rec≡flat final_nav 逐位一致（BTC，新路径活跃）"
+        );
+        assert_eq!(
+            flat_clears, rec_clears,
+            "rec≡flat 走势完成清仓次数逐位一致（BTC）"
+        );
+        assert!(
+            flat_clears > 0,
+            "走势完成清仓路径在 BTC 真实触发（clears>0 ⇒ bit-exact 覆盖新路径）"
+        );
     }
 
     /// **核心走势完成清仓单元（546号死锁解锁机制单测）**：构造核心 Long 后，喂该 level 的 type1 卖点
@@ -1192,7 +1439,11 @@ mod tests {
         v2.t1sell[3] = true; // type1（背驰=走势终完美）
         v2.nodes[3] = Some(TrendNode::new(10, 20, 95.0, 130.0, Direction::Up));
         r.on_bar(&v2, 20, 130.0);
-        assert_eq!(r.highest_active(), None, "核心走势完成 → 全平到现金（死锁解锁）");
+        assert_eq!(
+            r.highest_active(),
+            None,
+            "核心走势完成 → 全平到现金（死锁解锁）"
+        );
         assert!(!r.instance(3).is_active(), "level 3 清空");
         assert_eq!(r.n_flips, 0, "走势完成是清仓非 flip（不反向 enter）");
         // 3) 下一个买点 → enter 重建（highest_active 已 None ⇒ enter 路径激活）。
@@ -1201,7 +1452,11 @@ mod tests {
         v3.nodes[2] = Some(TrendNode::new(20, 30, 120.0, 140.0, Direction::Up));
         r.on_bar(&v3, 30, 135.0);
         assert_eq!(r.highest_active(), Some(2), "下一买点 enter 重建 @2");
-        assert_eq!(r.n_enters, enters0 + 1, "n_enters 增长（死锁解除：重建路径激活）");
+        assert_eq!(
+            r.n_enters,
+            enters0 + 1,
+            "n_enters 增长（死锁解除：重建路径激活）"
+        );
     }
 
     /// **非 type1 卖点不触发清仓**（走势完成判据严格性：仅 type1 背驰 = 走势终完美）：
@@ -1221,8 +1476,14 @@ mod tests {
         v2.nodes[3] = Some(TrendNode::new(10, 20, 95.0, 130.0, Direction::Up));
         r.on_bar(&v2, 20, 130.0);
         // 走势完成路径未触发（t1sell=false）⇒ 走既有核心级反向 flip（highest_active 仍 Some=翻空后核心）。
-        assert!(r.highest_active().is_some(), "非 type1 卖点不走走势完成清仓（走既有 flip 路径）");
-        assert_eq!(r.n_flips, 1, "非 type1 反向 → flip（既有路径，未被走势完成清仓抢占）");
+        assert!(
+            r.highest_active().is_some(),
+            "非 type1 卖点不走走势完成清仓（走既有 flip 路径）"
+        );
+        assert_eq!(
+            r.n_flips, 1,
+            "非 type1 反向 → flip（既有路径，未被走势完成清仓抢占）"
+        );
     }
 
     /// **盘整 no_leave 根因诊断**（编排者 2026-06-21）：流式 BTC Structural，逐级别切分 ConsolDown
@@ -1297,7 +1558,12 @@ mod tests {
             .join("analysis/data_cache");
         let only: Vec<String> = std::env::var("BT_SYMBOLS")
             .ok()
-            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+            .map(|s| {
+                s.split(',')
+                    .map(|x| x.trim().to_uppercase())
+                    .filter(|x| !x.is_empty())
+                    .collect()
+            })
             .unwrap_or_default();
         // a₀ 来源 A/B 开关（默认 Segment=bit-exact 基线）。
         let a0_source = match std::env::var("T_A0").ok().as_deref() {
@@ -1310,7 +1576,15 @@ mod tests {
             a0_source
         );
         // (sym, bh, strat[3], short_pnl[3], net_short%[3], sink[3], freeshort[3])
-        type Row = (String, f64, [f64; 3], [f64; 3], [f64; 3], [u64; 3], [u64; 3]);
+        type Row = (
+            String,
+            f64,
+            [f64; 3],
+            [f64; 3],
+            [f64; 3],
+            [u64; 3],
+            [u64; 3],
+        );
         let mut rows: Vec<Row> = Vec::new();
 
         for (sym, file) in SYMBOLS {
@@ -1324,12 +1598,20 @@ mod tests {
             }
             let (o, h, l, c) = load_clean_ohlc(&path);
             let n = c.len();
-            let bh = if n > 0 && c[0] > 0.0 { (c[n - 1] / c[0] - 1.0) * 100.0 } else { 0.0 };
+            let bh = if n > 0 && c[0] > 0.0 {
+                (c[n - 1] / c[0] - 1.0) * 100.0
+            } else {
+                0.0
+            };
             let (mut strat, mut spnl, mut nshort) = ([0.0; 3], [0.0; 3], [0.0; 3]);
             let (mut sinks, mut fshort) = ([0u64; 3], [0u64; 3]);
-            for (mi, mode) in [PerfectionMode::Structural, PerfectionMode::And, PerfectionMode::Or]
-                .iter()
-                .enumerate()
+            for (mi, mode) in [
+                PerfectionMode::Structural,
+                PerfectionMode::And,
+                PerfectionMode::Or,
+            ]
+            .iter()
+            .enumerate()
             {
                 let t0 = std::time::Instant::now();
                 let mut s = RecStream::new_with_a0(*mode, a0_source);
@@ -1401,29 +1683,47 @@ mod tests {
                     eprintln!("  [{sym}/{mode:?}] core_level_bars(核心停留)={core_lvl:?}");
                     eprintln!("  [{sym}/{mode:?}] emergent_level_bars(涌现级别)={emg_lvl:?}");
                     // R3 段无腿实证：Face A LegPair 核心多腿停留级别 vs 涌现级别（核心是否到最高涌现 ⇒ 高级别段有无腿）。
-                    let pair_core_lvl: Vec<u64> = (0..9).map(|k| s.pair_core_level_bars[k]).collect();
+                    let pair_core_lvl: Vec<u64> =
+                        (0..9).map(|k| s.pair_core_level_bars[k]).collect();
                     eprintln!("  [{sym}/{mode:?}] pair_core_level_bars(LegPair核心停留)={pair_core_lvl:?}");
                     let trend_s: Vec<[u64; 4]> = (0..6).map(|k| s.tree_trend_stats[k]).collect();
                     eprintln!("  [{sym}/{mode:?}] tree_trend_stats[Up,Down,ConsolUp,ConsolDown]/lvl={trend_s:?}");
-                    let consol_diag: Vec<[u64; 4]> = crate::recursive_t::divergence::CONSOL_DOWN_DIAG
-                        .with(|d| (0..6).map(|k| d.borrow()[k]).collect());
+                    let consol_diag: Vec<[u64; 4]> =
+                        crate::recursive_t::divergence::CONSOL_DOWN_DIAG
+                            .with(|d| (0..6).map(|k| d.borrow()[k]).collect());
                     eprintln!("  [{sym}/{mode:?}] ConsolDown判定[no_new_low,no_force,produced,no_leave]/lvl={consol_diag:?}");
-                    crate::recursive_t::divergence::CONSOL_DOWN_DIAG.with(|d| *d.borrow_mut() = [[0; 4]; 9]);
+                    crate::recursive_t::divergence::CONSOL_DOWN_DIAG
+                        .with(|d| *d.borrow_mut() = [[0; 4]; 9]);
                     eprintln!(
                         "  [{sym}/{mode:?}] core_long_bars={} core_short_bars={} c0_up={} c0_down={}",
                         s.core_long_bars, s.core_short_bars, s.c0_up_bars, s.c0_down_bars
                     );
                     // 核心 flip 序列：查低级别 ping-pong。
-                    let n_l2s = r.flip_log.iter().filter(|(_, f, t, _, _)| *f == Pol::Long && *t == Pol::Short).count();
-                    let n_s2l = r.flip_log.iter().filter(|(_, f, t, _, _)| *f == Pol::Short && *t == Pol::Long).count();
-                    let flip_by_lvl: Vec<usize> = r.flip_log.iter().map(|(_, _, _, j, _)| *j).collect();
+                    let n_l2s = r
+                        .flip_log
+                        .iter()
+                        .filter(|(_, f, t, _, _)| *f == Pol::Long && *t == Pol::Short)
+                        .count();
+                    let n_s2l = r
+                        .flip_log
+                        .iter()
+                        .filter(|(_, f, t, _, _)| *f == Pol::Short && *t == Pol::Long)
+                        .count();
+                    let flip_by_lvl: Vec<usize> =
+                        r.flip_log.iter().map(|(_, _, _, j, _)| *j).collect();
                     eprintln!(
                         "  [{sym}/{mode:?}] flips={} (Long→Short={n_l2s} Short→Long={n_s2l}) 触发级别={flip_by_lvl:?}",
                         r.flip_log.len()
                     );
-                    let head: Vec<(i64, i8, usize)> = r.flip_log.iter().take(40)
-                        .map(|(b, _, t, j, _)| (*b, if *t == Pol::Long { 1i8 } else { -1 }, *j)).collect();
-                    eprintln!("  [{sym}/{mode:?}] flip序列前40 (bar,到向[1=L/-1=S],触发级别)={head:?}");
+                    let head: Vec<(i64, i8, usize)> = r
+                        .flip_log
+                        .iter()
+                        .take(40)
+                        .map(|(b, _, t, j, _)| (*b, if *t == Pol::Long { 1i8 } else { -1 }, *j))
+                        .collect();
+                    eprintln!(
+                        "  [{sym}/{mode:?}] flip序列前40 (bar,到向[1=L/-1=S],触发级别)={head:?}"
+                    );
                     // sink/recover 路由对称性（编排者排查：为什么 recover<sink）。
                     let sink_lvl: Vec<u64> = (0..6).map(|k| r.sink_by_level[k]).collect();
                     let recover_lvl: Vec<u64> = (0..6).map(|k| r.recover_by_level[k]).collect();
@@ -1459,8 +1759,12 @@ mod tests {
                     );
                     for &(lv, eb, ep, lb, lp, short) in r.liq_log.iter() {
                         // 期间 (开空bar, 强平bar] 任意级别 type1_buy（流式确认 bar 坐标）。
-                        let buys: Vec<(i64, f64, usize)> =
-                            s.t1buy.iter().filter(|(b, _, _)| *b > eb && *b <= lb).cloned().collect();
+                        let buys: Vec<(i64, f64, usize)> = s
+                            .t1buy
+                            .iter()
+                            .filter(|(b, _, _)| *b > eb && *b <= lb)
+                            .cloned()
+                            .collect();
                         let buy_lvls: Vec<usize> = buys.iter().map(|(_, _, l)| *l).collect();
                         // 同级别买点（lv）是否 fire（高级别空头需同级别买点 recover）。
                         let same_lvl = buys.iter().filter(|(_, _, l)| *l == lv).count();
@@ -1474,8 +1778,12 @@ mod tests {
                     }
                     // 编排者诊断：L2/L3/L4 type1_buy 的 bar 分布（确认高级别空头持仓期间有无同级别买点）。
                     for lvl in [2usize, 3, 4] {
-                        let buys: Vec<i64> =
-                            s.t1buy.iter().filter(|(_, _, l)| *l == lvl).map(|(b, _, _)| *b).collect();
+                        let buys: Vec<i64> = s
+                            .t1buy
+                            .iter()
+                            .filter(|(_, _, l)| *l == lvl)
+                            .map(|(b, _, _)| *b)
+                            .collect();
                         let first = buys.first().copied().unwrap_or(-1);
                         let last = buys.last().copied().unwrap_or(-1);
                         let head: Vec<i64> = buys.iter().take(8).copied().collect();
@@ -1488,14 +1796,20 @@ mod tests {
                         );
                     }
                 }
-                assert!(fin.is_finite(), "[{sym}] final_nav 有限（NaN/Inf=会计 bug）");
+                assert!(
+                    fin.is_finite(),
+                    "[{sym}] final_nav 有限（NaN/Inf=会计 bug）"
+                );
             }
             rows.push((sym.to_string(), bh, strat, spnl, nshort, sinks, fshort));
         }
 
         // ── 汇总矩阵 ──
         println!("\n===== 递归 T 8×3 strat_pct 矩阵（区间套递归归还修复后）=====");
-        println!("{:<6} {:>12} {:>12} {:>12} {:>11}", "标的", "Structural", "AND", "OR", "BH");
+        println!(
+            "{:<6} {:>12} {:>12} {:>12} {:>11}",
+            "标的", "Structural", "AND", "OR", "BH"
+        );
         for (sym, bh, strat, _, _, _, _) in &rows {
             let mark = |x: f64| if x > *bh { "*" } else { " " }; // * = 超 BH
             println!(
@@ -1547,7 +1861,12 @@ mod tests {
             .join("analysis/data_cache");
         let only: Vec<String> = std::env::var("BT_SYMBOLS")
             .ok()
-            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+            .map(|s| {
+                s.split(',')
+                    .map(|x| x.trim().to_uppercase())
+                    .filter(|x| !x.is_empty())
+                    .collect()
+            })
             .unwrap_or_default();
 
         eprintln!("\n========== 命题4 读法乙 L3：OFF / ANCHOR / NEST（PerfectionMode::Structural）==========");
@@ -1569,7 +1888,11 @@ mod tests {
             off_short_pnl: f64,
         }
         let mut rows: Vec<Row> = Vec::new();
-        let variants = [("OFF", EngineConfig::off()), ("ANCHOR", EngineConfig::anchor()), ("NEST", EngineConfig::nest())];
+        let variants = [
+            ("OFF", EngineConfig::off()),
+            ("ANCHOR", EngineConfig::anchor()),
+            ("NEST", EngineConfig::nest()),
+        ];
 
         for (sym, file) in SYMBOLS {
             if !only.is_empty() && !only.contains(&sym.to_uppercase()) {
@@ -1582,24 +1905,43 @@ mod tests {
             }
             let (o, h, l, c) = load_clean_ohlc(&path);
             let n = c.len();
-            let bh = if n > 0 && c[0] > 0.0 { (c[n - 1] / c[0] - 1.0) * 100.0 } else { 0.0 };
+            let bh = if n > 0 && c[0] > 0.0 {
+                (c[n - 1] / c[0] - 1.0) * 100.0
+            } else {
+                0.0
+            };
             let mut strat = [0.0f64; 3];
             let mut row = Row {
-                sym: sym.to_string(), bh, strat: [0.0; 3], w: 0, t: 0, armed: 0, reruns: 0,
-                nest_flips: 0, nest_short_n: 0, nest_short_pnl: 0.0, nest_short_hold_avg: 0.0,
-                nest_long_n: 0, nest_short_leg_pnl: 0.0, off_short_pnl: 0.0,
+                sym: sym.to_string(),
+                bh,
+                strat: [0.0; 3],
+                w: 0,
+                t: 0,
+                armed: 0,
+                reruns: 0,
+                nest_flips: 0,
+                nest_short_n: 0,
+                nest_short_pnl: 0.0,
+                nest_short_hold_avg: 0.0,
+                nest_long_n: 0,
+                nest_short_leg_pnl: 0.0,
+                off_short_pnl: 0.0,
             };
 
             for (vi, (vname, cfg)) in variants.iter().enumerate() {
                 let t0 = std::time::Instant::now();
-                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                let mut s =
+                    RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
                 for i in 0..n {
                     s.push_bar(o[i], h[i], l[i], c[i]);
                 }
                 let fin = s.finish();
                 strat[vi] = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
                 let r = s.driver().root();
-                assert!(fin.is_finite(), "[{sym}/{vname}] final_nav 非有限（会计 bug）");
+                assert!(
+                    fin.is_finite(),
+                    "[{sym}/{vname}] final_nav 非有限（会计 bug）"
+                );
                 eprintln!(
                     "[{sym:<5}/{vname:<6}] strat={:+.1}% bh={:+.1}% enter={} flip={} nest_flip={} short_pnl={:+.0} \
                      liq={} reruns={} ({:.1}s)",
@@ -1616,7 +1958,7 @@ mod tests {
                     row.reruns = s.n_reruns;
                     row.nest_flips = r.n_nest_flips;
                     row.nest_short_leg_pnl = r.short_leg_pnl; // 综合做空腿 P&L（含强平腿，539 主指标）
-                    // NEST 逐笔做空腿（539 验收：长持死扣 vs 高频短持小亏）。
+                                                              // NEST 逐笔做空腿（539 验收：长持死扣 vs 高频短持小亏）。
                     let shorts: Vec<&(bool, i64, f64, i64, f64, f64)> =
                         r.nest_trades.iter().filter(|t| t.0).collect();
                     let longs = r.nest_trades.iter().filter(|t| !t.0).count();
@@ -1624,9 +1966,14 @@ mod tests {
                     row.nest_short_pnl = shorts.iter().map(|t| t.5).sum();
                     row.nest_long_n = longs;
                     let hold_sum: f64 = shorts.iter().map(|t| (t.3 - t.1) as f64).sum();
-                    row.nest_short_hold_avg = if shorts.is_empty() { 0.0 } else { hold_sum / shorts.len() as f64 };
+                    row.nest_short_hold_avg = if shorts.is_empty() {
+                        0.0
+                    } else {
+                        hold_sum / shorts.len() as f64
+                    };
                     let top_hist: Vec<u64> = (0..9).map(|k| s.top_level_hist[k]).collect();
-                    let armed_pct = 100.0 * s.n_top_diverge_reruns as f64 / s.n_reruns.max(1) as f64;
+                    let armed_pct =
+                        100.0 * s.n_top_diverge_reruns as f64 / s.n_reruns.max(1) as f64;
                     eprintln!(
                         "  [{sym}/NEST] ★顶层闸门: 背驰段窗口W={} type1完成T={} | armed_reruns={}/{} (armed%={:.1}) | top_level_hist={:?}",
                         s.n_top_diverge_windows, s.n_top_type1, s.n_top_diverge_reruns, s.n_reruns, armed_pct, top_hist
@@ -1650,19 +1997,36 @@ mod tests {
 
         // ── 汇总矩阵 ──
         println!("\n===== 命题4 读法乙 L3 矩阵（strat% OFF/ANCHOR/NEST vs BH，* = 超 BH）=====");
-        println!("{:<6} {:>12} {:>12} {:>12} {:>11}", "标的", "OFF", "ANCHOR", "NEST", "BH");
+        println!(
+            "{:<6} {:>12} {:>12} {:>12} {:>11}",
+            "标的", "OFF", "ANCHOR", "NEST", "BH"
+        );
         for r in &rows {
             let mk = |x: f64| if x > r.bh { "*" } else { " " };
             println!(
                 "{:<6} {:>+10.1}%{} {:>+10.1}%{} {:>+10.1}%{} {:>+10.1}%",
-                r.sym, r.strat[0], mk(r.strat[0]), r.strat[1], mk(r.strat[1]), r.strat[2], mk(r.strat[2]), r.bh
+                r.sym,
+                r.strat[0],
+                mk(r.strat[0]),
+                r.strat[1],
+                mk(r.strat[1]),
+                r.strat[2],
+                mk(r.strat[2]),
+                r.bh
             );
         }
         // ── 556 解冻判据矩阵：W（背驰段窗口）vs T（type1完成）──
         println!("\n----- 556 顶层触发频率：W=背驰段窗口 vs T=type1完成（W≫T⇒src-prop13真解冻 / W≈T⇒假消解）-----");
-        println!("{:<6} {:>8} {:>8} {:>10} {:>8} {:>10} {:>10}", "标的", "W", "T", "W/T", "nest_flip", "armed%", "reruns");
+        println!(
+            "{:<6} {:>8} {:>8} {:>10} {:>8} {:>10} {:>10}",
+            "标的", "W", "T", "W/T", "nest_flip", "armed%", "reruns"
+        );
         for r in &rows {
-            let wt = if r.t > 0 { format!("{:.2}", r.w as f64 / r.t as f64) } else { "∞/NaN".to_string() };
+            let wt = if r.t > 0 {
+                format!("{:.2}", r.w as f64 / r.t as f64)
+            } else {
+                "∞/NaN".to_string()
+            };
             let armed_pct = 100.0 * r.armed as f64 / r.reruns.max(1) as f64;
             println!(
                 "{:<6} {:>8} {:>8} {:>10} {:>8} {:>9.1}% {:>10}",
@@ -1671,11 +2035,19 @@ mod tests {
         }
         // ── vs 539：NEST 做空腿逐笔 vs OFF 做空腿 ──
         println!("\n----- vs 539 做空腿：NEST（高频短持小亏？千刀凌迟？长持死扣？）vs OFF -----");
-        println!("{:<6} {:>12} {:>10} {:>12} {:>10} {:>14}", "标的", "NEST空腿pnl(全)", "翻转n", "逐笔空n", "平均持bar", "OFF short_pnl");
+        println!(
+            "{:<6} {:>12} {:>10} {:>12} {:>10} {:>14}",
+            "标的", "NEST空腿pnl(全)", "翻转n", "逐笔空n", "平均持bar", "OFF short_pnl"
+        );
         for r in &rows {
             println!(
                 "{:<6} {:>+12.0} {:>10} {:>12} {:>12.0} {:>+14.0}",
-                r.sym, r.nest_short_leg_pnl, r.nest_flips, r.nest_short_n, r.nest_short_hold_avg, r.off_short_pnl
+                r.sym,
+                r.nest_short_leg_pnl,
+                r.nest_flips,
+                r.nest_short_n,
+                r.nest_short_hold_avg,
+                r.off_short_pnl
             );
         }
         println!("====================================================================\n");
@@ -1705,7 +2077,12 @@ mod tests {
             .join("analysis/data_cache");
         let only: Vec<String> = std::env::var("BT_SYMBOLS")
             .ok()
-            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+            .map(|s| {
+                s.split(',')
+                    .map(|x| x.trim().to_uppercase())
+                    .filter(|x| !x.is_empty())
+                    .collect()
+            })
             .unwrap_or_default();
 
         eprintln!("\n===== 命题4 读法乙 consume平空 + 严格逐级 L3（任务22，Structural）=====");
@@ -1737,14 +2114,24 @@ mod tests {
             }
             let (o, h, l, c) = load_clean_ohlc(&path);
             let n = c.len();
-            let bh = if n > 0 && c[0] > 0.0 { (c[n - 1] / c[0] - 1.0) * 100.0 } else { 0.0 };
+            let bh = if n > 0 && c[0] > 0.0 {
+                (c[n - 1] / c[0] - 1.0) * 100.0
+            } else {
+                0.0
+            };
             let mut row = Row {
-                sym: sym.to_string(), bh, strat: [0.0; 4], flips: [0; 4], consumes: [0; 4],
-                short_pnl: [0.0; 4], hold_avg: [0.0; 4],
+                sym: sym.to_string(),
+                bh,
+                strat: [0.0; 4],
+                flips: [0; 4],
+                consumes: [0; 4],
+                short_pnl: [0.0; 4],
+                hold_avg: [0.0; 4],
             };
             for (vi, (vname, cfg)) in variants.iter().enumerate() {
                 let t0 = std::time::Instant::now();
-                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                let mut s =
+                    RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
                 for i in 0..n {
                     s.push_bar(o[i], h[i], l[i], c[i]);
                 }
@@ -1755,9 +2142,14 @@ mod tests {
                 row.flips[vi] = r.n_nest_flips;
                 row.consumes[vi] = r.n_nest_consumes;
                 row.short_pnl[vi] = r.short_leg_pnl;
-                let shorts: Vec<&(bool, i64, f64, i64, f64, f64)> = r.nest_trades.iter().filter(|t| t.0).collect();
+                let shorts: Vec<&(bool, i64, f64, i64, f64, f64)> =
+                    r.nest_trades.iter().filter(|t| t.0).collect();
                 let hold_sum: f64 = shorts.iter().map(|t| (t.3 - t.1) as f64).sum();
-                row.hold_avg[vi] = if shorts.is_empty() { 0.0 } else { hold_sum / shorts.len() as f64 };
+                row.hold_avg[vi] = if shorts.is_empty() {
+                    0.0
+                } else {
+                    hold_sum / shorts.len() as f64
+                };
                 eprintln!(
                     "[{sym:<5}/{vname:<11}] strat={:+.1}% bh={:+.1}% flip={} consume={} consume_pnl={:+.0} short_pnl={:+.0} liq={} ({:.1}s)",
                     row.strat[vi], bh, r.n_nest_flips, r.n_nest_consumes, r.nest_consume_pnl, r.short_leg_pnl, r.n_liquidations, t0.elapsed().as_secs_f64()
@@ -1767,17 +2159,36 @@ mod tests {
         }
 
         println!("\n===== 任务22 矩阵：strat% OFF/NEST/NEST_STRICT(开放轴C)/NEST_CS_STRICT vs BH（* 超 BH）=====");
-        println!("{:<6} {:>10} {:>10} {:>13} {:>13} {:>10}", "标的", "OFF", "NEST", "NEST_STRICT", "+CONS_STRICT", "BH");
+        println!(
+            "{:<6} {:>10} {:>10} {:>13} {:>13} {:>10}",
+            "标的", "OFF", "NEST", "NEST_STRICT", "+CONS_STRICT", "BH"
+        );
         for r in &rows {
             let mk = |x: f64| if x > r.bh { "*" } else { " " };
             println!(
                 "{:<6} {:>+9.1}%{} {:>+9.1}%{} {:>+11.1}%{} {:>+12.1}%{} {:>+9.1}%",
-                r.sym, r.strat[0], mk(r.strat[0]), r.strat[1], mk(r.strat[1]),
-                r.strat[2], mk(r.strat[2]), r.strat[3], mk(r.strat[3]), r.bh
+                r.sym,
+                r.strat[0],
+                mk(r.strat[0]),
+                r.strat[1],
+                mk(r.strat[1]),
+                r.strat[2],
+                mk(r.strat[2]),
+                r.strat[3],
+                mk(r.strat[3]),
+                r.bh
             );
         }
         println!("\n----- 归因：strict(开放轴C) vs consume 各自贡献 + 空腿失血 -----");
-        println!("{:<6} {:>12} {:>13} {:>14} {:>12} {:>14}", "标的", "NEST short_pnl", "STRICT short_pnl", "CS_STR short_pnl", "STR flip", "CS consume数");
+        println!(
+            "{:<6} {:>12} {:>13} {:>14} {:>12} {:>14}",
+            "标的",
+            "NEST short_pnl",
+            "STRICT short_pnl",
+            "CS_STR short_pnl",
+            "STR flip",
+            "CS consume数"
+        );
         for r in &rows {
             println!(
                 "{:<6} {:>+12.0} {:>+13.0} {:>+14.0} {:>12} {:>14}",
@@ -1804,16 +2215,30 @@ mod tests {
         use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
-        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
-        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
-            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("analysis/data_cache");
+        let only: Vec<String> = std::env::var("BT_SYMBOLS")
+            .ok()
+            .map(|s| {
+                s.split(',')
+                    .map(|x| x.trim().to_uppercase())
+                    .filter(|x| !x.is_empty())
+                    .collect()
+            })
             .unwrap_or_default();
 
         eprintln!("\n===== 命题4 读法乙递归 L3：OFF / READING_B(走势完成) / READING_B(背驰段)（Structural）=====");
         struct Row {
-            sym: String, bh: f64, strat: [f64; 3],
+            sym: String,
+            bh: f64,
+            strat: [f64; 3],
             // [DTOP, DIVERGE] 的 per-level switch（顶层解冻测量）+ 总 switch + liq。
-            switch_by_lvl: [[u64; 6]; 2], total_switch: [u64; 2], liq: [u64; 2], net_pnl: [f64; 2],
+            switch_by_lvl: [[u64; 6]; 2],
+            total_switch: [u64; 2],
+            liq: [u64; 2],
+            net_pnl: [f64; 2],
         }
         let mut rows: Vec<Row> = Vec::new();
         let variants = [
@@ -1823,27 +2248,51 @@ mod tests {
         ];
 
         for (sym, file) in SYMBOLS {
-            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) {
+                continue;
+            }
             let path = data_dir.join(file);
-            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
+            if !path.exists() {
+                eprintln!("[{sym}] 数据缺失，跳过");
+                continue;
+            }
             let (o, h, l, c) = load_clean_ohlc(&path);
             let n = c.len();
-            let bh = if n > 0 && c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
-            let mut row = Row { sym: sym.to_string(), bh, strat: [0.0;3], switch_by_lvl: [[0;6];2], total_switch: [0;2], liq: [0;2], net_pnl: [0.0;2] };
+            let bh = if n > 0 && c[0] > 0.0 {
+                (c[n - 1] / c[0] - 1.0) * 100.0
+            } else {
+                0.0
+            };
+            let mut row = Row {
+                sym: sym.to_string(),
+                bh,
+                strat: [0.0; 3],
+                switch_by_lvl: [[0; 6]; 2],
+                total_switch: [0; 2],
+                liq: [0; 2],
+                net_pnl: [0.0; 2],
+            };
             for (vi, (vname, cfg)) in variants.iter().enumerate() {
                 let t0 = std::time::Instant::now();
-                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
-                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+                let mut s =
+                    RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                for i in 0..n {
+                    s.push_bar(o[i], h[i], l[i], c[i]);
+                }
                 let fin = s.finish();
                 assert!(fin.is_finite(), "[{sym}/{vname}] final_nav 非有限");
-                row.strat[vi] = (fin/INITIAL_CAPITAL - 1.0)*100.0;
+                row.strat[vi] = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
                 let r = s.driver().root();
                 if vi >= 1 {
                     let bi = vi - 1; // DTOP=0, DIVERGE=1
                     let sw: Vec<u64> = (0..6).map(|k| r.leg_switches_by_level[k]).collect();
                     let total: u64 = (0..MAX_LEVEL).map(|k| r.leg_switches_by_level[k]).sum();
-                    let npnl: f64 = (0..MAX_LEVEL).map(|k| r.per_level_long_pnl[k] + r.per_level_short_pnl[k]).sum();
-                    for k in 0..6 { row.switch_by_lvl[bi][k] = sw[k]; }
+                    let npnl: f64 = (0..MAX_LEVEL)
+                        .map(|k| r.per_level_long_pnl[k] + r.per_level_short_pnl[k])
+                        .sum();
+                    for k in 0..6 {
+                        row.switch_by_lvl[bi][k] = sw[k];
+                    }
                     row.total_switch[bi] = total;
                     row.liq[bi] = r.n_liquidations;
                     row.net_pnl[bi] = npnl;
@@ -1853,25 +2302,47 @@ mod tests {
                         r.max_gross_exp_x100 as f64 / 100.0, r.max_net_exp_x100 as f64 / 100.0, t0.elapsed().as_secs_f64()
                     );
                 } else {
-                    eprintln!("[{sym:<5}/{vname:<11}] strat={:+.1}% bh={:+.1}% ({:.1}s)", row.strat[vi], bh, t0.elapsed().as_secs_f64());
+                    eprintln!(
+                        "[{sym:<5}/{vname:<11}] strat={:+.1}% bh={:+.1}% ({:.1}s)",
+                        row.strat[vi],
+                        bh,
+                        t0.elapsed().as_secs_f64()
+                    );
                 }
             }
             rows.push(row);
         }
 
         println!("\n===== 任务18 矩阵：strat% OFF/RB_DTOP(完成)/RB_DIVERGE(背驰段) vs BH（* 超 BH）=====");
-        println!("{:<6} {:>10} {:>13} {:>14} {:>10}", "标的", "OFF", "RB_DTOP", "RB_DIVERGE", "BH");
+        println!(
+            "{:<6} {:>10} {:>13} {:>14} {:>10}",
+            "标的", "OFF", "RB_DTOP", "RB_DIVERGE", "BH"
+        );
         for r in &rows {
             let mk = |x: f64| if x > r.bh { "*" } else { " " };
-            println!("{:<6} {:>+9.1}%{} {:>+12.1}%{} {:>+13.1}%{} {:>+9.1}%",
-                r.sym, r.strat[0], mk(r.strat[0]), r.strat[1], mk(r.strat[1]), r.strat[2], mk(r.strat[2]), r.bh);
+            println!(
+                "{:<6} {:>+9.1}%{} {:>+12.1}%{} {:>+13.1}%{} {:>+9.1}%",
+                r.sym,
+                r.strat[0],
+                mk(r.strat[0]),
+                r.strat[1],
+                mk(r.strat[1]),
+                r.strat[2],
+                mk(r.strat[2]),
+                r.bh
+            );
         }
         // ── ★556 解冻判据：顶层 leg 切换频率 完成 vs 背驰段 ──
         println!("\n----- ★556 解冻：每级别 leg 切换数 DTOP(走势完成) vs DIVERGE(背驰段)（背驰段≫完成⇒顶层解冻）-----");
-        println!("{:<6} {:>16} {:>16} {:>16} {:>16}", "标的", "DTOP总switch", "DIVERGE总switch", "DTOP by_lvl", "DIVERGE by_lvl");
+        println!(
+            "{:<6} {:>16} {:>16} {:>16} {:>16}",
+            "标的", "DTOP总switch", "DIVERGE总switch", "DTOP by_lvl", "DIVERGE by_lvl"
+        );
         for r in &rows {
-            println!("{:<6} {:>16} {:>16} {:>16?} {:>16?}",
-                r.sym, r.total_switch[0], r.total_switch[1], r.switch_by_lvl[0], r.switch_by_lvl[1]);
+            println!(
+                "{:<6} {:>16} {:>16} {:>16?} {:>16?}",
+                r.sym, r.total_switch[0], r.total_switch[1], r.switch_by_lvl[0], r.switch_by_lvl[1]
+            );
         }
         println!("==================================================================\n");
         assert!(!rows.is_empty(), "至少跑出一个标的");
@@ -1900,9 +2371,18 @@ mod tests {
         use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
-        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
-        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
-            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("analysis/data_cache");
+        let only: Vec<String> = std::env::var("BT_SYMBOLS")
+            .ok()
+            .map(|s| {
+                s.split(',')
+                    .map(|x| x.trim().to_uppercase())
+                    .filter(|x| !x.is_empty())
+                    .collect()
+            })
             .unwrap_or_default();
 
         eprintln!("\n===== task#84 子5：逐级内在配额塔 L3 否证（OFF 基座 vs INTRINSIC_QUOTA，Structural）=====");
@@ -1912,7 +2392,10 @@ mod tests {
             ("IQ", EngineConfig::intrinsic_quota()),
         ];
         struct Row {
-            sym: String, bh: f64, n: usize, ceiling: usize,
+            sym: String,
+            bh: f64,
+            n: usize,
+            ceiling: usize,
             strat: [f64; 2],
             // 操作计数 [enter, sink, drain, add, recover, flip, clears, liq]。
             ops: [[u64; 8]; 2],
@@ -1921,24 +2404,55 @@ mod tests {
         }
         let mut rows: Vec<Row> = Vec::new();
         for (sym, file) in SYMBOLS {
-            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) {
+                continue;
+            }
             let path = data_dir.join(file);
-            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
+            if !path.exists() {
+                eprintln!("[{sym}] 数据缺失，跳过");
+                continue;
+            }
             let (o, h, l, c) = load_clean_ohlc(&path);
             let n = c.len();
-            let bh = if n > 0 && c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
-            let mut row = Row { sym: sym.to_string(), bh, n, ceiling: 0, strat: [0.0;2], ops: [[0;8];2], nav_bits: [0;2] };
+            let bh = if n > 0 && c[0] > 0.0 {
+                (c[n - 1] / c[0] - 1.0) * 100.0
+            } else {
+                0.0
+            };
+            let mut row = Row {
+                sym: sym.to_string(),
+                bh,
+                n,
+                ceiling: 0,
+                strat: [0.0; 2],
+                ops: [[0; 8]; 2],
+                nav_bits: [0; 2],
+            };
             for (vi, (vname, cfg)) in variants.iter().enumerate() {
                 let t0 = std::time::Instant::now();
-                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
-                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+                let mut s =
+                    RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                for i in 0..n {
+                    s.push_bar(o[i], h[i], l[i], c[i]);
+                }
                 let fin = s.finish();
                 assert!(fin.is_finite(), "[{sym}/{vname}] final_nav 非有限");
-                row.strat[vi] = (fin/INITIAL_CAPITAL - 1.0)*100.0;
+                row.strat[vi] = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
                 row.nav_bits[vi] = fin.to_bits();
                 let r = s.driver().root();
-                row.ceiling = r.highest_active().map_or(row.ceiling, |x| x.max(row.ceiling));
-                row.ops[vi] = [r.n_enters, r.n_sinks, r.n_drains, r.n_adds, r.n_recovers, r.n_flips, r.n_trend_done_clears, r.n_liquidations];
+                row.ceiling = r
+                    .highest_active()
+                    .map_or(row.ceiling, |x| x.max(row.ceiling));
+                row.ops[vi] = [
+                    r.n_enters,
+                    r.n_sinks,
+                    r.n_drains,
+                    r.n_adds,
+                    r.n_recovers,
+                    r.n_flips,
+                    r.n_trend_done_clears,
+                    r.n_liquidations,
+                ];
                 eprintln!(
                     "[{sym:<5}/{vname:<3}] strat={:+.1}% bh={:+.1}% | enter={} sink={} drain={} add={} recover={} flip={} clears={} liq={} ({:.1}s)",
                     row.strat[vi], bh, r.n_enters, r.n_sinks, r.n_drains, r.n_adds, r.n_recovers, r.n_flips,
@@ -1946,21 +2460,37 @@ mod tests {
                 );
             }
             let bitexact = row.nav_bits[0] == row.nav_bits[1] && row.ops[0] == row.ops[1];
-            eprintln!("        [{}] OFF vs IQ {} | sink+drain+add(OFF)={} (配额路径活跃度)",
+            eprintln!(
+                "        [{}] OFF vs IQ {} | sink+drain+add(OFF)={} (配额路径活跃度)",
                 row.sym,
-                if bitexact { "★BIT-EXACT（逐级配额无操作语义效果=否定性结果）" } else { "≠ 发散（配额改变操作）" },
-                row.ops[0][1] + row.ops[0][2] + row.ops[0][3]);
+                if bitexact {
+                    "★BIT-EXACT（逐级配额无操作语义效果=否定性结果）"
+                } else {
+                    "≠ 发散（配额改变操作）"
+                },
+                row.ops[0][1] + row.ops[0][2] + row.ops[0][3]
+            );
             rows.push(row);
         }
 
         println!("\n===== task#84 矩阵：strat% OFF vs IQ vs BH（* 超 BH；= bit-exact）=====");
-        println!("{:<6} {:>10} {:>12} {:>10} {:>10}", "标的", "OFF", "IQ", "BH", "OFF≡IQ?");
+        println!(
+            "{:<6} {:>10} {:>12} {:>10} {:>10}",
+            "标的", "OFF", "IQ", "BH", "OFF≡IQ?"
+        );
         for r in &rows {
             let mk = |x: f64| if x > r.bh { "*" } else { " " };
             let eq = r.nav_bits[0] == r.nav_bits[1] && r.ops[0] == r.ops[1];
-            println!("{:<6} {:>+9.1}%{} {:>+11.1}%{} {:>+9.1}% {:>10}",
-                r.sym, r.strat[0], mk(r.strat[0]), r.strat[1], mk(r.strat[1]), r.bh,
-                if eq { "≡" } else { "≠" });
+            println!(
+                "{:<6} {:>+9.1}%{} {:>+11.1}%{} {:>+9.1}% {:>10}",
+                r.sym,
+                r.strat[0],
+                mk(r.strat[0]),
+                r.strat[1],
+                mk(r.strat[1]),
+                r.bh,
+                if eq { "≡" } else { "≠" }
+            );
         }
         println!("\n----- 操作计数 OFF [enter,sink,drain,add,recover,flip,clears,liq]（配额作用于 sink/drain/add）-----");
         for r in &rows {
@@ -1985,9 +2515,18 @@ mod tests {
         use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
-        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
-        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
-            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("analysis/data_cache");
+        let only: Vec<String> = std::env::var("BT_SYMBOLS")
+            .ok()
+            .map(|s| {
+                s.split(',')
+                    .map(|x| x.trim().to_uppercase())
+                    .filter(|x| !x.is_empty())
+                    .collect()
+            })
             .unwrap_or_default();
 
         eprintln!("\n===== 任务57=53.1：读法B 一对多空腿（LegPair）L3：OFF / READING_B_PAIR（Structural）=====");
@@ -2003,22 +2542,36 @@ mod tests {
         ];
         let mut any = false;
         for (sym, file) in SYMBOLS {
-            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) {
+                continue;
+            }
             let path = data_dir.join(file);
-            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
+            if !path.exists() {
+                eprintln!("[{sym}] 数据缺失，跳过");
+                continue;
+            }
             let (o, h, l, c) = load_clean_ohlc(&path);
             let n = c.len();
-            let bh = if n > 0 && c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
+            let bh = if n > 0 && c[0] > 0.0 {
+                (c[n - 1] / c[0] - 1.0) * 100.0
+            } else {
+                0.0
+            };
             for (vname, cfg) in variants.iter() {
                 let t0 = std::time::Instant::now();
-                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
-                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+                let mut s =
+                    RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                for i in 0..n {
+                    s.push_bar(o[i], h[i], l[i], c[i]);
+                }
                 let fin = s.finish();
                 assert!(fin.is_finite(), "[{sym}/{vname}] final_nav 非有限");
-                let strat = (fin/INITIAL_CAPITAL - 1.0)*100.0;
+                let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
                 let r = s.driver().root();
                 if vname.starts_with("RB_PAIR") {
-                    if *vname == "RB_PAIR" { any = true; }
+                    if *vname == "RB_PAIR" {
+                        any = true;
+                    }
                     let long_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_long_pnl[k]).sum();
                     let short_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_short_pnl[k]).sum();
                     let lopens: u64 = (0..MAX_LEVEL).map(|k| r.pair_long_opens[k]).sum();
@@ -2033,19 +2586,34 @@ mod tests {
                     // 任务69 诊断（纯观测）：per-level 空腿 pnl/opens（判定「做空失血是级别问题还是 539 regime」）。
                     let sp_lvl: Vec<String> = (0..MAX_LEVEL)
                         .filter(|&k| r.pair_short_opens[k] > 0)
-                        .map(|k| format!("L{k}:pnl={:+.0}/op={}", r.pair_short_pnl[k], r.pair_short_opens[k]))
+                        .map(|k| {
+                            format!(
+                                "L{k}:pnl={:+.0}/op={}",
+                                r.pair_short_pnl[k], r.pair_short_opens[k]
+                            )
+                        })
                         .collect();
                     eprintln!("        [{sym}] short_per_level: {}", sp_lvl.join(" "));
                     // ── 验收硬断言（编排者交付契约）──
-                    assert!(fin.is_finite() && fin > 0.0, "[{sym}/{vname}] final_nav 须有限正，得 {fin}");
+                    assert!(
+                        fin.is_finite() && fin > 0.0,
+                        "[{sym}/{vname}] final_nav 须有限正，得 {fin}"
+                    );
                     // 零强平契约仅约束 baseline RB_PAIR（恒仓<1×）。RB_PAIR_T3（涌现杠杆 max_gross>1×）的 liq
                     // 是**被观测量**（leverage-accept 4 读数之一：否定线在 gross>1× 下是否仍封顶单笔），不硬断言。
                     if *vname == "RB_PAIR" {
-                        assert_eq!(r.n_liquidations, 0, "[{sym}/RB_PAIR] 零强平违反（否定线止损应先于 NAV≤0）：liq={}", r.n_liquidations);
+                        assert_eq!(
+                            r.n_liquidations, 0,
+                            "[{sym}/RB_PAIR] 零强平违反（否定线止损应先于 NAV≤0）：liq={}",
+                            r.n_liquidations
+                        );
                     }
                     // 守恒零违反 = prove_tw_neutral 每 op 未 panic（运行到此即通过，无显式断言可加）。
                 } else {
-                    eprintln!("[{sym:<5}/{vname:<7}] strat={strat:+.1}% bh={bh:+.1}% ({:.1}s)", t0.elapsed().as_secs_f64());
+                    eprintln!(
+                        "[{sym:<5}/{vname:<7}] strat={strat:+.1}% bh={bh:+.1}% ({:.1}s)",
+                        t0.elapsed().as_secs_f64()
+                    );
                 }
             }
         }
@@ -2066,30 +2634,49 @@ mod tests {
         use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
-        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
-        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
-            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("analysis/data_cache");
+        let only: Vec<String> = std::env::var("BT_SYMBOLS")
+            .ok()
+            .map(|s| {
+                s.split(',')
+                    .map(|x| x.trim().to_uppercase())
+                    .filter(|x| !x.is_empty())
+                    .collect()
+            })
             .unwrap_or_default();
 
         // audit ON 注入 Face A（生产默认引擎）——4 轴裁定须在生产路径上做（非 RB_PAIR 裸基线）。
         let mut cfg = EngineConfig::production();
         cfg.enable_lconfirm_audit = true;
 
-        eprintln!("\n===== task#95 L_confirm 第四轴 L3 裁定（8 标的，audit ON + production/Face A）=====");
+        eprintln!(
+            "\n===== task#95 L_confirm 第四轴 L3 裁定（8 标的，audit ON + production/Face A）====="
+        );
         let leg_name = ["H⁰核心", "H¹短差"];
         let dir_name = ["R+", "R−"];
         let c_name = ["T1深", "T2中", "T3浅"];
         let mut any = false;
         // 跨标的聚合：每个 (leg,dir) 维度上，收集每个 c 桶的符号（用于全局符号分裂裁定）。
         for (sym, file) in SYMBOLS {
-            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) {
+                continue;
+            }
             let path = data_dir.join(file);
-            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
+            if !path.exists() {
+                eprintln!("[{sym}] 数据缺失，跳过");
+                continue;
+            }
             any = true;
             let (o, h, l, c) = load_clean_ohlc(&path);
             let n = c.len();
-            let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg);
-            for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+            let mut s =
+                RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg);
+            for i in 0..n {
+                s.push_bar(o[i], h[i], l[i], c[i]);
+            }
             s.finish();
             let r = s.driver().root();
 
@@ -2099,20 +2686,39 @@ mod tests {
             r.assert_lconfirm_exhaustive();
 
             // per (leg,dir) 打印 3 个 c 桶 + 符号分裂裁定。
-            for leg in 0..2 { for dir in 0..2 {
-                let cells: Vec<(usize, f64, u64)> = (0..3)
-                    .map(|cc| { let (p, n) = r.lconfirm_cell_sum(leg, dir, cc); (cc, p, n) })
-                    .filter(|&(_, _, n)| n > 0)
-                    .collect();
-                if cells.is_empty() { continue; }
-                let desc: Vec<String> = cells.iter()
-                    .map(|&(cc, p, n)| format!("{}={:+.0}/n{}", c_name[cc], p, n)).collect();
-                // 符号分裂判定：有 c 桶 >0 且有 c 桶 <0（同 (leg,dir) cell 内符号不一致）。
-                let has_pos = cells.iter().any(|&(_, p, _)| p > 0.0);
-                let has_neg = cells.iter().any(|&(_, p, _)| p < 0.0);
-                let split = if has_pos && has_neg { "★符号分裂(第四轴坐实)" } else { "符号一致(第四轴否证)" };
-                eprintln!("  [{sym}] ({},{}) 跨k聚合: {} ⇒ {}", leg_name[leg], dir_name[dir], desc.join(" "), split);
-            }}
+            for leg in 0..2 {
+                for dir in 0..2 {
+                    let cells: Vec<(usize, f64, u64)> = (0..3)
+                        .map(|cc| {
+                            let (p, n) = r.lconfirm_cell_sum(leg, dir, cc);
+                            (cc, p, n)
+                        })
+                        .filter(|&(_, _, n)| n > 0)
+                        .collect();
+                    if cells.is_empty() {
+                        continue;
+                    }
+                    let desc: Vec<String> = cells
+                        .iter()
+                        .map(|&(cc, p, n)| format!("{}={:+.0}/n{}", c_name[cc], p, n))
+                        .collect();
+                    // 符号分裂判定：有 c 桶 >0 且有 c 桶 <0（同 (leg,dir) cell 内符号不一致）。
+                    let has_pos = cells.iter().any(|&(_, p, _)| p > 0.0);
+                    let has_neg = cells.iter().any(|&(_, p, _)| p < 0.0);
+                    let split = if has_pos && has_neg {
+                        "★符号分裂(第四轴坐实)"
+                    } else {
+                        "符号一致(第四轴否证)"
+                    };
+                    eprintln!(
+                        "  [{sym}] ({},{}) 跨k聚合: {} ⇒ {}",
+                        leg_name[leg],
+                        dir_name[dir],
+                        desc.join(" "),
+                        split
+                    );
+                }
+            }
             let _ = ConfDepth::T1; // 显式引用确认 enum 在 scope（裁定依据）。
         }
         assert!(any, "至少跑出一个标的（否则数据缺失，见报告 §三数据依赖）");
@@ -2137,10 +2743,19 @@ mod tests {
         use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
 
-        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("analysis/data_cache");
         // 默认 BTC（L2 单标的锚，shortleg-profit-spec §8.2 / 死终止判据 2022 吃跌幅）。可 BT_SYMBOLS 覆盖。
-        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
-            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+        let only: Vec<String> = std::env::var("BT_SYMBOLS")
+            .ok()
+            .map(|s| {
+                s.split(',')
+                    .map(|x| x.trim().to_uppercase())
+                    .filter(|x| !x.is_empty())
+                    .collect()
+            })
             .unwrap_or_else(|| vec!["BTC".to_string()]);
 
         eprintln!("\n===== Face B（#110 implB）L2：OFF(instances基线) / RB_PAIR(geom_tower 压制) / FACE_B(均匀定仓+真否定线) =====");
@@ -2148,35 +2763,54 @@ mod tests {
         // OFF=instances/sink 路径（mid-scale 8/8 失血 short_leg_pnl 基线）；RB_PAIR=LegPair geom_tower（post-#69 压制）；
         // FACE_B=删 geom_tower 均匀定仓 + 真否定线（解压制 + liq=0 同时成立）。
         let variants = [
-            ("OFF",    EngineConfig::off()),
+            ("OFF", EngineConfig::off()),
             ("RB_PAIR", EngineConfig::reading_b_pair()),
             ("FACE_B", EngineConfig::face_b()),
         ];
         let mut any = false;
         for (sym, file) in SYMBOLS {
-            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) {
+                continue;
+            }
             let path = data_dir.join(file);
-            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
+            if !path.exists() {
+                eprintln!("[{sym}] 数据缺失，跳过");
+                continue;
+            }
             let (o, h, l, c) = load_clean_ohlc(&path);
             let n = c.len();
-            let bh = if n > 0 && c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
+            let bh = if n > 0 && c[0] > 0.0 {
+                (c[n - 1] / c[0] - 1.0) * 100.0
+            } else {
+                0.0
+            };
             for (vname, cfg) in variants.iter() {
                 let t0 = std::time::Instant::now();
-                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
-                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+                let mut s =
+                    RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                for i in 0..n {
+                    s.push_bar(o[i], h[i], l[i], c[i]);
+                }
                 let fin = s.finish();
-                assert!(fin.is_finite() && fin > 0.0, "[{sym}/{vname}] final_nav 须有限正，得 {fin}");
-                let strat = (fin/INITIAL_CAPITAL - 1.0)*100.0;
+                assert!(
+                    fin.is_finite() && fin > 0.0,
+                    "[{sym}/{vname}] final_nav 须有限正，得 {fin}"
+                );
+                let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
                 let r = s.driver().root();
                 if *vname == "OFF" {
                     // OFF=instances/sink 路径：mid-scale 失血基线 short_leg_pnl + per-level short_pnl_by_level。
                     let sl: f64 = r.short_leg_pnl;
-                    let spl: Vec<String> = (0..MAX_LEVEL).filter(|&k| r.short_pnl_by_level[k].abs() > 1.0)
-                        .map(|k| format!("L{k}={:+.0}", r.short_pnl_by_level[k])).collect();
+                    let spl: Vec<String> = (0..MAX_LEVEL)
+                        .filter(|&k| r.short_pnl_by_level[k].abs() > 1.0)
+                        .map(|k| format!("L{k}={:+.0}", r.short_pnl_by_level[k]))
+                        .collect();
                     eprintln!("[{sym:<4}/OFF    ] strat={strat:+.1}% bh={bh:+.1}% | short_leg_pnl(sink路径)={sl:+.0} liq={} | per-lvl:[{}] ({:.0}s)",
                         r.n_liquidations, spl.join(" "), t0.elapsed().as_secs_f64());
                 } else {
-                    if *vname == "FACE_B" { any = true; }
+                    if *vname == "FACE_B" {
+                        any = true;
+                    }
                     let long_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_long_pnl[k]).sum();
                     let short_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_short_pnl[k]).sum();
                     let lopens: u64 = (0..MAX_LEVEL).map(|k| r.pair_long_opens[k]).sum();
@@ -2189,11 +2823,29 @@ mod tests {
                         r.max_gross_exp_x100 as f64 / 100.0, r.max_net_exp_x100 as f64 / 100.0, t0.elapsed().as_secs_f64()
                     );
                     // per-level 空腿（中间级别解压制透镜，#108 口径：是否吃自身|涨跌幅|转正）。
-                    let sp_lvl: Vec<String> = (0..MAX_LEVEL).filter(|&k| r.pair_short_opens[k] > 0)
-                        .map(|k| format!("L{k}:sp={:+.0}/op={}", r.pair_short_pnl[k], r.pair_short_opens[k])).collect();
-                    let lp_lvl: Vec<String> = (0..MAX_LEVEL).filter(|&k| r.pair_long_opens[k] > 0)
-                        .map(|k| format!("L{k}:lp={:+.0}/op={}", r.pair_long_pnl[k], r.pair_long_opens[k])).collect();
-                    eprintln!("        [{sym}/{vname}] short_per_lvl:[{}] long_per_lvl:[{}]", sp_lvl.join(" "), lp_lvl.join(" "));
+                    let sp_lvl: Vec<String> = (0..MAX_LEVEL)
+                        .filter(|&k| r.pair_short_opens[k] > 0)
+                        .map(|k| {
+                            format!(
+                                "L{k}:sp={:+.0}/op={}",
+                                r.pair_short_pnl[k], r.pair_short_opens[k]
+                            )
+                        })
+                        .collect();
+                    let lp_lvl: Vec<String> = (0..MAX_LEVEL)
+                        .filter(|&k| r.pair_long_opens[k] > 0)
+                        .map(|k| {
+                            format!(
+                                "L{k}:lp={:+.0}/op={}",
+                                r.pair_long_pnl[k], r.pair_long_opens[k]
+                            )
+                        })
+                        .collect();
+                    eprintln!(
+                        "        [{sym}/{vname}] short_per_lvl:[{}] long_per_lvl:[{}]",
+                        sp_lvl.join(" "),
+                        lp_lvl.join(" ")
+                    );
                     // 否定性优先（§8.3）：FACE_B 的 liq=0 是判据但 L2 否定性如实报告，不硬断言掩盖其余读数。
                     if *vname == "FACE_B" && r.n_liquidations > 0 {
                         eprintln!("        [{sym}/FACE_B] ⚠否定性 L2：liq={}>0（否定线未封死全部穿仓，§2.4 定仓精化触发）", r.n_liquidations);
@@ -2220,42 +2872,94 @@ mod tests {
         use crate::recursive_t::backtest_run::load_clean_ohlc_window;
         use std::path::PathBuf;
 
-        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("analysis/data_cache");
         let bear_windows: [(&str, &str, &str, &str); 3] = [
-            ("ES_2022标普熊",  "es_1m_databento_10y.json",  "2022-01-03", "2022-10-13"), // 4800→3500 −27%
-            ("BRN_2022H2跌",   "brn_1m_databento_10y.json", "2022-06-08", "2022-12-09"), // $125→$76 −40%
-            ("CL_2014-16油崩", "cl_1m_databento_10y.json",  "2014-06-20", "2016-02-11"), // $107→$26 −75%
+            (
+                "ES_2022标普熊",
+                "es_1m_databento_10y.json",
+                "2022-01-03",
+                "2022-10-13",
+            ), // 4800→3500 −27%
+            (
+                "BRN_2022H2跌",
+                "brn_1m_databento_10y.json",
+                "2022-06-08",
+                "2022-12-09",
+            ), // $125→$76 −40%
+            (
+                "CL_2014-16油崩",
+                "cl_1m_databento_10y.json",
+                "2014-06-20",
+                "2016-02-11",
+            ), // $107→$26 −75%
         ];
 
         eprintln!("\n===== Face B L2 死终止判据：2022 吃到跌幅（RB_PAIR 压制 vs FACE_B 均匀+真否定线）=====");
-        let variants = [("RB_PAIR", EngineConfig::reading_b_pair()), ("FACE_B", EngineConfig::face_b())];
+        let variants = [
+            ("RB_PAIR", EngineConfig::reading_b_pair()),
+            ("FACE_B", EngineConfig::face_b()),
+        ];
         let mut any = false;
         for (label, file, d0, d1) in bear_windows {
             let path = data_dir.join(file);
-            if !path.exists() { eprintln!("[{label}] 数据缺失，跳过"); continue; }
+            if !path.exists() {
+                eprintln!("[{label}] 数据缺失，跳过");
+                continue;
+            }
             let (o, h, l, c) = load_clean_ohlc_window(&path, d0, d1);
             let n = c.len();
-            if n == 0 { eprintln!("[{label}] 窗口空，跳过"); continue; }
-            let bh = if c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
+            if n == 0 {
+                eprintln!("[{label}] 窗口空，跳过");
+                continue;
+            }
+            let bh = if c[0] > 0.0 {
+                (c[n - 1] / c[0] - 1.0) * 100.0
+            } else {
+                0.0
+            };
             for (vname, cfg) in variants.iter() {
-                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
-                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+                let mut s =
+                    RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                for i in 0..n {
+                    s.push_bar(o[i], h[i], l[i], c[i]);
+                }
                 let fin = s.finish();
-                assert!(fin.is_finite() && fin > 0.0, "[{label}/{vname}] final_nav 须有限正");
-                let strat = (fin/INITIAL_CAPITAL - 1.0)*100.0;
+                assert!(
+                    fin.is_finite() && fin > 0.0,
+                    "[{label}/{vname}] final_nav 须有限正"
+                );
+                let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
                 let r = s.driver().root();
-                if *vname == "FACE_B" { any = true; }
+                if *vname == "FACE_B" {
+                    any = true;
+                }
                 let short_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_short_pnl[k]).sum();
-                let long_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_short_pnl[k] + r.pair_long_pnl[k]).sum::<f64>() - short_pnl;
+                let long_pnl: f64 = (0..MAX_LEVEL)
+                    .map(|k| r.pair_short_pnl[k] + r.pair_long_pnl[k])
+                    .sum::<f64>()
+                    - short_pnl;
                 let sopens: u64 = (0..MAX_LEVEL).map(|k| r.pair_short_opens[k]).sum();
                 eprintln!(
                     "[{label:<14}/{vname:<7}] strat={strat:+.1}% bh={bh:+.1}% | short_pnl={short_pnl:+.0} long_pnl={long_pnl:+.0} \
                      s_op={sopens} | l_stop={} s_stop={} liq={} max_gross={:.2}×",
                     r.pair_long_stops, r.pair_short_stops, r.n_liquidations, r.max_gross_exp_x100 as f64 / 100.0
                 );
-                let sp_lvl: Vec<String> = (0..MAX_LEVEL).filter(|&k| r.pair_short_opens[k] > 0)
-                    .map(|k| format!("L{k}:sp={:+.0}/op={}", r.pair_short_pnl[k], r.pair_short_opens[k])).collect();
-                eprintln!("        [{label}/{vname}] short_per_lvl:[{}]", sp_lvl.join(" "));
+                let sp_lvl: Vec<String> = (0..MAX_LEVEL)
+                    .filter(|&k| r.pair_short_opens[k] > 0)
+                    .map(|k| {
+                        format!(
+                            "L{k}:sp={:+.0}/op={}",
+                            r.pair_short_pnl[k], r.pair_short_opens[k]
+                        )
+                    })
+                    .collect();
+                eprintln!(
+                    "        [{label}/{vname}] short_per_lvl:[{}]",
+                    sp_lvl.join(" ")
+                );
             }
         }
         assert!(any, "至少跑出一个 bear 窗的 FACE_B 变体");
@@ -2283,18 +2987,40 @@ mod tests {
         use crate::recursive_t::backtest_run::{load_clean_ohlc, load_clean_ohlc_window, SYMBOLS};
         use std::path::PathBuf;
 
-        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
-        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
-            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("analysis/data_cache");
+        let only: Vec<String> = std::env::var("BT_SYMBOLS")
+            .ok()
+            .map(|s| {
+                s.split(',')
+                    .map(|x| x.trim().to_uppercase())
+                    .filter(|x| !x.is_empty())
+                    .collect()
+            })
             .unwrap_or_else(|| vec!["BTC".to_string()]);
 
         // 逐变体跑一遍并打印 LegPair 读数（OFF=instances 基线参照）。
-        let run = |label: &str, vname: &str, cfg: EngineConfig, o: &[f64], h: &[f64], l: &[f64], c: &[f64], bh: f64| {
+        let run = |label: &str,
+                   vname: &str,
+                   cfg: EngineConfig,
+                   o: &[f64],
+                   h: &[f64],
+                   l: &[f64],
+                   c: &[f64],
+                   bh: f64| {
             let n = c.len();
-            let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg);
-            for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+            let mut s =
+                RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg);
+            for i in 0..n {
+                s.push_bar(o[i], h[i], l[i], c[i]);
+            }
             let fin = s.finish();
-            assert!(fin.is_finite() && fin > 0.0, "[{label}/{vname}] final_nav 须有限正，得 {fin}");
+            assert!(
+                fin.is_finite() && fin > 0.0,
+                "[{label}/{vname}] final_nav 须有限正，得 {fin}"
+            );
             let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
             let r = s.driver().root();
             let short_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_short_pnl[k]).sum();
@@ -2313,15 +3039,25 @@ mod tests {
         eprintln!("\n===== Face A（#113 implA）L2 ①：BTC 强牛自动 regime（OFF / FACE_B / FACE_A 核心翻转增量）=====");
         let mut any = false;
         for (sym, file) in SYMBOLS {
-            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) {
+                continue;
+            }
             let path = data_dir.join(file);
-            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
+            if !path.exists() {
+                eprintln!("[{sym}] 数据缺失，跳过");
+                continue;
+            }
             let (o, h, l, c) = load_clean_ohlc(&path);
             let n = c.len();
-            let bh = if n > 0 && c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
+            let bh = if n > 0 && c[0] > 0.0 {
+                (c[n - 1] / c[0] - 1.0) * 100.0
+            } else {
+                0.0
+            };
             run(sym, "OFF", EngineConfig::off(), &o, &h, &l, &c, bh);
             run(sym, "FACE_B", EngineConfig::face_b(), &o, &h, &l, &c, bh);
-            let (_, sp_a, churn_a, liq_a) = run(sym, "FACE_A", EngineConfig::face_a(), &o, &h, &l, &c, bh);
+            let (_, sp_a, churn_a, liq_a) =
+                run(sym, "FACE_A", EngineConfig::face_a(), &o, &h, &l, &c, bh);
             any = true;
             // §5.2.4 自动 regime：net-up 核心翻转闸门不灾难（短pnl 非 −10万量级 + liq=0）。否定性如实报告。
             if sp_a < -50_000.0 || liq_a > 0 {
@@ -2331,19 +3067,46 @@ mod tests {
         assert!(any, "至少跑出一个标的的 FACE_A 变体（默认 BTC）");
 
         // ── ② 真 bear 窗（核心翻空吃熊——验证 churn>0 + short_pnl 改善 vs FACE_B）──
-        eprintln!("\n===== Face A（#113 implA）L2 ②：真 bear 核心翻空吃熊（FACE_B vs FACE_A）=====");
+        eprintln!(
+            "\n===== Face A（#113 implA）L2 ②：真 bear 核心翻空吃熊（FACE_B vs FACE_A）====="
+        );
         let bear_windows: [(&str, &str, &str, &str); 3] = [
-            ("ES_2022标普熊",  "es_1m_databento_10y.json",  "2022-01-03", "2022-10-13"),
-            ("BRN_2022H2跌",   "brn_1m_databento_10y.json", "2022-06-08", "2022-12-09"),
-            ("CL_2014-16油崩", "cl_1m_databento_10y.json",  "2014-06-20", "2016-02-11"),
+            (
+                "ES_2022标普熊",
+                "es_1m_databento_10y.json",
+                "2022-01-03",
+                "2022-10-13",
+            ),
+            (
+                "BRN_2022H2跌",
+                "brn_1m_databento_10y.json",
+                "2022-06-08",
+                "2022-12-09",
+            ),
+            (
+                "CL_2014-16油崩",
+                "cl_1m_databento_10y.json",
+                "2014-06-20",
+                "2016-02-11",
+            ),
         ];
         for (label, file, d0, d1) in bear_windows {
             let path = data_dir.join(file);
-            if !path.exists() { eprintln!("[{label}] 数据缺失，跳过"); continue; }
+            if !path.exists() {
+                eprintln!("[{label}] 数据缺失，跳过");
+                continue;
+            }
             let (o, h, l, c) = load_clean_ohlc_window(&path, d0, d1);
             let n = c.len();
-            if n == 0 { eprintln!("[{label}] 窗口空，跳过"); continue; }
-            let bh = if c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
+            if n == 0 {
+                eprintln!("[{label}] 窗口空，跳过");
+                continue;
+            }
+            let bh = if c[0] > 0.0 {
+                (c[n - 1] / c[0] - 1.0) * 100.0
+            } else {
+                0.0
+            };
             run(label, "FACE_B", EngineConfig::face_b(), &o, &h, &l, &c, bh);
             run(label, "FACE_A", EngineConfig::face_a(), &o, &h, &l, &c, bh);
         }
@@ -2370,17 +3133,45 @@ mod tests {
         use crate::recursive_t::backtest_run::load_clean_ohlc_window;
         use std::path::PathBuf;
 
-        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("analysis/data_cache");
 
         // bear 窗口（label, 文件, day_start, day_end）：真 bear regime 子窗（dates 列切片，闭区间）。
         // CL/ES/BRN 文件均 parallel-array + dates（已核验）。BTC1m 无 dates 列⇒无法日期切片（fail-loud 声明，
         // 不入此表；1s 床位=观测分辨率非操作床位，[[project_cl_1s_a0_verdict]]，不混入）。
         let bear_windows: [(&str, &str, &str, &str); 5] = [
-            ("CL_2014-16油崩",  "cl_1m_databento_10y.json",  "2014-06-20", "2016-02-11"), // $107→$26 −75%
-            ("CL_2020COVID崩",  "cl_1m_databento_10y.json",  "2020-01-06", "2020-04-30"), // $63→$16 急崩
-            ("ES_2022标普熊",   "es_1m_databento_10y.json",  "2022-01-03", "2022-10-13"), // 4800→3500 −27%
-            ("BRN_2020COVID崩", "brn_1m_databento_10y.json", "2020-01-06", "2020-04-30"), // $68→$16 −76%
-            ("BRN_2022H2跌",    "brn_1m_databento_10y.json", "2022-06-08", "2022-12-09"), // $125→$76 −40%
+            (
+                "CL_2014-16油崩",
+                "cl_1m_databento_10y.json",
+                "2014-06-20",
+                "2016-02-11",
+            ), // $107→$26 −75%
+            (
+                "CL_2020COVID崩",
+                "cl_1m_databento_10y.json",
+                "2020-01-06",
+                "2020-04-30",
+            ), // $63→$16 急崩
+            (
+                "ES_2022标普熊",
+                "es_1m_databento_10y.json",
+                "2022-01-03",
+                "2022-10-13",
+            ), // 4800→3500 −27%
+            (
+                "BRN_2020COVID崩",
+                "brn_1m_databento_10y.json",
+                "2020-01-06",
+                "2020-04-30",
+            ), // $68→$16 −76%
+            (
+                "BRN_2022H2跌",
+                "brn_1m_databento_10y.json",
+                "2022-06-08",
+                "2022-12-09",
+            ), // $125→$76 −40%
         ];
 
         eprintln!("\n===== 任务 bear-validate：大额吃熊核心翻空 L3（OFF / RB_PAIR(#69 k<核心) / RB_PAIR_CS(放开核心翻空)）=====");
@@ -2388,29 +3179,46 @@ mod tests {
         // OFF=基线（base operate 路径，无 leg）/ RB_PAIR=committed #69（k<核心 门控）/
         // RB_PAIR_CS=核心走势完成翻空镜像（d_top）/ RB_PAIR_T3=放开 k<核心 t3sell 大额做空（变体1 机制，max_gross>1×）。
         let variants = [
-            ("OFF",         EngineConfig::off()),
-            ("RB_PAIR",     EngineConfig::reading_b_pair()),
-            ("RB_PAIR_CS",  EngineConfig::reading_b_pair_coreshort()),
-            ("RB_PAIR_T3",  EngineConfig::reading_b_pair_coreshort_t3()),
+            ("OFF", EngineConfig::off()),
+            ("RB_PAIR", EngineConfig::reading_b_pair()),
+            ("RB_PAIR_CS", EngineConfig::reading_b_pair_coreshort()),
+            ("RB_PAIR_T3", EngineConfig::reading_b_pair_coreshort_t3()),
         ];
         let mut any = false;
         for (label, file, d0, d1) in bear_windows {
             let path = data_dir.join(file);
-            if !path.exists() { eprintln!("[{label}] 数据缺失 {file}，跳过"); continue; }
+            if !path.exists() {
+                eprintln!("[{label}] 数据缺失 {file}，跳过");
+                continue;
+            }
             let (o, h, l, c) = load_clean_ohlc_window(&path, d0, d1);
             let n = c.len();
-            let bh = if n > 0 && c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
-            eprintln!("\n── {label}  [{d0}..{d1}]  bars={n}  BH={bh:+.1}%  close[{:.2}→{:.2}] ──", c[0], c[n-1]);
+            let bh = if n > 0 && c[0] > 0.0 {
+                (c[n - 1] / c[0] - 1.0) * 100.0
+            } else {
+                0.0
+            };
+            eprintln!(
+                "\n── {label}  [{d0}..{d1}]  bars={n}  BH={bh:+.1}%  close[{:.2}→{:.2}] ──",
+                c[0],
+                c[n - 1]
+            );
             for (vname, cfg) in variants.iter() {
                 let t0 = std::time::Instant::now();
-                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
-                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+                let mut s =
+                    RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                for i in 0..n {
+                    s.push_bar(o[i], h[i], l[i], c[i]);
+                }
                 let fin = s.finish();
                 assert!(fin.is_finite(), "[{label}/{vname}] final_nav 非有限");
-                let strat = (fin/INITIAL_CAPITAL - 1.0)*100.0;
+                let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
                 let r = s.driver().root();
                 if *vname == "OFF" {
-                    eprintln!("  [{vname:<11}] strat={strat:+8.1}% (BH {bh:+.1}%) ({:.1}s)", t0.elapsed().as_secs_f64());
+                    eprintln!(
+                        "  [{vname:<11}] strat={strat:+8.1}% (BH {bh:+.1}%) ({:.1}s)",
+                        t0.elapsed().as_secs_f64()
+                    );
                     continue;
                 }
                 any = true;
@@ -2428,14 +3236,26 @@ mod tests {
                 // per-level 空腿 pnl/opens（判定大额吃熊在哪些级别赚/亏：核心级别=深层小 k=大配额）。
                 let sp_lvl: Vec<String> = (0..MAX_LEVEL)
                     .filter(|&k| r.pair_short_opens[k] > 0)
-                    .map(|k| format!("L{k}:pnl={:+.0}/op={}", r.pair_short_pnl[k], r.pair_short_opens[k]))
+                    .map(|k| {
+                        format!(
+                            "L{k}:pnl={:+.0}/op={}",
+                            r.pair_short_pnl[k], r.pair_short_opens[k]
+                        )
+                    })
                     .collect();
                 eprintln!("        short_per_level: {}", sp_lvl.join(" "));
                 // 守恒：final_nav 有限正（所有变体）。零强平硬断言仅施于 committed #69（RB_PAIR 交付契约）；
                 // 实验变体（CS/T3）liq>0 是**发现**（大额核心做空穿仓）非契约违反 ⇒ 报告不断言。
-                assert!(fin.is_finite() && fin > 0.0, "[{label}/{vname}] final_nav 须有限正，得 {fin}");
+                assert!(
+                    fin.is_finite() && fin > 0.0,
+                    "[{label}/{vname}] final_nav 须有限正，得 {fin}"
+                );
                 if *vname == "RB_PAIR" {
-                    assert_eq!(r.n_liquidations, 0, "[{label}/RB_PAIR] 零强平违反（#69 契约）：liq={}", r.n_liquidations);
+                    assert_eq!(
+                        r.n_liquidations, 0,
+                        "[{label}/RB_PAIR] 零强平违反（#69 契约）：liq={}",
+                        r.n_liquidations
+                    );
                 }
             }
         }
@@ -2462,7 +3282,10 @@ mod tests {
         let n = c.len();
 
         // ── zigzag 分段（反转阈值 env ZZ，默认 0.40，BTC 巨幅摆动）→ 交替 峰/谷 pivot ──
-        let rev: f64 = std::env::var("ZZ").ok().and_then(|s| s.parse().ok()).unwrap_or(0.40);
+        let rev: f64 = std::env::var("ZZ")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.40);
         let mut pivots: Vec<(usize, f64, bool)> = Vec::new(); // (bar, price, is_peak)
         let (mut ext_bar, mut ext_price) = (0usize, c[0]);
         let mut up = true; // BTC 2015 低位起步 → 先找峰
@@ -2554,7 +3377,16 @@ mod tests {
         );
         eprintln!(
             "{:>4} {:>8} {:>8} {:>9} {:>9} {:>8} {:>8} {:>7} {:>11} {:>5}",
-            "段", "起价", "止价", "引擎TW%", "BH%", "核心多%", "核心空%", "flip→S", "次级短差Σ", "强平"
+            "段",
+            "起价",
+            "止价",
+            "引擎TW%",
+            "BH%",
+            "核心多%",
+            "核心空%",
+            "flip→S",
+            "次级短差Σ",
+            "强平"
         );
         for w in snaps.windows(2) {
             let (a, b) = (&w[0], &w[1]);
@@ -2571,8 +3403,10 @@ mod tests {
                 })
                 .count();
             let seg_short: f64 = (0..6).map(|j| b.spl[j] - a.spl[j]).sum();
-            let nliq =
-                liq.iter().filter(|(_, _, _, lb, _, _)| *lb > a.bar as i64 && *lb <= b.bar as i64).count();
+            let nliq = liq
+                .iter()
+                .filter(|(_, _, _, lb, _, _)| *lb > a.bar as i64 && *lb <= b.bar as i64)
+                .count();
             eprintln!(
                 "{:>4} {:>8.0} {:>8.0} {:>+8.1}% {:>+8.1}% {:>7.1}% {:>7.1}% {:>7} {:>+11.0} {:>5}",
                 if is_bull { "牛" } else { "熊" },
@@ -2613,7 +3447,9 @@ mod tests {
         }
 
         // ── 表3：各段 资本结构（段首→段尾 暴露率，揭示熊段靠减仓避损还是主力做空）──
-        eprintln!("\n--- 各段 资本结构（多头市值/TW · 现金/TW · withdrawn退本金/TW，段首→段尾）---");
+        eprintln!(
+            "\n--- 各段 资本结构（多头市值/TW · 现金/TW · withdrawn退本金/TW，段首→段尾）---"
+        );
         eprintln!(
             "{:>4} {:>8} {:>8} {:>17} {:>17} {:>17}",
             "段", "起价", "止价", "多头暴露%首→尾", "现金%首→尾", "退本金%首→尾"
@@ -2638,14 +3474,21 @@ mod tests {
 
         let bh_total = (c[n - 1] / c[0] - 1.0) * 100.0;
         let eng_total = (snaps.last().unwrap().tw / snaps.first().unwrap().tw - 1.0) * 100.0;
-        let flip_s_total = flips.iter().filter(|(_, _, t, _, _)| *t == Polarity::Short).count();
+        let flip_s_total = flips
+            .iter()
+            .filter(|(_, _, t, _, _)| *t == Polarity::Short)
+            .count();
         eprintln!(
             "\n全程 BH={:+.1}% 引擎TW={:+.1}% | 核心flip总数={}(→Short={}) 触发级别={:?} | 强平={}",
             bh_total,
             eng_total,
             flips.len(),
             flip_s_total,
-            flips.iter().filter(|(_, _, t, _, _)| *t == Polarity::Short).map(|(b, _, _, j, _)| (*b, *j)).collect::<Vec<_>>(),
+            flips
+                .iter()
+                .filter(|(_, _, t, _, _)| *t == Polarity::Short)
+                .map(|(b, _, _, j, _)| (*b, *j))
+                .collect::<Vec<_>>(),
             liq.len()
         );
         assert!(!snaps.is_empty());
@@ -2694,9 +3537,14 @@ mod tests {
         // 不在 worktree 内，用 CHANLUN_DATA_DIR 指向主仓库 data_cache（绝对路径）。
         let data_dir = match std::env::var("CHANLUN_DATA_DIR") {
             Ok(d) => PathBuf::from(d),
-            Err(_) => PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache"),
+            Err(_) => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .unwrap()
+                .join("analysis/data_cache"),
         };
-        let which = std::env::var("BT_1S_SYMBOLS").unwrap_or_else(|_| "CL".to_string()).to_uppercase();
+        let which = std::env::var("BT_1S_SYMBOLS")
+            .unwrap_or_else(|_| "CL".to_string())
+            .to_uppercase();
 
         // ── 单个验证运行（= 1 标的 × 1 尺度 × 1 窗口）──
         // 切窗方式三态：FullFile（整文件，1s 小数据）/ WinNs（timestamps_ns 切窗，databento）/
@@ -2716,63 +3564,145 @@ mod tests {
 
         // L4 探测窗口开关：默认用各标的静态 ~3 个月窗（更多行情反复 → 更可能 L4）；
         // L4_DAYS=0 → 整文件全量（_1y 是 GB 级 + 数百万 bar，按需）。静态端点 = 可审计。
-        let l4_full: bool = std::env::var("L4_DAYS").ok().and_then(|s| s.parse::<i64>().ok()) == Some(0);
+        let l4_full: bool = std::env::var("L4_DAYS")
+            .ok()
+            .and_then(|s| s.parse::<i64>().ok())
+            == Some(0);
 
         let runs: Vec<Run> = match which.as_str() {
             // ── CL：1mo 文件（577k/2025-04 整月）vs 1min 同窗 + 同文件切 2 子窗（多窗稳定性）──
             "CL" => vec![
-                Run { label: "CL 1s 1mo 全月".into(),
-                    path_1s: data_dir.join("cl_1s_databento_1mo.json"), slice: Slice::FullFile,
-                    cmp_1min: Some((data_dir.join("cl_1m_databento_10y.json"), "2025-04-01", "2025-04-30", true)) },
-                Run { label: "CL 1s 窗A(04-01..04-10)".into(),
+                Run {
+                    label: "CL 1s 1mo 全月".into(),
                     path_1s: data_dir.join("cl_1s_databento_1mo.json"),
-                    slice: Slice::WinNs("2025-04-01", "2025-04-10"), cmp_1min: None },
-                Run { label: "CL 1s 窗B(04-21..04-30)".into(),
+                    slice: Slice::FullFile,
+                    cmp_1min: Some((
+                        data_dir.join("cl_1m_databento_10y.json"),
+                        "2025-04-01",
+                        "2025-04-30",
+                        true,
+                    )),
+                },
+                Run {
+                    label: "CL 1s 窗A(04-01..04-10)".into(),
                     path_1s: data_dir.join("cl_1s_databento_1mo.json"),
-                    slice: Slice::WinNs("2025-04-21", "2025-04-30"), cmp_1min: None },
+                    slice: Slice::WinNs("2025-04-01", "2025-04-10"),
+                    cmp_1min: None,
+                },
+                Run {
+                    label: "CL 1s 窗B(04-21..04-30)".into(),
+                    path_1s: data_dir.join("cl_1s_databento_1mo.json"),
+                    slice: Slice::WinNs("2025-04-21", "2025-04-30"),
+                    cmp_1min: None,
+                },
                 // L4 探测：CL 1y（5.96M，2024-06-02..2025-05-30）。默认 ~3 月窗，L4_DAYS=0 全量。
-                Run { label: format!("CL 1s 1y L4探测({})", if l4_full {"全量5.96M".into()} else {"窗2024-06-02..08-30".to_string()}),
+                Run {
+                    label: format!(
+                        "CL 1s 1y L4探测({})",
+                        if l4_full {
+                            "全量5.96M".into()
+                        } else {
+                            "窗2024-06-02..08-30".to_string()
+                        }
+                    ),
                     path_1s: data_dir.join("cl_1s_databento_1y.json"),
-                    slice: if l4_full { Slice::FullFile } else { Slice::WinNs("2024-06-02", "2024-08-30") },
-                    cmp_1min: None },
+                    slice: if l4_full {
+                        Slice::FullFile
+                    } else {
+                        Slice::WinNs("2024-06-02", "2024-08-30")
+                    },
+                    cmp_1min: None,
+                },
             ],
             // ── BTC：2 周文件（1.2M）vs 1min 同窗 + 同文件切 2 子窗 ──
             "BTC" => vec![
-                Run { label: "BTC 1s 2w 全".into(),
-                    path_1s: data_dir.join("btc_1s_2week.json"), slice: Slice::FullFile,
-                    cmp_1min: Some((data_dir.join("btc_1m_full.json"), "2026-05-29", "2026-06-11", true)) },
-                Run { label: "BTC 1s 窗A(05-29..06-04)".into(),
+                Run {
+                    label: "BTC 1s 2w 全".into(),
                     path_1s: data_dir.join("btc_1s_2week.json"),
-                    slice: Slice::WinDates("2026-05-29", "2026-06-04"), cmp_1min: None },
-                Run { label: "BTC 1s 窗B(06-05..06-11)".into(),
+                    slice: Slice::FullFile,
+                    cmp_1min: Some((
+                        data_dir.join("btc_1m_full.json"),
+                        "2026-05-29",
+                        "2026-06-11",
+                        true,
+                    )),
+                },
+                Run {
+                    label: "BTC 1s 窗A(05-29..06-04)".into(),
                     path_1s: data_dir.join("btc_1s_2week.json"),
-                    slice: Slice::WinDates("2026-06-05", "2026-06-11"), cmp_1min: None },
+                    slice: Slice::WinDates("2026-05-29", "2026-06-04"),
+                    cmp_1min: None,
+                },
+                Run {
+                    label: "BTC 1s 窗B(06-05..06-11)".into(),
+                    path_1s: data_dir.join("btc_1s_2week.json"),
+                    slice: Slice::WinDates("2026-06-05", "2026-06-11"),
+                    cmp_1min: None,
+                },
             ],
             // ── ES：1y（11.76M/657MB，最大）。多窗 + L4 探测。整文件全量需 GB 级内存——放最后跑。──
             "ES" => vec![
-                Run { label: "ES 1s 窗A(2025-06-12..06-30)".into(),
+                Run {
+                    label: "ES 1s 窗A(2025-06-12..06-30)".into(),
                     path_1s: data_dir.join("es_1s_databento_1y.json"),
-                    slice: Slice::WinNs("2025-06-12", "2025-06-30"), cmp_1min: None },
-                Run { label: "ES 1s 窗B(2026-05-12..05-30)".into(),
+                    slice: Slice::WinNs("2025-06-12", "2025-06-30"),
+                    cmp_1min: None,
+                },
+                Run {
+                    label: "ES 1s 窗B(2026-05-12..05-30)".into(),
                     path_1s: data_dir.join("es_1s_databento_1y.json"),
-                    slice: Slice::WinNs("2026-05-12", "2026-05-30"), cmp_1min: None },
-                Run { label: format!("ES 1s 1y L4探测({})", if l4_full {"全量11.76M".into()} else {"窗2025-06-12..09-10".to_string()}),
+                    slice: Slice::WinNs("2026-05-12", "2026-05-30"),
+                    cmp_1min: None,
+                },
+                Run {
+                    label: format!(
+                        "ES 1s 1y L4探测({})",
+                        if l4_full {
+                            "全量11.76M".into()
+                        } else {
+                            "窗2025-06-12..09-10".to_string()
+                        }
+                    ),
                     path_1s: data_dir.join("es_1s_databento_1y.json"),
-                    slice: if l4_full { Slice::FullFile } else { Slice::WinNs("2025-06-12", "2025-09-10") },
-                    cmp_1min: None },
+                    slice: if l4_full {
+                        Slice::FullFile
+                    } else {
+                        Slice::WinNs("2025-06-12", "2025-09-10")
+                    },
+                    cmp_1min: None,
+                },
             ],
             // ── BRN：1y（5.3M/262MB）。多窗 + L4 探测。──
             "BRN" => vec![
-                Run { label: "BRN 1s 窗A(2024-06-02..06-30)".into(),
+                Run {
+                    label: "BRN 1s 窗A(2024-06-02..06-30)".into(),
                     path_1s: data_dir.join("brn_1s_databento_1y.json"),
-                    slice: Slice::WinNs("2024-06-02", "2024-06-30"), cmp_1min: None },
-                Run { label: "BRN 1s 窗B(2025-05-01..05-30)".into(),
+                    slice: Slice::WinNs("2024-06-02", "2024-06-30"),
+                    cmp_1min: None,
+                },
+                Run {
+                    label: "BRN 1s 窗B(2025-05-01..05-30)".into(),
                     path_1s: data_dir.join("brn_1s_databento_1y.json"),
-                    slice: Slice::WinNs("2025-05-01", "2025-05-30"), cmp_1min: None },
-                Run { label: format!("BRN 1s 1y L4探测({})", if l4_full {"全量5.3M".into()} else {"窗2024-06-02..08-30".to_string()}),
+                    slice: Slice::WinNs("2025-05-01", "2025-05-30"),
+                    cmp_1min: None,
+                },
+                Run {
+                    label: format!(
+                        "BRN 1s 1y L4探测({})",
+                        if l4_full {
+                            "全量5.3M".into()
+                        } else {
+                            "窗2024-06-02..08-30".to_string()
+                        }
+                    ),
                     path_1s: data_dir.join("brn_1s_databento_1y.json"),
-                    slice: if l4_full { Slice::FullFile } else { Slice::WinNs("2024-06-02", "2024-08-30") },
-                    cmp_1min: None },
+                    slice: if l4_full {
+                        Slice::FullFile
+                    } else {
+                        Slice::WinNs("2024-06-02", "2024-08-30")
+                    },
+                    cmp_1min: None,
+                },
             ],
             other => panic!("BT_1S_SYMBOLS={other} 未知（支持 CL / BTC / ES / BRN）"),
         };
@@ -2783,7 +3713,10 @@ mod tests {
 
         for run in &runs {
             if !run.path_1s.exists() {
-                eprintln!("[{}] 1s 数据缺失 {:?}，跳过（no silent cap：明确报告跳了什么）", run.label, run.path_1s);
+                eprintln!(
+                    "[{}] 1s 数据缺失 {:?}，跳过（no silent cap：明确报告跳了什么）",
+                    run.label, run.path_1s
+                );
                 continue;
             }
             // ── 加载 1s（按 slice 切窗）──
@@ -2799,7 +3732,8 @@ mod tests {
             drop((o, h, l, c));
             eprintln!(
                 "\n========== prove 守卫尺度不变性：{}（Structural, bars={n}, {:.1}s）==========",
-                run.label, t0.elapsed().as_secs_f64()
+                run.label,
+                t0.elapsed().as_secs_f64()
             );
             report_scale(&format!("{} [1s 采样]", run.label), n, &r_1s);
             // L4 判定（核心突破探测）。
@@ -2816,8 +3750,12 @@ mod tests {
                 );
             }
             summary.push((
-                run.label.clone(), n, r_1s.max_active_level,
-                r_1s.radial_viol_sink, r_1s.radial_viol_bsp, r_1s.n_ops_without_trigger,
+                run.label.clone(),
+                n,
+                r_1s.max_active_level,
+                r_1s.radial_viol_sink,
+                r_1s.radial_viol_bsp,
+                r_1s.n_ops_without_trigger,
             ));
 
             // ── 1min 同窗对照（滤波器深度 Δ；仅全月/全文件 run 有）──
@@ -2833,22 +3771,37 @@ mod tests {
                     let n2 = c2.len();
                     let r_1m = run_one_scale(&o2, &h2, &l2, &c2);
                     drop((o2, h2, l2, c2));
-                    report_scale(&format!("{} [1min 采样 窗={d0}..{d1}]", run.label), n2, &r_1m);
+                    report_scale(
+                        &format!("{} [1min 采样 窗={d0}..{d1}]", run.label),
+                        n2,
+                        &r_1m,
+                    );
                     eprintln!(
                         "\n--- 滤波器组深度对照（{}）：1s vs 1min ---\n\
                          采样比 1s/1min bar = {:.1}× | 最深活跃层 1s={} 1min={}（Δ={}）",
-                        run.label, n as f64 / n2.max(1) as f64,
-                        r_1s.max_active_level, r_1m.max_active_level,
+                        run.label,
+                        n as f64 / n2.max(1) as f64,
+                        r_1s.max_active_level,
+                        r_1m.max_active_level,
                         r_1s.max_active_level as i64 - r_1m.max_active_level as i64,
                     );
-                    eprintln!("{:>6} {:>14} {:>14} {:>10}", "level", "1s 通带(走势组)", "1min 通带", "1s 多出");
+                    eprintln!(
+                        "{:>6} {:>14} {:>14} {:>10}",
+                        "level", "1s 通带(走势组)", "1min 通带", "1s 多出"
+                    );
                     for lv in 0..MAX_LEVEL {
                         let p1s = r_1s.passbands[lv];
                         let p1m = r_1m.passbands[lv];
                         if p1s == 0 && p1m == 0 {
                             continue;
                         }
-                        eprintln!("{:>6} {:>14} {:>14} {:>+10}", lv, p1s, p1m, p1s as i64 - p1m as i64);
+                        eprintln!(
+                            "{:>6} {:>14} {:>14} {:>+10}",
+                            lv,
+                            p1s,
+                            p1m,
+                            p1s as i64 - p1m as i64
+                        );
                     }
                 }
             }
@@ -2999,8 +3952,11 @@ mod tests {
         // ③ 观测计数守卫（L2 regime 读数，非 panic）。
         eprintln!(
             "  [观测计数 L2] dir_mismatch={}/{} sink≠recover campaigns={}/{} neg_pnl campaigns={}",
-            r.n_dir_mismatch, r.n_dir_checks, r.n_sink_recover_imbalance,
-            r.n_campaigns_checked, r.n_neg_pnl_campaigns
+            r.n_dir_mismatch,
+            r.n_dir_checks,
+            r.n_sink_recover_imbalance,
+            r.n_campaigns_checked,
+            r.n_neg_pnl_campaigns
         );
     }
 
@@ -3025,10 +3981,19 @@ mod tests {
         let (o, h, l, c) = load_clean_ohlc(&path);
         let n = c.len();
         // 关键 bar：熊1底 248736 + 2019 各点 + 各周期边界。
-        let key: std::collections::HashSet<usize> =
-            [248736usize, 250000, 267706, 300000, 400000, 694639, 971781, 1345277, 2218375]
-                .into_iter()
-                .collect();
+        let key: std::collections::HashSet<usize> = [
+            248736usize,
+            250000,
+            267706,
+            300000,
+            400000,
+            694639,
+            971781,
+            1345277,
+            2218375,
+        ]
+        .into_iter()
+        .collect();
 
         let mut s = RecStream::new(PerfectionMode::Structural);
         eprintln!("\n===== BTC 2019后不再入场 状态追踪（Structural）=====");
@@ -3065,7 +4030,9 @@ mod tests {
         let _ = s.finish();
 
         // ── 关键 bar 各 level units（看核心几何衰减是否到 0 / 是否恢复）──
-        eprintln!("\n--- 关键 bar 各 level units（核心几何衰减，>EPS=1e-12 即'活着'阻止 enter）---");
+        eprintln!(
+            "\n--- 关键 bar 各 level units（核心几何衰减，>EPS=1e-12 即'活着'阻止 enter）---"
+        );
         eprintln!(
             "{:>9} {:>8} {:>13} {:>13} {:>13} {:>13} {:>13} {:>13}",
             "bar", "价", "L0", "L1", "L2", "L3", "L4", "L5"

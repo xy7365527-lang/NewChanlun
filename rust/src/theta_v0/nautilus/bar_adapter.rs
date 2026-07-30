@@ -51,9 +51,8 @@ pub fn from_nautilus_bar(nb: &NautilusBarLike, source_index: usize, tick_size: f
     let volume = nb.volume as i64;
 
     // untradable：OHLC 完整性（spec:53）。halt/limit 待 venue 状态（TODO）。
-    let untradable = volume <= 0
-        || high < open.max(close).max(low)
-        || low > open.min(close).min(high);
+    let untradable =
+        volume <= 0 || high < open.max(close).max(low) || low > open.min(close).min(high);
 
     Bar {
         source_index,
@@ -74,11 +73,7 @@ pub fn from_nautilus_bar(nb: &NautilusBarLike, source_index: usize, tick_size: f
 /// （`.as_f64()`）、ts_event 是 `UnixNanos`（`.as_u64() → i64`）。转换委托 [`from_nautilus_bar`]
 /// （quantize + untradable 判定 bit-exact 复用，零分叉）。
 #[cfg(feature = "nautilus")]
-pub fn from_real_bar(
-    bar: &nautilus_model::data::Bar,
-    source_index: usize,
-    tick_size: f64,
-) -> Bar {
+pub fn from_real_bar(bar: &nautilus_model::data::Bar, source_index: usize, tick_size: f64) -> Bar {
     let mirror = NautilusBarLike {
         open: bar.open.as_f64(),
         high: bar.high.as_f64(),
@@ -118,7 +113,10 @@ mod tests {
             ts_event: 42,
         };
         let bar = from_nautilus_bar(&nb, 7, 1.0); // tick_size=1.0 ⟹ tick=美元
-        assert_eq!((bar.open, bar.high, bar.low, bar.close), (100, 110, 95, 105));
+        assert_eq!(
+            (bar.open, bar.high, bar.low, bar.close),
+            (100, 110, 95, 105)
+        );
         assert_eq!(bar.source_index, 7);
         assert_eq!(bar.timestamp, 42);
         assert!(!bar.untradable, "完整 OHLC + volume>0 ⟹ tradable");
@@ -128,7 +126,12 @@ mod tests {
     #[test]
     fn zero_volume_marks_untradable() {
         let nb = NautilusBarLike {
-            open: 100.0, high: 110.0, low: 95.0, close: 105.0, volume: 0.0, ts_event: 1,
+            open: 100.0,
+            high: 110.0,
+            low: 95.0,
+            close: 105.0,
+            volume: 0.0,
+            ts_event: 1,
         };
         let bar = from_nautilus_bar(&nb, 0, 1.0);
         assert!(bar.untradable, "volume=0 ⟹ untradable");

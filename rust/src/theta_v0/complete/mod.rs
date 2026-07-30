@@ -41,15 +41,15 @@
 //!   摘要态——工程化简态服务在线推进是既定设计，接线到完整 schema 是独立票的事。
 //!
 //! ## 子模块
-pub mod state;
 pub mod event;
+pub mod state;
 
+pub use event::{
+    BorrowUpdate, CorpAction, ExternalEvent, Fee, Fill, Funding, MarginUpdate, Reject,
+};
 pub use state::{
     CapitalPhase, CompleteState, Ledger, OpenOrder, OrderAction, OrderPhase, RecStruct,
     RootDirection, SignalMemory, VenueState, VoiceForest, VoiceState,
-};
-pub use event::{
-    BorrowUpdate, CorpAction, ExternalEvent, Fee, Fill, Funding, MarginUpdate, Reject,
 };
 
 /// 转移接口 `T_Θ(x_t, O_{t+1}, e_{t+1}) = x_{t+1}`（契约锚 `Origin.CompleteStateEvent.TransitionTheta`，
@@ -73,9 +73,9 @@ pub trait TransitionTheta {
 
 #[cfg(test)]
 mod tests {
-    use super::state::*;
-    use super::event::*;
     use super::super::types::{Bar, MoveKind};
+    use super::event::*;
+    use super::state::*;
 
     /// 初始完整态：记账恒等 `R=Π-A-W` 成立 + 开局 flat/PhaseI/零仓零单零记忆 + 17 分量全在场。
     #[test]
@@ -123,8 +123,16 @@ mod tests {
         // 根激活、子激活 → 闭合成立。
         let ok = VoiceForest {
             voices: vec![
-                VoiceState { q: 5, active: true, phase: OrderPhase::Held },
-                VoiceState { q: 5, active: true, phase: OrderPhase::Held },
+                VoiceState {
+                    q: 5,
+                    active: true,
+                    phase: OrderPhase::Held,
+                },
+                VoiceState {
+                    q: 5,
+                    active: true,
+                    phase: OrderPhase::Held,
+                },
             ],
             parent: vec![None, Some(0)],
             root_index: 0,
@@ -133,8 +141,16 @@ mod tests {
         // 根未激活、子激活 → 违反闭合。
         let bad = VoiceForest {
             voices: vec![
-                VoiceState { q: 0, active: false, phase: OrderPhase::Flat },
-                VoiceState { q: 5, active: true, phase: OrderPhase::Held },
+                VoiceState {
+                    q: 0,
+                    active: false,
+                    phase: OrderPhase::Flat,
+                },
+                VoiceState {
+                    q: 5,
+                    active: true,
+                    phase: OrderPhase::Held,
+                },
             ],
             parent: vec![None, Some(0)],
             root_index: 0,
@@ -148,8 +164,16 @@ mod tests {
         // 激活子声部同单位 → 成立。
         let ok = VoiceForest {
             voices: vec![
-                VoiceState { q: 5, active: true, phase: OrderPhase::Held },
-                VoiceState { q: 5, active: true, phase: OrderPhase::Held },
+                VoiceState {
+                    q: 5,
+                    active: true,
+                    phase: OrderPhase::Held,
+                },
+                VoiceState {
+                    q: 5,
+                    active: true,
+                    phase: OrderPhase::Held,
+                },
             ],
             parent: vec![None, Some(0)],
             root_index: 0,
@@ -158,8 +182,16 @@ mod tests {
         // 激活子声部异单位 → 违反。
         let bad = VoiceForest {
             voices: vec![
-                VoiceState { q: 5, active: true, phase: OrderPhase::Held },
-                VoiceState { q: 3, active: true, phase: OrderPhase::Held },
+                VoiceState {
+                    q: 5,
+                    active: true,
+                    phase: OrderPhase::Held,
+                },
+                VoiceState {
+                    q: 3,
+                    active: true,
+                    phase: OrderPhase::Held,
+                },
             ],
             parent: vec![None, Some(0)],
             root_index: 0,
@@ -191,12 +223,24 @@ mod tests {
         let full = ExternalEvent {
             bar,
             fill: Some(Fill { price: 11, qty: 5 }),
-            reject: Reject { rejected: false, order_ref: 7 },
+            reject: Reject {
+                rejected: false,
+                order_ref: 7,
+            },
             fee: Fee { amount: 2 },
             funding: Funding { amount: -1 },
-            margin_update: MarginUpdate { new_margin_used: 50 },
-            borrow_update: BorrowUpdate { borrowable: true, borrow_cost: 3 },
-            corp_action: CorpAction { split_num: 2, split_den: 1, dividend: 0 },
+            margin_update: MarginUpdate {
+                new_margin_used: 50,
+            },
+            borrow_update: BorrowUpdate {
+                borrowable: true,
+                borrow_cost: 3,
+            },
+            corp_action: CorpAction {
+                split_num: 2,
+                split_den: 1,
+                dividend: 0,
+            },
         };
         assert_eq!(full.fill.unwrap().qty, 5);
         assert_eq!(full.margin_update.new_margin_used, 50);

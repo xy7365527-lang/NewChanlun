@@ -124,13 +124,13 @@ impl ThetaStrategy {
             self.instrument_id,
             side,
             qty,
-            None,                      // time_in_force（默认 GTC）
-            Some(intent.reduce_only),  // reduce_only：退出/减仓 = true
-            None,                      // quote_quantity
-            None,                      // exec_algorithm_id
-            None,                      // exec_algorithm_params
-            None,                      // tags
-            None,                      // client_order_id（自动生成）
+            None,                     // time_in_force（默认 GTC）
+            Some(intent.reduce_only), // reduce_only：退出/减仓 = true
+            None,                     // quote_quantity
+            None,                     // exec_algorithm_id
+            None,                     // exec_algorithm_params
+            None,                     // tags
+            None,                     // client_order_id（自动生成）
         );
         // submit_order(order, position_id, client_id, params) —— 4 参（task#8 breaking #4）。
         self.submit_order(order, None, None, None)

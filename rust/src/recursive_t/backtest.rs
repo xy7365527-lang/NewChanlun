@@ -60,7 +60,11 @@ impl BacktestMode {
         }
     }
 
-    pub const ALL: [BacktestMode; 3] = [BacktestMode::Structural, BacktestMode::And, BacktestMode::Or];
+    pub const ALL: [BacktestMode; 3] = [
+        BacktestMode::Structural,
+        BacktestMode::And,
+        BacktestMode::Or,
+    ];
 }
 
 /// 仓位方向（简单版只产 Long；Short 为下游扩展预留，见 [`apply_bsp`]）。
@@ -336,7 +340,9 @@ pub fn run_backtest(
         .filter_map(|b| {
             let m = b.bar as usize;
             // merged idx 越界防御（理论不发生，pub 边界严格化）。
-            merged_to_raw.get(m).map(|&(_, raw_end)| (raw_end as i64, b))
+            merged_to_raw
+                .get(m)
+                .map(|&(_, raw_end)| (raw_end as i64, b))
         })
         .collect();
     let n_bsps = events.len();
@@ -353,7 +359,14 @@ pub fn run_backtest(
     let n = closes.len();
     for i in 0..n {
         while ev_idx < events.len() && events[ev_idx].0 == i as i64 {
-            if let Some(t) = apply_bsp(&events[ev_idx].1, i as i64, closes[i], ceiling, &mut pos, &mut cash) {
+            if let Some(t) = apply_bsp(
+                &events[ev_idx].1,
+                i as i64,
+                closes[i],
+                ceiling,
+                &mut pos,
+                &mut cash,
+            ) {
                 trades.push(t);
             }
             ev_idx += 1;
@@ -376,7 +389,14 @@ pub fn run_backtest(
     let last_bar = n.saturating_sub(1);
     let last_fill = *closes.last().unwrap_or(&0.0);
     while ev_idx < events.len() {
-        if let Some(t) = apply_bsp(&events[ev_idx].1, last_bar as i64, last_fill, ceiling, &mut pos, &mut cash) {
+        if let Some(t) = apply_bsp(
+            &events[ev_idx].1,
+            last_bar as i64,
+            last_fill,
+            ceiling,
+            &mut pos,
+            &mut cash,
+        ) {
             trades.push(t);
         }
         ev_idx += 1;
@@ -392,8 +412,14 @@ pub fn run_backtest(
         0.0
     };
     let total_pnl: f64 = trades.iter().map(|t| t.pnl).sum();
-    let n_long = trades.iter().filter(|t| t.direction == TradeDir::Long).count();
-    let n_short = trades.iter().filter(|t| t.direction == TradeDir::Short).count();
+    let n_long = trades
+        .iter()
+        .filter(|t| t.direction == TradeDir::Long)
+        .count();
+    let n_short = trades
+        .iter()
+        .filter(|t| t.direction == TradeDir::Short)
+        .count();
 
     BacktestResult {
         mode,
@@ -502,7 +528,10 @@ mod tests {
 
     #[test]
     fn mode_映射一致() {
-        assert_eq!(BacktestMode::Structural.to_perfection(), PerfectionMode::Structural);
+        assert_eq!(
+            BacktestMode::Structural.to_perfection(),
+            PerfectionMode::Structural
+        );
         assert_eq!(BacktestMode::And.to_perfection(), PerfectionMode::And);
         assert_eq!(BacktestMode::Or.to_perfection(), PerfectionMode::Or);
     }
@@ -510,10 +539,19 @@ mod tests {
     #[test]
     fn 回测空a0不panic() {
         let closes = vec![10.0, 11.0, 12.0];
-        let res = run_backtest(Vec::new(), BacktestMode::Structural, &closes, &identity_m2r(3), 0);
+        let res = run_backtest(
+            Vec::new(),
+            BacktestMode::Structural,
+            &closes,
+            &identity_m2r(3),
+            0,
+        );
         assert_eq!(res.summary.n_trades, 0);
         assert_eq!(res.summary.strat_pct, 0.0, "无交易 → 策略持平");
-        assert!((res.summary.bh_pct - 20.0).abs() < 1e-9, "bh = 12/10-1 = 20%");
+        assert!(
+            (res.summary.bh_pct - 20.0).abs() < 1e-9,
+            "bh = 12/10-1 = 20%"
+        );
     }
 
     #[test]
@@ -521,12 +559,21 @@ mod tests {
         // a₀ = 8 笔上涨：中枢1 离开+回抽产 type3_buy，背驰末段产 type1_sell。
         // ⇒ 买点先(bar5)建仓、卖点后(bar8)清仓（level0=最高级别 ceiling=1）⇒ ≥1 笔盈利。
         let closes: Vec<f64> = (0..9).map(|i| 10.0 + i as f64 * 5.0).collect();
-        let res = run_backtest(上涨趋势八笔(), BacktestMode::Structural, &closes, &identity_m2r(9), 8);
+        let res = run_backtest(
+            上涨趋势八笔(),
+            BacktestMode::Structural,
+            &closes,
+            &identity_m2r(9),
+            8,
+        );
         assert!(res.summary.ceiling == 1, "8 笔 → 1 级");
         assert!(res.summary.n_bsps >= 2, "应同时含买点(type3)与卖点(type1)");
         assert!(res.summary.n_trades >= 1, "买点建仓 + 卖点平仓 ⇒ ≥1 笔");
         assert_eq!(res.summary.n_short, 0, "简单版只做多");
-        assert!((res.summary.bh_pct - 400.0).abs() < 1e-9, "bh = 50/10-1 = 400%");
+        assert!(
+            (res.summary.bh_pct - 400.0).abs() < 1e-9,
+            "bh = 50/10-1 = 400%"
+        );
     }
 
     #[test]
@@ -535,13 +582,23 @@ mod tests {
         // 这里直接测 apply_bsp 状态机闭环：买点建多 → 最高级别卖点清仓 → 1 笔盈利。
         let mut pos: Option<Position> = None;
         let mut cash = 1.0;
-        let buy = BSP { kind: BSPKind::Type1Buy, bar: 0, price: 10.0, level: 0 };
+        let buy = BSP {
+            kind: BSPKind::Type1Buy,
+            bar: 0,
+            price: 10.0,
+            level: 0,
+        };
         let t0 = apply_bsp(&buy, 0, 10.0, 1, &mut pos, &mut cash);
         assert!(t0.is_none(), "建仓不产平仓交易");
         assert!(pos.is_some());
         assert_eq!(cash, 0.0, "全额建多 cash 清零");
 
-        let sell = BSP { kind: BSPKind::Type1Sell, bar: 5, price: 20.0, level: 0 };
+        let sell = BSP {
+            kind: BSPKind::Type1Sell,
+            bar: 5,
+            price: 20.0,
+            level: 0,
+        };
         let t1 = apply_bsp(&sell, 5, 20.0, 1, &mut pos, &mut cash).expect("最高级别卖点清仓");
         assert_eq!(t1.exit_reason, "clear");
         // units = 1.0/10 = 0.1 股；pnl = 0.1 × (20−10) = 1.0。
@@ -556,11 +613,21 @@ mod tests {
         // ceiling=2 ⇒ level0 是次级别（level+1=1 < 2）⇒ 卖点减 1/3。
         let mut pos: Option<Position> = None;
         let mut cash = 1.0;
-        let buy = BSP { kind: BSPKind::Type1Buy, bar: 0, price: 10.0, level: 0 };
+        let buy = BSP {
+            kind: BSPKind::Type1Buy,
+            bar: 0,
+            price: 10.0,
+            level: 0,
+        };
         apply_bsp(&buy, 0, 10.0, 2, &mut pos, &mut cash);
         let base = pos.as_ref().unwrap().base_units; // 0.1
 
-        let sell = BSP { kind: BSPKind::Type1Sell, bar: 5, price: 12.0, level: 0 };
+        let sell = BSP {
+            kind: BSPKind::Type1Sell,
+            bar: 5,
+            price: 12.0,
+            level: 0,
+        };
         let t = apply_bsp(&sell, 5, 12.0, 2, &mut pos, &mut cash).expect("次级别减仓");
         assert_eq!(t.exit_reason, "trim");
         assert!((t.units - base / 3.0).abs() < 1e-12, "减 1/3 配额");

@@ -46,40 +46,40 @@
 //!
 //! [`Bar`]: super::types::Bar
 
+/// S3 捕获率回测（task #11）：walk-forward OOS，训练窗定 λ_gap、测试窗只读，因果重放入场。
+#[cfg(test)]
+mod capture_oos;
 pub mod data;
 pub mod decontam;
-pub mod incremental;
-pub mod metrics;
-pub mod mu_estimator;
-pub mod perm_test;
-#[cfg(test)]
-mod wverify_run;
 /// a3 acc-highlow-power：μ̂(z_L0 | D_hi) 条件化估计量（区间套统计版，694 号；prereg
 /// highlow-a3-20260704 冻结）。继承 backtest cfg(test) 门控。
 #[cfg(test)]
 mod highlow_mu;
+pub mod incremental;
+pub mod metrics;
+pub mod mu_estimator;
+pub mod perm_test;
 /// S2 段口径复核 + λ_gap 穿越分布（task #10，R3 §4 遗留）。只产报告不定参，L2 描述性。
 #[cfg(test)]
 mod segment_gn;
-/// S3 捕获率回测（task #11）：walk-forward OOS，训练窗定 λ_gap、测试窗只读，因果重放入场。
 #[cfg(test)]
-mod capture_oos;
+mod wverify_run;
 
-pub mod pooling_icc;
-pub mod prereg_windows;
+mod admission;
 /// 双账本（hedge-mode 分腿头寸簿，关⑤方案 B）：M14 `P^sep` 账户层兑现——q⁺/q⁻ 分腿
 /// 不先净额（M13 父仓保持）+ 嵌入恒等（现行净语义为其子集，D8 逐字节对拍锁）。
 pub mod dual_ledger;
-mod signal;
 mod fill;
+mod gamma_dump;
 mod ledger;
 mod open_ledger;
-mod admission;
 mod opsem_dump;
-mod gamma_dump;
-pub mod runner;
 mod pan_div;
+pub mod pooling_icc;
+pub mod prereg_windows;
+pub mod runner;
 pub mod selector;
+mod signal;
 
 /// 经济正条件逐信号分解（《经济正条件.pdf》§5 可捕获价差判据 L2 诊断）。
 /// 证明链 L0 见 `.chanlun/proofs/economic-positive-condition-chain.md`；实装设计见

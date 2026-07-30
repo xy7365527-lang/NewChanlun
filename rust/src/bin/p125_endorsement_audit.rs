@@ -313,8 +313,7 @@ impl RawBits {
         self.sell1 += usize::from(bits.sell1);
         self.sell2 += usize::from(bits.sell2);
         self.sell3 += usize::from(bits.sell3);
-        self.mixed23 +=
-            usize::from((bits.buy2 || bits.sell2) && (bits.buy3 || bits.sell3));
+        self.mixed23 += usize::from((bits.buy2 || bits.sell2) && (bits.buy3 || bits.sell3));
     }
 }
 
@@ -362,7 +361,6 @@ fn parse_pan_cases(path: &str) -> Result<Vec<PanCase>, String> {
     Ok(out)
 }
 
-
 /// #218 面 B 研究 bin 锚供给说明（诚实，090）：owner 判同已换两族锚（一/三类核心区间
 /// 带判同经账本 `centers` 全功能；二类一类点身份锚判同需 T1 oracle + 事件锚账本）。
 /// 本 bin 是归档研究/审计工具，未接事件锚账本——二类判同锚不可解 = 诚实判负（与
@@ -371,7 +369,10 @@ fn bin_anchor_ctx() -> newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx<
     fn never(_: usize) -> Option<(newchan_rust::theta_v0::types::Tick, usize)> {
         None
     }
-    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx { anchor_at: &never, event_anchor: (None, None) }
+    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx {
+        anchor_at: &never,
+        event_anchor: (None, None),
+    }
 }
 
 fn main() -> Result<(), String> {
@@ -398,7 +399,12 @@ fn main() -> Result<(), String> {
     let truncated = max_bars < loaded.bars.len();
     println!(
         "P125_INPUT bars={} replay_bars={} as_of={} first_date={} last_date={} truncated={}",
-        loaded.bars.len(), max_bars, as_of, loaded.first_date, loaded.last_date, truncated
+        loaded.bars.len(),
+        max_bars,
+        as_of,
+        loaded.first_date,
+        loaded.last_date,
+        truncated
     );
     println!(
         "P125_RULE book=levels[ℓ-1].bsp window=CWindow[c_start,t*] judge=terminal_bits_at_event/terminal_bits_in_book(生产单一来源,nest.rs,禁fork) 关③P3收紧=Trend:一类∧owner=B(start_index判同,事件自带b_center_start,禁全字段等式) Pan:同向一/二/三类(confirm_side,谓词零改动) type1=buy1|sell1 type2=非1∧(buy2|sell2) type3=非12∧(buy3|sell3) other=其余 ca=Exact(敏感性对照,不收紧) owner回读=start_index判同(关③P3)"
@@ -448,8 +454,13 @@ fn main() -> Result<(), String> {
                 _ => pan_confirmed += 1,
             }
             // 生产单一来源 hit + 完整 bit 向量回读（关③ P3：返回形状扩为判定结构，取 bits 层）。
-            if let Some(bits) = terminal_bits_at_event(classification, event, TerminalMatch::CWindow, &bin_anchor_ctx())
-                .map(|t| t.bits)
+            if let Some(bits) = terminal_bits_at_event(
+                classification,
+                event,
+                TerminalMatch::CWindow,
+                &bin_anchor_ctx(),
+            )
+            .map(|t| t.bits)
             {
                 per_level_types[level].observe(&bits);
                 per_level_raw[level].observe(&bits);
@@ -471,18 +482,28 @@ fn main() -> Result<(), String> {
                 ));
             }
             // C-a 敏感性对照（裁定 T1.2 保留常数，不作生产默认）。
-            if terminal_bits_at_event(classification, event, TerminalMatch::Exact, &bin_anchor_ctx()).is_some() {
+            if terminal_bits_at_event(
+                classification,
+                event,
+                TerminalMatch::Exact,
+                &bin_anchor_ctx(),
+            )
+            .is_some()
+            {
                 ca_hits += 1;
             }
         }
     }
-    let total_types: TypeCounts = per_level_types.iter().fold(TypeCounts::default(), |mut acc, t| {
-        acc.type1 += t.type1;
-        acc.type2 += t.type2;
-        acc.type3 += t.type3;
-        acc.other += t.other;
-        acc
-    });
+    let total_types: TypeCounts =
+        per_level_types
+            .iter()
+            .fold(TypeCounts::default(), |mut acc, t| {
+                acc.type1 += t.type1;
+                acc.type2 += t.type2;
+                acc.type3 += t.type3;
+                acc.other += t.other;
+                acc
+            });
     let total_raw: RawBits = per_level_raw.iter().fold(RawBits::default(), |mut acc, r| {
         acc.buy1 += r.buy1;
         acc.buy2 += r.buy2;
@@ -565,7 +586,11 @@ fn main() -> Result<(), String> {
 
     // ══════════════ 关③：877 全 pan 池 v3 口径复测 ══════════════
     let cases = parse_pan_cases(&cases_path)?;
-    let n_chains = cases.iter().map(|case| case.chain).collect::<std::collections::BTreeSet<_>>().len();
+    let n_chains = cases
+        .iter()
+        .map(|case| case.chain)
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
     let distinct_bases = cases
         .iter()
         .map(|case| (case.side == Side::Short, case.turn, case.ib0, case.ib1))
@@ -588,13 +613,23 @@ fn main() -> Result<(), String> {
         }
         let short = event.side == Side::Short;
         *exact_index
-            .entry((short, event.interval_b.0, event.interval_b.1, event.turn_source))
+            .entry((
+                short,
+                event.interval_b.0,
+                event.interval_b.1,
+                event.turn_source,
+            ))
             .or_default() += 1;
-        *c_start_index.entry((short, event.interval_b.0)).or_default() += 1;
+        *c_start_index
+            .entry((short, event.interval_b.0))
+            .or_default() += 1;
     }
     let exact_dup: usize = exact_index.values().filter(|count| **count > 1).count();
     // book = levels[0].bsp（terminal@1 基例 = L1 事件 ⟹ ℓ-1=0；级别移位同 T1 裁定1）。
-    let book0 = classification.levels.first().map(|state| state.bsp.as_slice());
+    let book0 = classification
+        .levels
+        .first()
+        .map(|state| state.bsp.as_slice());
     let mut chain_endorsed: BTreeMap<usize, bool> = BTreeMap::new();
     let mut base_endorsed = 0usize;
     let mut base_types = TypeCounts::default();
@@ -612,7 +647,10 @@ fn main() -> Result<(), String> {
         let bits = book0.and_then(|book| {
             // #218 面 B：Pan 域 owner 不入判（锚参照包不消费）；centers 传同级账本层
             // （一/三类判同查找键域，Pan 用不到但签名需要——与生产同一核，禁 fork）。
-            let centers0 = classification.levels.first().map(|state| state.centers.as_slice());
+            let centers0 = classification
+                .levels
+                .first()
+                .map(|state| state.centers.as_slice());
             terminal_bits_in_book(
                 book,
                 centers0.unwrap_or(&[]),
@@ -654,7 +692,10 @@ fn main() -> Result<(), String> {
             match_none += 1;
         }
     }
-    let chains_with = chain_endorsed.values().filter(|endorsed| **endorsed).count();
+    let chains_with = chain_endorsed
+        .values()
+        .filter(|endorsed| **endorsed)
+        .count();
     let chains_total = chain_endorsed.len();
     println!(
         "P125_877 total={} with_endorsement={} still_silent={}",

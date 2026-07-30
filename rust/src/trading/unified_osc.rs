@@ -126,7 +126,10 @@ pub(crate) struct OscLayer {
 
 impl OscLayer {
     pub fn new() -> Self {
-        OscLayer { outs: [None; MAX_LADDER], up_ref: [None; MAX_LADDER] }
+        OscLayer {
+            outs: [None; MAX_LADDER],
+            up_ref: [None; MAX_LADDER],
+        }
     }
 
     /// ③门参照刷新（每 bar，市场性质——与持仓/配置无关）。dir==Up 期间
@@ -134,11 +137,7 @@ impl OscLayer {
     /// 读法声明：93课"上涨"按 research §2 映射行操作化为 dir==Up 的 move
     /// （方向行直读），不要求 kind==Trend——更严的"上涨走势类型"读法列
     /// 结果文档边界条件。
-    pub fn observe_refs(
-        &mut self,
-        book: &CenterBook,
-        dir_state: &[Option<Direction>; MAX_LADDER],
-    ) {
+    pub fn observe_refs(&mut self, book: &CenterBook, dir_state: &[Option<Direction>; MAX_LADDER]) {
         for j in FIRST_BSP_LADDER..MAX_LADDER {
             if dir_state[j] == Some(Direction::Up) {
                 if let Some(lc) = book.alive(j) {
@@ -243,9 +242,10 @@ impl OscLayer {
         res: &mut PositionalResult,
     ) {
         debug_assert!(self.outs[k].is_none(), "调用前提：层 k 无在外腿");
-        let LayerState::Long { shares, .. } = layers[k] else { return };
-        let Some((j, lc)) =
-            self.route(k, strong_gate, h1_freeze, phase, book, depth_ref, res)
+        let LayerState::Long { shares, .. } = layers[k] else {
+            return;
+        };
+        let Some((j, lc)) = self.route(k, strong_gate, h1_freeze, phase, book, depth_ref, res)
         else {
             return;
         };
@@ -321,8 +321,14 @@ impl OscLayer {
         //    下 k 卖点无响应（既不削也不升级）。上移腿（alad>k）在 k 趋势相
         //    内被 k 卖点升级出清 = 绕过停削的旁路，禁止（与基座零接触矛盾）。
         if (sig.sell_any.get(k) || nf_sell) && phase(k) != PhaseView::MoveUp {
-            let LayerState::Long { entry_bar, entry_price, weight, deferred_bars, partial, .. } =
-                layers[k]
+            let LayerState::Long {
+                entry_bar,
+                entry_price,
+                weight,
+                deferred_bars,
+                partial,
+                ..
+            } = layers[k]
             else {
                 unreachable!("osc 在外 ⇒ 本层恒 Long（腿生命周期内层不变迁）")
             };
@@ -392,12 +398,21 @@ impl OscLayer {
         let osc = self.outs[k].expect("调用前提：outs[k] 为 Some");
         let cost = osc.shares * c;
         if cost > *pool {
-            self.outs[k] = Some(OscOut { restore_due: true, ..osc });
+            self.outs[k] = Some(OscOut {
+                restore_due: true,
+                ..osc
+            });
             res.n_osc_restore_defer_bars += 1;
             return false;
         }
-        let LayerState::Long { entry_bar, entry_price, shares, weight, deferred_bars, partial } =
-            layers[k]
+        let LayerState::Long {
+            entry_bar,
+            entry_price,
+            shares,
+            weight,
+            deferred_bars,
+            partial,
+        } = layers[k]
         else {
             unreachable!("osc 在外 ⇒ 本层恒 Long（腿生命周期内层不变迁）")
         };

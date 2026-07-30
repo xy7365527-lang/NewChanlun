@@ -72,7 +72,10 @@ fn assert_zs_eq(rust: &RefZhongshu, lean: &FixtureZs, ctx: &str) {
     assert_eq!(rust.end, lean.end, "{ctx}: end 漂移");
     assert_eq!(rust.count, lean.count, "{ctx}: count 漂移");
     assert_eq!(rust.settled, lean.settled, "{ctx}: settled 漂移");
-    assert_eq!(rust.break_index, lean.break_index, "{ctx}: break_index 漂移");
+    assert_eq!(
+        rust.break_index, lean.break_index,
+        "{ctx}: break_index 漂移"
+    );
     assert_eq!(rust.break_up, lean.break_up, "{ctx}: break_up 漂移");
 }
 

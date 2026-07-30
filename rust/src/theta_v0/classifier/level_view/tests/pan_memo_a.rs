@@ -1,5 +1,5 @@
-use super::*;
 use super::pan_memo_fixtures::{pan_provider_fixture, pan_resident};
+use super::*;
 
 #[test]
 fn pan_memo_cold_path_characterization() {

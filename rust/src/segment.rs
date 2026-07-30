@@ -221,17 +221,33 @@ fn standardize_endpoints(seg: &[Stroke], direction: Direction) -> (usize, f64, u
     if direction == Direction::Up {
         let low_s = &seg[first_min_low_idx(seg)];
         let high_s = &seg[first_max_high_idx(seg)];
-        let ep0_i = if low_s.p0 <= low_s.p1 { low_s.i0 } else { low_s.i1 };
+        let ep0_i = if low_s.p0 <= low_s.p1 {
+            low_s.i0
+        } else {
+            low_s.i1
+        };
         let ep0_price = low_s.low;
-        let ep1_i = if high_s.p0 >= high_s.p1 { high_s.i0 } else { high_s.i1 };
+        let ep1_i = if high_s.p0 >= high_s.p1 {
+            high_s.i0
+        } else {
+            high_s.i1
+        };
         let ep1_price = high_s.high;
         (ep0_i, ep0_price, ep1_i, ep1_price)
     } else {
         let high_s = &seg[first_max_high_idx(seg)];
         let low_s = &seg[first_min_low_idx(seg)];
-        let ep0_i = if high_s.p0 >= high_s.p1 { high_s.i0 } else { high_s.i1 };
+        let ep0_i = if high_s.p0 >= high_s.p1 {
+            high_s.i0
+        } else {
+            high_s.i1
+        };
         let ep0_price = high_s.high;
-        let ep1_i = if low_s.p0 <= low_s.p1 { low_s.i0 } else { low_s.i1 };
+        let ep1_i = if low_s.p0 <= low_s.p1 {
+            low_s.i0
+        } else {
+            low_s.i1
+        };
         let ep1_price = low_s.low;
         (ep0_i, ep0_price, ep1_i, ep1_price)
     }
@@ -306,7 +322,12 @@ enum DirState {
 
 /// 对 elements 尾部做包含处理或追加新元素，返回更新后的 dir_state。
 /// 移植自 `_apply_inclusion`（用于第二特征序列，elements = (high, low) 对）。
-fn apply_inclusion(elements: &mut Vec<(f64, f64)>, h: f64, l: f64, dir_state: DirState) -> DirState {
+fn apply_inclusion(
+    elements: &mut Vec<(f64, f64)>,
+    h: f64,
+    l: f64,
+    dir_state: DirState,
+) -> DirState {
     let (last_h, last_l) = *elements.last().unwrap();
     let left_inc = last_h >= h && last_l <= l;
     let right_inc = h >= last_h && l <= last_l;
@@ -573,7 +594,11 @@ impl FeatureSeqState {
                 continue;
             }
 
-            let gap_type = if has_gap { GapType::Second } else { GapType::None };
+            let gap_type = if has_gap {
+                GapType::Second
+            } else {
+                GapType::None
+            };
             // last_checked = max(0, i - 1)；i ≥ start ≥ 1，故 i-1 ≥ 0。
             self.last_checked = i - 1;
             return Some((b_stroke, (i - 1, i, i + 1), gap_type));
@@ -795,5 +820,6 @@ pub fn segments_from_strokes_v1_into(
     ensure_last_unconfirmed(segments, strokes);
 }
 
-#[cfg(test)] #[path = "segment_tangency_tests.rs"] // 相切口径回归锁（#317），立项事实见其模块头
+#[cfg(test)]
+#[path = "segment_tangency_tests.rs"] // 相切口径回归锁（#317），立项事实见其模块头
 mod tests;

@@ -29,9 +29,7 @@ impl PartialEq for Fractal {
     /// 注意 price 用位精确比较（`to_bits`）以严格对齐 dataclass eq——
     /// Python `__eq__` 对 float 用 `==`，对正常价格等价于位比较。
     fn eq(&self, other: &Self) -> bool {
-        self.idx == other.idx
-            && self.kind == other.kind
-            && self.price == other.price
+        self.idx == other.idx && self.kind == other.kind && self.price == other.price
     }
 }
 

@@ -45,13 +45,13 @@ fn btc_instrument() -> InstrumentAny {
         Symbol::from("BTCUSDT"),
         Currency::from("BTC"),
         Currency::from("USDT"),
-        2,                                  // price_precision
-        6,                                  // size_precision
-        Price::from("0.01"),                // price_increment
-        Quantity::from("0.000001"),         // size_increment
-        None,                               // lot_size
-        None,                               // max_quantity
-        Some(Quantity::from("9000")),       // max ... (mirror stub)
+        2,                            // price_precision
+        6,                            // size_precision
+        Price::from("0.01"),          // price_increment
+        Quantity::from("0.000001"),   // size_increment
+        None,                         // lot_size
+        None,                         // max_quantity
+        Some(Quantity::from("9000")), // max ... (mirror stub)
         Some(Quantity::from("0.000001")),
         None,
         None,
@@ -138,7 +138,10 @@ pub fn require_btc_symbol(symbol: &str) -> anyhow::Result<()> {
 /// 精度全错），非本轮范围内可安全推广。`dataset.symbol` 非 BTC 时 fail-fast（见
 /// [`require_btc_symbol`]），不静默借用 BTC instrument 跑一遍产出误导性输出
 /// （价格值域正确但持仓/订单归属的品种是假的）。
-pub fn run_theta_backtest(dataset: &Dataset, theta: &ThetaConfig) -> anyhow::Result<BacktestResult> {
+pub fn run_theta_backtest(
+    dataset: &Dataset,
+    theta: &ThetaConfig,
+) -> anyhow::Result<BacktestResult> {
     require_btc_symbol(&dataset.symbol)?;
 
     let instrument = btc_instrument();
@@ -195,7 +198,10 @@ mod tests {
             msg.contains("`OKLO`"),
             "错误须精确点名未接入品种（反引号包裹的插值形态），实际: {msg}"
         );
-        assert!(msg.contains("BTC"), "错误须声明当前能力边界（仅支持 BTC），实际: {msg}");
+        assert!(
+            msg.contains("BTC"),
+            "错误须声明当前能力边界（仅支持 BTC），实际: {msg}"
+        );
     }
 
     #[test]

@@ -286,7 +286,7 @@ impl IncrInclusion {
         let acc = prev.merged[prev.merged.len() - 1];
         let prefix = &prev.merged[..prev.merged.len() - 1];
         let dir = match (prefix.last(), Some(&acc)) {
-            (Some(p, ), Some(a)) => strict_dir(p, a).unwrap_or(Direction::Up),
+            (Some(p), Some(a)) => strict_dir(p, a).unwrap_or(Direction::Up),
             _ => Direction::Up, // 仅一根 merged（合并成一根），无前对照——占位 Up。
         };
         IncrInclusion {
@@ -413,7 +413,9 @@ impl IncrInclusion {
     fn append_folded(mut self, new_bar: Bar) -> IncrInclusion {
         let merged = Rc::make_mut(&mut self.merged);
         // 末根即 acc（相 B 不变量：merged 非空）。
-        let acc = merged.pop().expect("相 B 下 merged 非空（acc 在末尾，不变量）");
+        let acc = merged
+            .pop()
+            .expect("相 B 下 merged 非空（acc 在末尾，不变量）");
         let (new_acc, new_dir) = fold_step(&acc, new_bar, self.dir, merged);
         merged.push(new_acc);
         IncrInclusion {
@@ -458,10 +460,7 @@ fn fold_step(acc: &Bar, b: Bar, dir: MergeDir, merged_out: &mut Vec<Bar>) -> (Ba
 /// （confirmed 前缀 + 末尾 acc），直接作为相 B 的 `merged` 存储——`to_result_ref`
 /// 据此零 clone 返回 `&merged`。
 fn fold_all(bars: &[Bar], dir0: MergeDir) -> (Vec<Bar>, MergeDir) {
-    debug_assert!(
-        !bars.is_empty(),
-        "fold_all 仅在相 A 累积 ≥1 bar 后调用"
-    );
+    debug_assert!(!bars.is_empty(), "fold_all 仅在相 A 累积 ≥1 bar 后调用");
     let mut merged: Vec<Bar> = Vec::with_capacity(bars.len());
     let mut acc = bars[0];
     let mut dir = dir0;
@@ -479,7 +478,10 @@ fn fold_all(bars: &[Bar], dir0: MergeDir) -> (Vec<Bar>, MergeDir) {
 ///
 /// 等价 `IncrInclusion::from_state(prev).append(new_bar).to_result()`，便于逐 bar 调用。
 /// `prev` 按值消费（与 `append` 一致）。
-pub fn process_inclusion_append(prev: IncrInclusion, new_bar: &Bar) -> (IncrInclusion, InclusionResult) {
+pub fn process_inclusion_append(
+    prev: IncrInclusion,
+    new_bar: &Bar,
+) -> (IncrInclusion, InclusionResult) {
     let next = prev.append(*new_bar);
     let result = next.to_result();
     (next, result)
@@ -487,8 +489,8 @@ pub fn process_inclusion_append(prev: IncrInclusion, new_bar: &Bar) -> (IncrIncl
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::super::types::Tick;
+    use super::*;
 
     fn bar(i: usize, high: Tick, low: Tick) -> Bar {
         Bar {
@@ -511,7 +513,13 @@ mod tests {
     #[test]
     fn group_anchor_is_first_bar_of_merged_group() {
         // 分组：g0={0}；g1={1,2}（C 含于 B 并入）；g2={3}；g3={4}。
-        let bars = vec![bar(0, 10, 5), bar(1, 12, 7), bar(2, 11, 8), bar(3, 15, 13), bar(4, 14, 9)];
+        let bars = vec![
+            bar(0, 10, 5),
+            bar(1, 12, 7),
+            bar(2, 11, 8),
+            bar(3, 15, 13),
+            bar(4, 14, 9),
+        ];
         let r = process_inclusion(&bars);
         assert_eq!(
             r.merged.iter().map(|b| b.source_index).collect::<Vec<_>>(),
@@ -521,11 +529,19 @@ mod tests {
         // 组内任一根 → 组锚；组锚自身幂等。
         assert_eq!(merged_group_anchor(&r.merged, 0), Some(0));
         assert_eq!(merged_group_anchor(&r.merged, 1), Some(1));
-        assert_eq!(merged_group_anchor(&r.merged, 2), Some(1), "组内后续根映射回组内首根");
+        assert_eq!(
+            merged_group_anchor(&r.merged, 2),
+            Some(1),
+            "组内后续根映射回组内首根"
+        );
         assert_eq!(merged_group_anchor(&r.merged, 3), Some(3));
         assert_eq!(merged_group_anchor(&r.merged, 4), Some(4));
         // 末组之后（尾部仍可生长）→ 末组锚。
-        assert_eq!(merged_group_anchor(&r.merged, 5), Some(4), "末组覆盖 [src_last, ∞)");
+        assert_eq!(
+            merged_group_anchor(&r.merged, 5),
+            Some(4),
+            "末组覆盖 [src_last, ∞)"
+        );
         // 空包含层 ⟹ None（诚实无锚）。
         assert_eq!(merged_group_anchor(&[], 0), None);
     }
@@ -542,8 +558,14 @@ mod tests {
 
     #[test]
     fn strict_dir_only_when_both_extremes_move() {
-        assert_eq!(strict_dir(&bar(0, 10, 5), &bar(1, 12, 7)), Some(Direction::Up));
-        assert_eq!(strict_dir(&bar(0, 10, 5), &bar(1, 8, 3)), Some(Direction::Down));
+        assert_eq!(
+            strict_dir(&bar(0, 10, 5), &bar(1, 12, 7)),
+            Some(Direction::Up)
+        );
+        assert_eq!(
+            strict_dir(&bar(0, 10, 5), &bar(1, 8, 3)),
+            Some(Direction::Down)
+        );
         // high 升 low 平 → 非严格 → None。
         assert_eq!(strict_dir(&bar(0, 10, 5), &bar(1, 12, 5)), None);
     }
@@ -695,7 +717,12 @@ mod tests {
             incr = incr.append(*b);
             let total: Vec<Bar> = bars0.iter().chain(extra[..=k].iter()).copied().collect();
             let full = process_inclusion(&total);
-            assert_eq!(incr.to_result(), full, "from_result 恢复后追加 bar {} 不匹配", k);
+            assert_eq!(
+                incr.to_result(),
+                full,
+                "from_result 恢复后追加 bar {} 不匹配",
+                k
+            );
         }
     }
 }

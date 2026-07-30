@@ -38,11 +38,11 @@
 //!
 //! 跑法：`cargo test --release --lib theta_v0::backtest::l3_pi_falsify -- --ignored --nocapture`
 
+use super::super::config::ThetaConfig;
 use super::data::{self, Dataset};
 use super::metrics;
 use super::prereg_windows::PREREG_WINDOWS;
 use super::runner::run_theta_v0_pi;
-use super::super::config::ThetaConfig;
 
 /// OOS 窗年跨（与 l3_fullwindow 同口径：朴素序数日差 / 365.25）。
 fn oos_years(oos_start: &str, oos_end: &str) -> f64 {
@@ -72,18 +72,32 @@ fn l3_pi_falsify_multi_symbol_significance() {
     baseline_config.voice.max_depth = 1;
 
     const MIN_TRADES_FOR_L2: usize = 30; // 协议 §5.5：real_trades<30 inconclusive（625 铁律）
-    // 可行子集窗 bar 数（全窗 O(n²) 不可行，探针外推单品种全窗≈75h）。
-    // 32K：诊断实测 CL 32K≈49s / BTC 32K≈66s（且 CL/BTC 至 64K 仍 0 单）⟹ 8 品种 ~7min 可控；
-    // 显式有效域边界（非全窗结论）。诊断坐实零订单在 16K–64K 鲁棒，32K 为可行子集代表窗。
+                                         // 可行子集窗 bar 数（全窗 O(n²) 不可行，探针外推单品种全窗≈75h）。
+                                         // 32K：诊断实测 CL 32K≈49s / BTC 32K≈66s（且 CL/BTC 至 64K 仍 0 单）⟹ 8 品种 ~7min 可控；
+                                         // 显式有效域边界（非全窗结论）。诊断坐实零订单在 16K–64K 鲁棒，32K 为可行子集代表窗。
     const MAX_BARS_PI: usize = 32_000;
 
-    eprintln!("\n===== Phase-2 pi 否证：8 品种【可行子集 {MAX_BARS_PI}bar 截断窗】OOS + 双口径门 =====");
-    eprintln!("★全窗 O(n²) 不可行（探针坐实单品种全窗≈75h）⟹ 截断窗 = 显式有效域边界（非全窗结论）");
+    eprintln!(
+        "\n===== Phase-2 pi 否证：8 品种【可行子集 {MAX_BARS_PI}bar 截断窗】OOS + 双口径门 ====="
+    );
+    eprintln!(
+        "★全窗 O(n²) 不可行（探针坐实单品种全窗≈75h）⟹ 截断窗 = 显式有效域边界（非全窗结论）"
+    );
     eprintln!("★驱动 run_theta_v0_pi（七链 π_Θ，σ_p=父容器方向 639+AncOK 准入），非 v1 recognize（独立否证）");
     eprintln!("★ρ漂移 caveat：保守欠对冲版（hedge 子腿剪枝）——结果解读须带此 caveat");
     eprintln!(
         "{:<6} {:>9} {:>6} {:>6} {:>8} {:>8} {:>8} {:>8} {:>7} {:>6} {}",
-        "symbol", "bars/T", "real", "trd", "Shrp", "ΔShrp", "MaxDD", "ΔCalmar", "boot_p", "beats?", "归因",
+        "symbol",
+        "bars/T",
+        "real",
+        "trd",
+        "Shrp",
+        "ΔShrp",
+        "MaxDD",
+        "ΔCalmar",
+        "boot_p",
+        "beats?",
+        "归因",
     );
 
     let mut n_falsify = 0usize; // (b) 经验否证
@@ -210,7 +224,11 @@ fn l3_pi_falsify_multi_symbol_significance() {
 
         // 不变量：管线不崩 + 检验值合法。
         assert!(res.metrics.sharpe.is_finite(), "{} sharpe 有限", w.symbol);
-        assert!((0.0..=1.0).contains(&sig.boot_pvalue_pnl_le_0), "{} boot p∈[0,1]", w.symbol);
+        assert!(
+            (0.0..=1.0).contains(&sig.boot_pvalue_pnl_le_0),
+            "{} boot p∈[0,1]",
+            w.symbol
+        );
         assert_eq!(res.is_l2, res.n_orders > 0, "{} is_l2 ⟺ 订单非空", w.symbol);
     }
 

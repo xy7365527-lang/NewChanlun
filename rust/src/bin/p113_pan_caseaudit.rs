@@ -104,8 +104,16 @@ fn span_envelope(segments: &[Segment], span: (usize, usize)) -> Option<(Tick, Ti
 }
 
 /// Extreme 比较（`pan_div_structure_extreme` 的 match 分量）：C 包络越 A 包络。
-fn extreme_beyond(segments: &[Segment], seg_a: (usize, usize), seg_c: (usize, usize), side: Side) -> bool {
-    let (Some(a), Some(c)) = (span_envelope(segments, seg_a), span_envelope(segments, seg_c)) else {
+fn extreme_beyond(
+    segments: &[Segment],
+    seg_a: (usize, usize),
+    seg_c: (usize, usize),
+    side: Side,
+) -> bool {
+    let (Some(a), Some(c)) = (
+        span_envelope(segments, seg_a),
+        span_envelope(segments, seg_c),
+    ) else {
         return false;
     };
     match side {
@@ -196,11 +204,11 @@ fn locate_pan(
     {
         return Err(LocateFail::NoReenterBetween);
     }
-    let lambda_a = match departure_move_c_start(segments, anchors_self, c, dir, a_anchor.start_index)
-    {
-        Some(v) => v,
-        None => return Err(LocateFail::OtherFail),
-    };
+    let lambda_a =
+        match departure_move_c_start(segments, anchors_self, c, dir, a_anchor.start_index) {
+            Some(v) => v,
+            None => return Err(LocateFail::OtherFail),
+        };
     let episode_end = win
         .iter()
         .find(|s| reenters(s) && s.start_index >= a_anchor.end_index)
@@ -406,7 +414,8 @@ fn measure_level(
             (Some(start), false) => {
                 let projection = project_extended_windows_carried_only(&windows[start..index])
                     .map_err(|error| format!("L{level} run 投影失败: {error:?}"))?;
-                let centers: Vec<Center> = projection.seeds.iter().map(|seed| seed.center).collect();
+                let centers: Vec<Center> =
+                    projection.seeds.iter().map(|seed| seed.center).collect();
                 let blocks: Vec<MoveBlock> =
                     newchan_rust::theta_v0::classifier::decompose::decompose(&centers);
                 let query = LevelViewQuery {
@@ -459,7 +468,10 @@ fn measure_level(
                         leave_kind: pair[0].kind,
                         leave_dir: pair[0].direction,
                         retest_kind: pair[1].kind,
-                        leave_via_divergence: matches!(ev0, CompletionEvidence::TerminalDivergence { .. }),
+                        leave_via_divergence: matches!(
+                            ev0,
+                            CompletionEvidence::TerminalDivergence { .. }
+                        ),
                         leave_span,
                     });
                 }
@@ -521,10 +533,7 @@ fn measure_level(
                             } else {
                                 // Extreme 判负：扩 A 重试（A' 极值可能浅于 A，049:36-38）。
                                 let wide_a = prev_same.find(dir, c.start_index).map(|ai| {
-                                    let ap = (
-                                        segments[ai].start_index,
-                                        segments[ai].end_index,
-                                    );
+                                    let ap = (segments[ai].start_index, segments[ai].end_index);
                                     WideA {
                                         a_prime: ap,
                                         seg_c: st.seg_c,
@@ -551,9 +560,11 @@ fn measure_level(
                             structure: None,
                             wide_a: None,
                         },
-                        Err(f @ (LocateFail::NoReenter
-                        | LocateFail::NoAAnchor
-                        | LocateFail::NoReenterBetween)) => {
+                        Err(
+                            f @ (LocateFail::NoReenter
+                            | LocateFail::NoAAnchor
+                            | LocateFail::NoReenterBetween),
+                        ) => {
                             // §6.2-1 扩 A：C 仍取当前离开 episode（λ_C 可独立定位），
                             // A' = 中枢前最近同向段（061:28 中枢两头比较形态 A'→c→C）。
                             let outcome = match f {
@@ -647,7 +658,8 @@ fn chain_dp_count(levels: &[LevelData]) -> u128 {
     if levels.is_empty() {
         return 0;
     }
-    let mut previous: Vec<(usize, u128)> = levels[0].pairs.iter().map(|_| (1usize, 1u128)).collect();
+    let mut previous: Vec<(usize, u128)> =
+        levels[0].pairs.iter().map(|_| (1usize, 1u128)).collect();
     for level_index in 1..levels.len() {
         let lower_pairs = &levels[level_index - 1].pairs;
         let mut current = Vec::with_capacity(levels[level_index].pairs.len());
@@ -727,13 +739,18 @@ fn enumerate_chains(levels: &[LevelData], cap: usize) -> (Vec<Vec<(usize, usize)
     (out, truncated)
 }
 
-fn terminal_bits_new(classification: &Classification, event: &NestCandidateEvent) -> Option<BspBits> {
+fn terminal_bits_new(
+    classification: &Classification,
+    event: &NestCandidateEvent,
+) -> Option<BspBits> {
     classification
         .levels
         .get(event.level as usize)?
         .bsp
         .iter()
-        .find(|point| point.source_index == event.turn_source && point.bits.confirm_side(event.side))
+        .find(|point| {
+            point.source_index == event.turn_source && point.bits.confirm_side(event.side)
+        })
         .map(|point| point.bits)
 }
 
@@ -1068,7 +1085,15 @@ fn main() -> Result<(), String> {
     for level in 1..tower.len() {
         let lower = lower_legs_from(&tower[level - 1])
             .map_err(|error| format!("L{level} lower legs 失败: {error:?}"))?;
-        let data = measure_level(level, &tower[level], &lower, as_of, &macd.hist, &macd.dif, &close_src)?;
+        let data = measure_level(
+            level,
+            &tower[level],
+            &lower,
+            as_of,
+            &macd.hist,
+            &macd.dif,
+            &close_src,
+        )?;
         let cons_events = data
             .events
             .iter()
@@ -1125,7 +1150,15 @@ fn main() -> Result<(), String> {
             l.events
                 .iter()
                 .filter(|e| e.kind == NestDivergenceKind::Consolidation)
-                .map(|e| (e.level, e.turn_source, e.seg_a, e.interval_b, side_u8(e.side)))
+                .map(|e| {
+                    (
+                        e.level,
+                        e.turn_source,
+                        e.seg_a,
+                        e.interval_b,
+                        side_u8(e.side),
+                    )
+                })
         })
         .collect();
     let instrument_success: BTreeSet<(u32, usize, (usize, usize), (usize, usize), u8)> = (1..tower
@@ -1216,7 +1249,10 @@ fn main() -> Result<(), String> {
     let divergence_count = *gate_counts.get("divergence").unwrap_or(&0);
     let cons_leave_chains = outcomes
         .iter()
-        .filter(|o| o.gate == KillGate::Identity && o.pairs[o.kill_level - 1].leave_kind == MoveKind::Consolidation)
+        .filter(|o| {
+            o.gate == KillGate::Identity
+                && o.pairs[o.kill_level - 1].leave_kind == MoveKind::Consolidation
+        })
         .count();
     println!(
         "P113_ANCHOR_GATES identity={} divergence={} terminal={} direction={} inclusion={} alive={} cons_leave={} expected_identity=3790 expected_divergence=1020 expected_cons_leave=1238",
@@ -1262,60 +1298,61 @@ fn main() -> Result<(), String> {
 
     // 硬锚 4：!confirmed 事件混合面积 C<A 计数 == 0。
     let mut area_abs_viol = 0usize;
-    let report_group = |name: &str,
-                        group: &[(usize, usize)],
-                        sig_of: &mut dyn FnMut(usize, usize) -> Option<CaseSignals>| {
-        let mut n = 0usize;
-        let mut unmappable = 0usize;
-        let mut c_area_same = 0usize;
-        let mut c_dif = 0usize;
-        let mut c_dif_pb = 0usize;
-        let mut c_b_nonempty = 0usize;
-        let mut c_hist = 0usize;
-        let mut c_amp = 0usize;
-        let mut c_speed = 0usize;
-        let mut c_deaf = 0usize;
-        let mut c_doc = 0usize;
-        let mut pb_values: Vec<f64> = Vec::new();
-        for &(li, ei) in group {
-            let Some(sig) = sig_of(li, ei) else {
-                unmappable += 1;
-                continue;
-            };
-            n += 1;
-            c_area_same += usize::from(sig.s_area_same());
-            c_dif += usize::from(sig.s_dif());
-            c_dif_pb += usize::from(sig.s_dif_pb());
-            c_b_nonempty += usize::from(sig.b_pullback.is_some());
-            c_hist += usize::from(sig.s_hist());
-            c_amp += usize::from(sig.s_amp());
-            c_speed += usize::from(sig.s_speed());
-            c_deaf += usize::from(sig.deaf_or());
-            c_doc += usize::from(sig.doc_02732());
-            if let Some(pb) = sig.b_pullback {
-                pb_values.push(pb);
+    let report_group =
+        |name: &str,
+         group: &[(usize, usize)],
+         sig_of: &mut dyn FnMut(usize, usize) -> Option<CaseSignals>| {
+            let mut n = 0usize;
+            let mut unmappable = 0usize;
+            let mut c_area_same = 0usize;
+            let mut c_dif = 0usize;
+            let mut c_dif_pb = 0usize;
+            let mut c_b_nonempty = 0usize;
+            let mut c_hist = 0usize;
+            let mut c_amp = 0usize;
+            let mut c_speed = 0usize;
+            let mut c_deaf = 0usize;
+            let mut c_doc = 0usize;
+            let mut pb_values: Vec<f64> = Vec::new();
+            for &(li, ei) in group {
+                let Some(sig) = sig_of(li, ei) else {
+                    unmappable += 1;
+                    continue;
+                };
+                n += 1;
+                c_area_same += usize::from(sig.s_area_same());
+                c_dif += usize::from(sig.s_dif());
+                c_dif_pb += usize::from(sig.s_dif_pb());
+                c_b_nonempty += usize::from(sig.b_pullback.is_some());
+                c_hist += usize::from(sig.s_hist());
+                c_amp += usize::from(sig.s_amp());
+                c_speed += usize::from(sig.s_speed());
+                c_deaf += usize::from(sig.deaf_or());
+                c_doc += usize::from(sig.doc_02732());
+                if let Some(pb) = sig.b_pullback {
+                    pb_values.push(pb);
+                }
             }
-        }
-        println!(
+            println!(
             "P113A_SIGNAL group={} n={} unmappable={} area_same={} dif={} dif_pb02732={} b_domain_nonempty={} hist_peak={} price_amp={} price_speed={}",
             name, n, unmappable, c_area_same, c_dif, c_dif_pb, c_b_nonempty, c_hist, c_amp, c_speed
         );
-        println!(
-            "P113A_VERDICT group={} deaf_or={} market_fact={} doc02732={}",
-            name,
-            c_deaf,
-            n - c_deaf,
-            c_doc
-        );
-        if !pb_values.is_empty() {
-            pb_values.sort_by(|x, y| x.partial_cmp(y).expect("finite"));
-            let q = |p: f64| pb_values[((pb_values.len() - 1) as f64 * p) as usize];
             println!(
+                "P113A_VERDICT group={} deaf_or={} market_fact={} doc02732={}",
+                name,
+                c_deaf,
+                n - c_deaf,
+                c_doc
+            );
+            if !pb_values.is_empty() {
+                pb_values.sort_by(|x, y| x.partial_cmp(y).expect("finite"));
+                let q = |p: f64| pb_values[((pb_values.len() - 1) as f64 * p) as usize];
+                println!(
                 "P113A_B_PULLBACK group={} n={} p50={:.4} p90={:.4} p99={:.4} max={:.4} （Long=max(dif[B])，Short=-min(dif[B])；>=0 为触及0轴）",
                 name, pb_values.len(), q(0.5), q(0.9), q(0.99), *pb_values.last().expect("nonempty")
             );
-        }
-    };
+            }
+        };
     let base_group: Vec<(usize, usize)> = base_set.iter().map(|&ei| (0usize, ei)).collect();
     report_group("universe", &universe, &mut sig_of);
     report_group("chain_base", &base_group, &mut sig_of);
@@ -1440,10 +1477,10 @@ fn main() -> Result<(), String> {
         no_a_anchor: usize,
         no_reenter_between: usize,
         other_fail: usize,
-        wide_rescued: usize,      // 扩 A 后 extreme 过（结构层聋度候选）
+        wide_rescued: usize,       // 扩 A 后 extreme 过（结构层聋度候选）
         wide_rescued_force: usize, // 扩 A 救回且 §6.1 力度信号成立（结构+力度双救回）
-        wide_fail_extreme: usize, // 扩 A 定位成但 extreme 负
-        wide_no_prime: usize,     // 中枢前无同向段（扩 A 无候选）
+        wide_fail_extreme: usize,  // 扩 A 定位成但 extreme 负
+        wide_no_prime: usize,      // 中枢前无同向段（扩 A 无候选）
     }
     let mut cat_counts: BTreeMap<&'static str, usize> = BTreeMap::new(); // 块级
     let mut cat_chains: BTreeMap<&'static str, usize> = BTreeMap::new(); // 链级（按 leave 块归类）
@@ -1488,16 +1525,10 @@ fn main() -> Result<(), String> {
                         Side::Short => 1u8,
                     };
                     let is_new = rescued_events.insert((*level, a.seg.1, w.a_prime, w.seg_c, su8));
-                    let force_ok = signals_for(
-                        side,
-                        w.a_prime,
-                        w.seg_c,
-                        &macd,
-                        &closes_tick,
-                        &close_src,
-                    )
-                    .map(|s| s.deaf_or())
-                    .unwrap_or(false);
+                    let force_ok =
+                        signals_for(side, w.a_prime, w.seg_c, &macd, &closes_tick, &close_src)
+                            .map(|s| s.deaf_or())
+                            .unwrap_or(false);
                     if force_ok {
                         t.wide_rescued_force += 1;
                         if is_new {
@@ -1509,7 +1540,10 @@ fn main() -> Result<(), String> {
                 }
             } else if matches!(
                 a.outcome,
-                AttemptOutcome::NoReenter | AttemptOutcome::NoAAnchor | AttemptOutcome::NoReenterBetween | AttemptOutcome::ExtremeFail
+                AttemptOutcome::NoReenter
+                    | AttemptOutcome::NoAAnchor
+                    | AttemptOutcome::NoReenterBetween
+                    | AttemptOutcome::ExtremeFail
             ) {
                 t.wide_no_prime += 1;
             }
@@ -1582,7 +1616,10 @@ fn main() -> Result<(), String> {
         );
     }
     for ((cat, level), chains) in &cat_level_chains {
-        println!("P113B_CAT_LEVEL cat={} level=L{} chains={}", cat, level, chains);
+        println!(
+            "P113B_CAT_LEVEL cat={} level=L{} chains={}",
+            cat, level, chains
+        );
     }
     for ((cat, _level), bucket) in &samples {
         for line in bucket {

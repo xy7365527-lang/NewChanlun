@@ -51,7 +51,11 @@ fn same_departure_different_window_kills_old_as_rebased_and_registers_new() {
 
     // 影子评审 #622 S2 MEDIUM-3 修复：旧档之死不再只混在 delta 里逐条比对才能发现——
     // `step.killed` 显式带出被处死的旧档身份，`step.delta` 里也确实带着那条 CenterRebased 修订。
-    assert_eq!(step.killed, Some(key_of(old, 3)), "本轮处死的旧档身份显式可查");
+    assert_eq!(
+        step.killed,
+        Some(key_of(old, 3)),
+        "本轮处死的旧档身份显式可查"
+    );
     let killed_revision = step
         .delta
         .as_slice()
@@ -87,7 +91,9 @@ fn rebase_collision_observation_still_judges_the_new_identity() {
     assert_eq!(step.state, RetraceState::Confirmed, "新档带结局照常判决");
     assert!(book.established_pack(&key_of(rebased, 3)).is_some());
     assert_eq!(
-        book.entry(&key_of(old, 3)).unwrap().not_constituted_reason(),
+        book.entry(&key_of(old, 3))
+            .unwrap()
+            .not_constituted_reason(),
         Some(NotConstitutedReason::CenterRebased {
             registered_window: old,
             observed_window: Some(rebased),
@@ -102,8 +108,13 @@ fn rebase_collision_observation_still_judges_the_new_identity() {
 fn rebase_after_retest_reentered_predecessor_leaves_its_own_reason_intact() {
     let mut book = ledger();
     let first = frame(1_200);
-    book.observe(&up_input(first, 3, Some(RetraceOutcome::RetestReenters), 500))
-        .unwrap();
+    book.observe(&up_input(
+        first,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        500,
+    ))
+    .unwrap();
 
     let second = frame(1_400);
     book.observe(&up_input(second, 5, None, 700)).unwrap();
@@ -111,12 +122,16 @@ fn rebase_after_retest_reentered_predecessor_leaves_its_own_reason_intact() {
     book.observe(&up_input(rebased, 5, None, 900)).unwrap();
 
     assert_eq!(
-        book.entry(&key_of(first, 3)).unwrap().not_constituted_reason(),
+        book.entry(&key_of(first, 3))
+            .unwrap()
+            .not_constituted_reason(),
         Some(NotConstitutedReason::RetestReentered),
         "首任判败原因码不被后续改口覆盖"
     );
     assert_eq!(
-        book.entry(&key_of(second, 5)).unwrap().not_constituted_reason(),
+        book.entry(&key_of(second, 5))
+            .unwrap()
+            .not_constituted_reason(),
         Some(NotConstitutedReason::CenterRebased {
             registered_window: second,
             observed_window: Some(rebased),
@@ -139,7 +154,9 @@ fn different_departure_while_unsettled_is_still_fail_loud_not_rebase() {
     let center = frame(1_200);
     book.observe(&up_input(center, 3, None, 500)).unwrap();
 
-    let rejection = book.observe(&up_input(frame(1_400), 7, None, 700)).unwrap_err();
+    let rejection = book
+        .observe(&up_input(frame(1_400), 7, None, 700))
+        .unwrap_err();
     assert_eq!(
         rejection,
         RetraceRejection::ActiveCandidateNotSettled {
@@ -174,7 +191,11 @@ fn reconcile_window_kills_as_rebased_when_window_changes() {
         .unwrap();
     assert_eq!(step.key, key_of(old, 3));
     assert_eq!(step.state, RetraceState::Invalidated);
-    assert_eq!(step.killed, Some(key_of(old, 3)), "本通道 key 即被处死的档，killed 同样显式带出");
+    assert_eq!(
+        step.killed,
+        Some(key_of(old, 3)),
+        "本通道 key 即被处死的档，killed 同样显式带出"
+    );
 
     let entry = book.entry(&key_of(old, 3)).unwrap();
     assert_eq!(
@@ -195,10 +216,15 @@ fn reconcile_window_kills_as_rebased_when_center_vanishes() {
     let center = frame(1_200);
     book.observe(&up_input(center, 3, None, 500)).unwrap();
 
-    let step = book.reconcile_window(center.anchor(), None, 900).unwrap().unwrap();
+    let step = book
+        .reconcile_window(center.anchor(), None, 900)
+        .unwrap()
+        .unwrap();
     assert_eq!(step.state, RetraceState::Invalidated);
     assert_eq!(
-        book.entry(&key_of(center, 3)).unwrap().not_constituted_reason(),
+        book.entry(&key_of(center, 3))
+            .unwrap()
+            .not_constituted_reason(),
         Some(NotConstitutedReason::CenterRebased {
             registered_window: center,
             observed_window: None,
@@ -217,12 +243,18 @@ fn reconcile_window_same_window_is_zero_action() {
     let before = book.entry(&key_of(center, 3)).unwrap().clone();
     let journal_before = book.journal().to_vec();
 
-    let step = book.reconcile_window(center.anchor(), Some(center), 900).unwrap();
+    let step = book
+        .reconcile_window(center.anchor(), Some(center), 900)
+        .unwrap();
     assert!(step.is_none(), "同窗口重确认零动作：不产生任何 step");
 
     let after = book.entry(&key_of(center, 3)).unwrap();
     assert_eq!(after, &before, "条目一个 bit 不动（含门卫钟）");
-    assert_eq!(book.journal(), journal_before.as_slice(), "日志一个 bit 不动");
+    assert_eq!(
+        book.journal(),
+        journal_before.as_slice(),
+        "日志一个 bit 不动"
+    );
     assert_eq!(book.alarms().center_rebased, 0);
     settled(&book);
 }
@@ -231,7 +263,10 @@ fn reconcile_window_same_window_is_zero_action() {
 fn reconcile_window_on_unregistered_anchor_is_none() {
     let mut book = ledger();
     let anchor = frame(1_200).anchor();
-    assert!(book.reconcile_window(anchor, Some(frame(1_400)), 500).unwrap().is_none());
+    assert!(book
+        .reconcile_window(anchor, Some(frame(1_400)), 500)
+        .unwrap()
+        .is_none());
     assert!(book.is_empty());
     settled(&book);
 }
@@ -244,7 +279,9 @@ fn reconcile_window_on_already_terminal_candidate_is_zero_action() {
         .unwrap();
     let before = book.entry(&key_of(center, 3)).unwrap().clone();
 
-    let step = book.reconcile_window(center.anchor(), Some(frame(1_400)), 900).unwrap();
+    let step = book
+        .reconcile_window(center.anchor(), Some(frame(1_400)), 900)
+        .unwrap();
     assert!(step.is_none(), "已终态候选：窗口核对与之无关");
     assert_eq!(book.entry(&key_of(center, 3)).unwrap(), &before);
     assert_eq!(book.alarms().center_rebased, 0);
@@ -278,14 +315,29 @@ fn observe_collision_rebase_with_as_of_behind_registration_is_rejected_fail_loud
     );
 
     let entry = book.entry(&key_of(old, 3)).unwrap();
-    assert_eq!(entry.state, RetraceState::Provisional, "旧档一个 bit 不动：处死零改写");
+    assert_eq!(
+        entry.state,
+        RetraceState::Provisional,
+        "旧档一个 bit 不动：处死零改写"
+    );
     assert_eq!(entry.last_as_of, 500, "门卫钟不动");
     assert!(entry.terminal_as_of.is_none(), "落锤钟未被写坏");
-    assert!(book.entry(&key_of(rebased, 3)).is_none(), "新档也未建仓——护栏在建仓前拦下");
+    assert!(
+        book.entry(&key_of(rebased, 3)).is_none(),
+        "新档也未建仓——护栏在建仓前拦下"
+    );
     assert_eq!(book.len(), 1, "只有旧档一条留档");
     assert_eq!(book.alarms().center_rebased, 0, "护栏拒收不是改口");
-    assert_eq!(book.alarms().registration_rejected, 1, "护栏拒收计入注册期拒收桶");
-    let record = book.audit_log().last().copied().expect("护栏拒收落 audit 流");
+    assert_eq!(
+        book.alarms().registration_rejected,
+        1,
+        "护栏拒收计入注册期拒收桶"
+    );
+    let record = book
+        .audit_log()
+        .last()
+        .copied()
+        .expect("护栏拒收落 audit 流");
     assert_eq!(
         record.event,
         RetraceAuditEvent::ResidualRejected {
@@ -382,7 +434,9 @@ fn observe_collision_rebase_with_as_of_behind_recovery_point_is_rejected_fail_lo
     let before = restored.entry(&key).unwrap().clone();
 
     let rebased = frame(1_400);
-    let rejection = restored.observe(&up_input(rebased, 3, None, 600)).unwrap_err();
+    let rejection = restored
+        .observe(&up_input(rebased, 3, None, 600))
+        .unwrap_err();
     assert_eq!(
         rejection,
         RetraceRejection::SettleBehindRecoveryPoint {
@@ -396,11 +450,22 @@ fn observe_collision_rebase_with_as_of_behind_recovery_point_is_rejected_fail_lo
     let entry = restored.entry(&key).unwrap();
     assert_eq!(entry, &before, "拒收零改写：旧档一个 bit 不动");
     assert_eq!(entry.state, RetraceState::Provisional, "旧候选未被处死");
-    assert!(restored.entry(&key_of(rebased, 3)).is_none(), "新档也未建仓——护栏在建仓前拦下");
+    assert!(
+        restored.entry(&key_of(rebased, 3)).is_none(),
+        "新档也未建仓——护栏在建仓前拦下"
+    );
     assert_eq!(restored.len(), 1, "只有旧档一条留档");
     assert_eq!(restored.alarms().center_rebased, 0, "护栏拒收不是改口");
-    assert_eq!(restored.alarms().registration_rejected, 1, "护栏拒收计入注册期拒收桶");
-    let record = restored.audit_log().last().copied().expect("护栏拒收落 audit 流");
+    assert_eq!(
+        restored.alarms().registration_rejected,
+        1,
+        "护栏拒收计入注册期拒收桶"
+    );
+    let record = restored
+        .audit_log()
+        .last()
+        .copied()
+        .expect("护栏拒收落 audit 流");
     assert_eq!(
         record.event,
         RetraceAuditEvent::ResidualRejected {
@@ -424,10 +489,16 @@ fn observe_collision_rebase_violating_both_gates_reports_recovery_point_first() 
     // fold_recovered 折回后门卫钟退回留档下界（1_000），恢复点声明为 5_000。
     let mut restored = RetraceLedger::fold_recovered(provenance(), live.journal(), 5_000).unwrap();
     let key = key_of(old, 3);
-    assert_eq!(restored.entry(&key).unwrap().last_as_of, 1_000, "门卫钟退回留档下界");
+    assert_eq!(
+        restored.entry(&key).unwrap().last_as_of,
+        1_000,
+        "门卫钟退回留档下界"
+    );
 
     let rebased = frame(1_400);
-    let rejection = restored.observe(&up_input(rebased, 3, None, 500)).unwrap_err();
+    let rejection = restored
+        .observe(&up_input(rebased, 3, None, 500))
+        .unwrap_err();
     assert_eq!(
         rejection,
         RetraceRejection::SettleBehindRecoveryPoint {
@@ -437,7 +508,11 @@ fn observe_collision_rebase_violating_both_gates_reports_recovery_point_first() 
         },
         "500 同时早于门卫钟 1000 与恢复点 5000——恢复点护栏先查，不报 RebaseAsOfBehindGate"
     );
-    assert_eq!(restored.entry(&key).unwrap().state, RetraceState::Provisional, "零改写");
+    assert_eq!(
+        restored.entry(&key).unwrap().state,
+        RetraceState::Provisional,
+        "零改写"
+    );
     settled(&restored);
 }
 
@@ -452,12 +527,19 @@ fn observe_collision_rebase_with_as_of_exactly_at_recovery_point_is_admitted() {
     let rebased = frame(1_400);
     let step = restored.observe(&up_input(rebased, 3, None, 600)).unwrap();
 
-    assert_eq!(step.killed, Some(key_of(old, 3)), "恰等于恢复点 ⟹ 放行，旧档正常处死");
+    assert_eq!(
+        step.killed,
+        Some(key_of(old, 3)),
+        "恰等于恢复点 ⟹ 放行，旧档正常处死"
+    );
     let old_entry = restored.entry(&key_of(old, 3)).unwrap();
     assert_eq!(old_entry.state, RetraceState::Invalidated);
     assert_eq!(old_entry.terminal_as_of, Some(600));
     assert_eq!(
-        restored.entry(&key_of(rebased, 3)).unwrap().restarted_from(),
+        restored
+            .entry(&key_of(rebased, 3))
+            .unwrap()
+            .restarted_from(),
         Some(key_of(old, 3))
     );
     assert_eq!(restored.alarms().center_rebased, 1);
@@ -510,7 +592,10 @@ fn reconcile_window_admits_as_of_exactly_at_recovery_point() {
         .unwrap();
 
     assert_eq!(step.state, RetraceState::Invalidated);
-    assert_eq!(restored.entry(&key_of(old, 3)).unwrap().terminal_as_of, Some(600));
+    assert_eq!(
+        restored.entry(&key_of(old, 3)).unwrap().terminal_as_of,
+        Some(600)
+    );
     assert_eq!(restored.alarms().center_rebased, 1);
     assert_eq!(restored.alarms().registration_rejected, 0);
     settled(&restored);
@@ -529,7 +614,11 @@ fn plain_fold_without_recovery_point_still_lets_stale_as_of_kill_as_rebased() {
 
     let rebased = frame(1_400);
     let step = restored.observe(&up_input(rebased, 3, None, 600)).unwrap();
-    assert_eq!(step.killed, Some(key_of(old, 3)), "未设恢复点 ⟹ 零约束，历史行为不变");
+    assert_eq!(
+        step.killed,
+        Some(key_of(old, 3)),
+        "未设恢复点 ⟹ 零约束，历史行为不变"
+    );
     assert_eq!(restored.alarms().center_rebased, 1);
     settled(&restored);
 }

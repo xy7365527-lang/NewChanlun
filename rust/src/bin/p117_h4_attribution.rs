@@ -49,7 +49,9 @@ use newchan_rust::theta_v0::classifier::level_view::{
     LevelViewMaterial, LevelViewQuery, LowerLeg, NestCandidateEvent, NestDivergenceKind,
     ProjectionError, ProjectionMaterial,
 };
-use newchan_rust::theta_v0::classifier::nest::{event_bsp_book_level, terminal_bits_at_event, TerminalMatch};
+use newchan_rust::theta_v0::classifier::nest::{
+    event_bsp_book_level, terminal_bits_at_event, TerminalMatch,
+};
 use newchan_rust::theta_v0::classifier::recursive_tower::{map_src_to_close_idx, LeveledMove};
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::ParseLayerIncr;
@@ -620,8 +622,7 @@ fn trend_confirm_time_diag(
             Side::Long => hist_min.min(0.0).abs(),
             Side::Short => hist_max.max(0.0),
         };
-        let force_ok =
-            area_c < area_a || dif_peak_c < dif_peak_a || hist_peak_c < hist_peak_a;
+        let force_ok = area_c < area_a || dif_peak_c < dif_peak_a || hist_peak_c < hist_peak_a;
         if !force_ok {
             let (env_lo, env_hi) = env.expect("扫描窗口非空");
             let extreme = match side {
@@ -768,7 +769,6 @@ fn judge_replica(
     }
 }
 
-
 /// #218 面 B 研究 bin 锚供给说明（诚实，090）：owner 判同已换两族锚（一/三类核心区间
 /// 带判同经账本 `centers` 全功能；二类一类点身份锚判同需 T1 oracle + 事件锚账本）。
 /// 本 bin 是归档研究/审计工具，未接事件锚账本——二类判同锚不可解 = 诚实判负（与
@@ -777,7 +777,10 @@ fn bin_anchor_ctx() -> newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx<
     fn never(_: usize) -> Option<(newchan_rust::theta_v0::types::Tick, usize)> {
         None
     }
-    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx { anchor_at: &never, event_anchor: (None, None) }
+    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx {
+        anchor_at: &never,
+        event_anchor: (None, None),
+    }
 }
 
 fn main() -> Result<(), String> {
@@ -800,7 +803,11 @@ fn main() -> Result<(), String> {
     let as_of = max_bars - 1;
     println!(
         "ATTR_INPUT bars={} replay_bars={} as_of={} first_date={} last_date={}",
-        loaded.bars.len(), max_bars, as_of, loaded.first_date, loaded.last_date
+        loaded.bars.len(),
+        max_bars,
+        as_of,
+        loaded.first_date,
+        loaded.last_date
     );
 
     let terminal = run_terminal_pass(&loaded.bars[..max_bars], &config)?;
@@ -823,7 +830,8 @@ fn main() -> Result<(), String> {
     if terminal.tower.len() < 2 || classification.levels.len() < 2 {
         return Err("塔/分类级别不足（须 ≥2）".to_string());
     }
-    let legs0 = lower_legs_from(&terminal.tower[0]).map_err(|error| format!("L0 legs 失败: {error:?}"))?;
+    let legs0 =
+        lower_legs_from(&terminal.tower[0]).map_err(|error| format!("L0 legs 失败: {error:?}"))?;
     let segs_l0: Vec<Segment> = legs0.iter().map(leg_as_segment).collect();
     let anchors0: Vec<Option<Direction>> = segs_l0.iter().map(|s| Some(s.direction)).collect();
     let centers0 = &classification.levels[0].centers;
@@ -919,7 +927,13 @@ fn main() -> Result<(), String> {
         );
         // 生产 hit（单一来源）。
         if let Some(e) = event {
-            let hit = terminal_bits_at_event(classification, &e, TerminalMatch::CWindow, &bin_anchor_ctx()).is_some();
+            let hit = terminal_bits_at_event(
+                classification,
+                &e,
+                TerminalMatch::CWindow,
+                &bin_anchor_ctx(),
+            )
+            .is_some();
             let book_level = event_bsp_book_level(e.level);
             println!(
                 "ATTR_PROD_HIT case={} book_level={:?} hit={}",
@@ -932,7 +946,9 @@ fn main() -> Result<(), String> {
             continue;
         };
         // ── ATTR_B：seed B vs detect B（by start_index）──
-        let b_detect = centers0.iter().find(|c| c.start_index == ctx.last.start_index);
+        let b_detect = centers0
+            .iter()
+            .find(|c| c.start_index == ctx.last.start_index);
         let (b_idx, b_verdict) = match b_detect {
             Some(d) => {
                 let idx = centers0
@@ -977,10 +993,12 @@ fn main() -> Result<(), String> {
         if let Some(bi) = b_idx {
             let block_b = blocks0
                 .iter()
-                .find(|b| b.kind == newchan_rust::theta_v0::types::MoveKind::Trend
-                    && b.dir == Some(ctx.direction)
-                    && b.start_center <= bi
-                    && bi <= b.end_center)
+                .find(|b| {
+                    b.kind == newchan_rust::theta_v0::types::MoveKind::Trend
+                        && b.dir == Some(ctx.direction)
+                        && b.start_center <= bi
+                        && bi <= b.end_center
+                })
                 .copied();
             let prev_is_block_start = match (block_b, prev_detect_idx) {
                 (Some(bl), Some(pi)) => bl.start_center == pi,
@@ -1034,7 +1052,10 @@ fn main() -> Result<(), String> {
                 } else if centers0[oi].start_index == ctx.prev.start_index {
                     "PREV".to_string()
                 } else {
-                    format!("OTHER({},{})", centers0[oi].start_index, centers0[oi].end_index)
+                    format!(
+                        "OTHER({},{})",
+                        centers0[oi].start_index, centers0[oi].end_index
+                    )
                 };
                 (oi, tag)
             })
@@ -1042,7 +1063,15 @@ fn main() -> Result<(), String> {
         if let Some(leg) = segs_l0.iter().find(|s| s.end_index == case.turn) {
             let (jout, a_span) = match nearest_center_idx(centers0, leg.start_index) {
                 Some(oi) => judge_replica(
-                    leg, oi, centers0, &gate0, &first_match, &segs_l0, &anchors0, hist, close_src,
+                    leg,
+                    oi,
+                    centers0,
+                    &gate0,
+                    &first_match,
+                    &segs_l0,
+                    &anchors0,
+                    hist,
+                    close_src,
                     ctx.direction,
                 ),
                 None => (JudgeOut::NoOwner, None),
@@ -1076,7 +1105,10 @@ fn main() -> Result<(), String> {
         // ── ATTR_PT：窗口邻域书点逐点 dump ──
         let dump_lo = case.seg_c.0.saturating_sub(1500);
         let dump_hi = ref_right + 3000;
-        for p in bsp0.iter().filter(|p| p.source_index >= dump_lo && p.source_index <= dump_hi) {
+        for p in bsp0
+            .iter()
+            .filter(|p| p.source_index >= dump_lo && p.source_index <= dump_hi)
+        {
             let (owner_str, jout_str) = match leg_by_end.get(&p.source_index) {
                 Some(leg) => {
                     let o = owner_of(leg.start_index)
@@ -1087,8 +1119,16 @@ fn main() -> Result<(), String> {
                         judge_zero_total += 1;
                         let (jout, _) = match nearest_center_idx(centers0, leg.start_index) {
                             Some(oi) => judge_replica(
-                                leg, oi, centers0, &gate0, &first_match, &segs_l0, &anchors0,
-                                hist, close_src, ctx.direction,
+                                leg,
+                                oi,
+                                centers0,
+                                &gate0,
+                                &first_match,
+                                &segs_l0,
+                                &anchors0,
+                                hist,
+                                close_src,
+                                ctx.direction,
                             ),
                             None => (JudgeOut::NoOwner, None),
                         };
@@ -1175,7 +1215,9 @@ fn main() -> Result<(), String> {
         };
         let b_confirm = bsp0
             .iter()
-            .filter(|p| p.source_index >= case.seg_c.0 && p.bits.confirm_side(case.side) && owner_is_b(p))
+            .filter(|p| {
+                p.source_index >= case.seg_c.0 && p.bits.confirm_side(case.side) && owner_is_b(p)
+            })
             .min_by_key(|p| p.source_index);
         let b_candidate = bsp0
             .iter()
@@ -1259,8 +1301,16 @@ fn main() -> Result<(), String> {
                             .unwrap_or_else(|| "NONE".to_string());
                         let (jout, _) = match nearest_center_idx(centers0, leg.start_index) {
                             Some(oi) => judge_replica(
-                                leg, oi, centers0, &gate0, &first_match, &segs_l0, &anchors0,
-                                hist, close_src, ctx.direction,
+                                leg,
+                                oi,
+                                centers0,
+                                &gate0,
+                                &first_match,
+                                &segs_l0,
+                                &anchors0,
+                                hist,
+                                close_src,
+                                ctx.direction,
                             ),
                             None => (JudgeOut::NoOwner, None),
                         };
@@ -1279,7 +1329,10 @@ fn main() -> Result<(), String> {
                     }
                     None => ("NO_LEG".to_string(), JudgeOut::NoOwner),
                 };
-                let p = bsp0.iter().find(|p| p.source_index == idx).expect("hit in book");
+                let p = bsp0
+                    .iter()
+                    .find(|p| p.source_index == idx)
+                    .expect("hit in book");
                 println!(
                     "ATTR_HIT case={} idx={} bits={} owner={} replica={} seed_b=({},{}) seed_prev=({},{})",
                     case_no,

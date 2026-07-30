@@ -223,9 +223,10 @@ impl VenueFeeSchedule {
         );
         let notional = qty * px;
         match &self.unit {
-            FeeUnit::Notional { maker_bps, taker_bps } => {
-                notional * role.pick_bps(*maker_bps, *taker_bps) / 10_000.0
-            }
+            FeeUnit::Notional {
+                maker_bps,
+                taker_bps,
+            } => notional * role.pick_bps(*maker_bps, *taker_bps) / 10_000.0,
             FeeUnit::PerShare(f) => f.breakdown(qty, notional, side).total(),
         }
     }
@@ -236,7 +237,10 @@ impl VenueFeeSchedule {
     /// 逐位同形）；per-share 档才把绝对费用摊回名义额。
     pub fn effective_rate(&self, qty: f64, px: f64, side: FillSide, role: LiquidityRole) -> f64 {
         match &self.unit {
-            FeeUnit::Notional { maker_bps, taker_bps } => {
+            FeeUnit::Notional {
+                maker_bps,
+                taker_bps,
+            } => {
                 assert!(
                     qty > 0.0 && px > 0.0 && qty.is_finite() && px.is_finite(),
                     "venue 费率解析要求 qty>0 且 px>0：qty={qty}, px={px}"
@@ -289,7 +293,10 @@ impl VenueFeeSchedule {
     /// 传角色字面量的路径——逐条登记见 [`PRODUCTION_LIQUIDITY_ROLE`] 文档。
     pub fn constant_effective_rate(&self) -> Option<f64> {
         match &self.unit {
-            FeeUnit::Notional { maker_bps, taker_bps } => {
+            FeeUnit::Notional {
+                maker_bps,
+                taker_bps,
+            } => {
                 // ★#423 收尾轮 E：角色 → bps 的选择收口到 `LiquidityRole::pick_bps`（原此处与
                 //   `fee_usd` / `effective_rate` 各写一份同形 match）。★收尾轮 D：本次取值在
                 //   `symmetric` 守卫下两支逐位同值 ⟹ 无判别力，作用是纵深防御（见上方文档）。
@@ -350,12 +357,20 @@ impl<'a> FeeQuoter<'a> {
         uncalibrated_addon: f64,
         schedule: Option<&'a VenueFeeSchedule>,
     ) -> Self {
-        FeeQuoter { fallback_rate, uncalibrated_addon, schedule }
+        FeeQuoter {
+            fallback_rate,
+            uncalibrated_addon,
+            schedule,
+        }
     }
 
     /// 未标定档构造（`schedule=None` ⟹ addon 不参与任何取值，置 0 无歧义）。
     pub fn uncalibrated(fallback_rate: f64) -> Self {
-        FeeQuoter { fallback_rate, uncalibrated_addon: 0.0, schedule: None }
+        FeeQuoter {
+            fallback_rate,
+            uncalibrated_addon: 0.0,
+            schedule: None,
+        }
     }
 
     /// 本笔成交的单边费率（**私有**：角色维只在本类型内部存在）。未标定档忽略
@@ -616,8 +631,11 @@ mod tests {
         std::fs::write(&json, &bumped).unwrap();
         // sidecar 按篡改后的内容重算 ⟹ 哈希这关过得去，卡在版本门（隔离两道校验）。
         let hex = super::datum_io::sha256_hex(bumped.as_bytes());
-        std::fs::write(PathBuf::from(format!("{}.sha256", json.display())), format!("{hex}  v.json\n"))
-            .unwrap();
+        std::fs::write(
+            PathBuf::from(format!("{}.sha256", json.display())),
+            format!("{hex}  v.json\n"),
+        )
+        .unwrap();
         let err = load_datum(&json).expect_err("未知 schema_version 必须 Err");
         assert!(err.contains("schema_version"), "错误须点名版本门：{err}");
     }
@@ -794,7 +812,10 @@ mod tests {
             .map(|q| s.effective_rate(*q, 20.0, FillSide::Buy, LiquidityRole::Taker))
             .collect();
         for w in rates.windows(2) {
-            assert!(w[0] >= w[1], "最低佣金摊薄 ⟹ 等效费率随单量单调不增：{rates:?}");
+            assert!(
+                w[0] >= w[1],
+                "最低佣金摊薄 ⟹ 等效费率随单量单调不增：{rates:?}"
+            );
         }
     }
 
@@ -941,7 +962,10 @@ mod tests {
             venue: "SYNTH".into(),
             symbol: "X".into(),
             tier: "T".into(),
-            unit: FeeUnit::Notional { maker_bps: 5.0, taker_bps: 10.0 },
+            unit: FeeUnit::Notional {
+                maker_bps: 5.0,
+                taker_bps: 10.0,
+            },
             datum_sha256: "0".repeat(64),
         };
         const ADDON: f64 = 2e-4; // 未标定滑点（datum 不覆盖，须相加——报告 §3.3）
@@ -964,11 +988,20 @@ mod tests {
             }
         }
         // 非法量/价 ⟹ 未标定常率占位（该 fill 是 noop/拒单，费率不进算术）——与角色无关。
-        assert_eq!(q.production_rate_or_fallback(0.0, 20.0, FillSide::Buy), FALLBACK);
-        assert_eq!(q.production_rate_or_fallback(1.0, 0.0, FillSide::Sell), FALLBACK);
+        assert_eq!(
+            q.production_rate_or_fallback(0.0, 20.0, FillSide::Buy),
+            FALLBACK
+        );
+        assert_eq!(
+            q.production_rate_or_fallback(1.0, 0.0, FillSide::Sell),
+            FALLBACK
+        );
         // 未标定档 ⟹ 逐位 fallback（None 分支不读档也不读角色）。
         let none = FeeQuoter::uncalibrated(FALLBACK);
-        assert_eq!(none.production_rate_or_fallback(1.0, 20.0, FillSide::Sell), FALLBACK);
+        assert_eq!(
+            none.production_rate_or_fallback(1.0, 20.0, FillSide::Sell),
+            FALLBACK
+        );
     }
 
     /// 对称 per-notional 档 ⟹ `Some(bps/1e4)`，且与 [`VenueFeeSchedule::effective_rate`] 在
@@ -979,7 +1012,10 @@ mod tests {
             venue: "SYNTH".into(),
             symbol: "X".into(),
             tier: "T".into(),
-            unit: FeeUnit::Notional { maker_bps: 10.0, taker_bps: 10.0 },
+            unit: FeeUnit::Notional {
+                maker_bps: 10.0,
+                taker_bps: 10.0,
+            },
             datum_sha256: "0".repeat(64),
         };
         let c = sym.constant_effective_rate().expect("对称档有常数");
@@ -1001,14 +1037,20 @@ mod tests {
         //   diff 内 `..Default::default()` 的写法同型）。
         // 非对称 ⟹ None（角色维不消失）。
         let asym = VenueFeeSchedule {
-            unit: FeeUnit::Notional { maker_bps: 5.0, taker_bps: 10.0 },
+            unit: FeeUnit::Notional {
+                maker_bps: 5.0,
+                taker_bps: 10.0,
+            },
             ..sym.clone()
         };
         assert_eq!(asym.constant_effective_rate(), None);
 
         // NaN 的 `to_bits` 自等，不得让它冒充"对称"（datum 路径不可达，手工构造可达）。
         let nan = VenueFeeSchedule {
-            unit: FeeUnit::Notional { maker_bps: f64::NAN, taker_bps: f64::NAN },
+            unit: FeeUnit::Notional {
+                maker_bps: f64::NAN,
+                taker_bps: f64::NAN,
+            },
             ..sym.clone()
         };
         assert_eq!(nan.constant_effective_rate(), None);
@@ -1045,7 +1087,9 @@ mod tests {
             Some(1e-3)
         );
         assert_eq!(
-            b.resolve("BTC", "VIP0_BNB25").unwrap().constant_effective_rate(),
+            b.resolve("BTC", "VIP0_BNB25")
+                .unwrap()
+                .constant_effective_rate(),
             Some(7.5e-4)
         );
     }

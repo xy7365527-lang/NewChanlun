@@ -43,18 +43,14 @@ use crate::buysellpoint::{buysellpoints_from_level, BuySellPoint};
 use crate::divergence::{
     divergences_from_moves_v1, Divergence, MacdCtx, MoveView, SegView, ZsView,
 };
-use crate::segment_layers::{
-    IncrementalSegBsp, IncrementalSegDivergences, IncrementalSegZhongshu,
-};
-use crate::level::{
-    moves_from_level_zhongshus, zhongshu_from_components, CompView, LevelZhongshu,
-};
+use crate::level::{moves_from_level_zhongshus, zhongshu_from_components, CompView, LevelZhongshu};
 use crate::macd::OnlineMacdState;
 use crate::moves::{moves_from_zhongshus, Move};
 use crate::ph::{attach_persistence, should_stop_recursion, ZsPriceView};
 use crate::segment::{
     segments_from_strokes_v1, segments_from_strokes_v1_into, Segment, MAX_SECOND_SEQ_SCAN,
 };
+use crate::segment_layers::{IncrementalSegBsp, IncrementalSegDivergences, IncrementalSegZhongshu};
 use crate::stroke::{Direction, Stroke};
 use crate::zhongshu::{BreakDir, Zhongshu};
 
@@ -251,17 +247,33 @@ impl SegCheckpoint {
 #[derive(Debug, Clone, PartialEq)]
 enum ZsSegKey {
     Empty,
-    One { s0: usize, s1: usize },
-    Many { n: usize, s0: usize, s1: usize, dir: Direction },
+    One {
+        s0: usize,
+        s1: usize,
+    },
+    Many {
+        n: usize,
+        s0: usize,
+        s1: usize,
+        dir: Direction,
+    },
 }
 
 fn zs_seg_key(segs: &[Segment]) -> ZsSegKey {
     let n = segs.len();
     if n >= 2 {
         let s = &segs[n - 2];
-        ZsSegKey::Many { n, s0: s.s0, s1: s.s1, dir: s.direction }
+        ZsSegKey::Many {
+            n,
+            s0: s.s0,
+            s1: s.s1,
+            dir: s.direction,
+        }
     } else if n == 1 {
-        ZsSegKey::One { s0: segs[0].s0, s1: segs[0].s1 }
+        ZsSegKey::One {
+            s0: segs[0].s0,
+            s1: segs[0].s1,
+        }
     } else {
         ZsSegKey::Empty
     }
@@ -271,7 +283,12 @@ fn zs_seg_key(segs: &[Segment]) -> ZsSegKey {
 #[derive(Debug, Clone, PartialEq)]
 enum MoveZsKey {
     /// n_settled >= 1：4 元组 (n_zs, n_settled, last_settled.seg_end, num_seg)。
-    A { n_zs: usize, n_settled: usize, seg_end: usize, num_seg: i64 },
+    A {
+        n_zs: usize,
+        n_settled: usize,
+        seg_end: usize,
+        num_seg: i64,
+    },
     /// n_zs==0 → (0,0,ns)；n_settled==0 → (n_zs,0,ns)。两者均为 (n_zs,0,ns) 形。
     B { n_zs: usize, num_seg: i64 },
 }
@@ -304,15 +321,31 @@ fn move_zs_key(zss: &[Zhongshu], num_seg: i64) -> MoveZsKey {
 /// 买卖点层输入键。移植自 `buysellpoint_engine.process_snapshots`。
 #[derive(Debug, Clone, PartialEq)]
 enum BspKey {
-    Small { n_seg: usize, n_zs: usize, n_mv: usize },
-    Big { n_seg: usize, s0: usize, s1: usize, n_zs: usize, n_mv: usize },
+    Small {
+        n_seg: usize,
+        n_zs: usize,
+        n_mv: usize,
+    },
+    Big {
+        n_seg: usize,
+        s0: usize,
+        s1: usize,
+        n_zs: usize,
+        n_mv: usize,
+    },
 }
 
 fn bsp_key(segs: &[Segment], n_zs: usize, n_mv: usize) -> BspKey {
     let n_seg = segs.len();
     if n_seg >= 2 {
         let s = &segs[n_seg - 2];
-        BspKey::Big { n_seg, s0: s.s0, s1: s.s1, n_zs, n_mv }
+        BspKey::Big {
+            n_seg,
+            s0: s.s0,
+            s1: s.s1,
+            n_zs,
+            n_mv,
+        }
     } else {
         BspKey::Small { n_seg, n_zs, n_mv }
     }
@@ -323,7 +356,12 @@ fn bsp_key(segs: &[Segment], n_zs: usize, n_mv: usize) -> BspKey {
 #[derive(Debug, Clone, PartialEq)]
 enum MoveTailKey {
     Empty,
-    Filled { n: usize, ss: i64, se: i64, settled: bool },
+    Filled {
+        n: usize,
+        ss: i64,
+        se: i64,
+        settled: bool,
+    },
 }
 
 /// 走势相等判据（diff 公共前缀）。移植自 `move_state._move_equal`：
@@ -340,7 +378,12 @@ fn move_tail_key(moves: &[Move]) -> MoveTailKey {
     let n = moves.len();
     if n >= 1 {
         let m = &moves[n - 1];
-        MoveTailKey::Filled { n, ss: m.seg_start, se: m.seg_end, settled: m.settled }
+        MoveTailKey::Filled {
+            n,
+            ss: m.seg_start,
+            se: m.seg_end,
+            settled: m.settled,
+        }
     } else {
         MoveTailKey::Empty
     }
@@ -400,11 +443,15 @@ fn move_views(moves: &[Move]) -> Vec<MoveView> {
 
 /// 中枢/泛化中枢 → PH 价格视图（dd/gg）。
 fn zs_price_views(zss: &[Zhongshu]) -> Vec<ZsPriceView> {
-    zss.iter().map(|z| ZsPriceView { dd: z.dd, gg: z.gg }).collect()
+    zss.iter()
+        .map(|z| ZsPriceView { dd: z.dd, gg: z.gg })
+        .collect()
 }
 
 fn level_zs_price_views(zss: &[LevelZhongshu]) -> Vec<ZsPriceView> {
-    zss.iter().map(|z| ZsPriceView { dd: z.dd, gg: z.gg }).collect()
+    zss.iter()
+        .map(|z| ZsPriceView { dd: z.dd, gg: z.gg })
+        .collect()
 }
 
 // ════════════════════════════════════════════════════════════
@@ -702,7 +749,12 @@ impl RecursiveOrchestrator {
         require_settled_subseg: bool,
     ) -> Self {
         RecursiveOrchestrator {
-            bi: BiEngine::new(stroke_mode, min_strict_sep, reset_dir_on_fractal, new_raw_gap_min),
+            bi: BiEngine::new(
+                stroke_mode,
+                min_strict_sep,
+                reset_dir_on_fractal,
+                new_raw_gap_min,
+            ),
             level_id: 1,
             enable_macd: enable_macd_divergence,
             enable_bsp,
@@ -976,8 +1028,7 @@ impl RecursiveOrchestrator {
             merged_to_raw: m2r,
         });
 
-        let divs =
-            divergences_from_moves_v1(&segs, &zss, &mvs, self.level_id, macd_ctx.as_ref());
+        let divs = divergences_from_moves_v1(&segs, &zss, &mvs, self.level_id, macd_ctx.as_ref());
         buysellpoints_from_level(
             &segs,
             &zss,
@@ -1106,7 +1157,11 @@ mod seg_checkpoint_tests {
         for k in 0..prices.len().saturating_sub(1) {
             let p0 = prices[k];
             let p1 = prices[k + 1];
-            let direction = if p1 > p0 { Direction::Up } else { Direction::Down };
+            let direction = if p1 > p0 {
+                Direction::Up
+            } else {
+                Direction::Down
+            };
             out.push(Stroke {
                 i0: k,
                 i1: k + 1,
@@ -1144,7 +1199,8 @@ mod seg_checkpoint_tests {
 
             let full = segments_from_strokes_v1(s, 3, true);
             assert_eq!(
-                prev_segments, full,
+                prev_segments,
+                full,
                 "resume≠full 在前缀长度 {m}（resume {} 段 vs full {} 段）",
                 prev_segments.len(),
                 full.len()
@@ -1193,7 +1249,7 @@ mod seg_checkpoint_tests {
         for k in 0..400 {
             center += (next() - 0.5) * 6.0; // 随机游走中心
             let half = 1.0 + next() * 7.0; // 随机半幅
-            // 偶数 idx 取低点、奇数取高点 → 严格 zigzag
+                                           // 偶数 idx 取低点、奇数取高点 → 严格 zigzag
             if k % 2 == 0 {
                 prices.push(center - half);
             } else {

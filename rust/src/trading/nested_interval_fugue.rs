@@ -212,7 +212,11 @@ pub(crate) fn run_nested_interval_fugue(
                         BspClass::Buy1 | BspClass::Buy3 => false,
                         BspClass::Sell2 | BspClass::Buy2 => continue,
                     };
-                    let win = if sellside { &mut nest_sell[k] } else { &mut nest_buy[k] };
+                    let win = if sellside {
+                        &mut nest_sell[k]
+                    } else {
+                        &mut nest_buy[k]
+                    };
                     if e.confirmed {
                         *win = None;
                     } else {
@@ -263,20 +267,27 @@ pub(crate) fn run_nested_interval_fugue(
 
         // ── 改动1+2：最高 θ 涌现层（F 入场层）搜索下界 = min_trade_ladder
         //    （segment 及以下不作独立入场层；势不存在于交易 floor 之下）──
-        let top = (min_trade_ladder..MAX_LADDER)
-            .rev()
-            .find(|&k| depth_ref.theta(k, None, SUB_COST_Q, SUB_COST_MIN_OBS).is_some());
+        let top = (min_trade_ladder..MAX_LADDER).rev().find(|&k| {
+            depth_ref
+                .theta(k, None, SUB_COST_Q, SUB_COST_MIN_OBS)
+                .is_some()
+        });
         let max_l = (sig.max_ladder as usize + 1).min(MAX_LADDER);
 
         // ── A. 强平兜底（尾空头 1x 逐仓解析强平）──
         let mut acted = false;
         if let Some(tail) = chain.last().copied() {
-            if tail.dir == Polarity::Short
-                && tail.capital + tail.units * (tail.basis - c) <= 0.0
-            {
+            if tail.dir == Polarity::Short && tail.capital + tail.units * (tail.basis - c) <= 0.0 {
                 pop_tail(
-                    bar, 2.0 * tail.basis, c, "liq", false, &mut chain, &mut free,
-                    &mut n_base, &mut res,
+                    bar,
+                    2.0 * tail.basis,
+                    c,
+                    "liq",
+                    false,
+                    &mut chain,
+                    &mut free,
+                    &mut n_base,
+                    &mut res,
                 );
                 res.n_short_liquidations_by_ladder[tail.ladder] += 1;
                 acted = true;
@@ -293,7 +304,17 @@ pub(crate) fn run_nested_interval_fugue(
             });
             if let Some(g) = broke {
                 let lad = chain[g].ladder;
-                unwind_to(g, bar, c, c, "negate", &mut chain, &mut free, &mut n_base, &mut res);
+                unwind_to(
+                    g,
+                    bar,
+                    c,
+                    c,
+                    "negate",
+                    &mut chain,
+                    &mut free,
+                    &mut n_base,
+                    &mut res,
+                );
                 res.n_nrf_negate_closes_by_ladder[lad] += 1;
                 acted = true;
             }
@@ -306,8 +327,13 @@ pub(crate) fn run_nested_interval_fugue(
         //    交易 ⇒ 退化为清仓到现金（不在 < min_trade_ladder 开空）──
         if !acted && chain.first().is_some_and(|r| r.units > 0.0) {
             let root = chain[0];
-            let estar =
-                root_emergent_ladder(root.ladder, root.entry_bar, &dir_state, &anchor_state, max_l);
+            let estar = root_emergent_ladder(
+                root.ladder,
+                root.entry_bar,
+                &dir_state,
+                &anchor_state,
+                max_l,
+            );
             if sig.sell_any.get(estar)
                 && recursive_confirmed(estar, Direction::Down, &located_sell, &dir_state)
             {
@@ -341,7 +367,17 @@ pub(crate) fn run_nested_interval_fugue(
                 } else if chain[0].ladder <= min_trade_ladder {
                     // 翻转落点不可交易（< min_trade_ladder）⇒ 清仓到现金。
                     let _ = flip_line;
-                    unwind_to(0, bar, c, c, "sellpt", &mut chain, &mut free, &mut n_base, &mut res);
+                    unwind_to(
+                        0,
+                        bar,
+                        c,
+                        c,
+                        "sellpt",
+                        &mut chain,
+                        &mut free,
+                        &mut n_base,
+                        &mut res,
+                    );
                     located_sell = [None; MAX_LADDER];
                     acted = true;
                 }
@@ -359,7 +395,17 @@ pub(crate) fn run_nested_interval_fugue(
                 Polarity::Long => sig.sell_any.get(tail.ladder),
             };
             if perfected {
-                pop_tail(bar, c, c, "recover", true, &mut chain, &mut free, &mut n_base, &mut res);
+                pop_tail(
+                    bar,
+                    c,
+                    c,
+                    "recover",
+                    true,
+                    &mut chain,
+                    &mut free,
+                    &mut n_base,
+                    &mut res,
+                );
                 acted = true;
             }
         }
@@ -517,7 +563,17 @@ pub(crate) fn run_nested_interval_fugue(
     if !chain.is_empty() {
         let c_last = tape.bars.last().map_or(f64::NAN, |b| b.close);
         let last_bar = (n as i64) - 1;
-        unwind_to(0, last_bar, c_last, c_last, "eod", &mut chain, &mut free, &mut n_base, &mut res);
+        unwind_to(
+            0,
+            last_bar,
+            c_last,
+            c_last,
+            "eod",
+            &mut chain,
+            &mut free,
+            &mut n_base,
+            &mut res,
+        );
     }
     res.final_nav = free;
     Ok(res)
@@ -535,12 +591,28 @@ mod tests {
     }
 
     fn bar(close: f64) -> BarSig {
-        BarSig { close, max_ladder: 5, ..Default::default() }
+        BarSig {
+            close,
+            max_ladder: 5,
+            ..Default::default()
+        }
     }
 
     fn ev_full(class: BspClass, confirmed: bool, price: f64, cs: Option<i64>) -> BspEvent {
-        let (zd, zg) = if cs.is_some() { (Some(50.0), Some(60.0)) } else { (None, None) };
-        BspEvent { class, seg_idx: 0, confirmed, cs, zd, zg, price }
+        let (zd, zg) = if cs.is_some() {
+            (Some(50.0), Some(60.0))
+        } else {
+            (None, None)
+        };
+        BspEvent {
+            class,
+            seg_idx: 0,
+            confirmed,
+            cs,
+            zd,
+            zg,
+            price,
+        }
     }
 
     fn with_ev(mut b: BarSig, lad: usize, e: BspEvent) -> BarSig {
@@ -571,7 +643,11 @@ mod tests {
     fn warmup234() -> Vec<BarSig> {
         let mut bars = Vec::new();
         for j in 0..SUB_COST_MIN_OBS as i64 {
-            let mut b = with_ev(bar(100.0), 2, ev_full(BspClass::Sell1, false, 0.0, Some(1 + j)));
+            let mut b = with_ev(
+                bar(100.0),
+                2,
+                ev_full(BspClass::Sell1, false, 0.0, Some(1 + j)),
+            );
             b = with_ev(b, 3, ev_full(BspClass::Sell1, false, 0.0, Some(10 + j)));
             b = with_ev(b, 4, ev_full(BspClass::Sell1, false, 0.0, Some(100 + j)));
             let rows = b.bsp_events.as_deref_mut().unwrap();
@@ -586,8 +662,16 @@ mod tests {
         bars
     }
 
-    fn run(bars: Vec<BarSig>, dir_flips: Vec<(i64, u8, Direction)>, min: usize) -> PositionalResult {
-        let t = SignalTape { bars, dir_flips: Some(dir_flips), ..Default::default() };
+    fn run(
+        bars: Vec<BarSig>,
+        dir_flips: Vec<(i64, u8, Direction)>,
+        min: usize,
+    ) -> PositionalResult {
+        let t = SignalTape {
+            bars,
+            dir_flips: Some(dir_flips),
+            ..Default::default()
+        };
         run_positional(&t, 2, nif(min)).unwrap()
     }
 
@@ -607,19 +691,32 @@ mod tests {
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
-        assert!(run_positional(&t, 2, nif(1)).is_err(), "min<floor 拒绝（parse 已挡 nif1）");
+        assert!(
+            run_positional(&t, 2, nif(1)).is_err(),
+            "min<floor 拒绝（parse 已挡 nif1）"
+        );
         // 缺背驰磁带 ⇒ Err。
         let t2 = SignalTape {
-            bars: vec![with_ev(bar(100.0), 3, ev_full(BspClass::Buy1, true, 100.0, None))],
+            bars: vec![with_ev(
+                bar(100.0),
+                3,
+                ev_full(BspClass::Buy1, true, 100.0, None),
+            )],
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
-        assert!(run_positional(&t2, 2, nif(3)).unwrap_err().contains("背驰磁带"));
+        assert!(run_positional(&t2, 2, nif(3))
+            .unwrap_err()
+            .contains("背驰磁带"));
     }
 
     #[test]
     fn parse_rejects_untradeable_digits() {
-        assert_eq!(PolarityMode::parse("nif1"), None, "min<FIRST_BSP_LADDER 非法");
+        assert_eq!(
+            PolarityMode::parse("nif1"),
+            None,
+            "min<FIRST_BSP_LADDER 非法"
+        );
         assert_eq!(PolarityMode::parse("nif0"), None);
         assert_eq!(PolarityMode::parse("nif"), None, "缺级别数字非法");
         assert_eq!(PolarityMode::parse("nifx"), None);
@@ -633,10 +730,22 @@ mod tests {
         let mk = || {
             let mut bars = warmup234();
             bars.push(buypt(bar(100.0), 4));
-            bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
-            bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, true, 0.0, None)));
+            bars.push(with_ev(
+                bar(105.0),
+                4,
+                ev_full(BspClass::Sell1, false, 110.0, None),
+            ));
+            bars.push(with_ev(
+                bar(104.0),
+                3,
+                ev_full(BspClass::Sell1, true, 0.0, None),
+            ));
             bars.push(buypt(bar(96.0), 3));
-            bars.push(with_ev(bar(98.0), 2, ev_full(BspClass::Sell1, false, 99.0, None)));
+            bars.push(with_ev(
+                bar(98.0),
+                2,
+                ev_full(BspClass::Sell1, false, 99.0, None),
+            ));
             bars.push(bar(97.0));
             bars
         };
@@ -646,10 +755,18 @@ mod tests {
             dir_flips: Some(flips.clone()),
             ..Default::default()
         };
-        let t_urs = SignalTape { bars: mk(), dir_flips: Some(flips), ..Default::default() };
+        let t_urs = SignalTape {
+            bars: mk(),
+            dir_flips: Some(flips),
+            ..Default::default()
+        };
         let r_nif = run_positional(&t_nif, 2, nif(2)).unwrap();
         let r_urs = run_positional(&t_urs, 2, PolarityMode::UnifiedRecursive).unwrap();
-        assert_eq!(r_nif.trades.len(), r_urs.trades.len(), "trade 笔数 bit-exact");
+        assert_eq!(
+            r_nif.trades.len(),
+            r_urs.trades.len(),
+            "trade 笔数 bit-exact"
+        );
         for (a, b) in r_nif.trades.iter().zip(r_urs.trades.iter()) {
             assert_eq!(a.ladder, b.ladder);
             assert_eq!(a.entry_bar, b.entry_bar);
@@ -660,9 +777,15 @@ mod tests {
             assert_eq!(a.exit_reason, b.exit_reason);
             assert_eq!(a.polarity, b.polarity);
         }
-        assert!((r_nif.final_nav - r_urs.final_nav).abs() < 1e-9, "final_nav bit-exact");
+        assert!(
+            (r_nif.final_nav - r_urs.final_nav).abs() < 1e-9,
+            "final_nav bit-exact"
+        );
         assert_eq!(r_nif.n_nrf_spawns_by_ladder, r_urs.n_nrf_spawns_by_ladder);
-        assert_eq!(r_nif.n_nrf_floor_stops_by_ladder, r_urs.n_nrf_floor_stops_by_ladder);
+        assert_eq!(
+            r_nif.n_nrf_floor_stops_by_ladder,
+            r_urs.n_nrf_floor_stops_by_ladder
+        );
     }
 
     /// 改动1：root@4 confirmed 卖在 min=4 时**不** spawn 子@3（sub=3 < min=4 ⇒
@@ -673,24 +796,53 @@ mod tests {
         let mk = || {
             let mut bars = warmup234();
             bars.push(buypt(bar(100.0), 4));
-            bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
-            bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, true, 0.0, None)));
+            bars.push(with_ev(
+                bar(105.0),
+                4,
+                ev_full(BspClass::Sell1, false, 110.0, None),
+            ));
+            bars.push(with_ev(
+                bar(104.0),
+                3,
+                ev_full(BspClass::Sell1, true, 0.0, None),
+            ));
             bars.push(bar(104.0));
             bars
         };
         let r3 = {
-            let t = SignalTape { bars: mk(), dir_flips: Some(vec![]), ..Default::default() };
+            let t = SignalTape {
+                bars: mk(),
+                dir_flips: Some(vec![]),
+                ..Default::default()
+            };
             run_positional(&t, 2, nif(3)).unwrap()
         };
         let r4 = {
-            let t = SignalTape { bars: mk(), dir_flips: Some(vec![]), ..Default::default() };
+            let t = SignalTape {
+                bars: mk(),
+                dir_flips: Some(vec![]),
+                ..Default::default()
+            };
             run_positional(&t, 2, nif(4)).unwrap()
         };
-        assert_eq!(r3.n_nrf_spawns_by_ladder[3], 1, "min=3：子@3 诞生（sub=3≥min）");
-        assert_eq!(r4.n_nrf_spawns_by_ladder[3], 0, "min=4：子@3 被 floor_stop（sub=3<min）");
-        assert_eq!(r4.n_nrf_floor_stops_by_ladder[4], 1, "min=4：根@4 卖点触 floor_stop");
+        assert_eq!(
+            r3.n_nrf_spawns_by_ladder[3], 1,
+            "min=3：子@3 诞生（sub=3≥min）"
+        );
+        assert_eq!(
+            r4.n_nrf_spawns_by_ladder[3], 0,
+            "min=4：子@3 被 floor_stop（sub=3<min）"
+        );
+        assert_eq!(
+            r4.n_nrf_floor_stops_by_ladder[4], 1,
+            "min=4：根@4 卖点触 floor_stop"
+        );
         // 改动1 不变量：min=4 时根全程满仓持有到 eod（无降成本散单）。
-        let eod4: Vec<_> = r4.trades.iter().filter(|t| t.exit_reason == "eod").collect();
+        let eod4: Vec<_> = r4
+            .trades
+            .iter()
+            .filter(|t| t.exit_reason == "eod")
+            .collect();
         assert_eq!(eod4.len(), 1, "min=4：单根满仓到 eod");
         assert_eq!(eod4[0].ladder, 4);
     }
@@ -702,7 +854,11 @@ mod tests {
         // 只预热层 2/3（最高 θ 层 = 3）。
         let mut warm = Vec::new();
         for j in 0..SUB_COST_MIN_OBS as i64 {
-            let mut b = with_ev(bar(100.0), 2, ev_full(BspClass::Sell1, false, 0.0, Some(1 + j)));
+            let mut b = with_ev(
+                bar(100.0),
+                2,
+                ev_full(BspClass::Sell1, false, 0.0, Some(1 + j)),
+            );
             b = with_ev(b, 3, ev_full(BspClass::Sell1, false, 0.0, Some(10 + j)));
             let rows = b.bsp_events.as_deref_mut().unwrap();
             rows[2][0].zd = Some(50.0);
@@ -718,16 +874,31 @@ mod tests {
             bars
         };
         let r3 = {
-            let t = SignalTape { bars: mk(), dir_flips: Some(vec![]), ..Default::default() };
+            let t = SignalTape {
+                bars: mk(),
+                dir_flips: Some(vec![]),
+                ..Default::default()
+            };
             run_positional(&t, 2, nif(3)).unwrap()
         };
         let r4 = {
-            let t = SignalTape { bars: mk(), dir_flips: Some(vec![]), ..Default::default() };
+            let t = SignalTape {
+                bars: mk(),
+                dir_flips: Some(vec![]),
+                ..Default::default()
+            };
             run_positional(&t, 2, nif(4)).unwrap()
         };
         assert_eq!(r3.n_nrf_root_entries_by_ladder[3], 1, "min=3：根入场@3");
-        assert_eq!(r4.n_nrf_root_entries_by_ladder.iter().sum::<u64>(), 0, "min=4：无可交易入场层");
-        assert!((r4.final_nav - INITIAL_CAPITAL).abs() < 1e-9, "min=4：全程现金");
+        assert_eq!(
+            r4.n_nrf_root_entries_by_ladder.iter().sum::<u64>(),
+            0,
+            "min=4：无可交易入场层"
+        );
+        assert!(
+            (r4.final_nav - INITIAL_CAPITAL).abs() < 1e-9,
+            "min=4：全程现金"
+        );
     }
 
     /// 改动3：根@4 持有，根层(4) 自身 confirmed 卖（E\*=4，无更高 Up 段）走 E
@@ -739,7 +910,10 @@ mod tests {
         bars.push(sellanypt(bar(105.0), 4)); // 根层 confirmed 卖 ⇒ E 降成本
         bars.push(bar(105.0));
         let r = run(bars, vec![], 3);
-        assert_eq!(r.n_nrf_spawns_by_ladder[3], 1, "根层卖点走 E 降成本（非清仓）");
+        assert_eq!(
+            r.n_nrf_spawns_by_ladder[3], 1,
+            "根层卖点走 E 降成本（非清仓）"
+        );
         assert!(
             r.trades.iter().all(|t| t.exit_reason != "sellpt"),
             "无 sellpt——根仓未被低级别信号提前平"
@@ -752,13 +926,25 @@ mod tests {
     fn conservation_through_recursion() {
         let mut bars = warmup234();
         bars.push(buypt(bar(100.0), 4)); // 根 1000@100
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
-        bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, true, 0.0, None))); // 子空 250@104
+        bars.push(with_ev(
+            bar(105.0),
+            4,
+            ev_full(BspClass::Sell1, false, 110.0, None),
+        ));
+        bars.push(with_ev(
+            bar(104.0),
+            3,
+            ev_full(BspClass::Sell1, true, 0.0, None),
+        )); // 子空 250@104
         bars.push(buypt(bar(95.0), 3)); // 子走势完美 ⇒ 回补@95
         bars.push(bar(95.0));
         let r = run(bars, vec![], 3);
         // 根回满 1000@95 + 子利润 250×(104−95)=2250。
         let expect = 1000.0 * 95.0 + 250.0 * 9.0;
-        assert!((r.final_nav - expect).abs() < 1e-6, "final={} expect={expect}", r.final_nav);
+        assert!(
+            (r.final_nav - expect).abs() < 1e-6,
+            "final={} expect={expect}",
+            r.final_nav
+        );
     }
 }

@@ -38,49 +38,40 @@
 //! - **target → proj(riskProj) → exec**（`声部决策 + 账户 → 订单`）：[`plan_orders`] 实装此确定链，
 //!   对齐 `Theta.{target,proj,riskProj,exec}`。此层吃已 recog 的决策。
 
+/// #197 执行账归属键与并行记账视图（AccountIdentity 三身份 + AccountOrder + 分实例账本）。
+pub mod account;
+/// 狭义短差动作本体（SPEC #274 T2，issue #292）：触发 + 减补动作 + 挂起出口二分（回补/终结）+
+/// 无互斥门。消费 T1 中枢生命周期事件（`classifier::center_lifecycle`）+ 次级别买卖点信号。
+pub mod center_oscillation_trade;
 /// 互斥全定义策略 element-coverage 执行引擎（M29 三结论合一的 rust 兑现，与买卖点 v1 正交的
 /// 新路径——在每个语法元素 λ_e 入场、ρ_e 平腿，覆盖每个笔/线段/走势，非离散择时）。
 /// #147 T3 出场通道 P1–P8 全互斥通道解释器（first-match + C0 兜底；#149 已填 P4/P5
 /// ReverseOpen 显式机制（原 ShortDiff，#281 更名 #283 实装），#150 的 P7/P8 仍为占位槽）。
 pub mod channel;
 pub mod coverage;
-/// #196 阶段 A：shadow 双链比对（零行为变更）——组合层裁决点之后并行跑 channel 适配层，
-/// 仅记录分歧，不改裁决与订单流（coverage tests `t2_cross_level_confirmed_certificate_holds_l1_position_end_to_end`
-/// 同构断言思路的全量化）。
-pub(crate) mod shadow;
 pub mod exec;
 /// 退出决策生成器（§9 closePred）+ 持仓声部台账 `HeldVoice`——回测 runner 与生产 ThetaCore 共享单源。
 pub mod exit;
+pub mod intent;
 /// R_Θ 解释器（七链环5）：候选集 Γ(x) → 平移不变全序 ≺_Θ → 三桶 (𝒟_x close / ℬ_x open / 𝒦_x record)。
 pub mod interp;
-pub mod intent;
-/// 全互斥买卖点解释器：可重叠谓词 P_1..P_8 固定优先级互斥化 C_j（alpha2 §5/§6，Σ1[C_j]=1 全定义）。
-pub mod mutex;
 pub mod ledger;
-/// 区间套递归证书 N^δ + Sel_Θ 固定选择器（对照 `Origin.IntervalNestCertificate`，L2-B 补全）。
-pub mod nest;
-/// **Persistent Element Layer Pi**（anc.pdf §4-§9 最小修复 = persistent overlay）。
-///
-/// 跨 bar 持久元素注册表——修复 Q4 "LiveDetached 误处理成 Stale" 导致 depth>0 腿被 AncOK 系统性剪掉。
-/// 不变量 I1-I5（anc.pdf §7）：持久身份 / 方向不变 / parent 是关系非身份 / 操作父持久 / AncOK 作用 persistent set。
-pub mod persistent;
-/// **M5 声部执行层独立账本 OverlayState**（多空对冲.pdf p16 关卡10 / TARGET_STRATEGY_MAXFULL.md §M5）。
-///
-/// hedge-mode 逐声部头寸簿 P^sep → N=Net(P^sep) → Order_t=N_t−N_{t−1}；逐声部保
-/// entry_v/exit_v/parent(v)/role(v)/pnl_v。独立于 R/TW 净额账本（674号第三会计范畴）。
-pub mod overlay_state;
-/// #197 执行账归属键与并行记账视图（AccountIdentity 三身份 + AccountOrder + 分实例账本）。
-pub mod account;
-/// **LEE M1 级别账本只读旁路 LevelLedgerMirror**（multi-level-native-execution-design-20260719 §D M1）。
-///
-/// OverlayState 的同一份 SepLeg 暴露按 `id.level`≡formation_level 分桶的只读镜像账本 Ledger_ℓ；
-/// LEE-Net 恒等 `Σ_ℓ net_ℓ ≡ N`（加性细化，认识论 L1）；不改净额主路径，bit-exact。
-pub mod level_ledger;
 /// **LEE 级别归因算子层**（无状态整数算子；从 [`level_order`] 抽出）。
 ///
 /// `attribute_total` 把物理总量按结构基准确定性划分到各级（`Σ_ℓ out_ℓ ≡ total` 整数精确，
 /// 最大余数法，无浮点重排）+ 逐级归并原语。认识论 L0（全构造性，零信息增量）。
 pub mod level_attrib;
+/// **LEE M3 级别事件钟 clock_ℓ**（multi-level-native-execution-design-20260719 §C.2 变化部分① / §D M3）。
+///
+/// 定义「哪些时点是级别 ℓ 的钟点」——`Ledger_ℓ` 只在 clock_ℓ 事件时点重估目标，无事件 bar
+/// 目标=前值。事件集的最小完备定义与 `classifier::LevelState` 的逐字段对齐（§F 未决项②）
+/// 落档在该模块头；结构钟 / 风控钟的域分离是 §F③ 的落点。
+pub mod level_clock;
+/// **LEE M1 级别账本只读旁路 LevelLedgerMirror**（multi-level-native-execution-design-20260719 §D M1）。
+///
+/// OverlayState 的同一份 SepLeg 暴露按 `id.level`≡formation_level 分桶的只读镜像账本 Ledger_ℓ；
+/// LEE-Net 恒等 `Σ_ℓ net_ℓ ≡ N`（加性细化，认识论 L1）；不改净额主路径，bit-exact。
+pub mod level_ledger;
 /// **LEE M2/M3 级别订单台账 LevelOrderLedger**（multi-level-native-execution-design-20260719
 /// §D M2、M3）。
 ///
@@ -88,12 +79,6 @@ pub mod level_attrib;
 /// **M3 起口径反转**：台账持**两个**级别态（已成交 `held_ℓ` / 结构计划 `q_ℓ^plan`），目标只在
 /// [`level_clock`] 事件时点重估，**订单流与 M0 分叉**（契约本身，非缺陷）。
 pub mod level_order;
-/// **LEE M3 级别事件钟 clock_ℓ**（multi-level-native-execution-design-20260719 §C.2 变化部分① / §D M3）。
-///
-/// 定义「哪些时点是级别 ℓ 的钟点」——`Ledger_ℓ` 只在 clock_ℓ 事件时点重估目标，无事件 bar
-/// 目标=前值。事件集的最小完备定义与 `classifier::LevelState` 的逐字段对齐（§F 未决项②）
-/// 落档在该模块头；结构钟 / 风控钟的域分离是 §F③ 的落点。
-pub mod level_clock;
 /// **LEE M4 级别资金权 w_ℓ + 级别级风险帽**（multi-level-native-execution-design-20260719
 /// §D M4）。
 ///
@@ -101,26 +86,41 @@ pub mod level_clock;
 /// `depth_weights` 的对偶统一声明（谁主谁从，禁双重定价）落档在该模块头。帽的实际裁剪在
 /// `coverage.rs::clamp_levels_to_weighted_cap`（账户/风控域，§F③ 同纪律）。
 pub mod level_risk;
+/// 全互斥买卖点解释器：可重叠谓词 P_1..P_8 固定优先级互斥化 C_j（alpha2 §5/§6，Σ1[C_j]=1 全定义）。
+pub mod mutex;
+/// 区间套递归证书 N^δ + Sel_Θ 固定选择器（对照 `Origin.IntervalNestCertificate`，L2-B 补全）。
+pub mod nest;
 /// 中枢震荡独立候选与有身份 ReverseOpen 配对子腿契约（组合 R：DB-B / DB-O3 / DB-S5）。
 pub mod oscillation;
-/// 狭义短差动作本体（SPEC #274 T2，issue #292）：触发 + 减补动作 + 挂起出口二分（回补/终结）+
-/// 无互斥门。消费 T1 中枢生命周期事件（`classifier::center_lifecycle`）+ 次级别买卖点信号。
-pub mod center_oscillation_trade;
-/// 短差盈亏桶 + TW 桥（SPEC #287 T3，issue #293）：`CenterOscillationAction` 单源记账
-/// （报告层桶 + `TwEvent::ShortDiff`）+ 恒仓断言（Σ|units| 守恒，违规显式失败）+
-/// 本仓成本基不动断言。
-pub mod short_diff_bucket;
 /// 每仓 campaign（SPEC #287 T4，issue #294）：`OscillationCampaign`/`CampaignBook`——开仓生/
 /// 到 0 转移（`RecoverCapital`）/全平死（`ClearCampaign`，挂起随死）的完整生命周期，
 /// sizing=当时持仓 1/3（#348）+ TW/R 双账入口对齐（P2-D）。
 pub mod oscillation_campaign;
+/// **M5 声部执行层独立账本 OverlayState**（多空对冲.pdf p16 关卡10 / TARGET_STRATEGY_MAXFULL.md §M5）。
+///
+/// hedge-mode 逐声部头寸簿 P^sep → N=Net(P^sep) → Order_t=N_t−N_{t−1}；逐声部保
+/// entry_v/exit_v/parent(v)/role(v)/pnl_v。独立于 R/TW 净额账本（674号第三会计范畴）。
+pub mod overlay_state;
+/// **Persistent Element Layer Pi**（anc.pdf §4-§9 最小修复 = persistent overlay）。
+///
+/// 跨 bar 持久元素注册表——修复 Q4 "LiveDetached 误处理成 Stale" 导致 depth>0 腿被 AncOK 系统性剪掉。
+/// 不变量 I1-I5（anc.pdf §7）：持久身份 / 方向不变 / parent 是关系非身份 / 操作父持久 / AncOK 作用 persistent set。
+pub mod persistent;
 /// 盘整/趋势在线协议状态机与 DA-Q2 协议事件轨（订单 P1..P10 的正交积因子）。
 pub mod protocol;
 pub mod risk;
+/// #196 阶段 A：shadow 双链比对（零行为变更）——组合层裁决点之后并行跑 channel 适配层，
+/// 仅记录分歧，不改裁决与订单流（coverage tests `t2_cross_level_confirmed_certificate_holds_l1_position_end_to_end`
+/// 同构断言思路的全量化）。
+pub(crate) mod shadow;
+/// 短差盈亏桶 + TW 桥（SPEC #287 T3，issue #293）：`CenterOscillationAction` 单源记账
+/// （报告层桶 + `TwEvent::ShortDiff`）+ 恒仓断言（Σ|units| 守恒，违规显式失败）+
+/// 本仓成本基不动断言。
+pub mod short_diff_bucket;
 pub mod voice;
 
-use super::classifier::{self, Classification};
 use super::classifier::recursive_tower::{ElementId, LeveledMove};
+use super::classifier::{self, Classification};
 use super::config::ThetaConfig;
 use super::types::{Bar, BspBits, Order, Pos, Sig, StrictAction, Tick};
 use coverage::{CoverageElement, Vertical};
@@ -335,9 +335,7 @@ pub fn plan_orders(
                 if q == 0 {
                     continue; // 无仓可平
                 }
-                if let Some(order) =
-                    build_exit_order(d, side, q as i64, bars, config)
-                {
+                if let Some(order) = build_exit_order(d, side, q as i64, bars, config) {
                     let (ts, src) = signal_tie_keys(d, bars);
                     let key = exec::ConflictKey::new(
                         true,
@@ -407,8 +405,9 @@ fn build_open_order(
         VoiceSide::Short => crate::theta_v0::config::SideKey::Short,
         VoiceSide::Flat => return None,
     };
-    let (rho, gamma, gap_buffer) =
-        config.sizing_profile.resolve(d.level, side_key, &config.risk);
+    let (rho, gamma, gap_buffer) = config
+        .sizing_profile
+        .resolve(d.level, side_key, &config.risk);
 
     // sizing（riskProj，唯一总仓位）。
     // tick_size 把整数 tick 价还原为美元，与 NAV（美元）量纲对齐（spec:47 分母是美元价格）。
@@ -438,7 +437,11 @@ fn build_open_order(
         VoiceSide::Short => StrictAction::Sell,
         VoiceSide::Flat => return None,
     };
-    Some(Order { action, qty, exec_index })
+    Some(Order {
+        action,
+        qty,
+        exec_index,
+    })
 }
 
 /// 构造平仓订单（target=close 分支）：止损成交 + 延迟成交。
@@ -456,7 +459,11 @@ fn build_exit_order(
 
     let exec_index = exec::fill_bar_index(d.signal_index, bars, &config.exec)?;
     // 平仓动作（Close）：StrictAction::Close（平当前腿，对齐 Origin 动作类 close）。
-    Some(Order { action: StrictAction::Close, qty, exec_index })
+    Some(Order {
+        action: StrictAction::Close,
+        qty,
+        exec_index,
+    })
 }
 
 /// 取声部冲突排序的 (timestamp, source_index) 平局键（reference-theta-v0.md:54 + :16）。
@@ -539,8 +546,11 @@ pub fn recognize(
 
     let mut decisions = Vec::new();
     for x in moments {
-        let gamma_x: Vec<interp::Candidate> =
-            gamma.iter().filter(|c| c.source_index == x).copied().collect();
+        let gamma_x: Vec<interp::Candidate> = gamma
+            .iter()
+            .filter(|c| c.source_index == x)
+            .copied()
+            .collect();
         // A_t = 空（recog 单帧无持仓，见上诚实标注）。
         let buckets = interp::interpret(&gamma_x, &[]);
 
@@ -682,7 +692,10 @@ pub fn held_voice_projection(held: &[Option<exit::HeldVoice>]) -> Vec<ActiveVoic
                         dir: voice::voice_side(d.root_side, d.depth),
                         source_index: d.signal_index,
                         lambda: d.signal_index, // 候选腿 λ==ρ（interp.rs:112）
-                        id: ElementId { level: d.level, ordinal: depth as u64 }, // 合成占位（interpret 不消费）
+                        id: ElementId {
+                            level: d.level,
+                            ordinal: depth as u64,
+                        }, // 合成占位（interpret 不消费）
                         parent_id: None,
                         is_boundary_root: depth == 0,
                         op_parent: None,
@@ -755,8 +768,11 @@ pub fn recognize_nested(
 
     let mut decisions = Vec::new();
     for x in moments {
-        let gamma_x: Vec<interp::Candidate> =
-            gamma.iter().filter(|c| c.source_index == x).copied().collect();
+        let gamma_x: Vec<interp::Candidate> = gamma
+            .iter()
+            .filter(|c| c.source_index == x)
+            .copied()
+            .collect();
         let (buckets, close_triggers) = interp::interpret_with_close_triggers(&gamma_x, &legs);
 
         // 𝒟_x(close)：活动腿遇同级别反向候选 ⟹ exit=true 决策（复用入场快照；
@@ -898,8 +914,8 @@ fn build_child_decision(
     let stop_in = build_stop_in(point)?;
 
     Some(VoiceDecision {
-        depth, // 父 depth+1（单脊柱赋格树）
-        root_side, // ★继承树根（非 cand.dir，§3.3）
+        depth,       // 父 depth+1（单脊柱赋格树）
+        root_side,   // ★继承树根（非 cand.dir，§3.3）
         exit: false, // 子决策恒开仓侧（ℬ_x 门内产出；关闭侧由 𝒟_x/级联承载）
         enter_ok: true,
         bsp: point.bits,
@@ -991,7 +1007,15 @@ pub fn plan_orders_dual_traced(
                         src,
                         d.depth,
                     );
-                    planned.push((key, *d, LegOrder { order, leg: side, close: true }));
+                    planned.push((
+                        key,
+                        *d,
+                        LegOrder {
+                            order,
+                            leg: side,
+                            close: true,
+                        },
+                    ));
                 }
             }
             ActState::Open => {
@@ -1007,7 +1031,15 @@ pub fn plan_orders_dual_traced(
                         src,
                         d.depth,
                     );
-                    planned.push((key, *d, LegOrder { order, leg: side, close: false }));
+                    planned.push((
+                        key,
+                        *d,
+                        LegOrder {
+                            order,
+                            leg: side,
+                            close: false,
+                        },
+                    ));
                 }
             }
             ActState::Hold | ActState::Wait => {}
@@ -1107,15 +1139,24 @@ mod tests {
         use Sig::*;
         // flat 三态都不是 Hold（空仓观望 = Wait）。
         for sig in [BuySide, SellSide, Sig::None] {
-            assert_ne!(pi_strict(StrictState { pos: Flat, sig }), StrictAction::Hold);
+            assert_ne!(
+                pi_strict(StrictState { pos: Flat, sig }),
+                StrictAction::Hold
+            );
         }
         // 持仓 + 无信号 = Hold。
         assert_eq!(
-            pi_strict(StrictState { pos: Long, sig: Sig::None }),
+            pi_strict(StrictState {
+                pos: Long,
+                sig: Sig::None
+            }),
             StrictAction::Hold
         );
         assert_eq!(
-            pi_strict(StrictState { pos: Short, sig: Sig::None }),
+            pi_strict(StrictState {
+                pos: Short,
+                sig: Sig::None
+            }),
             StrictAction::Hold
         );
     }
@@ -1140,7 +1181,14 @@ mod tests {
     }
 
     fn mk_center(zd: Tick, zg: Tick, start: usize) -> Center {
-        Center { zd, zg, dd: zd - 10, gg: zg + 10, start_index: start, end_index: start + 9 }
+        Center {
+            zd,
+            zg,
+            dd: zd - 10,
+            gg: zg + 10,
+            start_index: start,
+            end_index: start + 9,
+        }
     }
 
     /// 根声部 1 买开仓决策（depth 0 = Long）。
@@ -1150,7 +1198,10 @@ mod tests {
             root_side: VoiceSide::Long, // 1 买 → 做多根
             exit: false,
             enter_ok: true,
-            bsp: BspBits { buy1: true, ..Default::default() },
+            bsp: BspBits {
+                buy1: true,
+                ..Default::default()
+            },
             signal_index,
             stop_in: StopInput {
                 pivot_low: 90,
@@ -1176,7 +1227,10 @@ mod tests {
             tradable_bar(1, 1, 101, 111, 99, 108),
             tradable_bar(2, 2, 102, 112, 100, 109),
         ];
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![0],
+        };
         let decisions = vec![buy1_root_decision(0)];
 
         let orders = plan_orders(&decisions, &bars, &account, &cfg);
@@ -1200,7 +1254,10 @@ mod tests {
             tradable_bar(0, 0, 100, 110, 90, 105),
             tradable_bar(1, 1, 95, 100, 88, 92),
         ];
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![300] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![300],
+        };
         let mut d = buy1_root_decision(0);
         d.exit = true; // 退出态 ⟹ close
         let orders = plan_orders(&[d], &bars, &account, &cfg);
@@ -1214,14 +1271,23 @@ mod tests {
     #[test]
     fn plan_orders_hold_wait_no_order() {
         let cfg = ThetaConfig::default();
-        let bars = vec![tradable_bar(0, 0, 100, 110, 90, 105), tradable_bar(1, 1, 101, 111, 99, 108)];
+        let bars = vec![
+            tradable_bar(0, 0, 100, 110, 90, 105),
+            tradable_bar(1, 1, 101, 111, 99, 108),
+        ];
         // hold：q>0 + ¬exit + ¬enter_ok。
-        let account_hold = AccountState { nav: 1_000_000.0, voice_qty: vec![300] };
+        let account_hold = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![300],
+        };
         let mut d_hold = buy1_root_decision(0);
         d_hold.enter_ok = false;
         assert_eq!(plan_orders(&[d_hold], &bars, &account_hold, &cfg).len(), 0);
         // wait：q=0 + ¬exit + ¬enter_ok。
-        let account_wait = AccountState { nav: 1_000_000.0, voice_qty: vec![0] };
+        let account_wait = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![0],
+        };
         let mut d_wait = buy1_root_decision(0);
         d_wait.enter_ok = false;
         assert_eq!(plan_orders(&[d_wait], &bars, &account_wait, &cfg).len(), 0);
@@ -1231,13 +1297,22 @@ mod tests {
     #[test]
     fn plan_orders_child_zero_qty_no_trade() {
         let cfg = ThetaConfig::default();
-        let bars = vec![tradable_bar(0, 0, 100, 110, 90, 105), tradable_bar(1, 1, 101, 111, 99, 108)];
+        let bars = vec![
+            tradable_bar(0, 0, 100, 110, 90, 105),
+            tradable_bar(1, 1, 101, 111, 99, 108),
+        ];
         // 子声部 depth 1（Short），父 depth 0 空仓 ⟹ parent_cap=0 ⟹ qty=0。
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0, 0] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![0, 0],
+        };
         let mut d = buy1_root_decision(0);
         d.depth = 1;
         // depth 1 = Short，须有卖点位才有止损。
-        d.bsp = BspBits { sell1: true, ..Default::default() };
+        d.bsp = BspBits {
+            sell1: true,
+            ..Default::default()
+        };
         let orders = plan_orders(&[d], &bars, &account, &cfg);
         assert_eq!(orders.len(), 0);
     }
@@ -1249,7 +1324,10 @@ mod tests {
         let mut untradable = tradable_bar(1, 1, 101, 111, 99, 108);
         untradable.untradable = true;
         let bars = vec![tradable_bar(0, 0, 100, 110, 90, 105), untradable];
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![0],
+        };
         // 信号在 0，延迟落点 1 不可交易，无后续 ⟹ 无成交 bar ⟹ 无订单。
         let orders = plan_orders(&[buy1_root_decision(0)], &bars, &account, &cfg);
         assert_eq!(orders.len(), 0);
@@ -1259,8 +1337,14 @@ mod tests {
     #[test]
     fn plan_orders_beyond_max_depth_skipped() {
         let cfg = ThetaConfig::default(); // max_depth=3
-        let bars = vec![tradable_bar(0, 0, 100, 110, 90, 105), tradable_bar(1, 1, 101, 111, 99, 108)];
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![100, 50, 25, 12] };
+        let bars = vec![
+            tradable_bar(0, 0, 100, 110, 90, 105),
+            tradable_bar(1, 1, 101, 111, 99, 108),
+        ];
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![100, 50, 25, 12],
+        };
         let mut d = buy1_root_decision(0);
         d.depth = 3; // depth 3 >= max_depth 3 ⟹ 不开
         let orders = plan_orders(&[d], &bars, &account, &cfg);
@@ -1278,7 +1362,10 @@ mod tests {
             tradable_bar(2, 2, 102, 112, 100, 109),
         ];
         // 根（depth 0）空仓 ⟹ 可 open；子（depth 1）持仓 80 ⟹ 可 close。
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0, 80] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![0, 80],
+        };
 
         // 开仓决策：根 depth 0 空仓 + enter_ok ⟹ Open（level 5）。
         let mut open_d = buy1_root_decision(0);
@@ -1314,7 +1401,10 @@ mod tests {
         ];
         // 根（depth 0，Long）持仓 200，子（depth 1，Short）持仓 80——两者都退出（close），
         // 共享同一信号 bar（signal_index=0 ⟹ 同 timestamp/source_index）+ 同中枢 + 同 level/class。
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![200, 80] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![200, 80],
+        };
         let mut root = buy1_root_decision(0);
         root.exit = true;
         root.level = 4;
@@ -1322,7 +1412,10 @@ mod tests {
         child.exit = true;
         child.depth = 1;
         child.level = 4; // 同 level（人为构造前五键碰撞）
-        child.bsp = BspBits { sell1: true, ..Default::default() }; // depth1=Short，类号同为 1
+        child.bsp = BspBits {
+            sell1: true,
+            ..Default::default()
+        }; // depth1=Short，类号同为 1
 
         let a = plan_orders(&[root, child], &bars, &account, &cfg);
         let b = plan_orders(&[child, root], &bars, &account, &cfg);
@@ -1343,7 +1436,10 @@ mod tests {
             tradable_bar(0, 0, 100, 110, 90, 105),
             tradable_bar(1, 1, 101, 111, 99, 108),
         ];
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![0],
+        };
         let decisions = vec![buy1_root_decision(0)];
         let first = plan_orders(&decisions, &bars, &account, &cfg);
         let second = plan_orders(&decisions, &bars, &account, &cfg);
@@ -1354,8 +1450,8 @@ mod tests {
     //  recognize（Classification → VoiceDecision）golden（recog 段，single source）
     // ──────────────────────────────────────────────────────────────────────
 
-    use super::super::classifier::{Classification, LevelState};
     use super::super::classifier::bsp::BspPoint;
+    use super::super::classifier::{Classification, LevelState};
 
     // ──────────────────────────────────────────────────────────────────────
     //  build_stop_in（#397）：含 3 类 bit 必须有 Center 载体——不变量单测
@@ -1384,7 +1480,10 @@ mod tests {
     #[test]
     fn build_stop_in_rejects_type1_anchor_with_third_bit() {
         let point = bsp_point_with_center(
-            BspBits { buy3: true, ..Default::default() },
+            BspBits {
+                buy3: true,
+                ..Default::default()
+            },
             Some(crate::theta_v0::classifier::bsp::OwnerRef::Type1Anchor(5)),
         );
         assert!(build_stop_in(&point).is_none());
@@ -1394,7 +1493,13 @@ mod tests {
     /// 违反则显式拒绝，不静默产 `zg=0` 错误止损价）。
     #[test]
     fn build_stop_in_rejects_none_center_with_third_bit() {
-        let point = bsp_point_with_center(BspBits { sell3: true, ..Default::default() }, None);
+        let point = bsp_point_with_center(
+            BspBits {
+                sell3: true,
+                ..Default::default()
+            },
+            None,
+        );
         assert!(build_stop_in(&point).is_none());
     }
 
@@ -1403,7 +1508,10 @@ mod tests {
     fn build_stop_in_takes_center_when_present() {
         let center = mk_center(100, 200, 3);
         let point = bsp_point_with_center(
-            BspBits { buy3: true, ..Default::default() },
+            BspBits {
+                buy3: true,
+                ..Default::default()
+            },
             Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(center)),
         );
         let stop_in = build_stop_in(&point).expect("Center 载体应产出 Some(StopInput)");
@@ -1414,16 +1522,25 @@ mod tests {
 
     /// 构造含一个第三类买点的单级 Classification（L0 = L*，single source BspPoint）。
     fn classification_with_buy3(source_index: usize) -> Classification {
-        let bsp = vec![BspPoint { source_index,
-            bits: BspBits { buy3: true, ..Default::default() },
+        let bsp = vec![BspPoint {
+            source_index,
+            bits: BspBits {
+                buy3: true,
+                ..Default::default()
+            },
             pivot_low: 210,
             pivot_high: 0,
-            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(mk_center(100, 200, 3))),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(
+                mk_center(100, 200, 3),
+            )),
             struct_break_dir: None,
             force: None,
         }];
         Classification {
-            levels: vec![LevelState { bsp: Rc::new(bsp), ..Default::default() }],
+            levels: vec![LevelState {
+                bsp: Rc::new(bsp),
+                ..Default::default()
+            }],
         }
     }
 
@@ -1462,7 +1579,10 @@ mod tests {
             tradable_bar(1, 1, 205, 215, 200, 210),
             tradable_bar(2, 2, 210, 220, 205, 215),
         ];
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![0],
+        };
         // 完整 piTheta：recognize（recog）→ plan_orders（target→riskProj→exec）。
         let decisions = recognize(&classification, &bars, &cfg);
         let orders = plan_orders(&decisions, &bars, &account, &cfg);
@@ -1478,16 +1598,25 @@ mod tests {
     #[test]
     fn recognize_sell3_yields_short_sell_order() {
         let cfg = ThetaConfig::default();
-        let bsp = vec![BspPoint { source_index: 0,
-            bits: BspBits { sell3: true, ..Default::default() },
+        let bsp = vec![BspPoint {
+            source_index: 0,
+            bits: BspBits {
+                sell3: true,
+                ..Default::default()
+            },
             pivot_low: 0,
             pivot_high: 90,
-            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(mk_center(100, 200, 3))),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(
+                mk_center(100, 200, 3),
+            )),
             struct_break_dir: None,
             force: None,
         }];
         let classification = Classification {
-            levels: vec![LevelState { bsp: Rc::new(bsp), ..Default::default() }],
+            levels: vec![LevelState {
+                bsp: Rc::new(bsp),
+                ..Default::default()
+            }],
         };
         let bars = vec![
             tradable_bar(0, 0, 100, 110, 90, 105),
@@ -1497,8 +1626,11 @@ mod tests {
         let decisions = recognize(&classification, &bars, &cfg);
         assert_eq!(decisions.len(), 1);
         assert_eq!(decisions[0].root_side, VoiceSide::Short); // 卖点 → 做空根
-        // 端到端：做空信号产 Sell 订单（不丢失）。
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0] };
+                                                              // 端到端：做空信号产 Sell 订单（不丢失）。
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![0],
+        };
         let orders = plan_orders(&decisions, &bars, &account, &cfg);
         assert_eq!(orders.len(), 1);
         assert_eq!(orders[0].action, StrictAction::Sell);
@@ -1526,19 +1658,28 @@ mod tests {
     fn recognize_higher_empty_levels_no_underflow() {
         let cfg = ThetaConfig::default();
         // L0 有第三类买点，L1/L2 bsp 空（多级别真实常态：高级别无信号）⟹ l_star=0。
-        let l0_bsp = vec![BspPoint { source_index: 0,
-            bits: BspBits { buy3: true, ..Default::default() },
+        let l0_bsp = vec![BspPoint {
+            source_index: 0,
+            bits: BspBits {
+                buy3: true,
+                ..Default::default()
+            },
             pivot_low: 210,
             pivot_high: 0,
-            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(mk_center(100, 200, 3))),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(
+                mk_center(100, 200, 3),
+            )),
             struct_break_dir: None,
             force: None,
         }];
         let classification = Classification {
             levels: vec![
-                LevelState { bsp: Rc::new(l0_bsp), ..Default::default() }, // L0：非空 bsp（l_star=0）
-                LevelState::default(),                            // L1：空 bsp（level_idx 1 > l_star 0）
-                LevelState::default(),                            // L2：空 bsp（level_idx 2 > l_star 0）
+                LevelState {
+                    bsp: Rc::new(l0_bsp),
+                    ..Default::default()
+                }, // L0：非空 bsp（l_star=0）
+                LevelState::default(), // L1：空 bsp（level_idx 1 > l_star 0）
+                LevelState::default(), // L2：空 bsp（level_idx 2 > l_star 0）
             ],
         };
         let bars = vec![
@@ -1547,7 +1688,11 @@ mod tests {
         ];
         // 旧代码：level_idx=1 时 0-1 下溢 panic。修复后：高空级别跳过，只 L0 产决策（depth 0 根）。
         let decisions = recognize(&classification, &bars, &cfg);
-        assert_eq!(decisions.len(), 1, "只 L0 非空 bsp 级别产决策（高空级别跳过，不下溢）");
+        assert_eq!(
+            decisions.len(),
+            1,
+            "只 L0 非空 bsp 级别产决策（高空级别跳过，不下溢）"
+        );
         assert_eq!(decisions[0].depth, 0, "L0 = L* ⟹ depth 0 根");
         assert_eq!(decisions[0].level, 0, "决策级别 = L0");
     }
@@ -1569,8 +1714,12 @@ mod tests {
     fn recognize_third_bit_without_center_rejected() {
         let cfg = ThetaConfig::default();
         // 违反不变量构造：buy3=true 但 center=None（cc-classifier 保证不会发生，此处守卫）。
-        let bsp = vec![BspPoint { source_index: 0,
-            bits: BspBits { buy3: true, ..Default::default() },
+        let bsp = vec![BspPoint {
+            source_index: 0,
+            bits: BspBits {
+                buy3: true,
+                ..Default::default()
+            },
             pivot_low: 210,
             pivot_high: 0,
             center: None, // 不变量违反
@@ -1578,7 +1727,10 @@ mod tests {
             force: None,
         }];
         let classification = Classification {
-            levels: vec![LevelState { bsp: Rc::new(bsp), ..Default::default() }],
+            levels: vec![LevelState {
+                bsp: Rc::new(bsp),
+                ..Default::default()
+            }],
         };
         let bars = vec![
             tradable_bar(0, 0, 100, 110, 90, 105),
@@ -1635,7 +1787,10 @@ mod tests {
         for i in 0..22 {
             bars.push(tradable_bar(i, i as i64, 200, 220, 195, 210));
         }
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0, 0, 0] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![0, 0, 0],
+        };
 
         // 完整 piTheta 链：classify → recognize → plan_orders。
         let decisions = recognize(&classification, &bars, &cfg);
@@ -1643,7 +1798,10 @@ mod tests {
         assert_eq!(decisions[0].root_side, VoiceSide::Long, "3 买 → 做多根");
 
         let orders = plan_orders(&decisions, &bars, &account, &cfg);
-        assert!(!orders.is_empty(), "L2 关键路径：真实链产非空订单流（n_orders>0）");
+        assert!(
+            !orders.is_empty(),
+            "L2 关键路径：真实链产非空订单流（n_orders>0）"
+        );
         assert_eq!(orders[0].action, StrictAction::Buy, "3 买 → Buy 开仓");
         assert!(orders[0].qty > 0, "sizing 产正手数");
     }
@@ -1663,10 +1821,18 @@ mod tests {
             tradable_bar(1, 1, 205, 215, 200, 210),
             tradable_bar(2, 2, 210, 220, 205, 215),
         ];
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![0],
+        };
         // 族成员 π(param=cfg) = piTheta 四段复合（recog → target → riskProj → exec）。
         let via_family = StrategyFamily::family().pi(&cfg, &classification, &bars, &account);
-        let via_chain = plan_orders(&recognize(&classification, &bars, &cfg), &bars, &account, &cfg);
+        let via_chain = plan_orders(
+            &recognize(&classification, &bars, &cfg),
+            &bars,
+            &account,
+            &cfg,
+        );
         assert_eq!(via_family, via_chain, "族成员求值 = piTheta 链复合");
         assert!(!via_family.is_empty());
     }
@@ -1681,7 +1847,10 @@ mod tests {
             tradable_bar(0, 0, 100, 110, 90, 105),
             tradable_bar(1, 1, 205, 215, 200, 210),
         ];
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![0],
+        };
         let fam = StrategyFamily::family();
         let a = fam.pi(&cfg, &classification, &bars, &account);
         let b = fam.pi(&cfg, &classification, &bars, &account);
@@ -1699,7 +1868,10 @@ mod tests {
             tradable_bar(1, 1, 205, 215, 200, 210),
             tradable_bar(2, 2, 210, 220, 205, 215),
         ];
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![0],
+        };
         let fam = StrategyFamily::family();
 
         // Param A：默认 ρ=0.005。
@@ -1738,11 +1910,21 @@ mod tests {
             assert_eq!(x.enter_ok, y.enter_ok, "enter_ok");
             assert_eq!(x.bsp, y.bsp, "bsp");
             assert_eq!(x.signal_index, y.signal_index, "signal_index");
-            assert_eq!(x.stop_in.pivot_low, y.stop_in.pivot_low, "stop_in.pivot_low");
-            assert_eq!(x.stop_in.pivot_high, y.stop_in.pivot_high, "stop_in.pivot_high");
+            assert_eq!(
+                x.stop_in.pivot_low, y.stop_in.pivot_low,
+                "stop_in.pivot_low"
+            );
+            assert_eq!(
+                x.stop_in.pivot_high, y.stop_in.pivot_high,
+                "stop_in.pivot_high"
+            );
             assert_eq!(x.stop_in.center, y.stop_in.center, "stop_in.center");
             assert_eq!(x.entry, y.entry, "entry");
-            assert_eq!(x.cost_per_unit.to_bits(), y.cost_per_unit.to_bits(), "cost_per_unit");
+            assert_eq!(
+                x.cost_per_unit.to_bits(),
+                y.cost_per_unit.to_bits(),
+                "cost_per_unit"
+            );
             assert_eq!(x.level, y.level, "level");
         }
     }
@@ -1752,30 +1934,63 @@ mod tests {
     fn long_parent_tower_nested() -> Vec<Rc<Vec<LeveledMove>>> {
         let unit = |si: usize, ei: usize, dir: Direction, lo: Tick, hi: Tick, ord: u64| {
             LeveledMove::from_unit(
-                &UnitRange { start_index: si, end_index: ei, direction: dir, lo, hi },
-                ElementId { level: 0, ordinal: ord },
+                &UnitRange {
+                    start_index: si,
+                    end_index: ei,
+                    direction: dir,
+                    lo,
+                    hi,
+                },
+                ElementId {
+                    level: 0,
+                    ordinal: ord,
+                },
             )
         };
         let s0 = unit(0, 4, Direction::Up, 0, 10, 0);
         let s1 = unit(4, 8, Direction::Down, 3, 12, 1);
         let s2 = unit(8, 12, Direction::Up, 5, 15, 2);
-        let c = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
-        let l1 = LeveledMove::compose(&[s0, s1, s2], c, 1, ElementId { level: 1, ordinal: 0 });
+        let c = Center {
+            zd: 5,
+            zg: 10,
+            dd: 0,
+            gg: 15,
+            start_index: 0,
+            end_index: 12,
+        };
+        let l1 = LeveledMove::compose(
+            &[s0, s1, s2],
+            c,
+            1,
+            ElementId {
+                level: 1,
+                ordinal: 0,
+            },
+        );
         vec![Rc::new(Vec::new()), Rc::new(vec![l1])]
     }
 
     /// L0 sell1 候选（src=si；host=sub(4,8) 当 si=8 ⟹ 真父 L1 Long ⟹ role ReverseOpen）。
     fn classification_with_sell1(source_index: usize) -> Classification {
-        let bsp = vec![BspPoint { source_index,
-            bits: BspBits { sell1: true, ..Default::default() },
+        let bsp = vec![BspPoint {
+            source_index,
+            bits: BspBits {
+                sell1: true,
+                ..Default::default()
+            },
             pivot_low: 0,
             pivot_high: 210,
-            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(mk_center(100, 200, 0))),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(
+                mk_center(100, 200, 0),
+            )),
             struct_break_dir: None,
             force: None,
         }];
         Classification {
-            levels: vec![LevelState { bsp: Rc::new(bsp), ..Default::default() }],
+            levels: vec![LevelState {
+                bsp: Rc::new(bsp),
+                ..Default::default()
+            }],
         }
     }
 
@@ -1788,7 +2003,10 @@ mod tests {
                 dir: VoiceSide::Long,
                 source_index: 12,
                 lambda: 12, // 候选腿 λ==ρ（投影约定）
-                id: ElementId { level: 1, ordinal: 0 },
+                id: ElementId {
+                    level: 1,
+                    ordinal: 0,
+                },
                 parent_id: None,
                 is_boundary_root: true,
                 op_parent: None,
@@ -1798,7 +2016,10 @@ mod tests {
                 root_side: VoiceSide::Long,
                 exit: false,
                 enter_ok: true,
-                bsp: BspBits { buy1: true, ..Default::default() },
+                bsp: BspBits {
+                    buy1: true,
+                    ..Default::default()
+                },
                 signal_index: 12,
                 stop_in: StopInput {
                     pivot_low: 90,
@@ -1833,7 +2054,11 @@ mod tests {
         assert_eq!(decisions.len(), 1, "唯一候选经角色门产唯一子决策");
         let d = decisions[0];
         assert_eq!(d.depth, 1, "子声部 depth=父 0+1");
-        assert_eq!(d.root_side, VoiceSide::Long, "root_side 继承树根（非 cand.dir=Short）");
+        assert_eq!(
+            d.root_side,
+            VoiceSide::Long,
+            "root_side 继承树根（非 cand.dir=Short）"
+        );
         // σ_child=−σ_parent 代数锁：voice_side(Long,1)=Short==cand.dir（门判据 ⟹ 代数一致）。
         assert_eq!(voice::voice_side(d.root_side, d.depth), VoiceSide::Short);
         assert!(!d.exit && d.enter_ok, "子决策恒开仓侧");
@@ -1938,10 +2163,16 @@ mod tests {
             tradable_bar(0, 0, 100, 110, 90, 105),
             tradable_bar(1, 1, 101, 111, 99, 108),
         ];
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![100, 0] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![100, 0],
+        };
         let mut d = buy1_root_decision(0);
         d.depth = 1; // 子（Short 腿）
-        d.bsp = BspBits { sell1: true, ..Default::default() };
+        d.bsp = BspBits {
+            sell1: true,
+            ..Default::default()
+        };
         d.stop_in.pivot_high = 105; // |entry 100 − stop 105|=5 ⟹ 项1=floor(5000/5)=1000
         let orders = plan_orders_dual(&[d], &bars, &account, &cfg);
         assert_eq!(orders.len(), 1);
@@ -1962,10 +2193,16 @@ mod tests {
             tradable_bar(0, 0, 100, 110, 90, 105),
             tradable_bar(1, 1, 101, 111, 99, 108),
         ];
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0, 0] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![0, 0],
+        };
         let mut d = buy1_root_decision(0);
         d.depth = 1;
-        d.bsp = BspBits { sell1: true, ..Default::default() };
+        d.bsp = BspBits {
+            sell1: true,
+            ..Default::default()
+        };
         assert!(
             plan_orders_dual(&[d], &bars, &account, &cfg).is_empty(),
             "父空仓 ⟹ parent_cap=0 ⟹ 子不开仓"
@@ -1982,14 +2219,24 @@ mod tests {
             tradable_bar(0, 0, 100, 110, 90, 105),
             tradable_bar(1, 1, 101, 111, 99, 108),
         ];
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![10_000, 0] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![10_000, 0],
+        };
         let mut d = buy1_root_decision(0);
         d.depth = 1;
-        d.bsp = BspBits { sell1: true, ..Default::default() };
+        d.bsp = BspBits {
+            sell1: true,
+            ..Default::default()
+        };
         d.stop_in.pivot_high = 101; // |100−101|=1 ⟹ 项1=floor(5000/1)=5000
         let orders = plan_orders_dual(&[d], &bars, &account, &cfg);
         assert_eq!(orders.len(), 1);
-        assert_eq!(orders[0].order.action, StrictAction::Sell, "子（Short 腿）开空");
+        assert_eq!(
+            orders[0].order.action,
+            StrictAction::Sell,
+            "子（Short 腿）开空"
+        );
         assert_eq!(orders[0].leg, VoiceSide::Short);
         // 项3=floor(10000×0.5)=5000 不绑定 ⟹ qty=项2=3000（w_depth[1]=0.30 锁）。
         assert_eq!(orders[0].order.qty, 3000, "depth 权重 0.30 进项2");
@@ -2005,12 +2252,18 @@ mod tests {
             tradable_bar(0, 0, 100, 110, 90, 105),
             tradable_bar(1, 1, 101, 111, 99, 108),
         ];
-        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![100, 0] };
+        let account = AccountState {
+            nav: 1_000_000.0,
+            voice_qty: vec![100, 0],
+        };
         let mut exit_d = buy1_root_decision(0);
         exit_d.exit = true; // 父（depth0 Long）退出
         let mut open_d = buy1_root_decision(0);
         open_d.depth = 1; // 子（Short）开仓
-        open_d.bsp = BspBits { sell1: true, ..Default::default() };
+        open_d.bsp = BspBits {
+            sell1: true,
+            ..Default::default()
+        };
         open_d.stop_in.pivot_high = 105;
         let a = plan_orders_dual(&[open_d, exit_d], &bars, &account, &cfg);
         let b = plan_orders_dual(&[exit_d, open_d], &bars, &account, &cfg);

@@ -26,8 +26,7 @@
 
 use super::center_book::{CenterBook, UpStrengthVerdict};
 use super::config::{
-    OrganicConfig, OscDomain, RevClose, RevCycle, RevCycleClose, SubAnchor, SubMode,
-    ThetaMode,
+    OrganicConfig, OscDomain, RevClose, RevCycle, RevCycleClose, SubAnchor, SubMode, ThetaMode,
 };
 use super::depth_ref::DepthRef;
 use super::fatigue_gate::FatigueGate;
@@ -99,7 +98,10 @@ pub struct RevLeg {
 impl RevLeg {
     fn new(home: usize, bar: i64, dir: Option<Direction>) -> Self {
         RevLeg {
-            tranches: vec![RevTranche { level: home, last_dir: dir }],
+            tranches: vec![RevTranche {
+                level: home,
+                last_dir: dir,
+            }],
             open_bar: bar,
             open_kind: None,
             anchor_cs: None,
@@ -142,15 +144,26 @@ impl RevLeg {
     }
 
     pub fn max_level(&self) -> usize {
-        self.tranches.last().map(|t| t.level).expect("RevLeg 不变式：tranches 非空")
+        self.tranches
+            .last()
+            .map(|t| t.level)
+            .expect("RevLeg 不变式：tranches 非空")
     }
 
     /// 逐级回补：移除全部 level ≤ confirm 的 tranche，返回被关闭者（level 升序）。
     pub fn close_upto(&mut self, confirm: usize) -> Vec<RevTranche> {
-        let keep: Vec<RevTranche> =
-            self.tranches.iter().copied().filter(|t| t.level > confirm).collect();
-        let closed: Vec<RevTranche> =
-            self.tranches.iter().copied().filter(|t| t.level <= confirm).collect();
+        let keep: Vec<RevTranche> = self
+            .tranches
+            .iter()
+            .copied()
+            .filter(|t| t.level > confirm)
+            .collect();
+        let closed: Vec<RevTranche> = self
+            .tranches
+            .iter()
+            .copied()
+            .filter(|t| t.level <= confirm)
+            .collect();
         self.tranches = keep;
         closed
     }
@@ -211,7 +224,11 @@ impl SubLou {
 
     /// 循环方向 = 深度奇偶（符号交替塔）。
     fn side(&self) -> DiffSide {
-        if self.path.depth() % 2 == 1 { DiffSide::Long } else { DiffSide::Short }
+        if self.path.depth() % 2 == 1 {
+            DiffSide::Long
+        } else {
+            DiffSide::Short
+        }
     }
 
     /// 开腿三岔镜像（仅震荡型——逃逸型开腿在父层已被数据否证为一致负，
@@ -226,9 +243,9 @@ impl SubLou {
                             BspClass::Buy2 | BspClass::Buy3 => false,
                             BspClass::Sell1 | BspClass::Sell2 | BspClass::Sell3 => false,
                         }
-                }) || devs.iter().any(|d| {
-                    d.kind == DivKind::Consolidation && d.direction == Direction::Down
-                })
+                }) || devs
+                    .iter()
+                    .any(|d| d.kind == DivKind::Consolidation && d.direction == Direction::Down)
             }
             DiffSide::Short => {
                 evs.iter().any(|e| {
@@ -238,9 +255,9 @@ impl SubLou {
                             BspClass::Sell2 | BspClass::Sell3 => false,
                             BspClass::Buy1 | BspClass::Buy2 | BspClass::Buy3 => false,
                         }
-                }) || devs.iter().any(|d| {
-                    d.kind == DivKind::Consolidation && d.direction == Direction::Up
-                })
+                }) || devs
+                    .iter()
+                    .any(|d| d.kind == DivKind::Consolidation && d.direction == Direction::Up)
             }
         }
     }
@@ -263,8 +280,9 @@ impl SubLou {
         };
         let hard = evs.iter().any(|e| e.class == t3 && e.confirmed);
         let pre = cfg.pre_type3 && evs.iter().any(|e| e.class == t3 && !e.confirmed);
-        let t1_paired =
-            evs.iter().any(|e| e.confirmed && e.class == t1 && e.cs == anchor_cs);
+        let t1_paired = evs
+            .iter()
+            .any(|e| e.confirmed && e.class == t1 && e.cs == anchor_cs);
         let touch = match self.side() {
             DiffSide::Long => boundary.is_some_and(|b| c >= b),
             DiffSide::Short => boundary.is_some_and(|b| c <= b),
@@ -291,19 +309,43 @@ impl SubLou {
         match cfg.sub_mode {
             SubMode::Fractal => {
                 self.step_fractal(
-                    cfg, rows, book, c, bar, ledger, home, parent_shares, counters,
+                    cfg,
+                    rows,
+                    book,
+                    c,
+                    bar,
+                    ledger,
+                    home,
+                    parent_shares,
+                    counters,
                 );
                 return;
             }
             SubMode::Sequence38 => {
                 self.step_sequence38(
-                    cfg, rows, book, c, bar, ledger, home, parent_shares, counters,
+                    cfg,
+                    rows,
+                    book,
+                    c,
+                    bar,
+                    ledger,
+                    home,
+                    parent_shares,
+                    counters,
                 );
                 return;
             }
             SubMode::CounterSeg => {
                 self.step_counterseg(
-                    cfg, rows, book, c, bar, ledger, home, parent_shares, counters,
+                    cfg,
+                    rows,
+                    book,
+                    c,
+                    bar,
+                    ledger,
+                    home,
+                    parent_shares,
+                    counters,
                 );
                 return;
             }
@@ -317,10 +359,7 @@ impl SubLou {
         match open {
             Some((anchor, my_shares)) => {
                 // 子节点递归（深度预算 ∧ 存在论下限；本腿开放 = 子域存在）
-                if self.path.depth() < cfg.rev_sub_depth
-                    && k >= 1
-                    && k - 1 >= FIRST_BSP_LADDER
-                {
+                if self.path.depth() < cfg.rev_sub_depth && k >= 1 && k - 1 >= FIRST_BSP_LADDER {
                     let path = self.path;
                     let child = self
                         .child
@@ -463,8 +502,7 @@ impl SubLou {
                     use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
                     match dr.theta(k, None, SUB_COST_Q, SUB_COST_MIN_OBS) {
                         Some(theta_q) => {
-                            let theta_eff =
-                                theta_q.max(cfg.sub_cost_k * cfg.sub_friction_rt);
+                            let theta_eff = theta_q.max(cfg.sub_cost_k * cfg.sub_friction_rt);
                             if theta_q < theta_eff {
                                 counters.n_sub_cost_rejects += 1;
                                 return;
@@ -547,10 +585,7 @@ impl SubLou {
                 self.low_since_open = self.low_since_open.min(c);
                 // 子节点递归（深度预算 ∧ 存在论下限 = div 事件流承载下界，
                 // 同 Zhongshu：k−1 ≥ FIRST_BSP_LADDER）
-                if self.path.depth() < cfg.rev_sub_depth
-                    && k >= 1
-                    && k - 1 >= FIRST_BSP_LADDER
-                {
+                if self.path.depth() < cfg.rev_sub_depth && k >= 1 && k - 1 >= FIRST_BSP_LADDER {
                     let path = self.path;
                     let child = self
                         .child
@@ -562,9 +597,7 @@ impl SubLou {
                     .iter()
                     .any(|d| d.kind == DivKind::Consolidation && d.side() == Side::Buy);
                 // (2) 不跌破第一段低点 ∧ 次级别结构确认（答疑:296）
-                let nobreak = self
-                    .seg1_low
-                    .is_some_and(|s1| self.low_since_open > s1)
+                let nobreak = self.seg1_low.is_some_and(|s1| self.low_since_open > s1)
                     && rows.sub_confirm(k, Side::Buy);
                 // (3) 新的下跌背驰（观望出口）
                 let new_div = devs
@@ -629,7 +662,8 @@ impl SubLou {
             DiffSide::Long => (BspClass::Sell1, BspClass::Sell3, Direction::Up),
             DiffSide::Short => (BspClass::Buy1, BspClass::Buy3, Direction::Down),
         };
-        evs.iter().any(|e| e.confirmed && (e.class == t1 || e.class == t3))
+        evs.iter()
+            .any(|e| e.confirmed && (e.class == t1 || e.class == t3))
             || devs
                 .iter()
                 .any(|d| d.kind == DivKind::Consolidation && d.direction == div_dir)
@@ -668,10 +702,7 @@ impl SubLou {
             Some(my_shares) => {
                 // 子节点递归（深度预算 ∧ 存在论下限：笔 = a0，62/77/78课——
                 // k−1 < FIRST_BSP_LADDER 即无中枢/买卖点概念，递归自然终止）
-                if self.path.depth() < cfg.rev_sub_depth
-                    && k >= 1
-                    && k - 1 >= FIRST_BSP_LADDER
-                {
+                if self.path.depth() < cfg.rev_sub_depth && k >= 1 && k - 1 >= FIRST_BSP_LADDER {
                     let path = self.path;
                     let child = self
                         .child
@@ -910,7 +941,9 @@ impl VoiceUnit {
             // 消融轴 R2 显式表态位。
             BspClass::Sell2 => cfg.sell2_trigger && e.confirmed,
             BspClass::Buy1 | BspClass::Buy2 | BspClass::Buy3 => false,
-        }) || devs.iter().any(|d| d.side() == crate::buysellpoint::Side::Sell)
+        }) || devs
+            .iter()
+            .any(|d| d.side() == crate::buysellpoint::Side::Sell)
     }
 
     /// T5 单层买侧三岔（38课）：confirmed Buy1（按 rev_close 轴调整）∨ confirmed
@@ -942,11 +975,7 @@ impl VoiceUnit {
     /// emerged = 当前 RevLeg 的 tranche 级别集 ∪ {home}——只在已涌现级别上读，
     /// 未涌现层的事件不构成本腿的关腿证据（§7 级别坐标诚实声明）。
     /// 大级别买点必然伴随小级别买点共现（27课多重背驰嵌套）⇒ max 即收缩读数。
-    pub fn nesting_buy_level(
-        cfg: &OrganicConfig,
-        rows: &BarRows,
-        rev: &RevLeg,
-    ) -> Option<usize> {
+    pub fn nesting_buy_level(cfg: &OrganicConfig, rows: &BarRows, rev: &RevLeg) -> Option<usize> {
         let mut best: Option<usize> = None;
         for t in &rev.tranches {
             let l = t.level;
@@ -1026,7 +1055,9 @@ impl VoiceUnit {
             }
             if cfg.r2_anchor_zg || cfg.r3_t6_sub_confirm {
                 let buy_ev = rows.buy_any.get(k - 1)
-                    || sub_devs.iter().any(|d| d.side() == crate::buysellpoint::Side::Buy);
+                    || sub_devs
+                        .iter()
+                        .any(|d| d.side() == crate::buysellpoint::Side::Buy);
                 if buy_ev {
                     self.sub_buy_bar = Some(bar);
                 }
@@ -1046,16 +1077,18 @@ impl VoiceUnit {
             self.step_down_paired(cfg, rows, c, bar, ledger, counters);
         } else if self.phase == VoicePhase::DownLeg {
             // SC7（legacy 路径同形式）：T7 回补的次级别买侧确认。
-            let hard_raw =
-                evs.iter().any(|e| matches!(e.class, BspClass::Buy3) && e.confirmed);
-            let sc7_ok =
-                !cfg.sc_t7_close || rows.sub_confirm(k, crate::buysellpoint::Side::Buy);
+            let hard_raw = evs
+                .iter()
+                .any(|e| matches!(e.class, BspClass::Buy3) && e.confirmed);
+            let sc7_ok = !cfg.sc_t7_close || rows.sub_confirm(k, crate::buysellpoint::Side::Buy);
             let hard = hard_raw && sc7_ok;
             if hard_raw && !sc7_ok {
                 counters.n_sc_t7_holds += 1;
             }
             let pre = cfg.pre_type3
-                && evs.iter().any(|e| matches!(e.class, BspClass::Buy3) && !e.confirmed);
+                && evs
+                    .iter()
+                    .any(|e| matches!(e.class, BspClass::Buy3) && !e.confirmed);
             if hard {
                 // T7：confirmed Buy3 → 全 tranche 逃逸（冻结由 CenterBook hard_type3 置位）
                 self.close_all_tranches(c, bar, ledger, counters);
@@ -1103,7 +1136,18 @@ impl VoiceUnit {
         // ── UpLeg：T1（REV 开腿）/ T2（拒因分计数）──
         if self.phase == VoicePhase::UpLeg && cfg.rev_mode && cfg.rev_paired {
             // 配对开腿（任务 2026-06-10）：kind 展开 + 深度门槛。
-            self.rev_paired_open(cfg, rows, book, gate, entry_ladder, c, bar, ledger, frac_of, counters);
+            self.rev_paired_open(
+                cfg,
+                rows,
+                book,
+                gate,
+                entry_ladder,
+                c,
+                bar,
+                ledger,
+                frac_of,
+                counters,
+            );
         } else if self.phase == VoicePhase::UpLeg
             && cfg.rev_mode
             && (!evs.is_empty() || !devs.is_empty())
@@ -1137,7 +1181,17 @@ impl VoiceUnit {
         // ── DownLeg：T4b 加码（tranche 轴；不过 G2 门——结构发展本身就是
         //    衰竭证据的市场确认，重复守卫 = 冗余合取，C4 步骤6）──
         if self.phase == VoicePhase::DownLeg && cfg.tranche {
-            self.t4b_addons(cfg, rows, center_evs_home, c, bar, ledger, entry_ladder, frac_of, counters);
+            self.t4b_addons(
+                cfg,
+                rows,
+                center_evs_home,
+                c,
+                bar,
+                ledger,
+                entry_ladder,
+                frac_of,
+                counters,
+            );
         }
 
         // ── 域腿子循环 T3/T4（P5 逐字；C2：相位限制取消，任意相位运行）──
@@ -1153,9 +1207,9 @@ impl VoiceUnit {
     /// 拒因归因在调用方）。
     fn osc_amp_admitted(cfg: &OrganicConfig, rows: &BarRows, k: usize) -> bool {
         use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
-        let dr = rows.depth.expect(
-            "osc_amp_gate ⇒ 调用方必提供 DepthRef（capability，runner 恒提供）",
-        );
+        let dr = rows
+            .depth
+            .expect("osc_amp_gate ⇒ 调用方必提供 DepthRef（capability，runner 恒提供）");
         dr.theta(k, None, SUB_COST_Q, SUB_COST_MIN_OBS)
             .is_some_and(|theta_q| theta_q >= cfg.theta_cost_k * cfg.friction_rt)
     }
@@ -1179,7 +1233,12 @@ impl VoiceUnit {
         // anchor 是 Copy——复制快照规避 open_slot 借用与 close_diff &mut 冲突
         match ledger.open_slot(okey).map(|l| l.anchor) {
             Some(anchor) => match anchor {
-                LegAnchor::Center { cs, boundary, zg, kind } => {
+                LegAnchor::Center {
+                    cs,
+                    boundary,
+                    zg,
+                    kind,
+                } => {
                     // H3 锚层解码（osc_domain=TrendUpshift）：OscUp 腿锚在
                     // k+1 层中枢——全部出口判据（死亡/边界 sub_buy/上移出口）
                     // 跟随锚层运行（出口跟随锚，不跟随槽）。非上移腿
@@ -1189,8 +1248,8 @@ impl VoiceUnit {
                     let sub_buy = alad >= 1 && rows.buy_any.get(alad - 1);
                     // 49课方向判据：只有三卖（向下终结）触发"不能回补"；
                     // 三买（向上终结）按"中枢向上移动时就应该满仓"立即回补。
-                    let o_dead_down = cfg.osc_sell3_no_recover
-                        && cs.is_some_and(|s| book.is_dead_down(alad, s));
+                    let o_dead_down =
+                        cfg.osc_sell3_no_recover && cs.is_some_and(|s| book.is_dead_down(alad, s));
                     // ── 出口1：中枢向上移动（osc_shift_close，49课"中枢向上
                     // 移动时就应该满仓"）——锚层新中枢形成（alive.seg_start
                     // 晚于锚 cs）且新中枢 ZD > 锚中枢 ZG ⇒ 旧中枢的震荡空腿
@@ -1201,14 +1260,11 @@ impl VoiceUnit {
                     // 而非确认层。NaN 边界（zd/zg 缺失）比较恒 false——拒触发。
                     let shifted_up = cfg.osc_shift_close
                         && book.alive(alad).is_some_and(|lc| {
-                            cs.is_some_and(|s| lc.seg_start > s)
-                                && zg.is_some_and(|g| lc.zd > g)
+                            cs.is_some_and(|s| lc.seg_start > s) && zg.is_some_and(|g| lc.zd > g)
                         });
                     if o_dead && !o_dead_down {
                         ledger.close_diff(okey, c, bar); // 中枢死亡 → 强制回补
-                    } else if boundary.is_some_and(|b| c <= b)
-                        && (!cfg.osc_buy_sub || sub_buy)
-                    {
+                    } else if boundary.is_some_and(|b| c <= b) && (!cfg.osc_buy_sub || sub_buy) {
                         ledger.close_diff(okey, c, bar);
                         counters.n_osc_zd_close += 1;
                     } else if shifted_up {
@@ -1242,7 +1298,15 @@ impl VoiceUnit {
                 if upshift {
                     if k + 1 < MAX_LADDER {
                         self.try_open_osc_at(
-                            cfg, rows, book, c, bar, ledger, frac_of, counters, k + 1,
+                            cfg,
+                            rows,
+                            book,
+                            c,
+                            bar,
+                            ledger,
+                            frac_of,
+                            counters,
+                            k + 1,
                             true,
                         );
                     }
@@ -1357,8 +1421,7 @@ impl VoiceUnit {
                 // BRN 裁决）。H1 检查之后（设计 §4 链序）；只挡开腿，
                 // 闭腿路径零接触。──
                 else if cfg.osc_strength_gate
-                    && book.up_strength_verdict(alad, lc.seg_start)
-                        != UpStrengthVerdict::Converged
+                    && book.up_strength_verdict(alad, lc.seg_start) != UpStrengthVerdict::Converged
                 {
                     match book.up_strength_verdict(alad, lc.seg_start) {
                         UpStrengthVerdict::Newborn => {
@@ -1369,9 +1432,9 @@ impl VoiceUnit {
                             counters.n_osc_sg_expand_rejects += 1;
                             counters.osc_sg_reject_log.push((alad as u8, bar, 1));
                         }
-                        UpStrengthVerdict::Converged => unreachable!(
-                            "外层条件已排除 Converged——到达即 bug"
-                        ),
+                        UpStrengthVerdict::Converged => {
+                            unreachable!("外层条件已排除 Converged——到达即 bug")
+                        }
                     }
                 }
                 // ── 41课门（osc_l41_gate，域腿形态）：锚层直接父级别（alad+1）
@@ -1400,7 +1463,11 @@ impl VoiceUnit {
                         cs: Some(lc.seg_start),
                         boundary: Some(lc.zd),
                         zg: Some(lc.zg),
-                        kind: if upshift { AnchorKind::OscUp } else { AnchorKind::Osc },
+                        kind: if upshift {
+                            AnchorKind::OscUp
+                        } else {
+                            AnchorKind::Osc
+                        },
                     },
                 ) {
                     counters.n_osc_open += 1;
@@ -1451,13 +1518,12 @@ impl VoiceUnit {
     ) {
         let k = self.ladder;
         let host = k + 1;
-        let trow = rows.trend_row.expect(
-            "rev_cycle=Cycle38 ⇒ 调用方必提供趋势态行（capability，runner 恒提供）",
-        );
+        let trow = rows
+            .trend_row
+            .expect("rev_cycle=Cycle38 ⇒ 调用方必提供趋势态行（capability，runner 恒提供）");
         // 宿主趋势态：尾 move 是趋势（≥2 同向中枢）∧ 方向向上（向上段运作，
         // 38课先卖后买短差的存续域；host 越界 = 无宿主可观测 ⇒ 循环不开）。
-        let host_trend =
-            host < MAX_LADDER && trow[host] && rows.dir(host) == Some(Direction::Up);
+        let host_trend = host < MAX_LADDER && trow[host] && rows.dir(host) == Some(Direction::Up);
 
         if !self.cycle38_on {
             if self.phase == VoicePhase::UpLeg && host_trend {
@@ -1494,23 +1560,18 @@ impl VoiceUnit {
                     }
                 };
                 let evs = &rows.evs[k];
-                let conf = |class: BspClass| {
-                    evs.iter().any(move |e| e.confirmed && e.class == class)
-                };
+                let conf =
+                    |class: BspClass| evs.iter().any(move |e| e.confirmed && e.class == class);
                 let buy1_paired = || {
                     evs.iter().any(|e| {
-                        e.confirmed
-                            && matches!(e.class, BspClass::Buy1)
-                            && e.cs == anchor_cs
+                        e.confirmed && matches!(e.class, BspClass::Buy1) && e.cs == anchor_cs
                     })
                 };
                 let zd_touch = || zd.is_some_and(|z| c <= z);
                 let reason: Option<u8> = match cfg.rev_cycle_close {
                     // 在册 C38base：次级别（k−1）买点 = 本级别回调段的次级别
                     // 结束确认（38课答疑：'不跌破'靠次级别内部结构确认）。
-                    RevCycleClose::SubAny => {
-                        (k >= 1 && rows.buy_any.get(k - 1)).then_some(0)
-                    }
+                    RevCycleClose::SubAny => (k >= 1 && rows.buy_any.get(k - 1)).then_some(0),
                     RevCycleClose::Buy1 => buy1_paired().then_some(5),
                     RevCycleClose::Zd => zd_touch().then_some(8),
                     // V2oa25 配对闭腿集的精确退化形式（RevCycleClose docstring
@@ -1518,9 +1579,9 @@ impl VoiceUnit {
                     // 闭腿动作全同——同价全闭，优先序只决定 reason 归因）。
                     RevCycleClose::Paired => {
                         let pre = cfg.pre_type3
-                            && evs.iter().any(|e| {
-                                !e.confirmed && matches!(e.class, BspClass::Buy3)
-                            });
+                            && evs
+                                .iter()
+                                .any(|e| !e.confirmed && matches!(e.class, BspClass::Buy3));
                         if conf(BspClass::Buy3) {
                             Some(7)
                         } else if pre {
@@ -1544,9 +1605,7 @@ impl VoiceUnit {
                             Some(10)
                         } else if conf(BspClass::Buy1) {
                             Some(11)
-                        } else if cfg.rev_cycle_close == RevCycleClose::BspAnyZd
-                            && zd_touch()
-                        {
+                        } else if cfg.rev_cycle_close == RevCycleClose::BspAnyZd && zd_touch() {
                             Some(8)
                         } else {
                             None
@@ -1600,9 +1659,9 @@ impl VoiceUnit {
                 let sell1 = evs
                     .iter()
                     .any(|e| e.confirmed && matches!(e.class, BspClass::Sell1));
-                let consol = devs.iter().any(|d| {
-                    d.kind == DivKind::Consolidation && d.direction == Direction::Up
-                });
+                let consol = devs
+                    .iter()
+                    .any(|d| d.kind == DivKind::Consolidation && d.direction == Direction::Up);
                 if !(sell1 || consol) {
                     return;
                 }
@@ -1770,7 +1829,8 @@ impl VoiceUnit {
             return;
         }
         let esc_ev = if cfg.rev_escape_open {
-            evs.iter().find(|e| e.confirmed && matches!(e.class, BspClass::Sell3))
+            evs.iter()
+                .find(|e| e.confirmed && matches!(e.class, BspClass::Sell3))
         } else {
             // V2o/V2of 消融：逃逸型开腿关（kind 标注首跑数据：逃逸型三标的
             // 一致为负）。Sell3 仍照常进 CenterBook（中枢死亡 ⇒ 震荡型分支
@@ -1779,11 +1839,15 @@ impl VoiceUnit {
         };
         // 触发源分解（rev_open_log.trigger 位掩码：bit0=Sell1 / bit1=盘背卖 /
         // bit3=Sell2，T2o 轴）。
-        let osc_sell1 = evs.iter().any(|e| e.confirmed && matches!(e.class, BspClass::Sell1));
+        let osc_sell1 = evs
+            .iter()
+            .any(|e| e.confirmed && matches!(e.class, BspClass::Sell1));
         // T2o：confirmed Sell2 = type1 卖后回升不创新高的顶部确认（17课对称）
         // ——震荡型触发源，锚解析与 Sell1 同路径（alive 中枢）。
         let osc_sell2 = cfg.sell2_open
-            && evs.iter().any(|e| e.confirmed && matches!(e.class, BspClass::Sell2));
+            && evs
+                .iter()
+                .any(|e| e.confirmed && matches!(e.class, BspClass::Sell2));
         let osc_consol_raw = devs
             .iter()
             .any(|d| d.kind == DivKind::Consolidation && d.direction == Direction::Up);
@@ -1825,9 +1889,9 @@ impl VoiceUnit {
         // 父级别越界（k+1 ≥ MAX_LADDER）由 up_unexhausted 返回 false 放行
         // （无父级别可观测 = 证据缺失，门只在正面证据成立时关）。
         if cfg.rev_l41_gate {
-            let te = rows.l41.expect(
-                "rev_l41_gate ⇒ 调用方必提供 TrendExhaustion（capability，runner 恒提供）",
-            );
+            let te = rows
+                .l41
+                .expect("rev_l41_gate ⇒ 调用方必提供 TrendExhaustion（capability，runner 恒提供）");
             if te.up_unexhausted(k + 1) {
                 counters.n_rev_l41_rejects += 1;
                 return;
@@ -1861,8 +1925,16 @@ impl VoiceUnit {
                     return;
                 }
                 let th = Self::effective_theta(cfg, rows, k, e.cs, counters);
-                (RevOpenKind::Escape, e.cs, None, None, false, Some(zd), Some(zg),
-                 (zg - zd) / c >= th)
+                (
+                    RevOpenKind::Escape,
+                    e.cs,
+                    None,
+                    None,
+                    false,
+                    Some(zd),
+                    Some(zg),
+                    (zg - zd) / c >= th,
+                )
             } else {
                 let Some(lc) = book.alive(k) else {
                     counters.n_rev_nocenter_rejects += 1;
@@ -1884,8 +1956,16 @@ impl VoiceUnit {
                 };
                 // R2 延伸档独立门：中枢全振幅过 θ 才允许 ZG 后延伸持有至 ZD。
                 let ext = r2_leg && (lc.zg - lc.zd) / c >= th;
-                (RevOpenKind::Oscillation, Some(lc.seg_start), Some(lc.zd),
-                 Some(lc.zg), ext, Some(lc.zd), Some(lc.zg), ok)
+                (
+                    RevOpenKind::Oscillation,
+                    Some(lc.seg_start),
+                    Some(lc.zd),
+                    Some(lc.zg),
+                    ext,
+                    Some(lc.zd),
+                    Some(lc.zg),
+                    ok,
+                )
             };
         if !depth_ok {
             counters.n_rev_depth_rejects += 1;
@@ -1900,7 +1980,12 @@ impl VoiceUnit {
             frac_of(k),
             c,
             bar,
-            LegAnchor::Center { cs: anchor_cs, boundary: zd_line, zg: None, kind: akind },
+            LegAnchor::Center {
+                cs: anchor_cs,
+                boundary: zd_line,
+                zg: None,
+                kind: akind,
+            },
         ) {
             counters.n_rev_open += 1;
             match kind {
@@ -1924,8 +2009,16 @@ impl VoiceUnit {
                 price: c,
             });
             let mut leg = RevLeg::new_paired(
-                k, bar, rows.dir(k), kind, anchor_cs, zd_line, zg_line, ext_allowed,
-                trigger_mask, c,
+                k,
+                bar,
+                rows.dir(k),
+                kind,
+                anchor_cs,
+                zd_line,
+                zg_line,
+                ext_allowed,
+                trigger_mask,
+                c,
             );
             // Seq38n：冻结第一段低点（含本 bar——开腿 bar 的 close 已计入
             // rev_run_low，与 Sequence38 子腿 seg1_low=run_low 冻结同语义）
@@ -1957,9 +2050,9 @@ impl VoiceUnit {
         match cfg.theta_mode {
             ThetaMode::Fixed => cfg.theta_depth,
             ThetaMode::AdaptiveQuantile { q, min_obs, .. } => {
-                let dr = rows.depth.expect(
-                    "theta_mode=AdaptiveQuantile ⇒ 调用方必提供 DepthRef（capability）",
-                );
+                let dr = rows
+                    .depth
+                    .expect("theta_mode=AdaptiveQuantile ⇒ 调用方必提供 DepthRef（capability）");
                 match dr.theta(k, anchor_cs, q, min_obs) {
                     Some(t) => {
                         let floor = cfg.theta_cost_k * cfg.friction_rt;
@@ -2005,7 +2098,9 @@ impl VoiceUnit {
             debug_assert!(false, "不变量：DownLeg ⇒ rev 存在");
             return;
         };
-        let kind = rev.open_kind.expect("不变量：rev_paired 腿必携带 open_kind");
+        let kind = rev
+            .open_kind
+            .expect("不变量：rev_paired 腿必携带 open_kind");
         let anchor_cs = rev.anchor_cs;
         let zd = rev.zd;
         let zg = rev.zg;
@@ -2017,14 +2112,18 @@ impl VoiceUnit {
         let sub_pullback_done = self.sub_buy_bar.is_some_and(|b| b >= open_bar);
         // SC7：T7 回补的次级别买侧确认（24课"回抽不破"的次级别形式）。
         // 确认缺失时本 bar 持有，延迟可观测（R3 同构风险的预注册计数）。
-        let hard_raw = evs.iter().any(|e| matches!(e.class, BspClass::Buy3) && e.confirmed);
+        let hard_raw = evs
+            .iter()
+            .any(|e| matches!(e.class, BspClass::Buy3) && e.confirmed);
         let sc7_ok = !cfg.sc_t7_close || rows.sub_confirm(k, crate::buysellpoint::Side::Buy);
         let hard = hard_raw && sc7_ok;
         if hard_raw && !sc7_ok {
             counters.n_sc_t7_holds += 1;
         }
         let pre_raw = cfg.pre_type3
-            && evs.iter().any(|e| matches!(e.class, BspClass::Buy3) && !e.confirmed);
+            && evs
+                .iter()
+                .any(|e| matches!(e.class, BspClass::Buy3) && !e.confirmed);
         // R3：t6 预回补要求次级别"回跌不重回中枢"已成立证据（24课三买正典
         // 定义的次级别形式）：回拉走势完成证据 ∧ 回拉低点 > ZG。证据缺失时
         // candidate Buy3 不触发预回补（T7 confirmed 不变）。仅震荡型消费。
@@ -2154,7 +2253,10 @@ impl VoiceUnit {
         let Some(rev) = self.rev.as_mut() else { return };
         // 配对腿恒单 tranche（tranche×rev_paired 在 runner 入口拒绝）
         let parent_path = RevPath::single(
-            rev.tranches.first().expect("RevLeg 不变式：tranches 非空").level,
+            rev.tranches
+                .first()
+                .expect("RevLeg 不变式：tranches 非空")
+                .level,
         );
         let parent_key = SlotKey::rev_path(k, parent_path);
         let Some(pshares) = ledger.open_slot(parent_key).map(|l| l.cycle.shares) else {
@@ -2293,10 +2395,16 @@ impl VoiceUnit {
                             targets.push(rev.max_level() + 1);
                         }
                     }
-                    CenterEvent::Terminated { direction: Direction::Down, .. } => {
+                    CenterEvent::Terminated {
+                        direction: Direction::Down,
+                        ..
+                    } => {
                         rev.terminated_down_seen = true;
                     }
-                    CenterEvent::Terminated { direction: Direction::Up, .. }
+                    CenterEvent::Terminated {
+                        direction: Direction::Up,
+                        ..
+                    }
                     | CenterEvent::Extended { .. } => {} // §5.3 矩阵 no-op
                 }
             }
@@ -2324,7 +2432,10 @@ impl VoiceUnit {
                 bar,
                 LegAnchor::SegmentScale,
             ) {
-                rev.tranches.push(RevTranche { level, last_dir: dir_row[level] });
+                rev.tranches.push(RevTranche {
+                    level,
+                    last_dir: dir_row[level],
+                });
                 rev.tranches.sort_by_key(|t| t.level); // 升序不变式
                 counters.n_rev_tranche_adds += 1;
             }
@@ -2386,11 +2497,22 @@ mod tests {
     use super::*;
 
     fn cfg_rev() -> OrganicConfig {
-        OrganicConfig { rev_mode: true, ..OrganicConfig::default() }
+        OrganicConfig {
+            rev_mode: true,
+            ..OrganicConfig::default()
+        }
     }
 
     fn ev(class: BspClass, confirmed: bool) -> BspEvent {
-        BspEvent { class, seg_idx: 0, confirmed, cs: None, zd: None, zg: None, price: 10.0 }
+        BspEvent {
+            class,
+            seg_idx: 0,
+            confirmed,
+            cs: None,
+            zd: None,
+            zg: None,
+            price: 10.0,
+        }
     }
 
     fn ev_anchored(class: BspClass, confirmed: bool, cs: i64, zd: f64, zg: f64) -> BspEvent {
@@ -2449,21 +2571,40 @@ mod tests {
         // C2 验证：osc 开放时 REV 开腿，osc 槽不被截断
         let mut fx = Fixture::new();
         // 先放一个存活中枢并开 osc 腿
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         assert!(fx.ledger.open_diff(
             SlotKey::osc(2),
             0.5,
             10.0,
             0,
-            LegAnchor::Center { cs: Some(1), boundary: Some(9.0), zg: Some(9.5), kind: AnchorKind::Osc },
+            LegAnchor::Center {
+                cs: Some(1),
+                boundary: Some(9.0),
+                zg: Some(9.5),
+                kind: AnchorKind::Osc
+            },
         ));
         // 段终结触发（confirmed Sell1）
         fx.evs[2] = vec![ev(BspClass::Sell1, true)];
         let mut v = VoiceUnit::new(2);
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_rev(), &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg_rev(),
+            &rows,
+            &[],
+            9.6,
+            1,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::DownLeg);
         assert_eq!(fx.counters.n_rev_open, 1);
@@ -2479,26 +2620,56 @@ mod tests {
     #[test]
     fn osc_shift_close_kills_zombie_leg() {
         let mut fx = Fixture::new();
-        let cfg = OrganicConfig { osc_shift_close: true, ..OrganicConfig::default() };
+        let cfg = OrganicConfig {
+            osc_shift_close: true,
+            ..OrganicConfig::default()
+        };
         // 锚中枢 cs=1 [9.0, 9.5]，osc 空腿挂锚（zg 快照 = 9.5）
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         assert!(fx.ledger.open_diff(
             SlotKey::osc(2),
             0.5,
             10.0,
             0,
-            LegAnchor::Center { cs: Some(1), boundary: Some(9.0), zg: Some(9.5), kind: AnchorKind::Osc },
+            LegAnchor::Center {
+                cs: Some(1),
+                boundary: Some(9.0),
+                zg: Some(9.5),
+                kind: AnchorKind::Osc
+            },
         ));
         // 新中枢 cs=5 [10.0, 11.0] 形成——新 ZD 10.0 > 锚 ZG 9.5 = 中枢向上移动
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 5, 10.0, 11.0)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 5, 10.0, 11.0)],
+            true,
+            None,
+        );
         let mut v = VoiceUnit::new(2);
         let rows = empty_rows(&fx.evs, &fx.devs);
         // c=10.5：不触旧 ZD（9.0）、锚中枢未死——僵尸条件成立
         v.step(
-            &cfg, &rows, &[], 10.5, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            10.5,
+            1,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
-        assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_none(), "中枢上移必须回补");
+        assert!(
+            fx.ledger.open_slot(SlotKey::osc(2)).is_none(),
+            "中枢上移必须回补"
+        );
         assert_eq!(fx.counters.n_osc_shift_close, 1);
         assert_eq!(fx.counters.n_osc_zd_close, 0);
     }
@@ -2508,24 +2679,54 @@ mod tests {
     #[test]
     fn osc_shift_close_ignores_overlapping_center() {
         let mut fx = Fixture::new();
-        let cfg = OrganicConfig { osc_shift_close: true, ..OrganicConfig::default() };
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        let cfg = OrganicConfig {
+            osc_shift_close: true,
+            ..OrganicConfig::default()
+        };
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         assert!(fx.ledger.open_diff(
             SlotKey::osc(2),
             0.5,
             10.0,
             0,
-            LegAnchor::Center { cs: Some(1), boundary: Some(9.0), zg: Some(9.5), kind: AnchorKind::Osc },
+            LegAnchor::Center {
+                cs: Some(1),
+                boundary: Some(9.0),
+                zg: Some(9.5),
+                kind: AnchorKind::Osc
+            },
         ));
         // 新中枢 [9.2, 9.8]：ZD 9.2 ≤ 锚 ZG 9.5 ⇒ 与旧中枢重叠，非上移
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 5, 9.2, 9.8)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 5, 9.2, 9.8)],
+            true,
+            None,
+        );
         let mut v = VoiceUnit::new(2);
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            9.6,
+            1,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
-        assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_some(), "重叠中枢不触发出口");
+        assert!(
+            fx.ledger.open_slot(SlotKey::osc(2)).is_some(),
+            "重叠中枢不触发出口"
+        );
         assert_eq!(fx.counters.n_osc_shift_close, 0);
     }
 
@@ -2535,22 +2736,49 @@ mod tests {
     fn osc_shift_close_off_preserves_p5_behavior() {
         let mut fx = Fixture::new();
         let cfg = OrganicConfig::default(); // osc_shift_close=false
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         assert!(fx.ledger.open_diff(
             SlotKey::osc(2),
             0.5,
             10.0,
             0,
-            LegAnchor::Center { cs: Some(1), boundary: Some(9.0), zg: Some(9.5), kind: AnchorKind::Osc },
+            LegAnchor::Center {
+                cs: Some(1),
+                boundary: Some(9.0),
+                zg: Some(9.5),
+                kind: AnchorKind::Osc
+            },
         ));
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 5, 10.0, 11.0)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 5, 10.0, 11.0)],
+            true,
+            None,
+        );
         let mut v = VoiceUnit::new(2);
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg, &rows, &[], 10.5, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            10.5,
+            1,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
-        assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_some(), "开关关 = 在册行为");
+        assert!(
+            fx.ledger.open_slot(SlotKey::osc(2)).is_some(),
+            "开关关 = 在册行为"
+        );
         assert_eq!(fx.counters.n_osc_shift_close, 0);
     }
 
@@ -2591,8 +2819,19 @@ mod tests {
                     l41: None,
                     trend_row: Some(&trow),
                 };
-                v.step(&cfg, &rows, &[], $c, $bar, &mut fx.ledger, &fx.book, &fx.gate,
-                       4, &|_| 0.5, &mut fx.counters);
+                v.step(
+                    &cfg,
+                    &rows,
+                    &[],
+                    $c,
+                    $bar,
+                    &mut fx.ledger,
+                    &fx.book,
+                    &fx.gate,
+                    4,
+                    &|_| 0.5,
+                    &mut fx.counters,
+                );
             }};
         }
         let key = SlotKey::rev(2, 2);
@@ -2656,8 +2895,13 @@ mod tests {
             for i in 0..n_centers {
                 fx.book.ingest(
                     2,
-                    &[ev_anchored(BspClass::Sell1, true, 100 + i as i64, 9.0,
-                                  9.0 + rel_amp * 10.0)],
+                    &[ev_anchored(
+                        BspClass::Sell1,
+                        true,
+                        100 + i as i64,
+                        9.0,
+                        9.0 + rel_amp * 10.0,
+                    )],
                     true,
                     None,
                 );
@@ -2680,8 +2924,19 @@ mod tests {
                 l41: None,
                 trend_row: Some(&trow),
             };
-            v.step(&cfg, &rows, &[], 10.0, 0, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                   &|_| 0.5, &mut fx.counters);
+            v.step(
+                &cfg,
+                &rows,
+                &[],
+                10.0,
+                0,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
+            );
             assert_eq!(fx.counters.n_c38_open, 0);
             assert_eq!(fx.counters.n_c38_cost_rejects, want_cost);
             assert_eq!(fx.counters.n_c38_cost_noref_rejects, want_noref);
@@ -2735,8 +2990,19 @@ mod tests {
             l41: None,
             trend_row: Some(&trow),
         };
-        v.step(cfg, &rows, &[], c, bar, &mut fx.ledger, &fx.book, &fx.gate, 4,
-               &|_| 0.5, &mut fx.counters);
+        v.step(
+            cfg,
+            &rows,
+            &[],
+            c,
+            bar,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
+        );
     }
 
     fn cfg_c38(close: RevCycleClose) -> OrganicConfig {
@@ -2804,10 +3070,27 @@ mod tests {
     fn cycle38_close_paired_four_elements() {
         type Probe = (Vec<BspEvent>, u16, f64, fn(&Counters) -> u64, bool);
         let probes: Vec<Probe> = vec![
-            (vec![ev(BspClass::Buy3, true)], 0, 9.5, |c| c.n_c38_close_t7, true),
-            (vec![ev(BspClass::Buy3, false)], 0, 9.5, |c| c.n_c38_close_t6, true),
-            (vec![ev_anchored(BspClass::Buy1, true, 111, 9.0, 9.1)], 0, 9.5,
-             |c| c.n_c38_close_buy1, true),
+            (
+                vec![ev(BspClass::Buy3, true)],
+                0,
+                9.5,
+                |c| c.n_c38_close_t7,
+                true,
+            ),
+            (
+                vec![ev(BspClass::Buy3, false)],
+                0,
+                9.5,
+                |c| c.n_c38_close_t6,
+                true,
+            ),
+            (
+                vec![ev_anchored(BspClass::Buy1, true, 111, 9.0, 9.1)],
+                0,
+                9.5,
+                |c| c.n_c38_close_buy1,
+                true,
+            ),
             (vec![], 0, 9.0, |c| c.n_c38_close_zd, true),
             // 次级别任意买点单独存在 → 不闭（区间套双向性的代码落点）
             (vec![], 1 << 1, 9.5, |c| c.n_c38_close, false),
@@ -2840,11 +3123,17 @@ mod tests {
             // 一卖→回落→三买涌现（回补位本体）
             (vec![ev(BspClass::Buy3, true)], |c| c.n_c38_close_t7, true),
             // 一卖→回落→二买涌现（底部确认）——任意锚
-            (vec![ev_anchored(BspClass::Buy2, true, 999, 8.0, 8.5)],
-             |c| c.n_c38_close_buy2, true),
+            (
+                vec![ev_anchored(BspClass::Buy2, true, 999, 8.0, 8.5)],
+                |c| c.n_c38_close_buy2,
+                true,
+            ),
             // 任意锚 Buy1（同锚要求取消——reason 11 与同锚 5 区分）
-            (vec![ev_anchored(BspClass::Buy1, true, 50, 8.0, 8.5)],
-             |c| c.n_c38_close_buy1any, true),
+            (
+                vec![ev_anchored(BspClass::Buy1, true, 50, 8.0, 8.5)],
+                |c| c.n_c38_close_buy1any,
+                true,
+            ),
             // candidate Buy3 不入集（t6 在册负槽）
             (vec![ev(BspClass::Buy3, false)], |c| c.n_c38_close, false),
         ];
@@ -2957,7 +3246,7 @@ mod tests {
                 run_anchor: Some(anchor_row),
                 depth: None,
                 l41: None,
-            trend_row: None,
+                trend_row: None,
             };
             let (book, counters) = (&fx.book, &mut fx.counters);
             sub.step(&cfg, &rows, book, c, bar, &mut fx.ledger, 2, 50.0, counters);
@@ -3168,9 +3457,19 @@ mod tests {
                 run_anchor: Some(&anchor_row),
                 depth: Some(&dr),
                 l41: None,
-            trend_row: None,
+                trend_row: None,
             };
-            sub.step(&cfg, &rows, &fx.book, c, bar, &mut fx.ledger, 3, 50.0, &mut counters);
+            sub.step(
+                &cfg,
+                &rows,
+                &fx.book,
+                c,
+                bar,
+                &mut fx.ledger,
+                3,
+                50.0,
+                &mut counters,
+            );
         };
         // Up 基准 → Down 翻转（顶分型确认 = 开腿尝试）
         dir[2] = Some(Direction::Up);
@@ -3245,7 +3544,14 @@ mod tests {
                     trend_row: None,
                 };
                 sub.step(
-                    &cfg, &rows, &fx.book, c, bar, &mut fx.ledger, 2, 50.0,
+                    &cfg,
+                    &rows,
+                    &fx.book,
+                    c,
+                    bar,
+                    &mut fx.ledger,
+                    2,
+                    50.0,
                     &mut fx.counters,
                 );
             };
@@ -3283,7 +3589,14 @@ mod tests {
                     trend_row: None,
                 };
                 sub.step(
-                    &cfg, &rows, &fx.book, c, bar, &mut fx.ledger, 2, 50.0,
+                    &cfg,
+                    &rows,
+                    &fx.book,
+                    c,
+                    bar,
+                    &mut fx.ledger,
+                    2,
+                    50.0,
                     &mut fx.counters,
                 );
             };
@@ -3305,8 +3618,17 @@ mod tests {
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg_rev(), &rows, &[], 10.0, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg_rev(),
+                &rows,
+                &[],
+                10.0,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -3314,8 +3636,17 @@ mod tests {
         fx.evs[2] = vec![ev(BspClass::Buy3, true)];
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_rev(), &rows, &[], 9.0, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg_rev(),
+            &rows,
+            &[],
+            9.0,
+            2,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert!(v.rev.is_none());
@@ -3330,16 +3661,32 @@ mod tests {
         let mut v = VoiceUnit::new(2);
         v.phase = VoicePhase::DownLeg;
         let mut leg = RevLeg::new(2, 0, None);
-        leg.tranches.push(RevTranche { level: 3, last_dir: None });
+        leg.tranches.push(RevTranche {
+            level: 3,
+            last_dir: None,
+        });
         v.rev = Some(leg);
-        assert!(fx.ledger.open_diff(SlotKey::rev(2, 2), 0.3, 10.0, 0, LegAnchor::SegmentScale));
-        assert!(fx.ledger.open_diff(SlotKey::rev(2, 3), 0.3, 10.0, 0, LegAnchor::SegmentScale));
+        assert!(fx
+            .ledger
+            .open_diff(SlotKey::rev(2, 2), 0.3, 10.0, 0, LegAnchor::SegmentScale));
+        assert!(fx
+            .ledger
+            .open_diff(SlotKey::rev(2, 3), 0.3, 10.0, 0, LegAnchor::SegmentScale));
         // level 2 confirmed Buy1
         fx.evs[2] = vec![ev(BspClass::Buy1, true)];
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_rev(), &rows, &[], 9.0, 1, &mut fx.ledger, &fx.book, &fx.gate, 5,
-            &|_| 0.3, &mut fx.counters,
+            &cfg_rev(),
+            &rows,
+            &[],
+            9.0,
+            1,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            5,
+            &|_| 0.3,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::DownLeg); // 高层 tranche 存续
         assert!(fx.ledger.open_slot(SlotKey::rev(2, 2)).is_none());
@@ -3350,8 +3697,17 @@ mod tests {
         fx.evs[3] = vec![ev(BspClass::Buy1, true)];
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_rev(), &rows, &[], 8.5, 2, &mut fx.ledger, &fx.book, &fx.gate, 5,
-            &|_| 0.3, &mut fx.counters,
+            &cfg_rev(),
+            &rows,
+            &[],
+            8.5,
+            2,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            5,
+            &|_| 0.3,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert!(fx.ledger.open_slot(SlotKey::rev(2, 3)).is_none());
@@ -3381,8 +3737,17 @@ mod tests {
             trend_row: None,
         };
         v.step(
-            &cfg, &rows, &[], 10.0, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            10.0,
+            1,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(fx.counters.n_rev_sub_anchor_rejects, 1);
@@ -3400,7 +3765,9 @@ mod tests {
         let mut v = VoiceUnit::new(2);
         v.phase = VoicePhase::DownLeg;
         v.rev = Some(RevLeg::new(2, 0, Some(Direction::Down)));
-        assert!(fx.ledger.open_diff(SlotKey::rev(2, 2), 0.3, 10.0, 0, LegAnchor::SegmentScale));
+        assert!(fx
+            .ledger
+            .open_diff(SlotKey::rev(2, 2), 0.3, 10.0, 0, LegAnchor::SegmentScale));
         let mut dir_row: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
         dir_row[2] = Some(Direction::Down);
         let anchors = [0i64; MAX_LADDER];
@@ -3415,18 +3782,40 @@ mod tests {
             l41: None,
             trend_row: None,
         };
-        let formed = CenterEvent::Formed { seg_start: 9, zd: 8.0, zg: 9.0 };
+        let formed = CenterEvent::Formed {
+            seg_start: 9,
+            zd: 8.0,
+            zg: 9.0,
+        };
         v.step(
-            &cfg, &rows, &[formed], 9.0, 3, &mut fx.ledger, &fx.book, &fx.gate, 5,
-            &|_| 0.2, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[formed],
+            9.0,
+            3,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            5,
+            &|_| 0.2,
+            &mut fx.counters,
         );
         assert_eq!(fx.counters.n_rev_tranche_adds, 1);
         assert_eq!(v.rev.as_ref().unwrap().max_level(), 3);
         assert!(fx.ledger.open_slot(SlotKey::rev(2, 3)).is_some());
         // 第二个 Formed（未见 Terminated{Down}）不再加码（(a) 一次性）
         v.step(
-            &cfg, &rows, &[formed], 9.0, 4, &mut fx.ledger, &fx.book, &fx.gate, 5,
-            &|_| 0.2, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[formed],
+            9.0,
+            4,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            5,
+            &|_| 0.2,
+            &mut fx.counters,
         );
         assert_eq!(fx.counters.n_rev_tranche_adds, 1);
     }
@@ -3445,14 +3834,28 @@ mod tests {
         // 震荡型：confirmed Sell1 × 存活中枢 [9.0, 9.5] → 开腿锚 ZD=9.0；
         // 触线 c≤9.0 → 闭腿（n_rev_zd_close），按类型记账。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         fx.evs[2] = vec![ev(BspClass::Sell1, true)];
         let mut v = VoiceUnit::new(2);
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg_paired(0.0), &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg_paired(0.0),
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -3465,8 +3868,17 @@ mod tests {
         fx.evs[2].clear();
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_paired(0.0), &rows, &[], 9.0, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg_paired(0.0),
+            &rows,
+            &[],
+            9.0,
+            2,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(fx.counters.n_rev_zd_close, 1);
@@ -3482,20 +3894,50 @@ mod tests {
         // 确认 → 持有；bar4 9.3 次级别买证据（buy_any[k−1]）共现 → reason
         // 11 闭腿。中枢 [8.5, 9.5]：c=9.3 不触 ZD，分支隔离。
         let mut fx = Fixture::new();
-        let cfg = OrganicConfig { rev_seq_nobreak: true, ..cfg_paired(0.0) };
+        let cfg = OrganicConfig {
+            rev_seq_nobreak: true,
+            ..cfg_paired(0.0)
+        };
         let mut v = VoiceUnit::new(2);
         {
             // bar1：第一段起点低点（UpLeg 空转，仅推进 rev_run_low）
             let rows = empty_rows(&fx.evs, &fx.devs);
-            v.step(&cfg, &rows, &[], 9.0, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                   &|_| 0.5, &mut fx.counters);
+            v.step(
+                &cfg,
+                &rows,
+                &[],
+                9.0,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
+            );
         }
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 8.5, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 8.5, 9.5)],
+            true,
+            None,
+        );
         fx.evs[2] = vec![ev(BspClass::Sell1, true)];
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
-            v.step(&cfg, &rows, &[], 9.6, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                   &|_| 0.5, &mut fx.counters);
+            v.step(
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                2,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
+            );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
         assert_eq!(v.rev.as_ref().unwrap().seg1_low, Some(9.0));
@@ -3503,8 +3945,19 @@ mod tests {
         {
             // bar3：不破第一段低点但次级别确认缺失 → 持有
             let rows = empty_rows(&fx.evs, &fx.devs);
-            v.step(&cfg, &rows, &[], 9.3, 3, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                   &|_| 0.5, &mut fx.counters);
+            v.step(
+                &cfg,
+                &rows,
+                &[],
+                9.3,
+                3,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
+            );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
         assert_eq!(fx.counters.n_rev_seq_nobreak_close, 0);
@@ -3513,8 +3966,19 @@ mod tests {
             buy_any: LadderMask(1 << 1),
             ..empty_rows(&fx.evs, &fx.devs)
         };
-        v.step(&cfg, &rows, &[], 9.3, 4, &mut fx.ledger, &fx.book, &fx.gate, 4,
-               &|_| 0.5, &mut fx.counters);
+        v.step(
+            &cfg,
+            &rows,
+            &[],
+            9.3,
+            4,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
+        );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(fx.counters.n_rev_seq_nobreak_close, 1);
         assert_eq!(fx.counters.rev_close_log.last().unwrap().reason, 11);
@@ -3530,35 +3994,87 @@ mod tests {
         // （O0 零接触：默认位下 seg1_low 纯状态跟踪无消费者）。
         for gate_on in [true, false] {
             let mut fx = Fixture::new();
-            let cfg = OrganicConfig { rev_seq_nobreak: gate_on, ..cfg_paired(0.0) };
+            let cfg = OrganicConfig {
+                rev_seq_nobreak: gate_on,
+                ..cfg_paired(0.0)
+            };
             let mut v = VoiceUnit::new(2);
             {
                 let rows = empty_rows(&fx.evs, &fx.devs);
-                v.step(&cfg, &rows, &[], 9.0, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                       &|_| 0.5, &mut fx.counters);
+                v.step(
+                    &cfg,
+                    &rows,
+                    &[],
+                    9.0,
+                    1,
+                    &mut fx.ledger,
+                    &fx.book,
+                    &fx.gate,
+                    4,
+                    &|_| 0.5,
+                    &mut fx.counters,
+                );
             }
-            fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 8.5, 9.5)], true, None);
+            fx.book.ingest(
+                2,
+                &[ev_anchored(BspClass::Sell1, true, 1, 8.5, 9.5)],
+                true,
+                None,
+            );
             fx.evs[2] = vec![ev(BspClass::Sell1, true)];
             {
                 let rows = empty_rows(&fx.evs, &fx.devs);
-                v.step(&cfg, &rows, &[], 9.6, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                       &|_| 0.5, &mut fx.counters);
+                v.step(
+                    &cfg,
+                    &rows,
+                    &[],
+                    9.6,
+                    2,
+                    &mut fx.ledger,
+                    &fx.book,
+                    &fx.gate,
+                    4,
+                    &|_| 0.5,
+                    &mut fx.counters,
+                );
             }
             assert_eq!(v.phase, VoicePhase::DownLeg);
             fx.evs[2].clear();
             {
                 // bar3：c=8.8 破第一段低点 9.0（不触 ZD=8.5）
                 let rows = empty_rows(&fx.evs, &fx.devs);
-                v.step(&cfg, &rows, &[], 8.8, 3, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                       &|_| 0.5, &mut fx.counters);
+                v.step(
+                    &cfg,
+                    &rows,
+                    &[],
+                    8.8,
+                    3,
+                    &mut fx.ledger,
+                    &fx.book,
+                    &fx.gate,
+                    4,
+                    &|_| 0.5,
+                    &mut fx.counters,
+                );
             }
             // bar4：次级别买证据共现但低点已破 → 持有
             let rows = BarRows {
                 buy_any: LadderMask(1 << 1),
                 ..empty_rows(&fx.evs, &fx.devs)
             };
-            v.step(&cfg, &rows, &[], 9.2, 4, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                   &|_| 0.5, &mut fx.counters);
+            v.step(
+                &cfg,
+                &rows,
+                &[],
+                9.2,
+                4,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
+            );
             assert_eq!(v.phase, VoicePhase::DownLeg, "gate_on={gate_on}");
             assert_eq!(fx.counters.n_rev_seq_nobreak_close, 0, "gate_on={gate_on}");
         }
@@ -3569,14 +4085,28 @@ mod tests {
         // 闭腿配对：Buy2 / 盘背买 / 异锚 Buy1 不闭（mismatch_holds 计数），
         // 同锚 confirmed Buy1 闭（T5）。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         fx.evs[2] = vec![ev(BspClass::Sell1, true)];
         let mut v = VoiceUnit::new(2);
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg_paired(0.0), &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg_paired(0.0),
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -3588,8 +4118,17 @@ mod tests {
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg_paired(0.0), &rows, &[], 9.3, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg_paired(0.0),
+                &rows,
+                &[],
+                9.3,
+                2,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -3598,8 +4137,17 @@ mod tests {
         fx.evs[2] = vec![ev_anchored(BspClass::Buy1, true, 1, 9.0, 9.5)];
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_paired(0.0), &rows, &[], 9.2, 3, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg_paired(0.0),
+            &rows,
+            &[],
+            9.2,
+            3,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(fx.counters.n_rev_close_t5, 1);
@@ -3611,48 +4159,94 @@ mod tests {
         // T2o：confirmed Sell2 × 存活中枢 → 震荡型开腿（trigger 掩码 bit3）；
         // 开关关时同一事件不开腿（默认行为零接触）。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         fx.evs[2] = vec![ev(BspClass::Sell2, true)];
         let mut v = VoiceUnit::new(2);
         {
             // 开关关：Sell2 不是触发源
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg_paired(0.0), &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg_paired(0.0),
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(fx.counters.n_rev_open, 0);
         // 开关开：同一事件开震荡型腿
-        let cfg = OrganicConfig { sell2_open: true, ..cfg_paired(0.0) };
+        let cfg = OrganicConfig {
+            sell2_open: true,
+            ..cfg_paired(0.0)
+        };
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg, &rows, &[], 9.6, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            9.6,
+            2,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::DownLeg);
         assert_eq!(fx.counters.n_rev_open_osc, 1);
         assert_eq!(fx.counters.n_rev_sell2_open, 1);
         let log = fx.counters.rev_open_log.last().unwrap();
         assert_eq!(log.trigger, 8); // bit3 独占（无 Sell1/盘背共现）
-        assert_eq!(v.rev.as_ref().unwrap().open_kind, Some(RevOpenKind::Oscillation));
+        assert_eq!(
+            v.rev.as_ref().unwrap().open_kind,
+            Some(RevOpenKind::Oscillation)
+        );
     }
 
     #[test]
     fn t2c_buy2_same_anchor_closes_when_enabled_rejects_foreign_anchor() {
         // T2c：异锚 Buy2 不闭（mismatch hold），同锚 confirmed Buy2 闭
         // （reason=10，n_rev_buy2_close）。
-        let cfg = OrganicConfig { buy2_close: true, ..cfg_paired(0.0) };
+        let cfg = OrganicConfig {
+            buy2_close: true,
+            ..cfg_paired(0.0)
+        };
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         fx.evs[2] = vec![ev(BspClass::Sell1, true)];
         let mut v = VoiceUnit::new(2);
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -3661,8 +4255,17 @@ mod tests {
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg, &rows, &[], 9.3, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.3,
+                2,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -3671,8 +4274,17 @@ mod tests {
         fx.evs[2] = vec![ev_anchored(BspClass::Buy2, true, 1, 9.0, 9.5)];
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg, &rows, &[], 9.2, 3, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            9.2,
+            3,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(fx.counters.n_rev_buy2_close, 1);
@@ -3687,16 +4299,35 @@ mod tests {
         // c 低于死中枢 ZD 不触发闭腿；任意锚 confirmed Buy1 闭（趋势配对）。
         let mut fx = Fixture::new();
         // 中枢 [9.0,9.5] 先存活，confirmed Sell3 将其向下终结
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell3, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell3, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         assert!(fx.book.alive(2).is_none());
         fx.evs[2] = vec![ev_anchored(BspClass::Sell3, true, 1, 9.0, 9.5)];
         let mut v = VoiceUnit::new(2);
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg_paired(0.0), &rows, &[], 8.8, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg_paired(0.0),
+                &rows,
+                &[],
+                8.8,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -3709,8 +4340,17 @@ mod tests {
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg_paired(0.0), &rows, &[], 8.0, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg_paired(0.0),
+                &rows,
+                &[],
+                8.0,
+                2,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -3718,8 +4358,17 @@ mod tests {
         fx.evs[2] = vec![ev_anchored(BspClass::Buy1, true, 7, 7.5, 7.9)];
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_paired(0.0), &rows, &[], 7.8, 3, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg_paired(0.0),
+            &rows,
+            &[],
+            7.8,
+            3,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(fx.counters.n_rev_close_t5, 1);
@@ -3731,13 +4380,27 @@ mod tests {
     fn paired_depth_gate_rejects_shallow_center() {
         // 深度门：中枢 [9.0, 9.005] 振幅/价 ≈0.05% < θ=1% → 拒，计数。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.005)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.005)],
+            true,
+            None,
+        );
         fx.evs[2] = vec![ev(BspClass::Sell1, true)];
         let mut v = VoiceUnit::new(2);
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_paired(0.01), &rows, &[], 9.1, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg_paired(0.01),
+            &rows,
+            &[],
+            9.1,
+            1,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(fx.counters.n_rev_depth_rejects, 1);
@@ -3752,8 +4415,17 @@ mod tests {
         let mut v = VoiceUnit::new(2);
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_paired(0.0), &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg_paired(0.0),
+            &rows,
+            &[],
+            9.6,
+            1,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(fx.counters.n_rev_nocenter_rejects, 1);
@@ -3765,15 +4437,37 @@ mod tests {
         // V2o 消融：rev_escape_open=false 时 confirmed Sell3 不开腿，
         // 也不降级为震荡型（中枢已死 ⇒ alive 检查拒）。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell3, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell3, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         fx.evs[2] = vec![ev_anchored(BspClass::Sell3, true, 1, 9.0, 9.5)];
-        let cfg = OrganicConfig { rev_escape_open: false, ..cfg_paired(0.0) };
+        let cfg = OrganicConfig {
+            rev_escape_open: false,
+            ..cfg_paired(0.0)
+        };
         let mut v = VoiceUnit::new(2);
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg, &rows, &[], 8.8, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            8.8,
+            1,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(fx.counters.n_rev_open, 0);
@@ -3784,22 +4478,45 @@ mod tests {
     fn paired_buy3_escape_close_still_works() {
         // Buy3 回补位闭腿（恢复暴露）在配对模式保留（T7）。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         fx.evs[2] = vec![ev(BspClass::Sell1, true)];
         let mut v = VoiceUnit::new(2);
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg_paired(0.0), &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg_paired(0.0),
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
         fx.evs[2] = vec![ev(BspClass::Buy3, true)];
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_paired(0.0), &rows, &[], 9.8, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg_paired(0.0),
+            &rows,
+            &[],
+            9.8,
+            2,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(fx.counters.n_rev_close_t7, 1);
@@ -3808,15 +4525,30 @@ mod tests {
     }
 
     fn dev(kind: DivKind, direction: Direction) -> DivEvent {
-        DivEvent { kind, direction, seg_idx: 0, force_a: 1.0, force_c: 0.5, price: 10.0 }
+        DivEvent {
+            kind,
+            direction,
+            seg_idx: 0,
+            force_a: 1.0,
+            force_c: 0.5,
+            price: 10.0,
+        }
     }
 
     #[test]
     fn r1_gates_consol_open_on_sub_sell_in_c_window() {
         // R1：盘背触发无次级别 Sell 证据 → 拒；同 bar 次级别卖侧背驰 → 开。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
-        let cfg = OrganicConfig { r1_sub_sell_open: true, ..cfg_paired(0.0) };
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
+        let cfg = OrganicConfig {
+            r1_sub_sell_open: true,
+            ..cfg_paired(0.0)
+        };
         let mut v = VoiceUnit::new(2);
         let mut dir_row: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
         dir_row[1] = Some(Direction::Up); // 次级别 Up run（C 段窗口）
@@ -3833,11 +4565,20 @@ mod tests {
                 run_anchor: Some(&anchors),
                 depth: None,
                 l41: None,
-            trend_row: None,
+                trend_row: None,
             };
             v.step(
-                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::UpLeg);
@@ -3857,8 +4598,17 @@ mod tests {
             trend_row: None,
         };
         v.step(
-            &cfg, &rows, &[], 9.6, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            9.6,
+            2,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::DownLeg);
         assert_eq!(fx.counters.n_rev_open_osc, 1);
@@ -3870,15 +4620,32 @@ mod tests {
         // R2：盘背触发腿触 ZG，次级别回拉未完成 ∧ 延伸档门过 → 持有；
         // 触 ZD → reason 8。（R2 作用域 = trigger==2，Sell1 腿不消费。）
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         fx.devs[2] = vec![dev(DivKind::Consolidation, Direction::Up)];
-        let cfg = OrganicConfig { r2_anchor_zg: true, ..cfg_paired(0.0) };
+        let cfg = OrganicConfig {
+            r2_anchor_zg: true,
+            ..cfg_paired(0.0)
+        };
         let mut v = VoiceUnit::new(2);
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg, &rows, &[], 10.0, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                10.0,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -3891,8 +4658,17 @@ mod tests {
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg, &rows, &[], 9.4, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.4,
+                2,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -3900,8 +4676,17 @@ mod tests {
         // bar 3：c=9.0 触 ZD → 延伸目标兑现（reason 8）
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg, &rows, &[], 9.0, 3, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            9.0,
+            3,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(fx.counters.n_rev_zd_close, 1);
@@ -3912,15 +4697,32 @@ mod tests {
     fn r2_realizes_at_zg_when_sub_pullback_done() {
         // R2：盘背触发腿触 ZG ∧ 次级别买侧证据已出现（腿生命期内）→ reason 9。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         fx.devs[2] = vec![dev(DivKind::Consolidation, Direction::Up)];
-        let cfg = OrganicConfig { r2_anchor_zg: true, ..cfg_paired(0.0) };
+        let cfg = OrganicConfig {
+            r2_anchor_zg: true,
+            ..cfg_paired(0.0)
+        };
         let mut v = VoiceUnit::new(2);
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg, &rows, &[], 10.0, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                10.0,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         // bar 2：次级别（ladder 1）买点出现（buy_any）——回拉完成证据
@@ -3929,16 +4731,34 @@ mod tests {
             let mut rows = empty_rows(&fx.evs, &fx.devs);
             rows.buy_any = LadderMask(1 << 1);
             v.step(
-                &cfg, &rows, &[], 9.7, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.7,
+                2,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg); // 未触 ZG，不兑现
-        // bar 3：c=9.45 ≤ ZG ∧ 回拉完成 → reason 9
+                                                  // bar 3：c=9.45 ≤ ZG ∧ 回拉完成 → reason 9
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg, &rows, &[], 9.45, 3, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            9.45,
+            3,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(fx.counters.n_rev_zg_close, 1);
@@ -3952,15 +4772,32 @@ mod tests {
         // 任务硬约束：type1 卖（Sell1 触发）REV 腿逻辑不可被改动——
         // R2 开启时 Sell1 腿兑现锚仍是 ZD（c ≤ ZG 不兑现）。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         fx.evs[2] = vec![ev(BspClass::Sell1, true)];
-        let cfg = OrganicConfig { r2_anchor_zg: true, ..cfg_paired(0.0) };
+        let cfg = OrganicConfig {
+            r2_anchor_zg: true,
+            ..cfg_paired(0.0)
+        };
         let mut v = VoiceUnit::new(2);
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.rev.as_ref().unwrap().open_trigger, 1);
@@ -3969,8 +4806,17 @@ mod tests {
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg, &rows, &[], 9.3, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.3,
+                2,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -3978,8 +4824,17 @@ mod tests {
         // c=9.0 触 ZD → 原锚兑现
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg, &rows, &[], 9.0, 3, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            9.0,
+            3,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert_eq!(fx.counters.n_rev_zd_close, 1);
@@ -3990,15 +4845,32 @@ mod tests {
         // R3：盘背触发腿 candidate Buy3 无次级别证据 → t6 抑制；
         // 证据齐 ∧ 低点>ZG → t6 触发。（作用域 = trigger==2。）
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         fx.devs[2] = vec![dev(DivKind::Consolidation, Direction::Up)];
-        let cfg = OrganicConfig { r3_t6_sub_confirm: true, ..cfg_paired(0.0) };
+        let cfg = OrganicConfig {
+            r3_t6_sub_confirm: true,
+            ..cfg_paired(0.0)
+        };
         let mut v = VoiceUnit::new(2);
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -4008,8 +4880,17 @@ mod tests {
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg, &rows, &[], 9.7, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.7,
+                2,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -4020,8 +4901,17 @@ mod tests {
             let mut rows = empty_rows(&fx.evs, &fx.devs);
             rows.buy_any = LadderMask(1 << 1);
             v.step(
-                &cfg, &rows, &[], 9.8, 3, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.8,
+                3,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::UpLeg);
@@ -4032,15 +4922,32 @@ mod tests {
     fn r3_holds_t6_when_pullback_low_reentered_center() {
         // R3：盘背触发腿回拉低点 ≤ ZG（已重回中枢）→ 即使次级别证据在，t6 仍抑制。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         fx.devs[2] = vec![dev(DivKind::Consolidation, Direction::Up)];
-        let cfg = OrganicConfig { r3_t6_sub_confirm: true, ..cfg_paired(0.0) };
+        let cfg = OrganicConfig {
+            r3_t6_sub_confirm: true,
+            ..cfg_paired(0.0)
+        };
         let mut v = VoiceUnit::new(2);
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         // bar 2：c=9.3 ≤ ZG（低点重回中枢；无 R2 ⇒ 不在此兑现，ZD 未触）
@@ -4048,8 +4955,17 @@ mod tests {
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg, &rows, &[], 9.3, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.3,
+                2,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -4058,8 +4974,17 @@ mod tests {
         let mut rows = empty_rows(&fx.evs, &fx.devs);
         rows.buy_any = LadderMask(1 << 1);
         v.step(
-            &cfg, &rows, &[], 9.8, 3, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            9.8,
+            3,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::DownLeg);
         assert_eq!(fx.counters.n_rev_r3_holds, 1);
@@ -4068,38 +4993,78 @@ mod tests {
 
     fn cfg_sub1() -> OrganicConfig {
         // V2of 语义（震荡型独占 + rev_paired）+ 深度1 递归子 LOU
-        OrganicConfig { rev_sub_depth: 1, rev_escape_open: false, ..cfg_paired(0.0) }
+        OrganicConfig {
+            rev_sub_depth: 1,
+            rev_escape_open: false,
+            ..cfg_paired(0.0)
+        }
     }
 
     /// 父 REV 开在 ladder 3 → 子反弹腿（Long）开闭于 ladder 2 的存活中枢域。
     fn open_parent_and_sub(fx: &mut Fixture, v: &mut VoiceUnit) {
         // bar1：ladder 3 confirmed Sell1 × 存活中枢 [9.0,9.5] → 父 REV 开 @9.6
-        fx.book.ingest(3, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            3,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         fx.evs[3] = vec![ev(BspClass::Sell1, true)];
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg_sub1(), &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 5,
-                &|_| 0.5, &mut fx.counters,
+                &cfg_sub1(),
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                5,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
         assert!(fx.ledger.open_slot(SlotKey::rev(3, 3)).is_some());
         // bar2：ladder 2 存活中枢 [9.1,9.4] + confirmed Buy1 → 子腿先买 @9.2
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 11, 9.1, 9.4)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 11, 9.1, 9.4)],
+            true,
+            None,
+        );
         fx.evs[3].clear();
         fx.evs[2] = vec![ev(BspClass::Buy1, true)];
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_sub1(), &rows, &[], 9.2, 2, &mut fx.ledger, &fx.book, &fx.gate, 5,
-            &|_| 0.5, &mut fx.counters,
+            &cfg_sub1(),
+            &rows,
+            &[],
+            9.2,
+            2,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            5,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(fx.counters.n_sub_open, 1);
         let sub_key = SlotKey::rev_path(3, RevPath::single(3).child(2));
         let leg = fx.ledger.open_slot(sub_key).expect("子腿槽开放");
         assert_eq!(leg.cycle.shares, 50.0); // 预算基 = 父腿敞口（100×0.5）
-        // 深度预算：depth1 配置下不再生成 depth2 子节点
-        assert!(v.rev.as_ref().unwrap().sub.as_ref().unwrap().child.is_none());
+                                            // 深度预算：depth1 配置下不再生成 depth2 子节点
+        assert!(v
+            .rev
+            .as_ref()
+            .unwrap()
+            .sub
+            .as_ref()
+            .unwrap()
+            .child
+            .is_none());
     }
 
     #[test]
@@ -4111,8 +5076,17 @@ mod tests {
         fx.evs[2] = vec![ev_anchored(BspClass::Sell1, true, 11, 9.1, 9.4)];
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_sub1(), &rows, &[], 9.35, 3, &mut fx.ledger, &fx.book, &fx.gate, 5,
-            &|_| 0.5, &mut fx.counters,
+            &cfg_sub1(),
+            &rows,
+            &[],
+            9.35,
+            3,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            5,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(fx.counters.n_sub_close, 1);
         assert_eq!(fx.counters.sub_pairs, 1);
@@ -4135,8 +5109,17 @@ mod tests {
         fx.evs[2].clear();
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_sub1(), &rows, &[], 9.0, 3, &mut fx.ledger, &fx.book, &fx.gate, 5,
-            &|_| 0.5, &mut fx.counters,
+            &cfg_sub1(),
+            &rows,
+            &[],
+            9.0,
+            3,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            5,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(v.phase, VoicePhase::UpLeg);
         assert!(v.rev.is_none());
@@ -4156,22 +5139,50 @@ mod tests {
         // 经济终止条件：子中枢振幅 (9.205−9.195)/9.2 ≈ 0.011% < 2×0.1% → 拒
         let mut fx = Fixture::new();
         let mut v = VoiceUnit::new(3);
-        fx.book.ingest(3, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            3,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         fx.evs[3] = vec![ev(BspClass::Sell1, true)];
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg_sub1(), &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 5,
-                &|_| 0.5, &mut fx.counters,
+                &cfg_sub1(),
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                5,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 11, 9.195, 9.205)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 11, 9.195, 9.205)],
+            true,
+            None,
+        );
         fx.evs[3].clear();
         fx.evs[2] = vec![ev(BspClass::Buy1, true)];
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_sub1(), &rows, &[], 9.2, 2, &mut fx.ledger, &fx.book, &fx.gate, 5,
-            &|_| 0.5, &mut fx.counters,
+            &cfg_sub1(),
+            &rows,
+            &[],
+            9.2,
+            2,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            5,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(fx.counters.n_sub_amp_rejects, 1);
         assert_eq!(fx.counters.n_sub_open, 0);
@@ -4182,13 +5193,27 @@ mod tests {
         // 存在论终止：voice k=2 的子级别 1 是 bi 级（无中枢概念）→ 节点不实例化
         let mut fx = Fixture::new();
         let mut v = VoiceUnit::new(2);
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         fx.evs[2] = vec![ev(BspClass::Sell1, true)];
         {
             let rows = empty_rows(&fx.evs, &fx.devs);
             v.step(
-                &cfg_sub1(), &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 5,
-                &|_| 0.5, &mut fx.counters,
+                &cfg_sub1(),
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                5,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(v.phase, VoicePhase::DownLeg);
@@ -4196,8 +5221,17 @@ mod tests {
         fx.evs[1] = vec![ev(BspClass::Buy1, true)];
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg_sub1(), &rows, &[], 9.2, 2, &mut fx.ledger, &fx.book, &fx.gate, 5,
-            &|_| 0.5, &mut fx.counters,
+            &cfg_sub1(),
+            &rows,
+            &[],
+            9.2,
+            2,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            5,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert!(v.rev.as_ref().unwrap().sub.is_none());
         assert_eq!(fx.counters.n_sub_open, 0);
@@ -4207,15 +5241,29 @@ mod tests {
     fn osc_subloop_p5_open_close() {
         // P5 域腿逐字：c≥ZG ∧ sub_sell 开；c≤锚ZD 关
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         let cfg = OrganicConfig::default(); // O0：rev 关
         let mut v = VoiceUnit::new(2);
         {
             let mut rows = empty_rows(&fx.evs, &fx.devs);
             rows.sell_any = LadderMask(1 << 1); // sub_sell = sell_any[k-1]
             v.step(
-                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(fx.counters.n_osc_open, 1);
@@ -4223,8 +5271,17 @@ mod tests {
         // 触 ZD 回补
         let rows = empty_rows(&fx.evs, &fx.devs);
         v.step(
-            &cfg, &rows, &[], 9.0, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            9.0,
+            2,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(fx.counters.n_osc_zd_close, 1);
         assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_none());
@@ -4234,7 +5291,10 @@ mod tests {
     /// → 振幅达标放行；闭腿路径零接触（只挡开腿）。
     #[test]
     fn osc_amp_gate_noref_thin_then_pass_close_untouched() {
-        let cfg = OrganicConfig { osc_amp_gate: true, ..OrganicConfig::default() };
+        let cfg = OrganicConfig {
+            osc_amp_gate: true,
+            ..OrganicConfig::default()
+        };
         let open_ev = ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5);
 
         // 阶段1：DepthRef 空参照（warm-up）⇒ noref 保守拒
@@ -4247,8 +5307,17 @@ mod tests {
             rows.sell_any = LadderMask(1 << 1);
             rows.depth = Some(&dr);
             v.step(
-                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(fx.counters.n_osc_open, 0);
@@ -4260,13 +5329,17 @@ mod tests {
             let mut dr = DepthRef::new(50);
             let mut feed_book = CenterBook::new();
             for &(cs, zd, zg) in amps {
-                feed_book.ingest(2, &[ev_anchored(BspClass::Sell1, true, cs, zd, zg)], true, None);
+                feed_book.ingest(
+                    2,
+                    &[ev_anchored(BspClass::Sell1, true, cs, zd, zg)],
+                    true,
+                    None,
+                );
                 dr.observe(&feed_book, 100.0);
             }
             dr
         };
-        let thin: Vec<(i64, f64, f64)> =
-            (0..10).map(|j| (10 + j, 50.0, 50.01)).collect();
+        let thin: Vec<(i64, f64, f64)> = (0..10).map(|j| (10 + j, 50.0, 50.01)).collect();
         let dr_thin = feed(&thin);
         let mut fx2 = Fixture::new();
         fx2.book.ingest(2, &[open_ev.clone()], true, None);
@@ -4276,8 +5349,17 @@ mod tests {
             rows.sell_any = LadderMask(1 << 1);
             rows.depth = Some(&dr_thin);
             v2.step(
-                &cfg, &rows, &[], 9.6, 1, &mut fx2.ledger, &fx2.book, &fx2.gate, 4,
-                &|_| 0.5, &mut fx2.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx2.ledger,
+                &fx2.book,
+                &fx2.gate,
+                4,
+                &|_| 0.5,
+                &mut fx2.counters,
             );
         }
         assert_eq!(fx2.counters.n_osc_open, 0);
@@ -4286,8 +5368,7 @@ mod tests {
 
         // 阶段3：10 个 1% 振幅中枢 ⇒ θ_q=1% ≥ 0.2% ⇒ 准入开腿；
         // 闭腿（ZD 触线）不过门——只挡开腿
-        let wide: Vec<(i64, f64, f64)> =
-            (0..10).map(|j| (10 + j, 50.0, 51.0)).collect();
+        let wide: Vec<(i64, f64, f64)> = (0..10).map(|j| (10 + j, 50.0, 51.0)).collect();
         let dr_wide = feed(&wide);
         let mut fx3 = Fixture::new();
         fx3.book.ingest(2, &[open_ev], true, None);
@@ -4297,8 +5378,17 @@ mod tests {
             rows.sell_any = LadderMask(1 << 1);
             rows.depth = Some(&dr_wide);
             v3.step(
-                &cfg, &rows, &[], 9.6, 1, &mut fx3.ledger, &fx3.book, &fx3.gate, 4,
-                &|_| 0.5, &mut fx3.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx3.ledger,
+                &fx3.book,
+                &fx3.gate,
+                4,
+                &|_| 0.5,
+                &mut fx3.counters,
             );
         }
         assert_eq!(fx3.counters.n_osc_open, 1, "振幅达标 → 准入");
@@ -4307,8 +5397,17 @@ mod tests {
             // 闭腿 bar 不喂 depth——闭腿路径不读门（读了会 panic capability expect）
             rows.depth = None;
             v3.step(
-                &cfg, &rows, &[], 9.0, 2, &mut fx3.ledger, &fx3.book, &fx3.gate, 4,
-                &|_| 0.5, &mut fx3.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.0,
+                2,
+                &mut fx3.ledger,
+                &fx3.book,
+                &fx3.gate,
+                4,
+                &|_| 0.5,
+                &mut fx3.counters,
             );
         }
         assert_eq!(fx3.counters.n_osc_zd_close, 1, "闭腿零接触");
@@ -4320,8 +5419,16 @@ mod tests {
         // 41课域腿门：父级别（k+1=3）相邻 Up 段创新高且无盘整背驰 ⇒ osc 拒开；
         // 盘整背驰出现（衰竭证据）⇒ 门开，osc 正常开腿。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
-        let cfg = OrganicConfig { osc_l41_gate: true, ..OrganicConfig::default() };
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
+        let cfg = OrganicConfig {
+            osc_l41_gate: true,
+            ..OrganicConfig::default()
+        };
         let mut te = super::super::trend_exhaustion::TrendExhaustion::new();
         let devs_empty: [Vec<DivEvent>; MAX_LADDER] = Default::default();
         // 父级别 ladder 3 走出两个创新高 Up 段（上涨趋势未完）
@@ -4340,8 +5447,17 @@ mod tests {
             rows.sell_any = LadderMask(1 << 1); // sub_sell = sell_any[k-1]
             rows.l41 = Some(&te);
             v.step(
-                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(fx.counters.n_osc_open, 0);
@@ -4364,8 +5480,17 @@ mod tests {
             rows.sell_any = LadderMask(1 << 1);
             rows.l41 = Some(&te);
             v.step(
-                &cfg, &rows, &[], 9.6, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                2,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(fx.counters.n_osc_open, 1);
@@ -4378,7 +5503,12 @@ mod tests {
         // osc 操作域严格化：锚中枢所在走势（trend_row[k]）kind==Trend ⇒
         // 操作对象不存在不开；kind==Consolidation ⇒ 38课域内正常开。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         let cfg = OrganicConfig {
             osc_domain: OscDomain::ConsolidationOnly,
             ..OrganicConfig::default()
@@ -4391,8 +5521,17 @@ mod tests {
             rows.sell_any = LadderMask(1 << 1); // sub_sell = sell_any[k-1]
             rows.trend_row = Some(&trow);
             v.step(
-                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(fx.counters.n_osc_open, 0);
@@ -4406,8 +5545,17 @@ mod tests {
             rows.sell_any = LadderMask(1 << 1);
             rows.trend_row = Some(&trow);
             v.step(
-                &cfg, &rows, &[], 9.6, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                2,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(fx.counters.n_osc_open, 1);
@@ -4420,7 +5568,12 @@ mod tests {
         // 域只定义开腿对象——已开腿在走势翻趋势后照常按 ZD 触线回补
         // （闭腿是兑现路径，不是操作对象选择）。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         let cfg = OrganicConfig {
             osc_domain: OscDomain::ConsolidationOnly,
             ..OrganicConfig::default()
@@ -4432,8 +5585,17 @@ mod tests {
             rows.sell_any = LadderMask(1 << 1);
             rows.trend_row = Some(&trow);
             v.step(
-                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(fx.counters.n_osc_open, 1);
@@ -4442,8 +5604,17 @@ mod tests {
         let mut rows = empty_rows(&fx.evs, &fx.devs);
         rows.trend_row = Some(&trow);
         v.step(
-            &cfg, &rows, &[], 9.0, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            9.0,
+            2,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(fx.counters.n_osc_zd_close, 1);
         assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_none());
@@ -4455,8 +5626,18 @@ mod tests {
         // （c≥ZG(k+1)∧sub_sell(k)）、锚（k+1 中枢快照、kind=OscUp）全部
         // 按 k+1 级别；k 层中枢即使满足触发条件也不开（趋势态 k 层永不开）。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
-        fx.book.ingest(3, &[ev_anchored(BspClass::Sell1, true, 7, 19.0, 19.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
+        fx.book.ingest(
+            3,
+            &[ev_anchored(BspClass::Sell1, true, 7, 19.0, 19.5)],
+            true,
+            None,
+        );
         let cfg = OrganicConfig {
             osc_domain: OscDomain::TrendUpshift,
             ..OrganicConfig::default()
@@ -4471,15 +5652,27 @@ mod tests {
             rows.sell_any = LadderMask((1 << 2) | (1 << 1));
             rows.trend_row = Some(&trow);
             v.step(
-                &cfg, &rows, &[], 19.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                19.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(fx.counters.n_osc_open, 1);
         assert_eq!(fx.counters.n_osc_upshift_open, 1);
         assert_eq!(fx.counters.osc_upshift_open_log, vec![(2, 1)]);
         assert_eq!(fx.counters.n_osc_domain_rejects, 0); // 重路由非删除
-        let leg = fx.ledger.open_slot(SlotKey::osc(2)).expect("上移腿占 k 层槽");
+        let leg = fx
+            .ledger
+            .open_slot(SlotKey::osc(2))
+            .expect("上移腿占 k 层槽");
         assert!(matches!(
             leg.anchor,
             LegAnchor::Center {
@@ -4496,7 +5689,12 @@ mod tests {
         // 趋势态 k+1 无中枢 ⇒ 自然不开（机制预测：负域浅回调在 k+1 无
         // 信号）；k 层中枢满足触发条件也不开——重路由不是 fallback。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         let cfg = OrganicConfig {
             osc_domain: OscDomain::TrendUpshift,
             ..OrganicConfig::default()
@@ -4509,8 +5707,17 @@ mod tests {
             rows.sell_any = LadderMask((1 << 2) | (1 << 1)); // k 层触发条件齐备
             rows.trend_row = Some(&trow);
             v.step(
-                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(fx.counters.n_osc_open, 0);
@@ -4523,7 +5730,12 @@ mod tests {
         // 盘整态维持 k 层原路径（ConsolidationOnly 放行分支同语义）——
         // 锚 kind=Osc、boundary=k 层 ZD，upshift 计数零。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
         let cfg = OrganicConfig {
             osc_domain: OscDomain::TrendUpshift,
             ..OrganicConfig::default()
@@ -4535,8 +5747,17 @@ mod tests {
             rows.sell_any = LadderMask(1 << 1); // k 层次级别卖点
             rows.trend_row = Some(&trow);
             v.step(
-                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                9.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(fx.counters.n_osc_open, 1);
@@ -4553,8 +5774,18 @@ mod tests {
         // 上移腿的出口跟随锚层：ZD 触线判据用 k+1 中枢边界（19.0），
         // k 层中枢边界（9.0）不被消费。
         let mut fx = Fixture::new();
-        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
-        fx.book.ingest(3, &[ev_anchored(BspClass::Sell1, true, 7, 19.0, 19.5)], true, None);
+        fx.book.ingest(
+            2,
+            &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)],
+            true,
+            None,
+        );
+        fx.book.ingest(
+            3,
+            &[ev_anchored(BspClass::Sell1, true, 7, 19.0, 19.5)],
+            true,
+            None,
+        );
         let cfg = OrganicConfig {
             osc_domain: OscDomain::TrendUpshift,
             ..OrganicConfig::default()
@@ -4567,8 +5798,17 @@ mod tests {
             rows.sell_any = LadderMask(1 << 2);
             rows.trend_row = Some(&trow);
             v.step(
-                &cfg, &rows, &[], 19.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
-                &|_| 0.5, &mut fx.counters,
+                &cfg,
+                &rows,
+                &[],
+                19.6,
+                1,
+                &mut fx.ledger,
+                &fx.book,
+                &fx.gate,
+                4,
+                &|_| 0.5,
+                &mut fx.counters,
             );
         }
         assert_eq!(fx.counters.n_osc_upshift_open, 1);
@@ -4577,8 +5817,17 @@ mod tests {
         let mut rows = empty_rows(&fx.evs, &fx.devs);
         rows.trend_row = Some(&trow);
         v.step(
-            &cfg, &rows, &[], 19.0, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
-            &|_| 0.5, &mut fx.counters,
+            &cfg,
+            &rows,
+            &[],
+            19.0,
+            2,
+            &mut fx.ledger,
+            &fx.book,
+            &fx.gate,
+            4,
+            &|_| 0.5,
+            &mut fx.counters,
         );
         assert_eq!(fx.counters.n_osc_zd_close, 1);
         assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_none());

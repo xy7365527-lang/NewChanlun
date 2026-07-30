@@ -191,14 +191,7 @@ pub fn ref_zhongshus_from_components(segments: &[Segment]) -> Vec<RefZhongshu> {
 }
 
 /// reference v1 核心区间（全三段，`reference:119-120`）—— 契约锚 `Origin.CenterConstruct.refV1Interval`。
-pub fn ref_v1_interval(
-    l0: Tick,
-    h0: Tick,
-    l1: Tick,
-    h1: Tick,
-    l2: Tick,
-    h2: Tick,
-) -> (Tick, Tick) {
+pub fn ref_v1_interval(l0: Tick, h0: Tick, l1: Tick, h1: Tick, l2: Tick, h2: Tick) -> (Tick, Tick) {
     (max3(l0, l1, l2), min3(h0, h1, h2))
 }
 
@@ -218,8 +211,8 @@ pub fn legacy_v0_interval(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::super::types::Direction;
+    use super::*;
 
     /// 构造段（high/low 由 start/end price 编码：up 段 end>start，down 段 start>end）。
     fn seg(si: usize, ei: usize, dir: Direction, sp: Tick, ep: Tick) -> Segment {
@@ -307,8 +300,7 @@ mod tests {
         // 第四段延伸（count→4），第五段 [22,25] low=22>zg=15 离开 ⟹ jOut=4<n=5 settled，break up。
         let seg3 = seg(3, 4, Direction::Down, 16, 13);
         let seg4 = seg(4, 5, Direction::Up, 22, 25); // [low=22, high=25]
-        let zs =
-            ref_zhongshus_from_components(&[ref_seg0(), ref_seg1(), ref_seg2(), seg3, seg4]);
+        let zs = ref_zhongshus_from_components(&[ref_seg0(), ref_seg1(), ref_seg2(), seg3, seg4]);
         assert!(!zs.is_empty());
         assert!(zs[0].settled);
         assert!(zs[0].break_up);

@@ -301,7 +301,13 @@ mod tests {
 
     /// 方向交替单元（默认 up-down-up 用于完整判据正例；几何路径忽略方向）。
     fn unit(si: usize, ei: usize, dir: Direction, lo: Tick, hi: Tick) -> UnitRange {
-        UnitRange { start_index: si, end_index: ei, direction: dir, lo, hi }
+        UnitRange {
+            start_index: si,
+            end_index: ei,
+            direction: dir,
+            lo,
+            hi,
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -310,8 +316,12 @@ mod tests {
 
     /// ★完整判据正例（契约锚 `Origin.CenterComplete.trueCenter_centerConfirmed`，口径 B）：上-下-上，
     /// 全三段核心非空 ⟹ 真中枢。核心取**全三段** [compute_zd, compute_zg]。
-    fn up() -> Direction { Direction::Up }
-    fn down() -> Direction { Direction::Down }
+    fn up() -> Direction {
+        Direction::Up
+    }
+    fn down() -> Direction {
+        Direction::Down
+    }
 
     #[test]
     fn complete_center_confirmed_bit_exact() {
@@ -322,7 +332,10 @@ mod tests {
         let b = unit(4, 8, down(), 12, 20);
         let c = unit(8, 12, up(), 12, 22);
         let center = center_from_segments(&a, &b, &c).expect("完整判据两支全成立 ⟹ 真中枢");
-        assert_eq!((center.zd, center.zg, center.dd, center.gg), (12, 20, 10, 22));
+        assert_eq!(
+            (center.zd, center.zg, center.dd, center.gg),
+            (12, 20, 10, 22)
+        );
         assert_eq!((center.start_index, center.end_index), (0, 12));
     }
 
@@ -336,7 +349,10 @@ mod tests {
         let c = unit(8, 12, up(), 14, 18);
         let center = center_from_segments(&a, &b, &c).expect("全三段核心非空 ⟹ 真中枢");
         // B 收窄：核心 [14,18]（非 A 口径的 [12,20]）。外缘 = 三段 dd=min(10,12,14)=10, gg=max(20,20,18)=20。
-        assert_eq!((center.zd, center.zg, center.dd, center.gg), (14, 18, 10, 20));
+        assert_eq!(
+            (center.zd, center.zg, center.dd, center.gg),
+            (14, 18, 10, 20)
+        );
     }
 
     /// ★完整判据拒绝同向三段（契约锚 `Origin.CenterComplete.sameDir_not_centerConfirmed`）：
@@ -348,7 +364,11 @@ mod tests {
         let a = unit(0, 4, up(), 10, 20);
         let b = unit(4, 8, up(), 18, 25);
         let c = unit(8, 12, up(), 22, 30);
-        assert_eq!(center_from_segments(&a, &b, &c), None, "无方向交替 ⟹ 完整判据拒绝");
+        assert_eq!(
+            center_from_segments(&a, &b, &c),
+            None,
+            "无方向交替 ⟹ 完整判据拒绝"
+        );
         // 但方向交替谓词单独可见（dir_alternates=false）。
         assert!(!dir_alternates(&a, &b, &c));
     }
@@ -368,8 +388,15 @@ mod tests {
         // 全三段核心空（口径 B）= 第三段不贯穿前两段核心（派生谓词 A 口径，两者 637号等价）。
         assert_eq!(compute_zd(&a, &b, &c), 40, "全三段 zd = max(10,12,40)");
         assert_eq!(compute_zg(&a, &b, &c), 20, "全三段 zg = min(20,20,50)");
-        assert!(!third_spans_core(&a, &b, &c), "第三段不贯穿前两段核心（派生谓词）");
-        assert_eq!(center_from_segments(&a, &b, &c), None, "全三段核心空（第三段不贯穿）⟹ 完整判据拒绝");
+        assert!(
+            !third_spans_core(&a, &b, &c),
+            "第三段不贯穿前两段核心（派生谓词）"
+        );
+        assert_eq!(
+            center_from_segments(&a, &b, &c),
+            None,
+            "全三段核心空（第三段不贯穿）⟹ 完整判据拒绝"
+        );
     }
 
     /// ★#328 严格版等价式见证：弱（闭区间）贯穿谓词 ≠ 严格贯穿，且「每段 `lo<hi`」前提不可省。
@@ -383,16 +410,32 @@ mod tests {
         let b = unit(4, 8, down(), 0, 10);
         let c = unit(8, 12, up(), 10, 20);
         assert!(third_spans_core(&a, &b, &c), "闭区间（弱）贯穿：相切算贯穿");
-        assert_eq!(compute_zd(&a, &b, &c), compute_zg(&a, &b, &c), "ZD_B==ZG_B=10（单点核心）");
-        assert_eq!(center_from_segments(&a, &b, &c), None, "严格口径拒绝单点核心 ⟹ 弱谓词非充分条件");
+        assert_eq!(
+            compute_zd(&a, &b, &c),
+            compute_zg(&a, &b, &c),
+            "ZD_B==ZG_B=10（单点核心）"
+        );
+        assert_eq!(
+            center_from_segments(&a, &b, &c),
+            None,
+            "严格口径拒绝单点核心 ⟹ 弱谓词非充分条件"
+        );
 
         // (2) 前提反例：c=[5,5] 退化段（满足 lo<=hi、不满足 lo<hi）——严格贯穿右边全真但左边假。
         let c_deg = unit(8, 12, up(), 5, 5);
         let (zd2, zg2) = (a.lo.max(b.lo), a.hi.min(b.hi));
         assert!(zd2 < zg2, "前两段核心严格非空");
         assert!(c_deg.lo < zg2 && zd2 < c_deg.hi, "第三段严格贯穿前两段核心");
-        assert_eq!(compute_zd(&a, &b, &c_deg), compute_zg(&a, &b, &c_deg), "但退化段令 ZD_B==ZG_B=5");
-        assert_eq!(center_from_segments(&a, &b, &c_deg), None, "⟹ 等价式必须显式带「每段 lo<hi」前提");
+        assert_eq!(
+            compute_zd(&a, &b, &c_deg),
+            compute_zg(&a, &b, &c_deg),
+            "但退化段令 ZD_B==ZG_B=5"
+        );
+        assert_eq!(
+            center_from_segments(&a, &b, &c_deg),
+            None,
+            "⟹ 等价式必须显式带「每段 lo<hi」前提"
+        );
     }
 
     /// ★完整判据拒绝核心空（前两段无重叠）：zd>zg ⟹ 拒绝（即使方向交替）。
@@ -403,7 +446,11 @@ mod tests {
         let a = unit(0, 4, up(), 0, 4);
         let b = unit(4, 8, down(), 10, 14);
         let c = unit(8, 12, up(), 5, 9);
-        assert_eq!(center_from_segments(&a, &b, &c), None, "前两段核心空 ⟹ 拒绝");
+        assert_eq!(
+            center_from_segments(&a, &b, &c),
+            None,
+            "前两段核心空 ⟹ 拒绝"
+        );
     }
 
     /// 完整判据严格强于几何路径（对齐 `Origin.CenterComplete.complete_strictly_refines_centerHolds`）：
@@ -416,9 +463,16 @@ mod tests {
         let b = unit(4, 8, up(), 18, 25);
         let c = unit(8, 12, up(), 18, 22);
         // 几何路径（忽略方向）接受。
-        assert!(center_from_window(&a, &b, &c).is_some(), "几何路径接受同向（不查方向）");
+        assert!(
+            center_from_window(&a, &b, &c).is_some(),
+            "几何路径接受同向（不查方向）"
+        );
         // 完整判据拒绝（无方向交替）。
-        assert_eq!(center_from_segments(&a, &b, &c), None, "完整判据拒绝同向（查方向交替）");
+        assert_eq!(
+            center_from_segments(&a, &b, &c),
+            None,
+            "完整判据拒绝同向（查方向交替）"
+        );
     }
 
     /// ★#321 裁定新增（先红后绿）：完整判据 `center_from_segments` 单点核心 `ZD==ZG` **不成立**。
@@ -438,7 +492,10 @@ mod tests {
         let a = unit(0, 4, up(), 0, 5);
         let b = unit(4, 8, down(), 5, 10);
         let c = unit(8, 12, up(), 3, 5);
-        assert!(dir_alternates(&a, &b, &c), "支1（方向交替）预先成立，排除干扰");
+        assert!(
+            dir_alternates(&a, &b, &c),
+            "支1（方向交替）预先成立，排除干扰"
+        );
         assert_eq!(compute_zd(&a, &b, &c), 5);
         assert_eq!(compute_zg(&a, &b, &c), 5);
         assert!(
@@ -480,7 +537,11 @@ mod tests {
         let a = unit(0, 4, up(), 0, 5);
         let b = unit(4, 8, down(), 5, 10);
         let c = unit(8, 12, up(), 10, 12);
-        assert_eq!(center_from_window(&a, &b, &c), None, "全三段核心空（第三段不贯穿）⟹ 非中枢");
+        assert_eq!(
+            center_from_window(&a, &b, &c),
+            None,
+            "全三段核心空（第三段不贯穿）⟹ 非中枢"
+        );
     }
 
     /// ★本用例固化的是旧弱口径（zd==zg 单点核心闭区间合法 ⟹ 成立）；#321 裁定后期望翻转：
@@ -503,7 +564,14 @@ mod tests {
     }
 
     fn center(dd: Tick, zd: Tick, zg: Tick, gg: Tick) -> Center {
-        Center { zd, zg, dd, gg, start_index: 0, end_index: 0 }
+        Center {
+            zd,
+            zg,
+            dd,
+            gg,
+            start_index: 0,
+            end_index: 0,
+        }
     }
 
     #[test]
@@ -511,7 +579,10 @@ mod tests {
         // prev 外缘[0,8]，next 外缘[9,15]：next.dd=9 > prev.gg=8 ⟹ up（chain2_up 同构）。
         let prev = center(0, 2, 5, 8);
         let next = center(9, 10, 13, 15);
-        assert_eq!(classify_relation(&prev, &next), CenterRelation::UpContinuation);
+        assert_eq!(
+            classify_relation(&prev, &next),
+            CenterRelation::UpContinuation
+        );
     }
 
     #[test]
@@ -519,7 +590,10 @@ mod tests {
         // prev 外缘[9,15]，next 外缘[0,8]：next.gg=8 < prev.dd=9 ⟹ down。
         let prev = center(9, 10, 13, 15);
         let next = center(0, 2, 5, 8);
-        assert_eq!(classify_relation(&prev, &next), CenterRelation::DownContinuation);
+        assert_eq!(
+            classify_relation(&prev, &next),
+            CenterRelation::DownContinuation
+        );
     }
 
     #[test]
@@ -527,7 +601,10 @@ mod tests {
         // codex 见证 prev=(0,2,5,8), next=(4,6,9,11)：核心分离 + 外缘重叠 ⟹ expansion。
         let prev = center(0, 2, 5, 8);
         let next = center(4, 6, 9, 11);
-        assert_eq!(classify_relation(&prev, &next), CenterRelation::LevelExpansion);
+        assert_eq!(
+            classify_relation(&prev, &next),
+            CenterRelation::LevelExpansion
+        );
     }
 
     #[test]

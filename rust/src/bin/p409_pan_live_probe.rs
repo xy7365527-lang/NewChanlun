@@ -47,7 +47,6 @@
 //! （逐 entry JSONL）、`P409_PROGRESS`（进度行间隔 bar 数，默认 50000）。
 //! 用法：`cargo run --release --bin p409_pan_live_probe -- <bars.json>`
 
-use newchan_rust::theta_v0::classifier::{self, decompose};
 use newchan_rust::theta_v0::classifier::divergence::segments_diverge_or;
 use newchan_rust::theta_v0::classifier::level_view::{
     lower_legs_from, project_extended_windows_carried_only, LowerLeg,
@@ -58,6 +57,7 @@ use newchan_rust::theta_v0::classifier::nest_lifecycle::{
     UnavailReason, VanishCause,
 };
 use newchan_rust::theta_v0::classifier::recursive_tower::{map_src_to_close_idx, LeveledMove};
+use newchan_rust::theta_v0::classifier::{self, decompose};
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::ParseLayerIncr;
 use newchan_rust::theta_v0::types::{quantize, Bar, Direction, Segment, Side, Timestamp};
@@ -143,8 +143,10 @@ fn recompute_windows(tower: &[Rc<Vec<LeveledMove>>], as_of: usize) -> Vec<PanLiv
             continue;
         };
         let segments: Vec<Segment> = lower.iter().map(leg_as_segment).collect();
-        let anchors_self: Vec<Option<Direction>> =
-            segments.iter().map(|segment| Some(segment.direction)).collect();
+        let anchors_self: Vec<Option<Direction>> = segments
+            .iter()
+            .map(|segment| Some(segment.direction))
+            .collect();
         let windows = &tower[level];
         let mut run_start = None;
         for index in 0..=windows.len() {
@@ -228,9 +230,7 @@ struct LevelStats {
 
 fn main() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
-    let path = args
-        .next()
-        .ok_or("用法: p409_pan_live_probe <bars.json>")?;
+    let path = args.next().ok_or("用法: p409_pan_live_probe <bars.json>")?;
     if args.next().is_some() {
         return Err("参数过多".to_string());
     }
@@ -323,8 +323,7 @@ fn main() -> Result<(), String> {
             close_src,
         };
 
-        let windows: Vec<PanLiveWindow> =
-            stems.iter().map(|stem| stem.window_at(index)).collect();
+        let windows: Vec<PanLiveWindow> = stems.iter().map(|stem| stem.window_at(index)).collect();
         // 力度三值分布（逐观察计数；终态吸收的身份不再计——与 book 的求值点对齐）。
         let mut expected: BTreeMap<(u32, (usize, usize), usize), ForceTri> = BTreeMap::new();
         for (stem, window) in stems.iter().zip(windows.iter()) {
@@ -355,7 +354,11 @@ fn main() -> Result<(), String> {
 
         // 交叉校验：book 的 revision 流与探针复算的三值一致 + 终态身份登记。
         for revision in &delta {
-            let key = (revision.key.level, revision.key.seg_a, revision.key.seg_c_full.0);
+            let key = (
+                revision.key.level,
+                revision.key.seg_a,
+                revision.key.seg_c_full.0,
+            );
             if matches!(
                 revision.kind,
                 LifecycleRevisionKind::Invalidated { .. } | LifecycleRevisionKind::Confirmed
@@ -533,7 +536,10 @@ fn emit_report(
     for (lag, count) in &first_provable_lag {
         lag_line.push_str(&format!("{lag}:{count} "));
     }
-    println!("P409_FIRST_PROVABLE_LAG_HIST[{tag}] {}", lag_line.trim_end());
+    println!(
+        "P409_FIRST_PROVABLE_LAG_HIST[{tag}] {}",
+        lag_line.trim_end()
+    );
     use std::io::Write as _;
     let _ = std::io::stdout().flush();
 }

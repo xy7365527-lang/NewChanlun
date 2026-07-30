@@ -98,23 +98,35 @@ pub struct Leg {
 impl Leg {
     /// ★零腿 `leg_zero`（L0，契约锚 `SeparateLedger.legZero`）：(q⁺,q⁻)=(0,0)——无任何持仓。
     pub const fn zero() -> Leg {
-        Leg { q_plus: 0, q_minus: 0 }
+        Leg {
+            q_plus: 0,
+            q_minus: 0,
+        }
     }
 
     /// ★多头腿 `leg_long(q)`（L0，q·e⁺_v，契约锚 `SeparateLedger.legLong`）：纯多头持仓 (q, 0)。
     pub const fn long(q: u64) -> Leg {
-        Leg { q_plus: q, q_minus: 0 }
+        Leg {
+            q_plus: q,
+            q_minus: 0,
+        }
     }
 
     /// ★空头腿 `leg_short(q)`（L0，q·e⁻_v，契约锚 `SeparateLedger.legShort`）：纯空头持仓 (0, q)。
     pub const fn short(q: u64) -> Leg {
-        Leg { q_plus: 0, q_minus: q }
+        Leg {
+            q_plus: 0,
+            q_minus: q,
+        }
     }
 
     /// ★对冲腿 `leg_hedged(q)`（L0，q·e⁺_v + q·e⁻_v，契约锚 `SeparateLedger.legHedged`）：
     /// 同股数多空双开 (q, q)。q>0 时**非零**（[`Leg::is_zero`] false）——双开两腿都在、不抵消。
     pub const fn hedged(q: u64) -> Leg {
-        Leg { q_plus: q, q_minus: q }
+        Leg {
+            q_plus: q,
+            q_minus: q,
+        }
     }
 
     /// ★零腿判定 `is_zero`（L0）：两坐标皆 0（多空腿皆空）。对照 `SeparateLedger.legZero` 相等。
@@ -262,7 +274,7 @@ pub fn nu_injective_on(elements: &[SyntaxElement]) -> bool {
 /// 的代数前提，区别于净额账本"翻转丢递归信息"。
 pub fn open_child_leg(parent_long: &Leg, q_child_short: u64) -> Leg {
     Leg {
-        q_plus: parent_long.q_plus,         // 父多头分量不减（不被子空头吞噬）
+        q_plus: parent_long.q_plus, // 父多头分量不减（不被子空头吞噬）
         q_minus: parent_long.q_minus + q_child_short, // 子空头写在独立 q⁻ 坐标
     }
 }
@@ -301,13 +313,34 @@ mod tests {
     /// ★C25 双坐标独立：多头/空头坐标互不影响（构造 (a,b) 时 q⁺只由a定、q⁻只由b定）。
     #[test]
     fn leg_coords_independent() {
-        let l = Leg { q_plus: 3, q_minus: 8 };
+        let l = Leg {
+            q_plus: 3,
+            q_minus: 8,
+        };
         assert_eq!(l.q_plus, 3);
         assert_eq!(l.q_minus, 8);
         // 纯多头/纯空头/对冲三态坐标正交
-        assert_eq!(Leg::long(4), Leg { q_plus: 4, q_minus: 0 });
-        assert_eq!(Leg::short(4), Leg { q_plus: 0, q_minus: 4 });
-        assert_eq!(Leg::hedged(4), Leg { q_plus: 4, q_minus: 4 });
+        assert_eq!(
+            Leg::long(4),
+            Leg {
+                q_plus: 4,
+                q_minus: 0
+            }
+        );
+        assert_eq!(
+            Leg::short(4),
+            Leg {
+                q_plus: 0,
+                q_minus: 4
+            }
+        );
+        assert_eq!(
+            Leg::hedged(4),
+            Leg {
+                q_plus: 4,
+                q_minus: 4
+            }
+        );
     }
 
     /// ★C26 净额只对单向持仓忠实（契约锚 `net_long_faithful`）：纯多头腿 (q,0) 净额=q。
@@ -377,26 +410,53 @@ mod tests {
     /// ★C29 向上元素被多头腿吃到：ε_e=+1（Long）整区间 [0,3) 规范腿 ν=0 持 q⁺=5 ∧ q⁻=0 ⟹ Eat^sep。
     #[test]
     fn eat_sep_long_element() {
-        let e = SyntaxElement { lo: 0, hi: 3, dir: Side::Long, target: 5, nu: 0 };
+        let e = SyntaxElement {
+            lo: 0,
+            hi: 3,
+            dir: Side::Long,
+            target: 5,
+            nu: 0,
+        };
         // 整区间规范腿 ν=0 = 多头腿 (5,0)。
         let pos: SepPosition = vec![Leg::long(5)];
-        assert!(eat_sep(&e, |_t| &pos), "向上元素由多头腿 (5,0) 整区间覆盖 ⟹ Eat^sep");
+        assert!(
+            eat_sep(&e, |_t| &pos),
+            "向上元素由多头腿 (5,0) 整区间覆盖 ⟹ Eat^sep"
+        );
     }
 
     /// ★C29 向下元素被空头腿吃到：ε_e=-1（Short）整区间规范腿持 q⁺=0 ∧ q⁻=s_e ⟹ Eat^sep。
     #[test]
     fn eat_sep_short_element() {
-        let e = SyntaxElement { lo: 0, hi: 3, dir: Side::Short, target: 5, nu: 0 };
+        let e = SyntaxElement {
+            lo: 0,
+            hi: 3,
+            dir: Side::Short,
+            target: 5,
+            nu: 0,
+        };
         let pos: SepPosition = vec![Leg::short(5)];
-        assert!(eat_sep(&e, |_t| &pos), "向下元素由空头腿 (0,5) 整区间覆盖 ⟹ Eat^sep");
+        assert!(
+            eat_sep(&e, |_t| &pos),
+            "向下元素由空头腿 (0,5) 整区间覆盖 ⟹ Eat^sep"
+        );
     }
 
     /// ★C29 反向腿不吃到：向上元素 (ε=+1) 但规范腿是空头腿 (0,5) ⟹ ¬Eat^sep（方向必要性）。
     #[test]
     fn eat_sep_wrong_direction() {
-        let e = SyntaxElement { lo: 0, hi: 3, dir: Side::Long, target: 5, nu: 0 };
+        let e = SyntaxElement {
+            lo: 0,
+            hi: 3,
+            dir: Side::Long,
+            target: 5,
+            nu: 0,
+        };
         let pos: SepPosition = vec![Leg::short(5)]; // 空头腿，与向上元素反向
-        assert!(!eat_sep(&e, |_t| &pos), "向上元素由空头腿覆盖 ⟹ 不吃到（q⁺=0≠5）");
+        assert!(
+            !eat_sep(&e, |_t| &pos),
+            "向上元素由空头腿覆盖 ⟹ 不吃到（q⁺=0≠5）"
+        );
     }
 
     /// ★C29 双开腿不吃到向上元素：双开 (5,5) 的 q⁻=5≠0 ⟹ ¬Eat^sep（向上要求 q⁻=0，不抵消语义）。
@@ -404,23 +464,47 @@ mod tests {
     /// 故双开**不**满足单方向 Eat^sep（双开是父子两元素各自的腿，非单元素的吃到）。
     #[test]
     fn eat_sep_hedged_not_eaten_as_long() {
-        let e = SyntaxElement { lo: 0, hi: 3, dir: Side::Long, target: 5, nu: 0 };
+        let e = SyntaxElement {
+            lo: 0,
+            hi: 3,
+            dir: Side::Long,
+            target: 5,
+            nu: 0,
+        };
         let pos: SepPosition = vec![Leg::hedged(5)]; // (5,5)
-        assert!(!eat_sep(&e, |_t| &pos), "双开 (5,5) 的 q⁻=5≠0 ⟹ 不满足向上 Eat^sep（要求 q⁻=0）");
+        assert!(
+            !eat_sep(&e, |_t| &pos),
+            "双开 (5,5) 的 q⁻=5≠0 ⟹ 不满足向上 Eat^sep（要求 q⁻=0）"
+        );
     }
 
     /// ★C29 单位数不符不吃到：规范腿持 q⁺=3≠target=5 ⟹ ¬Eat^sep（C07 同单位数吃到的必要性）。
     #[test]
     fn eat_sep_wrong_units() {
-        let e = SyntaxElement { lo: 0, hi: 3, dir: Side::Long, target: 5, nu: 0 };
+        let e = SyntaxElement {
+            lo: 0,
+            hi: 3,
+            dir: Side::Long,
+            target: 5,
+            nu: 0,
+        };
         let pos: SepPosition = vec![Leg::long(3)]; // 单位数 3 ≠ 目标 5
-        assert!(!eat_sep(&e, |_t| &pos), "q⁺=3≠s_e=5 ⟹ 不吃到（同单位数吃到要求 q⁺=s_e）");
+        assert!(
+            !eat_sep(&e, |_t| &pos),
+            "q⁺=3≠s_e=5 ⟹ 不吃到（同单位数吃到要求 q⁺=s_e）"
+        );
     }
 
     /// ★C29 区间内中断不吃到：某时刻规范腿空仓 ⟹ ¬Eat^sep（必须整区间覆盖）。
     #[test]
     fn eat_sep_interval_break() {
-        let e = SyntaxElement { lo: 0, hi: 3, dir: Side::Long, target: 5, nu: 0 };
+        let e = SyntaxElement {
+            lo: 0,
+            hi: 3,
+            dir: Side::Long,
+            target: 5,
+            nu: 0,
+        };
         let covered: SepPosition = vec![Leg::long(5)];
         let empty: SepPosition = vec![Leg::zero()];
         // t=1 时空仓，整区间覆盖被打断。
@@ -431,38 +515,98 @@ mod tests {
     /// ★C29 规范腿索引越界不吃到：ν(e)=2 但头寸只有 1 个声部 ⟹ ¬Eat^sep（规范腿不存在）。
     #[test]
     fn eat_sep_nu_out_of_bounds() {
-        let e = SyntaxElement { lo: 0, hi: 3, dir: Side::Long, target: 5, nu: 2 };
+        let e = SyntaxElement {
+            lo: 0,
+            hi: 3,
+            dir: Side::Long,
+            target: 5,
+            nu: 2,
+        };
         let pos: SepPosition = vec![Leg::long(5)]; // 只有声部 0
-        assert!(!eat_sep(&e, |_t| &pos), "ν=2 越界（头寸只有声部 0）⟹ 规范腿不存在 ⟹ 不吃到");
+        assert!(
+            !eat_sep(&e, |_t| &pos),
+            "ν=2 越界（头寸只有声部 0）⟹ 规范腿不存在 ⟹ 不吃到"
+        );
     }
 
     /// ★C29 不良构元素不吃到：空区间（lo=hi）⟹ ¬Eat^sep（元素须良构）。
     #[test]
     fn eat_sep_ill_formed() {
-        let empty_interval = SyntaxElement { lo: 3, hi: 3, dir: Side::Long, target: 5, nu: 0 };
+        let empty_interval = SyntaxElement {
+            lo: 3,
+            hi: 3,
+            dir: Side::Long,
+            target: 5,
+            nu: 0,
+        };
         let pos: SepPosition = vec![Leg::long(5)];
-        assert!(!eat_sep(&empty_interval, |_t| &pos), "空区间 lo=hi ⟹ 不良构 ⟹ 不吃到");
-        let zero_target = SyntaxElement { lo: 0, hi: 3, dir: Side::Long, target: 0, nu: 0 };
-        assert!(!eat_sep(&zero_target, |_t| &pos), "target=0 ⟹ 不良构 ⟹ 不吃到");
+        assert!(
+            !eat_sep(&empty_interval, |_t| &pos),
+            "空区间 lo=hi ⟹ 不良构 ⟹ 不吃到"
+        );
+        let zero_target = SyntaxElement {
+            lo: 0,
+            hi: 3,
+            dir: Side::Long,
+            target: 0,
+            nu: 0,
+        };
+        assert!(
+            !eat_sep(&zero_target, |_t| &pos),
+            "target=0 ⟹ 不良构 ⟹ 不吃到"
+        );
     }
 
     /// ★C28 ν 单射检查：不同元素规范腿索引两两不同 ⟹ 单射。
     #[test]
     fn nu_injective_holds() {
         let elements = vec![
-            SyntaxElement { lo: 0, hi: 3, dir: Side::Long, target: 5, nu: 0 },
-            SyntaxElement { lo: 0, hi: 2, dir: Side::Short, target: 3, nu: 1 },
-            SyntaxElement { lo: 1, hi: 4, dir: Side::Long, target: 2, nu: 2 },
+            SyntaxElement {
+                lo: 0,
+                hi: 3,
+                dir: Side::Long,
+                target: 5,
+                nu: 0,
+            },
+            SyntaxElement {
+                lo: 0,
+                hi: 2,
+                dir: Side::Short,
+                target: 3,
+                nu: 1,
+            },
+            SyntaxElement {
+                lo: 1,
+                hi: 4,
+                dir: Side::Long,
+                target: 2,
+                nu: 2,
+            },
         ];
-        assert!(nu_injective_on(&elements), "ν=0,1,2 两两不同 ⟹ 单射（每元素一腿）");
+        assert!(
+            nu_injective_on(&elements),
+            "ν=0,1,2 两两不同 ⟹ 单射（每元素一腿）"
+        );
     }
 
     /// ★C28 ν 非单射：两元素共享规范腿索引 ⟹ 非单射（违反"每元素有自己的规范腿"）。
     #[test]
     fn nu_not_injective() {
         let elements = vec![
-            SyntaxElement { lo: 0, hi: 3, dir: Side::Long, target: 5, nu: 0 },
-            SyntaxElement { lo: 1, hi: 4, dir: Side::Short, target: 3, nu: 0 }, // 共享 ν=0
+            SyntaxElement {
+                lo: 0,
+                hi: 3,
+                dir: Side::Long,
+                target: 5,
+                nu: 0,
+            },
+            SyntaxElement {
+                lo: 1,
+                hi: 4,
+                dir: Side::Short,
+                target: 3,
+                nu: 0,
+            }, // 共享 ν=0
         ];
         assert!(!nu_injective_on(&elements), "两元素共享 ν=0 ⟹ 非单射");
     }
@@ -472,14 +616,33 @@ mod tests {
     /// 这是分账本"每元素一腿、多空不抵消"的联合见证（对照净额账本会把父子抵消）。
     #[test]
     fn eat_sep_parent_child_both_eaten() {
-        let parent = SyntaxElement { lo: 0, hi: 3, dir: Side::Long, target: 5, nu: 0 };
-        let child = SyntaxElement { lo: 0, hi: 3, dir: Side::Short, target: 5, nu: 1 };
+        let parent = SyntaxElement {
+            lo: 0,
+            hi: 3,
+            dir: Side::Long,
+            target: 5,
+            nu: 0,
+        };
+        let child = SyntaxElement {
+            lo: 0,
+            hi: 3,
+            dir: Side::Short,
+            target: 5,
+            nu: 1,
+        };
         // 声部 0 = 父多头腿 (5,0)，声部 1 = 子空头腿 (0,5)。两腿在独立坐标，不抵消。
         let pos: SepPosition = vec![Leg::long(5), Leg::short(5)];
         assert!(eat_sep(&parent, |_t| &pos), "父向上元素被声部 0 多头腿吃到");
         assert!(eat_sep(&child, |_t| &pos), "子向下元素被声部 1 空头腿吃到");
-        assert!(nu_injective_on(&[parent, child]), "ν 单射（父 ν=0、子 ν=1）");
+        assert!(
+            nu_injective_on(&[parent, child]),
+            "ν 单射（父 ν=0、子 ν=1）"
+        );
         // 净额视角：父子在不同声部，net = 5 + (-5) = 0（C26 退化），但分账本两元素都被吃到。
-        assert_eq!(net(&pos), 0, "净额视角退化为 0，但分账本视角父子各被自己的腿吃到");
+        assert_eq!(
+            net(&pos),
+            0,
+            "净额视角退化为 0，但分账本视角父子各被自己的腿吃到"
+        );
     }
 }

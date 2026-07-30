@@ -7,8 +7,13 @@ fn short_retrace_portal_captures_retest_reentered_with_fixed_subtype() {
     let mut book = ledger();
     let center = frame(1_200);
     book.observe(&up_input(center, 3, None, 500)).unwrap();
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
-        .unwrap();
+    book.observe(&up_input(
+        center,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        640,
+    ))
+    .unwrap();
 
     let records = book.short_retrace_records();
     assert_eq!(records.len(), 1);
@@ -16,7 +21,10 @@ fn short_retrace_portal_captures_retest_reentered_with_fixed_subtype() {
     assert_eq!(record.identity, key_of(center, 3));
     assert_eq!(record.subtype, PanDivSubtype::RetestReentered, "亚型签固定");
     assert_eq!(record.side, RetraceSide::Buy);
-    assert_eq!(record.frame, center, "判败：中枢未破坏，快照仍是原框（未转正）");
+    assert_eq!(
+        record.frame, center,
+        "判败：中枢未破坏，快照仍是原框（未转正）"
+    );
     assert_eq!(record.leave_end.index, 1_210);
     assert_eq!(record.retest_end.index, 1_220, "判败位置=回抽笔终点");
     assert_eq!(record.registered_as_of, 500);
@@ -46,8 +54,13 @@ fn admit_rejects_duplicate_identity() {
     let mut book = ledger();
     let center = frame(1_200);
     book.observe(&up_input(center, 3, None, 500)).unwrap();
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
-        .unwrap();
+    book.observe(&up_input(
+        center,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        640,
+    ))
+    .unwrap();
     let record = book.short_retrace_records()[0];
 
     let mut portal = ShortRetracePortal::new();
@@ -71,8 +84,13 @@ fn sync_is_one_to_one_with_ledger_failures() {
         .unwrap();
     let b = other_frame(300);
     book.observe(&down_input(b, 11, None, 700)).unwrap();
-    book.observe(&down_input(b, 11, Some(RetraceOutcome::RetestReenters), 760))
-        .unwrap();
+    book.observe(&down_input(
+        b,
+        11,
+        Some(RetraceOutcome::RetestReenters),
+        760,
+    ))
+    .unwrap();
 
     let mut portal = ShortRetracePortal::new();
     portal.sync(&book);
@@ -89,8 +107,13 @@ fn portal_balances_with_ledger_failure_count() {
     let mut book = ledger();
     let center = frame(1_200);
     book.observe(&up_input(center, 3, None, 500)).unwrap();
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
-        .unwrap();
+    book.observe(&up_input(
+        center,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        640,
+    ))
+    .unwrap();
 
     let mut portal = ShortRetracePortal::new();
     assert!(
@@ -108,8 +131,13 @@ fn consume_is_idempotent_and_does_not_double_process() {
     let mut book = ledger();
     let center = frame(1_200);
     book.observe(&up_input(center, 3, None, 500)).unwrap();
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
-        .unwrap();
+    book.observe(&up_input(
+        center,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        640,
+    ))
+    .unwrap();
     let mut portal = ShortRetracePortal::new();
     portal.sync(&book);
     let identity = key_of(center, 3);
@@ -125,8 +153,13 @@ fn failure_disposal_notice_carries_identity_position_and_knowledge_time() {
     let mut book = ledger();
     let center = frame(1_200);
     book.observe(&up_input(center, 3, None, 500)).unwrap();
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
-        .unwrap();
+    book.observe(&up_input(
+        center,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        640,
+    ))
+    .unwrap();
 
     let notices = book.failure_disposal_notices();
     assert_eq!(notices.len(), 1);
@@ -146,8 +179,13 @@ fn disposal_notices_are_emitted_for_every_registered_short_retrace_record() {
         .unwrap();
     let b = other_frame(300);
     book.observe(&down_input(b, 11, None, 700)).unwrap();
-    book.observe(&down_input(b, 11, Some(RetraceOutcome::RetestReenters), 760))
-        .unwrap();
+    book.observe(&down_input(
+        b,
+        11,
+        Some(RetraceOutcome::RetestReenters),
+        760,
+    ))
+    .unwrap();
 
     let mut portal = ShortRetracePortal::new();
     portal.sync(&book);
@@ -156,7 +194,11 @@ fn disposal_notices_are_emitted_for_every_registered_short_retrace_record() {
         portal.len(),
         "登记多少条短差记录就发多少份通知"
     );
-    assert_eq!(book.failure_disposal_notices().len(), 2, "直接派生口径同样两份");
+    assert_eq!(
+        book.failure_disposal_notices().len(),
+        2,
+        "直接派生口径同样两份"
+    );
     settled(&book);
 }
 
@@ -173,8 +215,13 @@ fn consume_on_unregistered_identity_does_not_poison_future_sync() {
     let mut book = ledger();
     let center = frame(1_200);
     book.observe(&up_input(center, 3, None, 500)).unwrap();
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
-        .unwrap();
+    book.observe(&up_input(
+        center,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        640,
+    ))
+    .unwrap();
     let identity = key_of(center, 3);
 
     let mut portal = ShortRetracePortal::new();
@@ -186,7 +233,11 @@ fn consume_on_unregistered_identity_does_not_poison_future_sync() {
         portal.consume(&identity).is_some(),
         "未登记时的 consume 不得永久毒化该身份：sync 补登后仍可正常消费"
     );
-    assert_eq!(portal.consume(&identity), None, "真正消费过一次后，幂等锁照常生效");
+    assert_eq!(
+        portal.consume(&identity),
+        None,
+        "真正消费过一次后，幂等锁照常生效"
+    );
     settled(&book);
 }
 
@@ -197,8 +248,13 @@ fn balances_with_rejects_bogus_identity_absent_from_ledger() {
     let mut book = ledger();
     let center = frame(1_200);
     book.observe(&up_input(center, 3, None, 500)).unwrap();
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
-        .unwrap();
+    book.observe(&up_input(
+        center,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        640,
+    ))
+    .unwrap();
     let real = book.short_retrace_records()[0];
 
     let bogus = ShortRetraceRecord {
@@ -222,12 +278,20 @@ fn sync_corrects_identity_whose_recorded_content_deviates_from_ledger() {
     let mut book = ledger();
     let center = frame(1_200);
     book.observe(&up_input(center, 3, None, 500)).unwrap();
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
-        .unwrap();
+    book.observe(&up_input(
+        center,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        640,
+    ))
+    .unwrap();
     let real = book.short_retrace_records()[0];
 
     let tampered = ShortRetraceRecord {
-        retest_end: RetracePoint { index: 999_999, price: -1 },
+        retest_end: RetracePoint {
+            index: 999_999,
+            price: -1,
+        },
         ..real
     };
     let mut portal = ShortRetracePortal::new();
@@ -238,7 +302,10 @@ fn sync_corrects_identity_whose_recorded_content_deviates_from_ledger() {
     assert!(portal.balances_with(&book), "同步后：订正为账本值，账平");
     let notices = portal.disposal_notices();
     assert_eq!(notices.len(), 1);
-    assert_eq!(notices[0].position, real.retest_end, "通知位置已订正，不再带错位置");
+    assert_eq!(
+        notices[0].position, real.retest_end,
+        "通知位置已订正，不再带错位置"
+    );
     settled(&book);
 }
 
@@ -250,8 +317,13 @@ fn assert_invariants_catches_tampered_failure_without_retest_position() {
     let mut book = ledger();
     let center = frame(1_200);
     book.observe(&up_input(center, 3, None, 500)).unwrap();
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
-        .unwrap();
+    book.observe(&up_input(
+        center,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        640,
+    ))
+    .unwrap();
 
     let mut journal = book.journal().to_vec();
     let target = journal
@@ -279,8 +351,13 @@ fn disposal_notices_stop_after_the_record_is_consumed() {
     let mut book = ledger();
     let center = frame(1_200);
     book.observe(&up_input(center, 3, None, 500)).unwrap();
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 640))
-        .unwrap();
+    book.observe(&up_input(
+        center,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        640,
+    ))
+    .unwrap();
     let identity = key_of(center, 3);
 
     let mut portal = ShortRetracePortal::new();

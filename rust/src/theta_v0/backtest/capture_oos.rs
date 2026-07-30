@@ -119,7 +119,14 @@ mod tests {
 
     impl Agg {
         fn new() -> Self {
-            Agg { n: 0, stops: 0, gns: vec![], realized_sum: 0.0, theory_sum: 0.0, captures: vec![] }
+            Agg {
+                n: 0,
+                stops: 0,
+                gns: vec![],
+                realized_sum: 0.0,
+                theory_sum: 0.0,
+                captures: vec![],
+            }
         }
         fn push(&mut self, t: &TradeRec, theory: Option<f64>) {
             self.n += 1;
@@ -160,7 +167,10 @@ mod tests {
         let cfg = ThetaConfig::default();
         let mut ds = data::load_by_symbol("BTC", &cfg)
             .expect("需 BTC 数据（analysis/data_cache/btc_1m_full.json）");
-        if let Some(k) = std::env::var(crate::theta_v0::env_registry::S3_BARS).ok().and_then(|s| s.parse::<usize>().ok()) {
+        if let Some(k) = std::env::var(crate::theta_v0::env_registry::S3_BARS)
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+        {
             ds.bars.truncate(k);
             ds.dates.truncate(k);
         }
@@ -183,7 +193,9 @@ mod tests {
             let path = &ds.bars[s.start_index..=s.end_index.min(cap)];
             let g = match s.direction {
                 Direction::Up => (entry - path.iter().map(|b| b.low).min().unwrap() as f64) / entry,
-                Direction::Down => (path.iter().map(|b| b.high).max().unwrap() as f64 - entry) / entry,
+                Direction::Down => {
+                    (path.iter().map(|b| b.high).max().unwrap() as f64 - entry) / entry
+                }
             };
             g.max(0.0)
         };
@@ -225,7 +237,7 @@ mod tests {
         let mut boundary_closes = 0usize; // F-09：窗界强平计数
         let mut deferred_exits = 0usize; // F-10：出场被 untradable bar 顺延计数
         let mut untradable_entry_skips = 0usize; // F-10：入场被 untradable bar 跳过计数
-        // 劣侧成交价：多头出场取低者，空头出场取高者。
+                                                 // 劣侧成交价：多头出场取低者，空头出场取高者。
         let worse = |dir: Direction, a: f64, b: f64| -> f64 {
             match dir {
                 Direction::Up => a.min(b),
@@ -328,7 +340,10 @@ mod tests {
                             j
                         );
                     }
-                    if open.as_ref().is_some_and(|ot| ot.seg_idx == j && ot.pending.is_none()) {
+                    if open
+                        .as_ref()
+                        .is_some_and(|ot| ot.seg_idx == j && ot.pending.is_none())
+                    {
                         if bar.untradable {
                             // F-10：untradable bar 不成交——段确认出场挂起，顺延 close 成交。
                             open.as_mut().unwrap().pending = Some(Pending::Seg);
@@ -374,9 +389,9 @@ mod tests {
         let mut dir_mismatch = 0usize;
         let mut no_theory = 0usize;
         let theory = |tr: &TradeRec| -> Option<f64> {
-            fin.segments.get(tr.seg_idx).map(|s| {
-                (s.start_price.max(s.end_price) - s.start_price.min(s.end_price)) as f64
-            })
+            fin.segments
+                .get(tr.seg_idx)
+                .map(|s| (s.start_price.max(s.end_price) - s.start_price.min(s.end_price)) as f64)
         };
         for tr in &trades {
             match fin.segments.get(tr.seg_idx) {
@@ -402,11 +417,18 @@ mod tests {
                     }
                 }
             }
-            let y = ds.dates[tr.entry_bar].get(..4).unwrap_or("????").to_string();
+            let y = ds.dates[tr.entry_bar]
+                .get(..4)
+                .unwrap_or("????")
+                .to_string();
             yearly.entry(y).or_insert_with(Agg::new).push(tr, th);
         }
 
-        println!("== S3 捕获率回测（因果重放，bars={} segments={}）==", ds.bars.len(), fin.segments.len());
+        println!(
+            "== S3 捕获率回测（因果重放，bars={} segments={}）==",
+            ds.bars.len(),
+            fin.segments.len()
+        );
         println!(
             "trades={} 回退={} 方向失配={} 无理论分母={} 尾部未平={} 窗界强平={} 出场顺延={} 入场跳过(untradable)={}",
             trades.len(), retreats, dir_mismatch, no_theory, dropped_open,
@@ -425,7 +447,10 @@ mod tests {
             );
         }
         println!("-- 池化 wf（非 clipped 全窗）-- {}", pooled_wf.line());
-        println!("-- 池化 OOS（test_start ≥ {OOS_START}，非 clipped，S4 主判据基）-- {}", pooled_oos.line());
+        println!(
+            "-- 池化 OOS（test_start ≥ {OOS_START}，非 clipped，S4 主判据基）-- {}",
+            pooled_oos.line()
+        );
         println!("-- 逐年（含窗外交易，描述性）--");
         for (y, agg) in &yearly {
             println!("{} {}", y, agg.line());

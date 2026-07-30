@@ -22,12 +22,16 @@ pub struct RecDriver {
 
 impl RecDriver {
     pub fn new(initial_capital: f64) -> Self {
-        RecDriver { root: TRoot::new(initial_capital) }
+        RecDriver {
+            root: TRoot::new(initial_capital),
+        }
     }
 
     /// 显式配置构造（OFF / ANCHOR / NEST 受控对照）。
     pub fn new_with_config(initial_capital: f64, cfg: EngineConfig) -> Self {
-        RecDriver { root: TRoot::new_with_config(initial_capital, cfg) }
+        RecDriver {
+            root: TRoot::new_with_config(initial_capital, cfg),
+        }
     }
 
     pub fn root(&self) -> &TRoot {
@@ -148,7 +152,10 @@ mod tests {
         r.on_bar(&lv_buy(3, Direction::Up), 10, 100.0);
         assert_eq!(r.highest_active(), Some(3), "核心建仓 @ level 3");
         assert_eq!(r.instance(3).direction, Polarity::Long, "买点 → Long");
-        assert!((r.total_wealth(100.0) - 100_000.0).abs() < 1e-4, "建仓 TW 中性");
+        assert!(
+            (r.total_wealth(100.0) - 100_000.0).abs() < 1e-4,
+            "建仓 TW 中性"
+        );
     }
 
     #[test]
@@ -157,7 +164,11 @@ mod tests {
         let mut r = TRoot::new(100_000.0);
         r.on_bar(&lv_sell(3, Direction::Down), 10, 100.0);
         assert_eq!(r.highest_active(), Some(3));
-        assert_eq!(r.instance(3).direction, Polarity::Short, "卖点 → Short（无 C1）");
+        assert_eq!(
+            r.instance(3).direction,
+            Polarity::Short,
+            "卖点 → Short（无 C1）"
+        );
     }
 
     // ──────────────── sink（子级反父向 BSP）────────────────
@@ -169,10 +180,16 @@ mod tests {
         let u0 = r.instance(3).units;
         // level 2 卖点（子级，nearest_active_parent(2)=3 父多 → 卖点=reduce → sink）。
         r.on_bar(&lv_sell(2, Direction::Down), 12, 100.0);
-        assert!((r.instance(3).units - u0 * 2.0 / 3.0).abs() < 1e-6, "核心减到 2/3");
+        assert!(
+            (r.instance(3).units - u0 * 2.0 / 3.0).abs() < 1e-6,
+            "核心减到 2/3"
+        );
         assert_eq!(r.instance(2).direction, Polarity::Short, "子级开空");
         assert!((r.instance(2).units - u0 / 3.0).abs() < 1e-6, "子持空 1/3");
-        assert!((r.total_wealth(100.0) - 100_000.0).abs() < 1e-4, "sink TW 中性");
+        assert!(
+            (r.total_wealth(100.0) - 100_000.0).abs() < 1e-4,
+            "sink TW 中性"
+        );
     }
 
     // ──────────────── recover（子级同父向 BSP，子持短差）────────────────
@@ -202,7 +219,10 @@ mod tests {
         r.on_bar(&lv_sell(3, Direction::Down), 20, 120.0);
         assert_eq!(r.instance(3).direction, Polarity::Short, "翻空");
         assert_eq!(r.n_flips, 1);
-        assert!((r.total_wealth(120.0) - r.nav(120.0)).abs() < 1e-4, "flip 后 withdrawn 已归还");
+        assert!(
+            (r.total_wealth(120.0) - r.nav(120.0)).abs() < 1e-4,
+            "flip 后 withdrawn 已归还"
+        );
     }
 
     // ──────────────── ascend（核心同向更高 level BSP）────────────────
@@ -216,7 +236,10 @@ mod tests {
         r.on_bar(&lv_buy(5, Direction::Up), 20, 100.0);
         assert_eq!(r.highest_active(), Some(5), "核心 relabel 上移到 level 5");
         assert!(!r.instance(3).is_active(), "原 level 3 空");
-        assert!((r.instance(5).units - u0).abs() < 1e-9, "持仓继承（无新资金）");
+        assert!(
+            (r.instance(5).units - u0).abs() < 1e-9,
+            "持仓继承（无新资金）"
+        );
         assert_eq!(r.n_ascends, 1);
     }
 
@@ -318,14 +341,23 @@ mod tests {
         fb.on_bar(&lv_buy_zd(3, Direction::Up, 95.0), 10, 100.0);
         let u_fb = fb.leg_pair(3).long_units;
         // 均匀：100000 × (1/3) / 100 = 333.33（级别无关，无 depth 衰减、无 free 归一化）。
-        assert!((u_fb - 333.333).abs() < 0.01, "均匀基准单元 = INITIAL×1/3/c，得 {u_fb}");
+        assert!(
+            (u_fb - 333.333).abs() < 0.01,
+            "均匀基准单元 = INITIAL×1/3/c，得 {u_fb}"
+        );
 
         // 对照 RB_PAIR（geom_tower 恒仓）：base=free×2/3=66666.7, depth=0 ⇒ units=666.67（≠均匀）。
         let mut rb = TRoot::new_with_config(100_000.0, EngineConfig::reading_b_pair());
         rb.on_bar(&lv_buy_zd(3, Direction::Up, 95.0), 10, 100.0);
         let u_rb = rb.leg_pair(3).long_units;
-        assert!((u_rb - 666.667).abs() < 0.01, "geom_tower 恒仓 base×2/3，得 {u_rb}");
-        assert!((u_fb - u_rb).abs() > 1.0, "Face B 均匀 ≠ RB_PAIR geom（删 geom_tower 生效）");
+        assert!(
+            (u_rb - 666.667).abs() < 0.01,
+            "geom_tower 恒仓 base×2/3，得 {u_rb}"
+        );
+        assert!(
+            (u_fb - u_rb).abs() > 1.0,
+            "Face B 均匀 ≠ RB_PAIR geom（删 geom_tower 生效）"
+        );
     }
 
     /// **真否定线封顶（§6.2 567，RB_PAIR 下 zd/zg=None 死代码）**：多腿跌破进场 ZD ⇒ 止损平。
@@ -347,7 +379,10 @@ mod tests {
         let mut fb = TRoot::new_with_config(100_000.0, EngineConfig::face_b());
         fb.on_bar(&lv_buy_zd(4, Direction::Up, 90.0), 10, 100.0); // 核心多腿@4（below_core_long 门用）
         fb.on_bar(&lv_sell_zg_t3(2, Direction::Down, 105.0), 11, 100.0); // 次级别(2<4)开空腿, 否定线 ZG=105
-        assert!(fb.leg_pair(2).short_active(), "次级别空腿建仓（t3sell + below_core_long）");
+        assert!(
+            fb.leg_pair(2).short_active(),
+            "次级别空腿建仓（t3sell + below_core_long）"
+        );
         fb.on_bar(&LevelView::empty(), 12, 106.0); // 涨破 105 ⇒ 空腿止损
         assert!(!fb.leg_pair(2).short_active(), "涨破 ZG=105 ⇒ 空腿止损平");
         assert_eq!(fb.pair_short_stops, 1, "空腿否定线止损计数");
@@ -362,11 +397,20 @@ mod tests {
         fb.on_bar(&lv_buy_zd(4, Direction::Up, 90.0), 10, 100.0);
         // 次级别多腿@2，否定线 = 次级别中枢 ZD=98（窄，次级别中枢）。
         fb.on_bar(&lv_buy_zd(2, Direction::Up, 98.0), 11, 100.0);
-        assert!(fb.leg_pair(4).long_active() && fb.leg_pair(2).long_active(), "核心+次级别双多腿在场");
+        assert!(
+            fb.leg_pair(4).long_active() && fb.leg_pair(2).long_active(),
+            "核心+次级别双多腿在场"
+        );
         // 价格回调到 95：破次级别 ZD(98) 不破核心 ZD(90)。
         fb.on_bar(&LevelView::empty(), 12, 95.0);
-        assert!(!fb.leg_pair(2).long_active(), "次级别回调破次级别 ZD=98 ⇒ 次级别腿止损");
-        assert!(fb.leg_pair(4).long_active(), "核心存活：次级别回调未破 cc(4)级 ZD=90，核心不被扫");
+        assert!(
+            !fb.leg_pair(2).long_active(),
+            "次级别回调破次级别 ZD=98 ⇒ 次级别腿止损"
+        );
+        assert!(
+            fb.leg_pair(4).long_active(),
+            "核心存活：次级别回调未破 cc(4)级 ZD=90，核心不被扫"
+        );
         assert_eq!(fb.n_liquidations, 0, "liq=0");
     }
 
@@ -383,10 +427,16 @@ mod tests {
             v.zd[k] = Some(90.0);
         }
         fb.on_bar(&v, 10, 100.0);
-        let active = (0..MAX_LEVEL).filter(|&k| fb.leg_pair(k).long_active()).count();
+        let active = (0..MAX_LEVEL)
+            .filter(|&k| fb.leg_pair(k).long_active())
+            .count();
         assert_eq!(active, 4, "四级别独立多腿叠加");
         // gross = 4×333.33×100 = 133333 vs nav≈100000 ⇒ >1×（geom_tower 恒仓会钳到 ≤1×=压制）。
-        assert!(fb.max_gross_exp_x100 > 100, "来源A 杠杆 >1× 涌现，得 {}×100", fb.max_gross_exp_x100);
+        assert!(
+            fb.max_gross_exp_x100 > 100,
+            "来源A 杠杆 >1× 涌现，得 {}×100",
+            fb.max_gross_exp_x100
+        );
         assert_eq!(fb.n_liquidations, 0, "否定线封顶 ⇒ liq=0（非穿仓）");
     }
 
@@ -398,8 +448,14 @@ mod tests {
         rb.on_bar(&lv_buy_zd(3, Direction::Up, 95.0), 10, 100.0);
         let u = rb.leg_pair(3).long_units;
         rb.on_bar(&LevelView::empty(), 11, 94.0); // 即便跌破 95，RB_PAIR 无真否定线（地基代码逐字不变）
-        assert!(rb.leg_pair(3).long_active(), "RB_PAIR：open_long_leg 用 view.zd 但 RB_PAIR 仍传入=stop 锁住");
-        assert!((rb.leg_pair(3).long_units - u).abs() < 1e-9, "RB_PAIR 多腿不被止损（bit-exact 路径）");
+        assert!(
+            rb.leg_pair(3).long_active(),
+            "RB_PAIR：open_long_leg 用 view.zd 但 RB_PAIR 仍传入=stop 锁住"
+        );
+        assert!(
+            (rb.leg_pair(3).long_units - u).abs() < 1e-9,
+            "RB_PAIR 多腿不被止损（bit-exact 路径）"
+        );
         assert_eq!(rb.pair_long_stops, 0, "RB_PAIR 无否定线止损");
     }
 
@@ -421,15 +477,30 @@ mod tests {
     #[test]
     fn facea_集成契约_facebase_叠加核心翻空() {
         let fa = EngineConfig::face_a();
-        assert!(fa.enable_reading_b_pair, "LegPair 路径（无 sink ⇒ 生产路径不残留无保护 sink，#106）");
-        assert!(fa.enable_uniform_sizing, "Face B 均匀定仓（删 geom_tower）+ 真否定线 [ZD,ZG]");
-        assert!(fa.enable_pair_core_short, "★Face A 核心翻转吃熊（cc 走势完成翻空镜像）");
-        assert!(!fa.enable_pair_core_short_open, "不开 below_core_long 拆除门（net-up 假顶翻空灾难，§5.2.3）");
+        assert!(
+            fa.enable_reading_b_pair,
+            "LegPair 路径（无 sink ⇒ 生产路径不残留无保护 sink，#106）"
+        );
+        assert!(
+            fa.enable_uniform_sizing,
+            "Face B 均匀定仓（删 geom_tower）+ 真否定线 [ZD,ZG]"
+        );
+        assert!(
+            fa.enable_pair_core_short,
+            "★Face A 核心翻转吃熊（cc 走势完成翻空镜像）"
+        );
+        assert!(
+            !fa.enable_pair_core_short_open,
+            "不开 below_core_long 拆除门（net-up 假顶翻空灾难，§5.2.3）"
+        );
         // 与 Face B 唯一差 = 核心翻转（其余逐字一致 ⇒ 收益差全归因核心翻空）。
         let fb = EngineConfig::face_b();
         assert_eq!(fa.enable_reading_b_pair, fb.enable_reading_b_pair);
         assert_eq!(fa.enable_uniform_sizing, fb.enable_uniform_sizing);
-        assert!(fa.enable_pair_core_short && !fb.enable_pair_core_short, "唯一增量 = 核心翻空");
+        assert!(
+            fa.enable_pair_core_short && !fb.enable_pair_core_short,
+            "唯一增量 = 核心翻空"
+        );
     }
 
     /// **★核心翻转=cc 走势完成翻空吃熊（§5.2，Face A 主机制）**：核心多腿在自己级别走势完成（d_top）
@@ -443,13 +514,25 @@ mod tests {
         // 2) cc(3) 走势完成（d_top）+ 卖点 @ 价 110（盈利顶）⇒ 核心平多 + 翻空。
         fa.on_bar(&lv_sell_dtop(3, Direction::Up, 120.0), 11, 110.0);
         assert!(!fa.leg_pair(3).long_active(), "核心走势完成 ⇒ 平多（全量）");
-        assert!(fa.leg_pair(3).short_active(), "★Face A：核心翻空吃熊（cc 走势完成区间套级联翻转）");
-        assert_eq!(fa.pair_core_churns, 1, "核心 churn（真顶转折，非次级别回调）");
-        assert!((fa.leg_pair(3).short_stop - 120.0).abs() < 1e-9, "核心空腿否定线 = cc 中枢 ZG=120（涨破止损）");
+        assert!(
+            fa.leg_pair(3).short_active(),
+            "★Face A：核心翻空吃熊（cc 走势完成区间套级联翻转）"
+        );
+        assert_eq!(
+            fa.pair_core_churns, 1,
+            "核心 churn（真顶转折，非次级别回调）"
+        );
+        assert!(
+            (fa.leg_pair(3).short_stop - 120.0).abs() < 1e-9,
+            "核心空腿否定线 = cc 中枢 ZG=120（涨破止损）"
+        );
         assert_eq!(fa.n_liquidations, 0, "否定线封顶 ⇒ liq=0");
         // 3) 价格下跌到 90（bear）⇒ 核心空腿继续吃跌幅（未涨破 ZG=120）。
         fa.on_bar(&LevelView::empty(), 12, 90.0);
-        assert!(fa.leg_pair(3).short_active(), "核心空腿吃跌（bear 持空，未涨破否定线）");
+        assert!(
+            fa.leg_pair(3).short_active(),
+            "核心空腿吃跌（bear 持空，未涨破否定线）"
+        );
     }
 
     /// **★547 级别隔离 + net-up 自动 regime（§5.2.1/§5.2.4）**：次级别卖点绝不翻核心（独立空腿）；
@@ -461,13 +544,28 @@ mod tests {
         fa.on_bar(&lv_buy_zd(4, Direction::Up, 90.0), 10, 100.0);
         // 次级别(2<4) t3sell（回调，非 d_top）⇒ 次级别独立空腿（below_core_long），核心不动（547）。
         fa.on_bar(&lv_sell_zg_t3(2, Direction::Down, 105.0), 11, 100.0);
-        assert!(fa.leg_pair(4).long_active(), "★547：次级别卖点不翻核心（核心多腿存活）");
-        assert!(fa.leg_pair(2).short_active(), "次级别独立空腿吃回调（below_core_long）");
-        assert_eq!(fa.pair_core_churns, 0, "核心未 churn（次级别卖点非 cc 走势完成）");
+        assert!(
+            fa.leg_pair(4).long_active(),
+            "★547：次级别卖点不翻核心（核心多腿存活）"
+        );
+        assert!(
+            fa.leg_pair(2).short_active(),
+            "次级别独立空腿吃回调（below_core_long）"
+        );
+        assert_eq!(
+            fa.pair_core_churns, 0,
+            "核心未 churn（次级别卖点非 cc 走势完成）"
+        );
         // cc(4) 卖点但**非 d_top**（net-up 回调，走势未完成）⇒ 核心不平不翻（churn 门控 + 闸门不开）。
         fa.on_bar(&lv_sell_zg_t3(4, Direction::Down, 130.0), 12, 100.0);
-        assert!(fa.leg_pair(4).long_active(), "★net-up 自动 regime：cc 卖点非走势完成 ⇒ 核心不翻空");
-        assert!(!fa.leg_pair(4).short_active(), "核心未翻空（d_top[cc]=false ⇒ 闸门不开，无假顶翻空灾难）");
+        assert!(
+            fa.leg_pair(4).long_active(),
+            "★net-up 自动 regime：cc 卖点非走势完成 ⇒ 核心不翻空"
+        );
+        assert!(
+            !fa.leg_pair(4).short_active(),
+            "核心未翻空（d_top[cc]=false ⇒ 闸门不开，无假顶翻空灾难）"
+        );
         assert_eq!(fa.pair_core_churns, 0, "核心仍未 churn");
     }
 
@@ -481,7 +579,10 @@ mod tests {
             prod.enable_reading_b_pair && prod.enable_uniform_sizing && prod.enable_pair_core_short,
             "默认开启 ⇒ Face A（reading_b_pair + uniform + core_short）"
         );
-        assert!(!prod.enable_pair_core_short_open, "默认 Face A 不开 below_core_long 拆除门");
+        assert!(
+            !prod.enable_pair_core_short_open,
+            "默认 Face A 不开 below_core_long 拆除门"
+        );
         // T_OFF_BASELINE ⇒ instances OFF 基线（全 LegPair flag false = bit-exact 回归守卫）。
         std::env::set_var("T_OFF_BASELINE", "1");
         let off = EngineConfig::production();
@@ -516,11 +617,26 @@ mod tests {
         let basis3 = fa.leg_pair(3).long_basis;
         // 2) emergent_top 涌现到 L4（L4 自身买点未 fire）⇒ 核心 relabel @3→@4。
         fa.on_bar(&lv_emergent(4, 90.0), 11, 105.0);
-        assert!(!fa.leg_pair(3).long_active(), "★核心多腿上移：原 level 3 空");
-        assert!(fa.leg_pair(4).long_active(), "★核心多腿 relabel 到 level 4（涌现段获专属核心腿=S1 修复）");
-        assert!((fa.leg_pair(4).long_units - u3).abs() < 1e-9, "持仓继承（无新资金，敞口不变）");
-        assert!((fa.leg_pair(4).long_basis - basis3).abs() < 1e-9, "basis 继承（relabel 非重新开仓）");
-        assert!((fa.leg_pair(4).long_stop - 90.0).abs() < 1e-9, "否定线更新为 L4 中枢 ZD=90（核心骑 L4 走势）");
+        assert!(
+            !fa.leg_pair(3).long_active(),
+            "★核心多腿上移：原 level 3 空"
+        );
+        assert!(
+            fa.leg_pair(4).long_active(),
+            "★核心多腿 relabel 到 level 4（涌现段获专属核心腿=S1 修复）"
+        );
+        assert!(
+            (fa.leg_pair(4).long_units - u3).abs() < 1e-9,
+            "持仓继承（无新资金，敞口不变）"
+        );
+        assert!(
+            (fa.leg_pair(4).long_basis - basis3).abs() < 1e-9,
+            "basis 继承（relabel 非重新开仓）"
+        );
+        assert!(
+            (fa.leg_pair(4).long_stop - 90.0).abs() < 1e-9,
+            "否定线更新为 L4 中枢 ZD=90（核心骑 L4 走势）"
+        );
         assert_eq!(fa.pair_emergence_upgrades, 1, "涌现升级计数");
         assert_eq!(fa.n_liquidations, 0, "敞口不变 ⇒ 无强平");
     }
@@ -537,8 +653,14 @@ mod tests {
         v.nodes[4] = Some(node(0, 10, Direction::Down));
         v.zd[4] = Some(90.0);
         fa.on_bar(&v, 11, 105.0);
-        assert!(fa.leg_pair(3).long_active(), "核心多腿仍 @3（下跌涌现不上移多腿）");
-        assert!(!fa.leg_pair(4).long_active(), "L4 无多腿（emergent Short 不触发多腿 relabel）");
+        assert!(
+            fa.leg_pair(3).long_active(),
+            "核心多腿仍 @3（下跌涌现不上移多腿）"
+        );
+        assert!(
+            !fa.leg_pair(4).long_active(),
+            "L4 无多腿（emergent Short 不触发多腿 relabel）"
+        );
         assert_eq!(fa.pair_emergence_upgrades, 0, "无上移");
     }
 
@@ -553,7 +675,10 @@ mod tests {
         // emergent_top=(4,Long) ⇒ cc=4 不 < target=4 ⇒ 跳过（无 relabel）。
         fa.on_bar(&lv_emergent(4, 88.0), 11, 105.0);
         assert!(fa.leg_pair(4).long_active(), "L4 核心多腿保留");
-        assert!((fa.leg_pair(4).long_units - u4).abs() < 1e-9, "L4 核心未被覆盖（cc==target 跳过）");
+        assert!(
+            (fa.leg_pair(4).long_units - u4).abs() < 1e-9,
+            "L4 核心未被覆盖（cc==target 跳过）"
+        );
         assert_eq!(fa.pair_emergence_upgrades, 0, "cc 已在涌现级别 ⇒ 无上移");
     }
 
@@ -563,14 +688,29 @@ mod tests {
     fn r3_face_a_bitexact_无relabel() {
         // face_a（不开 emergence）：同序列下核心卡 @3，L4 不获核心腿（= committed Face A 原行为）。
         let mut fa = TRoot::new_with_config(100_000.0, EngineConfig::face_a());
-        assert!(!EngineConfig::face_a().enable_pair_emergence, "face_a 默认不开 emergence（bit-exact）");
+        assert!(
+            !EngineConfig::face_a().enable_pair_emergence,
+            "face_a 默认不开 emergence（bit-exact）"
+        );
         fa.on_bar(&lv_buy_zd(3, Direction::Up, 95.0), 10, 100.0);
         fa.on_bar(&lv_emergent(4, 90.0), 11, 105.0);
-        assert!(fa.leg_pair(3).long_active(), "face_a：核心卡 @3（无 relabel，原行为）");
-        assert!(!fa.leg_pair(4).long_active(), "face_a：L4 无核心腿（S1 段无腿，未修复路径）");
-        assert_eq!(fa.pair_emergence_upgrades, 0, "face_a 无涌现升级（bit-exact）");
+        assert!(
+            fa.leg_pair(3).long_active(),
+            "face_a：核心卡 @3（无 relabel，原行为）"
+        );
+        assert!(
+            !fa.leg_pair(4).long_active(),
+            "face_a：L4 无核心腿（S1 段无腿，未修复路径）"
+        );
+        assert_eq!(
+            fa.pair_emergence_upgrades, 0,
+            "face_a 无涌现升级（bit-exact）"
+        );
         // face_a_emerge 唯一增量。
-        assert!(EngineConfig::face_a_emerge().enable_pair_emergence, "face_a_emerge 开 emergence（唯一增量）");
+        assert!(
+            EngineConfig::face_a_emerge().enable_pair_emergence,
+            "face_a_emerge 开 emergence（唯一增量）"
+        );
     }
 
     // ════════════ 关⑥ E1：recover 触发区间套语义裁定（5 负测试，只加测试不改行为）════════════
@@ -588,18 +728,38 @@ mod tests {
         r.on_bar(&lv_buy(3, Direction::Up), 10, 100.0); // 核心 Long @3
         let u0 = r.instance(3).units;
         r.on_bar(&lv_sell(2, Direction::Down), 12, 110.0); // sink：子 Short @2，核心减 1/3
-        assert_eq!(r.instance(2).direction, Polarity::Short, "前置：子级短差空腿在场");
+        assert_eq!(
+            r.instance(2).direction,
+            Polarity::Short,
+            "前置：子级短差空腿在场"
+        );
         let u_core = r.instance(3).units;
         assert!(u_core < u0, "前置：sink 已减核心（机动仓下放）");
         let (n_rec0, n_sink0) = (r.n_recovers, r.n_sinks);
         // 父级别买点（p=3 > 骑乘级别 j=2）= R1 判非法触发源。
         r.on_bar(&lv_buy(3, Direction::Up), 15, 95.0);
-        assert_eq!(r.n_recovers, n_rec0, "★R1负：父级别 BSP ⇒ n_recovers 不变（recover 触发=子级别 BSP）");
+        assert_eq!(
+            r.n_recovers, n_rec0,
+            "★R1负：父级别 BSP ⇒ n_recovers 不变（recover 触发=子级别 BSP）"
+        );
         assert_eq!(r.n_sinks, n_sink0, "父级别买点不被消费为 sink");
-        assert!(r.instance(2).is_active(), "子腿不平：父级别买点对子级短差无平仓语义");
-        assert_eq!(r.instance(2).direction, Polarity::Short, "子腿方向不变（不翻转）");
-        assert!((r.instance(3).units - u_core).abs() < 1e-9, "核心股数不归还（无 recover 发生）");
-        assert_eq!(r.buy_core, 2, "两次核心级买点都路由到核心语义域（enter/ascend/no-op），非 recover 域");
+        assert!(
+            r.instance(2).is_active(),
+            "子腿不平：父级别买点对子级短差无平仓语义"
+        );
+        assert_eq!(
+            r.instance(2).direction,
+            Polarity::Short,
+            "子腿方向不变（不翻转）"
+        );
+        assert!(
+            (r.instance(3).units - u_core).abs() < 1e-9,
+            "核心股数不归还（无 recover 发生）"
+        );
+        assert_eq!(
+            r.buy_core, 2,
+            "两次核心级买点都路由到核心语义域（enter/ascend/no-op），非 recover 域"
+        );
         assert_eq!(r.buy_noop, 0, "父级别买点不落入子级 recover/no-op 分类");
     }
 
@@ -615,10 +775,20 @@ mod tests {
         let n_rec0 = r.n_recovers;
         // 子级别（骑乘级别 j=2）同父向买点 = R1 唯一合法触发源。
         r.on_bar(&lv_buy(2, Direction::Up), 15, 95.0); // 低平空
-        assert_eq!(r.n_recovers, n_rec0 + 1, "★R1正：子级别同父向买点 ⇒ recover(p=3,j=2) 恰好一次");
+        assert_eq!(
+            r.n_recovers,
+            n_rec0 + 1,
+            "★R1正：子级别同父向买点 ⇒ recover(p=3,j=2) 恰好一次"
+        );
         assert!(!r.instance(2).is_active(), "子平空（短差对回补闭合）");
-        assert!((r.instance(3).units - u0).abs() < 1e-6, "核心恢复原股数（同股数归还，能量守恒）");
-        assert_eq!(r.buy_recover, 1, "买点路由分类=buy_recover（父多+买点+j 持短差）");
+        assert!(
+            (r.instance(3).units - u0).abs() < 1e-6,
+            "核心恢复原股数（同股数归还，能量守恒）"
+        );
+        assert_eq!(
+            r.buy_recover, 1,
+            "买点路由分类=buy_recover（父多+买点+j 持短差）"
+        );
         assert_eq!(r.recover_by_level[2], 1, "recover 按骑乘级别 j=2 分层落账");
         assert!(r.short_leg_pnl > 0.0, "高开低平短差盈利");
     }
@@ -632,18 +802,32 @@ mod tests {
         let mut r = TRoot::new(100_000.0);
         r.on_bar(&lv_buy(7, Direction::Up), 10, 100.0); // 核心 Long @7（塔顶，无更高级别）
         r.on_bar(&lv_sell(6, Direction::Down), 12, 110.0); // 子 Short @6（sink 短差对在场）
-        assert_eq!(r.instance(6).direction, Polarity::Short, "前置：高级别短差空腿在场");
+        assert_eq!(
+            r.instance(6).direction,
+            Polarity::Short,
+            "前置：高级别短差空腿在场"
+        );
         let (n_rec0, n_sink0) = (r.n_recovers, r.n_sinks);
         // 失效域合成视图：父/祖级别买点（p=7 > j=6）⇒ 不得建立 buy[p>j]→recover 依赖。
         r.on_bar(&lv_buy(7, Direction::Up), 15, 95.0);
-        assert_eq!(r.n_recovers, n_rec0, "★R2：塔顶父级别买点 ⇒ 不挂 recover 期待（无 buy[p>j] 触发链）");
+        assert_eq!(
+            r.n_recovers, n_rec0,
+            "★R2：塔顶父级别买点 ⇒ 不挂 recover 期待（无 buy[p>j] 触发链）"
+        );
         assert_eq!(r.n_sinks, n_sink0, "父级别买点不引发新 sink");
         assert!(r.instance(6).is_active(), "高级别子腿不被父级别买点平掉");
         assert_eq!(r.buy_noop, 0, "父级别买点不进入子级 recover/no-op 分类域");
         // 配对统计按级别分层落账（R2 验收线 1）：sink 记骑乘级别 6，recover 全级别 0（本序列无配对闭合）。
         assert_eq!(r.sink_by_level[6], 1, "sink 按骑乘级别 j=6 落账");
-        assert_eq!(r.sink_by_level.iter().sum::<u64>(), 1, "无其他级别被该序列消费");
-        assert!(r.recover_by_level.iter().all(|&n| n == 0), "recover_by_level 全 0（本序列无 recover 配对）");
+        assert_eq!(
+            r.sink_by_level.iter().sum::<u64>(),
+            1,
+            "无其他级别被该序列消费"
+        );
+        assert!(
+            r.recover_by_level.iter().all(|&n| n == 0),
+            "recover_by_level 全 0（本序列无 recover 配对）"
+        );
     }
 
     /// **④R3 093:22 最后卖点不回补**（裁定 R3 + 单测计划 4 + R3 验收线 1）。
@@ -656,18 +840,41 @@ mod tests {
         let mut r = TRoot::new(100_000.0);
         r.on_bar(&lv_buy(3, Direction::Up), 10, 100.0); // 核心 Long @3
         r.on_bar(&lv_sell(2, Direction::Down), 12, 110.0); // 子 Short @2（最后一次卖点，未回补）
-        assert_eq!(r.instance(2).direction, Polarity::Short, "前置：旧塔短差空腿在场");
+        assert_eq!(
+            r.instance(2).direction,
+            Polarity::Short,
+            "前置：旧塔短差空腿在场"
+        );
         let n_rec0 = r.n_recovers;
         // 093:22「市场选择 (−1,1)」= 核心级反向 BSP（结构事件）⇒ flip 塔清。
         r.on_bar(&lv_sell(3, Direction::Down), 20, 105.0);
-        assert_eq!(r.n_flips, 1, "核心级反向 BSP ⇒ flip（clear_all + 反向 enter）");
-        assert_eq!(r.n_recovers, n_rec0, "★R3：最后一次卖点不回补——塔清点 n_recovers 不增（退出不称 recover）");
-        assert!(!r.instance(2).is_active(), "旧塔子腿随塔清（clear_all 平清，非 recover 回补闭合）");
-        assert_eq!(r.recover_by_level[2], 0, "旧塔子腿不按 recover 记账（会计分流：塔清≠通道 0）");
-        assert_eq!(r.instance(3).direction, Polarity::Short, "按新方向重建（新韵律开始，与旧塔无归还关系）");
+        assert_eq!(
+            r.n_flips, 1,
+            "核心级反向 BSP ⇒ flip（clear_all + 反向 enter）"
+        );
+        assert_eq!(
+            r.n_recovers, n_rec0,
+            "★R3：最后一次卖点不回补——塔清点 n_recovers 不增（退出不称 recover）"
+        );
+        assert!(
+            !r.instance(2).is_active(),
+            "旧塔子腿随塔清（clear_all 平清，非 recover 回补闭合）"
+        );
+        assert_eq!(
+            r.recover_by_level[2], 0,
+            "旧塔子腿不按 recover 记账（会计分流：塔清≠通道 0）"
+        );
+        assert_eq!(
+            r.instance(3).direction,
+            Polarity::Short,
+            "按新方向重建（新韵律开始，与旧塔无归还关系）"
+        );
         // 塔清后旧级别位置的买点不复活 recover（无回补期待残留；新塔反向韵律另起）。
         r.on_bar(&lv_buy(2, Direction::Up), 22, 100.0);
-        assert_eq!(r.n_recovers, n_rec0, "★R3：塔清后无 recover 发生（退出是终态，非延迟回补）");
+        assert_eq!(
+            r.n_recovers, n_rec0,
+            "★R3：塔清后无 recover 发生（退出是终态，非延迟回补）"
+        );
     }
 
     /// **⑤R1 单次路由：同一 BSP 不被两级重复消费**（裁定 R1 裁决 2 + 单测计划 2）。
@@ -682,11 +889,27 @@ mod tests {
         let (n_sink0, n_rec0) = (r.n_sinks, r.n_recovers);
         // 同一 BSP（buy@2）⇒ 只在级别 2 路由一次：消费为 recover(3,2)，不再二次消费。
         r.on_bar(&lv_buy(2, Direction::Up), 15, 95.0);
-        assert_eq!(r.n_recovers, n_rec0 + 1, "BSP@2 ⇒ recover 恰好一次（消费者=级别 2 仓位+最近活跃祖先 p=3）");
-        assert_eq!(r.n_sinks, n_sink0, "★单次路由：同一 BSP 不再被消费为 sink（is_reduce 分支互斥）");
-        assert!(!r.instance(1).is_active(), "★BSP@2 不开 level 1 孙腿（孙腿齿轮由 BSP@(j−1) 驱动）");
-        assert!(!r.instance(2).is_active(), "级别 2 仓位已被该 BSP 平清（无残留供二次消费）");
-        assert_eq!(r.buy_sink, 0, "type1_buy 不进 sink 类型通道（纯 BSP 类型耦合）");
+        assert_eq!(
+            r.n_recovers,
+            n_rec0 + 1,
+            "BSP@2 ⇒ recover 恰好一次（消费者=级别 2 仓位+最近活跃祖先 p=3）"
+        );
+        assert_eq!(
+            r.n_sinks, n_sink0,
+            "★单次路由：同一 BSP 不再被消费为 sink（is_reduce 分支互斥）"
+        );
+        assert!(
+            !r.instance(1).is_active(),
+            "★BSP@2 不开 level 1 孙腿（孙腿齿轮由 BSP@(j−1) 驱动）"
+        );
+        assert!(
+            !r.instance(2).is_active(),
+            "级别 2 仓位已被该 BSP 平清（无残留供二次消费）"
+        );
+        assert_eq!(
+            r.buy_sink, 0,
+            "type1_buy 不进 sink 类型通道（纯 BSP 类型耦合）"
+        );
         assert_eq!(r.buy_recover, 1, "该 BSP 唯一消费形态 = buy_recover");
     }
 }

@@ -462,7 +462,10 @@ mod tests {
         // T3 (#172 并门，#168 裁定 3）：默认 = 链死 ⟹ 层不载（零开销 bit-exact 锁，#110 纪律）；
         // 「链启用 ⟹ 层必载」形态 = 派生构造子断言（生产唯一写入点 = π 入口派生，
         // admission::chain_driven_level_projection；classifier stamping 仍读本机制位）。
-        assert!(!c.level_projection.enabled, "#172 并门：链死（默认）⟹ 投影层不载（零开销 bit-exact 锁）");
+        assert!(
+            !c.level_projection.enabled,
+            "#172 并门：链死（默认）⟹ 投影层不载（零开销 bit-exact 锁）"
+        );
         assert!(
             super::super::classifier::projection::LevelProjectionConfig::for_chain(true).enabled,
             "#172 并门：链启用 ⟹ 投影层必载（派生构造子形态锁）"
@@ -478,7 +481,10 @@ mod tests {
         assert_eq!(c.voice.w_grade, [1.0, 1.0]);
         // frozen（A10 附则A）：risk_policy=None ⟹ κ=0 baseline，π loop 逐字节不变（bit-exact）。
         // 同名 κ 隔离：risk.kappa=2.0（sizing 成本倍数）与 risk_policy（barrier κ）同名不同义。
-        assert_eq!(c.risk_policy, None, "risk_policy 默认 None ⟹ baseline κ=0（bit-exact 锁）");
+        assert_eq!(
+            c.risk_policy, None,
+            "risk_policy 默认 None ⟹ baseline κ=0（bit-exact 锁）"
+        );
     }
 
     /// SizingProfile.resolve：空表 ⟹ 退化为 risk 标量 + gap=0（bit-exact 默认路径）。
@@ -496,9 +502,21 @@ mod tests {
         let risk = RiskConfig::default();
         let prof = SizingProfile {
             entries: vec![
-                SizingEntry { level: 2, side: SideKey::Long, rho: 0.008, gamma: 1.2, gap_buffer: 5.0 },
+                SizingEntry {
+                    level: 2,
+                    side: SideKey::Long,
+                    rho: 0.008,
+                    gamma: 1.2,
+                    gap_buffer: 5.0,
+                },
                 // 同 level 空头不镜像：更保守的 rho。
-                SizingEntry { level: 2, side: SideKey::Short, rho: 0.003, gamma: 0.8, gap_buffer: 12.0 },
+                SizingEntry {
+                    level: 2,
+                    side: SideKey::Short,
+                    rho: 0.003,
+                    gamma: 0.8,
+                    gap_buffer: 12.0,
+                },
             ],
         };
         assert_eq!(prof.resolve(2, SideKey::Long, &risk), (0.008, 1.2, 5.0));

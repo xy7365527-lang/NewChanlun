@@ -26,7 +26,7 @@ use std::collections::HashSet;
 
 use crate::fugue_v3::layer::FugueResult;
 use crate::macd::OnlineMacdState;
-use crate::segment::{Segment, SegKind};
+use crate::segment::{SegKind, Segment};
 use crate::stroke::{Direction as StrokeDir, Stroke};
 use crate::trading::types::{Polarity, MAX_LADDER};
 
@@ -71,13 +71,25 @@ pub(crate) fn build_a0_fast(
     include_last_candidate: bool,
 ) -> Vec<Unit> {
     let n = prefix_pos.len().saturating_sub(1); // raw bar 数（prefix 长 n+1）
-    // 共享单元构造：(i0,i1,high,low,dir merged 端点) → Unit{level:0}，面积经 merged→raw 前缀和 O(1)。
-    // 线段端点 i0/i1 与笔端点 i0/i1 同为 merged bar 坐标（笔 i0/i1 = 分型中心 df_merged iloc，
-    // 见 stroke.rs:27），故面积/坐标换算口径逐字一致——a₀ 来源差异仅在过滤口径，不在单元构造。
+                                                // 共享单元构造：(i0,i1,high,low,dir merged 端点) → Unit{level:0}，面积经 merged→raw 前缀和 O(1)。
+                                                // 线段端点 i0/i1 与笔端点 i0/i1 同为 merged bar 坐标（笔 i0/i1 = 分型中心 df_merged iloc，
+                                                // 见 stroke.rs:27），故面积/坐标换算口径逐字一致——a₀ 来源差异仅在过滤口径，不在单元构造。
     let to_unit = |i0: usize, i1: usize, high: f64, low: f64, dir: StrokeDir| -> Unit {
-        let raw_i0 = m2r.get(i0).map(|&(lo, _)| lo).unwrap_or(0).min(n.saturating_sub(1));
-        let raw_i1 = m2r.get(i1).map(|&(_, hi)| hi).unwrap_or(0).min(n.saturating_sub(1));
-        let (lo, hi) = if raw_i0 <= raw_i1 { (raw_i0, raw_i1) } else { (raw_i1, raw_i0) };
+        let raw_i0 = m2r
+            .get(i0)
+            .map(|&(lo, _)| lo)
+            .unwrap_or(0)
+            .min(n.saturating_sub(1));
+        let raw_i1 = m2r
+            .get(i1)
+            .map(|&(_, hi)| hi)
+            .unwrap_or(0)
+            .min(n.saturating_sub(1));
+        let (lo, hi) = if raw_i0 <= raw_i1 {
+            (raw_i0, raw_i1)
+        } else {
+            (raw_i1, raw_i0)
+        };
         // 区间面积 = prefix[hi+1] − prefix[lo]（前缀和 O(1)）。
         let area_pos = prefix_pos[hi + 1] - prefix_pos[lo];
         let area_neg = prefix_neg[hi + 1] - prefix_neg[lo]; // 已存 |负 hist|，非负
@@ -103,7 +115,13 @@ pub(crate) fn build_a0_fast(
             if include_last_candidate {
                 // 最后一个**未确认**段（confirmed=false=当前形成中=顶部附近）→ 提前定位转折点。
                 if let Some(cand) = segs.iter().rev().find(|s| !s.confirmed) {
-                    a0.push(to_unit(cand.i0, cand.i1, cand.high, cand.low, cand.direction));
+                    a0.push(to_unit(
+                        cand.i0,
+                        cand.i1,
+                        cand.high,
+                        cand.low,
+                        cand.direction,
+                    ));
                 }
             }
             a0
@@ -117,7 +135,13 @@ pub(crate) fn build_a0_fast(
                 .collect();
             if include_last_candidate {
                 if let Some(cand) = strokes.iter().rev().find(|s| !s.confirmed) {
-                    a0.push(to_unit(cand.i0, cand.i1, cand.high, cand.low, cand.direction));
+                    a0.push(to_unit(
+                        cand.i0,
+                        cand.i1,
+                        cand.high,
+                        cand.low,
+                        cand.direction,
+                    ));
                 }
             }
             a0
@@ -225,7 +249,7 @@ impl TFugueStreamCore {
             let tree = iterate(a0, self.mode);
             (tree.all_bsps(), tree.emergent_top(), tree.levels.len())
         }; // orch 借用在此释放
-        // 峰值 r* 观测（非单调流式塔深，L2 度量 P1 用）。
+           // 峰值 r* 观测（非单调流式塔深，L2 度量 P1 用）。
         self.max_levels_seen = self.max_levels_seen.max(n_levels);
 
         // ── 自下而上涌现上界 → (ladder, 操作极性)：向上走势=做多归属 / 向下走势=做空归属。
@@ -276,8 +300,10 @@ impl TFugueStreamCore {
         let (_, _, hist) = self.macd.update(c);
         let last_pos = *self.prefix_pos.last().unwrap();
         let last_neg = *self.prefix_neg.last().unwrap();
-        self.prefix_pos.push(last_pos + if hist > 0.0 { hist } else { 0.0 });
-        self.prefix_neg.push(last_neg + if hist < 0.0 { -hist } else { 0.0 });
+        self.prefix_pos
+            .push(last_pos + if hist > 0.0 { hist } else { 0.0 });
+        self.prefix_neg
+            .push(last_neg + if hist < 0.0 { -hist } else { 0.0 });
         let bar = self.cur_bar;
 
         let mut view = TSignalView::empty();
@@ -315,7 +341,11 @@ impl TFugueStreamCore {
             return;
         }
         self.finished = true;
-        let last_bar = if self.cur_bar > 0 { Some(self.cur_bar - 1) } else { None };
+        let last_bar = if self.cur_bar > 0 {
+            Some(self.cur_bar - 1)
+        } else {
+            None
+        };
         self.engine.finish(last_bar);
     }
 
@@ -384,7 +414,11 @@ impl TFugueStreamCore {
         let tree = iterate(a0.clone(), self.mode);
         let mut out = Vec::with_capacity(tree.levels.len());
         for (k, lvl) in tree.levels.iter().enumerate() {
-            let input: &[Unit] = if k == 0 { &a0 } else { &tree.levels[k - 1].next_units };
+            let input: &[Unit] = if k == 0 {
+                &a0
+            } else {
+                &tree.levels[k - 1].next_units
+            };
             let tv_scale: f64 = input.iter().map(|u| u.high - u.low).sum();
             let n_completed = lvl.trends.iter().filter(|t| t.completed).count();
             let tv_moves: f64 = lvl.next_units.iter().map(|u| u.high - u.low).sum();
@@ -439,9 +473,21 @@ mod tests {
             .iter()
             .filter(|s| s.confirmed && s.kind == SegKind::Settled)
             .map(|s| {
-                let raw_i0 = m2r.get(s.i0).map(|&(lo, _)| lo).unwrap_or(0).min(n.saturating_sub(1));
-                let raw_i1 = m2r.get(s.i1).map(|&(_, hi)| hi).unwrap_or(0).min(n.saturating_sub(1));
-                let (lo, hi) = if raw_i0 <= raw_i1 { (raw_i0, raw_i1) } else { (raw_i1, raw_i0) };
+                let raw_i0 = m2r
+                    .get(s.i0)
+                    .map(|&(lo, _)| lo)
+                    .unwrap_or(0)
+                    .min(n.saturating_sub(1));
+                let raw_i1 = m2r
+                    .get(s.i1)
+                    .map(|&(_, hi)| hi)
+                    .unwrap_or(0)
+                    .min(n.saturating_sub(1));
+                let (lo, hi) = if raw_i0 <= raw_i1 {
+                    (raw_i0, raw_i1)
+                } else {
+                    (raw_i1, raw_i0)
+                };
                 Unit {
                     high: s.high,
                     low: s.low,
@@ -455,7 +501,10 @@ mod tests {
                 }
             })
             .collect();
-        assert_eq!(got, reference, "Segment a₀ 来源逐字 bit-exact 旧 seg_to_unit");
+        assert_eq!(
+            got, reference,
+            "Segment a₀ 来源逐字 bit-exact 旧 seg_to_unit"
+        );
     }
 
     /// **Stroke a₀ 来源字段 + confirmed 过滤**：每单元 level=0 / 无内部中枢 / 字段来自对应
@@ -495,7 +544,10 @@ mod tests {
         let m2r = orch.merged_to_raw();
         let a0_seg = build_a0_fast(segs, strokes, m2r, &pp, &pn, A0Source::Segment, false);
         let a0_bi = build_a0_fast(segs, strokes, m2r, &pp, &pn, A0Source::Stroke, false);
-        assert!(!a0_seg.is_empty(), "合成序列应产出 ≥1 settled 段（否则对比无意义）");
+        assert!(
+            !a0_seg.is_empty(),
+            "合成序列应产出 ≥1 settled 段（否则对比无意义）"
+        );
         assert!(
             a0_bi.len() > a0_seg.len(),
             "a0=笔({}) 应多于 a0=线段({})（底座下移 ⟹ 级别数增量）",
@@ -534,8 +586,16 @@ mod tests {
         // Stroke：last candidate = 最后未确认笔 ⟹ 多 1。
         let bi_off = build_a0_fast(segs, strokes, m2r, &pp, &pn, A0Source::Stroke, false);
         let bi_on = build_a0_fast(segs, strokes, m2r, &pp, &pn, A0Source::Stroke, true);
-        assert_eq!(bi_on.len(), bi_off.len() + 1, "Stroke include_last_candidate 多 1 未确认笔");
-        assert_eq!(&bi_on[..bi_off.len()], &bi_off[..], "前缀逐字一致（仅尾部追加）");
+        assert_eq!(
+            bi_on.len(),
+            bi_off.len() + 1,
+            "Stroke include_last_candidate 多 1 未确认笔"
+        );
+        assert_eq!(
+            &bi_on[..bi_off.len()],
+            &bi_off[..],
+            "前缀逐字一致（仅尾部追加）"
+        );
     }
 
     /// **流式 new 默认 = Segment 来源**：`new(mode)` ⟺ `new_with_a0(mode, Segment)`（bit-exact）。
@@ -558,7 +618,11 @@ mod tests {
         let mut b = TFugueStreamCore::new_with_a0(PerfectionMode::And, A0Source::Segment);
         run(&mut a);
         run(&mut b);
-        assert_eq!(a.result().final_nav, b.result().final_nav, "new 默认 Segment ⟺ new_with_a0(Segment)");
+        assert_eq!(
+            a.result().final_nav,
+            b.result().final_nav,
+            "new 默认 Segment ⟺ new_with_a0(Segment)"
+        );
         assert_eq!(a.n_trades(), b.n_trades());
     }
 

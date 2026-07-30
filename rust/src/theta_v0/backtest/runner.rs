@@ -25,67 +25,60 @@
 //! runner_tests.rs）；strategy 另有独立的 `exec` 子模块（延迟/费用/止损成交/冲突排序，
 //! 对齐 Θ_exec，决定"成交价/方向"）。
 
-use std::rc::Rc;
 use super::super::closed_loop::state::{AssemblyState, MicroEvent};
 use super::super::closed_loop::transition::{hybrid_step, AssemblyEvent};
-use super::super::strategy::ledger::{RiskPolicy, TwState};
 use super::super::config::ThetaConfig;
+use super::super::strategy::ledger::{RiskPolicy, TwState};
 use super::super::types::{Bar, Order, StrictAction};
 use super::super::{classifier, parser};
 use super::data::Dataset;
-use super::signal::{entry_structural_stop, newly_confirmed_step};
-use super::metrics::{self, Metrics};
-pub use super::opsem_dump::{StrictNestCertificateRecord, StrictNestSidecarSummary};
-pub use super::ledger::{TypedTrade, TYPED_TRADE_SCHEMA_VERSION, VoiceVerdictRec};
-pub(super) use super::ledger::{track_position_transition, LedgerOpen, OpsemEntrySnapshot};
-pub(super) use super::ledger::TwLedgerThread;
 pub(crate) use super::fill::{apply_order, FillOutcome};
 use super::fill::{bar_returns, simulate_fills};
+pub(super) use super::ledger::TwLedgerThread;
+pub(super) use super::ledger::{track_position_transition, LedgerOpen, OpsemEntrySnapshot};
+pub use super::ledger::{TypedTrade, VoiceVerdictRec, TYPED_TRADE_SCHEMA_VERSION};
+use super::metrics::{self, Metrics};
+pub use super::opsem_dump::{StrictNestCertificateRecord, StrictNestSidecarSummary};
+use super::signal::{entry_structural_stop, newly_confirmed_step};
+use std::rc::Rc;
 // ★B-M3b-contract（#91）fill loop seam：fill loop 本体 + FillOutput(Family)
 // 自 runner.rs 纯移动；对外经 `pub use` 门面保持原路径。
-pub(super) use super::fill::{
-    pi_theta_fill_loop, pi_theta_fill_loop_overlay,
-    apply_voice_fill,
-};
+pub(super) use super::fill::{apply_voice_fill, pi_theta_fill_loop, pi_theta_fill_loop_overlay};
 // ★#295：声部独立执行臂 wrapper 本体在 fill.rs 即 #[cfg(test)]（生产接入走
 // run_theta_v0_pi_overlay 的 VOICE_EXEC=1 gate 直调 pi_theta_fill_loop_overlay）——
 // re-export 同门控，bin（非 test）构建不引 test-only 符号。
 #[cfg(test)]
 pub(super) use super::fill::pi_theta_fill_loop_voice;
+pub(crate) use super::opsem_dump::OtherwiseDomainSidecarSummary;
 use super::opsem_dump::{
     eta_bucket_str, force_state_str, operation_role_str, risk_mode_str,
     strict_nest_sidecar_enabled, summarize_strict_nest_certificates, t_stage_str, voice_side_str,
     OpsemDump, StrictNestSidecarCollector,
 };
-use super::opsem_dump::{
-    otherwise_domain_sidecar_enabled, OtherwiseDomainSidecarCollector,
-};
-pub(crate) use super::opsem_dump::OtherwiseDomainSidecarSummary;
+use super::opsem_dump::{otherwise_domain_sidecar_enabled, OtherwiseDomainSidecarCollector};
 // ★#295：OPSEM_DUMP_DIR_OVERRIDE 为 #[cfg(test)] thread_local 注入点（opsem_dump.rs:180，
 // 消费面仅 tests::opsem_dump_env_gated_bit_exact）——import 同门控，同 VOICE_EXEC_OVERRIDE 惯例。
 #[cfg(test)]
 use super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE;
 // ★B-M2（#89）准入门 seam：χ/nest/k_Θ 三门 + κ 解析自 runner.rs 纯移动。
 use super::admission::{
-    voice_exec_gate, nest_cert_gate_enabled,
-    NestGateStats, nest_gate_admit,
-    NestGateObs, NestChainGate, LevelFingerprint,
-    k_theta_risk_gate, kappa_policy_resolved, kappa_priority_resolve,
+    k_theta_risk_gate, kappa_policy_resolved, kappa_priority_resolve, nest_cert_gate_enabled,
+    nest_gate_admit, voice_exec_gate, LevelFingerprint, NestChainGate, NestGateObs, NestGateStats,
 };
 // T3 (#172) 链类型（测试与并门派生消费）。
-use super::admission::{ChainGapKind, ChainLevelStatus, ChainVerdict};
 pub use super::admission::ChiFilterCtx;
+use super::admission::{ChainGapKind, ChainLevelStatus, ChainVerdict};
 // 测试经原路径访问 thread_local override（admission 内 pub(super) 可见）。
 #[cfg(test)]
-use super::admission::{VOICE_EXEC_OVERRIDE, NEST_CERT_GATE_OVERRIDE};
+use super::admission::{NEST_CERT_GATE_OVERRIDE, VOICE_EXEC_OVERRIDE};
 // ★三方合并 ours 独有面（#196-#200/#209/#237 探针/判据/override，随 fill loop 同迁
 // fill.rs；pub(super) 升格后本行恢复 runner 原路径，既有测试零改动消费）。
 #[cfg(test)]
 use super::fill::{
     residual_correction_probe_count, residual_correction_probe_reset,
-    reverse_open_isolation_probe_count, reverse_open_isolation_probe_reset,
-    silent_drop_exit_type, t1_core_residual_probe_count, t1_core_zero_probe_count,
-    t1_core_zero_probe_reset, type2_sell_guard_probe_count, type2_sell_guard_probe_reset,
+    reverse_open_isolation_probe_count, reverse_open_isolation_probe_reset, silent_drop_exit_type,
+    t1_core_residual_probe_count, t1_core_zero_probe_count, t1_core_zero_probe_reset,
+    type2_sell_guard_probe_count, type2_sell_guard_probe_reset,
     type2_with_core_residual_probe_count, SHADOW_DIVERGENCE_PATH_OVERRIDE,
 };
 
@@ -320,7 +313,13 @@ fn run_theta_v0_pi_inner(
         |i| {
             let (cls, tower) = if strict_nest_sidecar.enabled {
                 let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
-                strict_nest_sidecar.observe_frame(&l0, &cls, &tower, &config, classifier_incr.tower_cache());
+                strict_nest_sidecar.observe_frame(
+                    &l0,
+                    &cls,
+                    &tower,
+                    &config,
+                    classifier_incr.tower_cache(),
+                );
                 (cls, tower)
             } else {
                 classifier_incr.classify_at(i)
@@ -505,7 +504,9 @@ pub fn run_theta_v0_pi_overlay(
     // ★W1 env gate：VOICE_EXEC=1 ⟹ 声部独立执行臂；未设/非"1" ⟹ 净额臂（bit-exact）。
     let voice_exec_on = voice_exec_gate();
     let mut voice_book = if voice_exec_on {
-        Some(super::super::strategy::overlay_state::VoiceExecBook::new(initial_nav))
+        Some(super::super::strategy::overlay_state::VoiceExecBook::new(
+            initial_nav,
+        ))
     } else {
         None
     };
@@ -718,7 +719,11 @@ pub fn run_closed_loop(bars: &[Bar], initial_nav: f64) -> Option<AssemblyState> 
         return None;
     }
     // 初始闭环态（i0 = NAV 取整作账本基线；账本是结构分量，NAV 绝对额 fill 侧另算）。
-    let i0 = if initial_nav > 0.0 { initial_nav as i64 } else { 1 };
+    let i0 = if initial_nav > 0.0 {
+        initial_nav as i64
+    } else {
+        1
+    };
     // ★GAP3（codex 复审 + 裁定 A' 后口径）：**已注资 campaign** 开局（非零 TW，Q=campaign_notional
     // 名义敞口）。**本闭环在生产策略下不触达 EarningShares**（stage 恒 CostReduction）——A' 后
     // 已实现利润通道（schedule 减仓分支 realized_pnl→Realize）已存在，但 PhaseI intent 恒 Buy

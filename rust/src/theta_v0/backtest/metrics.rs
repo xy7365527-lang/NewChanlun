@@ -104,17 +104,16 @@ pub fn compute(
     years: f64,
     bh_return: f64,
 ) -> Metrics {
-    let strat_return = if let (Some(&first), Some(&last)) =
-        (equity_curve.first(), equity_curve.last())
-    {
-        if first > 0.0 {
-            last / first - 1.0
+    let strat_return =
+        if let (Some(&first), Some(&last)) = (equity_curve.first(), equity_curve.last()) {
+            if first > 0.0 {
+                last / first - 1.0
+            } else {
+                0.0
+            }
         } else {
             0.0
-        }
-    } else {
-        0.0
-    };
+        };
 
     // CAGR：几何年化。years<=0 或权益<=0 ⇒ 0。
     let cagr = if years > 0.0 && strat_return > -1.0 {
@@ -465,11 +464,7 @@ struct RandomControls {
 ///
 /// **认识论 L2**（真实数据时）：随机化 entry 移除"Θ 按缠论结构选时点"的信息——若 Θ 同口径收益
 /// 不能稳定打败随机分布，则缠论内在语法**不贡献择时 alpha**（否证，缩小有效域，231号）。
-fn random_entry_controls(
-    trades: &[TradeRecord],
-    prices: &[f64],
-    fee_rate: f64,
-) -> RandomControls {
+fn random_entry_controls(trades: &[TradeRecord], prices: &[f64], fee_rate: f64) -> RandomControls {
     let len = prices.len();
     // 退化：无交易序列 / 价格序列太短 ⟹ 无法构造随机策略 ⟹ 不冒充否证。
     if trades.is_empty() || len < 2 {
@@ -592,7 +587,13 @@ fn random_entry_controls(
 ///
 /// 口径与 Θ 账本侧强平公式（`runner.rs`：`pos_sign·(px·(1−pos_sign·fee) − entry_cost)·|units|`）
 /// 一致——令 σ=pos_sign，两者代数等价（空头 σ=−1 时 `px_exit_net = exit·(1+fee)`，符号翻转）。
-pub(crate) fn trade_abs_pnl(entry_px: f64, exit_px: f64, qty: f64, fee_rate: f64, long: bool) -> f64 {
+pub(crate) fn trade_abs_pnl(
+    entry_px: f64,
+    exit_px: f64,
+    qty: f64,
+    fee_rate: f64,
+    long: bool,
+) -> f64 {
     if long {
         let proceeds = qty * exit_px * (1.0 - fee_rate);
         let cost = qty * entry_px * (1.0 + fee_rate);
@@ -648,9 +649,7 @@ fn percentile_ci(samples: &mut [f64], lo: f64, hi: f64) -> (f64, f64) {
     }
     samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let n = samples.len();
-    let idx = |q: f64| -> usize {
-        (((n as f64 - 1.0) * q).round() as usize).min(n - 1)
-    };
+    let idx = |q: f64| -> usize { (((n as f64 - 1.0) * q).round() as usize).min(n - 1) };
     (samples[idx(lo)], samples[idx(hi)])
 }
 
@@ -894,7 +893,10 @@ mod tests {
             assert!(v < n, "next_below 落在 [0,{n})");
             seen[v] = true;
         }
-        assert!(seen.iter().all(|&s| s), "1000 抽样覆盖全部 7 个值（均匀性弱见证）");
+        assert!(
+            seen.iter().all(|&s| s),
+            "1000 抽样覆盖全部 7 个值（均匀性弱见证）"
+        );
     }
 
     /// 构造单笔多头 TradeRecord（测试 helper）。
@@ -936,8 +938,14 @@ mod tests {
         // 无费时严格镜像：long(100→110) = +10·qty，short(100→110) = −10·qty。
         let long_pnl = trade_abs_pnl(100.0, 110.0, 2.0, 0.0, true);
         let short_pnl = trade_abs_pnl(100.0, 110.0, 2.0, 0.0, false);
-        assert!((long_pnl - 20.0).abs() < 1e-9, "多头 100→110 ×2 = +20，实得 {long_pnl}");
-        assert!((short_pnl + 20.0).abs() < 1e-9, "空头 100→110 ×2 = −20，实得 {short_pnl}");
+        assert!(
+            (long_pnl - 20.0).abs() < 1e-9,
+            "多头 100→110 ×2 = +20，实得 {long_pnl}"
+        );
+        assert!(
+            (short_pnl + 20.0).abs() < 1e-9,
+            "空头 100→110 ×2 = −20，实得 {short_pnl}"
+        );
         assert!(
             (long_pnl + short_pnl).abs() < 1e-9,
             "镜像对称（无费）：long PnL = −short PnL，实得 long={long_pnl} short={short_pnl}"
@@ -960,14 +968,26 @@ mod tests {
     fn trade_abs_pnl_short_profit_and_loss() {
         // 空头盈利：120 卖出建仓，100 买回平仓 ⟹ +20·qty（无费）。
         let win = trade_abs_pnl(120.0, 100.0, 1.0, 0.0, false);
-        assert!((win - 20.0).abs() < 1e-9, "空头 120→100 = +20（高卖低买盈利），实得 {win}");
+        assert!(
+            (win - 20.0).abs() < 1e-9,
+            "空头 120→100 = +20（高卖低买盈利），实得 {win}"
+        );
         // 空头亏损：100 卖出建仓，120 买回平仓 ⟹ −20·qty（价格涨，空头亏）。
         let loss = trade_abs_pnl(100.0, 120.0, 1.0, 0.0, false);
-        assert!((loss + 20.0).abs() < 1e-9, "空头 100→120 = −20（价涨空头亏），实得 {loss}");
+        assert!(
+            (loss + 20.0).abs() < 1e-9,
+            "空头 100→120 = −20（价涨空头亏），实得 {loss}"
+        );
         // 对偶见证：同一 120→100 走势，多头反而亏 −20（低买高卖被破坏）。
         let long_same = trade_abs_pnl(120.0, 100.0, 1.0, 0.0, true);
-        assert!((long_same + 20.0).abs() < 1e-9, "多头 120→100 = −20（高买低卖亏），实得 {long_same}");
-        assert!((win + long_same).abs() < 1e-9, "同走势 short 盈 = −long 亏（镜像）");
+        assert!(
+            (long_same + 20.0).abs() < 1e-9,
+            "多头 120→100 = −20（高买低卖亏），实得 {long_same}"
+        );
+        assert!(
+            (win + long_same).abs() < 1e-9,
+            "同走势 short 盈 = −long 亏（镜像）"
+        );
     }
 
     /// ★随机对照保持方向（Short trade 重执行仍按空头公式）：纯空头轨迹在下跌价格上，
@@ -990,7 +1010,8 @@ mod tests {
         assert!(
             s.shift_mean_return > 0.0 && s.indep_mean_return > 0.0,
             "随机对照保持空头方向 ⟹ 下跌价格上随机空头均值>0，实得 shift={} indep={}",
-            s.shift_mean_return, s.indep_mean_return
+            s.shift_mean_return,
+            s.indep_mean_return
         );
     }
 
@@ -999,7 +1020,9 @@ mod tests {
     #[test]
     fn theta_same_caliber_mirror_long_vs_short() {
         // 任意非单调价格（含涨跌）。
-        let prices: Vec<f64> = (0..60).map(|i| 100.0 + 5.0 * ((i as f64) * 0.3).sin()).collect();
+        let prices: Vec<f64> = (0..60)
+            .map(|i| 100.0 + 5.0 * ((i as f64) * 0.3).sin())
+            .collect();
         let longs: Vec<TradeRecord> = (0..5).map(|i| mk_trade(i * 4, 2, 1.0)).collect();
         let shorts: Vec<TradeRecord> = (0..5).map(|i| mk_trade_short(i * 4, 2, 1.0)).collect();
         // nav_base 方向无关（Σ qty·entry·(1+fee)）⟹ 多空用同一分母，分子符号相反。
@@ -1015,15 +1038,19 @@ mod tests {
     /// significance 可复现（同输入同 seed ⟹ bit-exact 同结果，§4 硬约束，含新随机对照）。
     #[test]
     fn significance_reproducible() {
-        let pnls: Vec<f64> = (0..50).map(|i| if i % 3 == 0 { -1.0 } else { 2.0 }).collect();
+        let pnls: Vec<f64> = (0..50)
+            .map(|i| if i % 3 == 0 { -1.0 } else { 2.0 })
+            .collect();
         let rets: Vec<f64> = (0..50).map(|i| 0.001 * (i % 5) as f64 - 0.001).collect();
         // 合成价格序列 + 交易轨迹（随机对照可复现见证）。
         let prices: Vec<f64> = (0..100).map(|i| 100.0 + (i as f64).sin()).collect();
-        let trades: Vec<TradeRecord> =
-            (0..10).map(|i| mk_trade(i * 5, 3, 1.0)).collect();
+        let trades: Vec<TradeRecord> = (0..10).map(|i| mk_trade(i * 5, 3, 1.0)).collect();
         let s1 = significance(&pnls, &rets, &trades, &prices, 0.0003, 0.05);
         let s2 = significance(&pnls, &rets, &trades, &prices, 0.0003, 0.05);
-        assert_eq!(s1, s2, "同输入同 seed ⟹ bit-exact 同结果（可复现，含随机对照）");
+        assert_eq!(
+            s1, s2,
+            "同输入同 seed ⟹ bit-exact 同结果（可复现，含随机对照）"
+        );
     }
 
     /// ★否证性见证①：**纯亏损序列** ⟹ bootstrap p 值 ≈ 1.0（无法拒绝 H0 收益≤0）。
@@ -1065,10 +1092,19 @@ mod tests {
     #[test]
     fn significance_degenerate_no_trades() {
         let s0 = significance(&[], &[], &[], &[], 0.0, 0.0);
-        assert_eq!(s0.boot_pvalue_pnl_le_0, 1.0, "无交易 ⟹ p=1.0（无证据，不冒充）");
+        assert_eq!(
+            s0.boot_pvalue_pnl_le_0, 1.0,
+            "无交易 ⟹ p=1.0（无证据，不冒充）"
+        );
         assert!(!s0.theta_beats_random, "无交易 ⟹ 不优于随机");
-        assert_eq!(s0.shift_pvalue, 1.0, "无交易轨迹 ⟹ 随机对照退化 p_upper=1.0");
-        assert_eq!(s0.indep_pvalue, 1.0, "无交易轨迹 ⟹ independent 对照退化 p_upper=1.0");
+        assert_eq!(
+            s0.shift_pvalue, 1.0,
+            "无交易轨迹 ⟹ 随机对照退化 p_upper=1.0"
+        );
+        assert_eq!(
+            s0.indep_pvalue, 1.0,
+            "无交易轨迹 ⟹ independent 对照退化 p_upper=1.0"
+        );
         let s1 = significance(&[5.0], &[0.01], &[], &[], 0.0, 0.0);
         assert_eq!(s1.boot_pvalue_pnl_le_0, 1.0, "仅 1 笔 ⟹ 无序列结构 ⟹ p=1.0");
     }
@@ -1094,7 +1130,10 @@ mod tests {
             .iter()
             .map(|t| trade_abs_pnl(prices[t.entry_bar], prices[t.exit_bar], t.qty, 0.0, t.long))
             .sum::<f64>()
-            / trades.iter().map(|t| t.qty * prices[t.entry_bar]).sum::<f64>();
+            / trades
+                .iter()
+                .map(|t| t.qty * prices[t.entry_bar])
+                .sum::<f64>();
         let s = significance(&[], &[], &trades, &prices, 0.0, theta_ret);
         // 单调上涨 + 固定 hold ⟹ 每笔绝对盈亏恒 = qty×hold（价格每根 +1）⟹ 随机均值 ≈ Θ。
         // 关键见证：随机分布均值是**重新执行操作语义**算出，不是从 Θ pnl 池重抽——
@@ -1125,7 +1164,9 @@ mod tests {
     #[test]
     fn random_control_good_timing_beats_independent() {
         // 锯齿：偶数 bar=100（低），奇数 bar=110（高）。
-        let prices: Vec<f64> = (0..200).map(|i| if i % 2 == 0 { 100.0 } else { 110.0 }).collect();
+        let prices: Vec<f64> = (0..200)
+            .map(|i| if i % 2 == 0 { 100.0 } else { 110.0 })
+            .collect();
         // Θ 在偶数 bar（低点）入场，持有 1 根到奇数 bar（高点）平仓——完美择时。
         let trades: Vec<TradeRecord> = (0..40).map(|i| mk_trade(i * 2, 1, 1.0)).collect();
         // Θ 每笔买 100 卖 110 ⟹ 含浮盈 total_return（fee=0）= Σ10 / Σ100 = 0.1。
@@ -1159,10 +1200,19 @@ mod tests {
         let trades = vec![mk_trade(0, 5, 1.0)];
         let s = significance(&[], &[], &trades, &prices, 0.0, 0.0);
         // exit_bar=5 ≥ len=3 ⟹ schedule-shift 无合法 δ（max_exit≥len）⟹ 退化。
-        assert_eq!(s.shift_pvalue, 1.0, "exit 越界 ⟹ schedule-shift 退化 p_upper=1.0");
-        assert_eq!(s.indep_pvalue, 1.0, "hold≥len ⟹ independent 退化 p_upper=1.0");
+        assert_eq!(
+            s.shift_pvalue, 1.0,
+            "exit 越界 ⟹ schedule-shift 退化 p_upper=1.0"
+        );
+        assert_eq!(
+            s.indep_pvalue, 1.0,
+            "hold≥len ⟹ independent 退化 p_upper=1.0"
+        );
         assert!(!s.theta_beats_random, "退化 ⟹ 不冒充否证");
-        assert!(s.controls_degenerate, "无真随机样本 ⟹ controls_degenerate=true（下游归 inconclusive）");
+        assert!(
+            s.controls_degenerate,
+            "无真随机样本 ⟹ controls_degenerate=true（下游归 inconclusive）"
+        );
     }
 
     /// ★schedule-shift span==1 退化 guard（codex 缺陷⑤）：交易紧贴序列末尾 ⟹ 唯一 δ=0（复现 Θ）
@@ -1175,8 +1225,14 @@ mod tests {
         let prices = vec![100.0, 101.0, 102.0, 103.0];
         let trades = vec![mk_trade(0, 3, 1.0)]; // entry=0 exit=3 占满 ⟹ span=1
         let s = significance(&[], &[], &trades, &prices, 0.0, 0.0);
-        assert_eq!(s.shift_pvalue, 1.0, "span==1（唯一 δ=0）⟹ shift 无真随机 ⟹ 退化 p_upper=1.0");
-        assert!(s.controls_degenerate, "shift 退化 ⟹ controls_degenerate=true");
+        assert_eq!(
+            s.shift_pvalue, 1.0,
+            "span==1（唯一 δ=0）⟹ shift 无真随机 ⟹ 退化 p_upper=1.0"
+        );
+        assert!(
+            s.controls_degenerate,
+            "shift 退化 ⟹ controls_degenerate=true"
+        );
         assert!(!s.theta_beats_random, "退化 ⟹ 不冒充 beats");
     }
 

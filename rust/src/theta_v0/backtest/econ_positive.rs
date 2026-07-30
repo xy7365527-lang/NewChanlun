@@ -40,24 +40,24 @@
 //! μ̂ 不可直接互比（G4 commit：typed 口径样本量低约两个数量级）。旧注释中「同 `build_walk_forward_mu`」
 //! 的同源声明自 G4 起失效，已随本标注移除。
 
-use std::rc::Rc;
-use super::data::Dataset;
-use super::incremental::IncrementalClassifier;
+use super::super::classifier::bsp::BspPoint;
+use super::super::classifier::center::{center_from_segments, UnitRange};
+use super::super::classifier::descend::RMove;
 use super::super::classifier::divergence::compute_macd;
-use super::super::classifier::recursive_tower::find_move_by_end_index;
 use super::super::classifier::nest::{is_sub, NestCertificate, NestInterval, NestRung};
+use super::super::classifier::recursive_tower::find_move_by_end_index;
+use super::super::classifier::recursive_tower::LeveledMove;
+use super::super::classifier::signal::PanDivCert;
 use super::super::config::ThetaConfig;
+use super::super::strategy::coverage::Horizontal;
 use super::super::strategy::interp::{assemble_gamma_with_tower, exit_type_of_classes, ExitType};
 use super::super::strategy::voice::VoiceSide;
 use super::super::types::{Bar, BspBits, Center, Side};
-use super::super::classifier::bsp::BspPoint;
-use super::super::classifier::recursive_tower::LeveledMove;
-use super::super::classifier::signal::PanDivCert;
-use super::super::classifier::center::{center_from_segments, UnitRange};
-use super::super::classifier::descend::RMove;
+use super::data::Dataset;
+use super::incremental::IncrementalClassifier;
 use super::mu_estimator::{MuClass, PositionState};
 use super::selector::{sigma_higher_at, z_of_candidate, ZExt};
-use super::super::strategy::coverage::Horizontal;
+use std::rc::Rc;
 
 /// P7 正规出场口径：配对出场信号的缠论卖点（买点）类别（对齐 interp `ExitType` 的
 /// CloseRoot/ReduceCore——#181 自 closed_loop/sell.rs SellDecision 收敛到 interp 单源）。
@@ -226,7 +226,10 @@ fn bsp_disc(b: &BspBits) -> u8 {
 /// 返回 `(Vec<SignalDecomp>, SpreadAttribution)`：逐信号分解 + 聚合归因。
 ///
 /// **认识论 L2**：真实数据逐信号分解，可产否定性结果（spread_eaten=true ⟹ 信号集无 alpha）。
-pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec<SignalDecomp>, SpreadAttribution) {
+pub fn decompose_capturable_spread(
+    data: &Dataset,
+    config: &ThetaConfig,
+) -> (Vec<SignalDecomp>, SpreadAttribution) {
     // C1（algo-opt-plan-20260702 泳道 C）：拆 collect_signals（O(bar²) 逐 bar 收集）+ pair_signals
     // （O(信号) 配对）。语义 bit-exact 旧实装——collect 再 pair 顺序调用 = 原单函数体，逐字未改。
     // 拆分动机：让 acc_classification_level_hole_dx 复用 collect 输出，省二次全量重收集（dx harness ~2x）。
@@ -304,7 +307,10 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
         }
         let (cls_i, tower_i) = classifier_incr.classify_at(i);
         for (lvl, ls) in cls_i.levels.iter().enumerate() {
-            if prev_bsp.get(lvl).map_or(false, |prev| Rc::ptr_eq(prev, &ls.bsp)) {
+            if prev_bsp
+                .get(lvl)
+                .map_or(false, |prev| Rc::ptr_eq(prev, &ls.bsp))
+            {
                 continue; // C2：同 Rc ⟹ 全键已 seen，跳级
             }
             if lvl < prev_bsp.len() {
@@ -318,12 +324,12 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                     continue; // 已确认过
                 }
                 let pivot_bar = p.source_index; // 信号挂靠 pivot 端点（bsp.rs:103）= λ_rev / ρ_rev 取价处
-                // dir 经 assemble_gamma 拿（构造仅含该点的单级别分类；G4 前与旧 build_walk_forward_mu 同源）。
-                // ponytail（fullhist-oom-fix-20260630）: single 的空 moves/centers 不是冗余——它**屏蔽其他层
-                // bsp**，只让这一个 bsp 产单候选。elements 从 tower 提取，classification 只供 bsp 做 Γ 组装；
-                // dir 来自该 bsp 的 coverage role 判定，非 tower 裸结构可读。此重建仅每新信号触发（600K bar=1682
-                // 次，万级噪声非 O(bar) 主导），勿当 O(N×L) 去重写 coverage 核心——会破 bit-exact。O(n²) 真因在
-                // classify_at 每 bar O(tree) 续算（#104/#105/#106 generation 快路）。
+                                                // dir 经 assemble_gamma 拿（构造仅含该点的单级别分类；G4 前与旧 build_walk_forward_mu 同源）。
+                                                // ponytail（fullhist-oom-fix-20260630）: single 的空 moves/centers 不是冗余——它**屏蔽其他层
+                                                // bsp**，只让这一个 bsp 产单候选。elements 从 tower 提取，classification 只供 bsp 做 Γ 组装；
+                                                // dir 来自该 bsp 的 coverage role 判定，非 tower 裸结构可读。此重建仅每新信号触发（600K bar=1682
+                                                // 次，万级噪声非 O(bar) 主导），勿当 O(N×L) 去重写 coverage 核心——会破 bit-exact。O(n²) 真因在
+                                                // classify_at 每 bar O(tree) 续算（#104/#105/#106 generation 快路）。
                 let single = super::super::classifier::Classification {
                     levels: cls_i
                         .levels
@@ -333,7 +339,11 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                             moves: Vec::new(),
                             centers: Rc::new(Vec::new()),
                             cp_ownership: Rc::new(Vec::new()),
-                            bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
+                            bsp: Rc::new(if l2 == lvl {
+                                vec![p.clone()]
+                            } else {
+                                Vec::new()
+                            }),
                             pan_div: Rc::new(Vec::new()), // Q4：single 屏蔽层无盘整背驰载荷（只供 Γ 组装）
                             level_projection: None, // #110 门关口径（与生产 stamping 关闭分支同形）
                         })
@@ -361,10 +371,27 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                     // （level==1 时 C2∧C3(新中枢+突破) 硬门，level!=1 维持 C2-only，codex #44 终局裁定(c)，
                     // C2+C3(breakout) xzd）。次级别（lvl-1）中枢/bsp/走势供 C3 判据；小转大域 lvl≥1，
                     // lvl==0 走区间套不消费此三值。
-                    let sub_centers: &[Center] = if lvl > 0 { &cls_i.levels[lvl - 1].centers } else { &[] };
-                    let sub_bsp: &[BspPoint] = if lvl > 0 { &cls_i.levels[lvl - 1].bsp } else { &[] };
+                    let sub_centers: &[Center] = if lvl > 0 {
+                        &cls_i.levels[lvl - 1].centers
+                    } else {
+                        &[]
+                    };
+                    let sub_bsp: &[BspPoint] = if lvl > 0 {
+                        &cls_i.levels[lvl - 1].bsp
+                    } else {
+                        &[]
+                    };
                     let gate_cert = build_gate_certificate(
-                        &tower_i, lvl, p.source_index, delta_side, &p.bits, &macd_hist, i, &ls.bsp, sub_centers, sub_bsp,
+                        &tower_i,
+                        lvl,
+                        p.source_index,
+                        delta_side,
+                        &p.bits,
+                        &macd_hist,
+                        i,
+                        &ls.bsp,
+                        sub_centers,
+                        sub_bsp,
                     );
                     let pass = match &gate_cert {
                         Some(GateCertificate::Nest(cert)) => cert.n_delta(),
@@ -414,7 +441,11 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                     let z = z_of_candidate(c, &tower_i, bars, &ext);
                     // G2 一致性护栏：z 内 σ_higher（按 c.level 取）须与信号分解口径（按 lvl 取）同值
                     // ——同函数同塔，仅 level 来源不同（c.level 由 assemble 自 lvl 单级分类产生）。
-                    debug_assert_eq!(z.sigma_higher, Some(sigma_higher), "z.sigma_higher 与 SignalDecomp 口径分叉");
+                    debug_assert_eq!(
+                        z.sigma_higher,
+                        Some(sigma_higher),
+                        "z.sigma_higher 与 SignalDecomp 口径分叉"
+                    );
                     signals.push(RawSignal {
                         entry_bar: i,
                         dir: c.dir,
@@ -444,11 +475,25 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                     // PanDiv 特例；若裁决改为「证据出现即承接」须全通道同改。
                     continue;
                 }
-                let sub_centers: &[Center] =
-                    if lvl > 0 { &cls_i.levels[lvl - 1].centers } else { &[] };
-                let sub_bsp: &[BspPoint] = if lvl > 0 { &cls_i.levels[lvl - 1].bsp } else { &[] };
+                let sub_centers: &[Center] = if lvl > 0 {
+                    &cls_i.levels[lvl - 1].centers
+                } else {
+                    &[]
+                };
+                let sub_bsp: &[BspPoint] = if lvl > 0 {
+                    &cls_i.levels[lvl - 1].bsp
+                } else {
+                    &[]
+                };
                 if !pan_div_gate_pass(
-                    &tower_i, lvl, cert, &macd_hist, i, &ls.bsp, sub_centers, sub_bsp,
+                    &tower_i,
+                    lvl,
+                    cert,
+                    &macd_hist,
+                    i,
+                    &ls.bsp,
+                    sub_centers,
+                    sub_bsp,
                 ) {
                     continue; // 两门皆闭 ⟹ 承接失败诚实丢弃（不入信号）。
                 }
@@ -519,19 +564,44 @@ fn pair_signals(
     let mut next_long = vec![ns; ns + 1];
     let mut next_short = vec![ns; ns + 1];
     for i in (0..ns).rev() {
-        next_long[i] = if signals[i].dir == VoiceSide::Long { i } else { next_long[i + 1] };
-        next_short[i] = if signals[i].dir == VoiceSide::Short { i } else { next_short[i + 1] };
+        next_long[i] = if signals[i].dir == VoiceSide::Long {
+            i
+        } else {
+            next_long[i + 1]
+        };
+        next_short[i] = if signals[i].dir == VoiceSide::Short {
+            i
+        } else {
+            next_short[i + 1]
+        };
     }
 
     for (idx, s) in signals.iter().enumerate() {
-        let RawSignal { entry_bar, dir, pivot_bar: lambda_rev_bar, level, sigma_higher, bsp_class, z, trigger } = *s;
+        let RawSignal {
+            entry_bar,
+            dir,
+            pivot_bar: lambda_rev_bar,
+            level,
+            sigma_higher,
+            bsp_class,
+            z,
+            trigger,
+        } = *s;
         let delta: i8 = match dir {
             VoiceSide::Long => 1,
             VoiceSide::Short => -1,
             VoiceSide::Flat => continue,
         };
-        let opp = if delta == 1 { VoiceSide::Short } else { VoiceSide::Long };
-        let next_opp = if opp == VoiceSide::Long { &next_long } else { &next_short };
+        let opp = if delta == 1 {
+            VoiceSide::Short
+        } else {
+            VoiceSide::Long
+        };
+        let next_opp = if opp == VoiceSide::Long {
+            &next_long
+        } else {
+            &next_short
+        };
         // 首个后续 opp 方向信号（O(1) 表查，替代 signals[idx+1..].find/any 的 O(信号)扫）。
         let mut j = next_opp[idx + 1];
         // 三审计统计②（codex Q2）：同 bar 反向信号（首个 opp 若 eb==entry_bar 即命中——单调非降 ⟹
@@ -545,7 +615,11 @@ fn pair_signals(
         }
         // 配对出场信号（首个 eb>entry_bar 反向新确认信号，π^bsp owned）：entry_bar(τout) + pivot_bar(ρ_rev) + exit_bsp_class(P7)。
         let (exit_bar, rho_rev_bar, exit_bsp_class) = if j < ns {
-            (signals[j].entry_bar, signals[j].pivot_bar, signals[j].bsp_class)
+            (
+                signals[j].entry_bar,
+                signals[j].pivot_bar,
+                signals[j].bsp_class,
+            )
         } else {
             agg.n_unpaired += 1; // 三审计统计③（codex Q4）：右删失，无配对出场反转信号，诚实跳过不兜底
             continue;
@@ -560,7 +634,10 @@ fn pair_signals(
         let p_rho = px_at(bars, rho_rev_bar, tick);
         let p_tau_in = px_at(bars, entry_bar, tick);
         let p_tau_out = px_at(bars, exit_bar, tick);
-        if [p_lambda, p_rho, p_tau_in, p_tau_out].iter().any(|&x| x <= 0.0) {
+        if [p_lambda, p_rho, p_tau_in, p_tau_out]
+            .iter()
+            .any(|&x| x <= 0.0)
+        {
             continue;
         }
         let eps = delta as f64; // 交易方向 δ（反转交易腿；664 号 δ≠ε 笔方向）
@@ -570,16 +647,29 @@ fn pair_signals(
         let eta_in = x_in.max(0.0); // adverse-only（丢 x<0 有利滑移）
         let eta_out = y_out.max(0.0);
         let actual_spread = eps * (p_tau_out - p_tau_in); // = a_b − x_in − y_out（真实成交价差，含全部滑移）
-        // 单位双边成本：与 marginal_return 口径一致（fee 在 entry/exit 各扣一次）。
+                                                          // 单位双边成本：与 marginal_return 口径一致（fee 在 entry/exit 各扣一次）。
         let ce_unit = (p_tau_in + p_tau_out) * fee_rate;
         let captured = a_b - eta_in - eta_out - ce_unit; // adverse-only 保守压力测试
         let actual_pnl = actual_spread - ce_unit; // 真实成交 PnL 代理（664-Q3）
-        // P7 正规出场口径：从配对出场信号 bsp_class 派生（接 interp ExitType CloseRoot/ReduceCore）。
+                                                  // P7 正规出场口径：从配对出场信号 bsp_class 派生（接 interp ExitType CloseRoot/ReduceCore）。
         let exit_decision = exit_decision_from_bits(exit_bsp_class, delta);
 
         decomps.push(SignalDecomp {
-            entry_bar, exit_bar, level, delta, a_b, x_in, y_out,
-            eta_in, eta_out, actual_spread, ce_unit, captured, actual_pnl, sigma_higher, bsp_class,
+            entry_bar,
+            exit_bar,
+            level,
+            delta,
+            a_b,
+            x_in,
+            y_out,
+            eta_in,
+            eta_out,
+            actual_spread,
+            ce_unit,
+            captured,
+            actual_pnl,
+            sigma_higher,
+            bsp_class,
             z, // b2：入场信号完整 z（升 Z 分桶键；entry 信号的 MuClass 携带 σ_p/role/H）
             exit_decision,
             trigger, // P0-1：入场信号准入触发通道（每桶 μ̂ 归因）
@@ -666,7 +756,10 @@ pub(super) fn exit_decision_from_bits(exit_bsp_class: u8, delta: i8) -> ExitDeci
 
 /// bar close → 价格（close×tick），越界/非正返 0。
 fn px_at(bars: &[Bar], i: usize, tick: f64) -> f64 {
-    bars.get(i).map(|b| b.close as f64 * tick).filter(|&p| p > 0.0).unwrap_or(0.0)
+    bars.get(i)
+        .map(|b| b.close as f64 * tick)
+        .filter(|&p| p > 0.0)
+        .unwrap_or(0.0)
 }
 
 /// W1 返工：多级 N^δ 区间套证书构造 + 真递归调用（替换 bsp_div_cand 单级门）。
@@ -960,7 +1053,13 @@ pub(super) fn build_nest_certificate(
         //   Type1 → 本级趋势背驰段 div_cand（区间套原文对象，606 号有效域；bit-exact 不动）。
         //   Type2/3 → 存在性已由 base gate 门控（descend anchor），上级 rung 载上级语境 ⟹ true。
         // knode.sub_moves 是 lvl 到 k-1 级的窗口序列（Type1 在其中找执行级候选段算四条件）。
-        let cand_k = cand_delta(cand_type, knode.sub_moves.as_slice(), source_index, delta, hist);
+        let cand_k = cand_delta(
+            cand_type,
+            knode.sub_moves.as_slice(),
+            source_index,
+            delta,
+            hist,
+        );
         rung_buf.push(NestRung::new(interval_k, cand_k));
     }
     // n_delta 期望 rungs[0]=最高级，rungs[last]=lvl+1 级——rung_buf 是低到高，需反转。
@@ -978,7 +1077,12 @@ pub(super) fn build_nest_certificate(
             .all(|w| is_sub(&w[1], &w[0])),
         "#100 嵌套链破裂 J_e⊆…⊆J_ℓ（Compose 不变量违反）：base={base_interval:?} rungs={rung_buf:?}"
     );
-    Some(NestCertificate::from_parts(delta, *bits, base_interval, rung_buf))
+    Some(NestCertificate::from_parts(
+        delta,
+        *bits,
+        base_interval,
+        rung_buf,
+    ))
 }
 
 /// R5-c opsem-dump（基因 073a/274号）：候选的**区间套深度** Ndepth = 从执行级 `lvl` 向上连续
@@ -1011,7 +1115,10 @@ pub(super) fn structural_nest_depth(
             "tower[k] 须按 end_index 升序（partition_point 前提）"
         );
         let ki = k_moves.partition_point(|m| m.end_index < source_index);
-        if !k_moves.get(ki).map_or(false, |m| m.start_index <= source_index) {
+        if !k_moves
+            .get(ki)
+            .map_or(false, |m| m.start_index <= source_index)
+        {
             break;
         }
         depth += 1;
@@ -1061,7 +1168,8 @@ pub(super) fn build_nest_certificate_bottomup(
         // bottom-up 候选集 C^δ_k(J_{k-1}) = {c ∈ tower[k] : J_{k-1} ⊆ I(c)}，Sel_Θ 选最优（PDF §二/§三.2）。
         let mut chosen: Option<&LeveledMove> = None;
         for m in k_moves {
-            if (m.start_index as u64) <= child.start_time && child.end_time <= (m.end_index as u64) {
+            if (m.start_index as u64) <= child.start_time && child.end_time <= (m.end_index as u64)
+            {
                 let mi = NestInterval {
                     start_time: m.start_index as u64,
                     end_time: m.end_index as u64,
@@ -1069,28 +1177,46 @@ pub(super) fn build_nest_certificate_bottomup(
                 };
                 let take = match chosen {
                     None => true,
-                    Some(b) => sel_order(&mi, &NestInterval {
-                        start_time: b.start_index as u64,
-                        end_time: b.end_index as u64,
-                        idx: b.id.ordinal,
-                    }),
+                    Some(b) => sel_order(
+                        &mi,
+                        &NestInterval {
+                            start_time: b.start_index as u64,
+                            end_time: b.end_index as u64,
+                            idx: b.id.ordinal,
+                        },
+                    ),
                 };
-                if take { chosen = Some(m); }
+                if take {
+                    chosen = Some(m);
+                }
             }
         }
         // 无包含父候选 ⟹ 链断（与生产同：partial chain 合法，codex #39 Q1）。
-        let Some(knode) = chosen else { break; };
+        let Some(knode) = chosen else {
+            break;
+        };
         let interval_k = NestInterval {
             start_time: knode.start_index as u64,
             end_time: knode.end_index as u64,
             idx: knode.id.ordinal,
         };
-        let cand_k = cand_delta(cand_type, knode.sub_moves.as_slice(), source_index, delta, hist);
+        let cand_k = cand_delta(
+            cand_type,
+            knode.sub_moves.as_slice(),
+            source_index,
+            delta,
+            hist,
+        );
         rung_buf.push(NestRung::new(interval_k, cand_k));
         child = interval_k; // 加宽：下一级用本级 J_k 作 child（真 bottom-up 递归）。
     }
     rung_buf.reverse();
-    Some(NestCertificate::from_parts(delta, *bits, base_interval, rung_buf))
+    Some(NestCertificate::from_parts(
+        delta,
+        *bits,
+        base_interval,
+        rung_buf,
+    ))
 }
 
 /// 诊断：通过门信号的 N^δ 证书**有效跨级深度** = 从最高级 rung 起连续 `cand==true` 的层数。
@@ -1255,8 +1381,12 @@ pub(super) fn pan_div_gate_pass(
     sub_bsp: &[BspPoint],
 ) -> bool {
     // 执行段定位（与 build_nest_certificate 同口径）：tower[lvl] 中 end_index==source_index 的段。
-    let Some(exec_moves) = tower.get(lvl).map(|m| m.as_slice()) else { return false };
-    let Some(si) = find_move_by_end_index(exec_moves, cert.source_index) else { return false };
+    let Some(exec_moves) = tower.get(lvl).map(|m| m.as_slice()) else {
+        return false;
+    };
+    let Some(si) = find_move_by_end_index(exec_moves, cert.source_index) else {
+        return false;
+    };
     let s = &exec_moves[si];
     // 通道1（Nest 语义 ∃e<ℓ Conf^δ_e）：次级别 Type1 下沉锚。lvl==0（递归底，塔内无次级别——塔不从笔递归，构造选择，非客观无次级别，订正 #520）恒 None ⟹ 走通道2。
     if descend_type1_anchor_depth(s, cert.source_index, cert.side, hist).is_some() {
@@ -1356,7 +1486,12 @@ fn xzd_type2_confirmed(bsp_of_level: &[BspPoint], source_index: usize, side: Sid
 /// 最后次级中枢 = `s` 跨度 [start,end] 内 end_index 最大的次级中枢（动态最后中枢，`044:56` as-of 口径）。
 /// C3 = 存在次级三类 bsp 其 center 即该最后中枢（离开该中枢回试不入 ZG/ZD）。必要非充分（思维导图 128）。
 /// 值等同 `XzdEvidence.sub_last_zs_type3` / `XzdC3Diag.same_side_same_center`。
-fn xzd_sub_last_zs_type3(s: &LeveledMove, sub_centers: &[Center], sub_bsp: &[BspPoint], side: Side) -> bool {
+fn xzd_sub_last_zs_type3(
+    s: &LeveledMove,
+    sub_centers: &[Center],
+    sub_bsp: &[BspPoint],
+    side: Side,
+) -> bool {
     let Some(last_zs) = sub_centers
         .iter()
         .filter(|c| c.start_index >= s.start_index && c.end_index <= s.end_index)
@@ -1455,7 +1590,10 @@ fn xzd_c3_new_center_breakout(
                 Side::Short => m.rmove.lo() < z.zd,
             })
     });
-    XzdC3BreakoutDiag { new_center_exists: !new_centers.is_empty(), new_center_breakout_ok }
+    XzdC3BreakoutDiag {
+        new_center_exists: !new_centers.is_empty(),
+        new_center_breakout_ok,
+    }
 }
 
 /// C3 L1 零命中根因判别探针（codex #55 终局裁定(5) 精确规格）：**纯只读旁路**，区分「非重叠
@@ -1527,7 +1665,9 @@ fn l0_units_from_tower(moves: &[LeveledMove]) -> Vec<UnitRange> {
             let direction = match &m.rmove {
                 RMove::Segment { direction, .. } => *direction,
                 RMove::Compose { .. } => {
-                    unreachable!("tower[0] 恒为 L0 RMove::Segment（递归底，调用侧只在 lvl==1 用本函数）")
+                    unreachable!(
+                        "tower[0] 恒为 L0 RMove::Segment（递归底，调用侧只在 lvl==1 用本函数）"
+                    )
                 }
             };
             UnitRange {
@@ -1560,7 +1700,8 @@ fn xiaozhuanda_confirm(
     sub_moves: &[LeveledMove],
 ) -> XzdEvidence {
     let diag = xzd_c3_diag(s, sub_centers, sub_bsp, side, confirm_index);
-    let breakout = xzd_c3_new_center_breakout(source_index, confirm_index, side, sub_centers, sub_moves);
+    let breakout =
+        xzd_c3_new_center_breakout(source_index, confirm_index, side, sub_centers, sub_moves);
     XzdEvidence {
         source_index,
         level: lvl,
@@ -1676,35 +1817,64 @@ mod tests {
 
     fn xzd_bsp(source_index: usize, bits: BspBits, center: Option<Center>) -> BspPoint {
         // #218 面 A 载体形态机械适配：Center 变体包装。
-        BspPoint { source_index, bits, pivot_low: 0, pivot_high: 0, center: center.map(crate::theta_v0::classifier::bsp::OwnerRef::Center), struct_break_dir: None, force: None }
+        BspPoint {
+            source_index,
+            bits,
+            pivot_low: 0,
+            pivot_high: 0,
+            center: center.map(crate::theta_v0::classifier::bsp::OwnerRef::Center),
+            struct_break_dir: None,
+            force: None,
+        }
     }
 
     fn xzd_center(zd: i64, zg: i64, s: usize, e: usize) -> Center {
-        Center { zd, zg, dd: zd, gg: zg, start_index: s, end_index: e }
+        Center {
+            zd,
+            zg,
+            dd: zd,
+            gg: zg,
+            start_index: s,
+            end_index: e,
+        }
     }
 
     fn xzd_seg(s: usize, e: usize) -> LeveledMove {
-        use super::super::super::classifier::recursive_tower::ElementId;
         use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::ElementId;
         LeveledMove {
-            rmove: RMove::Segment { direction: super::super::super::types::Direction::Down, lo: 0, hi: 100 },
+            rmove: RMove::Segment {
+                direction: super::super::super::types::Direction::Down,
+                lo: 0,
+                hi: 100,
+            },
             start_index: s,
             end_index: e,
             sub_moves: Rc::new(vec![]),
-            id: ElementId { level: 1, ordinal: 0 },
+            id: ElementId {
+                level: 1,
+                ordinal: 0,
+            },
         }
     }
 
     /// 次级走势，配置 hi（C3 突破判据测试用：`m.rmove.hi() > z.zg` 是否成立由此控制）。
     fn xzd_seg_hi(s: usize, e: usize, hi: i64) -> LeveledMove {
-        use super::super::super::classifier::recursive_tower::ElementId;
         use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::ElementId;
         LeveledMove {
-            rmove: RMove::Segment { direction: super::super::super::types::Direction::Up, lo: 0, hi },
+            rmove: RMove::Segment {
+                direction: super::super::super::types::Direction::Up,
+                lo: 0,
+                hi,
+            },
             start_index: s,
             end_index: e,
             sub_moves: Rc::new(vec![]),
-            id: ElementId { level: 1, ordinal: 0 },
+            id: ElementId {
+                level: 1,
+                ordinal: 0,
+            },
         }
     }
 
@@ -1718,29 +1888,60 @@ mod tests {
         let src = 50usize;
         // 三层塔：J0(exec,end==src) ⊂ J1(含 src,end 80≠50) ⊂ J2(含 src,end 100≠50)。
         let tower: Vec<Rc<Vec<LeveledMove>>> = vec![
-            Rc::new(vec![xzd_seg(40, 50)]),  // tower[0]=J0 执行级：end==src
-            Rc::new(vec![xzd_seg(20, 80)]),  // tower[1]=J1：含 50，end 80≠50
-            Rc::new(vec![xzd_seg(0, 100)]),  // tower[2]=J2：含 50，end 100≠50
+            Rc::new(vec![xzd_seg(40, 50)]), // tower[0]=J0 执行级：end==src
+            Rc::new(vec![xzd_seg(20, 80)]), // tower[1]=J1：含 50，end 80≠50
+            Rc::new(vec![xzd_seg(0, 100)]), // tower[2]=J2：含 50，end 100≠50
         ];
         let hist: Vec<f64> = vec![];
-        let bits = BspBits { buy1: true, ..Default::default() };
+        let bits = BspBits {
+            buy1: true,
+            ..Default::default()
+        };
 
         // 旧「端点相等」口径：上级 tower[1]/tower[2] 无 end==src 段 ⟹ 定位失败（旧会漏掉 J1/J2）。
-        assert!(find_move_by_end_index(&tower[1], src).is_none(), "J1 end 80≠src 50，端点相等应定位失败");
-        assert!(find_move_by_end_index(&tower[2], src).is_none(), "J2 end 100≠src 50，端点相等应定位失败");
+        assert!(
+            find_move_by_end_index(&tower[1], src).is_none(),
+            "J1 end 80≠src 50，端点相等应定位失败"
+        );
+        assert!(
+            find_move_by_end_index(&tower[2], src).is_none(),
+            "J2 end 100≠src 50，端点相等应定位失败"
+        );
 
         // 新「区间包含」口径：build_nest_certificate 定位到两级 rung，三层嵌套 J0⊂J1⊂J2 可见。
         let cert = build_nest_certificate(&tower, 0, src, Side::Long, &bits, &hist)
             .expect("区间包含口径应定位到执行级段");
-        assert_eq!(cert.rungs().len(), 2, "含 src 的两上级 rung 均被区间包含口径定位（端点相等口径为 0）");
+        assert_eq!(
+            cert.rungs().len(),
+            2,
+            "含 src 的两上级 rung 均被区间包含口径定位（端点相等口径为 0）"
+        );
         // rungs 从高到低：rungs[0]=J2[0,100]、rungs[1]=J1[20,80]，且 end≠src（分歧标记）。
-        assert_eq!((cert.rungs()[0].interval().start_time, cert.rungs()[0].interval().end_time), (0, 100));
-        assert_eq!((cert.rungs()[1].interval().start_time, cert.rungs()[1].interval().end_time), (20, 80));
+        assert_eq!(
+            (
+                cert.rungs()[0].interval().start_time,
+                cert.rungs()[0].interval().end_time
+            ),
+            (0, 100)
+        );
+        assert_eq!(
+            (
+                cert.rungs()[1].interval().start_time,
+                cert.rungs()[1].interval().end_time
+            ),
+            (20, 80)
+        );
         assert_ne!(cert.rungs()[0].interval().end_time, src as u64);
         assert_ne!(cert.rungs()[1].interval().end_time, src as u64);
         // 嵌套链 J0⊆J1⊆J2（区间包含口径下才可见的三层套）——同时验证 build_nest_certificate 内看守放行。
-        assert!(is_sub(&cert.base_interval(), &cert.rungs()[1].interval()), "J0⊆J1");
-        assert!(is_sub(&cert.rungs()[1].interval(), &cert.rungs()[0].interval()), "J1⊆J2");
+        assert!(
+            is_sub(&cert.base_interval(), &cert.rungs()[1].interval()),
+            "J0⊆J1"
+        );
+        assert!(
+            is_sub(&cert.rungs()[1].interval(), &cert.rungs()[0].interval()),
+            "J1⊆J2"
+        );
     }
 
     /// ★#100 问题① 验收（边界等号 source==end(m)）：上级 rung 的 end 恰等于 source_index——
@@ -1751,18 +1952,32 @@ mod tests {
         use super::super::super::classifier::recursive_tower::find_move_by_end_index;
         let src = 50usize;
         let tower: Vec<Rc<Vec<LeveledMove>>> = vec![
-            Rc::new(vec![xzd_seg(40, 50)]),  // exec：end==src
-            Rc::new(vec![xzd_seg(10, 50)]),  // J1：end==src（边界等号）
+            Rc::new(vec![xzd_seg(40, 50)]), // exec：end==src
+            Rc::new(vec![xzd_seg(10, 50)]), // J1：end==src（边界等号）
         ];
         let hist: Vec<f64> = vec![];
-        let bits = BspBits { buy1: true, ..Default::default() };
+        let bits = BspBits {
+            buy1: true,
+            ..Default::default()
+        };
         // 旧端点相等口径定位到 tower[1] move[0]（end==src）。
         assert_eq!(find_move_by_end_index(&tower[1], src), Some(0));
         // 新区间包含口径定位到同一段——rung interval == tower[1][0]，且 end_time==src（与旧一致）。
-        let cert = build_nest_certificate(&tower, 0, src, Side::Long, &bits, &hist).expect("定位成功");
+        let cert =
+            build_nest_certificate(&tower, 0, src, Side::Long, &bits, &hist).expect("定位成功");
         assert_eq!(cert.rungs().len(), 1);
-        assert_eq!((cert.rungs()[0].interval().start_time, cert.rungs()[0].interval().end_time), (10, 50));
-        assert_eq!(cert.rungs()[0].interval().end_time, src as u64, "边界等号：新口径与旧端点相等一致");
+        assert_eq!(
+            (
+                cert.rungs()[0].interval().start_time,
+                cert.rungs()[0].interval().end_time
+            ),
+            (10, 50)
+        );
+        assert_eq!(
+            cert.rungs()[0].interval().end_time,
+            src as u64,
+            "边界等号：新口径与旧端点相等一致"
+        );
     }
 
     /// C2 跨条目（codex §6-1）：Type3-only 信号自身无 buy2，须在同级列表查共生 B2 条目。
@@ -1771,36 +1986,106 @@ mod tests {
         let src = 42;
         // 同级列表：Type3-only 信号条目 + 独立 B2 条目（同 source_index，分离提取）。
         let list = vec![
-            xzd_bsp(src, BspBits { buy3: true, ..Default::default() }, Some(xzd_center(10, 20, 0, 30))),
-            xzd_bsp(src, BspBits { buy2: true, ..Default::default() }, None),
+            xzd_bsp(
+                src,
+                BspBits {
+                    buy3: true,
+                    ..Default::default()
+                },
+                Some(xzd_center(10, 20, 0, 30)),
+            ),
+            xzd_bsp(
+                src,
+                BspBits {
+                    buy2: true,
+                    ..Default::default()
+                },
+                None,
+            ),
         ];
-        assert!(xzd_type2_confirmed(&list, src, Side::Long), "跨条目查到共生 B2 ⟹ C2 成立");
+        assert!(
+            xzd_type2_confirmed(&list, src, Side::Long),
+            "跨条目查到共生 B2 ⟹ C2 成立"
+        );
         // 无共生 B2（另一 source_index 的 B2 不算）⟹ C2 假。
         let list2 = vec![
-            xzd_bsp(src, BspBits { buy3: true, ..Default::default() }, None),
-            xzd_bsp(src + 1, BspBits { buy2: true, ..Default::default() }, None),
+            xzd_bsp(
+                src,
+                BspBits {
+                    buy3: true,
+                    ..Default::default()
+                },
+                None,
+            ),
+            xzd_bsp(
+                src + 1,
+                BspBits {
+                    buy2: true,
+                    ..Default::default()
+                },
+                None,
+            ),
         ];
-        assert!(!xzd_type2_confirmed(&list2, src, Side::Long), "无同 source_index B2 ⟹ C2 假");
+        assert!(
+            !xzd_type2_confirmed(&list2, src, Side::Long),
+            "无同 source_index B2 ⟹ C2 假"
+        );
         // 侧向匹配：Long 只看 buy2，卖侧 sell2 不误命中。
-        let list3 = vec![xzd_bsp(src, BspBits { sell2: true, ..Default::default() }, None)];
-        assert!(!xzd_type2_confirmed(&list3, src, Side::Long), "sell2 不满足 Long 的 C2");
-        assert!(xzd_type2_confirmed(&list3, src, Side::Short), "sell2 满足 Short 的 C2");
+        let list3 = vec![xzd_bsp(
+            src,
+            BspBits {
+                sell2: true,
+                ..Default::default()
+            },
+            None,
+        )];
+        assert!(
+            !xzd_type2_confirmed(&list3, src, Side::Long),
+            "sell2 不满足 Long 的 C2"
+        );
+        assert!(
+            xzd_type2_confirmed(&list3, src, Side::Short),
+            "sell2 满足 Short 的 C2"
+        );
     }
 
     /// C3 as-of（codex §6-3/思维导图 128）：仅当**最后一个**次级中枢出现三类点才成立。
     #[test]
     fn xzd_c3_last_sublevel_zs_type3_only() {
         let s = xzd_seg(0, 100); // 本级走势跨度 [0,100]
-        // 两个次级中枢：早 [10,30]、晚 [60,90]（最后中枢=[60,90]）。
+                                 // 两个次级中枢：早 [10,30]、晚 [60,90]（最后中枢=[60,90]）。
         let centers = vec![xzd_center(10, 20, 10, 30), xzd_center(30, 40, 60, 90)];
         // 三类点挂在最后中枢 [60,90] ⟹ C3 成立。
-        let bsp_last = vec![xzd_bsp(88, BspBits { buy3: true, ..Default::default() }, Some(xzd_center(30, 40, 60, 90)))];
-        assert!(xzd_sub_last_zs_type3(&s, &centers, &bsp_last, Side::Long), "最后次级中枢出现三类点 ⟹ C3");
+        let bsp_last = vec![xzd_bsp(
+            88,
+            BspBits {
+                buy3: true,
+                ..Default::default()
+            },
+            Some(xzd_center(30, 40, 60, 90)),
+        )];
+        assert!(
+            xzd_sub_last_zs_type3(&s, &centers, &bsp_last, Side::Long),
+            "最后次级中枢出现三类点 ⟹ C3"
+        );
         // 三类点挂在**早**中枢 [10,30]（非最后）⟹ C3 假（no-patch：不接受非最后中枢的三类点）。
-        let bsp_early = vec![xzd_bsp(28, BspBits { buy3: true, ..Default::default() }, Some(xzd_center(10, 20, 10, 30)))];
-        assert!(!xzd_sub_last_zs_type3(&s, &centers, &bsp_early, Side::Long), "非最后中枢的三类点 ⟹ C3 假");
+        let bsp_early = vec![xzd_bsp(
+            28,
+            BspBits {
+                buy3: true,
+                ..Default::default()
+            },
+            Some(xzd_center(10, 20, 10, 30)),
+        )];
+        assert!(
+            !xzd_sub_last_zs_type3(&s, &centers, &bsp_early, Side::Long),
+            "非最后中枢的三类点 ⟹ C3 假"
+        );
         // s 内无次级中枢 ⟹ C3 假。
-        assert!(!xzd_sub_last_zs_type3(&s, &[], &bsp_last, Side::Long), "无次级中枢 ⟹ C3 假");
+        assert!(
+            !xzd_sub_last_zs_type3(&s, &[], &bsp_last, Side::Long),
+            "无次级中枢 ⟹ C3 假"
+        );
     }
 
     /// C3 新判据（codex #44(c)）：新中枢存在+突破 / 存在未突破 / 无新中枢 三态。
@@ -1811,44 +2096,91 @@ mod tests {
         // 新中枢 [55,70]（start>=source_index, end<=confirm_index），其后走势 [71,90] 上破 ZG=20。
         let centers = vec![xzd_center(10, 20, 55, 70)];
         let moves_break = vec![xzd_seg_hi(71, 90, 25)]; // hi=25 > zg=20 ⟹ 突破
-        let diag = xzd_c3_new_center_breakout(source_index, confirm_index, Side::Long, &centers, &moves_break);
-        assert!(diag.new_center_exists, "新中枢在 [source_index,confirm_index] 区间内 ⟹ 存在");
+        let diag = xzd_c3_new_center_breakout(
+            source_index,
+            confirm_index,
+            Side::Long,
+            &centers,
+            &moves_break,
+        );
+        assert!(
+            diag.new_center_exists,
+            "新中枢在 [source_index,confirm_index] 区间内 ⟹ 存在"
+        );
         assert!(diag.new_center_breakout_ok, "其后走势 hi>zg ⟹ 突破成立");
 
         // 中枢存在但其后走势未突破（hi=15 <= zg=20）。
         let moves_no_break = vec![xzd_seg_hi(71, 90, 15)];
-        let diag2 = xzd_c3_new_center_breakout(source_index, confirm_index, Side::Long, &centers, &moves_no_break);
+        let diag2 = xzd_c3_new_center_breakout(
+            source_index,
+            confirm_index,
+            Side::Long,
+            &centers,
+            &moves_no_break,
+        );
         assert!(diag2.new_center_exists, "新中枢仍存在");
         assert!(!diag2.new_center_breakout_ok, "未破 ZG ⟹ 突破假");
 
         // 无新中枢（中枢 start_index < source_index，不满足 off-by-one 硬约束）。
         let centers_old = vec![xzd_center(10, 20, 40, 45)];
-        let diag3 = xzd_c3_new_center_breakout(source_index, confirm_index, Side::Long, &centers_old, &moves_break);
-        assert!(!diag3.new_center_exists, "中枢 start_index<source_index ⟹ 非新中枢");
+        let diag3 = xzd_c3_new_center_breakout(
+            source_index,
+            confirm_index,
+            Side::Long,
+            &centers_old,
+            &moves_break,
+        );
+        assert!(
+            !diag3.new_center_exists,
+            "中枢 start_index<source_index ⟹ 非新中枢"
+        );
         assert!(!diag3.new_center_breakout_ok, "无新中枢 ⟹ 突破假");
 
         // off-by-one：start_index == source_index 仍算「source 之后已确认」（硬约束用 >=，非 >）。
         let centers_eq = vec![xzd_center(10, 20, source_index, 70)];
-        let diag4 = xzd_c3_new_center_breakout(source_index, confirm_index, Side::Long, &centers_eq, &moves_break);
-        assert!(diag4.new_center_exists, "start_index==source_index ⟹ 新中枢存在（>= 非 >）");
+        let diag4 = xzd_c3_new_center_breakout(
+            source_index,
+            confirm_index,
+            Side::Long,
+            &centers_eq,
+            &moves_break,
+        );
+        assert!(
+            diag4.new_center_exists,
+            "start_index==source_index ⟹ 新中枢存在（>= 非 >）"
+        );
     }
 
     /// gate_pass（codex #44(c) 终局裁定）：level==1 时 C2∧C3(突破) 硬门；level!=1 维持 C2-only。
     #[test]
     fn xzd_gate_pass_level1_c3_breakout_hard_gate() {
         let mk = |level, c2, c3_breakout| XzdEvidence {
-            source_index: 1, level, side: Side::Long, confirm_index: 5,
-            type2_confirmed: c2, sub_last_zs_type3: false,
-            last_zs_exists: false, same_side_l0_type3_any: false,
-            same_center_any: false, same_side_causal_ok: false, sub_bsp_type3_count: 0,
-            c3_new_center_exists: c3_breakout, c3_new_center_breakout_ok: c3_breakout,
+            source_index: 1,
+            level,
+            side: Side::Long,
+            confirm_index: 5,
+            type2_confirmed: c2,
+            sub_last_zs_type3: false,
+            last_zs_exists: false,
+            same_side_l0_type3_any: false,
+            same_center_any: false,
+            same_side_causal_ok: false,
+            sub_bsp_type3_count: 0,
+            c3_new_center_exists: c3_breakout,
+            c3_new_center_breakout_ok: c3_breakout,
         };
         // level==1：C2∧C3 硬门。
         assert!(mk(1, true, true).gate_pass(), "level1 C2 真∧C3 真 ⟹ 通过");
-        assert!(!mk(1, true, false).gate_pass(), "level1 C2 真、C3 假 ⟹ 拒（C3 已是硬门参门项）");
+        assert!(
+            !mk(1, true, false).gate_pass(),
+            "level1 C2 真、C3 假 ⟹ 拒（C3 已是硬门参门项）"
+        );
         assert!(!mk(1, false, true).gate_pass(), "level1 C2 假 ⟹ 仍拒");
         // level!=1：C2-only（既定 #41 裁定不变）。
-        assert!(mk(2, true, false).gate_pass(), "level2 C2 真、C3 假 ⟹ 仍通过（lvl>=2 维持 C2-only）");
+        assert!(
+            mk(2, true, false).gate_pass(),
+            "level2 C2 真、C3 假 ⟹ 仍通过（lvl>=2 维持 C2-only）"
+        );
         assert!(!mk(2, false, true).gate_pass(), "level2 C2 假 ⟹ 拒");
     }
 
@@ -1862,8 +2194,11 @@ mod tests {
     fn p7_exit_decision_long_sell1_close_root() {
         // bit3=sell1
         let exit_class: u8 = 1 << 3;
-        assert_eq!(exit_decision_from_bits(exit_class, 1), ExitDecision::CloseRoot,
-            "多头入场 sell1 → CloseRoot");
+        assert_eq!(
+            exit_decision_from_bits(exit_class, 1),
+            ExitDecision::CloseRoot,
+            "多头入场 sell1 → CloseRoot"
+        );
     }
 
     /// **P7 多头入场 exit_decision_from_bits：sell3（无 sell1）→ ReduceCore**。
@@ -1873,8 +2208,11 @@ mod tests {
     fn p7_exit_decision_long_sell3_reduce_core() {
         // bit5=sell3，bit3=sell1=0
         let exit_class: u8 = 1 << 5;
-        assert_eq!(exit_decision_from_bits(exit_class, 1), ExitDecision::ReduceCore,
-            "多头入场 sell3（无 sell1）→ ReduceCore");
+        assert_eq!(
+            exit_decision_from_bits(exit_class, 1),
+            ExitDecision::ReduceCore,
+            "多头入场 sell3（无 sell1）→ ReduceCore"
+        );
     }
 
     /// **P7 多头入场 exit_decision_from_bits：sell1+sell3 同时 → CloseRoot（第一类优先）**。
@@ -1883,8 +2221,11 @@ mod tests {
     #[test]
     fn p7_exit_decision_long_sell1_sell3_priority() {
         let exit_class: u8 = (1 << 3) | (1 << 5); // sell1+sell3
-        assert_eq!(exit_decision_from_bits(exit_class, 1), ExitDecision::CloseRoot,
-            "sell1+sell3 共存 → CloseRoot（第一类优先）");
+        assert_eq!(
+            exit_decision_from_bits(exit_class, 1),
+            ExitDecision::CloseRoot,
+            "sell1+sell3 共存 → CloseRoot（第一类优先）"
+        );
     }
 
     /// **P7 多头入场 exit_decision_from_bits：sell2（无 sell1/3）→ Type2Missing（still-MISSING 诚实标注）**。
@@ -1894,8 +2235,11 @@ mod tests {
     #[test]
     fn p7_exit_decision_long_sell2_type2_missing() {
         let exit_class: u8 = 1 << 4; // sell2
-        assert_eq!(exit_decision_from_bits(exit_class, 1), ExitDecision::Type2Missing,
-            "多头入场 sell2 → Type2Missing（第二类闭环 still-MISSING）");
+        assert_eq!(
+            exit_decision_from_bits(exit_class, 1),
+            ExitDecision::Type2Missing,
+            "多头入场 sell2 → Type2Missing（第二类闭环 still-MISSING）"
+        );
     }
 
     /// **P7 多头入场 exit_decision_from_bits：bsp_class=0（无任何 bit）→ Hold**。
@@ -1903,8 +2247,11 @@ mod tests {
     /// 边界条件：exit 信号无正规卖点 bit → Hold（无出场依据，不改账本）。
     #[test]
     fn p7_exit_decision_long_no_bit_hold() {
-        assert_eq!(exit_decision_from_bits(0, 1), ExitDecision::Hold,
-            "多头入场 bsp_class=0 → Hold");
+        assert_eq!(
+            exit_decision_from_bits(0, 1),
+            ExitDecision::Hold,
+            "多头入场 bsp_class=0 → Hold"
+        );
     }
 
     /// **P7 空头入场 exit_decision_from_bits：买侧镜像判据**。
@@ -1913,17 +2260,29 @@ mod tests {
     #[test]
     fn p7_exit_decision_short_buy_mirror() {
         // buy1 → CloseRoot
-        assert_eq!(exit_decision_from_bits(1 << 0, -1), ExitDecision::CloseRoot,
-            "空头入场 buy1 → CloseRoot");
+        assert_eq!(
+            exit_decision_from_bits(1 << 0, -1),
+            ExitDecision::CloseRoot,
+            "空头入场 buy1 → CloseRoot"
+        );
         // buy3 → ReduceCore
-        assert_eq!(exit_decision_from_bits(1 << 2, -1), ExitDecision::ReduceCore,
-            "空头入场 buy3 → ReduceCore");
+        assert_eq!(
+            exit_decision_from_bits(1 << 2, -1),
+            ExitDecision::ReduceCore,
+            "空头入场 buy3 → ReduceCore"
+        );
         // buy2 → Type2Missing
-        assert_eq!(exit_decision_from_bits(1 << 1, -1), ExitDecision::Type2Missing,
-            "空头入场 buy2 → Type2Missing");
+        assert_eq!(
+            exit_decision_from_bits(1 << 1, -1),
+            ExitDecision::Type2Missing,
+            "空头入场 buy2 → Type2Missing"
+        );
         // 0 → Hold
-        assert_eq!(exit_decision_from_bits(0, -1), ExitDecision::Hold,
-            "空头入场 bsp_class=0 → Hold");
+        assert_eq!(
+            exit_decision_from_bits(0, -1),
+            ExitDecision::Hold,
+            "空头入场 bsp_class=0 → Hold"
+        );
     }
 
     /// **P7 ExitDecision 穷举分类完整性（多头）**：所有可能的 exit bsp_class（0..64）都映射到四态之一。
@@ -1933,10 +2292,16 @@ mod tests {
     fn p7_exit_decision_exhaustive_long() {
         for cls in 0u8..64 {
             let d = exit_decision_from_bits(cls, 1);
-            assert!(matches!(d,
-                ExitDecision::CloseRoot | ExitDecision::ReduceCore |
-                ExitDecision::Type2Missing | ExitDecision::Hold
-            ), "bsp_class={cls:#04x} delta=+1 应映射到四态之一");
+            assert!(
+                matches!(
+                    d,
+                    ExitDecision::CloseRoot
+                        | ExitDecision::ReduceCore
+                        | ExitDecision::Type2Missing
+                        | ExitDecision::Hold
+                ),
+                "bsp_class={cls:#04x} delta=+1 应映射到四态之一"
+            );
         }
     }
 
@@ -1956,15 +2321,36 @@ mod tests {
         assert_eq!(agg.n_exit_hold, 4);
         // 验证 SignalDecomp 含 exit_decision 字段
         let d = SignalDecomp {
-            entry_bar: 0, exit_bar: 1, level: 0, delta: 1, a_b: 0.0, x_in: 0.0, y_out: 0.0,
-            eta_in: 0.0, eta_out: 0.0, actual_spread: 0.0, ce_unit: 0.0, captured: 0.0,
-            actual_pnl: 0.0, sigma_higher: 0, bsp_class: 1 << 3, // sell1
-            z: MuClass::from_certificate(0, 1, BspBits::from_class_index(1 << 3), 0, PositionState::Root),
+            entry_bar: 0,
+            exit_bar: 1,
+            level: 0,
+            delta: 1,
+            a_b: 0.0,
+            x_in: 0.0,
+            y_out: 0.0,
+            eta_in: 0.0,
+            eta_out: 0.0,
+            actual_spread: 0.0,
+            ce_unit: 0.0,
+            captured: 0.0,
+            actual_pnl: 0.0,
+            sigma_higher: 0,
+            bsp_class: 1 << 3, // sell1
+            z: MuClass::from_certificate(
+                0,
+                1,
+                BspBits::from_class_index(1 << 3),
+                0,
+                PositionState::Root,
+            ),
             exit_decision: ExitDecision::CloseRoot,
             trigger: NestTrigger::Type1TrendDivergence,
         };
-        assert_eq!(d.exit_decision, ExitDecision::CloseRoot,
-            "SignalDecomp.exit_decision 字段可读写（P7 接口存在）");
+        assert_eq!(
+            d.exit_decision,
+            ExitDecision::CloseRoot,
+            "SignalDecomp.exit_decision 字段可读写（P7 接口存在）"
+        );
     }
 
     // ── 生产路径测试（RED→GREEN：W1 返工，多级 N^δ 递归真调用） ─────────────────
@@ -1977,9 +2363,9 @@ mod tests {
     /// **认识论 L1**（生产路径结构验证，非 L0 fixture 同义反复）：函数存在 + 接口正确。
     #[test]
     fn multilevel_nest_cert_function_exists() {
-        use std::rc::Rc;
         use super::super::super::classifier::recursive_tower::LeveledMove;
         use super::super::super::types::{BspBits, Side};
+        use std::rc::Rc;
 
         let tower: Vec<Rc<Vec<LeveledMove>>> = vec![];
         let mut bits = BspBits::default();
@@ -2002,48 +2388,75 @@ mod tests {
     /// 非 alpha 声明（L2/L3 待 W-VERIFY）。
     #[test]
     fn multilevel_nest_cert_two_level_rung_chain() {
-        use std::rc::Rc;
-        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::types::{BspBits, Center, Direction, Side};
+        use std::rc::Rc;
 
         // helper：构造 L0 Segment LeveledMove
         let seg = |dir: Direction, lo: i64, hi: i64, s: usize, e: usize, ord: u64| -> LeveledMove {
             LeveledMove {
-                rmove: RMove::Segment { direction: dir, lo, hi },
-                start_index: s, end_index: e,
+                rmove: RMove::Segment {
+                    direction: dir,
+                    lo,
+                    hi,
+                },
+                start_index: s,
+                end_index: e,
                 sub_moves: Rc::new(vec![]),
-                id: ElementId { level: 0, ordinal: ord },
+                id: ElementId {
+                    level: 0,
+                    ordinal: ord,
+                },
             }
         };
 
         // L0 四段：up(0-4) / down(5-9) / up(10-14) / down(15-19)
-        let s0 = seg(Direction::Up,   50, 100,  0,  4, 0);
-        let s1 = seg(Direction::Down, 40,  90,  5,  9, 1); // s'：lo=40
-        let s2 = seg(Direction::Up,   45,  95, 10, 14, 2);
-        let s3 = seg(Direction::Down, 30,  85, 15, 19, 3); // s：lo=30 < 40，Extreme ✓
+        let s0 = seg(Direction::Up, 50, 100, 0, 4, 0);
+        let s1 = seg(Direction::Down, 40, 90, 5, 9, 1); // s'：lo=40
+        let s2 = seg(Direction::Up, 45, 95, 10, 14, 2);
+        let s3 = seg(Direction::Down, 30, 85, 15, 19, 3); // s：lo=30 < 40，Extreme ✓
 
         // L1 Compose 包含全部4段
-        let sub_rmoves: Vec<RMove> = vec![s0.rmove.clone(), s1.rmove.clone(), s2.rmove.clone(), s3.rmove.clone()];
-        let lo = 30i64; let hi = 100i64;
+        let sub_rmoves: Vec<RMove> = vec![
+            s0.rmove.clone(),
+            s1.rmove.clone(),
+            s2.rmove.clone(),
+            s3.rmove.clone(),
+        ];
+        let lo = 30i64;
+        let hi = 100i64;
         let parent = LeveledMove {
             rmove: RMove::Compose {
                 subs: Rc::new(sub_rmoves),
-                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
+                centers: vec![Center {
+                    zd: lo,
+                    zg: hi,
+                    dd: lo,
+                    gg: hi,
+                    start_index: 0,
+                    end_index: 19,
+                }],
                 level: 1,
             },
-            start_index: 0, end_index: 19,
+            start_index: 0,
+            end_index: 19,
             sub_moves: Rc::new(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()]),
-            id: ElementId { level: 1, ordinal: 0 },
+            id: ElementId {
+                level: 1,
+                ordinal: 0,
+            },
         };
 
         let tower: Vec<Rc<Vec<LeveledMove>>> = vec![
-            Rc::new(vec![s0, s1, s2, s3]),   // level 0
-            Rc::new(vec![parent]),            // level 1
+            Rc::new(vec![s0, s1, s2, s3]), // level 0
+            Rc::new(vec![parent]),         // level 1
         ];
 
         // hist：s'(5-9) area=5*2=10，s(15-19) area=5*1=5 < 10（条件4 Weak ✓）
-        let hist: Vec<f64> = (0..20usize).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
+        let hist: Vec<f64> = (0..20usize)
+            .map(|i| if i < 10 { 2.0 } else { 1.0 })
+            .collect();
 
         // 买侧 bits（基例 Conf^+）：buy1=true
         let mut bits = BspBits::default();
@@ -2054,7 +2467,10 @@ mod tests {
         // 且 bsp_div_cand 四条件满足（Down，Extreme lo=30<40，Weak area=5<10）
         // ⟹ build_multilevel_nest_cert ⟹ n_delta() = true
         let result = build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &bits, &hist);
-        assert!(result, "两级塔 + 四条件满足 + Conf^+ ⟹ n_delta()=true（多级链 J 嵌套收缩）");
+        assert!(
+            result,
+            "两级塔 + 四条件满足 + Conf^+ ⟹ n_delta()=true（多级链 J 嵌套收缩）"
+        );
     }
 
     // ── 673-fix：接口级三分拆独立单元测试（Type1/2/3 分派 + Type2/3 谓词） ──────────
@@ -2065,15 +2481,27 @@ mod tests {
         use super::super::super::types::{BspBits, Side};
         let mk = |b1, b2, b3| {
             let mut bits = BspBits::default();
-            bits.buy1 = b1; bits.buy2 = b2; bits.buy3 = b3;
+            bits.buy1 = b1;
+            bits.buy2 = b2;
+            bits.buy3 = b3;
             bits
         };
         // buy1 置位 ⟹ Type1（即使 buy2/buy3 同置，非互斥 P4§5，优先级坍缩）。
-        assert_eq!(bsp_cand_type(&mk(true, true, true), Side::Long), BspCandType::Type1);
-        assert_eq!(bsp_cand_type(&mk(false, true, true), Side::Long), BspCandType::Type2);
-        assert_eq!(bsp_cand_type(&mk(false, false, true), Side::Long), BspCandType::Type3);
+        assert_eq!(
+            bsp_cand_type(&mk(true, true, true), Side::Long),
+            BspCandType::Type1
+        );
+        assert_eq!(
+            bsp_cand_type(&mk(false, true, true), Side::Long),
+            BspCandType::Type2
+        );
+        assert_eq!(
+            bsp_cand_type(&mk(false, false, true), Side::Long),
+            BspCandType::Type3
+        );
         // 卖侧对称。
-        let mut sb = BspBits::default(); sb.sell2 = true;
+        let mut sb = BspBits::default();
+        sb.sell2 = true;
         assert_eq!(bsp_cand_type(&sb, Side::Short), BspCandType::Type2);
     }
 
@@ -2084,13 +2512,29 @@ mod tests {
     #[test]
     fn bsp_cand_type_structbreak_zero_bits_dispatch() {
         use super::super::super::types::{BspBits, Side};
-        assert_eq!(bsp_cand_type(&BspBits::default(), Side::Long), BspCandType::StructBreak);
-        assert_eq!(bsp_cand_type(&BspBits::default(), Side::Short), BspCandType::StructBreak);
+        assert_eq!(
+            bsp_cand_type(&BspBits::default(), Side::Long),
+            BspCandType::StructBreak
+        );
+        assert_eq!(
+            bsp_cand_type(&BspBits::default(), Side::Short),
+            BspCandType::StructBreak
+        );
 
-        let mut b3 = BspBits::default(); b3.buy3 = true;
-        assert_eq!(bsp_cand_type(&b3, Side::Long), BspCandType::Type3, "真三类 buy3 置位仍走 Type3，不受 StructBreak 影响");
-        let mut s3 = BspBits::default(); s3.sell3 = true;
-        assert_eq!(bsp_cand_type(&s3, Side::Short), BspCandType::Type3, "真三类 sell3 置位仍走 Type3，不受 StructBreak 影响");
+        let mut b3 = BspBits::default();
+        b3.buy3 = true;
+        assert_eq!(
+            bsp_cand_type(&b3, Side::Long),
+            BspCandType::Type3,
+            "真三类 buy3 置位仍走 Type3，不受 StructBreak 影响"
+        );
+        let mut s3 = BspBits::default();
+        s3.sell3 = true;
+        assert_eq!(
+            bsp_cand_type(&s3, Side::Short),
+            BspCandType::Type3,
+            "真三类 sell3 置位仍走 Type3，不受 StructBreak 影响"
+        );
     }
 
     /// **build_gate_certificate 护栏（codex 终局裁决A）：零 bit 候选恒 None（门拒）**。
@@ -2101,16 +2545,24 @@ mod tests {
     /// 证明本次改动只截获零 bit 候选，不影响真三类通路）。
     #[test]
     fn build_gate_certificate_structbreak_zero_bits_always_none() {
-        use std::rc::Rc;
-        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::types::{BspBits, Side};
+        use std::rc::Rc;
 
         let s = LeveledMove {
-            rmove: RMove::Segment { direction: super::super::super::types::Direction::Down, lo: 30, hi: 85 },
-            start_index: 15, end_index: 19,
+            rmove: RMove::Segment {
+                direction: super::super::super::types::Direction::Down,
+                lo: 30,
+                hi: 85,
+            },
+            start_index: 15,
+            end_index: 19,
             sub_moves: Rc::new(vec![]),
-            id: ElementId { level: 0, ordinal: 0 },
+            id: ElementId {
+                level: 0,
+                ordinal: 0,
+            },
         };
         let tower: Vec<Rc<Vec<LeveledMove>>> = vec![Rc::new(vec![s])];
         let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
@@ -2118,7 +2570,19 @@ mod tests {
         // 零 bit（StructBreak）：即使 lvl==0（Type2/3 免门场景）也恒 None。
         let zero_bits = BspBits::default();
         assert!(
-            build_gate_certificate(&tower, 0, 19, Side::Long, &zero_bits, &hist, 19, &[], &[], &[]).is_none(),
+            build_gate_certificate(
+                &tower,
+                0,
+                19,
+                Side::Long,
+                &zero_bits,
+                &hist,
+                19,
+                &[],
+                &[],
+                &[]
+            )
+            .is_none(),
             "零 bit 破中枢未背驰候选（StructBreak）恒门拒，不复用 Type3 lvl==0 免门通道"
         );
 
@@ -2126,7 +2590,19 @@ mod tests {
         let mut real_type3 = BspBits::default();
         real_type3.buy3 = true;
         assert!(
-            build_gate_certificate(&tower, 0, 19, Side::Long, &real_type3, &hist, 19, &[], &[], &[]).is_some(),
+            build_gate_certificate(
+                &tower,
+                0,
+                19,
+                Side::Long,
+                &real_type3,
+                &hist,
+                19,
+                &[],
+                &[],
+                &[]
+            )
+            .is_some(),
             "真三类 buy3 置位候选不受 StructBreak 分流影响，仍走 Type3 正常放行"
         );
     }
@@ -2138,17 +2614,25 @@ mod tests {
     /// 归属（Type2=一类点极值 / Type3=中枢 ZG/ZD），记录于各 docstring，非本级信号集差。
     #[test]
     fn cand_delta_type23_base_gate_level0_and_small_to_big() {
-        use std::rc::Rc;
-        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::types::Side;
+        use std::rc::Rc;
 
         // 递归底段（无 sub_moves）：lvl==0 免门 ⟹ true；lvl>=1 无锚 ⟹ 小转大 false。
         let s = LeveledMove {
-            rmove: RMove::Segment { direction: super::super::super::types::Direction::Down, lo: 30, hi: 85 },
-            start_index: 15, end_index: 19,
+            rmove: RMove::Segment {
+                direction: super::super::super::types::Direction::Down,
+                lo: 30,
+                hi: 85,
+            },
+            start_index: 15,
+            end_index: 19,
             sub_moves: Rc::new(vec![]),
-            id: ElementId { level: 0, ordinal: 3 },
+            id: ElementId {
+                level: 0,
+                ordinal: 3,
+            },
         };
         let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
 
@@ -2159,21 +2643,44 @@ mod tests {
         assert!(!cand_delta_type2_completion(&s, 19, Side::Long, &hist, 1));
         assert!(!cand_delta_type3_retest(&s, 19, Side::Long, &hist, 1));
         // dispatcher：base gate Type1 恒 true（判据在 per-rung），Type2/3 委托上述。
-        assert!(cand_delta_base_gate(BspCandType::Type1, &s, 19, Side::Long, &hist, 1));
-        assert!(!cand_delta_base_gate(BspCandType::Type2, &s, 19, Side::Long, &hist, 1));
+        assert!(cand_delta_base_gate(
+            BspCandType::Type1,
+            &s,
+            19,
+            Side::Long,
+            &hist,
+            1
+        ));
+        assert!(!cand_delta_base_gate(
+            BspCandType::Type2,
+            &s,
+            19,
+            Side::Long,
+            &hist,
+            1
+        ));
     }
 
     /// **cand_delta per-rung dispatcher：Type1→div_cand，Type2/3→true（存在性已 base 门控）**。
     #[test]
     fn cand_delta_rung_dispatch() {
-        use std::rc::Rc;
-        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::types::{Direction, Side};
+        use std::rc::Rc;
         let seg = |dir, lo, hi, s, e, ord| LeveledMove {
-            rmove: RMove::Segment { direction: dir, lo, hi },
-            start_index: s, end_index: e, sub_moves: Rc::new(vec![]),
-            id: ElementId { level: 0, ordinal: ord },
+            rmove: RMove::Segment {
+                direction: dir,
+                lo,
+                hi,
+            },
+            start_index: s,
+            end_index: e,
+            sub_moves: Rc::new(vec![]),
+            id: ElementId {
+                level: 0,
+                ordinal: ord,
+            },
         };
         // rung 次级别序列：s'(down lo=40) ... s(down lo=30<40 Extreme✓)，hist 力度衰减 Weak✓。
         let subs = vec![
@@ -2181,14 +2688,22 @@ mod tests {
             seg(Direction::Up, 45, 95, 10, 14, 2),
             seg(Direction::Down, 30, 85, 15, 19, 3),
         ];
-        let hist: Vec<f64> = (0..20usize).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
+        let hist: Vec<f64> = (0..20usize)
+            .map(|i| if i < 10 { 2.0 } else { 1.0 })
+            .collect();
         // Type1 → div_cand（四条件满足 ⟹ true）。
         assert!(cand_delta(BspCandType::Type1, &subs, 19, Side::Long, &hist));
         // Type2/Type3 → true（per-rung 存在性已 base 门控，rung 载上级语境）。
         assert!(cand_delta(BspCandType::Type2, &subs, 19, Side::Long, &hist));
         assert!(cand_delta(BspCandType::Type3, &subs, 19, Side::Long, &hist));
         // Type1 无对齐候选段（source_index 不存在）⟹ false。
-        assert!(!cand_delta(BspCandType::Type1, &subs, 99, Side::Long, &hist));
+        assert!(!cand_delta(
+            BspCandType::Type1,
+            &subs,
+            99,
+            Side::Long,
+            &hist
+        ));
     }
 
     /// **Cand=false ⟹ N^δ 整体=false（Cand 传播测试）**。
@@ -2197,45 +2712,71 @@ mod tests {
     /// 验证 build_multilevel_nest_cert 真走 N^δ 路径（任一级 Cand=0 ⟹ 整体 0）。
     #[test]
     fn multilevel_nest_cert_cand_false_propagates_zero() {
-        use std::rc::Rc;
-        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::types::{BspBits, Center, Direction, Side};
+        use std::rc::Rc;
 
         let seg = |dir: Direction, lo: i64, hi: i64, s: usize, e: usize, ord: u64| -> LeveledMove {
             LeveledMove {
-                rmove: RMove::Segment { direction: dir, lo, hi },
-                start_index: s, end_index: e,
+                rmove: RMove::Segment {
+                    direction: dir,
+                    lo,
+                    hi,
+                },
+                start_index: s,
+                end_index: e,
                 sub_moves: Rc::new(vec![]),
-                id: ElementId { level: 0, ordinal: ord },
+                id: ElementId {
+                    level: 0,
+                    ordinal: ord,
+                },
             }
         };
-        let s0 = seg(Direction::Up,   50, 100,  0,  4, 0);
-        let s1 = seg(Direction::Down, 40,  90,  5,  9, 1);
-        let s2 = seg(Direction::Up,   45,  95, 10, 14, 2);
-        let s3 = seg(Direction::Down, 30,  85, 15, 19, 3);
-        let sub_rmoves: Vec<RMove> = vec![s0.rmove.clone(), s1.rmove.clone(), s2.rmove.clone(), s3.rmove.clone()];
-        let lo = 30i64; let hi = 100i64;
+        let s0 = seg(Direction::Up, 50, 100, 0, 4, 0);
+        let s1 = seg(Direction::Down, 40, 90, 5, 9, 1);
+        let s2 = seg(Direction::Up, 45, 95, 10, 14, 2);
+        let s3 = seg(Direction::Down, 30, 85, 15, 19, 3);
+        let sub_rmoves: Vec<RMove> = vec![
+            s0.rmove.clone(),
+            s1.rmove.clone(),
+            s2.rmove.clone(),
+            s3.rmove.clone(),
+        ];
+        let lo = 30i64;
+        let hi = 100i64;
         let parent = LeveledMove {
             rmove: RMove::Compose {
                 subs: Rc::new(sub_rmoves),
-                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
+                centers: vec![Center {
+                    zd: lo,
+                    zg: hi,
+                    dd: lo,
+                    gg: hi,
+                    start_index: 0,
+                    end_index: 19,
+                }],
                 level: 1,
             },
-            start_index: 0, end_index: 19,
+            start_index: 0,
+            end_index: 19,
             sub_moves: Rc::new(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()]),
-            id: ElementId { level: 1, ordinal: 0 },
+            id: ElementId {
+                level: 1,
+                ordinal: 0,
+            },
         };
-        let tower: Vec<Rc<Vec<LeveledMove>>> = vec![
-            Rc::new(vec![s0, s1, s2, s3]),
-            Rc::new(vec![parent]),
-        ];
+        let tower: Vec<Rc<Vec<LeveledMove>>> =
+            vec![Rc::new(vec![s0, s1, s2, s3]), Rc::new(vec![parent])];
         // hist 全 0 ⟹ area=0 ⟹ 条件4 0 < 0 = false ⟹ Cand=false ⟹ n_delta()=false
         let hist = vec![0.0f64; 20];
         let mut bits = BspBits::default();
         bits.buy1 = true;
         let result = build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &bits, &hist);
-        assert!(!result, "Cand=false（hist=0）⟹ n_delta()=false（Cand 传播路径）");
+        assert!(
+            !result,
+            "Cand=false（hist=0）⟹ n_delta()=false（Cand 传播路径）"
+        );
     }
 
     /// **673 号段1：Type2 存在性免本级背驰段门**。
@@ -2245,91 +2786,141 @@ mod tests {
     /// 结构分类前提保证（第17课L60 完备性），不经本级背驰段谓词 ⟹ 免门 ⟹ n_delta()=true。
     #[test]
     fn multilevel_nest_cert_type2_bypasses_divergence_gate() {
-        use std::rc::Rc;
-        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::types::{BspBits, Center, Direction, Side};
+        use std::rc::Rc;
 
         let seg = |dir: Direction, lo: i64, hi: i64, s: usize, e: usize, ord: u64| -> LeveledMove {
             LeveledMove {
-                rmove: RMove::Segment { direction: dir, lo, hi },
-                start_index: s, end_index: e,
+                rmove: RMove::Segment {
+                    direction: dir,
+                    lo,
+                    hi,
+                },
+                start_index: s,
+                end_index: e,
                 sub_moves: Rc::new(vec![]),
-                id: ElementId { level: 0, ordinal: ord },
+                id: ElementId {
+                    level: 0,
+                    ordinal: ord,
+                },
             }
         };
-        let s0 = seg(Direction::Up,   50, 100,  0,  4, 0);
-        let s1 = seg(Direction::Down, 40,  90,  5,  9, 1);
-        let s2 = seg(Direction::Up,   45,  95, 10, 14, 2);
-        let s3 = seg(Direction::Down, 30,  85, 15, 19, 3);
-        let sub_rmoves: Vec<RMove> = vec![s0.rmove.clone(), s1.rmove.clone(), s2.rmove.clone(), s3.rmove.clone()];
-        let lo = 30i64; let hi = 100i64;
+        let s0 = seg(Direction::Up, 50, 100, 0, 4, 0);
+        let s1 = seg(Direction::Down, 40, 90, 5, 9, 1);
+        let s2 = seg(Direction::Up, 45, 95, 10, 14, 2);
+        let s3 = seg(Direction::Down, 30, 85, 15, 19, 3);
+        let sub_rmoves: Vec<RMove> = vec![
+            s0.rmove.clone(),
+            s1.rmove.clone(),
+            s2.rmove.clone(),
+            s3.rmove.clone(),
+        ];
+        let lo = 30i64;
+        let hi = 100i64;
         let parent = LeveledMove {
             rmove: RMove::Compose {
                 subs: Rc::new(sub_rmoves),
-                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
+                centers: vec![Center {
+                    zd: lo,
+                    zg: hi,
+                    dd: lo,
+                    gg: hi,
+                    start_index: 0,
+                    end_index: 19,
+                }],
                 level: 1,
             },
-            start_index: 0, end_index: 19,
+            start_index: 0,
+            end_index: 19,
             sub_moves: Rc::new(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()]),
-            id: ElementId { level: 1, ordinal: 0 },
+            id: ElementId {
+                level: 1,
+                ordinal: 0,
+            },
         };
-        let tower: Vec<Rc<Vec<LeveledMove>>> = vec![
-            Rc::new(vec![s0, s1, s2, s3]),
-            Rc::new(vec![parent]),
-        ];
+        let tower: Vec<Rc<Vec<LeveledMove>>> =
+            vec![Rc::new(vec![s0, s1, s2, s3]), Rc::new(vec![parent])];
         let hist = vec![0.0f64; 20]; // div_cand 条件4 area=0<0=false（Type1 会被守门）
 
         // Type1（buy1）：div_cand 守门不变 ⟹ false。
         let mut t1 = BspBits::default();
         t1.buy1 = true;
-        assert!(!build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &t1, &hist),
-            "Type1 div_cand 条件4 false ⟹ n_delta()=false（本级背驰段门守 Type1 bit-exact）");
+        assert!(
+            !build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &t1, &hist),
+            "Type1 div_cand 条件4 false ⟹ n_delta()=false（本级背驰段门守 Type1 bit-exact）"
+        );
 
         // Type2（buy2）：存在性免本级背驰段门 ⟹ true。
         let mut t2 = BspBits::default();
         t2.buy2 = true;
-        assert!(build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &t2, &hist),
-            "Type2 存在性免本级背驰段门（673 段1）⟹ n_delta()=true");
+        assert!(
+            build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &t2, &hist),
+            "Type2 存在性免本级背驰段门（673 段1）⟹ n_delta()=true"
+        );
     }
 
     /// **方向 dir=−δ 反测试**：信号 δ=Long 但 source_index 指向 Up 段（dir 不反）⟹ false。
     #[test]
     fn multilevel_nest_cert_wrong_direction_returns_false() {
-        use std::rc::Rc;
-        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
         use super::super::super::types::{BspBits, Center, Direction, Side};
+        use std::rc::Rc;
 
         let seg = |dir: Direction, lo: i64, hi: i64, s: usize, e: usize, ord: u64| -> LeveledMove {
             LeveledMove {
-                rmove: RMove::Segment { direction: dir, lo, hi },
-                start_index: s, end_index: e,
+                rmove: RMove::Segment {
+                    direction: dir,
+                    lo,
+                    hi,
+                },
+                start_index: s,
+                end_index: e,
                 sub_moves: Rc::new(vec![]),
-                id: ElementId { level: 0, ordinal: ord },
+                id: ElementId {
+                    level: 0,
+                    ordinal: ord,
+                },
             }
         };
         // 最后一段是 Up（非 Down），δ=Long 要求 Down → 条件1 失败
-        let s0 = seg(Direction::Down, 30, 90,  0,  4, 0);
-        let s1 = seg(Direction::Up,   40, 100,  5,  9, 1); // s'
-        let s2 = seg(Direction::Down, 35,  95, 10, 14, 2);
-        let s3 = seg(Direction::Up,   50, 110, 15, 19, 3); // s：Up，δ=Long 要求 Down → 失败
-        let sub_rmoves: Vec<RMove> = vec![s0.rmove.clone(), s1.rmove.clone(), s2.rmove.clone(), s3.rmove.clone()];
-        let lo = 30i64; let hi = 110i64;
+        let s0 = seg(Direction::Down, 30, 90, 0, 4, 0);
+        let s1 = seg(Direction::Up, 40, 100, 5, 9, 1); // s'
+        let s2 = seg(Direction::Down, 35, 95, 10, 14, 2);
+        let s3 = seg(Direction::Up, 50, 110, 15, 19, 3); // s：Up，δ=Long 要求 Down → 失败
+        let sub_rmoves: Vec<RMove> = vec![
+            s0.rmove.clone(),
+            s1.rmove.clone(),
+            s2.rmove.clone(),
+            s3.rmove.clone(),
+        ];
+        let lo = 30i64;
+        let hi = 110i64;
         let parent = LeveledMove {
             rmove: RMove::Compose {
                 subs: Rc::new(sub_rmoves),
-                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
+                centers: vec![Center {
+                    zd: lo,
+                    zg: hi,
+                    dd: lo,
+                    gg: hi,
+                    start_index: 0,
+                    end_index: 19,
+                }],
                 level: 1,
             },
-            start_index: 0, end_index: 19,
+            start_index: 0,
+            end_index: 19,
             sub_moves: Rc::new(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()]),
-            id: ElementId { level: 1, ordinal: 0 },
+            id: ElementId {
+                level: 1,
+                ordinal: 0,
+            },
         };
-        let tower: Vec<Rc<Vec<LeveledMove>>> = vec![
-            Rc::new(vec![s0, s1, s2, s3]),
-            Rc::new(vec![parent]),
-        ];
+        let tower: Vec<Rc<Vec<LeveledMove>>> =
+            vec![Rc::new(vec![s0, s1, s2, s3]), Rc::new(vec![parent])];
         let hist: Vec<f64> = (0..20).map(|_| 2.0).collect();
         let mut bits = BspBits::default();
         bits.buy1 = true;
@@ -2340,17 +2931,25 @@ mod tests {
 
     // ── 673 号段2：定律一下沉锚定（Type2/3 精确定位锚次级别 Type1）─────────────────
 
-    use super::super::super::classifier::recursive_tower::{ElementId as EId2, LeveledMove as LM2};
     use super::super::super::classifier::descend::RMove as RM2;
+    use super::super::super::classifier::recursive_tower::{ElementId as EId2, LeveledMove as LM2};
     use super::super::super::types::{Center as Ct2, Direction as Dir2};
     use std::rc::Rc as Rc2;
 
     fn seg2(dir: Dir2, lo: i64, hi: i64, s: usize, e: usize, ord: u64) -> LM2 {
         LM2 {
-            rmove: RM2::Segment { direction: dir, lo, hi },
-            start_index: s, end_index: e,
+            rmove: RM2::Segment {
+                direction: dir,
+                lo,
+                hi,
+            },
+            start_index: s,
+            end_index: e,
             sub_moves: Rc2::new(vec![]),
-            id: EId2 { level: 0, ordinal: ord },
+            id: EId2 {
+                level: 0,
+                ordinal: ord,
+            },
         }
     }
 
@@ -2363,12 +2962,23 @@ mod tests {
         LM2 {
             rmove: RM2::Compose {
                 subs: Rc::new(sub_rmoves),
-                centers: vec![Ct2 { zd: lo, zg: hi, dd: lo, gg: hi, start_index: start, end_index: end }],
+                centers: vec![Ct2 {
+                    zd: lo,
+                    zg: hi,
+                    dd: lo,
+                    gg: hi,
+                    start_index: start,
+                    end_index: end,
+                }],
                 level,
             },
-            start_index: start, end_index: end,
+            start_index: start,
+            end_index: end,
             sub_moves: Rc2::new(subs),
-            id: EId2 { level, ordinal: ord },
+            id: EId2 {
+                level,
+                ordinal: ord,
+            },
         }
     }
 
@@ -2377,47 +2987,53 @@ mod tests {
     #[test]
     fn nest_cert_type2_sublevel_type1_anchor_passes() {
         // m2（level1 回抽走势）的次级别（level0）：up/down(s')/up/down(s@19)，趋势背驰。
-        let s0 = seg2(Dir2::Up,   50, 100,  0,  4, 0);
-        let s1 = seg2(Dir2::Down, 40,  90,  5,  9, 1); // s'：Down lo=40
-        let s2 = seg2(Dir2::Up,   45,  95, 10, 14, 2);
-        let s3 = seg2(Dir2::Down, 30,  85, 15, 19, 3); // s：Down lo=30<40 Extreme，end=19
+        let s0 = seg2(Dir2::Up, 50, 100, 0, 4, 0);
+        let s1 = seg2(Dir2::Down, 40, 90, 5, 9, 1); // s'：Down lo=40
+        let s2 = seg2(Dir2::Up, 45, 95, 10, 14, 2);
+        let s3 = seg2(Dir2::Down, 30, 85, 15, 19, 3); // s：Down lo=30<40 Extreme，end=19
         let m2 = compose2(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()], 1, 0);
-        let tower: Vec<Rc2<Vec<LM2>>> = vec![
-            Rc2::new(vec![s0, s1, s2, s3]),
-            Rc2::new(vec![m2.clone()]),
-        ];
+        let tower: Vec<Rc2<Vec<LM2>>> =
+            vec![Rc2::new(vec![s0, s1, s2, s3]), Rc2::new(vec![m2.clone()])];
         // s3(15-19) area=5*1=5 < s1(5-9) area=5*2=10（Weak ✓）。
         let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
 
-        assert_eq!(super::descend_type1_anchor_depth(&m2, 19, Side::Long, &hist), Some(1),
-            "次级别 Type1 锚点成立 ⟹ 下沉深度 Some(1)");
+        assert_eq!(
+            super::descend_type1_anchor_depth(&m2, 19, Side::Long, &hist),
+            Some(1),
+            "次级别 Type1 锚点成立 ⟹ 下沉深度 Some(1)"
+        );
         let mut buy2 = super::super::super::types::BspBits::default();
         buy2.buy2 = true;
-        assert!(build_multilevel_nest_cert(&tower, 1, 19, Side::Long, &buy2, &hist),
-            "Type2@lvl1 次级别锚点成立 ⟹ 证书非 None ⟹ n_delta=true");
+        assert!(
+            build_multilevel_nest_cert(&tower, 1, 19, Side::Long, &buy2, &hist),
+            "Type2@lvl1 次级别锚点成立 ⟹ 证书非 None ⟹ n_delta=true"
+        );
     }
 
     /// 段2 小转大（可证伪判别）：同结构但次级别无一类背驰锚点（hist=0 ⟹ div_cand Weak 假）
     /// ⟹ 下沉锚定 None ⟹ 证书 None ⟹ 门拒（build_multilevel_nest_cert=false）。
     #[test]
     fn nest_cert_type2_no_sublevel_anchor_is_xiaozhuandaa_none() {
-        let s0 = seg2(Dir2::Up,   50, 100,  0,  4, 0);
-        let s1 = seg2(Dir2::Down, 40,  90,  5,  9, 1);
-        let s2 = seg2(Dir2::Up,   45,  95, 10, 14, 2);
-        let s3 = seg2(Dir2::Down, 30,  85, 15, 19, 3);
+        let s0 = seg2(Dir2::Up, 50, 100, 0, 4, 0);
+        let s1 = seg2(Dir2::Down, 40, 90, 5, 9, 1);
+        let s2 = seg2(Dir2::Up, 45, 95, 10, 14, 2);
+        let s3 = seg2(Dir2::Down, 30, 85, 15, 19, 3);
         let m2 = compose2(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()], 1, 0);
-        let tower: Vec<Rc2<Vec<LM2>>> = vec![
-            Rc2::new(vec![s0, s1, s2, s3]),
-            Rc2::new(vec![m2.clone()]),
-        ];
+        let tower: Vec<Rc2<Vec<LM2>>> =
+            vec![Rc2::new(vec![s0, s1, s2, s3]), Rc2::new(vec![m2.clone()])];
         let hist = vec![0.0f64; 20]; // area=0 ⟹ 0<0 false ⟹ div_cand 假 ⟹ 次级别无一类锚点
 
-        assert_eq!(super::descend_type1_anchor_depth(&m2, 19, Side::Long, &hist), None,
-            "次级别无一类背驰锚点 ⟹ 小转大 ⟹ None（显式可测判别）");
+        assert_eq!(
+            super::descend_type1_anchor_depth(&m2, 19, Side::Long, &hist),
+            None,
+            "次级别无一类背驰锚点 ⟹ 小转大 ⟹ None（显式可测判别）"
+        );
         let mut buy2 = super::super::super::types::BspBits::default();
         buy2.buy2 = true;
-        assert!(!build_multilevel_nest_cert(&tower, 1, 19, Side::Long, &buy2, &hist),
-            "小转大（次级别无 Type1）⟹ 证书 None ⟹ 门拒");
+        assert!(
+            !build_multilevel_nest_cert(&tower, 1, 19, Side::Long, &buy2, &hist),
+            "小转大（次级别无 Type1）⟹ 证书 None ⟹ 门拒"
+        );
     }
 
     /// 段2 真递归下沉：次级别 Type1 段本身内部再含次次级别 Type1 背驰段（end 同为 source_index）
@@ -2427,24 +3043,27 @@ mod tests {
         // hist 递减：靠后 bar 力度更小（Weak 各级满足）。
         let hist: Vec<f64> = (0..20).map(|i| (20 - i) as f64).collect();
         // A0（level1 Down @0-9）：a0(Up)/a1(Down)。
-        let a0 = seg2(Dir2::Up,   60, 100, 0, 4, 0);
-        let a1 = seg2(Dir2::Down, 40,  95, 5, 9, 1);
+        let a0 = seg2(Dir2::Up, 60, 100, 0, 4, 0);
+        let a1 = seg2(Dir2::Down, 40, 95, 5, 9, 1);
         let big_a0 = compose2(vec![a0, a1], 1, 0); // lo=40
-        // Amid（level1 Up @10-13）。
+                                                   // Amid（level1 Up @10-13）。
         let am0 = seg2(Dir2::Down, 45, 90, 10, 11, 2);
-        let am1 = seg2(Dir2::Up,   50, 110, 12, 13, 3);
+        let am1 = seg2(Dir2::Up, 50, 110, 12, 13, 3);
         let amid = compose2(vec![am0, am1], 1, 1);
         // A1（level1 Down @14-19，内部 level0 趋势背驰 @19）。
-        let b0 = seg2(Dir2::Up,   48, 105, 14, 15, 4);
-        let b1 = seg2(Dir2::Down, 42,  92, 16, 16, 5); // 次次级别 s' Down lo=42
-        let b2 = seg2(Dir2::Up,   46,  96, 17, 17, 6);
-        let b3 = seg2(Dir2::Down, 30,  85, 18, 19, 7); // 次次级别 s Down lo=30<42，end=19
+        let b0 = seg2(Dir2::Up, 48, 105, 14, 15, 4);
+        let b1 = seg2(Dir2::Down, 42, 92, 16, 16, 5); // 次次级别 s' Down lo=42
+        let b2 = seg2(Dir2::Up, 46, 96, 17, 17, 6);
+        let b3 = seg2(Dir2::Down, 30, 85, 18, 19, 7); // 次次级别 s Down lo=30<42，end=19
         let big_a1 = compose2(vec![b0, b1, b2, b3], 1, 2); // lo=30
-        // s（level2）：[A0(Down), Amid(Up), A1(Down@19)]。
+                                                           // s（level2）：[A0(Down), Amid(Up), A1(Down@19)]。
         let s = compose2(vec![big_a0, amid, big_a1], 2, 0);
 
-        assert_eq!(super::descend_type1_anchor_depth(&s, 19, Side::Long, &hist), Some(2),
-            "次级别 Type1 + 次次级别 Type1 ⟹ 真递归下沉深度 Some(2)");
+        assert_eq!(
+            super::descend_type1_anchor_depth(&s, 19, Side::Long, &hist),
+            Some(2),
+            "次级别 Type1 + 次次级别 Type1 ⟹ 真递归下沉深度 Some(2)"
+        );
     }
 
     // ── Q4（task #145）：盘整背驰承接门 pan_div_gate_pass（Nest/XZD 二通道）─────────
@@ -2469,11 +3088,19 @@ mod tests {
         let s2 = seg2(Dir2::Up, 45, 95, 10, 14, 2);
         let s3 = seg2(Dir2::Down, 30, 85, 15, 19, 3);
         let m2 = compose2(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()], 1, 0);
-        let tower: Vec<Rc2<Vec<LM2>>> =
-            vec![Rc2::new(vec![s0, s1, s2, s3]), Rc2::new(vec![m2])];
+        let tower: Vec<Rc2<Vec<LM2>>> = vec![Rc2::new(vec![s0, s1, s2, s3]), Rc2::new(vec![m2])];
         let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
         assert!(
-            super::pan_div_gate_pass(&tower, 1, &pan_cert(19, Side::Long), &hist, 19, &[], &[], &[]),
+            super::pan_div_gate_pass(
+                &tower,
+                1,
+                &pan_cert(19, Side::Long),
+                &hist,
+                19,
+                &[],
+                &[],
+                &[]
+            ),
             "Nest 通道：次级别 Type1 锚（descend Some）⟹ PanDiv^δ_ℓ ⟹ ∃e<ℓ Conf^δ_e 承接成立"
         );
     }
@@ -2489,7 +3116,14 @@ mod tests {
         let bsp_of_level = vec![xzd_bsp(19, buy2, None)];
         assert!(
             super::pan_div_gate_pass(
-                &tower, 0, &pan_cert(19, Side::Long), &hist, 19, &bsp_of_level, &[], &[],
+                &tower,
+                0,
+                &pan_cert(19, Side::Long),
+                &hist,
+                19,
+                &bsp_of_level,
+                &[],
+                &[],
             ),
             "XZD 通道：Nest 闭（递归底无次级别锚）+ C2 共生 buy2 ⟹ XZD^δ 承接成立"
         );
@@ -2504,17 +3138,9 @@ mod tests {
         buy2.buy2 = true;
         let bsp_of_level = vec![xzd_bsp(19, buy2, None)];
         let raw = pan_cert(19, Side::Long);
-        let gated = super::gate_pan_div_for_production(
-            &tower,
-            0,
-            &raw,
-            &hist,
-            19,
-            &bsp_of_level,
-            &[],
-            &[],
-        )
-        .expect("XZD 门通过必须恰产一个 GatedPanDivCert");
+        let gated =
+            super::gate_pan_div_for_production(&tower, 0, &raw, &hist, 19, &bsp_of_level, &[], &[])
+                .expect("XZD 门通过必须恰产一个 GatedPanDivCert");
         assert_eq!(gated.level(), 0);
         assert_eq!(gated.cert(), raw);
     }
@@ -2526,7 +3152,16 @@ mod tests {
         let tower: Vec<Rc2<Vec<LM2>>> = vec![Rc2::new(vec![xzd_seg(10, 19)])];
         let hist = vec![0.0f64; 20];
         assert!(
-            !super::pan_div_gate_pass(&tower, 0, &pan_cert(19, Side::Long), &hist, 19, &[], &[], &[]),
+            !super::pan_div_gate_pass(
+                &tower,
+                0,
+                &pan_cert(19, Side::Long),
+                &hist,
+                19,
+                &[],
+                &[],
+                &[]
+            ),
             "两门皆闭 ⟹ PanDiv 承接失败（诚实丢弃）"
         );
         // 执行段缺失（tower[lvl] 无 end_index==source_index）⟹ 同样拒。
@@ -2572,7 +3207,10 @@ mod tests {
         assert!((eta_in - 1.8).abs() < 1e-9);
         assert!((eta_out - 0.9).abs() < 1e-9);
         // 2 − 1.8 − 0.9 = −0.7 < 0：执行损耗吃光结构价差（PDF §4 因果亏 −0.7 的分解归因）。
-        assert!(captured < 0.0, "captured={captured} 应 <0（PDF §4 反例：执行吃光价差）");
+        assert!(
+            captured < 0.0,
+            "captured={captured} 应 <0（PDF §4 反例：执行吃光价差）"
+        );
         assert!((captured - (-0.7)).abs() < 1e-9);
     }
 
@@ -2583,14 +3221,23 @@ mod tests {
     fn reversal_leg_direction_semantics() {
         // 底买反转腿：λ_rev=入场低点 pivot 100，ρ_rev=出场高点 pivot 120，δ=+1。
         let ab_buy = 1.0_f64 * (120.0 - 100.0);
-        assert!(ab_buy > 0.0, "底买反转腿 Ab_rev 应 >0（入场低点→出场高点），实得 {ab_buy}");
+        assert!(
+            ab_buy > 0.0,
+            "底买反转腿 Ab_rev 应 >0（入场低点→出场高点），实得 {ab_buy}"
+        );
         // 顶卖反转腿：λ_rev=入场高点 pivot 120，ρ_rev=出场低点 pivot 100，δ=−1。
         let ab_sell = (-1.0_f64) * (100.0 - 120.0);
-        assert!(ab_sell > 0.0, "顶卖反转腿 Ab_rev 应 >0（入场高点→出场低点，δ=−1 翻正），实得 {ab_sell}");
+        assert!(
+            ab_sell > 0.0,
+            "顶卖反转腿 Ab_rev 应 >0（入场高点→出场低点，δ=−1 翻正），实得 {ab_sell}"
+        );
         // 对照（664 号错配示意）：δ 作用在触发段（底买出现在下跌段末端，触发段 Pρ<Pλ）⟹ δ·(Pρ−Pλ)<0
         // ——这正是旧实装系统性 ΣAb<0 的来源（测错对象，非判据被否证）。
         let ab_old_trigger = 1.0_f64 * (100.0 - 120.0);
-        assert!(ab_old_trigger < 0.0, "旧触发段对象 δ·(Pρ−Pλ) 系统性负（对象错配示意）");
+        assert!(
+            ab_old_trigger < 0.0,
+            "旧触发段对象 δ·(Pρ−Pλ) 系统性负（对象错配示意）"
+        );
     }
 
     /// spread_eaten 判据自检：Σcaptured≤0 ⟺ 损耗吃光。
@@ -2610,24 +3257,31 @@ mod tests {
         // 多头：λ_rev=100, ρ_rev=120 ⟹ Ab_rev=20。Pτin=98（确认价比入场 pivot 更优，x<0 有利），
         // Pτout=125（出场比 pivot 更高，y<0 有利）。δ=+1。
         for &(p_lambda, p_rho, p_tau_in, p_tau_out, delta) in &[
-            (100.0, 120.0, 98.0, 125.0, 1.0_f64),  // 双侧有利滑移
-            (100.0, 120.0, 105.0, 110.0, 1.0),     // 双侧不利滑移
-            (120.0, 100.0, 122.0, 95.0, -1.0),     // 空头：入场更高(有利)、出场更低(有利)
+            (100.0, 120.0, 98.0, 125.0, 1.0_f64), // 双侧有利滑移
+            (100.0, 120.0, 105.0, 110.0, 1.0),    // 双侧不利滑移
+            (120.0, 100.0, 122.0, 95.0, -1.0),    // 空头：入场更高(有利)、出场更低(有利)
         ] {
             let a_b = delta * (p_rho - p_lambda);
             let x_in = delta * (p_tau_in - p_lambda);
             let y_out = delta * (p_rho - p_tau_out);
             let actual_spread = delta * (p_tau_out - p_tau_in);
             // 恒等式：actual_spread = Ab_rev − x_in − y_out（codex Q3）。
-            assert!((actual_spread - (a_b - x_in - y_out)).abs() < 1e-9,
-                "signed 分解恒等式破：actual_spread={actual_spread} ≠ Ab−x−y={}", a_b - x_in - y_out);
+            assert!(
+                (actual_spread - (a_b - x_in - y_out)).abs() < 1e-9,
+                "signed 分解恒等式破：actual_spread={actual_spread} ≠ Ab−x−y={}",
+                a_b - x_in - y_out
+            );
             // adverse-only captured 与 actual_spread 的差 = min(x,0)+min(y,0) ≤ 0（系统性低估）。
             let captured_no_cost = a_b - x_in.max(0.0) - y_out.max(0.0);
             let diff = captured_no_cost - actual_spread;
-            assert!(diff <= 1e-9,
-                "adverse-only captured 应 ≤ actual_spread（丢有利滑移），diff={diff}");
-            assert!((diff - (x_in.min(0.0) + y_out.min(0.0))).abs() < 1e-9,
-                "captured−actual 应 = min(x,0)+min(y,0)");
+            assert!(
+                diff <= 1e-9,
+                "adverse-only captured 应 ≤ actual_spread（丢有利滑移），diff={diff}"
+            );
+            assert!(
+                (diff - (x_in.min(0.0) + y_out.min(0.0))).abs() < 1e-9,
+                "captured−actual 应 = min(x,0)+min(y,0)"
+            );
         }
     }
 
@@ -2641,7 +3295,10 @@ mod tests {
         agg.sum_captured = -50.0; // adverse-only 判定「吃光」
         assert!(agg.spread_eaten(), "adverse-only 判吃光");
         assert!((agg.actual_pnl_proxy() - 70.0).abs() < 1e-9);
-        assert!(!agg.actual_pnl_eaten(), "真实成交口径未吃光 ⟹ adverse-only 是伪结论");
+        assert!(
+            !agg.actual_pnl_eaten(),
+            "真实成交口径未吃光 ⟹ adverse-only 是伪结论"
+        );
     }
 
     /// L2 重测「钱去哪了」：BTC 全历史逐信号反转交易腿 Ab_rev 可捕获价差分解（真实数据，可产否定性结果；664 号）。
@@ -2675,20 +3332,38 @@ mod tests {
         // 100K=8.7s、200K=31.8s、400K=124.5s、600K=283s（O(n²)），全量 461万≈数小时可跑通但慢。
         // env ECON_L2_MAX_BARS 覆盖供 Lead 调窗（>4.6M=不截断跑全量）。
         const MAX_BARS: usize = 300_000;
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
-            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS);
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(MAX_BARS);
         let ds = if n_full > max_bars {
-            let start = ds_full.dates[n_full - max_bars].get(..10).unwrap_or("").to_string();
-            let end = ds_full.dates[n_full - 1].get(..10).unwrap_or("").to_string();
-            eprintln!("截断窗 [{start}→{end}]（最后 {max_bars} bar / 全量 {n_full}）= 显式有效域边界");
+            let start = ds_full.dates[n_full - max_bars]
+                .get(..10)
+                .unwrap_or("")
+                .to_string();
+            let end = ds_full.dates[n_full - 1]
+                .get(..10)
+                .unwrap_or("")
+                .to_string();
+            eprintln!(
+                "截断窗 [{start}→{end}]（最后 {max_bars} bar / 全量 {n_full}）= 显式有效域边界"
+            );
             ds_full.slice_date_window(&start, &end)
         } else {
             ds_full
         };
         let untradable = ds.untradable_ratio();
         let n_bars = ds.bars.len();
-        let window_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
-        let window_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let window_start = ds
+            .dates
+            .first()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        let window_end = ds
+            .dates
+            .last()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
 
         let (decomps, agg) = decompose_capturable_spread(&ds, &config);
         crate::theta_v0::classifier::stage_profile::dump();
@@ -2733,14 +3408,26 @@ mod tests {
 
         // 失血三源占比（分母 = Σ(ηin+ηout+Ce) 总损耗；ΣAb 为正分母比对结构价差）。
         let total_drain = agg.sum_eta_in + agg.sum_eta_out + agg.sum_ce;
-        let pct = |x: f64| if total_drain > 0.0 { 100.0 * x / total_drain } else { 0.0 };
+        let pct = |x: f64| {
+            if total_drain > 0.0 {
+                100.0 * x / total_drain
+            } else {
+                0.0
+            }
+        };
 
         let actual_pnl_proxy = agg.actual_pnl_proxy();
 
         let mut rpt = String::new();
-        let _ = writeln!(rpt, "# 663 判据：BTC 全级别×方向逐信号 μ̂>0 + 全历史长窗累积净值");
+        let _ = writeln!(
+            rpt,
+            "# 663 判据：BTC 全级别×方向逐信号 μ̂>0 + 全历史长窗累积净值"
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "**认识论等级**：L2（真实数据单标的逐信号确定性分解，可产否定性结果）。");
+        let _ = writeln!(
+            rpt,
+            "**认识论等级**：L2（真实数据单标的逐信号确定性分解，可产否定性结果）。"
+        );
         let _ = writeln!(rpt, "**663 判据**：可交易性=μ(z,a)>0（正条件期望，出现就做不统计显著），**非** p<0.05 统计显著/跨品种符号检验。全级别 0..L 照报（级别是缠论全互斥定义构成部分，稀疏高级别不剔不判 Le Cam 硬墙——663 收窄 Le Cam 有效域至短窗单品种区分±Δ）。全历史长窗累积净值（O(n²) 已解锁 exp1.18，461万 bar ~2.6min）。");
         let _ = writeln!(rpt, "**664-Q3 修正**：旧 captured=Ab_rev−max(0,x)−max(0,y)−Ce 用 max(0,·) **丢有利滑移、全计不利滑移** ⟹ 系统性低估真实 PnL（captured−actual_pnl=min(x,0)+min(y,0)≤0）= **adverse-only 保守压力测试，非真实成交**。本报告补 signed Σx/Σy 与真实成交价差 actual_spread=δ(Pτout−Pτin)=Ab_rev−x−y。");
         let _ = writeln!(rpt, "**两口径**：x=δ(Pτin−Pλ_rev)（signed 入场滑移）、y=δ(Pρ_rev−Pτout)（signed 出场滑移）。");
@@ -2749,7 +3436,10 @@ mod tests {
         let _ = writeln!(rpt, "**复算**：`cargo test -p <crate> --release l2_btc_capturable_spread_diagnosis -- --ignored --nocapture`（确定性）。");
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 数据");
-        let _ = writeln!(rpt, "- 品种：BTC（btc_1m_full.json，全量 {n_full} bar，2017-08→2026-05）");
+        let _ = writeln!(
+            rpt,
+            "- 品种：BTC（btc_1m_full.json，全量 {n_full} bar，2017-08→2026-05）"
+        );
         let _ = writeln!(rpt, "- **截断窗 [{window_start}→{window_end}]，bars={n_bars}**（最后 {max_bars} bar；全量 461万 OOM 不可行 ⟹ 截断窗=显式有效域边界，非全窗结论，l3 同纪律）");
         let _ = writeln!(rpt, "- untradable_ratio={:.4}", untradable);
         let _ = writeln!(rpt, "- 收集信号数 n_signals={}（无配对出场反转信号的入场信号被诚实跳过，不入此集——无 ρ_rev 不兜底）", agg.n_signals);
@@ -2757,9 +3447,15 @@ mod tests {
         // Candidate 边界无 force 源（fill loop 侧断言必误报，见 g2-impl-20260703.md）；A6（#159）后
         // Candidate 携 force、fill loop z_of_candidate 同样装配真值——fill loop 侧对应断言见
         // wverify_run::wverify_fullz（records 探针）。零一类信号的窗不假失败（force 仅一类 A/C 对候选有源）。
-        let n_type1 = decomps.iter().filter(|d| d.z.i_class & 0b001_001 != 0).count();
+        let n_type1 = decomps
+            .iter()
+            .filter(|d| d.z.i_class & 0b001_001 != 0)
+            .count();
         let n_force_some = decomps.iter().filter(|d| d.z.force_state.is_some()).count();
-        assert!(n_type1 == 0 || n_force_some > 0, "β^div 路由静默断裂：{n_type1} 条一类信号 force_state 全 None");
+        assert!(
+            n_type1 == 0 || n_force_some > 0,
+            "β^div 路由静默断裂：{n_type1} 条一类信号 force_state 全 None"
+        );
         let _ = writeln!(rpt, "- β^div force fill-rate：{}/{}（一类信号 {} 条；断言=有一类则 force 非全 None，#115 (e)）", n_force_some, agg.n_signals, n_type1);
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 三审计统计（codex #97 要求）");
@@ -2767,40 +3463,126 @@ mod tests {
         let _ = writeln!(rpt, "|---|---|---|");
         let _ = writeln!(rpt, "| n_rho_after_lambda | {}/{} | rho_rev_bar>lambda_rev_bar（codex Q1 不变量：出场 pivot 端点在入场 pivot 之后） |", agg.n_rho_after_lambda, agg.n_signals);
         let _ = writeln!(rpt, "| n_same_bar_opposite | {} | 同 bar 出现反向信号（被 eb>entry_bar 排除的边界，codex Q2） |", agg.n_same_bar_opposite);
-        let _ = writeln!(rpt, "| n_unpaired | {} | 无配对出场反转信号（右删失诚实跳过，codex Q4） |", agg.n_unpaired);
+        let _ = writeln!(
+            rpt,
+            "| n_unpaired | {} | 无配对出场反转信号（右删失诚实跳过，codex Q4） |",
+            agg.n_unpaired
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## P7 正规出场口径统计（接 interp ExitType CloseRoot/ReduceCore，n={}）", agg.n_signals);
+        let _ = writeln!(
+            rpt,
+            "## P7 正规出场口径统计（接 interp ExitType CloseRoot/ReduceCore，n={}）",
+            agg.n_signals
+        );
         let _ = writeln!(rpt, "| 出场决策 | 信号数 | 占比 | 说明 |");
         let _ = writeln!(rpt, "|---|---|---|---|");
-        let pct_sig = |x: usize| if agg.n_signals > 0 { 100.0 * x as f64 / agg.n_signals as f64 } else { 0.0 };
-        let _ = writeln!(rpt, "| CloseRoot（第一类顶背驰） | {} | {:.1}% | interp ExitType::CloseRoot |", agg.n_exit_close_root, pct_sig(agg.n_exit_close_root));
-        let _ = writeln!(rpt, "| ReduceCore（第三类减核） | {} | {:.1}% | interp ExitType::ReduceCore |", agg.n_exit_reduce_core, pct_sig(agg.n_exit_reduce_core));
+        let pct_sig = |x: usize| {
+            if agg.n_signals > 0 {
+                100.0 * x as f64 / agg.n_signals as f64
+            } else {
+                0.0
+            }
+        };
+        let _ = writeln!(
+            rpt,
+            "| CloseRoot（第一类顶背驰） | {} | {:.1}% | interp ExitType::CloseRoot |",
+            agg.n_exit_close_root,
+            pct_sig(agg.n_exit_close_root)
+        );
+        let _ = writeln!(
+            rpt,
+            "| ReduceCore（第三类减核） | {} | {:.1}% | interp ExitType::ReduceCore |",
+            agg.n_exit_reduce_core,
+            pct_sig(agg.n_exit_reduce_core)
+        );
         let _ = writeln!(rpt, "| Type2Missing（第二类 still-MISSING） | {} | {:.1}% | 第二类闭环诚实边界（见 ExitDecision docstring），不改账本口径 |", agg.n_exit_type2_missing, pct_sig(agg.n_exit_type2_missing));
-        let _ = writeln!(rpt, "| Hold（无正规卖点 bit） | {} | {:.1}% | exit 信号无正规卖侧/买侧 bit |", agg.n_exit_hold, pct_sig(agg.n_exit_hold));
+        let _ = writeln!(
+            rpt,
+            "| Hold（无正规卖点 bit） | {} | {:.1}% | exit 信号无正规卖侧/买侧 bit |",
+            agg.n_exit_hold,
+            pct_sig(agg.n_exit_hold)
+        );
         let _ = writeln!(rpt, "（认识论 L0：口径结构变，不声明 alpha；alpha 待 W-VERIFY L2/L3。第二类闭环 still-MISSING（需次级别递归，见 descend.rs），不碰 TW 三阶段/576。）");
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 全局归因（双口径）");
         let _ = writeln!(rpt, "| 量 | 值 |");
         let _ = writeln!(rpt, "|---|---|");
-        let _ = writeln!(rpt, "| ΣAb_rev（反转交易腿理想总价差） | {:.6e} |", agg.sum_a_b);
+        let _ = writeln!(
+            rpt,
+            "| ΣAb_rev（反转交易腿理想总价差） | {:.6e} |",
+            agg.sum_a_b
+        );
         let _ = writeln!(rpt, "| Σx（signed 入场滑移） | {:.6e} |", agg.sum_x_in);
         let _ = writeln!(rpt, "| Σy（signed 出场滑移） | {:.6e} |", agg.sum_y_out);
-        let _ = writeln!(rpt, "| Σmax(0,x)=Σηin（adverse-only 入场） | {:.6e} ({:.1}%) |", agg.sum_eta_in, pct(agg.sum_eta_in));
-        let _ = writeln!(rpt, "| Σmax(0,y)=Σηout（adverse-only 出场） | {:.6e} ({:.1}%) |", agg.sum_eta_out, pct(agg.sum_eta_out));
-        let _ = writeln!(rpt, "| ΣCe（成本） | {:.6e} ({:.1}%) |", agg.sum_ce, pct(agg.sum_ce));
-        let _ = writeln!(rpt, "| Σactual_spread（真实成交价差 δ(Pτout−Pτin)） | {:.6e} |", agg.sum_actual_spread);
-        let _ = writeln!(rpt, "| **Σcaptured（adverse-only 压力测试剩余）** | {:.6e} |", agg.sum_captured);
-        let _ = writeln!(rpt, "| **actual_pnl_proxy=Σactual_spread−ΣCe（真实成交 PnL 代理）** | {:.6e} |", actual_pnl_proxy);
-        let _ = writeln!(rpt, "| n_captured_positive/n（adverse-only 正占比） | {}/{} ({:.1}%) |",
-            agg.n_captured_positive, agg.n_signals,
-            if agg.n_signals > 0 { 100.0 * agg.n_captured_positive as f64 / agg.n_signals as f64 } else { 0.0 });
-        let _ = writeln!(rpt, "| n_actual_positive/n（真实成交正占比） | {}/{} ({:.1}%) |",
-            agg.n_actual_positive, agg.n_signals,
-            if agg.n_signals > 0 { 100.0 * agg.n_actual_positive as f64 / agg.n_signals as f64 } else { 0.0 });
+        let _ = writeln!(
+            rpt,
+            "| Σmax(0,x)=Σηin（adverse-only 入场） | {:.6e} ({:.1}%) |",
+            agg.sum_eta_in,
+            pct(agg.sum_eta_in)
+        );
+        let _ = writeln!(
+            rpt,
+            "| Σmax(0,y)=Σηout（adverse-only 出场） | {:.6e} ({:.1}%) |",
+            agg.sum_eta_out,
+            pct(agg.sum_eta_out)
+        );
+        let _ = writeln!(
+            rpt,
+            "| ΣCe（成本） | {:.6e} ({:.1}%) |",
+            agg.sum_ce,
+            pct(agg.sum_ce)
+        );
+        let _ = writeln!(
+            rpt,
+            "| Σactual_spread（真实成交价差 δ(Pτout−Pτin)） | {:.6e} |",
+            agg.sum_actual_spread
+        );
+        let _ = writeln!(
+            rpt,
+            "| **Σcaptured（adverse-only 压力测试剩余）** | {:.6e} |",
+            agg.sum_captured
+        );
+        let _ = writeln!(
+            rpt,
+            "| **actual_pnl_proxy=Σactual_spread−ΣCe（真实成交 PnL 代理）** | {:.6e} |",
+            actual_pnl_proxy
+        );
+        let _ = writeln!(
+            rpt,
+            "| n_captured_positive/n（adverse-only 正占比） | {}/{} ({:.1}%) |",
+            agg.n_captured_positive,
+            agg.n_signals,
+            if agg.n_signals > 0 {
+                100.0 * agg.n_captured_positive as f64 / agg.n_signals as f64
+            } else {
+                0.0
+            }
+        );
+        let _ = writeln!(
+            rpt,
+            "| n_actual_positive/n（真实成交正占比） | {}/{} ({:.1}%) |",
+            agg.n_actual_positive,
+            agg.n_signals,
+            if agg.n_signals > 0 {
+                100.0 * agg.n_actual_positive as f64 / agg.n_signals as f64
+            } else {
+                0.0
+            }
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## L2 判定（关键：两口径分歧 = codex Q3 核心）");
-        let _ = writeln!(rpt, "- **adverse-only spread_eaten = {}**（Σcaptured {} 0）", agg.spread_eaten(), if agg.spread_eaten() { "≤" } else { ">" });
-        let _ = writeln!(rpt, "- **真实成交 actual_pnl_eaten = {}**（actual_pnl_proxy {} 0）", agg.actual_pnl_eaten(), if agg.actual_pnl_eaten() { "≤" } else { ">" });
+        let _ = writeln!(
+            rpt,
+            "- **adverse-only spread_eaten = {}**（Σcaptured {} 0）",
+            agg.spread_eaten(),
+            if agg.spread_eaten() { "≤" } else { ">" }
+        );
+        let _ = writeln!(
+            rpt,
+            "- **真实成交 actual_pnl_eaten = {}**（actual_pnl_proxy {} 0）",
+            agg.actual_pnl_eaten(),
+            if agg.actual_pnl_eaten() { "≤" } else { ">" }
+        );
         if agg.spread_eaten() && !agg.actual_pnl_eaten() {
             let _ = writeln!(rpt, "- **翻案（codex Q3 坐实）**：adverse-only 判「执行吃光」但真实成交 actual_pnl_proxy>0 ⟹ 之前「执行滞后吃光」(Σcaptured=−2.33e5) 是 **adverse-only 伪结论**——有利滑移被 max(0,·) 丢弃所致。真实成交口径下反转腿可捕获。");
         } else if agg.actual_pnl_eaten() {
@@ -2810,8 +3592,16 @@ mod tests {
         }
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 失血三源对比（ΣAb_rev 为反转腿结构上限）");
-        let _ = writeln!(rpt, "- 反转腿价差：ΣAb_rev={:.6e}（664 号测对了对象——可正可负，非触发段同义反复）", agg.sum_a_b);
-        let _ = writeln!(rpt, "- 执行吃光：Ση={:.6e}（入场+出场滞后）", agg.sum_eta_in + agg.sum_eta_out);
+        let _ = writeln!(
+            rpt,
+            "- 反转腿价差：ΣAb_rev={:.6e}（664 号测对了对象——可正可负，非触发段同义反复）",
+            agg.sum_a_b
+        );
+        let _ = writeln!(
+            rpt,
+            "- 执行吃光：Ση={:.6e}（入场+出场滞后）",
+            agg.sum_eta_in + agg.sum_eta_out
+        );
         let _ = writeln!(rpt, "- 成本：ΣCe={:.6e}", agg.sum_ce);
         if agg.sum_a_b < 0.0 {
             let _ = writeln!(rpt);
@@ -2834,8 +3624,17 @@ mod tests {
                 Some(Horizontal::SameReverse) => "SR",
                 None => "-", // 裸证书口径未定 H（本 alpha 路径 z_of_candidate 恒 Some，None 不应现）
             };
-            let pos = match z.position { PositionState::Root => "R", PositionState::Child => "C" };
-            format!("{:+}|{}|{}|{}", z.parent_dir, if z.short_swing { "sw" } else { "tr" }, pos, h)
+            let pos = match z.position {
+                PositionState::Root => "R",
+                PositionState::Child => "C",
+            };
+            format!(
+                "{:+}|{}|{}|{}",
+                z.parent_dir,
+                if z.short_swing { "sw" } else { "tr" },
+                pos,
+                h
+            )
         };
         let _ = writeln!(rpt, "## per-class 完整状态 Z=(level, δ, I_γ, σ_p, 短差, 仓位态, H) 分桶（b2 #83：Y 粗投影→Z 细状态）");
         let _ = writeln!(rpt, "μ̂(z,a)=Σactual_pnl/n = 逐信号正条件期望估计（663 判据：>0 即可交易，不需统计显著/不判稀疏硬墙）。");
@@ -2851,18 +3650,32 @@ mod tests {
         }
         let _ = writeln!(rpt);
         // ── 663 判据：全级别×方向×类型 μ̂>0 分类（正条件期望，出现就做不统计显著）。 ──
-        let _ = writeln!(rpt, "## 663 判据：全级别×方向×类型 μ̂(z,a)>0（正条件期望，出现就做不统计显著）");
+        let _ = writeln!(
+            rpt,
+            "## 663 判据：全级别×方向×类型 μ̂(z,a)>0（正条件期望，出现就做不统计显著）"
+        );
         let max_level = buckets.keys().map(|z| z.level).max().unwrap_or(0);
         let _ = writeln!(rpt, "涌现最高级别 L={max_level}（全级别 0..{max_level} 均列；稀疏高级别照报不判硬墙，663）。");
-        let _ = writeln!(rpt, "**有效域**：本窗 bars={n_bars}（{window_start}→{window_end}）。663 要求全历史长窗——");
+        let _ = writeln!(
+            rpt,
+            "**有效域**：本窗 bars={n_bars}（{window_start}→{window_end}）。663 要求全历史长窗——"
+        );
         let _ = writeln!(rpt, "若 bars<461万，高级别 L3+ 仍稀疏（n=个位数），累积净值是**本窗**结论非全历史（ECON_L2_MAX_BARS=5000000 跑全量，~6-7min）。");
-        let _ = writeln!(rpt, "μ̂>0 类 = 该完整状态 z 逐信号正条件期望——出现即做累积正期望（非 p<0.05 统计显著）：");
+        let _ = writeln!(
+            rpt,
+            "μ̂>0 类 = 该完整状态 z 逐信号正条件期望——出现即做累积正期望（非 p<0.05 统计显著）："
+        );
         let mut n_pos_class = 0usize;
         let mut n_total_class = 0usize;
         for (z, (n, _, _, _, _, _, _, _, sactpnl, nact)) in &buckets {
             n_total_class += 1;
             let mu_hat = if *n > 0 { sactpnl / *n as f64 } else { 0.0 };
-            let mark = if mu_hat > 0.0 { n_pos_class += 1; "✓μ̂>0" } else { "✗μ̂≤0" };
+            let mark = if mu_hat > 0.0 {
+                n_pos_class += 1;
+                "✓μ̂>0"
+            } else {
+                "✗μ̂≤0"
+            };
             let _ = writeln!(rpt, "- (level={}, δ={:+}, I_γ=0x{:02x}, role={}) {mark}: μ̂={mu_hat:.4e}, Σ={sactpnl:.4e}, n_act+/n={nact}/{n}",
                 z.level, z.delta, z.i_class, z_role_str(z));
         }
@@ -2881,14 +3694,22 @@ mod tests {
             let mut min_cum_all = 0.0f64; // 最大回撤参考（累积曲线最低点）。
             for d in &ordered {
                 cum_all += d.actual_pnl;
-                if cum_all < min_cum_all { min_cum_all = cum_all; }
+                if cum_all < min_cum_all {
+                    min_cum_all = cum_all;
+                }
                 *cum_by_level.entry(d.level).or_default() += d.actual_pnl;
             }
             let _ = writeln!(rpt, "- **全级别累积净值终值 = {cum_all:.4e}**（{} 信号，min 累积={min_cum_all:.4e} 曲线最低点）", ordered.len());
             let _ = writeln!(rpt, "| level | 该级别累积净值 | 正期望? |");
             let _ = writeln!(rpt, "|---|---|---|");
             for (lvl, cum) in &cum_by_level {
-                let _ = writeln!(rpt, "| {} | {:.4e} | {} |", lvl, cum, if *cum > 0.0 { "✓" } else { "✗" });
+                let _ = writeln!(
+                    rpt,
+                    "| {} | {:.4e} | {} |",
+                    lvl,
+                    cum,
+                    if *cum > 0.0 { "✓" } else { "✗" }
+                );
             }
             // 曲线采样（10 点等信号间隔）——看累积轨迹形状（单调正 vs 前正后回吐）。
             if ordered.len() >= 10 {
@@ -2899,7 +3720,14 @@ mod tests {
                 for (i, d) in ordered.iter().enumerate() {
                     c += d.actual_pnl;
                     if (i + 1) % step == 0 || i + 1 == ordered.len() {
-                        let _ = writeln!(rpt, "- [{}/{}] entry_bar={} 累积={:.4e}", i + 1, ordered.len(), d.entry_bar, c);
+                        let _ = writeln!(
+                            rpt,
+                            "- [{}/{}] entry_bar={} 累积={:.4e}",
+                            i + 1,
+                            ordered.len(),
+                            d.entry_bar,
+                            c
+                        );
                     }
                 }
             }
@@ -2917,9 +3745,24 @@ mod tests {
         }
         let _ = writeln!(rpt, "## 666 号 σ_higher 分布（上级方向态 vs δ）");
         let nsig = decomps.len().max(1);
-        let _ = writeln!(rpt, "- 顺上级（δ==σ_higher）：{n_align}/{} ({:.1}%)", decomps.len(), 100.0 * n_align as f64 / nsig as f64);
-        let _ = writeln!(rpt, "- 逆上级（δ==−σ_higher）：{n_against}/{} ({:.1}%)", decomps.len(), 100.0 * n_against as f64 / nsig as f64);
-        let _ = writeln!(rpt, "- 无上级（σ_higher==0）：{n_none}/{} ({:.1}%)", decomps.len(), 100.0 * n_none as f64 / nsig as f64);
+        let _ = writeln!(
+            rpt,
+            "- 顺上级（δ==σ_higher）：{n_align}/{} ({:.1}%)",
+            decomps.len(),
+            100.0 * n_align as f64 / nsig as f64
+        );
+        let _ = writeln!(
+            rpt,
+            "- 逆上级（δ==−σ_higher）：{n_against}/{} ({:.1}%)",
+            decomps.len(),
+            100.0 * n_against as f64 / nsig as f64
+        );
+        let _ = writeln!(
+            rpt,
+            "- 无上级（σ_higher==0）：{n_none}/{} ({:.1}%)",
+            decomps.len(),
+            100.0 * n_none as f64 / nsig as f64
+        );
         let _ = writeln!(rpt);
 
         eprint!("{rpt}");
@@ -2946,12 +3789,17 @@ mod tests {
                 d.a_b, d.x_in, d.y_out, d.eta_in, d.eta_out, d.actual_spread,
                 d.ce_unit, d.captured, d.actual_pnl, d.sigma_higher, d.bsp_class, side, exit_dec);
         }
-        std::fs::write(&csv_path, &csv).unwrap_or_else(|e| panic!("写台账 CSV {csv_path} 失败：{e}"));
-        eprintln!("逐信号台账 CSV 已落盘：{csv_path}（{} 行 + 表头）", decomps.len());
+        std::fs::write(&csv_path, &csv)
+            .unwrap_or_else(|e| panic!("写台账 CSV {csv_path} 失败：{e}"));
+        eprintln!(
+            "逐信号台账 CSV 已落盘：{csv_path}（{} 行 + 表头）",
+            decomps.len()
+        );
 
         // 落盘 signed 报告（664-Q3，不覆盖 econ-abrev-l2-btc-20260630.md 旧 adverse-only-only 报告）。
         let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent().expect("rust/ 父目录 = 项目根")
+            .parent()
+            .expect("rust/ 父目录 = 项目根")
             .join(".chanlun/review-results/econ-663-full-level-mu-20260701.md");
         std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告 {out:?} 失败：{e}"));
         eprintln!("\n报告已落盘：{out:?}");
@@ -2959,57 +3807,107 @@ mod tests {
         // 真封①：adverse-only captured 分解恒等式逐信号成立。
         for d in &decomps {
             let recomputed = d.a_b - d.eta_in - d.eta_out - d.ce_unit;
-            assert!((d.captured - recomputed).abs() < 1e-6,
-                "captured 分解恒等式破：level={} δ={} captured={} ≠ {}", d.level, d.delta, d.captured, recomputed);
+            assert!(
+                (d.captured - recomputed).abs() < 1e-6,
+                "captured 分解恒等式破：level={} δ={} captured={} ≠ {}",
+                d.level,
+                d.delta,
+                d.captured,
+                recomputed
+            );
             // 真封②（664-Q3 核心）：actual_spread = Ab_rev − x − y 逐信号恒成立（signed 分解）。
-            assert!((d.actual_spread - (d.a_b - d.x_in - d.y_out)).abs() < 1e-6,
+            assert!(
+                (d.actual_spread - (d.a_b - d.x_in - d.y_out)).abs() < 1e-6,
                 "actual_spread 恒等式破：level={} δ={} actual_spread={} ≠ Ab−x−y={}",
-                d.level, d.delta, d.actual_spread, d.a_b - d.x_in - d.y_out);
+                d.level,
+                d.delta,
+                d.actual_spread,
+                d.a_b - d.x_in - d.y_out
+            );
             // 真封③：eta = max(0, signed) 一致。
-            assert!((d.eta_in - d.x_in.max(0.0)).abs() < 1e-9 && (d.eta_out - d.y_out.max(0.0)).abs() < 1e-9,
-                "η 应 = max(0, signed)：level={} δ={}", d.level, d.delta);
+            assert!(
+                (d.eta_in - d.x_in.max(0.0)).abs() < 1e-9
+                    && (d.eta_out - d.y_out.max(0.0)).abs() < 1e-9,
+                "η 应 = max(0, signed)：level={} δ={}",
+                d.level,
+                d.delta
+            );
             // 真封④：captured ≤ actual_pnl（adverse-only 系统性 ≤ 真实成交；丢有利滑移）。
-            assert!(d.captured <= d.actual_pnl + 1e-6,
+            assert!(
+                d.captured <= d.actual_pnl + 1e-6,
                 "adverse-only captured 应 ≤ actual_pnl：level={} δ={} captured={} > actual_pnl={}",
-                d.level, d.delta, d.captured, d.actual_pnl);
+                d.level,
+                d.delta,
+                d.captured,
+                d.actual_pnl
+            );
         }
         // 聚合 Σ 无丢失。
         let sum_check: f64 = decomps.iter().map(|d| d.captured).sum();
-        assert!((agg.sum_captured - sum_check).abs() < 1e-3,
-            "Σcaptured 聚合 {} ≠ 逐信号和 {}", agg.sum_captured, sum_check);
+        assert!(
+            (agg.sum_captured - sum_check).abs() < 1e-3,
+            "Σcaptured 聚合 {} ≠ 逐信号和 {}",
+            agg.sum_captured,
+            sum_check
+        );
         let sum_act: f64 = decomps.iter().map(|d| d.actual_spread).sum();
-        assert!((agg.sum_actual_spread - sum_act).abs() < 1e-3,
-            "Σactual_spread 聚合 {} ≠ 逐信号和 {}", agg.sum_actual_spread, sum_act);
+        assert!(
+            (agg.sum_actual_spread - sum_act).abs() < 1e-3,
+            "Σactual_spread 聚合 {} ≠ 逐信号和 {}",
+            agg.sum_actual_spread,
+            sum_act
+        );
     }
 
     /// per-class `(level, δ, bsp_class)` 真实成交统计：(n, Σactual_pnl, n_act+, Σab_rev)。
     /// P4（codex E-3）：分桶键含 bsp_class ⟹ 单类型 α 可辨——混合 (level,δ) 池会把 buy1/buy2/buy3
     /// 混一桶，桶均值只给混合均值（稀释是 L0 结构必然，codex E-2）。estimand 桶键 `(ℓ,δ,bsp_class)`。
-    fn class_actual_pnl(decomps: &[SignalDecomp], level: u32, delta: i8, bsp_class: u8) -> (usize, f64, usize, f64) {
-        decomps.iter().filter(|d| d.level == level && d.delta == delta && d.bsp_class == bsp_class).fold(
-            (0usize, 0.0f64, 0usize, 0.0f64),
-            |(n, pnl, npos, ab), d| {
-                (n + 1, pnl + d.actual_pnl, npos + (d.actual_pnl > 0.0) as usize, ab + d.a_b)
-            },
-        )
+    fn class_actual_pnl(
+        decomps: &[SignalDecomp],
+        level: u32,
+        delta: i8,
+        bsp_class: u8,
+    ) -> (usize, f64, usize, f64) {
+        decomps
+            .iter()
+            .filter(|d| d.level == level && d.delta == delta && d.bsp_class == bsp_class)
+            .fold((0usize, 0.0f64, 0usize, 0.0f64), |(n, pnl, npos, ab), d| {
+                (
+                    n + 1,
+                    pnl + d.actual_pnl,
+                    npos + (d.actual_pnl > 0.0) as usize,
+                    ab + d.a_b,
+                )
+            })
     }
 
     /// `(level, δ)` 聚合（Σ over bsp_class）真实成交统计——用于 δ 方向不对称对照（level0 卖 vs 买，
     /// 与 bsp_class 正交）+ 诊断报告。**非 estimand 桶**（estimand 桶是 per-class [`class_actual_pnl`]）。
-    fn class_actual_pnl_agg(decomps: &[SignalDecomp], level: u32, delta: i8) -> (usize, f64, usize, f64) {
-        decomps.iter().filter(|d| d.level == level && d.delta == delta).fold(
-            (0usize, 0.0f64, 0usize, 0.0f64),
-            |(n, pnl, npos, ab), d| {
-                (n + 1, pnl + d.actual_pnl, npos + (d.actual_pnl > 0.0) as usize, ab + d.a_b)
-            },
-        )
+    fn class_actual_pnl_agg(
+        decomps: &[SignalDecomp],
+        level: u32,
+        delta: i8,
+    ) -> (usize, f64, usize, f64) {
+        decomps
+            .iter()
+            .filter(|d| d.level == level && d.delta == delta)
+            .fold((0usize, 0.0f64, 0usize, 0.0f64), |(n, pnl, npos, ab), d| {
+                (
+                    n + 1,
+                    pnl + d.actual_pnl,
+                    npos + (d.actual_pnl > 0.0) as usize,
+                    ab + d.a_b,
+                )
+            })
     }
 
     /// 窗口净涨跌方向：首尾 close 总收益**百分数**（>0 涨段 / <0 跌段）。tick 抵消，直接用 close 整数比。
     fn window_net_return(ds: &Dataset) -> f64 {
         let (first, last) = (ds.bars.first(), ds.bars.last());
         match (first, last) {
-            (Some(f), Some(l)) if f.close > 0 => 100.0 * (l.close as f64 - f.close as f64) / f.close as f64,
+            (Some(f), Some(l)) if f.close > 0 => {
+                100.0 * (l.close as f64 - f.close as f64) / f.close as f64
+            }
             _ => 0.0,
         }
     }
@@ -3036,20 +3934,32 @@ mod tests {
 
         // 截断窗（同 l2_btc_capturable_spread_diagnosis：最后 MAX_BARS，OOM 边界=显式有效域）。
         const MAX_BARS: usize = 300_000;
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
-            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS);
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(MAX_BARS);
         let ds = if n_full > max_bars {
             ds_full.slice_bar_range(n_full - max_bars, n_full)
         } else {
             ds_full
         };
         let n = ds.bars.len();
-        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
-        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let win_start = ds
+            .dates
+            .first()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        let win_end = ds
+            .dates
+            .last()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
 
         // ── 任务1：train(前 frac)/holdout(后 1−frac) 时间切分（半开区间无重叠，时间序不打乱）。 ──
-        let train_frac = std::env::var(crate::theta_v0::env_registry::ECON_L2_TRAIN_FRAC).ok()
-            .and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.6);
+        let train_frac = std::env::var(crate::theta_v0::env_registry::ECON_L2_TRAIN_FRAC)
+            .ok()
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.6);
         let split = (n as f64 * train_frac) as usize;
         let ds_train = ds.slice_bar_range(0, split);
         let ds_hold = ds.slice_bar_range(split, n);
@@ -3081,15 +3991,21 @@ mod tests {
 
         // ── 判定 ──
         let oos_robust = hd_pnl > 0.0; // holdout 卖正 ⟹ 初步稳健
-        // 方向不对称结构性 ⟺ 两个不重叠子窗 level0卖都优于买（不论子窗涨跌）。
+                                       // 方向不对称结构性 ⟺ 两个不重叠子窗 level0卖都优于买（不论子窗涨跌）。
         let sell_beats_buy_w1 = w1_sell > w1_buy;
         let sell_beats_buy_w2 = w2_sell > w2_buy;
         let asym_structural = sell_beats_buy_w1 && sell_beats_buy_w2;
 
         let mut rpt = String::new();
-        let _ = writeln!(rpt, "# 663 推论 OOS 验证：level0卖 train/holdout 切分 + 方向不对称（防 winner's curse）");
+        let _ = writeln!(
+            rpt,
+            "# 663 推论 OOS 验证：level0卖 train/holdout 切分 + 方向不对称（防 winner's curse）"
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "**认识论等级**：L2（真实数据单标的单切分，可产否定性结果；非 L3 跨标的）。");
+        let _ = writeln!(
+            rpt,
+            "**认识论等级**：L2（真实数据单标的单切分，可产否定性结果；非 L3 跨标的）。"
+        );
         let _ = writeln!(rpt, "**对象**：in-sample 最强正类 level0卖（level=0, δ=−1，in-sample actual_pnl=+3.47e4/349/36%）。");
         let _ = writeln!(rpt, "**复算**：`cargo test -p <crate> --release acc_level0sell_oos -- --ignored --nocapture`（确定性）。");
         let _ = writeln!(rpt);
@@ -3100,28 +4016,69 @@ mod tests {
         let _ = writeln!(rpt, "## 窗净涨跌方向（首尾 close 总收益）");
         let _ = writeln!(rpt, "| 窗 | 净收益 | 方向 |");
         let _ = writeln!(rpt, "|---|---|---|");
-        let _ = writeln!(rpt, "| 截断全窗 | {full_ret:+.2}% | {} |", if full_ret > 0.0 { "涨" } else { "跌" });
-        let _ = writeln!(rpt, "| train | {train_ret:+.2}% | {} |", if train_ret > 0.0 { "涨" } else { "跌" });
-        let _ = writeln!(rpt, "| holdout | {hold_ret:+.2}% | {} |", if hold_ret > 0.0 { "涨" } else { "跌" });
-        let _ = writeln!(rpt, "| 子窗1（前半） | {w1_ret:+.2}% | {} |", if w1_ret > 0.0 { "涨" } else { "跌" });
-        let _ = writeln!(rpt, "| 子窗2（后半） | {w2_ret:+.2}% | {} |", if w2_ret > 0.0 { "涨" } else { "跌" });
+        let _ = writeln!(
+            rpt,
+            "| 截断全窗 | {full_ret:+.2}% | {} |",
+            if full_ret > 0.0 { "涨" } else { "跌" }
+        );
+        let _ = writeln!(
+            rpt,
+            "| train | {train_ret:+.2}% | {} |",
+            if train_ret > 0.0 { "涨" } else { "跌" }
+        );
+        let _ = writeln!(
+            rpt,
+            "| holdout | {hold_ret:+.2}% | {} |",
+            if hold_ret > 0.0 { "涨" } else { "跌" }
+        );
+        let _ = writeln!(
+            rpt,
+            "| 子窗1（前半） | {w1_ret:+.2}% | {} |",
+            if w1_ret > 0.0 { "涨" } else { "跌" }
+        );
+        let _ = writeln!(
+            rpt,
+            "| 子窗2（后半） | {w2_ret:+.2}% | {} |",
+            if w2_ret > 0.0 { "涨" } else { "跌" }
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## 任务1：level0卖 train vs holdout（关键——正负决定 winner's curse 判定）");
+        let _ = writeln!(
+            rpt,
+            "## 任务1：level0卖 train vs holdout（关键——正负决定 winner's curse 判定）"
+        );
         let _ = writeln!(rpt, "| 窗 | n | Σactual_pnl | n_act+/n（胜率） | Σab_rev |");
         let _ = writeln!(rpt, "|---|---|---|---|---|");
-        let _ = writeln!(rpt, "| train | {tr_n} | {tr_pnl:.4e} | {tr_pos}/{tr_n} ({:.0}%) | {tr_ab:.4e} |", winrate(tr_pos, tr_n));
-        let _ = writeln!(rpt, "| **holdout** | {hd_n} | **{hd_pnl:.4e}** | {hd_pos}/{hd_n} ({:.0}%) | {hd_ab:.4e} |", winrate(hd_pos, hd_n));
+        let _ = writeln!(
+            rpt,
+            "| train | {tr_n} | {tr_pnl:.4e} | {tr_pos}/{tr_n} ({:.0}%) | {tr_ab:.4e} |",
+            winrate(tr_pos, tr_n)
+        );
+        let _ = writeln!(
+            rpt,
+            "| **holdout** | {hd_n} | **{hd_pnl:.4e}** | {hd_pos}/{hd_n} ({:.0}%) | {hd_ab:.4e} |",
+            winrate(hd_pos, hd_n)
+        );
         let _ = writeln!(rpt, "| holdout 对照·买(δ+1) | {hd_buy_n} | {hd_buy_pnl:.4e} | {hd_buy_pos}/{hd_buy_n} ({:.0}%) | — |", winrate(hd_buy_pos, hd_buy_n));
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "**判定**：holdout level0卖 actual_pnl = {hd_pnl:.4e} {} 0", if hd_pnl > 0.0 { ">" } else { "≤" });
+        let _ = writeln!(
+            rpt,
+            "**判定**：holdout level0卖 actual_pnl = {hd_pnl:.4e} {} 0",
+            if hd_pnl > 0.0 { ">" } else { "≤" }
+        );
         if oos_robust {
             let _ = writeln!(rpt, "→ **OOS 初步稳健**：holdout 卖仍正，+3.47e4 不是纯挑赢家产物。**但仅 BTC 单标的单切分 L2，非 L3**——holdout 窗净涨跌={hold_ret:+.2}%，若 holdout 仍跌段则方向效应未排除（见任务2）。");
         } else {
             let _ = writeln!(rpt, "→ **否证 alpha（winner's curse 坐实）**：holdout 卖 actual_pnl≤0 ⟹ in-sample +3.47e4 是窗口/挑赢家产物。这是有价值的否定性结果（缩小有效域边界，161/formalization-validity-domain）——照实报，不粉饰。");
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## 任务2：方向不对称（2 个不重叠子窗，结构性 vs 窗口效应）");
-        let _ = writeln!(rpt, "| 子窗 | 净涨跌 | 卖(δ−1) actual_pnl | n卖 | 买(δ+1) actual_pnl | n买 | 卖>买? |");
+        let _ = writeln!(
+            rpt,
+            "## 任务2：方向不对称（2 个不重叠子窗，结构性 vs 窗口效应）"
+        );
+        let _ = writeln!(
+            rpt,
+            "| 子窗 | 净涨跌 | 卖(δ−1) actual_pnl | n卖 | 买(δ+1) actual_pnl | n买 | 卖>买? |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|");
         let _ = writeln!(rpt, "| 1（前半） | {w1_ret:+.2}% | {w1_sell:.4e} | {w1_s_n} | {w1_buy:.4e} | {w1_b_n} | {} |", if sell_beats_buy_w1 { "是" } else { "否" });
         let _ = writeln!(rpt, "| 2（后半） | {w2_ret:+.2}% | {w2_sell:.4e} | {w2_s_n} | {w2_buy:.4e} | {w2_b_n} | {} |", if sell_beats_buy_w2 { "是" } else { "否" });
@@ -3139,30 +4096,65 @@ mod tests {
         }
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 结果包六要素");
-        let _ = writeln!(rpt, "1. **结论**：holdout level0卖 actual_pnl={hd_pnl:.4e}（{}），方向不对称={}。", if oos_robust { "OOS 初步稳健" } else { "winner's curse 否证" }, if asym_structural { "结构性候选" } else { "窗口效应" });
+        let _ = writeln!(
+            rpt,
+            "1. **结论**：holdout level0卖 actual_pnl={hd_pnl:.4e}（{}），方向不对称={}。",
+            if oos_robust {
+                "OOS 初步稳健"
+            } else {
+                "winner's curse 否证"
+            },
+            if asym_structural {
+                "结构性候选"
+            } else {
+                "窗口效应"
+            }
+        );
         let _ = writeln!(rpt, "2. **定义依据**：level0卖=663 in-sample 最强正类（level=0/δ=−1/顶背驰卖空反转腿）；actual_pnl=δ(Pτout−Pτin)−Ce 真实成交口径（664-Q3）。");
         let _ = writeln!(rpt, "3. **边界条件**：holdout 窗净涨跌={hold_ret:+.2}%；若 holdout 为下跌段（做空天然赚），OOS 正不足以证 alpha（需跨涨跌子窗，见任务2）。train_frac={train_frac} 改变切分点结论可能翻转（单切分脆弱）。");
-        let _ = writeln!(rpt, "4. **下游推论**：{}", if oos_robust { "level0卖可作信号层 entry 候选，但须 L3 跨标的 + 涨段验证后才升基座（防方向效应）。" } else { "level0卖不可单独作 entry——in-sample 正是窗口产物，下游策略勿基于此类升基座。" });
+        let _ = writeln!(
+            rpt,
+            "4. **下游推论**：{}",
+            if oos_robust {
+                "level0卖可作信号层 entry 候选，但须 L3 跨标的 + 涨段验证后才升基座（防方向效应）。"
+            } else {
+                "level0卖不可单独作 entry——in-sample 正是窗口产物，下游策略勿基于此类升基座。"
+            }
+        );
         let _ = writeln!(rpt, "5. **谱系引用**：663 econpositive 推论；664 对象错配修复（δ=反转腿方向）；formalization-validity-domain（L2 有效域 < 定义域）；161（务实=把缺口留后面）。");
         let _ = writeln!(rpt, "6. **影响声明**：新增 Dataset::slice_bar_range（半开区间切片，复用 source_index 重置契约）+ acc_level0sell_oos 测试；不改 decompose_capturable_spread/TradeRecord/Order。");
 
         eprint!("{rpt}");
         let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent().expect("rust/ 父目录 = 项目根")
+            .parent()
+            .expect("rust/ 父目录 = 项目根")
             .join(".chanlun/review-results/econpositive-oos-level0sell-20260630.md");
         std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告 {out:?} 失败：{e}"));
         eprintln!("\n报告已落盘：{out:?}");
 
         // 真封：train+holdout 信号数之和与全窗同口径无丢失（半开切分无重叠无遗漏 ⟹ 级别涌现局部性除外，
         // 切窗会改变级别涌现 ⟹ 不强求 n 守恒；仅断言切片本身非空、actual_pnl 与逐信号和一致）。
-        let recomputed_hold: f64 = decomps_hold.iter().filter(|d| d.level == 0 && d.delta == -1)
-            .map(|d| d.actual_pnl).sum();
-        assert!((hd_pnl - recomputed_hold).abs() < 1e-6, "holdout level0卖 Σactual_pnl 聚合不一致");
-        assert!(ds_train.bars.len() + ds_hold.bars.len() == n, "train+holdout bar 数 ≠ 全窗（半开区间应无重叠无遗漏）");
+        let recomputed_hold: f64 = decomps_hold
+            .iter()
+            .filter(|d| d.level == 0 && d.delta == -1)
+            .map(|d| d.actual_pnl)
+            .sum();
+        assert!(
+            (hd_pnl - recomputed_hold).abs() < 1e-6,
+            "holdout level0卖 Σactual_pnl 聚合不一致"
+        );
+        assert!(
+            ds_train.bars.len() + ds_hold.bars.len() == n,
+            "train+holdout bar 数 ≠ 全窗（半开区间应无重叠无遗漏）"
+        );
     }
 
     fn winrate(pos: usize, n: usize) -> f64 {
-        if n > 0 { 100.0 * pos as f64 / n as f64 } else { 0.0 }
+        if n > 0 {
+            100.0 * pos as f64 / n as f64
+        } else {
+            0.0
+        }
     }
 
     /// **PDF §11 正确 OOS 验收（除 codex Q2 BIAS-FATAL 选择偏差）**：train-only 挑类 → 锁 holdout
@@ -3194,16 +4186,32 @@ mod tests {
         };
         let n_full = ds_full.bars.len();
         const MAX_BARS: usize = 300_000;
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
-            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS);
-        let ds = if n_full > max_bars { ds_full.slice_bar_range(n_full - max_bars, n_full) } else { ds_full };
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(MAX_BARS);
+        let ds = if n_full > max_bars {
+            ds_full.slice_bar_range(n_full - max_bars, n_full)
+        } else {
+            ds_full
+        };
         let n = ds.bars.len();
-        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
-        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let win_start = ds
+            .dates
+            .first()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        let win_end = ds
+            .dates
+            .last()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
 
         // ══ 任务1+2：主切分 train-only 挑类 → 锁 holdout 评估（除 Q2 选择偏差核心）══
-        let train_frac = std::env::var(crate::theta_v0::env_registry::ECON_L2_TRAIN_FRAC).ok()
-            .and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.6);
+        let train_frac = std::env::var(crate::theta_v0::env_registry::ECON_L2_TRAIN_FRAC)
+            .ok()
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.6);
         let split = (n as f64 * train_frac) as usize;
         let ds_train = ds.slice_bar_range(0, split);
         let ds_hold = ds.slice_bar_range(split, n);
@@ -3221,8 +4229,11 @@ mod tests {
         let (hd_n, hd_pnl, hd_pos, hd_ab, hd_pnls) = match winner {
             Some((lv, dl, bc)) => {
                 let (n_, pnl, npos, ab) = class_actual_pnl(&decomps_hold, lv, dl, bc);
-                let pnls: Vec<f64> = decomps_hold.iter()
-                    .filter(|d| d.level == lv && d.delta == dl && d.bsp_class == bc).map(|d| d.actual_pnl).collect();
+                let pnls: Vec<f64> = decomps_hold
+                    .iter()
+                    .filter(|d| d.level == lv && d.delta == dl && d.bsp_class == bc)
+                    .map(|d| d.actual_pnl)
+                    .collect();
                 (n_, pnl, npos, ab, pnls)
             }
             None => (0, 0.0, 0, 0.0, Vec::new()),
@@ -3239,8 +4250,10 @@ mod tests {
         let q4_p = block_bootstrap_pvalue(&hd_pnls, 20, 2000);
 
         // ══ 任务3：多窗滚动 walk-forward（除 Q5 单切分脆弱）══
-        let k_windows: usize = std::env::var(crate::theta_v0::env_registry::ECON_WF_WINDOWS).ok()
-            .and_then(|s| s.parse().ok()).unwrap_or(4);
+        let k_windows: usize = std::env::var(crate::theta_v0::env_registry::ECON_WF_WINDOWS)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(4);
         let wf_train_frac = 0.6;
         let win_len = n / k_windows;
         let mut wf_rows: Vec<(Option<(u32, i8, u8)>, bool, usize, f64, f64, bool)> = Vec::new();
@@ -3248,38 +4261,61 @@ mod tests {
         let mut l0sell_winner_count = 0usize;
         for w in 0..k_windows {
             let w_start = w * win_len;
-            let w_end = if w + 1 == k_windows { n } else { (w + 1) * win_len };
+            let w_end = if w + 1 == k_windows {
+                n
+            } else {
+                (w + 1) * win_len
+            };
             let w_mid = w_start + ((w_end - w_start) as f64 * wf_train_frac) as usize;
-            if w_mid <= w_start || w_end <= w_mid { continue; }
+            if w_mid <= w_start || w_end <= w_mid {
+                continue;
+            }
             let dtr = decompose_capturable_spread(&ds.slice_bar_range(w_start, w_mid), &config).0;
             let dos = decompose_capturable_spread(&ds.slice_bar_range(w_mid, w_end), &config).0;
             let wwin = train_winner_class(&dtr);
             let w_is_l0 = matches!(wwin, Some((0, -1, _)));
-            if w_is_l0 { l0sell_winner_count += 1; }
+            if w_is_l0 {
+                l0sell_winner_count += 1;
+            }
             let (on, opnl, lcb) = match wwin {
                 Some((lv, dl, bc)) => {
-                    let pnls: Vec<f64> = dos.iter().filter(|d| d.level == lv && d.delta == dl && d.bsp_class == bc)
-                        .map(|d| d.actual_pnl).collect();
+                    let pnls: Vec<f64> = dos
+                        .iter()
+                        .filter(|d| d.level == lv && d.delta == dl && d.bsp_class == bc)
+                        .map(|d| d.actual_pnl)
+                        .collect();
                     let (nf, _) = neff_autocorr(&pnls, 20);
                     let (_, _, lcb) = mean_se_lcb(&pnls, nf);
                     (pnls.len(), pnls.iter().sum::<f64>(), lcb)
                 }
                 None => (0, 0.0, 0.0),
             };
-            if lcb > 0.0 { lcb_pos_count += 1; }
+            if lcb > 0.0 {
+                lcb_pos_count += 1;
+            }
             wf_rows.push((wwin, w_is_l0, on, opnl, lcb, opnl > 0.0));
         }
         let n_wf = wf_rows.len();
-        let lcb_pos_ratio = if n_wf > 0 { 100.0 * lcb_pos_count as f64 / n_wf as f64 } else { 0.0 };
+        let lcb_pos_ratio = if n_wf > 0 {
+            100.0 * lcb_pos_count as f64 / n_wf as f64
+        } else {
+            0.0
+        };
 
         // PDF §7.3 强判据 χ=1[LCB>θ]（θ=0）：μ>0 不够，须扣除不确定性后仍正。
         // §11 全验收 = LCB>0 ∧ Q4 剔最大5仍正 ∧ bootstrap p<0.05 ∧ 多窗 LCB>0 占比高。
         let oos_robust = lcb_oos > 0.0 && q4_d5 > 0.0 && q4_p < 0.05 && lcb_pos_ratio >= 100.0;
 
         // ══ 报告 ══
-        let cls_str = |c: Option<(u32, i8, u8)>| c.map(|(l, d, b)| format!("(level={l},δ={d:+},cls={b:#04x})")).unwrap_or_else(|| "None(train无正类)".into());
+        let cls_str = |c: Option<(u32, i8, u8)>| {
+            c.map(|(l, d, b)| format!("(level={l},δ={d:+},cls={b:#04x})"))
+                .unwrap_or_else(|| "None(train无正类)".into())
+        };
         let mut rpt = String::new();
-        let _ = writeln!(rpt, "# PDF §11 walk-forward 验收：train-only 挑类（除 codex Q2 BIAS-FATAL 选择偏差）");
+        let _ = writeln!(
+            rpt,
+            "# PDF §11 walk-forward 验收：train-only 挑类（除 codex Q2 BIAS-FATAL 选择偏差）"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "**认识论等级**：L2（真实数据单标的，train-only 选类已除选择偏差；仍单标的，非 L3 跨品种）。");
         let _ = writeln!(rpt, "**与被否证 acc_level0sell_oos 的差异**：选类只用 train 段（PDF§6/codex：用挑赢家同一数据验证不能反驳挑赢家）。");
@@ -3289,21 +4325,48 @@ mod tests {
         let _ = writeln!(rpt, "- BTC 全量 {n_full} bar；截断窗 [{win_start}→{win_end}]，bars={n}（最后 {max_bars}，OOM 边界=显式有效域）。");
         let _ = writeln!(rpt, "- 主切分 train_frac={train_frac}，split={split}（{split_day}，半开 train=[0,{split}) / holdout=[{split},{n}) 无重叠）。");
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## 任务1+2：train-only 挑类 → 锁 holdout 评估（核心：除 Q2）");
+        let _ = writeln!(
+            rpt,
+            "## 任务1+2：train-only 挑类 → 锁 holdout 评估（核心：除 Q2）"
+        );
         let _ = writeln!(rpt, "- **train 期最强正类 = {}**", cls_str(winner));
-        let _ = writeln!(rpt, "- **train 赢家是否 level0卖？{}**（level0卖 train 期 Σpnl={:.4e}/n={}）", if is_level0_sell { "是" } else { "否（⟹ level0卖不是 train-only 赢家！）" }, train_l0sell.1, train_l0sell.0);
+        let _ = writeln!(
+            rpt,
+            "- **train 赢家是否 level0卖？{}**（level0卖 train 期 Σpnl={:.4e}/n={}）",
+            if is_level0_sell {
+                "是"
+            } else {
+                "否（⟹ level0卖不是 train-only 赢家！）"
+            },
+            train_l0sell.1,
+            train_l0sell.0
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "| holdout 评估 train 选定类 {} | 值 |", cls_str(winner));
+        let _ = writeln!(
+            rpt,
+            "| holdout 评估 train 选定类 {} | 值 |",
+            cls_str(winner)
+        );
         let _ = writeln!(rpt, "|---|---|");
         let _ = writeln!(rpt, "| holdout n (=nraw) | {hd_n} |");
         let _ = writeln!(rpt, "| **holdout Σactual_pnl** | **{hd_pnl:.4e}** |");
-        let _ = writeln!(rpt, "| holdout 胜率 | {hd_pos}/{hd_n} ({:.0}%) |", winrate(hd_pos, hd_n));
+        let _ = writeln!(
+            rpt,
+            "| holdout 胜率 | {hd_pos}/{hd_n} ({:.0}%) |",
+            winrate(hd_pos, hd_n)
+        );
         let _ = writeln!(rpt, "| holdout Σab_rev | {hd_ab:.4e} |");
         let _ = writeln!(rpt, "| μ_OOS | {mu_oos:.4e} |");
         let _ = writeln!(rpt, "| se（用 neff） | {se_oos:.4e} |");
         let _ = writeln!(rpt, "| **LCB（μ−1.645·se，单侧5%）** | **{lcb_oos:.4e}** |");
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "**判定**：holdout μ_OOS {} 0，**LCB {} 0**（PDF§7.3 强判据 χ=1[LCB>0]={}）", if mu_oos > 0.0 { ">" } else { "≤" }, if lcb_oos > 0.0 { ">" } else { "≤" }, lcb_oos > 0.0);
+        let _ = writeln!(
+            rpt,
+            "**判定**：holdout μ_OOS {} 0，**LCB {} 0**（PDF§7.3 强判据 χ=1[LCB>0]={}）",
+            if mu_oos > 0.0 { ">" } else { "≤" },
+            if lcb_oos > 0.0 { ">" } else { "≤" },
+            lcb_oos > 0.0
+        );
         if !is_level0_sell {
             let _ = writeln!(rpt, "→ **train 赢家变了（level0卖被否证为选择偏差产物）**：train-only 选出的是 {}，不是 level0卖。+7.87e3 是「从含 holdout 全样本挑 level0卖」的选择偏差产物（codex Q2/PDF§6 坐实）。", cls_str(winner));
         } else if !oos_mu_positive {
@@ -3320,42 +4383,100 @@ mod tests {
         let _ = writeln!(rpt, "| nraw（holdout 赢家类原始信号数） | {nraw} |");
         let _ = writeln!(rpt, "| Σρk（k=1..20，仅正自相关） | {sum_rho:.4} |");
         let _ = writeln!(rpt, "| **neff = nraw/(1+2Σρk)** | **{neff:.1}** |");
-        let _ = writeln!(rpt, "| neff/nraw | {:.2} |", if nraw > 0 { neff / nraw as f64 } else { 0.0 });
-        let _ = writeln!(rpt, "（neff≪nraw ⟹ 事件高度聚集，有效检验力远低于原始 n；se 已用 neff）。");
+        let _ = writeln!(
+            rpt,
+            "| neff/nraw | {:.2} |",
+            if nraw > 0 { neff / nraw as f64 } else { 0.0 }
+        );
+        let _ = writeln!(
+            rpt,
+            "（neff≪nraw ⟹ 事件高度聚集，有效检验力远低于原始 n；se 已用 neff）。"
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## 任务5/Q4：赢家集中度（剔最大赢家 + block bootstrap）");
+        let _ = writeln!(
+            rpt,
+            "## 任务5/Q4：赢家集中度（剔最大赢家 + block bootstrap）"
+        );
         let _ = writeln!(rpt, "| 剔除 | 剩余 Σpnl | 仍正? |");
         let _ = writeln!(rpt, "|---|---|---|");
-        let _ = writeln!(rpt, "| 不剔（全量） | {q4_full:.4e} | {} |", if q4_full > 0.0 { "是" } else { "否" });
-        let _ = writeln!(rpt, "| 剔最大 1 | {q4_d1:.4e} | {} |", if q4_d1 > 0.0 { "是" } else { "否" });
-        let _ = writeln!(rpt, "| 剔最大 3 | {q4_d3:.4e} | {} |", if q4_d3 > 0.0 { "是" } else { "否" });
-        let _ = writeln!(rpt, "| 剔最大 5 | {q4_d5:.4e} | {} |", if q4_d5 > 0.0 { "是" } else { "否" });
+        let _ = writeln!(
+            rpt,
+            "| 不剔（全量） | {q4_full:.4e} | {} |",
+            if q4_full > 0.0 { "是" } else { "否" }
+        );
+        let _ = writeln!(
+            rpt,
+            "| 剔最大 1 | {q4_d1:.4e} | {} |",
+            if q4_d1 > 0.0 { "是" } else { "否" }
+        );
+        let _ = writeln!(
+            rpt,
+            "| 剔最大 3 | {q4_d3:.4e} | {} |",
+            if q4_d3 > 0.0 { "是" } else { "否" }
+        );
+        let _ = writeln!(
+            rpt,
+            "| 剔最大 5 | {q4_d5:.4e} | {} |",
+            if q4_d5 > 0.0 { "是" } else { "否" }
+        );
         let _ = writeln!(rpt, "- **block bootstrap p（H0:μ≤0，block_len=20，B=2000，固定种子）= {q4_p:.4}**（p<0.05 ⟹ 正均值稳健远离 0）。");
         if q4_d5 <= 0.0 && q4_full > 0.0 {
             let _ = writeln!(rpt, "→ **Q4 坐实少数大赢家驱动**：剔最大 5 后转负 ⟹ holdout 正总和由极少数大赢家撑起，非稳健 alpha。");
         } else if q4_d5 > 0.0 {
-            let _ = writeln!(rpt, "→ **Q4 排除少数大赢家**：剔最大 5 仍正 ⟹ 正收益非单一赢家驱动。");
+            let _ = writeln!(
+                rpt,
+                "→ **Q4 排除少数大赢家**：剔最大 5 仍正 ⟹ 正收益非单一赢家驱动。"
+            );
         } else {
             let _ = writeln!(rpt, "→ holdout 全量已非正，Q4 剔赢家不适用（无正可剔）。");
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## 任务3：多窗滚动 walk-forward（除 Q5 单切分脆弱，K={k_windows}）");
-        let _ = writeln!(rpt, "每窗：窗内 train(前{:.0}%) 挑类 → OOS(后{:.0}%) 评估该类（每 train 只用窗内过去）。", wf_train_frac * 100.0, (1.0 - wf_train_frac) * 100.0);
-        let _ = writeln!(rpt, "| 窗 | train赢家 | =level0卖? | OOS n | OOS Σpnl | OOS LCB | LCB>0? |");
+        let _ = writeln!(
+            rpt,
+            "## 任务3：多窗滚动 walk-forward（除 Q5 单切分脆弱，K={k_windows}）"
+        );
+        let _ = writeln!(
+            rpt,
+            "每窗：窗内 train(前{:.0}%) 挑类 → OOS(后{:.0}%) 评估该类（每 train 只用窗内过去）。",
+            wf_train_frac * 100.0,
+            (1.0 - wf_train_frac) * 100.0
+        );
+        let _ = writeln!(
+            rpt,
+            "| 窗 | train赢家 | =level0卖? | OOS n | OOS Σpnl | OOS LCB | LCB>0? |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|");
         for (i, (w, isl0, on, opnl, lcb, _)) in wf_rows.iter().enumerate() {
-            let _ = writeln!(rpt, "| {} | {} | {} | {on} | {opnl:.4e} | {lcb:.4e} | {} |",
-                i + 1, cls_str(*w), if *isl0 { "是" } else { "否" }, if *lcb > 0.0 { "是" } else { "否" });
+            let _ = writeln!(
+                rpt,
+                "| {} | {} | {} | {on} | {opnl:.4e} | {lcb:.4e} | {} |",
+                i + 1,
+                cls_str(*w),
+                if *isl0 { "是" } else { "否" },
+                if *lcb > 0.0 { "是" } else { "否" }
+            );
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "- **各窗 OOS LCB>0 占比 = {lcb_pos_count}/{n_wf} ({lcb_pos_ratio:.0}%)**");
-        let _ = writeln!(rpt, "- level0卖为 train 赢家的窗数 = {l0sell_winner_count}/{n_wf}");
+        let _ = writeln!(
+            rpt,
+            "- **各窗 OOS LCB>0 占比 = {lcb_pos_count}/{n_wf} ({lcb_pos_ratio:.0}%)**"
+        );
+        let _ = writeln!(
+            rpt,
+            "- level0卖为 train 赢家的窗数 = {l0sell_winner_count}/{n_wf}"
+        );
         if lcb_pos_ratio >= 100.0 && n_wf > 0 {
-            let _ = writeln!(rpt, "→ 全窗 LCB>0 ⟹ Q5 单切分脆弱被排除，OOS 跨窗稳健正（仍单标的）。");
+            let _ = writeln!(
+                rpt,
+                "→ 全窗 LCB>0 ⟹ Q5 单切分脆弱被排除，OOS 跨窗稳健正（仍单标的）。"
+            );
         } else if lcb_pos_count > 0 {
             let _ = writeln!(rpt, "→ 部分窗 LCB>0（{lcb_pos_ratio:.0}%）⟹ 非全窗稳健，单切分脆弱未完全排除（Q5 部分成立）。");
         } else {
-            let _ = writeln!(rpt, "→ 无窗 LCB>0 ⟹ 扣除不确定性后无窗稳健正，OOS 不稳健（Q5 坐实）。");
+            let _ = writeln!(
+                rpt,
+                "→ 无窗 LCB>0 ⟹ 扣除不确定性后无窗稳健正，OOS 不稳健（Q5 坐实）。"
+            );
         }
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 结果包六要素（完整版）");
@@ -3369,21 +4490,36 @@ mod tests {
             else { "level0卖 +7.87e3 是选择偏差/窗口产物（否证）" });
         let _ = writeln!(rpt, "2. **定义依据**：actual_pnl=δ(Pτout−Pτin)−Ce（664-Q3 真实成交口径）；train-only 挑类=PDF§11「train 决定规则」；neff=nraw/(1+2Σρk)=PDF§6 条件二；LCB=μ−1.645se=PDF§7.3。");
         let _ = writeln!(rpt, "3. **边界条件**：单标的 BTC L2——结论翻转条件：(a) L3 跨标的若 level0卖不普遍赢则 BTC 是品种特例；(b) train_frac/窗数 K 改变 train 赢家身份则选类不稳；(c) holdout 仍为下跌段则卖优势含方向效应。");
-        let _ = writeln!(rpt, "4. **下游推论**：{}", if oos_robust { "level0卖可作信号层 entry 候选（§11 全验收过），但升基座仍需 L3 跨标的。" } else { "level0卖不可单独作 entry——§11 稳健性验收未过（LCB≤0/赢家集中/多窗不稳），下游策略勿基于 +7.87e3 升基座。Q2 消除只证「不是挑赢家产物」，不证「是可交易 alpha」——二者独立。" });
+        let _ = writeln!(
+            rpt,
+            "4. **下游推论**：{}",
+            if oos_robust {
+                "level0卖可作信号层 entry 候选（§11 全验收过），但升基座仍需 L3 跨标的。"
+            } else {
+                "level0卖不可单独作 entry——§11 稳健性验收未过（LCB≤0/赢家集中/多窗不稳），下游策略勿基于 +7.87e3 升基座。Q2 消除只证「不是挑赢家产物」，不证「是可交易 alpha」——二者独立。"
+            }
+        );
         let _ = writeln!(rpt, "5. **谱系引用**：663 econpositive；664-Q3 真实成交口径；codex Q2 BIAS-FATAL（codex-oos-level0sell-audit-20260630.md）；PDF§6/§11（overfit-consult-20260630.txt）；161（务实=留缺口）；formalization-validity-domain（L2 有效域<定义域）。");
         let _ = writeln!(rpt, "6. **影响声明**：新增 acc_walkforward_trainonly 测试 + train_winner_class/neff_autocorr/mean_se_lcb/drop_top_winners/block_bootstrap_pvalue helper（均纯函数，L1 自检 walkforward_helpers_l1）；复用 slice_bar_range/decompose_capturable_spread/class_actual_pnl；不改生产代码/TradeRecord/Order。被否证的 acc_level0sell_oos 保留（谱系：选择偏差的发生史）。");
 
         eprint!("{rpt}");
         let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent().expect("rust/ 父目录 = 项目根")
+            .parent()
+            .expect("rust/ 父目录 = 项目根")
             .join(".chanlun/review-results/econpositive-walkforward-20260630.md");
         std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告 {out:?} 失败：{e}"));
         eprintln!("\n报告已落盘：{out:?}");
 
         // 真封：切片无重叠无遗漏 + holdout 聚合一致 + neff≤nraw。
-        assert!(ds_train.bars.len() + ds_hold.bars.len() == n, "train+holdout bar 数 ≠ 全窗（半开应无重叠无遗漏）");
+        assert!(
+            ds_train.bars.len() + ds_hold.bars.len() == n,
+            "train+holdout bar 数 ≠ 全窗（半开应无重叠无遗漏）"
+        );
         let recomputed: f64 = hd_pnls.iter().sum();
-        assert!((hd_pnl - recomputed).abs() < 1e-6, "holdout 赢家类 Σpnl 聚合不一致");
+        assert!(
+            (hd_pnl - recomputed).abs() < 1e-6,
+            "holdout 赢家类 Σpnl 聚合不一致"
+        );
         assert!(neff <= nraw as f64 + 1e-9, "neff 应 ≤ nraw");
     }
 
@@ -3410,15 +4546,24 @@ mod tests {
     /// 退化：n<2 或方差≈0 ⟹ neff=nraw（无相关信息）。返回 (neff, sum_rho_pos)。
     fn neff_autocorr(pnls: &[f64], lag_max: usize) -> (f64, f64) {
         let n = pnls.len();
-        if n < 2 { return (n as f64, 0.0); }
+        if n < 2 {
+            return (n as f64, 0.0);
+        }
         let mean = pnls.iter().sum::<f64>() / n as f64;
         let var = pnls.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n as f64;
-        if var <= 1e-12 { return (n as f64, 0.0); }
+        if var <= 1e-12 {
+            return (n as f64, 0.0);
+        }
         let mut sum_rho = 0.0;
         for k in 1..=lag_max.min(n - 1) {
-            let cov: f64 = (0..n - k).map(|i| (pnls[i] - mean) * (pnls[i + k] - mean)).sum::<f64>() / n as f64;
+            let cov: f64 = (0..n - k)
+                .map(|i| (pnls[i] - mean) * (pnls[i + k] - mean))
+                .sum::<f64>()
+                / n as f64;
             let rho = cov / var;
-            if rho > 0.0 { sum_rho += rho; }
+            if rho > 0.0 {
+                sum_rho += rho;
+            }
         }
         let neff = n as f64 / (1.0 + 2.0 * sum_rho);
         (neff.max(1.0).min(n as f64), sum_rho)
@@ -3427,10 +4572,16 @@ mod tests {
     /// 单侧 5% LCB = μ − 1.645·se，se=σ/√neff（PDF §7.3，neff 而非 nraw）。返回 (mu, se, lcb)。
     fn mean_se_lcb(pnls: &[f64], neff: f64) -> (f64, f64, f64) {
         let n = pnls.len();
-        if n == 0 { return (0.0, 0.0, 0.0); }
+        if n == 0 {
+            return (0.0, 0.0, 0.0);
+        }
         let mu = pnls.iter().sum::<f64>() / n as f64;
         let var = pnls.iter().map(|x| (x - mu).powi(2)).sum::<f64>() / n as f64;
-        let se = if neff > 1.0 { (var / neff).sqrt() } else { f64::INFINITY };
+        let se = if neff > 1.0 {
+            (var / neff).sqrt()
+        } else {
+            f64::INFINITY
+        };
         (mu, se, mu - 1.645 * se)
     }
 
@@ -3449,11 +4600,15 @@ mod tests {
     /// block_len 保块内时间相关（缠论同趋势段多信号相关，PDF §6）。确定性：固定 LCG（bit-exact 可复算）。
     fn block_bootstrap_pvalue(pnls: &[f64], block_len: usize, b_iters: usize) -> f64 {
         let n = pnls.len();
-        if n < 2 { return 1.0; }
+        if n < 2 {
+            return 1.0;
+        }
         let blk = block_len.max(1).min(n);
         let mut seed: u64 = 0x9E3779B97F4A7C15; // 固定种子（确定性，无外部 rng）
         let next = |seed: &mut u64| -> usize {
-            *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            *seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             ((*seed >> 33) as usize) % n
         };
         let mut le_zero = 0usize;
@@ -3462,12 +4617,16 @@ mod tests {
             while cnt < n {
                 let start = next(&mut seed);
                 for j in 0..blk {
-                    if cnt >= n { break; }
+                    if cnt >= n {
+                        break;
+                    }
                     acc += pnls[(start + j) % n]; // 循环移动块（原始序列，未居中）
                     cnt += 1;
                 }
             }
-            if acc / n as f64 <= 0.0 { le_zero += 1; }
+            if acc / n as f64 <= 0.0 {
+                le_zero += 1;
+            }
         }
         (le_zero as f64 + 1.0) / (b_iters as f64 + 1.0)
     }
@@ -3482,13 +4641,33 @@ mod tests {
         use std::collections::BTreeMap;
 
         // z 由 (level,δ,bsp_class,parent_dir,position) 构（合成路径 horizontal=None，同一路径恒定不改分桶）。
-        let mk = |bsp_class: u8, parent_dir: i8, position: PositionState, actual_pnl: f64| SignalDecomp {
-            entry_bar: 0, exit_bar: 1, level: 0, delta: 1, a_b: 0.0, x_in: 0.0, y_out: 0.0,
-            eta_in: 0.0, eta_out: 0.0, actual_spread: 0.0, ce_unit: 0.0, captured: 0.0,
-            actual_pnl, sigma_higher: 0, bsp_class,
-            z: MuClass::from_certificate(0, 1, BspBits::from_class_index(bsp_class), parent_dir, position),
-            exit_decision: ExitDecision::Hold,
-            trigger: NestTrigger::Type1TrendDivergence,
+        let mk = |bsp_class: u8, parent_dir: i8, position: PositionState, actual_pnl: f64| {
+            SignalDecomp {
+                entry_bar: 0,
+                exit_bar: 1,
+                level: 0,
+                delta: 1,
+                a_b: 0.0,
+                x_in: 0.0,
+                y_out: 0.0,
+                eta_in: 0.0,
+                eta_out: 0.0,
+                actual_spread: 0.0,
+                ce_unit: 0.0,
+                captured: 0.0,
+                actual_pnl,
+                sigma_higher: 0,
+                bsp_class,
+                z: MuClass::from_certificate(
+                    0,
+                    1,
+                    BspBits::from_class_index(bsp_class),
+                    parent_dir,
+                    position,
+                ),
+                exit_decision: ExitDecision::Hold,
+                trigger: NestTrigger::Type1TrendDivergence,
+            }
         };
         // buy1 Root ×2, buy2 Root ×1, buy1 Child(σ_p=+1) ×1：同 (level=0,δ=+1)，按 I_γ+σ_p 应分 3 桶。
         let decomps = vec![
@@ -3506,14 +4685,33 @@ mod tests {
             e.1 += d.actual_pnl;
         }
 
-        assert_eq!(buckets.len(), 3, "buy1-Root / buy2-Root / buy1-Child(σ_p+1) 应分 3 桶（I_γ+σ_p 细分）");
-        let buy1_root = MuClass::from_certificate(0, 1, BspBits::from_class_index(0x01), 0, PositionState::Root);
+        assert_eq!(
+            buckets.len(),
+            3,
+            "buy1-Root / buy2-Root / buy1-Child(σ_p+1) 应分 3 桶（I_γ+σ_p 细分）"
+        );
+        let buy1_root = MuClass::from_certificate(
+            0,
+            1,
+            BspBits::from_class_index(0x01),
+            0,
+            PositionState::Root,
+        );
         let e = buckets.get(&buy1_root).expect("桶 buy1-Root 应存在");
         assert_eq!(e.0, 2, "buy1-Root 桶 n=2");
         assert!((e.1 - 4.0).abs() < 1e-9, "buy1-Root Σactual_pnl=1+3=4");
-        let buy1_child = MuClass::from_certificate(0, 1, BspBits::from_class_index(0x01), 1, PositionState::Child);
-        assert_eq!(buckets.get(&buy1_child).expect("桶 buy1-Child 应存在").0, 1,
-            "buy1-Child(σ_p=+1) 独立成桶——b2 相对旧 Y 桶的新增 σ_p 细分维");
+        let buy1_child = MuClass::from_certificate(
+            0,
+            1,
+            BspBits::from_class_index(0x01),
+            1,
+            PositionState::Child,
+        );
+        assert_eq!(
+            buckets.get(&buy1_child).expect("桶 buy1-Child 应存在").0,
+            1,
+            "buy1-Child(σ_p=+1) 独立成桶——b2 相对旧 Y 桶的新增 σ_p 细分维"
+        );
     }
 
     /// neff/LCB/bootstrap helper L1 自检（合成数据，验证算术，零信息增量但保非平凡逻辑不破）。
@@ -3521,41 +4719,77 @@ mod tests {
     fn walkforward_helpers_l1() {
         // train_winner：(0,-1) Σ=+5 最强，(1,1) Σ=−2 被滤。
         let synth = |level: u32, delta: i8, pnl: f64| SignalDecomp {
-            entry_bar: 0, exit_bar: 1, level, delta, a_b: 0.0, x_in: 0.0, y_out: 0.0,
-            eta_in: 0.0, eta_out: 0.0, actual_spread: 0.0, ce_unit: 0.0, captured: 0.0, actual_pnl: pnl,
-            sigma_higher: 0, bsp_class: 0,
-            z: MuClass::from_certificate(level, delta, BspBits::from_class_index(0), 0, PositionState::Root),
+            entry_bar: 0,
+            exit_bar: 1,
+            level,
+            delta,
+            a_b: 0.0,
+            x_in: 0.0,
+            y_out: 0.0,
+            eta_in: 0.0,
+            eta_out: 0.0,
+            actual_spread: 0.0,
+            ce_unit: 0.0,
+            captured: 0.0,
+            actual_pnl: pnl,
+            sigma_higher: 0,
+            bsp_class: 0,
+            z: MuClass::from_certificate(
+                level,
+                delta,
+                BspBits::from_class_index(0),
+                0,
+                PositionState::Root,
+            ),
             exit_decision: ExitDecision::Hold,
             trigger: NestTrigger::XiaoZhuanDa,
         };
         let ds = vec![synth(0, -1, 3.0), synth(0, -1, 2.0), synth(1, 1, -2.0)];
-        assert_eq!(train_winner_class(&ds), Some((0, -1, 0)), "train 应选 Σpnl 最大正类 (0,-1,cls=0)");
+        assert_eq!(
+            train_winner_class(&ds),
+            Some((0, -1, 0)),
+            "train 应选 Σpnl 最大正类 (0,-1,cls=0)"
+        );
         let all_neg = vec![synth(0, -1, -1.0)];
         assert_eq!(train_winner_class(&all_neg), None, "全非正应返 None");
 
         // neff 边界：始终 ∈[1, nraw]。块状正相关 ⟹ neff<nraw（事件聚集缩有效样本，PDF§6）。
         let pos_corr = vec![1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, -1.0]; // 块状正相关 lag1>0
         let (neff_pc, sr_pc) = neff_autocorr(&pos_corr, 4);
-        assert!(neff_pc < 8.0 && neff_pc >= 1.0 && sr_pc > 0.0,
-            "正自相关应缩 neff∈[1,nraw)，实得 neff={neff_pc} sr={sr_pc}");
+        assert!(
+            neff_pc < 8.0 && neff_pc >= 1.0 && sr_pc > 0.0,
+            "正自相关应缩 neff∈[1,nraw)，实得 neff={neff_pc} sr={sr_pc}"
+        );
         // 常量序列方差≈0 ⟹ 退化 neff=nraw（无相关信息可缩）。
         let (neff_const, _) = neff_autocorr(&[2.0; 6], 4);
-        assert!((neff_const - 6.0).abs() < 1e-9, "零方差退化 neff=nraw，实得 {neff_const}");
+        assert!(
+            (neff_const - 6.0).abs() < 1e-9,
+            "零方差退化 neff=nraw，实得 {neff_const}"
+        );
 
         // LCB：μ>0 但 se 大 ⟹ LCB 可能<0（压制噪声赢家）。
         let (mu, se, lcb) = mean_se_lcb(&[2.0, -1.0, 3.0, -2.0], 4.0);
-        assert!((mu - 0.5).abs() < 1e-9 && se > 0.0 && lcb < mu, "LCB=μ−1.645se<μ，实得 mu={mu} lcb={lcb}");
+        assert!(
+            (mu - 0.5).abs() < 1e-9 && se > 0.0 && lcb < mu,
+            "LCB=μ−1.645se<μ，实得 mu={mu} lcb={lcb}"
+        );
 
         // drop_top：[10,1,1,1] 剔最大后 Σ=3>0（非单一赢家）；[10,-1,-1,-1] 剔后 Σ=−3<0（单一赢家驱动）。
         let (f1, d1, _, _) = drop_top_winners(&[10.0, 1.0, 1.0, 1.0]);
-        assert!((f1 - 13.0).abs() < 1e-9 && (d1 - 3.0).abs() < 1e-9, "剔最大后剩余");
+        assert!(
+            (f1 - 13.0).abs() < 1e-9 && (d1 - 3.0).abs() < 1e-9,
+            "剔最大后剩余"
+        );
         let (_, d1b, _, _) = drop_top_winners(&[10.0, -1.0, -1.0, -1.0]);
         assert!(d1b < 0.0, "单一大赢家驱动：剔后转负");
 
         // bootstrap：强正信号 p 小；纯噪声 p 接近 0.5（确定性，固定种子）。
         let strong_pos = vec![5.0; 20];
         let p_pos = block_bootstrap_pvalue(&strong_pos, 3, 500);
-        assert!(p_pos <= 0.05, "强正信号 block bootstrap p 应小，实得 {p_pos}");
+        assert!(
+            p_pos <= 0.05,
+            "强正信号 block bootstrap p 应小，实得 {p_pos}"
+        );
     }
 
     /// **全历史多级别信号分布 + level2+ 逐级别 train-only holdout μ̂/LCB/p（acc-multilevel-sample + acc-highlevel-mu）**。
@@ -3595,16 +4829,26 @@ mod tests {
 
         // 显式有效域：全量为 ECON_L2_MAX_BARS=5000000（>4.6M=不截断）。
         const MAX_BARS_DEFAULT: usize = 300_000; // 默认截断窗（时间墙保护）
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
-            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(MAX_BARS_DEFAULT);
         let ds = if n_full > max_bars {
             ds_full.slice_bar_range(n_full - max_bars, n_full)
         } else {
             ds_full
         };
         let n = ds.bars.len();
-        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
-        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let win_start = ds
+            .dates
+            .first()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        let win_end = ds
+            .dates
+            .last()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
         eprintln!("全量跑：bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}");
 
         // ── Step1：全窗跑一次，产 level0-5 信号数分布表（acc-multilevel-sample）。 ──
@@ -3622,26 +4866,40 @@ mod tests {
         let max_level = dist.keys().map(|(l, _)| *l).max().unwrap_or(0);
 
         // ── Step2：train/holdout 切分，分别跑 decompose（acc-highlevel-mu 防选择偏差）。 ──
-        let train_frac = std::env::var(crate::theta_v0::env_registry::ECON_L2_TRAIN_FRAC).ok()
-            .and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.6);
+        let train_frac = std::env::var(crate::theta_v0::env_registry::ECON_L2_TRAIN_FRAC)
+            .ok()
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.6);
         let split = (n as f64 * train_frac) as usize;
         let split_day = if split < ds.dates.len() {
             ds.dates[split].get(..10).unwrap_or("").to_string()
-        } else { "末端".to_string() };
+        } else {
+            "末端".to_string()
+        };
         eprintln!("[Step2] train=[0,{split})，holdout=[{split},{n})，切分日={split_day}");
 
         let ds_train = ds.slice_bar_range(0, split);
-        let ds_hold  = ds.slice_bar_range(split, n);
+        let ds_hold = ds.slice_bar_range(split, n);
         let (decomps_train, _) = decompose_capturable_spread(&ds_train, &config);
-        let (decomps_hold,  _) = decompose_capturable_spread(&ds_hold,  &config);
-        eprintln!("[Step2] train n_signals={}，holdout n_signals={}", decomps_train.len(), decomps_hold.len());
+        let (decomps_hold, _) = decompose_capturable_spread(&ds_hold, &config);
+        eprintln!(
+            "[Step2] train n_signals={}，holdout n_signals={}",
+            decomps_train.len(),
+            decomps_hold.len()
+        );
 
         // level2+ 每个 (level,δ)：holdout 段的 μ̂/neff/LCB/p。
         // 遍历全窗出现过的 level>=2 的 (level,δ)（train 中未出现的 holdout 也可能出现，照报）。
         let high_keys: Vec<(u32, i8)> = {
             let mut ks: std::collections::BTreeSet<(u32, i8)> = Default::default();
-            for d in decomps_full.iter().chain(decomps_train.iter()).chain(decomps_hold.iter()) {
-                if d.level >= 2 { ks.insert((d.level, d.delta)); }
+            for d in decomps_full
+                .iter()
+                .chain(decomps_train.iter())
+                .chain(decomps_hold.iter())
+            {
+                if d.level >= 2 {
+                    ks.insert((d.level, d.delta));
+                }
             }
             ks.into_iter().collect()
         };
@@ -3668,47 +4926,90 @@ mod tests {
         for &(lv, dl) in &high_keys {
             let (tr_n, tr_pnl, _, _) = class_actual_pnl_agg(&decomps_train, lv, dl);
             let (hd_n, hd_pnl, hd_pos, _) = class_actual_pnl_agg(&decomps_hold, lv, dl);
-            let pnls: Vec<f64> = decomps_hold.iter()
+            let pnls: Vec<f64> = decomps_hold
+                .iter()
                 .filter(|d| d.level == lv && d.delta == dl)
-                .map(|d| d.actual_pnl).collect();
+                .map(|d| d.actual_pnl)
+                .collect();
             let nraw = pnls.len();
             let (neff, sum_rho) = neff_autocorr(&pnls, 20);
             let (mu_oos, se_oos, lcb) = mean_se_lcb(&pnls, neff);
             let (_, _, _, drop_d5) = drop_top_winners(&pnls);
             let bootstrap_p = block_bootstrap_pvalue(&pnls, 20, 2000);
             hl_results.push(HighLevelResult {
-                level: lv, delta: dl, tr_n, tr_pnl, hd_n, hd_pnl, hd_pos,
-                mu_oos, se_oos, lcb, neff, nraw, sum_rho, drop_d5, bootstrap_p,
+                level: lv,
+                delta: dl,
+                tr_n,
+                tr_pnl,
+                hd_n,
+                hd_pnl,
+                hd_pos,
+                mu_oos,
+                se_oos,
+                lcb,
+                neff,
+                nraw,
+                sum_rho,
+                drop_d5,
+                bootstrap_p,
             });
         }
 
         // ── 报告 ──
         let mut rpt = String::new();
-        let _ = writeln!(rpt, "# acc-multilevel-sample + acc-highlevel-mu：BTC 全历史多级别 alpha 检验");
+        let _ = writeln!(
+            rpt,
+            "# acc-multilevel-sample + acc-highlevel-mu：BTC 全历史多级别 alpha 检验"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "**认识论等级**：L2（真实数据单标的 BTC 2017-2026 全历史，可产否定性结果，非 L3 跨品种）。");
-        let _ = writeln!(rpt, "**目的**：同一次全量跑产出两条 acceptance 判定，避免重跑。");
+        let _ = writeln!(
+            rpt,
+            "**目的**：同一次全量跑产出两条 acceptance 判定，避免重跑。"
+        );
         let _ = writeln!(rpt, "**复算**：`ECON_L2_MAX_BARS=5000000 cargo test --release acc_multilevel_highlevel_mu -- --ignored --nocapture`");
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 数据");
-        let _ = writeln!(rpt, "- 品种：BTC（btc_1m_full.json，全量 {n_full} bar，2017-08→2026-05）");
-        let _ = writeln!(rpt, "- 本次窗口：bars={n}（{win_start}→{win_end}，max_bars={max_bars}）");
+        let _ = writeln!(
+            rpt,
+            "- 品种：BTC（btc_1m_full.json，全量 {n_full} bar，2017-08→2026-05）"
+        );
+        let _ = writeln!(
+            rpt,
+            "- 本次窗口：bars={n}（{win_start}→{win_end}，max_bars={max_bars}）"
+        );
         let _ = writeln!(rpt, "- train_frac={train_frac}，切分 bar={split}（{split_day}），train=[0,{split}) / holdout=[{split},{n}) 无重叠");
         let _ = writeln!(rpt, "- 全窗 n_signals={}", agg_full.n_signals);
         let _ = writeln!(rpt);
 
         // ── acc-multilevel-sample：信号数分布表 ──
-        let _ = writeln!(rpt, "## acc-multilevel-sample：level0-{max_level} 全历史信号数分布");
-        let _ = writeln!(rpt, "Le Cam 硬墙判定（level3+）：n<30 ⟹ 结构性稀疏；n≥50 ⟹ 可 OOS 验。");
+        let _ = writeln!(
+            rpt,
+            "## acc-multilevel-sample：level0-{max_level} 全历史信号数分布"
+        );
+        let _ = writeln!(
+            rpt,
+            "Le Cam 硬墙判定（level3+）：n<30 ⟹ 结构性稀疏；n≥50 ⟹ 可 OOS 验。"
+        );
         let _ = writeln!(rpt, "| level | δ | n（全窗） | μ̂=Σactual_pnl/n（全窗，含选择偏差，仅参考） | Le Cam 判定（level3+）|");
         let _ = writeln!(rpt, "|---|---|---|---|---|");
         for ((lvl, dlt), (n_cls, pnl_cls)) in &dist {
-            let mu = if *n_cls > 0 { pnl_cls / *n_cls as f64 } else { 0.0 };
+            let mu = if *n_cls > 0 {
+                pnl_cls / *n_cls as f64
+            } else {
+                0.0
+            };
             let lecam = if *lvl >= 3 {
-                if *n_cls < 30 { "结构性稀疏（<30，Le Cam 硬墙）" }
-                else if *n_cls >= 50 { "可 OOS 验（≥50）" }
-                else { "边界（30-49）" }
-            } else { "—" };
+                if *n_cls < 30 {
+                    "结构性稀疏（<30，Le Cam 硬墙）"
+                } else if *n_cls >= 50 {
+                    "可 OOS 验（≥50）"
+                } else {
+                    "边界（30-49）"
+                }
+            } else {
+                "—"
+            };
             let _ = writeln!(rpt, "| {lvl} | {dlt:+} | {n_cls} | {mu:.4e} | {lecam} |");
         }
         let _ = writeln!(rpt);
@@ -3718,7 +5019,10 @@ mod tests {
             let level3plus: Vec<_> = dist.iter().filter(|((l, _), _)| *l >= 3).collect();
             level3plus.iter().all(|(_, (n, _))| *n < 30)
         };
-        let _ = writeln!(rpt, "**acc-multilevel-sample 判定**：level3+ 全历史 n 分布——");
+        let _ = writeln!(
+            rpt,
+            "**acc-multilevel-sample 判定**：level3+ 全历史 n 分布——"
+        );
         if high_level_sparse {
             let _ = writeln!(rpt, "→ **level3+ 均 <30（Le Cam 硬墙成立）**：高级别结构性稀疏，全历史长窗也无足够样本做 OOS 验（有效域：高级别 alpha 可存在但不可功效检验）。");
         } else {
@@ -3727,7 +5031,10 @@ mod tests {
         let _ = writeln!(rpt);
 
         // ── acc-highlevel-mu：level2+ 逐级别 holdout alpha ──
-        let _ = writeln!(rpt, "## acc-highlevel-mu：level2+ 逐级别 train-only holdout μ̂/LCB/p");
+        let _ = writeln!(
+            rpt,
+            "## acc-highlevel-mu：level2+ 逐级别 train-only holdout μ̂/LCB/p"
+        );
         let _ = writeln!(rpt, "train_frac={train_frac}，切分日 {split_day}。每个 (level,δ) 独立评估（不从 train-only 挑类——无跨级别选择偏差）。");
         let _ = writeln!(rpt, "LCB=μ−1.645·se（单侧5%，se 用 neff），block bootstrap p（H0:μ≤0，block=20，B=2000，固定种子）。");
         let _ = writeln!(rpt);
@@ -3736,20 +5043,39 @@ mod tests {
         let mut lcb_pos_count = 0usize;
         let mut total_hl = 0usize;
         for r in &hl_results {
-            let wr = |pos: usize, n: usize| if n > 0 { format!("{pos}/{n} ({:.0}%)", 100.0 * pos as f64 / n as f64) } else { "0/0".to_string() };
-            let neff_ratio = if r.nraw > 0 { format!("{:.2}/{}", r.neff, r.nraw) } else { "—".to_string() };
+            let wr = |pos: usize, n: usize| {
+                if n > 0 {
+                    format!("{pos}/{n} ({:.0}%)", 100.0 * pos as f64 / n as f64)
+                } else {
+                    "0/0".to_string()
+                }
+            };
+            let neff_ratio = if r.nraw > 0 {
+                format!("{:.2}/{}", r.neff, r.nraw)
+            } else {
+                "—".to_string()
+            };
             let _ = writeln!(rpt, "| {} | {:+} | {} | {:.4e} | {} | {:.4e} | {:.4e} | {:.4e} | **{:.4e}** | {} | {:.4e} | {:.3} | {} |",
                 r.level, r.delta, r.tr_n, r.tr_pnl, r.hd_n, r.hd_pnl,
                 r.mu_oos, r.se_oos, r.lcb, neff_ratio, r.drop_d5, r.bootstrap_p,
                 if r.lcb > 0.0 { "✓" } else { "✗" });
             let _ = writeln!(rpt, "  胜率={}", wr(r.hd_pos, r.hd_n));
             total_hl += 1;
-            if r.lcb > 0.0 { lcb_pos_count += 1; }
+            if r.lcb > 0.0 {
+                lcb_pos_count += 1;
+            }
         }
         let _ = writeln!(rpt);
-        let lcb_pos_ratio = if total_hl > 0 { 100.0 * lcb_pos_count as f64 / total_hl as f64 } else { 0.0 };
+        let lcb_pos_ratio = if total_hl > 0 {
+            100.0 * lcb_pos_count as f64 / total_hl as f64
+        } else {
+            0.0
+        };
         let _ = writeln!(rpt, "**acc-highlevel-mu 判定**：");
-        let _ = writeln!(rpt, "- level2+ holdout LCB>0 占比 = {lcb_pos_count}/{total_hl} ({lcb_pos_ratio:.0}%)");
+        let _ = writeln!(
+            rpt,
+            "- level2+ holdout LCB>0 占比 = {lcb_pos_count}/{total_hl} ({lcb_pos_ratio:.0}%)"
+        );
 
         // 判定逻辑：LCB>0 ⟹ 高级别 holdout alpha 成立；LCB≤0 ⟹ 否证（照实报）
         if lcb_pos_count == 0 {
@@ -3765,8 +5091,15 @@ mod tests {
         // ── 结果包六要素 ──
         let _ = writeln!(rpt, "## 结果包六要素");
         let _ = writeln!(rpt, "1. **结论**：");
-        let _ = writeln!(rpt, "   - acc-multilevel-sample：level0-{max_level} 全历史信号数分布见上表。level3+ {}。",
-            if high_level_sparse { "全部 <30（Le Cam 硬墙，结构性稀疏）" } else { "存在 ≥30（可 OOS 验）" });
+        let _ = writeln!(
+            rpt,
+            "   - acc-multilevel-sample：level0-{max_level} 全历史信号数分布见上表。level3+ {}。",
+            if high_level_sparse {
+                "全部 <30（Le Cam 硬墙，结构性稀疏）"
+            } else {
+                "存在 ≥30（可 OOS 验）"
+            }
+        );
         let _ = writeln!(rpt, "   - acc-highlevel-mu：level2+ holdout LCB>0 占比={lcb_pos_count}/{total_hl}（{lcb_pos_ratio:.0}%）。{}",
             if lcb_pos_count == 0 { "全否证，高级别无稳健 OOS alpha（L2）。" }
             else { "部分或全部通过 §7.3 强判据（见明细表）。" });
@@ -3779,23 +5112,39 @@ mod tests {
         // 落盘
         eprint!("{rpt}");
         let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent().expect("rust/ 父目录 = 项目根")
+            .parent()
+            .expect("rust/ 父目录 = 项目根")
             .join(".chanlun/review-results/econ-multilevel-mu-20260701.md");
         std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
         eprintln!("\n报告已落盘：{out:?}");
 
         // 真封：切片无重叠 + neff≤nraw 逐结果。
-        assert_eq!(ds_train.bars.len() + ds_hold.bars.len(), n,
-            "train+holdout bar 数 ≠ 全窗（半开区间应无重叠无遗漏）");
+        assert_eq!(
+            ds_train.bars.len() + ds_hold.bars.len(),
+            n,
+            "train+holdout bar 数 ≠ 全窗（半开区间应无重叠无遗漏）"
+        );
         for r in &hl_results {
-            assert!(r.neff <= r.nraw as f64 + 1e-9,
-                "neff({:.1}) 应 ≤ nraw({})：level={} δ={}", r.neff, r.nraw, r.level, r.delta);
+            assert!(
+                r.neff <= r.nraw as f64 + 1e-9,
+                "neff({:.1}) 应 ≤ nraw({})：level={} δ={}",
+                r.neff,
+                r.nraw,
+                r.level,
+                r.delta
+            );
             // holdout Σpnl 与逐信号和一致（聚合完整性）。
-            let recomp: f64 = decomps_hold.iter()
+            let recomp: f64 = decomps_hold
+                .iter()
                 .filter(|d| d.level == r.level && d.delta == r.delta)
-                .map(|d| d.actual_pnl).sum();
-            assert!((r.hd_pnl - recomp).abs() < 1e-6,
-                "holdout Σpnl 聚合不一致：level={} δ={}", r.level, r.delta);
+                .map(|d| d.actual_pnl)
+                .sum();
+            assert!(
+                (r.hd_pnl - recomp).abs() < 1e-6,
+                "holdout Σpnl 聚合不一致：level={} δ={}",
+                r.level,
+                r.delta
+            );
         }
     }
 
@@ -3829,11 +5178,11 @@ mod tests {
     #[test]
     #[ignore]
     fn acc_classification_level_hole_dx() {
-        use super::super::data;
         use super::super::super::classifier::divergence::compute_macd;
         use super::super::super::strategy::interp::assemble_gamma_with_tower;
         use super::super::super::strategy::voice::VoiceSide;
         use super::super::super::types::Side;
+        use super::super::data;
         use super::super::incremental::IncrementalClassifier;
         use std::fmt::Write as _;
 
@@ -3844,8 +5193,10 @@ mod tests {
         };
         let n_full = ds_full.bars.len();
         const MAX_BARS_DEFAULT: usize = 300_000;
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
-            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(MAX_BARS_DEFAULT);
         let ds = if n_full > max_bars {
             ds_full.slice_bar_range(n_full - max_bars, n_full)
         } else {
@@ -3854,26 +5205,36 @@ mod tests {
         let bars = &ds.bars;
         let n = bars.len();
         let tick = config.tick.tick_size;
-        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
-        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
-        eprintln!("[level-hole-dx] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}");
+        let win_start = ds
+            .dates
+            .first()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        let win_end = ds
+            .dates
+            .last()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        eprintln!(
+            "[level-hole-dx] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}"
+        );
 
         let closes: Vec<f64> = bars.iter().map(|b| b.close as f64 / tick as f64).collect();
         let macd_hist = compute_macd(&closes, &config.macd).hist;
 
         // 分级别计数器（L=8 上限足够；实测最高 level5）。
         const LMAX: usize = 8;
-        let mut bsp_pre = [0usize; LMAX];      // (a) 门前 bsp 提取总数
+        let mut bsp_pre = [0usize; LMAX]; // (a) 门前 bsp 提取总数
         let mut bsp_pre_first = [0usize; LMAX]; // 门前第一类（buy1/sell1）
         let mut bsp_pre_second = [0usize; LMAX]; // 门前第二类（buy2/sell2）
         let mut bsp_pre_third = [0usize; LMAX]; // 门前第三类（buy3/sell3）
         let mut gamma_nonflat = [0usize; LMAX]; // (b) Γ 非 Flat 候选
-        let mut sig_post = [0usize; LMAX];     // (c) 通过 N^δ 门（bsp/Γ 通道，PanDiv 外计）
-        // Q4（#147）：PanDiv 承接通过门计数（Γ 外通道——不经 assemble_gamma，混入 sig_post 会
-        // 污染 H1 门滤诊断的 gamma_nonflat−sig_post 列）。真封①口径 = sig_post + sig_post_pan。
+        let mut sig_post = [0usize; LMAX]; // (c) 通过 N^δ 门（bsp/Γ 通道，PanDiv 外计）
+                                           // Q4（#147）：PanDiv 承接通过门计数（Γ 外通道——不经 assemble_gamma，混入 sig_post 会
+                                           // 污染 H1 门滤诊断的 gamma_nonflat−sig_post 列）。真封①口径 = sig_post + sig_post_pan。
         let mut sig_post_pan = [0usize; LMAX];
         let mut tower_segs_max = [0usize; LMAX]; // (d) tower[lvl] 段数（末次分类快照）
-        let mut levels_seen_max = 0usize;       // cls.levels.len() 最大值
+        let mut levels_seen_max = 0usize; // cls.levels.len() 最大值
 
         // 结构 sanity：level≥1 通过门的信号，记其 (source_index, δ, bits, rung 层数)。
         let mut highlevel_hits: Vec<(usize, usize, i8, u8, usize)> = Vec::new(); // (lvl, src, δ, bits_u8, n_rungs)
@@ -3887,15 +5248,15 @@ mod tests {
         let mut nest_depth_by_level_pass = [[0usize; LMAX + 1]; LMAX]; // [exec_level][depth]
         let mut n_gate_pass_total = 0usize; // 通过门信号总数（应=sig_post_sum）
         let mut n_xzd_pass = 0usize; // 小转大通道通过（无区间套 depth，设计 §2.3）——depth 直方图外计
-        // StructBreak 收紧测量（task #62，codex 终局裁决A）：零 bit（bsp_class==0）候选中通过门的条数
-        // ——这批此前经旧 else=>Type3 分派可能走 Nest/Xzd 通过门，收紧后 bsp_cand_type 恒 StructBreak
-        // ⟹ build_gate_certificate 恒 None ⟹ 本计数器在新代码下恒为 0（收紧生效的直接证据）。
+                                     // StructBreak 收紧测量（task #62，codex 终局裁决A）：零 bit（bsp_class==0）候选中通过门的条数
+                                     // ——这批此前经旧 else=>Type3 分派可能走 Nest/Xzd 通过门，收紧后 bsp_cand_type 恒 StructBreak
+                                     // ⟹ build_gate_certificate 恒 None ⟹ 本计数器在新代码下恒为 0（收紧生效的直接证据）。
         let mut n_zerobit_gate_pass = 0usize;
         // 小转大分项（消歧「严格门真 0」vs「C3 死门伪影」）：路由到 Xzd 的总数 + C2/C3 单项命中。
         let mut n_xzd_routed = 0usize; // build_gate_certificate 返回 Xzd 的信号数（=小转大域触达）
-        let mut n_xzd_c2 = 0usize;     // 其中 C2（type2_confirmed）成立
-        let mut n_xzd_c3 = 0usize;     // 其中 C3（sub_last_zs_type3，诊断字段，不参门）成立
-        // ── C3 死门诊断探针（codex 终局裁定 §5.4，task #41）：按 level 聚合 + lvl==1/lvl>=2 分裂断点 ──
+        let mut n_xzd_c2 = 0usize; // 其中 C2（type2_confirmed）成立
+        let mut n_xzd_c3 = 0usize; // 其中 C3（sub_last_zs_type3，诊断字段，不参门）成立
+                                   // ── C3 死门诊断探针（codex 终局裁定 §5.4，task #41）：按 level 聚合 + lvl==1/lvl>=2 分裂断点 ──
         let mut xzd_routed_by_level = [0usize; LMAX];
         let mut xzd_c2_by_level = [0usize; LMAX];
         let mut xzd_c3_by_level = [0usize; LMAX]; // = same_side_same_center
@@ -3904,7 +5265,7 @@ mod tests {
         let mut xzd_l1_same_center_any = 0usize;
         let mut xzd_l1_same_side_causal_ok = 0usize;
         let mut xzd_lge2_sub_bsp_type3_total = 0usize; // 死门重封（裁定A+#123）：lvl>=2 sub_bsp 可含 Type3，锁基线
-        // C3 新判据命中率探针（task #47，codex #44(c) 终局裁定）：level==1 子集「新中枢+突破」命中率。
+                                                       // C3 新判据命中率探针（task #47，codex #44(c) 终局裁定）：level==1 子集「新中枢+突破」命中率。
         let mut xzd_l1_c3_new_center_exists = 0usize;
         let mut xzd_l1_c3_new_center_breakout_ok = 0usize;
         // XZD C2-only 口径复审探针（task #170，#148 后 C3 脱 0）：lvl>=2 子集同两字段命中数——
@@ -3915,11 +5276,17 @@ mod tests {
         let mut xzd_lge2_c3_new_center_breakout_ok = 0usize;
         // C3 L1 零命中根因判别探针（codex #55 终局裁定(5)，task #56）：默认关闭，只读旁路
         // （不写 Classification.levels[*].centers/tower/正常输出）。开关：ECON_C3_OVERLAP_PROBE=1。
-        let overlap_probe_enabled = std::env::var(crate::theta_v0::env_registry::ECON_C3_OVERLAP_PROBE).ok().as_deref() == Some("1");
-        let mut xzd_l1_overlap_rows: Vec<(usize, usize, usize, usize, Option<(usize, usize)>)> = Vec::new();
+        let overlap_probe_enabled =
+            std::env::var(crate::theta_v0::env_registry::ECON_C3_OVERLAP_PROBE)
+                .ok()
+                .as_deref()
+                == Some("1");
+        let mut xzd_l1_overlap_rows: Vec<(usize, usize, usize, usize, Option<(usize, usize)>)> =
+            Vec::new();
 
         let mut classifier_incr = IncrementalClassifier::new(bars, &config);
-        let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> =
+            std::collections::HashSet::new();
         // C1：dx 手写门循环复用为 collect_signals 的对拍源——门后 push 与生产同序同字段的信号元组。
         let mut signals_dx: Vec<RawSignal> = Vec::new();
         // Q4（task #145）：盘整背驰承接 dx 镜像去重集（与生产 seen_pan 同键同序）。
@@ -3942,7 +5309,10 @@ mod tests {
                 }
             }
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
-                if prev_bsp.get(lvl).map_or(false, |prev| Rc::ptr_eq(prev, &ls.bsp)) {
+                if prev_bsp
+                    .get(lvl)
+                    .map_or(false, |prev| Rc::ptr_eq(prev, &ls.bsp))
+                {
                     continue; // C2：同 Rc ⟹ 全键已 seen，跳级
                 }
                 if lvl < prev_bsp.len() {
@@ -3957,54 +5327,115 @@ mod tests {
                     }
                     if lvl < LMAX {
                         bsp_pre[lvl] += 1;
-                        if p.bits.buy1 || p.bits.sell1 { bsp_pre_first[lvl] += 1; }
-                        if p.bits.buy2 || p.bits.sell2 { bsp_pre_second[lvl] += 1; }
-                        if p.bits.buy3 || p.bits.sell3 { bsp_pre_third[lvl] += 1; }
+                        if p.bits.buy1 || p.bits.sell1 {
+                            bsp_pre_first[lvl] += 1;
+                        }
+                        if p.bits.buy2 || p.bits.sell2 {
+                            bsp_pre_second[lvl] += 1;
+                        }
+                        if p.bits.buy3 || p.bits.sell3 {
+                            bsp_pre_third[lvl] += 1;
+                        }
                     }
                     // Γ 组装（bit-exact 复制生产路径）。
                     let single = super::super::super::classifier::Classification {
-                        levels: cls_i.levels.iter().enumerate()
+                        levels: cls_i
+                            .levels
+                            .iter()
+                            .enumerate()
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
-                                moves: Vec::new(), centers: Rc::new(Vec::new()),
+                                moves: Vec::new(),
+                                centers: Rc::new(Vec::new()),
                                 cp_ownership: Rc::new(Vec::new()),
-                                bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
+                                bsp: Rc::new(if l2 == lvl {
+                                    vec![p.clone()]
+                                } else {
+                                    Vec::new()
+                                }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
-                                level_projection: None, // #110 门关口径
+                                level_projection: None,       // #110 门关口径
                             })
                             .collect(),
                     };
                     let sigma_higher = sigma_higher_at(&tower_i, bars, lvl); // 666 号：与生产 collect_signals 同口径
                     for c in &assemble_gamma_with_tower(&single, &tower_i) {
-                        if c.dir == VoiceSide::Flat { continue; }
-                        if lvl < LMAX { gamma_nonflat[lvl] += 1; }
+                        if c.dir == VoiceSide::Flat {
+                            continue;
+                        }
+                        if lvl < LMAX {
+                            gamma_nonflat[lvl] += 1;
+                        }
                         let delta_side = match c.dir {
                             VoiceSide::Long => Side::Long,
                             VoiceSide::Short => Side::Short,
                             VoiceSide::Flat => continue,
                         };
                         // 二通道准入门（与生产 collect_signals 同源）：Nest→n_delta+depth；Xzd→gate_pass（无 depth）。
-                        let sub_centers: &[Center] = if lvl > 0 { &cls_i.levels[lvl - 1].centers } else { &[] };
-                        let sub_bsp: &[BspPoint] = if lvl > 0 { &cls_i.levels[lvl - 1].bsp } else { &[] };
-                        let gate_cert = build_gate_certificate(&tower_i, lvl, p.source_index, delta_side, &p.bits, &macd_hist, i, &ls.bsp, sub_centers, sub_bsp);
+                        let sub_centers: &[Center] = if lvl > 0 {
+                            &cls_i.levels[lvl - 1].centers
+                        } else {
+                            &[]
+                        };
+                        let sub_bsp: &[BspPoint] = if lvl > 0 {
+                            &cls_i.levels[lvl - 1].bsp
+                        } else {
+                            &[]
+                        };
+                        let gate_cert = build_gate_certificate(
+                            &tower_i,
+                            lvl,
+                            p.source_index,
+                            delta_side,
+                            &p.bits,
+                            &macd_hist,
+                            i,
+                            &ls.bsp,
+                            sub_centers,
+                            sub_bsp,
+                        );
                         let (pass, nest_depth, rungs_len) = match &gate_cert {
-                            Some(GateCertificate::Nest(cert)) => (cert.n_delta(), Some(effective_nest_depth(cert)), cert.rungs().len()),
+                            Some(GateCertificate::Nest(cert)) => (
+                                cert.n_delta(),
+                                Some(effective_nest_depth(cert)),
+                                cert.rungs().len(),
+                            ),
                             Some(GateCertificate::Xzd(ev)) => {
                                 n_xzd_routed += 1; // 小转大域触达（消歧死门用）
-                                if ev.type2_confirmed { n_xzd_c2 += 1; }
-                                if ev.sub_last_zs_type3 { n_xzd_c3 += 1; }
+                                if ev.type2_confirmed {
+                                    n_xzd_c2 += 1;
+                                }
+                                if ev.sub_last_zs_type3 {
+                                    n_xzd_c3 += 1;
+                                }
                                 // C3 死门诊断探针（§5.4）：按 level 聚合 + lvl==1/lvl>=2 分裂断点。
                                 if lvl < LMAX {
                                     xzd_routed_by_level[lvl] += 1;
-                                    if ev.type2_confirmed { xzd_c2_by_level[lvl] += 1; }
-                                    if ev.sub_last_zs_type3 { xzd_c3_by_level[lvl] += 1; }
+                                    if ev.type2_confirmed {
+                                        xzd_c2_by_level[lvl] += 1;
+                                    }
+                                    if ev.sub_last_zs_type3 {
+                                        xzd_c3_by_level[lvl] += 1;
+                                    }
                                 }
                                 if lvl == 1 {
-                                    if ev.last_zs_exists { xzd_l1_last_zs_exists += 1; }
-                                    if ev.same_side_l0_type3_any { xzd_l1_same_side_l0_type3_any += 1; }
-                                    if ev.same_center_any { xzd_l1_same_center_any += 1; }
-                                    if ev.same_side_causal_ok { xzd_l1_same_side_causal_ok += 1; }
-                                    if ev.c3_new_center_exists { xzd_l1_c3_new_center_exists += 1; }
-                                    if ev.c3_new_center_breakout_ok { xzd_l1_c3_new_center_breakout_ok += 1; }
+                                    if ev.last_zs_exists {
+                                        xzd_l1_last_zs_exists += 1;
+                                    }
+                                    if ev.same_side_l0_type3_any {
+                                        xzd_l1_same_side_l0_type3_any += 1;
+                                    }
+                                    if ev.same_center_any {
+                                        xzd_l1_same_center_any += 1;
+                                    }
+                                    if ev.same_side_causal_ok {
+                                        xzd_l1_same_side_causal_ok += 1;
+                                    }
+                                    if ev.c3_new_center_exists {
+                                        xzd_l1_c3_new_center_exists += 1;
+                                    }
+                                    if ev.c3_new_center_breakout_ok {
+                                        xzd_l1_c3_new_center_breakout_ok += 1;
+                                    }
                                     // 探针（只读旁路，见函数头注）：lvl==1 时 sub_units=L0 段账本（tower[0]），
                                     // sub_moves 同 build_gate_certificate 内部消费的 tower[lvl-1]。
                                     if overlap_probe_enabled {
@@ -4012,7 +5443,11 @@ mod tests {
                                             tower_i.get(0).map(|m| m.as_slice()).unwrap_or(&[]);
                                         let sub_units = l0_units_from_tower(l0_moves);
                                         let probe = xzd_c3_overlap_window_probe(
-                                            p.source_index, i, delta_side, &sub_units, l0_moves,
+                                            p.source_index,
+                                            i,
+                                            delta_side,
+                                            &sub_units,
+                                            l0_moves,
                                         );
                                         xzd_l1_overlap_rows.push((
                                             p.source_index,
@@ -4024,20 +5459,28 @@ mod tests {
                                     }
                                 } else if lvl >= 2 {
                                     xzd_lge2_sub_bsp_type3_total += ev.sub_bsp_type3_count; // 死门重封：裁定A+#123 后可非 0，尾部锁基线
-                                    // task #170 复审探针：lvl>=2 的 C3 新判据命中（gate_pass 在 level!=1 不读此二字段——
-                                    // 计数只测「若并入硬门会怎样」的量化空间，零行为影响）。
-                                    if ev.c3_new_center_exists { xzd_lge2_c3_new_center_exists += 1; }
-                                    if ev.c3_new_center_breakout_ok { xzd_lge2_c3_new_center_breakout_ok += 1; }
+                                                                                            // task #170 复审探针：lvl>=2 的 C3 新判据命中（gate_pass 在 level!=1 不读此二字段——
+                                                                                            // 计数只测「若并入硬门会怎样」的量化空间，零行为影响）。
+                                    if ev.c3_new_center_exists {
+                                        xzd_lge2_c3_new_center_exists += 1;
+                                    }
+                                    if ev.c3_new_center_breakout_ok {
+                                        xzd_lge2_c3_new_center_breakout_ok += 1;
+                                    }
                                 }
                                 (ev.gate_pass(), None, 0) // 小转大无区间套 depth
                             }
                             None => (false, None, 0),
                         };
-                        if bsp_class == 0 && pass { n_zerobit_gate_pass += 1; }
+                        if bsp_class == 0 && pass {
+                            n_zerobit_gate_pass += 1;
+                        }
                         if !pass {
                             continue;
                         }
-                        if lvl < LMAX { sig_post[lvl] += 1; }
+                        if lvl < LMAX {
+                            sig_post[lvl] += 1;
+                        }
                         // C1：与生产 collect_signals 同序同字段（含 b2 完整 z——z_of_candidate
                         // 同一桥，保证 dx 手写门与生产收集 bit-exact，尾部 signals_dx vs signals_prod 逐条对拍含 z）。
                         // P0-1：与生产 collect_signals 同源触发分类（pass ⟹ gate_cert Some）。
@@ -4053,7 +5496,7 @@ mod tests {
                                 nest_depth: Some(rungs_len as u8),
                                 origin_level: Some(lvl as u32 + rungs_len as u32),
                                 risk_mode: None,
-                                t_stage: None, // #149：与生产同源，统计层诚实 None
+                                t_stage: None,    // #149：与生产同源，统计层诚实 None
                                 eta_bucket: None, // #175：与生产同源，统计层诚实 None
                             },
                             GateCertificate::Xzd(_) => ZExt {
@@ -4061,7 +5504,7 @@ mod tests {
                                 nest_depth: None,
                                 origin_level: None,
                                 risk_mode: None,
-                                t_stage: None, // #149：与生产同源，统计层诚实 None
+                                t_stage: None,    // #149：与生产同源，统计层诚实 None
                                 eta_bucket: None, // #175：与生产同源，统计层诚实 None
                             },
                         };
@@ -4080,9 +5523,13 @@ mod tests {
                                 // 区间套通过 ⟹ 所有 rung cand=true ⟹ depth=rungs.len()。
                                 let depth = d.min(LMAX);
                                 nest_depth_hist_pass[depth] += 1;
-                                if lvl < LMAX { nest_depth_by_level_pass[lvl][depth] += 1; }
+                                if lvl < LMAX {
+                                    nest_depth_by_level_pass[lvl][depth] += 1;
+                                }
                             }
-                            None => { n_xzd_pass += 1; } // 小转大通道通过（depth 直方图外计，设计 §2.3）
+                            None => {
+                                n_xzd_pass += 1;
+                            } // 小转大通道通过（depth 直方图外计，设计 §2.3）
                         }
                         n_gate_pass_total += 1;
                         if lvl >= 1 {
@@ -4102,16 +5549,31 @@ mod tests {
                     if !seen_pan_dx.insert((lvl, cert.source_index, side_disc)) {
                         continue;
                     }
-                    let sub_centers: &[Center] =
-                        if lvl > 0 { &cls_i.levels[lvl - 1].centers } else { &[] };
-                    let sub_bsp: &[BspPoint] =
-                        if lvl > 0 { &cls_i.levels[lvl - 1].bsp } else { &[] };
+                    let sub_centers: &[Center] = if lvl > 0 {
+                        &cls_i.levels[lvl - 1].centers
+                    } else {
+                        &[]
+                    };
+                    let sub_bsp: &[BspPoint] = if lvl > 0 {
+                        &cls_i.levels[lvl - 1].bsp
+                    } else {
+                        &[]
+                    };
                     if !pan_div_gate_pass(
-                        &tower_i, lvl, cert, &macd_hist, i, &ls.bsp, sub_centers, sub_bsp,
+                        &tower_i,
+                        lvl,
+                        cert,
+                        &macd_hist,
+                        i,
+                        &ls.bsp,
+                        sub_centers,
+                        sub_bsp,
                     ) {
                         continue;
                     }
-                    if lvl < LMAX { sig_post_pan[lvl] += 1; } // Q4（#147）：门后记账与 push 同步
+                    if lvl < LMAX {
+                        sig_post_pan[lvl] += 1;
+                    } // Q4（#147）：门后记账与 push 同步
                     let (dir, delta_i8): (VoiceSide, i8) = match cert.side {
                         Side::Long => (VoiceSide::Long, 1),
                         Side::Short => (VoiceSide::Short, -1),
@@ -4145,40 +5607,83 @@ mod tests {
 
         // ── 报告 ──
         let mut rpt = String::new();
-        let _ = writeln!(rpt, "# Task #7 acc-classification：level 塔中间级空洞 H1/H2/H3 判别");
+        let _ = writeln!(
+            rpt,
+            "# Task #7 acc-classification：level 塔中间级空洞 H1/H2/H3 判别"
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "**认识论等级**：L2（真实 BTC 数据逐信号分级别计数，可产否定性结果）。");
-        let _ = writeln!(rpt, "**窗口**：bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}。");
+        let _ = writeln!(
+            rpt,
+            "**认识论等级**：L2（真实 BTC 数据逐信号分级别计数，可产否定性结果）。"
+        );
+        let _ = writeln!(
+            rpt,
+            "**窗口**：bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}。"
+        );
         let _ = writeln!(rpt, "**判别**：三路 instrument N^δ 门前后分级别计数（bit-exact 复制 decompose_capturable_spread 收集路径）。");
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## 分级别计数表（cls.levels.len() 最大={levels_seen_max}）");
+        let _ = writeln!(
+            rpt,
+            "## 分级别计数表（cls.levels.len() 最大={levels_seen_max}）"
+        );
         let _ = writeln!(rpt, "| level | tower段数 | bsp_pre(门前) | 第一类 | 第二类 | 第三类 | Γ非Flat | sig_post(门后) | 门滤除 |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|");
         for l in 0..LMAX {
-            if tower_segs_max[l] == 0 && bsp_pre[l] == 0 && gamma_nonflat[l] == 0 && sig_post[l] == 0 {
+            if tower_segs_max[l] == 0
+                && bsp_pre[l] == 0
+                && gamma_nonflat[l] == 0
+                && sig_post[l] == 0
+            {
                 continue;
             }
             let filtered = gamma_nonflat[l].saturating_sub(sig_post[l]);
-            let _ = writeln!(rpt, "| {l} | {} | {} | {} | {} | {} | {} | {} | {} |",
-                tower_segs_max[l], bsp_pre[l], bsp_pre_first[l], bsp_pre_second[l], bsp_pre_third[l],
-                gamma_nonflat[l], sig_post[l], filtered);
+            let _ = writeln!(
+                rpt,
+                "| {l} | {} | {} | {} | {} | {} | {} | {} | {} |",
+                tower_segs_max[l],
+                bsp_pre[l],
+                bsp_pre_first[l],
+                bsp_pre_second[l],
+                bsp_pre_third[l],
+                gamma_nonflat[l],
+                sig_post[l],
+                filtered
+            );
         }
         let _ = writeln!(rpt);
 
         // ── 三路判别判定 ──
-        let _ = writeln!(rpt, "## H1/H2/H3 判定（中间级 = level 1..levels_seen_max-1）");
+        let _ = writeln!(
+            rpt,
+            "## H1/H2/H3 判定（中间级 = level 1..levels_seen_max-1）"
+        );
         let mid_hi = levels_seen_max.saturating_sub(1).min(LMAX);
-        let mut any_mid_bsp = false;      // 中间级门前有 bsp?
+        let mut any_mid_bsp = false; // 中间级门前有 bsp?
         let mut any_mid_gate_filter = false; // 中间级门前有 Γ 但门后=0?
         for l in 1..mid_hi {
-            if bsp_pre[l] > 0 { any_mid_bsp = true; }
-            if gamma_nonflat[l] > 0 && sig_post[l] == 0 { any_mid_gate_filter = true; }
-            let _ = writeln!(rpt, "- level{l}: bsp_pre={} (一/二/三={}/{}/{}) Γ非Flat={} sig_post={} → {}",
-                bsp_pre[l], bsp_pre_first[l], bsp_pre_second[l], bsp_pre_third[l],
-                gamma_nonflat[l], sig_post[l],
-                if bsp_pre[l] == 0 { "门前空(H3候选:架构)" }
-                else if sig_post[l] == 0 { "门滤空(H1候选)" }
-                else { "有信号" });
+            if bsp_pre[l] > 0 {
+                any_mid_bsp = true;
+            }
+            if gamma_nonflat[l] > 0 && sig_post[l] == 0 {
+                any_mid_gate_filter = true;
+            }
+            let _ = writeln!(
+                rpt,
+                "- level{l}: bsp_pre={} (一/二/三={}/{}/{}) Γ非Flat={} sig_post={} → {}",
+                bsp_pre[l],
+                bsp_pre_first[l],
+                bsp_pre_second[l],
+                bsp_pre_third[l],
+                gamma_nonflat[l],
+                sig_post[l],
+                if bsp_pre[l] == 0 {
+                    "门前空(H3候选:架构)"
+                } else if sig_post[l] == 0 {
+                    "门滤空(H1候选)"
+                } else {
+                    "有信号"
+                }
+            );
         }
         let verdict = if !any_mid_bsp {
             "**H3（架构性，非运行时 bug）**：中间级 bsp_pre 全 0。注意：原「level≥1 只产第二类 B2/S2」\
@@ -4195,11 +5700,17 @@ mod tests {
         let _ = writeln!(rpt);
 
         // ── 结构 sanity（team-lead ③）：level≥1 通过门信号的 rung 链 ──
-        let _ = writeln!(rpt, "## 结构 sanity：level≥1 通过门信号的 rung 链（team-lead ③）");
+        let _ = writeln!(
+            rpt,
+            "## 结构 sanity：level≥1 通过门信号的 rung 链（team-lead ③）"
+        );
         if highlevel_hits.is_empty() {
             let _ = writeln!(rpt, "- 无 level≥1 通过 N^δ 门的信号（本窗）。");
         } else {
-            let _ = writeln!(rpt, "| lvl | source_index | δ | bits(u8) | rung层数(tower[lvl+1..]含src) |");
+            let _ = writeln!(
+                rpt,
+                "| lvl | source_index | δ | bits(u8) | rung层数(tower[lvl+1..]含src) |"
+            );
             let _ = writeln!(rpt, "|---|---|---|---|---|");
             for (lvl, src, delta, bits, n_rungs) in &highlevel_hits {
                 let _ = writeln!(rpt, "| {lvl} | {src} | {delta} | {bits:#04x} | {n_rungs} |");
@@ -4211,28 +5722,49 @@ mod tests {
 
         // ── P1 FullNest 验收（task #22）：通过门信号的有效跨级深度分布（含 level0，bit-exact 同源）──
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## P1 FullNest 验收：通过门信号有效跨级深度分布（task #22，含 level0）");
+        let _ = writeln!(
+            rpt,
+            "## P1 FullNest 验收：通过门信号有效跨级深度分布（task #22，含 level0）"
+        );
         let _ = writeln!(rpt, "**有效跨级深度** = n_delta 递归实际穿越的连续 cand=true 跨级层数（build_nest_certificate 与生产门共用构造，bit-exact）。");
         let _ = writeln!(rpt, "- depth=0 ⟹ 纯 base-case confirm_side（**退化**：等价单 bit 检查，**无区间套跨级触达**，与旧单级门弱化）。");
-        let _ = writeln!(rpt, "- depth≥1 ⟹ 真跨级 [J_{{ℓ-1}}⊆J_ℓ] 触达（N^δ ≥2 层证书 e→ℓ，Q5 验收要求）。");
+        let _ = writeln!(
+            rpt,
+            "- depth≥1 ⟹ 真跨级 [J_{{ℓ-1}}⊆J_ℓ] 触达（N^δ ≥2 层证书 e→ℓ，Q5 验收要求）。"
+        );
         let _ = writeln!(rpt, "| 有效深度 | 通过门信号数 | 占比 |");
         let _ = writeln!(rpt, "|---|---|---|");
         for d in 0..=LMAX {
-            if nest_depth_hist_pass[d] == 0 { continue; }
-            let p = if n_gate_pass_total > 0 { 100.0 * nest_depth_hist_pass[d] as f64 / n_gate_pass_total as f64 } else { 0.0 };
+            if nest_depth_hist_pass[d] == 0 {
+                continue;
+            }
+            let p = if n_gate_pass_total > 0 {
+                100.0 * nest_depth_hist_pass[d] as f64 / n_gate_pass_total as f64
+            } else {
+                0.0
+            };
             let _ = writeln!(rpt, "| {d} | {} | {p:.2}% |", nest_depth_hist_pass[d]);
         }
         let n_depth0 = nest_depth_hist_pass[0];
         let n_depth_ge1: usize = nest_depth_hist_pass[1..].iter().sum();
         let _ = writeln!(rpt, "\n**depth=0（退化 base-case）：{n_depth0}/{n_gate_pass_total}；depth≥1（真跨级触达）：{n_depth_ge1}/{n_gate_pass_total}**");
         let _ = writeln!(rpt, "\n### 逐执行级 × 深度矩阵");
-        let _ = writeln!(rpt, "| exec_level | depth0 | depth1 | depth2 | depth3 | depth≥4 |");
+        let _ = writeln!(
+            rpt,
+            "| exec_level | depth0 | depth1 | depth2 | depth3 | depth≥4 |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|---|");
         for l in 0..LMAX {
             let row = &nest_depth_by_level_pass[l];
-            if row.iter().sum::<usize>() == 0 { continue; }
+            if row.iter().sum::<usize>() == 0 {
+                continue;
+            }
             let ge4: usize = row[4..].iter().sum();
-            let _ = writeln!(rpt, "| {l} | {} | {} | {} | {} | {} |", row[0], row[1], row[2], row[3], ge4);
+            let _ = writeln!(
+                rpt,
+                "| {l} | {} | {} | {} | {} | {} |",
+                row[0], row[1], row[2], row[3], ge4
+            );
         }
         let p1_verdict = if n_gate_pass_total == 0 {
             "**无信号通过门（本窗）**——无法判定触达深度。"
@@ -4260,13 +5792,21 @@ mod tests {
 
         // ── C3 死门诊断探针（codex 终局裁定 §5.4，task #41）：按 level 聚合 + lvl==1/lvl>=2 分裂断点 ──
         let _ = writeln!(rpt, "## C3 死门诊断探针（task #41，裁定 §5.4 精确规格）");
-        let _ = writeln!(rpt, "| level | Xzd routed | C2 成立 | C3 成立(same_side_same_center) | C3 命中率 |");
+        let _ = writeln!(
+            rpt,
+            "| level | Xzd routed | C2 成立 | C3 成立(same_side_same_center) | C3 命中率 |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|");
         for l in 0..LMAX {
-            if xzd_routed_by_level[l] == 0 { continue; }
+            if xzd_routed_by_level[l] == 0 {
+                continue;
+            }
             let rate = 100.0 * xzd_c3_by_level[l] as f64 / xzd_routed_by_level[l] as f64;
-            let _ = writeln!(rpt, "| {l} | {} | {} | {} | {rate:.2}% |",
-                xzd_routed_by_level[l], xzd_c2_by_level[l], xzd_c3_by_level[l]);
+            let _ = writeln!(
+                rpt,
+                "| {l} | {} | {} | {} | {rate:.2}% |",
+                xzd_routed_by_level[l], xzd_c2_by_level[l], xzd_c3_by_level[l]
+            );
         }
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "### lvl==1 子集分裂断点（裁定 §5.4：last_zs_exists / same_side_l0_type3_any / same_center_any / same_side_causal_ok）");
@@ -4276,9 +5816,24 @@ mod tests {
         } else {
             let pct = |x: usize| 100.0 * x as f64 / n_l1 as f64;
             let _ = writeln!(rpt, "- lvl==1 routed={n_l1}");
-            let _ = writeln!(rpt, "- last_zs_exists={} ({:.2}%)：s 跨度内存在次级中枢", xzd_l1_last_zs_exists, pct(xzd_l1_last_zs_exists));
-            let _ = writeln!(rpt, "- same_side_l0_type3_any={} ({:.2}%)：存在同向 L0 Type3（不问 center）", xzd_l1_same_side_l0_type3_any, pct(xzd_l1_same_side_l0_type3_any));
-            let _ = writeln!(rpt, "- same_center_any={} ({:.2}%)：存在任意侧 Type3 其 center==last_zs", xzd_l1_same_center_any, pct(xzd_l1_same_center_any));
+            let _ = writeln!(
+                rpt,
+                "- last_zs_exists={} ({:.2}%)：s 跨度内存在次级中枢",
+                xzd_l1_last_zs_exists,
+                pct(xzd_l1_last_zs_exists)
+            );
+            let _ = writeln!(
+                rpt,
+                "- same_side_l0_type3_any={} ({:.2}%)：存在同向 L0 Type3（不问 center）",
+                xzd_l1_same_side_l0_type3_any,
+                pct(xzd_l1_same_side_l0_type3_any)
+            );
+            let _ = writeln!(
+                rpt,
+                "- same_center_any={} ({:.2}%)：存在任意侧 Type3 其 center==last_zs",
+                xzd_l1_same_center_any,
+                pct(xzd_l1_same_center_any)
+            );
             let _ = writeln!(rpt, "- same_side_causal_ok={} ({:.2}%)：同向 Type3 候选中存在 source_index<=confirm_index 者（否则=时间确认问题）", xzd_l1_same_side_causal_ok, pct(xzd_l1_same_side_causal_ok));
             let n_l1_c3 = xzd_c3_by_level.get(1).copied().unwrap_or(0);
             let l1_verdict = if n_l1_c3 == 0 {
@@ -4300,7 +5855,10 @@ mod tests {
         // 「C2-only 保留 vs C3 硬门全 level 启用」由 codex 裁定，本探针供其量化输入。
         {
             let n_lge2_probe: usize = xzd_routed_by_level[2..].iter().sum();
-            let _ = writeln!(rpt, "### XZD C2-only 复审探针（task #170）：lvl>=2 C3 新判据命中");
+            let _ = writeln!(
+                rpt,
+                "### XZD C2-only 复审探针（task #170）：lvl>=2 C3 新判据命中"
+            );
             let _ = writeln!(
                 rpt,
                 "- lvl>=2 routed={n_lge2_probe}：c3_new_center_exists={xzd_lge2_c3_new_center_exists} / c3_new_center_breakout_ok={xzd_lge2_c3_new_center_breakout_ok}（不参门，codex 裁定输入）"
@@ -4310,7 +5868,10 @@ mod tests {
         let _ = writeln!(rpt);
 
         // ── C3 新判据命中率（task #47，codex #44(c) 终局裁定）：level==1 子集「新中枢+突破」命中率 ──
-        let _ = writeln!(rpt, "### C3 新判据（新中枢+突破）level==1 命中率（task #47，codex #44 终局裁定(c)）");
+        let _ = writeln!(
+            rpt,
+            "### C3 新判据（新中枢+突破）level==1 命中率（task #47，codex #44 终局裁定(c)）"
+        );
         if n_l1 == 0 {
             let _ = writeln!(rpt, "- 本窗无 lvl==1 路由到 Xzd 的信号，无法裁断。");
         } else {
@@ -4324,16 +5885,24 @@ mod tests {
             // 见下），命中恒 0 时 assert **通过**不 panic；探针报告先落盘以在任何情形（含未来 rate>0
             // 触发 assert 失败）下都保留诊断证据（探针纯只读旁路，独立于终局不变量真封）。
             if overlap_probe_enabled {
-                let overlap_new_center_signals = xzd_l1_overlap_rows.iter().filter(|r| r.2 >= 1).count();
+                let overlap_new_center_signals =
+                    xzd_l1_overlap_rows.iter().filter(|r| r.2 >= 1).count();
                 let overlap_hit_signals = xzd_l1_overlap_rows.iter().filter(|r| r.3 >= 1).count();
                 let mut probe_rpt = String::new();
-                let _ = writeln!(probe_rpt, "# C3 L1 零命中根因判别探针（codex #55 终局裁定(5)，task #56）");
+                let _ = writeln!(
+                    probe_rpt,
+                    "# C3 L1 零命中根因判别探针（codex #55 终局裁定(5)，task #56）"
+                );
                 let _ = writeln!(probe_rpt);
                 let _ = writeln!(probe_rpt, "**认识论等级**：L2（真实 BTC 数据，逐 level==1 信号滑动重叠窗口扫描，可产否定性结果）。");
                 let _ = writeln!(probe_rpt, "**窗口**：bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}。");
                 let _ = writeln!(probe_rpt);
                 let _ = writeln!(probe_rpt, "## 结论");
-                let _ = writeln!(probe_rpt, "- level==1 Xzd routed 样本数={}", xzd_l1_overlap_rows.len());
+                let _ = writeln!(
+                    probe_rpt,
+                    "- level==1 Xzd routed 样本数={}",
+                    xzd_l1_overlap_rows.len()
+                );
                 let _ = writeln!(probe_rpt, "- 存在 ≥1 个滑动重叠窗口 post-source 新中枢的信号数={overlap_new_center_signals}");
                 let _ = writeln!(probe_rpt, "- 存在 ≥1 个滑动重叠窗口新中枢被突破（overlapping_breakout_count>=1）的信号数={overlap_hit_signals}");
                 let judgement = if overlap_hit_signals >= 1 {
@@ -4374,17 +5943,31 @@ mod tests {
                     不改 `tower`、不改任何生产 `collect_signals`/正常输出 digest——仅本诊断测试内新增探针调用+独立报告落盘\
                     （`.chanlun/review-results/c3-overlap-probe-20260702.md`），不影响既有 `acc-classification-level-hole-20260701.md` 报告内容。");
                 let _ = writeln!(probe_rpt);
-                let _ = writeln!(probe_rpt, "## 逐信号统计表（level==1 routed={}）", xzd_l1_overlap_rows.len());
+                let _ = writeln!(
+                    probe_rpt,
+                    "## 逐信号统计表（level==1 routed={}）",
+                    xzd_l1_overlap_rows.len()
+                );
                 let _ = writeln!(probe_rpt, "| # | source_index | confirm_index | overlapping_new_center_count | overlapping_breakout_count | first_overlapping_center |");
                 let _ = writeln!(probe_rpt, "|---|---|---|---|---|---|");
-                for (idx, (src, confirm, new_cnt, brk_cnt, first)) in xzd_l1_overlap_rows.iter().enumerate() {
-                    let first_str = first.map(|(s, e)| format!("({s},{e})")).unwrap_or_else(|| "—".to_string());
-                    let _ = writeln!(probe_rpt, "| {} | {src} | {confirm} | {new_cnt} | {brk_cnt} | {first_str} |", idx + 1);
+                for (idx, (src, confirm, new_cnt, brk_cnt, first)) in
+                    xzd_l1_overlap_rows.iter().enumerate()
+                {
+                    let first_str = first
+                        .map(|(s, e)| format!("({s},{e})"))
+                        .unwrap_or_else(|| "—".to_string());
+                    let _ = writeln!(
+                        probe_rpt,
+                        "| {} | {src} | {confirm} | {new_cnt} | {brk_cnt} | {first_str} |",
+                        idx + 1
+                    );
                 }
                 let probe_out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .parent().expect("rust/ 父目录 = 项目根")
+                    .parent()
+                    .expect("rust/ 父目录 = 项目根")
                     .join(".chanlun/review-results/c3-overlap-probe-20260702.md");
-                std::fs::write(&probe_out, &probe_rpt).unwrap_or_else(|e| panic!("写探针报告失败：{e}"));
+                std::fs::write(&probe_out, &probe_rpt)
+                    .unwrap_or_else(|e| panic!("写探针报告失败：{e}"));
                 eprintln!(
                     "\n[c3-overlap-probe] 探针报告已落盘：{probe_out:?}（routed={} new_center_signals={overlap_new_center_signals} breakout_hit_signals={overlap_hit_signals}）",
                     xzd_l1_overlap_rows.len()
@@ -4416,9 +5999,15 @@ mod tests {
             }
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "### lvl>=2 死门重封（裁定A+#123：sub_bsp 可含 Type3，锁基线数值）");
+        let _ = writeln!(
+            rpt,
+            "### lvl>=2 死门重封（裁定A+#123：sub_bsp 可含 Type3，锁基线数值）"
+        );
         let n_lge2_routed: usize = xzd_routed_by_level[2..].iter().sum();
-        let _ = writeln!(rpt, "- lvl>=2 routed={n_lge2_routed}，sub_bsp Type3 点总数={xzd_lge2_sub_bsp_type3_total}");
+        let _ = writeln!(
+            rpt,
+            "- lvl>=2 routed={n_lge2_routed}，sub_bsp Type3 点总数={xzd_lge2_sub_bsp_type3_total}"
+        );
         eprintln!("[deadgate-reseal] lvl>=2 routed={n_lge2_routed} sub_bsp_type3_total={xzd_lge2_sub_bsp_type3_total}");
         // 死门重封（#137）：原前提「lvl>=2 sub_bsp 恒无 Type3（extract_second_for_level 只产 B2/S2）」
         // 已被 codex-t1 裁定A + #123（0a35f0167c，级别≥1 一/三类候选生成，三类净增 2364）合法作废。
@@ -4438,7 +6027,10 @@ mod tests {
             );
             let _ = writeln!(rpt, "- **重封通过**：默认 300K 窗基线锁定 routed=217 / sub_bsp_type3_total=433（#148 升级重切后新真值，2026-07-04 测定）。");
         } else {
-            let _ = writeln!(rpt, "- 非默认窗（max_bars={max_bars}），基线断言跳过（基线仅对默认 300K 窗定义）。");
+            let _ = writeln!(
+                rpt,
+                "- 非默认窗（max_bars={max_bars}），基线断言跳过（基线仅对默认 300K 窗定义）。"
+            );
         }
         let _ = writeln!(rpt);
 
@@ -4456,7 +6048,8 @@ mod tests {
         // （build_nest_certificate.n_delta）与生产门（build_multilevel_nest_cert）bit-exact 同收集；
         // 全历史基准窗（ECON_L2_MAX_BARS 放大，perf tier）跳过对拍换取 2x，收集正确性由默认窗对拍背书。
         let fee_rate =
-            (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+            (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps)
+                / 10_000.0;
         if max_bars <= MAX_BARS_DEFAULT {
             let signals_prod = collect_signals(&ds, &config);
             assert_eq!(
@@ -4471,7 +6064,10 @@ mod tests {
         // 若路由断裂（增量 dif 空 / 透传丢失），一类信号 force_state 全 None ⟹ 此断言 fire。
         // δ-共线核对（memory「方向性维进桶键=检验自毁」）：force_state 由 A/C 段**绝对量**算，δ-free
         // （perm_test.rs:220 置于 base_of δ-free 键，置换 δ 时恒定）⟹ 非方向性 A4 支配序，不引入 δ-共线。
-        let type1_sigs = signals_dx.iter().filter(|s| s.z.i_class & 0b001_001 != 0).count();
+        let type1_sigs = signals_dx
+            .iter()
+            .filter(|s| s.z.i_class & 0b001_001 != 0)
+            .count();
         let type1_forced = signals_dx
             .iter()
             .filter(|s| s.z.i_class & 0b001_001 != 0 && s.z.force_state.is_some())
@@ -4490,24 +6086,48 @@ mod tests {
         let (decomps_prod, agg_prod) = pair_signals(&signals_dx, bars, tick, fee_rate);
         let mut decomp_by_level = [0usize; LMAX];
         for d in &decomps_prod {
-            if (d.level as usize) < LMAX { decomp_by_level[d.level as usize] += 1; }
+            if (d.level as usize) < LMAX {
+                decomp_by_level[d.level as usize] += 1;
+            }
         }
-        let _ = writeln!(rpt, "## 配对后 decomps level 分布（sig_post=门后配对前 vs decomps=配对后）");
-        let _ = writeln!(rpt, "| level | sig_post(门后Γ) | pan(承接) | decomps(配对后) | 配对丢失 |");
+        let _ = writeln!(
+            rpt,
+            "## 配对后 decomps level 分布（sig_post=门后配对前 vs decomps=配对后）"
+        );
+        let _ = writeln!(
+            rpt,
+            "| level | sig_post(门后Γ) | pan(承接) | decomps(配对后) | 配对丢失 |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|");
         let mut any_pairing_loss_mid = false;
         for l in 0..LMAX {
             let gate_total = sig_post[l] + sig_post_pan[l]; // 门后全通道（Γ 二通道 + PanDiv 承接）
-            if gate_total == 0 && decomp_by_level[l] == 0 { continue; }
+            if gate_total == 0 && decomp_by_level[l] == 0 {
+                continue;
+            }
             let lost = gate_total.saturating_sub(decomp_by_level[l]);
-            if l >= 1 && decomp_by_level[l] == 0 && gate_total > 0 { any_pairing_loss_mid = true; }
-            let _ = writeln!(rpt, "| {l} | {} | {} | {} | {} |",
-                sig_post[l], sig_post_pan[l], decomp_by_level[l], lost);
+            if l >= 1 && decomp_by_level[l] == 0 && gate_total > 0 {
+                any_pairing_loss_mid = true;
+            }
+            let _ = writeln!(
+                rpt,
+                "| {l} | {} | {} | {} | {} |",
+                sig_post[l], sig_post_pan[l], decomp_by_level[l], lost
+            );
         }
-        let _ = writeln!(rpt, "\n- n_unpaired（无配对出场反转信号，右删失剔除）={}", agg_prod.n_unpaired);
-        let _ = writeln!(rpt, "- **配对机制**：next_opp 表跨级别混合（所有 level 信号按 entry_bar 排序）——\
+        let _ = writeln!(
+            rpt,
+            "\n- n_unpaired（无配对出场反转信号，右删失剔除）={}",
+            agg_prod.n_unpaired
+        );
+        let _ = writeln!(
+            rpt,
+            "- **配对机制**：next_opp 表跨级别混合（所有 level 信号按 entry_bar 排序）——\
             中间级信号找「下一个反向信号」时不分级别，几乎总配 level0（信号 {}/{} 是 level0）。\
-            decomp.level=入场信号 level（配对出场 level 不影响）。", decomp_by_level[0], decomps_prod.len());
+            decomp.level=入场信号 level（配对出场 level 不影响）。",
+            decomp_by_level[0],
+            decomps_prod.len()
+        );
         if any_pairing_loss_mid {
             let _ = writeln!(rpt, "- **⚠ 配对丢失坐实**：中间级 sig_post>0 但 decomps=0 ⟹ 通过 N^δ 门的中间级信号\
                 在退出配对阶段被 n_unpaired（右删失）剔除。**H1 门滤空判定被修正**——中间级空洞不仅是门滤，\
@@ -4518,7 +6138,8 @@ mod tests {
         // 落盘
         eprint!("{rpt}");
         let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent().expect("rust/ 父目录 = 项目根")
+            .parent()
+            .expect("rust/ 父目录 = 项目根")
             .join(".chanlun/review-results/acc-classification-level-hole-20260701.md");
         std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
         eprintln!("\n报告已落盘：{out:?}");
@@ -4531,15 +6152,21 @@ mod tests {
         let sig_post_sum: usize = sig_post.iter().sum();
         let pan_pass_sum: usize = sig_post_pan.iter().sum();
         // 收集闭合（#147 防再漂移）：每条 push 恰有一次门后计数 ⟹ 新增信号通道漏记账即红。
-        assert_eq!(sig_post_sum + pan_pass_sum, signals_dx.len(),
+        assert_eq!(
+            sig_post_sum + pan_pass_sum,
+            signals_dx.len(),
             "门后计数和({sig_post_sum}+{pan_pass_sum}) 应 = signals_dx.len({})：信号通道记账漏计",
-            signals_dx.len());
+            signals_dx.len()
+        );
         assert!(sig_post_sum + pan_pass_sum >= agg_prod.n_signals,
             "sig_post_sum({sig_post_sum})+pan({pan_pass_sum}) 应 >= n_signals({})：门后信号数含未配对出场者", agg_prod.n_signals);
         // 真封②：配对后 decomps 逐级和 = n_signals（聚合完整性）。
         let decomp_sum: usize = decomp_by_level.iter().sum();
-        assert_eq!(decomp_sum, agg_prod.n_signals,
-            "decomp 逐级和({decomp_sum}) 应 = n_signals({})", agg_prod.n_signals);
+        assert_eq!(
+            decomp_sum, agg_prod.n_signals,
+            "decomp 逐级和({decomp_sum}) 应 = n_signals({})",
+            agg_prod.n_signals
+        );
         eprintln!("真封：sig_post_sum={sig_post_sum}+pan={pan_pass_sum} >= n_signals={} = decomp_sum={decomp_sum}",
             agg_prod.n_signals);
         // 真封③（P1 FullNest + 小转大二通道）：区间套深度直方图和 + 小转大通过 = 通过门总数 = sig_post_sum
@@ -4569,11 +6196,11 @@ mod tests {
     #[test]
     #[ignore]
     fn acc_bottomup_nest_parity_probe() {
-        use super::super::data;
         use super::super::super::classifier::divergence::compute_macd;
         use super::super::super::strategy::interp::assemble_gamma_with_tower;
         use super::super::super::strategy::voice::VoiceSide;
         use super::super::super::types::Side;
+        use super::super::data;
         use super::super::incremental::IncrementalClassifier;
 
         let config = ThetaConfig::default();
@@ -4583,8 +6210,10 @@ mod tests {
         };
         let n_full = ds_full.bars.len();
         const MAX_BARS_DEFAULT: usize = 300_000;
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
-            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(MAX_BARS_DEFAULT);
         let ds = if n_full > max_bars {
             ds_full.slice_bar_range(n_full - max_bars, n_full)
         } else {
@@ -4593,31 +6222,40 @@ mod tests {
         let bars = &ds.bars;
         let n = bars.len();
         let tick = config.tick.tick_size;
-        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
-        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let win_start = ds
+            .dates
+            .first()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        let win_end = ds
+            .dates
+            .last()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
         eprintln!("[bottomup-parity] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}");
 
         let closes: Vec<f64> = bars.iter().map(|b| b.close as f64 / tick as f64).collect();
         let macd_hist = compute_macd(&closes, &config.macd).hist;
 
         const LMAX: usize = 8;
-        let mut n_cert_attempt = 0usize;   // 到达 cert 构造点的候选总数（gamma 非 Flat）
-        let mut n_prod_some = 0usize;      // 生产 cert = Some
-        let mut n_bu_some = 0usize;        // bottom-up cert = Some
-        let mut n_some_mismatch = 0usize;  // Some/None 不一致
-        let mut n_gamma_diff = 0usize;     // n_delta（Γ 成员）不一致
-        let mut n_depth_diff = 0usize;     // effective_nest_depth 不一致（两者均 Some）
+        let mut n_cert_attempt = 0usize; // 到达 cert 构造点的候选总数（gamma 非 Flat）
+        let mut n_prod_some = 0usize; // 生产 cert = Some
+        let mut n_bu_some = 0usize; // bottom-up cert = Some
+        let mut n_some_mismatch = 0usize; // Some/None 不一致
+        let mut n_gamma_diff = 0usize; // n_delta（Γ 成员）不一致
+        let mut n_depth_diff = 0usize; // effective_nest_depth 不一致（两者均 Some）
         let mut n_rungs_len_diff = 0usize; // rungs.len() 不一致
-        let mut n_interval_diff = 0usize;  // 任一 rung 区间/base 不一致（结构差，即便 n_delta 同）
-        let mut gamma_prod = 0usize;       // 生产 Γ 规模（n_delta=true）
-        let mut gamma_bu = 0usize;         // bottom-up Γ 规模
+        let mut n_interval_diff = 0usize; // 任一 rung 区间/base 不一致（结构差，即便 n_delta 同）
+        let mut gamma_prod = 0usize; // 生产 Γ 规模（n_delta=true）
+        let mut gamma_bu = 0usize; // bottom-up Γ 规模
         let mut depth_prod = [0usize; LMAX + 1];
         let mut depth_bu = [0usize; LMAX + 1];
         // 分歧样本前 20 条（诊断用）：(bar_i, lvl, source_index, δ, prod_ndelta, bu_ndelta, prod_depth, bu_depth)
         let mut diff_samples: Vec<(usize, usize, usize, i8, bool, bool, usize, usize)> = Vec::new();
 
         let mut classifier_incr = IncrementalClassifier::new(bars, &config);
-        let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> =
+            std::collections::HashSet::new();
         let mut prev_bsp: Vec<Rc<Vec<BspPoint>>> = Vec::new();
 
         for i in 0..n {
@@ -4627,7 +6265,10 @@ mod tests {
             }
             let (cls_i, tower_i) = classifier_incr.classify_at(i);
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
-                if prev_bsp.get(lvl).map_or(false, |prev| Rc::ptr_eq(prev, &ls.bsp)) {
+                if prev_bsp
+                    .get(lvl)
+                    .map_or(false, |prev| Rc::ptr_eq(prev, &ls.bsp))
+                {
                     continue;
                 }
                 if lvl < prev_bsp.len() {
@@ -4641,13 +6282,21 @@ mod tests {
                         continue;
                     }
                     let single = super::super::super::classifier::Classification {
-                        levels: cls_i.levels.iter().enumerate()
+                        levels: cls_i
+                            .levels
+                            .iter()
+                            .enumerate()
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
-                                moves: Vec::new(), centers: Rc::new(Vec::new()),
+                                moves: Vec::new(),
+                                centers: Rc::new(Vec::new()),
                                 cp_ownership: Rc::new(Vec::new()),
-                                bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
+                                bsp: Rc::new(if l2 == lvl {
+                                    vec![p.clone()]
+                                } else {
+                                    Vec::new()
+                                }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
-                                level_projection: None, // #110 门关口径
+                                level_projection: None,       // #110 门关口径
                             })
                             .collect(),
                     };
@@ -4659,35 +6308,86 @@ mod tests {
                         };
                         n_cert_attempt += 1;
                         // 两口径 cert 构造（同一 tower/lvl/source_index/δ/bits/hist）——唯一变量是 rung 锚定口径。
-                        let prod = build_nest_certificate(&tower_i, lvl, p.source_index, delta_side, &p.bits, &macd_hist);
-                        let bu = build_nest_certificate_bottomup(&tower_i, lvl, p.source_index, delta_side, &p.bits, &macd_hist);
+                        let prod = build_nest_certificate(
+                            &tower_i,
+                            lvl,
+                            p.source_index,
+                            delta_side,
+                            &p.bits,
+                            &macd_hist,
+                        );
+                        let bu = build_nest_certificate_bottomup(
+                            &tower_i,
+                            lvl,
+                            p.source_index,
+                            delta_side,
+                            &p.bits,
+                            &macd_hist,
+                        );
                         let (prod_nd, prod_depth) = match &prod {
-                            Some(cert) => { n_prod_some += 1; (cert.n_delta(), effective_nest_depth(cert)) }
+                            Some(cert) => {
+                                n_prod_some += 1;
+                                (cert.n_delta(), effective_nest_depth(cert))
+                            }
                             None => (false, 0),
                         };
                         let (bu_nd, bu_depth) = match &bu {
-                            Some(cert) => { n_bu_some += 1; (cert.n_delta(), effective_nest_depth(cert)) }
+                            Some(cert) => {
+                                n_bu_some += 1;
+                                (cert.n_delta(), effective_nest_depth(cert))
+                            }
                             None => (false, 0),
                         };
-                        if prod.is_some() != bu.is_some() { n_some_mismatch += 1; }
-                        if prod_nd { gamma_prod += 1; }
-                        if bu_nd { gamma_bu += 1; }
-                        if prod.is_some() { depth_prod[prod_depth.min(LMAX)] += 1; }
-                        if bu.is_some() { depth_bu[bu_depth.min(LMAX)] += 1; }
-                        if prod_nd != bu_nd { n_gamma_diff += 1; }
-                        if prod.is_some() && bu.is_some() && prod_depth != bu_depth { n_depth_diff += 1; }
+                        if prod.is_some() != bu.is_some() {
+                            n_some_mismatch += 1;
+                        }
+                        if prod_nd {
+                            gamma_prod += 1;
+                        }
+                        if bu_nd {
+                            gamma_bu += 1;
+                        }
+                        if prod.is_some() {
+                            depth_prod[prod_depth.min(LMAX)] += 1;
+                        }
+                        if bu.is_some() {
+                            depth_bu[bu_depth.min(LMAX)] += 1;
+                        }
+                        if prod_nd != bu_nd {
+                            n_gamma_diff += 1;
+                        }
+                        if prod.is_some() && bu.is_some() && prod_depth != bu_depth {
+                            n_depth_diff += 1;
+                        }
                         // 结构差：rungs.len 或任一 interval（含 base）不同。
                         if let (Some(pc), Some(bc)) = (&prod, &bu) {
-                            if pc.rungs().len() != bc.rungs().len() { n_rungs_len_diff += 1; }
+                            if pc.rungs().len() != bc.rungs().len() {
+                                n_rungs_len_diff += 1;
+                            }
                             let struct_diff = pc.base_interval() != bc.base_interval()
                                 || pc.rungs().len() != bc.rungs().len()
-                                || pc.rungs().iter().zip(bc.rungs().iter()).any(|(a, b)| a.interval() != b.interval() || a.cand() != b.cand());
-                            if struct_diff { n_interval_diff += 1; }
+                                || pc.rungs().iter().zip(bc.rungs().iter()).any(|(a, b)| {
+                                    a.interval() != b.interval() || a.cand() != b.cand()
+                                });
+                            if struct_diff {
+                                n_interval_diff += 1;
+                            }
                         }
-                        if prod_nd != bu_nd || (prod.is_some() && bu.is_some() && prod_depth != bu_depth) {
+                        if prod_nd != bu_nd
+                            || (prod.is_some() && bu.is_some() && prod_depth != bu_depth)
+                        {
                             if diff_samples.len() < 20 {
                                 let dl: i8 = if delta_side == Side::Long { 1 } else { -1 };
-                                diff_samples.push((i, lvl, p.source_index, dl, prod_nd, bu_nd, prod_depth, bu_depth));
+                                diff_samples.push((
+                                    i,
+                                    lvl,
+                                    p.source_index,
+                                    dl,
+                                    prod_nd,
+                                    bu_nd,
+                                    prod_depth,
+                                    bu_depth,
+                                ));
                             }
                         }
                     }
@@ -4695,34 +6395,60 @@ mod tests {
             }
         }
 
-        eprintln!("\n════════ bottomup-nest 阶段0 对拍结果（BTC {n} bar，{win_start}→{win_end}）════════");
+        eprintln!(
+            "\n════════ bottomup-nest 阶段0 对拍结果（BTC {n} bar，{win_start}→{win_end}）════════"
+        );
         eprintln!("到达 cert 构造点候选数 n_cert_attempt = {n_cert_attempt}");
         eprintln!("cert=Some：生产 {n_prod_some} / bottom-up {n_bu_some}（Some/None 不一致 n_some_mismatch={n_some_mismatch}）");
-        eprintln!("Γ 规模（n_delta=true）：生产 gamma_prod={gamma_prod} / bottom-up gamma_bu={gamma_bu}");
+        eprintln!(
+            "Γ 规模（n_delta=true）：生产 gamma_prod={gamma_prod} / bottom-up gamma_bu={gamma_bu}"
+        );
         eprintln!("── 差异计数（全 0 ⟹ 两口径 bit-exact 等价）──");
         eprintln!("Γ 成员差异 n_gamma_diff      = {n_gamma_diff}");
         eprintln!("有效深度差异 n_depth_diff    = {n_depth_diff}");
         eprintln!("rungs.len 差异 n_rungs_len_diff = {n_rungs_len_diff}");
         eprintln!("结构差异 n_interval_diff     = {n_interval_diff}");
         eprint!("有效深度分布（生产）：");
-        for (d, c) in depth_prod.iter().enumerate() { if *c > 0 { eprint!("d{d}={c} "); } }
+        for (d, c) in depth_prod.iter().enumerate() {
+            if *c > 0 {
+                eprint!("d{d}={c} ");
+            }
+        }
         eprintln!();
         eprint!("有效深度分布（bottom-up）：");
-        for (d, c) in depth_bu.iter().enumerate() { if *c > 0 { eprint!("d{d}={c} "); } }
+        for (d, c) in depth_bu.iter().enumerate() {
+            if *c > 0 {
+                eprint!("d{d}={c} ");
+            }
+        }
         eprintln!();
         if !diff_samples.is_empty() {
-            eprintln!("── 分歧样本（前 {}）(bar,lvl,src,δ,prod_nd,bu_nd,prod_depth,bu_depth) ──", diff_samples.len());
-            for s in &diff_samples { eprintln!("  {s:?}"); }
+            eprintln!(
+                "── 分歧样本（前 {}）(bar,lvl,src,δ,prod_nd,bu_nd,prod_depth,bu_depth) ──",
+                diff_samples.len()
+            );
+            for s in &diff_samples {
+                eprintln!("  {s:?}");
+            }
         }
         eprintln!("════════════════════════════════════════════════════════════════════\n");
 
         // 等价固化（PDF §三.1 良式分解定位天然唯一）：差异全 0 ⟹ 生产点包含 descend ≡ PDF bottom-up
         // 区间包含 descend。此 assert 是等价的机器守卫——将来塔构造改动若破坏 refinement，本测试转红，
         // 逼出 bottom-up 实装（不静默把非严格 refinement 当等价，formalization-validity-domain L2）。
-        assert_eq!(n_some_mismatch, 0, "Some/None 分歧：生产 descend 与 bottom-up 定位存在性不一致");
-        assert_eq!(n_gamma_diff, 0, "Γ 成员分歧：n_delta 不一致——现口径非 PDF bottom-up 等价，须实装 bottom-up");
+        assert_eq!(
+            n_some_mismatch, 0,
+            "Some/None 分歧：生产 descend 与 bottom-up 定位存在性不一致"
+        );
+        assert_eq!(
+            n_gamma_diff, 0,
+            "Γ 成员分歧：n_delta 不一致——现口径非 PDF bottom-up 等价，须实装 bottom-up"
+        );
         assert_eq!(n_depth_diff, 0, "有效深度分歧：区间套跨级层数不一致");
-        assert_eq!(n_interval_diff, 0, "rung 结构分歧：定位区间/cand 不一致（点包含选段 ≠ 区间包含 Sel 选段）");
+        assert_eq!(
+            n_interval_diff, 0,
+            "rung 结构分歧：定位区间/cand 不一致（点包含选段 ≠ 区间包含 Sel 选段）"
+        );
     }
 
     /// P0-1 验收（p01-nest-trigger task #108，codex-f2 #1/#2）：per-`NestTrigger` 桶的候选数 + μ̂
@@ -4748,21 +6474,32 @@ mod tests {
         };
         let n_full = ds_full.bars.len();
         const MAX_BARS_DEFAULT: usize = 300_000;
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
-            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(MAX_BARS_DEFAULT);
         let ds = if n_full > max_bars {
             ds_full.slice_bar_range(n_full - max_bars, n_full)
         } else {
             ds_full
         };
-        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
-        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let win_start = ds
+            .dates
+            .first()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        let win_end = ds
+            .dates
+            .last()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
 
         let (decomps, _agg) = decompose_capturable_spread(&ds, &config);
         let total = decomps.len();
 
         // per-trigger 桶：(count, Σactual_pnl)。
-        let mut bucket: std::collections::BTreeMap<u8, (usize, f64)> = std::collections::BTreeMap::new();
+        let mut bucket: std::collections::BTreeMap<u8, (usize, f64)> =
+            std::collections::BTreeMap::new();
         let key = |t: NestTrigger| match t {
             NestTrigger::Type1TrendDivergence => 0u8,
             NestTrigger::Type23SublevelType1 => 1u8,
@@ -4775,7 +6512,10 @@ mod tests {
             e.1 += d.actual_pnl;
         }
         // 交叉校验（防 trigger 标注 bug）：直接数 decomp.bsp_class 的一类位（bit0=buy1 / bit3=sell1）。
-        let first_class_n = decomps.iter().filter(|d| d.bsp_class & (1 << 0) != 0 || d.bsp_class & (1 << 3) != 0).count();
+        let first_class_n = decomps
+            .iter()
+            .filter(|d| d.bsp_class & (1 << 0) != 0 || d.bsp_class & (1 << 3) != 0)
+            .count();
         let get = |k: u8| bucket.get(&k).copied().unwrap_or((0, 0.0));
         let (t1_n, t1_pnl) = get(0);
         let (t23_n, t23_pnl) = get(1);
@@ -4787,10 +6527,22 @@ mod tests {
 
         eprintln!("\n════════ P0-1 NestTrigger 质量对照（BTC {total} 配对信号，{win_start}→{win_end}）════════");
         eprintln!("| trigger | n | Σactual_pnl | μ̂ |");
-        eprintln!("| Type1TrendDivergence | {t1_n} | {t1_pnl:.4e} | {:.4e} |", mu(t1_n, t1_pnl));
-        eprintln!("| Type23SublevelType1  | {t23_n} | {t23_pnl:.4e} | {:.4e} |", mu(t23_n, t23_pnl));
-        eprintln!("| XiaoZhuanDa          | {xzd_n} | {xzd_pnl:.4e} | {:.4e} |", mu(xzd_n, xzd_pnl));
-        eprintln!("| PanDivConsolidation  | {pan_n} | {pan_pnl:.4e} | {:.4e} |", mu(pan_n, pan_pnl));
+        eprintln!(
+            "| Type1TrendDivergence | {t1_n} | {t1_pnl:.4e} | {:.4e} |",
+            mu(t1_n, t1_pnl)
+        );
+        eprintln!(
+            "| Type23SublevelType1  | {t23_n} | {t23_pnl:.4e} | {:.4e} |",
+            mu(t23_n, t23_pnl)
+        );
+        eprintln!(
+            "| XiaoZhuanDa          | {xzd_n} | {xzd_pnl:.4e} | {:.4e} |",
+            mu(xzd_n, xzd_pnl)
+        );
+        eprintln!(
+            "| PanDivConsolidation  | {pan_n} | {pan_pnl:.4e} | {:.4e} |",
+            mu(pan_n, pan_pnl)
+        );
         eprintln!("── 过滤前后（codex #1：单一 bool 背驰门若套全通道）──");
         eprintln!("交叉校验：decomp.bsp_class 含一类位(buy1/sell1)的条数 = {first_class_n}（应≈Type1TrendDivergence 桶 n={t1_n}）");
         eprintln!("过滤前候选总数 = {total}");
@@ -4799,7 +6551,11 @@ mod tests {
         eprintln!("════════════════════════════════════════════════════════════════════\n");
 
         // 自检（partition 不变量）：四桶计数和 = 配对信号总数（trigger 标注无遗漏无重复；Q4 #145 增 PanDiv 桶）。
-        assert_eq!(t1_n + t23_n + xzd_n + pan_n, total, "NestTrigger 四桶未完全覆盖配对信号——trigger 标注有洞");
+        assert_eq!(
+            t1_n + t23_n + xzd_n + pan_n,
+            total,
+            "NestTrigger 四桶未完全覆盖配对信号——trigger 标注有洞"
+        );
     }
 
     /// H2 样本级验证（task #8）：level1-4 第二类信号的 N^δ 门拒绝阶段分解 + 互斥链实证。
@@ -4837,12 +6593,12 @@ mod tests {
     #[test]
     #[ignore]
     fn h2_sample_exclusion_dx() {
-        use super::super::data;
+        use super::super::super::classifier::cand_predicate::{div_cand, rmove_dir, DivCandInput};
         use super::super::super::classifier::divergence::compute_macd;
-        use super::super::super::classifier::cand_predicate::{div_cand, DivCandInput, rmove_dir};
         use super::super::super::strategy::interp::assemble_gamma_with_tower;
         use super::super::super::strategy::voice::VoiceSide;
-        use super::super::super::types::{Side, Direction};
+        use super::super::super::types::{Direction, Side};
+        use super::super::data;
         use super::super::incremental::IncrementalClassifier;
         use std::fmt::Write as _;
 
@@ -4853,8 +6609,10 @@ mod tests {
         };
         let n_full = ds_full.bars.len();
         const MAX_BARS_DEFAULT: usize = 300_000;
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
-            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(MAX_BARS_DEFAULT);
         let ds = if n_full > max_bars {
             ds_full.slice_bar_range(n_full - max_bars, n_full)
         } else {
@@ -4863,8 +6621,16 @@ mod tests {
         let bars = &ds.bars;
         let n = bars.len();
         let tick = config.tick.tick_size;
-        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
-        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let win_start = ds
+            .dates
+            .first()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        let win_end = ds
+            .dates
+            .last()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
         eprintln!("[h2-exclusion-dx] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}");
 
         let closes: Vec<f64> = bars.iter().map(|b| b.close as f64 / tick as f64).collect();
@@ -4876,26 +6642,26 @@ mod tests {
         let in_scope = |lvl: usize| (LMIN..=LMAX).contains(&lvl);
 
         // ── 分解计数器（rung k=lvl+1 div_cand 拒绝阶段，互斥优先序 = div_cand 检查序）。 ──
-        let mut n_total = 0usize;                 // 进入 Γ 的 level1-4 信号（每 (信号,dir) 一次，同 acc 口径）
-        let mut n_by_level = [0usize; LMAX + 1];  // 各级 n_total
-        // 拒绝阶段（当 gate=false 时归入首个失败检查）+ gate_pass。互斥穷举。
-        let mut st_base_none = 0usize;      // build_nest_certificate=None（tower[lvl] 无 end==src 候选段）
-        let mut st_no_upper = 0usize;       // rung lvl+1 无 knode（tower[lvl+1] 无含 src 段 ⟹ rungs 空，退化 base-case）
-        let mut st_no_target = 0usize;      // knode.sub_moves 无 end==src（target_idx 缺失）
-        let mut st_cond1_dir = 0usize;      // dir(s=m2) ≠ −δ（m2 方向不是背驰段要求方向）
-        let mut st_cond2_noprev = 0usize;   // 无前序同向段（s_prev 不存在）
-        let mut st_cond3_extreme = 0usize;  // ★Extreme 假（m2 未创新极值）= codex 互斥链
-        let mut st_cond4_weak = 0usize;     // cond1∧2∧3 通过但 div_cand=false ⟹ cond4(Weak) 失败
+        let mut n_total = 0usize; // 进入 Γ 的 level1-4 信号（每 (信号,dir) 一次，同 acc 口径）
+        let mut n_by_level = [0usize; LMAX + 1]; // 各级 n_total
+                                                 // 拒绝阶段（当 gate=false 时归入首个失败检查）+ gate_pass。互斥穷举。
+        let mut st_base_none = 0usize; // build_nest_certificate=None（tower[lvl] 无 end==src 候选段）
+        let mut st_no_upper = 0usize; // rung lvl+1 无 knode（tower[lvl+1] 无含 src 段 ⟹ rungs 空，退化 base-case）
+        let mut st_no_target = 0usize; // knode.sub_moves 无 end==src（target_idx 缺失）
+        let mut st_cond1_dir = 0usize; // dir(s=m2) ≠ −δ（m2 方向不是背驰段要求方向）
+        let mut st_cond2_noprev = 0usize; // 无前序同向段（s_prev 不存在）
+        let mut st_cond3_extreme = 0usize; // ★Extreme 假（m2 未创新极值）= codex 互斥链
+        let mut st_cond4_weak = 0usize; // cond1∧2∧3 通过但 div_cand=false ⟹ cond4(Weak) 失败
         let mut st_reject_elsewhere = 0usize; // rung lvl+1 div_cand=true 但 gate=false（更高 rung / is_sub / base）
-        let mut st_gate_pass = 0usize;      // n_delta=true（通过门）
+        let mut st_gate_pass = 0usize; // n_delta=true（通过门）
 
         // ── 互斥链核心统计（cond3 到达域）。 ──
-        let mut cond3_reached = 0usize;     // rung lvl+1 到达 cond3（cond1∧cond2 通过）
+        let mut cond3_reached = 0usize; // rung lvl+1 到达 cond3（cond1∧cond2 通过）
         let mut extreme_true_pass = 0usize; // Extreme 真 ∧ gate 通过
         let mut extreme_true_reject = 0usize; // Extreme 真 ∧ gate 拒绝（cond4 或 elsewhere）= codex 缺口坐实
-        // cond3 到达但 cert=None（落 base_none 短路，绕过 extreme 三桶）。673 号段2 landing 后新增：
-        // Type2/3 信号下沉次级别无 Type1 锚点（小转大）⟹ build_nest_certificate 段2 门 return None（line 599），
-        // 而 cond3_reach（tower[lvl+1] cond1∧cond2）独立成立 ⟹ 该信号在 cond3 到达域内但不入 extreme 分桶。
+                                              // cond3 到达但 cert=None（落 base_none 短路，绕过 extreme 三桶）。673 号段2 landing 后新增：
+                                              // Type2/3 信号下沉次级别无 Type1 锚点（小转大）⟹ build_nest_certificate 段2 门 return None（line 599），
+                                              // 而 cond3_reach（tower[lvl+1] cond1∧cond2）独立成立 ⟹ 该信号在 cond3 到达域内但不入 extreme 分桶。
         let mut extreme_cert_none = 0usize;
         // cond3 到达 ∧ gate 通过 ∧ r_extreme 假：生产门 n_delta 经 base-case/其他 rung 通过，
         // 但 test 侧 lvl+1 rung 的 Extreme 假 ⟹ 落 gate_pass 但不入 extreme_true_pass（只计 cond3∧r_extreme）。
@@ -4906,15 +6672,15 @@ mod tests {
         // 若 base 定位失败 ⟹ 塔不一致（B4 换装/增量塔重标定引入的真回归），计入 cert_none_path_a。
         let mut cert_none_path_a = 0usize;
         let mut leg_gap_hist = [0usize; 16]; // cond3 到达域的 target_idx−j（s_prev 与 s 间距，=2 ⟹ 单条反向腿=codex 常见结构 s_prev==m1）
-        let mut base_conf_false = 0usize;   // confirm_side(δ) 假（δ 与 bits 侧不符 ⟹ base 拒，非互斥）
+        let mut base_conf_false = 0usize; // confirm_side(δ) 假（δ 与 bits 侧不符 ⟹ base 拒，非互斥）
 
         // ── 阶段0 诊断探针（区间套问题①：端点相等 vs 区间包含 base 级定位）。 ──
         // 端点相等 find_move_by_end_index(tower[lvl],src) vs 区间包含 start≤src≤end（同一 exec_moves）。
         // false negative = 区间包含命中 ∧ 端点相等未命中（=区间套.pdf §一 3 反例的系统性表现）。
         // 若 base_false_neg=0 ⟹ 差异为零 ⟹ NO-SHIP（端点相等结论获区间包含加固，depth 归零非本口径伪影）。
-        let mut base_ep_hit = 0usize;              // 端点相等口径命中
-        let mut base_ct_hit = 0usize;              // 区间包含口径命中
-        let mut base_false_neg = 0usize;           // 包含命中 ∧ 端点未命中 = 问题① false negative
+        let mut base_ep_hit = 0usize; // 端点相等口径命中
+        let mut base_ct_hit = 0usize; // 区间包含口径命中
+        let mut base_false_neg = 0usize; // 包含命中 ∧ 端点未命中 = 问题① false negative
         let mut base_fn_by_level = [0usize; LMAX + 1];
 
         // 逐信号明细（前 60 条拒绝样本，spot-check）。
@@ -4922,7 +6688,8 @@ mod tests {
         const DETAIL_CAP: usize = 60;
 
         let mut classifier_incr = IncrementalClassifier::new(bars, &config);
-        let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> =
+            std::collections::HashSet::new();
 
         for i in 0..n {
             let bar = &bars[i];
@@ -4945,13 +6712,21 @@ mod tests {
                     }
                     // Γ 组装（bit-exact 复制生产路径）。
                     let single = super::super::super::classifier::Classification {
-                        levels: cls_i.levels.iter().enumerate()
+                        levels: cls_i
+                            .levels
+                            .iter()
+                            .enumerate()
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
-                                moves: Vec::new(), centers: Rc::new(Vec::new()),
+                                moves: Vec::new(),
+                                centers: Rc::new(Vec::new()),
                                 cp_ownership: Rc::new(Vec::new()),
-                                bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
+                                bsp: Rc::new(if l2 == lvl {
+                                    vec![p.clone()]
+                                } else {
+                                    Vec::new()
+                                }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
-                                level_projection: None, // #110 门关口径
+                                level_projection: None,       // #110 门关口径
                             })
                             .collect(),
                     };
@@ -4972,14 +6747,24 @@ mod tests {
                         {
                             let exec_moves = tower_i[lvl].as_slice();
                             let ep = find_move_by_end_index(exec_moves, src).is_some();
-                            let ct = exec_moves.iter().any(|m| m.start_index <= src && src <= m.end_index);
-                            if ep { base_ep_hit += 1; }
-                            if ct { base_ct_hit += 1; }
-                            if ct && !ep { base_false_neg += 1; base_fn_by_level[lvl] += 1; }
+                            let ct = exec_moves
+                                .iter()
+                                .any(|m| m.start_index <= src && src <= m.end_index);
+                            if ep {
+                                base_ep_hit += 1;
+                            }
+                            if ct {
+                                base_ct_hit += 1;
+                            }
+                            if ct && !ep {
+                                base_false_neg += 1;
+                                base_fn_by_level[lvl] += 1;
+                            }
                         }
 
                         // 门判定（生产同源）。
-                        let cert_opt = build_nest_certificate(&tower_i, lvl, src, delta, &p.bits, &macd_hist);
+                        let cert_opt =
+                            build_nest_certificate(&tower_i, lvl, src, delta, &p.bits, &macd_hist);
                         let gate = cert_opt.as_ref().map(|c| c.n_delta()).unwrap_or(false);
 
                         // rung k=lvl+1 div_cand 分解（独立于 gate，用于阶段归因 + 互斥统计）。
@@ -4990,10 +6775,13 @@ mod tests {
                         let mut r_extreme = false; // cond3
                         let mut r_divcand = false; // rung lvl+1 完整 div_cand
                         let mut r_leggap = 0usize;
-                        let mut s_ext = 0i64;      // s 的极值（Long=lo / Short=hi），明细用
-                        let mut sp_ext = 0i64;     // s_prev 的极值，明细用
+                        let mut s_ext = 0i64; // s 的极值（Long=lo / Short=hi），明细用
+                        let mut sp_ext = 0i64; // s_prev 的极值，明细用
                         if let Some(upper) = tower_i.get(lvl + 1) {
-                            if let Some(knode) = upper.iter().find(|m| m.start_index <= src && src <= m.end_index) {
+                            if let Some(knode) = upper
+                                .iter()
+                                .find(|m| m.start_index <= src && src <= m.end_index)
+                            {
                                 r_knode = true;
                                 // C3 后新形态：直读 LeveledMove（rmove_dir + rmove.lo()/hi() 惰性派生），与生产 div_cand 同源。
                                 let subs = knode.sub_moves.as_slice();
@@ -5007,7 +6795,10 @@ mod tests {
                                     };
                                     r_cond1 = s_dir == expected;
                                     if r_cond1 {
-                                        if let Some((j, sp)) = subs[..tidx].iter().enumerate().rev()
+                                        if let Some((j, sp)) = subs[..tidx]
+                                            .iter()
+                                            .enumerate()
+                                            .rev()
                                             .find(|(_, m)| rmove_dir(&m.rmove) == s_dir)
                                         {
                                             r_cond2 = true;
@@ -5016,12 +6807,21 @@ mod tests {
                                                 Side::Long => s.rmove.lo() < sp.rmove.lo(),
                                                 Side::Short => s.rmove.hi() > sp.rmove.hi(),
                                             };
-                                            s_ext = match delta { Side::Long => s.rmove.lo(), Side::Short => s.rmove.hi() };
-                                            sp_ext = match delta { Side::Long => sp.rmove.lo(), Side::Short => sp.rmove.hi() };
+                                            s_ext = match delta {
+                                                Side::Long => s.rmove.lo(),
+                                                Side::Short => s.rmove.hi(),
+                                            };
+                                            sp_ext = match delta {
+                                                Side::Long => sp.rmove.lo(),
+                                                Side::Short => sp.rmove.hi(),
+                                            };
                                         }
                                     }
                                     r_divcand = div_cand(&DivCandInput {
-                                        context: subs, target_idx: tidx, hist: &macd_hist, delta,
+                                        context: subs,
+                                        target_idx: tidx,
+                                        hist: &macd_hist,
+                                        delta,
                                     });
                                 }
                             }
@@ -5038,8 +6838,11 @@ mod tests {
                         if gate {
                             st_gate_pass += 1;
                             stage = "gate_pass";
-                            if cond3_reach && r_extreme { extreme_true_pass += 1; }
-                            else if cond3_reach { extreme_gate_noext += 1; }
+                            if cond3_reach && r_extreme {
+                                extreme_true_pass += 1;
+                            } else if cond3_reach {
+                                extreme_gate_noext += 1;
+                            }
                         } else if cert_opt.is_none() {
                             st_base_none += 1;
                             stage = "base_none";
@@ -5090,12 +6893,24 @@ mod tests {
 
         // ── 报告 ──
         let mut rpt = String::new();
-        let _ = writeln!(rpt, "# H2 样本级验证原始数据：level1-4 第二类信号 N^δ 门拒绝阶段分解");
+        let _ = writeln!(
+            rpt,
+            "# H2 样本级验证原始数据：level1-4 第二类信号 N^δ 门拒绝阶段分解"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "- task: #8（codex H2 边界条件 L2 收口）");
-        let _ = writeln!(rpt, "- **认识论等级**：L2（真实 BTC 全历史逐信号分解，可产否定性结果）");
-        let _ = writeln!(rpt, "- **窗口**：bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}");
-        let _ = writeln!(rpt, "- **目标域**：level {LMIN}..={LMAX} 第二类(buy2/sell2)信号，进入 Γ 后逐信号分解");
+        let _ = writeln!(
+            rpt,
+            "- **认识论等级**：L2（真实 BTC 全历史逐信号分解，可产否定性结果）"
+        );
+        let _ = writeln!(
+            rpt,
+            "- **窗口**：bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}"
+        );
+        let _ = writeln!(
+            rpt,
+            "- **目标域**：level {LMIN}..={LMAX} 第二类(buy2/sell2)信号，进入 Γ 后逐信号分解"
+        );
         let _ = writeln!(rpt);
 
         let _ = writeln!(rpt, "## 1. 信号计数（各级进入 Γ 的第二类信号数）");
@@ -5107,30 +6922,92 @@ mod tests {
         let _ = writeln!(rpt, "| **合计** | **{n_total}** |");
         let _ = writeln!(rpt);
 
-        let _ = writeln!(rpt, "## 2. N^δ 门拒绝阶段分解（rung k=lvl+1 div_cand，互斥优先序）");
+        let _ = writeln!(
+            rpt,
+            "## 2. N^δ 门拒绝阶段分解（rung k=lvl+1 div_cand，互斥优先序）"
+        );
         let _ = writeln!(rpt, "| 阶段 | 信号数 | 占比 | 含义 |");
         let _ = writeln!(rpt, "|---|---|---|---|");
-        let pct = |x: usize| if n_total > 0 { 100.0 * x as f64 / n_total as f64 } else { 0.0 };
-        let _ = writeln!(rpt, "| base_none | {} | {:.2}% | tower[lvl] 无 end==src 候选段（无定位） |", st_base_none, pct(st_base_none));
-        let _ = writeln!(rpt, "| no_upper | {} | {:.2}% | tower[lvl+1] 无含 src 段 ⟹ rungs 空退化 base-case |", st_no_upper, pct(st_no_upper));
-        let _ = writeln!(rpt, "| no_target | {} | {:.2}% | knode.sub_moves 无 end==src |", st_no_target, pct(st_no_target));
-        let _ = writeln!(rpt, "| cond1_dir | {} | {:.2}% | dir(m2)≠−δ（m2 非背驰段要求方向） |", st_cond1_dir, pct(st_cond1_dir));
-        let _ = writeln!(rpt, "| cond2_noprev | {} | {:.2}% | 无前序同向段 s_prev |", st_cond2_noprev, pct(st_cond2_noprev));
+        let pct = |x: usize| {
+            if n_total > 0 {
+                100.0 * x as f64 / n_total as f64
+            } else {
+                0.0
+            }
+        };
+        let _ = writeln!(
+            rpt,
+            "| base_none | {} | {:.2}% | tower[lvl] 无 end==src 候选段（无定位） |",
+            st_base_none,
+            pct(st_base_none)
+        );
+        let _ = writeln!(
+            rpt,
+            "| no_upper | {} | {:.2}% | tower[lvl+1] 无含 src 段 ⟹ rungs 空退化 base-case |",
+            st_no_upper,
+            pct(st_no_upper)
+        );
+        let _ = writeln!(
+            rpt,
+            "| no_target | {} | {:.2}% | knode.sub_moves 无 end==src |",
+            st_no_target,
+            pct(st_no_target)
+        );
+        let _ = writeln!(
+            rpt,
+            "| cond1_dir | {} | {:.2}% | dir(m2)≠−δ（m2 非背驰段要求方向） |",
+            st_cond1_dir,
+            pct(st_cond1_dir)
+        );
+        let _ = writeln!(
+            rpt,
+            "| cond2_noprev | {} | {:.2}% | 无前序同向段 s_prev |",
+            st_cond2_noprev,
+            pct(st_cond2_noprev)
+        );
         let _ = writeln!(rpt, "| **cond3_extreme** | **{}** | **{:.2}%** | **Extreme 假（m2 未创新极值）= codex 互斥链** |", st_cond3_extreme, pct(st_cond3_extreme));
-        let _ = writeln!(rpt, "| cond4_weak | {} | {:.2}% | cond1∧2∧3 过但 div_cand=false ⟹ MACD 力度未衰减 |", st_cond4_weak, pct(st_cond4_weak));
+        let _ = writeln!(
+            rpt,
+            "| cond4_weak | {} | {:.2}% | cond1∧2∧3 过但 div_cand=false ⟹ MACD 力度未衰减 |",
+            st_cond4_weak,
+            pct(st_cond4_weak)
+        );
         let _ = writeln!(rpt, "| reject_elsewhere | {} | {:.2}% | rung lvl+1 cand=true 但 gate=false（更高 rung/is_sub） |", st_reject_elsewhere, pct(st_reject_elsewhere));
-        let _ = writeln!(rpt, "| gate_pass | {} | {:.2}% | 通过门 |", st_gate_pass, pct(st_gate_pass));
+        let _ = writeln!(
+            rpt,
+            "| gate_pass | {} | {:.2}% | 通过门 |",
+            st_gate_pass,
+            pct(st_gate_pass)
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "- confirm_side(δ) 假（δ 与 bits 侧不符，base 层拒，与互斥正交）：{base_conf_false}");
+        let _ = writeln!(
+            rpt,
+            "- confirm_side(δ) 假（δ 与 bits 侧不符，base 层拒，与互斥正交）：{base_conf_false}"
+        );
         let _ = writeln!(rpt);
 
         // ── 阶段0 诊断探针：区间套问题① base 级两口径对照 ──
-        let _ = writeln!(rpt, "## 2b. 阶段0 诊断探针：区间套问题①（端点相等 vs 区间包含 base 级定位）");
+        let _ = writeln!(
+            rpt,
+            "## 2b. 阶段0 诊断探针：区间套问题①（端点相等 vs 区间包含 base 级定位）"
+        );
         let _ = writeln!(rpt, "| 口径 | 命中数 | 占比 |");
         let _ = writeln!(rpt, "|---|---|---|");
-        let _ = writeln!(rpt, "| 端点相等 find_move_by_end_index(tower[lvl],src) | {base_ep_hit} | {:.2}% |", pct(base_ep_hit));
-        let _ = writeln!(rpt, "| 区间包含 start≤src≤end（同 exec_moves） | {base_ct_hit} | {:.2}% |", pct(base_ct_hit));
-        let _ = writeln!(rpt, "| **false negative（包含命中∧端点未命中）** | **{base_false_neg}** | **{:.2}%** |", pct(base_false_neg));
+        let _ = writeln!(
+            rpt,
+            "| 端点相等 find_move_by_end_index(tower[lvl],src) | {base_ep_hit} | {:.2}% |",
+            pct(base_ep_hit)
+        );
+        let _ = writeln!(
+            rpt,
+            "| 区间包含 start≤src≤end（同 exec_moves） | {base_ct_hit} | {:.2}% |",
+            pct(base_ct_hit)
+        );
+        let _ = writeln!(
+            rpt,
+            "| **false negative（包含命中∧端点未命中）** | **{base_false_neg}** | **{:.2}%** |",
+            pct(base_false_neg)
+        );
         for l in LMIN..=LMAX {
             let _ = writeln!(rpt, "| ↳ level {l} FN | {} | |", base_fn_by_level[l]);
         }
@@ -5139,40 +7016,84 @@ mod tests {
         let _ = writeln!(rpt);
 
         // ── deliverable (a)：Extreme必假占比（cond3 到达域）──
-        let _ = writeln!(rpt, "## 3. deliverable (a)：Extreme 必假占比（codex 等价 s_prev 使互斥成立）");
+        let _ = writeln!(
+            rpt,
+            "## 3. deliverable (a)：Extreme 必假占比（codex 等价 s_prev 使互斥成立）"
+        );
         let extreme_false = st_cond3_extreme; // cond3 到达且 Extreme 假 ⟹ 必然归入 cond3_extreme（全拒）
         let extreme_true = cond3_reached.saturating_sub(extreme_false);
-        let ext_false_pct = if cond3_reached > 0 { 100.0 * extreme_false as f64 / cond3_reached as f64 } else { 0.0 };
-        let _ = writeln!(rpt, "- 到达 cond3 的信号数（cond1∧cond2 通过）：{cond3_reached}");
+        let ext_false_pct = if cond3_reached > 0 {
+            100.0 * extreme_false as f64 / cond3_reached as f64
+        } else {
+            0.0
+        };
+        let _ = writeln!(
+            rpt,
+            "- 到达 cond3 的信号数（cond1∧cond2 通过）：{cond3_reached}"
+        );
         let _ = writeln!(rpt, "- 其中 **Extreme 必假**（互斥成立，s_prev 使 m2 无法创新极值）：{extreme_false}（{ext_false_pct:.2}%）");
-        let _ = writeln!(rpt, "- 其中 **Extreme 可满足**（m2 创新极值 vs 最近同向 s_prev=q）：{extreme_true}");
+        let _ = writeln!(
+            rpt,
+            "- 其中 **Extreme 可满足**（m2 创新极值 vs 最近同向 s_prev=q）：{extreme_true}"
+        );
         let _ = writeln!(rpt, "\n**s_prev 与 s 间距（leg_gap=target_idx−j）分布**（=2 ⟹ 单条反向腿=codex「常见结构 s_prev==m1」；>2 ⟹ 多同向腿=可能 q≠m1）：");
         let _ = writeln!(rpt, "| leg_gap | 信号数 |");
         let _ = writeln!(rpt, "|---|---|");
         for g in 0..16 {
-            if leg_gap_hist[g] == 0 { continue; }
-            let _ = writeln!(rpt, "| {}{} | {} |", if g == 15 { "≥" } else { "" }, g, leg_gap_hist[g]);
+            if leg_gap_hist[g] == 0 {
+                continue;
+            }
+            let _ = writeln!(
+                rpt,
+                "| {}{} | {} |",
+                if g == 15 { "≥" } else { "" },
+                g,
+                leg_gap_hist[g]
+            );
         }
         let _ = writeln!(rpt);
 
         // ── deliverable (b)：Extreme 可满足（gap）样本的门分布 ──
-        let _ = writeln!(rpt, "## 4. deliverable (b)：s_prev≠m1（Extreme 可满足 gap）样本的门通过/拒绝分布");
+        let _ = writeln!(
+            rpt,
+            "## 4. deliverable (b)：s_prev≠m1（Extreme 可满足 gap）样本的门通过/拒绝分布"
+        );
         let _ = writeln!(rpt, "- Extreme 可满足样本总数：{extreme_true}");
         let _ = writeln!(rpt, "  - 门**通过**（gate_pass）：{extreme_true_pass}");
-        let _ = writeln!(rpt, "  - 门**拒绝**（cond4_weak / reject_elsewhere）：{extreme_true_reject}");
+        let _ = writeln!(
+            rpt,
+            "  - 门**拒绝**（cond4_weak / reject_elsewhere）：{extreme_true_reject}"
+        );
         let _ = writeln!(rpt, "\n**读解**：若 extreme_true=0 ⟹ 无 gap 样本，互斥链在 cond3 到达域内完全成立（Extreme 必假）。\
             若 extreme_true>0 且门拒 ⟹ 这些 gap 样本被 cond4/更高 rung/is_sub 拒（非 cond3 互斥）——\
             互斥链**不**是它们归零的原因。");
         let _ = writeln!(rpt);
 
         // ── deliverable (c)：100% 归零是否完全由互斥链解释 ──
-        let _ = writeln!(rpt, "## 5. deliverable (c)：level1-4 100%归零是否完全由 cond3 互斥链解释");
+        let _ = writeln!(
+            rpt,
+            "## 5. deliverable (c)：level1-4 100%归零是否完全由 cond3 互斥链解释"
+        );
         let reject_total = n_total.saturating_sub(st_gate_pass);
-        let excl_pct = if reject_total > 0 { 100.0 * st_cond3_extreme as f64 / reject_total as f64 } else { 0.0 };
-        let _ = writeln!(rpt, "- 被门拒信号数：{reject_total} / {n_total}（gate_pass={st_gate_pass}）");
-        let _ = writeln!(rpt, "- 其中 cond3 互斥链（Extreme 必假）解释：{}（占拒绝 {excl_pct:.2}%）", st_cond3_extreme);
+        let excl_pct = if reject_total > 0 {
+            100.0 * st_cond3_extreme as f64 / reject_total as f64
+        } else {
+            0.0
+        };
+        let _ = writeln!(
+            rpt,
+            "- 被门拒信号数：{reject_total} / {n_total}（gate_pass={st_gate_pass}）"
+        );
+        let _ = writeln!(
+            rpt,
+            "- 其中 cond3 互斥链（Extreme 必假）解释：{}（占拒绝 {excl_pct:.2}%）",
+            st_cond3_extreme
+        );
         let other = reject_total.saturating_sub(st_cond3_extreme);
-        let _ = writeln!(rpt, "- 其他机制（base_none/no_upper/no_target/cond1/cond2/cond4/elsewhere）解释：{other}");
+        let _ = writeln!(
+            rpt,
+            "- 其他机制（base_none/no_upper/no_target/cond1/cond2/cond4/elsewhere）解释：{other}"
+        );
         let verdict = if st_gate_pass > 0 {
             "**部分归零**：存在通过门的 level1-4 信号 ⟹ 与 acc「100%归零」不符（窗口差异，跨窗核对）。"
         } else if other == 0 {
@@ -5186,8 +7107,15 @@ mod tests {
         let _ = writeln!(rpt);
 
         // ── 明细（前 {DETAIL_CAP} 条拒绝样本）──
-        let _ = writeln!(rpt, "## 6. 拒绝样本明细（前 {} 条，spot-check）", detail.len());
-        let _ = writeln!(rpt, "| lvl | src | δ | bits | 阶段 | cond flags | leg_gap | s极值 s_prev极值 |");
+        let _ = writeln!(
+            rpt,
+            "## 6. 拒绝样本明细（前 {} 条，spot-check）",
+            detail.len()
+        );
+        let _ = writeln!(
+            rpt,
+            "| lvl | src | δ | bits | 阶段 | cond flags | leg_gap | s极值 s_prev极值 |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|");
         for line in &detail {
             let _ = writeln!(rpt, "{line}");
@@ -5197,16 +7125,26 @@ mod tests {
         // 落盘（原始数据；六要素结果包由 owner 用 Write 工具单独落盘 h2-sample-verification）。
         eprint!("{rpt}");
         let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent().expect("rust/ 父目录 = 项目根")
+            .parent()
+            .expect("rust/ 父目录 = 项目根")
             .join(".chanlun/review-results/h2-sample-raw-20260702.md");
         std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
         eprintln!("\n原始数据已落盘：{out:?}");
 
         // ── 真封（计数不变量）──
-        let stage_sum = st_base_none + st_no_upper + st_no_target + st_cond1_dir
-            + st_cond2_noprev + st_cond3_extreme + st_cond4_weak + st_reject_elsewhere + st_gate_pass;
-        assert_eq!(stage_sum, n_total,
-            "阶段分解穷举：Σ阶段({stage_sum}) 应 = n_total({n_total})");
+        let stage_sum = st_base_none
+            + st_no_upper
+            + st_no_target
+            + st_cond1_dir
+            + st_cond2_noprev
+            + st_cond3_extreme
+            + st_cond4_weak
+            + st_reject_elsewhere
+            + st_gate_pass;
+        assert_eq!(
+            stage_sum, n_total,
+            "阶段分解穷举：Σ阶段({stage_sum}) 应 = n_total({n_total})"
+        );
         // 673 号段2 landing 后守恒扩展：cond3 到达域现分四桶（Extreme必假 / Extreme真通过 / Extreme真拒 /
         // cert=None 段2 小转大门拒）。旧三桶守恒（写于段2 前，隐含 cond3_reach⟹cert.is_some）已过时——
         // 段2 门（build_nest_certificate line 599）合法地对 Type2/3 小转大信号 return None，这些信号 cond3 到达
@@ -5235,12 +7173,12 @@ mod tests {
     #[test]
     #[ignore]
     fn l2_depth_distribution_dx() {
-        use super::super::data;
-        use super::super::super::classifier::divergence::compute_macd;
         use super::super::super::classifier::cand_predicate::rmove_dir;
+        use super::super::super::classifier::divergence::compute_macd;
         use super::super::super::strategy::interp::assemble_gamma_with_tower;
         use super::super::super::strategy::voice::VoiceSide;
-        use super::super::super::types::{Side, Direction};
+        use super::super::super::types::{Direction, Side};
+        use super::super::data;
         use super::super::incremental::IncrementalClassifier;
         use std::fmt::Write as _;
 
@@ -5250,8 +7188,10 @@ mod tests {
             Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
         };
         let n_full = ds_full.bars.len();
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
-            .and_then(|s| s.parse().ok()).unwrap_or(usize::MAX);
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(usize::MAX);
         let ds = if n_full > max_bars {
             ds_full.slice_bar_range(n_full - max_bars, n_full)
         } else {
@@ -5260,9 +7200,19 @@ mod tests {
         let bars = &ds.bars;
         let n = bars.len();
         let tick = config.tick.tick_size;
-        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
-        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
-        eprintln!("[l2-depth-dx] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}");
+        let win_start = ds
+            .dates
+            .first()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        let win_end = ds
+            .dates
+            .last()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        eprintln!(
+            "[l2-depth-dx] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}"
+        );
 
         let closes: Vec<f64> = bars.iter().map(|b| b.close as f64 / tick as f64).collect();
         let macd_hist = compute_macd(&closes, &config.macd).hist;
@@ -5273,11 +7223,11 @@ mod tests {
         let in_scope = |lvl: usize| (LMIN..=LMAX).contains(&lvl);
 
         // Type2/3 主群（per-delta `!is_type1 && (is_type2||is_type3)`）——task 报告口径。
-        let mut n_t23 = [0usize; LMAX + 1];         // 各级 Type2/3 信号总数
+        let mut n_t23 = [0usize; LMAX + 1]; // 各级 Type2/3 信号总数
         let mut base_none_t23 = [0usize; LMAX + 1]; // tower[lvl] 无 end==src 候选段（descent 未触达）
-        let mut xzd_t23 = [0usize; LMAX + 1];       // descend=None = 小转大（次级别无一类锚点）
+        let mut xzd_t23 = [0usize; LMAX + 1]; // descend=None = 小转大（次级别无一类锚点）
         let mut depth_t23 = [[0usize; DCAP + 1]; LMAX + 1]; // descend=Some(d) 深度直方图
-        let mut depth_overflow = 0usize;            // d>DCAP 溢出（clamp 记录）
+        let mut depth_overflow = 0usize; // d>DCAP 溢出（clamp 记录）
         let mut max_depth = 0usize;
 
         // 残差群（`!is_type1` 但既非 type2 也非 type3）——诚实标注：门的 descent 域比 Type2/3 略宽。
@@ -5292,7 +7242,8 @@ mod tests {
         let mut sample_fail_detail: Vec<String> = Vec::new();
 
         let mut classifier_incr = IncrementalClassifier::new(bars, &config);
-        let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> =
+            std::collections::HashSet::new();
 
         for i in 0..n {
             let bar = &bars[i];
@@ -5315,13 +7266,21 @@ mod tests {
                     }
                     // Γ 组装（bit-exact 复制生产路径）取交易方向 δ。
                     let single = super::super::super::classifier::Classification {
-                        levels: cls_i.levels.iter().enumerate()
+                        levels: cls_i
+                            .levels
+                            .iter()
+                            .enumerate()
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
-                                moves: Vec::new(), centers: Rc::new(Vec::new()),
+                                moves: Vec::new(),
+                                centers: Rc::new(Vec::new()),
                                 cp_ownership: Rc::new(Vec::new()),
-                                bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
+                                bsp: Rc::new(if l2 == lvl {
+                                    vec![p.clone()]
+                                } else {
+                                    Vec::new()
+                                }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
-                                level_projection: None, // #110 门关口径
+                                level_projection: None,       // #110 门关口径
                             })
                             .collect(),
                     };
@@ -5333,37 +7292,56 @@ mod tests {
                         };
                         let src = p.source_index;
                         // per-delta 类型（与 build_nest_certificate 的 is_type1 同源）。
-                        let is_type1 = match delta { Side::Long => p.bits.buy1, Side::Short => p.bits.sell1 };
+                        let is_type1 = match delta {
+                            Side::Long => p.bits.buy1,
+                            Side::Short => p.bits.sell1,
+                        };
                         if is_type1 {
                             continue; // Type1 走本级 div_cand，不下沉——非本群
                         }
-                        let is_type2 = match delta { Side::Long => p.bits.buy2, Side::Short => p.bits.sell2 };
-                        let is_type3 = match delta { Side::Long => p.bits.buy3, Side::Short => p.bits.sell3 };
+                        let is_type2 = match delta {
+                            Side::Long => p.bits.buy2,
+                            Side::Short => p.bits.sell2,
+                        };
+                        let is_type3 = match delta {
+                            Side::Long => p.bits.buy3,
+                            Side::Short => p.bits.sell3,
+                        };
                         let is_t23 = is_type2 || is_type3;
 
                         // 执行级候选段 s（build_nest_certificate line 542 同逻辑）。
-                        let s_opt = tower_i.get(lvl).and_then(|mv| mv.iter().find(|m| m.end_index == src));
+                        let s_opt = tower_i
+                            .get(lvl)
+                            .and_then(|mv| mv.iter().find(|m| m.end_index == src));
                         // descent 结果（s 缺失 ⟹ 生产门早退 None，视作 base_none）。
-                        let descend = s_opt.map(|s| descend_type1_anchor_depth(s, src, delta, &macd_hist));
+                        let descend =
+                            s_opt.map(|s| descend_type1_anchor_depth(s, src, delta, &macd_hist));
 
                         if is_t23 {
                             n_t23[lvl] += 1;
                             match descend {
-                                None => base_none_t23[lvl] += 1,       // 无候选段
-                                Some(None) => xzd_t23[lvl] += 1,       // 小转大
+                                None => base_none_t23[lvl] += 1, // 无候选段
+                                Some(None) => xzd_t23[lvl] += 1, // 小转大
                                 Some(Some(d)) => {
                                     max_depth = max_depth.max(d);
-                                    if d > DCAP { depth_overflow += 1; }
+                                    if d > DCAP {
+                                        depth_overflow += 1;
+                                    }
                                     depth_t23[lvl][d.min(DCAP)] += 1;
                                     // 抽样锚点正确性
                                     if sample_n < SAMPLE_CAP {
                                         sample_n += 1;
                                         let s = s_opt.unwrap();
                                         let subs = s.sub_moves.as_slice();
-                                        let tidx = subs.iter().position(|m| m.end_index == src)
+                                        let tidx = subs
+                                            .iter()
+                                            .position(|m| m.end_index == src)
                                             .expect("Some(d) ⟹ 存在 end==src 锚段");
                                         let cm_dir = rmove_dir(&subs[tidx].rmove);
-                                        let expected = match delta { Side::Long => Direction::Down, Side::Short => Direction::Up };
+                                        let expected = match delta {
+                                            Side::Long => Direction::Down,
+                                            Side::Short => Direction::Up,
+                                        };
                                         let end_ok = subs[tidx].end_index == src;
                                         let dir_ok = cm_dir == expected;
                                         if end_ok && dir_ok {
@@ -5389,18 +7367,30 @@ mod tests {
         }
 
         // ── 报告 ──
-        let pct = |x: usize, tot: usize| if tot == 0 { 0.0 } else { 100.0 * x as f64 / tot as f64 };
+        let pct = |x: usize, tot: usize| {
+            if tot == 0 {
+                0.0
+            } else {
+                100.0 * x as f64 / tot as f64
+            }
+        };
         let tot_t23: usize = n_t23.iter().sum();
         let tot_base_none: usize = base_none_t23.iter().sum();
         let tot_xzd: usize = xzd_t23.iter().sum();
         let tot_some: usize = tot_t23 - tot_base_none - tot_xzd;
 
         let mut rpt = String::new();
-        let _ = writeln!(rpt, "# L2-dist 原始数据：段2 全历史 depth/小转大分布（level1-4 Type2/3）");
+        let _ = writeln!(
+            rpt,
+            "# L2-dist 原始数据：段2 全历史 depth/小转大分布（level1-4 Type2/3）"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "- task: #23（acc-optB-l2dist）");
         let _ = writeln!(rpt, "- **认识论等级**：L2（真实 BTC 全历史逐信号结构下钻，确定性 div_cand，可产否定性计数）");
-        let _ = writeln!(rpt, "- 窗口：{win_start}→{win_end}，bars={n}（全量={n_full}），max_bars={max_bars}");
+        let _ = writeln!(
+            rpt,
+            "- 窗口：{win_start}→{win_end}，bars={n}（全量={n_full}），max_bars={max_bars}"
+        );
         let _ = writeln!(rpt, "- 群定义：per-delta `!is_type1 && (is_type2||is_type3)`（Type2/3 主群，域=生产门 descent 触发域子集）");
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 1. Type2/3 主群：各 level 分布");
@@ -5408,38 +7398,71 @@ mod tests {
         let _ = writeln!(rpt, "|---|---|---|---|---|---|");
         for lvl in LMIN..=LMAX {
             let some_l = n_t23[lvl] - base_none_t23[lvl] - xzd_t23[lvl];
-            let _ = writeln!(rpt, "| {lvl} | {} | {} | {} | {} | {:.2}% |",
-                n_t23[lvl], base_none_t23[lvl], xzd_t23[lvl], some_l, pct(xzd_t23[lvl], n_t23[lvl]));
+            let _ = writeln!(
+                rpt,
+                "| {lvl} | {} | {} | {} | {} | {:.2}% |",
+                n_t23[lvl],
+                base_none_t23[lvl],
+                xzd_t23[lvl],
+                some_l,
+                pct(xzd_t23[lvl], n_t23[lvl])
+            );
         }
         let _ = writeln!(rpt, "| **合计** | **{tot_t23}** | **{tot_base_none}** | **{tot_xzd}** | **{tot_some}** | **{:.2}%** |",
             pct(tot_xzd, tot_t23));
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## 2. depth 直方图（descend=Some(d)，逐 level × 深度）");
+        let _ = writeln!(
+            rpt,
+            "## 2. depth 直方图（descend=Some(d)，逐 level × 深度）"
+        );
         let _ = write!(rpt, "| lvl \\ d ");
-        for d in 1..=DCAP { let _ = write!(rpt, "| d={d} "); }
+        for d in 1..=DCAP {
+            let _ = write!(rpt, "| d={d} ");
+        }
         let _ = writeln!(rpt, "|");
         let _ = write!(rpt, "|---");
-        for _ in 1..=DCAP { let _ = write!(rpt, "|---"); }
+        for _ in 1..=DCAP {
+            let _ = write!(rpt, "|---");
+        }
         let _ = writeln!(rpt, "|");
         for lvl in LMIN..=LMAX {
             let _ = write!(rpt, "| {lvl} ");
-            for d in 1..=DCAP { let _ = write!(rpt, "| {} ", depth_t23[lvl][d]); }
+            for d in 1..=DCAP {
+                let _ = write!(rpt, "| {} ", depth_t23[lvl][d]);
+            }
             let _ = writeln!(rpt, "|");
         }
-        let _ = writeln!(rpt, "\n- max_depth 观测 = {max_depth}；depth>DCAP({DCAP}) 溢出 = {depth_overflow}");
+        let _ = writeln!(
+            rpt,
+            "\n- max_depth 观测 = {max_depth}；depth>DCAP({DCAP}) 溢出 = {depth_overflow}"
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## 3. 锚点正确性抽样（Some(d) 结果 end_index==src ∧ 方向=−δ）");
-        let _ = writeln!(rpt, "- 抽样数：{sample_n}（cap={SAMPLE_CAP}）；通过：{sample_pass}；失败：{}",
-            sample_n - sample_pass);
+        let _ = writeln!(
+            rpt,
+            "## 3. 锚点正确性抽样（Some(d) 结果 end_index==src ∧ 方向=−δ）"
+        );
+        let _ = writeln!(
+            rpt,
+            "- 抽样数：{sample_n}（cap={SAMPLE_CAP}）；通过：{sample_pass}；失败：{}",
+            sample_n - sample_pass
+        );
         if !sample_fail_detail.is_empty() {
             let _ = writeln!(rpt, "\n失败明细（前 {} 条）：", sample_fail_detail.len());
             let _ = writeln!(rpt, "| lvl | src | δ | 校验 |");
             let _ = writeln!(rpt, "|---|---|---|---|");
-            for line in &sample_fail_detail { let _ = writeln!(rpt, "{line}"); }
+            for line in &sample_fail_detail {
+                let _ = writeln!(rpt, "{line}");
+            }
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## 4. 残差群（`!is_type1` 但非 type2/3，门 descent 域内、本报告群外）");
-        let _ = writeln!(rpt, "- 总数：{n_other}；有锚(Some d)：{some_other}；无锚(None/base_none)：{none_other}");
+        let _ = writeln!(
+            rpt,
+            "## 4. 残差群（`!is_type1` 但非 type2/3，门 descent 域内、本报告群外）"
+        );
+        let _ = writeln!(
+            rpt,
+            "- 总数：{n_other}；有锚(Some d)：{some_other}；无锚(None/base_none)：{none_other}"
+        );
         let _ = writeln!(rpt, "- 诚实标注：生产门 descent 触发域=`!is_type1 && lvl>=1`，比 Type2/3 主群宽 {n_other} 条；");
         let _ = writeln!(rpt, "  这些是 Γ 定向为非 Flat、带 δ 但该方向无 type2/3 bit 的信号（多为对侧 bit 或纯结构 voice）。");
         let _ = writeln!(rpt);
@@ -5447,17 +7470,22 @@ mod tests {
         // 落盘原始数据（六要素结果包由 owner 用 Write 单独落盘 l2-depth-distribution）。
         eprint!("{rpt}");
         let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent().expect("rust/ 父目录 = 项目根")
+            .parent()
+            .expect("rust/ 父目录 = 项目根")
             .join(".chanlun/review-results/l2-depth-raw-20260702.md");
         std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
         eprintln!("\n原始数据已落盘：{out:?}");
 
         // ── 真封（计数不变量）：主群逐 level 三桶穷举 = 信号总数。 ──
         for lvl in LMIN..=LMAX {
-            let sum = base_none_t23[lvl] + xzd_t23[lvl]
+            let sum = base_none_t23[lvl]
+                + xzd_t23[lvl]
                 + (0..=DCAP).map(|d| depth_t23[lvl][d]).sum::<usize>();
-            assert_eq!(sum, n_t23[lvl],
-                "level{lvl} 三桶穷举：base_none+小转大+Σdepth({sum}) 应 = 信号总数({})", n_t23[lvl]);
+            assert_eq!(
+                sum, n_t23[lvl],
+                "level{lvl} 三桶穷举：base_none+小转大+Σdepth({sum}) 应 = 信号总数({})",
+                n_t23[lvl]
+            );
         }
         assert_eq!(tot_base_none + tot_xzd + tot_some, tot_t23, "合计三桶穷举");
         eprintln!("真封：Type2/3 主群={tot_t23}=base_none{tot_base_none}+小转大{tot_xzd}+有锚{tot_some}；\
@@ -5473,35 +7501,61 @@ mod tests {
         use super::super::super::classifier::nest::{NestCertificate, NestInterval, NestRung};
         let mut bits = BspBits::default();
         bits.buy1 = true;
-        let iv = |et: u64| NestInterval { end_time: et, start_time: 0, idx: 0 };
+        let iv = |et: u64| NestInterval {
+            end_time: et,
+            start_time: 0,
+            idx: 0,
+        };
         // 全 cand=true 的 3 级证书 ⟹ depth=3（100⊇80⊇60，均 cand=true，且 base⊆最低 rung）。
         let cert_full = NestCertificate::from_parts(
-            Side::Long, bits, iv(50),
+            Side::Long,
+            bits,
+            iv(50),
             vec![
                 NestRung::new(iv(100), true),
                 NestRung::new(iv(80), true),
                 NestRung::new(iv(60), true),
             ],
         );
-        assert_eq!(effective_nest_depth(&cert_full), 3, "全 cand=true ⟹ depth=rungs.len()=3");
+        assert_eq!(
+            effective_nest_depth(&cert_full),
+            3,
+            "全 cand=true ⟹ depth=rungs.len()=3"
+        );
         // 空 rungs ⟹ depth=0（纯 base-case，退化）。
         let cert_base = NestCertificate::from_parts(Side::Long, bits, iv(50), vec![]);
-        assert_eq!(effective_nest_depth(&cert_base), 0, "空 rungs ⟹ depth=0（base-case 退化）");
+        assert_eq!(
+            effective_nest_depth(&cert_base),
+            0,
+            "空 rungs ⟹ depth=0（base-case 退化）"
+        );
         // 中间 cand=false ⟹ 前缀在首个 false 处截断（depth=1，只数 rungs[0]）。
         let cert_mid = NestCertificate::from_parts(
-            Side::Long, bits, iv(50),
+            Side::Long,
+            bits,
+            iv(50),
             vec![
                 NestRung::new(iv(100), true),
                 NestRung::new(iv(80), false), // 截断处
                 NestRung::new(iv(60), true),
             ],
         );
-        assert_eq!(effective_nest_depth(&cert_mid), 1, "中间 cand=false ⟹ 前缀截断 depth=1");
+        assert_eq!(
+            effective_nest_depth(&cert_mid),
+            1,
+            "中间 cand=false ⟹ 前缀截断 depth=1"
+        );
         // 首级 cand=false ⟹ depth=0（即便有 rungs，n_delta 立即在最高级短路）。
         let cert_top_false = NestCertificate::from_parts(
-            Side::Long, bits, iv(50),
+            Side::Long,
+            bits,
+            iv(50),
             vec![NestRung::new(iv(100), false)],
         );
-        assert_eq!(effective_nest_depth(&cert_top_false), 0, "首级 cand=false ⟹ depth=0");
+        assert_eq!(
+            effective_nest_depth(&cert_top_false),
+            0,
+            "首级 cand=false ⟹ depth=0"
+        );
     }
 }

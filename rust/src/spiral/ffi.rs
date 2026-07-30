@@ -25,18 +25,54 @@ use crate::stroke::Direction;
 use crate::trading::tape::BarSig;
 use crate::trading::types::{BspClass, BspEvent, DivEvent, LadderMask, MAX_LADDER};
 
-type BspRow = (u8, String, String, i64, bool, Option<i64>, Option<f64>, Option<f64>, f64);
+type BspRow = (
+    u8,
+    String,
+    String,
+    i64,
+    bool,
+    Option<i64>,
+    Option<f64>,
+    Option<f64>,
+    f64,
+);
 type DivRow = (u8, String, String, i64, f64, f64, f64);
 type FlipRow = (u8, String);
-type Trade11 = (u8, i64, f64, i64, f64, f64, f64, i64, bool, &'static str, &'static str);
-type BarTuple = (f64, u16, u16, u16, u16, u16, u8, bool, Vec<BspRow>, Vec<DivRow>, Vec<FlipRow>);
+type Trade11 = (
+    u8,
+    i64,
+    f64,
+    i64,
+    f64,
+    f64,
+    f64,
+    i64,
+    bool,
+    &'static str,
+    &'static str,
+);
+type BarTuple = (
+    f64,
+    u16,
+    u16,
+    u16,
+    u16,
+    u16,
+    u8,
+    bool,
+    Vec<BspRow>,
+    Vec<DivRow>,
+    Vec<FlipRow>,
+);
 
 fn parse_bsp_kind(s: &str) -> PyResult<BspKind> {
     match s {
         "type1" => Ok(BspKind::Type1),
         "type2" => Ok(BspKind::Type2),
         "type3" => Ok(BspKind::Type3),
-        _ => Err(pyo3::exceptions::PyValueError::new_err(format!("非法 BSP kind: {s:?}"))),
+        _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "非法 BSP kind: {s:?}"
+        ))),
     }
 }
 
@@ -44,7 +80,9 @@ fn parse_side(s: &str) -> PyResult<Side> {
     match s {
         "buy" => Ok(Side::Buy),
         "sell" => Ok(Side::Sell),
-        _ => Err(pyo3::exceptions::PyValueError::new_err(format!("非法 side: {s:?}"))),
+        _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "非法 side: {s:?}"
+        ))),
     }
 }
 
@@ -52,7 +90,9 @@ fn parse_direction(s: &str) -> PyResult<Direction> {
     match s {
         "up" => Ok(Direction::Up),
         "down" => Ok(Direction::Down),
-        _ => Err(pyo3::exceptions::PyValueError::new_err(format!("非法方向: {s:?}"))),
+        _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "非法方向: {s:?}"
+        ))),
     }
 }
 
@@ -90,7 +130,9 @@ fn build_bar_sig(
     for (lad, kind, side, seg_idx, confirmed, cs, zd, zg, price) in bsp_rows {
         let lad_us = lad as usize;
         if lad_us >= MAX_LADDER {
-            return Err(pyo3::exceptions::PyValueError::new_err(format!("bsp 事件 ladder 越界: {lad}")));
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "bsp 事件 ladder 越界: {lad}"
+            )));
         }
         if cs.is_some() && (zd.is_none() || zg.is_none()) {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
@@ -100,28 +142,51 @@ fn build_bar_sig(
         let class = BspClass::from_parts(parse_bsp_kind(&kind)?, parse_side(&side)?);
         sig.bsp_events
             .get_or_insert_with(|| Box::new(<[Vec<BspEvent>; MAX_LADDER]>::default()))[lad_us]
-            .push(BspEvent { class, seg_idx, confirmed, cs, zd, zg, price });
+            .push(BspEvent {
+                class,
+                seg_idx,
+                confirmed,
+                cs,
+                zd,
+                zg,
+                price,
+            });
     }
     for (lad, kind, direction, seg_idx, force_a, force_c, price) in div_rows {
         let lad_us = lad as usize;
         if lad_us >= MAX_LADDER {
-            return Err(pyo3::exceptions::PyValueError::new_err(format!("div 事件 ladder 越界: {lad}")));
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "div 事件 ladder 越界: {lad}"
+            )));
         }
         let dkind = match kind.as_str() {
             "trend" => DivKind::Trend,
             "consolidation" => DivKind::Consolidation,
-            _ => return Err(pyo3::exceptions::PyValueError::new_err(format!("非法 div kind: {kind:?}"))),
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "非法 div kind: {kind:?}"
+                )))
+            }
         };
         let dir = parse_direction(&direction)?;
         sig.div_events
             .get_or_insert_with(|| Box::new(<[Vec<DivEvent>; MAX_LADDER]>::default()))[lad_us]
-            .push(DivEvent { kind: dkind, direction: dir, seg_idx, force_a, force_c, price });
+            .push(DivEvent {
+                kind: dkind,
+                direction: dir,
+                seg_idx,
+                force_a,
+                force_c,
+                price,
+            });
     }
     let mut flip_edge: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
     for (lad, dir) in flip_rows {
         let lad_us = lad as usize;
         if lad_us >= MAX_LADDER {
-            return Err(pyo3::exceptions::PyValueError::new_err(format!("flip 行 ladder 越界: {lad}")));
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "flip 行 ladder 越界: {lad}"
+            )));
         }
         flip_edge[lad_us] = Some(parse_direction(&dir)?);
     }
@@ -153,21 +218,45 @@ fn result_to_dict<'py>(py: Python<'py>, res: &SpiralResult) -> PyResult<Bound<'p
     d.set_item("trades", trades)?;
     d.set_item("equity", res.equity.clone())?;
     d.set_item("final_nav", res.final_nav)?;
-    d.set_item("n_root_entries_by_ladder", res.n_root_entries_by_ladder.to_vec())?;
+    d.set_item(
+        "n_root_entries_by_ladder",
+        res.n_root_entries_by_ladder.to_vec(),
+    )?;
     d.set_item("n_entries_by_ladder", res.n_entries_by_ladder.to_vec())?;
     d.set_item("n_exits_by_ladder", res.n_exits_by_ladder.to_vec())?;
-    d.set_item("n_root_flips_by_ladder", res.n_root_flips_by_ladder.to_vec())?;
+    d.set_item(
+        "n_root_flips_by_ladder",
+        res.n_root_flips_by_ladder.to_vec(),
+    )?;
     d.set_item("n_spawns_by_ladder", res.n_spawns_by_ladder.to_vec())?;
-    d.set_item("n_cascade_closes_by_ladder", res.n_cascade_closes_by_ladder.to_vec())?;
-    d.set_item("n_liquidations_by_ladder", res.n_liquidations_by_ladder.to_vec())?;
-    d.set_item("n_cost_rejects_by_ladder", res.n_cost_rejects_by_ladder.to_vec())?;
-    d.set_item("n_noref_rejects_by_ladder", res.n_noref_rejects_by_ladder.to_vec())?;
-    d.set_item("n_floor_stops_by_ladder", res.n_floor_stops_by_ladder.to_vec())?;
+    d.set_item(
+        "n_cascade_closes_by_ladder",
+        res.n_cascade_closes_by_ladder.to_vec(),
+    )?;
+    d.set_item(
+        "n_liquidations_by_ladder",
+        res.n_liquidations_by_ladder.to_vec(),
+    )?;
+    d.set_item(
+        "n_cost_rejects_by_ladder",
+        res.n_cost_rejects_by_ladder.to_vec(),
+    )?;
+    d.set_item(
+        "n_noref_rejects_by_ladder",
+        res.n_noref_rejects_by_ladder.to_vec(),
+    )?;
+    d.set_item(
+        "n_floor_stops_by_ladder",
+        res.n_floor_stops_by_ladder.to_vec(),
+    )?;
     d.set_item("n_arms_by_ladder", res.n_arms_by_ladder.to_vec())?;
     d.set_item("n_fire_sell_by_ladder", res.n_fire_sell_by_ladder.to_vec())?;
     d.set_item("n_fire_buy_by_ladder", res.n_fire_buy_by_ladder.to_vec())?;
     d.set_item("n_breaks_by_ladder", res.n_breaks_by_ladder.to_vec())?;
-    d.set_item("short_net_cash_by_ladder", res.short_net_cash_by_ladder.to_vec())?;
+    d.set_item(
+        "short_net_cash_by_ladder",
+        res.short_net_cash_by_ladder.to_vec(),
+    )?;
     d.set_item("earning_units", res.earning_units)?;
     d.set_item("shrink_units", res.shrink_units)?;
     d.set_item("cross_level_closures", res.cross_level_closures)?;
@@ -180,7 +269,10 @@ fn result_to_dict<'py>(py: Python<'py>, res: &SpiralResult) -> PyResult<Bound<'p
     d.set_item("phys_long_bars", res.phys_long_bars)?;
     d.set_item("phys_short_bars", res.phys_short_bars)?;
     d.set_item("held_bars_by_ladder", res.held_bars_by_ladder.to_vec())?;
-    d.set_item("short_held_bars_by_ladder", res.short_held_bars_by_ladder.to_vec())?;
+    d.set_item(
+        "short_held_bars_by_ladder",
+        res.short_held_bars_by_ladder.to_vec(),
+    )?;
     Ok(d)
 }
 
@@ -195,7 +287,8 @@ impl PySpiralStream {
     #[new]
     #[pyo3(signature = (floor_ladder = 2))]
     fn new(floor_ladder: usize) -> PyResult<Self> {
-        let core = SpiralEngineCore::new(floor_ladder).map_err(pyo3::exceptions::PyValueError::new_err)?;
+        let core =
+            SpiralEngineCore::new(floor_ladder).map_err(pyo3::exceptions::PyValueError::new_err)?;
         Ok(Self { core })
     }
 
@@ -218,7 +311,8 @@ impl PySpiralStream {
         flip_rows: Vec<FlipRow>,
     ) -> PyResult<Vec<Trade11>> {
         let (sig, flip_edge) = build_bar_sig(
-            close, buy1, sell1, sell_any, buy_any, up_settled, max_ladder, type2_buy, bsp_rows, div_rows, flip_rows,
+            close, buy1, sell1, sell_any, buy_any, up_settled, max_ladder, type2_buy, bsp_rows,
+            div_rows, flip_rows,
         )?;
         let before = self.core.n_trades();
         self.core.step(&sig, &flip_edge);
@@ -260,10 +354,25 @@ impl PySpiralStream {
 #[pyfunction]
 #[pyo3(signature = (bars, floor_ladder = 2))]
 pub fn run_spiral(py: Python<'_>, bars: Vec<BarTuple>, floor_ladder: usize) -> PyResult<PyObject> {
-    let mut core = SpiralEngineCore::new(floor_ladder).map_err(pyo3::exceptions::PyValueError::new_err)?;
-    for (close, buy1, sell1, sell_any, buy_any, up_settled, max_ladder, type2_buy, bsp_rows, div_rows, flip_rows) in bars {
+    let mut core =
+        SpiralEngineCore::new(floor_ladder).map_err(pyo3::exceptions::PyValueError::new_err)?;
+    for (
+        close,
+        buy1,
+        sell1,
+        sell_any,
+        buy_any,
+        up_settled,
+        max_ladder,
+        type2_buy,
+        bsp_rows,
+        div_rows,
+        flip_rows,
+    ) in bars
+    {
         let (sig, flip_edge) = build_bar_sig(
-            close, buy1, sell1, sell_any, buy_any, up_settled, max_ladder, type2_buy, bsp_rows, div_rows, flip_rows,
+            close, buy1, sell1, sell_any, buy_any, up_settled, max_ladder, type2_buy, bsp_rows,
+            div_rows, flip_rows,
         )?;
         core.step(&sig, &flip_edge);
     }

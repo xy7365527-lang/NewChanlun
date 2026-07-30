@@ -22,8 +22,7 @@
 use super::allocator::SizeAllocator;
 use super::center_book::CenterBook;
 use super::config::{
-    EntryMode, ExitMode, OrganicConfig, OscDomain, RevCycle, Sizing, StopMode, ThetaMode,
-    VoiceMode,
+    EntryMode, ExitMode, OrganicConfig, OscDomain, RevCycle, Sizing, StopMode, ThetaMode, VoiceMode,
 };
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::fatigue_gate::FatigueGate;
@@ -141,12 +140,9 @@ impl Run {
         let n_sub = self.active_levels.len();
         let level_frac = if n_sub > 0 { 1.0 / n_sub as f64 } else { 0.0 };
         self.pos = Some(match self.entry_mode {
-            EntryMode::Full => OrganicLedger::new(
-                price,
-                INITIAL_CAPITAL / price,
-                level_frac,
-                self.with_diag,
-            ),
+            EntryMode::Full => {
+                OrganicLedger::new(price, INITIAL_CAPITAL / price, level_frac, self.with_diag)
+            }
             EntryMode::Recursive { base_frac } => {
                 let deployed = INITIAL_CAPITAL * base_frac;
                 self.res.rec_fills.push((bar, el as u8, base_frac, price));
@@ -168,7 +164,11 @@ impl Run {
             EntryMode::Full => 0.0,
             EntryMode::Recursive { base_frac } => base_frac * 2.0,
         };
-        self.voices = self.active_levels.iter().map(|&k| VoiceUnit::new(k)).collect();
+        self.voices = self
+            .active_levels
+            .iter()
+            .map(|&k| VoiceUnit::new(k))
+            .collect();
         self.master_state = MasterState::Ride;
         self.state = LONG;
     }
@@ -204,8 +204,7 @@ impl Run {
         }
         // undeployed_cash：Full 模式恒 0.0（+0.0 位等价，O0≡P5 零接触）；
         // Recursive 未满仓出场时未部署现金按原值计入（资金守恒）。
-        let total_value =
-            pos.total_shares * price + pos.cumulative_recovered + pos.undeployed_cash;
+        let total_value = pos.total_shares * price + pos.cumulative_recovered + pos.undeployed_cash;
         if pos.undeployed_cash > 0.0 {
             self.counters.n_rec_entry_partial_exits += 1;
         }
@@ -304,11 +303,9 @@ pub fn run_organic(
         );
     }
     if (cfg.sell2_open || cfg.buy2_close) && !cfg.rev_paired {
-        return Err(
-            "T2o/T2c（type2 开闭腿轴）仅定义于 rev_paired 路径——配对语义
+        return Err("T2o/T2c（type2 开闭腿轴）仅定义于 rev_paired 路径——配对语义
              （震荡型同锚/逃逸型任意）在 legacy 腿上不可表示"
-                .to_string(),
-        );
+            .to_string());
     }
     if cfg.r1_sub_sell_open && !tape.has_dir_rows() {
         return Err(
@@ -375,12 +372,10 @@ pub fn run_organic(
     }
     if cfg.rev_seq_nobreak {
         if !cfg.rev_paired || cfg.rev_cycle != RevCycle::Single {
-            return Err(
-                "rev_seq_nobreak（38课位置分支）仅定义于 rev_paired × Single
+            return Err("rev_seq_nobreak（38课位置分支）仅定义于 rev_paired × Single
                  闭腿路径（step_down_paired）——legacy/Cycle38 模式下该位是
                  死配置，组合不可表示（不静默 no-op）"
-                    .to_string(),
-            );
+                .to_string());
         }
         if !tape.has_dir_rows() {
             return Err(
@@ -412,12 +407,10 @@ pub fn run_organic(
     if cfg.sub_l41_gate
         && !(cfg.rev_sub_depth > 0 && cfg.sub_mode == super::config::SubMode::Fractal)
     {
-        return Err(
-            "sub_l41_gate（P1 41课门）仅定义于 Fractal 子腿路径
+        return Err("sub_l41_gate（P1 41课门）仅定义于 Fractal 子腿路径
              （rev_sub_depth > 0 ∧ sub_mode=Fractal）——其余模式无消费者，
              组合不可表示"
-                .to_string(),
-        );
+            .to_string());
     }
     if cfg.sub_cost_gate
         && !(cfg.rev_sub_depth > 0
@@ -457,25 +450,19 @@ pub fn run_organic(
             );
         }
         if !tape.has_dir_rows() {
-            return Err(
-                "rev_cycle=Cycle38 要求磁带 dir_flips 行（D3）——宿主趋势态的
+            return Err("rev_cycle=Cycle38 要求磁带 dir_flips 行（D3）——宿主趋势态的
                  方向分量（kind==Trend ∧ dir==Up）依赖方向行"
-                    .to_string(),
-            );
+                .to_string());
         }
         if cfg.rev_sub_depth > 0 {
-            return Err(
-                "rev_cycle=Cycle38 × rev_sub_depth 组合未定义：循环腿无固定
+            return Err("rev_cycle=Cycle38 × rev_sub_depth 组合未定义：循环腿无固定
                  REV 窗口（逐次开闭），子 LOU 的域语义未设计——显式拒绝"
-                    .to_string(),
-            );
+                .to_string());
         }
         if cfg.tranche {
-            return Err(
-                "rev_cycle=Cycle38 × tranche 组合未定义：循环腿是单 tranche
+            return Err("rev_cycle=Cycle38 × tranche 组合未定义：循环腿是单 tranche
                  逐次开闭，递归建仓语义未设计——显式拒绝"
-                    .to_string(),
-            );
+                .to_string());
         }
         if !(cfg.theta_cost_k > 0.0
             && cfg.theta_cost_k.is_finite()
@@ -489,19 +476,14 @@ pub fn run_organic(
             ));
         }
         if cfg.rev_cycle_close == super::config::RevCycleClose::Paired
-            && (cfg.r2_anchor_zg
-                || cfg.r3_t6_sub_confirm
-                || cfg.sc_t7_close
-                || cfg.buy2_close)
+            && (cfg.r2_anchor_zg || cfg.r3_t6_sub_confirm || cfg.sc_t7_close || cfg.buy2_close)
         {
-            return Err(
-                "rev_cycle_close=Paired × {r2_anchor_zg/r3_t6_sub_confirm/\
+            return Err("rev_cycle_close=Paired × {r2_anchor_zg/r3_t6_sub_confirm/\
                  sc_t7_close/buy2_close} 组合未定义：Paired 闭腿集是
                  step_down_paired 在这四位全关时的精确退化形式（T7>T6>同锚
                  Buy1>ZD），且其证据记忆（sub_buy_bar）在 Cycle38 模式不推进
                  ——开位即声明膨胀，显式拒绝"
-                    .to_string(),
-            );
+                .to_string());
         }
     }
 
@@ -526,11 +508,9 @@ pub fn run_organic(
             );
         }
         if !cfg.rev_mode {
-            return Err(
-                "entry_voice 要求 rev_mode=true——entry 级 sell1 的配额短差
+            return Err("entry_voice 要求 rev_mode=true——entry 级 sell1 的配额短差
                  由 REV 腿承载（44课:50），rev_mode=false 下本轴无承载对象"
-                    .to_string(),
-            );
+                .to_string());
         }
     }
 
@@ -554,8 +534,7 @@ pub fn run_organic(
         );
     }
     // ── master 入场级别下限 guard（2026-06-11 任务，entry_min_ladder 轴）──
-    if cfg.entry_min_ladder != 0
-        && !(FIRST_BSP_LADDER..MAX_LADDER).contains(&cfg.entry_min_ladder)
+    if cfg.entry_min_ladder != 0 && !(FIRST_BSP_LADDER..MAX_LADDER).contains(&cfg.entry_min_ladder)
     {
         return Err(format!(
             "entry_min_ladder 必须为 0（无约束）或落在 [{FIRST_BSP_LADDER}, \
@@ -683,7 +662,10 @@ pub fn run_organic(
         gate: FatigueGate::new(),
         alloc: SizeAllocator::new(),
         counters: Counters::default(),
-        res: RunResult { diag: if diag { Some(Vec::new()) } else { None }, ..Default::default() },
+        res: RunResult {
+            diag: if diag { Some(Vec::new()) } else { None },
+            ..Default::default()
+        },
         fsm_recovered: std::collections::BTreeMap::new(),
         with_diag: diag,
     };
@@ -692,8 +674,7 @@ pub fn run_organic(
     let empty_evs: [Vec<BspEvent>; MAX_LADDER] = Default::default();
     let empty_devs: [Vec<DivEvent>; MAX_LADDER] = Default::default();
     // D3 滚动状态：稀疏翻转行 → 逐 bar 方向/锚视图（与密集行逐位等价，tape.rs）。
-    let flips: &[(i64, u8, crate::stroke::Direction)] =
-        tape.dir_flips.as_deref().unwrap_or(&[]);
+    let flips: &[(i64, u8, crate::stroke::Direction)] = tape.dir_flips.as_deref().unwrap_or(&[]);
     let mut flip_ptr = 0usize;
     let mut dir_state: [Option<crate::stroke::Direction>; MAX_LADDER] = [None; MAX_LADDER];
     let mut anchor_state: [i64; MAX_LADDER] = [-1; MAX_LADDER];
@@ -723,7 +704,7 @@ pub fn run_organic(
         || cfg.osc_l41_gate
         || cfg.exit_mode == ExitMode::HoldTrend
         || cfg.exit_mode == (ExitMode::Emergent { hold_trend: true }))
-        .then(TrendExhaustion::new);
+    .then(TrendExhaustion::new);
 
     for i in 0..n {
         let sig = &tape.bars[i];
@@ -741,8 +722,7 @@ pub fn run_organic(
             trend_state[lad as usize] = is_trend;
             tflip_ptr += 1;
         }
-        let evrows: &[Vec<BspEvent>; MAX_LADDER] =
-            sig.bsp_events.as_deref().unwrap_or(&empty_evs);
+        let evrows: &[Vec<BspEvent>; MAX_LADDER] = sig.bsp_events.as_deref().unwrap_or(&empty_evs);
         let devrows: &[Vec<DivEvent>; MAX_LADDER] =
             sig.div_events.as_deref().unwrap_or(&empty_devs);
 
@@ -759,7 +739,11 @@ pub fn run_organic(
         }
         if sig.bsp_events.is_some() {
             for lad in FIRST_BSP_LADDER..MAX_LADDER {
-                let out = if collect_center_events { Some(&mut center_evs[lad]) } else { None };
+                let out = if collect_center_events {
+                    Some(&mut center_evs[lad])
+                } else {
+                    None
+                };
                 run.book.ingest(lad, &evrows[lad], cfg.hard_type3, out);
             }
             // 振幅参照观测（市场性质，与持仓状态无关；边界变化才记录）。
@@ -775,7 +759,10 @@ pub fn run_organic(
         // ── FatigueGate（v2 点态：rev_gate 时每 bar 每承载层驱动——清空路径(1)
         //    创新高判定是逐 bar 价格事件，不能沿用 v1 的"仅事件 bar"调用门控）──
         if cfg.rev_gate {
-            let rh = tape.run_high.as_deref().expect("guard 已验证 run_high 行存在");
+            let rh = tape
+                .run_high
+                .as_deref()
+                .expect("guard 已验证 run_high 行存在");
             let run_high = &rh[i * MAX_LADDER..(i + 1) * MAX_LADDER];
             for lad in FIRST_BSP_LADDER..MAX_LADDER {
                 run.gate.observe(
@@ -841,7 +828,8 @@ pub fn run_organic(
         } else {
             // ── LONG ──
             if cfg.sizing == Sizing::Structure {
-                run.alloc.maybe_recompute(run.book.version, &run.active_levels, &run.book, c);
+                run.alloc
+                    .maybe_recompute(run.book.version, &run.active_levels, &run.book, c);
             }
             let entry_ladder = run.entry_ladder;
             let ev_entry = &evrows[entry_ladder];
@@ -891,11 +879,8 @@ pub fn run_organic(
                     run.counters.n_sc_master_holds += 1;
                 }
                 if exit_lad > entry_ladder
-                    && MasterExitSignal::from_sell1_row_sub_confirmed(
-                        sig.sell1.get(exit_lad),
-                        sc_m,
-                    )
-                    .is_some()
+                    && MasterExitSignal::from_sell1_row_sub_confirmed(sig.sell1.get(exit_lad), sc_m)
+                        .is_some()
                 {
                     run.counters.n_exit_upgraded += 1;
                     let reason = format!("exit_{}_earning_upgrade", ladder_name(exit_lad));
@@ -921,14 +906,11 @@ pub fn run_organic(
                 // 自身涌现（第一版 Climb 设计缺陷）。
                 let mx_lad = match cfg.exit_mode {
                     ExitMode::Signal | ExitMode::HoldTrend => entry_ladder,
-                    ExitMode::HighestOnly => {
-                        (sig.max_ladder as usize).min(MAX_LADDER - 1)
-                    }
+                    ExitMode::HighestOnly => (sig.max_ladder as usize).min(MAX_LADDER - 1),
                     ExitMode::Emergent { .. } => {
                         let mut lad = entry_ladder;
                         while lad + 1 < max_l
-                            && dir_state[lad + 1]
-                                == Some(crate::stroke::Direction::Up)
+                            && dir_state[lad + 1] == Some(crate::stroke::Direction::Up)
                             && anchor_state[lad + 1] >= run.entry_bar
                         {
                             lad += 1;
@@ -944,11 +926,9 @@ pub fn run_organic(
                 if sig.sell1.get(mx_lad) && !sc_m {
                     run.counters.n_sc_master_holds += 1;
                 }
-                let sig_trigger = MasterExitSignal::from_sell1_row_sub_confirmed(
-                    sig.sell1.get(mx_lad),
-                    sc_m,
-                )
-                .is_some();
+                let sig_trigger =
+                    MasterExitSignal::from_sell1_row_sub_confirmed(sig.sell1.get(mx_lad), sc_m)
+                        .is_some();
                 // HoldTrend（49课利润最大化 + 41课）：本级别 sell1 只是必要
                 // 条件，还需父级别（entry_ladder+1）上行趋势衰竭——正面延续
                 // 证据（相邻同向段创新高 ∧ 无盘整背驰）成立时拦截出场持仓，
@@ -975,22 +955,22 @@ pub fn run_organic(
                     }
                 };
                 if trigger {
-                    let earning =
-                        run.pos.as_ref().is_some_and(|p| p.phase.is_earning());
+                    let earning = run.pos.as_ref().is_some_and(|p| p.phase.is_earning());
                     if cfg.earning_reaction && earning {
                         // §5.6：清仓降格为 entry 级 REV 腿（金额守恒挣股数）
                         let mrkey = SlotKey::rev(entry_ladder, entry_ladder);
-                        let opened = run
-                            .pos
-                            .as_mut()
-                            .expect("LONG ⇒ pos 存在")
-                            .open_diff(mrkey, 1.0, c, i as i64, LegAnchor::SegmentScale);
+                        let opened = run.pos.as_mut().expect("LONG ⇒ pos 存在").open_diff(
+                            mrkey,
+                            1.0,
+                            c,
+                            i as i64,
+                            LegAnchor::SegmentScale,
+                        );
                         if opened {
                             run.counters.n_master_rev_open += 1;
                             run.master_state = MasterState::Rev;
                         } else {
-                            let reason =
-                                format!("exit_{}_type1sell", ladder_name(entry_ladder));
+                            let reason = format!("exit_{}_type1sell", ladder_name(entry_ladder));
                             run.close_position(i as i64, c, &reason);
                         }
                     } else {
@@ -999,22 +979,18 @@ pub fn run_organic(
                             ExitMode::Signal => {
                                 format!("exit_{}_type1sell", ladder_name(entry_ladder))
                             }
-                            ExitMode::HoldTrend => format!(
-                                "exit_{}_type1sell_trendexh",
-                                ladder_name(entry_ladder)
-                            ),
-                            ExitMode::HighestOnly => format!(
-                                "exit_{}_type1sell_highest",
-                                ladder_name(mx_lad)
-                            ),
-                            ExitMode::Emergent { hold_trend: false } => format!(
-                                "exit_{}_type1sell_emergent",
-                                ladder_name(mx_lad)
-                            ),
-                            ExitMode::Emergent { hold_trend: true } => format!(
-                                "exit_{}_type1sell_emergentht",
-                                ladder_name(mx_lad)
-                            ),
+                            ExitMode::HoldTrend => {
+                                format!("exit_{}_type1sell_trendexh", ladder_name(entry_ladder))
+                            }
+                            ExitMode::HighestOnly => {
+                                format!("exit_{}_type1sell_highest", ladder_name(mx_lad))
+                            }
+                            ExitMode::Emergent { hold_trend: false } => {
+                                format!("exit_{}_type1sell_emergent", ladder_name(mx_lad))
+                            }
+                            ExitMode::Emergent { hold_trend: true } => {
+                                format!("exit_{}_type1sell_emergentht", ladder_name(mx_lad))
+                            }
                         };
                         run.close_position(i as i64, c, &reason);
                     }
@@ -1067,7 +1043,9 @@ pub fn run_organic(
                         run.fill_ladder = k;
                         run.next_quota *= 2.0;
                         run.counters.n_rec_entry_fills += 1;
-                        run.res.rec_fills.push((i as i64, k as u8, cash / INITIAL_CAPITAL, c));
+                        run.res
+                            .rec_fills
+                            .push((i as i64, k as u8, cash / INITIAL_CAPITAL, c));
                         if pos.undeployed_cash <= 0.0 {
                             run.filled_frac = 1.0;
                             run.counters.n_rec_entry_full += 1;
@@ -1085,8 +1063,13 @@ pub fn run_organic(
             let level_frac = run.pos.as_ref().expect("LONG ⇒ pos 存在").level_frac;
             let structure = cfg.sizing == Sizing::Structure;
             let alloc_frac: [f64; MAX_LADDER] = core::array::from_fn(|k| run.alloc.frac(k));
-            let frac_of =
-                move |k: usize| -> f64 { if structure { alloc_frac[k] } else { level_frac } };
+            let frac_of = move |k: usize| -> f64 {
+                if structure {
+                    alloc_frac[k]
+                } else {
+                    level_frac
+                }
+            };
             let pos = run.pos.as_mut().expect("LONG ⇒ pos 存在");
 
             // ── 账本 voice（voice_mode=Ledger，2026-06-11 并发赋格最小实验；
@@ -1128,15 +1111,12 @@ pub fn run_organic(
                                     // 配额归零（声部经济生命周期，设计 §5.4）。
                                     if cfg.ledger_cost_gate {
                                         use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
-                                        let dr = rows.depth.expect(
-                                            "ledger_cost_gate ⇒ DepthRef（runner 恒提供）",
-                                        );
-                                        match dr.theta(ladder, None, SUB_COST_Q, SUB_COST_MIN_OBS)
-                                        {
+                                        let dr = rows
+                                            .depth
+                                            .expect("ledger_cost_gate ⇒ DepthRef（runner 恒提供）");
+                                        match dr.theta(ladder, None, SUB_COST_Q, SUB_COST_MIN_OBS) {
                                             Some(theta_q) => {
-                                                if theta_q
-                                                    < cfg.theta_cost_k * cfg.friction_rt
-                                                {
+                                                if theta_q < cfg.theta_cost_k * cfg.friction_rt {
                                                     run.counters.n_ledger_cost_rejects += 1;
                                                     continue;
                                                 }
@@ -1328,8 +1308,11 @@ pub fn run_organic(
     if diag {
         res.center_amp_log = depth_ref.take_log();
     }
-    res.leg_contribution =
-        run.fsm_recovered.into_iter().map(|(k, (cash, cnt))| (k, cash, cnt)).collect();
+    res.leg_contribution = run
+        .fsm_recovered
+        .into_iter()
+        .map(|(k, (cash, cnt))| (k, cash, cnt))
+        .collect();
     Ok(res)
 }
 
@@ -1339,11 +1322,22 @@ mod ledger_voice_tests {
     use crate::trading::config::variant;
 
     fn ev(class: BspClass, confirmed: bool) -> BspEvent {
-        BspEvent { class, seg_idx: 0, confirmed, cs: None, zd: None, zg: None, price: 0.0 }
+        BspEvent {
+            class,
+            seg_idx: 0,
+            confirmed,
+            cs: None,
+            zd: None,
+            zg: None,
+            price: 0.0,
+        }
     }
 
     fn bar(close: f64) -> crate::trading::tape::BarSig {
-        crate::trading::tape::BarSig { close, ..Default::default() }
+        crate::trading::tape::BarSig {
+            close,
+            ..Default::default()
+        }
     }
 
     fn bar_ev(close: f64, lad: usize, e: BspEvent) -> crate::trading::tape::BarSig {
@@ -1366,7 +1360,10 @@ mod ledger_voice_tests {
         confirm.max_ladder = 3;
         let mut bars = vec![arm, confirm];
         bars.extend(tail);
-        SignalTape { bars, ..Default::default() }
+        SignalTape {
+            bars,
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -1417,7 +1414,15 @@ mod ledger_voice_tests {
     /// 带 cs/zd/zg 锚的事件（candidate=账本 voice 不消费，但喂 CenterBook/
     /// DepthRef——成本门参照集的合成数据源）。
     fn ev_anchor(class: BspClass, confirmed: bool, cs: i64, zd: f64, zg: f64) -> BspEvent {
-        BspEvent { class, seg_idx: 0, confirmed, cs: Some(cs), zd: Some(zd), zg: Some(zg), price: 0.0 }
+        BspEvent {
+            class,
+            seg_idx: 0,
+            confirmed,
+            cs: Some(cs),
+            zd: Some(zd),
+            zg: Some(zg),
+            price: 0.0,
+        }
     }
 
     #[test]
@@ -1463,7 +1468,10 @@ mod ledger_voice_tests {
         let t = entry_tape(tail);
         let cfg = variant("VLc").unwrap();
         let r = run_organic(&t, 2, &cfg, StopMode::None, false).unwrap();
-        assert_eq!(r.counters.n_ledger_cost_noref_rejects, 1, "warm-up 期保守拒绝");
+        assert_eq!(
+            r.counters.n_ledger_cost_noref_rejects, 1,
+            "warm-up 期保守拒绝"
+        );
         assert_eq!(r.counters.n_ledger_cost_rejects, 0);
         assert_eq!(r.counters.n_ledger_opens, 1, "参照足量且振幅达标 → 开");
         assert_eq!(r.counters.n_ledger_closes, 1);
@@ -1480,7 +1488,10 @@ mod ledger_voice_tests {
         tail2.push(bar_ev(110.0, 2, ev(BspClass::Sell1, true)));
         let t2 = entry_tape(tail2);
         let r2 = run_organic(&t2, 2, &cfg, StopMode::None, false).unwrap();
-        assert_eq!(r2.counters.n_ledger_cost_rejects, 1, "θ_q=0.01% < 0.2% 配额归零");
+        assert_eq!(
+            r2.counters.n_ledger_cost_rejects, 1,
+            "θ_q=0.01% < 0.2% 配额归零"
+        );
         assert_eq!(r2.counters.n_ledger_opens, 0);
     }
 
@@ -1525,16 +1536,28 @@ mod ledger_voice_tests {
         assert_eq!(by_key[&2].1, 1);
         assert_eq!(by_key[&3].1, 1);
         assert!(by_key[&2].0 > 0.0, "voice2 兑现为正");
-        assert!(by_key[&3].0 > 0.0, "voice3 强平价 108 < 110 仍为正但独立记账");
-        assert!((by_key[&2].0 - by_key[&3].0).abs() > 1e-9, "两声部现金独立非混表");
+        assert!(
+            by_key[&3].0 > 0.0,
+            "voice3 强平价 108 < 110 仍为正但独立记账"
+        );
+        assert!(
+            (by_key[&2].0 - by_key[&3].0).abs() > 1e-9,
+            "两声部现金独立非混表"
+        );
     }
 
     #[test]
     fn ledger_gate_bits_rejected_on_fsm_path() {
         let t = entry_tape(vec![bar_ev(110.0, 2, ev(BspClass::Sell1, true))]);
-        let orphan = OrganicConfig { ledger_domain_gate: true, ..OrganicConfig::default() };
+        let orphan = OrganicConfig {
+            ledger_domain_gate: true,
+            ..OrganicConfig::default()
+        };
         assert!(run_organic(&t, 2, &orphan, StopMode::None, false).is_err());
-        let orphan2 = OrganicConfig { ledger_cost_gate: true, ..OrganicConfig::default() };
+        let orphan2 = OrganicConfig {
+            ledger_cost_gate: true,
+            ..OrganicConfig::default()
+        };
         assert!(run_organic(&t, 2, &orphan2, StopMode::None, false).is_err());
     }
 

@@ -100,7 +100,13 @@ pub fn icc(stats: &[AssetClassStat]) -> IccResult {
     if k < 2 {
         // 单品种：无品种间散布可估。σ² 取该品种类内方差（若有），τ²=0，ICC=0。
         let sigma_sq = stats.first().and_then(|s| s.var).unwrap_or(0.0);
-        return IccResult { n_assets: k, n_total, tau_sq: 0.0, sigma_sq, icc: 0.0 };
+        return IccResult {
+            n_assets: k,
+            n_total,
+            tau_sq: 0.0,
+            sigma_sq,
+            icc: 0.0,
+        };
     }
     let n = n_total as f64;
     let kf = k as f64;
@@ -114,7 +120,11 @@ pub fn icc(stats: &[AssetClassStat]) -> IccResult {
         .filter_map(|s| s.var.map(|v| (s.n as f64 - 1.0) * v))
         .sum();
     let df_within = n - kf; // N−k
-    let msw = if df_within > 0.0 { ss_within / df_within } else { 0.0 };
+    let msw = if df_within > 0.0 {
+        ss_within / df_within
+    } else {
+        0.0
+    };
 
     // MSB = Σ n_a·(ȳ_a−ȳ)² / (k−1)。
     let ss_between: f64 = stats
@@ -128,12 +138,22 @@ pub fn icc(stats: &[AssetClassStat]) -> IccResult {
     let n0 = (n - sum_n_sq / n) / (kf - 1.0);
 
     // τ² = max(0, (MSB−MSW)/n₀)（矩估计截断；n₀=0 不可能因 k≥2 且 n_a≥1）。
-    let tau_sq = if n0 > 0.0 { ((msb - msw) / n0).max(0.0) } else { 0.0 };
+    let tau_sq = if n0 > 0.0 {
+        ((msb - msw) / n0).max(0.0)
+    } else {
+        0.0
+    };
     let sigma_sq = msw;
     let denom = tau_sq + sigma_sq;
     let icc = if denom > 0.0 { tau_sq / denom } else { 0.0 };
 
-    IccResult { n_assets: k, n_total, tau_sq, sigma_sq, icc }
+    IccResult {
+        n_assets: k,
+        n_total,
+        tau_sq,
+        sigma_sq,
+        icc,
+    }
 }
 
 /// **收缩权重 w_{a,z}（§32：pooling 权重由样本数 + 异质性定）**。
@@ -189,7 +209,11 @@ pub struct LeaveOneOutResult {
 ///
 /// `held_out` 越界 ⟹ debug 断言失败（调用方传错下标 fail-fast）。
 pub fn leave_one_asset_out(stats: &[AssetClassStat], held_out: usize) -> LeaveOneOutResult {
-    debug_assert!(held_out < stats.len(), "held_out={held_out} 越界（{} 品种）", stats.len());
+    debug_assert!(
+        held_out < stats.len(),
+        "held_out={held_out} 越界（{} 品种）",
+        stats.len()
+    );
     // 其余品种（排除 held_out）pooled 均值——干净，不含目标品种样本（无泄漏）。
     let others: Vec<AssetClassStat> = stats
         .iter()
@@ -203,7 +227,12 @@ pub fn leave_one_asset_out(stats: &[AssetClassStat], held_out: usize) -> LeaveOn
         (Some(m), Some(h)) => Some((m - h).abs()),
         _ => None,
     };
-    LeaveOneOutResult { held_out, mu_minus_a, mu_held, transfer_abs_err }
+    LeaveOneOutResult {
+        held_out,
+        mu_minus_a,
+        mu_held,
+        transfer_abs_err,
+    }
 }
 
 /// 把多品种 [`MuEstimator`] 重组为 **z → 各品种 [`AssetClassStat`]** 映射（ICC/leave-one-out 输入）。
@@ -238,9 +267,21 @@ mod tests {
     #[test]
     fn icc_zero_when_homogeneous() {
         let stats = vec![
-            AssetClassStat { n: 50, mean: 10.0, var: Some(4.0) },
-            AssetClassStat { n: 50, mean: 10.0, var: Some(4.0) },
-            AssetClassStat { n: 50, mean: 10.0, var: Some(4.0) },
+            AssetClassStat {
+                n: 50,
+                mean: 10.0,
+                var: Some(4.0),
+            },
+            AssetClassStat {
+                n: 50,
+                mean: 10.0,
+                var: Some(4.0),
+            },
+            AssetClassStat {
+                n: 50,
+                mean: 10.0,
+                var: Some(4.0),
+            },
         ];
         let r = icc(&stats);
         // 品种均值完全相同 ⟹ MSB=0 ⟹ τ²=max(0, (0−MSW)/n0)=0（截断）⟹ ICC=0。
@@ -255,13 +296,33 @@ mod tests {
     #[test]
     fn icc_high_when_heterogeneous() {
         let stats = vec![
-            AssetClassStat { n: 100, mean: 0.0, var: Some(1.0) },
-            AssetClassStat { n: 100, mean: 50.0, var: Some(1.0) },
-            AssetClassStat { n: 100, mean: 100.0, var: Some(1.0) },
+            AssetClassStat {
+                n: 100,
+                mean: 0.0,
+                var: Some(1.0),
+            },
+            AssetClassStat {
+                n: 100,
+                mean: 50.0,
+                var: Some(1.0),
+            },
+            AssetClassStat {
+                n: 100,
+                mean: 100.0,
+                var: Some(1.0),
+            },
         ];
         let r = icc(&stats);
-        assert!(r.tau_sq > 0.0, "品种均值大散布 ⟹ τ²>0（异质），实得 {}", r.tau_sq);
-        assert!(r.icc > 0.9, "small within + large between ⟹ ICC→1，实得 {}", r.icc);
+        assert!(
+            r.tau_sq > 0.0,
+            "品种均值大散布 ⟹ τ²>0（异质），实得 {}",
+            r.tau_sq
+        );
+        assert!(
+            r.icc > 0.9,
+            "small within + large between ⟹ ICC→1，实得 {}",
+            r.icc
+        );
         assert!((r.sigma_sq - 1.0).abs() < 1e-9, "σ²=1（小类内方差）");
     }
 
@@ -270,18 +331,42 @@ mod tests {
     fn icc_in_unit_interval() {
         let cases = vec![
             vec![
-                AssetClassStat { n: 3, mean: -100.0, var: Some(0.5) },
-                AssetClassStat { n: 7, mean: 200.0, var: Some(50.0) },
-                AssetClassStat { n: 1, mean: 0.0, var: None },
+                AssetClassStat {
+                    n: 3,
+                    mean: -100.0,
+                    var: Some(0.5),
+                },
+                AssetClassStat {
+                    n: 7,
+                    mean: 200.0,
+                    var: Some(50.0),
+                },
+                AssetClassStat {
+                    n: 1,
+                    mean: 0.0,
+                    var: None,
+                },
             ],
             vec![
-                AssetClassStat { n: 2, mean: 1.0, var: Some(0.0) },
-                AssetClassStat { n: 2, mean: 1.0, var: Some(0.0) },
+                AssetClassStat {
+                    n: 2,
+                    mean: 1.0,
+                    var: Some(0.0),
+                },
+                AssetClassStat {
+                    n: 2,
+                    mean: 1.0,
+                    var: Some(0.0),
+                },
             ],
         ];
         for stats in &cases {
             let r = icc(stats);
-            assert!((0.0..=1.0).contains(&r.icc), "ICC∈[0,1]，实得 {} for {stats:?}", r.icc);
+            assert!(
+                (0.0..=1.0).contains(&r.icc),
+                "ICC∈[0,1]，实得 {} for {stats:?}",
+                r.icc
+            );
             assert!(r.tau_sq >= 0.0, "τ²≥0（截断），实得 {}", r.tau_sq);
             assert!(r.sigma_sq >= 0.0, "σ²≥0，实得 {}", r.sigma_sq);
         }
@@ -290,7 +375,11 @@ mod tests {
     /// 单品种（n_assets<2）：无品种间散布可估 ⟹ ICC=0、τ²=0、σ²=该品种类内方差。
     #[test]
     fn icc_single_asset_undefined_between() {
-        let r = icc(&[AssetClassStat { n: 10, mean: 5.0, var: Some(2.0) }]);
+        let r = icc(&[AssetClassStat {
+            n: 10,
+            mean: 5.0,
+            var: Some(2.0),
+        }]);
         assert_eq!(r.n_assets, 1);
         assert_eq!(r.tau_sq, 0.0, "单品种无 between 散布");
         assert_eq!(r.icc, 0.0);
@@ -301,14 +390,21 @@ mod tests {
     #[test]
     fn pooling_weight_reflects_heterogeneity() {
         // 同质 τ²=0 ⟹ w=0（完全 pooling）。
-        assert_eq!(pooling_weight(10, 0.0, 5.0), 0.0, "τ²=0 ⟹ w=0 完全信 pooled");
+        assert_eq!(
+            pooling_weight(10, 0.0, 5.0),
+            0.0,
+            "τ²=0 ⟹ w=0 完全信 pooled"
+        );
         // 大 τ² ⟹ w→1（信自身，拒 pooling）。
         let w_het = pooling_weight(10, 1000.0, 1.0);
         assert!(w_het > 0.99, "τ² 远大于 σ² ⟹ w→1，实得 {w_het}");
         // n_a 大 ⟹ w 上升（自身样本足）。
         let w_small_n = pooling_weight(2, 1.0, 1.0);
         let w_large_n = pooling_weight(100, 1.0, 1.0);
-        assert!(w_large_n > w_small_n, "n_a↑ ⟹ w↑：{w_large_n} > {w_small_n}");
+        assert!(
+            w_large_n > w_small_n,
+            "n_a↑ ⟹ w↑：{w_large_n} > {w_small_n}"
+        );
         // 全零方差 ⟹ w=0（pooled 与自身同，借无害取保守）。
         assert_eq!(pooling_weight(5, 0.0, 0.0), 0.0);
         // w∈[0,1] 边界。
@@ -319,8 +415,16 @@ mod tests {
     #[test]
     fn pooled_mean_sample_weighted() {
         let stats = vec![
-            AssetClassStat { n: 1, mean: 10.0, var: None },
-            AssetClassStat { n: 3, mean: 30.0, var: Some(1.0) },
+            AssetClassStat {
+                n: 1,
+                mean: 10.0,
+                var: None,
+            },
+            AssetClassStat {
+                n: 3,
+                mean: 30.0,
+                var: Some(1.0),
+            },
         ];
         // (1·10 + 3·30)/4 = 100/4 = 25。
         assert_eq!(pooled_mean(&stats), Some(25.0));
@@ -332,13 +436,29 @@ mod tests {
     #[test]
     fn leave_one_out_no_leakage() {
         let stats = vec![
-            AssetClassStat { n: 100, mean: 1000.0, var: Some(1.0) }, // 目标（held_out=0）
-            AssetClassStat { n: 50, mean: 10.0, var: Some(1.0) },
-            AssetClassStat { n: 50, mean: 10.0, var: Some(1.0) },
+            AssetClassStat {
+                n: 100,
+                mean: 1000.0,
+                var: Some(1.0),
+            }, // 目标（held_out=0）
+            AssetClassStat {
+                n: 50,
+                mean: 10.0,
+                var: Some(1.0),
+            },
+            AssetClassStat {
+                n: 50,
+                mean: 10.0,
+                var: Some(1.0),
+            },
         ];
         let r = leave_one_asset_out(&stats, 0);
         // μ_{−0} = (50·10 + 50·10)/100 = 10——完全不含目标品种的 1000（无泄漏铁证）。
-        assert_eq!(r.mu_minus_a, Some(10.0), "μ_{{−a}} 只含其他品种，不被目标 1000 污染");
+        assert_eq!(
+            r.mu_minus_a,
+            Some(10.0),
+            "μ_{{−a}} 只含其他品种，不被目标 1000 污染"
+        );
         assert_eq!(r.mu_held, Some(1000.0), "目标自身均值 = OOS 真值");
         // 迁移误差 |10 − 1000| = 990（目标极端偏离群体 ⟹ pooling 该品种会大错）。
         assert_eq!(r.transfer_abs_err, Some(990.0));
@@ -348,13 +468,29 @@ mod tests {
     #[test]
     fn leave_one_out_homogeneous_low_error() {
         let stats = vec![
-            AssetClassStat { n: 30, mean: 7.0, var: Some(2.0) },
-            AssetClassStat { n: 30, mean: 7.0, var: Some(2.0) },
-            AssetClassStat { n: 30, mean: 7.0, var: Some(2.0) },
+            AssetClassStat {
+                n: 30,
+                mean: 7.0,
+                var: Some(2.0),
+            },
+            AssetClassStat {
+                n: 30,
+                mean: 7.0,
+                var: Some(2.0),
+            },
+            AssetClassStat {
+                n: 30,
+                mean: 7.0,
+                var: Some(2.0),
+            },
         ];
         for held in 0..3 {
             let r = leave_one_asset_out(&stats, held);
-            assert_eq!(r.transfer_abs_err, Some(0.0), "同质群体 ⟹ 迁移误差 0（held={held}）");
+            assert_eq!(
+                r.transfer_abs_err,
+                Some(0.0),
+                "同质群体 ⟹ 迁移误差 0（held={held}）"
+            );
         }
     }
 
@@ -362,8 +498,16 @@ mod tests {
     #[test]
     fn leave_one_out_no_others() {
         let stats = vec![
-            AssetClassStat { n: 10, mean: 5.0, var: Some(1.0) },
-            AssetClassStat { n: 0, mean: 0.0, var: None }, // 空品种（n=0）
+            AssetClassStat {
+                n: 10,
+                mean: 5.0,
+                var: Some(1.0),
+            },
+            AssetClassStat {
+                n: 0,
+                mean: 0.0,
+                var: None,
+            }, // 空品种（n=0）
         ];
         let r = leave_one_asset_out(&stats, 0);
         assert_eq!(r.mu_minus_a, None, "其他品种全无样本 ⟹ μ_{{−a}} None");
@@ -375,14 +519,32 @@ mod tests {
     fn collect_groups_same_class_across_assets() {
         use crate::theta_v0::backtest::mu_estimator::{MuObservation, PositionState};
         use crate::theta_v0::types::BspBits;
-        let z = MuClass::from_certificate(3, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root);
+        let z = MuClass::from_certificate(
+            3,
+            1,
+            BspBits {
+                buy1: true,
+                ..Default::default()
+            },
+            0,
+            PositionState::Root,
+        );
         let mut est_a = MuEstimator::new();
         est_a.observe_all([
-            MuObservation { class: z, x_gamma: 8.0 },
-            MuObservation { class: z, x_gamma: 12.0 },
+            MuObservation {
+                class: z,
+                x_gamma: 8.0,
+            },
+            MuObservation {
+                class: z,
+                x_gamma: 12.0,
+            },
         ]); // mean=10, n=2
         let mut est_b = MuEstimator::new();
-        est_b.observe(MuObservation { class: z, x_gamma: 20.0 }); // mean=20, n=1
+        est_b.observe(MuObservation {
+            class: z,
+            x_gamma: 20.0,
+        }); // mean=20, n=1
         let ests = vec![("A", est_a), ("B", est_b)];
         let by = collect_by_class(&ests);
         let list = by.get(&z).expect("z 类存在");

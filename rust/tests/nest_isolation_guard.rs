@@ -71,7 +71,8 @@ const NEST_PIPELINE_ROLE_MARKER: &str = "//! GUARD-ROLE: nest-pipeline";
 /// 读模块自述角色：整行逐字匹配 `NEST_PIPELINE_ROLE_MARKER` 才算 nest-pipeline。
 /// 不做子串匹配、不认文件名——这是 #451 要求的「守卫读声明，不读白名单」。
 fn declares_nest_pipeline_role(src: &str) -> bool {
-    src.lines().any(|line| line.trim() == NEST_PIPELINE_ROLE_MARKER)
+    src.lines()
+        .any(|line| line.trim() == NEST_PIPELINE_ROLE_MARKER)
 }
 
 #[test]

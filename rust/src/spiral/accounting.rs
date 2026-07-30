@@ -262,7 +262,11 @@ pub fn try_spawn_cost_gated(
                 Polarity::Short => Polarity::Long,
             };
             debug_assert_eq!(
-                if child_state.eps >= 0 { Polarity::Long } else { Polarity::Short },
+                if child_state.eps >= 0 {
+                    Polarity::Long
+                } else {
+                    Polarity::Short
+                },
                 child_dir,
                 "ChiralSeam 后子手性与方向交替规范不一致"
             );
@@ -270,7 +274,11 @@ pub fn try_spawn_cost_gated(
                 child_state,
                 m,
                 c,
-                if child_dir == Polarity::Short { m * c } else { 0.0 },
+                if child_dir == Polarity::Short {
+                    m * c
+                } else {
+                    0.0
+                },
                 bar,
                 Some(parent_id),
             );

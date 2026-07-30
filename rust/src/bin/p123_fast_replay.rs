@@ -1310,8 +1310,7 @@ fn compute_old_semantic_counts(
     config: &ThetaConfig,
     cache: &classifier::TowerCache,
 ) -> OldSemanticCounts {
-    let old_events =
-        classifier::cand_delta_tower_cached(l0, classification, tower, config, cache);
+    let old_events = classifier::cand_delta_tower_cached(l0, classification, tower, config, cache);
     let old_candidates = old_events
         .iter()
         .flatten()
@@ -1657,7 +1656,15 @@ fn run_targeted_prefix_pass(
     let started = Instant::now();
     for (index, bar) in bars.iter().copied().enumerate() {
         process_targeted_bar(
-            &mut state, bar, index, bars.len(), targets, config, shadow, ckpt_every, started,
+            &mut state,
+            bar,
+            index,
+            bars.len(),
+            targets,
+            config,
+            shadow,
+            ckpt_every,
+            started,
         )?;
     }
     finalize_targeted_pass(state)
@@ -1696,12 +1703,27 @@ fn process_targeted_bar(
     let trigger = (forest_epoch, signal_signature(&classification));
     let lifecycle_due = state.last_lifecycle_trigger.as_ref() != Some(&trigger);
     if state.last_trigger.as_ref() != Some(&trigger) && !state.pending.is_empty() {
-        evaluate_and_apply_targeted_trigger(state, &tower, &classification, targets, index, shadow)?;
+        evaluate_and_apply_targeted_trigger(
+            state,
+            &tower,
+            &classification,
+            targets,
+            index,
+            shadow,
+        )?;
         state.last_trigger = Some(trigger.clone());
     }
     feed_lifecycle_and_checkpoint(
-        state, &tower, &classification, index, lifecycle_due, trigger, bars_len, targets.len(),
-        ckpt_every, started,
+        state,
+        &tower,
+        &classification,
+        index,
+        lifecycle_due,
+        trigger,
+        bars_len,
+        targets.len(),
+        ckpt_every,
+        started,
     )?;
     Ok(())
 }
@@ -1880,9 +1902,7 @@ fn record_seg_ledger_observation(
     if lower_due {
         match tower0_units_raw {
             None => lifecycle_stats.seg_ledger_no_tower += 1,
-            Some(units) if units == l0.segments.len() => {
-                lifecycle_stats.seg_ledger_complete += 1
-            }
+            Some(units) if units == l0.segments.len() => lifecycle_stats.seg_ledger_complete += 1,
             Some(_) => lifecycle_stats.seg_ledger_short += 1,
         }
     }
@@ -1972,10 +1992,26 @@ fn evaluate_and_apply_targeted_trigger(
             continue;
         }
         evaluate_level_runs(
-            state, level, run_sources, tower, index, shadow, &mut out, &mut fresh_levels,
+            state,
+            level,
+            run_sources,
+            tower,
+            index,
+            shadow,
+            &mut out,
+            &mut fresh_levels,
         )?;
     }
-    apply_targeted_events(state, out, targets, classification, &fresh_levels, &bsp_changed, index, shadow)
+    apply_targeted_events(
+        state,
+        out,
+        targets,
+        classification,
+        &fresh_levels,
+        &bsp_changed,
+        index,
+        shadow,
+    )
 }
 
 fn group_pending_runs_by_level(
@@ -2049,7 +2085,10 @@ fn evaluate_level_runs(
         state.stats.syncs_lower += 1;
     }
     {
-        let level_derived = state.derived.get_mut(&level).expect("刚同步的 level 必须存在");
+        let level_derived = state
+            .derived
+            .get_mut(&level)
+            .expect("刚同步的 level 必须存在");
         let active_run_starts: Vec<_> = level_derived.run_ranges.keys().copied().collect();
         level_derived
             .confirm_cursors
@@ -2092,13 +2131,23 @@ fn evaluate_single_run(
     let Some(&range) = state.derived[&level].run_ranges.get(&run_source_start) else {
         return Ok(());
     };
-    *state.stats.per_level_views_slow_would.entry(level).or_default() += 1;
+    *state
+        .stats
+        .per_level_views_slow_would
+        .entry(level)
+        .or_default() += 1;
     let watermark_crossed = compute_watermark_crossed(state, level, run_source_start, index);
     let dirty = compute_dirty(state, level, run_source_start, watermark_crossed);
 
     if dirty {
         reevaluate_run(
-            state, level, run_source_start, range, tower, stable_lower_len, pan_freeze_boundary,
+            state,
+            level,
+            run_source_start,
+            range,
+            tower,
+            stable_lower_len,
+            pan_freeze_boundary,
             index,
         )?;
         fresh_levels.insert(level);
@@ -2106,7 +2155,15 @@ fn evaluate_single_run(
         state.stats.reuses += 1;
     }
     apply_run_events_and_shadow_check(
-        state, level, run_source_start, range, tower, index, shadow, dirty, out,
+        state,
+        level,
+        run_source_start,
+        range,
+        tower,
+        index,
+        shadow,
+        dirty,
+        out,
     )
 }
 
@@ -2138,7 +2195,14 @@ fn apply_run_events_and_shadow_check(
     // 重估，与缓存路径应用集逐字比对。任何 mismatch = dirty 判据漏判现场（090 停线）。
     if shadow {
         shadow_check_run(
-            state, level, run_source_start, range, tower, index, dirty, &out[applied_start..],
+            state,
+            level,
+            run_source_start,
+            range,
+            tower,
+            index,
+            dirty,
+            &out[applied_start..],
         )?;
     }
     Ok(())
@@ -2201,7 +2265,14 @@ fn get_or_insert_run_entry(
     index: usize,
 ) -> &mut RunEntry {
     entries.entry((level, run_source_start)).or_insert_with(|| {
-        RunEntry::new(self_gen, lower_gen, index, Vec::new(), Vec::new(), Vec::new())
+        RunEntry::new(
+            self_gen,
+            lower_gen,
+            index,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        )
     })
 }
 
@@ -2256,7 +2327,10 @@ fn reevaluate_run(
 ) -> Result<(), String> {
     let (hist, close_src) = state.cache.causal_series();
     let dif = state.cache.macd_dif();
-    let level_derived = state.derived.get_mut(&level).expect("刚同步的 level 必须存在");
+    let level_derived = state
+        .derived
+        .get_mut(&level)
+        .expect("刚同步的 level 必须存在");
     let structure_generation = level_derived.self_gen;
     let entry = get_or_insert_run_entry(
         &mut state.entries,
@@ -2332,7 +2406,16 @@ fn shadow_check_run(
     let dif = state.cache.macd_dif();
     let lower_legs = &state.derived[&level].lower_legs;
     let (_, _, forced) = evaluate_run(
-        level, &tower[level], range, lower_legs, index, hist, dif, close_src, None, None,
+        level,
+        &tower[level],
+        range,
+        lower_legs,
+        index,
+        hist,
+        dif,
+        close_src,
+        None,
+        None,
     )?;
     let forced: Vec<NestCandidateEvent> = forced
         .into_iter()
@@ -2341,7 +2424,8 @@ fn shadow_check_run(
     state.stats.shadow_checks += 1;
     let same = applied.len() == forced.len()
         && applied.iter().zip(forced.iter()).all(|(a, b)| {
-            EventKey::from(a) == EventKey::from(b) && a.divergence_confirmed == b.divergence_confirmed
+            EventKey::from(a) == EventKey::from(b)
+                && a.divergence_confirmed == b.divergence_confirmed
         });
     if !same {
         state.stats.shadow_mismatches += 1;
@@ -2398,7 +2482,16 @@ fn apply_targeted_events(
             }
             state.book.divergences.entry(key.clone()).or_insert(index);
         }
-        record_term_signal(state, &key, &event, classification, fresh_levels, bsp_changed, index, shadow);
+        record_term_signal(
+            state,
+            &key,
+            &event,
+            classification,
+            fresh_levels,
+            bsp_changed,
+            index,
+            shadow,
+        );
         if event.divergence_confirmed == target.divergence_confirmed {
             state.pending.remove(&key);
         }
@@ -2421,12 +2514,12 @@ fn record_term_signal(
     // p123 判据 (iv)：fresh（本 trigger 重估过 ⟹ 窗口可能变）∨ 账本内容变
     // ⟹ 反查；其余情形结果为上次已查的同一 None（纯函数同输入），跳过逐位等价。
     let recheck = fresh_levels.contains(&(event.level as usize))
-        || event_bsp_book_level(event.level).is_some_and(|book_level| {
-            bsp_changed.get(&book_level).copied().unwrap_or(true)
-        });
+        || event_bsp_book_level(event.level)
+            .is_some_and(|book_level| bsp_changed.get(&book_level).copied().unwrap_or(true));
     if recheck {
         state.stats.term_rechecks += 1;
-        if !state.book.term_seen.contains(key) && terminal_bits_new(classification, event).is_some() {
+        if !state.book.term_seen.contains(key) && terminal_bits_new(classification, event).is_some()
+        {
             state.book.term_seen.insert(key.clone());
             dump_line(format_args!(
                 "TERM level={} bar={} side={:?}",
@@ -3157,7 +3250,14 @@ fn run_entry_is_dirty(ctx: &RunRefreshContext, as_of: usize, state: &LifecycleCa
 
 /// run 首次被看见时的空白 `RunEntry`——中心/类别/事件三项留给 `evaluate_run` 首次填充。
 fn empty_run_entry(self_gen: u64, lower_gen: u64, as_of: usize) -> RunEntry {
-    RunEntry::new(self_gen, lower_gen, as_of, Vec::new(), Vec::new(), Vec::new())
+    RunEntry::new(
+        self_gen,
+        lower_gen,
+        as_of,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    )
 }
 
 /// 脏 run 的实际重估：调用 `evaluate_run` 并把结果写回共享 `RunEntry`
@@ -3978,7 +4078,10 @@ mod tests {
         assert_eq!(LifecycleWindowStem::of(&later), stem);
         assert_eq!(first.seg_c_live, (30, 30));
         assert_eq!(later.seg_c_live, (30, 99));
-        assert_eq!(first.gap_len, 7, "gap_len 随身份延展原样带出，不因右端前进重算");
+        assert_eq!(
+            first.gap_len, 7,
+            "gap_len 随身份延展原样带出，不因右端前进重算"
+        );
         assert_eq!(later.gap_len, 7);
     }
 
@@ -4115,12 +4218,8 @@ mod tests {
             Some(30),
             "截断后末确认单元终点(30) <= active 起点(30) ⟹ 不倒灌"
         );
-        let outcome = active_l2_window_frontier(
-            scan_units,
-            &leg_dirs[..l1_confirmed_len],
-            Some(&active),
-            0,
-        );
+        let outcome =
+            active_l2_window_frontier(scan_units, &leg_dirs[..l1_confirmed_len], Some(&active), 0);
         let frontier = outcome
             .frontier()
             .expect("★倒灌消除后判据按序推进，行进中 L1 单元被 L2 层末窗吸收");
@@ -4423,8 +4522,8 @@ provider_window=5..70 b_center_start=20 intake_fallback=0"
     #[test]
     fn chain_dump_meta_and_line_format_are_stable() {
         use newchan_rust::theta_v0::classifier::cand_event::{
-            CandidateEventBook, CandidateKey, CandidateKind, CandidateObservation,
-            ObservedState, ParentFingerprint, StructuralPredicates, CANDIDATE_RULE_VERSION,
+            CandidateEventBook, CandidateKey, CandidateKind, CandidateObservation, ObservedState,
+            ParentFingerprint, StructuralPredicates, CANDIDATE_RULE_VERSION,
         };
         let observation =
             |level: u32, c_start: usize, interval: (usize, usize)| CandidateObservation {

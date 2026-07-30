@@ -18,7 +18,9 @@ fn new_identity_at_dead_center_is_rejected_with_certificate() {
     let certificate = book.death_certificate(center.anchor()).unwrap();
 
     let attempted = key_of(frame(1_400), 5);
-    let rejection = book.observe(&up_input(frame(1_400), 5, None, 700)).unwrap_err();
+    let rejection = book
+        .observe(&up_input(frame(1_400), 5, None, 700))
+        .unwrap_err();
     assert_eq!(
         rejection,
         RetraceRejection::DeadCenterReentry {
@@ -50,7 +52,9 @@ fn dead_center_rejection_is_uniform_across_repeated_attempts_no_intervening_gene
 
     for (departure, as_of) in [(5usize, 600usize), (7, 700)] {
         let attempted = key_of(f1, departure);
-        let rejection = book.observe(&up_input(f1, departure, None, as_of)).unwrap_err();
+        let rejection = book
+            .observe(&up_input(f1, departure, None, as_of))
+            .unwrap_err();
         assert_eq!(
             rejection,
             RetraceRejection::DeadCenterReentry {
@@ -61,7 +65,11 @@ fn dead_center_rejection_is_uniform_across_repeated_attempts_no_intervening_gene
             "每次尝试都拿到同一张死亡证明，从未有机会先注册成功"
         );
     }
-    assert_eq!(book.len(), 1, "账本自始至终只有原始 Confirmed 一条——无隔代可言");
+    assert_eq!(
+        book.len(),
+        1,
+        "账本自始至终只有原始 Confirmed 一条——无隔代可言"
+    );
     assert_eq!(book.alarms().dead_center_registrations, 2);
     settled(&book);
 }
@@ -75,9 +83,15 @@ fn dead_center_counter_equals_actual_rejection_count_across_multiple_attempts() 
         .unwrap();
 
     for (departure, as_of) in [(5usize, 600usize), (7, 700), (9, 800)] {
-        assert!(book.observe(&up_input(frame(1_300 + departure), departure, None, as_of)).is_err());
+        assert!(book
+            .observe(&up_input(frame(1_300 + departure), departure, None, as_of))
+            .is_err());
     }
-    assert_eq!(book.alarms().dead_center_registrations, 3, "三次拒收，计数恰好三");
+    assert_eq!(
+        book.alarms().dead_center_registrations,
+        3,
+        "三次拒收，计数恰好三"
+    );
     assert_eq!(book.len(), 1);
     settled(&book);
 }
@@ -95,7 +109,12 @@ fn same_identity_late_input_after_confirmed_is_silently_absorbed_not_rejected() 
         .unwrap();
 
     let late = book
-        .observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 600))
+        .observe(&up_input(
+            center,
+            3,
+            Some(RetraceOutcome::RetestReenters),
+            600,
+        ))
         .unwrap();
     assert!(late.absorbed_late(), "同身份迟到 ⟹ 静默吸收");
     assert_eq!(late.state, RetraceState::Confirmed, "禁复活");
@@ -117,7 +136,9 @@ fn dead_center_reentry_and_late_absorption_are_mutually_exclusive_paths() {
         .unwrap();
 
     // 路一：同身份迟到 ⟹ 吸收。
-    let absorbed = book.observe(&up_input(center, 3, Some(RetraceOutcome::Success), 600)).unwrap();
+    let absorbed = book
+        .observe(&up_input(center, 3, Some(RetraceOutcome::Success), 600))
+        .unwrap();
     assert!(absorbed.absorbed_late());
 
     // 路二：新身份挂号 ⟹ 拒收。

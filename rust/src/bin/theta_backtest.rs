@@ -167,7 +167,9 @@ fn main() -> std::process::ExitCode {
             if bt.total_orders > 0 {
                 println!("等级: L2（真实 Nautilus 引擎 + 非空订单流）——生产引擎贯通验证通过。");
             } else {
-                println!("等级: L1（真实引擎跑通，订单流为空）——数据无缠论结构 ⟹ 无 BSP ⟹ 无订单。");
+                println!(
+                    "等级: L1（真实引擎跑通，订单流为空）——数据无缠论结构 ⟹ 无 BSP ⟹ 无订单。"
+                );
             }
         }
         Err(e) => {

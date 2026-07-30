@@ -197,14 +197,21 @@ impl ShadowVoiceBook {
                 continue; // Flat 不应入活动集（ActiveLeg doc）——防御跳过，不冒充裁决对象。
             }
             // 同级同向多腿不应出现（slot 唯一性）；防御取首条，不多头裁决。
-            held.entry(VoiceKey { level: leg.level, dir: leg.dir }).or_insert(*leg);
+            held.entry(VoiceKey {
+                level: leg.level,
+                dir: leg.dir,
+            })
+            .or_insert(*leg);
         }
         let mut live_keys: HashSet<VoiceKey> = held.keys().copied().collect();
         for c in gamma {
             if c.dir == VoiceSide::Flat {
                 continue;
             }
-            live_keys.insert(VoiceKey { level: c.level, dir: c.dir });
+            live_keys.insert(VoiceKey {
+                level: c.level,
+                dir: c.dir,
+            });
         }
 
         // 生产事实索引（#201 阶段 B：持仓声部由 `StepTrace.verdicts` 显式裁决序列单源推导——
@@ -213,8 +220,14 @@ impl ShadowVoiceBook {
         let verdicts: HashMap<ElementId, ExitType> =
             trace.verdicts.iter().map(|v| (v.leg.id, v.exit)).collect();
         let overlay: HashSet<ElementId> = trace.overlay_closes.iter().map(|l| l.id).collect();
-        let opened: HashSet<VoiceKey> =
-            trace.opened.iter().map(|(c, _l)| VoiceKey { level: c.level, dir: c.dir }).collect();
+        let opened: HashSet<VoiceKey> = trace
+            .opened
+            .iter()
+            .map(|(c, _l)| VoiceKey {
+                level: c.level,
+                dir: c.dir,
+            })
+            .collect();
 
         // ② 逐 slot：镜像构造/覆写 voice → step_voice 裁决 → 比对 → shadow_observe 推进。
         for key in live_keys.iter().copied() {
@@ -271,7 +284,8 @@ impl ShadowVoiceBook {
                 });
             }
             // 推进（Hold 转移语义：只推进检测器/步计数；仓位转移由生产侧承担）。
-            self.voices.insert(key, channel::shadow_observe(&state, &input));
+            self.voices
+                .insert(key, channel::shadow_observe(&state, &input));
         }
         // ③ 消失 slot（无腿且无候选）从簿清除——持仓/观测边界不跨 bar 残留。
         self.voices.retain(|k, _| live_keys.contains(k));
@@ -302,13 +316,37 @@ impl ShadowVoiceBook {
         )
         .unwrap();
         writeln!(s, "  exit_typed_mismatch={}", st.exit_typed_mismatch).unwrap();
-        writeln!(s, "  channel_exit_production_hold={}", st.channel_exit_production_hold).unwrap();
-        writeln!(s, "  channel_hold_production_exit={}", st.channel_hold_production_exit).unwrap();
-        writeln!(s, "  channel_open_production_idle={}", st.channel_open_production_idle).unwrap();
-        writeln!(s, "  channel_hold_production_open={}", st.channel_hold_production_open).unwrap();
+        writeln!(
+            s,
+            "  channel_exit_production_hold={}",
+            st.channel_exit_production_hold
+        )
+        .unwrap();
+        writeln!(
+            s,
+            "  channel_hold_production_exit={}",
+            st.channel_hold_production_exit
+        )
+        .unwrap();
+        writeln!(
+            s,
+            "  channel_open_production_idle={}",
+            st.channel_open_production_idle
+        )
+        .unwrap();
+        writeln!(
+            s,
+            "  channel_hold_production_open={}",
+            st.channel_hold_production_open
+        )
+        .unwrap();
         writeln!(s, "  channel_only={}", st.channel_only).unwrap();
         writeln!(s, "  production_silent_drop={}", st.production_silent_drop).unwrap();
-        writeln!(s, "## 逐条分歧（bar, slot, leg, channel, decision, production, kind）").unwrap();
+        writeln!(
+            s,
+            "## 逐条分歧（bar, slot, leg, channel, decision, production, kind）"
+        )
+        .unwrap();
         for r in &self.records {
             writeln!(
                 s,
@@ -364,7 +402,10 @@ fn classify(dec: ChannelDecision, fact: ProductionFact) -> DivergenceKind {
         // 证书出场：typed 一致 Match，不一致 ExitTypedMismatch（单源 reverse_exit_type 下
         // 正常数据不应出现——出现即两链 S2 二分/entry_v 口径裂口的见证）。
         (D::Exit(a), F::Closed(b))
-            if matches!(a, ExitType::CloseRoot | ExitType::ReduceCore | ExitType::CloseReverseOpen) =>
+            if matches!(
+                a,
+                ExitType::CloseRoot | ExitType::ReduceCore | ExitType::CloseReverseOpen
+            ) =>
         {
             if a == b {
                 K::Match
@@ -401,29 +442,52 @@ fn classify(dec: ChannelDecision, fact: ProductionFact) -> DivergenceKind {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::coverage::{Dir, GradeRel, Horizontal, OperationRole};
+    use super::*;
     use crate::theta_v0::types::BspBits;
 
     // ── 构造器（对齐 channel.rs tests 的烤料口径）──────────────────────────
 
     fn role(v: Vertical) -> OperationRole {
-        OperationRole { h: Horizontal::First, v, delta: Dir::Plus, grade: GradeRel::SameLevel }
+        OperationRole {
+            h: Horizontal::First,
+            v,
+            delta: Dir::Plus,
+            grade: GradeRel::SameLevel,
+        }
     }
 
     fn buy(k: u8) -> BspBits {
         match k {
-            1 => BspBits { buy1: true, ..Default::default() },
-            2 => BspBits { buy2: true, ..Default::default() },
-            _ => BspBits { buy3: true, ..Default::default() },
+            1 => BspBits {
+                buy1: true,
+                ..Default::default()
+            },
+            2 => BspBits {
+                buy2: true,
+                ..Default::default()
+            },
+            _ => BspBits {
+                buy3: true,
+                ..Default::default()
+            },
         }
     }
 
     fn sell(k: u8) -> BspBits {
         match k {
-            1 => BspBits { sell1: true, ..Default::default() },
-            2 => BspBits { sell2: true, ..Default::default() },
-            _ => BspBits { sell3: true, ..Default::default() },
+            1 => BspBits {
+                sell1: true,
+                ..Default::default()
+            },
+            2 => BspBits {
+                sell2: true,
+                ..Default::default()
+            },
+            _ => BspBits {
+                sell3: true,
+                ..Default::default()
+            },
         }
     }
 
@@ -460,7 +524,10 @@ mod tests {
         StepTrace {
             verdicts: legs
                 .iter()
-                .map(|&leg| VoiceVerdict { leg, exit: ExitType::Hold })
+                .map(|&leg| VoiceVerdict {
+                    leg,
+                    exit: ExitType::Hold,
+                })
                 .collect(),
             ..Default::default()
         }
@@ -480,18 +547,36 @@ mod tests {
 
         for bar in 0..3 {
             book.observe_and_compare(
-                bar, &active, &[], &entry_v, false, &[], &hold_trace(&active),
+                bar,
+                &active,
+                &[],
+                &entry_v,
+                false,
+                &[],
+                &hold_trace(&active),
             );
         }
         // 两 slot 各自持久；step 跨 bar 连续推进（bar0 裁于 step0 → 推进；bar2 后 step=3）。
         assert_eq!(book.voices.len(), 2, "同级异向两腿 = 两个独立声部 slot");
         for key in [
-            VoiceKey { level: 1, dir: VoiceSide::Long },
-            VoiceKey { level: 1, dir: VoiceSide::Short },
+            VoiceKey {
+                level: 1,
+                dir: VoiceSide::Long,
+            },
+            VoiceKey {
+                level: 1,
+                dir: VoiceSide::Short,
+            },
         ] {
             let voice = book.voices.get(&key).expect("slot 持久在簿");
-            assert_eq!(voice.step, 3, "同 id 腿延续 ⟹ 步计数跨 bar 连续（key={key:?}）");
-            assert_eq!(voice.leg.map(|l| l.id), active.iter().find(|l| l.dir == key.dir).map(|l| l.id));
+            assert_eq!(
+                voice.step, 3,
+                "同 id 腿延续 ⟹ 步计数跨 bar 连续（key={key:?}）"
+            );
+            assert_eq!(
+                voice.leg.map(|l| l.id),
+                active.iter().find(|l| l.dir == key.dir).map(|l| l.id)
+            );
         }
         // 无候选无反向 ⟹ 每 slot 每 bar 裁 Hold ⟷ 生产 Held：6 步全 Match、零分歧记录。
         assert_eq!(book.stats().voice_steps, 6);
@@ -507,15 +592,45 @@ mod tests {
         let mut book = ShadowVoiceBook::default();
         let entry_v = HashMap::new();
         let leg_a = leg(1, VoiceSide::Long, 5);
-        book.observe_and_compare(0, &[leg_a], &[], &entry_v, false, &[], &hold_trace(&[leg_a]));
-        book.observe_and_compare(1, &[leg_a], &[], &entry_v, false, &[], &hold_trace(&[leg_a]));
-        let key = VoiceKey { level: 1, dir: VoiceSide::Long };
+        book.observe_and_compare(
+            0,
+            &[leg_a],
+            &[],
+            &entry_v,
+            false,
+            &[],
+            &hold_trace(&[leg_a]),
+        );
+        book.observe_and_compare(
+            1,
+            &[leg_a],
+            &[],
+            &entry_v,
+            false,
+            &[],
+            &hold_trace(&[leg_a]),
+        );
+        let key = VoiceKey {
+            level: 1,
+            dir: VoiceSide::Long,
+        };
         assert_eq!(book.voices[&key].step, 2);
 
         // bar2：同 slot 换腿（id ordinal 5→7）⟹ 新持仓期，step 重置为 0 后推进到 1。
         let leg_b = leg(1, VoiceSide::Long, 7);
-        book.observe_and_compare(2, &[leg_b], &[], &entry_v, false, &[], &hold_trace(&[leg_b]));
-        assert_eq!(book.voices[&key].step, 1, "腿 id 切换 = 新持仓期 ⟹ 步计数重置");
+        book.observe_and_compare(
+            2,
+            &[leg_b],
+            &[],
+            &entry_v,
+            false,
+            &[],
+            &hold_trace(&[leg_b]),
+        );
+        assert_eq!(
+            book.voices[&key].step, 1,
+            "腿 id 切换 = 新持仓期 ⟹ 步计数重置"
+        );
         assert_eq!(book.voices[&key].leg.map(|l| l.id), Some(leg_b.id));
 
         // bar3：腿消失且无候选 ⟹ slot 从簿清除（下 bar 无持久状态残留）。
@@ -533,29 +648,85 @@ mod tests {
         use ProductionFact as F;
         let cases: &[(ChannelDecision, ProductionFact, DivergenceKind)] = &[
             // 出场 typed 一致/不一致。
-            (D::Exit(ExitType::CloseRoot), F::Closed(ExitType::CloseRoot), K::Match),
-            (D::Exit(ExitType::ReduceCore), F::Closed(ExitType::ReduceCore), K::Match),
-            (D::Exit(ExitType::CloseRoot), F::Closed(ExitType::ReduceCore), K::ExitTypedMismatch),
-            (D::Exit(ExitType::CloseReverseOpen), F::Closed(ExitType::CloseReverseOpen), K::Match),
+            (
+                D::Exit(ExitType::CloseRoot),
+                F::Closed(ExitType::CloseRoot),
+                K::Match,
+            ),
+            (
+                D::Exit(ExitType::ReduceCore),
+                F::Closed(ExitType::ReduceCore),
+                K::Match,
+            ),
+            (
+                D::Exit(ExitType::CloseRoot),
+                F::Closed(ExitType::ReduceCore),
+                K::ExitTypedMismatch,
+            ),
+            (
+                D::Exit(ExitType::CloseReverseOpen),
+                F::Closed(ExitType::CloseReverseOpen),
+                K::Match,
+            ),
             // P1。
             (D::Exit(ExitType::RiskExit), F::RiskExited, K::Match),
             (D::Exit(ExitType::RiskExit), F::Idle, K::Match),
-            (D::Exit(ExitType::RiskExit), F::Held, K::ChannelExitProductionHold),
+            (
+                D::Exit(ExitType::RiskExit),
+                F::Held,
+                K::ChannelExitProductionHold,
+            ),
             // Hold 各侧。
             (D::Exit(ExitType::Hold), F::Held, K::Match),
             (D::Exit(ExitType::Hold), F::Idle, K::Match),
-            (D::Exit(ExitType::Hold), F::Closed(ExitType::CloseRoot), K::ChannelHoldProductionExit),
-            (D::Exit(ExitType::Hold), F::OverlayClosed, K::ChannelHoldProductionExit),
+            (
+                D::Exit(ExitType::Hold),
+                F::Closed(ExitType::CloseRoot),
+                K::ChannelHoldProductionExit,
+            ),
+            (
+                D::Exit(ExitType::Hold),
+                F::OverlayClosed,
+                K::ChannelHoldProductionExit,
+            ),
             // ★#594：#572 逐腿 risk-close seed 触发的父腿 RiskExit——channel 无逐腿 stop 通道，
             // 全局 force_flat 未置位时该 slot 仍裁 Hold（模块 doc「#594 尾巴②口径登记」）。
-            (D::Exit(ExitType::Hold), F::RiskExited, K::ChannelHoldProductionExit),
-            (D::Exit(ExitType::Hold), F::SilentDropped, K::ProductionSilentDrop),
-            (D::Exit(ExitType::Hold), F::Opened, K::ChannelHoldProductionOpen),
+            (
+                D::Exit(ExitType::Hold),
+                F::RiskExited,
+                K::ChannelHoldProductionExit,
+            ),
+            (
+                D::Exit(ExitType::Hold),
+                F::SilentDropped,
+                K::ProductionSilentDrop,
+            ),
+            (
+                D::Exit(ExitType::Hold),
+                F::Opened,
+                K::ChannelHoldProductionOpen,
+            ),
             // 出场 vs 持有/剪除。
-            (D::Exit(ExitType::CloseRoot), F::Held, K::ChannelExitProductionHold),
-            (D::Exit(ExitType::CloseRoot), F::SilentDropped, K::ProductionSilentDrop),
-            (D::Exit(ExitType::CloseReverseOpen), F::OverlayClosed, K::Match),
-            (D::Exit(ExitType::ReduceCore), F::RiskExited, K::ExitTypedMismatch),
+            (
+                D::Exit(ExitType::CloseRoot),
+                F::Held,
+                K::ChannelExitProductionHold,
+            ),
+            (
+                D::Exit(ExitType::CloseRoot),
+                F::SilentDropped,
+                K::ProductionSilentDrop,
+            ),
+            (
+                D::Exit(ExitType::CloseReverseOpen),
+                F::OverlayClosed,
+                K::Match,
+            ),
+            (
+                D::Exit(ExitType::ReduceCore),
+                F::RiskExited,
+                K::ExitTypedMismatch,
+            ),
             // 开仓。
             (D::Open, F::Opened, K::Match),
             (D::Open, F::Idle, K::ChannelOpenProductionIdle),
@@ -586,21 +757,41 @@ mod tests {
         let mut book = ShadowVoiceBook::default();
         let trace = StepTrace {
             closed: vec![(held, trigger, ExitType::CloseRoot)],
-            verdicts: vec![VoiceVerdict { leg: held, exit: ExitType::CloseRoot }],
+            verdicts: vec![VoiceVerdict {
+                leg: held,
+                exit: ExitType::CloseRoot,
+            }],
             ..Default::default()
         };
         book.observe_and_compare(7, &[held], &gamma, &entry_v, false, &[], &trace);
-        assert_eq!(book.stats().voice_steps, 2, "持仓 slot + 反向候选的空仓 slot");
-        assert_eq!(book.stats().matches, 1, "同构关闭 slot Match（T2 同构思路全量化）");
         assert_eq!(
-            book.stats().channel_open_production_idle, 1,
+            book.stats().voice_steps,
+            2,
+            "持仓 slot + 反向候选的空仓 slot"
+        );
+        assert_eq!(
+            book.stats().matches,
+            1,
+            "同构关闭 slot Match（T2 同构思路全量化）"
+        );
+        assert_eq!(
+            book.stats().channel_open_production_idle,
+            1,
             "候选被 fold 规则2 消费为关闭触发 ⟹ 空仓 slot Open 无生产对应"
         );
         assert_eq!(book.records().len(), 1);
 
         // ② 生产未关 ⟹ 两 slot 各落一条分歧（HashSet 序不定，按 kind 检索）。
         let mut book = ShadowVoiceBook::default();
-        book.observe_and_compare(7, &[held], &gamma, &entry_v, false, &[], &hold_trace(&[held]));
+        book.observe_and_compare(
+            7,
+            &[held],
+            &gamma,
+            &entry_v,
+            false,
+            &[],
+            &hold_trace(&[held]),
+        );
         assert_eq!(book.stats().divergences(), 2);
         assert_eq!(book.stats().channel_exit_production_hold, 1);
         assert_eq!(book.stats().channel_open_production_idle, 1);
@@ -629,14 +820,28 @@ mod tests {
         let new_leg = leg(0, VoiceSide::Long, 10);
 
         let mut book = ShadowVoiceBook::default();
-        let trace = StepTrace { opened: vec![(trigger, new_leg)], ..Default::default() };
+        let trace = StepTrace {
+            opened: vec![(trigger, new_leg)],
+            ..Default::default()
+        };
         book.observe_and_compare(0, &[], &gamma, &entry_v, false, &[], &trace);
-        assert_eq!(book.stats().matches, 1, "channel Open ⟷ 生产 Opened 同 slot");
+        assert_eq!(
+            book.stats().matches,
+            1,
+            "channel Open ⟷ 生产 Opened 同 slot"
+        );
 
         let mut book = ShadowVoiceBook::default();
         book.observe_and_compare(0, &[], &gamma, &entry_v, false, &[], &hold_trace(&[]));
-        assert_eq!(book.stats().channel_open_production_idle, 1, "AncOK 剪除类缺口");
-        assert_eq!(book.records()[0].kind, DivergenceKind::ChannelOpenProductionIdle);
+        assert_eq!(
+            book.stats().channel_open_production_idle,
+            1,
+            "AncOK 剪除类缺口"
+        );
+        assert_eq!(
+            book.records()[0].kind,
+            DivergenceKind::ChannelOpenProductionIdle
+        );
     }
 
     /// P1：force_flat ⟹ 持仓声部裁 Exit(RiskExit) ⟷ 生产 risk_exits 全 Match；
@@ -650,12 +855,19 @@ mod tests {
         // #201：risk_exits 桶与 verdicts 同填（生产 P1 分支同口径——每声部恰一枚 RiskExit）。
         let trace = StepTrace {
             risk_exits: vec![held],
-            verdicts: vec![VoiceVerdict { leg: held, exit: ExitType::RiskExit }],
+            verdicts: vec![VoiceVerdict {
+                leg: held,
+                exit: ExitType::RiskExit,
+            }],
             ..Default::default()
         };
         let mut book = ShadowVoiceBook::default();
         book.observe_and_compare(0, &[held], &gamma, &entry_v, true, &[], &trace);
-        assert_eq!(book.stats().voice_steps, 2, "持仓 slot + 空仓候选 slot 各一枚裁决");
+        assert_eq!(
+            book.stats().voice_steps,
+            2,
+            "持仓 slot + 空仓候选 slot 各一枚裁决"
+        );
         assert_eq!(book.stats().matches, 2, "P1 双链同裁（全互斥 C1 屏蔽）");
         assert!(book.records().is_empty());
     }
@@ -673,19 +885,29 @@ mod tests {
         let entry_v = HashMap::new();
         // 无候选、force_flat=false：channel 唯一可裁 Hold（对齐 hold_trace 场景的裁决前提）。
         let trace = StepTrace {
-            verdicts: vec![VoiceVerdict { leg: held, exit: ExitType::RiskExit }],
+            verdicts: vec![VoiceVerdict {
+                leg: held,
+                exit: ExitType::RiskExit,
+            }],
             ..Default::default()
         };
         let mut book = ShadowVoiceBook::default();
         book.observe_and_compare(3, &[held], &[], &entry_v, false, &[], &trace);
         assert_eq!(book.stats().voice_steps, 1);
         assert_eq!(
-            book.stats().channel_hold_production_exit, 1,
+            book.stats().channel_hold_production_exit,
+            1,
             "channel 不知逐腿 stop ⟹ 裁 Hold，生产 RiskExit ⟹ ChannelHoldProductionExit"
         );
         assert_eq!(book.records().len(), 1);
-        assert_eq!(book.records()[0].kind, DivergenceKind::ChannelHoldProductionExit);
+        assert_eq!(
+            book.records()[0].kind,
+            DivergenceKind::ChannelHoldProductionExit
+        );
         assert_eq!(book.records()[0].production, ProductionFact::RiskExited);
-        assert_eq!(book.records()[0].decision, ChannelDecision::Exit(ExitType::Hold));
+        assert_eq!(
+            book.records()[0].decision,
+            ChannelDecision::Exit(ExitType::Hold)
+        );
     }
 }

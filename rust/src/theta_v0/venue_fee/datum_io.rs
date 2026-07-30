@@ -77,8 +77,12 @@ pub fn load_datum(json_path: &Path) -> Result<VenueFeeBook, String> {
     let actual = sha256_hex(&bytes);
 
     let sidecar = PathBuf::from(format!("{}.sha256", json_path.display()));
-    let sidecar_txt = std::fs::read_to_string(&sidecar)
-        .map_err(|e| format!("venue fee datum sha256 sidecar 读失败 {}: {e}", sidecar.display()))?;
+    let sidecar_txt = std::fs::read_to_string(&sidecar).map_err(|e| {
+        format!(
+            "venue fee datum sha256 sidecar 读失败 {}: {e}",
+            sidecar.display()
+        )
+    })?;
     let expected = sidecar_txt
         .split_whitespace()
         .next()
@@ -109,7 +113,10 @@ fn build_book(raw: RawBook, datum_sha256: String) -> Result<VenueFeeBook, String
     let mut entries: Vec<VenueFeeSchedule> = Vec::with_capacity(raw.entries.len());
     for e in &raw.entries {
         let ctx = format!("venue fee datum {} 条目 {}/{}", raw.venue, e.symbol, e.tier);
-        if entries.iter().any(|p| p.symbol == e.symbol && p.tier == e.tier) {
+        if entries
+            .iter()
+            .any(|p| p.symbol == e.symbol && p.tier == e.tier)
+        {
             return Err(format!("{ctx}: (symbol, tier) 重复"));
         }
         let unit = match e.unit.as_str() {
@@ -219,7 +226,8 @@ mod tests {
         build_book(raw, "0".repeat(64))
     }
 
-    const OK_ENTRY: &str = r#"{"symbol":"X","tier":"T","unit":"notional","maker_bps":1.0,"taker_bps":2.0}"#;
+    const OK_ENTRY: &str =
+        r#"{"symbol":"X","tier":"T","unit":"notional","maker_bps":1.0,"taker_bps":2.0}"#;
 
     /// 底板本身可解析（否则下面 4 条的 Err 可能来自底板而非被测分支）。
     #[test]
@@ -231,7 +239,8 @@ mod tests {
     /// ① 未知 `unit`：禁按已知字段表猜测新计费单位。
     #[test]
     fn unknown_unit_is_rejected() {
-        let e = r#"{"symbol":"X","tier":"T","unit":"per_contract","maker_bps":1.0,"taker_bps":2.0}"#;
+        let e =
+            r#"{"symbol":"X","tier":"T","unit":"per_contract","maker_bps":1.0,"taker_bps":2.0}"#;
         let err = parse(&base_json(e)).expect_err("未知 unit 须 Err");
         assert!(err.contains("未知计费单位"), "错误须点名 unit：{err}");
     }
@@ -257,7 +266,10 @@ mod tests {
     fn missing_or_negative_field_is_rejected() {
         let missing = r#"{"symbol":"X","tier":"T","unit":"notional","maker_bps":1.0}"#;
         let err = parse(&base_json(missing)).expect_err("缺 taker_bps 须 Err");
-        assert!(err.contains("缺字段 taker_bps"), "错误须点名缺失字段：{err}");
+        assert!(
+            err.contains("缺字段 taker_bps"),
+            "错误须点名缺失字段：{err}"
+        );
 
         let negative =
             r#"{"symbol":"X","tier":"T","unit":"notional","maker_bps":1.0,"taker_bps":-2.0}"#;

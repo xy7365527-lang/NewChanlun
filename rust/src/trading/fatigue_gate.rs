@@ -43,7 +43,10 @@ pub struct FatigueGate {
 
 impl Default for FatigueGate {
     fn default() -> Self {
-        FatigueGate { state: [FatigueState::Fresh; MAX_LADDER], structure_seen: 0 }
+        FatigueGate {
+            state: [FatigueState::Fresh; MAX_LADDER],
+            structure_seen: 0,
+        }
     }
 }
 
@@ -91,10 +94,14 @@ impl FatigueGate {
         }
         // ── 证据进入 ──
         let evidence = evs.iter().any(Self::is_evidence)
-            || devs.iter().any(|d| d.side() == crate::buysellpoint::Side::Sell);
+            || devs
+                .iter()
+                .any(|d| d.side() == crate::buysellpoint::Side::Sell);
         if evidence {
             if let FatigueState::Fresh = self.state[u] {
-                self.state[u] = FatigueState::Fatigued { high_water: run_high };
+                self.state[u] = FatigueState::Fatigued {
+                    high_water: run_high,
+                };
             }
         }
     }
@@ -170,7 +177,11 @@ mod tests {
         g.observe(3, &[], &[div_sell()], &[], false, 9.0, 10.0);
         assert!(g.gate_open(2, 3));
         // 路径2：新中枢
-        let formed = CenterEvent::Formed { seg_start: 7, zd: 1.0, zg: 2.0 };
+        let formed = CenterEvent::Formed {
+            seg_start: 7,
+            zd: 1.0,
+            zg: 2.0,
+        };
         g.observe(3, &[], &[], &[formed], false, 9.0, 10.0);
         assert!(!g.gate_open(2, 3));
         // 重新进入，再用路径3清空

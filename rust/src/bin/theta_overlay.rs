@@ -30,7 +30,11 @@ fn main() -> std::process::ExitCode {
         return std::process::ExitCode::from(2);
     }
     let symbol = &args[1];
-    let window = if args.len() == 4 { Some((args[2].as_str(), args[3].as_str())) } else { None };
+    let window = if args.len() == 4 {
+        Some((args[2].as_str(), args[3].as_str()))
+    } else {
+        None
+    };
     let config = ThetaConfig::default();
 
     let full = match load_by_symbol(symbol, &config) {
@@ -98,13 +102,20 @@ fn main() -> std::process::ExitCode {
     //   ⟹ 该段一并移除，非本车新引入的能力削减。
     let lee = r.level_ledger.lee_net_witness();
     println!("--- ★LEE M1 级别账本（Σ_ℓ net_ℓ ≡ N 加性细化；§D M1，只读旁路）---");
-    println!("活动级别桶      : {:?}", r.level_ledger.levels().collect::<Vec<_>>());
+    println!(
+        "活动级别桶      : {:?}",
+        r.level_ledger.levels().collect::<Vec<_>>()
+    );
     println!(
         "LEE-Net 见证    : obs={} max|Σ_ℓ net_ℓ−N|={} max|N|={} ⟹ {}",
         lee.n_observations,
         lee.max_abs_residual,
         lee.max_abs_net,
-        if lee.identity_witnessed() { "PASS（残差 0 且非平凡）" } else { "FAIL/平凡（残差≠0 或 max|N|=0）" }
+        if lee.identity_witnessed() {
+            "PASS（残差 0 且非平凡）"
+        } else {
+            "FAIL/平凡（残差≠0 或 max|N|=0）"
+        }
     );
     println!("--- ★LEE M3 clock_ℓ 事件钟（§D M3，只读累计——不门控本臂订单流）---");
     println!(
@@ -164,7 +175,10 @@ fn main() -> std::process::ExitCode {
     // 明细样本（前 10 条离场声部，PDF §M5 entry_v/exit_v/parent(v)/role(v)/pnl_v）。
     println!("--- 逐声部明细（前 10 条离场声部）---");
     for c in r.overlay.closed_voices().iter().take(10) {
-        let parent = c.parent_id.map(|p| format!("L{}#{}", p.level, p.ordinal)).unwrap_or_else(|| "∂根".to_string());
+        let parent = c
+            .parent_id
+            .map(|p| format!("L{}#{}", p.level, p.ordinal))
+            .unwrap_or_else(|| "∂根".to_string());
         println!(
             "v=L{}#{:<4} side={:?} role={:?} parent={} entry_bar={} exit_bar={} entry_px={:.2} exit_px={:.2} pnl_v={:.4}",
             c.id.level, c.id.ordinal, c.side, c.role_v, parent, c.entry_bar, c.exit_bar, c.entry_px, c.exit_px, c.pnl_v
@@ -172,7 +186,9 @@ fn main() -> std::process::ExitCode {
     }
     println!("--- 认识论 L1（formalization-validity-domain 231号）---");
     println!("ΔN 守恒 + Σpnl_v 对账 = 结构恒等（构造性+线性代数），零信息增量。");
-    println!("★执行层首次真实化——不声明 alpha（PDF §9：声部生成层+净额可见层验收，经济有效层须另证）。");
+    println!(
+        "★执行层首次真实化——不声明 alpha（PDF §9：声部生成层+净额可见层验收，经济有效层须另证）。"
+    );
 
     std::process::ExitCode::SUCCESS
 }

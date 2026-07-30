@@ -41,19 +41,19 @@ use newchan_rust::theta_v0::classifier;
 use newchan_rust::theta_v0::classifier::decompose;
 use newchan_rust::theta_v0::classifier::level_view::{
     assemble_level_view, lower_legs_from, project_extended_windows_carried_only,
-    provide_nest_candidate_events,
-    C2LevelViewConfig, C2VersionTuple, CoordinateWindow, LevelViewMaterial, LevelViewQuery,
-    NestCandidateEvent, NestDivergenceKind, ProjectionError, ProjectionMaterial,
+    provide_nest_candidate_events, C2LevelViewConfig, C2VersionTuple, CoordinateWindow,
+    LevelViewMaterial, LevelViewQuery, NestCandidateEvent, NestDivergenceKind, ProjectionError,
+    ProjectionMaterial,
 };
 use newchan_rust::theta_v0::classifier::nest::{
     assemble_certificates_snapshot, assemble_typed_certificates, event_bsp_book_level,
     terminal_bits_at_event, terminal_bits_in_book, NestIntervalCaliber, TerminalMatch,
     TypedNestCertificate,
 };
+use newchan_rust::theta_v0::classifier::recursive_tower::LeveledMove;
 use newchan_rust::theta_v0::classifier::turn_class::{
     classify_certificate_turn, is_defer_orphan_event, NestTurnClass,
 };
-use newchan_rust::theta_v0::classifier::recursive_tower::LeveledMove;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::{ParseLayer, ParseLayerIncr};
 use newchan_rust::theta_v0::types::{quantize, Bar, BspBits, Side, Timestamp};
@@ -78,7 +78,9 @@ fn dump_line(args: std::fmt::Arguments<'_>) {
     });
     if let Some(sink) = sink {
         if let Ok(mut writer) = sink.lock() {
-            let _ = writer.write_fmt(args).and_then(|()| writer.write_all(b"\n"));
+            let _ = writer
+                .write_fmt(args)
+                .and_then(|()| writer.write_all(b"\n"));
         }
     }
 }
@@ -340,9 +342,7 @@ fn parse_shard_dump(path: &str, audit: &mut MergeAudit) -> Result<ShardDump, Str
                 "shard" => shard = Some(v.parse().map_err(|_| format!("shard 非整数: {v}"))?),
                 "seq" => seq = Some(v.parse().map_err(|_| format!("seq 非整数: {v}"))?),
                 "run" => {
-                    let (l, s) = v
-                        .split_once(':')
-                        .ok_or_else(|| format!("run 缺 :: {v}"))?;
+                    let (l, s) = v.split_once(':').ok_or_else(|| format!("run 缺 :: {v}"))?;
                     run = Some((
                         l.parse().map_err(|_| format!("run level 非整数: {v}"))?,
                         s.parse().map_err(|_| format!("run src 非整数: {v}"))?,
@@ -476,7 +476,10 @@ fn main() -> Result<(), String> {
             return Err("片 dump 缺 LEDGER_META".to_string());
         }
     }
-    let metas: Vec<&ShardMeta> = shards.iter().map(|s| s.meta.as_ref().expect("meta")).collect();
+    let metas: Vec<&ShardMeta> = shards
+        .iter()
+        .map(|s| s.meta.as_ref().expect("meta"))
+        .collect();
     let shard_count = metas[0].shards;
     let shard0 = metas[0];
     // META 跨片一致性（max_bars/ckpt/probes/hash/shards 须全等；索引须唯一覆盖 0..S）。
@@ -919,7 +922,11 @@ fn main() -> Result<(), String> {
     let missed: Vec<&EventKey> = book
         .terminal_confirmed
         .iter()
-        .filter(|key| !book.covered_b.contains(&(key.level, key.turn_source, key.interval_b)))
+        .filter(|key| {
+            !book
+                .covered_b
+                .contains(&(key.level, key.turn_source, key.interval_b))
+        })
         .collect();
     println!(
         "P124M_MISSED terminal_confirmed={} covered_b={} intake_fallback_events={} missed={}",
@@ -960,7 +967,9 @@ fn cross_shard_rows_equal(shards: &[ShardDump], section: u8) -> usize {
             rows.into_iter().map(|row| row.text.as_str()).collect()
         })
         .collect();
-    let Some(base) = per_shard.first() else { return 0 };
+    let Some(base) = per_shard.first() else {
+        return 0;
+    };
     per_shard
         .iter()
         .skip(1)
@@ -1183,16 +1192,13 @@ fn observe_snapshot(
     // p118 关④ TURN_CLASS 侧信道：039:34 defer 孤儿发射（只写不判）——p92 逐字。
     for events in &current {
         for event in events {
-            let covered = book
-                .covered_b
-                .contains(&(event.level, event.turn_source, event.interval_b));
+            let covered =
+                book.covered_b
+                    .contains(&(event.level, event.turn_source, event.interval_b));
             if is_defer_orphan_event(event, covered) {
                 dump_line(format_args!(
                     "TURN_CLASS ids={}:{}:{}-{} class=DeferOrphan confirmed_vec=0",
-                    event.level,
-                    event.turn_source,
-                    event.interval_b.0,
-                    event.interval_b.1,
+                    event.level, event.turn_source, event.interval_b.0, event.interval_b.1,
                 ));
             }
         }
@@ -1237,7 +1243,12 @@ fn observe_certificates(
             let ids = certificate
                 .identities()
                 .iter()
-                .map(|id| format!("{}:{}:{}-{}", id.level, id.turn_source, id.interval_b.0, id.interval_b.1))
+                .map(|id| {
+                    format!(
+                        "{}:{}:{}-{}",
+                        id.level, id.turn_source, id.interval_b.0, id.interval_b.1
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join("|");
             let kinds_str = certificate
@@ -1370,7 +1381,10 @@ fn bin_anchor_ctx() -> newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx<
     fn never(_: usize) -> Option<(newchan_rust::theta_v0::types::Tick, usize)> {
         None
     }
-    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx { anchor_at: &never, event_anchor: (None, None) }
+    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx {
+        anchor_at: &never,
+        event_anchor: (None, None),
+    }
 }
 
 const TERMINAL_MATCH: TerminalMatch = TerminalMatch::CWindow;
@@ -1396,15 +1410,24 @@ fn terminal_bits_old(
     side: Side,
     b_center_start: Option<usize>,
 ) -> Option<BspBits> {
-    let book_level = classification.levels.get(event_bsp_book_level(level as u32)?)?;
+    let book_level = classification
+        .levels
+        .get(event_bsp_book_level(level as u32)?)?;
     let book = &book_level.bsp;
     // 关③ P3 平移：旧事件 = Cand^δ 趋势族线（pan_div_diag 为 cand_delta=false 纯诊断，
     // 结构性不入终端查询）⟹ kind=Trend；B 身份 = 事件自带 `b_parent.source_interval.0`
     //（ParentCenterIdentity 已携 B start_index 快照，单一来源，无第二查法）。
     // #218 面 B：一/三类判同的 B 带由同层 `centers` 查出（b_center_start 只当查找键）。
     terminal_bits_in_book(
-        book, &book_level.centers, c_start, source, side, NestDivergenceKind::Trend,
-        b_center_start, TERMINAL_MATCH, &bin_anchor_ctx(),
+        book,
+        &book_level.centers,
+        c_start,
+        source,
+        side,
+        NestDivergenceKind::Trend,
+        b_center_start,
+        TERMINAL_MATCH,
+        &bin_anchor_ctx(),
     )
     .map(|t| t.bits)
 }

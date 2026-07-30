@@ -153,16 +153,29 @@ pub fn pi_strict_factored(c: ClassLabel) -> StrictAction {
 fn strict_state_from_label(c: ClassLabel) -> StrictState {
     match c.risk_mode {
         // 风险事件：持有态 + 卖侧 ⟹ piStrict 给 Reduce（去杠杆/只平不开的细格对应）。
-        RiskMode::Insolvent | RiskMode::Liquidation | RiskMode::CloseOnly | RiskMode::Deleverage => {
-            StrictState { pos: Pos::Long, sig: Sig::SellSide }
-        }
+        RiskMode::Insolvent
+        | RiskMode::Liquidation
+        | RiskMode::CloseOnly
+        | RiskMode::Deleverage => StrictState {
+            pos: Pos::Long,
+            sig: Sig::SellSide,
+        },
         RiskMode::Normal => match c.phase {
             // PhaseI 建仓：空仓 + 买侧 ⟹ piStrict 给 Buy。
-            Phase::PhaseI => StrictState { pos: Pos::Flat, sig: Sig::BuySide },
+            Phase::PhaseI => StrictState {
+                pos: Pos::Flat,
+                sig: Sig::BuySide,
+            },
             // PhaseII 取本：持多 + 卖侧 ⟹ piStrict 给 Reduce。
-            Phase::PhaseII => StrictState { pos: Pos::Long, sig: Sig::SellSide },
+            Phase::PhaseII => StrictState {
+                pos: Pos::Long,
+                sig: Sig::SellSide,
+            },
             // PhaseIII 增核：持多 + 买侧 ⟹ piStrict 给 Add。
-            Phase::PhaseIII => StrictState { pos: Pos::Long, sig: Sig::BuySide },
+            Phase::PhaseIII => StrictState {
+                pos: Pos::Long,
+                sig: Sig::BuySide,
+            },
         },
     }
 }
@@ -300,18 +313,25 @@ pub fn lex_argmin_top_k<U: Copy>(candidates: &[LexCandidate<U>], k: usize) -> Ve
             _ => std::cmp::Ordering::Equal,
         }
     });
-    indexed.into_iter().take(k).map(|c| (c.key, c.control)).collect()
+    indexed
+        .into_iter()
+        .take(k)
+        .map(|c| (c.key, c.control))
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::super::closed_loop::state::AssemblyState;
+    use super::*;
 
     /// action_priority 全函数确定（契约锚 `Origin.chooseAction` + `action_priority_complete_unique`）：同标签同动作。
     #[test]
     fn action_priority_deterministic() {
-        let c = ClassLabel { risk_mode: RiskMode::Normal, phase: Phase::PhaseI };
+        let c = ClassLabel {
+            risk_mode: RiskMode::Normal,
+            phase: Phase::PhaseI,
+        };
         assert_eq!(action_priority(c), action_priority(c));
     }
 
@@ -320,19 +340,31 @@ mod tests {
     fn action_priority_risk_events() {
         for phase in [Phase::PhaseI, Phase::PhaseII, Phase::PhaseIII] {
             assert_eq!(
-                action_priority(ClassLabel { risk_mode: RiskMode::Insolvent, phase }),
+                action_priority(ClassLabel {
+                    risk_mode: RiskMode::Insolvent,
+                    phase
+                }),
                 StrictAction::Close
             );
             assert_eq!(
-                action_priority(ClassLabel { risk_mode: RiskMode::Liquidation, phase }),
+                action_priority(ClassLabel {
+                    risk_mode: RiskMode::Liquidation,
+                    phase
+                }),
                 StrictAction::Close
             );
             assert_eq!(
-                action_priority(ClassLabel { risk_mode: RiskMode::CloseOnly, phase }),
+                action_priority(ClassLabel {
+                    risk_mode: RiskMode::CloseOnly,
+                    phase
+                }),
                 StrictAction::Close
             );
             assert_eq!(
-                action_priority(ClassLabel { risk_mode: RiskMode::Deleverage, phase }),
+                action_priority(ClassLabel {
+                    risk_mode: RiskMode::Deleverage,
+                    phase
+                }),
                 StrictAction::Reduce
             );
         }
@@ -341,7 +373,10 @@ mod tests {
     /// action_priority Normal 下三阶段（PhaseI→Buy / PhaseII→Reduce / PhaseIII→Add）。
     #[test]
     fn action_priority_normal_phases() {
-        let mk = |phase| ClassLabel { risk_mode: RiskMode::Normal, phase };
+        let mk = |phase| ClassLabel {
+            risk_mode: RiskMode::Normal,
+            phase,
+        };
         assert_eq!(action_priority(mk(Phase::PhaseI)), StrictAction::Buy);
         assert_eq!(action_priority(mk(Phase::PhaseII)), StrictAction::Reduce);
         assert_eq!(action_priority(mk(Phase::PhaseIII)), StrictAction::Add);
@@ -365,15 +400,24 @@ mod tests {
     #[test]
     fn pi_strict_factored_agrees_with_action_priority() {
         // PhaseI：action_priority→Buy；pi_strict(Flat,BuySide)→Buy ⟹ 一致。
-        let c1 = ClassLabel { risk_mode: RiskMode::Normal, phase: Phase::PhaseI };
+        let c1 = ClassLabel {
+            risk_mode: RiskMode::Normal,
+            phase: Phase::PhaseI,
+        };
         assert_eq!(pi_strict_factored(c1), StrictAction::Buy);
         assert_eq!(pi_strict_factored(c1), action_priority(c1));
         // PhaseII：action_priority→Reduce；pi_strict(Long,SellSide)→Reduce ⟹ 一致。
-        let c2 = ClassLabel { risk_mode: RiskMode::Normal, phase: Phase::PhaseII };
+        let c2 = ClassLabel {
+            risk_mode: RiskMode::Normal,
+            phase: Phase::PhaseII,
+        };
         assert_eq!(pi_strict_factored(c2), StrictAction::Reduce);
         assert_eq!(pi_strict_factored(c2), action_priority(c2));
         // PhaseIII：action_priority→Add；pi_strict(Long,BuySide)→Add ⟹ 一致。
-        let c3 = ClassLabel { risk_mode: RiskMode::Normal, phase: Phase::PhaseIII };
+        let c3 = ClassLabel {
+            risk_mode: RiskMode::Normal,
+            phase: Phase::PhaseIII,
+        };
         assert_eq!(pi_strict_factored(c3), StrictAction::Add);
         assert_eq!(pi_strict_factored(c3), action_priority(c3));
     }
@@ -381,7 +425,10 @@ mod tests {
     /// 风险事件下 pi_strict_factored 给减仓侧（Long+SellSide→Reduce，对齐 Deleverage）。
     #[test]
     fn pi_strict_factored_risk_event_reduces() {
-        let c = ClassLabel { risk_mode: RiskMode::Deleverage, phase: Phase::PhaseI };
+        let c = ClassLabel {
+            risk_mode: RiskMode::Deleverage,
+            phase: Phase::PhaseI,
+        };
         // pi_strict(Long,SellSide)=Reduce，与 action_priority(Deleverage,_)=Reduce 一致。
         assert_eq!(pi_strict_factored(c), StrictAction::Reduce);
         assert_eq!(pi_strict_factored(c), action_priority(c));
@@ -442,9 +489,18 @@ mod tests {
     fn lex_argmin_selects_minimum() {
         // 三候选：控制标签 + J_Θ键。主键最小者（10）应被选出。
         let candidates = [
-            LexCandidate { control: "B", key: mk_key(20, 0, 0, 0, 1) },
-            LexCandidate { control: "A", key: mk_key(10, 999, 0, 0, 0) }, // 主键最小（次键大不翻盘）
-            LexCandidate { control: "C", key: mk_key(30, 0, 0, 0, 2) },
+            LexCandidate {
+                control: "B",
+                key: mk_key(20, 0, 0, 0, 1),
+            },
+            LexCandidate {
+                control: "A",
+                key: mk_key(10, 999, 0, 0, 0),
+            }, // 主键最小（次键大不翻盘）
+            LexCandidate {
+                control: "C",
+                key: mk_key(30, 0, 0, 0, 2),
+            },
         ];
         assert_eq!(lex_argmin(&candidates), Some("A")); // 主键 10 最小 ⟹ 选 A
     }
@@ -453,9 +509,18 @@ mod tests {
     #[test]
     fn lex_argmin_tiebreak_by_secondary() {
         let candidates = [
-            LexCandidate { control: "X", key: mk_key(5, 8, 0, 0, 0) },
-            LexCandidate { control: "Y", key: mk_key(5, 3, 0, 0, 1) }, // 主键平 5，次键 3 最小
-            LexCandidate { control: "Z", key: mk_key(5, 6, 0, 0, 2) },
+            LexCandidate {
+                control: "X",
+                key: mk_key(5, 8, 0, 0, 0),
+            },
+            LexCandidate {
+                control: "Y",
+                key: mk_key(5, 3, 0, 0, 1),
+            }, // 主键平 5，次键 3 最小
+            LexCandidate {
+                control: "Z",
+                key: mk_key(5, 6, 0, 0, 2),
+            },
         ];
         assert_eq!(lex_argmin(&candidates), Some("Y")); // 主键平局后次键 3 最小 ⟹ 选 Y
     }
@@ -470,7 +535,10 @@ mod tests {
     /// ★lex_argmin 单候选 ⟹ 直接返回（u^safe 单点可行集）。
     #[test]
     fn lex_argmin_single_candidate() {
-        let candidates = [LexCandidate { control: "safe", key: mk_key(0, 0, 0, 0, 0) }];
+        let candidates = [LexCandidate {
+            control: "safe",
+            key: mk_key(0, 0, 0, 0, 0),
+        }];
         assert_eq!(lex_argmin(&candidates), Some("safe"));
     }
 }

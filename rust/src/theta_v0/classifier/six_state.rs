@@ -33,17 +33,17 @@
 //! - **禁回灌**：不得反过来让 `level_state`/`bsp` 依赖本模块的命名表做判定——依赖方向单向
 //!   （本模块读它们，不可逆），本文件也不得新增判据逻辑（那会制造第二份实现分叉）。
 
-use super::level_state::{rlevel_of, RContext, RLevel};
-use super::bsp::{endpoint_to_bsp, EndpointSituation};
 use super::super::types::{BspBits, Center, Tick};
+use super::bsp::{endpoint_to_bsp, EndpointSituation};
+use super::level_state::{rlevel_of, RContext, RLevel};
 
 /// 走势六态 r 的 canonical 名称表（FULL §5 符号 ↔ Lean `TrendSixState` 构造子 ↔ rust `RLevel`）。
 ///
 /// 顺序逐项 bit-exact 对应 Lean `Origin.TrendSixState`（bot/insideZ/aboveNo3B/aboveB3/belowNo3S/belowS3）
 /// 与 §5 符号（⊥/I/U⁰/U¹/D⁰/D¹）。这是 parity 的命名锚——Lean 改构造子顺序 ⟹ 本表须随之改。
 pub const SIX_STATE_CANONICAL: [(&str, &str); 6] = [
-    ("⊥", "bot"),       // 无确认中枢
-    ("I", "insideZ"),   // 中枢内
+    ("⊥", "bot"),        // 无确认中枢
+    ("I", "insideZ"),    // 中枢内
     ("U⁰", "aboveNo3B"), // 中枢上方·无三买
     ("U¹", "aboveB3"),   // 中枢上方·已有三买
     ("D⁰", "belowNo3S"), // 中枢下方·无三卖
@@ -82,13 +82,13 @@ pub fn rlevel_to_lean_name(r: RLevel) -> &'static str {
 /// 输入对齐 Lean `SixStateContext`（lastCenter/price/b3/s3）。返回值 = `rlevel_of` 的 `RLevel`
 /// （bit-exact 镜像 Lean `classifySixState` 的 `TrendSixState`）。**不**新增逻辑——只是给 L2-A
 /// 对照层一个与 Lean `classifySixState` 同名同签名的入口（消除「六态判定散落」的可读性缺口）。
-pub fn classify_six_state(
-    last_center: Option<Center>,
-    price: Tick,
-    b3: bool,
-    s3: bool,
-) -> RLevel {
-    rlevel_of(&RContext { last_center, price, b3, s3 })
+pub fn classify_six_state(last_center: Option<Center>, price: Tick, b3: bool, s3: bool) -> RLevel {
+    rlevel_of(&RContext {
+        last_center,
+        price,
+        b3,
+        s3,
+    })
 }
 
 /// 信号位投影（薄包装 `endpoint_to_bsp`，契约锚 Lean `signalBitsOf`）。
@@ -105,7 +105,14 @@ mod tests {
     use super::*;
 
     fn center(zd: Tick, zg: Tick) -> Center {
-        Center { zd, zg, dd: zd - 50, gg: zg + 50, start_index: 0, end_index: 12 }
+        Center {
+            zd,
+            zg,
+            dd: zd - 50,
+            gg: zg + 50,
+            start_index: 0,
+            end_index: 12,
+        }
     }
 
     // ── 六态 r parity（对齐 Lean TrendSixState witness_six_*，同口径中枢 [100,200]） ──
@@ -178,8 +185,12 @@ mod tests {
                         // 落六态之一（穷尽）。
                         assert!(matches!(
                             r,
-                            RLevel::Bot | RLevel::Inside | RLevel::AboveNo3B
-                                | RLevel::AboveB3 | RLevel::BelowNo3S | RLevel::BelowS3
+                            RLevel::Bot
+                                | RLevel::Inside
+                                | RLevel::AboveNo3B
+                                | RLevel::AboveB3
+                                | RLevel::BelowNo3S
+                                | RLevel::BelowS3
                         ));
                         // ⊥ 真新增维度：无中枢 ⟹ 恒 Bot（不论 price/b3/s3）。
                         if lc.is_none() {
@@ -198,8 +209,12 @@ mod tests {
     #[test]
     fn canonical_name_table_consistent() {
         let order = [
-            RLevel::Bot, RLevel::Inside, RLevel::AboveNo3B,
-            RLevel::AboveB3, RLevel::BelowNo3S, RLevel::BelowS3,
+            RLevel::Bot,
+            RLevel::Inside,
+            RLevel::AboveNo3B,
+            RLevel::AboveB3,
+            RLevel::BelowNo3S,
+            RLevel::BelowS3,
         ];
         for (i, r) in order.iter().enumerate() {
             assert_eq!(rlevel_to_symbol(*r), SIX_STATE_CANONICAL[i].0);
@@ -210,8 +225,12 @@ mod tests {
     // ── 信号位 b ∈ {0,1}⁶ parity（对齐 Lean signalBits_*） ──
 
     fn situ(
-        after_first: bool, pullback: bool, left: bool,
-        retrace: bool, below: bool, sell: bool,
+        after_first: bool,
+        pullback: bool,
+        left: bool,
+        retrace: bool,
+        below: bool,
+        sell: bool,
     ) -> EndpointSituation {
         EndpointSituation {
             after_first_buy: after_first,
@@ -232,7 +251,10 @@ mod tests {
         assert!(bits.buy2, "2B 置位（V型反转：1买后回调结束）");
         assert!(bits.buy3, "3B 置位（V型反转：离开中枢回试不入）");
         // ★非互斥见证：buy2 ∧ buy3 同时 true（互斥 sum 无法表达此态，Lean signalBits_not_collapsible_to_sum）。
-        assert!(bits.buy2 && bits.buy3, "2B/3B 共存 ⟹ 信号位真 6 维（非塌缩为互斥 sum）");
+        assert!(
+            bits.buy2 && bits.buy3,
+            "2B/3B 共存 ⟹ 信号位真 6 维（非塌缩为互斥 sum）"
+        );
     }
 
     /// ★信号位 1B/2B 不可重合（Lean `signalBits_1b2b_exclusive`，maimai:172 时间互斥）。
@@ -263,10 +285,16 @@ mod tests {
     #[test]
     fn signal_bits_is_subset_not_sum() {
         let bits = signal_bits_of(&situ(true, true, true, true, false, false));
-        let set_count =
-            [bits.buy1, bits.buy2, bits.buy3, bits.sell1, bits.sell2, bits.sell3]
-                .iter().filter(|x| **x).count();
-        assert!(set_count >= 2, "存在 ≥2 位同置的合法信号位 ⟹ subset（非互斥 sum 恰一格）");
+        let set_count = [
+            bits.buy1, bits.buy2, bits.buy3, bits.sell1, bits.sell2, bits.sell3,
+        ]
+        .iter()
+        .filter(|x| **x)
+        .count();
+        assert!(
+            set_count >= 2,
+            "存在 ≥2 位同置的合法信号位 ⟹ subset（非互斥 sum 恰一格）"
+        );
     }
 
     /// 卖侧镜像：2S/3S 可重合（信号位非互斥对买卖对称，maimai:176）。
@@ -274,6 +302,9 @@ mod tests {
     fn signal_2s3s_coexist_mirror() {
         let v_reversal_sell = situ(true, true, true, true, false, true);
         let bits = signal_bits_of(&v_reversal_sell);
-        assert!(bits.sell2 && bits.sell3, "2S/3S 共存（卖侧镜像，maimai:176）");
+        assert!(
+            bits.sell2 && bits.sell3,
+            "2S/3S 共存（卖侧镜像，maimai:176）"
+        );
     }
 }

@@ -102,7 +102,11 @@ pub fn micro_delta(s: &MicroState, e: MicroEvent) -> MicroState {
     match e {
         MicroEvent::NewBar(rising) => MicroState {
             bar_count: s.bar_count + 1,
-            pending_rise: if rising { s.pending_rise + 1 } else { s.pending_rise },
+            pending_rise: if rising {
+                s.pending_rise + 1
+            } else {
+                s.pending_rise
+            },
             bars_seen: s.bars_seen + 1,
             ..*s
         },
@@ -220,7 +224,11 @@ impl AssemblyState {
     /// 目标；建仓 `holding` 累积到 ≥notional 触发退本金）。TW 守恒：`tw()=notional`（全在 free）。
     pub fn funded_campaign(i0: i64, notional: i64) -> AssemblyState {
         AssemblyState {
-            tw_state: TwState { free: notional, notional_in: notional, ..TwState::initial() },
+            tw_state: TwState {
+                free: notional,
+                notional_in: notional,
+                ..TwState::initial()
+            },
             ..AssemblyState::initial(i0)
         }
     }

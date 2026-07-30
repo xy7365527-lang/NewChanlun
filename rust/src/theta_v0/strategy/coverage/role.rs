@@ -499,7 +499,6 @@ impl OperationRole {
 //  §5 LegTarget 每活动元素一腿（M17/M28，方向 ε_e + 单位 s_e 按 role/depth 权重）
 // ════════════════════════════════════════════════════════════════════════════
 
-
 #[cfg(test)]
 #[path = "role_tests.rs"]
 mod tests;

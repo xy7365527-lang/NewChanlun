@@ -179,7 +179,12 @@ fn risk_adapter(x: &AssemblyState, intent: StrictAction) -> u64 {
 ///
 /// ★诚实：`holding` 是**成本基价值**（Σ 成交单位数·成交价）；未实现浮盈不入 holding，由 `Revalue`
 /// 单独入 free（见 transition_adapter 重估步）。tw_event 与 ledger_event 双侧由同一实际成交额派生。
-fn schedule_adapter(x: &AssemblyState, intent: StrictAction, target_pos: u64, price: i64) -> OrderOut {
+fn schedule_adapter(
+    x: &AssemblyState,
+    intent: StrictAction,
+    target_pos: u64,
+    price: i64,
+) -> OrderOut {
     // 请求仓位增量 Δ = target_pos − positions（i64 域，可正可负）。
     let requested_delta = target_pos as i64 - x.positions as i64;
     // ★现金约束（维度修复）：建仓（Δ>0）受可用 free 上界——affordable_units = min(Δ, free/price)。
@@ -202,12 +207,20 @@ fn schedule_adapter(x: &AssemblyState, intent: StrictAction, target_pos: u64, pr
     let cost_flow = if filled_delta >= 0 {
         filled_delta * price
     } else {
-        let avg_cost = if x.positions > 0 { x.tw_state.holding / x.positions as i64 } else { 0 };
+        let avg_cost = if x.positions > 0 {
+            x.tw_state.holding / x.positions as i64
+        } else {
+            0
+        };
         filled_delta * avg_cost
     };
     let (ledger_event, tw_event, realized_pnl) = if filled_delta > 0 {
         // 真实建仓（现金充足部分）：花 free 换 holding（free→holding 值），free 退后 ≥0。
-        (LedgerEvent::Allocate(cost_flow), TwEvent::ShortDiff(-cost_flow), 0)
+        (
+            LedgerEvent::Allocate(cost_flow),
+            TwEvent::ShortDiff(-cost_flow),
+            0,
+        )
     } else if filled_delta < 0 {
         // ★真实减/平仓（codex GAP3 裁定 A' 清单④：成本基与利润分离）：
         // - 成本基回流 basis = |Δ|·avg_cost = −cost_flow：TW 侧 ShortDiff(basis)（holding→free，
@@ -217,7 +230,11 @@ fn schedule_adapter(x: &AssemblyState, intent: StrictAction, target_pos: u64, pr
         // - 利润分量 realized = 卖出所得 |Δ|·price − basis（本次实际平仓 fill 的已实现 PnL，
         //   可正可负），由 transition_adapter 在成本基事件之后 Realize 双账本入账（硬边界2）。
         let proceeds = -filled_delta * price;
-        (LedgerEvent::Allocate(cost_flow), TwEvent::ShortDiff(-cost_flow), proceeds + cost_flow)
+        (
+            LedgerEvent::Allocate(cost_flow),
+            TwEvent::ShortDiff(-cost_flow),
+            proceeds + cost_flow,
+        )
     } else {
         // 仓位不变（含 Hold/Wait / max(1) 饱和 / 现金不足一单位 / 不可交易 bar）：无资金转移。
         (LedgerEvent::Noop, TwEvent::ShortDiff(0), 0)
@@ -267,7 +284,11 @@ pub enum TransitionError {
     /// OQ-9 gate 违反：`event` 在 `stage` 下非法（`TwEvent::is_legal_from` 返 false）。
     Oq9Illegal { event: TwEvent, stage: TStage },
     /// 现金-sound 违反：转移后 TW 三量出现负值（透支 / 空池借本金）。
-    CashUnsound { free: i64, holding: i64, withdrawn: i64 },
+    CashUnsound {
+        free: i64,
+        holding: i64,
+        withdrawn: i64,
+    },
 }
 
 /// OQ-9 gate 判定（契约锚 `Origin.TotalWealth.LegalTransition`，#127 native port）：tw_event 在当前
@@ -291,7 +312,11 @@ fn oq9_legal(tw_state: &TwState, tw_event: TwEvent) -> bool {
 /// TW 桥）复用**同一个** chokepoint，而非另起一套等效实现（P2-E 合并裁定：一套实现，一处真相）。
 pub(crate) fn cash_sound_gate(s: TwState) -> Result<TwState, TransitionError> {
     if s.free < 0 || s.holding < 0 || s.withdrawn < 0 {
-        Err(TransitionError::CashUnsound { free: s.free, holding: s.holding, withdrawn: s.withdrawn })
+        Err(TransitionError::CashUnsound {
+            free: s.free,
+            holding: s.holding,
+            withdrawn: s.withdrawn,
+        })
     } else {
         Ok(s)
     }
@@ -334,7 +359,11 @@ pub(crate) fn cash_sound_gate(s: TwState) -> Result<TwState, TransitionError> {
 ///
 /// 委托 [`stage_progression_eta_corrected`]（修正量 0）——单一实现源，零修正路径（closed_loop
 /// 结构验证工具 + 全部既有调用方）与历史行为逐字节相同（bit-exact）。
-pub(crate) fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: RiskMode) -> Option<TwEvent> {
+pub(crate) fn stage_progression(
+    policy: &RiskPolicy,
+    s: &TwState,
+    risk_mode: RiskMode,
+) -> Option<TwEvent> {
     stage_progression_eta_corrected(policy, s, risk_mode, 0)
 }
 
@@ -351,7 +380,12 @@ pub(crate) fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: Ris
 /// ★白/黑名单边界（A' 推导链第 6 条，清单⑧）与 [`stage_progression`] 文档逐字一致——
 /// `eta_correction` 是调用方（π loop）从 f64 cash 域独立累计的持盾成本量化值，非 TW 黑名单
 /// 字段（不读 hwm_gain/MTM/forced_pnl）；它**降低** η 左操作数 ⟹ 判据只严不松 = 安全侧。
-pub(crate) fn stage_progression_eta_corrected(policy: &RiskPolicy, s: &TwState, risk_mode: RiskMode, eta_correction: i64) -> Option<TwEvent> {
+pub(crate) fn stage_progression_eta_corrected(
+    policy: &RiskPolicy,
+    s: &TwState,
+    risk_mode: RiskMode,
+    eta_correction: i64,
+) -> Option<TwEvent> {
     let risk_normal = matches!(risk_mode, RiskMode::Normal);
     match s.stage {
         // 降成本：持仓累积过名义基线 ⟹ 退本金（free→withdrawn），推进 CapitalRecovered。
@@ -455,7 +489,10 @@ pub fn transition_adapter(
     // ★codex R3 §9.3：非法 ⟹ `Result::Err`（release 语义，非 panic）。外部注入非法 tw_event 时返
     // Err 而非 abort；生产路径（schedule 只派 ShortDiff）恒 Ok，对生产零行为影响。
     if !oq9_legal(&x.tw_state, o.tw_event) {
-        return Err(TransitionError::Oq9Illegal { event: o.tw_event, stage: x.tw_state.stage });
+        return Err(TransitionError::Oq9Illegal {
+            event: o.tw_event,
+            stage: x.tw_state.stage,
+        });
     }
     // base tw_step（订单派生事件：schedule 只派 ShortDiff——Δ 驱动的 free⇄holding 值转移）。
     let tw_after_order = tw_step(&x.tw_state, o.tw_event);
@@ -498,7 +535,10 @@ pub fn transition_adapter(
             // raw 恒合法；EnterEarning 由 enter_ready 要求 legs==0 ⟹ 与 is_legal_from 一致，故生产恒
             // 合法）。release 语义拒非法阶段推进。
             if !oq9_legal(&tw_after_revalue, stage_event) {
-                return Err(TransitionError::Oq9Illegal { event: stage_event, stage: tw_after_revalue.stage });
+                return Err(TransitionError::Oq9Illegal {
+                    event: stage_event,
+                    stage: tw_after_revalue.stage,
+                });
             }
             tw_step(&tw_after_revalue, stage_event)
         }
@@ -594,14 +634,17 @@ pub fn hybrid_step_baseline(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::state::{MicroState, Phase, RiskMode};
     use super::super::super::strategy::ledger::TStage;
     use super::super::super::types::Direction;
+    use super::super::state::{MicroState, Phase, RiskMode};
+    use super::*;
 
     fn bar_event(rising: bool) -> AssemblyEvent {
         // price=1：L0 单位价归一（值模型退化为旧单位模型，重估 credit=0，测试语义不变）。
-        AssemblyEvent { parse_event: MicroEvent::NewBar(rising), price: 1 }
+        AssemblyEvent {
+            parse_event: MicroEvent::NewBar(rising),
+            price: 1,
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -630,7 +673,10 @@ mod tests {
         let label = classify_adapter(&x, &rec_struct);
         let intent = intent_adapter(&x, label);
         let target = risk_adapter(&x, intent);
-        assert_eq!(policy_output(&x, &e), schedule_adapter(&x, intent, target, e.price));
+        assert_eq!(
+            policy_output(&x, &e),
+            schedule_adapter(&x, intent, target, e.price)
+        );
         // 初始 Normal/PhaseI ⟹ intent=Buy ⟹ 订单是建仓侧。
         assert_eq!(policy_output(&x, &e).action, StrictAction::Buy);
     }
@@ -646,11 +692,13 @@ mod tests {
         assert!(x.ledger_state.inv_holds());
         // 多 bar 闭环：每步后 ledger 恒等必须成立。
         for i in 0..50 {
-            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
+            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0))
+                .expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
             assert!(
                 x.ledger_state.inv_holds(),
                 "bar {} 后 ledger 破坏 R=Π-A-W: {:?}",
-                i, x.ledger_state
+                i,
+                x.ledger_state
             );
         }
     }
@@ -661,7 +709,8 @@ mod tests {
         let mut x = AssemblyState::initial(1_000_000);
         let tw0 = x.tw_state.tw();
         for i in 0..50 {
-            x = hybrid_step_baseline(&x, &bar_event(i % 3 == 0)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
+            x = hybrid_step_baseline(&x, &bar_event(i % 3 == 0))
+                .expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
             assert_eq!(x.tw_state.tw(), tw0, "bar {} 后 TW 守恒被破坏", i);
         }
     }
@@ -672,7 +721,8 @@ mod tests {
         let mut x = AssemblyState::initial(1_000_000);
         for i in 0..50 {
             let prev_rank = x.tw_state.stage.rank();
-            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
+            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0))
+                .expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
             assert!(
                 prev_rank <= x.tw_state.stage.rank(),
                 "bar {} 后 stage 回退",
@@ -688,7 +738,8 @@ mod tests {
         let mut x = AssemblyState::initial(1_000_000);
         assert_eq!(x.tw_state.open_legacy_legs, 0);
         for i in 0..50 {
-            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
+            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0))
+                .expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
             assert_eq!(
                 x.tw_state.open_legacy_legs, 0,
                 "bar {} 后 OQ-9 gate 被破坏（开了 legacy 腿）",
@@ -698,10 +749,14 @@ mod tests {
         // earning 阶段假设：若闭环推进到 earning，gate 仍保持 legacy 腿=0。
         // 构造 earning 起点态验证 gate 在 earning 下保持。
         let earning = AssemblyState {
-            tw_state: TwState { stage: TStage::EarningShares, ..TwState::initial() },
+            tw_state: TwState {
+                stage: TStage::EarningShares,
+                ..TwState::initial()
+            },
             ..AssemblyState::initial(1_000_000)
         };
-        let x2 = hybrid_step_baseline(&earning, &bar_event(true)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
+        let x2 = hybrid_step_baseline(&earning, &bar_event(true))
+            .expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
         assert_eq!(x2.tw_state.open_legacy_legs, 0, "earning 下 OQ-9 gate 保持");
     }
 
@@ -715,11 +770,11 @@ mod tests {
     #[test]
     fn enter_earning_guard_open_legacy_legs_zero() {
         let policy = RiskPolicy::baseline(); // κ=0 ⟹ η_*=L^wc=(notional_in−withdrawn)⁺=0（本金全退后）
-        // CapitalRecovered + 本金全退（withdrawn≥notional_in=I_0）+ Normal + tw()≥η_*=0。
+                                             // CapitalRecovered + 本金全退（withdrawn≥notional_in=I_0）+ Normal + tw()≥η_*=0。
         let ready = TwState {
             free: 100,
             holding: 0,
-            withdrawn: 100,     // W_T=100 ≥ I_0=notional_in=100（本金全退 ⟹ L^wc=0）
+            withdrawn: 100, // W_T=100 ≥ I_0=notional_in=100（本金全退 ⟹ L^wc=0）
             notional_in: 100,
             stage: TStage::CapitalRecovered,
             open_legacy_legs: 0,
@@ -732,7 +787,10 @@ mod tests {
             "legs=0 + EnterReady 其余合取全真 ⟹ 派 EnterEarning"
         );
         // legs>0：唯一差异是 open_legacy_legs ⟹ enter_ready 假 ⟹ 不进 EarningShares（OQ-9 gate）。
-        let with_leg = TwState { open_legacy_legs: 1, ..ready };
+        let with_leg = TwState {
+            open_legacy_legs: 1,
+            ..ready
+        };
         assert_eq!(
             stage_progression(&policy, &with_leg, RiskMode::Normal),
             None,
@@ -751,7 +809,8 @@ mod tests {
         let x = AssemblyState::initial(1_000_000);
         let e = bar_event(true);
         let order = policy_output(&x, &e);
-        let x1 = hybrid_step_baseline(&x, &e).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
+        let x1 =
+            hybrid_step_baseline(&x, &e).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
         let mut expect = tw_step(&x.tw_state, order.tw_event);
         if order.realized_pnl != 0 {
             expect = tw_step(&expect, TwEvent::Realize(order.realized_pnl));
@@ -763,14 +822,20 @@ mod tests {
     #[test]
     fn hybrid_step_threads_micro_state() {
         let x = AssemblyState::initial(1_000_000);
-        let x1 = hybrid_step_baseline(&x, &bar_event(true)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
+        let x1 = hybrid_step_baseline(&x, &bar_event(true))
+            .expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
         assert_eq!(x1.micro_state.bar_count, 1, "bar_count 真推进");
         assert_eq!(x1.micro_state.bars_seen, 1, "bars_seen 真推进");
         assert_eq!(x1.orders, 1, "orders 计数真推进");
         // 与构造一次不更新对比：连续 3 bar ⟹ bar_count=3（每 bar 真喂回）。
-        let x2 = hybrid_step_baseline(&x1, &bar_event(false)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
-        let x3 = hybrid_step_baseline(&x2, &bar_event(true)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
-        assert_eq!(x3.micro_state.bar_count, 3, "3 bar 闭环 ⟹ bar_count=3（喂回非构造一次）");
+        let x2 = hybrid_step_baseline(&x1, &bar_event(false))
+            .expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
+        let x3 = hybrid_step_baseline(&x2, &bar_event(true))
+            .expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
+        assert_eq!(
+            x3.micro_state.bar_count, 3,
+            "3 bar 闭环 ⟹ bar_count=3（喂回非构造一次）"
+        );
         assert_eq!(x3.orders, 3, "3 bar ⟹ orders=3");
     }
 
@@ -779,12 +844,16 @@ mod tests {
     #[test]
     fn hybrid_step_threads_ledger_state() {
         let x = AssemblyState::funded_campaign(1_000_000, 8); // free=8 ⟹ Buy Δ=1 现金充足 ⟹ Allocate(1)
-        let x1 = hybrid_step_baseline(&x, &bar_event(true)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
+        let x1 = hybrid_step_baseline(&x, &bar_event(true))
+            .expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
         // Allocate(1) ⟹ A += 1, R -= 1（首 bar 仓位 0→1，现金 8>0 ⟹ 真成交）。
         assert_eq!(x1.ledger_state.a, 1, "Allocate ⟹ A 真变（非恒等）");
         assert_eq!(x1.ledger_state.r, -1, "Allocate ⟹ R 真变");
         assert!(x1.ledger_state.inv_holds(), "R=Π-A-W 保持");
-        assert!(x1.tw_state.free >= 0, "买入后 free≥0（8-1=7，codex 复审#1 现金约束）");
+        assert!(
+            x1.tw_state.free >= 0,
+            "买入后 free≥0（8-1=7，codex 复审#1 现金约束）"
+        );
     }
 
     /// ★codex/lead round-2 回归：**未注资 initial（free=0）闭环 free 从不为负**——Buy Δ=1 被现金约束
@@ -793,8 +862,13 @@ mod tests {
     fn unfunded_initial_never_negative_free() {
         let mut x = AssemblyState::initial(1_000_000); // free=0, positions=0
         for i in 0..20 {
-            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
-            assert!(x.tw_state.free >= 0, "bar {i}: free={} 变负（buy 透支现金漏网）", x.tw_state.free);
+            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0))
+                .expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
+            assert!(
+                x.tw_state.free >= 0,
+                "bar {i}: free={} 变负（buy 透支现金漏网）",
+                x.tw_state.free
+            );
             assert_eq!(x.positions, 0, "free=0 ⟹ Buy 被现金约束 ⟹ positions 不推进");
         }
     }
@@ -803,11 +877,18 @@ mod tests {
     #[test]
     fn hybrid_step_micro_event_stroke() {
         let x = AssemblyState {
-            micro_state: MicroState { pending_rise: 5, ..MicroState::initial() },
+            micro_state: MicroState {
+                pending_rise: 5,
+                ..MicroState::initial()
+            },
             ..AssemblyState::initial(1_000_000)
         };
-        let e = AssemblyEvent { parse_event: MicroEvent::NewStroke(Direction::Up), price: 1 };
-        let x1 = hybrid_step_baseline(&x, &e).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
+        let e = AssemblyEvent {
+            parse_event: MicroEvent::NewStroke(Direction::Up),
+            price: 1,
+        };
+        let x1 =
+            hybrid_step_baseline(&x, &e).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
         assert_eq!(x1.micro_state.stroke_count, 1);
         assert_eq!(x1.micro_state.pending_rise, 0, "新笔吸收尾部");
         assert_eq!(x1.micro_state.last_stroke_dir, Some(Direction::Up));
@@ -847,7 +928,10 @@ mod tests {
     #[test]
     fn transition_oq9_illegal_returns_err() {
         let x = AssemblyState {
-            tw_state: TwState { stage: TStage::EarningShares, ..TwState::initial() },
+            tw_state: TwState {
+                stage: TStage::EarningShares,
+                ..TwState::initial()
+            },
             ..AssemblyState::initial(1_000_000)
         };
         // 外部注入非法订单：EarningShares 阶段开 legacy 腿（OQ-9 gate 拒）。
@@ -861,7 +945,10 @@ mod tests {
         let r = transition_adapter(&x, &illegal, &bar_event(true), &RiskPolicy::baseline());
         assert_eq!(
             r,
-            Err(TransitionError::Oq9Illegal { event: TwEvent::OpenShareLeg, stage: TStage::EarningShares }),
+            Err(TransitionError::Oq9Illegal {
+                event: TwEvent::OpenShareLeg,
+                stage: TStage::EarningShares
+            }),
             "外部注入 EarningShares+OpenShareLeg ⟹ Err(Oq9Illegal)（release 语义，非 panic）"
         );
     }
@@ -874,7 +961,7 @@ mod tests {
     #[test]
     fn transition_cash_unsound_returns_err() {
         let x = AssemblyState::initial(1_000_000); // free=0
-        // 外部注入透支订单：ShortDiff(-1) ⟹ free 0→-1（透支现金），holding 0→+1（raw 合法过 OQ-9）。
+                                                   // 外部注入透支订单：ShortDiff(-1) ⟹ free 0→-1（透支现金），holding 0→+1（raw 合法过 OQ-9）。
         let overdraft = OrderOut {
             action: StrictAction::Buy,
             target_pos: x.positions + 1,
@@ -902,19 +989,41 @@ mod tests {
         // 建仓后态：positions=2，holding=16（avg_cost=8），free=0。
         let x = AssemblyState {
             positions: 2,
-            tw_state: TwState { holding: 16, notional_in: 16, ..TwState::initial() },
+            tw_state: TwState {
+                holding: 16,
+                notional_in: 16,
+                ..TwState::initial()
+            },
             ..AssemblyState::initial(1_000_000)
         };
         // 盈利平仓：price=13 > avg_cost=8 ⟹ basis=16 回流 + realized=2·(13−8)=+10。
         let o_gain = schedule_adapter(&x, StrictAction::Sell, 0, 13);
         assert_eq!(o_gain.target_pos, 0, "全平");
-        assert_eq!(o_gain.ledger_event, LedgerEvent::Allocate(-16), "成本基解除资本化（非 Realize 混称）");
-        assert_eq!(o_gain.tw_event, TwEvent::ShortDiff(16), "成本基 holding→free 回流");
-        assert_eq!(o_gain.realized_pnl, 10, "利润分量 = |Δ|·(price−avg_cost) = 2·5");
+        assert_eq!(
+            o_gain.ledger_event,
+            LedgerEvent::Allocate(-16),
+            "成本基解除资本化（非 Realize 混称）"
+        );
+        assert_eq!(
+            o_gain.tw_event,
+            TwEvent::ShortDiff(16),
+            "成本基 holding→free 回流"
+        );
+        assert_eq!(
+            o_gain.realized_pnl, 10,
+            "利润分量 = |Δ|·(price−avg_cost) = 2·5"
+        );
         // 亏损平仓：price=5 < avg_cost=8 ⟹ realized=2·(5−8)=−6（可负，非利润棘轮——推导链第 5 条）。
         let o_loss = schedule_adapter(&x, StrictAction::Sell, 0, 5);
-        assert_eq!(o_loss.realized_pnl, -6, "亏损如实结算（只入正数=重造棘轮，裁定禁止）");
-        assert_eq!(o_loss.tw_event, TwEvent::ShortDiff(16), "成本基回流与盈亏无关（同一 basis）");
+        assert_eq!(
+            o_loss.realized_pnl, -6,
+            "亏损如实结算（只入正数=重造棘轮，裁定禁止）"
+        );
+        assert_eq!(
+            o_loss.tw_event,
+            TwEvent::ShortDiff(16),
+            "成本基回流与盈亏无关（同一 basis）"
+        );
         // 建仓侧无利润分量。
         let funded = AssemblyState::funded_campaign(1_000_000, 8);
         let o_buy = schedule_adapter(&funded, StrictAction::Buy, 1, 1);
@@ -932,33 +1041,67 @@ mod tests {
         use super::super::super::strategy::ledger::LedgerComp;
         let post_entry = AssemblyState {
             positions: 2,
-            tw_state: TwState { holding: 16, notional_in: 16, ..TwState::initial() },
+            tw_state: TwState {
+                holding: 16,
+                notional_in: 16,
+                ..TwState::initial()
+            },
             // 建仓后 R 账本：Allocate(+16) 已发生 ⟹ a=16, r=−16（inv 保持）。
-            ledger_state: LedgerComp { i0: 1_000_000, pi: 0, a: 16, w: 0, r: -16 },
+            ledger_state: LedgerComp {
+                i0: 1_000_000,
+                pi: 0,
+                a: 16,
+                w: 0,
+                r: -16,
+            },
             ..AssemblyState::initial(1_000_000)
         };
         let tw0 = post_entry.tw_state.tw();
         // 盈利平仓 price=13：realized=+10。
-        let e_gain = AssemblyEvent { parse_event: MicroEvent::NewBar(true), price: 13 };
+        let e_gain = AssemblyEvent {
+            parse_event: MicroEvent::NewBar(true),
+            price: 13,
+        };
         let o_gain = schedule_adapter(&post_entry, StrictAction::Sell, 0, 13);
         let x1 = transition_adapter(&post_entry, &o_gain, &e_gain, &RiskPolicy::baseline())
             .expect("生产减仓恒 Ok（卖出所得 ≥ 0 不透支）");
-        assert_eq!(x1.tw_state.free, 26, "free = 成本基 16 + 利润 10（先 ShortDiff 后 Realize）");
+        assert_eq!(
+            x1.tw_state.free, 26,
+            "free = 成本基 16 + 利润 10（先 ShortDiff 后 Realize）"
+        );
         assert_eq!(x1.tw_state.holding, 0, "成本基全部回流");
-        assert_eq!(x1.tw_state.tw(), tw0 + 10, "TW 漂移恰 = 已实现 PnL（非守恒 bug，结算事实）");
+        assert_eq!(
+            x1.tw_state.tw(),
+            tw0 + 10,
+            "TW 漂移恰 = 已实现 PnL（非守恒 bug，结算事实）"
+        );
         assert_eq!(x1.ledger_state.pi, 10, "Π 只收真实利润（成本基不再污染 Π）");
-        assert_eq!(x1.ledger_state.a, 0, "Allocate(−16) 与建仓 Allocate(+16) 对称清零");
+        assert_eq!(
+            x1.ledger_state.a, 0,
+            "Allocate(−16) 与建仓 Allocate(+16) 对称清零"
+        );
         assert!(x1.ledger_state.inv_holds(), "R=Π-A-W 保持");
         // 亏损平仓 price=5：realized=−6（可负入账）。
-        let e_loss = AssemblyEvent { parse_event: MicroEvent::NewBar(true), price: 5 };
+        let e_loss = AssemblyEvent {
+            parse_event: MicroEvent::NewBar(true),
+            price: 5,
+        };
         let o_loss = schedule_adapter(&post_entry, StrictAction::Sell, 0, 5);
         let x2 = transition_adapter(&post_entry, &o_loss, &e_loss, &RiskPolicy::baseline())
             .expect("亏损平仓仍 sound（free = 16−6 = 10 ≥ 0）");
         assert_eq!(x2.tw_state.free, 10, "free = 成本基 16 − 亏损 6");
-        assert_eq!(x2.tw_state.tw(), tw0 - 6, "TW 漂移 = −6（亏损如实，非棘轮）");
+        assert_eq!(
+            x2.tw_state.tw(),
+            tw0 - 6,
+            "TW 漂移 = −6（亏损如实，非棘轮）"
+        );
         assert_eq!(x2.ledger_state.pi, -6, "Π 收真实亏损");
         assert!(x2.ledger_state.inv_holds());
-        assert_eq!(x2.tw_state.stage, TStage::CostReduction, "亏损平仓不触发阶段推进（holding<notional）");
+        assert_eq!(
+            x2.tw_state.stage,
+            TStage::CostReduction,
+            "亏损平仓不触发阶段推进（holding<notional）"
+        );
     }
 
     /// ★A' 清单②（cash-sound gate 防负 free 静默落盘）：负 `Realize` 使 free 透支时，
@@ -968,7 +1111,7 @@ mod tests {
     #[test]
     fn transition_negative_realize_overdraft_returns_err() {
         let x = AssemblyState::initial(1_000_000); // free=0
-        // 路径1：realized_pnl 字段透支。
+                                                   // 路径1：realized_pnl 字段透支。
         let via_field = OrderOut {
             action: StrictAction::Sell,
             target_pos: 0,
@@ -978,7 +1121,11 @@ mod tests {
         };
         assert_eq!(
             transition_adapter(&x, &via_field, &bar_event(true), &RiskPolicy::baseline()),
-            Err(TransitionError::CashUnsound { free: -5, holding: 0, withdrawn: 0 }),
+            Err(TransitionError::CashUnsound {
+                free: -5,
+                holding: 0,
+                withdrawn: 0
+            }),
             "realized_pnl=−5 从 free=0 ⟹ Err(CashUnsound)（负 free 不静默落盘，清单②）"
         );
         // 路径2：tw_event 直接注入 Realize(−7)（raw 恒合法 ⟹ 过 OQ-9 gate，被 cash-sound gate 拦）。
@@ -991,7 +1138,11 @@ mod tests {
         };
         assert_eq!(
             transition_adapter(&x, &via_event, &bar_event(true), &RiskPolicy::baseline()),
-            Err(TransitionError::CashUnsound { free: -7, holding: 0, withdrawn: 0 }),
+            Err(TransitionError::CashUnsound {
+                free: -7,
+                holding: 0,
+                withdrawn: 0
+            }),
             "注入 Realize(−7)：OQ-9 恒合法但现金-sound gate 拦截（约束位置 = 推导链第 7 条）"
         );
     }

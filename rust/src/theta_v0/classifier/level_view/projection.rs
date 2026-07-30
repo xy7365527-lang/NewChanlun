@@ -2,9 +2,11 @@
 //! `level_view.rs` 拆出，纯移动零语义；来源票 #497 影子评审 MEDIUM-1）。
 
 use super::super::super::types::{Center, Direction, Segment, Tick};
-use super::super::center::{center_from_segments, center_from_window, compute_dd, compute_gg, UnitRange};
-use super::ProviderVersion;
+use super::super::center::{
+    center_from_segments, center_from_window, compute_dd, compute_gg, UnitRange,
+};
 use super::super::recursive_tower::{ElementId, LeveledMove};
+use super::ProviderVersion;
 
 /// seed 核来源显式打标（#90 结裁 `chanlun/escalate/silent-dual-core-c1-seam-ruling-20260715.md`，
 /// 执行 codex-decide-20260704 :143 边界条件"不能伪装成普通 seed 中枢"）。

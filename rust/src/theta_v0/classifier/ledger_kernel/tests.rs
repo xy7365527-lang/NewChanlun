@@ -205,7 +205,10 @@ fn registry_routes_observations_per_key() {
     assert!(ledger.contains(&key(1, 0)));
     assert!(ledger.contains(&key(2, 0)));
     assert!(!ledger.contains(&key(3, 0)));
-    assert_eq!(ledger.get(&key(1, 0)).map(|entry| entry.key), Some(key(1, 0)));
+    assert_eq!(
+        ledger.get(&key(1, 0)).map(|entry| entry.key),
+        Some(key(1, 0))
+    );
     // BTreeMap 序：注册表枚举确定性（无平局歧义）。
     let keys: Vec<ProbeKey> = ledger.keys().copied().collect();
     assert_eq!(keys, vec![key(1, 0), key(2, 0)]);
@@ -275,7 +278,10 @@ fn revisions_are_append_only() {
         "留档只追加、既有条目不改写不删除"
     );
     assert_eq!(entry.revisions[1].as_of, 11);
-    assert_eq!(entry.revisions[1].evidence, Some(ProbeEvidence { weight: 3 }));
+    assert_eq!(
+        entry.revisions[1].evidence,
+        Some(ProbeEvidence { weight: 3 })
+    );
     assert_eq!(entry.revisions[2].evidence, None);
 }
 
@@ -378,7 +384,10 @@ fn terminal_state_absorbs_further_admission() {
         21,
     );
 
-    assert_eq!(ledger.admit(&key(1, 0), 22), LedgerAdmission::TerminalAbsorbed);
+    assert_eq!(
+        ledger.admit(&key(1, 0), 22),
+        LedgerAdmission::TerminalAbsorbed
+    );
     let entry = ledger.get(&key(1, 0)).expect("条目仍在");
     assert_eq!(entry.state, LedgerState::Invalidated, "禁复活");
     assert_eq!(entry.revision, 2, "终态后续观察零修订");
@@ -530,7 +539,11 @@ fn migration_preserves_clocks_and_history() {
     assert_eq!(migrated.last_as_of, 10, "迁移本身不推进门卫钟");
     assert_eq!(migrated.migrated_from, Some(key(1, 0)), "来源链留痕");
     assert_eq!(
-        migrated.revisions.iter().map(|r| r.kind).collect::<Vec<_>>(),
+        migrated
+            .revisions
+            .iter()
+            .map(|r| r.kind)
+            .collect::<Vec<_>>(),
         vec![ProbeKind::Opened, ProbeKind::Marked, ProbeKind::Migrated],
         "旧修订全部保留，迁移追加一条"
     );
@@ -572,21 +585,22 @@ fn readonly_portals_enumerate_and_filter_by_state() {
     for anchor in 1..=3 {
         ledger.open_on_observation(&observation(anchor, 0), 10);
     }
-    ledger
-        .get_mut(&key(2, 0))
-        .expect("条目已建仓")
-        .settle(
-            LedgerSettlement {
-                state: LedgerState::Confirmed,
-                kind: ProbeKind::Settled,
-                reason: Some(ProbeReason::Fulfilled),
-                evidence: None,
-            },
-            11,
-        );
+    ledger.get_mut(&key(2, 0)).expect("条目已建仓").settle(
+        LedgerSettlement {
+            state: LedgerState::Confirmed,
+            kind: ProbeKind::Settled,
+            reason: Some(ProbeReason::Fulfilled),
+            evidence: None,
+        },
+        11,
+    );
 
     let all: Vec<ProbeKey> = ledger.values().map(|entry| entry.key).collect();
-    assert_eq!(all, vec![key(1, 0), key(2, 0), key(3, 0)], "全量枚举留档不删");
+    assert_eq!(
+        all,
+        vec![key(1, 0), key(2, 0), key(3, 0)],
+        "全量枚举留档不删"
+    );
 
     let confirmed: Vec<ProbeKey> = ledger
         .in_state(LedgerState::Confirmed)
@@ -628,18 +642,15 @@ fn core_invariants_hold_across_full_lifecycle() {
     ledger.assert_core_invariants();
 
     ledger.admit(&key(1, 4), 12);
-    ledger
-        .get_mut(&key(1, 4))
-        .expect("条目已建仓")
-        .settle(
-            LedgerSettlement {
-                state: LedgerState::Invalidated,
-                kind: ProbeKind::Settled,
-                reason: Some(ProbeReason::Withdrawn),
-                evidence: None,
-            },
-            12,
-        );
+    ledger.get_mut(&key(1, 4)).expect("条目已建仓").settle(
+        LedgerSettlement {
+            state: LedgerState::Invalidated,
+            kind: ProbeKind::Settled,
+            reason: Some(ProbeReason::Withdrawn),
+            evidence: None,
+        },
+        12,
+    );
     ledger.assert_core_invariants();
 
     ledger.open_on_observation(&observation(2, 0), 13);

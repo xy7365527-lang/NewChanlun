@@ -61,8 +61,8 @@ use newchan_rust::theta_v0::backtest::mu_estimator::{
 };
 use newchan_rust::theta_v0::backtest::selector::chi_open_gate_lcb;
 use newchan_rust::theta_v0::classifier::recursive_tower::ElementId;
-use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::classifier::Classification;
+use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::strategy::coverage::{
     attach_bsp_carrier_indexed, attach_bsp_parent_carrier_indexed, build_tree_endpoint_index,
     extract_carrier_forest,
@@ -144,7 +144,10 @@ struct CertHit {
 }
 
 fn cert_of(b: &BspBits) -> CertHit {
-    CertHit { buy: b.conf_plus(), sell: b.conf_minus() }
+    CertHit {
+        buy: b.conf_plus(),
+        sell: b.conf_minus(),
+    }
 }
 
 /// §4 祖先闭合 AncOK(A)={v∈A : Anc(v)⊆A}。父声部不在 active 集 ⟹ 子声部被剪。
@@ -156,7 +159,7 @@ fn anc_ok(mut active: HashSet<usize>, voices: &[Voice]) -> HashSet<usize> {
         let before = active.len();
         let snapshot = active.clone();
         active.retain(|&v| match voices[v].parent {
-            None => true,                  // 根声部（⊥）无祖先，恒满足
+            None => true,                     // 根声部（⊥）无祖先，恒满足
             Some(p) => snapshot.contains(&p), // 父 active 才保留（§4 a_{v,t}≤a_{p(v),t}）
         });
         if active.len() == before {
@@ -180,7 +183,10 @@ fn should_close(exit_cert: bool, parent_active: bool, risk_close: bool) -> bool 
 
 /// §12 净额 N_t^bsp = Σ_{v∈A} σ_v q_v（声部状态机持仓净额，**不是** 覆盖 Σ_e s_e ε_e）。
 fn net_target(active: &HashSet<usize>, voices: &[Voice]) -> f64 {
-    active.iter().map(|&v| voices[v].dir as f64 * voices[v].qty).sum()
+    active
+        .iter()
+        .map(|&v| voices[v].dir as f64 * voices[v].qty)
+        .sum()
 }
 
 /// 喂 μ 的父向：根声部父向=0；子声部父向=父 voice.dir（§16 σ_p）。
@@ -222,11 +228,22 @@ fn open_carrier(
             || opened_this_bar.contains_key(&pid)
             || certs_by_carrier.contains_key(&pid)
         {
-            let (ppid, pdir, pbits) =
-                certs_by_carrier.get(&pid).copied().unwrap_or((None, cert_dir, cert_bits));
+            let (ppid, pdir, pbits) = certs_by_carrier
+                .get(&pid)
+                .copied()
+                .unwrap_or((None, cert_dir, cert_bits));
             Some(open_carrier(
-                voices, active, gen_counter, active_voice_by_carrier,
-                certs_by_carrier, opened_this_bar, pid, ppid, pdir, pbits, entry_bar,
+                voices,
+                active,
+                gen_counter,
+                active_voice_by_carrier,
+                certs_by_carrier,
+                opened_this_bar,
+                pid,
+                ppid,
+                pdir,
+                pbits,
+                entry_bar,
             ))
         } else {
             None // 父无同 bar 证书且未 live ⟹ 不生成父（codex 严格条件）⟹ 本级作根声部。
@@ -247,7 +264,7 @@ fn open_carrier(
         qty: 1.0, // §7/§13 Q_Θ=1 单位（诚实简化）
         generation: *g,
         entry_bar,
-        bits: cert_bits, // 开仓证书 I_γ（μ(z) i_class，§P4 §5）
+        bits: cert_bits,      // 开仓证书 I_γ（μ(z) i_class，§P4 §5）
         level: carrier.level, // ℓ（μ(z) level 分量）
     });
     active.insert(idx);
@@ -337,14 +354,19 @@ fn run_state_machine(
                     if (c.buy || c.sell) && carrier_id.is_none() {
                         diag_host_miss += 1;
                     }
-                    let carrier = carrier_id
-                        .unwrap_or(ElementId { level: lvl as u32, ordinal: p.source_index as u64 });
+                    let carrier = carrier_id.unwrap_or(ElementId {
+                        level: lvl as u32,
+                        ordinal: p.source_index as u64,
+                    });
                     let parent_id = host_parent_idx.map(|pi| tree[pi].id);
                     if (c.buy || c.sell) && parent_id.is_some() {
                         diag_has_parent += 1;
                     }
                     let parent_carrier = attach_bsp_parent_carrier_indexed(
-                        &tree_idx, &tree, lvl as u32, p.source_index,
+                        &tree_idx,
+                        &tree,
+                        lvl as u32,
+                        p.source_index,
                     );
                     let parent_level = parent_carrier.map(|(_, lc, _)| lc);
                     let parent_rho = parent_carrier.map(|(_, _, rho_c)| rho_c);
@@ -375,10 +397,10 @@ fn run_state_machine(
             let voice = voices[v];
             let entry_px = prices[voice.entry_bar.min(n - 1)];
             let exit_px = prices[i]; // τ_γ=i：出场证书命中的当前 bar close（F_i-可测，非后视）
-            // #563 M7：entry_px≤0 ⟹ chi_dimension_three_return 的量纲③分母 entry_notional≤0，
-            // release 下 debug_assert 失守会让 Inf/NaN 进 Welford 永久污染整桶——显式守卫跳过该笔，
-            // 与 l3_delta_r_alpha.rs 的 LedgerDisposition::NonPositivePx 同一防线（本 bin 无 ledger 层，
-            // 守卫落在 μ 喂入点）。不跳过平仓本身（voice 仍须从 active 移除，只是不喂 μ）。
+                                     // #563 M7：entry_px≤0 ⟹ chi_dimension_three_return 的量纲③分母 entry_notional≤0，
+                                     // release 下 debug_assert 失守会让 Inf/NaN 进 Welford 永久污染整桶——显式守卫跳过该笔，
+                                     // 与 l3_delta_r_alpha.rs 的 LedgerDisposition::NonPositivePx 同一防线（本 bin 无 ledger 层，
+                                     // 守卫落在 μ 喂入点）。不跳过平仓本身（voice 仍须从 active 移除，只是不喂 μ）。
             if entry_px > 0.0 {
                 let x_gamma =
                     chi_dimension_three_return(entry_px, exit_px, voice.qty, fee_rate, voice.dir);
@@ -387,7 +409,11 @@ fn run_state_machine(
                     voice.dir,
                     voice.bits,
                     parent_dir_of(&voices, v),
-                    if voice.parent.is_some() { PositionState::Child } else { PositionState::Root },
+                    if voice.parent.is_some() {
+                        PositionState::Child
+                    } else {
+                        PositionState::Root
+                    },
                 );
                 mu_est.observe(MuObservation { class: z, x_gamma });
             } else {
@@ -399,8 +425,10 @@ fn run_state_machine(
         // O_t：开仓声部集（§5 入场证书 δ(γ)=σ_v）。
         let active_voice_by_carrier: HashMap<ElementId, usize> =
             active.iter().map(|&v| (voices[v].carrier, v)).collect();
-        let certs_by_carrier: HashMap<ElementId, (Option<ElementId>, i8, BspBits)> =
-            new_certs.iter().map(|&(c, p, _lc, _rho, d, b)| (c, (p, d, b))).collect();
+        let certs_by_carrier: HashMap<ElementId, (Option<ElementId>, i8, BspBits)> = new_certs
+            .iter()
+            .map(|&(c, p, _lc, _rho, d, b)| (c, (p, d, b)))
+            .collect();
 
         for &(_carrier, parent_id, _lc, _rho, _cert_dir, _bits) in &new_certs {
             if let Some(pid) = parent_id {
@@ -415,7 +443,11 @@ fn run_state_machine(
             if parent_id.is_some() {
                 let lifts = match (parent_level, parent_rho) {
                     (Some(lc), Some(rc)) => {
-                        let side = if cert_dir > 0 { Side::Long } else { Side::Short };
+                        let side = if cert_dir > 0 {
+                            Side::Long
+                        } else {
+                            Side::Short
+                        };
                         context_lifts(&classification, lc, rc, side)
                     }
                     _ => false,
@@ -436,16 +468,14 @@ fn run_state_machine(
             // 保证 Pass 2 查的 μ 与 Pass 1 估的 μ 在同一 z 桶（否则查不到 ⟹ empty=pass 兜底）。
             if let Some((est, theta, z_alpha)) = chi_gate {
                 // 预判该证书将开成的 z（不真开，只查 μ）。复用 open_carrier 的父链解析逻辑判方向。
-                let parent_voice_dir = parent_id.and_then(|pid| {
-                    active_voice_by_carrier.get(&pid).map(|&pi| voices[pi].dir)
-                });
+                let parent_voice_dir = parent_id
+                    .and_then(|pid| active_voice_by_carrier.get(&pid).map(|&pi| voices[pi].dir));
                 let (z_dir, z_parent_dir, z_pos) = match parent_voice_dir {
                     Some(pdir) => (Voice::child_dir(pdir), pdir, PositionState::Child),
                     None => (cert_dir, 0, PositionState::Root),
                 };
-                let z = MuClass::from_certificate(
-                    carrier.level, z_dir, cert_bits, z_parent_dir, z_pos,
-                );
+                let z =
+                    MuClass::from_certificate(carrier.level, z_dir, cert_bits, z_parent_dir, z_pos);
                 // RiskOK≡true（K_Θ 恒等）、ConflictOK≡true（carrier+anc_ok 结构唯一）——见 fn 文档。
                 // empty=pass=true：未见 z 或 n<2 单样本（mu_lcb=None）放行（Pass 2 ⊆ Pass 1，过滤只
                 // 移除已见 n≥2 的 LCB≤θ 类）。准入用 LCB(μ) 而非裸 μ（p25 §12 防高维 z 过拟合）。
@@ -460,8 +490,17 @@ fn run_state_machine(
             }
 
             open_carrier(
-                &mut voices, &mut active, &mut gen_counter, &active_voice_by_carrier,
-                &certs_by_carrier, &mut opened_this_bar, carrier, parent_id, cert_dir, cert_bits, i,
+                &mut voices,
+                &mut active,
+                &mut gen_counter,
+                &active_voice_by_carrier,
+                &certs_by_carrier,
+                &mut opened_this_bar,
+                carrier,
+                parent_id,
+                cert_dir,
+                cert_bits,
+                i,
             );
         }
 
@@ -491,7 +530,11 @@ fn run_state_machine(
                         voice.dir,
                         voice.bits,
                         parent_dir_of(&voices, v),
-                        if voice.parent.is_some() { PositionState::Child } else { PositionState::Root },
+                        if voice.parent.is_some() {
+                            PositionState::Child
+                        } else {
+                            PositionState::Root
+                        },
                     );
                     mu_est.observe(MuObservation { class: z, x_gamma });
                 } else {
@@ -529,7 +572,8 @@ const USAGE: &str = "<SYMBOL> [START_DATE END_DATE [THETA [Z_ALPHA]]]\n  SYMBOL:
 /// 解析单个 `Θ_risk` 浮点参数（THETA / Z_ALPHA 共用）——静默必须变响亮：
 /// 解析失败直接报错返回，不做 `unwrap_or(0.0)` 式的静默默认值退化。
 fn parse_theta_like(field_name: &str, raw: &str) -> Result<f64, String> {
-    raw.parse::<f64>().map_err(|e| format!("{field_name} 解析失败（{raw:?}）: {e}"))
+    raw.parse::<f64>()
+        .map_err(|e| format!("{field_name} 解析失败（{raw:?}）: {e}"))
 }
 
 /// 显式按位置解析（#412 修复核心）：`window` 只取决于 `START_DATE END_DATE` 是否被传入，
@@ -594,7 +638,10 @@ fn main() -> std::process::ExitCode {
 
     let bars = &dataset.bars;
     let n = bars.len();
-    let prices: Vec<f64> = bars.iter().map(|b| b.close as f64 * config.tick.tick_size).collect();
+    let prices: Vec<f64> = bars
+        .iter()
+        .map(|b| b.close as f64 * config.tick.tick_size)
+        .collect();
     let fee_rate =
         (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
     let years = (n as f64 / (365.25 * 24.0 * 60.0)).max(1e-9);
@@ -614,11 +661,18 @@ fn main() -> std::process::ExitCode {
     let z_alpha: f64 = cli.z_alpha;
 
     let pass1 = run_state_machine(bars, &prices, &config, fee_rate, None);
-    let pass2 = run_state_machine(bars, &prices, &config, fee_rate, Some((&pass1.mu_est, theta, z_alpha)));
+    let pass2 = run_state_machine(
+        bars,
+        &prices,
+        &config,
+        fee_rate,
+        Some((&pass1.mu_est, theta, z_alpha)),
+    );
 
     // ★可证伪对比（acc-chi-theta-filter 核心）：ΔN_t 序列 χ≡1 vs χ=1[μ>θ] 非全等。
-    let n_diff_bars =
-        (0..n).filter(|&i| (pass1.net_per_bar[i] - pass2.net_per_bar[i]).abs() > 1e-12).count();
+    let n_diff_bars = (0..n)
+        .filter(|&i| (pass1.net_per_bar[i] - pass2.net_per_bar[i]).abs() > 1e-12)
+        .count();
     let sequences_differ = n_diff_bars > 0;
 
     // 下游 §18 指标对 **Pass 2（过滤后）** 算（χ=1[μ>θ] 策略的真实头寸序列）。
@@ -631,12 +685,14 @@ fn main() -> std::process::ExitCode {
     let diag_parent_active_found = pass2.diag_parent_active_found;
     let diag_lift_pass = pass2.diag_lift_pass;
 
-
     // ── §18 r^bsp = N^bsp·ΔP − C：逐 bar net-position MtM 权益曲线（同 π^cov NAV 口径）──
     // N_t^bsp 是连续净额（非 ±1 toggle）；equity 归一化初始=1。成本在净额变动 bar 按 |ΔN| 名义额扣。
     let nav_base: f64 = {
         // 名义基准 = 净额峰值 × 均价量级（与 significance nav_base 同口径：名义额，方向无关）。
-        let peak = net_per_bar.iter().fold(0.0f64, |a, &x| a.max(x.abs())).max(1.0);
+        let peak = net_per_bar
+            .iter()
+            .fold(0.0f64, |a, &x| a.max(x.abs()))
+            .max(1.0);
         let avg_px = prices.iter().sum::<f64>() / n.max(1) as f64;
         (peak * avg_px * (1.0 + fee_rate)).max(1e-9)
     };
@@ -647,7 +703,7 @@ fn main() -> std::process::ExitCode {
         if i > 0 {
             let dp = prices[i] - prices[i - 1];
             cum_abs += net_per_bar[i - 1] * dp; // N_{t-1}·ΔP（§18）
-            // 净额变动名义额扣双边费（§18 −C）。
+                                                // 净额变动名义额扣双边费（§18 −C）。
             let dn = (net_per_bar[i] - net_per_bar[i - 1]).abs();
             cum_abs -= dn * prices[i] * fee_rate;
         }
@@ -656,7 +712,11 @@ fn main() -> std::process::ExitCode {
             0.0
         } else {
             let prev = *equity_curve.last().unwrap();
-            if prev.abs() > 1e-12 { eq / prev - 1.0 } else { 0.0 }
+            if prev.abs() > 1e-12 {
+                eq / prev - 1.0
+            } else {
+                0.0
+            }
         };
         equity_curve.push(eq);
         daily_returns.push(ret);
@@ -695,10 +755,20 @@ fn main() -> std::process::ExitCode {
         })
         .collect();
 
-    let bh_return =
-        if n >= 2 && prices[0].abs() > 1e-12 { prices[n - 1] / prices[0] - 1.0 } else { 0.0 };
+    let bh_return = if n >= 2 && prices[0].abs() > 1e-12 {
+        prices[n - 1] / prices[0] - 1.0
+    } else {
+        0.0
+    };
     let m = metrics::compute(&equity_curve, &daily_returns, &trade_pnls, years, bh_return);
-    let sig = metrics::significance(&trade_pnls, &daily_returns, &trades, &prices, fee_rate, m.strat_return);
+    let sig = metrics::significance(
+        &trade_pnls,
+        &daily_returns,
+        &trades,
+        &prices,
+        fee_rate,
+        m.strat_return,
+    );
 
     let n_voices = voices.len();
     let n_long = voices.iter().filter(|v| v.dir > 0).count();
@@ -710,12 +780,19 @@ fn main() -> std::process::ExitCode {
     println!("bar 数          : {n}");
     println!("年化基数(years) : {years:.4}");
     println!("--- 声部状态机（§3 position instance / §12 N^bsp=Σσ_v q_v）---");
-    println!("声部总数        : {n_voices}（多 {n_long} / 空 {}）", n_voices - n_long);
+    println!(
+        "声部总数        : {n_voices}（多 {n_long} / 空 {}）",
+        n_voices - n_long
+    );
     println!("短差子声部数    : {n_children}（§6/§16 σ_u=−σ_p）");
     println!("净额峰值 |N^bsp|: {max_net:.2}");
     println!("--- 子声部可达性诊断（647 第四根因坐实，L2 否定性结果）---");
     let host_hit = diag_certs.saturating_sub(diag_host_miss);
-    let hit_pct = if diag_certs > 0 { 100.0 * host_hit as f64 / diag_certs as f64 } else { 0.0 };
+    let hit_pct = if diag_certs > 0 {
+        100.0 * host_hit as f64 / diag_certs as f64
+    } else {
+        0.0
+    };
     println!("方向证书总数    : {diag_certs}");
     println!("hostOf 命中     : {host_hit}（{hit_pct:.1}%；其余落 extract_elements 树外=∂ 根）");
     println!("命中且有父容器  : {diag_has_parent}（host 有真 Compose 父）");
@@ -731,8 +808,14 @@ fn main() -> std::process::ExitCode {
     println!("profit_factor   : {:.4}", m.profit_factor);
     println!("--- 同口径随机对照（§4 协议，seed 冻结）---");
     println!("theta_same_caliber : {:.6}", sig.theta_return_same_caliber);
-    println!("shift  mean/p   : {:.6} / {:.4}", sig.shift_mean_return, sig.shift_pvalue);
-    println!("indep  mean/p   : {:.6} / {:.4}", sig.indep_mean_return, sig.indep_pvalue);
+    println!(
+        "shift  mean/p   : {:.6} / {:.4}",
+        sig.shift_mean_return, sig.shift_pvalue
+    );
+    println!(
+        "indep  mean/p   : {:.6} / {:.4}",
+        sig.indep_mean_return, sig.indep_pvalue
+    );
     println!("beats_random    : {}", sig.theta_beats_random);
     println!("controls_degen  : {}", sig.controls_degenerate);
     // ── χ_t=1[μ>θ] 阈值过滤对比（alpha2 §13，task #41 acc-chi-theta-filter 核心证据）──
@@ -744,7 +827,10 @@ fn main() -> std::process::ExitCode {
     let pass2_voices = pass2.voices.len();
     println!("--- χ_t=1[μ>θ] 阈值过滤对比（alpha2 §13，task #41；L1 过滤生效，非 L2 alpha）---");
     println!("θ（Θ_risk 参数）: {theta:.6}（成本+风险门槛，**非缠论可导**，诚实标注）");
-    println!("χ 否决开仓证书数 : {}（μ(z)≤θ 被滤；Pass 1 χ≡1 恒 0）", pass2.chi_rejected);
+    println!(
+        "χ 否决开仓证书数 : {}（μ(z)≤θ 被滤；Pass 1 χ≡1 恒 0）",
+        pass2.chi_rejected
+    );
     // #563 M7：entry_px≤0 跳过喂 μ 的笔数（真实标的池预期恒 0，见 chi_dimension_three_return 前置条件）。
     println!(
         "entry_px≤0 跳过μ : {}（Pass1={} Pass2={}，>0 ⟹ 数据面异常需另查）",
@@ -759,7 +845,9 @@ fn main() -> std::process::ExitCode {
     } else if pass2.chi_rejected == 0 {
         println!("  ⟹ χ 无否决（θ 低于所有已观测 μ ∨ 无负 μ 类）⟹ 全覆盖退化（§13 边界，合法）。");
     } else {
-        println!("  ⚠ χ 有否决但 ΔN 全等——被滤声部不影响净额（被 anc_ok 剪/重复 carrier）。诚实标注。");
+        println!(
+            "  ⚠ χ 有否决但 ΔN 全等——被滤声部不影响净额（被 anc_ok 剪/重复 carrier）。诚实标注。"
+        );
     }
     // ── μ(z,a) 类别条件边际收益表（alpha2 §12，task #39，L2 真实数据可否证）──
     // 按 z=(ℓ,δ,I_γ,父向,短差,仓位态) 分桶；#65 量纲③：
@@ -818,7 +906,10 @@ fn main() -> std::process::ExitCode {
             m.sharpe
         );
     } else {
-        println!("等级: L2——π^bsp Sharpe={:.4} 子声部={n_children} 多声部对冲真激活（§19 goal#5）", m.sharpe);
+        println!(
+            "等级: L2——π^bsp Sharpe={:.4} 子声部={n_children} 多声部对冲真激活（§19 goal#5）",
+            m.sharpe
+        );
     }
     std::process::ExitCode::SUCCESS
 }
@@ -840,6 +931,9 @@ mod tests {
     fn chi_feed_dimension_three_is_qty_immune() {
         let one = chi_dimension_three_return(100.0, 110.0, 1.0, 0.001, 1);
         let five = chi_dimension_three_return(100.0, 110.0, 5.0, 0.001, 1);
-        assert!((one - five).abs() < 1e-15, "量纲③逐笔归一化后必须 qty 免疫：{one} vs {five}");
+        assert!(
+            (one - five).abs() < 1e-15,
+            "量纲③逐笔归一化后必须 qty 免疫：{one} vs {five}"
+        );
     }
 }

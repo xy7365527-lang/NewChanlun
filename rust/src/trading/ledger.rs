@@ -113,7 +113,9 @@ impl OrganicLedger {
     pub fn new(entry_price: f64, total_shares: f64, level_frac: f64, with_trace: bool) -> Self {
         OrganicLedger {
             total_shares,
-            phase: LedgerPhase::CostReduction { cost_basis: entry_price },
+            phase: LedgerPhase::CostReduction {
+                cost_basis: entry_price,
+            },
             level_frac,
             cumulative_recovered: 0.0,
             undeployed_cash: 0.0,
@@ -135,8 +137,12 @@ impl OrganicLedger {
         level_frac: f64,
         with_trace: bool,
     ) -> Self {
-        let mut led =
-            OrganicLedger::new(entry_price, deployed_cash / entry_price, level_frac, with_trace);
+        let mut led = OrganicLedger::new(
+            entry_price,
+            deployed_cash / entry_price,
+            level_frac,
+            with_trace,
+        );
         led.undeployed_cash = reserve_cash;
         led
     }
@@ -164,7 +170,10 @@ impl OrganicLedger {
 
     /// 槽是否开放（Python `pos.active.get(key)`）。
     pub fn open_slot(&self, key: SlotKey) -> Option<&OpenLeg> {
-        self.legs.iter().find(|(k, _)| *k == key).map(|(_, leg)| leg)
+        self.legs
+            .iter()
+            .find(|(k, _)| *k == key)
+            .map(|(_, leg)| leg)
     }
 
     /// 当前开放腿槽键（插入序快照；`_close` 强制清腿用）。
@@ -199,7 +208,10 @@ impl OrganicLedger {
         self.legs.push((
             key,
             OpenLeg {
-                cycle: OpenCycle { shares, open_price: sell_price },
+                cycle: OpenCycle {
+                    shares,
+                    open_price: sell_price,
+                },
                 law,
                 anchor,
                 side: DiffSide::Short,
@@ -243,7 +255,10 @@ impl OrganicLedger {
         self.legs.push((
             key,
             OpenLeg {
-                cycle: OpenCycle { shares, open_price: price },
+                cycle: OpenCycle {
+                    shares,
+                    open_price: price,
+                },
                 law: ConservationLaw::ShareConserving,
                 anchor,
                 side,
@@ -326,24 +341,30 @@ impl OrganicLedger {
             };
             let cb_after = self.phase.cost_basis();
             let shares_delta = self.total_shares - shares_before;
-            self.trace.as_mut().expect("trace 已判 Some").push(LegTrace {
-                slot: key,
-                sell_bar,
-                sell_price: closed.sell_price,
-                buy_bar,
-                buy_price: closed.buy_price,
-                shares: closed.shares,
-                diff: closed.sell_price - closed.buy_price,
-                profit: closed.profit(),
-                was_earning,
-                shares_delta,
-                cost_basis_before: cb_before,
-                cost_basis_after: cb_after,
-                upshift: matches!(
-                    leg.anchor,
-                    LegAnchor::Center { kind: AnchorKind::OscUp, .. }
-                ),
-            });
+            self.trace
+                .as_mut()
+                .expect("trace 已判 Some")
+                .push(LegTrace {
+                    slot: key,
+                    sell_bar,
+                    sell_price: closed.sell_price,
+                    buy_bar,
+                    buy_price: closed.buy_price,
+                    shares: closed.shares,
+                    diff: closed.sell_price - closed.buy_price,
+                    profit: closed.profit(),
+                    was_earning,
+                    shares_delta,
+                    cost_basis_before: cb_before,
+                    cost_basis_after: cb_after,
+                    upshift: matches!(
+                        leg.anchor,
+                        LegAnchor::Center {
+                            kind: AnchorKind::OscUp,
+                            ..
+                        }
+                    ),
+                });
         }
     }
 }
@@ -394,7 +415,10 @@ impl ShortBook {
     }
 
     pub fn open_slot(&self, key: SlotKey) -> Option<&OpenLeg> {
-        self.legs.iter().find(|(k, _)| *k == key).map(|(_, leg)| leg)
+        self.legs
+            .iter()
+            .find(|(k, _)| *k == key)
+            .map(|(_, leg)| leg)
     }
 
     pub fn open_keys(&self) -> Vec<SlotKey> {
@@ -421,7 +445,10 @@ impl ShortBook {
         self.legs.push((
             key,
             OpenLeg {
-                cycle: OpenCycle { shares, open_price: buy_price },
+                cycle: OpenCycle {
+                    shares,
+                    open_price: buy_price,
+                },
                 law: ConservationLaw::ShareConserving,
                 anchor,
                 side: DiffSide::Long,
@@ -631,7 +658,10 @@ mod tests {
         assert!(short.open_sub(SlotKey::osc(3), 30.0, 88.0, anchor()));
         short.close_diff(SlotKey::osc(3), 96.0); // π = 30×8 = 240
         let d_short = short.proceeds_basis - 100.0;
-        assert_eq!(d_long, d_short, "basis 移动量镜像相等（方向相反由字段语义承载）");
+        assert_eq!(
+            d_long, d_short,
+            "basis 移动量镜像相等（方向相反由字段语义承载）"
+        );
         assert_eq!(long.cumulative_recovered, short.cumulative_recovered);
     }
 

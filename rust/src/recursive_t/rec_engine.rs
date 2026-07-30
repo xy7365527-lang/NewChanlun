@@ -523,8 +523,20 @@ pub struct TrendNode {
 }
 
 impl TrendNode {
-    pub fn new(start_bar: i64, end_bar: i64, price_lo: f64, price_hi: f64, direction: Direction) -> Self {
-        TrendNode { start_bar, end_bar, price_lo, price_hi, direction }
+    pub fn new(
+        start_bar: i64,
+        end_bar: i64,
+        price_lo: f64,
+        price_hi: f64,
+        direction: Direction,
+    ) -> Self {
+        TrendNode {
+            start_bar,
+            end_bar,
+            price_lo,
+            price_hi,
+            direction,
+        }
     }
     pub fn id_key(&self) -> i64 {
         self.start_bar
@@ -715,7 +727,11 @@ impl Leg {
         }
     }
     fn fingerprint(&self) -> (u64, bool, bool) {
-        (self.units.to_bits(), self.direction == Polarity::Long, self.active)
+        (
+            self.units.to_bits(),
+            self.direction == Polarity::Long,
+            self.active,
+        )
     }
 }
 
@@ -1306,7 +1322,9 @@ impl TRoot {
 
     /// 最高活跃级别（= flat highest_active）。无 → None。
     pub fn highest_active(&self) -> Option<usize> {
-        (0..MAX_LEVEL).rev().find(|&k| self.instances[k].is_active())
+        (0..MAX_LEVEL)
+            .rev()
+            .find(|&k| self.instances[k].is_active())
     }
 
     /// level j 的最近活跃祖先（严格更高的第一个 active）= flat nearest_active_parent。无 → None（核心级）。
@@ -1316,7 +1334,11 @@ impl TRoot {
 
     /// 核心多头 units（Σ 多头）= 降成本分母。
     fn core_long_units(&self) -> f64 {
-        self.instances.iter().filter(|l| l.units > EPS && l.direction == Polarity::Long).map(|l| l.units).sum()
+        self.instances
+            .iter()
+            .filter(|l| l.units > EPS && l.direction == Polarity::Long)
+            .map(|l| l.units)
+            .sum()
     }
 
     // ──────────────── 三阶段会计（= flat account_reduce）────────────────
@@ -1437,7 +1459,11 @@ impl TRoot {
         self.instances[level].level = level;
         // ANCHOR（552号 HOLD_ANCHOR）：核心建仓即划趋势底仓 = m×(1−MOBILE_FRAC)=m×2/3，机动仓 = m/3。
         // OFF（flag off）时 anchor=0 ⇒ 机动仓=全仓 ⇒ 配额=units/3 与 OFF 逐字一致（bit-exact）。
-        self.instances[level].anchor = if self.enable_hold_anchor { m * (1.0 - MOBILE_FRAC) } else { 0.0 };
+        self.instances[level].anchor = if self.enable_hold_anchor {
+            m * (1.0 - MOBILE_FRAC)
+        } else {
+            0.0
+        };
         self.notional_in = spent;
         self.core_cost_basis = c;
         self.campaign_entry_cost = c;
@@ -1547,8 +1573,8 @@ impl TRoot {
                 // 拓扑轴：反核心向（买点 vs 核心 Short / 卖点 vs 核心 Long）⇒ R−。
                 let cdir = self.instances[rstar].direction;
                 let topo_pullback = match cdir {
-                    Polarity::Long => !is_buy,  // 核心多：次级别卖点
-                    Polarity::Short => is_buy,  // 核心空：次级别买点
+                    Polarity::Long => !is_buy, // 核心多：次级别卖点
+                    Polarity::Short => is_buy, // 核心空：次级别买点
                 };
                 // 级别角色方向轴（codex 方法1：读 rstar 核心层**实际所骑走势节点**方向，非 view.top_trend_dir）：
                 // 仅 rstar 走势方向 = 核心持仓方向（主升浪/主跌浪延续中）才保护核心。rstar 走势反核心向（顶背驰
@@ -1556,7 +1582,7 @@ impl TRoot {
                 // 升级后的核心层走势 ⇒ 与 rstar 严格同层（消除 top_trend_dir 的级别错位）。
                 let rstar_trend_dir = self.instances[rstar].node.direction;
                 let rstar_continuing = match (rstar_trend_dir, cdir) {
-                    (Direction::Up, Polarity::Long) => true,    // 核心多 + rstar 走势仍涨 ⇒ 主升浪回调
+                    (Direction::Up, Polarity::Long) => true, // 核心多 + rstar 走势仍涨 ⇒ 主升浪回调
                     (Direction::Down, Polarity::Short) => true, // 核心空 + rstar 走势仍跌 ⇒ 主跌浪反弹
                     _ => false, // rstar 走势反核心向（转向/下跌段）⇒ 不保护（核心该常规 sink）
                 };
@@ -1578,7 +1604,14 @@ impl TRoot {
     /// **会计严格性（NAV 中性独立于核心减仓）**：开空 `rec_add(sub, short_u, Short)` 内部 `free += short_u·c`
     /// （卖空收现金）+ sub 空头市值 −short_u·c ⟹ ΔNAV=0。故机动空腿可独立于核心减仓存在（资金来自卖空收入，
     /// **非**核心释放资本）——这是会计上严格成立的解耦，不是补丁。`prove_tw_neutral` 逐 bar 验收守恒。
-    fn sink_guarded(&mut self, parent: usize, sub: usize, sub_node: TrendNode, c: f64, protect_core: bool) {
+    fn sink_guarded(
+        &mut self,
+        parent: usize,
+        sub: usize,
+        sub_node: TrendNode,
+        c: f64,
+        protect_core: bool,
+    ) {
         self.sink_impl(parent, sub, sub_node, c, protect_core);
     }
 
@@ -1586,7 +1619,14 @@ impl TRoot {
         self.sink_impl(parent, sub, sub_node, c, false);
     }
 
-    fn sink_impl(&mut self, parent: usize, sub: usize, sub_node: TrendNode, c: f64, protect_core: bool) {
+    fn sink_impl(
+        &mut self,
+        parent: usize,
+        sub: usize,
+        sub_node: TrendNode,
+        c: f64,
+        protect_core: bool,
+    ) {
         let u_p = self.instances[parent].units;
         let pdir = self.instances[parent].direction;
         // ANCHOR（552号）：配额作用于机动仓 u_P−anchor（趋势底仓死扣不下放），OFF 时 anchor=0 ⇒ mob_base=u_P（bit-exact）。
@@ -1618,7 +1658,11 @@ impl TRoot {
         // pb 必须在 reduce 前捕获（reduce 把 units 减到 ≤EPS 时会污染 basis=NaN）；表达式分组 (m*pb)/c
         // 与 flat t_engine 逐字一致保 bit-exact。
         let pb = self.instances[parent].basis;
-        let short_u = if pb.is_finite() && pb > 1e-12 { m * pb / c } else { m };
+        let short_u = if pb.is_finite() && pb > 1e-12 {
+            m * pb / c
+        } else {
+            m
+        };
         if !(short_u > 1e-12 && short_u.is_finite()) {
             return;
         }
@@ -1681,7 +1725,11 @@ impl TRoot {
         // sub→basis=NaN）；表达式分组 (m*sb)/pb 与 flat t_engine 逐字一致保 bit-exact。
         let sb = self.instances[sub].basis;
         let pb = self.instances[parent].basis;
-        let give = if pb.is_finite() && pb > 1e-12 { m * sb / pb } else { m };
+        let give = if pb.is_finite() && pb > 1e-12 {
+            m * sb / pb
+        } else {
+            m
+        };
         if !(give > 1e-12 && give.is_finite()) {
             return;
         }
@@ -1783,7 +1831,11 @@ impl TRoot {
         // sb 须在 reduce(sub) 前捕获（reduce 零化 → basis=NaN）；表达式分组 (m*sb)/pb 保会计一致。
         let sb = self.instances[sub].basis;
         let pb = self.instances[parent].basis;
-        let give = if pb.is_finite() && pb > 1e-12 { m * sb / pb } else { m };
+        let give = if pb.is_finite() && pb > 1e-12 {
+            m * sb / pb
+        } else {
+            m
+        };
         if !(give > 1e-12 && give.is_finite()) {
             return;
         }
@@ -1800,7 +1852,7 @@ impl TRoot {
         }
         self.n_adds += 1;
         self.guards.note_op("add"); // prove_bsp_triggers_operation（panic）
-        // 注：add 是部分平短差升回 ⇒ 与 recover 同向降短差敞口，但**不**全清 ⇒ 不调 on_recover（整条配对守卫）。
+                                    // 注：add 是部分平短差升回 ⇒ 与 recover 同向降短差敞口，但**不**全清 ⇒ 不调 on_recover（整条配对守卫）。
         self.prove_tw_neutral(tw_pre, c);
     }
 
@@ -1813,8 +1865,8 @@ impl TRoot {
                 let pdir = self.instances[p].direction;
                 let mob = flip_pol(pdir);
                 let is_reduce = match pdir {
-                    Polarity::Long => !is_buy,  // 父多：卖点=减仓信号
-                    Polarity::Short => is_buy,  // 父空：买点=减仓信号
+                    Polarity::Long => !is_buy, // 父多：卖点=减仓信号
+                    Polarity::Short => is_buy, // 父空：买点=减仓信号
                 };
                 if is_reduce {
                     // 反父向 BSP：sink（空/已是短差）或 drain（遗留同父向仓）。
@@ -1826,7 +1878,8 @@ impl TRoot {
                         // 读节点 j 在 r*（最高活跃级别=核心）的级别角色：j<r* ∧ 反核心向 ⇒ R−（回调腿）。
                         // R− 回调腿的 sink 在主升浪回调处砍核心 = 踏空根因①④。门控 ON ⇒ 强制核心保护
                         // （mob 配额作用于零 = 核心 units 不减，只在子级别开/维持反向短差腿）。
-                        let protect_core = self.enable_orbit9_nodevec && self.is_rstar_pullback_leg(j, is_buy);
+                        let protect_core =
+                            self.enable_orbit9_nodevec && self.is_rstar_pullback_leg(j, is_buy);
                         self.sink_guarded(p, j, node, c, protect_core);
                     } else {
                         self.drain(j, c);
@@ -1858,7 +1911,11 @@ impl TRoot {
                 if is_buy {
                     self.buy_core += 1; // 诊断：核心级买点 → enter/ascend/flip（不 recover）
                 }
-                let dir = if is_buy { Polarity::Long } else { Polarity::Short };
+                let dir = if is_buy {
+                    Polarity::Long
+                } else {
+                    Polarity::Short
+                };
                 match self.highest_active() {
                     None => self.enter(j, dir, node, c), // 首次建仓
                     Some(cc) => {
@@ -1952,7 +2009,14 @@ impl TRoot {
             Polarity::Long => self.free -= m * c,
             Polarity::Short => self.free += m * c,
         }
-        self.legs[k] = Leg { level: k, direction: dir, units: m, basis: c, riding_node: node, active: true };
+        self.legs[k] = Leg {
+            level: k,
+            direction: dir,
+            units: m,
+            basis: c,
+            riding_node: node,
+            active: true,
+        };
         self.leg_opens_by_level[k] += 1;
         self.guards.note_op("open_leg");
         prove_leg_isolation(&fp_pre, &self.snapshot_fingerprints(), k);
@@ -1999,10 +2063,16 @@ impl TRoot {
             self.close_leg(k, c);
             let new_dir = flip_pol(old_dir);
             let node = view.nodes[k].unwrap_or_else(|| {
-                TrendNode::new(self.cur_bar, self.cur_bar, c, c, match new_dir {
-                    Polarity::Long => Direction::Up,
-                    Polarity::Short => Direction::Down,
-                })
+                TrendNode::new(
+                    self.cur_bar,
+                    self.cur_bar,
+                    c,
+                    c,
+                    match new_dir {
+                        Polarity::Long => Direction::Up,
+                        Polarity::Short => Direction::Down,
+                    },
+                )
             });
             self.open_leg(k, new_dir, node, top, c);
             self.leg_switches_by_level[k] += 1;
@@ -2137,7 +2207,16 @@ impl TRoot {
             self.pi_total_audited += pnl;
         }
         // #149 capture-ratio 逐笔账本（observation-only，不改决策）：(level,entry_bar,exit_bar,entry_px,exit_px,units,is_short,pnl)
-        self.leg_trades.push((k, self.leg_pairs[k].long_entry_bar, self.cur_bar, basis, c, u, false, pnl));
+        self.leg_trades.push((
+            k,
+            self.leg_pairs[k].long_entry_bar,
+            self.cur_bar,
+            basis,
+            c,
+            u,
+            false,
+            pnl,
+        ));
         self.leg_close_reasons.push(self.last_close_reason); // #170 TC 诊断
         self.leg_entry_stops.push(self.leg_pairs[k].long_stop); // #170 TC 诊断：开仓否定线 ZD
         self.exit_trigger_log.push(self.pending_exit_trigger); // #164 R2 出场触发诊断（同序）
@@ -2167,14 +2246,27 @@ impl TRoot {
         self.pair_short_pnl[k] += pnl;
         // L_confirm 第四轴会计（task#95，observation-only）：归 (k, leg=short_is_core?H⁰:H¹, dir=R−, c=short_conf)。
         if self.enable_lconfirm_audit {
-            let leg = if self.leg_pairs[k].short_is_core { 0 } else { 1 };
+            let leg = if self.leg_pairs[k].short_is_core {
+                0
+            } else {
+                1
+            };
             let conf = self.leg_pairs[k].short_conf as usize;
             self.pi_k_leg_dir_c[k][leg][1][conf] += pnl;
             self.pi_count_k_leg_dir_c[k][leg][1][conf] += 1;
             self.pi_total_audited += pnl;
         }
         // #149 capture-ratio 逐笔账本（observation-only，不改决策）：(level,entry_bar,exit_bar,entry_px,exit_px,units,is_short,pnl)
-        self.leg_trades.push((k, self.leg_pairs[k].short_entry_bar, self.cur_bar, basis, c, u, true, pnl));
+        self.leg_trades.push((
+            k,
+            self.leg_pairs[k].short_entry_bar,
+            self.cur_bar,
+            basis,
+            c,
+            u,
+            true,
+            pnl,
+        ));
         self.leg_close_reasons.push(self.last_close_reason); // #170 TC 诊断
         self.leg_entry_stops.push(self.leg_pairs[k].short_stop); // #170 TC 诊断：开仓否定线 ZG
         self.exit_trigger_log.push(self.pending_exit_trigger); // #164 R2 出场触发诊断（同序）
@@ -2193,7 +2285,9 @@ impl TRoot {
     /// **当前最高活跃多腿级别**（结构涌现「核心」= 当前最高活跃 up-trend 多腿，无 `if level==top` 硬编码）。
     /// LegPair 路径核心 = 最高有多腿在场的级别（自相似结构涌现，对照 instances 路径 highest_active）。
     fn highest_active_long(&self) -> Option<usize> {
-        (0..MAX_LEVEL).rev().find(|&k| self.leg_pairs[k].long_active())
+        (0..MAX_LEVEL)
+            .rev()
+            .find(|&k| self.leg_pairs[k].long_active())
     }
 
     /// **LegPair 总敞口 (Σlong_units, Σshort_units)**（relabel 守卫用）。对偶 instances `exposure`。
@@ -2255,7 +2349,9 @@ impl TRoot {
         let moved_units = self.leg_pairs[cc].long_units;
         let moved_basis = self.leg_pairs[cc].long_basis;
         // 否定线更新为 target 级中枢 ZD（核心现骑 target 走势）；None（target 无中枢）⇒ 保留原否定线（不退化无保护）。
-        let new_stop = self.faceb_stop(view.zd[target]).unwrap_or(self.leg_pairs[cc].long_stop);
+        let new_stop = self
+            .faceb_stop(view.zd[target])
+            .unwrap_or(self.leg_pairs[cc].long_stop);
         self.leg_pairs[target].long_units = moved_units;
         self.leg_pairs[target].long_basis = moved_basis;
         self.leg_pairs[target].long_stop = new_stop;
@@ -2369,14 +2465,12 @@ impl TRoot {
                 view.nodes.get(k).and_then(|n| n.map(|t| t.direction)),
                 Some(Direction::Down)
             ),
-            LongEntry::CrossLevel => {
-                !((k + 1)..MAX_LEVEL).any(|j| {
-                    matches!(
-                        view.nodes.get(j).and_then(|n| n.map(|t| t.direction)),
-                        Some(Direction::Up)
-                    )
-                })
-            }
+            LongEntry::CrossLevel => !((k + 1)..MAX_LEVEL).any(|j| {
+                matches!(
+                    view.nodes.get(j).and_then(|n| n.map(|t| t.direction)),
+                    Some(Direction::Up)
+                )
+            }),
         }
     }
 
@@ -2391,9 +2485,9 @@ impl TRoot {
             return true; // bit-exact 基线
         }
         match view.nodes.get(k).and_then(|n| n.map(|t| t.direction)) {
-            Some(Direction::Up) => want_long,    // d_k=Up：只许开多（开空=方向误读孤儿，539）
+            Some(Direction::Up) => want_long, // d_k=Up：只许开多（开空=方向误读孤儿，539）
             Some(Direction::Down) => !want_long, // d_k=Down：只许开空
-            None => true,                        // 该级无走势 ⇒ 无方向孤儿判据 ⇒ 放行
+            None => true,                     // 该级无走势 ⇒ 无方向孤儿判据 ⇒ 放行
         }
     }
 
@@ -2466,7 +2560,9 @@ impl TRoot {
             if !self.leg_pairs[k].long_active() && long_dir_ok && g_long_ok {
                 self.guards.set_trigger(OpTrigger::Bsp);
                 // G 轴 ON ⇒ 独立锁强平可达否定线 ZD（孤儿腿可达闭合修复）；OFF ⇒ faceb_stop 原路径（bit-exact）。
-                let stop = self.g_axis_stop(view.zd[k]).or_else(|| self.faceb_stop(view.zd[k]));
+                let stop = self
+                    .g_axis_stop(view.zd[k])
+                    .or_else(|| self.faceb_stop(view.zd[k]));
                 if self.enable_g_axis && stop.is_some() {
                     self.g_axis_reach_stops_set += 1;
                 }
@@ -2491,28 +2587,42 @@ impl TRoot {
                 if may_close_core {
                     self.guards.set_trigger(OpTrigger::Bsp);
                     self.last_close_reason = 0; // #170 TC 诊断：买卖点反向平
-                    // 出场触发分类（#164 R2）：type1（t1sell=走势完成=574 floor 最小滞后）/type3（t3sell）/type2（其余 sell）。
-                    self.pending_exit_trigger = if view.t1sell[k] { 0 } else if view.t3sell[k] { 2 } else { 1 };
+                                                // 出场触发分类（#164 R2）：type1（t1sell=走势完成=574 floor 最小滞后）/type3（t3sell）/type2（其余 sell）。
+                    self.pending_exit_trigger = if view.t1sell[k] {
+                        0
+                    } else if view.t3sell[k] {
+                        2
+                    } else {
+                        1
+                    };
                     self.close_long_leg(k, c);
                     if is_core_long_level && core_done {
                         self.pair_core_churns += 1; // 走势完成 churn 动核心多腿（真顶转折）
-                        // **牛转熊核心翻空镜像（任务 bear-validate，编排者：最高活跃级别走势完成→核心翻空）**：
-                        // 放开 #69 `k<核心` 禁令——核心走势完成（d_top=最深区间套真顶=type1+全深度背驰链）不止
-                        // 平多到现金，而是**翻空**（大额吃熊，max_gross>1×=核心仓尺度）。结构涌现：is_core_long_level
-                        // = highest_active_long==k（零 if regime/level，编排者 no-hardcode）。zg[k]=进场中枢上沿
-                        // =否定线止损（涨破⇒牛市恢复⇒止损出，27课区间套否定）。有效域 ⊂ 真 bear（231号
-                        // formalization-validity-domain）：net-up 假顶翻空打主升浪=灾难（539），须 bear 数据 L3。
-                        // G 轴分量① 对齐门（task#5）：核心翻空须 d_k=Down（走势已向下完成）；若 nodes[k] 仍 Up
-                        // 则翻空=方向误读孤儿（539 根因，核心不豁免）⇒ 拦截。OFF ⇒ g_core_short_ok 恒 true（bit-exact）。
+                                                    // **牛转熊核心翻空镜像（任务 bear-validate，编排者：最高活跃级别走势完成→核心翻空）**：
+                                                    // 放开 #69 `k<核心` 禁令——核心走势完成（d_top=最深区间套真顶=type1+全深度背驰链）不止
+                                                    // 平多到现金，而是**翻空**（大额吃熊，max_gross>1×=核心仓尺度）。结构涌现：is_core_long_level
+                                                    // = highest_active_long==k（零 if regime/level，编排者 no-hardcode）。zg[k]=进场中枢上沿
+                                                    // =否定线止损（涨破⇒牛市恢复⇒止损出，27课区间套否定）。有效域 ⊂ 真 bear（231号
+                                                    // formalization-validity-domain）：net-up 假顶翻空打主升浪=灾难（539），须 bear 数据 L3。
+                                                    // G 轴分量① 对齐门（task#5）：核心翻空须 d_k=Down（走势已向下完成）；若 nodes[k] 仍 Up
+                                                    // 则翻空=方向误读孤儿（539 根因，核心不豁免）⇒ 拦截。OFF ⇒ g_core_short_ok 恒 true（bit-exact）。
                         let g_core_short_ok = self.g_axis_align_ok(k, false, view);
-                        if self.enable_g_axis && self.enable_pair_core_short
-                            && !self.leg_pairs[k].short_active() && !g_core_short_ok {
+                        if self.enable_g_axis
+                            && self.enable_pair_core_short
+                            && !self.leg_pairs[k].short_active()
+                            && !g_core_short_ok
+                        {
                             self.g_axis_align_blocked += 1;
                         }
-                        if self.enable_pair_core_short && !self.leg_pairs[k].short_active() && g_core_short_ok {
+                        if self.enable_pair_core_short
+                            && !self.leg_pairs[k].short_active()
+                            && g_core_short_ok
+                        {
                             self.guards.set_trigger(OpTrigger::Bsp);
                             // G 轴 ON ⇒ 锁强平可达否定线 ZG；OFF ⇒ faceb_stop 原路径（bit-exact）。
-                            let stop = self.g_axis_stop(view.zg[k]).or_else(|| self.faceb_stop(view.zg[k]));
+                            let stop = self
+                                .g_axis_stop(view.zg[k])
+                                .or_else(|| self.faceb_stop(view.zg[k]));
                             if self.enable_g_axis && stop.is_some() {
                                 self.g_axis_reach_stops_set += 1;
                             }
@@ -2550,14 +2660,26 @@ impl TRoot {
             // **G 轴分量① 级别-方向对齐门（task#5，539 方向误读失血修复）**：开空须 d_k=Down（同级别方向
             // 对齐）。次级别短差腿（t3sell）若开在 d_k=Up 段 = 方向误读孤儿（539 根因）⇒ 拦截。OFF ⇒ 恒 true。
             let g_short_ok = self.g_axis_align_ok(k, false, view);
-            if self.enable_g_axis && !self.leg_pairs[k].short_active()
-                && sub_break && short_level_ok && short_dir_ok && !g_short_ok {
+            if self.enable_g_axis
+                && !self.leg_pairs[k].short_active()
+                && sub_break
+                && short_level_ok
+                && short_dir_ok
+                && !g_short_ok
+            {
                 self.g_axis_align_blocked += 1;
             }
-            if !self.leg_pairs[k].short_active() && sub_break && short_level_ok && short_dir_ok && g_short_ok {
+            if !self.leg_pairs[k].short_active()
+                && sub_break
+                && short_level_ok
+                && short_dir_ok
+                && g_short_ok
+            {
                 self.guards.set_trigger(OpTrigger::Bsp);
                 // G 轴 ON ⇒ 锁强平可达否定线 ZG（孤儿腿可达闭合修复）；OFF ⇒ faceb_stop 原路径（bit-exact）。
-                let stop = self.g_axis_stop(view.zg[k]).or_else(|| self.faceb_stop(view.zg[k]));
+                let stop = self
+                    .g_axis_stop(view.zg[k])
+                    .or_else(|| self.faceb_stop(view.zg[k]));
                 if self.enable_g_axis && stop.is_some() {
                     self.g_axis_reach_stops_set += 1;
                 }
@@ -2588,7 +2710,8 @@ impl TRoot {
                     self.pending_exit_trigger = 5; // #164 R2：账户强平
                     self.close_long_leg(k, c);
                     self.n_liquidations += 1;
-                    self.liq_log.push((k, entry_bar, entry_basis, self.cur_bar, c, false));
+                    self.liq_log
+                        .push((k, entry_bar, entry_basis, self.cur_bar, c, false));
                 }
                 if self.leg_pairs[k].short_active() {
                     let entry_bar = self.cur_bar;
@@ -2598,7 +2721,8 @@ impl TRoot {
                     self.pending_exit_trigger = 5; // #164 R2：账户强平
                     self.close_short_leg(k, c);
                     self.n_liquidations += 1;
-                    self.liq_log.push((k, entry_bar, entry_basis, self.cur_bar, c, true));
+                    self.liq_log
+                        .push((k, entry_bar, entry_basis, self.cur_bar, c, true));
                 }
             }
         }
@@ -2644,7 +2768,10 @@ impl TRoot {
 
     /// **L_confirm 第四轴纤维只读访问（task#95，L3）**：返回 `pi_k_leg_dir_c[k][leg][dir][c]` + 计数。
     pub fn lconfirm_cell(&self, k: usize, leg: usize, dir: usize, c: usize) -> (f64, u64) {
-        (self.pi_k_leg_dir_c[k][leg][dir][c], self.pi_count_k_leg_dir_c[k][leg][dir][c])
+        (
+            self.pi_k_leg_dir_c[k][leg][dir][c],
+            self.pi_count_k_leg_dir_c[k][leg][dir][c],
+        )
     }
 
     /// **跨级别 k 聚合的 (leg,dir,c) 纤维 P&L + 计数（task#95，符号分裂裁定用）**：固定 leg/dir，对每个 c
@@ -2673,7 +2800,9 @@ impl TRoot {
                 }
             }
         }
-        let total_leg: f64 = (0..MAX_LEVEL).map(|k| self.pair_long_pnl[k] + self.pair_short_pnl[k]).sum();
+        let total_leg: f64 = (0..MAX_LEVEL)
+            .map(|k| self.pair_long_pnl[k] + self.pair_short_pnl[k])
+            .sum();
         // pi_total_audited 是累加镜像（应 == fiber_sum 逐位）；total_leg 是独立来源（pair_*_pnl）。
         // 三者一致 ⇒ 穷尽：每笔 leg realized 都进了且仅进了一个纤维格子。
         let consistent = (fiber_sum - total_leg).abs() < 1e-6
@@ -2750,7 +2879,13 @@ impl TRoot {
             return false; // 本背驰段窗口已翻过 ⇒ 持仓骑走势（读法乙：一个转折点）
         }
         let want_buy = armed == Polarity::Long; // 底背驰段武装 → 找 type1_buy；顶背驰段 → type1_sell
-        let located = (0..MAX_LEVEL).find(|&k| if want_buy { view.t1buy[k] } else { view.t1sell[k] });
+        let located = (0..MAX_LEVEL).find(|&k| {
+            if want_buy {
+                view.t1buy[k]
+            } else {
+                view.t1sell[k]
+            }
+        });
         let loc = match located {
             Some(k) => k,
             None => return false, // 武装但本重跑无 a0 定位点 ⇒ 等下一定位点
@@ -2759,7 +2894,9 @@ impl TRoot {
         //   非仅 top 武装 + a0 定位——区间套要求每级别都处一致背驰段（嵌套校验）。top_armed_level =
         //   最高有 level_diverge 的级别（= top_diverge 来源级别）。loc..top 间任一级别非一致背驰段 ⇒ 不翻。
         if self.enable_nest_strict {
-            let top_lvl = (0..MAX_LEVEL).rev().find(|&k| view.level_diverge[k].is_some());
+            let top_lvl = (0..MAX_LEVEL)
+                .rev()
+                .find(|&k| view.level_diverge[k].is_some());
             if let Some(tl) = top_lvl {
                 let cascade_ok = (loc..=tl).all(|k| view.level_diverge[k] == Some(armed));
                 if !cascade_ok {
@@ -2784,16 +2921,23 @@ impl TRoot {
                     Polarity::Long => inst.units * (c - inst.basis),
                     Polarity::Short => inst.units * (inst.basis - c),
                 };
-                self.nest_trades.push((is_short, inst.node.start_bar, inst.basis, bar, c, pnl));
+                self.nest_trades
+                    .push((is_short, inst.node.start_bar, inst.basis, bar, c, pnl));
             }
         }
         self.guards.set_trigger(OpTrigger::Bsp); // a0 定位 type1 = 合法 BSP 触发源
         self.clear_all(c);
         let node = view.nodes.get(loc).copied().flatten().unwrap_or_else(|| {
-            TrendNode::new(bar, bar, c, c, match armed {
-                Polarity::Long => Direction::Up,
-                Polarity::Short => Direction::Down,
-            })
+            TrendNode::new(
+                bar,
+                bar,
+                c,
+                c,
+                match armed {
+                    Polarity::Long => Direction::Up,
+                    Polarity::Short => Direction::Down,
+                },
+            )
         });
         self.enter(loc, armed, node, c);
         self.n_nest_flips += 1;
@@ -2822,7 +2966,13 @@ impl TRoot {
         }
         // a0 区间套定位：次级别反核心向 type1（核心 Short 找 type1_buy 平空 / 核心 Long 找 type1_sell 平多）。
         let want_buy = want_op == Polarity::Long;
-        let located = (0..cc).any(|k| if want_buy { view.t1buy[k] } else { view.t1sell[k] });
+        let located = (0..cc).any(|k| {
+            if want_buy {
+                view.t1buy[k]
+            } else {
+                view.t1sell[k]
+            }
+        });
         if !located {
             return; // 无次级别定位点 ⇒ 等下一定位点
         }
@@ -2870,7 +3020,7 @@ impl TRoot {
                     ConfDepth::T2
                 };
                 self.cur_l_pullback[k] = conf; // 深度轴：直接用确认深度档（T1 深/T3 浅）
-                self.cur_l_confirm[k] = conf;  // 滞后轴：mobile_frac 内部按 T1/T3=低滞后、T2=高滞后映射
+                self.cur_l_confirm[k] = conf; // 滞后轴：mobile_frac 内部按 T1/T3=低滞后、T2=高滞后映射
             }
         }
 
@@ -2891,8 +3041,12 @@ impl TRoot {
                 }
             }
             let nav = self.nav(c).max(1.0);
-            self.max_gross_exp_x100 = self.max_gross_exp_x100.max((gross / nav * 100.0).max(0.0) as u64);
-            self.max_net_exp_x100 = self.max_net_exp_x100.max((net.abs() / nav * 100.0).max(0.0) as u64);
+            self.max_gross_exp_x100 = self
+                .max_gross_exp_x100
+                .max((gross / nav * 100.0).max(0.0) as u64);
+            self.max_net_exp_x100 = self
+                .max_net_exp_x100
+                .max((net.abs() / nav * 100.0).max(0.0) as u64);
             self.prove_tw_neutral(tw_pre, c);
             return;
         }
@@ -2910,7 +3064,8 @@ impl TRoot {
                         self.guards.set_trigger(OpTrigger::Eod);
                         self.close_leg(k, c);
                         self.n_liquidations += 1;
-                        self.liq_log.push((k, entry_bar, entry_basis, bar, c, is_short));
+                        self.liq_log
+                            .push((k, entry_bar, entry_basis, bar, c, is_short));
                     }
                 }
             }
@@ -2928,8 +3083,12 @@ impl TRoot {
                 }
             }
             let nav = self.nav(c).max(1.0);
-            self.max_gross_exp_x100 = self.max_gross_exp_x100.max((gross / nav * 100.0).max(0.0) as u64);
-            self.max_net_exp_x100 = self.max_net_exp_x100.max((net.abs() / nav * 100.0).max(0.0) as u64);
+            self.max_gross_exp_x100 = self
+                .max_gross_exp_x100
+                .max((gross / nav * 100.0).max(0.0) as u64);
+            self.max_net_exp_x100 = self
+                .max_net_exp_x100
+                .max((net.abs() / nav * 100.0).max(0.0) as u64);
             self.prove_tw_neutral(tw_pre, c);
             return;
         }
@@ -2941,7 +3100,13 @@ impl TRoot {
                 // 短差空头亏 = net），降成本立于不败的实现——逐仓 layer 独立会破坏抵消致短差翻倍亏 6×退化。
                 if self.nav(c) <= 0.0 {
                     let nav_now = self.nav(c);
-                    self.liq_snapshot.push((2, self.core_cost_basis, self.withdrawn, self.notional_in, nav_now));
+                    self.liq_snapshot.push((
+                        2,
+                        self.core_cost_basis,
+                        self.withdrawn,
+                        self.notional_in,
+                        nav_now,
+                    ));
                     let mut free = self.free;
                     for k in 0..MAX_LEVEL {
                         let kdir = self.instances[k].direction;
@@ -2958,7 +3123,8 @@ impl TRoot {
                                 self.guards.on_short_pnl(k, realized); // prove_per_level_pnl（强平空头腿）
                             }
                             free = self.free;
-                            self.liq_log.push((k, entry_bar, entry_basis, bar, c, is_short));
+                            self.liq_log
+                                .push((k, entry_bar, entry_basis, bar, c, is_short));
                         }
                     }
                     self.free = free;
@@ -2980,19 +3146,27 @@ impl TRoot {
                                 RecStage::EarningShares => 2,
                             };
                             let nav_now = self.nav(c);
-                            self.liq_snapshot.push((sid, self.core_cost_basis, self.withdrawn, self.notional_in, nav_now));
+                            self.liq_snapshot.push((
+                                sid,
+                                self.core_cost_basis,
+                                self.withdrawn,
+                                self.notional_in,
+                                nav_now,
+                            ));
                             let entry_bar = l.node.start_bar;
                             let entry_basis = l.basis;
                             let is_short = l.direction == Polarity::Short;
                             let mut free = self.free;
-                            let realized = rec_reduce(&mut self.instances[k], l.units, &mut free, c);
+                            let realized =
+                                rec_reduce(&mut self.instances[k], l.units, &mut free, c);
                             self.free = free;
                             self.n_liquidations += 1;
                             self.account_reduce(l.direction, realized, c);
                             if is_short {
                                 self.guards.on_short_pnl(k, realized); // prove_per_level_pnl（强平空头腿）
                             }
-                            self.liq_log.push((k, entry_bar, entry_basis, bar, c, is_short));
+                            self.liq_log
+                                .push((k, entry_bar, entry_basis, bar, c, is_short));
                         }
                     }
                 }
@@ -3032,12 +3206,23 @@ impl TRoot {
 
         // ── A'. 自下而上仓位涌现升级（route_bsp 前）──
         if let Some((target_level, target_dir)) = view.emergent_top {
-            let node = view.nodes.get(target_level).copied().flatten().unwrap_or_else(|| {
-                TrendNode::new(bar, bar, c, c, match target_dir {
-                    Polarity::Long => Direction::Up,
-                    Polarity::Short => Direction::Down,
-                })
-            });
+            let node = view
+                .nodes
+                .get(target_level)
+                .copied()
+                .flatten()
+                .unwrap_or_else(|| {
+                    TrendNode::new(
+                        bar,
+                        bar,
+                        c,
+                        c,
+                        match target_dir {
+                            Polarity::Long => Direction::Up,
+                            Polarity::Short => Direction::Down,
+                        },
+                    )
+                });
             self.emergence_upgrade(target_level, target_dir, node);
         }
 
@@ -3049,7 +3234,13 @@ impl TRoot {
                 continue; // 同 bar 同 level 买卖冲突 → 跳过
             }
             let node = view.nodes.get(j).copied().flatten().unwrap_or_else(|| {
-                TrendNode::new(bar, bar, c, c, if b { Direction::Up } else { Direction::Down })
+                TrendNode::new(
+                    bar,
+                    bar,
+                    c,
+                    c,
+                    if b { Direction::Up } else { Direction::Down },
+                )
             });
             if b {
                 self.route_bsp(j, true, node, c);
@@ -3184,9 +3375,27 @@ mod orbit9_add_dispatch_tests {
         r.guards.set_trigger(OpTrigger::Bsp);
         let c = 10.0;
         // 父级建核心仓（pdir 方向）。
-        r.enter(parent, pdir, node(if pdir == Polarity::Long { Direction::Up } else { Direction::Down }), c);
+        r.enter(
+            parent,
+            pdir,
+            node(if pdir == Polarity::Long {
+                Direction::Up
+            } else {
+                Direction::Down
+            }),
+            c,
+        );
         // sink：父减 1/3 + sub 开反父向短差。
-        r.sink(parent, sub, node(if pdir == Polarity::Long { Direction::Down } else { Direction::Up }), c * 1.1);
+        r.sink(
+            parent,
+            sub,
+            node(if pdir == Polarity::Long {
+                Direction::Down
+            } else {
+                Direction::Up
+            }),
+            c * 1.1,
+        );
         r
     }
 
@@ -3206,7 +3415,10 @@ mod orbit9_add_dispatch_tests {
         // 父 units 增（买回一段），sub units 减（部分平短差，非整条）。
         assert!(r.instances[2].units > parent_u_pre, "父 units 应增（买回）");
         assert!(r.instances[0].units < sub_u_pre, "sub 短差应部分减");
-        assert!(r.instances[0].units > 1e-9, "部分买回非整条 ⇒ sub 短差未清空");
+        assert!(
+            r.instances[0].units > 1e-9,
+            "部分买回非整条 ⇒ sub 短差未清空"
+        );
         assert_eq!(r.n_adds, 1);
     }
 
@@ -3214,7 +3426,11 @@ mod orbit9_add_dispatch_tests {
     fn add_short_τ镜像_父空卖回对称() {
         // τ 镜像：父空 @ L2，sink 出 L0 多头短差，add 卖回。
         let mut r = root_with_sunk_short(Polarity::Short, 2, 0);
-        assert_eq!(r.instances[0].direction, Polarity::Long, "父空 sink 出多头短差");
+        assert_eq!(
+            r.instances[0].direction,
+            Polarity::Long,
+            "父空 sink 出多头短差"
+        );
         let parent_u_pre = r.instances[2].units;
         let sub_u_pre = r.instances[0].units;
         // O3 add_short：部分卖回升回父空（同一 add 方法，pdir 参数化 ⇒ τ 镜像无 if 多空）。
@@ -3222,8 +3438,14 @@ mod orbit9_add_dispatch_tests {
         // 父向极性不变（仍 Short）。
         assert_eq!(r.instances[2].direction, Polarity::Short);
         // 对称：父 units 增（卖回），sub 短差部分减。
-        assert!(r.instances[2].units > parent_u_pre, "父空 units 应增（卖回）");
-        assert!(r.instances[0].units < sub_u_pre && r.instances[0].units > 1e-9, "sub 短差部分减非整条");
+        assert!(
+            r.instances[2].units > parent_u_pre,
+            "父空 units 应增（卖回）"
+        );
+        assert!(
+            r.instances[0].units < sub_u_pre && r.instances[0].units > 1e-9,
+            "sub 短差部分减非整条"
+        );
         assert_eq!(r.n_adds, 1);
     }
 
@@ -3235,7 +3457,10 @@ mod orbit9_add_dispatch_tests {
         r.enter(2, Polarity::Long, node(Direction::Up), 10.0);
         let u_pre = r.instances[2].units;
         r.add(2, 0, 11.0);
-        assert_eq!(r.instances[2].units, u_pre, "无短差腿 ⇒ add no-op，父 units 不变");
+        assert_eq!(
+            r.instances[2].units, u_pre,
+            "无短差腿 ⇒ add no-op，父 units 不变"
+        );
         assert_eq!(r.n_adds, 0);
     }
 
@@ -3249,7 +3474,10 @@ mod orbit9_add_dispatch_tests {
         r.route_bsp(0, true, node(Direction::Up), c);
         // OFF ⇒ 走 recover（sub 短差整条清空），n_adds 恒 0。
         assert_eq!(r.n_adds, 0, "OFF ⇒ add 分支未激活（bit-exact）");
-        assert_eq!(r.instances[0].units, 0.0, "OFF recover 平整条 ⇒ sub 短差清空");
+        assert_eq!(
+            r.instances[0].units, 0.0,
+            "OFF recover 平整条 ⇒ sub 短差清空"
+        );
         assert_eq!(r.n_recovers, 1);
     }
 
@@ -3268,7 +3496,10 @@ mod orbit9_add_dispatch_tests {
         assert!(r.enable_orbit9_dispatch);
         // 占位 fallback=true ⇒ 走势完成 ⇒ recover（与 OFF 同，保未整合 bit-exact）。
         r.route_bsp(0, true, node(Direction::Up), c);
-        assert_eq!(r.n_adds, 0, "占位 fallback=true ⇒ 仍 recover（C 接口未就位 bit-exact）");
+        assert_eq!(
+            r.n_adds, 0,
+            "占位 fallback=true ⇒ 仍 recover（C 接口未就位 bit-exact）"
+        );
         assert_eq!(r.n_recovers, 1);
     }
 }
@@ -3295,19 +3526,37 @@ mod intrinsic_quota_tests {
         // 中性(T2,T1)：1/3×1×3/2 = 0.5。
         let mid = mobile_frac(ConfDepth::T2, ConfDepth::T1);
 
-        assert!((deep_fast - 1.0).abs() < 1e-12, "深回调+快确认=最大配额(裁剪到整仓 1.0)，得 {deep_fast}");
-        assert!((shallow_slow - 1.0 / 12.0).abs() < 1e-12, "浅回调+慢确认=最小配额 1/12，得 {shallow_slow}");
-        assert!(deep_fast > mid && mid > shallow_slow, "split 自适应单调：深快 > 中 > 浅慢");
+        assert!(
+            (deep_fast - 1.0).abs() < 1e-12,
+            "深回调+快确认=最大配额(裁剪到整仓 1.0)，得 {deep_fast}"
+        );
+        assert!(
+            (shallow_slow - 1.0 / 12.0).abs() < 1e-12,
+            "浅回调+慢确认=最小配额 1/12，得 {shallow_slow}"
+        );
+        assert!(
+            deep_fast > mid && mid > shallow_slow,
+            "split 自适应单调：深快 > 中 > 浅慢"
+        );
         // 边界：所有 9 组合 ∈ (0,1]（配额合法）。
         for lp in [ConfDepth::T1, ConfDepth::T2, ConfDepth::T3] {
             for lc in [ConfDepth::T1, ConfDepth::T2, ConfDepth::T3] {
                 let f = mobile_frac(lp, lc);
-                assert!(f > 0.0 && f <= 1.0, "mobile_frac({lp:?},{lc:?})={f} 须 ∈(0,1]");
+                assert!(
+                    f > 0.0 && f <= 1.0,
+                    "mobile_frac({lp:?},{lc:?})={f} 须 ∈(0,1]"
+                );
             }
         }
         // 与固定 σ-不变 1/3 的对照：深确认放大、浅确认缩小（拍扁的反面）。
-        assert!(deep_fast > MOBILE_FRAC, "深确认配额 > 固定 1/3（自适应放大）");
-        assert!(shallow_slow < MOBILE_FRAC, "浅确认配额 < 固定 1/3（自适应缩小防踏空）");
+        assert!(
+            deep_fast > MOBILE_FRAC,
+            "深确认配额 > 固定 1/3（自适应放大）"
+        );
+        assert!(
+            shallow_slow < MOBILE_FRAC,
+            "浅确认配额 < 固定 1/3（自适应缩小防踏空）"
+        );
     }
 
     /// 造一个 ON 路径 root，父核心 @parent，注入触发腿 ConfDepth，sink 出 sub 短差，返回 sub 短差 units。
@@ -3328,7 +3577,10 @@ mod intrinsic_quota_tests {
     fn on_sink_配额逐级自适应_非固定() {
         let deep = on_sink_sub_units(ConfDepth::T1, ConfDepth::T1); // 深回调+快确认=大配额
         let shallow = on_sink_sub_units(ConfDepth::T3, ConfDepth::T2); // 浅回调+慢确认=小配额
-        assert!(deep > shallow * 1.5, "深确认 sink 配额应显著大于浅确认（自适应非固定 1/3），deep={deep} shallow={shallow}");
+        assert!(
+            deep > shallow * 1.5,
+            "深确认 sink 配额应显著大于浅确认（自适应非固定 1/3），deep={deep} shallow={shallow}"
+        );
         assert!(deep > 1e-9 && shallow > 1e-9, "两档配额皆 >0（开了短差腿）");
     }
 
@@ -3375,7 +3627,9 @@ mod intrinsic_quota_tests {
         let u_on = r_on.instances[2].units;
         r_on.sink(2, 0, node(Direction::Down), c * 1.1);
         let reduced_on = u_on - r_on.instances[2].units;
-        assert!(reduced_on > reduced_off * 2.0,
-            "ON 深确认配额(整仓)应远大于 OFF 固定 1/3：on={reduced_on} off={reduced_off}");
+        assert!(
+            reduced_on > reduced_off * 2.0,
+            "ON 深确认配额(整仓)应远大于 OFF 固定 1/3：on={reduced_on} off={reduced_off}"
+        );
     }
 }

@@ -262,7 +262,6 @@ pub fn active_set_step(elements: &[CoverageElement], active: &[usize], t: usize)
 //  §4 操作角色 R(g)=(H(g),V(g),δ_g) 24 类完全分类（spec §7-§8 / P6-P7，去根化）
 // ════════════════════════════════════════════════════════════════════════════
 
-
 #[cfg(test)]
 #[path = "ancok_tests.rs"]
 mod tests;

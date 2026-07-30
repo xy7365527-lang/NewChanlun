@@ -1,5 +1,5 @@
-use super::*;
 use super::fixtures::{extended_windows, mbar, trend_block};
+use super::*;
 
 // ───────────── T1 (#170) 三元锚供给/携带测试（先红后绿） ─────────────
 

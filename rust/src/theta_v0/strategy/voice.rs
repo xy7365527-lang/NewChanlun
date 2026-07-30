@@ -361,7 +361,10 @@ mod tests {
         assert_eq!(voice_side(VoiceSide::Short, 2), VoiceSide::Short);
         // Short 根 = Long 根逐深度翻转。
         for d in 0u32..8 {
-            assert_eq!(voice_side(VoiceSide::Short, d), voice_side(VoiceSide::Long, d).flip());
+            assert_eq!(
+                voice_side(VoiceSide::Short, d),
+                voice_side(VoiceSide::Long, d).flip()
+            );
         }
     }
 
@@ -391,19 +394,43 @@ mod tests {
         // exit=true ⟹ Close（不论 q/enter_ok）。
         for &q in &[0u32, 5] {
             for &e in &[false, true] {
-                let v = VoiceState { depth: 0, b: 1, q, exit: true, enter_ok: e };
+                let v = VoiceState {
+                    depth: 0,
+                    b: 1,
+                    q,
+                    exit: true,
+                    enter_ok: e,
+                };
                 assert_eq!(act_state(&v), ActState::Close);
             }
         }
         // ¬exit ∧ q=0 ∧ enter_ok ⟹ Open。
-        let v = VoiceState { depth: 0, b: 3, q: 0, exit: false, enter_ok: true };
+        let v = VoiceState {
+            depth: 0,
+            b: 3,
+            q: 0,
+            exit: false,
+            enter_ok: true,
+        };
         assert_eq!(act_state(&v), ActState::Open);
         // ¬exit ∧ q=0 ∧ ¬enter_ok ⟹ Wait。
-        let v = VoiceState { depth: 0, b: 3, q: 0, exit: false, enter_ok: false };
+        let v = VoiceState {
+            depth: 0,
+            b: 3,
+            q: 0,
+            exit: false,
+            enter_ok: false,
+        };
         assert_eq!(act_state(&v), ActState::Wait);
         // ¬exit ∧ q>0 ⟹ Hold（不论 enter_ok）。
         for &e in &[false, true] {
-            let v = VoiceState { depth: 0, b: 3, q: 7, exit: false, enter_ok: e };
+            let v = VoiceState {
+                depth: 0,
+                b: 3,
+                q: 7,
+                exit: false,
+                enter_ok: e,
+            };
             assert_eq!(act_state(&v), ActState::Hold);
         }
     }
@@ -412,11 +439,20 @@ mod tests {
     /// (1,0)→Long(+1)，(0,1)→Short(-1)，(0,0)→Flat(0)。
     #[test]
     fn root_sel_base_rules() {
-        let long_only = RootCandidates { long_trigger: true, short_trigger: false };
+        let long_only = RootCandidates {
+            long_trigger: true,
+            short_trigger: false,
+        };
         assert_eq!(root_sel(long_only), VoiceSide::Long); // RootSel(1,0) = +1
-        let short_only = RootCandidates { long_trigger: false, short_trigger: true };
+        let short_only = RootCandidates {
+            long_trigger: false,
+            short_trigger: true,
+        };
         assert_eq!(root_sel(short_only), VoiceSide::Short); // RootSel(0,1) = -1
-        let none = RootCandidates { long_trigger: false, short_trigger: false };
+        let none = RootCandidates {
+            long_trigger: false,
+            short_trigger: false,
+        };
         assert_eq!(root_sel(none), VoiceSide::Flat); // RootSel(0,0) = 0
     }
 
@@ -424,9 +460,12 @@ mod tests {
     /// Flat(0)。证：M_D(1,1)=(1,1) 是不动点 ⟹ RootSel(1,1)=-RootSel(1,1) ⟹ =0。**非买侧优先**。
     #[test]
     fn root_sel_double_trigger_disambiguates_to_flat() {
-        let both = RootCandidates { long_trigger: true, short_trigger: true };
+        let both = RootCandidates {
+            long_trigger: true,
+            short_trigger: true,
+        };
         assert_eq!(root_sel(both), VoiceSide::Flat); // RootSel(1,1) = 0（镜像反对称强制）
-        // 反对称自洽：(1,1) 是镜像不动点，root_sel(mirror) = root_sel 本身 = Flat = Flat.flip()。
+                                                     // 反对称自洽：(1,1) 是镜像不动点，root_sel(mirror) = root_sel 本身 = Flat = Flat.flip()。
         assert_eq!(root_sel_mirror(both), root_sel(both)); // Flat == Flat
         assert_eq!(root_sel(both), root_sel(both).flip()); // Flat == Flat.flip()
     }
@@ -437,7 +476,10 @@ mod tests {
     fn root_sel_mirror_antisymmetric() {
         for &lt in &[false, true] {
             for &st in &[false, true] {
-                let cands = RootCandidates { long_trigger: lt, short_trigger: st };
+                let cands = RootCandidates {
+                    long_trigger: lt,
+                    short_trigger: st,
+                };
                 // RootSel(M_D D) = -RootSel(D)，其中 -Long=Short, -Short=Long, -Flat=Flat。
                 assert_eq!(root_sel_mirror(cands), root_sel(cands).flip());
             }
@@ -449,7 +491,10 @@ mod tests {
     fn root_candidates_mirror_involutive() {
         for &lt in &[false, true] {
             for &st in &[false, true] {
-                let c = RootCandidates { long_trigger: lt, short_trigger: st };
+                let c = RootCandidates {
+                    long_trigger: lt,
+                    short_trigger: st,
+                };
                 assert_eq!(c.mirror().mirror(), c);
                 // 镜像交换买卖触发。
                 assert_eq!(c.mirror().long_trigger, c.short_trigger);
@@ -461,13 +506,37 @@ mod tests {
     /// bit-exact 对齐 Origin.VoiceTree `targetPos_spec`：close/wait→0，open→b_v，hold→q_v。
     #[test]
     fn target_pos_matches_act_state() {
-        let close = VoiceState { depth: 0, b: 3, q: 7, exit: true, enter_ok: false };
+        let close = VoiceState {
+            depth: 0,
+            b: 3,
+            q: 7,
+            exit: true,
+            enter_ok: false,
+        };
         assert_eq!(target_pos(&close), 0);
-        let open = VoiceState { depth: 0, b: 3, q: 0, exit: false, enter_ok: true };
+        let open = VoiceState {
+            depth: 0,
+            b: 3,
+            q: 0,
+            exit: false,
+            enter_ok: true,
+        };
         assert_eq!(target_pos(&open), 3);
-        let hold = VoiceState { depth: 0, b: 3, q: 7, exit: false, enter_ok: false };
+        let hold = VoiceState {
+            depth: 0,
+            b: 3,
+            q: 7,
+            exit: false,
+            enter_ok: false,
+        };
         assert_eq!(target_pos(&hold), 7);
-        let wait = VoiceState { depth: 0, b: 3, q: 0, exit: false, enter_ok: false };
+        let wait = VoiceState {
+            depth: 0,
+            b: 3,
+            q: 0,
+            exit: false,
+            enter_ok: false,
+        };
         assert_eq!(target_pos(&wait), 0);
     }
 }

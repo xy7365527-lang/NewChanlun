@@ -123,7 +123,9 @@ fn scalar_cost_rate_undefined_cause(exec: &ExecConfig) -> &'static str {
              角色维未消失。"
         }
         // 未标定档恒 `Some(fee_rate)` ⟹ 走不到本函数；照实标注而不假装不可达（090）。
-        None => "｜本档落支 = 未标定档（`fee_schedule = None`）——该档恒有良定义，到此即实现自相矛盾。",
+        None => {
+            "｜本档落支 = 未标定档（`fee_schedule = None`）——该档恒有良定义，到此即实现自相矛盾。"
+        }
     }
 }
 
@@ -162,9 +164,9 @@ fn scalar_cost_rate_undefined_cause(exec: &ExecConfig) -> &'static str {
 pub fn scalar_cost_rate_opt(exec: &ExecConfig) -> Option<f64> {
     match exec.fee_schedule.as_ref() {
         None => Some(fee_rate(exec)),
-        Some(sched) => sched.constant_effective_rate().map(|datum_rate| {
-            datum_rate + exec.slippage_bps / 10_000.0 + exec.tax_bps / 10_000.0
-        }),
+        Some(sched) => sched
+            .constant_effective_rate()
+            .map(|datum_rate| datum_rate + exec.slippage_bps / 10_000.0 + exec.tax_bps / 10_000.0),
     }
 }
 
@@ -295,7 +297,10 @@ impl MuSwing {
 /// 漂移不变量：`tw(后) − tw(前) == d_pi`（由 ledger 的
 /// `tw_step_realize_drift_equals_dpi` 承保，此处经适配层再断言一次）。
 pub fn settle(s: &TwState, swing: &MuSwing, fee_rate: f64) -> (TwState, i64) {
-    debug_assert!(swing.units > 0.0, "MuSwing.units 必须为正（空摆动不应构造）");
+    debug_assert!(
+        swing.units > 0.0,
+        "MuSwing.units 必须为正（空摆动不应构造）"
+    );
     debug_assert!(
         swing.high >= swing.low,
         "MuSwing 约定 high >= low（方向由上游归一）"
@@ -349,13 +354,19 @@ mod tests {
     }
 
     /// 合成 per-notional 档（`maker_bps`/`taker_bps` 由用例指定，用于对称性分叉的两侧）。
-    fn synth_notional(maker_bps: f64, taker_bps: f64) -> super::super::super::venue_fee::VenueFeeSchedule {
+    fn synth_notional(
+        maker_bps: f64,
+        taker_bps: f64,
+    ) -> super::super::super::venue_fee::VenueFeeSchedule {
         use super::super::super::venue_fee::{FeeUnit, VenueFeeSchedule};
         VenueFeeSchedule {
             venue: "SYNTH".into(),
             symbol: "X".into(),
             tier: "T".into(),
-            unit: FeeUnit::Notional { maker_bps, taker_bps },
+            unit: FeeUnit::Notional {
+                maker_bps,
+                taker_bps,
+            },
             datum_sha256: "0".repeat(64),
         }
     }
@@ -385,7 +396,10 @@ mod tests {
 
     /// 挂一份 venue 费率档的 `ExecConfig`（其余字段取默认 ⟹ `slippage_bps=2`、`tax_bps=0`）。
     fn exec_with(sched: super::super::super::venue_fee::VenueFeeSchedule) -> ExecConfig {
-        ExecConfig { fee_schedule: Some(sched), ..ExecConfig::default() }
+        ExecConfig {
+            fee_schedule: Some(sched),
+            ..ExecConfig::default()
+        }
     }
 
     /// ★#423：**按金额对称档 ⟹ `Some(常数)`**，且与 [`fee_quoter`] 在多组 (qty, px, side) 上
@@ -463,7 +477,11 @@ mod tests {
             ibkr.resolve("OKLO", "PRO_TIERED_LE_300K_SHARES")
                 .expect("OKLO 在册"),
         );
-        assert_eq!(scalar_cost_rate_opt(&exec_per_share), None, "per-share 档无良定义");
+        assert_eq!(
+            scalar_cost_rate_opt(&exec_per_share),
+            None,
+            "per-share 档无良定义"
+        );
     }
 
     /// ★#374 MED-A / ★#423：**无良定义档下 fail-loud**——不静默产一个对随机对照/成本剥离
@@ -490,7 +508,9 @@ mod tests {
     ///
     /// ★#423 收尾轮 A：`expected` 收窄到**非对称档专有**的落支标签（见上一测的判别力说明）。
     #[test]
-    #[should_panic(expected = "本档落支 = [B]：计费单位为按金额（per-notional）但 maker_bps≠taker_bps")]
+    #[should_panic(
+        expected = "本档落支 = [B]：计费单位为按金额（per-notional）但 maker_bps≠taker_bps"
+    )]
     fn scalar_cost_rate_asymmetric_notional_panics() {
         let exec = exec_with(synth_notional(5.0, 10.0));
         let _ = scalar_cost_rate(&exec);
@@ -618,7 +638,11 @@ mod tests {
         let l = 10_000.0;
         let h_at = l * (1.0 + fee) / (1.0 - fee);
         for (h, expect) in [(h_at * 1.001, true), (h_at * 0.999, false)] {
-            let sw = MuSwing { units: 1e6, high: h, low: l };
+            let sw = MuSwing {
+                units: 1e6,
+                high: h,
+                low: l,
+            };
             assert_eq!(sw.clears_cost(fee), expect, "h={h}");
             assert_eq!(sw.net_realized(fee) > 0.0, expect, "h={h}");
         }
@@ -629,8 +653,16 @@ mod tests {
     fn settle_drift_equals_dpi_both_signs() {
         let fee = 3e-4;
         let s0 = TwState::initial();
-        let win = MuSwing { units: 100.0, high: 10_100.0, low: 10_000.0 };
-        let loss = MuSwing { units: 100.0, high: 10_001.0, low: 10_000.0 };
+        let win = MuSwing {
+            units: 100.0,
+            high: 10_100.0,
+            low: 10_000.0,
+        };
+        let loss = MuSwing {
+            units: 100.0,
+            high: 10_001.0,
+            low: 10_000.0,
+        };
         let (s1, d1) = settle(&s0, &win, fee);
         assert!(d1 > 0);
         assert_eq!(s1.tw() - s0.tw(), d1);
@@ -642,13 +674,21 @@ mod tests {
     /// 舍入保守方向：正 PnL 向下取整，负 PnL 向更负取整。
     #[test]
     fn floor_rounding_is_conservative() {
-        let sw = MuSwing { units: 1.0, high: 101.7, low: 100.0 };
+        let sw = MuSwing {
+            units: 1.0,
+            high: 101.7,
+            low: 100.0,
+        };
         let net = sw.net_realized(0.0); // 1.7
         let s0 = TwState::initial();
         let (_, d) = settle(&s0, &sw, 0.0);
         assert_eq!(d, 1);
         assert!((d as f64) <= net);
-        let neg = MuSwing { units: 1.0, high: 100.1, low: 100.0 };
+        let neg = MuSwing {
+            units: 1.0,
+            high: 100.1,
+            low: 100.0,
+        };
         let (_, dn) = settle(&s0, &neg, 3e-4); // net ≈ 0.1 − 0.06003 > 0 → floor 0
         assert_eq!(dn, 0, "微利被保守舍成 0，绝不虚增");
     }

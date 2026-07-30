@@ -50,7 +50,8 @@ pub fn prove_sigma_quota(m: f64, units_before: f64, ladder: i64, bar: i64) {
 pub fn count_chiral_violations(layers: &[Layer]) -> usize {
     let mut count = 0;
     for k in 0..layers.len().saturating_sub(1) {
-        if layers[k].units > 0.0 && layers[k + 1].units > 0.0
+        if layers[k].units > 0.0
+            && layers[k + 1].units > 0.0
             && layers[k].direction == layers[k + 1].direction
         {
             count += 1;
@@ -99,7 +100,8 @@ pub fn prove_recursive_consistency(layers: &[Layer], bar: i64) {
             assert!(
                 l.ladder >= FIRST_BSP_LADDER,
                 "递归一致性违反@bar {bar}：仓位层 {} < FIRST_BSP={FIRST_BSP_LADDER}（方向={:?}）",
-                l.ladder, l.direction
+                l.ladder,
+                l.direction
             );
         }
     }
@@ -154,7 +156,11 @@ mod tests {
     #[test]
     fn chiral_alternation_zero_count() {
         // 层2 Long, 层3 Short, 层4 Long —— 相邻交替 ⟹ 同向计数=0
-        let layers = vec![mk(2, Polarity::Long, 10.0), mk(3, Polarity::Short, 5.0), mk(4, Polarity::Long, 20.0)];
+        let layers = vec![
+            mk(2, Polarity::Long, 10.0),
+            mk(3, Polarity::Short, 5.0),
+            mk(4, Polarity::Long, 20.0),
+        ];
         assert_eq!(count_chiral_violations(&layers), 0);
     }
 

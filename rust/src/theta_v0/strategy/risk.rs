@@ -193,8 +193,8 @@ pub fn size_position(input: &SizingInput, config: &RiskConfig) -> i64 {
     // |entry-stop|*tick_size = 每手最大亏损（美元），与 NAV（美元）量纲一致。
     let risk_dist_ticks = (input.entry - input.stop).abs() as f64; // tick 差，整数 → f64
     let risk_dist_usd = risk_dist_ticks * input.tick_size; // 美元亏损（量纲对齐）
-    // D = M·|P−S| + Cost + GapBuffer（PDF §2）：M·|P−S| = risk_dist_usd，κ·cost = Cost 项，
-    // gap_buffer = GapBuffer 项。约简顺序固定：先 risk_dist_usd，加 κ·cost，再加 gap_buffer。
+                                                           // D = M·|P−S| + Cost + GapBuffer（PDF §2）：M·|P−S| = risk_dist_usd，κ·cost = Cost 项，
+                                                           // gap_buffer = GapBuffer 项。约简顺序固定：先 risk_dist_usd，加 κ·cost，再加 gap_buffer。
     let denom1 = risk_dist_usd + config.kappa * input.cost_per_unit + input.gap_buffer;
     let bound1: i64 = if denom1 <= 0.0 {
         // 分母非正（entry=stop 且 cost=0 且 gap=0）：风险预算不约束。
@@ -407,9 +407,9 @@ pub fn root_dir_next(mode: RiskMode, current: VoiceSide, cands: RootCandidates) 
     }
     // case 2：持仓 + 反向信号 ⟹ 先平（σ̃ = 0），不假设已反手。
     let reverse_signal = match current {
-        VoiceSide::Long => cands.short_trigger,  // 做多根遇卖侧触发 χ⁻=1
-        VoiceSide::Short => cands.long_trigger,   // 做空根遇买侧触发 χ⁺=1
-        VoiceSide::Flat => false,                 // 空仓无「反向」可言
+        VoiceSide::Long => cands.short_trigger, // 做多根遇卖侧触发 χ⁻=1
+        VoiceSide::Short => cands.long_trigger, // 做空根遇买侧触发 χ⁺=1
+        VoiceSide::Flat => false,               // 空仓无「反向」可言
     };
     if current != VoiceSide::Flat && reverse_signal {
         return VoiceSide::Flat;
@@ -480,7 +480,11 @@ pub fn gross_notional(voices: &[VoiceNotional]) -> i64 {
 /// 各声部有符号名义的代数和的绝对值（多空抵消——双开两腿符号相反，故净敞口可低）。对齐 Lean
 /// `Origin.LeverageCapital.netNotional`。
 pub fn net_notional(voices: &[VoiceNotional]) -> i64 {
-    voices.iter().map(VoiceNotional::signed_notional).sum::<i64>().abs()
+    voices
+        .iter()
+        .map(VoiceNotional::signed_notional)
+        .sum::<i64>()
+        .abs()
 }
 
 /// 杠杆度量结果（毛杠杆 L^G、净杠杆 L^N，strict §11 line 355-357 / FULL 十三 line 1000-1004）。
@@ -514,7 +518,12 @@ pub fn leverage_metrics(voices: &[VoiceNotional], equity: f64) -> LeverageMetric
     } else {
         (gross as f64 / equity, net as f64 / equity)
     };
-    LeverageMetrics { gross, net, gross_lev, net_lev }
+    LeverageMetrics {
+        gross,
+        net,
+        gross_lev,
+        net_lev,
+    }
 }
 
 /// 杠杆上限（Θ_leverage 参数：毛杠杆上限 L̄^G、净杠杆上限 L̄^N，strict §12 line 396-397 /
@@ -638,7 +647,10 @@ impl MarginSchedule {
         if !(retail_mult.is_finite() && retail_mult >= 1.0) {
             return Err("margin: cme retail_mult<1".into());
         }
-        Ok(MarginSchedule::CmeSimple { pct_maint, retail_mult })
+        Ok(MarginSchedule::CmeSimple {
+            pct_maint,
+            retail_mult,
+        })
     }
 
     /// 维持保证金 `MM(net_notional_usd)`。net_notional **已是美元**（§2.2 单位修正：勿再乘价）。
@@ -648,11 +660,16 @@ impl MarginSchedule {
         match self {
             MarginSchedule::BinanceTiered { tiers } => {
                 // tier = 最高 floor ≤ n（tiers 升序 ⟹ partition_point 二分；首档 floor≤0 保非空）。
-                let idx = tiers.partition_point(|t| t.notional_floor <= n).saturating_sub(1);
+                let idx = tiers
+                    .partition_point(|t| t.notional_floor <= n)
+                    .saturating_sub(1);
                 let t = &tiers[idx];
                 (n * t.mmr - t.maint_amount).max(0.0)
             }
-            MarginSchedule::CmeSimple { pct_maint, retail_mult } => n * pct_maint * retail_mult,
+            MarginSchedule::CmeSimple {
+                pct_maint,
+                retail_mult,
+            } => n * pct_maint * retail_mult,
         }
     }
 }
@@ -969,7 +986,12 @@ impl CostModel {
     /// ★F2 锁死：本方法是 additive 新增——[`funding_accrual`](Self::funding_accrual) 无向保底
     /// 路径签名/字段/语义逐字不动（既有 5+3 测试锁死）；datum 未注入期间一切带 funding 成本的
     /// R 数值报告强制标注 [`RATE_UNCALIBRATED_LABEL`]（附则B）。
-    pub fn funding_accrual_signed(&self, bar_index: usize, net_notional_usd: f64, signed_rate: f64) -> f64 {
+    pub fn funding_accrual_signed(
+        &self,
+        bar_index: usize,
+        net_notional_usd: f64,
+        signed_rate: f64,
+    ) -> f64 {
         let period = self.funding_period_bars as usize;
         if bar_index == 0 || bar_index % period != 0 {
             return 0.0;
@@ -1052,28 +1074,54 @@ mod tests {
     use super::*;
 
     fn mk_center(zd: Tick, zg: Tick) -> Center {
-        Center { zd, zg, dd: zd - 10, gg: zg + 10, start_index: 0, end_index: 9 }
+        Center {
+            zd,
+            zg,
+            dd: zd - 10,
+            gg: zg + 10,
+            start_index: 0,
+            end_index: 9,
+        }
     }
 
     /// 结构止损（spec:46）：1/2 买 = pivot low；3 买 = ZG；卖镜像。
     #[test]
     fn structural_stop_class_rules() {
         let c = mk_center(100, 200);
-        let si = StopInput { pivot_low: 90, pivot_high: 210, center: c };
+        let si = StopInput {
+            pivot_low: 90,
+            pivot_high: 210,
+            center: c,
+        };
         // 1 买：pivot low。
-        let b1 = BspBits { buy1: true, ..Default::default() };
+        let b1 = BspBits {
+            buy1: true,
+            ..Default::default()
+        };
         assert_eq!(structural_stop(StopSide::Long, &b1, &si), Some(90));
         // 2 买：pivot low。
-        let b2 = BspBits { buy2: true, ..Default::default() };
+        let b2 = BspBits {
+            buy2: true,
+            ..Default::default()
+        };
         assert_eq!(structural_stop(StopSide::Long, &b2, &si), Some(90));
         // 3 买：ZG。
-        let b3 = BspBits { buy3: true, ..Default::default() };
+        let b3 = BspBits {
+            buy3: true,
+            ..Default::default()
+        };
         assert_eq!(structural_stop(StopSide::Long, &b3, &si), Some(200));
         // 1 卖：pivot high。
-        let s1 = BspBits { sell1: true, ..Default::default() };
+        let s1 = BspBits {
+            sell1: true,
+            ..Default::default()
+        };
         assert_eq!(structural_stop(StopSide::Short, &s1, &si), Some(210));
         // 3 卖：ZD。
-        let s3 = BspBits { sell3: true, ..Default::default() };
+        let s3 = BspBits {
+            sell3: true,
+            ..Default::default()
+        };
         assert_eq!(structural_stop(StopSide::Short, &s3, &si), Some(100));
     }
 
@@ -1081,12 +1129,24 @@ mod tests {
     #[test]
     fn structural_stop_2b3b_coincide_takes_wider() {
         let c = mk_center(100, 200);
-        let si = StopInput { pivot_low: 90, pivot_high: 210, center: c };
-        let b23 = BspBits { buy2: true, buy3: true, ..Default::default() };
+        let si = StopInput {
+            pivot_low: 90,
+            pivot_high: 210,
+            center: c,
+        };
+        let b23 = BspBits {
+            buy2: true,
+            buy3: true,
+            ..Default::default()
+        };
         // 多头取更低（更宽）：min(90, 200) = 90。
         assert_eq!(structural_stop(StopSide::Long, &b23, &si), Some(90));
         // 空头 2S/3S 重合：取更高（更宽）：max(pivot_high=210, zd=100) = 210。
-        let s23 = BspBits { sell2: true, sell3: true, ..Default::default() };
+        let s23 = BspBits {
+            sell2: true,
+            sell3: true,
+            ..Default::default()
+        };
         assert_eq!(structural_stop(StopSide::Short, &s23, &si), Some(210));
     }
 
@@ -1094,11 +1154,18 @@ mod tests {
     #[test]
     fn structural_stop_no_bsp_yields_none() {
         let c = mk_center(100, 200);
-        let si = StopInput { pivot_low: 90, pivot_high: 210, center: c };
+        let si = StopInput {
+            pivot_low: 90,
+            pivot_high: 210,
+            center: c,
+        };
         let empty = BspBits::default();
         assert_eq!(structural_stop(StopSide::Long, &empty, &si), None);
         // Long 方向但只有卖点位 ⟹ None。
-        let only_sell = BspBits { sell1: true, ..Default::default() };
+        let only_sell = BspBits {
+            sell1: true,
+            ..Default::default()
+        };
         assert_eq!(structural_stop(StopSide::Long, &only_sell, &si), None);
     }
 
@@ -1123,10 +1190,10 @@ mod tests {
     #[test]
     fn sizing_risk_budget_binds() {
         let cfg = RiskConfig::default(); // ρ=0.005, β=0.5, γ=1.0, κ=2.0, lot=1
-        // NAV=1_000_000, entry=100 tick（tick_size=1.0 ⟹ entry_usd=100），stop=90（|d_usd|=10），cost=0。
-        // 项1 = floor(0.005*1e6 / (10*1.0 + 2*0)) = floor(5000/10) = 500。
-        // 项2 = floor(0.6*1.0*1e6 / (100*1.0)) = floor(6000) = 6000。
-        // 项3 = MAX。 min = 500。
+                                         // NAV=1_000_000, entry=100 tick（tick_size=1.0 ⟹ entry_usd=100），stop=90（|d_usd|=10），cost=0。
+                                         // 项1 = floor(0.005*1e6 / (10*1.0 + 2*0)) = floor(5000/10) = 500。
+                                         // 项2 = floor(0.6*1.0*1e6 / (100*1.0)) = floor(6000) = 6000。
+                                         // 项3 = MAX。 min = 500。
         let inp = base_sizing();
         assert_eq!(size_position(&inp, &cfg), 500);
     }
@@ -1137,7 +1204,11 @@ mod tests {
         let cfg = RiskConfig::default();
         // entry=100, stop=99 (|d_usd|=1*1.0=1) ⟹ 项1 = floor(5000/1)=5000；
         // w_depth=0.1: 项2 = floor(0.1*1e6/(100*1.0))=1000；项1=5000 ⟹ min=1000。
-        let inp = SizingInput { stop: 99, w_depth: 0.1, ..base_sizing() };
+        let inp = SizingInput {
+            stop: 99,
+            w_depth: 0.1,
+            ..base_sizing()
+        };
         assert_eq!(size_position(&inp, &cfg), 1000);
     }
 
@@ -1145,7 +1216,10 @@ mod tests {
     #[test]
     fn sizing_parent_cap_binds() {
         let cfg = RiskConfig::default();
-        let inp = SizingInput { parent_cap: 50, ..base_sizing() }; // 比项1=500、项2=6000 都小
+        let inp = SizingInput {
+            parent_cap: 50,
+            ..base_sizing()
+        }; // 比项1=500、项2=6000 都小
         assert_eq!(size_position(&inp, &cfg), 50);
     }
 
@@ -1153,7 +1227,10 @@ mod tests {
     #[test]
     fn sizing_zero_qty_no_trade() {
         let cfg = RiskConfig::default();
-        let inp = SizingInput { parent_cap: 0, ..base_sizing() };
+        let inp = SizingInput {
+            parent_cap: 0,
+            ..base_sizing()
+        };
         assert_eq!(size_position(&inp, &cfg), 0);
     }
 
@@ -1161,7 +1238,11 @@ mod tests {
     #[test]
     fn sizing_nonpositive_entry_no_trade() {
         let cfg = RiskConfig::default();
-        let inp = SizingInput { entry: 0, stop: -10, ..base_sizing() };
+        let inp = SizingInput {
+            entry: 0,
+            stop: -10,
+            ..base_sizing()
+        };
         assert_eq!(size_position(&inp, &cfg), 0);
     }
 
@@ -1177,7 +1258,13 @@ mod tests {
 
     fn mk_risk_input(equity: f64, mm: f64, liq: bool) -> RiskModeInput {
         // 缓冲 B1=100, B2=300（0<B1<B2，strict §11 前提）。
-        RiskModeInput { equity, maint_margin: mm, buffer1: 100.0, buffer2: 300.0, liq_flag: liq }
+        RiskModeInput {
+            equity,
+            maint_margin: mm,
+            buffer1: 100.0,
+            buffer2: 300.0,
+            liq_flag: liq,
+        }
     }
 
     /// 风险模式五态穷尽互斥（strict §11 / FULL 十三，Lean `risk_mode_complete_unique`）：
@@ -1185,24 +1272,47 @@ mod tests {
     #[test]
     fn risk_mode_five_states_priority() {
         // M0：E_t ≤ 0 ⟹ Insolvent（不论 LiqFlag/MM）。
-        assert_eq!(risk_mode(&mk_risk_input(0.0, 500.0, false)), RiskMode::Insolvent);
-        assert_eq!(risk_mode(&mk_risk_input(-10.0, 500.0, true)), RiskMode::Insolvent);
+        assert_eq!(
+            risk_mode(&mk_risk_input(0.0, 500.0, false)),
+            RiskMode::Insolvent
+        );
+        assert_eq!(
+            risk_mode(&mk_risk_input(-10.0, 500.0, true)),
+            RiskMode::Insolvent
+        );
         // M1：E_t>0 ∧ (LiqFlag ∨ E_t<MM) ⟹ Liquidation。MM=500，E=400<500。
-        assert_eq!(risk_mode(&mk_risk_input(400.0, 500.0, false)), RiskMode::Liquidation);
+        assert_eq!(
+            risk_mode(&mk_risk_input(400.0, 500.0, false)),
+            RiskMode::Liquidation
+        );
         // M1 经 LiqFlag：E=1000>MM+B2，但 LiqFlag=true ⟹ 仍 Liquidation（强平标志优先）。
-        assert_eq!(risk_mode(&mk_risk_input(1000.0, 500.0, true)), RiskMode::Liquidation);
+        assert_eq!(
+            risk_mode(&mk_risk_input(1000.0, 500.0, true)),
+            RiskMode::Liquidation
+        );
         // M2：MM ≤ E < MM+B1 ⟹ Deleverage。MM=500，B1=100，E=550 ∈ [500,600)。
-        assert_eq!(risk_mode(&mk_risk_input(550.0, 500.0, false)), RiskMode::Deleverage);
+        assert_eq!(
+            risk_mode(&mk_risk_input(550.0, 500.0, false)),
+            RiskMode::Deleverage
+        );
         // M3：MM+B1 ≤ E < MM+B2 ⟹ CloseOnly。E=700 ∈ [600,800)。
-        assert_eq!(risk_mode(&mk_risk_input(700.0, 500.0, false)), RiskMode::CloseOnly);
+        assert_eq!(
+            risk_mode(&mk_risk_input(700.0, 500.0, false)),
+            RiskMode::CloseOnly
+        );
         // M4：E ≥ MM+B2 ⟹ Normal。E=900 ≥ 800。
-        assert_eq!(risk_mode(&mk_risk_input(900.0, 500.0, false)), RiskMode::Normal);
+        assert_eq!(
+            risk_mode(&mk_risk_input(900.0, 500.0, false)),
+            RiskMode::Normal
+        );
     }
 
     /// 风险模式恰一态（穷尽互斥见证）：扫一系列权益，每个恰好返回一个 RiskMode（match 静态保证）。
     #[test]
     fn risk_mode_exhaustive_exclusive() {
-        for e in [-100.0, 0.0, 1.0, 400.0, 500.0, 550.0, 600.0, 700.0, 800.0, 900.0] {
+        for e in [
+            -100.0, 0.0, 1.0, 400.0, 500.0, 550.0, 600.0, 700.0, 800.0, 900.0,
+        ] {
             let m = risk_mode(&mk_risk_input(e, 500.0, false));
             // 恰一态：返回值是 5 态之一（Rust enum 穷尽 + 函数全定义）。
             assert!(matches!(
@@ -1230,44 +1340,101 @@ mod tests {
     /// ★根方向递归 σ̃_{r,t+1}（strict §9 line 278-284 / FULL 十）：4 路 case 逐一验证。
     #[test]
     fn root_dir_next_four_cases() {
-        let long_c = RootCandidates { long_trigger: true, short_trigger: false };
-        let short_c = RootCandidates { long_trigger: false, short_trigger: true };
-        let none_c = RootCandidates { long_trigger: false, short_trigger: false };
-        let both_c = RootCandidates { long_trigger: true, short_trigger: true };
+        let long_c = RootCandidates {
+            long_trigger: true,
+            short_trigger: false,
+        };
+        let short_c = RootCandidates {
+            long_trigger: false,
+            short_trigger: true,
+        };
+        let none_c = RootCandidates {
+            long_trigger: false,
+            short_trigger: false,
+        };
+        let both_c = RootCandidates {
+            long_trigger: true,
+            short_trigger: true,
+        };
 
         // case 1：GlobalRiskClose（Liquidation）⟹ σ̃=0，覆盖一切（即便持多仓 + 同向信号）。
-        assert_eq!(root_dir_next(RiskMode::Liquidation, VoiceSide::Long, long_c), VoiceSide::Flat);
-        assert_eq!(root_dir_next(RiskMode::Insolvent, VoiceSide::Short, short_c), VoiceSide::Flat);
+        assert_eq!(
+            root_dir_next(RiskMode::Liquidation, VoiceSide::Long, long_c),
+            VoiceSide::Flat
+        );
+        assert_eq!(
+            root_dir_next(RiskMode::Insolvent, VoiceSide::Short, short_c),
+            VoiceSide::Flat
+        );
 
         // case 2：持多仓（Long）+ 反向触发（χ⁻=1）⟹ 先平（σ̃=0），不假设反手。
-        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Long, short_c), VoiceSide::Flat);
+        assert_eq!(
+            root_dir_next(RiskMode::Normal, VoiceSide::Long, short_c),
+            VoiceSide::Flat
+        );
         // 持空仓（Short）+ 反向触发（χ⁺=1）⟹ 先平。
-        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Short, long_c), VoiceSide::Flat);
+        assert_eq!(
+            root_dir_next(RiskMode::Normal, VoiceSide::Short, long_c),
+            VoiceSide::Flat
+        );
 
         // case 3：空仓（Flat）⟹ 按 RootSel 选向。
-        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Flat, long_c), VoiceSide::Long);
-        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Flat, short_c), VoiceSide::Short);
-        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Flat, none_c), VoiceSide::Flat);
+        assert_eq!(
+            root_dir_next(RiskMode::Normal, VoiceSide::Flat, long_c),
+            VoiceSide::Long
+        );
+        assert_eq!(
+            root_dir_next(RiskMode::Normal, VoiceSide::Flat, short_c),
+            VoiceSide::Short
+        );
+        assert_eq!(
+            root_dir_next(RiskMode::Normal, VoiceSide::Flat, none_c),
+            VoiceSide::Flat
+        );
         // 空仓遇双触发 (1,1) ⟹ RootSel 镜像反对称消歧为 Flat（不开根仓）。
-        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Flat, both_c), VoiceSide::Flat);
+        assert_eq!(
+            root_dir_next(RiskMode::Normal, VoiceSide::Flat, both_c),
+            VoiceSide::Flat
+        );
 
         // case 4：持多仓 + 同向/无反向信号 ⟹ 延续 Long。
-        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Long, long_c), VoiceSide::Long);
-        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Long, none_c), VoiceSide::Long);
+        assert_eq!(
+            root_dir_next(RiskMode::Normal, VoiceSide::Long, long_c),
+            VoiceSide::Long
+        );
+        assert_eq!(
+            root_dir_next(RiskMode::Normal, VoiceSide::Long, none_c),
+            VoiceSide::Long
+        );
         // 持空仓 + 同向（χ⁻=1）⟹ 延续 Short。
-        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Short, short_c), VoiceSide::Short);
+        assert_eq!(
+            root_dir_next(RiskMode::Normal, VoiceSide::Short, short_c),
+            VoiceSide::Short
+        );
     }
 
     /// 根方向递归 case 优先级：GlobalRiskClose 高于反向先平高于持仓延续。
     #[test]
     fn root_dir_next_case_priority() {
-        let short_c = RootCandidates { long_trigger: false, short_trigger: true };
+        let short_c = RootCandidates {
+            long_trigger: false,
+            short_trigger: true,
+        };
         // 持多仓 + 反向触发 + 同时 Liquidation ⟹ case 1（GlobalRiskClose）先于 case 2，均得 Flat
         // （此例两 case 都给 Flat，但 case 1 必须优先——Insolvent 时即便无反向也平）。
-        assert_eq!(root_dir_next(RiskMode::Liquidation, VoiceSide::Long, short_c), VoiceSide::Flat);
+        assert_eq!(
+            root_dir_next(RiskMode::Liquidation, VoiceSide::Long, short_c),
+            VoiceSide::Flat
+        );
         // Deleverage（非 GlobalRiskClose）+ 持多仓 + 无反向 ⟹ 延续（去杠杆不强制平根仓）。
-        let none_c = RootCandidates { long_trigger: false, short_trigger: false };
-        assert_eq!(root_dir_next(RiskMode::Deleverage, VoiceSide::Long, none_c), VoiceSide::Long);
+        let none_c = RootCandidates {
+            long_trigger: false,
+            short_trigger: false,
+        };
+        assert_eq!(
+            root_dir_next(RiskMode::Deleverage, VoiceSide::Long, none_c),
+            VoiceSide::Long
+        );
     }
 
     /// default_lot 取整（spec:47）：qty 向下取整到 lot 倍数。
@@ -1275,11 +1442,14 @@ mod tests {
     fn sizing_lot_rounding() {
         let mut cfg = RiskConfig::default();
         cfg.default_lot = 100; // lot=100
-        // 项1=500 ⟹ floor(500/100)*100 = 500。
+                               // 项1=500 ⟹ floor(500/100)*100 = 500。
         let inp = base_sizing();
         assert_eq!(size_position(&inp, &cfg), 500);
         // parent_cap=250, lot=100 ⟹ min(500,...,250)=250 ⟹ floor(250/100)*100=200。
-        let inp2 = SizingInput { parent_cap: 250, ..inp };
+        let inp2 = SizingInput {
+            parent_cap: 250,
+            ..inp
+        };
         assert_eq!(size_position(&inp2, &cfg), 200);
     }
 
@@ -1288,17 +1458,27 @@ mod tests {
     #[test]
     fn sizing_q_decreases_with_distance() {
         let cfg = RiskConfig::default(); // ρ=0.005
-        // 近止损（|P−S|=10）：项1 = floor(5000/10)=500。
-        let near = SizingInput { stop: 90, ..base_sizing() };
+                                         // 近止损（|P−S|=10）：项1 = floor(5000/10)=500。
+        let near = SizingInput {
+            stop: 90,
+            ..base_sizing()
+        };
         // 远止损（|P−S|=50）：项1 = floor(5000/50)=100。
-        let far = SizingInput { stop: 50, ..base_sizing() };
+        let far = SizingInput {
+            stop: 50,
+            ..base_sizing()
+        };
         let q_near = size_position(&near, &cfg);
         let q_far = size_position(&far, &cfg);
         assert!(q_far < q_near, "止损更远 ⟹ D 更大 ⟹ q 更小（风险归一化）");
         assert_eq!(q_near, 500);
         assert_eq!(q_far, 100);
         // GapBuffer 增大 D：gap=40 让近止损的 D 从 10 → 50 ⟹ q 退到 100。
-        let near_gap = SizingInput { stop: 90, gap_buffer: 40.0, ..base_sizing() };
+        let near_gap = SizingInput {
+            stop: 90,
+            gap_buffer: 40.0,
+            ..base_sizing()
+        };
         assert_eq!(size_position(&near_gap, &cfg), 100, "GapBuffer 加进 D ⟹ q↓");
     }
 
@@ -1307,9 +1487,15 @@ mod tests {
     fn sizing_different_rho_different_q() {
         let cfg = RiskConfig::default();
         // ρ=0.005 ⟹ 项1=floor(0.005*1e6/10)=500。
-        let lo = SizingInput { rho: 0.005, ..base_sizing() };
+        let lo = SizingInput {
+            rho: 0.005,
+            ..base_sizing()
+        };
         // ρ=0.010（某 level override）⟹ 项1=floor(0.010*1e6/10)=1000。
-        let hi = SizingInput { rho: 0.010, ..base_sizing() };
+        let hi = SizingInput {
+            rho: 0.010,
+            ..base_sizing()
+        };
         assert_eq!(size_position(&lo, &cfg), 500);
         assert_eq!(size_position(&hi, &cfg), 1000);
         assert_ne!(size_position(&lo, &cfg), size_position(&hi, &cfg));
@@ -1321,9 +1507,15 @@ mod tests {
     fn sizing_long_short_not_mirrored() {
         let cfg = RiskConfig::default();
         // 做多用 ρ_{ℓ,+}=0.006 ⟹ 项1=floor(6000/10)=600。
-        let long = SizingInput { rho: 0.006, ..base_sizing() };
+        let long = SizingInput {
+            rho: 0.006,
+            ..base_sizing()
+        };
         // 做空用更保守的 ρ_{ℓ,−}=0.003 ⟹ 项1=floor(3000/10)=300（不镜像 = 不等于 long）。
-        let short = SizingInput { rho: 0.003, ..base_sizing() };
+        let short = SizingInput {
+            rho: 0.003,
+            ..base_sizing()
+        };
         assert_eq!(size_position(&long, &cfg), 600);
         assert_eq!(size_position(&short, &cfg), 300);
         assert_ne!(
@@ -1338,9 +1530,18 @@ mod tests {
     /// 有符号名义 n_v = σ_v·|n_v|（Long→+，Short→-，Flat→0）。
     #[test]
     fn signed_notional_by_side() {
-        let long = VoiceNotional { side: VoiceSide::Long, notional_mag: 100 };
-        let short = VoiceNotional { side: VoiceSide::Short, notional_mag: 100 };
-        let flat = VoiceNotional { side: VoiceSide::Flat, notional_mag: 100 };
+        let long = VoiceNotional {
+            side: VoiceSide::Long,
+            notional_mag: 100,
+        };
+        let short = VoiceNotional {
+            side: VoiceSide::Short,
+            notional_mag: 100,
+        };
+        let flat = VoiceNotional {
+            side: VoiceSide::Flat,
+            notional_mag: 100,
+        };
         assert_eq!(long.signed_notional(), 100);
         assert_eq!(short.signed_notional(), -100);
         assert_eq!(flat.signed_notional(), 0); // 空仓声部无名义
@@ -1350,8 +1551,14 @@ mod tests {
     #[test]
     fn gross_net_single_side() {
         let voices = [
-            VoiceNotional { side: VoiceSide::Long, notional_mag: 300 },
-            VoiceNotional { side: VoiceSide::Long, notional_mag: 200 },
+            VoiceNotional {
+                side: VoiceSide::Long,
+                notional_mag: 300,
+            },
+            VoiceNotional {
+                side: VoiceSide::Long,
+                notional_mag: 200,
+            },
         ];
         assert_eq!(gross_notional(&voices), 500); // |300|+|200|
         assert_eq!(net_notional(&voices), 500); // |+300+200|=500（同向无抵消）
@@ -1363,8 +1570,14 @@ mod tests {
     fn hedged_gross_high_net_zero() {
         let k = 400;
         let voices = [
-            VoiceNotional { side: VoiceSide::Long, notional_mag: k },
-            VoiceNotional { side: VoiceSide::Short, notional_mag: k },
+            VoiceNotional {
+                side: VoiceSide::Long,
+                notional_mag: k,
+            },
+            VoiceNotional {
+                side: VoiceSide::Short,
+                notional_mag: k,
+            },
         ];
         assert_eq!(net_notional(&voices), 0); // |+k-k|=0（净敞口被双开抵消为 0）
         assert_eq!(gross_notional(&voices), 2 * k); // k+k=2k（毛敞口仍满额）
@@ -1374,9 +1587,18 @@ mod tests {
     #[test]
     fn net_le_gross_property() {
         let voices = [
-            VoiceNotional { side: VoiceSide::Long, notional_mag: 500 },
-            VoiceNotional { side: VoiceSide::Short, notional_mag: 200 },
-            VoiceNotional { side: VoiceSide::Long, notional_mag: 100 },
+            VoiceNotional {
+                side: VoiceSide::Long,
+                notional_mag: 500,
+            },
+            VoiceNotional {
+                side: VoiceSide::Short,
+                notional_mag: 200,
+            },
+            VoiceNotional {
+                side: VoiceSide::Long,
+                notional_mag: 100,
+            },
         ];
         let gross = gross_notional(&voices); // 500+200+100=800
         let net = net_notional(&voices); // |+500-200+100|=400
@@ -1389,8 +1611,14 @@ mod tests {
     #[test]
     fn leverage_metrics_computation() {
         let voices = [
-            VoiceNotional { side: VoiceSide::Long, notional_mag: 800 },
-            VoiceNotional { side: VoiceSide::Short, notional_mag: 300 },
+            VoiceNotional {
+                side: VoiceSide::Long,
+                notional_mag: 800,
+            },
+            VoiceNotional {
+                side: VoiceSide::Short,
+                notional_mag: 300,
+            },
         ];
         // G=1100, N=|800-300|=500, E=1000 ⟹ L^G=1.1, L^N=0.5。
         let m = leverage_metrics(&voices, 1000.0);
@@ -1404,7 +1632,10 @@ mod tests {
     /// 杠杆度量 E≤0 ⟹ 杠杆 = ∞（破产态，约束必违反）。
     #[test]
     fn leverage_metrics_zero_equity_infinite() {
-        let voices = [VoiceNotional { side: VoiceSide::Long, notional_mag: 100 }];
+        let voices = [VoiceNotional {
+            side: VoiceSide::Long,
+            notional_mag: 100,
+        }];
         let m = leverage_metrics(&voices, 0.0);
         assert!(m.gross_lev.is_infinite());
         assert!(m.net_lev.is_infinite());
@@ -1415,25 +1646,43 @@ mod tests {
     fn leverage_ok_must_check_both() {
         // 双开 long 600 + short 600：G=1200, N=0, E=1000 ⟹ L^G=1.2, L^N=0。
         let voices = [
-            VoiceNotional { side: VoiceSide::Long, notional_mag: 600 },
-            VoiceNotional { side: VoiceSide::Short, notional_mag: 600 },
+            VoiceNotional {
+                side: VoiceSide::Long,
+                notional_mag: 600,
+            },
+            VoiceNotional {
+                side: VoiceSide::Short,
+                notional_mag: 600,
+            },
         ];
         let m = leverage_metrics(&voices, 1000.0);
         // 净上限 1.0：L^N=0 ≤ 1.0 满足；毛上限 1.0：L^G=1.2 > 1.0 违反。
-        let caps = LeverageCaps { gross_cap: 1.0, net_cap: 1.0 };
+        let caps = LeverageCaps {
+            gross_cap: 1.0,
+            net_cap: 1.0,
+        };
         // 只查净会误判 OK；同时查 ⟹ false（毛违反）。
         assert!(!leverage_ok(m, caps));
         // 放宽毛上限到 1.5 ⟹ 两者都满足 ⟹ OK。
-        let caps2 = LeverageCaps { gross_cap: 1.5, net_cap: 1.0 };
+        let caps2 = LeverageCaps {
+            gross_cap: 1.5,
+            net_cap: 1.0,
+        };
         assert!(leverage_ok(m, caps2));
     }
 
     /// 杠杆约束 E≤0 ⟹ false（破产态拒绝杠杆）。
     #[test]
     fn leverage_ok_zero_equity_false() {
-        let voices = [VoiceNotional { side: VoiceSide::Long, notional_mag: 100 }];
+        let voices = [VoiceNotional {
+            side: VoiceSide::Long,
+            notional_mag: 100,
+        }];
         let m = leverage_metrics(&voices, 0.0);
-        let caps = LeverageCaps { gross_cap: 100.0, net_cap: 100.0 };
+        let caps = LeverageCaps {
+            gross_cap: 100.0,
+            net_cap: 100.0,
+        };
         assert!(!leverage_ok(m, caps)); // ∞ > 任何有限上限
     }
 
@@ -1449,25 +1698,46 @@ mod tests {
         // 情形1：双开 12+12 units ⟹ gross_units=24 > γ̄·base=20（违反）。
         // 美元侧：G=24×50=1200，L^G=1.2 > 1.0（同判违反）。
         let voices_bad = [
-            VoiceNotional { side: VoiceSide::Long, notional_mag: (12.0 * px) as i64 },
-            VoiceNotional { side: VoiceSide::Short, notional_mag: (12.0 * px) as i64 },
+            VoiceNotional {
+                side: VoiceSide::Long,
+                notional_mag: (12.0 * px) as i64,
+            },
+            VoiceNotional {
+                side: VoiceSide::Short,
+                notional_mag: (12.0 * px) as i64,
+            },
         ];
         let m_bad = leverage_metrics(&voices_bad, equity);
-        let caps = LeverageCaps { gross_cap: gamma, net_cap: f64::INFINITY }; // 只比毛分量
+        let caps = LeverageCaps {
+            gross_cap: gamma,
+            net_cap: f64::INFINITY,
+        }; // 只比毛分量
         assert!(!gross_units_ok(24.0, base_units, gamma));
         assert!(!leverage_ok(m_bad, caps));
         // 情形2：双开 8+8 units ⟹ gross_units=16 ≤ 20（满足）。美元侧 L^G=0.8 ≤ 1.0（同判满足）。
         let voices_ok = [
-            VoiceNotional { side: VoiceSide::Long, notional_mag: (8.0 * px) as i64 },
-            VoiceNotional { side: VoiceSide::Short, notional_mag: (8.0 * px) as i64 },
+            VoiceNotional {
+                side: VoiceSide::Long,
+                notional_mag: (8.0 * px) as i64,
+            },
+            VoiceNotional {
+                side: VoiceSide::Short,
+                notional_mag: (8.0 * px) as i64,
+            },
         ];
         let m_ok = leverage_metrics(&voices_ok, equity);
         assert!(gross_units_ok(16.0, base_units, gamma));
         assert!(leverage_ok(m_ok, caps));
         // 边界：gross_units 恰 = cap（20）⟹ 两侧同判满足（≤ 含界）。
         let voices_eq = [
-            VoiceNotional { side: VoiceSide::Long, notional_mag: (10.0 * px) as i64 },
-            VoiceNotional { side: VoiceSide::Short, notional_mag: (10.0 * px) as i64 },
+            VoiceNotional {
+                side: VoiceSide::Long,
+                notional_mag: (10.0 * px) as i64,
+            },
+            VoiceNotional {
+                side: VoiceSide::Short,
+                notional_mag: (10.0 * px) as i64,
+            },
         ];
         assert!(gross_units_ok(20.0, base_units, gamma));
         assert!(leverage_ok(leverage_metrics(&voices_eq, equity), caps));
@@ -1491,15 +1761,27 @@ mod tests {
     fn margin_binance_tier_golden() {
         // 三档（floor 升序，首档覆盖0）：[0,50k) 0.4%/0；[50k,250k) 0.5%/50；[250k,∞) 1%/1300。
         let s = MarginSchedule::binance_tiered(vec![
-            MarginTier { notional_floor: 0.0, mmr: 0.004, maint_amount: 0.0 },
-            MarginTier { notional_floor: 50_000.0, mmr: 0.005, maint_amount: 50.0 },
-            MarginTier { notional_floor: 250_000.0, mmr: 0.01, maint_amount: 1300.0 },
+            MarginTier {
+                notional_floor: 0.0,
+                mmr: 0.004,
+                maint_amount: 0.0,
+            },
+            MarginTier {
+                notional_floor: 50_000.0,
+                mmr: 0.005,
+                maint_amount: 50.0,
+            },
+            MarginTier {
+                notional_floor: 250_000.0,
+                mmr: 0.01,
+                maint_amount: 1300.0,
+            },
         ])
         .unwrap();
         assert!((s.maint_margin(10_000.0) - (10_000.0 * 0.004)).abs() < 1e-9); // 档0
         assert!((s.maint_margin(100_000.0) - (100_000.0 * 0.005 - 50.0)).abs() < 1e-9); // 档1
         assert!((s.maint_margin(300_000.0) - (300_000.0 * 0.01 - 1300.0)).abs() < 1e-9); // 档2
-        // 边界 N=50k 精确落档1（floor 含）。
+                                                                                         // 边界 N=50k 精确落档1（floor 含）。
         assert!((s.maint_margin(50_000.0) - (50_000.0 * 0.005 - 50.0)).abs() < 1e-9);
     }
 
@@ -1517,8 +1799,12 @@ mod tests {
         let s1 = MarginSchedule::cme_simple(0.30, 1.0).unwrap();
         let s2 = MarginSchedule::cme_simple(0.40, 1.0).unwrap();
         let book = MarginScheduleBook::new(vec![(100, 200, s1), (200, 300, s2)]).unwrap();
-        assert!(matches!(book.as_of(150), Some(MarginSchedule::CmeSimple { pct_maint, .. }) if (*pct_maint - 0.30).abs() < 1e-12));
-        assert!(matches!(book.as_of(250), Some(MarginSchedule::CmeSimple { pct_maint, .. }) if (*pct_maint - 0.40).abs() < 1e-12));
+        assert!(
+            matches!(book.as_of(150), Some(MarginSchedule::CmeSimple { pct_maint, .. }) if (*pct_maint - 0.30).abs() < 1e-12)
+        );
+        assert!(
+            matches!(book.as_of(250), Some(MarginSchedule::CmeSimple { pct_maint, .. }) if (*pct_maint - 0.40).abs() < 1e-12)
+        );
         assert!(book.as_of(50).is_none()); // 段前：无覆盖（不借未来快照）
         assert!(book.as_of(300).is_none()); // 段后（to 不含）
         assert!(book.as_of(200).is_some()); // from 含 → 落段2
@@ -1529,16 +1815,39 @@ mod tests {
     fn margin_fail_loud_rejects() {
         // 未排序 tiers
         assert!(MarginSchedule::binance_tiered(vec![
-            MarginTier { notional_floor: 0.0, mmr: 0.01, maint_amount: 0.0 },
-            MarginTier { notional_floor: 0.0, mmr: 0.01, maint_amount: 0.0 },
+            MarginTier {
+                notional_floor: 0.0,
+                mmr: 0.01,
+                maint_amount: 0.0
+            },
+            MarginTier {
+                notional_floor: 0.0,
+                mmr: 0.01,
+                maint_amount: 0.0
+            },
         ])
         .is_err());
         // mmr 越界
-        assert!(MarginSchedule::binance_tiered(vec![MarginTier { notional_floor: 0.0, mmr: 1.5, maint_amount: 0.0 }]).is_err());
+        assert!(MarginSchedule::binance_tiered(vec![MarginTier {
+            notional_floor: 0.0,
+            mmr: 1.5,
+            maint_amount: 0.0
+        }])
+        .is_err());
         // NaN
-        assert!(MarginSchedule::binance_tiered(vec![MarginTier { notional_floor: 0.0, mmr: f64::NAN, maint_amount: 0.0 }]).is_err());
+        assert!(MarginSchedule::binance_tiered(vec![MarginTier {
+            notional_floor: 0.0,
+            mmr: f64::NAN,
+            maint_amount: 0.0
+        }])
+        .is_err());
         // 首档不覆盖 0
-        assert!(MarginSchedule::binance_tiered(vec![MarginTier { notional_floor: 10.0, mmr: 0.01, maint_amount: 0.0 }]).is_err());
+        assert!(MarginSchedule::binance_tiered(vec![MarginTier {
+            notional_floor: 10.0,
+            mmr: 0.01,
+            maint_amount: 0.0
+        }])
+        .is_err());
         // cushions 违反 0<B1<B2
         assert!(RiskCushions::new(0.0, 100.0).is_err());
         assert!(RiskCushions::new(200.0, 100.0).is_err());
@@ -1555,17 +1864,26 @@ mod tests {
         let s = MarginSchedule::cme_simple(0.1, 1.0).unwrap(); // MM=0.1·N
         let cushions = RiskCushions::new(100.0, 300.0).unwrap();
         let net = 10_000.0; // MM=1000
-        // E=900<MM=1000 ⟹ liq_flag + Liquidation。
+                            // E=900<MM=1000 ⟹ liq_flag + Liquidation。
         let ri = margin_inputs(net, 900.0, &s, &cushions);
         assert!((ri.maint_margin - 1000.0).abs() < 1e-9);
         assert!(ri.liq_flag);
         assert_eq!(risk_mode(&ri), RiskMode::Liquidation);
         // E=1050 ∈ [MM,MM+B1)=[1000,1100) ⟹ Deleverage（M2 首次可达）。
-        assert_eq!(risk_mode(&margin_inputs(net, 1050.0, &s, &cushions)), RiskMode::Deleverage);
+        assert_eq!(
+            risk_mode(&margin_inputs(net, 1050.0, &s, &cushions)),
+            RiskMode::Deleverage
+        );
         // E=1200 ∈ [MM+B1,MM+B2)=[1100,1300) ⟹ CloseOnly（M3）。
-        assert_eq!(risk_mode(&margin_inputs(net, 1200.0, &s, &cushions)), RiskMode::CloseOnly);
+        assert_eq!(
+            risk_mode(&margin_inputs(net, 1200.0, &s, &cushions)),
+            RiskMode::CloseOnly
+        );
         // E=1400 ≥ MM+B2 ⟹ Normal。
-        assert_eq!(risk_mode(&margin_inputs(net, 1400.0, &s, &cushions)), RiskMode::Normal);
+        assert_eq!(
+            risk_mode(&margin_inputs(net, 1400.0, &s, &cushions)),
+            RiskMode::Normal
+        );
     }
 
     // ── M6 成本模型（CostModel + RDecomposition）──
@@ -1600,7 +1918,7 @@ mod tests {
         assert!((c.borrow_accrual(15_000.0, 10_000.0) - 5_000.0 * 0.00001).abs() < 1e-12);
         assert_eq!(c.borrow_accrual(8_000.0, 10_000.0), 0.0); // |N|≤E 无借入
         assert_eq!(c.borrow_accrual(0.0, 10_000.0), 0.0); // 空仓
-        // 破产 E≤0 ⟹ 借全额 |N|。
+                                                          // 破产 E≤0 ⟹ 借全额 |N|。
         assert!((c.borrow_accrual(10_000.0, -100.0) - 10_000.0 * 0.00001).abs() < 1e-12);
     }
 
@@ -1620,7 +1938,10 @@ mod tests {
         let r = RDecomposition::assemble(1000.0, 30.0, 5.0, 2.0, 10.0, 953.0, 17);
         assert!((r.net_r - 953.0).abs() < 1e-9);
         assert!(r.conservation_residual.abs() < 1e-9, "账本一致 ⟹ 残差≈0");
-        assert_eq!(r.tw_holding_cost_bridge, 17, "TW 桥对账行 = ⌊funding+borrow+liq⌋ 累计量化");
+        assert_eq!(
+            r.tw_holding_cost_bridge, 17,
+            "TW 桥对账行 = ⌊funding+borrow+liq⌋ 累计量化"
+        );
         // 账本漂移（泄漏）⟹ 残差非零可观测。
         let leak = RDecomposition::assemble(1000.0, 30.0, 5.0, 2.0, 10.0, 900.0, 17);
         assert!((leak.conservation_residual - 53.0).abs() < 1e-9);
@@ -1635,21 +1956,33 @@ mod tests {
     #[test]
     fn a10_funding_book_as_of_zero_lookahead() {
         let book = FundingScheduleBook::new(vec![
-            (0, 100, 0.0001),   // 段1：[0,100) rate=+1bp
+            (0, 100, 0.0001),    // 段1：[0,100) rate=+1bp
             (100, 250, -0.0002), // 段2：[100,250) rate=−2bp（带符号 datum）
         ])
         .unwrap();
         // from 含：ts=0 落段1；to 不含：ts=100 不落段1 落段2。
         assert_eq!(book.as_of(0), Some(0.0001), "from 含 ⟹ ts=0 落段1");
         assert_eq!(book.as_of(99), Some(0.0001));
-        assert_eq!(book.as_of(100), Some(-0.0002), "to 不含 ⟹ ts=100 落段2（非段1）");
+        assert_eq!(
+            book.as_of(100),
+            Some(-0.0002),
+            "to 不含 ⟹ ts=100 落段2（非段1）"
+        );
         assert_eq!(book.as_of(249), Some(-0.0002));
         // 未来快照不可见 / 有效域外 None：ts≥250 无覆盖段（不外推未来）；ts<0 无覆盖。
-        assert_eq!(book.as_of(250), None, "无覆盖段 ⟹ None（零前视，不借用未来快照）");
+        assert_eq!(
+            book.as_of(250),
+            None,
+            "无覆盖段 ⟹ None（零前视，不借用未来快照）"
+        );
         assert_eq!(book.as_of(10_000), None, "远未来 ⟹ None（不外推）");
         assert_eq!(book.as_of(-1), None, "簿起点前 ⟹ None");
         // 带符号费率如实返回（负费率段可读回负值）。
-        assert_eq!(book.as_of(150), Some(-0.0002), "signed datum：负费率段读回负值");
+        assert_eq!(
+            book.as_of(150),
+            Some(-0.0002),
+            "signed datum：负费率段读回负值"
+        );
     }
 
     /// ★T-N1 fail-loud 构造拒错族（裁定 C2：空/重叠/乱序/非有限 ⟹ Err，与 margin book 同构）。
@@ -1658,8 +1991,14 @@ mod tests {
         // 空簿。
         assert!(FundingScheduleBook::new(vec![]).is_err(), "空簿 ⟹ Err");
         // from>=to。
-        assert!(FundingScheduleBook::new(vec![(100, 100, 0.0001)]).is_err(), "from==to ⟹ Err");
-        assert!(FundingScheduleBook::new(vec![(200, 100, 0.0001)]).is_err(), "from>to ⟹ Err");
+        assert!(
+            FundingScheduleBook::new(vec![(100, 100, 0.0001)]).is_err(),
+            "from==to ⟹ Err"
+        );
+        assert!(
+            FundingScheduleBook::new(vec![(200, 100, 0.0001)]).is_err(),
+            "from>to ⟹ Err"
+        );
         // 重叠（段2 from < 段1 to）。
         assert!(
             FundingScheduleBook::new(vec![(0, 200, 0.0001), (150, 300, 0.0002)]).is_err(),
@@ -1671,8 +2010,14 @@ mod tests {
             "乱序 ⟹ Err"
         );
         // 非有限费率（NaN / ±∞）。
-        assert!(FundingScheduleBook::new(vec![(0, 100, f64::NAN)]).is_err(), "NaN 费率 ⟹ Err");
-        assert!(FundingScheduleBook::new(vec![(0, 100, f64::INFINITY)]).is_err(), "∞ 费率 ⟹ Err");
+        assert!(
+            FundingScheduleBook::new(vec![(0, 100, f64::NAN)]).is_err(),
+            "NaN 费率 ⟹ Err"
+        );
+        assert!(
+            FundingScheduleBook::new(vec![(0, 100, f64::INFINITY)]).is_err(),
+            "∞ 费率 ⟹ Err"
+        );
         // 相邻不重叠（from==prev_to）合法 + 带符号费率合法。
         assert!(
             FundingScheduleBook::new(vec![(0, 100, 0.0001), (100, 200, -0.0001)]).is_ok(),
@@ -1687,35 +2032,71 @@ mod tests {
     fn a10_funding_accrual_signed_direction() {
         let c = CostModel::new(0.0001, 8, 0.0, 0.0).unwrap();
         let rate = 0.0001; // venue golden：rate>0 时 long 付 short 收
-        // 周期边界 bar8：long（N=+10000）×rate>0 ⟹ +1.0（付费=正成本）。
-        assert!((c.funding_accrual_signed(8, 10_000.0, rate) - 1.0).abs() < 1e-12, "long×rate>0 ⟹ 付费（正成本）");
+                           // 周期边界 bar8：long（N=+10000）×rate>0 ⟹ +1.0（付费=正成本）。
+        assert!(
+            (c.funding_accrual_signed(8, 10_000.0, rate) - 1.0).abs() < 1e-12,
+            "long×rate>0 ⟹ 付费（正成本）"
+        );
         // short（N=−10000）×rate>0 ⟹ −1.0（收费=负成本=收入）。
-        assert!((c.funding_accrual_signed(8, -10_000.0, rate) + 1.0).abs() < 1e-12, "short×rate>0 ⟹ 收费（负成本）");
+        assert!(
+            (c.funding_accrual_signed(8, -10_000.0, rate) + 1.0).abs() < 1e-12,
+            "short×rate>0 ⟹ 收费（负成本）"
+        );
         // rate<0 镜像翻转：long 收、short 付。
-        assert!((c.funding_accrual_signed(8, 10_000.0, -rate) + 1.0).abs() < 1e-12, "long×rate<0 ⟹ 收费");
-        assert!((c.funding_accrual_signed(8, -10_000.0, -rate) - 1.0).abs() < 1e-12, "short×rate<0 ⟹ 付费");
+        assert!(
+            (c.funding_accrual_signed(8, 10_000.0, -rate) + 1.0).abs() < 1e-12,
+            "long×rate<0 ⟹ 收费"
+        );
+        assert!(
+            (c.funding_accrual_signed(8, -10_000.0, -rate) - 1.0).abs() < 1e-12,
+            "short×rate<0 ⟹ 付费"
+        );
         // 空仓恒 0（任意费率/边界）。
         assert_eq!(c.funding_accrual_signed(8, 0.0, rate), 0.0, "空仓恒 0");
         // 周期边界口径：bar0 不收、非周期 bar 不收（与无向保底一致）。
-        assert_eq!(c.funding_accrual_signed(0, 10_000.0, rate), 0.0, "bar0 不收");
-        assert_eq!(c.funding_accrual_signed(4, 10_000.0, rate), 0.0, "非周期 bar 不收");
+        assert_eq!(
+            c.funding_accrual_signed(0, 10_000.0, rate),
+            0.0,
+            "bar0 不收"
+        );
+        assert_eq!(
+            c.funding_accrual_signed(4, 10_000.0, rate),
+            0.0,
+            "非周期 bar 不收"
+        );
         // F2 回归：无向保底旧语义逐字不变——|N|×rate 恒≥0，与有向版在 long+正 rate 下同值。
-        assert_eq!(c.funding_accrual(8, -10_000.0), 1.0, "无向保底：空头仍取 |N| 恒正（保守口径不动）");
-        assert_eq!(c.funding_accrual(8, 10_000.0), c.funding_accrual_signed(8, 10_000.0, rate),
-            "long+正 rate 下有向==无向（保底是有向口径的保守超集）");
+        assert_eq!(
+            c.funding_accrual(8, -10_000.0),
+            1.0,
+            "无向保底：空头仍取 |N| 恒正（保守口径不动）"
+        );
+        assert_eq!(
+            c.funding_accrual(8, 10_000.0),
+            c.funding_accrual_signed(8, 10_000.0, rate),
+            "long+正 rate 下有向==无向（保底是有向口径的保守超集）"
+        );
         // FundingScheduleBook 配对：as_of 取 rate 喂计提（datum 到位即插的接缝演示）。
         let book = FundingScheduleBook::new(vec![(0, 100, rate), (100, 200, -rate)]).unwrap();
         let r1 = book.as_of(8).unwrap();
         let r2 = book.as_of(120).unwrap();
-        assert!((c.funding_accrual_signed(8, 10_000.0, r1) - 1.0).abs() < 1e-12, "book 段1 rate 喂入");
-        assert!((c.funding_accrual_signed(8, 10_000.0, r2) + 1.0).abs() < 1e-12, "book 段2 负 rate 喂入");
+        assert!(
+            (c.funding_accrual_signed(8, 10_000.0, r1) - 1.0).abs() < 1e-12,
+            "book 段1 rate 喂入"
+        );
+        assert!(
+            (c.funding_accrual_signed(8, 10_000.0, r2) + 1.0).abs() < 1e-12,
+            "book 段2 负 rate 喂入"
+        );
     }
 
     /// ★附则B 标签（裁定验收线 T-N9 口径）：费率未标定标签常量钉死逐字值——
     /// datum 注入前一切带成本 R 数值报告强制带它；禁弱化/移除（不回滚条款）。
     #[test]
     fn a10_rate_uncalibrated_label_frozen() {
-        assert_eq!(RATE_UNCALIBRATED_LABEL, "[L1机制/费率未标定]", "标签逐字值冻结（090 措辞纪律）");
+        assert_eq!(
+            RATE_UNCALIBRATED_LABEL, "[L1机制/费率未标定]",
+            "标签逐字值冻结（090 措辞纪律）"
+        );
     }
 
     /// ★#360 升级契约（risk.rs:709「datum 注入后升 `[L2费率标定: datum 版本哈希]`，不得跳级」）：
@@ -1727,7 +2108,11 @@ mod tests {
         use super::super::super::venue_fee::{FeeUnit, VenueFeeSchedule};
 
         let plain = ExecConfig::default();
-        assert_eq!(rate_calibration_label(&plain), RATE_UNCALIBRATED_LABEL, "默认档不得自升 L2");
+        assert_eq!(
+            rate_calibration_label(&plain),
+            RATE_UNCALIBRATED_LABEL,
+            "默认档不得自升 L2"
+        );
 
         let sha = "a".repeat(52) + "0123456789ab";
         let mut cal = ExecConfig::default();
@@ -1735,7 +2120,10 @@ mod tests {
             venue: "V".into(),
             symbol: "S".into(),
             tier: "T".into(),
-            unit: FeeUnit::Notional { maker_bps: 10.0, taker_bps: 10.0 },
+            unit: FeeUnit::Notional {
+                maker_bps: 10.0,
+                taker_bps: 10.0,
+            },
             datum_sha256: sha.clone(),
         });
         assert_eq!(
@@ -1769,24 +2157,35 @@ mod tests {
             cum_net_cash: -1_000_000,
             ..TwState::initial()
         };
-        assert!(neg_cost_witness.cum_net_cash < 0, "证人态确在负成本域（构造前置）");
-        assert_eq!(neg_cost_witness.stage, TStage::EarningShares, "证人态在 EarningShares（裁定构造要求）");
+        assert!(
+            neg_cost_witness.cum_net_cash < 0,
+            "证人态确在负成本域（构造前置）"
+        );
+        assert_eq!(
+            neg_cost_witness.stage,
+            TStage::EarningShares,
+            "证人态在 EarningShares（裁定构造要求）"
+        );
 
         let s = MarginSchedule::cme_simple(0.1, 1.0).unwrap(); // MM=0.1·N
         let cushions = RiskCushions::new(100.0, 300.0).unwrap();
         let net = 10_000.0; // MM=1000
-        // 同一 (N,E) 网格扫五态全相：判据输出与负成本域无关（margin_inputs 不读任何账本态——
-        // 期望值手工推导自 equity/MM/B1/B2，若强平链接入 cost_basis 这些期望值必变 = 击杀）。
+                            // 同一 (N,E) 网格扫五态全相：判据输出与负成本域无关（margin_inputs 不读任何账本态——
+                            // 期望值手工推导自 equity/MM/B1/B2，若强平链接入 cost_basis 这些期望值必变 = 击杀）。
         let cases: [(f64, RiskMode); 5] = [
-            (1400.0, RiskMode::Normal),       // E ≥ MM+B2
-            (1200.0, RiskMode::CloseOnly),    // E ∈ [MM+B1, MM+B2)
-            (1050.0, RiskMode::Deleverage),   // E ∈ [MM, MM+B1)
-            (900.0, RiskMode::Liquidation),   // E < MM（负成本不免强平的核心域）
-            (0.0, RiskMode::Insolvent),       // E ≤ 0
+            (1400.0, RiskMode::Normal),     // E ≥ MM+B2
+            (1200.0, RiskMode::CloseOnly),  // E ∈ [MM+B1, MM+B2)
+            (1050.0, RiskMode::Deleverage), // E ∈ [MM, MM+B1)
+            (900.0, RiskMode::Liquidation), // E < MM（负成本不免强平的核心域）
+            (0.0, RiskMode::Insolvent),     // E ≤ 0
         ];
         for (equity, expected) in cases {
             let ri = margin_inputs(net, equity, &s, &cushions);
-            assert_eq!(ri.liq_flag, equity <= ri.maint_margin, "liq_flag 只读 equity≤MM（E={equity}）");
+            assert_eq!(
+                ri.liq_flag,
+                equity <= ri.maint_margin,
+                "liq_flag 只读 equity≤MM（E={equity}）"
+            );
             assert_eq!(
                 risk_mode(&ri),
                 expected,
@@ -1796,9 +2195,16 @@ mod tests {
         // 显式锚（裁定裁决3）：负成本域 + equity<MM ⟹ 照常 Liquidation——**负成本不免强平**。
         let ri = margin_inputs(net, 900.0, &s, &cushions);
         assert!(ri.liq_flag, "负成本域下 equity≤MM ⟹ liq_flag 照常触发");
-        assert_eq!(risk_mode(&ri), RiskMode::Liquidation, "负成本不免强平（OQ-5(d) 贯穿）");
+        assert_eq!(
+            risk_mode(&ri),
+            RiskMode::Liquidation,
+            "负成本不免强平（OQ-5(d) 贯穿）"
+        );
         // 对称锚：负成本域 + equity≤0 ⟹ 照常 Insolvent（破产也不豁免）。
-        assert_eq!(risk_mode(&margin_inputs(net, 0.0, &s, &cushions)), RiskMode::Insolvent);
+        assert_eq!(
+            risk_mode(&margin_inputs(net, 0.0, &s, &cushions)),
+            RiskMode::Insolvent
+        );
     }
 
     /// buffer 敏感性网格（§3.5）：buffer 扰动改变 M2/M3 触发边界（暴露 Θ 自由度）。
@@ -1816,6 +2222,9 @@ mod tests {
             .collect();
         // E=1150 固定：(50,100)→>MM+100=Normal;(100,300)→∈[1100,1300)=CloseOnly;(200,400)→∈[1000,1200)=Deleverage。
         // buffer 扰动使同一权益落不同态 ⟹ 自由度可观测（存在两格触发态不同）。
-        assert!(modes.iter().any(|m| *m != modes[0]), "buffer 网格应暴露不同触发态，实得 {modes:?}");
+        assert!(
+            modes.iter().any(|m| *m != modes[0]),
+            "buffer 网格应暴露不同触发态，实得 {modes:?}"
+        );
     }
 }

@@ -158,13 +158,13 @@ fn buy_decision_from_lean(s: &str) -> BuyDecision {
 fn lean_event_type1_buy(fx: &ParityFixture) -> BuyEndpoint {
     let w = &fx.buy_witness;
     BuyEndpoint {
-        side: Side::Long,                          // Lean :360
-        broke_center: w.type1_broke_center,        // fixture: Lean eventType1.bsp.brokeCenter
-        is_divergence: w.type1_is_divergence,      // fixture: Lean decide(IsDivergence divPair)
-        left_center: false,                        // Lean :365（见证结构常量）
-        first_retrace: false,                      // Lean :367（见证结构常量）
-        retrace_price: w.type1_retrace_price,      // fixture: Lean eventType1.bsp.retracePrice
-        center_zg: w.type1_center_zg,              // fixture: Lean eventType1.bsp.center.zg
+        side: Side::Long,                     // Lean :360
+        broke_center: w.type1_broke_center,   // fixture: Lean eventType1.bsp.brokeCenter
+        is_divergence: w.type1_is_divergence, // fixture: Lean decide(IsDivergence divPair)
+        left_center: false,                   // Lean :365（见证结构常量）
+        first_retrace: false,                 // Lean :367（见证结构常量）
+        retrace_price: w.type1_retrace_price, // fixture: Lean eventType1.bsp.retracePrice
+        center_zg: w.type1_center_zg,         // fixture: Lean eventType1.bsp.center.zg
     }
 }
 
@@ -183,13 +183,13 @@ fn lean_event_type1_buy(fx: &ParityFixture) -> BuyEndpoint {
 fn lean_event_type3_buy(fx: &ParityFixture) -> BuyEndpoint {
     let w = &fx.buy_witness;
     BuyEndpoint {
-        side: Side::Long,                          // Lean :378
-        broke_center: w.type3_broke_center,        // fixture: Lean eventType3.bsp.brokeCenter
-        is_divergence: w.type3_is_divergence,      // fixture: Lean decide(IsDivergence divPair) 力度延续
-        left_center: w.type3_left_center,          // fixture: Lean eventType3.bsp.leftCenter
-        first_retrace: w.type3_first_retrace,      // fixture: Lean eventType3.bsp.firstRetrace
-        retrace_price: w.type3_retrace_price,      // fixture: Lean eventType3.bsp.retracePrice（25 > zg）
-        center_zg: w.type3_center_zg,              // fixture: Lean eventType3.bsp.center.zg
+        side: Side::Long,                     // Lean :378
+        broke_center: w.type3_broke_center,   // fixture: Lean eventType3.bsp.brokeCenter
+        is_divergence: w.type3_is_divergence, // fixture: Lean decide(IsDivergence divPair) 力度延续
+        left_center: w.type3_left_center,     // fixture: Lean eventType3.bsp.leftCenter
+        first_retrace: w.type3_first_retrace, // fixture: Lean eventType3.bsp.firstRetrace
+        retrace_price: w.type3_retrace_price, // fixture: Lean eventType3.bsp.retracePrice（25 > zg）
+        center_zg: w.type3_center_zg,         // fixture: Lean eventType3.bsp.center.zg
     }
 }
 
@@ -299,7 +299,13 @@ fn lean_type1_transition_ledger_bit_exact() {
     // base_a 与期望 A/Pi 从 fixture 读（Lean #eval chanlunTransition base=5 后的 ledger.A/Pi），非手填。
     let base_a: i64 = t.base_a_5;
     let x0 = AssemblyState {
-        ledger_state: LedgerComp { i0: 1_000_000, pi: 0, a: base_a, w: 0, r: -base_a },
+        ledger_state: LedgerComp {
+            i0: 1_000_000,
+            pi: 0,
+            a: base_a,
+            w: 0,
+            r: -base_a,
+        },
         ..AssemblyState::initial(1_000_000)
     };
     let x1 = buy_transition(&x0, &lean_event_type1_buy(&fx));
@@ -324,7 +330,13 @@ fn lean_type3_transition_ledger_bit_exact() {
     let t = &fx.buy_transition;
     let base_a: i64 = t.base_a_5;
     let x0 = AssemblyState {
-        ledger_state: LedgerComp { i0: 1_000_000, pi: 0, a: base_a, w: 0, r: -base_a },
+        ledger_state: LedgerComp {
+            i0: 1_000_000,
+            pi: 0,
+            a: base_a,
+            w: 0,
+            r: -base_a,
+        },
         ..AssemblyState::initial(1_000_000)
     };
     let x1 = buy_transition(&x0, &lean_event_type3_buy(&fx));
@@ -347,11 +359,21 @@ fn lean_transition_distinguishes_classes_bit_exact() {
     let t = &fx.buy_transition;
     let base_a: i64 = t.base_a_10;
     let x0 = AssemblyState {
-        ledger_state: LedgerComp { i0: 1_000_000, pi: 0, a: base_a, w: 0, r: -base_a },
+        ledger_state: LedgerComp {
+            i0: 1_000_000,
+            pi: 0,
+            a: base_a,
+            w: 0,
+            r: -base_a,
+        },
         ..AssemblyState::initial(1_000_000)
     };
-    let a_type1 = buy_transition(&x0, &lean_event_type1_buy(&fx)).ledger_state.a;
-    let a_type3 = buy_transition(&x0, &lean_event_type3_buy(&fx)).ledger_state.a;
+    let a_type1 = buy_transition(&x0, &lean_event_type1_buy(&fx))
+        .ledger_state
+        .a;
+    let a_type3 = buy_transition(&x0, &lean_event_type3_buy(&fx))
+        .ledger_state
+        .a;
     assert_ne!(
         a_type1, a_type3,
         "Lean chanlun_transition_distinguishes_classes：两类缠论分类 ⟹ 不同 ledger A delta"
@@ -384,7 +406,11 @@ fn lean_continuation_hold_bit_exact() {
         retrace_price: 0,
         center_zg: fx.buy_witness.type3_center_zg, // fixture: Lean witnessCenter.zg
     };
-    assert_eq!(recog_chanlun_buy(&cont), buy_decision_from_lean("hold"), "力度延续 ⟹ hold");
+    assert_eq!(
+        recog_chanlun_buy(&cont),
+        buy_decision_from_lean("hold"),
+        "力度延续 ⟹ hold"
+    );
     // hold delta 从 fixture 读（Lean #eval decisionLedgerDelta hold），非手填 (0,0,0)。
     assert_eq!(
         buy_decision_ledger_delta(BuyDecision::Hold),
@@ -393,11 +419,20 @@ fn lean_continuation_hold_bit_exact() {
     );
     // hold 闭环不改账本（Lean hold delta 全零 ⟹ ledger 恒等）。
     let x0 = AssemblyState {
-        ledger_state: LedgerComp { i0: 1_000_000, pi: 3, a: 5, w: 1, r: -3 },
+        ledger_state: LedgerComp {
+            i0: 1_000_000,
+            pi: 3,
+            a: 5,
+            w: 1,
+            r: -3,
+        },
         ..AssemblyState::initial(1_000_000)
     };
     let x1 = buy_transition(&x0, &cont);
-    assert_eq!(x1.ledger_state, x0.ledger_state, "hold 闭环不改 ledger（bit-exact (0,0,0)）");
+    assert_eq!(
+        x1.ledger_state, x0.ledger_state,
+        "hold 闭环不改 ledger（bit-exact (0,0,0)）"
+    );
 }
 
 /// ★负向探针（证 parity 可否证、非空过）：rust 买侧函数对**违反** Lean 判据的端点产出与第一类/
@@ -412,17 +447,42 @@ fn buy_recog_negative_probes_non_vacuous() {
     let fx = load_fixture();
     // 破 ZG（retrace=15 ≤ zg=20，故意违反 Lean 判据的反例值）的第三类候选 ⟹ 非第三类
     // （Lean :156 不破 ZG 失败）⟹ hold。基底从 fixture 见证派生，仅 retrace_price 改为违规值。
-    let break_zg = BuyEndpoint { retrace_price: fx.buy_witness.type3_center_zg - 5, ..lean_event_type3_buy(&fx) };
-    assert_ne!(recog_chanlun_buy(&break_zg), BuyDecision::AccreteCore, "破 ZG ⟹ 非增核（判据真消费 retrace）");
-    assert_eq!(recog_chanlun_buy(&break_zg), BuyDecision::Hold, "破 ZG 的第三类候选 ⟹ hold");
+    let break_zg = BuyEndpoint {
+        retrace_price: fx.buy_witness.type3_center_zg - 5,
+        ..lean_event_type3_buy(&fx)
+    };
+    assert_ne!(
+        recog_chanlun_buy(&break_zg),
+        BuyDecision::AccreteCore,
+        "破 ZG ⟹ 非增核（判据真消费 retrace）"
+    );
+    assert_eq!(
+        recog_chanlun_buy(&break_zg),
+        BuyDecision::Hold,
+        "破 ZG 的第三类候选 ⟹ hold"
+    );
 
     // side=Short 的第三类候选 ⟹ 非第三类（Lean :155 检查 side=long）⟹ hold。
-    let short_t3 = BuyEndpoint { side: Side::Short, ..lean_event_type3_buy(&fx) };
-    assert_ne!(recog_chanlun_buy(&short_t3), BuyDecision::AccreteCore, "side=Short ⟹ 非增核（判据真消费 side）");
+    let short_t3 = BuyEndpoint {
+        side: Side::Short,
+        ..lean_event_type3_buy(&fx)
+    };
+    assert_ne!(
+        recog_chanlun_buy(&short_t3),
+        BuyDecision::AccreteCore,
+        "side=Short ⟹ 非增核（判据真消费 side）"
+    );
 
     // 非背驰的第一类候选（broke_center=true 但 is_divergence=false）⟹ 非第一类（Lean :152 背驰失败）。
-    let no_div = BuyEndpoint { is_divergence: false, ..lean_event_type1_buy(&fx) };
-    assert_ne!(recog_chanlun_buy(&no_div), BuyDecision::OpenRoot, "非背驰 ⟹ 非建根仓（判据真消费 divergence）");
+    let no_div = BuyEndpoint {
+        is_divergence: false,
+        ..lean_event_type1_buy(&fx)
+    };
+    assert_ne!(
+        recog_chanlun_buy(&no_div),
+        BuyDecision::OpenRoot,
+        "非背驰 ⟹ 非建根仓（判据真消费 divergence）"
+    );
 
     // ★delta 非平凡：三态 delta 两两不同（OpenRoot/AccreteCore/Hold 的 A 分量 1/2/0 互异）。
     let d_open = buy_decision_ledger_delta(BuyDecision::OpenRoot).1;

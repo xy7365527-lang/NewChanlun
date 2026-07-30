@@ -155,7 +155,9 @@ pub struct FailureDisposalNotice {
 impl RetraceLedger {
     /// 短差档源：全部判败身份的盘背观测记录（按身份键序）。
     pub fn short_retrace_records(&self) -> Vec<ShortRetraceRecord> {
-        self.entries().filter_map(Self::short_retrace_record_of).collect()
+        self.entries()
+            .filter_map(Self::short_retrace_record_of)
+            .collect()
     }
 
     /// 失败处置通知：短差档的伴生输出，逐条判败各发一份（名义「通知非信号」）。
@@ -166,7 +168,10 @@ impl RetraceLedger {
     /// 有明确用途：本方法给「我要全量重新对拍」的调用方，门户那一路给「我要按增量消费」的
     /// 调用方，不是同一份契约的两个不一致实现。
     pub fn failure_disposal_notices(&self) -> Vec<FailureDisposalNotice> {
-        self.short_retrace_records().iter().map(FailureDisposalNotice::from_record).collect()
+        self.short_retrace_records()
+            .iter()
+            .map(FailureDisposalNotice::from_record)
+            .collect()
     }
 
     fn short_retrace_record_of(entry: &RetraceEntry) -> Option<ShortRetraceRecord> {

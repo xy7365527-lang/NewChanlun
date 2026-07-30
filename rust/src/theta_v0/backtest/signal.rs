@@ -120,7 +120,14 @@ pub(crate) fn entry_structural_stop(
         // strategy/mod.rs build_decision 同一口径）。
         center: match bsp.center {
             Some(super::super::classifier::bsp::OwnerRef::Center(c)) => c,
-            _ => Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 0, end_index: 0 },
+            _ => Center {
+                zd: 0,
+                zg: 0,
+                dd: 0,
+                gg: 0,
+                start_index: 0,
+                end_index: 0,
+            },
         },
     };
     structural_stop(stop_side, &bsp.bits, &stop_in)
@@ -180,13 +187,15 @@ pub(crate) fn entry_stop_recheck_reject(
 
 #[cfg(test)]
 mod entry_stop_recheck_tests {
-    use super::*;
     use super::super::super::classifier::bsp::{BspPoint, OwnerRef};
     use super::super::super::classifier::{Classification, LevelState};
-    use super::super::super::strategy::coverage::{Dir, GradeRel, Horizontal, OperationRole, Vertical};
+    use super::super::super::strategy::coverage::{
+        Dir, GradeRel, Horizontal, OperationRole, Vertical,
+    };
     use super::super::super::strategy::interp::Candidate;
     use super::super::super::strategy::voice::VoiceSide;
     use super::super::super::types::{BspBits, Center};
+    use super::*;
 
     const TS: f64 = 1.0; // tick_size=1 ⟹ tick 数即美元价，断言读数即结构价
 
@@ -203,7 +212,12 @@ mod entry_stop_recheck_tests {
     }
 
     fn classification_with(p: BspPoint) -> Classification {
-        Classification { levels: vec![LevelState { bsp: Rc::new(vec![p]), ..LevelState::default() }] }
+        Classification {
+            levels: vec![LevelState {
+                bsp: Rc::new(vec![p]),
+                ..LevelState::default()
+            }],
+        }
     }
 
     fn cand(dir: VoiceSide, bits: BspBits, bsp_class: u8) -> Candidate {
@@ -229,71 +243,152 @@ mod entry_stop_recheck_tests {
     }
 
     fn center_at(zd: i64, zg: i64) -> Center {
-        Center { zd, zg, dd: zd - 5, gg: zg + 5, start_index: 0, end_index: 5 }
+        Center {
+            zd,
+            zg,
+            dd: zd - 5,
+            gg: zg + 5,
+            start_index: 0,
+            end_index: 5,
+        }
     }
 
     /// 二类买（止损 = pivot_low）：入场价已在 pivot_low **之下** ⟹ 结构已破 ⟹ 拒。
     #[test]
     fn long_type2_stop_above_entry_is_rejected() {
-        let bits = BspBits { buy2: true, ..BspBits::default() };
+        let bits = BspBits {
+            buy2: true,
+            ..BspBits::default()
+        };
         let cl = classification_with(point(bits, 110, 0, None));
-        assert!(entry_stop_recheck_reject(&cand(VoiceSide::Long, bits, 2), &cl, 100.0, TS));
+        assert!(entry_stop_recheck_reject(
+            &cand(VoiceSide::Long, bits, 2),
+            &cl,
+            100.0,
+            TS
+        ));
     }
 
     /// 顺侧（止损在入场价下方）⟹ 放行——门只拒逆侧，不动正常入场。
     #[test]
     fn long_type2_stop_below_entry_is_admitted() {
-        let bits = BspBits { buy2: true, ..BspBits::default() };
+        let bits = BspBits {
+            buy2: true,
+            ..BspBits::default()
+        };
         let cl = classification_with(point(bits, 90, 0, None));
-        assert!(!entry_stop_recheck_reject(&cand(VoiceSide::Long, bits, 2), &cl, 100.0, TS));
+        assert!(!entry_stop_recheck_reject(
+            &cand(VoiceSide::Long, bits, 2),
+            &cl,
+            100.0,
+            TS
+        ));
     }
 
     /// 边界恰等（stop == entry）：判逆侧 ⟹ 拒（d=0 且 `stop_hit` 含等号即触及）。
     #[test]
     fn stop_exactly_at_entry_is_rejected_both_sides() {
-        let bl = BspBits { buy2: true, ..BspBits::default() };
+        let bl = BspBits {
+            buy2: true,
+            ..BspBits::default()
+        };
         let cl_l = classification_with(point(bl, 100, 0, None));
-        assert!(entry_stop_recheck_reject(&cand(VoiceSide::Long, bl, 2), &cl_l, 100.0, TS));
-        let bs = BspBits { sell2: true, ..BspBits::default() };
+        assert!(entry_stop_recheck_reject(
+            &cand(VoiceSide::Long, bl, 2),
+            &cl_l,
+            100.0,
+            TS
+        ));
+        let bs = BspBits {
+            sell2: true,
+            ..BspBits::default()
+        };
         let cl_s = classification_with(point(bs, 0, 100, None));
-        assert!(entry_stop_recheck_reject(&cand(VoiceSide::Short, bs, 2), &cl_s, 100.0, TS));
+        assert!(entry_stop_recheck_reject(
+            &cand(VoiceSide::Short, bs, 2),
+            &cl_s,
+            100.0,
+            TS
+        ));
     }
 
     /// 二类卖镜像：止损 = pivot_high 已在入场价**之下** ⟹ 拒；在上方 ⟹ 放行。
     #[test]
     fn short_type2_mirror() {
-        let bits = BspBits { sell2: true, ..BspBits::default() };
+        let bits = BspBits {
+            sell2: true,
+            ..BspBits::default()
+        };
         let low = classification_with(point(bits, 0, 90, None));
-        assert!(entry_stop_recheck_reject(&cand(VoiceSide::Short, bits, 2), &low, 100.0, TS));
+        assert!(entry_stop_recheck_reject(
+            &cand(VoiceSide::Short, bits, 2),
+            &low,
+            100.0,
+            TS
+        ));
         let high = classification_with(point(bits, 0, 110, None));
-        assert!(!entry_stop_recheck_reject(&cand(VoiceSide::Short, bits, 2), &high, 100.0, TS));
+        assert!(!entry_stop_recheck_reject(
+            &cand(VoiceSide::Short, bits, 2),
+            &high,
+            100.0,
+            TS
+        ));
     }
 
     /// 三类买（止损 = ZG）：入场价已跌回 ZG 之下 ⟹「回抽不破 ZG」被证伪 ⟹ 拒；仍在 ZG 上 ⟹ 放行。
     #[test]
     fn long_type3_uses_zg() {
-        let bits = BspBits { buy3: true, ..BspBits::default() };
+        let bits = BspBits {
+            buy3: true,
+            ..BspBits::default()
+        };
         let broken = classification_with(point(bits, 0, 0, Some(center_at(80, 110))));
-        assert!(entry_stop_recheck_reject(&cand(VoiceSide::Long, bits, 3), &broken, 100.0, TS));
+        assert!(entry_stop_recheck_reject(
+            &cand(VoiceSide::Long, bits, 3),
+            &broken,
+            100.0,
+            TS
+        ));
         let intact = classification_with(point(bits, 0, 0, Some(center_at(70, 90))));
-        assert!(!entry_stop_recheck_reject(&cand(VoiceSide::Long, bits, 3), &intact, 100.0, TS));
+        assert!(!entry_stop_recheck_reject(
+            &cand(VoiceSide::Long, bits, 3),
+            &intact,
+            100.0,
+            TS
+        ));
     }
 
     /// 三类卖镜像（止损 = ZD）。
     #[test]
     fn short_type3_uses_zd() {
-        let bits = BspBits { sell3: true, ..BspBits::default() };
+        let bits = BspBits {
+            sell3: true,
+            ..BspBits::default()
+        };
         let broken = classification_with(point(bits, 0, 0, Some(center_at(90, 120))));
-        assert!(entry_stop_recheck_reject(&cand(VoiceSide::Short, bits, 3), &broken, 100.0, TS));
+        assert!(entry_stop_recheck_reject(
+            &cand(VoiceSide::Short, bits, 3),
+            &broken,
+            100.0,
+            TS
+        ));
         let intact = classification_with(point(bits, 0, 0, Some(center_at(110, 130))));
-        assert!(!entry_stop_recheck_reject(&cand(VoiceSide::Short, bits, 3), &intact, 100.0, TS));
+        assert!(!entry_stop_recheck_reject(
+            &cand(VoiceSide::Short, bits, 3),
+            &intact,
+            100.0,
+            TS
+        ));
     }
 
     /// 无结构止损（该方向无买卖点位 ⟹ `entry_structural_stop` 返 None）⟹ **不判**（放行），
     /// 与 `entry_stop_dist`/逐 bar 风控门的诚实缺口口径一致——门不冒充自己没有的判据。
     #[test]
     fn missing_stop_is_not_judged() {
-        let bits = BspBits { sell2: true, ..BspBits::default() }; // 卖位，按 Long 查无买位
+        let bits = BspBits {
+            sell2: true,
+            ..BspBits::default()
+        }; // 卖位，按 Long 查无买位
         let cl = classification_with(point(bits, 0, 90, None));
         assert!(!entry_stop_recheck_reject(
             &cand(VoiceSide::Long, BspBits::default(), 2),
@@ -306,10 +401,18 @@ mod entry_stop_recheck_tests {
     /// 候选 `(level, source_index)` 在分类中查无 BspPoint ⟹ None ⟹ 不判（放行）。
     #[test]
     fn missing_bsp_point_is_not_judged() {
-        let bits = BspBits { buy2: true, ..BspBits::default() };
+        let bits = BspBits {
+            buy2: true,
+            ..BspBits::default()
+        };
         let mut p = point(bits, 110, 0, None);
         p.source_index = 999; // 与候选 source_index=7 不匹配
         let cl = classification_with(p);
-        assert!(!entry_stop_recheck_reject(&cand(VoiceSide::Long, bits, 2), &cl, 100.0, TS));
+        assert!(!entry_stop_recheck_reject(
+            &cand(VoiceSide::Long, bits, 2),
+            &cl,
+            100.0,
+            TS
+        ));
     }
 }

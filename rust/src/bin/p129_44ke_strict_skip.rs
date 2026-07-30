@@ -102,8 +102,8 @@ fn load(path: &Path, tick_size: f64, limit: usize) -> Result<Vec<Bar>, String> {
         .replace("-Infinity", "null")
         .replace("Infinity", "null")
         .replace("NaN", "null");
-    let raw: RawBars =
-        serde_json::from_str(&text).map_err(|error| format!("解析 {} 失败: {error}", path.display()))?;
+    let raw: RawBars = serde_json::from_str(&text)
+        .map_err(|error| format!("解析 {} 失败: {error}", path.display()))?;
     let n = raw
         .closes
         .len()
@@ -172,7 +172,10 @@ fn main() -> Result<(), String> {
 
     for &w in &WINDOWS {
         if w > bars.len() {
-            println!("P129_WINDOW_SKIP window={w} reason=insufficient_data available={}", bars.len());
+            println!(
+                "P129_WINDOW_SKIP window={w} reason=insufficient_data available={}",
+                bars.len()
+            );
             continue;
         }
         run_window(&bars, w, &config)?;
@@ -188,7 +191,8 @@ fn run_window(bars: &[Bar], w: usize, config: &ThetaConfig) -> Result<(), String
     let mut final_classification: Option<Classification> = None;
     for (i, bar) in bars[..w].iter().copied().enumerate() {
         let l0 = parser.append(bar);
-        let (classification, _, s) = classifier::classify_with_tower_events_incremental(&l0, config, &mut cache);
+        let (classification, _, s) =
+            classifier::classify_with_tower_events_incremental(&l0, config, &mut cache);
         streams = s;
         if (i + 1) % CHAIN_ADVANCE_EVERY == 0 || i + 1 == w {
             book.advance(&streams, i);
@@ -268,9 +272,15 @@ fn evidence_tiers(
     parent_interval: (usize, usize),
 ) -> NeighborhoodTiers {
     let Some(level_state) = classification.levels.get(level as usize) else {
-        return NeighborhoodTiers { contain: false, overlap: false };
+        return NeighborhoodTiers {
+            contain: false,
+            overlap: false,
+        };
     };
-    let mut tiers = NeighborhoodTiers { contain: false, overlap: false };
+    let mut tiers = NeighborhoodTiers {
+        contain: false,
+        overlap: false,
+    };
     for cp in level_state.cp_ownership.iter() {
         if cp.lifecycle != CpLifecycleStatus::Closed {
             continue;
@@ -308,8 +318,8 @@ fn ke44_strict_skip(
     let mut cross_broken_inside = StrictBucket::default();
 
     for cert in heads {
-        let is_suspended =
-            cert.status == ChainStatus::Closed && cert.edges.iter().any(|e| e.kind == ChainEdgeKind::Skip);
+        let is_suspended = cert.status == ChainStatus::Closed
+            && cert.edges.iter().any(|e| e.kind == ChainEdgeKind::Skip);
         for edge in &cert.edges {
             if edge.kind != ChainEdgeKind::Skip {
                 continue;
@@ -326,7 +336,10 @@ fn ke44_strict_skip(
                         let any_closed_third = level_state
                             .cp_ownership
                             .iter()
-                            .filter(|cp| cp.lifecycle == CpLifecycleStatus::Closed && cp.third_class_in_c.is_some())
+                            .filter(|cp| {
+                                cp.lifecycle == CpLifecycleStatus::Closed
+                                    && cp.third_class_in_c.is_some()
+                            })
                             .count();
                         let side_match = level_state
                             .cp_ownership
@@ -348,9 +361,18 @@ fn ke44_strict_skip(
                     }
                 }
 
-                by_pair_contain.entry((edge.parent.level, gap.level)).or_default().record(tiers.contain);
-                by_pair_overlap.entry((edge.parent.level, gap.level)).or_default().record(tiers.overlap);
-                by_side_overlap.entry(side).or_default().record(tiers.overlap);
+                by_pair_contain
+                    .entry((edge.parent.level, gap.level))
+                    .or_default()
+                    .record(tiers.contain);
+                by_pair_overlap
+                    .entry((edge.parent.level, gap.level))
+                    .or_default()
+                    .record(tiers.overlap);
+                by_side_overlap
+                    .entry(side)
+                    .or_default()
+                    .record(tiers.overlap);
                 total_contain.record(tiers.contain);
                 total_overlap.record(tiers.overlap);
                 if is_suspended {
@@ -368,7 +390,10 @@ fn ke44_strict_skip(
     }
 
     for ((parent_level, skip_level), bucket) in &by_pair_overlap {
-        let contain = by_pair_contain.get(&(*parent_level, *skip_level)).copied().unwrap_or_default();
+        let contain = by_pair_contain
+            .get(&(*parent_level, *skip_level))
+            .copied()
+            .unwrap_or_default();
         println!(
             "P129_STRICT_BY_PAIR window={w} L{parent_level}->L{skip_level} \
              overlap_strict={} overlap_noise={} contain_strict={} contain_noise={} total={} \

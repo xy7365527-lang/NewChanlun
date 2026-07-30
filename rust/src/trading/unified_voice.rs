@@ -59,15 +59,14 @@
 use super::center_book::CenterBook;
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::positional::{
-    enter_or_defer, theta_weights, LayerState, LayerTrade, PositionalResult,
-    EQUITY_SAMPLE_BARS,
+    enter_or_defer, theta_weights, LayerState, LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS,
 };
 use super::positional_fusion::PhaseView;
 use super::tape::SignalTape;
-use super::unified_osc::{OscLayer, OscOut};
 use super::types::{
     BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
 };
+use super::unified_osc::{OscLayer, OscOut};
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
 
@@ -88,8 +87,7 @@ fn nest_sub_evidence(
     flip_edge: Option<Direction>,
 ) -> bool {
     if sub >= FIRST_BSP_LADDER {
-        evs.iter().any(|e| e.class.side() == side)
-            || devs.iter().any(|d| d.side() == side)
+        evs.iter().any(|e| e.class.side() == side) || devs.iter().any(|d| d.side() == side)
     } else {
         let want = match side {
             Side::Sell => Direction::Down,
@@ -116,7 +114,12 @@ fn nav_v(
         }
         match layers[k] {
             LayerState::Long { shares, .. } => v += shares * c,
-            LayerState::Short { entry_price, units, margin, .. } => {
+            LayerState::Short {
+                entry_price,
+                units,
+                margin,
+                ..
+            } => {
                 v += margin + units * (entry_price - c);
             }
             _ => {}
@@ -213,8 +216,7 @@ pub(crate) fn run_unified_voice(
             }
             depth_ref.observe(&book, c);
         }
-        let evrows: &[Vec<BspEvent>; MAX_LADDER] =
-            sig.bsp_events.as_deref().unwrap_or(&empty_evs);
+        let evrows: &[Vec<BspEvent>; MAX_LADDER] = sig.bsp_events.as_deref().unwrap_or(&empty_evs);
         let devrows: &[Vec<DivEvent>; MAX_LADDER] =
             sig.div_events.as_deref().unwrap_or(&empty_devs);
         osc_layer.observe_refs(&book, &dir_state);
@@ -241,7 +243,11 @@ pub(crate) fn run_unified_voice(
                         BspClass::Buy1 | BspClass::Buy3 => false,
                         BspClass::Sell2 | BspClass::Buy2 => continue,
                     };
-                    let win = if sellside { &mut nest_sell[k] } else { &mut nest_buy[k] };
+                    let win = if sellside {
+                        &mut nest_sell[k]
+                    } else {
+                        &mut nest_buy[k]
+                    };
                     if e.confirmed {
                         *win = None;
                         if let Some(cs) = e.cs {
@@ -266,9 +272,7 @@ pub(crate) fn run_unified_voice(
             }
             let sub = k - 1;
             if let Some(w) = nest_sell[k] {
-                if nest_sub_evidence(
-                    sub, Side::Sell, &evrows[sub], &devrows[sub], flip_edge[sub],
-                ) {
+                if nest_sub_evidence(sub, Side::Sell, &evrows[sub], &devrows[sub], flip_edge[sub]) {
                     nf_sell[k] = true;
                     nest_sell[k] = None;
                     res.n_nest_fire_sell_by_ladder[k] += 1;
@@ -278,9 +282,7 @@ pub(crate) fn run_unified_voice(
                 }
             }
             if let Some(w) = nest_buy[k] {
-                if nest_sub_evidence(
-                    sub, Side::Buy, &evrows[sub], &devrows[sub], flip_edge[sub],
-                ) {
+                if nest_sub_evidence(sub, Side::Buy, &evrows[sub], &devrows[sub], flip_edge[sub]) {
                     nf_buy[k] = true;
                     nest_buy[k] = None;
                     res.n_nest_fire_buy_by_ladder[k] += 1;
@@ -297,10 +299,18 @@ pub(crate) fn run_unified_voice(
         let self_up = |k: usize| trend_state[k] && dir_state[k] == Some(Direction::Up);
         let self_dn = |k: usize| trend_state[k] && dir_state[k] == Some(Direction::Down);
         let freeze_up = |k: usize| {
-            if anc_freeze { (k..MAX_LADDER).any(self_up) } else { self_up(k) }
+            if anc_freeze {
+                (k..MAX_LADDER).any(self_up)
+            } else {
+                self_up(k)
+            }
         };
         let freeze_dn = |k: usize| {
-            if anc_freeze { (k..MAX_LADDER).any(self_dn) } else { self_dn(k) }
+            if anc_freeze {
+                (k..MAX_LADDER).any(self_dn)
+            } else {
+                self_dn(k)
+            }
         };
 
         // ── Φ 三值化（公共读数；MoveUp 优先 = 多头书满仓义务优先）──
@@ -325,14 +335,10 @@ pub(crate) fn run_unified_voice(
         // 双侧位置门（049:52"在中枢上方仓位减少" / 049:64"在下方如数接回"）。
         // 域 = Φ(k)==Osc 精确（MoveDown 削减放行 = 逃命语义；MoveUp 回补
         // 走强制回复分支）。NaN 比较恒 false ⇒ 拦截（保守方向在册同构）。
-        let r2_trim_blocked = |k: usize| {
-            phi(k) == PhaseView::Osc
-                && book.alive(k).is_some_and(|lc| !(c >= lc.zg))
-        };
-        let r2_restore_blocked = |k: usize| {
-            phi(k) == PhaseView::Osc
-                && book.alive(k).is_some_and(|lc| !(c <= lc.zd))
-        };
+        let r2_trim_blocked =
+            |k: usize| phi(k) == PhaseView::Osc && book.alive(k).is_some_and(|lc| !(c >= lc.zg));
+        let r2_restore_blocked =
+            |k: usize| phi(k) == PhaseView::Osc && book.alive(k).is_some_and(|lc| !(c <= lc.zd));
 
         // T2W 否定（R20：close 越过锁存 extreme ⇒ 假 type1，清锁存）。
         for k in floor_ladder..MAX_LADDER {
@@ -361,16 +367,26 @@ pub(crate) fn run_unified_voice(
                 .fold(None, |m: Option<f64>, p| Some(m.map_or(p, |x| x.min(p))))
         };
         let conf_sell2 = |k: usize| {
-            evrows[k].iter().any(|e| e.confirmed && e.class == BspClass::Sell2)
+            evrows[k]
+                .iter()
+                .any(|e| e.confirmed && e.class == BspClass::Sell2)
         };
         let conf_buy2 = |k: usize| {
-            evrows[k].iter().any(|e| e.confirmed && e.class == BspClass::Buy2)
+            evrows[k]
+                .iter()
+                .any(|e| e.confirmed && e.class == BspClass::Buy2)
         };
 
         // ── 阶段 A：层级出场（停削/位置门/削减→Gated）/ osc 在外腿出口 ──
         for k in floor_ladder..MAX_LADDER {
-            let LayerState::Long { entry_bar, entry_price, shares, weight, deferred_bars, partial } =
-                layers[k]
+            let LayerState::Long {
+                entry_bar,
+                entry_price,
+                shares,
+                weight,
+                deferred_bars,
+                partial,
+            } = layers[k]
             else {
                 continue;
             };
@@ -379,8 +395,17 @@ pub(crate) fn run_unified_voice(
                 // osc 在外腿出口集（满仓义务/铰链/回补）——Φ 读数透传，
                 // nest 触发与 confirmed 同词汇地位双侧透传。
                 osc_layer.step_exit(
-                    k, c, i as i64, sig, nf_sell[k], nf_buy[k], &phi, &book,
-                    &mut layers, &mut pool, &mut res,
+                    k,
+                    c,
+                    i as i64,
+                    sig,
+                    nf_sell[k],
+                    nf_buy[k],
+                    &phi,
+                    &book,
+                    &mut layers,
+                    &mut pool,
+                    &mut res,
                 );
                 continue;
             }
@@ -470,8 +495,8 @@ pub(crate) fn run_unified_voice(
                     continue;
                 }
                 osc_layer.try_open(
-                    k, c, i as i64, sig, true, true, &phi, &book, &depth_ref,
-                    &layers, &mut pool, &mut res,
+                    k, c, i as i64, sig, true, true, &phi, &book, &depth_ref, &layers, &mut pool,
+                    &mut res,
                 );
             }
         }
@@ -485,8 +510,15 @@ pub(crate) fn run_unified_voice(
                     // R0：树根入场（confirmed 买点 ∨ nest 正向触发）。
                     if sig.buy_any.get(k) || nf_buy[k] {
                         layers[k] = enter_or_defer(
-                            k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
-                            &mut pool, &mut res,
+                            k,
+                            i as i64,
+                            i as i64,
+                            c,
+                            bar_nav,
+                            &thetas,
+                            theta_total,
+                            &mut pool,
+                            &mut res,
                         );
                     }
                 }
@@ -496,8 +528,15 @@ pub(crate) fn run_unified_voice(
                         layers[k] = LayerState::Flat;
                     } else {
                         layers[k] = enter_or_defer(
-                            k, confirm_bar, i as i64, c, bar_nav, &thetas, theta_total,
-                            &mut pool, &mut res,
+                            k,
+                            confirm_bar,
+                            i as i64,
+                            c,
+                            bar_nav,
+                            &thetas,
+                            theta_total,
+                            &mut pool,
+                            &mut res,
                         );
                     }
                 }
@@ -509,7 +548,13 @@ pub(crate) fn run_unified_voice(
                 //    （物理事件）→ MoveUp 强制平空翻多（49:52 满仓义务
                 //    镜像：空头前提消失）→ 买点回补翻多（MoveDown 停
                 //    回补 / 空侧 R2 位置门 + T2W 第二窗口）──
-                LayerState::Short { entry_bar, entry_price, units, weight, margin } => {
+                LayerState::Short {
+                    entry_bar,
+                    entry_price,
+                    units,
+                    weight,
+                    margin,
+                } => {
                     res.short_held_bars_by_ladder[k] += 1;
                     let equity_k = margin + units * (entry_price - c);
                     let cover = |exit_price: f64,
@@ -519,8 +564,7 @@ pub(crate) fn run_unified_voice(
                         // 1x 逐仓：损失上界 = margin（强平价记账 ⇒ 现金
                         // 流出恰为全部 margin，逐 trade 重建零渗漏）。
                         *pool += margin + units * (entry_price - exit_price);
-                        res.short_net_cash_by_ladder[k] +=
-                            units * (entry_price - exit_price);
+                        res.short_net_cash_by_ladder[k] += units * (entry_price - exit_price);
                         res.trades.push(LayerTrade {
                             ladder: k as u8,
                             entry_bar,
@@ -549,8 +593,15 @@ pub(crate) fn run_unified_voice(
                         cover(c, "cover_moveup", &mut pool, &mut res);
                         res.n_short_moveup_covers_by_ladder[k] += 1;
                         layers[k] = enter_or_defer(
-                            k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
-                            &mut pool, &mut res,
+                            k,
+                            i as i64,
+                            i as i64,
+                            c,
+                            bar_nav,
+                            &thetas,
+                            theta_total,
+                            &mut pool,
+                            &mut res,
                         );
                         t2w_buy[k] = None;
                     } else if sig.buy_any.get(k) || nf_buy[k] || t2w_bfire {
@@ -561,8 +612,7 @@ pub(crate) fn run_unified_voice(
                                 if t2w_buy[k].is_none() {
                                     res.n_t2w_arms_by_ladder[k] += 1;
                                 }
-                                t2w_buy[k] =
-                                    Some(t2w_buy[k].map_or(px, |x| x.min(px)));
+                                t2w_buy[k] = Some(t2w_buy[k].map_or(px, |x| x.min(px)));
                             }
                         } else if r2_restore_blocked(k) {
                             // R15 位置门：c ≤ ZD 才回补（049:64 镜像）。
@@ -571,8 +621,7 @@ pub(crate) fn run_unified_voice(
                                 if t2w_buy[k].is_none() {
                                     res.n_t2w_arms_by_ladder[k] += 1;
                                 }
-                                t2w_buy[k] =
-                                    Some(t2w_buy[k].map_or(px, |x| x.min(px)));
+                                t2w_buy[k] = Some(t2w_buy[k].map_or(px, |x| x.min(px)));
                             }
                         } else {
                             // 镜像断面：平空 → enter_or_defer 翻多重配额。
@@ -589,8 +638,15 @@ pub(crate) fn run_unified_voice(
                             cover(c, reason, &mut pool, &mut res);
                             res.n_short_covers_by_ladder[k] += 1;
                             layers[k] = enter_or_defer(
-                                k, i as i64, i as i64, c, bar_nav, &thetas,
-                                theta_total, &mut pool, &mut res,
+                                k,
+                                i as i64,
+                                i as i64,
+                                c,
+                                bar_nav,
+                                &thetas,
+                                theta_total,
+                                &mut pool,
+                                &mut res,
                             );
                             t2w_buy[k] = None;
                         }
@@ -612,8 +668,13 @@ pub(crate) fn run_unified_voice(
     //    在 pool）──
     let last_close = tape.bars[n - 1].close;
     for k in floor_ladder..MAX_LADDER {
-        if let LayerState::Short { entry_bar, entry_price, units, weight, margin } =
-            layers[k]
+        if let LayerState::Short {
+            entry_bar,
+            entry_price,
+            units,
+            weight,
+            margin,
+        } = layers[k]
         {
             let equity_k = margin + units * (entry_price - last_close);
             let (exit_price, exit_reason) = if equity_k <= 0.0 {
@@ -643,8 +704,14 @@ pub(crate) fn run_unified_voice(
             layers[k] = LayerState::Flat;
             continue;
         }
-        let LayerState::Long { entry_bar, entry_price, shares, weight, deferred_bars, partial } =
-            layers[k]
+        let LayerState::Long {
+            entry_bar,
+            entry_price,
+            shares,
+            weight,
+            deferred_bars,
+            partial,
+        } = layers[k]
         else {
             continue;
         };
@@ -685,7 +752,11 @@ mod tests {
     use crate::trading::types::LadderMask;
 
     fn bar(close: f64) -> BarSig {
-        BarSig { close, max_ladder: 5, ..Default::default() }
+        BarSig {
+            close,
+            max_ladder: 5,
+            ..Default::default()
+        }
     }
 
     fn anchor_ev(cs: i64, zd: f64, zg: f64) -> BspEvent {
@@ -732,7 +803,11 @@ mod tests {
         (0..SUB_COST_MIN_OBS as i64)
             .map(|j| {
                 let b = with_anchor(bar(100.0), lad, 10 + j, 50.0, 51.0);
-                if j == 0 { with_empty_div(b) } else { b }
+                if j == 0 {
+                    with_empty_div(b)
+                } else {
+                    b
+                }
             })
             .collect()
     }
@@ -771,7 +846,10 @@ mod tests {
     #[test]
     fn capability_guards() {
         // 无 trend/dir 行 ⇒ 拒绝（freeze 读数无数据基础）。
-        let t = SignalTape { bars: warmup(2), ..Default::default() };
+        let t = SignalTape {
+            bars: warmup(2),
+            ..Default::default()
+        };
         assert!(run_positional(&t, 2, full_v()).is_err());
         // 无 div 行 ⇒ 拒绝（nest/osc 词汇残缺）。
         let no_div: Vec<BarSig> = warmup(2)
@@ -865,7 +943,10 @@ mod tests {
         assert_eq!(r.n_trend_holds_by_ladder[2], 1, "停削");
         assert_eq!(r.n_anc_exempt_blocks_by_ladder[2], 1, "祖先分量归因");
         assert_eq!(
-            r.trades.iter().filter(|t| t.ladder == 2 && t.exit_reason != "eod").count(),
+            r.trades
+                .iter()
+                .filter(|t| t.ladder == 2 && t.exit_reason != "eod")
+                .count(),
             0
         );
     }
@@ -917,7 +998,10 @@ mod tests {
         bars.push(buypt(bar(100.0), 2));
         // freeze_up 中 confirmed Sell1（不置 sell_any 掩码——T2W 锁存武装
         // 需要 sell_trig，此处用事件+掩码同 bar）。
-        bars.push(sellpt(with_ev(bar(100.0), 2, conf(BspClass::Sell1, 120.0)), 2));
+        bars.push(sellpt(
+            with_ev(bar(100.0), 2, conf(BspClass::Sell1, 120.0)),
+            2,
+        ));
         // freeze 退出（行注入）后 confirmed Sell2 到达（不置掩码）⇒ t2w 触发。
         bars.push(with_ev(bar(100.0), 2, conf(BspClass::Sell2, 100.0)));
         bars.push(bar(100.0));
@@ -951,7 +1035,10 @@ mod tests {
         };
         let mut bars = warmup(2);
         bars.push(buypt(bar(100.0), 2));
-        bars.push(sellpt(with_ev(bar(100.0), 2, conf(BspClass::Sell1, 120.0)), 2));
+        bars.push(sellpt(
+            with_ev(bar(100.0), 2, conf(BspClass::Sell1, 120.0)),
+            2,
+        ));
         bars.push(bar(130.0)); // 越过 extreme=120 ⇒ 清
         bars.push(with_ev(bar(100.0), 2, conf(BspClass::Sell2, 100.0)));
         bars.push(bar(100.0));

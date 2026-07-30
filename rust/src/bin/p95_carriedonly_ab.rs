@@ -216,10 +216,26 @@ fn main() -> Result<(), String> {
                 unchanged += 1;
                 // 条款 2 下游覆盖：未涉 run 的 A/B 组装结果必须逐位一致。
                 let (va, ea) = assemble_run(
-                    level, windows, rb, &lower_legs, as_of, &hist, &dif, &close_src, false,
+                    level,
+                    windows,
+                    rb,
+                    &lower_legs,
+                    as_of,
+                    &hist,
+                    &dif,
+                    &close_src,
+                    false,
                 )?;
                 let (vb, eb) = assemble_run(
-                    level, windows, rb, &lower_legs, as_of, &hist, &dif, &close_src, true,
+                    level,
+                    windows,
+                    rb,
+                    &lower_legs,
+                    as_of,
+                    &hist,
+                    &dif,
+                    &close_src,
+                    true,
                 )?;
                 if completed_move_starts(&va) != completed_move_starts(&vb)
                     || va.moves != vb.moves
@@ -239,13 +255,29 @@ fn main() -> Result<(), String> {
             }
             // ---- 条款 3：下游差异清单 ----
             let (vb, eb) = assemble_run(
-                level, windows, rb, &lower_legs, as_of, &hist, &dif, &close_src, true,
+                level,
+                windows,
+                rb,
+                &lower_legs,
+                as_of,
+                &hist,
+                &dif,
+                &close_src,
+                true,
             )?;
             let mut starts_a_union: BTreeSet<usize> = BTreeSet::new();
             let mut events_a_union: BTreeSet<String> = BTreeSet::new();
             for ra in &contained {
                 let (va, ea) = assemble_run(
-                    level, windows, ra, &lower_legs, as_of, &hist, &dif, &close_src, false,
+                    level,
+                    windows,
+                    ra,
+                    &lower_legs,
+                    as_of,
+                    &hist,
+                    &dif,
+                    &close_src,
+                    false,
                 )?;
                 starts_a_union.extend(completed_move_starts(&va));
                 events_a_union.extend(event_keys(&ea));
@@ -278,7 +310,10 @@ fn main() -> Result<(), String> {
                 events_b.len()
             );
             for key in &added_events {
-                println!("P95_EVENT_ADDED level={level} b_run={}..{} {key}", rb.start, rb.end);
+                println!(
+                    "P95_EVENT_ADDED level={level} b_run={}..{} {key}",
+                    rb.start, rb.end
+                );
             }
             for key in &removed_events {
                 println!(
@@ -494,7 +529,10 @@ fn extract_runs(valid: &[bool]) -> Vec<RunSpan> {
         match (start, v) {
             (None, true) => start = Some(index),
             (Some(s), false) => {
-                runs.push(RunSpan { start: s, end: index });
+                runs.push(RunSpan {
+                    start: s,
+                    end: index,
+                });
                 start = None;
             }
             _ => {}

@@ -109,7 +109,13 @@ impl CfCert {
             .join("|")
     }
     fn chain_key(&self) -> String {
-        format!("{}:{}:{:?}:{}", self.exec, self.top, self.side, self.ids_string())
+        format!(
+            "{}:{}:{:?}:{}",
+            self.exec,
+            self.top,
+            self.side,
+            self.ids_string()
+        )
     }
     fn base_key(&self) -> String {
         let (id, _, _) = self.ids.last().expect("链非空");
@@ -122,7 +128,10 @@ impl CfCert {
         self.top - self.exec + 1
     }
     fn kind_bucket(&self) -> &'static str {
-        let trend = self.ids.iter().any(|(_, k, _)| *k == NestDivergenceKind::Trend);
+        let trend = self
+            .ids
+            .iter()
+            .any(|(_, k, _)| *k == NestDivergenceKind::Trend);
         let pan = self
             .ids
             .iter()
@@ -283,9 +292,9 @@ fn parent_v2(e: &NestCandidateEvent) -> NestInterval {
 
 fn main() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
-    let path = args
-        .next()
-        .ok_or("用法: p108_dparent_caliber_counterfactual <btc_1m_full.json> [p92_ckpt_dump.txt]")?;
+    let path = args.next().ok_or(
+        "用法: p108_dparent_caliber_counterfactual <btc_1m_full.json> [p92_ckpt_dump.txt]",
+    )?;
     let dump_path = args.next();
     let config = ThetaConfig::default();
     let loaded = load_bars(Path::new(&path), config.tick.tick_size)?;
@@ -433,28 +442,26 @@ fn main() -> Result<(), String> {
     // ── 硬门③：本地参数化装配器镜像验证 (ib,ib)→B、(ia,ia)→A ──
     let cf_b0 = cf_sweep(&events, &terminal.classification, &child_ib, &child_ib);
     let cf_a = cf_sweep(&events, &terminal.classification, &child_ia, &child_ia);
-    let mirror_ok = |tag: &str,
-                     mine: &[CfCert],
-                     prod: &[(usize, usize, TypedNestCertificate)]|
-     -> bool {
-        let my_set: BTreeSet<String> = mine.iter().map(CfCert::chain_key).collect();
-        let prod_set: BTreeSet<String> = prod
-            .iter()
-            .map(|(exec, top, cert)| prod_chain_key(*exec, *top, cert))
-            .collect();
-        let only_mine = my_set.difference(&prod_set).count();
-        let only_prod = prod_set.difference(&my_set).count();
-        println!(
-            "P108_MIRROR caliber={} local={} prod={} only_in_local={} only_in_prod={} match={}",
-            tag,
-            my_set.len(),
-            prod_set.len(),
-            only_mine,
-            only_prod,
+    let mirror_ok =
+        |tag: &str, mine: &[CfCert], prod: &[(usize, usize, TypedNestCertificate)]| -> bool {
+            let my_set: BTreeSet<String> = mine.iter().map(CfCert::chain_key).collect();
+            let prod_set: BTreeSet<String> = prod
+                .iter()
+                .map(|(exec, top, cert)| prod_chain_key(*exec, *top, cert))
+                .collect();
+            let only_mine = my_set.difference(&prod_set).count();
+            let only_prod = prod_set.difference(&my_set).count();
+            println!(
+                "P108_MIRROR caliber={} local={} prod={} only_in_local={} only_in_prod={} match={}",
+                tag,
+                my_set.len(),
+                prod_set.len(),
+                only_mine,
+                only_prod,
+                only_mine == 0 && only_prod == 0
+            );
             only_mine == 0 && only_prod == 0
-        );
-        only_mine == 0 && only_prod == 0
-    };
+        };
     let ok_b = mirror_ok("B0", &cf_b0, &prod_b);
     let ok_a = mirror_ok("A", &cf_a, &prod_a);
     if !ok_b || !ok_a {
@@ -465,12 +472,7 @@ fn main() -> Result<(), String> {
     let cf_v1 = cf_sweep(&events, &terminal.classification, &child_ib, &parent_v1);
     let cf_v2 = cf_sweep(&events, &terminal.classification, &child_ib, &parent_v2);
 
-    for (tag, set) in [
-        ("B0", &cf_b0),
-        ("V1", &cf_v1),
-        ("V2", &cf_v2),
-        ("A", &cf_a),
-    ] {
+    for (tag, set) in [("B0", &cf_b0), ("V1", &cf_v1), ("V2", &cf_v2), ("A", &cf_a)] {
         report_set(tag, set);
     }
 
@@ -510,8 +512,7 @@ fn main() -> Result<(), String> {
             .collect();
         ext_v1.sort_unstable();
         let med = |v: &[f64]| if v.is_empty() { 0.0 } else { v[v.len() / 2] };
-        let medu =
-            |v: &[usize]| if v.is_empty() { 0 } else { v[v.len() / 2] };
+        let medu = |v: &[usize]| if v.is_empty() { 0 } else { v[v.len() / 2] };
         println!(
             "P108_WIDTH level={} events={} confirmed={} v1_width_ratio_p50={:.3} fullA_width_ratio_p50={:.3} v1_ext_bars_p50={} v2_ext_bars_p50={}",
             level,
@@ -529,10 +530,7 @@ fn main() -> Result<(), String> {
         diff_report(tag, &cf_b0, var, &events);
     }
 
-    println!(
-        "P108_DONE elapsed_s={:.1}",
-        started.elapsed().as_secs_f64()
-    );
+    println!("P108_DONE elapsed_s={:.1}", started.elapsed().as_secs_f64());
     Ok(())
 }
 
@@ -626,17 +624,13 @@ fn find_event<'a>(
     turn_source: usize,
     interval_b: (usize, usize),
 ) -> Option<&'a NestCandidateEvent> {
-    events.get(level)?.iter().find(|e| {
-        e.turn_source == turn_source && e.interval_b == interval_b
-    })
+    events
+        .get(level)?
+        .iter()
+        .find(|e| e.turn_source == turn_source && e.interval_b == interval_b)
 }
 
-fn diff_report(
-    tag: &str,
-    base: &[CfCert],
-    var: &[CfCert],
-    events: &[Vec<NestCandidateEvent>],
-) {
+fn diff_report(tag: &str, base: &[CfCert], var: &[CfCert], events: &[Vec<NestCandidateEvent>]) {
     let base_ids: BTreeSet<String> = base.iter().map(CfCert::chain_key).collect();
     let var_ids: BTreeSet<String> = var.iter().map(CfCert::chain_key).collect();
     let base_bases: BTreeSet<String> = base.iter().map(CfCert::base_key).collect();
@@ -915,8 +909,9 @@ fn collect_terminal_events(
         let mut run_start = None;
         for index in 0..=windows.len() {
             let valid = index < windows.len()
-                && match project_extended_windows_carried_only(std::slice::from_ref(&windows[index]))
-                {
+                && match project_extended_windows_carried_only(std::slice::from_ref(
+                    &windows[index],
+                )) {
                     Ok(_) => true,
                     Err(_) => {
                         errors += 1;

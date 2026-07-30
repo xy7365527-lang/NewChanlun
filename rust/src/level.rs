@@ -340,7 +340,11 @@ mod tests {
     use super::*;
 
     fn comp(high: f64, low: f64, idx: usize) -> CompView {
-        CompView { high, low, component_idx: idx }
+        CompView {
+            high,
+            low,
+            component_idx: idx,
+        }
     }
 
     #[test]

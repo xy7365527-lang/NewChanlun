@@ -63,37 +63,32 @@ static CASCADE_EPROBE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 #[cfg(test)]
 static CASCADE_FULLCLEAR: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
+pub mod bsp;
 pub mod center;
 /// #291（SPEC #274 T1）：中枢生命周期事件机（born/broken/reset，ADR 0001 修正案一·补充二
 /// 「中枢=事件」）。只产事件不产动作；wf8 经 opsem 只读旁路外化，默认零行为变化。
 pub mod center_lifecycle;
-pub mod ref_v1;
 pub mod decompose;
-pub mod level_state;
-pub mod bsp;
+pub mod descend;
 pub mod divergence;
 pub mod force_conformance;
-pub mod descend;
-pub mod rmove_compose;
-pub mod recursive_tower;
-/// #543 D1a：重基构造证书 seam（`RebaseTransformTxnV1`，env `OPSEM_DUMP_DIR` 门控的只读观测）。
-pub mod rebase_txn;
+pub mod level_state;
 pub mod nest;
-/// V3 活假设状态机：NestLifecycleBook sidecar 注册表（三态 + 五钟；#231 重建，spec #232）。
-pub mod nest_lifecycle;
 /// #92/#93 证书索引：确认事件 → typed 证书（身份主键；构建口径 B + CWindow）。
 pub mod nest_index;
+/// V3 活假设状态机：NestLifecycleBook sidecar 注册表（三态 + 五钟；#231 重建，spec #232）。
+pub mod nest_lifecycle;
+/// #543 D1a：重基构造证书 seam（`RebaseTransformTxnV1`，env `OPSEM_DUMP_DIR` 门控的只读观测）。
+pub mod rebase_txn;
+pub mod recursive_tower;
+pub mod ref_v1;
+pub mod rmove_compose;
 /// p118 关④ 小转大显式分类分支：旁挂联合分类 `NestTurnClass`（四类 partition，纯只读派生）。
 pub mod turn_class;
 pub use turn_class::{
     classify_certificate_turn, classify_nest_turns, is_defer_orphan_event, CertKey, NestTurnClass,
     XzdEvidence,
 };
-pub mod signal;
-/// #110 投影层骨架 + 级别身份标签（SPEC #109 expand 第一票）。默认门关零开销。
-pub mod projection;
-pub mod six_state;
-pub mod voice_eat;
 /// #550：塔内原生背驰段候选事件（对象、append-only 修订流与 C⊆C 谓词）。
 pub mod cand_event;
 pub mod cand_predicate;
@@ -102,6 +97,8 @@ pub mod cand_sub;
 /// #641（N3）：级别链证书塔对象（节点=候选事件、边=C⊆C 覆盖关系、E2E-L 三态谱系 + skip edge）。
 /// 纯产出零消费接线。
 pub mod chain_cert;
+/// 区间套必要条件——递归塔原生检查器（条款 9，任务 #106；只读，不回写判据 bit）。
+pub mod interval_necessity;
 /// C2 走势消费 seam：显式 exact-three 投影、D3 方向绑定与 D2 A/C provider。
 /// #630 生产段拆分的 4 个子域（`projection`/`confirm`/`pan`/`pan_provider`）在
 /// #630 修复轮改为 `level_view` 内部子模块（目录模块，非 classifier 兄弟文件）——
@@ -110,8 +107,11 @@ pub mod chain_cert;
 pub mod level_view;
 /// C2 CompletedFreeze 的正式 append-only event-store adapter。
 pub mod level_view_store;
-/// 区间套必要条件——递归塔原生检查器（条款 9，任务 #106；只读，不回写判据 bit）。
-pub mod interval_necessity;
+/// #110 投影层骨架 + 级别身份标签（SPEC #109 expand 第一票）。默认门关零开销。
+pub mod projection;
+pub mod signal;
+pub mod six_state;
+pub mod voice_eat;
 
 // ── #614 并线：kimi 线（`kimi-nest-mainline-20260717`）独有的三个新模块 ─────────────
 // 说明：kimi 线把本文件的主体拆成 `pipeline`/`cand_delta`/`tower_cache`/`incremental`/
@@ -362,8 +362,7 @@ fn historical_bound_segment(
         }
     } else {
         let lower_blocks = &classification.levels.get(level - 1)?.moves;
-        decompose::center_own_dir_at(lower_blocks, idx)
-            .unwrap_or_else(|| m.fold_direction(prev))
+        decompose::center_own_dir_at(lower_blocks, idx).unwrap_or_else(|| m.fold_direction(prev))
     };
     let (lo, hi) = m.envelope();
     Some(unit_to_segment(&UnitRange {
@@ -410,7 +409,14 @@ fn extract_first_third_for_level(
         "provenance anchors 与 L≥1 units 必等长"
     );
     signal::extract_signals_with_hist_anchored(
-        centers, &segs, Some(&structural_anchors), hist, dif, closes_tick, close_src, gauge,
+        centers,
+        &segs,
+        Some(&structural_anchors),
+        hist,
+        dif,
+        closes_tick,
+        close_src,
+        gauge,
     )
 }
 
@@ -1822,7 +1828,11 @@ pub fn classify_with_tower_incremental(
     // 声明前移到回缩检测（下方）之前——回缩检测的 txn 快照块需要 `txn_on`/`txn_cleared` 已在作用域内
     // （#712 收 #645 HIGH-1 随动：回缩检测本身前移到 `l0_units_cache` 构建之前，见下）。
     let txn_on = rebase_txn::enabled();
-    let txn_bar = if txn_on { l0.merged_bars.last().map_or(0, |b| b.source_index) } else { 0 };
+    let txn_bar = if txn_on {
+        l0.merged_bars.last().map_or(0, |b| b.source_index)
+    } else {
+        0
+    };
     // 整塔缓存全清（段账本回缩退化路径）丢弃的旧输出，按级别下标暂存；由下面的级别循环在同 bar
     // 全量重扫后配成 old→new 事务（未走到的级别在循环后补一条 removed-only 证书）。
     let mut txn_cleared: Vec<Vec<rebase_txn::TxnNode>> = Vec::new();
@@ -1904,9 +1914,8 @@ pub fn classify_with_tower_incremental(
                 if lc.upper_moves.is_empty() {
                     continue;
                 }
-                let old = rebase_txn::snapshot_nodes(
-                    "old", &lc.upper_moves, &lc.centers, &lc.win_meta,
-                );
+                let old =
+                    rebase_txn::snapshot_nodes("old", &lc.upper_moves, &lc.centers, &lc.win_meta);
                 let _ = rebase_txn::emit(
                     rebase_txn::TxnContext {
                         bar: txn_bar,
@@ -2050,7 +2059,8 @@ pub fn classify_with_tower_incremental(
     let mut dirty_e: usize = usize::MAX;
     // 放行条件3 falsification 探针启用开关（仅 test 构建；测「保留前缀比例 P/len」判设计前提）。
     #[cfg(test)]
-    let eprobe_on = *CASCADE_EPROBE.get_or_init(|| std::env::var(super::env_registry::THETA_CASCADE_EPROBE).is_ok());
+    let eprobe_on = *CASCADE_EPROBE
+        .get_or_init(|| std::env::var(super::env_registry::THETA_CASCADE_EPROBE).is_ok());
     // ★工位 4g：本 bar 是否有任一级 extend 非空 tail（含新级涌现首产 + 最高级 append）——驱动
     // generation +1（与 cascade_reset 一起完整覆盖 extract 可观察树变更，codex Q3）。
     let mut did_extend = false;
@@ -2167,14 +2177,20 @@ pub fn classify_with_tower_incremental(
             // ★全清对照（test-only，铁律 H1 神谕先例）：强制 P=0 退回整塔前缀清空，A/B 计时 + bit-exact
             // 对照。默认 off ⟹ 增量路径。开启后 bit_exact_per_bar 仍须绿（证 P>0 与全清逐字段相等）。
             #[cfg(test)]
-            if *CASCADE_FULLCLEAR.get_or_init(|| std::env::var(super::env_registry::THETA_CASCADE_FULLCLEAR).is_ok()) {
+            if *CASCADE_FULLCLEAR
+                .get_or_init(|| std::env::var(super::env_registry::THETA_CASCADE_FULLCLEAR).is_ok())
+            {
                 p = 0;
             }
             // ★#543 D1a 产出点④（cascade 后缀失效，P=0/P>0 两支共用）：被丢弃的旧后缀 `[p..]` 在
             // truncate/clear **之前**形成只读快照。这些旧对象不经下方 frontier pop，若不在此捕获，
             // 三流里就只剩「旧三元组凭空消失」（调研 §5.2 第 4 点点名必须覆盖）。
             if txn_on {
-                txn_cause = if p == 0 { "cascade_p0" } else { "cascade_prefix" };
+                txn_cause = if p == 0 {
+                    "cascade_p0"
+                } else {
+                    "cascade_prefix"
+                };
                 txn_cascade_reason = if units.len() < lc.last_input_len {
                     "len_shrink"
                 } else if frontier_mutated {
@@ -2451,12 +2467,8 @@ pub fn classify_with_tower_incremental(
                 .as_ref()
                 .filter(|(lv, _, _)| level_idx > 0 && *lv + 1 == level_idx)
                 .map(|(_, id, map)| (*id, map));
-            let (txn_id, lower_map) = rebase_txn::emit(
-                ctx,
-                std::mem::take(&mut txn_old_nodes),
-                new_nodes,
-                lower,
-            );
+            let (txn_id, lower_map) =
+                rebase_txn::emit(ctx, std::mem::take(&mut txn_old_nodes), new_nodes, lower);
             txn_lower = Some((level_idx, txn_id, lower_map));
         }
         stage_profile::time("06_extend_centers_upper", || {
@@ -2538,73 +2550,96 @@ pub fn classify_with_tower_incremental(
         // 故 level≥1 的结构长度键用 `units.len()`（L0 用 segments.len()）——append 变长即触 miss 重算。
         // frontier **同长改写**由 cascade_reset（frontier_mutated 比对，scan 窗覆盖全 units 因
         // consumed+2≥units.len()）清 cached_bsp_key 兜底；回缩由 last_input_len 守卫触 cascade。三情形全覆盖。
-        let struct_len = if is_l0 { l0.segments.len() } else { units.len() };
-        let bsp_key = (lc.centers.len(), lc.upper_moves.len(), struct_len);
-        let (bsp, pan_div): (Rc<Vec<BspPoint>>, Rc<Vec<signal::PanDivCert>>) = if lc.cached_bsp_key
-            == Some(bsp_key)
-        {
-            // 07c：memo 命中 ⟹ `Rc::clone`（引用计数 O(1)），替代全量 `cached_bsp.clone()`。
-            // Q4：pan_div 同批命中（同 key 守卫 ⟹ 同一 extract 产出的两半锁步复用）。
-            stage_profile::time("07c_bsp_memo_clone", || {
-                (Rc::clone(&lc.cached_bsp), Rc::clone(&lc.cached_pan_div))
-            })
+        let struct_len = if is_l0 {
+            l0.segments.len()
         } else {
-            // ★on2w3-07a frontier-resume：confirmed 前缀段的一/三类点缓存复用，只重判 frontier tail
-            // （消 07a O(n²) 主导项）。冻结边界锚 = min(centers[prefix_count-2].end_index, dirty_e)——
-            // `moves`（= decompose_resume 输出，本级增量续折）作 blocks 单一来源（不重 decompose）。
-            // segments 来源：L0=l0.segments（有序）；L≥1=units→unit_to_segment 投影（几何衰减，
-            // resume 内 debug_assert 守 end_index 严格递增）。cascade 清 cached_first_third 见 §失效块。
-            let (mut b, pan): (Vec<BspPoint>, Vec<signal::PanDivCert>) = if is_l0 {
-                stage_profile::time("07a_extract_signals_l0", || {
-                    signal::extract_first_third_resume(
-                        &mut lc.cached_first_third, &mut lc.cached_first_third_pan,
-                        &mut lc.cached_first_third_count, level_idx as u32, &lc.centers,
-                        &l0.segments, None, &moves,
-                        prefix_count, dirty_e, hist, dif, &closes_tick, &close_src,
-                        config.divergence_gauge,
-                    )
+            units.len()
+        };
+        let bsp_key = (lc.centers.len(), lc.upper_moves.len(), struct_len);
+        let (bsp, pan_div): (Rc<Vec<BspPoint>>, Rc<Vec<signal::PanDivCert>>) =
+            if lc.cached_bsp_key == Some(bsp_key) {
+                // 07c：memo 命中 ⟹ `Rc::clone`（引用计数 O(1)），替代全量 `cached_bsp.clone()`。
+                // Q4：pan_div 同批命中（同 key 守卫 ⟹ 同一 extract 产出的两半锁步复用）。
+                stage_profile::time("07c_bsp_memo_clone", || {
+                    (Rc::clone(&lc.cached_bsp), Rc::clone(&lc.cached_pan_div))
                 })
             } else {
-                stage_profile::time("07a_extract_first_third_ln", || {
-                    // 级别-N 一/三类（裁定 A）：units 承担线段角色，复用 L0 判据。units→Segment 投影
-                    // （几何衰减 O(units_L)/miss）。#486：三类 leave 与一类同取单元结构方向锚；
-                    // provenance `units_anchors` 仍供塔 ownership 链消费，不再传入 BSP 判据。
-                    let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
-                    let structural_anchors: Vec<Option<Direction>> =
-                        units.iter().map(|u| Some(u.direction)).collect();
-                    signal::extract_first_third_resume(
-                        &mut lc.cached_first_third, &mut lc.cached_first_third_pan,
-                        &mut lc.cached_first_third_count, level_idx as u32, &lc.centers, &segs,
-                        Some(&structural_anchors), &moves, prefix_count, dirty_e, hist, dif,
-                        &closes_tick, &close_src,
-                        config.divergence_gauge,
+                // ★on2w3-07a frontier-resume：confirmed 前缀段的一/三类点缓存复用，只重判 frontier tail
+                // （消 07a O(n²) 主导项）。冻结边界锚 = min(centers[prefix_count-2].end_index, dirty_e)——
+                // `moves`（= decompose_resume 输出，本级增量续折）作 blocks 单一来源（不重 decompose）。
+                // segments 来源：L0=l0.segments（有序）；L≥1=units→unit_to_segment 投影（几何衰减，
+                // resume 内 debug_assert 守 end_index 严格递增）。cascade 清 cached_first_third 见 §失效块。
+                let (mut b, pan): (Vec<BspPoint>, Vec<signal::PanDivCert>) = if is_l0 {
+                    stage_profile::time("07a_extract_signals_l0", || {
+                        signal::extract_first_third_resume(
+                            &mut lc.cached_first_third,
+                            &mut lc.cached_first_third_pan,
+                            &mut lc.cached_first_third_count,
+                            level_idx as u32,
+                            &lc.centers,
+                            &l0.segments,
+                            None,
+                            &moves,
+                            prefix_count,
+                            dirty_e,
+                            hist,
+                            dif,
+                            &closes_tick,
+                            &close_src,
+                            config.divergence_gauge,
+                        )
+                    })
+                } else {
+                    stage_profile::time("07a_extract_first_third_ln", || {
+                        // 级别-N 一/三类（裁定 A）：units 承担线段角色，复用 L0 判据。units→Segment 投影
+                        // （几何衰减 O(units_L)/miss）。#486：三类 leave 与一类同取单元结构方向锚；
+                        // provenance `units_anchors` 仍供塔 ownership 链消费，不再传入 BSP 判据。
+                        let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
+                        let structural_anchors: Vec<Option<Direction>> =
+                            units.iter().map(|u| Some(u.direction)).collect();
+                        signal::extract_first_third_resume(
+                            &mut lc.cached_first_third,
+                            &mut lc.cached_first_third_pan,
+                            &mut lc.cached_first_third_count,
+                            level_idx as u32,
+                            &lc.centers,
+                            &segs,
+                            Some(&structural_anchors),
+                            &moves,
+                            prefix_count,
+                            dirty_e,
+                            hist,
+                            dif,
+                            &closes_tick,
+                            &close_src,
+                            config.divergence_gauge,
+                        )
+                    })
+                };
+                let second = stage_profile::time("07b_extract_second", || {
+                    // ★07b frontier 门控：confirmed 前缀 parent 的 B2 缓存复用（跳过其重复背驰扫描），
+                    // 只对 frontier tail 每 bar 重算。消 confirmed-parent 全塔重扫 O(U²)。
+                    extract_second_resume(
+                        &mut lc.cached_second,
+                        &mut lc.cached_second_count,
+                        &lc.upper_moves[..],
+                        prefix_count,
+                        hist,
+                        &close_src,
+                        &area_cache,
+                        stable_len,
                     )
-                })
+                });
+                b.extend(second);
+                b.sort_by_key(|p| p.source_index);
+                // miss 路径：`Rc::new` 一次，cache 与 LevelState 共享同一 buffer（消除旧 `b.clone()`）。
+                let rc = Rc::new(b);
+                let rc_pan = Rc::new(pan);
+                lc.cached_bsp = Rc::clone(&rc);
+                lc.cached_pan_div = Rc::clone(&rc_pan); // Q4：与 bsp 同批缓存（同 key）。
+                lc.cached_bsp_key = Some(bsp_key);
+                (rc, rc_pan)
             };
-            let second = stage_profile::time("07b_extract_second", || {
-                // ★07b frontier 门控：confirmed 前缀 parent 的 B2 缓存复用（跳过其重复背驰扫描），
-                // 只对 frontier tail 每 bar 重算。消 confirmed-parent 全塔重扫 O(U²)。
-                extract_second_resume(
-                    &mut lc.cached_second,
-                    &mut lc.cached_second_count,
-                    &lc.upper_moves[..],
-                    prefix_count,
-                    hist,
-                    &close_src,
-                    &area_cache,
-                    stable_len,
-                )
-            });
-            b.extend(second);
-            b.sort_by_key(|p| p.source_index);
-            // miss 路径：`Rc::new` 一次，cache 与 LevelState 共享同一 buffer（消除旧 `b.clone()`）。
-            let rc = Rc::new(b);
-            let rc_pan = Rc::new(pan);
-            lc.cached_bsp = Rc::clone(&rc);
-            lc.cached_pan_div = Rc::clone(&rc_pan); // Q4：与 bsp 同批缓存（同 key）。
-            lc.cached_bsp_key = Some(bsp_key);
-            (rc, rc_pan)
-        };
 
         if lc.cached_candidate_key != Some(bsp_key) {
             let (candidate_segments, candidate_anchors) =
@@ -3240,7 +3275,11 @@ mod tests {
         let (_, tower_short) = classify_with_tower_incremental(&short_layer, &cfg, &mut cache);
 
         assert!(!tower_short.is_empty(), "4 段仍足以产出 L0 塔快照");
-        assert_eq!(tower_short[0].len(), 4, "回缩后 tower[0] = 新段账本全量重建");
+        assert_eq!(
+            tower_short[0].len(),
+            4,
+            "回缩后 tower[0] = 新段账本全量重建"
+        );
         assert_eq!(
             cache.level_scan_units(1).map(|u| u.len()),
             Some(tower_short[0].len()),
@@ -3268,7 +3307,9 @@ mod tests {
             seg(Direction::Up, 16, 20, 110, 145),
             seg(Direction::Down, 20, 24, 145, 115),
         ];
-        let closes: Vec<i64> = (0..28).map(|i| 100 + if i % 2 == 0 { 20 } else { -20 }).collect();
+        let closes: Vec<i64> = (0..28)
+            .map(|i| 100 + if i % 2 == 0 { 20 } else { -20 })
+            .collect();
         let long_layer = ParseLayer {
             segments: Rc::new(long_segments.clone()),
             segments_confirmed_len: 5,
@@ -3350,26 +3391,45 @@ mod tests {
         let _ = classify_with_tower_incremental(&l0_short, &cfg, &mut cache);
         let lines = rebase_txn::test_capture_take();
 
-        assert!(!lines.is_empty(), "生产放置点一条构造证书都没产出（seam 未接通）");
+        assert!(
+            !lines.is_empty(),
+            "生产放置点一条构造证书都没产出（seam 未接通）"
+        );
         let mut n_pop = 0usize;
         let mut n_cascade = 0usize;
         let mut n_continued = 0usize;
         let mut n_multi_emit = 0usize;
         for line in &lines {
             for k in [
-                "\"schema\":\"rebase_transform_txn_v1\"", "\"txn_id\"", "\"bar\"", "\"level\"",
-                "\"cause\"", "\"dirty_e\"", "\"resume_start\"", "\"prefix_count\"",
-                "\"old_nodes\"", "\"new_nodes\"", "\"transform_edges\"", "\"lower_txn_id\"",
-                "\"lower_edge_refs\"", "\"algorithm_version\"", "\"source_order_digest\"",
+                "\"schema\":\"rebase_transform_txn_v1\"",
+                "\"txn_id\"",
+                "\"bar\"",
+                "\"level\"",
+                "\"cause\"",
+                "\"dirty_e\"",
+                "\"resume_start\"",
+                "\"prefix_count\"",
+                "\"old_nodes\"",
+                "\"new_nodes\"",
+                "\"transform_edges\"",
+                "\"lower_txn_id\"",
+                "\"lower_edge_refs\"",
+                "\"algorithm_version\"",
+                "\"source_order_digest\"",
                 "\"txn_digest\"",
             ] {
                 assert!(line.contains(k), "证书缺字段组 {k}");
             }
-            assert!(!line.contains("18446744073709551615"), "usize::MAX 哨兵须记 null");
+            assert!(
+                !line.contains("18446744073709551615"),
+                "usize::MAX 哨兵须记 null"
+            );
             if line.contains("\"cause\":\"frontier_pop\"") {
                 n_pop += 1;
             }
-            if line.contains("\"cause\":\"cascade_p0\"") || line.contains("\"cause\":\"cascade_prefix\"") {
+            if line.contains("\"cause\":\"cascade_p0\"")
+                || line.contains("\"cause\":\"cascade_prefix\"")
+            {
                 n_cascade += 1;
                 assert!(
                     line.contains("\"side\":\"old\""),
@@ -3389,8 +3449,14 @@ mod tests {
             lines.len()
         );
         assert!(n_pop > 0, "常态 frontier pop 放置点未触达");
-        assert!(n_cascade > 0, "cascade 后缀失效放置点未触达（len shrink 未走到 P=0 分支）");
-        assert!(n_continued > 0, "无一条连续边——同 seed 重扫本应产 continued_1to1");
+        assert!(
+            n_cascade > 0,
+            "cascade 后缀失效放置点未触达（len shrink 未走到 P=0 分支）"
+        );
+        assert!(
+            n_continued > 0,
+            "无一条连续边——同 seed 重扫本应产 continued_1to1"
+        );
     }
 
     /// ★#543 D1a 负控：seam 未启用（无 env、无捕获）⟹ 逐 bar 增量塔的输出与启用时**逐字段相同**。
@@ -3421,7 +3487,11 @@ mod tests {
                 let (c, tower) = classify_with_tower_incremental(&l0, &cfg, &mut cache);
                 out.push((c, tower));
             }
-            let n = if capture { rebase_txn::test_capture_take().len() } else { 0 };
+            let n = if capture {
+                rebase_txn::test_capture_take().len()
+            } else {
+                0
+            };
             crate::theta_v0::lineage_book::test_set_consumer(None);
             (out, n)
         };
@@ -3430,8 +3500,14 @@ mod tests {
         assert!(emitted > 0, "开臂须真产出证书，否则本负控无区分力");
         assert_eq!(off.len(), on.len());
         for (i, (a, b)) in off.iter().zip(on.iter()).enumerate() {
-            assert_eq!(a.0, b.0, "bar {i}: Classification 被观测旁路改变（行为零变化红线破）");
-            assert_eq!(a.1, b.1, "bar {i}: tower 快照被观测旁路改变（行为零变化红线破）");
+            assert_eq!(
+                a.0, b.0,
+                "bar {i}: Classification 被观测旁路改变（行为零变化红线破）"
+            );
+            assert_eq!(
+                a.1, b.1,
+                "bar {i}: tower 快照被观测旁路改变（行为零变化红线破）"
+            );
         }
     }
 
@@ -3667,10 +3743,34 @@ mod tests {
         };
         // Down 单元：lo=终点价、hi=起点价（unit_to_segment 还原 start=hi/end=lo）。
         let units = vec![
-            UnitRange { start_index: 3, end_index: 5, direction: Direction::Down, lo: 250, hi: 350 }, // A 段（C0 离开）
-            UnitRange { start_index: 5, end_index: 7, direction: Direction::Up, lo: 250, hi: 280 },   // B 段连接
-            UnitRange { start_index: 9, end_index: 11, direction: Direction::Down, lo: 80, hi: 150 }, // C 段破 C1（<100）
-            UnitRange { start_index: 11, end_index: 13, direction: Direction::Up, lo: 80, hi: 90 }, // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+            UnitRange {
+                start_index: 3,
+                end_index: 5,
+                direction: Direction::Down,
+                lo: 250,
+                hi: 350,
+            }, // A 段（C0 离开）
+            UnitRange {
+                start_index: 5,
+                end_index: 7,
+                direction: Direction::Up,
+                lo: 250,
+                hi: 280,
+            }, // B 段连接
+            UnitRange {
+                start_index: 9,
+                end_index: 11,
+                direction: Direction::Down,
+                lo: 80,
+                hi: 150,
+            }, // C 段破 C1（<100）
+            UnitRange {
+                start_index: 11,
+                end_index: 13,
+                direction: Direction::Up,
+                lo: 80,
+                hi: 90,
+            }, // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
         ];
         // A 段 bar[3,5] 急跌（hist 面积大）、C 段 bar[9,11] 缓动（面积小=背驰）——同 signal.rs fixture。
         let prices: Vec<i64> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
@@ -3679,8 +3779,22 @@ mod tests {
         let hist = divergence::compute_macd(&closes, &ThetaConfig::default().macd).hist;
         // 本测试只验结构六 bit（force 旁挂不改），传空 dif/closes_tick ⟹ force=None（不影响 buy1 判据）。
         // Q7-#1 裁定C：显式全锚（本测试验证的是 Trend ownership 单元的 gap-fill 路径）。
-        let anchors = [Some(Direction::Down), Some(Direction::Up), Some(Direction::Down), Some(Direction::Up)];
-        let (bsp, _pan) = extract_first_third_for_level(&[c0, c1], &units, &anchors, &hist, &[], &[], &close_src, divergence::DivergenceGauge::default());
+        let anchors = [
+            Some(Direction::Down),
+            Some(Direction::Up),
+            Some(Direction::Down),
+            Some(Direction::Up),
+        ];
+        let (bsp, _pan) = extract_first_third_for_level(
+            &[c0, c1],
+            &units,
+            &anchors,
+            &hist,
+            &[],
+            &[],
+            &close_src,
+            divergence::DivergenceGauge::default(),
+        );
         let buy1: Vec<_> = bsp.iter().filter(|p| p.bits.buy1).collect();
         assert_eq!(
             buy1.len(),
@@ -3800,10 +3914,34 @@ mod tests {
             end_index: 8,
         };
         let units = vec![
-            UnitRange { start_index: 3, end_index: 5, direction: Direction::Down, lo: 250, hi: 350 },
-            UnitRange { start_index: 5, end_index: 7, direction: Direction::Up, lo: 250, hi: 280 },
-            UnitRange { start_index: 9, end_index: 11, direction: Direction::Down, lo: 80, hi: 150 },
-            UnitRange { start_index: 11, end_index: 13, direction: Direction::Up, lo: 80, hi: 90 }, // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
+            UnitRange {
+                start_index: 3,
+                end_index: 5,
+                direction: Direction::Down,
+                lo: 250,
+                hi: 350,
+            },
+            UnitRange {
+                start_index: 5,
+                end_index: 7,
+                direction: Direction::Up,
+                lo: 250,
+                hi: 280,
+            },
+            UnitRange {
+                start_index: 9,
+                end_index: 11,
+                direction: Direction::Down,
+                lo: 80,
+                hi: 150,
+            },
+            UnitRange {
+                start_index: 11,
+                end_index: 13,
+                direction: Direction::Up,
+                lo: 80,
+                hi: 90,
+            }, // #607 D2：T3-in-c 固定首对 retest（仍 < zd=100）
         ];
         let prices: Vec<i64> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
         let closes: Vec<f64> = prices.iter().map(|&v| v as f64).collect();
@@ -3828,7 +3966,14 @@ mod tests {
         );
         // 三类：ADR 补充十三 / #486 / Spec #485 授权 L≥1 leave 使用结构方向锚；
         // provenance fallback=None 不再否决三买，retest 仍是几何角色、不另设锚门。
-        let c = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 };
+        let c = Center {
+            zd: 100,
+            zg: 200,
+            dd: 90,
+            gg: 210,
+            start_index: 0,
+            end_index: 12,
+        };
         let u3 = vec![
             UnitRange {
                 start_index: 12,
@@ -3846,28 +3991,79 @@ mod tests {
             },
         ];
         let src24: Vec<usize> = (0..24).collect();
-        let (bsp, _) = extract_first_third_for_level(&[c], &u3, &[None, Some(Direction::Down)], &[], &[], &[], &src24, divergence::DivergenceGauge::default());
+        let (bsp, _) = extract_first_third_for_level(
+            &[c],
+            &u3,
+            &[None, Some(Direction::Down)],
+            &[],
+            &[],
+            &[],
+            &src24,
+            divergence::DivergenceGauge::default(),
+        );
         let buy3: Vec<_> = bsp.iter().filter(|p| p.bits.buy3).collect();
-        assert_eq!(buy3.len(), 1, "#486：provenance fallback=None 时，L≥1 仍按结构方向产三买");
-        assert_eq!(buy3[0].center, Some(signal::OwnerRef::Center(c)), "三类 OwnerRef 仍精确指向所破中枢");
+        assert_eq!(
+            buy3.len(),
+            1,
+            "#486：provenance fallback=None 时，L≥1 仍按结构方向产三买"
+        );
+        assert_eq!(
+            buy3[0].center,
+            Some(signal::OwnerRef::Center(c)),
+            "三类 OwnerRef 仍精确指向所破中枢"
+        );
         // provenance 是否有值不再改变同一结构几何的三类输出。
-        let (bsp2, _) = extract_first_third_for_level(&[c], &u3, &[Some(Direction::Up), Some(Direction::Down)], &[], &[], &[], &src24, divergence::DivergenceGauge::default());
+        let (bsp2, _) = extract_first_third_for_level(
+            &[c],
+            &u3,
+            &[Some(Direction::Up), Some(Direction::Down)],
+            &[],
+            &[],
+            &[],
+            &src24,
+            divergence::DivergenceGauge::default(),
+        );
         assert_eq!(bsp2, bsp);
     }
 
     #[test]
     fn issue486_level_ge1_third_rejects_structural_direction_geometry_mismatch() {
         use super::center::UnitRange;
-        let c = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 };
+        let c = Center {
+            zd: 100,
+            zg: 200,
+            dd: 90,
+            gg: 210,
+            start_index: 0,
+            end_index: 12,
+        };
         let units = vec![
             // 价格位于上方，但结构方向是 Down；旧 provenance=Up 不得越权把它认作向上离开。
-            UnitRange { start_index: 12, end_index: 16, direction: Direction::Down, lo: 250, hi: 260 },
-            UnitRange { start_index: 16, end_index: 20, direction: Direction::Down, lo: 210, hi: 250 },
+            UnitRange {
+                start_index: 12,
+                end_index: 16,
+                direction: Direction::Down,
+                lo: 250,
+                hi: 260,
+            },
+            UnitRange {
+                start_index: 16,
+                end_index: 20,
+                direction: Direction::Down,
+                lo: 210,
+                hi: 250,
+            },
         ];
         let src24: Vec<usize> = (0..24).collect();
         let (bsp, _) = extract_first_third_for_level(
-            &[c], &units, &[Some(Direction::Up), Some(Direction::Down)], &[], &[], &[],
-            &src24, divergence::DivergenceGauge::default(),
+            &[c],
+            &units,
+            &[Some(Direction::Up), Some(Direction::Down)],
+            &[],
+            &[],
+            &[],
+            &src24,
+            divergence::DivergenceGauge::default(),
         );
         assert!(
             bsp.iter().all(|p| !p.bits.buy3 && !p.bits.sell3),
@@ -3878,19 +4074,56 @@ mod tests {
     #[test]
     fn issue486_level_ge1_third_rejects_retest_equal_center_edge() {
         use super::center::UnitRange;
-        let c = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 };
+        let c = Center {
+            zd: 100,
+            zg: 200,
+            dd: 90,
+            gg: 210,
+            start_index: 0,
+            end_index: 12,
+        };
         let src24: Vec<usize> = (0..24).collect();
         let buy_equal = vec![
-            UnitRange { start_index: 12, end_index: 16, direction: Direction::Up, lo: 150, hi: 250 },
-            UnitRange { start_index: 16, end_index: 20, direction: Direction::Down, lo: 200, hi: 250 },
+            UnitRange {
+                start_index: 12,
+                end_index: 16,
+                direction: Direction::Up,
+                lo: 150,
+                hi: 250,
+            },
+            UnitRange {
+                start_index: 16,
+                end_index: 20,
+                direction: Direction::Down,
+                lo: 200,
+                hi: 250,
+            },
         ];
         let sell_equal = vec![
-            UnitRange { start_index: 12, end_index: 16, direction: Direction::Down, lo: 50, hi: 150 },
-            UnitRange { start_index: 16, end_index: 20, direction: Direction::Up, lo: 50, hi: 100 },
+            UnitRange {
+                start_index: 12,
+                end_index: 16,
+                direction: Direction::Down,
+                lo: 50,
+                hi: 150,
+            },
+            UnitRange {
+                start_index: 16,
+                end_index: 20,
+                direction: Direction::Up,
+                lo: 50,
+                hi: 100,
+            },
         ];
         for units in [&buy_equal, &sell_equal] {
             let (bsp, _) = extract_first_third_for_level(
-                &[c], units, &[None, None], &[], &[], &[], &src24,
+                &[c],
+                units,
+                &[None, None],
+                &[],
+                &[],
+                &[],
+                &src24,
                 divergence::DivergenceGauge::default(),
             );
             assert!(
@@ -3902,7 +4135,14 @@ mod tests {
 
     #[test]
     fn issue486_l0_third_output_fields_unchanged() {
-        let c = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 };
+        let c = Center {
+            zd: 100,
+            zg: 200,
+            dd: 90,
+            gg: 210,
+            start_index: 0,
+            end_index: 12,
+        };
         let segs = vec![
             Segment {
                 direction: Direction::Up,
@@ -3921,7 +4161,13 @@ mod tests {
         ];
         let src24: Vec<usize> = (0..24).collect();
         let (bsp, pan) = signal::extract_signals_with_hist(
-            &[c], &segs, &[], &[], &[], &src24, divergence::DivergenceGauge::default(),
+            &[c],
+            &segs,
+            &[],
+            &[],
+            &[],
+            &src24,
+            divergence::DivergenceGauge::default(),
         );
         assert!(pan.is_empty());
         assert_eq!(bsp.len(), 1);
@@ -4673,7 +4919,6 @@ mod tests {
         }
     }
 
-
     /// #550 主缝②：修订富集的逐段因果重放，全历史重建与跨步增量事件簿逐字段相等。
     #[test]
     fn candidate_event_stream_per_segment_full_replay_equals_incremental() {
@@ -5198,7 +5443,9 @@ mod tests {
         let heads = book.heads();
         assert!(!heads.is_empty(), "非真空锁：链身份非空");
         assert!(
-            heads.iter().any(|certificate| !certificate.edges.is_empty()),
+            heads
+                .iter()
+                .any(|certificate| !certificate.edges.is_empty()),
             "非真空锁：至少一条链带边（否则边侧全部判据未被触发）"
         );
         let probe = chain_cert::chain_probe::snapshot();
@@ -5219,7 +5466,9 @@ mod tests {
             "非真空锁：extends 的查簿分支必须真被走过（{probe:?}）"
         );
         assert!(
-            heads.iter().all(|certificate| certificate.extends.is_none()),
+            heads
+                .iter()
+                .all(|certificate| certificate.extends.is_none()),
             "本夹具上无一前缀物化 ⟹ extends 全空（{probe:?}）"
         );
         // 090 照实：本合成夹具**未覆盖**到的分支（`to_invalidated` / `fact_edges` /
@@ -5320,7 +5569,9 @@ mod tests {
     fn classify_chain_walks_unresolved_to_provisional_with_growth_and_clock() {
         let cfg = ThetaConfig::default();
         let layer = lifecycle_rich_layer();
-        let book = causal_book_over_prefixes(&layer, &cfg).candidate_book.streams();
+        let book = causal_book_over_prefixes(&layer, &cfg)
+            .candidate_book
+            .streams();
         let history: Vec<_> = book
             .iter()
             .flat_map(|stream| stream.iter())
@@ -5330,7 +5581,10 @@ mod tests {
         assert_eq!(history[0].key, history[1].key, "右端不入键 ⟹ 同一身份");
 
         assert_eq!(history[0].state, cand_event::CandidateState::Unresolved);
-        assert!(!history[0].structural_predicates.extreme, "破核心未破包络极值");
+        assert!(
+            !history[0].structural_predicates.extreme,
+            "破核心未破包络极值"
+        );
         assert_eq!(history[0].first_provable_at, None, "未决期不落首证钟");
         assert_eq!(history[0].revision, 0);
 
@@ -5347,7 +5601,10 @@ mod tests {
             Some(history[1].interval.1),
             "首证钟 = 首次全谓词成立的结构位"
         );
-        assert_eq!(history[1].observed_at, history[0].observed_at, "入簿钟不后移");
+        assert_eq!(
+            history[1].observed_at, history[0].observed_at,
+            "入簿钟不后移"
+        );
     }
 
     /// ★#551 裁定(i) 投影等价锁 —— **甲口径定稿**（编排者 2026-07-28 裁决，非上浮态）。
@@ -5374,7 +5631,9 @@ mod tests {
         let cfg = ThetaConfig::default();
         let layer = lifecycle_rich_layer();
         let fresh = latest_by_key(&classify_with_tower_events(&layer, &cfg).2);
-        let book = causal_book_over_prefixes(&layer, &cfg).candidate_book.streams();
+        let book = causal_book_over_prefixes(&layer, &cfg)
+            .candidate_book
+            .streams();
 
         let revisions: usize = book.iter().map(|stream| stream.len()).sum();
         let terminal = latest_by_key(&book);
@@ -5536,7 +5795,11 @@ mod tests {
         let cfg = ThetaConfig::default();
         let layer = candidate_rich_layer();
         let fresh = latest_by_key(&classify_with_tower_events(&layer, &cfg).2);
-        let terminal = latest_by_key(&causal_book_over_prefixes(&layer, &cfg).candidate_book.streams());
+        let terminal = latest_by_key(
+            &causal_book_over_prefixes(&layer, &cfg)
+                .candidate_book
+                .streams(),
+        );
 
         let mut differ_terminal = 0usize;
         let mut differ_live = 0usize;

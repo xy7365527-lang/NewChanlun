@@ -23,7 +23,9 @@
 //!   (iv)  timestamp 不参与笔/段划分（parse_layer 只用价格与 source_index 序列）。
 
 use newchan_rust::theta_v0::config::ThetaConfig;
-use newchan_rust::theta_v0::parser::feature_seq::{gap_tangent_probe_reset, gap_tangent_probe_snapshot};
+use newchan_rust::theta_v0::parser::feature_seq::{
+    gap_tangent_probe_reset, gap_tangent_probe_snapshot,
+};
 use newchan_rust::theta_v0::parser::parse_layer;
 use newchan_rust::theta_v0::parser::segment::{
     divide_segments, overlap_tangent_probe_reset, overlap_tangent_probe_snapshot,

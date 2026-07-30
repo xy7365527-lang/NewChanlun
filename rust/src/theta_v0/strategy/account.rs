@@ -183,7 +183,11 @@ impl AccountKey {
             account,
             level
         );
-        Self { account, level, position }
+        Self {
+            account,
+            level,
+            position,
+        }
     }
 }
 
@@ -235,7 +239,13 @@ pub struct AccountInstance {
 
 impl AccountInstance {
     fn new(key: AccountKey) -> Self {
-        Self { key, qty: 0.0, cost_basis: 0.0, realized_pnl: 0.0, open: false }
+        Self {
+            key,
+            qty: 0.0,
+            cost_basis: 0.0,
+            realized_pnl: 0.0,
+            open: false,
+        }
     }
 }
 
@@ -276,15 +286,27 @@ impl ParallelAccountLedger {
 
     /// 成交：pending 出队（未提交即拒，[`AccountChainError::NotPending`]），
     /// 按均价法过账持仓/成本基/已实现，记成交结果（链 stage 3+4+5）。
-    pub fn fill(&mut self, order: AccountOrder, fill_px: f64, fill_bar: usize) -> Result<(), AccountChainError> {
+    pub fn fill(
+        &mut self,
+        order: AccountOrder,
+        fill_px: f64,
+        fill_bar: usize,
+    ) -> Result<(), AccountChainError> {
         let pending_idx = self
             .pending
             .iter()
-            .position(|p| p.key == order.key && p.decision_bar == order.decision_bar && p.qty_delta == order.qty_delta)
+            .position(|p| {
+                p.key == order.key
+                    && p.decision_bar == order.decision_bar
+                    && p.qty_delta == order.qty_delta
+            })
             .ok_or(AccountChainError::NotPending)?;
         self.pending.remove(pending_idx);
 
-        let inst = self.instances.entry(order.key).or_insert_with(|| AccountInstance::new(order.key));
+        let inst = self
+            .instances
+            .entry(order.key)
+            .or_insert_with(|| AccountInstance::new(order.key));
         let delta = order.qty_delta;
         let mut realized = 0.0;
         if inst.qty == 0.0 || inst.qty.signum() == delta.signum() {
@@ -306,7 +328,12 @@ impl ParallelAccountLedger {
         inst.realized_pnl += realized;
         inst.open = inst.qty != 0.0;
 
-        self.fills.push(AccountFill { order, fill_px, fill_bar, realized_pnl: realized });
+        self.fills.push(AccountFill {
+            order,
+            fill_px,
+            fill_bar,
+            realized_pnl: realized,
+        });
         Ok(())
     }
 
@@ -426,7 +453,10 @@ mod tests {
     fn pos(level: u32, ordinal: u64, side: VoiceSide, generation: u32) -> PositionNodeId {
         PositionNodeId {
             carrier: ElementId { level, ordinal },
-            entry_certificate: Some(EntryCertificate { level, source_index: 0 }),
+            entry_certificate: Some(EntryCertificate {
+                level,
+                source_index: 0,
+            }),
             side,
             generation,
         }
@@ -452,7 +482,14 @@ mod tests {
     /// 穷尽匹配无通配臂即类型层证明（若 account 是 Option/Vec，此形态无法编译）。
     #[test]
     fn account_order_carries_exactly_one_account() {
-        let o = order(AccountIdentity::Core { level: 1 }, 1, VoiceSide::Long, ActionReason::Open, 10.0, 0);
+        let o = order(
+            AccountIdentity::Core { level: 1 },
+            1,
+            VoiceSide::Long,
+            ActionReason::Open,
+            10.0,
+            0,
+        );
         let tag = match o.account() {
             AccountIdentity::Core { level } => {
                 assert_eq!(level, 1);
@@ -498,7 +535,10 @@ mod tests {
         // Flat 方向候选归 𝒦 记录不开腿 ⟹ 任何 entry_v × Flat 皆无账户身份（诚实 None，不伪造归属）。
         assert_eq!(identity_of(Vertical::Ambient, VoiceSide::Flat, 0), None);
         assert_eq!(identity_of(Vertical::ReverseOpen, VoiceSide::Flat, 0), None);
-        assert_eq!(identity_of(Vertical::FollowParent, VoiceSide::Flat, 0), None);
+        assert_eq!(
+            identity_of(Vertical::FollowParent, VoiceSide::Flat, 0),
+            None
+        );
     }
 
     /// ★理由轴与账户正交：同一理由可落不同账户，同一账户可带不同理由
@@ -513,14 +553,25 @@ mod tests {
             -5.0,
             3,
         );
-        let sd_prune = order(AccountIdentity::ReverseOpen { level: 0 }, 0, VoiceSide::Short, ActionReason::StructuralPrune, 5.0, 3);
+        let sd_prune = order(
+            AccountIdentity::ReverseOpen { level: 0 },
+            0,
+            VoiceSide::Short,
+            ActionReason::StructuralPrune,
+            5.0,
+            3,
+        );
         assert_eq!(core_prune.reason, sd_prune.reason, "同一理由（结构剪枝）");
         assert_ne!(core_prune.account(), sd_prune.account(), "不同账户（正交）");
         // 反向触发类 → 理由（保留 ExitType 在 CloseRoot 下坍缩的一类/二类之分）。
         assert_eq!(reason_of_reverse(1), Some(ActionReason::ReverseType1));
         assert_eq!(reason_of_reverse(2), Some(ActionReason::ReverseType2));
         assert_eq!(reason_of_reverse(3), Some(ActionReason::ReverseType3));
-        assert_eq!(reason_of_reverse(0), None, "触发类 0 非合法反向类（诚实 None）");
+        assert_eq!(
+            reason_of_reverse(0),
+            None,
+            "触发类 0 非合法反向类（诚实 None）"
+        );
         assert_eq!(reason_of_reverse(4), None);
     }
 
@@ -528,7 +579,14 @@ mod tests {
     #[test]
     fn key_carried_through_full_chain() {
         let mut book = ParallelAccountLedger::new();
-        let o = order(AccountIdentity::Core { level: 1 }, 1, VoiceSide::Long, ActionReason::Open, 10.0, 2);
+        let o = order(
+            AccountIdentity::Core { level: 1 },
+            1,
+            VoiceSide::Long,
+            ActionReason::Open,
+            10.0,
+            2,
+        );
         book.submit(o);
         // 链 stage 1+2：订单日志与 pending 均携同一 (account, level, position) 键。
         assert_eq!(book.orders().len(), 1);
@@ -552,7 +610,14 @@ mod tests {
     #[test]
     fn fill_rejects_order_not_submitted() {
         let mut book = ParallelAccountLedger::new();
-        let o = order(AccountIdentity::Short, 0, VoiceSide::Short, ActionReason::Open, -3.0, 0);
+        let o = order(
+            AccountIdentity::Short,
+            0,
+            VoiceSide::Short,
+            ActionReason::Open,
+            -3.0,
+            0,
+        );
         assert_eq!(
             book.fill(o, 100.0, 1),
             Err(AccountChainError::NotPending),
@@ -572,23 +637,69 @@ mod tests {
     fn view_posts_per_instance_and_reads_three_identities() {
         let mut book = ParallelAccountLedger::new();
         // Core{1} 多根（父仓）、ReverseOpen 空子腿（父多在册）、Short 空根（无父反向声部）。
-        let core_open = order(AccountIdentity::Core { level: 1 }, 1, VoiceSide::Long, ActionReason::Open, 10.0, 0);
-        let sd_open = order(AccountIdentity::ReverseOpen { level: 0 }, 0, VoiceSide::Short, ActionReason::Open, -4.0, 1);
-        let short_open = order(AccountIdentity::Short, 0, VoiceSide::Short, ActionReason::Open, -6.0, 2);
+        let core_open = order(
+            AccountIdentity::Core { level: 1 },
+            1,
+            VoiceSide::Long,
+            ActionReason::Open,
+            10.0,
+            0,
+        );
+        let sd_open = order(
+            AccountIdentity::ReverseOpen { level: 0 },
+            0,
+            VoiceSide::Short,
+            ActionReason::Open,
+            -4.0,
+            1,
+        );
+        let short_open = order(
+            AccountIdentity::Short,
+            0,
+            VoiceSide::Short,
+            ActionReason::Open,
+            -6.0,
+            2,
+        );
         book.post(core_open, 100.0, 0);
         book.post(sd_open, 100.0, 1);
         book.post(short_open, 100.0, 2);
         // 三身份余额（派生读数：多正空负）。
         assert_eq!(book.balance(AccountIdentity::Core { level: 1 }), 10.0);
-        assert_eq!(book.balance(AccountIdentity::ReverseOpen { level: 0 }), -4.0);
+        assert_eq!(
+            book.balance(AccountIdentity::ReverseOpen { level: 0 }),
+            -4.0
+        );
         assert_eq!(book.balance(AccountIdentity::Short), -6.0);
         // 分实例：同身份不同仓位节点各记各账。
-        let sd_open2 = order(AccountIdentity::ReverseOpen { level: 0 }, 0, VoiceSide::Short, ActionReason::Open, -2.0, 3);
-        let sd_key2 = AccountKey::new(AccountIdentity::ReverseOpen { level: 0 }, 0, pos(0, 1, VoiceSide::Short, 0));
-        let sd_open2 = AccountOrder { key: sd_key2, ..sd_open2 };
+        let sd_open2 = order(
+            AccountIdentity::ReverseOpen { level: 0 },
+            0,
+            VoiceSide::Short,
+            ActionReason::Open,
+            -2.0,
+            3,
+        );
+        let sd_key2 = AccountKey::new(
+            AccountIdentity::ReverseOpen { level: 0 },
+            0,
+            pos(0, 1, VoiceSide::Short, 0),
+        );
+        let sd_open2 = AccountOrder {
+            key: sd_key2,
+            ..sd_open2
+        };
         book.post(sd_open2, 100.0, 3);
-        assert_eq!(book.balance(AccountIdentity::ReverseOpen { level: 0 }), -6.0, "聚合 = 两实例之和（派生）");
-        assert_eq!(book.instance(&sd_open.key).unwrap().qty, -4.0, "实例一不被实例二污染");
+        assert_eq!(
+            book.balance(AccountIdentity::ReverseOpen { level: 0 }),
+            -6.0,
+            "聚合 = 两实例之和（派生）"
+        );
+        assert_eq!(
+            book.instance(&sd_open.key).unwrap().qty,
+            -4.0,
+            "实例一不被实例二污染"
+        );
         assert_eq!(book.instance(&sd_key2).unwrap().qty, -2.0);
     }
 
@@ -597,16 +708,36 @@ mod tests {
     #[test]
     fn cost_basis_aggregates_per_identity_like_balance() {
         let mut book = ParallelAccountLedger::new();
-        let open = order(AccountIdentity::Core { level: 3 }, 3, VoiceSide::Long, ActionReason::Open, 300.0, 0);
+        let open = order(
+            AccountIdentity::Core { level: 3 },
+            3,
+            VoiceSide::Long,
+            ActionReason::Open,
+            300.0,
+            0,
+        );
         book.post(open, 10.0, 0); // 300 股 @10 ⟹ cost_basis=3000
         assert_eq!(book.cost_basis(AccountIdentity::Core { level: 3 }), 3_000.0);
         assert_eq!(book.balance(AccountIdentity::Core { level: 3 }), 300.0);
 
         // 第二仓位节点同身份加总：另一个 carrier 的 Core{3} 仓，聚合求和（同 balance 口径）。
-        let open2_key = AccountKey::new(AccountIdentity::Core { level: 3 }, 3, pos(3, 1, VoiceSide::Long, 0));
-        let open2 = AccountOrder { key: open2_key, reason: ActionReason::Open, qty_delta: 100.0, decision_bar: 1 };
+        let open2_key = AccountKey::new(
+            AccountIdentity::Core { level: 3 },
+            3,
+            pos(3, 1, VoiceSide::Long, 0),
+        );
+        let open2 = AccountOrder {
+            key: open2_key,
+            reason: ActionReason::Open,
+            qty_delta: 100.0,
+            decision_bar: 1,
+        };
         book.post(open2, 20.0, 1); // 100 股 @20 ⟹ cost_basis=2000
-        assert_eq!(book.cost_basis(AccountIdentity::Core { level: 3 }), 5_000.0, "两实例成本基求和=3000+2000");
+        assert_eq!(
+            book.cost_basis(AccountIdentity::Core { level: 3 }),
+            5_000.0,
+            "两实例成本基求和=3000+2000"
+        );
         assert_eq!(book.balance(AccountIdentity::Core { level: 3 }), 400.0);
 
         // 部分平仓按均价法释放成本基：第一仓位节点减 100 股（均价10）⟹ 成本基降 1000。
@@ -629,7 +760,14 @@ mod tests {
     #[test]
     fn aggregate_is_derived_not_canonical() {
         let mut book = ParallelAccountLedger::new();
-        let open = order(AccountIdentity::Core { level: 0 }, 0, VoiceSide::Long, ActionReason::Open, 10.0, 2);
+        let open = order(
+            AccountIdentity::Core { level: 0 },
+            0,
+            VoiceSide::Long,
+            ActionReason::Open,
+            10.0,
+            2,
+        );
         let close = AccountOrder {
             reason: ActionReason::ReverseType1,
             qty_delta: -10.0,
@@ -640,11 +778,24 @@ mod tests {
         // 事件后余额立即反映（现算，非缓存）。
         assert_eq!(book.balance(AccountIdentity::Core { level: 0 }), 10.0);
         book.post(close, 110.0, 6);
-        assert_eq!(book.balance(AccountIdentity::Core { level: 0 }), 0.0, "一类点全平后 Core(level)=0（断言2视图层前身）");
+        assert_eq!(
+            book.balance(AccountIdentity::Core { level: 0 }),
+            0.0,
+            "一类点全平后 Core(level)=0（断言2视图层前身）"
+        );
         // 历史时点自 fills 重放：开前 0、开后 10、平后 0——派生，无快照存储。
-        assert_eq!(book.balance_as_of(AccountIdentity::Core { level: 0 }, 2), 0.0);
-        assert_eq!(book.balance_as_of(AccountIdentity::Core { level: 0 }, 3), 10.0);
-        assert_eq!(book.balance_as_of(AccountIdentity::Core { level: 0 }, 6), 0.0);
+        assert_eq!(
+            book.balance_as_of(AccountIdentity::Core { level: 0 }, 2),
+            0.0
+        );
+        assert_eq!(
+            book.balance_as_of(AccountIdentity::Core { level: 0 }, 3),
+            10.0
+        );
+        assert_eq!(
+            book.balance_as_of(AccountIdentity::Core { level: 0 }, 6),
+            0.0
+        );
         // 实例保留（canonical 分实例事实）：qty=0、已实现盈亏入账。
         let inst = book.instance(&open.key).unwrap();
         assert!(!inst.open, "全平后实例关闭");
@@ -657,10 +808,20 @@ mod tests {
     #[test]
     fn has_residual_false_within_tolerance() {
         let mut book = ParallelAccountLedger::new();
-        let key = AccountKey::new(AccountIdentity::Core { level: 0 }, 0, pos(0, 0, VoiceSide::Long, 0));
+        let key = AccountKey::new(
+            AccountIdentity::Core { level: 0 },
+            0,
+            pos(0, 0, VoiceSide::Long, 0),
+        );
         book.instances.insert(
             key,
-            AccountInstance { key, qty: 9.9e-10, cost_basis: 0.0, realized_pnl: 0.0, open: true },
+            AccountInstance {
+                key,
+                qty: 9.9e-10,
+                cost_basis: 0.0,
+                realized_pnl: 0.0,
+                open: true,
+            },
         );
         assert!(
             !book.has_residual(AccountIdentity::Core { level: 0 }),
@@ -673,10 +834,20 @@ mod tests {
     #[test]
     fn has_residual_true_beyond_tolerance() {
         let mut book = ParallelAccountLedger::new();
-        let key = AccountKey::new(AccountIdentity::Core { level: 0 }, 0, pos(0, 0, VoiceSide::Long, 0));
+        let key = AccountKey::new(
+            AccountIdentity::Core { level: 0 },
+            0,
+            pos(0, 0, VoiceSide::Long, 0),
+        );
         book.instances.insert(
             key,
-            AccountInstance { key, qty: 1.1e-9, cost_basis: 0.0, realized_pnl: 0.0, open: true },
+            AccountInstance {
+                key,
+                qty: 1.1e-9,
+                cost_basis: 0.0,
+                realized_pnl: 0.0,
+                open: true,
+            },
         );
         assert!(
             book.has_residual(AccountIdentity::Core { level: 0 }),
@@ -724,8 +895,14 @@ mod tests {
             Some(ActionReason::ReverseType1)
         );
         // 非法触发类 ⟹ None（不伪造理由，与 reason_of_reverse 同口径）。
-        assert_eq!(reason_of_reverse_close(AccountIdentity::Core { level: 0 }, 0, true), None);
-        assert_eq!(reason_of_reverse_close(AccountIdentity::Short, 4, true), None);
+        assert_eq!(
+            reason_of_reverse_close(AccountIdentity::Core { level: 0 }, 0, true),
+            None
+        );
+        assert_eq!(
+            reason_of_reverse_close(AccountIdentity::Short, 4, true),
+            None
+        );
     }
 
     /// ★#199 断言③的分流层形态：二类产物账户约束——`ReverseType2` 永不落 Core 账
@@ -764,25 +941,58 @@ mod tests {
     #[test]
     fn reason_of_open_marks_only_type2_short_account_as_open_short() {
         // 二类 × Short（无父空根）⟹ OpenShort（二类开空通道）。
-        assert_eq!(reason_of_open(AccountIdentity::Short, 2), ActionReason::OpenShort);
+        assert_eq!(
+            reason_of_open(AccountIdentity::Short, 2),
+            ActionReason::OpenShort
+        );
         // 一/三类 × Short ⟹ Open（一类首开反向仓标准位、三类不构成开空通道）。
-        assert_eq!(reason_of_open(AccountIdentity::Short, 1), ActionReason::Open);
-        assert_eq!(reason_of_open(AccountIdentity::Short, 3), ActionReason::Open);
+        assert_eq!(
+            reason_of_open(AccountIdentity::Short, 1),
+            ActionReason::Open
+        );
+        assert_eq!(
+            reason_of_open(AccountIdentity::Short, 3),
+            ActionReason::Open
+        );
         // 二类 × ReverseOpen ⟹ Open（首开反向开是 B 账户既有通道，非 OpenShort）。
-        assert_eq!(reason_of_open(AccountIdentity::ReverseOpen { level: 0 }, 2), ActionReason::Open);
+        assert_eq!(
+            reason_of_open(AccountIdentity::ReverseOpen { level: 0 }, 2),
+            ActionReason::Open
+        );
         // 二类 × Core ⟹ Open（FollowParent 级联加仓 / Ambient 多根第二入场，非 C 账户）。
-        assert_eq!(reason_of_open(AccountIdentity::Core { level: 0 }, 2), ActionReason::Open);
-        assert_eq!(reason_of_open(AccountIdentity::Core { level: 1 }, 2), ActionReason::Open);
+        assert_eq!(
+            reason_of_open(AccountIdentity::Core { level: 0 }, 2),
+            ActionReason::Open
+        );
+        assert_eq!(
+            reason_of_open(AccountIdentity::Core { level: 1 }, 2),
+            ActionReason::Open
+        );
         // 非法触发类不享受通道标注（与 reason_of_reverse 同口径的防御域）。
-        assert_eq!(reason_of_open(AccountIdentity::Short, 0), ActionReason::Open);
+        assert_eq!(
+            reason_of_open(AccountIdentity::Short, 0),
+            ActionReason::Open
+        );
     }
 
     /// ★减仓口径：部分平仓按比例释放成本基（均价法）。
     #[test]
     fn partial_close_releases_cost_basis_pro_rata() {
         let mut book = ParallelAccountLedger::new();
-        let open = order(AccountIdentity::Short, 1, VoiceSide::Short, ActionReason::Open, -6.0, 0);
-        let half_close = AccountOrder { reason: ActionReason::ReverseType3, qty_delta: 3.0, decision_bar: 1, ..open };
+        let open = order(
+            AccountIdentity::Short,
+            1,
+            VoiceSide::Short,
+            ActionReason::Open,
+            -6.0,
+            0,
+        );
+        let half_close = AccountOrder {
+            reason: ActionReason::ReverseType3,
+            qty_delta: 3.0,
+            decision_bar: 1,
+            ..open
+        };
         book.post(open, 100.0, 0);
         book.post(half_close, 90.0, 1);
         let inst = book.instance(&open.key).unwrap();
@@ -805,15 +1015,58 @@ mod tests {
         let mut book = ParallelAccountLedger::new();
         // Core{0} 双侧在册：多侧 +100（Ambient×Long 根）＋ 空侧 −30（FollowParent×Short
         // 顺父级联——账户同归 Core{0}、方向由实例键 position.side 表达）。
-        book.post(order(AccountIdentity::Core { level: 0 }, 0, VoiceSide::Long, ActionReason::Open, 100.0, 0), 10.0, 0);
-        book.post(order(AccountIdentity::Core { level: 0 }, 0, VoiceSide::Short, ActionReason::Open, -30.0, 0), 10.0, 0);
+        book.post(
+            order(
+                AccountIdentity::Core { level: 0 },
+                0,
+                VoiceSide::Long,
+                ActionReason::Open,
+                100.0,
+                0,
+            ),
+            10.0,
+            0,
+        );
+        book.post(
+            order(
+                AccountIdentity::Core { level: 0 },
+                0,
+                VoiceSide::Short,
+                ActionReason::Open,
+                -30.0,
+                0,
+            ),
+            10.0,
+            0,
+        );
         // 分侧投影：多侧 +100 / 空侧 −30；净额 +70（双侧相互掩盖）。
-        assert_eq!(book.balance_side(AccountIdentity::Core { level: 0 }, VoiceSide::Long), 100.0);
-        assert_eq!(book.balance_side(AccountIdentity::Core { level: 0 }, VoiceSide::Short), -30.0);
-        assert_eq!(book.balance(AccountIdentity::Core { level: 0 }), 70.0, "净额口径不动（派生视图共存）");
+        assert_eq!(
+            book.balance_side(AccountIdentity::Core { level: 0 }, VoiceSide::Long),
+            100.0
+        );
+        assert_eq!(
+            book.balance_side(AccountIdentity::Core { level: 0 }, VoiceSide::Short),
+            -30.0
+        );
+        assert_eq!(
+            book.balance(AccountIdentity::Core { level: 0 }),
+            70.0,
+            "净额口径不动（派生视图共存）"
+        );
         // 一类卖批全平多侧（ReverseType1 平多 −100）：多侧分量=0（卖批查零过）、
         // 空侧 −30 合法存活（不计入卖批）；净额 −30 ≠ 0 = 旧净额口径误报面。
-        book.post(order(AccountIdentity::Core { level: 0 }, 0, VoiceSide::Long, ActionReason::ReverseType1, -100.0, 1), 10.0, 1);
+        book.post(
+            order(
+                AccountIdentity::Core { level: 0 },
+                0,
+                VoiceSide::Long,
+                ActionReason::ReverseType1,
+                -100.0,
+                1,
+            ),
+            10.0,
+            1,
+        );
         assert_eq!(
             book.balance_side(AccountIdentity::Core { level: 0 }, VoiceSide::Long),
             0.0,
@@ -830,7 +1083,18 @@ mod tests {
             "净额≠0——旧标量查零在此误报（m3 (1,470) 同型），拆查后由空侧分量承担"
         );
         // 一类买批全平空侧（ReverseType1 平空 +30）：空侧分量=0（买批查零过）。
-        book.post(order(AccountIdentity::Core { level: 0 }, 0, VoiceSide::Short, ActionReason::ReverseType1, 30.0, 2), 10.0, 2);
+        book.post(
+            order(
+                AccountIdentity::Core { level: 0 },
+                0,
+                VoiceSide::Short,
+                ActionReason::ReverseType1,
+                30.0,
+                2,
+            ),
+            10.0,
+            2,
+        );
         assert_eq!(
             book.balance_side(AccountIdentity::Core { level: 0 }, VoiceSide::Short),
             0.0,
@@ -845,10 +1109,40 @@ mod tests {
     fn cost_basis_side_splits_by_voice_side_like_balance_side() {
         let mut book = ParallelAccountLedger::new();
         // Core{0} 多侧 100 股 @10（成本基1000）+ 空侧 30 股 @20（成本基600，顺父级联 Short 腿）。
-        book.post(order(AccountIdentity::Core { level: 0 }, 0, VoiceSide::Long, ActionReason::Open, 100.0, 0), 10.0, 0);
-        book.post(order(AccountIdentity::Core { level: 0 }, 0, VoiceSide::Short, ActionReason::Open, -30.0, 0), 20.0, 0);
-        assert_eq!(book.cost_basis_side(AccountIdentity::Core { level: 0 }, VoiceSide::Long), 1_000.0, "多侧成本基独立读数，不含空侧");
-        assert_eq!(book.cost_basis_side(AccountIdentity::Core { level: 0 }, VoiceSide::Short), 600.0, "空侧成本基独立读数，不含多侧");
+        book.post(
+            order(
+                AccountIdentity::Core { level: 0 },
+                0,
+                VoiceSide::Long,
+                ActionReason::Open,
+                100.0,
+                0,
+            ),
+            10.0,
+            0,
+        );
+        book.post(
+            order(
+                AccountIdentity::Core { level: 0 },
+                0,
+                VoiceSide::Short,
+                ActionReason::Open,
+                -30.0,
+                0,
+            ),
+            20.0,
+            0,
+        );
+        assert_eq!(
+            book.cost_basis_side(AccountIdentity::Core { level: 0 }, VoiceSide::Long),
+            1_000.0,
+            "多侧成本基独立读数，不含空侧"
+        );
+        assert_eq!(
+            book.cost_basis_side(AccountIdentity::Core { level: 0 }, VoiceSide::Short),
+            600.0,
+            "空侧成本基独立读数，不含多侧"
+        );
         assert_eq!(
             book.cost_basis(AccountIdentity::Core { level: 0 }),
             1_600.0,

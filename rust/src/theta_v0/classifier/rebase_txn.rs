@@ -28,9 +28,9 @@
 //! `backtest_bin`），而本 seam 必须在默认 `--lib` 构建下可用；FNV-1a 是 20 行纯算术，Python
 //! verifier 可逐字节复现（`scripts` 侧实现见 #543 报告附的 verifier）。
 
-use super::recursive_tower::{ElementId, LeveledMove, WinMeta};
-use super::center_lifecycle::CenterId;
 use super::super::types::{Center, Tick};
+use super::center_lifecycle::CenterId;
+use super::recursive_tower::{ElementId, LeveledMove, WinMeta};
 
 /// 证书 schema 名（写进每行 JSON；verifier 据此拒绝未知版本）。
 pub const SCHEMA: &str = "rebase_transform_txn_v1";
@@ -85,13 +85,22 @@ pub struct SourceRef {
 impl SourceRef {
     /// 修订指纹规范串：`src|{level}#{ordinal}|{start}|{end}|{lo}|{hi}|{center}`，
     /// 其中 `{center}` = `-` 或 `{start_index}:{zd}:{zg}`。
-    fn revision_canonical(id: ElementId, start: usize, end: usize, lo: Tick, hi: Tick,
-                          center_id: Option<(usize, Tick, Tick)>) -> String {
+    fn revision_canonical(
+        id: ElementId,
+        start: usize,
+        end: usize,
+        lo: Tick,
+        hi: Tick,
+        center_id: Option<(usize, Tick, Tick)>,
+    ) -> String {
         let c = match center_id {
             None => "-".to_string(),
             Some((s, zd, zg)) => format!("{s}:{zd}:{zg}"),
         };
-        format!("src|{}#{}|{start}|{end}|{lo}|{hi}|{c}", id.level, id.ordinal)
+        format!(
+            "src|{}#{}|{start}|{end}|{lo}|{hi}|{c}",
+            id.level, id.ordinal
+        )
     }
 
     fn from_move(m: &LeveledMove, role: &'static str) -> SourceRef {
@@ -101,7 +110,12 @@ impl SourceRef {
         SourceRef {
             lineage_id: m.id,
             revision_ref: digest_hex(&Self::revision_canonical(
-                m.id, m.start_index, m.end_index, lo, hi, center_id,
+                m.id,
+                m.start_index,
+                m.end_index,
+                lo,
+                hi,
+                center_id,
             )),
             start: m.start_index,
             end: m.end_index,
@@ -157,22 +171,42 @@ impl TxnNode {
     /// 节点指纹规范串：
     /// `node|{level}#{ordinal}|{start}|{end}|{zd}|{zg}|{dd}|{gg}|{win_start}|{win_exit}|{read_end_src|-}|{emitted}|` +
     /// 各源 `revision_canonical` 以 `,` 连接。
-    fn revision_canonical(node_ref: ElementId, c: &Center, win: &WinMeta, sources: &[SourceRef]) -> String {
+    fn revision_canonical(
+        node_ref: ElementId,
+        c: &Center,
+        win: &WinMeta,
+        sources: &[SourceRef],
+    ) -> String {
         let read_end = match opt_sentinel(win.read_end_src) {
             None => "-".to_string(),
             Some(v) => v.to_string(),
         };
         let mut s = format!(
             "node|{}#{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|",
-            node_ref.level, node_ref.ordinal, c.start_index, c.end_index, c.zd, c.zg, c.dd, c.gg,
-            win.win_start, win.win_exit, read_end, win.emitted,
+            node_ref.level,
+            node_ref.ordinal,
+            c.start_index,
+            c.end_index,
+            c.zd,
+            c.zg,
+            c.dd,
+            c.gg,
+            win.win_start,
+            win.win_exit,
+            read_end,
+            win.emitted,
         );
         for (i, src) in sources.iter().enumerate() {
             if i > 0 {
                 s.push(',');
             }
             s.push_str(&SourceRef::revision_canonical(
-                src.lineage_id, src.start, src.end, src.lo, src.hi, src.center_id,
+                src.lineage_id,
+                src.start,
+                src.end,
+                src.lo,
+                src.hi,
+                src.center_id,
             ));
         }
         s
@@ -182,7 +216,12 @@ impl TxnNode {
     ///
     /// 源 = `sub_moves`（compose 的真窗口切片：seed 三段 + 延伸吸收段，`recursive_tower::compose_level_resume`）。
     /// 前三段标 `seed`，其余标 `absorbed`（调研 §5.3「前三 seed 与 absorbed tail 单列」）。
-    pub fn from_output(side: &'static str, m: &LeveledMove, center: &Center, win: WinMeta) -> TxnNode {
+    pub fn from_output(
+        side: &'static str,
+        m: &LeveledMove,
+        center: &Center,
+        win: WinMeta,
+    ) -> TxnNode {
         let sources: Vec<SourceRef> = m
             .sub_moves
             .iter()
@@ -204,7 +243,11 @@ impl TxnNode {
     /// 前三个源的 lineage（`(level, ordinal)` 三元组）——变换边判定的**种子键**。
     /// 不足三源（理论不达：中枢窗口 ≥3 段）⟹ 取实有源。
     fn seed_key(&self) -> Vec<(u32, u64)> {
-        self.sources.iter().take(3).map(|s| (s.lineage_id.level, s.lineage_id.ordinal)).collect()
+        self.sources
+            .iter()
+            .take(3)
+            .map(|s| (s.lineage_id.level, s.lineage_id.ordinal))
+            .collect()
     }
 
     fn json(&self) -> String {
@@ -217,13 +260,23 @@ impl TxnNode {
             .sources
             .iter()
             .filter(|s| s.role == "seed")
-            .map(|s| format!("{{\"level\":{},\"ordinal\":{}}}", s.lineage_id.level, s.lineage_id.ordinal))
+            .map(|s| {
+                format!(
+                    "{{\"level\":{},\"ordinal\":{}}}",
+                    s.lineage_id.level, s.lineage_id.ordinal
+                )
+            })
             .collect();
         let absorbed: Vec<String> = self
             .sources
             .iter()
             .filter(|s| s.role == "absorbed")
-            .map(|s| format!("{{\"level\":{},\"ordinal\":{}}}", s.lineage_id.level, s.lineage_id.ordinal))
+            .map(|s| {
+                format!(
+                    "{{\"level\":{},\"ordinal\":{}}}",
+                    s.lineage_id.level, s.lineage_id.ordinal
+                )
+            })
             .collect();
         format!(
             "{{\"side\":\"{}\",\"node_ref\":{{\"level\":{},\"ordinal\":{}}},\"output_ordinal\":{},\
@@ -303,9 +356,16 @@ impl TransformEdge {
             "{{\"old_node_ref\":{},\"new_node_ref\":{},\"relation\":\"{}\",\"basis\":\"{}\",\
              \"left_degree\":{},\"right_degree\":{},\"functional\":{},\"injective\":{},\
              \"unique\":{},\"bijective\":{}}}",
-            idj(&self.old_node_ref), idj(&self.new_node_ref), self.relation.as_str(), self.basis,
-            self.left_degree, self.right_degree, self.functional, self.injective,
-            self.unique, self.bijective,
+            idj(&self.old_node_ref),
+            idj(&self.new_node_ref),
+            self.relation.as_str(),
+            self.basis,
+            self.left_degree,
+            self.right_degree,
+            self.functional,
+            self.injective,
+            self.unique,
+            self.bijective,
         )
     }
 }
@@ -358,7 +418,8 @@ impl RebaseTransformTxn {
                 };
                 format!(
                     "{{\"old_ordinal\":{},\"new_ordinal\":{n},\"relation\":\"{}\"}}",
-                    r.old_ordinal, r.relation.as_str()
+                    r.old_ordinal,
+                    r.relation.as_str()
                 )
             })
             .collect();
@@ -377,9 +438,20 @@ impl RebaseTransformTxn {
              \"transform_edges\":[{}],\"lower_txn_id\":{lower_txn},\"lower_edge_refs\":[{}],\
              \"algorithm_version\":\"{ALGORITHM_VERSION}\",\"source_order_digest\":\"{}\",\
              \"txn_digest\":\"{}\"}}",
-            self.txn_id, self.bar, self.level, self.level + 1, self.cause, self.cascade_reason,
-            self.resume_start, self.prefix_count, old.join(","), new.join(","), edges.join(","),
-            lower.join(","), self.source_order_digest, self.txn_digest,
+            self.txn_id,
+            self.bar,
+            self.level,
+            self.level + 1,
+            self.cause,
+            self.cascade_reason,
+            self.resume_start,
+            self.prefix_count,
+            old.join(","),
+            new.join(","),
+            edges.join(","),
+            lower.join(","),
+            self.source_order_digest,
+            self.txn_digest,
         )
     }
 }
@@ -408,13 +480,19 @@ fn group_entities(nodes: &[TxnNode], remap: Option<&LowerMap>) -> Vec<Entity> {
                 && e.members.len() < head.win.emitted
         });
         if same_window {
-            out.last_mut().expect("same_window 蕴含非空").members.push(i);
+            out.last_mut()
+                .expect("same_window 蕴含非空")
+                .members
+                .push(i);
         } else {
             let key = match remap {
                 None => n.seed_key(),
                 Some(map) => map.apply(&n.seed_key()),
             };
-            out.push(Entity { members: vec![i], key });
+            out.push(Entity {
+                members: vec![i],
+                key,
+            });
         }
     }
     out
@@ -471,7 +549,8 @@ pub fn classify_edges(
     let news = group_entities(new_nodes, None);
     let mut edges: Vec<TransformEdge> = Vec::new();
 
-    let key_dup = |es: &[Entity], k: &Vec<(u32, u64)>| es.iter().filter(|e| &e.key == k).count() > 1;
+    let key_dup =
+        |es: &[Entity], k: &Vec<(u32, u64)>| es.iter().filter(|e| &e.key == k).count() > 1;
 
     let mut new_matched: Vec<bool> = vec![false; news.len()];
     for oe in &olds {
@@ -513,8 +592,11 @@ pub fn classify_edges(
                             relation: Relation::Unknown,
                             basis: "seed_lineage_key_collision",
                             left_degree: cands.iter().map(|&c| news[c].members.len()).sum(),
-                            right_degree: olds.iter().filter(|e| e.key == oe.key)
-                                .map(|e| e.members.len()).sum(),
+                            right_degree: olds
+                                .iter()
+                                .filter(|e| e.key == oe.key)
+                                .map(|e| e.members.len())
+                                .sum(),
                             functional: false,
                             injective: false,
                             unique: false,
@@ -586,8 +668,16 @@ pub fn classify_edges(
                     edges.push(TransformEdge {
                         old_node_ref: Some(old_nodes[om].node_ref),
                         new_node_ref: Some(new_nodes[nm].node_ref),
-                        relation: if same { Relation::Continued1To1 } else { Relation::Unknown },
-                        basis: if same { "positional_seed_lineage" } else { "positional_seed_mismatch" },
+                        relation: if same {
+                            Relation::Continued1To1
+                        } else {
+                            Relation::Unknown
+                        },
+                        basis: if same {
+                            "positional_seed_lineage"
+                        } else {
+                            "positional_seed_mismatch"
+                        },
                         left_degree: 1,
                         right_degree: 1,
                         functional: same,
@@ -669,7 +759,9 @@ pub fn continued_center_pairs(
         {
             continue;
         }
-        let (Some(o), Some(n)) = (e.old_node_ref, e.new_node_ref) else { continue };
+        let (Some(o), Some(n)) = (e.old_node_ref, e.new_node_ref) else {
+            continue;
+        };
         let (Some(on), Some(nn)) = (
             old_nodes.iter().find(|x| x.node_ref == o),
             new_nodes.iter().find(|x| x.node_ref == n),
@@ -683,10 +775,16 @@ pub fn continued_center_pairs(
 
 /// 从本事务的连续边导出供**上一级**使用的 lineage 重映射。
 pub fn lower_map_of(level_of_outputs: u32, edges: &[TransformEdge]) -> LowerMap {
-    let mut map = LowerMap { level: level_of_outputs, continued: Vec::new(), broken: Vec::new() };
+    let mut map = LowerMap {
+        level: level_of_outputs,
+        continued: Vec::new(),
+        broken: Vec::new(),
+    };
     for e in edges {
         match (e.old_node_ref, e.new_node_ref, e.relation) {
-            (Some(o), Some(n), Relation::Continued1To1) => map.continued.push((o.ordinal, n.ordinal)),
+            (Some(o), Some(n), Relation::Continued1To1) => {
+                map.continued.push((o.ordinal, n.ordinal))
+            }
             (Some(o), _, rel) => map.broken.push((o.ordinal, rel)),
             _ => {}
         }
@@ -751,7 +849,11 @@ pub fn build_txn(
                     relation: Relation::Continued1To1,
                 });
             } else if let Some(&(_, rel)) = map.broken.iter().find(|&&(oo, _)| oo == o) {
-                lower_edge_refs.push(LowerEdgeRef { old_ordinal: o, new_ordinal: None, relation: rel });
+                lower_edge_refs.push(LowerEdgeRef {
+                    old_ordinal: o,
+                    new_ordinal: None,
+                    relation: rel,
+                });
             }
         }
     }
@@ -776,9 +878,17 @@ pub fn build_txn(
     // 事务指纹：头字段 + 各节点 revision_digest + 各边 + 源序指纹（不含 txn_digest 自身）。
     let mut canon = format!(
         "txn|{}|{}|{}|{}|{}|{}|{}|{}|",
-        txn.txn_id, txn.bar, txn.level, txn.cause, txn.cascade_reason,
-        match opt_sentinel(txn.dirty_e) { None => "-".to_string(), Some(v) => v.to_string() },
-        txn.resume_start, txn.prefix_count,
+        txn.txn_id,
+        txn.bar,
+        txn.level,
+        txn.cause,
+        txn.cascade_reason,
+        match opt_sentinel(txn.dirty_e) {
+            None => "-".to_string(),
+            Some(v) => v.to_string(),
+        },
+        txn.resume_start,
+        txn.prefix_count,
     );
     for n in txn.old_nodes.iter().chain(txn.new_nodes.iter()) {
         canon.push_str(&format!("{}:{};", n.side, n.revision_digest));
@@ -787,10 +897,15 @@ pub fn build_txn(
     for e in &txn.edges {
         canon.push_str(&format!(
             "{}->{}:{}:{}{}{}{};",
-            e.old_node_ref.map_or("-".to_string(), |i| format!("{}#{}", i.level, i.ordinal)),
-            e.new_node_ref.map_or("-".to_string(), |i| format!("{}#{}", i.level, i.ordinal)),
+            e.old_node_ref
+                .map_or("-".to_string(), |i| format!("{}#{}", i.level, i.ordinal)),
+            e.new_node_ref
+                .map_or("-".to_string(), |i| format!("{}#{}", i.level, i.ordinal)),
             e.relation.as_str(),
-            e.functional as u8, e.injective as u8, e.unique as u8, e.bijective as u8,
+            e.functional as u8,
+            e.injective as u8,
+            e.unique as u8,
+            e.bijective as u8,
         ));
     }
     canon.push('|');
@@ -806,7 +921,9 @@ use std::sync::{Mutex, OnceLock};
 fn sink() -> Option<&'static Mutex<std::fs::File>> {
     static SINK: OnceLock<Option<Mutex<std::fs::File>>> = OnceLock::new();
     SINK.get_or_init(|| {
-        let dir = std::env::var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR).ok().filter(|s| !s.is_empty())?;
+        let dir = std::env::var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR)
+            .ok()
+            .filter(|s| !s.is_empty())?;
         let path = std::path::Path::new(&dir);
         std::fs::create_dir_all(path).ok()?;
         // 截断创建（每次回测重写，同 OpsemDump 落盘语义）。**只新增本文件**，
@@ -971,7 +1088,13 @@ mod tests {
     use std::rc::Rc;
 
     fn unit(start: usize, end: usize, lo: Tick, hi: Tick) -> UnitRange {
-        UnitRange { start_index: start, end_index: end, lo, hi, direction: Direction::Up }
+        UnitRange {
+            start_index: start,
+            end_index: end,
+            lo,
+            hi,
+            direction: Direction::Up,
+        }
     }
 
     fn seg_move(ordinal: u64, start: usize, end: usize, lo: Tick, hi: Tick) -> LeveledMove {
@@ -984,11 +1107,23 @@ mod tests {
     }
 
     fn center(start: usize, end: usize, zd: Tick, zg: Tick, dd: Tick, gg: Tick) -> Center {
-        Center { start_index: start, end_index: end, zd, zg, dd, gg }
+        Center {
+            start_index: start,
+            end_index: end,
+            zd,
+            zg,
+            dd,
+            gg,
+        }
     }
 
     fn win(win_start: usize, win_exit: usize, read_end: usize, emitted: usize) -> WinMeta {
-        WinMeta { win_start, win_exit, read_end_src: read_end, emitted }
+        WinMeta {
+            win_start,
+            win_exit,
+            read_end_src: read_end,
+            emitted,
+        }
     }
 
     fn ctx() -> TxnContext {
@@ -1013,11 +1148,29 @@ mod tests {
         // 重扫后第三源外缘/终点修订（同 lineage id，内容变）。
         let new_s2 = seg_move(14, 120, 136, 1060, 1200);
 
-        let old = composed(5, &[s0.clone(), s1.clone(), old_s2], center(100, 130, 1080, 1100, 1000, 1180));
-        let new = composed(5, &[s0, s1, new_s2], center(100, 136, 1060, 1100, 1000, 1200));
+        let old = composed(
+            5,
+            &[s0.clone(), s1.clone(), old_s2],
+            center(100, 130, 1080, 1100, 1000, 1180),
+        );
+        let new = composed(
+            5,
+            &[s0, s1, new_s2],
+            center(100, 136, 1060, 1100, 1000, 1200),
+        );
 
-        let old_nodes = snapshot_nodes("old", &[old], &[center(100, 130, 1080, 1100, 1000, 1180)], &[win(3, 6, 140, 1)]);
-        let new_nodes = snapshot_nodes("new", &[new], &[center(100, 136, 1060, 1100, 1000, 1200)], &[win(3, 6, 146, 1)]);
+        let old_nodes = snapshot_nodes(
+            "old",
+            &[old],
+            &[center(100, 130, 1080, 1100, 1000, 1180)],
+            &[win(3, 6, 140, 1)],
+        );
+        let new_nodes = snapshot_nodes(
+            "new",
+            &[new],
+            &[center(100, 136, 1060, 1100, 1000, 1200)],
+            &[win(3, 6, 146, 1)],
+        );
 
         let txn = build_txn(1, ctx(), old_nodes, new_nodes, None);
         assert_eq!(txn.edges.len(), 1);
@@ -1026,7 +1179,10 @@ mod tests {
         assert!(e.functional && e.injective && e.unique && e.bijective);
         assert_eq!((e.left_degree, e.right_degree), (1, 1));
         // 内容确实变了 ⟹ 两侧 revision_digest 必不同（否则证书没有区分力）。
-        assert_ne!(txn.old_nodes[0].revision_digest, txn.new_nodes[0].revision_digest);
+        assert_ne!(
+            txn.old_nodes[0].revision_digest,
+            txn.new_nodes[0].revision_digest
+        );
         // 源序指纹相同（有序 lineage 未变），事务指纹非空。
         assert!(!txn.txn_digest.is_empty());
     }
@@ -1042,19 +1198,64 @@ mod tests {
         let s497 = seg_move(497, 239000, 239400, 4311413000000, 4388236000000);
         let s498 = seg_move(498, 239400, 239900, 4320000000000, 4390000000000);
 
-        let old = composed(121, &[s494, s495.clone(), s496],
-            center(238178, 239000, 4311413000000, 4317400000000, 4182110000000, 4388236000000));
-        let new = composed(121, &[s495, s496b, s497, s498],
-            center(238612, 239900, 4321576000000, 4347000000000, 4291997000000, 4390000000000));
+        let old = composed(
+            121,
+            &[s494, s495.clone(), s496],
+            center(
+                238178,
+                239000,
+                4311413000000,
+                4317400000000,
+                4182110000000,
+                4388236000000,
+            ),
+        );
+        let new = composed(
+            121,
+            &[s495, s496b, s497, s498],
+            center(
+                238612,
+                239900,
+                4321576000000,
+                4347000000000,
+                4291997000000,
+                4390000000000,
+            ),
+        );
 
-        let old_nodes = snapshot_nodes("old", &[old],
-            &[center(238178, 239000, 4311413000000, 4317400000000, 4182110000000, 4388236000000)],
-            &[win(10, 13, 239000, 1)]);
-        let new_nodes = snapshot_nodes("new", &[new],
-            &[center(238612, 239900, 4321576000000, 4347000000000, 4291997000000, 4390000000000)],
-            &[win(11, 15, usize::MAX, 1)]);
+        let old_nodes = snapshot_nodes(
+            "old",
+            &[old],
+            &[center(
+                238178,
+                239000,
+                4311413000000,
+                4317400000000,
+                4182110000000,
+                4388236000000,
+            )],
+            &[win(10, 13, 239000, 1)],
+        );
+        let new_nodes = snapshot_nodes(
+            "new",
+            &[new],
+            &[center(
+                238612,
+                239900,
+                4321576000000,
+                4347000000000,
+                4291997000000,
+                4390000000000,
+            )],
+            &[win(11, 15, usize::MAX, 1)],
+        );
 
-        let c = TxnContext { cause: "cascade_prefix", cascade_reason: "frontier_mutated", dirty_e: 238612, ..ctx() };
+        let c = TxnContext {
+            cause: "cascade_prefix",
+            cascade_reason: "frontier_mutated",
+            dirty_e: 238612,
+            ..ctx()
+        };
         let txn = build_txn(2, c, old_nodes, new_nodes, None);
         assert_eq!(txn.edges.len(), 2);
         assert_eq!(txn.edges[0].relation, Relation::Removed);
@@ -1063,7 +1264,10 @@ mod tests {
         assert_eq!(txn.edges[1].relation, Relation::Created);
         assert!(txn.edges[1].old_node_ref.is_none());
         // ordinal 相同（L1#121 位置号复用）却判非连续——正是本 seam 要证的假证排除。
-        assert_eq!(txn.old_nodes[0].node_ref.ordinal, txn.new_nodes[0].node_ref.ordinal);
+        assert_eq!(
+            txn.old_nodes[0].node_ref.ordinal,
+            txn.new_nodes[0].node_ref.ordinal
+        );
     }
 
     /// 放置点⑤（九段一窗产 k 子对象，`recursive_tower.rs:756-790`）：一个旧窗口 → k 个共享父窗口的
@@ -1071,7 +1275,15 @@ mod tests {
     #[test]
     fn upgrade_window_emitting_k_children_yields_split_not_created() {
         let subs: Vec<LeveledMove> = (0..9)
-            .map(|i| seg_move(200 + i as u64, 1000 + i * 10, 1010 + i * 10, 500 + i as Tick, 600 + i as Tick))
+            .map(|i| {
+                seg_move(
+                    200 + i as u64,
+                    1000 + i * 10,
+                    1010 + i * 10,
+                    500 + i as Tick,
+                    600 + i as Tick,
+                )
+            })
             .collect();
         let old_center = center(1000, 1100, 505, 595, 500, 608);
         let old = composed(7, &subs, old_center);
@@ -1084,7 +1296,14 @@ mod tests {
         for t in 0..3u64 {
             let s = (t * 3) as usize;
             let sub = &subs[s..s + 3];
-            let c = center(1000 + s * 10, 1030 + s * 10, 505, 595, 500 + s as Tick, 600 + s as Tick);
+            let c = center(
+                1000 + s * 10,
+                1030 + s * 10,
+                505,
+                595,
+                500 + s as Tick,
+                600 + s as Tick,
+            );
             new_moves.push(composed(7 + t, sub, c));
             new_centers.push(c);
             new_metas.push(win(4, 13, 1200, 3));
@@ -1092,7 +1311,11 @@ mod tests {
         let new_nodes = snapshot_nodes("new", &new_moves, &new_centers, &new_metas);
 
         let txn = build_txn(3, ctx(), old_nodes, new_nodes, None);
-        assert_eq!(txn.edges.len(), 3, "1→3 应产 3 条边，不是 1 条连续 + 2 条 created");
+        assert_eq!(
+            txn.edges.len(),
+            3,
+            "1→3 应产 3 条边，不是 1 条连续 + 2 条 created"
+        );
         for e in &txn.edges {
             assert_eq!(e.relation, Relation::Split);
             assert_eq!(e.left_degree, 3);
@@ -1104,16 +1327,44 @@ mod tests {
     /// 下级判 `removed` 的源 ⟹ 本级不得靠 ordinal 复用伪造连续。
     #[test]
     fn lower_txn_remap_distinguishes_lineage_from_ordinal_reuse() {
-        let old_subs = [seg_move(1, 0, 10, 10, 20), seg_move(2, 10, 20, 12, 22), seg_move(3, 20, 30, 14, 24)];
-        let new_subs = [seg_move(1, 0, 10, 10, 20), seg_move(2, 10, 20, 12, 22), seg_move(3, 20, 32, 14, 26)];
+        let old_subs = [
+            seg_move(1, 0, 10, 10, 20),
+            seg_move(2, 10, 20, 12, 22),
+            seg_move(3, 20, 30, 14, 24),
+        ];
+        let new_subs = [
+            seg_move(1, 0, 10, 10, 20),
+            seg_move(2, 10, 20, 12, 22),
+            seg_move(3, 20, 32, 14, 26),
+        ];
         let oc = center(0, 30, 14, 20, 10, 24);
         let nc = center(0, 32, 14, 20, 10, 26);
-        let old_nodes = snapshot_nodes("old", &[composed(0, &old_subs, oc)], &[oc], &[win(0, 3, 40, 1)]);
-        let new_nodes = snapshot_nodes("new", &[composed(0, &new_subs, nc)], &[nc], &[win(0, 3, 42, 1)]);
+        let old_nodes = snapshot_nodes(
+            "old",
+            &[composed(0, &old_subs, oc)],
+            &[oc],
+            &[win(0, 3, 40, 1)],
+        );
+        let new_nodes = snapshot_nodes(
+            "new",
+            &[composed(0, &new_subs, nc)],
+            &[nc],
+            &[win(0, 3, 42, 1)],
+        );
 
         // (a) 下级把 1,2,3 判为连续 ⟹ 本级连续。
-        let ok = LowerMap { level: 0, continued: vec![(1, 1), (2, 2), (3, 3)], broken: vec![] };
-        let t1 = build_txn(4, ctx(), old_nodes.clone(), new_nodes.clone(), Some((9, &ok)));
+        let ok = LowerMap {
+            level: 0,
+            continued: vec![(1, 1), (2, 2), (3, 3)],
+            broken: vec![],
+        };
+        let t1 = build_txn(
+            4,
+            ctx(),
+            old_nodes.clone(),
+            new_nodes.clone(),
+            Some((9, &ok)),
+        );
         assert_eq!(t1.edges[0].relation, Relation::Continued1To1);
         assert_eq!(t1.lower_txn_id, Some(9));
         assert_eq!(t1.lower_edge_refs.len(), 3);
@@ -1136,31 +1387,74 @@ mod tests {
         let b = seg_move(2, 10, 20, 12, 22);
         let c3 = seg_move(3, 20, 30, 14, 24);
         let cc = center(0, 30, 14, 20, 10, 24);
-        let n1 = snapshot_nodes("new", &[composed(0, &[a.clone(), b.clone(), c3.clone()], cc)], &[cc], &[win(0, 3, 40, 1)]);
-        let n2 = snapshot_nodes("new", &[composed(0, &[b, a, c3], cc)], &[cc], &[win(0, 3, 40, 1)]);
+        let n1 = snapshot_nodes(
+            "new",
+            &[composed(0, &[a.clone(), b.clone(), c3.clone()], cc)],
+            &[cc],
+            &[win(0, 3, 40, 1)],
+        );
+        let n2 = snapshot_nodes(
+            "new",
+            &[composed(0, &[b, a, c3], cc)],
+            &[cc],
+            &[win(0, 3, 40, 1)],
+        );
         let t1 = build_txn(6, ctx(), Vec::new(), n1.clone(), None);
         let t1b = build_txn(6, ctx(), Vec::new(), n1, None);
         let t2 = build_txn(6, ctx(), Vec::new(), n2, None);
         assert_eq!(t1.txn_digest, t1b.txn_digest, "同输入须同指纹");
-        assert_ne!(t1.source_order_digest, t2.source_order_digest, "源序变化须改指纹");
-        assert_eq!(fnv1a64(b"abc"), 0xe71fa2190541574b, "FNV-1a 64 已知向量（verifier 侧同式）");
+        assert_ne!(
+            t1.source_order_digest, t2.source_order_digest,
+            "源序变化须改指纹"
+        );
+        assert_eq!(
+            fnv1a64(b"abc"),
+            0xe71fa2190541574b,
+            "FNV-1a 64 已知向量（verifier 侧同式）"
+        );
     }
 
     /// JSON 行自洽：七组字段全在，且 `usize::MAX` 哨兵记 null 而非 1.8e19。
     #[test]
     fn json_line_carries_all_seven_field_groups() {
-        let subs = [seg_move(1, 0, 10, 10, 20), seg_move(2, 10, 20, 12, 22), seg_move(3, 20, 30, 14, 24)];
+        let subs = [
+            seg_move(1, 0, 10, 10, 20),
+            seg_move(2, 10, 20, 12, 22),
+            seg_move(3, 20, 30, 14, 24),
+        ];
         let cc = center(0, 30, 14, 20, 10, 24);
-        let nodes = snapshot_nodes("new", &[composed(0, &subs, cc)], &[cc], &[win(0, 3, usize::MAX, 1)]);
+        let nodes = snapshot_nodes(
+            "new",
+            &[composed(0, &subs, cc)],
+            &[cc],
+            &[win(0, 3, usize::MAX, 1)],
+        );
         let txn = build_txn(7, ctx(), Vec::new(), nodes, None);
         let line = txn.json();
         for k in [
-            "\"schema\":\"rebase_transform_txn_v1\"", "\"txn_id\"", "\"bar\"", "\"level\"", "\"cause\"",
-            "\"dirty_e\":null", "\"resume_start\"", "\"prefix_count\"", "\"old_nodes\"", "\"new_nodes\"",
-            "\"full_center\"", "\"revision_digest\"", "\"window\"", "\"read_end_src\":null",
-            "\"direct_source_refs\"", "\"seed_source_refs\"", "\"absorbed_tail_refs\"",
-            "\"transform_edges\"", "\"lower_txn_id\":null", "\"lower_edge_refs\"",
-            "\"algorithm_version\"", "\"source_order_digest\"", "\"txn_digest\"",
+            "\"schema\":\"rebase_transform_txn_v1\"",
+            "\"txn_id\"",
+            "\"bar\"",
+            "\"level\"",
+            "\"cause\"",
+            "\"dirty_e\":null",
+            "\"resume_start\"",
+            "\"prefix_count\"",
+            "\"old_nodes\"",
+            "\"new_nodes\"",
+            "\"full_center\"",
+            "\"revision_digest\"",
+            "\"window\"",
+            "\"read_end_src\":null",
+            "\"direct_source_refs\"",
+            "\"seed_source_refs\"",
+            "\"absorbed_tail_refs\"",
+            "\"transform_edges\"",
+            "\"lower_txn_id\":null",
+            "\"lower_edge_refs\"",
+            "\"algorithm_version\"",
+            "\"source_order_digest\"",
+            "\"txn_digest\"",
         ] {
             assert!(line.contains(k), "缺字段 {k}：{line}");
         }
@@ -1178,7 +1472,11 @@ mod tests {
         let s1 = seg_move(13, 110, 120, 1050, 1150);
         let old_c = center(100, 130, 1080, 1100, 1000, 1180);
         let new_c = center(100, 136, 1060, 1100, 1000, 1200);
-        let old = composed(5, &[s0.clone(), s1.clone(), seg_move(14, 120, 130, 1080, 1180)], old_c);
+        let old = composed(
+            5,
+            &[s0.clone(), s1.clone(), seg_move(14, 120, 130, 1080, 1180)],
+            old_c,
+        );
         let new = composed(5, &[s0, s1, seg_move(14, 120, 136, 1060, 1200)], new_c);
         let old_nodes = snapshot_nodes("old", &[old], &[old_c], &[win(3, 6, 140, 1)]);
         let new_nodes = snapshot_nodes("new", &[new], &[new_c], &[win(3, 6, 146, 1)]);
@@ -1190,16 +1488,39 @@ mod tests {
 
         // ② 同一批节点，人为把边降级为非连续/非全真 ⟹ 一对都不产。
         for degraded in [
-            TransformEdge { relation: Relation::Split, ..txn.edges[0].clone() },
-            TransformEdge { relation: Relation::Unknown, ..txn.edges[0].clone() },
-            TransformEdge { bijective: false, ..txn.edges[0].clone() },
-            TransformEdge { unique: false, ..txn.edges[0].clone() },
-            TransformEdge { injective: false, ..txn.edges[0].clone() },
-            TransformEdge { functional: false, ..txn.edges[0].clone() },
-            TransformEdge { new_node_ref: None, relation: Relation::Removed, ..txn.edges[0].clone() },
+            TransformEdge {
+                relation: Relation::Split,
+                ..txn.edges[0].clone()
+            },
+            TransformEdge {
+                relation: Relation::Unknown,
+                ..txn.edges[0].clone()
+            },
+            TransformEdge {
+                bijective: false,
+                ..txn.edges[0].clone()
+            },
+            TransformEdge {
+                unique: false,
+                ..txn.edges[0].clone()
+            },
+            TransformEdge {
+                injective: false,
+                ..txn.edges[0].clone()
+            },
+            TransformEdge {
+                functional: false,
+                ..txn.edges[0].clone()
+            },
+            TransformEdge {
+                new_node_ref: None,
+                relation: Relation::Removed,
+                ..txn.edges[0].clone()
+            },
         ] {
             assert!(
-                continued_center_pairs(&txn.old_nodes, &txn.new_nodes, &[degraded.clone()]).is_empty(),
+                continued_center_pairs(&txn.old_nodes, &txn.new_nodes, &[degraded.clone()])
+                    .is_empty(),
                 "非 `continued_1to1 ∧ 四布尔全真` 的边不得产谱系对：{degraded:?}"
             );
         }
@@ -1209,7 +1530,10 @@ mod tests {
     /// ⟹ `enabled()` 假——D1a 前旧行为的可复现锚点，防「默认开」把这条路堵死。
     #[test]
     fn disabled_when_consumer_off_without_env_or_capture() {
-        assert!(std::env::var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR).is_err(), "本测试要求进程未设 OPSEM_DUMP_DIR");
+        assert!(
+            std::env::var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR).is_err(),
+            "本测试要求进程未设 OPSEM_DUMP_DIR"
+        );
         crate::theta_v0::lineage_book::test_set_consumer(Some(false));
         assert!(!super::enabled());
         crate::theta_v0::lineage_book::test_set_consumer(None);
@@ -1219,12 +1543,17 @@ mod tests {
     /// 未置任何反证开关、未开落盘捕获 ⟹ `enabled()` 真（生产判径常开，票面范围第 1 条）。
     #[test]
     fn enabled_by_default_without_env_or_capture() {
-        assert!(std::env::var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR).is_err(), "本测试要求进程未设 OPSEM_DUMP_DIR");
+        assert!(
+            std::env::var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR).is_err(),
+            "本测试要求进程未设 OPSEM_DUMP_DIR"
+        );
         crate::theta_v0::lineage_book::test_set_consumer(None);
         assert!(super::enabled());
     }
 
     // Rc 未直接使用时避免 unused 警告（compose 内部持有 Rc<Vec<LeveledMove>>）。
     #[allow(dead_code)]
-    fn _rc_marker(x: Rc<Vec<LeveledMove>>) -> usize { x.len() }
+    fn _rc_marker(x: Rc<Vec<LeveledMove>>) -> usize {
+        x.len()
+    }
 }

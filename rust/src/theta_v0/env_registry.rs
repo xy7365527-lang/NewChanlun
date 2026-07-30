@@ -538,7 +538,10 @@ mod tests {
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR 未设");
         let theta_v0_dir = std::path::Path::new(&manifest_dir).join("src/theta_v0");
         let output = std::process::Command::new("grep")
-            .args(["-rlE", r#"(env::(var|var_os|set_var|remove_var)|env_flag)\("[A-Z_0-9]+""#])
+            .args([
+                "-rlE",
+                r#"(env::(var|var_os|set_var|remove_var)|env_flag)\("[A-Z_0-9]+""#,
+            ])
             .arg(&theta_v0_dir)
             .output()
             .expect("grep 不可执行（完备性单测依赖系统 grep）");

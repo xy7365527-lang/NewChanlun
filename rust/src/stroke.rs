@@ -89,9 +89,7 @@ pub fn check_gap(
 ) -> bool {
     let merged_gap: i64 = cand.idx as i64 - start.idx as i64;
     if use_new_bi {
-        let raw_gap: i64 = merged_to_raw[cand.idx].0 as i64
-            - merged_to_raw[start.idx].1 as i64
-            - 1;
+        let raw_gap: i64 = merged_to_raw[cand.idx].0 as i64 - merged_to_raw[start.idx].1 as i64 - 1;
         return merged_gap >= 2 && raw_gap >= new_raw_gap_min;
     }
     merged_gap >= min_gap
@@ -125,7 +123,10 @@ pub fn build_stroke(
     assert!(
         start.kind != cand.kind,
         "S6(T7) 违反@i0 {} i1 {}：笔的起止分型同类（{:?}→{:?}）——笔必连接相反分型（一顶一底）",
-        start.idx, cand.idx, start.kind, cand.kind
+        start.idx,
+        cand.idx,
+        start.kind,
+        cand.kind
     );
     debug_assert!(
         match direction {
@@ -153,12 +154,7 @@ pub fn build_stroke(
 /// 锁定态：延伸上一笔至更极端的同类分型（原地替换列表尾元素）。
 /// 移植自 `_extend_prev_stroke`。
 #[inline]
-pub fn extend_prev_stroke(
-    strokes: &mut [Stroke],
-    cand: &Fractal,
-    highs: &[f64],
-    lows: &[f64],
-) {
+pub fn extend_prev_stroke(strokes: &mut [Stroke], cand: &Fractal, highs: &[f64], lows: &[f64]) {
     let last_idx = strokes.len() - 1;
     let prev = strokes[last_idx];
     let new_i1 = cand.idx;

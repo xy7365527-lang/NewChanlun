@@ -184,8 +184,15 @@ impl MuClass {
     /// 从 i_class 6-bit 掩码恢复（bit0=buy1..bit5=sell3；class_index 可逆）。
     pub fn bsp_class(&self) -> u8 {
         let b = self.i_class;
-        if b & 0b001_001 != 0 { 1 } else if b & 0b010_010 != 0 { 2 }
-        else if b & 0b100_100 != 0 { 3 } else { 0 }
+        if b & 0b001_001 != 0 {
+            1
+        } else if b & 0b010_010 != 0 {
+            2
+        } else if b & 0b100_100 != 0 {
+            3
+        } else {
+            0
+        }
     }
 
     /// 从证书原始分量构造 z（§12 `γ=(c,ℓ,δ,I_γ,t)` + §16 扩展态）。
@@ -222,7 +229,7 @@ impl MuClass {
             nest_depth: None,
             origin_level: None,
             risk_mode: None,
-            t_stage: None, // #149：裸证书口径无 TW 账本，同 risk_mode 诚实 None。
+            t_stage: None,    // #149：裸证书口径无 TW 账本，同 risk_mode 诚实 None。
             eta_bucket: None, // #175：裸证书口径无 TW 账本，同 t_stage 诚实 None。
         }
     }
@@ -374,14 +381,11 @@ pub fn h_bucket(h: usize) -> u8 {
 ///
 /// # Panics（debug）
 /// `delta ∉ {+1,−1}` ⟹ debug 断言失败（z 的 δ 只能是买/卖方向，fail-fast 非静默）。
-pub fn marginal_return(
-    entry_px: f64,
-    exit_px: f64,
-    qty: f64,
-    fee_rate: f64,
-    delta: i8,
-) -> f64 {
-    debug_assert!(delta == 1 || delta == -1, "δ 必须 ∈ {{+1,−1}}，收到 {delta}");
+pub fn marginal_return(entry_px: f64, exit_px: f64, qty: f64, fee_rate: f64, delta: i8) -> f64 {
+    debug_assert!(
+        delta == 1 || delta == -1,
+        "δ 必须 ∈ {{+1,−1}}，收到 {delta}"
+    );
     trade_abs_pnl(entry_px, exit_px, qty, fee_rate, delta == 1)
 }
 
@@ -407,7 +411,10 @@ pub fn chi_dimension_three_return(
     delta: i8,
 ) -> f64 {
     let entry_notional = qty * entry_px;
-    assert!(entry_notional > 0.0, "量纲③要求 qty·entry_px > 0，收到 qty={qty} entry_px={entry_px}");
+    assert!(
+        entry_notional > 0.0,
+        "量纲③要求 qty·entry_px > 0，收到 qty={qty} entry_px={entry_px}"
+    );
     marginal_return(entry_px, exit_px, qty, fee_rate, delta) / entry_notional
 }
 
@@ -476,7 +483,11 @@ impl MuEstimator {
     pub fn cv(&self, class: &MuClass) -> Option<f64> {
         let w = self.buckets.get(class)?;
         let std = w.std_sample()?;
-        if w.mean == 0.0 { None } else { Some(std / w.mean.abs()) }
+        if w.mean == 0.0 {
+            None
+        } else {
+            Some(std / w.mean.abs())
+        }
     }
 
     /// 批量累加（迭代器 fold，等价逐笔 [`MuEstimator::observe`]）。
@@ -603,11 +614,21 @@ impl MuEstimator {
         let mut buckets = HashMap::with_capacity(self.buckets.len());
         for (z, w) in &self.buckets {
             let shrunk_mean = self.mu_shrink(z, tau_sq).unwrap_or(w.mean);
-            buckets.insert(*z, Welford { n: w.n, mean: shrunk_mean, m2: w.m2 });
+            buckets.insert(
+                *z,
+                Welford {
+                    n: w.n,
+                    mean: shrunk_mean,
+                    m2: w.m2,
+                },
+            );
         }
         // 收缩仅改 bucket 的 mean，不改原始逐笔——perm_test 置换基于 trades，故视图须保留 trades。
         // （预存编译缺口修复：commit 8ccbe58137 加 `trades` 字段时漏改本构造子；见 ws-gap3-bridge 汇报。）
-        MuEstimator { buckets, trades: self.trades.clone() }
+        MuEstimator {
+            buckets,
+            trades: self.trades.clone(),
+        }
     }
 
     /// 合并另一估计器的全部桶（Chan/Welford 并行合并，bit-exact 等价逐笔顺序累加同一桶）。
@@ -762,19 +783,32 @@ mod tests {
     use super::*;
 
     fn buy_bits() -> BspBits {
-        BspBits { buy1: true, ..Default::default() }
+        BspBits {
+            buy1: true,
+            ..Default::default()
+        }
     }
 
     #[test]
     fn cv_is_std_over_abs_mean() {
-        let z = MuClass::from_certificate(1,1,buy_bits(),0,PositionState::Root);
+        let z = MuClass::from_certificate(1, 1, buy_bits(), 0, PositionState::Root);
         let mut e = MuEstimator::new();
-        e.observe(MuObservation{class:z,x_gamma:8.0});
-        e.observe(MuObservation{class:z,x_gamma:12.0});
-        assert!((e.cv(&z).unwrap()-8.0_f64.sqrt()/10.0).abs()<1e-9);
-        let z2=MuClass::from_certificate(2,1,buy_bits(),0,PositionState::Root);
-        let mut e2=MuEstimator::new(); e2.observe(MuObservation{class:z2,x_gamma:5.0});
-        assert_eq!(e2.cv(&z2),None);
+        e.observe(MuObservation {
+            class: z,
+            x_gamma: 8.0,
+        });
+        e.observe(MuObservation {
+            class: z,
+            x_gamma: 12.0,
+        });
+        assert!((e.cv(&z).unwrap() - 8.0_f64.sqrt() / 10.0).abs() < 1e-9);
+        let z2 = MuClass::from_certificate(2, 1, buy_bits(), 0, PositionState::Root);
+        let mut e2 = MuEstimator::new();
+        e2.observe(MuObservation {
+            class: z2,
+            x_gamma: 5.0,
+        });
+        assert_eq!(e2.cv(&z2), None);
     }
 
     /// X_γ = δ(P_τ−P_t)−C 与 metrics 方向感知 PnL bit-exact 一致（复用单一来源，无公式漂移）。
@@ -793,15 +827,40 @@ mod tests {
     fn residual_trade_y_is_signed_debeta_minus_cost() {
         let z = MuClass::from_certificate(0, 1, buy_bits(), 0, PositionState::Root);
         // H=100, B̂=30, C=5, δ=+1 ⟹ Y = 1·(100−30) − 5 = 65。
-        let rt = ResidualTrade { class: z, resid_base: 100.0 - 30.0, cost: 5.0, h_bucket: 0, time_block: 0, d: 1.0, exit_type: ExitType::Hold };
+        let rt = ResidualTrade {
+            class: z,
+            resid_base: 100.0 - 30.0,
+            cost: 5.0,
+            h_bucket: 0,
+            time_block: 0,
+            d: 1.0,
+            exit_type: ExitType::Hold,
+        };
         assert!((rt.y() - 65.0).abs() < 1e-12);
         // Y = X − δ·B̂：X = δ·H − C = 100 − 5 = 95；δ·B̂ = 30 ⟹ Y = 95 − 30 = 65。
         let (h, b_hat, c) = (100.0, 30.0, 5.0);
         let x = 1.0 * h - c;
         assert!((rt.y() - (x - 1.0 * b_hat)).abs() < 1e-12, "Y = X − δ·B̂");
         // 卖方向 δ=−1：H=−40（下跌）, B̂=−20（下漂）, C=3 ⟹ Y = −1·(−40−(−20)) − 3 = 20 − 3 = 17。
-        let z_sell = MuClass::from_certificate(0, -1, BspBits { sell1: true, ..Default::default() }, 0, PositionState::Root);
-        let rt_s = ResidualTrade { class: z_sell, resid_base: -40.0 - (-20.0), cost: 3.0, h_bucket: 0, time_block: 0, d: 1.0, exit_type: ExitType::Hold };
+        let z_sell = MuClass::from_certificate(
+            0,
+            -1,
+            BspBits {
+                sell1: true,
+                ..Default::default()
+            },
+            0,
+            PositionState::Root,
+        );
+        let rt_s = ResidualTrade {
+            class: z_sell,
+            resid_base: -40.0 - (-20.0),
+            cost: 3.0,
+            h_bucket: 0,
+            time_block: 0,
+            d: 1.0,
+            exit_type: ExitType::Hold,
+        };
         assert!((rt_s.y() - 17.0).abs() < 1e-12);
     }
 
@@ -832,9 +891,18 @@ mod tests {
         let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
         let mut est = MuEstimator::new();
         est.observe_all([
-            MuObservation { class: z, x_gamma: 10.0 },
-            MuObservation { class: z, x_gamma: 20.0 },
-            MuObservation { class: z, x_gamma: 30.0 },
+            MuObservation {
+                class: z,
+                x_gamma: 10.0,
+            },
+            MuObservation {
+                class: z,
+                x_gamma: 20.0,
+            },
+            MuObservation {
+                class: z,
+                x_gamma: 30.0,
+            },
         ]);
         assert_eq!(est.mu(&z), Some(20.0)); // (10+20+30)/3
         assert_eq!(est.count(&z), 3);
@@ -847,14 +915,23 @@ mod tests {
         let z_b2 = MuClass::from_certificate(
             3,
             1,
-            BspBits { buy2: true, ..Default::default() },
+            BspBits {
+                buy2: true,
+                ..Default::default()
+            },
             0,
             PositionState::Root,
         );
         assert_ne!(z_b1, z_b2, "B1 与 B2 是不同 I_γ ⟹ 不同 z");
         let mut est = MuEstimator::new();
-        est.observe(MuObservation { class: z_b1, x_gamma: 10.0 });
-        est.observe(MuObservation { class: z_b2, x_gamma: -10.0 });
+        est.observe(MuObservation {
+            class: z_b1,
+            x_gamma: 10.0,
+        });
+        est.observe(MuObservation {
+            class: z_b2,
+            x_gamma: -10.0,
+        });
         assert_eq!(est.mu(&z_b1), Some(10.0));
         assert_eq!(est.mu(&z_b2), Some(-10.0)); // §12 line 2186：μ≤0 该类无正期望
         assert_eq!(est.n_classes(), 2);
@@ -866,18 +943,28 @@ mod tests {
         let only_b2 = MuClass::from_certificate(
             1,
             1,
-            BspBits { buy2: true, ..Default::default() },
+            BspBits {
+                buy2: true,
+                ..Default::default()
+            },
             0,
             PositionState::Root,
         );
         let b2_and_b3 = MuClass::from_certificate(
             1,
             1,
-            BspBits { buy2: true, buy3: true, ..Default::default() },
+            BspBits {
+                buy2: true,
+                buy3: true,
+                ..Default::default()
+            },
             0,
             PositionState::Root,
         );
-        assert_ne!(only_b2.i_class, b2_and_b3.i_class, "重合买卖点保留为不同 I_γ");
+        assert_ne!(
+            only_b2.i_class, b2_and_b3.i_class,
+            "重合买卖点保留为不同 I_γ"
+        );
     }
 
     /// 短差判定：子声部 δ=−σ_p ⟹ short_swing=true（§6/§16 σ_u=−σ_p 对冲腿）。
@@ -910,9 +997,18 @@ mod tests {
         let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
         let mut est = MuEstimator::new();
         est.observe_all([
-            MuObservation { class: z, x_gamma: 5.0 },
-            MuObservation { class: z, x_gamma: 15.0 },
-            MuObservation { class: z, x_gamma: 10.0 },
+            MuObservation {
+                class: z,
+                x_gamma: 5.0,
+            },
+            MuObservation {
+                class: z,
+                x_gamma: 15.0,
+            },
+            MuObservation {
+                class: z,
+                x_gamma: 10.0,
+            },
         ]);
         let mean = est.mu(&z).unwrap();
         let lcb = est.mu_lcb(&z, 1.645).unwrap();
@@ -928,16 +1024,28 @@ mod tests {
         let lcb_at = |reps: usize| -> f64 {
             let mut est = MuEstimator::new();
             for _ in 0..reps {
-                est.observe(MuObservation { class: z, x_gamma: m - s });
-                est.observe(MuObservation { class: z, x_gamma: m + s });
+                est.observe(MuObservation {
+                    class: z,
+                    x_gamma: m - s,
+                });
+                est.observe(MuObservation {
+                    class: z,
+                    x_gamma: m + s,
+                });
             }
             est.mu_lcb(&z, 1.645).unwrap()
         };
         let (lcb_small, lcb_large) = (lcb_at(2), lcb_at(50)); // n=4 vs n=100
-        // 均值恒为 20，样本 std 在两规模下都 ≈4（对称样本）⟹ 仅 √n 不同。
-        assert!(lcb_large > lcb_small, "n↑ ⟹ LCB 上移逼近 mean：{lcb_large} > {lcb_small}");
+                                                              // 均值恒为 20，样本 std 在两规模下都 ≈4（对称样本）⟹ 仅 √n 不同。
+        assert!(
+            lcb_large > lcb_small,
+            "n↑ ⟹ LCB 上移逼近 mean：{lcb_large} > {lcb_small}"
+        );
         assert!(lcb_large < m, "LCB 仍 < mean（n 有限，标准误 > 0）");
-        assert!((m - lcb_large) < (m - lcb_small) * 0.3, "√n 收敛：大样本 gap 显著缩小");
+        assert!(
+            (m - lcb_large) < (m - lcb_small) * 0.3,
+            "√n 收敛：大样本 gap 显著缩小"
+        );
     }
 
     /// UCB 与 LCB 对称：同 z_α 下 LCB≤mean≤UCB，且 UCB−mean = mean−LCB（同标准误，符号相反）。
@@ -947,15 +1055,30 @@ mod tests {
         let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
         let mut est = MuEstimator::new();
         est.observe_all([
-            MuObservation { class: z, x_gamma: 5.0 },
-            MuObservation { class: z, x_gamma: 15.0 },
-            MuObservation { class: z, x_gamma: 10.0 },
+            MuObservation {
+                class: z,
+                x_gamma: 5.0,
+            },
+            MuObservation {
+                class: z,
+                x_gamma: 15.0,
+            },
+            MuObservation {
+                class: z,
+                x_gamma: 10.0,
+            },
         ]);
         let mean = est.mu(&z).unwrap();
         let lcb = est.mu_lcb(&z, 1.645).unwrap();
         let ucb = est.mu_ucb(&z, 1.645).unwrap();
-        assert!(lcb <= mean && mean <= ucb, "LCB({lcb}) ≤ mean({mean}) ≤ UCB({ucb})");
-        assert!((ucb - mean) - (mean - lcb) < 1e-9, "对称：UCB−mean = mean−LCB");
+        assert!(
+            lcb <= mean && mean <= ucb,
+            "LCB({lcb}) ≤ mean({mean}) ≤ UCB({ucb})"
+        );
+        assert!(
+            (ucb - mean) - (mean - lcb) < 1e-9,
+            "对称：UCB−mean = mean−LCB"
+        );
     }
 
     /// n=1 边界：UCB 与 LCB 同诚实语义——单样本方差未定义 ⟹ 均返回 None。
@@ -963,7 +1086,10 @@ mod tests {
     fn ucb_undefined_for_single_sample() {
         let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
         let mut est = MuEstimator::new();
-        est.observe(MuObservation { class: z, x_gamma: 42.0 });
+        est.observe(MuObservation {
+            class: z,
+            x_gamma: 42.0,
+        });
         assert_eq!(est.mu_ucb(&z, 1.645), None, "单样本方差未定义 ⟹ UCB None");
     }
 
@@ -973,7 +1099,10 @@ mod tests {
     fn lcb_undefined_for_single_sample() {
         let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
         let mut est = MuEstimator::new();
-        est.observe(MuObservation { class: z, x_gamma: 42.0 });
+        est.observe(MuObservation {
+            class: z,
+            x_gamma: 42.0,
+        });
         assert_eq!(est.mu(&z), Some(42.0), "单样本点估计有定义");
         assert_eq!(est.mu_lcb(&z, 1.645), None, "单样本方差未定义 ⟹ LCB None");
         assert_eq!(est.count(&z), 1);
@@ -989,7 +1118,10 @@ mod tests {
         let neighbor = MuClass::from_certificate(
             3,
             1,
-            BspBits { buy2: true, ..Default::default() },
+            BspBits {
+                buy2: true,
+                ..Default::default()
+            },
             0,
             PositionState::Root,
         );
@@ -998,16 +1130,28 @@ mod tests {
             let mut est = MuEstimator::new();
             // 邻类灌 1000 笔 x=0 ⟹ pooled 被强拉向 0（远离 z 的 50）。
             for _ in 0..1000 {
-                est.observe(MuObservation { class: neighbor, x_gamma: 0.0 });
+                est.observe(MuObservation {
+                    class: neighbor,
+                    x_gamma: 0.0,
+                });
             }
             for _ in 0..reps {
-                est.observe(MuObservation { class: z, x_gamma: m - s });
-                est.observe(MuObservation { class: z, x_gamma: m + s });
+                est.observe(MuObservation {
+                    class: z,
+                    x_gamma: m - s,
+                });
+                est.observe(MuObservation {
+                    class: z,
+                    x_gamma: m + s,
+                });
             }
             est.mu_shrink(&z, 1.0).unwrap()
         };
         let (small, large) = (shrink_at(1), shrink_at(50)); // n_z=2 vs n_z=100
-        assert!(large > small, "n_z↑ ⟹ w_z↑ ⟹ 收缩值上移逼近 mean：{large} > {small}");
+        assert!(
+            large > small,
+            "n_z↑ ⟹ w_z↑ ⟹ 收缩值上移逼近 mean：{large} > {small}"
+        );
         assert!(large < m, "n_z 有限 ⟹ w_z<1 ⟹ 仍 < mean_z");
         assert!(small > 0.0, "即使 n_z 小，w_z>0 ⟹ 未完全坍到 pooled(≈0)");
     }
@@ -1020,23 +1164,39 @@ mod tests {
         let neighbor = MuClass::from_certificate(
             3,
             1,
-            BspBits { buy2: true, ..Default::default() },
+            BspBits {
+                buy2: true,
+                ..Default::default()
+            },
             0,
             PositionState::Root,
         );
         let mut est = MuEstimator::new();
         // 邻类大量 x=10 ⟹ 主导 pooled。
         for _ in 0..100 {
-            est.observe(MuObservation { class: neighbor, x_gamma: 10.0 });
+            est.observe(MuObservation {
+                class: neighbor,
+                x_gamma: 10.0,
+            });
         }
         // z 单样本极端偏离值 1000。
-        est.observe(MuObservation { class: z, x_gamma: 1000.0 });
+        est.observe(MuObservation {
+            class: z,
+            x_gamma: 1000.0,
+        });
         assert_eq!(est.mu(&z), Some(1000.0), "裸 μ 不拉，仍是单样本值");
         // pooled = (100·10 + 1·1000)/101 ≈ 19.8；n_z=1 ⟹ w_z=0 ⟹ 完全坍到 pooled。
         let pooled = (100.0 * 10.0 + 1000.0) / 101.0;
         let shrunk = est.mu_shrink(&z, 1.0).unwrap();
-        assert!((shrunk - pooled).abs() < 1e-9, "n=1 ⟹ 完全收缩到 pooled：{shrunk} ≈ {pooled}");
-        assert_ne!(est.mu_lcb(&z, 1.645), Some(shrunk), "mu_lcb n=1 返 None，与 mu_shrink 语义分离");
+        assert!(
+            (shrunk - pooled).abs() < 1e-9,
+            "n=1 ⟹ 完全收缩到 pooled：{shrunk} ≈ {pooled}"
+        );
+        assert_ne!(
+            est.mu_lcb(&z, 1.645),
+            Some(shrunk),
+            "mu_lcb n=1 返 None，与 mu_shrink 语义分离"
+        );
     }
 
     /// pooled 聚合正确性：同 (level,delta) 按样本加权聚合，跨 level / 跨 delta 不混。
@@ -1047,7 +1207,10 @@ mod tests {
         let z_b = MuClass::from_certificate(
             3,
             1,
-            BspBits { buy2: true, ..Default::default() },
+            BspBits {
+                buy2: true,
+                ..Default::default()
+            },
             0,
             PositionState::Root,
         );
@@ -1056,11 +1219,26 @@ mod tests {
         // 跨 delta（−1≠+1）⟹ 不进 pooled(3,+1)。
         let z_other_delta = MuClass::from_certificate(3, -1, buy_bits(), 0, PositionState::Root);
         let mut est = MuEstimator::new();
-        est.observe(MuObservation { class: z_a, x_gamma: 10.0 }); // n=1
-        est.observe(MuObservation { class: z_b, x_gamma: 30.0 }); // n=1
-        est.observe(MuObservation { class: z_b, x_gamma: 50.0 }); // n=2 ⟹ z_b 均值 40
-        est.observe(MuObservation { class: z_other_level, x_gamma: 1000.0 });
-        est.observe(MuObservation { class: z_other_delta, x_gamma: -1000.0 });
+        est.observe(MuObservation {
+            class: z_a,
+            x_gamma: 10.0,
+        }); // n=1
+        est.observe(MuObservation {
+            class: z_b,
+            x_gamma: 30.0,
+        }); // n=1
+        est.observe(MuObservation {
+            class: z_b,
+            x_gamma: 50.0,
+        }); // n=2 ⟹ z_b 均值 40
+        est.observe(MuObservation {
+            class: z_other_level,
+            x_gamma: 1000.0,
+        });
+        est.observe(MuObservation {
+            class: z_other_delta,
+            x_gamma: -1000.0,
+        });
         // pooled(3,+1) = (10 + 30 + 50)/3 = 30（z_a 1 笔 + z_b 2 笔；其他 level/delta 不混）。
         assert_eq!(est.pooled_mean(3, 1), Some(30.0));
         // pooled(5,+1) 只含 z_other_level。
@@ -1087,23 +1265,41 @@ mod tests {
         // 单 est 顺序累加全部。
         let mut single = MuEstimator::new();
         for &x in &xs {
-            single.observe(MuObservation { class: z, x_gamma: x });
+            single.observe(MuObservation {
+                class: z,
+                x_gamma: x,
+            });
         }
         // 两 est 各累加一半再 merge。
         let mut a = MuEstimator::new();
         let mut b = MuEstimator::new();
         for &x in &xs[..3] {
-            a.observe(MuObservation { class: z, x_gamma: x });
+            a.observe(MuObservation {
+                class: z,
+                x_gamma: x,
+            });
         }
         for &x in &xs[3..] {
-            b.observe(MuObservation { class: z, x_gamma: x });
+            b.observe(MuObservation {
+                class: z,
+                x_gamma: x,
+            });
         }
         a.merge(&b);
         assert_eq!(a.count(&z), single.count(&z), "merge 后 n 一致");
-        assert!((a.mu(&z).unwrap() - single.mu(&z).unwrap()).abs() < 1e-12, "merge mean bit-exact");
+        assert!(
+            (a.mu(&z).unwrap() - single.mu(&z).unwrap()).abs() < 1e-12,
+            "merge mean bit-exact"
+        );
         // 方差（经 std）一致 ⟹ m2 合并正确（LCB 依赖）。
-        let (sa, ss) = (a.mu_lcb(&z, 1.645).unwrap(), single.mu_lcb(&z, 1.645).unwrap());
-        assert!((sa - ss).abs() < 1e-10, "merge LCB（含方差）bit-exact：{sa} vs {ss}");
+        let (sa, ss) = (
+            a.mu_lcb(&z, 1.645).unwrap(),
+            single.mu_lcb(&z, 1.645).unwrap(),
+        );
+        assert!(
+            (sa - ss).abs() < 1e-10,
+            "merge LCB（含方差）bit-exact：{sa} vs {ss}"
+        );
         // 空 merge / merge 空：恒等。
         let mut c = single.clone();
         c.merge(&MuEstimator::new());
@@ -1114,27 +1310,51 @@ mod tests {
     #[test]
     fn shrunk_view_replaces_mean_keeps_n() {
         let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
-        let neighbor =
-            MuClass::from_certificate(3, 1, BspBits { buy2: true, ..Default::default() }, 0, PositionState::Root);
+        let neighbor = MuClass::from_certificate(
+            3,
+            1,
+            BspBits {
+                buy2: true,
+                ..Default::default()
+            },
+            0,
+            PositionState::Root,
+        );
         let mut est = MuEstimator::new();
         // 邻类大量低值拉低 pooled，z 高值 ⟹ 收缩可观测。
         for _ in 0..100 {
-            est.observe(MuObservation { class: neighbor, x_gamma: 0.0 });
+            est.observe(MuObservation {
+                class: neighbor,
+                x_gamma: 0.0,
+            });
         }
         est.observe_all([
-            MuObservation { class: z, x_gamma: 40.0 },
-            MuObservation { class: z, x_gamma: 60.0 },
+            MuObservation {
+                class: z,
+                x_gamma: 40.0,
+            },
+            MuObservation {
+                class: z,
+                x_gamma: 60.0,
+            },
         ]); // z 均值 50，n=2
         let tau_sq = 1.0;
         let view = est.shrunk_view(tau_sq);
         // 各桶 mean 恰为 mu_shrink，n 保留（count 不变 ⟹ n_L3 可比）。
         for (zc, _) in est.iter_mu() {
-            assert_eq!(view.mu(&zc), est.mu_shrink(&zc, tau_sq), "桶 mean 应==mu_shrink");
+            assert_eq!(
+                view.mu(&zc),
+                est.mu_shrink(&zc, tau_sq),
+                "桶 mean 应==mu_shrink"
+            );
             assert_eq!(view.count(&zc), est.count(&zc), "n 保留 ⟹ n_L3 池可比");
         }
         // z 收缩后 < 原 mean（被 pooled 向 0 拉）但 > 0（n=2 ⟹ w_z>0 未全坍）。
         let shrunk_z = view.mu(&z).unwrap();
-        assert!(shrunk_z < 50.0 && shrunk_z > 0.0, "收缩方向正确：0 < {shrunk_z} < 50");
+        assert!(
+            shrunk_z < 50.0 && shrunk_z > 0.0,
+            "收缩方向正确：0 < {shrunk_z} < 50"
+        );
         assert_eq!(view.n_classes(), est.n_classes(), "桶集合不变");
     }
 
@@ -1142,7 +1362,11 @@ mod tests {
     #[test]
     fn project_to_u_is_deterministic() {
         let z = MuClass::from_certificate(3, 1, buy_bits(), 1, PositionState::Child);
-        assert_eq!(UClass::project_to_u(&z), UClass::project_to_u(&z), "同 z 恒映同 u");
+        assert_eq!(
+            UClass::project_to_u(&z),
+            UClass::project_to_u(&z),
+            "同 z 恒映同 u"
+        );
     }
 
     /// ϕ 折叠真实性：相邻 level + 不压扁的 I_γ 在 z 域是不同类，在 u 域折叠为同一 u（§30 降维）。
@@ -1154,12 +1378,20 @@ mod tests {
         let z_b = MuClass::from_certificate(
             3,
             1,
-            BspBits { buy1: true, buy2: true, ..Default::default() },
+            BspBits {
+                buy1: true,
+                buy2: true,
+                ..Default::default()
+            },
             0,
             PositionState::Root,
         );
         assert_ne!(z_a, z_b, "z 域不同类（level + I_γ 不同）");
-        assert_eq!(UClass::project_to_u(&z_a), UClass::project_to_u(&z_b), "u 域折叠为同一 u");
+        assert_eq!(
+            UClass::project_to_u(&z_a),
+            UClass::project_to_u(&z_b),
+            "u 域折叠为同一 u"
+        );
     }
 
     /// 短差/顺势/根 三角色折叠正确（§16 (parent_dir,short_swing,position)→role）。
@@ -1181,9 +1413,19 @@ mod tests {
         // 4 个不同 z：level{2,3}（同 bucket=1）× I_γ{B1, B1+B2}（都 divergence=true），同 δ/Root
         // ⟹ 全折叠为 1 个 u。
         for level in [2, 3] {
-            for bits in [buy_bits(), BspBits { buy1: true, buy2: true, ..Default::default() }] {
+            for bits in [
+                buy_bits(),
+                BspBits {
+                    buy1: true,
+                    buy2: true,
+                    ..Default::default()
+                },
+            ] {
                 let z = MuClass::from_certificate(level, 1, bits, 0, PositionState::Root);
-                est.observe(MuObservation { class: z, x_gamma: 10.0 });
+                est.observe(MuObservation {
+                    class: z,
+                    x_gamma: 10.0,
+                });
             }
         }
         let u_est = UEstimator::from_z(&est);
@@ -1200,15 +1442,27 @@ mod tests {
         let z_a = MuClass::from_certificate(2, 1, buy_bits(), 0, PositionState::Root);
         let z_b = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root); // 同 bucket
         est.observe_all([
-            MuObservation { class: z_a, x_gamma: 10.0 },
-            MuObservation { class: z_a, x_gamma: 20.0 },
-            MuObservation { class: z_b, x_gamma: 60.0 },
+            MuObservation {
+                class: z_a,
+                x_gamma: 10.0,
+            },
+            MuObservation {
+                class: z_a,
+                x_gamma: 20.0,
+            },
+            MuObservation {
+                class: z_b,
+                x_gamma: 60.0,
+            },
         ]);
         let u_est = UEstimator::from_z(&est);
         let u = UClass::project_to_u(&z_a);
         assert_eq!(u_est.count(&u), 3, "u 桶聚合 3 笔");
         // (10+20+60)/3 = 30，u 域 n̄=3 > z 域各类 n̄（z_a=2, z_b=1）⟹ 升每类样本。
-        assert!((u_est.mu(&u).unwrap() - 30.0).abs() < 1e-12, "u μ = 全部 X_γ 总均值 30");
+        assert!(
+            (u_est.mu(&u).unwrap() - 30.0).abs() < 1e-12,
+            "u μ = 全部 X_γ 总均值 30"
+        );
     }
 
     /// oos_gated_drop：OOS 不降的轴标可删，OOS 显著降的轴标保留（§11 OOS-value-gated）。
@@ -1227,6 +1481,10 @@ mod tests {
         );
         assert_eq!(result[0], (DropAxis::LevelBucket, true), "OOS 升 ⟹ 可删");
         assert_eq!(result[1], (DropAxis::Role, true), "tol 内不降 ⟹ 可删");
-        assert_eq!(result[2], (DropAxis::Divergence, false), "OOS 显著降 ⟹ 保留");
+        assert_eq!(
+            result[2],
+            (DropAxis::Divergence, false),
+            "OOS 显著降 ⟹ 保留"
+        );
     }
 }

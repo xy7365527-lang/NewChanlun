@@ -193,13 +193,19 @@ impl OverlayState {
             if q <= 0 {
                 continue; // 未达最小手数 ⟹ 不进 P^sep（诚实退化）
             }
-            let entry = target.entry(leg.id).or_insert((leg.side, 0, leg.role_v, leg.parent_id));
+            let entry = target
+                .entry(leg.id)
+                .or_insert((leg.side, 0, leg.role_v, leg.parent_id));
             entry.1 += q;
         }
 
         // 离场：books 中不在 target 的声部 → 记 exit_v/冻结 pnl_v，移出账本。
-        let gone: Vec<ElementId> =
-            self.books.keys().filter(|id| !target.contains_key(id)).copied().collect();
+        let gone: Vec<ElementId> = self
+            .books
+            .keys()
+            .filter(|id| !target.contains_key(id))
+            .copied()
+            .collect();
         for id in gone {
             let b = self.books.remove(&id).expect("gone 来自 books.keys");
             self.closed.push(ClosedVoice {
@@ -229,16 +235,19 @@ impl OverlayState {
                     b.side = side; // 恒等（防御性覆盖）
                 }
                 None => {
-                    self.books.insert(id, VoiceBook {
+                    self.books.insert(
                         id,
-                        side,
-                        q,
-                        role_v,
-                        parent_id,
-                        entry_bar: bar,
-                        entry_px: px,
-                        pnl_v: 0.0,
-                    });
+                        VoiceBook {
+                            id,
+                            side,
+                            q,
+                            role_v,
+                            parent_id,
+                            entry_bar: bar,
+                            entry_px: px,
+                            pnl_v: 0.0,
+                        },
+                    );
                 }
             }
         }
@@ -246,7 +255,11 @@ impl OverlayState {
         // ── ③ N_t = Σσ_v q_v；order = ΔN。 ──
         let net_after: i64 = self.books.values().map(|b| side_sign(b.side) * b.q).sum();
         self.net = net_after;
-        OverlayStep { net_before, net_after, order: net_after - net_before }
+        OverlayStep {
+            net_before,
+            net_after,
+            order: net_after - net_before,
+        }
     }
 
     /// 窗口终点强平（含浮盈口径）：把全部活动声部按末价 px 离场（记 exit_v/冻结 pnl_v）。
@@ -425,7 +438,10 @@ impl VoiceExecBook {
     }
     /// N_derived = Σ_v σ_v·q_v（派生只读净敞口；权益 MtM 与持仓成本计费用）。
     pub fn net_signed(&self) -> i64 {
-        self.positions.values().map(|p| side_sign(p.side) * p.q).sum()
+        self.positions
+            .values()
+            .map(|p| side_sign(p.side) * p.q)
+            .sum()
     }
     pub fn account_price_pnl(&self) -> f64 {
         self.account_price_pnl
@@ -488,7 +504,10 @@ impl VoiceExecBook {
         bar: usize,
         fee_rate: f64,
     ) -> VoiceFillOutcome {
-        let noop = VoiceFillOutcome { executed_qty: 0.0, closed: None };
+        let noop = VoiceFillOutcome {
+            executed_qty: 0.0,
+            closed: None,
+        };
         if q_lots <= 0 || px <= 0.0 {
             return noop;
         }
@@ -500,37 +519,50 @@ impl VoiceExecBook {
             id
         );
         let replaced = if self.positions.contains_key(&id) {
-            self.flatten(id, px, bar, fee_rate, false).map(|(info, _fee)| info)
+            self.flatten(id, px, bar, fee_rate, false)
+                .map(|(info, _fee)| info)
         } else {
             None
         };
         let delta = side_sign(side) as f64;
         if delta == 0.0 {
-            return VoiceFillOutcome { executed_qty: 0.0, closed: replaced }; // Flat 不开仓
+            return VoiceFillOutcome {
+                executed_qty: 0.0,
+                closed: replaced,
+            }; // Flat 不开仓
         }
         let qty = q_lots as f64;
         let cost = qty * px * (1.0 + fee_rate);
         if delta > 0.0 && self.cash < cost {
-            return VoiceFillOutcome { executed_qty: 0.0, closed: replaced }; // 现金不足拒开
+            return VoiceFillOutcome {
+                executed_qty: 0.0,
+                closed: replaced,
+            }; // 现金不足拒开
         }
         // 开仓现金流（apply_fill 段2 同口径）：cash += −δ·qty·px·(1+δ·fee)。
         let cash_flow = -delta * qty * px * (1.0 + delta * fee_rate);
         let fee = qty * px * fee_rate;
         self.cash += cash_flow;
         self.cum_fee += fee;
-        self.positions.insert(id, VoicePosition {
+        self.positions.insert(
             id,
-            side,
-            q: q_lots, // ★冻结：存续期不再重定（churn 修复）
-            entry_bar: bar,
-            entry_px: px * (1.0 + delta * fee_rate),
-            pnl_price: 0.0,
-            fee_paid: fee,
-        });
+            VoicePosition {
+                id,
+                side,
+                q: q_lots, // ★冻结：存续期不再重定（churn 修复）
+                entry_bar: bar,
+                entry_px: px * (1.0 + delta * fee_rate),
+                pnl_price: 0.0,
+                fee_paid: fee,
+            },
+        );
         self.n_fills += 1;
         self.total_voices += 1;
         self.gross_turnover_lots += q_lots;
-        VoiceFillOutcome { executed_qty: qty, closed: replaced }
+        VoiceFillOutcome {
+            executed_qty: qty,
+            closed: replaced,
+        }
     }
 
     /// 平仓 fill：flatten 簿内该声部全部持仓（无持仓 ⟹ no-op executed=0——restore 祖先腿/
@@ -545,9 +577,15 @@ impl VoiceExecBook {
         match self.flatten(id, px, bar, fee_rate, false) {
             Some((info, _fee)) => {
                 self.n_fills += 1;
-                VoiceFillOutcome { executed_qty: info.qty as f64, closed: Some(info) }
+                VoiceFillOutcome {
+                    executed_qty: info.qty as f64,
+                    closed: Some(info),
+                }
             }
-            None => VoiceFillOutcome { executed_qty: 0.0, closed: None },
+            None => VoiceFillOutcome {
+                executed_qty: 0.0,
+                closed: None,
+            },
         }
     }
 
@@ -586,7 +624,12 @@ impl VoiceExecBook {
             forced,
         });
         Some((
-            VoiceCloseInfo { entry_bar: pos.entry_bar, qty: pos.q, long: pos.side == VoiceSide::Long, pnl },
+            VoiceCloseInfo {
+                entry_bar: pos.entry_bar,
+                qty: pos.q,
+                long: pos.side == VoiceSide::Long,
+                pnl,
+            },
             fee,
         ))
     }
@@ -655,7 +698,13 @@ mod tests {
     }
 
     fn leg(id: ElementId, side: VoiceSide, q_units: f64, role_v: Vertical) -> SepLeg {
-        SepLeg { id, side, q_units, role_v, parent_id: None }
+        SepLeg {
+            id,
+            side,
+            q_units,
+            role_v,
+            parent_id: None,
+        }
     }
 
     /// ★ΔN 守恒（验收断言1，PDF p16 `Order_t=N_t−N_{t−1}`）：order 逐步恒 = net 增量，零违例。
@@ -664,12 +713,22 @@ mod tests {
         let mut ov = OverlayState::new();
         let root = eid(1, 0);
         // t0：开根多头 10 手 → N=10, order=+10。
-        let s0 = ov.step(&[leg(root, VoiceSide::Long, 10.0, Vertical::Ambient)], 100.0, 0, 1);
+        let s0 = ov.step(
+            &[leg(root, VoiceSide::Long, 10.0, Vertical::Ambient)],
+            100.0,
+            0,
+            1,
+        );
         assert_eq!(s0.order, 10);
         assert_eq!(s0.order, s0.net_after - s0.net_before, "ΔN 守恒");
         assert_eq!(ov.net(), 10);
         // t1：加仓到 15 手 → N=15, order=+5。
-        let s1 = ov.step(&[leg(root, VoiceSide::Long, 15.0, Vertical::Ambient)], 101.0, 1, 1);
+        let s1 = ov.step(
+            &[leg(root, VoiceSide::Long, 15.0, Vertical::Ambient)],
+            101.0,
+            1,
+            1,
+        );
         assert_eq!(s1.order, 5);
         assert_eq!(s1.order, s1.net_after - s1.net_before, "ΔN 守恒");
         // t2：全平（空目标）→ N=0, order=−15。
@@ -697,7 +756,11 @@ mod tests {
         );
         assert_eq!(s.net_after, 0, "双开净额退化 N=Σσq=+10−10=0（C26/PDF §11）");
         assert_eq!(s.order, 0, "净额账户 order=0（多空抵消）");
-        assert_eq!(ov.active_voices().count(), 2, "P^sep 保留两条腿（hedge-mode，PDF §10.2）");
+        assert_eq!(
+            ov.active_voices().count(),
+            2,
+            "P^sep 保留两条腿（hedge-mode，PDF §10.2）"
+        );
     }
 
     /// ★Σpnl_v 与净额价格 PnL 对账（验收断言2，PDF §11 线性恒等 `Σσ_v q_v ΔP=N ΔP`）：
@@ -715,7 +778,7 @@ mod tests {
         assert_eq!(ov.net(), 4);
         ov.step(&target, 110.0, 1, 1); // ΔP=+10：account += 4·10=40；父 +10·10=100，子 −6·10=−60
         ov.step(&target, 105.0, 2, 1); // ΔP=−5：account += 4·(−5)=−20；父 −50，子 +30
-        // 账户侧：40−20=20；分账本侧：父 100−50=50，子 −60+30=−30 ⟹ 20。
+                                       // 账户侧：40−20=20；分账本侧：父 100−50=50，子 −60+30=−30 ⟹ 20。
         assert!((ov.account_price_pnl() - 20.0).abs() < 1e-9, "N·ΔP 累计=20");
         assert!(
             (ov.total_voice_pnl() - ov.account_price_pnl()).abs() < 1e-9,
@@ -727,7 +790,12 @@ mod tests {
     #[test]
     fn subunit_leg_rounds_to_zero() {
         let mut ov = OverlayState::new();
-        let s = ov.step(&[leg(eid(1, 0), VoiceSide::Long, 0.4, Vertical::Ambient)], 100.0, 0, 1);
+        let s = ov.step(
+            &[leg(eid(1, 0), VoiceSide::Long, 0.4, Vertical::Ambient)],
+            100.0,
+            0,
+            1,
+        );
         assert_eq!(s.net_after, 0, "0.4 手 round→0 ⟹ 不进 P^sep");
         assert_eq!(ov.active_voices().count(), 0);
     }
@@ -756,14 +824,23 @@ mod tests {
         // 费后 PnL = (110·0.9997 − 100·1.0003)·10 = (109.967−100.03)·10 = 99.37。
         assert!((info.pnl - 99.37).abs() < 1e-9, "费后 PnL={}", info.pnl);
         assert_eq!(vb.net_signed(), 0);
-        assert_eq!(vb.n_fills(), 2, "开+平 = 2 个 fill 事件（事件驱动上界 2×1 声部）");
+        assert_eq!(
+            vb.n_fills(),
+            2,
+            "开+平 = 2 个 fill 事件（事件驱动上界 2×1 声部）"
+        );
         assert_eq!(vb.gross_turnover_lots(), 20, "G = q开+q平 = 20 手");
         // 守恒：cash−nav0 == account_price_pnl − cum_fee（N=0 终点）。
         let fee_total = 10.0 * 100.0 * fee + 10.0 * 110.0 * fee; // 0.30+0.33=0.63
         assert!((vb.cum_fee() - fee_total).abs() < 1e-9);
         let ledger_delta = vb.cash() - vb.nav0();
         let net_r = vb.account_price_pnl() - vb.cum_fee();
-        assert!((ledger_delta - net_r).abs() < 1e-9, "守恒：{} vs {}", ledger_delta, net_r);
+        assert!(
+            (ledger_delta - net_r).abs() < 1e-9,
+            "守恒：{} vs {}",
+            ledger_delta,
+            net_r
+        );
         // Σpnl_price 对账（PDF §11）：唯一声部 pnl_price=100 == account。
         assert!((vb.total_voice_price_pnl() - vb.account_price_pnl()).abs() < 1e-9);
         assert_eq!(vb.closed_voices().len(), 1);
@@ -782,12 +859,19 @@ mod tests {
         vb.apply_open(parent, VoiceSide::Long, 10, 100.0, 0, fee);
         vb.apply_open(child, VoiceSide::Short, 6, 100.0, 0, fee);
         // 守恒断言：Σ_v σ_v·q_v（簿派生）== 逐声部手数有符号和。
-        let sum: i64 = vb.positions().map(|p| match p.side {
-            VoiceSide::Long => p.q,
-            VoiceSide::Short => -p.q,
-            VoiceSide::Flat => 0,
-        }).sum();
-        assert_eq!(vb.net_signed(), 4, "对冲两腿毛额存续，净敞口 10−6=4（不湮灭）");
+        let sum: i64 = vb
+            .positions()
+            .map(|p| match p.side {
+                VoiceSide::Long => p.q,
+                VoiceSide::Short => -p.q,
+                VoiceSide::Flat => 0,
+            })
+            .sum();
+        assert_eq!(
+            vb.net_signed(),
+            4,
+            "对冲两腿毛额存续，净敞口 10−6=4（不湮灭）"
+        );
         assert_eq!(vb.net_signed(), sum, "Σ_v σ_v q_v 与声部簿一致");
         vb.mark_to_market(110.0); // account += 4·10=40；父+100，子−60
         assert!((vb.account_price_pnl() - 40.0).abs() < 1e-9);
@@ -796,7 +880,10 @@ mod tests {
         assert_eq!(vb.net_signed(), 10, "空腿已平，多腿独立存续");
         assert_eq!(vb.closed_voices().len(), 1);
         assert_eq!(vb.n_open_end(), 1);
-        assert!((vb.total_voice_price_pnl() - vb.account_price_pnl()).abs() < 1e-9, "Σpnl_price 对账");
+        assert!(
+            (vb.total_voice_price_pnl() - vb.account_price_pnl()).abs() < 1e-9,
+            "Σpnl_price 对账"
+        );
     }
 
     /// ★W1 窗口终点强平（虚拟兑现）：不改 cash、不计 fill、不计费；pnl 含假设性平仓费净额；
@@ -816,13 +903,19 @@ mod tests {
         assert_eq!(rows.len(), 1);
         // 虚拟兑现 pnl = (110·0.9997 − 100·1.0003)·10 = 99.37（与真平同价同额）。
         assert!((rows[0].pnl - 99.37).abs() < 1e-9);
-        assert_eq!(vb.cash(), cash_before, "虚拟兑现不改现金（与净额臂 forced_pnl 同口径）");
+        assert_eq!(
+            vb.cash(),
+            cash_before,
+            "虚拟兑现不改现金（与净额臂 forced_pnl 同口径）"
+        );
         assert_eq!(vb.cum_fee(), fee_before, "假设性平仓费未实付");
         assert_eq!(vb.n_fills(), fills_before, "强平虚拟兑现不计 fill 事件");
         assert_eq!(vb.n_open_end(), 0);
         assert!(vb.closed_voices()[0].forced);
-        assert!((vb.closed_voices()[0].fee_paid - 10.0 * 100.0 * fee).abs() < 1e-9,
-            "fee_paid 只记实付开仓费");
+        assert!(
+            (vb.closed_voices()[0].fee_paid - 10.0 * 100.0 * fee).abs() < 1e-9,
+            "fee_paid 只记实付开仓费"
+        );
     }
 
     /// ★W1 现金约束（apply_fill 段2 同口径）：开多现金不足 ⟹ 拒开（executed=0，不计 fill、
@@ -831,7 +924,10 @@ mod tests {
     fn voice_exec_open_rejected_on_insufficient_cash() {
         let mut vb = VoiceExecBook::new(100.0);
         let o = vb.apply_open(eid(1, 0), VoiceSide::Long, 10, 100.0, 0, 0.0003);
-        assert_eq!(o.executed_qty, 0.0, "10 手×100×1.0003=1000.3 > 现金 100 ⟹ 拒开");
+        assert_eq!(
+            o.executed_qty, 0.0,
+            "10 手×100×1.0003=1000.3 > 现金 100 ⟹ 拒开"
+        );
         assert_eq!(vb.n_fills(), 0);
         assert_eq!(vb.net_signed(), 0);
         assert_eq!(vb.cum_fee(), 0.0);

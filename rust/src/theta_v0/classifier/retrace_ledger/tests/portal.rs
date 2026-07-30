@@ -85,7 +85,11 @@ fn established_portal_is_deterministic_across_centers() {
     book.observe(&up_input(a, 3, Some(RetraceOutcome::Success), 540))
         .unwrap();
 
-    let identities: Vec<_> = book.established().iter().map(|pack| pack.identity).collect();
+    let identities: Vec<_> = book
+        .established()
+        .iter()
+        .map(|pack| pack.identity)
+        .collect();
     let mut sorted = identities.clone();
     sorted.sort();
     assert_eq!(identities, sorted, "枚举按身份键序，无平局歧义");

@@ -141,13 +141,13 @@ impl TStage {
 #[derive(Default, Clone, Copy)]
 pub struct BspOpDiag {
     // ── 卖点信号 → 操作 ──
-    pub sell_sink: u64,    // 子级卖点→sink（父多真减仓1/3，下放次级别做空）= 正确短差
-    pub sell_drain: u64,   // 子级卖点→drain（减暴露1/3，不翻转）
+    pub sell_sink: u64, // 子级卖点→sink（父多真减仓1/3，下放次级别做空）= 正确短差
+    pub sell_drain: u64, // 子级卖点→drain（减暴露1/3，不翻转）
     pub sell_recover: u64, // 子级卖点→recover（父空，平空头短差升回）
-    pub sell_flip: u64,    // 核心卖点→clear_all("flip")+enter(Short) = 清全塔翻空
-    pub sell_ascend: u64,  // 核心卖点→ascend（核心持空，更高 ladder 卖点骑乘）
-    pub sell_enter: u64,   // 全空卖点→enter(Short) 首次建空
-    pub sell_noop: u64,    // 卖点 no-op（不 pyramid）
+    pub sell_flip: u64, // 核心卖点→clear_all("flip")+enter(Short) = 清全塔翻空
+    pub sell_ascend: u64, // 核心卖点→ascend（核心持空，更高 ladder 卖点骑乘）
+    pub sell_enter: u64, // 全空卖点→enter(Short) 首次建空
+    pub sell_noop: u64, // 卖点 no-op（不 pyramid）
     // ── 买点信号 → 操作（对照）──
     pub buy_sink: u64,
     pub buy_drain: u64,
@@ -162,7 +162,7 @@ pub struct BspOpDiag {
     pub flip_long_units_cleared: f64, // 翻空累计清掉的多头 units（核心仓被全清的量）
     // ── 核心层 units 变化（Q2）──
     pub sink_core_reduced_units: f64, // sink 中父级=最高活跃层（核心）时减的 units 累计（=Σ u_core/3）
-    pub n_sink_on_core: u64, // sink 父级就是核心层的次数（核心被短差直接减1/3）
+    pub n_sink_on_core: u64,          // sink 父级就是核心层的次数（核心被短差直接减1/3）
 
     // ════ 「回来」诊断（编排者2026-06-20：卖是对的，问题在平空+做多）════
     /// 信号层密度（Q2：买点是否缺失）：各 ladder 收到的买/卖信号数（= view.buy/sell[j]）。
@@ -184,7 +184,7 @@ pub struct BspOpDiag {
 
     // ════ 真空期/敞口诊断（编排者2026-06-20：绝对值敞口,零真空,绩效=Σ|涨跌幅|）════
     /// 各 bar 敞口态计数（四者和 = 总 bar 数）。真空 = 所有 layer units≈0（完全无方向）。
-    pub n_vacuum_bars: u64,     // long≈0 ∧ short≈0（完全无敞口）
+    pub n_vacuum_bars: u64, // long≈0 ∧ short≈0（完全无敞口）
     pub n_long_only_bars: u64,  // long>0 ∧ short≈0
     pub n_short_only_bars: u64, // long≈0 ∧ short>0
     pub n_both_bars: u64,       // long>0 ∧ short>0（多空同时）
@@ -307,7 +307,13 @@ impl TPositionEngine {
 
     /// 三阶段会计快照: (stage, notional_in, withdrawn, earning_cash, core_cost_basis)。
     pub fn stage_snapshot(&self) -> (TStage, f64, f64, f64, f64) {
-        (self.stage, self.notional_in, self.withdrawn, self.earning_cash, self.core_cost_basis)
+        (
+            self.stage,
+            self.notional_in,
+            self.withdrawn,
+            self.earning_cash,
+            self.core_cost_basis,
+        )
     }
 
     /// 核心仓有效持仓成本（缠师"成本"，可<0）。无 campaign ⇒ NaN。
@@ -317,7 +323,11 @@ impl TPositionEngine {
 
     /// 核心多头 units（Σ 多头 units）。三阶段成本归属的"核心仓"（降成本分母 = reduce 后剩余多头）。
     fn core_long_units(&self) -> f64 {
-        self.layers.iter().filter(|l| l.units > 1e-12 && l.direction == Polarity::Long).map(|l| l.units).sum()
+        self.layers
+            .iter()
+            .filter(|l| l.units > 1e-12 && l.direction == Polarity::Long)
+            .map(|l| l.units)
+            .sum()
     }
 
     /// 累计已实现 pnl（Σ mobile_realized_pnl_by_ladder）——realized 增量的来源。
@@ -426,7 +436,16 @@ impl TPositionEngine {
         if self.layers[core].is_active() && self.layers[core].direction != Polarity::Long {
             return;
         }
-        add_at(&mut self.layers, core, q, Polarity::Long, &mut self.free, c, bar, &mut self.res);
+        add_at(
+            &mut self.layers,
+            core,
+            q,
+            Polarity::Long,
+            &mut self.free,
+            c,
+            bar,
+            &mut self.res,
+        );
         self.earning_cash -= q * c;
         self.res.n_earning_deploys += 1;
         self.res.earning_units_added += q; // 量化：增股数累计加的 units（任务3）
@@ -462,7 +481,11 @@ impl TPositionEngine {
 
     /// 状态快照: (nav, long_units, short_units, n_active_voices)。
     pub fn snapshot(&self) -> (f64, f64, f64, usize) {
-        let c = if self.last_close.is_finite() { self.last_close } else { 0.0 };
+        let c = if self.last_close.is_finite() {
+            self.last_close
+        } else {
+            0.0
+        };
         let (lu, su) = exposure(&self.layers);
         (self.total_nav(c), lu, su, active_voice_count(&self.layers))
     }
@@ -483,7 +506,16 @@ impl TPositionEngine {
             return;
         }
         let spent = m * c;
-        add_at(&mut self.layers, j, m, dir, &mut self.free, c, bar, &mut self.res);
+        add_at(
+            &mut self.layers,
+            j,
+            m,
+            dir,
+            &mut self.free,
+            c,
+            bar,
+            &mut self.res,
+        );
         self.res.n_entries_by_ladder[j] += 1;
         // 三阶段 campaign 起点：投入本金 = 建仓现金，core_cost_basis = 入场价（仅多头吸筹 campaign 有
         // 降成本语义；空头核心 cost_basis 仍记入场价但 Long-reduce 降成本对做空无意义，account_reduce 按
@@ -504,7 +536,16 @@ impl TPositionEngine {
         for k in 0..MAX_LADDER {
             let u = self.layers[k].units;
             if u > 1e-12 {
-                reduce_at(&mut self.layers, k, u, &mut self.free, c, bar, &mut self.res, reason);
+                reduce_at(
+                    &mut self.layers,
+                    k,
+                    u,
+                    &mut self.free,
+                    c,
+                    bar,
+                    &mut self.res,
+                    reason,
+                );
             }
         }
         // campaign 结束：安全池本金归还 free（牛市结束清仓时连本带利都在 free），重置阶段。
@@ -581,7 +622,11 @@ impl TPositionEngine {
         // reduce 释放的资本金额（m×parent.basis）在当前价 c 开空 = m×pb/c。价越高→同资本开的空头越少
         // →牛市空头累积减轻。pb 须在 reduce 前捕获（reduce 零化时 basis=NaN）；分组 (m*pb)/c 与 rec 相同。
         let pb = self.layers[parent].basis;
-        let short_u = if pb.is_finite() && pb > 1e-12 { m * pb / c } else { m };
+        let short_u = if pb.is_finite() && pb > 1e-12 {
+            m * pb / c
+        } else {
+            m
+        };
         if !(short_u > 1e-12 && short_u.is_finite()) {
             return;
         }
@@ -589,8 +634,26 @@ impl TPositionEngine {
         // 移植守卫（L0，从 spiral/fugue_v3）：区间套向心下沉 sub<parent + σ-不变配额 m=u_P×MOBILE_FRAC。
         prove_sink_descends(parent, sub, bar);
         prove_sigma_quota(m, u_p, sub, bar);
-        reduce_at(&mut self.layers, parent, m, &mut self.free, c, bar, &mut self.res, "reduce");
-        add_at(&mut self.layers, sub, short_u, mob, &mut self.free, c, bar, &mut self.res);
+        reduce_at(
+            &mut self.layers,
+            parent,
+            m,
+            &mut self.free,
+            c,
+            bar,
+            &mut self.res,
+            "reduce",
+        );
+        add_at(
+            &mut self.layers,
+            sub,
+            short_u,
+            mob,
+            &mut self.free,
+            c,
+            bar,
+            &mut self.res,
+        );
         self.res.n_cycle_opens_by_ladder[parent] += 1;
         self.res.cross_level_closures += 1;
         // 核算父级 reduce 的 realized（父多=核心高位卖出降成本；父空=短差单独算）。
@@ -619,22 +682,44 @@ impl TPositionEngine {
         // reduce(sub) 前捕获（reduce 零化 sub→basis=NaN）；分组 (m*sb)/pb 与 rec 相同。
         let sb = self.layers[sub].basis;
         let pb = self.layers[parent].basis;
-        let give = if pb.is_finite() && pb > 1e-12 { m * sb / pb } else { m };
+        let give = if pb.is_finite() && pb > 1e-12 {
+            m * sb / pb
+        } else {
+            m
+        };
         if !(give > 1e-12 && give.is_finite()) {
             return;
         }
         let r0 = self.realized_total();
         // 移植守卫（L0）：recover 升回与 sink 向心配对，同守 sub<parent（次级别走势完成升回父级）。
         prove_sink_descends(parent, sub, bar);
-        reduce_at(&mut self.layers, sub, m, &mut self.free, c, bar, &mut self.res, "recover");
-        add_at(&mut self.layers, parent, give, pdir, &mut self.free, c, bar, &mut self.res);
+        reduce_at(
+            &mut self.layers,
+            sub,
+            m,
+            &mut self.free,
+            c,
+            bar,
+            &mut self.res,
+            "recover",
+        );
+        add_at(
+            &mut self.layers,
+            parent,
+            give,
+            pdir,
+            &mut self.free,
+            c,
+            bar,
+            &mut self.res,
+        );
         self.res.n_cycle_closes_by_ladder[parent] += 1;
         // 核算 sub reduce 的 realized：sub=反父向短差腿⇒ 短差单独算，**不入降成本**。
         let realized = self.realized_total() - r0;
         self.account_reduce(mob, realized, c);
         self.guards.note_op("recover"); // prove_bsp_triggers_operation（panic）
         self.guards.on_recover(sub, realized); // prove_sink_recover_balance + prove_per_level_pnl
-        // ③ 增股数：EarningShares 阶段 recover = 买点，部署纯利润买更多核心 units。
+                                               // ③ 增股数：EarningShares 阶段 recover = 买点，部署纯利润买更多核心 units。
         if pdir == Polarity::Long {
             self.deploy_earning(parent, bar, c);
         }
@@ -652,7 +737,16 @@ impl TPositionEngine {
         let r0 = self.realized_total();
         // 移植守卫（L0）：drain 减暴露配额 σ-不变（m=u_j×MOBILE_FRAC，级别无关）。
         prove_sigma_quota(m, u, j, bar);
-        reduce_at(&mut self.layers, j, m, &mut self.free, c, bar, &mut self.res, "drain");
+        reduce_at(
+            &mut self.layers,
+            j,
+            m,
+            &mut self.free,
+            c,
+            bar,
+            &mut self.res,
+            "drain",
+        );
         let realized = self.realized_total() - r0;
         self.account_reduce(jdir, realized, c);
         self.guards.note_op("drain"); // prove_bsp_triggers_operation（panic）
@@ -672,8 +766,8 @@ impl TPositionEngine {
                 let pdir = self.layers[p].direction;
                 let mob = flip(pdir); // 短差方向 = 反父向
                 let is_reduce = match pdir {
-                    Polarity::Long => !is_buy,  // 父多：卖点=减仓信号
-                    Polarity::Short => is_buy,  // 父空：买点=减仓信号
+                    Polarity::Long => !is_buy, // 父多：卖点=减仓信号
+                    Polarity::Short => is_buy, // 父空：买点=减仓信号
                 };
                 if is_reduce {
                     // 反父向 BSP：sink（空/已是短差）或 drain（遗留同父向仓）。
@@ -683,7 +777,11 @@ impl TPositionEngine {
                         self.sink(p, j, bar, c);
                         let opened = self.layers[j].is_active() && self.layers[j].direction == mob;
                         let d = &mut self.op_diag;
-                        if is_buy { d.buy_sink += 1 } else { d.sell_sink += 1 }
+                        if is_buy {
+                            d.buy_sink += 1
+                        } else {
+                            d.sell_sink += 1
+                        }
                         if opened {
                             d.last_sink_bar[j] = bar;
                         }
@@ -693,7 +791,11 @@ impl TPositionEngine {
                         }
                     } else {
                         self.drain(j, bar, c);
-                        if is_buy { self.op_diag.buy_drain += 1 } else { self.op_diag.sell_drain += 1 }
+                        if is_buy {
+                            self.op_diag.buy_drain += 1
+                        } else {
+                            self.op_diag.sell_drain += 1
+                        }
                     }
                 } else {
                     // 同父向 BSP：recover（j 持短差则平整条升回父级）；否则 no-op（不 pyramid）。
@@ -703,7 +805,11 @@ impl TPositionEngine {
                         let sb = self.op_diag.last_sink_bar[j];
                         self.recover(p, j, bar, c);
                         let d = &mut self.op_diag;
-                        if is_buy { d.buy_recover += 1 } else { d.sell_recover += 1 }
+                        if is_buy {
+                            d.buy_recover += 1
+                        } else {
+                            d.sell_recover += 1
+                        }
                         if sb >= 0 {
                             let iv = bar - sb;
                             d.recover_interval_sum += iv as f64;
@@ -725,11 +831,19 @@ impl TPositionEngine {
             }
             // ── 核心级（无活跃祖先：j 是最高活跃或全空）：唯一独立翻转点 ──
             None => {
-                let dir = if is_buy { Polarity::Long } else { Polarity::Short };
+                let dir = if is_buy {
+                    Polarity::Long
+                } else {
+                    Polarity::Short
+                };
                 match self.highest_active() {
                     None => {
                         self.enter(j, dir, bar, c); // 首次建仓
-                        if is_buy { self.op_diag.buy_enter += 1 } else { self.op_diag.sell_enter += 1 }
+                        if is_buy {
+                            self.op_diag.buy_enter += 1
+                        } else {
+                            self.op_diag.sell_enter += 1
+                        }
                     }
                     Some(cc) => {
                         let cdir = self.layers[cc].direction;
@@ -737,7 +851,11 @@ impl TPositionEngine {
                             // 同向：更高空 ladder ⇒ ascend 骑乘；同 ladder ⇒ no-op。
                             if j > cc && !self.layers[j].is_active() {
                                 self.ascend(cc, j);
-                                if is_buy { self.op_diag.buy_ascend += 1 } else { self.op_diag.sell_ascend += 1 }
+                                if is_buy {
+                                    self.op_diag.buy_ascend += 1
+                                } else {
+                                    self.op_diag.sell_ascend += 1
+                                }
                             } else if is_buy {
                                 self.op_diag.buy_noop += 1
                             } else {
@@ -774,7 +892,7 @@ impl TPositionEngine {
         let c = price;
         self.last_close = c;
         self.guards.set_trigger(OpTrigger::None); // 本 bar 起始无触发源（强平不经原子函数）
-        // 守恒量 = 总财富（free + Σ持仓 + withdrawn）：退本金把现金移出在险池，TW 守恒（NAV 不守恒）。
+                                                  // 守恒量 = 总财富（free + Σ持仓 + withdrawn）：退本金把现金移出在险池，TW 守恒（NAV 不守恒）。
         let tw_pre = self.total_wealth(c);
 
         // ── A. 边界算子：保证金强平，**按三阶段切换模式**（编排者裁决 2026-06-20）。
@@ -795,7 +913,16 @@ impl TPositionEngine {
                         let u = self.layers[k].units;
                         if u > 1e-12 {
                             let r0 = self.realized_total();
-                            reduce_at(&mut self.layers, k, u, &mut self.free, c, bar, &mut self.res, "liq_cross");
+                            reduce_at(
+                                &mut self.layers,
+                                k,
+                                u,
+                                &mut self.free,
+                                c,
+                                bar,
+                                &mut self.res,
+                                "liq_cross",
+                            );
                             self.res.n_liquidations_by_ladder[k] += 1;
                             let realized = self.realized_total() - r0;
                             self.account_reduce(kdir, realized, c);
@@ -818,7 +945,16 @@ impl TPositionEngine {
                         };
                         if liq {
                             let r0 = self.realized_total();
-                            reduce_at(&mut self.layers, k, l.units, &mut self.free, c, bar, &mut self.res, "liq");
+                            reduce_at(
+                                &mut self.layers,
+                                k,
+                                l.units,
+                                &mut self.free,
+                                c,
+                                bar,
+                                &mut self.res,
+                                "liq",
+                            );
                             self.res.n_liquidations_by_ladder[k] += 1;
                             // 强平 realized 按被平层方向核算（多头强平=亏损抬 cost_basis；空头腿强平=短差单独算）。
                             let realized = self.realized_total() - r0;
@@ -936,7 +1072,9 @@ impl TPositionEngine {
             }
         }
         self.res.max_chiral_same_dir = self.res.max_chiral_same_dir.max(chiral);
-        self.max_concurrent_seen = self.max_concurrent_seen.max(active_voice_count(&self.layers));
+        self.max_concurrent_seen = self
+            .max_concurrent_seen
+            .max(active_voice_count(&self.layers));
 
         if bar % EQUITY_SAMPLE_BARS == 0 {
             // 总财富（含已退本金的安全池）——退本金后 in-system NAV 会低估真实财富。
@@ -987,7 +1125,10 @@ mod tests {
         eng.step(&buy_view(6), 0, 100.0);
         assert_eq!(eng.layers[6].direction, Polarity::Long);
         let units = INITIAL_CAPITAL / 100.0;
-        assert!((eng.layers[6].units - units).abs() < 1e-6, "全仓 {units} units（单一 free 池）");
+        assert!(
+            (eng.layers[6].units - units).abs() < 1e-6,
+            "全仓 {units} units（单一 free 池）"
+        );
         let (navv, _, _, _) = eng.snapshot();
         assert!((navv - INITIAL_CAPITAL).abs() < 1e-4, "建仓 NAV 中性");
     }
@@ -1011,7 +1152,10 @@ mod tests {
         eng.step(&buy_view(7), 5, 100.0); // 更高级别同向买点 → ascend 上移到 7
         assert!(!eng.layers[5].is_active(), "原核心 5 已上移（idle）");
         assert_eq!(eng.layers[7].direction, Polarity::Long);
-        assert!((eng.layers[7].units - u5).abs() < 1e-9, "ascend 仅 relabel，units 不变（无新资金）");
+        assert!(
+            (eng.layers[7].units - u5).abs() < 1e-9,
+            "ascend 仅 relabel，units 不变（无新资金）"
+        );
     }
 
     // ──────────────── 自下而上仓位涌现升级（emergence-upgrade）────────────────
@@ -1031,8 +1175,15 @@ mod tests {
         // T 迭代涌现出更高级别（ladder 7，向上走势）→ 核心仓 relabel 升级归属，不等高级别 BSP。
         eng.step(&emergent_view(7, Polarity::Long), 10, 105.0);
         assert!(!eng.layers[4].is_active(), "原核心 4 已升级（idle）");
-        assert_eq!(eng.layers[7].direction, Polarity::Long, "核心归属到涌现 ladder 7");
-        assert!((eng.layers[7].units - u4).abs() < 1e-9, "升级仅 relabel，units 不变（不新建仓）");
+        assert_eq!(
+            eng.layers[7].direction,
+            Polarity::Long,
+            "核心归属到涌现 ladder 7"
+        );
+        assert!(
+            (eng.layers[7].units - u4).abs() < 1e-9,
+            "升级仅 relabel，units 不变（不新建仓）"
+        );
         assert_eq!(eng.result().n_emergence_upgrades, 1);
         // NAV 中性：Long u4 @basis100，@105 ⟹ NAV = u4×105（升级不动钱）。
         let (navv, lu, su, _) = eng.snapshot();
@@ -1044,7 +1195,7 @@ mod tests {
     fn 涌现升级_方向不一致不升级() {
         let mut eng = TPositionEngine::new();
         eng.step(&buy_view(4), 0, 100.0); // 核心 Long@4
-        // 涌现向下走势（Short 归属）但核心持多 → 方向不一致，不升级（逆涌现方向不归属，等 BSP 翻转）。
+                                          // 涌现向下走势（Short 归属）但核心持多 → 方向不一致，不升级（逆涌现方向不归属，等 BSP 翻转）。
         eng.step(&emergent_view(7, Polarity::Short), 10, 105.0);
         assert!(eng.layers[4].is_active(), "核心仍在原 ladder 4");
         assert!(!eng.layers[7].is_active(), "涌现 ladder 7 未被占用");
@@ -1064,7 +1215,7 @@ mod tests {
     fn 涌现升级_已在更高ladder不下移() {
         let mut eng = TPositionEngine::new();
         eng.step(&buy_view(8), 0, 100.0); // 核心 Long@8
-        // 涌现上界 ladder 6 < 核心 8 → 不下移（幂等：核心已足够高）。
+                                          // 涌现上界 ladder 6 < 核心 8 → 不下移（幂等：核心已足够高）。
         eng.step(&emergent_view(6, Polarity::Long), 10, 105.0);
         assert!(eng.layers[8].is_active(), "核心仍在 8");
         assert!(!eng.layers[6].is_active(), "不下移到 6");
@@ -1079,9 +1230,20 @@ mod tests {
         let u8 = eng.layers[8].units;
         // 升级后低级别 5 卖点：以核心 8（Long）为父级 → sink（父减仓 1/3 + 5 开反向短差），非翻转。
         eng.step(&sell_view(5), 20, 100.0);
-        assert_eq!(eng.layers[8].direction, Polarity::Long, "核心仍持多（非误判为翻转）");
-        assert!((eng.layers[8].units - u8 * 2.0 / 3.0).abs() < 1e-6, "父级真减仓到 2/3");
-        assert_eq!(eng.layers[5].direction, Polarity::Short, "次级别开反向短差（sink）");
+        assert_eq!(
+            eng.layers[8].direction,
+            Polarity::Long,
+            "核心仍持多（非误判为翻转）"
+        );
+        assert!(
+            (eng.layers[8].units - u8 * 2.0 / 3.0).abs() < 1e-6,
+            "父级真减仓到 2/3"
+        );
+        assert_eq!(
+            eng.layers[5].direction,
+            Polarity::Short,
+            "次级别开反向短差（sink）"
+        );
     }
 
     // ──────────────── 子级 sink（父级真减仓，核心新语义）────────────────
@@ -1092,9 +1254,16 @@ mod tests {
         eng.step(&buy_view(6), 0, 100.0); // 核心 Long@6
         let u6 = eng.layers[6].units;
         eng.step(&sell_view(5), 10, 100.0); // 子级 5 卖点（父6持多）→ sink
-        assert!((eng.layers[6].units - u6 * 2.0 / 3.0).abs() < 1e-6, "父级减到 2/3，得 {}", eng.layers[6].units);
+        assert!(
+            (eng.layers[6].units - u6 * 2.0 / 3.0).abs() < 1e-6,
+            "父级减到 2/3，得 {}",
+            eng.layers[6].units
+        );
         assert_eq!(eng.layers[5].direction, Polarity::Short, "次级别开反向短差");
-        assert!((eng.layers[5].units - u6 / 3.0).abs() < 1e-6, "短差 = 1/3 父级 units（下放）");
+        assert!(
+            (eng.layers[5].units - u6 / 3.0).abs() < 1e-6,
+            "短差 = 1/3 父级 units（下放）"
+        );
         let (lu, su) = exposure(&eng.layers);
         assert!((lu - u6 * 2.0 / 3.0).abs() < 1e-6 && (su - u6 / 3.0).abs() < 1e-6);
     }
@@ -1108,12 +1277,19 @@ mod tests {
         let u6_after_sink = eng.layers[6].units;
         let u5_short = eng.layers[5].units;
         eng.step(&buy_view(5), 20, 90.0);
-        assert!(eng.layers[5].units < 1e-9, "短差全平清，得 {}", eng.layers[5].units);
+        assert!(
+            eng.layers[5].units < 1e-9,
+            "短差全平清，得 {}",
+            eng.layers[5].units
+        );
         assert!(
             (eng.layers[6].units - (u6_after_sink + u5_short)).abs() < 1e-6,
             "父级全额升回核心仓"
         );
-        assert!((eng.layers[6].units - u6_core).abs() < 1e-6, "核心仓恢复 sink 前水平");
+        assert!(
+            (eng.layers[6].units - u6_core).abs() < 1e-6,
+            "核心仓恢复 sink 前水平"
+        );
         let mob = eng.result().mobile_realized_pnl_by_ladder[5];
         assert!(mob > 0.0, "短差降价回补盈利，得 {mob}");
     }
@@ -1124,8 +1300,14 @@ mod tests {
         eng.step(&buy_view(6), 0, 100.0);
         let u6 = eng.layers[6].units;
         eng.step(&sell_view(5), 10, 100.0);
-        assert!((eng.layers[5].units - u6 / 3.0).abs() < 1e-6, "子级短差恰 1/3 父级（非独立全仓）");
-        assert!(eng.layers[6].units < u6, "父级被减仓（非独立做空时父级不动）");
+        assert!(
+            (eng.layers[5].units - u6 / 3.0).abs() < 1e-6,
+            "子级短差恰 1/3 父级（非独立全仓）"
+        );
+        assert!(
+            eng.layers[6].units < u6,
+            "父级被减仓（非独立做空时父级不动）"
+        );
     }
 
     // ──────────────── 四步循环 + 手性几何塔 ────────────────
@@ -1154,8 +1336,14 @@ mod tests {
         assert_eq!(eng.layers[6].direction, Polarity::Long);
         assert_eq!(eng.layers[5].direction, Polarity::Short, "相邻反向");
         assert_eq!(eng.layers[4].direction, Polarity::Long, "手性交替");
-        assert!((eng.layers[4].units - u5_at_sink / 3.0).abs() < 1e-6, "次次级别 = sink时次级别 1/3");
-        assert!((eng.layers[5].units - u5_at_sink * 2.0 / 3.0).abs() < 1e-6, "次级别被次次级别 sink 减到 2/3");
+        assert!(
+            (eng.layers[4].units - u5_at_sink / 3.0).abs() < 1e-6,
+            "次次级别 = sink时次级别 1/3"
+        );
+        assert!(
+            (eng.layers[5].units - u5_at_sink * 2.0 / 3.0).abs() < 1e-6,
+            "次级别被次次级别 sink 减到 2/3"
+        );
     }
 
     // ──────────────── 守恒 / 边界 ────────────────
@@ -1168,7 +1356,10 @@ mod tests {
         eng.step(&buy_view(5), 10, 100.0); // recover（同价）
         eng.step(&sell_view(6), 15, 100.0); // 核心翻空（同价）
         let (navv, _, _, _) = eng.snapshot();
-        assert!((navv - INITIAL_CAPITAL).abs() < 1e-4, "同价全操作总 NAV 守恒，得 {navv}");
+        assert!(
+            (navv - INITIAL_CAPITAL).abs() < 1e-4,
+            "同价全操作总 NAV 守恒，得 {navv}"
+        );
     }
 
     #[test]
@@ -1179,7 +1370,10 @@ mod tests {
         }
         eng.finish(Some(4));
         assert!(eng.result().trades.is_empty(), "无信号无 trade");
-        assert!((eng.result().final_nav - INITIAL_CAPITAL).abs() < 1e-6, "总资金守恒");
+        assert!(
+            (eng.result().final_nav - INITIAL_CAPITAL).abs() < 1e-6,
+            "总资金守恒"
+        );
     }
 
     #[test]
@@ -1210,7 +1404,10 @@ mod tests {
         eng.finish(Some(10));
         // 全平后所有层 idle。
         assert!(eng.layers.iter().all(|l| !l.is_active()), "收尾全平");
-        assert!((eng.result().final_nav - INITIAL_CAPITAL).abs() < 1e-4, "同价全平 final_nav 守恒");
+        assert!(
+            (eng.result().final_nav - INITIAL_CAPITAL).abs() < 1e-4,
+            "同价全平 final_nav 守恒"
+        );
     }
 
     // ──────────────── 持仓三阶段（缠师第31课）────────────────
@@ -1221,7 +1418,10 @@ mod tests {
         eng.step(&buy_view(6), 0, 100.0); // 核心 Long@6，notional = INITIAL
         assert_eq!(eng.stage(), TStage::CostReduction, "建仓即降成本阶段");
         let (_, notional, withdrawn, _, cb) = eng.stage_snapshot();
-        assert!((notional - INITIAL_CAPITAL).abs() < 1e-6, "notional = 建仓本金");
+        assert!(
+            (notional - INITIAL_CAPITAL).abs() < 1e-6,
+            "notional = 建仓本金"
+        );
         assert!(withdrawn.abs() < 1e-9, "初始无 withdrawn");
         assert!((cb - 100.0).abs() < 1e-6, "core_cost_basis = 入场价 100");
     }
@@ -1237,8 +1437,14 @@ mod tests {
         assert_eq!(eng.stage(), TStage::CostReduction, "单次远未退本金");
         let sl0 = eng.result().short_leg_pnl;
         eng.step(&buy_view(5), 20, 130.0);
-        assert!((eng.cost_basis() - cb1).abs() < 1e-6, "recover 平短差不改 cost_basis（短差腿单独算）");
-        assert!((eng.result().short_leg_pnl - sl0).abs() > 1e-9, "短差腿 pnl 单独累计");
+        assert!(
+            (eng.cost_basis() - cb1).abs() < 1e-6,
+            "recover 平短差不改 cost_basis（短差腿单独算）"
+        );
+        assert!(
+            (eng.result().short_leg_pnl - sl0).abs() > 1e-9,
+            "短差腿 pnl 单独累计"
+        );
     }
 
     /// 核心随价格上涨、sink 高位卖出降 cost_basis 穿零 → 退本金 → 增股数（核心 units 增长）。
@@ -1261,7 +1467,12 @@ mod tests {
                 break;
             }
         }
-        assert!(reached, "核心高位卖出降成本应穿零退本金，末态 {:?} cost_basis={}", eng.stage(), eng.cost_basis());
+        assert!(
+            reached,
+            "核心高位卖出降成本应穿零退本金，末态 {:?} cost_basis={}",
+            eng.stage(),
+            eng.cost_basis()
+        );
         assert!(eng.result().n_capital_recovered >= 1, "退本金触发");
         assert!(eng.withdrawn > 0.0, "本金移出安全池，得 {}", eng.withdrawn);
         // 增股数：EarningShares 阶段继续 sink/recover → recover 买点 deploy_earning 买更多核心。
@@ -1273,7 +1484,11 @@ mod tests {
             bar += 1;
         }
         assert!(eng.result().n_earning_deploys >= 1, "增股数部署至少一次");
-        assert!(eng.core_long_units() > u0 + 1e-6, "增股数后核心 units {} > 初始 {u0}", eng.core_long_units());
+        assert!(
+            eng.core_long_units() > u0 + 1e-6,
+            "增股数后核心 units {} > 初始 {u0}",
+            eng.core_long_units()
+        );
     }
 
     #[test]
@@ -1291,11 +1506,18 @@ mod tests {
             bar += 1;
         }
         let tw = eng.total_wealth(p * 0.85);
-        assert!(tw > INITIAL_CAPITAL, "总财富增长（趋势+短差，非凭空），得 {tw}");
+        assert!(
+            tw > INITIAL_CAPITAL,
+            "总财富增长（趋势+短差，非凭空），得 {tw}"
+        );
         eng.finish(Some(bar)); // 收尾全平 + 归还 withdrawn
         assert!(eng.layers.iter().all(|l| !l.is_active()), "收尾全平");
         assert!(eng.withdrawn.abs() < 1e-9, "withdrawn 已归还");
-        assert!(eng.result().final_nav > INITIAL_CAPITAL, "最终财富 > 本金，得 {}", eng.result().final_nav);
+        assert!(
+            eng.result().final_nav > INITIAL_CAPITAL,
+            "最终财富 > 本金，得 {}",
+            eng.result().final_nav
+        );
     }
 
     /// 保证金模式耦合（编排者裁决 2026-06-20）：EarningShares 阶段切全仓——短差腿在 c≥2×basis

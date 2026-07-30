@@ -134,9 +134,14 @@ fn contradictory_late_evidence_after_terminal_is_silently_absorbed_not_rejected(
     // 迟到输入的侧翻转（Buy → Sell）：若守卫仍无条件施加，这里会拿到
     // `TerminalEvidenceContradictsRegistration` 的 `Err`；终态边界收缩后须静默吸收。
     let flipped = down_input(center, 3, Some(RetraceOutcome::Success), 600);
-    let step = book.observe(&flipped).expect("终态后矛盾证据须静默吸收，不是 Err");
+    let step = book
+        .observe(&flipped)
+        .expect("终态后矛盾证据须静默吸收，不是 Err");
 
-    assert!(step.absorbed_late(), "终态后迟到 ⟹ 静默吸收（裁定三），不因证据矛盾变成拒收");
+    assert!(
+        step.absorbed_late(),
+        "终态后迟到 ⟹ 静默吸收（裁定三），不因证据矛盾变成拒收"
+    );
     assert_eq!(step.state, RetraceState::Confirmed, "禁复活，原判维持");
     assert_eq!(book.alarms().late_absorbed, 1, "计入迟到吸收警报");
     assert_eq!(
@@ -146,6 +151,10 @@ fn contradictory_late_evidence_after_terminal_is_silently_absorbed_not_rejected(
     );
 
     let entry = book.entry(&key_of(center, 3)).unwrap();
-    assert_eq!(entry.terminal_evidence().unwrap().side, RetraceSide::Buy, "落锤证据不被迟到矛盾污染");
+    assert_eq!(
+        entry.terminal_evidence().unwrap().side,
+        RetraceSide::Buy,
+        "落锤证据不被迟到矛盾污染"
+    );
     settled(&book);
 }

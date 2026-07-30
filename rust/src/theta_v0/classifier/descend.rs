@@ -197,17 +197,32 @@ mod tests {
 
     fn sub_center() -> Center {
         // 核心 [ZD,ZG]=[10,20]，外缘 [DD,GG]=[5,25]（port Lean `subCenter`）。
-        Center { zd: 10, zg: 20, dd: 5, gg: 25, start_index: 0, end_index: 0 }
+        Center {
+            zd: 10,
+            zg: 20,
+            dd: 5,
+            gg: 25,
+            start_index: 0,
+            end_index: 0,
+        }
     }
 
     /// 向下跌破的次级别走势（区间 [-5,1]，下沿 -5 < zd=10；port Lean `subMoveBroke`）。
     fn sub_move_broke() -> RMove {
-        RMove::Segment { direction: Direction::Down, lo: -5, hi: 1 }
+        RMove::Segment {
+            direction: Direction::Down,
+            lo: -5,
+            hi: 1,
+        }
     }
 
     /// 未破中枢的次级别走势（区间 [12,18]，下沿 12 >= zd=10；port Lean `subMoveInside`）。
     fn sub_move_inside() -> RMove {
-        RMove::Segment { direction: Direction::Up, lo: 12, hi: 18 }
+        RMove::Segment {
+            direction: Direction::Up,
+            lo: 12,
+            hi: 18,
+        }
     }
 
     /// 本级别走势（compose 三个次级别走势，其一向下破中枢；port Lean `parentWit`）。
@@ -234,7 +249,11 @@ mod tests {
     /// 线段下钻得空（递归底；Lean `descend_segment`）。
     #[test]
     fn descend_segment_empty() {
-        let seg = RMove::Segment { direction: Direction::Up, lo: 0, hi: 10 };
+        let seg = RMove::Segment {
+            direction: Direction::Up,
+            lo: 0,
+            hi: 10,
+        };
         assert!(descend(&seg).is_empty());
     }
 
@@ -283,7 +302,11 @@ mod tests {
     #[test]
     fn sub_move_broke_above_sell_side() {
         // 区间 [22,30]：hi=30 > zg=20 ⟹ 向上突破（卖点侧）。
-        let up = RMove::Segment { direction: Direction::Up, lo: 22, hi: 30 };
+        let up = RMove::Segment {
+            direction: Direction::Up,
+            lo: 22,
+            hi: 30,
+        };
         assert!(sub_broke_above(&up, &sub_center()));
         assert!(sub_reclassify_broke(Side::Short, &up, &sub_center()));
     }
@@ -293,7 +316,11 @@ mod tests {
     /// 真下钻判到次级别存在破中枢走势（买点侧，几何层；Lean `witness_subLevel_hasBrokenCenter`）。
     #[test]
     fn sub_level_has_broken_center_witness() {
-        assert!(sub_level_has_broken_center(&parent_wit(), Side::Long, |_| sub_center()));
+        assert!(sub_level_has_broken_center(
+            &parent_wit(),
+            Side::Long,
+            |_| sub_center()
+        ));
     }
 
     /// 无破中枢走势 ⟹ false（全 inside 次级别走势）。
@@ -304,7 +331,11 @@ mod tests {
             centers: vec![sub_center()],
             level: 1,
         };
-        assert!(!sub_level_has_broken_center(&all_inside, Side::Long, |_| sub_center()));
+        assert!(!sub_level_has_broken_center(
+            &all_inside,
+            Side::Long,
+            |_| sub_center()
+        ));
     }
 
     // ── 第二类 ⟸ 次级别第一类（port SubLevelDescent §4，力度 MACD 真算）─────

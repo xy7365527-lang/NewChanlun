@@ -27,7 +27,11 @@ fn terminal_clock_is_written_once_and_never_moves() {
             .unwrap();
     }
     let entry = book.entry(&key_of(center, 3)).unwrap();
-    assert_eq!(entry.terminal_as_of, Some(640), "落锤钟首写永不改（裁定五）");
+    assert_eq!(
+        entry.terminal_as_of,
+        Some(640),
+        "落锤钟首写永不改（裁定五）"
+    );
     assert_eq!(entry.last_as_of, 5_000, "门卫钟照常前移（吸收也过门）");
     settled(&book);
 }
@@ -42,7 +46,10 @@ fn gate_clock_rejects_retrograde_with_zero_mutation_and_alarm() {
     let step = book
         .observe(&up_input(center, 3, Some(RetraceOutcome::Success), 400))
         .unwrap();
-    assert!(step.retrograde_rejected(), "per-identity 知情时非降（裁定五）");
+    assert!(
+        step.retrograde_rejected(),
+        "per-identity 知情时非降（裁定五）"
+    );
     assert!(step.delta.is_empty());
 
     let after = book.entry(&key_of(center, 3)).unwrap();
@@ -70,8 +77,13 @@ fn every_revision_carries_its_knowledge_time() {
     let mut book = ledger();
     let center = frame(1_200);
     book.observe(&up_input(center, 3, None, 500)).unwrap();
-    book.observe(&up_input(center, 3, Some(RetraceOutcome::RetestReenters), 800))
-        .unwrap();
+    book.observe(&up_input(
+        center,
+        3,
+        Some(RetraceOutcome::RetestReenters),
+        800,
+    ))
+    .unwrap();
     book.observe(&up_input(frame(1_400), 5, None, 900)).unwrap();
 
     let stamps: Vec<_> = book
@@ -113,7 +125,11 @@ fn position_lives_in_evidence_not_in_clocks() {
 
     let entry = book.entry(&step.key).unwrap();
     let evidence = entry.terminal_evidence().unwrap();
-    assert_eq!(evidence.retest_end.unwrap().index, 1_220, "位置 = 回抽笔终点源坐标");
+    assert_eq!(
+        evidence.retest_end.unwrap().index,
+        1_220,
+        "位置 = 回抽笔终点源坐标"
+    );
     assert_eq!(evidence.leave_end.index, 1_210, "位置 = 离开笔终点源坐标");
     assert_eq!(entry.terminal_as_of, Some(500), "知情时是另一个数");
     assert_ne!(

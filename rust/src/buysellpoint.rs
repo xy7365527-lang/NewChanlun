@@ -115,7 +115,11 @@ impl MoveLookup {
                 continue;
             }
             let lo = mv.seg_start as usize;
-            let hi = if mv.seg_end >= 0 { mv.seg_end as usize } else { continue };
+            let hi = if mv.seg_end >= 0 {
+                mv.seg_end as usize
+            } else {
+                continue;
+            };
             for slot in seg_to_move.iter_mut().take(hi.min(cap - 1) + 1).skip(lo) {
                 // 首个 move 胜出（复刻 Python 列表序首个匹配）
                 if slot.is_none() {
@@ -141,7 +145,11 @@ impl MoveLookup {
 }
 
 /// 从 start 开始找第一个指定方向的段索引。移植自 `_find_next_seg_by_direction`。
-pub(crate) fn find_next_seg_by_direction(segs: &[SegView], start: i64, direction: Direction) -> Option<i64> {
+pub(crate) fn find_next_seg_by_direction(
+    segs: &[SegView],
+    start: i64,
+    direction: Direction,
+) -> Option<i64> {
     if start < 0 {
         return None;
     }
@@ -155,7 +163,11 @@ pub(crate) fn find_next_seg_by_direction(segs: &[SegView], start: i64, direction
 }
 
 /// 找包含背驰中枢的趋势 Move 索引。移植自 `_find_assoc_trend_move`。
-pub(crate) fn find_assoc_trend_move(moves: &[MoveView], center_idx: usize, n_zhongshus: usize) -> Option<usize> {
+pub(crate) fn find_assoc_trend_move(
+    moves: &[MoveView],
+    center_idx: usize,
+    n_zhongshus: usize,
+) -> Option<usize> {
     if center_idx >= n_zhongshus {
         return None;
     }
@@ -287,15 +299,16 @@ fn detect_type2(
     for t1 in type1 {
         match t1.side {
             Side::Buy => {
-                let rebound = match find_next_seg_by_direction(segs, t1.seg_idx + 1, Direction::Up) {
+                let rebound = match find_next_seg_by_direction(segs, t1.seg_idx + 1, Direction::Up)
+                {
                     Some(k) => k,
                     None => continue,
                 };
-                let callback =
-                    match find_next_seg_by_direction(segs, rebound + 1, Direction::Down) {
-                        Some(k) => k,
-                        None => continue,
-                    };
+                let callback = match find_next_seg_by_direction(segs, rebound + 1, Direction::Down)
+                {
+                    Some(k) => k,
+                    None => continue,
+                };
                 result.push(make_type2_point(
                     t1,
                     callback,
@@ -313,11 +326,11 @@ fn detect_type2(
                         Some(k) => k,
                         None => continue,
                     };
-                let rebound_s =
-                    match find_next_seg_by_direction(segs, pullback + 1, Direction::Up) {
-                        Some(k) => k,
-                        None => continue,
-                    };
+                let rebound_s = match find_next_seg_by_direction(segs, pullback + 1, Direction::Up)
+                {
+                    Some(k) => k,
+                    None => continue,
+                };
                 result.push(make_type2_point(
                     t1,
                     rebound_s,
@@ -413,13 +426,27 @@ fn detect_type3(
         match break_dir {
             crate::zhongshu::BreakDir::Up if pullback_seg.low > zs.zg => {
                 result.push(make_type3_point(
-                    zs, pullback, pullback_seg, Side::Buy, lookup, moves, level_id, confirmed,
+                    zs,
+                    pullback,
+                    pullback_seg,
+                    Side::Buy,
+                    lookup,
+                    moves,
+                    level_id,
+                    confirmed,
                     require_settled,
                 ));
             }
             crate::zhongshu::BreakDir::Down if pullback_seg.high < zs.zd => {
                 result.push(make_type3_point(
-                    zs, pullback, pullback_seg, Side::Sell, lookup, moves, level_id, confirmed,
+                    zs,
+                    pullback,
+                    pullback_seg,
+                    Side::Sell,
+                    lookup,
+                    moves,
+                    level_id,
+                    confirmed,
                     require_settled,
                 ));
             }
@@ -498,12 +525,14 @@ pub fn prove_s7_morphology(segs: &[SegView], zss: &[ZsView], moves: &[MoveView],
         assert!(
             sg.i0 <= sg.i1,
             "S7(T8) 违反@level {level_id} 线段 {i}：i0={} > i1={}（线段 bar 跨度逆序）",
-            sg.i0, sg.i1
+            sg.i0,
+            sg.i1
         );
         assert!(
             sg.low <= sg.high,
             "S7(T8) 违反@level {level_id} 线段 {i}：low={} > high={}（线段高低逆序）",
-            sg.low, sg.high
+            sg.low,
+            sg.high
         );
     }
     for (i, zs) in zss.iter().enumerate() {
@@ -515,14 +544,16 @@ pub fn prove_s7_morphology(segs: &[SegView], zss: &[ZsView], moves: &[MoveView],
         assert!(
             zs.seg_start <= zs.seg_end,
             "S7(T9) 违反@level {level_id} 中枢 {i}：seg_start={} > seg_end={}（中枢段跨度逆序）",
-            zs.seg_start, zs.seg_end
+            zs.seg_start,
+            zs.seg_end
         );
     }
     for (i, mv) in moves.iter().enumerate() {
         assert!(
             mv.seg_start <= mv.seg_end,
             "S7(T8) 违反@level {level_id} 走势 {i}：seg_start={} > seg_end={}（走势段跨度逆序）",
-            mv.seg_start, mv.seg_end
+            mv.seg_start,
+            mv.seg_end
         );
     }
 }
@@ -665,7 +696,15 @@ pub fn buysellpoints_from_level(
 
     let type1 = detect_type1(segs, zss, moves, divergences, level_id, require_settled);
     let mut type2 = detect_type2(&type1, segs, &lookup, moves, level_id, require_settled);
-    let mut type3 = detect_type3(zss, zs_break, segs, &lookup, moves, level_id, require_settled);
+    let mut type3 = detect_type3(
+        zss,
+        zs_break,
+        segs,
+        &lookup,
+        moves,
+        level_id,
+        require_settled,
+    );
     detect_overlap(&mut type2, &mut type3);
 
     // S7（T8/T9）：信号层形态学结构良序运行时证明（中枢区间 / 线段跨度，violation=panic）。
@@ -715,8 +754,17 @@ pub(crate) fn build_type1_bsp(
     let zs = &zss[div.center_idx];
     // S7/S12（T9 中枢=重叠区间）增量路径覆盖：type1 锚中枢 ZD≤ZG（O(1)，regression guard，
     // 覆盖 IncrementalBsp/IncrementalSegBsp——prove_s7_morphology 仅全量路径调用）。
-    assert!(zs.zd <= zs.zg, "S7/S12(T9) 违反 type1@level {level_id}：中枢 ZD={} > ZG={}", zs.zd, zs.zg);
-    let side = if div.direction == DivDir::Bottom { Side::Buy } else { Side::Sell };
+    assert!(
+        zs.zd <= zs.zg,
+        "S7/S12(T9) 违反 type1@level {level_id}：中枢 ZD={} > ZG={}",
+        zs.zd,
+        zs.zg
+    );
+    let side = if div.direction == DivDir::Bottom {
+        Side::Buy
+    } else {
+        Side::Sell
+    };
     let seg_idx = div.seg_c_end;
     let mut price = 0.0;
     let mut bar_idx: i64 = 0;
@@ -775,7 +823,11 @@ pub(crate) fn build_type2_bsp(
     };
     let seg = &segs[callback as usize];
     let price = if side == Side::Buy { seg.low } else { seg.high };
-    let geom = if side == Side::Buy { price >= t1.price } else { price <= t1.price };
+    let geom = if side == Side::Buy {
+        price >= t1.price
+    } else {
+        price <= t1.price
+    };
     let confirmed = geom && (!require_settled || seg.settled);
     let assoc = lookup_find(callback);
     Some(BuySellPoint {
@@ -811,7 +863,12 @@ pub(crate) fn build_type3_bsp(
         return None;
     }
     // S7/S12（T9 中枢=重叠区间）增量路径覆盖：type3 锚中枢 ZD≤ZG（O(1)，regression guard）。
-    assert!(zs.zd <= zs.zg, "S7/S12(T9) 违反 type3@level {level_id}：中枢 ZD={} > ZG={}", zs.zd, zs.zg);
+    assert!(
+        zs.zd <= zs.zg,
+        "S7/S12(T9) 违反 type3@level {level_id}：中枢 ZD={} > ZG={}",
+        zs.zd,
+        zs.zg
+    );
     let (opposite, break_direction) = match break_dir {
         crate::zhongshu::BreakDir::Up => (Direction::Down, Direction::Up),
         crate::zhongshu::BreakDir::Down => (Direction::Up, Direction::Down),
@@ -838,7 +895,11 @@ pub(crate) fn build_type3_bsp(
         center_zd: zs.zd,
         center_zg: zs.zg,
         center_seg_start: Some(zs.seg_start),
-        price: if side == Side::Buy { pullback_seg.low } else { pullback_seg.high },
+        price: if side == Side::Buy {
+            pullback_seg.low
+        } else {
+            pullback_seg.high
+        },
         bar_idx: pullback_seg.i1 as i64,
         confirmed,
         settled: assoc.map(|mi| moves[mi].settled).unwrap_or(false),
@@ -943,7 +1004,12 @@ impl IncrementalBsp {
         }
         self.filled_moves = n_closed;
         // 2. 瞬态区 [perm_upto, n_segs) 重置为 None。
-        for slot in self.seg_to_move.iter_mut().take(n_segs).skip(self.perm_upto) {
+        for slot in self
+            .seg_to_move
+            .iter_mut()
+            .take(n_segs)
+            .skip(self.perm_upto)
+        {
             *slot = None;
         }
         // 3. pending move（最后一个）填瞬态区空槽（mi = n_closed，封闭后索引不变 → 稳定）。
@@ -1113,7 +1179,14 @@ impl IncrementalBsp {
         segs: &[SegView],
         moves: &[MoveView],
     ) -> Option<BuySellPoint> {
-        build_type2_bsp(t1, segs, moves, self.level_id, |s| self.lookup_find(s), self.require_settled)
+        build_type2_bsp(
+            t1,
+            segs,
+            moves,
+            self.level_id,
+            |s| self.lookup_find(s),
+            self.require_settled,
+        )
     }
 
     /// 单中枢构造 type3（委托 build_type3_bsp，用增量 lookup）。
@@ -1125,9 +1198,16 @@ impl IncrementalBsp {
         segs: &[SegView],
         moves: &[MoveView],
     ) -> Option<BuySellPoint> {
-        build_type3_bsp(zs, break_dir, break_seg, segs, moves, self.level_id, |s| {
-            self.lookup_find(s)
-        }, self.require_settled)
+        build_type3_bsp(
+            zs,
+            break_dir,
+            break_seg,
+            segs,
+            moves,
+            self.level_id,
+            |s| self.lookup_find(s),
+            self.require_settled,
+        )
     }
 
     /// 当前全量买卖点（逐位等价于 `buysellpoints_from_level`）。
@@ -1152,7 +1232,14 @@ mod require_settled_tests {
     use crate::zhongshu::BreakDir;
 
     fn seg(direction: Direction, high: f64, low: f64, settled: bool) -> SegView {
-        SegView { direction, high, low, i0: 0, i1: 0, settled }
+        SegView {
+            direction,
+            high,
+            low,
+            i0: 0,
+            i1: 0,
+            settled,
+        }
     }
 
     fn trend_move() -> MoveView {
@@ -1169,7 +1256,13 @@ mod require_settled_tests {
     }
 
     fn zs() -> ZsView {
-        ZsView { zd: 100.0, zg: 110.0, seg_start: 0, seg_end: 2, settled: true }
+        ZsView {
+            zd: 100.0,
+            zg: 110.0,
+            seg_start: 0,
+            seg_end: 2,
+            settled: true,
+        }
     }
 
     /// type1：背驰 C 段（seg_c_end=3）未 settle → require_settled 翻 confirmed 为 false。
@@ -1203,13 +1296,22 @@ mod require_settled_tests {
             hist_peak_c: 0.0,
         };
         let base = build_type1_bsp(&div, &segs, &zss, &moves, 1, false).unwrap();
-        assert!(base.confirmed, "基线（require_settled=false）应 confirmed=true");
+        assert!(
+            base.confirmed,
+            "基线（require_settled=false）应 confirmed=true"
+        );
         let gated = build_type1_bsp(&div, &segs, &zss, &moves, 1, true).unwrap();
-        assert!(!gated.confirmed, "C 段未 settle ⟹ require_settled 应 confirmed=false");
+        assert!(
+            !gated.confirmed,
+            "C 段未 settle ⟹ require_settled 应 confirmed=false"
+        );
         // C 段 settle 后：门放行。
         segs[3].settled = true;
         let gated2 = build_type1_bsp(&div, &segs, &zss, &moves, 1, true).unwrap();
-        assert!(gated2.confirmed, "C 段 settle 后 require_settled 应放行 confirmed=true");
+        assert!(
+            gated2.confirmed,
+            "C 段 settle 后 require_settled 应放行 confirmed=true"
+        );
     }
 
     /// type3：回抽段未 settle → require_settled 翻 confirmed 为 false。
@@ -1223,19 +1325,19 @@ mod require_settled_tests {
             seg(Direction::Down, 112.0, 102.0, true),
             seg(Direction::Up, 130.0, 115.0, true), // break up, break_seg=3
             seg(Direction::Down, 125.0, 112.0, false), // 回抽 low=112>zg=110，生长中
-            seg(Direction::Up, 135.0, 120.0, true),    // 延续 → confirmed 基线 true
+            seg(Direction::Up, 135.0, 120.0, true), // 延续 → confirmed 基线 true
         ];
         let lk = |_s: i64| None;
-        let base =
-            build_type3_bsp(&z, BreakDir::Up, 3, &segs, &[], 1, lk, false).unwrap();
+        let base = build_type3_bsp(&z, BreakDir::Up, 3, &segs, &[], 1, lk, false).unwrap();
         assert_eq!(base.side, Side::Buy);
         assert!(base.confirmed, "基线应 confirmed=true（有延续段）");
-        let gated =
-            build_type3_bsp(&z, BreakDir::Up, 3, &segs, &[], 1, lk, true).unwrap();
-        assert!(!gated.confirmed, "回抽段未 settle ⟹ require_settled 应 confirmed=false");
+        let gated = build_type3_bsp(&z, BreakDir::Up, 3, &segs, &[], 1, lk, true).unwrap();
+        assert!(
+            !gated.confirmed,
+            "回抽段未 settle ⟹ require_settled 应 confirmed=false"
+        );
         segs[4].settled = true;
-        let gated2 =
-            build_type3_bsp(&z, BreakDir::Up, 3, &segs, &[], 1, lk, true).unwrap();
+        let gated2 = build_type3_bsp(&z, BreakDir::Up, 3, &segs, &[], 1, lk, true).unwrap();
         assert!(gated2.confirmed, "回抽段 settle 后 require_settled 应放行");
     }
 }

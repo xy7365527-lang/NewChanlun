@@ -92,7 +92,10 @@ impl RevPath {
         );
         let mut segs = self.segs;
         segs[self.len as usize] = sub_level as u8;
-        RevPath { segs, len: self.len + 1 }
+        RevPath {
+            segs,
+            len: self.len + 1,
+        }
     }
 
     /// 递归深度（0 = 普通 REV 腿；n = 第 n 层子腿）。
@@ -120,18 +123,30 @@ pub struct SlotKey {
 
 impl SlotKey {
     pub fn main(ladder: usize) -> Self {
-        SlotKey { ladder, leg: LegClass::Main }
+        SlotKey {
+            ladder,
+            leg: LegClass::Main,
+        }
     }
     pub fn osc(ladder: usize) -> Self {
-        SlotKey { ladder, leg: LegClass::Osc }
+        SlotKey {
+            ladder,
+            leg: LegClass::Osc,
+        }
     }
     pub fn rev(home: usize, level: usize) -> Self {
-        SlotKey { ladder: home, leg: LegClass::Rev(RevPath::single(level)) }
+        SlotKey {
+            ladder: home,
+            leg: LegClass::Rev(RevPath::single(level)),
+        }
     }
 
     /// 路径键构造（递归子腿）。
     pub fn rev_path(home: usize, path: RevPath) -> Self {
-        SlotKey { ladder: home, leg: LegClass::Rev(path) }
+        SlotKey {
+            ladder: home,
+            leg: LegClass::Rev(path),
+        }
     }
 
     /// Python 整数槽键投影（trace/归因报告兼容：main=ladder / osc=+100 / rev=+200）。
@@ -351,7 +366,9 @@ pub enum ConservationLaw {
 #[derive(Debug, Clone, Copy)]
 pub enum LedgerPhase {
     /// 不变量：cost_basis > 0（≤0 即刻相变）。
-    CostReduction { cost_basis: f64 },
+    CostReduction {
+        cost_basis: f64,
+    },
     EarningShares,
 }
 
@@ -760,7 +777,10 @@ impl Counters {
             ("n_rev_tranche_adds", self.n_rev_tranche_adds),
             ("n_rev_tranche_closes", self.n_rev_tranche_closes),
             ("n_rev_struct_close", self.n_rev_struct_close),
-            ("n_t5_shareconserving_after_earning", self.n_t5_shareconserving_after_earning),
+            (
+                "n_t5_shareconserving_after_earning",
+                self.n_t5_shareconserving_after_earning,
+            ),
             ("n_rev_open_osc", self.n_rev_open_osc),
             ("n_rev_open_esc", self.n_rev_open_esc),
             ("n_rev_nocenter_rejects", self.n_rev_nocenter_rejects),
@@ -823,7 +843,10 @@ impl Counters {
             ("n_rec_entry_fills", self.n_rec_entry_fills),
             ("n_rec_entry_full", self.n_rec_entry_full),
             ("n_rec_entry_partial_exits", self.n_rec_entry_partial_exits),
-            ("n_rec_entry_earning_rejects", self.n_rec_entry_earning_rejects),
+            (
+                "n_rec_entry_earning_rejects",
+                self.n_rec_entry_earning_rejects,
+            ),
             ("n_exit_trend_holds", self.n_exit_trend_holds),
             ("n_exit_emergent_bars", self.n_exit_emergent_bars),
             ("n_ledger_opens", self.n_ledger_opens),
@@ -832,7 +855,10 @@ impl Counters {
             ("n_ledger_buy_noops", self.n_ledger_buy_noops),
             ("n_ledger_domain_rejects", self.n_ledger_domain_rejects),
             ("n_ledger_cost_rejects", self.n_ledger_cost_rejects),
-            ("n_ledger_cost_noref_rejects", self.n_ledger_cost_noref_rejects),
+            (
+                "n_ledger_cost_noref_rejects",
+                self.n_ledger_cost_noref_rejects,
+            ),
             ("n_osc_domain_rejects", self.n_osc_domain_rejects),
             ("n_osc_shift_close", self.n_osc_shift_close),
             ("n_osc_cf_rejects", self.n_osc_cf_rejects),
@@ -853,7 +879,9 @@ impl Counters {
 /// 既有先例：macd.rs `round6`（bit-exact 已验证）；Rust `{:.N}` 格式化使用
 /// 正确舍入（round-half-to-even），与 CPython 一致。
 pub fn py_round(x: f64, ndigits: usize) -> f64 {
-    format!("{:.*}", ndigits, x).parse::<f64>().expect("py_round: 格式化往返必然可解析")
+    format!("{:.*}", ndigits, x)
+        .parse::<f64>()
+        .expect("py_round: 格式化往返必然可解析")
 }
 
 #[cfg(test)]

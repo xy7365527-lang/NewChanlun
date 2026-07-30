@@ -278,7 +278,12 @@ pub trait LedgerEntryCore<P: LedgerPolicy>: Sized {
             settlement.state
         );
         self.set_state(settlement.state);
-        self.write_settlement(settlement.state, settlement.reason, as_of, settlement.evidence);
+        self.write_settlement(
+            settlement.state,
+            settlement.reason,
+            as_of,
+            settlement.evidence,
+        );
         self.push_revision(settlement.kind, as_of, settlement.evidence)
     }
 }
@@ -410,7 +415,10 @@ impl<P: LedgerPolicy> LedgerBook<P> {
         as_of: usize,
     ) -> LedgerRevision<P> {
         assert!(from != to, "身份迁移两端不得同键：{from:?}");
-        assert!(!self.entries.contains_key(&to), "身份迁移目标键须空闲：{to:?}");
+        assert!(
+            !self.entries.contains_key(&to),
+            "身份迁移目标键须空闲：{to:?}"
+        );
         let mut entry = self.entries.remove(&from).expect("迁移源键存在");
         entry.set_migrated_from(from);
         entry.set_key(to);

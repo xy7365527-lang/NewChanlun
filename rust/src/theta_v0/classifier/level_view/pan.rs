@@ -5,9 +5,9 @@
 use super::super::super::types::{Center, Direction, MoveKind, Segment, Tick};
 use super::super::decompose::{MoveBlock, MoveStatus};
 use super::super::divergence::{departure_move_c_start, locate_departure_move_a, self_anchors};
-use super::ProviderVersion;
 use super::confirm::{DivergencePair, DivergencePairId};
 use super::projection::{leg_as_segment, ExactThreeProjection, LowerLeg};
+use super::ProviderVersion;
 use std::collections::HashMap;
 
 pub(super) fn structural_block_span(
