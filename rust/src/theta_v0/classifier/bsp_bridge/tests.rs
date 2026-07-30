@@ -572,6 +572,26 @@ fn overlapping_episodes_trip_find_episode_debug_assert() {
     bridge.advance(&classification, &streams, 60);
 }
 
+// debug_assert! 在 release profile 编译为空操作——本测试只锁 debug 臂，release 臂天然跳过。
+#[cfg(debug_assertions)]
+#[test]
+#[should_panic(expected = "episode 归属应唯一")]
+fn overlapping_episodes_trip_find_episode_debug_assert_via_first_class_path() {
+    // 一类路径回归锁（第五轮 supersede，修复 #670 R2-HIGH-3）：`resolve_first_class_episode_points`
+    // 此前绕过 `find_episode` 内联同款过滤逻辑，判据相同但机器保证覆盖不到——一个一类点同时落入
+    // 两个区间重叠的 episode 时旧实现会安静产两条边，零机器信号。现改为逐点调用 `find_episode`
+    // 反查，同一夹具（两个区间重叠的 episode + 一个落在交集内的一类点）下 `debug_assert` 必须响。
+    let key_a = trend_key(0, (6, 19), 25);
+    let key_b = trend_key(0, (10, 24), 30); // c_start=30，区间 [30,60] 与 key_a 的 [25,60] 重叠
+    let mut book = CandidateEventBook::default();
+    book.advance(&[trend_observation(key_a, (25, 60)), trend_observation(key_b, (30, 60))], 60);
+    let streams = book.streams();
+
+    let classification = Classification { levels: vec![level_with(vec![buy1_point(50, 20)])] }; // 50 ∈ [25,60] ∩ [30,60]
+    let mut bridge = BspBridgeBook::default();
+    bridge.advance(&classification, &streams, 60);
+}
+
 // ── HIGH-4 修复：跨 as_of 真平价锁（对齐 N1 `..._full_replay_equals_incremental` 先例——────────
 // 两个不同驱动：增量推进序列 vs 仅用终态输入的单次全新簿，不是同一输入序列跑两遍） ─────────────
 

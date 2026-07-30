@@ -34,11 +34,26 @@
 //! ## 现役拼缝跨对象族不可直接对拍（HIGH-3 ①，如实登记不可执行）
 //!
 //! 裁定②点名的现役拼缝 `nest::terminal_bits_at_event` 需要 `NestCandidateEvent`（`nest` 模块
-//! 自有事件体系，非本票 `cand_event::CandidateEvent`）+ `OwnerAnchorCtx`（owner 判同 oracle）+
-//! `event_bsp_book_level` 级别移位；把桥接对象接进这条拼缝需要新构造一整套 nest 侧事件与锚
-//! 供给，这本身是一次新的消费接线（违反裁定④「p92/π runner 本票零消费接线」+ 「不重算既有
-//! 判据」方法学）。按 dispatch 「跨对象族不可直接对拍则上报改门，不得自替代」的处置指引，
-//! 此路在本修复轮判**不可执行**，改用上述两件替代验收物。
+//! 自有事件体系，非本票 `cand_event::CandidateEvent`）+ ~~`OwnerAnchorCtx`（owner 判同
+//! oracle）~~ + ~~`event_bsp_book_level` 级别移位~~；把桥接对象接进这条拼缝需要新构造一整套
+//! nest 侧事件与锚供给，这本身是一次新的消费接线（违反裁定④「p92/π runner 本票零消费接线」+
+//! 「不重算既有判据」方法学）。按 dispatch 「跨对象族不可直接对拍则上报改门，不得自替代」的
+//! 处置指引，此路在本修复轮判**不可执行**，改用上述两件替代验收物。
+//!
+//! **订正（R2-LOW-2，第五轮 supersede）**：上面三条障碍里只有 `NestCandidateEvent` 成立且是
+//! 唯一承重的一条——全仓无 lib 侧构造入口，产出只在 `p92`/`p123`/`p124` bin 内的
+//! `collect_target_candidates`（需 tower + MACD 供给管线），接进来确属新构造一整套供给。
+//! `OwnerAnchorCtx` 不成立：`p92` 自己传的是 4 行 `never` stub（自述「本 bin 是归档研究/审计
+//! 工具，未接事件锚账本」），复制它零成本；`event_bsp_book_level` 不成立：`nest.rs` 内一行
+//! `pub fn`，一行调用。结论不变（此路仍判不可执行，不退回）——收窄为只留
+//! `NestCandidateEvent` 这一条真实障碍，删去两条虚障碍，不冒充论证比实际更扎实。
+//!
+//! ## 分点类计数（第五轮 supersede，修复 #670 R2-MED-3）
+//!
+//! 旧版本只报总 `cmp`——三窗合计参与比对的边全部是一类（二/三类两侧同为空集），总 `cmp=0`
+//! 会让读者误以为三窗对六个点类都验了东西。本轮新增 `ISSUE668_BRIDGE_BATTERY_BY_CLASS`：逐
+//! 点类拆开报 reference/produced/missing/extra/cmp，两侧同为 0 时显式标注该类空域、cmp 无
+//! 信息量，不与真正验过的一类混在一起数。
 //!
 //! 用法：`cargo run --release --bin p_issue668_bsp_bridge_battery -- <btc_1m_full.json> [max_bars]`
 
@@ -331,6 +346,23 @@ fn main() -> std::process::ExitCode {
     }
     for item in extra_in_bridge.iter().take(5) {
         println!("ISSUE668_BRIDGE_EXTRA {item:?}");
+    }
+
+    // 分点类计数行（R2-MED-3：三窗合计参与比对的 32 条边全为一类，二/三类两侧同为空集，总
+    // cmp=0 掩盖了这一点——读者会误以为三窗都验了六个点类）。逐点类拆开报 reference/produced/
+    // missing/extra/cmp；两侧同为 0 时明确标注该类空域、cmp 无信息量，不冒充「验过了」。
+    for class in ["Buy1", "Buy2", "Buy3", "Sell1", "Sell2", "Sell3"] {
+        let ref_n = reference.iter().filter(|item| item.2 == class).count();
+        let prod_n = produced.iter().filter(|item| item.2 == class).count();
+        let miss_n = missing_in_bridge.iter().filter(|item| item.2 == class).count();
+        let extra_n = extra_in_bridge.iter().filter(|item| item.2 == class).count();
+        let class_cmp = miss_n + extra_n;
+        let note = if ref_n == 0 && prod_n == 0 { " note=此类空域，cmp无信息量" } else { "" };
+        println!(
+            "ISSUE668_BRIDGE_BATTERY_BY_CLASS bars={} class={class} reference={ref_n} produced={prod_n} \
+             missing={miss_n} extra={extra_n} cmp={class_cmp}{note}",
+            bars.len(),
+        );
     }
 
     // 查询入口完备性回归门（R2-HIGH-2）：edges() 里出现的每个物理点都必须能经

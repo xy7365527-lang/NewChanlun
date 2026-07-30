@@ -15,11 +15,23 @@
 //! 说明两个不同破中枢事件的区间重叠，是数据/候选扫描层面的问题，不是本对象能吞的歧义）。
 //! 生产代码 `bsp_bridge::find_episode` 用 `debug_assert` 机器化同一不变量。
 //!
-//! 二类同样按其一类锚坐标验证 episode 归属唯一（HIGH-2 修复覆盖二类）；三类判据本身第四轮
-//! supersede 已迁移到同款 episode 区间覆盖（`bsp_bridge::resolve_bridge` 三类分支，
-//! `chanlun/review-results/issue668-n4-fix-round2-20260729.md` MED 修复），但本 bin 仍报覆盖率
-//! 不纳入「归属唯一」检验（三类近零覆盖是候选域结构性错位，归 #688，扩大本 bin 检验域不在本轮
-//! 修复单范围内）。
+//! 三类判据本身第四轮 supersede 已迁移到同款 episode 区间覆盖（`bsp_bridge::resolve_bridge`
+//! 三类分支，`chanlun/review-results/issue668-n4-fix-round2-20260729.md` MED 修复），但本 bin
+//! 仍报覆盖率不纳入「归属唯一」检验（三类近零覆盖是候选域结构性错位，归 #688，扩大本 bin 检验域
+//! 不在本轮修复单范围内）。
+//!
+//! ## 订正（第五轮 supersede，修复 #670 R2-HIGH-3/R2-MED-2）
+//!
+//! 1. **「二类同样验证归属唯一」不实，已撤**：`resolve_second_class_anchor` 的第二个条件——
+//!    反查一类锚坐标自身是否持有一类 bit——在生产数据上恒假（0/88、0/280，见下方
+//!    `ISSUE668_MED2_ANCHOR_BREAKDOWN`），二类 100% 落入 `fingerprint_unresolved`，从未进入
+//!    「归属唯一」检验域。这不是本轮引入的回归——是已存在的结构性空域，本轮只是不再用
+//!    「HIGH-2 修复覆盖二类」这句站不住的正面断言掩盖它。
+//! 2. **检验域大小纳入判级**（原空域报 SUCCESS 是重言式，R2-HIGH-3）：新增 `domain_size`
+//!    （= `episode_owned_zero + episode_owned_one + episode_owned_many`，即真正走到「反查
+//!    episode 归属」这一步、排除 `fingerprint_unresolved`/`owner_query_unresolved` 之后的样本数）。
+//!    退出码三分：`episode_owned_many>0` ⟹ **FAIL**（撞键，退出码 1）；`domain_size==0` ⟹
+//!    **EMPTY_DOMAIN**（检验域为空，退出码 2，不冒充 PASS）；否则 **PASS**（退出码 0）。
 //!
 //! 用法：`cargo run --release --bin p_issue668_bsp_key_truth -- <btc_1m_full.json> [max_bars]`
 
@@ -215,6 +227,24 @@ fn resolve_fingerprint(level: &LevelState, class: PointClass, idx_in_level: usiz
     }
 }
 
+/// R2-MED-2 分解诊断（第五轮 supersede）：`Buy2`/`Sell2` 的归属判据要求两个条件同时成立——
+/// (a) 本点携 `OwnerRef::Type1Anchor`；(b) 该锚坐标在同级确有一个点持有对应 buy1/sell1 位。
+/// 独立于 `resolve_fingerprint` 计数，只为把「哪个条件挡住了」拆开报——`resolve_fingerprint`
+/// 合取两条件后只能看到最终 `None`，看不出是 (a) 缺失还是 (b) 不满足。
+fn b2_anchor_diag(level: &LevelState, class: PointClass, idx_in_level: usize) -> (bool, bool) {
+    let point = &level.bsp[idx_in_level];
+    let anchor_idx = match point.center {
+        Some(OwnerRef::Type1Anchor(idx)) => idx,
+        _ => return (false, false),
+    };
+    let want_bit = matches!(class, PointClass::Buy2);
+    let hosts = level
+        .bsp
+        .iter()
+        .any(|p| p.source_index == anchor_idx && if want_bit { p.bits.buy1 } else { p.bits.sell1 });
+    (true, hosts)
+}
+
 /// 反查坐标：一/二类用「本点自身 `source_index`」查其所属 episode（一类）或「一类锚坐标」
 /// （二类）；三类不走本函数——本 bin 检验域仍只覆盖一/二类归属唯一性，三类覆盖率另计不纳入
 /// （见模块头，扩大检验域不在本轮修复单范围内）。
@@ -267,7 +297,13 @@ fn main() -> std::process::ExitCode {
     let mut episode_owned_many = 0usize;
     let mut by_class_zero: BTreeMap<&'static str, usize> = BTreeMap::new();
     let mut by_class_many: BTreeMap<&'static str, usize> = BTreeMap::new();
+    let mut domain_by_class: BTreeMap<&'static str, usize> = BTreeMap::new();
     let mut many_examples: Vec<(String, usize, usize, usize)> = Vec::new(); // (class, level, source_index, owners)
+
+    // R2-MED-2 分解诊断（第五轮 supersede）：Buy2/Sell2 专属，独立于 fingerprint_unresolved 计数，
+    // 拆开报「携 Type1Anchor」与「锚坐标确实持有一类 bit」两个子条件各自的命中数。
+    let mut b2_with_type1anchor: BTreeMap<&'static str, usize> = BTreeMap::new();
+    let mut b2_anchor_hosts_first_class: BTreeMap<&'static str, usize> = BTreeMap::new();
 
     for (level_idx, level) in classification.levels.iter().enumerate() {
         per_level_bsp_points += level.bsp.len();
@@ -286,6 +322,15 @@ fn main() -> std::process::ExitCode {
                     continue;
                 }
                 total_bit_instances += 1;
+                if matches!(class, PointClass::Buy2 | PointClass::Sell2) {
+                    let (with_anchor, hosts) = b2_anchor_diag(level, class, idx_in_level);
+                    if with_anchor {
+                        *b2_with_type1anchor.entry(class.name()).or_default() += 1;
+                    }
+                    if hosts {
+                        *b2_anchor_hosts_first_class.entry(class.name()).or_default() += 1;
+                    }
+                }
                 if !class.is_first_or_second() {
                     continue; // 三类未改判据，本轮不纳入「归属唯一」检验，见模块头。
                 }
@@ -300,6 +345,7 @@ fn main() -> std::process::ExitCode {
                 let owners = episodes
                     .map(|eps| owning_episodes(eps, class.side(), parent, query_source_index).len())
                     .unwrap_or(0);
+                *domain_by_class.entry(class.name()).or_default() += 1;
                 match owners {
                     0 => {
                         episode_owned_zero += 1;
@@ -318,9 +364,11 @@ fn main() -> std::process::ExitCode {
         }
     }
 
+    let domain_size = episode_owned_zero + episode_owned_one + episode_owned_many;
+
     println!(
         "ISSUE668_TRUTH_V3 bars={} levels={} bsp_points_total={} bit_instances={} \
-         fingerprint_unresolved={} owner_query_unresolved={} \
+         fingerprint_unresolved={} owner_query_unresolved={} domain_size={} \
          episode_owned_zero={} episode_owned_one={} episode_owned_many={}",
         bars.len(),
         classification.levels.len(),
@@ -328,21 +376,41 @@ fn main() -> std::process::ExitCode {
         total_bit_instances,
         fingerprint_unresolved,
         owner_query_unresolved,
+        domain_size,
         episode_owned_zero,
         episode_owned_one,
         episode_owned_many,
     );
     println!("ISSUE668_TRUTH_V3_ZERO_BY_CLASS {by_class_zero:?}");
     println!("ISSUE668_TRUTH_V3_MANY_BY_CLASS {by_class_many:?}");
+    println!("ISSUE668_TRUTH_V3_DOMAIN_BY_CLASS {domain_by_class:?}");
     for (class, level, source_index, owners) in &many_examples {
         println!(
             "ISSUE668_TRUTH_V3_MANY_EXAMPLE class={class} level={level} source_index={source_index} owners={owners}"
         );
     }
-    if episode_owned_many == 0 {
-        std::process::ExitCode::SUCCESS
-    } else {
+    // R2-MED-2 分解（0/N 命中拆成两个子条件，避免用合取后的单一 fingerprint_unresolved 掩盖
+    // 「是哪一步不满足」）：`with_type1anchor` 应约等于该类 bit 总数（条件 a 生产上恒真）；
+    // `anchor_hosts_first_class` 是真正卡住的那个子条件（生产上恒为 0，见模块头「订正」段）。
+    for class in ["Buy2", "Sell2"] {
+        println!(
+            "ISSUE668_MED2_ANCHOR_BREAKDOWN class={class} with_type1anchor={} anchor_hosts_first_class={}",
+            b2_with_type1anchor.get(class).copied().unwrap_or(0),
+            b2_anchor_hosts_first_class.get(class).copied().unwrap_or(0),
+        );
+    }
+
+    if episode_owned_many > 0 {
         // dispatch 明文：「若仍有撞键，停手上报」——episode 归属不唯一时以非零退出码标出。
-        std::process::ExitCode::FAILURE
+        println!("ISSUE668_TRUTH_V3_VERDICT FAIL（episode_owned_many>0，撞键）");
+        std::process::ExitCode::from(1)
+    } else if domain_size == 0 {
+        // R2-HIGH-3 订正：检验域为 0 时不得报 SUCCESS（空域重言式）——用独立退出码标出「这一窗
+        // 没有验到任何东西」，与真正 PASS（域非空且无撞键）区分。
+        println!("ISSUE668_TRUTH_V3_VERDICT EMPTY_DOMAIN（domain_size=0，未验到任何样本，非 PASS）");
+        std::process::ExitCode::from(2)
+    } else {
+        println!("ISSUE668_TRUTH_V3_VERDICT PASS（domain_size={domain_size}>0 且无撞键）");
+        std::process::ExitCode::SUCCESS
     }
 }

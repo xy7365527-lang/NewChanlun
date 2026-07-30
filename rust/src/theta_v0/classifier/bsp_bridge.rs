@@ -1,7 +1,9 @@
 //! #668（N4）事件↔BSP 稳定身份桥接对象（#666 四问四裁 + 2026-07-29 三轮 supersede 落地，
 //! 修复轮 1 = #670 影子评审 FAIL 回炉，见 `chanlun/review-results/issue668-n4-fix-round1-20260729.md`；
 //! 修复轮 2 = #670 影子评审第 2 轮 FAIL 回炉（两条新 HIGH），见
-//! `chanlun/review-results/issue668-n4-fix-round2-20260729.md` + ADR「第四轮 supersede」段）。
+//! `chanlun/review-results/issue668-n4-fix-round2-20260729.md` + ADR「第四轮 supersede」段；
+//! 修复轮 3 = #670 影子评审第 2 轮遗留（R2-HIGH-3/R2-MED-2/R2-MED-3），见
+//! `chanlun/review-results/issue668-n4-fix-round3-20260729.md` + ADR「第五轮 supersede」段）。
 //!
 //! ## 命名独立（#666 裁定①，同 #636/#540 先例）
 //!
@@ -32,7 +34,12 @@
 //! 每个 key 恰好被调用一次，幂等/终态挡的「prior vs next 二元比较」前提重新成立。
 //!
 //! 「episode 归属唯一」（一个物理点只能落入一个 episode）——[`find_episode`] 的 `debug_assert`
-//! 机器化此不变量，一类/二/三类三条路径共用同一函数（不再是二类专属）。
+//! 机器化此不变量。**订正（第五轮 supersede，修复 #670 R2-HIGH-3）**：此前一类路径
+//! （[`resolve_first_class_episode_points`]）绕过 [`find_episode`] 自行内联同款过滤，判据
+//! 重复但机器保证覆盖不到——若一类点同时落入两个 episode，旧实现会静默产两条边、零信号。
+//! 现改为逐点调用 [`find_episode`]，一/二/三类三条路径至此才真正共用同一个带 `debug_assert`
+//! 的查找函数（此前「共用同一函数」是文书断言先于实现，见
+//! `chanlun/review-results/shadow-668-review2-20260729.md` R2-HIGH-3）。
 //!
 //! ## 双向产出，主路径内联（裁定③）
 //!
@@ -291,7 +298,11 @@ fn trend_episodes(latest: &BTreeMap<CandidateKey, CandidateEvent>) -> Vec<TrendE
 ///
 /// `debug_assert` 机器化「episode 归属唯一」（评审 #670 §五复核探针 300k 窗
 /// `points_in_multiple_episodes=0` 实证；100k 窗同）——若失守，说明该不变量在新数据上不再成立，
-/// 按 dispatch「若仍有撞键，停手上报」处置，不静默择一。
+/// 按 dispatch「若仍有撞键，停手上报」处置，不静默择一。**唯一调用点**（第五轮 supersede 前）
+/// 曾只有二/三类分支（[`resolve_bridge`]）——一类分支（[`resolve_first_class_episode_points`]）
+/// 内联了同款过滤但绕过本函数，机器保证因此覆盖不到检验域里唯一有真实数据的点类（评审 #670
+/// R2-HIGH-3）。第五轮 supersede 后一/二/三类三条路径均经本函数反查，`debug_assert` 覆盖面
+/// 与生产判据覆盖面终于重合。
 fn find_episode<'a>(
     episodes: &'a [TrendEpisode],
     level: u32,
@@ -340,6 +351,16 @@ fn center_fingerprint(level: &LevelState, idx_in_level: usize) -> Option<ParentF
 /// 命中（`resolve_second_class_anchor` 的第二个条件——反查锚点自身是否持有一类 bit——恒假，
 /// 见 `chanlun/review-results/shadow-668-review2-20260729.md` R2-MED-2），该正面断言当前无
 /// 检验域支撑，未撤回时按未实测处置，本行不再作为「已证」引用。
+///
+/// **第五轮 supersede（R2-MED-2 处置，停手照实上报）**：下方的「反查同级 `source_index==anchor`
+/// 且持有一类 bit 的点」*已经就是* dispatch 点名的「结构可查的那条路径」——本函数改动前后判据
+/// 逻辑不变。三窗分解数据（`p_issue668_bsp_key_truth` 新增 `ISSUE668_MED2_ANCHOR_BREAKDOWN`）：
+/// 条件一「本点携 `Type1Anchor`」100% 满足（20k:17/17、100k:88/88、300k:280/280）；条件二
+/// 「该锚坐标确有点持有一类 bit」三窗均 **0**——即 `Type1Anchor(type1_src)` 载的是该走势 m1
+/// 终点坐标（`signal.rs` `extract_second_signals`），而 m1 终点要过背驰确认门才是一类点，二者
+/// 生产上不重合，结构性不可得，非本函数实现错误。按 dispatch「若生产数据上结构性不可得，停手
+/// 照实上报，禁发明坐标、禁放宽判据假装修复」处置：本函数**不改动**，二类锚归属仍恒判 `None`；
+/// 是否属候选域结构性错位（归 #688）还是二类键公式本身选错了锚，交编排者另裁。
 fn resolve_second_class_anchor(
     level: &LevelState,
     class: BspPointClass,
@@ -431,46 +452,46 @@ fn first_class_structural_key(episode: &TrendEpisode, class: BspPointClass) -> B
     }
 }
 
-/// 事件侧 → 一类点原始观察（未折叠，见 `observe()` 分组）。遍历 Trend episode，对每个 episode
-/// 回挂其区间 `[c_start, interval_end]` 覆盖的全部一类点（同 level/side/中枢指纹）——每个物理点
-/// 产一条 [`RawPointObservation`]，同 episode 覆盖的多个物理点在此阶段仍是独立记录，按 key 折叠
-/// 成单条 [`BridgeObservation`] 是 `observe()` 的职责（模块头「载荷形态」段）。
+/// 事件侧 → 一类点原始观察（未折叠，见 `observe()` 分组）。按物理点遍历（第五轮 supersede，
+/// 修复 #670 R2-HIGH-3：旧实现按 episode 外层遍历、点内层过滤，判据与 [`find_episode`] 重复
+/// 但绕过它，`find_episode` 的「episode 归属唯一」`debug_assert` 因此覆盖不到一类路径——一个
+/// 一类点若同时落在两个 episode 区间内，旧实现会安静产出两条边，零机器信号）。改为逐点调用
+/// [`find_episode`] 反查其所属 episode，与二/三类（[`resolve_bridge`]）共享同一个附带
+/// `debug_assert` 的查找函数，一/二/三类三条路径至此才真正共用同一机器保证（模块头「episode
+/// 归属唯一」段此前的文书断言与实现不符，本次修复令其名实相符）。
 fn resolve_first_class_episode_points(
     classification: &Classification,
     episodes: &[TrendEpisode],
     latest: &BTreeMap<CandidateKey, CandidateEvent>,
 ) -> Vec<RawPointObservation> {
     let mut raw = Vec::new();
-    for episode in episodes {
-        let Some(level) = classification.levels.get(episode.level as usize) else {
-            continue;
-        };
-        let class = match episode.side {
-            Side::Long => BspPointClass::Buy1,
-            Side::Short => BspPointClass::Sell1,
-        };
-        let bsp_key = first_class_structural_key(episode, class);
-        let event_state = latest[&episode.key].state;
-        let status = event_status(event_state);
+    for (level_idx, level) in classification.levels.iter().enumerate() {
         for (idx, point) in level.bsp.iter().enumerate() {
-            let hit = match episode.side {
-                Side::Long => point.bits.buy1,
-                Side::Short => point.bits.sell1,
-            };
-            if !hit
-                || center_fingerprint(level, idx) != Some(episode.parent)
-                || point.source_index < episode.c_start
-                || point.source_index > episode.interval_end
-            {
-                continue;
+            for (side, class, hit) in [
+                (Side::Long, BspPointClass::Buy1, point.bits.buy1),
+                (Side::Short, BspPointClass::Sell1, point.bits.sell1),
+            ] {
+                if !hit {
+                    continue;
+                }
+                let Some(parent) = center_fingerprint(level, idx) else {
+                    continue;
+                };
+                let Some(episode) =
+                    find_episode(episodes, level_idx as u32, side, parent, point.source_index)
+                else {
+                    continue;
+                };
+                let bsp_key = first_class_structural_key(episode, class);
+                let event_state = latest[&episode.key].state;
+                raw.push(RawPointObservation {
+                    key: BridgeKey { event: episode.key, bsp: bsp_key },
+                    bsp_level: level_idx as u32,
+                    source_index: point.source_index,
+                    event_state,
+                    status: event_status(event_state),
+                });
             }
-            raw.push(RawPointObservation {
-                key: BridgeKey { event: episode.key, bsp: bsp_key.clone() },
-                bsp_level: episode.level,
-                source_index: point.source_index,
-                event_state,
-                status,
-            });
         }
     }
     raw
