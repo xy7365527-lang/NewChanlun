@@ -129,7 +129,7 @@ _Avoid_: 当每个走势单元的固有字段（事件非属性）；用删除�
 _Avoid_: 链头独活真空 Closed；把查无当证伪判死；伪造中间级补链；与 NestCertificate 同名混用
 
 **事件↔BSP 桥接边（event-BSP bridge edge）**:
-塔内原生一等关系对象（2026-07-29 #666 裁定 + 六轮 supersede、#668 落地、#670 影子评审 FAIL 回炉
+塔内原生一等关系对象（2026-07-29 #666 裁定 + 多轮 supersede（轮次见 ADR-0008）、#668 落地、#670 影子评审 FAIL 回炉
 修复，ADR-0008；`BspBridgeEdge` 独立户口，`CandidateEvent`/`BspPoint` 两个老对象零改动）：身份 =
 （N1 事件键沿用 CandidateKey，BSP 结构身份键 v2）对。双向产出——**一类**走事件侧驱动：~~遍历 Trend
 episode，回挂其区间 `[c_start, interval.1]` 覆盖的全部一类点~~（**已撤销，2026-07-29 #668c 微收口**：
