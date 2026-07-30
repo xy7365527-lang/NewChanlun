@@ -94,10 +94,18 @@ pub struct RetraceAlarms {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// 中枢死亡证明（裁定一：Success 事件即死亡证明，发中枢账登记 Broken）。
+///
+/// **`side` 字段（票 #664，闭合 #637 尾部方向盲区）**：证明本身携带杀路径方向——
+/// 三买（`RetraceSide::Buy`，向上离开）/ 三卖（`RetraceSide::Sell`，向下离开）；
+/// 取自落锤拍证据 [`RetraceEvidence::side`]（[`RetraceEntry::terminal_evidence`]），
+/// 与 [`ThirdPointPack::side`] 同源同值。消费方（`CenterBook::consume_death_certificate`）
+/// 据此登记 `dead_down` / `frozen` / 补发 `CenterEvent::Terminated`，不再对方向恒读 false。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CenterDeathCertificate {
     /// 中枢身份 = 快照转正后的四条边（临时右边成为永恒右边）。
     pub center: CenterFrame,
+    /// 杀路径方向：向上离开（三买终结）/ 向下离开（三卖终结）。
+    pub side: RetraceSide,
     /// **开具时间 = 落锤知情时**；与「中枢右边缘 = 快照右边」是两个时间，不混（裁定一）。
     pub issued_as_of: usize,
 }
@@ -655,8 +663,10 @@ impl RetraceLedger {
     }
 
     fn certificate_of(entry: &RetraceEntry) -> CenterDeathCertificate {
+        let evidence = entry.terminal_evidence().expect("Confirmed 必有落锤证据");
         CenterDeathCertificate {
             center: entry.key.frame,
+            side: evidence.side,
             issued_as_of: entry.terminal_as_of.expect("Confirmed 必有落锤钟"),
         }
     }

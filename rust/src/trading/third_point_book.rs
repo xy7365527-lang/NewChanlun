@@ -115,14 +115,21 @@
 //!
 //! 本账**不发**任何中枢生死语义、**不动** `CenterBook` 的 `dead`/`frozen`/`version`、**不递**
 //! `pack.death_certificate` 给 `CenterBook::consume_death_certificate`：后者按 ladder 消费
-//! （`consume_death_certificate(ladder, cert)`），而 [`ThirdPointPack`] 不带 ladder/级别坐标
-//! （级别在账本的 `RetraceProvenance.level` 上，与 trading 的 ladder 是两套引擎的坐标，仓内无
-//! 对齐依据）。跨引擎级别坐标对齐 ⟹ #575 驱动票；本账只登记本体事件，三条通道互不代劳。
+//! （`consume_death_certificate(ladder, cert, hard_type3, events_out)`），而 [`ThirdPointPack`]
+//! 不带 ladder/级别坐标（级别在账本的 `RetraceProvenance.level` 上，与 trading 的 ladder 是两套
+//! 引擎的坐标，仓内无对齐依据）。跨引擎级别坐标对齐 ⟹ #575 驱动票；本账只登记本体事件，三条
+//! 通道互不代劳。
 //!
-//! **#664 关系声明**：[`ThirdPointPack`] 自带 `side`（买/卖侧），故 #664（`CenterDeathCertificate`
-//! 无 `side` 的方向盲区）**不约束**本账的 pack 登记面——本账在册的每条成立档方向明确。若 #575
-//! 驱动票日后把 `pack.death_certificate` 转投通道 ②，#664 盲区照旧适用（cert 本身仍无 side），
-//! 走 #664 修，不在本票。
+//! **#664 关系声明（方向盲区已闭合；#664 修复轮改口——先杀落位、后不覆写）**：
+//! [`ThirdPointPack`] 自带 `side`（买/卖侧），`CenterDeathCertificate` 现（票 #664）亦带同源
+//! `side`——两者已同步，本账的 pack 登记面从未受该盲区约束（登记方向本就明确），此声明维持
+//! 不变。若 #575 驱动票日后把 `pack.death_certificate` 转投通道 ②，该证明自带的 `side` 在
+//! **先杀（首次登记 Broken）**时足够驱动 `dead_down`/`frozen`/`CenterEvent::Terminated`
+//! （票 #664），无需额外搬运；若该锚已被另一通道先杀（`AlreadyBroken`），转投的证明不覆写
+//! 既有方向登记——**但这条纪律单侧成立**（影子评审 MEDIUM-1，如实登记）：`dead_down` 侧确实
+//! 先杀者为准；`frozen` 侧有 Python parity 携带的例外——`ingest` 的 `frozen` 置位在死亡守卫
+//! 外，cert 先杀后若 `ingest` 收到同锚 confirmed hard Buy3，`frozen` 仍会被 `ingest` 无条件
+//! 翻写，细节见 `CenterBook::consume_death_certificate` doc。
 //!
 //! # 本票不做（范围外，勿在此模块寻找）
 //!
