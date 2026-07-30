@@ -150,7 +150,7 @@ pub(super) fn sigma_pre_oos(ds: &data::Dataset, cfg: &ThetaConfig) -> (f64, usiz
 /// （见 [`deltafree_verdict`]），不消费本文件。保 records 顺序（walk-forward 时间序）⟹ effective_n
 /// 的成交时间序前提成立（decontam 口径）。
 pub(super) fn dump_deltafree_pertrade(records: &[ResidualTrade]) {
-    let path = std::env::var("DELTAFREE_DUMP")
+    let path = std::env::var(crate::theta_v0::env_registry::DELTAFREE_DUMP)
         .ok()
         .filter(|p| !p.is_empty())
         .unwrap_or_else(|| "/tmp/wv_full_zdecision.tsv".into());
