@@ -498,10 +498,17 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
 
     // ★票#512（语义重放自 kimi 8d8895c652，#642；订正 #446 的 debug_assert-only 防线）：唯一性
     // 防线前移到 coverage 生产边界——release/debug 都 fail-loud（先记违规计数再 panic，带重复
-    // ID + 双 idx + 真实物化来源，无 catch-all）。检查点放在 next_idx 刚算出、任何 p̃/腿计算
+    // ID + idx + 真实物化来源，无 catch-all）。检查点放在 next_idx 刚算出、任何 p̃/腿计算
     // **之前**：重复按构造不可能，一旦命中就是唯一性闭合本身已被打穿，不应让调用方在不知情下
     // 拿到双计的 p̃/P^sep（#511 评审指出 debug_assert-only + 晚检查点是两个独立缺口，此处一并
     // 收口，m8 wverify_run 的窗口后置断言相应降级为纯观测，防线单一化）。
+    // ★#742 订正：next_idx 由下方 raw_id_idx 按 id 查表构造（同 id 恒映射同一 idx），故此处
+    // 命中的两次入选**恒为同一 idx**——非 kimi 侧原始设计假设的「两个不同 idx」（kimi 无
+    // raw_id_idx 折叠层，其两个 idx 可独立保留）。message 与下方 debug_assert_eq 已按此订正；
+    // 与更早的 #183（`debug_assert!`，raw 层唯一性早防线，仅 debug 生效）的关系见
+    // `chanlun/review-results/issue742-512-guard-order-20260729.md`：#183 检查域是全量 raw
+    // （A_t 段∪B_x 段），#512 检查域是选入 next_legs 后存活的子集，二者防线域不等价、非纯冗余；
+    // release 构建下 #183 编译期消除，#512 是该不变量唯一在场的防线。
     let mut active_id_idx: std::collections::HashMap<ElementId, usize> =
         std::collections::HashMap::new();
     let duplicate_active_id = next_idx.iter().find_map(|&idx| {
@@ -510,6 +517,10 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
     });
     if let Some((id, first_idx, second_idx)) = duplicate_active_id {
         ancok_probe_bump(|p| p.duplicate_active_id_violations += 1);
+        debug_assert_eq!(
+            first_idx, second_idx,
+            "next_idx 由 raw_id_idx 按 id 查表构造，同 id 两次入选必映射同一 idx（#742 结构性证明）"
+        );
         let source = |idx: usize| {
             if idx < candidate_start {
                 "tree-prefix"
@@ -520,9 +531,9 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
             }
         };
         panic!(
-            "next_active 重复 ElementId {id:?}: idx {first_idx}({}) 与 idx {second_idx}({})；\
+            "next_active 重复 ElementId {id:?}：next_legs 两次选入同一 idx {second_idx}({})\
+             （raw_id_idx 按 id 查表，同 id 恒映射同一 idx，非「两个不同 idx」）；\
              活动集注册路径未按 ID 闭合，strategy_target_legs 将双计 p̃",
-            source(first_idx),
             source(second_idx),
         );
     }
