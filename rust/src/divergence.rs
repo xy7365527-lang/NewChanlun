@@ -1,3 +1,5 @@
+//! GUARD-ROLE: toplevel-loose-files——名分：现役（详见 `lib.rs` 头部 GUARD-ROLE 块，#764 C7-E5 核定；零删除/零移入 legacy/）。
+//!
 //! 背驰 / 盘整背驰 v1 — 逐位等价移植自 src/newchan/a_divergence_v1.py
 //!
 //! 检测每个 Move 的趋势背驰（C 段力度 < A 段力度）或盘整背驰（同向离开力度衰竭）。

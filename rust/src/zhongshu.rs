@@ -1,3 +1,5 @@
+//! GUARD-ROLE: toplevel-loose-files——名分：现役（详见 `lib.rs` 头部 GUARD-ROLE 块，#764 C7-E5 核定；零删除/零移入 legacy/）。
+//!
 //! 中枢 v1（三段重叠法）— 逐位等价移植自 src/newchan/a_zhongshu_v1.py
 //!
 //! 两条构造路径共享滑窗算法 `scan_zhongshu`：

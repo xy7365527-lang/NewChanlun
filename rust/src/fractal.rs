@@ -1,3 +1,5 @@
+//! GUARD-ROLE: toplevel-loose-files——名分：现役（详见 `lib.rs` 头部 GUARD-ROLE 块，#764 C7-E5 核定；零删除/零移入 legacy/）。
+//!
 //! 分型识别（Fractal Detection）— 逐位等价移植自 src/newchan/a_fractal.py
 //!
 //! 分型是一维价格函数的局部极值点。双条件判定：

@@ -1,3 +1,5 @@
+//! GUARD-ROLE: toplevel-loose-files——名分：现役（详见 `lib.rs` 头部 GUARD-ROLE 块，#764 C7-E5 核定；零删除/零移入 legacy/）。
+//!
 //! 笔构造（Stroke Construction）— 逐位等价移植自 src/newchan/a_stroke.py
 //!
 //! 从分型序列构造笔：分型去重（择优）、顶底交替、gap 检查、方向验证。

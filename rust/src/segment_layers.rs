@@ -1,3 +1,5 @@
+//! GUARD-ROLE: toplevel-loose-files——名分：现役（详见 `lib.rs` 头部 GUARD-ROLE 块，#764 C7-E5 核定；零删除/零移入 legacy/）。
+//!
 //! segment_layers.rs — 线段级中枢 / 背驰的**增量器**（消除 orchestrator 残留 O(n_seg²)）。
 //!
 //! ## 背景（残留 O(结构²) 第二波）

@@ -1,3 +1,5 @@
+//! GUARD-ROLE: toplevel-loose-files——名分：现役（详见 `lib.rs` 头部 GUARD-ROLE 块，#764 C7-E5 核定；零删除/零移入 legacy/）。
+//!
 //! level.rs — 泛化中枢/走势（级别递归核）逐位等价移植自 src/newchan/a_zhongshu_level.py
 //!
 //! 递归层的两个计算核：

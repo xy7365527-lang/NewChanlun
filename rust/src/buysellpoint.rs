@@ -1,3 +1,5 @@
+//! GUARD-ROLE: toplevel-loose-files——名分：现役（详见 `lib.rs` 头部 GUARD-ROLE 块，#764 C7-E5 核定；零删除/零移入 legacy/）。
+//!
 //! 买卖点 v1 — 逐位等价移植自 src/newchan/a_buysellpoint_v1.py
 //!
 //! type1（趋势背驰）/ type2（回调反弹）/ type3（中枢突破回试）三类买卖点检测 +

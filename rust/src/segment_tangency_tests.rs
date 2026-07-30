@@ -1,3 +1,12 @@
+//! GUARD-ROLE: toplevel-loose-files-adjunct——名分：**测试基础设施现役**（非五态自动归批，
+//! #764 C7-E5 单列核定，按实测判；不随 `lib.rs` 头部 GUARD-ROLE 块「现役」批标，亦不进批
+//! 内 14 文件枚举）。实测：全仓零非测试调用者（`#[path]` 挂 `segment.rs:824` 仅测试内
+//! `mod tests`），但本文件 6 个 `#[test]` 在 `cargo test --lib`（常规跑，非 `--ignored`）下
+//! 全部 `ok`（`segment::tests::is_fractal_and_gap_*` 等，2026-07-30 复核实测）——是 #317
+//! 相切口径回归锁的活跃测试主体，非死代码。沿 #763 trading/ 三个 `#[cfg(test)]` 消融文件
+//! 先例（`consolidation_ablation.rs` 等）：「零活引用⟹删除」判据前提是生产/python 可达性，
+//! 不适用测试基础设施存废判定。处置：留档零删除，零移入 `legacy/`。
+//!
 //! 相切口径回归锁（#317；#288 影子评审 HIGH-1，
 //! chanlun/review-results/shadow-review-288-20260726.md §三）
 //! #246 相切=重合口径在 **legacy 段引擎两个私有谓词**上的回归锁。
