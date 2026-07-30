@@ -200,6 +200,19 @@ impl LevelProjectionLayer {
     }
 }
 
+impl CrossLevelConfirmationQuery {
+    /// 单源：按 `source_index` 精确等值查 `matches` 中首个 [`TripleAnchorEntry`]（issue #747 C1，
+    /// `admission.rs::resolve_foot` 单源——「禁第二查法」注释语义原样保留）。
+    ///
+    /// 族内独立成员：本查询作用于 [`TripleAnchorEntry`]（已按极值价窄化的组锚回执），
+    /// 与 `classifier::bsp` 的 `bsp_at`/`bind_turn`/`bsp_bit_at` 三件族（作用于 [`super::bsp::BspPoint`]）
+    /// 是同一「source_index 等值 join」模式在不同类型上的并行实现，二者不同型、不强并为
+    /// 一函数（照实登记，见票内「先核语义是否逐字同构」条）。
+    pub fn entry_at(&self, source_index: usize) -> Option<&TripleAnchorEntry> {
+        self.matches.iter().find(|e| e.source_index == source_index)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

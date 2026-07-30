@@ -147,14 +147,13 @@ fn typed_b(e: &NestCandidateEvent) -> NestInterval {
 }
 
 fn terminal_bits_new(classification: &Classification, event: &NestCandidateEvent) -> Option<BspBits> {
-    classification
-        .levels
-        .get(event.level as usize)?
-        .bsp
-        .iter()
-        .find(|point| {
-            point.source_index == event.turn_source && point.bits.confirm_side(event.side)
-        })
+    // issue #747 C1 单源：改调 classifier::bsp::bind_turn（生产绑定规则原型 nest.rs:681 语义，
+    // bin 侧诊断复制点收敛，见 issue747-impl 报告）。
+    newchan_rust::theta_v0::classifier::bsp::bind_turn(
+        &classification.levels.get(event.level as usize)?.bsp,
+        event.turn_source,
+        event.side,
+    )
         .map(|point| point.bits)
 }
 

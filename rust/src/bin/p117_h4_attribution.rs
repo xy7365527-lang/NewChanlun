@@ -1050,7 +1050,8 @@ fn main() -> Result<(), String> {
             let owner_tag = owner_of(leg.start_index)
                 .map(|(_, t)| t)
                 .unwrap_or_else(|| "NONE".to_string());
-            let point = bsp0.iter().find(|p| p.source_index == case.turn);
+            // issue #747 C1 单源：改调 classifier::bsp::bsp_at（bin 侧诊断复制点收敛）。
+            let point = classifier::bsp::bsp_at(bsp0, case.turn);
             let point_str = match point {
                 Some(p) => format!(
                     "present(bits={},sbd={:?},conf={})",
@@ -1279,7 +1280,8 @@ fn main() -> Result<(), String> {
                     }
                     None => ("NO_LEG".to_string(), JudgeOut::NoOwner),
                 };
-                let p = bsp0.iter().find(|p| p.source_index == idx).expect("hit in book");
+                // issue #747 C1 单源：改调 classifier::bsp::bsp_at（bin 侧诊断复制点收敛）。
+                let p = classifier::bsp::bsp_at(bsp0, idx).expect("hit in book");
                 println!(
                     "ATTR_HIT case={} idx={} bits={} owner={} replica={} seed_b=({},{}) seed_prev=({},{})",
                     case_no,

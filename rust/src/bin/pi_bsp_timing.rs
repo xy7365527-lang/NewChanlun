@@ -93,13 +93,13 @@ fn context_lifts(
     parent_rho: usize,
     side: Side,
 ) -> bool {
+    // issue #747 C1 单源：改调 classifier::bsp::bind_turn（存在性版——`bind_turn(..).is_some()`
+    // 与原 `.any(confirm_side)` 逐字节同构；bin 侧诊断复制点收敛，见 issue747-impl 报告）。
     classification
         .levels
         .get(parent_level as usize)
         .is_some_and(|ls| {
-            ls.bsp
-                .iter()
-                .any(|p| p.source_index == parent_rho && p.bits.confirm_side(side))
+            newchan_rust::theta_v0::classifier::bsp::bind_turn(&ls.bsp, parent_rho, side).is_some()
         })
 }
 

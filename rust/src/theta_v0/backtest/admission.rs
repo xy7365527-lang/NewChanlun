@@ -859,8 +859,9 @@ impl NestChainGate {
     /// - **极值价**：T1 供给线单一来源 `fractal_at_source`（gate 持有的同一分型账本 Rc；
     ///   x 处无 confirmed 分型 ⟹ None——诚实缺锚，禁降级）。
     /// - **组锚 a***：**T2 本级层**条目解析（`cross_level_query(极值价)` 回执中
-    ///   `source_index == c.source_index` 者）——层间联动的物化锚（禁第二查法：gate 不自行
-    ///   调 `merged_group_anchor` 另起锚解析）。本级层未载（None）/ 该脚未登记 ⟹ None。
+    ///   `source_index == c.source_index` 者，单源改调 [`classifier::projection::CrossLevelConfirmationQuery::entry_at`]，
+    ///   issue #747 C1）——层间联动的物化锚（禁第二查法：gate 不自行调 `merged_group_anchor`
+    ///   另起锚解析）。本级层未载（None）/ 该脚未登记 ⟹ None。
     /// - **T5a 方向退役**（ADR 20260723 裁定 1）：解析不携带方向——同一 x 跨型（顶/底）
     ///   共点不产生价格二义（T1 探针已证），层索引按极值价单键命中全部类型登记。
     fn resolve_foot(
@@ -875,14 +876,7 @@ impl NestChainGate {
             .levels
             .get(c.level as usize)
             .and_then(|ls| ls.level_projection.as_ref())
-            .and_then(|layer| {
-                layer
-                    .cross_level_query(price)
-                    .matches
-                    .iter()
-                    .find(|e| e.source_index == c.source_index)
-                    .map(|e| e.group_anchor)
-            });
+            .and_then(|layer| layer.cross_level_query(price).entry_at(c.source_index).map(|e| e.group_anchor));
         (Some(price), anchor)
     }
 

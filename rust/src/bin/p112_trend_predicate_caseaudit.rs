@@ -535,14 +535,13 @@ fn collect_pair_audit(
 }
 
 fn terminal_bits_new(classification: &Classification, event: &NestCandidateEvent) -> Option<BspBits> {
-    classification
-        .levels
-        .get(event.level as usize)?
-        .bsp
-        .iter()
-        .find(|point| {
-            point.source_index == event.turn_source && point.bits.confirm_side(event.side)
-        })
+    // issue #747 C1 单源：改调 classifier::bsp::bind_turn（生产绑定规则原型 nest.rs:681 语义，
+    // bin 侧诊断复制点收敛，见 issue747-impl 报告）。
+    newchan_rust::theta_v0::classifier::bsp::bind_turn(
+        &classification.levels.get(event.level as usize)?.bsp,
+        event.turn_source,
+        event.side,
+    )
         .map(|point| point.bits)
 }
 
@@ -651,10 +650,10 @@ fn audit_case(
         segs1, anchors1, centers1, gate1, hist, close_src, direction, seg_c.1,
     );
     // BSP 账本实况（turn 上的点与 bit）。
-    let at_turn: Vec<&BspPoint> = bsp_book
-        .iter()
-        .filter(|p| p.source_index == seg_c.1)
-        .collect();
+    // issue #747 C1 单源：改调 classifier::bsp::bsp_all_at（诊断枚举族内独立成员——
+    // 见 issue747-impl 报告）。
+    let at_turn: Vec<&BspPoint> =
+        newchan_rust::theta_v0::classifier::bsp::bsp_all_at(&bsp_book, seg_c.1).collect();
     let bsp_book = if at_turn.is_empty() {
         "none".to_string()
     } else {
