@@ -61,5 +61,17 @@
       "NotebookEdit"
     ],
     "deny": []
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/silencehan/Projects/NewChanlun/scripts/wayfinder_session_brief.sh"
+          }
+        ]
+      }
+    ]
   }
 }
