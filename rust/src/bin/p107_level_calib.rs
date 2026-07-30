@@ -11,6 +11,10 @@
 //! 2. 记录绑定 bar 上同侧 BSP 出现的 lvl 集合 → 交叉表 `P107_CROSS exec×lvl`；
 //! 3. 同级绑定（限定 lvl == exec 的同侧 BSP）→ `P107_SAMELVL`：若同基假设成立，
 //!    dt 分布应与全侧绑定同数量级；若系统性偏移/无解，则假设证伪。
+//! 4. classifier 自检（修正一）：lvl≥1 事件到最近 lvl0 同侧事件的距离 → `P107_L0NN`：
+//!    检验 classifier 自身是否满足"高级别点同时是低级别点"（区间套式同点收敛）；
+//! 5. 分级距离矩阵（修正二）：每证书 × 每 lvl 最近距离 → `P107_MAT`/`P107_MATRIX`：
+//!    排除全侧最近邻被 lvl0 密度支配的伪影（lvl0 密度 ≈ 4× lvl1）。
 //!
 //! ## 只读纪律
 //! 不动判据、不写主路径状态；输出 `P107_*` 报表行到 stdout。
@@ -214,12 +218,34 @@ fn main() -> std::process::ExitCode {
         short_all.len()
     );
 
+    // ── classifier 自检：lvl>=1 事件到最近 lvl0 同侧事件的距离（同点多级性质）。 ──
+    for (side_name, by) in [("Long", &long_by_lvl), ("Short", &short_by_lvl)] {
+        let l0 = by[0].as_slice();
+        for lvl in 1..=max_lvl {
+            let (mut exact0, mut strong, mut weak, mut far) = (0usize, 0usize, 0usize, 0usize);
+            for &b in &by[lvl] {
+                match nearest_dt_tie(l0, b) {
+                    Some((0, _)) => exact0 += 1,
+                    Some((d, _)) if d.abs() <= 240 => strong += 1,
+                    Some((d, _)) if d.abs() <= 1440 => weak += 1,
+                    _ => far += 1,
+                }
+            }
+            println!(
+                "P107_L0NN side={side_name} lvl={lvl} n={} exact0={exact0} strong={strong} weak={weak} far={far}",
+                by[lvl].len()
+            );
+        }
+    }
+
     // ── 逐证书：全侧绑定复现 + lvl 归属 + 同级绑定。 ──
     let mut bound = 0usize;
     // (exec, lvl) -> n（绑定 bar 上出现同侧 BSP 的 lvl，多 lvl 各记一次）。
     let mut cross: BTreeMap<(usize, usize), usize> = BTreeMap::new();
     // exec -> [同级绑定 strong, weak, far, none]
     let mut same_stats: BTreeMap<usize, [usize; 4]> = BTreeMap::new();
+    // (exec, lvl) -> [分级绑定 strong, weak, far, none]（每证书对每级独立最近邻）。
+    let mut matrix: BTreeMap<(usize, usize), [usize; 4]> = BTreeMap::new();
     for (ci, c) in certs.iter().enumerate() {
         let is_long = c.side.contains("Long");
         let all = if is_long { &long_all } else { &short_all };
@@ -255,6 +281,25 @@ fn main() -> std::process::ExitCode {
             Some(_) => slot[2] += 1,
             None => slot[3] += 1,
         }
+        // 3) 分级距离矩阵（逐级最近邻，排除 lvl0 密度伪影）。
+        let mat: Vec<Option<i64>> = (0..=max_lvl)
+            .map(|k| {
+                by_lvl
+                    .get(k)
+                    .and_then(|v| nearest_dt_tie(v, c.judge_max))
+                    .map(|(d, _)| d)
+            })
+            .collect();
+        for (k, d) in mat.iter().enumerate() {
+            let slot = matrix.entry((c.exec, k)).or_insert([0usize; 4]);
+            match d {
+                Some(d) if d.abs() <= 240 => slot[0] += 1,
+                Some(d) if d.abs() <= 1440 => slot[1] += 1,
+                Some(_) => slot[2] += 1,
+                None => slot[3] += 1,
+            }
+        }
+        println!("P107_MAT idx={ci} exec={} dts={mat:?}", c.exec);
         println!(
             "P107_TAG idx={ci} caliber={} side={} exec={} top={} judge_max={} bsp_bar={bsp_bar} dt={dt} b={} lvls={:?} same_dt={:?} ids={}",
             c.caliber,
@@ -274,6 +319,12 @@ fn main() -> std::process::ExitCode {
     for (exec, s) in &same_stats {
         println!(
             "P107_SAMELVL exec={exec} strong={} weak={} far={} none={}",
+            s[0], s[1], s[2], s[3]
+        );
+    }
+    for ((exec, lvl), s) in &matrix {
+        println!(
+            "P107_MATRIX exec={exec} lvl={lvl} strong={} weak={} far={} none={}",
             s[0], s[1], s[2], s[3]
         );
     }

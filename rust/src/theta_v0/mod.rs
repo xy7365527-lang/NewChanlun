@@ -60,6 +60,10 @@
 pub mod config;
 pub mod types;
 
+/// C2：46 个直读 env 键的单一登记处（map #743，spec #756）——键名/语义/行为门|观测门/默认臂/
+/// 所属层五列在案，运行期可枚举/按类过滤。模块头详述形状裁定与完备性单测。
+pub mod env_registry;
+
 /// venue 真实费率标定 datum（#360；规格 = `venue-fee-source-research-20260726.md` §3）——
 /// per-notional（Binance 现货 maker/taker）与 per-share + 最低佣金 + 卖出监管费（IBKR Pro 美股）
 /// 两种计费单位的原生表达 + datum 文件 sha256 版本哈希。[`config::ExecConfig::fee_schedule`]

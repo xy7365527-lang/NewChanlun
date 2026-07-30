@@ -1,0 +1,42 @@
+# Roster 2026-07-28
+
+- Kimi 编排 session 开工（02:30 EDT）：主线 #467「SPEC：链门对称化——出场门迁入 π overlay 臂」。已认领（assignee=xy7365527-lang）。HEAD 核实：main @ cbd0e27bb1（#486 ADR），与 handoff 快照一致。脏面核对：rust/ 内仅 `rust/src/bin/p107_level_calib.rs` 被并行线改动（bin，非 lib 测试），无未提交测试文件，cargo test 计数基线可用。
+- 首派 codex gpt-5.6-sol high（task bash-xk7klhgf）走 /implement；**停手上报（090 合格否定）**：只读核证发现 SPEC 核心前提不成立——overlay 的 `NestChainGate`（fill.rs:2504-2547）过滤的是进出场共享的 `step_gamma_trade`，同一候选集经 compose.rs:326-338 驱动反向平仓（interp.rs fold 规则2），「出场完全不过滤」不成立。零改动（编排 session 独立复核 git status + 四处源码行号，属实）。基线：release lib 2093/0/141，check 绿，门关 bit-exact 锁绿。停手评论已落票（issuecomment-5100837139）。
+- grill-with-docs 重裁 #467（五问五裁）：Q1=A 改裁文档+统计修订；Q2=A1 v1/dual 零 diff；Q3=S2 π 臂出场归因子总体计数（只读读出/判定不消费/禁第二查法/门关零工作）；Q4=P1 原票改裁；Q5=T1 CONTEXT.md 三词条（候选过滤门 vs 决策注入门 + 「生产」拆三义）。
+- 退役票 #499 已开（needs-triage）：v1/dual 家族处置，含 run_theta_v0_dual 真孤儿盘点、ExitNestGateCtx 随家族消亡、三边界问题待裁。
+- #467 票体已按 P1 重写（标题改「单门双覆盖钉案 + 出场归因统计落可达臂」），验收判据 1-7 重写附基线指针。
+- 再派 codex gpt-5.6-sol high（task bash-kxgiq4sw）实施重裁版：S2 统计 + 三处文档 + CONTEXT.md 词条，禁新建测试文件（required-features 前车之鉴 #412），禁提交。
+- 卫生宪法图 #500 开图（编排者痛点：老代码该退役没退役、现役线名分不清）：目的地 = 世代名分单源化 + 按名分物理清算，首要功能「精力不再流向死代码」；Notes 覆盖只规划默认（决策即执行）。子票 9 张：#501 宪法（grilling 前沿）/ #499 收养（blocked by #501）/ #502 坟场清理（blocked by #507）/ #503 垃圾逐个判（blocked by #508）/ #504 记账层归档（前沿）/ #505 装备收编（blocked by #509）/ #506 防复发（blocked by #501）/ #507-509 research×3。F6 模块命名进 fog。
+- research 两路已结算关票：#508（仓内杂物逐项判词：G:/+.pytest_cache+.playwright-mcp 零风险可删，.git.bak 1.6G 涉凭证须裁定）→ #503 解锁；#509（装备层 = 1 正本 .agents/skills + 2 投影 + 1 独立包；⚠️ .claude/rules 删除面 12 文件判疑似事故残留，裁定前勿提交）→ #505 解锁。#507 worktree 台账在跑。
+- #467 交付提交 `2a42e7caff`（编排者批准；index.lock 陈旧锁排查后删除——lsof 无持有者，主仓无 git 进程）并关票（resolution 引 hash）；影子评审票 #510 已开（对焦项：归因子总体不查 nest_confirmed 的口径宽度）。
+- 记忆订正：gap3-rework-codex9-fix 已被 main 吸收（main 领先 260、gap3 仅 2 commit 未含），「真实工作线是 gap3」记忆过期——main 即唯一现役线。
+- #501 世代宪法烤定关票（四裁全过，commit de33a4b856）：docs/agents/generation-constitution.md 本体 + ADR 0004 + CONTEXT.md 名分四态词条（与「代际」分词）。#499（退役）与 #506（防复发）解锁。图 #500 前沿 = #502/#503/#504/#505/#506 + #499。
+- #499 退役边界烤定（Q1=C 分层 / Q2=死亡豁免清单已核实版——**exit.rs 非家族独占（NT 在用），只删 _cert 变体**；Q3=R1 不等 #59；Q1补充=移植5删10：exit_generator×3 移植直调 exit.rs、π bit-exact 锁调 run_theta_v0_pi 不受影响）。票体改决议版 SPEC 转 ready-for-agent，派发 codex high（task bash-2nzuczs4）。
+- 图 #500 四票连收：#503 垃圾清（ceaf8430b3：G:/+.pytest_cache+.playwright-mcp 删、auto_ceremony.sh Windows 路径 bug 修、.git.bak 1.6G 删、kimi-export 挪 /tmp）；#504 记账层（7798007580：913 个 md 归档 tar 4.7M 挪出仓、留 6、口径入宪法 §5）；#505 装备收编（3e09dba759：.agents/skills 收 git、agent/ 生成物化、lock 58→54；deploy/ 整目录在 gitignore 内，DEPLOY.md 降级改动为本地文件照实登记）；#506 防复发（cfc0e330fb：关票门第 5 子句「关票即清工位」+ 禁入仓模式 + constitution_check.sh 报告制）。
+- **AGENTS.md 记忆条目代记**（AGENTS.md 被并行线占用未提交，#506 ③的补记）：新文件入仓前先判名分四态（宪法 §1）；会话导出/备份/工具残留一律禁入仓（.gitignore 已立模式）。
+- #502 判据裁定落票，执行中：第一批删 1 worktree + 2 分支，第二批派子代理（agent-3）按三条件 AND 批量清；#516 rules 12 文件处置票已开（裁定前任何人不得提交该目录删除）。
+- #516 关票：12 个 rules 全恢复（R1，git checkout 零 diff）；**编排者永久裁定在案：「Kimi 是主力」= K1 读法（编排/文档层主力，实施层 codex/claude 分工不变，2026-07-26 令不废）**。纪律文本归并票 #517 已开（fog 毕业）。
+- #502 关票：坟场清至 worktree 55 / 分支 129（删 20+12）；**连带实锤 #451 关票违规（第六例「票关 main 无」）——cherry-pick e4e0a2272c→05700d21db 落地、守卫实测红转绿、#451 合规重关**。docs-443 分支经逐文件比对（main 已有更新版 f185f921d1）后删；深度分叉 4 个打包 7.6G 出 /tmp 后 -D。
+- #517 关票（cc2cf5648b）：AGENTS.md 吸收 CLAUDE.md 成唯一正本（记忆区订正工作线+补 Kimi 主力 K1/模型四档/入仓名分三条目）；.claude/rules 12 件 + deploy/ 整包归档 graveyard 后删。图 #500 只剩 #499 在跑。
+- #499 两派两停（均 090 合格）：首派进程楔死（6h 零 CPU，查杀重派）；重派核证发现基线漂移（main 至 e3f1b08d02，2115/0/141）+ 编排盘点漏 7 个活跃 e2e 测试（grep 过滤误伤，复核属实）。补充裁 2（E1）：7 个 e2e 随家族删，π e2e 锁缺口开 #526（needs-triage）。SPEC 修订（基线 2115、删 17、期望 2105/134），三派 codex（task bash-5hnkrmcx），11:44 活性自检 cron 已挂。
+- **#499 退役落地关票（94e0837f0e，83+/3203-）**：两代死引擎物理删除，2105/134 分毫不差，移植 5 锁全绿+变异验证。四派三停均 090 合格否定（codex 每次都停得有据，根子在编排盘点质量——教训：测试盘点必须注释剥离+函数体级核实）。影子评审 #531 已开。
+- **图 #500 关图**：13 子票全关，目的地达成（宪法立 + 物理清到达标）。留账：#526 π e2e 缺口、#510/#531 影子评审候队、fog（.cache 挪仓 / F6 模块命名）。
+- 四件照办：影子评审 #510/#531 派 claude opus 无头（bash-j4pt1y2r / bash-8cr3a3iw）；#488 诊断派 codex high（diagnosing-bugs 协议、禁调容差凑绿，bash-5e980g68）；#433 关票（NEST_GATE_EXIT_CAND 已落地达成 #113 §2.5）；#526 裁 S1 改写为「π e2e 锁包」SPEC 转 ready-for-agent（P0 级联+TW / P1 嵌套禁用+做空+dual账本 / P2 G5 随 #386 协同）。
+- #488 关票：镜像推送（main→main-rewritten，51 commit fast-forward）触发 run 30384277493——MACD×5 消失（FMA 选路 Linux 真考场过）、JSON×2 转 skip、Wasserstein×1 消失。浮出 #548（test_claude_audit×4，mcp SDK 漂移嫌疑，bug+needs-triage）。
+- #548 关票：根因 = CI 吃进 mcp 2.0.0 主版本漂移（pyproject 未钉上限）；钉 <2.0（158fbd11f4）+ 镜像推送复跑 run 30385160561 双 job 全绿。#549 mcp 2.0 迁移评估开票。**CI test job 当前全绿（4950+ passed）**。
+- #491 诊断关账（不落票关）：main 绿、红仅在 kimi-nest-mainline 分支尖；根因 bbbd8f89fa 漏重算 GOLDEN（对拍证据 SHA 相同）；L1 裁定修复交接 #421 线（GOLDEN=0xe6a2…3845 + 14→13 case 订正，禁移植 main）。
+- #526 停手（090 合格否定）：P0 首锁复现 π 疑似行为 bug——父结构止损穿价未触发级联（夹具证据在票）；开 #564（bug）并挂 #526 blocked by #564；观测面口径随 #564 裁。
+- 图 #566「π 钱安全语义钉死」开图（编排者裁 D2）：顺序铁律 诊断→裁定→写锁。子票 5：#564 收养（诊断派 codex bash-lqwgezql）+ #567 观测面调研（explore agent-6）前沿；#568 级联语义裁定（blocked by #564+#567）、#569 锁包验收口径（blocked by #568）、#526（blocked by #569）。fog：L2/L3 重门 π 重建、公开入口观测面扩充。
+- #564 诊断回（判 bug 机制断链：stop_hit→压布尔丢腿 ID→KΘ 只夹净→子树机关无种子；n_orders=0 根因=夹具分型恒零诚实退化）。#568 关（S1 π 应当级联）、#569 关（锁声部执行事实五条断言形态）。#572 修复 SPEC 开票（四件套+红线）派发 codex（bash-b391xzqa）；#526 改挂 blocked by #572。图 #566 决策票清零，进实施段。
+- #572 级联止损修复落 main（c8e87c4a0d，372+/37-，7 文件）并关票：锁五条兑现、变异在案、既有 2111 零断言改动、2114/134。影子评审 #577（对焦 D1 carrier 规则+歧义域+布尔投影等价）。#526 解锁成前沿。
+- #526 锁包落地关票（06689c71a1，纯测试 +414，6 锁+6 变异，2114→2120）；影子评审 #590。**图 #566 关图**：钱安全语义（级联止损/TW/账本口径）裁定钉死 + e2e 锁落地，顺序铁律（诊断→裁定→写锁）全程未破；fog 留案 L2/L3 重门重建 + 观测面扩充。
+- #564 补关（漏账）；#562 关票（裁：不开 lfs:true，写明「真实数据不变量仅本地/重型窗口」口径，可逆）。
+- **codex 额度尽**（usage limit，恢复 2026-08-03 23:32）：#558/#561 两派均失败于额度，按执行分工记忆改派 claude CLI sonnet（bash-paum38gr / bash-y67vdczo）。**后续实施票在 codex 恢复前一律 claude sonnet**；影子评审三路（#577/#590/#560，opus 无头）不受影响在跑。
+- #560 影子评审 PASS 关票；LOW-1 漏网（reverse_nest_cert_base 零调用残留）开 #593。
+- **教训在案**：claude sonnet 无头首派 #558 时委派 codex（额度尽）空转——claude 无头派发须写死「亲手实施、禁止委派」（重派 bash-uhictwfp）。
+- #561 提交关票（fa0dcb5882，cfg! 去重+三处口径；#539「本地均无数据」经实施侧核实不准已订正）；#577 无 HIGH 关票，尾巴 #594（歧义域漏杀可观测+shadow 分歧记账+文档债）。
+- **#590 评审 HIGH×1 回票 #526**：锁1/2/4 跨臂 bit-exact 断言两臂共用闭包——夹具变异结构性无效（评审抓的准）。回票四项（生产侧变异补证/锁2 净增量化+改名/装配层锚/G5 措辞），修派 claude sonnet 亲手（bash-1rmq02yc）。清白项不重开：W1 未伪称、G5 载荷实。
+- #526 回票修复提交（a5cf2479d5）：生产侧变异三锁各红补证（diff 零生产码）、锁2 净增量化改名、装配层锚（真 BTC 窗口）、G5 措辞订正；终局复核派 opus（bash-a6pdlwf7）。浮出旧锚空转问题开 #596 待查（注：新票号以实际为准）。
+- #558 关票（61ed615393）：MCPServer 重写 + mcp 2.0 全链验证（隔离 venv 22/22 + .venv 44/44 + CI 双绿）。.venv 升 mcp 2.0.0 + 补 pytest-asyncio（本地 6 个数据依赖测试红与 diff 无关照实标注）。
+- **#526 全链闭环**：回票修复（a5cf2479d5）→ 终局复核放行（opus 亲手 5 生产变异实证，证据留档）→ 三尾巴（393a07c488：装配锚改 #[ignore] 堵静默绿 + 注释订正）→ #526/#590 双关。#558 关票（61ed615393，CI 双绿）。今日 main 落 21 commit。
+- 顺手票三清全收：#593（e50e34d50b 删 reverse_nest_cert_base + interp 失效链接）、#595（115c8166e7 旧锚措辞降级——实施侧先实测核实零信号再动笔）、#594（76b7af7cb7 歧义域计数+shadow 记账+文档债）。今日 main 落 26 commit。

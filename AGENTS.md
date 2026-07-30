@@ -30,7 +30,7 @@
 - **harness**：Kimi 主力（K1，2026-07-28 裁定）；实施层 = codex/claude CLI（2026-07-26 令，不废）。工位模型分配四档（永久令 2026-07-04 三令）：机械=haiku / 常规=sonnet / 高难=opus / 最难=fable；spawn 必显式传 model，拿不准取低档。
 - **验证口径**：不全量重放——验证用靶向/原型级（差异面先全枚举再对拍，秒级）；全量仅留重型验证窗口并照实标注（用户 2026-07-26 裁定，效率纪律）。
 - **执行分工**：Claude CLI 执行层——实施票用 sonnet（快），影子评审用 opus（深）；Kimi 只做编排，不下场写码（2026-07-26 用户定）。
-- **工作线**：**main 是唯一现役 git 线**（2026-07-28 核：gap3-rework-codex9-fix 已被吸收，main 领先其 260）；`main-rewritten` 是其只读镜像（CI 触发器挂它），main 不推 origin。
+- **工作线**（2026-07-29 #614 并线落线）：**main 再次唯一现役**——`kimi-nest-mainline-20260717` 已并入 main（落线提交 `ca955a73f1`，方向 (a)；49 冲突留痕 + 12 ⚠ 登记 = `chanlun/review-results/issue614-merge-log-20260729.md`）并**封存只读**（worktree `/private/tmp/kimi-nest-mainline` 保留作移植参照，禁新提交）。ticket 分支统一切 main。未随入项票批：#642（coverage 移植，P0 三生产正确性修复优先）/ #643（classifier 主干裁定）/ #644（LEE 接线）/ #645（手工重放影子评审）/ #646（#419 资金路径重议）。`main-rewritten` 是 main 的只读镜像（CI 触发器挂它），main 不推 origin。
 - **Stop-Guard**：其注入内容可能反映过期状态（已结算谱系仍列为 pending）；重复执行前先核实际状态。
 - **goal 事件**：正式 GOAL_SET/SUPERSEDE 由 Lead 直接 append 到 `.chanlun/goals/events.jsonl`（`scripts/goal_events.py` 只出草稿），随后用 reducer/scan 验证。
 - **裁定文档**：编排者钦定的裁定 PDF 先归档到 `docs/formal-chain/` 再登记为 goal 权威。

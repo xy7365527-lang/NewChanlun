@@ -22,7 +22,12 @@
       "Bash(mv ~/.claude/plugins/marketplaces/ponytail ~/.Trash/ponytail-marketplace-20260710)",
       "Read(//Users/silencehan/.claude/plugins/cache/**)",
       "Bash(python3 -c \"import json; json.load\\(open\\('.claude/settings.json'\\)\\); json.load\\(open\\('.claude/settings.local.json'\\)\\); print\\('两个 JSON 均合法'\\)\")",
-      "Bash(rm -f .claude/hooks/ceremony-completion-guard.sh)"
+      "Bash(rm -f .claude/hooks/ceremony-completion-guard.sh)",
+      "Bash(cp .claude/settings.local.json /tmp/settings.local.json.bak)",
+      "Bash(git checkout *)",
+      "Bash(cp /tmp/settings.local.json.bak .claude/settings.local.json)",
+      "Bash(cp ~/.claude/settings.json ~/.claude/settings.json.bak-20260724)",
+      "Bash(cp /Users/silencehan/Projects/NewChanlun/.claude/settings.json /tmp/newchanlun-settings.json.bak-20260724)"
     ],
     "deny": []
   },

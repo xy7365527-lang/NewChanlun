@@ -187,7 +187,7 @@ fn sigma_pre_oos(ds: &data::Dataset, cfg: &ThetaConfig) -> (f64, usize) {
 fn apply_theta_dir_preset_from_env(cfg: &mut ThetaConfig) {
     // g3 三套 OOS 入口（prereg-rev5 §5.1）：THETA_DIR_PRESET env 切 Follow/Adversary。无 env=Neutral。
     // η 冻结（135号）：eta_adv=[0.70,0.70,0.70,0.50,0.50,0.50]/eta_same=[0.70,0.50,0.70,0.70,0.70,0.70]。
-    match std::env::var("THETA_DIR_PRESET").as_deref() {
+    match std::env::var(crate::theta_v0::env_registry::THETA_DIR_PRESET).as_deref() {
         Ok("follow") => cfg.voice.theta_dir = ThetaDirPreset::Follow {
             eta_adv: vec![0.70, 0.70, 0.70, 0.50, 0.50, 0.50],
         },
@@ -204,7 +204,7 @@ fn apply_theta_dir_preset_from_env(cfg: &mut ThetaConfig) {
 /// 先例——`build_mu_from_bars` 残差路径经 `typed_ledger_from_bars`→`pi_theta_fill_loop` 触达 `apply_gross_cap`，
 /// 故残差跑批（wverify_full）与 π^full 跑批（m8_e2e）均需本 gate 才能测毛 cap 效应。
 fn apply_enforce_gross_cap_from_env(cfg: &mut ThetaConfig) {
-    if std::env::var("ENFORCE_GROSS_CAP").as_deref() == Ok("true") {
+    if std::env::var(crate::theta_v0::env_registry::ENFORCE_GROSS_CAP).as_deref() == Ok("true") {
         cfg.risk.enforce_gross_cap = true;
     }
 }
@@ -213,7 +213,7 @@ fn apply_enforce_gross_cap_from_env(cfg: &mut ThetaConfig) {
 /// .enabled`）——跑批入口同 [`apply_theta_dir_preset_from_env`] 先例。无 env/非 "1" = default
 /// false 不变（既有 `m8_e2e_all_systems_oos` 默认关轨迹逐字节不变，bit-exact 回归锁）。
 fn apply_center_oscillation_from_env(cfg: &mut ThetaConfig) {
-    if std::env::var("THETA_CENTER_OSCILLATION").as_deref() == Ok("1") {
+    if std::env::var(crate::theta_v0::env_registry::THETA_CENTER_OSCILLATION).as_deref() == Ok("1") {
         cfg.center_oscillation.enabled = true;
     }
 }
@@ -266,7 +266,7 @@ fn walk_forward_oos_residuals(
 /// （见 [`deltafree_verdict`]），不消费本文件。保 records 顺序（walk-forward 时间序）⟹ effective_n
 /// 的成交时间序前提成立（decontam 口径）。
 fn dump_deltafree_pertrade(records: &[ResidualTrade]) {
-    let path = std::env::var("DELTAFREE_DUMP")
+    let path = std::env::var(crate::theta_v0::env_registry::DELTAFREE_DUMP)
         .ok()
         .filter(|p| !p.is_empty())
         .unwrap_or_else(|| "/tmp/wv_full_zdecision.tsv".into());
@@ -1227,7 +1227,7 @@ fn m8_e2e_all_systems_oos() {
     }
     // ★T3 (#172)/#164 复现副本同款先例：`M8_WIN_FILTER=<tag>` ⟹ 只跑指定窗（逐窗重放/shadow
     // dump 分窗落盘需要；未设 = 全窗清单不变，bit-exact 中性——只跳过其他窗，窗内行为逐字节同）。
-    if let Ok(filter) = std::env::var("M8_WIN_FILTER") {
+    if let Ok(filter) = std::env::var(crate::theta_v0::env_registry::M8_WIN_FILTER) {
         wins.retain(|(tag, _, _)| tag == &filter);
     }
 
@@ -2134,7 +2134,7 @@ fn otherwise_domain_wf8_grade_buckets() {
     use super::runner::run_theta_v0_pi_overlay;
 
     // #608 S3：M8_WIN_FILTER 选窗（同 m8_e2e_all_systems_oos 口径），未设保持 wf8 原行为不变。
-    let win_tag = std::env::var("M8_WIN_FILTER").unwrap_or_else(|_| "wf8".into());
+    let win_tag = std::env::var(crate::theta_v0::env_registry::M8_WIN_FILTER).unwrap_or_else(|_| "wf8".into());
     let plain_cfg = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
     let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
@@ -2179,11 +2179,11 @@ fn otherwise_domain_wf8_grade_buckets() {
     ));
     super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = Some(dump_dir.clone()));
     super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
-    std::env::set_var("THETA_CENTER_OSCILLATION", "1");
-    std::env::set_var("THETA_OTHERWISE_DOMAIN_SIDECAR", "1");
+    std::env::set_var(crate::theta_v0::env_registry::THETA_CENTER_OSCILLATION, "1");
+    std::env::set_var(crate::theta_v0::env_registry::THETA_OTHERWISE_DOMAIN_SIDECAR, "1");
     let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
-    std::env::remove_var("THETA_OTHERWISE_DOMAIN_SIDECAR");
-    std::env::remove_var("THETA_CENTER_OSCILLATION");
+    std::env::remove_var(crate::theta_v0::env_registry::THETA_OTHERWISE_DOMAIN_SIDECAR);
+    std::env::remove_var(crate::theta_v0::env_registry::THETA_CENTER_OSCILLATION);
     super::admission::VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
     super::opsem_dump::OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = None);
 
@@ -2947,7 +2947,7 @@ fn load_deltafree_dump(path: &str) -> Vec<ResidualTrade> {
 #[test]
 #[ignore]
 fn deltafree_exact_recompute() {
-    let dump = std::env::var("DELTAFREE_DUMP").unwrap_or_else(|_| "/tmp/finalpha/deltafree_pertrade.tsv".into());
+    let dump = std::env::var(crate::theta_v0::env_registry::DELTAFREE_DUMP).unwrap_or_else(|_| "/tmp/finalpha/deltafree_pertrade.tsv".into());
     let records = load_deltafree_dump(&dump);
     assert!(!records.is_empty(), "δ-free dump 空——先跑 DELTAFREE_DUMP=<path> wverify_full 落盘");
 
@@ -3039,9 +3039,9 @@ mod tests {
         let path = std::env::temp_dir().join("deltafree_roundtrip_test.tsv");
         let p = path.to_str().unwrap();
         // 直接调 dump 逻辑：门控经 env，故临时置位。
-        std::env::set_var("DELTAFREE_DUMP", p);
+        std::env::set_var(crate::theta_v0::env_registry::DELTAFREE_DUMP, p);
         dump_deltafree_pertrade(&recs);
-        std::env::remove_var("DELTAFREE_DUMP");
+        std::env::remove_var(crate::theta_v0::env_registry::DELTAFREE_DUMP);
         let loaded = load_deltafree_dump(p);
         assert_eq!(loaded.len(), recs.len(), "round-trip 笔数");
         for (a, b) in recs.iter().zip(&loaded) {

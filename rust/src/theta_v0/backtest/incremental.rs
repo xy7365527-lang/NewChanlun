@@ -302,7 +302,7 @@ mod tests {
     #[ignore = "bit-exact 验证：需 OKLO/BTC 数据；--release（O(n²) 全 bar 双跑对照）"]
     fn owned_bit_exact_per_bar_real_symbols() {
         let config = ThetaConfig::default();
-        let cap: usize = std::env::var("BITEXACT_BARS")
+        let cap: usize = std::env::var(crate::theta_v0::env_registry::BITEXACT_BARS)
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(8_000);
@@ -362,7 +362,7 @@ mod tests {
         let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
         // 8K 控时（O(n²) 双跑：增量 + legacy 对照，各一倍；8K≈2s/跑，~4s 总）。env BITEXACT_BARS
         // 可上调窗口做 cascade/升级窗口/哨兵翻转深覆盖（on2w2-cascade 验证：50K 命中更多 P>0 场景）。
-        let cap: usize = std::env::var("BITEXACT_BARS")
+        let cap: usize = std::env::var(crate::theta_v0::env_registry::BITEXACT_BARS)
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(8_000);
@@ -413,7 +413,7 @@ mod tests {
     #[ignore = "L1 falsification gate：需 CL 数据 + THETA_CASCADE_EPROBE=1；--release"]
     fn cascade_e_falsification_gate() {
         assert!(
-            std::env::var("THETA_CASCADE_EPROBE").is_ok(),
+            std::env::var(crate::theta_v0::env_registry::THETA_CASCADE_EPROBE).is_ok(),
             "须设 THETA_CASCADE_EPROBE=1 启用探针（否则 cascade_events=0，无数据）"
         );
         let config = ThetaConfig::default();
@@ -496,7 +496,7 @@ mod tests {
         }
         // 探针信息性打印（仅 THETA_CASCADE_EPROBE=1）——合成平滑流通常 events=0（无古怪线段重划）。
         // P>0 局部失效的真实覆盖在 CL 门（见函数头）；此处不断言探针数，避免对合成数据形态的隐式依赖。
-        if std::env::var("THETA_CASCADE_EPROBE").is_ok() {
+        if std::env::var(crate::theta_v0::env_registry::THETA_CASCADE_EPROBE).is_ok() {
             let p = classifier::oracle_probe::snapshot();
             eprintln!(
                 "cascade-O1（合成，信息性）：events={} e0={} keep_ppm_sum={}",
@@ -974,7 +974,7 @@ mod profile {
         let config = ThetaConfig::default();
         let ds = data::load_by_symbol("CL", &config).expect("需 CL 数据");
         let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
-        if std::env::var("THETA_PROFILE_STAGES").is_err() {
+        if std::env::var(crate::theta_v0::env_registry::THETA_PROFILE_STAGES).is_err() {
             eprintln!("★未设 THETA_PROFILE_STAGES=1 ⟹ dump 为空。");
         }
         for &n in &[8000usize, 16000] {
@@ -1082,7 +1082,7 @@ mod profile {
             }
         };
         let n_avail = ds.bars.len();
-        let n: usize = std::env::var("A0_PROFILE_BARS")
+        let n: usize = std::env::var(crate::theta_v0::env_registry::A0_PROFILE_BARS)
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(1_000_000)
@@ -1090,7 +1090,7 @@ mod profile {
         eprintln!(
             "\n===== A0 克隆簇占比 profile（BTC 前 {n}/{n_avail} bar，classify_with_tower_incremental）====="
         );
-        if std::env::var("THETA_PROFILE_STAGES").is_err() {
+        if std::env::var(crate::theta_v0::env_registry::THETA_PROFILE_STAGES).is_err() {
             eprintln!(
                 "★未设 THETA_PROFILE_STAGES=1 ⟹ dump 为空（零开销直通）。设 env 后重跑才有数据。"
             );
@@ -1129,13 +1129,13 @@ mod profile {
                 panic!("需 CL 数据");
             }
         };
-        let n: usize = std::env::var("A3_PROFILE_BARS")
+        let n: usize = std::env::var(crate::theta_v0::env_registry::A3_PROFILE_BARS)
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(1_000_000)
             .min(ds.bars.len());
         eprintln!("\n===== A3 stage 计时（CL 前 {n} bar，classify_with_tower_incremental）=====");
-        if std::env::var("THETA_PROFILE_STAGES").is_err() {
+        if std::env::var(crate::theta_v0::env_registry::THETA_PROFILE_STAGES).is_err() {
             eprintln!("★未设 THETA_PROFILE_STAGES=1 ⟹ dump 为空。");
         }
         let mut parser_incr = parser::ParseLayerIncr::new(&config);

@@ -2,9 +2,8 @@
   "env": {
     "ENABLE_TOOL_SEARCH": "true",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-    "MCP_TIMEOUT": "5000",
+    "MCP_TIMEOUT": "30000",
     "API_TIMEOUT_MS": "120000",
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "80",
     "MAX_THINKING_TOKENS": "31999"
   },
   "enabledPlugins": {
@@ -26,17 +25,17 @@
     "plugin-dev@claude-plugins-official": false,
     "atlassian@claude-plugins-official": false,
     "agent-sdk-dev@claude-plugins-official": false,
-    "pyright-lsp@claude-plugins-official": false,
+    "pyright-lsp@claude-plugins-official": true,
     "supabase@claude-plugins-official": false,
     "security-guidance@claude-plugins-official": false,
     "commit-commands@claude-plugins-official": false,
-    "playwright@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": false,
+    "playwright@claude-plugins-official": false,
+    "typescript-lsp@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": false
   },
   "autoUpdatesChannel": "latest",
   "permissions": {
-    "defaultMode": "dontAsk",
+    "defaultMode": "acceptEdits",
     "allow": [
       "Agent",
       "Agent(*)",
@@ -61,12 +60,6 @@
       "Skill",
       "NotebookEdit"
     ],
-    "deny": [
-      "Bash(rm -rf *)",
-      "Bash(curl *)",
-      "Bash(wget *)",
-      "Bash(git push --force*)",
-      "Bash(git reset --hard*)"
-    ]
+    "deny": []
   }
 }

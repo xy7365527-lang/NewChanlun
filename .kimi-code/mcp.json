@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "claude-audit": {
+      "command": "/Users/silencehan/Projects/NewChanlun/.venv/bin/python",
+      "args": ["-m", "newchan.claude_audit", "serve"],
+      "cwd": "/Users/silencehan/Projects/NewChanlun"
+    }
+  }
+}

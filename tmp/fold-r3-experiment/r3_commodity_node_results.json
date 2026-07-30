@@ -428,139 +428,139 @@
     "event_effdims": [
       {
         "event_start": "2001-09-17",
-        "max_mahal": 7.7620840156677025,
+        "max_mahal": 7.762084015667694,
         "eff_dim_at_event": 1.431,
         "label": "T"
       },
       {
         "event_start": "2006-06-13",
-        "max_mahal": 6.03786290496259,
+        "max_mahal": 6.03786290496258,
         "eff_dim_at_event": 1.564,
         "label": "T"
       },
       {
         "event_start": "2008-09-17",
-        "max_mahal": 9.578910279637602,
+        "max_mahal": 9.578910279637567,
         "eff_dim_at_event": 1.685,
         "label": "T"
       },
       {
         "event_start": "2008-11-13",
-        "max_mahal": 7.462463936537056,
+        "max_mahal": 7.462463936537016,
         "eff_dim_at_event": 1.804,
         "label": "T"
       },
       {
         "event_start": "2008-12-16",
-        "max_mahal": 6.79391421316485,
+        "max_mahal": 6.793914213164849,
         "eff_dim_at_event": 1.817,
         "label": "T"
       },
       {
         "event_start": "2009-01-20",
-        "max_mahal": 6.656768926122723,
+        "max_mahal": 6.656768926122698,
         "eff_dim_at_event": 1.677,
         "label": "T"
       },
       {
         "event_start": "2009-02-10",
-        "max_mahal": 5.656809437601848,
+        "max_mahal": 5.656809437601834,
         "eff_dim_at_event": 1.667,
         "label": "T"
       },
       {
         "event_start": "2009-03-02",
-        "max_mahal": 5.364438806885421,
+        "max_mahal": 5.3644388068854045,
         "eff_dim_at_event": 1.633,
         "label": "T"
       },
       {
         "event_start": "2009-03-10",
-        "max_mahal": 5.888464941503489,
+        "max_mahal": 5.888464941503476,
         "eff_dim_at_event": 1.621,
         "label": "T"
       },
       {
         "event_start": "2009-03-19",
-        "max_mahal": 7.036377430225016,
+        "max_mahal": 7.036377430225013,
         "eff_dim_at_event": 1.618,
         "label": "T"
       },
       {
         "event_start": "2009-04-20",
-        "max_mahal": 5.364613042560561,
+        "max_mahal": 5.364613042560552,
         "eff_dim_at_event": 1.617,
         "label": "T"
       },
       {
         "event_start": "2011-08-08",
-        "max_mahal": 6.901558683254879,
+        "max_mahal": 6.901558683254868,
         "eff_dim_at_event": 1.574,
         "label": "N"
       },
       {
         "event_start": "2013-04-15",
-        "max_mahal": 7.323753538342823,
+        "max_mahal": 7.323753538342811,
         "eff_dim_at_event": 1.694,
         "label": "T"
       },
       {
         "event_start": "2013-06-20",
-        "max_mahal": 5.27214449754192,
+        "max_mahal": 5.272144497541906,
         "eff_dim_at_event": 1.819,
         "label": "T"
       },
       {
         "event_start": "2016-06-24",
-        "max_mahal": 5.600050934837068,
+        "max_mahal": 5.600050934837059,
         "eff_dim_at_event": 1.279,
         "label": "T"
       },
       {
         "event_start": "2019-09-16",
-        "max_mahal": 5.289306474507792,
+        "max_mahal": 5.289306474507791,
         "eff_dim_at_event": 1.386,
         "label": "T"
       },
       {
         "event_start": "2020-03-09",
-        "max_mahal": 22.584548495882917,
+        "max_mahal": 22.584548495882927,
         "eff_dim_at_event": 1.388,
         "label": "T"
       },
       {
         "event_start": "2020-06-11",
-        "max_mahal": 5.812629090651936,
+        "max_mahal": 5.812629090651919,
         "eff_dim_at_event": 1.146,
         "label": "T"
       },
       {
         "event_start": "2020-11-09",
-        "max_mahal": 5.889601925843313,
+        "max_mahal": 5.889601925843312,
         "eff_dim_at_event": 1.159,
         "label": "T"
       },
       {
         "event_start": "2022-03-09",
-        "max_mahal": 6.038987992740073,
+        "max_mahal": 6.038987992740068,
         "eff_dim_at_event": 1.367,
         "label": "T"
       },
       {
         "event_start": "2022-11-10",
-        "max_mahal": 5.941951441566821,
+        "max_mahal": 5.941951441566788,
         "eff_dim_at_event": 1.392,
         "label": "T"
       },
       {
         "event_start": "2025-04-04",
-        "max_mahal": 6.770431081242491,
+        "max_mahal": 6.770431081242455,
         "eff_dim_at_event": 1.567,
         "label": "N"
       },
       {
         "event_start": "2026-01-30",
-        "max_mahal": 9.69677999943847,
+        "max_mahal": 9.69677999943846,
         "eff_dim_at_event": 1.759,
         "label": "N"
       }

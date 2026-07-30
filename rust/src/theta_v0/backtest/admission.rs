@@ -36,7 +36,7 @@ pub(super) fn voice_exec_gate() -> bool {
             return v;
         }
     }
-    std::env::var("VOICE_EXEC").ok().as_deref() == Some("1")
+    std::env::var(crate::theta_v0::env_registry::VOICE_EXEC).ok().as_deref() == Some("1")
 }
 
 #[cfg(test)]
@@ -63,7 +63,7 @@ pub(super) fn nest_cert_gate_enabled() -> bool {
             return v;
         }
     }
-    std::env::var("THETA_NEST_CERT_GATE").ok().as_deref() == Some("1")
+    std::env::var(crate::theta_v0::env_registry::THETA_NEST_CERT_GATE).ok().as_deref() == Some("1")
 }
 
 /// T3 (#172) 并门（#168 裁定 3）：**层载由链路径是否启用单一驱动**——链活（nest 证书门开）
@@ -1348,11 +1348,11 @@ pub struct ChiFilterCtx<'a> {
 /// κ=0**——生产/测试逐字节不变（bit-exact）。非法 env 值（负分子/非正分母）⟹ panic（诊断 knob
 /// 快失败，不静默降级掩盖网格错配——语义不变）。单源纪律防双源静默漂移（χ G2 先例）。
 pub(super) fn kappa_policy_resolved(config_policy: Option<RiskPolicy>) -> RiskPolicy {
-    let env = std::env::var("KAPPA_BARRIER_NUM")
+    let env = std::env::var(crate::theta_v0::env_registry::KAPPA_BARRIER_NUM)
         .ok()
         .and_then(|s| s.parse::<i64>().ok())
         .map(|num| {
-            let den = std::env::var("KAPPA_BARRIER_DEN")
+            let den = std::env::var(crate::theta_v0::env_registry::KAPPA_BARRIER_DEN)
                 .ok()
                 .and_then(|s| s.parse::<i64>().ok())
                 .unwrap_or(1);
@@ -1404,7 +1404,7 @@ pub(super) mod t5a_chain_dump {
     /// m8 分窗接线：env `T5A_CHAIN_DUMP_DIR` 设置时开 `<dir>/t5a_chain_dump_<tag>.jsonl`；
     /// 未设 ⟹ no-op（返回 false）。每窗调用一次（wverify m8 测试窗首），窗末 [`close`]。
     pub(crate) fn open_for_window(tag: &str) -> bool {
-        let Ok(dir) = std::env::var("T5A_CHAIN_DUMP_DIR") else { return false };
+        let Ok(dir) = std::env::var(crate::theta_v0::env_registry::T5A_CHAIN_DUMP_DIR) else { return false };
         if dir.is_empty() {
             return false;
         }
@@ -1433,14 +1433,14 @@ pub(super) mod t5a_chain_dump {
     /// PATH 模式惰性打开（每线程一次）：env `T5A_CHAIN_DUMP_PATH` 未设 ⟹ 保持无写入器。
     fn lazy_open_from_env() {
         LAZY_TRIED.with(|t| t.set(true));
-        let Ok(path) = std::env::var("T5A_CHAIN_DUMP_PATH") else { return };
+        let Ok(path) = std::env::var(crate::theta_v0::env_registry::T5A_CHAIN_DUMP_PATH) else { return };
         if path.is_empty() {
             return;
         }
         match std::fs::File::create(&path) {
             Ok(f) => {
                 WRITER.with(|w| *w.borrow_mut() = Some(std::io::BufWriter::new(f)));
-                WINDOW.with(|w| *w.borrow_mut() = std::env::var("M8_WIN_FILTER").ok());
+                WINDOW.with(|w| *w.borrow_mut() = std::env::var(crate::theta_v0::env_registry::M8_WIN_FILTER).ok());
                 eprintln!("[t5a_dump] PATH 模式 → {path}");
             }
             Err(e) => eprintln!("[t5a_dump] dump 创建失败 {path}：{e}（no-op 继续）"),

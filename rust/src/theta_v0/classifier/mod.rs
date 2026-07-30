@@ -818,7 +818,7 @@ pub fn cand_delta_tower_cached(
         &cache.closes_tick,
         &cache.close_src,
     );
-    if std::env::var("DIAG_CANDCACHE").is_ok() {
+    if std::env::var(super::env_registry::DIAG_CANDCACHE).is_ok() {
         let full = cand_delta_tower(l0, classification, tower_snapshots, config);
         assert_eq!(
             out, full,
@@ -1542,7 +1542,7 @@ pub mod stage_profile {
         // 跨度累加器（(label, sum, max, count)）——区分 H-detect（跨度随 n 增长）vs H-detect-bounded
         // （跨度 O(1)）。env-gated，未启用时 record_span 直通。
         static SPANS: RefCell<Vec<(&'static str, u64, u64, u64)>> = const { RefCell::new(Vec::new()) };
-        static ENABLED: bool = std::env::var("THETA_PROFILE_STAGES").is_ok();
+        static ENABLED: bool = std::env::var(crate::theta_v0::env_registry::THETA_PROFILE_STAGES).is_ok();
     }
 
     pub fn enabled() -> bool {
@@ -1875,7 +1875,7 @@ pub fn classify_with_tower_incremental(
         stage_profile::time("00b_l0_units_clone", || Rc::clone(&cache.l0_units_cache));
 
     // DIAG(frontier-bit-exact): 对拍复用版 l0_units_cache vs 全量 segment_to_unit（隔离 L0 units 前缀复用是否陈旧）。
-    if std::env::var("DIAG_L0UNITS").is_ok() {
+    if std::env::var(super::env_registry::DIAG_L0UNITS).is_ok() {
         let full: Vec<UnitRange> = l0.segments.iter().map(segment_to_unit).collect();
         if *l0_units != full {
             let m = l0_units.len().min(full.len());
@@ -2050,7 +2050,7 @@ pub fn classify_with_tower_incremental(
     let mut dirty_e: usize = usize::MAX;
     // 放行条件3 falsification 探针启用开关（仅 test 构建；测「保留前缀比例 P/len」判设计前提）。
     #[cfg(test)]
-    let eprobe_on = *CASCADE_EPROBE.get_or_init(|| std::env::var("THETA_CASCADE_EPROBE").is_ok());
+    let eprobe_on = *CASCADE_EPROBE.get_or_init(|| std::env::var(super::env_registry::THETA_CASCADE_EPROBE).is_ok());
     // ★工位 4g：本 bar 是否有任一级 extend 非空 tail（含新级涌现首产 + 最高级 append）——驱动
     // generation +1（与 cascade_reset 一起完整覆盖 extract 可观察树变更，codex Q3）。
     let mut did_extend = false;
@@ -2167,7 +2167,7 @@ pub fn classify_with_tower_incremental(
             // ★全清对照（test-only，铁律 H1 神谕先例）：强制 P=0 退回整塔前缀清空，A/B 计时 + bit-exact
             // 对照。默认 off ⟹ 增量路径。开启后 bit_exact_per_bar 仍须绿（证 P>0 与全清逐字段相等）。
             #[cfg(test)]
-            if *CASCADE_FULLCLEAR.get_or_init(|| std::env::var("THETA_CASCADE_FULLCLEAR").is_ok()) {
+            if *CASCADE_FULLCLEAR.get_or_init(|| std::env::var(super::env_registry::THETA_CASCADE_FULLCLEAR).is_ok()) {
                 p = 0;
             }
             // ★#543 D1a 产出点④（cascade 后缀失效，P=0/P>0 两支共用）：被丢弃的旧后缀 `[p..]` 在
@@ -3954,7 +3954,7 @@ mod tests {
             .expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
         // 可选日期窗（CENSUS_WINDOW="2020-10-01,2021-04-01"）——检验 type1 的水平线依赖性：
         // 全历史中枢链全局非单调 ⟹ trend_class=Degenerate ⟹ type1=0；单向牛/熊窗内某级链可单调 ⟹ type1>0。
-        let ds = match std::env::var("CENSUS_WINDOW") {
+        let ds = match std::env::var(crate::theta_v0::env_registry::CENSUS_WINDOW) {
             Ok(w) => {
                 let (s, e) = w.split_once(',').expect("CENSUS_WINDOW 格式 start,end");
                 eprintln!("[census] window={s}..{e}");
@@ -4040,7 +4040,7 @@ mod tests {
         let cfg = ThetaConfig::default();
         let full = load_by_symbol("BTC", &cfg)
             .expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
-        let ds = match std::env::var("CENSUS_WINDOW") {
+        let ds = match std::env::var(crate::theta_v0::env_registry::CENSUS_WINDOW) {
             Ok(w) => {
                 let (s, e) = w.split_once(',').expect("CENSUS_WINDOW 格式 start,end");
                 eprintln!("[funnel] window={s}..{e}");

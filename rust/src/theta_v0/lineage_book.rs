@@ -56,10 +56,12 @@ use super::classifier::center_lifecycle::CenterId;
 use super::strategy::center_oscillation_trade::{LineageLookup, LineageVerdict};
 
 /// 反证开关：置 `1` ⟹ 建簿与迁移全关，回到 D1a 前的旧行为（锚重订常例必需）。
-pub const SKIP_ENV: &str = "THETA_REBASE_MIGRATE_SKIP";
+/// 字面量单源于 [`super::env_registry::THETA_REBASE_MIGRATE_SKIP`]（C2 收口）。
+pub const SKIP_ENV: &str = super::env_registry::THETA_REBASE_MIGRATE_SKIP;
 /// 读法开关（#679 用户 2026-07-29 裁定后反向重开）：置 `1` ⟹ 用**严格读法**（追下级 lineage）
 /// 的边建簿留档对照；默认（未置）走**宽读法**（只比原始种子 ordinal）——生产默认。
-pub const STRICT_ENV: &str = "THETA_REBASE_MIGRATE_STRICT";
+/// 字面量单源于 [`super::env_registry::THETA_REBASE_MIGRATE_STRICT`]（C2 收口）。
+pub const STRICT_ENV: &str = super::env_registry::THETA_REBASE_MIGRATE_STRICT;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  开关
@@ -92,7 +94,7 @@ pub fn consumer_enabled() -> bool {
 /// 不进任何产物文件，也不参与任何判据。验收时用它把读数落到具体的 `(bar, level, 身份)`。
 pub fn trace_enabled() -> bool {
     static TRACE: OnceLock<bool> = OnceLock::new();
-    env_flag("THETA_LINEAGE_TRACE", &TRACE)
+    env_flag(super::env_registry::THETA_LINEAGE_TRACE, &TRACE)
 }
 
 /// 是否用宽读法的边建簿（#679 裁定后默认真；`THETA_REBASE_MIGRATE_STRICT=1` 切回严格读法）。

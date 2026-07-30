@@ -2675,7 +2675,7 @@ mod tests {
         // 100K=8.7s、200K=31.8s、400K=124.5s、600K=283s（O(n²)），全量 461万≈数小时可跑通但慢。
         // env ECON_L2_MAX_BARS 覆盖供 Lead 调窗（>4.6M=不截断跑全量）。
         const MAX_BARS: usize = 300_000;
-        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
             .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS);
         let ds = if n_full > max_bars {
             let start = ds_full.dates[n_full - max_bars].get(..10).unwrap_or("").to_string();
@@ -2925,7 +2925,7 @@ mod tests {
         eprint!("{rpt}");
 
         // 逐信号台账 CSV（666 号：alpha 分离下游依赖，15 列含 sigma_higher）。输出到 /tmp。
-        let csv_path = std::env::var("ECON_LEDGER_CSV")
+        let csv_path = std::env::var(crate::theta_v0::env_registry::ECON_LEDGER_CSV)
             .unwrap_or_else(|_| "/tmp/btc_663_ledger_sigma.csv".to_string());
         // W4 类型透传：bsp_class（buy1/2/3+sell1/2/3 位掩码 u8）+ side（买/卖，delta 派生）+ exit_decision（P7）列。
         let mut csv = String::from(
@@ -3036,7 +3036,7 @@ mod tests {
 
         // 截断窗（同 l2_btc_capturable_spread_diagnosis：最后 MAX_BARS，OOM 边界=显式有效域）。
         const MAX_BARS: usize = 300_000;
-        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
             .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS);
         let ds = if n_full > max_bars {
             ds_full.slice_bar_range(n_full - max_bars, n_full)
@@ -3048,7 +3048,7 @@ mod tests {
         let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
 
         // ── 任务1：train(前 frac)/holdout(后 1−frac) 时间切分（半开区间无重叠，时间序不打乱）。 ──
-        let train_frac = std::env::var("ECON_L2_TRAIN_FRAC").ok()
+        let train_frac = std::env::var(crate::theta_v0::env_registry::ECON_L2_TRAIN_FRAC).ok()
             .and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.6);
         let split = (n as f64 * train_frac) as usize;
         let ds_train = ds.slice_bar_range(0, split);
@@ -3194,7 +3194,7 @@ mod tests {
         };
         let n_full = ds_full.bars.len();
         const MAX_BARS: usize = 300_000;
-        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
             .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS);
         let ds = if n_full > max_bars { ds_full.slice_bar_range(n_full - max_bars, n_full) } else { ds_full };
         let n = ds.bars.len();
@@ -3202,7 +3202,7 @@ mod tests {
         let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
 
         // ══ 任务1+2：主切分 train-only 挑类 → 锁 holdout 评估（除 Q2 选择偏差核心）══
-        let train_frac = std::env::var("ECON_L2_TRAIN_FRAC").ok()
+        let train_frac = std::env::var(crate::theta_v0::env_registry::ECON_L2_TRAIN_FRAC).ok()
             .and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.6);
         let split = (n as f64 * train_frac) as usize;
         let ds_train = ds.slice_bar_range(0, split);
@@ -3239,7 +3239,7 @@ mod tests {
         let q4_p = block_bootstrap_pvalue(&hd_pnls, 20, 2000);
 
         // ══ 任务3：多窗滚动 walk-forward（除 Q5 单切分脆弱）══
-        let k_windows: usize = std::env::var("ECON_WF_WINDOWS").ok()
+        let k_windows: usize = std::env::var(crate::theta_v0::env_registry::ECON_WF_WINDOWS).ok()
             .and_then(|s| s.parse().ok()).unwrap_or(4);
         let wf_train_frac = 0.6;
         let win_len = n / k_windows;
@@ -3595,7 +3595,7 @@ mod tests {
 
         // 显式有效域：全量为 ECON_L2_MAX_BARS=5000000（>4.6M=不截断）。
         const MAX_BARS_DEFAULT: usize = 300_000; // 默认截断窗（时间墙保护）
-        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
             .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
         let ds = if n_full > max_bars {
             ds_full.slice_bar_range(n_full - max_bars, n_full)
@@ -3622,7 +3622,7 @@ mod tests {
         let max_level = dist.keys().map(|(l, _)| *l).max().unwrap_or(0);
 
         // ── Step2：train/holdout 切分，分别跑 decompose（acc-highlevel-mu 防选择偏差）。 ──
-        let train_frac = std::env::var("ECON_L2_TRAIN_FRAC").ok()
+        let train_frac = std::env::var(crate::theta_v0::env_registry::ECON_L2_TRAIN_FRAC).ok()
             .and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.6);
         let split = (n as f64 * train_frac) as usize;
         let split_day = if split < ds.dates.len() {
@@ -3844,7 +3844,7 @@ mod tests {
         };
         let n_full = ds_full.bars.len();
         const MAX_BARS_DEFAULT: usize = 300_000;
-        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
             .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
         let ds = if n_full > max_bars {
             ds_full.slice_bar_range(n_full - max_bars, n_full)
@@ -3915,7 +3915,7 @@ mod tests {
         let mut xzd_lge2_c3_new_center_breakout_ok = 0usize;
         // C3 L1 零命中根因判别探针（codex #55 终局裁定(5)，task #56）：默认关闭，只读旁路
         // （不写 Classification.levels[*].centers/tower/正常输出）。开关：ECON_C3_OVERLAP_PROBE=1。
-        let overlap_probe_enabled = std::env::var("ECON_C3_OVERLAP_PROBE").ok().as_deref() == Some("1");
+        let overlap_probe_enabled = std::env::var(crate::theta_v0::env_registry::ECON_C3_OVERLAP_PROBE).ok().as_deref() == Some("1");
         let mut xzd_l1_overlap_rows: Vec<(usize, usize, usize, usize, Option<(usize, usize)>)> = Vec::new();
 
         let mut classifier_incr = IncrementalClassifier::new(bars, &config);
@@ -4583,7 +4583,7 @@ mod tests {
         };
         let n_full = ds_full.bars.len();
         const MAX_BARS_DEFAULT: usize = 300_000;
-        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
             .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
         let ds = if n_full > max_bars {
             ds_full.slice_bar_range(n_full - max_bars, n_full)
@@ -4748,7 +4748,7 @@ mod tests {
         };
         let n_full = ds_full.bars.len();
         const MAX_BARS_DEFAULT: usize = 300_000;
-        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
             .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
         let ds = if n_full > max_bars {
             ds_full.slice_bar_range(n_full - max_bars, n_full)
@@ -4853,7 +4853,7 @@ mod tests {
         };
         let n_full = ds_full.bars.len();
         const MAX_BARS_DEFAULT: usize = 300_000;
-        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
             .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
         let ds = if n_full > max_bars {
             ds_full.slice_bar_range(n_full - max_bars, n_full)
@@ -5250,7 +5250,7 @@ mod tests {
             Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
         };
         let n_full = ds_full.bars.len();
-        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS).ok()
             .and_then(|s| s.parse().ok()).unwrap_or(usize::MAX);
         let ds = if n_full > max_bars {
             ds_full.slice_bar_range(n_full - max_bars, n_full)

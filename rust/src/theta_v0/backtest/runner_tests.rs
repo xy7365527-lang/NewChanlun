@@ -2437,11 +2437,11 @@
     #[test]
     fn opsem_dump_env_gated_bit_exact() {
         use std::io::Read;
-        std::env::remove_var("OPSEM_DUMP_DIR");
+        std::env::remove_var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR);
         assert!(OpsemDump::from_env().is_none(), "未设 ⟹ None");
-        std::env::set_var("OPSEM_DUMP_DIR", "");
+        std::env::set_var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR, "");
         assert!(OpsemDump::from_env().is_none(), "空串 ⟹ None（filter |s|!s.is_empty()）");
-        std::env::remove_var("OPSEM_DUMP_DIR");
+        std::env::remove_var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR);
 
         let config = ThetaConfig::default();
         let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
@@ -4862,12 +4862,12 @@
             }
         };
         let n_full = ds_full.bars.len();
-        let max_bars: usize = std::env::var("NEST_GATE_SMOKE_BARS")
+        let max_bars: usize = std::env::var(crate::theta_v0::env_registry::NEST_GATE_SMOKE_BARS)
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(50_000);
         // NEST_GATE_SMOKE_START：窗口起点（缺省 = 尾部 n_full-max_bars）。
-        let start: usize = std::env::var("NEST_GATE_SMOKE_START")
+        let start: usize = std::env::var(crate::theta_v0::env_registry::NEST_GATE_SMOKE_START)
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or_else(|| n_full.saturating_sub(max_bars));
@@ -5106,11 +5106,11 @@
             }
         };
         let n_full = ds_full.bars.len();
-        let max_bars: usize = std::env::var("T1_PROBE_BARS")
+        let max_bars: usize = std::env::var(crate::theta_v0::env_registry::T1_PROBE_BARS)
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(50_000);
-        let start: usize = std::env::var("T1_PROBE_START")
+        let start: usize = std::env::var(crate::theta_v0::env_registry::T1_PROBE_START)
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or_else(|| n_full.saturating_sub(max_bars));
@@ -5162,7 +5162,7 @@
             }
         };
         let n_full = ds_full.bars.len();
-        let max_bars: usize = std::env::var("NEST_GATE_SMOKE_BARS")
+        let max_bars: usize = std::env::var(crate::theta_v0::env_registry::NEST_GATE_SMOKE_BARS)
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(20_000);
@@ -5306,7 +5306,7 @@
             .expect("需 BTC 数据（analysis/data_cache/btc_1m_full.json）");
         // ★窗口截断（M7_WITNESS_BARS，可选）：O(n²) 前缀重分类在 461万 bar 全量上极重（小时级）。
         // 足量窗口（如 10 万 bar）即 L2 合规（任务明示「461万 bar 或足量窗口」）——env 未设 ⟹ 全量。
-        if let Some(k) = std::env::var("M7_WITNESS_BARS").ok().and_then(|s| s.parse::<usize>().ok()) {
+        if let Some(k) = std::env::var(crate::theta_v0::env_registry::M7_WITNESS_BARS).ok().and_then(|s| s.parse::<usize>().ok()) {
             ds.bars.truncate(k);
         }
         let n = ds.bars.len();
@@ -5315,7 +5315,7 @@
         // cost=三常费率，与 m8_e2e 同函数同源（wverify_run::q4_margin_model/m6_cost_model，禁第二查法）；
         // env 未设 ⟹ 零成本旧路径 bit-exact 不动（A10 附则A 优先序 env>config>baseline；C5 不回滚条款：
         // cost_model=None ⟹ funding/borrow/liq 三项恒 0 ⟹ cum_holding_cost=0，与历史判据同值）。
-        if std::env::var("M7_WITNESS_A10").ok().as_deref() == Some("1") {
+        if std::env::var(crate::theta_v0::env_registry::M7_WITNESS_A10).ok().as_deref() == Some("1") {
             config.margin = Some(super::super::wverify_run::q4_margin_model(initial_nav));
             config.cost_model = Some(super::super::wverify_run::m6_cost_model());
         }
@@ -5420,7 +5420,7 @@
         // ★A10 成本注入（M7_WITNESS_A10=1，p126 runbook §2.1）：cost_model 循环前注入（与 nav 无关）；
         // margin 循环内按各窗 nav 注入（q4_margin_model cushions 依赖 nav0）——与 m8_e2e 同函数同源
         // （禁第二查法）；env 未设 ⟹ 零成本旧路径 bit-exact 不动（C5 回归锁：三项恒 0）。
-        let a10 = std::env::var("M7_WITNESS_A10").ok().as_deref() == Some("1");
+        let a10 = std::env::var(crate::theta_v0::env_registry::M7_WITNESS_A10).ok().as_deref() == Some("1");
         if a10 {
             config.cost_model = Some(super::super::wverify_run::m6_cost_model());
         }
@@ -5506,14 +5506,14 @@
         let mut config = ThetaConfig::default();
         let mut ds = data::load_by_symbol("BTC", &config)
             .expect("需 BTC 数据（analysis/data_cache/btc_1m_full.json）");
-        if let Some(k) = std::env::var("M7_WITNESS_BARS").ok().and_then(|s| s.parse::<usize>().ok()) {
+        if let Some(k) = std::env::var(crate::theta_v0::env_registry::M7_WITNESS_BARS).ok().and_then(|s| s.parse::<usize>().ok()) {
             ds.bars.truncate(k);
         }
         let n = ds.bars.len();
         let initial_nav = 1.0e6;
         // ★A10 成本注入（M7_WITNESS_A10=1，p126 runbook §2.1）：margin=CME-simple + cost=三常费率，
         // 与 m8_e2e 同函数同源（禁第二查法）；env 未设 ⟹ 零成本旧路径 bit-exact 不动（C5 回归锁）。
-        if std::env::var("M7_WITNESS_A10").ok().as_deref() == Some("1") {
+        if std::env::var(crate::theta_v0::env_registry::M7_WITNESS_A10).ok().as_deref() == Some("1") {
             config.margin = Some(super::super::wverify_run::q4_margin_model(initial_nav));
             config.cost_model = Some(super::super::wverify_run::m6_cost_model());
         }
@@ -5529,8 +5529,8 @@
             // κ 经生产单点 knob 注入（kappa_policy_resolved 的 env 优先臂，A10 附则A 优先序
             // env>config>baseline）——re-run 整条生产 π 路径（忠实：κ 门控
             // stage_progression，post-hoc 改 policy 会算错轨迹）。
-            std::env::set_var("KAPPA_BARRIER_NUM", num.to_string());
-            std::env::set_var("KAPPA_BARRIER_DEN", den.to_string());
+            std::env::set_var(crate::theta_v0::env_registry::KAPPA_BARRIER_NUM, num.to_string());
+            std::env::set_var(crate::theta_v0::env_registry::KAPPA_BARRIER_DEN, den.to_string());
             let mut classifier_incr =
                 super::super::incremental::IncrementalClassifier::new(&ds.bars, &config);
             let fill = pi_theta_fill_loop(
@@ -5559,8 +5559,8 @@
             let realized_sum: f64 = fill.trade_pnls_realized.iter().sum();
             assert_eq!(tw.tw(), q0 + realized_sum as i64, "κ={kappa_str}：TW 漂移 = ⌊Σ已实现PnL⌋");
         }
-        std::env::remove_var("KAPPA_BARRIER_NUM");
-        std::env::remove_var("KAPPA_BARRIER_DEN");
+        std::env::remove_var(crate::theta_v0::env_registry::KAPPA_BARRIER_NUM);
+        std::env::remove_var(crate::theta_v0::env_registry::KAPPA_BARRIER_DEN);
         eprintln!("═══════════════════════════════════════════════");
         eprintln!("★纯 L2 敏感性诊断（不裁定生产 κ）——生产冻结 κ=0，正 κ 选择推迟 M8 L3（codex 裁定3）");
     }
@@ -6028,7 +6028,7 @@
         let n_full = ds_full.bars.len();
         // 默认全历史（BTC 长期升值使浮盈≫本金，可达确定）；ECON_L2_MAX_BARS 可截尾提速（截尾窗口内
         // 若 BTC 未达 2×建仓价则可能 count=0——那是有效域边界，非 bug）。
-        let max_bars: usize = std::env::var("ECON_L2_MAX_BARS")
+        let max_bars: usize = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
             .ok().and_then(|s| s.parse().ok()).unwrap_or(usize::MAX);
         let bars: &[Bar] = if n_full > max_bars { &ds_full.bars[n_full - max_bars..] } else { &ds_full.bars };
         let x = run_closed_loop(bars, 1.0e6).expect("非空 BTC bars ⟹ 闭环终态");
