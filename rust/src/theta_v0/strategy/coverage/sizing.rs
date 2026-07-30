@@ -261,30 +261,25 @@ pub(crate) fn level_cap(level: u32, base_units: f64, risk: &RiskConfig) -> f64 {
 /// 级别禁止持仓」而非「级别帽未启用」，两者语义相反，门禁必须在调用方而非本函数。
 ///
 /// ★#642 语义重放偏差照实声明：本函数是 #310 的核心数学原语（level_cap 协变分解 + 逐级
-/// clamp），语义与 kimi 侧 `coverage.rs::clamp_levels_to_weighted_cap` 逐字等价；但 kimi 侧
-/// `fill.rs` 的实际调用点（`plan_level_gated_order`，把本函数接进 `LevelOrderLedger::regate`
-/// 输出的两处施加点）**未随本次移植接线**。
+/// clamp），语义与 kimi 侧 `coverage.rs::clamp_levels_to_weighted_cap` 逐字等价。
 ///
-/// ★#714 MED-2 订正（影子评审 shadow-642-review-20260729.md，同步 #693）：上一版本段曾声称
-/// main 侧接线点「目前均不存在于代码」，且字段名误写为 `capped_levels`——均不确。真实字段名是
-/// [`super::super::level_order::LevelOrderPlan::cap_narrowed_levels`]（`level_order.rs:384`），
-/// **该字段本身、其统计 [`super::super::level_order::LevelOrderStats::n_cap_narrowed`]、逐级
-/// sparsity 判据（`level_order.rs:593`）三层均已在场**——kimi 侧原 m8 报表列消费方
-/// （`wverify_run/{m8,report}.rs`）曾随 #644 判定「清理」出仓；**#758 issue766 终审已回滚该删除**
-/// （`report.rs::lee_row_cells` 第四层报表单元格生成器文件字节已恢复，见 `report.rs:378`），
-/// 但两文件仍未随之恢复 `mod m8;`/`mod report;` 声明——它们目前是**未进编译的诊断存档件**
-/// （`backtest/mod.rs` 只 `mod wverify_run;`），main 侧 `m8_e2e_all_systems_oos` 已有等价内联
-/// 报表（见 `wverify_run.rs`）仍是唯一**实际编译进产物**的报表路径。第二档（#755）接线若要
-/// 复用 `lee_row_cells` 而非重写内联版，需先补 `mod report;` 声明（不在本票范围）；缺的除
-/// **唯一填入者**外还有这一步接线，#755 成本估算应据此回填（登记见 issue766-644-tail 报告
-/// 项 2）。缺的只是**唯一填入者**：
-/// `plan_gated`（`level_order.rs:545-553`）恒把
-/// `cap_narrowed_levels` 置空表，未调用本函数填入实际裁剪结果。接线成本因此不是「从头设计
-/// 接口」而是「补一个生产者填充既有字段」，但填入前需先决定是否、如何对齐 main 自己
-/// #355/#363/#369/#376 谱系写下的既有接口形状——仍超出本票语义重放范围，留作独立跟进项（见
-/// issue642-coverage-replay 报告条目 4 订正段）。`enforce_level_cap` default=false 且本函数
-/// 未被生产路径调用 ⟹ 零行为改变（M0-M3 bit-exact 不变，同 kimi 原提交声明）。
-#[allow(dead_code)]
+/// ★#714 MED-2 订正（影子评审 shadow-642-review-20260729.md，同步 #693）：字段名订正——
+/// 真实字段名是 [`super::super::level_order::LevelOrderPlan::cap_narrowed_levels`]
+/// （`level_order.rs:384`），**该字段本身、其统计
+/// [`super::super::level_order::LevelOrderStats::n_cap_narrowed`]、逐级 sparsity 判据
+/// （`level_order.rs:593`）三层均已在场**（消费链），kimi 侧原 m8 报表列消费方
+/// （`wverify_run/{m8,report}.rs`）仍是**未进编译的诊断存档件**（`backtest/mod.rs` 只
+/// `mod wverify_run;`，不在本票范围）。
+///
+/// ★#755 生产者接线：**唯一填入者**——`fill.rs::pi_theta_fill_loop_overlay`（M4 决策层接线段，
+/// `risk.enforce_level_cap` 门禁）调用本函数把账户层单一目标 `standard_p_star` 按
+/// [`super::super::level_ledger::level_nets`] 归因、二次裁剪后重新求和覆盖回 `order`
+/// （`coverage::schedule_order` 重排，§16 单一决策出口不破）。本次接线未复用
+/// `LevelOrderLedger`/`LevelOrderPlan`（那是 M2/M3 per-level 订单路由的更大范围，未随本票
+/// 移植——过 M3 event clock 门控是独立更大规模变更，留作后续票）；`cap_narrowed_levels` 字段
+/// 与 `LevelOrderLedger::plan_gated` 路径本身**仍未被生产调用**（消费链就位但生产者走的是本
+/// 函数的账户层标量二次求和形态，见 issue755 报告条目 1）。`enforce_level_cap` default=false
+/// ⟹ 本函数不被调用 ⟹ 零行为改变（M0-M3 bit-exact 不变）。
 pub(crate) fn clamp_levels_to_weighted_cap(
     gated: &[(u32, i64)],
     base_units: f64,

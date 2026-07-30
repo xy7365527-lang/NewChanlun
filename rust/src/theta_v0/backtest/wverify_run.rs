@@ -1984,6 +1984,104 @@ fn m8_e2e_all_systems_oos() {
     eprintln!("[m8] 端到端四层报告落盘 /tmp/m8_e2e_all_systems_oos.md");
 }
 
+/// ★#755 LEE M4 决策层接线——门 on/off 靶向前后对照（BTC 前 20000 bar，票面验证③）。
+///
+/// 判据：`enforce_level_cap=false`（default）与同一窗、同一 `level_weights` 但
+/// `enforce_level_cap=true` 的两次 `run_theta_v0_pi_overlay` 跑批，`n_orders`/`trade_pnls`
+/// 总和/终值权益**必须**出现差异——差异非零即「决策层接线真实生效」的直接证据（若恒等，说明
+/// 接线是空转的 no-op，必须视为红）。`level_weights` 刻意取偏紧配置（`vec![0.01;6]`，Σ=0.06≤1，
+/// 见 [`super::super::strategy::level_risk::level_weights_sum_le_one`]）保证级别帽在 BTC 波动
+/// 窗上高概率 binding（不依赖精确标定）。
+///
+/// `#[ignore]`：需 BTC 数据（DATA BLOCKER 不伪造）。
+/// `cargo test --release --lib theta_v0::backtest::wverify_run::issue755_level_cap_on_off_btc20k_diff -- --ignored --nocapture`
+#[test]
+#[ignore = "#755 门 on/off 靶向对照；需 BTC 数据（DATA BLOCKER 不伪造）"]
+fn issue755_level_cap_on_off_btc20k_diff() {
+    use super::runner::run_theta_v0_pi_overlay;
+
+    let plain_cfg = ThetaConfig::default();
+    let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
+    let n = ds.bars.len().min(20_000);
+    let test = data::Dataset {
+        symbol: ds.symbol.clone(),
+        bars: ds.bars[..n].to_vec(),
+        dates: ds.dates[..n].to_vec(),
+        bar_seconds: ds.bar_seconds,
+    };
+    assert!(!test.bars.is_empty(), "BTC 前 20000 bar 非空（否则测试空转）");
+    let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
+    let nav_te = test
+        .bars
+        .iter()
+        .find(|b| !b.untradable && b.close > 0)
+        .map(|b| b.close as f64 * plain_cfg.tick.tick_size)
+        .unwrap_or(1.0)
+        * 1000.0;
+
+    let mut cfg_off = ThetaConfig::default();
+    cfg_off.margin = Some(q4_margin_model(nav_te));
+    assert!(!cfg_off.risk.enforce_level_cap, "default 门禁必须为 off（bit-exact 锚）");
+
+    let mut cfg_on = ThetaConfig::default();
+    cfg_on.margin = Some(q4_margin_model(nav_te));
+    cfg_on.risk.enforce_level_cap = true;
+    cfg_on.risk.level_weights = vec![0.01, 0.01, 0.01, 0.01, 0.01, 0.01];
+    assert!(
+        super::super::strategy::level_risk::level_weights_sum_le_one(&cfg_on.risk),
+        "对照配置须满足 Σw_ℓ≤1（#351 MED 机器断言）"
+    );
+
+    let r_off = run_theta_v0_pi_overlay(&test, &cfg_off, years, nav_te);
+    let r_on = run_theta_v0_pi_overlay(&test, &cfg_on, years, nav_te);
+
+    let final_equity_off = r_off
+        .net_result
+        .equity_curve
+        .last()
+        .copied()
+        .unwrap_or(0.0);
+    let final_equity_on = r_on.net_result.equity_curve.last().copied().unwrap_or(0.0);
+    let trade_pnl_sum_off: f64 = r_off.net_result.trade_pnls.iter().sum();
+    let trade_pnl_sum_on: f64 = r_on.net_result.trade_pnls.iter().sum();
+
+    let report = format!(
+        "# #755 LEE M4 决策层接线——门 on/off 靶向对照（BTC 前 {n} bar）\n\n\
+         level_weights(on)={:?}（Σ={:.2}）\n\n\
+         | 口径 | 门 off（default） | 门 on（enforce_level_cap=true） | Δ |\n\
+         |---|---|---|---|\n\
+         | n_orders | {} | {} | {} |\n\
+         | trade_pnls 笔数 | {} | {} | {} |\n\
+         | trade_pnls 已实现总和 | {:.6} | {:.6} | {:.6} |\n\
+         | equity_curve 终值（归一化） | {:.6} | {:.6} | {:.6} |\n",
+        cfg_on.risk.level_weights,
+        cfg_on.risk.level_weights.iter().sum::<f64>(),
+        r_off.net_result.n_orders,
+        r_on.net_result.n_orders,
+        r_on.net_result.n_orders as i64 - r_off.net_result.n_orders as i64,
+        r_off.net_result.trade_pnls.len(),
+        r_on.net_result.trade_pnls.len(),
+        r_on.net_result.trade_pnls.len() as i64 - r_off.net_result.trade_pnls.len() as i64,
+        trade_pnl_sum_off,
+        trade_pnl_sum_on,
+        trade_pnl_sum_on - trade_pnl_sum_off,
+        final_equity_off,
+        final_equity_on,
+        final_equity_on - final_equity_off,
+    );
+    std::fs::write("/tmp/issue755_level_cap_on_off_btc20k.md", &report).ok();
+    eprintln!("{report}");
+    eprintln!("[#755] 门 on/off 对照报告落盘 /tmp/issue755_level_cap_on_off_btc20k.md");
+
+    // ★非平凡性断言：接线必须真实改变生产读数（n_orders 或已实现 pnl 至少一项不同），
+    // 否则「决策层接线」是空转 no-op，必须视为红（不接受「代码存在但从未 binding」）。
+    assert!(
+        r_on.net_result.n_orders != r_off.net_result.n_orders
+            || (trade_pnl_sum_on - trade_pnl_sum_off).abs() > 1e-9,
+        "门 on/off 生产读数恒等——LEE M4 决策层接线未真实生效（应为空转红）"
+    );
+}
+
 /// ★#270（SPEC #268 T2）翻向守卫修复回归固化：wf8 单窗重放红环 + 40 笔真翻向保护集断言。
 ///
 /// 本测试是 #264 反馈环（`/tmp/bug264_red_loop.sh` + `/tmp/bug264_assert.py`，人类记忆里的
