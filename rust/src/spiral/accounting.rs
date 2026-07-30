@@ -1,5 +1,8 @@
 //! 会计层：森林 nav/settle/close_voice/σ-不变配额 spawn + 成本门（架构 §4.3/§5.6）。
 //!
+//! GUARD-ROLE: legacy-generation-loadbearing-for-fugue-v3——名分：现役（详见
+//! `spiral/mod.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 设计来源：架构 §5（操作群论表述）+ §10.3（价格 ambient ⊥ 螺旋）。语义 **bit-exact
 //! 复用** unn 引擎 `isolated_fugue`/`unified_necessity` 的会计原语（R5/R6）——这是
 //! "会计 = 同一螺旋第三投影"（架构 §2.2）：操作层（群作用）与会计层正交，v2 复用会计

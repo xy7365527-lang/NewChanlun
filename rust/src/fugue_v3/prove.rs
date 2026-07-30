@@ -1,5 +1,8 @@
 //! prove 守卫（= 验收，非回测指标）：violation = panic。每 bar 全程零 panic = 验收通过。
 //!
+//! GUARD-ROLE: t-engine-accounting-basis——名分：现役（详见 `fugue_v3/mod.rs`
+//! 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 设计：`docs/recursive_fugue_necessity_proof.md` §6 + unn/spiral prove 模式（137号
 //! make-decision-observable）。**非重言**——核心断言独立内联表达，正向规范值不 panic、反证错误值
 //! 必 panic（配套 `#[should_panic]` 测试）。

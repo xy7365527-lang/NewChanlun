@@ -1,5 +1,9 @@
 //! **T 操作层引擎全量回测 runner**：8 标的 × 3 模式（Structural/AND/OR）。
 //!
+//! GUARD-ROLE: t-engine-flat-branch-test-harness——名分：现役（`#[cfg(test)]` 全量
+//! 门控测试 runner，测的是 `stream.rs`/`t_engine.rs` 现役支，非 rec 支；详见 `stream.rs`
+//! 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 与 `backtest_run.rs` 的范畴差：`backtest_run` 跑 `backtest.rs` 的**简化** `apply_bsp`
 //! （只做多/减仓不回补/向下空仓，单级别）；本 runner 跑 `stream.rs → t_engine.rs` 的
 //! **操作层自我复制完整引擎**（每级别独立运转同一套逻辑：该级别卖点→平多+次级别做空 /

@@ -1,5 +1,8 @@
 //! 螺旋引擎参数 + 认识论标注（架构 §10 零经验参数审计）。
 //!
+//! GUARD-ROLE: legacy-generation-loadbearing-for-fugue-v3——名分：现役（详见
+//! `spiral/mod.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! ## 核心诚实（formalization-validity-domain，架构 §10.2）
 //! v2 **不是"零经验参数"**，而是"**结构参数零自由度（从群推导）+ 不可消除的 L2
 //! 经验量（带认识论标注）**"。声称全零参数 = 声明膨胀（090号）。每个常量标注其

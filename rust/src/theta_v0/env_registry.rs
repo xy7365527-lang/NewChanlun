@@ -94,6 +94,10 @@ pub const M8_WIN_FILTER: &str = "M8_WIN_FILTER";
 pub const ENTRY_STOP_REVERSE_DUMP: &str = "ENTRY_STOP_REVERSE_DUMP";
 pub const DELTAFREE_DUMP: &str = "DELTAFREE_DUMP";
 pub const THETA_V0_SHADOW_DIVERGENCE_PATH: &str = "THETA_V0_SHADOW_DIVERGENCE_PATH";
+pub const M8_FEE_DATUM: &str = "M8_FEE_DATUM";
+pub const M8_LEVEL_CAP: &str = "M8_LEVEL_CAP";
+pub const M8_SYMBOL: &str = "M8_SYMBOL";
+pub const M8_REPORT_PATH: &str = "M8_REPORT_PATH";
 
 // -- backtest：test-only 窗口/参数脚手架（观测门）--
 pub const ECON_LEDGER_CSV: &str = "ECON_LEDGER_CSV";
@@ -334,6 +338,35 @@ pub static REGISTRY: &[EnvKeyMeta] = &[
         layer: "backtest",
     },
     EnvKeyMeta {
+        key: M8_FEE_DATUM,
+        semantic: "m8 费率 datum spec 注入（未设 ⟹ 臂R 逐位不变；设 ⟹ 升臂D 标定档，#758 issue766 \
+                   随 m8.rs 诊断件恢复一并补登）",
+        kind: GateKind::Behavior,
+        default_arm: "未设 ⟹ no-op（臂R bit-exact 中性）",
+        layer: "backtest",
+    },
+    EnvKeyMeta {
+        key: M8_LEVEL_CAP,
+        semantic: "m8 级别帽臂开关，注入 #310 既有 level_weights（#758 issue766 随 m8.rs 诊断件恢复一并补登）",
+        kind: GateKind::Behavior,
+        default_arm: "未设 ⟹ 不开帽",
+        layer: "backtest",
+    },
+    EnvKeyMeta {
+        key: M8_SYMBOL,
+        semantic: "m8 报表品种路由（BTC/OKLO，未知 symbol fail-loud；#758 issue766 随 m8.rs 诊断件恢复一并补登）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ BTC",
+        layer: "backtest",
+    },
+    EnvKeyMeta {
+        key: M8_REPORT_PATH,
+        semantic: "m8 端到端四层报告落盘路径（#758 issue766 随 m8.rs 诊断件恢复一并补登）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ /tmp/m8_e2e_all_systems_oos.md",
+        layer: "backtest",
+    },
+    EnvKeyMeta {
         key: ECON_LEDGER_CSV,
         semantic: "逐信号台账 CSV 导出路径（#666，15 列含 sigma_higher，test-only）",
         kind: GateKind::Observation,
@@ -476,13 +509,14 @@ pub fn find(key: &str) -> Option<&'static EnvKeyMeta> {
 mod tests {
     use super::*;
 
-    /// 表内键数锁 46（票 #746 面复核实数）。
+    /// 表内键数锁 50（票 #746 面复核实数 46 + #758 issue766 随 m8.rs/report.rs 诊断件恢复
+    /// 补登 M8_FEE_DATUM/M8_LEVEL_CAP/M8_SYMBOL/M8_REPORT_PATH 四键）。
     #[test]
     fn registry_has_46_entries() {
         assert_eq!(
             REGISTRY.len(),
-            46,
-            "注册表键数漂移——新增/删除 env 键须同步登记表（票 #746 复核实数 46）"
+            50,
+            "注册表键数漂移——新增/删除 env 键须同步登记表（票 #746 复核实数 46 + #758 issue766 补 4）"
         );
     }
 

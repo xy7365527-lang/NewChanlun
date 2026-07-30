@@ -1,5 +1,8 @@
 //! 统一递归算子 T 的回测引擎（standalone，全 Rust）。
 //!
+//! GUARD-ROLE: t-engine-rec-branch-zero-external-caller——名分：deprecated 待退役
+//! （详见 `rec_engine.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 直接消费 T 算子的买卖点输出驱动交易模拟，对照 Structural/AND/OR 三种**步骤c 背驰
 //! 判定模式**（编排者 2026-06-18 裁决「三条路实测」，escalation `2026-06-18-1752-t-
 //! stepc-macd-scope-vs-direction.md`）。三路**同 a₀ 同操作层**，唯一区别 = [`PerfectionMode`]

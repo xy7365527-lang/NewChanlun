@@ -1,5 +1,8 @@
 //! **T 操作层引擎**（flat：单核心 + 区间套 sink/recover 短差执行层，含次级别空头腿）。
 //!
+//! GUARD-ROLE: t-engine-flat-branch-live-python-caller——名分：现役（详见 `stream.rs`
+//! 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! ## 架构状态（2026-06-20 编排者裁决：递归重写为正式方向）
 //! 本文件是**当前 flat 实现**：`layers: Vec<Layer>`（绝对 ladder 数组）+ 中央 `route_bsp`。它对
 //! T 算子递归的「模拟」会产生绝对/相对裂缝（三失效点：买<卖 / 891noop / 50%平空率）。**正式重构

@@ -212,6 +212,10 @@ fn t_result_to_dict<'py>(py: Python<'py>, res: &FugueResult) -> PyResult<Bound<'
 /// 与 FugueV3Stream 的范畴差：T standalone ⇒ 信号层 + 仓位层全 Rust 内聚，`push_bar` 只传 OHLC
 /// 4 个 float（FugueV3Stream 信号层在 Python，push_bar 收 11 个拆解字段）。`mode`：步骤c 走势
 /// 完美判定 Structural/And/Or（受控实验唯一变量）。
+///
+/// GUARD-ROLE: t-engine-flat-branch-live-python-caller——名分：现役（`trading_system/
+/// backtest_t_fugue.py:166` `nr.TFugueStream(...)` 真实调用，虽冷（2026-06-21）但文件
+/// 仍在主线树；详见 `stream.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
 #[pyclass(name = "TFugueStream")]
 pub struct PyTFugueStream {
     core: TFugueStreamCore,
@@ -280,6 +284,13 @@ impl PyTFugueStream {
 /// 供 NT Strategy 1:1 镜像（NETTING）——引擎是位置权威（100k 模拟账本），NT 加真实撮合/滑点/
 /// 佣金（v2 §5.2：T step 降级为目标敞口，venue 是真账本）。`push_bar` 内部 process_bar→iterate→
 /// extract_chain→on_view，与 batch `rec_stream::RecStream` 共核 bit-exact。
+///
+/// GUARD-ROLE: t-engine-rec-branch-live-python-caller——名分：**现役**（评审 FAIL 后订正，
+/// #762 C7-E3 核定）。PyO3 导出名 `RecTStream`（下方 `#[pyclass(name="RecTStream")]`，非
+/// Rust 内部名 `RecStream`）按 `lib.rs` pymodule 导出名反查有 4 处真实 python 调用者，含
+/// NT 生产策略 `trading_system/strategy/rec_t_strategy.py:45`；原按 Rust 内部名
+/// `\.RecStream(` grep python 得"零命中"系漏查（rename 未覆盖），非真实零调用。
+/// 详见 `rec_engine.rs` 头部 GUARD-ROLE 块。
 #[pyclass(name = "RecTStream")]
 pub struct PyRecStream {
     core: RecStream,

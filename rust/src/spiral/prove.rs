@@ -1,5 +1,8 @@
 //! 群关系 prove 守卫体系（L0 结构 panic）。
 //!
+//! GUARD-ROLE: legacy-generation-loadbearing-for-fugue-v3——名分：现役（详见
+//! `spiral/mod.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 设计来源：`docs/spiral_engine_v2_architecture.md` §7.1（群关系守卫表）+
 //! `docs/necessity_derivation.md` T56–T59。
 //!

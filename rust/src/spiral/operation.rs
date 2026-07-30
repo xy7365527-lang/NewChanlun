@@ -1,5 +1,8 @@
 //! 五操作的群作用类型化（架构 §4.4/§5）。
 //!
+//! GUARD-ROLE: legacy-generation-loadbearing-for-fugue-v3——名分：现役（详见
+//! `spiral/mod.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! ## 类型系统层面的诚实（架构 §2.3/§4.4）
 //! `Enter/Flip/CostReduce/Cover` 携带 `GroupAction` 语义；`Liquidate` 显式**不携带**
 //! ——A 强平在类型上就**不是**群作用（市场被动作用），gap G2 在编译期显形（`group_action`

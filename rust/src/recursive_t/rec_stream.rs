@@ -1,5 +1,8 @@
 //! **递归 T 流式回测器**：真实 OHLC 流 → iterate 真树 → extract_chain → RecDriver.on_view。
 //!
+//! GUARD-ROLE: t-engine-rec-branch-zero-external-caller——名分：deprecated 待退役
+//! （详见 `rec_engine.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 与 flat `stream::TFugueStreamCore`（驱动 TPositionEngine）并存——本模块驱动递归 `RecDriver`：
 //! 复用同一 orchestrator（产笔/段）+ 段门控重跑 + online MACD 前缀和（口径逐字一致，segments
 //! bit-exact），但重跑产物经 `extract_chain` 投影为操作链视图，喂递归 driver（每级别一 T 实例树）。

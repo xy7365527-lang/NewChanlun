@@ -1,5 +1,8 @@
 //! 螺旋引擎驱动核心：`step`（每 bar 群作用循环）+ `finish`（eod + 观测）。
 //!
+//! GUARD-ROLE: legacy-generation-loadbearing-for-fugue-v3——名分：现役（详见
+//! `spiral/mod.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 设计来源：架构 §5（每 bar 优先序 A→C→D→E→F）+ §9（批量/流式共享 step/finish ⇒
 //! bit-exact 构造性保证）+ §11 Step 5。
 //!

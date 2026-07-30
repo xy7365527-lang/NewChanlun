@@ -1,5 +1,8 @@
 //! T 回测全量 runner：8 标的 × 3 模式（Structural/AND/OR）对照。
 //!
+//! GUARD-ROLE: t-engine-rec-branch-zero-external-caller——名分：deprecated 待退役
+//! （详见 `rec_engine.rs` 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! `#[cfg(test)]` + `#[ignore]`（重型 + 依赖 `analysis/data_cache/*.json`，不在常规
 //! `cargo test` 跑）。跑法：
 //! ```text

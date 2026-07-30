@@ -1,5 +1,8 @@
 //! **H⁰ 形态学轴桥接**（MorphologyBridge impl MorphologyAxis）：包装 BarSig + SignalState + MorphologyState。
 //!
+//! GUARD-ROLE: t-engine-accounting-basis——名分：现役（详见 `fugue_v3/mod.rs`
+//! 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 用户裁决（2026-06-17）：方向涌现从信号层 nf fire 驱动——nf_sell[k] fire（k 级别 type1 sell
 //! confirmed = 顶背驰确认）⟹ k 级别上涨完成、下跌开始 ⟹ dir_state[k] = Down；nf_buy[k] 反之。
 //! 信号层 `SignalState.dir_state`（外部 K 线层 flip_edge 驱动）保留用于其他模块兼容；

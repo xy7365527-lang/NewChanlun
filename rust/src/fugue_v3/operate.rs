@@ -1,5 +1,8 @@
 //! **H¹ 操作轴实装**（OperateAxis）：**D∞ word 处理器**——引擎不预设循环模式。
 //!
+//! GUARD-ROLE: t-engine-accounting-basis——名分：现役（详见 `fugue_v3/mod.rs`
+//! 头部 GUARD-ROLE 块，#762 C7-E3 核定）。
+//!
 //! 用户裁决（2026-06-17）：操作不是不变量，操作是**路径（D∞ 的 word）**。引擎只有 h/τ 两个原子，
 //! 每 bar 每级别读信号决定施加哪个：nf_sell[k]→τ 下沉（σ⁻¹∘τ）/ nf_buy[k]→τ 升回（σ∘τ）/
 //! 无信号→h（仓位不变）。「四步循环」是 sink 后接 recover 的**涌现序列**，不是状态机。

@@ -46,6 +46,14 @@
 //! - 步骤 c 走势完美：纯结构（`Structural`）= **L0 候选**（第37课5条件 + 嵌套深度）；
 //!   加 MACD（`And`/`Or`）= 度量剩余接入，收紧/放宽的有效域由 L2/L3 回测甄别（非先验）。
 
+// GUARD-ROLE 索引（#762 C7-E3 核定，评审 FAIL 后订正，本文件同时声明 (a) standalone T 算子
+// 与 (b) T 引擎两个世代实体的模块，不整体标记）：`rec_driver`/`rec_engine`/`rec_stream` = 现役
+// （PyO3 导出名 RecTStream 有真实 python 调用者含 NT 生产策略，详见 `rec_engine.rs` 头部）；
+// `backtest`/`backtest_run` = deprecated 待退役（生产零可达+仅测试调用者，与 rec_engine/
+// rec_stream/rec_driver 名分不同，详见 `rec_engine.rs` 头部/`backtest.rs` 头部）；
+// `ffi`（混合，PyRecStream 段落已单独标现役）/`prove_guards`/`stream`/`t_engine`/
+// `t_engine_run` = 现役（详见 `stream.rs` 头部）；
+// `center`/`divergence`/`operator`/`trend`/`types` = (a) standalone T 算子，现役（#761 已标）。
 pub mod backtest;
 #[cfg(test)]
 mod backtest_run;
