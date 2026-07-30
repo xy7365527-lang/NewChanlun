@@ -279,7 +279,8 @@ struct PassResult {
 ///   同时累加 μ 表供 Pass 2 用。
 /// - `Some((est, theta, z_alpha))` ⟹ **χ=1[LCB(μ)>θ]**（Pass 2，§13 + p25 §12 LCB 升级）：开仓前
 ///   用 Pass 1 的 μ/std 表 `est` 查 z 的 **LCB(μ)=mean−z_alpha·std/√n**（非裸 μ，防高维 z 过拟合），
-///   仅当 [`chi_open_gate_lcb`]`(LCB, θ, RiskOK, ConflictOK, empty=pass)` 为真才开。`z_alpha=0` ⟹ LCB=mean ⟹ 退化
+///   仅当 [`chi_open_gate_lcb`]`(est, z, θ, z_alpha, RiskOK, ConflictOK, empty=pass)` 为真才开（封装内自算
+///   LCB(μ)=mean−z_alpha·std/√n，非外部传入）。`z_alpha=0` ⟹ LCB=mean ⟹ 退化
 ///   回裸 μ 门（bit-exact 现有验收）。n<2 单样本 ⟹ mu_lcb=None ⟹ 走 empty=pass 分支（与未见 z 合流）。
 ///   - RiskOK：本 bin K_Θ=恒等（无杠杆/保证金约束，文件头诚实简化）⟹ RiskOK≡true。
 ///   - ConflictOK：carrier 配对 + anc_ok 结构性保证同 carrier 唯一声部（§9/§4）⟹ ConflictOK≡true。
