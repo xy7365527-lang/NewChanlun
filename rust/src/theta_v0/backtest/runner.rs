@@ -427,6 +427,24 @@ pub struct OverlayRunResult {
     pub reconcile_residual: f64,
     /// 终态 overlay 账本（活动 + 已离场声部归因，逐声部 entry_v/exit_v/parent(v)/role(v)/pnl_v）。
     pub overlay: super::super::strategy::overlay_state::OverlayState,
+    /// ★LEE M1（multi-level-native-execution-design-20260719 §D M1，#644 语义重放）：终态级别
+    /// 账本镜像——与 `overlay` 并列的只读旁路，同一 `sep_legs` 按 `id.level`≡formation_level
+    /// 分桶重放；LEE-Net 恒等 `Σ_ℓ net_ℓ ≡ N` 见 `level_ledger.lee_net_witness()`
+    /// （`identity_witnessed()` = 残差恒 0 且曾见非零净敞口）。**只读**：本字段不影响
+    /// `net_result` 任何数值（level_order/level_risk sizing 接线不在 #644，归 #755）。
+    pub level_ledger: super::super::strategy::level_ledger::LevelLedgerMirror,
+    /// ★LEE M3 `clock_ℓ`（multi-level-native-execution-design-20260719 §D M3，#644 语义重放）：
+    /// 逐 bar 事件钟点**只读**累计读数——**不**用于门控订单（本仓不接 `level_order.regate`，
+    /// 见 `strategy::level_clock` 模块头「只读不改决策」纪律）。`sparsity_witnessed()` 判据同源。
+    pub level_clock: super::super::strategy::level_clock::LevelClockStats,
+    /// ★LEE 归因算子层（#644 语义重放，`strategy::level_attrib::attribute_total`）：逐 bar 把
+    /// 当步 M0 净额目标 `standard_p_star`（**已经生产 M0 路径算出，本读数只读消费，不回写**）
+    /// 按结构基准 `level_nets(sep_legs)` 归因到各级的**只读诊断**计数——决策点总数 /
+    /// 落入账户层残差桶（`LEVEL_ACCOUNT_RESIDUAL`，无结构级别可归因）的决策点数 /
+    /// 经比例缩放（`Σbasis≠total`）的决策点数。
+    pub level_attrib_n_bars: u64,
+    pub level_attrib_n_residual_bars: u64,
+    pub level_attrib_n_rescaled_bars: u64,
     /// 净额执行层 RunResult（同 `run_theta_v0_pi`，净额订单/权益——overlay 是其只读旁路，数字不变）。
     /// ★W1 例外：env `VOICE_EXEC=1` 时本字段承载**声部执行投影**口径（见 `voice_exec` 字段
     /// 注释——fill.n_orders=声部 fill 事件数、equity/trade_pnls/r_decomp=声部账户），
@@ -502,6 +520,9 @@ pub fn run_theta_v0_pi_overlay(
 ) -> OverlayRunResult {
     let bars = &dataset.bars;
     let mut overlay = super::super::strategy::overlay_state::OverlayState::new();
+    // ★LEE M1（#644 语义重放）：与 overlay 并列的级别账本只读旁路镜像（同一 sep_legs 按
+    // id.level 分桶）。只读——不改本函数下方任何决策/账本变量。
+    let mut level_ledger = super::super::strategy::level_ledger::LevelLedgerMirror::new();
     // ★W1 env gate：VOICE_EXEC=1 ⟹ 声部独立执行臂；未设/非"1" ⟹ 净额臂（bit-exact）。
     let voice_exec_on = voice_exec_gate();
     let mut voice_book = if voice_exec_on {
@@ -535,6 +556,7 @@ pub fn run_theta_v0_pi_overlay(
         &config,
         None, // χ≡1 全覆盖（与 run_theta_v0_pi 同信号路径）
         Some(&mut overlay),
+        Some(&mut level_ledger),
         voice_book.as_mut(),
     );
     let otherwise_domain_sidecar = otherwise_domain_sidecar.finish();
@@ -623,6 +645,11 @@ pub fn run_theta_v0_pi_overlay(
         total_voice_pnl,
         reconcile_residual,
         overlay,
+        level_ledger,
+        level_clock: fill.level_clock,
+        level_attrib_n_bars: fill.level_attrib_n_bars,
+        level_attrib_n_residual_bars: fill.level_attrib_n_residual_bars,
+        level_attrib_n_rescaled_bars: fill.level_attrib_n_rescaled_bars,
         net_result,
         tw_final,
         voice_exec,
@@ -4200,6 +4227,49 @@ mod tests {
             "逐声部 pnl_v 有限"
         );
         assert!(ov.account_price_pnl.is_finite(), "账户净额价格 PnL 有限");
+    }
+
+    /// ★#644 LEE 归因只读层接线回归锁：level_ledger/level_clock/level_attrib 三读数只读——
+    /// 接线前后 `net_result` 逐字段 bit-exact 是机器可查证据（非仅 prose 声明「只读」）；
+    /// 三读数本身非死代码（确有观测），且 clock/attrib 逐 bar 同一决策点集合口径一致。
+    #[test]
+    fn lee_readonly_layer_does_not_perturb_net_result_644() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..60)
+            .map(|i| {
+                let up = ((i / 4) % 2) == 0;
+                let base = 10_000_000_000i64;
+                let step = 250_000_000i64 * ((i % 4) as i64);
+                mk_bar(i, if up { base + step } else { base + 1_000_000_000 - step }, false)
+            })
+            .collect();
+        let ds = Dataset {
+            symbol: "ZZ60LEE".to_string(),
+            bars,
+            dates: (0..60).map(|i| format!("2024-03-{:02} 00:00:00", (i % 28) + 1)).collect(),
+            bar_seconds: 60,
+        };
+        let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+        assert_eq!(
+            ov.net_result.n_orders, baseline.n_orders,
+            "level_ledger/level_clock/level_attrib 只读 ⟹ 净额订单数 bit-exact"
+        );
+        assert_eq!(ov.net_result.trades, baseline.trades, "只读接线 ⟹ trades 逐字段 bit-exact");
+        assert_eq!(
+            ov.net_result.metrics.strat_return, baseline.metrics.strat_return,
+            "只读接线 ⟹ strat_return bit-exact"
+        );
+        // LEE-Net 恒等非平凡见证（#289 MED ① 同款纪律）：确有步进，非死代码。
+        let w = ov.level_ledger.lee_net_witness();
+        assert!(w.n_observations > 0, "level_ledger 确有步进（非死代码）");
+        assert!(ov.level_clock.n_decisions > 0, "level_clock 确有观测（非死代码）");
+        // clock 与 attrib 都在同一 `!bar.untradable && px>0.0` 守卫下逐 bar 无条件累计一次
+        // （见 fill.rs 接线注释）⟹ 决策点计数必须逐位相等。
+        assert_eq!(
+            ov.level_clock.n_decisions, ov.level_attrib_n_bars,
+            "level_clock 与 level_attrib 逐 bar 同一决策点集合，口径必须相等"
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────

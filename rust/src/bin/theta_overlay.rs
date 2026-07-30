@@ -87,12 +87,17 @@ fn main() -> std::process::ExitCode {
     println!("已离场声部数    : {}", r.overlay.closed_voices().len());
     println!("overlay 声部总数: {}", r.n_overlay_voices); // (#295 修字段名；#305 评审 LOW-1 口径注：本值≡活动+已离场声部数，恰与上两行之和相等；gap4/FIX §4.3 双字段方案（n_overlay_fill_events+补行）未采用——数值影响为零，选择单字段直观口径，登记在案）
     println!("终态净敞口 N    : {}", r.overlay.net());
-    // ★LEE M1/M2 结果包（multi-level-native-execution-design-20260719 §D）：#289 影子评审 MED ①
-    //   要求恒等证据在 **release** 下非平凡可读——两组读数都在 fill loop 内逐决策点累计
-    //   （非 debug_assert，release 同样执行），「残差恒 0」必须配「量级 > 0」才算见证成立。
+    // ★LEE M1/M3 结果包（multi-level-native-execution-design-20260719 §D，#644 语义重放）：
+    //   #289 影子评审 MED ① 要求恒等证据在 **release** 下非平凡可读——两组读数都在 fill loop
+    //   内逐决策点累计（非 debug_assert，release 同样执行），「残差恒 0」必须配「量级 > 0」
+    //   才算见证成立。
+    //   ⚠#644 票面边界：LEE M2/M4（`level_order`/`level_risk`，物理订单量 Σ_ℓΔq_ℓ 生成 + 级别
+    //   sizing/风险帽）**不在本票范围**（归 #755，接线会改变订单流本身，越过「只读」边界）。
+    //   本 CLI 原有的「LEE M2 订单归因」打印段消费的 `OverlayRunResult::level_order` 字段随
+    //   #614 合并已不存在于 main（main 侧只读接线只暴露 level_ledger/level_clock/归因诊断）
+    //   ⟹ 该段一并移除，非本车新引入的能力削减。
     let lee = r.level_ledger.lee_net_witness();
-    let lee_m2 = r.level_order;
-    println!("--- ★LEE M1 级别账本（Σ_ℓ net_ℓ ≡ N 加性细化；§D M1）---");
+    println!("--- ★LEE M1 级别账本（Σ_ℓ net_ℓ ≡ N 加性细化；§D M1，只读旁路）---");
     println!("活动级别桶      : {:?}", r.level_ledger.levels().collect::<Vec<_>>());
     println!(
         "LEE-Net 见证    : obs={} max|Σ_ℓ net_ℓ−N|={} max|N|={} ⟹ {}",
@@ -101,29 +106,22 @@ fn main() -> std::process::ExitCode {
         lee.max_abs_net,
         if lee.identity_witnessed() { "PASS（残差 0 且非平凡）" } else { "FAIL/平凡（残差≠0 或 max|N|=0）" }
     );
-    println!("--- ★LEE M2 订单归因（物理订单量 = Σ_ℓ Δq_ℓ；§D M2）---");
+    println!("--- ★LEE M3 clock_ℓ 事件钟（§D M3，只读累计——不门控本臂订单流）---");
     println!(
-        "决策点/生成订单 : {} / {}（max|Σ_ℓ Δq_ℓ|={} max|p_t|={}）",
-        lee_m2.n_decisions, lee_m2.n_orders_generated, lee_m2.max_abs_order_units, lee_m2.max_abs_net_units
+        "决策点/结构钟/风控钟 : {} / {} / {} ⟹ {}",
+        r.level_clock.n_decisions,
+        r.level_clock.n_bars_with_structural_tick,
+        r.level_clock.n_bars_with_risk_tick,
+        if r.level_clock.sparsity_witnessed() {
+            "PASS（结构钟响过且严格稀疏）"
+        } else {
+            "FAIL/平凡（恒不响或每 bar 都响）"
+        }
     );
+    println!("--- ★LEE 归因算子（`level_attrib::attribute_total`，#644 只读诊断）---");
     println!(
-        "L0 构造护栏     : max||Σ_ℓ Δq_ℓ|−qty|={}（同义反复，非实证证据）",
-        lee_m2.max_abs_order_residual
-    );
-    println!(
-        "L1 归因完备     : max|Σ_ℓ held_ℓ−p_t|={} ⟹ {}（跨延迟/部分/拒单，可证伪）",
-        lee_m2.max_abs_held_residual,
-        if lee_m2.identity_witnessed() { "PASS（残差 0 且非平凡）" } else { "FAIL/平凡" }
-    );
-    println!(
-        "L2 结构分歧     : max|Σ_ℓ net_ℓ−T|={} 比例缩放 {} 次 / 账户层残差桶 {} 次",
-        lee_m2.max_abs_struct_gap, lee_m2.n_rescaled, lee_m2.n_residual_bucket
-    );
-    println!(
-        "                （L2 为**纯观测无断言**：分歧≠0 = 级别结构说的仓位 ≠ 账户层能下的仓位，"
-    );
-    println!(
-        "                 M2 按结构比例吸收并登记，M3/M4 须正面裁决——不冒充已解决）"
+        "决策点/残差桶/缩放 : {} / {} / {}",
+        r.level_attrib_n_bars, r.level_attrib_n_residual_bars, r.level_attrib_n_rescaled_bars
     );
     println!("--- ★M7 treasury 层（三阶段 TW 账本终态，overlay 臂主 loop 内建）---");
     match &r.tw_final {
