@@ -1,3 +1,9 @@
+//! ★#758 issue766 终审（2026-07-29 编排者裁 1）恢复禁删在册件（登记册 A6，
+//! `chanlun/review-results/prob-inference-disposition-registry-20260728.md`）——文件字节
+//! 已恢复，但未随之恢复 `backtest/mod.rs` 的 `mod m8;` 声明，当前**未进编译**（诊断存档，
+//! 供追溯，非生产/测试路径消费）。若要重新接入编译需先补该声明并核对与 `wverify_run.rs`
+//! 内已内联同名符号（如 `q4_shift_back_6m`/`q4_prev_day`）是否冲突。
+
 use super::*;
 
 /// `d`（ISO "YYYY-MM-DD"）前推 6 个月，day 钳到 28（合法日期；slice_date_window 字典序比较）。
