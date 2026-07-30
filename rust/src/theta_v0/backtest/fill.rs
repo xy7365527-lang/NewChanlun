@@ -5150,6 +5150,55 @@ where
                     Some(&twc),
                     &protocol_events,
                 );
+            // ── ★LEE M4 决策层接线（#755，multi-level-native-execution-design-20260719 §D M4；
+            //    语义重放 kimi-nest-mainline 7d8b45be70/19aea33a26——主语义原语 level_cap/
+            //    clamp_levels_to_weighted_cap 已在 #310(#642 部分,ff9db6fbca) 落地，本段补上
+            //    `coverage/sizing.rs:263` doc 点名的**唯一填入者**：生产者接线）。
+            //
+            //    `risk.enforce_level_cap` 门禁（default=false，config.rs）：门开时把账户层单一
+            //    决策出口 `standard_p_star`（§16 唯一出口，本段不新增第二出口，只在其上追加
+            //    一次账户层二次裁剪）按结构基准 `level_nets(sep_legs)` 归因到各级
+            //    （`attribute_total`，与下方 M2 只读诊断读数**同一函数**、同一 basis 单源——
+            //    不引入第二套归因口径），对各级施加 w_ℓ 资金帽（`cap_ℓ=w_ℓ·γ̄·U_ℓ`）
+            //    clamp 后逐级重新求和；帽真实 binding（capped_total≠帽前 total）⟹ 覆盖
+            //    `order`（`schedule_order` 按同一 Schedule_Θ 重排，账户层单净额订单形态不变）。
+            //
+            //    ★范围声明（照实，非本票缩水）：本段是**账户层标量**二次裁剪（`Σ_ℓ` 裁剪后
+            //    直接重新求和覆盖 `standard_p_star`），不是 `LevelOrderLedger`/`LevelOrderPlan`
+            //    的 per-level `Σ_ℓ Δq_ℓ` 订单路由——后者需要额外接线 M3 `clock_ℓ` 事件门控
+            //    才能给出非平凡的「无 tick 级别锁前值」语义，范围显著更大且当前 `level_clock`
+            //    仍只读（见下方诊断块注释），留作独立后续票。`LevelOrderPlan::cap_narrowed_levels`
+            //    消费链因此仍未被生产路径点亮（字段本身在场，见该字段 doc）。
+            //
+            //    门关 ⟹ 整段不构造不驱动，`order`/`cash`/`units` 逐字节不变（新增分支，非改写
+            //    既有分支，M0-M3 bit-exact 不受影响）。
+            if config.risk.enforce_level_cap {
+                debug_assert!(
+                    super::super::strategy::level_risk::level_weights_sum_le_one(&config.risk),
+                    "#351 MED：risk.level_weights 违反 Σw_ℓ≤1（enforce_level_cap=true 时配置必须合规）"
+                );
+                let lee_lot = config.risk.default_lot.max(1) as i64;
+                let lee_basis = super::super::strategy::level_ledger::level_nets(
+                    &step_trace.sep_legs,
+                    lee_lot,
+                );
+                let lee_pre_cap_total = standard_p_star.round() as i64;
+                let (lee_targets, _lee_used_residual, _lee_rescaled) =
+                    super::super::strategy::level_attrib::attribute_total(
+                        &lee_basis,
+                        lee_pre_cap_total,
+                    );
+                let lee_capped =
+                    coverage::clamp_levels_to_weighted_cap(&lee_targets, base_units, &config.risk);
+                let lee_capped_total: i64 = lee_capped.iter().map(|&(_, q)| q).sum();
+                if lee_capped_total != lee_pre_cap_total {
+                    order = coverage::schedule_order(
+                        lee_capped_total as f64,
+                        p_t,
+                        exec_index.unwrap_or(i),
+                    );
+                }
+            }
             // #71 钩子符号重锚：#69 合流后 PanDiv 的候选准备已移到 step_trace 之前；此处仍是
             // step_gamma/生产 χ 成员/step_trace 三者首次同时在手、且在 PanDiv 最终选址消费前。
             if let Some(dump) = gamma_dump.as_mut() {
