@@ -1070,11 +1070,31 @@ fn step_center_oscillation_impl(
             // strategy 挂起态只在接线层转成一次精确授权；只有上方四边配对产出的 bound 点
             // 才能走 historical-bound。普通点即使身份仍挂起，也走原 push_point ⟹ 配对失败的
             // 历史载体保持 Stale；classifier/生命周期机不反向读取账户状态。
-            let historical_before = cl_machines[lvl].historical_bound_kills();
+            // ★#689：用 `broken_total`（`counts().1`）而非 `historical_bound_kills()` 判定这次
+            // 投递是否真的杀掉了目标——改道成功可能落 `Alive`/`Tolerated`（不计入
+            // `historical_bound_kills`，见 `push_point_historical_bound` 文档），但两者与
+            // `HistoricalBound` 一样都会让 `broken_total` +1；只有这个量对「投递是否送达」
+            // 三分支穷尽公平。
+            let broken_before = cl_machines[lvl].counts().1;
+            let is_historical_attempt = owner.is_some() && requires_binding && is_bound;
             let point_outcome = match owner {
                 Some(c) if requires_binding && is_bound => {
-                    let outcome =
-                        cl_machines[lvl].push_point_historical_bound(p.bits, p.source_index, c);
+                    witness.record_historical_bound_attempted(lvl as u32);
+                    // ★#689（用户 2026-07-29 裁定）：锚（`c` 的 CenterId）若已在本级塔链上找不到
+                    // （多次重基后旧三元组消失），经挂起簿 `current_identity_of` 折回它的当前
+                    // 修订身份再投一次；折不回（无谱系迁移记录）⟹ `None`，行为不变。
+                    // `THETA_HISTBIND_REROUTE_SKIP=1` 反证：强制 `None`，逐字节回到改道前旧行为。
+                    let reroute_target = if histbind_reroute_skip() {
+                        None
+                    } else {
+                        osc_books[lvl].current_identity_of(CenterId::of(&c))
+                    };
+                    let outcome = cl_machines[lvl].push_point_historical_bound(
+                        p.bits,
+                        p.source_index,
+                        c,
+                        reroute_target,
+                    );
                     // seen 的唯一含义是“已完成实际投递”：建表候选与 is_bound 失败均不得登记。
                     let seen = historical_seen
                         .as_deref_mut()
@@ -1090,11 +1110,16 @@ fn step_center_oscillation_impl(
                 }
                 _ => cl_machines[lvl].push_point(p.bits, p.source_index, target),
             };
-            if cl_machines[lvl].historical_bound_kills() > historical_before {
+            if is_historical_attempt && cl_machines[lvl].counts().1 > broken_before {
                 witness.record_historical_bound(lvl as u32);
             }
             if point_outcome.is_err() {
                 witness.record_center_mis_kill(lvl as u32);
+                // ★#689：`historical_bound_by_level` 只认成功分支曾对失败通道失明（两轮审计
+                // 因此误判「通道零命中」）——失败也要按级别可见，见 `record_historical_bound_failed`。
+                if is_historical_attempt {
+                    witness.record_historical_bound_failed(lvl as u32);
+                }
             }
             if let Ok(PointOutcome::Event(ev)) = point_outcome {
                 witness.record_reset_alive_center_leak(&ev);
@@ -3051,6 +3076,102 @@ mod center_oscillation_wiring_tests {
         );
         assert_eq!(out_on.center_oscillation_actions[0].action, CenterOscillationAction::Reduce);
     }
+
+    /// ★★#689 端到端接线证据（用户 2026-07-29 裁定）：锚（首次挂起冻结的旧身份）经谱系簿
+    /// 1→1 迁移后被 `adopt()` 整体移出本级塔链——历史绑定投递的**主格路径**（锚本身当
+    /// `target`）必然 `MisKill`；接线层现在还会用 `CenterOscillationBook::current_identity_of`
+    /// 折回当前修订身份再投一次，命中链尾主格（`Alive`）成功终结，不再永久卡死。
+    ///
+    /// 同时锁 `historical_bound_attempted_by_level`/`historical_bound_by_level` 的接线：
+    /// 投递本身算成功（不管落哪个内部分支），`historical_bound_failed_by_level`/
+    /// `center_mis_kill_by_level` 均不落——这是 #689 计数器修复（item 2）的生产接线证据，
+    /// 不止 [`crate::theta_v0::strategy::oscillation_campaign::tests::historical_bound_attempted_success_failed_buckets_are_independent_by_level`]
+    /// 那种纯计数器单测。
+    #[test]
+    fn gate_689_historical_bound_reroutes_when_anchor_rebased_away() {
+        use super::super::super::lineage_book;
+        let c0 = center(0, 10, 100, 200);
+        let c1 = center(0, 10, 90, 200); // 迁移后的当前修订身份（同 seed 窗重算：start 不变、zd 修订）
+        let empty_step = Classification { levels: vec![LevelState::default()] };
+        let mut cl_machines = Vec::new();
+        let mut osc_books = Vec::new();
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let mut historical_seen = std::collections::HashSet::new();
+
+        lineage_book::reset_book();
+        lineage_book::test_set_consumer(Some(true));
+
+        // bar0：链=[c0]，首次采纳；c0 上挂起一笔多头。
+        let bar0 = Classification { levels: vec![level_with_centers(vec![c0])] };
+        let _ = step_center_oscillation(
+            0, &bar0, &empty_step, &mut cl_machines, &mut osc_books, &mut witness,
+        );
+        bind_side(&mut osc_books[0], c0, VoiceSide::Long);
+        assert!(osc_books[0].is_suspended(CenterId::of(&c0)));
+
+        // bar1：本 bar 构造证书给出 c0 → c1 的 1→1 边；新链=[c1]——锚被 `adopt()` 整体移出
+        // `consumed`，但挂起随谱系迁移（不核销）。
+        lineage_book::record_edges(
+            1,
+            0,
+            6890,
+            "cert-689-fill",
+            &[(CenterId::of(&c0), CenterId::of(&c1))],
+            &[(CenterId::of(&c0), CenterId::of(&c1))],
+        );
+        let bar1 = Classification { levels: vec![level_with_centers(vec![c1])] };
+        let _ = step_center_oscillation(
+            1, &bar1, &empty_step, &mut cl_machines, &mut osc_books, &mut witness,
+        );
+        lineage_book::test_set_consumer(None);
+        lineage_book::reset_book();
+        assert_eq!(cl_machines[0].alive_center(), Some((c1, 0)), "链尾主格=迁移后身份");
+        assert!(osc_books[0].is_suspended(CenterId::of(&c0)), "挂起随谱系迁移，未核销");
+        assert_eq!(
+            osc_books[0].current_identity_of(CenterId::of(&c0)),
+            Some(CenterId::of(&c1)),
+            "谱系簿已把锚折回当前修订身份——接线层据此改道"
+        );
+
+        // bar2：旧框右边紧邻 leave/retest 四边证——沿用既有 #487 测试同款塔几何（c0 形状同源，
+        // 见 `gate_historical_bound_center_outside_tolerance_settles_exact_owner`）。
+        let tower = vec![Rc::new(vec![
+            l0_move(0, Direction::Up, 10, 15, 190, 260),
+            l0_move(1, Direction::Down, 15, 20, 240, 280),
+        ])];
+        let out = step_center_oscillation_historical(
+            2,
+            &bar1,
+            &empty_step,
+            &tower,
+            &mut historical_seen,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+            false,
+        );
+
+        assert_eq!(out.actions.len(), 1, "改道命中 Alive ⟹ 三类买点仍正常产出收手回补");
+        assert_eq!(
+            out.actions[0].center,
+            CenterId::of(&c0),
+            "结算读数经 on_lifecycle_event 独立折回锚（ADR 补充十四：清算仍按冻结旧框判）"
+        );
+        assert_eq!(out.actions[0].action, CenterOscillationAction::Replenish);
+        assert!(!osc_books[0].is_suspended(CenterId::of(&c0)), "挂起已清算离场");
+        assert_eq!(cl_machines[0].mis_kills(), 0, "改道生效后不再落 MisKill");
+        assert_eq!(cl_machines[0].historical_bound_reroutes(), 1);
+
+        assert_eq!(witness.historical_bound_attempted_by_level.get(&0), Some(&1));
+        assert_eq!(
+            witness.historical_bound_by_level.get(&0),
+            Some(&1),
+            "投递成功——不管落分类机内部哪个分支，接线层都算一次成功"
+        );
+        assert_eq!(witness.historical_bound_failed_by_level.get(&0), None);
+        assert_eq!(witness.center_mis_kill_by_level.get(&0), None);
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -3241,6 +3362,16 @@ pub(super) fn entry_stop_recheck_skip() -> bool {
     static SKIP: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *SKIP.get_or_init(|| {
         std::env::var("THETA_ENTRY_STOP_RECHECK_SKIP").map(|v| v == "1").unwrap_or(false)
+    })
+}
+
+/// 反证开关（#689，用户 2026-07-29 裁定同款）：`THETA_HISTBIND_REROUTE_SKIP=1` ⟹ 历史绑定
+/// 投递的改道整体旁路（`reroute_target` 恒 `None`），逐字节回到 #689 落地前的旧行为
+/// （锚重订常例）——用于合入本票时的反证复核。仅供审计复跑，生产不设。
+fn histbind_reroute_skip() -> bool {
+    static SKIP: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *SKIP.get_or_init(|| {
+        std::env::var("THETA_HISTBIND_REROUTE_SKIP").map(|v| v == "1").unwrap_or(false)
     })
 }
 
@@ -4847,6 +4978,19 @@ where
             );
         }
         eprintln!("{}", s.exit_cand_report_line());
+    }
+    // ★#689 面2 修复：run 结束时把每级别机的累计特批命中/改道快照进 witness——此前这两个数字
+    // 只活在 `cl_machines` 内部，报告行完全没接（评审指出的「反向新增失明」）。只读末态计数，
+    // 不改任何决策路径、不影响订单流。
+    for (lvl, m) in cl_machines.iter().enumerate() {
+        let kills = m.historical_bound_kills();
+        if kills > 0 {
+            campaign_witness.historical_bound_kills_by_level.insert(lvl as u32, kills);
+        }
+        let reroutes = m.historical_bound_reroutes();
+        if reroutes > 0 {
+            campaign_witness.historical_bound_reroutes_by_level.insert(lvl as u32, reroutes);
+        }
     }
     FillOutput {
         equity_curve,

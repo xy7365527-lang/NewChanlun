@@ -302,6 +302,11 @@ pub enum TerminationSettlement {
     /// **闭合终局**（多头遇三类买点 / 空头遇三类卖点）：收手回补（哪怕回补价高于卖出价）
     /// → 亏损如实入账（#380 项一 `short_diff_cash_gate` 通道）→ 往返闭合 → 转持股，中途
     /// 不再短差直到新中枢形成（73 课：第三买点不回补即可能错过中枢上移；49 课）。
+    ///
+    /// ★#689 照实订正：本终局只产出 `campaign` 层的 [`SuspensionOutcome::cover_action`]
+    /// 记账动作，**不**在这一层落 `TypedTrade`/`Order`（与 #679 先例同）。#689 票面裁定曾预期
+    /// 「trades 会变——终结产订单」，实测改道臂 `trades.jsonl` 与金标准逐位吻合（同 SHA）：
+    /// 该预期不成立，回补的账目效应止于 campaign 记账层。
     CoverAndClose,
     /// **未闭合减出**：不回补，挂起**核销**——货缺口 `units_gap` 与现金 `cash_booked`
     /// **分开呈报，不冲销、不装没发生**。教义路径为多头三类卖点 / 空头三类买点；工程路径
@@ -507,6 +512,15 @@ impl CenterOscillationBook {
     /// 于是「重基后拿新身份来的事件」与「拿首次绑定旧框来的历史事件」命中同一条挂起。
     pub fn resolve(&self, id: CenterId) -> CenterId {
         self.anchor_of.get(&id).copied().unwrap_or(id)
+    }
+
+    /// ★#689：把**稳定锚**折回其**当前修订身份**（[`Self::resolve`] 的反方向，走 `current_of`
+    /// 而非 `anchor_of`）。锚从未被谱系迁移过 ⟹ `None`（恒等边不入 `current_of`，与
+    /// [`Self::resolve`] 对恒等身份的隐式处理对称，但这里显式区分「未迁移」与「迁移到自身」，
+    /// 因为调用方只在锚本身在本级塔链上找不到时才需要这次折回——`None` 就是「没有别的身份可试」
+    /// 的信号，调用方据此保持 fail closed，不猜一个不存在的映射。
+    pub fn current_identity_of(&self, anchor: CenterId) -> Option<CenterId> {
+        self.current_of.get(&anchor).copied()
     }
 
     /// 该锚两侧都不再挂起 ⟹ 回收它的别名（防止别名表随时间单调增长，也防已终结的

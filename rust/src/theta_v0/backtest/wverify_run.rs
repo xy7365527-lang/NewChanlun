@@ -1467,6 +1467,8 @@ fn m8_e2e_all_systems_oos() {
                  reset_alive_center_leak_by_level_side={:?} broken_by_level={:?} \
                  cross_side_termination_count={} suspension_continued_count={:?} \
                  settlement_by_side={:?} historical_bound_by_level={:?} \
+                 historical_bound_attempted_by_level={:?} historical_bound_failed_by_level={:?} \
+                 historical_bound_kills_by_level={:?} historical_bound_reroutes_by_level={:?} \
                  historical_multi_owner_same_event={:?} \
                  center_mis_kill_by_level={:?} \
                  replenish_foreign_center_count={:?} \
@@ -1509,6 +1511,14 @@ fn m8_e2e_all_systems_oos() {
                 w.suspension_continued_count,
                 w.settlement_by_side,
                 w.historical_bound_by_level,
+                // ★#689：attempted = 本级历史绑定尝试总数（成功+失败）；failed = 落 MisKill
+                // 的尝试数——两桶修「historical_bound_by_level 只认成功分支」的失明。
+                w.historical_bound_attempted_by_level,
+                w.historical_bound_failed_by_level,
+                // ★#689 面2：`historical_bound_kills()`/`historical_bound_reroutes()`（原只活在
+                // `cl_machines` 内部）run 末态快照——「#487 特批分支命中数」在此可查。
+                w.historical_bound_kills_by_level,
+                w.historical_bound_reroutes_by_level,
                 // ★#487：多 Owner 同事件的产物级观测桶（合法多投递，不参与路由或清算判据）。
                 w.historical_multi_owner_same_event,
                 w.center_mis_kill_by_level,
