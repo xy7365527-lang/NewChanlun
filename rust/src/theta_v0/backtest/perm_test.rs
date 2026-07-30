@@ -649,7 +649,7 @@ mod tests {
     /// worker 入口：仅在 PERM_XPROC_SEED 置位时运行；普通 cargo test 下 no-op。
     #[test]
     fn perm_xproc_child() {
-        let seed = match std::env::var("PERM_XPROC_SEED") {
+        let seed = match std::env::var(crate::theta_v0::env_registry::PERM_XPROC_SEED) {
             Ok(s) => s.parse::<u64>().expect("PERM_XPROC_SEED 须为 u64"),
             Err(_) => return,
         };

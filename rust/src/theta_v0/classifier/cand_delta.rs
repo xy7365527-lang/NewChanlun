@@ -75,7 +75,7 @@ pub fn cand_delta_tower_cached(
         &cache.closes_tick,
         &cache.close_src,
     );
-    if std::env::var("DIAG_CANDCACHE").is_ok() {
+    if std::env::var(crate::theta_v0::env_registry::DIAG_CANDCACHE).is_ok() {
         let full = cand_delta_tower(l0, classification, tower_snapshots, config);
         assert_eq!(
             out, full,

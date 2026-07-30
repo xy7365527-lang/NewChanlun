@@ -18,7 +18,7 @@ fn census_btc_dataset(
     use super::super::super::parser::parse_layer;
     let full =
         load_by_symbol("BTC", cfg).expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
-    let ds = match std::env::var("CENSUS_WINDOW") {
+    let ds = match std::env::var(crate::theta_v0::env_registry::CENSUS_WINDOW) {
         Ok(w) => {
             let (s, e) = w.split_once(',').expect("CENSUS_WINDOW 格式 start,end");
             eprintln!("[{tag}] window={s}..{e}");

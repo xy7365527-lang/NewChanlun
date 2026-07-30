@@ -12,7 +12,7 @@ use super::*;
 /// 逐值等价（登记变换：局部量 → 同 static 的读函数，值域不变）。
 #[cfg(test)]
 fn cascade_eprobe_on() -> bool {
-    *CASCADE_EPROBE.get_or_init(|| std::env::var("THETA_CASCADE_EPROBE").is_ok())
+    *CASCADE_EPROBE.get_or_init(|| std::env::var(crate::theta_v0::env_registry::THETA_CASCADE_EPROBE).is_ok())
 }
 
 /// 本级前缀不变量校验 + cascade 失效（anc.pdf §16：confirmed prefix immutable / frontier mutable）。
@@ -97,7 +97,7 @@ fn invalidate_level_cache(lc: &mut LevelCache, dirty_e: usize) {
         oracle_probe::on_cascade_event(p as f64 / lc.centers.len() as f64);
     }
     #[cfg(test)]
-    if *CASCADE_FULLCLEAR.get_or_init(|| std::env::var("THETA_CASCADE_FULLCLEAR").is_ok()) {
+    if *CASCADE_FULLCLEAR.get_or_init(|| std::env::var(crate::theta_v0::env_registry::THETA_CASCADE_FULLCLEAR).is_ok()) {
         p = 0;
     }
     if p == 0 {

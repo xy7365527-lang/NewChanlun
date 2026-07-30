@@ -228,7 +228,7 @@ pub(super) fn summarize_strict_nest_certificates(
 }
 
 pub(super) fn strict_nest_sidecar_enabled() -> bool {
-    std::env::var("THETA_STRICT_NEST_SIDECAR")
+    std::env::var(crate::theta_v0::env_registry::THETA_STRICT_NEST_SIDECAR)
         .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON"))
         .unwrap_or(false)
 }
@@ -363,7 +363,7 @@ impl OtherwiseDomainSidecarCollector {
 }
 
 pub(super) fn otherwise_domain_sidecar_enabled() -> bool {
-    std::env::var("THETA_OTHERWISE_DOMAIN_SIDECAR")
+    std::env::var(crate::theta_v0::env_registry::THETA_OTHERWISE_DOMAIN_SIDECAR)
         .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON"))
         .unwrap_or(false)
 }
@@ -448,7 +448,7 @@ impl OpsemDump {
                 return Self::at_dir(&dir);
             }
         }
-        let dir = std::env::var("OPSEM_DUMP_DIR").ok().filter(|s| !s.is_empty())?;
+        let dir = std::env::var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR).ok().filter(|s| !s.is_empty())?;
         Self::at_dir(std::path::Path::new(&dir))
     }
 

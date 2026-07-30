@@ -711,7 +711,7 @@ pub(super) fn shadow_divergence_path() -> Option<std::path::PathBuf> {
             return Some(p);
         }
     }
-    std::env::var_os("THETA_V0_SHADOW_DIVERGENCE_PATH")
+    std::env::var_os(crate::theta_v0::env_registry::THETA_V0_SHADOW_DIVERGENCE_PATH)
         .filter(|s| !s.is_empty())
         .map(std::path::PathBuf::from)
 }
@@ -3221,7 +3221,7 @@ fn entry_stop_reverse_dump_line(line: &str) {
     ENTRY_STOP_REVERSE_DUMP.with(|c| {
         let mut slot = c.borrow_mut();
         if slot.is_none() {
-            *slot = Some(std::env::var("ENTRY_STOP_REVERSE_DUMP").ok().and_then(|p| {
+            *slot = Some(std::env::var(crate::theta_v0::env_registry::ENTRY_STOP_REVERSE_DUMP).ok().and_then(|p| {
                 std::fs::OpenOptions::new().create(true).append(true).open(p).ok()
             }));
         }
@@ -3362,7 +3362,7 @@ pub(super) fn entry_stop_recheck_probe_snapshot() -> EntryStopRecheckProbe {
 pub(super) fn entry_stop_recheck_skip() -> bool {
     static SKIP: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *SKIP.get_or_init(|| {
-        std::env::var("THETA_ENTRY_STOP_RECHECK_SKIP").map(|v| v == "1").unwrap_or(false)
+        std::env::var(crate::theta_v0::env_registry::THETA_ENTRY_STOP_RECHECK_SKIP).map(|v| v == "1").unwrap_or(false)
     })
 }
 
@@ -3372,7 +3372,7 @@ pub(super) fn entry_stop_recheck_skip() -> bool {
 fn histbind_reroute_skip() -> bool {
     static SKIP: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *SKIP.get_or_init(|| {
-        std::env::var("THETA_HISTBIND_REROUTE_SKIP").map(|v| v == "1").unwrap_or(false)
+        std::env::var(crate::theta_v0::env_registry::THETA_HISTBIND_REROUTE_SKIP).map(|v| v == "1").unwrap_or(false)
     })
 }
 

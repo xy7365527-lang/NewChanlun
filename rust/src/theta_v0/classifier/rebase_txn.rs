@@ -806,7 +806,7 @@ use std::sync::{Mutex, OnceLock};
 fn sink() -> Option<&'static Mutex<std::fs::File>> {
     static SINK: OnceLock<Option<Mutex<std::fs::File>>> = OnceLock::new();
     SINK.get_or_init(|| {
-        let dir = std::env::var("OPSEM_DUMP_DIR").ok().filter(|s| !s.is_empty())?;
+        let dir = std::env::var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR).ok().filter(|s| !s.is_empty())?;
         let path = std::path::Path::new(&dir);
         std::fs::create_dir_all(path).ok()?;
         // 截断创建（每次回测重写，同 OpsemDump 落盘语义）。**只新增本文件**，
@@ -1209,7 +1209,7 @@ mod tests {
     /// ⟹ `enabled()` 假——D1a 前旧行为的可复现锚点，防「默认开」把这条路堵死。
     #[test]
     fn disabled_when_consumer_off_without_env_or_capture() {
-        assert!(std::env::var("OPSEM_DUMP_DIR").is_err(), "本测试要求进程未设 OPSEM_DUMP_DIR");
+        assert!(std::env::var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR).is_err(), "本测试要求进程未设 OPSEM_DUMP_DIR");
         crate::theta_v0::lineage_book::test_set_consumer(Some(false));
         assert!(!super::enabled());
         crate::theta_v0::lineage_book::test_set_consumer(None);
@@ -1219,7 +1219,7 @@ mod tests {
     /// 未置任何反证开关、未开落盘捕获 ⟹ `enabled()` 真（生产判径常开，票面范围第 1 条）。
     #[test]
     fn enabled_by_default_without_env_or_capture() {
-        assert!(std::env::var("OPSEM_DUMP_DIR").is_err(), "本测试要求进程未设 OPSEM_DUMP_DIR");
+        assert!(std::env::var(crate::theta_v0::env_registry::OPSEM_DUMP_DIR).is_err(), "本测试要求进程未设 OPSEM_DUMP_DIR");
         crate::theta_v0::lineage_book::test_set_consumer(None);
         assert!(super::enabled());
     }

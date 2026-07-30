@@ -10,7 +10,7 @@ thread_local! {
     // 跨度累加器（(label, sum, max, count)）——区分 H-detect（跨度随 n 增长）vs H-detect-bounded
     // （跨度 O(1)）。env-gated，未启用时 record_span 直通。
     static SPANS: RefCell<Vec<(&'static str, u64, u64, u64)>> = const { RefCell::new(Vec::new()) };
-    static ENABLED: bool = std::env::var("THETA_PROFILE_STAGES").is_ok();
+    static ENABLED: bool = std::env::var(crate::theta_v0::env_registry::THETA_PROFILE_STAGES).is_ok();
 }
 
 pub fn enabled() -> bool {

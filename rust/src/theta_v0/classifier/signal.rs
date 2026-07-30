@@ -676,7 +676,7 @@ static T3_IN_C_SKIP: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 fn t3_in_c_skip_enabled() -> bool {
     *T3_IN_C_SKIP.get_or_init(|| {
-        std::env::var("THETA_T3INC_SKIP")
+        std::env::var(crate::theta_v0::env_registry::THETA_T3INC_SKIP)
             .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON"))
             .unwrap_or(false)
     })

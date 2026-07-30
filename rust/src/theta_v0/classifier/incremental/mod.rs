@@ -89,7 +89,7 @@ fn build_l0_units_cache(l0: &ParseLayer, cache: &mut TowerCache) -> usize {
 /// DIAG(frontier-bit-exact)：对拍复用版 `l0_units_cache` vs 全量 `segment_to_unit`
 /// （隔离 L0 units 前缀复用是否陈旧）。env `DIAG_L0UNITS` 门控，未开启时零开销直通。
 fn diag_l0_units_parity(l0: &ParseLayer, l0_units: &[UnitRange], cache: &TowerCache) {
-    if std::env::var("DIAG_L0UNITS").is_err() {
+    if std::env::var(crate::theta_v0::env_registry::DIAG_L0UNITS).is_err() {
         return;
     }
     let full: Vec<UnitRange> = l0.segments.iter().map(segment_to_unit).collect();

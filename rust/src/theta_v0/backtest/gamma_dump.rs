@@ -68,7 +68,7 @@ impl GammaDump {
                 return Some(Self::at_dir(&dir));
             }
         }
-        let dir = match std::env::var("OPSEM_GAMMA_DUMP_DIR") {
+        let dir = match std::env::var(crate::theta_v0::env_registry::OPSEM_GAMMA_DUMP_DIR) {
             Ok(dir) if dir.is_empty() => return None,
             Ok(dir) => dir,
             Err(std::env::VarError::NotPresent) => return None,
@@ -322,11 +322,11 @@ mod tests {
     /// #71 §5-A1：env 未设/空串关闭；线程局部启用只外化，三个生产输出 bit-exact。
     #[test]
     fn gamma_dump_env_gated_bit_exact() {
-        std::env::remove_var("OPSEM_GAMMA_DUMP_DIR");
+        std::env::remove_var(crate::theta_v0::env_registry::OPSEM_GAMMA_DUMP_DIR);
         assert!(GammaDump::from_env().is_none(), "未设 ⟹ None");
-        std::env::set_var("OPSEM_GAMMA_DUMP_DIR", "");
+        std::env::set_var(crate::theta_v0::env_registry::OPSEM_GAMMA_DUMP_DIR, "");
         assert!(GammaDump::from_env().is_none(), "空串 ⟹ None");
-        std::env::remove_var("OPSEM_GAMMA_DUMP_DIR");
+        std::env::remove_var(crate::theta_v0::env_registry::OPSEM_GAMMA_DUMP_DIR);
 
         let config = ThetaConfig::default();
         let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
