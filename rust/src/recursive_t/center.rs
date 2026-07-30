@@ -12,6 +12,28 @@
 //!
 //! 严格性标注（谱系 536）：重叠 = 区间交集 ∩，是**格运算**（lattice meet），不是
 //! 群运算。中枢是 k 级走势重叠涌现的**新对象**，不能用 σ-等变描述。
+//!
+//! GUARD-ROLE: standalone-t-loadbearing-for-t-engine
+//!
+//! ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#761 C7-E2 执行票订正）
+//!
+//! - **名分**：**现役**（机械判据：有非测试调用者 ∧ 无 `#[deprecated]` 标记 ∧ 在唯一 git 线
+//!   main 上）。PyO3 导出面 `run_recursive_t`（`ffi.rs:74`）原判"零 python 调用方"（名分表
+//!   `.chanlun/review-results/legacy-generation-census-20260729.md` §1.3(a)）经复核不成立——
+//!   该判断只核查了 `trading_system/` 三份脚本，未核 `analysis/`；`analysis/t_vs_v3_comparison.py:65`
+//!   `bsps = R.run_recursive_t(seg_in)`（`R = import newchan_rust`）是真实生产调用方，仍在主线树上。
+//!   此外本文件（及同簇 trend/divergence/operator/types/mod::iterate）也是同目录 recursive_t/(b)
+//!   T 引擎（backtest.rs/stream.rs/rec_stream.rs 等，12062 行，E3 处置范围）生产路径的编译期
+//!   硬依赖——`iterate`/`apply_t`/`types::*`/`divergence::{trend_diverging_segment,d_top,
+//!   CONSOL_DOWN_DIAG}` 在 `stream.rs:225,384`/`rec_stream.rs:241,313,353,375,644,688`/
+//!   `backtest.rs:329` 等非测试代码路径被直接调用（#761 核查新增证据，订正名分表未做反向
+//!   依赖核查、以及 python 调用面核查不全的两处遗漏）。
+//! - **对照什么**：两条独立证据链均指向"现役、不可删"——(1) `analysis/` 脚本的直接 python
+//!   调用，(2) (b) T 引擎的编译期硬依赖（删除本簇 = 立即破坏 (b) 编译）。本簇实为 (b) 的算法
+//!   核心（T 四步循环 find_centers→segment_into_trends→judge_divergence→apply_t/iterate），
+//!   非独立的前代族散件。
+//! - **与现役差在哪**：不适用——本文件已判现役本身，不是拿它与另一现役实体作差异对照的候选。
+//! - **禁回灌**：本次仅加标记，未删除/未移动任何代码（cargo build 结果零变化）。
 
 use super::types::{Unit, Zhongshu};
 

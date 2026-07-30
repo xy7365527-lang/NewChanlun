@@ -42,6 +42,16 @@
 //!
 //! 这条「level=0 用振幅、level≥1 用嵌套深度」的划分不是补丁，是第64/65课原文对
 //! 基底层与递归层的区分（设计文档 §2.5 + §6.5）。
+//!
+//! GUARD-ROLE: standalone-t-loadbearing-for-t-engine
+//!
+//! ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#761 C7-E2 执行票订正）
+//!
+//! - **名分**：**现役**——本文件的 `trend_diverging_segment`/`d_top`/
+//!   `CONSOL_DOWN_DIAG` 在 `rec_stream.rs:313,353,375,1408` 生产路径被直接调用，
+//!   是同目录 recursive_t/(b) T 引擎（12062 行，E3 处置范围）的编译期硬依赖，
+//!   详细证据/理由见 `center.rs` 头部同名 GUARD-ROLE 块（避免重复，此处不复述）。
+//! - **禁回灌**：本次仅加标记，未删除/未移动任何代码。
 
 use super::types::{BSPKind, Direction, PerfectionMode, TrendKind, TrendType, Unit, Zhongshu, BSP};
 

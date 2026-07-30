@@ -80,6 +80,11 @@ pub use types::{
 /// 迭代结束后做 type2 跨级投影（[`project_type2`]）。
 ///
 /// `mode`（[`PerfectionMode`]）选步骤c 走势完美判定方式（纯结构 / AND / OR），全塔统一。
+///
+/// GUARD-ROLE: standalone-t-loadbearing-for-t-engine（#761 C7-E2，名分：现役）——本函数被
+/// `stream.rs:225,384`/`rec_stream.rs:241`/`backtest.rs:329` 等 (b) T 引擎生产
+/// 路径直接调用（`stream.rs:517,518` 在 `#[cfg(test)] mod tests` 内，订正剔除）；
+/// 详见 `center.rs` 头部同名 GUARD-ROLE 块。
 pub fn iterate(a0: Vec<Unit>, mode: PerfectionMode) -> RecursiveTree {
     let mut levels: Vec<TLevelOutput> = Vec::new();
     let mut current = a0;

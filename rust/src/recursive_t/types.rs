@@ -6,6 +6,21 @@
 //!
 //! 架构：standalone——自造中枢/走势/背驰逻辑，不依赖 `crate::level`/`crate::moves`/v3
 //! 任何现有引擎，验证 T 四步循环可独立于 v3 nucleus 自洽实现（第65课形式不变性）。
+//!
+//! GUARD-ROLE: standalone-t-loadbearing-for-t-engine
+//!
+//! ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#761 C7-E2 执行票订正）
+//!
+//! - **名分**：**现役**——本文件是同目录 recursive_t/(b) T 引擎生产路径（`pub mod`：
+//!   backtest.rs/rec_driver.rs/rec_stream.rs/rec_engine.rs/stream.rs/ffi.rs，12062 行，
+//!   E3 处置范围）**共用的类型基座**（`Direction`/`PerfectionMode`/`A0Source`/`Unit`/
+//!   `BSPKind`/`BSP`/`TrendKind`/`TrendType`/`TLevelOutput`/`RecursiveTree` 等在上述文件被
+//!   `use super::types::{...}` 引入；`backtest_run.rs`/`t_engine_run.rs` 也引用，但两者整
+//!   模块 `#[cfg(test)]`-gated（`mod.rs:51,53`），只在测试构建可达，不计入生产依据）。
+//!   "standalone" 仅指不依赖 v3/level/moves，不代表可独立于同目录 (b) 删除——(a)/(b) 关系实为
+//!   "核心算法(a) + 引擎壳(b)"，非两个互不相干的世代实体，此处订正名分表 §1.3 的
+//!   独立性误判（详见 `center.rs` 头部同名 GUARD-ROLE 块）。
+//! - **禁回灌**：本次仅加标记，未删除/未移动任何代码。
 
 /// 方向（向上 / 向下）。
 ///

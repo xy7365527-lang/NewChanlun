@@ -2,6 +2,16 @@
 //!
 //! 设计文档 §1.3。`apply_t` 是纯函数：输入级别 k 的单元序列，输出该级别的中枢、
 //! 走势类型、买卖点，以及封装产出的级别 k+1 单元序列 `S_{k+1}`。无副作用、无状态突变。
+//!
+//! GUARD-ROLE: standalone-t-loadbearing-for-t-engine
+//!
+//! ## 名分（`docs/agents/generation-constitution.md` §1 名分五态，#761 C7-E2 执行票订正）
+//!
+//! - **名分**：**现役**——本文件的 `apply_t` 在 `rec_stream.rs:644,688` 生产路径
+//!   被直接调用（`super::apply_t(&current, k, self.mode)`），是同目录 recursive_t/(b)
+//!   T 引擎（12062 行，E3 处置范围）的编译期硬依赖，详细证据/理由见 `center.rs`
+//!   头部同名 GUARD-ROLE 块（避免重复，此处不复述）。
+//! - **禁回灌**：本次仅加标记，未删除/未移动任何代码。
 
 use super::center::find_centers;
 use super::divergence::judge_divergence;
