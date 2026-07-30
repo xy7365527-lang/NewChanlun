@@ -626,16 +626,28 @@ mod tests {
     /// **前**的簿态（模块头注释与 [`settle_chain_readout`] 文档声明的顺序约束，此前只靠人读
     /// 语句顺序守，battery bin 零单测）。
     ///
-    /// 构造手段：先把簿真推进到 `as_of=100`，只喂 `narrow`（一条 L0 候选）；`ChainRun::last_streams`
-    /// 却挂 `wide`（多一条 L2 候选、同一 `as_of=100`）——`settle_chain_readout` 内部那次「幂等重放」
-    /// 因此**不幂等**，真实追加一条新 revision（`replay` 非零）。断言 `summary`/`digest` 与「只推进
-    /// 过 narrow」的独立簿逐字段相同，证明二者取的是重放**前**的簿态，不含 replay 追加的 wide
-    /// revision——顺序一旦颠倒（先 replay 后取 summary/digest），这条断言当场变红。
+    /// 参照态非退化（#691 M-1 修复：`narrow` 原只喂单条 L0 候选，单节点不成链，`narrow_only_book`
+    /// 因此从头到尾是空簿——两条断言退化成「== 空簿读数」，对「读数根本不来自那本簿」这一失效
+    /// 模式零分辨力）。改法照 `chain_cert/tests.rs` 的合成流构造法：`narrow` 喂 L1+L0（两节点
+    /// adjacent 边，先形成一条**非空**链，1 chain/1 revision）；`ChainRun::last_streams` 挂的
+    /// `wide` 在同一 `as_of=100` 上叠一条 L2，把当前最大路径升格为 L2→L1→L0 三节点链——
+    /// `settle_chain_readout` 内部那次「幂等重放」因此不幂等：旧的两节点链身份保留（resident、
+    /// 未终态、原样留痕），新增一条三节点链的首条 revision（`replay` 非零）。断言
+    /// `summary`/`digest` 与「只推进过 narrow」的独立簿逐字段相同，见证二者取的是重放**前**的
+    /// 簿态（1 chain/1 revision，非空）——顺序一旦颠倒（先 replay 后取 summary/digest），或读数
+    /// 被替换成任意簿（含空簿），这条断言当场变红。
     #[test]
     fn settle_chain_readout_digest_and_summary_precede_replay_delta() {
-        let narrow = streams_of(&[observation(0, 20, (20, 40))], 100);
+        let narrow = streams_of(
+            &[observation(1, 10, (10, 60)), observation(0, 20, (20, 40))],
+            100,
+        );
         let wide = streams_of(
-            &[observation(0, 20, (20, 40)), observation(2, 0, (0, 100))],
+            &[
+                observation(2, 0, (0, 100)),
+                observation(1, 10, (10, 60)),
+                observation(0, 20, (20, 40)),
+            ],
             100,
         );
 
@@ -658,6 +670,12 @@ mod tests {
 
         let mut narrow_only_book = chain_cert::ChainCertificateBook::default();
         narrow_only_book.advance(&narrow, 100);
+        assert_eq!(
+            narrow_only_book.summarize().chains,
+            1,
+            "参照态必须非空（1 chain）——否则两条 assert_eq 退化成「== 空簿读数」，\
+             对「读数根本不来自那本簿」这一失效模式零分辨力（#691 M-1）"
+        );
         assert_eq!(
             readout.summary,
             narrow_only_book.summarize(),
