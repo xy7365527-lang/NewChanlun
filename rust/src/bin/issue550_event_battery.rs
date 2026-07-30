@@ -574,7 +574,7 @@ fn main() -> std::process::ExitCode {
 mod tests {
     use super::*;
     use newchan_rust::theta_v0::classifier::cand_event::{
-        CandidateEventBook, CandidateKey, CandidateObservation, ParentFingerprint,
+        CandidateEventBook, CandidateKey, CandidateObservation, ObservedState, ParentFingerprint,
         StructuralPredicates, CANDIDATE_RULE_VERSION,
     };
     use newchan_rust::theta_v0::types::Side;
@@ -607,7 +607,7 @@ mod tests {
             extreme_proof: (11, 19),
             third_class_proof: None,
             interval,
-            state: CandidateState::Provisional,
+            state: ObservedState::Provisional,
             first_provable_at: Some(interval.1),
             confirmed_at: None,
         }
