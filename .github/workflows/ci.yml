@@ -157,6 +157,11 @@ jobs:
       - name: cargo check — backtest_bin feature（#438：闭合 required-features 盲区）
         run: cargo check --all-targets --features backtest_bin
 
+      - name: cargo fmt --check（#611：归零后防回潮）
+        run: |
+          rustup component add rustfmt
+          cargo fmt --all -- --check
+
   fixture-drift:
     # #265（#245 裁定）：Lean 源 → parity fixture 双向闭环的 CI 腿。
     # 锁的漂移窗口：Lean 源改了值、fixture 未重落盘时 parity 测试静默全绿。
