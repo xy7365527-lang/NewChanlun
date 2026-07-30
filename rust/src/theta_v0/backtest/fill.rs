@@ -5072,6 +5072,13 @@ where
                         let trigger = pan_div_state.prepare(gated);
                         protocol_events = protocol_events.with_center_oscillation(trigger);
                         // ★LEE M3 clock_ℓ（#644）：首见并过门 ⟹ 本级入 PanDivCert 钟点通道。
+                        // ★#758 issue766 MED-4 登记：本行无条件 push，是 kimi
+                        // `fill.rs::pan_candidates`（只收 `PreparedPanDiv::Candidate` 分支，
+                        // `Record(_reason)`——"无合法 parent/lot identity 时不伪造候选"——不入）
+                        // 的**真超集**：main 侧 `prepare` 经 #282 收缩后已无 Candidate/Record
+                        // 二分，多收"首见过门但无合法 parent/lot"的那部分。这不是 bug——更贴合
+                        // 本模块头 E6 定义"首见并过门"——但与 kimi 的取数源不等价，接口清单须登记
+                        // （#693 裁定②，见 issue766-644-tail 报告项4/6）。
                         pan_levels.push(lvl as u32);
                     }
                 }
