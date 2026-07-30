@@ -23,7 +23,24 @@
 //!
 //! 全模块 = **L0**（纯结构 schema：FULL 文字 ↦ Rust 类型，逐字段对齐 Lean `CompleteStateEvent`，零信息
 //! 增量）。`cargo build`/`cargo test` 绿 = 类型自洽 + 记账恒等可承载，**非**缠论盈利/实盘有效声明。
-
+//!
+//! GUARD-ROLE: lean-mirror-reference
+//!
+//! ## 名分（ADR-0004 C6 名分程序，#745；覆盖本目录 `state.rs`/`event.rs`）
+//!
+//! - **名分**：对照件——五态判据下属「现役」（`pub mod complete;` 挂在 main 线，无
+//!   deprecated 标记），角色是 FULL 结果包 §3/§20 + `formal/Origin/CompleteStateEvent.lean`
+//!   的零遗漏结构对照层，非主判据决策路径。
+//! - **对照什么**：`Origin.CompleteStateEvent`（17 分量 `CompleteState` + 8 元组
+//!   `ExternalEvent` + `TransitionTheta` 接口，line 133-1438）。
+//! - **与现役差在哪**：现役闭环引擎跑的是 `closed_loop::state::AssemblyState`（6 分量摘要态）
+//!   + `MicroEvent`（仅价格笔增量）——本目录**不替换**它们，是「与 FULL 零遗漏对照」的独立
+//!   完整 schema，全仓零生产调用者（仅自身 `#[cfg(test)]`）。摘要态/微事件是本目录类型的
+//!   遗忘投影，反向不可导。
+//! - **禁回灌**：不得把本目录的 17 分量/8 元组 schema 回灌进 `closed_loop::state` 替换现役
+//!   摘要态——工程化简态服务在线推进是既定设计，接线到完整 schema 是独立票的事。
+//!
+//! ## 子模块
 pub mod state;
 pub mod event;
 

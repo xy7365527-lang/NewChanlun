@@ -24,6 +24,22 @@
 //!
 //! 全部 **L0**：纯整数 max3/min3 + 滑窗 + 弱接触延伸，不依赖经验数据。bit-exact 等级 = L0
 //! （rust 实装忠实于 Lean 形式化 / reference Python，非 L2 行情有效断言）。
+//!
+//! GUARD-ROLE: lean-mirror-reference
+//!
+//! ## 名分（ADR-0004 C6 名分程序，#745）
+//!
+//! - **名分**：对照件——五态判据下属「现役」（`pub mod ref_v1;` 挂在 main 线，无
+//!   deprecated 标记），角色是 reference Python（`reference_chanlun.py`）与
+//!   `Origin.CenterConstruct` §5.5 的逐字对照实装，非主判据决策路径。
+//! - **对照什么**：`Origin.CenterConstruct.{refV1Interval,weakOverlap,RefZhongshu}` +
+//!   `reference_chanlun.py`（v1 中枢核心区间「全三段」口径）。
+//! - **与现役差在哪**：现役中枢核心区间口径在 [`super::center`]（chan99 §6.4 派生，
+//!   `compute_zd`/`compute_zg` 只取**前两段**）——两口径已 native_decide 裁定分叉
+//!   （`legacy_v0_not_correct_for_v1_reference` fixture），本文件承载「v1 正确语义」的
+//!   独立对照本体，全仓零生产调用者（仅自身 `#[cfg(test)]`）。
+//! - **禁回灌**：不得把本文件的 `RefZhongshu`/全三段口径回灌进 [`super::center`] 替换现役
+//!   chan99 §6.4 派生口径——两口径正交并置是已裁定的设计，不是待统一的分叉。
 
 use super::super::types::{Segment, Tick};
 
