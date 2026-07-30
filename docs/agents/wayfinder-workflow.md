@@ -1,48 +1,193 @@
 # Wayfinder 工作流（五段管线）
 
-来源：2026-07-30 对照 Matt Pocock wayfinder 视频（"Nothing is too big to plan anymore"）的使用盘点与裁定，编排者批准三项决策：**新图严格两段式**、**启用 prototype 票**、**固化本文档**。tracker 物理操作（map/子票/blocking/frontier/claim/resolve 的 gh 命令）见 `docs/agents/issue-tracker.md`「Wayfinding operations」，本文只管流程形态与票型口径。
+来源：2026-07-30 对照 Matt Pocock wayfinder 视频（"Nothing is too big to plan anymore"）的使用盘点与裁定，编排者批准三项决策：**新图严格两段式**、**启用 prototype 票**、**固化本文档**。2026-07-30 再次并入地图 [本仓 wayfinder 工作流正本 #767](https://github.com/xy7365527-lang/NewChanlun/issues/767) 的十张裁定票——本文档自此是本仓 wayfinder 路由的唯一正本。
 
-## 什么时候不开图
+tracker 物理操作（map/子票/blocking/frontier/claim/resolve 的 gh 命令）见 `docs/agents/issue-tracker.md`「Wayfinding operations」，本文只管流程形态与票型口径。交付纪律（关票门、开票门、豁免举证、编号复用）见 `docs/agents/delivery-discipline.md`；入仓名分见 `docs/agents/generation-constitution.md`；统计口径标注见 `docs/agents/stat-provenance.md`。本文对这三份**只挂指针、不复述**。
 
-单 session 可规划、路已见底的活不开 map——直接烤或直接做。wayfinder 只用于有战争迷雾的大块工作：知道大概要去哪，但中间步骤看不清。（Matt FAQ 同口径。）
+## 每会话必读
+
+[走图会话的开场 #779](https://github.com/xy7365527-lang/NewChanlun/issues/779) 裁定：开场纪律**固化在图上，不固化在会话第一句**——不做开场模板、不新建本仓 skill 或 slash 命令，走图会话第一句仍然只是 `/wayfinder <图链接>`。载体是每张图 Notes 里的一段「每会话必读」清单，开图时从本节照抄默认版，各图按域追加。
+
+默认清单（只列仓内文件）：
+
+1. `docs/agents/wayfinder-workflow.md`（本文档，本仓 wayfinder 正本）
+2. `docs/agents/issue-tracker.md`「Wayfinding operations」段（tracker 物理操作）
+3. `AGENTS.md`（#517 定的全 harness 唯一正本入口）
+
+按域追加：纯决策图不必读 `AGENTS.md` 之外的重型文件；**碰代码的图应追加 `AGENTS.md` 指向的域文档**（`delivery-discipline.md`、`generation-constitution.md` 等）。全局 `~/.claude/CLAUDE.md` **不进清单**——它在 Claude Code 里本就自动注入，而主力运行时 Kimi 读不到它；其本仓适用要点已改写进 `AGENTS.md`。
+
+这条纪律的成因就是一次实事故：[并行吞吐：HITL 瓶颈与 batch 化 #776](https://github.com/xy7365527-lang/NewChanlun/issues/776) 那场会话没把本文档读进上下文，裁出了与仓内正本相反的 grilling 节奏口径，当场无人察觉。要固化的不是「开场输什么」，是「哪些文件必须真进上下文」。
+
+**无人值守（AFK）票不做同款固化**：派子代理时本体手里有图、有票、有正本，prompt 是照现场写的，没有「忘了读」这个失效模式。
+
+## 什么时候不开图（入流判据）
+
+单 session 可规划、路已见底的活**不开 map**——直接烤或直接做。wayfinder 只用于有战争迷雾的大块工作：知道大概要去哪，但中间步骤看不清。（Matt FAQ 同口径。）
+
+分流三条：
+
+- **一个问题、对话能 settle 完** → 单会话 `/grilling`，不开图；
+- **路已见底、只差写清楚怎么做** → 直接走 `/to-spec` → `/to-tickets` → `/implement` 链，不开图；
+- **与在飞决策不挂钩的文本欠账 / 杂活** → 走 triage 挂 `debt`，**不进图**（[丁类/戊类票的归属 #782](https://github.com/xy7365527-lang/NewChanlun/issues/782) 裁定②）。图的子票要么解阻塞、要么交付 destination，两头不沾的不进图。
 
 ## 五段管线
 
-1. **开图**（编排层，占一个 session）：grilling 定 destination → 广度优先烤 frontier（扇形铺开，不深挖单线）→ 建 map（`wayfinder:map`，Destination/Notes 填好，雾写进 Not yet specified）→ 建可具体化的票 → 第二 pass 接 blocking 边。**research 票当场并发发 subagent 解决**，不等后续 session。开图 session 不解决任何票。
-2. **走图**（一票一 session）：取 frontier 第一票（open + 无 open blocker + 未 assign；用户点名则从其点名）→ **claim 先行**（assign 是 session 首写）→ 按票型解决（见下）→ resolution comment 写答案 → close → map 的 Decisions-so-far 加一行（gist + 链接，详情只留在票内）→ 毕业因此具体化的雾、新开浮出的票、把越出 destination 的票关票并登记 Out of scope。frontier 上无阻塞的票可并行多 session 走。
-3. **图闭环出 spec**：frontier 清空、destination 是 spec 时，从 map 抽 spec——每条决策 gist + 链回决策票。决策票是 primary source，spec 只是它的稠密摘要；实施 agent 有疑义时回溯原票。
-4. **实施票链**：spec 批准后切**独立实施票**（不是 map 的子票）→ claude sonnet 实装 → opus 影子评审 → 逐票评审合入，关票走 `delivery-discipline.md` 关票门全子句。
+1. **开图**（编排层，占一个 session）：grilling 定 destination → 广度优先烤 frontier（扇形铺开，不深挖单线）→ 建 map（`wayfinder:map`，Destination/Notes 填好，雾写进 Not yet specified）→ 建可具体化的票 → 第二 pass 接 blocking 边。**research 票当场并发发 subagent 解决**，不等后续 session。开图 session 不解决任何票。第二轮广度烤 frontier 时，顺带把「本图红线 / 默认取舍」当成其中几题一起问，答案落 Notes（见「Notes 预授权」）。
+2. **走图**（一票一 session）：**开头先跑对账**（见「图正文的写入协议」）→ 取 frontier 第一票（open + 无 open blocker + 未 assign；用户点名则从其点名）→ **claim 先行**（assign 是 session 首写）→ 按票型解决（见下）→ resolution comment 写答案 → close → map 的 Decisions-so-far 加一行（gist + 链接，详情只留在票内）→ 毕业因此具体化的雾、新开浮出的票、把越出 destination 的票关票并登记 Out of scope。frontier 上无阻塞的票可并行多 session 走。
+3. **图闭环出 spec**：见「`/to-spec` 交棒边界」。
+4. **实施票链**：spec 批准后切实施票 → claude sonnet 实装 → opus 影子评审 → 逐票评审合入，关票走 `delivery-discipline.md` 关票门全子句。实施票落在图里还是图外，由图的实装声明决定（见下）。
 5. **spec 非持久**：实装落地后 spec 票关闭，不作长期维护的真理源。真理源是代码 + 决策票；spec 从落地那刻起是历史记录。
 
-## 两段式裁定（2026-07-30）
+## 图的两行声明
 
-- **新图严格两段**：map 只产决策，destination 是「路看清了/决策锁了/spec 出来了」；实装不进 map 的 task 票。
-- **在飞图不动**：已显式 override「决策+执行混合」的图（#743、#529 等）维持现状跑完，不中途拆票迁票。
-- **task 票回原义**：只为解锁决策的手工活（注册服务拿到 API 再评判、挪数据看清形状），它 do 但不交付 destination 本身。
+图的性质不靠事后判据推，靠开图人**当时写下的一行声明**。两条声明各占一行，都写在 `## Notes`，都是**声明制自执行——不设巡查、不设 CI 硬门**（与 `delivery-discipline.md` 同款机制）。
+
+### 声明一：本图带不带实装
+
+[task 票名分收束 #770](https://github.com/xy7365527-lang/NewChanlun/issues/770) 裁定：**带实装的图，Notes 必须有一行显式声明 + 理由。没声明 = 纯决策图，实装票不准挂。**
+
+skill 原文本就允许这个例外口（「An effort can override this in its **Notes** — carrying execution into the map itself」），所以带实装本身合法，真缺陷是一致性：读者点开一张开着的图，判不出它是纯决策图还是混合图。措辞样板取自 [端到端模块化 #743](https://github.com/xy7365527-lang/NewChanlun/issues/743)：「**本图带实装**（决策+执行混合：形态有真裁处的票内烤，实装走 task 票逐票评审合入）」。
+
+规则有真实判别力，不是无脑加行——[missing_cert 成因定案 #737](https://github.com/xy7365527-lang/NewChanlun/issues/737) 的 task 型子票是 **0/4**，它是纯决策图，按本规则**不需要也不应该有**声明。
+
+### 声明二：本图的寿命预期
+
+[两种图分家 #771](https://github.com/xy7365527-lang/NewChanlun/issues/771) 裁定：图在 Notes 写一行寿命预期（「本图为长驻台账，不预期关闭」/「本图到达即关」），**没写 = 默认一次寻路图**。
+
+不切「一次寻路图 / 长驻总账图」两个类——22 张图在存活天数、子票数、关图时雾是否清空三维上切不出干净分野，实际是连续谱。声明是开图人当时的意图，子票数是事后的结果，读图人要的是前者。
+
+载体 = Notes 一行 + **长驻图标题用 📒 前缀，一次寻路图保持 🗺️**；**不新增 `wayfinder:ledger` 标签**——标签是二值的，压不下声明的信息量，且一旦存在就会被 `--label` 查询依赖，与 Notes 漂移是真伤；emoji 无查询依赖，漂移代价低。
 
 ## 票型口径
 
-- **grilling**（HITL，默认型）：「该是什么 / 该不该」类裁定。配 `/grilling` + `/domain-modeling`，一次一问。agent 不得替人答。
+四型的准入判据只问一件事：**这张票做完，是解开了一个决策，还是交付了一件成果？**
+
+- **grilling**（HITL，默认型）：「该是什么 / 该不该」类裁定，靠对话与推理就能 settle。配 `/grilling` + `/domain-modeling`，**一次一问**，agent 不得替人答。
+  resolution 含 `/domain-modeling` 的落文档（必要时含零行为变更的代码注释），**落完文档才关票**；不另起「落文书」小票（[#782](https://github.com/xy7365527-lang/NewChanlun/issues/782) 裁定①）。代价明写：事情已经定了，票却可能因一句注释没改而一直开着——换来的是「票关了 = 真的完了」这个信号不打折。裁定票 resolution 碰代码注释**不撞 #770 的甲类禁令**：交付的是决策的记录，不是功能成果，纯决策图不必因此补实装声明。
+
 - **research**（AFK）：决策等在仓外事实（文档、三方 API、外部知识库）上。开图当场由 subagent 并行解决，结论落票。
-- **prototype**（HITL，2026-07-30 启用）：「该长什么样 / 该怎么行为」类问题——做一个粗 artifact 拿来反应，不追求合入。本项目适用面：
-  - 前端/面板形态：信号读数、图谱展示的界面稿（`frontend/`）；
-  - Rust 状态机 / pipeline 行为 stub：验证状态模型手感（`prototypes/` 已有此先例）；
-  - 账本口径最小对拍脚本：双跑对拍原型；
-  - Lean 形式化前的 Python/Rust 粗语义模型。
-  
-  判据：讨论三轮不如看一眼粗稿的 → prototype；烤能烤清的 → grilling。原型是防 waterfall 的手段，不是提前实装。
-- **task**（HITL 或 AFK）：见两段式裁定。resolution 记录做完的事 + 下游票依赖的事实（凭据位置、新 URL、行数等）。
 
-## session 粒度与引用
+- **prototype**（HITL）：**准入判据 = 答案在造出来之前存不存在。**
+  - 答案**不存在**，要造出来才知道行不行 → prototype；
+  - 答案**已经在仓里**，只是没被读出来 → 探针（`task` 标签下的乙类）；
+  - 靠对话/推理能 settle → grilling。
 
-- 一票一 session（research 票除外——开图当场并发）；每 session 最多解决一张票。
-- 并发安全：claim（assign）是 session 首写，其他 session 见到已 assign 的票跳过。
-- 对人叙述一律用票名，链接裹在名内；不甩裸 `#` 号墙。
+  **三条反面判据**（从 90 张已关 grilling 票的实际 settle 方式聚出，看着像要原型、其实一轮 grilling 就够）：① 有权威源可援引（课号、缠论原文、已证 Lean 定理）——答案是对既有源的读解；② 摆了 (a)/(b)/(c) 候选形态但靠生成性规则与形式化论证判定，不靠造出来比一比；③ 缺数字——派探针票去测，grilling 票只消费数字。
+
+  **不写形态白名单**：形态由判据决定，载体不限（Rust bin / 手算样例表 / 带 `sorry` 的 Lean 骨架 / Python 画图脚本皆可）。同一个 Rust bin，量既有行为就是探针，试新逻辑就是原型。只排除两样：**fixture JSON**（测试资产，天生常驻，与抛弃纪律正面打架）与**「拿现有口径跑一遍看数」**。后者限定要看准——**排除的是「拿现有口径跑一遍」，不排除「跑一个还不存在的口径」**，缝补在口径存不存在这个真实分界上。
+
+  **抛弃纪律绑「原型」这个名分，不绑「探针 bin」这个物理形态**：未来的原型码落 `proto/<票号>` 抛弃分支，main 只留结论；未来的探针码继续留 main，不受抛弃纪律约束（探针是可复用的测量装置——`p409_pan_live_probe` 被后续三张票反复引用做对照，删了就得重造；原型是用完即废的一次性问答）。存量 38 个探针 bin 不动。`proto/<票号>` 分支**永久留存、无人负责删**——`/prototype` 规则 6 的原义是原型作为一手史料，关票时在 resolution 留分支指针即可。
+
+  **「便宜」不定量化门槛**（Rust 与回测侧的耗时基线仓内零记载），定性口径：**一个会话之内造得出来、跑一次不用等到你切走去干别的**。超过这个尺度的，它已经不是原型，是实验或实装。
+
+  **不设正向触发**。本仓 prototype 票长期 0/0 有真实成因：多数问题有权威源可援引，或属测量既有系统；但已发生的原型活动存在未挂票的先例（[#142](https://github.com/xy7365527-lang/NewChanlun/issues/142) 引用过 `/tmp/v4_C5`）。票数为零同时反映**问题形态**与**登记缺口**两件事，不是流程缺陷的信号。只留一句自检提示：遇到「该怎么造」形状的问题，先问一句——**这个不造出来能判吗？** 能判就是 grilling，不能判就是原型。有真实需求才开票，不逼票数；裁定后仍可能长期是 0/0，可接受。
+
+- **task**（HITL 或 AFK）：`wayfinder:task` 标签下实际有**五种**东西，只有甲类受限（[#770](https://github.com/xy7365527-lang/NewChanlun/issues/770) 裁定①）：
+
+  | 种 | 内容 | 名分 |
+  |---|---|---|
+  | 甲 | 纯实装（决策已在别票做完，本票只去干） | **只能挂进声明了带实装的图** |
+  | 乙 | 探针 / 测量 / 勘察 → 喂决策 | 本来就够格，不受限 |
+  | 丙 | 实验 / 跑批 → 产读数喂裁定 | 近乙，不受限 |
+  | 丁 | 文书 / 名分 / 口径落文 | 伪类，见下 |
+  | 戊 | 标签贴错 | 见「开票手续」 |
+
+  **留在图里的 task（正例）**：① 产读数/证据喂一张具名的决策票（票面写得出「决定 X 的形态」或「喂 #N」）；② 手工解阻塞——不做完某张决策票没法开谈（注册服务、挪数据、跑通环境）；③ 实验/对照跑批，产出的是读数不是功能。
+
+  **不该留在图里的 task（反例）**：① 票面写着「（#N 裁定落地）」——决策已在别票做完，这张纯执行；② 交付 destination 本身（只能靠图级实装声明明账）；③ 只有代码/文档产物、没有任何决策被它解阻塞。
+
+  **排除句**：与在飞决策不挂钩的文本欠账（老文书归置、历史假注释订正之类）**不进图**，走 triage 挂 `debt`。「丁类」不是一种票型——把已裁定的东西落成文本是 grilling 票 resolution 的后半程，不是独立票。
+
+## 一票一会话与并行纪律
+
+- **一票一 session**，每 session 最多解决一张票。**例外面 = 全部 AFK 票**（research + 可无人值守的 task）——这条规则保护的是**人的上下文新鲜度**，AFK 票根本不消耗它（[#776](https://github.com/xy7365527-lang/NewChanlun/issues/776) 裁定⑤）。HITL 票（grilling / prototype）严格一票一会话，不扩。
+- **并发安全**：claim（assign）是 session 首写，其他 session 见到已 assign 的票跳过。**认领竞态不加机制**——GitHub 的 assign 是「加进集合」不是互斥，本来就锁不住；HITL 票撞车当场可见，AFK 票撞车的代价只是一个子代理白跑一次，加锁成本高于损失（[#772](https://github.com/xy7365527-lang/NewChanlun/issues/772) 裁定②）。
+- **对人叙述一律用票名，链接裹在名内**；不甩裸 `#` 号墙。
+
+### AFK 票的载体与派发
+
+- **载体** = 本体在当前会话用 `Agent` 工具派子代理，结果回流本体验收后写回 tracker。
+- **档位** = 按 `AGENTS.md` 的四档选法，**按这张票的实际难度判，不看票型标签**。档位正本是 `AGENTS.md`，本文档不自建档位表（[票型 × 模型档位 #781](https://github.com/xy7365527-lang/NewChanlun/issues/781) 裁定①②）。票型与难度**正交**：本图内 [#768](https://github.com/xy7365527-lang/NewChanlun/issues/768)（逐字比对三份文档，机械活）与 [#769](https://github.com/xy7365527-lang/NewChanlun/issues/769)（扫完 90 张已关票并聚出三条反面判据，高难）同贴 AFK 型标签——拿票型索引难度是用不相关的维度做键。#770 的五类细分同样不救场。
+- **工作区隔离**：**写仓的 AFK 子代理强制开独立 worktree**（`Agent` 工具 `isolation: "worktree"`），**只读的不强制**（[#772](https://github.com/xy7365527-lang/NewChanlun/issues/772) 裁定⑤）。本仓事实上已跑过几十个 worktree，成本只有零点几秒；而主仓撞车有 `git stash` 抹掉未提交改动的实伤前例。只读子代理开 worktree 纯属浪费。
+- **git 层冲突**：走 `/resolving-merge-conflicts`，本文只挂指针。git 会把冲突显式标出来、拒绝静默丢改动，不需要额外口径。
+
+## HITL 吞吐纪律
+
+人的时间是这条管线上唯一的稀缺资源。四条纪律都是拿它做优化目标（[#776](https://github.com/xy7365527-lang/NewChanlun/issues/776) 裁定③④⑥ + [#779](https://github.com/xy7365527-lang/NewChanlun/issues/779) 裁定①）。
+
+- **节奏：一次一问。** grilling 票默认入口 = `/grilling` + `/domain-modeling`。#776 裁定①曾把默认改成 `/batch-grill-me` 的一轮一 frontier 节奏，**已被 #779 覆盖作废**（连带其「超 4 题拆两轮」一并归零）。代价如实记：一次一问的 HITL 吞吐低于 batch，瓶颈是真的；但 #776 自己就是 batch 节奏的一次实证失败——它在疲劳上下文里一轮裁六条，其中一条直接与仓内正本冲突而无人察觉。
+- **票内查事实：按代价分。** 单条 read/grep、一两个文件 → 主控自查；多文件扫描、跨仓调研、要读大量上下文 → **强制派子代理**。
+- **push right：按可逆性分界，不按工作量。** 改代码 / 写入仓库的合入点，逐次批准不动（不可逆，错了要回滚）；纯决策、纯读的环节（事实查证、选项整理、多票结论汇总）右移，攒成一份 brief 一次递上。
+- **Notes 预授权**（真杠杆，四条子规则）：
+  - **沉淀时机**：并入开图第二轮广度烤 frontier，不单开一轮；此外，走图中任何一次「这个答案对后续每张票都成立」的裁定，**当场回写 Notes**。沉淀是持续动作，不是开图一锤子买卖。
+  - **边界：按有无先例分。** 可预授权 = 本仓已发生过、有落地判例的同类取舍（例：同类机制优先声明制自执行、不设 CI 硬门）——代理是在套用判例，不是新创。仍须本人当场拍 = **新取舍（本仓无先例）/ 风险偏好 / taste** 三类，写进 Notes 也只算参考。
+  - **判错痕迹落 comment 不落 body**：Notes 每条预授权**编号 + 注明据哪张票的判例**；代理照它判时，resolution comment 必须写一行「本条依 Notes N-k 预授权判定」。GitHub issue body 的编辑历史 API 取不到，Notes 被覆盖永远不知道；comment 是追加的，回查即搜字符串。
+  - **膨胀控制：按归属分流，不按字数。** 一条沉淀若对未来每张图都成立，它就不属于 Notes——外移到本文档，Notes 只留指针；只对本图成立的才留 Notes。软信号：超约 10 条就回头筛一遍哪几条已跨图通用。
+
+## 图正文的写入协议
+
+图正文的 `## Decisions so far` 按设计**只是索引**：一行 gist + 一个链接。决策正本在子票的 resolution comment（append-only，并发写碰不到它）。所以并发覆盖丢的是索引里的一行，不是决策本身，而且这一行**可从已关子票列表重建**。这把「无解的静默丢失」降级成「可检测、可重建的索引漂移」（[#772](https://github.com/xy7365527-lang/NewChanlun/issues/772)）。
+
+据此**保留正文整体重写**，不改成评论追加——图正文「一次加载看完全貌的低分辨率视图」是 wayfinder 的核心价值，换成评论流就得让每个读者自己按时间折叠重建当前状态。配三条纪律：
+
+1. **窗口压到一次操作**：要写的那一刻才 `gh issue view <map> --json body` 读正文，读完立刻拼好新正文写回。不要开会话时读一次、干完活再拿旧副本写回。
+2. **写前用 `updated_at` 重比一次**：读正文时记下 `updated_at`，真正发 PATCH 之前再查一次；变了就重读重拼。这是**应用层的读后重比，不是原子操作**——中间仍有毫秒级 TOCTOU 残窗，它挡的是秒级以上的真实竞态，不宣称消除竞态。**冲突就重试一次；再冲突则停下来报给人，不要盲目循环。**
+3. **对账重建**：**每次走图会话开头跑**——列出这张图所有已关子票，跟正文里已有的决策行对账，缺哪行当场补。成本一条查询，丢行最多存活一个会话就被抓回。
+
+**迷雾毕业：谁清的雾谁毕业。** `## Not yet specified` 段只由「本次解决的这张票让这片雾变清楚了」的那个会话动。两个会话同时毕业同一片雾 → 开出两张重复票 → 重复票是看得见、能关掉的：后发现者关掉自己开的那张，在关票理由里指向先开的那张。
+
+## 图的寿命与关图判据
+
+- **寿命按声明分**，见「图的两行声明」。
+- **关图不要求雾清空，但残雾必须有去向**（[#771](https://github.com/xy7365527-lang/NewChanlun/issues/771) 裁定②）：每条残雾必须落到三处之一——**毕业成新票**（挂本图或别的图）/ **移进 Out of scope** / **明写「搁置，无人跟进」**。三选一皆可，唯独不许沉默地跟着图一起关掉。
+- 「图关闭 = 到达目的地」这个信号由此恢复：**到达 ≠ 疑问归零，= 所有疑问都有明确归属。**
+- 长驻图不关，压根不触发该判据；其 fog / Decisions-so-far 两段语义与一次寻路图完全同义，只是索引会一直长下去。
+
+## `/to-spec` 交棒边界
+
+图走完之后去哪，wayfinder 与 ask-matt 两份上游 skill 正文**都没写**——这是三源比对查出的最大空白（[三方口径差异清单 #768](https://github.com/xy7365527-lang/NewChanlun/issues/768)：两份正文对「图完成之后去哪」完全没写、从不点名 `/to-spec`；两份也**都没提 prototype 票型**，那正是本仓 prototype 0/0 的成因之一）。本仓口径如下（[spec 的两种名分 #775](https://github.com/xy7365527-lang/NewChanlun/issues/775)）。
+
+**spec 的形态不是选出来的，是被图的实装声明决定的**（#770 的直接推论）：
+
+- 图的 Notes **没有**带实装声明 = 纯决策图 → 实装必须去图外 → spec **出图**，牵出全新实施票，首行写「本 spec 由 map #N 交棒而来，产新实施票」。
+- 图的 Notes **声明了**带实装 → 实装票留在图里 → spec **不出图**，是一份实施总单，首行写「本 spec 是 map #N 的实施总单，实施票在图内」。
+
+写反了会和图正面打架（同一批实装出现在两处），肉眼可见，不设巡查。
+
+**这两者是一条轴的两端，不是两个类**。轴 = 下游实施票落在图里还是图外；中间点（零下游票的自交付、图内外都有的混合）合法，按首行声明里更贴近的那句写。「SPEC 被作废/被后续裁定取代」是关票结局，不是形态，不进这条口径。
+
+**极端情形：destination 本身就是一份文档。** 图的终点若就是要落盘的那份文档（本文件自己即是一例——[#767](https://github.com/xy7365527-lang/NewChanlun/issues/767) 的 destination 就是本正本），连「不出图的 spec」也省掉：先写一份 spec 描述「要写一份什么样的文档」、再照它去写那份文档，是同一件事写两遍，中间那份落地即废。此时**收口票的正文**（产出清单 + 划界要求 + 纪律约束）就是那份实施总单，实施子代理拿它即可开工。这是上条「零下游票的自交付」中间点最常见的形态，不是跳步。
+
+判据一句话：**终点是文档就直接写，终点是代码才要 spec。** 终点是代码时决策与实装隔着一道，spec 必须存在，否则实施的人只能回去读整张图的裁定票。
+
+**溯源密度按链有没有离开图分，不按形态分**：
+
+- 出图的 spec **必须逐条挂裁定票**（范本 [SPEC：交付纪律规范 #480](https://github.com/xy7365527-lang/NewChanlun/issues/480)）——链一旦断在图外就再也接不回来。
+- 不出图的 spec 只要求首行 `Part of #N`，图本身即完整溯源链，逐条背书是冗余。
+
+**spec 是非持久件**（视频 13:36）。关票判据 = 它指向的交付点全部落地：出图的等新票全关，不出图的等图内对应那批子票全关——所以不出图的 spec 天然活不过它的图。
+
+**长驻总账图（📒）按批次交棒，不按图的终点交棒**：一批决策的下游实施彼此有依赖、且不再依赖任何还开着的子票，这批即可出 spec，图继续开着走下一批。
+
+## 开票手续
+
+- **标题前缀与 `wayfinder:<type>` 标签必须一致**，且**两者同时对齐到这张票实际在做的事**——不是把标题抄成标签，也不是把标签抄成标题；抄错一边就是把错的复制过去（[#782](https://github.com/xy7365527-lang/NewChanlun/issues/782) 裁定③）。前缀打架不伤机器行为（frontier 查询、子票清点走的全是 `--label`），但会误导读票的人。
+- **不设巡查**，与本文其余声明制条款同款。存量零动作：实测的 17 张前缀/标签打架的票**全部已关闭**，按 Out of scope 不回溯。
+
+## 两段式裁定（2026-07-30）
+
+- **新图严格两段**：map 只产决策，destination 是「路看清了/决策锁了/spec 出来了」；实装不进 map 的 task 票——除非图 Notes 显式声明带实装（见「图的两行声明」）。
+- **在飞图不动**：已显式 override「决策+执行混合」的图（[#743](https://github.com/xy7365527-lang/NewChanlun/issues/743)、[#529](https://github.com/xy7365527-lang/NewChanlun/issues/529) 等）维持现状跑完，不中途拆票迁票。
+- **task 票回原义**：只为解锁决策的手工活（注册服务拿到 API 再评判、挪数据看清形状），它 do 但不交付 destination 本身。
 
 ## 关票口径
 
-决策票（grilling/research/prototype）按纯裁定关票：resolution comment + close + map 索引一行；有实体产物的（对拍报告、原型文件）按 `delivery-discipline.md` 关票门第 6 子句入仓引用，无实体产物的写明「无报告」。实施票走关票门全子句，无豁免。
+决策票（grilling/research/prototype）按纯裁定关票：resolution comment + close + map 索引一行；有实体产物的（对拍报告、原型文件、`proto/<票号>` 分支指针）按 `delivery-discipline.md` 关票门第 6 子句入仓引用，无实体产物的写明「无报告」。实施票走关票门全子句，无豁免。
+
+grilling 票另加一条：resolution 的落文档（含必要的零行为变更代码注释）做完才关票。
+
+**档位留痕取最小面**：`AGENTS.md` 的升档条款要可执行，前提是知道上一轮用了哪档——**升档时在 resolution 写一句「从 X 升到 Y」，一过就过的票不记**。明写代价：一过就过的那批票以后查不到基线，「哪类活低档真能干」日后答不了，接受。
 
 ## 只管新图
 
-本规范约束 2026-07-30 之后新开的 map 与票；在飞图维持各自 Notes 里明写的 override 跑完。
+本规范约束 2026-07-30 之后新开的 map 与票；在飞图维持各自 Notes 里明写的 override 跑完。已关票一律不回溯改判——不重贴标签、不重开。
