@@ -230,10 +230,49 @@ R2-LOW-3 文书订正）：
 4. **R3-LOW-2**：本 ADR 第三轮裁定 2「二类同样按其一类锚坐标走 episode 区间覆盖」半句原处补
    「未实测」标注（第五轮 §3 已查明该分支生产上恒判 `None`、零命中）。
 5. **R3-LOW-3**：`find_episode` 的 `debug_assert` 机器保证生效域（仅 debug profile，release 为
-   空操作）此前只在函数自身文档写明，模块头、本 ADR 第三轮裁定 1、第五轮 Consequences、
-   `CONTEXT.md` 四处均补齐生效域说明。
+   空操作）~~此前只在函数自身文档写明~~（**已撤销，2026-07-29 #668c 微收口**：全仓核实此前不实——
+   函数自身文档 `find_episode` 从未写过生效域说明，且反而写着与 release 行为相反的「不静默择一」；
+   生效域说明此前只出现在 `bsp_bridge/tests.rs:538` 与 `:575` 两条测试注释里），模块头、本 ADR
+   第三轮裁定 1、第五轮 Consequences、`CONTEXT.md` 四处均补齐生效域说明，本轮补第五处——函数
+   自身文档（见 `find_episode` 文档订正）。
 
 本轮不改判据、不改生产行为，纯文书 + 独立参照集实现对齐（参照集判据迁移本身是「让独立实现追上
 已裁定的生产判据」，不是新增裁定）。R3-MED-2 点名的「二类锚归属结构性不可解」补充数据（锚坐标
 在簿内存在但无一持一类 bit=145/280、锚坐标根本不在簿内=135/280）留待编排者裁定是否归 #688 或
 二类键公式重选锚，本轮不给方案。不关票。
+
+### Consequences（第六轮更新）
+
+- R3 全部 5 条发现均有明确处置记录（自身报告见
+  `chanlun/review-results/issue668-n4-pwc-closeout-20260729.md`）；参照集三类判据迁移后与生产
+  同构，废弃索引删净，二类分支撤回标注就位。
+- 终判轮（`chanlun/review-results/shadow-668-review4-final-20260729.md`）判 **FAIL**（文书面，
+  实质面全绿）：本轮收口自己新写的「R3-LOW-3 四处补齐」断言本身不实（函数自身文档从未写过生效域
+  说明，此前只在测试注释里），且模块头「一类事件侧遍历」bullet 与 `CONTEXT.md` 同款词条仍冻结在
+  第五轮 supersede 前的旧遍历形态（F-1/F-2）——均已按 append-only 纪律原处订正（微收口，
+  dispatch #668c，本节即为该轮登记）；三条从属观察（二类残留漏列、provenance 轮数、本节体例）
+  一并处置。本轮无新增判据变更、无需重跑 bin。
+
+## 第七轮 supersede（2026-07-29，#670 终判 FAIL 微收口，dispatch #668c）
+
+终判轮（`chanlun/review-results/shadow-668-review4-final-20260729.md`）判 **FAIL**：实质面全部
+PASS（回归四面全绿、两个 bin 三窗读数逐位一致、参照集独立性成立、生产逻辑零改动、ADR 六轮链完整），
+文书面仍有 2 条 CONFIRMED 名实不符（F-1/F-2）+ 3 条从属观察，均零功能影响，本轮全部收口（纯文本，
+零逻辑行改动，未重跑 bin）：
+
+1. **F-1**：`bsp_bridge.rs` 中 `find_episode` 函数自身文档「不静默择一」与 release 下实际行为
+   （`debug_assert!` 编译为空操作、遍历序首个 hit 静默生效）相反——已按 append-only 纪律原处
+   订正；本 ADR 第六轮 §5「此前只在函数自身文档写明」一句同属不实（该说明实际此前只在
+   `bsp_bridge/tests.rs:538/575` 两条测试注释出现）——已订正为真实出处。
+2. **F-2**：`CONTEXT.md`「事件↔BSP 桥接边」词条与 `bsp_bridge.rs` 模块头「事件侧 → 一类点」bullet
+   仍写「遍历 Trend episode，回挂其区间覆盖的全部一类点」——这是第五轮 supersede（修复 #670
+   R2-HIGH-3）前的旧遍历形态；现行实现逐 BSP 点调用 `find_episode` 反查其所属 episode（一点一
+   episode）。两处均已按 append-only 纪律原处订正。
+3. **从属观察**：`CONTEXT.md`「已知残留」补列二类 0/280 恒判 `None`（三窗实测更彻底于三类的
+   「近零」，归 #688 或二类键公式重选锚交编排者裁）；provenance「三轮 supersede」订正为「六轮
+   supersede」；本节即为第六轮补齐的 Consequences 子节 + 自身报告引用。
+
+### Consequences（第七轮更新）
+
+- 终判 FAIL 的两条文书发现（F-1/F-2）与三条从属观察全部收口，补丁面 = 3 处文本 + 1 句订正，
+  不涉代码逻辑、不涉判据；`cargo test --lib` 复跑基线不变。不关票（交编排者终审）。

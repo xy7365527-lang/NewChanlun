@@ -129,10 +129,12 @@ _Avoid_: 当每个走势单元的固有字段（事件非属性）；用删除�
 _Avoid_: 链头独活真空 Closed；把查无当证伪判死；伪造中间级补链；与 NestCertificate 同名混用
 
 **事件↔BSP 桥接边（event-BSP bridge edge）**:
-塔内原生一等关系对象（2026-07-29 #666 裁定 + 三轮 supersede、#668 落地、#670 影子评审 FAIL 回炉
+塔内原生一等关系对象（2026-07-29 #666 裁定 + 六轮 supersede、#668 落地、#670 影子评审 FAIL 回炉
 修复，ADR-0008；`BspBridgeEdge` 独立户口，`CandidateEvent`/`BspPoint` 两个老对象零改动）：身份 =
-（N1 事件键沿用 CandidateKey，BSP 结构身份键 v2）对。双向产出——**一类**走事件侧驱动：遍历 Trend
-episode，回挂其区间 `[c_start, interval.1]` 覆盖的全部一类点（判据 = episode 区间覆盖，非本点
+（N1 事件键沿用 CandidateKey，BSP 结构身份键 v2）对。双向产出——**一类**走事件侧驱动：~~遍历 Trend
+episode，回挂其区间 `[c_start, interval.1]` 覆盖的全部一类点~~（**已撤销，2026-07-29 #668c 微收口**：
+第五轮 supersede（修复 #670 R2-HIGH-3）后已改为逐 BSP 点调用 `find_episode` 反查其所属
+episode——一点一 episode，判据 = episode 区间覆盖，非本点
 `source_index` 与候选当前右端等值——右端会随 `as_of` 生长，用它做配对键会漏配同 episode 内早于
 当前右端就已确认的物理点，evidenced 修复前 BTC 实测一类覆盖率仅三至四成，修复后 100%，
 `chanlun/review-results/issue668-n4-fix-round1-20260729.md`）；**二/三类**走点侧驱动：反查其对应
@@ -150,7 +152,10 @@ episode，回挂其区间 `[c_start, interval.1]` 覆盖的全部一类点（判
 supersede 裁定 3 订正为：折叠为**一条 revision 携有序去重的 `source_index` 集合**
 （`BspBridgeEdge::bsp_source_indices`），pivot/`source_index` 仍是修订载荷、不入身份，但
 `heads()` 携完整覆盖点集、`edges_for_bsp_point` 按集合成员判断，300k 窗查询完备性实测 29/29）。
-**已知残留**：三类近零覆盖（Trend 候选结构门与三类离开段几何判据不同构，根因未查，归 #688）。
+**已知残留**：三类近零覆盖（Trend 候选结构门与三类离开段几何判据不同构，根因未查，归 #688）；
+二类锚归属结构性不可解，生产上恒判 `None`（三窗实测 0/17、0/88、0/280——比三类「近零」更彻底，
+`OwnerRef::Type1Anchor` 载的是走势 m1 终点坐标，未过背驰确认门则非一类点，二者结构上不重合，
+非实现错误，是否归 #688 或二类键公式重选锚交编排者裁，2026-07-29 #670 三审从属观察）。
 _Avoid_: 把 Absent 当证伪判 Invalidated；改判据函数去凑配对命中率；~~拿配对覆盖率低反推键公式
 错误~~（**已撤销，2026-07-29 #670 评审证伪**：一类低覆盖率**正是**判据错误的直接后果——右端等值
 判据把 62% 的一类点排除出检验域，"唯一性"是排除规则的算术必然，不是键的区分力；episode 区间覆盖

@@ -51,11 +51,14 @@
 //! 只产出、存储候选生命史」同一条），**不重新扫描/重新判定**任何结构；不是外挂 sidecar 事后
 //! 补扫（旧 `otherwise_domain_sidecar` 反面教材）。「双向」= 两个方向各有独立的、真实的遍历入口
 //! （非同一遍历改名两次）：
-//! - **事件侧 → 一类点**（[`resolve_first_class_episode_points`]）：遍历 Trend 候选事件，对每个
-//!   episode 回挂其区间 `[c_start, interval.1]` 覆盖的全部一类点（同 level/side/中枢指纹）——
-//!   判据从「本点 `source_index` 恰好等于候选当前右端」改为「本点落在候选 episode 区间内」
-//!   （右端会随 `as_of` 生长，[`super::cand_event`] 称为 `growth_revision`；区间左端 `c_start`
-//!   已闭合不再增长，纪律同 [`CandidateKey`]）。
+//! - **事件侧 → 一类点**（[`resolve_first_class_episode_points`]）：~~遍历 Trend 候选事件，对每个
+//!   episode 回挂其区间 `[c_start, interval.1]` 覆盖的全部一类点~~（**已撤销，2026-07-29 #668c
+//!   微收口**：这是第五轮 supersede 前的旧遍历形态，R2-HIGH-3 修复后已改为逐 BSP 点调用
+//!   [`find_episode`] 反查其所属 episode——一点一 episode——见
+//!   [`resolve_first_class_episode_points`] 函数自身文档）。判据从
+//!   「本点 `source_index` 恰好等于候选当前右端」改为「本点落在候选 episode 区间内」（同
+//!   level/side/中枢指纹）（右端会随 `as_of` 生长，[`super::cand_event`] 称为 `growth_revision`；
+//!   区间左端 `c_start` 已闭合不再增长，纪律同 [`CandidateKey`]）。
 //! - **点侧 → 事件**（二/三类，[`resolve_bridge`]）：遍历 BSP 点，反查其所属候选事件——三类点的
 //!   「离开段」= 同一 C 段候选事件（不要求背驰确认——`judge_third_cert` 的 `leave_seg` 与 N1
 //!   候选扫描共用同一 `first_structural_gates`/`nearest_confirmed_center_idx` 定位），配对判据
@@ -301,7 +304,10 @@ fn trend_episodes(latest: &BTreeMap<CandidateKey, CandidateEvent>) -> Vec<TrendE
 ///
 /// `debug_assert` 机器化「episode 归属唯一」（评审 #670 §五复核探针 300k 窗
 /// `points_in_multiple_episodes=0` 实证；100k 窗同）——若失守，说明该不变量在新数据上不再成立，
-/// 按 dispatch「若仍有撞键，停手上报」处置，不静默择一。**唯一调用点**（第五轮 supersede 前）
+/// 按 dispatch「若仍有撞键，停手上报」处置，~~不静默择一~~（**已撤销，2026-07-29 #668c 微收口**：
+/// 该处置仅 debug profile 生效——`debug_assert!` release 编译为空操作；release 下（三窗验收 bin
+/// 全部在 release 跑）归属不唯一时本函数直接静默取遍历序首个 hit，同模块头 `:38` 一致）。
+/// **唯一调用点**（第五轮 supersede 前）
 /// 曾只有二/三类分支（[`resolve_bridge`]）——一类分支（[`resolve_first_class_episode_points`]）
 /// 内联了同款过滤但绕过本函数，机器保证因此覆盖不到检验域里唯一有真实数据的点类（评审 #670
 /// R2-HIGH-3）。第五轮 supersede 后一/二/三类三条路径均经本函数反查，`debug_assert` 覆盖面
