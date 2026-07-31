@@ -43,6 +43,22 @@
 > 受影响代码清单：<指针>
 ```
 
+### 收敛通则：同一判断不得有宽严两档（[#799](https://github.com/xy7365527-lang/NewChanlun/issues/799) 裁定，2026-07-30）
+
+> **同一个判断不得存在宽严两档实现，更不得让宽松的那档接管严格那档的失败。**
+
+「严格版判不出来 ⟹ 换宽松版再判一次 ⟹ 放行」不是合法的通道分派——它把**判据失败**当成了**换判据重判**的触发器。收敛一个概念时，凡发现该概念底下有两套判据且其中一套在给另一套兜底的，**先判违规、再谈收敛到哪一套**，两件事分开做。
+
+**限定词（防误伤正当的分档）**：本条管的是**同一个判断的两个宽严档位**，不管以下三类正当分化——
+
+1. **不同判断**：判的对象本就不同（中枢构造 vs 背驰确认），各自独立成立，互不兜底；
+2. **诊断模式 vs 生产模式**：诊断口径可更宽（多打日志、多记候选），但**不得参与准入**；
+3. **已声明的独立对照臂**：见 [ADR-0005](../docs/adr/0005-nest-import-ban-clause9-ruling.md) —— 对照臂不产生交易决策，不在「生产判定路径」管辖内（[#799](https://github.com/xy7365527-lang/NewChanlun/issues/799) 裁定六）。
+
+**判别一句话**：看两套判据**是不是接在同一个 if-else 上**。是 ⟹ 系统自己声明了二者可互换 ⟹ 违规；不是 ⟹ 按上面三条限定词逐条对。
+
+**在案实例**（本通则的来源，非举例）：次级别背驰确认存在两份实现——`div_cand`（`rust/src/theta_v0/classifier/cand_predicate.rs:107`，四条件含 **Extreme**）与 `sublevel_diverges`（`rust/src/theta_v0/classifier/mod.rs:1929`，**无 Extreme**，其余同族）；`econ_positive.rs:1687` 的 C1 规定前者失败（`descend anchor None`）才走后者所在的小转大通道。[#796](https://github.com/xy7365527-lang/NewChanlun/issues/796) 实测 52 个候选中 **51 个**经此降级放行。收敛到哪一套（Extreme 该不该要）属背驰概念票，未裁。
+
 ## 协作设施
 
 - **Issue tracker**：GitHub `xy7365527-lang/NewChanlun`（private，`gh` 已认证）；操作口径 `docs/agents/issue-tracker.md`。
