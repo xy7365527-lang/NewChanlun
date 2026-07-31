@@ -162,6 +162,30 @@ jobs:
           rustup component add rustfmt
           cargo fmt --all -- --check
 
+      # #810：`cargo check` 只保证编译、从不执行——34 个 Lean↔Rust parity 断言与
+      # `rust/tests/nest_isolation_guard.rs` 的「违规即测试红」此前只编译不运行，
+      # 锁形同虚设（成因定案见 #799 净发现①、#806）。
+      #
+      # ⚠ 本步落地时的诚实状态（2026-07-30，090 照实）：当前主线上
+      #   `theta_v0_classifier_parity` 有 **2 条断言为红**
+      #   （`type1_buy_broke_and_diverge_matches_lean_istype1` /
+      #    `signal_extraction_emits_no_second_class_only`）——Lean 与 Rust 对
+      #   「一类买点」判得不一样。**这是教义分歧不是实现 bug**，已立 #811，
+      #   在 map #787 第二批买卖点概念票裁定之前 **不许修绿、不许加 #[ignore]、
+      #   不许把它踢出本命令**。⟹ 本步接入后 CI 会红，且是**有意为之的红**：
+      #   从「绿但测的是旧树」变成「红但是真的」。
+      #
+      # 耗时（本地实测，另一棵树上量得，量级参考）：default 干净重建 ~40s、
+      # 增量 ~7s；backtest_bin 增量 ~59s（含 nautilus 依赖）。两步合计 <2min，
+      # 与既有两步 cargo check 同预算 ⟹ 不做慢测试分层、不做仅 main 触发。
+      # 既有 #[ignore]（theta_v0_fixture_drift、profile_*、oddeven_*_diagnosis 等
+      # 需要 BTC 全量数据或 --release 的用例）维持现状，不在 #810 范围内摘除。
+      - name: cargo test — default targets
+        run: cargo test --all-targets
+
+      - name: cargo test — backtest_bin feature（econ_oddeven_diagnosis.rs 仅在此 feature 下编译）
+        run: cargo test --all-targets --features backtest_bin
+
   fixture-drift:
     # #265（#245 裁定）：Lean 源 → parity fixture 双向闭环的 CI 腿。
     # 锁的漂移窗口：Lean 源改了值、fixture 未重落盘时 parity 测试静默全绿。
