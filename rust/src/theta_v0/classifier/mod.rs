@@ -3434,6 +3434,235 @@ mod tests {
         }
     }
 
+    /// #821 探针（wayfinder map #787 子票，乙类 task——只测量，不改生产行为/生产代码）：
+    /// `recursive_tower.rs:766-780` 的 ≥9 段升级重切分支，子中枢核心「继承母中枢」
+    /// （生产现状，口径 I）vs「按自身三段重算 `ZD=max(3 lo)`/`ZG=min(3 hi)` 且严格 `ZD<ZG`」
+    /// （候选口径 R，`ZD>=ZG` 不产出该子中枢）——两种做法在真实行情上差多少。
+    ///
+    /// 与 `type1_funnel_census_btc` 同一套私有函数（`classify_level`/`compose_level`/
+    /// `project_to_units`/`detect_centers_windowed_resume`）驱动级别循环，逐级别与生产
+    /// `classify` 输出 assert 对拍（675号：探针走生产路径，非另起一套）。触发窗口的定位不靠
+    /// 重新扫描——直接读 `detect_centers_windowed_resume` 返回的 `WinMeta.emitted`（升级窗口
+    /// 该字段 = k > 1，`out`/`metas` 逐位对齐），子窗边界 `(s,e)` 按生产同一公式
+    /// `s=win_start+t*3, e=(t+1==k ? win_exit-1 : s+2)` 重建，再从**同一份生产 `units`**切片
+    /// 读三段真实 lo/hi——不重写 `detect_centers_windowed_resume` 本身的扫描逻辑。
+    ///
+    /// 数据：`analysis/data_cache/btc_1m_full.json`（`load_by_symbol("BTC", ..)`，1 分钟 K，
+    /// 全历史）——bar 数以运行时 `[821] BTC bars=` 行为准（未做窗口切片，全量）。
+    ///
+    /// 下游翻转（点4）仅做**同级本地**翻译：把触发级别的中枢序列替换为口径 R 产出（丢弃项跳过、
+    /// 保留项区间替换），直接喂 `decompose::decompose` 读 Trend/Consolidation 块计数差——
+    /// **不做跨级级联**（口径 R 改变本级中枢数会经 `project_to_units` 改变下一级输入单元，
+    /// 逐级复算等价于另起一条平行管线，超出本票探针预算，如实标注不做，非"无差异"）。
+    /// BSP（买卖点）计数同理不做——`extract_signals_with_hist`/`extract_first_third_for_level`/
+    /// `extract_second_for_level` 参数面广且依赖 MACD 背驰真算，接不通，如实标注。
+    ///
+    /// 运行：`cargo test --release --lib -- --ignored --nocapture issue821_upgrade_recut_probe`
+    #[test]
+    #[ignore = "issue #821 探针：cargo test --release --lib -- --ignored --nocapture issue821_upgrade_recut_probe"]
+    fn issue821_upgrade_recut_probe() {
+        use super::super::backtest::data::load_by_symbol;
+        use super::super::parser::parse_layer;
+
+        let cfg = ThetaConfig::default();
+        let full = load_by_symbol("BTC", &cfg)
+            .expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
+        eprintln!("[821] BTC bars={}", full.bars.len());
+        let layer = parse_layer(&full.bars, &cfg);
+        eprintln!(
+            "[821] L0 segments={} merged_bars={}",
+            layer.segments.len(),
+            layer.merged_bars.len()
+        );
+
+        // 生产对拍源（675号守卫：级别循环不分叉）。
+        let out = classify(&layer, &cfg);
+
+        let min_parts = cfg.level.min_parts_per_level as usize;
+        let l_max = cfg.level.l_max as usize;
+        let mut units: Vec<UnitRange> = layer.segments.iter().map(segment_to_unit).collect();
+        let mut moves_tower: Rc<Vec<LeveledMove>> = Rc::new(
+            units
+                .iter()
+                .enumerate()
+                .map(|(i, u)| {
+                    LeveledMove::from_unit(
+                        u,
+                        ElementId {
+                            level: 0,
+                            ordinal: i as u64,
+                        },
+                    )
+                })
+                .collect(),
+        );
+
+        let (mut total_centers_i, mut total_centers_r) = (0usize, 0usize);
+        let (mut total_triggers, mut total_windows) = (0usize, 0usize);
+        let mut total_discards = 0usize;
+        let mut discard_examples: Vec<String> = Vec::new();
+        let mut width_diffs: Vec<i64> = Vec::new(); // R宽 - 母核宽（ticks，可负=更窄）
+        let mut outside_mother: Vec<String> = Vec::new();
+        let mut trend_delta_examples: Vec<String> = Vec::new();
+
+        for level_idx in 0..=l_max {
+            if units.len() < min_parts {
+                break;
+            }
+            let is_l0 = level_idx == 0;
+            let (centers, _blocks) = classify_level(&units, is_l0);
+            assert_eq!(
+                centers, *out.levels[level_idx].centers,
+                "L{level_idx} 中枢对拍（探针须与生产 classify 逐字段一致）"
+            );
+
+            let build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center> = if is_l0 {
+                center::center_from_segments
+            } else {
+                center::center_from_window
+            };
+            let (out_win, metas, _cursor) =
+                recursive_tower::detect_centers_windowed_resume(&units, build, 0);
+            assert_eq!(out_win.len(), metas.len(), "L{level_idx} out/metas 1:1 对齐");
+            assert_eq!(
+                out_win.iter().map(|(c, _)| *c).collect::<Vec<_>>(),
+                centers,
+                "L{level_idx} 窗口探针中枢序列 == 生产中枢序列"
+            );
+
+            let level_centers_i = out_win.len();
+            total_centers_i += level_centers_i;
+
+            let mut centers_r_level: Vec<Center> = Vec::new();
+            let (mut level_triggers, mut level_centers_r, mut level_discards) =
+                (0usize, 0usize, 0usize);
+            let mut level_windows = 0usize; // 扫描出的成立窗口数（触发窗口计1，非触发窗口每条 meta 计1）
+            let mut idx = 0usize;
+            while idx < metas.len() {
+                let m = metas[idx];
+                level_windows += 1;
+                if m.emitted > 1 {
+                    level_triggers += 1;
+                    total_triggers += 1;
+                    let k = m.emitted;
+                    let i = m.win_start;
+                    let j = m.win_exit;
+                    for t in 0..k {
+                        let s = i + t * 3;
+                        let e = if t + 1 == k { j - 1 } else { s + 2 };
+                        let sub_units = &units[s..=e];
+                        let zd_r = sub_units.iter().map(|u| u.lo).max().expect("子窗非空");
+                        let zg_r = sub_units.iter().map(|u| u.hi).min().expect("子窗非空");
+                        let mother = out_win[idx + t].0; // 口径I：zd/zg=继承母核心
+                        if zd_r < zg_r {
+                            level_centers_r += 1;
+                            total_centers_r += 1;
+                            let width_r = zg_r - zd_r;
+                            let width_mother = mother.zg - mother.zd;
+                            width_diffs.push(width_r - width_mother);
+                            if zd_r < mother.zd || zg_r > mother.zg {
+                                outside_mother.push(format!(
+                                    "L{level_idx} win=(i={i},j={j}) 子#{t} segs[{s}..={e}] \
+                                     R核心=[{zd_r},{zg_r}] 母核心=[{},{}]",
+                                    mother.zd, mother.zg
+                                ));
+                            }
+                            centers_r_level.push(Center {
+                                zd: zd_r,
+                                zg: zg_r,
+                                dd: mother.dd,
+                                gg: mother.gg,
+                                start_index: mother.start_index,
+                                end_index: mother.end_index,
+                            });
+                        } else {
+                            level_discards += 1;
+                            total_discards += 1;
+                            if discard_examples.len() < 5 {
+                                let detail: Vec<String> = sub_units
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(si, u)| {
+                                        format!("段{}(unit_idx={}) lo={} hi={}", si, s + si, u.lo, u.hi)
+                                    })
+                                    .collect();
+                                discard_examples.push(format!(
+                                    "L{level_idx} win=(i={i},j={j}) 子#{t} segs[{s}..={e}]: {} \
+                                     => ZD=max(lo)={zd_r} ZG=min(hi)={zg_r}（ZD>=ZG，丢弃）",
+                                    detail.join("; ")
+                                ));
+                            }
+                        }
+                    }
+                    idx += k;
+                } else {
+                    level_centers_r += 1;
+                    total_centers_r += 1;
+                    centers_r_level.push(out_win[idx].0);
+                    idx += 1;
+                }
+            }
+            total_windows += level_windows;
+            eprintln!(
+                "[821] L{level_idx}: windows={level_windows} centers_I={level_centers_i} \
+                 centers_R={level_centers_r} triggers={level_triggers} discards={level_discards}"
+            );
+
+            // 点4（部分，同级本地翻译，不跨级级联——见函数头注释）：口径R替换后 decompose 块计数差。
+            if level_triggers > 0 {
+                let blocks_i = decompose::decompose(&centers);
+                let blocks_r = decompose::decompose(&centers_r_level);
+                let trend_i = blocks_i.iter().filter(|b| b.kind == MoveKind::Trend).count();
+                let trend_r = blocks_r.iter().filter(|b| b.kind == MoveKind::Trend).count();
+                trend_delta_examples.push(format!(
+                    "L{level_idx}: blocks_I={} (trend={trend_i}) blocks_R={} (trend={trend_r})",
+                    blocks_i.len(),
+                    blocks_r.len()
+                ));
+            }
+
+            let (_cw, upper_moves, _) =
+                compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
+            units = project_to_units(&upper_moves, &out.levels[level_idx].moves);
+            moves_tower = Rc::new(upper_moves);
+            if units.is_empty() {
+                break;
+            }
+        }
+
+        eprintln!(
+            "[821] TOTAL centers_I={total_centers_i} centers_R={total_centers_r} \
+             triggers={total_triggers} discards={total_discards} (windows_seen={total_windows})"
+        );
+        eprintln!("[821] discard 示例（ZD>=ZG，最多5条）:");
+        for ex in &discard_examples {
+            eprintln!("  {ex}");
+        }
+        eprintln!(
+            "[821] outside-mother 次数（R核心落在母核心之外）={}",
+            outside_mother.len()
+        );
+        for ex in outside_mother.iter().take(10) {
+            eprintln!("  {ex}");
+        }
+        if !width_diffs.is_empty() {
+            let sum: i64 = width_diffs.iter().sum();
+            let avg = sum as f64 / width_diffs.len() as f64;
+            let min_d = *width_diffs.iter().min().unwrap();
+            let max_d = *width_diffs.iter().max().unwrap();
+            eprintln!(
+                "[821] 区间宽度差（R宽-母核宽，ticks）: avg={avg:.3} min={min_d} max={max_d} n={}",
+                width_diffs.len()
+            );
+        } else {
+            eprintln!("[821] 区间宽度差：无保留的 R 子中枢样本（0 触发或全部丢弃）");
+        }
+        eprintln!("[821] 点4（trend block 计数，同级本地，非级联）:");
+        for ex in &trend_delta_examples {
+            eprintln!("  {ex}");
+        }
+    }
+
     #[test]
     fn classify_empty_layer_yields_empty() {
         let cfg = ThetaConfig::default();
