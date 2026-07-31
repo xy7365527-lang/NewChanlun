@@ -6,7 +6,9 @@
 use std::rc::Rc;
 
 use crate::theta_v0::classifier::center::UnitRange;
-use crate::theta_v0::classifier::recursive_tower::{project_to_units, CpRecallAuditCase, LeveledMove};
+use crate::theta_v0::classifier::recursive_tower::{
+    project_to_units, CpRecallAuditCase, LeveledMove,
+};
 use crate::theta_v0::classifier::{decompose, recursive_tower, segment_to_unit, Classification};
 use crate::theta_v0::parser::ParseLayer;
 use crate::theta_v0::types::Direction;

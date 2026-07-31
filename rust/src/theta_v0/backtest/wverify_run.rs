@@ -2009,7 +2009,10 @@ fn issue755_level_cap_on_off_btc20k_diff() {
         dates: ds.dates[..n].to_vec(),
         bar_seconds: ds.bar_seconds,
     };
-    assert!(!test.bars.is_empty(), "BTC 前 20000 bar 非空（否则测试空转）");
+    assert!(
+        !test.bars.is_empty(),
+        "BTC 前 20000 bar 非空（否则测试空转）"
+    );
     let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
     let nav_te = test
         .bars
@@ -2021,7 +2024,10 @@ fn issue755_level_cap_on_off_btc20k_diff() {
 
     let mut cfg_off = ThetaConfig::default();
     cfg_off.margin = Some(q4_margin_model(nav_te));
-    assert!(!cfg_off.risk.enforce_level_cap, "default 门禁必须为 off（bit-exact 锚）");
+    assert!(
+        !cfg_off.risk.enforce_level_cap,
+        "default 门禁必须为 off（bit-exact 锚）"
+    );
 
     let mut cfg_on = ThetaConfig::default();
     cfg_on.margin = Some(q4_margin_model(nav_te));
@@ -2035,12 +2041,7 @@ fn issue755_level_cap_on_off_btc20k_diff() {
     let r_off = run_theta_v0_pi_overlay(&test, &cfg_off, years, nav_te);
     let r_on = run_theta_v0_pi_overlay(&test, &cfg_on, years, nav_te);
 
-    let final_equity_off = r_off
-        .net_result
-        .equity_curve
-        .last()
-        .copied()
-        .unwrap_or(0.0);
+    let final_equity_off = r_off.net_result.equity_curve.last().copied().unwrap_or(0.0);
     let final_equity_on = r_on.net_result.equity_curve.last().copied().unwrap_or(0.0);
     let trade_pnl_sum_off: f64 = r_off.net_result.trade_pnls.iter().sum();
     let trade_pnl_sum_on: f64 = r_on.net_result.trade_pnls.iter().sum();

@@ -44,7 +44,6 @@
 use super::*;
 use recursive_tower::WindowScanCursor;
 
-
 /// 单级增量缓存：已确认前缀 + 续扫断点。
 ///
 /// 不变量（跨 bar 保持）：

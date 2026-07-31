@@ -8,7 +8,9 @@ use std::rc::Rc;
 use crate::theta_v0::classifier::recursive_tower::{
     self, project_to_units, CandDeltaEntryEvent, CandDeltaEvent, LeveledMove,
 };
-use crate::theta_v0::classifier::{decompose, divergence, unit_to_segment, Classification, TowerCache};
+use crate::theta_v0::classifier::{
+    decompose, divergence, unit_to_segment, Classification, TowerCache,
+};
 use crate::theta_v0::config::ThetaConfig;
 use crate::theta_v0::env_registry;
 use crate::theta_v0::parser::ParseLayer;

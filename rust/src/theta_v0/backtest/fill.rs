@@ -5183,10 +5183,8 @@ where
                     "#351 MED：risk.level_weights 违反 Σw_ℓ≤1（enforce_level_cap=true 时配置必须合规）"
                 );
                 let lee_lot = config.risk.default_lot.max(1) as i64;
-                let lee_basis = super::super::strategy::level_ledger::level_nets(
-                    &step_trace.sep_legs,
-                    lee_lot,
-                );
+                let lee_basis =
+                    super::super::strategy::level_ledger::level_nets(&step_trace.sep_legs, lee_lot);
                 let lee_pre_cap_total = standard_p_star.round() as i64;
                 let (lee_targets, _lee_used_residual, _lee_rescaled) =
                     super::super::strategy::level_attrib::attribute_total(

@@ -139,24 +139,26 @@ pub mod streaming;
 /// 保原 `classifier::cp_replay_diagnostics` 等路径全仓零变化。
 pub mod diag;
 pub mod tower_cache;
+use diag::cand_delta::cache_series_ok;
 pub use diag::cp_replay_diagnostics;
 #[cfg(test)]
 pub use diag::oracle_probe;
 pub use diag::stage_profile;
-pub use diag::{cand_delta_entry_tower, cand_delta_tower, cand_delta_tower_cached, cp_recall_upper_bound_audit};
+pub use diag::{
+    cand_delta_entry_tower, cand_delta_tower, cand_delta_tower_cached, cp_recall_upper_bound_audit,
+};
 pub use tower_cache::TowerCache;
-use diag::cand_delta::cache_series_ok;
 use tower_cache::{compute_macd_hist_incremental, update_closes_cache, AreaCache, LevelCache};
 
 use super::types::Side;
 use bsp::BspPoint;
 use center::UnitRange;
-use recursive_tower::{compose_level_resume, WindowScanCursor};
 use decompose::{decompose, decompose_resume, MoveBlock};
 use recursive_tower::{
     compose_level, descend_leveled, index_of_in, map_src_to_close_idx, project_to_units,
     CpScanOwnership, ElementId, LeveledMove, WinMeta,
 };
+use recursive_tower::{compose_level_resume, WindowScanCursor};
 
 /// 单级别分类状态（R6 态 + 走势类型 + 中枢 + 买卖点）。
 #[derive(Debug, Clone, Default, PartialEq)]
