@@ -3523,7 +3523,11 @@ mod tests {
             };
             let (out_win, metas, _cursor) =
                 recursive_tower::detect_centers_windowed_resume(&units, build, 0);
-            assert_eq!(out_win.len(), metas.len(), "L{level_idx} out/metas 1:1 对齐");
+            assert_eq!(
+                out_win.len(),
+                metas.len(),
+                "L{level_idx} out/metas 1:1 对齐"
+            );
             assert_eq!(
                 out_win.iter().map(|(c, _)| *c).collect::<Vec<_>>(),
                 centers,
@@ -3583,7 +3587,13 @@ mod tests {
                                     .iter()
                                     .enumerate()
                                     .map(|(si, u)| {
-                                        format!("段{}(unit_idx={}) lo={} hi={}", si, s + si, u.lo, u.hi)
+                                        format!(
+                                            "段{}(unit_idx={}) lo={} hi={}",
+                                            si,
+                                            s + si,
+                                            u.lo,
+                                            u.hi
+                                        )
                                     })
                                     .collect();
                                 discard_examples.push(format!(
@@ -3612,8 +3622,14 @@ mod tests {
             if level_triggers > 0 {
                 let blocks_i = decompose::decompose(&centers);
                 let blocks_r = decompose::decompose(&centers_r_level);
-                let trend_i = blocks_i.iter().filter(|b| b.kind == MoveKind::Trend).count();
-                let trend_r = blocks_r.iter().filter(|b| b.kind == MoveKind::Trend).count();
+                let trend_i = blocks_i
+                    .iter()
+                    .filter(|b| b.kind == MoveKind::Trend)
+                    .count();
+                let trend_r = blocks_r
+                    .iter()
+                    .filter(|b| b.kind == MoveKind::Trend)
+                    .count();
                 trend_delta_examples.push(format!(
                     "L{level_idx}: blocks_I={} (trend={trend_i}) blocks_R={} (trend={trend_r})",
                     blocks_i.len(),
@@ -3660,6 +3676,375 @@ mod tests {
         eprintln!("[821] 点4（trend block 计数，同级本地，非级联）:");
         for ex in &trend_delta_examples {
             eprintln!("  {ex}");
+        }
+    }
+
+    /// #826 探针（wayfinder map #787 子票，乙类 task——只测量，不改生产行为/生产代码）：
+    /// 本仓的塔（`compose_level` 逐级上升）产出的走势分解，与缠师第 38 课「同级别分解」
+    /// （`docs/chanlun/text/blog/038-第38课.md:18`：把所有走势按一固定级别的走势类型分解成
+    /// 一段段连接）是不是同一个东西。
+    ///
+    /// 测四件（票面）：
+    /// 1. **切点对照**：塔每级的上级走势序列在 L0 原始 K 序上的切点，是否构成对整条行情的
+    ///    **无缝无重叠覆盖**（同级别分解的定义性要求：「分解成一段段走势类型的**连接**」，
+    ///    连接 ⟹ 前一段终点即后一段起点，无遗漏）。量：覆盖率、缺口条数、缺口跨的 bar 数。
+    /// 2. **唯一性**：同输入同输出（纯函数）+ 前缀稳定性（把 units 截断到前 n 个再分解，
+    ///    结果是否是全量分解的前缀）——第 38 课要求「分解的唯一性」。
+    /// 3. **第 38 课细则**（`038-第38课.md:24`+`:26`）：同级别分解在**操作级别上不定义中枢
+    ///    延伸、允许盘整+盘整**，而**该级别以下允许延伸**。塔在**每一级**都无条件跑
+    ///    `detect_centers_windowed_resume` 的 Step2 延伸吸收 ⟹ 量「每级有多少窗口发生了延伸
+    ///    （窗口段数>3）」，若每级都>0，则塔不存在一个「关掉延伸」的操作级别。
+    /// 4. **最小反例**：打印首个缺口（塔丢弃的连接段）的坐标 + 该缺口两侧上级走势。
+    ///
+    /// 数据：`analysis/data_cache/btc_1m_full.json`（`load_by_symbol("BTC", ..)`，1 分钟 K，
+    /// 全历史）——bar 数以运行时 `[826] BTC bars=` 行为准。级别循环与生产 `classify` 逐级
+    /// assert 对拍（675号：探针走生产路径）。
+    ///
+    /// 运行：`cargo test --release --lib -- --ignored --nocapture issue826_same_level_decomp_probe`
+    #[test]
+    #[ignore = "issue #826 探针：cargo test --release --lib -- --ignored --nocapture issue826_same_level_decomp_probe"]
+    fn issue826_same_level_decomp_probe() {
+        use super::super::backtest::data::load_by_symbol;
+        use super::super::parser::parse_layer;
+
+        let cfg = ThetaConfig::default();
+        let full = load_by_symbol("BTC", &cfg)
+            .expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
+        eprintln!("[826] BTC bars={}", full.bars.len());
+        let layer = parse_layer(&full.bars, &cfg);
+        eprintln!(
+            "[826] L0 segments={} merged_bars={}",
+            layer.segments.len(),
+            layer.merged_bars.len()
+        );
+        let l0_span_lo = layer.segments.first().map(|s| s.start_index).unwrap_or(0);
+        let l0_span_hi = layer.segments.last().map(|s| s.end_index).unwrap_or(0);
+        eprintln!("[826] L0 线段覆盖的原始 K 序区间 = [{l0_span_lo}, {l0_span_hi}]");
+
+        let out = classify(&layer, &cfg);
+
+        let min_parts = cfg.level.min_parts_per_level as usize;
+        let l_max = cfg.level.l_max as usize;
+        let mut units: Vec<UnitRange> = layer.segments.iter().map(segment_to_unit).collect();
+        let mut moves_tower: Rc<Vec<LeveledMove>> = Rc::new(
+            units
+                .iter()
+                .enumerate()
+                .map(|(i, u)| {
+                    LeveledMove::from_unit(
+                        u,
+                        ElementId {
+                            level: 0,
+                            ordinal: i as u64,
+                        },
+                    )
+                })
+                .collect(),
+        );
+
+        let mut first_gap_report: Option<String> = None;
+
+        for level_idx in 0..=l_max {
+            if units.len() < min_parts {
+                eprintln!(
+                    "[826] L{level_idx}: units={} < min_parts ⟹ 塔自然终止",
+                    units.len()
+                );
+                break;
+            }
+            let is_l0 = level_idx == 0;
+            let (centers, _blocks) = classify_level(&units, is_l0);
+            assert_eq!(
+                centers, *out.levels[level_idx].centers,
+                "L{level_idx} 中枢对拍（探针须与生产 classify 逐字段一致）"
+            );
+
+            let build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center> = if is_l0 {
+                center::center_from_segments
+            } else {
+                center::center_from_window
+            };
+            let (out_win, _metas, _cursor) =
+                recursive_tower::detect_centers_windowed_resume(&units, build, 0);
+            assert_eq!(
+                out_win.iter().map(|(c, _)| *c).collect::<Vec<_>>(),
+                centers,
+                "L{level_idx} 窗口探针中枢序列 == 生产中枢序列"
+            );
+
+            let (_cw, upper_moves, _) =
+                compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
+
+            // ── 点 1：单元层覆盖（本级 units 有多少被上级走势吃掉，多少被丢弃）
+            let n_units = units.len();
+            let mut consumed_units = 0usize;
+            for (_, (a, b)) in &out_win {
+                consumed_units += b - a + 1;
+            }
+            // 缺口 = 相邻窗口之间未被任何窗口覆盖的 unit 段（含头尾）
+            let mut gap_runs: Vec<(usize, usize)> = Vec::new(); // unit 索引闭区间
+            let mut cursor_u = 0usize;
+            for (_, (a, b)) in &out_win {
+                if *a > cursor_u {
+                    gap_runs.push((cursor_u, a - 1));
+                }
+                cursor_u = b + 1;
+            }
+            if cursor_u < n_units {
+                gap_runs.push((cursor_u, n_units - 1));
+            }
+            let gap_units: usize = gap_runs.iter().map(|(a, b)| b - a + 1).sum();
+            // ── 基线校准：本级 units 序列自身在 bar 坐标上是否首尾相接（若本身就不相接，
+            // 则塔的 bar 层断点不能全部归因于「丢弃连接段」）。
+            let unit_adj_ok = units
+                .windows(2)
+                .filter(|w| w[0].end_index == w[1].start_index)
+                .count();
+            let unit_adj_gapbars: i64 = units
+                .windows(2)
+                .map(|w| (w[1].start_index as i64 - w[0].end_index as i64).max(0))
+                .sum();
+            eprintln!(
+                "[826] L{level_idx} 基线: units 相邻首尾相接={unit_adj_ok}/{} units 自身缺口总 bar={unit_adj_gapbars}",
+                units.len().saturating_sub(1)
+            );
+            // 点4 最小反例：L0 头 3 条缺口的逐单元明细（塔丢弃的连接段）
+            if is_l0 {
+                for (gi, (a, b)) in gap_runs.iter().take(3).enumerate() {
+                    let detail: Vec<String> = (*a..=*b)
+                        .map(|k| {
+                            format!(
+                                "unit#{k}[src {}..{} lo={} hi={}]",
+                                units[k].start_index, units[k].end_index, units[k].lo, units[k].hi
+                            )
+                        })
+                        .collect();
+                    eprintln!(
+                        "[826] 点4 L0 缺口#{gi}: 丢弃 units[{a}..={b}]（{} 段） {}",
+                        b - a + 1,
+                        detail.join(" ")
+                    );
+                }
+            }
+
+            // ── 点 1b：bar 层覆盖（上级走势在 L0 原始 K 序上的切点是否首尾相接）
+            let mut covered_bars: i64 = 0;
+            let mut joint_ok = 0usize;
+            let mut joint_gap = 0usize;
+            let mut joint_overlap = 0usize;
+            let mut gap_bars: i64 = 0;
+            for m in &upper_moves {
+                covered_bars += m.end_index as i64 - m.start_index as i64;
+            }
+            for w in upper_moves.windows(2) {
+                let (prev, next) = (&w[0], &w[1]);
+                match next.start_index.cmp(&prev.end_index) {
+                    std::cmp::Ordering::Equal => joint_ok += 1,
+                    std::cmp::Ordering::Greater => {
+                        joint_gap += 1;
+                        gap_bars += next.start_index as i64 - prev.end_index as i64;
+                        if first_gap_report.is_none() {
+                            first_gap_report = Some(format!(
+                                "L{level_idx}→L{}: 上级走势#{}[src {}..{}] 与 #{}[src {}..{}] 之间空出 {} 根 K（塔丢弃的连接段）",
+                                level_idx + 1,
+                                upper_moves.iter().position(|x| std::ptr::eq(x, prev)).unwrap_or(0),
+                                prev.start_index, prev.end_index,
+                                upper_moves.iter().position(|x| std::ptr::eq(x, next)).unwrap_or(0),
+                                next.start_index, next.end_index,
+                                next.start_index - prev.end_index
+                            ));
+                        }
+                    }
+                    std::cmp::Ordering::Less => joint_overlap += 1,
+                }
+            }
+            let span_lo = upper_moves.first().map(|m| m.start_index).unwrap_or(0);
+            let span_hi = upper_moves.last().map(|m| m.end_index).unwrap_or(0);
+            let head_bars = span_lo as i64 - l0_span_lo as i64;
+            let tail_bars = l0_span_hi as i64 - span_hi as i64;
+
+            // ── 点 3：延伸窗口占比（窗口段数 > 3 ⟹ 该窗口发生了中枢延伸吸收）
+            let ext_windows = out_win.iter().filter(|(_, (a, b))| b - a + 1 > 3).count();
+            let max_win_len = out_win
+                .iter()
+                .map(|(_, (a, b))| b - a + 1)
+                .max()
+                .unwrap_or(0);
+
+            // ── 点 1c：上级走势的跨度分布（同级别分解要求同级别 ⟹ 尺度可比）
+            let mut spans: Vec<i64> = upper_moves
+                .iter()
+                .map(|m| m.end_index as i64 - m.start_index as i64)
+                .collect();
+            spans.sort_unstable();
+            let (s_min, s_med, s_max) = if spans.is_empty() {
+                (0, 0, 0)
+            } else {
+                (spans[0], spans[spans.len() / 2], spans[spans.len() - 1])
+            };
+
+            eprintln!(
+                "[826] L{level_idx}: units={n_units} upper_moves={} | 单元覆盖: 被吃={consumed_units} 丢弃={gap_units}（{:.2}%）缺口段数={} \
+                 | bar 切点: 首尾相接={joint_ok} 断开={joint_gap} 重叠={joint_overlap} 断开总 bar={gap_bars} 头={head_bars} 尾={tail_bars} \
+                 | 上级走势跨度(bar) min={s_min} med={s_med} max={s_max} | 延伸窗口={ext_windows}/{} 最长窗口段数={max_win_len}",
+                upper_moves.len(),
+                100.0 * gap_units as f64 / n_units.max(1) as f64,
+                gap_runs.len(),
+                out_win.len(),
+            );
+            let _ = covered_bars;
+
+            // ── 点 1d：与本仓**已有的另一套同级分解**对照——`decompose::decompose(centers)`
+            // 产出的 MoveBlock 链（走势类型 Trend/Consolidation 的连接，中枢下标空间上
+            // `b[j+1].start == b[j].end` 严格连续）。这是形状上唯一与「同级别分解」对得上的
+            // 对象。塔**不走它**（塔走的是一中枢一上级走势的 upper_moves）。逐点比两者切点。
+            let blocks = &out.levels[level_idx].moves;
+            let blk_cuts: Vec<(usize, usize)> = blocks
+                .iter()
+                .map(|b| {
+                    (
+                        centers[b.start_center].start_index,
+                        centers[b.end_center].end_index,
+                    )
+                })
+                .collect();
+            let mut blk_joint_ok = 0usize;
+            let mut blk_joint_gap = 0usize;
+            let mut blk_joint_overlap = 0usize;
+            let mut blk_gap_bars: i64 = 0;
+            for w in blk_cuts.windows(2) {
+                match w[1].0.cmp(&w[0].1) {
+                    std::cmp::Ordering::Equal => blk_joint_ok += 1,
+                    std::cmp::Ordering::Greater => {
+                        blk_joint_gap += 1;
+                        blk_gap_bars += w[1].0 as i64 - w[0].1 as i64;
+                    }
+                    std::cmp::Ordering::Less => blk_joint_overlap += 1,
+                }
+            }
+            // 切点集合逐点比：上级走势起点集合 vs 块起点集合
+            let up_starts: std::collections::BTreeSet<usize> =
+                upper_moves.iter().map(|m| m.start_index).collect();
+            let blk_starts: std::collections::BTreeSet<usize> =
+                blk_cuts.iter().map(|c| c.0).collect();
+            let shared = up_starts.intersection(&blk_starts).count();
+            eprintln!(
+                "[826] L{level_idx} 两套口径切点对照: 走势类型块={} (切点接合: 相接={blk_joint_ok} 断开={blk_joint_gap} 重叠={blk_joint_overlap} 断开总bar={blk_gap_bars}) \
+                 vs 塔上级走势={} | 起点切点交集={shared}（占块起点 {:.2}%，占塔起点 {:.2}%）",
+                blocks.len(),
+                upper_moves.len(),
+                100.0 * shared as f64 / blk_starts.len().max(1) as f64,
+                100.0 * shared as f64 / up_starts.len().max(1) as f64,
+            );
+
+            // ── 点 1e ★核心对照：口径 S = 第 38 课同级别分解规则的直译
+            // （`038-第38课.md:20`「在这种同级别的分解中，是**不需要中枢延伸或扩展的概念**的，
+            //   对30分钟来说，只要5分钟级别的**三段**上下上或下上下类型有价格区间的重合就构成
+            //   中枢。如果这5分钟次级别延伸出6段，那么就当成**两个**30分钟盘整类型的连接」）：
+            // 同一个 seed 判据（`build`，与生产逐字段同源），但窗口**恒为 3 段**、成立即 i += 3，
+            // 不做任何延伸吸收。口径 T = 生产塔（seed + 延伸吸收 + ≥9 段重切）。
+            let mut s_windows: Vec<(usize, usize)> = Vec::new();
+            {
+                let mut i = 0usize;
+                while i + 2 < units.len() {
+                    if build(&units[i], &units[i + 1], &units[i + 2]).is_some() {
+                        s_windows.push((i, i + 2));
+                        i += 3;
+                    } else {
+                        i += 1;
+                    }
+                }
+            }
+            let t_windows: Vec<(usize, usize)> = out_win.iter().map(|(_, w)| *w).collect();
+            let s_starts: std::collections::BTreeSet<usize> =
+                s_windows.iter().map(|w| w.0).collect();
+            let t_starts: std::collections::BTreeSet<usize> =
+                t_windows.iter().map(|w| w.0).collect();
+            let st_shared = s_starts.intersection(&t_starts).count();
+            let identical_windows = s_windows
+                .iter()
+                .filter(|w| t_windows.binary_search(w).is_ok())
+                .count();
+            let s_consumed: usize = s_windows.len() * 3;
+            eprintln!(
+                "[826] L{level_idx} ★口径对照 S(38课·禁延伸·恒3段) vs T(生产塔·延伸吸收): \
+                 中枢数 S={} T={} (T/S={:.3}) | 窗口起点交集={st_shared}（占S {:.2}%，占T {:.2}%）\
+                 | 完全相同的窗口(起止都同)={identical_windows} | 单元覆盖 S={s_consumed}/{n_units} T={consumed_units}/{n_units}",
+                s_windows.len(),
+                t_windows.len(),
+                t_windows.len() as f64 / s_windows.len().max(1) as f64,
+                100.0 * st_shared as f64 / s_starts.len().max(1) as f64,
+                100.0 * st_shared as f64 / t_starts.len().max(1) as f64,
+            );
+            if is_l0 {
+                // 最小反例：首个「T 延伸吸收 ≥6 段、S 拆成 ≥2 个中枢」的窗口
+                if let Some((a, b)) = t_windows.iter().find(|(a, b)| b - a + 1 >= 6) {
+                    let s_inside: Vec<_> = s_windows
+                        .iter()
+                        .filter(|w| w.0 >= *a && w.1 <= *b)
+                        .collect();
+                    eprintln!(
+                        "[826] 点4 最小反例（L0 首个 ≥6 段延伸窗口）: T 把 units[{a}..={b}]（{} 段，src {}..{}）\
+                         吃成 **1 个**中枢/1 段上级走势；S（38课）在同一区间产 **{} 个**中枢 {:?} \
+                         ⟹ 上级走势数差 {}，38课口径下这里是「盘整+盘整」的连接，塔口径下是单个延伸中枢",
+                        b - a + 1,
+                        units[*a].start_index,
+                        units[*b].end_index,
+                        s_inside.len(),
+                        s_inside,
+                        s_inside.len() as i64 - 1,
+                    );
+                }
+            }
+
+            // ── 点 2：唯一性 / 前缀稳定性（同一份 units 截断到 90% 再分解，比对前缀）
+            if n_units >= 20 {
+                let cut = n_units * 9 / 10;
+                let (pre_win, _, _) =
+                    recursive_tower::detect_centers_windowed_resume(&units[..cut], build, 0);
+                // 全量里完全落在 [0,cut) 内的窗口
+                let full_inside: Vec<_> = out_win
+                    .iter()
+                    .filter(|(_, (_, b))| *b < cut)
+                    .cloned()
+                    .collect();
+                let common = full_inside.len().min(pre_win.len());
+                let mismatch = (0..common)
+                    .filter(|&k| full_inside[k] != pre_win[k])
+                    .count();
+                for k in 0..common {
+                    if full_inside[k] != pre_win[k] {
+                        eprintln!(
+                            "[826]   L{level_idx} 前缀不一致 #{k}: 全量 win={:?} center=[{},{}] vs 截断 win={:?} center=[{},{}]（cut={cut}）",
+                            full_inside[k].1, full_inside[k].0.zd, full_inside[k].0.zg,
+                            pre_win[k].1, pre_win[k].0.zd, pre_win[k].0.zg,
+                        );
+                        break;
+                    }
+                }
+                eprintln!(
+                    "[826] L{level_idx} 前缀稳定性: 截断到 units[..{cut}]，截断产出={} 全量内含={} 共同前缀比对不一致={}",
+                    pre_win.len(),
+                    full_inside.len(),
+                    mismatch
+                );
+                // 确定性：同输入跑两遍
+                let (again, _, _) =
+                    recursive_tower::detect_centers_windowed_resume(&units, build, 0);
+                assert_eq!(again, out_win, "L{level_idx} 同输入两次分解必须逐位相同");
+            }
+
+            units = project_to_units(&upper_moves, &out.levels[level_idx].moves);
+            moves_tower = Rc::new(upper_moves);
+            if units.is_empty() {
+                break;
+            }
+        }
+
+        eprintln!("[826] 点4 首个 bar 层缺口（最小反例锚）：");
+        match &first_gap_report {
+            Some(r) => eprintln!("  {r}"),
+            None => eprintln!("  未发现 bar 层缺口"),
         }
     }
 
