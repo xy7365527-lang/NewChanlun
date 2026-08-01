@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>术语表 · 纵向 / 横向</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<article>
+
+<header class="lesson-header">
+  <p class="lesson-kicker">术语表 · Reference</p>
+  <h1>纵向 / 横向 术语表</h1>
+  <p class="glossary-intro">
+    快速查阅用，可 Ctrl+F。<strong>此后本工作区每一课都必须照这份术语表用词，不再换词</strong>——
+    同一个概念只用一个名字，是这份表存在的唯一理由。若某课需要引入新词，先回这里补一条，再去用。
+  </p>
+  <p class="glossary-intro">
+    每条格式：一句人话定义 + 出处。
+    <span class="tag tag-original">原文</span> = 缠论原文既有词汇（课号见出处行）；
+    <span class="tag tag-repo">本仓术语</span> = 本教学工作区自己起的名字，缠论原文没有这个词。
+  </p>
+</header>
+
+<nav class="glossary-nav" aria-label="术语快速跳转">
+  <a href="#zaojibie">造级别</a>
+  <a href="#dujibie">读级别</a>
+  <a href="#zhongjianchanwu">中间产物</a>
+  <a href="#zuizhongchanwu">最终产物</a>
+  <a href="#caozuojibie">操作级别</a>
+  <a href="#chong">重</a>
+  <a href="#yanshen">延伸</a>
+  <a href="#kuozhan">扩展</a>
+  <a href="#shengji">升级</a>
+  <a href="#tongjibiefenjie">同级别分解</a>
+  <a href="#duochongfuge">多重赋格</a>
+  <a href="#zongxiangdigui">纵向递归</a>
+  <a href="#hengxiang">横向</a>
+  <a href="#ta">塔</a>
+  <a href="#qujiantao">区间套</a>
+</nav>
+
+<dl class="glossary">
+
+  <dt id="zaojibie">造级别 <span class="tag tag-repo">本仓术语</span></dt>
+  <dd>
+    沿纵向递归往上走的动作——用低一级的构件（线段、中枢）拼出高一级的构件，直到拼出你想要的那一级。
+    <span class="term-source">出处：本仓术语，见「第 0001 课」纵向/横向方向表「纵向&middot;往上」一行的概括。</span>
+  </dd>
+
+  <dt id="dujibie">读级别 <span class="tag tag-repo">本仓术语</span></dt>
+  <dd>
+    同级别分解要做的事——选定一层，把市场切成一段段那一层的走势类型，不产生新的更高级别。
+    <span class="term-source">出处：本仓术语，见「第 0001 课」方向表「横向（同级别分解）」一行的概括。</span>
+  </dd>
+
+  <dt id="zhongjianchanwu">中间产物 <span class="tag tag-repo">本仓术语</span></dt>
+  <dd>
+    操作级别以下的每一层——它们被造出来不是为了下单，是为了被更高一级吸收、继续往上晋升。
+    <span class="term-source">出处：本仓术语，见「第 0001 课」展开三。</span>
+  </dd>
+
+  <dt id="zuizhongchanwu">最终产物 <span class="tag tag-repo">本仓术语</span></dt>
+  <dd>
+    你选定的操作级别本身——不再往上晋升，只管这一层的买卖判断。
+    <span class="term-source">出处：本仓术语，见「第 0001 课」展开三。</span>
+  </dd>
+
+  <dt id="caozuojibie">操作级别 <span class="tag tag-repo">本仓术语</span></dt>
+  <dd>
+    真正拿去下单的那一层级别——「重」三要件之一，也是"以下都允许延伸、这一层不定义延伸"规则里被特殊对待的那一层。
+    <span class="term-source">
+      出处：本仓术语，见 <code>docs/adr/0010-chong-persistent-operating-unit.md</code>；
+      语感源自 <code>038-第38课.md:30</code>【正文】"某个量的筹码按某个级别的分解操作"。
+    </span>
+  </dd>
+
+  <dt id="chong">重（chóng） <span class="tag tag-original">原文</span></dt>
+  <dd>
+    一个持久的操作单位，由〈标的、操作级别、专属筹码〉三要件构成，三者缺一不可；
+    一份筹码在某个级别上反复进出、成本不断降低，跨越多次建仓而不终结。
+    <span class="term-source">
+      出处：缠师原词，<code>040-第40课.md:20</code>【正文】"可以变成N重层次的操作，每一重都对应着一定的资金与筹码"；
+      三要件的结构化定义见本仓 <code>docs/adr/0010-chong-persistent-operating-unit.md</code>（ADR 0010）。
+    </span>
+  </dd>
+
+  <dt id="yanshen">延伸 <span class="tag tag-original">原文</span></dt>
+  <dd>
+    判断一个中枢震荡了很多段之后还算不算同一个中枢——本质是在问它是不是长大到够格往上走一级。
+    <span class="term-source">
+      出处：<code>038-第38课.md</code>（如 22、26 段多次提及使用场景）；
+      精确数学定义见更早课程，本课未引用具体课号。
+    </span>
+  </dd>
+
+  <dt id="kuozhan">扩展 <span class="tag tag-original">原文</span></dt>
+  <dd>
+    判断两个挨着的中枢要不要合并成一个更大的中枢——合并之后就是高一级的中枢。
+    <span class="term-source">
+      出处：<code>038-第38课.md:22</code> 提及使用场景；精确数学定义见更早课程，本课未引用具体课号。
+    </span>
+  </dd>
+
+  <dt id="shengji">升级 <span class="tag tag-original">原文</span></dt>
+  <dd>
+    不经过"震荡变大"或"两个合并"，直接把走出的结构判定为高一级的构件。
+    <span class="term-source">出处：<code>038-第38课.md</code> 语境；本课未引用升级本身的定义课号。</span>
+  </dd>
+
+  <dt id="tongjibiefenjie">同级别分解 <span class="tag tag-original">原文</span></dt>
+  <dd>
+    把所有走势按一个固定级别的走势类型进行分解；根据"缠中说禅走势分解定理"，这种分解具有唯一性。
+    <span class="term-source">
+      出处：<code>038-第38课.md:18</code>【正文】"所谓同级别分解，就是把所有走势按一固定级别的走势类型进行分解"。
+    </span>
+  </dd>
+
+  <dt id="duochongfuge">多重赋格 <span class="tag tag-original">原文</span></dt>
+  <dd>
+    多个操作级别同时运作、各自按自己的节奏进出筹码——像赋格曲里多个声部各自独立又合成一支曲子。
+    <span class="term-source">
+      出处：缠师原词，<code>040-第40课.md:20</code>【正文】"这如同赋格曲……市场的走势，其实就是这样的多重赋格"；
+      "N 是沿纵向铺开的"这一结构性说法是「第 0001 课」的转译，原文未直接这样表述。
+    </span>
+  </dd>
+
+  <dt id="zongxiangdigui">纵向递归 <span class="tag tag-repo">本仓术语</span></dt>
+  <dd>
+    级别之间自下而上（造）和自上而下（区间套，往下钻找精确位置）的构造/定位过程；两个方向用的是同一套判定。
+    <span class="term-source">
+      出处：本仓术语，见「第 0001 课」方向表 + <code>.chanlun/definitions/level_recursion.md</code>（级别递归教义正本）。
+    </span>
+  </dd>
+
+  <dt id="hengxiang">横向 <span class="tag tag-repo">本仓术语</span></dt>
+  <dd>
+    在选定的一层内把走势切成一段段该层走势类型的动作；只切一次，不自我调用，因此不是递归——
+    "横向递归"是「第 0001 课」订正掉的错误说法，请勿再用。
+    <span class="term-source">出处：本仓术语，见「第 0001 课」"一处订正"。</span>
+  </dd>
+
+  <dt id="ta">塔 <span class="tag tag-repo">本仓术语</span></dt>
+  <dd>
+    纵向递归反复往上造出来的层叠结构，每一层是一个级别；多重赋格就是在这座塔的若干层上各横切一刀。
+    <span class="term-source">出处：本仓术语，见「第 0001 课」比喻；架构讨论 issue #787 语境沿用同一意象。</span>
+  </dd>
+
+  <dt id="qujiantao">区间套 <span class="tag tag-original">原文</span></dt>
+  <dd>
+    在高一级的关键点位上，用低一级的结构反复往下钻，把位置钉得更精确。
+    <span class="term-source">
+      出处：缠论原文概念（<code>038-第38课.md</code> 评论区提及"这个背驰段的区间套方法是一个道理"）；
+      正式数学定义见更早课程，本课未引用具体课号。
+    </span>
+  </dd>
+
+</dl>
+
+<footer class="course-footer">
+  <p>有不懂的，直接问你的老师（本 agent）。</p>
+  <p>
+    <a href="../lessons/0001-vertical-builds-horizontal-reads.html">返回第 0001 课</a>
+    &middot;
+    <a href="../MISSION.md">MISSION</a>
+  </p>
+</footer>
+
+</article>
+</body>
+</html>

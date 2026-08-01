@@ -1,0 +1,596 @@
+/*
+ * course.css — 「纵向/横向」教学工作区共享样式
+ *
+ * 每一课都会 link 这份文件（../assets/course.css）。风格取向：Tufte——
+ * 衬线正文、宽松行高、窄栏、边注（sidenote）、克制配色、干净表格、
+ * 低调代码块、打印友好。不引外部 CDN 字体，全部使用系统字体栈。
+ *
+ * 版式几何：
+ *   正文栏宽 --main-width（约 34em），右侧留一条 --sidenote-width 的边注带，
+ *   边注用经典 Tufte 手法实现：float: right + 负 margin-right 把它从正文栏
+ *   "挤"到右边的留白里。容器 --page-width = 正文栏 + 边注带。
+ */
+
+:root {
+  --main-width: 34em;
+  --sidenote-width: 14em;
+  --page-width: 50em; /* main-width + sidenote-width，供留白计算 */
+
+  --color-bg: #fffef9;
+  --color-text: #1a1a17;
+  --color-muted: #5b5850;
+  --color-faint: #8a8778;
+  --color-rule: #ddd9cc;
+  --color-rule-strong: #b9b49f;
+  --color-accent: #8a3324;       /* 克制的砖红，用于强调与链接 */
+  --color-accent-soft: #c96a52;
+  --color-correct: #3f6b3f;
+  --color-correct-bg: #eef4ec;
+  --color-wrong: #8a3324;
+  --color-wrong-bg: #f7ede9;
+  --color-code-bg: #f3f1e8;
+  --color-callout-bg: #f6f2e7;
+
+  --serif: Palatino, "Palatino Linotype", "Hoefler Text", "Songti SC", "STSong",
+    "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
+  --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue",
+    "Microsoft YaHei", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Courier New", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--serif);
+  font-size: 1.125rem;
+  line-height: 1.9;
+  margin: 0;
+  padding: 3.5rem 1.25rem 6rem;
+  -webkit-font-smoothing: antialiased;
+}
+
+article {
+  max-width: var(--page-width);
+  margin: 0 auto;
+}
+
+/* ---------- 正文栏宽度 ---------- */
+
+p,
+ul,
+ol,
+blockquote,
+.lesson-header,
+h1,
+h2,
+h3,
+h4 {
+  max-width: var(--main-width);
+}
+
+/* 需要占满整个页面宽度的元素（表格、代码块、图示）显式放开 */
+table,
+pre,
+.full-width {
+  max-width: var(--page-width);
+}
+
+li > ul,
+li > ol {
+  max-width: none; /* 嵌套列表跟随父级宽度，不再单独收窄 */
+}
+
+/* ---------- 标题 ---------- */
+
+h1,
+h2,
+h3,
+h4 {
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text);
+}
+
+h1 {
+  font-size: 1.9rem;
+  margin: 0 0 0.6rem;
+}
+
+h2 {
+  font-size: 1.4rem;
+  margin: 2.6rem 0 1rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+h3 {
+  font-size: 1.15rem;
+  margin: 1.8rem 0 0.8rem;
+  color: var(--color-muted);
+}
+
+h4 {
+  font-size: 1rem;
+  margin: 1.4rem 0 0.6rem;
+}
+
+/* ---------- 段落 / 列表 / 链接 ---------- */
+
+p {
+  margin: 0 0 1.1rem;
+}
+
+ul,
+ol {
+  margin: 0 0 1.1rem;
+  padding-left: 1.4rem;
+}
+
+li {
+  margin-bottom: 0.4rem;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration-color: var(--color-accent-soft);
+  text-underline-offset: 0.15em;
+}
+
+a:hover {
+  color: var(--color-accent-soft);
+}
+
+strong {
+  font-weight: 700;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: var(--color-code-bg);
+  padding: 0.08em 0.35em;
+  border-radius: 0.25em;
+}
+
+pre {
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  background: var(--color-code-bg);
+  border-left: 3px solid var(--color-rule-strong);
+  padding: 1rem 1.2rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  margin: 0 0 1.3rem;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--color-rule);
+  margin: 2.4rem 0;
+  max-width: var(--main-width);
+}
+
+/* ---------- 引用 / 原文块 ---------- */
+
+blockquote {
+  margin: 1.3rem 0 1.5rem;
+  padding: 0.2rem 0 0.2rem 1.1rem;
+  border-left: 3px solid var(--color-rule-strong);
+  color: var(--color-text);
+}
+
+blockquote p {
+  margin-bottom: 0.4rem;
+}
+
+blockquote cite {
+  display: block;
+  font-family: var(--sans);
+  font-style: normal;
+  font-size: 0.82rem;
+  color: var(--color-faint);
+}
+
+/* 逐字原文引用：给一条更醒目的左边框，和普通 blockquote 区分开 */
+blockquote.source-quote {
+  border-left-color: var(--color-accent);
+  background: linear-gradient(to right, rgba(138, 51, 36, 0.05), transparent 60%);
+}
+
+/* 课程自己的转译 / 比喻，不是逐字原文，用暖灰底区分 */
+blockquote.callout {
+  border-left-color: var(--color-rule-strong);
+  background: var(--color-callout-bg);
+  padding: 0.9rem 1.1rem;
+}
+
+/* ---------- 关键句 / 订正 / 溯源提示 ---------- */
+
+.key-point {
+  background: var(--color-callout-bg);
+  border-left: 3px solid var(--color-accent);
+  padding: 0.7rem 1rem;
+  margin: 0 0 1.2rem;
+}
+
+.correction {
+  border-left: 3px solid var(--color-accent-soft);
+  padding: 0.7rem 1rem;
+  margin: 0 0 1.2rem;
+  background: var(--color-code-bg);
+}
+
+.provenance-note {
+  color: var(--color-muted);
+  font-size: 0.95rem;
+}
+
+/* 溯源标签：原文明文 vs 推断 */
+.tag {
+  display: inline-block;
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  padding: 0.1em 0.55em;
+  border-radius: 0.9em;
+  border: 1px solid currentColor;
+  margin-left: 0.35em;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.tag-original {
+  color: var(--color-correct);
+}
+
+.tag-inferred {
+  color: var(--color-accent);
+  border-style: dashed;
+}
+
+.tag-repo {
+  color: var(--color-muted);
+  border-style: dotted;
+}
+
+/* ---------- 表格 ---------- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 1.6rem;
+  font-size: 1rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.55rem 0.9rem 0.55rem 0;
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+thead th {
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-muted);
+  border-bottom: 2px solid var(--color-rule-strong);
+}
+
+tbody th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+tbody tr:last-child td,
+tbody tr:last-child th {
+  border-bottom: none;
+}
+
+/* ---------- 边注 sidenote（经典 Tufte float 手法） ---------- */
+
+.sidenote {
+  float: right;
+  clear: right;
+  width: var(--sidenote-width);
+  margin-right: calc(-1 * var(--sidenote-width) - 2em);
+  margin-top: 0.25rem;
+  margin-bottom: 0;
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--color-muted);
+}
+
+.sidenote-number {
+  font-family: var(--sans);
+  font-size: 0.72em;
+  vertical-align: super;
+  color: var(--color-accent);
+}
+
+/* 窄屏（打印之外的移动端）放不下边注，退化为正文内的小字块 */
+@media (max-width: 62em) {
+  .sidenote {
+    float: none;
+    display: block;
+    width: auto;
+    max-width: var(--main-width);
+    margin: 0.5rem 0 1.1rem;
+    padding: 0.5rem 0.8rem;
+    background: var(--color-callout-bg);
+    border-left: 2px solid var(--color-rule-strong);
+  }
+}
+
+/* ---------- 课程头部 ---------- */
+
+.lesson-kicker {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  color: var(--color-faint);
+  margin: 0 0 0.4rem;
+  text-transform: uppercase;
+}
+
+.lesson-header {
+  margin-bottom: 1rem;
+}
+
+.lesson-answer {
+  font-size: 1.08rem;
+  color: var(--color-text);
+  background: var(--color-callout-bg);
+  border-left: 3px solid var(--color-accent);
+  padding: 0.8rem 1.1rem;
+  margin-top: 1rem;
+}
+
+/* ---------- 小测 quiz widget ---------- */
+
+.quiz-question {
+  max-width: var(--main-width);
+  margin: 0 0 2.2rem;
+  padding-bottom: 1.6rem;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.quiz-question:last-child {
+  border-bottom: none;
+}
+
+.quiz-prompt {
+  font-weight: 600;
+  margin-bottom: 0.8rem;
+}
+
+.quiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.quiz-option {
+  font-family: var(--serif);
+  font-size: 1rem;
+  line-height: 1.6;
+  text-align: left;
+  background: #fff;
+  color: var(--color-text);
+  border: 1px solid var(--color-rule-strong);
+  border-left: 3px solid var(--color-rule-strong);
+  border-radius: 0.2em;
+  padding: 0.6rem 0.85rem;
+  cursor: pointer;
+}
+
+.quiz-option:hover:not(:disabled) {
+  border-left-color: var(--color-accent);
+  background: var(--color-callout-bg);
+}
+
+.quiz-option:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.quiz-option:disabled {
+  cursor: default;
+}
+
+.quiz-option.is-correct {
+  border-left-color: var(--color-correct);
+  background: var(--color-correct-bg);
+}
+
+.quiz-option.is-chosen-wrong {
+  border-left-color: var(--color-wrong);
+  background: var(--color-wrong-bg);
+}
+
+.quiz-explain {
+  display: block;
+  font-family: var(--sans);
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: var(--color-muted);
+  margin-top: 0.45rem;
+}
+
+.quiz-status {
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin: 0.9rem 0 0;
+}
+
+.quiz-status.is-correct {
+  color: var(--color-correct);
+}
+
+.quiz-status.is-incorrect {
+  color: var(--color-wrong);
+}
+
+.quiz-retry {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--color-accent);
+  background: none;
+  border: none;
+  padding: 0.5rem 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+/* ---------- 页脚固定块 ---------- */
+
+.course-footer {
+  max-width: var(--main-width);
+  margin-top: 3rem;
+  padding-top: 1.4rem;
+  border-top: 2px solid var(--color-rule-strong);
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  color: var(--color-muted);
+}
+
+.course-footer p {
+  max-width: none;
+  margin: 0 0 0.5rem;
+}
+
+/* ---------- 术语表 reference/glossary 专用 ---------- */
+
+.glossary-intro {
+  color: var(--color-muted);
+}
+
+dl.glossary {
+  max-width: var(--page-width);
+}
+
+dl.glossary dt {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-top: 1.6rem;
+  scroll-margin-top: 1.5rem;
+}
+
+dl.glossary dd {
+  margin: 0.3rem 0 0;
+  max-width: var(--main-width);
+}
+
+dl.glossary dd .term-source {
+  display: block;
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--color-faint);
+  margin-top: 0.25rem;
+}
+
+.glossary-nav {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  max-width: var(--page-width);
+  line-height: 2;
+  border-bottom: 1px solid var(--color-rule);
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+}
+
+.glossary-nav a {
+  margin-right: 0.9rem;
+}
+
+/* ---------- 工具类 ---------- */
+
+.muted {
+  color: var(--color-muted);
+}
+
+.center {
+  text-align: center;
+}
+
+/* ---------- 打印 ---------- */
+
+@media print {
+  body {
+    background: #fff;
+    padding: 0;
+    font-size: 11.5pt;
+    line-height: 1.55;
+  }
+
+  article {
+    max-width: none;
+  }
+
+  a {
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  a[href]:after {
+    content: " (" attr(href) ")";
+    font-size: 0.75em;
+    color: var(--color-muted);
+  }
+
+  .sidenote {
+    float: none;
+    display: block;
+    width: auto;
+    max-width: none;
+    margin: 0.3rem 0 0.8rem;
+    padding-left: 0.6rem;
+    border-left: 1px solid var(--color-rule-strong);
+  }
+
+  h2 {
+    break-after: avoid;
+  }
+
+  table,
+  blockquote,
+  .quiz-question,
+  pre {
+    break-inside: avoid;
+  }
+
+  /* 打印时把所有小测解释直接展开，纸面上没有"点击"这回事 */
+  .quiz-explain {
+    display: block !important;
+    hidden: none;
+  }
+
+  .quiz-option[hidden],
+  .quiz-explain[hidden] {
+    display: block !important;
+  }
+
+  .quiz-retry {
+    display: none;
+  }
+}
