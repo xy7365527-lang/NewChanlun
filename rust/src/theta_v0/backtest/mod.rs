@@ -120,3 +120,9 @@ mod l3_delta_r_alpha;
 /// `OverlayRunResult.level_ledger`（LEE M1 只读旁路镜像）+ 生产 `IncrementalClassifier`。
 #[cfg(test)]
 mod issue837_probe;
+
+/// ★issue #841 探针（map #787，喂 #839）：两张按级别分钱的权重表是不是同一根轴。
+/// 整模块 `#[cfg(test)]` ⟹ 零生产行为改动；数据源 = 生产 `extract_carrier_forest`/`leg_target`
+/// （结构口径）+ 生产 `run_theta_v0_pi_overlay` 的 `level_ledger`（资金口径）。
+#[cfg(test)]
+mod issue841_probe;
