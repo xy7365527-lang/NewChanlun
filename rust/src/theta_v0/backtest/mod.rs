@@ -114,3 +114,9 @@ mod l3_pi_depth_diag;
 /// alpha。walk-forward μ（OOS-split）+ ΔR 序列（codex Q2：非两条 equity 的 Sharpe 差）+ 三层
 /// 判定（codex Q4：跨品种符号检验）。O(n²) 截断窗，继承 backtest cfg(test) 门控。
 mod l3_delta_r_alpha;
+
+/// ★issue #837 探针（map #787，喂 #834）：跨级别反向动作的真实频次 D1/D2/D3。
+/// 整模块 `#[cfg(test)]` ⟹ 零生产行为改动；数据源 = 生产 `run_theta_v0_pi_overlay` 的
+/// `OverlayRunResult.level_ledger`（LEE M1 只读旁路镜像）+ 生产 `IncrementalClassifier`。
+#[cfg(test)]
+mod issue837_probe;
