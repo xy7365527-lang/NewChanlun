@@ -53,6 +53,24 @@
 - **三阶段（`TStage`）的实例单位应随重走**，即逐 `(标的, 级别)` —— 而仓内三份实装（`CampaignBook` 按 `(级别, 方向)`／闭环 `tw_state` 全局单例／`rec_engine` 单 campaign）**无一如此**（[#840](https://github.com/xy7365527-lang/NewChanlun/issues/840) R2）。修法归 [#839](https://github.com/xy7365527-lang/NewChanlun/issues/839)，本 ADR 不裁。
 - 同批入 `CONTEXT.md` 的另两条裁定（**重绑死标的、只做第一利润最大定理**；**各重保证金逐仓分开**）详见 `CONTEXT.md`「重」条目与 [#842](https://github.com/xy7365527-lang/NewChanlun/issues/842) 的 resolution，不在本 ADR 展开。
 
+## ⚠️ 冲突登记（[#844](https://github.com/xy7365527-lang/NewChanlun/issues/844) 查出，2026-08-01 补；**本 ADR 不裁，登记以免读者误当定论**）
+
+**上条「三阶段实例单位应随重走」有一份方向相反的在案裁决，两侧各有缠师原文：**
+
+| | 本 ADR（:53） | 反向裁决 |
+|---|---|---|
+| 主张 | 实例单位**逐 `(标的, 级别)`**，随重走 | 三阶段是**总体性的、不是 per-layer**，phase 是**全局状态** |
+| 出处 | 本文件，2026-08-01（走 [#842](https://github.com/xy7365527-lang/NewChanlun/issues/842) 当场裁） | `docs/three_phase_unified_design.md:11,:18`，**2026-06-20 编排者裁决**（纯设计未改码） |
+| 原文锚 | `031-第31课.md:30`「资金管理中针对每只股票的最大原则」 | `chan99/0033:11`「级别的意义只和买卖量有关」 |
+
+[#803](https://github.com/xy7365527-lang/NewChanlun/issues/803)（CLOSED 2026-07-30）复核后**维持反向裁决**，并加一句「三阶段的删除**不是工程妥协而是原文裁定**」。
+
+**本 ADR :53 写下时，不知道 2026-06-20 那份裁决存在**——这不是新旧覆盖关系，是两条缠师原文各支持一个答案。**裁定归 [#839](https://github.com/xy7365527-lang/NewChanlun/issues/839)**（该冲突即 [#840](https://github.com/xy7365527-lang/NewChanlun/issues/840) 的 R2，本在其待裁清单内）。
+
+**同批须一并处置的一处描述漂移**：[#840](https://github.com/xy7365527-lang/NewChanlun/issues/840) 的 resolution 把 [#803](https://github.com/xy7365527-lang/NewChanlun/issues/803) 描述成「从**代码侧**查出三阶段是单例」，与 #803 自称的「**原文裁定**」不符。
+
+**另一处与本 ADR 相关的冲突**（[#844](https://github.com/xy7365527-lang/NewChanlun/issues/844) X2）：§一的「专属筹码判据」（有没有自己那份筹码定独立性）与 `analysis/recursive_regularization_theory.md:59`、`analysis/bidirectional_nested_accounting.md:302` 的「**子腿预算基＝父腿释放的敞口，父死子亡**」不一致。同归 [#839](https://github.com/xy7365527-lang/NewChanlun/issues/839)。
+
 ## 溯源标签
 
 本 ADR 引入的名词与判据按 map [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787) Notes「方法论裁定」的四级标签：「重」及其三要件为 `[旧缠论]`（原文直接写）；§一的「专属筹码判据」为 `[新缠论:推论]`（推理链：`038:30` 把区的构成写成两要件 ⟹ 缺筹码那件就不成其为区）；保留「声部」现名为 `[新缠论:选择]`。
