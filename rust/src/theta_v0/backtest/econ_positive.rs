@@ -9135,4 +9135,711 @@ mod tests {
             n_sig[1].iter().sum::<usize>()
         );
     }
+
+    /// **#848 后半程：BSP 层「同侧一类 bit 恒零」的四假说判定探针**（只读诊断，不改生产，`#[ignore]`）。
+    ///
+    /// ## 待判定的观测
+    ///
+    /// `issue848-bsp-crosscheck-raw-b1200000.md` §1：「BSP 层同侧一类 bit 命中」在**所有格子、
+    /// 两个群、所有级别对**上恒为 `0`（0.00%）。同一批坐标上同侧 2/3 类 bit 有命中、`pan_div`
+    /// 同侧命中 13–16%，§0 又能数出 L0 有 27 个 `buy1` / 34 个 `sell1` ⟹ 「坐标系」与「读 bit」
+    /// 并非全坏。本探针判定该绝对零值是**真发现**还是**查询 bug**。
+    ///
+    /// 前序数据已自排除两条：「同期没标后来标上」（§1.1 终局复查同为 0）、「方向判反」
+    /// （§1 任意侧一类 bit 同为 0）。本探针只测剩下四条，一次只变一个变量：
+    ///
+    /// - **H3 坐标匹配 bug**：正控——用探针查询用的**同一个** [`bsp_at_coord`] 去查信号点
+    ///   **自己所在级**（`tl == lvl`）。带 δ 同侧一类 bit 的 Type1 信号按构造必须 100% 自命中；
+    ///   不足 100% ⟹ 匹配那一环坏，其余假说作废。
+    /// - **H4 级别错位**：(a) 目标级从 `lvl−1` 扩到 `tl ∈ {lvl−2, lvl−1, lvl, lvl+1}` 逐偏移算
+    ///   同侧一类命中率；(b) **坐标空间归属矩阵**——各级 `bsp` 的 `source_index` 集落在哪一层
+    ///   `tower[j]` 的 `end_index` 集里。(b) 是错位假说的判定式版本，比偏移扫描更直接。
+    /// - **H1 一类点稀疏 ⟹ 物理上撞不上**：反查——各级一类点坐标集 ∩ 上一级 Type1 信号坐标集；
+    ///   再加「信号坐标 → 最近次级别一类点」的距离直方图（0 / 1–5 / 6–50 / 51–500 / >500），
+    ///   把「根本不在附近」与「差几个 bar 的端点约定错配」分开。
+    /// - **H2 命题不成立**：对「坐标存在次级别 BSP 条目」的 Type1 案例逐条 dump 六 bit 分布，
+    ///   答「次级别实际标成了什么」。
+    ///
+    /// ## 口径
+    ///
+    /// 与 [`type1_bsp_layer_crosscheck_dx`] 严格同批（同数据、同 `IncrementalClassifier` 逐 bar
+    /// 循环、同 `seen` 去重键 `(lvl, source_index, bsp_disc)`、同 `LMIN=0`/`LMAX=4`、同 Γ 定向、
+    /// 同群定义）。§0 的 `n_sig` 逐格与前序报告对照即自检。
+    ///
+    /// 「union（同期并集）」= 逐 bar 见过的全部去重条目之并（比终局快照宽——终局列表会因结构
+    /// 改写丢点，前序 §2 已见 L0 终局 3972 < 去重 4891）；反查与距离直方图一律取 union，取的是
+    /// **对命题最有利**的口径，避免把「快照丢了」写成「命题不成立」。
+    ///
+    /// **认识论 L2**（真实 BTC 逐信号，确定性判据，可产否定性计数）。**本探针不改任何判据**。
+    ///
+    /// 命令：`ECON_L2_MAX_BARS=1200000 cargo test --release type1_bsp_layer_zero_hypotheses_dx -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn type1_bsp_layer_zero_hypotheses_dx() {
+        use super::super::data;
+        use std::collections::HashSet;
+        use std::fmt::Write as _;
+
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+        };
+        let n_full = ds_full.bars.len();
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(usize::MAX);
+        let ds = if n_full > max_bars {
+            ds_full.slice_bar_range(n_full - max_bars, n_full)
+        } else {
+            ds_full
+        };
+        let bars = &ds.bars;
+        let n = bars.len();
+        let win_start = ds
+            .dates
+            .first()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        let win_end = ds
+            .dates
+            .last()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        eprintln!(
+            "[t1-zero-hyp] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}"
+        );
+
+        const LMIN: usize = 0;
+        const LMAX: usize = 4;
+        const NG: usize = 2;
+        const NOFF: usize = 4;
+        /// H4 偏移扫描的目标级偏移（`tl = lvl + OFFS[o]`）。
+        const OFFS: [i64; NOFF] = [-2, -1, 0, 1];
+        let gname = |g: usize| if g == 0 { "Type1" } else { "Type2/3" };
+        let in_scope = |lvl: usize| (LMIN..=LMAX).contains(&lvl);
+
+        let mut n_sig = [[0usize; LMAX + 1]; NG];
+        let mut n_other = 0usize;
+
+        // ── H3 正控：自查同级（同期 + 终局）──
+        let mut h3_present = [[0usize; LMAX + 1]; NG];
+        let mut h3_t1_side = [[0usize; LMAX + 1]; NG];
+        let mut h3_f_present = [[0usize; LMAX + 1]; NG];
+        let mut h3_f_t1_side = [[0usize; LMAX + 1]; NG];
+
+        // ── H4(a) 偏移扫描 [群][信号级][偏移] ──
+        let mut h4_n = [[[0usize; NOFF]; LMAX + 1]; NG];
+        let mut h4_absent = [[[0usize; NOFF]; LMAX + 1]; NG];
+        let mut h4_present = [[[0usize; NOFF]; LMAX + 1]; NG];
+        let mut h4_t1side = [[[0usize; NOFF]; LMAX + 1]; NG];
+        let mut h4_t1any = [[[0usize; NOFF]; LMAX + 1]; NG];
+
+        // ── H2 次级别六 bit 直方图（Type1，`tl = lvl−1`，仅坐标存在条目的案例）──
+        let mut h2_bit = [[0usize; 6]; LMAX + 1];
+        let mut h2_present_cnt = [0usize; LMAX + 1];
+        let mut h2_zero_mask = [0usize; LMAX + 1];
+        const H2_CAP: usize = 40;
+        let mut h2_dump: Vec<String> = Vec::new();
+
+        // ── union（同期并集）：坐标集，用于 H1 反查与距离直方图 ──
+        let mut u_all: Vec<HashSet<usize>> = (0..=LMAX).map(|_| HashSet::new()).collect();
+        let mut u_t1_long: Vec<HashSet<usize>> = (0..=LMAX).map(|_| HashSet::new()).collect();
+        let mut u_t1_short: Vec<HashSet<usize>> = (0..=LMAX).map(|_| HashSet::new()).collect();
+        // 信号坐标（按群/级/侧），用于反查方向
+        let mut u_sig_t1_long: Vec<HashSet<usize>> = (0..=LMAX).map(|_| HashSet::new()).collect();
+        let mut u_sig_t1_short: Vec<HashSet<usize>> = (0..=LMAX).map(|_| HashSet::new()).collect();
+        let mut u_sig_all: Vec<HashSet<usize>> = (0..=LMAX).map(|_| HashSet::new()).collect();
+
+        // 终局快照
+        let last_bar = (0..n).rev().find(|&i| !bars[i].untradable && bars[i].close > 0);
+        let mut final_bsp: Vec<Rc<Vec<BspPoint>>> = Vec::new();
+        let mut final_tower: Vec<Rc<Vec<LeveledMove>>> = Vec::new();
+        // 台账：(g, lvl, src, delta)
+        let mut sigs: Vec<(usize, usize, usize, Side)> = Vec::new();
+
+        let mut classifier_incr = IncrementalClassifier::new(bars, &config);
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> =
+            std::collections::HashSet::new();
+
+        for i in 0..n {
+            let bar = &bars[i];
+            if bar.untradable || bar.close <= 0 {
+                continue;
+            }
+            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            if Some(i) == last_bar {
+                final_bsp = cls_i.levels.iter().map(|l| Rc::clone(&l.bsp)).collect();
+                final_tower = tower_i.clone();
+            }
+            for (lvl, ls) in cls_i.levels.iter().enumerate() {
+                if !in_scope(lvl) {
+                    continue;
+                }
+                for p in ls.bsp.iter() {
+                    let bsp_class = bsp_disc(&p.bits);
+                    if !seen.insert((lvl, p.source_index, bsp_class)) {
+                        continue;
+                    }
+                    // union 收集在零 bit 过滤**之前**（`u_all` 含零 bit 结构候选，与
+                    // `bsp_at_coord().present` 同口径）。
+                    u_all[lvl].insert(p.source_index);
+                    if p.bits.buy1 {
+                        u_t1_long[lvl].insert(p.source_index);
+                    }
+                    if p.bits.sell1 {
+                        u_t1_short[lvl].insert(p.source_index);
+                    }
+                    if !(p.bits.buy1
+                        || p.bits.sell1
+                        || p.bits.buy2
+                        || p.bits.sell2
+                        || p.bits.buy3
+                        || p.bits.sell3)
+                    {
+                        continue;
+                    }
+                    let single = super::super::super::classifier::Classification {
+                        levels: cls_i
+                            .levels
+                            .iter()
+                            .enumerate()
+                            .map(|(l2, _)| super::super::super::classifier::LevelState {
+                                moves: Vec::new(),
+                                centers: Rc::new(Vec::new()),
+                                cp_ownership: Rc::new(Vec::new()),
+                                bsp: Rc::new(if l2 == lvl {
+                                    vec![p.clone()]
+                                } else {
+                                    Vec::new()
+                                }),
+                                pan_div: Rc::new(Vec::new()),
+                                level_projection: None,
+                            })
+                            .collect(),
+                    };
+                    let cands = assemble_gamma_with_tower(&single, &tower_i);
+                    for c in &cands {
+                        let delta = match c.dir {
+                            VoiceSide::Long => Side::Long,
+                            VoiceSide::Short => Side::Short,
+                            VoiceSide::Flat => continue,
+                        };
+                        let src = p.source_index;
+                        let is_type1 = match delta {
+                            Side::Long => p.bits.buy1,
+                            Side::Short => p.bits.sell1,
+                        };
+                        let is_type2 = match delta {
+                            Side::Long => p.bits.buy2,
+                            Side::Short => p.bits.sell2,
+                        };
+                        let is_type3 = match delta {
+                            Side::Long => p.bits.buy3,
+                            Side::Short => p.bits.sell3,
+                        };
+                        let g = if is_type1 {
+                            0
+                        } else if is_type2 || is_type3 {
+                            1
+                        } else {
+                            n_other += 1;
+                            continue;
+                        };
+                        n_sig[g][lvl] += 1;
+                        u_sig_all[lvl].insert(src);
+                        if g == 0 {
+                            match delta {
+                                Side::Long => u_sig_t1_long[lvl].insert(src),
+                                Side::Short => u_sig_t1_short[lvl].insert(src),
+                            };
+                        }
+
+                        // ── H3 正控：用同一个 `bsp_at_coord` 查信号点自己所在级 ──
+                        let self_at = bsp_at_coord(&cls_i.levels[lvl].bsp, src);
+                        if self_at.present {
+                            h3_present[g][lvl] += 1;
+                        }
+                        if self_at.t1_side(delta) {
+                            h3_t1_side[g][lvl] += 1;
+                        }
+
+                        // ── H4(a) 偏移扫描 ──
+                        for (o, &d) in OFFS.iter().enumerate() {
+                            let t = lvl as i64 + d;
+                            if t < 0 {
+                                continue;
+                            }
+                            let tl = t as usize;
+                            h4_n[g][lvl][o] += 1;
+                            let Some(tls) = cls_i.levels.get(tl) else {
+                                h4_absent[g][lvl][o] += 1;
+                                continue;
+                            };
+                            let at = bsp_at_coord(&tls.bsp, src);
+                            if at.present {
+                                h4_present[g][lvl][o] += 1;
+                            }
+                            if at.t1_side(delta) {
+                                h4_t1side[g][lvl][o] += 1;
+                            }
+                            if at.t1_any() {
+                                h4_t1any[g][lvl][o] += 1;
+                            }
+                        }
+
+                        // ── H2：次级别（`lvl−1`）六 bit 分布 ──
+                        if g == 0 && lvl >= 1 {
+                            if let Some(tls) = cls_i.levels.get(lvl - 1) {
+                                let at = bsp_at_coord(&tls.bsp, src);
+                                if at.present {
+                                    h2_present_cnt[lvl] += 1;
+                                    if at.mask == 0 {
+                                        h2_zero_mask[lvl] += 1;
+                                    }
+                                    for b in 0..6 {
+                                        if at.mask & (1u8 << b) != 0 {
+                                            h2_bit[lvl][b] += 1;
+                                        }
+                                    }
+                                    if h2_dump.len() < H2_CAP {
+                                        h2_dump.push(format!(
+                                            "| {lvl} | {src} | {} | 0b{:06b} | {} |",
+                                            if delta == Side::Long { "+1" } else { "-1" },
+                                            at.mask,
+                                            bit_names(at.mask),
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                        sigs.push((g, lvl, src, delta));
+                    }
+                }
+            }
+        }
+
+        // ── H3 终局自查（同坐标 → 终局累积 `bsp` 列表）──
+        for &(g, lvl, src, delta) in &sigs {
+            let Some(bl) = final_bsp.get(lvl) else {
+                continue;
+            };
+            let at = bsp_at_coord(bl, src);
+            if at.present {
+                h3_f_present[g][lvl] += 1;
+            }
+            if at.t1_side(delta) {
+                h3_f_t1_side[g][lvl] += 1;
+            }
+        }
+
+        // ── H4(b) 坐标空间归属矩阵（终局快照）──
+        let tower_ends: Vec<HashSet<usize>> = final_tower
+            .iter()
+            .map(|lv| lv.iter().map(|m| m.end_index).collect())
+            .collect();
+        let f_bsp_coord: Vec<HashSet<usize>> = final_bsp
+            .iter()
+            .map(|l| l.iter().map(|p| p.source_index).collect())
+            .collect();
+        let f_bsp_t1_coord: Vec<HashSet<usize>> = final_bsp
+            .iter()
+            .map(|l| {
+                l.iter()
+                    .filter(|p| p.bits.buy1 || p.bits.sell1)
+                    .map(|p| p.source_index)
+                    .collect()
+            })
+            .collect();
+
+        // ── H1 距离直方图：信号坐标 → 最近的次级别一类点 / 任意 BSP 条目 ──
+        let sorted = |s: &HashSet<usize>| {
+            let mut v: Vec<usize> = s.iter().copied().collect();
+            v.sort_unstable();
+            v
+        };
+        let u_t1_any: Vec<Vec<usize>> = (0..=LMAX)
+            .map(|k| {
+                let mut v: Vec<usize> = u_t1_long[k].union(&u_t1_short[k]).copied().collect();
+                v.sort_unstable();
+                v
+            })
+            .collect();
+        let u_t1_long_s: Vec<Vec<usize>> = (0..=LMAX).map(|k| sorted(&u_t1_long[k])).collect();
+        let u_t1_short_s: Vec<Vec<usize>> = (0..=LMAX).map(|k| sorted(&u_t1_short[k])).collect();
+        let u_all_s: Vec<Vec<usize>> = (0..=LMAX).map(|k| sorted(&u_all[k])).collect();
+
+        // 桶：0=命中(0) 1=1–5 2=6–50 3=51–500 4=>500 5=该级空集
+        let mut d_t1_side = [[0usize; 6]; LMAX + 1];
+        let mut d_t1_any = [[0usize; 6]; LMAX + 1];
+        let mut d_anybsp = [[0usize; 6]; LMAX + 1];
+        for &(g, lvl, src, delta) in &sigs {
+            if g != 0 || lvl == 0 {
+                continue;
+            }
+            let k = lvl - 1;
+            let side_set = match delta {
+                Side::Long => &u_t1_long_s[k],
+                Side::Short => &u_t1_short_s[k],
+            };
+            d_t1_side[lvl][dist_bucket(nearest_dist(side_set, src))] += 1;
+            d_t1_any[lvl][dist_bucket(nearest_dist(&u_t1_any[k], src))] += 1;
+            d_anybsp[lvl][dist_bucket(nearest_dist(&u_all_s[k], src))] += 1;
+        }
+
+        // ══════════════════════════ 报告 ══════════════════════════
+        let pct = |x: usize, tot: usize| {
+            if tot == 0 {
+                0.0
+            } else {
+                100.0 * x as f64 / tot as f64
+            }
+        };
+        let mut rpt = String::new();
+        let _ = writeln!(rpt, "# #848 后半程原始数据：BSP 层同侧一类 bit 恒零的四假说判定");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "- issue: #848（承 #846 / 前序 `issue848-bsp-crosscheck-raw-b*.md`）");
+        let _ = writeln!(rpt, "- **认识论 L2**（真实 BTC 逐信号，确定性判据，可产否定性计数）");
+        let _ = writeln!(
+            rpt,
+            "- 窗口：{win_start}→{win_end}，bars={n}（全量={n_full}），max_bars={max_bars}"
+        );
+        let _ = writeln!(rpt, "- 与前序探针 `type1_bsp_layer_crosscheck_dx` **严格同批**（同去重键 / 同 Γ 定向 / 同群定义 / LMIN=0 LMAX=4）");
+        let _ = writeln!(rpt, "- 「union」= 逐 bar 去重条目之并（比终局快照宽，取对命题最有利口径）");
+        let _ = writeln!(rpt);
+
+        // §0 基数
+        let _ = writeln!(rpt, "## 0. 信号基数（与前序 §0 对照即自检）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| lvl | n_sig(Type1) | n_sig(Type2/3) | union 全 BSP 坐标 | union buy1 坐标 | union sell1 坐标 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|");
+        for lvl in LMIN..=LMAX {
+            let _ = writeln!(
+                rpt,
+                "| {lvl} | {} | {} | {} | {} | {} |",
+                n_sig[0][lvl],
+                n_sig[1][lvl],
+                u_all[lvl].len(),
+                u_t1_long[lvl].len(),
+                u_t1_short[lvl].len()
+            );
+        }
+        let _ = writeln!(rpt);
+
+        // §1 H3
+        let _ = writeln!(rpt, "## 1. H3（坐标匹配 bug）：正控——同一个 `bsp_at_coord` 查信号点**自己所在级**");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "按构造，Type1 信号的 δ 同侧一类 bit 必在本级自命中 ⟹ **同期同侧一类 = 信号数** 是硬预测。");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| 群 | lvl | 信号数 | 同期坐标存在 | **同期同侧一类** | 自命中% | 终局坐标存在 | 终局同侧一类 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|");
+        for g in 0..NG {
+            for lvl in LMIN..=LMAX {
+                if n_sig[g][lvl] == 0 {
+                    continue;
+                }
+                let _ = writeln!(
+                    rpt,
+                    "| {} | {lvl} | {} | {} | **{}** | **{:.2}%** | {} | {} |",
+                    gname(g),
+                    n_sig[g][lvl],
+                    h3_present[g][lvl],
+                    h3_t1_side[g][lvl],
+                    pct(h3_t1_side[g][lvl], n_sig[g][lvl]),
+                    h3_f_present[g][lvl],
+                    h3_f_t1_side[g][lvl]
+                );
+            }
+        }
+        let _ = writeln!(rpt);
+
+        // §2 H4(a)
+        let _ = writeln!(rpt, "## 2. H4(a)（级别错位）：目标级偏移扫描 `tl ∈ {{lvl−2, lvl−1, lvl, lvl+1}}`");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| 群 | 信号级 lvl | 偏移 | 目标级 tl | 查询数 | 该级缺失 | 坐标存在 | **同侧一类** | 任意侧一类 | **同侧一类%** |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|");
+        for g in 0..NG {
+            for lvl in LMIN..=LMAX {
+                for (o, &d) in OFFS.iter().enumerate() {
+                    if h4_n[g][lvl][o] == 0 {
+                        continue;
+                    }
+                    let tl = lvl as i64 + d;
+                    let _ = writeln!(
+                        rpt,
+                        "| {} | {lvl} | {d:+} | {tl} | {} | {} | {} | **{}** | {} | **{:.2}%** |",
+                        gname(g),
+                        h4_n[g][lvl][o],
+                        h4_absent[g][lvl][o],
+                        h4_present[g][lvl][o],
+                        h4_t1side[g][lvl][o],
+                        h4_t1any[g][lvl][o],
+                        pct(h4_t1side[g][lvl][o], h4_n[g][lvl][o])
+                    );
+                }
+            }
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "偏移小计（两群合并，跨信号级汇总）：");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| 群 | 偏移 | 查询数 | 坐标存在 | **同侧一类** | **同侧一类%** |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|");
+        for g in 0..NG {
+            for (o, &d) in OFFS.iter().enumerate() {
+                let tot: usize = (LMIN..=LMAX).map(|l| h4_n[g][l][o]).sum();
+                if tot == 0 {
+                    continue;
+                }
+                let pr: usize = (LMIN..=LMAX).map(|l| h4_present[g][l][o]).sum();
+                let hit: usize = (LMIN..=LMAX).map(|l| h4_t1side[g][l][o]).sum();
+                let _ = writeln!(
+                    rpt,
+                    "| {} | {d:+} | {tot} | {pr} | **{hit}** | **{:.2}%** |",
+                    gname(g),
+                    pct(hit, tot)
+                );
+            }
+        }
+        let _ = writeln!(rpt);
+
+        // §3 H4(b)
+        let _ = writeln!(rpt, "## 3. H4(b)（级别错位·判定式）：BSP 坐标空间归属矩阵（终局快照）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "各级 `bsp` 的 `source_index` 集 ∩ 各层 `tower[j]` 的 `end_index` 集。若 `levels[k]` 与 `tower[k]`");
+        let _ = writeln!(rpt, "同套编号，则 `j == k` 那一格应 100%；命中峰落在 `j ≠ k` ⟹ 错位坐实。");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "`tower[j]` 端点集基数：");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| j | tower[j] 元素数 | 去重 end_index 数 |");
+        let _ = writeln!(rpt, "|---|---|---|");
+        for (j, t) in final_tower.iter().enumerate() {
+            let _ = writeln!(rpt, "| {j} | {} | {} |", t.len(), tower_ends[j].len());
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| bsp 级 k | 坐标数(全部) | {} |", (0..final_tower.len()).map(|j| format!("∈tower[{j}]")).collect::<Vec<_>>().join(" | "));
+        let _ = writeln!(rpt, "|---|---|{}", "---|".repeat(final_tower.len()));
+        for (k, s) in f_bsp_coord.iter().enumerate() {
+            let cells: Vec<String> = (0..final_tower.len())
+                .map(|j| {
+                    let c = s.intersection(&tower_ends[j]).count();
+                    format!("{c} ({:.1}%)", pct(c, s.len()))
+                })
+                .collect();
+            let _ = writeln!(rpt, "| {k} | {} | {} |", s.len(), cells.join(" | "));
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "仅**带一类 bit** 的坐标：");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| bsp 级 k | 一类坐标数 | {} |", (0..final_tower.len()).map(|j| format!("∈tower[{j}]")).collect::<Vec<_>>().join(" | "));
+        let _ = writeln!(rpt, "|---|---|{}", "---|".repeat(final_tower.len()));
+        for (k, s) in f_bsp_t1_coord.iter().enumerate() {
+            let cells: Vec<String> = (0..final_tower.len())
+                .map(|j| {
+                    let c = s.intersection(&tower_ends[j]).count();
+                    format!("{c} ({:.1}%)", pct(c, s.len()))
+                })
+                .collect();
+            let _ = writeln!(rpt, "| {k} | {} | {} |", s.len(), cells.join(" | "));
+        }
+        let _ = writeln!(rpt);
+
+        // §4 H1 反查
+        let _ = writeln!(rpt, "## 4. H1（稀疏 ⟹ 撞不上）：反查 + 距离直方图（union 口径）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "### 4.1 反查：次级别一类点坐标集 ∩ 本级 Type1 信号坐标集");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "命题若成立，`lvl` 的每个 Type1 信号应「用掉」`lvl−1` 的一个一类点 ⟹ 交集 ≈ 信号数。");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| 信号级 lvl | Type1 信号坐标数 | lvl−1 一类点坐标数 | **同侧交集** | 任意侧交集 | 与 lvl−1 全 BSP 坐标交集 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|");
+        for lvl in 1..=LMAX {
+            let k = lvl - 1;
+            let sig_cnt = u_sig_t1_long[lvl].len() + u_sig_t1_short[lvl].len();
+            if sig_cnt == 0 {
+                continue;
+            }
+            let same = u_sig_t1_long[lvl].intersection(&u_t1_long[k]).count()
+                + u_sig_t1_short[lvl].intersection(&u_t1_short[k]).count();
+            let anys = u_sig_t1_long[lvl]
+                .iter()
+                .chain(u_sig_t1_short[lvl].iter())
+                .filter(|s| u_t1_long[k].contains(s) || u_t1_short[k].contains(s))
+                .count();
+            let inall = u_sig_t1_long[lvl]
+                .iter()
+                .chain(u_sig_t1_short[lvl].iter())
+                .filter(|s| u_all[k].contains(s))
+                .count();
+            let _ = writeln!(
+                rpt,
+                "| {lvl} | {sig_cnt} | {} | **{same}** | {anys} | {inall} |",
+                u_t1_long[k].len() + u_t1_short[k].len()
+            );
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "反方向（次级别一类点里有多少被本级 Type1 信号「用掉」）：");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| 次级别 k | k 级一类点坐标数 | 其中 = 某个 k+1 级 Type1 信号坐标 | 占比 | 其中 = 某个 k+1 级**任意群**信号坐标 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|");
+        for k in 0..LMAX {
+            let pts: Vec<usize> = u_t1_long[k].union(&u_t1_short[k]).copied().collect();
+            if pts.is_empty() {
+                continue;
+            }
+            let used = pts
+                .iter()
+                .filter(|c| u_sig_t1_long[k + 1].contains(c) || u_sig_t1_short[k + 1].contains(c))
+                .count();
+            let used_any = pts.iter().filter(|c| u_sig_all[k + 1].contains(c)).count();
+            let _ = writeln!(
+                rpt,
+                "| {k} | {} | {used} | {:.2}% | {used_any} |",
+                pts.len(),
+                pct(used, pts.len())
+            );
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "### 4.2 距离直方图：Type1 信号坐标 → 最近的次级别标的（bar 数）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "「0」= 坐标重合；「空集」= 该次级别根本没有此类标的。");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| 目标 | 信号级 lvl | 0 | 1–5 | 6–50 | 51–500 | >500 | 空集 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|");
+        for (nm, tab) in [
+            ("次级别同侧一类点", &d_t1_side),
+            ("次级别任意侧一类点", &d_t1_any),
+            ("次级别任意 BSP 条目", &d_anybsp),
+        ] {
+            for lvl in 1..=LMAX {
+                if tab[lvl].iter().sum::<usize>() == 0 {
+                    continue;
+                }
+                let _ = writeln!(
+                    rpt,
+                    "| {nm} | {lvl} | {} | {} | {} | {} | {} | {} |",
+                    tab[lvl][0], tab[lvl][1], tab[lvl][2], tab[lvl][3], tab[lvl][4], tab[lvl][5]
+                );
+            }
+        }
+        let _ = writeln!(rpt);
+
+        // §5 H2
+        let _ = writeln!(rpt, "## 5. H2（命题不成立）：次级别实际标成了什么（Type1，`tl = lvl−1`，仅坐标存在条目）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| 信号级 lvl | Type1 信号数 | 坐标存在条目 | mask=0（纯结构候选） | buy1 | buy2 | buy3 | sell1 | sell2 | sell3 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|");
+        for lvl in 1..=LMAX {
+            if n_sig[0][lvl] == 0 {
+                continue;
+            }
+            let _ = writeln!(
+                rpt,
+                "| {lvl} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+                n_sig[0][lvl],
+                h2_present_cnt[lvl],
+                h2_zero_mask[lvl],
+                h2_bit[lvl][0],
+                h2_bit[lvl][1],
+                h2_bit[lvl][2],
+                h2_bit[lvl][3],
+                h2_bit[lvl][4],
+                h2_bit[lvl][5]
+            );
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "逐条 dump（≤{H2_CAP} 例）：");
+        let _ = writeln!(rpt);
+        if h2_dump.is_empty() {
+            let _ = writeln!(rpt, "**（空——无「坐标存在次级别 BSP 条目」的 Type1 案例）**");
+        } else {
+            let _ = writeln!(rpt, "| 信号级 | src | δ | 次级别 mask | 置位 bit |");
+            let _ = writeln!(rpt, "|---|---|---|---|---|");
+            for l in &h2_dump {
+                let _ = writeln!(rpt, "{l}");
+            }
+        }
+        let _ = writeln!(rpt);
+
+        // §6 忠实性
+        let _ = writeln!(rpt, "## 6. 忠实性校验与域外声明");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "- 残差群（带 δ 但无任何 bsp bit 命中该方向）：{n_other} 条，两群皆不计");
+        let _ = writeln!(rpt, "- 台账信号条数：{}", sigs.len());
+        let _ = writeln!(
+            rpt,
+            "- 终局快照取自末可交易 bar：{last_bar:?}；`final_bsp` 级数={}，`final_tower` 层数={}",
+            final_bsp.len(),
+            final_tower.len()
+        );
+        let _ = writeln!(rpt, "- **本探针不改任何判据**，只判定前序全零读数的归属；「类一类点」准入判据归 #817 未裁");
+        let _ = writeln!(rpt);
+
+        eprint!("{rpt}");
+        let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("rust/ 父目录 = 项目根")
+            .join(format!(".chanlun/review-results/issue848-zero-hypotheses-raw-b{n}.md"));
+        std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
+        eprintln!("\n原始数据已落盘：{out:?}");
+
+        // ── 真封：H3 正控是硬预测（自命中必须 100%），破了即查询路径坏 ──
+        for lvl in LMIN..=LMAX {
+            assert_eq!(
+                h3_t1_side[0][lvl], n_sig[0][lvl],
+                "H3 正控破：Type1 lvl{lvl} 自查同级同侧一类命中 {} ≠ 信号数 {} \
+                 ⟹ `bsp_at_coord` 坐标匹配那一环有 bug",
+                h3_t1_side[0][lvl], n_sig[0][lvl]
+            );
+        }
+        eprintln!(
+            "真封：H3 正控通过（Type1 自命中 {}/{}）；Type1={} 条 / Type2-3={} 条",
+            h3_t1_side[0].iter().sum::<usize>(),
+            n_sig[0].iter().sum::<usize>(),
+            n_sig[0].iter().sum::<usize>(),
+            n_sig[1].iter().sum::<usize>()
+        );
+    }
+
+    /// 六 bit mask → 人读名（[`bsp_disc`] 口径：0=buy1 1=buy2 2=buy3 3=sell1 4=sell2 5=sell3）。
+    fn bit_names(mask: u8) -> String {
+        const NAMES: [&str; 6] = ["buy1", "buy2", "buy3", "sell1", "sell2", "sell3"];
+        let v: Vec<&str> = (0..6)
+            .filter(|b| mask & (1u8 << b) != 0)
+            .map(|b| NAMES[b])
+            .collect();
+        if v.is_empty() {
+            "（无）".to_string()
+        } else {
+            v.join("+")
+        }
+    }
+
+    /// 升序坐标表里离 `x` 最近的元素距离（空集 ⟹ `None`）。
+    fn nearest_dist(sorted_coords: &[usize], x: usize) -> Option<usize> {
+        if sorted_coords.is_empty() {
+            return None;
+        }
+        let i = sorted_coords.partition_point(|&c| c < x);
+        let mut best = usize::MAX;
+        if i < sorted_coords.len() {
+            best = best.min(sorted_coords[i] - x);
+        }
+        if i > 0 {
+            best = best.min(x - sorted_coords[i - 1]);
+        }
+        Some(best)
+    }
+
+    /// 距离分桶：0=重合 1=1–5 2=6–50 3=51–500 4=>500 5=空集。
+    fn dist_bucket(d: Option<usize>) -> usize {
+        match d {
+            None => 5,
+            Some(0) => 0,
+            Some(x) if x <= 5 => 1,
+            Some(x) if x <= 50 => 2,
+            Some(x) if x <= 500 => 3,
+            Some(_) => 4,
+        }
+    }
 }
