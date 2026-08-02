@@ -7558,4 +7558,824 @@ mod tests {
             "首级 cand=false ⟹ depth=0"
         );
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // #846 探针：Type1 下钻逐级连续性（ADR 0013 裁定七实测）
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// [`descend_type1_anchor_depth`] 单步失败成因（#846 三分）。
+    ///
+    /// - `EmptySubs`（A）：`sub_moves` 空 = 递归底（塔以线段为底，笔不在塔的级别阶梯内，#520
+    ///   订正 / commit 4a8105c0ea）——**基底选择，不算断链**。
+    /// - `NoAlign`（B）：`sub_moves` 中无 `end_index == source_index` 的对齐段——命题直接反例候选。
+    /// - `DivFalse(c)`（C）：对齐段存在但 `div_cand` 判假，`c` = 四条件中首个不满足者（1..=4）。
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    enum StepFail {
+        EmptySubs,
+        NoAlign,
+        DivFalse(u8),
+    }
+
+    impl StepFail {
+        /// 三分桶序（0=A / 1=B / 2=C），用于计数数组下标。
+        fn bucket(self) -> usize {
+            match self {
+                StepFail::EmptySubs => 0,
+                StepFail::NoAlign => 1,
+                StepFail::DivFalse(_) => 2,
+            }
+        }
+    }
+
+    /// [`div_cand`] 的**失败分支外化**（#846）：返回首个不满足的条件号，`None` = 四条件全过。
+    ///
+    /// 逐行镜像 `cand_predicate::div_cand`（cand_predicate.rs:107-156）四条件顺序：
+    /// 0=`target_idx` 越界；1=方向 `dir(s)≠−δ`；2=无前序同向段；3=Extreme 不成立；4=Weak 不成立。
+    ///
+    /// **忠实性机器校验**：调用点每次都与真 `div_cand` 对拍（`is_none() == div_cand(...)`），
+    /// 不一致计入 `parity_violation` 并在真封处断言为 0——复制体与生产判据的等价由测试守护，
+    /// 不靠人眼。
+    fn div_cand_why(
+        context: &[LeveledMove],
+        target_idx: usize,
+        hist: &[f64],
+        delta: Side,
+    ) -> Option<u8> {
+        use super::super::super::classifier::cand_predicate::rmove_dir;
+        use super::super::super::classifier::divergence::{is_divergence, segment_macd_area};
+        use super::super::super::types::Direction;
+
+        if target_idx >= context.len() {
+            return Some(0);
+        }
+        let s = &context[target_idx];
+        let s_dir = rmove_dir(&s.rmove);
+        let expected_dir = match delta {
+            Side::Long => Direction::Down,
+            Side::Short => Direction::Up,
+        };
+        if s_dir != expected_dir {
+            return Some(1);
+        }
+        let Some(s_prev) = context[..target_idx]
+            .iter()
+            .rfind(|m| rmove_dir(&m.rmove) == s_dir)
+        else {
+            return Some(2);
+        };
+        let extreme_ok = match delta {
+            Side::Long => s.rmove.lo() < s_prev.rmove.lo(),
+            Side::Short => s.rmove.hi() > s_prev.rmove.hi(),
+        };
+        if !extreme_ok {
+            return Some(3);
+        }
+        let prev_area = segment_macd_area(hist, s_prev.start_index, s_prev.end_index);
+        let curr_area = segment_macd_area(hist, s.start_index, s.end_index);
+        if !is_divergence(prev_area, curr_area) {
+            return Some(4);
+        }
+        None
+    }
+
+    /// **#846 探针：Type1 一类点区间套下钻的逐级连续性**（只读诊断，不改生产，`#[ignore]`）。
+    ///
+    /// ## 验什么
+    ///
+    /// ADR 0013（#839）裁定七：「某级别一类点 = 该级别走势的**结束** ⟹ 构成它的最后一个次级别
+    /// 走势也结束 ⟹ 那必然是次级别的一类点（趋势背驰）或类一类点（盘整背驰）。**逐级无空档。**」
+    ///
+    /// 本仓从未测过。旧两组实测（`9bd0a518c9:.chanlun/review-results/l2-depth-distribution-20260702.md`
+    /// / `b06e5cf10d:.chanlun/review-results/l2-depth-raw-20260702.md`）只测 Type2/3（走势**中途**
+    /// 的位置），且只报「小转大 89.79%–91.85%」这个**合计数**——`None` 的三种成因未分。
+    ///
+    /// ## 怎么测
+    ///
+    /// 复用 `l2_depth_distribution_dx` 的 bit-exact classify 循环（同一批 bar / 同一 Γ 定向 / 同一
+    /// 塔），把它 `:7299-7301` 的 `if is_type1 { continue }` **反过来**选出 Type1 群，同时保留
+    /// Type2/3 群作对照。对每条信号把 [`descend_type1_anchor_depth`] 的递归**展开成可观测的循环**，
+    /// 逐级记录 成功 / A / B / C（见 [`StepFail`]）。
+    ///
+    /// **忠实性**（两道机器校验，真封处断言）：
+    /// 1. 展开循环的返回值与真 `descend_type1_anchor_depth` 逐信号对拍（`trace_mismatch==0`）。
+    /// 2. [`div_cand_why`] 与真 `div_cand` 逐次对拍（`parity_violation==0`）。
+    ///
+    /// ## 口径声明（#817 未裁，本探针不裁）
+    ///
+    /// 判据 = 当前 `cand_predicate::div_cand` 四条件合取：(1) `dir(s)=−δ`；(2) 同父 `sub_moves` 内
+    /// 存在**前序最近同向段** s′；(3) Extreme（δ=Long→`lo(s)<lo(s′)`）；(4) Weak（`Σ|hist|` 段面积
+    /// `curr<prev` 严格）。「类一类点/盘整背驰」的准入判据本仓未定（#817），本探针**用现有 div_cand
+    /// 口径测**，不改判据；口径本身的可疑处作为发现上报。
+    ///
+    /// ## 与生产的关系（诚实标注）
+    ///
+    /// 生产 `build_nest_certificate:1019` 的 base gate（`cand_delta_base_gate`）**只对 Type2/3** 调
+    /// `descend_type1_anchor_depth`；Type1 走 per-rung `div_cand`（本级/上级语境），**不下沉**。
+    /// 故本探针对 Type1 群测的是**命题**，不是生产现行行为——读数不改变任何信号集。
+    ///
+    /// **认识论 L2**（真实 BTC 逐信号结构下钻 + 确定性判据，可产否定性计数）。
+    ///
+    /// 命令：`ECON_L2_MAX_BARS=100000000 cargo test --release type1_descend_continuity_dx -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn type1_descend_continuity_dx() {
+        use super::super::super::classifier::cand_predicate::{
+            div_cand, rmove_dir, DivCandInput,
+        };
+        use super::super::super::classifier::divergence::{compute_macd, segment_macd_area};
+        use super::super::super::types::Direction;
+        use super::super::data;
+        use std::fmt::Write as _;
+
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+        };
+        let n_full = ds_full.bars.len();
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(usize::MAX);
+        let ds = if n_full > max_bars {
+            ds_full.slice_bar_range(n_full - max_bars, n_full)
+        } else {
+            ds_full
+        };
+        let bars = &ds.bars;
+        let n = bars.len();
+        let tick = config.tick.tick_size;
+        let win_start = ds
+            .dates
+            .first()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        let win_end = ds
+            .dates
+            .last()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        eprintln!(
+            "[t1-descend-dx] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}"
+        );
+
+        let closes: Vec<f64> = bars.iter().map(|b| b.close as f64 / tick as f64).collect();
+        let macd_hist = compute_macd(&closes, &config.macd).hist;
+
+        // ★LMIN=0（与 l2_depth_distribution_dx 的 LMIN=1 差异）：一类点在塔里落哪一级是**待测量**，
+        //   不是已知——把 level0 也收进来，否则「Type1=0 条」分不清是「没有」还是「没收」。
+        //   lvl≥1 各行仍与旧两组数据同口径可比。
+        const LMIN: usize = 0;
+        const LMAX: usize = 4;
+        const DCAP: usize = 8;
+        const NG: usize = 2; // 0 = Type1 群；1 = Type2/3 群（对照）
+        const NR: usize = 3; // 终止成因三桶：0=A(EmptySubs) 1=B(NoAlign) 2=C(DivFalse)
+        let gname = |g: usize| if g == 0 { "Type1" } else { "Type2/3" };
+        let in_scope = |lvl: usize| (LMIN..=LMAX).contains(&lvl);
+
+        // ── BSP bit 清单（Γ 定向**之前**的原始读数，逐级）：用于分辨「群为空」的成因 ──
+        let mut raw_pts = [0usize; LMAX + 1]; // 去重后的 BSP 点数
+        let mut raw_bit = [[0usize; 6]; LMAX + 1]; // buy1,buy2,buy3,sell1,sell2,sell3 各自置位点数
+        let mut raw_t1_pts = [0usize; LMAX + 1]; // 带 buy1|sell1 的点数
+        let mut gamma_none = [0usize; LMAX + 1]; // Γ 未产出任何非 Flat 候选的点数
+        let mut t1_gamma_none = [0usize; LMAX + 1]; // 带 type1 bit 但 Γ 无方向
+        let mut t1_dir_mismatch = [0usize; LMAX + 1]; // 带 type1 bit、Γ 有方向但该方向无 type1 bit
+
+        // ── 计数器 ──
+        let mut n_sig = [[0usize; LMAX + 1]; NG]; // [群][信号级] 信号总数（per-delta 去重后）
+        let mut base_none = [[0usize; LMAX + 1]; NG]; // tower[lvl] 无 end==src 段 ⟹ descend 未启动
+        let mut depth_hist = [[[0usize; DCAP + 1]; LMAX + 1]; NG]; // [群][信号级][depth]
+        let mut top_none = [[[0usize; NR]; LMAX + 1]; NG]; // depth==0（顶层 None）的 A/B/C
+        let mut term_by_lvl = [[[0usize; NR]; LMAX + 1]; NG]; // 链**终止**成因 × 信号级
+        let mut term_by_abs = [[[0usize; LMAX + 1]; NR]; NG]; // 链终止成因 × 终止绝对级别 L
+        let mut step_ok = [[[0usize; LMAX + 1]; LMAX + 1]; NG]; // [群][信号级][L] L→L−1 成功步数
+        let mut step_fail = [[[[0usize; NR]; LMAX + 1]; LMAX + 1]; NG]; // [群][信号级][L][成因]
+        let mut cond_fail = [[0usize; 5]; NG]; // C 的条件号分布（下标 0..=4）
+        let mut cond_fail_abs = [[[0usize; 5]; LMAX + 1]; NG]; // C 条件号 × 绝对级别
+        let mut max_depth = [0usize; NG];
+        let mut depth_overflow = 0usize;
+
+        // 忠实性校验计数（真封断言为 0）
+        let mut parity_violation = 0usize;
+        let mut trace_mismatch = 0usize;
+        let mut level_underflow = 0usize;
+
+        // 残差群（既非 Type1 也非 Type2/3 的带 δ 信号）——诚实标注域差。
+        let mut n_other = 0usize;
+
+        // ── 断链现场取样 ──
+        const PER_CELL_CAP: usize = 3; // 每 (群,成因,绝对级别) 最多留 3 例
+        const TOTAL_CAP: usize = 40;
+        let mut cell_used = [[[0usize; LMAX + 1]; NR]; NG];
+        let mut sample_b: Vec<String> = Vec::new();
+        let mut sample_c: Vec<String> = Vec::new();
+
+        let mut classifier_incr = IncrementalClassifier::new(bars, &config);
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> =
+            std::collections::HashSet::new();
+
+        for i in 0..n {
+            let bar = &bars[i];
+            if bar.untradable || bar.close <= 0 {
+                continue;
+            }
+            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            for (lvl, ls) in cls_i.levels.iter().enumerate() {
+                if !in_scope(lvl) {
+                    continue;
+                }
+                for p in ls.bsp.iter() {
+                    let bsp_class = bsp_disc(&p.bits);
+                    if !seen.insert((lvl, p.source_index, bsp_class)) {
+                        continue;
+                    }
+                    // 预过滤：至少带一个 bsp bit（无 bit 信号两群皆非，省 Γ 组装）。
+                    // ★与 l2_depth_distribution_dx:7264 的差异：那里只收 type2/3 bit，这里放宽到
+                    //   含 type1 bit ⟹ Type1 群进入采集域；Type2/3 群的采集条件**未变**。
+                    if !(p.bits.buy1
+                        || p.bits.sell1
+                        || p.bits.buy2
+                        || p.bits.sell2
+                        || p.bits.buy3
+                        || p.bits.sell3)
+                    {
+                        continue;
+                    }
+                    // 原始 bit 清单（Γ 之前）。
+                    raw_pts[lvl] += 1;
+                    for (bi, on) in [
+                        p.bits.buy1,
+                        p.bits.buy2,
+                        p.bits.buy3,
+                        p.bits.sell1,
+                        p.bits.sell2,
+                        p.bits.sell3,
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    {
+                        if on {
+                            raw_bit[lvl][bi] += 1;
+                        }
+                    }
+                    let has_t1_bit = p.bits.buy1 || p.bits.sell1;
+                    if has_t1_bit {
+                        raw_t1_pts[lvl] += 1;
+                    }
+                    // Γ 组装（bit-exact 复制生产路径）取交易方向 δ。
+                    let single = super::super::super::classifier::Classification {
+                        levels: cls_i
+                            .levels
+                            .iter()
+                            .enumerate()
+                            .map(|(l2, _)| super::super::super::classifier::LevelState {
+                                moves: Vec::new(),
+                                centers: Rc::new(Vec::new()),
+                                cp_ownership: Rc::new(Vec::new()),
+                                bsp: Rc::new(if l2 == lvl {
+                                    vec![p.clone()]
+                                } else {
+                                    Vec::new()
+                                }),
+                                pan_div: Rc::new(Vec::new()),
+                                level_projection: None,
+                            })
+                            .collect(),
+                    };
+                    let cands = assemble_gamma_with_tower(&single, &tower_i);
+                    let n_dir = cands
+                        .iter()
+                        .filter(|c| !matches!(c.dir, VoiceSide::Flat))
+                        .count();
+                    if n_dir == 0 {
+                        gamma_none[lvl] += 1;
+                        if has_t1_bit {
+                            t1_gamma_none[lvl] += 1;
+                        }
+                    } else if has_t1_bit
+                        && !cands.iter().any(|c| match c.dir {
+                            VoiceSide::Long => p.bits.buy1,
+                            VoiceSide::Short => p.bits.sell1,
+                            VoiceSide::Flat => false,
+                        })
+                    {
+                        t1_dir_mismatch[lvl] += 1;
+                    }
+                    for c in &cands {
+                        let delta = match c.dir {
+                            VoiceSide::Long => Side::Long,
+                            VoiceSide::Short => Side::Short,
+                            VoiceSide::Flat => continue,
+                        };
+                        let src = p.source_index;
+                        // per-delta 类型（与 build_nest_certificate 的 is_type1 同源）。
+                        let is_type1 = match delta {
+                            Side::Long => p.bits.buy1,
+                            Side::Short => p.bits.sell1,
+                        };
+                        let is_type2 = match delta {
+                            Side::Long => p.bits.buy2,
+                            Side::Short => p.bits.sell2,
+                        };
+                        let is_type3 = match delta {
+                            Side::Long => p.bits.buy3,
+                            Side::Short => p.bits.sell3,
+                        };
+                        // ★群定义：Type1 优先（与 bsp_cand_type 的 Type1>Type2>Type3 坍缩同序）。
+                        let g = if is_type1 {
+                            0
+                        } else if is_type2 || is_type3 {
+                            1
+                        } else {
+                            n_other += 1;
+                            continue;
+                        };
+                        n_sig[g][lvl] += 1;
+
+                        // 执行级候选段 s（build_nest_certificate:1004 同逻辑，同一 production helper）。
+                        let exec_moves = match tower_i.get(lvl) {
+                            Some(mv) => mv.as_slice(),
+                            None => {
+                                base_none[g][lvl] += 1;
+                                continue;
+                            }
+                        };
+                        let Some(si) = find_move_by_end_index(exec_moves, src) else {
+                            base_none[g][lvl] += 1;
+                            continue;
+                        };
+                        let s = &exec_moves[si];
+
+                        // ── 展开 descend_type1_anchor_depth 的递归为可观测循环 ──
+                        let mut cur: &LeveledMove = s;
+                        let mut cur_level = lvl;
+                        let mut depth = 0usize;
+                        let terminal: StepFail;
+                        loop {
+                            let subs = cur.sub_moves.as_slice();
+                            if subs.is_empty() {
+                                terminal = StepFail::EmptySubs;
+                                break;
+                            }
+                            let Some(tidx) = find_move_by_end_index(subs, src) else {
+                                terminal = StepFail::NoAlign;
+                                break;
+                            };
+                            let why = div_cand_why(subs, tidx, &macd_hist, delta);
+                            let real = div_cand(&DivCandInput {
+                                context: subs,
+                                target_idx: tidx,
+                                hist: &macd_hist,
+                                delta,
+                            });
+                            if why.is_none() != real {
+                                parity_violation += 1;
+                            }
+                            if let Some(cond) = why {
+                                terminal = StepFail::DivFalse(cond);
+                                break;
+                            }
+                            // 本步成功（L → L−1）
+                            step_ok[g][lvl][cur_level] += 1;
+                            depth += 1;
+                            cur = &subs[tidx];
+                            if cur_level == 0 {
+                                level_underflow += 1;
+                            }
+                            cur_level = cur_level.saturating_sub(1);
+                        }
+
+                        // 忠实性对拍①：展开循环 ≡ 真 descend_type1_anchor_depth。
+                        let real_depth = descend_type1_anchor_depth(s, src, delta, &macd_hist);
+                        if real_depth != (depth > 0).then_some(depth) {
+                            trace_mismatch += 1;
+                        }
+
+                        let rb = terminal.bucket();
+                        term_by_lvl[g][lvl][rb] += 1;
+                        term_by_abs[g][rb][cur_level.min(LMAX)] += 1;
+                        step_fail[g][lvl][cur_level.min(LMAX)][rb] += 1;
+                        if depth == 0 {
+                            top_none[g][lvl][rb] += 1;
+                        }
+                        max_depth[g] = max_depth[g].max(depth);
+                        if depth > DCAP {
+                            depth_overflow += 1;
+                        }
+                        depth_hist[g][lvl][depth.min(DCAP)] += 1;
+                        if let StepFail::DivFalse(cond) = terminal {
+                            cond_fail[g][cond as usize] += 1;
+                            cond_fail_abs[g][cur_level.min(LMAX)][cond as usize] += 1;
+                        }
+
+                        // ── 断链现场取样（B / C）──
+                        let want_sample = matches!(
+                            terminal,
+                            StepFail::NoAlign | StepFail::DivFalse(_)
+                        ) && cell_used[g][rb][cur_level.min(LMAX)]
+                            < PER_CELL_CAP
+                            && (sample_b.len() + sample_c.len()) < TOTAL_CAP;
+                        if want_sample {
+                            cell_used[g][rb][cur_level.min(LMAX)] += 1;
+                            let subs = cur.sub_moves.as_slice();
+                            let dsym = if delta == Side::Long { "+1" } else { "-1" };
+                            match terminal {
+                                StepFail::NoAlign => {
+                                    // 该级实际结构：段数、各段 end_index、目标 src、最近端点差。
+                                    let ends: Vec<String> =
+                                        subs.iter().map(|m| m.end_index.to_string()).collect();
+                                    let nearest = subs
+                                        .iter()
+                                        .map(|m| {
+                                            (
+                                                (m.end_index as i64 - src as i64).abs(),
+                                                m.end_index,
+                                            )
+                                        })
+                                        .min();
+                                    let (dist, near_end) =
+                                        nearest.unwrap_or((-1, usize::MAX));
+                                    sample_b.push(format!(
+                                        "| {} | {lvl} | {src} | {dsym} | {}→{} | {} | `[{}]` | {} | {} | parent[{}..{}] |",
+                                        gname(g),
+                                        cur_level,
+                                        cur_level.saturating_sub(1),
+                                        subs.len(),
+                                        ends.join(", "),
+                                        near_end,
+                                        dist,
+                                        cur.start_index,
+                                        cur.end_index
+                                    ));
+                                }
+                                StepFail::DivFalse(cond) => {
+                                    let tidx = find_move_by_end_index(subs, src)
+                                        .expect("C 类 ⟹ 对齐段存在");
+                                    let t = &subs[tidx];
+                                    let t_dir = rmove_dir(&t.rmove);
+                                    let expected = match delta {
+                                        Side::Long => Direction::Down,
+                                        Side::Short => Direction::Up,
+                                    };
+                                    let prev = subs[..tidx]
+                                        .iter()
+                                        .rfind(|m| rmove_dir(&m.rmove) == t_dir);
+                                    let prev_txt = match prev {
+                                        Some(pv) => format!(
+                                            "idx?<{tidx} lo={} hi={} area={:.4} [{}..{}]",
+                                            pv.rmove.lo(),
+                                            pv.rmove.hi(),
+                                            segment_macd_area(
+                                                &macd_hist,
+                                                pv.start_index,
+                                                pv.end_index
+                                            ),
+                                            pv.start_index,
+                                            pv.end_index
+                                        ),
+                                        None => "（无前序同向段）".to_string(),
+                                    };
+                                    sample_c.push(format!(
+                                        "| {} | {lvl} | {src} | {dsym} | {}→{} | cond{cond} | segs={} tidx={tidx} | dir={:?}(exp {:?}) | lo={} hi={} area={:.4} | prev: {} |",
+                                        gname(g),
+                                        cur_level,
+                                        cur_level.saturating_sub(1),
+                                        subs.len(),
+                                        t_dir,
+                                        expected,
+                                        t.rmove.lo(),
+                                        t.rmove.hi(),
+                                        segment_macd_area(
+                                            &macd_hist,
+                                            t.start_index,
+                                            t.end_index
+                                        ),
+                                        prev_txt
+                                    ));
+                                }
+                                StepFail::EmptySubs => unreachable!("已由 want_sample 排除"),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ══ 报告 ══
+        let pct = |x: usize, tot: usize| {
+            if tot == 0 {
+                0.0
+            } else {
+                100.0 * x as f64 / tot as f64
+            }
+        };
+        let mut rpt = String::new();
+        let _ = writeln!(
+            rpt,
+            "# #846 原始数据：Type1 一类点区间套下钻的逐级连续性（A/B/C 三分）"
+        );
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "- issue: #846（ADR 0013 裁定七实测；#839 裁定）");
+        let _ = writeln!(rpt, "- **认识论 L2**（真实 BTC 逐信号结构下钻，确定性 div_cand，可产否定性计数）");
+        let _ = writeln!(
+            rpt,
+            "- 窗口：{win_start}→{win_end}，bars={n}（全量={n_full}），max_bars={max_bars}"
+        );
+        let _ = writeln!(rpt, "- 群定义（per-delta，Type1 优先坍缩）：Type1 = `buy1|sell1` 置位；Type2/3 = 非 Type1 且 `buy2|sell2|buy3|sell3` 置位");
+        let _ = writeln!(rpt, "- 判据口径：`cand_predicate::div_cand` 四条件（1 方向 / 2 前序同向段 / 3 Extreme / 4 Weak=MACD 段面积严格减）");
+        let _ = writeln!(rpt, "- 三分：**A**=`sub_moves` 空（递归底=L0，基底选择，**不算断链**，#520）；**B**=无 `end_index==src` 对齐段；**C**=对齐但 `div_cand` 假");
+        let _ = writeln!(rpt, "- 级别记号 `L→L−1`：在**级 L 走势的 `sub_moves`（=级 L−1 序列）**上做的那一步；失败记在 L");
+        let _ = writeln!(rpt);
+
+        // 0. BSP bit 清单（Γ 之前）——分辨「群为空」的成因
+        let _ = writeln!(rpt, "## 0. BSP bit 清单（Γ 定向**之前**的原始读数）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| lvl | 去重BSP点数 | buy1 | buy2 | buy3 | sell1 | sell2 | sell3 | 带type1 bit | 其中Γ无方向 | 其中Γ方向对不上 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|---|");
+        for lvl in LMIN..=LMAX {
+            let _ = writeln!(
+                rpt,
+                "| {lvl} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+                raw_pts[lvl],
+                raw_bit[lvl][0],
+                raw_bit[lvl][1],
+                raw_bit[lvl][2],
+                raw_bit[lvl][3],
+                raw_bit[lvl][4],
+                raw_bit[lvl][5],
+                raw_t1_pts[lvl],
+                t1_gamma_none[lvl],
+                t1_dir_mismatch[lvl]
+            );
+        }
+        let _ = writeln!(
+            rpt,
+            "\n- Γ 完全无方向（全 Flat）的点数逐级：{:?}",
+            &gamma_none[LMIN..=LMAX]
+        );
+        let _ = writeln!(rpt, "- 判读：`带type1 bit` = 0 ⟹ 该级根本不产一类点（塔/识别层事实）；\
+            `其中Γ无方向`/`方向对不上` > 0 ⟹ 一类点存在但被 Γ 定向环节滤掉（探针域问题，非命题否证）。");
+        let _ = writeln!(rpt);
+
+        // 1. 逐级命中率
+        let _ = writeln!(rpt, "## 1. 逐级命中率（每步 成功/A/B/C）");
+        let _ = writeln!(rpt);
+        for g in 0..NG {
+            let _ = writeln!(rpt, "### 1.{} {} 群", g + 1, gname(g));
+            let _ = writeln!(rpt, "| 信号级 lvl | 步 L→L−1 | 到达该步 | 成功 | A(空subs) | B(无对齐) | C(div假) | 成功% |");
+            let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|");
+            for lvl in LMIN..=LMAX {
+                for l in (0..=lvl).rev() {
+                    let ok = step_ok[g][lvl][l];
+                    let fa = step_fail[g][lvl][l][0];
+                    let fb = step_fail[g][lvl][l][1];
+                    let fc = step_fail[g][lvl][l][2];
+                    let reach = ok + fa + fb + fc;
+                    if reach == 0 {
+                        continue;
+                    }
+                    let _ = writeln!(
+                        rpt,
+                        "| {lvl} | {l}→{} | {reach} | {ok} | {fa} | {fb} | {fc} | {:.2}% |",
+                        l.saturating_sub(1),
+                        pct(ok, reach)
+                    );
+                }
+            }
+            let _ = writeln!(rpt);
+        }
+
+        // 2. 顶层 A/B/C（= 旧报告「小转大」合计数的三分拆）
+        let _ = writeln!(rpt, "## 2. 顶层 `None`（depth==0）的 A/B/C 三分——旧「小转大」合计数的拆分");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| 群 | lvl | 信号总数 | base_none(塔无 end==src 段) | 顶层None合计 | A | B | C | 有锚 Some(d) | 顶层None% |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|");
+        for g in 0..NG {
+            let mut t_n = 0usize;
+            let mut t_bn = 0usize;
+            let mut t_a = 0usize;
+            let mut t_b = 0usize;
+            let mut t_c = 0usize;
+            for lvl in LMIN..=LMAX {
+                let (a, b, cc) = (
+                    top_none[g][lvl][0],
+                    top_none[g][lvl][1],
+                    top_none[g][lvl][2],
+                );
+                let none_tot = a + b + cc;
+                let some_l = n_sig[g][lvl] - base_none[g][lvl] - none_tot;
+                let _ = writeln!(
+                    rpt,
+                    "| {} | {lvl} | {} | {} | {none_tot} | {a} | {b} | {cc} | {some_l} | {:.2}% |",
+                    gname(g),
+                    n_sig[g][lvl],
+                    base_none[g][lvl],
+                    pct(none_tot, n_sig[g][lvl])
+                );
+                t_n += n_sig[g][lvl];
+                t_bn += base_none[g][lvl];
+                t_a += a;
+                t_b += b;
+                t_c += cc;
+            }
+            let t_none = t_a + t_b + t_c;
+            let _ = writeln!(
+                rpt,
+                "| **{}合计** | — | **{t_n}** | **{t_bn}** | **{t_none}** | **{t_a}** | **{t_b}** | **{t_c}** | **{}** | **{:.2}%** |",
+                gname(g),
+                t_n - t_bn - t_none,
+                pct(t_none, t_n)
+            );
+        }
+        let _ = writeln!(rpt);
+
+        // 3. 断链级别分布
+        let _ = writeln!(rpt, "## 3. 断链级别分布（链**终止**成因，含 depth>0 的链尾）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "### 3.1 按信号级切");
+        let _ = writeln!(rpt, "| 群 | 信号级 lvl | 终止=A | 终止=B | 终止=C | 合计链数 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|");
+        for g in 0..NG {
+            for lvl in LMIN..=LMAX {
+                let (a, b, cc) = (
+                    term_by_lvl[g][lvl][0],
+                    term_by_lvl[g][lvl][1],
+                    term_by_lvl[g][lvl][2],
+                );
+                if a + b + cc == 0 {
+                    continue;
+                }
+                let _ = writeln!(
+                    rpt,
+                    "| {} | {lvl} | {a} | {b} | {cc} | {} |",
+                    gname(g),
+                    a + b + cc
+                );
+            }
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "### 3.2 按绝对级别切（链在级 L 上终止）");
+        let _ = writeln!(rpt, "| 群 | 绝对级 L | 终止=A | 终止=B | 终止=C |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|");
+        for g in 0..NG {
+            for l in 0..=LMAX {
+                let (a, b, cc) = (
+                    term_by_abs[g][0][l],
+                    term_by_abs[g][1][l],
+                    term_by_abs[g][2][l],
+                );
+                if a + b + cc == 0 {
+                    continue;
+                }
+                let _ = writeln!(rpt, "| {} | {l} | {a} | {b} | {cc} |", gname(g));
+            }
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "### 3.3 C 类的失败条件号分布（div_cand 四条件中首个不满足者）");
+        let _ = writeln!(rpt, "| 群 | cond0(越界) | cond1(方向≠−δ) | cond2(无前序同向段) | cond3(Extreme 假) | cond4(Weak 假) |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|");
+        for g in 0..NG {
+            let _ = writeln!(
+                rpt,
+                "| {} | {} | {} | {} | {} | {} |",
+                gname(g),
+                cond_fail[g][0],
+                cond_fail[g][1],
+                cond_fail[g][2],
+                cond_fail[g][3],
+                cond_fail[g][4]
+            );
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "### 3.4 C 类条件号 × 绝对级别");
+        let _ = writeln!(rpt, "| 群 | 绝对级 L | cond0 | cond1 | cond2 | cond3 | cond4 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|");
+        for g in 0..NG {
+            for l in 0..=LMAX {
+                let row = cond_fail_abs[g][l];
+                if row.iter().sum::<usize>() == 0 {
+                    continue;
+                }
+                let _ = writeln!(
+                    rpt,
+                    "| {} | {l} | {} | {} | {} | {} | {} |",
+                    gname(g),
+                    row[0],
+                    row[1],
+                    row[2],
+                    row[3],
+                    row[4]
+                );
+            }
+        }
+        let _ = writeln!(rpt);
+
+        // 4. 深度分布
+        let _ = writeln!(rpt, "## 4. 深度分布（成功钻了几层；depth==0 即顶层 None）");
+        let _ = writeln!(rpt);
+        let _ = write!(rpt, "| 群 | lvl ");
+        for d in 0..=DCAP {
+            let _ = write!(rpt, "| d={d} ");
+        }
+        let _ = writeln!(rpt, "|");
+        let _ = write!(rpt, "|---|---");
+        for _ in 0..=DCAP {
+            let _ = write!(rpt, "|---");
+        }
+        let _ = writeln!(rpt, "|");
+        for g in 0..NG {
+            for lvl in LMIN..=LMAX {
+                let _ = write!(rpt, "| {} | {lvl} ", gname(g));
+                for d in 0..=DCAP {
+                    let _ = write!(rpt, "| {} ", depth_hist[g][lvl][d]);
+                }
+                let _ = writeln!(rpt, "|");
+            }
+        }
+        let _ = writeln!(
+            rpt,
+            "\n- max_depth：Type1={}，Type2/3={}；depth>DCAP({DCAP}) 溢出={depth_overflow}",
+            max_depth[0], max_depth[1]
+        );
+        let _ = writeln!(rpt);
+
+        // 5. 断链现场取样
+        let _ = writeln!(rpt, "## 5. 断链现场取样（每 (群,成因,级别) ≤{PER_CELL_CAP} 例，总 ≤{TOTAL_CAP}）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "### 5.1 B 类（无 `end_index==src` 对齐段）：{} 例", sample_b.len());
+        if sample_b.is_empty() {
+            let _ = writeln!(rpt, "\n**（空——B 类未出现或未取到样）**");
+        } else {
+            let _ = writeln!(rpt, "| 群 | 信号级 | src | δ | 步 | 该级段数 | 各段 end_index | 最近 end | 差 | 父段区间 |");
+            let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|");
+            for l in &sample_b {
+                let _ = writeln!(rpt, "{l}");
+            }
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "### 5.2 C 类（对齐段存在，`div_cand` 判假）：{} 例", sample_c.len());
+        if sample_c.is_empty() {
+            let _ = writeln!(rpt, "\n**（空——C 类未出现或未取到样）**");
+        } else {
+            let _ = writeln!(rpt, "| 群 | 信号级 | src | δ | 步 | 失败条件 | 该级结构 | 目标段方向 | 目标段 lo/hi/area | 前序同向段 |");
+            let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|");
+            for l in &sample_c {
+                let _ = writeln!(rpt, "{l}");
+            }
+        }
+        let _ = writeln!(rpt);
+
+        // 6. 忠实性 + 域外声明
+        let _ = writeln!(rpt, "## 6. 忠实性校验与域外声明");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "- 展开循环 ≡ `descend_type1_anchor_depth` 对拍不一致：**{trace_mismatch}**（须 0）");
+        let _ = writeln!(rpt, "- `div_cand_why` ≡ `div_cand` 对拍不一致：**{parity_violation}**（须 0）");
+        let _ = writeln!(rpt, "- 级别下溢（cur_level==0 仍成功下钻一步）：**{level_underflow}**");
+        let _ = writeln!(rpt, "- 残差群（带 δ 但无任何 bsp bit 命中该方向）：{n_other} 条，两群皆不计");
+        let _ = writeln!(rpt, "- 生产关系：`build_nest_certificate:1019` 的 base gate 只对 Type2/3 调下钻；Type1 群的读数是**命题测量**，非生产现行行为");
+        let _ = writeln!(rpt);
+
+        eprint!("{rpt}");
+        let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("rust/ 父目录 = 项目根")
+            .join(".chanlun/review-results/issue846-type1-descend-continuity-raw.md");
+        std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
+        eprintln!("\n原始数据已落盘：{out:?}");
+
+        // ── 真封（穷举 + 忠实性）──
+        for g in 0..NG {
+            for lvl in LMIN..=LMAX {
+                let sum = base_none[g][lvl] + (0..=DCAP).map(|d| depth_hist[g][lvl][d]).sum::<usize>();
+                assert_eq!(
+                    sum, n_sig[g][lvl],
+                    "{} lvl{lvl} 穷举：base_none+Σdepth({sum}) 应 = 信号总数({})",
+                    gname(g),
+                    n_sig[g][lvl]
+                );
+                let term_sum: usize = term_by_lvl[g][lvl].iter().sum();
+                assert_eq!(
+                    term_sum,
+                    n_sig[g][lvl] - base_none[g][lvl],
+                    "{} lvl{lvl} 终止成因穷举：ΣA/B/C({term_sum}) 应 = 启动下钻的链数",
+                    gname(g)
+                );
+            }
+        }
+        assert_eq!(
+            parity_violation, 0,
+            "div_cand_why 与生产 div_cand 判定不一致 {parity_violation} 次 ⟹ 复制体失真，读数作废"
+        );
+        assert_eq!(
+            trace_mismatch, 0,
+            "展开循环与 descend_type1_anchor_depth 返回不一致 {trace_mismatch} 次 ⟹ 探针失真，读数作废"
+        );
+        eprintln!(
+            "真封：Type1 群={} 条（base_none={}），Type2/3 群={} 条（base_none={}）；对拍 parity={parity_violation} trace={trace_mismatch}",
+            n_sig[0].iter().sum::<usize>(),
+            base_none[0].iter().sum::<usize>(),
+            n_sig[1].iter().sum::<usize>(),
+            base_none[1].iter().sum::<usize>()
+        );
+    }
 }
