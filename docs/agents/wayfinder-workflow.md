@@ -101,9 +101,6 @@ skill 原文本就允许这个例外口（「An effort can override this in its 
 ## 一票一会话与并行纪律
 
 - **一票一 session**，每 session 最多解决一张票。**例外面 = 全部 AFK 票**（research + 可无人值守的 task）——这条规则保护的是**人的上下文新鲜度**，AFK 票根本不消耗它（[#776](https://github.com/xy7365527-lang/NewChanlun/issues/776) 裁定⑤）。HITL 票（grilling / prototype）严格一票一会话，不扩。
-- **派 AFK 票前先查票的产出，不能只看 state + assignee**（2026-08-02 实事故后加）。图 Notes 里的「AFK 待派 / AFK 在跑」是**写下那一刻的快照，会过期**——**tracker 才是真相源**。判据：派之前跑一次 `gh issue view <n> --json state,comments`，有 resolution comment 或已 closed 就是别的会话做完了，**跳过**。
-  > 成因：一场会话照 map [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787) Notes 那句「AFK 待派」派了 [#848](https://github.com/xy7365527-lang/NewChanlun/issues/848) 的探针，而并行会话**早已走完该票、关票、并开出两张后续票**（[#850](https://github.com/xy7365527-lang/NewChanlun/issues/850)/[#851](https://github.com/xy7365527-lang/NewChanlun/issues/851)）；那句 Notes 是**上一轮会话写的，已过期**。重复的 opus 子代理白跑两小时，由**用户**发现（「次级别 bsp 在别的地方跑完了，你这个又开了一次吧？」）。
-  > **这不是下一条说的认领竞态**——#772 裁定②认下的代价是「抢同一张票时白跑一次」，而本次那张票**早就不在飞了**，一条查询即可避免。两者别混。
 - **并发安全**：claim（assign）是 session 首写，其他 session 见到已 assign 的票跳过。**认领竞态不加机制**——GitHub 的 assign 是「加进集合」不是互斥，本来就锁不住；HITL 票撞车当场可见，AFK 票撞车的代价只是一个子代理白跑一次，加锁成本高于损失（[#772](https://github.com/xy7365527-lang/NewChanlun/issues/772) 裁定②）。
 - **对人叙述一律用票名，链接裹在名内**；不甩裸 `#` 号墙。
 
