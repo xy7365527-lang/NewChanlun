@@ -85,7 +85,15 @@
 - **各重分多少筹码、按什么键分** → [分区比例 #835](https://github.com/xy7365527-lang/NewChanlun/issues/835)
 - **毛账 / 净账两套记账的形式链缺口** → [总账口径 #836](https://github.com/xy7365527-lang/NewChanlun/issues/836)
 - **验收用哪把尺子** → [目标函数不同源 #833](https://github.com/xy7365527-lang/NewChanlun/issues/833)。**本 ADR 的价值有一半悬在它上面**：若按原文那把尺子（成本↓、筹码↑），「净额抵消使净值不动」根本不构成问题——原文不看净值波动。
-- **交易所侧能否按重逐仓**（Binance 永续的逐仓是按 symbol × 方向，不是按自定义分区；子账户是否为出路）——**未查证**，属仓外事实，归 S1 实装时的前置调研。**090 照实：本 ADR 不宣称它可行。**
+- **执行侧现在是净额还是双仓** → [勘察票 #849](https://github.com/xy7365527-lang/NewChanlun/issues/849)（2026-08-02 开，AFK 在跑）。
+
+  > **⚠️ 本条原文（已订正，留作发生史）**：「交易所侧能否按重逐仓（Binance 永续的逐仓是按 symbol × 方向，不是按自定义分区；子账户是否为出路）——**未查证**，属仓外事实，归 S1 实装时的前置调研。」
+  >
+  > **该判定当场被推翻（同日，本 ADR 落盘后立即）**：搜 tracker 与代码发现本仓早已建过 hedge-mode 模型并列过 venue 前提——[#68 C1 双仓生产接线（nautilus 真相源 NETTING→dual）](https://github.com/xy7365527-lang/NewChanlun/issues/68) 已关闭；`backtest/fill.rs:783`「声部独立持仓（hedge-mode (Q⁺,Q⁻)）」+ `:4656`/`:5323`；`strategy/coverage/leg.rs:12`「供 runner 的 `OverlayState` hedge-mode 簿消费」；`nautilus/strategy.rs:276`「venue 侧 hedge-mode 账户前提（q⁺/q⁻ 双腿共存）列部署裁定」。
+  >
+  > ⟹ 问题性质**不是仓外事实**，是「仓里这套东西现在什么状态」。**这是走 [#834](https://github.com/xy7365527-lang/NewChanlun/issues/834) 那一场会话内第四次撞上立图根因**（前三次见上文「背景」与裁定五），且**第四次就发生在写本 ADR 的那一刻**——比前三次更靠后，说明「先搜」这个动作在写文档时同样会漏做，不只在开票时。
+  >
+  > **裁定二的有效域待 #849 回报后补**：若执行侧仍是 NETTING 且 hedge-mode 簿只在回测侧不进决策，则「各重保证金逐仓分开」在物理层暂时只能是**虚拟记账**，本 ADR 裁定二须加一句有效域。
 
 ## 落点（均已核实存在，非声明）
 
