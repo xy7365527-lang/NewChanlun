@@ -9842,4 +9842,691 @@ mod tests {
             Some(_) => 4,
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // #851 探针：#848 漏数的那一层——「次级别二/三类 bit」∧「同坐标盘整背驰」的**交集**
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// 某级 `pan_div` 在坐标 `src` 上的**分侧**命中：`(Long 命中, Short 命中)`。
+    ///
+    /// 与 [`pan_div_at_coord`] 的区别：那个把结果折成「任意侧 / δ 同侧」两个 bool，本函数保留
+    /// 原始两侧——#851 明确要求分清「大 buy1 ↔ 小**同侧**盘背」与「大 buy1 ↔ 小**反侧**盘背」，
+    /// 折叠口径会把这两件事混数。
+    fn pan_div_sides_at_coord(certs: &[PanDivCert], src: usize) -> (bool, bool) {
+        let mut long_hit = false;
+        let mut short_hit = false;
+        for c in certs {
+            if c.source_index == src {
+                match c.side {
+                    Side::Long => long_hit = true,
+                    Side::Short => short_hit = true,
+                }
+            }
+        }
+        (long_hit, short_hit)
+    }
+
+    /// **#851 探针：交集口径重数 #848 的 34 例**（只读诊断，不改生产，不改判据，`#[ignore]`）。
+    ///
+    /// ## 为什么要重数
+    ///
+    /// #848 §4 统计「大级别 Type1 信号坐标上，次级别标了什么」，得 34 例中一类 bit **0 个**，
+    /// 实际 buy2×16 / buy3×6 / sell2×10 / sell3×4，据此判「归类半句不成立」。但 #848 把
+    /// **BSP 层一类 bit**（§1，窄口径恒 0）与 **`pan_div` 通道**（§2，宽口径 9.09%/13.57%）
+    /// **分开数**，从未数过二者的**交集**。
+    ///
+    /// ADR 0013 裁定七的命题写的是「次级别一类点**或类一类点（盘整背驰）**」，原文承重：
+    /// - `101-第101课.md:32`「第二类买点跌破第一类买点……这里**一般都构成盘整背驰**」
+    /// - `060-第60课.md:50`「严格来说，**盘整背驰无所谓第一类买点，只是这样来类比**」
+    /// - `027-第27课.md:66`「这因为盘整背驰而形成的**类第一类买点**」
+    ///
+    /// ⟹ 命题要的口径是「次级别二类 bit **∧** 同坐标盘整背驰」这个**交集**，不是两个分离计数。
+    ///
+    /// ## 本探针测什么（四件）
+    ///
+    /// 1. **交集交叉表**：34 例逐例给出次级别 BSP bit × 同坐标 `pan_div` 命中/同侧，至少四格
+    ///    （标二类∧有盘背 / 标二类∧无 / 标三类∧有 / 标三类∧无）。
+    /// 2. **同侧反侧分开数**：逐例标明大级别 δ、次级别哪个 bit、同侧还是反侧。
+    ///    「大 buy1 ↔ 小 sell2」与「大 buy1 ↔ 小 buy2」是两件事。
+    /// 3. 二类点的 `Type1Anchor` 归属锚（`make_second_point` 载 `OwnerRef::Type1Anchor`）——
+    ///    答「大级别一类点坐标落在次级别二类点上时，那个二类点自己的一类锚在哪」。
+    /// 4. 全 66 例（含 32 例坐标无次级别条目）的 `pan_div` 覆盖，防「只看 34 例」的选择偏差。
+    ///
+    /// ## 口径（与 #848 严格同批，否则两次读数不可比）
+    ///
+    /// 同一份 BTC 数据、同一 `IncrementalClassifier` 逐 bar 循环、同一 `seen` 去重键
+    /// `(lvl, source_index, bsp_disc)`、同一 `LMIN=0`/`LMAX=4`、同一 Γ 定向、同一群定义。
+    /// §0 的 `n_sig` 逐格与 `issue848-bsp-crosscheck-raw-b1200000.md` §0 对照即自检。
+    ///
+    /// ## 不裁教义
+    ///
+    /// 「盘整背驰算不算类一类点、几段起算」归 #817，**本探针不裁**；只测现有两个载体在同一
+    /// 坐标上的共现。**不改判据、不碰生产代码。**
+    ///
+    /// **认识论 L2**（真实 BTC 逐信号 + 确定性判据，可产否定性计数）。
+    ///
+    /// 命令：`ECON_L2_MAX_BARS=1200000 cargo test --release type1_quasi_first_intersection_dx -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn type1_quasi_first_intersection_dx() {
+        use super::super::super::classifier::bsp::OwnerRef;
+        use super::super::data;
+        use std::fmt::Write as _;
+
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+        };
+        let n_full = ds_full.bars.len();
+        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(usize::MAX);
+        let ds = if n_full > max_bars {
+            ds_full.slice_bar_range(n_full - max_bars, n_full)
+        } else {
+            ds_full
+        };
+        let bars = &ds.bars;
+        let n = bars.len();
+        let win_start = ds
+            .dates
+            .first()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        let win_end = ds
+            .dates
+            .last()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        eprintln!(
+            "[t1-quasi-inter] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}"
+        );
+
+        const LMIN: usize = 0;
+        const LMAX: usize = 4;
+        const NG: usize = 2;
+        let gname = |g: usize| if g == 0 { "Type1" } else { "Type2/3" };
+        let in_scope = |lvl: usize| (LMIN..=LMAX).contains(&lvl);
+
+        let mut n_sig = [[0usize; LMAX + 1]; NG];
+        let mut raw_t1_pts = [0usize; LMAX + 1];
+        let mut n_other = 0usize;
+
+        // ── 坐标级 4×3 交叉表：[群][类别][pd 列] ──
+        // 类别 0=带二类bit（任意侧） 1=不带二类但带三类bit 2=带一类bit 3=mask==0（纯结构候选）
+        // pd 列 0=同侧 pan_div  1=仅反侧 pan_div  2=无 pan_div
+        let mut cross_cat = [[[0usize; 3]; 4]; NG];
+        // ── 同侧/反侧细分（指示计数，同坐标可多格并计）：[群][4 种][pd 列] ──
+        // 0=同侧二类 1=反侧二类 2=同侧三类 3=反侧三类
+        let mut cross_side = [[[0usize; 3]; 4]; NG];
+        // ── 六 bit × pd 列（bit 级，与 #848 §4 的 bit 计数同口径）──
+        let mut bit_x_pd = [[[0usize; 3]; 6]; NG];
+        // 分母：坐标存在次级别条目的例数 / 全部 lvl≥1 例数
+        let mut n_lvlge1 = [0usize; NG];
+        let mut n_present = [0usize; NG];
+        // 全 66 例口径：坐标**无**次级别条目时的 pan_div 覆盖
+        let mut absent_pd = [[0usize; 3]; NG];
+        // 终局快照复查（防「同期查不到」被写成「不存在」）
+        let mut f_present = [0usize; NG];
+        let mut f_pd_same = [0usize; NG];
+        let mut f_pd_any = [0usize; NG];
+
+        // 逐例台账（只 Type1 dump）
+        struct Row {
+            lvl: usize,
+            src: usize,
+            delta: Side,
+            mask: u8,
+            pd_long: bool,
+            pd_short: bool,
+            anchors: Vec<usize>,
+        }
+        let mut rows: Vec<Row> = Vec::new();
+        // 终局复查用：(g, lvl, src, delta)
+        let mut sigs: Vec<(usize, usize, usize, Side)> = Vec::new();
+
+        let last_bar = (0..n).rev().find(|&i| !bars[i].untradable && bars[i].close > 0);
+        let mut final_bsp: Vec<Rc<Vec<BspPoint>>> = Vec::new();
+        let mut final_pd: Vec<Rc<Vec<PanDivCert>>> = Vec::new();
+
+        let mut classifier_incr = IncrementalClassifier::new(bars, &config);
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> =
+            std::collections::HashSet::new();
+
+        for i in 0..n {
+            let bar = &bars[i];
+            if bar.untradable || bar.close <= 0 {
+                continue;
+            }
+            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            if Some(i) == last_bar {
+                final_bsp = cls_i.levels.iter().map(|l| Rc::clone(&l.bsp)).collect();
+                final_pd = cls_i.levels.iter().map(|l| Rc::clone(&l.pan_div)).collect();
+            }
+            for (lvl, ls) in cls_i.levels.iter().enumerate() {
+                if !in_scope(lvl) {
+                    continue;
+                }
+                for p in ls.bsp.iter() {
+                    let bsp_class = bsp_disc(&p.bits);
+                    if !seen.insert((lvl, p.source_index, bsp_class)) {
+                        continue;
+                    }
+                    if !(p.bits.buy1
+                        || p.bits.sell1
+                        || p.bits.buy2
+                        || p.bits.sell2
+                        || p.bits.buy3
+                        || p.bits.sell3)
+                    {
+                        continue;
+                    }
+                    if p.bits.buy1 || p.bits.sell1 {
+                        raw_t1_pts[lvl] += 1;
+                    }
+                    let single = super::super::super::classifier::Classification {
+                        levels: cls_i
+                            .levels
+                            .iter()
+                            .enumerate()
+                            .map(|(l2, _)| super::super::super::classifier::LevelState {
+                                moves: Vec::new(),
+                                centers: Rc::new(Vec::new()),
+                                cp_ownership: Rc::new(Vec::new()),
+                                bsp: Rc::new(if l2 == lvl {
+                                    vec![p.clone()]
+                                } else {
+                                    Vec::new()
+                                }),
+                                pan_div: Rc::new(Vec::new()),
+                                level_projection: None,
+                            })
+                            .collect(),
+                    };
+                    let cands = assemble_gamma_with_tower(&single, &tower_i);
+                    for c in &cands {
+                        let delta = match c.dir {
+                            VoiceSide::Long => Side::Long,
+                            VoiceSide::Short => Side::Short,
+                            VoiceSide::Flat => continue,
+                        };
+                        let src = p.source_index;
+                        let is_type1 = match delta {
+                            Side::Long => p.bits.buy1,
+                            Side::Short => p.bits.sell1,
+                        };
+                        let is_type2 = match delta {
+                            Side::Long => p.bits.buy2,
+                            Side::Short => p.bits.sell2,
+                        };
+                        let is_type3 = match delta {
+                            Side::Long => p.bits.buy3,
+                            Side::Short => p.bits.sell3,
+                        };
+                        let g = if is_type1 {
+                            0
+                        } else if is_type2 || is_type3 {
+                            1
+                        } else {
+                            n_other += 1;
+                            continue;
+                        };
+                        n_sig[g][lvl] += 1;
+                        if lvl == 0 {
+                            continue; // 无次级别，不进表
+                        }
+                        let tl = lvl - 1;
+                        n_lvlge1[g] += 1;
+                        sigs.push((g, lvl, src, delta));
+
+                        let Some(tls) = cls_i.levels.get(tl) else {
+                            continue;
+                        };
+                        let at = bsp_at_coord(&tls.bsp, src);
+                        let (pd_long, pd_short) = pan_div_sides_at_coord(&tls.pan_div, src);
+                        let (pd_same, pd_opp) = match delta {
+                            Side::Long => (pd_long, pd_short),
+                            Side::Short => (pd_short, pd_long),
+                        };
+                        // pd 列：0=同侧 1=仅反侧 2=无
+                        let pdc = if pd_same {
+                            0
+                        } else if pd_opp {
+                            1
+                        } else {
+                            2
+                        };
+
+                        if !at.present {
+                            absent_pd[g][pdc] += 1;
+                            continue;
+                        }
+                        n_present[g] += 1;
+
+                        // 坐标级类别
+                        let has_t2_any = at.mask & 0b01_0010 != 0; // buy2 | sell2
+                        let has_t3_any = at.mask & 0b10_0100 != 0; // buy3 | sell3
+                        let has_t1_any = at.t1_any();
+                        let cat = if has_t2_any {
+                            0
+                        } else if has_t3_any {
+                            1
+                        } else if has_t1_any {
+                            2
+                        } else {
+                            3
+                        };
+                        cross_cat[g][cat][pdc] += 1;
+
+                        // 同侧/反侧细分（指示计数）
+                        let (b2_same, b2_opp, b3_same, b3_opp) = match delta {
+                            Side::Long => (
+                                at.mask & 0b00_0010 != 0, // buy2
+                                at.mask & 0b01_0000 != 0, // sell2
+                                at.mask & 0b00_0100 != 0, // buy3
+                                at.mask & 0b10_0000 != 0, // sell3
+                            ),
+                            Side::Short => (
+                                at.mask & 0b01_0000 != 0, // sell2
+                                at.mask & 0b00_0010 != 0, // buy2
+                                at.mask & 0b10_0000 != 0, // sell3
+                                at.mask & 0b00_0100 != 0, // buy3
+                            ),
+                        };
+                        for (k, on) in [b2_same, b2_opp, b3_same, b3_opp].into_iter().enumerate() {
+                            if on {
+                                cross_side[g][k][pdc] += 1;
+                            }
+                        }
+                        for b in 0..6 {
+                            if at.mask & (1 << b) != 0 {
+                                bit_x_pd[g][b][pdc] += 1;
+                            }
+                        }
+
+                        if g == 0 {
+                            // 二类 bit 的归属锚（`make_second_point` 载 OwnerRef::Type1Anchor）
+                            let mut anchors = Vec::new();
+                            for q in tls.bsp.iter() {
+                                if q.source_index != src || !(q.bits.buy2 || q.bits.sell2) {
+                                    continue;
+                                }
+                                if let Some(OwnerRef::Type1Anchor(a)) = q.center {
+                                    if !anchors.contains(&a) {
+                                        anchors.push(a);
+                                    }
+                                }
+                            }
+                            rows.push(Row {
+                                lvl,
+                                src,
+                                delta,
+                                mask: at.mask,
+                                pd_long,
+                                pd_short,
+                                anchors,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 终局快照复查 ──
+        for &(g, lvl, src, delta) in &sigs {
+            let tl = lvl - 1;
+            if let Some(bl) = final_bsp.get(tl) {
+                if bsp_at_coord(bl, src).present {
+                    f_present[g] += 1;
+                }
+            }
+            if let Some(pl) = final_pd.get(tl) {
+                let (pl_long, pl_short) = pan_div_sides_at_coord(pl, src);
+                let same = match delta {
+                    Side::Long => pl_long,
+                    Side::Short => pl_short,
+                };
+                if same {
+                    f_pd_same[g] += 1;
+                }
+                if pl_long || pl_short {
+                    f_pd_any[g] += 1;
+                }
+            }
+        }
+
+        // ══════════════════════════ 报告 ══════════════════════════
+        let pct = |x: usize, tot: usize| {
+            if tot == 0 {
+                0.0
+            } else {
+                100.0 * x as f64 / tot as f64
+            }
+        };
+        let bit_name = |b: usize| ["buy1", "buy2", "buy3", "sell1", "sell2", "sell3"][b];
+        let mut rpt = String::new();
+        let _ = writeln!(
+            rpt,
+            "# #851 原始数据：交集口径——次级别二/三类 bit **∧** 同坐标盘整背驰"
+        );
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "- issue: #851（承 #848 / #846；ADR 0013 裁定七归类半句）");
+        let _ = writeln!(rpt, "- **认识论 L2**（真实 BTC 逐信号，两个现成载体的同坐标共现计数）");
+        let _ = writeln!(
+            rpt,
+            "- 窗口：{win_start}→{win_end}，bars={n}（全量={n_full}），max_bars={max_bars}"
+        );
+        let _ = writeln!(rpt, "- 信号集与 #848/#846 **严格同批**（同去重键 / 同 Γ 定向 / 同群定义 / LMIN=0 LMAX=4）");
+        let _ = writeln!(rpt, "- 「次级别」= `tl = lvl−1`；坐标匹配 = `source_index == src`（与 #848 同一 `bsp_at_coord`）");
+        let _ = writeln!(rpt, "- 「盘背同侧」= `cls.levels[tl].pan_div` 中存在 `source_index==src` 且 `side==δ` 的 `PanDivCert`");
+        let _ = writeln!(rpt, "- **本探针不改判据、不碰生产代码**；「盘整背驰算不算类一类点」归 #817 未裁");
+        let _ = writeln!(rpt);
+
+        // §0 基数自检
+        let _ = writeln!(rpt, "## 0. 基数自检（与 #848 §0 逐格可比）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| lvl | 带type1 bit 点数 | n_sig(Type1) | n_sig(Type2/3) |");
+        let _ = writeln!(rpt, "|---|---|---|---|");
+        for lvl in LMIN..=LMAX {
+            let _ = writeln!(
+                rpt,
+                "| {lvl} | {} | {} | {} |",
+                raw_t1_pts[lvl], n_sig[0][lvl], n_sig[1][lvl]
+            );
+        }
+        let _ = writeln!(rpt);
+        for g in 0..NG {
+            let _ = writeln!(
+                rpt,
+                "- {}：lvl≥1 共 **{}** 例，其中坐标存在次级别 BSP 条目 **{}** 例（#848 §4 的分母）",
+                gname(g),
+                n_lvlge1[g],
+                n_present[g]
+            );
+        }
+        let _ = writeln!(rpt);
+
+        // §1 ★核心交叉表
+        let _ = writeln!(rpt, "## 1. ★核心交叉表（坐标级；分母 = 坐标存在次级别条目的例数）");
+        let _ = writeln!(rpt);
+        let cat_name = |c: usize| {
+            [
+                "带二类 bit（任意侧）",
+                "不带二类、带三类 bit",
+                "带一类 bit",
+                "mask=0（纯结构候选）",
+            ][c]
+        };
+        for g in 0..NG {
+            let _ = writeln!(rpt, "### 1.{} {}", g + 1, gname(g));
+            let _ = writeln!(rpt);
+            let _ = writeln!(rpt, "| 次级别标了什么 | **∧ 同侧盘背** | ∧ 仅反侧盘背 | ∧ 无盘背 | 合计 | 同侧盘背% | 任意侧盘背% |");
+            let _ = writeln!(rpt, "|---|---|---|---|---|---|---|");
+            for cat in 0..4 {
+                let r = &cross_cat[g][cat];
+                let tot = r[0] + r[1] + r[2];
+                if tot == 0 {
+                    continue;
+                }
+                let _ = writeln!(
+                    rpt,
+                    "| {} | **{}** | {} | {} | {tot} | {:.2}% | {:.2}% |",
+                    cat_name(cat),
+                    r[0],
+                    r[1],
+                    r[2],
+                    pct(r[0], tot),
+                    pct(r[0] + r[1], tot)
+                );
+            }
+            let mut s = [0usize; 3];
+            for cat in 0..4 {
+                for k in 0..3 {
+                    s[k] += cross_cat[g][cat][k];
+                }
+            }
+            let stot = s[0] + s[1] + s[2];
+            let _ = writeln!(
+                rpt,
+                "| **合计** | **{}** | {} | {} | {stot} | {:.2}% | {:.2}% |",
+                s[0],
+                s[1],
+                s[2],
+                pct(s[0], stot),
+                pct(s[0] + s[1], stot)
+            );
+            let _ = writeln!(rpt);
+            let _ = writeln!(rpt, "**票面点名的四格**（合并盘背侧向）：");
+            let _ = writeln!(rpt);
+            let _ = writeln!(rpt, "| | 有盘整背驰 | 无盘整背驰 |");
+            let _ = writeln!(rpt, "|---|---|---|");
+            let _ = writeln!(
+                rpt,
+                "| 标二类 | {} | {} |",
+                cross_cat[g][0][0] + cross_cat[g][0][1],
+                cross_cat[g][0][2]
+            );
+            let _ = writeln!(
+                rpt,
+                "| 标三类 | {} | {} |",
+                cross_cat[g][1][0] + cross_cat[g][1][1],
+                cross_cat[g][1][2]
+            );
+            let _ = writeln!(rpt);
+        }
+
+        // §2 同侧/反侧细分
+        let _ = writeln!(rpt, "## 2. 同侧 / 反侧细分（指示计数，同坐标可多格并计）");
+        let _ = writeln!(rpt);
+        let side_name = |k: usize| ["同侧二类", "**反**侧二类", "同侧三类", "**反**侧三类"][k];
+        let _ = writeln!(rpt, "| 群 | 次级别 bit 相对大级别 δ | ∧ 同侧盘背 | ∧ 仅反侧盘背 | ∧ 无盘背 | 合计 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|");
+        for g in 0..NG {
+            for k in 0..4 {
+                let r = &cross_side[g][k];
+                let tot = r[0] + r[1] + r[2];
+                if tot == 0 {
+                    continue;
+                }
+                let _ = writeln!(
+                    rpt,
+                    "| {} | {} | {} | {} | {} | {tot} |",
+                    gname(g),
+                    side_name(k),
+                    r[0],
+                    r[1],
+                    r[2]
+                );
+            }
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "六 bit × 盘背列（bit 级，与 #848 §4 的 bit 计数同口径）：");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| 群 | 次级别 bit | ∧ 同侧盘背 | ∧ 仅反侧盘背 | ∧ 无盘背 | 合计 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|");
+        for g in 0..NG {
+            for b in 0..6 {
+                let r = &bit_x_pd[g][b];
+                let tot = r[0] + r[1] + r[2];
+                if tot == 0 {
+                    continue;
+                }
+                let _ = writeln!(
+                    rpt,
+                    "| {} | {} | {} | {} | {} | {tot} |",
+                    gname(g),
+                    bit_name(b),
+                    r[0],
+                    r[1],
+                    r[2]
+                );
+            }
+        }
+        let _ = writeln!(rpt);
+
+        // §3 全 lvl≥1 口径（含坐标无次级别条目的例）
+        let _ = writeln!(rpt, "## 3. 全 lvl≥1 口径（防「只看有条目那批」的选择偏差）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| 群 | lvl≥1 例数 | 有次级别条目 | 无条目 | 无条目∧同侧盘背 | 无条目∧仅反侧 | 无条目∧无盘背 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|");
+        for g in 0..NG {
+            let a = &absent_pd[g];
+            let _ = writeln!(
+                rpt,
+                "| {} | {} | {} | {} | {} | {} | {} |",
+                gname(g),
+                n_lvlge1[g],
+                n_present[g],
+                a[0] + a[1] + a[2],
+                a[0],
+                a[1],
+                a[2]
+            );
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "终局快照复查（末 bar 累积列表；差值 = 同期没标、后来标上的量）：");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| 群 | lvl≥1 例数 | 终局有条目 | 终局同侧盘背 | 终局任意侧盘背 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|");
+        for g in 0..NG {
+            let _ = writeln!(
+                rpt,
+                "| {} | {} | {} | {} | {} |",
+                gname(g),
+                n_lvlge1[g],
+                f_present[g],
+                f_pd_same[g],
+                f_pd_any[g]
+            );
+        }
+        let _ = writeln!(rpt);
+
+        // §4 逐例 dump
+        let _ = writeln!(rpt, "## 4. ★Type1 逐例 dump（坐标存在次级别条目的全部 {} 例）", rows.len());
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "`δ` = 大级别方向（+1=buy1 / −1=sell1）；`次级别 bit` 后括注同侧/反侧；");
+        let _ = writeln!(rpt, "`盘背` 列给 `pan_div` 在**同一坐标**的分侧命中；`二类锚` = 该二类点自己的 `OwnerRef::Type1Anchor` 坐标。");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| # | 信号级 | src | δ | 次级别 bit（同侧?） | 盘背同侧 | 盘背反侧 | 二类锚 type1_src | 锚距 src |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|");
+        for (k, r) in rows.iter().enumerate() {
+            let mut bits_s = Vec::new();
+            for b in 0..6 {
+                if r.mask & (1 << b) == 0 {
+                    continue;
+                }
+                let bit_is_long = b < 3; // buy* = 买侧 = Long
+                let same = (r.delta == Side::Long) == bit_is_long;
+                bits_s.push(format!(
+                    "{}({})",
+                    bit_name(b),
+                    if same { "同" } else { "**反**" }
+                ));
+            }
+            let (pd_same, pd_opp) = match r.delta {
+                Side::Long => (r.pd_long, r.pd_short),
+                Side::Short => (r.pd_short, r.pd_long),
+            };
+            let anchors_s = if r.anchors.is_empty() {
+                "—".to_string()
+            } else {
+                r.anchors
+                    .iter()
+                    .map(|a| a.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            };
+            let dist_s = if r.anchors.is_empty() {
+                "—".to_string()
+            } else {
+                r.anchors
+                    .iter()
+                    .map(|a| {
+                        if *a <= r.src {
+                            format!("−{}", r.src - a)
+                        } else {
+                            format!("+{}", a - r.src)
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",")
+            };
+            let _ = writeln!(
+                rpt,
+                "| {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+                k + 1,
+                r.lvl,
+                r.src,
+                if r.delta == Side::Long { "+1" } else { "−1" },
+                if bits_s.is_empty() {
+                    "mask=0".to_string()
+                } else {
+                    bits_s.join(" ")
+                },
+                if pd_same { "**是**" } else { "否" },
+                if pd_opp { "是" } else { "否" },
+                anchors_s,
+                dist_s
+            );
+        }
+        let _ = writeln!(rpt);
+
+        // §5 忠实性与域外
+        let _ = writeln!(rpt, "## 5. 忠实性校验与域外声明");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "- 残差群（带 δ 但无任何 bsp bit 命中该方向）：{n_other} 条，两群皆不计");
+        let _ = writeln!(rpt, "- 台账信号条数：{}（= Σn_sig）", n_sig.iter().flatten().sum::<usize>());
+        let _ = writeln!(
+            rpt,
+            "- 终局快照取自末可交易 bar：{last_bar:?}；`final_bsp` 级数={}，`final_pd` 级数={}",
+            final_bsp.len(),
+            final_pd.len()
+        );
+        let _ = writeln!(rpt, "- **窗口 = {n} bar（全量 {n_full} 的 {:.0}%），未跑全史**——百分比不得外推", pct(n, n_full));
+        let _ = writeln!(rpt, "- **本探针不改任何判据、不碰生产代码**；新增诊断挂 `#[ignore]`，不进 CI 默认集");
+        let _ = writeln!(rpt);
+
+        eprint!("{rpt}");
+        let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("rust/ 父目录 = 项目根")
+            .join(format!(
+                ".chanlun/review-results/issue851-quasi-first-intersection-raw-b{n}.md"
+            ));
+        std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
+        eprintln!("\n原始数据已落盘：{out:?}");
+
+        // ── 真封（与 #848 同批的可比性硬断言）──
+        for g in 0..NG {
+            let cat_sum: usize = cross_cat[g].iter().flatten().sum();
+            assert_eq!(
+                cat_sum, n_present[g],
+                "{} 坐标级交叉表穷举：四类别合计({cat_sum}) 应 = 有条目例数({})",
+                gname(g),
+                n_present[g]
+            );
+            let absent_sum: usize = absent_pd[g].iter().sum();
+            assert_eq!(
+                absent_sum + n_present[g],
+                n_lvlge1[g],
+                "{} 分母穷举：无条目({absent_sum})+有条目({}) 应 = lvl≥1 例数({})",
+                gname(g),
+                n_present[g],
+                n_lvlge1[g]
+            );
+        }
+        assert_eq!(
+            rows.len(),
+            n_present[0],
+            "Type1 逐例 dump 行数({}) 应 = 有条目例数({})",
+            rows.len(),
+            n_present[0]
+        );
+        eprintln!(
+            "真封：Type1 lvl≥1={} 有条目={}；Type2/3 lvl≥1={} 有条目={}",
+            n_lvlge1[0], n_present[0], n_lvlge1[1], n_present[1]
+        );
+    }
 }
