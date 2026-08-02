@@ -35,6 +35,14 @@
 
 **唯一的跨重约束**已经存在，不需要新造：全局不等式上限（ADR 0013 裁定一）＋ 各重保证金逐仓分开（`CONTEXT.md:14`，2026-08-01 编排者裁定）——`posted = Σₖ nₖ/L_maxₖ` 每层按各自极性全额计提，**净额省下的差额不得折算为可部署名义**。省下的钱不许再用，这本身就是闸门。
 
+> **⚠️ 有效域（2026-08-02 [勘察票 #849](https://github.com/xy7365527-lang/NewChanlun/issues/849) 实测后补）：「各重保证金逐仓分开」当前只能是虚拟记账，物理层无落点。**
+>
+> 执行侧是 `OmsType::Netting`（`backtest_engine.rs:157-158`；全仓 `OmsType::Hedging` **零出现**；Python NT 六处 venue 配置全 NETTING），且 `coverage/step.rs:606` 的 `net_target_units` **净额塌缩发生在下单之前、是唯一到达下单的路径**（`leg.rs:299` 自认「完整毛分账本执行须 hedging 账户（v0 净额）」）。仓内确有 hedge-mode 账本（`overlay_state.rs` / `fill.rs:783`），但**是只读旁路**（`runner.rs:479-480` 不改 cash/units/equity），且它自己吐的订单也是净额（`overlay_state.rs:13-18` 写死 `Order_t = ΔN`，双开 `(Q,Q) ↦ 0`）；唯一真按腿下单的 `VoiceExecBook` 由 env `VOICE_EXEC` 控制、**默认关**、活在 in-crate 模拟器内非 venue 出口。
+>
+> **★ 且这是一次有意的让步，不是遗漏**：[#178 裁决：SplitLegLedger 接线 vs 净额让步](https://github.com/xy7365527-lang/NewChanlun/issues/178)（CLOSED 2026-07-23）裁定三——「**档B（逐腿下单出口）：不是最严格的实现，以后再搞**（用户原话）」，理由是「**funding/borrow 毛暴露口径在蓝图与 ADR 均无明文，换出口＝发明新钱规矩**」，**待蓝图补齐该口径后单独立案**。至今未推翻（其裁的 A 档 `SplitLegLedger` 后被 [#282](https://github.com/xy7365527-lang/NewChanlun/issues/282) 删除）。
+>
+> ⟹ **本裁定与 #178 不冲突，但要分清**：本裁定定的是**记账口径**（各重分开计提），#178 拦下的是**下单出口**（逐腿下单）。**记账先分开、出口仍走净额**是合法的中间态，也正是 #178 当年选的 A 档。**解锁条件（补齐 funding/borrow 毛暴露口径）已移交 [总账口径 #836](https://github.com/xy7365527-lang/NewChanlun/issues/836)，该票已补承接条目并列为其第 6 问**（落点已核实存在，非单边声明）。
+
 **否决两个候选**：
 
 | 候选 | 出处 | 否决理由 |
