@@ -57,7 +57,9 @@
 
 **判别一句话**：看两套判据**是不是接在同一个 if-else 上**。是 ⟹ 系统自己声明了二者可互换 ⟹ 违规；不是 ⟹ 按上面三条限定词逐条对。
 
-**在案实例**（本通则的来源，非举例）：次级别背驰确认存在两份实现——`div_cand`（`rust/src/theta_v0/classifier/cand_predicate.rs:107`，四条件含 **Extreme**）与 `sublevel_diverges`（`rust/src/theta_v0/classifier/mod.rs:1929`，**无 Extreme**，其余同族）；`econ_positive.rs:1687` 的 C1 规定前者失败（`descend anchor None`）才走后者所在的小转大通道。[#796](https://github.com/xy7365527-lang/NewChanlun/issues/796) 实测 52 个候选中 **51 个**经此降级放行。收敛到哪一套（Extreme 该不该要）属背驰概念票，未裁。
+**在案实例**（本通则的来源，非举例）：次级别背驰确认存在两份实现——`div_cand`（`rust/src/theta_v0/classifier/cand_predicate.rs:107`，四条件含 **Extreme**）与 `sublevel_diverges`（`rust/src/theta_v0/classifier/mod.rs:1929`，**无 Extreme**，其余同族）；`econ_positive.rs:1687` 的 C1 规定前者失败（`descend anchor None`）才走后者所在的小转大通道。[#796](https://github.com/xy7365527-lang/NewChanlun/issues/796) 实测 52 个候选中 **51 个**经此降级放行。
+
+**⟹ 已裁（2026-08-03，[背驰的教义正本 #814](https://github.com/xy7365527-lang/NewChanlun/issues/814) D-2）**：两者判的是**同一个东西**（次级别一类点），**收成一份，且保留 Extreme**——「创新高/新低」在次级别走势内部判。决定性依据是 `014-第14课.md:34`【正文】的**缠中说禅买点定律**「大级别的第二类买点由次一级别相应走势的第一类买点构成」，其上文明写降级的成因是「对于第一类买点的背弛走法就无法出现」⟹ 降级是判据失效后的**补救**，不是另立一套判据。正本落 `.chanlun/definitions/beichi.md`「次级别背驰的 Extreme 条件」节。**行号订正**：`sublevel_diverges` 实际在 `mod.rs:1931`（本处旧记 1929）。
 
 ### 总缝规则：同一判定每级必须是同一个（[#804](https://github.com/xy7365527-lang/NewChanlun/issues/804) 裁定，2026-07-30）
 
