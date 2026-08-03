@@ -1,0 +1,196 @@
+P856_INPUT symbol=ES bars=3679736 l0_segments=29447
+P856_TOWER level=0 moves=29447
+P856_TOWER level=1 moves=6735
+P856_TOWER level=2 moves=1480
+P856_TOWER level=3 moves=296
+P856_TOWER level=4 moves=55
+P856_TOWER level=5 moves=6
+P856_CLASSIF level=0 centers=6735
+P856_CLASSIF level=1 centers=1480
+P856_CLASSIF level=2 centers=296
+P856_CLASSIF level=3 centers=55
+P856_CLASSIF level=4 centers=6
+P856_CLASSIF level=5 centers=0
+P856_TRENDS n=3567
+P856_TREND_LEN level=0 centers=2 n=1621
+P856_TREND_LEN level=0 centers=3 n=701
+P856_TREND_LEN level=0 centers=4 n=294
+P856_TREND_LEN level=0 centers=5 n=94
+P856_TREND_LEN level=0 centers=6 n=43
+P856_TREND_LEN level=0 centers=7 n=16
+P856_TREND_LEN level=0 centers=8 n=9
+P856_TREND_LEN level=0 centers=9 n=2
+P856_TREND_LEN level=0 centers=10 n=3
+P856_TREND_LEN level=0 centers=11 n=1
+P856_TREND_LEN level=1 centers=2 n=347
+P856_TREND_LEN level=1 centers=3 n=161
+P856_TREND_LEN level=1 centers=4 n=79
+P856_TREND_LEN level=1 centers=5 n=30
+P856_TREND_LEN level=1 centers=6 n=15
+P856_TREND_LEN level=1 centers=7 n=4
+P856_TREND_LEN level=1 centers=8 n=1
+P856_TREND_LEN level=1 centers=9 n=3
+P856_TREND_LEN level=1 centers=10 n=1
+P856_TREND_LEN level=1 centers=11 n=1
+P856_TREND_LEN level=2 centers=2 n=60
+P856_TREND_LEN level=2 centers=3 n=26
+P856_TREND_LEN level=2 centers=4 n=15
+P856_TREND_LEN level=2 centers=5 n=8
+P856_TREND_LEN level=2 centers=6 n=2
+P856_TREND_LEN level=2 centers=7 n=3
+P856_TREND_LEN level=2 centers=8 n=2
+P856_TREND_LEN level=2 centers=11 n=3
+P856_TREND_LEN level=3 centers=2 n=9
+P856_TREND_LEN level=3 centers=3 n=3
+P856_TREND_LEN level=3 centers=4 n=3
+P856_TREND_LEN level=3 centers=5 n=1
+P856_TREND_LEN level=3 centers=8 n=1
+P856_TREND_LEN level=3 centers=9 n=1
+P856_TREND_LEN level=3 centers=10 n=1
+P856_TREND_LEN level=4 centers=2 n=2
+P856_TREND_LEN level=4 centers=4 n=1
+P856_GAP_BARS level=0 strict_len_bucket=0 n=1157
+P856_GAP_BARS level=0 strict_len_bucket=1-9 n=906
+P856_GAP_BARS level=0 strict_len_bucket=10-99 n=1976
+P856_GAP_BARS level=0 strict_len_bucket=100-999 n=669
+P856_GAP_BARS level=1 strict_len_bucket=0 n=192
+P856_GAP_BARS level=1 strict_len_bucket=1-9 n=170
+P856_GAP_BARS level=1 strict_len_bucket=10-99 n=317
+P856_GAP_BARS level=1 strict_len_bucket=100-999 n=339
+P856_GAP_BARS level=1 strict_len_bucket=1k-9k n=157
+P856_GAP_BARS level=2 strict_len_bucket=0 n=29
+P856_GAP_BARS level=2 strict_len_bucket=1-9 n=18
+P856_GAP_BARS level=2 strict_len_bucket=10-99 n=40
+P856_GAP_BARS level=2 strict_len_bucket=100-999 n=47
+P856_GAP_BARS level=2 strict_len_bucket=10k+ n=19
+P856_GAP_BARS level=2 strict_len_bucket=1k-9k n=108
+P856_GAP_BARS level=3 strict_len_bucket=0 n=1
+P856_GAP_BARS level=3 strict_len_bucket=10-99 n=2
+P856_GAP_BARS level=3 strict_len_bucket=100-999 n=5
+P856_GAP_BARS level=3 strict_len_bucket=10k+ n=28
+P856_GAP_BARS level=3 strict_len_bucket=1k-9k n=16
+P856_GAP_BARS level=4 strict_len_bucket=10k+ n=4
+P856_GAP_BARS level=4 strict_len_bucket=1k-9k n=1
+P856_DEGENERATE group=ctrl level=0 edges=1163 reason=lambda_space_is_singleton_bot
+P856_DEGENERATE group=ext level=0 edges=1924 reason=lambda_space_is_singleton_bot
+P856_TALLY group=ctrl atom=bar boundary=closed level=1 total=295 measurable=295 dominates=139 equal=9 violates=147 v_reverse=147 v_incomparable=0 undefined=0
+P856_TALLY group=ctrl atom=bar boundary=closed level=2 total=59 measurable=59 dominates=19 equal=0 violates=40 v_reverse=28 v_incomparable=12 undefined=0
+P856_TALLY group=ctrl atom=bar boundary=closed level=3 total=10 measurable=10 dominates=6 equal=0 violates=4 v_reverse=2 v_incomparable=2 undefined=0
+P856_TALLY group=ctrl atom=bar boundary=closed level=4 total=1 measurable=1 dominates=0 equal=0 violates=1 v_reverse=0 v_incomparable=1 undefined=0
+P856_TALLY group=ctrl atom=bar boundary=strict level=1 total=295 measurable=202 dominates=66 equal=80 violates=56 v_reverse=56 v_incomparable=0 undefined=93
+P856_TALLY group=ctrl atom=bar boundary=strict level=2 total=59 measurable=49 dominates=17 equal=3 violates=29 v_reverse=27 v_incomparable=2 undefined=10
+P856_TALLY group=ctrl atom=bar boundary=strict level=3 total=10 measurable=10 dominates=7 equal=0 violates=3 v_reverse=3 v_incomparable=0 undefined=0
+P856_TALLY group=ctrl atom=bar boundary=strict level=4 total=1 measurable=1 dominates=0 equal=0 violates=1 v_reverse=0 v_incomparable=1 undefined=0
+P856_TALLY group=ctrl atom=unit boundary=closed level=1 total=295 measurable=71 dominates=35 equal=12 violates=24 v_reverse=24 v_incomparable=0 undefined=224
+P856_TALLY group=ctrl atom=unit boundary=closed level=2 total=59 measurable=29 dominates=6 equal=1 violates=22 v_reverse=17 v_incomparable=5 undefined=30
+P856_TALLY group=ctrl atom=unit boundary=closed level=3 total=10 measurable=10 dominates=4 equal=0 violates=6 v_reverse=3 v_incomparable=3 undefined=0
+P856_TALLY group=ctrl atom=unit boundary=closed level=4 total=1 measurable=1 dominates=0 equal=0 violates=1 v_reverse=0 v_incomparable=1 undefined=0
+P856_TALLY group=ctrl atom=unit boundary=strict level=1 total=295 measurable=59 dominates=32 equal=8 violates=19 v_reverse=19 v_incomparable=0 undefined=236
+P856_TALLY group=ctrl atom=unit boundary=strict level=2 total=59 measurable=25 dominates=7 equal=1 violates=17 v_reverse=13 v_incomparable=4 undefined=34
+P856_TALLY group=ctrl atom=unit boundary=strict level=3 total=10 measurable=10 dominates=4 equal=0 violates=6 v_reverse=3 v_incomparable=3 undefined=0
+P856_TALLY group=ctrl atom=unit boundary=strict level=4 total=1 measurable=1 dominates=0 equal=0 violates=1 v_reverse=0 v_incomparable=1 undefined=0
+P856_TALLY group=ext atom=bar boundary=closed level=1 total=533 measurable=533 dominates=261 equal=16 violates=256 v_reverse=256 v_incomparable=0 undefined=0
+P856_TALLY group=ext atom=bar boundary=closed level=2 total=142 measurable=142 dominates=54 equal=0 violates=88 v_reverse=64 v_incomparable=24 undefined=0
+P856_TALLY group=ext atom=bar boundary=closed level=3 total=33 measurable=33 dominates=14 equal=0 violates=19 v_reverse=6 v_incomparable=13 undefined=0
+P856_TALLY group=ext atom=bar boundary=closed level=4 total=2 measurable=2 dominates=0 equal=0 violates=2 v_reverse=0 v_incomparable=2 undefined=0
+P856_TALLY group=ext atom=bar boundary=strict level=1 total=533 measurable=371 dominates=120 equal=152 violates=99 v_reverse=99 v_incomparable=0 undefined=162
+P856_TALLY group=ext atom=bar boundary=strict level=2 total=142 measurable=112 dominates=39 equal=17 violates=56 v_reverse=46 v_incomparable=10 undefined=30
+P856_TALLY group=ext atom=bar boundary=strict level=3 total=33 measurable=31 dominates=14 equal=0 violates=17 v_reverse=9 v_incomparable=8 undefined=2
+P856_TALLY group=ext atom=bar boundary=strict level=4 total=2 measurable=2 dominates=0 equal=0 violates=2 v_reverse=0 v_incomparable=2 undefined=0
+P856_TALLY group=ext atom=unit boundary=closed level=1 total=533 measurable=116 dominates=53 equal=23 violates=40 v_reverse=40 v_incomparable=0 undefined=417
+P856_TALLY group=ext atom=unit boundary=closed level=2 total=142 measurable=68 dominates=22 equal=5 violates=41 v_reverse=30 v_incomparable=11 undefined=74
+P856_TALLY group=ext atom=unit boundary=closed level=3 total=33 measurable=29 dominates=11 equal=0 violates=18 v_reverse=7 v_incomparable=11 undefined=4
+P856_TALLY group=ext atom=unit boundary=closed level=4 total=2 measurable=2 dominates=0 equal=0 violates=2 v_reverse=0 v_incomparable=2 undefined=0
+P856_TALLY group=ext atom=unit boundary=strict level=1 total=533 measurable=93 dominates=48 equal=14 violates=31 v_reverse=31 v_incomparable=0 undefined=440
+P856_TALLY group=ext atom=unit boundary=strict level=2 total=142 measurable=58 dominates=21 equal=2 violates=35 v_reverse=24 v_incomparable=11 undefined=84
+P856_TALLY group=ext atom=unit boundary=strict level=3 total=33 measurable=27 dominates=11 equal=0 violates=16 v_reverse=6 v_incomparable=10 undefined=6
+P856_TALLY group=ext atom=unit boundary=strict level=4 total=2 measurable=2 dominates=0 equal=0 violates=2 v_reverse=0 v_incomparable=2 undefined=0
+P856_SUMMARY group=ext atom=bar boundary=strict total=710 measurable=516 dominates=173 equal=169 violates=174 v_reverse=154 v_incomparable=20 undefined=194
+P856_SUMMARY group=ext atom=bar boundary=closed total=710 measurable=710 dominates=329 equal=16 violates=365 v_reverse=326 v_incomparable=39 undefined=0
+P856_SUMMARY group=ext atom=unit boundary=strict total=710 measurable=180 dominates=80 equal=16 violates=84 v_reverse=61 v_incomparable=23 undefined=530
+P856_SUMMARY group=ext atom=unit boundary=closed total=710 measurable=215 dominates=86 equal=28 violates=101 v_reverse=77 v_incomparable=24 undefined=495
+P856_SUMMARY group=ctrl atom=bar boundary=strict total=365 measurable=262 dominates=90 equal=83 violates=89 v_reverse=86 v_incomparable=3 undefined=103
+P856_SUMMARY group=ctrl atom=bar boundary=closed total=365 measurable=365 dominates=164 equal=9 violates=192 v_reverse=177 v_incomparable=15 undefined=0
+P856_SUMMARY group=ctrl atom=unit boundary=strict total=365 measurable=95 dominates=43 equal=9 violates=43 v_reverse=35 v_incomparable=8 undefined=270
+P856_SUMMARY group=ctrl atom=unit boundary=closed total=365 measurable=111 dominates=45 equal=13 violates=53 v_reverse=44 v_incomparable=9 undefined=254
+P856_VIOLATION atom=bar boundary=strict level=4 cause=incomparable dir=Up b=[1004192,1133696] c=[1305454,2039195] b_date=2018-11-19 19:43:00+00:00 c_date_end=2021-11-03 20:38:00+00:00 b_hist=n=129505[bot:1979,0:2805,1:17824,2:37691,3:69206] c_hist=n=733742[bot:7882,0:27803,1:78150,2:183771,3:436136]
+P856_VIOLATION atom=bar boundary=closed level=4 cause=incomparable dir=Up b=[1004191,1133697] c=[1305453,2039196] b_date=2018-11-19 19:42:00+00:00 c_date_end=2021-11-03 20:39:00+00:00 b_hist=n=129507[bot:1979,0:2805,1:17824,2:37691,3:69208] c_hist=n=733744[bot:7882,0:27803,1:78150,2:183771,3:436138]
+P856_VIOLATION atom=bar boundary=strict level=4 cause=incomparable dir=Up b=[817128,874929] c=[1004192,1133696] b_date=2018-05-09 18:14:00+00:00 c_date_end=2019-04-05 00:04:00+00:00 b_hist=n=57802[bot:974,0:3455,1:2324,2:28296,3:22753] c_hist=n=129505[bot:1979,0:2805,1:17824,2:37691,3:69206]
+P856_VIOLATION atom=bar boundary=closed level=4 cause=incomparable dir=Up b=[817127,874930] c=[1004191,1133697] b_date=2018-05-09 18:13:00+00:00 c_date_end=2019-04-05 00:05:00+00:00 b_hist=n=57804[bot:974,0:3455,1:2324,2:28296,3:22755] c_hist=n=129507[bot:1979,0:2805,1:17824,2:37691,3:69208]
+P856_VIOLATION atom=unit boundary=closed level=4 cause=incomparable dir=Up b=[7851,8938] c=[10394,16423] b_date=2016-01-11 16:07:00+00:00 c_date_end=2016-01-20 03:30:00+00:00 b_hist=n=1088[bot:11,0:29,1:139,2:317,3:592] c_hist=n=6030[bot:57,0:220,1:655,2:1522,3:3576]
+P856_VIOLATION atom=unit boundary=strict level=4 cause=incomparable dir=Up b=[7851,8938] c=[10394,16423] b_date=2016-01-11 16:07:00+00:00 c_date_end=2016-01-20 03:30:00+00:00 b_hist=n=1088[bot:11,0:29,1:139,2:317,3:592] c_hist=n=6030[bot:57,0:220,1:655,2:1522,3:3576]
+P856_VIOLATION atom=unit boundary=strict level=4 cause=incomparable dir=Up b=[6344,6820] c=[7851,8938] b_date=2016-01-08 13:45:00+00:00 c_date_end=2016-01-12 11:29:00+00:00 b_hist=n=477[bot:5,0:25,1:26,2:238,3:183] c_hist=n=1088[bot:11,0:29,1:139,2:317,3:592]
+P856_VIOLATION atom=unit boundary=closed level=4 cause=incomparable dir=Up b=[6343,6820] c=[7851,8938] b_date=2016-01-08 13:44:00+00:00 c_date_end=2016-01-12 11:29:00+00:00 b_hist=n=478[bot:5,0:26,1:26,2:238,3:183] c_hist=n=1088[bot:11,0:29,1:139,2:317,3:592]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=reverse dir=Up b=[3078010,3106911] c=[3216671,3354065] b_date=2024-10-09 19:53:00+00:00 c_date_end=2025-07-23 18:24:00+00:00 b_hist=n=28902[bot:908,0:2058,1:7832,2:18104] c_hist=n=137395[bot:2555,0:4500,1:33980,2:96360]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=reverse dir=Up b=[3078009,3106912] c=[3216670,3354066] b_date=2024-10-09 19:52:00+00:00 c_date_end=2025-07-23 18:25:00+00:00 b_hist=n=28904[bot:908,0:2058,1:7832,2:18106] c_hist=n=137397[bot:2555,0:4500,1:33980,2:96362]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=incomparable dir=Up b=[3052972,3056611] c=[3078010,3106911] b_date=2024-09-13 16:17:00+00:00 c_date_end=2024-11-07 19:44:00+00:00 b_hist=n=3640[bot:83,0:591,1:2966] c_hist=n=28902[bot:908,0:2058,1:7832,2:18104]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=incomparable dir=Up b=[3052971,3056612] c=[3078009,3106912] b_date=2024-09-13 16:16:00+00:00 c_date_end=2024-11-07 19:45:00+00:00 b_hist=n=3642[bot:83,0:591,1:2966,2:2] c_hist=n=28904[bot:908,0:2058,1:7832,2:18106]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=incomparable dir=Up b=[2901211,3024259] c=[3052972,3056611] b_date=2024-04-11 18:03:00+00:00 c_date_end=2024-09-18 08:12:00+00:00 b_hist=n=123049[bot:2906,0:9268,1:37575,2:73300] c_hist=n=3640[bot:83,0:591,1:2966]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=incomparable dir=Up b=[2901210,3024260] c=[3052971,3056612] b_date=2024-04-11 18:02:00+00:00 c_date_end=2024-09-18 08:13:00+00:00 b_hist=n=123051[bot:2906,0:9268,1:37575,2:73302] c_hist=n=3642[bot:83,0:591,1:2966,2:2]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=reverse dir=Up b=[2835144,2872070] c=[2901211,3024259] b_date=2024-02-02 16:49:00+00:00 c_date_end=2024-08-15 16:35:00+00:00 b_hist=n=36927[bot:1226,0:3131,1:14282,2:18288] c_hist=n=123049[bot:2906,0:9268,1:37575,2:73300]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=reverse dir=Up b=[2835143,2872071] c=[2901210,3024260] b_date=2024-02-02 16:48:00+00:00 c_date_end=2024-08-15 16:36:00+00:00 b_hist=n=36929[bot:1226,0:3131,1:14282,2:18290] c_hist=n=123051[bot:2906,0:9268,1:37575,2:73302]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=reverse dir=Up b=[2401330,2401436] c=[2454620,2468409] b_date=2022-11-10 17:23:00+00:00 c_date_end=2023-01-20 20:14:00+00:00 b_hist=n=107[bot:107] c_hist=n=13790[bot:979,0:1914,1:10897]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=incomparable dir=Up b=[2401329,2401437] c=[2454619,2468410] b_date=2022-11-10 17:22:00+00:00 c_date_end=2023-01-20 20:15:00+00:00 b_hist=n=109[bot:107,2:2] c_hist=n=13792[bot:979,0:1914,1:10897,2:2]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=reverse dir=Down b=[2137128,2137137] c=[2202227,2203735] b_date=2022-02-14 09:52:00+00:00 c_date_end=2022-04-22 19:02:00+00:00 b_hist=n=10[bot:10] c_hist=n=1509[bot:71,0:1438]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=incomparable dir=Down b=[2137127,2137138] c=[2202226,2203736] b_date=2022-02-14 09:51:00+00:00 c_date_end=2022-04-22 19:03:00+00:00 b_hist=n=12[bot:10,2:2] c_hist=n=1511[bot:71,0:1438,2:2]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=reverse dir=Up b=[1828920,1834059] c=[1878506,2039195] b_date=2021-04-01 23:04:00+00:00 c_date_end=2021-11-03 20:38:00+00:00 b_hist=n=5140[bot:542,0:1407,1:3191] c_hist=n=160690[bot:3749,0:12757,1:46982,2:97202]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=reverse dir=Up b=[1828919,1834060] c=[1878505,2039196] b_date=2021-04-01 23:03:00+00:00 c_date_end=2021-11-03 20:39:00+00:00 b_hist=n=5142[bot:542,0:1407,1:3191,2:2] c_hist=n=160692[bot:3749,0:12757,1:46982,2:97204]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=incomparable dir=Up b=[1767881,1776256] c=[1828920,1834059] b_date=2021-01-29 02:41:00+00:00 c_date_end=2021-04-08 01:44:00+00:00 b_hist=n=8376[bot:1245,0:1732,1:5399] c_hist=n=5140[bot:542,0:1407,1:3191]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=incomparable dir=Up b=[1767880,1776257] c=[1828919,1834060] b_date=2021-01-29 02:40:00+00:00 c_date_end=2021-04-08 01:45:00+00:00 b_hist=n=8378[bot:1245,0:1732,1:5399,2:2] c_hist=n=5142[bot:542,0:1407,1:3191,2:2]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=reverse dir=Up b=[1736514,1736565] c=[1767881,1776256] b_date=2020-12-27 23:16:00+00:00 c_date_end=2021-02-08 05:46:00+00:00 b_hist=n=52[bot:52] c_hist=n=8376[bot:1245,0:1732,1:5399]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=incomparable dir=Up b=[1736513,1736566] c=[1767880,1776257] b_date=2020-12-27 23:15:00+00:00 c_date_end=2021-02-08 05:47:00+00:00 b_hist=n=54[bot:52,2:2] c_hist=n=8378[bot:1245,0:1732,1:5399,2:2]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=incomparable dir=Up b=[1596302,1598101] c=[1661613,1692057] b_date=2020-08-03 12:41:00+00:00 c_date_end=2020-11-09 20:58:00+00:00 b_hist=n=1800[bot:8,1:1792] c_hist=n=30445[bot:352,0:2435,1:4534,2:23124]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=incomparable dir=Up b=[1596301,1598102] c=[1661612,1692058] b_date=2020-08-03 12:40:00+00:00 c_date_end=2020-11-09 20:59:00+00:00 b_hist=n=1802[bot:8,1:1792,2:2] c_hist=n=30447[bot:352,0:2435,1:4534,2:23126]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=reverse dir=Up b=[1568123,1568388] c=[1596302,1598101] b_date=2020-07-05 22:02:00+00:00 c_date_end=2020-08-04 19:56:00+00:00 b_hist=n=266[bot:266] c_hist=n=1800[bot:8,1:1792]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=incomparable dir=Up b=[1568122,1568389] c=[1596301,1598102] b_date=2020-07-05 22:01:00+00:00 c_date_end=2020-08-04 19:57:00+00:00 b_hist=n=268[bot:266,2:2] c_hist=n=1802[bot:8,1:1792,2:2]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=incomparable dir=Up b=[1492356,1496306] c=[1521440,1528784] b_date=2020-04-16 15:55:00+00:00 c_date_end=2020-05-25 08:49:00+00:00 b_hist=n=3951[bot:263,0:704,1:2984] c_hist=n=7345[bot:504,0:1833,2:5008]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=incomparable dir=Up b=[1492355,1496307] c=[1521439,1528785] b_date=2020-04-16 15:54:00+00:00 c_date_end=2020-05-25 08:50:00+00:00 b_hist=n=3953[bot:263,0:704,1:2984,2:2] c_hist=n=7347[bot:504,0:1833,2:5010]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=reverse dir=Up b=[1305454,1337709] c=[1373635,1407435] b_date=2019-10-01 15:16:00+00:00 c_date_end=2020-01-17 00:22:00+00:00 b_hist=n=32256[bot:489,0:5097,1:4236,2:22434] c_hist=n=33801[bot:232,0:960,1:4669,2:27940]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=reverse dir=Up b=[1305453,1337710] c=[1373634,1407436] b_date=2019-10-01 15:15:00+00:00 c_date_end=2020-01-17 00:23:00+00:00 b_hist=n=32258[bot:489,0:5097,1:4236,2:22436] c_hist=n=33803[bot:232,0:960,1:4669,2:27942]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=reverse dir=Up b=[1033346,1087242] c=[1128181,1133696] b_date=2018-12-19 19:45:00+00:00 c_date_end=2019-04-05 00:04:00+00:00 b_hist=n=53897[bot:1779,0:1960,1:17824,2:32334] c_hist=n=5516[bot:159,2:5357]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=reverse dir=Up b=[1033345,1087243] c=[1128180,1133697] b_date=2018-12-19 19:44:00+00:00 c_date_end=2019-04-05 00:05:00+00:00 b_hist=n=53899[bot:1779,0:1960,1:17824,2:32336] c_hist=n=5518[bot:159,2:5359]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=incomparable dir=Up b=[817128,817751] c=[840505,874929] b_date=2018-05-09 18:14:00+00:00 c_date_end=2018-07-09 16:16:00+00:00 b_hist=n=624[bot:3,0:621] c_hist=n=34425[bot:971,0:2834,1:2324,2:28296]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=incomparable dir=Up b=[817127,817752] c=[840504,874930] b_date=2018-05-09 18:13:00+00:00 c_date_end=2018-07-09 16:17:00+00:00 b_hist=n=626[bot:3,0:621,2:2] c_hist=n=34427[bot:971,0:2834,1:2324,2:28298]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=incomparable dir=Up b=[530954,534048] c=[559716,624972] b_date=2017-07-12 10:33:00+00:00 c_date_end=2017-10-18 11:17:00+00:00 b_hist=n=3095[bot:194,1:2901] c_hist=n=65257[bot:1013,0:5196,1:17081,2:41967]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=incomparable dir=Up b=[530953,534049] c=[559715,624973] b_date=2017-07-12 10:32:00+00:00 c_date_end=2017-10-18 11:18:00+00:00 b_hist=n=3097[bot:194,1:2901,2:2] c_hist=n=65259[bot:1013,0:5196,1:17081,2:41969]
+P856_VIOLATION atom=bar boundary=strict level=3 cause=incomparable dir=Up b=[484956,493089] c=[530954,534048] b_date=2017-05-24 18:03:00+00:00 c_date_end=2017-07-14 17:19:00+00:00 b_hist=n=8134[bot:488,0:363,2:7283] c_hist=n=3095[bot:194,1:2901]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=incomparable dir=Up b=[484955,493090] c=[530953,534049] b_date=2017-05-24 18:02:00+00:00 c_date_end=2017-07-14 17:20:00+00:00 b_hist=n=8136[bot:488,0:363,2:7285] c_hist=n=3097[bot:194,1:2901,2:2]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=reverse dir=Up b=[370217,395882] c=[456236,456236] b_date=2017-01-24 18:35:00+00:00 c_date_end=2017-04-25 11:14:00+00:00 b_hist=n=25666[bot:892,0:2878,1:9959,2:11937] c_hist=n=1[2:1]
+P856_VIOLATION atom=bar boundary=closed level=3 cause=incomparable dir=Up b=[132033,137763] c=[181124,183784] b_date=2016-05-19 01:50:00+00:00 c_date_end=2016-07-12 10:17:00+00:00 b_hist=n=5731[bot:264,0:1003,1:4462,2:2] c_hist=n=2661[bot:633,1:2026,2:2]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=reverse dir=Up b=[24735,24949] c=[25829,26934] b_date=2016-01-28 05:32:00+00:00 c_date_end=2016-01-29 19:26:00+00:00 b_hist=n=215[bot:5,0:12,1:63,2:135] c_hist=n=1106[bot:20,0:38,1:276,2:772]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=reverse dir=Up b=[24735,24949] c=[25829,26934] b_date=2016-01-28 05:32:00+00:00 c_date_end=2016-01-29 19:26:00+00:00 b_hist=n=215[bot:5,0:12,1:63,2:135] c_hist=n=1106[bot:20,0:38,1:276,2:772]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=reverse dir=Up b=[24542,24565] c=[24735,24949] b_date=2016-01-28 02:19:00+00:00 c_date_end=2016-01-28 09:06:00+00:00 b_hist=n=24[bot:1,0:4,1:19] c_hist=n=215[bot:5,0:12,1:63,2:135]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=reverse dir=Up b=[24542,24565] c=[24735,24949] b_date=2016-01-28 02:19:00+00:00 c_date_end=2016-01-28 09:06:00+00:00 b_hist=n=24[bot:1,0:4,1:19] c_hist=n=215[bot:5,0:12,1:63,2:135]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=incomparable dir=Up b=[22847,23147] c=[23367,24306] b_date=2016-01-26 19:34:00+00:00 c_date_end=2016-01-27 21:08:00+00:00 b_hist=n=301[bot:9,0:19,1:118,2:155] c_hist=n=940[bot:21,0:70,1:288,2:561]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=incomparable dir=Up b=[22847,23147] c=[23367,24306] b_date=2016-01-26 19:34:00+00:00 c_date_end=2016-01-27 21:08:00+00:00 b_hist=n=301[bot:9,0:19,1:118,2:155] c_hist=n=940[bot:21,0:70,1:288,2:561]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=reverse dir=Up b=[19376,19376] c=[19803,19916] b_date=2016-01-22 07:13:00+00:00 c_date_end=2016-01-22 16:13:00+00:00 b_hist=n=1[bot:1] c_hist=n=114[bot:8,0:18,1:88]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=reverse dir=Up b=[19376,19376] c=[19803,19916] b_date=2016-01-22 07:13:00+00:00 c_date_end=2016-01-22 16:13:00+00:00 b_hist=n=1[bot:1] c_hist=n=114[bot:8,0:18,1:88]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=reverse dir=Down b=[17748,17753] c=[18120,18136] b_date=2016-01-21 02:50:00+00:00 c_date_end=2016-01-21 09:18:00+00:00 b_hist=n=6[bot:1,0:5] c_hist=n=17[0:17]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=reverse dir=Down b=[17748,17753] c=[18120,18136] b_date=2016-01-21 02:50:00+00:00 c_date_end=2016-01-21 09:18:00+00:00 b_hist=n=6[bot:1,0:5] c_hist=n=17[0:17]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=reverse dir=Up b=[14692,14730] c=[15098,16423] b_date=2016-01-18 16:23:00+00:00 c_date_end=2016-01-20 03:30:00+00:00 b_hist=n=39[bot:5,0:8,1:26] c_hist=n=1326[bot:25,0:95,1:398,2:808]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=reverse dir=Up b=[14691,14730] c=[15097,16423] b_date=2016-01-18 16:22:00+00:00 c_date_end=2016-01-20 03:30:00+00:00 b_hist=n=40[bot:5,0:9,1:26] c_hist=n=1327[bot:26,0:95,1:398,2:808]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=reverse dir=Up b=[13933,13933] c=[14208,14277] b_date=2016-01-18 03:44:00+00:00 c_date_end=2016-01-18 09:28:00+00:00 b_hist=n=1[bot:1] c_hist=n=70[bot:6,0:13,1:51]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=incomparable dir=Up b=[12783,12798] c=[13311,13563] b_date=2016-01-15 07:19:00+00:00 c_date_end=2016-01-15 20:19:00+00:00 b_hist=n=16[1:16] c_hist=n=253[bot:4,0:21,1:35,2:193]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=incomparable dir=Up b=[12783,12797] c=[13311,13563] b_date=2016-01-15 07:19:00+00:00 c_date_end=2016-01-15 20:19:00+00:00 b_hist=n=15[1:15] c_hist=n=253[bot:4,0:21,1:35,2:193]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=reverse dir=Up b=[12537,12539] c=[12783,12798] b_date=2016-01-15 03:13:00+00:00 c_date_end=2016-01-15 07:34:00+00:00 b_hist=n=3[bot:3] c_hist=n=16[1:16]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=reverse dir=Up b=[12537,12539] c=[12783,12797] b_date=2016-01-15 03:13:00+00:00 c_date_end=2016-01-15 07:33:00+00:00 b_hist=n=3[bot:3] c_hist=n=15[1:15]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=incomparable dir=Up b=[11908,11938] c=[12145,12206] b_date=2016-01-14 15:29:00+00:00 c_date_end=2016-01-14 20:27:00+00:00 b_hist=n=31[bot:1,0:7,1:23] c_hist=n=62[bot:5,0:17,2:40]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=incomparable dir=Up b=[11907,11938] c=[12145,12206] b_date=2016-01-14 15:28:00+00:00 c_date_end=2016-01-14 20:27:00+00:00 b_hist=n=32[bot:1,0:8,1:23] c_hist=n=62[bot:5,0:17,2:40]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=incomparable dir=Up b=[10394,10668] c=[10954,11219] b_date=2016-01-13 13:00:00+00:00 c_date_end=2016-01-14 04:00:00+00:00 b_hist=n=275[bot:2,0:43,1:39,2:191] c_hist=n=266[bot:2,0:6,1:36,2:222]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=incomparable dir=Up b=[10394,10667] c=[10954,11218] b_date=2016-01-13 13:00:00+00:00 c_date_end=2016-01-14 03:59:00+00:00 b_hist=n=274[bot:2,0:42,1:39,2:191] c_hist=n=265[bot:2,0:5,1:36,2:222]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=incomparable dir=Up b=[8100,8544] c=[8896,8938] b_date=2016-01-11 20:16:00+00:00 c_date_end=2016-01-12 11:29:00+00:00 b_hist=n=445[bot:9,0:21,1:139,2:276] c_hist=n=43[bot:2,2:41]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=incomparable dir=Up b=[8100,8544] c=[8896,8938] b_date=2016-01-11 20:16:00+00:00 c_date_end=2016-01-12 11:29:00+00:00 b_hist=n=445[bot:9,0:21,1:139,2:276] c_hist=n=43[bot:2,2:41]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=incomparable dir=Down b=[7190,7547] c=[7851,7857] b_date=2016-01-11 05:06:00+00:00 c_date_end=2016-01-11 16:13:00+00:00 b_hist=n=358[bot:5,0:27,1:31,2:295] c_hist=n=7[0:7]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=incomparable dir=Down b=[7189,7547] c=[7851,7858] b_date=2016-01-11 05:05:00+00:00 c_date_end=2016-01-11 16:14:00+00:00 b_hist=n=359[bot:5,0:28,1:31,2:295] c_hist=n=8[0:8]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=incomparable dir=Up b=[6344,6347] c=[6531,6820] b_date=2016-01-08 13:45:00+00:00 c_date_end=2016-01-08 21:56:00+00:00 b_hist=n=4[0:4] c_hist=n=290[bot:5,0:21,1:26,2:238]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=incomparable dir=Up b=[6343,6347] c=[6531,6820] b_date=2016-01-08 13:44:00+00:00 c_date_end=2016-01-08 21:56:00+00:00 b_hist=n=5[0:5] c_hist=n=290[bot:5,0:21,1:26,2:238]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=incomparable dir=Up b=[4155,4178] c=[4356,4792] b_date=2016-01-07 00:01:00+00:00 c_date_end=2016-01-07 10:38:00+00:00 b_hist=n=24[bot:2,1:22] c_hist=n=437[bot:6,0:32,1:111,2:288]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=incomparable dir=Up b=[4155,4177] c=[4356,4791] b_date=2016-01-07 00:01:00+00:00 c_date_end=2016-01-07 10:37:00+00:00 b_hist=n=23[bot:1,1:22] c_hist=n=436[bot:6,0:32,1:110,2:288]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=incomparable dir=Up b=[3791,3850] c=[4155,4178] b_date=2016-01-06 16:42:00+00:00 c_date_end=2016-01-07 00:24:00+00:00 b_hist=n=60[bot:5,0:3,2:52] c_hist=n=24[bot:2,1:22]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=incomparable dir=Up b=[3791,3850] c=[4155,4177] b_date=2016-01-06 16:42:00+00:00 c_date_end=2016-01-07 00:23:00+00:00 b_hist=n=60[bot:5,0:3,2:52] c_hist=n=23[bot:1,1:22]
+P856_VIOLATION atom=unit boundary=strict level=3 cause=incomparable dir=Up b=[1107,1156] c=[1505,1519] b_date=2016-01-04 17:27:00+00:00 c_date_end=2016-01-05 01:34:00+00:00 b_hist=n=50[bot:2,0:8,1:40] c_hist=n=15[bot:1,1:14]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=incomparable dir=Up b=[1106,1156] c=[1505,1519] b_date=2016-01-04 17:26:00+00:00 c_date_end=2016-01-05 01:34:00+00:00 b_hist=n=51[bot:2,0:8,1:41] c_hist=n=15[bot:1,1:14]
+P856_VIOLATION atom=unit boundary=closed level=3 cause=incomparable dir=Up b=[455,632] c=[1106,1156] b_date=2016-01-04 06:35:00+00:00 c_date_end=2016-01-04 18:16:00+00:00 b_hist=n=178[bot:7,0:10,1:26,2:135] c_hist=n=51[bot:2,0:8,1:41]
+P856_VIOLATION atom=bar boundary=strict level=2 cause=reverse dir=Up b=[3638483,3639185] c=[3648511,3653404] b_date=2026-05-13 17:23:00+00:00 c_date_end=2026-05-28 17:04:00+00:00 b_hist=n=703[bot:16,0:687] c_hist=n=4894[bot:23,1:4871]
+P856_VIOLATION atom=bar boundary=closed level=2 cause=reverse dir=Up b=[3638482,3639186] c=[3648510,3653405] b_date=2026-05-13 17:22:00+00:00 c_date_end=2026-05-28 17:05:00+00:00 b_hist=n=705[bot:16,0:687,1:2] c_hist=n=4896[bot:23,1:4873]
+P856_VIOLATION_ROWS n=724
