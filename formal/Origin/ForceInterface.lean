@@ -46,7 +46,7 @@ Origin/ForceInterface.lean — 力度抽象接口（背驰判据的 L0 接口层
 
 `lake env lean Origin/ForceInterface.lean` 通过 = 力度 interface 的公理逻辑性质 + 背驰判据
 经 interface well-defined + 与具体标量判据等价 在定义层成立，**不是**任何「某 ForceMeasure
-实例在真实 K 线上算出的力度有效」的实证断言（那需 L2 MACD 引擎 + 真实数据，本文件不冒充）。
+实例在真实 K 线上算出的 MACD 代理有效」的实证断言（那需 L2 MACD 引擎 + 真实数据，本文件不冒充）。
 
 ★诚实标注（no-patch-mentality / no-声明膨胀）：
   · interface 的公理性质**非空洞恒真**——给反退化见证（§4）：一个不满足力度序的伪 measure
@@ -76,27 +76,26 @@ namespace NewChanlun.Origin
   的元素映到 `Force`（MACD 柱子面积抽象标量），并满足力度比较的公理性质。
 
   ★字段（接口承诺）：
-  - `measure : α → Force`：抽象力度函数（从走势载体到力度标量）。**不规定计算方式**——
-    具体计算（MACD 面积，L2）由外部引擎提供。这是 interface 的核心抽象：力度比较的逻辑
-    独立于力度的来源。
-  - `strength : α → Nat`：走势载体携带的「内在强度序」代理（如段的几何幅度/动量代理）。
-    interface 要求 `measure` 与此内在序**单调对齐**（见 `mono`）——这是公理的**内容**：
-    力度 measure 不能任意，必须尊重走势的内在强度序。
-  - `mono`：**单调公理**——内在强度更大 ⟹ 力度不更小（`strength a ≤ strength b →
-    (measure a).area ≤ (measure b).area`）。这是 interface 的非平凡约束：拒绝「内在更强但
-    力度更弱」的伪 measure（反退化见证 §4）。
-  - `faithful`：**忠实公理**——力度严格序蕴含内在强度严格序的可比性
-    （`(measure a).area < (measure b).area → strength a ≤ strength b`）。这保证背驰判据
-    （力度 C < A）读出的力度衰减对应内在强度不增——力度序不脱离内在序凭空判背驰。
+  - `measure : α → Force`：独立的 MACD 代理函数（从走势载体到面积标量）。**不规定计算方式**——
+    具体计算（MACD 面积，L2）由外部引擎提供。这是 interface 的代理侧抽象；真力度由下一个
+    `strength` 字段承载。
+  - `strength : α → Rat`：走势载体的**真力度**（精确有理数；笔串实例取速度净增量/冲量）。
+    `measure` 的 `Force.area : Nat` 则保留为 MACD 面积代理槽。两者刻意使用不同载体：前者
+    承载已裁定的力度定义，后者承载尚待外部实现提供的代理读数。
+  - `mono`：**单调公理**——真力度更大 ⟹ MACD 代理不更小（`strength a ≤ strength b →
+    (measure a).area ≤ (measure b).area`）。这是代理必须尊重真定义的非平凡约束。
+  - `faithful`：**忠实公理**——MACD 代理严格增大蕴含真力度不下降
+    （`(measure a).area < (measure b).area → strength a ≤ strength b`）。这保证代理的严格序
+    不会反转真力度序；它不把 `Force.area` 冒充为真力度。
 
   ★为何 `strength` 而非直接对比两个抽象 measure：interface 的内容必须**可被伪 measure 违反**
-  才非空洞。若只要求「measure 是函数」，任意函数都满足（恒真，声明膨胀）。引入走势内在强度
-  序 `strength` 作为 measure 必须尊重的**外部锚**，公理 `mono`/`faithful` 才有否决力——
+  才非空洞。若只要求「measure 是函数」，任意函数都满足（恒真，声明膨胀）。引入真力度序
+  `strength` 作为 MACD 代理必须尊重的**外部锚**，公理 `mono`/`faithful` 才有否决力——
   违反单调的伪 measure 无法构造合法 ForceMeasure 实例（§4 反退化见证）。
 -/
 structure ForceMeasure (α : Type u) where
   measure : α → Force
-  strength : α → Nat
+  strength : α → Rat
   mono : ∀ a b : α, strength a ≤ strength b → (measure a).area ≤ (measure b).area
   faithful : ∀ a b : α, (measure a).area < (measure b).area → strength a ≤ strength b
 
@@ -181,11 +180,11 @@ theorem divergenceVia_depends_only_on_output {α : Type u} (fm₁ fm₂ : ForceM
   unfold IsDivergenceVia; rw [ha, hc]
 
 /--
-  **★力度序公理使背驰读出内在强度衰减（L0，faithful 公理的应用）** —— 经 interface 背驰
-  （后段力度 C < 前段 A）蕴含后段内在强度 `strength c ≤ strength a`（后段内在不强于前段）。
+  **★力度序公理使背驰读出真力度衰减（L0，faithful 公理的应用）** —— 经 interface 背驰
+  （后段代理 C < 前段代理 A）蕴含后段真力度 `strength c ≤ strength a`。
 
-  这是 interface 公理 `faithful` 的非平凡推论：力度衰减对应内在强度不增——背驰判据不脱离
-  走势内在序凭空判断。**用到公理** ⟹ 公理非空洞（若去掉 faithful，此定理不可证）。
+  这是 interface 公理 `faithful` 的非平凡推论：代理衰减对应真力度不增——背驰判据不脱离
+  真力度序凭空判断。**用到公理** ⟹ 公理非空洞（若去掉 faithful，此定理不可证）。
 -/
 theorem divergenceVia_implies_strength_le {α : Type u} (fm : ForceMeasure α) (a c : α)
     (hdiv : IsDivergenceVia fm a c) :
@@ -198,20 +197,24 @@ theorem divergenceVia_implies_strength_le {α : Type u} (fm : ForceMeasure α) (
 
     ★no-声明膨胀核心：interface 公理**非空洞恒真**。本节给两侧见证：
     (A) 一个**满足**公理的合法 ForceMeasure 实例（interface 可被满足，不是不可能的约束）。
-    (B) 一个**违反力度序**的伪 measure（内在更强但力度更弱）**无法**构造合法 ForceMeasure
+    (B) 一个**违反真力度序**的伪 measure（真力度更强但代理更弱）**无法**构造合法 ForceMeasure
         ——证明 interface 公理真能否决伪 measure（公理有内容，非平凡桩）。
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /--
-  **合法力度 measure 见证（满足公理，§4-A）** —— 走势载体取 `Nat`（直接以内在强度为载体），
-  `measure n = ⟨n⟩`（力度 = 内在强度，恒等对齐），`strength n = n`。这是最简的合法 measure：
-  measure 与内在强度恒等对齐，单调与忠实公理平凡成立（`mono`/`faithful` 由 `le_refl`/同序）。
+  **合法力度 measure 玩具见证（满足公理，§4-A）** —— 走势载体取 `Nat`，
+  `measure n = ⟨n⟩`、`strength n = (n : Rat)`。这是最简的跨载体同序玩具：
+  Nat 代理与 Rat 真力度按强制转换对齐；它不冒充笔串上的真实定义。
 -/
 def identityForceMeasure : ForceMeasure Nat where
   measure n := ⟨n⟩
-  strength n := n
-  mono := by intro a b h; exact h
-  faithful := by intro a b h; exact Nat.le_of_lt h
+  strength n := (n : Rat)
+  mono := by
+    intro a b h
+    exact Rat.natCast_le_natCast.mp h
+  faithful := by
+    intro a b h
+    exact Rat.natCast_le_natCast.mpr (Nat.le_of_lt h)
 
 /-- **★合法 measure 上真背驰见证（C=2 < A=8）** —— interface 判据在合法实例上真跑通。 -/
 theorem witness_divergenceVia :
@@ -224,8 +227,8 @@ theorem witness_not_divergenceVia :
   unfold IsDivergenceVia identityForceMeasure; decide
 
 /--
-  **★伪 measure 违反力度序（反退化数据，§4-B）** —— 一个候选「力度函数」：内在强度更大的
-  走势却被赋更小的力度（强度 0 ↦ 力度 100，强度 1 ↦ 力度 0——内在更强，力度反更弱）。
+  **★伪 measure 违反力度序（反退化数据，§4-B）** —— 一个候选代理：真力度更大的
+  走势却被赋更小的面积（真力度 0 ↦ 面积 100，真力度 1 ↦ 面积 0）。
   这是**违反单调公理**的力度赋值。
 -/
 def badMeasure : Nat → Force
@@ -234,7 +237,8 @@ def badMeasure : Nat → Force
 
 /--
   **★伪 measure 被 interface 拒绝（L0，#124 反退化核心）** —— **不存在**一个合法 ForceMeasure
-  实例，其 `measure` 是 `badMeasure` 且 `strength` 是恒等序（`strength n = n`）。
+  实例，其 `measure` 是 `badMeasure` 且 `strength` 是 Rat 恒等嵌入
+  （`strength n = (n : Rat)`）。
 
   论证：若存在，则 `mono` 要求 `strength 0 ≤ strength 1 → (badMeasure 0).area ≤ (badMeasure 1).area`，
   即 `0 ≤ 1 → 100 ≤ 0`，但 `100 ≤ 0` 假——矛盾。故 interface 公理**真能否决** badMeasure。
@@ -244,7 +248,8 @@ def badMeasure : Nat → Force
   这是 no-声明膨胀的硬见证：interface 不是「任意函数都满足」的空壳。
 -/
 theorem badMeasure_rejected :
-    ¬ ∃ fm : ForceMeasure Nat, fm.measure = badMeasure ∧ (∀ n, fm.strength n = n) := by
+    ¬ ∃ fm : ForceMeasure Nat,
+      fm.measure = badMeasure ∧ (∀ n, fm.strength n = (n : Rat)) := by
   rintro ⟨fm, hmeas, hstr⟩
   -- mono 实例化在 0 ≤ 1：strength 0 = 0 ≤ 1 = strength 1 ⟹ measure 0 ≤ measure 1
   have hle : fm.strength 0 ≤ fm.strength 1 := by rw [hstr 0, hstr 1]; decide
@@ -255,19 +260,21 @@ theorem badMeasure_rejected :
   omega
 
 /--
-  **★伪 measure 违反忠实公理的对偶见证（L0）** —— badMeasure 上「力度 0 < 100」
-  （measure 1 < measure 0）但内在强度 1 > 0——若被 `faithful` 接受会要求 `strength 1 ≤
+  **★伪 measure 违反忠实公理的对偶见证（L0）** —— badMeasure 上「代理面积 0 < 100」
+  （measure 1 < measure 0）但真力度 1 > 0——若被 `faithful` 接受会要求 `strength 1 ≤
   strength 0` 即 `1 ≤ 0`，假。这从 `faithful` 侧再次否决 badMeasure（双公理冗余否决，
   确证公理组非空洞）。
 -/
 theorem badMeasure_rejected_faithful :
-    ¬ ∃ fm : ForceMeasure Nat, fm.measure = badMeasure ∧ (∀ n, fm.strength n = n) := by
+    ¬ ∃ fm : ForceMeasure Nat,
+      fm.measure = badMeasure ∧ (∀ n, fm.strength n = (n : Rat)) := by
   rintro ⟨fm, hmeas, hstr⟩
   -- faithful 实例化在 a=1, b=0：measure 1 = ⟨0⟩ < ⟨100⟩ = measure 0 ⟹ strength 1 ≤ strength 0
   have hlt : (fm.measure 1).area < (fm.measure 0).area := by
     rw [hmeas]; simp only [badMeasure]; decide
   have hfaithful := fm.faithful 1 0 hlt
   rw [hstr 1, hstr 0] at hfaithful
+  have hnat : (1 : Nat) ≤ 0 := Rat.natCast_le_natCast.mp hfaithful
   omega
 
 /-! ═══════════════════════════════════════════════════════════════════════
@@ -289,13 +296,13 @@ theorem badMeasure_rejected_faithful :
   合法 `ForceMeasure` 实例 `inst`」的**假设**。
 
   ★字段（L2 待验证义务，**非已证定理**）：
-  - `inst : ForceMeasure α`：rust MACD 引擎产出的力度 measure 实例。**本文件不构造此实例**。
+  - `inst : ForceMeasure α`：rust MACD 引擎产出的代理 measure 实例。**本文件不构造此实例**。
     具体计算（EMA(12)/EMA(26) → DIF → DEA(9) → 柱 = 2·(DIF−DEA) → 同向段面积积分）是数值
     引擎层（L2），未在本文件实装。
-  - `axiomsMono`：`inst` 满足 **单调公理（mono）**（内在强度更大 ⟹ 力度不更小）。
-    这是 L2 经验命题——真实 MACD 面积在真实 K 线上是否与走势内在强度单调对齐，需真实数据验证。
-  - `axiomsFaithful`：`inst` 满足 **忠实公理（faithful）**（力度严格序 ⟹ 内在序可比）。
-    同样是 L2 经验命题——真实 MACD 背驰判定是否尊重走势内在强度序，需真实数据验证。
+  - `axiomsMono`：`inst` 满足 **单调公理（mono）**（真力度更大 ⟹ MACD 代理不更小）。
+    这是 L2 经验命题——真实 MACD 面积在真实 K 线上是否与真力度单调对齐，需真实数据验证。
+  - `axiomsFaithful`：`inst` 满足 **忠实公理（faithful）**（代理严格序 ⟹ 真力度序可比）。
+    同样是 L2 经验命题——真实 MACD 背驰判定是否尊重真力度序，需真实数据验证。
 
   ★为何是 structure 而非 sorry/axiom：
     · sorry = 伪装已证（no-patch-mentality 禁止）。
@@ -304,7 +311,8 @@ theorem badMeasure_rejected_faithful :
       本文件不构造 `MacdInstanceHypothesis` 实例，故不声明任何 L2 命题为真。
 
   ★L2 否定性结果入口（formalization-validity-domain）：
-    若真实 MACD 在某标的上算出的力度违反 mono 或 faithful（如背驰段力度与几何幅度反向），
+    若真实 MACD 在某标的上算出的代理读数违反真力度 mono/faithful 义务
+    （如 MACD 代理与真力度反向），
     则**无法构造** `MacdInstanceHypothesis`——L2 数据可否证 MACD 满足公理假设，缩小有效域边界
     （否定性结果 > 确认性结果）。这是诚实否证入口，不是工程缺口。
 
@@ -313,14 +321,14 @@ theorem badMeasure_rejected_faithful :
     **不**意味着真实 MACD 引擎真满足公理（那需真实数据，L2 真实验证）。
 -/
 structure MacdInstanceHypothesis (α : Type u) where
-  /-- rust MACD 引擎在走势载体 `α` 上产出的力度 measure 实例（L2，本文件不构造）。 -/
+  /-- rust MACD 引擎在走势载体 `α` 上产出的代理 measure 实例（L2，本文件不构造）。 -/
   inst : ForceMeasure α
-  /-- **单调公理（L2 经验命题）**：`inst` 满足 mono——内在强度更大 ⟹ 力度不更小。
-      需真实数据验证：真实 MACD 面积是否与走势内在强度单调对齐。本文件不证，永不 discharge。 -/
+  /-- **单调公理（L2 经验命题）**：`inst` 满足 mono——真力度更大 ⟹ 代理不更小。
+      需真实数据验证：真实 MACD 面积是否与真力度单调对齐。本文件不证，永不 discharge。 -/
   axiomsMono : ∀ a b : α, inst.strength a ≤ inst.strength b →
     (inst.measure a).area ≤ (inst.measure b).area
-  /-- **忠实公理（L2 经验命题）**：`inst` 满足 faithful——力度严格序 ⟹ 内在强度不增。
-      需真实数据验证：真实 MACD 背驰是否尊重走势内在强度序。本文件不证，永不 discharge。 -/
+  /-- **忠实公理（L2 经验命题）**：`inst` 满足 faithful——代理严格序 ⟹ 真力度不反转。
+      需真实数据验证：真实 MACD 背驰是否尊重真力度序。本文件不证，永不 discharge。 -/
   axiomsFaithful : ∀ a b : α, (inst.measure a).area < (inst.measure b).area →
     inst.strength a ≤ inst.strength b
 
@@ -364,8 +372,8 @@ theorem macdInstance_divergenceVia_dichotomy {α : Type u} (h : MacdInstanceHypo
 
 /--
   **★条件定理：L2 假设 → mono/faithful 推论背驰蕴含强度衰减（永不 discharge L2 前件）** ——
-  **给定** MACD 实例假设 `h`，若在 `h.inst` 上判背驰（后段力度 C < 前段 A），则后段内在强度
-  `strength c ≤ strength a`（后段不强于前段）。
+  **给定** MACD 实例假设 `h`，若在 `h.inst` 上判背驰（后段代理 C < 前段代理 A），则后段
+  真力度 `strength c ≤ strength a`。
 
   ★这消费 `h.axiomsFaithful`（通过 `h.inst.faithful`——因为 `h.axiomsMono`/`h.axiomsFaithful`
   正是 `h.inst` 的 mono/faithful 字段内容，而 `h.inst : ForceMeasure α` 本身的 faithful 字段
@@ -420,16 +428,16 @@ theorem macdInstance_divergence_implies_strength_le {α : Type u} (h : MacdInsta
   · **still-MISSING-C（MACD L2 引擎，根因，承接 Divergence.lean）**：无任何 Origin 模块从
     K 线序列计算 MACD 柱子面积。本文件 `ForceMeasure.measure` 抽象，真实 MACD 计算引擎
     （EMA/DIF/DEA + 同向段面积积分）是 L2 数值层，**未实装**——这是形式化主线的下一缺口，
-    明确指向 L2 引擎层，不是 L0 定义层。补上 MACD 引擎后，`ForceMeasure` 可由真实力度实例化，
-    `divergenceVia_*` 定理直接适用（interface 不需改动，只补 measure 实例）。
+    明确指向 L2 引擎层，不是 L0 定义层。补上 MACD 引擎后，可把独立代理 `measure` 与已定义的
+    真力度 `strength` 组合成 `ForceMeasure`，`divergenceVia_*` 定理直接适用。
   · **「rust MACD 是否合法 ForceMeasure 实例」（L2 缺口，§5 显式锚定）**：本文件 §5 通过
     `MacdInstanceHypothesis`（structure 字段 inst + axiomsMono + axiomsFaithful）把这一 L2
     命题显式表达为假设载体，且**永不 discharge**——这是 no-声明膨胀的执行：L2 缺口诚实标级，
     禁 L0 桩冒充 L2。L2 否定性结果入口：若真实 MACD 在某标的上违反 mono/faithful，则无法
     构造 `MacdInstanceHypothesis`，数据否证假设（formalization-validity-domain，有效域 < 定义域）。
-  · **内在强度序 `strength` 的几何来源**：本文件用 `strength : α → Nat` 作 measure 必须尊重的
-    内在锚（使公理非空洞），但「走势内在强度怎么从几何算」（幅度/动量代理）未在本文件实装
-    ——那是走势几何层（与 SegmentFeatureSeq/CenterStates 的几何量对接），本文件设为接口字段。
+  · **真力度 `strength` 的通用载体实例**：本文件把字段固定为 `strength : α → Rat`，但对任意
+    通用载体 `α` 不擅自指定算法。`Origin.ForceVelocity` 已对 `α = List Stroke` 给出真定义
+    `strength := impulse`（末笔速度减首笔速度）；仍悬空的是独立 MACD `measure` 及其两条序义务。
 
   ═══════════════════════════════════════════════════════════════════════
   ★结果包六要素
@@ -449,17 +457,17 @@ theorem macdInstance_divergence_implies_strength_le {α : Type u} (h : MacdInsta
   2. 定义依据：§9 力度比较（力度序）+ 第24课趋势背驰（后段力度弱于前段，MACD 面积 C<A）+
      committed Divergence.IsDivergence（forceC<forceA）。输入特征：背驰判据只读 measure 输出的
      Force 比较 ⟹ 判据满足「独立于 measure 计算」（`divergenceVia_depends_only_on_output`）；
-     measure 必须尊重走势内在强度序 ⟹ 公理 mono/faithful 满足「力度序非任意」（反退化否决伪 measure）。
+     measure 必须尊重真力度序 ⟹ 公理 mono/faithful 满足「代理序非任意」（反退化否决伪 measure）。
   3. 边界条件（结论翻转）：
      · 背驰判据用严格 `<`（后段力度严格弱于前段），临界相等归延续（对齐 committed Divergence）。
        若改判据为「≤ 算背驰」（盘整背驰宽松口径），临界归属翻转，须重裁——与 committed
        Divergence 边界条件一致。
-     · interface 公理选 `mono`（内在强度更大 ⟹ 力度不更小）+ `faithful`（力度严格序 ⟹ 内在序
+     · interface 公理选 `mono`（真力度更大 ⟹ 代理不更小）+ `faithful`（代理严格序 ⟹ 真力度序
        可比）。若放松为「measure 是任意函数」（去掉 mono/faithful），则 `badMeasure_rejected`
        失效——伪 measure 可构造合法实例，interface 退化为空壳（声明膨胀）。当前公理保证非空洞。
-     · 若 still-MISSING-C 补上 MACD 引擎后，真实 measure 实例在某标的上算出的力度若违反内在
-       强度单调（如背驰段 measure 与几何幅度反向），则该实例**不满足 interface 公理**——
-       L2 数据可否证「具体 MACD 力度尊重内在强度序」这一假设（formalization-validity-domain：
+     · 若 still-MISSING-C 补上 MACD 引擎后，真实 measure 实例在某标的上算出的代理若违反
+       真力度单调，则该实例**不满足 interface 公理**——
+       L2 数据可否证「具体 MACD 代理尊重真力度序」这一假设（formalization-validity-domain：
        L2 否定性结果入口）。本文件 L0 只保证 interface 逻辑自洽，不保证某 L2 实例满足公理。
   4. 下游推论：
      · interface well-defined ⟹ committed Divergence 的 `IsDivergence`（直接消费 Force）可视为
@@ -485,7 +493,7 @@ theorem macdInstance_divergence_implies_strength_le {α : Type u} (h : MacdInsta
        本文件 §5 是 interface 层 L2 前件（公理是否满足）；ForceConformance.lean 是 conformance 层
        L2 前件（是否与参考 conform）——二者独立，无命名冲突。
      · `lake env lean Origin/ForceInterface.lean` 单文件验证通过（§1-§5 全部编译，无 sorry）。
-     · 不编辑 lakefile（报 Lead 登记）。不 commit。
+     · `lakefile.toml` 已登记 `Origin.ForceVelocity` root。不 commit。
 -/
 
 end NewChanlun.Origin

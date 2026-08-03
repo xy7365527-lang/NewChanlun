@@ -5,8 +5,8 @@ Origin/ForceConformance.lean — 力度 conformance 规约（rust MACD ↔ Lean 
   committed Origin/ForceInterface.lean（#124）已把力度 measure 形式化为抽象 interface
   `ForceMeasure α`（走势载体 → Force + 单调/忠实公理）+ 背驰判据经 interface
   （`IsDivergenceVia`）+ well-definedness。但 **still-MISSING-C（force-L2 conformance）**：
-  rust MACD 引擎与 Lean `ForceMeasure` 之间**无形式 conformance spec**——「rust 端算出的力度
-  是一个合法 ForceMeasure 实例」这一命题既未陈述也未标等级。
+  rust MACD 引擎与 Lean `ForceMeasure` 之间**无形式 conformance spec**——「rust 端算出的
+  MACD 代理能与真力度组成一个合法 ForceMeasure 实例」这一命题既未陈述也未标等级。
 
   本文件补这个缺口：定义 **conformance 规约**，把「外部实现（rust MACD）符合 Lean
   ForceMeasure interface」严格表达，并精确划分两层：
@@ -61,7 +61,7 @@ Origin/ForceConformance.lean — 力度 conformance 规约（rust MACD ↔ Lean 
     **从不被本文件 discharge**，留给 #127 rust 对齐 + 真实数据验证。
   · 本文件**不声明** rust 已对齐——`MacdConformsTo` 是命题（Prop），不是已证 theorem；
     `MacdForceMeasureWitness` 是假设载体（其存在性本文件不构造，只定义形状）。
-  · L2 否定性结果入口：若真实 MACD 在某标的上算出的力度违反 ForceMeasure 公理（mono/faithful）
+  · L2 否定性结果入口：若真实 MACD 在某标的上算出的代理读数违反真力度 mono/faithful 义务
     或与参考 measure 判据不一致，则该实例**不构成** `MacdForceMeasureWitness`——L2 数据可否证
     conformance 假设（formalization-validity-domain：有效域 ≠ 定义域，L2 可缩小有效域边界）。
 
@@ -180,18 +180,26 @@ theorem conformsAll_iff_divergence {α : Type u} (ref cand : ForceMeasure α)
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /--
-  **缩放力度 measure 见证（L0）** —— 把 `identityForceMeasure`（measure n = ⟨n⟩）缩放：
-  `measure n = ⟨2*n⟩`（力度翻倍），`strength n = n`（内在序不变）。单调/忠实公理仍成立
+  **缩放代理 measure 见证（L0）** —— 把 `identityForceMeasure`（measure n = ⟨n⟩）缩放：
+  `measure n = ⟨2*n⟩`（代理翻倍），`strength n = (n : Rat)`（真力度序不变）。单调/忠实公理仍成立
   （`2*a ≤ 2*b ↔ a ≤ b`，`2*a < 2*b → a ≤ b`）。这是一个**合法但与 identity 输出不同**的 measure。
 -/
 def scaledForceMeasure : ForceMeasure Nat where
   measure n := ⟨2 * n⟩
-  strength n := n
-  mono := by intro a b h; simp only; omega
-  faithful := by intro a b h; simp only at h; omega
+  strength n := (n : Rat)
+  mono := by
+    intro a b h
+    have hab : a ≤ b := Rat.natCast_le_natCast.mp h
+    change 2 * a ≤ 2 * b
+    omega
+  faithful := by
+    intro a b h
+    change 2 * a < 2 * b at h
+    apply Rat.natCast_le_natCast.mpr
+    omega
 
 /--
-  **★conformance 比逐点相等严格弱（L0，#131 非平凡核心）** —— `scaledForceMeasure`（力度翻倍）
+  **★conformance 比逐点相等严格弱（L0，#131 非平凡核心）** —— `scaledForceMeasure`（代理面积翻倍）
   与 `identityForceMeasure` **全域 conform**（背驰判定处处一致），但二者 measure 输出**不相等**
   （在 n=1：identity 给 ⟨1⟩，scaled 给 ⟨2⟩）。
 
@@ -199,7 +207,7 @@ def scaledForceMeasure : ForceMeasure Nat where
   二者等价（`2c < 2a ↔ c < a`）。故判定处处一致 ⟹ 全域 conform。但 measure 输出不同。
 
   ★这证明 conformance **非空洞退化为相等**：conformance 规约真有内容——它允许实现差异
-  （rust MACD 的力度数值不必逐点等于 Lean 参考，只需判据一致）。若 conformance = 逐点相等，
+  （rust MACD 的代理数值不必逐点等于 Lean 参考，只需判据一致）。若 conformance = 逐点相等，
   则规约过强（要求 rust 数值精确等于 Lean，无意义）。本定理坐实 conformance 是判据层等价，
   非数值层相等（no-声明膨胀：规约的有效域是判据一致，不是数值相等）。
 -/
@@ -244,9 +252,9 @@ theorem witness_scaled_divergence :
   measure `ref` 全域 conform」的**假设**。
 
   ★字段（L2 待验证义务，**非已证定理**）：
-  - `macd : ForceMeasure α`：rust MACD 引擎产出的力度 measure 实例（measure = EMA/DIF/DEA →
+  - `macd : ForceMeasure α`：rust MACD 引擎产出的代理 measure 实例（measure = EMA/DIF/DEA →
     同向段面积积分的 Lean 侧抽象表示）。**本文件不构造此实例**——它由 rust 端（#127）提供 +
-    L2 真实数据验证「rust 算出的力度真满足 ForceMeasure 公理」（mono/faithful 在真实 K 线上成立）。
+    L2 真实数据验证「rust 算出的代理真满足 ForceMeasure 公理」（mono/faithful 在真实 K 线上成立）。
   - `conforms : ForceConformsAll ref macd`：rust MACD 与 Lean 参考全域 conform（背驰判定一致）。
     这是 **L2 命题**——是否真成立需真实数据验证（rust MACD 与 Lean 参考在真实行情上判据是否一致）。
 
@@ -255,11 +263,11 @@ theorem witness_scaled_divergence :
   其字段才成立。本文件**不构造** `MacdForceMeasureWitness` 实例，故不声明任何 L2 命题为真。
 
   ★L2 否定性结果入口（formalization-validity-domain）：若真实 MACD 违反 ForceMeasure 公理
-  （如背驰段力度与几何幅度反向）或与参考判据不一致，则**无法构造** `MacdForceMeasureWitness`
+  （如 MACD 代理与真力度反向）或与参考判据不一致，则**无法构造** `MacdForceMeasureWitness`
   ——L2 数据可否证 conformance 假设，缩小有效域边界（否定性结果 > 确认性结果）。
 -/
 structure MacdForceMeasureWitness (α : Type u) (ref : ForceMeasure α) where
-  /-- rust MACD 引擎产出的力度 measure 实例（L2，本文件不构造，由 #127 + L2 数据提供）。 -/
+  /-- rust MACD 引擎产出的代理 measure 实例（L2，本文件不构造，由 #127 + L2 数据提供）。 -/
   macd : ForceMeasure α
   /-- rust MACD 与 Lean 参考全域 conform（L2 命题，需真实数据验证，本文件不证）。 -/
   conforms : ForceConformsAll ref macd
@@ -377,9 +385,9 @@ theorem l0_conformance_witness :
     的力度在真实 K 线上满足 mono/faithful + 与 Lean 参考判据一致。当前缺口明确指向 L2 验证层 +
     #127 rust 对齐，不是 L0 规约层（规约已闭合）。
   · **参考 measure `ref` 的具体来源**：本文件 conformance 以抽象 `ref : ForceMeasure α` 为参考锚，
-    但「哪个 Lean measure 作 canonical 参考」（如 identityForceMeasure 还是从缠论几何导出的 measure）
-    未在本文件固定——那是参考 measure 选择问题，与 ForceInterface 的 strength 几何来源（still-MISSING）
-    对接。本文件设 ref 为参数，不预设具体参考。
+    但「哪个独立 MACD 代理作 canonical 参考」未在本文件固定。`Origin.ForceVelocity` 已对
+    `α = List Stroke` 固定真力度 `strength := impulse`；仍待 L2 提供的是独立 `measure` 及其
+    mono/faithful 义务。本文件设 ref 为参数，不预设具体代理实现。
 
   ═══════════════════════════════════════════════════════════════════════
   ★结果包六要素
@@ -403,18 +411,18 @@ theorem l0_conformance_witness :
        相等（强 conformance），则 scaled 实例不再 conform——规约过强（要求 rust 数值精确等于 Lean，
        无意义）。当前判据层 conformance 是正确强度（允许实现差异，要求判据一致）。
      · **L2 边界（核心）**：若 still-MISSING-C 补 rust 对齐 + L2 数据后，真实 MACD 在某标的上算出
-       的力度违反 ForceMeasure 公理（mono/faithful）或与参考判据不一致，则**无法构造**
+       的代理读数违反真力度 mono/faithful 义务或与参考判据不一致，则**无法构造**
        `MacdForceMeasureWitness`——L2 数据否证 conformance 假设（formalization-validity-domain：
        L2 否定性结果缩小有效域）。本文件 L0 只证 conformance 规约逻辑自洽 + 条件定理，**不保证**
        某 L2 rust 实例满足 conformance。
   4. 下游推论：
      · conformance 规约闭合 ⟹ #127 rust 对齐有了**形式目标**：rust MACD 对齐 = 构造一个
-       `MacdForceMeasureWitness`（rust 算出的力度满足 ForceMeasure 公理 + 与 Lean 参考 conform）。
+       `MacdForceMeasureWitness`（rust 算出的代理满足 ForceMeasure 公理 + 与 Lean 参考 conform）。
        L2 验证目标明确为「构造 witness 实例」，不是模糊的「rust 大致对齐」。
      · 条件定理（L2 见证 → L0 后果）⟹ 一旦 conformance L2 验证，rust MACD 可**无歧义替换** Lean
        参考用于全部背驰/买卖点判据（BspClassification 第一类 = 背驰点）——conformance 是 L0 判据层
        与 L2 数值引擎的接缝（`conformance_consequences_under_witness`/`macd_inherits_dichotomy_under_witness`）。
-     · conformance 比逐点相等弱 ⟹ rust MACD 的力度数值**不必精确等于** Lean 参考，只需判据一致——
+     · conformance 比逐点相等弱 ⟹ rust MACD 的代理数值**不必精确等于** Lean 参考，只需判据一致——
        这放松了 #127 rust 对齐的义务（对齐判据，不对齐数值），是正确的工程接缝。
   5. 谱系引用：本文件承接 committed ForceInterface.lean（#124）still-MISSING-C（force-L2 conformance：
      rust MACD ↔ Lean ForceMeasure 无形式 conformance spec）+ committed Divergence.lean still-MISSING-C
@@ -429,8 +437,7 @@ theorem l0_conformance_witness :
      `divergenceVia_depends_only_on_output`/`identityForceMeasure`，不改 committed 类型）。无反向依赖，
      无命名冲突（namespace `NewChanlun.Origin`，新名 `ForceConforms`/`ForceConformsAll`/
      `scaledForceMeasure`/`MacdForceMeasureWitness`/`MacdConformsTo` 等与 committed 不碰撞）。
-     ★待 Lead 登记 root：`Origin.ForceConformance`（lakefile Origin lib roots 追加，紧随
-     `Origin.ForceInterface`）。本文件**不编辑 lakefile**（报 Lead 登记）。
+     `Origin.ForceConformance` 与本票新增的 `Origin.ForceVelocity` 均已登记在 lakefile roots。
      `lake env lean Origin/ForceConformance.lean` 单文件验证。**不触发定义矛盾**（conformance 规约
      与 committed ForceInterface/Divergence 一致，无冲突）。
 -/
