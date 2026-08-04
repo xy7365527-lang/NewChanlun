@@ -5355,7 +5355,7 @@ mod tests {
                                 }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
                                 first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
-                                level_projection: None,       // #110 门关口径
+                                level_projection: None,                  // #110 门关口径
                             })
                             .collect(),
                     };
@@ -6299,7 +6299,7 @@ mod tests {
                                 }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
                                 first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
-                                level_projection: None,       // #110 门关口径
+                                level_projection: None,                  // #110 门关口径
                             })
                             .collect(),
                     };
@@ -6730,7 +6730,7 @@ mod tests {
                                 }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
                                 first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
-                                level_projection: None,       // #110 门关口径
+                                level_projection: None,                  // #110 门关口径
                             })
                             .collect(),
                     };
@@ -7286,7 +7286,7 @@ mod tests {
                                 }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
                                 first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
-                                level_projection: None,       // #110 门关口径
+                                level_projection: None,                  // #110 门关口径
                             })
                             .collect(),
                     };
@@ -7687,9 +7687,7 @@ mod tests {
     #[test]
     #[ignore]
     fn type1_descend_continuity_dx() {
-        use super::super::super::classifier::cand_predicate::{
-            div_cand, rmove_dir, DivCandInput,
-        };
+        use super::super::super::classifier::cand_predicate::{div_cand, rmove_dir, DivCandInput};
         use super::super::super::classifier::divergence::{compute_macd, segment_macd_area};
         use super::super::super::types::Direction;
         use super::super::data;
@@ -7978,12 +7976,10 @@ mod tests {
                         }
 
                         // ── 断链现场取样（B / C）──
-                        let want_sample = matches!(
-                            terminal,
-                            StepFail::NoAlign | StepFail::DivFalse(_)
-                        ) && cell_used[g][rb][cur_level.min(LMAX)]
-                            < PER_CELL_CAP
-                            && (sample_b.len() + sample_c.len()) < TOTAL_CAP;
+                        let want_sample =
+                            matches!(terminal, StepFail::NoAlign | StepFail::DivFalse(_))
+                                && cell_used[g][rb][cur_level.min(LMAX)] < PER_CELL_CAP
+                                && (sample_b.len() + sample_c.len()) < TOTAL_CAP;
                         if want_sample {
                             cell_used[g][rb][cur_level.min(LMAX)] += 1;
                             let subs = cur.sub_moves.as_slice();
@@ -7996,14 +7992,10 @@ mod tests {
                                     let nearest = subs
                                         .iter()
                                         .map(|m| {
-                                            (
-                                                (m.end_index as i64 - src as i64).abs(),
-                                                m.end_index,
-                                            )
+                                            ((m.end_index as i64 - src as i64).abs(), m.end_index)
                                         })
                                         .min();
-                                    let (dist, near_end) =
-                                        nearest.unwrap_or((-1, usize::MAX));
+                                    let (dist, near_end) = nearest.unwrap_or((-1, usize::MAX));
                                     sample_b.push(format!(
                                         "| {} | {lvl} | {src} | {dsym} | {}→{} | {} | `[{}]` | {} | {} | parent[{}..{}] |",
                                         gname(g),
@@ -8087,7 +8079,10 @@ mod tests {
         );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "- issue: #846（ADR 0013 裁定七实测；#839 裁定）");
-        let _ = writeln!(rpt, "- **认识论 L2**（真实 BTC 逐信号结构下钻，确定性 div_cand，可产否定性计数）");
+        let _ = writeln!(
+            rpt,
+            "- **认识论 L2**（真实 BTC 逐信号结构下钻，确定性 div_cand，可产否定性计数）"
+        );
         let _ = writeln!(
             rpt,
             "- 窗口：{win_start}→{win_end}，bars={n}（全量={n_full}），max_bars={max_bars}"
@@ -8157,7 +8152,10 @@ mod tests {
         }
 
         // 2. 顶层 A/B/C（= 旧报告「小转大」合计数的三分拆）
-        let _ = writeln!(rpt, "## 2. 顶层 `None`（depth==0）的 A/B/C 三分——旧「小转大」合计数的拆分");
+        let _ = writeln!(
+            rpt,
+            "## 2. 顶层 `None`（depth==0）的 A/B/C 三分——旧「小转大」合计数的拆分"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "| 群 | lvl | 信号总数 | base_none(塔无 end==src 段) | 顶层None合计 | A | B | C | 有锚 Some(d) | 顶层None% |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|");
@@ -8201,10 +8199,16 @@ mod tests {
         let _ = writeln!(rpt);
 
         // 3. 断链级别分布
-        let _ = writeln!(rpt, "## 3. 断链级别分布（链**终止**成因，含 depth>0 的链尾）");
+        let _ = writeln!(
+            rpt,
+            "## 3. 断链级别分布（链**终止**成因，含 depth>0 的链尾）"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "### 3.1 按信号级切");
-        let _ = writeln!(rpt, "| 群 | 信号级 lvl | 终止=A | 终止=B | 终止=C | 合计链数 |");
+        let _ = writeln!(
+            rpt,
+            "| 群 | 信号级 lvl | 终止=A | 终止=B | 终止=C | 合计链数 |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|---|");
         for g in 0..NG {
             for lvl in LMIN..=LMAX {
@@ -8242,7 +8246,10 @@ mod tests {
             }
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "### 3.3 C 类的失败条件号分布（div_cand 四条件中首个不满足者）");
+        let _ = writeln!(
+            rpt,
+            "### 3.3 C 类的失败条件号分布（div_cand 四条件中首个不满足者）"
+        );
         let _ = writeln!(rpt, "| 群 | cond0(越界) | cond1(方向≠−δ) | cond2(无前序同向段) | cond3(Extreme 假) | cond4(Weak 假) |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|");
         for g in 0..NG {
@@ -8259,7 +8266,10 @@ mod tests {
         }
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "### 3.4 C 类条件号 × 绝对级别");
-        let _ = writeln!(rpt, "| 群 | 绝对级 L | cond0 | cond1 | cond2 | cond3 | cond4 |");
+        let _ = writeln!(
+            rpt,
+            "| 群 | 绝对级 L | cond0 | cond1 | cond2 | cond3 | cond4 |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|");
         for g in 0..NG {
             for l in 0..=LMAX {
@@ -8311,9 +8321,16 @@ mod tests {
         let _ = writeln!(rpt);
 
         // 5. 断链现场取样
-        let _ = writeln!(rpt, "## 5. 断链现场取样（每 (群,成因,级别) ≤{PER_CELL_CAP} 例，总 ≤{TOTAL_CAP}）");
+        let _ = writeln!(
+            rpt,
+            "## 5. 断链现场取样（每 (群,成因,级别) ≤{PER_CELL_CAP} 例，总 ≤{TOTAL_CAP}）"
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "### 5.1 B 类（无 `end_index==src` 对齐段）：{} 例", sample_b.len());
+        let _ = writeln!(
+            rpt,
+            "### 5.1 B 类（无 `end_index==src` 对齐段）：{} 例",
+            sample_b.len()
+        );
         if sample_b.is_empty() {
             let _ = writeln!(rpt, "\n**（空——B 类未出现或未取到样）**");
         } else {
@@ -8324,7 +8341,11 @@ mod tests {
             }
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "### 5.2 C 类（对齐段存在，`div_cand` 判假）：{} 例", sample_c.len());
+        let _ = writeln!(
+            rpt,
+            "### 5.2 C 类（对齐段存在，`div_cand` 判假）：{} 例",
+            sample_c.len()
+        );
         if sample_c.is_empty() {
             let _ = writeln!(rpt, "\n**（空——C 类未出现或未取到样）**");
         } else {
@@ -8339,10 +8360,22 @@ mod tests {
         // 6. 忠实性 + 域外声明
         let _ = writeln!(rpt, "## 6. 忠实性校验与域外声明");
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "- 展开循环 ≡ `descend_type1_anchor_depth` 对拍不一致：**{trace_mismatch}**（须 0）");
-        let _ = writeln!(rpt, "- `div_cand_why` ≡ `div_cand` 对拍不一致：**{parity_violation}**（须 0）");
-        let _ = writeln!(rpt, "- 级别下溢（cur_level==0 仍成功下钻一步）：**{level_underflow}**");
-        let _ = writeln!(rpt, "- 残差群（带 δ 但无任何 bsp bit 命中该方向）：{n_other} 条，两群皆不计");
+        let _ = writeln!(
+            rpt,
+            "- 展开循环 ≡ `descend_type1_anchor_depth` 对拍不一致：**{trace_mismatch}**（须 0）"
+        );
+        let _ = writeln!(
+            rpt,
+            "- `div_cand_why` ≡ `div_cand` 对拍不一致：**{parity_violation}**（须 0）"
+        );
+        let _ = writeln!(
+            rpt,
+            "- 级别下溢（cur_level==0 仍成功下钻一步）：**{level_underflow}**"
+        );
+        let _ = writeln!(
+            rpt,
+            "- 残差群（带 δ 但无任何 bsp bit 命中该方向）：{n_other} 条，两群皆不计"
+        );
         let _ = writeln!(rpt, "- 生产关系：`build_nest_certificate:1019` 的 base gate 只对 Type2/3 调下钻；Type1 群的读数是**命题测量**，非生产现行行为");
         let _ = writeln!(rpt);
 
@@ -8357,9 +8390,11 @@ mod tests {
         // ── 真封（穷举 + 忠实性）──
         for g in 0..NG {
             for lvl in LMIN..=LMAX {
-                let sum = base_none[g][lvl] + (0..=DCAP).map(|d| depth_hist[g][lvl][d]).sum::<usize>();
+                let sum =
+                    base_none[g][lvl] + (0..=DCAP).map(|d| depth_hist[g][lvl][d]).sum::<usize>();
                 assert_eq!(
-                    sum, n_sig[g][lvl],
+                    sum,
+                    n_sig[g][lvl],
                     "{} lvl{lvl} 穷举：base_none+Σdepth({sum}) 应 = 信号总数({})",
                     gname(g),
                     n_sig[g][lvl]
@@ -8558,7 +8593,7 @@ mod tests {
         let mut q_t23_side = [[[0usize; LMAX + 1]; LMAX + 1]; NG];
         let mut q_pd_any = [[[0usize; LMAX + 1]; LMAX + 1]; NG];
         let mut q_pd_side = [[[0usize; LMAX + 1]; LMAX + 1]; NG]; // ★同侧 pan_div
-        // 终局快照同一套
+                                                                  // 终局快照同一套
         let mut f_present = [[[0usize; LMAX + 1]; LMAX + 1]; NG];
         let mut f_t1_side = [[[0usize; LMAX + 1]; LMAX + 1]; NG];
         let mut f_t1_any = [[[0usize; LMAX + 1]; LMAX + 1]; NG];
@@ -8568,7 +8603,7 @@ mod tests {
         // ── 读数③：差集交叉表（只对首步 L→L−1）[群][lvl][div_ok][bsp_ok] ──
         let mut cross_t1 = [[[[0usize; 2]; 2]; LMAX + 1]; NG]; // bsp_ok = 同侧一类 bit
         let mut cross_wide = [[[[0usize; 2]; 2]; LMAX + 1]; NG]; // bsp_ok = 同侧一类 bit ∨ 同侧 pan_div
-        // ── 读数④：div_cand 失败条件号 × BSP 层认不认 [群][cond][bsp_ok] ──
+                                                                 // ── 读数④：div_cand 失败条件号 × BSP 层认不认 [群][cond][bsp_ok] ──
         let mut cond_x_t1 = [[[0usize; 2]; 5]; NG];
         let mut cond_x_wide = [[[0usize; 2]; 5]; NG];
 
@@ -8581,7 +8616,9 @@ mod tests {
         let mut parity_violation = 0usize;
 
         // 终局快照（`bsp`/`pan_div` 是累积列表 ⟹ 末 bar 即全窗全集）
-        let last_bar = (0..n).rev().find(|&i| !bars[i].untradable && bars[i].close > 0);
+        let last_bar = (0..n)
+            .rev()
+            .find(|&i| !bars[i].untradable && bars[i].close > 0);
         let mut final_bsp: Vec<Rc<Vec<BspPoint>>> = Vec::new();
         let mut final_pd: Vec<Rc<Vec<PanDivCert>>> = Vec::new();
         // 延后到终局再查的信号台账：(g, lvl, src, delta, div_ok, cond)
@@ -8814,7 +8851,9 @@ mod tests {
         // ── 终局快照复查（防「同期查不到」被写成「不存在」）──
         for &(g, lvl, src, delta, _, _) in &sigs {
             for tl in (0..lvl).rev() {
-                let Some(bl) = final_bsp.get(tl) else { continue };
+                let Some(bl) = final_bsp.get(tl) else {
+                    continue;
+                };
                 let at = bsp_at_coord(bl, src);
                 if at.present {
                     f_present[g][lvl][tl] += 1;
@@ -8852,15 +8891,24 @@ mod tests {
         );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "- issue: #848（承 #846；ADR 0013 裁定七归类半句）");
-        let _ = writeln!(rpt, "- **认识论 L2**（真实 BTC 逐信号，两套确定性判据对照，可产否定性计数）");
+        let _ = writeln!(
+            rpt,
+            "- **认识论 L2**（真实 BTC 逐信号，两套确定性判据对照，可产否定性计数）"
+        );
         let _ = writeln!(
             rpt,
             "- 窗口：{win_start}→{win_end}，bars={n}（全量={n_full}），max_bars={max_bars}"
         );
-        let _ = writeln!(rpt, "- 信号集与 #846 **严格同批**（同去重键 / 同 Γ 定向 / 同群定义 / LMIN=0 LMAX=4）");
+        let _ = writeln!(
+            rpt,
+            "- 信号集与 #846 **严格同批**（同去重键 / 同 Γ 定向 / 同群定义 / LMIN=0 LMAX=4）"
+        );
         let _ = writeln!(rpt, "- 「BSP 层认」= `cls.levels[tl].bsp` 中存在 `source_index==src` 且带 **δ 同侧** `buy1`/`sell1` 的条目");
         let _ = writeln!(rpt, "- 「pan_div 认」= `cls.levels[tl].pan_div` 中存在 `source_index==src` 且 `side==δ` 的 `PanDivCert`");
-        let _ = writeln!(rpt, "- 「宽口径认」= BSP 层认 ∨ pan_div 认（= 趋势背驰入口 ∪ 盘整背驰入口）");
+        let _ = writeln!(
+            rpt,
+            "- 「宽口径认」= BSP 层认 ∨ pan_div 认（= 趋势背驰入口 ∪ 盘整背驰入口）"
+        );
         let _ = writeln!(rpt);
 
         // 0. 基数自检（应与 #846 报告 §3 表逐格相等）
@@ -8888,7 +8936,10 @@ mod tests {
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "首步三分（与 #846 §4 的 `L→L−1` 首行同义）：");
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "| 群 | lvl | 信号数 | 首步成功 | A(空subs) | B(无对齐) | C(div假) | 成功% |");
+        let _ = writeln!(
+            rpt,
+            "| 群 | lvl | 信号数 | 首步成功 | A(空subs) | B(无对齐) | C(div假) | 成功% |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|");
         for g in 0..NG {
             for lvl in LMIN..=LMAX {
@@ -8938,7 +8989,10 @@ mod tests {
             }
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "### 1.1 终局快照复查（末 bar 的累积 `bsp`；差值 = 同期没标、后来标上的量）");
+        let _ = writeln!(
+            rpt,
+            "### 1.1 终局快照复查（末 bar 的累积 `bsp`；差值 = 同期没标、后来标上的量）"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "| 群 | lvl | tl | 查询数 | 同期同侧一类 | **终局同侧一类** | 同期存在坐标 | 终局存在坐标 | 终局任意侧一类 |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|");
@@ -8965,7 +9019,10 @@ mod tests {
         let _ = writeln!(rpt);
 
         // 2. pan_div
-        let _ = writeln!(rpt, "## 2. 读数二：pan_div 通道认不认（`div_cand` 缺的盘整背驰入口的替代观测）");
+        let _ = writeln!(
+            rpt,
+            "## 2. 读数二：pan_div 通道认不认（`div_cand` 缺的盘整背驰入口的替代观测）"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "| 群 | 信号级 lvl | 目标级 tl | 查询数 | 同期任意侧 | **同期同侧** | 终局任意侧 | **终局同侧** | 同期同侧% |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|");
@@ -8992,7 +9049,10 @@ mod tests {
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "全窗 pan_div 证书总量（末 bar 累积列表长度，用于分辨「通道空转」与「通道有货但不在这些坐标上」）：");
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "| lvl | `pan_div` 证书条数 | `bsp` 条目数（含零 bit） |");
+        let _ = writeln!(
+            rpt,
+            "| lvl | `pan_div` 证书条数 | `bsp` 条目数（含零 bit） |"
+        );
         let _ = writeln!(rpt, "|---|---|---|");
         for tl in LMIN..=LMAX {
             let _ = writeln!(
@@ -9007,8 +9067,15 @@ mod tests {
         // 3. 差集交叉表
         let _ = writeln!(rpt, "## 3. 读数三：★两套判据的差集（首步 L→L−1，lvl≥1）");
         let _ = writeln!(rpt);
-        for (tag, tab) in [("窄口径（BSP 层同侧一类 bit）", &cross_t1), ("宽口径（BSP 层 ∨ pan_div，同侧）", &cross_wide)] {
-            let _ = writeln!(rpt, "### 3.{} {tag}", if tag.starts_with('窄') { 1 } else { 2 });
+        for (tag, tab) in [
+            ("窄口径（BSP 层同侧一类 bit）", &cross_t1),
+            ("宽口径（BSP 层 ∨ pan_div，同侧）", &cross_wide),
+        ] {
+            let _ = writeln!(
+                rpt,
+                "### 3.{} {tag}",
+                if tag.starts_with('窄') { 1 } else { 2 }
+            );
             let _ = writeln!(rpt);
             let _ = writeln!(rpt, "| 群 | lvl | div真∧层认 | div真∧层不认 | **div假∧层认** | **两边都不认** | 合计 | 层认合计 | 层认% | div真% |");
             let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|");
@@ -9058,9 +9125,15 @@ mod tests {
         }
 
         // 4. cond × BSP 层
-        let _ = writeln!(rpt, "## 4. 读数四：`div_cand` 失败条件号 × BSP 层认不认（分歧定位）");
+        let _ = writeln!(
+            rpt,
+            "## 4. 读数四：`div_cand` 失败条件号 × BSP 层认不认（分歧定位）"
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "| 群 | 失败条件 | C 类计数 | 窄口径层认 | 层认% | 宽口径层认 | 宽口径% |");
+        let _ = writeln!(
+            rpt,
+            "| 群 | 失败条件 | C 类计数 | 窄口径层认 | 层认% | 宽口径层认 | 宽口径% |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|");
         let cond_name = |c: usize| match c {
             1 => "cond1 方向≠−δ",
@@ -9106,10 +9179,25 @@ mod tests {
         // 6. 忠实性与域外
         let _ = writeln!(rpt, "## 6. 忠实性校验与域外声明");
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "- `div_cand_why` ≡ 生产 `div_cand` 对拍不一致：**{parity_violation}**（须 0）");
-        let _ = writeln!(rpt, "- 残差群（带 δ 但无任何 bsp bit 命中该方向）：{n_other} 条，两群皆不计");
-        let _ = writeln!(rpt, "- 台账信号条数：{}（= Σn_sig − Σbase_none）", sigs.len());
-        let _ = writeln!(rpt, "- 终局快照取自末可交易 bar：{last_bar:?}；`final_bsp` 级数={}，`final_pd` 级数={}", final_bsp.len(), final_pd.len());
+        let _ = writeln!(
+            rpt,
+            "- `div_cand_why` ≡ 生产 `div_cand` 对拍不一致：**{parity_violation}**（须 0）"
+        );
+        let _ = writeln!(
+            rpt,
+            "- 残差群（带 δ 但无任何 bsp bit 命中该方向）：{n_other} 条，两群皆不计"
+        );
+        let _ = writeln!(
+            rpt,
+            "- 台账信号条数：{}（= Σn_sig − Σbase_none）",
+            sigs.len()
+        );
+        let _ = writeln!(
+            rpt,
+            "- 终局快照取自末可交易 bar：{last_bar:?}；`final_bsp` 级数={}，`final_pd` 级数={}",
+            final_bsp.len(),
+            final_pd.len()
+        );
         let _ = writeln!(rpt, "- **本探针不改任何判据**，只测现有两套判据各自认什么；「类一类点」准入判据归 #817 未裁");
         let _ = writeln!(rpt);
 
@@ -9117,7 +9205,9 @@ mod tests {
         let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .expect("rust/ 父目录 = 项目根")
-            .join(format!(".chanlun/review-results/issue848-bsp-crosscheck-raw-b{n}.md"));
+            .join(format!(
+                ".chanlun/review-results/issue848-bsp-crosscheck-raw-b{n}.md"
+            ));
         std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
         eprintln!("\n原始数据已落盘：{out:?}");
 
@@ -9134,7 +9224,8 @@ mod tests {
                     + first_b[g][lvl]
                     + first_c[g][lvl];
                 assert_eq!(
-                    sum, n_sig[g][lvl],
+                    sum,
+                    n_sig[g][lvl],
                     "{} lvl{lvl} 穷举：base_none+首步四分({sum}) 应 = 信号总数({})",
                     gname(g),
                     n_sig[g][lvl]
@@ -9265,7 +9356,9 @@ mod tests {
         let mut u_sig_all: Vec<HashSet<usize>> = (0..=LMAX).map(|_| HashSet::new()).collect();
 
         // 终局快照
-        let last_bar = (0..n).rev().find(|&i| !bars[i].untradable && bars[i].close > 0);
+        let last_bar = (0..n)
+            .rev()
+            .find(|&i| !bars[i].untradable && bars[i].close > 0);
         let mut final_bsp: Vec<Rc<Vec<BspPoint>>> = Vec::new();
         let mut final_tower: Vec<Rc<Vec<LeveledMove>>> = Vec::new();
         // 台账：(g, lvl, src, delta)
@@ -9510,16 +9603,28 @@ mod tests {
             }
         };
         let mut rpt = String::new();
-        let _ = writeln!(rpt, "# #848 后半程原始数据：BSP 层同侧一类 bit 恒零的四假说判定");
+        let _ = writeln!(
+            rpt,
+            "# #848 后半程原始数据：BSP 层同侧一类 bit 恒零的四假说判定"
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "- issue: #848（承 #846 / 前序 `issue848-bsp-crosscheck-raw-b*.md`）");
-        let _ = writeln!(rpt, "- **认识论 L2**（真实 BTC 逐信号，确定性判据，可产否定性计数）");
+        let _ = writeln!(
+            rpt,
+            "- issue: #848（承 #846 / 前序 `issue848-bsp-crosscheck-raw-b*.md`）"
+        );
+        let _ = writeln!(
+            rpt,
+            "- **认识论 L2**（真实 BTC 逐信号，确定性判据，可产否定性计数）"
+        );
         let _ = writeln!(
             rpt,
             "- 窗口：{win_start}→{win_end}，bars={n}（全量={n_full}），max_bars={max_bars}"
         );
         let _ = writeln!(rpt, "- 与前序探针 `type1_bsp_layer_crosscheck_dx` **严格同批**（同去重键 / 同 Γ 定向 / 同群定义 / LMIN=0 LMAX=4）");
-        let _ = writeln!(rpt, "- 「union」= 逐 bar 去重条目之并（比终局快照宽，取对命题最有利口径）");
+        let _ = writeln!(
+            rpt,
+            "- 「union」= 逐 bar 去重条目之并（比终局快照宽，取对命题最有利口径）"
+        );
         let _ = writeln!(rpt);
 
         // §0 基数
@@ -9541,7 +9646,10 @@ mod tests {
         let _ = writeln!(rpt);
 
         // §1 H3
-        let _ = writeln!(rpt, "## 1. H3（坐标匹配 bug）：正控——同一个 `bsp_at_coord` 查信号点**自己所在级**");
+        let _ = writeln!(
+            rpt,
+            "## 1. H3（坐标匹配 bug）：正控——同一个 `bsp_at_coord` 查信号点**自己所在级**"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "按构造，Type1 信号的 δ 同侧一类 bit 必在本级自命中 ⟹ **同期同侧一类 = 信号数** 是硬预测。");
         let _ = writeln!(rpt);
@@ -9568,7 +9676,10 @@ mod tests {
         let _ = writeln!(rpt);
 
         // §2 H4(a)
-        let _ = writeln!(rpt, "## 2. H4(a)（级别错位）：目标级偏移扫描 `tl ∈ {{lvl−2, lvl−1, lvl, lvl+1}}`");
+        let _ = writeln!(
+            rpt,
+            "## 2. H4(a)（级别错位）：目标级偏移扫描 `tl ∈ {{lvl−2, lvl−1, lvl, lvl+1}}`"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "| 群 | 信号级 lvl | 偏移 | 目标级 tl | 查询数 | 该级缺失 | 坐标存在 | **同侧一类** | 任意侧一类 | **同侧一类%** |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|");
@@ -9596,7 +9707,10 @@ mod tests {
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "偏移小计（两群合并，跨信号级汇总）：");
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "| 群 | 偏移 | 查询数 | 坐标存在 | **同侧一类** | **同侧一类%** |");
+        let _ = writeln!(
+            rpt,
+            "| 群 | 偏移 | 查询数 | 坐标存在 | **同侧一类** | **同侧一类%** |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|---|");
         for g in 0..NG {
             for (o, &d) in OFFS.iter().enumerate() {
@@ -9617,10 +9731,16 @@ mod tests {
         let _ = writeln!(rpt);
 
         // §3 H4(b)
-        let _ = writeln!(rpt, "## 3. H4(b)（级别错位·判定式）：BSP 坐标空间归属矩阵（终局快照）");
+        let _ = writeln!(
+            rpt,
+            "## 3. H4(b)（级别错位·判定式）：BSP 坐标空间归属矩阵（终局快照）"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "各级 `bsp` 的 `source_index` 集 ∩ 各层 `tower[j]` 的 `end_index` 集。若 `levels[k]` 与 `tower[k]`");
-        let _ = writeln!(rpt, "同套编号，则 `j == k` 那一格应 100%；命中峰落在 `j ≠ k` ⟹ 错位坐实。");
+        let _ = writeln!(
+            rpt,
+            "同套编号，则 `j == k` 那一格应 100%；命中峰落在 `j ≠ k` ⟹ 错位坐实。"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "`tower[j]` 端点集基数：");
         let _ = writeln!(rpt);
@@ -9630,7 +9750,14 @@ mod tests {
             let _ = writeln!(rpt, "| {j} | {} | {} |", t.len(), tower_ends[j].len());
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "| bsp 级 k | 坐标数(全部) | {} |", (0..final_tower.len()).map(|j| format!("∈tower[{j}]")).collect::<Vec<_>>().join(" | "));
+        let _ = writeln!(
+            rpt,
+            "| bsp 级 k | 坐标数(全部) | {} |",
+            (0..final_tower.len())
+                .map(|j| format!("∈tower[{j}]"))
+                .collect::<Vec<_>>()
+                .join(" | ")
+        );
         let _ = writeln!(rpt, "|---|---|{}", "---|".repeat(final_tower.len()));
         for (k, s) in f_bsp_coord.iter().enumerate() {
             let cells: Vec<String> = (0..final_tower.len())
@@ -9644,7 +9771,14 @@ mod tests {
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "仅**带一类 bit** 的坐标：");
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "| bsp 级 k | 一类坐标数 | {} |", (0..final_tower.len()).map(|j| format!("∈tower[{j}]")).collect::<Vec<_>>().join(" | "));
+        let _ = writeln!(
+            rpt,
+            "| bsp 级 k | 一类坐标数 | {} |",
+            (0..final_tower.len())
+                .map(|j| format!("∈tower[{j}]"))
+                .collect::<Vec<_>>()
+                .join(" | ")
+        );
         let _ = writeln!(rpt, "|---|---|{}", "---|".repeat(final_tower.len()));
         for (k, s) in f_bsp_t1_coord.iter().enumerate() {
             let cells: Vec<String> = (0..final_tower.len())
@@ -9658,11 +9792,20 @@ mod tests {
         let _ = writeln!(rpt);
 
         // §4 H1 反查
-        let _ = writeln!(rpt, "## 4. H1（稀疏 ⟹ 撞不上）：反查 + 距离直方图（union 口径）");
+        let _ = writeln!(
+            rpt,
+            "## 4. H1（稀疏 ⟹ 撞不上）：反查 + 距离直方图（union 口径）"
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "### 4.1 反查：次级别一类点坐标集 ∩ 本级 Type1 信号坐标集");
+        let _ = writeln!(
+            rpt,
+            "### 4.1 反查：次级别一类点坐标集 ∩ 本级 Type1 信号坐标集"
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "命题若成立，`lvl` 的每个 Type1 信号应「用掉」`lvl−1` 的一个一类点 ⟹ 交集 ≈ 信号数。");
+        let _ = writeln!(
+            rpt,
+            "命题若成立，`lvl` 的每个 Type1 信号应「用掉」`lvl−1` 的一个一类点 ⟹ 交集 ≈ 信号数。"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "| 信号级 lvl | Type1 信号坐标数 | lvl−1 一类点坐标数 | **同侧交集** | 任意侧交集 | 与 lvl−1 全 BSP 坐标交集 |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|");
@@ -9691,7 +9834,10 @@ mod tests {
             );
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "反方向（次级别一类点里有多少被本级 Type1 信号「用掉」）：");
+        let _ = writeln!(
+            rpt,
+            "反方向（次级别一类点里有多少被本级 Type1 信号「用掉」）："
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "| 次级别 k | k 级一类点坐标数 | 其中 = 某个 k+1 级 Type1 信号坐标 | 占比 | 其中 = 某个 k+1 级**任意群**信号坐标 |");
         let _ = writeln!(rpt, "|---|---|---|---|---|");
@@ -9713,11 +9859,17 @@ mod tests {
             );
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "### 4.2 距离直方图：Type1 信号坐标 → 最近的次级别标的（bar 数）");
+        let _ = writeln!(
+            rpt,
+            "### 4.2 距离直方图：Type1 信号坐标 → 最近的次级别标的（bar 数）"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "「0」= 坐标重合；「空集」= 该次级别根本没有此类标的。");
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "| 目标 | 信号级 lvl | 0 | 1–5 | 6–50 | 51–500 | >500 | 空集 |");
+        let _ = writeln!(
+            rpt,
+            "| 目标 | 信号级 lvl | 0 | 1–5 | 6–50 | 51–500 | >500 | 空集 |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|");
         for (nm, tab) in [
             ("次级别同侧一类点", &d_t1_side),
@@ -9738,7 +9890,10 @@ mod tests {
         let _ = writeln!(rpt);
 
         // §5 H2
-        let _ = writeln!(rpt, "## 5. H2（命题不成立）：次级别实际标成了什么（Type1，`tl = lvl−1`，仅坐标存在条目）");
+        let _ = writeln!(
+            rpt,
+            "## 5. H2（命题不成立）：次级别实际标成了什么（Type1，`tl = lvl−1`，仅坐标存在条目）"
+        );
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "| 信号级 lvl | Type1 信号数 | 坐标存在条目 | mask=0（纯结构候选） | buy1 | buy2 | buy3 | sell1 | sell2 | sell3 |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|");
@@ -9764,7 +9919,10 @@ mod tests {
         let _ = writeln!(rpt, "逐条 dump（≤{H2_CAP} 例）：");
         let _ = writeln!(rpt);
         if h2_dump.is_empty() {
-            let _ = writeln!(rpt, "**（空——无「坐标存在次级别 BSP 条目」的 Type1 案例）**");
+            let _ = writeln!(
+                rpt,
+                "**（空——无「坐标存在次级别 BSP 条目」的 Type1 案例）**"
+            );
         } else {
             let _ = writeln!(rpt, "| 信号级 | src | δ | 次级别 mask | 置位 bit |");
             let _ = writeln!(rpt, "|---|---|---|---|---|");
@@ -9777,7 +9935,10 @@ mod tests {
         // §6 忠实性
         let _ = writeln!(rpt, "## 6. 忠实性校验与域外声明");
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "- 残差群（带 δ 但无任何 bsp bit 命中该方向）：{n_other} 条，两群皆不计");
+        let _ = writeln!(
+            rpt,
+            "- 残差群（带 δ 但无任何 bsp bit 命中该方向）：{n_other} 条，两群皆不计"
+        );
         let _ = writeln!(rpt, "- 台账信号条数：{}", sigs.len());
         let _ = writeln!(
             rpt,
@@ -9785,14 +9946,19 @@ mod tests {
             final_bsp.len(),
             final_tower.len()
         );
-        let _ = writeln!(rpt, "- **本探针不改任何判据**，只判定前序全零读数的归属；「类一类点」准入判据归 #817 未裁");
+        let _ = writeln!(
+            rpt,
+            "- **本探针不改任何判据**，只判定前序全零读数的归属；「类一类点」准入判据归 #817 未裁"
+        );
         let _ = writeln!(rpt);
 
         eprint!("{rpt}");
         let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .expect("rust/ 父目录 = 项目根")
-            .join(format!(".chanlun/review-results/issue848-zero-hypotheses-raw-b{n}.md"));
+            .join(format!(
+                ".chanlun/review-results/issue848-zero-hypotheses-raw-b{n}.md"
+            ));
         std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
         eprintln!("\n原始数据已落盘：{out:?}");
 
@@ -10000,7 +10166,9 @@ mod tests {
         // 终局复查用：(g, lvl, src, delta)
         let mut sigs: Vec<(usize, usize, usize, Side)> = Vec::new();
 
-        let last_bar = (0..n).rev().find(|&i| !bars[i].untradable && bars[i].close > 0);
+        let last_bar = (0..n)
+            .rev()
+            .find(|&i| !bars[i].untradable && bars[i].close > 0);
         let mut final_bsp: Vec<Rc<Vec<BspPoint>>> = Vec::new();
         let mut final_pd: Vec<Rc<Vec<PanDivCert>>> = Vec::new();
 
@@ -10226,22 +10394,37 @@ mod tests {
             "# #851 原始数据：交集口径——次级别二/三类 bit **∧** 同坐标盘整背驰"
         );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "- issue: #851（承 #848 / #846；ADR 0013 裁定七归类半句）");
-        let _ = writeln!(rpt, "- **认识论 L2**（真实 BTC 逐信号，两个现成载体的同坐标共现计数）");
+        let _ = writeln!(
+            rpt,
+            "- issue: #851（承 #848 / #846；ADR 0013 裁定七归类半句）"
+        );
+        let _ = writeln!(
+            rpt,
+            "- **认识论 L2**（真实 BTC 逐信号，两个现成载体的同坐标共现计数）"
+        );
         let _ = writeln!(
             rpt,
             "- 窗口：{win_start}→{win_end}，bars={n}（全量={n_full}），max_bars={max_bars}"
         );
-        let _ = writeln!(rpt, "- 信号集与 #848/#846 **严格同批**（同去重键 / 同 Γ 定向 / 同群定义 / LMIN=0 LMAX=4）");
+        let _ = writeln!(
+            rpt,
+            "- 信号集与 #848/#846 **严格同批**（同去重键 / 同 Γ 定向 / 同群定义 / LMIN=0 LMAX=4）"
+        );
         let _ = writeln!(rpt, "- 「次级别」= `tl = lvl−1`；坐标匹配 = `source_index == src`（与 #848 同一 `bsp_at_coord`）");
         let _ = writeln!(rpt, "- 「盘背同侧」= `cls.levels[tl].pan_div` 中存在 `source_index==src` 且 `side==δ` 的 `PanDivCert`");
-        let _ = writeln!(rpt, "- **本探针不改判据、不碰生产代码**；「盘整背驰算不算类一类点」归 #817 未裁");
+        let _ = writeln!(
+            rpt,
+            "- **本探针不改判据、不碰生产代码**；「盘整背驰算不算类一类点」归 #817 未裁"
+        );
         let _ = writeln!(rpt);
 
         // §0 基数自检
         let _ = writeln!(rpt, "## 0. 基数自检（与 #848 §0 逐格可比）");
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "| lvl | 带type1 bit 点数 | n_sig(Type1) | n_sig(Type2/3) |");
+        let _ = writeln!(
+            rpt,
+            "| lvl | 带type1 bit 点数 | n_sig(Type1) | n_sig(Type2/3) |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|");
         for lvl in LMIN..=LMAX {
             let _ = writeln!(
@@ -10263,7 +10446,10 @@ mod tests {
         let _ = writeln!(rpt);
 
         // §1 ★核心交叉表
-        let _ = writeln!(rpt, "## 1. ★核心交叉表（坐标级；分母 = 坐标存在次级别条目的例数）");
+        let _ = writeln!(
+            rpt,
+            "## 1. ★核心交叉表（坐标级；分母 = 坐标存在次级别条目的例数）"
+        );
         let _ = writeln!(rpt);
         let cat_name = |c: usize| {
             [
@@ -10335,7 +10521,10 @@ mod tests {
         let _ = writeln!(rpt, "## 2. 同侧 / 反侧细分（指示计数，同坐标可多格并计）");
         let _ = writeln!(rpt);
         let side_name = |k: usize| ["同侧二类", "**反**侧二类", "同侧三类", "**反**侧三类"][k];
-        let _ = writeln!(rpt, "| 群 | 次级别 bit 相对大级别 δ | ∧ 同侧盘背 | ∧ 仅反侧盘背 | ∧ 无盘背 | 合计 |");
+        let _ = writeln!(
+            rpt,
+            "| 群 | 次级别 bit 相对大级别 δ | ∧ 同侧盘背 | ∧ 仅反侧盘背 | ∧ 无盘背 | 合计 |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|---|");
         for g in 0..NG {
             for k in 0..4 {
@@ -10356,9 +10545,15 @@ mod tests {
             }
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "六 bit × 盘背列（bit 级，与 #848 §4 的 bit 计数同口径）：");
+        let _ = writeln!(
+            rpt,
+            "六 bit × 盘背列（bit 级，与 #848 §4 的 bit 计数同口径）："
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "| 群 | 次级别 bit | ∧ 同侧盘背 | ∧ 仅反侧盘背 | ∧ 无盘背 | 合计 |");
+        let _ = writeln!(
+            rpt,
+            "| 群 | 次级别 bit | ∧ 同侧盘背 | ∧ 仅反侧盘背 | ∧ 无盘背 | 合计 |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|---|");
         for g in 0..NG {
             for b in 0..6 {
@@ -10400,9 +10595,15 @@ mod tests {
             );
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "终局快照复查（末 bar 累积列表；差值 = 同期没标、后来标上的量）：");
+        let _ = writeln!(
+            rpt,
+            "终局快照复查（末 bar 累积列表；差值 = 同期没标、后来标上的量）："
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "| 群 | lvl≥1 例数 | 终局有条目 | 终局同侧盘背 | 终局任意侧盘背 |");
+        let _ = writeln!(
+            rpt,
+            "| 群 | lvl≥1 例数 | 终局有条目 | 终局同侧盘背 | 终局任意侧盘背 |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|");
         for g in 0..NG {
             let _ = writeln!(
@@ -10418,9 +10619,16 @@ mod tests {
         let _ = writeln!(rpt);
 
         // §4 逐例 dump
-        let _ = writeln!(rpt, "## 4. ★Type1 逐例 dump（坐标存在次级别条目的全部 {} 例）", rows.len());
+        let _ = writeln!(
+            rpt,
+            "## 4. ★Type1 逐例 dump（坐标存在次级别条目的全部 {} 例）",
+            rows.len()
+        );
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "`δ` = 大级别方向（+1=buy1 / −1=sell1）；`次级别 bit` 后括注同侧/反侧；");
+        let _ = writeln!(
+            rpt,
+            "`δ` = 大级别方向（+1=buy1 / −1=sell1）；`次级别 bit` 后括注同侧/反侧；"
+        );
         let _ = writeln!(rpt, "`盘背` 列给 `pan_div` 在**同一坐标**的分侧命中；`二类锚` = 该二类点自己的 `OwnerRef::Type1Anchor` 坐标。");
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "| # | 信号级 | src | δ | 次级别 bit（同侧?） | 盘背同侧 | 盘背反侧 | 二类锚 type1_src | 锚距 src |");
@@ -10490,16 +10698,30 @@ mod tests {
         // §5 忠实性与域外
         let _ = writeln!(rpt, "## 5. 忠实性校验与域外声明");
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "- 残差群（带 δ 但无任何 bsp bit 命中该方向）：{n_other} 条，两群皆不计");
-        let _ = writeln!(rpt, "- 台账信号条数：{}（= Σn_sig）", n_sig.iter().flatten().sum::<usize>());
+        let _ = writeln!(
+            rpt,
+            "- 残差群（带 δ 但无任何 bsp bit 命中该方向）：{n_other} 条，两群皆不计"
+        );
+        let _ = writeln!(
+            rpt,
+            "- 台账信号条数：{}（= Σn_sig）",
+            n_sig.iter().flatten().sum::<usize>()
+        );
         let _ = writeln!(
             rpt,
             "- 终局快照取自末可交易 bar：{last_bar:?}；`final_bsp` 级数={}，`final_pd` 级数={}",
             final_bsp.len(),
             final_pd.len()
         );
-        let _ = writeln!(rpt, "- **窗口 = {n} bar（全量 {n_full} 的 {:.0}%），未跑全史**——百分比不得外推", pct(n, n_full));
-        let _ = writeln!(rpt, "- **本探针不改任何判据、不碰生产代码**；新增诊断挂 `#[ignore]`，不进 CI 默认集");
+        let _ = writeln!(
+            rpt,
+            "- **窗口 = {n} bar（全量 {n_full} 的 {:.0}%），未跑全史**——百分比不得外推",
+            pct(n, n_full)
+        );
+        let _ = writeln!(
+            rpt,
+            "- **本探针不改任何判据、不碰生产代码**；新增诊断挂 `#[ignore]`，不进 CI 默认集"
+        );
         let _ = writeln!(rpt);
 
         eprint!("{rpt}");
@@ -10516,7 +10738,8 @@ mod tests {
         for g in 0..NG {
             let cat_sum: usize = cross_cat[g].iter().flatten().sum();
             assert_eq!(
-                cat_sum, n_present[g],
+                cat_sum,
+                n_present[g],
                 "{} 坐标级交叉表穷举：四类别合计({cat_sum}) 应 = 有条目例数({})",
                 gname(g),
                 n_present[g]
@@ -10635,7 +10858,9 @@ mod tests {
             .last()
             .map(|d| d.get(..10).unwrap_or("").to_string())
             .unwrap_or_default();
-        eprintln!("[nest-852] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}");
+        eprintln!(
+            "[nest-852] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}"
+        );
 
         let closes: Vec<f64> = bars.iter().map(|b| b.close as f64 / tick as f64).collect();
         let macd_hist = compute_macd(&closes, &config.macd).hist;
@@ -10657,7 +10882,7 @@ mod tests {
         let mut term_level = [[0usize; LMAX + 1]; NG]; // 终止时所在绝对级
         let mut reach_l0 = [0usize; NG]; // 链一路到 level0（cur_level==0 时终止）
         let mut reach_l0_bottom = [0usize; NG]; // 且终止成因 = EmptySubs（真「到最低级别」）
-        // 区间包含实测（每个成功对齐的步都记一次，含最后失败在 DivFalse 的那步）
+                                                // 区间包含实测（每个成功对齐的步都记一次，含最后失败在 DivFalse 的那步）
         let mut ct_ok = [0usize; NG]; // sub ⊆ cur
         let mut ct_bad = [0usize; NG]; // 违反包含
         let mut ct_left_strict = [0usize; NG]; // 左端点严格右移（真收缩）
@@ -10809,7 +11034,8 @@ mod tests {
                             // ★ 区间包含实测（本探针相对 #846 的新增量）
                             let sub = &subs[tidx];
                             ct_steps[g] += 1;
-                            if sub.start_index >= cur.start_index && sub.end_index <= cur.end_index {
+                            if sub.start_index >= cur.start_index && sub.end_index <= cur.end_index
+                            {
                                 ct_ok[g] += 1;
                             } else {
                                 ct_bad[g] += 1;
@@ -10866,8 +11092,7 @@ mod tests {
                                     continue;
                                 };
                                 let at = bsp_at_coord(&tls.bsp, src);
-                                let (_pd_any, pd_same) =
-                                    pan_div_at_coord(&tls.pan_div, src, delta);
+                                let (_pd_any, pd_same) = pan_div_at_coord(&tls.pan_div, src, delta);
                                 if at.t1_any() {
                                     hit_any = true;
                                 }
@@ -10920,8 +11145,7 @@ mod tests {
                                     continue;
                                 };
                                 let at = bsp_at_coord(&tls.bsp, src);
-                                let (_pd_any, pd_same) =
-                                    pan_div_at_coord(&tls.pan_div, src, delta);
+                                let (_pd_any, pd_same) = pan_div_at_coord(&tls.pan_div, src, delta);
                                 *slot_n = at.t1_side(delta);
                                 *slot_w = at.t1_side(delta) || pd_same;
                             }
@@ -10953,17 +11177,29 @@ mod tests {
         }
 
         // ══════════════ 报告 ══════════════
-        let pct = |a: usize, b: usize| if b == 0 { f64::NAN } else { a as f64 * 100.0 / b as f64 };
+        let pct = |a: usize, b: usize| {
+            if b == 0 {
+                f64::NAN
+            } else {
+                a as f64 * 100.0 / b as f64
+            }
+        };
         let tname = |t: usize| match t {
             0 => "EmptySubs(递归底)",
             1 => "NoAlign(无对齐段)",
             _ => "DivFalse(非背驰段)",
         };
         let mut rpt = String::new();
-        let _ = writeln!(rpt, "# #852 原始读数：区间套逐级收缩 + 逐级累积找一类点（BTC，窗口 {n} bar）\n");
+        let _ = writeln!(
+            rpt,
+            "# #852 原始读数：区间套逐级收缩 + 逐级累积找一类点（BTC，窗口 {n} bar）\n"
+        );
         let _ = writeln!(rpt, "- 探针：`nesting_descent_and_type1_reach_dx`（`#[ignore]`，只读诊断，不改判据、不碰生产代码）");
         let _ = writeln!(rpt, "- 窗口：**{n} bar**（{win_start}→{win_end}，全量 {n_full} 的 {:.1}%）——**未跑全史，百分比不得外推**", pct(n, n_full));
-        let _ = writeln!(rpt, "- 口径与 #846/#848/#851 同批：同 `seen` 去重键、同 Γ 定向、LMIN={LMIN} LMAX={LMAX}\n");
+        let _ = writeln!(
+            rpt,
+            "- 口径与 #846/#848/#851 同批：同 `seen` 去重键、同 Γ 定向、LMIN={LMIN} LMAX={LMAX}\n"
+        );
 
         let _ = writeln!(rpt, "## 0. 同批性自检：信号基数逐级\n");
         let _ = writeln!(rpt, "| 群 | lvl0 | lvl1 | lvl2 | lvl3 | lvl4 | 合计 |");
@@ -10973,14 +11209,23 @@ mod tests {
             let _ = writeln!(
                 rpt,
                 "| {} | {} | {} | {} | {} | {} | **{}** |",
-                gname(g), n_sig[g][0], n_sig[g][1], n_sig[g][2], n_sig[g][3], n_sig[g][4], tot
+                gname(g),
+                n_sig[g][0],
+                n_sig[g][1],
+                n_sig[g][2],
+                n_sig[g][3],
+                n_sig[g][4],
+                tot
             );
         }
         let _ = writeln!(rpt, "\n- 展开循环 ≡ `descend_type1_anchor_depth` 对拍不一致：**{trace_mismatch}**（须 0）\n");
 
         let _ = writeln!(rpt, "## A. 命题①：背驰段逐级收缩（`027:44/:46`）\n");
         let _ = writeln!(rpt, "### A.1 下钻深度分布（d = 成功下钻的级数）\n");
-        let _ = writeln!(rpt, "| 群 | 无执行级候选段 | d=0 | d=1 | d=2 | d=3 | d≥4 | 合计 |");
+        let _ = writeln!(
+            rpt,
+            "| 群 | 无执行级候选段 | d=0 | d=1 | d=2 | d=3 | d≥4 | 合计 |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|");
         for g in 0..NG {
             let tot: usize = depth_hist[g].iter().sum();
@@ -10988,9 +11233,14 @@ mod tests {
             let _ = writeln!(
                 rpt,
                 "| {} | {} | **{}** | {} | {} | {} | {} | {} |",
-                gname(g), sa,
-                depth_hist[g][0], depth_hist[g][1], depth_hist[g][2], depth_hist[g][3],
-                depth_hist[g][4] + depth_hist[g][5], tot
+                gname(g),
+                sa,
+                depth_hist[g][0],
+                depth_hist[g][1],
+                depth_hist[g][2],
+                depth_hist[g][3],
+                depth_hist[g][4] + depth_hist[g][5],
+                tot
             );
         }
         let _ = writeln!(rpt, "\n### A.2 断在哪 / 到不到 L0\n");
@@ -11001,8 +11251,13 @@ mod tests {
             let _ = writeln!(
                 rpt,
                 "| {} | {} | **{}** | **{}** | {} | {} | {:.2}% |",
-                gname(g), term_reason[g][0], term_reason[g][1], term_reason[g][2],
-                reach_l0[g], reach_l0_bottom[g], pct(reach_l0[g], tot)
+                gname(g),
+                term_reason[g][0],
+                term_reason[g][1],
+                term_reason[g][2],
+                reach_l0[g],
+                reach_l0_bottom[g],
+                pct(reach_l0[g], tot)
             );
         }
         let _ = writeln!(rpt, "\n### A.3 终止时所在绝对级\n");
@@ -11010,30 +11265,54 @@ mod tests {
         let _ = writeln!(rpt, "|---|---|---|---|---|---|");
         for g in 0..NG {
             let _ = writeln!(
-                rpt, "| {} | {} | {} | {} | {} | {} |",
-                gname(g), term_level[g][0], term_level[g][1], term_level[g][2],
-                term_level[g][3], term_level[g][4]
+                rpt,
+                "| {} | {} | {} | {} | {} | {} |",
+                gname(g),
+                term_level[g][0],
+                term_level[g][1],
+                term_level[g][2],
+                term_level[g][3],
+                term_level[g][4]
             );
         }
-        let _ = writeln!(rpt, "\n### A.4 ★ 区间是否真的逐级收缩（#846 没测过这一格）\n");
-        let _ = writeln!(rpt, "> 每一个「找到端点对齐子段」的步记一次（含最后失败在 DivFalse 的那步）。\n");
+        let _ = writeln!(
+            rpt,
+            "\n### A.4 ★ 区间是否真的逐级收缩（#846 没测过这一格）\n"
+        );
+        let _ = writeln!(
+            rpt,
+            "> 每一个「找到端点对齐子段」的步记一次（含最后失败在 DivFalse 的那步）。\n"
+        );
         let _ = writeln!(rpt, "| 群 | 对齐步数 | sub ⊆ cur | **违反包含** | 左端点严格右移 | 左端点相等(不收缩) | 右端点相等 | 真收缩% |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|");
         for g in 0..NG {
             let _ = writeln!(
                 rpt,
                 "| {} | {} | {} | **{}** | {} | {} | {} | {:.2}% |",
-                gname(g), ct_steps[g], ct_ok[g], ct_bad[g], ct_left_strict[g],
-                ct_left_eq[g], ct_right_eq[g], pct(ct_left_strict[g], ct_steps[g])
+                gname(g),
+                ct_steps[g],
+                ct_ok[g],
+                ct_bad[g],
+                ct_left_strict[g],
+                ct_left_eq[g],
+                ct_right_eq[g],
+                pct(ct_left_strict[g], ct_steps[g])
             );
         }
 
-        let _ = writeln!(rpt, "\n## B. 命题②：从信号级向下**逐级累积**找一类点（`017:70`）\n");
-        let _ = writeln!(rpt, "> 分母 = lvl≥1 的信号（lvl0 无下级，不进表）。**遇二类/三类点继续往下，不记失败。**\n");
+        let _ = writeln!(
+            rpt,
+            "\n## B. 命题②：从信号级向下**逐级累积**找一类点（`017:70`）\n"
+        );
+        let _ = writeln!(
+            rpt,
+            "> 分母 = lvl≥1 的信号（lvl0 无下级，不进表）。**遇二类/三类点继续往下，不记失败。**\n"
+        );
         let _ = writeln!(rpt, "| 群 | 分母(lvl≥1) | 窄口径命中 | 命中% | 平均下钻级数 | 触底未命中 | 宽口径命中 | 宽% | 宽平均级数 | 宽触底未命中 |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|");
         for g in 0..NG {
-            let _ = writeln!(
+            let _ =
+                writeln!(
                 rpt,
                 "| {} | {} | **{}** | **{:.2}%** | {:.2} | {} | **{}** | **{:.2}%** | {:.2} | {} |",
                 gname(g), b_pop[g], b_hit_n[g], pct(b_hit_n[g], b_pop[g]),
@@ -11047,49 +11326,105 @@ mod tests {
         let _ = writeln!(rpt, "| 群 | 口径 | L0 | L1 | L2 | L3 |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|");
         for g in 0..NG {
-            let _ = writeln!(rpt, "| {} | 窄 | {} | {} | {} | {} |", gname(g),
-                b_lvl_n[g][0], b_lvl_n[g][1], b_lvl_n[g][2], b_lvl_n[g][3]);
-            let _ = writeln!(rpt, "| {} | 宽 | {} | {} | {} | {} |", gname(g),
-                b_lvl_w[g][0], b_lvl_w[g][1], b_lvl_w[g][2], b_lvl_w[g][3]);
+            let _ = writeln!(
+                rpt,
+                "| {} | 窄 | {} | {} | {} | {} |",
+                gname(g),
+                b_lvl_n[g][0],
+                b_lvl_n[g][1],
+                b_lvl_n[g][2],
+                b_lvl_n[g][3]
+            );
+            let _ = writeln!(
+                rpt,
+                "| {} | 宽 | {} | {} | {} | {} |",
+                gname(g),
+                b_lvl_w[g][0],
+                b_lvl_w[g][1],
+                b_lvl_w[g][2],
+                b_lvl_w[g][3]
+            );
         }
         let _ = writeln!(rpt, "\n### B.3 「遇二类点继续往下」这条到底救回了几个\n");
-        let _ = writeln!(rpt, "| 群 | 沿途至少遇一次同侧二/三类 | 其中最终窄口径命中 | 任意侧一类 bit 出现过 |");
+        let _ = writeln!(
+            rpt,
+            "| 群 | 沿途至少遇一次同侧二/三类 | 其中最终窄口径命中 | 任意侧一类 bit 出现过 |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|");
         for g in 0..NG {
-            let _ = writeln!(rpt, "| {} | {} | **{}** | {} |", gname(g),
-                b_saw_t23[g], b_saw_t23_then_hit_n[g], b_hit_any[g]);
+            let _ = writeln!(
+                rpt,
+                "| {} | {} | **{}** | {} |",
+                gname(g),
+                b_saw_t23[g],
+                b_saw_t23_then_hit_n[g],
+                b_hit_any[g]
+            );
         }
 
         let _ = writeln!(rpt, "\n## C. 命题③：相邻两级同侧一类共振（`017:72`）\n");
-        let _ = writeln!(rpt, "| 群 | 分母(lvl≥1) | 窄口径共振 | % | 宽口径共振 | % |");
+        let _ = writeln!(
+            rpt,
+            "| 群 | 分母(lvl≥1) | 窄口径共振 | % | 宽口径共振 | % |"
+        );
         let _ = writeln!(rpt, "|---|---|---|---|---|---|");
         for g in 0..NG {
-            let _ = writeln!(rpt, "| {} | {} | **{}** | {:.2}% | **{}** | {:.2}% |", gname(g),
-                c_pop[g], c_res_n[g], pct(c_res_n[g], c_pop[g]),
-                c_res_w[g], pct(c_res_w[g], c_pop[g]));
+            let _ = writeln!(
+                rpt,
+                "| {} | {} | **{}** | {:.2}% | **{}** | {:.2}% |",
+                gname(g),
+                c_pop[g],
+                c_res_n[g],
+                pct(c_res_n[g], c_pop[g]),
+                c_res_w[g],
+                pct(c_res_w[g], c_pop[g])
+            );
         }
 
-        let _ = writeln!(rpt, "\n## D. Type1 逐例台账（lvl≥1，共 {} 例）\n", rows.len());
+        let _ = writeln!(
+            rpt,
+            "\n## D. Type1 逐例台账（lvl≥1，共 {} 例）\n",
+            rows.len()
+        );
         let _ = writeln!(rpt, "| # | lvl | src | δ | 下钻深度 | 终止成因 | 终止级 | 左端严格右移步数 | 窄命中级 | 宽命中级 | 沿途遇二三类 |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|---|");
         for (k, r) in rows.iter().enumerate() {
             let _ = writeln!(
                 rpt,
                 "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
-                k + 1, r.lvl, r.src,
+                k + 1,
+                r.lvl,
+                r.src,
                 if r.delta == Side::Long { "+1" } else { "−1" },
-                r.depth, tname(r.term), r.term_lvl, r.left_strict,
-                r.hit_n.map(|t| format!("L{t}")).unwrap_or_else(|| "—".into()),
-                r.hit_w.map(|t| format!("L{t}")).unwrap_or_else(|| "—".into()),
+                r.depth,
+                tname(r.term),
+                r.term_lvl,
+                r.left_strict,
+                r.hit_n
+                    .map(|t| format!("L{t}"))
+                    .unwrap_or_else(|| "—".into()),
+                r.hit_w
+                    .map(|t| format!("L{t}"))
+                    .unwrap_or_else(|| "—".into()),
                 if r.saw_t23 { "是" } else { "否" }
             );
         }
 
         let _ = writeln!(rpt, "\n## E. 已知载体缺口（读数是下界）\n");
         let _ = writeln!(rpt, "- 「类一类点」载体残缺（#851）：`PanDivCert` 只覆盖 C 段破核心一支 ⟹ **B/C 宽口径命中率是下界**");
-        let _ = writeln!(rpt, "- 二类点受 `no_new_low` 硬闸（#851/SPEC #847）⟹ **B.3「沿途遇二三类」是下界**");
-        let _ = writeln!(rpt, "- **窗口 = {n} bar（全量 {n_full} 的 {:.1}%），未跑全史**——百分比不得外推", pct(n, n_full));
-        let _ = writeln!(rpt, "- **本探针不改任何判据、不碰生产代码**；诊断挂 `#[ignore]`，不进 CI 默认集\n");
+        let _ = writeln!(
+            rpt,
+            "- 二类点受 `no_new_low` 硬闸（#851/SPEC #847）⟹ **B.3「沿途遇二三类」是下界**"
+        );
+        let _ = writeln!(
+            rpt,
+            "- **窗口 = {n} bar（全量 {n_full} 的 {:.1}%），未跑全史**——百分比不得外推",
+            pct(n, n_full)
+        );
+        let _ = writeln!(
+            rpt,
+            "- **本探针不改任何判据、不碰生产代码**；诊断挂 `#[ignore]`，不进 CI 默认集\n"
+        );
 
         eprint!("{rpt}");
         let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))

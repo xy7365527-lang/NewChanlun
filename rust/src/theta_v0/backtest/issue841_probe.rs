@@ -44,9 +44,13 @@ fn win_bars() -> usize {
 
 fn load_window() -> data::Dataset {
     let cfg = ThetaConfig::default();
-    let ds = data::load_by_symbol("BTC", &cfg).expect("BTC 数据（analysis/data_cache/btc_1m_full.json）");
+    let ds = data::load_by_symbol("BTC", &cfg)
+        .expect("BTC 数据（analysis/data_cache/btc_1m_full.json）");
     let n = ds.bars.len().min(win_bars());
-    eprintln!("[841] BTC 全集 bars={}，本次窗口 bars={n}（截断照实声明）", ds.bars.len());
+    eprintln!(
+        "[841] BTC 全集 bars={}，本次窗口 bars={n}（截断照实声明）",
+        ds.bars.len()
+    );
     data::Dataset {
         symbol: ds.symbol.clone(),
         bars: ds.bars[..n].to_vec(),
@@ -62,7 +66,10 @@ fn walk_depth(elements: &[CoverageElement], mut idx: usize) -> u32 {
     let mut depth = 0u32;
     while let Some(p) = elements[idx].parent {
         depth += 1;
-        assert!(depth as usize <= fuel, "parent 图含环（同 leg.rs:221 硬门）");
+        assert!(
+            depth as usize <= fuel,
+            "parent 图含环（同 leg.rs:221 硬门）"
+        );
         idx = p;
     }
     depth
@@ -125,8 +132,16 @@ fn issue841_axis_structure() {
             if rl as i64 - d as i64 != lv as i64 {
                 n_mismatch += 1;
             }
-            *path_to_levels.entry((rl, d)).or_default().entry(lv).or_insert(0) += 1;
-            *level_to_paths.entry(lv).or_default().entry((rl, d)).or_insert(0) += 1;
+            *path_to_levels
+                .entry((rl, d))
+                .or_default()
+                .entry(lv)
+                .or_insert(0) += 1;
+            *level_to_paths
+                .entry(lv)
+                .or_default()
+                .entry((rl, d))
+                .or_insert(0) += 1;
             if depth_weight(d, &cfg.voice) > 0.0 {
                 *level_to_paths_funded
                     .entry(lv)
@@ -170,11 +185,17 @@ fn issue841_axis_structure() {
          leg_target 对拍次数={legtarget_checked}\n\n\
          **level ≠ root_level − depth 的元素数 = {n_mismatch}**（占 {:.4}%）\n\n",
         ds.bars.len(),
-        if n_elem > 0 { n_mismatch as f64 * 100.0 / n_elem as f64 } else { f64::NAN }
+        if n_elem > 0 {
+            n_mismatch as f64 * 100.0 / n_elem as f64
+        } else {
+            f64::NAN
+        }
     ));
 
-    s.push_str("## (root_level, depth) → 绝对级别（每路径命中的级别分布）\n\n\
-                | root_level | depth | w_depth | 绝对级别→元素数 |\n|---|---|---|---|\n");
+    s.push_str(
+        "## (root_level, depth) → 绝对级别（每路径命中的级别分布）\n\n\
+                | root_level | depth | w_depth | 绝对级别→元素数 |\n|---|---|---|---|\n",
+    );
     for (&(rl, d), lvls) in &path_to_levels {
         let lv_str: Vec<String> = lvls.iter().map(|(l, c)| format!("L{l}:{c}")).collect();
         s.push_str(&format!(
@@ -188,7 +209,10 @@ fn issue841_axis_structure() {
                 | 绝对级别 | 全部路径数 | 路径明细(rl,d)=元素数 | **拿到钱的路径数**(w>0) | 拿到钱的 depth 集合 |\n\
                 |---|---|---|---|---|\n");
     for (lv, paths) in &level_to_paths {
-        let all: Vec<String> = paths.iter().map(|((rl, d), c)| format!("({rl},{d})={c}")).collect();
+        let all: Vec<String> = paths
+            .iter()
+            .map(|((rl, d), c)| format!("({rl},{d})={c}"))
+            .collect();
         let funded = level_to_paths_funded.get(lv);
         let n_funded = funded.map_or(0, |m| m.len());
         let depths: BTreeSet<u32> = funded
@@ -204,9 +228,7 @@ fn issue841_axis_structure() {
 
     let multi_funded: Vec<u32> = level_to_paths_funded
         .iter()
-        .filter(|(_, m)| {
-            m.keys().map(|(_, d)| *d).collect::<BTreeSet<u32>>().len() > 1
-        })
+        .filter(|(_, m)| m.keys().map(|(_, d)| *d).collect::<BTreeSet<u32>>().len() > 1)
         .map(|(l, _)| *l)
         .collect();
     s.push_str(&format!(
@@ -344,10 +366,19 @@ fn issue841_axis_funded() {
         ll.n_closed(),
         ll.n_active(),
     ));
-    s.push_str("| 绝对级别 | 供给路径 (root_level,depth)=声部数 | 不同 depth 数 |\n|---|---|---|\n");
+    s.push_str(
+        "| 绝对级别 | 供给路径 (root_level,depth)=声部数 | 不同 depth 数 |\n|---|---|---|\n",
+    );
     for (lv, paths) in &level_to_paths {
-        let all: Vec<String> = paths.iter().map(|((rl, d), c)| format!("({rl},{d})={c}")).collect();
-        let nd = paths.keys().map(|(_, d)| *d).collect::<BTreeSet<u32>>().len();
+        let all: Vec<String> = paths
+            .iter()
+            .map(|((rl, d), c)| format!("({rl},{d})={c}"))
+            .collect();
+        let nd = paths
+            .keys()
+            .map(|(_, d)| *d)
+            .collect::<BTreeSet<u32>>()
+            .len();
         s.push_str(&format!("| L{lv} | {} | {nd} |\n", all.join(" ")));
     }
     s.push_str(&format!(
@@ -379,7 +410,12 @@ fn issue841_level_cap_counterfactual() {
 
     let run = |cfg: &ThetaConfig| {
         let r = run_theta_v0_pi_overlay(&ds, cfg, years, nav);
-        let eq = r.net_result.equity_curve.last().copied().unwrap_or(f64::NAN);
+        let eq = r
+            .net_result
+            .equity_curve
+            .last()
+            .copied()
+            .unwrap_or(f64::NAN);
         let pnl: f64 = r.net_result.trade_pnls.iter().sum();
         (
             r.net_result.n_orders,
@@ -435,7 +471,11 @@ fn issue841_level_cap_counterfactual() {
             w,
             w.iter().sum::<f64>(),
             pnls_on.len(),
-            if bitwise { "是（逐位相同）" } else { "否" }
+            if bitwise {
+                "是（逐位相同）"
+            } else {
+                "否"
+            }
         ));
     }
     s.push_str(&format!(

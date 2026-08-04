@@ -268,10 +268,16 @@ fn compute_d2(spans: &[VoiceSpan]) -> D2Stats {
         if sg == 0 {
             continue;
         }
-        *ev.entry(s.entry_bar).or_default().entry(s.level).or_insert(0) += sg;
+        *ev.entry(s.entry_bar)
+            .or_default()
+            .entry(s.level)
+            .or_insert(0) += sg;
         n_actions += 1;
         if !s.censored {
-            *ev.entry(s.exit_bar).or_default().entry(s.level).or_insert(0) -= sg;
+            *ev.entry(s.exit_bar)
+                .or_default()
+                .entry(s.level)
+                .or_insert(0) -= sg;
             n_actions += 1;
         }
     }
@@ -346,7 +352,11 @@ fn compute_d1(bars: &[super::super::types::Bar], cfg: &ThetaConfig) -> D1Stats {
         st.n_bsp_total += n_here;
         if n_here > 0 {
             st.n_bars_with_bsp += 1;
-            let mut lv: Vec<u32> = buy_levels.iter().chain(sell_levels.iter()).copied().collect();
+            let mut lv: Vec<u32> = buy_levels
+                .iter()
+                .chain(sell_levels.iter())
+                .copied()
+                .collect();
             lv.sort_unstable();
             lv.dedup();
             if lv.len() >= 2 {
@@ -422,7 +432,8 @@ fn run_arm(ds: &data::Dataset, cfg: &ThetaConfig, nav: f64) -> ArmOut {
 #[ignore = "issue #837 探针：cargo test --release --lib -- --ignored --nocapture issue837_cross_level_opposing_actions"]
 fn issue837_cross_level_opposing_actions() {
     let plain = ThetaConfig::default();
-    let ds = data::load_by_symbol("BTC", &plain).expect("BTC 数据（analysis/data_cache/btc_1m_full.json）");
+    let ds = data::load_by_symbol("BTC", &plain)
+        .expect("BTC 数据（analysis/data_cache/btc_1m_full.json）");
     eprintln!("[837] BTC 全集 bars={}", ds.bars.len());
 
     let mut wins: Vec<(String, String, String)> = match std::env::var("ISSUE837_BASE_WINDOW") {
@@ -495,9 +506,14 @@ fn issue837_cross_level_opposing_actions() {
             *by_level.entry(s.level).or_insert(0) += 1;
         }
 
-        let (l0, l25, l50, l75, l100) = quantiles(d3.overlap_lens.iter().map(|v| *v as f64).collect());
+        let (l0, l25, l50, l75, l100) =
+            quantiles(d3.overlap_lens.iter().map(|v| *v as f64).collect());
         let (h0, h25, h50, h75, h100) = quantiles(d3.hq_ratios.clone());
-        let near_full = d3.hq_ratios.iter().filter(|r| (**r - 1.0).abs() <= 0.25).count();
+        let near_full = d3
+            .hq_ratios
+            .iter()
+            .filter(|r| (**r - 1.0).abs() <= 0.25)
+            .count();
 
         report.push_str(&format!(
             "\n## 窗 {tag}（{lo}..{hi}，bars={}）\n\n\
@@ -529,32 +545,75 @@ fn issue837_cross_level_opposing_actions() {
              按级别对：{:?}\n\n\
              最长重叠实例（前 {}）：\n",
             a.n_bars,
-            a.n_orders, a.net_r, a.max_dd, a.n_voices,
-            b.n_orders, b.net_r, b.max_dd, b.n_voices,
-            a.n_orders as i64 - b.n_orders as i64, a.net_r - b.net_r, a.max_dd - b.max_dd,
+            a.n_orders,
+            a.net_r,
+            a.max_dd,
+            a.n_voices,
+            b.n_orders,
+            b.net_r,
+            b.max_dd,
+            b.n_voices,
+            a.n_orders as i64 - b.n_orders as i64,
+            a.net_r - b.net_r,
+            a.max_dd - b.max_dd,
             a.n_voices as i64 - b.n_voices as i64,
-            ancok_a.placeholder_pruned_by_ancok, ancok_b.placeholder_pruned_by_ancok,
-            ancok_a.restore_parent_unresolved, ancok_b.restore_parent_unresolved,
-            ancok_a.restore_calls, ancok_b.restore_calls,
-            ancok_a.restore_break_registry_lost, ancok_b.restore_break_registry_lost,
-            ancok_a.closed_inval_pruned, ancok_b.closed_inval_pruned,
-            a.spans.len(), n_ro, n_fp, n_amb, by_level,
-            d1.n_bars_with_bsp, d1.n_bars, d1.n_bsp_total,
-            d1.n_bars_multilevel, pct(d1.n_bars_multilevel, d1.n_bars_with_bsp),
-            d1.n_bars_cross_level_opposing, pct(d1.n_bars_cross_level_opposing, d1.n_bars_with_bsp),
-            d1.n_bars_same_level_opposing, pct(d1.n_bars_same_level_opposing, d1.n_bars_with_bsp),
-            d1.n_gamma, d1.n_gamma_reverse_open, pct(d1.n_gamma_reverse_open, d1.n_gamma.max(1)),
-            d1.n_gamma_follow_parent, d1.n_gamma_ambient,
-            n_ro, pct(n_ro, d1.n_gamma_reverse_open.max(1)),
-            d2.n_bars_with_action, d2.n_actions,
-            d2.n_bars_multilevel, pct(d2.n_bars_multilevel, d2.n_bars_with_action),
-            d2.n_bars_cross_level_opposing, pct(d2.n_bars_cross_level_opposing, d2.n_bars_with_action),
-            d3.n_voices, d3.n_voices_involved, pct(d3.n_voices_involved, d3.n_voices.max(1)),
+            ancok_a.placeholder_pruned_by_ancok,
+            ancok_b.placeholder_pruned_by_ancok,
+            ancok_a.restore_parent_unresolved,
+            ancok_b.restore_parent_unresolved,
+            ancok_a.restore_calls,
+            ancok_b.restore_calls,
+            ancok_a.restore_break_registry_lost,
+            ancok_b.restore_break_registry_lost,
+            ancok_a.closed_inval_pruned,
+            ancok_b.closed_inval_pruned,
+            a.spans.len(),
+            n_ro,
+            n_fp,
+            n_amb,
+            by_level,
+            d1.n_bars_with_bsp,
+            d1.n_bars,
+            d1.n_bsp_total,
+            d1.n_bars_multilevel,
+            pct(d1.n_bars_multilevel, d1.n_bars_with_bsp),
+            d1.n_bars_cross_level_opposing,
+            pct(d1.n_bars_cross_level_opposing, d1.n_bars_with_bsp),
+            d1.n_bars_same_level_opposing,
+            pct(d1.n_bars_same_level_opposing, d1.n_bars_with_bsp),
+            d1.n_gamma,
+            d1.n_gamma_reverse_open,
+            pct(d1.n_gamma_reverse_open, d1.n_gamma.max(1)),
+            d1.n_gamma_follow_parent,
+            d1.n_gamma_ambient,
+            n_ro,
+            pct(n_ro, d1.n_gamma_reverse_open.max(1)),
+            d2.n_bars_with_action,
+            d2.n_actions,
+            d2.n_bars_multilevel,
+            pct(d2.n_bars_multilevel, d2.n_bars_with_action),
+            d2.n_bars_cross_level_opposing,
+            pct(d2.n_bars_cross_level_opposing, d2.n_bars_with_action),
+            d3.n_voices,
+            d3.n_voices_involved,
+            pct(d3.n_voices_involved, d3.n_voices.max(1)),
             d3.n_pairs,
-            d3.n_bars_hedged, a.n_bars, pct(d3.n_bars_hedged, a.n_bars),
-            l0, l25, l50, l75, l100,
-            h0, h25, h50, h75, h100,
-            near_full, d3.hq_ratios.len(), pct(near_full, d3.hq_ratios.len().max(1)),
+            d3.n_bars_hedged,
+            a.n_bars,
+            pct(d3.n_bars_hedged, a.n_bars),
+            l0,
+            l25,
+            l50,
+            l75,
+            l100,
+            h0,
+            h25,
+            h50,
+            h75,
+            h100,
+            near_full,
+            d3.hq_ratios.len(),
+            pct(near_full, d3.hq_ratios.len().max(1)),
             d3.involved_pnl,
             d3.by_level_pair,
             d3.examples.len(),
