@@ -193,6 +193,7 @@ fn collect_signals(ds: &Dataset, config: &ThetaConfig) -> Vec<Signal> {
                             })
                             .into(),
                             pan_div: Vec::new().into(),
+                            first_class_grades: Vec::new().into(),
                             level_projection: None,
                         })
                         .collect(),
