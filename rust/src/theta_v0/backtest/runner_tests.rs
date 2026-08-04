@@ -5035,6 +5035,7 @@ fn ng_classification(bits: super::super::super::types::BspBits) -> classifier::C
                 force: None,
             }]),
             pan_div: std::rc::Rc::new(Vec::new()),
+            first_class_grades: std::rc::Rc::new(Vec::new()), // #885：nest-gate 夹具只携 bsp（同 pan_div 口径）
             level_projection: None,
         }],
         ..Default::default()

@@ -1836,7 +1836,8 @@ fn enumerate_candidate_z(ds: &Dataset, config: &ThetaConfig) -> Vec<MuClass> {
                             centers: Rc::new(Vec::new()),
                             cp_ownership: Rc::new(Vec::new()),
                             pan_div: Rc::new(Vec::new()),
-                            level_projection: None, // #110 门关口径
+                            first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
+                            level_projection: None,                  // #110 门关口径
                             bsp: Rc::new(if l2 == lvl {
                                 vec![p.clone()]
                             } else {
