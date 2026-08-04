@@ -101,7 +101,7 @@ pub struct FugueResult {
     /// 各层短差累计已实现现金（穿 ε=−1 τ 循环的净降成本，按层）。
     pub mobile_realized_pnl_by_ladder: [f64; MAX_LADDER],
 
-    // ── 持仓三阶段观测（T 引擎填充；其他引擎留 0，见 `recursive_t::t_engine::TStage`）──
+    // ── 持仓三阶段观测（T 引擎填充；其他引擎留 0，见 `recursive_t::t_engine::FlatTStage`，#889 R8 改名）──
     /// 退本金触发次数（cost_basis 穿零、本金全额收回的 campaign 数）。
     pub n_capital_recovered: u64,
     /// 累计退出在险池的本金（"放到安全的地方"，立于不败之地）。

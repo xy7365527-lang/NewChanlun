@@ -77,6 +77,12 @@
 
 /// 取本金三阶段 `TStage`（契约锚 `Origin.TotalWealth.TStage`，缠师第31课）。
 ///
+/// ★命名划界（#889 R8，2026-08-04）：本枚举是**生产契约镜像**（锚 = Lean 正本
+/// `Origin.TotalWealth.TStage`，`formal/Origin/TotalWealth.lean:63`）；flat T 引擎的同名兄弟
+/// 已改名 `recursive_t::t_engine::FlatTStage`——全仓 Rust 域裸名 `TStage` 自此唯一指本枚举。
+/// 另照实（#840 查实）：原文「三阶段」一词本身多重撞车（`108:38` 底/中间/顶、`064:496` 牛市
+/// 三阶段、`091:40` 未病/欲病/已病），均非本枚举。
+///
 /// 单向不可逆迁移（OQ-9）：CostReduction(0) → CapitalRecovered(1) → EarningShares(2)。
 /// `rank` 把三阶段映到 {0,1,2}，是单向偏序的载体（rank 只增不减，见 [`tw_step`]）。
 ///
