@@ -1564,7 +1564,11 @@ mod tests {
     fn 三阶段_全仓模式_增股数阶段短差腿不单层强平() {
         let mut eng = TPositionEngine::new();
         let (mut bar, p) = drive_to_earning(&mut eng);
-        assert_eq!(eng.stage(), FlatTStage::EarningShares, "已进增股数（全仓模式）");
+        assert_eq!(
+            eng.stage(),
+            FlatTStage::EarningShares,
+            "已进增股数（全仓模式）"
+        );
         eng.step(&sell_view(5), bar, p);
         bar += 1;
         let short_opened = eng.layers[5].is_active() && eng.layers[5].direction == Polarity::Short;
@@ -1588,7 +1592,11 @@ mod tests {
         assert!(eng.withdrawn > 0.0, "有退本金在安全池");
         // 核心反向翻转（最高级别卖点）→ clear_all → reset_campaign。
         eng.step(&sell_view(6), bar, p * 0.5);
-        assert_eq!(eng.stage(), FlatTStage::CostReduction, "翻转后重置回降成本阶段");
+        assert_eq!(
+            eng.stage(),
+            FlatTStage::CostReduction,
+            "翻转后重置回降成本阶段"
+        );
         assert!(eng.withdrawn.abs() < 1e-9, "退本金已归还 free");
     }
 }
