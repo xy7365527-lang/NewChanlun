@@ -186,6 +186,36 @@ class TestDirectionRule:
         assert m["high"].iloc[0] == 20.0
         assert m["low"].iloc[0] == 2.0  # max(1,2)=2, 不是 min
 
+    def test_dir_none_defaults_up_even_when_first_bar_is_bearish(self):
+        """dir=None 不使用 K 线阴阳推断方向。"""
+        # 首根是大阴线，但尚未出现相邻 high/low 同升或同降建立方向。
+        # dir=None 必须仍按 UP 合并，否则会错误取 low=min(1,2)=1。
+        df = pd.DataFrame({
+            "open":  [19, 2],
+            "high":  [20, 19],
+            "low":   [1, 2],
+            "close": [2, 10],
+        })
+        m, _ = merge_inclusion(df)
+        assert len(m) == 1
+        assert m["high"].iloc[0] == 20.0
+        assert m["low"].iloc[0] == 2.0
+
+    def test_reset_direction_then_inclusion_defaults_up_even_when_bar_is_bearish(self):
+        """reset_dir_on_fractal=True 重置方向后，下一次包含仍按 UP 合并。"""
+        # Bar0→Bar1 建立 UP；Bar1→Bar2 翻转为 DOWN 并触发 reset 到 None。
+        # Bar3 被 bearish 的 Bar2 包含，但 dir=None 不能用 Bar2 阴阳推断 DOWN。
+        df = pd.DataFrame({
+            "open":  [6, 8, 10, 7],
+            "high":  [10, 12, 11, 10],
+            "low":   [5, 7, 6, 7],
+            "close": [9, 11, 7, 8],
+        })
+        m, _ = merge_inclusion(df, reset_dir_on_fractal=True)
+        assert len(m) == 3
+        assert m["high"].iloc[-1] == 11.0
+        assert m["low"].iloc[-1] == 7.0
+
     def test_chain_default_up(self):
         """dir=None 全程包含链 → 持续按 UP 合并。"""
         df = pd.DataFrame({
