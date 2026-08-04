@@ -24,6 +24,18 @@ namespace NewChanlun.Origin
 /--
 `T_q^d` 的最小抽象载体，只保留 `Turn_q` 需要的字段——级别，以及用来判定完成的背驰段对；
 笔、线段、中枢等内部结构本文件不需要，故不引入。
+
+★**名分：`level` 的编码形态是 `[新缠论:候选]`**（issue #877 关票后追认，登记在 issue #815）。
+
+把级别写成 `Nat`、把「同级」写成数字相等（见 `EventualHandover` / `Turn_q`），**预设了
+「级别是递归级别、可用一个自然数线性索引」**。而 issue #815 的 M-3 正在裁的就是这件事：
+级别是递归级别（下级 +1），还是**数据涌现的簇**。
+
+**⟹ 若 M-3 裁出「涌现簇」，本编码需重做**——簇不一定能线性索引，「同一级」也就不再是
+相等判断。
+
+分清楚：`Turn_q` 的**语义**（完成 ∧ 让位于同级）已由 issue #869 第 2 问裁定，**不是**候选；
+候选的只是这个**编码形态**。
 -/
 structure TrendInstance where
   level : Nat
@@ -81,6 +93,9 @@ def EventualHandover (succ : TrendInstance → Option TrendInstance) : Prop :=
 
 这是肯定式（完成 ∧ 让位），不是 `¬Ext_q` 那种否定式；两者不是同义反复（issue #861
 裁定③）。
+
+★合取项 `T'.level = T.level` 的名分见 `TrendInstance` 的文档：**编码形态是
+`[新缠论:候选]`**，等 issue #815 的 M-3 裁完级别的本体才转正。
 -/
 def Turn_q (succ : TrendInstance → Option TrendInstance) (T : TrendInstance) : Prop :=
   Completed T ∧ ∃ T', succ T = some T' ∧ T'.level = T.level
