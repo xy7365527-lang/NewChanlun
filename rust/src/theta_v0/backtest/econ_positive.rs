@@ -8466,7 +8466,7 @@ mod tests {
     ///
     /// 本探针**不改判据**，改问两条**与 `div_cand` 不同源**的现成管线：
     /// 1. **BSP 识别层**：`cls.levels[L−1].bsp` 里有没有坐标 `== source_index` 的 `buy1`/`sell1`
-    ///    （判据是 `signal.rs:506` 的 `below_last_center = diverged && t3_in_c_present`，与
+    ///    （判据是 `signal.rs:516` 的 `below_last_center = diverged && t3_in_c_present`，与
     ///    `div_cand` 四条件**不是同一套**）；
     /// 2. **pan_div 通道**：`cls.levels[L−1].pan_div`（`PanDivCert`，同一中枢两次同向离开 + 面积
     ///    C<A）——这正是 `div_cand` 缺的那个「盘整背驰」入口的**替代观测**。

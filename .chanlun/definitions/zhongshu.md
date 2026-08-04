@@ -496,7 +496,7 @@ ZD < ZG（严格，Z-2）
 | R11 | `rust/src/theta_v0/classifier/mod.rs:521-522` `is_l0` 分派 | `classify_level(&units, is_l0)` | **不动**（E1 判为伪分歧，已撤销） | Z-3 | 裁定记 `mod.rs:522` 为 units 来源；units 实际构造在 **`mod.rs:460`** ★行号订正 |
 | R12 | `rust/src/theta_v0/classifier/mod.rs:461` / `:623` anchor provenance | L0 不消费，L≥1 派生，`None`=fallback | **不动**；anchor 门降为实现注记 | S-3 ⑥ | |
 | R13 | `rust/src/theta_v0/classifier/signal.rs:570` `judge_third_cert` | 三类点判据本体 | 判据上移中枢模块，此处改为**调用** | S-3 ③ | **★行号订正**：裁定记 `:528`（该行是 doc 注释首行），`fn` 在 `:570` |
-| R14 | `rust/src/theta_v0/classifier/signal.rs:640` `trend_third_class_in_c` | 自陈「去 anchor 门」版 = 同一判断的宽严两档 | **收敛掉**；anchor 改为可选参数而非另写一函数 | S-3 ③ + [#799](https://github.com/xy7365527-lang/NewChanlun/issues/799) | **★行号订正**：裁定记 `:632`（doc 行），`fn` 在 `:640` |
+| R14 | `rust/src/theta_v0/classifier/signal.rs:650` `trend_third_class_in_c` | 自陈「去 anchor 门」版 = 同一判断的宽严两档 | **收敛掉**；anchor 改为可选参数而非另写一函数 | S-3 ③ + [#799](https://github.com/xy7365527-lang/NewChanlun/issues/799) | **★行号订正**：裁定记 `:632`（doc 行），`fn` 在 `:650` |
 | R15 | `rust/src/theta_v0/classifier/center_lifecycle.rs:564-593` | 单实例 `alive` + `Superseded` 登记 | **不动**；但「一类点 = 在场中枢同死」等式**作废**，只保留「一类点 = 走势类型终结」 | S-3 ⑤ | 裁定记 `:569-593`；实际推进循环起于 `:564` |
 | R16 | `rust/src/zhongshu.rs:224` `(break_seg_idx - 2).max(seg_end_idx)` | 续扫锚 A 口径 | **改为 C**（`last + 2`） | Z-5 | |
 | R17 | `rust/src/zhongshu.rs:143` bit-exact 锁（注释锁定 A 口径） | 锁在 A 上 | **锁会断**，随 Z-5 一起改 | Z-5 | |

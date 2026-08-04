@@ -37,7 +37,7 @@
 //!   (ii)  tower[level-1] 内容变（lower legs 源）。
 //!   (iii) as_of 越过 lower legs 端点水位。level_view 全部 as_of 依赖已逐处核验为
 //!         `segment.end_index <= as_of` 形：pan 支（level_view.rs:722）/ provide_divergence_pairs
-//!         （:829,:853）/ trend_confirm_time 扫描界（:562）与三买（signal.rs:648）。legs 端点恒 ≤
+//!         （:829,:853）/ trend_confirm_time 扫描界（:562）与三买（signal.rs:658）。legs 端点恒 ≤
 //!         其所在 bar（塔只含 ≤ 当前 bar 的走势）⟹ 端点集合在 (ii) 干净期间不变且全部
 //!         ≤ last_as_of ⟹ (iii) 独立触发构造性不可能——(iii) ⊂ (ii)。判据保留作廉价断言，
 //!         计数器 P123_SPARSE wm_cross_without_lower 恒 0 自证（非 0 即实装 bug，停线）。
