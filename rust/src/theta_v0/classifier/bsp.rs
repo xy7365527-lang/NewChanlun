@@ -646,8 +646,9 @@ mod tests {
             // #885 S4-d：`LevelState::first_class_grade_at`/`Classification::otherwise_domain_at`
             // 单源查询函数体（作用于 `FirstClassGradeRecord` 分级记录族，非 `BspPoint`，与本族
             // 三件并行不同型；同 projection.rs:215 先例——查询实现全仓各仅一份，非复制点）。
-            "theta_v0/classifier/mod.rs:218",
-            "theta_v0/classifier/mod.rs:250",
+            // （#881 S3：上方 `pub mod operation;` 增 3 行 ⟹ 218→221 / 250→253，同条目重登记。）
+            "theta_v0/classifier/mod.rs:221",
+            "theta_v0/classifier/mod.rs:253",
             // `CrossLevelConfirmationQuery::entry_at` 单源函数体（作用于 `TripleAnchorEntry`，
             // 与本族 `BspPoint` 三件并行不同型，见 projection.rs 函数头注释）。
             "theta_v0/classifier/projection.rs:215",
@@ -655,7 +656,8 @@ mod tests {
             // （#885 S4-d：本文件上方新增注释/参数/测试 ⟹ 行号整体位移，逐条重核重登记，理由不变；
             // 3209/4358 为本票新增测试夹具过滤，同类登记。
             // 2026-08-04 再位移（+5/+1）：#885 收尾 rustfmt 尾巴（4fe13e12d3）折行推移，逐条重核
-            // 内容不变（同为测试夹具 source_index 过滤），理由不变。）
+            // 内容不变（同为测试夹具 source_index 过滤），理由不变。#881 S3：mod.rs 测试区上方
+            // 增集成测试 ⟹ 该点 4359→4548，同条目重登记。）
             "theta_v0/classifier/signal.rs:2561",
             "theta_v0/classifier/signal.rs:2845",
             "theta_v0/classifier/signal.rs:3214",
@@ -663,7 +665,7 @@ mod tests {
             "theta_v0/classifier/signal.rs:3386",
             "theta_v0/classifier/signal.rs:3642",
             "theta_v0/classifier/signal.rs:3706",
-            "theta_v0/classifier/mod.rs:4359",
+            "theta_v0/classifier/mod.rs:4548",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
             "theta_v0/strategy/mod.rs:551",
             "theta_v0/strategy/mod.rs:773",
