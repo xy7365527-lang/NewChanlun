@@ -502,16 +502,29 @@ fn classify_level(units: &[UnitRange], is_l0: bool) -> (Vec<Center>, Vec<MoveBlo
 /// `Classification.levels` 同构（`tower_snapshots.len() == levels.len()`）：
 /// - 索引 0（L0 级）：全 `RMove::Segment`（递归底，`sub_moves` 空）。
 /// - 索引 ≥1（L(k) 级）：前一级产出的 `RMove::Compose` 序列（携次级别 subs，depth≥1 真嵌套）。
+///
+/// ★#881 S3（ADR 0011 裁定一/六/七）：`operating_levels` = 操作级别挂载点——塔在构造时被告知
+/// 哪些层是操作级别；级别循环内拿该层 `units`（第 k 层元素）经 [`operation::operation_decompose`]
+/// 用**不延伸**规则现场重折，产该级别操作序列（第 4 元返回，按挂载声明排序）。**旁路只读
+/// `units`、不触碰主干任何状态**（不回流由集成测试锁全等比对承担，非靠自觉）。空挂载 = 旧行为
+/// 逐字节不变。
 fn classify_impl(
     l0: &ParseLayer,
     config: &ThetaConfig,
+    operating_levels: &[u32],
 ) -> (
     Classification,
     Vec<Rc<Vec<LeveledMove>>>,
     cand_event::CandidateStreams,
+    Vec<operation::OperationSequence>,
 ) {
     let min_parts = config.level.min_parts_per_level as usize;
     let l_max = config.level.l_max as usize;
+    // 挂载声明归一化（排序 + 去重）：重复/乱序声明不产生重复旁路（分解唯一性的挂载面）。
+    let mut mounts: Vec<u32> = operating_levels.to_vec();
+    mounts.sort_unstable();
+    mounts.dedup();
+    let mut operations: Vec<operation::OperationSequence> = Vec::new();
 
     // L0 输入单元 = parser 线段账本（reference:29 L0=1分钟线段账本）。
     let mut units: Vec<UnitRange> = l0.segments.iter().map(segment_to_unit).collect();
@@ -524,6 +537,7 @@ fn classify_impl(
             Classification::default(),
             Vec::new(),
             std::rc::Rc::new(Vec::new()),
+            Vec::new(),
         );
     }
 
@@ -577,6 +591,23 @@ fn classify_impl(
         // L0（level_idx==0）用完整判据（方向交替，线段有方向）；上级用几何路径（外缘，单元无方向）。
         let is_l0 = level_idx == 0;
         let (centers, moves) = classify_level(&units, is_l0);
+
+        // ★#881 S3 操作级别挂载点（ADR 0011 裁定一/六/七）：本级被声明为操作级别 ⟹ 拿本级
+        // 元素 `units` 用**不延伸**规则现场重折（seed 判据与主干同一——塔自己的级别分派，
+        // 旁路不另立判据，#804 总缝规则）。**只读** `units`：旁路产物不进 `levels`、不进
+        // `project_to_units`、不参与 compose——主干对挂载完全无感（不回流测试锁承担）。
+        if mounts.contains(&(level_idx as u32)) {
+            let op_build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center> = if is_l0 {
+                center::center_from_segments
+            } else {
+                center::center_from_window
+            };
+            operations.push(operation::operation_decompose(
+                &units,
+                op_build,
+                level_idx as u32,
+            ));
+        }
 
         // L(k+1) 走势塔 = 本级窗口化 compose（每中枢的构成三段次级别走势 → 一个上级 `RMove::Compose`，
         // 契约锚 `Origin.RecursiveLevelSystem.composeStep` 窗口封装）。`upper_moves` 是携坐标的上级走势
@@ -706,6 +737,7 @@ fn classify_impl(
         Classification { levels },
         tower_snapshots,
         candidate_book.streams(),
+        operations,
     )
 }
 
@@ -721,7 +753,26 @@ fn classify_impl(
 ///   task #143——旧 AllTrend 的 HigherCenterCandidate 由多块序列吸收）。
 /// - 空 ParseLayer（无线段）⟹ `Classification::default()`（空 levels，无可构造级别）。
 pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
-    classify_impl(l0, config).0
+    classify_impl(l0, config, &[]).0
+}
+
+/// ★#881 S3 操作级别挂载点入口（ADR 0011 裁定一/二/六/七）：分类 + 横向旁路读法。
+///
+/// 塔在构造时被告知 `operating_levels`（哪些层是操作级别，可多个同时存在——多重赋格的
+/// 挂载面）；返回 `(Classification, Vec<OperationSequence>)`：
+/// - `Classification`：与 [`classify`] **逐位相同**（旁路不回流主干的测试锁即比对两者全等）；
+/// - `Vec<OperationSequence>`：每个挂载级别一份操作序列（口径 S 中枢 + 不延伸折叠块，含
+///   并列盘整），按 `level` 升序（挂载声明先排序去重，重复声明不重复产）。
+///
+/// 挂载级别 ≥ 塔自然终止层时该挂载静默无产出（该层元素不存在，无可重折——同 `classify`
+/// 的自然终止纪律，不报错不造假序列）。
+pub fn classify_with_operations(
+    l0: &ParseLayer,
+    config: &ThetaConfig,
+    operating_levels: &[u32],
+) -> (Classification, Vec<operation::OperationSequence>) {
+    let (classification, _, _, operations) = classify_impl(l0, config, operating_levels);
+    (classification, operations)
 }
 
 /// 分类 + 逐级塔导出入口（(i) 段导出桥，MEMORY coverage-engine-needs-tower-export-bridge）。
@@ -739,7 +790,7 @@ pub fn classify_with_tower(
     l0: &ParseLayer,
     config: &ThetaConfig,
 ) -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
-    let (classification, tower, _) = classify_impl(l0, config);
+    let (classification, tower, _, _) = classify_impl(l0, config, &[]);
     (classification, tower)
 }
 
@@ -772,7 +823,8 @@ pub fn classify_with_tower_events(
     Vec<Rc<Vec<LeveledMove>>>,
     cand_event::CandidateStreams,
 ) {
-    classify_impl(l0, config)
+    let (classification, tower, streams, _) = classify_impl(l0, config, &[]);
+    (classification, tower, streams)
 }
 
 /// ★增量塔入口：返回 `(Classification, tower_snapshots)` bit-exact 等价于
@@ -4177,6 +4229,140 @@ mod tests {
             ),
             (MoveKind::Consolidation, 0, 0)
         );
+    }
+
+    /// #881 S3 集成夹具：12 段在 [0,10] 带内来回震荡（方向交替、任意三连段核心严格非空——
+    /// 所有段 [lo,hi] 覆盖 [3,8]）⟹ 主干塔 L0 延伸吸收成少量中枢、口径 S 每 3 段一个中枢，
+    /// 中枢两两外缘重叠（全 LevelExpansion）；L0 产 ≥3 个上级走势 ⟹ L1 可挂载。
+    fn operation_oscillating_layer() -> ParseLayer {
+        let specs: [(Direction, i64, i64); 12] = [
+            (Direction::Up, 0, 10),
+            (Direction::Down, 10, 2),
+            (Direction::Up, 2, 9),
+            (Direction::Down, 9, 3),
+            (Direction::Up, 3, 8),
+            (Direction::Down, 8, 2),
+            (Direction::Up, 2, 10),
+            (Direction::Down, 10, 3),
+            (Direction::Up, 3, 9),
+            (Direction::Down, 9, 2),
+            (Direction::Up, 2, 8),
+            (Direction::Down, 8, 3),
+        ];
+        ParseLayer {
+            segments: Rc::new(
+                specs
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &(d, sp, ep))| seg(d, i * 2, i * 2 + 2, sp, ep))
+                    .collect(),
+            ),
+            ..Default::default()
+        }
+    }
+
+    /// #881 S3 验收①：旁路读法 API + 至少两个操作级别的操作序列产出。
+    #[test]
+    fn operation_bypass_two_levels_produce_sequences() {
+        let cfg = ThetaConfig::default();
+        let layer = operation_oscillating_layer();
+        let (out, ops) = classify_with_operations(&layer, &cfg, &[0, 1]);
+        assert!(
+            out.levels.len() >= 2,
+            "夹具须至少构到 L1（两个操作级别挂载的前提）"
+        );
+        assert_eq!(ops.len(), 2, "两个挂载级别各产一份操作序列");
+        assert_eq!(ops[0].level, 0);
+        assert_eq!(ops[1].level, 1);
+
+        // L0 旁路：恒 3 段窗口 ⟹ 4 窗口 4 中枢，窗口两两相接（(0,2),(3,5),(6,8),(9,11)）。
+        let l0_op = &ops[0];
+        assert_eq!(l0_op.windows, vec![(0, 2), (3, 5), (6, 8), (9, 11)]);
+        assert_eq!(l0_op.centers.len(), 4);
+        // 中枢两两外缘重叠（全 LevelExpansion）但**不合并**：4 个相邻单中枢盘整块
+        // = 盘整+盘整+盘整+盘整（038:22，主干 fold_rel 永产不出相邻盘整块）。
+        assert_eq!(l0_op.blocks.len(), 4);
+        for (i, b) in l0_op.blocks.iter().enumerate() {
+            assert_eq!(
+                (b.kind, b.dir, b.start_center, b.end_center),
+                (MoveKind::Consolidation, None, i, i),
+                "每中枢独立成单中枢盘整块（不延伸）"
+            );
+        }
+        for w in l0_op.blocks.windows(2) {
+            assert_eq!(
+                (w[0].kind, w[1].kind),
+                (MoveKind::Consolidation, MoveKind::Consolidation),
+                "相邻盘整块 = 盘整+盘整连接（同级别分解明令允许，非同级别分解禁止）"
+            );
+        }
+        // 规则差对照锚：主干 L0 moves 是同一份元素经延伸折叠的产物——4 中枢全链重叠
+        // 被 maximal 合并成 1 个盘整块（ADR 0011 裁定四：合并属构造，不属读法）。
+        assert_eq!(out.levels[0].centers.len(), 4);
+        assert_eq!(out.levels[0].moves.len(), 1);
+        assert_eq!(
+            (
+                out.levels[0].moves[0].kind,
+                out.levels[0].moves[0].start_center,
+                out.levels[0].moves[0].end_center
+            ),
+            (MoveKind::Consolidation, 0, 3),
+            "主干：同一 LevelExpansion 链折成 1 块；旁路：4 块并列——延伸/不延伸的规则差"
+        );
+
+        // L1 旁路：上级 seed 判据（center_from_window）同规则产出，序列非空且块索引自洽。
+        let l1_op = &ops[1];
+        assert!(!l1_op.centers.is_empty(), "L1 操作序列须有中枢产出");
+        assert_eq!(l1_op.centers.len(), l1_op.windows.len());
+        for b in &l1_op.blocks {
+            assert!(b.end_center < l1_op.centers.len());
+        }
+    }
+
+    /// #881 S3 验收②：分解唯一性测试锁——同一主干序列，旁路重折结果唯一。
+    #[test]
+    fn operation_decomposition_uniqueness_lock() {
+        let cfg = ThetaConfig::default();
+        let layer = operation_oscillating_layer();
+        // (a) 同输入两跑逐位相同（038:18 唯一性的机器形态：无路径依赖）。
+        let (_, ops_a) = classify_with_operations(&layer, &cfg, &[0, 1]);
+        let (_, ops_b) = classify_with_operations(&layer, &cfg, &[0, 1]);
+        assert_eq!(
+            ops_a, ops_b,
+            "同一主干序列，旁路重折结果唯一（两跑逐位相同）"
+        );
+        // (b) 挂载集合无关性：单挂 L0 vs 乱序重复挂载 [1,0,0]——L0 序列逐位相同
+        // （重折不依赖于还挂了哪些级别：规则按角色分，不按级别分，裁定六）。
+        let (_, ops_only0) = classify_with_operations(&layer, &cfg, &[0]);
+        let (_, ops_mixed) = classify_with_operations(&layer, &cfg, &[1, 0, 0]);
+        assert_eq!(ops_only0.len(), 1);
+        assert_eq!(
+            ops_mixed.len(),
+            2,
+            "重复/乱序挂载声明归一化（排序去重），不重复产序列"
+        );
+        let l0_in_mixed = ops_mixed.iter().find(|o| o.level == 0).unwrap();
+        assert_eq!(
+            ops_only0[0], *l0_in_mixed,
+            "同一主干序列的旁路重折与挂载集合无关（唯一性）"
+        );
+    }
+
+    /// #881 S3 验收③：不回流测试锁——旁路产物写入后主干状态逐位不变。
+    #[test]
+    fn operation_bypass_no_backflow_lock() {
+        let cfg = ThetaConfig::default();
+        let layer = operation_oscillating_layer();
+        let baseline = classify(&layer, &cfg);
+        let (with_ops, ops) = classify_with_operations(&layer, &cfg, &[0, 1]);
+        assert!(!ops.is_empty(), "旁路确有产物写入（锁的前提）");
+        assert_eq!(
+            baseline, with_ops,
+            "旁路产物写入后主干 Classification 逐位不变（裁定七：旁路结果不回流主干）"
+        );
+        // 既有入口逐字节不动（空挂载 = 旧行为）。
+        let (plain, _) = classify_with_tower(&layer, &cfg);
+        assert_eq!(baseline, plain);
     }
 
     #[test]
