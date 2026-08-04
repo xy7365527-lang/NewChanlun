@@ -193,7 +193,7 @@ fn collect_signals(ds: &Dataset, config: &ThetaConfig) -> Vec<Signal> {
                             })
                             .into(),
                             pan_div: Vec::new().into(),
-                            first_class_grades: Vec::new().into(),
+                            first_class_grades: Vec::new().into(), // #885：否则域记录空载投影（与其他夹具同口径）
                             level_projection: None,
                         })
                         .collect(),

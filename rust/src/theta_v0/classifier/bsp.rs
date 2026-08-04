@@ -653,15 +653,17 @@ mod tests {
             "theta_v0/classifier/projection.rs:215",
             // #[cfg(test)] mod 内断言用字面量 source_index 过滤——测试夹具，非生产绑定规则。
             // （#885 S4-d：本文件上方新增注释/参数/测试 ⟹ 行号整体位移，逐条重核重登记，理由不变；
-            // 3209/4358 为本票新增测试夹具过滤，同类登记。）
+            // 3209/4358 为本票新增测试夹具过滤，同类登记。
+            // 2026-08-04 再位移（+5/+1）：#885 收尾 rustfmt 尾巴（4fe13e12d3）折行推移，逐条重核
+            // 内容不变（同为测试夹具 source_index 过滤），理由不变。）
             "theta_v0/classifier/signal.rs:2561",
             "theta_v0/classifier/signal.rs:2845",
-            "theta_v0/classifier/signal.rs:3209",
-            "theta_v0/classifier/signal.rs:3348",
-            "theta_v0/classifier/signal.rs:3381",
-            "theta_v0/classifier/signal.rs:3637",
-            "theta_v0/classifier/signal.rs:3701",
-            "theta_v0/classifier/mod.rs:4358",
+            "theta_v0/classifier/signal.rs:3214",
+            "theta_v0/classifier/signal.rs:3353",
+            "theta_v0/classifier/signal.rs:3386",
+            "theta_v0/classifier/signal.rs:3642",
+            "theta_v0/classifier/signal.rs:3706",
+            "theta_v0/classifier/mod.rs:4359",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
             "theta_v0/strategy/mod.rs:551",
             "theta_v0/strategy/mod.rs:773",
