@@ -55,7 +55,10 @@ namespace NewChanlun.Origin.TotalWealth
   ════════════════════════════════════════════════════════════════════════ -/
 
 /--
-  ★三阶段 `TStage`（L0，缠师第31课，对齐 `t_engine.rs:120` TStage）。
+  ★三阶段 `TStage`（L0，缠师第31课；**本文件 = 契约正本**，生产镜像 =
+  `rust/src/theta_v0/strategy/ledger.rs` `TStage`——#127 native port 后锚的方向是「ledger.rs 锚
+  本文件」。原注释「对齐 `t_engine.rs:120` TStage」指针作废：行号已漂，且 flat T 引擎的同名
+  兄弟已由 #889 R8 改名 `FlatTStage`，划界见 `ledger.rs`/`t_engine.rs` 两侧枚举文档）。
   - `costReduction`（① 降成本）：短差，Σ|units| 守恒（"买入多少卖出多少不增仓"）。
   - `capitalRecovered`（② 退本金）：本金部分/全额移出在险池（free→withdrawn）。
   - `earningShares`（③ 增股数）：本金已全退，纯利润买更多 units，Σ|units| 单调增。

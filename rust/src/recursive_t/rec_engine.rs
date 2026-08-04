@@ -591,7 +591,8 @@ pub fn flip_pol(p: Polarity) -> Polarity {
 
 // ════════════════════════════ 持仓三阶段（第31课，单 campaign）════════════════════════════
 
-/// 持仓成本三阶段（= flat TStage）。
+/// 持仓成本三阶段（= flat 引擎 `super::t_engine::FlatTStage`；#889 R8 改名后同名撞车已消。
+/// rank 0/1/2 同构，但迁移条件两套独立实装、一致性未正式核对——划界见 `FlatTStage` 文档）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecStage {
     CostReduction,

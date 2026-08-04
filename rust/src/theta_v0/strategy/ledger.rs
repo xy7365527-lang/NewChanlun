@@ -77,6 +77,12 @@
 
 /// 取本金三阶段 `TStage`（契约锚 `Origin.TotalWealth.TStage`，缠师第31课）。
 ///
+/// ★命名划界（#889 R8，2026-08-04）：本枚举是**生产契约镜像**（锚 = Lean 正本
+/// `Origin.TotalWealth.TStage`，`formal/Origin/TotalWealth.lean:63`）；flat T 引擎的同名兄弟
+/// 已改名 `recursive_t::t_engine::FlatTStage`——全仓 Rust 域裸名 `TStage` 自此唯一指本枚举。
+/// 另照实（#840 查实）：原文「三阶段」一词本身多重撞车（`108:38` 底/中间/顶、`064:496` 牛市
+/// 三阶段、`091:40` 未病/欲病/已病），均非本枚举。
+///
 /// 单向不可逆迁移（OQ-9）：CostReduction(0) → CapitalRecovered(1) → EarningShares(2)。
 /// `rank` 把三阶段映到 {0,1,2}，是单向偏序的载体（rank 只增不减，见 [`tw_step`]）。
 ///
@@ -109,6 +115,9 @@ impl TStage {
 ///
 /// `current.rank <= target.rank` ⟹ 推到 target；否则保持 current（不下降）。
 /// 这正是 OQ-9 单向不可逆的算子形式——任何推进都不能降低 rank。
+///
+/// ★级别门控：无——本函数不看级别（[`TwState`] 无级别字段），`049:60`「小级别不会出现
+/// 成本为 0」的门控缺口与「本仓自主放宽」的明记见 [`TwState`] 文档（#840 R3 / #889）。
 fn advance_to(current: TStage, target: TStage) -> TStage {
     if current.rank() <= target.rank() {
         target
@@ -145,6 +154,23 @@ fn gcd(a: i64, b: i64) -> i64 {
 /// ★诚实标注（formalization-validity-domain）：`holding` 用整数承载市值摘要（结构层；真实
 /// holding=Σunits·c 含外生 c，c 的跨 bar 变动 = 盈亏，是 L2/L3 数据，本 L0 结构层把同价
 /// 操作下的市值作整数量承载，不臆造价格）。
+///
+/// ★级别门控缺口——**本仓自主放宽**（#840 R3 明记，#889 实施；**不许读成「不受影响」**）：
+/// `049-第49课.md:60`【正文】「（成本为0后是筹码增加，当然，）对于小级别的操作，不会出现
+/// 成本为 0 的情况」——小级别**走不完**三阶段（成本归零不可达 ⟹ CapitalRecovered /
+/// EarningShares 不可达）。本结构**无级别字段**，`advance_to`/[`tw_step`] 不看级别 ⟹ 现状
+/// **允许任意级别走完三阶段**，与 `049:60` 的括号条款存在缺口，登记在此而非暗放宽。
+/// 放宽理由三条（照实）：
+/// ① 「小级别」的判据原文未给——`049:60` 全课只有这一句括号，未说是绝对阈值还是相对操作
+///    级别的次级别；判据属教义面，#839 形态未裁，实施侧不得自行定判据（同 #847 S4-b/S4-c
+///    纪律）；
+/// ② 门控的天然宿主是三阶段实例挂的「重」⟨标的, 操作级别⟩（ADR 0013 裁定二）——实例带上
+///    操作级别后门才有落点，而实例单位改挂是 SPEC #847 S2 待办；现在给本结构加 level 字段
+///    会与 S2 撞车；
+/// ③ 边界/端点类问题按教义分层（#793）先裁 Lean 层——`Origin.TotalWealth.TWState` 同样无
+///    级别维度；生产代码不先走（#321 判例：只裁 Rust 侧属裁错了层）。
+/// 退场条件：教义票裁定「小级别」判据 + S2 实例挂「重」落地后，门控在实例层实装并同步
+/// Lean `TWState`，本段注释届时随门控实装移除。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TwState {
     pub free: i64,
