@@ -78,6 +78,9 @@ pub mod nest;
 pub mod nest_index;
 /// V3 活假设状态机：NestLifecycleBook sidecar 注册表（三态 + 五钟；#231 重建，spec #232）。
 pub mod nest_lifecycle;
+/// #881 S3（ADR 0011 裁定一/六/七）：操作分解层——横向旁路读法，拿第 k 层元素用不延伸
+/// 规则重折产操作序列（含并列盘整）；纯函数，旁路结果不回流主干。
+pub mod operation;
 /// #543 D1a：重基构造证书 seam（`RebaseTransformTxnV1`，env `OPSEM_DUMP_DIR` 门控的只读观测）。
 pub mod rebase_txn;
 pub mod recursive_tower;
