@@ -590,7 +590,7 @@ fn pi_probe_delta_candidates_unlock_orders() {
                     cp_ownership: Rc::new(Vec::new()),
                     pan_div: Rc::new(Vec::new()),
                     first_class_grades: Rc::new(Vec::new()), // #885：slice 投影只携 bsp（同 pan_div 口径）
-                    level_projection: None, // #110 门关口径
+                    level_projection: None,                  // #110 门关口径
                     bsp: ls
                         .bsp
                         .iter()
@@ -621,7 +621,7 @@ fn pi_probe_delta_candidates_unlock_orders() {
                         cp_ownership: Rc::new(Vec::new()),
                         pan_div: Rc::new(Vec::new()),
                         first_class_grades: Rc::new(Vec::new()), // #885：delta 投影只携 bsp（同 pan_div 口径）
-                        level_projection: None, // #110 门关口径
+                        level_projection: None,                  // #110 门关口径
                         bsp: ls
                             .bsp
                             .iter()

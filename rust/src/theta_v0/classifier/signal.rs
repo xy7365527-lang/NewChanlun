@@ -1952,8 +1952,8 @@ pub fn extract_first_third_resume(
     let mut points = cached_pts.clone();
     let mut pan_divs = cached_pans.clone();
     let mut grades = cached_grades.clone(); // #885：分级记录同口径合并。
-    // tail 的 a_seg_cache 独立（advance 已消耗，tail 段最近中枢多在 frontier）——新建，与 full
-    // 路径每调用一份 a_seg_cache 同语义（key=c_idx，命中即复用；跨 advance/tail 不复用不影响 bit）。
+                                            // tail 的 a_seg_cache 独立（advance 已消耗，tail 段最近中枢多在 frontier）——新建，与 full
+                                            // 路径每调用一份 a_seg_cache 同语义（key=c_idx，命中即复用；跨 advance/tail 不复用不影响 bit）。
     let mut tail_a_cache: std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>> =
         std::collections::HashMap::new();
     judge_range(
@@ -3175,7 +3175,12 @@ mod tests {
         assert_eq!(rec.source_index, 11);
         assert_eq!(rec.side, Side::Long);
         assert_eq!(
-            (rec.center_start_index, rec.center_end_index, rec.center_zd, rec.center_zg),
+            (
+                rec.center_start_index,
+                rec.center_end_index,
+                rec.center_zd,
+                rec.center_zg
+            ),
             (c1.start_index, c1.end_index, c1.zd, c1.zg),
             "中枢身份 = 判定中枢 c1（取自该点自身，非重新查找）"
         );

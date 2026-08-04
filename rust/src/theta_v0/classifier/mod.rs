@@ -4325,11 +4325,12 @@ mod tests {
             seg(Direction::Down, 12, 16, 280, 180), // [180,280] 不触 C0 核心 ⟹ non-extension
             seg(Direction::Up, 16, 20, 180, 210),
             seg(Direction::Down, 20, 24, 210, 150), // → C1 [180,210]（[12,24]，dd=150/gg=280）
-            seg(Direction::Down, 24, 28, 170, 80), // s6 C 段：破 C1 核心（80 < zd=180）
+            seg(Direction::Down, 24, 28, 170, 80),  // s6 C 段：破 C1 核心（80 < zd=180）
             seg(Direction::Down, 28, 32, 80, 70), // s7 与 s6 同向 ⟹ 固定首对 Missing(SameDirection)
         ];
         let closes: Vec<i64> = vec![
-            350, 350, 350, 350, 350, 350, 350, 350, 350, 350, 350, 350, // 0..12 预热（EMA 收敛）
+            350, 350, 350, 350, 350, 350, 350, 350, 350, 350, 350,
+            350, // 0..12 预热（EMA 收敛）
             340, 320, 290, 260, 230, 200, 170, 150, // 12..20 A 段急跌（hist 面积大）
             160, 180, 200, 210, // 20..24 回拉（EMA 收敛）
             205, 200, 195, 190, // 24..28 C 段缓跌（hist 面积小 ⟹ C<A）
@@ -4406,11 +4407,9 @@ mod tests {
             2,
             "fixture 钉死：2 条记录全是否则域 Missing(SameDirection)（无 Present）"
         );
-        assert!(
-            otherwise
-                .iter()
-                .all(|r| r.grade == signal::T3InCGrade::Missing(signal::T3InCGradeReason::SameDirection))
-        );
+        assert!(otherwise.iter().all(
+            |r| r.grade == signal::T3InCGrade::Missing(signal::T3InCGradeReason::SameDirection)
+        ));
         assert_eq!(
             otherwise.iter().map(|r| r.source_index).collect::<Vec<_>>(),
             vec![28, 32],
@@ -4418,8 +4417,14 @@ mod tests {
         );
 
         // 4) 负坐标/越界 level/非 Missing 坐标 ⟹ None。
-        assert!(cls.otherwise_domain_at(0, 24).is_none(), "无该坐标的记录 ⟹ None");
-        assert!(cls.otherwise_domain_at(9, 28).is_none(), "越界 level ⟹ None");
+        assert!(
+            cls.otherwise_domain_at(0, 24).is_none(),
+            "无该坐标的记录 ⟹ None"
+        );
+        assert!(
+            cls.otherwise_domain_at(9, 28).is_none(),
+            "越界 level ⟹ None"
+        );
 
         // 5) 增量路径同可查（bit-exact 含新字段）：逐段前缀重放，增量 == 全量。
         let mut cache = TowerCache::new();
@@ -4436,13 +4441,13 @@ mod tests {
                 "n={n}: 增量 Classification == 全量（含 first_class_grades，#885 新字段 bit-exact）"
             );
         }
-        let (inc_cls_final, _t) = classify_with_tower_incremental(&layer, &cfg, &mut TowerCache::new());
+        let (inc_cls_final, _t) =
+            classify_with_tower_incremental(&layer, &cfg, &mut TowerCache::new());
         let inc_rec = inc_cls_final
             .otherwise_domain_at(0, 28)
             .expect("增量路径同样按坐标可查");
         assert_eq!(inc_rec, rec, "增量/全量同一否则域记录");
     }
-
 
     /// ★classify_with_tower (i) 段导出桥——tower 非空 + depth≥1 真嵌套存在。
     ///
