@@ -1060,6 +1060,15 @@ fn make_second_point(
 /// - `seg_a`：**前一次同向离开 episode 区间** I(A)（Q5 区间口径，A/C 对称）——锚段端点破核心，
 ///   与 C 之间存在回中枢段（否则是同一次离开）。
 /// - Weak = MACD 面积 C < A（与 buy1 同一冻结力度原语 `segments_diverge`）。
+///
+/// **覆盖缺口（#885 S4-d 明写，验收口径）**：本证书的生产构造点 [`judge_pan_div`]（唯一生产
+/// 构造点，`judge_segment` 的 Consolidation 块分支）**只覆盖「C 段破核心」一支**——
+/// [`pan_div_side_with_policy`] 的生产调用恒 `allow_unbroken_c=false`；「C 端点严格位于核心
+/// `(zd, zg)`」一支只存在于 #483 观测路径 [`judge_pan_div_observation`]，**不进**
+/// `LevelState.pan_div`、不产 BspPoint、不进生命周期链。叠加 027:66「大级别（周线以上）盘整
+/// 背驰构成类第一类买点」的准入判据未裁（**算不算、几段起算归 #817**），**任何经本证书统计
+/// 的类一类点命中率都只是下界**。否则域归化域（037:18「按盘整背驰处理」一支）的生产可查
+/// 载体 = [`super::LevelState::first_class_grades`]（#885 同票落地，与本证书并列、互不合并）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PanDivCert {
     /// C 段端点 source_index（因果触发点；破核心支亦作承接路由定位键）。
@@ -1072,6 +1081,34 @@ pub struct PanDivCert {
     pub seg_a: (usize, usize),
     /// I(C)（当前离开走势区间）source_index 闭区间。
     pub seg_c: (usize, usize),
+}
+
+/// 类第二类买卖点载体（027:68，#885 S4-d）。
+///
+/// `027-第27课.md:68`【正文】：「类似的，在大级别里，如果不出现新低，但可以构成类似第二类
+/// 买点的买点，在MACD上，显示出类似背驰时的表现，黄白线回拉0轴上下，而后一柱子面积小于
+/// 前一柱子的。一个最典型的例子，就是季度图上的600685，2005年的第三季度的2.21元构成一个
+/// 典型的类第二类买点。」命名名分：ADR 0001 补充十六——「类第一类后的回抽点 = **类第二类**
+/// （027:68 命名），归盘背通道观测」（086:70「新走势的类第二类」系比喻用法，与 027:68 正式
+/// 命名分清，同补充十六）。
+///
+/// **本票只建载体，不新定判据**：「算不算类第二类、回抽从哪起算、面积比较的几段口径」的
+/// 准入判据归 [#817](https://github.com/xy7365527-lang/NewChanlun/issues/817)（未裁）。本类型
+/// **暂无生产构造点**——判据落地前不得把本载体当信号消费（不置任何 six-bit、不产 BspPoint、
+/// 不进生命周期/订单流，同 [`PanDivCert`] 的诚实缺省纪律）；构造点落地时记录随盘背通道进
+/// `LevelState`（同 `pan_div` 先例），届时由 #817 实施票接线并补坐标查询。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuasiSecondCert {
+    /// 回抽（回拉）结束点 source_index（候选点坐标；027:68「2.21元的相应区间的寻找，也是按
+    /// 上面级别逐步往下找背驰段的方法实现」的落点）。
+    pub source_index: usize,
+    /// 方向：Long = 类第二类买点（类第一类买点之后回抽不创新低）/ Short = 镜像卖点。
+    pub side: Side,
+    /// 前导类第一类点（父母）的 source_index——027:68「不出现新低/新高」的参照极值所属点
+    /// （ADR 0001 补充十六「类第一类后的回抽点」的父母身份）。
+    pub quasi_first_index: usize,
+    /// 回抽走势区间 source_index 闭区间（类第一类点之后到本点的回拉段）。
+    pub retrace: (usize, usize),
 }
 
 /// 盘整背驰的纯结构 A/C 载体。
