@@ -472,7 +472,104 @@ theorem chiBool_singleton_noCand_eq_zero (ev : Nat) (ℓ : NestLevel)
   simp only [Option.isSome_none, Bool.and_false, Bool.false_and]
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 5. 反退化见证（N^δ 真跑通：具体区间套链 ⟹ χ^δ = 1，非平凡）
+    § 5. `nestCertB = true` 的部分正确性
+
+    本节只证明构造器已经检查的性质，不主张任意输入都能构造成功：
+    - 每个非终端级别的 Candidate 标记成立；
+    - 每对相邻级别的 chosen 区间满足子 ⊆ 父，且级别严格下降；
+    - 终端恰为执行级、chosen 存在且 Confirm 标记成立；
+    - 每一级 chosen 都满足既有 `IsSelectedByKey`（直接复用 `selectΘ_isSelectedByKey`）。
+
+    注意：`nestCertB` 在终端分支不检查 `candidateOK`，因此正确性谓词也不虚构终端 Candidate。
+    ═══════════════════════════════════════════════════════════════════════ -/
+
+/-- **一级的 chosen 是 Sel_Θ 选中者**：chosen 存在，且满足既有键层选择谓词。 -/
+def ChosenByΘ (ℓ : NestLevel) : Prop :=
+  ∃ j, ℓ.chosen = some j ∧ IsSelectedByKey ℓ.cands j
+
+/-- **一对相邻级别的 chosen 区间满足子 ⊆ 父**。 -/
+def ChosenSub (sub par : NestLevel) : Prop :=
+  ∃ js jp, sub.chosen = some js ∧ par.chosen = some jp ∧ Sub js jp
+
+/--
+  **区间套证书的部分正确性谓词**。链头是高层，递归向低层推进：
+  非终端要求 Candidate、严格降级、chosen 子 ⊆ 父；终端要求 `lvl = ev`、chosen 存在、Confirm。
+  每个非终端的 `ChosenByΘ` 与终端的 `ChosenByΘ` 合起来覆盖链上每一级。
+-/
+def NestCertPartialCorrect (ev : Nat) : List NestLevel → Prop
+  | [] => False
+  | [ℓ] =>
+      ℓ.lvl = ev ∧ ChosenByΘ ℓ ∧ ℓ.confirmOK = true
+  | ℓ :: ℓ' :: rest =>
+      ℓ.candidateOK = true
+        ∧ ℓ'.lvl < ℓ.lvl
+        ∧ ChosenByΘ ℓ
+        ∧ ChosenSub ℓ' ℓ
+        ∧ NestCertPartialCorrect ev (ℓ' :: rest)
+
+/-- **`chosen.isSome` 成立时，chosen 满足既有 Sel_Θ 键层选择谓词。** -/
+theorem chosenByΘ_of_isSome (ℓ : NestLevel) (h : ℓ.chosen.isSome = true) :
+    ChosenByΘ ℓ := by
+  cases hc : ℓ.cands with
+  | nil =>
+      simp [NestLevel.chosen, selectΘ, hc] at h
+  | cons c cs =>
+      refine ⟨cs.foldl selBetter c, ?_, ?_⟩
+      · simp [NestLevel.chosen, selectΘ, hc]
+      · simpa [hc] using selectΘ_isSelectedByKey c cs
+
+/-- **`subB = true` 时，两级 chosen 真存在且满足 `Sub`。** -/
+theorem chosenSub_of_subB_eq_true (sub par : NestLevel) (h : subB sub par = true) :
+    ChosenSub sub par := by
+  cases hs : sub.chosen with
+  | none =>
+      simp [subB, hs] at h
+  | some js =>
+      cases hp : par.chosen with
+      | none =>
+          simp [subB, hs, hp] at h
+      | some jp =>
+          exact ⟨js, jp, hs, hp, (subB_iff_Sub sub par js jp hs hp).mp h⟩
+
+/--
+  **`nestCertB = true` 的部分正确性**：成功构造出的链满足非终端 Candidate、逐级区间包含、
+  严格降级、终端确认，以及每级 Sel_Θ 选择正确性。
+-/
+theorem nestCertB_partial_correct (ev : Nat) (chain : List NestLevel) :
+    nestCertB ev chain = true → NestCertPartialCorrect ev chain := by
+  induction chain with
+  | nil =>
+      intro h
+      simp only [nestCertB] at h
+      exact Bool.noConfusion h
+  | cons ℓ tail ih =>
+      intro h
+      cases tail with
+      | nil =>
+          change (decide (ℓ.lvl = ev) && ℓ.chosen.isSome && ℓ.confirmOK) = true at h
+          simp only [Bool.and_eq_true, decide_eq_true_eq] at h
+          exact ⟨h.1.1, chosenByΘ_of_isSome ℓ h.1.2, h.2⟩
+      | cons ℓ' rest =>
+          change (if ℓ.lvl = ev then false else if ℓ.lvl > ev then
+            ℓ.candidateOK && decide (ℓ'.lvl < ℓ.lvl) && subB ℓ' ℓ
+              && nestCertB ev (ℓ' :: rest)
+            else false) = true at h
+          split at h
+          · contradiction
+          · split at h
+            · simp only [Bool.and_eq_true, decide_eq_true_eq] at h
+              exact ⟨h.1.1.1, h.1.1.2,
+                chosenByΘ_of_isSome ℓ (by
+                  have hs := h.1.2
+                  unfold subB at hs
+                  cases hsub : ℓ'.chosen <;> cases hpar : ℓ.chosen <;>
+                    simp [hsub, hpar] at hs ⊢),
+                chosenSub_of_subB_eq_true ℓ' ℓ h.1.2,
+                ih h.2⟩
+            · contradiction
+
+/-! ═══════════════════════════════════════════════════════════════════════
+    § 6. 反退化见证（N^δ 真跑通：具体区间套链 ⟹ χ^δ = 1，非平凡）
 
     构造一条三级区间套链（操作级 2 ≻ 中间级 1 ≻ 执行级 0），各级 chosen 真套缩小，
     各级 Candidate/Confirm 成立 ⟹ chiBool = true（= 1），见证 N^δ 非退化产出 1。
@@ -550,7 +647,7 @@ theorem witness_selectΘ_empty_none :
     selectΘ [] = none := rfl
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 6. still-MISSING 诚实声明 + 结果包六要素
+    § 7. still-MISSING 诚实声明 + 结果包六要素
     ═══════════════════════════════════════════════════════════════════════
 
   ★本文件**补全**实装了（对照 gpt 结果包 §6，零遗漏）：
