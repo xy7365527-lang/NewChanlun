@@ -1878,8 +1878,9 @@ fn second_for_parent(
 /// avg=97.5，max=2095）。cascade_reset 定义性清空 `cached_second`（前缀 B2 缓存失效，见 line ~1192），
 /// 整个前缀被重扫 ⟹ cascade 频率 × 前缀长度 = O(n²)。cascade 频率由 `recursive_tower` 域的 frontier
 /// 重排决定（H5/H9 已 NO-SHIP：cascade 定义性清前缀，不可在本文件域降阶），非 `second_for_parent`/
-/// `sublevel_diverges` 的可优化项。per-call 常数因子（`position` 递归 eq ~14%、`rmove_direction`
-/// 递归 `.hi()` ~15%）均 subs.len()≤8 有界，改写只削常数不改指数（收益极低，不 ship）。
+/// `sublevel_diverges` 的可优化项。per-call 常数因子（`position` 递归 eq ~14%、
+/// [`cand_predicate::rmove_dir`] 的方向派生 ~15%）均 subs.len()≤8 有界，改写只削常数不改指数
+/// （收益极低，不 ship）。
 ///
 /// ★bit-exact 铁律：返回值逐字段 == [`extract_second_for_level`]（parent 序拼接：前缀 B2 + tail B2
 /// = 全 parent 序，与全量重扫同序同集）。debug/test 护栏逐 bar 对拍全量重算锁定。
@@ -1923,7 +1924,7 @@ fn extract_second_resume(
 ///
 /// 给定次级别走势 `m`（descend 取回的 `RMove`）+ 坐标侧车 `subs`：定位 `m` 在 `subs` 中的位置，
 /// 取其 source_index 区间 → `hist` 面积，相对**序列序最近同向次级别前驱走势**面积严格变小 ⟹ 背驰。
-/// 同向 = 走势的 direction 相同（`RMove::Segment.direction`；`Compose` 走势取外缘趋势方向占位）。
+/// 同向 = [`cand_predicate::rmove_dir`] 判得且方向相同；方向不可判 ⟹ 无合法背驰对照。
 ///
 /// ★诚实 still-MISSING（背驰力度引擎）：无前同向走势（`m` 是序列首个该向走势）⟹ 无背驰对照
 /// ⟹ false（与 signal.rs `extract_first_for_center` 同口径——第一类是趋势末段必有前同向段）。
@@ -1941,12 +1942,14 @@ fn sublevel_diverges(
         return false; // m 不在 subs（防御性）⟹ 无坐标 ⟹ 非背驰。
     };
     let curr = &subs[idx];
-    let curr_dir = rmove_direction(&curr.rmove);
+    let Some(curr_dir) = cand_predicate::rmove_dir(&curr.rmove) else {
+        return false;
+    };
     // 序列序最近同向前驱走势（reference:34「末段相对前同向段」的确定配对）。
     let Some(prev) = subs[..idx]
         .iter()
         .rev()
-        .find(|x| rmove_direction(&x.rmove) == curr_dir)
+        .find(|x| cand_predicate::rmove_dir(&x.rmove) == Some(curr_dir))
     else {
         return false; // 无前同向走势 ⟹ 无背驰对照 ⟹ 非第一类（趋势末段必有前同向段）。
     };
@@ -1988,25 +1991,6 @@ fn cached_segment_area(
         area
     } else {
         divergence::segment_macd_area(hist, start, end)
-    }
-}
-
-/// 走势方向（`RMove::Segment` 直接取 direction；`Compose` 取外缘趋势方向占位——首子升=Up）。
-///
-/// ★诚实有效域：`Compose` 走势的方向是**外缘占位**（subs 区间聚合趋势），用于背驰「同向段」配对的
-/// 序列序判定。不冒充 §6.1 意义的线段方向交替（中枢检测用几何路径，不读方向，见 center.rs）。
-fn rmove_direction(m: &descend::RMove) -> Direction {
-    match m {
-        descend::RMove::Segment { direction, .. } => *direction,
-        // Compose 走势：外缘下沿 vs 上沿——hi 偏离 lo 多者为趋势向（占位，背驰同向配对用）。
-        // subs 首尾区间趋势：末子 hi >= 首子 hi ⟹ Up（外缘上移），否则 Down。
-        descend::RMove::Compose { subs, .. } => {
-            match (subs.first(), subs.last()) {
-                (Some(f), Some(l)) if l.hi() >= f.hi() => Direction::Up,
-                (Some(_), Some(_)) => Direction::Down,
-                _ => Direction::Up, // 空 subs ⟹ 缺省 Up（防御性）。
-            }
-        }
     }
 }
 

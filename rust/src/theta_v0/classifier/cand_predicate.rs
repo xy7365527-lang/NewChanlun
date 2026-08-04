@@ -52,7 +52,7 @@
 
 use std::rc::Rc;
 
-use super::super::types::{Direction, Side};
+use super::super::types::{Center, Direction, Side};
 use super::descend::RMove;
 use super::divergence::{is_divergence, segment_macd_area};
 use super::recursive_tower::{find_move_by_end_index, LeveledMove};
@@ -78,21 +78,95 @@ pub struct DivCandInput<'a> {
     pub delta: Delta,
 }
 
-/// 走势方向判定（Segment 直接取；Compose 取外缘趋势——首次级 hi vs 末次级 hi）。
+/// `RMove::Compose` 的中枢序列方向判据（#815 M-2 三个候选臂）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirCriterion {
+    /// 核心分离：上行 `last.zd > first.zg`，下行 `last.zg < first.zd`。
+    CoreSeparation,
+    /// 外缘分离：上行 `last.dd > first.gg`，下行 `last.gg < first.dd`。
+    EnvelopeSeparation,
+    /// 全段外包络双升双降：`gg`（high）与 `dd`（low）同向严格移动。
+    DualEnvelopeRiseFall,
+}
+
+impl Default for DirCriterion {
+    fn default() -> Self {
+        DEFAULT_DIR_CRITERION
+    }
+}
+
+/// 当前生产押注的方向判据：外缘分离。
+pub const DEFAULT_DIR_CRITERION: DirCriterion = DirCriterion::EnvelopeSeparation;
+
+/// 走势方向判定：`Segment` 直读；`Compose` 按中枢序列判断。
 ///
-/// Compose 无 `direction` 字段（Lean μF 设计，方向由外缘判据派生），与 `fold_direction`
-/// / `rmove_side` 同口径。Compose.subs 空 ⟹ 缺省 Up（结构占位，与 extract_elements 同）。
-pub fn rmove_dir(rmove: &RMove) -> Direction {
+/// **名分：`[新缠论:候选]`。** 本函数默认押注 #815 M-2 的**外缘分离**：上行
+/// `last.dd > first.gg`，下行 `last.gg < first.dd`。另两条待裁候选是：**核心分离**
+/// （`last.zd > first.zg` / `last.zg < first.zd`）与**双升双降**（全段外包络 high/low，亦即
+/// `gg`/`dd`，双双严格升高或降低）。#815 M-2 裁定前，三者都不是已转正教义。
+///
+/// 判据链接：修复后由 #870 对 #846 的 301 条样本把三套判据各跑一遍；哪套让约 92% 的失败率
+/// 降得最多，才是 M-2 裁定的真实证据，不能由本默认值倒推裁定。
+///
+/// 边界：中心少于两个时无法比较 M-2。现役 [`LeveledMove::compose`](super::recursive_tower::LeveledMove::compose)
+/// 每个 `Compose` 只装一个中枢；为避免把现役上级走势全部判成无方向，此时**明确**退回既有首末
+/// 子走势 `hi` 端点规则（只作单中枢载荷兼容，不是第四套 M-2 判据）。少于两个子走势则返回
+/// `None`，不再像旧实现那样把空载荷静默冒充 `Up`。中心足够但所选判据既不向上也不向下时也
+/// 返回 `None`；不会因判据失败而改用另一条判据兜底。由此也必须诚实声明：#870 若直接复用
+/// 现役单中心载荷，三臂都会走同一兼容缝、没有区分力；重测必须先给本入口提供真实中枢序列。
+pub fn rmove_dir(rmove: &RMove) -> Option<Direction> {
+    rmove_dir_with_criterion(rmove, DEFAULT_DIR_CRITERION)
+}
+
+/// 按指定的 #815 M-2 候选臂判走势方向，供 #870 三臂重测。
+pub fn rmove_dir_with_criterion(rmove: &RMove, criterion: DirCriterion) -> Option<Direction> {
     match rmove {
-        RMove::Segment { direction, .. } => *direction,
-        RMove::Compose { subs, .. } => {
-            match (subs.first(), subs.last()) {
-                (Some(f), Some(l)) if l.hi() >= f.hi() => Direction::Up,
-                (Some(_), Some(_)) => Direction::Down,
-                _ => Direction::Up, // 空 subs 占位
+        RMove::Segment { direction, .. } => Some(*direction),
+        RMove::Compose { subs, centers, .. } => {
+            if centers.len() >= 2 {
+                return criterion.classify(&centers[0], &centers[centers.len() - 1]);
             }
+            legacy_sub_endpoint_dir(subs)
         }
     }
+}
+
+impl DirCriterion {
+    fn classify(self, first: &Center, last: &Center) -> Option<Direction> {
+        match self {
+            Self::CoreSeparation => {
+                classify_binary_relation(last.zd > first.zg, last.zg < first.zd)
+            }
+            Self::EnvelopeSeparation => {
+                classify_binary_relation(last.dd > first.gg, last.gg < first.dd)
+            }
+            Self::DualEnvelopeRiseFall => classify_binary_relation(
+                last.gg > first.gg && last.dd > first.dd,
+                last.gg < first.gg && last.dd < first.dd,
+            ),
+        }
+    }
+}
+
+fn classify_binary_relation(up: bool, down: bool) -> Option<Direction> {
+    match (up, down) {
+        (true, false) => Some(Direction::Up),
+        (false, true) => Some(Direction::Down),
+        _ => None,
+    }
+}
+
+fn legacy_sub_endpoint_dir(subs: &[RMove]) -> Option<Direction> {
+    if subs.len() < 2 {
+        return None;
+    }
+    let first = subs.first()?;
+    let last = subs.last()?;
+    Some(if last.hi() >= first.hi() {
+        Direction::Up
+    } else {
+        Direction::Down
+    })
 }
 
 /// DivCand^δ_{Θ,ℓ}(s,t)：背驰段候选四条件合取谓词。
@@ -122,7 +196,9 @@ pub fn div_cand(input: &DivCandInput<'_>) -> bool {
     }
     let s = &context[target_idx];
     // 方向/lo/hi 从 LeveledMove 惰性派生（== ContextMove 旧投影：dir=rmove_dir，lo/hi=rmove.lo()/hi()）。
-    let s_dir = rmove_dir(&s.rmove);
+    let Some(s_dir) = rmove_dir(&s.rmove) else {
+        return false;
+    };
 
     // 条件1：dir(s) = −δ。
     let expected_dir = match delta {
@@ -137,7 +213,7 @@ pub fn div_cand(input: &DivCandInput<'_>) -> bool {
     // ponytail: 取最近（最大 i < target_idx，dir(s') == dir(s)）；rfind 逐元素派生方向，命中即停。
     let prev = context[..target_idx]
         .iter()
-        .rfind(|m| rmove_dir(&m.rmove) == s_dir);
+        .rfind(|m| rmove_dir(&m.rmove) == Some(s_dir));
     let Some(s_prev) = prev else { return false };
 
     // 条件3：Extreme。
@@ -217,6 +293,8 @@ pub fn bsp_div_cand(
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::types::Center;
+    use super::super::recursive_tower::{ElementId, LeveledMove};
     use super::*;
 
     // ── 测试工具 ──────────────────────────────────────────────────────────────
@@ -246,6 +324,294 @@ mod tests {
     /// hist 序列：每 bar 固定值，面积 = 值 × bar 数。
     fn flat_hist(val: f64, n: usize) -> Vec<f64> {
         vec![val; n]
+    }
+
+    fn center(dd: i64, zd: i64, zg: i64, gg: i64) -> Center {
+        Center {
+            dd,
+            zd,
+            zg,
+            gg,
+            start_index: 0,
+            end_index: 0,
+        }
+    }
+
+    fn compose_rmove(subs: Vec<RMove>, centers: Vec<Center>) -> RMove {
+        RMove::Compose {
+            subs: Rc::new(subs),
+            centers,
+            level: 1,
+        }
+    }
+
+    #[test]
+    fn dir_criterion_default_tracks_production_constant() {
+        assert_eq!(DirCriterion::default(), DEFAULT_DIR_CRITERION);
+    }
+
+    #[test]
+    fn rmove_dir_defaults_to_center_envelope_separation() {
+        let rmove = compose_rmove(
+            vec![
+                RMove::Segment {
+                    direction: Direction::Up,
+                    lo: 100,
+                    hi: 200,
+                },
+                RMove::Segment {
+                    direction: Direction::Down,
+                    lo: 50,
+                    hi: 100,
+                },
+            ],
+            vec![center(0, 2, 4, 6), center(10, 12, 14, 16)],
+        );
+
+        assert_eq!(rmove_dir(&rmove), Some(Direction::Up));
+    }
+
+    #[test]
+    fn rmove_dir_can_select_core_separation() {
+        let rmove = compose_rmove(vec![], vec![center(0, 2, 4, 10), center(8, 11, 13, 16)]);
+
+        assert_eq!(
+            rmove_dir_with_criterion(&rmove, DirCriterion::CoreSeparation),
+            Some(Direction::Up)
+        );
+    }
+
+    #[test]
+    fn rmove_dir_can_select_dual_envelope_rise_fall() {
+        let rmove = compose_rmove(vec![], vec![center(0, 4, 10, 14), center(2, 6, 12, 16)]);
+
+        assert_eq!(
+            rmove_dir_with_criterion(&rmove, DirCriterion::DualEnvelopeRiseFall),
+            Some(Direction::Up)
+        );
+    }
+
+    #[test]
+    fn rmove_dir_dual_rise_fall_uses_full_envelope_not_core_bounds() {
+        // 外包络 dd/gg 双升，但核心 zd 下降；第三臂必须仍判 Up。
+        let rmove = compose_rmove(vec![], vec![center(0, 4, 10, 20), center(1, 3, 11, 21)]);
+
+        assert_eq!(
+            rmove_dir_with_criterion(&rmove, DirCriterion::DualEnvelopeRiseFall),
+            Some(Direction::Up)
+        );
+    }
+
+    #[test]
+    fn rmove_dir_all_criteria_treat_equality_boundaries_as_undetermined() {
+        let cases = [
+            // 核心分离：分别卡住上行 `last.zd > first.zg` 与下行 `last.zg < first.zd`。
+            (
+                DirCriterion::CoreSeparation,
+                center(0, 2, 4, 6),
+                center(1, 4, 5, 7),
+                "core-up-equality",
+            ),
+            (
+                DirCriterion::CoreSeparation,
+                center(1, 4, 5, 7),
+                center(0, 2, 4, 6),
+                "core-down-equality",
+            ),
+            // 外缘分离：分别卡住上行 `last.dd > first.gg` 与下行 `last.gg < first.dd`。
+            (
+                DirCriterion::EnvelopeSeparation,
+                center(0, 2, 4, 6),
+                center(6, 7, 8, 9),
+                "envelope-up-equality",
+            ),
+            (
+                DirCriterion::EnvelopeSeparation,
+                center(6, 7, 8, 9),
+                center(0, 2, 4, 6),
+                "envelope-down-equality",
+            ),
+            // 双升双降：high/low 任一维相等都不得放宽成同向。
+            (
+                DirCriterion::DualEnvelopeRiseFall,
+                center(0, 2, 4, 10),
+                center(1, 3, 5, 10),
+                "dual-up-high-equality",
+            ),
+            (
+                DirCriterion::DualEnvelopeRiseFall,
+                center(0, 2, 4, 10),
+                center(0, 3, 5, 11),
+                "dual-up-low-equality",
+            ),
+            (
+                DirCriterion::DualEnvelopeRiseFall,
+                center(1, 3, 5, 10),
+                center(0, 2, 4, 10),
+                "dual-down-high-equality",
+            ),
+            (
+                DirCriterion::DualEnvelopeRiseFall,
+                center(0, 3, 5, 11),
+                center(0, 2, 4, 10),
+                "dual-down-low-equality",
+            ),
+        ];
+
+        for (criterion, first, last, boundary) in cases {
+            let rmove = compose_rmove(vec![], vec![first, last]);
+            assert_eq!(
+                rmove_dir_with_criterion(&rmove, criterion),
+                None,
+                "boundary={boundary}"
+            );
+        }
+    }
+
+    #[test]
+    fn rmove_dir_criteria_are_directionally_symmetric() {
+        let cases = [
+            (
+                DirCriterion::CoreSeparation,
+                vec![center(8, 11, 13, 16), center(0, 2, 4, 10)],
+            ),
+            (
+                DirCriterion::EnvelopeSeparation,
+                vec![center(10, 12, 14, 16), center(0, 2, 4, 6)],
+            ),
+            (
+                DirCriterion::DualEnvelopeRiseFall,
+                vec![center(2, 6, 12, 16), center(0, 4, 10, 14)],
+            ),
+        ];
+
+        for (criterion, centers) in cases {
+            let rmove = compose_rmove(vec![], centers);
+            assert_eq!(
+                rmove_dir_with_criterion(&rmove, criterion),
+                Some(Direction::Down),
+                "criterion={criterion:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn rmove_dir_sparse_centers_use_explicit_legacy_endpoint_fallback() {
+        let subs = vec![
+            RMove::Segment {
+                direction: Direction::Up,
+                lo: 100,
+                hi: 200,
+            },
+            RMove::Segment {
+                direction: Direction::Down,
+                lo: 50,
+                hi: 100,
+            },
+        ];
+        let no_center = compose_rmove(subs.clone(), vec![]);
+        let one_center = compose_rmove(subs, vec![center(50, 60, 90, 200)]);
+
+        for criterion in [
+            DirCriterion::CoreSeparation,
+            DirCriterion::EnvelopeSeparation,
+            DirCriterion::DualEnvelopeRiseFall,
+        ] {
+            for rmove in [&no_center, &one_center] {
+                assert_eq!(
+                    rmove_dir_with_criterion(rmove, criterion),
+                    Some(Direction::Down),
+                    "零/单中心兼容缝不应冒充 criterion={criterion:?} 的 M-2 判定"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn rmove_dir_real_single_center_compose_matches_legacy_endpoint_direction() {
+        let subs = vec![
+            seg(Direction::Up, 100, 200, 0, 4),
+            seg(Direction::Down, 80, 180, 5, 9),
+            seg(Direction::Up, 90, 150, 10, 14),
+        ];
+        let composed = LeveledMove::compose(
+            &subs,
+            center(80, 100, 150, 200),
+            1,
+            ElementId {
+                level: 1,
+                ordinal: 0,
+            },
+        );
+        let RMove::Compose { centers, .. } = &composed.rmove else {
+            panic!("LeveledMove::compose 必须产出 RMove::Compose");
+        };
+        assert_eq!(centers.len(), 1, "现役构造器的单中心载荷契约");
+
+        // 旧算法的手算真值：末子走势 hi=150 < 首子走势 hi=200，故为 Down。
+        for criterion in [
+            DirCriterion::CoreSeparation,
+            DirCriterion::EnvelopeSeparation,
+            DirCriterion::DualEnvelopeRiseFall,
+        ] {
+            assert_eq!(
+                rmove_dir_with_criterion(&composed.rmove, criterion),
+                Some(Direction::Down),
+                "单中心现役构造必须走 legacy fallback；criterion={criterion:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn rmove_dir_underfilled_fallback_is_undetermined() {
+        let empty = compose_rmove(vec![], vec![]);
+        let one_sub = compose_rmove(
+            vec![RMove::Segment {
+                direction: Direction::Down,
+                lo: 10,
+                hi: 20,
+            }],
+            vec![center(10, 12, 18, 20)],
+        );
+
+        assert_eq!(rmove_dir(&empty), None);
+        assert_eq!(rmove_dir(&one_sub), None);
+    }
+
+    #[test]
+    fn rmove_dir_does_not_fallback_after_selected_criterion_fails() {
+        let rmove = compose_rmove(
+            vec![
+                RMove::Segment {
+                    direction: Direction::Down,
+                    lo: 0,
+                    hi: 10,
+                },
+                RMove::Segment {
+                    direction: Direction::Up,
+                    lo: 10,
+                    hi: 20,
+                },
+            ],
+            vec![center(0, 4, 10, 14), center(2, 6, 12, 16)],
+        );
+
+        assert_eq!(rmove_dir(&rmove), None);
+        assert_eq!(
+            rmove_dir_with_criterion(&rmove, DirCriterion::DualEnvelopeRiseFall),
+            Some(Direction::Up)
+        );
+    }
+
+    #[test]
+    fn rmove_dir_segment_keeps_embedded_direction() {
+        let segment = RMove::Segment {
+            direction: Direction::Down,
+            lo: 10,
+            hi: 20,
+        };
+
+        assert_eq!(rmove_dir(&segment), Some(Direction::Down));
     }
 
     // ── 条件1：方向反（dir(s) = −δ） ──────────────────────────────────────────
@@ -568,9 +934,7 @@ mod tests {
 
     // ── bsp_div_cand：从塔定位候选段并计算 DivCand ──────────────────────────
 
-    use super::super::super::types::Center;
     use super::super::descend::RMove as TestRMove;
-    use super::super::recursive_tower::{ElementId, LeveledMove};
 
     /// 构建合成 LeveledMove（L0 Segment）。
     fn seg_move(

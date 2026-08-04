@@ -6788,18 +6788,19 @@ mod tests {
                                 if let Some(tidx) = subs.iter().position(|m| m.end_index == src) {
                                     r_target = true;
                                     let s = &subs[tidx];
-                                    let s_dir = rmove_dir(&s.rmove);
                                     let expected = match delta {
                                         Side::Long => Direction::Down,
                                         Side::Short => Direction::Up,
                                     };
-                                    r_cond1 = s_dir == expected;
+                                    let s_dir = rmove_dir(&s.rmove);
+                                    r_cond1 = s_dir == Some(expected);
                                     if r_cond1 {
+                                        let s_dir = s_dir.expect("cond1 成立时方向必可判");
                                         if let Some((j, sp)) = subs[..tidx]
                                             .iter()
                                             .enumerate()
                                             .rev()
-                                            .find(|(_, m)| rmove_dir(&m.rmove) == s_dir)
+                                            .find(|(_, m)| rmove_dir(&m.rmove) == Some(s_dir))
                                         {
                                             r_cond2 = true;
                                             r_leggap = tidx - j;
@@ -7343,7 +7344,7 @@ mod tests {
                                             Side::Short => Direction::Up,
                                         };
                                         let end_ok = subs[tidx].end_index == src;
-                                        let dir_ok = cm_dir == expected;
+                                        let dir_ok = cm_dir == Some(expected);
                                         if end_ok && dir_ok {
                                             sample_pass += 1;
                                         } else if sample_fail_detail.len() < 20 {
@@ -7609,7 +7610,9 @@ mod tests {
             return Some(0);
         }
         let s = &context[target_idx];
-        let s_dir = rmove_dir(&s.rmove);
+        let Some(s_dir) = rmove_dir(&s.rmove) else {
+            return Some(1);
+        };
         let expected_dir = match delta {
             Side::Long => Direction::Down,
             Side::Short => Direction::Up,
@@ -7619,7 +7622,7 @@ mod tests {
         }
         let Some(s_prev) = context[..target_idx]
             .iter()
-            .rfind(|m| rmove_dir(&m.rmove) == s_dir)
+            .rfind(|m| rmove_dir(&m.rmove) == Some(s_dir))
         else {
             return Some(2);
         };
@@ -8017,9 +8020,11 @@ mod tests {
                                         Side::Long => Direction::Down,
                                         Side::Short => Direction::Up,
                                     };
-                                    let prev = subs[..tidx]
-                                        .iter()
-                                        .rfind(|m| rmove_dir(&m.rmove) == t_dir);
+                                    let prev = t_dir.and_then(|dir| {
+                                        subs[..tidx]
+                                            .iter()
+                                            .rfind(|m| rmove_dir(&m.rmove) == Some(dir))
+                                    });
                                     let prev_txt = match prev {
                                         Some(pv) => format!(
                                             "idx?<{tidx} lo={} hi={} area={:.4} [{}..{}]",
