@@ -1278,6 +1278,9 @@ class TopologicalDaemon:
         # Use count-based diff (O(1)) instead of set-based diff (O(E))
         # Graph.add_edge appends to _edges list, so new edges are always at tail
         _need_diff = self._persist or self._shared_layer is not None
+        # Settlement memory injection is disabled, but SharedLayer still needs
+        # a per-step settlement delta. Track count before the engine step.
+        pre_settled_count = len(self.settlement.settled_cycles)
         if _need_diff:
             pre_vid_count = len(self.k_full._vertices)
             pre_edge_count = len(self.k_full._edges)
@@ -1497,6 +1500,7 @@ class TopologicalDaemon:
 
         # Plan C: write sync blocks to SharedLayer (each method self-throttles)
         if self._shared_layer is not None:
+            new_settled = self.settlement.settled_cycles[pre_settled_count:]
             self._write_traversal_position(log)
             self._write_graph_delta(log, new_vids, new_edges_list)
             self._write_settlement_event(new_settled)
