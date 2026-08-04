@@ -403,6 +403,10 @@ pub(crate) fn judge_first_cached(
     gauge: DivergenceGauge,
     sorted: &[Segment],
     level: Option<u32>,
+    // ★#885 S4-d：分级记录生产 sink——按 `diverged` 无条件捕获（Present 与 Missing 两域），
+    // 由提取入口一路上穿进 `LevelState.first_class_grades`（否则域此前只落 thread_local 诊断
+    // sidecar，不进 Classification、按坐标查不到）。只建可查性，判据（`t3_grade`/`diverged`）逐字未动。
+    grade_sink: &mut Vec<FirstClassGradeRecord>,
 ) -> Option<BspPoint> {
     // ★#551：三道结构门由 [`first_structural_gates`] 单一来源判定（本函数与 #550 候选事件产出
     // 同读；禁第二套判据，audit §6）。本函数保持「三门全成立才产点」的收缩语义不变。
@@ -476,18 +480,24 @@ pub(crate) fn judge_first_cached(
     // Reset 计数（59，旧行为）与 sidecar 按真实 grade 切的 native/otherwise 桶（native=22）
     // 不再一一对应。skip 臂只用于 trades/tower 字节级反证（D5 §5.1），**不跑**②基数对拍
     // （native_count == reset_count）——两臂互斥是设计，非 bug。
-    if let Some(lvl) = level {
-        if diverged && GRADE_SIDECAR.with(|c| c.borrow().is_some()) {
-            let rec = FirstClassGradeRecord {
-                level: lvl,
-                source_index: end.source_index,
-                side: if is_sell { Side::Short } else { Side::Long },
-                center_start_index: last_center.start_index,
-                center_end_index: last_center.end_index,
-                center_zd: last_center.zd,
-                center_zg: last_center.zg,
-                grade: t3_grade,
-            };
+    // ★#885 S4-d：分级记录**无条件**落生产 sink（按 `diverged` 捕获，Present 与 Missing 两域，
+    // 与 sidecar 同口径）；`level=None`（全量 fallback）时 `level` 字段先落占位 0，由
+    // `Classification` 装配方按真实级别盖章（见 [`FirstClassGradeRecord`] 文档）。sidecar 捕获
+    // 维持原契约不变：仅 `level=Some`（生产 resume 路径）且 sidecar 已打开时写入——
+    // `fallback_full_recompute_does_not_capture_grade_sidecar` 锁的就是这条边界。
+    if diverged {
+        let rec = FirstClassGradeRecord {
+            level: level.unwrap_or(0),
+            source_index: end.source_index,
+            side: if is_sell { Side::Short } else { Side::Long },
+            center_start_index: last_center.start_index,
+            center_end_index: last_center.end_index,
+            center_zd: last_center.zd,
+            center_zg: last_center.zg,
+            grade: t3_grade,
+        };
+        grade_sink.push(rec);
+        if level.is_some() && GRADE_SIDECAR.with(|c| c.borrow().is_some()) {
             GRADE_SIDECAR.with(|cell| {
                 if let Some(v) = cell.borrow_mut().as_mut() {
                     v.push(rec);
@@ -664,8 +674,11 @@ pub(crate) fn trend_third_class_in_c(
 }
 
 /// T3-in-c 固定首对分级器五桶 Missing 原因（#606 S1，ADR 补充十五/十六）。
+///
+/// ★#885 S4-d：`pub(crate)` → `pub`——否则域记录进 [`super::LevelState`]（pub 字段）后
+/// 通道词汇须同级可见，不构成新判据（语义逐字未动）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum T3InCGradeReason {
+pub enum T3InCGradeReason {
     /// 中枢框右边（`start_index >= last_center.end_index`，含等值）无任何段。
     MissingLeave,
     /// leave 之后无紧随段（连续缺口单腿 c）。
@@ -696,9 +709,9 @@ fn t3_in_c_skip_enabled() -> bool {
     })
 }
 
-/// T3-in-c 固定首对分级判定结果。
+/// T3-in-c 固定首对分级判定结果。（★#885 S4-d：可见性随 [`T3InCGradeReason`] 同步放 `pub`。）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum T3InCGrade {
+pub enum T3InCGrade {
     /// 固定首对命中：leave/retest 区间（`start_index, end_index`）。
     Present {
         leave_interval: (usize, usize),
@@ -762,8 +775,14 @@ pub(crate) fn t3_in_c_fixed_first_pair(
 /// 写入本字段——不再有事后按 `(source_index,side,center)` 反查 `classification.levels[lvl].bsp`
 /// 补齐级别的机器（旧版反查在多级巧合同签名时会误配/静默丢记录，见
 /// [`crate::theta_v0::backtest::opsem_dump`] 模块头谱系注记）。
+///
+/// ★#885 S4-d（可见性放 `pub` + level 盖章口径补充）：本记录新增**生产 sink 通道**——
+/// [`judge_first_cached`] 按 `diverged` 无条件捕获（不再只落诊断 sidecar），经提取入口一路上
+/// 穿进 [`super::LevelState::first_class_grades`]。全量入口（`level=None`）捕获时本字段先落
+/// 占位 0，由 `Classification` 装配方（`classify_impl` / 增量塔级别循环）按真实级别盖章——
+/// `LevelState` 本身按 Vec 下标即级别，盖章是诚实补齐而非改判。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct FirstClassGradeRecord {
+pub struct FirstClassGradeRecord {
     pub level: u32,
     pub source_index: usize,
     pub side: Side,
@@ -1455,7 +1474,8 @@ pub fn extract_signals(
     // 简易入口传空 dif/closes_tick ⟹ 各点 force=None（此入口不算力度；GOLDEN 电池走此路，force 恒 None
     // ⟹ 结构 bit-exact，仅 Debug 多 `, force: None` 常量，见 digest guard 诚实重算说明）。
     // BspPoint 投影（.0）：PanDiv 证书唯一真值源在 extract_signals_with_hist（生产 classify 直调它
-    // 消费 .1；本简易/测试入口只投影结构 bit 点，非第二套真值）。
+    // 消费 .1；本简易/测试入口只投影结构 bit 点，非第二套真值）。分级记录 sink（#885）在本简易
+    // 入口同样只落即弃——生产可查载体走 classify 装配链（`LevelState.first_class_grades`）。
     extract_signals_with_hist(
         centers,
         segments,
@@ -1464,6 +1484,7 @@ pub fn extract_signals(
         &[],
         close_src,
         DivergenceGauge::default(),
+        &mut Vec::new(),
     )
     .0
 }
@@ -1487,6 +1508,7 @@ pub fn extract_signals_force(
     // closes 是 merged_bars.close(Tick) 的 as f64（mod.rs:217），整值往返 as i64 精确（振幅=tick 差）。
     let closes_tick: Vec<Tick> = closes.iter().map(|&c| c as Tick).collect();
     // BspPoint 投影（.0，同 extract_signals 注）：PanDiv 真值源在 with_hist，生产路径消费 .1。
+    // 分级记录 sink（#885）本入口只落即弃（同 extract_signals 注）。
     extract_signals_with_hist(
         centers,
         segments,
@@ -1495,6 +1517,7 @@ pub fn extract_signals_force(
         &closes_tick,
         close_src,
         DivergenceGauge::default(),
+        &mut Vec::new(),
     )
     .0
 }
@@ -1519,6 +1542,7 @@ pub fn extract_signals_with_hist(
     closes_tick: &[Tick],
     close_src: &[usize],
     gauge: DivergenceGauge,
+    grade_sink: &mut Vec<FirstClassGradeRecord>,
 ) -> (Vec<BspPoint>, Vec<PanDivCert>) {
     // L0 入口：线段有内在缠论方向 ⟹ 锚方向 ≡ 结构方向（域定理）。Q7-#1 裁定C 的锚门只约束
     // 级别-N fallback 单元（经 [`extract_signals_with_hist_anchored`] 传 provenance 派生锚）。
@@ -1532,6 +1556,7 @@ pub fn extract_signals_with_hist(
         closes_tick,
         close_src,
         gauge,
+        grade_sink,
     )
 }
 
@@ -1553,6 +1578,9 @@ pub fn extract_signals_with_hist_anchored(
     closes_tick: &[Tick],
     close_src: &[usize],
     gauge: DivergenceGauge,
+    // ★#885 S4-d：一类点 T3-in-c 分级记录生产 sink（按 `diverged` 捕获，两域）；本入口
+    // `level=None` ⟹ 记录 `level` 字段为占位 0，由 `Classification` 装配方按真实级别盖章。
+    grade_sink: &mut Vec<FirstClassGradeRecord>,
 ) -> (Vec<BspPoint>, Vec<PanDivCert>) {
     // ★线段按 start_index **稳定**升序排一次（生产路径 parser 线段账本本已 start_index 严格单调
     // 递增——流式 push 时 seg_start 单调推进，segment.rs:344-380——故排序对生产路径是恒等）。稳定
@@ -1709,11 +1737,14 @@ pub fn extract_signals_with_hist_anchored(
             None,
             &mut points,
             &mut pan_divs,
+            grade_sink,
         );
     }
     // 按 source_index 升序（reference:16 平局裁决键的时间序分量）。force 已收进各 BspPoint.force。
+    // 分级记录同键排序（#885：一类候选 source_index 在本级提取内唯一，稳定排序 canonical）。
     points.sort_by_key(|p: &BspPoint| p.source_index);
     pan_divs.sort_by_key(|p: &PanDivCert| p.source_index);
+    grade_sink.sort_by_key(|g: &FirstClassGradeRecord| g.source_index);
     (points, pan_divs)
 }
 
@@ -1762,6 +1793,10 @@ pub fn freeze_boundary_src(centers: &[Center], prefix_count: usize, dirty_e: usi
 pub fn extract_first_third_resume(
     cached_pts: &mut Vec<BspPoint>,
     cached_pans: &mut Vec<PanDivCert>,
+    // ★#885 S4-d：`cached_pts/cached_pans` 配套的分级记录缓存（同一产出、同一 push 序、同一
+    // 冻结边界锚、同一单调守卫 ⟹ 锁步失效）。返回三元组第三元 = 缓存前缀 ++ 本 bar tail 的
+    // 完整记录序列（`level` 已由本入口真实级别填载，非占位）。
+    cached_grades: &mut Vec<FirstClassGradeRecord>,
     cached_count: &mut usize,
     level: u32,
     centers: &[Center],
@@ -1775,7 +1810,7 @@ pub fn extract_first_third_resume(
     closes_tick: &[Tick],
     close_src: &[usize],
     gauge: DivergenceGauge,
-) -> (Vec<BspPoint>, Vec<PanDivCert>) {
+) -> (Vec<BspPoint>, Vec<PanDivCert>, Vec<FirstClassGradeRecord>) {
     // 生产路径 segments/centers 已 start_index/end_index 升序（parser 账本 + 非重叠中枢扫描）；
     // anchors 平行。resume 是热路径专用入口，**假设有序**（debug_assert 守护，release 剥离）——
     // 全量 fallback（乱序入参）走 [`extract_signals_with_hist_anchored`]，本入口不重排。
@@ -1810,6 +1845,7 @@ pub fn extract_first_third_resume(
     if *cached_count > stable_seg {
         cached_pts.clear();
         cached_pans.clear();
+        cached_grades.clear(); // #885：分级记录缓存同守卫锁步清空。
         *cached_count = 0;
     }
 
@@ -1820,6 +1856,7 @@ pub fn extract_first_third_resume(
                            to: usize,
                            pts: &mut Vec<BspPoint>,
                            pans: &mut Vec<PanDivCert>,
+                           grades: &mut Vec<FirstClassGradeRecord>,
                            a_cache: &mut std::collections::HashMap<
         usize,
         Option<((usize, usize), (Tick, Tick))>,
@@ -1856,6 +1893,7 @@ pub fn extract_first_third_resume(
                 Some(level),
                 pts,
                 pans,
+                grades,
             );
         }
     };
@@ -1867,6 +1905,7 @@ pub fn extract_first_third_resume(
             stable_seg,
             cached_pts,
             cached_pans,
+            cached_grades,
             &mut a_seg_cache,
         );
         *cached_count = stable_seg;
@@ -1875,6 +1914,7 @@ pub fn extract_first_third_resume(
     // 结果 = confirmed 前缀点（缓存 clone）+ frontier tail 点（每 bar 重判，tail 小）。push 序拼接。
     let mut points = cached_pts.clone();
     let mut pan_divs = cached_pans.clone();
+    let mut grades = cached_grades.clone(); // #885：分级记录同口径合并。
     // tail 的 a_seg_cache 独立（advance 已消耗，tail 段最近中枢多在 frontier）——新建，与 full
     // 路径每调用一份 a_seg_cache 同语义（key=c_idx，命中即复用；跨 advance/tail 不复用不影响 bit）。
     let mut tail_a_cache: std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>> =
@@ -1884,22 +1924,31 @@ pub fn extract_first_third_resume(
         segments.len(),
         &mut points,
         &mut pan_divs,
+        &mut grades,
         &mut tail_a_cache,
     );
 
     points.sort_by_key(|p: &BspPoint| p.source_index);
     pan_divs.sort_by_key(|p: &PanDivCert| p.source_index);
+    grades.sort_by_key(|g: &FirstClassGradeRecord| g.source_index); // #885：与点同键 canonical。
 
     debug_assert!(
         {
+            let mut full_grades = Vec::new();
             let (full_pts, full_pans) = extract_signals_with_hist_anchored(
                 centers, segments, anchor_dirs, hist, dif, closes_tick, close_src, gauge,
+                &mut full_grades,
             );
-            points == full_pts && pan_divs == full_pans
+            // #885：全量对拍入口 level=None ⟹ 记录 level 为占位 0；对拍内容 = 判定本体
+            // （坐标/方向/中枢身份/grade），level 由本 resume 入口真实级别统一盖章后比对。
+            for g in &mut full_grades {
+                g.level = level;
+            }
+            points == full_pts && pan_divs == full_pans && grades == full_grades
         },
         "07a frontier-resume 破裂：resume 输出 != 全量重判（冻结边界/push 序/pointwise 门不变式被违反）"
     );
-    (points, pan_divs)
+    (points, pan_divs, grades)
 }
 
 /// ★on2w3-07a 单段判定核（第一/盘整/三类）——[`extract_signals_with_hist_anchored`] full 路径与
@@ -1921,6 +1970,8 @@ pub fn extract_first_third_resume(
 ///   [`extract_signals_with_hist_anchored`]（全量 fallback / `extract_first_third_resume` 内部
 ///   debug_assert 对拍重算）——该路径不是生产逐 bar 重放的调用点，也可能对同一批段重复判定，
 ///   不参与 sidecar 捕获（避免与真实捕获重复写入或写入无意义级别）。
+/// - `grade_sink`（#885 S4-d）：分级记录生产 sink，原样透传 [`judge_first_cached`]——两路径
+///   （full/resume）都捕获，与 sidecar 的 `level` 门控无关。
 #[allow(clippy::too_many_arguments)]
 fn judge_segment(
     i: usize,
@@ -1941,6 +1992,7 @@ fn judge_segment(
     level: Option<u32>,
     points: &mut Vec<BspPoint>,
     pan_divs: &mut Vec<PanDivCert>,
+    grade_sink: &mut Vec<FirstClassGradeRecord>,
 ) {
     let c = &centers_sorted[c_idx];
     // 第一类（趋势背驰，A/B/C 框架）：仅段所在趋势块 + 破最后中枢段触发（Q8：「最后一个中枢」=
@@ -1980,6 +2032,7 @@ fn judge_segment(
             gauge,
             sorted,
             level,
+            grade_sink,
         ) {
             // ★#607 S2：D4 观测面 sidecar 捕获已挪进 `judge_first_cached` 本体（按 `diverged`
             // 门控在 T3-in-c 二次门控**之前**捕获，避免 D2 切换后仅凭 `pf.bits` 观测漏记否则域
@@ -2179,6 +2232,7 @@ pub(crate) fn type1_funnel_dx(
         closes_tick,
         close_src,
         DivergenceGauge::default(),
+        &mut Vec::new(),
     );
     let prod_t1 = prod.iter().filter(|p| p.bits.buy1 || p.bits.sell1).count();
     let prod_sb = prod.iter().filter(|p| p.struct_break_dir.is_some()).count();
@@ -2523,6 +2577,7 @@ mod tests {
             &[],
             &src,
             DivergenceGauge::default(),
+            &mut Vec::new(),
         );
         let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
         assert_eq!(
@@ -2570,6 +2625,7 @@ mod tests {
             &[],
             &src,
             DivergenceGauge::default(),
+            &mut Vec::new(),
         );
         assert!(
             points.iter().all(|p| !p.bits.buy1),
@@ -2613,6 +2669,7 @@ mod tests {
             &[],
             &src,
             DivergenceGauge::default(),
+            &mut Vec::new(),
         );
         let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
         assert_eq!(
@@ -2653,6 +2710,7 @@ mod tests {
             &[],
             &src,
             DivergenceGauge::default(),
+            &mut Vec::new(),
         );
         let (pts_self, _) = extract_signals_with_hist_anchored(
             &[c0, c1],
@@ -2663,6 +2721,7 @@ mod tests {
             &[],
             &src,
             DivergenceGauge::default(),
+            &mut Vec::new(),
         );
         assert_eq!(
             pts_anchor, pts_self,
@@ -2693,6 +2752,7 @@ mod tests {
             DivergenceGauge::default(),
             &[c_seg],
             None,
+            &mut Vec::new(),
         );
         assert!(
             out.is_none(),
@@ -2733,6 +2793,7 @@ mod tests {
             &[],
             &src,
             DivergenceGauge::default(),
+            &mut Vec::new(),
         );
         // ★#607 S2 D2：T3-in-c 固定首对锚 = `last_center.end_index`（8）右边第一条段——此处即
         // 回中枢段 [9,10]（价 150，未破 zd=100）本身，而非 λ_C=10 之后的真实触发段 [10,12]。
@@ -3013,6 +3074,7 @@ mod tests {
             &closes_tick,
             &src,
             DivergenceGauge::default(),
+            &mut Vec::new(),
         );
         assert!(
             points.iter().any(|p| p.bits.buy1),
@@ -3024,6 +3086,100 @@ mod tests {
             "level=None 全量 fallback 路径不应写入 GRADE_SIDECAR（只有 incremental resume 传 \
              Some(level) 才捕获，见 judge_segment 文档 level 参数说明）"
         );
+    }
+
+    /// ★#885 S4-d（验收锁之一）：分级记录**生产 sink** 捕获——Present 与否则域（Missing）两域
+    /// 均按 `diverged` 落 sink（不再只落 env 门控的 thread_local sidecar），`level=None` 全量
+    /// 入口同样捕获（`level` 字段占位 0，由 Classification 装配方盖章，见
+    /// [`FirstClassGradeRecord`] 文档）。判据未动：Present fixture 仍产 buy1，否则域 fixture
+    /// 仍零一类 bit（#607 D2 语义不变）。
+    #[test]
+    fn first_class_grade_sink_captures_present_and_otherwise_domain() {
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);
+        // Present fixture（与上一测试同款：固定首对 retest 端点 90 < zd=100）。
+        let segs_present = vec![
+            seg(Direction::Down, 3, 5, 350, 250),
+            seg(Direction::Up, 5, 7, 250, 280),
+            seg(Direction::Down, 9, 11, 150, 80),
+            seg(Direction::Up, 11, 13, 80, 90),
+        ];
+        // 否则域 fixture：仅 retest 端点改为 105（≥ zd=100，重回核心）⟹ Missing(RetestReentered)；
+        // closes/结构门/diverged 与 Present fixture 逐字相同。
+        let segs_missing = vec![
+            seg(Direction::Down, 3, 5, 350, 250),
+            seg(Direction::Up, 5, 7, 250, 280),
+            seg(Direction::Down, 9, 11, 150, 80),
+            seg(Direction::Up, 11, 13, 80, 105),
+        ];
+        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let (closes, src) = closes_seq(&prices);
+        let series = compute_macd(&closes, &MacdConfig::default());
+        let closes_tick: Vec<Tick> = closes.iter().map(|&c| c as Tick).collect();
+
+        // ── Present：sink 恰 1 条，字段逐位锁定 ──
+        let mut sink = Vec::new();
+        let (points, _pans) = extract_signals_with_hist(
+            &[c0, c1],
+            &segs_present,
+            &series.hist,
+            &series.dif,
+            &closes_tick,
+            &src,
+            DivergenceGauge::default(),
+            &mut sink,
+        );
+        assert!(
+            points.iter().any(|p| p.bits.buy1),
+            "Present fixture 仍产 buy1（判据未动）"
+        );
+        assert_eq!(sink.len(), 1, "一个 diverged 一类候选 ⟹ 恰一条分级记录");
+        let rec = sink[0];
+        assert_eq!(rec.source_index, 11);
+        assert_eq!(rec.side, Side::Long);
+        assert_eq!(
+            (rec.center_start_index, rec.center_end_index, rec.center_zd, rec.center_zg),
+            (c1.start_index, c1.end_index, c1.zd, c1.zg),
+            "中枢身份 = 判定中枢 c1（取自该点自身，非重新查找）"
+        );
+        assert_eq!(
+            rec.grade,
+            T3InCGrade::Present {
+                leave_interval: (9, 11),
+                retest_interval: (11, 13)
+            }
+        );
+
+        // ── 否则域：sink 恰 1 条 Missing，点仍零一类 bit（D2 语义不变）──
+        let mut sink = Vec::new();
+        let (points, _pans) = extract_signals_with_hist(
+            &[c0, c1],
+            &segs_missing,
+            &series.hist,
+            &series.dif,
+            &closes_tick,
+            &src,
+            DivergenceGauge::default(),
+            &mut sink,
+        );
+        assert!(
+            points.iter().all(|p| !p.bits.buy1),
+            "否则域点仍零一类 bit（#607 D2 语义不变，本票只建可查性）"
+        );
+        assert!(
+            points
+                .iter()
+                .any(|p| p.source_index == 11 && p.struct_break_dir == Some(Side::Long)),
+            "否则域点仍进 BspPoint 样本（零 bit 结构候选，D2 不改候选集合）"
+        );
+        assert_eq!(sink.len(), 1, "否则域记录同样落 sink（此前按坐标查不到）");
+        assert_eq!(sink[0].source_index, 11);
+        assert_eq!(
+            sink[0].grade,
+            T3InCGrade::Missing(T3InCGradeReason::RetestReentered)
+        );
+        // sidecar 未打开 ⟹ 生产 sink 捕获与 sidecar 无耦合（take 返回空）。
+        assert!(otherwise_domain_sidecar_take().is_empty());
     }
 
     /// 三口径 D 判定接线（A2 #163）：同一 fixture 下 gauge 切换只改 buy1/sell1 置位，不改候选集合
@@ -3052,6 +3208,7 @@ mod tests {
                 &closes_tick,
                 &src,
                 g,
+                &mut Vec::new(),
             )
             .0
         };
@@ -3629,6 +3786,7 @@ mod tests {
             &[],
             &src,
             DivergenceGauge::default(),
+            &mut Vec::new(),
         );
         // 零一类 bit（盘整块内不产第一类——门关；盘整背驰不冒充 B1/S1）。
         assert!(
@@ -3690,6 +3848,7 @@ mod tests {
             &[],
             &src,
             DivergenceGauge::default(),
+            &mut Vec::new(),
         );
 
         assert!(points.is_empty(), "不破核心盘背只进观测层，不产 BspPoint");
@@ -3797,6 +3956,7 @@ mod tests {
             &[],
             &src,
             DivergenceGauge::default(),
+            &mut Vec::new(),
         );
 
         assert!(points.is_empty(), "反例不得产 BspPoint");
@@ -3831,6 +3991,7 @@ mod tests {
             &[],
             &src,
             DivergenceGauge::default(),
+            &mut Vec::new(),
         );
 
         assert!(points.is_empty(), "既有 fixture 的买卖点集合保持空集");
@@ -4243,6 +4404,7 @@ mod tests {
             &[],
             &src,
             DivergenceGauge::default(),
+            &mut Vec::new(),
         );
         assert_eq!(
             pan.len(),
@@ -4282,6 +4444,7 @@ mod tests {
             &[],
             &src,
             DivergenceGauge::default(),
+            &mut Vec::new(),
         );
         assert!(pan.is_empty(), "无回中枢段 ⟹ 同一次离开 ⟹ 无盘整背驰证书");
     }

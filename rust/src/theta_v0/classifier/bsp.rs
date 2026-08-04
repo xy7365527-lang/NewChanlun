@@ -639,20 +639,29 @@ mod tests {
             // Fractal 类型的单源函数体（作用于 `Fractal`，非 `BspPoint`，不入本族）。
             "theta_v0/parser/fractal.rs:82",
             // #[ignore] 死探针（已被 runner::newly_confirmed_step 取代，issue #747 条目6 登记不入
-            // 18 处枚举）。
-            "theta_v0/backtest/l3_pi_probe.rs:596",
+            // 18 处枚举）。（#885 S4-d：上方 slice_step 增一行 ⟹ 596→597，同条目重登记。）
+            "theta_v0/backtest/l3_pi_probe.rs:597",
             // ADR-0005 GUARD-ROLE 对照臂原型语句本体（单列登记，不改调，见函数头注释订正）。
             "theta_v0/classifier/nest.rs:718",
+            // #885 S4-d：`LevelState::first_class_grade_at`/`Classification::otherwise_domain_at`
+            // 单源查询函数体（作用于 `FirstClassGradeRecord` 分级记录族，非 `BspPoint`，与本族
+            // 三件并行不同型；同 projection.rs:215 先例——查询实现全仓各仅一份，非复制点）。
+            "theta_v0/classifier/mod.rs:218",
+            "theta_v0/classifier/mod.rs:250",
             // `CrossLevelConfirmationQuery::entry_at` 单源函数体（作用于 `TripleAnchorEntry`，
             // 与本族 `BspPoint` 三件并行不同型，见 projection.rs 函数头注释）。
             "theta_v0/classifier/projection.rs:215",
             // #[cfg(test)] mod 内断言用字面量 source_index 过滤——测试夹具，非生产绑定规则。
-            "theta_v0/classifier/signal.rs:2470",
-            "theta_v0/classifier/signal.rs:2747",
-            "theta_v0/classifier/signal.rs:3154",
-            "theta_v0/classifier/signal.rs:3187",
-            "theta_v0/classifier/signal.rs:3443",
-            "theta_v0/classifier/signal.rs:3507",
+            // （#885 S4-d：本文件上方新增注释/参数/测试 ⟹ 行号整体位移，逐条重核重登记，理由不变；
+            // 3172/4358 为本票新增测试夹具过滤，同类登记。）
+            "theta_v0/classifier/signal.rs:2524",
+            "theta_v0/classifier/signal.rs:2808",
+            "theta_v0/classifier/signal.rs:3172",
+            "theta_v0/classifier/signal.rs:3311",
+            "theta_v0/classifier/signal.rs:3344",
+            "theta_v0/classifier/signal.rs:3600",
+            "theta_v0/classifier/signal.rs:3664",
+            "theta_v0/classifier/mod.rs:4358",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
             "theta_v0/strategy/mod.rs:551",
             "theta_v0/strategy/mod.rs:773",

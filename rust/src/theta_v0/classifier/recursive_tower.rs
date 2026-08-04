@@ -2222,6 +2222,10 @@ pub fn level_cand_delta(
             gauge,
             sorted,
             None,
+            // #885：本 provider 是 #529 诊断路径（level=None），分级记录不进 Classification
+            // （生产可查载体只由 classify 装配链填充），sink 落即弃——与「level=None 不参与
+            // sidecar 捕获」同一边界。
+            &mut Vec::new(),
         ) else {
             continue; // 未破中枢/未破 b 极值（037:20）/A 不可配对/不可映射 ⟹ 非结构候选（与生产路径同一 gate）。
         };
@@ -2369,6 +2373,7 @@ mod p1_tests {
             &prices,
             &src,
             DivergenceGauge::MacdArea,
+            &mut Vec::new(),
         );
         let events = level_cand_delta(
             0,

@@ -76,6 +76,7 @@ fn level_with(points: Vec<BspPoint>) -> LevelState {
         cp_ownership: Rc::new(Vec::new()),
         bsp: Rc::new(points),
         pan_div: Rc::new(Vec::new()),
+        first_class_grades: Rc::new(Vec::new()), // #885：夹具只携 bsp（同 pan_div 口径）
         level_projection: None,
     }
 }

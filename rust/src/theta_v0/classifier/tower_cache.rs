@@ -78,6 +78,11 @@ pub(super) struct LevelCache {
     /// ★Q4（task #145）：盘整背驰证书 memo 缓存——与 `cached_bsp` 同一 extract 调用产出、同一
     /// `cached_bsp_key` 守卫（hit/miss/cascade 三态与 bsp 锁步 ⟹ 下游 Rc::ptr_eq(bsp) 蕴含 pan_div 同批）。
     pub(super) cached_pan_div: Rc<Vec<signal::PanDivCert>>,
+    /// ★#885 S4-d：一类点 T3-in-c 分级记录 memo 缓存——与 `cached_bsp`/`cached_pan_div` 同一
+    /// extract 调用产出、同一 `cached_bsp_key` 守卫（hit/miss/cascade 三态与 bsp 锁步复用）。
+    /// 分级记录是同一纯函数同一趟判定的第三份产出（结构长度键的 soundness 论证与 bsp 同享：
+    /// confirmed 元素区间落稳定前缀，尾 bar 不影响其判定）。
+    pub(super) cached_first_class_grades: Rc<Vec<signal::FirstClassGradeRecord>>,
     /// #550 双域候选 memo；与 BSP key 同失效边界，只在结构 tail 变化时重算。
     pub(super) cached_candidate_key: Option<(usize, usize, usize)>,
     pub(super) cached_candidate_observations: Vec<cand_event::CandidateObservation>,
@@ -116,6 +121,10 @@ pub(super) struct LevelCache {
     /// `cached_first_third` 配套的盘整背驰证书缓存（同一 [`signal::extract_first_third_resume`] 产出、
     /// 同一 push 序、同一冻结边界锚——与点缓存锁步失效）。
     pub(super) cached_first_third_pan: Vec<signal::PanDivCert>,
+    /// ★#885 S4-d：`cached_first_third{,_pan}` 配套的一类点 T3-in-c 分级记录缓存（同一
+    /// [`signal::extract_first_third_resume`] 产出、同一 push 序、同一冻结边界锚、同一单调守卫
+    /// ⟹ 与点/证书缓存锁步失效）。
+    pub(super) cached_first_third_grades: Vec<signal::FirstClassGradeRecord>,
     /// `cached_first_third{,_pan}` 已覆盖的 confirmed 段前缀数（推进锚 = 上次冻结边界 stable_seg）。
     pub(super) cached_first_third_count: usize,
     /// ★on2w2-cascade 读域侧车（设计 §4.1 解 A）：与 `centers`/`upper_moves` 1:1 对齐的每 center

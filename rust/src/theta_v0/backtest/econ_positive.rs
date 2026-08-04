@@ -345,6 +345,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                                 Vec::new()
                             }),
                             pan_div: Rc::new(Vec::new()), // Q4：single 屏蔽层无盘整背驰载荷（只供 Γ 组装）
+                            first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
                             level_projection: None, // #110 门关口径（与生产 stamping 关闭分支同形）
                         })
                         .collect(),
@@ -5353,6 +5354,7 @@ mod tests {
                                     Vec::new()
                                 }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
+                                first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
                                 level_projection: None,       // #110 门关口径
                             })
                             .collect(),
@@ -6296,6 +6298,7 @@ mod tests {
                                     Vec::new()
                                 }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
+                                first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
                                 level_projection: None,       // #110 门关口径
                             })
                             .collect(),
@@ -6726,6 +6729,7 @@ mod tests {
                                     Vec::new()
                                 }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
+                                first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
                                 level_projection: None,       // #110 门关口径
                             })
                             .collect(),
@@ -7281,6 +7285,7 @@ mod tests {
                                     Vec::new()
                                 }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
+                                first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
                                 level_projection: None,       // #110 门关口径
                             })
                             .collect(),
@@ -7841,6 +7846,7 @@ mod tests {
                                     Vec::new()
                                 }),
                                 pan_div: Rc::new(Vec::new()),
+                                first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
                                 level_projection: None,
                             })
                             .collect(),
@@ -8652,6 +8658,7 @@ mod tests {
                                     Vec::new()
                                 }),
                                 pan_div: Rc::new(Vec::new()),
+                                first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
                                 level_projection: None,
                             })
                             .collect(),
@@ -9320,6 +9327,7 @@ mod tests {
                                     Vec::new()
                                 }),
                                 pan_div: Rc::new(Vec::new()),
+                                first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
                                 level_projection: None,
                             })
                             .collect(),
@@ -10046,6 +10054,7 @@ mod tests {
                                     Vec::new()
                                 }),
                                 pan_div: Rc::new(Vec::new()),
+                                first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
                                 level_projection: None,
                             })
                             .collect(),
@@ -10734,6 +10743,7 @@ mod tests {
                                     Vec::new()
                                 }),
                                 pan_div: Rc::new(Vec::new()),
+                                first_class_grades: Rc::new(Vec::new()), // #885：同 pan_div 口径（single 屏蔽层无分级记录载荷）
                                 level_projection: None,
                             })
                             .collect(),
