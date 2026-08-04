@@ -310,7 +310,10 @@ fn main() -> std::process::ExitCode {
     let (classification, tower): (Classification, Vec<Rc<Vec<LeveledMove>>>) =
         classify_with_tower(&l0, &config);
     eprintln!("P856 塔构造完成 tower_levels={}", tower.len());
-    println!("P856_INPUT symbol={symbol} bars={n_bars} l0_segments={}", l0.segments.len());
+    println!(
+        "P856_INPUT symbol={symbol} bars={n_bars} l0_segments={}",
+        l0.segments.len()
+    );
     for (j, lv) in tower.iter().enumerate() {
         println!("P856_TOWER level={j} moves={}", lv.len());
     }
@@ -410,10 +413,8 @@ fn main() -> std::process::ExitCode {
                             lambda_max,
                         );
                         let rbv = rb.verdict;
-                        if matches!(
-                            rbv,
-                            Verdict::ReverseDominates | Verdict::Incomparable
-                        ) && grp == "ext"
+                        if matches!(rbv, Verdict::ReverseDominates | Verdict::Incomparable)
+                            && grp == "ext"
                         {
                             violations.push(("bar", bnd, rb));
                         }
@@ -430,10 +431,8 @@ fn main() -> std::process::ExitCode {
                             lambda_max,
                         );
                         let ruv = ru.verdict;
-                        if matches!(
-                            ruv,
-                            Verdict::ReverseDominates | Verdict::Incomparable
-                        ) && grp == "ext"
+                        if matches!(ruv, Verdict::ReverseDominates | Verdict::Incomparable)
+                            && grp == "ext"
                         {
                             violations.push(("unit", bnd, ru));
                         }
@@ -478,7 +477,9 @@ fn main() -> std::process::ExitCode {
         println!("P856_GAP_BARS level={lv} strict_len_bucket={b} n={c}");
     }
     for ((grp, lv), c) in &degenerate {
-        println!("P856_DEGENERATE group={grp} level={lv} edges={c} reason=lambda_space_is_singleton_bot");
+        println!(
+            "P856_DEGENERATE group={grp} level={lv} edges={c} reason=lambda_space_is_singleton_bot"
+        );
     }
     for ((grp, atom, bnd, lv), t) in &tallies {
         println!(
@@ -519,13 +520,7 @@ fn main() -> std::process::ExitCode {
     }
     // 反例明细（最多 60 条）
     violations.sort_by_key(|(_, _, r)| (r.level, r.b_span.0));
-    let date_at = |i: usize| -> &str {
-        dataset
-            .dates
-            .get(i)
-            .map(|s| s.as_str())
-            .unwrap_or("?")
-    };
+    let date_at = |i: usize| -> &str { dataset.dates.get(i).map(|s| s.as_str()).unwrap_or("?") };
     for (atom, bnd, r) in violations.iter().rev().take(80) {
         println!(
             "P856_VIOLATION atom={atom} boundary={bnd} level={} cause={} dir={:?} b=[{},{}] c=[{},{}] b_date={} c_date_end={} b_hist={} c_hist={}",
