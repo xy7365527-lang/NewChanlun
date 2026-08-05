@@ -167,6 +167,30 @@ class PersistentKFull:
                     if not graph.has_edge_key(e.source, e.target, e.edge_type):
                         graph = graph.add_edge(e)
 
+                elif record["type"] == "articulation":
+                    # Daemon persists ARTICULATED concept edges via
+                    # append_articulation() (type=articulation, not type=edge).
+                    # Must replay them or crash recovery silently drops concept-layer edges.
+                    src = record["source_vid"]
+                    tgt = record["target_vid"]
+                    if (
+                        graph.vertex(src) is not None
+                        and graph.vertex(tgt) is not None
+                        and not graph.has_edge_key(src, tgt, EdgeType.ARTICULATED)
+                    ):
+                        reason = record.get("reason") or (
+                            f"articulated: score={record.get('score', 0)} "
+                            f"step={record.get('step', 0)}"
+                        )
+                        graph = graph.add_edge(Edge(
+                            source=src,
+                            target=tgt,
+                            edge_type=EdgeType.ARTICULATED,
+                            created_at=record.get("step", record.get("created_at", 0)),
+                            surface=None,
+                            context=reason,
+                        ))
+
                 elif record["type"] == "vertex_status":
                     # Replay vertex status change (e.g. contested)
                     vid = record["id"]
@@ -384,6 +408,28 @@ class PersistentKFull:
                     )
                     if not graph.has_edge_key(e.source, e.target, e.edge_type):
                         graph = graph.add_edge(e)
+                        incremental_count += 1
+
+                elif record["type"] == "articulation":
+                    src = record["source_vid"]
+                    tgt = record["target_vid"]
+                    if (
+                        graph.vertex(src) is not None
+                        and graph.vertex(tgt) is not None
+                        and not graph.has_edge_key(src, tgt, EdgeType.ARTICULATED)
+                    ):
+                        reason = record.get("reason") or (
+                            f"articulated: score={record.get('score', 0)} "
+                            f"step={record.get('step', 0)}"
+                        )
+                        graph = graph.add_edge(Edge(
+                            source=src,
+                            target=tgt,
+                            edge_type=EdgeType.ARTICULATED,
+                            created_at=record.get("step", record.get("created_at", 0)),
+                            surface=None,
+                            context=reason,
+                        ))
                         incremental_count += 1
 
                 elif record["type"] == "vertex_status":

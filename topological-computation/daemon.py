@@ -262,6 +262,12 @@ class TopologicalDaemon:
         # Persistence: block topology is primary, jsonl is backup
         self._persist: BlockTopologyWriter | None = None
         self._persist_path: Path | None = None
+        # True when graph state was restored from snapshot/JSONL/block-topology.
+        # main() must not truncate JSONL or re-seed when this is set — doing so
+        # destroys the only recovery source after a crash (JSONL-native era:
+        # load_graph_from_block_topology only sees legacy blocks/, so BT is
+        # almost always empty and the old "fresh write" path would wipe state).
+        self._recovered_from_persist = False
         recovered_graph: Graph | None = None
 
         if persist_path is not None:
@@ -311,6 +317,7 @@ class TopologicalDaemon:
                     pass
                 else:
                     graph = recovered_graph
+                    self._recovered_from_persist = True
 
             # BlockTopologyWriter — JSONL append-only (456号裁定)
             self._persist_path = Path(persist_path)
@@ -1287,6 +1294,10 @@ class TopologicalDaemon:
                 vid: v.status for vid, v in self.k_active.vertices.items()
             }
 
+        # SharedLayer settlement sync needs the pre-step settled count even when
+        # settlement memory injection into K_active is disabled.
+        pre_settled_count = len(self.settlement.settled_cycles)
+
         log = self.engine.run_step()
 
         # Sync graph state from engine
@@ -1497,6 +1508,7 @@ class TopologicalDaemon:
 
         # Plan C: write sync blocks to SharedLayer (each method self-throttles)
         if self._shared_layer is not None:
+            new_settled = self.settlement.settled_cycles[pre_settled_count:]
             self._write_traversal_position(log)
             self._write_graph_delta(log, new_vids, new_edges_list)
             self._write_settlement_event(new_settled)
@@ -2260,8 +2272,16 @@ def main() -> None:
         require_chain=not args.no_chain,
     )
 
-    # If persisting with a fresh topology (no recovery), write initial graph
-    if args.persist and daemon._persist and graph is not None:
+    # If persisting with a fresh topology (no recovery), write initial graph.
+    # Never truncate/re-seed after snapshot/JSONL recovery: block-topology
+    # legacy blocks/ is empty in the JSONL-native era, so the old "BT empty ⇒
+    # wipe JSONL" heuristic destroyed the recovered log on every restart.
+    if (
+        args.persist
+        and daemon._persist
+        and graph is not None
+        and not daemon._recovered_from_persist
+    ):
         bt_check, _ = load_graph_from_block_topology(DAEMON_BT_BASE)
         if not bt_check.active_vertex_ids():
             # Truncate JSONL backup before writing initial graph to prevent
