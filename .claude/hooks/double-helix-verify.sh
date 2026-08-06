@@ -97,23 +97,31 @@ if [ -d ".chanlun/genealogy/settled" ]; then
 fi
 
 # 调用 Gemini verify
-VERIFY_RESULT=$(PYTHONPATH=src "$PYTHON_BIN" -c "
-import os, sys, json
+# 注意：diff/commit message 通过环境变量传入，禁止插进 python -c 源码（任意代码执行风险）
+if ! VERIFY_RESULT=$(
+  FULL_DIFF="$FULL_DIFF" \
+  COMMIT_MSG="$COMMIT_MSG" \
+  RECENT_SETTLED="$RECENT_SETTLED" \
+  PYTHONPATH=src \
+  "$PYTHON_BIN" - 2>/dev/null <<'PY'
+import os
+import sys
+import json
 
 # 检查 API key
-api_key = os.environ.get('GOOGLE_API_KEY', '')
+api_key = os.environ.get("GOOGLE_API_KEY", "")
 if not api_key:
-    print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'allow', 'permissionDecisionReason': 'no-api-key'}}))
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow", "permissionDecisionReason": "no-api-key"}}))
     sys.exit(0)
 
 try:
     from newchan.gemini.modes import decide
 
-    diff_text = '''$FULL_DIFF'''[:3000]
-    commit_msg = '''$COMMIT_MSG'''
-    recent = '''$RECENT_SETTLED'''
+    diff_text = os.environ.get("FULL_DIFF", "")[:3000]
+    commit_msg = os.environ.get("COMMIT_MSG", "")
+    recent = os.environ.get("RECENT_SETTLED", "")
 
-    subject = f'双螺旋验证：git commit 一致性检查'
+    subject = "双螺旋验证：git commit 一致性检查"
     context = f'''你是新缠论系统的 pre-commit 验证器。请检查以下 commit 是否与谱系/定义一致。
 
 Commit 消息: {commit_msg}
@@ -140,19 +148,22 @@ Staged diff (前500行):
         # 提取矛盾描述
         contradiction = response
         print(json.dumps({
-            'hookSpecificOutput': {
-                'hookEventName': 'PreToolUse',
-                'permissionDecision': 'deny',
-                'permissionDecisionReason': contradiction[:500]
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": contradiction[:500]
             }
         }, ensure_ascii=False))
     else:
-        print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'allow', 'permissionDecisionReason': 'gemini-verified-clean'}}))
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow", "permissionDecisionReason": "gemini-verified-clean"}}))
 
 except Exception as e:
     # Gemini 不可达 → 052号相变：降级放行
-    print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'allow', 'permissionDecisionReason': f'gemini-unreachable: {str(e)[:100]}'}}))
-" 2>/dev/null || echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"script-error"}}')
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow", "permissionDecisionReason": f"gemini-unreachable: {str(e)[:100]}"}}))
+PY
+); then
+  VERIFY_RESULT='{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"script-error"}}'
+fi
 
 # 解析结果
 DECISION=$(echo "$VERIFY_RESULT" | "$PYTHON_BIN" -c "import sys,json; d=json.load(sys.stdin); hso=d.get('hookSpecificOutput',{}); print(hso.get('permissionDecision','allow'))" 2>/dev/null || echo "allow")
@@ -163,17 +174,24 @@ if [ "$DECISION" = "deny" ]; then
   echo "$DIFF_HASH" > "$HELIX_LAST_HASH"
   echo $((BLOCK_COUNT + 1)) > "$HELIX_COUNTER"
 
-  # 输出矛盾对象
-  "$PYTHON_BIN" -c "
+  # 输出矛盾对象（REASON 同样走环境变量，禁止插进 python -c）
+  REASON_TEXT="$REASON" "$PYTHON_BIN" - <<'PY'
 import json
+import os
+
+reason = os.environ.get("REASON_TEXT", "")
 print(json.dumps({
-    'hookSpecificOutput': {
-        'hookEventName': 'PreToolUse',
-        'permissionDecision': 'deny',
-        'permissionDecisionReason': '''[双螺旋] Gemini 发现矛盾，commit 被拦截。\n\n矛盾对象:\n$REASON\n\n请修正后重新 commit。连续 block 3 次后自动熔断放行。'''
+    "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": (
+            "[双螺旋] Gemini 发现矛盾，commit 被拦截。\n\n"
+            f"矛盾对象:\n{reason}\n\n"
+            "请修正后重新 commit。连续 block 3 次后自动熔断放行。"
+        ),
     }
 }, ensure_ascii=False))
-"
+PY
   exit 0
 fi
 
