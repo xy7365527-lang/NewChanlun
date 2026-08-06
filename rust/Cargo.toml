@@ -107,6 +107,18 @@ name = "p856_ed_dominance"
 path = "src/bin/p856_ed_dominance.rs"
 required-features = ["backtest_bin"]
 
+# 票 #907 成本门探针（乙类可复用）：逐级买卖点间波幅 ÷（成本+误差）读数。
+[[bin]]
+name = "p907_cost_gate_level"
+path = "src/bin/p907_cost_gate_level.rs"
+required-features = ["backtest_bin"]
+
+# 票 #915 容量/频率探针（乙类可复用）：逐级波幅阶梯 A_ℓ + 信号频率 + 日波动率/日成交额。
+[[bin]]
+name = "p915_capacity_frequency"
+path = "src/bin/p915_capacity_frequency.rs"
+required-features = ["backtest_bin"]
+
 # 仅测试期依赖：T 回测全量 runner 读取 analysis/data_cache/*.json（8 标的 OHLC）。
 # 放 dev-dependencies ⇒ cdylib（Python 扩展）构建不受影响，零运行时依赖膨胀。
 [dev-dependencies]
