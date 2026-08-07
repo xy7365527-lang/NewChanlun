@@ -558,13 +558,21 @@ class TopologicalDaemon:
                 return out + inc
             start = max(active, key=lambda v: (_deg(v), v))
 
+        # TraversalEngine treats its first arg as k_full and copies it to
+        # k_active. After fold/negate/sublate the daemon's dual views diverge
+        # (folded vertices stay ACTIVE in k_full, FOLDED in k_active), so we
+        # must pass the true historical graph and then restore the forked
+        # active view — otherwise reinit (ingest_code/_inject) permanently
+        # collapses k_full onto the folded active snapshot on the next sync.
         self.engine = TraversalEngine(
-            self.k_active,
+            self.k_full,
             start=start,
             settlement_threshold=self.settlement.threshold,
             seed=self._seed,
             encounter_log=self.encounter_log,
         )
+        self.engine.k_active = self.k_active
+        self.engine.terrain = self.terrain
         # Share settlement tracker
         self.engine.settlement = self.settlement
 
