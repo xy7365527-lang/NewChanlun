@@ -289,6 +289,8 @@ w(d) = 容量(ℓ−d) / 容量(ℓ) = ( A_{ℓ−d} / A_ℓ ) ^ (1/δ)
 
 **照实附记两条**：542 的字面证明**其自身 `settlement` 字段已认定 unsound**（把 spawn 算子误等同 R₃ 的 `W_form`，符号碰撞）；替换基 T₂₃（`docs/necessity_derivation.md:544-553`）**通篇无量的陈述**。**援引 542 前先重过推理链。**
 
+**⟹ 本上浮已由 [#925](https://github.com/xy7365527-lang/NewChanlun/issues/925) 于 2026-08-07 处置（编排者裁定）**：结论 = **值层作废**（`λ=2`／`f=0.5` 作废，实测 `λ≈3.1`——即本节第 1 点，已确认）／**形式层待判**（`f=1/λ` 因裁定八「上档测不出」而否不掉，保留标「待判」，不作废——即本节第 2 点）／**落点冻结**（`SUB_SPAWN_FRAC` 两处不改数值：`grep -rnE "\bLAMBDA\b|SUB_SPAWN_FRAC|MOBILE_FRAC" rust/src/theta_v0/` 零命中 ⟹ 就 NT 生产而言不可达，改与不改都不动生产读数）。**实施归 [#943](https://github.com/xy7365527-lang/NewChanlun/issues/943)**（形态与名分统一：两处 `SUB_SPAWN_FRAC` 静默劈叉 + `fugue_v3::MOBILE_FRAC`↔`rec_engine.rs:69` 私有同名常数改错一处即 panic）。**订正段正本**：`.chanlun/genealogy/settled/542-spawn-allocation-sigma-invariant.md`「★§925 订正」节（勘察报告 `.chanlun/review-results/issue925-lambda-implementations-20260807.md`，commit `43a2f684df`）。**本节上述论证不变，只接上下家。**
+
 ### (c) 执行层缺口——归 [#918](https://github.com/xy7365527-lang/NewChanlun/issues/918)
 
 **裁定四的中枢位置驱动是价位动作**：ZG/ZD 是**提前已知**的价位，不需要等 bar 走完 ⟹ 天然是限价挂单。

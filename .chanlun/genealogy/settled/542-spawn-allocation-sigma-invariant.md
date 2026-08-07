@@ -86,3 +86,126 @@ iso 不调 `try_spawn_cost_gated`（其 spawn 路径独立，`isolated_fugue.rs:
 
 「仓位分配 spawn 比例必须 σ-不变（级别无关），全局 θ 归一化是隐性违反 T59」——这条隐性规则
 本已在 T48/T59 中运作，本节点将其**显式化**为会计层的 σ-等变约束。
+
+---
+
+## ★§925 订正（编排者裁定 2026-08-07，经由票 #925；增补层，上文原文逐字保留为发生史）
+
+**上游**：[ADR 0017](../../../docs/adr/0017-chong-quantity-numerator-shortdiff-amplitude.md) 连带处置 (b) 把本号的 `λ = 2` 上浮，
+wayfinder 票 [#925](https://github.com/xy7365527-lang/NewChanlun/issues/925)（map #787）即该上浮。
+**勘察报告**：`.chanlun/review-results/issue925-lambda-implementations-20260807.md`（commit `43a2f684df`，AFK 只读探针，未改任何 `.rs`）。
+
+**处置 = 值层作废、形式层保留待判、落点冻结。** 三条：
+
+### 处置一：值层作废（可断言）
+
+`λ = 2`（⟹ `f = 0.5`）**作废**。底档实测 `w ≈ 0.323`（8 标的几何平均，
+[#915](https://github.com/xy7365527-lang/NewChanlun/issues/915)）对应 **`λ ≈ 3.1`**。
+这条已由 ADR 0017 连带处置 (b) 第 1 点断言（`docs/adr/0017-*.md:285`），本裁定**确认之**。
+
+### 处置二：形式层保留待判（不可断言）
+
+`f = 1/λ` 这个几何形式**否不掉**——否掉「级别无关」需要证明各档 `w` 不同，
+而 ADR 0017 **裁定八已判上档测不出**（`docs/adr/0017-*.md:283`），
+常数与非常数在当前数据上无从区分。⟹ **形式保留，标「待判」，不作废。**
+
+### 处置三：落点冻结
+
+`SUB_SPAWN_FRAC`（两处，见下表）**不改数值**。理由是 #925 勘察实测——**就 NT 生产而言它不可达**：
+`grep -rnE "\bLAMBDA\b|SUB_SPAWN_FRAC|MOBILE_FRAC" rust/src/theta_v0/`（覆盖 `rust/src/theta_v0/` 全树）
+**零命中**，π（唯一现役引擎）对这四处全部零引用。改与不改**都不动生产读数**。
+形态与名分的统一（两处 `SUB_SPAWN_FRAC` 静默劈叉 + `MOBILE_FRAC` 那对改错一处即 panic）
+归实施票 **[#943](https://github.com/xy7365527-lang/NewChanlun/issues/943)**。
+
+---
+
+## 一并登记的三条事实（#925 勘察查实，本次已逐条独立复核）
+
+### 事实一：本号自陈的「回测扫描」，在已查到的范围内没做过
+
+本号 `epistemological_level` 字段与 title 均自陈 `SUB_SPAWN_FRAC` 作
+「leverage_triad 唯一自由度**回测扫描**」；实装侧同义句在 `rust/src/trading/positional_fusion.rs:100-103`。
+**9 条检索式零命中**（覆盖目录逐条标注，见勘察报告 §Q3 表）：
+
+| 检索式 | 覆盖 | 结果 |
+|---|---|---|
+| `grep -rln "SUB_SPAWN_FRAC" . --exclude-dir=.git --exclude-dir=target` | 全仓 | 15 文件全部打开，无一是扫描结果 |
+| `grep -rln "leverage_triad" .`（同上排除） | 全仓 | 12 文件，均为定义/诊断/裁决文本 |
+| `ls rust/src/bin/` + `grep -rln "SPAWN_FRAC\|MOBILE_FRAC\|LAMBDA\|lambda" rust/src/bin/` | 50 个 bin 逐个查 | 5 命中全为 `lambda_c`/`lambda_a`（走势段起点索引）同名异物 |
+| `git log --oneline --all --grep="SPAWN_FRAC"` | 全 ref | 3 commit，全是落地非扫描 |
+| `git log --oneline --all --grep="leverage_triad\|配额扫描\|f 扫描\|λ 扫描"` | 全 ref | 仅 `346ac05068`（542 实装） |
+| `gh issue list --search "SUB_SPAWN_FRAC" --state all` | tracker **含 closed** | 仅 #925 |
+| `gh issue list --search "leverage_triad" --state all` | 同上 | 仅 #925 |
+| `gh issue list --search "配额" --state all` | 同上 | 30 条，无一是 f 扫描 |
+| `grep -rn "env::var" rust/src/trading/positional_fusion.rs rust/src/spiral/` | — | 零命中 ⟹ 无参数化入口，扫描技术上须改源码重编译 |
+
+**反面佐证**（扫描未做的正面痕迹）：`docs/spiral_engine_v2_architecture.md:49` 至今逐字写
+「`λ=2`（SUB_SPAWN_FRAC=0.5） | **L2 待测** | A₅ 二分递归建模默认，待 T50 涌现 λ 测量精化」；
+同文件 `:619` 参数审计表逐字「SUB_SPAWN_FRAC | 0.5 | ⚠ **形式✅/值❌** | L0 形式 + L2 值 | …待 T50 涌现 λ 测量精化为 `1/λ_measured`」
+（**照实**：`:619` 那格写的是「形式✅/值❌」，**没有「L2 待测」四字**，同义不同词）。
+
+**⟹ `0.5` 是一个既非理论也非实测的数**（090 照实：这是「已查到的范围内没做过」，**不是绝对否定**）。
+
+> **⚠️ 防误引**：`.chanlun/escalations/2026-06-19-1922-t-recover-quota-full-vs-sigma-invariant.md` 那张
+> 8 标的表（GC +50.7pp / ES −19.6pp 等）**不是这个扫描**——它的自变量是 `t_engine.recover` 的
+> 「1/3 → 全量」**二值切换**，作用对象是 `recursive_t`（该上浮自陈「仅改 t_engine，不碰 operate.rs/542 守卫」），
+> 与本号点名的 `positional_fusion`/`unified_necessity` 不同族。
+
+### 事实二：同一概念 `f = 1/λ` 有四处实装、两个互斥 λ
+
+穷举依据：`grep -rnE "\bLAMBDA\b" rust/src/` 全仓 **4 命中**；`grep -rn "const SUB_SPAWN_FRAC" rust/src/` **2 命中**。覆盖目录 = `rust/src/` 全树。
+
+| # | 常量 | 文件:行 | 值 | 表达 | λ |
+|---|---|---|---|---|---|
+| 1 | `SUB_SPAWN_FRAC` | `rust/src/spiral/params.rs:37` | 0.5 | `1.0 / LAMBDA`（`:32` `LAMBDA = 2.0`） | 2 |
+| 2 | `SUB_SPAWN_FRAC` | `rust/src/trading/positional_fusion.rs:104` | 0.5 | `0.5`（**硬编码**） | 2（隐含） |
+| 3 | `MOBILE_FRAC` | `rust/src/fugue_v3/mod.rs:115` | 1/3 | `1.0 / LAMBDA`（`:111` `LAMBDA = 3.0`） | 3 |
+| 4 | `MOBILE_FRAC` | `rust/src/recursive_t/rec_engine.rs:69` | 1/3 | `1.0 / 3.0`（**模块内私有**，遮蔽 #3） | 3（隐含） |
+
+本号 `source` 字段只点 #2 一族（`positional_fusion.rs` + `unified_necessity.rs`），**#1/#3/#4 从不在本号裁决范围内**。
+
+**#3 ↔ #4 那对改错一处即 panic**：守卫 `rust/src/recursive_t/prove_guards.rs:277`
+逐字 `let canonical = units_before * MOBILE_FRAC;`，其 `MOBILE_FRAC` 由 `:31` `use crate::fugue_v3::MOBILE_FRAC;` 引入；
+而 `rec_engine.rs:69` 逐字 `const MOBILE_FRAC: f64 = 1.0 / 3.0;` 是模块内私有硬编码。
+只改 `fugue_v3/mod.rs:111` ⟹ 两值不等 ⟹ `prove_guards.rs:278-282` 的 assert 失败 ⟹ **NT 生产策略每次 sink/drain 直接 panic**。
+两处 `SUB_SPAWN_FRAC` 之间则相反——全仓**无任何测试或断言**把二者挂钩，编译期与测试期都不报警，是名副其实的**静默劈叉**。
+两者统归 [#943](https://github.com/xy7365527-lang/NewChanlun/issues/943)。
+
+### 事实三：λ=3 那一支的依据须降名分
+
+`rust/src/fugue_v3/mod.rs:110` 现逐字写：
+
+> `/// 尺度比 λ。**值 L2**（reinterp §5.2：026:80「用其中的 1/3」⟹ λ=3）。`
+
+读起来像**原文规定**。但回原课核对（正本路径 `docs/chanlun/text/blog/026-第26课.md`，行号已逐字复核）：
+
+- **`026:80`** 逐字：「2、级别必须配套来看，最好不要单纯的短线，……短线必须坚持。但仓位可以控制，**例如**用其中的1/3，**慢慢养成好习惯以后，就可以更随心所欲一点**。」
+  ——「例如」与「可以更随心所欲一点」在**同一句**内（分号级读点相连，非分属两行）。
+- **`026:447`**【答疑】逐字：「另外，一定要灵活，不能光会先买后卖，也应该学会先卖后买。还有，该以什么比例运用也是一个关键，**不熟练的情况下**，如果仓位不太大，1/3或1/4是比较合适的。」
+  ——位于 `:443` `========` 分隔符之后的缠师回复段（读者提问在 `:437-441`）。
+- 仓内 `analysis/bc_architecture_research.md:325`（表第 6 行「**C 的 slice 比例**（1/3、1/4）」）已判：
+  「026:80/447 给出 1/3、1/4，但语境是"不熟练的情况下"——是**训练轮，不是最优参数**」「比例是**自由参数，原文数字不可当作校准值**」。
+  （⚠️ 行号为 **`:325`**；ADR 0016 `:131`/`:309` 与 #914 票面曾误记作 `:320`——`:320` 是同表第 1 行「层间配额公式」，`:324` 才是第 5 行。ADR 0017 `:360-363` 已登记此订正。）
+
+**⟹ 名分从「原文规定值」降为「原文举例，且原文明写可调」。**
+
+> **⚠️ `026:80` 的正文界名分本身存疑**：该课 `↑正文` 界标在 `:40`，`:80` 在其**后**；
+> 但其内容明显是作者自己的补充（`:76` 逐字「下午走的太急，补充一段，有必要把一些前面已经多次提过的原则重复一次。」，且通篇「本ID」自称），
+> 不是读者答疑。**本裁定不判它属【正文】还是【答疑】，照实标为「界后作者补充，名分待核」。**
+> （已核：`:80` 行首无「（注：」「(娇注:」类标记，行内亦无嵌注；同区 `:72` 有「(娇注:」但不在 `:80`。）
+
+---
+
+## 因本次订正而过期的字段表述
+
+上文与 YAML front matter **原文一律不改**（发生史逐字保留），但下列表述自 2026-08-07 起**已过期**，援引须以本订正段为准：
+
+| 位置 | 过期的表述 | 现状 |
+|---|---|---|
+| `epistemological_level` 字段 | 「「λ 值」= L2（……未独立测⟹SUB_SPAWN_FRAC 作单一自由度回测扫描，**初始 λ=2⟹f=0.5**）」 | **值作废**（处置一）。且「作回测扫描」这件事在已查到的范围内**从未发生**（事实一） |
+| `title` / `settlement` / `negation_form` 三字段中的 `f=1/λ` **值** | 一律隐含 λ=2 ⟹ f=0.5 | 同上；**形式 `f=1/λ` 仍保留（待判）**，只有值作废 |
+| 正文「验收与有效域分离」节（`:75-77`） | 「SUB_SPAWN_FRAC 值（=1/λ）作 leverage_triad 唯一自由度回测扫描（初始 λ=2⟹f=0.5；**待 T50 涌现 λ 测量精化**为 f=1/λ_measured 零自由度 R1 形式——扫得最优 f≈1/λ_emergent 则势∝r 公理获 L2 经验旁证）」 | 该扫描**未做**；「待 T50 涌现 λ 测量精化」这条路径至今未走。**因此「势∝r 公理获 L2 经验旁证」这个预期的兑现条件从未被检验** |
+| `source` 字段 | 只点 `positional_fusion.rs` / `unified_necessity.rs` | 事实准确，但**范围不足以覆盖同一概念**——全仓另有 3 处实装、含生产落点 `MOBILE_FRAC`（事实二）。归 #943 |
+
+**未变的部分（照实）**：本号「配额比例 `f` 必须 σ-不变（级别无关）」这条 **L0 断言本身未被触动**——
+本次只作废了它的**值**，形式层因「上档测不出」而**无从否证**，故保留待判（处置二）。
