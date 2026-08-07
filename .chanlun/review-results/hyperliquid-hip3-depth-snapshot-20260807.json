@@ -1,0 +1,3612 @@
+{
+  "sampled_at_utc": "2026-08-07T21:42:36Z",
+  "endpoint": "https://api.hyperliquid.xyz/info",
+  "sample_size": 1,
+  "caveat": "样本量=1，单一时点快照，不可作结论。l2Book 每边最多 20 档。",
+  "perp_dexs": {
+    "xyz": {
+      "fullName": "XYZ",
+      "deployer": "0x88806a71d74ad0a510b350545c9ae490912f0888",
+      "oracleUpdater": null,
+      "feeRecipient": "0x9cd0a696c7cbb9d44de99268194cb08e5684e5fe",
+      "deployerFeeScale": "1.0",
+      "lastDeployerFeeScaleChangeTime": "1970-01-01T00:00:00",
+      "subDeployers": {
+        "registerAsset": [
+          "0x7d16f116d252db609c56d27d6c9605eb03e16657",
+          "0xc0892b4f864807ec26dde6ad8dad6914e079059d"
+        ],
+        "setOracle": [
+          "0x1234567890545d1df9ee64b35fdd16966e08acec"
+        ],
+        "setFeeRecipient": [
+          "0xc0892b4f864807ec26dde6ad8dad6914e079059d"
+        ],
+        "haltTrading": [
+          "0x7d16f116d252db609c56d27d6c9605eb03e16657",
+          "0xc0892b4f864807ec26dde6ad8dad6914e079059d"
+        ],
+        "setMarginTableIds": [
+          "0x7d16f116d252db609c56d27d6c9605eb03e16657",
+          "0xc0892b4f864807ec26dde6ad8dad6914e079059d"
+        ],
+        "setOpenInterestCaps": [
+          "0x7d16f116d252db609c56d27d6c9605eb03e16657",
+          "0xc0892b4f864807ec26dde6ad8dad6914e079059d"
+        ],
+        "setFundingMultipliers": [
+          "0x7d16f116d252db609c56d27d6c9605eb03e16657",
+          "0xc0892b4f864807ec26dde6ad8dad6914e079059d"
+        ],
+        "setMarginModes": [
+          "0x7d16f116d252db609c56d27d6c9605eb03e16657",
+          "0xc0892b4f864807ec26dde6ad8dad6914e079059d"
+        ],
+        "setGrowthModes": [
+          "0x7d16f116d252db609c56d27d6c9605eb03e16657",
+          "0xc0892b4f864807ec26dde6ad8dad6914e079059d"
+        ],
+        "setFundingInterestRates": [
+          "0xc0892b4f864807ec26dde6ad8dad6914e079059d"
+        ],
+        "setPerpAnnotation": [
+          "0x7d16f116d252db609c56d27d6c9605eb03e16657",
+          "0xc0892b4f864807ec26dde6ad8dad6914e079059d"
+        ]
+      },
+      "n_oi_cap_entries": 108
+    },
+    "flx": {
+      "fullName": "Felix Exchange",
+      "deployer": "0x2fab552502a6d45920d5741a2f3ebf4c35536352",
+      "oracleUpdater": "0x94757f8dcb4bf73b850195660e959d1105cfedd5",
+      "feeRecipient": "0xe2872b5ae7dcbba40cc4510d08c8bbea95b42d43",
+      "deployerFeeScale": "1.0",
+      "lastDeployerFeeScaleChangeTime": "1970-01-01T00:00:00",
+      "subDeployers": {
+        "registerAsset": [
+          "0xd0d4ef34424af3da883672b8cdeca751293655a5"
+        ],
+        "setOracle": [
+          "0x94757f8dcb4bf73b850195660e959d1105cfedd5",
+          "0xd0d4ef34424af3da883672b8cdeca751293655a5"
+        ],
+        "insertMarginTable": [
+          "0xd0d4ef34424af3da883672b8cdeca751293655a5"
+        ],
+        "setFeeRecipient": [
+          "0xd0d4ef34424af3da883672b8cdeca751293655a5"
+        ],
+        "haltTrading": [
+          "0xd0d4ef34424af3da883672b8cdeca751293655a5"
+        ],
+        "setMarginTableIds": [
+          "0xd0d4ef34424af3da883672b8cdeca751293655a5"
+        ],
+        "setOpenInterestCaps": [
+          "0x17f5d164a9fa8ed292cdc91e34c0edeed6fc9b90",
+          "0xd0d4ef34424af3da883672b8cdeca751293655a5"
+        ],
+        "setFundingMultipliers": [
+          "0xae083732032a813f9142733cdf380e1bc9e518af",
+          "0xd0d4ef34424af3da883672b8cdeca751293655a5"
+        ],
+        "setMarginModes": [
+          "0xd0d4ef34424af3da883672b8cdeca751293655a5"
+        ],
+        "setFeeScale": [
+          "0xd0d4ef34424af3da883672b8cdeca751293655a5"
+        ],
+        "setGrowthModes": [
+          "0xd0d4ef34424af3da883672b8cdeca751293655a5"
+        ],
+        "setFundingInterestRates": [
+          "0xd0d4ef34424af3da883672b8cdeca751293655a5"
+        ],
+        "setPerpAnnotation": [
+          "0xd0d4ef34424af3da883672b8cdeca751293655a5"
+        ]
+      },
+      "n_oi_cap_entries": 15
+    },
+    "vntl": {
+      "fullName": "Ventuals",
+      "deployer": "0x8888888192a4a0593c13532ba48449fc24c3beda",
+      "oracleUpdater": null,
+      "feeRecipient": "0x5afe865300895b96d20132a8d9fa8e7829334b52",
+      "deployerFeeScale": "1.0",
+      "lastDeployerFeeScaleChangeTime": "1970-01-01T00:00:00",
+      "subDeployers": {
+        "registerAsset": [
+          "0xdfc9f8b03664fb312c51ebf820eaefb6732f495a"
+        ],
+        "setOracle": [
+          "0x0ac1e81a640f1492c286d71031af5af27a9b712e"
+        ],
+        "setMarginTableIds": [
+          "0x6bdf4b47b638a8bb8ba630fbf867dc0f458d953e"
+        ],
+        "setOpenInterestCaps": [
+          "0x6bdf4b47b638a8bb8ba630fbf867dc0f458d953e"
+        ],
+        "setFundingMultipliers": [
+          "0x6bdf4b47b638a8bb8ba630fbf867dc0f458d953e",
+          "0x9f82ce39734468c213f46834d0189222e1fadf5b"
+        ],
+        "setPerpAnnotation": [
+          "0x6bdf4b47b638a8bb8ba630fbf867dc0f458d953e"
+        ]
+      },
+      "n_oi_cap_entries": 15
+    },
+    "hyna": {
+      "fullName": "HyENA",
+      "deployer": "0x53e655101ea361537124ef814ad4e654b54d0637",
+      "oracleUpdater": "0xaab93501e78f5105e265a1eafda10ce6530de17e",
+      "feeRecipient": null,
+      "deployerFeeScale": "0.1111",
+      "lastDeployerFeeScaleChangeTime": "2026-01-20T15:56:29.934742459",
+      "subDeployers": {
+        "setOracle": [
+          "0xaab93501e78f5105e265a1eafda10ce6530de17e",
+          "0xaffde4868990b0b547dea3aaf8082b69825bbc2f"
+        ]
+      },
+      "n_oi_cap_entries": 24
+    },
+    "km": {
+      "fullName": "Markets by Kinetiq",
+      "deployer": "0x71f0019cc7fa79e4f42587fb7b9a817d8d2429ec",
+      "oracleUpdater": null,
+      "feeRecipient": "0xbcd4071d023bf2aae484d724c130b5af6f0ca0d2",
+      "deployerFeeScale": "1.0",
+      "lastDeployerFeeScaleChangeTime": "2025-12-22T08:53:47.933405320",
+      "subDeployers": {
+        "registerAsset": [
+          "0x2cb0dc3ac9a528527db7cc9210b9d4e3c7f68e19"
+        ],
+        "setOracle": [
+          "0xe99202afc998c66b16c1dbb41148ed25efda86c4"
+        ],
+        "haltTrading": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ],
+        "setMarginTableIds": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ],
+        "setOpenInterestCaps": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ],
+        "setFundingMultipliers": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ],
+        "setMarginModes": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ],
+        "setGrowthModes": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ],
+        "setFundingInterestRates": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ],
+        "setPerpAnnotation": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ]
+      },
+      "n_oi_cap_entries": 22
+    },
+    "abcd": {
+      "fullName": "ABCDEx",
+      "deployer": "0x372c7f69d0ecc14f73f89bd8a7dfb41bdf29857c",
+      "oracleUpdater": null,
+      "feeRecipient": null,
+      "deployerFeeScale": "1.0",
+      "lastDeployerFeeScaleChangeTime": "2026-01-13T17:26:02.918999799",
+      "subDeployers": {},
+      "n_oi_cap_entries": 0
+    },
+    "cash": {
+      "fullName": "dreamcash",
+      "deployer": "0xffa8198c62adb1e811629bd54c9b646d726deef7",
+      "oracleUpdater": null,
+      "feeRecipient": "0xaa7f0d3da989dae8fd166345a3ce21509f8c8bb4",
+      "deployerFeeScale": "1.0",
+      "lastDeployerFeeScaleChangeTime": "2026-01-16T10:34:47.407991163",
+      "subDeployers": {
+        "setOracle": [
+          "0xa1607092ef78d439f097c1aec678a08902c773e2",
+          "0xe2de88eb25452f26dd02cbe21a3c2a4db17f9b1d"
+        ],
+        "insertMarginTable": [
+          "0x50ad2695c1e2a896c65b9a9382926eebbf4a77a6"
+        ],
+        "haltTrading": [
+          "0x50ad2695c1e2a896c65b9a9382926eebbf4a77a6"
+        ],
+        "setMarginTableIds": [
+          "0x50ad2695c1e2a896c65b9a9382926eebbf4a77a6"
+        ],
+        "setOpenInterestCaps": [
+          "0x50ad2695c1e2a896c65b9a9382926eebbf4a77a6"
+        ],
+        "setFundingMultipliers": [
+          "0x1a5ddaccd40db649cbe68d72a3017c30a96902fb",
+          "0x50ad2695c1e2a896c65b9a9382926eebbf4a77a6"
+        ],
+        "setMarginModes": [
+          "0x50ad2695c1e2a896c65b9a9382926eebbf4a77a6"
+        ],
+        "setGrowthModes": [
+          "0x50ad2695c1e2a896c65b9a9382926eebbf4a77a6"
+        ],
+        "setFundingInterestRates": [
+          "0x50ad2695c1e2a896c65b9a9382926eebbf4a77a6"
+        ],
+        "setPerpAnnotation": [
+          "0x50ad2695c1e2a896c65b9a9382926eebbf4a77a6"
+        ]
+      },
+      "n_oi_cap_entries": 15
+    },
+    "para": {
+      "fullName": "Paragon",
+      "deployer": "0x8888888c43cbb7e1c4132542e46831bffd866ed3",
+      "oracleUpdater": "0x8888888c43cbb7e1c4132542e46831bffd866ed3",
+      "feeRecipient": "0x1770f43c71b8b2977771b73ca4c4cbe0c20412ed",
+      "deployerFeeScale": "1.0",
+      "lastDeployerFeeScaleChangeTime": "2026-04-01T00:26:44.097068325",
+      "subDeployers": {
+        "setOracle": [
+          "0x764ed9d59c91a2c653fd50c43585917366244335",
+          "0x8888888c43cbb7e1c4132542e46831bffd866ed3"
+        ]
+      },
+      "n_oi_cap_entries": 17
+    },
+    "mkts": {
+      "fullName": "Markets By Kinetiq",
+      "deployer": "0x71f0019cc7fa79e4f42587fb7b9a817d8d2429ec",
+      "oracleUpdater": null,
+      "feeRecipient": "0xbcd4071d023bf2aae484d724c130b5af6f0ca0d2",
+      "deployerFeeScale": "1.0",
+      "lastDeployerFeeScaleChangeTime": "2026-06-22T10:27:31.147146848",
+      "subDeployers": {
+        "registerAsset": [
+          "0x2cb0dc3ac9a528527db7cc9210b9d4e3c7f68e19"
+        ],
+        "setOracle": [
+          "0xe99202afc998c66b16c1dbb41148ed25efda86c4"
+        ],
+        "haltTrading": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ],
+        "setMarginTableIds": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ],
+        "setOpenInterestCaps": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ],
+        "setFundingMultipliers": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ],
+        "setMarginModes": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ],
+        "setGrowthModes": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ],
+        "setFundingInterestRates": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ],
+        "setPerpAnnotation": [
+          "0xecc1e0731ca1cbd237c0564935637c4c9e899e41"
+        ]
+      },
+      "n_oi_cap_entries": 2
+    }
+  },
+  "books": {
+    "xyz:AAPL": {
+      "t_ms": 1786138960397,
+      "best_bid": 313.12,
+      "best_ask": 313.15,
+      "mid": 313.135,
+      "spread_bp": 0.96,
+      "bid_depth_usd_20lvl": 67599.92,
+      "ask_depth_usd_20lvl": 74277.38,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 0.48,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 0.73,
+            "status": "OK",
+            "filled_usd": 1000.0
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 1.04,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 0.79,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 2.47,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 2.18,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 74277.38
+          },
+          "sell": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 67599.92
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.91,
+      "dayNtlVlm": "20062661.1755100004",
+      "openInterest": "127440.196",
+      "markPx": "313.12",
+      "maxLeverage": 20,
+      "marginMode": null
+    },
+    "xyz:NVDA": {
+      "t_ms": 1786138960925,
+      "best_bid": 223.31,
+      "best_ask": 223.32,
+      "mid": 223.315,
+      "spread_bp": 0.45,
+      "bid_depth_usd_20lvl": 421071.3,
+      "ask_depth_usd_20lvl": 191656.63,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 0.22,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 0.22,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 0.3,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 0.41,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 1.06,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 1.21,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 2.61,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 1.71,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 2.197,
+      "dayNtlVlm": "42944479.2635500208",
+      "openInterest": "742582.7679999999",
+      "markPx": "223.31",
+      "maxLeverage": 20,
+      "marginMode": null
+    },
+    "xyz:TSLA": {
+      "t_ms": 1786138961483,
+      "best_bid": 328.83,
+      "best_ask": 328.87,
+      "mid": 328.85,
+      "spread_bp": 1.22,
+      "bid_depth_usd_20lvl": 173293.49,
+      "ask_depth_usd_20lvl": 115894.39,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 0.97,
+            "status": "OK",
+            "filled_usd": 1000.0
+          },
+          "sell": {
+            "bp": 0.61,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 1.45,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 0.61,
+            "status": "OK",
+            "filled_usd": 5000
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 1.75,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 1.19,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 4.53,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 3.28,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 1.495,
+      "dayNtlVlm": "23162993.9733999893",
+      "openInterest": "107117.202",
+      "markPx": "328.76",
+      "maxLeverage": 20,
+      "marginMode": null
+    },
+    "xyz:MSFT": {
+      "t_ms": 1786138961483,
+      "best_bid": 499.43,
+      "best_ask": 499.52,
+      "mid": 499.475,
+      "spread_bp": 1.8,
+      "bid_depth_usd_20lvl": 64628.7,
+      "ask_depth_usd_20lvl": 123581.07,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 0.9,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 0.9,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 1.38,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 1.4,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 2.44,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 2.41,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 4.33,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 64628.7
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.523,
+      "dayNtlVlm": "22203709.383890003",
+      "openInterest": "106520.788",
+      "markPx": "499.51",
+      "maxLeverage": 20,
+      "marginMode": null
+    },
+    "xyz:META": {
+      "t_ms": 1786138962008,
+      "best_bid": 592.89,
+      "best_ask": 592.97,
+      "mid": 592.9300000000001,
+      "spread_bp": 1.35,
+      "bid_depth_usd_20lvl": 132206.96,
+      "ask_depth_usd_20lvl": 56311.78,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 0.84,
+            "status": "OK",
+            "filled_usd": 1000.0
+          },
+          "sell": {
+            "bp": 0.67,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 0.84,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 0.67,
+            "status": "OK",
+            "filled_usd": 5000
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 2.03,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 1.71,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 56311.78
+          },
+          "sell": {
+            "bp": 4.71,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 2.348,
+      "dayNtlVlm": "12981638.2818200011",
+      "openInterest": "77296.254",
+      "markPx": "592.87",
+      "maxLeverage": 20,
+      "marginMode": null
+    },
+    "xyz:GOOGL": {
+      "t_ms": 1786138962612,
+      "best_bid": 354.75,
+      "best_ask": 354.76,
+      "mid": 354.755,
+      "spread_bp": 0.28,
+      "bid_depth_usd_20lvl": 175814.29,
+      "ask_depth_usd_20lvl": 130868.81,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 0.14,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 0.29,
+            "status": "OK",
+            "filled_usd": 1000.0
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 0.49,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 0.5,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 1.86,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 0.65,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 4.22,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 2.9,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 1.343,
+      "dayNtlVlm": "24715892.2667099945",
+      "openInterest": "350594.666",
+      "markPx": "354.76",
+      "maxLeverage": 20,
+      "marginMode": null
+    },
+    "xyz:AMZN": {
+      "t_ms": 1786138962612,
+      "best_bid": 274.2,
+      "best_ask": 274.23,
+      "mid": 274.21500000000003,
+      "spread_bp": 1.09,
+      "bid_depth_usd_20lvl": 37305.6,
+      "ask_depth_usd_20lvl": 67214.72,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 0.55,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 0.87,
+            "status": "OK",
+            "filled_usd": 1000.0
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 1.46,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 1.55,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 2.18,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 4.09,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 67214.72
+          },
+          "sell": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 37305.6
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.555,
+      "dayNtlVlm": "7068402.7107700035",
+      "openInterest": "100139.364",
+      "markPx": "274.23",
+      "maxLeverage": 20,
+      "marginMode": null
+    },
+    "xyz:NFLX": {
+      "t_ms": 1786138963149,
+      "best_bid": 74.228,
+      "best_ask": 74.253,
+      "mid": 74.2405,
+      "spread_bp": 3.37,
+      "bid_depth_usd_20lvl": 83091.48,
+      "ask_depth_usd_20lvl": 58163.33,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 5.5,
+            "status": "OK",
+            "filled_usd": 1000.0
+          },
+          "sell": {
+            "bp": 3.61,
+            "status": "OK",
+            "filled_usd": 1000.0
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 7.08,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 3.69,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 9.39,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 6.4,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 58163.33
+          },
+          "sell": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 83091.48
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 1.429,
+      "dayNtlVlm": "941209.689132",
+      "openInterest": "60978.576",
+      "markPx": "74.229",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    },
+    "xyz:COST": {
+      "t_ms": 1786138963695,
+      "best_bid": 946.02,
+      "best_ask": 946.5,
+      "mid": 946.26,
+      "spread_bp": 5.07,
+      "bid_depth_usd_20lvl": 99132.92,
+      "ask_depth_usd_20lvl": 33941.02,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 2.54,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 4.81,
+            "status": "OK",
+            "filled_usd": 1000.0
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 3.05,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 9.62,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 11.53,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 17.13,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 33941.02
+          },
+          "sell": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 99132.92
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 2.921,
+      "dayNtlVlm": "74886.212271",
+      "openInterest": "299.3208",
+      "markPx": "946.23",
+      "maxLeverage": 20,
+      "marginMode": "noCross"
+    },
+    "xyz:MSTR": {
+      "t_ms": 1786138963695,
+      "best_bid": 100.13,
+      "best_ask": 100.15,
+      "mid": 100.14,
+      "spread_bp": 2.0,
+      "bid_depth_usd_20lvl": 173513.9,
+      "ask_depth_usd_20lvl": 189205.2,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 1.32,
+            "status": "OK",
+            "filled_usd": 1000.0
+          },
+          "sell": {
+            "bp": 1.0,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 1.86,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 1.6,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 3.85,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 2.92,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 7.96,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 7.22,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.917,
+      "dayNtlVlm": "15819907.462163996",
+      "openInterest": "216475.564",
+      "markPx": "100.12",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    },
+    "xyz:COIN": {
+      "t_ms": 1786138964219,
+      "best_bid": 154.04,
+      "best_ask": 154.08,
+      "mid": 154.06,
+      "spread_bp": 2.6,
+      "bid_depth_usd_20lvl": 111491.22,
+      "ask_depth_usd_20lvl": 134208.71,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 1.92,
+            "status": "OK",
+            "filled_usd": 1000.0
+          },
+          "sell": {
+            "bp": 1.63,
+            "status": "OK",
+            "filled_usd": 1000.0
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 2.46,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 3.27,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 3.98,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 6.07,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 9.87,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 9.7,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.831,
+      "dayNtlVlm": "7934763.2549299998",
+      "openInterest": "82676.374",
+      "markPx": "154.07",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    },
+    "xyz:PLTR": {
+      "t_ms": 1786138964769,
+      "best_bid": 171.06,
+      "best_ask": 171.1,
+      "mid": 171.07999999999998,
+      "spread_bp": 2.34,
+      "bid_depth_usd_20lvl": 91750.37,
+      "ask_depth_usd_20lvl": 194336.89,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 1.17,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 1.58,
+            "status": "OK",
+            "filled_usd": 1000.0
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 1.59,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 1.72,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 2.12,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 2.53,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 4.51,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 91750.37
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.472,
+      "dayNtlVlm": "55962885.4990399852",
+      "openInterest": "241237.378",
+      "markPx": "171.08",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    },
+    "xyz:INTC": {
+      "t_ms": 1786138964769,
+      "best_bid": 101.36,
+      "best_ask": 101.38,
+      "mid": 101.37,
+      "spread_bp": 1.97,
+      "bid_depth_usd_20lvl": 482926.45,
+      "ask_depth_usd_20lvl": 504259.39,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 0.99,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 0.99,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 0.99,
+            "status": "OK",
+            "filled_usd": 5000
+          },
+          "sell": {
+            "bp": 1.13,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 1.58,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 1.97,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 4.23,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 4.53,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.958,
+      "dayNtlVlm": "84608626.1006800681",
+      "openInterest": "540144.8",
+      "markPx": "101.4",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    },
+    "xyz:ORCL": {
+      "t_ms": 1786138965278,
+      "best_bid": 146.55,
+      "best_ask": 146.57,
+      "mid": 146.56,
+      "spread_bp": 1.36,
+      "bid_depth_usd_20lvl": 66230.71,
+      "ask_depth_usd_20lvl": 272962.66,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 0.87,
+            "status": "OK",
+            "filled_usd": 1000.0
+          },
+          "sell": {
+            "bp": 1.72,
+            "status": "OK",
+            "filled_usd": 1000.0
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 1.27,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 2.29,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 2.38,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 4.07,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 4.65,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 66230.71
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.243,
+      "dayNtlVlm": "32324539.2665300071",
+      "openInterest": "225376.62",
+      "markPx": "146.57",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    },
+    "xyz:AMD": {
+      "t_ms": 1786138965830,
+      "best_bid": 482.63,
+      "best_ask": 482.68,
+      "mid": 482.655,
+      "spread_bp": 1.04,
+      "bid_depth_usd_20lvl": 101656.78,
+      "ask_depth_usd_20lvl": 68662.13,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 0.52,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 0.52,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 1.43,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 1.42,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 2.31,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 2.7,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 68662.13
+          },
+          "sell": {
+            "bp": 4.61,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 1.481,
+      "dayNtlVlm": "17930890.0521200001",
+      "openInterest": "26146.784",
+      "markPx": "482.68",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    },
+    "xyz:MU": {
+      "t_ms": 1786138965830,
+      "best_bid": 874.11,
+      "best_ask": 874.12,
+      "mid": 874.115,
+      "spread_bp": 0.11,
+      "bid_depth_usd_20lvl": 189540.28,
+      "ask_depth_usd_20lvl": 211708.56,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 0.94,
+            "status": "OK",
+            "filled_usd": 1000.0
+          },
+          "sell": {
+            "bp": 0.06,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 0.97,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 0.06,
+            "status": "OK",
+            "filled_usd": 5000
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 1.25,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 0.69,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 2.01,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 1.7,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.895,
+      "dayNtlVlm": "355912226.2891002297",
+      "openInterest": "219994.186",
+      "markPx": "874.24",
+      "maxLeverage": 10,
+      "marginMode": null
+    },
+    "xyz:TSM": {
+      "t_ms": 1786138966377,
+      "best_bid": 421.06,
+      "best_ask": 421.11,
+      "mid": 421.08500000000004,
+      "spread_bp": 1.19,
+      "bid_depth_usd_20lvl": 92250.74,
+      "ask_depth_usd_20lvl": 22199.39,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 0.81,
+            "status": "OK",
+            "filled_usd": 1000.0
+          },
+          "sell": {
+            "bp": 1.28,
+            "status": "OK",
+            "filled_usd": 1000.0
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 1.02,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 2.6,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 6.17,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 4.9,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 22199.39
+          },
+          "sell": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 92250.74
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 4.156,
+      "dayNtlVlm": "2143480.1555100004",
+      "openInterest": "36075.686",
+      "markPx": "421.1",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    },
+    "xyz:LLY": {
+      "t_ms": 1786138966892,
+      "best_bid": 1183.1,
+      "best_ask": 1184.1,
+      "mid": 1183.6,
+      "spread_bp": 8.45,
+      "bid_depth_usd_20lvl": 82358.36,
+      "ask_depth_usd_20lvl": 146731.2,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 4.22,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 4.22,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 5.58,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 4.22,
+            "status": "OK",
+            "filled_usd": 5000
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 7.73,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 11.38,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 28.38,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 82358.36
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.561,
+      "dayNtlVlm": "2035414.5673299993",
+      "openInterest": "2531.0592",
+      "markPx": "1183.9",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    },
+    "xyz:XYZ100": {
+      "t_ms": 1786138967438,
+      "best_bid": 29734.0,
+      "best_ask": 29735.0,
+      "mid": 29734.5,
+      "spread_bp": 0.34,
+      "bid_depth_usd_20lvl": 847428.45,
+      "ask_depth_usd_20lvl": 1080544.62,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 0.25,
+            "status": "OK",
+            "filled_usd": 1000.0
+          },
+          "sell": {
+            "bp": 0.17,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 0.45,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 0.17,
+            "status": "OK",
+            "filled_usd": 5000
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 0.71,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 0.17,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 1.19,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 0.63,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.784,
+      "dayNtlVlm": "210213917.8222998083",
+      "openInterest": "6685.7388",
+      "markPx": "29732.0",
+      "maxLeverage": 30,
+      "marginMode": null
+    },
+    "xyz:GOLD": {
+      "t_ms": 1786138967438,
+      "best_bid": 4350.0,
+      "best_ask": 4350.1,
+      "mid": 4350.05,
+      "spread_bp": 0.23,
+      "bid_depth_usd_20lvl": 560946.85,
+      "ask_depth_usd_20lvl": 429316.08,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 0.11,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 0.11,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 0.11,
+            "status": "OK",
+            "filled_usd": 5000
+          },
+          "sell": {
+            "bp": 0.11,
+            "status": "OK",
+            "filled_usd": 5000
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 0.11,
+            "status": "OK",
+            "filled_usd": 20000
+          },
+          "sell": {
+            "bp": 0.3,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 0.11,
+            "status": "OK",
+            "filled_usd": 100000
+          },
+          "sell": {
+            "bp": 1.59,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 1.307,
+      "dayNtlVlm": "170374636.1604601443",
+      "openInterest": "75314.6304",
+      "markPx": "4350.1",
+      "maxLeverage": 25,
+      "marginMode": null
+    },
+    "mkts:US500": {
+      "t_ms": 1786138967989,
+      "best_bid": 773.39,
+      "best_ask": 773.68,
+      "mid": 773.535,
+      "spread_bp": 3.75,
+      "bid_depth_usd_20lvl": 7850.95,
+      "ask_depth_usd_20lvl": 11686.96,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 2.71,
+            "status": "OK",
+            "filled_usd": 1000.0
+          },
+          "sell": {
+            "bp": 2.2,
+            "status": "OK",
+            "filled_usd": 1000.0
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 4.82,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 7.56,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 11686.96
+          },
+          "sell": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 7850.95
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 11686.96
+          },
+          "sell": {
+            "bp": null,
+            "status": "EXCEEDS_BOOK",
+            "filled_usd": 7850.95
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.672,
+      "dayNtlVlm": "1318508.4359100002",
+      "openInterest": "2667.076",
+      "markPx": "773.39",
+      "maxLeverage": 25,
+      "marginMode": null
+    },
+    "mkts:USTECH": {
+      "t_ms": 1786138968547,
+      "best_bid": 723.08,
+      "best_ask": 723.24,
+      "mid": 723.1600000000001,
+      "spread_bp": 2.21,
+      "bid_depth_usd_20lvl": 410529.02,
+      "ask_depth_usd_20lvl": 139569.17,
+      "n_bid_levels": 20,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 1.18,
+            "status": "OK",
+            "filled_usd": 1000.0
+          },
+          "sell": {
+            "bp": 1.96,
+            "status": "OK",
+            "filled_usd": 1000.0
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 1.38,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 2.16,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 1.74,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 2.2,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 9.81,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 43.15,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 2.941,
+      "dayNtlVlm": "4404916.3922999948",
+      "openInterest": "14492.334",
+      "markPx": "723.1",
+      "maxLeverage": 25,
+      "marginMode": null
+    },
+    "para:AVGO": {
+      "t_ms": 1786138968547,
+      "best_bid": 424.85,
+      "best_ask": 426.05,
+      "mid": 425.45000000000005,
+      "spread_bp": 28.21,
+      "bid_depth_usd_20lvl": 108694.35,
+      "ask_depth_usd_20lvl": 112179.29,
+      "n_bid_levels": 14,
+      "n_ask_levels": 17,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 14.1,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 14.1,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 24.61,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 16.6,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 53.13,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 24.13,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 134.58,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 90.02,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.969,
+      "dayNtlVlm": "2669.6479",
+      "openInterest": "208.26",
+      "markPx": "425.56",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    },
+    "para:COHR": {
+      "t_ms": 1786138969088,
+      "best_bid": 378.49,
+      "best_ask": 379.0,
+      "mid": 378.745,
+      "spread_bp": 13.47,
+      "bid_depth_usd_20lvl": 420088.06,
+      "ask_depth_usd_20lvl": 432925.62,
+      "n_bid_levels": 18,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 37.97,
+            "status": "OK",
+            "filled_usd": 1000.0
+          },
+          "sell": {
+            "bp": 6.73,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 38.96,
+            "status": "OK",
+            "filled_usd": 5000.0
+          },
+          "sell": {
+            "bp": 6.73,
+            "status": "OK",
+            "filled_usd": 5000
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 39.27,
+            "status": "OK",
+            "filled_usd": 20000.0
+          },
+          "sell": {
+            "bp": 7.6,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 47.14,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 16.93,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.97,
+      "dayNtlVlm": "378901.6896999999",
+      "openInterest": "513.08",
+      "markPx": "378.9236",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    },
+    "para:CRDO": {
+      "t_ms": 1786138969620,
+      "best_bid": 248.8,
+      "best_ask": 250.15,
+      "mid": 249.47500000000002,
+      "spread_bp": 54.11,
+      "bid_depth_usd_20lvl": 414567.19,
+      "ask_depth_usd_20lvl": 424572.17,
+      "n_bid_levels": 18,
+      "n_ask_levels": 20,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 27.06,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 27.06,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 27.06,
+            "status": "OK",
+            "filled_usd": 5000
+          },
+          "sell": {
+            "bp": 27.06,
+            "status": "OK",
+            "filled_usd": 5000
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 27.06,
+            "status": "OK",
+            "filled_usd": 20000
+          },
+          "sell": {
+            "bp": 27.5,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 44.23,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 39.42,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.976,
+      "dayNtlVlm": "142991.7364",
+      "openInterest": "1161.12",
+      "markPx": "249.43",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    },
+    "para:NET": {
+      "t_ms": 1786138969620,
+      "best_bid": 300.25,
+      "best_ask": 301.99,
+      "mid": 301.12,
+      "spread_bp": 57.78,
+      "bid_depth_usd_20lvl": 157695.55,
+      "ask_depth_usd_20lvl": 212221.1,
+      "n_bid_levels": 5,
+      "n_ask_levels": 7,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 28.89,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 28.89,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 28.89,
+            "status": "OK",
+            "filled_usd": 5000
+          },
+          "sell": {
+            "bp": 28.89,
+            "status": "OK",
+            "filled_usd": 5000
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 28.89,
+            "status": "OK",
+            "filled_usd": 20000
+          },
+          "sell": {
+            "bp": 28.91,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 121.07,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 122.23,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.743,
+      "dayNtlVlm": "134762.828",
+      "openInterest": "63.4",
+      "markPx": "301.1",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    },
+    "para:RDDT": {
+      "t_ms": 1786138970225,
+      "best_bid": 160.91,
+      "best_ask": 161.85,
+      "mid": 161.38,
+      "spread_bp": 58.25,
+      "bid_depth_usd_20lvl": 163490.95,
+      "ask_depth_usd_20lvl": 166991.49,
+      "n_bid_levels": 9,
+      "n_ask_levels": 10,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 29.12,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 29.12,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 29.12,
+            "status": "OK",
+            "filled_usd": 5000
+          },
+          "sell": {
+            "bp": 29.12,
+            "status": "OK",
+            "filled_usd": 5000
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 29.12,
+            "status": "OK",
+            "filled_usd": 20000
+          },
+          "sell": {
+            "bp": 29.14,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 121.16,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 122.31,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.979,
+      "dayNtlVlm": "2932.2764",
+      "openInterest": "114.76",
+      "markPx": "161.4754",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    },
+    "para:IREN": {
+      "t_ms": 1786138970830,
+      "best_bid": 41.221,
+      "best_ask": 41.414,
+      "mid": 41.317499999999995,
+      "spread_bp": 46.71,
+      "bid_depth_usd_20lvl": 384329.54,
+      "ask_depth_usd_20lvl": 453129.62,
+      "n_bid_levels": 15,
+      "n_ask_levels": 18,
+      "impact": {
+        "1000": {
+          "buy": {
+            "bp": 23.36,
+            "status": "OK",
+            "filled_usd": 1000
+          },
+          "sell": {
+            "bp": 23.36,
+            "status": "OK",
+            "filled_usd": 1000
+          }
+        },
+        "5000": {
+          "buy": {
+            "bp": 23.36,
+            "status": "OK",
+            "filled_usd": 5000
+          },
+          "sell": {
+            "bp": 23.36,
+            "status": "OK",
+            "filled_usd": 5000.0
+          }
+        },
+        "20000": {
+          "buy": {
+            "bp": 23.36,
+            "status": "OK",
+            "filled_usd": 20000
+          },
+          "sell": {
+            "bp": 27.34,
+            "status": "OK",
+            "filled_usd": 20000.0
+          }
+        },
+        "100000": {
+          "buy": {
+            "bp": 35.34,
+            "status": "OK",
+            "filled_usd": 100000.0
+          },
+          "sell": {
+            "bp": 38.57,
+            "status": "OK",
+            "filled_usd": 100000.0
+          }
+        }
+      },
+      "depth_asymmetry_ratio": 0.848,
+      "dayNtlVlm": "309353.9796900001",
+      "openInterest": "3725.04",
+      "markPx": "41.295",
+      "maxLeverage": 10,
+      "marginMode": "noCross"
+    }
+  },
+  "errors": [],
+  "perp_dex_status": {
+    "(main)": {
+      "totalNetDeposit": "1869268930.701941967"
+    },
+    "xyz": {
+      "totalNetDeposit": "1317356936.3277730942"
+    },
+    "flx": {
+      "totalNetDeposit": "6470.665009"
+    },
+    "vntl": {
+      "totalNetDeposit": "22987.42482"
+    },
+    "hyna": {
+      "totalNetDeposit": "5226226.7121799998"
+    },
+    "km": {
+      "totalNetDeposit": "24127.747278"
+    },
+    "abcd": {
+      "totalNetDeposit": "0.01"
+    },
+    "cash": {
+      "totalNetDeposit": "513918.51505"
+    },
+    "para": {
+      "totalNetDeposit": "8010967.3563270001"
+    },
+    "mkts": {
+      "totalNetDeposit": "5253983.0139669999"
+    }
+  },
+  "isolation_probe": {
+    "user": "0x88806a71d74ad0a510b350545c9ae490912f0888",
+    "states": {
+      "(main)": {
+        "accountValue": "59.0",
+        "withdrawable": "59.0",
+        "crossMaintenanceMarginUsed": "0.0",
+        "n_positions": 0
+      },
+      "xyz": {
+        "accountValue": "9.999719",
+        "withdrawable": "9.999719",
+        "crossMaintenanceMarginUsed": "0.0",
+        "n_positions": 0
+      },
+      "para": {
+        "accountValue": "0.0",
+        "withdrawable": "0.0",
+        "crossMaintenanceMarginUsed": "0.0",
+        "n_positions": 0
+      },
+      "mkts": {
+        "accountValue": "0.0",
+        "withdrawable": "0.0",
+        "crossMaintenanceMarginUsed": "0.0",
+        "n_positions": 0
+      }
+    }
+  },
+  "asset_ctx": {
+    "xyz": {
+      "xyz:XYZ100": {
+        "maxLeverage": 30,
+        "marginTableId": 30,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "29732.0",
+        "oraclePx": "29730.0",
+        "midPx": "29734.5",
+        "dayNtlVlm": "210213917.8222998083",
+        "openInterest": "6685.7388",
+        "funding": "0.00000625"
+      },
+      "xyz:TSLA": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "328.76",
+        "oraclePx": "328.68",
+        "midPx": "328.835",
+        "dayNtlVlm": "23162993.9733999893",
+        "openInterest": "107117.202",
+        "funding": "0.00000625"
+      },
+      "xyz:NVDA": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "223.31",
+        "oraclePx": "223.16",
+        "midPx": "223.315",
+        "dayNtlVlm": "42944479.2635500208",
+        "openInterest": "742582.7679999999",
+        "funding": "0.0000162425"
+      },
+      "xyz:GOLD": {
+        "maxLeverage": 25,
+        "marginTableId": 25,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "4350.1",
+        "oraclePx": "4347.1",
+        "midPx": "4350.05",
+        "dayNtlVlm": "170374636.1604601443",
+        "openInterest": "75314.6304",
+        "funding": "0.0000286586"
+      },
+      "xyz:HOOD": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "93.534",
+        "oraclePx": "93.525",
+        "midPx": "93.534",
+        "dayNtlVlm": "4250814.3294399995",
+        "openInterest": "171252.28",
+        "funding": "0.00000625"
+      },
+      "xyz:INTC": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "101.4",
+        "oraclePx": "101.41",
+        "midPx": "101.37",
+        "dayNtlVlm": "84608626.1006800681",
+        "openInterest": "540144.8",
+        "funding": "-0.0000019468"
+      },
+      "xyz:PLTR": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "171.08",
+        "oraclePx": "171.28",
+        "midPx": "171.07",
+        "dayNtlVlm": "55962885.4990399852",
+        "openInterest": "241237.378",
+        "funding": "-0.0000519098"
+      },
+      "xyz:COIN": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "154.07",
+        "oraclePx": "154.06",
+        "midPx": "154.075",
+        "dayNtlVlm": "7934763.2549299998",
+        "openInterest": "82676.374",
+        "funding": "0.0000123366"
+      },
+      "xyz:META": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "592.87",
+        "oraclePx": "592.41",
+        "midPx": "592.93",
+        "dayNtlVlm": "12981638.2818200011",
+        "openInterest": "77296.254",
+        "funding": "0.0000244104"
+      },
+      "xyz:AAPL": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "313.12",
+        "oraclePx": "313.1",
+        "midPx": "313.135",
+        "dayNtlVlm": "20062661.1755100004",
+        "openInterest": "127440.196",
+        "funding": "0.00000625"
+      },
+      "xyz:MSFT": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "499.51",
+        "oraclePx": "499.6",
+        "midPx": "499.475",
+        "dayNtlVlm": "22203709.383890003",
+        "openInterest": "106520.788",
+        "funding": "-0.0000017136"
+      },
+      "xyz:ORCL": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "146.57",
+        "oraclePx": "146.62",
+        "midPx": "146.56",
+        "dayNtlVlm": "32324539.2665300071",
+        "openInterest": "225376.62",
+        "funding": "-0.000022734"
+      },
+      "xyz:GOOGL": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "354.76",
+        "oraclePx": "354.54",
+        "midPx": "354.755",
+        "dayNtlVlm": "24715892.2667099945",
+        "openInterest": "350594.666",
+        "funding": "0.0000358241"
+      },
+      "xyz:AMZN": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "274.23",
+        "oraclePx": "274.33",
+        "midPx": "274.215",
+        "dayNtlVlm": "7068402.7107700035",
+        "openInterest": "100139.364",
+        "funding": "-0.0000010618"
+      },
+      "xyz:AMD": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "482.68",
+        "oraclePx": "482.89",
+        "midPx": "482.655",
+        "dayNtlVlm": "17930890.0521200001",
+        "openInterest": "26146.784",
+        "funding": "-0.0000036189"
+      },
+      "xyz:MU": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "874.24",
+        "oraclePx": "875.07",
+        "midPx": "874.115",
+        "dayNtlVlm": "355912226.2891002297",
+        "openInterest": "219994.186",
+        "funding": "-0.000039701"
+      },
+      "xyz:SNDK": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "1213.2",
+        "oraclePx": "1213.0",
+        "midPx": "1213.25",
+        "dayNtlVlm": "272153113.1310994029",
+        "openInterest": "109522.9239999999",
+        "funding": "0.00000625"
+      },
+      "xyz:MSTR": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "100.12",
+        "oraclePx": "100.12",
+        "midPx": "100.135",
+        "dayNtlVlm": "15819907.462163996",
+        "openInterest": "216475.564",
+        "funding": "0.00000625"
+      },
+      "xyz:CRCL": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "66.9",
+        "oraclePx": "66.9",
+        "midPx": "66.909",
+        "dayNtlVlm": "27898090.4591089971",
+        "openInterest": "638894.8060000002",
+        "funding": "0.00000625"
+      },
+      "xyz:NFLX": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "74.229",
+        "oraclePx": "74.215",
+        "midPx": "74.24",
+        "dayNtlVlm": "941209.689132",
+        "openInterest": "60978.576",
+        "funding": "0.00000625"
+      },
+      "xyz:COST": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "946.23",
+        "oraclePx": "945.25",
+        "midPx": "946.26",
+        "dayNtlVlm": "74886.212271",
+        "openInterest": "299.3208",
+        "funding": "0.0000236576"
+      },
+      "xyz:LLY": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "1183.9",
+        "oraclePx": "1183.9",
+        "midPx": "1183.6",
+        "dayNtlVlm": "2035414.5673299993",
+        "openInterest": "2531.0592",
+        "funding": "0.00000625"
+      },
+      "xyz:SKHX": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "1012.6",
+        "oraclePx": "1013.0",
+        "midPx": "1012.65",
+        "dayNtlVlm": "724380088.5371001959",
+        "openInterest": "389905.26",
+        "funding": "0.00000625"
+      },
+      "xyz:TSM": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "421.1",
+        "oraclePx": "420.82",
+        "midPx": "421.085",
+        "dayNtlVlm": "2143480.1555100004",
+        "openInterest": "36075.686",
+        "funding": "0.0000297037"
+      },
+      "xyz:JPY": {
+        "maxLeverage": 50,
+        "marginTableId": 50,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "157.87",
+        "oraclePx": "157.85",
+        "midPx": "157.875",
+        "dayNtlVlm": "5495476.4261999968",
+        "openInterest": "122731.5",
+        "funding": "0.0"
+      },
+      "xyz:EUR": {
+        "maxLeverage": 50,
+        "marginTableId": 50,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "1.156",
+        "oraclePx": "1.1559",
+        "midPx": "1.156",
+        "dayNtlVlm": "1719685.8173199997",
+        "openInterest": "9416789.5999999996",
+        "funding": "0.0"
+      },
+      "xyz:SILVER": {
+        "maxLeverage": 25,
+        "marginTableId": 25,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "63.714",
+        "oraclePx": "63.687",
+        "midPx": "63.7135",
+        "dayNtlVlm": "153628442.7274706662",
+        "openInterest": "2431539.9200000106",
+        "funding": "0.0000634099"
+      },
+      "xyz:RIVN": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "16.035",
+        "oraclePx": "16.035",
+        "midPx": "16.045",
+        "dayNtlVlm": "118998.05382",
+        "openInterest": "40902.92",
+        "funding": "0.0000306343"
+      },
+      "xyz:BABA": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "128.44",
+        "oraclePx": "128.31",
+        "midPx": "128.445",
+        "dayNtlVlm": "1790903.8501200003",
+        "openInterest": "71533.572",
+        "funding": "0.0000344882"
+      },
+      "xyz:CL": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "76.763",
+        "oraclePx": "76.883",
+        "midPx": "76.749",
+        "dayNtlVlm": "307477889.1495009065",
+        "openInterest": "2800277.3059999999",
+        "funding": "-0.0001052103"
+      },
+      "xyz:COPPER": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "6.6129",
+        "oraclePx": "6.6047",
+        "midPx": "6.6137",
+        "dayNtlVlm": "8805772.7432619985",
+        "openInterest": "2185978.54",
+        "funding": "0.0001233341"
+      },
+      "xyz:NATGAS": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "2.6755",
+        "oraclePx": "2.6764",
+        "midPx": "2.67455",
+        "dayNtlVlm": "6393211.0653299987",
+        "openInterest": "2712739.1999999997",
+        "funding": "0.0000769806"
+      },
+      "xyz:SMSN": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "165.06",
+        "oraclePx": "165.02",
+        "midPx": "165.1",
+        "dayNtlVlm": "83053870.3269999623",
+        "openInterest": "421076.3999999998",
+        "funding": "0.0000330701"
+      },
+      "xyz:PLATINUM": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "1752.5",
+        "oraclePx": "1750.9",
+        "midPx": "1752.6",
+        "dayNtlVlm": "3596499.6265900009",
+        "openInterest": "3195.4296",
+        "funding": "0.0000373553"
+      },
+      "xyz:USAR": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "19.347",
+        "oraclePx": "19.36",
+        "midPx": "19.3415",
+        "dayNtlVlm": "901627.8206799999",
+        "openInterest": "67779.64",
+        "funding": "0.00000625"
+      },
+      "xyz:CRWV": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "90.882",
+        "oraclePx": "90.902",
+        "midPx": "90.887",
+        "dayNtlVlm": "3837403.6465099999",
+        "openInterest": "47003.22",
+        "funding": "0.0000062049"
+      },
+      "xyz:URNM": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "54.56",
+        "oraclePx": "54.406",
+        "midPx": "54.586",
+        "dayNtlVlm": "267894.47688",
+        "openInterest": "19395.78",
+        "funding": "0.0000903157"
+      },
+      "xyz:PALLADIUM": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "1384.8",
+        "oraclePx": "1384.0",
+        "midPx": "1384.55",
+        "dayNtlVlm": "522889.6666499998",
+        "openInterest": "1616.3818",
+        "funding": "0.0000877543"
+      },
+      "xyz:GME": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "19.16",
+        "oraclePx": "19.16",
+        "midPx": "19.1655",
+        "dayNtlVlm": "267248.3659199999",
+        "openInterest": "65010.0",
+        "funding": "0.0000324877"
+      },
+      "xyz:KR200": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "980.83",
+        "oraclePx": "983.95",
+        "midPx": "981.03",
+        "dayNtlVlm": "1526935.9212059996",
+        "openInterest": "1448.3474",
+        "funding": "-0.0002284536"
+      },
+      "xyz:SOFTBANK": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "35.119",
+        "oraclePx": "34.93",
+        "midPx": "35.201",
+        "dayNtlVlm": "294659.16135",
+        "openInterest": "10702.192",
+        "funding": "0.0001886437"
+      },
+      "xyz:JP225": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "66041.0",
+        "oraclePx": "66176.0",
+        "midPx": "66008.5",
+        "dayNtlVlm": "1329887.35466",
+        "openInterest": "18.94844",
+        "funding": "-0.0000545822"
+      },
+      "xyz:HYUNDAI": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "282.1",
+        "oraclePx": "282.15",
+        "midPx": "281.995",
+        "dayNtlVlm": "1570993.0561399998",
+        "openInterest": "4940.584",
+        "funding": "0.00000625"
+      },
+      "xyz:KIOXIA": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "296.85",
+        "oraclePx": "297.19",
+        "midPx": "296.845",
+        "dayNtlVlm": "13988319.1086400095",
+        "openInterest": "36013.25",
+        "funding": "-0.0001057084"
+      },
+      "xyz:EWY": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "165.71",
+        "oraclePx": "165.71",
+        "midPx": "165.69",
+        "dayNtlVlm": "41290542.018249996",
+        "openInterest": "96878.906",
+        "funding": "0.00000625"
+      },
+      "xyz:EWJ": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "96.625",
+        "oraclePx": "96.65",
+        "midPx": "96.559",
+        "dayNtlVlm": "752195.032784",
+        "openInterest": "8661.288",
+        "funding": "-0.0000012382"
+      },
+      "xyz:BRENTOIL": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "81.851",
+        "oraclePx": "81.958",
+        "midPx": "81.8285",
+        "dayNtlVlm": "191057660.8156299889",
+        "openInterest": "2444568.7200000007",
+        "funding": "-0.0001490291"
+      },
+      "xyz:HIMS": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "31.652",
+        "oraclePx": "31.665",
+        "midPx": "31.6295",
+        "dayNtlVlm": "1253185.0331299999",
+        "openInterest": "99467.64",
+        "funding": "0.0000010915"
+      },
+      "xyz:SP500": {
+        "maxLeverage": 50,
+        "marginTableId": 50,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "7750.0",
+        "oraclePx": "7750.4",
+        "midPx": "7749.85",
+        "dayNtlVlm": "346365469.1597998738",
+        "openInterest": "60119.144",
+        "funding": "-0.0000024784"
+      },
+      "xyz:DKNG": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "23.956",
+        "oraclePx": "23.955",
+        "midPx": "23.9965",
+        "dayNtlVlm": "876997.6801599998",
+        "openInterest": "17481.8",
+        "funding": "0.0000283491"
+      },
+      "xyz:LITE": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "891.09",
+        "oraclePx": "891.09",
+        "midPx": "891.395",
+        "dayNtlVlm": "10097627.7858599983",
+        "openInterest": "6420.898",
+        "funding": "0.00000625"
+      },
+      "xyz:XLE": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "57.477",
+        "oraclePx": "57.535",
+        "midPx": "57.4115",
+        "dayNtlVlm": "1435799.9392300001",
+        "openInterest": "35790.56",
+        "funding": "-0.0000055801"
+      },
+      "xyz:BX": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "137.11",
+        "oraclePx": "137.0",
+        "midPx": "137.15",
+        "dayNtlVlm": "196114.7251",
+        "openInterest": "4095.82",
+        "funding": "0.00000625"
+      },
+      "xyz:PURRDAT": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "6.7309",
+        "oraclePx": "6.7399",
+        "midPx": "6.73385",
+        "dayNtlVlm": "1892791.4734",
+        "openInterest": "854028.0",
+        "funding": "-0.0001778631"
+      },
+      "xyz:MRVL": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "217.82",
+        "oraclePx": "217.86",
+        "midPx": "217.845",
+        "dayNtlVlm": "20624643.8262999952",
+        "openInterest": "135097.64",
+        "funding": "0.00000625"
+      },
+      "xyz:RKLB": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "83.085",
+        "oraclePx": "83.125",
+        "midPx": "83.0725",
+        "dayNtlVlm": "5165543.9529000046",
+        "openInterest": "58861.02",
+        "funding": "-0.0000018368"
+      },
+      "xyz:BIRD": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "2.5322",
+        "oraclePx": "2.4971",
+        "midPx": "2.5307",
+        "dayNtlVlm": "323106.28909",
+        "openInterest": "19692.0",
+        "funding": "0.0006008344"
+      },
+      "xyz:DRAM": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "50.4",
+        "oraclePx": "50.447",
+        "midPx": "50.3875",
+        "dayNtlVlm": "268799017.6176000237",
+        "openInterest": "1277821.8",
+        "funding": "-0.0000045681"
+      },
+      "xyz:CBRS": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "226.6",
+        "oraclePx": "226.6",
+        "midPx": "226.945",
+        "dayNtlVlm": "16335254.0382999945",
+        "openInterest": "224570.68",
+        "funding": "-0.0000159"
+      },
+      "xyz:EWZ": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "35.349",
+        "oraclePx": "35.28",
+        "midPx": "35.349",
+        "dayNtlVlm": "91248.18533",
+        "openInterest": "5802.54",
+        "funding": "0.000056164"
+      },
+      "xyz:ZM": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "104.05",
+        "oraclePx": "103.77",
+        "midPx": "104.04",
+        "dayNtlVlm": "176138.3761000001",
+        "openInterest": "3114.002",
+        "funding": "0.0002979979"
+      },
+      "xyz:EBAY": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "111.79",
+        "oraclePx": "111.79",
+        "midPx": "111.825",
+        "dayNtlVlm": "116060.2797",
+        "openInterest": "2385.36",
+        "funding": "0.00000625"
+      },
+      "xyz:ARM": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "282.78",
+        "oraclePx": "282.59",
+        "midPx": "282.72",
+        "dayNtlVlm": "3809133.7494999995",
+        "openInterest": "10205.04",
+        "funding": "0.0000085018"
+      },
+      "xyz:EWT": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "103.04",
+        "oraclePx": "103.04",
+        "midPx": "103.04",
+        "dayNtlVlm": "146040.5856",
+        "openInterest": "5192.0",
+        "funding": "0.0000151437"
+      },
+      "xyz:GBP": {
+        "maxLeverage": 50,
+        "marginTableId": 50,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "1.3495",
+        "oraclePx": "1.3492",
+        "midPx": "1.3495",
+        "dayNtlVlm": "118695.6865",
+        "openInterest": "85872.0",
+        "funding": "0.0"
+      },
+      "xyz:SPCX": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "131.92",
+        "oraclePx": "132.18",
+        "midPx": "131.855",
+        "dayNtlVlm": "534228385.9665004015",
+        "openInterest": "1912919.9399999985",
+        "funding": "-0.0000884108"
+      },
+      "xyz:ASML": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "1740.7",
+        "oraclePx": "1740.9",
+        "midPx": "1740.75",
+        "dayNtlVlm": "915087.085",
+        "openInterest": "929.136",
+        "funding": "-0.0000090698"
+      },
+      "xyz:MINIMAX": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "42.755",
+        "oraclePx": "42.721",
+        "midPx": "42.7925",
+        "dayNtlVlm": "13250050.9438999966",
+        "openInterest": "269494.0600000001",
+        "funding": "0.0001140979"
+      },
+      "xyz:BB": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "8.9812",
+        "oraclePx": "8.955",
+        "midPx": "8.98085",
+        "dayNtlVlm": "2080728.6147600007",
+        "openInterest": "1277753.0000000005",
+        "funding": "0.0001507019"
+      },
+      "xyz:QNT": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "58.9",
+        "oraclePx": "58.9",
+        "midPx": "58.9045",
+        "dayNtlVlm": "1023507.0829599999",
+        "openInterest": "23247.02",
+        "funding": "0.00000625"
+      },
+      "xyz:DELL": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "453.18",
+        "oraclePx": "453.38",
+        "midPx": "453.195",
+        "dayNtlVlm": "3286184.7822999987",
+        "openInterest": "7409.5",
+        "funding": "-0.0000145001"
+      },
+      "xyz:IBM": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "236.94",
+        "oraclePx": "237.06",
+        "midPx": "236.925",
+        "dayNtlVlm": "7778524.7506999997",
+        "openInterest": "40155.34",
+        "funding": "-0.0000364886"
+      },
+      "xyz:AVGO": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "425.79",
+        "oraclePx": "425.3",
+        "midPx": "425.87",
+        "dayNtlVlm": "840234.8272999999",
+        "openInterest": "6472.54",
+        "funding": "0.0000593745"
+      },
+      "xyz:NOW": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "124.71",
+        "oraclePx": "124.46",
+        "midPx": "124.765",
+        "dayNtlVlm": "1359298.3707000006",
+        "openInterest": "13657.12",
+        "funding": "0.0000870896"
+      },
+      "xyz:NBIS": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "187.91",
+        "oraclePx": "187.81",
+        "midPx": "187.93",
+        "dayNtlVlm": "23879473.9801999927",
+        "openInterest": "169739.4",
+        "funding": "0.0000076069"
+      },
+      "xyz:WDC": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "434.09",
+        "oraclePx": "433.9",
+        "midPx": "434.64",
+        "dayNtlVlm": "2356292.1589599987",
+        "openInterest": "5464.772",
+        "funding": "0.0000213204"
+      },
+      "xyz:NOK": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "9.4037",
+        "oraclePx": "9.4085",
+        "midPx": "9.3987",
+        "dayNtlVlm": "602870.8160439997",
+        "openInterest": "101881.86",
+        "funding": "0.00000625"
+      },
+      "xyz:SMH": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "582.23",
+        "oraclePx": "582.45",
+        "midPx": "581.95",
+        "dayNtlVlm": "549560.9970299999",
+        "openInterest": "2776.008",
+        "funding": "-0.000034301"
+      },
+      "xyz:BE": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "218.96",
+        "oraclePx": "218.8",
+        "midPx": "219.015",
+        "dayNtlVlm": "4209731.0845000017",
+        "openInterest": "10383.26",
+        "funding": "0.0000259634"
+      },
+      "xyz:ZHIPU": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "161.42",
+        "oraclePx": "161.09",
+        "midPx": "161.38",
+        "dayNtlVlm": "9059232.7396099996",
+        "openInterest": "30988.406",
+        "funding": "0.0000929264"
+      },
+      "xyz:QCOM": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "168.26",
+        "oraclePx": "168.31",
+        "midPx": "168.185",
+        "dayNtlVlm": "492048.1962",
+        "openInterest": "21727.06",
+        "funding": "0.00000625"
+      },
+      "xyz:STRC": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "95.156",
+        "oraclePx": "95.17",
+        "midPx": "95.155",
+        "dayNtlVlm": "3758800.6312999991",
+        "openInterest": "123202.4",
+        "funding": "-0.0000387384"
+      },
+      "xyz:BOT": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "28.485",
+        "oraclePx": "28.475",
+        "midPx": "28.5045",
+        "dayNtlVlm": "1429372.6113499994",
+        "openInterest": "128267.0999999999",
+        "funding": "0.00000625"
+      },
+      "xyz:AMAT": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "540.63",
+        "oraclePx": "540.19",
+        "midPx": "540.65",
+        "dayNtlVlm": "450376.19223",
+        "openInterest": "1318.22",
+        "funding": "0.00000625"
+      },
+      "xyz:GIGADEV": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "60.06",
+        "oraclePx": "60.317",
+        "midPx": "59.9945",
+        "dayNtlVlm": "214764.0177",
+        "openInterest": "37830.24",
+        "funding": "0.00000625"
+      },
+      "xyz:SHAZ": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "49.992",
+        "oraclePx": "50.088",
+        "midPx": "49.9785",
+        "dayNtlVlm": "798534.4762300001",
+        "openInterest": "63356.62",
+        "funding": "-0.0000266151"
+      },
+      "xyz:SKHY": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "137.87",
+        "oraclePx": "137.95",
+        "midPx": "137.875",
+        "dayNtlVlm": "146402179.4399999976",
+        "openInterest": "743293.5999999999",
+        "funding": "-0.0000375609"
+      },
+      "xyz:CXMT": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "7.1425",
+        "oraclePx": "7.1538",
+        "midPx": "7.13895",
+        "dayNtlVlm": "17227626.354719989",
+        "openInterest": "9066239.1999999974",
+        "funding": "-0.0000858448"
+      },
+      "xyz:GEV": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "990.45",
+        "oraclePx": "989.87",
+        "midPx": "985.865",
+        "dayNtlVlm": "707777.3695599999",
+        "openInterest": "32.5",
+        "funding": "0.0000372872"
+      },
+      "xyz:KORU": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "17.239",
+        "oraclePx": "17.24",
+        "midPx": "17.235",
+        "dayNtlVlm": "1358436.5138999994",
+        "openInterest": "9610.6",
+        "funding": "-0.0000351985"
+      },
+      "xyz:UNITREE": {
+        "maxLeverage": 5,
+        "marginTableId": 5,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "81.959",
+        "oraclePx": "81.959",
+        "midPx": "81.725",
+        "dayNtlVlm": "9488338.5731599834",
+        "openInterest": "81851.7599999999",
+        "funding": "0.0000022354"
+      },
+      "xyz:LYTE": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "26.598",
+        "oraclePx": "26.5",
+        "midPx": "26.6745",
+        "dayNtlVlm": "1472814.0932899993",
+        "openInterest": "46963.84",
+        "funding": "0.00000625"
+      },
+      "xyz:NCLD": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "23.098",
+        "oraclePx": "22.94",
+        "midPx": "23.1645",
+        "dayNtlVlm": "459084.9555600001",
+        "openInterest": "1456.64",
+        "funding": "0.0001982896"
+      },
+      "xyz:SOXL": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "139.75",
+        "oraclePx": "139.84",
+        "midPx": "139.655",
+        "dayNtlVlm": "984832.8490999999",
+        "openInterest": "2771.18",
+        "funding": "-0.0000054905"
+      }
+    },
+    "mkts": {
+      "mkts:US500": {
+        "maxLeverage": 25,
+        "marginTableId": 25,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "773.39",
+        "oraclePx": "772.98",
+        "midPx": "773.535",
+        "dayNtlVlm": "1318508.4359100002",
+        "openInterest": "2667.076",
+        "funding": "0.0000057078"
+      },
+      "mkts:USTECH": {
+        "maxLeverage": 25,
+        "marginTableId": 25,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "723.1",
+        "oraclePx": "722.8",
+        "midPx": "723.16",
+        "dayNtlVlm": "4404916.3922999948",
+        "openInterest": "14492.334",
+        "funding": "0.0000479647"
+      }
+    },
+    "para": {
+      "para:TOTAL2": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "885.696",
+        "oraclePx": "885.696",
+        "midPx": "885.57",
+        "dayNtlVlm": "35876.62079",
+        "openInterest": "78.6",
+        "funding": "0.0000075"
+      },
+      "para:OTHERS": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "157.5313",
+        "oraclePx": "157.5313",
+        "midPx": "157.56",
+        "dayNtlVlm": "21132.499",
+        "openInterest": "2796.96",
+        "funding": "0.0000075"
+      },
+      "para:BTCD": {
+        "maxLeverage": 20,
+        "marginTableId": 20,
+        "marginMode": null,
+        "onlyIsolated": null,
+        "markPx": "59.56",
+        "oraclePx": "59.56871",
+        "midPx": "59.562",
+        "dayNtlVlm": "32593.2032",
+        "openInterest": "11387.0",
+        "funding": "-0.0000109796"
+      },
+      "para:AVGO": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "425.56",
+        "oraclePx": "425.3",
+        "midPx": "425.45",
+        "dayNtlVlm": "2669.6479",
+        "openInterest": "208.26",
+        "funding": "0.0000587101"
+      },
+      "para:COHR": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "378.9236",
+        "oraclePx": "379.4693",
+        "midPx": "378.745",
+        "dayNtlVlm": "378901.6896999999",
+        "openInterest": "513.08",
+        "funding": "0.0000075"
+      },
+      "para:GLW": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "166.8751",
+        "oraclePx": "166.8751",
+        "midPx": "166.91",
+        "dayNtlVlm": "29903.3698",
+        "openInterest": "2051.78",
+        "funding": "0.0000075"
+      },
+      "para:CRDO": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "249.43",
+        "oraclePx": "249.4493",
+        "midPx": "249.475",
+        "dayNtlVlm": "142991.7364",
+        "openInterest": "1161.12",
+        "funding": "0.0000072956"
+      },
+      "para:LRCX": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "310.9305",
+        "oraclePx": "310.9305",
+        "midPx": "311.115",
+        "dayNtlVlm": "239757.3872",
+        "openInterest": "652.54",
+        "funding": "0.0000075"
+      },
+      "para:NET": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "301.1",
+        "oraclePx": "301.1",
+        "midPx": "301.12",
+        "dayNtlVlm": "134762.828",
+        "openInterest": "63.4",
+        "funding": "0.0000075"
+      },
+      "para:STX": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "813.49",
+        "oraclePx": "813.49",
+        "midPx": "813.67",
+        "dayNtlVlm": "804116.5430800001",
+        "openInterest": "185.892",
+        "funding": "0.0000075"
+      },
+      "para:IREN": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "41.295",
+        "oraclePx": "41.295",
+        "midPx": "41.3175",
+        "dayNtlVlm": "309353.9796900001",
+        "openInterest": "3725.04",
+        "funding": "0.0000075"
+      },
+      "para:VST": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "140.7",
+        "oraclePx": "140.7",
+        "midPx": "140.76",
+        "dayNtlVlm": "138730.456",
+        "openInterest": "853.38",
+        "funding": "0.0000075"
+      },
+      "para:TER": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "380.11",
+        "oraclePx": "380.06",
+        "midPx": "380.17",
+        "dayNtlVlm": "120576.8647",
+        "openInterest": "294.84",
+        "funding": "-0.0000047758"
+      },
+      "para:AAOI": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "135.7",
+        "oraclePx": "135.7",
+        "midPx": "135.63",
+        "dayNtlVlm": "2087378.8237999994",
+        "openInterest": "4017.02",
+        "funding": "0.0000075"
+      },
+      "para:CIEN": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "411.1305",
+        "oraclePx": "411.1305",
+        "midPx": "411.97",
+        "dayNtlVlm": "306.9408",
+        "openInterest": "0.44",
+        "funding": "0.0001398825"
+      },
+      "para:RDDT": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "161.4754",
+        "oraclePx": "161.6124",
+        "midPx": "161.38",
+        "dayNtlVlm": "2932.2764",
+        "openInterest": "114.76",
+        "funding": "-0.0000643588"
+      },
+      "para:UNITREE": {
+        "maxLeverage": 10,
+        "marginTableId": 10,
+        "marginMode": "noCross",
+        "onlyIsolated": true,
+        "markPx": "80.603",
+        "oraclePx": "80.5477",
+        "midPx": "80.7775",
+        "dayNtlVlm": "4458571.0546300039",
+        "openInterest": "46093.88",
+        "funding": "0.0000083956"
+      }
+    }
+  }
+}
