@@ -42,6 +42,7 @@
 | 3 | `config.rs:284-285` 把 `simulate_fills` 列为「四条生产成交回路」之一 | ❌ 与 `runner.rs:24` **正面矛盾**，该清单已过期。真回路 = `pi_theta_fill_loop_overlay`（`pi_theta_fill_loop` 是其 wrapper）/ `plan_and_fill_mtm` / `plan_and_fill_mtm_dual` |
 | 4 | 「现金约束在 `fill.rs:117`」（本会话口头） | ❌ 实为 **`fill.rs:115`** |
 | 5 | `fill.rs:23` 注释引「`types.rs:218`」为 `Order.exec_index` 出处 | ❌ 实为 **`types.rs:364`**（仓内既有注释的行号漂移，非本轮引入） |
+| 6 | **本 ADR 初版自己写的**「生产回路 = `pi_theta_fill_loop_overlay` / `plan_and_fill_mtm` / `plan_and_fill_mtm_dual`」 | ❌ **后两个在本仓不存在**（`94e0837f0e` #499 已删；`grep -rn "fn plan_and_fill" rust/` 零匹配）。本 ADR **一边点名 `config.rs:284` 清单过期，一边照它写了回路名单** ⟹ **同一类错在识破它的同一份文档里复发**。订正见下节 |
 
 ### 已核实的现状（打开确认）
 
@@ -111,6 +112,7 @@
 **② 的理由**：价格从 `open` 走到 `low` **必然先经过高价挂单再经过低价挂单**——中间值定理，**不需要知道 bar 内任何路径细节**。这是本问里唯一不用编造信息就能得到的次序。
 
 **① 的理由**：中间值定理只能给**同向**单排序。同 bar 内买单 99 与卖单 101 都被触及时，谁先取决于价格先上还是先下——那正是不可知的东西。故用既有正本兜底：canonical FULL §20「撤单→先平后开」（`fill.rs:106`）。**这是同一条规则换作用域，不是新口径。**
+**⟹ 2026-08-06 [#926](https://github.com/xy7365527-lang/NewChanlun/issues/926) 回填：本条在仓内已有实现**——`strategy::plan_orders` 的 `ConflictKey.exit_first`（`strategy/exec.rs:145-158`，排序落点 `strategy/mod.rs:372`）。**落地应复用它，不新造排序键**；且 `ConflictKey` 的后续键（高 level 先 → 1/2/3 类）是本 ADR 裁定三未涉及的额外维度，落地时须一并接受或显式排除。
 
 **③ 的理由**：同为开仓的一买一卖在单标的策略中**不应出现**。为一个从未发生的情形上运行时断言，是把理论问题换成真实崩溃风险，代价方向反了。照 `fill.rs:115` 那句「保证金约束…v0 未建模——**诚实有效域 L0**」的同款处理，一句注释写清即可。
 
@@ -132,6 +134,7 @@ strategy 层在挂单那一刻**算不出中枢何时失效——那是未来信
 唯一可行路径：**strategy 层每根 bar 输出「此刻应挂的限价单集合」，fill 层每根 bar 取最新集合**。撤单变成隐式（不在集合里即撤），无需前视，无需新的撤单消息类型。
 
 **代价是结构性的**：订单接口从**事件流**（「在第 N 根 bar 执行这一笔」）变成**状态流**（「第 N 根 bar 时挂单簿长这样」）。`Order.exec_index`（`types.rs:364`）的语义要重解，生产回路主循环要重写。**该改动不在本 ADR，另立子票承接**（见「移交」）。
+**⟹ 2026-08-06 [#926](https://github.com/xy7365527-lang/NewChanlun/issues/926) 回填后收窄**：状态流上游（`p_star`）已在生产，`LevelOrderLedger` 骨架已在场，`entry_tick_for` 接入点已预留 ⟹ **仍是结构性改动，但不是从零造**。详见「勘察回填」节订正三。
 
 ## 裁定五：限价路径不扣 `slippage_bps`，配双口径报告纪律
 
@@ -164,10 +167,23 @@ strategy 层在挂单那一刻**算不出中枢何时失效——那是未来信
 - **L0（形态裁定）**：五条裁定均为口径选择，无实测背书。裁定一「排队导致打平不成交」、裁定四「振幅量级」两条的**经验依据未测**——本仓无逐笔、无盘口、无成交队列数据，(乙) 档的成交概率是**假设不是实测**（这是 (乙) 相对 (丙) 的既有代价，[#918](https://github.com/xy7365527-lang/NewChanlun/issues/918) 档位裁定时已明账）。
 - **裁定二的遗留假设**：`open > 挂单价` 而 `low < 挂单价` 时按挂单价成交，因 bar 内路径不可知。
 - **裁定三③**：同 bar 反向开仓单的次序**未定义**。
-- **未在本 ADR 核实**：生产回路（`pi_theta_fill_loop_overlay` / `plan_and_fill_mtm` / `plan_and_fill_mtm_dual`）**现有的订单排序与订单寿命语义**。`fill.rs` 6575 行，本会话的只读复核未在会话内返回结论 ⟹ 该勘察随接口改动一并落到下游子票，**不得据本 ADR 假定其现状**。
+- **生产回路现状已由 [#926](https://github.com/xy7365527-lang/NewChanlun/issues/926) 回填**，见下节。其自身的诚实缺口（测试侧构造点未穷举、`rust/tests/` 未纳入检索、「无重试」的穷举强度仅在 `pending` 这个名字上成立）随该票 resolution，不在此复述。
+
+## 勘察回填（2026-08-06，[#926](https://github.com/xy7365527-lang/NewChanlun/issues/926) AFK 只读勘察）
+
+**订正一：生产净额成交回路只有一条。** `pi_theta_fill_loop_overlay`（`fill.rs:4369`）；`pi_theta_fill_loop`（`:746`）是其 `overlay=None` wrapper，`pi_theta_fill_loop_voice`（`:788`）是 `#[cfg(test)]`。生产入口 `runner.rs:311` / `:525` / `:678`。**`plan_and_fill_mtm` / `plan_and_fill_mtm_dual` 不存在**（`runner.rs:5` 逐字：「已退役的是 v1 runner…#499 退役」）。⟹ `config.rs:284-285` 那份四条清单**坏了三条**，[#928](https://github.com/xy7365527-lang/NewChanlun/issues/928) 严重程度据此上调。
+
+**订正二：裁定三①在本仓已有实现，不该新造排序键。** 净额回路一行排序都没有（队列 `fill.rs:4429`，入队 `:5824`，出队 `:4624-4627` 按 `Vec` 顺序），它靠**每 bar 只产一个净额订单**回避冲突。但 `strategy::plan_orders`（`strategy/mod.rs:302`，NT 生产路径）**已有** `planned.sort_by_key(|(key,_)| *key)`（`:372`），键 = `exec::ConflictKey`（`strategy/exec.rs:145-158`）六元组：`exit_first`（退出=0/开仓=1）→ `level_desc`（高 level 先）→ `bsp_class`（1/2/3 类）→ `timestamp` → `source_index` → `depth`。**其 `exit_first` 即裁定三①，与 canonical §20 同源** ⟹ **裁定三的落地应复用 `ConflictKey`，不新造键**。（声部臂另有硬编码 push 次序 `fill.rs:5835-5878`，注释 `:5833` 自陈「平单先挂、开单后挂」。）
+
+**订正三：裁定四的接口改动不是从零造。** 状态流上游**已在生产**——`p_star`（目标净持仓）每决策 bar 一份，`Order = f(目标 − 当前)`（`strategy/coverage/sizing.rs:524`，`qty==0` 退化 `Hold`/`Wait`）。更完整的 `LevelOrderPlan`/`LevelOrderLedger` 骨架已在场（`strategy/level_order.rs:328-334`/`:458`/`:550`/`:573`）但**无生产消费者**（7 处非定义命中全是注释，三处自陈未接线）。缺的只是把**限价单集合**也做成 per-bar 状态。**且限价接入点已预留**：`nautilus/strategy.rs:317` 的 `entry_tick_for` 忽略入参恒返 `None`，doc `:315-318` 自陈「限价腿 entry 价回填待 `plan_orders` 接口扩展」。
+
+**印证：裁定四否掉的那一档正是现状。** 未成交订单**一律丢弃、零重试**，三个丢弃点：`qty<=0` 不入队（`fill.rs:5821`）／`untradable`·`px<=0` 留在 `pending[i]` 里烂掉（`:4624`，其中 `untradable` 分支实为不可达死代码，因 `exec.rs:46-49` 保证落点可交易）／现金不足与超仓余量进 `rejected_qty` 而**主循环从不读它**（`fill.rs:239-249`/`:271`，6 处命中全在构造与文档里）。
+
+**`Order` 加字段的波及面**：`types.rs:357-365` 仅 3 字段且全部字面量构造（无 `..Default`、无 `#[non_exhaustive]`）⟹ **加字段必然编译失败，不会静默漏**。生产构造点 4 处（`sizing.rs:558`、`strategy/mod.rs:440`/`:462`、`dual_ledger.rs:258`）。既有的「不加字段」规避先例：`LegOrder`（`strategy/mod.rs:945`，doc `:934` 明写「types.rs `Order` 不加字段，冲突面零改」）。
 
 ## 移交
 
-- **接口改状态流**：裁定四的硬约束要求订单接口从事件流改状态流，动 `fill.rs` 与 strategy 的边界，够格单独一张票 ⟹ 另立子票挂 map [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787)，由 [#918](https://github.com/xy7365527-lang/NewChanlun/issues/918) blocking。生产回路排序/寿命现状的勘察一并归它。
-- **`config.rs:284-285` 的过期清单**（把 `simulate_fills` 列为生产回路）：与在飞决策不挂钩的文本欠账，按 `docs/agents/wayfinder-workflow.md` 入流判据**不进图**，走 triage 挂 `debt`。
+- **生产回路现状勘察** → [#926](https://github.com/xy7365527-lang/NewChanlun/issues/926)，**已完成并回填本 ADR**（见「勘察回填」节）。
+- **接口改状态流** → [订单接口：事件流 → 状态流 #927](https://github.com/xy7365527-lang/NewChanlun/issues/927)（挂 map [#787](https://github.com/xy7365527-lang/NewChanlun/issues/787)，由 [#918](https://github.com/xy7365527-lang/NewChanlun/issues/918) 与 [#926](https://github.com/xy7365527-lang/NewChanlun/issues/926) blocking）。**其形态空间已被 #926 收窄两处**：裁定三应复用既有 `ConflictKey` 而非新造排序键；裁定四的状态流上游（`p_star`）已在生产、`entry_tick_for` 接入点已预留 ⟹ 「结构性改动」仍成立，但不是从零造。
+- **`config.rs:284-285` 的过期清单**：原判「把 `simulate_fills` 列为生产回路」，[#926](https://github.com/xy7365527-lang/NewChanlun/issues/926) 查实**四条里坏三条**（另两条已随 #499 删除）。与在飞决策不挂钩的文本欠账，按 `docs/agents/wayfinder-workflow.md` 入流判据**不进图**，走 triage 挂 `debt` → [#928](https://github.com/xy7365527-lang/NewChanlun/issues/928)。
 - **`fill.rs:23` 的 `types.rs:218` 行号漂移**：同上，随 debt 一并订正。
