@@ -83,7 +83,7 @@
 
 | 残项 | 去向 |
 |---|---|
-| Binance 侧三问（TradFi 协议签署等） | **挂 [#953](https://github.com/xy7365527-lang/NewChanlun/issues/953)**（编排者放 key），票保持 open |
+| Binance 侧三问（TradFi 协议签署等） | **已部分实测（2026-08-08，[#932](https://github.com/xy7365527-lang/NewChanlun/issues/932) 第二程，见下「★ 2026-08-08 补测」）**；残项挂 [#953](https://github.com/xy7365527-lang/NewChanlun/issues/953)，实际待办已从「开 key」变为「**网页端开通子账户功能**」 |
 | ADR 0020 裁定二重裁 | **挂 [#946](https://github.com/xy7365527-lang/NewChanlun/issues/946)**，等 [#951](https://github.com/xy7365527-lang/NewChanlun/issues/951) 定生产正本 |
 | 冲击成本跨周采样 | **挂 [#933](https://github.com/xy7365527-lang/NewChanlun/issues/933)**，票保持 open，**搁置至有实盘需求** |
 | 逐笔独立之后账怎么记 | **挂 [#937](https://github.com/xy7365527-lang/NewChanlun/issues/937)**，**搁置至场所选定重启** |
@@ -93,3 +93,33 @@
 | 「重」的数量受不受配额卡 | **搁置，无人跟进** —— 依赖资金量，编排者未给 |
 | 多场所并用的账本与调度形态 | **搁置，无人跟进** —— 无实盘需求 |
 | 交易所风险的分散策略 | **部分答**：裁定三已给出对手方风险清单；**分散策略本身搁置，无人跟进** |
+
+## ★ 2026-08-08 补测：Binance 侧（[#932](https://github.com/xy7365527-lang/NewChanlun/issues/932) 第二程）
+
+编排者当日授权使用既有 key（`~/.config/binance-liq-anchor/`）跑完 Binance 侧。**本节不改动上述任何裁定**，只补事实与订正。
+
+### 安全门：`enableWithdrawals: false`（不带提现权限）
+
+另：`enableInternalTransfer: false`、`permitsUniversalTransfer: false` ⟹ **该 key 无划转权限**。**操作性订正**：该凭证用 **HMAC-SHA256 而非 Ed25519**，同目录的 `ed25519-*.pem` 与之**不配对**。
+
+### 实测结果
+
+- **【实测】主账户已经能交易股票永续** —— `AAPLUSDT` 市价买入 0.02（名义 6.264 USDT）成交 @313.20，**全程零 `-4411`**，随即 reduceOnly 平掉，仓位回读归零，净成本 **0.00521111 USDT**。
+- **★ 授权了但没执行签协议**（`POST /fapi/v1/stock/contract`）：实测已证**无需再签**，而该操作**可逆性未知** ⟹ **在已证无必要的前提下执行是纯粹的不可逆风险**。主控认可。
+- **子账户整体不可达**：该账户**子账户功能未开通**（`-8012`／`-9000`），API 创建被拒（`100001002 Unsupported operation`）。
+- **与 #932 第一程冲突已登记**：第一程记「VIP0 可直接开子账户、上限 5 个」，而本账户**确为 VIP0 却连创建都被拒** ⟹ 撞到的是**更前面一道门**；「上限 5 个」**既未证实也未否证**，三种成因（网页端未开通／账户类型／KYC）**实测无法区分，未裁**。
+- **VIP0 实时费率实测确认**：taker **0.0400%**、maker **0%**（5 标的一致；对照 `BTCUSDT` 0.02%/0.05% ⟹ **确为独立费率表**）。`AAPLUSDT` 最高 20x、首档 MMR 2.5%、**默认已 ISOLATED**、最小名义 5 USDT。
+
+### ⟹ 对裁定二「证据降级」的加强
+
+**Binance 侧「子账户强平不传染」零实测，且比 Hyperliquid 更彻底** —— Hyperliquid 至少有三句官方原文，Binance **零原文**；而本次连**子账户都建不出来**，洞三零推进。
+
+**⟹ 若将来要把 Binance 登记为「被否方案」，理由目前只能写「测不出来」，不能写成「测了不行」。**
+
+### 一处主控推断被实测推翻
+
+主控曾据 testnet 返回推断「主网 `/fapi/v1/stock/contract` 路径存在」。**不成立**：主网 GET 该路径返回的 404 与「明确不存在的路径」的**负控逐字相同**（同一张 HTML 错误页）⟹ **无法区分路径存不存在**。testnet 上能区分（`-5000 Method GET is invalid`）。**那条读数只在 testnet 上成立。**
+
+### testnet 的边界（本次实测）
+
+`testnet.binancefuture.com` 有 **21 个 `EQUITY`** 合约、`/fapi/v1/stock/contract` 路径可辨；**但 `/sapi/v1/*` 返回 301（nginx 级）⟹ testnet 无 `sapi`，子账户管理端点全部不存在** ⟹ **子账户隔离在 testnet 上无法验证**。testnet API key 需网页 OAuth 交互式注册，本会话无法非交互生成。
