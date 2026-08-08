@@ -53,6 +53,19 @@ name = "theta_backtest"
 path = "src/bin/theta_backtest.rs"
 required-features = ["backtest_bin"]
 
+# #938 探针：绑定中枢开放性 / seed_moved 谱系构成。两者都 use theta_v0::backtest，
+#   而该模块挂 #[cfg(any(test, feature="backtest_bin"))] ⟹ 必须声明 required-features，
+#   否则 CI 的「cargo check — default targets」会因找不到 backtest 而红（2026-08-08 实撞）。
+[[bin]]
+name = "p938_bound_center_openness"
+path = "src/bin/p938_bound_center_openness.rs"
+required-features = ["backtest_bin"]
+
+[[bin]]
+name = "p938_seed_moved_composition"
+path = "src/bin/p938_seed_moved_composition.rs"
+required-features = ["backtest_bin"]
+
 # 纯买卖点择时隔离实验（goal #5 最根本问题：缠论买卖点择时本身有无 alpha）。
 # 离散事件状态机（仓位∈{+1,0,-1}），不做 π_Θ 覆盖/净额——只在买卖点切换仓位。
 [[bin]]
