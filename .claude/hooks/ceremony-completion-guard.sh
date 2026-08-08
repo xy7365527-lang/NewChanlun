@@ -262,11 +262,9 @@ if [ "$PENDING_COUNT" -gt 0 ]; then
 import json, sys
 n = sys.argv[1]
 files = sys.argv[2]
-# 取第一个文件作为优先推进目标
-first = files.split(', ')[0] if files else ''
 print(json.dumps({
     'decision': 'block',
-    'reason': f'[Stop-Guard] 谱系有 {n} 个生成态矛盾待处理: [{files}]。不允许停止。推进 {first} 的结算：读取文件，判断四分法分类（吸收/修正/分裂/废弃），执行对应动作。'
+    'reason': f'[Stop-Guard] 谱系有 {n} 个生成态 pending: [{files}]。不允许停止。pending 结算属 genealogist（结算/张力检查）+ 编排者（选择类/语法记录裁决）职责，非 Lead 自结算。018号四分法=定理/选择/语法记录/行动（非\"吸收/修正/分裂/废弃\"——后者非任何 settled 谱系）。'
 }, ensure_ascii=False))
 " "$PENDING_COUNT" "$PENDING_FILES"
     exit 0
