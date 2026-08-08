@@ -4399,4 +4399,25 @@ mod tests {
         let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
         assert_eq!(t2[0].exit_reason, "seq38_diff");
     }
+
+    /// **#943 AC-2 数值不变锁**：`SUB_SPAWN_FRAC` 由硬编码 `0.5` 改成 `1.0 / LAMBDA` 后
+    /// **位模式必须与旧字面量逐位相同**（`1.0 / 2.0 ≡ 0.5`，IEEE754 精确）⇒ unn 全部落盘产物
+    /// bit-exact。
+    ///
+    /// **改值时同批改本测试**（#925 处置三冻结落点、本票不改数值；将来 #925 后续动 `LAMBDA`
+    /// 时，本测试与 `spiral/prove.rs` 的 `theta_sigma_invariant_holds_on_canonical_quota`
+    /// （硬编码 f=0.5）必同批更新——这是刻意的红灯，不是障碍）。
+    #[test]
+    fn sub_spawn_frac_bit_identical_to_pre_943_literal() {
+        assert_eq!(
+            SUB_SPAWN_FRAC.to_bits(),
+            0.5_f64.to_bits(),
+            "#943 只统一形态不改数值：SUB_SPAWN_FRAC={SUB_SPAWN_FRAC} 应逐位 == 旧字面量 0.5"
+        );
+        assert_eq!(
+            LAMBDA.to_bits(),
+            2.0_f64.to_bits(),
+            "unn 侧 λ=2（值层已作废但落点冻结）"
+        );
+    }
 }
