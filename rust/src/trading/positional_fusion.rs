@@ -88,6 +88,18 @@ use crate::stroke::Direction;
 pub(crate) const SUB_COST_K: f64 = 2.0;
 pub(crate) const SUB_FRICTION_RT: f64 = 0.001;
 
+/// 尺度比 λ（A₅ 二分递归建模默认）——unn(v1) 本族的 λ 源，与 spiral(v2) `params.rs:32` 的
+/// 同名常数**刻意各自持有**：两族是 bit-exact 对照基线关系（`spiral/mod.rs:14-16` 逐字「不删除
+/// unn，保留为对照基线直到 v2 验收通过」），合并常数即合并两族，#943「明确不做」条禁止。
+///
+/// **值层已作废（#925 裁定，2026-08-07）**：`λ = 2`（⟹ `f = 0.5`）**作废**——底档实测
+/// `w ≈ 0.323`（8 标的几何平均，#915）对应 **`λ ≈ 3.1`**（ADR 0017 连带处置 (b) 第 1 点断言，
+/// `docs/adr/0017-*.md:285`）。**落点冻结**（#925 处置三）：本常数**不改数值**——就 NT 生产而言
+/// 它不可达（π/`theta_v0` 全树对 `LAMBDA`/`SUB_SPAWN_FRAC`/`MOBILE_FRAC` 零命中），改与不改都不动
+/// 生产读数；#943 只统一形态与名分，值归 #925 后续。
+/// 正本：`.chanlun/genealogy/settled/542-spawn-allocation-sigma-invariant.md` `## ★§925 订正`。
+pub(crate) const LAMBDA: f64 = 2.0;
+
 /// 仓位分配 spawn 比例 f = m/p_units = 1/λ（σ-不变常数；编排者裁决 2026-06-16）。
 /// **裁决依据（读法A：势∝r 是公理）**：r 标记级别=递归深度=势能，「势∝r」是径向坐标 r
 /// 的**定义本身**（L0，信息增量为零，不可经验否定）⟹ 配额 = 子势/父势 = r_{k−1}/r_k =
@@ -101,7 +113,12 @@ pub(crate) const SUB_FRICTION_RT: f64 = 0.001;
 /// 扫描。初始 λ=2（二分递归默认）⟹ f=0.5；待全8标的回测扫描 + T50 涌现 λ 测量精化为
 /// f=1/λ_measured 的零自由度 R1 形式（扫得最优 f≈1/λ_emergent 则势∝r 公理获 L2 经验旁证）。
 /// pub(crate)：unn `try_spawn_cost_gated` 消费（角色B 配额比例；角色A 成本门仍用经验 θ）。
-pub(crate) const SUB_SPAWN_FRAC: f64 = 0.5;
+///
+/// **#943 起真的由 λ 派生**（此前是硬编码字面量 `0.5`，本 doc 那句「值 = 1/λ」因此为假；
+/// 改成 `1.0 / LAMBDA` 后该句才为真）。**数值不变**：`1.0 / 2.0 ≡ 0.5`，bit-exact。
+/// **名分（#925 裁定）**：`λ=2` 的**值层已作废**（见 `LAMBDA` 头注）；`f = 1/λ` 的**形式层待判**
+/// ——否掉「级别无关」需证各档 `w` 不同，而 ADR 0017 裁定八已判上档测不出 ⇒ 否不掉，标待判不作废。
+pub(crate) const SUB_SPAWN_FRAC: f64 = 1.0 / LAMBDA;
 
 /// osc 层消费的相位三值视图（`unified_osc` 接口；P6 任务，
 /// `analysis/p6_phase_machine_research.md`）。

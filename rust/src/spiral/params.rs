@@ -27,13 +27,23 @@ pub use crate::trading::types::{FIRST_BSP_LADDER, INITIAL_CAPITAL, LADDER_MOVE, 
 /// **L0**（T28 move(L1)=势源下界，segment 非势源；零自由度）。
 pub const PENDING_LO: usize = FIRST_BSP_LADDER + 1;
 
-/// 尺度比 λ（A₅ 二分递归建模默认）。
+/// 尺度比 λ（A₅ 二分递归建模默认）——spiral(v2) 本族的 λ 源，与 unn(v1)
+/// `trading/positional_fusion.rs` 的同名常数**刻意各自持有**（两族是 bit-exact 对照基线关系，
+/// `spiral/mod.rs:14-16`；合并常数即合并两族，#943「明确不做」条禁止）。
 /// **L2 待测**（待 T50 涌现 λ 测量精化；leverage_triad 唯一自由度占位）。
+///
+/// **值层已作废（#925 裁定，2026-08-07）**：`λ = 2`（⟹ `f = 0.5`）**作废**——底档实测
+/// `w ≈ 0.323`（8 标的几何平均，#915）对应 **`λ ≈ 3.1`**（ADR 0017 连带处置 (b) 第 1 点，
+/// `docs/adr/0017-*.md:285`）。**落点冻结**（#925 处置三）：**不改数值**——π/`theta_v0` 全树对
+/// `LAMBDA`/`SUB_SPAWN_FRAC`/`MOBILE_FRAC` 零命中，就 NT 生产而言不可达，改与不改都不动生产读数。
+/// 正本：`.chanlun/genealogy/settled/542-spawn-allocation-sigma-invariant.md` `## ★§925 订正`。
 pub const LAMBDA: f64 = 2.0;
 
 /// 降成本 spawn 配额比例 `f = 1/λ`（σ-不变，级别无关，T18×T48×T59，542号）。
-/// **形式 L0**（势∝r 公理 ⟹ f=子势/父势=r_{k−1}/r_k=1/λ 几何强制，零自由度）；
-/// **值 L2**（λ=2 ⟹ 0.5，A₅ 默认）。
+/// **形式 L0 / 待判**（势∝r 公理 ⟹ f=子势/父势=r_{k−1}/r_k=1/λ 几何强制，零自由度；但 #925
+/// 裁定形式层**否不掉也证不实**——否掉「级别无关」需证各档 `w` 不同，ADR 0017 裁定八已判上档
+/// 测不出 ⇒ 标「待判」，不作废）；
+/// **值 L2 已作废**（λ=2 ⟹ 0.5 系 A₅ 默认；#925 处置一作废该值，处置三冻结落点不改数值）。
 pub const SUB_SPAWN_FRAC: f64 = 1.0 / LAMBDA;
 
 /// 成本门倍率（N4：θ < K×friction ⇒ 势幅度<成本，递归终止）。
