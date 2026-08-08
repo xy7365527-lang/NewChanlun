@@ -74,22 +74,24 @@ class CrossInstanceSync:
         all_cids = self.shared.all_block_hashes()
         new_cids = all_cids - self.known_blocks
 
-        # If too many new blocks, mark excess as known (skip) to avoid
-        # downloading thousands of historical blocks on first sync.
+        # Cap downloads per sync call to bound IPFS I/O. Leave the excess
+        # unknown so a later sync can drain the backlog — never mark unread
+        # CIDs as known (that permanently drops graph_delta/feed_event/etc).
+        # Bootstrap already pre-fills known_blocks in __init__, so this path
+        # is only for live multi-instance backlog, not historical catch-up.
         if len(new_cids) > self._MAX_BLOCKS_PER_SYNC:
-            # Process only the most recent MAX blocks; mark the rest as known
-            cid_list = list(new_cids)
-            skip = cid_list[self._MAX_BLOCKS_PER_SYNC:]
-            self.known_blocks.update(skip)
-            new_cids = set(cid_list[:self._MAX_BLOCKS_PER_SYNC])
+            cid_list = sorted(new_cids)
+            new_cids = set(cid_list[: self._MAX_BLOCKS_PER_SYNC])
 
         new_blocks: list[dict] = []
         for cid in new_cids:
-            self.known_blocks.add(cid)
             content = self.shared.read_block(cid)
-            if content is not None:
-                content["hash"] = cid
-                new_blocks.append(content)
+            if content is None:
+                # Transient IPFS failure — retry on a later sync.
+                continue
+            self.known_blocks.add(cid)
+            content["hash"] = cid
+            new_blocks.append(content)
 
         injected = 0
         for block in new_blocks:
