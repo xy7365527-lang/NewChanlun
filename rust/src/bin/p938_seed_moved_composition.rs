@@ -224,7 +224,14 @@ fn main() -> Result<(), String> {
         }
     }
 
-    report(&stats, n, &first_date, &last_date, bar_coord_mismatch, &samples);
+    report(
+        &stats,
+        n,
+        &first_date,
+        &last_date,
+        bar_coord_mismatch,
+        &samples,
+    );
     Ok(())
 }
 
@@ -295,10 +302,7 @@ fn report(
     println!();
 
     for (name, pick) in [
-        (
-            "seed_moved（start_index 变）· 生产 bar 口径",
-            0usize,
-        ),
+        ("seed_moved（start_index 变）· 生产 bar 口径", 0usize),
         ("core_drift（start_index 同、核心变）· 生产 bar 口径", 1),
         ("seed_moved · 证书 txn_bar 口径（反事实对照）", 2),
         ("core_drift · 证书 txn_bar 口径（反事实对照）", 3),

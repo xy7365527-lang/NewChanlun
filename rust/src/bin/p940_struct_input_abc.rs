@@ -38,22 +38,22 @@
 //! `RecursiveOrchestrator` 的 pyo3 默认值至今仍是 `"wide"`（**实装未跟裁定**）。三套输入的
 //! 对比在**同一档**内进行，跨档数字不混用。
 
-#[path = "../fractal.rs"]
-mod fractal;
-#[path = "../stroke.rs"]
-mod stroke;
 #[path = "../bi_engine.rs"]
 mod bi_engine;
-#[path = "../segment.rs"]
-mod segment;
-#[path = "../zhongshu.rs"]
-mod zhongshu;
+#[path = "../fractal.rs"]
+mod fractal;
+#[path = "../level.rs"]
+mod level;
 #[path = "../moves.rs"]
 mod moves;
 #[path = "../ph.rs"]
 mod ph;
-#[path = "../level.rs"]
-mod level;
+#[path = "../segment.rs"]
+mod segment;
+#[path = "../stroke.rs"]
+mod stroke;
+#[path = "../zhongshu.rs"]
+mod zhongshu;
 
 use bi_engine::BiEngine;
 use level::{moves_from_level_zhongshus, zhongshu_from_components, CompView};

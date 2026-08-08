@@ -244,7 +244,8 @@ fn main() -> std::process::ExitCode {
         let (classification, _tower) = classifier.classify_at(i);
         for (lvl, ls) in classification.levels.iter().enumerate() {
             for p in ls.bsp.iter() {
-                if seen.insert((lvl, p.source_index, bsp_bits_disc(&p.bits))) && has_any_bit(&p.bits)
+                if seen.insert((lvl, p.source_index, bsp_bits_disc(&p.bits)))
+                    && has_any_bit(&p.bits)
                 {
                     events_total += 1;
                     let b = &p.bits;
@@ -364,7 +365,11 @@ fn main() -> std::process::ExitCode {
         }
         if !rt_vals.is_empty() {
             print_summary("AMP_ROUNDTRIP", lvl, &summarize(&rt_vals, &rt_bars, dates));
-            print_summary("GAPBARS_ROUNDTRIP", lvl, &summarize(&rt_gap, &rt_bars, dates));
+            print_summary(
+                "GAPBARS_ROUNDTRIP",
+                lvl,
+                &summarize(&rt_gap, &rt_bars, dates),
+            );
         } else {
             println!("P907_AMP_ROUNDTRIP lvl={lvl} n=0 (无反向配对)");
         }

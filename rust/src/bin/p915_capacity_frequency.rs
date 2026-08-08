@@ -193,7 +193,10 @@ fn report_sigma(tag: &str, var_per_day: &[f64]) {
 }
 
 fn phase_daily(symbol: &str, max_bars: usize) {
-    let Some((_, file, _)) = SYMBOLS.iter().find(|(s, _, _)| s.eq_ignore_ascii_case(symbol)) else {
+    let Some((_, file, _)) = SYMBOLS
+        .iter()
+        .find(|(s, _, _)| s.eq_ignore_ascii_case(symbol))
+    else {
         eprintln!("P915_DAILY_ERR 未知品种 {symbol}");
         return;
     };
@@ -475,7 +478,8 @@ fn main() -> std::process::ExitCode {
         tower_max_levels = tower_max_levels.max(classification.levels.len());
         for (lvl, ls) in classification.levels.iter().enumerate() {
             for p in ls.bsp.iter() {
-                if seen.insert((lvl, p.source_index, bsp_bits_disc(&p.bits))) && has_any_bit(&p.bits)
+                if seen.insert((lvl, p.source_index, bsp_bits_disc(&p.bits)))
+                    && has_any_bit(&p.bits)
                 {
                     events_total += 1;
                     let b = &p.bits;
@@ -492,7 +496,10 @@ fn main() -> std::process::ExitCode {
             }
         }
         if i % 500_000 == 0 && i > 0 {
-            eprintln!("P915_PROGRESS symbol={symbol} bar={i}/{n} ids={}", first_confirm.len());
+            eprintln!(
+                "P915_PROGRESS symbol={symbol} bar={i}/{n} ids={}",
+                first_confirm.len()
+            );
         }
     }
 
@@ -586,9 +593,9 @@ fn main() -> std::process::ExitCode {
                     if !start_ok {
                         continue;
                     }
-                    let hit = ex[k + 1..].iter().find(|p1| {
-                        p1.confirm_bar > b0 && if want_sell { p1.sell } else { p1.buy }
-                    });
+                    let hit = ex[k + 1..]
+                        .iter()
+                        .find(|p1| p1.confirm_bar > b0 && if want_sell { p1.sell } else { p1.buy });
                     if let Some(p1) = hit {
                         let c0 = close(b0);
                         if c0 <= 0.0 {
@@ -601,9 +608,7 @@ fn main() -> std::process::ExitCode {
                 }
             }
             if rt_vals.is_empty() {
-                println!(
-                    "P915_AMP_ROUNDTRIP symbol={symbol} win={win} lvl={lvl} n=0 (无反向配对)"
-                );
+                println!("P915_AMP_ROUNDTRIP symbol={symbol} win={win} lvl={lvl} n=0 (无反向配对)");
             } else {
                 print_summary(
                     "AMP_ROUNDTRIP",

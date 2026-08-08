@@ -72,26 +72,26 @@
 //! **严配**：`kind`（type1/2/3）**与** `side`（buy/sell）都相同；**松配**：只要 `side` 相同
 //! （用来把「这个点消失了」和「这个点还在但被改判了类型」分开）。
 
-#[path = "../fractal.rs"]
-mod fractal;
-#[path = "../stroke.rs"]
-mod stroke;
 #[path = "../bi_engine.rs"]
 mod bi_engine;
-#[path = "../segment.rs"]
-mod segment;
-#[path = "../zhongshu.rs"]
-mod zhongshu;
+#[path = "../buysellpoint.rs"]
+mod buysellpoint;
+#[path = "../divergence.rs"]
+mod divergence;
+#[path = "../fractal.rs"]
+mod fractal;
+#[path = "../macd.rs"]
+mod macd;
 #[path = "../moves.rs"]
 mod moves;
 #[path = "../ph.rs"]
 mod ph;
-#[path = "../macd.rs"]
-mod macd;
-#[path = "../divergence.rs"]
-mod divergence;
-#[path = "../buysellpoint.rs"]
-mod buysellpoint;
+#[path = "../segment.rs"]
+mod segment;
+#[path = "../stroke.rs"]
+mod stroke;
+#[path = "../zhongshu.rs"]
+mod zhongshu;
 
 use bi_engine::BiEngine;
 use buysellpoint::{buysellpoints_from_level, BspKind, BuySellPoint, Side};
@@ -360,7 +360,8 @@ fn run_arm(arm: &Arm, mode: &str) -> ArmResult {
     let zsb_v = zs_break_of(&seg_centers);
     let mvs_v = move_views_of(&l1_moves);
     let seg_divs = divergences_from_moves_v1(&segs_v, &zss_v, &mvs_v, 1, None);
-    let seg_bsp_raw = buysellpoints_from_level(&segs_v, &zss_v, &zsb_v, &mvs_v, &seg_divs, 1, false);
+    let seg_bsp_raw =
+        buysellpoints_from_level(&segs_v, &zss_v, &zsb_v, &mvs_v, &seg_divs, 1, false);
 
     // ── 层 B：笔中枢买卖点（bi_zhongshu_bsp.rs 的 bit-exact 批量式）──
     // confirmed 前缀口径 = lib.rs:1565-1571 sync_inc（末笔未 confirmed 则 n-1）。
@@ -393,13 +394,7 @@ fn run_arm(arm: &Arm, mode: &str) -> ArmResult {
     let bi_mvs_v = move_views_of(&bi_moves);
     let bi_divs = divergences_from_moves_v1(&bi_segs_v, &bi_zss_v, &bi_mvs_v, 1, None);
     let bi_bsp_raw = buysellpoints_from_level(
-        &bi_segs_v,
-        &bi_zss_v,
-        &bi_zsb_v,
-        &bi_mvs_v,
-        &bi_divs,
-        1,
-        false,
+        &bi_segs_v, &bi_zss_v, &bi_zsb_v, &bi_mvs_v, &bi_divs, 1, false,
     );
 
     // ── 端点序列（#940 口径，用于交叉校验本 bin 与 #940 的结构层是否同一读数）──
