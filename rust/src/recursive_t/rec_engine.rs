@@ -62,11 +62,20 @@ use super::prove_guards::{
     prove_relabel_invariant, prove_sigma_quota, prove_sink_descends, OpTrigger, ProveGuards,
 };
 use super::types::Direction;
-use crate::fugue_v3::SUB_LIQ_FACTOR;
+// **σ-不变配额 `f = 1/λ` 的唯一源（#943 统一，原为本模块私有 `1.0 / 3.0` 字面量）**。
+// 直接引 `fugue_v3::MOBILE_FRAC`（= `1.0 / fugue_v3::LAMBDA`）——`prove_guards::prove_sigma_quota`
+// 重算 canonical 用的就是它，两侧同源 ⇒ 结构上不可能再劈叉（劈叉后果：NT 生产
+// `rec_t_strategy.py` → `RecTStream` → `rec_engine` 每次 sink/drain panic）。
+// **数值不变**（`1.0 / 3.0` ≡ `1.0 / 3.0`，位模式相等，bit-exact），= flat MOBILE_FRAC，对照可比。
+//
+// **名分（#925 裁定，2026-08-07）**：`λ = 3` 的依据 `026:80` 是**原文举例、且原文同句明写可调**
+// （「……但仓位可以控制，**例如**用其中的1/3，慢慢养成好习惯以后，**就可以更随心所欲一点**」；
+// 同课 `026:447`【答疑】更明确「**不熟练的情况下**，如果仓位不太大，1/3或1/4是比较合适的」）
+// ⇒ **不是原文规定值**，是训练轮档位。形式 `f = 1/λ` 层**待判**（否掉「级别无关」需证各档 `w`
+// 不同，而 ADR 0017 裁定八已判上档测不出）。正本：
+// `.chanlun/genealogy/settled/542-spawn-allocation-sigma-invariant.md` `## ★§925 订正`。
+use crate::fugue_v3::{MOBILE_FRAC, SUB_LIQ_FACTOR};
 use crate::trading::types::Polarity;
-
-/// σ-不变配额 f = 1/λ（λ=3，中枢三段）= flat MOBILE_FRAC，保持对照可比。
-const MOBILE_FRAC: f64 = 1.0 / 3.0;
 /// 活跃/零化阈值 = flat（`Layer::is_active` / `reduce_at` 零化 / `add_at` 占用 = `1e-12`）。
 /// **对照 flat，不自创**：rec 此前用 `1e-9`（比 flat 大 1000×），在 BTC 几何塔深层（核心 units
 /// 衰减到 (1e-12, 1e-9) 带）误把仍活跃的核心多头零化 → highest_active 跌到次级别空头 → 核心翻空
