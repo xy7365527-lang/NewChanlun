@@ -3664,3 +3664,38 @@ mod intrinsic_quota_tests {
         );
     }
 }
+
+// ════════════════════════════ λ 源同一性守卫（#943 AC-3）════════════════════════════
+
+/// **`f = 1/λ` 单源守卫（票 #943 AC-3）**。
+///
+/// **守什么**：`rec_engine` 侧算配额的常数（本模块 `MOBILE_FRAC`，`quota()` 消费）与
+/// `prove_guards::prove_sigma_quota` 侧重算 canonical 的常数（`fugue_v3::MOBILE_FRAC`）
+/// **必须同源**。二者曾是两份独立字面量（`rec_engine.rs:69` 私有 `1.0 / 3.0` 遮蔽
+/// `fugue_v3::MOBILE_FRAC`，#925 勘察查实）——**只改 `fugue_v3::LAMBDA` 一处，NT 生产策略
+/// 每次 sink/drain 直接 panic**（`rec_t_strategy.py` → `RecTStream` → `rec_engine`）。
+///
+/// **非重言**：比的是**两个来源的位模式**，并把引擎侧实算配额喂给守卫重算。若日后有人在本
+/// 模块重新引入私有 `MOBILE_FRAC` 字面量、或两侧 `LAMBDA` 被改到不同值，① 的 `to_bits`
+/// 与 ② 的 `prove_sigma_quota` 双双 fire，而不是静默劈叉到生产 panic。
+#[cfg(test)]
+mod lambda_single_source_tests {
+    use super::{quota, MOBILE_FRAC};
+    use crate::fugue_v3::MOBILE_FRAC as FUGUE_V3_MOBILE_FRAC;
+    use crate::recursive_t::prove_guards::prove_sigma_quota;
+
+    #[test]
+    fn rec_quota_source_is_fugue_v3_mobile_frac() {
+        // ① 源同一性（位模式相等 ⇒ 排除「值近似但写法各自漂移」）。
+        assert_eq!(
+            MOBILE_FRAC.to_bits(),
+            FUGUE_V3_MOBILE_FRAC.to_bits(),
+            "rec_engine MOBILE_FRAC={MOBILE_FRAC} ≠ fugue_v3::MOBILE_FRAC={FUGUE_V3_MOBILE_FRAC}\
+             ——守卫 prove_sigma_quota 用后者重算 canonical，劈叉 ⇒ NT 生产 sink/drain 必 panic（#943）"
+        );
+        // ② 端到端：引擎侧实算配额喂给守卫（守卫内部用 fugue_v3 常数重算 canonical）。
+        for &u in &[1.0_f64, 30.0, 1_000_000.0] {
+            prove_sigma_quota(quota(u), u, 4, 0);
+        }
+    }
+}
