@@ -199,6 +199,13 @@ pub fn close_voice(
 /// **配额 σ-不变规范（T18×T48×T59，第15环 = 542号）**：降成本释放给子 voice 的
 /// 配额 `m_quota = f × p_units`，`f = 1/λ` 级别无关（σ-不变常数）。**刻意不取 `sub`
 /// 参数**——σ-不变性的精确编码 = 配额是父在手的级别无关函数（架构 §5.6）。
+///
+/// **角色分工（#943 AC-4 修真，照 unn `unified_necessity.rs:993/1008/1064` 同款）**：本函数是
+/// **规范侧（canonical）**，只被守卫 `prove::prove_theta_sigma_invariant` 消费；**调用点侧**
+/// （`try_spawn_cost_gated`）用**独立内联表达** `p_units * SUB_SPAWN_FRAC` 自行算 `m_quota`。
+/// 二者是两条代码路径 ⇒ 调用点漂移回 `sub`-依赖分配（如 `p_units × θ[sub]/Σθ`）时守卫真会 fire。
+/// **修真前**（`43a2f684df` 及以前）调用点直接调本函数、守卫再重算同一表达式 ⇒ `m_quota ≡ canonical`
+/// 恒成立，那道守卫**检不出任何漂移**，而其注释自称「独立内联表达 ⇒ 漂移即 panic」——名实不符。
 pub fn sigma_invariant_quota(p_units: f64) -> f64 {
     p_units * SUB_SPAWN_FRAC
 }
@@ -238,9 +245,13 @@ pub fn try_spawn_cost_gated(
             None
         }
         Some(_) => {
-            let m_quota = sigma_invariant_quota(p_units);
-            // 配额 σ-不变守卫（T18×T48×T59，542号缺瓦）：独立内联表达 ⇒ 漂移回 sub-依赖
-            // 分配即 panic（N8 守 Σunits 守恒不覆盖 σ-不变性，故须独立守卫）。
+            // m = 父在手 × SUB_SPAWN_FRAC（配额比例 f=1/λ，σ-不变常数）——**独立内联表达**，
+            // 刻意**不调** `sigma_invariant_quota`（那是守卫侧的规范）。#943 AC-4：此前这里
+            // 直接调规范函数、守卫再重算同一表达式 ⇒ 恒等，守卫检不出任何漂移（名实不符）。
+            let m_quota = p_units * SUB_SPAWN_FRAC;
+            // 配额 σ-不变守卫（T18×T48×T59，542号缺瓦）：守卫用规范侧 `sigma_invariant_quota`
+            // 重算 canonical，与上面的调用点表达式是两条路径 ⇒ 调用点漂移回 sub-依赖分配即
+            // panic（N8 守 Σunits 守恒不覆盖 σ-不变性，故须独立守卫）。
             prove_theta_sigma_invariant(m_quota, p_units, sub, bar);
             let m = match p_dir {
                 Polarity::Long => m_quota,

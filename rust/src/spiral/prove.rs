@@ -196,9 +196,15 @@ pub fn prove_chirality_seam(phi: u8, bar: i64) {
 /// `θ_sub/θ_total` 全局归一化仍守 Σunits 却使 `f` 随级别变（破 T59）。**非重言**：
 /// 规范刻意**不取 `sub`**（编码级别无关性）⇒ sub-依赖分配必 fire
 /// （`theta_sigma_invariance_fires_on_level_dependent_quota` 反证）。
+///
+/// **#943 AC-4 修真**：canonical 改由**规范侧函数** `accounting::sigma_invariant_quota` 给出，
+/// 调用点（`accounting::try_spawn_cost_gated`）改用**独立内联表达** `p_units * SUB_SPAWN_FRAC`
+/// ——照 unn 同款（`unified_necessity.rs:1008/1064`）。修真前两侧是「调用点调规范函数 + 守卫重算
+/// 同一表达式」⇒ `m_quota ≡ canonical` 恒成立，守卫**检不出任何漂移**（`accounting.rs:242` 注释
+/// 自称「独立内联表达 ⇒ 漂移即 panic」，名实不符）。
+/// **数值不变**：两种写法都是 `p_units * SUB_SPAWN_FRAC` 同一次乘法，bit-exact。
 pub fn prove_theta_sigma_invariant(m_quota: f64, p_units: f64, sub: usize, bar: i64) {
-    use super::params::SUB_SPAWN_FRAC;
-    let canonical = p_units * SUB_SPAWN_FRAC;
+    let canonical = super::accounting::sigma_invariant_quota(p_units);
     assert!(
         (m_quota - canonical).abs() <= 1e-9 * p_units.max(1.0),
         "T18×T48×T59 违反@bar {bar}：spawn 配额 m_quota={m_quota} ≠ σ-不变规范 {canonical}\
@@ -652,6 +658,46 @@ mod tests {
     fn theta_sigma_invariance_fires_on_level_dependent_quota() {
         // 反证非重言：sub-依赖分配（m_quota=p_units×θ[sub]/Σθ ≈ 0.3）≠ 0.5 ⇒ panic。
         prove_theta_sigma_invariant(30.0, 100.0, 3, 0);
+    }
+
+    // ──────────── #943 AC-4：守卫改真独立表达后的两侧对账 + 漂移检出 ────────────
+
+    /// **规范侧级别无关 + 与调用点表达式一致（#943 AC-4）**。
+    ///
+    /// 守卫的 canonical 现由 `accounting::sigma_invariant_quota` 给出，调用点
+    /// （`accounting::try_spawn_cost_gated`）用独立内联 `p_units * SUB_SPAWN_FRAC`。
+    /// 本测试同时钉住两件：① 规范侧**不取 `sub`**（三个 level 同一值 ⇒ 级别无关）；
+    /// ② 调用点表达式喂进守卫不 fire（两条路径当下一致 ⇒ 行为 bit-exact，非放宽守卫）。
+    #[test]
+    fn sigma_canonical_is_level_independent_and_agrees_with_call_site_expr() {
+        use super::super::accounting::sigma_invariant_quota;
+        use super::super::params::SUB_SPAWN_FRAC;
+        let p_units = 123.456_f64;
+        // ① 规范侧级别无关：canonical 只是 p_units 的函数。
+        let canonical = sigma_invariant_quota(p_units);
+        assert_eq!(
+            (canonical / p_units).to_bits(),
+            SUB_SPAWN_FRAC.to_bits(),
+            "规范侧比例 {} ≠ SUB_SPAWN_FRAC {SUB_SPAWN_FRAC}（f 必级别无关）",
+            canonical / p_units
+        );
+        // ② 调用点独立内联表达（accounting.rs `try_spawn_cost_gated` 逐字同式）过守卫。
+        for sub in [0usize, 3, 9] {
+            prove_theta_sigma_invariant(p_units * SUB_SPAWN_FRAC, p_units, sub, 0);
+        }
+    }
+
+    /// **漂移检出（#943 AC-4 反证）**：模拟调用点漂移回旧 `θ_sub/θ_total` 全局归一化
+    /// （`m_quota = p_units × θ[sub]/Σθ`，级别依赖）⇒ 与规范侧 canonical 不等 ⇒ 必 panic。
+    /// 修真前调用点直接调 `sigma_invariant_quota`，`m_quota ≡ canonical` 恒成立，
+    /// 这条漂移**在真实调用路径上根本无法被守卫看见**。
+    #[test]
+    #[should_panic(expected = "σ-不变规范")]
+    fn sigma_guard_fires_on_call_site_drift_to_level_dependent_quota() {
+        let p_units = 100.0_f64;
+        let theta_normalized = [0.1, 0.2, 0.3, 0.4]; // θ[sub]/Σθ 残余（级别依赖）
+        let sub = 2usize;
+        prove_theta_sigma_invariant(p_units * theta_normalized[sub], p_units, sub, 100);
     }
 
     #[test]
