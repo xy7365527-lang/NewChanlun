@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 from pathlib import Path
 
 import pandas as pd
@@ -136,6 +137,31 @@ class TestAppendDf:
 
         assert loaded is not None
         assert loaded.index.tz is None
+
+    def test_concurrent_append_does_not_lose_rows(self, cache_dir):
+        """Live feeder + historical fetch must not clobber each other.
+
+        Reproduces: two threads each append disjoint bars via append_df;
+        without locking, last writer wins and silently drops the other batch.
+        """
+        n_threads = 8
+        rows_per_thread = 25
+
+        def _append_batch(thread_id: int) -> None:
+            start = pd.Timestamp("2024-01-01") + pd.Timedelta(minutes=thread_id * rows_per_thread)
+            idx = pd.date_range(start, periods=rows_per_thread, freq="min")
+            df = pd.DataFrame(
+                {"close": [float(thread_id * 1000 + i) for i in range(rows_per_thread)]},
+                index=idx,
+            )
+            cache.append_df("race_test", df)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as pool:
+            list(pool.map(_append_batch, range(n_threads)))
+
+        loaded = cache.load_df("race_test")
+        assert loaded is not None
+        assert len(loaded) == n_threads * rows_per_thread
 
 
 # ── list_cached ──
