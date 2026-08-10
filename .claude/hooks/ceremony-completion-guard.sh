@@ -9,7 +9,7 @@
 # 逻辑：
 #   1. 检测"有活干但没人在干"的死寂状态 → 注入强指令启动蜂群
 #   2. 蜂群任务队列非空 → 阻止 + 注入具体路由
-#   3. 谱系有生成态矛盾 → 阻止 + 注入具体文件名和四分法指令
+#   3. 谱系有生成态 pending → 阻止 + 注入文件名与 018 四分法（定理/选择/语法记录/行动）
 #   4. @proof-required 标签未验证 → 阻止 + 路由到 Gemini 数学验证
 #   5. 四分法违規检测（通用） → 阻止
 #   6. 以上均无 → 放行
@@ -266,7 +266,7 @@ files = sys.argv[2]
 first = files.split(', ')[0] if files else ''
 print(json.dumps({
     'decision': 'block',
-    'reason': f'[Stop-Guard] 谱系有 {n} 个生成态矛盾待处理: [{files}]。不允许停止。推进 {first} 的结算：读取文件，判断四分法分类（吸收/修正/分裂/废弃），执行对应动作。'
+    'reason': f'[Stop-Guard] 谱系有 {n} 个生成态 pending: [{files}]。不允许停止。pending 结算属 genealogist（结算/张力检查）+ 编排者（选择类/语法记录裁决）职责，非 Lead 自结算。018号四分法=定理/选择/语法记录/行动（非\"吸收/修正/分裂/废弃\"——后者非任何 settled 谱系）。推进 {first}：读取文件，按 018 分类执行对应动作。'
 }, ensure_ascii=False))
 " "$PENDING_COUNT" "$PENDING_FILES"
     exit 0
