@@ -1539,11 +1539,14 @@ class TopologicalDaemon:
             "step": self.total_steps,
             "timestamp": now,
         }
-        block_hash = self._shared_layer.write_block(block)
-        self._cross_instance_sync.known_blocks.add(block_hash)
-
-        self._last_position_write_time = now
-        self._last_position_write_label = position_label
+        # Match graph_delta / settlement / snet writers: IPFS blips must not kill _step().
+        try:
+            block_hash = self._shared_layer.write_block(block)
+            self._cross_instance_sync.known_blocks.add(block_hash)
+            self._last_position_write_time = now
+            self._last_position_write_label = position_label
+        except Exception:
+            pass
 
     def _write_graph_delta(self, log, new_vids: set[str], new_edges: set) -> None:
         """Write graph delta block to SharedLayer on significant events.

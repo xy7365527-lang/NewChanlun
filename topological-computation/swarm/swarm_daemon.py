@@ -300,11 +300,14 @@ class SwarmDaemon(TopologicalDaemon):
             "step": self.total_steps,
             "timestamp": now,
         }
-        block_hash = self.shared.write_block(block)
-        self.syncer.known_blocks.add(block_hash)
-
-        self._last_position_write_time = now
-        self._last_position_write_label = position_label
+        # Graceful degradation: runtime IPFS failure must not abort the step.
+        try:
+            block_hash = self.shared.write_block(block)
+            self.syncer.known_blocks.add(block_hash)
+            self._last_position_write_time = now
+            self._last_position_write_label = position_label
+        except Exception:
+            pass
 
     def _write_event_block(self) -> None:
         """Write current graph snapshot as a content-addressed block."""
@@ -349,9 +352,12 @@ class SwarmDaemon(TopologicalDaemon):
             "vertices": new_vertices,
             "edges": new_edges,
         }
-        block_hash = self.shared.write_block(block)
-        self.syncer.known_blocks.add(block_hash)
-        self._blocks_written += 1
+        try:
+            block_hash = self.shared.write_block(block)
+            self.syncer.known_blocks.add(block_hash)
+            self._blocks_written += 1
+        except Exception:
+            pass
 
     def swarm_status(self) -> dict:
         """Extended status with swarm-specific info."""
