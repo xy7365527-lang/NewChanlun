@@ -191,6 +191,11 @@ class TraversalEngine:
                 continue
             if vid.startswith("memory:"):
                 continue
+            # Articulation bridges are S_net infrastructure (473号 material layer),
+            # not expansion process vertices. Collapsing them same-step destroys the
+            # orphan-signifier anchor and leaves garbage self-loop REFERENCE/FOLD edges.
+            if vid.startswith("bridge_"):
+                continue
             if vid not in self.k_active._active_ids:
                 continue
             # critical = 至少有一条 critical 边
@@ -1848,7 +1853,8 @@ class TraversalEngine:
                     )
                     self.k_active = self.k_active.add_edge(new_edge)
                     self.k_full = self.k_full.add_edge(new_edge)
-                    self._step_new_vertices.add(bridge_vid)
+                    # Do NOT enqueue bridge_* into _step_new_vertices: contraction
+                    # would fold the orphan anchor away in the same step.
                     # Update _sig_to_concepts mapping for consistency
                     self._snet_activation._sig_to_concepts.setdefault(orphan_sig, []).append(bridge_vid)
                     consumed.append(idx)
