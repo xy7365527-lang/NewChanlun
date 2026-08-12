@@ -187,6 +187,24 @@ def _move_amplitude(move: Move) -> float:
     return abs(move.high - move.low)
 
 
+def _compare_move(result: LevelResult) -> Move | None:
+    """选取跨级别比较用的走势。
+
+    ``moves_from_zhongshus`` 会把末组 Move 标为 ``settled=False``。
+    若直接用 ``last_move``，则 ``confirmed`` 恒为 False，却仍被推导成
+    type1 买卖点 → 假信号。优先取最后一个已确认（settled）走势；
+    若尚无 settled，则回退到 last_move（仅用于观察，不进买卖点）。
+    """
+    if result.snapshot is not None:
+        moves = result.snapshot.move_snapshot.moves
+        settled = [m for m in moves if m.settled]
+        if settled:
+            return settled[-1]
+    if result.last_move is not None and result.last_move.settled:
+        return result.last_move
+    return result.last_move
+
+
 # ── 跨级别背驰检测 ───────────────────────────────────────
 
 
@@ -199,7 +217,7 @@ def _detect_cross_level_divergence(
     """检测相邻 TF 层级间的跨级别背驰。
 
     条件：
-    1. 两个级别都有走势（last_move 非 None）
+    1. 两个级别都有走势（可比较 move 非 None）
     2. 两个级别走势方向一致
     3. 低级别力度 < 高级别力度（力量衰减）
 
@@ -208,11 +226,10 @@ def _detect_cross_level_divergence(
     CrossLevelDivergence | None
         检测到的背驰，或 None。
     """
-    if high_result.last_move is None or low_result.last_move is None:
+    high_move = _compare_move(high_result)
+    low_move = _compare_move(low_result)
+    if high_move is None or low_move is None:
         return None
-
-    high_move = high_result.last_move
-    low_move = low_result.last_move
 
     # 方向一致才构成背驰条件
     if high_move.direction != low_move.direction:
@@ -258,6 +275,8 @@ def _derive_buysellpoints(
 
     - 顶背驰 → 卖点
     - 底背驰 → 买点
+    - 仅 ``confirmed=True``（两侧走势均 settled）才产出 type1 买卖点；
+      未确认背驰可保留在 divergences 列表供观察，但不得进入交易信号。
 
     Returns
     -------
@@ -266,6 +285,8 @@ def _derive_buysellpoints(
     """
     result: list[BuySellPoint] = []
     for div in divergences:
+        if not div.confirmed:
+            continue
         side: Literal["buy", "sell"] = (
             "sell" if div.direction == "top" else "buy"
         )

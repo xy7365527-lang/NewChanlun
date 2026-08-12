@@ -30,6 +30,7 @@ from newchan.topology.multi_tf_adapter import (
     MultiTFOrchestrator,
     MultiTFResult,
     TimeframeLevel,
+    _compare_move,
 )
 from newchan.types import Bar
 
@@ -113,11 +114,10 @@ def detect_cross_level_divergence_directional(
     CrossLevelDivergence | None
         检测到的背驰（力度字段使用方向性值），或 None。
     """
-    if high_result.last_move is None or low_result.last_move is None:
+    high_move = _compare_move(high_result)
+    low_move = _compare_move(low_result)
+    if high_move is None or low_move is None:
         return None
-
-    high_move = high_result.last_move
-    low_move = low_result.last_move
 
     if high_move.direction != low_move.direction:
         return None
@@ -293,6 +293,7 @@ def multi_tf_result_to_signals(
     resonance_signals = [
         cross_divergence_to_resonance_signal(div, timestamp)
         for div in result.cross_level_divergences
+        if div.confirmed
     ]
 
     return bsps, resonance_signals
