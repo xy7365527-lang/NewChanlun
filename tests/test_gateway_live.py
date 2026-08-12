@@ -17,12 +17,15 @@ import pytest
 from fastapi.testclient import TestClient
 
 from newchan.gateway import (
+    _ensure_live_engine,
     _live_bar_counts,
     _live_bp_queues,
     _live_bp_tasks,
     _live_clients,
     _live_engines,
+    _live_pending_bars,
     _live_snapshots,
+    _live_warming,
     _on_live_bar,
     app,
 )
@@ -38,6 +41,8 @@ def _clean_live_state():
     _live_snapshots.clear()
     _live_bp_queues.clear()
     _live_bp_tasks.clear()
+    _live_warming.clear()
+    _live_pending_bars.clear()
     yield
     _live_engines.clear()
     _live_bar_counts.clear()
@@ -45,6 +50,8 @@ def _clean_live_state():
     _live_snapshots.clear()
     _live_bp_queues.clear()
     _live_bp_tasks.clear()
+    _live_warming.clear()
+    _live_pending_bars.clear()
 
 
 def _make_bar(idx: int, price: float = 100.0) -> Bar:
@@ -239,3 +246,39 @@ class TestBackpressureIntegration:
                 ws.receive_json()
         assert len(_live_bp_queues) == 0
         assert len(_live_bp_tasks) == 0
+
+
+class TestLiveWarmupRace:
+    """预热期间 feeder bar 不得静默丢失。"""
+
+    def test_bars_during_warmup_are_flushed(self):
+        """预热慢路径期间到达的 live bar，结束后必须并入引擎。"""
+        import threading
+        import time
+
+        warm_bars = _make_bars(15)
+        live_bar = _make_bar(30, price=200.0)  # ts 晚于 warm_bars
+
+        def slow_load(*_a, **_k):
+            time.sleep(0.15)
+            return warm_bars
+
+        def feeder():
+            # 等预热进入 warming 状态
+            for _ in range(50):
+                if "CL" in _live_warming:
+                    break
+                time.sleep(0.005)
+            _on_live_bar("CL", live_bar)
+
+        with patch("newchan.gateway._load_bars", side_effect=slow_load):
+            t = threading.Thread(target=feeder)
+            t.start()
+            engine = _ensure_live_engine("CL")
+            t.join(timeout=2.0)
+
+        assert "CL" not in _live_warming
+        assert "CL" in _live_engines
+        # 预热 15 + 去重后应用 1 根 live bar
+        assert _live_bar_counts["CL"] == 16
+        assert engine._bi_engine.bar_count == 16  # noqa: SLF001
