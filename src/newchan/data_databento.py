@@ -141,9 +141,21 @@ def fetch_ohlcv(
     -------
     pd.DataFrame
         标准 OHLCV DataFrame（tz-naive DateTimeIndex + open/high/low/close/volume）。
+
+    Raises
+    ------
+    ValueError
+        当 ``interval`` 不在支持列表中时。绝不能静默回退到 1min——
+        否则会把分钟数据写入 ``{symbol}_{interval}_raw`` 造成周期假标签。
     """
+    if interval not in _SCHEMA_MAP:
+        raise ValueError(
+            f"不支持的 interval '{interval}'，可选: "
+            f"{', '.join(_SCHEMA_MAP)}"
+        )
+
     dataset, db_symbol, stype_in = _resolve(symbol)
-    schema = _SCHEMA_MAP.get(interval, "ohlcv-1m")
+    schema = _SCHEMA_MAP[interval]
     need_resample = interval in ("5min", "15min", "30min")
     if need_resample:
         schema = "ohlcv-1m"

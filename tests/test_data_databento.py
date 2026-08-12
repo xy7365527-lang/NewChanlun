@@ -188,6 +188,15 @@ class TestFetchOhlcv:
         # Should have resampled from 1min to 5min
         assert len(result) <= 7  # 30 bars / 5 + 1
 
+    @patch("newchan.data_databento._get_client")
+    def test_unsupported_interval_raises(self, mock_get_client):
+        """不支持的 interval 必须抛错，禁止静默回退为 1min 写入错标缓存。"""
+        from newchan.data_databento import fetch_ohlcv
+
+        with pytest.raises(ValueError, match="不支持的 interval"):
+            fetch_ohlcv("CL", interval="2hour", start="2025-01-02", end="2025-01-03")
+        mock_get_client.assert_not_called()
+
 
 # ══════════ fetch_and_cache (mocked) ══════════
 
