@@ -245,6 +245,20 @@ class TestDeriveBuySellPoints:
     def test_empty_divergences(self) -> None:
         assert _derive_buysellpoints([]) == []
 
+    def test_unconfirmed_divergences_produce_no_bsp(self) -> None:
+        """未确认背驰不得进入 type1 买卖点（假信号防护）。"""
+        high_tf = _make_tf("weekly", 1)
+        low_tf = _make_tf("daily", 0)
+        div = CrossLevelDivergence(
+            high_tf=high_tf, low_tf=low_tf,
+            direction="top",
+            high_move=_make_move("up", 120.0, 100.0, settled=False),
+            low_move=_make_move("up", 105.0, 100.0, settled=False),
+            force_high=20.0, force_low=5.0, ratio=0.25,
+            confirmed=False,
+        )
+        assert _derive_buysellpoints([div]) == []
+
 
 # ── Timestamp alignment tests ───────────────────────────
 

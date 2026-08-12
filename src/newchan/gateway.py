@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import uuid
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -116,6 +117,11 @@ _live_bp_tasks: dict[WebSocket, asyncio.Task] = {}
 
 # Live 模式：asyncio event loop 引用（用于从 feeder 线程调度到 async）
 _live_loop: asyncio.AbstractEventLoop | None = None
+
+# Live 预热竞态防护：预热期间缓冲 feeder bar，结束后按 ts 去重回放
+_live_lock = threading.Lock()
+_live_warming: set[str] = set()
+_live_pending_bars: dict[str, list[Bar]] = {}
 
 
 # ════════════════════════════════════════════════
@@ -853,27 +859,51 @@ async def _handle_ws_command(ws: WebSocket, cmd: WsCommand, bound_session_id: st
 
 
 def _ensure_live_engine(symbol: str) -> RecursiveOrchestrator:
-    """获取或创建指定标的的 live 引擎，用缓存中已有的 bar 预热。"""
-    if symbol in _live_engines:
-        return _live_engines[symbol]
+    """获取或创建指定标的的 live 引擎，用缓存中已有的 bar 预热。
+
+    预热与 feeder 竞态：
+    - 预热期间 ``_on_live_bar`` 不得因 engine 未注册而丢 bar
+    - 也不得把实时 bar 插入预热序列造成乱序
+    - 做法：标记 warming → 缓冲 pending → 预热 → 按 ts 去重 flush → 注册
+    """
+    with _live_lock:
+        existing = _live_engines.get(symbol)
+        if existing is not None:
+            return existing
+        _live_warming.add(symbol)
+        _live_pending_bars.setdefault(symbol, [])
 
     engine = RecursiveOrchestrator(stream_id=f"live-{symbol}")
-
-    # 预热：用缓存中已有的历史 bar 驱动引擎到最新状态
     snap = None
+    warmed_bars: list[Bar] = []
     try:
-        bars = _load_bars(symbol, "1min", "1m")
-        for bar in bars:
+        warmed_bars = _load_bars(symbol, "1min", "1m")
+        for bar in warmed_bars:
             snap = engine.process_bar(bar)
-        _live_bar_counts[symbol] = len(bars)
-        if snap is not None:
-            _live_snapshots[symbol] = snap
-        logger.info("Live engine %s 预热完成: %d bars", symbol, len(bars))
+        logger.info("Live engine %s 预热完成: %d bars", symbol, len(warmed_bars))
     except (ValueError, Exception) as e:
-        _live_bar_counts[symbol] = 0
         logger.warning("Live engine %s 预热失败（无缓存数据）: %s", symbol, e)
 
-    _live_engines[symbol] = engine
+    last_warmed_ts = warmed_bars[-1].ts if warmed_bars else None
+    flushed = 0
+    with _live_lock:
+        pending = _live_pending_bars.pop(symbol, [])
+        _live_warming.discard(symbol)
+        for bar in pending:
+            if last_warmed_ts is not None and bar.ts <= last_warmed_ts:
+                continue  # 已包含在预热缓存中，避免重复
+            snap = engine.process_bar(bar)
+            last_warmed_ts = bar.ts
+            flushed += 1
+        _live_bar_counts[symbol] = engine._bi_engine.bar_count  # noqa: SLF001
+        if snap is not None:
+            _live_snapshots[symbol] = snap
+        _live_engines[symbol] = engine
+        if pending:
+            logger.info(
+                "Live engine %s flush pending: buffered=%d applied=%d count=%d",
+                symbol, len(pending), flushed, _live_bar_counts[symbol],
+            )
     return engine
 
 
@@ -911,15 +941,22 @@ def _on_live_bar(symbol: str, bar: Bar) -> None:
     """DatabentoLiveFeeder 的 on_bar 回调（在 feeder 线程中执行）。
 
     将 bar 送入对应引擎，然后通过 event loop 调度异步广播。
+    若引擎正在预热，则缓冲到 ``_live_pending_bars``，由
+    ``_ensure_live_engine`` 结束后按时间戳去重回放——禁止静默丢弃。
     """
-    engine = _live_engines.get(symbol)
-    if engine is None:
-        return
+    with _live_lock:
+        if symbol in _live_warming:
+            _live_pending_bars.setdefault(symbol, []).append(bar)
+            return
+        engine = _live_engines.get(symbol)
+        if engine is None:
+            return
 
     snap = engine.process_bar(bar)
-    bar_idx = _live_bar_counts.get(symbol, 0)
-    _live_bar_counts[symbol] = bar_idx + 1
-    _live_snapshots[symbol] = snap
+    with _live_lock:
+        bar_idx = _live_bar_counts.get(symbol, 0)
+        _live_bar_counts[symbol] = bar_idx + 1
+        _live_snapshots[symbol] = snap
 
     clients = _live_clients.get(symbol, set())
     if not clients:

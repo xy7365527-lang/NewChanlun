@@ -153,6 +153,9 @@ class TraversalEngine:
         self._trajectory_cluster = TrajectoryCluster()
         self._trajectory_cluster.begin_path(start, 0)
         self._step_new_vertices: set[str] = set()  # 本步新增顶点，收缩相位消费
+        # (keep, remove) pairs from successful folds this step — used by daemon
+        # persistence so append_merge does not invent keep=position.
+        self._step_merges: list[tuple[str, str]] = []
 
     def _invalidate_attempted_folds(self, affected_vertices: set[str]) -> None:
         """Remove attempted-fold entries involving any of the affected vertices.
@@ -269,6 +272,7 @@ class TraversalEngine:
             result = fold(self.k_active, [absorber, vid], self.step, self.settlement)
             if not result.blocked:
                 self.k_active = result.graph
+                self._step_merges.append((absorber, vid))
                 # Update k_full with the fold edge
                 for e in result.graph.edges:
                     if e.created_at == self.step and not self.k_full.has_edge_key(
@@ -989,6 +993,7 @@ class TraversalEngine:
                 return "fold_blocked", True, None
 
             self.k_active = result.graph
+            self._step_merges.append((enc.target_a, enc.target_b))
             # Update K_full with fold record
             for e in result.graph.edges:
                 if e.created_at == self.step and not self.k_full.has_edge_key(e.source, e.target, e.edge_type):
@@ -1635,6 +1640,7 @@ class TraversalEngine:
         self._last_resonance = False
         self._last_articulation = None
         self._step_new_vertices.clear()  # 每步开始时重置
+        self._step_merges.clear()
         explored = False
         prev_position = self.position  # 425号: record for TRAVERSAL_ASSOCIATION
 

@@ -201,17 +201,31 @@ class SwarmDaemon(TopologicalDaemon):
         self.sync_interval = sync_interval
         self._logger = logger
 
-        # Override checkpoint instance_id to use swarm's instance_id
+        # Override checkpoint instance_id to use swarm's instance_id.
+        # Parent TopologicalDaemon always restores "default" first; that state
+        # must be discarded so instance settlements do not accumulate on top of
+        # foreign lockzones (restore_daemon_state only appends settled cycles).
         self._checkpoint.close()
         from traversal_checkpoint import TraversalCheckpoint, restore_daemon_state
         self._checkpoint = TraversalCheckpoint(instance_id=instance_id)
 
-        # If checkpoint exists, restore state
+        if self.settlement is not None:
+            self.settlement._settled.clear()
+            self.settlement._pending.clear()
+
         saved = self._checkpoint.load_state()
         if saved:
             restore_daemon_state(self, saved)
             if self._logger:
                 self._logger.info(f"Restored: step={self.total_steps}, settled={len(self.settlement.settled_cycles)}")
+        else:
+            # Fresh instance: drop counters inherited from the default checkpoint.
+            self.total_steps = 0
+            self.total_events = 0
+            self.total_feeds = 0
+            self.total_gaps_detected = 0
+            self._crystallization_count = 0
+            self._beta_1_history = []
 
         # Shared layer — IPFS backend（IPFS 不可用时降级）
         self.shared = None

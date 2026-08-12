@@ -1179,6 +1179,8 @@ class TopologicalDaemon:
             )
             if not result.blocked:
                 self.k_active = result.graph
+                if self.engine is not None:
+                    self.engine._step_merges.append((best_target, vid))
                 # Propagate to k_full
                 for e in result.graph.edges:
                     if e.created_at == self.total_steps and not self.k_full.has_edge_key(
@@ -1410,14 +1412,22 @@ class TopologicalDaemon:
                     )
                 else:
                     self._persist.append_edge(e)
-            # Detect and write fold merges (ACTIVE → FOLDED with edge redirect)
+            # Detect and write fold merges (ACTIVE → FOLDED with edge redirect).
+            # keep must be the real absorber (fold vertices[0]), not log.position —
+            # _contract / crystallization absorb into neighbors that may differ.
+            merge_by_remove = {
+                remove: keep for keep, remove in getattr(self.engine, "_step_merges", [])
+            }
             for vid, v in self.k_active.vertices.items():
                 old_status = pre_active_statuses.get(vid)
                 if old_status is not None and old_status != v.status:
                     if v.status == VertexStatus.FOLDED:
-                        # Find which vertex absorbed this one:
-                        # the kept vertex is position after fold
-                        self._persist.append_merge(log.position, vid, log.step)
+                        keep = merge_by_remove.get(vid)
+                        if keep is None:
+                            # Should not happen for folds routed through the engine;
+                            # skip rather than persist a wrong absorber.
+                            continue
+                        self._persist.append_merge(keep, vid, log.step)
                     else:
                         # Other status changes (e.g. CONTESTED)
                         self._persist.append_vertex_status(vid, v.status.value, log.step)
