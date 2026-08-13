@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from newchan.convert import bars_to_df
-from newchan.b_timeframe import resample_ohlc, SUPPORTED_TF
+from newchan.b_timeframe import resample_ohlc, tf_duration_seconds, SUPPORTED_TF
 from newchan.types import Bar
 
 
@@ -112,3 +112,23 @@ class TestResampleOhlc:
         for tf in SUPPORTED_TF:
             result = resample_ohlc(ohlcv_1m, tf)
             assert len(result) > 0
+
+
+class TestTfDurationSeconds:
+    def test_known_periods(self):
+        assert tf_duration_seconds("1m") == 60.0
+        assert tf_duration_seconds("5m") == 300.0
+        assert tf_duration_seconds("15m") == 900.0
+        assert tf_duration_seconds("30m") == 1800.0
+        assert tf_duration_seconds("1h") == 3600.0
+        assert tf_duration_seconds("4h") == 14400.0
+        assert tf_duration_seconds("1d") == 86400.0
+        assert tf_duration_seconds("1w") == 604800.0
+
+    def test_covers_all_supported_tf(self):
+        for tf in SUPPORTED_TF:
+            assert tf_duration_seconds(tf) > 0
+
+    def test_unsupported_raises(self):
+        with pytest.raises(ValueError, match="不支持"):
+            tf_duration_seconds("2hour")

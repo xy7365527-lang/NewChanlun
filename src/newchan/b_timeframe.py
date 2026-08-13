@@ -16,7 +16,33 @@ _TF_MAP: dict[str, str] = {
     "1w": "1W",
 }
 
+# 用户友好名 -> 周期秒数（与 _TF_MAP 对齐；用于 close-time 对齐）
+_TF_SECONDS: dict[str, float] = {
+    "1m": 60.0,
+    "5m": 300.0,
+    "15m": 900.0,
+    "30m": 1800.0,
+    "1h": 3600.0,
+    "4h": 14400.0,
+    "1d": 86400.0,
+    "1w": 604800.0,
+}
+
 SUPPORTED_TF = sorted(_TF_MAP.keys())
+
+
+def tf_duration_seconds(display_tf: str) -> float:
+    """返回显示周期对应的秒数。
+
+    pandas resample 默认用窗口左端（开盘时间）作为 bar 时间戳。
+    收盘时间 = 开盘时间 + 本函数返回值。
+    """
+    seconds = _TF_SECONDS.get(display_tf)
+    if seconds is None:
+        raise ValueError(
+            f"不支持的 display_tf '{display_tf}'，可选: {', '.join(SUPPORTED_TF)}"
+        )
+    return seconds
 
 
 def resample_ohlc(df: pd.DataFrame, display_tf: str) -> pd.DataFrame:

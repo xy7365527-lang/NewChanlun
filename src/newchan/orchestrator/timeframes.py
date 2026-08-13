@@ -5,9 +5,11 @@
 支持 level≥2 递归中枢和走势构造。
 
 核心规则：
-- base TF 每步进 1 bar，检查高 TF 是否有 bar 的 close time ≤ 当前 base 时间
+- base TF 每步进 1 bar，检查高 TF 是否有 bar 的 close time ≤ 当前 base bar 的 close time
 - 有 → 该 TF 步进；无 → 跳过
 - 各 TF 的 RecursiveOrchestrator 完全独立，互不污染
+- resample 产出的高 TF bar 时间戳是窗口开盘时间；必须等到窗口走完
+  才能送入引擎，否则会把尚未发生的 OHLC（未来函数）喂进缠论结构
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from newchan.b_timeframe import resample_ohlc
+from newchan.b_timeframe import resample_ohlc, tf_duration_seconds
 from newchan.orchestrator.recursive import (
     RecursiveOrchestrator,
     RecursiveOrchestratorSnapshot,
@@ -30,6 +32,16 @@ def _dt_to_epoch(dt: datetime) -> float:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.timestamp()
+
+
+def _bar_close_epoch(bar: Bar, tf: str) -> float:
+    """bar 收盘时间（epoch 秒）。
+
+    pandas resample / 缓存 K 线时间戳是窗口开盘时间（label='left'）。
+    收盘 = 开盘 + 周期长度。高 TF 必须在收盘后才能送入引擎，
+    否则会把窗口内尚未发生的 OHLC 当成已知。
+    """
+    return _dt_to_epoch(bar.ts) + tf_duration_seconds(tf)
 
 
 def _bars_to_df(bars: list[Bar]) -> pd.DataFrame:
@@ -225,31 +237,31 @@ class TFOrchestrator:
             if self.base_session.current_idx >= self.base_session.total_bars:
                 break
 
-            # 获取当前 base bar 的时间戳（步进前）
+            # 获取当前 base bar 的收盘时间（步进前取其开盘时间戳 + 周期）
             base_bar = self.base_session.bars[self.base_session.current_idx]
-            base_ts = _dt_to_epoch(base_bar.ts)
+            base_close_ts = _bar_close_epoch(base_bar, self.base_tf)
 
             # 步进 base TF（RecursiveOrchestrator 内部完成全链路）
             base_snaps = self.base_session.step(1)
             result[self.base_tf].extend(base_snaps)
 
-            # 检查高 TF 是否需要步进
+            # 检查高 TF 是否已经收盘
             for tf in self.timeframes[1:]:
-                self._step_higher_tf(tf, base_ts, result)
+                self._step_higher_tf(tf, base_close_ts, result)
 
         return result
 
     def _step_higher_tf(
         self,
         tf: str,
-        base_ts: float,
+        base_close_ts: float,
         result: dict[str, list[RecursiveOrchestratorSnapshot]],
     ) -> None:
-        """步进单个高 TF 直到其下一根 bar 超过 base_ts。"""
+        """步进单个高 TF，直到下一根 bar 的收盘晚于当前 base 收盘。"""
         sess = self.sessions[tf]
         while sess.current_idx < sess.total_bars:
             next_bar = sess.bars[sess.current_idx]
-            if _dt_to_epoch(next_bar.ts) > base_ts:
+            if _bar_close_epoch(next_bar, tf) > base_close_ts:
                 break
             tf_snaps = sess.step(1)
             result[tf].extend(tf_snaps)
@@ -269,20 +281,20 @@ class TFOrchestrator:
 
         if target_idx <= 0:
             for tf in self.timeframes[1:]:
-                self.sessions[tf].seek(0)
+                self.sessions[tf].reset_to_start()
                 result[tf] = None
             return result
 
-        # 计算 base TF 到达 target_idx 时的时间戳
+        # 计算 base TF 到达 target_idx 时的收盘时间
         base_bar = self.base_session.bars[min(target_idx, self.total_bars - 1)]
-        base_ts = _dt_to_epoch(base_bar.ts)
+        base_close_ts = _bar_close_epoch(base_bar, self.base_tf)
 
-        # 高 TF：找到最后一根 close time ≤ base_ts 的 bar 索引
+        # 高 TF：找到最后一根 close time ≤ base close 的 bar 索引
         for tf in self.timeframes[1:]:
             sess = self.sessions[tf]
             tf_target = -1
             for i, bar in enumerate(sess.bars):
-                if _dt_to_epoch(bar.ts) <= base_ts:
+                if _bar_close_epoch(bar, tf) <= base_close_ts:
                     tf_target = i
                 else:
                     break
@@ -290,7 +302,7 @@ class TFOrchestrator:
             if tf_target >= 0:
                 result[tf] = sess.seek(tf_target)
             else:
-                sess.seek(0)
+                sess.reset_to_start()
                 result[tf] = None
 
         return result

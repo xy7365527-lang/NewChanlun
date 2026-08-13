@@ -75,6 +75,19 @@ class ReplaySession:
 
         return snapshots
 
+    def reset_to_start(self) -> None:
+        """清空引擎，回到未处理任何 bar 的状态。
+
+        与 ``seek(0)`` 不同：``seek(0)`` 仍会摄入 bars[0]。
+        高 TF 窗口尚未收盘时必须用本方法，否则会把未走完的
+        预采样 K 线（含未来 OHLC）送入引擎。
+        """
+        self.engine.reset()
+        self.current_idx = 0
+        self.event_log.clear()
+        if self.mode == "done":
+            self.mode = "paused"
+
     def seek(self, target_idx: int) -> RecursiveOrchestratorSnapshot | None:
         """跳转到指定位置。重置引擎，从头重跑到 target_idx。
 

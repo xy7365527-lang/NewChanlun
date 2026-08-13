@@ -266,3 +266,80 @@ class TestTFOrchestrator:
         assert "5m" in status
         assert "30m" in status
         assert status["5m"]["current_idx"] == 10
+
+    def test_higher_tf_waits_for_bar_close(self):
+        """高 TF 必须等窗口收盘才送入引擎，否则会把未来 OHLC 喂进缠论结构。
+
+        6 根 5m K 线覆盖 10:00-10:30。前 5 根价格约 100，最后一根（10:25）
+        高点 200。预采样后的 30m K 线 high=200。若按开盘时间对齐，步进
+        第一根 5m（10:00）就会把 high=200 送进 30m 引擎——未来函数。
+        """
+        start = datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc)
+
+        def _b(minute: int, high: float, close: float) -> Bar:
+            return Bar(
+                ts=start + timedelta(minutes=minute),
+                open=100.0, high=high, low=99.0, close=close,
+            )
+
+        bars = [
+            _b(0, 101, 100),
+            _b(5, 101, 100),
+            _b(10, 101, 100),
+            _b(15, 101, 100),
+            _b(20, 101, 100),
+            _b(25, 200, 150),  # 窗口内最后一根 5m，spike
+            _b(30, 151, 150),
+            _b(35, 151, 150),
+            _b(40, 151, 150),
+            _b(45, 151, 150),
+            _b(50, 151, 150),
+            _b(55, 151, 150),
+        ]
+        orch = TFOrchestrator("sid", bars, ["5m", "30m"])
+        assert orch.sessions["30m"].bars[0].high == 200.0
+
+        # 步进尚未收盘的 5 根 5m（10:00-10:20）→ 30m 不得提前摄入
+        for _ in range(5):
+            result = orch.step(1)
+            assert result["30m"] == [], (
+                "30m bar 在 10:30 收盘前被摄入，high=200 对 10:00-10:20 是未来函数"
+            )
+        assert orch.sessions["30m"].current_idx == 0
+
+        # 第 6 根 5m（10:25）收盘 = 10:30 = 30m 窗口收盘 → 才允许摄入
+        result = orch.step(1)
+        assert len(result["30m"]) == 1
+        assert orch.sessions["30m"].current_idx == 1
+        assert orch.sessions["30m"].bars[0].high == 200.0
+
+    def test_higher_tf_seek_also_waits_for_close(self):
+        """seek 到未收盘位置时，高 TF 同样不得摄入未走完的 K 线。"""
+        start = datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc)
+        bars = [
+            Bar(
+                ts=start + timedelta(minutes=5 * i),
+                open=100.0, high=101.0, low=99.0, close=100.0,
+            )
+            for i in range(12)
+        ]
+        # index 4 = 10:20，5m 收盘 10:25 < 30m 收盘 10:30
+        orch = TFOrchestrator("sid", bars, ["5m", "30m"])
+        orch.seek(4)
+        assert orch.sessions["30m"].current_idx == 0
+
+        # seek(0) 摄入 base 第 0 根，但 30m 窗口未收盘，不得走 seek(0) 误摄入
+        orch0 = TFOrchestrator("sid0", bars, ["5m", "30m"])
+        orch0.seek(0)
+        assert orch0.sessions["30m"].current_idx == 0
+
+        # index 5 = 10:25，5m 收盘 10:30 = 30m 收盘
+        orch2 = TFOrchestrator("sid2", bars, ["5m", "30m"])
+        orch2.seek(5)
+        assert orch2.sessions["30m"].current_idx == 1
+
+        # seek 与逐步步进在收盘边界上一致
+        orch3 = TFOrchestrator("sid3", bars, ["5m", "30m"])
+        for _ in range(6):
+            orch3.step(1)
+        assert orch3.sessions["30m"].current_idx == orch2.sessions["30m"].current_idx
