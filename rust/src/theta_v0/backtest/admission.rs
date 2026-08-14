@@ -411,7 +411,8 @@ pub(super) struct NestGateObs {
 //   `n_delta` 过（判定谓词唯一来源 `cert.certificate().n_delta()`，nest.rs 递归核，禁第二查法）。
 // - **缺/断极性**（词汇表：缺环即拒 = lvl+1 单级过证不算；断环即拒 = 高级有证而中间断不算）：
 //   非闭合级 g 的上方区间 (g, 链顶] 内有闭合级 ⟹ **断**（高级有证而中间断），否则 **缺**。
-//   底质三态（缺）：T2 层无该脚存在 / 键域查无身份或索引无证 / 有证但全被因果守卫剔除。
+//   底质三态（缺）：T2 层无该脚存在 / 键域查无身份 / 键域有身份但索引查无证
+//   （或全被因果守卫剔除——实测 100% 索引落空、因果剔除 0 张，#737/#797）。
 //   （断底质「有因果干净证书但合并 n_delta 假」在现装配下结构性不可达——
 //   `assemble_typed_certificate` 只产过证（nest.rs:683 debug_assert）；保留语义位，
 //   守卫/n_delta 消费逐字，伪证一旦出现即落 [`ChainLevelStatus::Broken`]。）
@@ -419,7 +420,7 @@ pub(super) struct NestGateObs {
 //   均不涉及方向分量；唯一变化 = 存在性与键域查询不再滤方向（同点跨型回归为合法递归）。
 // - **三态裁决**：全链闭合 = Pass（`nest_pass`）；≥1 闭合级但有缺/断 = Reject
 //   （`nest_n_delta_false`，对标旧 `Some(pass=false)` 语义位）；零闭合级 / 存在性全无 /
-//   锚不可解 = **NoChain**（Xzd 回退通道逐字不动——含「唯一证书全被因果守卫剔除」的
+//   锚不可解 = **NoChain**（Xzd 回退通道逐字不动——含「唯一证书被索引落空/因果剔除」的
 //   #112-T2 现语义：零闭合 ⟹ NoChain ⟹ 回退）。
 
 /// T3 链级状态（链谱系逐级落账的底质）。
@@ -433,8 +434,12 @@ pub(super) enum ChainLevelStatus {
     MissingExistence,
     /// 缺（底质）：有存在但键域查无身份 / 索引无证。
     MissingCert,
-    /// 缺（底质）：键域有证但全被因果守卫剔除（整证剔除 ⟹ 不算「有证」，归缺不归断）。
-    MissingCausal,
+    /// 缺（底质）：键域有身份（`n_certs>0`）但无一张解析为证书——**实测 100% 是
+    /// `index.get(id)` 索引落空**（#737/#797 三窗 500/500），被因果守卫真正剔除 = 0 张；
+    /// 因果守卫越界（`judge_at > anchor`，整证剔除）仍是本状态前件之一（理论路径保留，
+    /// 有测试锁），与索引落空同归「有身份无证」缺底质。原标签 `MissingCausal` 名不副实
+    ///（#965 交付 4 订正）。
+    MissingIndex,
 }
 
 /// T3 缺/断位置极性（词汇表判据：上方有闭合 ⟹ 断，否则缺）。
@@ -538,6 +543,8 @@ pub(super) struct NestChainGate {
     pub(super) dif: Vec<f64>,
     pub(super) close_src: Vec<usize>,
     /// 下标 = nest 级别 ℓ 的 append-only 事件账本（`events_by_level[0]` 恒空，nest 不听 L0）。
+    /// #965 交付 2：槽数 = 塔层数 + 1——塔顶级别事件（键级 = n_levels，`event_bsp_book_level`
+    /// 移位后落账本级 = n_levels-1）存于槽 n_levels（塔顶键结构性可满足）。
     pub(super) events_by_level: Vec<Vec<classifier::level_view::NestCandidateEvent>>,
     pub(super) seen: std::collections::HashSet<classifier::nest::NestEventIdentity>,
     /// T1 (#170 键域重锚，expand 无门纯增写）→ T5a (#207 去方向位）：新单键域
@@ -681,15 +688,30 @@ impl NestChainGate {
         as_of: usize,
     ) {
         let n_levels = tower.len();
-        if n_levels > self.events_by_level.len() {
-            self.events_by_level.resize_with(n_levels, Vec::new);
-            self.derived.resize_with(n_levels, || None);
+        // 事件账本槽数 = 塔层数 + 1：塔顶级别的事件键级 = n_levels（T1 移位
+        // `event_bsp_book_level(n_levels)=n_levels-1`），其事件存于槽 n_levels——
+        // 链查询要 `event_level = book+1`（book=链顶=n_levels-1）⟹ 塔顶键必须可派生
+        //（#740 ④ 结构性不可满足 6.85% 修复；#965 交付 2）。
+        if n_levels + 1 > self.events_by_level.len() {
+            self.events_by_level.resize_with(n_levels + 1, Vec::new);
+            self.derived.resize_with(n_levels + 1, || None);
         }
-        for level in 1..n_levels {
-            let w_self = confirmed_lens.get(level).copied().unwrap_or(0);
-            let w_lower = confirmed_lens.get(level - 1).copied().unwrap_or(0);
-            let tower_self = tower[level].as_slice();
-            let tower_lower = tower[level - 1].as_slice();
+        for level in 1..=n_levels {
+            // 塔顶级别（level == n_levels）：无上级塔层可投影 ⟹ windows 与 legs 同取
+            // tower[n_levels-1]（塔顶拐点的背驰由塔顶层自身趋势判定，与 bsp 一类点
+            // `extract_first_third_for_level` 同源——趋势级别=本级，段=本级走势单元）。
+            let (tower_self, tower_lower, w_self, w_lower) = if level == n_levels {
+                let top = tower[n_levels - 1].as_slice();
+                let w_top = confirmed_lens.get(n_levels - 1).copied().unwrap_or(0);
+                (top, top, w_top, w_top)
+            } else {
+                (
+                    tower[level].as_slice(),
+                    tower[level - 1].as_slice(),
+                    confirmed_lens.get(level).copied().unwrap_or(0),
+                    confirmed_lens.get(level - 1).copied().unwrap_or(0),
+                )
+            };
             // #93 步骤 0：值指纹判变（替代 Rc ptr_eq——消除自溃 + COW）。
             if let Some(fp) = &self.derived[level] {
                 if fp.content_unchanged(w_self, w_lower, tower_self, tower_lower) {
@@ -731,7 +753,9 @@ impl NestChainGate {
                 return Vec::new();
             }
         };
-        let windows = &tower[level];
+        // 塔顶级别（level == tower.len()）：无上级塔层 ⟹ windows 退化为塔顶层自身
+        //（与 legs 同层；拐点落在账本级 tower.len()-1 = 塔顶）。常规级别 windows=tower[level]。
+        let windows = &tower[level.min(tower.len() - 1)];
         let mut out = Vec::new();
         let mut run_start = None;
         for index in 0..=windows.len() {
@@ -1037,7 +1061,7 @@ impl NestChainGate {
             }
             let status = if n_clean == 0 {
                 if n_certs > 0 {
-                    ChainLevelStatus::MissingCausal
+                    ChainLevelStatus::MissingIndex
                 } else {
                     ChainLevelStatus::MissingCert
                 }
@@ -1062,7 +1086,7 @@ impl NestChainGate {
         // qujiantao.md §7 两条 N^δ 自底向上确认的同一判据）把本级升级为 Closed，
         // 消除「高级 closed + 本级未确认」的矛盾谱系。只升级 missing_cert（有存在但
         // 键域查无身份）且确有未确认事件者；产出缺口（unconf==0）／恰好存在断裂
-        // （MissingExistence）／因果全剔（MissingCausal）不参与（非谓词有偏）。
+        // （MissingExistence）／有身份无证（MissingIndex：索引落空或因果全剔）不参与（非谓词有偏）。
         let mut closed_above = false;
         for g in levels.iter_mut().rev() {
             if g.status == ChainLevelStatus::Closed {
@@ -1577,7 +1601,7 @@ pub(super) mod t5a_chain_dump {
                         ChainLevelStatus::Broken => "broken",
                         ChainLevelStatus::MissingExistence => "missing_existence",
                         ChainLevelStatus::MissingCert => "missing_cert",
-                        ChainLevelStatus::MissingCausal => "missing_causal",
+                        ChainLevelStatus::MissingIndex => "missing_index",
                     };
                     serde_json::json!({
                         "level": g.level,

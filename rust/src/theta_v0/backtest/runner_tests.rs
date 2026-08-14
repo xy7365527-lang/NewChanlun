@@ -5430,7 +5430,8 @@ fn nest_chain_gate_admit_consumes_deeper_multi_level_hit() {
 
 /// #112-T2 → T3 (#172)（进场因果守卫）：唯一证书 judge_at=100 越过 anchor=19；旧 fixed
 /// 桥读出虽命中（fixed 桥无因果守卫——该桥四件已随 T5b (#208) 删除），严格链整证剔除
-/// （MissingCausal）⟹ NoChain，进入既有 Xzd fallback 三分支，而不是消费未来证书。
+/// （MissingIndex——「有身份无证」缺底质的因果守卫前件；生产实测该状态 100% 索引落空、
+/// 因果剔除 0 张，#737/#797）⟹ NoChain，进入既有 Xzd fallback 三分支，而不是消费未来证书。
 /// T4 (#173)：multi 路径与对照列已删，本测试锁链守卫 + 回退。
 #[test]
 fn nest_chain_gate_multi_causal_guard_falls_back_to_xzd() {
@@ -6151,9 +6152,11 @@ fn t3_chain_no_chain_falls_back_to_xzd_verbatim() {
 }
 
 /// T3-7（因果守卫语义沿用）：唯一证书 judge_at=100 越过 anchor=19 ⟹ 整证剔除
-/// （MissingCausal，缺环底质）；全区间零因果干净证书 ⟹ NoChain → Xzd（#112-T2 现语义保留）。
+/// （MissingIndex——「有身份无证」缺底质；本测试走因果守卫前件，生产实测该状态
+/// 100% 索引落空、因果剔除 0 张，#737/#797）；全区间零因果干净证书 ⟹ NoChain → Xzd
+///（#112-T2 现语义保留）。
 #[test]
-fn t3_chain_causal_guard_missing_causal_then_no_chain() {
+fn t3_chain_causal_guard_rejects_then_no_chain() {
     let cls = t3_chain_classification(&[(0, true)]);
     let gate = t3_gate_with_certs(&[1], 100, &cls); // judge_at=100
     let c = ng_candidate(
@@ -6164,10 +6167,10 @@ fn t3_chain_causal_guard_missing_causal_then_no_chain() {
     let probe = gate.chain_lookup(&c, 19, &cls);
     assert_eq!(
         probe.levels[0].status,
-        ChainLevelStatus::MissingCausal,
-        "唯一证书越界 ⟹ 整证剔除（缺环底质 MissingCausal）"
+        ChainLevelStatus::MissingIndex,
+        "唯一证书越界 ⟹ 整证剔除（有身份无证缺底质 MissingIndex）"
     );
-    assert_eq!(probe.levels[0].n_certs, 1, "键域有证（剔除前）");
+    assert_eq!(probe.levels[0].n_certs, 1, "键域有身份（剔除前）");
     assert_eq!(probe.levels[0].n_causal_clean, 0, "因果守卫全剔");
     assert_eq!(
         probe.verdict,
@@ -6657,7 +6660,8 @@ fn nest_chain_sync_events_incremental_skip() {
     // #93 步骤 0：confirmed_lens = [len0, len1]（合成塔全确认 = 模拟无 frontier 重写的稳定塔）。
     let cl = vec![tower[0].len(), tower[1].len()];
     gate.sync_events(&tower, &cl, 139);
-    assert_eq!(gate.n_derivations, 1, "首见塔 ⟹ 派生一次");
+    // #965 交付 2：塔顶级别（level 2 = 账本级 L1）也派生 ⟹ 派生数 = 塔层数（L1 + 塔顶 L2）。
+    assert_eq!(gate.n_derivations, 2, "首见塔 ⟹ 派生两级（L1 + 塔顶 L2）");
     assert_eq!(
         gate.n_provider_errors, 0,
         "夹具应零 provider 错误（管道端到端跑通）"
@@ -6675,7 +6679,10 @@ fn nest_chain_sync_events_incremental_skip() {
     );
     // #93：值指纹不变 ⟹ 跳过（增量喂法核心——禁每 bar 从零重建；旧 Rc ptr_eq 自溃已消除）。
     gate.sync_events(&tower, &cl, 139);
-    assert_eq!(gate.n_derivations, 1, "tower 值不变 ⟹ 不重派生");
+    assert_eq!(
+        gate.n_derivations, 2,
+        "tower 值不变 ⟹ 不重派生（两级皆跳过）"
+    );
     assert_eq!(
         gate.events_by_level.iter().map(Vec::len).sum::<usize>(),
         absorbed,
@@ -6685,8 +6692,8 @@ fn nest_chain_sync_events_incremental_skip() {
     let tower2 = vec![std::rc::Rc::new(lower), std::rc::Rc::clone(&tower[1])];
     gate.sync_events(&tower2, &cl, 139);
     assert_eq!(
-        gate.n_derivations, 1,
-        "tower[0] 新 Rc 同内容 ⟹ 值指纹跳过（自溃消除）"
+        gate.n_derivations, 2,
+        "tower[0] 新 Rc 同内容 ⟹ 值指纹跳过（自溃消除，两级皆跳过）"
     );
     assert_eq!(
         gate.events_by_level.iter().map(Vec::len).sum::<usize>(),
@@ -6747,10 +6754,11 @@ fn nest_chain_fingerprint_value_based() {
     // 首次：w_lower=3（前3段证书保稳定，index=3 是未确认尾段），w_self=1。
     let cl = vec![3, 1];
     gate.sync_events(&tower, &cl, 49);
-    assert_eq!(gate.n_derivations, 1, "首见塔 ⟹ 派生一次");
-    // 同塔同水线再喂 ⟹ 跳过。
+    // #965 交付 2：塔顶级别（level 2 = 账本级 L1）也派生 ⟹ 派生数 = 塔层数（L1 + 塔顶 L2）。
+    assert_eq!(gate.n_derivations, 2, "首见塔 ⟹ 派生两级（L1 + 塔顶 L2）");
+    // 同塔同水线再喂 ⟹ 跳过（两级皆跳过）。
     gate.sync_events(&tower, &cl, 49);
-    assert_eq!(gate.n_derivations, 1, "值指纹不变 ⟹ 跳过");
+    assert_eq!(gate.n_derivations, 2, "值指纹不变 ⟹ 跳过");
     // 尾段单元素变（lower 尾段 lo 改）⟹ 重派生。
     let lower2 = {
         let mut l = lower.clone();
@@ -6773,11 +6781,131 @@ fn nest_chain_fingerprint_value_based() {
     };
     let tower2 = vec![std::rc::Rc::new(lower2), std::rc::Rc::new(windows.clone())];
     gate.sync_events(&tower2, &cl, 49);
-    assert_eq!(gate.n_derivations, 2, "tail 单元素变 ⟹ 重派生");
-    // 水线回退 ⟹ 保守全量重派生（恒正确退化）。
+    // tail 只动 tower[0] ⟹ L1 重派生、塔顶 L2（windows 未变）跳过 ⟹ 派生数 2→3。
+    assert_eq!(gate.n_derivations, 3, "tail 单元素变 ⟹ L1 重派生");
+    // 水线回退 ⟹ 保守全量重派生（恒正确退化）。cl[0] 3→2 ⟹ L1 重派生；塔顶 L2（cl[1]=1 不变）跳过。
     let cl_regress = vec![2, 1]; // w_lower 从 3 退到 2
     gate.sync_events(&tower2, &cl_regress, 49);
-    assert_eq!(gate.n_derivations, 3, "水线回退 ⟹ 保守全量重派生");
+    assert_eq!(gate.n_derivations, 4, "水线回退 ⟹ L1 保守全量重派生");
+}
+
+/// #965 交付 2（塔顶键结构性不可满足 6.85% 修复，红→绿）：`sync_events` 派生塔顶事件级
+///（level == n_levels，键级 = 账本级 n_levels-1 + 1 = 塔顶）。修复前 `sync_events` 只派生
+/// `1..n_levels`（键级 1..n_levels-1），链查询要 `event_level = book+1`（book=链顶
+/// =n_levels-1）⟹ 塔顶键恒空（#740 ④；#797 三窗 500/7294 恒 `level == chain.top`）。
+///
+/// seam：`NestChainGate::sync_events` → `derive_level_events`（塔顶级别派生：windows 与
+/// legs 同取塔顶层，无上级塔层可投影）。
+#[test]
+fn nest_chain_sync_events_derives_tower_top_event_level() {
+    use super::super::super::classifier::center::UnitRange;
+    use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+    use super::super::super::types::{Center, Direction};
+    use Direction::{Down, Up};
+    fn unit(start: usize, dir: Direction, lo: i64, hi: i64, ordinal: u64) -> LeveledMove {
+        LeveledMove::from_unit(
+            &UnitRange {
+                start_index: start,
+                end_index: start + 9,
+                direction: dir,
+                lo,
+                hi,
+            },
+            ElementId { level: 0, ordinal },
+        )
+    }
+    let lower = vec![
+        unit(0, Up, 90, 110, 0),
+        unit(10, Down, 95, 115, 1),
+        unit(20, Up, 98, 112, 2),
+        unit(30, Down, 96, 116, 3),
+        unit(40, Up, 130, 145, 4),
+        unit(50, Down, 132, 148, 5),
+        unit(60, Up, 135, 150, 6),
+        unit(70, Down, 125, 140, 7),
+        unit(80, Up, 155, 170, 8),
+        unit(90, Down, 150, 165, 9),
+        unit(100, Up, 160, 175, 10),
+        unit(110, Down, 140, 155, 11),
+        unit(120, Up, 180, 190, 12),
+        unit(130, Down, 170, 195, 13),
+    ];
+    let windows = vec![
+        LeveledMove::compose(
+            &lower[0..4],
+            Center {
+                zd: 98,
+                zg: 110,
+                dd: 90,
+                gg: 116,
+                start_index: 0,
+                end_index: 39,
+            },
+            1,
+            ElementId {
+                level: 1,
+                ordinal: 0,
+            },
+        ),
+        LeveledMove::compose(
+            &lower[4..8],
+            Center {
+                zd: 135,
+                zg: 140,
+                dd: 125,
+                gg: 150,
+                start_index: 40,
+                end_index: 79,
+            },
+            1,
+            ElementId {
+                level: 1,
+                ordinal: 1,
+            },
+        ),
+        LeveledMove::compose(
+            &lower[8..12],
+            Center {
+                zd: 160,
+                zg: 165,
+                dd: 140,
+                gg: 175,
+                start_index: 80,
+                end_index: 119,
+            },
+            1,
+            ElementId {
+                level: 1,
+                ordinal: 2,
+            },
+        ),
+    ];
+    let mut hist = vec![0.0; 140];
+    hist[80..110].fill(2.0);
+    hist[120..140].fill(0.1);
+    let mut dif = vec![0.0; 140];
+    dif[80..=100].fill(-5.0);
+    dif[101..140].fill(1.0);
+    let close_src: Vec<usize> = (0..140).collect();
+    let mut gate = NestChainGate::for_test(hist, dif, close_src);
+    let tower = vec![
+        std::rc::Rc::new(lower.clone()),
+        std::rc::Rc::new(windows.clone()),
+    ];
+    let cl = vec![tower[0].len(), tower[1].len()];
+    gate.sync_events(&tower, &cl, 139);
+    // 修复后：事件账本槽数 = 塔层数 + 1（塔顶键级槽存在；修复前 = 塔层数）。
+    assert_eq!(
+        gate.events_by_level.len(),
+        3,
+        "事件账本含塔顶键级槽（n_levels+1）"
+    );
+    // 塔顶键级可直接派生（level == n_levels 不 panic——修复前 tower[n_levels] 越界 panic）。
+    let top_exts = gate.derive_level_events(&tower, tower.len(), 139);
+    assert!(
+        top_exts.iter().all(|e| e.event.level == tower.len() as u32),
+        "塔顶派生事件键级 = n_levels（账本级 = n_levels-1）"
+    );
 }
 
 // ───────────── #76（SPEC #73 A 线第三票：出场门真链切换）─────────────
