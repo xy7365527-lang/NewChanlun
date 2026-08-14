@@ -6180,6 +6180,147 @@ fn t3_chain_causal_guard_missing_causal_then_no_chain() {
     assert_eq!(probe.verdict, ChainVerdict::Pass);
 }
 
+/// T3-9（#965 交付 1：谓词有偏 113 条修复，红→绿）：更高级 closed 而本级仅未确认
+/// 事件（② 谓词不成立，`unconf_exact > 0`）⟹ 自相矛盾态。修复后按
+/// 「高级别背驰时，低级别假设已经背驰」（beichi.md 区间套工作假设）向下传播：
+/// 本级升级为 Closed，谱系不再出现「高级 closed + 本级未确认」的矛盾读数。
+///
+/// seam：`NestChainGate::absorb_exts` 的 `!divergence_confirmed` 丢弃 → `chain_lookup`
+/// 逐级 status 判定（公共接口 = 证书确认判定）。
+#[test]
+fn t3_chain_unconfirmed_lower_assumes_confirmed_when_upper_closed() {
+    use super::super::super::strategy::voice::VoiceSide;
+    use super::super::super::types::Side;
+    // 两账本级（book 0/1），x=55 均存在 ⟹ 链顶 = L1。
+    let cls = t3_chain_classification(&[(0, true), (1, true)]);
+    let (fractals, merged) = t3_supplies();
+    let mut gate = NestChainGate::for_test_with_supplies(
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        std::rc::Rc::new(fractals),
+        std::rc::Rc::new(merged),
+    );
+    // 本级（event level 1 = book 0）仅未确认事件（divergence_confirmed=false）——被丢弃。
+    let unconf = nc_event(1, Side::Long, (30, 50), 50, 100, false);
+    gate.absorb_exts(vec![nc_ext_anchored(unconf, 100, 50)]);
+    // 更高级（event level 2 = book 1）有确认事件——n_delta 基例闭合。
+    let conf = nc_event(2, Side::Long, (30, 50), 50, 100, true);
+    gate.absorb_exts(vec![nc_ext_anchored(conf, 100, 50)]);
+    gate.sync_index(&cls);
+    let c = ng_candidate(VoiceSide::Long, Default::default(), 55);
+    let probe = gate.chain_lookup(&c, 100, &cls);
+    // 修复后：本级不再被报为 missing_cert——更高级 closed ⟹ 向下假设确认，自相矛盾态消除。
+    assert_eq!(
+        probe.levels[0].status,
+        ChainLevelStatus::Closed,
+        "本级仅未确认事件 + 更高级 closed ⟹ 向下假设确认（自相矛盾态消除）"
+    );
+    assert_eq!(
+        probe.levels[1].status,
+        ChainLevelStatus::Closed,
+        "更高级本已闭合"
+    );
+    assert_eq!(probe.verdict, ChainVerdict::Pass, "全链闭合");
+}
+
+/// T3-10（#965 交付 1 补充锁：多级未确认向下传播 + 产出缺口不误升级）：L0/L1 两级
+/// 均仅未确认事件而 L2 闭合 ⟹ 两级都按「高级别背驰时，低级别假设已经背驰」升级为
+/// Closed（自相矛盾态全消，全链闭合）；对照臂 L1 无任何事件（① 产出缺口，unconf==0）
+/// ⟹ 不参与向下假设，仍为 MissingCert（窄修复，不误伤产出缺口）。
+///
+/// seam 同 T3-9：`absorb_exts` 的 `!divergence_confirmed` 丢弃 → `chain_lookup`
+/// 逐级 status 判定。
+#[test]
+fn t3_chain_multi_level_unconfirmed_propagates_down_not_missing_no_events() {
+    use super::super::super::strategy::voice::VoiceSide;
+    use super::super::super::types::Side;
+    // 三账本级（book 0/1/2），x=55 均存在 ⟹ 链顶 = L2。
+    let cls = t3_chain_classification(&[(0, true), (1, true), (2, true)]);
+    let (fractals, merged) = t3_supplies();
+    let mut gate = NestChainGate::for_test_with_supplies(
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        std::rc::Rc::new(fractals),
+        std::rc::Rc::new(merged),
+    );
+    // L0/L1 仅未确认事件（丢弃）；L2 确认事件（闭合）。
+    gate.absorb_exts(vec![nc_ext_anchored(
+        nc_event(1, Side::Long, (30, 50), 50, 100, false),
+        100,
+        50,
+    )]);
+    gate.absorb_exts(vec![nc_ext_anchored(
+        nc_event(2, Side::Long, (30, 50), 50, 100, false),
+        100,
+        50,
+    )]);
+    gate.absorb_exts(vec![nc_ext_anchored(
+        nc_event(3, Side::Long, (30, 50), 50, 100, true),
+        100,
+        50,
+    )]);
+    gate.sync_index(&cls);
+    let c = ng_candidate(VoiceSide::Long, Default::default(), 55);
+    let probe = gate.chain_lookup(&c, 100, &cls);
+    assert_eq!(
+        probe.levels[0].status,
+        ChainLevelStatus::Closed,
+        "L0 仅未确认事件 + 更高级 closed ⟹ 向下假设确认"
+    );
+    assert_eq!(
+        probe.levels[1].status,
+        ChainLevelStatus::Closed,
+        "L1 仅未确认事件 + 更高级 closed ⟹ 向下假设确认"
+    );
+    assert_eq!(
+        probe.levels[2].status,
+        ChainLevelStatus::Closed,
+        "L2 本已闭合"
+    );
+    assert_eq!(
+        probe.verdict,
+        ChainVerdict::Pass,
+        "全链闭合（自相矛盾态全消）"
+    );
+
+    // 对照臂：L1 无任何事件（产出缺口）而 L0/L2 闭合 ⟹ L1 不参与向下假设，仍 MissingCert。
+    let gate2 = {
+        let (fractals, merged) = t3_supplies();
+        let mut g = NestChainGate::for_test_with_supplies(
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            std::rc::Rc::new(fractals),
+            std::rc::Rc::new(merged),
+        );
+        g.absorb_exts(vec![nc_ext_anchored(
+            nc_event(1, Side::Long, (30, 50), 50, 100, true),
+            100,
+            50,
+        )]);
+        g.absorb_exts(vec![nc_ext_anchored(
+            nc_event(3, Side::Long, (30, 50), 50, 100, true),
+            100,
+            50,
+        )]);
+        g.sync_index(&cls);
+        g
+    };
+    let probe2 = gate2.chain_lookup(&c, 100, &cls);
+    assert_eq!(
+        probe2.levels[1].status,
+        ChainLevelStatus::MissingCert,
+        "L1 产出缺口（unconf==0）不参与向下假设，仍为缺（窄修复）"
+    );
+    assert_eq!(
+        probe2.verdict,
+        ChainVerdict::Reject,
+        "上方闭合不补产出缺口之缺（闭合到 L0 字面）"
+    );
+}
+
 /// T3-8（方向一致性见证）已随 T5a (#207) 退役删除——「方向分歧」在 ADR 20260723
 /// 裁定 1 下是非概念：同脚同价的层异型登记 = 同点跨型（各级自为真，A 类 235 例
 /// 语义真相回归，见 `t5a_same_point_cross_type_chain_pass`）；异侧键域有证 = 同键

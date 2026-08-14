@@ -589,6 +589,12 @@ pub(super) struct NestChainGate {
     pub(super) n_provider_errors: usize,
     /// 派生产出的全部事件数（含未确认——诊断用，区分「零产出」与「全未确认」）。
     pub(super) n_events_seen: usize,
+    /// #965 交付 1（谓词有偏 113 条修复）：未确认事件三元键账本 `(事件级, 极值价, 组锚)
+    /// → 出现次数`。`absorb_exts` 在 `!divergence_confirmed` 丢弃**之前**记录（只写诊断账本，
+    /// 不进索引、不进判定）；`chain_lookup` 用它识别「更高级已 closed 而本级仅未确认事件」
+    /// 的自相矛盾态（#797 ② 谓词不成立，`unconf_exact > 0` 的判定落地版）。
+    pub(super) unconf_by_triple:
+        std::collections::HashMap<(u32, super::super::types::Tick, usize), usize>,
 }
 
 impl NestChainGate {
@@ -619,6 +625,7 @@ impl NestChainGate {
             n_index_builds: 0,
             n_provider_errors: 0,
             n_events_seen: 0,
+            unconf_by_triple: std::collections::HashMap::new(),
         }
     }
 
@@ -644,6 +651,7 @@ impl NestChainGate {
             n_index_builds: 0,
             n_provider_errors: 0,
             n_events_seen: 0,
+            unconf_by_triple: std::collections::HashMap::new(),
         }
     }
 
@@ -796,6 +804,15 @@ impl NestChainGate {
             let event = ext.event;
             self.n_events_seen += 1;
             if !event.divergence_confirmed {
+                // #965 交付 1（谓词有偏 113 条修复）：丢弃前把未确认事件记入三元键账本
+                // （`continue` 逐字保留，只加只写诊断账本，控制流不变）。缺锚（供给未命中）
+                // 的未确认事件无法归到具体键，只能跳过（与 `n_anchor_misses` 同前件）。
+                if let (Some(price), Some(anchor)) = (ext.extreme_price, ext.group_anchor) {
+                    *self
+                        .unconf_by_triple
+                        .entry((event.level, price, anchor))
+                        .or_insert(0) += 1;
+                }
                 continue;
             }
             let id = classifier::nest::NestEventIdentity::of(&event);
@@ -1038,6 +1055,31 @@ impl NestChainGate {
                 n_causal_clean: n_clean,
                 rungs,
             });
+        }
+        // #965 交付 1（谓词有偏 113 条修复）：向下假设传播——更高级已 closed 而本级
+        // 仅未确认事件（② 谓词不成立，`unconf_exact > 0`）⟹ 自相矛盾态。按
+        // 「高级别背驰时，低级别假设已经背驰」（beichi.md 区间套工作假设；
+        // qujiantao.md §7 两条 N^δ 自底向上确认的同一判据）把本级升级为 Closed，
+        // 消除「高级 closed + 本级未确认」的矛盾谱系。只升级 missing_cert（有存在但
+        // 键域查无身份）且确有未确认事件者；产出缺口（unconf==0）／恰好存在断裂
+        // （MissingExistence）／因果全剔（MissingCausal）不参与（非谓词有偏）。
+        let mut closed_above = false;
+        for g in levels.iter_mut().rev() {
+            if g.status == ChainLevelStatus::Closed {
+                closed_above = true;
+                continue;
+            }
+            if g.status == ChainLevelStatus::MissingCert && closed_above {
+                let has_unconf = self
+                    .unconf_by_triple
+                    .get(&(g.event_level, price, anchor))
+                    .copied()
+                    .unwrap_or(0)
+                    > 0;
+                if has_unconf {
+                    g.status = ChainLevelStatus::Closed;
+                }
+            }
         }
         // 缺/断位置极性（自链顶向下扫：上方有闭合 ⟹ 断，否则缺）+ 连续闭合前缀 + 首位归因。
         let mut seen_closed_above = false;
