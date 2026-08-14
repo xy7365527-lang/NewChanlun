@@ -5054,82 +5054,72 @@ mod tests {
         (segments, closes)
     }
 
-    /// ★#641 链簿真双路径：同一候选事件生命史下，跨步增量宿主 ≡ 每步从零全历史重放。
+    /// ★#754 链簿真平价（#670 复审 §3b R2-HIGH-4：重言式换真平价）：
+    /// 增量 `advance` 逐段喂 ≡ 全量自 ∅ 重放——两条**不同计算路径**互拍，禁同输入跑两遍。
     ///
-    /// 输入序列只由一个共享 `TowerCache` 生成一次；两侧唯一变量是
-    /// `ChainCertificateBook` 持续推进，还是每个前缀都用新簿从第一步重放。
+    /// **seam（平价锁判定公共接口）**：`ChainCertificateBook::advance`（增量簿推进）+
+    /// `classify_with_tower_events_incremental`（事件流生成），经 `chain_fixture(120)` 前缀序列
+    /// 两路驱动对拍 bit-exact。
     ///
-    /// **锁定对象照实（#667 C-2 收窄）**：本测试实锁三件——簿对同一事件序列的**重建确定性**
-    /// （同一函数序列、同一初值、同一顺序与次数 ⟹ 同一簿态）、**`Clone` 保真**（逐步快照与
-    /// 驻留簿逐字段相等）、**无进程级/迭代序不确定性**。「跨步隐藏状态」**不在分辨力内**：
-    /// 两侧推进节拍逐字相同，依赖调用次数的隐藏状态会在两侧同样累积、不产生分叉；而链簿
-    /// 生命史（三只钟 / revision）按定义依赖推进节拍，节拍不同的对照物在本模块不可构造
-    /// （两驱动的真实语义差由 `causal_and_terminal_projection_drives_agree_on_common_chain_keys`
-    /// 固化，见分叉归因报告）。
+    /// 旧锁（#641 原版）把同一个预生成 `inputs` 列表（**事件流**）喂给驻留簿与重放簿两遍，
+    /// 等于 `f(x)≡f(x)`，结构上不可能失败（#670 §3b 点名）。本锁按 N1 先例
+    /// `candidate_event_stream_per_segment_full_replay_equals_incremental` 重写为两个**不同
+    /// 驱动**：
+    /// - **增量侧**：一个共享 `TowerCache` 跨前缀累积（逐段增量分类）+ 一个驻留簿逐段
+    ///   `advance`；
+    /// - **全量侧**：每个前缀从 ∅ 起建 fresh `TowerCache` + fresh 簿，重放 `1..=n` 全部前缀
+    ///   （O(n²) 从零重建）。
     ///
-    /// **口径降级登记（#667 C-2；#676-5 订正）**：#641 Acceptance 1 字面「全量/增量双路径逐
-    /// 字节一致」在链侧不可满足（两驱动候选身份集合互有对方没有的 key，谁都不是谁的子集——
-    /// 40 段夹具上曾误判为终态投影⊆因果簿，120 段上子集关系已证伪，见 #676-5/#681），验收物
-    /// 降级替换为本测试 + 共有 key 一致性固化；降级在 #641 关票评论登记。
+    /// 两侧共享的只有**原始前缀几何**（`ParseLayer` 只构造一次）；事件流由各自路径**独立生成**
+    /// （共享 cache 单程 vs fresh cache 全程重放），簿由各自路径**独立推进**（驻留 vs 自 ∅ 重建）。
+    /// 若增量分类缓存泄漏状态、或簿跨步状态分叉，两侧产物不再 bit-exact，锁变红（红绿证据见
+    /// 实装报告摄动夹具节）。
     ///
-    /// **夹具规模照实**：原 40 段夹具上四条链**全部在末步一次落簿**
-    /// （`distinct_as_of == {124}`），逐步重放这一侧退化成前 39 步空簿比空簿——比对恒过但没锁
-    /// 住任何东西。改用 120 段（与下方 golden 同规模）后落簿跨 8 个 `as_of`
-    /// （`{124, 232, 280, 320, 396, 420, 444, 464}`、38 条 revision），重放对照才有内容。
-    /// 规模是**加大**取覆盖，不是缩小避分叉：40 段上双路径比对本来就全过。
+    /// **非真空锁（旧锁三条补偿锁原样保留）**：最终簿 certificates 非空、跨多个 `as_of` 落簿、
+    /// 至少一条证书带边。
     #[test]
     fn chain_certificate_book_incremental_equals_full_replay() {
         let cfg = ThetaConfig::default();
         let (segments, closes) = chain_fixture(120);
-        let mut cache = TowerCache::new();
-        let mut inputs = Vec::with_capacity(segments.len());
+
+        // 原始前缀几何只构造一次（两侧共享的是输入，不是计算）。
+        let mut prefixes = Vec::with_capacity(segments.len());
         for n in 1..=segments.len() {
             let end = segments[n - 1].end_index.min(closes.len() - 1);
-            let layer = ParseLayer {
-                segments: Rc::new(segments[..n].to_vec()),
-                merged_bars: Rc::new(bars_from_closes(&closes[..=end])),
-                ..Default::default()
-            };
-            let streams = classify_with_tower_events_incremental(&layer, &cfg, &mut cache).2;
-            inputs.push((streams, end));
+            prefixes.push((
+                ParseLayer {
+                    segments: Rc::new(segments[..n].to_vec()),
+                    merged_bars: Rc::new(bars_from_closes(&closes[..=end])),
+                    ..Default::default()
+                },
+                end,
+            ));
         }
 
+        // 增量路径：一个共享 cache（逐段增量分类）+ 一个驻留簿逐段推进。
+        let mut incremental_cache = TowerCache::new();
         let mut incremental = chain_cert::ChainCertificateBook::default();
-        let mut snapshots = Vec::with_capacity(inputs.len());
-        for (streams, end) in &inputs {
-            incremental.advance(streams, *end);
+        let mut snapshots = Vec::with_capacity(prefixes.len());
+        for (layer, end) in &prefixes {
+            let streams =
+                classify_with_tower_events_incremental(layer, &cfg, &mut incremental_cache).2;
+            incremental.advance(&streams, *end);
             snapshots.push(incremental.clone());
         }
 
+        // 全量路径：每个前缀从 ∅ 起，fresh cache 全程重放 + fresh 簿从第一步重建。
         for (step_index, snapshot_a) in snapshots.iter().enumerate() {
-            let step = step_index + 1;
-            let mut replay_b = chain_cert::ChainCertificateBook::default();
-            for (streams, end) in inputs.iter().take(step) {
-                replay_b.advance(streams, *end);
-            }
-
-            let certificates_a = snapshot_a.certificates();
-            let certificates_b = replay_b.certificates();
-            assert_eq!(
-                certificates_a.len(),
-                certificates_b.len(),
-                "step={step}: certificate 数量分叉；side_a={} side_b={}",
-                certificates_a.len(),
-                certificates_b.len()
-            );
-            for (index, (certificate_a, certificate_b)) in
-                certificates_a.iter().zip(certificates_b.iter()).enumerate()
-            {
-                if certificate_a != certificate_b {
-                    panic!(
-                        "step={step}: 第一处分叉 index={index}；\
-                         side_a={certificate_a:#?} side_b={certificate_b:#?}"
-                    );
-                }
+            let prefix_len = step_index + 1;
+            let mut replay_cache = TowerCache::new();
+            let mut replay_book = chain_cert::ChainCertificateBook::default();
+            for (layer, end) in prefixes.iter().take(prefix_len) {
+                let streams =
+                    classify_with_tower_events_incremental(layer, &cfg, &mut replay_cache).2;
+                replay_book.advance(&streams, *end);
             }
             assert_eq!(
-                snapshot_a, &replay_b,
-                "step={step}: certificates 已逐条一致，ChainCertificateBook 内部状态分叉"
+                snapshot_a, &replay_book,
+                "prefix={prefix_len}: 增量（共享 cache + 驻留簿）≡ 全量自 ∅ 重放（fresh cache + fresh 簿）"
             );
         }
 
@@ -5140,13 +5130,6 @@ mod tests {
             certificate_count > 0,
             "非真空锁：最终 book 的 certificates 必须非空；certificates={certificate_count}"
         );
-        // 多 `as_of` 生命史的非真空锁：链必须在**两个以上不同 `as_of`** 上落过簿，否则整条
-        // 双路径比对退化成「单点快照比单点快照」，逐步重放这一侧等于没走。
-        //
-        // 090 照实：本合成夹具上每条链**一次成型**（`revision` 全 0、候选事件 `revision` 亦
-        // 全 0——链首次可见即定型，同下方 golden 对 `payload_revision` 的照实声明），故此处
-        // 不断言 `revision > 0`；同 key 多修订的生命史由 `chain_cert::tests` 的
-        // `resident_open_chain_becomes_extendable_and_appends_a_payload_revision` 覆盖。
         let distinct_as_of: std::collections::BTreeSet<usize> = certificates
             .iter()
             .map(|certificate| certificate.revision_at)
