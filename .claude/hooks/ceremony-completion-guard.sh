@@ -266,7 +266,7 @@ files = sys.argv[2]
 first = files.split(', ')[0] if files else ''
 print(json.dumps({
     'decision': 'block',
-    'reason': f'[Stop-Guard] 谱系有 {n} 个生成态矛盾待处理: [{files}]。不允许停止。推进 {first} 的结算：读取文件，判断四分法分类（吸收/修正/分裂/废弃），执行对应动作。'
+    'reason': f'[Stop-Guard] 谱系有 {n} 个生成态矛盾待处理: [{files}]。不允许停止。推进 {first} 的结算：读取文件，按 018号四分法分类（定理/选择/语法记录/行动），执行对应动作。'
 }, ensure_ascii=False))
 " "$PENDING_COUNT" "$PENDING_FILES"
     exit 0
