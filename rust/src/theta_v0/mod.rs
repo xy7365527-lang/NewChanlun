@@ -74,6 +74,13 @@ pub mod classifier;
 pub mod parser;
 pub mod strategy;
 
+/// #951：生产 π 回路的流式单 bar 驱动（`ThetaPiStream`）——PyO3 出口的决策内核。无条件编译
+/// （不随 `backtest` 门控），默认 cdylib 构建可达。seam = `push_bar(bar, p_t, nav) -> p_star`。
+pub mod stream;
+
+/// #951 D1 出口：`theta_v0` 的 PyO3 出口（`ThetaStream`）。无条件编译（默认 cdylib 构建可达）。
+pub mod ffi;
+
 /// 重基构造谱系簿（#679 D1b）：消费 D1a（#543）的 `RebaseTransformTxnV1` 构造证书，在进程内建
 /// 「旧中枢身份 → 新中枢身份」的 1→1 映射，供接线层把挂起随谱系迁移（`RebaseVanished` 从
 /// 「工程丢身份」压回真实的构造终止）。教义口径、fail-closed 规则与两种读法见模块头。

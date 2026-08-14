@@ -1,3 +1,4 @@
+# FROZEN(#951)：绑 recursive_t.TFugueStream（push_bar -> Vec<Trade11> 逐笔 trade 流）；口径变更不同步；重跑用 git checkout impl/951-theta-pyo3-bridge
 """统一递归算子 T 流式赋格引擎 × NautilusTrader **真流式** 回测（8 标的 × 3 模式）。
 
 ═══════════════ 存在论位置 ═══════════════

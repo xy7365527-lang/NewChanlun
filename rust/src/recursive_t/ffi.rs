@@ -137,7 +137,7 @@ type Trade11 = (
     &'static str,
 );
 
-/// FugueResult → PyDict（PyTFugueStream.finish + run_t_fugue 共享）。
+/// FugueResult → PyDict（PyTFugueStream.finish 消费；批量 run_t_fugue 导出已随 #951 删除）。
 ///
 /// 只暴露 T 引擎**实际产出**的字段（no-patch-mentality 声明=能力）：trade11 + 守恒/操作计数。
 /// **不**含 n_arms/n_fire/n_breaks——那是 v3 spiral 信号层 nest 窗口计数，T standalone 不产
@@ -376,31 +376,4 @@ impl PyRecStream {
         d.set_item("level_centers", self.core.level_centers())?;
         Ok(d.into())
     }
-}
-
-/// 批量 T 流式赋格回测（与 `TFugueStream.finish` 同结构 dict）。共享 `TFugueStreamCore` ⇒
-/// 逐 bar 累积的 finish 与批量逐位等价（bit-exact 由构造保证）。
-///
-/// `bars`：`(open, high, low, close)` 序列（须已清洗，NaN/≤0 在数据层删除）。
-/// `a0`（可选）：a₀ 来源 "segment"（默认，bit-exact）/ "stroke"（递归底座下移，526号）。
-#[pyfunction]
-#[pyo3(signature = (bars, mode=None, a0=None))]
-pub fn run_t_fugue(
-    py: Python<'_>,
-    bars: Vec<(f64, f64, f64, f64)>,
-    mode: Option<String>,
-    a0: Option<String>,
-) -> PyResult<PyObject> {
-    let perfection = parse_mode(mode.as_deref());
-    let a0_source = parse_a0(a0.as_deref());
-    let mut core = TFugueStreamCore::new_with_a0(perfection, a0_source);
-    for (o, h, l, c) in bars {
-        core.push_bar(o, h, l, c);
-    }
-    core.finish();
-    let d = t_result_to_dict(py, core.result())?;
-    // 递归塔结构普查（TV 谱 + r*）——L2 滤波器度量 P1/P2 结构面，与操作层 a₀ 同源（同 core）。
-    d.set_item("tree_census", core.tree_census())?;
-    d.set_item("r_star_peak", core.max_levels_seen())?;
-    Ok(d.into())
 }

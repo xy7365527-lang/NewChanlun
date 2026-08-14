@@ -1,3 +1,4 @@
+# FROZEN(#951)：绑 recursive_t.RecTStream.finish_full 九字段；口径变更不同步；重跑用 git checkout impl/951-theta-pyo3-bridge
 """TC 判别特征探针（#170/R4）：margin<0 的腿中，TC vs 盈利腿的区别。
 
 发现：50-58% 多腿在 margin<0（开仓价已破 ZD 否定线）处开仓，但只有 ~15% 是 TC。

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# FROZEN(#951)：绑 recursive_t.RecTStream.finish_full 九字段（leg_trades/exit_trigger_log/level_segments）；口径变更不同步；重跑用 git checkout impl/951-theta-pyo3-bridge
 """#164 R2 T3 出场 leak 可约性诊断（observation-only）。
 
 对 Face A 基线（默认，无 env），跑 RecTStream.finish_full()，用 leg_trades + exit_trigger_log

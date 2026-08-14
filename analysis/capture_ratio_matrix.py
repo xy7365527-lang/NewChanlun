@@ -1,3 +1,4 @@
+# FROZEN(#951)：绑 recursive_t.RecTStream.finish_full 九字段；口径变更不同步；重跑用 git checkout impl/951-theta-pyo3-bridge
 """每级别·每元素 涨跌幅绝对值 捕获率 严格验证工具 v2（#149/#154 capture-ratio）。
 
 ═══ 编排者两刀严格化（v2 覆盖 v1，no-summation / per-trade ∀）═══

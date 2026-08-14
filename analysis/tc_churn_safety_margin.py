@@ -1,3 +1,4 @@
+# FROZEN(#951)：绑 recursive_t.RecTStream.finish_full 九字段；口径变更不同步；重跑用 git checkout impl/951-theta-pyo3-bridge
 """TC 笔开仓安全垫探针（#170/R4 修复点严格定位）。
 
 验证严格假设：TC 笔 = 买点在贴近否定线 ZD 处开多（开仓价 c 距 ZD 的安全垫极小），
