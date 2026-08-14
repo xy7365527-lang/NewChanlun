@@ -162,7 +162,7 @@
 
 ## 本 ADR 未裁
 
-- **新判据的具体参数**（成本下降速率的通过阈值、最小样本量、置信下界算法、频率判据的合成方式）→ 毕业成新票 [#853](https://github.com/xy7365527-lang/NewChanlun/issues/853)。裁定六要求它在重算任何旧实验之前落盘。
+- **新判据的具体参数**（成本下降速率的通过阈值、最小样本量、置信下界算法、频率判据的合成方式）→ 毕业成新票 [#853](https://github.com/xy7365527-lang/NewChanlun/issues/853)，**已由 [ADR 0022](0022-acceptance-criterion-parameters.md) 落盘（2026-08-14，#853 收口，六问全 A）**。裁定六要求它在重算任何旧实验之前落盘——已满足。
 - **账本加持仓量分量 + 重证 TW 守恒/OQ-9**（丙-5 硬前置）→ SPEC [#847](https://github.com/xy7365527-lang/NewChanlun/issues/847) S8。
 - **甲段 7 条推导的有效域声明订正 + 丙段其余 5 条重证** → SPEC [#847](https://github.com/xy7365527-lang/NewChanlun/issues/847) S8。
 - **旧实验逐条归 A/B 类** → 不开票，按裁定五「用到再判」。
