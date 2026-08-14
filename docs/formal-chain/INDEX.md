@@ -59,3 +59,4 @@
 ## 阅读状态
 - 全量逐页阅读：任务 #70-#74（A 互斥分类核心 / B 买卖点+alpha / C 级别+递归 / D 结构概念 / E gap+检验），2026-07-02 启动
 - 此前仅零散被引用：anc.pdf §16、级别和sigma、gap 系列——系统性全读首次执行
+- chatgpt.com-推导完全分类-fpscreenshot (3).pdf：2026-08-14 已 OCR 入仓（#962，文本层 `ocr/chatgpt-推导完全分类-fpscreenshot.ocr.md`），46 页全读，承重判定见 `../chanlun/review-results/issue962-ocr-conclusion-20260814.md`
