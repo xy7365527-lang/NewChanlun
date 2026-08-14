@@ -31,7 +31,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from engine import Graph, Vertex, Edge, EdgeType, VertexStatus, compute_beta_1
 from daemon import TopologicalDaemon, graph_to_dict, graph_from_dict
 from code_ingest import ingest_tree
-from persistence import PersistentKFull
 from block_topology_persistence import load_graph_from_block_topology, DAEMON_BT_BASE
 
 
@@ -139,23 +138,17 @@ def ingest_code_source(source_name: str, source_path: Path, skip_ingest: bool) -
 
 
 def load_existing_k_active() -> Graph:
-    """Load existing K_active from block topology (primary) or JSONL (fallback)."""
-    # Primary: block topology
-    bt_graph, _ = load_graph_from_block_topology(DAEMON_BT_BASE)
+    """Load existing K_active from JSONL/snapshot first, then bounded legacy blocks."""
+    persist_path = SWARM_DIR / "k_full.jsonl"
+    bt_graph, _ = load_graph_from_block_topology(
+        DAEMON_BT_BASE, jsonl_path=persist_path,
+    )
     bt_vids = bt_graph.active_vertex_ids()
     if bt_vids:
         n_v = len(bt_vids)
         n_e = len(bt_graph.active_edges())
-        print(f"  [OK] Existing K_active (block topology): {n_v}V, {n_e}E")
+        print(f"  [OK] Existing K_active: {n_v}V, {n_e}E")
         return bt_graph
-    # Fallback: JSONL
-    persist_path = SWARM_DIR / "k_full.jsonl"
-    if persist_path.exists():
-        graph, _ = PersistentKFull.load(str(persist_path))
-        n_v = len(graph.active_vertex_ids())
-        n_e = len(graph.active_edges())
-        print(f"  [OK] Existing K_active (jsonl fallback): {n_v}V, {n_e}E")
-        return graph
     return Graph()
 
 

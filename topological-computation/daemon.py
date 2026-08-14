@@ -45,7 +45,6 @@ from persistence import PersistentKFull, DEFAULT_PATH
 from block_topology_persistence import (
     BlockTopologyWriter,
     load_graph_from_block_topology,
-    rebuild_block_topology_from_jsonl,
     DAEMON_BT_BASE,
 )
 from encounter_log import (
@@ -259,51 +258,31 @@ class TopologicalDaemon:
         persist_path: str | Path | None = None,
         require_chain: bool = False,
     ) -> None:
-        # Persistence: block topology is primary, jsonl is backup
+        # Persistence: JSONL/snapshot is primary; leftover per-file blocks are last resort
         self._persist: BlockTopologyWriter | None = None
         self._persist_path: Path | None = None
+        self._recovered_from_persist = False
         recovered_graph: Graph | None = None
 
         if persist_path is not None:
             jsonl_p = Path(persist_path)
-            snapshot_p = PersistentKFull.snapshot_path_for(jsonl_p)
 
-            # Primary: load from block topology
-            bt_graph, _ = load_graph_from_block_topology(DAEMON_BT_BASE)
+            # JSONL/snapshot first. Legacy blocks/ is only used when JSONL is
+            # absent/empty, and even then a leftover inode-bomb tree is skipped.
+            bt_graph, _ = load_graph_from_block_topology(
+                DAEMON_BT_BASE, jsonl_path=jsonl_p,
+            )
             bt_vids = bt_graph.active_vertex_ids()
 
             if bt_vids:
                 recovered_graph = bt_graph
-                print(f"Block topology: loaded {len(bt_vids)} active vertices", file=sys.stderr)
-            elif snapshot_p.exists():
-                # Snapshot + incremental replay (fast path)
-                snap_graph, _ = PersistentKFull.load_snapshot_then_incremental(
-                    snapshot_p, jsonl_p,
+                print(
+                    f"Persist recovery: loaded {len(bt_vids)} active vertices",
+                    file=sys.stderr,
                 )
-                snap_vids = snap_graph.active_vertex_ids()
-                if snap_vids:
-                    recovered_graph = snap_graph
-                    print(
-                        f"Snapshot recovery: {len(snap_vids)} active vertices",
-                        file=sys.stderr,
-                    )
-            else:
-                # Fallback: full JSONL replay (slow path for legacy data)
-                jsonl_graph, _ = PersistentKFull.load(persist_path)
-                jsonl_vids = jsonl_graph.active_vertex_ids()
-                if jsonl_vids:
-                    recovered_graph = jsonl_graph
-                    print(
-                        f"Block topology empty, recovered {len(jsonl_vids)} vertices from jsonl. "
-                        f"Rebuilding block topology...",
-                        file=sys.stderr,
-                    )
-                    count = rebuild_block_topology_from_jsonl(
-                        Path(persist_path), DAEMON_BT_BASE,
-                    )
-                    print(f"Block topology rebuilt: {count} records", file=sys.stderr)
 
             if recovered_graph is not None:
+                self._recovered_from_persist = True
                 recovered_vids = recovered_graph.active_vertex_ids()
                 loaded_size = len(graph.active_vertex_ids()) if graph is not None else 0
                 recovered_size = len(recovered_vids)
@@ -2260,23 +2239,10 @@ def main() -> None:
         require_chain=not args.no_chain,
     )
 
-    # If persisting with a fresh topology (no recovery), write initial graph
+    # Fresh persist only: never wipe JSONL after a successful recovery, and
+    # never scan leftover per-file blocks to decide "empty".
     if args.persist and daemon._persist and graph is not None:
-        bt_check, _ = load_graph_from_block_topology(DAEMON_BT_BASE)
-        if not bt_check.active_vertex_ids():
-            # Truncate JSONL backup before writing initial graph to prevent
-            # cumulative duplication across restarts (3847x bug root cause #3)
-            jsonl_path = Path(args.persist)
-            if jsonl_path.exists() and jsonl_path.stat().st_size > 0:
-                print(
-                    f"Block topology empty but JSONL exists ({jsonl_path.stat().st_size} bytes). "
-                    f"Truncating stale JSONL before fresh write.",
-                    file=sys.stderr,
-                )
-                # Close, truncate, reopen
-                daemon._persist.close()
-                jsonl_path.write_text("", encoding="utf-8")
-                daemon._persist.open()
+        if not daemon._recovered_from_persist:
             for vid, v in graph.vertices.items():
                 daemon._persist.append_vertex(v)
             for e in graph.edges:

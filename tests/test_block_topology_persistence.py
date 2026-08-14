@@ -17,6 +17,7 @@ from block_topology_persistence import (
     rebuild_block_topology_from_jsonl,
     verify_jsonl,
 )
+from persistence import PersistentKFull
 
 
 @pytest.fixture
@@ -261,12 +262,70 @@ class TestVerifyJsonl:
 
 
 class TestLoadGraphFromBlockTopology:
-    """Test loading Graph from legacy block topology blocks."""
+    """Test loading Graph from JSONL (preferred) or legacy block files."""
 
     def test_empty_directory(self, tmp_bt):
         graph, ops = load_graph_from_block_topology(tmp_bt)
         assert len(graph.active_vertex_ids()) == 0
         assert ops == []
+
+    def test_jsonl_wins_over_stale_legacy_blocks(self, tmp_bt, tmp_jsonl):
+        """Leftover per-file blocks must not shadow JSONL-native persist."""
+        _write_legacy_vertex_block(tmp_bt, "stale_only", "stale leftover")
+        with BlockTopologyWriter(bt_base=tmp_bt, jsonl_backup_path=tmp_jsonl) as writer:
+            writer.append_vertex(_make_vertex("fresh_only", content="jsonl native"))
+
+        graph, _ = load_graph_from_block_topology(tmp_bt, jsonl_path=tmp_jsonl)
+        vids = set(graph.active_vertex_ids())
+        assert "fresh_only" in vids
+        assert "stale_only" not in vids
+
+    def test_snapshot_wins_over_stale_legacy_blocks(self, tmp_bt, tmp_jsonl):
+        graph = Graph()
+        graph.add_vertex(_make_vertex("snap_v", content="from snapshot"))
+        snap_path = PersistentKFull.snapshot_path_for(tmp_jsonl)
+        PersistentKFull.dump_snapshot(graph, snap_path)
+        _write_legacy_vertex_block(tmp_bt, "stale_only", "stale leftover")
+
+        recovered, _ = load_graph_from_block_topology(tmp_bt, jsonl_path=tmp_jsonl)
+        vids = set(recovered.active_vertex_ids())
+        assert "snap_v" in vids
+        assert "stale_only" not in vids
+
+    def test_small_legacy_dir_still_loads_without_jsonl(self, tmp_bt):
+        _write_legacy_vertex_block(tmp_bt, "legacy_v", "only legacy")
+        graph, _ = load_graph_from_block_topology(tmp_bt)
+        assert "legacy_v" in set(graph.active_vertex_ids())
+
+    def test_inode_bomb_legacy_dir_is_skipped(self, tmp_bt, monkeypatch):
+        import block_topology_persistence as btp
+        monkeypatch.setattr(btp, "LEGACY_BLOCK_FILE_CAP", 2)
+        for i in range(3):
+            _write_legacy_vertex_block(tmp_bt, f"bomb_{i}", f"leftover {i}")
+        graph, ops = load_graph_from_block_topology(tmp_bt)
+        assert graph.active_vertex_ids() == []
+        assert ops == []
+
+
+def _write_legacy_vertex_block(bt_base: Path, vertex_id: str, content: str) -> None:
+    """Write one pre-JSONL per-file block (the leftover recovery poison)."""
+    blocks = bt_base / "blocks"
+    blocks.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "id": vertex_id,
+        "type": "event",
+        "timestamp": "2026-03-13T00:00:00+00:00",
+        "source": "cc",
+        "content": {
+            "event_type": "vertex",
+            "domain": "graph",
+            "vertex_id": vertex_id,
+            "status": "active",
+            "content": content,
+            "created_at": 0,
+        },
+    }
+    (blocks / f"{vertex_id}.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 class TestRebuildFromJsonl:

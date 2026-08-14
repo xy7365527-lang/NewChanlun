@@ -24,6 +24,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from engine import Graph, Vertex, Edge, EdgeType, VertexStatus
+from persistence import PersistentKFull
+
+# Pre-JSONL daemon runs wrote one file per event and exhausted inodes.
+# Scanning a leftover tree (this repo tracks 270k+ files under blocks/)
+# hangs startup and reconstructs a stale graph that shadows JSONL.
+LEGACY_BLOCK_FILE_CAP = 1000
 
 # Block topology base path for daemon use
 DAEMON_BT_BASE = Path(__file__).resolve().parent.parent / ".chanlun" / "block-topology"
@@ -268,16 +274,38 @@ def verify_jsonl(path: Path) -> bool:
 
 def load_graph_from_block_topology(
     bt_base: Path = DAEMON_BT_BASE,
+    jsonl_path: Path | None = None,
 ) -> tuple[Graph, list[dict]]:
     """Load a Graph from JSONL event log or legacy block files.
 
-    Priority: JSONL first (fast), then legacy block files (slow, backward compat).
+    Priority: snapshot+JSONL first (fast), then a bounded scan of legacy
+    per-file blocks. Leftover inode-bomb trees are skipped, not replayed.
     """
-    # Try JSONL first (from persist path — caller provides)
-    # This function is called from daemon with bt_base, but JSONL is at persist_path
-    # For backward compat, also scan legacy block files
+    if jsonl_path is not None:
+        jsonl_path = Path(jsonl_path)
+        snapshot_p = PersistentKFull.snapshot_path_for(jsonl_path)
+        if snapshot_p.exists():
+            graph, ops = PersistentKFull.load_snapshot_then_incremental(
+                snapshot_p, jsonl_path,
+            )
+            if graph.active_vertex_ids():
+                return graph, ops
+        if jsonl_path.exists() and jsonl_path.stat().st_size > 0:
+            graph, ops = PersistentKFull.load(jsonl_path)
+            if graph.active_vertex_ids():
+                return graph, ops
+
     blocks_dir = bt_base / "blocks"
     if not blocks_dir.exists():
+        return Graph(), []
+
+    legacy_count = sum(1 for _ in blocks_dir.iterdir())
+    if legacy_count > LEGACY_BLOCK_FILE_CAP:
+        print(
+            f"Skipping legacy block-topology scan: {legacy_count} files "
+            f"(cap={LEGACY_BLOCK_FILE_CAP}); leftover per-file trees are stale.",
+            file=sys.stderr,
+        )
         return Graph(), []
 
     # Legacy: read individual block JSON files

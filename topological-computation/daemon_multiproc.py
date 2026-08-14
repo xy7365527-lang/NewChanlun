@@ -104,16 +104,10 @@ def _traversal_worker(
         require_chain=require_chain,
     )
 
-    # If persisting, ensure initial graph is baselined in block topology
-    # This covers two cases:
-    # 1. Fresh topology (no recovery) — write all vertices/edges
-    # 2. Recovered graph was smaller than loaded graph — rewrite baseline
+    # Fresh persist only. Do not scan leftover per-file blocks or rewrite
+    # the seed graph after a successful JSONL/snapshot recovery.
     if persist_path and daemon._persist and graph is not None:
-        from block_topology_persistence import load_graph_from_block_topology, DAEMON_BT_BASE
-        bt_check, _ = load_graph_from_block_topology(DAEMON_BT_BASE)
-        bt_size = len(bt_check.active_vertex_ids())
-        loaded_size = len(graph.active_vertex_ids())
-        if bt_size == 0 or loaded_size > bt_size * 1.5:
+        if not getattr(daemon, "_recovered_from_persist", False):
             for vid, v in graph.vertices.items():
                 daemon._persist.append_vertex(v)
             for e in graph.edges:
