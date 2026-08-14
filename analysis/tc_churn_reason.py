@@ -1,3 +1,4 @@
+# FROZEN(#951)：绑 recursive_t.RecTStream.finish_full 九字段；口径变更不同步；重跑用 git checkout impl/951-theta-pyo3-bridge
 """TC 笔平仓触发源拆解（#170/R4 修复点定位）。
 
 把 TC 笔（hold≤1 且 r≤0 且对齐入场）按平仓触发源分类：

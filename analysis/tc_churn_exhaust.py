@@ -1,3 +1,4 @@
+# FROZEN(#951)：绑 recursive_t.RecTStream.finish_full 九字段；口径变更不同步；重跑用 git checkout impl/951-theta-pyo3-bridge
 """TC 因果 gate 穷尽检验（#170/R4 escalate 前最后穷尽）。
 
 已否证：margin<0（开仓 close 破 ZD）含等量盈利腿 ⇒ 无判别力。

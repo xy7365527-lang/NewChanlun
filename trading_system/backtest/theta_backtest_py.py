@@ -1,14 +1,15 @@
-"""递归 T 引擎 × NautilusTrader 回测入口（BTC，事件驱动）。
+"""theta_v0 π 回路（ThetaStream）× NautilusTrader 回测入口（BTC，事件驱动）。
+
+#951 建新件：`rec_backtest.py`（recursive_t 旧策略）的继任者 CLI 壳。链路：
+BTC JSON(parallel arrays) → NT Bar → BacktestEngine(HYPERLIQUID NETTING)
+     → ThetaRecStrategy.on_bar → newchan_rust.ThetaStream → 目标净敞口 p_star → market 提单。
+
+与 `rec_backtest.py` 的差异：引擎换 `ThetaStream`（`p_t`=真实净持仓、`nav`=账户余额每 bar 传入），
+删除 `mode` 实验轴（theta_v0 零命中，#808 B3）。
 
 用法（仓库根目录）：
-    .venv/bin/python trading_system/backtest/rec_backtest.py --bars 300000   # 子集验证
-    .venv/bin/python trading_system/backtest/rec_backtest.py --bars 0        # 全量 4.6M
-
-链路：BTC JSON(parallel arrays) → NT Bar → BacktestEngine(HYPERLIQUID NETTING)
-     → RecTStrategy.on_bar → newchan_rust.RecTStream(递归T引擎) → 目标净敞口 → market 提单。
-
-撮合口径（设计判决一）：FillModel(prob_fill_on_limit=0.0)——限价队列末位；market 单恒成交。
-账户起始 = 引擎 INITIAL_CAPITAL(100k USDC) ⟹ NT 1:1 镜像引擎仓位，真账本加滑点/佣金/保证金。
+    .venv/bin/python trading_system/backtest/theta_backtest_py.py --bars 300000
+    .venv/bin/python trading_system/backtest/theta_backtest_py.py --bars 0        # 全量 4.6M
 """
 
 from __future__ import annotations
@@ -36,20 +37,16 @@ from nautilus_trader.model.identifiers import TraderId, Venue
 from nautilus_trader.model.objects import Money, Price, Quantity
 
 from trading_system.config.instruments import INSTRUMENTS, make_instrument
-from trading_system.strategy.rec_t_strategy import RecTStrategy, RecTStrategyConfig
+from trading_system.strategy.theta_rec_strategy import ThetaRecStrategy, ThetaRecStrategyConfig
 
 DEFAULT_DATA = REPO_ROOT / "analysis" / "data_cache" / "btc_1m_full.json"
-INITIAL_CAPITAL = 100_000.0  # = newchan_rust 引擎 INITIAL_CAPITAL（NT 1:1 镜像）
+INITIAL_CAPITAL = 100_000.0
 
 
 def load_btc_bars(
     path: Path, bar_type: BarType, price_precision: int, size_precision: int, max_bars: int | None,
 ) -> tuple[list[Bar], list[float]]:
-    """BTC JSON(parallel arrays) → NT Bar 列表 + 清洗后的 close 序列（BH 用）。
-
-    时间戳合成（1min 等距，从 2017-01-01 UTC）——JSON 无真实 ts，引擎以 bar index 为隐式时间轴，
-    NT 仅需单调递增 ts。清洗：删 None / ≤0（与 backtest_run.rs load_clean_ohlc 第一遍一致）。
-    """
+    """BTC JSON(parallel arrays) → NT Bar 列表 + 清洗后的 close 序列（同 rec_backtest.py 口径）。"""
     data = json.loads(path.read_text())
     o, h, l, c = data["opens"], data["highs"], data["lows"], data["closes"]
     n = len(c)
@@ -60,7 +57,7 @@ def load_btc_bars(
     pp = price_precision
     bars: list[Bar] = []
     closes: list[float] = []
-    vol = Quantity(1.0, size_precision)  # volume.precision 须 == instrument.size_precision
+    vol = Quantity(1.0, size_precision)
     for i in range(n):
         oi, hi, li, ci = o[i], h[i], l[i], c[i]
         if oi is None or hi is None or li is None or ci is None:
@@ -85,10 +82,9 @@ def load_btc_bars(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="递归 T 引擎 × NautilusTrader BTC 回测")
+    parser = argparse.ArgumentParser(description="theta_v0 π 回路 × NautilusTrader BTC 回测")
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
     parser.add_argument("--bars", type=int, default=300_000, help="最大 bar 数（0=全量）")
-    parser.add_argument("--mode", default="structural", help="structural/and/or")
     parser.add_argument("--log-level", default="ERROR", help="Nautilus 日志级别")
     args = parser.parse_args()
 
@@ -98,11 +94,11 @@ def main() -> int:
 
     spec = INSTRUMENTS["BTC"]
     instrument = make_instrument(spec)
-    venue = instrument.id.venue  # HYPERLIQUID
+    venue = instrument.id.venue
 
     engine = BacktestEngine(
         config=BacktestEngineConfig(
-            trader_id=TraderId("RECT-001"),
+            trader_id=TraderId("THETA-001"),
             logging=LoggingConfig(log_level=args.log_level),
         ),
     )
@@ -117,11 +113,10 @@ def main() -> int:
     engine.add_instrument(instrument)
 
     bar_type = BarType.from_str(f"{instrument.id}-1-MINUTE-LAST-EXTERNAL")
-    strategy = RecTStrategy(
-        config=RecTStrategyConfig(
+    strategy = ThetaRecStrategy(
+        config=ThetaRecStrategyConfig(
             instrument_id=instrument.id,
             bar_type=bar_type,
-            mode=args.mode,
         ),
     )
     engine.add_strategy(strategy)
@@ -138,24 +133,25 @@ def main() -> int:
     engine.run()
     run_secs = time.time() - t1
 
-    # ── 结果报告 ──
     account = engine.cache.account_for_venue(venue)
     final_bal = account.balance_total(USDC).as_double() if account else float("nan")
     strat_pct = (final_bal / INITIAL_CAPITAL - 1.0) * 100.0
     bh_pct = (closes[-1] / closes[0] - 1.0) * 100.0 if len(closes) >= 2 else 0.0
-    print("\n========== 递归 T × NautilusTrader BTC 回测 ==========")
-    print(f"mode={args.mode}  bars={len(bars)}  run={run_secs:.1f}s")
+    d = strategy.engine.finish_full()
+    print("\n========== theta_v0 π × NautilusTrader BTC 回测 ==========")
+    print(f"bars={len(bars)}  run={run_secs:.1f}s")
     print(f"NT 真账本: 起始={INITIAL_CAPITAL:.0f} 期末={final_bal:.2f}  strat={strat_pct:+.2f}%")
     print(f"BH={bh_pct:+.2f}%  (closes[0]={closes[0]:.2f} → closes[-1]={closes[-1]:.2f})")
     print(f"策略: bars={strategy.n_bars} orders={strategy.n_orders} dups={strategy.n_dups}")
-    print(f"引擎操作(enter/sink/recover/spawn/reruns)={strategy.engine.op_counts()}")
+    print(f"per-leg 账本: n_orders={d.get('n_orders')} reconcile_residual={d.get('reconcile_residual')}")
+    print(f"lee_net_witness={d.get('lee_net_witness')}")
     tot = max(1, strategy.n_bars)
     print(
         f"敞口分布: 多={strategy.n_bars_long}({100*strategy.n_bars_long/tot:.1f}%) "
         f"空={strategy.n_bars_short}({100*strategy.n_bars_short/tot:.1f}%) "
         f"平={strategy.n_bars_flat}({100*strategy.n_bars_flat/tot:.1f}%)"
     )
-    print("=====================================================")
+    print("=========================================================")
 
     engine.reset()
     engine.dispose()

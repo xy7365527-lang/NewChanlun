@@ -74,6 +74,21 @@ impl OwnedIncrementalClassifier {
         self.bars_appended
     }
 
+    /// ★#951：当前塔森林代次（`forest_epoch`）——下游 [`super::super::strategy::interp::TreeCache`]
+    /// 用其 O(1) 命中判断 `extract_carrier_forest`（K_i）是否可复用（与借用变体
+    /// [`IncrementalClassifier::forest_epoch`](crate::theta_v0::backtest::incremental::IncrementalClassifier::forest_epoch)
+    /// 同源，直读内部 `tower_cache`）。同代次 ⟹ K_i 森林逐字节不变。
+    pub fn forest_epoch(&self) -> u64 {
+        self.tower_cache.forest_epoch()
+    }
+
+    /// ★#951：当前塔变更代次（`generation`）——与 [`forest_epoch`](Self::forest_epoch) 同源。
+    /// 本票流式驱动（[`crate::theta_v0::stream::ThetaPiStream`]）走 K_i 判据，只用 `forest_epoch`；
+    /// 此访问器与借用变体 `tower_generation()` 对齐，供未来 T_i 路径复用。
+    pub fn tower_generation(&self) -> u64 {
+        self.tower_cache.generation()
+    }
+
     /// **per-bar 增量重分类（自持缓冲区）**：追加单根 bar，返回 `(classification, tower)` ==
     /// `classify_with_tower(parse_layer(&bars[..=i]))`，bit-exact（`i` = 累计追加次数-1）。
     ///

@@ -1,3 +1,4 @@
+# FROZEN(#951)：绑 recursive_t.RecTStream.finish_full 九字段；口径变更不同步；重跑用 git checkout impl/951-theta-pyo3-bridge
 """TC=否定线止损 collapse 深度探针（#170/R4）。
 
 L3 实证否证了 #164「TC=买卖点反向 churn」假设：TC 100% reason=1（否定线止损）。

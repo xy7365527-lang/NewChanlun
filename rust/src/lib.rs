@@ -2692,12 +2692,15 @@ fn newchan_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<fugue_v3::ffi::PyFugueV3Stream>()?;
     m.add_function(wrap_pyfunction!(fugue_v3::ffi::run_fugue_v3, m)?)?;
     m.add_function(wrap_pyfunction!(recursive_t::ffi::run_recursive_t, m)?)?;
-    // 统一递归算子 T 流式赋格引擎（全 Rust 内聚：orchestrator + T 重跑 + 完整仓位）：
-    // 流式 TFugueStream（NT on_bar 驱动）+ 批量 run_t_fugue（共享 core，bit-exact）。
+    // 统一递归算子 T 流式赋格引擎（全 Rust 内聚：orchestrator + T 重跑 + 完整仓位）。
+    // 流式 TFugueStream（NT on_bar 驱动）。#951 执刀：批量赋格导出已删（#808「已死」，
+    // 全仓零 Python 调用；删导出不会让 standalone 子簇变孤儿——TFugueStreamCore 仍由
+    // PyTFugueStream 持有，t_result_to_dict 仍由 PyTFugueStream.finish 消费）。
     m.add_class::<recursive_t::ffi::PyTFugueStream>()?;
-    m.add_function(wrap_pyfunction!(recursive_t::ffi::run_t_fugue, m)?)?;
     // 递归 T 引擎流式（NT on_bar 驱动，输出目标净敞口，NT 1:1 镜像执行）。
     m.add_class::<recursive_t::ffi::PyRecStream>()?;
+    // theta_v0 π 回路 PyO3 出口（#951 建新：目标净敞口 p_star + per-leg 账本，RecTStream 继任者）。
+    m.add_class::<theta_v0::ffi::PyThetaStream>()?;
     m.add_class::<PyBiEngine>()?;
     m.add_class::<PyOnlineMacdState>()?;
     m.add_class::<PyRecursiveOrchestrator>()?;

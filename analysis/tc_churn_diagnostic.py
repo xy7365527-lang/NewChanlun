@@ -1,3 +1,4 @@
+# FROZEN(#951)：绑 recursive_t.RecTStream.finish_full 九字段；口径变更不同步；重跑用 git checkout impl/951-theta-pyo3-bridge
 """TC 瞬时 churn 诊断（#170/R4 修复前 L3 实证）。
 
 目的：在动手改引擎前，先穷尽理解 TC 笔（hold≤CHURN_HOLD_BARS=1）的结构性质，

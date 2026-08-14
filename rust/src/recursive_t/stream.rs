@@ -13,7 +13,7 @@
 //!   把 recursive_t/(b) T 引擎（12062 行）整体判"deprecated 待退役"，未区分内部两条互不相通的
 //!   子分支。本票逐文件核查发现 (b) 实际是两个独立子簇，名分不同：**本文件（`stream.rs`，
 //!   `TFugueStreamCore`）+ `t_engine.rs`（`TPositionEngine`）+ `prove_guards.rs`（共享守卫）+
-//!   `ffi.rs::{PyTFugueStream,run_t_fugue}`** 这一支有真实非测试调用者——`ffi.rs:16`
+//!   `ffi.rs::PyTFugueStream`** 这一支有真实非测试调用者——`ffi.rs:16`
 //!   `use super::stream::TFugueStreamCore;`（生产路径，PyTFugueStream 的核心委托对象）+
 //!   `trading_system/backtest_t_fugue.py:166` `nr.TFugueStream(self.config.mode)`（`git log -1`
 //!   = 2026-06-21，冷但真实，文件仍在主线树）。
