@@ -299,7 +299,11 @@ impl SuspensionAttribution {
     /// 中枢的挂起同时灭失，不能只核销其中一个而把其余留成无主欠账。
     ///
     /// 无批次时返回 `(0, 0, 0)`（无事可核销，非错误）。
-    fn write_off_all(&mut self) -> (i64, i64, usize) {
+    /// ★#719（L19②）：返回值第三项由中枢**个数**扩为逐（中枢）核销明细
+    /// `Vec<(CenterId, units_gap, cash_booked)>`——同中枢多批次先按到达序聚合（每中枢一行）。
+    /// 个数 = `breakdown.len()`。witness 桶规格不变（仍只分侧，#441 复审订正不动），本明细只
+    /// 服务观测门 dump（`THETA_DEATH_WO_DUMP`，见 `OscillationCampaign::close` 调用侧）。
+    fn write_off_all(&mut self) -> (i64, i64, Vec<(CenterId, i64, i64)>) {
         let units: i64 = self.batches.iter().map(|b| b.units).sum();
         let cash: i64 = self.batches.iter().map(|b| b.cash_booked).sum();
         // 去重按**相等性**逐个查（批次按到达序、同中枢可不相邻 ⟹ `dedup` 只去相邻会多计）；
@@ -310,9 +314,26 @@ impl SuspensionAttribution {
                 centers.push(b.center);
             }
         }
-        let centers = centers.len();
+        let breakdown: Vec<(CenterId, i64, i64)> = centers
+            .iter()
+            .map(|&cid| {
+                let u: i64 = self
+                    .batches
+                    .iter()
+                    .filter(|b| b.center == cid)
+                    .map(|b| b.units)
+                    .sum();
+                let c: i64 = self
+                    .batches
+                    .iter()
+                    .filter(|b| b.center == cid)
+                    .map(|b| b.cash_booked)
+                    .sum();
+                (cid, u, c)
+            })
+            .collect();
         self.batches.clear();
-        (units, cash, centers)
+        (units, cash, breakdown)
     }
 
     /// `Replenish` 收口：**只冲抵同来源中枢**的批次（按到达序）。返回逐批冲抵明细（观测证据）；
@@ -436,6 +457,12 @@ pub struct DeathWriteOff {
     pub units_gap: i64,
     /// 桶实收现金（这些减出腿记进 `realized_cash` 的金额之和，**不与货缺口冲销**）。
     pub cash_booked: i64,
+    /// ★#719（L19①）：短差桶拒绝了取自归属账的在途量核销（`write_off_unclosed` 返回 Err）。
+    /// 结构性不可达（`units_gap` 与桶标量逐笔恒等，上方 `debug_assert` 守）——**true = 记账
+    /// 错误**，witness 侧落 `other_violation_count` + `other_violation_by_kind` 的
+    /// `death_write_off_bucket_rejected_unreachable` 警报桶（对齐 `cash_unsound_free_negative_
+    /// unreachable` 既有先例）。
+    pub bucket_rejected: bool,
     /// 被一并核销的来源中枢个数（≥1）——死亡吞的是整本账，非单个中枢。
     ///
     /// **类型层归属信息，当前不进 witness**（#441 复审订正）：无生产消费者，不落任何桶、不进
@@ -857,34 +884,43 @@ impl OscillationCampaign {
     /// `ClearCampaign` 在本模块恒合法：本模块只用 `ShortDiff`/`Realize`（[`TwEvent::is_legal_from`]
     /// 对 `ClearCampaign` 的唯一门槛 `open_legacy_legs==0` 恒满足——本模块从不构造
     /// `OpenShareLeg`/`CloseShareLeg`）。
-    fn close(mut self) -> (TwState, Option<DeathWriteOff>) {
+    ///
+    /// 返回值第三项 = 逐（中枢）核销明细（★#719 L19②，观测门 dump 用；无核销时为空 Vec）。
+    fn close(mut self) -> (TwState, Option<DeathWriteOff>, Vec<(CenterId, i64, i64)>) {
         debug_assert!(
             TwEvent::ClearCampaign.is_legal_from(&self.tw),
             "本模块从不用 legacy 腿构造子，ClearCampaign 前置 open_legacy_legs==0 恒满足"
         );
-        let (units_gap, cash_booked, centers) = self.suspension.write_off_all();
+        let (units_gap, cash_booked, breakdown) = self.suspension.write_off_all();
         let settlement = if units_gap > 0 {
             debug_assert_eq!(
                 units_gap,
                 self.short_diff.bucket().open_units(),
                 "归属账与桶标量恒等（逐笔同步推进）——不等即记账错误"
             );
-            if self.short_diff.write_off_unclosed(units_gap).is_err() {
+            let bucket_rejected = self.short_diff.write_off_unclosed(units_gap).is_err();
+            if bucket_rejected {
                 // 结构性不可达：`units_gap` 取自与桶恒等的归属账且 >0，桶核销的两条拒绝分支
-                // （非正 / 超出在途量）均不可命中。此处不静默吞真实错误——上一行 `debug_assert`
-                // 在 debug 侧即炸；release 侧本实例随即被移出账簿（状态不外泄），故不另立错误
-                // 通道（`sync_position` 的生死签名不因观测路径改成 `Result`）。
+                // （非正 / 超出在途量）均不可命中。此处不静默吞真实错误——`debug_assert` 在
+                // debug 侧即炸；release 侧经 [`DeathWriteOff::bucket_rejected`] 落 witness
+                // `other_violation_*` 警报桶（★#719 L19①：#441 关票移交「桶拒绝落
+                // other_violation_by_kind（对齐既有先例）」；生死签名仍不因观测路径改 Result）。
                 debug_assert!(false, "桶拒绝了取自归属账的在途量核销（记账错误）");
             }
             Some(DeathWriteOff {
                 units_gap,
                 cash_booked,
-                centers,
+                bucket_rejected,
+                centers: breakdown.len(),
             })
         } else {
             None
         };
-        (tw_step(&self.tw, TwEvent::ClearCampaign), settlement)
+        (
+            tw_step(&self.tw, TwEvent::ClearCampaign),
+            settlement,
+            breakdown,
+        )
     }
 }
 
@@ -951,7 +987,21 @@ impl CampaignBook {
                     .expect("contains_key 刚核验为 true");
                 // ★#441（ADR 补充十二）：死亡吞挂起在 `close` 内按「未闭合减出」核销，产出
                 // 分列呈报（货缺口/桶实收现金）；`None`=死亡时无挂起。
-                let (_final_tw, settlement) = campaign.close();
+                let (_final_tw, settlement, wo_breakdown) = campaign.close();
+                // ★#719（L19②）：观测门 dump——逐（级别, 中枢）核销明细，服务 #441 移交
+                // 「units_gap 按（级别, 中枢）分桶复算」。观测门（`THETA_DEATH_WO_DUMP`，
+                // env_registry 登记）：置位才打，纯 stderr，不进任何产物文件、不改任何判定。
+                if settlement.is_some() {
+                    if std::env::var(crate::theta_v0::env_registry::THETA_DEATH_WO_DUMP).is_ok()
+                    {
+                        for (cid, u, c) in &wo_breakdown {
+                            eprintln!(
+                                "[death_wo][#719] level={} side={:?} center={:?} units_gap={} cash_booked={}",
+                                level, side, cid, u, c
+                            );
+                        }
+                    }
+                }
                 Some(CampaignLifecycleEvent::Died {
                     level,
                     side,
@@ -1577,6 +1627,15 @@ impl CampaignWiringWitness {
                     *self.death_write_off_count.entry(sl).or_insert(0) += 1;
                     *self.death_write_off_units_gap.entry(sl).or_insert(0) += w.units_gap;
                     *self.death_write_off_cash_booked.entry(sl).or_insert(0) += w.cash_booked;
+                    // ★#719（L19①）：桶拒绝（结构性不可达，true=记账错误）落警报桶——对齐
+                    // `cash_unsound_free_negative_unreachable` 先例（计数+分桶双落）。
+                    if w.bucket_rejected {
+                        self.other_violation_count += 1;
+                        *self
+                            .other_violation_by_kind
+                            .entry((sl, "death_write_off_bucket_rejected_unreachable"))
+                            .or_insert(0) += 1;
+                    }
                 }
             }
         }
@@ -1830,6 +1889,7 @@ mod tests {
                 settlement: Some(DeathWriteOff {
                     units_gap: 100,
                     cash_booked: 1_200,
+                    bucket_rejected: false,
                     centers: 1
                 }),
             }),
@@ -3169,7 +3229,7 @@ mod tests {
             Some(CampaignLifecycleEvent::Died {
                 level: 0,
                 side: VoiceSide::Long,
-                settlement: Some(DeathWriteOff { units_gap: 200, cash_booked: 2_400, centers: 2 }),
+                settlement: Some(DeathWriteOff { units_gap: 200, cash_booked: 2_400, bucket_rejected: false, centers: 2 }),
             }),
             "死亡吞挂起：两个来源中枢的挂起一并核销（货缺口 200 股 / 桶实收 200·12=2400，分列不相减）"
         );
@@ -3219,6 +3279,7 @@ mod tests {
                 settlement: Some(DeathWriteOff {
                     units_gap: 100,
                     cash_booked: 1_200,
+                    bucket_rejected: false,
                     centers: 1
                 }),
             }),
@@ -3261,6 +3322,7 @@ mod tests {
             settlement: Some(DeathWriteOff {
                 units_gap: 200,
                 cash_booked: 2_400,
+                bucket_rejected: false,
                 centers: 2,
             }),
         });
@@ -3285,6 +3347,34 @@ mod tests {
             w.unclosed_write_off_count.is_empty(),
             "死亡核销不落结构终结核销桶（两路径分列）"
         );
+    }
+
+    /// ★#719（L19①）：桶拒绝（`bucket_rejected=true`，结构性不可达 ⟹ true 即记账错误）
+    /// 落 `other_violation_count` + `other_violation_by_kind` 警报桶——对齐
+    /// `cash_unsound_free_negative_unreachable` 先例（计数+分桶双落）；正常核销不受影响。
+    #[test]
+    fn death_write_off_bucket_rejected_lands_in_other_violation_alert_bucket() {
+        let mut w = CampaignWiringWitness::new();
+        w.record_lifecycle(CampaignLifecycleEvent::Died {
+            level: 0,
+            side: VoiceSide::Long,
+            settlement: Some(DeathWriteOff {
+                units_gap: 100,
+                cash_booked: 1_200,
+                bucket_rejected: true,
+                centers: 1,
+            }),
+        });
+        assert_eq!(w.other_violation_count, 1, "桶拒绝 = 记账错误警报计数");
+        assert_eq!(
+            w.other_violation_by_kind
+                .get(&("long", "death_write_off_bucket_rejected_unreachable")),
+            Some(&1),
+            "桶拒绝落 other_violation_by_kind 专桶"
+        );
+        // 核销三桶仍照记（读数不吞——警报与读数分列）。
+        assert_eq!(w.death_write_off_count.get("long"), Some(&1));
+        assert_eq!(w.death_write_off_units_gap.get("long"), Some(&100));
     }
 
     // ── #381：空头 campaign（键含侧 + 镜像减补 + 多空并存不污染） ──────────
@@ -3485,6 +3575,7 @@ mod tests {
                 settlement: Some(DeathWriteOff {
                     units_gap: 16,
                     cash_booked: 16 * (2 * 20 - 8),
+                    bucket_rejected: false,
                     centers: 1
                 }),
             }),

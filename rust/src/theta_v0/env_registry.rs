@@ -24,7 +24,8 @@
 //!   路径的开关，改变计算结果（counterfactual 反证工具本体）；**观测门** = 只影响
 //!   dump/打印/诊断断言/窗口截断，不改变主路径判定输出；
 //! - **默认臂**：未置该 env（或非法值）时的语义（[`EnvKeyMeta::default_arm`]）；
-//! - **所属层**（[`EnvKeyMeta::layer`]）：`classifier` / `backtest` / `lineage`
+//! - **所属层**（[`EnvKeyMeta::layer`]）：`classifier` / `backtest` / `strategy`（#719 首个：
+//!   `THETA_DEATH_WO_DUMP`）/ `lineage`
 //!   （[`lineage_book`](super::lineage_book)）/ `cross`（跨层共享同一键，如 `OPSEM_DUMP_DIR`
 //!   同时被 `classifier::rebase_txn` 与 `backtest::opsem_dump` 读）。层次纪律「classifier 不可读
 //!   backtest 门 env」（`backtest::admission::chain_driven_level_projection` 头注释）指的是
@@ -113,6 +114,9 @@ pub const A3_PROFILE_BARS: &str = "A3_PROFILE_BARS";
 pub const BITEXACT_BARS: &str = "BITEXACT_BARS";
 pub const M7_WITNESS_BARS: &str = "M7_WITNESS_BARS";
 pub const NEST_GATE_SMOKE_BARS: &str = "NEST_GATE_SMOKE_BARS";
+
+// -- strategy（theta_v0/strategy/oscillation_campaign.rs）：本层首个登记键（观测门）--
+pub const THETA_DEATH_WO_DUMP: &str = "THETA_DEATH_WO_DUMP";
 pub const NEST_GATE_SMOKE_START: &str = "NEST_GATE_SMOKE_START";
 pub const T1_PROBE_BARS: &str = "T1_PROBE_BARS";
 pub const T1_PROBE_START: &str = "T1_PROBE_START";
@@ -483,6 +487,13 @@ pub static REGISTRY: &[EnvKeyMeta] = &[
         default_arm: "未设 ⟹ 尾部 n_full-max_bars",
         layer: "backtest",
     },
+    EnvKeyMeta {
+        key: THETA_DEATH_WO_DUMP,
+        semantic: "死亡吞挂起核销的逐（级别,中枢）明细 stderr dump（#719/L19② 复算观测面）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ 不 dump（生产默认关；置位仅在 campaign 死亡且有挂起核销时逐中枢打一行）",
+        layer: "strategy",
+    },
 ];
 
 /// 全键只读枚举（运行期可列，spec #756 C2 形状条「查询口」半条）。
@@ -509,14 +520,15 @@ pub fn find(key: &str) -> Option<&'static EnvKeyMeta> {
 mod tests {
     use super::*;
 
-    /// 表内键数锁 50（票 #746 面复核实数 46 + #758 issue766 随 m8.rs/report.rs 诊断件恢复
-    /// 补登 M8_FEE_DATUM/M8_LEVEL_CAP/M8_SYMBOL/M8_REPORT_PATH 四键）。
+    /// 表内键数锁 51（票 #746 面复核实数 46 + #758 issue766 随 m8.rs/report.rs 诊断件恢复
+    /// 补登 M8_FEE_DATUM/M8_LEVEL_CAP/M8_SYMBOL/M8_REPORT_PATH 四键 + #719 补
+    /// THETA_DEATH_WO_DUMP 一键，strategy 层首个登记键）。
     #[test]
     fn registry_has_46_entries() {
         assert_eq!(
             REGISTRY.len(),
-            50,
-            "注册表键数漂移——新增/删除 env 键须同步登记表（票 #746 复核实数 46 + #758 issue766 补 4）"
+            51,
+            "注册表键数漂移——新增/删除 env 键须同步登记表（票 #746 复核实数 46 + #758 issue766 补 4 + #719 补 1）"
         );
     }
 
