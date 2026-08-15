@@ -40,3 +40,4 @@
 - **#529 N7 出笼（2026-08-15）**：开场对账——N3/N4/N5/N6 全 CLOSED、Consume_at 生产码零命中、LEE M1-M4 全落地（#644/#755，返工 #783 OPEN 不阻断）。N7 第一问 = Consume_at 签名冻结的 BspKey 口径（roadmap 全局点身份 vs N4 BspStructuralKey 结构键，source_index 载荷不入键两套口径）→ 开 grilling #980，待编排者答。签名冻结其余子项 + LEE M3/M4 对接门 + E2E-S8 基线随裁逐件出笼。
 - **#981 N7 Consume_at 签名冻结落地（2026-08-15）**：task 实装票（类型族 + 函数签名 stub，逻辑归后续）。派 impl-n7-freeze（DeepSeek rlm 子代理，worktree /tmp/wt-n7-freeze）。
 - **#981 N7 签名冻结落地收口（2026-08-15）**：impl-n7-freeze 完成——consume_at.rs 八类型+冻结签名 stub（305 行），判定链零改（仅 BspStructuralKey 补 Hash derive）。父会话独立验收：fmt/check 两档/单文件测试 9 passed 全绿。合入 main（0b9e1a2a89），#981 关票，worktree 清。
+- **#529 N7 签名冻结收口 + 缺口发现（2026-08-15）**：#980（A）关 + #981（签名冻结）关合入 main。验收发现签名缺口——closed_lineage 节点只带 CandidateKey、不带 BSP，映射在 N4 桥接边但签名无 BspBridgeBook 输入 → 开 grilling #982（授权 BSP 集合从哪来），待编排者答。
