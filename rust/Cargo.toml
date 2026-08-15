@@ -66,6 +66,20 @@ name = "p938_seed_moved_composition"
 path = "src/bin/p938_seed_moved_composition.rs"
 required-features = ["backtest_bin"]
 
+# #977 探针同款：use theta_v0::backtest（cfg 门控模块）⟹ 必须声明 required-features，
+# 否则 CI「cargo check — default targets」红（上方 #938 注释记载的 2026-08-08 实撞同型；
+# p977 于 2026-08-16 镜像追推后第二次实撞）。
+[[bin]]
+name = "p977_force_def_validation"
+path = "src/bin/p977_force_def_validation.rs"
+required-features = ["backtest_bin"]
+
+# #985 探针同款（TV 末端钝化对照，use theta_v0::backtest）。
+[[bin]]
+name = "p985_tv_endpoint_blunt"
+path = "src/bin/p985_tv_endpoint_blunt.rs"
+required-features = ["backtest_bin"]
+
 # 纯买卖点择时隔离实验（goal #5 最根本问题：缠论买卖点择时本身有无 alpha）。
 # 离散事件状态机（仓位∈{+1,0,-1}），不做 π_Θ 覆盖/净额——只在买卖点切换仓位。
 [[bin]]
