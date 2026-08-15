@@ -1,0 +1,2 @@
+- [x] 2026-08-16 16:29–16:47 | codex（GPT-5.6 Sol，read-only）| map #974/G4 前置：力度「微积分化」论证链对抗验证（P1–P4）| 完成：P1–P3 证成，P4 挖出稳态假设/生产口径=TV/唯一性未证三发现；报告归档 .chanlun/review-results/force-calculus-codex-adversarial-20260816.md；开票 #985
+- [x] 2026-08-16 17:00–17:40 | 本体直办（GLM-5.3）| map #974 走图收官：G1/G4/G2/G3 四票裁定落盘 + beichi.md 升 v1.6 + TV 对照探针 p985 + SPEC #987 交棒（实施票 #988–#992，依赖图随 spec）| 完成：图 #974 关闭，雾清空，goal complete
