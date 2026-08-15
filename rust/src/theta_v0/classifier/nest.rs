@@ -1056,7 +1056,11 @@ where
 /// > （`recursive_tower::level_cand_delta`：A/C 段按该级 tower 段结构定位（跨中枢趋势配对，
 /// > 0016:62），gauge 复用 divergence.rs MacdArea 默认路径，严格 `curr < prev`）。
 ///
-/// - 裁决②：盘整背驰**不入谓词**（只出 [`CandDeltaEvent::pan_div_diag`] 诊断位，不参与本装配）。
+/// - 盘整背驰当前**不入谓词**（只出 [`CandDeltaEvent::pan_div_diag`] 诊断位，不参与本装配）——
+///   此系**实装态而非裁定态**：0708「盘背不入链」裁决已由正式文书
+///   `chanlun/escalate/nest-migration-ruling-20260716.md` 裁决⑤「盘背入链」（链背驰段域 = 趋势 ∪ 盘整，
+///   typed 分流保留）supersede（#250/#260 查实，人裁签字）；provider 扩域缺口（Consolidation
+///   `dir=None` 被跳过）在该文 §三附带发现登记在案，扩域实装落地前本装配维持趋势-only（清理票 #726）。
 /// - `d_parent_interval` 仅保留 2026-07-10 历史基线的 episode 口径；正式装配由消费者显式
 ///   选择 [`d_parent_interval_snapshot`] 或 [`d_parent_interval_terminal`]。`confirm_src` 仍只
 ///   登记确认延迟，不作闸门或排序键。

@@ -1251,7 +1251,9 @@ pub struct CandDeltaEvent {
     pub enter_src: usize,
     /// Cand^δ 真值：趋势背驰确认 D（默认 gauge ≡ 严格 C<A）。
     pub cand_delta: bool,
-    /// 盘整背驰诊断标志（裁决②：**不入谓词**）——同段最近中枢 ownership 落 Consolidation 块
+    /// 盘整背驰诊断标志（当前**不入谓词**＝实装态，非裁定态：0708「盘背不入链」裁决已被
+    /// `chanlun/escalate/nest-migration-ruling-20260716.md` 裁决⑤「盘背入链」supersede，#250/#260 在案，
+    /// 清理票 #726）——同段最近中枢 ownership 落 Consolidation 块
     /// 且 `judge_pan_div` 产证书（独立范畴，诊断并列不合取）。
     pub pan_div_diag: bool,
 }
@@ -2160,8 +2162,9 @@ pub fn level_cand_delta(
             // Consolidation ownership 在同一中枢上互斥 ⟹ 诊断恒 false（死分支）。此处对
             // 「最近中枢按 ownership 属盘整块」的非趋势门段独立调用 judge_pan_div，产
             // cand_delta=false 的**纯诊断**事件：装配器基例过滤（`b.cand_delta`）与链攀升
-            // （`!ev.cand_delta ⟹ continue`）双重跳过 ⟹ 结构性不入链，守住裁决②"不入链"
-            // 边界；不产 BspPoint、不置一类 bit。
+            // （`!ev.cand_delta ⟹ continue`）双重跳过 ⟹ 结构性不入链——实装态边界
+            // （0708「盘背不入链」裁决已被 0716 裁决⑤「盘背入链」supersede，provider 扩域缺口
+            // 在 nest-migration-ruling-20260716.md §三附带发现登记在案，#726 清理）；不产 BspPoint、不置一类 bit。
             if any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation) {
                 let c = &centers_sorted[c_idx];
                 if let Some(cert) = signal::judge_pan_div_observation(
@@ -2422,14 +2425,14 @@ mod p1_tests {
         assert_eq!(e.interval, (9, 11), "I(C) = [λ_C, seg.end]（Q5 区间口径）");
         assert_eq!(e.a_interval, (3, 5), "I(A) = 前中枢离开 episode");
         assert_eq!(e.enter_src, 9, "兼容别名 = c_episode_start");
-        assert!(!e.pan_div_diag, "趋势路径无盘整背驰诊断（裁决②不入链）");
+        assert!(!e.pan_div_diag, "趋势路径无盘整背驰诊断（盘背当前实装态不入链；0708 文书裁决 2 已被 0716 裁决⑤ supersede，#726）");
     }
 
     /// cert F-02 回归：非趋势门段（最近中枢按 ownership 落 Consolidation 块）的盘整背驰诊断
     /// 独立可达——fixture 移植自 signal.rs::pan_div_cert_emitted_in_consolidation_block_zero_
     /// first_class_bits。修复前 pan_div_diag 挂在趋势门之后，与盘整 ownership 在同一中枢上
     /// 互斥 ⟹ 恒 false 死分支；修复后产恰一条 cand_delta=false 的**纯诊断**事件（装配器基例
-    /// 过滤与链攀升双重跳过 ⟹ 结构性不入链，守住裁决②边界）。
+    /// 过滤与链攀升双重跳过 ⟹ 结构性不入链＝实装态边界，0708 文书裁决 2 已被 0716 裁决⑤ supersede，#726）。
     #[test]
     fn pan_div_diag_reachable_in_consolidation_without_trend_gate() {
         let c0 = dc(100, 200, 90, 210, 2);
@@ -2473,7 +2476,7 @@ mod p1_tests {
         );
         assert!(
             !e.cand_delta,
-            "裁决②：盘整背驰不入谓词 ⟹ cand_delta=false（装配器双重跳过 ⟹ 不入链）"
+            "盘整背驰不入谓词（实装态；0708 文书裁决 2 已被 0716 裁决⑤ supersede，#726）⟹ cand_delta=false（装配器双重跳过 ⟹ 不入链）"
         );
         assert_eq!(e.side, Side::Long, "向下破 ⟹ Long 候选（仅诊断标注）");
         assert_eq!(e.confirm_src, 15, "因果触发点 = 破中枢段端点");
