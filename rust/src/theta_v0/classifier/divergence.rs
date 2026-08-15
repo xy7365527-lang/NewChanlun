@@ -58,7 +58,7 @@
 //! 趋势/盘整门控判据（中枢同向关系）是 **L0**（纯整数几何，不依赖经验数据）。
 
 use super::super::config::MacdConfig;
-use super::super::types::{Center, Direction, Segment, Side, Tick};
+use super::super::types::{Center, Direction, Segment, Side, Stroke, Tick};
 
 /// MACD 逐 bar 输出（DIF/DEA/hist，浮点域，隔离在本结构）。
 #[derive(Debug, Clone, PartialEq)]
@@ -559,8 +559,13 @@ pub fn theta_score_bin(beta_norm: f64) -> ThetaScoreBin {
 /// 非判定口径）。三套「分别 OOS 回测，不能先看结果再选」——见 `wverify_run::thetadom_three_gauge_oos`。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DivergenceGauge {
-    /// G1 对照基线（默认）：`Area(C) < Area(A)`（`segments_diverge` 现行冻结判据）。
+    /// ★#990 I-2（G2 #978 裁定三）：**教义判据（默认）**——`L(C) < L(B)`，
+    /// `L(段) = v(末笔) − v(首笔)`（#873，beichi.md v1.6），段→笔经 `stroke_span_of_segment`
+    /// 反查（#989）。无 strokes 数据 ⟹ 该点不判背驰（不冒充）。
     #[default]
+    ForceL,
+    /// G1 对照基线（**降为非默认对照档**，ADR-0005 对照臂）：`Area(C) < Area(A)`
+    /// （`segments_diverge` 同色口径）。显式 config 激活才进判定。
     MacdArea,
     /// G2 `Θ_DOM`：`ForceStateA5(C,A) == Dominated`（𝒜₅ 全支配衰减，A5 amended 口径）。
     ThetaDom,
@@ -589,18 +594,41 @@ pub fn confirm_divergence(
     macd_c_lt_a: bool,
     force: Option<&ForceProxies>,
 ) -> bool {
+    confirm_divergence_impl(gauge, macd_c_lt_a, force, None)
+}
+
+/// `confirm_divergence` 的 ForceL 全参版（#990）：`l_c_lt_b = Some(b)` ⟹ 教义判据
+/// `L(C) < L(B)` 生效；`None` ⟹ ForceL 档无数据不判（诚实，与「无 MACD 不判」同款），
+/// 其余档位不受影响。
+pub fn confirm_divergence_l(
+    gauge: DivergenceGauge,
+    macd_c_lt_a: bool,
+    force: Option<&ForceProxies>,
+    l_c_lt_b: Option<bool>,
+) -> bool {
+    confirm_divergence_impl(gauge, macd_c_lt_a, force, l_c_lt_b)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn confirm_divergence_impl(
+    gauge: DivergenceGauge,
+    macd_c_lt_a: bool,
+    force: Option<&ForceProxies>,
+    l_c_lt_b: Option<bool>,
+) -> bool {
     let dominated = || {
         force
             .map(|f| f.force_state() == ForceStateA5::Dominated)
             .unwrap_or(false)
     };
-    // Θ_LEX：级别内词典序 Weak(C,A)=1（DIF 主 ▷ 面积次，第17课）。force 无源 ⟹ false（诚实不判）。
     let lex_weak = || {
         force
             .map(|f| weak_theta(WeakThetaMode::Lex, &f.seg_a, &f.seg_c))
             .unwrap_or(false)
     };
     match gauge {
+        // ★#990：教义判据默认档。无 L 数据 ⟹ 不判（不冒充，不降级到别的判据）。
+        DivergenceGauge::ForceL => l_c_lt_b.unwrap_or(false),
         DivergenceGauge::MacdArea => macd_c_lt_a,
         DivergenceGauge::ThetaDom => dominated(),
         DivergenceGauge::Conjunction => macd_c_lt_a && dominated(),
@@ -1568,8 +1596,64 @@ mod tests {
             true,
             Some(&mixed)
         ));
-        // 默认口径 = MacdArea（bit-exact 铁律：不显式配置不切换）。
-        assert_eq!(DivergenceGauge::default(), DivergenceGauge::MacdArea);
+        // #990 I-2：默认口径 = ForceL（教义判据 L(C)<L(B)，#873）；MacdArea 降为显式对照档（ADR-0005）。
+        assert_eq!(DivergenceGauge::default(), DivergenceGauge::ForceL);
+
+    /// ★#990 ForceL 专项锁：教义判据 `L(C)<L(B)`（Some）生效、无数据（None）不判、
+    /// 与面积档可给相反判定（口径切换的语义见证）。
+    #[test]
+    fn confirm_divergence_forcel_semantics() {
+        use crate::theta_v0::parser::segment::{segment_force_l, stroke_velocity};
+        // 构造笔：b 首笔速度 10、末笔 2；c 首笔 2、末笔 -1 ⟹ L(b)=-8 < L(c)=-3 ⟹ L(c)>L(b) 不判；
+        // 交换后 L(c)<L(b) 判。用反查原语直接验算。
+        let mk = |d: Direction, s: usize, e: usize, p0: Tick, p1: Tick| Stroke {
+            direction: d,
+            start_index: s,
+            end_index: e,
+            start_price: p0,
+            end_price: p1,
+        };
+        let strokes_b = vec![
+            mk(Direction::Up, 0, 9, 0, 100),    // v=+10
+            mk(Direction::Down, 9, 19, 100, 80), // v=-2
+        ];
+        let strokes_c = vec![
+            mk(Direction::Up, 20, 29, 0, 20),   // v=+2
+            mk(Direction::Down, 30, 39, 20, 10), // v=-1
+        ];
+        assert_eq!(stroke_velocity(&strokes_b[0]), 10.0);
+        // L(b) = v(末)-v(首) = -2-10 = -12；L(c) = -1-2 = -3 ⟹ L(c) > L(b)。
+        let lb = segment_force_l(&strokes_b, 0, 19).unwrap();
+        let lc = segment_force_l(&strokes_c, 20, 39).unwrap();
+        assert!((lb - (-12.0)).abs() < 1e-9);
+        assert!((lc - (-3.0)).abs() < 1e-9);
+        // gauge 语义：ForceL + L(c)<L(b)=false ⟹ 不判；true ⟹ 判；None ⟹ 不判。
+        assert!(!confirm_divergence_l(
+            DivergenceGauge::ForceL,
+            true,
+            None,
+            Some(false)
+        ));
+        assert!(confirm_divergence_l(
+            DivergenceGauge::ForceL,
+            false,
+            None,
+            Some(true)
+        ));
+        assert!(!confirm_divergence_l(
+            DivergenceGauge::ForceL,
+            true,
+            None,
+            None
+        ));
+        // MacdArea 档不受 l 参与影响（对照臂独立性）。
+        assert!(confirm_divergence_l(
+            DivergenceGauge::MacdArea,
+            true,
+            None,
+            Some(false)
+        ));
+    }
     }
 
     /// G4 ThetaLex（Θ_LEX 词典序 D 判定，A3 #164，关于背驰.pdf §9.2）：judge 层 `weak_theta(Lex)`

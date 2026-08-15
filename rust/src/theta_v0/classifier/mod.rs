@@ -46,7 +46,7 @@
 
 use super::config::ThetaConfig;
 use super::parser::ParseLayer;
-use super::types::{Center, Direction, Segment, Tick};
+use super::types::{Center, Direction, Segment, Stroke, Tick};
 use divergence::MacdState;
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -405,6 +405,8 @@ fn extract_first_third_for_level(
     closes_tick: &[Tick],
     close_src: &[usize],
     gauge: divergence::DivergenceGauge,
+    // ★#990 I-2：L0 笔序列（source_index 域，跨级同坐标系）供 ForceL 教义判据。
+    strokes: &[Stroke],
     // ★#885 S4-d：分级记录生产 sink（原样透传 `_anchored`；记录 `level` 为占位 0，由
     // `classify_impl` 按 level_idx 盖章）。
     grade_sink: &mut Vec<signal::FirstClassGradeRecord>,
@@ -429,6 +431,7 @@ fn extract_first_third_for_level(
         closes_tick,
         close_src,
         gauge,
+        strokes,
         grade_sink,
     )
 }
@@ -652,6 +655,7 @@ fn classify_impl(
                 &closes_tick,
                 &close_src,
                 config.divergence_gauge,
+                &l0.strokes,
                 &mut first_class_grades,
             )
         } else {
@@ -665,6 +669,7 @@ fn classify_impl(
                 &closes_tick,
                 &close_src,
                 config.divergence_gauge,
+                &l0.strokes,
                 &mut first_class_grades,
             )
         };
@@ -1653,6 +1658,7 @@ pub fn classify_with_tower_incremental(
                         &closes_tick,
                         &close_src,
                         config.divergence_gauge,
+                        &l0.strokes,
                     )
                 })
             } else {
@@ -1680,6 +1686,7 @@ pub fn classify_with_tower_incremental(
                         &closes_tick,
                         &close_src,
                         config.divergence_gauge,
+                        &l0.strokes,
                     )
                 })
             };
@@ -2848,7 +2855,8 @@ mod tests {
             &[],
             &[],
             &close_src,
-            divergence::DivergenceGauge::default(),
+            divergence::DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         let buy1: Vec<_> = bsp.iter().filter(|p| p.bits.buy1).collect();
@@ -2921,7 +2929,8 @@ mod tests {
             &[],
             &[],
             &(0..24).collect::<Vec<_>>(),
-            divergence::DivergenceGauge::default(),
+            divergence::DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         let buy3: Vec<_> = bsp.iter().filter(|p| p.bits.buy3).collect();
@@ -3014,7 +3023,8 @@ mod tests {
             &[],
             &[],
             &close_src,
-            divergence::DivergenceGauge::default(),
+            divergence::DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         assert_eq!(
@@ -3057,7 +3067,8 @@ mod tests {
             &[],
             &[],
             &src24,
-            divergence::DivergenceGauge::default(),
+            divergence::DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         let buy3: Vec<_> = bsp.iter().filter(|p| p.bits.buy3).collect();
@@ -3080,7 +3091,8 @@ mod tests {
             &[],
             &[],
             &src24,
-            divergence::DivergenceGauge::default(),
+            divergence::DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         assert_eq!(bsp2, bsp);
@@ -3123,7 +3135,8 @@ mod tests {
             &[],
             &[],
             &src24,
-            divergence::DivergenceGauge::default(),
+            divergence::DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         assert!(
@@ -3185,7 +3198,8 @@ mod tests {
                 &[],
                 &[],
                 &src24,
-                divergence::DivergenceGauge::default(),
+                divergence::DivergenceGauge::MacdArea,
+                &[],
                 &mut Vec::new(),
             );
             assert!(
@@ -3229,7 +3243,8 @@ mod tests {
             &[],
             &[],
             &src24,
-            divergence::DivergenceGauge::default(),
+            divergence::DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         assert!(pan.is_empty());
@@ -4510,7 +4525,10 @@ mod tests {
     /// closes：A 段 [12,20] 急跌（hist 面积大）→ 回拉 → C 段 [24,28] 缓跌（面积小 ⟹ C<A 背驰）。
     #[test]
     fn otherwise_domain_records_queryable_by_coordinate_in_classification() {
-        let cfg = ThetaConfig::default();
+        // #990：默认档已切 ForceL；本测试验收 #885 可查性（diverged 两域记录），
+        // 非教义判据本身 ⟹ 显式 MacdArea 对照档（fixture 无 strokes，语义锁定旧面积口径）。
+        let mut cfg = ThetaConfig::default();
+        cfg.divergence_gauge = divergence::DivergenceGauge::MacdArea;
         let segments = vec![
             seg(Direction::Up, 0, 4, 300, 400),
             seg(Direction::Down, 4, 8, 400, 290),

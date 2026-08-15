@@ -82,7 +82,7 @@
 use super::super::config::MacdConfig;
 use super::super::types::{
     Center, Direction, MoveKind, Segment, Side, ThirdClassEntryIdentity, Tick,
-};
+ Stroke};
 // Side 已在上行 import（judge_first_cached 用它构造 BspPoint.struct_break_dir，P2-R2）。
 use super::super::types::BspBits;
 use super::bsp::{endpoint_to_bsp, EndpointSituation};
@@ -401,6 +401,7 @@ pub(crate) fn judge_first_cached(
     a_seg: Option<((usize, usize), (Tick, Tick))>,
     c_move_start: Option<usize>,
     gauge: DivergenceGauge,
+    strokes: &[Stroke],
     sorted: &[Segment],
     level: Option<u32>,
     // ★#885 S4-d：分级记录生产 sink——按 `diverged` 无条件捕获（Present 与 Missing 两域），
@@ -459,10 +460,28 @@ pub(crate) fn judge_first_cached(
             seg_c: force_features(hist, dif, closes_tick, c_idx.0, c_idx.1, trend_dir),
         })
     };
-    // ★D 判定口径（A2 #163，prereg-a2-thetadom-oos-20260704）：`confirm_divergence` 单一判定点。
-    // 默认 `MacdArea` ⟹ D ≡ macd_c_lt_a（bit-exact 不变，class_index 语义冻结）；`ThetaDom`/
-    // `Conjunction` 仅经 config 显式激活（判定口径变更改变信号集合，预注册敏感）。
-    let diverged = divergence::confirm_divergence(gauge, macd_c_lt_a, force.as_ref());
+    // ★#990 I-2：教义判据 `L(C) < L(B)`（#873，经 #989 反查原语）随 ForceL 默认档接入；
+    // 无 strokes / 段区间无笔 ⟹ None（不判，不降级——收敛通则禁宽松接管）。
+    // seg_a/seg_c 区间是 source_index 坐标（与 strokes 同系，I-1 已核）。
+    let l_c_lt_a = if strokes.is_empty() {
+        None
+    } else {
+        match (
+            crate::theta_v0::parser::segment::segment_force_l(strokes, a_start, a_end),
+            crate::theta_v0::parser::segment::segment_force_l(
+                strokes,
+                lambda_c,
+                seg.end_index,
+            ),
+        ) {
+            (Some(la), Some(lc)) => Some(lc < la),
+            _ => None,
+        }
+    };
+    // ★D 判定口径（A2 #163 + #990）：`confirm_divergence_l` 单一判定点。默认 `ForceL` ⟹
+    // 教义判据；`MacdArea` 等降为显式对照档（ADR-0005）。
+    let diverged =
+        divergence::confirm_divergence_l(gauge, macd_c_lt_a, force.as_ref(), l_c_lt_a);
     // ★#607 S2 D2（37:18 分档大闸）：T3-in-c 固定首对分级（D1，#606）复核——否则域
     // （`Missing`）不置一类 bit，点降级为零 bit 结构候选，继续走既有候选流（P2-R2 先例，
     // `struct_break_dir` 无条件置，见下）。`THETA_T3INC_SKIP=1`（D5 counterfactual）⟹ 强制
@@ -1520,7 +1539,8 @@ pub fn extract_signals(
         &[],
         &[],
         close_src,
-        DivergenceGauge::default(),
+        DivergenceGauge::MacdArea,
+        &[],
         &mut Vec::new(),
     )
     .0
@@ -1553,7 +1573,8 @@ pub fn extract_signals_force(
         &series.dif,
         &closes_tick,
         close_src,
-        DivergenceGauge::default(),
+        DivergenceGauge::MacdArea,
+        &[],
         &mut Vec::new(),
     )
     .0
@@ -1579,6 +1600,7 @@ pub fn extract_signals_with_hist(
     closes_tick: &[Tick],
     close_src: &[usize],
     gauge: DivergenceGauge,
+    strokes: &[Stroke],
     grade_sink: &mut Vec<FirstClassGradeRecord>,
 ) -> (Vec<BspPoint>, Vec<PanDivCert>) {
     // L0 入口：线段有内在缠论方向 ⟹ 锚方向 ≡ 结构方向（域定理）。Q7-#1 裁定C 的锚门只约束
@@ -1593,6 +1615,7 @@ pub fn extract_signals_with_hist(
         closes_tick,
         close_src,
         gauge,
+        strokes,
         grade_sink,
     )
 }
@@ -1615,6 +1638,8 @@ pub fn extract_signals_with_hist_anchored(
     closes_tick: &[Tick],
     close_src: &[usize],
     gauge: DivergenceGauge,
+    // ★#990 I-2：strokes 供 ForceL 教义判据（L 经 #989 反查）；空 ⟹ ForceL 无源不判。
+    strokes: &[Stroke],
     // ★#885 S4-d：一类点 T3-in-c 分级记录生产 sink（按 `diverged` 捕获，两域）；本入口
     // `level=None` ⟹ 记录 `level` 字段为占位 0，由 `Classification` 装配方按真实级别盖章。
     grade_sink: &mut Vec<FirstClassGradeRecord>,
@@ -1771,6 +1796,7 @@ pub fn extract_signals_with_hist_anchored(
             closes_tick,
             close_src,
             gauge,
+            strokes,
             None,
             &mut points,
             &mut pan_divs,
@@ -1847,6 +1873,7 @@ pub fn extract_first_third_resume(
     closes_tick: &[Tick],
     close_src: &[usize],
     gauge: DivergenceGauge,
+    strokes: &[Stroke],
 ) -> (Vec<BspPoint>, Vec<PanDivCert>, Vec<FirstClassGradeRecord>) {
     // 生产路径 segments/centers 已 start_index/end_index 升序（parser 账本 + 非重叠中枢扫描）；
     // anchors 平行。resume 是热路径专用入口，**假设有序**（debug_assert 守护，release 剥离）——
@@ -1927,6 +1954,7 @@ pub fn extract_first_third_resume(
                 closes_tick,
                 close_src,
                 gauge,
+                strokes,
                 Some(level),
                 pts,
                 pans,
@@ -1974,7 +2002,7 @@ pub fn extract_first_third_resume(
             let mut full_grades = Vec::new();
             let (full_pts, full_pans) = extract_signals_with_hist_anchored(
                 centers, segments, anchor_dirs, hist, dif, closes_tick, close_src, gauge,
-                &mut full_grades,
+                strokes, &mut full_grades,
             );
             // #885：全量对拍入口 level=None ⟹ 记录 level 为占位 0；对拍内容 = 判定本体
             // （坐标/方向/中枢身份/grade），level 由本 resume 入口真实级别统一盖章后比对。
@@ -2026,6 +2054,7 @@ fn judge_segment(
     closes_tick: &[Tick],
     close_src: &[usize],
     gauge: DivergenceGauge,
+    strokes: &[Stroke],
     level: Option<u32>,
     points: &mut Vec<BspPoint>,
     pan_divs: &mut Vec<PanDivCert>,
@@ -2067,6 +2096,7 @@ fn judge_segment(
             a_seg_entry,
             c_start_entry,
             gauge,
+            strokes,
             sorted,
             level,
             grade_sink,
@@ -2268,7 +2298,8 @@ pub(crate) fn type1_funnel_dx(
         dif,
         closes_tick,
         close_src,
-        DivergenceGauge::default(),
+        DivergenceGauge::MacdArea,
+        &[],
         &mut Vec::new(),
     );
     let prod_t1 = prod.iter().filter(|p| p.bits.buy1 || p.bits.sell1).count();
@@ -2613,7 +2644,8 @@ mod tests {
             &[],
             &[],
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
@@ -2661,7 +2693,8 @@ mod tests {
             &[],
             &[],
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         assert!(
@@ -2705,7 +2738,8 @@ mod tests {
             &[],
             &[],
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
@@ -2746,7 +2780,8 @@ mod tests {
             &[],
             &[],
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         let (pts_self, _) = extract_signals_with_hist_anchored(
@@ -2757,7 +2792,8 @@ mod tests {
             &[],
             &[],
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         assert_eq!(
@@ -2786,7 +2822,8 @@ mod tests {
             &src,
             Some(((3, 5), (250, 350))),
             Some(9),
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &[c_seg],
             None,
             &mut Vec::new(),
@@ -2829,7 +2866,8 @@ mod tests {
             &[],
             &[],
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         // ★#607 S2 D2：T3-in-c 固定首对锚 = `last_center.end_index`（8）右边第一条段——此处即
@@ -3110,7 +3148,8 @@ mod tests {
             &series.dif,
             &closes_tick,
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         assert!(
@@ -3163,7 +3202,8 @@ mod tests {
             &series.dif,
             &closes_tick,
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut sink,
         );
         assert!(
@@ -3201,7 +3241,8 @@ mod tests {
             &series.dif,
             &closes_tick,
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut sink,
         );
         assert!(
@@ -3250,6 +3291,7 @@ mod tests {
                 &closes_tick,
                 &src,
                 g,
+                &[],
                 &mut Vec::new(),
             )
             .0
@@ -3830,7 +3872,8 @@ mod tests {
             &[],
             &[],
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         // 零一类 bit（盘整块内不产第一类——门关；盘整背驰不冒充 B1/S1）。
@@ -3892,7 +3935,8 @@ mod tests {
             &[],
             &[],
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
 
@@ -4000,7 +4044,8 @@ mod tests {
             &dif,
             &[],
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
 
@@ -4035,7 +4080,8 @@ mod tests {
             &[],
             &[],
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
 
@@ -4448,7 +4494,8 @@ mod tests {
             &[],
             &[],
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         assert_eq!(
@@ -4488,7 +4535,8 @@ mod tests {
             &[],
             &[],
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         assert!(pan.is_empty(), "无回中枢段 ⟹ 同一次离开 ⟹ 无盘整背驰证书");

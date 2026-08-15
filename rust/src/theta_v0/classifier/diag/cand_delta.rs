@@ -164,6 +164,7 @@ fn cand_delta_tower_with_series(
                 closes_tick,
                 close_src,
                 config.divergence_gauge,
+                &l0.strokes,
             )
         } else {
             let pb = &classification.levels[lvl - 1].moves;
@@ -184,6 +185,7 @@ fn cand_delta_tower_with_series(
                 closes_tick,
                 close_src,
                 config.divergence_gauge,
+                &l0.strokes,
             )
         };
         out.push(evs);

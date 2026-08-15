@@ -52,7 +52,7 @@
 
 use std::rc::Rc;
 
-use super::super::types::{Center, Direction, Tick};
+use super::super::types::{Center, Direction, Stroke, Tick};
 use super::center::{classify_relation, CenterRelation, UnitRange};
 use super::decompose::{center_own_dir_at, MoveBlock};
 use super::descend::RMove;
@@ -2077,6 +2077,7 @@ pub fn level_cand_delta(
     closes_tick: &[Tick],
     close_src: &[usize],
     gauge: DivergenceGauge,
+    strokes: &[Stroke],
 ) -> Vec<CandDeltaEvent> {
     // ── 以下 prelude 与 signal::extract_signals_with_hist_anchored 逐行同构 ──
     let sorted_owned: Vec<Segment>;
@@ -2223,6 +2224,7 @@ pub fn level_cand_delta(
             a_seg_entry,
             c_start_entry,
             gauge,
+            strokes,
             sorted,
             None,
             // #885：本 provider 是 #529 诊断路径（level=None），分级记录不进 Classification
@@ -2376,6 +2378,7 @@ mod p1_tests {
             &prices,
             &src,
             DivergenceGauge::MacdArea,
+            &[],
             &mut Vec::new(),
         );
         let events = level_cand_delta(
@@ -2390,6 +2393,7 @@ mod p1_tests {
             &prices,
             &src,
             DivergenceGauge::MacdArea,
+            &[],
         );
         // 逐 bit：buy1/sell1 背驰确认支 ⟺ cand_delta=true 事件（(src, side) 多重集相等）。
         let mut lhs: Vec<(usize, i8)> = points
@@ -2461,7 +2465,8 @@ mod p1_tests {
             &series.dif,
             &prices,
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
         );
         // 恰一条纯诊断事件；零 cand_delta=true（诊断不入谓词）。
         assert_eq!(
@@ -2514,7 +2519,8 @@ mod p1_tests {
             &[],
             &prices,
             &src,
-            DivergenceGauge::default(),
+            DivergenceGauge::MacdArea,
+            &[],
         );
 
         assert_eq!(events.len(), 1, "不破核心面积背驰应产恰一条诊断事件");
