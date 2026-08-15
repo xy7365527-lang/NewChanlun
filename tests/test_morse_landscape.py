@@ -152,7 +152,7 @@ class TestRealData:
     @pytest.mark.integration
     def test_real_data_hard_constraint(self, real_relations):
         """在真实 relations.jsonl 上运行，验证 862 硬约束。"""
-        if _relations_is_lfs_pointer(REAL_RELATIONS.parent):
+        if _relations_is_lfs_pointer(real_relations.parent):
             pytest.skip("relations.jsonl is an unresolved Git LFS pointer")
         landscape = build_morse_landscape(
             relations_path=real_relations,

@@ -80,6 +80,14 @@ name = "p985_tv_endpoint_blunt"
 path = "src/bin/p985_tv_endpoint_blunt.rs"
 required-features = ["backtest_bin"]
 
+# #992 探针同款（ForceL vs MacdArea 差集，use theta_v0::backtest）——
+# 第三次同型实撞（#468 → p977 注释 → 本处），教训已三撞：凡 use theta_v0::backtest 的新 bin
+# 必须 Cargo.toml 声明 required-features，否则 CI default-targets check 必红。
+[[bin]]
+name = "p992_gauge_diff"
+path = "src/bin/p992_gauge_diff.rs"
+required-features = ["backtest_bin"]
+
 # 纯买卖点择时隔离实验（goal #5 最根本问题：缠论买卖点择时本身有无 alpha）。
 # 离散事件状态机（仓位∈{+1,0,-1}），不做 π_Θ 覆盖/净额——只在买卖点切换仓位。
 [[bin]]
