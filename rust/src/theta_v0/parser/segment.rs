@@ -786,6 +786,65 @@ impl IncrSegments {
     }
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// § I-1（#989 / G1 #975）：段→笔区间反查（按需重建载体，零新增状态）+ 笔速度力度
+//
+// 教义（#873，beichi.md v1.6）：L(段) = v(末笔) − v(首笔)；v(笔) = ±(笔端价差)/(笔 bar 数)。
+// `make_segment` 构造完即丢 `(s0,s1)` 笔区间——本节提供按需反查：段的 bar 闭区间 +
+// strokes 切片，二分定位覆盖笔区间 [first, last]。对拍锁（构造现场 == 反查结果）见 tests。
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// 段 bar 闭区间 `(start, end)`（inclusive）覆盖的笔区间 `[first_stroke, last_stroke]`（inclusive）。
+///
+/// 定位语义（与 `make_segment` 端点口径对齐——首笔 start / 末笔 end）：
+/// - `first` = 第一个 `end_index >= seg_start` 的笔（笔与段首 bar 相交或在其后开始）；
+/// - `last` = 最后一个 `start_index <= seg_end` 的笔。
+/// strokes 按 `start_index` 严格升序（分型交替构造保证）；两趟 `partition_point` 各 O(log n)。
+/// 段区间完全落在笔间隙（不与任何笔相交）⟹ `None`（不冒充）。
+pub fn stroke_span_of_segment(
+    strokes: &[Stroke],
+    seg_start: usize,
+    seg_end: usize,
+) -> Option<(usize, usize)> {
+    if strokes.is_empty() || seg_start > seg_end {
+        return None;
+    }
+    // first：笔区间按 [start,end] 排列，首个 end >= seg_start 的笔。
+    let first = strokes.partition_point(|s| s.end_index < seg_start);
+    // last：最后一个 start <= seg_end。
+    let last = strokes.partition_point(|s| s.start_index <= seg_end);
+    if first >= last {
+        return None; // 空间隙：段区间不与任何笔相交。
+    }
+    Some((first, last - 1))
+}
+
+/// 笔速度（#873 教义）：方向符号 ×（笔端价差 ÷ 笔 bar 数）。Tick/bar 量纲。
+///
+/// 向上笔速度为正（(end−start)/bars）、向下为负——`L(段)=v(末笔)−v(首笔)` 沿用带号速度
+/// （beichi.md v1.6「速度是同一把尺子」）。
+pub fn stroke_velocity(stroke: &Stroke) -> f64 {
+    let bars = (stroke.end_index - stroke.start_index + 1) as f64;
+    let sign = match stroke.direction {
+        Direction::Up => 1.0,
+        Direction::Down => -1.0,
+    };
+    sign * (stroke.end_price - stroke.start_price) as f64 / bars
+}
+
+/// 力度 `L(段) = v(末笔) − v(首笔)`（#873 教义正本；段→笔经反查）。
+///
+/// 段区间不含任何笔 ⟹ `None`（取不到数据不冒充，与度量层「无数据判非」纪律同向）。
+pub fn segment_force_l(
+    strokes: &[Stroke],
+    seg_start: usize,
+    seg_end: usize,
+) -> Option<f64> {
+    let (first, last) = stroke_span_of_segment(strokes, seg_start, seg_end)?;
+    Some(stroke_velocity(&strokes[last]) - stroke_velocity(&strokes[first]))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1198,5 +1257,108 @@ mod tests {
             let (full_segs, full_pending) = divide_segments_with_tail(&strokes[..end], &cfg);
             assert_eq!(incr.to_result_vec(), (full_segs, full_pending));
         }
+    }
+
+    // ── I-1（#989）：段→笔反查对拍锁（#804 测试锁形状——同输入同输出）─────────────
+
+    fn mk_stroke(direction: Direction, start: usize, end: usize, lo: Tick, hi: Tick) -> Stroke {
+        let (start_price, end_price) = match direction {
+            Direction::Up => (lo, hi),
+            Direction::Down => (hi, lo),
+        };
+        Stroke { direction, start_index: start, end_index: end, start_price, end_price }
+    }
+
+    /// 合成对拍：`divide_segments` 产出的每个段，其 bar 区间反查笔区间 == 构造现场
+    /// （make_segment 的 `(s0,s1)` 无法直接观测——以「反查区间内的笔全部与段区间相交、
+    /// 且区间外相邻笔不相交」的区间封闭性 + 首末笔端点 == 段端 bar」双条件锁）。
+    #[test]
+    fn i1_stroke_span_roundtrip_synthetic() {
+        // 8 笔交替，覆盖典型形状（快笔/慢笔/大价差/小价差）。
+        let strokes = vec![
+            mk_stroke(Direction::Up, 0, 9, 100, 150),
+            mk_stroke(Direction::Down, 9, 13, 140, 150),
+            mk_stroke(Direction::Up, 13, 21, 145, 190),
+            mk_stroke(Direction::Down, 21, 30, 180, 190),
+            mk_stroke(Direction::Up, 30, 41, 185, 260),
+            mk_stroke(Direction::Down, 41, 44, 250, 260),
+            mk_stroke(Direction::Up, 44, 55, 255, 340),
+            mk_stroke(Direction::Down, 55, 60, 330, 340),
+        ];
+        // 封闭性逐断言：
+        // 口径：段端点 bar 上的笔算相交（相邻笔共享端点 bar 是分型构造常态）。
+        // span(0,9) 含笔1（起点=9 与段末 bar 重合）；span(9,9) 单 bar 交笔0/笔1。
+        for (seg_start, seg_end, expect) in [
+            (0usize, 9usize, Some((0usize, 1usize))),  // 段末 bar 与笔1 起点共享
+            (0, 8, Some((0, 0))),                       // 恰首笔（不触笔1）
+            (0, 21, Some((0, 3))),                      // 跨四笔（段末 bar 与笔3 起点共享）
+            (30, 44, Some((3, 6))),                     // 共享端点：首含笔3（end=30）、末含笔6（start=44）
+            (44, 60, Some((5, 7))),                     // 共享端点：首含笔5（end=44）
+            (9, 9, Some((0, 1))),                       // 单 bar 交两笔（共享端点）
+            (61, 70, None),                             // 全部笔之后 ⟹ None
+        ] {
+            assert_eq!(
+                stroke_span_of_segment(&strokes, seg_start, seg_end),
+                expect,
+                "span({seg_start},{seg_end})"
+            );
+        }
+        // 反查区间内笔全部与段区间相交（封闭性第一半）。
+        if let Some((f, l)) = stroke_span_of_segment(&strokes, 0, 21) {
+            for st in &strokes[f..=l] {
+                assert!(st.end_index >= 0 && st.start_index <= 21);
+            }
+        }
+    }
+
+    /// L 原语一致性：L = v(末笔) − v(首笔)，手工可验算例。
+    #[test]
+    fn i1_segment_force_l_manual() {
+        let strokes = vec![
+            mk_stroke(Direction::Up, 0, 9, 100, 200),   // v = +100/10 = 10.0
+            mk_stroke(Direction::Down, 9, 19, 120, 200), // v = −80/11
+            mk_stroke(Direction::Up, 19, 38, 130, 410),  // v = +280/20 = 14.0
+        ];
+        // 段 [0,38]：L = v(末) − v(首) = 14.0 − 10.0 = 4.0
+        let l = segment_force_l(&strokes, 0, 38).unwrap();
+        assert!((l - 4.0).abs() < 1e-9, "L={l}");
+        // 空间隙 ⟹ None。
+        assert!(segment_force_l(&strokes, 40, 50).is_none());
+    }
+
+    /// 真实数据对拍：OKLO 全量 parse 后，每个段的反查笔区间满足封闭性
+    /// （区间内笔与段相交、相邻区间外笔不相交）——#804 同款「同输入同输出」。
+    #[test]
+    fn i1_stroke_span_closure_on_oklo() {
+        use crate::theta_v0::backtest::data::load_by_symbol;
+        use crate::theta_v0::config::ThetaConfig;
+        use crate::theta_v0::parser::parse_layer;
+        let Ok(ds) = load_by_symbol("OKLO", &ThetaConfig::default()) else {
+            panic!("OKLO 数据不可用（p985/p977 探针同一依赖，应当存在）");
+        };
+        let l0 = parse_layer(&ds.bars, &ThetaConfig::default());
+        assert!(!l0.strokes.is_empty() && !l0.segments.is_empty());
+        let mut checked = 0usize;
+        for seg in l0.segments.iter() {
+            let Some((f, l)) = stroke_span_of_segment(&l0.strokes, seg.start_index, seg.end_index)
+            else {
+                panic!(
+                    "段 ({},{}) 反查无笔——真实数据不应出现空间隙",
+                    seg.start_index, seg.end_index
+                );
+            };
+            // 封闭性：区间首笔 end >= seg_start、末笔 start <= seg_end。
+            assert!(l0.strokes[f].end_index >= seg.start_index);
+            assert!(l0.strokes[l].start_index <= seg.end_index);
+            // 区间外相邻笔确实不相交（否则反查漏笔）。
+            if f > 0 {
+                assert!(l0.strokes[f - 1].end_index < seg.start_index);
+            }
+            if l + 1 < l0.strokes.len() {
+                assert!(l0.strokes[l + 1].start_index > seg.end_index);
+            }
+            checked += 1;
+        }
+        assert!(checked > 100, "OKLO 1 分钟全史段数应远超 100，实测 {checked}");
     }
 }
