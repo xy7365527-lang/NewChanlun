@@ -71,7 +71,7 @@ pub mod center_lifecycle;
 pub mod decompose;
 pub mod descend;
 pub mod divergence;
-pub mod force_conformance;
+// force_conformance 已退役（#991 I-3，G2 #978 裁定二）：样板留档 .chanlun/review-results/force-conformance-retired-sample-20260816.md
 pub mod level_state;
 pub mod nest;
 /// #92/#93 证书索引：确认事件 → typed 证书（身份主键；构建口径 B + CWindow）。

@@ -7,7 +7,7 @@
 //! - **力度原语层**（§A）：MACD 段面积比较（`segment_macd_area` / `is_divergence` /
 //!   `segments_diverge`）——「后段面积 `<` 前段面积」的纯算术，对齐契约锚
 //!   `Origin.Divergence.IsDivergence`（`d.forceC.area < d.forceA.area`，Divergence.lean:83）+
-//!   `Origin.ForceInterface.ForceMeasure`（[`super::force_conformance`] 实例化）。这是**正确的
+//!   `Origin.ForceInterface.ForceMeasure`（force_conformance 已退役，样板留档见 .chanlun/review-results/）。这是**正确的
 //!   力度比较原语**（C段 < A段），被 force_conformance + 次级别背驰（mod.rs）复用，**保留**。
 //!
 //! - **A/B/C 框架层**（§B，本次新增，消解 grammar-audit 头号缺口）：把力度原语组装为缠论
@@ -267,7 +267,7 @@ pub fn is_divergence(prev_area: f64, curr_area: f64) -> bool {
 /// 趋势间后者比前者的**走势力度**减弱」——**走势力度**才是判据，MACD 面积只是一个 proxy。
 ///
 /// 本实装的背驰**仅由 MACD 段面积**判定（`segment_macd_area` = Σ|hist|），**无独立的走势力度
-/// 判据**（价格振幅/速度/成交量力度等）。`force_conformance.rs` 的 `ForceMeasure.strength` 亦只
+/// 判据**（价格振幅/速度/成交量力度等）。已退役 force_conformance（留档）的 `ForceMeasure.strength` 亦只
 /// 包 MACD area（见其模块头 L2 未验证声明）。这是比 P2 veto **更根本的简化**：辅助指标（MACD）
 /// 被当成了背驰的**唯一判据**，与缠师原文相悖（同构：区间套同一性证书零调用、简化被当完整）。
 ///

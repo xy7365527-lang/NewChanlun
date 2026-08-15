@@ -1,3 +1,7 @@
+> 归档：#991 I-3 退役留档——force_conformance.rs 全文（删前快照，ForceMeasure Lean 形状样板）。
+> 退役依据：G2 #978 裁定二（零外部代码调用、自称零信息增量、唯一价值 = mono/faithful 公理自检样板）。
+
+```rust
 //! 力度 conformance（rust 半）—— MACD 段面积实例化 `Origin.ForceInterface.ForceMeasure` 接口
 //! 并验证 `mono`/`faithful` 公理（task #127 force-conformance 工位 rust 半）。
 //!
@@ -268,3 +272,5 @@ mod tests {
         );
     }
 }
+
+```
