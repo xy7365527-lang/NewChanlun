@@ -233,12 +233,10 @@ fn main() -> std::process::ExitCode {
                 if t + 1 >= end {
                     continue; // 连接段 t+1 需要中枢 t+2（p856 同款 t+1<end 守卫）
                 }
-                let (Some((blo, bhi)), Some((clo, chi))) = (span(t), span(t + 1))
-                else {
+                let (Some((blo, bhi)), Some((clo, chi))) = (span(t), span(t + 1)) else {
                     continue;
                 };
-                let (Some(lb), Some(lc)) = (l_of(units, blo, bhi), l_of(units, clo, chi))
-                else {
+                let (Some(lb), Some(lc)) = (l_of(units, blo, bhi), l_of(units, clo, chi)) else {
                     continue;
                 };
                 let new_judge = lc < lb;
