@@ -558,7 +558,7 @@ fn eval_l0_gate_chain(
                         map_src_to_close_idx(close_src, a.0, a.1),
                         map_src_to_close_idx(close_src, lambda_c, br.end_index),
                     ) {
-                        (Some(a_idx), Some(c_idx)) => abc.diverges(hist, a_idx, c_idx),
+                        (Some(a_idx), Some(c_idx)) => abc.diverges(hist, a_idx, c_idx, dir),
                         _ => false,
                     }
                 }

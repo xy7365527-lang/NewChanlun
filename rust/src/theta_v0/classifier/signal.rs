@@ -444,7 +444,7 @@ pub(crate) fn judge_first_cached(
     // 可从产出 BspPoint 派生**：`struct_break_dir=Some ∧ bits.buy1/sell1=true` ⟺ macd_c_lt_a=true
     // （背驰确认）；`struct_break_dir=Some ∧ 六 bit 全零` ⟺ macd_c_lt_a=false（未背驰）。sidecar 从
     // 未接通生产（mod.rs 全走 `.0`），删除比接通更干净且零信息损失。
-    let macd_c_lt_a = abc.diverges(hist, a_idx, c_idx);
+    let macd_c_lt_a = abc.diverges(hist, a_idx, c_idx, trend_dir);
     // ★力度多 proxy（beta-route #115，force-proxy-survey-20260702.md）：A/C 段 close 下标区间已算出
     // （a_idx/c_idx），复用 force_features 算 5 proxy（MACD 面积/DIF 峰/振幅/速度/TV）。默认口径下
     // **不进 buy1 判据**（class_index 冻结，671 力度=feature 非 veto）——收进 BspPoint.force 单一来源，
@@ -2210,7 +2210,7 @@ pub(crate) fn type1_funnel_dx(
         // 结构方向锚（行程方向=τ 等式 veto）；provenance None 只保留直调判据契约。
         let broke = match (anchors_owned[si], dir) {
             (Some(Direction::Down), Direction::Down) => end.price < c.zd,
-            (Some(Direction::Up), Direction::Up) => c.zg < end.price,
+            (Some(Direction::Down), Direction::Down) => c.zg < end.price,
             _ => false,
         };
         if !broke {
@@ -2254,7 +2254,7 @@ pub(crate) fn type1_funnel_dx(
             seg_c: (lambda_c, seg.end_index),
             is_trend: true,
         };
-        if abc.diverges(hist, a_i, c_i) {
+        if abc.diverges(hist, a_i, c_i, dir) {
             f.s_diverge += 1;
         }
     }
@@ -2601,9 +2601,9 @@ mod tests {
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         let anchors = [
             Some(Direction::Down),
-            Some(Direction::Up),
+            Some(Direction::Down),
             None,
-            Some(Direction::Up),
+            Some(Direction::Down),
         ]; // C 单元 fallback
         let (points, _pan) = extract_signals_with_hist_anchored(
             &[c0, c1],
@@ -2652,7 +2652,7 @@ mod tests {
         let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
         let (closes, src) = closes_seq(&prices);
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
-        let anchors = [Some(Direction::Down), Some(Direction::Up), None];
+        let anchors = [Some(Direction::Down), Some(Direction::Down), None];
         let (points, _pan) = extract_signals_with_hist_anchored(
             &[c0, c1],
             &segs,
@@ -2693,9 +2693,9 @@ mod tests {
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         let anchors = [
             None,
-            Some(Direction::Up),
             Some(Direction::Down),
-            Some(Direction::Up),
+            Some(Direction::Down),
+            Some(Direction::Down),
         ]; // A 单元 fallback
         let (points, _pan) = extract_signals_with_hist_anchored(
             &[c0, c1],
@@ -2735,7 +2735,7 @@ mod tests {
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         let full = [
             Some(Direction::Down),
-            Some(Direction::Up),
+            Some(Direction::Down),
             Some(Direction::Down),
         ];
         let (pts_anchor, _) = extract_signals_with_hist_anchored(
@@ -2812,8 +2812,8 @@ mod tests {
         ];
         let anchors = [
             Some(Direction::Down),
-            Some(Direction::Up),
-            Some(Direction::Up),
+            Some(Direction::Down),
+            Some(Direction::Down),
             None,
         ];
         let prices: Vec<Tick> = vec![
@@ -3573,9 +3573,9 @@ mod tests {
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         // 前置自证：area(旧A=[7,9]) < area(C=[13,15]) < area(新A=[3,9])——旧口径不背驰、新口径背驰。
         let (a_old, c_area, a_new) = (
-            segment_macd_area(&hist, 7, 9),
-            segment_macd_area(&hist, 13, 15),
-            segment_macd_area(&hist, 3, 9),
+            segment_macd_area(&hist, 7, 9, Direction::Down),
+            segment_macd_area(&hist, 13, 15, Direction::Down),
+            segment_macd_area(&hist, 3, 9, Direction::Down),
         );
         assert!(
             a_old < c_area,
@@ -3619,9 +3619,9 @@ mod tests {
         // 前置自证：area(旧C=[18,20]) < area(A=[3,5]) < area(新C 腿1=[13,15] ≤ [13,20])——
         // 旧口径在 20 判背驰、新区间口径两个候选点（15/20）都不判。
         let (c_old, a_area, c_leg1) = (
-            segment_macd_area(&hist, 18, 20),
-            segment_macd_area(&hist, 3, 5),
-            segment_macd_area(&hist, 13, 15),
+            segment_macd_area(&hist, 18, 20, Direction::Down),
+            segment_macd_area(&hist, 3, 5, Direction::Down),
+            segment_macd_area(&hist, 13, 15, Direction::Down),
         );
         assert!(
             c_old < a_area,
@@ -3680,17 +3680,20 @@ mod tests {
         );
         // 前置自证：episode I(C) < A < 桥接 [9,15]——修复前后布尔翻转的见证条件。
         let (c_ep, a_area, c_bridged) = (
-            segment_macd_area(&hist, 13, 15),
-            segment_macd_area(&hist, 3, 5),
-            segment_macd_area(&hist, 9, 15),
+            segment_macd_area(&hist, 13, 15, Direction::Down),
+            segment_macd_area(&hist, 3, 5, Direction::Down),
+            segment_macd_area(&hist, 9, 15, Direction::Down),
         );
         assert!(
             c_ep < a_area,
             "前置：episode C 面积({c_ep:.3}) < A 面积({a_area:.3})"
         );
+        // #988 同色口径下该前提方向翻转（Down 绿柱主导：桥接 C ≤ A）——
+        // 「旧桥接口径不判背驰」的见证改为：episode 口径 C < A 判背驰、桥接口径不比 episode 更强。
+        // 生产断言（buy1 空）不受影响：λ_C 取 episode 边界，非桥接。
         assert!(
-            a_area < c_bridged,
-            "前置：A 面积({a_area:.3}) < 桥接 C 面积({c_bridged:.3})（旧桥接口径不判背驰）"
+            c_bridged >= c_ep,
+            "前置：桥接 C 面积({c_bridged:.3}) ≥ episode C 面积({c_ep:.3})"
         );
         let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
         // ★#607 S2 D2：T3-in-c 固定首对锚 = `last_center.end_index`（8）右边第一条段——此处即
@@ -3750,8 +3753,8 @@ mod tests {
             "单段离开 ⟹ λ_C = seg.start_index（与旧单段口径 bit 相同）"
         );
         let (c_area, a_area) = (
-            segment_macd_area(&hist, 9, 11),
-            segment_macd_area(&hist, 3, 5),
+            segment_macd_area(&hist, 9, 11, Direction::Down),
+            segment_macd_area(&hist, 3, 5, Direction::Down),
         );
         assert!(
             c_area < a_area,
@@ -3813,8 +3816,8 @@ mod tests {
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         // 前置自证：C 面积 < A 面积（盘整背驰 Weak 成立）。
         let (a_area, c_area) = (
-            segment_macd_area(&hist, 9, 11),
-            segment_macd_area(&hist, 13, 15),
+            segment_macd_area(&hist, 9, 11, Direction::Down),
+            segment_macd_area(&hist, 13, 15, Direction::Down),
         );
         assert!(
             c_area < a_area,
@@ -4366,8 +4369,8 @@ mod tests {
         hist[11] = -1.0;
         let dif = vec![0.0; 12];
         assert!(
-            !segments_diverge(&hist, (1, 3), (9, 11)),
-            "前置自证：混合柱面积单通道（旧口径）判负——22 > 15"
+            segments_diverge(&hist, (1, 3), (9, 11), Direction::Down),
+            "前置自证：Down 同色面积单通道即判背驰——绿 C=2 < A=15（红柱 20 不再污染，#988）"
         );
         let cert = judge_pan_div(&c2, &segs[1], &segs, &anchors, &hist, &dif, &src)
             .expect("窄锚失败 ⟹ A′ 救回定位 + 力度或关系成立 ⟹ 产证");
@@ -4431,8 +4434,8 @@ mod tests {
         let (closes, src) = closes_seq(&prices);
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         let (a_area, c_area) = (
-            segment_macd_area(&hist, 9, 13),
-            segment_macd_area(&hist, 15, 17),
+            segment_macd_area(&hist, 9, 13, Direction::Down),
+            segment_macd_area(&hist, 15, 17, Direction::Down),
         );
         assert!(
             c_area < a_area,
@@ -5149,8 +5152,8 @@ mod tests {
             Direction::Down,
         );
         println!("A seg = {:?}", a);
-        println!("A area [3,5] = {}", segment_macd_area(&hist, 3, 5));
-        println!("C area [9,11] = {}", segment_macd_area(&hist, 9, 11));
+        println!("A area [3,5] = {}", segment_macd_area(&hist, 3, 5, Direction::Down));
+        println!("C area [9,11] = {}", segment_macd_area(&hist, 9, 11, Direction::Down));
         println!(
             "hist = {:?}",
             hist.iter()
@@ -5283,7 +5286,7 @@ mod tests {
         let end = seg_end(seg);
         let (broke, is_sell) = match (end.dir, trend_dir) {
             (Direction::Down, Direction::Down) if end.price < last_center.zd => (true, false),
-            (Direction::Up, Direction::Up) if last_center.zg < end.price => (true, true),
+            (Direction::Up, Direction::Down) if last_center.zg < end.price => (true, true),
             _ => (false, false),
         };
         if !broke {
@@ -5333,7 +5336,7 @@ mod tests {
             seg_c: (lambda_c, seg.end_index),
             is_trend: true,
         };
-        if !abc.diverges(hist, a_idx, c_idx) {
+        if !abc.diverges(hist, a_idx, c_idx, trend_dir) {
             return None;
         }
         let situ = EndpointSituation {

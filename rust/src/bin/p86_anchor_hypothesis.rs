@@ -805,9 +805,9 @@ fn build_counterfactuals(
             map_src_to_close_idx(close_src, seg_a.0, seg_a.1).ok_or("反事实 A 无 MACD 坐标")?;
         let c_idx =
             map_src_to_close_idx(close_src, seg_c.0, seg_c.1).ok_or("反事实 C 无 MACD 坐标")?;
-        let area_a = segment_macd_area(hist, a_idx.0, a_idx.1);
-        let area_c = segment_macd_area(hist, c_idx.0, c_idx.1);
-        let diverges = segments_diverge(hist, a_idx, c_idx);
+        let area_a = segment_macd_area(hist, a_idx.0, a_idx.1, detail.direction);
+        let area_c = segment_macd_area(hist, c_idx.0, c_idx.1, detail.direction);
+        let diverges = segments_diverge(hist, a_idx, c_idx, detail.direction);
         if diverges != (area_c < area_a) {
             return Err("segments_diverge 与面积严格比较不一致".to_string());
         }

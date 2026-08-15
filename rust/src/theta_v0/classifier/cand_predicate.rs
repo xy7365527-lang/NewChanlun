@@ -231,9 +231,14 @@ pub fn div_cand(input: &DivCandInput<'_>) -> bool {
         return false;
     }
 
-    // 条件4：Weak（Θ_MACD，力度衰减）。
-    let prev_area = segment_macd_area(hist, s_prev.start_index, s_prev.end_index);
-    let curr_area = segment_macd_area(hist, s.start_index, s.end_index);
+    // 条件4：Weak（Θ_MACD，力度衰减）。#988 同色口径：段方向 = delta 侧的反向走势
+    // （Long=下跌段 ⟹ Down 取绿柱，segments_diverge_or 同款映射）。
+    let dir = match delta {
+        Side::Long => Direction::Down,
+        Side::Short => Direction::Up,
+    };
+    let prev_area = segment_macd_area(hist, s_prev.start_index, s_prev.end_index, dir);
+    let curr_area = segment_macd_area(hist, s.start_index, s.end_index, dir);
     is_divergence(prev_area, curr_area)
 }
 
@@ -746,7 +751,8 @@ mod tests {
             up_seg(45, 95, 10, 14),   // 反向
             down_seg(30, 85, 15, 19), // s，lo=30 < 40（Extreme ✓），area=5*3=15 > 10（不衰减）
         ];
-        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 3.0 }).collect();
+        // #988 同色口径：Long=下跌段 ⟹ Down ⟹ 绿柱（负 hist）。面积衰减语义同构。
+        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -3.0 }).collect();
         let input = DivCandInput {
             context: &context,
             target_idx: 3,
@@ -769,7 +775,8 @@ mod tests {
             up_seg(45, 95, 10, 14),   // 反向
             down_seg(30, 85, 15, 19), // s：Down，lo=30（< 40），area=5*1=5（< 10）
         ];
-        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
+        // #988 同色口径：负 hist（绿柱）。
+        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
         let input = DivCandInput {
             context: &context,
             target_idx: 3,
@@ -790,6 +797,7 @@ mod tests {
             down_seg(45, 95, 10, 14), // 反向
             up_seg(55, 120, 15, 19),  // s：Up，hi=120（> 100），area=5
         ];
+        // #988 同色口径：Short=上涨段 ⟹ Up ⟹ 红柱（正 hist）。
         let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
         let input = DivCandInput {
             context: &context,
@@ -903,7 +911,8 @@ mod tests {
             up_seg(45, 95, 10, 14),
             down_seg(30, 85, 15, 19), // s
         ];
-        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
+        // #988 同色口径：负 hist（绿柱）。
+        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
         let input = DivCandInput {
             context: &context,
             target_idx: 3,
@@ -1063,7 +1072,8 @@ mod tests {
         let parent = compose_move(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()], 1, 0);
         let tower: Vec<Rc<Vec<_>>> = vec![Rc::new(vec![s0, s1, s2, s3]), Rc::new(vec![parent])];
         // hist：s'(5-9) area=5*2=10，s(15-19) area=5*1=5 < 10（条件4 ✓）。
-        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
+        // #988 同色口径：负 hist（绿柱）。
+        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
         assert!(
             super::bsp_div_cand(&tower, 0, 19, Side::Long, &hist),
             "四条件全满足 ⟹ bsp_div_cand = true"

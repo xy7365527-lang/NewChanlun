@@ -2102,8 +2102,8 @@ fn sublevel_diverges(
     };
     // B3 #4 area-memo：面积经 (start,end)→f64 冻结缓存（[`cached_segment_area`]），逐字段
     // == `divergence::segments_diverge`（同一 `segment_macd_area` 结果，仅省重复求和）。
-    let prev_area = cached_segment_area(area_cache, hist, stable_len, prev_seg.0, prev_seg.1);
-    let curr_area = cached_segment_area(area_cache, hist, stable_len, curr_seg.0, curr_seg.1);
+    let prev_area = cached_segment_area(area_cache, hist, stable_len, prev_seg.0, prev_seg.1, curr_dir);
+    let curr_area = cached_segment_area(area_cache, hist, stable_len, curr_seg.0, curr_seg.1, curr_dir);
     divergence::is_divergence(prev_area, curr_area)
 }
 
@@ -2121,16 +2121,17 @@ fn cached_segment_area(
     stable_len: usize,
     start: usize,
     end: usize,
+    dir: Direction,
 ) -> f64 {
     if end < stable_len {
         if let Some(&area) = cache.borrow().get(&(start, end)) {
             return area;
         }
-        let area = divergence::segment_macd_area(hist, start, end);
+        let area = divergence::segment_macd_area(hist, start, end, dir);
         cache.borrow_mut().insert((start, end), area);
         area
     } else {
-        divergence::segment_macd_area(hist, start, end)
+        divergence::segment_macd_area(hist, start, end, dir)
     }
 }
 

@@ -762,7 +762,7 @@ fn judge_replica(
         seg_c: (lambda_c, leg.end_index),
         is_trend: true,
     };
-    if abc.diverges(hist, a_idx, c_idx) {
+    if abc.diverges(hist, a_idx, c_idx, dir) {
         (JudgeOut::Confirm, a_span)
     } else {
         (JudgeOut::AreaFail, a_span)

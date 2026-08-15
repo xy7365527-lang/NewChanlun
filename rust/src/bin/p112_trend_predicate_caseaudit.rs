@@ -378,7 +378,7 @@ fn bsp_gate_diag(
     ) else {
         return "S4c_unmap";
     };
-    if !segments_diverge(hist, (a0, a1), (c0, c1)) {
+    if !segments_diverge(hist, (a0, a1), (c0, c1), trend_dir) {
         return "S5_area_flip";
     }
     "S6_bsp_should_fire"
@@ -654,9 +654,9 @@ fn audit_case(
         map_src_to_close_idx(close_src, seg_c.0, seg_c.1),
     ) {
         (Some(a), Some(c)) => (
-            segment_macd_area(hist, a.0, a.1),
-            segment_macd_area(hist, c.0, c.1),
-            segments_diverge(hist, a, c),
+            segment_macd_area(hist, a.0, a.1, direction),
+            segment_macd_area(hist, c.0, c.1, direction),
+            segments_diverge(hist, a, c, direction),
         ),
         _ => (f64::NAN, f64::NAN, false),
     };

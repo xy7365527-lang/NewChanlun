@@ -224,19 +224,26 @@ pub fn macd_state_from_closes(closes: &[f64], cfg: &MacdConfig) -> MacdState {
     state
 }
 
-/// 同向段 MACD 面积（reference-theta-v0.md:37）= 段 bar 区间 `[start,end]` 内 `|hist|` 之和。
+/// 同向段 MACD 面积（#988 / #985 裁定一）= 段 bar 区间 `[start,end]` 内**与段方向同色**的 hist 带号和。
+///
+/// 教义 `060:44`【正文】「力度比较的是下面所有红柱子的面积之和」（向上看红柱 / 向下看绿柱，
+/// `024:24`）⟹ 只计入 `sign(hist) == sign(dir)` 的柱，取绝对值累加。旧口径 `Σ|hist|` 把反向柱
+/// 计入，数学上是 DEA 的缩放总变差（TV 候选代理，非教义定义 L=Δv 的代理——codex 对抗验证
+/// `.chanlun/review-results/force-calculus-codex-adversarial-20260816.md` P4(c)）。
 ///
 /// `[start, end]` 是闭区间 bar 索引。越界（end>=len 或 start>end）⟹ 0.0（空段无面积）。
-/// bit-exact：求和按 bar 索引升序累加（固定顺序），用 `f64::abs`。
-pub fn segment_macd_area(hist: &[f64], start: usize, end: usize) -> f64 {
+/// bit-exact：求和按 bar 索引升序累加（固定顺序）。
+pub fn segment_macd_area(hist: &[f64], start: usize, end: usize, dir: Direction) -> f64 {
     if start > end || end >= hist.len() {
         return 0.0;
     }
-    let mut area = 0.0;
-    for &h in &hist[start..=end] {
-        area += h.abs();
-    }
-    area
+    // 单一实现收敛（#799）：同色和只有 same_color_area 一份；本函数是 Direction 门面。
+    // 映射与 segments_diverge_or 同款：Up ⟹ 红柱（Side::Short），Down ⟹ 绿柱（Side::Long）。
+    let side = match dir {
+        Direction::Up => Side::Short,
+        Direction::Down => Side::Long,
+    };
+    same_color_area(hist, start, end, side)
 }
 
 /// 背驰判定（reference-theta-v0.md:37）：后一同向段面积**严格**小于前一同向段。
@@ -267,9 +274,14 @@ pub fn is_divergence(prev_area: f64, curr_area: f64) -> bool {
 /// ponytail: MACD-area-only 力度判据，真走势力度（振幅/速度/量能，第17课定义）留待后续大工程；
 /// 本 gap 已诚实标注（编排者裁定：识别并标注，不顺手实装）。升级路径 = ForceMeasure 增非-MACD
 /// strength 实例（价格振幅/速度），MACD area 降为多 proxy 之一，与 P2「MACD 降 feature」同精神。
-pub fn segments_diverge(hist: &[f64], prev_seg: (usize, usize), curr_seg: (usize, usize)) -> bool {
-    let prev_area = segment_macd_area(hist, prev_seg.0, prev_seg.1);
-    let curr_area = segment_macd_area(hist, curr_seg.0, curr_seg.1);
+pub fn segments_diverge(
+    hist: &[f64],
+    prev_seg: (usize, usize),
+    curr_seg: (usize, usize),
+    dir: Direction,
+) -> bool {
+    let prev_area = segment_macd_area(hist, prev_seg.0, prev_seg.1, dir);
+    let curr_area = segment_macd_area(hist, curr_seg.0, curr_seg.1, dir);
     is_divergence(prev_area, curr_area)
 }
 
@@ -676,7 +688,7 @@ pub fn force_features(
     direction: Direction,
 ) -> ForceFeatures {
     ForceFeatures {
-        macd_area: segment_macd_area(hist, start, end),
+        macd_area: segment_macd_area(hist, start, end, direction),
         dif_peak: segment_dif_peak(dif, start, end, direction),
         price_amplitude: segment_price_amplitude(closes, start, end),
         price_speed: segment_price_speed(closes, start, end),
@@ -756,8 +768,14 @@ pub struct AbcDivergence {
 impl AbcDivergence {
     /// 背驰判定（C段面积 < A段面积，力度原语）。`src_to_idx`：source_index→closes 下标的升序映射。
     /// 段无法映射到 closes 区间（越界/空）⟹ false（无面积=非背驰，与 judge_first 越界口径一致）。
-    pub fn diverges(&self, hist: &[f64], a_idx: (usize, usize), c_idx: (usize, usize)) -> bool {
-        segments_diverge(hist, a_idx, c_idx)
+    pub fn diverges(
+        &self,
+        hist: &[f64],
+        a_idx: (usize, usize),
+        c_idx: (usize, usize),
+        dir: Direction,
+    ) -> bool {
+        segments_diverge(hist, a_idx, c_idx, dir)
     }
 }
 
@@ -985,19 +1003,33 @@ mod tests {
     }
 
     #[test]
-    fn segment_area_sums_abs_hist() {
+    fn segment_area_same_color_only() {
+        // #988 同色口径：只计入与段方向同色的柱（060:44）。
         let hist = vec![1.0, -2.0, 3.0, -4.0];
-        // [0,2]：|1|+|-2|+|3|=6。
-        assert_eq!(segment_macd_area(&hist, 0, 2), 6.0);
-        // [1,3]：2+3+4=9。
-        assert_eq!(segment_macd_area(&hist, 1, 3), 9.0);
+        // Up 段 [0,2]：红柱 = 1+3 = 4（绿柱 -2 不计入）。
+        assert_eq!(segment_macd_area(&hist, 0, 2, Direction::Up), 4.0);
+        // Down 段 [0,2]：绿柱 = 2。
+        assert_eq!(segment_macd_area(&hist, 0, 2, Direction::Down), 2.0);
+        // Up 段 [1,3]：红柱 = 3；Down 段 [1,3]：绿柱 = 2+4 = 6。
+        assert_eq!(segment_macd_area(&hist, 1, 3, Direction::Up), 3.0);
+        assert_eq!(segment_macd_area(&hist, 1, 3, Direction::Down), 6.0);
+    }
+
+    /// #988 验收锁：混合柱样例两口径面积不等（同色 ≠ 绝对值和）。
+    #[test]
+    fn segment_area_same_color_differs_from_abs() {
+        let hist = vec![1.0, -5.0, 2.0];
+        let sc = segment_macd_area(&hist, 0, 2, Direction::Up);
+        let abs_sum: f64 = hist.iter().map(|h| h.abs()).sum();
+        assert_eq!(sc, 3.0);
+        assert_ne!(sc, abs_sum); // abs 口径 = 8 ≠ 3 ⟹ 口径切换真实生效
     }
 
     #[test]
     fn segment_area_out_of_bounds_zero() {
         let hist = vec![1.0, 2.0];
-        assert_eq!(segment_macd_area(&hist, 0, 5), 0.0); // end 越界
-        assert_eq!(segment_macd_area(&hist, 3, 1), 0.0); // start>end
+        assert_eq!(segment_macd_area(&hist, 0, 5, Direction::Up), 0.0); // end 越界
+        assert_eq!(segment_macd_area(&hist, 3, 1, Direction::Up), 0.0); // start>end
     }
 
     #[test]
@@ -1014,9 +1046,12 @@ mod tests {
     fn segments_diverge_end_to_end() {
         // 前段 [0,1] 面积大，后段 [2,3] 面积小 ⟹ 背驰。
         let hist = vec![5.0, -5.0, 1.0, -1.0];
-        assert!(segments_diverge(&hist, (0, 1), (2, 3))); // 10 vs 2 → 严格小
-                                                          // 反向：后段面积大 ⟹ 不背驰。
-        assert!(!segments_diverge(&hist, (2, 3), (0, 1)));
+        // Up 同色：前段红 5 vs 后段红 1 → 严格小 ⟹ 背驰。
+        assert!(segments_diverge(&hist, (0, 1), (2, 3), Direction::Up));
+        // 反向：后段大 ⟹ 不背驰。
+        assert!(!segments_diverge(&hist, (2, 3), (0, 1), Direction::Up));
+        // Down 同色：前段绿 5 vs 后段绿 1 → 同判。
+        assert!(segments_diverge(&hist, (0, 1), (2, 3), Direction::Down));
     }
 
     /// property：面积非负（|hist| 之和）。
@@ -1027,7 +1062,8 @@ mod tests {
         let m = compute_macd(&closes, &cfg);
         for start in 0..m.hist.len() {
             for end in start..m.hist.len() {
-                assert!(segment_macd_area(&m.hist, start, end) >= 0.0);
+                assert!(segment_macd_area(&m.hist, start, end, Direction::Up) >= 0.0);
+                assert!(segment_macd_area(&m.hist, start, end, Direction::Down) >= 0.0);
             }
         }
     }
@@ -1051,9 +1087,9 @@ mod tests {
         let opp = vec![2.0, 4.0];
         assert_eq!(same_color_area(&opp, 0, 1, Side::Long), 0.0);
         assert_eq!(
-            segment_macd_area(&opp, 0, 1),
+            segment_macd_area(&opp, 0, 1, Direction::Up),
             6.0,
-            "对照：混合柱把反向柱计入"
+            "对照：Up 段同色口径把红柱计入（=旧混合口径的值）"
         );
     }
 
@@ -1085,14 +1121,13 @@ mod tests {
             (2, 3)
         ));
         // 混合柱口径对照：混合面积 C=2 < A=8 也 true——但下例展示分离情形。
-        assert!(segments_diverge(&hist, (0, 1), (2, 3)));
+        assert!(segments_diverge(&hist, (0, 1), (2, 3), Direction::Down));
 
-        // 分离情形①：混合面积 C≥A（反向柱喂大 C），同色面积 C<A ⟹ 或关系救回（p113 turn=739707 标本型）。
-        let hist2 = vec![-6.0, 1.0, -2.0, 5.0]; // A=[0,1] 绿柱6；C=[2,3] 绿柱2+红柱5
-        assert!(
-            !segments_diverge(&hist2, (0, 1), (2, 3)),
-            "混合面积 7>6 判负"
-        );
+        // 分离情形①（p113 turn=739707 标本型）：Down 同色 C=2 < A=6 ⟹ 背驰 true；
+        // 混合口径 C=7 > A=6 判负——两种口径在此标本上给出相反判定（#988 切换的语义见证）。
+        // 「或关系臂」的完整行为见 segments_diverge_or_any_single_channel_suffices。
+        let hist2 = vec![-6.0, 1.0, -2.0, 5.0];
+        assert!(segments_diverge(&hist2, (0, 1), (2, 3), Direction::Down));
         let dif2 = vec![-9.0, -9.0, -9.0, -9.0]; // dif 峰持平（等值不算衰减）
         assert!(
             segments_diverge_or(&hist2, &dif2, Side::Long, (0, 1), (2, 3)),
@@ -1387,8 +1422,8 @@ mod tests {
             is_trend: true,
         };
         assert!(
-            abc.diverges(&hist, (0, 1), (2, 3)),
-            "C段面积2 < A段面积10 ⟹ 趋势背驰"
+            abc.diverges(&hist, (0, 1), (2, 3), Direction::Down),
+            "C段同色面积2 < A段同色面积10 ⟹ 趋势背驰"
         );
         // 反向：C 段面积大 ⟹ 力度延续 ⟹ 非背驰。
         let abc_cont = AbcDivergence {
@@ -1397,8 +1432,8 @@ mod tests {
             is_trend: true,
         };
         assert!(
-            !abc_cont.diverges(&hist, (2, 3), (0, 1)),
-            "C段面积10 ≥ A段面积2 ⟹ 力度延续=非背驰"
+            !abc_cont.diverges(&hist, (2, 3), (0, 1), Direction::Down),
+            "C段同色面积10 ≥ A段同色面积2 ⟹ 力度延续=非背驰"
         );
     }
 
@@ -1632,12 +1667,12 @@ mod tests {
 
     #[test]
     fn force_features_assembles_all_proxies() {
-        // hist=[3,-3,1,-1]（A[0,1] 面积6，C[2,3] 面积2），dif=[2,4,1,0.5]，closes=[100,110,105,102]。
+        // hist=[3,-3,1,-1]（#988 Up 同色：A[0,1]=3，C[2,3]=1），dif=[2,4,1,0.5]，closes=[100,110,105,102]。
         let hist = vec![3.0, -3.0, 1.0, -1.0];
         let dif = vec![2.0, 4.0, 1.0, 0.5];
         let closes: Vec<Tick> = vec![100, 110, 105, 102];
         let a = force_features(&hist, &dif, &closes, 0, 1, Direction::Up);
-        assert_eq!(a.macd_area, 6.0);
+        assert_eq!(a.macd_area, 3.0);
         assert_eq!(a.dif_peak, 4.0); // up 段 max(dif[0..=1])=max(2,4)=4
         assert_eq!(a.price_amplitude, 10); // |110−100|
         assert_eq!(a.tv, 10); // Σ|Δ| = |110−100|（单跳段 TV=振幅）

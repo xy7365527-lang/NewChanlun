@@ -1024,8 +1024,8 @@ fn signals_for(
         None
     };
     Some(CaseSignals {
-        area_abs_a: segment_macd_area(&macd.hist, a_idx.0, a_idx.1),
-        area_abs_c: segment_macd_area(&macd.hist, c_idx.0, c_idx.1),
+        area_abs_a: segment_macd_area(&macd.hist, a_idx.0, a_idx.1, dir),
+        area_abs_c: segment_macd_area(&macd.hist, c_idx.0, c_idx.1, dir),
         area_same_a: same_color_area(&macd.hist, a_idx.0, a_idx.1, side),
         area_same_c: same_color_area(&macd.hist, c_idx.0, c_idx.1, side),
         dif_peak_a: segment_dif_peak(&macd.dif, a_idx.0, a_idx.1, dir),

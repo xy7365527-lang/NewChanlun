@@ -35,6 +35,7 @@
 //! - Rust↔Lean bit-exact 对齐（force-conformance 完整目标）阻塞于 Lean 半未存在——标待对齐依赖。
 
 use super::divergence;
+use super::super::types::Direction;
 
 /// 力度度量结果（对齐 `Origin.ForceInterface.Force`：携 area 标量）。
 ///
@@ -75,8 +76,8 @@ impl ForceMeasureAdapter {
     ///
     /// `hist` 是 MACD hist 序列（`divergence::compute_macd` 输出）；`(start, end)` 是同向段闭区间
     /// bar 索引。返回 `Force { area = segment_macd_area(hist, start, end) }`。
-    pub fn measure(&self, hist: &[f64], start: usize, end: usize) -> Force {
-        let area = divergence::segment_macd_area(hist, start, end);
+    pub fn measure(&self, hist: &[f64], start: usize, end: usize, dir: Direction) -> Force {
+        let area = divergence::segment_macd_area(hist, start, end, dir);
         assert!(
             area.is_finite() && area >= 0.0,
             "ForceMeasure area 必须是非负有限数，收到 {area}"
@@ -87,8 +88,8 @@ impl ForceMeasureAdapter {
     /// `strength : α → Nat`：非负有限 area 的精确序嵌入。
     ///
     /// IEEE-754 对所有非负有限 `f64` 的无符号位序与数值序一致；不同 area 不碰撞。
-    pub fn strength(&self, hist: &[f64], start: usize, end: usize) -> u64 {
-        let area = self.measure(hist, start, end).area;
+    pub fn strength(&self, hist: &[f64], start: usize, end: usize, dir: Direction) -> u64 {
+        let area = self.measure(hist, start, end, dir).area;
         area.to_bits()
     }
 
@@ -102,9 +103,10 @@ impl ForceMeasureAdapter {
         hist: &[f64],
         seg_a: (usize, usize),
         seg_c: (usize, usize),
+        dir: Direction,
     ) -> bool {
-        let area_a = self.measure(hist, seg_a.0, seg_a.1).area;
-        let area_c = self.measure(hist, seg_c.0, seg_c.1).area;
+        let area_a = self.measure(hist, seg_a.0, seg_a.1, dir).area;
+        let area_c = self.measure(hist, seg_c.0, seg_c.1, dir).area;
         area_c < area_a
     }
 
@@ -112,11 +114,17 @@ impl ForceMeasureAdapter {
     /// area a ≤ area b`（精确，无量化误差窗）。
     ///
     /// 返回该两段对是否满足 mono（用于测试逐例验证接口公理）。
-    pub fn mono_holds(&self, hist: &[f64], a: (usize, usize), b: (usize, usize)) -> bool {
-        let sa = self.strength(hist, a.0, a.1);
-        let sb = self.strength(hist, b.0, b.1);
-        let area_a = self.measure(hist, a.0, a.1).area;
-        let area_b = self.measure(hist, b.0, b.1).area;
+    pub fn mono_holds(
+        &self,
+        hist: &[f64],
+        a: (usize, usize),
+        b: (usize, usize),
+        dir: Direction,
+    ) -> bool {
+        let sa = self.strength(hist, a.0, a.1, dir);
+        let sb = self.strength(hist, b.0, b.1, dir);
+        let area_a = self.measure(hist, a.0, a.1, dir).area;
+        let area_b = self.measure(hist, b.0, b.1, dir).area;
         // mono：strength 是精确序嵌入，前件成立时必须逐字满足 area_a ≤ area_b。
         if sa <= sb {
             area_a <= area_b
@@ -127,11 +135,17 @@ impl ForceMeasureAdapter {
 
     /// `faithful` 公理逐例验证（契约锚 `Origin.ForceMeasure.faithful`）：`area a < area b ⟹
     /// strength a ≤ strength b`（area 严格小 ⟹ 量化强度不大于）。
-    pub fn faithful_holds(&self, hist: &[f64], a: (usize, usize), b: (usize, usize)) -> bool {
-        let area_a = self.measure(hist, a.0, a.1).area;
-        let area_b = self.measure(hist, b.0, b.1).area;
+    pub fn faithful_holds(
+        &self,
+        hist: &[f64],
+        a: (usize, usize),
+        b: (usize, usize),
+        dir: Direction,
+    ) -> bool {
+        let area_a = self.measure(hist, a.0, a.1, dir).area;
+        let area_b = self.measure(hist, b.0, b.1, dir).area;
         if area_a < area_b {
-            self.strength(hist, a.0, a.1) <= self.strength(hist, b.0, b.1)
+            self.strength(hist, a.0, a.1, dir) <= self.strength(hist, b.0, b.1, dir)
         } else {
             true // 前件不成立 ⟹ 蕴含平凡真
         }
@@ -152,8 +166,8 @@ mod tests {
     fn measure_equals_segment_area() {
         let fm = ForceMeasureAdapter::default();
         let hist = vec![1.0, -2.0, 3.0, -4.0];
-        // [0,2]：|1|+|-2|+|3|=6（与 segment_macd_area 一致）。
-        assert_eq!(fm.measure(&hist, 0, 2).area, 6.0);
+        // [0,2] Up 同色：1+3=4（#988 口径）。
+        assert_eq!(fm.measure(&hist, 0, 2, Direction::Up).area, 4.0);
     }
 
     /// strength 是 area 的精确序嵌入（契约锚 `Origin.ForceMeasure.strength`）。
@@ -161,9 +175,9 @@ mod tests {
     fn strength_is_exact_order_embedding() {
         let fm = ForceMeasureAdapter::default();
         let hist = vec![1.0, -2.0, 3.0, -4.0];
-        // area([0,1])=3 ⟹ strength=3；area([0,3])=10 ⟹ strength=10。
-        assert_eq!(fm.strength(&hist, 0, 1), 3.0f64.to_bits());
-        assert_eq!(fm.strength(&hist, 0, 3), 10.0f64.to_bits());
+        // #988 同色口径 Up：area([0,1])=1；area([0,3])=4。
+        assert_eq!(fm.strength(&hist, 0, 1, Direction::Up), 1.0f64.to_bits());
+        assert_eq!(fm.strength(&hist, 0, 3, Direction::Up), 4.0f64.to_bits());
     }
 
     /// BUG-11：`strength` 必须是 f64 area 的精确序嵌入；相近但不等的面积不得量化碰撞。
@@ -171,14 +185,14 @@ mod tests {
     fn strength_preserves_strict_order_for_close_areas() {
         let fm = ForceMeasureAdapter::default();
         let hist = vec![1.2, 1.1];
-        let stronger = fm.strength(&hist, 0, 0);
-        let weaker = fm.strength(&hist, 1, 1);
+        let stronger = fm.strength(&hist, 0, 0, Direction::Up);
+        let weaker = fm.strength(&hist, 1, 1, Direction::Up);
         assert!(
             stronger > weaker,
             "1.2 > 1.1 必须映成严格更大的 Nat strength"
         );
-        assert!(fm.mono_holds(&hist, (0, 0), (1, 1)));
-        assert!(fm.faithful_holds(&hist, (1, 1), (0, 0)));
+        assert!(fm.mono_holds(&hist, (0, 0), (1, 1), Direction::Up));
+        assert!(fm.faithful_holds(&hist, (1, 1), (0, 0), Direction::Up));
     }
 
     /// ★is_divergence_via 与 segments_diverge 同语义（契约锚 `Origin.IsDivergence`）。
@@ -187,14 +201,14 @@ mod tests {
         let fm = ForceMeasureAdapter::default();
         let hist = vec![5.0, -5.0, 1.0, -1.0];
         // 前段 [0,1] 面积 10，后段 [2,3] 面积 2 ⟹ 背驰（2 < 10）。
-        assert!(fm.is_divergence_via(&hist, (0, 1), (2, 3)));
+        assert!(fm.is_divergence_via(&hist, (0, 1), (2, 3), Direction::Down));
         assert_eq!(
-            fm.is_divergence_via(&hist, (0, 1), (2, 3)),
-            divergence::segments_diverge(&hist, (0, 1), (2, 3)),
+            fm.is_divergence_via(&hist, (0, 1), (2, 3), Direction::Down),
+            divergence::segments_diverge(&hist, (0, 1), (2, 3), Direction::Down),
             "ForceMeasure 接口与直接面积比同语义"
         );
         // 反向不背驰。
-        assert!(!fm.is_divergence_via(&hist, (2, 3), (0, 1)));
+        assert!(!fm.is_divergence_via(&hist, (2, 3), (0, 1), Direction::Down));
     }
 
     /// ★mono 公理逐例验证（契约锚 `Origin.ForceMeasure.mono`）：真实 MACD hist 上跨段对穷举。
@@ -208,7 +222,7 @@ mod tests {
         for a_end in 0..n.min(10) {
             for b_end in 0..n.min(10) {
                 assert!(
-                    fm.mono_holds(&hist, (0, a_end), (0, b_end)),
+                    fm.mono_holds(&hist, (0, a_end), (0, b_end), Direction::Up),
                     "mono 公理破坏 a=[0,{}] b=[0,{}]",
                     a_end,
                     b_end
@@ -227,7 +241,7 @@ mod tests {
         for a_end in 0..n.min(10) {
             for b_end in 0..n.min(10) {
                 assert!(
-                    fm.faithful_holds(&hist, (0, a_end), (0, b_end)),
+                    fm.faithful_holds(&hist, (0, a_end), (0, b_end), Direction::Up),
                     "faithful 公理破坏 a=[0,{}] b=[0,{}]",
                     a_end,
                     b_end
@@ -244,10 +258,10 @@ mod tests {
         let hist = vec![5.0, -5.0, 1.0, -1.0];
         let seg_a = (0, 1); // area 10
         let seg_c = (2, 3); // area 2
-        assert!(fm.is_divergence_via(&hist, seg_a, seg_c), "前提：背驰");
+        assert!(fm.is_divergence_via(&hist, seg_a, seg_c, Direction::Down), "前提：背驰");
         // divergenceVia_implies_strength_le：背驰 ⟹ strength c ≤ strength a。
-        let str_a = fm.strength(&hist, seg_a.0, seg_a.1);
-        let str_c = fm.strength(&hist, seg_c.0, seg_c.1);
+        let str_a = fm.strength(&hist, seg_a.0, seg_a.1, Direction::Down);
+        let str_c = fm.strength(&hist, seg_c.0, seg_c.1, Direction::Down);
         assert!(
             str_c <= str_a,
             "背驰 ⟹ strength c ≤ strength a（faithful 推论）"

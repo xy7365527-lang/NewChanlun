@@ -1105,9 +1105,14 @@ fn main() -> Result<(), String> {
             } else if shape == "child_right_of_parent" {
                 let a_map = map_src_to_close_idx(&close_src, parent.seg_a.0, parent.seg_a.1);
                 let cx_map = map_src_to_close_idx(&close_src, parent_b.0, child_b.1);
+                // #988 同色口径：父事件 side ⟹ 走势方向（Long=下跌背驰⟹Down，cand_predicate 同款映射）
+                let pdir = match parent.side {
+                    Side::Long => Direction::Down,
+                    Side::Short => Direction::Up,
+                };
                 if let (Some(a), Some(cx)) = (a_map, cx_map) {
-                    area_a = segment_macd_area(&hist, a.0, a.1);
-                    area_cx = segment_macd_area(&hist, cx.0, cx.1);
+                    area_a = segment_macd_area(&hist, a.0, a.1, pdir);
+                    area_cx = segment_macd_area(&hist, cx.0, cx.1, pdir);
                     if area_cx < area_a {
                         sub = "a1"; // 背驰段仍在延伸 → 可重锚
                                     // 重锚父区间 (seg_c.0, child.end) 的闭包含检查。

@@ -2454,9 +2454,9 @@ mod tests {
             Rc::new(vec![parent]),         // level 1
         ];
 
-        // hist：s'(5-9) area=5*2=10，s(15-19) area=5*1=5 < 10（条件4 Weak ✓）
+        // hist（#988 同色：Side::Long ⟹ 绿柱负衰减）：s'(5-9) area=10，s(15-19) area=5（条件4 Weak ✓）
         let hist: Vec<f64> = (0..20usize)
-            .map(|i| if i < 10 { 2.0 } else { 1.0 })
+            .map(|i| if i < 10 { -2.0 } else { -1.0 })
             .collect();
 
         // 买侧 bits（基例 Conf^+）：buy1=true
@@ -2689,8 +2689,9 @@ mod tests {
             seg(Direction::Up, 45, 95, 10, 14, 2),
             seg(Direction::Down, 30, 85, 15, 19, 3),
         ];
+        // #988 同色口径：Side::Long ⟹ Down ⟹ 绿柱（负衰减）。
         let hist: Vec<f64> = (0..20usize)
-            .map(|i| if i < 10 { 2.0 } else { 1.0 })
+            .map(|i| if i < 10 { -2.0 } else { -1.0 })
             .collect();
         // Type1 → div_cand（四条件满足 ⟹ true）。
         assert!(cand_delta(BspCandType::Type1, &subs, 19, Side::Long, &hist));
@@ -2996,7 +2997,7 @@ mod tests {
         let tower: Vec<Rc2<Vec<LM2>>> =
             vec![Rc2::new(vec![s0, s1, s2, s3]), Rc2::new(vec![m2.clone()])];
         // s3(15-19) area=5*1=5 < s1(5-9) area=5*2=10（Weak ✓）。
-        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
+        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
 
         assert_eq!(
             super::descend_type1_anchor_depth(&m2, 19, Side::Long, &hist),
@@ -3042,7 +3043,8 @@ mod tests {
     #[test]
     fn descend_anchor_recurses_below_one_level() {
         // hist 递减：靠后 bar 力度更小（Weak 各级满足）。
-        let hist: Vec<f64> = (0..20).map(|i| (20 - i) as f64).collect();
+        // #988：Side::Long ⟹ 绿柱（负衰减）。
+        let hist: Vec<f64> = (0..20).map(|i| -(20 - i) as f64).collect();
         // A0（level1 Down @0-9）：a0(Up)/a1(Down)。
         let a0 = seg2(Dir2::Up, 60, 100, 0, 4, 0);
         let a1 = seg2(Dir2::Down, 40, 95, 5, 9, 1);
@@ -3090,7 +3092,7 @@ mod tests {
         let s3 = seg2(Dir2::Down, 30, 85, 15, 19, 3);
         let m2 = compose2(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()], 1, 0);
         let tower: Vec<Rc2<Vec<LM2>>> = vec![Rc2::new(vec![s0, s1, s2, s3]), Rc2::new(vec![m2])];
-        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
+        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
         assert!(
             super::pan_div_gate_pass(
                 &tower,
@@ -7638,8 +7640,13 @@ mod tests {
         if !extreme_ok {
             return Some(3);
         }
-        let prev_area = segment_macd_area(hist, s_prev.start_index, s_prev.end_index);
-        let curr_area = segment_macd_area(hist, s.start_index, s.end_index);
+        // #988 同色口径：delta Side ⟹ 走势方向（cand_predicate 同款映射）。
+        let dir4 = match delta {
+            Side::Long => Direction::Down,
+            Side::Short => Direction::Up,
+        };
+        let prev_area = segment_macd_area(hist, s_prev.start_index, s_prev.end_index, dir4);
+        let curr_area = segment_macd_area(hist, s.start_index, s.end_index, dir4);
         if !is_divergence(prev_area, curr_area) {
             return Some(4);
         }
@@ -8031,7 +8038,8 @@ mod tests {
                                             segment_macd_area(
                                                 &macd_hist,
                                                 pv.start_index,
-                                                pv.end_index
+                                                pv.end_index,
+                                                t_dir.unwrap_or(Direction::Up)
                                             ),
                                             pv.start_index,
                                             pv.end_index
@@ -8051,7 +8059,8 @@ mod tests {
                                         segment_macd_area(
                                             &macd_hist,
                                             t.start_index,
-                                            t.end_index
+                                            t.end_index,
+                                            t_dir.unwrap_or(Direction::Up)
                                         ),
                                         prev_txt
                                     ));

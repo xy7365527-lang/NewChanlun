@@ -240,8 +240,8 @@ fn main() -> std::process::ExitCode {
                     continue;
                 };
                 let new_judge = lc < lb;
-                let ab = segment_macd_area(hist, blo, bhi);
-                let ac = segment_macd_area(hist, clo, chi);
+                let ab = segment_macd_area(hist, blo, bhi, d0);
+                let ac = segment_macd_area(hist, clo, chi, d0);
                 let macd_judge_abs = ac < ab;
                 let sc_b = same_color_area(hist, blo, bhi, d0);
                 let sc_c = same_color_area(hist, clo, chi, d0);
