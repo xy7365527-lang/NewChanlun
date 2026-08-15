@@ -436,14 +436,15 @@ fn issue837_cross_level_opposing_actions() {
         .expect("BTC 数据（analysis/data_cache/btc_1m_full.json）");
     eprintln!("[837] BTC 全集 bars={}", ds.bars.len());
 
-    let mut wins: Vec<(String, String, String)> = match std::env::var(crate::theta_v0::env_registry::ISSUE837_BASE_WINDOW) {
-        Ok(spec) => {
-            let p: Vec<&str> = spec.split(':').collect();
-            assert_eq!(p.len(), 3, "ISSUE837_BASE_WINDOW 格式 tag:start:end");
-            vec![(p[0].into(), p[1].into(), p[2].into())]
-        }
-        Err(_) => vec![("p3fold".into(), "2023-01-01".into(), "2023-06-30".into())],
-    };
+    let mut wins: Vec<(String, String, String)> =
+        match std::env::var(crate::theta_v0::env_registry::ISSUE837_BASE_WINDOW) {
+            Ok(spec) => {
+                let p: Vec<&str> = spec.split(':').collect();
+                assert_eq!(p.len(), 3, "ISSUE837_BASE_WINDOW 格式 tag:start:end");
+                vec![(p[0].into(), p[1].into(), p[2].into())]
+            }
+            Err(_) => vec![("p3fold".into(), "2023-01-01".into(), "2023-06-30".into())],
+        };
     if let Ok(extra) = std::env::var(crate::theta_v0::env_registry::ISSUE837_EXTRA_WINDOWS) {
         // 形如 "tag:2024-01-01:2024-06-30,tag2:...".
         for spec in extra.split(',').filter(|s| !s.is_empty()) {
