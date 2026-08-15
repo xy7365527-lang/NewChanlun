@@ -62,6 +62,9 @@ pub mod perm_test;
 /// S2 段口径复核 + λ_gap 穿越分布（task #10，R3 §4 遗留）。只产报告不定参，L2 描述性。
 #[cfg(test)]
 mod segment_gn;
+/// 逐笔成交数据接入（tick → Bar → 判定链 seam 左半边，issue #973）。与 [`data`] 并列：
+/// 逐笔 bar 非等时长，不复用 `bar_seconds`（#971 ③），只复用 `Bar`/`quantize`/判定链。
+pub mod tick;
 #[cfg(test)]
 mod wverify_run;
 
