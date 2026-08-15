@@ -660,15 +660,17 @@ mod tests {
             // 2026-08-04 再位移（+5/+1）：#885 收尾 rustfmt 尾巴（4fe13e12d3）折行推移，逐条重核
             // 内容不变（同为测试夹具 source_index 过滤），理由不变。#881 S3：mod.rs 测试区上方
             // 增集成测试 ⟹ 该点 4359→4548，同条目重登记。）
-            "theta_v0/classifier/signal.rs:2561",
-            "theta_v0/classifier/signal.rs:2845",
-            "theta_v0/classifier/signal.rs:3214",
-            "theta_v0/classifier/signal.rs:3353",
-            "theta_v0/classifier/signal.rs:3386",
-            "theta_v0/classifier/signal.rs:3642",
-            "theta_v0/classifier/signal.rs:3706",
-            "theta_v0/classifier/mod.rs:4551",
+            "theta_v0/classifier/signal.rs:2587",
+            "theta_v0/classifier/signal.rs:2878",
+            "theta_v0/classifier/signal.rs:3250",
+            "theta_v0/classifier/signal.rs:3390",
+            "theta_v0/classifier/signal.rs:3423",
+            "theta_v0/classifier/signal.rs:3679",
+            "theta_v0/classifier/signal.rs:3746",
+            "theta_v0/classifier/mod.rs:4574",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
+            // （2026-08-16 #990 I-2 strokes 参数接线 ⟹ signal.rs/mod.rs 测试区整体位移
+            // （+26/+23），八处夹具点逐条重核内容不变，同条目重登记。）
             // （2026-08-16 镜像追推后 CI 首跑位移 551→553 / 773→775：逐条重核内容不变——同为
             // `gamma_x` 时刻分组过滤，同条目重登记。mod.rs:4548→4551 测试夹具点同款处理。）
             "theta_v0/strategy/mod.rs:553",
