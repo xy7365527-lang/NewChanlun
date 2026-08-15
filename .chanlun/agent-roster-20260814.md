@@ -47,3 +47,4 @@
 - **#984 N7 LEE 对接门收口（2026-08-15）**：impl-n7-lee 完成——consume_router.rs（ManagedBspLedger + route_consume 按 formation_level 分桶）+ 4 测试。父会话独立验收：fmt/check 两档/4 passed 全绿、判定链零改。合入 main（4849b923ba），#984 关票，worktree 清。
 - **#986 N7 E2E-S8 基线（2026-08-15）**：task 实装票（consume_at 三窗真实数据验收 bin）。派 impl-n7-s8（DeepSeek rlm 子代理，worktree /tmp/wt-n7-s8）。
 - **#986 N7 E2E-S8 基线收口（2026-08-15）**：impl-n7-s8 完成——p985_s8_consume_baseline.rs 三窗真实数据验收 bin（Closed=245/受管BSP=3/BspLink=4/幂等0violation/只收Closed 48/48）。父会话独立验收：check/fmt 绿、判定链零改、100k 窗读数逐位一致。合入 main（2e2937e109），#986 关票，worktree 清。N7 三件事（#983 逻辑+#984 对接门+#986 基线）全部收口。
+- **map #967 关图（2026-08-15）**：tick 对照臂目的地达成（#972+#973，判定链零改），残雾去向逐条登记——力度→#974 线、坏 tick→#922、转生产→换装管制、Databento→搁置人工核、volume→随力度/转生产线走。关图。
