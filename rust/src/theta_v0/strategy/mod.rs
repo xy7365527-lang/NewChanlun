@@ -48,6 +48,8 @@ pub mod center_oscillation_trade;
 /// #147 T3 出场通道 P1–P8 全互斥通道解释器（first-match + C0 兜底；#149 已填 P4/P5
 /// ReverseOpen 显式机制（原 ShortDiff，#281 更名 #283 实装），#150 的 P7/P8 仍为占位槽）。
 pub mod channel;
+/// LEE Consume_ℓ 确定性路由（Consume_at 产出按 formation_level 分桶的受管 BSP 级别持有账本，map #529）。
+pub mod consume_router;
 pub mod coverage;
 pub mod exec;
 /// 退出决策生成器（§9 closePred）+ 持仓声部台账 `HeldVoice`——回测 runner 与生产 ThetaCore 共享单源。
