@@ -145,7 +145,7 @@ impl BspPointClass {
 /// 真值表恒判「唯一」（methodologically 空洞），故 `source_index` 不入 `anchor`（也不入本键任何
 /// 分量）——查询/去重时按 `(level, source_index)` 另行核对（[`BspBridgeEdge::bsp_source_indices`]/
 /// [`BspBridgeEdge::bsp_level`]，二者是**载荷**，不是身份分量）。
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BspStructuralKey {
     pub rule_version: u32,
     pub level: u32,
