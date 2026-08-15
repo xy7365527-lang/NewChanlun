@@ -103,6 +103,9 @@ pub mod cand_sub;
 /// #641（N3）：级别链证书塔对象（节点=候选事件、边=C⊆C 覆盖关系、E2E-L 三态谱系 + skip edge）。
 /// 纯产出零消费接线。
 pub mod chain_cert;
+/// #981（N7）：Consume_at 签名冻结——新类型族 + 冻结函数签名（逻辑 stub 归后续票）。纯新造，
+/// 现役对象零改（`BspStructuralKey` 仅补 `Hash` derive 一行）。
+pub mod consume_at;
 /// 区间套必要条件——递归塔原生检查器（条款 9，任务 #106；只读，不回写判据 bit）。
 pub mod interval_necessity;
 /// C2 走势消费 seam：显式 exact-three 投影、D3 方向绑定与 D2 A/C provider。
