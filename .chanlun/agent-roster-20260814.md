@@ -42,3 +42,4 @@
 - **#981 N7 签名冻结落地收口（2026-08-15）**：impl-n7-freeze 完成——consume_at.rs 八类型+冻结签名 stub（305 行），判定链零改（仅 BspStructuralKey 补 Hash derive）。父会话独立验收：fmt/check 两档/单文件测试 9 passed 全绿。合入 main（0b9e1a2a89），#981 关票，worktree 清。
 - **#529 N7 签名冻结收口 + 缺口发现（2026-08-15）**：#980（A）关 + #981（签名冻结）关合入 main。验收发现签名缺口——closed_lineage 节点只带 CandidateKey、不带 BSP，映射在 N4 桥接边但签名无 BspBridgeBook 输入 → 开 grilling #982（授权 BSP 集合从哪来），待编排者答。
 - **#983 N7 consume_at 逻辑实装（2026-08-15）**：task 实装票（Closed 门+幂等创建+BspLink 组内写入+四错误分支）。派 impl-n7-logic（DeepSeek rlm 子代理，worktree /tmp/wt-n7-logic）。
+- **#983 N7 consume_at 逻辑实装收口（2026-08-15）**：impl-n7-logic 完成——consume_at 真逻辑（四错误分支+幂等创建+BspLink 组内写入+防御去重）+ 13 测试。父会话独立验收：fmt/check 两档/13 passed 全绿、判定链零改（diff 仅 consume_at.rs）。合入 main（add7adffe3），#983 关票，worktree 清。
