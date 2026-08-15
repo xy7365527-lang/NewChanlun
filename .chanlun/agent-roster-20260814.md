@@ -44,3 +44,4 @@
 - **#983 N7 consume_at 逻辑实装（2026-08-15）**：task 实装票（Closed 门+幂等创建+BspLink 组内写入+四错误分支）。派 impl-n7-logic（DeepSeek rlm 子代理，worktree /tmp/wt-n7-logic）。
 - **#983 N7 consume_at 逻辑实装收口（2026-08-15）**：impl-n7-logic 完成——consume_at 真逻辑（四错误分支+幂等创建+BspLink 组内写入+防御去重）+ 13 测试。父会话独立验收：fmt/check 两档/13 passed 全绿、判定链零改（diff 仅 consume_at.rs）。合入 main（add7adffe3），#983 关票，worktree 清。
 - **#984 N7 LEE 对接门（2026-08-15）**：task 实装票（Consume_ℓ 确定性路由，ManagedBspCreation 按 formation_level 分桶进受管 BSP 账本）。派 impl-n7-lee（DeepSeek rlm 子代理，worktree /tmp/wt-n7-lee）。
+- **#984 N7 LEE 对接门收口（2026-08-15）**：impl-n7-lee 完成——consume_router.rs（ManagedBspLedger + route_consume 按 formation_level 分桶）+ 4 测试。父会话独立验收：fmt/check 两档/4 passed 全绿、判定链零改。合入 main（4849b923ba），#984 关票，worktree 清。
