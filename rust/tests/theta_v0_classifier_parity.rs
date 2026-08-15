@@ -56,7 +56,7 @@ use newchan_rust::theta_v0::classifier::center::{classify_position, RelativePosi
 use newchan_rust::theta_v0::classifier::descend::RMove;
 use newchan_rust::theta_v0::classifier::rmove_compose::compose_move;
 use newchan_rust::theta_v0::classifier::signal::{
-    extract_second_signals, extract_signals, BspPoint,
+    extract_second_signals, extract_signals, extract_signals_with_hist, BspPoint,
 };
 use newchan_rust::theta_v0::config::MacdConfig;
 use newchan_rust::theta_v0::types::{Center, Direction, Segment, Side, Tick};
@@ -67,6 +67,32 @@ use serde::Deserialize;
 fn extract_third_only(centers: &[Center], segments: &[Segment]) -> Vec<BspPoint> {
     extract_signals(centers, segments, &[], &[], &MacdConfig::default())
 }
+
+/// 一类 parity 专用入口（#990 后默认档 = ForceL；Lean IsType1 对拍的 rust 侧口径 = MacdArea
+/// 面积判据 + 无 strokes ⟹ 显式档显式空笔，语义锁定变更前）。
+fn extract_first_macd(
+    centers: &[Center],
+    segments: &[Segment],
+    closes: &[f64],
+    src: &[usize],
+) -> Vec<BspPoint> {
+    use newchan_rust::theta_v0::classifier::divergence::{compute_macd, DivergenceGauge};
+    let hist = compute_macd(closes, &MacdConfig::default()).hist;
+    let closes_tick: Vec<Tick> = closes.iter().map(|&v| v as Tick).collect();
+    extract_signals_with_hist(
+        centers,
+        segments,
+        &hist,
+        &[],
+        &closes_tick,
+        src,
+        DivergenceGauge::MacdArea,
+        &[],
+        &mut Vec::new(),
+    )
+    .0
+}
+
 
 // ════════════════════════════════════════════════════════════════════════════
 //  §0 Lean #eval 导出 fixture 机器耦合（631 兑现，消手工转录漂移）
@@ -523,7 +549,7 @@ fn type1_buy_broke_and_diverge_matches_lean_istype1() {
         250, 250, 250, // 6..8 B 段：盘整让 EMA 收敛（hist 回拉 0 轴）
         248, 246, 244, // 9..11 C 段：缓动（hist 小=力度衰减=趋势背驰）
     ]);
-    let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
+    let points = extract_first_macd(&[c0, c1], &segs, &closes, &src);
     let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
     assert_eq!(
         buy1.len(),
@@ -554,7 +580,7 @@ fn type1_rejected_without_divergence_matches_lean() {
     ];
     // 前段小幅、后段大幅 ⟹ 后段面积 > 前段 ⟹ ¬IsDivergence（力度延续）。
     let (closes, src) = closes_seq(&[100, 100, 100, 100, 98, 102, 100, 50, 150]);
-    let points = extract_signals(&[c], &segs, &closes, &src, &MacdConfig::default());
+    let points = extract_first_macd(&[c], &segs, &closes, &src);
     assert!(
         points.iter().all(|p| !p.bits.buy1),
         "Lean ¬IsDivergence ⟹ ¬IsType1 ⟺ rust ¬buy1"
@@ -614,7 +640,7 @@ fn signal_extraction_emits_no_second_class_only() {
         256, // 11..13 离开上段：价格回升过 c1.zg=200（端点 256 > 200）
         256, 230, 210, // 13..15 回试：低点 210 > c1.zg=200（不破 ZG ⟹ B3）
     ]);
-    let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
+    let points = extract_first_macd(&[c0, c1], &segs, &closes, &src);
     for p in &points {
         assert!(
             !p.bits.buy2,
