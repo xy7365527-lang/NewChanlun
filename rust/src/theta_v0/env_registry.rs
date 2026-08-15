@@ -117,6 +117,13 @@ pub const NEST_GATE_SMOKE_BARS: &str = "NEST_GATE_SMOKE_BARS";
 
 // -- strategy（theta_v0/strategy/oscillation_campaign.rs）：本层首个登记键（观测门）--
 pub const THETA_DEATH_WO_DUMP: &str = "THETA_DEATH_WO_DUMP";
+
+// -- backtest：#837/#841 探针脚手架（观测门，2026-08-16 镜像追推后 CI 守卫实撞补登）--
+pub const ISSUE837_BASE_WINDOW: &str = "ISSUE837_BASE_WINDOW";
+pub const ISSUE837_EXTRA_WINDOWS: &str = "ISSUE837_EXTRA_WINDOWS";
+pub const ISSUE837_OUT: &str = "ISSUE837_OUT";
+pub const ISSUE841_BARS: &str = "ISSUE841_BARS";
+pub const ISSUE841_STRIDE: &str = "ISSUE841_STRIDE";
 pub const NEST_GATE_SMOKE_START: &str = "NEST_GATE_SMOKE_START";
 pub const T1_PROBE_BARS: &str = "T1_PROBE_BARS";
 pub const T1_PROBE_START: &str = "T1_PROBE_START";
@@ -494,6 +501,41 @@ pub static REGISTRY: &[EnvKeyMeta] = &[
         default_arm: "未设 ⟹ 不 dump（生产默认关；置位仅在 campaign 死亡且有挂起核销时逐中枢打一行）",
         layer: "strategy",
     },
+    EnvKeyMeta {
+        key: ISSUE837_BASE_WINDOW,
+        semantic: "#837 探针基准窗（test-only 脚手架）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ 探针内置默认窗",
+        layer: "backtest",
+    },
+    EnvKeyMeta {
+        key: ISSUE837_EXTRA_WINDOWS,
+        semantic: "#837 探针追加窗列表（test-only 脚手架）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ 只跑基准窗",
+        layer: "backtest",
+    },
+    EnvKeyMeta {
+        key: ISSUE837_OUT,
+        semantic: "#837 探针报告输出路径（test-only 脚手架）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ /tmp/issue837_probe.md",
+        layer: "backtest",
+    },
+    EnvKeyMeta {
+        key: ISSUE841_BARS,
+        semantic: "#841 探针窗口截断 bar 数（test-only 脚手架）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ 探针内置默认",
+        layer: "backtest",
+    },
+    EnvKeyMeta {
+        key: ISSUE841_STRIDE,
+        semantic: "#841 探针采样步长（test-only 脚手架）",
+        kind: GateKind::Observation,
+        default_arm: "未设 ⟹ 探针内置默认",
+        layer: "backtest",
+    },
 ];
 
 /// 全键只读枚举（运行期可列，spec #756 C2 形状条「查询口」半条）。
@@ -520,15 +562,14 @@ pub fn find(key: &str) -> Option<&'static EnvKeyMeta> {
 mod tests {
     use super::*;
 
-    /// 表内键数锁 51（票 #746 面复核实数 46 + #758 issue766 随 m8.rs/report.rs 诊断件恢复
-    /// 补登 M8_FEE_DATUM/M8_LEVEL_CAP/M8_SYMBOL/M8_REPORT_PATH 四键 + #719 补
-    /// THETA_DEATH_WO_DUMP 一键，strategy 层首个登记键）。
+    /// 表内键数锁 56（票 #746 面复核实数 46 + #758 issue766 补 4 + #719 补
+    /// THETA_DEATH_WO_DUMP 一键 + 2026-08-16 镜像追推 CI 守卫实撞补登 #837/#841 探针五键）。
     #[test]
     fn registry_has_46_entries() {
         assert_eq!(
             REGISTRY.len(),
-            51,
-            "注册表键数漂移——新增/删除 env 键须同步登记表（票 #746 复核实数 46 + #758 issue766 补 4 + #719 补 1）"
+            56,
+            "注册表键数漂移——新增/删除 env 键须同步登记表（票 #746 复核实数 46 + #758 issue766 补 4 + #719 补 1 + #837/#841 补 5）"
         );
     }
 

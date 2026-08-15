@@ -646,9 +646,11 @@ mod tests {
             // #885 S4-d：`LevelState::first_class_grade_at`/`Classification::otherwise_domain_at`
             // 单源查询函数体（作用于 `FirstClassGradeRecord` 分级记录族，非 `BspPoint`，与本族
             // 三件并行不同型；同 projection.rs:215 先例——查询实现全仓各仅一份，非复制点）。
-            // （#881 S3：上方 `pub mod operation;` 增 3 行 ⟹ 218→221 / 250→253，同条目重登记。）
-            "theta_v0/classifier/mod.rs:221",
-            "theta_v0/classifier/mod.rs:253",
+            // （#881 S3：上方 `pub mod operation;` 增 3 行 ⟹ 218→221 / 250→253，同条目重登记。
+            // 2026-08-16 镜像追推后 CI 首跑再位移（221→224 / 253→256）：逐条重核内容不变
+            // ——两访问器函数体依旧，同条目重登记。）
+            "theta_v0/classifier/mod.rs:224",
+            "theta_v0/classifier/mod.rs:256",
             // `CrossLevelConfirmationQuery::entry_at` 单源函数体（作用于 `TripleAnchorEntry`，
             // 与本族 `BspPoint` 三件并行不同型，见 projection.rs 函数头注释）。
             "theta_v0/classifier/projection.rs:215",
@@ -665,10 +667,12 @@ mod tests {
             "theta_v0/classifier/signal.rs:3386",
             "theta_v0/classifier/signal.rs:3642",
             "theta_v0/classifier/signal.rs:3706",
-            "theta_v0/classifier/mod.rs:4548",
+            "theta_v0/classifier/mod.rs:4551",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
-            "theta_v0/strategy/mod.rs:551",
-            "theta_v0/strategy/mod.rs:773",
+            // （2026-08-16 镜像追推后 CI 首跑位移 551→553 / 773→775：逐条重核内容不变——同为
+            // `gamma_x` 时刻分组过滤，同条目重登记。mod.rs:4548→4551 测试夹具点同款处理。）
+            "theta_v0/strategy/mod.rs:553",
+            "theta_v0/strategy/mod.rs:775",
         ];
 
         let src_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");

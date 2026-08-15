@@ -36,7 +36,7 @@ use super::runner::run_theta_v0_pi_overlay;
 
 /// 窗口 bar 数（env `ISSUE841_BARS`，默认 20000 = #755 同口径）。
 fn win_bars() -> usize {
-    std::env::var("ISSUE841_BARS")
+    std::env::var(crate::theta_v0::env_registry::ISSUE841_BARS)
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(20_000)
@@ -96,7 +96,7 @@ fn walk_root_level(elements: &[CoverageElement], mut idx: usize) -> u32 {
 fn issue841_axis_structure() {
     let cfg = ThetaConfig::default();
     let ds = load_window();
-    let stride: usize = std::env::var("ISSUE841_STRIDE")
+    let stride: usize = std::env::var(crate::theta_v0::env_registry::ISSUE841_STRIDE)
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(1);
