@@ -786,7 +786,6 @@ impl IncrSegments {
     }
 }
 
-
 // ═══════════════════════════════════════════════════════════════════════════
 // § I-1（#989 / G1 #975）：段→笔区间反查（按需重建载体，零新增状态）+ 笔速度力度
 //
@@ -836,11 +835,7 @@ pub fn stroke_velocity(stroke: &Stroke) -> f64 {
 /// 力度 `L(段) = v(末笔) − v(首笔)`（#873 教义正本；段→笔经反查）。
 ///
 /// 段区间不含任何笔 ⟹ `None`（取不到数据不冒充，与度量层「无数据判非」纪律同向）。
-pub fn segment_force_l(
-    strokes: &[Stroke],
-    seg_start: usize,
-    seg_end: usize,
-) -> Option<f64> {
+pub fn segment_force_l(strokes: &[Stroke], seg_start: usize, seg_end: usize) -> Option<f64> {
     let (first, last) = stroke_span_of_segment(strokes, seg_start, seg_end)?;
     Some(stroke_velocity(&strokes[last]) - stroke_velocity(&strokes[first]))
 }
@@ -1266,7 +1261,13 @@ mod tests {
             Direction::Up => (lo, hi),
             Direction::Down => (hi, lo),
         };
-        Stroke { direction, start_index: start, end_index: end, start_price, end_price }
+        Stroke {
+            direction,
+            start_index: start,
+            end_index: end,
+            start_price,
+            end_price,
+        }
     }
 
     /// 合成对拍：`divide_segments` 产出的每个段，其 bar 区间反查笔区间 == 构造现场
@@ -1289,13 +1290,13 @@ mod tests {
         // 口径：段端点 bar 上的笔算相交（相邻笔共享端点 bar 是分型构造常态）。
         // span(0,9) 含笔1（起点=9 与段末 bar 重合）；span(9,9) 单 bar 交笔0/笔1。
         for (seg_start, seg_end, expect) in [
-            (0usize, 9usize, Some((0usize, 1usize))),  // 段末 bar 与笔1 起点共享
-            (0, 8, Some((0, 0))),                       // 恰首笔（不触笔1）
-            (0, 21, Some((0, 3))),                      // 跨四笔（段末 bar 与笔3 起点共享）
-            (30, 44, Some((3, 6))),                     // 共享端点：首含笔3（end=30）、末含笔6（start=44）
-            (44, 60, Some((5, 7))),                     // 共享端点：首含笔5（end=44）
-            (9, 9, Some((0, 1))),                       // 单 bar 交两笔（共享端点）
-            (61, 70, None),                             // 全部笔之后 ⟹ None
+            (0usize, 9usize, Some((0usize, 1usize))), // 段末 bar 与笔1 起点共享
+            (0, 8, Some((0, 0))),                     // 恰首笔（不触笔1）
+            (0, 21, Some((0, 3))),                    // 跨四笔（段末 bar 与笔3 起点共享）
+            (30, 44, Some((3, 6))), // 共享端点：首含笔3（end=30）、末含笔6（start=44）
+            (44, 60, Some((5, 7))), // 共享端点：首含笔5（end=44）
+            (9, 9, Some((0, 1))),   // 单 bar 交两笔（共享端点）
+            (61, 70, None),         // 全部笔之后 ⟹ None
         ] {
             assert_eq!(
                 stroke_span_of_segment(&strokes, seg_start, seg_end),
@@ -1315,9 +1316,9 @@ mod tests {
     #[test]
     fn i1_segment_force_l_manual() {
         let strokes = vec![
-            mk_stroke(Direction::Up, 0, 9, 100, 200),   // v = +100/10 = 10.0
+            mk_stroke(Direction::Up, 0, 9, 100, 200), // v = +100/10 = 10.0
             mk_stroke(Direction::Down, 9, 19, 120, 200), // v = −80/11
-            mk_stroke(Direction::Up, 19, 38, 130, 410),  // v = +280/20 = 14.0
+            mk_stroke(Direction::Up, 19, 38, 130, 410), // v = +280/20 = 14.0
         ];
         // 段 [0,38]：L = v(末) − v(首) = 14.0 − 10.0 = 4.0
         let l = segment_force_l(&strokes, 0, 38).unwrap();
@@ -1359,6 +1360,9 @@ mod tests {
             }
             checked += 1;
         }
-        assert!(checked > 100, "OKLO 1 分钟全史段数应远超 100，实测 {checked}");
+        assert!(
+            checked > 100,
+            "OKLO 1 分钟全史段数应远超 100，实测 {checked}"
+        );
     }
 }

@@ -1599,61 +1599,61 @@ mod tests {
         // #990 I-2：默认口径 = ForceL（教义判据 L(C)<L(B)，#873）；MacdArea 降为显式对照档（ADR-0005）。
         assert_eq!(DivergenceGauge::default(), DivergenceGauge::ForceL);
 
-    /// ★#990 ForceL 专项锁：教义判据 `L(C)<L(B)`（Some）生效、无数据（None）不判、
-    /// 与面积档可给相反判定（口径切换的语义见证）。
-    #[test]
-    fn confirm_divergence_forcel_semantics() {
-        use crate::theta_v0::parser::segment::{segment_force_l, stroke_velocity};
-        // 构造笔：b 首笔速度 10、末笔 2；c 首笔 2、末笔 -1 ⟹ L(b)=-8 < L(c)=-3 ⟹ L(c)>L(b) 不判；
-        // 交换后 L(c)<L(b) 判。用反查原语直接验算。
-        let mk = |d: Direction, s: usize, e: usize, p0: Tick, p1: Tick| Stroke {
-            direction: d,
-            start_index: s,
-            end_index: e,
-            start_price: p0,
-            end_price: p1,
-        };
-        let strokes_b = vec![
-            mk(Direction::Up, 0, 9, 0, 100),    // v=+10
-            mk(Direction::Down, 9, 19, 100, 80), // v=-2
-        ];
-        let strokes_c = vec![
-            mk(Direction::Up, 20, 29, 0, 20),   // v=+2
-            mk(Direction::Down, 30, 39, 20, 10), // v=-1
-        ];
-        assert_eq!(stroke_velocity(&strokes_b[0]), 10.0);
-        // L(b) = v(末)-v(首) = -2-10 = -12；L(c) = -1-2 = -3 ⟹ L(c) > L(b)。
-        let lb = segment_force_l(&strokes_b, 0, 19).unwrap();
-        let lc = segment_force_l(&strokes_c, 20, 39).unwrap();
-        assert!((lb - (-12.0)).abs() < 1e-9);
-        assert!((lc - (-3.0)).abs() < 1e-9);
-        // gauge 语义：ForceL + L(c)<L(b)=false ⟹ 不判；true ⟹ 判；None ⟹ 不判。
-        assert!(!confirm_divergence_l(
-            DivergenceGauge::ForceL,
-            true,
-            None,
-            Some(false)
-        ));
-        assert!(confirm_divergence_l(
-            DivergenceGauge::ForceL,
-            false,
-            None,
-            Some(true)
-        ));
-        assert!(!confirm_divergence_l(
-            DivergenceGauge::ForceL,
-            true,
-            None,
-            None
-        ));
-        // MacdArea 档不受 l 参与影响（对照臂独立性）。
-        assert!(confirm_divergence_l(
-            DivergenceGauge::MacdArea,
-            true,
-            None,
-            Some(false)
-        ));
-    }
+        /// ★#990 ForceL 专项锁：教义判据 `L(C)<L(B)`（Some）生效、无数据（None）不判、
+        /// 与面积档可给相反判定（口径切换的语义见证）。
+        #[test]
+        fn confirm_divergence_forcel_semantics() {
+            use crate::theta_v0::parser::segment::{segment_force_l, stroke_velocity};
+            // 构造笔：b 首笔速度 10、末笔 2；c 首笔 2、末笔 -1 ⟹ L(b)=-8 < L(c)=-3 ⟹ L(c)>L(b) 不判；
+            // 交换后 L(c)<L(b) 判。用反查原语直接验算。
+            let mk = |d: Direction, s: usize, e: usize, p0: Tick, p1: Tick| Stroke {
+                direction: d,
+                start_index: s,
+                end_index: e,
+                start_price: p0,
+                end_price: p1,
+            };
+            let strokes_b = vec![
+                mk(Direction::Up, 0, 9, 0, 100),     // v=+10
+                mk(Direction::Down, 9, 19, 100, 80), // v=-2
+            ];
+            let strokes_c = vec![
+                mk(Direction::Up, 20, 29, 0, 20),    // v=+2
+                mk(Direction::Down, 30, 39, 20, 10), // v=-1
+            ];
+            assert_eq!(stroke_velocity(&strokes_b[0]), 10.0);
+            // L(b) = v(末)-v(首) = -2-10 = -12；L(c) = -1-2 = -3 ⟹ L(c) > L(b)。
+            let lb = segment_force_l(&strokes_b, 0, 19).unwrap();
+            let lc = segment_force_l(&strokes_c, 20, 39).unwrap();
+            assert!((lb - (-12.0)).abs() < 1e-9);
+            assert!((lc - (-3.0)).abs() < 1e-9);
+            // gauge 语义：ForceL + L(c)<L(b)=false ⟹ 不判；true ⟹ 判；None ⟹ 不判。
+            assert!(!confirm_divergence_l(
+                DivergenceGauge::ForceL,
+                true,
+                None,
+                Some(false)
+            ));
+            assert!(confirm_divergence_l(
+                DivergenceGauge::ForceL,
+                false,
+                None,
+                Some(true)
+            ));
+            assert!(!confirm_divergence_l(
+                DivergenceGauge::ForceL,
+                true,
+                None,
+                None
+            ));
+            // MacdArea 档不受 l 参与影响（对照臂独立性）。
+            assert!(confirm_divergence_l(
+                DivergenceGauge::MacdArea,
+                true,
+                None,
+                Some(false)
+            ));
+        }
     }
 
     /// G4 ThetaLex（Θ_LEX 词典序 D 判定，A3 #164，关于背驰.pdf §9.2）：judge 层 `weak_theta(Lex)`

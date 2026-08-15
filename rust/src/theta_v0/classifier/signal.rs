@@ -81,8 +81,8 @@
 
 use super::super::config::MacdConfig;
 use super::super::types::{
-    Center, Direction, MoveKind, Segment, Side, ThirdClassEntryIdentity, Tick,
- Stroke};
+    Center, Direction, MoveKind, Segment, Side, Stroke, ThirdClassEntryIdentity, Tick,
+};
 // Side 已在上行 import（judge_first_cached 用它构造 BspPoint.struct_break_dir，P2-R2）。
 use super::super::types::BspBits;
 use super::bsp::{endpoint_to_bsp, EndpointSituation};
@@ -468,11 +468,7 @@ pub(crate) fn judge_first_cached(
     } else {
         match (
             crate::theta_v0::parser::segment::segment_force_l(strokes, a_start, a_end),
-            crate::theta_v0::parser::segment::segment_force_l(
-                strokes,
-                lambda_c,
-                seg.end_index,
-            ),
+            crate::theta_v0::parser::segment::segment_force_l(strokes, lambda_c, seg.end_index),
         ) {
             (Some(la), Some(lc)) => Some(lc < la),
             _ => None,
@@ -480,8 +476,7 @@ pub(crate) fn judge_first_cached(
     };
     // ★D 判定口径（A2 #163 + #990）：`confirm_divergence_l` 单一判定点。默认 `ForceL` ⟹
     // 教义判据；`MacdArea` 等降为显式对照档（ADR-0005）。
-    let diverged =
-        divergence::confirm_divergence_l(gauge, macd_c_lt_a, force.as_ref(), l_c_lt_a);
+    let diverged = divergence::confirm_divergence_l(gauge, macd_c_lt_a, force.as_ref(), l_c_lt_a);
     // ★#607 S2 D2（37:18 分档大闸）：T3-in-c 固定首对分级（D1，#606）复核——否则域
     // （`Missing`）不置一类 bit，点降级为零 bit 结构候选，继续走既有候选流（P2-R2 先例，
     // `struct_break_dir` 无条件置，见下）。`THETA_T3INC_SKIP=1`（D5 counterfactual）⟹ 强制
@@ -5200,8 +5195,14 @@ mod tests {
             Direction::Down,
         );
         println!("A seg = {:?}", a);
-        println!("A area [3,5] = {}", segment_macd_area(&hist, 3, 5, Direction::Down));
-        println!("C area [9,11] = {}", segment_macd_area(&hist, 9, 11, Direction::Down));
+        println!(
+            "A area [3,5] = {}",
+            segment_macd_area(&hist, 3, 5, Direction::Down)
+        );
+        println!(
+            "C area [9,11] = {}",
+            segment_macd_area(&hist, 9, 11, Direction::Down)
+        );
         println!(
             "hist = {:?}",
             hist.iter()

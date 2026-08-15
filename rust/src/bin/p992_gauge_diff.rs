@@ -12,7 +12,9 @@ use newchan_rust::theta_v0::parser::parse_layer;
 use std::collections::BTreeSet;
 
 fn main() -> std::process::ExitCode {
-    let symbol = std::env::args().nth(1).unwrap_or_else(|| "OKLO".to_string());
+    let symbol = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "OKLO".to_string());
     let mut cfg_f = ThetaConfig::default();
     cfg_f.divergence_gauge = DivergenceGauge::ForceL;
     let mut cfg_m = ThetaConfig::default();
@@ -20,7 +22,10 @@ fn main() -> std::process::ExitCode {
 
     let ds = match load_by_symbol(&symbol, &cfg_f) {
         Ok(ds) => ds,
-        Err(e) => { eprintln!("数据加载失败: {e}"); return std::process::ExitCode::FAILURE; }
+        Err(e) => {
+            eprintln!("数据加载失败: {e}");
+            return std::process::ExitCode::FAILURE;
+        }
     };
     let l0 = parse_layer(&ds.bars, &cfg_f);
     println!("P992_INPUT symbol={symbol} bars={}", ds.bars.len());
