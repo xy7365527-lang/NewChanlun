@@ -1,35 +1,43 @@
-//! #981（N7）`Consume_at` 签名冻结落地（map #529）。
+//! #983（N7）`consume_at` 逻辑实装（map #529；#981 冻结签名 + #982 A 签名订正落地）。
 //!
 //! ## Seam（一行）
 //!
 //! ```text
-//! 现役对象（BspStructuralKey / ChainKey / TowerChainCertificate）
-//!   → 新类型族（ProjectionKey / LinkKey / ManagedBsp / BspLink / ManagedBspPolicy / ConsumeError）
-//!   → consume_at 函数签名（stub，逻辑 todo!()）
+//! 现役对象（TowerChainCertificate 存活节点 / event_to_bsp 映射 / prior 幂等映射）
+//!   → consume_at 逻辑（Closed 门 + 幂等创建 + BspLink 组内写入 + 四错误分支）
+//!   → (ManagedBspCreation[], BspLink[])
 //! ```
 //!
-//! 左半边（现役对象）**零改**（唯一的例外是本票允许的 `BspStructuralKey` 增加 `Hash` derive，
-//! 见 `bsp_bridge.rs`，不动字段不动结构）；右半边（新类型族）全部新造，落在**本文件**——不在
-//! 现役文件里塞类型。本票只做「冻结签名」一层：不实现消费逻辑（归后续票），不 mock 现役对象
-//! 内部、不测私有路径、不改 parser / 递归塔。
+//! 左半边（现役对象）**零改**：本票只读现役对象公开字段（`TowerChainCertificate` 的
+//! `status`/`closed_at`/`key`/`nodes`、`ChainNodeTrace` 的 `key`/`status`、`BspStructuralKey`/
+//! `CandidateKey`/`ChainKey` 公开字段），不 mock 现役对象内部、不测私有路径、不改
+//! bsp_bridge / chain_cert / parser / 递归塔。右半边（新类型族 + 逻辑）全部落在**本文件**。
 //!
 //! ## 认识论（formalization-validity-domain）
 //!
-//! 实装本身 = L1（bit-exact 一致性中的「签名/形状翻译正确」一档）：冻结签名与类型族逐字段落成
-//! Rust，编译期即锁死签名。**不声称 L2/L3**——`consume_at` 消费逻辑在市场上的有效性归后续票。
+//! 实装本身 = L1（bit-exact 一致性中的「签名/形状翻译正确」一档）：#981 冻结签名与类型族
+//! 逐字段落成 Rust，本票把 `todo!()` 换成真逻辑 + 真值表/幂等/错误分支测试。**不声称 L2/L3**——
+//! `consume_at` 消费逻辑在市场上的有效性归后续票；模糊判据（LateAuthorization / InconsistentState）
+//! 照实留 TODO 注释，不擅自扩语义。
 //!
-//! ## 冻结语义来源（自包含）
+//! ## 语义来源（自包含）
 //!
 //! - 谱系综合 §2：`chanlun/review-results/e2eo-lineage-synthesis-20260728.md`
-//!   （Consume_at 签名 + 冻结语义）。
+//!   （Consume_at 签名 + 只收 Closed + 投影幂等）。
 //! - #980 裁定 A：BspKey = [`BspStructuralKey`]（episode 粒度），残余规则「跨多条链只创建一次、
 //!   多条链接写 BspLink 组内」。
+//! - #982 裁定 A：加 `event_to_bsp` 参数（调用方在调 `consume_at` 前从 `BspBridgeBook` 预解析
+//!   「候选事件 → BSP」映射，`consume_at` 只读不查簿）。
+//! - 四错误分支判据：`LateAuthorization` = `closed_at > as_of` 最直白推导（精确判据待冻结语义
+//!   细化，见函数内 TODO）；`InconsistentState` = prior 超前条目检查（精确判据待 E2E-O 修订协议
+//!   落地后细化，见函数内 TODO）。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::super::types::Side;
 use super::bsp_bridge::BspStructuralKey;
-use super::chain_cert::{ChainKey, TowerChainCertificate};
+use super::cand_event::CandidateKey;
+use super::chain_cert::{ChainKey, ChainNodeStatus, ChainStatus, TowerChainCertificate};
 
 /// 谱系投影键（roadmap E2E-N4 行「ProjectionKey 含 Lineage/policy/rule/slot」）。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -102,36 +110,124 @@ pub enum ConsumeError {
     LateAuthorization,
 }
 
-/// Consume_at 冻结签名（逻辑 stub，`todo!("consume_at 逻辑归后续票")`）。
+/// Consume_at 逻辑（#983 实装；#981 冻结签名 + #982 A 加 `event_to_bsp` 参数）。
 ///
-/// 冻结语义（谱系综合 §2 / roadmap）：
+/// 语义（谱系综合 §2 / roadmap / #980 A / #982 A）：
 /// - 只接收 `Closed` 谱系（`closed_lineage.status == ChainStatus::Closed`，否则
-///   `NoConsumption`/`InvalidPolicy`）；
+///   `Err(NoConsumption)`）；
 /// - 授权 BSP 在同一生产事务形成并写入谱系反向边，不是给既有 BSP 事后贴标；
 /// - 以旧 BSP/链接映射（`prior_bsp_by_key` / `prior_links_by_key`）保证投影幂等——
 ///   同一 BspKey 已存在则不重复创建，只补 BspLink（残余规则 #980：跨多条链只创建一次，
-///   多条链接写 BspLink 组内）。
+///   多条链接写 BspLink 组内）；
+/// - `event_to_bsp` = 调用方在调本函数前从 `BspBridgeBook` 预解析的「候选事件 → BSP」映射，
+///   本函数只读不查簿（#982 A）。
+///
+/// 输入校验顺序（先到先返回）：NoConsumption → LateAuthorization → InvalidPolicy →
+/// InconsistentState。模糊判据（LateAuthorization / InconsistentState）按最直白推导实现并留
+/// TODO 注释，不擅自扩语义。
 pub fn consume_at(
     as_of: usize,
     prior_bsp_by_key: &HashMap<BspStructuralKey, ManagedBsp>,
     prior_links_by_key: &HashMap<LinkKey, BspLink>,
     closed_lineage: &TowerChainCertificate,
     policy: &ManagedBspPolicy,
+    event_to_bsp: &HashMap<CandidateKey, BspStructuralKey>,
 ) -> Result<(Vec<ManagedBspCreation>, Vec<BspLink>), ConsumeError> {
-    let _ = (
-        as_of,
-        prior_bsp_by_key,
-        prior_links_by_key,
-        closed_lineage,
-        policy,
-    );
-    todo!("consume_at 逻辑归后续票（N7 实装），本票只冻结签名")
+    // 1. NoConsumption：只接收 Closed 谱系（非 Closed 不可消费 = 空分支，非错误但也不产出）。
+    if closed_lineage.status != ChainStatus::Closed {
+        return Err(ConsumeError::NoConsumption);
+    }
+    // 2. LateAuthorization：链在本次 as_of 之后才闭合 ⟹ 本次 as_of 时链尚未可消费。
+    // TODO(精确判据待冻结语义细化)：本版 = closed_at > as_of 最直白推导。
+    if let Some(closed_at) = closed_lineage.closed_at {
+        if closed_at > as_of {
+            return Err(ConsumeError::LateAuthorization);
+        }
+    }
+    // 3. InvalidPolicy：空 rules，或两条 rule 投影到同一 (policy_id, rule_id, slot) 三元组。
+    if policy.rules.is_empty() {
+        return Err(ConsumeError::InvalidPolicy);
+    }
+    let mut seen_projections = HashSet::new();
+    for rule in &policy.rules {
+        if !seen_projections.insert((rule.policy_id, rule.rule_id, rule.slot)) {
+            return Err(ConsumeError::InvalidPolicy);
+        }
+    }
+    // 4. InconsistentState：prior 状态超前于本次 as_of。
+    // TODO(精确判据待 E2E-O 修订协议落地后细化)：本版 = 超前条目检查。
+    if prior_bsp_by_key.values().any(|bsp| bsp.created_at > as_of)
+        || prior_links_by_key
+            .values()
+            .any(|link| link.written_at > as_of)
+    {
+        return Err(ConsumeError::InconsistentState);
+    }
+    let mut creations: Vec<ManagedBspCreation> = vec![];
+    let mut links: Vec<BspLink> = vec![];
+    // 防御性去重：同一 bsp_key 被多个节点命中时只产一次 creation；同一 link_key 只产一次 link
+    // （event_to_bsp 为单射时不可达，但一次调用内仍用本地集合兜底）。
+    let mut created_this_call: HashSet<BspStructuralKey> = HashSet::new();
+    let mut linked_this_call: HashSet<LinkKey> = HashSet::new();
+    for node in &closed_lineage.nodes {
+        // 只授权存活端点；Falsified/Absent 被跨过不授权。
+        if node.status != ChainNodeStatus::Alive {
+            continue;
+        }
+        // 查无 = Absent 非证伪，跳过。
+        let Some(bsp_key) = event_to_bsp.get(&node.key) else {
+            continue;
+        };
+        // 幂等创建：prior 已有则只补链接，不重复创建。
+        if !prior_bsp_by_key.contains_key(bsp_key) && created_this_call.insert(bsp_key.clone()) {
+            creations.push(ManagedBspCreation {
+                bsp: ManagedBsp {
+                    key: bsp_key.clone(),
+                    created_at: as_of,
+                },
+            });
+        }
+        // 每条 rule 投影一个 ProjectionKey → 一条 BspLink（组内多条链接同事务写入）。
+        for rule in &policy.rules {
+            let projection = ProjectionKey {
+                lineage: closed_lineage.key.clone(),
+                policy_id: rule.policy_id,
+                rule_id: rule.rule_id,
+                slot: rule.slot,
+            };
+            let link_key = LinkKey {
+                bsp: bsp_key.clone(),
+                projection,
+            };
+            // 幂等：已链接跳过。
+            if prior_links_by_key.contains_key(&link_key) {
+                continue;
+            }
+            if !linked_this_call.insert(link_key.clone()) {
+                continue;
+            }
+            links.push(BspLink {
+                key: link_key,
+                side: bsp_key.side,
+                written_at: as_of,
+            });
+        }
+    }
+    Ok((creations, links))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::bsp_bridge::BspPointClass;
-    use super::super::cand_event::{CandidateKey, CandidateKind, ParentFingerprint};
+    use std::collections::HashMap;
+
+    use super::super::super::types::Side;
+    use super::super::bsp_bridge::{BspPointClass, BspStructuralKey};
+    use super::super::cand_event::{
+        CandidateKey, CandidateKind, CandidateState, ParentFingerprint,
+    };
+    use super::super::chain_cert::{
+        ChainKey, ChainNodeStatus, ChainNodeTrace, ChainStatus, TowerChainCertificate,
+    };
     use super::*;
 
     /// 测试脚手架：构造一个合法形状的候选键（只借公共字段，不 mock 现役对象内部）。
@@ -152,146 +248,430 @@ mod tests {
         }
     }
 
-    /// 测试脚手架：经 `ChainKey::new` 公共构造点构造一条两节点链（沿用现役 ≥2 节点不变量）。
-    fn chain_key() -> ChainKey {
-        ChainKey::new(vec![candidate(3, 10), candidate(2, 5)])
-    }
-
     /// 测试脚手架：构造一个合法形状的 BSP 结构键（只借公共字段）。
     fn bsp_key() -> BspStructuralKey {
+        bsp_key_with(BspPointClass::Buy1, Side::Long, 2)
+    }
+
+    fn bsp_key_with(class: BspPointClass, side: Side, level: u32) -> BspStructuralKey {
         BspStructuralKey {
             rule_version: 0,
-            level: 2,
+            level,
             parent: ParentFingerprint {
                 center_start: 0,
                 zd: 0,
                 zg: 0,
             },
-            side: Side::Long,
-            class: BspPointClass::Buy1,
+            side,
+            class,
             anchor: vec![(0, 0)],
         }
     }
 
-    #[test]
-    fn projection_key_constructs_and_fields_read() {
-        let lineage = chain_key();
-        let key = ProjectionKey {
-            lineage: lineage.clone(),
-            policy_id: 1,
-            rule_id: 2,
-            slot: 3,
-        };
-        assert_eq!(key.lineage, lineage);
-        assert_eq!(key.policy_id, 1);
-        assert_eq!(key.rule_id, 2);
-        assert_eq!(key.slot, 3);
+    fn rule(rule_id: u32, policy_id: u32, slot: u32) -> PolicyRule {
+        PolicyRule {
+            rule_id,
+            policy_id,
+            slot,
+        }
     }
 
-    #[test]
-    fn link_key_constructs_and_fields_read() {
-        let bsp = bsp_key();
-        let projection = ProjectionKey {
-            lineage: chain_key(),
-            policy_id: 1,
-            rule_id: 2,
-            slot: 3,
-        };
-        let key = LinkKey {
-            bsp: bsp.clone(),
-            projection: projection.clone(),
-        };
-        assert_eq!(key.bsp, bsp);
-        assert_eq!(key.projection, projection);
+    fn policy(rules: Vec<PolicyRule>) -> ManagedBspPolicy {
+        ManagedBspPolicy { rules }
     }
 
-    #[test]
-    fn managed_bsp_constructs_and_fields_read() {
-        let bsp = bsp_key();
-        let managed = ManagedBsp {
-            key: bsp.clone(),
-            created_at: 42,
-        };
-        assert_eq!(managed.key, bsp);
-        assert_eq!(managed.created_at, 42);
+    fn alive_node(key: CandidateKey) -> ChainNodeTrace {
+        ChainNodeTrace {
+            key,
+            level: key.level,
+            status: ChainNodeStatus::Alive,
+            state: Some(CandidateState::Confirmed),
+        }
     }
 
-    #[test]
-    fn managed_bsp_creation_constructs_and_fields_read() {
-        let managed = ManagedBsp {
-            key: bsp_key(),
-            created_at: 42,
-        };
-        let creation = ManagedBspCreation {
-            bsp: managed.clone(),
-        };
-        assert_eq!(creation.bsp, managed);
+    /// 一条 `Closed` 链（全节点存活），`closed_at == as_of`（不触发 LateAuthorization）。
+    fn closed_certificate(as_of: usize, node_keys: Vec<CandidateKey>) -> TowerChainCertificate {
+        let key = ChainKey::new(node_keys.clone());
+        TowerChainCertificate {
+            key,
+            extends: None,
+            root_level: node_keys[0].level,
+            leaf_level: node_keys.last().expect("≥2 节点").level,
+            nodes: node_keys.iter().map(|&k| alive_node(k)).collect(),
+            edges: vec![],
+            extendable: false,
+            status: ChainStatus::Closed,
+            observed_at: as_of,
+            closed_at: Some(as_of),
+            invalidated_at: None,
+            invalidation_cause: None,
+            revision: 0,
+            supersedes_revision: None,
+            revision_at: as_of,
+        }
     }
 
+    /// 真值表：Closed 链 + 两个存活节点各映射一个不同 BSP + 两条 rule。
+    /// creation 数 = 唯一 bsp 数；link 数 = bsp 数 × rule 数；字段逐项正确。
     #[test]
-    fn bsp_link_constructs_and_fields_read() {
-        let key = LinkKey {
-            bsp: bsp_key(),
+    fn truth_table_creates_per_bsp_and_links_per_rule() {
+        let as_of = 10;
+        let node0 = candidate(3, 10);
+        let node1 = candidate(2, 5);
+        let certificate = closed_certificate(as_of, vec![node0, node1]);
+        let bsp0 = bsp_key();
+        let bsp1 = bsp_key_with(BspPointClass::Sell1, Side::Short, 2);
+        let mut event_to_bsp = HashMap::new();
+        event_to_bsp.insert(node0, bsp0.clone());
+        event_to_bsp.insert(node1, bsp1.clone());
+        let policy = policy(vec![rule(1, 100, 0), rule(2, 100, 1)]);
+
+        let (creations, links) = consume_at(
+            as_of,
+            &HashMap::new(),
+            &HashMap::new(),
+            &certificate,
+            &policy,
+            &event_to_bsp,
+        )
+        .expect("Closed + 合法 policy + 空 prior 应产出");
+
+        assert_eq!(creations.len(), 2, "creation 数 = 唯一 bsp 数");
+        assert_eq!(links.len(), 4, "link 数 = bsp 数 × rule 数");
+
+        // creation 逐字段：key 覆盖两个 bsp，created_at == as_of。
+        let created_keys: HashSet<BspStructuralKey> = creations
+            .iter()
+            .map(|creation| creation.bsp.key.clone())
+            .collect();
+        assert_eq!(created_keys, HashSet::from([bsp0.clone(), bsp1.clone()]));
+        for creation in &creations {
+            assert_eq!(creation.bsp.created_at, as_of);
+        }
+
+        // link 逐字段：key 集合 = {bsp0, bsp1} × 两条 rule 的 ProjectionKey；
+        // lineage == certificate.key；written_at == as_of；side == 对应 bsp.side。
+        let mut expected_links = HashSet::new();
+        for bsp in [&bsp0, &bsp1] {
+            for r in &policy.rules {
+                expected_links.insert(LinkKey {
+                    bsp: bsp.clone(),
+                    projection: ProjectionKey {
+                        lineage: certificate.key.clone(),
+                        policy_id: r.policy_id,
+                        rule_id: r.rule_id,
+                        slot: r.slot,
+                    },
+                });
+            }
+        }
+        let link_keys: HashSet<LinkKey> = links.iter().map(|link| link.key.clone()).collect();
+        assert_eq!(link_keys, expected_links);
+        for link in &links {
+            assert_eq!(link.key.projection.lineage, certificate.key);
+            assert_eq!(link.written_at, as_of);
+            let expected_side = if link.key.bsp == bsp0 {
+                bsp0.side
+            } else {
+                bsp1.side
+            };
+            assert_eq!(link.side, expected_side);
+        }
+    }
+
+    /// 幂等：prior 已有某 bsp → 不产 creation、但产 link。
+    #[test]
+    fn idempotent_prior_bsp_skips_creation_but_still_links() {
+        let as_of = 10;
+        let node0 = candidate(3, 10);
+        let certificate = closed_certificate(as_of, vec![node0, candidate(2, 5)]);
+        let bsp0 = bsp_key();
+        let mut event_to_bsp = HashMap::new();
+        event_to_bsp.insert(node0, bsp0.clone());
+        let policy = policy(vec![rule(1, 100, 0)]);
+
+        let mut prior_bsp_by_key = HashMap::new();
+        prior_bsp_by_key.insert(
+            bsp0.clone(),
+            ManagedBsp {
+                key: bsp0.clone(),
+                created_at: 5,
+            },
+        );
+
+        let (creations, links) = consume_at(
+            as_of,
+            &prior_bsp_by_key,
+            &HashMap::new(),
+            &certificate,
+            &policy,
+            &event_to_bsp,
+        )
+        .expect("prior 未超前，应产出");
+
+        assert!(creations.is_empty(), "prior 已有 bsp 不产 creation");
+        assert_eq!(links.len(), 1, "prior 已有 bsp 仍产 link");
+        assert_eq!(links[0].key.bsp, bsp0);
+        assert_eq!(links[0].written_at, as_of);
+    }
+
+    /// 幂等：prior 已有某 link → 该 link 不重复产（同 bsp 的其余 rule 照产）。
+    #[test]
+    fn idempotent_prior_link_is_not_reproduced() {
+        let as_of = 10;
+        let node0 = candidate(3, 10);
+        let certificate = closed_certificate(as_of, vec![node0, candidate(2, 5)]);
+        let bsp0 = bsp_key();
+        let mut event_to_bsp = HashMap::new();
+        event_to_bsp.insert(node0, bsp0.clone());
+        let policy = policy(vec![rule(1, 100, 0), rule(2, 100, 1)]);
+
+        let rule0 = &policy.rules[0];
+        let existing_link_key = LinkKey {
+            bsp: bsp0.clone(),
             projection: ProjectionKey {
-                lineage: chain_key(),
-                policy_id: 1,
-                rule_id: 2,
-                slot: 3,
+                lineage: certificate.key.clone(),
+                policy_id: rule0.policy_id,
+                rule_id: rule0.rule_id,
+                slot: rule0.slot,
             },
         };
-        let link = BspLink {
-            key: key.clone(),
-            side: Side::Short,
-            written_at: 7,
-        };
-        assert_eq!(link.key, key);
-        assert_eq!(link.side, Side::Short);
-        assert_eq!(link.written_at, 7);
+        let mut prior_links_by_key = HashMap::new();
+        prior_links_by_key.insert(
+            existing_link_key.clone(),
+            BspLink {
+                key: existing_link_key,
+                side: bsp0.side,
+                written_at: 3,
+            },
+        );
+
+        let (creations, links) = consume_at(
+            as_of,
+            &HashMap::new(),
+            &prior_links_by_key,
+            &certificate,
+            &policy,
+            &event_to_bsp,
+        )
+        .expect("prior 未超前，应产出");
+
+        assert_eq!(creations.len(), 1, "bsp 不在 prior，仍产 creation");
+        assert_eq!(links.len(), 1, "已链接的 rule 不重复产，剩第二条 rule");
+        assert_eq!(links[0].key.projection.rule_id, 2);
     }
 
+    /// 防御性去重：同一 bsp 被两个节点命中（event_to_bsp 单射时不可达），
+    /// 仍只产一次 creation、每条 rule 只产一次 link。
     #[test]
-    fn managed_bsp_policy_constructs_and_fields_read() {
-        let rule = PolicyRule {
-            rule_id: 2,
-            policy_id: 1,
-            slot: 3,
-        };
-        let policy = ManagedBspPolicy {
-            rules: vec![rule.clone()],
-        };
-        assert_eq!(policy.rules.len(), 1);
-        assert_eq!(policy.rules[0], rule);
+    fn defensive_dedup_same_bsp_from_two_nodes() {
+        let as_of = 10;
+        let node0 = candidate(3, 10);
+        let node1 = candidate(2, 5);
+        let certificate = closed_certificate(as_of, vec![node0, node1]);
+        let bsp0 = bsp_key();
+        let mut event_to_bsp = HashMap::new();
+        event_to_bsp.insert(node0, bsp0.clone());
+        event_to_bsp.insert(node1, bsp0.clone());
+        let policy = policy(vec![rule(1, 100, 0), rule(2, 100, 1)]);
+
+        let (creations, links) = consume_at(
+            as_of,
+            &HashMap::new(),
+            &HashMap::new(),
+            &certificate,
+            &policy,
+            &event_to_bsp,
+        )
+        .expect("Closed + 合法 policy + 空 prior 应产出");
+
+        assert_eq!(creations.len(), 1, "同一 bsp 只产一次 creation");
+        assert_eq!(links.len(), 2, "同一 bsp × 两条 rule 只产两条 link");
     }
 
+    /// 空产出：Closed 链但 event_to_bsp 全查无 → Ok((空, 空))，非错误。
     #[test]
-    fn policy_rule_constructs_and_fields_read() {
-        let rule = PolicyRule {
-            rule_id: 2,
-            policy_id: 1,
-            slot: 3,
-        };
-        assert_eq!(rule.rule_id, 2);
-        assert_eq!(rule.policy_id, 1);
-        assert_eq!(rule.slot, 3);
+    fn closed_chain_with_all_missing_events_yields_empty_output() {
+        let as_of = 10;
+        let certificate = closed_certificate(as_of, vec![candidate(3, 10), candidate(2, 5)]);
+        let policy = policy(vec![rule(1, 100, 0)]);
+
+        let (creations, links) = consume_at(
+            as_of,
+            &HashMap::new(),
+            &HashMap::new(),
+            &certificate,
+            &policy,
+            &HashMap::new(),
+        )
+        .expect("空 event_to_bsp 是 Absent 非证伪，不报错");
+
+        assert!(creations.is_empty());
+        assert!(links.is_empty());
     }
 
+    /// 错误分支 1：非 Closed 谱系 → NoConsumption。
     #[test]
-    fn consume_error_is_copy_and_variants_distinct() {
+    fn non_closed_lineage_returns_no_consumption() {
+        let as_of = 10;
+        let mut certificate = closed_certificate(as_of, vec![candidate(3, 10), candidate(2, 5)]);
+        certificate.status = ChainStatus::Open;
+        certificate.closed_at = None;
+
+        let err = consume_at(
+            as_of,
+            &HashMap::new(),
+            &HashMap::new(),
+            &certificate,
+            &policy(vec![rule(1, 100, 0)]),
+            &HashMap::new(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err, ConsumeError::NoConsumption);
+    }
+
+    /// 错误分支 2：closed_at > as_of → LateAuthorization。
+    #[test]
+    fn closed_after_as_of_returns_late_authorization() {
+        let as_of = 10;
+        let mut certificate = closed_certificate(as_of, vec![candidate(3, 10), candidate(2, 5)]);
+        certificate.closed_at = Some(as_of + 1);
+
+        let err = consume_at(
+            as_of,
+            &HashMap::new(),
+            &HashMap::new(),
+            &certificate,
+            &policy(vec![rule(1, 100, 0)]),
+            &HashMap::new(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err, ConsumeError::LateAuthorization);
+    }
+
+    /// 错误分支 3a：空 rules → InvalidPolicy。
+    #[test]
+    fn empty_rules_returns_invalid_policy() {
+        let as_of = 10;
+        let certificate = closed_certificate(as_of, vec![candidate(3, 10), candidate(2, 5)]);
+
+        let err = consume_at(
+            as_of,
+            &HashMap::new(),
+            &HashMap::new(),
+            &certificate,
+            &policy(vec![]),
+            &HashMap::new(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err, ConsumeError::InvalidPolicy);
+    }
+
+    /// 错误分支 3b：两条 rule 投影到同一 (policy_id, rule_id, slot) → InvalidPolicy。
+    #[test]
+    fn duplicate_projection_rule_returns_invalid_policy() {
+        let as_of = 10;
+        let certificate = closed_certificate(as_of, vec![candidate(3, 10), candidate(2, 5)]);
+
+        let err = consume_at(
+            as_of,
+            &HashMap::new(),
+            &HashMap::new(),
+            &certificate,
+            &policy(vec![rule(1, 100, 0), rule(1, 100, 0)]),
+            &HashMap::new(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err, ConsumeError::InvalidPolicy);
+    }
+
+    /// 错误分支 4：prior 超前（created_at > as_of）→ InconsistentState。
+    #[test]
+    fn prior_bsp_ahead_returns_inconsistent_state() {
+        let as_of = 10;
+        let certificate = closed_certificate(as_of, vec![candidate(3, 10), candidate(2, 5)]);
+        let mut prior_bsp_by_key = HashMap::new();
+        prior_bsp_by_key.insert(
+            bsp_key(),
+            ManagedBsp {
+                key: bsp_key(),
+                created_at: as_of + 1,
+            },
+        );
+
+        let err = consume_at(
+            as_of,
+            &prior_bsp_by_key,
+            &HashMap::new(),
+            &certificate,
+            &policy(vec![rule(1, 100, 0)]),
+            &HashMap::new(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err, ConsumeError::InconsistentState);
+    }
+
+    /// 错误分支 4b：prior link 超前（written_at > as_of）→ InconsistentState。
+    #[test]
+    fn prior_link_ahead_returns_inconsistent_state() {
+        let as_of = 10;
+        let node0 = candidate(3, 10);
+        let certificate = closed_certificate(as_of, vec![node0, candidate(2, 5)]);
+        let bsp0 = bsp_key();
+        let link_key = LinkKey {
+            bsp: bsp0.clone(),
+            projection: ProjectionKey {
+                lineage: certificate.key.clone(),
+                policy_id: 100,
+                rule_id: 1,
+                slot: 0,
+            },
+        };
+        let mut prior_links_by_key = HashMap::new();
+        prior_links_by_key.insert(
+            link_key,
+            BspLink {
+                key: LinkKey {
+                    bsp: bsp0,
+                    projection: ProjectionKey {
+                        lineage: certificate.key.clone(),
+                        policy_id: 100,
+                        rule_id: 1,
+                        slot: 0,
+                    },
+                },
+                side: Side::Long,
+                written_at: as_of + 1,
+            },
+        );
+
+        let err = consume_at(
+            as_of,
+            &HashMap::new(),
+            &prior_links_by_key,
+            &certificate,
+            &policy(vec![rule(1, 100, 0)]),
+            &HashMap::new(),
+        )
+        .unwrap_err();
+
+        assert_eq!(err, ConsumeError::InconsistentState);
+    }
+
+    /// `ConsumeError` 是 `Copy`（按值返回的错误枚举，调用侧可随意复制比较）。
+    #[test]
+    fn consume_error_is_copy() {
         let e = ConsumeError::NoConsumption;
         let copied = e;
         assert_eq!(e, copied);
-        assert_ne!(ConsumeError::NoConsumption, ConsumeError::InvalidPolicy);
-        assert_ne!(ConsumeError::InvalidPolicy, ConsumeError::InconsistentState);
-        assert_ne!(
-            ConsumeError::InconsistentState,
-            ConsumeError::LateAuthorization
-        );
     }
 
-    /// 冻结签名的机器锁：把 `consume_at` 绑到与票面逐字一致的函数类型上。
-    ///
-    /// 只断言「签名可调用」（参数/返回类型与冻结签名完全一致），**不调用**——本票的
-    /// `consume_at` 是 `todo!()` stub，调用必 panic，故签名由编译期类型断言锁死，逻辑归后续票。
+    /// 签名机器锁：把 `consume_at` 绑到与票面逐字一致的函数类型上（#981 冻结 + #982 A 加参）。
     #[test]
     fn consume_at_has_frozen_signature() {
         let _f: fn(
@@ -300,6 +680,7 @@ mod tests {
             &HashMap<LinkKey, BspLink>,
             &TowerChainCertificate,
             &ManagedBspPolicy,
+            &HashMap<CandidateKey, BspStructuralKey>,
         ) -> Result<(Vec<ManagedBspCreation>, Vec<BspLink>), ConsumeError> = consume_at;
     }
 }
