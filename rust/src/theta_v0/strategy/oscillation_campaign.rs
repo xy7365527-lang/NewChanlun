@@ -992,8 +992,7 @@ impl CampaignBook {
                 // 「units_gap 按（级别, 中枢）分桶复算」。观测门（`THETA_DEATH_WO_DUMP`，
                 // env_registry 登记）：置位才打，纯 stderr，不进任何产物文件、不改任何判定。
                 if settlement.is_some() {
-                    if std::env::var(crate::theta_v0::env_registry::THETA_DEATH_WO_DUMP).is_ok()
-                    {
+                    if std::env::var(crate::theta_v0::env_registry::THETA_DEATH_WO_DUMP).is_ok() {
                         for (cid, u, c) in &wo_breakdown {
                             eprintln!(
                                 "[death_wo][#719] level={} side={:?} center={:?} units_gap={} cash_booked={}",

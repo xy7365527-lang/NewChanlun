@@ -68,10 +68,7 @@ fn dir_sign(d: Direction) -> f64 {
 fn unit_direction(m: &RMove) -> Direction {
     match m {
         RMove::Segment { direction, .. } => *direction,
-        RMove::Compose { subs, .. } => subs
-            .first()
-            .map(unit_direction)
-            .unwrap_or(Direction::Up),
+        RMove::Compose { subs, .. } => subs.first().map(unit_direction).unwrap_or(Direction::Up),
     }
 }
 
@@ -82,11 +79,7 @@ fn v_of(m: &LeveledMove) -> f64 {
 }
 
 /// 闭包间隙内的次级别单元区间（首/末），无单元 ⟹ None。
-fn span_units(
-    units: &[LeveledMove],
-    lo: usize,
-    hi: usize,
-) -> Option<(usize, usize)> {
+fn span_units(units: &[LeveledMove], lo: usize, hi: usize) -> Option<(usize, usize)> {
     let ul = units.partition_point(|u| u.start_index < lo);
     let uh = units.partition_point(|u| u.end_index <= hi);
     if uh > ul {
@@ -154,8 +147,8 @@ fn main() -> std::process::ExitCode {
     let mut endpoint_h_rel_peak: Vec<f64> = Vec::new();
     let mut runs = 0u64;
     for i in 1..=hist.len() {
-        let boundary = i == hist.len()
-            || (hist[i].signum() != hist[run_start].signum() && hist[i] != 0.0);
+        let boundary =
+            i == hist.len() || (hist[i].signum() != hist[run_start].signum() && hist[i] != 0.0);
         if !boundary {
             continue;
         }
@@ -172,8 +165,7 @@ fn main() -> std::process::ExitCode {
         }
         let peak = hist[s..=e].iter().fold(0f64, |a, x| a.max(x.abs()));
         if peak > 0.0 {
-            endpoint_h_rel_peak
-                .push((hist[s].abs().max(hist[e].abs())) / peak);
+            endpoint_h_rel_peak.push((hist[s].abs().max(hist[e].abs())) / peak);
         }
     }
     println!(
@@ -318,10 +310,7 @@ fn main() -> std::process::ExitCode {
         pct(&vs, 0.5)
     };
     let neg = mu_d.iter().filter(|&&x| x < 0.0).count();
-    let tiny = mu_d
-        .iter()
-        .filter(|&&x| x.abs() < 0.05 * med_v)
-        .count();
+    let tiny = mu_d.iter().filter(|&&x| x.abs() < 0.05 * med_v).count();
     println!(
         "P977_C n={n} mu_median={:.6} mu_p10={:.6} mu_p90={:.6} neg_frac={:.4} tiny_frac={:.4} (tiny=|mu|<0.05*median|v|, median|v|={med_v:.6})",
         pct(&mu_d, 0.5),

@@ -26,11 +26,20 @@ fn center_of(m: &LeveledMove) -> Option<Center> {
 }
 
 fn link_dir(a: &Center, b: &Center) -> Option<Direction> {
-    if b.zd > a.zg { Some(Direction::Up) } else if b.zg < a.zd { Some(Direction::Down) } else { None }
+    if b.zd > a.zg {
+        Some(Direction::Up)
+    } else if b.zg < a.zd {
+        Some(Direction::Down)
+    } else {
+        None
+    }
 }
 
 fn dir_sign(d: Direction) -> f64 {
-    match d { Direction::Up => 1.0, Direction::Down => -1.0 }
+    match d {
+        Direction::Up => 1.0,
+        Direction::Down => -1.0,
+    }
 }
 
 fn unit_direction(m: &RMove) -> Direction {
@@ -49,11 +58,20 @@ fn v_of(m: &LeveledMove) -> f64 {
 fn span_units(units: &[LeveledMove], lo: usize, hi: usize) -> Option<(usize, usize)> {
     let ul = units.partition_point(|u| u.start_index < lo);
     let uh = units.partition_point(|u| u.end_index <= hi);
-    if uh > ul { Some((ul, uh - 1)) } else { None }
+    if uh > ul {
+        Some((ul, uh - 1))
+    } else {
+        None
+    }
 }
 
 /// L(段) 与 TV(段) 与 末段是否钝化（末单元速度绝对值 < 首单元速度绝对值，段内减速）。
-fn l_tv_blunt(units: &[LeveledMove], lo: usize, hi: usize, dir: Direction) -> Option<(f64, f64, bool)> {
+fn l_tv_blunt(
+    units: &[LeveledMove],
+    lo: usize,
+    hi: usize,
+    dir: Direction,
+) -> Option<(f64, f64, bool)> {
     let (f, l) = span_units(units, lo, hi)?;
     let mut tv = 0.0;
     for w in f..l {
@@ -70,11 +88,16 @@ fn l_tv_blunt(units: &[LeveledMove], lo: usize, hi: usize, dir: Direction) -> Op
 }
 
 fn main() -> std::process::ExitCode {
-    let symbol = std::env::args().nth(1).unwrap_or_else(|| "OKLO".to_string());
+    let symbol = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "OKLO".to_string());
     let config = ThetaConfig::default();
     let dataset = match load_by_symbol(&symbol, &config) {
         Ok(ds) => ds,
-        Err(e) => { eprintln!("数据加载失败: {e}"); return std::process::ExitCode::FAILURE; }
+        Err(e) => {
+            eprintln!("数据加载失败: {e}");
+            return std::process::ExitCode::FAILURE;
+        }
     };
     let bars = &dataset.bars;
     let l0 = parse_layer(bars, &config);
@@ -86,7 +109,7 @@ fn main() -> std::process::ExitCode {
     let mut n_blunt_c = 0u64;
     let mut agree_all = 0u64;
     let mut agree_blunt = 0u64;
-    let mut l_only_blunt = 0u64;   // 钝化子集里 L 判背驰、TV 不判
+    let mut l_only_blunt = 0u64; // 钝化子集里 L 判背驰、TV 不判
     let mut tv_only_blunt = 0u64;
     let mut samples: Vec<String> = Vec::new();
 
@@ -94,13 +117,21 @@ fn main() -> std::process::ExitCode {
         let units: &[LeveledMove] = &tower[j - 1];
         let lv = &tower[j];
         let cs: Vec<Center> = lv.iter().filter_map(center_of).collect();
-        if cs.len() != lv.len() || cs.len() < 2 { continue; }
+        if cs.len() != lv.len() || cs.len() < 2 {
+            continue;
+        }
         let mut i = 0usize;
         while i + 1 < cs.len() {
-            let Some(d0) = link_dir(&cs[i], &cs[i + 1]) else { i += 1; continue; };
+            let Some(d0) = link_dir(&cs[i], &cs[i + 1]) else {
+                i += 1;
+                continue;
+            };
             let mut end = i + 1;
             while end + 1 < cs.len() {
-                match link_dir(&cs[end], &cs[end + 1]) { Some(d) if d == d0 => end += 1, _ => break }
+                match link_dir(&cs[end], &cs[end + 1]) {
+                    Some(d) if d == d0 => end += 1,
+                    _ => break,
+                }
             }
             let span = |t: usize| -> Option<(usize, usize)> {
                 let a_end = lv[t].end_index;
@@ -108,17 +139,29 @@ fn main() -> std::process::ExitCode {
                 Some((a_end.min(b_start), a_end.max(b_start)))
             };
             for t in i..end {
-                if t + 1 >= end { continue; }
-                let (Some((blo, bhi)), Some((clo, chi))) = (span(t), span(t + 1)) else { continue; };
-                let (Some((lb, tvb, _)), Some((lc, tvc, blunt_c))) =
-                    (l_tv_blunt(units, blo, bhi, d0), l_tv_blunt(units, clo, chi, d0)) else { continue; };
+                if t + 1 >= end {
+                    continue;
+                }
+                let (Some((blo, bhi)), Some((clo, chi))) = (span(t), span(t + 1)) else {
+                    continue;
+                };
+                let (Some((lb, tvb, _)), Some((lc, tvc, blunt_c))) = (
+                    l_tv_blunt(units, blo, bhi, d0),
+                    l_tv_blunt(units, clo, chi, d0),
+                ) else {
+                    continue;
+                };
                 n_pairs += 1;
                 let l_div = lc < lb;
                 let tv_div = tvc < tvb;
-                if l_div == tv_div { agree_all += 1; }
+                if l_div == tv_div {
+                    agree_all += 1;
+                }
                 if blunt_c {
                     n_blunt_c += 1;
-                    if l_div == tv_div { agree_blunt += 1; }
+                    if l_div == tv_div {
+                        agree_blunt += 1;
+                    }
                     if l_div && !tv_div {
                         l_only_blunt += 1;
                         if samples.len() < 10 {
@@ -139,7 +182,9 @@ fn main() -> std::process::ExitCode {
         agree_all as f64 / n_pairs.max(1) as f64,
         agree_blunt as f64 / n_blunt_c.max(1) as f64,
     );
-    for s in &samples { println!("{s}"); }
+    for s in &samples {
+        println!("{s}");
+    }
     let _ = classification.levels.len();
     std::process::ExitCode::SUCCESS
 }
