@@ -218,6 +218,9 @@ _Avoid_: 把本点自身 source_index 塞进锚（伪阳性唯一性）；三类
 段坐标；~~把「键唯一性」当验收目标~~（**已撤销**：验收目标是「episode 归属唯一」，同 episode
 多物理点是合法的修订史，不是需要消灭的撞键）
 
+**Consume_at 沿用（2026-08-15 #980 裁定 A，编排者签）**：N7 `Consume_at` 的 `prior_bsp_by_key` 用本键（episode 粒度）。「一点一次创建」的「一点」= 一个候选事件（episode），同一 episode 多物理点是修订史、不拆成多个受管 BSP。roadmap WireV1 的 `BspKey=(formation_level,point_class,side,source_index)`（source_index 入键全局点身份）是 2026-07-17 旧定义、被 #666 覆盖。残余规则：一个候选事件即使跨多条链，也只创建一次受管 BSP，它在每条链的位置写进 `BspLink` 组内（多条链接同事务写入）。
+
+
 ### 运行边界
 
 **「生产」拆三义（three meanings of production）**:
