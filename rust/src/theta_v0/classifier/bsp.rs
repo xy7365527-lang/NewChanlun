@@ -659,14 +659,17 @@ mod tests {
             // 3209/4358 为本票新增测试夹具过滤，同类登记。
             // 2026-08-04 再位移（+5/+1）：#885 收尾 rustfmt 尾巴（4fe13e12d3）折行推移，逐条重核
             // 内容不变（同为测试夹具 source_index 过滤），理由不变。#881 S3：mod.rs 测试区上方
-            // 增集成测试 ⟹ 该点 4359→4548，同条目重登记。）
-            "theta_v0/classifier/signal.rs:2587",
-            "theta_v0/classifier/signal.rs:2878",
-            "theta_v0/classifier/signal.rs:3250",
-            "theta_v0/classifier/signal.rs:3390",
-            "theta_v0/classifier/signal.rs:3423",
-            "theta_v0/classifier/signal.rs:3679",
-            "theta_v0/classifier/signal.rs:3746",
+            // 增集成测试 ⟹ 该点 4359→4548，同条目重登记。
+            // 2026-08-16 再位移（七处统一 +2）：#903（6250e6f878）在 signal.rs:528 生产区补 2 行
+            // 口径注释 ⟹ 测试区整体下移 2 行；七点逐条重核内容不变（同为测试夹具 source_index
+            // 过滤），同条目重登记。）
+            "theta_v0/classifier/signal.rs:2589",
+            "theta_v0/classifier/signal.rs:2880",
+            "theta_v0/classifier/signal.rs:3252",
+            "theta_v0/classifier/signal.rs:3392",
+            "theta_v0/classifier/signal.rs:3425",
+            "theta_v0/classifier/signal.rs:3681",
+            "theta_v0/classifier/signal.rs:3748",
             "theta_v0/classifier/mod.rs:4574",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
             // （2026-08-16 #993 fixture 修复 ⟹ signal.rs 测试区再位移，七处夹具点重锚，内容不变。
