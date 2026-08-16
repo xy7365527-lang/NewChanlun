@@ -35,3 +35,9 @@
 ## 残余
 
 T2（管线 ~2148 行 → pipeline.rs 复名）与 T3（LOW-12 死文件清零搭车）未动，#648 保持 open。
+
+## 勘误（2026-08-16，影子评审 #997 回报后补记）
+
+- **机械适配实际五条**：报告列了四条，漏列 rustfmt 重排（55 件测试体 17 件纯格式化差异、9 件换行形态——rustfmt 缩进敏感性：0 缩进 vs 4 缩进产出不同形态），零行为影响；
+- **计数订正**：抽离后 mod.rs 实际 **2150 行**（报告 2151）、mod 声明实际 **35**（报告 36，系搬前数）；
+- **incremental_profile 模块路径变化**（classifier::incremental_profile → classifier::tests::incremental_profile）未在报告单列——零外部引用，登记即可。
