@@ -20,7 +20,7 @@ echo "▸ 起一次性容器触发 kernel bootstrap（约 1-2 分钟），同进
 docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
 docker run --name "$CONTAINER" --env-file "$REPO_ROOT/.sandcastle/.env" \
   --entrypoint sh "$IMAGE" -c \
-  'prime-agent -p "用 ipython 工具计算 1+1，只回复结果数字"; rc=$?;
+  'prime-agent -p --provider kimi-coding --model k3 "必须调用 ipython 工具执行 print(1+1)（禁止心算直答），然后只回复结果数字"; rc=$?;
    rm -rf /tmp/prime-agent-* ~/.prime/agent/daemon-workers ~/.prime/agent/session-leases ~/.prime/agent/logs ~/.prime/agent/sessions;
    exit $rc' || {
     echo "✗ bootstrap 触发失败"; docker rm -f "$CONTAINER" >/dev/null; exit 1; }
@@ -31,6 +31,7 @@ docker commit \
   --change 'ENV ZAI_API_KEY=' --change 'ENV MOONSHOT_API_KEY=' --change 'ENV GH_TOKEN=' \
   --change 'ENV GIT_AUTHOR_NAME=' --change 'ENV GIT_AUTHOR_EMAIL=' \
   --change 'ENV GIT_COMMITTER_NAME=' --change 'ENV GIT_COMMITTER_EMAIL=' \
+  --change 'ENTRYPOINT ["sleep", "infinity"]' --change 'CMD []' \
   "$CONTAINER" "$IMAGE" >/dev/null
 docker rm -f "$CONTAINER" >/dev/null
 
