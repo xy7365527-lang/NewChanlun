@@ -535,18 +535,25 @@ fn type1_buy_broke_and_diverge_matches_lean_istype1() {
         end_index: 8,
     };
     let segs = vec![
-        seg(Direction::Down, 3, 5, 350, 250), // A 段：C0 离开段（破 C0 下沿），MACD 面积大（强势=Lean forceA）
-        seg(Direction::Up, 5, 7, 250, 280),   // B 段：中间反向连接（构成 C1）
-        seg(Direction::Down, 9, 11, 150, 80), // C 段：破 C1 下沿（< 100）∧ C<A 趋势背驰 ⟹ B1（=Lean forceC < forceA）
+        seg(Direction::Down, 3, 5, 350, 110), // A 段：C0 离开段（破 C0 下沿），骤跌 ⟹ 绿柱大（强势=Lean forceA）
+        seg(Direction::Up, 5, 7, 110, 140),   // B 段 1：反向连接（C1 起点）
+        seg(Direction::Down, 7, 13, 140, 138), // B 段 2：低位长盘整（构成 C1；EMA 深回拉 ⟹ C 段绿柱可读且小）
+        // #993：#607 D2 后 T3-in-c 首对 = (trigger 本身, 其后 Up 回试)——trigger 即 leave（破 zd），
+        // retest [16,17] Up 80→98 不回中枢（98 < zd=100）⟹ Present；B1 恰一点（后无更多破段）。
+        seg(Direction::Down, 13, 16, 138, 80), // C 触发段 = T3 leave：破 C1 下沿 ∧ C<A 趋势背驰 ⟹ B1
+        seg(Direction::Up, 16, 17, 80, 98),    // T3 retest：不回中枢 ⟹ 首对 Present
     ];
     // closes（merged_bars 序列，与 segment 抽象端点价解耦——结构判定在 tick 域，MACD 在浮点域，两者
     // 不必逐 bar 一致）：A 段 bar[3,5] 急跌 hist 大=强力度（forceA.area 大），B 段 bar[5,7] 盘整让 EMA 收敛，
     // C 段 bar[9,11] 缓动 hist 小=力度衰减=趋势背驰（手算 A area[3,5]=23.26 > C area[9,11]=9.09 ⟹ C<A 成立）。
     let (closes, src) = closes_seq(&[
         300, 300, 300, // 0..2 C0 区（预热）
-        300, 100, 250, // 3..5 A 段：急跌（hist 绝对值大=强力度）
-        250, 250, 250, // 6..8 B 段：盘整让 EMA 收敛（hist 回拉 0 轴）
-        248, 246, 244, // 9..11 C 段：缓动（hist 小=力度衰减=趋势背驰）
+        300, 110, 140, // 3..5 A 段：骤跌（绿柱大=强力度）后反抽
+        140, 140, 140, 140, 140, 140, 140,
+        140, // 5..13 B 段：低位盘整（长 EMA 回拉，构成 C1）
+        138, 120, 100,
+        80, // 13..16 C 触发段（=T3 leave）：缓跌三步（绿柱小=力度衰减=趋势背驰）
+        98, // 16..17 T3 retest：Up 回试不回中枢
     ]);
     let points = extract_first_macd(&[c0, c1], &segs, &closes, &src);
     let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
@@ -621,23 +628,30 @@ fn signal_extraction_emits_no_second_class_only() {
         end_index: 8,
     };
     let segs = vec![
-        seg(Direction::Down, 3, 5, 350, 250), // A 段：C0 离开段（破 C0 下沿），MACD 面积大（强势）
-        seg(Direction::Up, 5, 7, 250, 280),   // B 段：中间反向连接（构成 C1）
-        seg(Direction::Down, 9, 11, 150, 80), // C 段：破 C1 下沿（< 100）∧ C<A 趋势背驰 ⟹ B1
-        seg(Direction::Up, 11, 13, 80, 260),  // 离开 C1 上方（端点 > c1.zg=200）
-        seg(Direction::Down, 13, 15, 260, 210), // 回试低点 210 > c1.zg=200（不破 ZG）⟹ B3
+        seg(Direction::Down, 3, 5, 350, 110), // A 段：C0 离开段（破 C0 下沿），骤跌 ⟹ MACD 绿柱大（强势）
+        seg(Direction::Up, 5, 7, 110, 140),   // B 段 1：反向连接（C1 起点，低位）
+        seg(Direction::Down, 7, 12, 140, 138), // B 段 2：低位盘整（构成 C1；长 EMA 回拉 ⟹ C 段绿柱可读且小）
+        // #993 修：#607 D2 后一类点需 T3-in-c 固定首对 Present——c1 右侧第一条必须是
+        // leave（破 zd）+ retest（回试不回中枢）对，触发段在其后。
+        seg(Direction::Down, 12, 13, 138, 95), // T3 leave：端点 95 < c1.zd=100（破）
+        seg(Direction::Up, 13, 14, 95, 98),    // T3 retest：终点 98 < zd（不回中枢）⟹ Present
+        seg(Direction::Down, 14, 18, 98, 80),  // C 触发段：破 c1 下沿 ∧ C<A 趋势背驰 ⟹ B1
+        seg(Direction::Up, 18, 20, 80, 260),   // 离开 C1 上方（端点 > c1.zg=200）
+        seg(Direction::Down, 20, 22, 260, 210), // 回试低点 210 > c1.zg=200（不破 ZG）⟹ B3
     ];
     // closes（merged_bars 序列，与 segment 抽象端点价解耦——结构判定在 tick 域，MACD 在浮点域，两者
     // 不必逐 bar 一致）：A 段 bar[3,5] 急跌 hist 大=强力度，B 段 bar[5,7] 盘整让 EMA 收敛，C 段 bar[9,11]
     // 缓动 hist 小=力度衰减=趋势背驰（手算 A area[3,5]=23.26 > C area[9,11]=9.09 ⟹ C<A 成立）。
     let (closes, src) = closes_seq(&[
         300, 300, 300, // 0..2 C0 区（预热）
-        300, 100, 250, // 3..5 A 段：急跌（hist 绝对值大=强力度）
-        250, 250, 250, // 6..8 B 段：盘整让 EMA 收敛（hist 回拉 0 轴）
-        248, 246, 244, // 9..11 C 段：缓动（hist 小=力度衰减=趋势背驰）
-        244, 250,
-        256, // 11..13 离开上段：价格回升过 c1.zg=200（端点 256 > 200）
-        256, 230, 210, // 13..15 回试：低点 210 > c1.zg=200（不破 ZG ⟹ B3）
+        300, 110, 140, // 3..5 A 段：骤跌（绿柱大=强力度）后反抽
+        140, 140, 140, 140, 140,
+        140, // 5..11 B 低位盘整（长 EMA 回拉，hist 收敛）
+        138, 95, 98, // 11..14 T3 leave（破 zd）+ retest（不回中枢）
+        98, 95, 92,
+        80, // 14..18 C 触发段：缓跌（绿柱小=力度衰减=趋势背驰）
+        80, 160, 260, // 18..21 离开上段：过 c1.zg=200（端点 260）
+        260, 230, 210, // 21..24 回试：低点 210 > c1.zg=200（不破 ⟹ B3）
     ]);
     let points = extract_first_macd(&[c0, c1], &segs, &closes, &src);
     for p in &points {
