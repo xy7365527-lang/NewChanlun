@@ -236,7 +236,7 @@ pub struct CloseTriggers {
 /// **关闭优先于开启**（line 592，`Origin.SubVoiceOpenClose.nextActive_close_wins`）：调用方在
 /// 持仓声部上**先**判 `close_pred`，触发则产 Close 订单（出场），不在同一帧假设反手——这把
 /// Lean `nextActive` 的「X 先于 E 判」分支顺序落到 runner 的逐 bar 退出决策生成器（见
-/// `plan_and_fill_mtm` 的退出决策循环）。
+/// `pi_theta_fill_loop_overlay` 的退出决策循环）。
 ///
 /// ★认识论 L0：给定四读出后，X 是它们的析取，确定唯一。返回 bool（X_{v,t}）。
 pub fn close_pred(t: &CloseTriggers) -> bool {

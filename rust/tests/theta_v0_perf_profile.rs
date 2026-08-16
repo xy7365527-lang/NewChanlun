@@ -12,13 +12,13 @@
 //! crate pub API 暴露 `parser::parse_layer` / `classifier::classify` / `strategy::recognize`
 //! （均 pub，非 gated）。`backtest::{data,runner}` 是 `#[cfg(test)]` gated（依赖 dev-dep
 //! serde_json + 避免污染 cdylib，见 theta_v0/mod.rs:88）——**集成测试是独立 crate，看不到
-//! gated 模块**，故 `run_theta_v0`/`plan_and_fill_mtm`/`run_closed_loop` 无法从此处测。本
+//! gated 模块**，故 backtest 成交回路（`pi_theta_fill_loop_overlay` 等）无法从此处测。本
 //! profile 因此**只测前三段**（恰好覆盖瓶颈归属的判定边界）：
 //!
 //! - 若前三段（parse/classify/recognize）在中等窗口已 CPU-bound 慢增长（如 O(n²)）⟹ 瓶颈在
 //!   parser/classifier（本工位 owner 区，除 signal.rs）或 recognize（strategy l2）。
 //! - 若前三段在中等窗口快（线性、秒级）⟹ 全窗 >5min 的瓶颈**不在前三段**，必在 backtest 的
-//!   plan_and_fill_mtm / run_closed_loop（owner=l2 工位）——与 runner.rs 已有注释坐实的
+//!   成交回路（owner=l2 工位）——与 runner.rs 已有注释坐实的
 //!   「全 OOS 窗 268K bar × 430K 决策的退出生成器逐 bar 检查 590s timeout 跑不完」一致。
 //!
 //! 数据加载内联（不依赖 gated 的 backtest::data），复用 data.rs 的 parallel-array schema +
@@ -204,7 +204,7 @@ fn profile_fullwindow_bottleneck() {
         );
     }
 
-    // ── 决策/bsp/segs 随 n 增长（下游 plan_and_fill_mtm 复杂度 ∝ n × decisions，证据链）──
+    // ── 决策/bsp/segs 随 n 增长（下游成交回路复杂度 ∝ n × decisions，证据链）──
     eprintln!("\n===== segs/bsp/decisions 随 n 增长 =====");
     for r in &rows {
         eprintln!(
@@ -221,7 +221,7 @@ fn profile_fullwindow_bottleneck() {
     eprintln!(
         "\n★瓶颈归属判定（机器证据）：\n  \
          - 前三段全窗(n={n_full})总耗时见上 [n={n_full}] 行。若 <60s ⟹ 全窗 >5min 瓶颈**不在前三段**，\n    \
-         必在 backtest::plan_and_fill_mtm/run_closed_loop（owner=l2 工位）。\n  \
+         必在 backtest 成交回路（`pi_theta_fill_loop_overlay` 等，owner=l2 工位）。\n  \
          - 若某段 O(n²)（倍数/n倍数≈2）⟹ 该段是热点，owner 见标注。\n  \
          ★profile=L1 度量（CPU 耗时，零信息增量，231号）。"
     );

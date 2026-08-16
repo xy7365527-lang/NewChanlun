@@ -111,7 +111,7 @@ impl ThetaCore {
     /// ## ★诚实有效域（设计文档 §4.4）
     ///
     /// - 持仓真相源 = Nautilus portfolio（`snap`）——sizing 用真实账户 NAV+净仓，**不用** S_Θ
-    ///   `plan_and_fill_mtm` 的内部模拟台账（生产路径只用 recognize+plan_orders 产订单，fill/equity
+    ///   `simulate_fills` 的内部模拟台账（生产路径只用 recognize+plan_orders 产订单，fill/equity
     ///   由 Nautilus venue 撮合，见设计文档 §4.4）。
     /// - **退出决策生成器**（runner.rs `exit_decision_for`，§9 closePred）的缠论触发逻辑在生产路径
     ///   需移植到此处（持仓 + 当前 bar → 止损/反向 BSP/RiskClose → Close 决策）——本骨架**标接入点**
@@ -149,7 +149,7 @@ impl ThetaCore {
         // ★关⑤：groups 只收**根域开仓决策**（exit=false ∧ depth==0）——§9 反向项信号池：
         // interpret 规则2 已消费的反向触发（close 决策携入场快照 bsp，非当 bar 信号）与
         // ReverseOpen 子决策的反父 bits 均不入池（M13：父仓穿越次级反向信号持有，短差由子腿
-        // 承担，非父平仓触发）——与 runner 双账路径（plan_and_fill_mtm_dual）同口径。
+        // 承担，非父平仓触发）——与 runner 双账路径（pi_theta_fill_loop）同口径。
         self.groups.push(
             decisions
                 .iter()

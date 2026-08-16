@@ -281,8 +281,8 @@ pub struct ExecConfig {
     /// `backtest::data::load_by_symbol`（数据集品种 ≠ `schedule.symbol` ⟹ `Err`，禁跨品种借档）。
     ///
     /// **已收编的消费面**（解析器 = `backtest::treasury::fee_quoter`，报告 §3.1 item 3 的单源
-    /// 门面）：`backtest::fill` 的四条生产成交回路（`simulate_fills` /
-    /// `pi_theta_fill_loop_overlay` / `plan_and_fill_mtm` / `plan_and_fill_mtm_dual`），含其
+    /// 门面）：`backtest::fill` 的四条成交回路（`simulate_fills` /
+    /// `pi_theta_fill_loop` / `pi_theta_fill_loop_voice` / `pi_theta_fill_loop_overlay`），含其
     /// 窗口终点强平；以及 `strategy::overlay_state::VoiceExecBook` 的开/平/强平三个扣费点
     /// （簿是 (σ_v, q_v) 的真值源，故解析下沉到簿内逐声部做）。
     ///

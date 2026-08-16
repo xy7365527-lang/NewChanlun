@@ -289,7 +289,7 @@ pub(super) fn strategy_target_legs(
 /// **净额目标持仓 `q̄_net`（毛分账本腿 → 净持仓，Nautilus 净额兼容）**。
 ///
 /// 所有目标腿（[`strategy_target_legs`] 产）合并为**净持仓单位数** `units:f64`（有符号，正=净多/
-/// 负=净空），对齐 `plan_and_fill_mtm` 的有符号 `units` 净额账本（runner.rs:306）。多腿（Long）+
+/// 负=净空），对齐 fill.rs 成交回路（`simulate_fills`/`apply_order`）的有符号 `units` 净额账本。多腿（Long）+
 /// 单位、空腿（Short）− 单位——**对冲腿部分抵消父仓**（ReverseOpen 反向子声部腿的空单位抵消父多腿，
 /// 对齐 M11 短差「父声部不动建反向子声部」的净额体现）。
 ///
