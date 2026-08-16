@@ -522,6 +522,157 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn truncate_pops_all_out_of_bounds_tail_blocks() {
+        // 4 窗口 4 中枢：c0→c1 上延续（趋势），c1→c2、c2→c3 外缘重叠（盘整+盘整）。
+        let units = vec![
+            // W0：外缘 [0,10]
+            u(Direction::Up, 0, 0, 10),
+            u(Direction::Down, 1, 2, 10),
+            u(Direction::Up, 2, 2, 9),
+            // W1：外缘 [20,30]（dd=20 > c0.gg=10 ⟹ UpContinuation）
+            u(Direction::Up, 3, 20, 30),
+            u(Direction::Down, 4, 22, 30),
+            u(Direction::Up, 5, 22, 29),
+            // W2：外缘 [24,32]（与 c1 重叠 ⟹ LevelExpansion）
+            u(Direction::Up, 6, 24, 32),
+            u(Direction::Down, 7, 24, 31),
+            u(Direction::Up, 8, 25, 31),
+            // W3：外缘 [26,33]（与 c2 重叠 ⟹ LevelExpansion）
+            u(Direction::Up, 9, 26, 33),
+            u(Direction::Down, 10, 26, 32),
+            u(Direction::Up, 11, 27, 32),
+        ];
+        let mut state = OperationSeqState::default();
+        let seeded =
+            operation_decompose_resume(&units, center_from_segments, 0, units.len(), &mut state);
+        assert_eq!(
+            kinds(&seeded.blocks),
+            vec![
+                (MoveKind::Trend, Some(Direction::Up), 0, 1),
+                (MoveKind::Consolidation, None, 2, 2),
+                (MoveKind::Consolidation, None, 3, 3),
+            ],
+            "前提：4 中枢 = 趋势 + 盘整+盘整（两个尾块悬在截断点后）"
+        );
+        // frontier 回卷到 6 单元：窗口 (6,8)/(9,11) 弹出，k=2——截断点后有**两个**尾块。
+        let trunc = &units[..6];
+        let inc = operation_decompose_resume(trunc, center_from_segments, 0, 6, &mut state);
+        let full = operation_decompose(trunc, center_from_segments, 0);
+        assert_eq!(
+            format!("{:?}", (&inc.centers, &inc.windows, &inc.blocks)),
+            format!("{:?}", (&full.centers, &full.windows, &full.blocks)),
+            "多尾块截断：增量 == 全量逐字段（无悬垂残留）"
+        );
+        // 截后把原尾段追加回来（续扫路径）仍 == 全量。
+        let inc2 =
+            operation_decompose_resume(&units, center_from_segments, 0, units.len(), &mut state);
+        let full2 = operation_decompose(&units, center_from_segments, 0);
+        assert_eq!(
+            format!("{:?}", (&inc2.centers, &inc2.windows, &inc2.blocks)),
+            format!("{:?}", (&full2.centers, &full2.windows, &full2.blocks)),
+            "截断后原样续扫：增量 == 全量逐字段"
+        );
+    }
+
+    #[test]
+    fn dirty_from_zero_full_clear_does_not_accumulate_blocks() {
+        // 同 trend_turn_shares_boundary_center 形态：c0→c1 Up、c1→c2 Down（两趋势块）。
+        let units = vec![
+            u(Direction::Up, 0, 0, 10),
+            u(Direction::Down, 1, 2, 10),
+            u(Direction::Up, 2, 2, 9),
+            u(Direction::Up, 3, 20, 30),
+            u(Direction::Down, 4, 22, 30),
+            u(Direction::Up, 5, 22, 29),
+            u(Direction::Down, 6, 8, 15),
+            u(Direction::Up, 7, 5, 14),
+            u(Direction::Down, 8, 6, 13),
+        ];
+        let full = operation_decompose(&units, center_from_segments, 0);
+        let mut state = OperationSeqState::default();
+        let _ =
+            operation_decompose_resume(&units, center_from_segments, 0, units.len(), &mut state);
+        // 同输入以 dirty_from=0 连调两次（全清 + 重扫两轮）——每轮都必须 == 全量，无重复块。
+        for round in 1..=2 {
+            let inc = operation_decompose_resume(&units, center_from_segments, 0, 0, &mut state);
+            assert_eq!(
+                format!("{:?}", (&inc.centers, &inc.windows, &inc.blocks)),
+                format!("{:?}", (&full.centers, &full.windows, &full.blocks)),
+                "dirty_from=0 第 {round} 轮：增量 == 全量逐字段（块链不累积）"
+            );
+        }
+    }
+
+    #[test]
+    fn truncate_at_trend_reversal_leaves_boundary_as_prev_trend_tail() {
+        let base = vec![
+            // c0 外缘 [0,10]；c1 外缘 [20,30]（Up）；c2 外缘 [5,15]（Down）⟹ [趋势U 0-1, 趋势D 1-2]
+            u(Direction::Up, 0, 0, 10),
+            u(Direction::Down, 1, 2, 10),
+            u(Direction::Up, 2, 2, 9),
+            u(Direction::Up, 3, 20, 30),
+            u(Direction::Down, 4, 22, 30),
+            u(Direction::Up, 5, 22, 29),
+            u(Direction::Down, 6, 8, 15),
+            u(Direction::Up, 7, 5, 14),
+            u(Direction::Down, 8, 6, 13),
+        ];
+        let mut state = OperationSeqState::default();
+        let seeded =
+            operation_decompose_resume(&base, center_from_segments, 0, base.len(), &mut state);
+        assert_eq!(
+            kinds(&seeded.blocks),
+            vec![
+                (MoveKind::Trend, Some(Direction::Up), 0, 1),
+                (MoveKind::Trend, Some(Direction::Down), 1, 2),
+            ],
+            "前提：趋势反转形态（c1 为共享边界中枢）"
+        );
+        // 截到 6 单元（k=2）：趋势 D [1,2] 截尾到单中枢 c1，但 c1 已是趋势 U 的尾 ⟹ 整块丢弃。
+        let trunc = &base[..6];
+        let inc = operation_decompose_resume(trunc, center_from_segments, 0, 6, &mut state);
+        let full = operation_decompose(trunc, center_from_segments, 0);
+        assert_eq!(
+            kinds(&full.blocks),
+            vec![(MoveKind::Trend, Some(Direction::Up), 0, 1)],
+            "全量对照：截断后 c1 留作趋势尾，无盘整块"
+        );
+        assert_eq!(
+            format!("{:?}", (&inc.centers, &inc.windows, &inc.blocks)),
+            format!("{:?}", (&full.centers, &full.windows, &full.blocks)),
+            "趋势反转切点截尾：增量 == 全量逐字段（无伪盘整块）"
+        );
+        // 截后追加与 c1 外缘重叠的新窗口（LevelExpansion）——c2' 独立落盘整，c1 仍是趋势尾。
+        let mut extended = trunc.to_vec();
+        extended.extend([
+            u(Direction::Down, 6, 21, 29),
+            u(Direction::Up, 7, 22, 28),
+            u(Direction::Down, 8, 23, 28),
+        ]);
+        let inc2 = operation_decompose_resume(
+            &extended,
+            center_from_segments,
+            0,
+            extended.len(),
+            &mut state,
+        );
+        let full2 = operation_decompose(&extended, center_from_segments, 0);
+        assert_eq!(
+            kinds(&full2.blocks),
+            vec![
+                (MoveKind::Trend, Some(Direction::Up), 0, 1),
+                (MoveKind::Consolidation, None, 2, 2),
+            ],
+            "全量对照：LevelExpansion 新中枢独立成盘整块"
+        );
+        assert_eq!(
+            format!("{:?}", (&inc2.centers, &inc2.windows, &inc2.blocks)),
+            format!("{:?}", (&full2.centers, &full2.windows, &full2.blocks)),
+            "截尾后续扫追加：增量 == 全量逐字段"
+        );
+    }
 }
 
 // ══ #902 增量维护（TowerCache per-bar resume 路径旁路，#881 遗留） ═══════════════════
