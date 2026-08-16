@@ -648,9 +648,11 @@ mod tests {
             // 三件并行不同型；同 projection.rs:215 先例——查询实现全仓各仅一份，非复制点）。
             // （#881 S3：上方 `pub mod operation;` 增 3 行 ⟹ 218→221 / 250→253，同条目重登记。
             // 2026-08-16 镜像追推后 CI 首跑再位移（221→224 / 253→256）：逐条重核内容不变
-            // ——两访问器函数体依旧，同条目重登记。）
-            "theta_v0/classifier/mod.rs:224",
-            "theta_v0/classifier/mod.rs:256",
+            // ——两访问器函数体依旧，同条目重登记。
+            // 2026-08-16 #648 T2：两访问器随 LevelState/Classification 纯移动抽离至
+            // pipeline.rs（mod.rs:224/256 → pipeline.rs:103/135），内容不变，同条目重登记。）
+            "theta_v0/classifier/pipeline.rs:103",
+            "theta_v0/classifier/pipeline.rs:135",
             // `CrossLevelConfirmationQuery::entry_at` 单源函数体（作用于 `TripleAnchorEntry`，
             // 与本族 `BspPoint` 三件并行不同型，见 projection.rs 函数头注释）。
             "theta_v0/classifier/projection.rs:215",
