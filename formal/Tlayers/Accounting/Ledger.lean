@@ -178,6 +178,10 @@ def nav (free longUnits c shortCapital : Nat) : Nat :=
   操作：`(free, longUnits, shortCapital)` → `(free, longUnits − m, shortCapital + m×c)`。
   这 machine-check「卖出 m@c：多头项 −m×c，子空 capital +m×c，净变化 0」（§744）——
   **物理一笔（T₃₃）在完整 NAV（含空头）下守恒（T₃₅）**。前提 m ≤ longUnits。
+
+  ★读法翻转（#892 S8-b，2026-08-17）：本定理证「**NAV 度量不到降成本**」，非「降成本
+  无价值」——净变化 0 恰是 NAV 口径的盲区：成本在降、股数不变，NAV 读数不动。成本轨迹
+  口径（ADR 0015）正是为读这个盲区而设。同款 `买卖点alpha2.pdf` p21（答复B §10）。
 -/
 theorem nav_neutral_on_cost_reduce (free longUnits c shortCapital m : Nat)
     (h : m ≤ longUnits) :

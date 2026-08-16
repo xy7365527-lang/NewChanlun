@@ -1,5 +1,13 @@
 # #833 换验收口径后形式化链的依赖清点（2026-08-02）
 
+> ★#892 S8-b 落地标记（2026-08-17）：本报告甲段 7 条 = 净值口径有效域的逐条划界正本。
+> 代码级落位：① `formal/Origin/NetValueImpossibility.lean`（六定理有效域显式限定）
+> ② `formal/Tlayers/Accounting/Ledger.lean`（nav_neutral_on_cost_reduce 读法翻转）
+> ③ `formal/Origin/SeparateFinalTheorem.lean`（C40 防火墙净值坐标声明）。
+> 文档级：甲-1/甲-3/甲-6/甲-7 四条判据与处方，其有效域 = 「净值 Sharpe 验收口径」；
+> 成本轨迹口径下四者均不作为验收读数（判据参数归 #853）。
+
+
 只读调研。对象：`docs/formal-chain/` 全 44 份 PDF + `formal/` 142 个 `.lean`（票面写 149，实测 `find formal -name "*.lean" | wc -l` = 142）。
 
 ## 零、先订正票面的页码/章节号
