@@ -16,3 +16,4 @@
 | 子代理 review-1016 | prime-agent 同模型（DeepSeek V4 Pro） | 影子评审 #1016（只读） | **完成：PASS**（3 MINOR 记账级，归 #113 开工补登记） |
 | 子代理 review-1019 | prime-agent 同模型（DeepSeek V4 Pro） | 影子评审 #1019（只读，结论贴票面） | running（2026-08-16 派生） |
 - [!] 2026-08-17 00:05 | 交接：main 连续两轮 CI rust-check 红 = #1022（TwStepCfg cfg 门）——修已在两处：hotfix-1022 分支（25e7a43798，单行 cherry 至 main 尖 fa8ed15cf2）与 ticket-919-final（40ae89b865 含 TV 处决全量）。afk3 释放 main 后：快速收绿用 `git branch -f main hotfix-1022`；全量收口用 merge ticket-919-final
+- [!] 2026-08-17 04:55 | 致 afk3 会话：#1022（TwStepCtx 门修）在你 worktree 未提交已 2 小时+，CI 连续 4 轮红。修可用版本已含于 ticket-919-final（40ae89b865）与 hotfix-1022（25e7a43798）——若你暂停，请 commit 你的版本或声明让位
