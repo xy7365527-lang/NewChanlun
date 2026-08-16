@@ -99,6 +99,10 @@ def IsType1 (e : BspEndpoint) : Prop :=
   `afterTypeOne = true`（在第一类后）∧ `brokeCenter = false`（回抽未再破中枢，区别于第一类）。
   ★买卖点定律一"由次级别一类构成"是构成性陈述（次级别递归，still-MISSING-D），
   本判据刻画本级别可观测条件：在一类后的回抽结束点。
+  ★#816 B-2②：本判据**不含**「回拉不创新低/新高」条件（判据不得以其为必要条件，`101:32`
+  【正文】跌破一买「这是完全可以的」）——`¬brokeCenter` 只排除回抽**再破中枢**（一类判据的
+  区分），回拉破一类极值的重合身份由 Rust 侧 `retrace_breaks_type1` 标注承载（语义归 #817，
+  不作准入分档；T-5 受影响代码清单）。
 -/
 def IsType2 (e : BspEndpoint) : Prop :=
   e.afterTypeOne = true ∧ e.brokeCenter = false
