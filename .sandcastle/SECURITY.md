@@ -62,7 +62,7 @@ sandcastle 自动从 `.sandcastle/.env` 与 `process.env` 解析环境变量注�
 3. **`docker commit` 固化时逐键清空 Env**：对 §1 的全部 9 键执行 `--change 'ENV <KEY>='`，防止密钥随 commit 进入镜像 config（镜像 config 的 Env 可被 `docker inspect` 读出，不清空即等于密钥落盘进镜像）；固化后 `docker inspect` 复核 Env「无」；
 4. **同时恢复入口**：`--change 'ENTRYPOINT ["sleep", "infinity"]' --change 'CMD []'`——`docker commit` 会把一次性容器的入口覆盖烤进镜像（#1004 发现、#1009 定案的「137 假象/入口劫持」根因），必须显式还原。
 
-**推论**：预烤后的镜像 `sandcastle:newchanlun` 是不含密钥的可分发物，前提是每次 `Dockerfile` 变更重建后都重跑一次 `prebake-kernel.sh`（脚本内置此口径）。
+**推论**：预烤后的镜像 `sandcastle:newchanlun` 是不含密钥的可分发物，前提是每次 `Dockerfile` 变更重建后都重跑一次 `prebake-kernel.sh`（#1004 使用口径；脚本本身不强制此纪律）。
 
 ## 相关票
 
