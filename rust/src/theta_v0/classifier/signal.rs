@@ -53,7 +53,8 @@
 //!
 //! **#52 消除「递归组装层缺口」标记**：依赖已满足——`rmove_compose.rs::find_second_type_structure`
 //! （port `Origin.RMoveCompose.SecondTypeStructure`，#51 已真封）消费 RMove 递归塔，从 `descend parent`
-//! 取回的次级别走势序列内识别第二类走势结构（第一类离开 m1 + 回拉 m2 不创新低/新高 + i1<i2 时间序）。
+//! 取回的次级别走势序列内识别第二类走势结构（第一类离开 m1 + 回拉段 m2 + i1<i2 时间序；回拉**不问**
+//! 新不新低——#816 B-2②，破一类极值由 `retrace_breaks_extreme` 重合标注承载，不作准入分档）。
 //! 本模块补**平行的递归组装层提取入口** [`extract_second_signals`]：消费 RMove 递归塔（`parent: &RMove`）
 //! + B 口径中枢区间，调 `find_second_type_structure` 产 B2/S2 `BspPoint`。这**不是**在 `extract_signals`
 //! 内硬产（那会声明膨胀），而是补上**递归组装层本身**——`extract_signals`（L0）与 `extract_second_signals`
@@ -1004,6 +1005,7 @@ fn make_first_point(
         // Some，否则 None）——单一来源就在此字段，经 Candidate.force 透传（A6 #159）由 selector
         // z_of_candidate 读进 force_state。
         force,
+        retrace_breaks_type1: None, // #816 B-2② 重合标注仅二类点有（一/三类 None）
     }
 }
 
@@ -1026,6 +1028,7 @@ fn make_third_point(
         center: Some(OwnerRef::Center(*c)), // owner 载体（#218 面 A 形态）：所离开回抽的中枢构造时填载
         struct_break_dir: None, // 第三类=离开后回抽，非破中枢结构候选（P2-R2 语义：None）
         force: None,            // 第三类无 A/C 趋势段对 ⟹ 无力度 proxy（诚实 None，231号）
+        retrace_breaks_type1: None, // #816 B-2② 重合标注仅二类点有（一/三类 None）
     }
 }
 
@@ -1039,14 +1042,20 @@ fn make_third_point(
 /// 归属载体从「次级别中枢 c1」（确认层对象，归属/确认混载 = 级别错配根因）改载
 /// **该走势的一类点身份锚**（[`OwnerRef::Type1Anchor`]，`type1_src` = 第一类离开走势 m1 的
 /// 终点坐标 = 该走势终点极值点 = 一类点，区间套恰好存在）。二类归属参照只挂该走势一类点
-///（回拉不破一类极值），与本级别中枢无关；确认层识别（c1/i1/i2/背驰）一个 bit 不动。
+///（★#816 B-2②：归属不问跌破与否——回拉可破一类极值，`101:32`【正文】），与本级别中枢无关；
+/// 确认层识别（c1/i1/i2/背驰）一个 bit 不动。
 /// 锚 =（极值价, 合并组锚）由 nest 核内经 T1 oracle 判定时解析（本层只载坐标），
 /// **不进止损判据**（止损仍 pivot，语义不变）。
+///
+/// ★#816 B-2② 重合标注：`retrace_breaks_type1: Some(retrace_breaks_type1)`——回拉是否破一类
+/// 极值的重合身份标注（「一般都构成盘整背驰」，语义归 #817），**不作准入分档**（判据不得以
+/// 「回拉不创新低/新高」为必要条件；硬闸已由 #884 拆）。
 fn make_second_point(
     source_index: usize,
     bits: BspBits,
     second_point: Tick,
     type1_src: usize,
+    retrace_breaks_type1: bool,
 ) -> BspPoint {
     BspPoint {
         source_index,
@@ -1057,6 +1066,7 @@ fn make_second_point(
         center: Some(OwnerRef::Type1Anchor(type1_src)), // #218 面 A：归属载体 = 该走势一类点锚坐标
         struct_break_dir: None, // 第二类=中枢内部回拉，非破中枢结构候选（P2-R2 语义：None）
         force: None,            // 第二类无 A/C 趋势段对 ⟹ 无力度 proxy（诚实 None，231号）
+        retrace_breaks_type1: Some(retrace_breaks_type1), // #816 B-2② 重合标注（不作准入分档）
     }
 }
 
@@ -1429,14 +1439,18 @@ pub(crate) fn judge_pan_div_observation(
 /// 次级别第一类构成（§10.2「任何级别的第二类由次级别相应走势的第一类构成」，第14课买点定律一）。
 ///
 /// 语义（消费 `find_second_type_structure` 识别的第二类走势结构）：
-/// - **B2**（side=Long）：第一类离开走势后，次级别**回拉再次下跌不创新低**（第15课「未创新低」）的
-///   回拉走势结束点（§10.1「第一类买点后次级别上涨结束、再次下跌的那个次级别走势的结束点」）。
-/// - **S2**（side=Short）：镜像——第一类离开后回抽**不创新高**的回抽走势结束点。
+/// - **B2**（side=Long）：第一类离开走势后，次级别**回拉段**（首个后继走势，**不问**新不新低——
+///   #816 B-2②：判据不得以「回拉不创新低/新高」为必要条件，`101:32`【正文】跌破一买「这是完全
+///   可以的」）的结束点（§10.1「第一类买点后次级别上涨结束、再次下跌的那个次级别走势的结束点」）。
+/// - **S2**（side=Short）：镜像——第一类离开后的回抽段结束点（同样不问新不新高）。
+/// - 回拉是否破一类极值 = [`SecondTypeStructure::retrace_breaks_extreme`] → `BspPoint.retrace_breaks_type1`
+///   重合标注（「一般都构成盘整背驰」的重合身份，语义归 #817），**不作准入分档**。
 ///
 /// `find_second_type_structure(parent, side, center_of, divergence_of)` 在 `descend parent` 内识别
-/// `SecondTypeStructure { i1, i2, second_point }`（i1=第一类离开，i2=回拉，i1<i2 时间序；second_point=
-/// 回拉走势结束点）。识别出 ⟹ 产一个 B2/S2 端点（`is_second = after_first_buy ∧ is_pullback_end`，
-/// 对齐 `IsType2 = afterTypeOne ∧ ¬brokeCenter`：回拉走势未再破中枢 = `is_pullback_end`）；否则空。
+/// `SecondTypeStructure { i1, i2, second_point, retrace_breaks_extreme }`（i1=第一类离开，i2=回拉段
+/// =首个后继，i1<i2 时间序；second_point=回拉走势结束点）。识别出 ⟹ 产一个 B2/S2 端点
+/// （`is_second = after_first_buy ∧ is_pullback_end`，对齐 `IsType2 = afterTypeOne ∧ ¬brokeCenter`：
+/// 回拉走势未再破中枢 = `is_pullback_end`）；否则空。
 ///
 /// ★坐标 still-MISSING（见模块头）：`RMove`（port Lean `Move` μF）无 source_index——`BspPoint.source_index`
 /// 由 `index_of` 闭包提供（次级别走势 → 原始 K 序，上游塔构造时填，与 `center_of`/`divergence_of` 同
@@ -1456,10 +1470,11 @@ pub fn extract_second_signals(
     divergence_of: impl Fn(&RMove) -> bool,
     index_of: impl Fn(&RMove) -> usize,
 ) -> Vec<BspPoint> {
-    // 在 RMove 递归塔的次级别走势序列内识别第二类走势结构（第一类离开 + 回拉不创新低/新高 + i1<i2）。
+    // 在 RMove 递归塔的次级别走势序列内识别第二类走势结构（第一类离开 + 回拉段 + i1<i2；
+    // 回拉**不问**新不新低——#816 B-2②，破极值由 structure.retrace_breaks_extreme 标注）。
     // center_of 对识别用的第一类离开走势统一配 c1（次级别中枢，B 口径核心区间，上游塔提供）。
     let Some(structure) = find_second_type_structure(parent, side, |_m| *c1, &divergence_of) else {
-        // 无第二类走势结构（无第一类离开 / 无回拉 / 回拉创新低或新高）⟹ 无 B2/S2（诚实空）。
+        // 无第二类走势结构（无第一类离开 / 无后继回拉段）⟹ 无 B2/S2（诚实空）。
         return Vec::new();
     };
     let subs = super::descend::descend(parent);
@@ -1473,7 +1488,7 @@ pub fn extract_second_signals(
     //（回拉走势结束点，回拉未再破中枢 = IsType2 的 ¬brokeCenter）。
     let situ = EndpointSituation {
         after_first_buy: true, // 第一类离开走势在前（structure.i1 < i2，§10.1「第一类后」）
-        is_pullback_end: true, // 回拉走势结束点（回拉不创新低/新高，第15课）
+        is_pullback_end: true, // 回拉走势结束点（#816 B-2②：不问新不新低，破极值走标注）
         left_center: false,    // 第二类是中枢内部回拉，非第三类的离开后回抽
         retrace_not_reenter: false,
         below_last_center: false, // 第二类非第一类的破中枢背驰端点
@@ -1488,6 +1503,7 @@ pub fn extract_second_signals(
         bits,
         structure.second_point,
         index_of(m1),
+        structure.retrace_breaks_extreme, // #816 B-2② 重合标注透传（不作准入分档）
     )]
 }
 
@@ -4605,7 +4621,7 @@ mod tests {
         }
     }
 
-    /// 回拉走势（再次下跌不创新低，区间 [-8,3]，lo=-8 ≥ m1.lo=-10 ⟹ 不创新低；对齐 m2_wit）。
+    /// 回拉走势（未破一类极值，区间 [-8,3]，lo=-8 ≥ m1.lo=-10 ⟹ 重合标注 Some(false)；对齐 m2_wit）。
     fn m2_pullback() -> RMove {
         RMove::Segment {
             direction: Direction::Up,
@@ -4634,7 +4650,8 @@ mod tests {
 
     #[test]
     fn second_buy_extracted_from_rmove_tower() {
-        // ★递归组装层 B2 提取：RMove 塔含第一类离开（破中枢 ∧ 背驰）+ 回拉不创新低 ⟹ 一个 B2。
+        // ★递归组装层 B2 提取：RMove 塔含第一类离开（破中枢 ∧ 背驰）+ 回拉段 ⟹ 一个 B2。
+        // 回拉未破一类极值（m2.lo=-8 ≥ m1.lo=-10）⟹ 重合标注 retrace_breaks_type1=Some(false)。
         // divergence_of：仅第一类离开 m1（lo=-10）背驰，回拉/收尾不背驰（rust MACD 真算的占位见证）。
         // index_of：回拉走势 m2 → 原始 K 序 42（坐标 still-MISSING，上游塔提供）。
         let parent = parent_tower();
@@ -4653,11 +4670,7 @@ mod tests {
                 }
             }, // m2 → 42；m1 → 30
         );
-        assert_eq!(
-            points.len(),
-            1,
-            "RMove 塔（第一类离开 ∧ 回拉不创新低）⟹ 一个 B2"
-        );
+        assert_eq!(points.len(), 1, "RMove 塔（第一类离开 ∧ 回拉段）⟹ 一个 B2");
         assert!(points[0].bits.buy2, "递归组装层产第二类买点（buy2 置位）");
         assert!(
             !points[0].bits.buy1 && !points[0].bits.buy3,
@@ -4673,17 +4686,25 @@ mod tests {
         );
         // ★#218 面 A（spec owner-attribution-fix-20260724 ID-1，机械改写归因：载体形态变化）：
         // 二类点归属载体从 c1（次级别中枢，确认层对象）改载该走势一类点身份锚（m1 终点坐标 30）；
-        // 止损仍 pivot（上条已锁，语义不变）。
+        // 止损仍 pivot（上条已锁，语义不变）。★#816 B-2②：归属不问跌破与否（锚不变）。
         assert_eq!(
             points[0].center,
             Some(OwnerRef::Type1Anchor(30)),
             "二类点归属载体 = 该走势一类点锚（m1 终点坐标）；止损仍 pivot 非 center"
         );
+        assert_eq!(
+            points[0].retrace_breaks_type1,
+            Some(false),
+            "回拉未破一类极值 ⟹ 重合标注 Some(false)（第15课「未创新低」常规形态）"
+        );
     }
 
+    /// ★#816 B-2② 拆闸验收（实施 #884）：回拉**跌破**一类（lo=-12 < m1.lo=-10）**仍产 B2**——
+    /// `101:32`【正文】「第二类买点跌破第一类买点……这是完全可以的」；重合身份（二类 × 盘整
+    /// 背驰）由 `retrace_breaks_type1=Some(true)` 标注，**不作准入分档**（语义归 #817）。
+    /// 旧 `no_new_low` 硬闸下此输入产 0 个 B2——本测试即「跌破一买」类二类点 0→有 的见证级对照。
     #[test]
-    fn second_buy_rejected_when_retrace_makes_new_low() {
-        // 回拉创新低（lo=-12 < m1.lo=-10）⟹ 破前低 ⟹ 非第二类（第15课「未创新低」是真约束）。
+    fn second_buy_produced_when_retrace_makes_new_low() {
         let m2_break = RMove::Segment {
             direction: Direction::Up,
             lo: -12,
@@ -4697,7 +4718,21 @@ mod tests {
             |m| m.lo() == -10,
             |_m| 0,
         );
-        assert!(points.is_empty(), "回拉创新低 ⟹ 非第二类（无 B2）");
+        assert_eq!(
+            points.len(),
+            1,
+            "回拉跌破一类 ⟹ 仍是合法二类点（#816 B-2②，101:32「这是完全可以的」）"
+        );
+        assert!(points[0].bits.buy2, "跌破一买的二类点 buy2 置位");
+        assert_eq!(
+            points[0].pivot_low, -12,
+            "B2 止损源 = 回拉低点（跌破一类后的新低 -12）"
+        );
+        assert_eq!(
+            points[0].retrace_breaks_type1,
+            Some(true),
+            "跌破一类 ⟹ 重合标注 Some(true)（「一般都构成盘整背驰」，语义归 #817，不作闸）"
+        );
     }
 
     #[test]
@@ -4719,8 +4754,9 @@ mod tests {
 
     #[test]
     fn second_sell_mirror_from_rmove_tower() {
-        // S2 镜像：第一类向上离开探顶（破中枢上沿）+ 回抽不创新高 ⟹ 一个 S2（止损 = 回抽高点）。
-        // 第一类离开 [2,10]（hi=10 > zg=4 ⟹ 向上破中枢），回抽 [1,8]（hi=8 ≤ m1.hi=10 ⟹ 不创新高）。
+        // S2 镜像：第一类向上离开探顶（破中枢上沿）+ 回抽段 ⟹ 一个 S2（止损 = 回抽高点）。
+        // 第一类离开 [2,10]（hi=10 > zg=4 ⟹ 向上破中枢），回抽 [1,8]（hi=8 ≤ m1.hi=10 ⟹ 未创新高
+        // ⟹ 重合标注 Some(false)）。
         let m1_sell = RMove::Segment {
             direction: Direction::Up,
             lo: 2,
@@ -4752,7 +4788,7 @@ mod tests {
                 }
             }, // m2 → 17；m1 → 11
         );
-        assert_eq!(points.len(), 1, "S2：第一类离开 ∧ 回抽不创新高 ⟹ 一个 S2");
+        assert_eq!(points.len(), 1, "S2：第一类离开 ∧ 回抽段 ⟹ 一个 S2");
         assert!(points[0].bits.sell2, "递归组装层产第二类卖点（sell2 置位）");
         assert!(!points[0].bits.buy2, "卖侧 ⟹ buy2 不置位");
         assert_eq!(
@@ -4769,6 +4805,50 @@ mod tests {
             points[0].center,
             Some(OwnerRef::Type1Anchor(11)),
             "S2 归属载体 = 该走势一类点锚（m1 终点坐标）；止损仍 pivot 非 center"
+        );
+        assert_eq!(
+            points[0].retrace_breaks_type1,
+            Some(false),
+            "回抽未破一类极值 ⟹ 重合标注 Some(false)（第15课「未创新高」常规形态）"
+        );
+    }
+
+    /// ★#816 B-2② 卖侧镜像（实施 #884）：回抽**升破**一类（hi=12 > m1.hi=10）**仍产 S2**；
+    /// 重合标注 `retrace_breaks_type1=Some(true)`，不作准入分档。
+    #[test]
+    fn second_sell_produced_when_retrace_makes_new_high() {
+        let m1_sell = RMove::Segment {
+            direction: Direction::Up,
+            lo: 2,
+            hi: 10,
+        };
+        let m2_break = RMove::Segment {
+            direction: Direction::Down,
+            lo: 1,
+            hi: 12, // 升破一类高点 10
+        };
+        let parent = compose_move(vec![m1_sell, m2_break], vec![second_center()], 1);
+        let points = extract_second_signals(
+            &parent,
+            Side::Short,
+            &second_center(),
+            |m| m.hi() == 10,
+            |_m| 0,
+        );
+        assert_eq!(
+            points.len(),
+            1,
+            "回抽升破一类 ⟹ 仍是合法二类卖点（#816 B-2② 镜像，判据不得以「回拉不创新高」为必要条件）"
+        );
+        assert!(points[0].bits.sell2, "升破一类的二类点 sell2 置位");
+        assert_eq!(
+            points[0].pivot_high, 12,
+            "S2 止损源 = 回抽高点（升破一类后的新高 12）"
+        );
+        assert_eq!(
+            points[0].retrace_breaks_type1,
+            Some(true),
+            "升破一类 ⟹ 重合标注 Some(true)（语义归 #817，不作闸）"
         );
     }
 
@@ -5601,7 +5681,16 @@ mod tests {
         // 回填，教义禁止），新输出每中枢仅首对一回；摘要翻转是**语义修正**（教义条件补齐），
         // 非形态变化。oracle（extract_signals_orig）同步填载同条件。历史值：`0xe371_3897_d9bf_978c`
         // （#905 前）。
-        const GOLDEN: u64 = 0xcb91_2871_4985_4dd5;
+        // ★#884（#816 B-2② 落地，重合标注字段，2026-08-17）：`BspPoint` 新增
+        // `retrace_breaks_type1: Option<bool>`（二类点回拉破一类极值的重合身份标注，`101:32`
+        // 【正文】，不作准入分档，语义归 #817）进入 `#[derive(Debug)]` ⟹ 每点 Debug 串多
+        // `retrace_breaks_type1: None` 常量（本电池经 `extract_signals` L0 入口产一/三类点，
+        // 无二类点 ⟹ 恒 None，均匀）⟹ FNV 摘要翻转。同 struct_break_dir/force 先例：**诚实、
+        // 可证、均匀**（全 None 常量），**不**自定义 Debug 隐藏该字段。二类点的标注取值由
+        // `extract_second_signals` 路径单测锁定（`second_buy_produced_when_retrace_makes_new_low`
+        // 等），本电池无二类点无差可漏——翻转**仅**因新增 `, retrace_breaks_type1: None` 常量串。
+        // 历史值：`0xcb91_2871_4985_4dd5`（#884 前）。
+        const GOLDEN: u64 = 0xa822_b80d_c37e_b1c7;
         let digest = bit_exact_battery_digest();
         assert_eq!(
             digest, GOLDEN,

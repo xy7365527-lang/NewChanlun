@@ -27,6 +27,8 @@ fn pi_theta_step_traced_p1_force_flat_risk_exits_all() {
         })),
         struct_break_dir: None,
         force: None,
+
+        retrace_breaks_type1: None,
     };
     let classification = Classification {
         levels: vec![LevelState {

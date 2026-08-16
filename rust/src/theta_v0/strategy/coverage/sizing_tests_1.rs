@@ -270,6 +270,8 @@ fn pi_theta_step_buy_point_entry_gap5() {
         })),
         struct_break_dir: None,
         force: None,
+
+        retrace_breaks_type1: None,
     };
     let classification = Classification {
         levels: vec![LevelState {

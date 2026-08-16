@@ -517,7 +517,8 @@ fn classify_impl(
         //   （confirmed 结构几何）。L0 走势单元 = 线段（有方向），第一/三类在线段端点上 bit-exact 判定。
         // - **递归组装层**（`extract_second_signals`，#53 接入）：第二类（B2/S2）由次级别第一类构成
         //   （买卖点定律一 §10.2）。对本级**每个上级走势** `RMove::Compose`，从 descend 取回的次级别
-        //   走势序列内识别第二类走势结构（第一类离开 + 回拉不创新低/新高），产 B2/S2。背驰力度由
+        //   走势序列内识别第二类走势结构（第一类离开 + 回拉段；回拉**不问**新不新低——#816 B-2②，
+        //   破一类极值走重合标注），产 B2/S2。背驰力度由
         //   `divergence_of` 闭包用 `divergence.rs` MACD 真算（次级别走势 close 区间 → 面积比较）。
         // ★#885 S4-d：一类点 T3-in-c 分级记录 sink——与 bsp/pan_div 同一 extract 调用产出；
         // 记录 `level` 先为占位 0（全量入口 level=None），下方按 level_idx 盖章（真实级别）。
@@ -1866,7 +1867,8 @@ pub fn classify_with_tower_events_incremental(
 ///
 /// ★#53 接入点（still-MISSING-塔解除）：对本级每个上级走势 `LeveledMove`（`RMove::Compose`），
 /// 双侧（Long/Short）调 `signal::extract_second_signals`——从 `descend parent` 取回的次级别走势
-/// 序列内识别第二类走势结构（第一类离开 + 回拉不创新低/新高，§10.2 买卖点定律一）。产出的 B2/S2
+/// 序列内识别第二类走势结构（第一类离开 + 回拉段，§10.2 买卖点定律一；回拉**不问**新不新低——
+/// #816 B-2②，破一类极值由 `retrace_breaks_type1` 重合标注承载）。产出的 B2/S2
 /// 端点零改动接入生产路径。
 ///
 /// 三个闭包参数的真实接入（非占位）：

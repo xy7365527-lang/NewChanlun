@@ -25,7 +25,8 @@
 //!   `IsType1 = brokeCenter ∧ IsDivergence`（层 C）。★rust 领先 Origin：Lean `divPair` 是外部参数
 //!   （still-MISSING-C 无 MACD 引擎），rust `divergence.rs` 已实装 MACD ⟹ 背驰分量真算非占位。
 //! - **B2/S2**（第二类，#52 递归组装层）：`extract_second_signals` 消费 RMove 递归塔的
-//!   `SecondTypeStructure`（第一类离开 m1 + 回拉 m2 不创新低/新高 + i1<i2）↔ Lean
+//!   `SecondTypeStructure`（第一类离开 m1 + 回拉段 m2 + i1<i2；回拉**不问**新不新低——#816 B-2②，
+//!   破一类极值走 `RetraceBreaksExtreme` 重合标注）↔ Lean
 //!   `Origin.RMoveCompose.SecondTypeStructure` + `secondPointPrice`（层 D，见 §层 D）。**L0/L1**
 //!   bit-exact（结构层 L0，第一类离开背驰经 MACD = L1）。★诚实区分（与 B1/B3 不同）：B2/S2 的输入
 //!   是 **RMove 递归塔**（非 L0 segment）——`extract_signals`（L0 签名层）不产 B2/S2
@@ -680,13 +681,16 @@ fn signal_extraction_emits_no_second_class_only() {
 //          SecondTypeStructure ↔ Lean Origin.RMoveCompose.{SecondTypeStructure,secondPointPrice}
 //
 //  Lean RMoveCompose.lean 已 machine-checked 见证（直接对照值，非 fixture，同 type3 内部点尺度精神）：
-//  - m1Wit（:301-302）：向下破中枢，区间 [-10,-2]，lo=-10 < c1Wit.zd=0 ⟹ SubBrokeBelow（:330）。
-//  - m2Wit（:305-306）：回拉不创新低，区间 [-8,3]，lo=-8 ≥ m1.lo=-10 ⟹ NoNewLow（:336）。
-//  - c1Wit（:313-315）：次级别中枢核心 [zd,zg]=[0,4]（B 口径核心区间）。
-//  - witness_secondTypeStructure（:352）：i1=0 < i2=1，第一类离开破中枢∧背驰 + 回拉不创新低 ⟹
-//    SecondTypeStructure Side.long parentWit2 成立（已证）。
-//  - witness_secondPoint_price（:374）：secondPointPrice Side.long m2Wit = -8（回拉低点 = m2.lo，已证）。
-//  - witness_newLow_breaks_type2（:343）：回拉 lo=-12 < m1.lo=-10 ⟹ ¬NoNewLow（不创新低是真约束，已证）。
+//  - m1Wit（:338-339）：向下破中枢，区间 [-10,-2]，lo=-10 < c1Wit.zd=0 ⟹ SubBrokeBelow（:380）。
+//  - m2Wit（:342-343）：回拉未破一类极值，区间 [-8,3]，lo=-8 ≥ m1.lo=-10 ⟹ NoNewLow（:386）。
+//  - c1Wit（:350-352）：次级别中枢核心 [zd,zg]=[0,4]（B 口径核心区间）。
+//  - witness_secondTypeStructure（:414）：i1=0 < i2=1，第一类离开破中枢∧背驰 + 回拉段 ⟹
+//    SecondTypeStructure Side.long parentWit2 成立（已证；#816 B-2② 拆闸后无 RetraceNoBreak 合取）。
+//  - witness_secondPoint_price（:451）：secondPointPrice Side.long m2Wit = -8（回拉低点 = m2.lo，已证）。
+//  - witness_newLow_breaks_type2（:395）：回拉 lo=-12 < m1.lo=-10 ⟹ ¬NoNewLow（几何谓词事实，已证）。
+//  - witness_retrace_breaksExtreme（:404）：¬NoNewLow ⟹ RetraceBreaksExtreme 重合标注谓词真（已证）。
+//  - witness_secondTypeStructure_brokeExtreme（:431）：回拉跌破一类仍构成 SecondTypeStructure
+//    （#816 B-2② 拆闸后新增见证，101:32「这是完全可以的」，已证）。
 //
 //  rust extract_second_signals 用 Lean 见证原始数值（c1Wit/m1Wit/m2Wit）构造 RMove 塔，断言产出
 //  与 Lean 见证 bit-exact 一致（second_point = -8 = Lean secondPointPrice）。
@@ -715,7 +719,7 @@ fn m1_wit_rust() -> RMove {
     }
 }
 
-/// Lean m2Wit（:305-306）：回拉走势（不创新低，区间 [-8,3]）。
+/// Lean m2Wit（:342-343）：回拉走势（未破一类极值，区间 [-8,3]）。
 fn m2_wit_rust() -> RMove {
     RMove::Segment {
         direction: Direction::Up,
@@ -724,7 +728,7 @@ fn m2_wit_rust() -> RMove {
     }
 }
 
-/// Lean m3Wit（:309-310）：收尾走势（区间 [1,5]）。
+/// Lean m3Wit（:345-346）：收尾走势（区间 [1,5]）。
 fn m3_wit_rust() -> RMove {
     RMove::Segment {
         direction: Direction::Up,
@@ -735,8 +739,8 @@ fn m3_wit_rust() -> RMove {
 
 #[test]
 fn type2_buy_matches_lean_witness_second_point() {
-    // ★对照 Lean witness_secondTypeStructure（:352）+ witness_secondPoint_price（:374）：
-    // RMove 塔（m1 破中枢∧背驰 + m2 回拉不创新低 + i1<i2）⟹ rust 产 B2，second_point = m2.lo = -8
+    // ★对照 Lean witness_secondTypeStructure（:414）+ witness_secondPoint_price（:451）：
+    // RMove 塔（m1 破中枢∧背驰 + m2 回拉段 + i1<i2）⟹ rust 产 B2，second_point = m2.lo = -8
     // （= Lean secondPointPrice Side.long m2Wit）。
     let parent = compose_move(
         vec![m1_wit_rust(), m2_wit_rust(), m3_wit_rust()],
@@ -771,9 +775,11 @@ fn type2_buy_matches_lean_witness_second_point() {
 }
 
 #[test]
-fn type2_buy_rejected_new_low_matches_lean() {
-    // ★对照 Lean witness_newLow_breaks_type2（:343）：回拉创新低（lo=-12 < m1.lo=-10）⟹ ¬NoNewLow
-    // ⟹ ¬SecondTypeStructure ⟹ rust 无 B2（不创新低是真约束，rust 与 Lean 同判）。
+fn type2_buy_broke_extreme_matches_lean() {
+    // ★对照 Lean witness_secondTypeStructure_brokeExtreme（RMoveCompose.lean，#884 后）：
+    // 回拉创新低（lo=-12 < m1.lo=-10）⟹ ¬NoNewLow ⟹ RetraceBreaksExtreme（重合标注谓词真）⟹
+    // SecondTypeStructure 仍成立（#816 B-2②：判据不得以「回拉不创新低/新高」为必要条件，
+    // `101:32`【正文】跌破一买「这是完全可以的」）⟹ rust 产 B2 且重合标注 Some(true)。
     let m2_break = RMove::Segment {
         direction: Direction::Up,
         lo: -12,
@@ -787,9 +793,19 @@ fn type2_buy_rejected_new_low_matches_lean() {
         |m| m.lo() == -10,
         |_m| 0,
     );
+    assert_eq!(
+        points.len(),
+        1,
+        "Lean SecondTypeStructure（回拉破一类极值仍成立，#816 B-2②）⟹ rust 产一个 B2"
+    );
     assert!(
-        points.is_empty(),
-        "Lean ¬NoNewLow（回拉创新低）⟹ rust 无 B2（与 Lean 同判非第二类）"
+        points[0].bits.buy2,
+        "跌破一买的二类点 buy2 置位（101:32「这是完全可以的」）"
+    );
+    assert_eq!(
+        points[0].retrace_breaks_type1,
+        Some(true),
+        "Lean RetraceBreaksExtreme（重合标注谓词真）⟹ rust retrace_breaks_type1=Some(true)"
     );
 }
 
