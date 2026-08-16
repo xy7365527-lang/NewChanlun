@@ -737,7 +737,7 @@ theorem assemblyStep_twState_changes :
             ledgerState := ledger0 0,
             twState := { free := 100, holding := 0, withdrawn := 0, notionalIn := 0,
                          stage := NewChanlun.Origin.TotalWealth.TStage.costReduction,
-                         openLegacyLegs := 0, cumNetCash := 0 },
+                         openLegacyLegs := 0, cumNetCash := 0, units := 0 },
             riskMode := RiskMode.normal, phase := Phase.phaseI,
             positions := 0, orders := 0, memory := 0 },
           { parseEvent := Tlayers.Dynamics.Event.newBar true, ledgerEvent := LedgerEvent.noop,
