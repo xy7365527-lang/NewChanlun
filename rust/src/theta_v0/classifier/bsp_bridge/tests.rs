@@ -741,6 +741,7 @@ fn overlapping_episodes_trip_find_episode_debug_assert() {
         center: Some(OwnerRef::Center(center_at(20))),
         struct_break_dir: None,
         force: None,
+        retrace_breaks_type1: None, // #884 新字段：本夹具为三类点，无跌破一类标注
     };
     let classification = Classification {
         levels: vec![level_with(vec![point])],
