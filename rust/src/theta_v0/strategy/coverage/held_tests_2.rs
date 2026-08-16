@@ -1246,6 +1246,102 @@ fn restore_chain_ancestor_unresolved_when_shared_ancestor_only_materializes_via_
 /// miss（本 bar 内 Q 从未被任何路径物化）⟹ D 计入 `restore_parent_unresolved` 且 unresolved
 /// 返回列表含 D 的 idx；D 的 `parent_id=Some(Q)` 但 Q 不在 raw ⟹ 统一 AncOK 剪除 D ⟹ D 不进
 /// `next_idx` ⟹ `placeholder_pruned_by_ancok` 计 1，与 `restore_parent_unresolved` 差值为 0。
+/// ★#713（L10）B′ 冲突史守卫：registry 条目 `dir_conflict_seen` 置位（tree 首见 ∧ tree 段
+/// 方向冲突 = 真翻向事件证据，#269 口径）⟹ restore **不复活**（不 push、提前中断、计
+/// `restore_break_direction_conflict`）；无冲突史条目照常恢复（对照臂）。
+#[test]
+fn restore_skips_entries_with_direction_conflict_history() {
+    let pid = eid(1, 42);
+    let mk = |eps| CoverageElement {
+        lambda: 0,
+        rho: 4,
+        eps,
+        level: 1,
+        parent: None,
+        attached_dir: None,
+        id: pid,
+        parent_id: None,
+    };
+    // tree 首见（Long）→ tree 改判（Short）⟹ 冲突史置位。
+    let mut reg = super::super::super::persistent::PersistentRegistry::new();
+    reg.merge_in_place_split(&[mk(VoiceSide::Long)], true, &[], true, &[]);
+    reg.merge_in_place_split(&[mk(VoiceSide::Short)], true, &[], true, &[]);
+    assert!(
+        reg.get(&pid).unwrap().dir_conflict_seen,
+        "前置：tree 首见 ∧ tree 段冲突 ⟹ 冲突史已置位"
+    );
+
+    ancok_probe_reset();
+    let base: Vec<CoverageElement> = Vec::new();
+    let mut work = ElementView::new(&base);
+    let mut raw: Vec<usize> = Vec::new();
+    let id_idx = std::collections::HashMap::new();
+    let mut overlay_seen = std::collections::HashMap::new();
+    let mut pending: Vec<usize> = Vec::new();
+    restore_ancestor_chain_from_registry(
+        &mut work,
+        &mut raw,
+        &reg,
+        pid,
+        &id_idx,
+        &mut overlay_seen,
+        0,
+        &[],
+        &mut pending,
+    );
+    let probe = ancok_probe_snapshot();
+    assert_eq!(
+        probe.restore_break_direction_conflict, 1,
+        "冲突史条目 ⟹ restore 中断并计方向冲突桶"
+    );
+    assert_eq!(
+        probe.restore_break_registry_lost, 0,
+        "与 registry-lost 分桶（条目在册，非丢失）"
+    );
+    assert!(
+        work.len() == 0 && raw.is_empty(),
+        "冲突史条目不复活（零 push）——ElementId 缺方向下复活即旧世代方向"
+    );
+
+    // 对照臂：无冲突史的条目照常恢复。
+    let clean_pid = eid(1, 43);
+    let mut reg2 = super::super::super::persistent::PersistentRegistry::new();
+    reg2.merge_in_place_split(
+        &[CoverageElement {
+            lambda: 0,
+            rho: 4,
+            eps: VoiceSide::Long,
+            level: 1,
+            parent: None,
+            attached_dir: None,
+            id: clean_pid,
+            parent_id: None,
+        }],
+        true,
+        &[],
+        true,
+        &[],
+    );
+    // 从 registry live set 退出但**不作废**的路径不存在（invalidated 走 lost 桶），
+    // 本臂只验证「无冲突史 ⟹ restore 正常 push」。
+    let mut work2 = ElementView::new(&base);
+    let mut raw2: Vec<usize> = Vec::new();
+    let mut overlay_seen2 = std::collections::HashMap::new();
+    let mut pending2: Vec<usize> = Vec::new();
+    restore_ancestor_chain_from_registry(
+        &mut work2,
+        &mut raw2,
+        &reg2,
+        clean_pid,
+        &id_idx,
+        &mut overlay_seen2,
+        0,
+        &[],
+        &mut pending2,
+    );
+    assert_eq!(raw2.len(), 1, "无冲突史条目照常恢复（对照臂）");
+}
+
 #[test]
 fn placeholder_pruned_by_ancok_cross_check_matches_unresolved_on_true_lost_chain() {
     let d = eid(0, 0);

@@ -16,6 +16,8 @@
 //! ## 不变量 I1-I5（anc.pdf §7）
 //! - I1 持久身份：腿未关闭 ⟹ pid(e)∈Pi 所有后续 bar
 //! - I2 元素方向不变：δi(e)=δj(e)——**#233 机器锁落地**：upsert 方向守卫拒绝同 id 静默
+//!   覆写（永固首见方向，FlipGuardProbe 计数）；**#713 B′ 补链**：tree 首见 ∧ tree 段冲突
+//!   ⟹ `dir_conflict_seen` 永久置位，restore（held.rs）遇置位条目不复活旧世代方向。
 //!   覆写 dir（[`FlipGuardProbe`] 计数为凭；此前生产每 bar 无条件覆写 dir 实证违例，
 //!   见 leg-2-98-lifecycle-20260724 §5）。翻向的终结事件化在 coverage 对位层兑现。
 //! - I3 parent 是关系非身份：pid(e) 不依赖 parent(e)
@@ -123,6 +125,12 @@ pub struct PersistentElement {
     pub snapshot_present: bool,
     /// 显式作废标记（§10：只有 close/risk close/invalidation 才让元素退出 live）。
     pub invalidated: bool,
+    /// ★#713（L10）B′ 冲突史守卫标志：本条目在 tree 段 upsert 发生过方向冲突且
+    /// `first_seen == Tree`（#269 口径：唯此情形 = 真翻向事件证据；candidate/held 首见的
+    /// 分歧是 σ/ε 出生分层，不算）。置位后**不再清零**（含翻回情形——保守口径，编排者
+    /// 2026-08-16 裁定采纳 B′）：restore 路径遇置位条目按「不复活」处理
+    /// （`held.rs::restore_ancestor_chain_from_registry`，计 `restore_break_direction_conflict`）。
+    pub dir_conflict_seen: bool,
     /// ★#271 首见来源：本条目**首次登记**走的路径（tree / candidate / held-or_insert）。
     /// 与 `dir`（首见方向永固）同期写入、此后**不再改写**（首见即定，与 I2 同寿命）。
     pub first_seen: FirstSeenSource,
@@ -357,6 +365,7 @@ impl PersistentRegistry {
                 structural_parent_id: e.parent_id,
                 snapshot_present: true,
                 invalidated: false,
+                dir_conflict_seen: false,
                 // ★#271 首见来源（首见即定，此后不改写——下方只刷 snapshot 字段）。
                 first_seen: if cand_segment {
                     FirstSeenSource::Candidate
@@ -374,6 +383,11 @@ impl PersistentRegistry {
                         p.tree_blocked += 1;
                     }
                 });
+                // ★#713（L10）B′：tree 段冲突 ∧ tree 首见 ⟹ 真翻向事件证据（#269 口径），
+                // 置冲突史标志（永久，含翻回）；candidate/held 首见的分歧是出生分层，不置。
+                if !cand_segment && entry.first_seen == FirstSeenSource::Tree {
+                    entry.dir_conflict_seen = true;
+                }
             } else {
                 entry.dir = e.eps;
             }
@@ -411,6 +425,7 @@ impl PersistentRegistry {
                 structural_parent_id: leg.parent_id,
                 snapshot_present: false, // LiveDetached（snapshot 找不到）
                 invalidated: false,
+                dir_conflict_seen: false,
                 first_seen: FirstSeenSource::Held, // ★#271：持仓腿兜底登记 ⟹ dir = 腿方向 σ
             });
             // ★I4（anc.pdf §7）：操作父容器持久。
@@ -424,6 +439,7 @@ impl PersistentRegistry {
                     structural_parent_id: None,
                     snapshot_present: false,
                     invalidated: false,
+                    dir_conflict_seen: false,
                     first_seen: FirstSeenSource::Held, // ★#271：op_parent 兜底（dir 借腿方向 σ）
                 });
             }
@@ -1056,5 +1072,95 @@ mod tests {
             2,
             "tree 来源的开火/无事件均不进非 tree 计数"
         );
+    }
+
+    /// ★#713（L10）B′ 冲突史标志：tree 首见 ∧ tree 段方向冲突 ⟹ `dir_conflict_seen` 置位
+    /// 且**永久保持**（含翻回，保守口径已裁）；candidate / held 首见的分歧是 σ/ε 出生
+    /// 分层（#269 同款口径），**不置位**。
+    #[test]
+    fn dir_conflict_seen_set_only_for_tree_origin_tree_segment_conflicts() {
+        let mut reg = PersistentRegistry::new();
+        // ① candidate 首见（σ=Long）+ 树 upsert（ε=Short）：tree 段冲突但首见非 tree ⟹ 不置位。
+        let cand_pid = ElementId {
+            level: 0,
+            ordinal: 7,
+        };
+        reg.merge_in_place_split(
+            &[],
+            true,
+            &[cov_elem(0, 7, 0, 4, VoiceSide::Long, None)],
+            true,
+            &[],
+        );
+        reg.merge_in_place_split(
+            &[cov_elem(0, 7, 0, 4, VoiceSide::Short, None)],
+            true,
+            &[],
+            true,
+            &[],
+        );
+        assert!(
+            !reg.get(&cand_pid).unwrap().dir_conflict_seen,
+            "candidate 首见的分歧 = 出生分层，不置冲突史"
+        );
+        // ② held 兜底首见 + 树 upsert 冲突：同不置位。
+        let held_pid = ElementId {
+            level: 0,
+            ordinal: 8,
+        };
+        reg.merge_in_place_split(
+            &[],
+            true,
+            &[],
+            true,
+            &[active_leg(0, 8, 0, 5, VoiceSide::Long, None)],
+        );
+        reg.merge_in_place_split(
+            &[cov_elem(0, 8, 0, 5, VoiceSide::Short, None)],
+            true,
+            &[],
+            true,
+            &[],
+        );
+        assert!(
+            !reg.get(&held_pid).unwrap().dir_conflict_seen,
+            "held 首见的分歧 = 出生分层，不置冲突史"
+        );
+        // ③ tree 首见（ε=Long）+ 树改判 Short ⟹ 置位；翻回 Long 后**仍置位**（永久）。
+        let tree_pid = ElementId {
+            level: 0,
+            ordinal: 9,
+        };
+        reg.merge_in_place_split(
+            &[cov_elem(0, 9, 0, 10, VoiceSide::Long, None)],
+            true,
+            &[],
+            true,
+            &[],
+        );
+        reg.merge_in_place_split(
+            &[cov_elem(0, 9, 0, 10, VoiceSide::Short, None)],
+            true,
+            &[],
+            true,
+            &[],
+        );
+        assert!(
+            reg.get(&tree_pid).unwrap().dir_conflict_seen,
+            "tree 首见 ∧ tree 段冲突 = 真翻向事件证据 ⟹ 置冲突史"
+        );
+        reg.merge_in_place_split(
+            &[cov_elem(0, 9, 0, 10, VoiceSide::Long, None)],
+            true,
+            &[],
+            true,
+            &[],
+        );
+        assert!(
+            reg.get(&tree_pid).unwrap().dir_conflict_seen,
+            "翻回首见方向后冲突史保持（永久禁复活，含翻回——保守口径）"
+        );
+        // dir 永固首见方向（I2 不因标志改变）。
+        assert_eq!(reg.get(&tree_pid).unwrap().dir, VoiceSide::Long);
     }
 }

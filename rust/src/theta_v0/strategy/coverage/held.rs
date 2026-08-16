@@ -345,6 +345,16 @@ pub(super) fn restore_ancestor_chain_from_registry(
         }
         // 从 registry 取元素（work 中尚无 ⟹ 真 LiveDetached 祖先，须从持久身份恢复）。
         let pe = match registry.get(&pid) {
+            // ★#713（L10）B′ 冲突史守卫：`dir_conflict_seen` 置位（tree 首见 ∧ tree 段方向
+            // 冲突，#269 口径的真翻向事件证据）⟹ 该条目方向证据已腐化（I2 永固首见方向，
+            // 翻向后的新世代永远进不了 registry）——**不复活**（ElementId 身份键缺方向，
+            // 复活即旧世代方向）。按中断处理（同 registry-lost 语义：AncOK 正常剪除），
+            // 与 registry_lost 分桶计数。永久禁复活（含翻回，保守口径，编排者 2026-08-16 裁定）。
+            Some(e) if e.dir_conflict_seen => {
+                ancok_probe_bump(|p| p.restore_break_direction_conflict += 1);
+                broke = true;
+                break;
+            }
             Some(e) if !e.invalidated => e,
             _ => {
                 // ★暴露面：registry 无效/已作废 ⟹ 停止（祖先未完整恢复，本应有 parent 但已失去）。

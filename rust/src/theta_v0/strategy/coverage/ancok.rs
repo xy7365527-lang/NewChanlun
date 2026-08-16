@@ -36,6 +36,11 @@ pub struct AncokProbe {
     /// ★#226：restore 遇**当 bar 已被裁决终结**的祖先（∈ 𝒟_x 关闭种子）提前中断——open 父注入
     /// 路径（ℬ_x 段无 𝒟_x^† 种子兜底）不得复活被关父（S3 子树清仓；m3 win9 断言①炸点根因）。
     pub restore_break_closed_seed: u64,
+    /// ★#713（L10）B′：restore 遇**有真翻向冲突史**（`dir_conflict_seen`，tree 首见 ∧ tree 段
+    /// 冲突，#269 口径）的 registry 条目提前中断——不复活旧世代方向（ElementId 身份键缺方向
+    /// 的 restore 面守卫）。与 `restore_break_registry_lost` 分列：那条是「registry 失去」，
+    /// 本条是「registry 在但方向证据已腐化」。永久禁复活（含翻回，保守口径已裁）。
+    pub restore_break_direction_conflict: u64,
     /// ★#233/#269：held 对位翻向守卫命中——**事件口径**（#269 事件化，#261 终裁选项 A）：
     /// 载体 registry 首见方向（tree 来源，I2 机器锁永固）≠ 当前树元素方向 ⟹ 载体被 frontier
     /// 重组改判 = 翻向**事件** ⟹ 声部终结（#227 裁决蓝图两步形①；事件在场时方向盲 ID 对位
@@ -103,6 +108,7 @@ thread_local! {
         restore_break_already_in_raw: 0,
         restore_break_registry_lost: 0,
         restore_break_closed_seed: 0,
+        restore_break_direction_conflict: 0,
         held_flip_terminated: 0,
         restore_parent_rebound: 0,
         restore_parent_unresolved: 0,
