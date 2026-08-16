@@ -367,7 +367,8 @@ theorem sellClosedLoop_subkind_is_assembled (k : SellClosedLoopSubkind) :
   - ✗ 第二类卖点闭环（committed `IsType2Sell` 本级别可观测，买卖点定律一「由次级别一类构成」需
        次级别递归；#904 已落构成形 `BspClassification.IsType2Constitutive` + 桥定理
        `IsType2_of_constitutive`（具名 faithful 前件 = still-MISSING-D′ 的精确内容，N-2 形态无 axiom），
-       真下钻实例化（RecursiveLevelSystem 全实例化，#113 链）后补证 faithful 即闭环；
+       真下钻实例化（RecursiveLevelSystem 全实例化，#113 链）后履行 §2a 登记的实例化义务
+       （faithful + 完整性方向 + SubOf 反自反/同向约束，见下文完整性缺口 (b)）即闭环；
        本文件卖侧闭环覆盖第一类/第三类/延续三态，与 #117 买侧对偶一致）。
   - ✗ bspOf 卖点端点全自动识别（从 K 线流自动判定，still-MISSING，BspClassification 已标）——
        本文件消费已判定的 BspEndpoint（#113 判据层提供）。
@@ -375,7 +376,11 @@ theorem sellClosedLoop_subkind_is_assembled (k : SellClosedLoopSubkind) :
   ★对 #88（完整性）推进度：本文件消解 #120 still-MISSING-(a)（卖侧 ledger 闭环），把卖点决策
     接入 committed `ledgerStep`，给卖侧非退化闭环 + 买卖闭环对偶对称。买卖闭环现已**双向对偶完整**
     （买侧 #117 + 卖侧本文件，A 分量镜像）。剩余完整性缺口（诚实标注，不冒充已完成）：
-    (a) TW 端双账本对接（#90 twState 提现端，待 codex）；(b) 第二类次级别递归（#904 后 = 对实例化 SubOf 证 faithful 前件，见 BspClassification.lean §2a）；
+    (a) TW 端双账本对接（#90 twState 提现端，待 codex）；(b) 第二类次级别递归（#904 构成形已落，
+     随 #113 链真下钻实例化 SubOf 时义务有三：①证 faithful 前件（构成 ⟹ 可观测）；②补完整性
+     方向「可观测 ⟹ 构成」（对实例化 SubOf 证 `IsType2 e → ∃ sub, SubOf e sub ∧ IsType1 sub`，
+     #1016 影子评审 MINOR-2 登记）；③SubOf 实例化须携反自反（sub ≠ e）与同向配对
+     （sub.side = e.side）约束（#1016 影子评审 MINOR-1/3 登记，详见 BspClassification.lean §2a））；
     (c) bspOf/centersOf 全自动构造（#113 still-MISSING）。
 
   ★买卖**非完全对称的缠论特例审查**（no-workaround：遇定义冲突停 ESCALATE）——审查结论：

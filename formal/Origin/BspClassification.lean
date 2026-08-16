@@ -130,19 +130,22 @@ def IsType3Sell (e : BspEndpoint) : Prop :=
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /--
-  **次级别归属关系（塔 descend 的端点层投影，参数化不建模）** —— `SubOf e sub` 读作
-  「sub 是 e 所在本级别走势经真下钻（descend）取回的次级别成员端点」。本文件不实例化
-  该关系：真下钻需 RecursiveLevelSystem 全实例化（still-MISSING-D′，#113 链）。以**参数**
-  传入（显式前件），不以 `axiom` 断言其存在（map #854 Notes N-2 形态纪律）。
--/
-def SublevelMembership (SubOf : BspEndpoint → BspEndpoint → Prop) : Prop :=
-  ∀ e sub, SubOf e sub → sub ≠ e
-
-/--
   **二类点判据·构成形（买卖点定律一：大级别第二类买点由次级别相应走势的第一类买点构成，
   `014:34`【正文】，#816 B-2①）** —— 端点 `e` 的二类成立，**构成上**是因为存在一个
-  次级别成员端点 `sub`（`SubOf e sub`）满足**第一类判据**（破中枢 ∧ 背驰，`IsType1`）。
-  具名 `Prop` + 显式前件（`SubOf` 为参数），不冒充已实例化。
+  次级别成员端点 `sub` 满足**第一类判据**（破中枢 ∧ 背驰，`IsType1`）。`SubOf e sub` 读作
+  「sub 是 e 所在本级别走势经真下钻（descend）取回的次级别成员端点」（塔 descend 的端点层
+  投影，参数化不建模：真下钻需 RecursiveLevelSystem 全实例化，still-MISSING-D′，#113 链）。
+  具名 `Prop` + 显式前件（`SubOf` 以**参数**传入，不以 `axiom` 断言其存在，map #854 Notes
+  N-2 形态纪律），不冒充已实例化。
+
+  ★未来实例化义务清单（#1016 影子评审 MINOR-1/3 登记，随 #113 链真下钻实例化时一并履行）：
+  (i) **反自反**——合法「次级别归属」须满足 `SubOf e sub → sub ≠ e`（原死定义
+      `SublevelMembership` 的全部内容；#1016 评审查实其零引用、无任何前件强制，纯文档性，
+      故删定义、约束并入本条实例化义务）；
+  (ii) **同向配对**——定律一「**相应**走势」要求 `sub.side = e.side`。判据层 `IsType1`/
+      `IsType2` 本 side-free（消费预计算的 `brokeCenter` Bool，既有简化，非本处引入）；
+      Rust 生产侧把 side 穿进 `sub_level_type1` 与 `find_second_type_structure`
+      （descend.rs:172、rmove_compose.rs:156）。实例化 `SubOf` 时须把同向约束显式化。
 -/
 def IsType2Constitutive (SubOf : BspEndpoint → BspEndpoint → Prop) (e : BspEndpoint) : Prop :=
   ∃ sub, SubOf e sub ∧ IsType1 sub
@@ -153,6 +156,11 @@ def IsType2Constitutive (SubOf : BspEndpoint → BspEndpoint → Prop) (e : BspE
   的精确内容：真下钻接入后须对实例化的 `SubOf` 证此性质），则构成形推出本判据 `IsType2`。
   本定理把缺口**显式命名**为 `faithful` 前件而非隐藏假设：构成形到可观测形的全部未证
   内容都收敛在这一条前件里，证它的义务随真下钻实例化而来。
+
+  ★未陈述方向登记（#1016 影子评审 MINOR-2）：`faithful` 只盖「构成 ⟹ 可观测」；定律一的
+  完整性方向「可观测 ⟹ 构成」（对实例化 `SubOf` 证 `IsType2 e → ∃ sub, SubOf e sub ∧
+  IsType1 sub`）未陈述、未证，与 faithful 属同一实例化义务，随真下钻一并补
+  （缺口台账见 SellClosedLoop.lean 头部完整性缺口 (b)）。
 -/
 theorem IsType2_of_constitutive (SubOf : BspEndpoint → BspEndpoint → Prop) (e : BspEndpoint)
     (faithful : (∃ sub, SubOf e sub ∧ IsType1 sub) →
