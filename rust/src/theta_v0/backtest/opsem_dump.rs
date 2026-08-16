@@ -887,7 +887,9 @@ impl OpsemDump {
                 for (lvl, moves) in tower_i.iter().enumerate() {
                     for m in moves.iter() {
                         if let RMove::Compose { centers, .. } = &m.rmove {
-                            if let Some(c) = centers.first() {
+                            // ★#897 后 centers 载荷 = 走势类型块中枢序列——本窗真派生中枢 = **末位**（last）；
+                            // 诊断 dump 须写本窗中枢（与生产读者同口径，趋势块时 first 是块首中枢）。
+                            if let Some(c) = centers.last() {
                                 let _ = self.write_tower_event(
                                     bar,
                                     lvl as u32,
@@ -921,7 +923,9 @@ impl OpsemDump {
                         if let RMove::Compose { centers, .. } = &m.rmove {
                             if i >= prev_len {
                                 // 新 Compose 涌现。
-                                if let Some(c) = centers.first() {
+                                // ★#897 后 centers 载荷 = 走势类型块中枢序列——本窗真派生中枢 = **末位**（last）；
+                                // 诊断 dump 须写本窗中枢（与生产读者同口径，趋势块时 first 是块首中枢）。
+                                if let Some(c) = centers.last() {
                                     let _ = self.write_tower_event(
                                         bar,
                                         lvl as u32,
@@ -940,7 +944,9 @@ impl OpsemDump {
                             } else if let Some(pm) = prev_moves.get(i) {
                                 // 已存在 Compose，比较 end_index —— 延伸事件。
                                 if m.end_index != pm.end_index {
-                                    if let Some(c) = centers.first() {
+                                    // ★#897 后 centers 载荷 = 走势类型块中枢序列——本窗真派生中枢 = **末位**（last）；
+                                    // 诊断 dump 须写本窗中枢（与生产读者同口径，趋势块时 first 是块首中枢）。
+                                    if let Some(c) = centers.last() {
                                         let _ = self.write_tower_event(
                                             bar,
                                             lvl as u32,
