@@ -110,21 +110,6 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// 与 `backtest/data.rs` 的私有 `RawData` 同 schema（8 品种统一 parallel-array）。
 #[derive(Deserialize, Default)]
-struct RawCols {
-    #[serde(default)]
-    opens: Vec<Option<f64>>,
-    #[serde(default)]
-    highs: Vec<Option<f64>>,
-    #[serde(default)]
-    lows: Vec<Option<f64>>,
-    #[serde(default)]
-    closes: Vec<Option<f64>>,
-    #[serde(default)]
-    volumes: Vec<Option<f64>>,
-    #[serde(default)]
-    dates: Vec<String>,
-}
-
 struct DayAgg {
     open: f64,
     high: f64,
@@ -193,60 +178,38 @@ fn report_sigma(tag: &str, var_per_day: &[f64]) {
 }
 
 fn phase_daily(symbol: &str, max_bars: usize) {
-    let Some((_, file, _)) = SYMBOLS
-        .iter()
-        .find(|(s, _, _)| s.eq_ignore_ascii_case(symbol))
-    else {
-        eprintln!("P915_DAILY_ERR 未知品种 {symbol}");
-        return;
-    };
-    let path = data_dir().join(file);
-    let txt = match std::fs::read_to_string(&path) {
-        Ok(t) => t,
+    // ★#1013 MED-1（影子评审坐实）：改走 gated loader——旧实现自带原始 JSON + 旧判据
+    // （无 #922 坏 tick 闸），BRN 2024-02-19 的 0.08 坍缩 bar 因此漏进日聚合、σ_GK 被
+    // 毒化成 491.6%（复跑 rms 10.4993% 与毒化值逐位吻合）。现消费 load_by_symbol 净化
+    // 序列（坏 tick 已前收填充 + untradable），价格 = quantized × tick（与生产同口径），
+    // 统计层自此不见坏值。
+    let config = ThetaConfig::default();
+    let ds = match load_by_symbol(symbol, &config) {
+        Ok(ds) => ds,
         Err(e) => {
-            eprintln!("P915_DAILY_ERR 读文件失败 {path:?}: {e}");
+            eprintln!("P915_DAILY_ERR 数据加载失败: {e}");
             return;
         }
     };
-    // Python json(allow_nan) 写出 NaN/Infinity（serde_json 硬拒）→ null。
-    // **与 `backtest/data.rs:216-220` 逐字同源**（BRN/DX/QQQ 三个文件实测含 NaN，不做此替换会解析失败）。
-    let txt = txt
-        .replace("-Infinity", "null")
-        .replace("Infinity", "null")
-        .replace("NaN", "null");
-    let raw: RawCols = match serde_json::from_str(&txt) {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("P915_DAILY_ERR JSON 解析失败 {path:?}: {e}");
-            return;
-        }
-    };
-    drop(txt);
-    let n = raw.closes.len().min(max_bars);
-
+    let n = ds.bars.len().min(max_bars);
+    let tick = config.tick.tick_size;
     // 逐日聚合（键 = dates[i][..10]，与 slice_date_window 同口径）。
     let mut days: BTreeMap<String, DayAgg> = BTreeMap::new();
     let mut n_bad = 0usize;
     for i in 0..n {
-        let (o, h, l, c) = (
-            raw.opens.get(i).copied().flatten(),
-            raw.highs.get(i).copied().flatten(),
-            raw.lows.get(i).copied().flatten(),
-            raw.closes.get(i).copied().flatten(),
-        );
-        let v = raw.volumes.get(i).copied().flatten().unwrap_or(0.0);
-        let (Some(o), Some(h), Some(l), Some(c)) = (o, h, l, c) else {
-            n_bad += 1;
-            continue;
-        };
-        // 与 data.rs:250-258 同判据（坏 bar 不入日聚合）。
-        let bad_range = h < o.max(c).max(l) || l > o.min(c).min(h);
-        let bad_price = o <= 0.0 || h <= 0.0 || l <= 0.0 || c <= 0.0;
-        if bad_range || bad_price || v <= 0.0 {
+        let b = &ds.bars[i];
+        if b.untradable {
             n_bad += 1;
             continue;
         }
-        let key = raw.dates[i].chars().take(10).collect::<String>();
+        let (o, h, l, c) = (
+            b.open as f64 * tick,
+            b.high as f64 * tick,
+            b.low as f64 * tick,
+            b.close as f64 * tick,
+        );
+        let v = b.volume as f64; // #919 落主线前 volume 仍 i64，探针聚合取 f64
+        let key = ds.dates[i].chars().take(10).collect::<String>();
         days.entry(key)
             .and_modify(|d| {
                 d.high = d.high.max(h);
@@ -270,7 +233,7 @@ fn phase_daily(symbol: &str, max_bars: usize) {
     println!(
         "P915_DAILY_INPUT symbol={symbol} bars_used={n} bars_total={} bad_bars={n_bad} \
          n_days={} day_first={} day_last={}",
-        raw.closes.len(),
+        ds.bars.len(),
         days.len(),
         days.keys().next().map(|s| s.as_str()).unwrap_or("?"),
         days.keys().next_back().map(|s| s.as_str()).unwrap_or("?")
