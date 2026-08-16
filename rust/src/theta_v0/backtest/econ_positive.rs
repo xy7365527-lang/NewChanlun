@@ -1816,6 +1816,50 @@ pub(super) fn build_xzd_fallback(
 mod tests {
     use super::*;
 
+    // ── ★#399（#786 Q4 改写稿）：ECON_L2_MAX_BARS 截窗骨架共享 helper——八点收敛 ──
+    // （l2_btc_capturable_spread_diagnosis / acc_level0sell_oos / acc_walkforward_trainonly /
+    // acc_multilevel_highlevel_mu / acc_classification_level_hole_dx /
+    // acc_bottomup_nest_parity_probe / acc_nest_trigger_quality_probe / h2_sample_exclusion_dx）。
+    // C2 纪律（#746 单源裁定）：env 读取走 env_registry::ECON_L2_MAX_BARS 注册表键，
+    // 禁裸字符串字面量；常量名统一 MAX_BARS_DEFAULT（旧 MAX_BARS/MAX_BARS_DEFAULT 两名并一）。
+    const MAX_BARS_DEFAULT: usize = 300_000; // 默认截断窗（时间墙保护，O(n²) 非 OOM——fullhist-oom-fix-20260630 已订正误诊）
+
+    /// ECON_L2_MAX_BARS env 解析：合法值覆盖，缺省/非法回退 MAX_BARS_DEFAULT。
+    fn econ_l2_max_bars() -> usize {
+        std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(MAX_BARS_DEFAULT)
+    }
+
+    /// 截断边界算术：n_full > max_bars ⟹ Some(尾窗起点)；n_full <= max_bars ⟹ None（全量不截）。
+    /// 三态由 `tail_window_start_boundary_three_states` 独立单测锁定（合成输入，不依赖真实数据）。
+    fn tail_window_start(n_full: usize, max_bars: usize) -> Option<usize> {
+        (n_full > max_bars).then(|| n_full - max_bars)
+    }
+
+    /// 尾窗截断：保留最后 max_bars 根 bar（半开区间切片，复用 Dataset::slice_bar_range 契约）。
+    fn truncate_tail_bars(ds_full: Dataset, max_bars: usize) -> Dataset {
+        let n_full = ds_full.bars.len();
+        match tail_window_start(n_full, max_bars) {
+            Some(start) => ds_full.slice_bar_range(start, n_full),
+            None => ds_full,
+        }
+    }
+
+    /// ★#399 验收：截断边界算术三态独立单测（合成输入，不依赖真实数据）——
+    /// 此前该算术只嵌在跑真实 BTC 数据的 #[ignore] 测试里，算错了没有任何测试先发现。
+    #[test]
+    fn tail_window_start_boundary_three_states() {
+        // n_full > max_bars：截断，尾窗起点 = n_full - max_bars。
+        assert_eq!(tail_window_start(1000, 300), Some(700));
+        // n_full == max_bars：不截断（边界等号归全量）。
+        assert_eq!(tail_window_start(300, 300), None);
+        // n_full < max_bars：不截断（含 n_full=0 退化）。
+        assert_eq!(tail_window_start(299, 300), None);
+        assert_eq!(tail_window_start(0, 300), None);
+    }
+
     // ── 小转大通道阶段2（xiaozhuanda）：C2 跨条目 / C3 as-of 最后次级中枢 / gate_pass 二通道 ──
 
     fn xzd_bsp(source_index: usize, bits: BspBits, center: Option<Center>) -> BspPoint {
@@ -3336,26 +3380,25 @@ mod tests {
         // 已坐实 t_exp≈2.0；归 Task #104/#105 classifier 核心优化）。截断窗在此**为时间非内存**：实测
         // 100K=8.7s、200K=31.8s、400K=124.5s、600K=283s（O(n²)），全量 461万≈数小时可跑通但慢。
         // env ECON_L2_MAX_BARS 覆盖供 Lead 调窗（>4.6M=不截断跑全量）。
-        const MAX_BARS: usize = 300_000;
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(MAX_BARS);
-        let ds = if n_full > max_bars {
-            let start = ds_full.dates[n_full - max_bars]
-                .get(..10)
-                .unwrap_or("")
-                .to_string();
-            let end = ds_full.dates[n_full - 1]
-                .get(..10)
-                .unwrap_or("")
-                .to_string();
-            eprintln!(
-                "截断窗 [{start}→{end}]（最后 {max_bars} bar / 全量 {n_full}）= 显式有效域边界"
-            );
-            ds_full.slice_date_window(&start, &end)
-        } else {
-            ds_full
+        // #399：env 解析与截断边界算术收敛至共享 helper（mod tests 顶部）；
+        // 本点保留 date-window 切片形态（带窗口 eprintln），算术与此前逐位一致。
+        let max_bars = econ_l2_max_bars();
+        let ds = match tail_window_start(n_full, max_bars) {
+            Some(tail_start) => {
+                let start = ds_full.dates[tail_start]
+                    .get(..10)
+                    .unwrap_or("")
+                    .to_string();
+                let end = ds_full.dates[n_full - 1]
+                    .get(..10)
+                    .unwrap_or("")
+                    .to_string();
+                eprintln!(
+                    "截断窗 [{start}→{end}]（最后 {max_bars} bar / 全量 {n_full}）= 显式有效域边界"
+                );
+                ds_full.slice_date_window(&start, &end)
+            }
+            None => ds_full,
         };
         let untradable = ds.untradable_ratio();
         let n_bars = ds.bars.len();
@@ -3938,16 +3981,9 @@ mod tests {
         let n_full = ds_full.bars.len();
 
         // 截断窗（同 l2_btc_capturable_spread_diagnosis：最后 MAX_BARS，OOM 边界=显式有效域）。
-        const MAX_BARS: usize = 300_000;
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(MAX_BARS);
-        let ds = if n_full > max_bars {
-            ds_full.slice_bar_range(n_full - max_bars, n_full)
-        } else {
-            ds_full
-        };
+        // #399：骨架收敛至共享 helper（mod tests 顶部），行为不变。
+        let max_bars = econ_l2_max_bars();
+        let ds = truncate_tail_bars(ds_full, max_bars);
         let n = ds.bars.len();
         let win_start = ds
             .dates
@@ -4190,16 +4226,9 @@ mod tests {
             Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
         };
         let n_full = ds_full.bars.len();
-        const MAX_BARS: usize = 300_000;
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(MAX_BARS);
-        let ds = if n_full > max_bars {
-            ds_full.slice_bar_range(n_full - max_bars, n_full)
-        } else {
-            ds_full
-        };
+        // #399：骨架收敛至共享 helper（mod tests 顶部），行为不变。
+        let max_bars = econ_l2_max_bars();
+        let ds = truncate_tail_bars(ds_full, max_bars);
         let n = ds.bars.len();
         let win_start = ds
             .dates
@@ -4833,16 +4862,9 @@ mod tests {
         let n_full = ds_full.bars.len();
 
         // 显式有效域：全量为 ECON_L2_MAX_BARS=5000000（>4.6M=不截断）。
-        const MAX_BARS_DEFAULT: usize = 300_000; // 默认截断窗（时间墙保护）
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(MAX_BARS_DEFAULT);
-        let ds = if n_full > max_bars {
-            ds_full.slice_bar_range(n_full - max_bars, n_full)
-        } else {
-            ds_full
-        };
+        // #399：骨架收敛至共享 helper（mod tests 顶部），行为不变。
+        let max_bars = econ_l2_max_bars();
+        let ds = truncate_tail_bars(ds_full, max_bars);
         let n = ds.bars.len();
         let win_start = ds
             .dates
@@ -5197,16 +5219,9 @@ mod tests {
             Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
         };
         let n_full = ds_full.bars.len();
-        const MAX_BARS_DEFAULT: usize = 300_000;
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(MAX_BARS_DEFAULT);
-        let ds = if n_full > max_bars {
-            ds_full.slice_bar_range(n_full - max_bars, n_full)
-        } else {
-            ds_full
-        };
+        // #399：骨架收敛至共享 helper（mod tests 顶部），行为不变。
+        let max_bars = econ_l2_max_bars();
+        let ds = truncate_tail_bars(ds_full, max_bars);
         let bars = &ds.bars;
         let n = bars.len();
         let tick = config.tick.tick_size;
@@ -6215,16 +6230,9 @@ mod tests {
             Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
         };
         let n_full = ds_full.bars.len();
-        const MAX_BARS_DEFAULT: usize = 300_000;
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(MAX_BARS_DEFAULT);
-        let ds = if n_full > max_bars {
-            ds_full.slice_bar_range(n_full - max_bars, n_full)
-        } else {
-            ds_full
-        };
+        // #399：骨架收敛至共享 helper（mod tests 顶部），行为不变。
+        let max_bars = econ_l2_max_bars();
+        let ds = truncate_tail_bars(ds_full, max_bars);
         let bars = &ds.bars;
         let n = bars.len();
         let tick = config.tick.tick_size;
@@ -6480,16 +6488,9 @@ mod tests {
             Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
         };
         let n_full = ds_full.bars.len();
-        const MAX_BARS_DEFAULT: usize = 300_000;
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(MAX_BARS_DEFAULT);
-        let ds = if n_full > max_bars {
-            ds_full.slice_bar_range(n_full - max_bars, n_full)
-        } else {
-            ds_full
-        };
+        // #399：骨架收敛至共享 helper（mod tests 顶部），行为不变。
+        let max_bars = econ_l2_max_bars();
+        let ds = truncate_tail_bars(ds_full, max_bars);
         let win_start = ds
             .dates
             .first()
@@ -6615,16 +6616,9 @@ mod tests {
             Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
         };
         let n_full = ds_full.bars.len();
-        const MAX_BARS_DEFAULT: usize = 300_000;
-        let max_bars = std::env::var(crate::theta_v0::env_registry::ECON_L2_MAX_BARS)
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(MAX_BARS_DEFAULT);
-        let ds = if n_full > max_bars {
-            ds_full.slice_bar_range(n_full - max_bars, n_full)
-        } else {
-            ds_full
-        };
+        // #399：骨架收敛至共享 helper（mod tests 顶部），行为不变。
+        let max_bars = econ_l2_max_bars();
+        let ds = truncate_tail_bars(ds_full, max_bars);
         let bars = &ds.bars;
         let n = bars.len();
         let tick = config.tick.tick_size;
