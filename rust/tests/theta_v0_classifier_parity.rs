@@ -635,7 +635,7 @@ fn signal_extraction_emits_no_second_class_only() {
     // C(14,18) start=14 ≥ 8 ⟹ 非首对 ⟹ B3 不置位（CI run 31972038252 红）。单一中枢下两谓词
     // 锚位不可兼得（T3-in-c 锚 = c1 右边第一段须下破 zd；first_retrace_pair 要 B3 leave 前段
     // start < end_index ⟹ end_index > 14 ⟹ T3-in-c 锚漂到 (18,20) 非下破 ⟹ B1 死）⟹ B3 独立
-    // 中枢承载。c2 几何三约束：① end_index=16 ∈ (14,18]——> C 触发段 start=14 ⟹ 首对成立且
+    // 中枢承载。c2 几何三约束：① end_index=16 ∈ (14,18] ⟹ C 触发段 start=14 ⟹ 首对成立且
     // C 段最近中枢仍是 c1（14 < 16，c2 对 C 段未确认），≤ leave.start=18 ⟹ leave 归属 c2；
     // ② zg=180 < 回试低点 210（严格口径，不破 ZG）；③ 与 c1 关系 = LevelExpansion
     // （c2.gg=190 ≥ c1.dd=90 且 c2.dd=140 ≤ c1.gg=210）⟹ c2 落 Consolidation 块 ⟹
