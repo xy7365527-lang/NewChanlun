@@ -670,7 +670,10 @@ mod tests {
             "theta_v0/classifier/signal.rs:3425",
             "theta_v0/classifier/signal.rs:3681",
             "theta_v0/classifier/signal.rs:3748",
-            "theta_v0/classifier/mod.rs:4574",
+            // （2026-08-16 #648 T1：classifier/mod.rs 内联测试 4273 行抽离至 classifier/tests/
+            // 主题件 ⟹ 该夹具点同内容随迁 mod.rs:4574 → tests/pipeline_geometry.rs:1565，
+            // 重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。）
+            "theta_v0/classifier/tests/pipeline_geometry.rs:1565",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
             // （2026-08-16 #993 fixture 修复 ⟹ signal.rs 测试区再位移，七处夹具点重锚，内容不变。
             // 此前 #990 I-2 strokes 参数接线已整体位移一次。）
