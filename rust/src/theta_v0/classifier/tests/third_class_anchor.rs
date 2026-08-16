@@ -313,3 +313,64 @@ fn issue486_l0_third_output_fields_unchanged() {
     assert_eq!(p.struct_break_dir, None);
     assert!(p.force.is_none());
 }
+
+/// ★#905 / #816 B-3 锁（020:62【正文】「必须是第一次」= 判据级必要条件）：同一中枢的
+/// **第二次**回试不置三类 bit；首对价格失败（重回中枢）后，远期合法相邻对**不得回填**。
+/// 语义锚 = Lean `BspClassification.IsType3Sell.firstRetrace`。
+#[test]
+fn third_class_first_retrace_only_lock() {
+    let c = Center {
+        zd: 100,
+        zg: 200,
+        dd: 90,
+        gg: 210,
+        start_index: 0,
+        end_index: 4,
+    };
+    let seg = |dir, si, ei, sp, ep| crate::theta_v0::types::Segment {
+        direction: dir,
+        start_index: si,
+        end_index: ei,
+        start_price: sp,
+        end_price: ep,
+    };
+    // 场景 A：首对成功（卖3 于首回试）+ 第二次回试同样合法 ⟹ 只产一枚。
+    let segs_a = vec![
+        seg(Direction::Down, 4, 6, 150, 80), // leave 破 ZD=100
+        seg(Direction::Up, 6, 8, 80, 95),    // 第一次回试：95 < 100 不入 ⟹ sell3
+        seg(Direction::Down, 8, 10, 95, 82), // 再次离开
+        seg(Direction::Up, 10, 12, 82, 98),  // 第二次回试：98 < 100 仍不入 ⟹ **不得**置 sell3
+    ];
+    let pts_a = signal::extract_signals(
+        &[c],
+        &segs_a,
+        &[],
+        &[],
+        &crate::theta_v0::config::MacdConfig::default(),
+    );
+    let sell3_a: Vec<_> = pts_a.iter().filter(|p| p.bits.sell3).collect();
+    assert_eq!(
+        sell3_a.len(),
+        1,
+        "B-3：仅第一次回试置三类（第二回试不回填）；实得 {pts_a:?}"
+    );
+
+    // 场景 B：首对价格失败（回试 105 ≥ ZD 重回）⟹ 首对不产；其后合法相邻对同样不得回填。
+    let segs_b = vec![
+        seg(Direction::Down, 4, 6, 150, 80),
+        seg(Direction::Up, 6, 8, 80, 105), // 第一次回试重回中枢 ⟹ 非三类
+        seg(Direction::Down, 8, 10, 105, 82),
+        seg(Direction::Up, 10, 12, 82, 98), // 远期合法对 ⟹ 仍不得置 sell3
+    ];
+    let pts_b = signal::extract_signals(
+        &[c],
+        &segs_b,
+        &[],
+        &[],
+        &crate::theta_v0::config::MacdConfig::default(),
+    );
+    assert!(
+        !pts_b.iter().any(|p| p.bits.sell3),
+        "B-3：首对失败后远期对不回填（「必须是第一次」）；实得 {pts_b:?}"
+    );
+}

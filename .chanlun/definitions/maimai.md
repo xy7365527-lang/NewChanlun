@@ -232,6 +232,8 @@
 
 **现状**：Lean `IsType3Buy/IsType3Sell` 显式含 `firstRetrace`（追认为正解）；`bsp.rs is_third = leftCenter ∧ retrace_not_reenter` **无**「第一次」条件（对齐见 T-3）；旧引擎 `buysellpoint.rs` 取突破后第一段反向走势（隐式第一次）——显式化或注释注明。
 
+**落地（#905，2026-08-16）**：T-3 已实施——生产三类枚举环（`signal.rs::extract_signals*` 中枢归属段）查实**未隐含**「第一次」（同中枢第二/三次回试可回填置位），按裁定补 `first_retrace_pair` 显式谓词（leave = 中枢右边后首段、retest = 紧随段，首对失败不回填，与 #487 historical-bound 配对规则同口径）；锁 = `third_class_first_retrace_only_lock`（第二次回试不置位 + 首对失败不回填两场景）；`buysellpoint.rs:418` 隐式第一次已注释注明（带 #816）；bit-exact GOLDEN 重锚 `0xcb91_2871_4985_4dd5`（语义修正翻转，沿革在 `signal.rs` guard 注释）。
+
 ### 受影响代码清单（#793 关票判据）
 
 | # | 侧 | 位置 | 处置 |

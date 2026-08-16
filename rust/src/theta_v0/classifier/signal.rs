@@ -2122,10 +2122,18 @@ fn judge_segment(
             nearest_confirmed_center_idx(centers_sorted, leave_seg.start_index)
         {
             let c_leave = &centers_sorted[c_leave_idx];
+            // ★#816 B-3（020:62【正文】「必须是第一次」= 判据级必要条件，显式名分）：
+            // `first_retrace_pair` —— leave 必须是该中枢右边之后的**第一条**段（其前一
+            // 段起点在中枢右边之前），retest 为其紧随段；首个配对失败（价格重回）后
+            // 出现的远期相邻对**不得**回填（与 #487 historical-bound 配对规则同口径）。
+            // 语义锚 = Lean `BspClassification.IsType3Buy/Sell` 的 `firstRetrace` 合取项。
+            let first_retrace_pair = i == 1 || sorted[i - 2].start_index < c_leave.end_index;
             // ADR 补充十三 / #486 / Spec #485：leave 段须有方向锚；L≥1 的 `anchors`
             // 已由调用层换成结构方向。retest 段仍只是几何回试角色。
-            if let Some(p) = judge_third(c_leave, leave_seg, anchors[i - 1], seg) {
-                points.push(p);
+            if first_retrace_pair {
+                if let Some(p) = judge_third(c_leave, leave_seg, anchors[i - 1], seg) {
+                    points.push(p);
+                }
             }
         }
     }
@@ -5463,10 +5471,15 @@ mod tests {
                     if let Some(c_leave) =
                         nearest_confirmed_center(&centers_sorted, leave_seg.start_index)
                     {
-                        if let Some(p) =
-                            judge_third(c_leave, leave_seg, Some(leave_seg.direction), seg)
-                        {
-                            points.push(p);
+                        // oracle 同步填载（#905 / #816 B-3「必须是第一次」显式化，与生产版同条件）。
+                        let first_retrace_pair =
+                            i == 1 || sorted[i - 2].start_index < c_leave.end_index;
+                        if first_retrace_pair {
+                            if let Some(p) =
+                                judge_third(c_leave, leave_seg, Some(leave_seg.direction), seg)
+                            {
+                                points.push(p);
+                            }
                         }
                     }
                 }
@@ -5584,7 +5597,12 @@ mod tests {
         // 逐行 diff）+ `issue610-id65-supplement-20260729.md`（level_origin 面补记）。
         // ⚠本合并树取 **#455 之后**口径（`level_origin` 已删，见 `bsp.rs` 无该字段），
         // 故现行值为下方 main 侧值，kimi 线的 `0xe6a2…` 即上表「该字段删除前」那一版。
-        const GOLDEN: u64 = 0xe371_3897_d9bf_978c;
+        // ★#905（#816 B-3 落地，2026-08-16）：三类「必须是第一次」显式化（`first_retrace_pair`
+        // 谓词，020:62【正文】）——B 组多中枢散布电池的旧输出含同中枢重复三类（第二/三次回试
+        // 回填，教义禁止），新输出每中枢仅首对一回；摘要翻转是**语义修正**（教义条件补齐），
+        // 非形态变化。oracle（extract_signals_orig）同步填载同条件。历史值：`0xe371_3897_d9bf_978c`
+        // （#905 前）。
+        const GOLDEN: u64 = 0xcb91_2871_4985_4dd5;
         let digest = bit_exact_battery_digest();
         assert_eq!(
             digest, GOLDEN,

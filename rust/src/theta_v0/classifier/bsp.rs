@@ -664,14 +664,16 @@ mod tests {
             // 增集成测试 ⟹ 该点 4359→4548，同条目重登记。
             // 2026-08-16 再位移（七处统一 +2）：#903（6250e6f878）在 signal.rs:528 生产区补 2 行
             // 口径注释 ⟹ 测试区整体下移 2 行；七点逐条重核内容不变（同为测试夹具 source_index
-            // 过滤），同条目重登记。）
-            "theta_v0/classifier/signal.rs:2589",
-            "theta_v0/classifier/signal.rs:2880",
-            "theta_v0/classifier/signal.rs:3252",
-            "theta_v0/classifier/signal.rs:3392",
-            "theta_v0/classifier/signal.rs:3425",
-            "theta_v0/classifier/signal.rs:3681",
-            "theta_v0/classifier/signal.rs:3748",
+            // 过滤），同条目重登记。
+            // 2026-08-16 再位移（七处统一 +9）：#905 三类「第一次」显式化在生产三类枚举环加
+            // first_retrace_pair 条件块 ⟹ 测试区下移（含 rustfmt 折行 -1）；七点逐条重核内容不变，同条目重登记。）
+            "theta_v0/classifier/signal.rs:2597",
+            "theta_v0/classifier/signal.rs:2888",
+            "theta_v0/classifier/signal.rs:3260",
+            "theta_v0/classifier/signal.rs:3400",
+            "theta_v0/classifier/signal.rs:3433",
+            "theta_v0/classifier/signal.rs:3689",
+            "theta_v0/classifier/signal.rs:3756",
             // （2026-08-16 #648 T1：classifier/mod.rs 内联测试 4273 行抽离至 classifier/tests/
             // 主题件 ⟹ 该夹具点同内容随迁 mod.rs:4574 → tests/pipeline_geometry.rs:1565，
             // 重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。）

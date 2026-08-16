@@ -415,6 +415,10 @@ fn detect_type3(
             crate::zhongshu::BreakDir::Down => Direction::Down,
             crate::zhongshu::BreakDir::None => continue,
         };
+        // ★#816 B-3（020:62【正文】「必须是第一次」）：`find_next_seg_by_direction(segs,
+        // break_seg + 1, …)` 取突破后**第一条**反向段 ⟹ 本旧引擎此处是**隐式第一次**回试
+        // 口径（与 #905 在 theta_v0 signal.rs 落的 `first_retrace_pair` 显式谓词同语义；
+        // Lean 锚 `BspClassification.IsType3Sell/Buy.firstRetrace`）。改语义须经 #816 链裁定。
         let pullback = match find_next_seg_by_direction(segs, break_seg + 1, opposite) {
             Some(k) => k,
             None => continue,
