@@ -415,6 +415,70 @@ mod tests {
 
     /// ★#902 对拍锁②：frontier 改写（pop 尾窗 + 回卷重扫）后仍 == 全量重算。
     #[test]
+    /// ★#1019 HIGH 回归锁：评审穷举反例形态——多尾块 + dirty_from=0 全清 + 趋势反转处
+    /// 截尾——增量折叠（含 pop 重折）必须逐字段 == 全量 `operation_decompose`。
+    /// 构造：趋势 run（Up 延续链）→ 反转（Down 链）→ 回叠（盘整）→ frontier 回退
+    /// 到 k=0 / 反转边界 / 尾窗，逐一对拍。
+    #[test]
+    fn operation_resume_pop_shapes_match_full() {
+        // Up 趋势三中枢（[0,10]/[12,20]/[24,32] 外缘分离链）→ Down 反转两中枢 →
+        // 回叠一盘整 → 尾巴（反转边界在 run2 首）。
+        let specs: Vec<(Direction, Tick, Tick)> = vec![
+            (Direction::Up, 0, 10),
+            (Direction::Down, 2, 10),
+            (Direction::Up, 2, 9),
+            (Direction::Up, 12, 20),
+            (Direction::Down, 14, 20),
+            (Direction::Up, 14, 19),
+            (Direction::Up, 24, 32),
+            (Direction::Down, 26, 32),
+            (Direction::Up, 26, 31),
+            (Direction::Down, 30, 40),
+            (Direction::Up, 28, 40),
+            (Direction::Down, 28, 39),
+            (Direction::Up, 12, 20),
+            (Direction::Down, 13, 20),
+            (Direction::Up, 13, 19),
+        ];
+        let seq: Vec<UnitRange> = specs
+            .iter()
+            .enumerate()
+            .map(|(i, &(dir, lo, hi))| u(dir, i, lo, hi))
+            .collect();
+        let mut state = OperationSeqState::default();
+        // 全量喂满 → 多尾块齐备（Up 链 + Down 链 + 盘整尾三块）。
+        let _ = operation_decompose_resume(&seq, center_from_segments, 0, seq.len(), &mut state);
+        // ① dirty_from=0：全清 + 全量重扫（L0 常态证书形态）——逐字段 == 全量。
+        let inc = operation_decompose_resume(&seq, center_from_segments, 0, 0, &mut state);
+        let full = operation_decompose(&seq, center_from_segments, 0);
+        assert_eq!(
+            format!("{inc:?}"),
+            format!("{full:?}"),
+            "dirty_from=0 全清重扫 == 全量"
+        );
+        // ② frontier 收缩到趋势反转边界（第 9 单元）：seq 本身截短（parser 回撤模拟），
+        // 多尾块（Down 链 + 盘整尾）整段弹窗 + 重折——逐字段 == 截短后的全量。
+        let mut seq9 = seq.clone();
+        seq9.truncate(9);
+        let inc = operation_decompose_resume(&seq9, center_from_segments, 0, 9, &mut state);
+        let full = operation_decompose(&seq9, center_from_segments, 0);
+        assert_eq!(
+            format!("{inc:?}"),
+            format!("{full:?}"),
+            "反转边界截尾（seq 收缩）== 全量"
+        );
+        // ③ 再收缩到单中枢尾（6 单元）——趋势块部分覆盖截尾形态。
+        let mut seq6 = seq.clone();
+        seq6.truncate(6);
+        let inc = operation_decompose_resume(&seq6, center_from_segments, 0, 6, &mut state);
+        let full = operation_decompose(&seq6, center_from_segments, 0);
+        assert_eq!(
+            format!("{inc:?}"),
+            format!("{full:?}"),
+            "单中枢尾截断（seq 收缩）== 全量"
+        );
+    }
+
     fn operation_resume_matches_full_after_frontier_rewrite() {
         let base = [
             (Direction::Up, 0, 10),
@@ -507,9 +571,12 @@ pub fn operation_decompose_resume(
         if sealed_next < state.scan_i {
             state.scan_i = sealed_next;
         }
-        // 块同步截断到保留中枢数（部分覆盖块重折其保留段：趋势截尾 ≥2 中枢保形、
-        // 退到 1 中枢则落盘整——与全量折叠对被截关系序列的产物逐位一致）。
-        truncate_blocks(&mut state.blocks, state.centers.len());
+        // ★#1019 HIGH 修复（影子评审坐实 truncate_blocks 与全量折叠不等价——多尾块只弹
+        // 一块、趋势截尾单中枢伪盘整、dirty_from=0 残留悬垂块）：pop 路径改为对保留中枢
+        // **直接重折 fold_operation_blocks**——正确性按构造恢复（它就是全量判据本身）。
+        // pop 是 frontier 事件（稀有、尾部界），O(centers)=百级可接受；append 路径仍走
+        // append_center 增量折叠（O(1)/bar，保 #902 的 O(n²) 规避）。
+        state.blocks = fold_operation_blocks(&state.centers);
     }
     // ② 追加扫描（规则与全量同一）。
     while state.scan_i + 2 < units.len() {
@@ -528,42 +595,6 @@ pub fn operation_decompose_resume(
         centers: state.centers.clone(),
         windows: state.windows.clone(),
         blocks: state.blocks.clone(),
-    }
-}
-
-/// 块截断到保留 `k` 个中枢（frontier 弹窗同步）：弃整出界块；部分覆盖的趋势块截尾
-/// （保留 ≥2 中枢保形、=1 落盘整），与 `fold_operation_blocks` 对截断序列的产物一致。
-fn truncate_blocks(blocks: &mut Vec<MoveBlock>, k: usize) {
-    while let Some(b) = blocks.last() {
-        if b.start_center >= k {
-            blocks.pop();
-        } else if b.end_center >= k {
-            let b = blocks.pop().expect("last 在");
-            let s = b.start_center;
-            let kept = k - s; // 保留中枢数（s..=k-1）
-            if kept >= 2 {
-                blocks.push(MoveBlock {
-                    start_center: s,
-                    end_center: k - 1,
-                    kind: MoveKind::Trend,
-                    dir: b.dir,
-                    status: MoveStatus::Completed,
-                });
-            } else {
-                // 趋势截尾到单中枢 ⟹ 未吸收 ⟹ 盘整块（全量折叠同产物）。
-                blocks.push(MoveBlock {
-                    start_center: k - 1,
-                    end_center: k - 1,
-                    kind: MoveKind::Consolidation,
-                    dir: None,
-                    status: MoveStatus::Completed,
-                });
-            }
-        }
-        break;
-    }
-    if let Some(last) = blocks.last_mut() {
-        last.status = MoveStatus::Active;
     }
 }
 
