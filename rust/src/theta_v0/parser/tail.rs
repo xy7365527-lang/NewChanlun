@@ -277,7 +277,7 @@ mod tests {
             high,
             low,
             close: high,
-            volume: 1,
+            volume: 1.0,
             untradable: false,
         }
     }

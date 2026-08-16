@@ -33,7 +33,7 @@ fn synthetic_bars() -> Vec<Bar> {
                 high,
                 low,
                 close,
-                volume: 1000,
+                volume: 1000.0,
                 untradable: false,
             });
             idx += 1;

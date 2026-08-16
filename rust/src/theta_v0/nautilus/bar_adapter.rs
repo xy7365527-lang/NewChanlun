@@ -48,11 +48,12 @@ pub fn from_nautilus_bar(nb: &NautilusBarLike, source_index: usize, tick_size: f
     let high = quantize(nb.high, tick_size);
     let low = quantize(nb.low, tick_size);
     let close = quantize(nb.close, tick_size);
-    let volume = nb.volume as i64;
+    // #919：f64 直传（不再截断）。
+    let volume = nb.volume as f64;
 
     // untradable：OHLC 完整性（spec:53）。halt/limit 待 venue 状态（TODO）。
     let untradable =
-        volume <= 0 || high < open.max(close).max(low) || low > open.min(close).min(high);
+        volume <= 0.0 || high < open.max(close).max(low) || low > open.min(close).min(high);
 
     Bar {
         source_index,

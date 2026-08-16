@@ -9,7 +9,7 @@ fn mk_bar(idx: usize, close_tick: i64, untradable: bool) -> Bar {
         high: close_tick,
         low: close_tick,
         close: close_tick,
-        volume: 1,
+        volume: 1.0,
         untradable,
     }
 }
@@ -5782,7 +5782,7 @@ fn t3_supplies() -> (
             high: 0,
             low: 0,
             close: 0,
-            volume: 1,
+            volume: 1.0,
             untradable: false,
         })
         .collect();
@@ -6540,7 +6540,7 @@ fn t3_chain_gate_merged_drives_layer_load() {
             high: if i % 2 == 0 { 112 } else { 100 },
             low: if i % 2 == 0 { 100 } else { 88 },
             close: if i % 2 == 0 { 110 } else { 90 },
-            volume: 1,
+            volume: 1.0,
             untradable: false,
         })
         .collect();
@@ -7899,7 +7899,7 @@ fn k_theta_risk_gate_reads_frozen_entry_stop_for_drifted_leg() {
         high: 250,
         low: 100,
         close: 100,
-        volume: 1,
+        volume: 1.0,
         untradable: false,
     };
     let (gate, _mode, stop_seeds) =
@@ -7995,7 +7995,7 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
         high: h,
         low: l,
         close: c,
-        volume: 1,
+        volume: 1.0,
         untradable: false,
     };
 
@@ -8924,7 +8924,7 @@ fn obar(idx: usize, o: i64, h: i64, l: i64, c: i64) -> Bar {
         high: h,
         low: l,
         close: c,
-        volume: 100,
+        volume: 100.0,
         untradable: false,
     }
 }

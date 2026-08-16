@@ -1067,7 +1067,7 @@ fn synthetic_martingale(n: usize, seed: u64, start_tick: i64) -> Dataset {
             high: px,
             low: px,
             close: px,
-            volume: 1,
+            volume: 1.0,
             untradable: false,
         });
     }

@@ -681,6 +681,7 @@ mod tests {
             // 重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。）
             "theta_v0/classifier/tests/pipeline_geometry.rs:1565",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
+            // （2026-08-16 #903/#919 注释与 fmt ⟹ +2 漂移，七处再重锚，内容不变。）
             // （2026-08-16 #993 fixture 修复 ⟹ signal.rs 测试区再位移，七处夹具点重锚，内容不变。
             // 此前 #990 I-2 strokes 参数接线已整体位移一次。）
             // （2026-08-16 #990 I-2 strokes 参数接线 ⟹ signal.rs/mod.rs 测试区整体位移

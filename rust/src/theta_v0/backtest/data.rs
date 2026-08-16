@@ -319,7 +319,7 @@ pub fn load_symbol(
             high: hq,
             low: lq,
             close: cq,
-            volume: v as i64,
+            volume: v as f64, // #919：f64 直存
             untradable,
         });
     }
@@ -463,7 +463,7 @@ mod tests {
                     high: 1,
                     low: 1,
                     close: 1,
-                    volume: 1,
+                    volume: 1.0,
                     untradable: false,
                 })
                 .collect(),
@@ -544,7 +544,7 @@ mod tests {
             high: 1,
             low: 1,
             close: 1,
-            volume: 1,
+            volume: 1.0,
             untradable,
         };
         let ds = Dataset {

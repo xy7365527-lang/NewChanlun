@@ -267,7 +267,7 @@ impl PyThetaStream {
             low: quantize(l, self.tick_size),
             close: quantize(c, self.tick_size),
             // 无 volume 入参 ⟹ 置 1 哨兵（非零 = 不因缺 volume 被标 untradable；数据卫生归 Python 侧）。
-            volume: 1,
+            volume: 1.0,
             untradable,
         }
     }

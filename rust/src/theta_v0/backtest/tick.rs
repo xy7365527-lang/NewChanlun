@@ -172,7 +172,7 @@ fn finalize_feed(
             high: px,
             low: px,
             close: px,
-            volume: t.qty as i64,
+            volume: t.qty as f64, // #919：f64 直存（tick 聚合 bar 不截断小数量）
             untradable: false,
         });
     }
@@ -330,14 +330,9 @@ mod tests {
         );
         assert_eq!(b.timestamp, 1786760105614);
         assert_eq!(b.source_index, 0);
-        assert_eq!(
-            b.volume, 0,
-            "qty=0.00279 的 i64 截断 = 0（对齐 data.rs 口径）"
-        );
-        assert!(
-            !b.untradable,
-            "逐笔成交 qty>0 ⟹ tradable（不用截断后 volume 判）"
-        );
+        // #919 修复见证：f64 直存（旧 i64 截断口径此处为 0）。
+        assert_eq!(b.volume, 0.00279, "qty=0.00279 不再截断（#919）");
+        assert!(!b.untradable, "qty>0 ⟹ tradable");
         assert_eq!(feed.volumes, vec![0.00279]);
     }
 
@@ -388,7 +383,8 @@ mod tests {
         assert_eq!(feed.n_trades(), 1);
         let b = &feed.bars[0];
         assert_eq!(b.timestamp, 1786760404205);
-        assert_eq!(b.volume, 0, "qty=0.00003 截断 = 0");
+        // #919 修复见证：f64 直存不截断（旧 i64 口径此处为 0）。
+        assert_eq!(b.volume, 0.00003, "qty=0.00003 不再截断（#919）");
         assert_eq!(feed.volumes, vec![0.00003]);
     }
 
@@ -400,7 +396,7 @@ mod tests {
         let feed = parse_databento_trades(json, "inline", "ES", &cfg).unwrap();
         assert_eq!(feed.bars[0].timestamp, 1786760404205000000);
         assert_eq!(feed.bars[1].timestamp, 1786760404205000001);
-        assert_eq!(feed.bars[0].volume, 2);
+        assert_eq!(feed.bars[0].volume, 2.0);
     }
 
     /// ★seam 测试（#973 验收第一条）：真实 BTC tick 样本 → 分型/笔/线段/中枢，结构非平凡。

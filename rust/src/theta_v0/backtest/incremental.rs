@@ -201,7 +201,7 @@ mod tests {
                     high: close + 5,
                     low: close - 5,
                     close,
-                    volume: 1000,
+                    volume: 1000.0,
                     untradable: false,
                 }
             })
@@ -268,7 +268,7 @@ mod tests {
                     high: close + 6,
                     low: close - 6,
                     close,
-                    volume: 1000,
+                    volume: 1000.0,
                     untradable: false,
                 }
             })
@@ -470,7 +470,7 @@ mod tests {
                     high: c + 5,
                     low: c - 5,
                     close: c,
-                    volume: 1000,
+                    volume: 1000.0,
                     untradable: false,
                 }
             })
@@ -521,7 +521,7 @@ mod tests {
                     high: close + 5,
                     low: close - 5,
                     close,
-                    volume: 1000,
+                    volume: 1000.0,
                     untradable: false,
                 }
             })
@@ -581,7 +581,7 @@ mod tests {
                 high: close + half,
                 low: close - half,
                 close,
-                volume: 1000,
+                volume: 1000.0,
                 untradable: false,
             });
         }
@@ -596,7 +596,7 @@ mod tests {
                 high: close + 6,
                 low: close - 6,
                 close,
-                volume: 1000,
+                volume: 1000.0,
                 untradable: false,
             });
         }
@@ -701,7 +701,7 @@ mod tests {
             high: close + 7,
             low: close - 7,
             close,
-            volume: 1000,
+            volume: 1000.0,
             untradable: false,
         }
     }

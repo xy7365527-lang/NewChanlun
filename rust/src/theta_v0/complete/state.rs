@@ -40,7 +40,7 @@ use super::super::types::{Bar, Center, MoveKind, Segment, Stroke};
 ///
 /// 三态完全分类：空头/空仓/多头。子声部方向由 `σ_v = σ_r·(-1)^{d(v)}` 递归导出（§8 line 466），
 /// 故根方向是整棵声部树方向的生成元。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RootDirection {
     Short, // σ_r = -1
     Flat,  // σ_r =  0
@@ -62,7 +62,7 @@ impl RootDirection {
 ///
 /// 四态完全分类：空仓/待开/持仓/待平。区别于 `a`（是否激活 bool）：`a` 是**持仓事实**，`ω` 是**订单
 /// 相位**——同一 a=0 可处于「空仓」（无挂单）或「待开」（开仓单已发未成交）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OrderPhase {
     Flat,         // 空仓
     PendingOpen,  // 待开
@@ -76,7 +76,7 @@ pub enum OrderPhase {
 /// - `q : u64`（`q_{v,t} ≥ 0`，FULL line 151：绝对单位数非负——`u64` 类型层强制非负，对齐 Lean `Nat`）。
 /// - `active : bool`（`a_{v,t} ∈ {0,1}`，FULL line 152）。
 /// - `phase : OrderPhase`（`ω_{v,t}`，FULL line 153）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct VoiceState {
     pub q: u64,
     pub active: bool,
@@ -93,7 +93,7 @@ pub struct VoiceState {
 /// 一致性条件（祖先闭合 / 精确同单位 / 方向递归，FULL §9 + §8）作为**可分离谓词**（见
 /// [`VoiceForest::ancestor_closed`] / [`VoiceForest::exact_unit_match`]），不耦进结构构造——对齐
 /// Lean `VoiceForest.ancestorClosed` / `exactUnitMatch`（谓词 def，非结构字段）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct VoiceForest {
     pub voices: Vec<VoiceState>,
     pub parent: Vec<Option<usize>>,
@@ -140,7 +140,7 @@ impl VoiceForest {
 /// 与 Lean 复用的 `Origin.FullDefinitionStrategy.CapitalPhase`（5 态：phaseI/phaseII/repair/
 /// protectedPhase/accretive）逐构造子对齐。★这是完整 5 态，**非** `closed_loop::state::Phase` 的 3 态
 /// 摘要——本模块零遗漏要求完整 5 态（§12 `∑_φ 𝟙[Φ_t=φ]=1` 完全分类）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CapitalPhase {
     PhaseI,         // I 建仓（W<I0 ∧ Y=0 ∧ ¬ReadyReturn）
     PhaseII,        // II 取本（W<I0 ∧ [Y>0 ∨ ReadyReturn]）
@@ -158,7 +158,7 @@ pub use super::super::strategy::ledger::LedgerComp as Ledger;
 ///
 /// 开/平/加/减四类覆盖声部状态机（§10 开平 + §11/§8 加减核心单位）。`add`/`reduce` 带下划线避免与
 /// Rust 关键字/方法名冲突的风格一致。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OrderAction {
     Open,
     Close,
@@ -173,7 +173,7 @@ pub enum OrderAction {
 /// - `voice_index`：归属声部在 [`VoiceForest::voices`] 中的索引（订单总挂在某声部上）。
 /// - `qty : u64`（订单量非负）。
 /// - `submitted_at : i64`（提交时刻 t，因果时间戳）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OpenOrder {
     pub action: OrderAction,
     pub voice_index: usize,
@@ -186,7 +186,7 @@ pub struct OpenOrder {
 /// `Fresh` 谓词的状态载体（§10 line 573 开启谓词含 `Fresh_{v,t}`）：
 /// - `consumed_signals`：已消费信号标识序列（`Fresh` 检查信号是否已在此列表）。
 /// - `last_bar_seen`：结构记忆——最近处理的 bar 序号（单调，因果时间锚）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SignalMemory {
     pub consumed_signals: Vec<i64>,
     pub last_bar_seen: i64,
@@ -199,7 +199,7 @@ pub struct SignalMemory {
 /// - `margin_used`：已占用保证金（§13 `IM_t`/`MM_t` 当前占用值）。
 /// - `venue_open`：交易场所开放/可交易（§13 line 1098）。
 /// - `running`：系统运行状态（halt/正常）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct VenueState {
     pub borrowable: bool,
     pub margin_used: i64,
@@ -219,7 +219,7 @@ pub struct VenueState {
 /// （趋势/盘整），无独立 `Move` struct——本模块**不臆造** `Move` 类型（那是 parser/classifier 层的
 /// owner 职责），用「走势类型 + 起止 source_index」元组真实承载走势（对齐 Lean `ParseStruct` 的 moves
 /// 分量语义，零臆造）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RecStruct {
     pub merged_bars: Vec<Bar>,
     pub strokes: Vec<Stroke>,
@@ -232,7 +232,7 @@ pub struct RecStruct {
 ///
 /// 字段与 Lean `CompleteState` 逐字段对齐（见 Lean 模块的分量对照表）：17 个 FULL 符号 ↦ 14 个字段
 /// （账本 `(Π,A,W,R)` 4 符号 ↦ `ledger` 1 字段，恒等由 [`LedgerComp::inv_holds`] 承载）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CompleteState {
     /// 1. `h_t` 市场历史 `(y_0,…,y_t)`（FULL line 137）。
     pub history: Vec<Bar>,
