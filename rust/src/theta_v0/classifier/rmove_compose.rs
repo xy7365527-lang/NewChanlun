@@ -57,7 +57,9 @@
 //! - ✗ 「第一次回拉」强约束：本文件回拉只约束「m1 之后 i1<i2 + 不创新低」，未强制是紧邻第一个
 //!   回拉（§10.1「相应走势」的强 firstRetrace 留提取层，同 Lean §still-MISSING）。
 
-use super::super::types::{Center, Direction, Side, Tick};
+#[cfg(test)]
+use super::super::types::Direction; // #913：仅测试消费
+use super::super::types::{Center, Side, Tick};
 use super::descend::{descend, sub_level_type1, RMove};
 
 /// ★RMove::Compose 组装构造（port `RMoveCompose.composeMove`，组装算子，descend 的逆）。

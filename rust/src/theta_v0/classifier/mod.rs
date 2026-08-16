@@ -46,8 +46,11 @@
 
 // ★子模块共享 prelude（#648 T2 坐实）：约 30 个子文件以 `use super::*` 消费这些绑定——
 // pub(crate) 保 re-export 计为使用（零 unused 警告），crate 外不可见，公共接口面不变。
+#[cfg(test)]
 pub(crate) use super::config::ThetaConfig;
-pub(crate) use super::types::{Center, Segment, Tick};
+#[cfg(test)]
+pub(crate) use super::types::Segment;
+pub(crate) use super::types::{Center, Tick};
 pub(crate) use divergence::MacdState;
 pub(crate) use std::collections::HashMap;
 pub(crate) use std::rc::Rc;
@@ -133,6 +136,7 @@ pub mod streaming;
 /// cp 召回上界审计、阶段计时插桩、oracle 探针——五者均迁至 [`diag`] 子树，此处 `pub use`
 /// 保原 `classifier::cp_replay_diagnostics` 等路径全仓零变化。
 pub mod diag;
+#[cfg(test)]
 pub(crate) use diag::cand_delta::cache_series_ok;
 pub mod tower_cache;
 pub use diag::cp_replay_diagnostics;
@@ -144,15 +148,17 @@ pub use diag::{
 };
 pub use tower_cache::TowerCache;
 // 测试子树消费（classifier/tests 经 glob 取用；pub(super) 件不可 pub(crate) 再导出，留私有 use）。
+#[cfg(test)]
 use tower_cache::{compute_macd_hist_incremental, update_closes_cache};
 
+#[cfg(test)]
 pub(crate) use super::types::Side;
 pub(crate) use bsp::BspPoint;
 pub(crate) use center::UnitRange;
 pub(crate) use decompose::decompose;
-pub(crate) use recursive_tower::{
-    compose_level, project_to_units, CpScanOwnership, ElementId, LeveledMove, WinMeta,
-};
+#[cfg(test)]
+pub(crate) use recursive_tower::{compose_level, project_to_units, ElementId};
+pub(crate) use recursive_tower::{CpScanOwnership, LeveledMove, WinMeta};
 
 /// 分类管线实现（#648 T2 抽离，纯移动零行为）：`classify*` 入口族 + `LevelState`/`Classification`。
 /// 此处 `pub use` 保 `classifier::Classification` 等公共路径全仓零变化。

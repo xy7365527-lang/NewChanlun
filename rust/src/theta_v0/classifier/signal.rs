@@ -101,7 +101,6 @@ use super::retrace_ledger::{
 };
 use super::rmove_compose::find_second_type_structure;
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 /// 买卖点条目（带结构止损价，single source，见 `bsp::BspPoint`）。
 pub use super::bsp::BspPoint;

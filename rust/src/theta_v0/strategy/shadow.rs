@@ -53,7 +53,9 @@ use std::collections::{HashMap, HashSet};
 
 use super::super::classifier::recursive_tower::ElementId;
 use super::channel::{self, ChannelDecision, ChannelId, ParentKappa, VoiceState, VoiceStepInput};
-use super::coverage::{StepTrace, Vertical, VoiceVerdict};
+#[cfg(test)]
+use super::coverage::VoiceVerdict; // #913：仅测试消费
+use super::coverage::{StepTrace, Vertical};
 use super::interp::{ActiveLeg, Candidate, ExitType, ParentCertificateProjection};
 use super::voice::VoiceSide;
 

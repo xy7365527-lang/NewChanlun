@@ -58,7 +58,9 @@
 //! 趋势/盘整门控判据（中枢同向关系）是 **L0**（纯整数几何，不依赖经验数据）。
 
 use super::super::config::MacdConfig;
-use super::super::types::{Center, Direction, Segment, Side, Stroke, Tick};
+#[cfg(test)]
+use super::super::types::Stroke;
+use super::super::types::{Center, Direction, Segment, Side, Tick};
 
 /// MACD 逐 bar 输出（DIF/DEA/hist，浮点域，隔离在本结构）。
 #[derive(Debug, Clone, PartialEq)]

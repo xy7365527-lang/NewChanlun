@@ -137,10 +137,10 @@ pub use sizing::{
 // ★#755 LEE M4 决策层接线：生产者接线唯一新增消费点（sizing.rs:263-286 doc 点名）。
 pub(crate) use sizing::{clamp_levels_to_weighted_cap, level_cap};
 
-pub(crate) use compose::{
-    pi_theta_step_traced, pi_theta_step_traced_with_risk_seeds, StepTrace, TwStepCtx, VoiceVerdict,
-};
+pub(crate) use compose::{pi_theta_step_traced, pi_theta_step_traced_with_risk_seeds, StepTrace};
 pub use compose::{
     t1_target_residual_probe_bump, t1_target_residual_probe_count, t1_target_zero_probe_bump,
     t1_target_zero_probe_count, t1_target_zero_probe_reset,
 };
+#[cfg(test)]
+pub(crate) use compose::{TwStepCtx, VoiceVerdict}; // #913：仅测试子树消费
