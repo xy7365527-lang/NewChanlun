@@ -1,0 +1,23 @@
+{
+  "defaultProvider": "kimi-coding",
+  "defaultModel": "k3",
+  "mcpServers": {
+    "serena": {
+      "type": "http",
+      "url": "http://127.0.0.1:8017/mcp",
+      "enabled": true
+    },
+    "codebase-memory": {
+      "type": "stdio",
+      "command": "/home/agent/.local/bin/codebase-memory-mcp",
+      "args": []
+    },
+    "cli-hub": {
+      "type": "stdio",
+      "command": "/home/agent/.agents/mcp/cli-hub-mcp/.venv/bin/python",
+      "args": [
+        "/home/agent/.agents/mcp/cli-hub-mcp/server.py"
+      ]
+    }
+  }
+}
