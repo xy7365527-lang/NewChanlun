@@ -374,4 +374,257 @@ mod tests {
         );
         assert_eq!(pre.centers.len(), 3);
     }
+    /// ★#902 对拍锁：增量步进（纯追加）每个前缀 == 全量重算。
+    #[test]
+    fn operation_resume_matches_full_replay_on_appends() {
+        let mut seq: Vec<UnitRange> = Vec::new();
+        // 混合形态：震荡段（盘整）+ 外缘分离上推（趋势 run）+ 回叠（LevelExpansion 盘整+盘整）。
+        let specs = [
+            (Direction::Up, 0, 10),
+            (Direction::Down, 2, 10),
+            (Direction::Up, 2, 9),
+            (Direction::Down, 3, 9),
+            (Direction::Up, 3, 8),
+            (Direction::Down, 4, 8), // 6 段震荡 = 2 盘整中枢
+            (Direction::Up, 12, 20),
+            (Direction::Down, 14, 20),
+            (Direction::Up, 14, 19), // 中枢 B [14,19]（A.gg=10 < B.dd=12：上延续）
+            (Direction::Up, 24, 32),
+            (Direction::Down, 26, 32),
+            (Direction::Up, 26, 31), // 中枢 C [26,31]（再上延续 ⟹ 趋势 run A-B? B-C）
+            (Direction::Up, 15, 21),
+            (Direction::Down, 16, 21),
+            (Direction::Up, 16, 20), // 中枢 D 与 C 外缘重叠 ⟹ LevelExpansion 断链
+        ];
+        let mut state = OperationSeqState::default();
+        for (i, &(dir, lo, hi)) in specs.iter().enumerate() {
+            seq.push(u(dir, i, lo, hi));
+            // 纯追加：全序列视为已 sealed（dirty_from = len）。
+            let inc =
+                operation_decompose_resume(&seq, center_from_segments, 0, seq.len(), &mut state);
+            let full = operation_decompose(&seq, center_from_segments, 0);
+            assert_eq!(
+                format!("{:?}", (inc.centers.len(), &inc.blocks)),
+                format!("{:?}", (full.centers.len(), &full.blocks)),
+                "前缀 {} 增量 == 全量（centers/blocks 逐字段）",
+                i + 1
+            );
+            assert_eq!(inc.windows, full.windows, "前缀 {} 窗口逐位", i + 1);
+        }
+    }
+
+    /// ★#902 对拍锁②：frontier 改写（pop 尾窗 + 回卷重扫）后仍 == 全量重算。
+    #[test]
+    fn operation_resume_matches_full_after_frontier_rewrite() {
+        let base = [
+            (Direction::Up, 0, 10),
+            (Direction::Down, 2, 10),
+            (Direction::Up, 2, 9),
+            (Direction::Down, 3, 9),
+            (Direction::Up, 3, 8),
+            (Direction::Down, 4, 8),
+            (Direction::Up, 12, 20),
+            (Direction::Down, 14, 20),
+            (Direction::Up, 14, 19),
+        ];
+        let mut seq: Vec<UnitRange> = base
+            .iter()
+            .enumerate()
+            .map(|(i, &s)| u(s.0, i, s.1, s.2))
+            .collect();
+        let mut state = OperationSeqState::default();
+        let _ = operation_decompose_resume(&seq, center_from_segments, 0, seq.len(), &mut state);
+        // frontier 改写：末 3 单元被重划（parser frontier 语义模拟）——dirty_from 回退。
+        seq.truncate(6);
+        let _ = operation_decompose_resume(&seq, center_from_segments, 0, 6, &mut state);
+        // 新尾段（与旧尾段不同的形态）追加。
+        for (i, &(dir, lo, hi)) in [
+            (Direction::Up, 30, 40),
+            (Direction::Down, 32, 40),
+            (Direction::Up, 32, 39),
+        ]
+        .iter()
+        .enumerate()
+        {
+            seq.push(u(dir, 6 + i, lo, hi));
+            let inc =
+                operation_decompose_resume(&seq, center_from_segments, 0, seq.len(), &mut state);
+            let full = operation_decompose(&seq, center_from_segments, 0);
+            assert_eq!(
+                format!("{:?}", (&inc.centers, &inc.windows, &inc.blocks)),
+                format!("{:?}", (&full.centers, &full.windows, &full.blocks)),
+                "frontier 改写后追加 {}：增量 == 全量逐字段",
+                i + 1
+            );
+        }
+    }
+}
+
+// ══ #902 增量维护（TowerCache per-bar resume 路径旁路，#881 遗留） ═══════════════════
+
+/// 口径 S 扫描的增量状态（与 `TowerCache` resume/frontier 同生命周期，#885 同批失效纪律）。
+///
+/// 不变量：`centers`/`windows` 1:1 且按窗口起点升序；`blocks` = `fold_operation_blocks(centers)`
+/// 的增量维护形态（尾块 Active 其余 Completed）；`scan_i` = 下一待判位置（其前走步均已判定）。
+/// 扫描规则与全量同一（seed 判据共享 `build` 入参、窗口恒 3 段、成立 `i += 3`、无延伸吸收）。
+#[derive(Debug, Clone, Default)]
+pub struct OperationSeqState {
+    centers: Vec<Center>,
+    windows: Vec<(usize, usize)>,
+    blocks: Vec<MoveBlock>,
+    /// 下一待判扫描位置（< scan_i 的走步均已判定；扫描无记忆，位置即全部状态）。
+    scan_i: usize,
+}
+
+/// 增量口径 S 扫描：frontier 维护 + 追加。与全量 [`operation_decompose`] 的关系：
+/// **任意 frontier 演化序列下，返回的 `OperationSequence` 逐字段 == 对当前 `units` 全量重算**
+/// （对拍锁 `operation_resume_matches_full_replay`）。
+///
+/// - `dirty_from`：本级 units 的不可变前缀长度（与 TowerCache 同一份证书：L0 = parser
+///   前缀、L≥1 = 父级 prefix_count）。读域越界的已产窗口（i+2 ≥ dirty_from）整窗弹出，
+///   `scan_i` 回卷到末保留窗口的 i+3——跳过步在不可变单元上重放同判定，bit-exact；
+/// - 追加：从 `scan_i` 续扫（恒 3 段、成立 `i += 3`），新中枢经关系逐条增量折叠
+///   （趋势 run 延伸/新趋势开块/盘整+盘整，与 `fold_operation_blocks` 同规则）。
+pub fn operation_decompose_resume(
+    units: &[UnitRange],
+    build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
+    level: u32,
+    dirty_from: usize,
+    state: &mut OperationSeqState,
+) -> OperationSequence {
+    // ① frontier 失效：已判定走步可能读过可变单元（保守触发：scan_i 的上一判定位置
+    // 读域 [p, p+2] 与可变区相交）。弹出读域越界窗口并回卷 scan_i——重放段在不可变
+    // 单元上决策不变，跨界段按当前单元重判，与全量重算逐位一致。
+    if state.scan_i + 1 >= dirty_from {
+        while let Some(&(i, _)) = state.windows.last() {
+            if i + 2 < dirty_from {
+                break;
+            }
+            state.windows.pop();
+            state.centers.pop();
+        }
+        let sealed_next = state.windows.last().map(|&(i, _)| i + 3).unwrap_or(0);
+        if sealed_next < state.scan_i {
+            state.scan_i = sealed_next;
+        }
+        // 块同步截断到保留中枢数（部分覆盖块重折其保留段：趋势截尾 ≥2 中枢保形、
+        // 退到 1 中枢则落盘整——与全量折叠对被截关系序列的产物逐位一致）。
+        truncate_blocks(&mut state.blocks, state.centers.len());
+    }
+    // ② 追加扫描（规则与全量同一）。
+    while state.scan_i + 2 < units.len() {
+        let i = state.scan_i;
+        if let Some(c) = build(&units[i], &units[i + 1], &units[i + 2]) {
+            append_center(&mut state.blocks, &state.centers, &c);
+            state.centers.push(c);
+            state.windows.push((i, i + 2));
+            state.scan_i = i + 3;
+        } else {
+            state.scan_i = i + 1;
+        }
+    }
+    OperationSequence {
+        level,
+        centers: state.centers.clone(),
+        windows: state.windows.clone(),
+        blocks: state.blocks.clone(),
+    }
+}
+
+/// 块截断到保留 `k` 个中枢（frontier 弹窗同步）：弃整出界块；部分覆盖的趋势块截尾
+/// （保留 ≥2 中枢保形、=1 落盘整），与 `fold_operation_blocks` 对截断序列的产物一致。
+fn truncate_blocks(blocks: &mut Vec<MoveBlock>, k: usize) {
+    while let Some(b) = blocks.last() {
+        if b.start_center >= k {
+            blocks.pop();
+        } else if b.end_center >= k {
+            let b = blocks.pop().expect("last 在");
+            let s = b.start_center;
+            let kept = k - s; // 保留中枢数（s..=k-1）
+            if kept >= 2 {
+                blocks.push(MoveBlock {
+                    start_center: s,
+                    end_center: k - 1,
+                    kind: MoveKind::Trend,
+                    dir: b.dir,
+                    status: MoveStatus::Completed,
+                });
+            } else {
+                // 趋势截尾到单中枢 ⟹ 未吸收 ⟹ 盘整块（全量折叠同产物）。
+                blocks.push(MoveBlock {
+                    start_center: k - 1,
+                    end_center: k - 1,
+                    kind: MoveKind::Consolidation,
+                    dir: None,
+                    status: MoveStatus::Completed,
+                });
+            }
+        }
+        break;
+    }
+    if let Some(last) = blocks.last_mut() {
+        last.status = MoveStatus::Active;
+    }
+}
+
+/// 新中枢到达的增量折叠（与 `fold_operation_blocks` 同规则的增量形态）：
+/// `existing` = 追加前的中枢序列（尾中枢 c_j），`new` = 新中枢 c_(j+1)；关系 =
+/// `classify_relation(c_j, c_(j+1))`——同向延续：尾趋势块同向则延伸、否则开新趋势块
+/// （尾盘整块被吸收回撤）；LevelExpansion：不合并，新中枢各自单中枢盘整块。
+fn append_center(blocks: &mut Vec<MoveBlock>, existing: &[Center], new: &Center) {
+    if let Some(last) = blocks.last_mut() {
+        last.status = MoveStatus::Completed;
+    }
+    let j1 = existing.len(); // 新中枢下标
+    if j1 == 0 {
+        blocks.push(MoveBlock {
+            start_center: 0,
+            end_center: 0,
+            kind: MoveKind::Consolidation,
+            dir: None,
+            status: MoveStatus::Active,
+        });
+        return;
+    }
+    let r = classify_relation(&existing[j1 - 1], new);
+    let dir = match r {
+        CenterRelation::UpContinuation => Some(Direction::Up),
+        CenterRelation::DownContinuation => Some(Direction::Down),
+        CenterRelation::LevelExpansion => None,
+    };
+    match dir {
+        Some(d) => {
+            let extend = matches!(blocks.last(), Some(b) if b.kind == MoveKind::Trend
+                && b.dir == Some(d) && b.end_center + 1 == j1);
+            if extend {
+                blocks.last_mut().expect("尾块在").end_center = j1;
+            } else {
+                // 尾盘整块 [j,j] 被新趋势吸收（全量折叠下该中枢不落盘整）——撤块。
+                if matches!(blocks.last(), Some(b) if b.kind == MoveKind::Consolidation
+                    && b.start_center + 1 == j1 && b.end_center + 1 == j1)
+                {
+                    blocks.pop();
+                }
+                blocks.push(MoveBlock {
+                    start_center: j1 - 1,
+                    end_center: j1,
+                    kind: MoveKind::Trend,
+                    dir: Some(d),
+                    status: MoveStatus::Completed,
+                });
+            }
+        }
+        None => {
+            blocks.push(MoveBlock {
+                start_center: j1,
+                end_center: j1,
+                kind: MoveKind::Consolidation,
+                dir: None,
+                status: MoveStatus::Completed,
+            });
+        }
+    }
+    if let Some(last) = blocks.last_mut() {
+        last.status = MoveStatus::Active;
+    }
 }

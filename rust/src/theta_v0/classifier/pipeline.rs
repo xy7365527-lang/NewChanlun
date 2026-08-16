@@ -753,6 +753,39 @@ pub fn classify_with_tower_incremental(
     config: &ThetaConfig,
     cache: &mut TowerCache,
 ) -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
+    let (cls, tower, _) = classify_with_tower_incremental_inner(l0, config, cache, &[]);
+    (cls, tower)
+}
+
+/// ★#902：增量塔 + 操作级别旁路（#881 S3 的增量对应物）——挂载级别的口径 S 分解随
+/// TowerCache resume/frontier 同生命周期维护（`operation_decompose_resume`，`LevelCache.
+/// operation_state`，cascade 同批失效），返回各挂载级别的 `OperationSequence`。
+/// 空挂载 = 与 `classify_with_tower_incremental` 逐字节同行为。
+pub fn classify_with_tower_incremental_operations(
+    l0: &ParseLayer,
+    config: &ThetaConfig,
+    cache: &mut TowerCache,
+    operating_levels: &[u32],
+) -> (
+    Classification,
+    Vec<Rc<Vec<LeveledMove>>>,
+    Vec<operation::OperationSequence>,
+) {
+    classify_with_tower_incremental_inner(l0, config, cache, operating_levels)
+}
+
+fn classify_with_tower_incremental_inner(
+    l0: &ParseLayer,
+    config: &ThetaConfig,
+    cache: &mut TowerCache,
+    operating_levels: &[u32],
+) -> (
+    Classification,
+    Vec<Rc<Vec<LeveledMove>>>,
+    Vec<operation::OperationSequence>,
+) {
+    let mounts: std::collections::BTreeSet<u32> = operating_levels.iter().copied().collect();
+    let mut operations: Vec<operation::OperationSequence> = Vec::new();
     let min_parts = config.level.min_parts_per_level as usize;
     let l_max = config.level.l_max as usize;
 
@@ -869,7 +902,7 @@ pub fn classify_with_tower_incremental(
         }
         cache.clear();
         cache.candidate_book.advance(&[], as_of);
-        return (Classification::default(), Vec::new());
+        return (Classification::default(), Vec::new(), Vec::new());
     }
 
     cache.last_l0_segments_len = l0.segments.len();
@@ -1154,6 +1187,7 @@ pub fn classify_with_tower_incremental(
                 Rc::make_mut(&mut lc.cached_bsp).clear();
                 Rc::make_mut(&mut lc.cached_pan_div).clear(); // Q4：与 cached_bsp 同批失效（同 key 守卫）。
                 Rc::make_mut(&mut lc.cached_first_class_grades).clear(); // #885：同批失效（同 key 守卫）。
+                lc.operation_state = Default::default(); // #902：同批失效（同 key 守卫）。
                 lc.cached_bsp_key = None;
                 lc.cached_candidate_key = None;
                 lc.cached_second.clear(); // 07b 门控：前缀重排 ⟹ 前缀 B2 缓存失效，重扫。
@@ -1211,6 +1245,7 @@ pub fn classify_with_tower_incremental(
                 Rc::make_mut(&mut lc.cached_bsp).clear();
                 Rc::make_mut(&mut lc.cached_pan_div).clear();
                 Rc::make_mut(&mut lc.cached_first_class_grades).clear(); // #885：同批失效（同 key 守卫）。
+                lc.operation_state = Default::default(); // #902：同批失效（同 key 守卫）。
                 lc.cached_bsp_key = None;
                 lc.cached_candidate_key = None;
                 let b2_keep = match b2_cut_incl {
@@ -1313,6 +1348,25 @@ pub fn classify_with_tower_incremental(
             lc.cached_second_count,
             prefix_count
         );
+        // ★#902 操作级别挂载点（增量版，ADR 0011 裁定一/六/七同约束）：本级声明为操作级别
+        // ⟹ 口径 S 分解随 resume/frontier 增量维护（旁路只读 `units`、不回流主干，与 #881
+        // 全量钩同位）。`dirty_from` = 本级 units 不可变前缀（§2.4 证书），frontier 弹窗/
+        // 回卷由 `operation_decompose_resume` 内部按同一证书处理。
+        if mounts.contains(&(level_idx as u32)) {
+            let op_build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center> = if is_l0 {
+                center::center_from_segments
+            } else {
+                center::center_from_window
+            };
+            operations.push(operation::operation_decompose_resume(
+                &units,
+                op_build,
+                level_idx as u32,
+                dirty_from,
+                &mut lc.operation_state,
+            ));
+        }
+
         let (tail_centers, tail_upper, mut tail_cp, tail_metas, new_cursor) =
             stage_profile::time("05_compose_resume", || {
                 compose_level_resume(
@@ -1772,7 +1826,7 @@ pub fn classify_with_tower_incremental(
     );
 
     debug_assert_l0_units_in_sync(cache, &tower_snapshots);
-    (Classification { levels }, tower_snapshots)
+    (Classification { levels }, tower_snapshots, operations)
 }
 
 /// ★#613（#609 F2，#712 收 #645 MED-1 随入）：[`TowerCache::level_scan_units`]（level=1，即

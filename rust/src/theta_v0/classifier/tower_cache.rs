@@ -53,6 +53,9 @@ use recursive_tower::WindowScanCursor;
 /// - `decompose_state`：增量走势分解冻结前缀（sealed 关系折出的块，O(1)/bar 续折）。
 #[derive(Debug, Clone, Default)]
 pub(super) struct LevelCache {
+    /// ★#902：口径 S 操作分解的增量旁路状态（操作级别挂载时才推进；与 #885
+    /// `cached_first_class_grades` 同批 cascade 失效）。`Default` = 空态全量扫，血缘自洽。
+    pub(super) operation_state: super::operation::OperationSeqState,
     pub(super) scan_cursor: WindowScanCursor,
     /// 已 compose 的上级走势序列（前缀不可变；尾部续扫追加）。每元素 `RMove::Compose` 携真 subs。
     /// ★O(n) 重构：`Rc` 共享塔——`moves_tower`/`tower_snapshots` 经 `Rc::clone`（O(1) 引用计数）取得，

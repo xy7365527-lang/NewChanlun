@@ -1535,3 +1535,41 @@ fn incremental_tower_scaling_dominates_full_synthetic() {
             sizes[2]
         );
 }
+
+/// ★#902 e2e 对拍锁：增量塔挂载操作级别（`classify_with_tower_incremental_operations`）
+/// 的口径 S 操作序列 == 全量 `classify_with_operations` 逐字段（frontier 逐段生长含
+/// pop/回卷的真实路径——经逐 bar 截断喂入模拟 per-bar resume）。
+#[test]
+fn incremental_operation_bypass_matches_full() {
+    let cfg = ThetaConfig::default();
+    for n in [6usize, 9, 12, 18] {
+        let segments = synthetic_segments(n);
+        let closes: Vec<i64> = (0..(n * 4 + 8) as i64).map(|i| 100 + (i % 5) * 5).collect();
+        let bars = bars_from_closes(&closes);
+        // 全量对照：整段一次算。
+        let layer_full = ParseLayer {
+            segments: Rc::new(segments.clone()),
+            merged_bars: Rc::new(bars.clone()),
+            ..Default::default()
+        };
+        let (_fc, full_ops) = classify_with_operations(&layer_full, &cfg, &[1]);
+        // 增量：逐段截断喂入（每步 = 一个 resume bar）。
+        let mut cache = TowerCache::new();
+        let mut last_ops = Vec::new();
+        for cut in 3..=n {
+            let layer = ParseLayer {
+                segments: Rc::new(segments[..cut].to_vec()),
+                merged_bars: Rc::new(bars.clone()),
+                ..Default::default()
+            };
+            let (_ic, _it, ops) =
+                classify_with_tower_incremental_operations(&layer, &cfg, &mut cache, &[1]);
+            last_ops = ops;
+        }
+        assert_eq!(
+            format!("{last_ops:?}"),
+            format!("{full_ops:?}"),
+            "n={n}: 增量逐段 resume 的 L1 操作序列 == 全量逐字段"
+        );
+    }
+}
