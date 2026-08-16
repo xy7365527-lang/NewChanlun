@@ -222,7 +222,9 @@
 
 **名分标注（不作闸）**：跌破者「一般都构成盘整背驰」（同句原文）——该重合身份（二类 × 盘整背驰）作为**标注**供下游消费，语义归 [区间套的教义正本 #817](https://github.com/xy7365527-lang/NewChanlun/issues/817)；标注不是准入分档（不踩收敛通则）。与 #4 已结算的 L2 确认层条款一致（`027-第27课.md:18`「多数第二、三类买点由盘整背驰构成」= 确认层证据）。
 
-**旧闸**：`rmove_compose.rs` 的 `retrace_no_break` / `no_new_low` 硬闸（#851 查实：原文列为正常三种情况之一的那类被整批判为不存在）——按本裁定拆，实施归 [#884](https://github.com/xy7365527-lang/NewChanlun/issues/884)（S4-c，教义面已由本裁定落地）。
+**旧闸**：`rmove_compose.rs` 的 `retrace_no_break` / `no_new_low` 硬闸（#851 查实：原文列为正常三种情况之一的那类被整批判为不存在）——按本裁定拆，实施归 [#884](https://github.com/xy7365527-lang/NewChanlun/issues/884)（S4-c，教义面已由本裁定落地）。**已落地 = #884**（2026-08-17，见受影响代码清单 T-4/T-5）。
+
+**落地（#884，2026-08-17）**：T-4 拆闸——`find_second_type_structure` 回拉段 = 第一类离开之后首个后继走势（i2 = i1+1，**不问**新不新低）；`no_new_low`/`no_new_high`/`retrace_no_break` 降为几何谓词（仅作标注取值）；重合标注 = `SecondTypeStructure.retrace_breaks_extreme` → `BspPoint.retrace_breaks_type1: Option<bool>`（Some(true)=回拉破一类极值，语义归 #817，不作准入分档）；Lean `RMoveCompose.SecondTypeStructure` 同步拆 `RetraceNoBreak` 合取 + 新增 `RetraceBreaksExtreme` 标注谓词 + `witness_secondTypeStructure_brokeExtreme` 见证（跌破一类仍构成第二类结构）；实测对照：BTC 全史 461 万 bar 普查「跌破一买」类二类点从 0 到有（读数见 #884 resolution）；旧引擎 `buysellpoint.rs` 同闸处置路由归 T-6/673-fix。
 
 **v2 修订（#218）关系**：二类归属锚 = 一类点身份锚是**归属层**裁定（修级别错配），与本裁定不冲突——归属不问跌破与否。
 
@@ -241,8 +243,8 @@
 | T-1 | 对拍/Rust | `rust/tests/theta_v0_classifier_parity.rs:528,:629`（[#811](https://github.com/xy7365527-lang/NewChanlun/issues/811) 两条红）；`bsp.rs`/`signal.rs` 的 `below_last_center` 填充链 | **按 B-1 对齐 Rust 侧背驰语义**（统一含 Extreme 方向），断言转绿。新开实施票 |
 | T-2 | Lean | `formal/Origin/BspClassification.lean:103-104`（`IsType2`）＋ `formal/Origin/SellClosedLoop.lean:368,374-375`（MISSING-D 登记处） | **按 B-2① 补次级别递归**（形态按 map #854 Notes N-2：具名 `Prop` + 显式前件，不用 `axiom`）。新开 Lean 票 |
 | T-3 | Rust | `rust/src/theta_v0/classifier/bsp.rs:86-88`（`is_third`）＋ `rust/src/theta_v0/classifier/signal.rs:590-625`（三类构造链） | **按 B-3 显式化「第一次」**：驱动链已隐含则显式化上锁，没有则补。**已落地 = [#905](https://github.com/xy7365527-lang/NewChanlun/issues/905)**（`first_retrace_pair` 显式谓词 + 锁 + GOLDEN 重锚） |
-| T-4 | Rust | `rust/src/theta_v0/classifier/rmove_compose.rs:160`（`retrace_no_break`）＋ `:80-82`（`no_new_low` 硬闸） | **按 B-2② 拆闸**，实施归 [#884](https://github.com/xy7365527-lang/NewChanlun/issues/884)（教义面已落地） |
-| T-5 | 三侧追认 | `rmove_compose.rs:144-170`、`descend.rs:176-191`、`bsp.rs:78-80`；Lean `BspClassification.lean:94-95,:111-121`；`buysellpoint.rs:186-209` | 与裁定同形，注释口径对齐（带 #816 票号） |
+| T-4 | Rust | `rust/src/theta_v0/classifier/rmove_compose.rs:160`（`retrace_no_break`）＋ `:80-82`（`no_new_low` 硬闸） | **按 B-2② 拆闸**，实施归 [#884](https://github.com/xy7365527-lang/NewChanlun/issues/884)（教义面已落地）。**已落地 = #884**（2026-08-17）：`retrace_no_break` 硬闸拆除，回拉段 = 首个后继走势（不问新不新低）；`SecondTypeStructure.retrace_breaks_extreme` + `BspPoint.retrace_breaks_type1: Option<bool>` 重合标注（不作准入分档，语义归 #817）；Lean `RMoveCompose.SecondTypeStructure` 同步拆 `RetraceNoBreak` 合取 + 新增 `RetraceBreaksExtreme` 标注谓词与 `witness_secondTypeStructure_brokeExtreme` 见证；旧引擎 `buysellpoint.rs` 同闸处置路由归 T-6/673-fix（见下） |
+| T-5 | 三侧追认 | `rmove_compose.rs:144-170`、`descend.rs:176-191`、`bsp.rs:78-80`；Lean `BspClassification.lean:94-95,:111-121`；`buysellpoint.rs:186-209` | 与裁定同形，注释口径对齐（带 #816 票号）。**已落地 = #884**（2026-08-17）：三处 Rust 与 `BspClassification.IsType2` 注释已带 #816 票号对齐；`buysellpoint.rs` 的 `make_type2_point` `geom` 合取（现 `:262-268`，清单行号已漂）加 #816 B-2② 注释并明记处置路由归 T-6/673-fix（旧引擎逐位等价 Python 侧，T-6 未落地前两侧同拍不改判据） |
 | T-6 | Python | `src/newchan/a_buysellpoint_v1.py` | Type1 只收 `trend` 已对齐；Type2 确认层接口拆分（673-fix/task #33）与 B-2② 的关系明记于该票 |
 
 ---
