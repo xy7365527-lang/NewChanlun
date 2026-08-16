@@ -56,16 +56,29 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
 
   // Phase 1: Plan
-  const plan = await sandcastle.run({
+  // 用 createSandbox 而非顶层 run()：顶层 run（merge-to-head）在本仓 clone/多远端
+  // 环境下实测 agent 进程 ~11s 被 SIGKILL（exit 137，在案未决怪癖，见 #1009）；
+  // createSandbox 路径两段式全程验证过。planner 无产出，分支随关随弃。
+  const planSandbox = await sandcastle.createSandbox({
+    branch: `sandcastle/plan-${Date.now()}`,
+    baseBranch: "main",
     sandbox: docker({ imageName: IMAGE }),
-    name: "planner",
-    maxIterations: 1, // structured output 硬要求
-    agent: primeAgent(PLANNER_MODEL, { provider: PROVIDER }),
-    promptFile: "./.sandcastle/plan-prompt.md",
-    output: sandcastle.Output.object({ tag: "plan", schema: planSchema }),
   });
-
-  const issues: Array<{ id: string; title: string; branch: string }> = plan.output.issues;
+  let issues: Array<{ id: string; title: string; branch: string }>;
+  try {
+    // 注：sandbox.run 不支持 Output.object（顶层 run 才支持），手动从 stdout 解析 <plan>。
+    const plan = await planSandbox.run({
+      name: "planner",
+      maxIterations: 1,
+      agent: primeAgent(PLANNER_MODEL, { provider: PROVIDER }),
+      promptFile: "./.sandcastle/plan-prompt.md",
+    });
+    const m = plan.stdout.match(/<plan>([\s\S]*?)<\/plan>/);
+    if (!m) throw new Error("planner 未输出 <plan> 标签");
+    issues = planSchema.parse(JSON.parse(m[1])).issues;
+  } finally {
+    await planSandbox.close();
+  }
   if (issues.length === 0) {
     console.log("无可并行 issue，停。");
     break;
