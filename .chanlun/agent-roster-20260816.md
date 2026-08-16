@@ -1,3 +1,4 @@
 - [x] 2026-08-16 16:29–16:47 | codex（GPT-5.6 Sol，read-only）| map #974/G4 前置：力度「微积分化」论证链对抗验证（P1–P4）| 完成：P1–P3 证成，P4 挖出稳态假设/生产口径=TV/唯一性未证三发现；报告归档 .chanlun/review-results/force-calculus-codex-adversarial-20260816.md；开票 #985
 - [x] 2026-08-16 17:00–17:40 | 本体直办（GLM-5.3）| map #974 走图收官：G1/G4/G2/G3 四票裁定落盘 + beichi.md 升 v1.6 + TV 对照探针 p985 + SPEC #987 交棒（实施票 #988–#992，依赖图随 spec）| 完成：图 #974 关闭，雾清空，goal complete
 - [x] 2026-08-16 17:40–19:30 | 本体直办（GLM-5.3）| SPEC #987 实施链 I-0→I-4 全落地（#988/#989/#990/#991/#992 五票全关，spec #987 关）| 完成：同色化+反查载体+ForceL 默认判据+退役清理+真口径差集读数；cargo test 2684/1（唯一红预存）；4 提交在 main，镜像未推（人裁项 #909）
+- [x] 2026-08-16 19:30–21:00 | 本体直办（GLM-5.3）| #993 parity 两预存红根因追杀 + CI 全绿收口 | 完成：根因 = #607 D2 大闸与旧 fixture 语义冲突（THETA_T3INC_SKIP=1 反证坐实）；fixture 按 T3-in-c 首对重制；doc-test U+2212 围栏化；CI backtest 步三轮爆盘根修（--all-targets→--lib，56 bin×nautilus=55G）；**CI 三 job 全绿**（run 31927177665，#457 以来首绿）；#993 关票
