@@ -1942,7 +1942,7 @@ mod tests {
     fn reduce_sizing_uses_frozen_snapshot_not_current_units() {
         let mut book = CampaignBook::new();
         book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // 快照 300
-        // 当时持仓涨到 600（外部加仓后 sync）——reduce 仍按快照 300/3=100。
+                                                                         // 当时持仓涨到 600（外部加仓后 sync）——reduce 仍按快照 300/3=100。
         book.sync_position(0, VoiceSide::Long, snapshot(600, 6_000), 5);
         let outcome = book
             .apply_action(

@@ -528,6 +528,8 @@ pub(crate) fn judge_first_cached(
         left_center: false, // 第一类是破中枢趋势背驰，非第三类的离开后回抽
         retrace_not_reenter: false,
         below_last_center: diverged && t3_in_c_present, // #607 D2：背驰 ∧ T3-in-c Present 才置一类端点语义
+        // #816 B-1（#903 落实）：一类点判据 = 破中枢 ∧ 背驰——diverged 的口径即统一背驰判据
+        //（beichi.md #814 正本；次级别含 Extreme；MACD 同色为辅助测量，默认 ForceL 教义档 #990）。
         is_sell_side: is_sell,
     };
     let bits = endpoint_to_bsp(&situ);
