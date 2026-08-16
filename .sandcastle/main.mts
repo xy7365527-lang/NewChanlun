@@ -15,21 +15,33 @@ const REVIEWER_MODEL = "k3";
 const PROVIDER = "kimi-coding";
 const MAX_ITERATIONS = 1;
 
-// ── frontier 查询（host 侧）：open + ready-for-agent + 未 assign ──────────
-// 已知简化：blocking 边靠 ready-for-agent 的打标纪律兜（票内查询未吃原生依赖边），
-// prompt 定稿时（#1005）补 per-issue GraphQL blocker 过滤。
+// ── frontier 查询（host 侧）：open + sandcastle label + 未 assign + 无 open blocker ──
+// blocker 过滤吃 tracker 原生依赖边（#1005 补齐；与 prompt 层判定叠加，#1007 裁 3）。
+const GH_CLEAN_ENV = {
+  ...process.env,
+  // gh 在 FORCE_COLOR 环境下会给 --json 输出染色，必须洗掉
+  NO_COLOR: "1", CLICOLOR: "0", FORCE_COLOR: "0", CLICOLOR_FORCE: "0",
+};
+
+function hasOpenBlocker(issue: number): boolean {
+  const out = execSync(
+    `gh api repos/{owner}/{repo}/issues/${issue} --jq .issue_dependencies_summary.blocked_by`,
+    { encoding: "utf8", env: GH_CLEAN_ENV },
+  ).trim();
+  return Number(out) > 0;
+}
+
 function pickIssue(): number | null {
   const out = execSync(
     `gh issue list --label sandcastle --state open --limit 20 --json number,assignees`,
-    {
-      encoding: "utf8",
-      // gh 在 FORCE_COLOR 环境下会给 --json 输出染色，必须洗掉
-      env: { ...process.env, NO_COLOR: "1", CLICOLOR: "0", FORCE_COLOR: "0", CLICOLOR_FORCE: "0" },
-    },
+    { encoding: "utf8", env: GH_CLEAN_ENV },
   );
   const open = (JSON.parse(out) as Array<{ number: number; assignees: unknown[] }>)
     .filter((i) => i.assignees.length === 0);
-  return open.length ? open[0].number : null;
+  for (const i of open) {
+    if (!hasOpenBlocker(i.number)) return i.number;
+  }
+  return null;
 }
 
 for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
