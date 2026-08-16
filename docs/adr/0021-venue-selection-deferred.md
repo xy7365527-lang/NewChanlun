@@ -70,6 +70,7 @@
 1. **要上实盘** —— 这是主条件。届时需重跑 [#942](https://github.com/xy7365527-lang/NewChanlun/issues/942) 未做的第 1／3／4／5 问，且**必须解决凭证约束**（用主钱包激活 testnet 地址 ＋ API wallet，或接受主网最小额实测）
 2. **`recursive_t` 执刀完成** —— [#951](https://github.com/xy7365527-lang/NewChanlun/issues/951) 关闭后生产正本确定，[ADR 0020](0020-backtest-cash-live-perp-filtered.md)「实盘喂 C」才说得清喂的是哪一套
 3. **Hyperliquid 或 Binance 的隔离机制发生变更** —— 尤其 HIP-3 规范对部署者权力的约束（时间锁／赔付／限速）若增补，裁定三整表要重看
+4. **★账目与执行切换件（#937 四裁，2026-08-17）** —— 本 ADR 任一重启条件触发时，**同步执行**已裁未生效的三件：① 验收口径净→毛（[#937](https://github.com/xy7365527-lang/NewChanlun/issues/937) 问 1 条件式）；② `VOICE_EXEC` 臂从 `#[cfg(test)]` 提为生产门 + `sep_legs` 从只读镜像转记账主源——**两件一次性切换，不留中间态**（#937 问 4，#799）；③ `买卖点alpha2.pdf` p22-24 名分激活为 §11 对账分账本侧的数学正当性来源（问 2，完全对冲点例外）。**记忆载体就是本条**——重启时读 ADR 0021 必读裁定五，四裁自动带出
 
 ## 有效域（引本 ADR 必须一并引）
 
@@ -86,7 +87,7 @@
 | Binance 侧三问（TradFi 协议签署等） | **已部分实测（2026-08-08，[#932](https://github.com/xy7365527-lang/NewChanlun/issues/932) 第二程，见下「★ 2026-08-08 补测」）**；残项挂 [#953](https://github.com/xy7365527-lang/NewChanlun/issues/953)，实际待办已从「开 key」变为「**网页端开通子账户功能**」 |
 | ADR 0020 裁定二重裁 | **挂 [#946](https://github.com/xy7365527-lang/NewChanlun/issues/946)**，等 [#951](https://github.com/xy7365527-lang/NewChanlun/issues/951) 定生产正本 |
 | 冲击成本跨周采样 | **挂 [#933](https://github.com/xy7365527-lang/NewChanlun/issues/933)**，票保持 open，**搁置至有实盘需求** |
-| 逐笔独立之后账怎么记 | **挂 [#937](https://github.com/xy7365527-lang/NewChanlun/issues/937)**，**搁置至场所选定重启** |
+| 逐笔独立之后账怎么记 | **[#937](https://github.com/xy7365527-lang/NewChanlun/issues/937) 四问已全裁（2026-08-17，条件式）**——生效挂本 ADR 裁定五第 4 条触发器 |
 | Binance 子账户实测 | **挂 [#932](https://github.com/xy7365527-lang/NewChanlun/issues/932)**，**搁置**（场所倾向已定，优先级最低） |
 | NT 适配层多场所抽象边界 | **搁置，无人跟进** —— 待 #951 定正本后才谈得上 |
 | 单一 builder DEX 敞口上限 | **搁置，无人跟进** —— 编排者 2026-08-08：「可以很多，这个看情况」，无实盘需求故不定 |
