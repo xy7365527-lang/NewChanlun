@@ -240,7 +240,7 @@
 |---|---|---|---|
 | T-1 | 对拍/Rust | `rust/tests/theta_v0_classifier_parity.rs:528,:629`（[#811](https://github.com/xy7365527-lang/NewChanlun/issues/811) 两条红）；`bsp.rs`/`signal.rs` 的 `below_last_center` 填充链 | **按 B-1 对齐 Rust 侧背驰语义**（统一含 Extreme 方向），断言转绿。新开实施票 |
 | T-2 | Lean | `formal/Origin/BspClassification.lean:103-104`（`IsType2`）＋ `formal/Origin/SellClosedLoop.lean:368,374-375`（MISSING-D 登记处） | **按 B-2① 补次级别递归**（形态按 map #854 Notes N-2：具名 `Prop` + 显式前件，不用 `axiom`）。新开 Lean 票 |
-| T-3 | Rust | `rust/src/theta_v0/classifier/bsp.rs:86-88`（`is_third`）＋ `rust/src/theta_v0/classifier/signal.rs:590-625`（三类构造链） | **按 B-3 显式化「第一次」**：驱动链已隐含则显式化上锁，没有则补。新开小票 |
+| T-3 | Rust | `rust/src/theta_v0/classifier/bsp.rs:86-88`（`is_third`）＋ `rust/src/theta_v0/classifier/signal.rs:590-625`（三类构造链） | **按 B-3 显式化「第一次」**：驱动链已隐含则显式化上锁，没有则补。**已落地 = [#905](https://github.com/xy7365527-lang/NewChanlun/issues/905)**（`first_retrace_pair` 显式谓词 + 锁 + GOLDEN 重锚） |
 | T-4 | Rust | `rust/src/theta_v0/classifier/rmove_compose.rs:160`（`retrace_no_break`）＋ `:80-82`（`no_new_low` 硬闸） | **按 B-2② 拆闸**，实施归 [#884](https://github.com/xy7365527-lang/NewChanlun/issues/884)（教义面已落地） |
 | T-5 | 三侧追认 | `rmove_compose.rs:144-170`、`descend.rs:176-191`、`bsp.rs:78-80`；Lean `BspClassification.lean:94-95,:111-121`；`buysellpoint.rs:186-209` | 与裁定同形，注释口径对齐（带 #816 票号） |
 | T-6 | Python | `src/newchan/a_buysellpoint_v1.py` | Type1 只收 `trend` 已对齐；Type2 确认层接口拆分（673-fix/task #33）与 B-2② 的关系明记于该票 |

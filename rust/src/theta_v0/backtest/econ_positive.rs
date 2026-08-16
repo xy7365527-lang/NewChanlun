@@ -6487,8 +6487,8 @@ mod tests {
             Ok(d) => d,
             Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
         };
-        let n_full = ds_full.bars.len();
-        // #399：骨架收敛至共享 helper（mod tests 顶部），行为不变。
+        let _ = ds_full.bars.len(); // #399 收敛后 n_full 不再被本点消费（评审 #995 C-2 消警）
+                                    // #399：骨架收敛至共享 helper（mod tests 顶部），行为不变。
         let max_bars = econ_l2_max_bars();
         let ds = truncate_tail_bars(ds_full, max_bars);
         let win_start = ds
