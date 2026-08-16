@@ -725,7 +725,6 @@ mod tests {
             dif_peak: 2.0 * s,
             price_amplitude: (100.0 * s) as i64,
             price_speed: 5.0 * s,
-            tv: (150.0 * s) as i64,
         };
         let mut c = Candidate {
             level: 0,

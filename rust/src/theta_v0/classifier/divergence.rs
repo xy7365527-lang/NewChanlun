@@ -423,8 +423,7 @@ pub struct ForceFeatures {
     pub price_amplitude: i64,
     /// 价格速度 |端价差|/Δbar（f64，单位时间价格变动）。
     pub price_speed: f64,
-    /// 段全变差 TV = Σ|P_{t+1}−P_t|（原文 §5 p6 𝒜_ℓ 成员；整数 tick 域，路径长度 ≥ |端价差|）。
-    pub tv: i64,
+    // #994：tv（全变差）字段已处决删除——出处与依据见 beichi.md v1.7。
 }
 
 /// A/C 段力度 proxy 对（趋势背驰的两段并置——`Weak_Θ(seg_a, seg_c)` 用它比较）。
@@ -475,7 +474,9 @@ impl ForceProxies {
     /// `<`/`>`，与 `is_divergence` 同「等值不算衰减」口径）。
     pub fn force_state(&self) -> ForceStateA5 {
         let (a, c) = (&self.seg_a, &self.seg_c);
-        // 五 proxy 的 (c<a, c>a) 布尔对。amplitude/tv 为 i64，比较前统一到同类型无损。
+        // 四 proxy 的 (c<a, c>a) 布尔对（#994：TV 第 5 维已处决——非缠师概念，
+        // 关于背驰.pdf 𝒜_ℓ 兜底被 #873 精确定义取代；枚举名 A5 保留不改，
+        // 值域=4-proxy 支配序）。
         let cmps = [
             (c.macd_area < a.macd_area, c.macd_area > a.macd_area),
             (c.dif_peak < a.dif_peak, c.dif_peak > a.dif_peak),
@@ -484,7 +485,6 @@ impl ForceProxies {
                 c.price_amplitude > a.price_amplitude,
             ),
             (c.price_speed < a.price_speed, c.price_speed > a.price_speed),
-            (c.tv < a.tv, c.tv > a.tv),
         ];
         let weaker = cmps.iter().any(|&(lt, _)| lt);
         let stronger = cmps.iter().any(|&(_, gt)| gt);
@@ -691,19 +691,7 @@ pub fn segment_price_speed(closes: &[Tick], start: usize, end: usize) -> f64 {
     amp / span
 }
 
-/// 段全变差 TV = Σ|closes[t+1]−closes[t]|，t∈[start,end)（原文 §5 p6 `TV=Σ|P_{t+1}−P_t|`）。
-///
-/// 与振幅的差：振幅只看端点差，TV 累积路径长度（TV ≥ |端价差|，段内折返越多 TV 越大）。
-/// 越界/单点段 ⟹ 0。整数 tick 域（无浮点）。
-pub fn segment_total_variation(closes: &[Tick], start: usize, end: usize) -> i64 {
-    if start >= end || end >= closes.len() {
-        return 0;
-    }
-    closes[start..=end]
-        .windows(2)
-        .map(|w| (w[1] - w[0]).abs())
-        .sum()
-}
+// #994：segment_total_variation（全变差原语）已处决删除——TV 非力度（beichi.md v1.7）。
 
 /// 从段区间算全部力度 proxy（`ForceFeatures`）——MACD 面积 + DIF 峰值 + 价格振幅 + 速度 + TV。
 ///
@@ -722,7 +710,7 @@ pub fn force_features(
         dif_peak: segment_dif_peak(dif, start, end, direction),
         price_amplitude: segment_price_amplitude(closes, start, end),
         price_speed: segment_price_speed(closes, start, end),
-        tv: segment_total_variation(closes, start, end),
+
     }
 }
 
@@ -1494,19 +1482,15 @@ mod tests {
         assert_eq!(segment_price_amplitude(&closes, 0, 9), 0);
         assert_eq!(segment_price_speed(&closes, 0, 9), 0.0);
         // TV = 20+30+60 = 110（路径长度 > 端点差 50——折返段被计入）。
-        assert_eq!(segment_total_variation(&closes, 0, 3), 110);
-        assert_eq!(segment_total_variation(&closes, 0, 9), 0);
-        assert_eq!(segment_total_variation(&closes, 2, 2), 0);
     }
 
     fn ff(area: f64, dif: f64, amp: i64, speed: f64) -> ForceFeatures {
-        // tv 默认随振幅（单调一致，不给既有支配序测试引入额外冲突维）。
+        // #994：tv 维已处决删除。
         ForceFeatures {
             macd_area: area,
             dif_peak: dif,
             price_amplitude: amp,
             price_speed: speed,
-            tv: amp,
         }
     }
 
@@ -1761,7 +1745,6 @@ mod tests {
         assert_eq!(a.macd_area, 3.0);
         assert_eq!(a.dif_peak, 4.0); // up 段 max(dif[0..=1])=max(2,4)=4
         assert_eq!(a.price_amplitude, 10); // |110−100|
-        assert_eq!(a.tv, 10); // Σ|Δ| = |110−100|（单跳段 TV=振幅）
                               // Weak_Θ Lex：A=[0,1] vs C=[2,3]（C.dif_peak=max(1,0.5)=1<A.dif=4 ⟹ Weak）。
         let c = force_features(&hist, &dif, &closes, 2, 3, Direction::Up);
         assert!(

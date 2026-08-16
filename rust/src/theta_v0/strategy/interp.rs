@@ -1789,7 +1789,6 @@ mod tests {
             dif_peak: 1.5 * s,
             price_amplitude: (60.0 * s) as i64,
             price_speed: 3.0 * s,
-            tv: (90.0 * s) as i64,
         };
         let fp = ForceProxies {
             seg_a: ff(1.0),
