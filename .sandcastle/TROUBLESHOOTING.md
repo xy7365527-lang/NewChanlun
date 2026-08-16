@@ -7,7 +7,7 @@
 
 - **症状**：在 `/tmp` 下的目录里跑 sandcastle，容器内看不到 worktree（bind-mount 挂载失败或挂空）。
 - **成因**：本机容器运行时是 colima（brew formula，免管理员密码，#996 用它替代票面的 Docker Desktop），其 VM 默认只把 `/Users` 挂进虚拟机；`/tmp` 在 VM 里不可见，docker bind-mount 自然拿不到宿主文件。
-- **对策**：sandcastle 的运行落点（仓 checkout / worktree 父目录）必须在 `/Users` 之下。改 Dockerfile 等不涉及；这是运行位置约束。（#1008 事故 2，已写进 README 口径；colima 选型见 #996）
+- **对策**：sandcastle 的运行落点（仓 checkout / worktree 父目录）必须在 `/Users` 之下。改 Dockerfile 等不涉及；这是运行位置约束。（#1008 事故 2；colima 选型见 #996。README 只记了 colima 前置，/Users 落点约束以本节为准）
 
 ## 2. `gh --json` 在 FORCE_COLOR 下输出染色，JSON 解析炸
 
