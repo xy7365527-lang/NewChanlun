@@ -20,7 +20,7 @@ const MAX_ITERATIONS = 1;
 // prompt 定稿时（#1005）补 per-issue GraphQL blocker 过滤。
 function pickIssue(): number | null {
   const out = execSync(
-    `gh issue list --label ready-for-agent --state open --limit 20 --json number,assignees`,
+    `gh issue list --label sandcastle --state open --limit 20 --json number,assignees`,
     {
       encoding: "utf8",
       // gh 在 FORCE_COLOR 环境下会给 --json 输出染色，必须洗掉
@@ -39,8 +39,8 @@ for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
     break;
   }
 
-  // 认领（#1007 裁 3）：摘 ready-for-agent + assign @me
-  execSync(`gh issue edit ${issue} --remove-label ready-for-agent --add-assignee @me`);
+  // 认领（#1007 裁 3 + #1013 抢票教训）：摘 sandcastle + assign @me；拾取闸用专属 label，不碰 ready-for-agent 共享面
+  execSync(`gh issue edit ${issue} --remove-label sandcastle --add-assignee @me`);
   const branch = `sandcastle/issue-${issue}`;
   console.log(`\n=== Iteration ${iter}/${MAX_ITERATIONS}: issue #${issue} → ${branch} ===\n`);
 
@@ -70,7 +70,7 @@ for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
       maxIterations: 1,
       agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
       promptFile: "./.sandcastle/review-prompt.md",
-      promptArgs: { BRANCH: branch, TARGET_BRANCH: "main", ISSUE_NUMBER: String(issue) },
+      promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
     });
     console.log(`两段完成：${branch} 待验收合入（人工闸）。`);
   } finally {
