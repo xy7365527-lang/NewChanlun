@@ -26,6 +26,7 @@ const IMAGE = "sandcastle:newchanlun";
 const GH_CLEAN_ENV = {
   ...process.env,
   NO_COLOR: "1", CLICOLOR: "0", FORCE_COLOR: "0", CLICOLOR_FORCE: "0",
+  GH_REPO: "xy7365527-lang/NewChanlun", // origin 可能是本地路径（clone 场景），gh 靠它认仓
 };
 
 const planSchema = z.object({
