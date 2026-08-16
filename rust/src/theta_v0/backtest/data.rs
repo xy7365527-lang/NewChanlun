@@ -250,7 +250,7 @@ pub fn load_symbol(
     }
 
     let tick_size = config.tick.tick_size;
-    let mut bars = Vec::with_capacity(n);
+    let mut bars: Vec<Bar> = Vec::with_capacity(n);
     for i in 0..n {
         let o = raw.opens[i];
         let h = raw.highs[i];
@@ -263,23 +263,53 @@ pub fn load_symbol(
         // 坏 bar 用前一根 close 填充价格（保序列连续，但标 untradable 不在其上成交）；
         // 首根坏 bar 无前值时用 0（量化后 tick=0，untradable 已标注，执行层不触碰）。
         let valid_ohlc = matches!((o, h, l, c), (Some(_), Some(_), Some(_), Some(_)));
-        let (oq, hq, lq, cq, untradable) =
-            if let (Some(o), Some(h), Some(l), Some(c)) = (o, h, l, c) {
-                let bad_range = h < o.max(c).max(l) || l > o.min(c).min(h);
-                let bad_price = o <= 0.0 || h <= 0.0 || l <= 0.0 || c <= 0.0;
-                let untradable = bad_range || bad_price || v <= 0.0;
-                (
-                    quantize(o, tick_size),
-                    quantize(h, tick_size),
-                    quantize(l, tick_size),
-                    quantize(c, tick_size),
-                    untradable,
-                )
-            } else {
-                // 缺 OHLC：用前一根 close 占位（连续性），标 untradable。
-                let prev = bars.last().map(|b: &Bar| b.close).unwrap_or(0);
-                (prev, prev, prev, prev, true)
-            };
+        let (oq, hq, lq, cq, untradable) = if let (Some(o), Some(h), Some(l), Some(c)) =
+            (o, h, l, c)
+        {
+            let bad_range = h < o.max(c).max(l) || l > o.min(c).min(h);
+            let bad_price = o <= 0.0 || h <= 0.0 || l <= 0.0 || c <= 0.0;
+            let mut untradable = bad_range || bad_price || v <= 0.0;
+            let (mut oq, mut hq, mut lq, mut cq) = (
+                quantize(o, tick_size),
+                quantize(h, tick_size),
+                quantize(l, tick_size),
+                quantize(c, tick_size),
+            );
+            // ★#922 坏 tick 闸：bar 四价对**前收（已净化）**的最大偏离 > 80% ⟹ 数据损坏
+            // （价格坍缩至近零的坏 print），按缺 OHLC 同款处置——前收填充 + untradable，
+            // 统计层（σ_GK 等）与执行层都不再见到坏值。对净化前收比较 ⟹ 坏 tick 次根的
+            // 正常回弹不被误伤（BRN 2024-02-19 17:42 实证）。
+            // 阈值依据（全品种存量扫描，chanlun/review-results/issue922-bad-tick-scan-20260816.md）：
+            // 合法极端 ≤0.40x（CL 2020-04 负油价时代、BRN 2019-09 沙特遇袭跳空）；
+            // 坏 tick ≥0.999x（坍缩近零）——空档 (0.40, 0.999) 取 0.80，双侧余量 ≥2×。
+            if !untradable {
+                if let Some(prev) = bars.last() {
+                    if prev.close > 0 {
+                        let pc = prev.close;
+                        let max_dev = [oq, hq, lq, cq]
+                            .iter()
+                            .map(|q| (*q - pc).unsigned_abs() as f64 / pc as f64)
+                            .fold(0.0_f64, f64::max);
+                        if max_dev > 0.80 {
+                            eprintln!(
+                                    "[data] #922 坏 tick 闸：{symbol} bar#{i}（{}）四价对前收偏离 {max_dev:.2}x > 0.80——前收填充 + untradable",
+                                    raw.dates[i]
+                                );
+                            untradable = true;
+                            oq = pc;
+                            hq = pc;
+                            lq = pc;
+                            cq = pc;
+                        }
+                    }
+                }
+            }
+            (oq, hq, lq, cq, untradable)
+        } else {
+            // 缺 OHLC：用前一根 close 占位（连续性），标 untradable。
+            let prev = bars.last().map(|b: &Bar| b.close).unwrap_or(0);
+            (prev, prev, prev, prev, true)
+        };
         let _ = valid_ohlc; // 语义已并入上面的 if let
 
         bars.push(Bar {
@@ -524,5 +554,53 @@ mod tests {
             bar_seconds: 60,
         };
         assert!((ds.untradable_ratio() - 0.5).abs() < 1e-12, "2/4 不可交易");
+    }
+
+    /// ★#922 坏 tick 闸：四价对前收（净化后）偏离 >80% ⟹ 前收填充 + untradable；
+    /// 合法极端（30% 跳空）不拦；坏 tick 次根的正常回弹不误伤（BRN 2024-02-19 构型）。
+    #[test]
+    fn bad_tick_gate_fills_and_marks_untradable() {
+        let dir = std::env::temp_dir().join("issue922_bad_tick_test.json");
+        let json = r#"{
+            "opens":  [83.0, 83.5, 0.08, 83.56, 110.0],
+            "highs":  [83.1, 83.6, 0.08, 83.60, 110.5],
+            "lows":   [82.9, 83.4, 0.08, 83.50, 109.5],
+            "closes": [83.0, 83.56, 0.08, 83.59, 110.2],
+            "volumes":[100.0, 100.0, 100.0, 100.0, 100.0],
+            "dates":  ["2024-01-01 00:00:00+00:00","2024-01-01 00:01:00+00:00","2024-01-01 00:02:00+00:00","2024-01-01 00:03:00+00:00","2024-01-01 00:04:00+00:00"]
+        }"#;
+        std::fs::write(&dir, json).expect("写临时夹具");
+        let cfg = ThetaConfig::default();
+        let ds = load_symbol(&dir, "TEST", &cfg, 60).expect("加载");
+        let tk = cfg.tick.tick_size;
+        let q = |p: f64| (p / tk).round() as i64;
+        // bar2（坏 tick，四价坍缩 0.08）：前收填充 + untradable。
+        assert!(ds.bars[2].untradable, "坏 tick 标 untradable");
+        assert_eq!(ds.bars[2].close, q(83.56), "坏 tick 前收填充");
+        assert_eq!(ds.bars[2].low, q(83.56), "low 同填（σ 不再见坏值）");
+        // bar3（回弹到 83.59）：对净化前收比较 ⟹ 不拦、可交易。
+        assert!(!ds.bars[3].untradable, "回弹 bar 不误伤（净化前收参照）");
+        assert_eq!(ds.bars[3].close, q(83.59));
+        // bar4（30% 跳空，合法极端 < 0.80 阈值）：不拦。
+        assert!(
+            !ds.bars[4].untradable,
+            "30% 跳空合法（CL 2020-04 级极端余量内）"
+        );
+        assert_eq!(ds.bars[4].close, q(110.2));
+        // bar0/bar1 不受影响。
+        assert!(!ds.bars[0].untradable && !ds.bars[1].untradable);
+        let _ = std::fs::remove_file(&dir);
+    }
+
+    /// ★#922 存量扫描探针（#[ignore]，真实数据）：全品种走加载路径，闸命中经 eprintln
+    /// 逐根打印（品种/bar 号/日期/偏离倍数）——存量命中清单的生产路径实证。
+    #[test]
+    #[ignore]
+    fn issue922_bad_tick_scan_all_symbols() {
+        let cfg = ThetaConfig::default();
+        for (sym, _file, _bs) in super::SYMBOLS {
+            let ds = load_by_symbol(sym, &cfg).expect("加载");
+            eprintln!("[scan] {sym}: {} bar 加载完成", ds.bars.len());
+        }
     }
 }
