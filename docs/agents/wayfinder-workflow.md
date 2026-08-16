@@ -106,7 +106,7 @@ skill 原文本就允许这个例外口（「An effort can override this in its 
 
 ### AFK 票的载体与派发
 
-- **载体** = 本体在当前会话用 `Agent` 工具派子代理，结果回流本体验收后写回 tracker。
+- **载体**（2026-08-16 [#1000](https://github.com/xy7365527-lang/NewChanlun/issues/1000) 裁定更新）= **sandcastle 沙盒为默认执行面**（`.sandcastle/main.mts` 两段式 / `main-swarm.mts` 蜂群，工蜂 prime-agent）；rlm 子代理退为轻量补充（只读研究、快速查证）。例外三类（只读簿记对话 / 单条小操作 / 沙盒不可行）按 #1000 Destination 举证登记。结果回流本体验收后写回 tracker 不变；合入 main 走人工闸（#1003 裁 3）。
 - **档位** = 按 `AGENTS.md` 的四档选法，**按这张票的实际难度判，不看票型标签**。档位正本是 `AGENTS.md`，本文档不自建档位表（[票型 × 模型档位 #781](https://github.com/xy7365527-lang/NewChanlun/issues/781) 裁定①②）。票型与难度**正交**：本图内 [#768](https://github.com/xy7365527-lang/NewChanlun/issues/768)（逐字比对三份文档，机械活）与 [#769](https://github.com/xy7365527-lang/NewChanlun/issues/769)（扫完 90 张已关票并聚出三条反面判据，高难）同贴 AFK 型标签——拿票型索引难度是用不相关的维度做键。#770 的五类细分同样不救场。
 - **工作区隔离**：**写仓的 AFK 子代理强制开独立 worktree**（`Agent` 工具 `isolation: "worktree"`），**只读的不强制**（[#772](https://github.com/xy7365527-lang/NewChanlun/issues/772) 裁定⑤）。本仓事实上已跑过几十个 worktree，成本只有零点几秒；而主仓撞车有 `git stash` 抹掉未提交改动的实伤前例。只读子代理开 worktree 纯属浪费。
 - **git 层冲突**：走 `/resolving-merge-conflicts`，本文只挂指针。git 会把冲突显式标出来、拒绝静默丢改动，不需要额外口径。
