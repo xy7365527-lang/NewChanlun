@@ -1,6 +1,7 @@
 //! 每仓 campaign（SPEC #287 T4，issue #294）：把 #293/#354 的 `ShortDiffAccount` + TW 桥升格为
 //! **每仓各一 campaign** 的完整生命周期——开仓生（`notional_in`=本仓成本基）→ 短差冲减成本
-//! （sizing=当时持仓 1/3，#348 裁定，可复检）→ 到 0 转移（`RecoverCapital`，复用
+//! （sizing=开局冻结快照 1/3，#348 用户裁定阶段一「固定 1/3」+ #380 项二订正基准=cost_basis
+//! 快照而非当时持仓，可复检）→ 到 0 转移（`RecoverCapital`，复用
 //! `closed_loop::transition::stage_progression` 单一来源，#124 裁定4）→ 全平死（`ClearCampaign`，
 //! 挂起随死）。
 //!
@@ -610,8 +611,10 @@ impl OscillationCampaign {
         self.short_diff
     }
 
-    /// sizing=当时持仓 1/3（issue #348 用户裁定「阶段一降成本 sizing=固定 1/3」，整数除法，
-    /// ★可复检——原型口径零发明，如有原文/数据依据可升级）。
+    /// sizing = 开局冻结快照（cost_basis().units()）÷ 3，整数除法。
+    /// 基准是 **cost_basis 快照**不是当时真实持仓——#380 项二裁定两个基准分开传
+    /// （sizing=开局冻结快照，防线=当时真实持仓）；#348 的「固定 1/3」落在快照侧。
+    /// ★可复检——原型口径零发明，如有原文/数据依据可升级。
     fn reduce_units(&self) -> i64 {
         self.short_diff.cost_basis().units() / 3
     }
@@ -1930,7 +1933,30 @@ mod tests {
             .unwrap();
         assert_eq!(
             outcome.units, 100,
-            "sizing=当时持仓(300)/3=100（#348 裁定，整数除法）"
+            "sizing=开局冻结快照(300)/3=100（#348 裁定 + #380 项二基准=快照，整数除法）"
+        );
+    }
+
+    /// #924 区分见证：快照 ≠ 当时持仓时，sizing 吃快照（sync 后仓位变化不改变 reduce 量）。
+    #[test]
+    fn reduce_sizing_uses_frozen_snapshot_not_current_units() {
+        let mut book = CampaignBook::new();
+        book.sync_position(0, VoiceSide::Long, snapshot(300, 3_000), 0); // 快照 300
+        // 当时持仓涨到 600（外部加仓后 sync）——reduce 仍按快照 300/3=100。
+        book.sync_position(0, VoiceSide::Long, snapshot(600, 6_000), 5);
+        let outcome = book
+            .apply_action(
+                0,
+                VoiceSide::Long,
+                CenterOscillationAction::Reduce,
+                12,
+                RiskMode::Normal,
+                cid(0),
+            )
+            .unwrap();
+        assert_eq!(
+            outcome.units, 100,
+            "sizing=快照(300)/3=100，与当时持仓(600)无关（#380 项二）"
         );
     }
 
