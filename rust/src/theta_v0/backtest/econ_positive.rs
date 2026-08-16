@@ -3,7 +3,9 @@
 //! 证明链 L0 见 `.chanlun/proofs/economic-positive-condition-chain.md`。本模块是其
 //! **唯一可否证环节**（可捕获价差判据前件）的 L2 实装：逐信号确定性分解
 //!
-//!     captured = Ab_rev − ηin − ηout − Ce/qe        (PDF p4-5 §5，对象=反转交易腿)
+//! ```text
+//! captured = Ab_rev − ηin − ηout − Ce/qe        (PDF p4-5 §5，对象=反转交易腿)
+//! ```
 //!
 //! **664 号对象错配修复（codex 异质审计 diagnose 坐实，2026-06-30）**：缠论买卖点是
 //! **反转交易**（底背驰买点 δ=+1 出现在下跌段末端，顶背驰卖点 δ=−1 出现在上涨段末端），
