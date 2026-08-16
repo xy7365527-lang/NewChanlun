@@ -97,19 +97,17 @@
 //! # 可选 P915_PHASE=daily|tower|both（默认 both）——daily 相秒级，tower 相是大头
 //! ```
 
-use newchan_rust::theta_v0::backtest::data::{data_dir, load_by_symbol, SYMBOLS};
+use newchan_rust::theta_v0::backtest::data::load_by_symbol;
 use newchan_rust::theta_v0::backtest::incremental::IncrementalClassifier;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::types::BspBits;
-use serde::Deserialize;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 // ────────────────────────────────────────────────────────────────────────────
-// 相一：日波动率 / 日成交额（直读原始 JSON 浮点，绕开 volume 的 i64 截断）
+// 相一：日波动率 / 日成交额（#1013 起消费 gated loader 净化序列，坏 tick 闸前收）
 // ────────────────────────────────────────────────────────────────────────────
 
-/// 与 `backtest/data.rs` 的私有 `RawData` 同 schema（8 品种统一 parallel-array）。
-#[derive(Deserialize, Default)]
+/// 逐日聚合行（#1013 起价格 = gated loader 量化价 × tick，volume 取 i64→f64）。
 struct DayAgg {
     open: f64,
     high: f64,

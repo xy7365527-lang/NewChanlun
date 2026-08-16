@@ -413,8 +413,6 @@ mod tests {
         }
     }
 
-    /// ★#902 对拍锁②：frontier 改写（pop 尾窗 + 回卷重扫）后仍 == 全量重算。
-    #[test]
     /// ★#1019 HIGH 回归锁：评审穷举反例形态——多尾块 + dirty_from=0 全清 + 趋势反转处
     /// 截尾——增量折叠（含 pop 重折）必须逐字段 == 全量 `operation_decompose`。
     /// 构造：趋势 run（Up 延续链）→ 反转（Down 链）→ 回叠（盘整）→ frontier 回退
@@ -479,6 +477,8 @@ mod tests {
         );
     }
 
+    /// ★#902 对拍锁②：frontier 改写（pop 尾窗 + 回卷重扫）后仍 == 全量重算。
+    #[test]
     fn operation_resume_matches_full_after_frontier_rewrite() {
         let base = [
             (Direction::Up, 0, 10),
