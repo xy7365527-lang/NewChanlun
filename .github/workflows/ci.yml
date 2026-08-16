@@ -184,7 +184,13 @@ jobs:
         run: cargo test --all-targets
 
       - name: cargo test — backtest_bin feature（econ_oddeven_diagnosis.rs 仅在此 feature 下编译）
-        run: cargo test --all-targets --features backtest_bin
+        # 2026-08-16 磁盘实撞（#993 收口轮）：两轮 runner 爆盘（No space left on device，
+        # rustc-LLVM IO failure）——debug 全 target + nautilus 套件超 runner 14G。default
+        # 测试步的增量/中间产物在本步不再需要，先清再编（覆盖不降）。
+        run: |
+          du -sh target 2>/dev/null || true
+          rm -rf target/debug/incremental
+          cargo test --all-targets --features backtest_bin
 
   fixture-drift:
     # #265（#245 裁定）：Lean 源 → parity fixture 双向闭环的 CI 腿。
