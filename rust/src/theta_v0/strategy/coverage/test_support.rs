@@ -79,7 +79,7 @@ pub(crate) fn nested_l1(si: usize, ei: usize, sub_dirs: [Direction; 3]) -> Level
     );
     LeveledMove::compose(
         &[s0, s1, s2],
-        ctr(si, ei),
+        &[ctr(si, ei)],
         1,
         ElementId {
             level: 1,
@@ -120,11 +120,11 @@ pub(crate) fn two_parent_tower() -> Vec<Rc<Vec<LeveledMove>>> {
     let a0 = LeveledMove::from_unit(&unit(0, 4, Direction::Up, 0, 10), eid(0, 0));
     let a1 = LeveledMove::from_unit(&unit(4, 8, Direction::Down, 3, 12), eid(0, 1));
     let a2 = LeveledMove::from_unit(&unit(8, 12, Direction::Up, 5, 15), eid(0, 2));
-    let compose_a = LeveledMove::compose(&[a0, a1, a2], ctr(0, 12), 1, eid(1, 0)); // 外缘 10→15 ⟹ Long
+    let compose_a = LeveledMove::compose(&[a0, a1, a2], &[ctr(0, 12)], 1, eid(1, 0)); // 外缘 10→15 ⟹ Long
     let b0 = LeveledMove::from_unit(&unit(12, 16, Direction::Up, 5, 15), eid(0, 3)); // 结构 == a2
     let b1 = LeveledMove::from_unit(&unit(16, 20, Direction::Down, 3, 12), eid(0, 4));
     let b2 = LeveledMove::from_unit(&unit(20, 24, Direction::Down, 0, 8), eid(0, 5));
-    let compose_b = LeveledMove::compose(&[b0, b1, b2], ctr(12, 24), 1, eid(1, 1)); // 外缘 15→8 ⟹ Short
+    let compose_b = LeveledMove::compose(&[b0, b1, b2], &[ctr(12, 24)], 1, eid(1, 1)); // 外缘 15→8 ⟹ Short
     rc_tower(vec![Vec::new(), vec![compose_a, compose_b]])
 }
 
@@ -134,16 +134,16 @@ pub(crate) fn orphan_subtree_tower() -> Vec<Rc<Vec<LeveledMove>>> {
     let s0 = LeveledMove::from_unit(&unit(0, 4, Direction::Up, 0, 10), eid(0, 0));
     let s1 = LeveledMove::from_unit(&unit(4, 8, Direction::Down, 3, 12), eid(0, 1));
     let s2 = LeveledMove::from_unit(&unit(8, 12, Direction::Up, 5, 15), eid(0, 2));
-    let c1 = LeveledMove::compose(&[s0, s1, s2], ctr(0, 12), 1, eid(1, 0)); // Up（外缘 15>=10）
+    let c1 = LeveledMove::compose(&[s0, s1, s2], &[ctr(0, 12)], 1, eid(1, 0)); // Up（外缘 15>=10）
     let t0 = LeveledMove::from_unit(&unit(12, 16, Direction::Down, 8, 20), eid(0, 3));
     let t1 = LeveledMove::from_unit(&unit(16, 20, Direction::Up, 10, 25), eid(0, 4));
     let t2 = LeveledMove::from_unit(&unit(20, 24, Direction::Down, 12, 30), eid(0, 5));
-    let c2a = LeveledMove::compose(&[t0, t1, t2], ctr(12, 24), 1, eid(1, 1));
+    let c2a = LeveledMove::compose(&[t0, t1, t2], &[ctr(12, 24)], 1, eid(1, 1));
     let u0 = LeveledMove::from_unit(&unit(24, 28, Direction::Up, 15, 35), eid(0, 6));
     let u1 = LeveledMove::from_unit(&unit(28, 32, Direction::Down, 18, 40), eid(0, 7));
     let u2 = LeveledMove::from_unit(&unit(32, 36, Direction::Up, 20, 45), eid(0, 8));
-    let c2b = LeveledMove::compose(&[u0, u1, u2], ctr(24, 36), 1, eid(1, 2));
-    let l2 = LeveledMove::compose(&[c2a.clone(), c2b.clone()], ctr(12, 36), 2, eid(2, 0));
+    let c2b = LeveledMove::compose(&[u0, u1, u2], &[ctr(24, 36)], 1, eid(1, 2));
+    let l2 = LeveledMove::compose(&[c2a.clone(), c2b.clone()], &[ctr(12, 36)], 2, eid(2, 0));
     rc_tower(vec![Vec::new(), vec![c1, c2a, c2b], vec![l2]])
 }
 

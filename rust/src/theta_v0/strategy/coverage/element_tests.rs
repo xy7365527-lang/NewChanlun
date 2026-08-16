@@ -152,7 +152,7 @@ fn carrier_forest_dedup_triggers_when_l0_nonempty() {
     let s2 = LeveledMove::from_unit(&unit(8, 12, Direction::Up, 5, 15), eid(0, 2));
     let l1 = LeveledMove::compose(
         &[s0.clone(), s1.clone(), s2.clone()],
-        ctr(0, 12),
+        &[ctr(0, 12)],
         1,
         eid(1, 0),
     );
@@ -422,7 +422,7 @@ fn element_id_deterministic_full_vs_incremental() {
     let (_fc, full_upper, _) = compose_level(&units, &moves, true, 1);
     assert_eq!(full_upper.len(), 3, "三组核心分离 ⟹ 3 个中枢/3 个上级走势");
     // 增量 resume(prefix_count=0) == 全量。
-    let (_tc, tail_upper, _, _, _) = compose_level_resume(&units, &moves, true, 1, 0, 0);
+    let (_tc, tail_upper, _, _, _) = compose_level_resume(&units, &moves, true, 1, 0, 0, &[]);
     assert_eq!(full_upper.len(), tail_upper.len());
     for (f, t) in full_upper.iter().zip(tail_upper.iter()) {
         assert_eq!(f.id, t.id, "全量/增量产同 ElementId（确定性）");
@@ -430,10 +430,11 @@ fn element_id_deterministic_full_vs_incremental() {
     // 增量续扫：前 6 段（产 2 中枢，末位开放——其延伸终止于 units 用尽而非 non-extension）+
     // 追加 3 段。★task #142 唯一合法 resume 协议：pop 末位开放中枢的上级走势 + 从 resume_from
     // （其 seed 起点）重扫；tail ID 接续 prefix_count（pop 后 =1）⟹ 重算中枢仍得 ID (1,1)。
-    let (_pc, mut prefix_upper, _, _m6, cursor6) =
-        compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0);
+    let (mut prefix_c, mut prefix_upper, _, _m6, cursor6) =
+        compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0, &[]);
     if cursor6.resume_from < cursor6.consumed {
         prefix_upper.pop();
+        prefix_c.pop(); // #897：前缀中枢与上级走势 1:1 同步 pop（frontier 协议）
     }
     let (_tc2, tail_upper2, _, _mt2, _) = compose_level_resume(
         &units,
@@ -442,6 +443,7 @@ fn element_id_deterministic_full_vs_incremental() {
         1,
         cursor6.resume_from,
         prefix_upper.len(),
+        &prefix_c,
     );
     let mut comb = prefix_upper.clone();
     comb.extend(tail_upper2);

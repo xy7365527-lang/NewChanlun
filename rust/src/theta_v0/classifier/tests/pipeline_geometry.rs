@@ -1653,3 +1653,83 @@ fn otherwise_domain_records_queryable_by_coordinate_in_classification() {
         .expect("增量路径同样按坐标可查");
     assert_eq!(inc_rec, rec, "增量/全量同一否则域记录");
 }
+
+/// ★#897 验收核心读数（#[ignore]，真实 BTC 数据，默认尾 300K bar 窗——截断窗=显式有效域）：
+/// ① `Compose.centers` 长度分布（趋势 run 载荷后 1/2/3+ 桶，分级）——M-1 落地前全为 1；
+/// ② `rmove_dir` 判定差：新判据（M-2 趋势 run 序列）vs 旧端点兼容缝逐 move 对拍，
+/// 报告 一致 / 改判 / 新判出方向（旧 None 不可比）三类计数——#870 三臂重测的前置读数。
+#[test]
+#[ignore]
+fn issue897_centers_run_distribution_btc() {
+    use super::super::super::backtest::data::load_by_symbol;
+    use super::super::super::classifier::cand_predicate::rmove_dir;
+    use super::super::super::classifier::descend::RMove;
+    use super::super::super::parser::parse_layer;
+    let cfg = ThetaConfig::default();
+    let full =
+        load_by_symbol("BTC", &cfg).expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
+    let n_full = full.bars.len();
+    let max_bars = 300_000usize; // 截断窗（显式有效域边界，非全窗结论）
+    let ds = if n_full > max_bars {
+        full.slice_bar_range(n_full - max_bars, n_full)
+    } else {
+        full
+    };
+    let layer = parse_layer(&ds.bars, &cfg);
+    let (cls, tower) = classify_with_tower(&layer, &cfg);
+
+    let mut len_hist: std::collections::BTreeMap<(usize, usize), u64> = Default::default();
+    let mut agree = 0u64;
+    let mut changed = 0u64; // 旧 Some ↔ 新 Some 但方向不同 / 新旧 Some-None 互换
+    let mut new_multi = 0u64; // centers ≥ 2 的 Compose 数（M-2 真正生效面）
+    let mut multi_dir_some = 0u64; // 其中新判据给出方向的
+    for (lvl, moves) in tower.iter().enumerate().skip(1) {
+        for m in moves.iter() {
+            if let RMove::Compose { centers, subs, .. } = &m.rmove {
+                *len_hist.entry((lvl, centers.len().min(4))).or_insert(0) += 1;
+                // 旧端点兼容缝（改前行为）：首末子走势 hi 端点比较。
+                let old_dir = if subs.len() >= 2 {
+                    let f = subs.first().unwrap();
+                    let l = subs.last().unwrap();
+                    Some(if l.hi() >= f.hi() {
+                        Direction::Up
+                    } else {
+                        Direction::Down
+                    })
+                } else {
+                    None
+                };
+                let new_dir = rmove_dir(&m.rmove);
+                if centers.len() >= 2 {
+                    new_multi += 1;
+                    if new_dir.is_some() {
+                        multi_dir_some += 1;
+                    }
+                }
+                match (old_dir, new_dir) {
+                    (a, b) if a == b => agree += 1,
+                    _ => changed += 1,
+                }
+            }
+        }
+    }
+    eprintln!(
+        "★#897 读数（BTC 尾 {} bar / 全量 {}）：",
+        ds.bars.len(),
+        n_full
+    );
+    eprintln!("① Compose.centers 长度分布（(级别, 长度帽4)=计数）：");
+    for ((lvl, len), cnt) in &len_hist {
+        eprintln!(
+            "   L{} len={}{}: {}",
+            lvl,
+            len,
+            if *len == 4 { "+" } else { "" },
+            cnt
+        );
+    }
+    eprintln!(
+        "② rmove_dir 对拍：一致 {agree} / 改判 {changed}；多中枢 Compose {new_multi}（其中新判据出方向 {multi_dir_some}）"
+    );
+    let _ = cls;
+}

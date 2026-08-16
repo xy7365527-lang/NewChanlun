@@ -1103,7 +1103,7 @@ mod tests {
 
     /// 造一条 compose 输出：给定源走势序列 + 中枢 + 输出 ordinal。
     fn composed(ordinal: u64, subs: &[LeveledMove], center: Center) -> LeveledMove {
-        LeveledMove::compose(subs, center, 1, ElementId { level: 1, ordinal })
+        LeveledMove::compose(subs, &[center], 1, ElementId { level: 1, ordinal })
     }
 
     fn center(start: usize, end: usize, zd: Tick, zg: Tick, dd: Tick, gg: Tick) -> Center {

@@ -3427,14 +3427,14 @@ mod tests {
         ];
         let w0 = LeveledMove::compose(
             &lower[0..4],
-            Center {
+            &[Center {
                 zd: 98,
                 zg: 110,
                 dd: 90,
                 gg: 116,
                 start_index: 0,
                 end_index: 39,
-            },
+            }],
             1,
             ElementId {
                 level: 1,
@@ -3443,14 +3443,14 @@ mod tests {
         );
         let w1 = LeveledMove::compose(
             &lower[4..8],
-            Center {
+            &[Center {
                 zd: 135,
                 zg: 140,
                 dd: 125,
                 gg: 150,
                 start_index: 40,
                 end_index: 79,
-            },
+            }],
             1,
             ElementId {
                 level: 1,
@@ -3459,14 +3459,14 @@ mod tests {
         );
         let w2 = LeveledMove::compose(
             &lower[8..12],
-            Center {
+            &[Center {
                 zd: 160,
                 zg: 165,
                 dd: 140,
                 gg: 175,
                 start_index: 80,
                 end_index: 119,
-            },
+            }],
             1,
             ElementId {
                 level: 1,

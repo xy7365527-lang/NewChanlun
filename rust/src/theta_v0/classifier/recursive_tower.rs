@@ -26,7 +26,8 @@
 //! ## 窗口化 compose 语义（契约锚 `Origin.RecursiveLevelSystem.composeStep` + 走势分解定理二）
 //!
 //! L(k+1) 的每个上级走势单元 = 构成一个中枢的那**连续三段**次级别 [`LeveledMove`] 经 [`compose`]
-//! 封装（`RMove::Compose { subs: 三段次级别 rmove, centers: [该中枢], level: k+1 }`）。这与 Lean
+//! 封装（`RMove::Compose { subs: 三段次级别 rmove, centers: 走势类型块中枢序列, level: k+1 }`——
+//! #897 后 centers 携 M-1 全量中枢：同向延续链全列（末位 = 本窗中枢），盘整/扩展链成员单中枢）。这与 Lean
 //! `composeStep`（规范窗口族切多窗，每窗封装一个上级走势，中枢由窗口三段区间重叠真派生）逐字段
 //! 同构——上级走势的 subs **正是** `descend` 取回的次级别走势序列（组装-取回对偶 `descend ∘ compose = id`）。
 //! 旧塔把中枢折叠成无 subs 的 `UnitRange`（丢弃构成它的三段次级别走势）；新塔保留三段次级别走势
@@ -160,7 +161,8 @@ impl LeveledMove {
     /// 上级走势单元 = 窗口内次级别 `LeveledMove` 序列 compose（`RMove::Compose`，组装-取回对偶）。
     ///
     /// `subs`：构成该上级走势的连续次级别 `LeveledMove`（窗口三段，走势分解定理二 ≥3 段）。
-    /// `center`：窗口三段区间重叠真派生的中枢（`RMove::Compose.centers` 载荷）。
+    /// `run_centers`：本窗口所属走势类型块的中枢序列（#897，末位 = 窗口三段区间重叠真派生
+    /// 中枢；`RMove::Compose.centers` 载荷）。
     /// `level`：上级走势级别（次级别 level + 1，Lean `Move.level` 严格递增/descend 递减）。
     /// `id`：确定性元素身份（codex Q4，调用方注入 ordinal = 窗口产出序）。
     /// 坐标取窗口首单元起点 + 末单元终点（上级走势覆盖其全部次级别走势的 K 序跨度）。
@@ -169,7 +171,17 @@ impl LeveledMove {
     /// 的 subs）；`sub_moves` 保留**携坐标**的 `subs`（坐标侧车，`descend_leveled` 取回 + `index_of_in`
     /// 映射 source_index）。两者同序同长（`sub_moves[i].rmove == rmove.subs[i]`）。子走势 `id` 继承
     /// subs 各自的 ID（已携带，非父派生）。
-    pub fn compose(subs: &[LeveledMove], center: Center, level: u32, id: ElementId) -> LeveledMove {
+    /// ★#897（M-1 落地）：`run_centers` = 该窗口所属**走势类型块**（decompose 同标签 maximal
+    /// run，前缀信息计算）的中枢序列——`run_centers.last()` 恒为本窗口真派生中枢（旧唯一载荷），
+    /// 前置元素为同块（同向延续/扩展链）的更早中枢。盘整块单中枢 ⟹ 载荷与旧行为逐位一致；
+    /// 趋势块 ≥2 中枢 ⟹ M-2 方向判据（`rmove_dir`）第一次拿到真实中枢序列。
+    /// 前缀信息计算（只用 ≤ 本窗口的关系）⟹ 全量/增量两路径产出逐位一致。
+    pub fn compose(
+        subs: &[LeveledMove],
+        run_centers: &[Center],
+        level: u32,
+        id: ElementId,
+    ) -> LeveledMove {
         // ★A3 task#40 阶段0插桩（env-gated，THETA_PROFILE_STAGES 未启用时零开销直通）保留：分辨
         // compose 内部 rmove 拷贝（05c2a）vs sub_moves 侧车分配（05c2b）耗时——codex 审计要求先
         // 切分项计时再决定优化形态，不假设某一项主导。stage-0 实测（1M CL）：05c1（调用点临时数组
@@ -191,10 +203,14 @@ impl LeveledMove {
         let end_index = subs.last().map(|m| m.end_index).unwrap_or(0);
         let sub_moves =
             super::stage_profile::time("05c2b_submoves_alloc", || Rc::new(subs.to_vec()));
+        debug_assert!(
+            !run_centers.is_empty(),
+            "#897：run 载荷恒非空（末位 = 本窗口真派生中枢）"
+        );
         LeveledMove {
             rmove: RMove::Compose {
                 subs: Rc::new(sub_rmoves),
-                centers: vec![center],
+                centers: run_centers.to_vec(),
                 level,
             },
             start_index,
@@ -240,7 +256,8 @@ impl LeveledMove {
     /// 深扫 bit-exact。
     ///
     /// - `Segment`：外缘 = 线段自身 `[lo,hi]`（O(1) 字段读，`rmove.lo()/hi()` 对 Segment 本已 O(1)）。
-    /// - `Compose`：读 `centers[0].dd/gg`（compose 恒 `vec![center]`，line 189）；缺 center（不该发生）
+    /// - `Compose`：读本窗中枢 `centers.last()` 的 dd/gg（#897 后载荷 = 走势类型块中枢序列，
+    ///   本窗中枢在末位；旧「恒 vec![center]」已随 M-1 落地作废）；缺 center（不该发生）
     ///   ⟹ 回退 `rmove.lo()/hi()`（值相同，仅慢，护 bit-exact）。
     ///
     /// mod.rs:1400 的 `debug_assert!(projected_units == 全量 project_to_units)`（走递归 `rmove.lo()/hi()`）
@@ -249,7 +266,9 @@ impl LeveledMove {
     pub fn envelope(&self) -> (Tick, Tick) {
         match &self.rmove {
             RMove::Segment { lo, hi, .. } => (*lo, *hi),
-            RMove::Compose { centers, .. } => match centers.first() {
+            // #897：centers 载荷现为走势类型块中枢序列——本窗中枢 = **末位**（last），
+            // 盘整块单中枢时与旧 first 语义逐位一致。
+            RMove::Compose { centers, .. } => match centers.last() {
                 Some(c) => (c.dd, c.gg),
                 None => (self.rmove.lo(), self.rmove.hi()),
             },
@@ -295,6 +314,38 @@ fn detect_centers_windowed(
 /// `level`：上级走势级别（本级 level + 1）。`units` 与 `subs_moves` 一一对应（同序同长——
 /// `units` 是 `subs_moves` 的 `UnitRange` 投影，供 `detect_centers_windowed` 的几何/完整判据用）。
 /// 返回 `(中枢序列, 上级 LeveledMove 序列)`：上级走势序列是 L(k+1) 的输入塔。
+/// ★#897：窗口 `i` 所属走势类型块的首中枢下标——同标签 maximal run（与 `decompose::fold_rel`
+/// 的块折叠规则同源：相邻中枢关系（`classify_relation`）同 kind+dir 且连续 ⟹ 同块）。
+/// **只用 ≤ i 的关系（前缀信息）** ⟹ 全量（compose_level）与增量（compose_level_resume 传
+/// 前缀 centers 拼接）两路径产出逐位一致；frontier 窗口被重写重产时按新前缀重算，语义自洽。
+pub(crate) fn trend_run_start(centers: &[Center], i: usize) -> usize {
+    use super::center::{classify_relation, CenterRelation};
+    // ★#897 教义口径：run 只沿**同向延续**（Up/DownContinuation，M-2 外缘分离判「是不是趋势」）
+    // 链延伸；LevelExpansion（外缘重叠 = 中枢扩展升级、**不是趋势**，#815 M-2 转正）一律断链——
+    // 扩展链成员各自单中枢载荷（M-1：盘整 = 只含一个中枢），方向判据退回既有端点兼容缝。
+    fn cont_tag(r: CenterRelation) -> Option<u8> {
+        match r {
+            CenterRelation::UpContinuation => Some(0),
+            CenterRelation::DownContinuation => Some(1),
+            CenterRelation::LevelExpansion => None,
+        }
+    }
+    debug_assert!(i < centers.len());
+    if i == 0 {
+        return 0;
+    }
+    let t = match cont_tag(classify_relation(&centers[i - 1], &centers[i])) {
+        Some(t) => t,
+        None => return i,
+    };
+    let mut start = i;
+    while start > 0 && cont_tag(classify_relation(&centers[start - 1], &centers[start])) == Some(t)
+    {
+        start -= 1;
+    }
+    start
+}
+
 pub fn compose_level(
     units: &[UnitRange],
     subs_moves: &[LeveledMove],
@@ -321,7 +372,9 @@ pub fn compose_level(
                 level,
                 ordinal: i as u64,
             };
-            LeveledMove::compose(subs, *c, level, id)
+            // #897：载荷 = 本窗口所属走势类型块的中枢序列（末位 = 本窗中枢 *c）。
+            let run_start = trend_run_start(&centers, i);
+            LeveledMove::compose(subs, &centers[run_start..=i], level, id)
         })
         .collect();
     let cp_ownership: Vec<CpScanOwnership> = windowed
@@ -849,6 +902,10 @@ pub fn compose_level_resume(
     level: u32,
     start_i: usize,
     prefix_count: usize,
+    // ★#897：已缓存的前缀中枢序列（长度恒 == `prefix_count`，与前缀 upper_moves 1:1）——
+    // tail 窗口的走势类型块可能延伸进前缀（趋势跨续扫边界），run 计算须在前缀+tail 拼
+    // 接视图上做，保证与全量 `compose_level` 逐位一致。
+    prefix_centers: &[Center],
 ) -> (
     Vec<Center>,
     Vec<LeveledMove>,
@@ -875,6 +932,19 @@ pub fn compose_level_resume(
     // ★A3 task#40 阶段0插桩（保留，env-gated）+ fix A/B 落地：05c1（临时数组 clone）已由直接切片
     // 消灭（见下 `&subs_moves[win[0]..win[0]+3]`），05c2 内部再分 05c2a/05c2b（compose() 内，
     // fix B 后两者均 O(1)）。三者 stage-0 实测（1M CL）曾各占 05c ~23%——非单一大头，两处同修。
+    // ★#897：tail run 计算的拼接视图（前缀 + tail 中枢）；前缀恒为 sealed 前缀（pop 后保留段），
+    // 与全量 centers 前缀逐位一致 ⟹ 拼接视图 == 全量 centers 前缀截断，run 结果逐位一致。
+    debug_assert_eq!(
+        prefix_centers.len(),
+        prefix_count,
+        "#897：前缀中枢数须与前缀走势数一致（1:1）"
+    );
+    let run_view: Vec<Center> = {
+        let mut v = Vec::with_capacity(prefix_centers.len() + tail_centers.len());
+        v.extend_from_slice(prefix_centers);
+        v.extend_from_slice(&tail_centers);
+        v
+    };
     let tail_upper: Vec<LeveledMove> = super::stage_profile::time("05c_tail_upper_build", || {
         windowed
             .iter()
@@ -887,8 +957,11 @@ pub fn compose_level_resume(
                     level,
                     ordinal: (prefix_count + i) as u64,
                 };
+                // #897：载荷 = 本窗口所属走势类型块的中枢序列（拼接视图前缀信息计算）。
+                let gi = prefix_count + i;
+                let run_start = trend_run_start(&run_view, gi);
                 super::stage_profile::time("05c2_compose_call", || {
-                    LeveledMove::compose(subs, *c, level, id)
+                    LeveledMove::compose(subs, &run_view[run_start..=gi], level, id)
                 })
             })
             .collect()
@@ -1568,7 +1641,8 @@ pub(crate) fn invalidate_cp_lifecycle_dirty_dependencies(
 
 fn center_of_move(movement: &LeveledMove) -> Option<Center> {
     match &movement.rmove {
-        RMove::Compose { centers, .. } => centers.first().copied(),
+        // #897：本窗中枢 = 块序列末位（last）。
+        RMove::Compose { centers, .. } => centers.last().copied(),
         RMove::Segment { .. } => None,
     }
 }
@@ -2567,7 +2641,7 @@ mod tests {
 
     /// 测试用 compose 包装（自动注入上级 ID）。
     fn compose(subs: &[LeveledMove], center: Center, level: u32, ordinal: u64) -> LeveledMove {
-        LeveledMove::compose(subs, center, level, eid(level, ordinal))
+        LeveledMove::compose(subs, &[center], level, eid(level, ordinal))
     }
 
     fn composed_center_move(
@@ -3691,7 +3765,8 @@ mod tests {
             start_index: 0,
             end_index: 12,
         };
-        let parent = LeveledMove::compose(&[s0.clone(), s1.clone(), s2.clone()], c, 1, eid(1, 0));
+        let parent =
+            LeveledMove::compose(&[s0.clone(), s1.clone(), s2.clone()], &[c], 1, eid(1, 0));
         // descend 取回三段次级别 rmove（旧塔 UnitRange 折叠后 descend 得空）。
         let subs = descend(&parent.rmove);
         assert_eq!(
@@ -3826,7 +3901,7 @@ mod tests {
             start_index: 0,
             end_index: 12,
         };
-        let parent = LeveledMove::compose(&[s0, s1, s2], c, 1, eid(1, 0));
+        let parent = LeveledMove::compose(&[s0, s1, s2], &[c], 1, eid(1, 0));
         let units = project_to_units(&[parent.clone()], &[]); // 无块信息 ⟹ Q7 fallback（本测试只验坐标）
         assert_eq!(units.len(), 1);
         // 外缘 = subs 区间聚合（lo=min=0, hi=max=15）。
@@ -4015,6 +4090,60 @@ mod tests {
         );
     }
 
+    /// ★#897（M-1 落地锁）：趋势 run 载荷——两窗外缘分离（UpContinuation）⟹ 第二窗 Compose
+    /// 携 [C_A, C_B] 双中枢，`rmove_dir` 走 M-2 判 Up；扩展链（LevelExpansion）断链 ⟹ 第三窗
+    /// 单中枢载荷（盘整 = 一个中枢），方向退回端点兼容缝。
+    #[test]
+    fn compose_trend_run_payload_collects_continuation_centers() {
+        use super::super::cand_predicate::rmove_dir;
+        // wA=[8,16] core[12,15]；wB=[18,26] core[22,25]（B.dd=18>A.gg=16 ⟹ 上延续）；
+        // wC=[26,30] core[28,29]（C.dd=26 不严格大于 B.gg=26、C.gg=30>B.dd ⟹ LevelExpansion 断链）。
+        let units = vec![
+            unit(0, 4, up(), 8, 16),
+            unit(4, 8, down(), 12, 16),
+            unit(8, 12, up(), 12, 15),
+            unit(12, 16, up(), 18, 26),
+            unit(16, 20, down(), 22, 26),
+            unit(20, 24, up(), 22, 25),
+            unit(24, 28, up(), 26, 30),
+            unit(28, 32, down(), 28, 30),
+            unit(32, 36, up(), 28, 29),
+        ];
+        let moves: Vec<LeveledMove> = units
+            .iter()
+            .enumerate()
+            .map(|(i, u)| LeveledMove::from_unit(u, eid(0, i as u64)))
+            .collect();
+        let (centers, upper, _) = compose_level(&units, &moves, true, 1);
+        assert_eq!(centers.len(), 3, "三组三段各成一中枢");
+        assert_eq!(upper.len(), 3);
+        let clen = |m: &LeveledMove| match &m.rmove {
+            RMove::Compose { centers, .. } => centers.len(),
+            _ => panic!("compose_level 只产 Compose"),
+        };
+        assert_eq!(clen(&upper[0]), 1, "首窗单中枢（盘整）");
+        assert_eq!(
+            clen(&upper[1]),
+            2,
+            "趋势延续窗携 [C_A, C_B]（M-1 趋势 ≥2 中枢）"
+        );
+        assert_eq!(
+            clen(&upper[2]),
+            1,
+            "扩展链断链：第三窗单中枢（M-2 外缘重叠非趋势）"
+        );
+        // 趋势窗方向走 M-2（序列首 A vs 末 B 外缘分离 ⟹ Up），不再是端点兼容缝。
+        assert_eq!(
+            rmove_dir(&upper[1].rmove),
+            Some(super::super::super::types::Direction::Up),
+            "M-2 外缘分离判 Up（#897 解锁的真实中枢序列判定）"
+        );
+        // 载荷末位恒 = 本窗中枢（既有读者语义保持）。
+        if let RMove::Compose { centers, .. } = &upper[1].rmove {
+            assert_eq!(centers.last().unwrap(), &centers[1]);
+        }
+    }
+
     /// ★compose_level_resume bit-exact：全量 `compose_level` == `compose_level_resume(.., 0)`，
     /// 且增量追加后 `(prefix ++ tail)` == 全量（centers + upper LeveledMove 序列逐位相等）。
     #[test]
@@ -4035,14 +4164,14 @@ mod tests {
         let (full_c, full_u, full_cp) = compose_level(&units, &moves, true, 1);
 
         // resume from 0 == 全量。
-        let (rc, ru, rcp, _, _) = compose_level_resume(&units, &moves, true, 1, 0, 0);
+        let (rc, ru, rcp, _, _) = compose_level_resume(&units, &moves, true, 1, 0, 0, &[]);
         assert_eq!(rc, full_c, "resume(0) centers == 全量");
         assert_eq!(ru, full_u, "resume(0) upper == 全量");
         assert_eq!(rcp, full_cp, "resume(0) c_p 侧车 == 全量");
 
         // 增量：前 6 段 compose（产出 1 个开放中枢 + 其上级走势）。
         let (mut pc, mut pu, mut pcp, _m6, cursor6) =
-            compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0);
+            compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0, &[]);
         // frontier 协议（task #142 充要条件 #1）：pop 末位开放中枢及其上级走势 + 从 resume_from 重扫。
         if cursor6.resume_from < cursor6.consumed {
             pc.pop();
@@ -4050,7 +4179,7 @@ mod tests {
             pcp.pop();
         }
         let (tc, tu, tcp, _mt, _) =
-            compose_level_resume(&units, &moves, true, 1, cursor6.resume_from, pu.len());
+            compose_level_resume(&units, &moves, true, 1, cursor6.resume_from, pu.len(), &pc);
 
         let mut comb_c = pc.clone();
         comb_c.extend(tc);

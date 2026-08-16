@@ -3062,7 +3062,7 @@ struct C327Arm {
 fn cascade_dual(l0: &ParseLayer, config: &ThetaConfig, weak: bool) -> C327Arm {
     use super::super::classifier::decompose::decompose;
     use super::super::classifier::recursive_tower::{
-        detect_centers_windowed_resume, project_to_units, ElementId, LeveledMove,
+        detect_centers_windowed_resume, project_to_units, trend_run_start, ElementId, LeveledMove,
     };
 
     let min_parts = config.level.min_parts_per_level as usize;
@@ -3125,9 +3125,11 @@ fn cascade_dual(l0: &ParseLayer, config: &ThetaConfig, weak: bool) -> C327Arm {
             .iter()
             .enumerate()
             .map(|(i, (c, win))| {
+                // #897：与生产 compose_level 同款 run 载荷（replay 对照路径同构义务）。
+                let run_start = trend_run_start(&centers, i);
                 LeveledMove::compose(
                     &tower[win.0..=win.1],
-                    *c,
+                    &centers[run_start..=i],
                     level_idx as u32 + 1,
                     ElementId {
                         level: level_idx as u32 + 1,

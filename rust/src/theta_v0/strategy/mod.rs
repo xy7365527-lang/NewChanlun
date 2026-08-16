@@ -1962,7 +1962,7 @@ mod tests {
         };
         let l1 = LeveledMove::compose(
             &[s0, s1, s2],
-            c,
+            &[c],
             1,
             ElementId {
                 level: 1,

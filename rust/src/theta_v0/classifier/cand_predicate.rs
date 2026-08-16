@@ -111,15 +111,16 @@ pub const DEFAULT_DIR_CRITERION: DirCriterion = DirCriterion::EnvelopeSeparation
 /// 引者未自核）。因构造保证 `DD <= ZD < ZG <= GG`（`center.rs:216-227`），三者是**严格链**。
 ///
 /// 判据链接：#870 对 #846 的 301 条样本三臂各跑一遍的对照价值仍在（哪套让约 92% 的失败率
-/// 降得最多），但**前提是 `compose` 先按 M-1 存全中枢**（#897）——当前生产路径全是单中枢，
-/// 三臂得到同一回退结果，无区分力。
+/// 降得最多）。**前提已落地（#897，2026-08-16）**：趋势块 Compose 现携同向延续中枢序列
+/// （LevelExpansion 断链，M-1 盘整单中枢不动），真实数据（BTC 尾 300K）实测 41 个多中枢
+/// Compose 全部判出方向、15 个 move 相对旧端点缝改判——三臂重测的区分力已具备。
 ///
-/// 边界：中心少于两个时无法比较 M-2。现役 [`LeveledMove::compose`](super::recursive_tower::LeveledMove::compose)
-/// 每个 `Compose` 只装一个中枢；为避免把现役上级走势全部判成无方向，此时**明确**退回既有首末
-/// 子走势 `hi` 端点规则（只作单中枢载荷兼容，不是第四套 M-2 判据）。少于两个子走势则返回
+/// 边界：中心少于两个时无法比较 M-2。盘整块（含 LevelExpansion 扩展链成员，M-1：盘整只含
+/// 一个中枢）的 `Compose` 载荷恒为单中枢——此时**明确**退回既有首末子走势 `hi` 端点规则
+/// （只作单中枢载荷兼容，不是第四套 M-2 判据）。趋势块（同向延续链）载荷 ≥2 中枢走 M-2。少于两个子走势则返回
 /// `None`，不再像旧实现那样把空载荷静默冒充 `Up`。中心足够但所选判据既不向上也不向下时也
-/// 返回 `None`；不会因判据失败而改用另一条判据兜底。由此也必须诚实声明：#870 若直接复用
-/// 现役单中心载荷，三臂都会走同一兼容缝、没有区分力；重测必须先给本入口提供真实中枢序列。
+/// 返回 `None`；不会因判据失败而改用另一条判据兜底。#897 后趋势块已携真实中枢序列（前缀
+/// 信息计算，全量/增量 bit-exact），#870 三臂重测可直接复用生产载荷。
 pub fn rmove_dir(rmove: &RMove) -> Option<Direction> {
     rmove_dir_with_criterion(rmove, DEFAULT_DIR_CRITERION)
 }
@@ -547,7 +548,7 @@ mod tests {
         ];
         let composed = LeveledMove::compose(
             &subs,
-            center(80, 100, 150, 200),
+            &[center(80, 100, 150, 200)],
             1,
             ElementId {
                 level: 1,

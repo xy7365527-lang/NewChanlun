@@ -1322,6 +1322,8 @@ pub fn classify_with_tower_incremental(
                     level_idx as u32 + 1,
                     resume_start,
                     prefix_count,
+                    // #897：前缀中枢（pop 后保留段，与 prefix_count 1:1）供 tail run 计算。
+                    &lc.centers,
                 )
             });
         // frontier pop/recompose 若产出同一个 B_p/c_p 身份，继承已扫描对象态，只从 dirty_from 推进。
@@ -1861,9 +1863,10 @@ fn second_for_parent(
     stable_len: usize,
     out: &mut Vec<BspPoint>,
 ) {
-    // 次级别中枢（RMove::Compose.centers 首个，窗口真派生 B 口径核心区间）。
+    // 次级别中枢（RMove::Compose.centers 末位 = 本窗真派生 B 口径核心区间；#897 后载荷为
+    // 走势类型块中枢序列，本窗中枢在末位）。
     let c1 = match &parent.rmove {
-        descend::RMove::Compose { centers, .. } => match centers.first() {
+        descend::RMove::Compose { centers, .. } => match centers.last() {
             Some(c) => *c,
             None => return, // 无中枢载荷 ⟹ 跳过（compose_level 必带中枢，防御性）。
         },

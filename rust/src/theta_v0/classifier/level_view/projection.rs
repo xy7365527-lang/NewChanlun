@@ -143,7 +143,8 @@ fn project_extended_windows_impl(
         }
         // 条款 1（#90 结裁）：准绳 = 塔 compose 携带核（#89 已证与重算 detect 逐窗 bit-equal）。
         let carried = match &window.rmove {
-            super::super::descend::RMove::Compose { centers, .. } => centers.first().copied(),
+            // #897：本窗中枢 = 块序列末位（last）。
+            super::super::descend::RMove::Compose { centers, .. } => centers.last().copied(),
             super::super::descend::RMove::Segment { .. } => None,
         }
         .ok_or(ProjectionError::MissingCarriedCenter { index })?;

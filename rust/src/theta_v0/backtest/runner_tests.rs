@@ -864,14 +864,14 @@ fn l2_short_parent_tower() -> Vec<Rc<Vec<LeveledMove>>> {
             unit(0, 4, Direction::Down, 8, 15, 0),
             unit(4, 8, Direction::Up, 5, 12, 1),
         ],
-        Center {
+        &[Center {
             zd: 6,
             zg: 13,
             dd: 4,
             gg: 16,
             start_index: 0,
             end_index: 8,
-        },
+        }],
         1,
         ElementId {
             level: 1,
@@ -883,14 +883,14 @@ fn l2_short_parent_tower() -> Vec<Rc<Vec<LeveledMove>>> {
             unit(8, 12, Direction::Down, 6, 13, 2),
             unit(12, 16, Direction::Up, 4, 10, 3),
         ],
-        Center {
+        &[Center {
             zd: 5,
             zg: 12,
             dd: 3,
             gg: 14,
             start_index: 8,
             end_index: 16,
-        },
+        }],
         1,
         ElementId {
             level: 1,
@@ -899,14 +899,14 @@ fn l2_short_parent_tower() -> Vec<Rc<Vec<LeveledMove>>> {
     );
     let big = LeveledMove::compose(
         &[b0, b1],
-        Center {
+        &[Center {
             zd: 5,
             zg: 13,
             dd: 3,
             gg: 16,
             start_index: 0,
             end_index: 16,
-        },
+        }],
         2,
         ElementId {
             level: 2,
@@ -4445,14 +4445,14 @@ fn run_theta_v0_pi_loop_reverse_open_from_parent_container() {
     );
     let l1 = LM::compose(
         &[s0, s1, s2],
-        Center {
+        &[Center {
             zd: 5,
             zg: 10,
             dd: 0,
             gg: 15,
             start_index: 0,
             end_index: 12,
-        },
+        }],
         1,
         ElementId {
             level: 1,
@@ -6601,14 +6601,14 @@ fn nest_chain_sync_events_incremental_skip() {
     let windows = vec![
         LeveledMove::compose(
             &lower[0..4],
-            Center {
+            &[Center {
                 zd: 98,
                 zg: 110,
                 dd: 90,
                 gg: 116,
                 start_index: 0,
                 end_index: 39,
-            },
+            }],
             1,
             ElementId {
                 level: 1,
@@ -6617,14 +6617,14 @@ fn nest_chain_sync_events_incremental_skip() {
         ),
         LeveledMove::compose(
             &lower[4..8],
-            Center {
+            &[Center {
                 zd: 135,
                 zg: 140,
                 dd: 125,
                 gg: 150,
                 start_index: 40,
                 end_index: 79,
-            },
+            }],
             1,
             ElementId {
                 level: 1,
@@ -6633,14 +6633,14 @@ fn nest_chain_sync_events_incremental_skip() {
         ),
         LeveledMove::compose(
             &lower[8..12],
-            Center {
+            &[Center {
                 zd: 160,
                 zg: 165,
                 dd: 140,
                 gg: 175,
                 start_index: 80,
                 end_index: 119,
-            },
+            }],
             1,
             ElementId {
                 level: 1,
@@ -6729,14 +6729,14 @@ fn nest_chain_fingerprint_value_based() {
     ];
     let windows = vec![LeveledMove::compose(
         &lower[0..4],
-        Center {
+        &[Center {
             zd: 98,
             zg: 110,
             dd: 90,
             gg: 116,
             start_index: 0,
             end_index: 39,
-        },
+        }],
         1,
         ElementId {
             level: 1,
@@ -6833,14 +6833,14 @@ fn nest_chain_sync_events_derives_tower_top_event_level() {
     let windows = vec![
         LeveledMove::compose(
             &lower[0..4],
-            Center {
+            &[Center {
                 zd: 98,
                 zg: 110,
                 dd: 90,
                 gg: 116,
                 start_index: 0,
                 end_index: 39,
-            },
+            }],
             1,
             ElementId {
                 level: 1,
@@ -6849,14 +6849,14 @@ fn nest_chain_sync_events_derives_tower_top_event_level() {
         ),
         LeveledMove::compose(
             &lower[4..8],
-            Center {
+            &[Center {
                 zd: 135,
                 zg: 140,
                 dd: 125,
                 gg: 150,
                 start_index: 40,
                 end_index: 79,
-            },
+            }],
             1,
             ElementId {
                 level: 1,
@@ -6865,14 +6865,14 @@ fn nest_chain_sync_events_derives_tower_top_event_level() {
         ),
         LeveledMove::compose(
             &lower[8..12],
-            Center {
+            &[Center {
                 zd: 160,
                 zg: 165,
                 dd: 140,
                 gg: 175,
                 start_index: 80,
                 end_index: 119,
-            },
+            }],
             1,
             ElementId {
                 level: 1,
@@ -8963,7 +8963,7 @@ fn e_tower() -> Vec<Rc<Vec<LeveledMove>>> {
     };
     let a = LeveledMove::compose(
         &[s0, s1, s2, s3, s4],
-        c,
+        &[c],
         1,
         ElementId {
             level: 1,

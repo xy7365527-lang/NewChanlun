@@ -1929,16 +1929,16 @@ mod tests {
         let s0 = LeveledMove::from_unit(&u(0, 4, Direction::Up), e(0, 0));
         let s1 = LeveledMove::from_unit(&u(4, 8, Direction::Down), e(0, 1));
         let s2 = LeveledMove::from_unit(&u(8, 12, Direction::Up), e(0, 2));
-        let c1 = LeveledMove::compose(&[s0, s1, s2], c(0, 12), 1, e(1, 0)); // 外缘 Up=Long
+        let c1 = LeveledMove::compose(&[s0, s1, s2], &[c(0, 12)], 1, e(1, 0)); // 外缘 Up=Long
         let t0 = LeveledMove::from_unit(&u(12, 16, Direction::Down), e(0, 3));
         let t1 = LeveledMove::from_unit(&u(16, 20, Direction::Up), e(0, 4));
         let t2 = LeveledMove::from_unit(&u(20, 24, Direction::Down), e(0, 5));
-        let c2a = LeveledMove::compose(&[t0, t1, t2], c(12, 24), 1, e(1, 1));
+        let c2a = LeveledMove::compose(&[t0, t1, t2], &[c(12, 24)], 1, e(1, 1));
         let v0 = LeveledMove::from_unit(&u(24, 28, Direction::Up), e(0, 6));
         let v1 = LeveledMove::from_unit(&u(28, 32, Direction::Down), e(0, 7));
         let v2 = LeveledMove::from_unit(&u(32, 36, Direction::Up), e(0, 8));
-        let c2b = LeveledMove::compose(&[v0, v1, v2], c(24, 36), 1, e(1, 2));
-        let l2 = LeveledMove::compose(&[c2a.clone(), c2b.clone()], c(12, 36), 2, e(2, 0));
+        let c2b = LeveledMove::compose(&[v0, v1, v2], &[c(24, 36)], 1, e(1, 2));
+        let l2 = LeveledMove::compose(&[c2a.clone(), c2b.clone()], &[c(12, 36)], 2, e(2, 0));
         vec![
             Rc::new(Vec::new()),
             Rc::new(vec![c1, c2a, c2b]),
@@ -2010,14 +2010,14 @@ mod tests {
             );
             let l1 = LeveledMove::compose(
                 &[s0],
-                Center {
+                &[Center {
                     zd: 5,
                     zg: 10,
                     dd: 0,
                     gg: 15,
                     start_index: 12,
                     end_index: 16,
-                },
+                }],
                 1,
                 ElementId {
                     level: 1,
@@ -2731,7 +2731,7 @@ mod tests {
             start_index: 0,
             end_index: 12,
         };
-        let l1 = LM::compose(&[s0, s1, s2], c, 1, eid(1, 0)); // 外缘 10→15 ⟹ Long（σ_p=+1）
+        let l1 = LM::compose(&[s0, s1, s2], &[c], 1, eid(1, 0)); // 外缘 10→15 ⟹ Long（σ_p=+1）
         rc_tower(vec![Vec::new(), vec![l1]])
     }
 
@@ -2744,14 +2744,14 @@ mod tests {
                 mk(4, 8, Direction::Down, 3, 12, 1),
                 mk(8, 12, Direction::Up, 5, 15, 2),
             ],
-            Center {
+            &[Center {
                 zd: 5,
                 zg: 10,
                 dd: 0,
                 gg: 15,
                 start_index: 0,
                 end_index: 12,
-            },
+            }],
             1,
             eid(1, 0),
         ); // Long
@@ -2761,14 +2761,14 @@ mod tests {
                 mk(16, 20, Direction::Down, 3, 12, 4),
                 mk(20, 24, Direction::Down, 0, 8, 5),
             ],
-            Center {
+            &[Center {
                 zd: 5,
                 zg: 10,
                 dd: 0,
                 gg: 15,
                 start_index: 12,
                 end_index: 24,
-            },
+            }],
             1,
             eid(1, 1),
         ); // Short
@@ -3002,7 +3002,7 @@ mod tests {
             start_index: 0,
             end_index: 12,
         };
-        let a_l1 = LM::compose(&[a_s0, a_s1, a_s2], ca, 1, eid(1, 0));
+        let a_l1 = LM::compose(&[a_s0, a_s1, a_s2], &[ca], 1, eid(1, 0));
         let tower_a = rc_tower(vec![Vec::new(), vec![a_l1]]);
 
         // tower B：interior s1 古怪线段重划——同 start/end_index（4/8）、同 ordinal、同子数，
@@ -3018,7 +3018,7 @@ mod tests {
             start_index: 0,
             end_index: 12,
         };
-        let b_l1 = LM::compose(&[b_s0, b_s1, b_s2], cb, 1, eid(1, 0));
+        let b_l1 = LM::compose(&[b_s0, b_s1, b_s2], &[cb], 1, eid(1, 0));
         let tower_b = rc_tower(vec![Vec::new(), vec![b_l1]]);
 
         // 前提坐实：旧浅指纹（顶层 level/ordinal/end_index/子数）两 tower 相同（漏的来源）。
