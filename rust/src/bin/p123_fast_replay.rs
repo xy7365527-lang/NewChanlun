@@ -158,6 +158,12 @@
 //! 形态/留痕/钟/修订号；行口径见 [`ChainDump`] 文档）+ `P123_CHAIN_DUMP_EVERY=<K>`（推进节拍，
 //! 未设 ⟹ 只在 pass 末根推进一次）。同为**独立 sink 独立文件**，N1-T4 口径不变：只写不判、
 //! env 未设零行为差异、不进 §5 验收面。
+//! #757 自有可选侧信道：`P757_OBSERVABILITY_DUMP=<path>`（批量丢弃观测面：`P757_BATCH_DROP`
+//! 塔层批量丢弃实例逐只 + `P757_LIVE_MISS` L1 身份级「无 earlier Live」三类成因逐身份；
+//! 行口径见 `chanlun/review-results/issue757-live-miss-reason-codes-20260817.md`）。同为
+//! **独立 sink 独立文件**：只写不判、env 未设零行为差异、既有 stdout/dump/P116 三面
+//! 一个 bit 不动；汇总读数走 stderr（`P757_LIVE_MISS_SUMMARY` / `P757_BATCH_DROP_SUMMARY`
+//! 两行新增审计行，不在 golden 内——#724 A4 同口径）。
 
 use newchan_rust::theta_v0::classifier;
 use newchan_rust::theta_v0::classifier::bsp::BspPoint;
@@ -179,9 +185,9 @@ use newchan_rust::theta_v0::classifier::nest::{
 use newchan_rust::theta_v0::classifier::nest_lifecycle::{
     active_l1_window_frontier, active_l2_window_frontier, active_segment_frontier,
     active_window_right_edge, feed_replay_bar, provide_active_pan_live_windows,
-    ActiveSegmentFrontier, ActiveWindowFrontier, ForceMaterial, LifecycleRevision,
-    LifecycleSettlementStats, NestLifecycleBook, PanCompletionEvent, PanLiveWindow,
-    PanProviderPhase, ReplayBarFeed, ReplayFeedStats,
+    ActiveSegmentFrontier, ActiveWindowFrontier, BatchDroppedWindow, BatchObservabilityTracker,
+    ForceMaterial, LifecycleRevision, LifecycleSettlementStats, LiveMissCause, NestLifecycleBook,
+    PanCompletionEvent, PanLiveWindow, PanProviderPhase, ReplayBarFeed, ReplayFeedStats,
 };
 use newchan_rust::theta_v0::classifier::recursive_tower::{
     find_move_by_end_index, LeveledMove, WindowScanCursor,
@@ -859,6 +865,53 @@ struct LifecycleReplayStats {
     seg_ledger_no_tower: usize,
     /// 末 prefix 的终局分布与寿命读面（闪现/非闪现分层）。
     settlement: LifecycleSettlementStats,
+    /// 票 #757：塔层批量丢弃实例计数（key = 级别；instances = Σ(m−1)，rescans = 含批量
+    /// 丢弃的重扫次数）。观测面 only，诊断只写不判。
+    p757_batch_drop_instances: BTreeMap<u32, usize>,
+    p757_batch_drop_rescans: BTreeMap<u32, usize>,
+    /// 票 #757：L1 身份级「无 earlier Live」三类成因分级的汇总读面。
+    p757_live_miss: LiveMissTally,
+}
+
+/// 票 #757：L1 身份级三类成因码（[`LiveMissCause`]）的汇总计数 + 覆盖/出域分列。
+///
+/// 口径（与 #603 探针严格对齐，见 `BatchObservabilityTracker` 文档）：分母 = 账本内
+/// level==1 且 `structure_end_at` 有值的 pan 域（`Consolidation`）条目；`observed_at <
+/// signal_at` ⟹ covered（有 earlier Live），否则按三类码分级。trend 域条目记
+/// `out_of_scope`（其 `seg_c_full` 是工程桥口径，pending 采样口径不适用）。
+#[derive(Debug, Default, Clone, Copy)]
+struct LiveMissTally {
+    covered: usize,
+    chain_confirmed_no_pending_window: usize,
+    same_bar_center_confirmation: usize,
+    observable_window_missed: usize,
+    out_of_scope: usize,
+}
+
+impl LiveMissTally {
+    fn uncovered(&self) -> usize {
+        self.chain_confirmed_no_pending_window
+            + self.same_bar_center_confirmation
+            + self.observable_window_missed
+    }
+
+    fn record(&mut self, cause: LiveMissCause) {
+        match cause {
+            LiveMissCause::ChainConfirmedNoPendingWindow => {
+                self.chain_confirmed_no_pending_window += 1
+            }
+            LiveMissCause::SameBarCenterConfirmation => self.same_bar_center_confirmation += 1,
+            LiveMissCause::ObservableWindowMissed => self.observable_window_missed += 1,
+        }
+    }
+}
+
+/// 票 #757：塔层批量丢弃实例的诊断行载体——级别与扫描结局码由产出点补给
+/// （[`BatchDroppedWindow`] 本身级别中立）。
+struct BatchDropRow {
+    level: u32,
+    outcome: &'static str,
+    window: BatchDroppedWindow,
 }
 
 /// #559 C1：L1 活窗定位的**逐 run** 诊断行——命中与未命中都记。
@@ -1176,6 +1229,43 @@ fn print_lifecycle_summary(lifecycle_stats: &LifecycleReplayStats) {
             .collect::<Vec<_>>()
             .join(" ")
     );
+    // 票 #757（观测面 only；stderr 审计行，不在 golden 内——#724 A4 同口径）：L1 身份级
+    // 三类成因汇总 + 塔层批量丢弃实例计数。验收锚 BTC 100k：三类 = 18/17/11（#603 三桶）。
+    let tally = lifecycle_stats.p757_live_miss;
+    eprintln!(
+        "P757_LIVE_MISS_SUMMARY l1:covered={} l1:uncovered={} l1:chain_confirmed_no_pending_window={} l1:same_bar_center_confirmation={} l1:observable_window_missed={} l1:out_of_scope={}",
+        tally.covered,
+        tally.uncovered(),
+        tally.chain_confirmed_no_pending_window,
+        tally.same_bar_center_confirmation,
+        tally.observable_window_missed,
+        tally.out_of_scope,
+    );
+    let batch_drop_cells = lifecycle_stats
+        .p757_batch_drop_instances
+        .keys()
+        .chain(lifecycle_stats.p757_batch_drop_rescans.keys())
+        .copied()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .map(|level| {
+            format!(
+                "l{level}:rescans={} l{level}:instances={}",
+                lifecycle_stats
+                    .p757_batch_drop_rescans
+                    .get(&level)
+                    .copied()
+                    .unwrap_or(0),
+                lifecycle_stats
+                    .p757_batch_drop_instances
+                    .get(&level)
+                    .copied()
+                    .unwrap_or(0),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    eprintln!("P757_BATCH_DROP_SUMMARY {batch_drop_cells}");
 }
 
 fn print_lifetime_summary(settlement: &LifecycleSettlementStats) {
@@ -1582,6 +1672,11 @@ struct TargetedPassState<'c> {
     last_lifecycle_lower_key: Option<LifecycleLowerKey>,
     last_lifecycle_upper_key: Option<LifecycleUpperKey>,
     lifecycle_dump: Option<BufWriter<File>>,
+    // 票 #757（观测面 only）：批量观测性跟踪器（逐 bar 喂 pending 史 + 各级 sealed 中枢
+    // 首确认 bar）与三类成因码的独立 dump sink（env `P757_OBSERVABILITY_DUMP`；未设 ⟹
+    // 零写出，既有 stdout/dump/P116 三面一个 bit 不动）。
+    observability: BatchObservabilityTracker,
+    p757_dump: Option<BufWriter<File>>,
     // #553（N1-T4）候选事件 dump：独立 sink，与 P116_DUMP 既有封印面互不触碰（只写不判）。
     event_dump: EventDump,
     // #641（N3）链证书 dump：同款独立 sink（只写不判），与 event_dump 分属两个文件、两把
@@ -1612,6 +1707,14 @@ impl<'c> TargetedPassState<'c> {
                     .map_err(|error| format!("创建 P421_LIFECYCLE_DUMP={path} 失败: {error}"))
             })
             .transpose()?;
+        let p757_dump = std::env::var("P757_OBSERVABILITY_DUMP")
+            .ok()
+            .map(|path| {
+                File::create(&path)
+                    .map(BufWriter::new)
+                    .map_err(|error| format!("创建 P757_OBSERVABILITY_DUMP={path} 失败: {error}"))
+            })
+            .transpose()?;
         Ok(Self {
             parser: ParseLayerIncr::new(config),
             cache: classifier::TowerCache::new(),
@@ -1630,6 +1733,8 @@ impl<'c> TargetedPassState<'c> {
             last_lifecycle_lower_key: None,
             last_lifecycle_upper_key: None,
             lifecycle_dump,
+            observability: BatchObservabilityTracker::default(),
+            p757_dump,
             event_dump: EventDump::from_env()?,
             chain_dump: ChainDump::from_env(total_bars)?,
             derived: BTreeMap::new(),
@@ -1696,6 +1801,16 @@ fn process_targeted_bar(
     let forest_epoch = state.cache.forest_epoch();
 
     let keys = compute_lifecycle_due_keys(state, &l0, forest_epoch);
+    // 票 #757（观测面 only）：逐 bar 喂批量观测性跟踪器——L0 行进中 C 的 pending 史
+    // （`keys.frontier` 每 bar 已算，零新增成本）+ 各级 sealed 中枢首确认 bar（确认水线
+    // = `tower_confirmed_len`，#93 单一来源）。只读取数，不进任何判据路径。
+    state.observability.observe_frontier(keys.frontier.as_ref());
+    for (level, level_moves) in tower.iter().enumerate().skip(1) {
+        let sealed_len = state.cache.tower_confirmed_len(level);
+        state
+            .observability
+            .observe_tower_level(level as u32, level_moves, sealed_len, index);
+    }
     if keys.lower_due || keys.upper_due {
         recompute_stems_if_due(state, &tower, &l0, keys, index)?;
     }
@@ -1784,7 +1899,29 @@ fn recompute_stems_if_due(
     index: usize,
 ) -> Result<(), String> {
     let before = state.lifecycle_window_stems.len();
-    let diag_rows = recompute_and_merge_stems(state, tower, keys, index);
+    let mut batch_drop_rows = Vec::new();
+    let diag_rows = recompute_and_merge_stems(state, tower, keys, index, &mut batch_drop_rows);
+    write_p757_batch_drop_rows(&mut state.p757_dump, &batch_drop_rows, index)?;
+    // 票 #757 计数口径：instances = Σ(m−1)（逐实例）；rescans = 含 ≥1 只丢弃实例的
+    // 重扫事件数（每个 (bar, level) 至多一次扫描调用 ⟹ 该级有行即 +1）。
+    {
+        let mut rescans: BTreeMap<u32, usize> = BTreeMap::new();
+        for row in &batch_drop_rows {
+            *state
+                .lifecycle_stats
+                .p757_batch_drop_instances
+                .entry(row.level)
+                .or_default() += 1;
+            *rescans.entry(row.level).or_default() += 1;
+        }
+        for (level, n) in rescans {
+            *state
+                .lifecycle_stats
+                .p757_batch_drop_rescans
+                .entry(level)
+                .or_default() += n.min(1);
+        }
+    }
 
     let seg_ledger =
         record_seg_ledger_observation(&mut state.lifecycle_stats, tower, l0, keys.lower_due);
@@ -1836,6 +1973,7 @@ fn recompute_and_merge_stems(
     tower: &[Rc<Vec<LeveledMove>>],
     keys: DueKeys,
     index: usize,
+    batch_drop_rows: &mut Vec<BatchDropRow>,
 ) -> Vec<L1LiveDiagRow> {
     // #601/#602 L2/L3 活窗的塔侧只读输入三元——只在真到期时取（与判据键同源同值）。
     let l1_view = TowerScanView {
@@ -1860,6 +1998,7 @@ fn recompute_and_merge_stems(
             index,
             &mut state.lifecycle_stats.l1_live_outcomes,
             &mut diag_rows,
+            batch_drop_rows,
         );
     }
     if keys.upper_due {
@@ -1873,6 +2012,7 @@ fn recompute_and_merge_stems(
             index,
             &mut state.lifecycle_stats.l1_live_outcomes,
             &mut diag_rows,
+            batch_drop_rows,
         );
     }
     merge_lifecycle_stems(state);
@@ -1937,6 +2077,29 @@ fn write_pan_live_diag_rows(
                 row.c_start.map_or(usize::MAX, |value| value),
                 row.gap_len.map_or(usize::MAX, |value| value),
                 row.seg_a.map_or("none".to_string(), |(a, b)| format!("({a},{b})")),
+            ),
+        )?;
+    }
+    Ok(())
+}
+
+/// 票 #757：塔层批量丢弃实例逐只落行（观测面 only；写 `P757_OBSERVABILITY_DUMP` 独立
+/// sink，env 未设时 `write_lifecycle_line` 首行返回、零写出）。
+fn write_p757_batch_drop_rows(
+    dump: &mut Option<BufWriter<File>>,
+    rows: &[BatchDropRow],
+    index: usize,
+) -> Result<(), String> {
+    for row in rows {
+        write_lifecycle_line(
+            dump,
+            format_args!(
+                "P757_BATCH_DROP as_of={index} level={} cause={} outcome={} win_start={} win_end={}",
+                row.level,
+                LiveMissCause::ChainConfirmedNoPendingWindow.reason_tag(),
+                row.outcome,
+                row.window.start_index,
+                row.window.end_index,
             ),
         )?;
     }
@@ -2685,6 +2848,53 @@ fn print_prefix_progress(
     );
 }
 
+/// 票 #757：L1 身份级三类成因分级（唯一调用点 = targeted pass 收尾）。
+///
+/// 口径（与 #603 探针对齐）：分母 = 账本内 level==1 且 `structure_end_at` 有值的条目；
+/// `observed_at < signal_at` ⟹ covered（有 earlier Live）；否则经
+/// [`BatchObservabilityTracker::classify_l1`] 分级（机制不可观测 / 时机边界 / 可观测
+/// 未命中）。trend 域条目（`seg_c_full` 为工程桥口径）记 `out_of_scope`，不参与分级。
+/// BTC 100k 验收锚：三类读数 = 18 / 17 / 11（#603 三桶；L2 级证据，禁外推——#724 V4）。
+fn classify_l1_live_misses(
+    book: &NestLifecycleBook,
+    tracker: &BatchObservabilityTracker,
+    dump: &mut Option<BufWriter<File>>,
+) -> Result<LiveMissTally, String> {
+    let mut tally = LiveMissTally::default();
+    for (key, entry) in book.entries() {
+        if key.level != 1 {
+            continue;
+        }
+        let Some(signal_at) = entry.structure_end_at else {
+            continue;
+        };
+        if key.kind != NestDivergenceKind::Consolidation {
+            tally.out_of_scope += 1;
+            continue;
+        }
+        if entry.observed_at < signal_at {
+            tally.covered += 1;
+            continue;
+        }
+        let cause = tracker.classify_l1(key, signal_at);
+        tally.record(cause);
+        write_lifecycle_line(
+            dump,
+            format_args!(
+                "P757_LIVE_MISS level=1 cause={} seg_a=({},{}) c_start={} b_center_start={} observed_at={} signal_at={}",
+                cause.reason_tag(),
+                key.seg_a.0,
+                key.seg_a.1,
+                key.seg_c_full.0,
+                key.b_center_start,
+                entry.observed_at,
+                signal_at,
+            ),
+        )?;
+    }
+    Ok(tally)
+}
+
 fn finalize_targeted_pass(
     mut state: TargetedPassState<'_>,
 ) -> Result<(YieldBook, usize, usize, SparseStats, LifecycleReplayStats), String> {
@@ -2698,6 +2908,13 @@ fn finalize_targeted_pass(
     }
     state.lifecycle_stats.settlement = state.lifecycle_book.settlement_stats();
     write_lifetime_dump_line(&mut state.lifecycle_dump, state.lifecycle_stats.settlement)?;
+    // 票 #757（观测面 only）：L1 身份级「无 earlier Live」三类成因分级——逐身份落行
+    // （独立 sink）+ 汇总计数（stderr 摘要）。分类只读账本与跟踪器，不改任何既有产物。
+    state.lifecycle_stats.p757_live_miss = classify_l1_live_misses(
+        &state.lifecycle_book,
+        &state.observability,
+        &mut state.p757_dump,
+    )?;
     if let Some(writer) = state.lifecycle_dump.as_mut() {
         writer
             .flush()
@@ -2857,6 +3074,8 @@ fn recompute_lifecycle_window_stems(
     as_of: usize,
     outcome_tally: &mut BTreeMap<(u32, &'static str), usize>,
     diag_rows: &mut Vec<L1LiveDiagRow>,
+    // 票 #757（观测面 only）：塔层批量丢弃实例出参（`scan_active_window` 批内非末窗）。
+    batch_drop_rows: &mut Vec<BatchDropRow>,
 ) -> Vec<LifecycleWindowStem> {
     // 调用点约定（票 #629 S3 订正）：本函数目前只由两处驱动——`1..3`（L1/L2，`levels.start==1`）
     // 与 `3..4`（L3）——其并集覆盖 `level ∈ {1,2,3}`，是下方 `match level` 穷尽 `1`/`2|3` 两臂
@@ -2974,8 +3193,9 @@ fn recompute_lifecycle_window_stems(
                 } else {
                     units
                 };
+                let mut drops = Vec::new();
                 let outcome = if level == 2 {
-                    active_l1_window_frontier(scan_units, frontier, cursor.resume_from)
+                    active_l1_window_frontier(scan_units, frontier, cursor.resume_from, &mut drops)
                 } else {
                     // L3：虚拟单元 = L2 那一段派生的行进中 L1 窗口单元；首叶方向表 = 同一段
                     // 的 `lower_legs_from(tower[1])`。两者缺失（L2 派生失败或本 bar 无行进中
@@ -2994,8 +3214,16 @@ fn recompute_lifecycle_window_stems(
                         &carry.l1_leg_dirs[..carry.l1_leg_dirs.len().min(scan_units.len())],
                         carry.l1_frontier.as_ref(),
                         cursor.resume_from,
+                        &mut drops,
                     )
                 };
+                // 票 #757：批量丢弃实例随扫描结局码一并落行（结局 = 末窗是否吸收虚拟单元，
+                // 批内非末窗「从未作为当下行进中窗口存在」的事实与结局无关）。
+                batch_drop_rows.extend(drops.into_iter().map(|window| BatchDropRow {
+                    level: level as u32,
+                    outcome: outcome.reason_tag(),
+                    window,
+                }));
                 let Some(active_window) = outcome.frontier() else {
                     miss(outcome_tally, diag_rows, level, outcome.reason_tag());
                     continue;
@@ -4206,7 +4434,7 @@ mod tests {
 
         // (a) 不截断：开放末窗以 confirmed + active 双重身份进入 ⟹ 倒灌恒真。
         assert_eq!(
-            active_l2_window_frontier(&l1_units, &leg_dirs, Some(&active), 0),
+            active_l2_window_frontier(&l1_units, &leg_dirs, Some(&active), 0, &mut Vec::new()),
             ActiveWindowOutcome::LowerFrontierNotAfterUnits,
             "不截断 ⟹ active.start(30) < units.last().end(50)"
         );
@@ -4218,8 +4446,13 @@ mod tests {
             Some(30),
             "截断后末确认单元终点(30) <= active 起点(30) ⟹ 不倒灌"
         );
-        let outcome =
-            active_l2_window_frontier(scan_units, &leg_dirs[..l1_confirmed_len], Some(&active), 0);
+        let outcome = active_l2_window_frontier(
+            scan_units,
+            &leg_dirs[..l1_confirmed_len],
+            Some(&active),
+            0,
+            &mut Vec::new(),
+        );
         let frontier = outcome
             .frontier()
             .expect("★倒灌消除后判据按序推进，行进中 L1 单元被 L2 层末窗吸收");

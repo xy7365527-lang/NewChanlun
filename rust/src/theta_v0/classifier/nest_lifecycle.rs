@@ -104,12 +104,14 @@ use super::ledger_kernel::{
     LedgerRetrogradeRejection, LedgerRevision, LedgerSettlement, LedgerState,
 };
 use super::level_view::{LowerLeg, NestCandidateEvent, NestDivergenceKind};
-use super::recursive_tower::{detect_centers_windowed_resume, map_src_to_close_idx, ElementId};
+use super::recursive_tower::{
+    detect_centers_windowed_resume, map_src_to_close_idx, ElementId, LeveledMove,
+};
 use super::signal::{
     locate_pan_div_structure, locate_pan_div_structure_front_anchor, nearest_confirmed_center_idx,
     pan_div_structure_extreme,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 身份键与桥（卡 §2.2/§6.3）
@@ -2052,6 +2054,152 @@ impl ActiveWindowOutcome {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 票 #757：批量丢弃机制不可观测实例的专门原因码（#617 方向 A 落地，#724 裁定）
+//
+// **观测面 only**：本段全部类型只做「读数与命名」，不进任何判据路径——不改账本字段、
+// 不改事件流、不改塔/parser 的任何产出（既有行为零变化由「只新增、不改写既有写入点」
+// 结构性保证）。裁定链：#724（2026-07-29 裁定：批量丢弃影响面唯一投入点 = 机制不可观测
+// 实例配专门原因码）→ #617 方向 A（先探针预分级三类：机制不可观测 / 时机边界 / 可观测，
+// 三类原因码进验收，不假设塔侧队列更有效）。
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// 完成身份「无 earlier Live」的三类成因码（票 #757；#617 方向 A 的三类分级落码）。
+///
+/// **判定顺序 = 枚举顺序**（[`BatchObservabilityTracker::classify_l1`] 唯一分类点）：
+///
+/// 1. [`ChainConfirmedNoPendingWindow`](Self::ChainConfirmedNoPendingWindow)（机制不可观测）
+///    ——C 段从未作为 pending/frontier 出现：parser `append` 的批量确认（#617 钉界：
+///    一次 `append` 的 `while` 循环可连续确认多段，批内非首段的起点在其前身确认之前
+///    **不存在**，故其「行进中当下状态」在任何粒度下都不存在——教义判定：非观测缺口，
+///    是状态本身不存在）。本码优先判：它是三者中唯一的教义终局判定。
+/// 2. [`SameBarCenterConfirmation`](Self::SameBarCenterConfirmation)（时机边界）——C 段
+///    曾真实出现在 pending/frontier（可被观测），但 B 中枢到**完成信号同 bar** 才首次
+///    确认（sealed），覆盖率判据严格 `<`（活窗观测须早于完成）天然排除同 bar 命中
+///    （#618 钉界：判据边界产物，非数据分裂）。
+/// 3. [`ObservableWindowMissed`](Self::ObservableWindowMissed)（可观测未命中）——C 曾可
+///    观测且 B 在完成前已确认：实例本可被覆盖，未覆盖归因于他处（在案主因 =
+///    `structure_not_locatable` 结构定位失败，#599 §6 已判出范围、#603 桶③实测 11 只）。
+///    本码**不**声称归因完成，只声称「机制上可观测」这一事实分层。
+///
+/// 验收锚（BTC 100k 单窗 L2 级证据，禁写成规格常量——#724 V4）：三类在 L1 身份级的
+/// 既有实测读数 = 18 / 17 / 11（#603 三桶，逐只清单见其探针产物）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LiveMissCause {
+    /// 机制不可观测：批量确认批内非首段，从未有过 pending「当下状态」（#617）。
+    ChainConfirmedNoPendingWindow,
+    /// 时机边界：B 中枢在完成信号同 bar 才首次 sealed（#618）。
+    SameBarCenterConfirmation,
+    /// 可观测未命中：C 与 B 都曾可观测，未覆盖归因他处（如结构定位失败）。
+    ObservableWindowMissed,
+}
+
+impl LiveMissCause {
+    /// 原因码标签（dump/统计口径单一来源，禁第二处拼写）。
+    pub fn reason_tag(&self) -> &'static str {
+        match self {
+            Self::ChainConfirmedNoPendingWindow => "chain_confirmed_no_pending_window",
+            Self::SameBarCenterConfirmation => "same_bar_center_confirmation",
+            Self::ObservableWindowMissed => "observable_window_missed",
+        }
+    }
+}
+
+/// 塔层批量产出中被「只取末窗」丢弃的**单个窗口实例**（票 #757 观测面记录载体）。
+///
+/// 机制（#617 L2/L3 同构钉界）：`detect_centers_windowed_resume` 一次续扫可 push m 个
+/// 成立窗口（普通连出 + #148 升级重切一窗产 k 个）；[`scan_active_window`] 只取末窗
+/// ⟹ 批内 m−1 个窗口从未作为「当下的行进中窗口」存在。本类型把每一只这样的实例以
+/// 源坐标区间记下（级别与 as_of 由调用方补给——本类型不携带，保持扫描内核级别中立）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BatchDroppedWindow {
+    /// 被丢窗口首单元起点源坐标。
+    pub start_index: usize,
+    /// 被丢窗口末单元终点源坐标。
+    pub end_index: usize,
+}
+
+/// 批量观测性跟踪器（票 #757）：逐 bar 累计「哪些 C 曾真实 pending」与「各级中枢首次
+/// sealed 的 bar」，供完成身份的三类成因分级（[`LiveMissCause`]）。
+///
+/// **观测面 only**：所有输入来自调用方既有的只读视图（parser frontier / 塔 sealed 前缀
+/// 水线），本跟踪器不回写任何生产状态。两条口径与既有实测严格对齐：
+///
+/// - `ever_pending` 的采样点 = [`active_segment_frontier`] 的 `Some` 返回——与 #603 桶①
+///   「C 段从未进过队列」的探针口径逐字同源（队列喂数点同一函数），故 18 只读数可对拍；
+/// - `center_sealed_first_seen` 只数 **sealed 前缀**（`tower[level][..confirmed_len]`，
+///   确认水线 = #93 单一来源）内的中枢首现 bar——与 #618「完成信号同 bar 首次被确认」
+///   的「确认」同口径（frontier 批内的开放单元不算确认）。
+#[derive(Debug, Clone, Default)]
+pub struct BatchObservabilityTracker {
+    /// 曾作为行进中 C 被观测到的 L0 段起点集合（`active_segment_frontier` 逐 bar 采样）。
+    ever_pending: BTreeSet<usize>,
+    /// `(level, 中枢起点源坐标)` → 首次进入 sealed 前缀的 bar。首写不后移（rollback 后
+    /// 重新 sealed 不改写——首确认时刻是历史事实）。
+    center_sealed_first_seen: BTreeMap<(u32, usize), usize>,
+    /// 各级已扫描的 sealed 前缀长度（增量游标；水线回缩时降级为 min——回缩区间内
+    /// 重 sealed 的元素首见 bar 保原值，见上字段文档）。
+    center_scanned: BTreeMap<u32, usize>,
+}
+
+impl BatchObservabilityTracker {
+    /// 逐 bar 喂 L0 行进中 C frontier（`compute_lifecycle_due_keys` 每 bar 已算，零新增成本）。
+    pub fn observe_frontier(&mut self, frontier: Option<&ActiveSegmentFrontier>) {
+        if let Some(frontier) = frontier {
+            self.ever_pending.insert(frontier.start_index);
+        }
+    }
+
+    /// 逐 bar 喂某级塔的 sealed 前缀（`moves = tower[level]`，`sealed_len` = 确认水线，
+    /// `as_of` = 当前 bar）。
+    ///
+    /// 增量扫描：每级只扫 `[scanned, sealed_len)` 的新 sealed 元素，O(新 sealed 数)/bar。
+    /// 水线回缩（cascade bar）时游标降级为 `min(scanned, sealed_len)`，不重扫前缀；
+    /// 回缩后重新 sealed 的元素首见 bar 保**原值**（首确认是历史事实，entry 首写不后移）。
+    pub fn observe_tower_level(
+        &mut self,
+        level: u32,
+        moves: &[LeveledMove],
+        sealed_len: usize,
+        as_of: usize,
+    ) {
+        let sealed_len = sealed_len.min(moves.len());
+        let scanned = self.center_scanned.entry(level).or_insert(0);
+        *scanned = (*scanned).min(sealed_len);
+        for mv in &moves[*scanned..sealed_len] {
+            self.center_sealed_first_seen
+                .entry((level, mv.start_index))
+                .or_insert(as_of);
+        }
+        *scanned = sealed_len;
+    }
+
+    /// L1 完成身份的三类成因分级（票 #757 唯一分类点；判定顺序见 [`LiveMissCause`]）。
+    ///
+    /// **调用契约**：`key` 必须是 level==1 的 pan 域身份（`seg_c_full.0` = C 段 L0 源坐标
+    /// 起点、`b_center_start` = B 中枢在 `tower[1]` 的起点快照）；`signal_at` = 该身份的
+    /// `structure_end_at`（c 结构完成信号首次到达的 bar）。调用方保证「无 earlier Live」
+    /// （`observed_at >= signal_at`）——本函数只分级，不判覆盖。
+    ///
+    /// **级别范围（诚实登记）**：C 腿 pending 口径（`ever_pending`）只覆盖 L1 身份
+    /// （C = L0 段）。L2/L3 身份的 C 是窗口单元，其机制不可观测面由塔层批量丢弃记录
+    /// （[`BatchDroppedWindow`]）承载，身份级三类分级不在本票 Scope（#724 V3：L4+ 若立项
+    /// 须第一天内建同级别口径）。
+    pub fn classify_l1(&self, key: &LifecycleKey, signal_at: usize) -> LiveMissCause {
+        if !self.ever_pending.contains(&key.seg_c_full.0) {
+            return LiveMissCause::ChainConfirmedNoPendingWindow;
+        }
+        if self
+            .center_sealed_first_seen
+            .get(&(key.level, key.b_center_start))
+            .is_some_and(|&sealed_at| sealed_at >= signal_at)
+        {
+            return LiveMissCause::SameBarCenterConfirmation;
+        }
+        LiveMissCause::ObservableWindowMissed
+    }
+}
+
 /// [`scan_active_window`] 的成功产出：末窗在**扩展后**单元序列上的起点下标 + 该窗几何。
 ///
 /// 方向**不在**本结构里：窗口首单元的「首叶方向」（`lower_legs_from` 口径）要按级别到不同
@@ -2101,6 +2249,10 @@ fn scan_active_window(
     virtual_unit: UnitRange,
     resume_from: usize,
     build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
+    // 票 #757（观测面 only）：批内非末窗逐只落码（机制不可观测，#617 同构钉界）。
+    // 记录在守卫 3 判定**之前**——无论末窗最终是否吸收虚拟单元，批内非末窗「从未作为
+    // 当下行进中窗口存在」的事实不变；m < 2 时恒为空追加，零成本。
+    drops: &mut Vec<BatchDroppedWindow>,
 ) -> Result<ActiveWindowScan, ActiveWindowOutcome> {
     if units
         .last()
@@ -2114,6 +2266,14 @@ fn scan_active_window(
     let mut extended = units.to_vec();
     extended.push(virtual_unit);
     let (windowed, _metas, _cursor) = detect_centers_windowed_resume(&extended, build, resume_from);
+    if windowed.len() >= 2 {
+        drops.extend(windowed[..windowed.len() - 1].iter().map(|(_center, win)| {
+            BatchDroppedWindow {
+                start_index: extended[win.0].start_index,
+                end_index: extended[win.1].end_index,
+            }
+        }));
+    }
     let Some((center, win)) = windowed.last().copied() else {
         return Err(ActiveWindowOutcome::NoWindowFormed);
     };
@@ -2157,6 +2317,8 @@ pub fn active_l1_window_frontier(
     l0_units: &[UnitRange],
     l0_frontier: Option<&ActiveSegmentFrontier>,
     l1_resume_from: usize,
+    // 票 #757（观测面 only）：批内非末窗的批量丢弃实例出参（见 [`scan_active_window`]）。
+    drops: &mut Vec<BatchDroppedWindow>,
 ) -> ActiveWindowOutcome {
     let Some(frontier) = l0_frontier else {
         return ActiveWindowOutcome::NoLowerFrontier;
@@ -2170,11 +2332,16 @@ pub fn active_l1_window_frontier(
         lo: frontier.start_price.min(frontier.extreme),
         hi: frontier.start_price.max(frontier.extreme),
     };
-    let scan =
-        match scan_active_window(l0_units, virtual_unit, l1_resume_from, center_from_segments) {
-            Ok(scan) => scan,
-            Err(outcome) => return outcome,
-        };
+    let scan = match scan_active_window(
+        l0_units,
+        virtual_unit,
+        l1_resume_from,
+        center_from_segments,
+        drops,
+    ) {
+        Ok(scan) => scan,
+        Err(outcome) => return outcome,
+    };
     ActiveWindowOutcome::Frontier(ActiveWindowFrontier {
         // L1 层的窗口首单元就是一根 L0 段单元，其 `direction` **即**首叶方向
         // （`segment_to_unit` 直传段方向 ⟹ 与 `lower_legs_from(tower[0])` 的
@@ -2226,6 +2393,8 @@ pub fn active_l2_window_frontier(
     l1_leg_dirs: &[Direction],
     l1_frontier: Option<&ActiveWindowFrontier>,
     l2_resume_from: usize,
+    // 票 #757（观测面 only）：批内非末窗的批量丢弃实例出参（见 [`scan_active_window`]）。
+    drops: &mut Vec<BatchDroppedWindow>,
 ) -> ActiveWindowOutcome {
     let Some(frontier) = l1_frontier else {
         return ActiveWindowOutcome::NoLowerFrontier;
@@ -2240,8 +2409,13 @@ pub fn active_l2_window_frontier(
         lo: frontier.lo,
         hi: frontier.hi,
     };
-    let scan = match scan_active_window(l1_units, virtual_unit, l2_resume_from, center_from_window)
-    {
+    let scan = match scan_active_window(
+        l1_units,
+        virtual_unit,
+        l2_resume_from,
+        center_from_window,
+        drops,
+    ) {
         Ok(scan) => scan,
         Err(outcome) => return outcome,
     };
@@ -5455,7 +5629,7 @@ mod tests {
             extreme: 110,
             extreme_at: 40,
         };
-        let outcome = active_l1_window_frontier(&units, Some(&l0_frontier), 0);
+        let outcome = active_l1_window_frontier(&units, Some(&l0_frontier), 0, &mut Vec::new());
         let frontier = outcome
             .frontier()
             .expect("行进中 L0 段被吸收 ⟹ 有行进中 L1 单元");
@@ -5497,7 +5671,7 @@ mod tests {
             extreme: 140,
             extreme_at: 40,
         };
-        let outcome = active_l1_window_frontier(&units, Some(&l0_frontier), 0);
+        let outcome = active_l1_window_frontier(&units, Some(&l0_frontier), 0, &mut Vec::new());
         assert_eq!(outcome, ActiveWindowOutcome::LowerFrontierNotAbsorbed);
         assert_eq!(outcome.reason_tag(), "lower_frontier_not_absorbed");
         assert!(
@@ -5519,7 +5693,7 @@ mod tests {
         };
 
         // (a) parser 无 pending 段。
-        let none = active_l1_window_frontier(&units, None, 0);
+        let none = active_l1_window_frontier(&units, None, 0, &mut Vec::new());
         assert_eq!(none, ActiveWindowOutcome::NoLowerFrontier);
         assert_eq!(none.reason_tag(), "no_lower_frontier");
 
@@ -5529,20 +5703,20 @@ mod tests {
             ..l0_frontier
         };
         assert_eq!(
-            active_l1_window_frontier(&units, Some(&backfill), 0),
+            active_l1_window_frontier(&units, Some(&backfill), 0, &mut Vec::new()),
             ActiveWindowOutcome::LowerFrontierNotAfterUnits
         );
 
         // (c) 重扫锚越过 units 长度（塔与 units 不同步）⟹ 不猜锚。
         assert_eq!(
-            active_l1_window_frontier(&units, Some(&l0_frontier), units.len() + 1),
+            active_l1_window_frontier(&units, Some(&l0_frontier), units.len() + 1, &mut Vec::new()),
             ActiveWindowOutcome::ResumeAnchorOutOfRange
         );
 
         // (d) 虚拟追加后仍无窗口成立（方向不交替 ⟹ seed 判据不过）。
         let no_alternation = vec![units[0], units[0]];
         assert_eq!(
-            active_l1_window_frontier(&no_alternation, Some(&l0_frontier), 0),
+            active_l1_window_frontier(&no_alternation, Some(&l0_frontier), 0, &mut Vec::new()),
             ActiveWindowOutcome::NoWindowFormed
         );
     }
@@ -5692,7 +5866,8 @@ mod tests {
         // 首叶方向表与 units 自带方向**逐位相反**（投影 ownership ≠ 首叶，见函数文档）。
         let leg_dirs = [Direction::Down, Direction::Down, Direction::Down];
         let active = active_l1_unit();
-        let outcome = active_l2_window_frontier(&units, &leg_dirs, Some(&active), 0);
+        let outcome =
+            active_l2_window_frontier(&units, &leg_dirs, Some(&active), 0, &mut Vec::new());
         let frontier = outcome
             .frontier()
             .expect("行进中 L1 单元被吸收 ⟹ 有行进中 L2 单元");
@@ -5733,7 +5908,7 @@ mod tests {
         let leg_dirs = [Direction::Up, Direction::Up, Direction::Up];
         let active = active_l1_unit();
         assert!(
-            active_l2_window_frontier(&units, &leg_dirs, Some(&active), 0)
+            active_l2_window_frontier(&units, &leg_dirs, Some(&active), 0, &mut Vec::new())
                 .frontier()
                 .is_some(),
             "几何路径只要核心非空即成窗"
@@ -5747,7 +5922,7 @@ mod tests {
             extreme_at: 40,
         };
         assert_eq!(
-            active_l1_window_frontier(&units, Some(&l0_frontier), 0),
+            active_l1_window_frontier(&units, Some(&l0_frontier), 0, &mut Vec::new()),
             ActiveWindowOutcome::NoWindowFormed,
             "完整判据要求方向交替 ⟹ 全同向输入无窗（这正是 L3 不能复用 L1 层实装的原因）"
         );
@@ -5761,12 +5936,13 @@ mod tests {
         let active = active_l1_unit();
 
         // (a) 下一级无行进中单元（L2 层派生本身失败 / 本 bar 无行进中 L0 段）。
-        let none = active_l2_window_frontier(&units, &leg_dirs, None, 0);
+        let none = active_l2_window_frontier(&units, &leg_dirs, None, 0, &mut Vec::new());
         assert_eq!(none, ActiveWindowOutcome::NoLowerFrontier);
         assert_eq!(none.reason_tag(), "no_lower_frontier");
 
         // (b) 首叶方向表与 units 不等长 ⟹ 拒绝，不猜方向。
-        let short = active_l2_window_frontier(&units, &leg_dirs[..2], Some(&active), 0);
+        let short =
+            active_l2_window_frontier(&units, &leg_dirs[..2], Some(&active), 0, &mut Vec::new());
         assert_eq!(short, ActiveWindowOutcome::LowerLegDirsOutOfSync);
         assert_eq!(short.reason_tag(), "lower_leg_dirs_out_of_sync");
 
@@ -5776,13 +5952,19 @@ mod tests {
             ..active
         };
         assert_eq!(
-            active_l2_window_frontier(&units, &leg_dirs, Some(&backfill), 0),
+            active_l2_window_frontier(&units, &leg_dirs, Some(&backfill), 0, &mut Vec::new()),
             ActiveWindowOutcome::LowerFrontierNotAfterUnits
         );
 
         // (d) 重扫锚越过 units 长度 ⟹ 不猜锚。
         assert_eq!(
-            active_l2_window_frontier(&units, &leg_dirs, Some(&active), units.len() + 1),
+            active_l2_window_frontier(
+                &units,
+                &leg_dirs,
+                Some(&active),
+                units.len() + 1,
+                &mut Vec::new()
+            ),
             ActiveWindowOutcome::ResumeAnchorOutOfRange
         );
 
@@ -5804,7 +5986,7 @@ mod tests {
             },
         ];
         assert_eq!(
-            active_l2_window_frontier(&disjoint, &leg_dirs[..2], Some(&active), 0),
+            active_l2_window_frontier(&disjoint, &leg_dirs[..2], Some(&active), 0, &mut Vec::new()),
             ActiveWindowOutcome::NoWindowFormed
         );
 
@@ -5817,11 +5999,207 @@ mod tests {
             lo: 130,
             hi: 140,
         };
-        let refused = active_l2_window_frontier(&units, &leg_dirs, Some(&above), 0);
+        let refused =
+            active_l2_window_frontier(&units, &leg_dirs, Some(&above), 0, &mut Vec::new());
         assert_eq!(refused, ActiveWindowOutcome::LowerFrontierNotAbsorbed);
         assert!(
             refused.frontier().is_none(),
             "拿 tower[2] 已产出窗口冒充行进中单元的路径必须空产出（重演 #523 的锁）"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 票 #757：批量丢弃机制不可观测实例的专门原因码（观测面 only）
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// R5 塔层批量丢弃实例逐只落码：一次重扫产出 m=2 窗口（窗1 = units[0..2] 被 u3 判
+    /// non-extension 关闭；窗2 = units[3..5] + 虚拟单元延伸吸收）⟹ 批内非末窗（窗1）
+    /// 进 `drops`，末窗正常产出。m=1 时 `drops` 恒为空追加。
+    #[test]
+    fn r5_scan_active_window_records_batch_dropped_windows() {
+        let mut units = l0_units_seed();
+        // 窗2 seed：方向交替（Down/Up/Down）+ 核心 [135,145] 非空；u3 整体高于窗1 核心
+        // 上沿 120 ⟹ 对窗1 是 non-extension 哨兵，窗1 关闭、扫描从 u3 续进。
+        units.extend_from_slice(&[
+            UnitRange {
+                start_index: 30,
+                end_index: 40,
+                direction: Direction::Down,
+                lo: 130,
+                hi: 150,
+            },
+            UnitRange {
+                start_index: 40,
+                end_index: 50,
+                direction: Direction::Up,
+                lo: 135,
+                hi: 150,
+            },
+            UnitRange {
+                start_index: 50,
+                end_index: 60,
+                direction: Direction::Down,
+                lo: 130,
+                hi: 145,
+            },
+        ]);
+        // 虚拟单元 [138,142] 与窗2 核心 [135,145] 相交 ⟹ 窗2 延伸吸收（守卫 3 通过）。
+        let l0_frontier = ActiveSegmentFrontier {
+            direction: Direction::Down,
+            start_index: 60,
+            start_price: 142,
+            extreme: 138,
+            extreme_at: 70,
+        };
+        let mut drops = Vec::new();
+        let outcome = active_l1_window_frontier(&units, Some(&l0_frontier), 0, &mut drops);
+        let frontier = outcome.frontier().expect("末窗吸收虚拟单元 ⟹ 产出");
+        assert_eq!(
+            (frontier.start_index, frontier.end_index),
+            (30, 70),
+            "末窗 = units[3..5] + 虚拟单元"
+        );
+        assert_eq!(
+            drops,
+            vec![BatchDroppedWindow {
+                start_index: 0,
+                end_index: 30,
+            }],
+            "批内非末窗（窗1 = units[0..2]）逐只落码，坐标 = 首单元起点..末单元终点"
+        );
+
+        // m=1 对照：Q1 夹具（单窗吸收）⟹ 空追加。
+        let mut drops1 = Vec::new();
+        let outcome1 = active_l1_window_frontier(
+            &l0_units_seed(),
+            Some(&ActiveSegmentFrontier {
+                direction: Direction::Down,
+                start_index: 30,
+                start_price: 118,
+                extreme: 110,
+                extreme_at: 40,
+            }),
+            0,
+            &mut drops1,
+        );
+        assert!(outcome1.frontier().is_some());
+        assert!(drops1.is_empty(), "m=1 时无批量丢弃实例");
+    }
+
+    /// R6 L1 身份级三类成因分级（唯一分类点 `classify_l1`，判定顺序 = 枚举顺序）：
+    /// 机制不可观测（C 从未 pending）→ 时机边界（B 同 bar 首 sealed）→ 可观测未命中。
+    #[test]
+    fn r6_batch_observability_tracker_three_tier_classification() {
+        let mut tracker = BatchObservabilityTracker::default();
+        // C 段 100 曾作为行进中 C 被观测；200 从未出现。
+        tracker.observe_frontier(Some(&ActiveSegmentFrontier {
+            direction: Direction::Up,
+            start_index: 100,
+            start_price: 10,
+            extreme: 12,
+            extreme_at: 110,
+        }));
+        tracker.observe_frontier(None);
+        // B 中枢首 sealed：start=50 @ bar 5；start=60 @ bar 8（增量喂两拍）。
+        let unit = |start: usize, ordinal: u64| {
+            LeveledMove::from_unit(
+                &UnitRange {
+                    start_index: start,
+                    end_index: start + 10,
+                    direction: Direction::Up,
+                    lo: 100,
+                    hi: 120,
+                },
+                ElementId { level: 1, ordinal },
+            )
+        };
+        let moves = vec![unit(50, 0), unit(60, 1)];
+        tracker.observe_tower_level(1, &moves[..1], 1, 5);
+        tracker.observe_tower_level(1, &moves, 2, 8);
+
+        let key = |c_start: usize, b_center_start: usize| LifecycleKey {
+            level: 1,
+            side: Side::Long,
+            kind: NestDivergenceKind::Consolidation,
+            seg_a: (0, 10),
+            seg_c_full: (c_start, c_start + 10),
+            b_center_start,
+        };
+        assert_eq!(
+            tracker.classify_l1(&key(200, 50), 8),
+            LiveMissCause::ChainConfirmedNoPendingWindow,
+            "C=200 从未 pending ⟹ 机制不可观测（判定顺序最优先，B 再早也改不了）"
+        );
+        assert_eq!(
+            tracker.classify_l1(&key(100, 60), 8),
+            LiveMissCause::SameBarCenterConfirmation,
+            "C 曾 pending 但 B 在完成信号同 bar 才首 sealed ⟹ 时机边界"
+        );
+        assert_eq!(
+            tracker.classify_l1(&key(100, 50), 8),
+            LiveMissCause::ObservableWindowMissed,
+            "C 曾 pending 且 B 早已 sealed ⟹ 可观测未命中（归因他处）"
+        );
+        assert_eq!(
+            LiveMissCause::ChainConfirmedNoPendingWindow.reason_tag(),
+            "chain_confirmed_no_pending_window"
+        );
+        assert_eq!(
+            LiveMissCause::SameBarCenterConfirmation.reason_tag(),
+            "same_bar_center_confirmation"
+        );
+        assert_eq!(
+            LiveMissCause::ObservableWindowMissed.reason_tag(),
+            "observable_window_missed"
+        );
+    }
+
+    /// R7 sealed 首见游标：增量只扫新 sealed 元素；水线回缩后重新 sealed 的元素首见 bar
+    /// 保原值（首确认是历史事实，首写不后移）。
+    #[test]
+    fn r7_tracker_sealed_first_seen_survives_watermark_retreat() {
+        let mut tracker = BatchObservabilityTracker::default();
+        tracker.observe_frontier(Some(&ActiveSegmentFrontier {
+            direction: Direction::Up,
+            start_index: 100,
+            start_price: 10,
+            extreme: 12,
+            extreme_at: 110,
+        }));
+        let unit = |start: usize, ordinal: u64| {
+            LeveledMove::from_unit(
+                &UnitRange {
+                    start_index: start,
+                    end_index: start + 10,
+                    direction: Direction::Up,
+                    lo: 100,
+                    hi: 120,
+                },
+                ElementId { level: 1, ordinal },
+            )
+        };
+        let moves = vec![unit(50, 0), unit(60, 1), unit(70, 2)];
+        tracker.observe_tower_level(1, &moves[..2], 2, 5); // 50/60 sealed @5
+        tracker.observe_tower_level(1, &moves[..1], 1, 6); // 水线回缩到 1
+        tracker.observe_tower_level(1, &moves, 3, 9); // 恢复 + 70 新 sealed @9
+        let key = |b_center_start: usize| LifecycleKey {
+            level: 1,
+            side: Side::Long,
+            kind: NestDivergenceKind::Consolidation,
+            seg_a: (0, 10),
+            seg_c_full: (100, 110),
+            b_center_start,
+        };
+        // 60 曾在 bar 5 sealed、回缩后 bar 9 重新 sealed——首见保 5 ⟹ 对 signal@8 不判时机边界。
+        assert_eq!(
+            tracker.classify_l1(&key(60), 8),
+            LiveMissCause::ObservableWindowMissed,
+            "回缩重 sealed 不改写首见 bar（5 < 8 ⟹ 非同 bar 确认）"
+        );
+        // 70 首 sealed @9 ≥ signal@8 ⟹ 时机边界。
+        assert_eq!(
+            tracker.classify_l1(&key(70), 8),
+            LiveMissCause::SameBarCenterConfirmation
         );
     }
 
