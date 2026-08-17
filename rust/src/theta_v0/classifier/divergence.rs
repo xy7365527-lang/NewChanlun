@@ -710,7 +710,6 @@ pub fn force_features(
         dif_peak: segment_dif_peak(dif, start, end, direction),
         price_amplitude: segment_price_amplitude(closes, start, end),
         price_speed: segment_price_speed(closes, start, end),
-
     }
 }
 
@@ -1745,7 +1744,7 @@ mod tests {
         assert_eq!(a.macd_area, 3.0);
         assert_eq!(a.dif_peak, 4.0); // up 段 max(dif[0..=1])=max(2,4)=4
         assert_eq!(a.price_amplitude, 10); // |110−100|
-                              // Weak_Θ Lex：A=[0,1] vs C=[2,3]（C.dif_peak=max(1,0.5)=1<A.dif=4 ⟹ Weak）。
+                                           // Weak_Θ Lex：A=[0,1] vs C=[2,3]（C.dif_peak=max(1,0.5)=1<A.dif=4 ⟹ Weak）。
         let c = force_features(&hist, &dif, &closes, 2, 3, Direction::Up);
         assert!(
             weak_theta(WeakThetaMode::Lex, &a, &c),

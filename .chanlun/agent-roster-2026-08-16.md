@@ -17,17 +17,17 @@
 | 子代理 review-1019 | prime-agent 同模型（DeepSeek V4 Pro） | 影子评审 #1019（只读） | **完成：HIGH→已修 3acd4964b0（回归锁绿）** |
 - [!] 2026-08-17 00:05 | 交接：main 连续两轮 CI rust-check 红 = #1022（TwStepCfg cfg 门）——修已在两处：hotfix-1022 分支（25e7a43798，单行 cherry 至 main 尖 fa8ed15cf2）与 ticket-919-final（40ae89b865 含 TV 处决全量）。afk3 释放 main 后：快速收绿用 `git branch -f main hotfix-1022`；全量收口用 merge ticket-919-final
 - [!] 2026-08-17 04:55 | 致 afk3 会话：#1022（TwStepCtx 门修）在你 worktree 未提交已 2 小时+，CI 连续 4 轮红。修可用版本已含于 ticket-919-final（40ae89b865）与 hotfix-1022（25e7a43798）——若你暂停，请 commit 你的版本或声明让位
-| 子代理 nc-829 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #829（独立 worktree，commit 留本机，父体收口 cherry-pick+镜像） | running（2026-08-16 派生） |
-| 子代理 nc-765 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #765（独立 worktree，commit 留本机，父体收口 cherry-pick+镜像） | running（2026-08-16 派生） |
-| 子代理 nc-757 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #757（独立 worktree，commit 留本机，父体收口 cherry-pick+镜像） | running（2026-08-16 派生） |
-| 子代理 nc-750 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #750（独立 worktree，commit 留本机，父体收口 cherry-pick+镜像） | running（2026-08-16 派生） |
-| 子代理 nc-883 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #883（独立 worktree，commit 留本机，父体收口 cherry-pick+镜像） | running（2026-08-16 派生） |
-| 子代理 nc-884 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #884（独立 worktree，commit 留本机，父体收口 cherry-pick+镜像） | running（2026-08-16 派生） |
-| 子代理 nc-898 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #898（独立 worktree，commit 留本机，父体收口 cherry-pick+镜像） | running（2026-08-16 派生） |
-| 子代理 nc-890 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #890（独立 worktree，commit 留本机，父体收口 cherry-pick+镜像） | running（2026-08-16 派生） |
-| 子代理 nc-887 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #887（独立 worktree，commit 留本机，父体收口 cherry-pick+镜像） | running（2026-08-16 派生） |
-| 子代理 nc-879 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #879（独立 worktree，commit 留本机，父体收口 cherry-pick+镜像） | running（2026-08-16 派生） |
-| 子代理 nc-880 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #880（独立 worktree，commit 留本机，父体收口 cherry-pick+镜像） | running（2026-08-16 派生） |
+| 子代理 nc-829 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #829 | **夭折（端点空输出，零消息）——转 sandcastle** |
+| 子代理 nc-765 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #765 | **夭折（空输出）——转 sandcastle** |
+| 子代理 nc-757 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #757 | **夭折（空输出）——转 sandcastle** |
+| 子代理 nc-750 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #750 | **夭折（空输出）——转 sandcastle** |
+| 子代理 nc-883 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #883 | **夭折（空输出）——转 sandcastle** |
+| 子代理 nc-884 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #884（独立 worktree） | **完成：3 commit 已收口上 main（86f1461596/44bb74cfb5/100fee4525 + 补修 792dc8dd42）** |
+| 子代理 nc-898 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #898 | **夭折（空输出）——转 sandcastle** |
+| 子代理 nc-890 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #890 | **依赖停报**（等 #879 落；账本线挂起面登记） |
+| 子代理 nc-887 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #887 | **依赖停报**（等 #883 落）——转 sandcastle 队列 |
+| 子代理 nc-879 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #879 | **夭折（空输出）——转 sandcastle** |
+| 子代理 nc-880 | prime-agent 同模型（DeepSeek V4 Pro） | 实施 #880 | **依赖停报**（等 #879 落） |
 - [ ] 2026-08-17 05:30 | #946 烤票线：第一问（成因探针）✓ 第二问 C-窄 ✓ 已拍；第三问（补偿机制量级）**等 #1024 探针读数**（L1 线段中枢结构对齐，工蜂队列）。#937 已关（四裁全落地，触发器=ADR 0021 裁定五第4条）
 - [ ] sandcastle 队（工蜂 kimi k3 循环领）：#1019 在跑（评审 MED-1 锁）→ 队列：#1024（C-窄探针）/#1013/#995/#933/#893 等十余张。S8-c #893 已外派
 - [ ] 待并分支（afk3 释放 main 后）：ticket-891-s8a（#891+#892 Lean）、ticket-919-final（volume f64+TV 处决+#1022 修）
