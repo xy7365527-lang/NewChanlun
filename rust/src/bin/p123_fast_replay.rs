@@ -2068,6 +2068,7 @@ fn write_pan_live_diag_rows(
         };
         write_lifecycle_line(
             dump,
+            "P421_LIFECYCLE_DUMP",
             format_args!(
                 "{tag} as_of={index} level={} frontier_start={} reason={} b_center_start={} c_start={} gap_len={} seg_a={}",
                 row.level,
@@ -2093,6 +2094,7 @@ fn write_p757_batch_drop_rows(
     for row in rows {
         write_lifecycle_line(
             dump,
+            "P757_OBSERVABILITY_DUMP",
             format_args!(
                 "P757_BATCH_DROP as_of={index} level={} cause={} outcome={} win_start={} win_end={}",
                 row.level,
@@ -2122,6 +2124,7 @@ fn write_pan_live_recompute_line(
     // 定位现场只在结构分量变化时落一行（诊断只写不判；每 bar 写会淹没 dump）。
     write_lifecycle_line(
         dump,
+        "P421_LIFECYCLE_DUMP",
         format_args!(
             "PAN_LIVE_RECOMPUTE as_of={index} frontier={} l1_resume_from={} l2_resume_from={} confirmed_last_end={confirmed_last_end} tower0_units={tower0_units} l0_segments={} stems_before={before} stems_after={}",
             frontier.map_or("none".to_string(), |f| format!(
@@ -2880,6 +2883,7 @@ fn classify_l1_live_misses(
         tally.record(cause);
         write_lifecycle_line(
             dump,
+            "P757_OBSERVABILITY_DUMP",
             format_args!(
                 "P757_LIVE_MISS level=1 cause={} seg_a=({},{}) c_start={} b_center_start={} observed_at={} signal_at={}",
                 cause.reason_tag(),
@@ -2920,6 +2924,13 @@ fn finalize_targeted_pass(
             .flush()
             .map_err(|error| format!("刷新 P421_LIFECYCLE_DUMP 失败: {error}"))?;
     }
+    // 票 #757：观测面 dump 与既有 sink 同款显式收尾 flush——`BufWriter` 的 Drop flush
+    // 会吞掉写错误，尾缓冲静默截断不可见（与上三个 sink 的纪律对齐）。
+    if let Some(writer) = state.p757_dump.as_mut() {
+        writer
+            .flush()
+            .map_err(|error| format!("刷新 P757_OBSERVABILITY_DUMP 失败: {error}"))?;
+    }
     // #553：事件 dump 收尾 flush 排在既有 P421_LIFECYCLE_DUMP 收尾 flush **之后**
     //（与 ticket-553 原口径同序；两者分属独立 sink，互不触碰）。
     state.event_dump.flush()?;
@@ -2942,6 +2953,7 @@ fn write_lifetime_dump_line(
 ) -> Result<(), String> {
     write_lifecycle_line(
         dump,
+        "P421_LIFECYCLE_DUMP",
         format_args!(
             "LIFETIME entries={} first_provable={} provisional={} confirmed={} force_overtake={} never_constituted={} identity_vanished_refuted={} identity_vanished_seam={} flash_terminal={} nonflash_count={} nonflash_min={:?} nonflash_median={:?} nonflash_max={:?} force_lifetime_count={} force_lifetime_min={:?} force_lifetime_median={:?} force_lifetime_max={:?}",
             settlement.entry_count,
@@ -2965,8 +2977,11 @@ fn write_lifetime_dump_line(
     )
 }
 
+/// `sink_label` = 该 sink 的 env 开关名——#757 起本函数同时服务 P421 与 P757 两个独立
+/// sink，写失败上抛的错误须点名真实受损文件（此前写死 P421，P757 写失败会被误标）。
 fn write_lifecycle_line(
     sink: &mut Option<BufWriter<File>>,
+    sink_label: &'static str,
     args: std::fmt::Arguments<'_>,
 ) -> Result<(), String> {
     let Some(writer) = sink.as_mut() else {
@@ -2975,7 +2990,7 @@ fn write_lifecycle_line(
     writer
         .write_fmt(args)
         .and_then(|()| writer.write_all(b"\n"))
-        .map_err(|error| format!("写 P421_LIFECYCLE_DUMP 失败: {error}"))
+        .map_err(|error| format!("写 {sink_label} 失败: {error}"))
 }
 
 /// 同步 targeted/lifecycle 共用的 per-level 派生面；只在内容变化时重建。
@@ -3619,6 +3634,7 @@ fn write_feed_summary_line(
 ) -> Result<(), String> {
     write_lifecycle_line(
         sink,
+        "P421_LIFECYCLE_DUMP",
         format_args!(
             "FEED cadence=bar as_of={as_of} live_windows={} completion_events={} completion_signals={} channel_switches={} extension_suppressed={} retrograde_rejected={} completion_force_unavailable={}",
             stats.live_windows,
@@ -3640,6 +3656,7 @@ fn write_completion_signal_lines(
     for signal in &book.completion_signals()[start..] {
         write_lifecycle_line(
             sink,
+            "P421_LIFECYCLE_DUMP",
             format_args!(
                 "COMPLETION_SIGNAL as_of={} level={} side={:?} kind={:?} seg_a={:?} seg_c_full={:?} b_center_start={} lower_id={:?} completed_at={}",
                 signal.as_of,
@@ -3664,6 +3681,7 @@ fn write_revision_lines(
     for revision in delta {
         write_lifecycle_line(
             sink,
+            "P421_LIFECYCLE_DUMP",
             format_args!(
                 "REV as_of={} level={} side={:?} kind={:?} seg_a={:?} seg_c_full={:?} b_center_start={} revision={:?} evidence={:?}",
                 revision.as_of,
@@ -3689,6 +3707,7 @@ fn write_force_unavailable_lines(
     for audit in &book.completion_force_unavailable_audits()[start..] {
         write_lifecycle_line(
             sink,
+            "P421_LIFECYCLE_DUMP",
             format_args!(
                 "COMPLETION_FORCE_UNAVAILABLE as_of={} level={} side={:?} kind={:?} seg_a={:?} seg_c_full={:?} b_center_start={} reason={:?}",
                 audit.as_of,
