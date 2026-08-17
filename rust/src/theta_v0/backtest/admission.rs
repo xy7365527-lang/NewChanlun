@@ -1311,7 +1311,6 @@ pub(super) fn k_theta_risk_gate(
     equity: f64,
     p_t: f64,
     chong_posted_notional_usd: f64,
-    px: f64,
     margin: Option<&super::super::strategy::risk::MarginModel>,
 ) -> (
     super::super::strategy::coverage::KThetaRiskGate,
@@ -1335,9 +1334,8 @@ pub(super) fn k_theta_risk_gate(
             // 替代旧「全账户净 lot × mark」（先净额聚合再取绝对值，异级多空互相抵消）。
             // 旧行是「只有一个重」时的正确实现（单重 ⟹ 逐仓口径 ≡ 净额口径），不是缺陷；
             // 多重落地后异级/异重反向不再互相抵消。美元已折算，勿再乘价（margin-design §2.2）。
-            let posted_notional_usd = chong_posted_notional_usd;
             risk_mode(&margin_inputs(
-                posted_notional_usd,
+                chong_posted_notional_usd,
                 equity,
                 sched,
                 &m.cushions,

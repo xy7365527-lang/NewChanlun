@@ -32,7 +32,8 @@ PYEOF
   tail -4 .sandcastle/logs/main-loop-20260817.log 2>/dev/null | sed 's/^/  /' || true
 } > "$STATUS"
 # roster 同步：把 workers.jsonl 里最新状态回写对应行
-if [ -f "$REG" ]; then
+# （ROSTER 文件名带日期戳会轮换；缺席时跳过同步而非让 set -e 杀掉 watcher）
+if [ -f "$REG" ] && [ -f "$ROSTER" ]; then
   python3 - "$REG" "$ROSTER" <<'PYEOF'
 import json, sys, re
 reg = {}
@@ -42,7 +43,7 @@ for l in open(sys.argv[1]):
     reg[e["ticket"]] = f"{e.get('phase')}:{e.get('status')}"
 roster = open(sys.argv[2]).read()
 for t, st in reg.items():
-    pat = re.compile(rf"(\| 沙盒工蜂 #[{t}] .*? \| )running（2026-08-1[67] 派生）( \|)")
+    pat = re.compile(rf"(\| 沙盒工蜂 #{t} .*? \| )running（2026-08-1[67] 派生）( \|)")
     roster, n = pat.subn(rf"\g<1>{st}\g<2>", roster)
 open(sys.argv[2], "w").write(roster)
 PYEOF

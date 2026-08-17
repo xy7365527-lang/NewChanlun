@@ -8037,8 +8037,7 @@ fn run_theta_v0_pi_risk_gate_force_flat_on_insolvent() {
         &bar,
         -1.0,
         0.0,
-        (0.0f64).abs() * (100.0),
-        100.0,
+        0.0,
         None,
     );
     assert!(
@@ -8061,8 +8060,7 @@ fn run_theta_v0_pi_risk_gate_force_flat_on_insolvent() {
         &bar,
         1.0e6,
         0.0,
-        (0.0f64).abs() * (100.0),
-        100.0,
+        0.0,
         None,
     );
     assert!(
@@ -8147,16 +8145,8 @@ fn k_theta_risk_gate_reads_frozen_entry_stop_for_drifted_leg() {
         volume: 1.0,
         untradable: false,
     };
-    let (gate, _mode, stop_seeds) = k_theta_risk_gate(
-        &[leg],
-        &open_trades,
-        &bar,
-        1.0e6,
-        -1.0,
-        (-1.0f64).abs() * (100.0),
-        100.0,
-        None,
-    );
+    let (gate, _mode, stop_seeds) =
+        k_theta_risk_gate(&[leg], &open_trades, &bar, 1.0e6, -1.0, 100.0, None);
     assert!(
         gate.stop_short,
         "族A：drifted campaign 腿从冻结 entry_stop 读出 stop ⟹ high≥stop 触发 stop_short"
@@ -8176,16 +8166,8 @@ fn k_theta_risk_gate_reads_frozen_entry_stop_for_drifted_leg() {
         })
         .unwrap()
         .entry_stop = None;
-    let (gate2, _mode2, stop_seeds2) = k_theta_risk_gate(
-        &[leg],
-        &open_trades,
-        &bar,
-        1.0e6,
-        -1.0,
-        (-1.0f64).abs() * (100.0),
-        100.0,
-        None,
-    );
+    let (gate2, _mode2, stop_seeds2) =
+        k_theta_risk_gate(&[leg], &open_trades, &bar, 1.0e6, -1.0, 100.0, None);
     assert!(
         !gate2.stop_short,
         "entry_stop=None ⟹ 诚实无 stop（非静默吞掉真实 stop）"
@@ -8275,7 +8257,6 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
             &bar_n,
             1.0e6,
             1.0,
-            (1.0f64).abs() * (100.0),
             100.0,
             None,
         );
@@ -8294,7 +8275,6 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
         &bar_break,
         1.0e6,
         1.0,
-        (1.0f64).abs() * (100.0),
         100.0,
         None,
     );
@@ -8324,7 +8304,6 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
         &quiet(4, 100, 110, 95, 105),
         1.0e6,
         -1.0,
-        (-1.0f64).abs() * (100.0),
         100.0,
         None,
     );
@@ -8339,7 +8318,6 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
         &quiet(5, 100, 250, 95, 240),
         1.0e6,
         -1.0,
-        (-1.0f64).abs() * (100.0),
         100.0,
         None,
     );

@@ -4810,7 +4810,6 @@ where
                 equity_nav,
                 p_t,
                 chong_posted_notional_usd,
-                px,
                 config.margin.as_ref(),
             );
             // ── M6 ③⁻ LiquidationLoss 强平罚金（边沿触发，一次一集）：本 bar 进入

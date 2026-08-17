@@ -324,7 +324,7 @@ pub struct ChongUniStats {
     pub factor: f64,
     /// 被零化的反向腿数（含 direction==0 时两侧全零化）——不建持仓、不产生声部。
     pub n_opposing_zeroed: usize,
-    /// 同向保留腿数（按 f 缩放后仍携带目标敞口）。
+    /// 同向腿数（按 f 缩放；f=0 时同向腿亦归零——R≥L 的钳零情形）。
     pub n_same_kept: usize,
 }
 
@@ -352,7 +352,7 @@ pub struct ChongUniStats {
 /// 现状单重（全账户 = 一个重）：`legs` 全体属同一重，`chong_pos` = 账户净持仓（lot）。
 /// 多重落地后按重分组、逐重施加；重间不仲裁（ADR 0014 裁定二）⟹ 逐重独立调用即可。
 ///
-/// [ADR 0014]: ../../../../../../docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md
+/// [ADR 0014]: ../../../../../docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md
 pub fn enforce_chong_unidirectional(legs: &mut [LegTarget], chong_pos: f64) -> ChongUniStats {
     let mut long_sum = 0.0;
     let mut short_sum = 0.0;

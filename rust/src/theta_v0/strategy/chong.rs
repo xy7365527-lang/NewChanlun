@@ -24,9 +24,9 @@
 //!    [`super::coverage::enforce_chong_unidirectional`]；两重相反时两边都执行，唯一跨重
 //!    约束 = 逐仓计提 + 全局不等式上限。
 //!
-//! [ADR 0010]: ../../../../../docs/adr/0010-chong-persistent-operating-unit.md
-//! [ADR 0013]: ../../../../../docs/adr/0013-partition-machine-bidirectional-form.md
-//! [ADR 0014]: ../../../../../docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md
+//! [ADR 0010]: ../../../../docs/adr/0010-chong-persistent-operating-unit.md
+//! [ADR 0013]: ../../../../docs/adr/0013-partition-machine-bidirectional-form.md
+//! [ADR 0014]: ../../../../docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md
 
 use std::collections::BTreeMap;
 
