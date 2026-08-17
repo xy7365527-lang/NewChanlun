@@ -8,6 +8,7 @@ import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { primeAgent } from "./prime-agent-provider.ts";
 import { execSync } from "node:child_process";
+import { appendFileSync, mkdirSync } from "node:fs";
 
 // ── 顶部常量（#1002 裁 3：模型面集中在此，升档改这里重跑） ────────────────
 const IMPLEMENTER_MODEL = "k3";
@@ -34,10 +35,14 @@ function hasOpenBlocker(issue: number): boolean {
 
 // ── 工蜂登记面（2026-08-17：宿主 harness 不可见问题的补偿——跨进程无原生注册通道，
 //    以 JSONL registry 供宿主/roster 读取；每事件带 ts/ticket/branch/phase/status）──
-import { appendFileSync } from "node:fs";
 function logWorker(e: Record<string, unknown>) {
+<<<<<<< HEAD
   // logs/ 目录可能不存在（gitignore 后新克隆）——mkdir 兜底（dispatcher 轮 2 坐实的 ENOENT）
   try { execSync("mkdir -p .sandcastle/logs"); } catch {}
+=======
+  // logs 目录不入仓（运行时产物），首次写前确保存在——否则 appendFileSync ENOENT 杀主循环。
+  mkdirSync(".sandcastle/logs", { recursive: true });
+>>>>>>> sandcastle/issue-879
   appendFileSync(
     ".sandcastle/logs/workers.jsonl",
     JSON.stringify({ ts: new Date().toISOString(), ...e }) + "\n",

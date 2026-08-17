@@ -316,6 +316,7 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
                     super::step::coverage_step_from_buckets_sep_with_risk_seeds(
                         work,
                         prev_active,
+                        p_t,
                         &buckets,
                         &risk_exits,
                         base_units,
@@ -396,6 +397,7 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
                 super::step::coverage_step_from_buckets_sep_with_risk_seeds(
                     work,
                     prev_active,
+                    p_t,
                     &buckets,
                     &risk_exits,
                     base_units,
@@ -480,6 +482,7 @@ pub(crate) fn pi_theta_step_traced_with_risk_seeds(
         super::step::coverage_step_from_buckets_sep_with_risk_seeds(
             work,
             prev_active,
+            p_t,
             &buckets,
             &risk_exits,
             base_units,

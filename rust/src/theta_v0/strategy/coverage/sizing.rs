@@ -517,7 +517,8 @@ pub(super) fn feasible_lex_candidates(
 /// - `Δ=0`：`Wait`（当前空仓）/ `Hold`（当前持仓），qty=0（`qty≤0` 不交易，types.rs Order 契约）。
 /// - 空仓→持仓：`Buy`（p\*>0）/ `Sell`（p\*<0），qty=|p\*|。
 /// - 持仓→空仓：`Close`，qty=|p_t|。
-/// - 同号增持：`Add`；同号减持：`Reduce`，qty=|Δ|。
+/// - 同号增持：持多 `Add` / 持空 `Sell`（#879 修复——旧口径一律 `Add`，而执行后端把 `Add`
+///   当买入 ⟹ 空头加深被执行成买入穿零）；同号减持：`Reduce`，qty=|Δ|。
 /// - 反号穿零（净反转）：`Buy`（p\*>0）/ `Sell`（p\*<0），qty=|Δ|（单净订单跨零）。
 ///
 /// `exec_index`：执行延迟后的成交 bar（runner 传入，对齐 types.rs `Order.exec_index` / spec exec 延迟）。
@@ -541,9 +542,20 @@ pub fn schedule_order(p_star: f64, p_t: f64, exec_index: usize) -> Order {
     } else if flat_next {
         StrictAction::Close
     } else if (p_t > 0.0) == (p_star > 0.0) {
-        // 同号：幅度增=Add，幅度减=Reduce。
+        // 同号：幅度增=增持，幅度减=Reduce。
         if p_star.abs() > p_t.abs() {
-            StrictAction::Add
+            // ★#879 修复：增持单按持仓方向分发——持多产 Add（`apply_order` δ=+1 买入），
+            // 持空产 Sell（δ=−1 卖出）。旧口径空头加深也产 Add，而执行三后端
+            // （`backtest/fill.rs` apply_order / `nautilus/order_adapter.rs` / `dual_ledger.rs`）
+            // 一律把 Add 当**买入** ⟹ 空头加深单被执行成买入穿零（#879 AC2 复测实证：
+            // w2023H2 bar198663，p_t=−3、p_star=−31 的「加空 28」被执行成买 28 ⟹ 持仓翻
+            // +25——仓位不穿零（ADR 0014 裁定一）在执行层的破口，且错向持仓回馈为方向权威，
+            // 派生幻影反向声部）。Reduce/Close 本就按持仓符号成交（方向感知），不受影响。
+            if p_t > 0.0 {
+                StrictAction::Add
+            } else {
+                StrictAction::Sell
+            }
         } else {
             StrictAction::Reduce
         }
@@ -633,6 +645,7 @@ pub fn pi_theta_step(
         classification,
         tower,
         prev_active,
+        p_t, // #879 重内单向：方向权威 = 当前持仓符号（现状单重 = 账户净持仓）
         base_units,
         voice,
         Some(risk),

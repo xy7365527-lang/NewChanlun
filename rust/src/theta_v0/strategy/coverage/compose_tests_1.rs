@@ -424,11 +424,15 @@ fn t1_target_zero_assertion_sell_batch_checks_long_side_only() {
         entry_v: &entry_v,
         eta_correction: 0,
     };
+    // #879 重内单向（ADR 0014 裁定一）：p_t 符号 = 重方向权威。本场景存活侧 = Short
+    // （held_short / held_parent_b），故 p_t 取负（chong 持空）；取正会把存活空腿判为
+    // 反向腿零化，本测试「卖批只关多侧、空侧存活」的考量即被单向门抢先遮蔽。
+    // prev_active 混向是遗留合成态（一类卖批本步即清掉多侧残余），非生产新可达态。
     let (na, _ps, _o, trace) = pi_theta_step_traced(
         work,
         &gamma,
         &[held_long, held_short, held_parent_b],
-        600.0,
+        -600.0,
         11,
         1000.0,
         &r,

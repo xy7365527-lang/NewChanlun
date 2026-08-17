@@ -112,8 +112,8 @@ use role::{dir_sign, operation_role_two_segment};
 use leg::element_depth;
 use leg::{apply_gross_cap, strategy_target_legs};
 pub use leg::{
-    dir_weight, gross_target_units, leg_target, net_target_units, overlay_net_delta, w_grade,
-    LegTarget, SepLeg,
+    dir_weight, enforce_chong_unidirectional, gross_target_units, leg_target, net_target_units,
+    overlay_net_delta, w_grade, ChongUniStats, LegTarget, SepLeg,
 };
 
 use held::{

@@ -93,6 +93,7 @@ fn ancok_admits_reverse_open_when_parent_held() {
     let (active, _p) = coverage_step_from_buckets(
         view_split(&elements, cstart),
         &[held_parent],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -164,6 +165,7 @@ fn ancok_admits_reverse_open_under_parent_coord_drift() {
     let (active, _p) = coverage_step_from_buckets(
         view_split(&elements, cstart),
         &[held_parent],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -228,6 +230,7 @@ fn ancok_prunes_reverse_open_when_parent_unheld() {
     let (active, p) = coverage_step_from_buckets(
         view_split(&elements, cstart),
         &[],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -266,6 +269,7 @@ fn ancok_admits_ambient_root_without_held_parent() {
     let (active, p) = coverage_step_from_buckets(
         view_split(&elements, cstart),
         &[],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -328,6 +332,7 @@ fn ancok_prunes_child_when_parent_closed_same_step() {
     let (active, _p) = coverage_step_from_buckets(
         view_split(&elements, cstart),
         &[held_parent],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -380,8 +385,16 @@ fn engine_bootstrap_container_bsp_admits_depth_child_from_empty() {
         ],
     };
     // ★空 prev_active：无外部预注入持仓父腿（死循环场景）。
-    let (active, _p) =
-        coverage_step_classification(&classification, &tower, &[], 1000.0, &cfg(), None, &reg);
+    let (active, _p) = coverage_step_classification(
+        &classification,
+        &tower,
+        &[],
+        0.0,
+        1000.0,
+        &cfg(),
+        None,
+        &reg,
+    );
     // 自举后：L1 容器腿开（其 BSP 确认）+ L0 ReverseOpen 子腿准入（父=L1 容器在 raw）。
     assert!(
         active.iter().any(|l| l.level == 1),
@@ -413,8 +426,16 @@ fn engine_bootstrap_does_not_admit_orphan_reverse_open_without_container_bsp() {
             ..Default::default()
         }],
     };
-    let (active, p) =
-        coverage_step_classification(&classification, &tower, &[], 1000.0, &cfg(), None, &reg);
+    let (active, p) = coverage_step_classification(
+        &classification,
+        &tower,
+        &[],
+        0.0,
+        1000.0,
+        &cfg(),
+        None,
+        &reg,
+    );
     assert!(
         active.is_empty(),
         "无容器 BSP ⟹ ReverseOpen 子腿仍剪枝（自举不膨胀，639(c) 保护）；实得 {active:?}"
@@ -462,7 +483,7 @@ fn cross_bar_held_container_admits_depth_child_next_bar() {
         ],
     };
     let (active1, _p1) =
-        coverage_step_classification(&bar1, &tower, &[], 1000.0, &cfg(), None, &reg);
+        coverage_step_classification(&bar1, &tower, &[], 0.0, 1000.0, &cfg(), None, &reg);
     assert!(
         active1.iter().any(|l| l.level == 1),
         "bar1：L1 容器 BSP ⟹ 容器腿开（§8 σ_r 持仓根）；实得 {active1:?}"
@@ -479,7 +500,7 @@ fn cross_bar_held_container_admits_depth_child_next_bar() {
         }],
     };
     let (active2, _p2) =
-        coverage_step_classification(&bar2, &tower, &active1, 1000.0, &cfg(), None, &reg2);
+        coverage_step_classification(&bar2, &tower, &active1, 0.0, 1000.0, &cfg(), None, &reg2);
     // 持仓容器腿（prev_active）= L0 子腿真 Compose 父在 A_t ⟹ AncOK 准入 depth>0 子腿。
     assert!(
         active2

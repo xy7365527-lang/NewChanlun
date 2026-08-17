@@ -569,6 +569,7 @@ fn gross_cap_integration_default_bit_exact_enabled_scales() {
     let (_, p_none) = coverage_step_from_buckets(
         view_split(&els, 0),
         &[],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -581,6 +582,7 @@ fn gross_cap_integration_default_bit_exact_enabled_scales() {
     let (_, p_off) = coverage_step_from_buckets(
         view_split(&els, 0),
         &[],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -597,6 +599,7 @@ fn gross_cap_integration_default_bit_exact_enabled_scales() {
     let (active_on, p_on) = coverage_step_from_buckets(
         view_split(&els, 0),
         &[],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -631,6 +634,7 @@ fn gross_cap_zeroed_open_legs_do_not_enter_active_set() {
     let (active, p) = coverage_step_from_buckets(
         view_split(&els, 0),
         &[],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -645,3 +649,109 @@ fn gross_cap_zeroed_open_legs_do_not_enter_active_set() {
 }
 
 // ── §3 活动集递归原语（λ_e 区间，Lean M16 对齐——非生产入场，见 §3 GAP-5 note）已在上方测 ──
+
+// ════════════════════════════════════════════════════════════════════════════
+//  §重内单向（ADR 0014 裁定一，SPEC #847 S1 / #879）enforce_chong_unidirectional 单测
+// ════════════════════════════════════════════════════════════════════════════
+
+/// 持仓为多的重：反向（空）腿不建持仓、折成同向腿减仓；同向腿按 f=(L−R)/L 缩放。
+#[test]
+fn chong_uni_long_position_opposing_leg_becomes_reduction() {
+    // L = 100 + 60 = 160（两级多腿），R = 40（一级空腿）；持仓多（chong_pos>0）。
+    let mut legs = vec![
+        gleg(0, VoiceSide::Long, 100.0),
+        gleg(1, VoiceSide::Long, 60.0),
+        gleg(2, VoiceSide::Short, 40.0),
+    ];
+    let st = enforce_chong_unidirectional(&mut legs, 10.0);
+    assert_eq!(st.direction, 1);
+    // f = (160−40)/160 = 0.75；同向腿等比缩、反向腿零化。
+    assert!((st.factor - 0.75).abs() < 1e-12);
+    assert!((legs[0].units - 75.0).abs() < 1e-9);
+    assert!((legs[1].units - 45.0).abs() < 1e-9);
+    assert_eq!(legs[2].units, 0.0, "反向腿零化：不建持仓、不产生声部");
+    assert_eq!(st.n_opposing_zeroed, 1);
+    assert_eq!(st.n_same_kept, 2);
+    // 净目标 = L−R = 120——与旧净额逐位相同（减仓语义保短差的经济效果）。
+    assert!((net_target_units(&legs) - 120.0).abs() < 1e-9);
+    // 毛敞口 = 净敞口（单向 ⟹ 无隐藏对冲）。
+    assert!((gross_target_units(&legs) - 120.0).abs() < 1e-9);
+}
+
+/// 不穿零：持仓多但 R > L ⟹ 目标钳到 0（先归零），不当 bar 翻空。
+#[test]
+fn chong_uni_never_crosses_zero() {
+    let mut legs = vec![
+        gleg(0, VoiceSide::Long, 50.0),
+        gleg(1, VoiceSide::Short, 120.0),
+    ];
+    let st = enforce_chong_unidirectional(&mut legs, 3.0); // 仍持多
+    assert_eq!(st.direction, 1);
+    assert_eq!(st.factor, 0.0, "R>L ⟹ f 钳 0：全部减仓到 0，不穿零");
+    assert_eq!(net_target_units(&legs), 0.0);
+    // 旧口径此处净目标 = 50−120 = −70（直接穿零翻空）——新口径恒 ≥0。
+    assert!(legs.iter().all(|l| l.units == 0.0));
+}
+
+/// 空仓的重：方向由当步合成多数侧定；少数侧零化。
+#[test]
+fn chong_uni_flat_majority_side_wins() {
+    let mut legs = vec![
+        gleg(0, VoiceSide::Long, 30.0),
+        gleg(1, VoiceSide::Short, 90.0),
+        gleg(2, VoiceSide::Short, 10.0),
+    ];
+    let st = enforce_chong_unidirectional(&mut legs, 0.0); // 空仓
+    assert_eq!(st.direction, -1, "空仓 ⟹ 多数侧（空 100 > 多 30）定方向");
+    // f = (100−30)/100 = 0.7；空腿缩放、多腿零化。
+    assert!((st.factor - 0.7).abs() < 1e-12);
+    assert_eq!(legs[0].units, 0.0);
+    assert!((legs[1].units - 63.0).abs() < 1e-9);
+    assert!((legs[2].units - 7.0).abs() < 1e-9);
+    // 净目标 = −70 = 旧净额（30−100）——空仓时多数侧合成与旧净额同值。
+    assert!((net_target_units(&legs) - (-70.0)).abs() < 1e-9);
+}
+
+/// 空仓且两侧合成严格相等 ⟹ 无方向，两侧全零化、本步不开仓（确定性裁决，不掷硬币）。
+#[test]
+fn chong_uni_flat_tie_no_position() {
+    let mut legs = vec![
+        gleg(0, VoiceSide::Long, 50.0),
+        gleg(1, VoiceSide::Short, 50.0),
+    ];
+    let st = enforce_chong_unidirectional(&mut legs, 0.0);
+    assert_eq!(st.direction, 0);
+    assert_eq!(net_target_units(&legs), 0.0);
+    assert!(legs.iter().all(|l| l.units == 0.0));
+}
+
+/// Flat 腿不受变换影响（净贡献本就为 0）；持仓空的重对称成立。
+#[test]
+fn chong_uni_flat_leg_untouched_and_short_position_symmetric() {
+    let mut legs = vec![
+        gleg(0, VoiceSide::Flat, 999.0),
+        gleg(1, VoiceSide::Short, 80.0),
+        gleg(2, VoiceSide::Long, 30.0),
+    ];
+    let st = enforce_chong_unidirectional(&mut legs, -5.0); // 持空
+    assert_eq!(st.direction, -1);
+    assert_eq!(legs[0].units, 999.0, "Flat 腿不动");
+    // f = (80−30)/80 = 0.625
+    assert!((legs[1].units - 50.0).abs() < 1e-9);
+    assert_eq!(legs[2].units, 0.0);
+    assert!((net_target_units(&legs) - (-50.0)).abs() < 1e-9);
+}
+
+/// 无反向腿时 f=1：逐位不变（同向加仓/延续不受本门影响）。
+#[test]
+fn chong_uni_same_direction_only_bit_exact() {
+    let mut legs = vec![
+        gleg(0, VoiceSide::Long, 100.0),
+        gleg(1, VoiceSide::Long, 60.0),
+    ];
+    let st = enforce_chong_unidirectional(&mut legs, 1.0);
+    assert_eq!(st.factor, 1.0);
+    assert_eq!(st.n_opposing_zeroed, 0);
+    assert!((legs[0].units - 100.0).abs() < 1e-12 && (legs[1].units - 60.0).abs() < 1e-12);
+    assert!((net_target_units(&legs) - 160.0).abs() < 1e-12);
+}

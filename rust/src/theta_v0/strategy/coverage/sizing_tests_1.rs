@@ -225,13 +225,44 @@ fn schedule_close_to_flat() {
     assert_eq!((o.action, o.qty), (StrictAction::Close, 600));
 }
 
-/// ★Schedule_Θ 增/减持：同号幅度增=Add、减=Reduce（多空对称）。
+/// ★Schedule_Θ 增/减持：同号幅度增=增持单（持多 Add / 持空 Sell，#879 修复）、减=Reduce。
 #[test]
 fn schedule_add_reduce() {
     assert_eq!(schedule_order(900.0, 600.0, 0).action, StrictAction::Add);
     assert_eq!(schedule_order(900.0, 600.0, 0).qty, 300);
     assert_eq!(schedule_order(300.0, 600.0, 0).action, StrictAction::Reduce);
-    assert_eq!(schedule_order(-900.0, -600.0, 0).action, StrictAction::Add); // 更空=Add
+    // #879：更空产 Sell（非 Add）——执行三后端把 Add 一律当买入，旧「更空=Add」会被
+    // 执行成买入穿零（实测 w2023H2 bar198663：加空 28 成买 28，持仓 −3 翻 +25）。
+    let o = schedule_order(-900.0, -600.0, 0);
+    assert_eq!(
+        (o.action, o.qty),
+        (StrictAction::Sell, 300),
+        "更空=Sell（加空=卖出）"
+    );
+}
+
+/// ★#879 回归锁：空头加深单在 π 执行回路（`apply_order`）真卖出——持仓沿空向加深、
+/// 不穿零（ADR 0014 裁定一「不穿零」的执行层端到端见证：决策 p* 与成交后持仓一致）。
+#[test]
+fn schedule_short_deepening_executes_as_sell_in_apply_order() {
+    use crate::theta_v0::backtest::runner::apply_order;
+    let order = schedule_order(-900.0, -600.0, 0);
+    let (mut cash, mut units, mut entry_cost) = (1.0e6, -600.0, 100.0);
+    let mut pnls = Vec::new();
+    let out = apply_order(
+        &order,
+        100.0,
+        0.0,
+        &mut cash,
+        &mut units,
+        &mut entry_cost,
+        &mut pnls,
+    );
+    assert_eq!(out.executed_qty, 300.0);
+    assert_eq!(
+        units, -900.0,
+        "加空 300 后持仓 = −900（卖出加深），不得翻多穿零"
+    );
 }
 
 /// ★Schedule_Θ 无交易（全函数）：Δ=0 ⟹ 持仓 Hold / 空仓 Wait（qty=0）。

@@ -315,6 +315,98 @@ pub fn gross_target_units(legs: &[LegTarget]) -> f64 {
     legs.iter().map(|leg| leg.units.abs()).sum()
 }
 
+/// 重内单向合成的逐腿统计（#879 观测/测试用；不改变语义，纯只读读数）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChongUniStats {
+    /// 本步重方向：+1 多 / −1 空 / 0 无方向（空仓且两侧合成相等 ⟹ 本步不开仓）。
+    pub direction: i8,
+    /// 同向腿缩放因子 f ∈ [0,1]：反向腿总量 R 折成同向总量的减仓，f = max(0, (L−R)/L)。
+    pub factor: f64,
+    /// 被零化的反向腿数（含 direction==0 时两侧全零化）——不建持仓、不产生声部。
+    pub n_opposing_zeroed: usize,
+    /// 同向腿数（按 f 缩放；f=0 时同向腿亦归零——R≥L 的钳零情形）。
+    pub n_same_kept: usize,
+}
+
+/// ★重内单向（[ADR 0014] 裁定一，SPEC #847 S1 / 实施票 #879）：一重内部塔的各结构级别
+/// **合成后必须同向**——一份专属筹码只有一个持仓状态，合成目标只在 `[0, 满仓]` 区间内
+/// 加减、**不穿零**。
+///
+/// 机制（`analysis/bidirectional_nested_accounting.md` §3.2「双向只是让削减穿越每层配额
+/// 的零点」被 ADR 0014 裁定四按时间序作废后的替代口径）：
+/// - **反向腿不建持仓**，其总量 R 折成同向腿的**减仓**——子级别反向信号的教义形态是
+///   「减同向仓」（短差卖出），不是「开反向仓」；同向腿按 f = max(0,(L−R)/L) 等比缩放。
+/// - **方向权威**：持仓非零 ⟹ 持仓符号（一份筹码一个持仓状态）；空仓 ⟹ 当步合成多数侧
+///   （Σ多腿 vs Σ空腿；严格相等 ⟹ 无方向，两侧全零化、本步不开仓）。
+/// - **不穿零**：持仓方向与合成反号（R > L）⟹ 目标钳到 0（先归零）；反向开仓留给下一
+///   bar 空仓态重判——翻向必经空仓，不直接穿越。
+///
+/// 净额效果对照：L ≥ R 时变换后净目标 = L−R，与旧净额逐位相同；差异**只**出现在
+/// 旧口径会穿零的 bar（钳 0）。声部账本（sep_legs → LEE 镜像）层面反向声部不再存在
+/// ⟹ #837 探针 D3（跨级反向持仓重叠）结构性归零。
+///
+/// ⚠️ 退场条件（AGENTS.md 总缝规则举证门②）：「空仓时多数侧定方向」是**代理判据**——
+/// 重自己的方向本应由其**操作级别**的读法给出，而塔目前没有操作级别概念（#826）。
+/// 该代理随 SPEC #847 S3（操作级别挂载点）落地后退役，由操作级别读法取代。
+///
+/// 现状单重（全账户 = 一个重）：`legs` 全体属同一重，`chong_pos` = 账户净持仓（lot）。
+/// 多重落地后按重分组、逐重施加；重间不仲裁（ADR 0014 裁定二）⟹ 逐重独立调用即可。
+///
+/// [ADR 0014]: ../../../../../docs/adr/0014-intra-chong-unidirectional-inter-chong-no-arbitration.md
+pub fn enforce_chong_unidirectional(legs: &mut [LegTarget], chong_pos: f64) -> ChongUniStats {
+    let mut long_sum = 0.0;
+    let mut short_sum = 0.0;
+    for leg in legs.iter() {
+        match leg.side {
+            VoiceSide::Long => long_sum += leg.units,
+            VoiceSide::Short => short_sum += leg.units,
+            VoiceSide::Flat => {}
+        }
+    }
+    let direction: i8 = if chong_pos > 0.0 {
+        1
+    } else if chong_pos < 0.0 {
+        -1
+    } else if long_sum > short_sum {
+        1
+    } else if short_sum > long_sum {
+        -1
+    } else {
+        0
+    };
+    let same_sum = if direction >= 0 { long_sum } else { short_sum };
+    let opp_sum = if direction >= 0 { short_sum } else { long_sum };
+    let factor = if direction != 0 && same_sum > 0.0 {
+        ((same_sum - opp_sum) / same_sum).max(0.0)
+    } else {
+        0.0
+    };
+    let mut stats = ChongUniStats {
+        direction,
+        factor,
+        n_opposing_zeroed: 0,
+        n_same_kept: 0,
+    };
+    for leg in legs.iter_mut() {
+        let same_side = matches!(
+            (direction, leg.side),
+            (1, VoiceSide::Long) | (-1, VoiceSide::Short)
+        );
+        match leg.side {
+            VoiceSide::Flat => {}
+            _ if same_side => {
+                leg.units *= factor;
+                stats.n_same_kept += 1;
+            }
+            _ => {
+                leg.units = 0.0;
+                stats.n_opposing_zeroed += 1;
+            }
+        }
+    }
+    stats
+}
+
 /// **K_Θ 毛头寸约束（G7）：legs 折叠成净持仓之前施加毛敞口上限——逐根子树 KKT 投影**。
 ///
 /// > **结果包六要素**

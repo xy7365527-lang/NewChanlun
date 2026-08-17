@@ -518,7 +518,7 @@ fn bit_exact_cached_indices_vs_fallback() {
             hits += 1;
         }
         let (next_with, p_with) = coverage_step_prebuilt(
-            work_with, &gamma, &prev_with, 1000.0, &voice, None, &reg_with,
+            work_with, &gamma, &prev_with, 0.0, 1000.0, &voice, None, &reg_with,
         );
 
         // without：不注入 ⟹ fallback 现建（旧路径）。
@@ -527,6 +527,7 @@ fn bit_exact_cached_indices_vs_fallback() {
             work_without,
             &gamma,
             &prev_without,
+            0.0,
             1000.0,
             &voice,
             None,
