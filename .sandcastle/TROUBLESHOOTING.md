@@ -71,3 +71,11 @@
 **成因**：macOS loginwindow 用户登出 → launchd 清理用户会话 → 主机 npm exec tsx 进程树收 SIGTERM（nohup 只挡 SIGHUP 不挡这个）。
 
 **判读纪律**：先查日志停写时间是否对齐登出时刻，再判「工蜂卡死」。**判例处置**：中断后把未 commit 的票 re-queue（恢复 sandcastle label + unassign），重启管线即可续。
+
+## 11. 宿主驱动死亡 ≠ 工蜂死亡（bind mount 下的存活判定，2026-08-17 实撞）
+
+**症状**：宿主 npm exec tsx 进程死亡（appDeath，非登出），但沙盒容器与容器内 prime-agent 工蜂仍在干活——工作区是宿主 bind mount，工蜂 commit 直接落回宿主分支。
+
+**判读**：中断后先问「工蜂死了吗」再套 re-queue 纪律——宿主驱动死亡只影响 Phase 2 评审的自动派发（不会派、沙盒不会自动关），不影响 Phase 1 工蜂产出。
+
+**处置**：工蜂活着 ⟹ 不杀、不 re-queue，盯到 commit 或 90 分钟无产出再回报。工蜂 commit 后 Phase 2 评审需人工补派（`sandcastle review <sandbox>` 或重跑两段式主流程由编排层定）。
