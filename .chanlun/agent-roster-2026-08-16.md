@@ -33,3 +33,4 @@
 - [ ] 待并分支（afk3 释放 main 后）：ticket-891-s8a（#891+#892 Lean）、ticket-919-final（volume f64+TV 处决+#1022 修）
 | 子代理 sandcastle-dispatcher | prime-agent 同模型（DeepSeek V4 Pro） | 沙盒队列调度（main.mts 逐轮 + harvest.sh 收口 + agent_message 逐票上报；队列 750/757/829/765/879） | running（2026-08-17 派生） |
 - [!] 环境事实 2026-08-17 15:31：macOS 用户登出（loginwindow）会 SIGTERM 杀主机上的 sandcastle 管线进程（npm exec tsx 整树被杀、容器被清、工蜂未 commit 的活全丢）。判读纪律：工蜂日志突停 + 「实装无 commit」先查是否登出被杀（日志同秒停写 = 特征），不要先判票面卡死。#750/#757 已 re-queue
+- [x] 2026-08-17 20:30 | sandcastle 两段式（工蜂 kimi k3，rlm dispatcher 盯守）| #879 S1「重」一等实体 24 文件 +1077/−74 | 完成：实装+补派评审+宿主人工闸验收 2733/0，合入 main dca74aee5d 推镜像，关票。判例新增：TROUBLESHOOTING #9 双管线竞态/#10 登出杀管线/#11 宿主死亡≠工蜂死亡；main.mts REVIEW_ONLY 模式
