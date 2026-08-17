@@ -1572,4 +1572,79 @@ fn incremental_operation_bypass_matches_full() {
             "n={n}: 增量逐段 resume 的 L1 操作序列 == 全量逐字段"
         );
     }
+
+    /// ★#1019 MED-1 锁（cascade reset 两支 + L0 挂载覆盖）：frontier 改写触发 cascade 后，
+    /// 挂载级别的增量操作序列仍 == 全量逐字段——真实执行 `pipeline.rs` 的
+    /// `operation_state = Default::default()` 同批复位路径（评审指证：旧三锁对该路径零执行
+    /// 覆盖；本锁探针实测 P=0/P>0 两支均命中）。
+    ///
+    /// 照实登记（#1019 复核）：该复位行是**保守防御**而非承重——`operation_decompose_resume`
+    /// 自身的 `dirty_from` 失效分支已保守覆盖（cascade bar 上 dirty_from 回退 ⟹ 读域越界窗口
+    /// 全弹 + k=0 清块链 + 重扫），删除复位行本锁仍绿。本锁锁的是「cascade 后输出逐字段 ==
+    /// 全量」这一行为不变式，复位行作为同 key 守卫纪律保留（与 #885 同型）。
+    ///
+    /// 覆盖矩阵：
+    /// - v1→v2：末段内点改写（147→140，同 `cascade_reset_on_frontier_interior_rewrite` 夹具）
+    ///   ⟹ L0 frontier_mutated（j_min=8，e=32）走 **P>0 前缀失效支**；cascade 传播 L1 复位；
+    /// - v2→v3：首段内点改写（150→145）⟹ j_min=0、e=0 ⟹ L0/L1 均走 **P=0 全清支**；
+    /// - v3→v4：复位后追加一段 ⟹ 复位后 resume 续扫仍逐字段一致；
+    /// - `operating_levels=[0,1]`：L0 挂载（segments_confirmed_len=0 ⟹ 每 bar dirty_from=0，
+    ///   即 HIGH-1(a) 的 k=0 全清路径的 e2e 常态覆盖）+ L1 挂载。
+    #[test]
+    fn incremental_operation_bypass_matches_full_after_cascade_reset() {
+        let cfg = ThetaConfig::default();
+        // 夹具同 cascade_reset_on_frontier_interior_rewrite（三组核心分离，task #142）。
+        let base = vec![
+            seg(Direction::Up, 0, 4, 110, 150),
+            seg(Direction::Down, 4, 8, 150, 120),
+            seg(Direction::Up, 8, 12, 120, 148),
+            seg(Direction::Down, 12, 16, 115, 80),
+            seg(Direction::Up, 16, 20, 80, 125),
+            seg(Direction::Down, 20, 24, 114, 85),
+            seg(Direction::Up, 24, 28, 115, 148),
+            seg(Direction::Down, 28, 32, 148, 112),
+            seg(Direction::Up, 32, 36, 112, 147),
+        ];
+        let mut closes: Vec<i64> = Vec::new();
+        for i in 0..12 {
+            closes.push(100 + if i % 2 == 0 { 40 } else { -40 });
+        }
+        for i in 0..12 {
+            closes.push(100 + if i % 2 == 0 { 5 } else { -5 });
+        }
+        for i in 0..20 {
+            closes.push(100 + if i % 2 == 0 { 3 } else { -3 });
+        }
+        let merged = Rc::new(bars_from_closes(&closes));
+        let mk_layer = |segs: Vec<Segment>| ParseLayer {
+            segments: Rc::new(segs),
+            merged_bars: Rc::clone(&merged),
+            ..Default::default()
+        };
+
+        // v2：末段内点改写（组 C 外缘内点，L1 投影不变、L0 sub_moves 变——frontier_mutated）。
+        let mut v2_segs = base.clone();
+        v2_segs[8].end_price = 140;
+        // v3：首段内点改写（e=0 ⟹ P=0 全清支，两级同）。
+        let mut v3_segs = base.clone();
+        v3_segs[0].end_price = 145;
+        // v4：v3 末追加一段（复位后 resume 续扫）。
+        let mut v4_segs = v3_segs.clone();
+        v4_segs.push(seg(Direction::Down, 36, 40, 147, 118));
+
+        let versions = [base, v2_segs, v3_segs, v4_segs];
+        let mut cache = TowerCache::new();
+        for (step, segs) in versions.into_iter().enumerate() {
+            let layer = mk_layer(segs);
+            let (_ic, _it, inc_ops) =
+                classify_with_tower_incremental_operations(&layer, &cfg, &mut cache, &[0, 1]);
+            let (_fc, full_ops) = classify_with_operations(&layer, &cfg, &[0, 1]);
+            assert_eq!(
+                format!("{inc_ops:?}"),
+                format!("{full_ops:?}"),
+                "step {step}（v1 基线 / v2 P>0 cascade / v3 P=0 cascade / v4 复位后续扫）：\
+             增量 L0+L1 操作序列 == 全量逐字段"
+            );
+        }
+    }
 }

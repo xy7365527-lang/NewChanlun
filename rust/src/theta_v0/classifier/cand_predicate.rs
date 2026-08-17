@@ -558,7 +558,11 @@ mod tests {
         let RMove::Compose { centers, .. } = &composed.rmove else {
             panic!("LeveledMove::compose 必须产出 RMove::Compose");
         };
-        assert_eq!(centers.len(), 1, "现役构造器的单中心载荷契约");
+        assert_eq!(
+            centers.len(),
+            1,
+            "单中心 run（盘整/扩展链成员）载荷契约；趋势块 ≥2 由 #897 锁另测"
+        );
 
         // 旧算法的手算真值：末子走势 hi=150 < 首子走势 hi=200，故为 Down。
         for criterion in [

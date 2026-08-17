@@ -25,11 +25,12 @@ Origin/RMoveCompose.lean — 第二类走势递归组装层（task #51，L3 第�
 
 本文件**真增量**（缺失的「第二类走势结构层」，连接判据层与次级别构成层）：
   缺口 = 第二类买卖点作为**走势位置结构**本身的 canonical 形式化——它由 RMove::Compose
-  递归组装产生，且满足「回拉不创新低/新高」位置约束。这是 `IsType2` 本级别判据
+  递归组装产生（回拉段存在即可；★#816 B-2② 不问新不新低，破一类极值由 `RetraceBreaksExtreme`
+  重合标注，实施 #884）。这是 `IsType2` 本级别判据
   （afterTypeOne ∧ ¬brokeCenter，无走势结构）与 `SubLevelDescent` 次级别第一类必要条件
-  之间**缺失的中间层**：把第二类的本级别**回拉走势位置约束**（第15课「未创新低」）+ 它的
-  **递归组装来源**（descend 取回的回拉次级别走势的第一类，第14课买点定律一）**统一**为一个
-  走势结构定义，并证明它在 RMove::Compose 递归塔中由组装产生。
+  之间**缺失的中间层**：把第二类的本级别**回拉走势位置**（第15课「未创新低」是常见形态，
+  非必要条件）+ 它的**递归组装来源**（descend 取回的回拉次级别走势的第一类，第14课买点定律一）
+  **统一**为一个走势结构定义，并证明它在 RMove::Compose 递归塔中由组装产生。
 
 ═══════════════════════════════════════════════════════════════════════════
 canonical 依据（一级权威博文 + reference §5/§10）
@@ -38,7 +39,10 @@ canonical 依据（一级权威博文 + reference §5/§10）
   第二类买点由次一级别相应走势的第一类买点构成。例如，周线上的第二类买点由日线上相应走势的
   第一类买点构成。有了这个缠中说禅买点定律，所有的买点都可以归结到第一类买点。"
 - 第15课（博文）："第二类买点都是第一次上0轴后回抽确认形成的"+「比较像背驰但**未创新低**」
-  ——第二类的回抽**不创新低**（买点）/不创新高（卖点）。
+  ——第二类的回抽**不创新低**（买点）/不创新高（卖点）是**常见形态**；经 #816 B-2②
+  （`101-第101课.md:32`【正文】「第二类买点跌破第一类买点……这是完全可以的，这里一般都构成
+  盘整背驰」），不创新低/新高**不再是准入必要条件**——跌破者标重合身份（二类 × 盘整背驰，
+  语义归 #817），不作闸（实施 #884）。
 - §10.1（reference）：第二类买点 = 第一类买点后，**次级别上涨结束、再次下跌的那个次级别走势
   的结束点**（BspClassification.lean:13 引）。⟹ 第二类点 = 回拉次级别走势的结束点。
 - §五 走势递归（reference 第176行「自相似的走势递归核」+ 走势分解定理二）：高级别走势由次级别
@@ -55,27 +59,28 @@ canonical 依据（一级权威博文 + reference §5/§10）
       （破中枢 ∧ 背驰，`SubLevelType1`，SubLevelDescent）——第一类锚（买点定律一的「次级别
       第一类」，第14课）。
   (2) **回拉走势**：`descend parent` 中 m1 **之后**存在次级别走势 `m2`（反向回拉）。
-  (3) **不创新低/新高**：回拉走势 m2 的极值（买点侧=m2.lo 回拉低点 / 卖点侧=m2.hi 回拉高点）
-      **不突破** m1 的极值（买点：`m2.lo ≥ m1.lo` 不创新低 / 卖点：`m2.hi ≤ m1.hi` 不创新高，
-      第15课「未创新低」）。
+  ★#816 B-2②（实施 #884）：**不问**回拉新不新低/新高——判据不得以「回拉不创新低/新高」为
+  必要条件（`101:32`【正文】跌破一买「这是完全可以的」）；回拉是否破一类极值由
+  `RetraceBreaksExtreme` 重合标注谓词记录（「一般都构成盘整背驰」，语义归 #817，不作准入分档）。
 第二类买卖点 = 回拉走势 m2 的结束点（§10.1「次级别再次下跌走势的结束点」）。
 
 ★它如何由递归组装产生：parent 由 `composeStep`/`Move.compose` 把次级别走势序列组装为本级别
   走势（RMove::Compose 递归组装层），`descend parent` 取回该序列。第二类结构在**取回的次级别
-  序列内部**识别「第一类离开 m1 + 回拉 m2 不创新低」——这是中枢内部回拉结构的真递归组装形式
+  序列内部**识别「第一类离开 m1 + 回拉 m2」——这是中枢内部回拉结构的真递归组装形式
   （第一类离开是次级别趋势破中枢，回拉是次级别反向走势，二者都在 parent 封装的 subs 中）。
 
 ═══════════════════════════════════════════════════════════════════════════
 认识论等级（formalization-validity-domain 强制标注）
 ═══════════════════════════════════════════════════════════════════════════
 全部 **L0**（纯结构定义 / descend 递归取回 / 回拉极值几何比较 / 级别递减，不依赖数据）。
-`lake env lean Origin/RMoveCompose.lean` 通过 = 第二类走势结构（第一类离开 + 回拉不创新低/新高
-+ 递归组装来源）在定义层成立，**不是**「第二类识别在真实行情上有效」的实证断言（那是 L2+，
-需真实 K 线 + MACD 力度计算 still-MISSING-C）。
+`lake env lean Origin/RMoveCompose.lean` 通过 = 第二类走势结构（第一类离开 + 回拉段 + 递归组装
+来源，回拉**不问**新不新低——#816 B-2②）在定义层成立，**不是**「第二类识别在真实行情上有效」
+的实证断言（那是 L2+，需真实 K 线 + MACD 力度计算 still-MISSING-C）。
 
 诚实开口（gatekeeper，no-patch / no-声明膨胀）：
-★ 本文件证**第二类走势结构层**（第一类离开走势 + 回拉走势 + 不创新低/新高 + 由 descend 取回
-  的递归组装来源 + 买卖点定律一连接）。但第一类的**背驰力度**（`SubLevelType1` 的 `divPair`）
+★ 本文件证**第二类走势结构层**（第一类离开走势 + 回拉走势 + 由 descend 取回的递归组装来源 +
+  买卖点定律一连接；回拉**不问**新不新低——#816 B-2②，破一类极值由 `RetraceBreaksExtreme`
+  重合标注，不作准入分档）。但第一类的**背驰力度**（`SubLevelType1` 的 `divPair`）
   靠外部提供（MACD 面积 still-MISSING-C，无 Origin 引擎从 K 线算力度，承接 SubLevelDescent
   same 卡点）。把「回拉几何结构」冒充为「完整第二类识别」= 声明膨胀（禁止）——本文件诚实把
   `divPair` 设为显式参数。
@@ -125,19 +130,24 @@ theorem descend_composeMove (subs : List RMove) (centers : List RCenter) (lvl : 
   unfold composeMove; exact descend_compose subs centers lvl
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 2. 回拉走势「不创新低/新高」位置约束（第15课「未创新低」几何层）
+    § 2. 回拉走势「不创新低/新高」极值谓词（第15课「未创新低」几何层；#816 B-2② 后仅作重合标注取值）
 
-    第二类的回拉走势 m2（次级别再次下跌/上涨）其极值**不突破**第一类离开走势 m1 的极值：
+    第二类的回拉走势 m2（次级别再次下跌/上涨）其极值是否**突破**第一类离开走势 m1 的极值：
       - 买点侧（long）：回拉低点 `m2.lo ≥ m1.lo`（**不创新低**——回拉没跌破第一类的低点）。
       - 卖点侧（short）：回拉高点 `m2.hi ≤ m1.hi`（**不创新高**——回抽没涨破第一类的高点）。
-    这是 §10.1「次级别再次下跌走势的结束点」+ 第15课「未创新低」的几何刻画——对 descend 取回的
-    **真实次级别回拉走势对象**算（m2.lo/m2.hi = 回拉走势区间极值，m1.lo/m1.hi = 第一类走势极值）。
+    这是第15课「未创新低」的几何刻画——对 descend 取回的**真实次级别回拉走势对象**算
+    （m2.lo/m2.hi = 回拉走势区间极值，m1.lo/m1.hi = 第一类走势极值）。
+    ★#816 B-2②：本节谓词**不再是第二类准入判据**（判据不得以「回拉不创新低/新高」为必要
+    条件）——其否定 `RetraceBreaksExtreme` 是重合身份标注谓词（跌破一买/升破一卖「一般都构成
+    盘整背驰」，语义归 #817），不作准入分档（实施 #884）。
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /--
   ★回拉不创新低（买点侧，几何层）—— 回拉走势 `m2` 的低点 `m2.lo` 不低于第一类走势 `m1` 的
-  低点 `m1.lo`（`m1.lo ≤ m2.lo`）。第二类买点的核心位置约束（第15课「未创新低」）：第一类
-  探底后，回拉再次下跌但**没创新低**——回拉低点守住第一类低点上方（含相等，临界不创新低）。
+  低点 `m1.lo`（`m1.lo ≤ m2.lo`）。第15课「未创新低」的几何读数：第一类探底后，回拉再次下跌
+  但**没创新低**——回拉低点守住第一类低点上方（含相等，临界不创新低）。
+  ★#816 B-2②：本谓词**不再是第二类准入判据**——只作 `RetraceBreaksExtreme` 重合标注的取值
+  来源（`¬ NoNewLow` = 跌破一类，标注「一般都构成盘整背驰」的重合身份，语义归 #817，不作闸）。
 -/
 def NoNewLow (m1 m2 : RMove) : Prop := m1.lo ≤ m2.lo
 
@@ -146,8 +156,10 @@ instance (m1 m2 : RMove) : Decidable (NoNewLow m1 m2) := by
 
 /--
   ★回拉不创新高（卖点侧，几何层）—— 回拉走势 `m2` 的高点 `m2.hi` 不高于第一类走势 `m1` 的
-  高点 `m1.hi`（`m2.hi ≤ m1.hi`）。第二类卖点对偶位置约束：第一类探顶后，回抽再次上涨但
-  **没创新高**——回抽高点守住第一类高点下方（含相等，临界不创新高）。
+  高点 `m1.hi`（`m2.hi ≤ m1.hi`）。第15课「未创新高」的几何读数：第一类探顶后，回抽再次上涨
+  但**没创新高**——回抽高点守住第一类高点下方（含相等，临界不创新高）。
+  ★#816 B-2②：本谓词**不再是第二类准入判据**（同 `NoNewLow` 侧）——只作
+  `RetraceBreaksExtreme` 重合标注的取值来源（语义归 #817，不作闸）。
 -/
 def NoNewHigh (m1 m2 : RMove) : Prop := m2.hi ≤ m1.hi
 
@@ -155,8 +167,11 @@ instance (m1 m2 : RMove) : Decidable (NoNewHigh m1 m2) := by
   unfold NoNewHigh; infer_instance
 
 /--
-  ★回拉位置约束（按方向，几何层）—— 第二类的回拉走势 `m2` 相对第一类走势 `m1` 不创极值：
+  ★回拉极值谓词（按方向，几何层）—— 第二类的回拉走势 `m2` 相对第一类走势 `m1` 不创极值：
   买点侧判不创新低，卖点侧判不创新高。这把「未创新低/新高」按买卖方向统一。
+  ★#816 B-2②：本谓词**不作准入闸**（旧 `SecondTypeStructure` 合取项已拆，实施 #884）——
+  其否定即 `RetraceBreaksExtreme` 重合标注（跌破一买/升破一卖仍是合法二类点，`101:32`
+  【正文】；标注语义归 #817）。
 -/
 def RetraceNoBreak (side : Side) (m1 m2 : RMove) : Prop :=
   match side with
@@ -166,12 +181,29 @@ def RetraceNoBreak (side : Side) (m1 m2 : RMove) : Prop :=
 instance (side : Side) (m1 m2 : RMove) : Decidable (RetraceNoBreak side m1 m2) := by
   unfold RetraceNoBreak; cases side <;> infer_instance
 
+/--
+  ★回拉破一类极值（重合身份标注谓词，按方向；#816 B-2②，实施 #884）—— 回拉走势 `m2` 的
+  极值**突破**第一类走势 `m1` 的极值：买点侧 `m2.lo < m1.lo`（跌破一买）/ 卖点侧
+  `m2.hi > m1.hi`（升破一卖）。
+
+  `101-第101课.md:32`【正文】：「第二类买点跌破第一类买点……这是完全可以的，这里一般都构成
+  盘整背驰」——破一类极值的回拉**仍是合法二类点**；本谓词是**重合身份标注**（二类 × 盘整
+  背驰），**不作准入分档**（判据不得以「回拉不创新低/新高」为必要条件），语义归
+  [区间套的教义正本 #817](https://github.com/xy7365527-lang/NewChanlun/issues/817)。
+-/
+def RetraceBreaksExtreme (side : Side) (m1 m2 : RMove) : Prop :=
+  ¬ RetraceNoBreak side m1 m2
+
+instance (side : Side) (m1 m2 : RMove) : Decidable (RetraceBreaksExtreme side m1 m2) := by
+  unfold RetraceBreaksExtreme; infer_instance
+
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 3. 第二类走势结构（canonical 形式化：第一类离开 + 回拉不创新低/新高 + 递归组装来源）
+    § 3. 第二类走势结构（canonical 形式化：第一类离开 + 回拉段 + 递归组装来源；回拉不问新不新低，#816 B-2②）
 
     第二类买卖点作为**走势位置结构**：本级别走势 `parent`（RMove::Compose 组装，subs =
-    descend parent）的第二类结构 ⟺ subs 内部存在「第一类离开走势 m1 + 其后回拉走势 m2，m2
-    不创新低/新高」。第二类点 = 回拉走势 m2 的结束点（§10.1）。
+    descend parent）的第二类结构 ⟺ subs 内部存在「第一类离开走势 m1 + 其后回拉走势 m2」。
+    第二类点 = 回拉走势 m2 的结束点（§10.1）。回拉是否破一类极值由 `RetraceBreaksExtreme`
+    重合标注记录（#816 B-2②，不作准入分档）。
 
     ★m1 在 m2 之前（时间顺序，§10.1「第一类后、再次下跌」）：用 `descend parent` 的列表索引
     `i1 < i2` 刻画——m1 在 i1 位置（第一类离开），m2 在 i2 位置（回拉），i1 < i2（回拉在第一类
@@ -187,8 +219,12 @@ instance (side : Side) (m1 m2 : RMove) : Decidable (RetraceNoBreak side m1 m2) :
   - `m1 ∈ descend parent` 在索引 i1，`m2 ∈ descend parent` 在索引 i2，`i1 < i2`
     （第一类离开在前、回拉在后，§10.1「第一类后再次下跌」时间序）；
   - `SubLevelType1 side m1 c1 divPair`：m1 是完整次级别第一类（破中枢 ∧ 背驰，第14课买点
-    定律一「由次级别第一类构成」+ §10.1）。`divPair` 显式参数（力度 still-MISSING-C 外部提供）；
-  - `RetraceNoBreak side m1 m2`：回拉走势 m2 不创新低/新高（第15课「未创新低」，相对第一类 m1）。
+    定律一「由次级别第一类构成」+ §10.1）。`divPair` 显式参数（力度 still-MISSING-C 外部提供）。
+
+  ★#816 B-2②（实施 #884）：旧合取项 `RetraceNoBreak side m1 m2` 已拆——判据**不得**以「回拉
+  不创新低/新高」为必要条件（`101:32`【正文】跌破一买「这是完全可以的」）；回拉是否破一类
+  极值由 [`RetraceBreaksExtreme`] 重合标注谓词记录（「一般都构成盘整背驰」，语义归 #817，
+  不作准入分档）。
 
   第二类买卖点 = 回拉走势 m2 的结束点（§10.1）。这是「中枢内部回拉结构」的真递归组装形式——
   第一类离开是次级别破中枢趋势走势，回拉是次级别反向走势，二者都在 parent 由 RMove::Compose
@@ -201,7 +237,6 @@ def SecondTypeStructure (side : Side) (parent : RMove) (c1 : RCenter)
     ∧ (descend parent : List RMove)[i1]? = some m1
     ∧ (descend parent : List RMove)[i2]? = some m2
     ∧ SubLevelType1 side m1 c1 divPair
-    ∧ RetraceNoBreak side m1 m2
 
 /--
   ★第二类点 = 回拉走势的结束点（§10.1，L0 投影）—— 给定第二类走势结构的 m2（回拉走势），
@@ -241,7 +276,7 @@ theorem secondTypeStructure_imp_subBrokenCenter
     (hstruct : SecondTypeStructure side parent c1 divPair)
     (hcenter : ∀ m1 ∈ descend parent, centerOf m1 = c1) :
     subLevelHasBrokenCenter parent side centerOf = true := by
-  obtain ⟨_i1, _i2, m1, _m2, _hlt, hm1, _hm2, h1, _hretrace⟩ := hstruct
+  obtain ⟨_i1, _i2, m1, _m2, _hlt, hm1, _hm2, h1⟩ := hstruct
   have hmem : m1 ∈ descend parent := List.mem_of_getElem? hm1
   have hcof : centerOf m1 = c1 := hcenter m1 hmem
   -- h1 : SubLevelType1 side m1 c1 divPair；目标需 SubLevelType1 side m1 (centerOf m1) divPair
@@ -285,16 +320,18 @@ theorem secondType_m1_level_decreases
 theorem segment_no_secondType (side : Side) (d : Formal.TrendTrichotomy.Direction)
     (lo hi : Int) (c1 : RCenter) (divPair : DivergencePair) :
     ¬ SecondTypeStructure side (Formal.RecursiveConstruction.Move.segment d lo hi) c1 divPair := by
-  intro ⟨i1, _i2, m1, _m2, _hlt, hm1, _hm2, _h1, _hretrace⟩
+  intro ⟨i1, _i2, m1, _m2, _hlt, hm1, _hm2, _h1⟩
   rw [descend_segment d lo hi] at hm1
   simp at hm1
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 6. 反退化见证（具体第二类走势结构：真递归组装 + 第一类离开 + 回拉不创新低）
+    § 6. 反退化见证（具体第二类走势结构：真递归组装 + 第一类离开 + 回拉段；含跌破一类见证 #816 B-2②）
 
     构造一个本级别走势 `parentWit2`（RMove::Compose 组装：第一类离开走势 + 回拉走势 + 收尾），
-    descend 取回真实次级别走势序列，第一类离开真破中枢 + 背驰，回拉真不创新低——见证第二类
-    走势结构真跑通（非平凡：回拉不创新低是真约束，破之即非第二类）。
+    descend 取回真实次级别走势序列，第一类离开真破中枢 + 背驰，回拉段真存在——见证第二类
+    走势结构真跑通。★#816 B-2②（实施 #884）：回拉**不问**新不新低，另给「回拉破一类极值」
+    见证（`witness_secondTypeStructure_brokeExtreme`）——跌破一买仍是合法二类点（`101:32`
+    【正文】），重合身份由 `RetraceBreaksExtreme` 标注（语义归 #817，不作闸）。
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /-- 第一类离开走势（向下跌破中枢的次级别走势，区间 [-10, -2]，下沿 -10 < 中枢 ZD=0 ⟹ 破中枢）。 -/
@@ -318,6 +355,14 @@ def c1Wit : RCenter :=
 def parentWit2 : RMove :=
   composeMove [m1Wit, m2Wit, m3Wit] [c1Wit] 1
 
+/-- 回拉走势（**跌破**一类：区间 [-12, 3]，下沿 -12 < 第一类下沿 -10；#816 B-2② 见证用）。 -/
+def m2BrokeWit : RMove :=
+  Formal.RecursiveConstruction.Move.segment Formal.TrendTrichotomy.Direction.up (0 - 12) 3
+
+/-- 本级别走势见证（第一类离开 + 跌破一类的回拉；#816 B-2② 拆闸后仍构成第二类结构）。 -/
+def parentBrokeWit2 : RMove :=
+  composeMove [m1Wit, m2BrokeWit] [c1Wit] 1
+
 /-- 背驰力度见证（forceC=2 < forceA=8 ⟹ 背驰，第一类力度前提，still-MISSING-C 外部提供）。 -/
 def divWit2 : DivergencePair := { forceA := ⟨8⟩, forceC := ⟨2⟩, isTrend := true }
 
@@ -325,6 +370,11 @@ def divWit2 : DivergencePair := { forceA := ⟨8⟩, forceC := ⟨2⟩, isTrend 
 theorem witness_descend_parentWit2 :
     descend parentWit2 = [m1Wit, m2Wit, m3Wit] := by
   unfold parentWit2; exact descend_composeMove [m1Wit, m2Wit, m3Wit] [c1Wit] 1
+
+/-- **★反退化见证（#816 B-2② 见证用）：跌破一类回拉的 parent 组装-取回对偶。** -/
+theorem witness_descend_parentBrokeWit2 :
+    descend parentBrokeWit2 = [m1Wit, m2BrokeWit] := by
+  unfold parentBrokeWit2; exact descend_composeMove [m1Wit, m2BrokeWit] [c1Wit] 1
 
 /-- **★反退化见证：第一类离开走势真跌破中枢（m1.lo=-10 < zd=0）。** -/
 theorem witness_m1_broke : SubBrokeBelow m1Wit c1Wit := by
@@ -338,20 +388,32 @@ theorem witness_retrace_noNewLow : NoNewLow m1Wit m2Wit := by
     Formal.RecursiveConstruction.Move.lo Formal.RecursiveConstruction.Move.interval
   decide
 
-/-- **★反退化见证（非平凡）：若回拉创新低则非第二类位置——回拉低点 -12 < 第一类低点 -10 ⟹ ¬NoNewLow。**
-    这证「不创新低」是真约束（破之即非第二类买点位置，第15课「未创新低」非平凡桩）。 -/
+/-- **★反退化见证（非平凡）：回拉低点 -12 < 第一类低点 -10 ⟹ ¬NoNewLow。**
+    #816 B-2②（实施 #884）：`¬ NoNewLow` 即 `RetraceBreaksExtreme` 重合标注谓词为真的情形——
+    跌破一类**仍是合法二类点**（`101:32`【正文】「这是完全可以的」），标注不作准入分档；
+    第15课「未创新低」是常见形态而非必要条件。 -/
 theorem witness_newLow_breaks_type2 :
     ¬ NoNewLow m1Wit (Formal.RecursiveConstruction.Move.segment Formal.TrendTrichotomy.Direction.up (0 - 12) 3) := by
   unfold NoNewLow m1Wit
     Formal.RecursiveConstruction.Move.lo Formal.RecursiveConstruction.Move.interval
   decide
 
+/-- **★反退化见证：回拉破一类极值 ⟹ 重合标注谓词真（#816 B-2②）。**
+    回拉低点 -12 < 第一类低点 -10 ⟹ `RetraceBreaksExtreme Side.long m1Wit m2BrokeWit`——
+    重合身份（二类 × 盘整背驰）标注谓词成立（语义归 #817，不作准入分档）。 -/
+theorem witness_retrace_breaksExtreme :
+    RetraceBreaksExtreme Side.long m1Wit m2BrokeWit := by
+  unfold RetraceBreaksExtreme RetraceNoBreak NoNewLow m1Wit m2BrokeWit
+    Formal.RecursiveConstruction.Move.lo Formal.RecursiveConstruction.Move.interval
+  decide
+
 /-- **★反退化见证主定理：具体第二类走势结构真跑通（RMove::Compose 组装 + 第一类离开破中枢背驰
-    + 回拉不创新低 + i1=0 < i2=1 时间序）。**
-    背驰力度由外部 divWit2（forceC=2 < forceA=8）提供，几何破中枢 + 不创新低真下钻判定。 -/
+    + 回拉段 + i1=0 < i2=1 时间序）。**
+    背驰力度由外部 divWit2（forceC=2 < forceA=8）提供，几何破中枢真下钻判定；回拉不问新不新低
+    （#816 B-2② 拆闸后，实施 #884——本见证的回拉 m2Wit 未破一类极值，重合标注为假）。 -/
 theorem witness_secondTypeStructure :
     SecondTypeStructure Side.long parentWit2 c1Wit divWit2 := by
-  refine ⟨0, 1, m1Wit, m2Wit, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨0, 1, m1Wit, m2Wit, ?_, ?_, ?_, ?_⟩
   · decide  -- i1=0 < i2=1（第一类离开在前、回拉在后）
   · rw [witness_descend_parentWit2]; rfl  -- (descend)[0]? = some m1Wit
   · rw [witness_descend_parentWit2]; rfl  -- (descend)[1]? = some m2Wit
@@ -360,8 +422,23 @@ theorem witness_secondTypeStructure :
     refine ⟨?_, ?_⟩
     · simp only; exact witness_m1_broke
     · unfold IsDivergence divWit2; decide
-  · -- RetraceNoBreak（long）：回拉不创新低
-    show NoNewLow m1Wit m2Wit; exact witness_retrace_noNewLow
+
+/-- **★反退化见证（#816 B-2② 拆闸后，实施 #884）：回拉**跌破**一类（低点 -12 < 第一类低点 -10）
+    仍构成第二类走势结构——`101:32`【正文】「第二类买点跌破第一类买点……这是完全可以的」；
+    重合身份由 `RetraceBreaksExtreme` 标注（「一般都构成盘整背驰」，语义归 #817，不作准入分档）。
+    旧定义（含 `RetraceNoBreak` 合取）下此输入判不存在——本见证即「跌破一买」类二类点 0→有
+    的形式化侧对照。 -/
+theorem witness_secondTypeStructure_brokeExtreme :
+    SecondTypeStructure Side.long parentBrokeWit2 c1Wit divWit2 := by
+  refine ⟨0, 1, m1Wit, m2BrokeWit, ?_, ?_, ?_, ?_⟩
+  · decide  -- i1=0 < i2=1
+  · rw [witness_descend_parentBrokeWit2]; rfl  -- (descend)[0]? = some m1Wit
+  · rw [witness_descend_parentBrokeWit2]; rfl  -- (descend)[1]? = some m2BrokeWit
+  · -- SubLevelType1：第一类离开破中枢 ∧ 背驰（与主见证同证）
+    unfold SubLevelType1
+    refine ⟨?_, ?_⟩
+    · simp only; exact witness_m1_broke
+    · unfold IsDivergence divWit2; decide
 
 /-- **★反退化见证：第二类走势结构 ⟹ 次级别有破中枢走势（买卖点定律一连接真跑通）。**
     从具体第二类结构经 `secondTypeStructure_imp_subBrokenCenter`，见证买卖点定律一前件成立。 -/
@@ -389,12 +466,15 @@ theorem witness_secondPoint_price :
 
   论证（formalization-validity-domain 有效域 ⊊ 定义域）：
   - **第二类走势结构层无定义冲突**：RMove::Compose 组装（`composeStep`/`Move.compose`）+ descend
-    取回（`descend_composeMove` rfl）+ 回拉不创新低/新高几何（`RetraceNoBreak`）+ 第一类离开
+    取回（`descend_composeMove` rfl）+ 回拉极值谓词（`NoNewLow`/`NoNewHigh`/`RetraceNoBreak` +
+    `RetraceBreaksExtreme` 重合标注）+ 第一类离开
     （`SubLevelType1`，SubLevelDescent）+ 时间序 i1<i2 + 买卖点定律一连接
     （`secondTypeStructure_imp_subBrokenCenter`）+ 级别递减终止（`segment_no_secondType` 递归底）
     ——全部定义自洽且实装，零 sorry。第二类的两个 canonical 来源（第14课「由次级别第一类构成」
-    + 第15课「未创新低」）在结构层**统一无矛盾**：第一类离开走势 m1 承载「次级别第一类构成」，
-    回拉走势 m2 不创新低承载「未创新低」，二者在 descend 取回的同一 subs 序列内部 i1<i2 共存。
+    + 第15课「未创新低」常见形态）在结构层**统一无矛盾**：第一类离开走势 m1 承载「次级别第一类
+    构成」，回拉走势 m2 承载「再次下跌的回拉」（方向与幅度约束分离）；★#816 B-2② 已裁定回拉
+    可破一类极值（`101:32`【正文】），第15课「未创新低」不再作为准入条件——二者在 descend 取回的
+    同一 subs 序列内部 i1<i2 共存。
 
   - **卡点1 = 第一类的力度分量无数据来源（still-MISSING-C，承接 SubLevelDescent）**：
     第二类结构含第一类离开 m1，第一类 = 破中枢（几何，本文件 `SubBrokeBelow/Above` 真下钻可判）
@@ -409,25 +489,29 @@ theorem witness_secondPoint_price :
     结构。补上中枢口径定稿后，提取层可消费本文件的 `SecondTypeStructure` 产 B2/S2——结构层
     不需改动，只需补提取适配器。
 
-  - **为何不是定义冲突**：定义冲突 = 接受 A 则 B 矛盾，无法弥合（no-workaround）。此处无矛盾——
-    第二类走势结构（第一类离开 + 回拉不创新低 + 递归组装来源 + 买卖点定律一连接）三者定义自洽
-    且全实装；缺的只是**力度数据引擎**（MACD 面积，L2 数值层）+ **信号提取适配器**（依赖迁主塔
-    口径，L2 工程层），那是**实现/上游缺失**，不是定义之间打架。
-    （对比真定义冲突：若「第二类要求回拉不创新低」与「§10.1 次级别再次下跌走势」矛盾，那才是
-    冲突——但二者一致：再次下跌（回拉方向）+ 不创新低（回拉幅度受限），同一回拉走势的方向与
-    幅度约束，无矛盾。）
+  - **为何不是定义冲突**：定义冲突 = 接受 A 则 B 矛盾，无法弥合（no-workaround）。★原判定「无
+    矛盾」所对比的那个冲突**后来真浮出**——#851 查实「第二类要求回拉不创新低」与 `101:32`
+    【正文】「第二类买点跌破第一类买点……这是完全可以的」正面冲突（原文列为正常三种情况之一
+    的那类被整批判为不存在）；#816 B-2② 已裁：判据**不得**以「回拉不创新低/新高」为必要条件，
+    跌破者标重合身份（二类 × 盘整背驰，语义归 #817），不作准入分档。本文件随 #884 拆合取项
+    `RetraceNoBreak` 后，定义冲突随之消解——第二类走势结构（第一类离开 + 回拉段 + 递归组装
+    来源 + 买卖点定律一连接）定义自洽且全实装；缺的只是**力度数据引擎**（MACD 面积，L2 数值层）
+    + **信号提取适配器**（依赖迁主塔口径，L2 工程层），那是**实现/上游缺失**，不是定义之间打架。
 
   ═══════════════════════════════════════════════════════════════════════
   ★still-MISSING（诚实开口，no-声明膨胀）
   ═══════════════════════════════════════════════════════════════════════
   本文件**真递归组装**实装了：
     (1) RMove::Compose 组装-取回对偶（`descend_composeMove` rfl，组装的 subs 可 descend 真取回）；
-    (2) 回拉不创新低/新高几何（`NoNewLow`/`NoNewHigh`/`RetraceNoBreak`，对真实次级别走势对象算）；
-    (3) 第二类走势结构 canonical 定义（`SecondTypeStructure`：第一类离开 m1 + 回拉 m2 不创极值
-        + i1<i2 时间序 + 由 descend 取回的递归组装来源）；
+    (2) 回拉极值几何（`NoNewLow`/`NoNewHigh`/`RetraceNoBreak` + `RetraceBreaksExtreme` 重合标注，
+        对真实次级别走势对象算；#816 B-2②：均不作准入闸）；
+    (3) 第二类走势结构 canonical 定义（`SecondTypeStructure`：第一类离开 m1 + 回拉段 m2
+        + i1<i2 时间序 + 由 descend 取回的递归组装来源；**不问**新不新低——#816 B-2②，实施 #884）；
     (4) 买卖点定律一连接（`secondTypeStructure_imp_subBrokenCenter`：第二类结构 ⟹ 次级别破中枢）；
     (5) 级别递减终止（`secondType_m1_level_decreases` + `segment_no_secondType` 递归底）；
-    (6) 反退化见证（`witness_secondTypeStructure`：具体第二类结构真跑通 + 回拉创新低非第二类非平凡）。
+    (6) 反退化见证（`witness_secondTypeStructure`：具体第二类结构真跑通；★
+        `witness_secondTypeStructure_brokeExtreme`：回拉**跌破**一类仍构成第二类结构——
+        `101:32`【正文】，重合身份由 `RetraceBreaksExtreme` 标注，不作准入分档）。
   本文件**未**实装（诚实 still-MISSING，非声明膨胀）：
     · **背驰力度计算**（still-MISSING-C，承接 SubLevelDescent / Divergence）：`SubLevelType1` 的
       `divPair` 靠外部参数。故第二类结构的第一类离开走势「真有背驰」的**充分判定**未闭合（力度
@@ -439,35 +523,38 @@ theorem witness_secondPoint_price :
       （`Move.interval`/`Center` 核心 [zd,zg] 定稿）②本文件 `SecondTypeStructure` + `secondPointPrice`。
     · **中枢分配 `centerOf`**：次级别每走势配其相关中枢（centersOf GG-DD 自动）未在本文件实装——
       `centerOf` 设为参数（次级别中枢由上游 centersOf 提供，CenterStates still-MISSING-B）。
-    · **回拉走势的「第一次」约束**：本文件回拉 m2 只约束「m1 之后 i1<i2 + 不创新低」，未约束
-      「第一次回拉」（第三类用 firstRetrace，第二类 §10.1 是「再次下跌的那个次级别走势」——
-      本文件用 i1<i2 取 m1 后某回拉，未强制是紧邻第一个回拉。这是结构层的弱化，提取层可加
-      「i2 = m1 后第一个反向走势」强化，留提取层）。
+    · **回拉走势的「第一次」约束**：本文件回拉 m2 只约束「m1 之后 i1<i2」（回拉段存在），未约束
+      「第一次回拉」的方向强化（第三类用 firstRetrace，第二类 §10.1 是「再次下跌的那个次级别
+      走势」——本文件用 i1<i2 取 m1 后回拉段，未强制是反向紧邻回拉。这是结构层的弱化，提取层
+      可加「i2 = m1 后第一个反向走势」强化，留提取层）。#816 B-2② 后回拉破一类极值只走
+      `RetraceBreaksExtreme` 重合标注，不进准入。
 
   ═══════════════════════════════════════════════════════════════════════
   ★结果包六要素
   ═══════════════════════════════════════════════════════════════════════
   1. 结论：第二类走势递归组装层 canonical 形式化——RMove::Compose 组装-取回对偶
      （`descend_composeMove`）+ 第二类走势结构 `SecondTypeStructure`（第一类离开走势 m1 +
-     回拉走势 m2 不创新低/新高 + i1<i2 时间序 + descend 取回的递归组装来源）+ 买卖点定律一连接
+     回拉段 m2 + i1<i2 时间序 + descend 取回的递归组装来源；**不问**新不新低，#816 B-2②）+
+     重合标注谓词 `RetraceBreaksExtreme`（不作准入分档，语义归 #817）+ 买卖点定律一连接
      （`secondTypeStructure_imp_subBrokenCenter`）+ 级别递减终止（`segment_no_secondType` 递归底）
-     + 反退化见证（具体第二类结构真跑通 + 创新低非第二类非平凡），全 L0 零 sorry。
-  2. 定义依据：第14课买点定律一（第二类由次级别第一类构成）+ 第15课（未创新低）+ §10.1（次级别
-     再次下跌走势的结束点）+ §五走势递归（高级别走势由次级别递归组装）+ 走势分解定理二（#89
-     parent 由次级别走势 compose）。输入特征：parent = RMove::Compose 组装 ⟹ descend 取回 subs
-     （满足「递归组装来源」）；subs 内 m1 破中枢+背驰 ⟹ 第一类离开（满足「由次级别第一类构成」）；
-     m2.lo ≥ m1.lo（买）/ m2.hi ≤ m1.hi（卖）⟹ 不创新低/新高（满足「未创新低」）；i1<i2 ⟹ 回拉
-     在第一类后（满足「第一类后再次下跌」时间序）。
+     + 反退化见证（具体第二类结构真跑通 + 跌破一类仍构成第二类结构非平凡），全 L0 零 sorry。
+  2. 定义依据：第14课买点定律一（第二类由次级别第一类构成）+ 第15课（未创新低——常见形态，
+     经 #816 B-2② 不作必要条件）+ `101:32`【正文】（跌破一买「这是完全可以的」）+ §10.1
+     （次级别再次下跌走势的结束点）+ §五走势递归（高级别走势由次级别递归组装）+ 走势分解定理二
+     （#89 parent 由次级别走势 compose）。输入特征：parent = RMove::Compose 组装 ⟹ descend 取回
+     subs（满足「递归组装来源」）；subs 内 m1 破中枢+背驰 ⟹ 第一类离开（满足「由次级别第一类
+     构成」）；i1<i2 ⟹ 回拉在第一类后（满足「第一类后再次下跌」时间序）；m2.lo < m1.lo（买）/
+     m2.hi > m1.hi（卖）⟹ `RetraceBreaksExtreme` 重合标注（不作准入分档）。
   3. 边界条件（结论翻转）：
-     · 若改「不创新低/新高」判据的闭/开区间口径（`m1.lo ≤ m2.lo` 含等号 vs `m1.lo < m2.lo`
-       严格），临界回拉（m2.lo = m1.lo，恰平第一类低点）归属翻转。当前用含等号（`NoNewLow :=
-       m1.lo ≤ m2.lo`，第15课「未创新低」含「恰平不创」）——若 reference 改严格「必须高于」则
-       临界重裁（与 BspClassification 第三类 zg/zd 口径裁决同精神，见该谱系）。
+     · #816 B-2② 后，回拉是否破一类极值**不再翻转准入**（`RetraceNoBreak` 合取项已拆）——
+       它只翻转重合标注 `RetraceBreaksExtreme`（语义归 #817）。「不创新低/新高」判据的闭/开区间
+       口径之争随之从准入层退场：`NoNewLow := m1.lo ≤ m2.lo`（第15课「未创新低」含「恰平不创」）
+       仍作标注取值，临界回拉（m2.lo = m1.lo，恰平第一类低点）标注为「未破」（含等号口径）。
      · 若 still-MISSING-C 补上 MACD 力度引擎后，`divPair` 由真实次级别力度填充——若某标的次级别
        第一类离开走势「破中枢但不背驰」，则非第一类 ⟹ 该 parent 无第二类走势结构（几何必要非
        充分在 L2 数据上被检验）。这是**否定性结果的入口**（formalization-validity-domain L2 可否证）。
      · 若 §10.1「相应走势」被定为「紧邻第一个回拉」（强 firstRetrace 约束），则本文件「i1<i2 取
-       m1 后任一回拉」需收紧为「i2 = m1 后第一个反向走势」——临界多回拉场景归属翻转，留提取层。
+       m1 后回拉段」需收紧为「i2 = m1 后第一个反向走势」——临界多回拉场景归属翻转，留提取层。
      · 若 descend 的递归底改变（线段也可下钻），`segment_no_secondType` 终止翻转须重证——当前底
        在线段 level 0（`descend_segment` 得空），明确。
   4. 下游推论：
@@ -475,17 +562,20 @@ theorem witness_secondPoint_price :
        `secondPointPrice` 产第二类端点，注入 signal.rs 多声部（消解 #5 单声部根因「第二类结构
        不可产」——结构层已产，提取层待迁主塔口径定稿）。
      · 第二类走势结构 ⟹ 买卖点定律一前件（次级别有破中枢走势，`secondTypeStructure_imp_subBrokenCenter`）
-       ⟹ 策略组件的第二类应对可依赖「第二类必有次级别第一类离开 + 回拉不创新低前件」（真递归
-       组装见证，非 IsType2 本级别判据的名义 afterTypeOne）。
+       ⟹ 策略组件的第二类应对可依赖「第二类必有次级别第一类离开 + 回拉段」前件（真递归组装
+       见证，非 IsType2 本级别判据的名义 afterTypeOne）；回拉破一类极值的重合身份经
+       `RetraceBreaksExtreme` 标注供下游消费（语义归 #817）。
      · 卡点定位在 MACD 力度引擎（still-MISSING-C）+ 信号提取层（依赖迁主塔口径）⟹ 形式化主线
        下一缺口明确指向 L2 数值引擎层 + B2/S2 提取适配器，不是 L0 结构定义层。
   5. 谱系引用：第二类「由次级别第一类构成」在 BspClassification.IsType2 是本级别判据层（标
      still-MISSING-D「不证递归构造」）；SubLevelDescent 用 descend 真下钻证「第二类 ⟸ 次级别破
      中枢」几何必要条件（still-MISSING-D′ 几何部分）；本文件用 RMove::Compose 组装-取回对偶 +
-     第二类走势结构（第一类离开 + 回拉不创新低）补全「第二类走势结构层」（连接 IsType2 判据层与
+     第二类走势结构（第一类离开 + 回拉段，**不问**新不新低——#816 B-2②，`101:32`【正文】，
+     实施 #884）补全「第二类走势结构层」（连接 IsType2 判据层与
      SubLevelDescent 次级别构成层，消解 #5 的结构层缺口）。力度卡点承接 Divergence.lean
      still-MISSING-C；中枢分配承接 CenterStates still-MISSING-B；信号提取层依赖迁主塔中枢区间
-     口径（本轮并行迁主塔工位 637 修正中枢核心区间）。无新概念分离——RMove::Compose（composeStep）
+     口径（本轮并行迁主塔工位 637 修正中枢核心区间）。重合标注语义承接 #817（区间套教义正本）。
+     无新概念分离——RMove::Compose（composeStep）
      + descend 是已结算组装/逆操作，第二类走势结构是其上的结构刻画，不引入新定义冲突。
   6. 影响声明：新增 `Origin.RMoveCompose` 模块，import SubLevelDescent + BspClassification +
      Formal.RecursiveConstruction（只读，不改 committed 类型）。无反向依赖，无命名冲突（namespace

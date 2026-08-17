@@ -178,6 +178,9 @@ pub fn sub_level_type1(side: Side, m: &RMove, c: &Center, is_divergence: bool) -
 /// 则次级别存在破中枢走势（[`sub_level_has_broken_center`] 真）——即本级别第二类的次级别第一类
 /// 构成在几何层被真下钻见证（§10.2「第二类由次级别第一类构成」的真下钻形式）。
 ///
+/// ★与 #816 B-2① 构成形同形（二类 = 次级别一类构成 + 回拉段；回拉不问新不新低——B-2②，`101:32`
+/// 【正文】），本谓词只判「构成」这一半，不涉回拉极值（T-5 受影响代码清单）。
+///
 /// 返回 `true` ⟺ 存在一个下钻取回的次级别走势满足完整第一类（破中枢 ∧ 背驰）⟹ 第二类构成成立。
 /// `divergence_of` 给每个次级别走势配 MACD 背驰判定（rust 真算，divergence.rs）。
 pub fn second_type_via_sublevel_type1(

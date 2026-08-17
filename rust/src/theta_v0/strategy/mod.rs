@@ -1475,6 +1475,8 @@ mod tests {
             center,
             struct_break_dir: None,
             force: None,
+
+            retrace_breaks_type1: None,
         }
     }
 
@@ -1537,6 +1539,8 @@ mod tests {
             )),
             struct_break_dir: None,
             force: None,
+
+            retrace_breaks_type1: None,
         }];
         Classification {
             levels: vec![LevelState {
@@ -1613,6 +1617,8 @@ mod tests {
             )),
             struct_break_dir: None,
             force: None,
+
+            retrace_breaks_type1: None,
         }];
         let classification = Classification {
             levels: vec![LevelState {
@@ -1673,6 +1679,8 @@ mod tests {
             )),
             struct_break_dir: None,
             force: None,
+
+            retrace_breaks_type1: None,
         }];
         let classification = Classification {
             levels: vec![
@@ -1727,6 +1735,8 @@ mod tests {
             center: None, // 不变量违反
             struct_break_dir: None,
             force: None,
+
+            retrace_breaks_type1: None,
         }];
         let classification = Classification {
             levels: vec![LevelState {
@@ -1987,6 +1997,8 @@ mod tests {
             )),
             struct_break_dir: None,
             force: None,
+
+            retrace_breaks_type1: None,
         }];
         Classification {
             levels: vec![LevelState {

@@ -1872,6 +1872,8 @@ mod tests {
             center: center.map(crate::theta_v0::classifier::bsp::OwnerRef::Center),
             struct_break_dir: None,
             force: None,
+
+            retrace_breaks_type1: None,
         }
     }
 
@@ -6487,8 +6489,8 @@ mod tests {
             Ok(d) => d,
             Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
         };
-        let n_full = ds_full.bars.len();
-        // #399：骨架收敛至共享 helper（mod tests 顶部），行为不变。
+        let _ = ds_full.bars.len(); // #399 收敛后 n_full 不再被本点消费（评审 #995 C-2 消警）
+                                    // #399：骨架收敛至共享 helper（mod tests 顶部），行为不变。
         let max_bars = econ_l2_max_bars();
         let ds = truncate_tail_bars(ds_full, max_bars);
         let win_start = ds
@@ -6572,8 +6574,12 @@ mod tests {
     /// L0 推导需 L2 样本级收口。codex 断言：`build_nest_certificate` 在 rung k=lvl+1 把 `Cand^δ`
     /// 操作化为 `div_cand` 的 **Extreme**（Long: `s.lo<s_prev.lo`），与第二类分类前提
     /// `retrace_no_break`（Long: `m2.lo>=m1.lo`）在 `s=m2 / s_prev=m1` 时结构性互斥。
+    /// **★#816 B-2②/#884 前提失效**：`retrace_no_break` 硬闸已拆（判据不得以「回拉不创新低/新高」
+    /// 为必要条件，`101:32`【正文】），该互斥链的「分类前提」一侧不再成立——本诊断的互斥链分解
+    /// 读数须重读：Extreme 与二类准入不再结构互斥，跌破者经 `retrace_breaks_type1` 重合标注
+    /// 承载（语义归 #817）。测试体保留作历史口径对照（`#[ignore]` 诊断，不进 CI 默认集）。
     /// **边界条件缺口**（codex 自留）：若 B1/B2 间有多段同向子腿，`div_cand` 条件2的 `rfind` 命中
-    /// 比 m1 更近的 q≠m1，`m2.lo>=m1.lo`（分类前提）与 `m2.lo<q.lo`（Extreme）可同真，互斥链不
+    /// 比 m1 更近的 q≠m1，`m2.lo>=m1.lo`（旧分类前提）与 `m2.lo<q.lo`（Extreme）可同真，互斥链不
     /// 必然成立。codex 给出**等价可测判据**：「s_prev 的低点仍高于/接近 m2 使 Extreme 必假」
     /// ⟹ 直接测 rung k=lvl+1 的 Extreme 真假即等价于「s_prev 使互斥成立」。
     ///
@@ -11419,7 +11425,7 @@ mod tests {
         let _ = writeln!(rpt, "- 「类一类点」载体残缺（#851）：`PanDivCert` 只覆盖 C 段破核心一支 ⟹ **B/C 宽口径命中率是下界**");
         let _ = writeln!(
             rpt,
-            "- 二类点受 `no_new_low` 硬闸（#851/SPEC #847）⟹ **B.3「沿途遇二三类」是下界**"
+            "- 二类点 `no_new_low` 硬闸已拆（#884/#816 B-2②）——B.3「沿途遇二三类」不再因该闸是下界；跌破一类的二类点经 `retrace_breaks_type1` 重合标注承载（语义归 #817）"
         );
         let _ = writeln!(
             rpt,

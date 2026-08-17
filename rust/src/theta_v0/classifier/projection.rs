@@ -241,6 +241,8 @@ mod tests {
             center: None,
             struct_break_dir: None,
             force: None,
+
+            retrace_breaks_type1: None,
         }
     }
 

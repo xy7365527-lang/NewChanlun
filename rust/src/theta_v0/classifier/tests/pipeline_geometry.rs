@@ -441,6 +441,9 @@ fn level_signal_census_btc() {
             .filter(|m| m.kind == MoveKind::Trend)
             .count();
         let (mut b1, mut s1, mut b2, mut s2, mut b3, mut s3) = (0, 0, 0, 0, 0, 0);
+        // ★#884/#816 B-2② 实测对照：「跌破一买」类二类点计数——旧 `no_new_low` 硬闸下恒 0
+        // （结构上不产），拆闸后经 `retrace_breaks_type1=Some(true)` 重合标注可查（语义归 #817）。
+        let (mut b2_broke, mut s2_broke) = (0usize, 0usize);
         for p in lv.bsp.iter() {
             b1 += p.bits.buy1 as usize;
             s1 += p.bits.sell1 as usize;
@@ -448,9 +451,14 @@ fn level_signal_census_btc() {
             s2 += p.bits.sell2 as usize;
             b3 += p.bits.buy3 as usize;
             s3 += p.bits.sell3 as usize;
+            match p.retrace_breaks_type1 {
+                Some(true) if p.bits.buy2 => b2_broke += 1,
+                Some(true) if p.bits.sell2 => s2_broke += 1,
+                _ => {}
+            }
         }
         eprintln!(
-                "[census] L{li}: centers={} moves={}(trend={}) bsp={} pan_div={} | buy1={b1} sell1={s1} buy2={b2} sell2={s2} buy3={b3} sell3={s3}",
+                "[census] L{li}: centers={} moves={}(trend={}) bsp={} pan_div={} | buy1={b1} sell1={s1} buy2={b2} sell2={s2} buy3={b3} sell3={s3} | b2_broke={b2_broke} s2_broke={s2_broke}",
                 lv.centers.len(), lv.moves.len(), trend, lv.bsp.len(), lv.pan_div.len()
             );
         // 抽样：level≥1 的前 3 个一类端点（若有）+ 前 3 个三类端点（人工核结构合法性——

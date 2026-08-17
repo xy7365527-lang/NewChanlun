@@ -37,12 +37,14 @@ use super::divergence::ForceProxies;
 ///   （source_index = `find_second_type_structure` 识别的 i1 第一类离开走势终点 =
 ///   该走势终点极值点，区间套恰好存在）；锚 =（极值价, 合并组锚）由 nest 核内经 T1
 ///   供给线 oracle 判定时解析（提取层无分型/包含供给，只载坐标，零新增解析）。
+///   ★#816 B-2②：归属**不问跌破与否**——回拉可破一类极值（`101:32`【正文】），归属锚仍是
+///   该走势一类点（#218 面 A 是归属层裁定，与 B-2② 不冲突）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OwnerRef {
     /// 中枢参照：一类 = 被破的最后中枢；三类 = 所离开回抽的中枢（归属走势的最新中枢）。
     Center(Center),
-    /// 点参照：该走势一类点锚坐标（source_index；二类点归属参照——回拉不破一类极值，
-    /// 与本级别中枢无关，v2 教义修订）。
+    /// 点参照：该走势一类点锚坐标（source_index；二类点归属参照——v2 教义修订：
+    /// 与本级别中枢无关；★#816 B-2② 归属不问跌破与否，回拉可破一类极值）。
     Type1Anchor(usize),
 }
 
@@ -79,6 +81,9 @@ impl EndpointSituation {
         self.below_last_center && !self.after_first_buy && !self.left_center
     }
     /// 第二类判据（reference:35；`IsSecond`）：1买后 ∧ 回调结束点。
+    /// ★与 #816 B-2①/B-2② 同形：本判据不含「回拉不创新低/新高」条件（判据不得以其为必要
+    /// 条件，`101:32`【正文】）——回拉破一类极值由 BspPoint 的 `retrace_breaks_type1`
+    /// 重合标注承载（不作准入分档，语义归 #817）。
     pub fn is_second(&self) -> bool {
         self.after_first_buy && self.is_pullback_end
     }
@@ -186,6 +191,18 @@ pub struct BspPoint {
     /// ★铁律：**不进** `PartialEq`/`Eq`/`class_index`/`BspBits`/分桶 key（见结构头 `PartialEq` 手写
     /// 说明）——纯旁挂力度量，不改任何结构相等/去重/分桶语义。
     pub force: Option<ForceProxies>,
+    /// ★#816 B-2② 重合身份标注（二类 × 盘整背驰；`101-第101课.md:32`【正文】「第二类买点跌破
+    /// 第一类买点……这是完全可以的，这里一般都构成盘整背驰」）：
+    /// - `Some(true)` = 该二类点的回拉走势**跌破**（买）/**升破**（卖）其第一类锚极值——重合
+    ///   身份标注（「一般都构成盘整背驰」），**不作准入分档**（判据不得以「回拉不创新低/新高」
+    ///   为必要条件，#816 B-2②；实施 #884 拆 `no_new_low`/`retrace_no_break` 硬闸），语义归
+    ///   [区间套的教义正本 #817](https://github.com/xy7365527-lang/NewChanlun/issues/817)；
+    /// - `Some(false)` = 回拉未破一类极值（第15课「未创新低」常规形态）；
+    /// - `None` = 非二类点（一/三类无此标注）。
+    ///
+    /// 标注是结构事实（由第二类走势结构的 `m1`/`m2` 极值确定性导出）⟹ 进 `PartialEq`/`Eq`
+    /// （同 `struct_break_dir` 口径）——「不作准入分档」指不参与判据合取，非不进结构相等。
+    pub retrace_breaks_type1: Option<bool>,
 }
 
 /// 手写 `PartialEq`（排除 `force`，见 [`BspPoint`] 头 β^div 力度铁律说明）。
@@ -203,6 +220,9 @@ impl PartialEq for BspPoint {
             && self.pivot_high == other.pivot_high
             && self.center == other.center
             && self.struct_break_dir == other.struct_break_dir
+            // #816 B-2② 重合标注（结构事实，确定性由第二类走势结构给出）——进结构相等，
+            // 同 struct_break_dir 口径；「不作准入分档」指不参与判据合取，非不进相等。
+            && self.retrace_breaks_type1 == other.retrace_breaks_type1
         // force 不参与——旁挂力度 proxy 不改结构相等（去重/bit-exact assert_eq 忽略之）。
     }
 }
@@ -426,6 +446,8 @@ mod tests {
             center: None,
             struct_break_dir: None,
             force: None,
+
+            retrace_breaks_type1: None,
         };
         // strategy 1 买止损 = pivot_low（reference:46）——直接读，不从 bars 重算。
         assert_eq!(p.pivot_low, 1000);
@@ -448,6 +470,8 @@ mod tests {
             center: Some(OwnerRef::Center(c)),
             struct_break_dir: None,
             force: None,
+
+            retrace_breaks_type1: None,
         };
         // strategy 3 买止损 = center.zg（ZG，reference:46）——条目直接关联中枢，无需 strategy 猜。
         // （#218 面 A 载体形态：Center 变体读出，机械适配。）
@@ -479,6 +503,8 @@ mod tests {
             center: Some(OwnerRef::Center(c)),
             struct_break_dir: None,
             force: None,
+
+            retrace_breaks_type1: None,
         };
         assert!(p.bits.buy3 && p.center.is_some());
     }
@@ -499,6 +525,8 @@ mod tests {
             center: Some(OwnerRef::Center(c)),
             struct_break_dir: None,
             force: None,
+
+            retrace_breaks_type1: None,
         };
         assert_eq!(p.pivot_high, 1500); // 1/2 卖止损源
                                         // 3 卖止损源 center.zd（Center 变体读出，#218 面 A 载体形态机械适配）。
@@ -520,6 +548,8 @@ mod tests {
             center: None,
             struct_break_dir: None,
             force: None,
+
+            retrace_breaks_type1: None,
         }
     }
 
@@ -668,18 +698,22 @@ mod tests {
             // 2026-08-16 再位移（七处统一 +9）：#905 三类「第一次」显式化在生产三类枚举环加
             // first_retrace_pair 条件块 ⟹ 测试区下移（含 rustfmt 折行 -1）；七点逐条重核内容不变，同条目重登记。
             // 2026-08-16 再位移（七处统一 -1）：#913 删 signal.rs 一处真死 import（HashMap）⟹ 整体上移 1 行；
-            // 七点逐条重核内容不变，同条目重登记。）
-            "theta_v0/classifier/signal.rs:2596",
-            "theta_v0/classifier/signal.rs:2887",
-            "theta_v0/classifier/signal.rs:3259",
-            "theta_v0/classifier/signal.rs:3399",
-            "theta_v0/classifier/signal.rs:3432",
-            "theta_v0/classifier/signal.rs:3688",
-            "theta_v0/classifier/signal.rs:3755",
+            // 七点逐条重核内容不变，同条目重登记。
+            // 2026-08-17 再位移（七处统一 +16）：#884（#816 B-2② 落地）在 signal.rs 测试区上方增
+            // 二类拆闸/重合标注测试与文档 ⟹ 七点逐条重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。）
+            "theta_v0/classifier/signal.rs:2612",
+            "theta_v0/classifier/signal.rs:2903",
+            "theta_v0/classifier/signal.rs:3275",
+            "theta_v0/classifier/signal.rs:3415",
+            "theta_v0/classifier/signal.rs:3448",
+            "theta_v0/classifier/signal.rs:3704",
+            "theta_v0/classifier/signal.rs:3771",
             // （2026-08-16 #648 T1：classifier/mod.rs 内联测试 4273 行抽离至 classifier/tests/
             // 主题件 ⟹ 该夹具点同内容随迁 mod.rs:4574 → tests/pipeline_geometry.rs:1565，
-            // 重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。）
-            "theta_v0/classifier/tests/pipeline_geometry.rs:1565",
+            // 重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。
+            // 2026-08-17 再位移（+8）：#884 在 census 测试循环增 b2_broke/s2_broke 计数 ⟹
+            // 夹具点同内容随迁 1565 → 1573，重核内容不变（同为 source_index 过滤），同条目重登记。）
+            "theta_v0/classifier/tests/pipeline_geometry.rs:1573",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
             // （2026-08-16 #903/#919 注释与 fmt ⟹ +2 漂移，七处再重锚，内容不变。）
             // （2026-08-16 #993 fixture 修复 ⟹ signal.rs 测试区再位移，七处夹具点重锚，内容不变。

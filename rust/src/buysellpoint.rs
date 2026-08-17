@@ -264,10 +264,15 @@ fn make_type2_point(
     let assoc = lookup.find(seg_idx);
     let price = if side == Side::Buy { seg.low } else { seg.high };
     // require_settled: 合取回试段（次级别回试走势）已 settle（回试走势完成，非生长中）。
+    // ★#816 B-2②（2026-08-04 教义裁定；本引擎处置路由归 maimai.md 受影响代码清单 T-6 =
+    // 673-fix/task #33，未落地前不在此改判据）：判据不得以「回拉不创新低/新高」为必要条件
+    // （`101:32`【正文】跌破一买「这是完全可以的」）。theta_v0 侧硬闸已由 #884 拆；
+    // 本旧引擎（逐位等价移植自 a_buysellpoint_v1.py）的 `geom` 合取仍保留旧口径，与 Python
+    // 侧同拍（T-6 落地时两侧一并改）。
     let geom = if side == Side::Buy {
-        price >= t1.price // 回调不创新低
+        price >= t1.price // 回调不创新低（#816 B-2②：不得为必要条件；本处留待 T-6/673-fix）
     } else {
-        price <= t1.price // 反弹不创新高
+        price <= t1.price // 反弹不创新高（#816 B-2②：同上）
     };
     let confirmed = geom && (!require_settled || seg.settled);
     BuySellPoint {

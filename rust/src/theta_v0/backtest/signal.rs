@@ -214,6 +214,8 @@ mod entry_stop_recheck_tests {
             center: center.map(OwnerRef::Center),
             struct_break_dir: None,
             force: None,
+
+            retrace_breaks_type1: None,
         }
     }
 

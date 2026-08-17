@@ -413,6 +413,70 @@ mod tests {
         }
     }
 
+    /// ★#1019 HIGH 回归锁：评审穷举反例形态——多尾块 + dirty_from=0 全清 + 趋势反转处
+    /// 截尾——增量折叠（含 pop 重折）必须逐字段 == 全量 `operation_decompose`。
+    /// 构造：趋势 run（Up 延续链）→ 反转（Down 链）→ 回叠（盘整）→ frontier 回退
+    /// 到 k=0 / 反转边界 / 尾窗，逐一对拍。
+    #[test]
+    fn operation_resume_pop_shapes_match_full() {
+        // Up 趋势三中枢（[0,10]/[12,20]/[24,32] 外缘分离链）→ Down 反转两中枢 →
+        // 回叠一盘整 → 尾巴（反转边界在 run2 首）。
+        let specs: Vec<(Direction, Tick, Tick)> = vec![
+            (Direction::Up, 0, 10),
+            (Direction::Down, 2, 10),
+            (Direction::Up, 2, 9),
+            (Direction::Up, 12, 20),
+            (Direction::Down, 14, 20),
+            (Direction::Up, 14, 19),
+            (Direction::Up, 24, 32),
+            (Direction::Down, 26, 32),
+            (Direction::Up, 26, 31),
+            (Direction::Down, 30, 40),
+            (Direction::Up, 28, 40),
+            (Direction::Down, 28, 39),
+            (Direction::Up, 12, 20),
+            (Direction::Down, 13, 20),
+            (Direction::Up, 13, 19),
+        ];
+        let seq: Vec<UnitRange> = specs
+            .iter()
+            .enumerate()
+            .map(|(i, &(dir, lo, hi))| u(dir, i, lo, hi))
+            .collect();
+        let mut state = OperationSeqState::default();
+        // 全量喂满 → 多尾块齐备（Up 链 + Down 链 + 盘整尾三块）。
+        let _ = operation_decompose_resume(&seq, center_from_segments, 0, seq.len(), &mut state);
+        // ① dirty_from=0：全清 + 全量重扫（L0 常态证书形态）——逐字段 == 全量。
+        let inc = operation_decompose_resume(&seq, center_from_segments, 0, 0, &mut state);
+        let full = operation_decompose(&seq, center_from_segments, 0);
+        assert_eq!(
+            format!("{inc:?}"),
+            format!("{full:?}"),
+            "dirty_from=0 全清重扫 == 全量"
+        );
+        // ② frontier 收缩到趋势反转边界（第 9 单元）：seq 本身截短（parser 回撤模拟），
+        // 多尾块（Down 链 + 盘整尾）整段弹窗 + 重折——逐字段 == 截短后的全量。
+        let mut seq9 = seq.clone();
+        seq9.truncate(9);
+        let inc = operation_decompose_resume(&seq9, center_from_segments, 0, 9, &mut state);
+        let full = operation_decompose(&seq9, center_from_segments, 0);
+        assert_eq!(
+            format!("{inc:?}"),
+            format!("{full:?}"),
+            "反转边界截尾（seq 收缩）== 全量"
+        );
+        // ③ 再收缩到单中枢尾（6 单元）——趋势块部分覆盖截尾形态。
+        let mut seq6 = seq.clone();
+        seq6.truncate(6);
+        let inc = operation_decompose_resume(&seq6, center_from_segments, 0, 6, &mut state);
+        let full = operation_decompose(&seq6, center_from_segments, 0);
+        assert_eq!(
+            format!("{inc:?}"),
+            format!("{full:?}"),
+            "单中枢尾截断（seq 收缩）== 全量"
+        );
+    }
+
     /// ★#902 对拍锁②：frontier 改写（pop 尾窗 + 回卷重扫）后仍 == 全量重算。
     #[test]
     fn operation_resume_matches_full_after_frontier_rewrite() {
@@ -457,6 +521,157 @@ mod tests {
                 i + 1
             );
         }
+    }
+
+    #[test]
+    fn truncate_pops_all_out_of_bounds_tail_blocks() {
+        // 4 窗口 4 中枢：c0→c1 上延续（趋势），c1→c2、c2→c3 外缘重叠（盘整+盘整）。
+        let units = vec![
+            // W0：外缘 [0,10]
+            u(Direction::Up, 0, 0, 10),
+            u(Direction::Down, 1, 2, 10),
+            u(Direction::Up, 2, 2, 9),
+            // W1：外缘 [20,30]（dd=20 > c0.gg=10 ⟹ UpContinuation）
+            u(Direction::Up, 3, 20, 30),
+            u(Direction::Down, 4, 22, 30),
+            u(Direction::Up, 5, 22, 29),
+            // W2：外缘 [24,32]（与 c1 重叠 ⟹ LevelExpansion）
+            u(Direction::Up, 6, 24, 32),
+            u(Direction::Down, 7, 24, 31),
+            u(Direction::Up, 8, 25, 31),
+            // W3：外缘 [26,33]（与 c2 重叠 ⟹ LevelExpansion）
+            u(Direction::Up, 9, 26, 33),
+            u(Direction::Down, 10, 26, 32),
+            u(Direction::Up, 11, 27, 32),
+        ];
+        let mut state = OperationSeqState::default();
+        let seeded =
+            operation_decompose_resume(&units, center_from_segments, 0, units.len(), &mut state);
+        assert_eq!(
+            kinds(&seeded.blocks),
+            vec![
+                (MoveKind::Trend, Some(Direction::Up), 0, 1),
+                (MoveKind::Consolidation, None, 2, 2),
+                (MoveKind::Consolidation, None, 3, 3),
+            ],
+            "前提：4 中枢 = 趋势 + 盘整+盘整（两个尾块悬在截断点后）"
+        );
+        // frontier 回卷到 6 单元：窗口 (6,8)/(9,11) 弹出，k=2——截断点后有**两个**尾块。
+        let trunc = &units[..6];
+        let inc = operation_decompose_resume(trunc, center_from_segments, 0, 6, &mut state);
+        let full = operation_decompose(trunc, center_from_segments, 0);
+        assert_eq!(
+            format!("{:?}", (&inc.centers, &inc.windows, &inc.blocks)),
+            format!("{:?}", (&full.centers, &full.windows, &full.blocks)),
+            "多尾块截断：增量 == 全量逐字段（无悬垂残留）"
+        );
+        // 截后把原尾段追加回来（续扫路径）仍 == 全量。
+        let inc2 =
+            operation_decompose_resume(&units, center_from_segments, 0, units.len(), &mut state);
+        let full2 = operation_decompose(&units, center_from_segments, 0);
+        assert_eq!(
+            format!("{:?}", (&inc2.centers, &inc2.windows, &inc2.blocks)),
+            format!("{:?}", (&full2.centers, &full2.windows, &full2.blocks)),
+            "截断后原样续扫：增量 == 全量逐字段"
+        );
+    }
+
+    #[test]
+    fn dirty_from_zero_full_clear_does_not_accumulate_blocks() {
+        // 同 trend_turn_shares_boundary_center 形态：c0→c1 Up、c1→c2 Down（两趋势块）。
+        let units = vec![
+            u(Direction::Up, 0, 0, 10),
+            u(Direction::Down, 1, 2, 10),
+            u(Direction::Up, 2, 2, 9),
+            u(Direction::Up, 3, 20, 30),
+            u(Direction::Down, 4, 22, 30),
+            u(Direction::Up, 5, 22, 29),
+            u(Direction::Down, 6, 8, 15),
+            u(Direction::Up, 7, 5, 14),
+            u(Direction::Down, 8, 6, 13),
+        ];
+        let full = operation_decompose(&units, center_from_segments, 0);
+        let mut state = OperationSeqState::default();
+        let _ =
+            operation_decompose_resume(&units, center_from_segments, 0, units.len(), &mut state);
+        // 同输入以 dirty_from=0 连调两次（全清 + 重扫两轮）——每轮都必须 == 全量，无重复块。
+        for round in 1..=2 {
+            let inc = operation_decompose_resume(&units, center_from_segments, 0, 0, &mut state);
+            assert_eq!(
+                format!("{:?}", (&inc.centers, &inc.windows, &inc.blocks)),
+                format!("{:?}", (&full.centers, &full.windows, &full.blocks)),
+                "dirty_from=0 第 {round} 轮：增量 == 全量逐字段（块链不累积）"
+            );
+        }
+    }
+
+    #[test]
+    fn truncate_at_trend_reversal_leaves_boundary_as_prev_trend_tail() {
+        let base = vec![
+            // c0 外缘 [0,10]；c1 外缘 [20,30]（Up）；c2 外缘 [5,15]（Down）⟹ [趋势U 0-1, 趋势D 1-2]
+            u(Direction::Up, 0, 0, 10),
+            u(Direction::Down, 1, 2, 10),
+            u(Direction::Up, 2, 2, 9),
+            u(Direction::Up, 3, 20, 30),
+            u(Direction::Down, 4, 22, 30),
+            u(Direction::Up, 5, 22, 29),
+            u(Direction::Down, 6, 8, 15),
+            u(Direction::Up, 7, 5, 14),
+            u(Direction::Down, 8, 6, 13),
+        ];
+        let mut state = OperationSeqState::default();
+        let seeded =
+            operation_decompose_resume(&base, center_from_segments, 0, base.len(), &mut state);
+        assert_eq!(
+            kinds(&seeded.blocks),
+            vec![
+                (MoveKind::Trend, Some(Direction::Up), 0, 1),
+                (MoveKind::Trend, Some(Direction::Down), 1, 2),
+            ],
+            "前提：趋势反转形态（c1 为共享边界中枢）"
+        );
+        // 截到 6 单元（k=2）：趋势 D [1,2] 截尾到单中枢 c1，但 c1 已是趋势 U 的尾 ⟹ 整块丢弃。
+        let trunc = &base[..6];
+        let inc = operation_decompose_resume(trunc, center_from_segments, 0, 6, &mut state);
+        let full = operation_decompose(trunc, center_from_segments, 0);
+        assert_eq!(
+            kinds(&full.blocks),
+            vec![(MoveKind::Trend, Some(Direction::Up), 0, 1)],
+            "全量对照：截断后 c1 留作趋势尾，无盘整块"
+        );
+        assert_eq!(
+            format!("{:?}", (&inc.centers, &inc.windows, &inc.blocks)),
+            format!("{:?}", (&full.centers, &full.windows, &full.blocks)),
+            "趋势反转切点截尾：增量 == 全量逐字段（无伪盘整块）"
+        );
+        // 截后追加与 c1 外缘重叠的新窗口（LevelExpansion）——c2' 独立落盘整，c1 仍是趋势尾。
+        let mut extended = trunc.to_vec();
+        extended.extend([
+            u(Direction::Down, 6, 21, 29),
+            u(Direction::Up, 7, 22, 28),
+            u(Direction::Down, 8, 23, 28),
+        ]);
+        let inc2 = operation_decompose_resume(
+            &extended,
+            center_from_segments,
+            0,
+            extended.len(),
+            &mut state,
+        );
+        let full2 = operation_decompose(&extended, center_from_segments, 0);
+        assert_eq!(
+            kinds(&full2.blocks),
+            vec![
+                (MoveKind::Trend, Some(Direction::Up), 0, 1),
+                (MoveKind::Consolidation, None, 2, 2),
+            ],
+            "全量对照：LevelExpansion 新中枢独立成盘整块"
+        );
+        assert_eq!(
+            format!("{:?}", (&inc2.centers, &inc2.windows, &inc2.blocks)),
+            format!("{:?}", (&full2.centers, &full2.windows, &full2.blocks)),
+            "截尾后续扫追加：增量 == 全量逐字段"
+        );
     }
 }
 
@@ -507,9 +722,12 @@ pub fn operation_decompose_resume(
         if sealed_next < state.scan_i {
             state.scan_i = sealed_next;
         }
-        // 块同步截断到保留中枢数（部分覆盖块重折其保留段：趋势截尾 ≥2 中枢保形、
-        // 退到 1 中枢则落盘整——与全量折叠对被截关系序列的产物逐位一致）。
-        truncate_blocks(&mut state.blocks, state.centers.len());
+        // ★#1019 HIGH 修复（影子评审坐实 truncate_blocks 与全量折叠不等价——多尾块只弹
+        // 一块、趋势截尾单中枢伪盘整、dirty_from=0 残留悬垂块）：pop 路径改为对保留中枢
+        // **直接重折 fold_operation_blocks**——正确性按构造恢复（它就是全量判据本身）。
+        // pop 是 frontier 事件（稀有、尾部界），O(centers)=百级可接受；append 路径仍走
+        // append_center 增量折叠（O(1)/bar，保 #902 的 O(n²) 规避）。
+        state.blocks = fold_operation_blocks(&state.centers);
     }
     // ② 追加扫描（规则与全量同一）。
     while state.scan_i + 2 < units.len() {
@@ -528,42 +746,6 @@ pub fn operation_decompose_resume(
         centers: state.centers.clone(),
         windows: state.windows.clone(),
         blocks: state.blocks.clone(),
-    }
-}
-
-/// 块截断到保留 `k` 个中枢（frontier 弹窗同步）：弃整出界块；部分覆盖的趋势块截尾
-/// （保留 ≥2 中枢保形、=1 落盘整），与 `fold_operation_blocks` 对截断序列的产物一致。
-fn truncate_blocks(blocks: &mut Vec<MoveBlock>, k: usize) {
-    while let Some(b) = blocks.last() {
-        if b.start_center >= k {
-            blocks.pop();
-        } else if b.end_center >= k {
-            let b = blocks.pop().expect("last 在");
-            let s = b.start_center;
-            let kept = k - s; // 保留中枢数（s..=k-1）
-            if kept >= 2 {
-                blocks.push(MoveBlock {
-                    start_center: s,
-                    end_center: k - 1,
-                    kind: MoveKind::Trend,
-                    dir: b.dir,
-                    status: MoveStatus::Completed,
-                });
-            } else {
-                // 趋势截尾到单中枢 ⟹ 未吸收 ⟹ 盘整块（全量折叠同产物）。
-                blocks.push(MoveBlock {
-                    start_center: k - 1,
-                    end_center: k - 1,
-                    kind: MoveKind::Consolidation,
-                    dir: None,
-                    status: MoveStatus::Completed,
-                });
-            }
-        }
-        break;
-    }
-    if let Some(last) = blocks.last_mut() {
-        last.status = MoveStatus::Active;
     }
 }
 

@@ -26,6 +26,8 @@ fn pi_theta_step_deterministic_unique_order() {
         })),
         struct_break_dir: None,
         force: None,
+
+        retrace_breaks_type1: None,
     };
     let classification = Classification {
         levels: vec![LevelState {
@@ -425,6 +427,8 @@ fn pi_theta_step_reverse_open_from_parent_container_not_position() {
         })),
         struct_break_dir: None,
         force: None,
+
+        retrace_breaks_type1: None,
     };
     let classification = Classification {
         levels: vec![LevelState {
