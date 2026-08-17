@@ -54,6 +54,7 @@ fn t4_subtree_close_unifies_production_active_set_step() {
     let (active, _p) = coverage_step_from_buckets(
         view_split(&tree, 0),
         &prev,
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -109,6 +110,7 @@ fn t4_unify_preserves_restore_expansion_for_surviving_legs() {
     let (active, _p) = coverage_step_from_buckets(
         view_split(&tree, 0),
         &prev,
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -184,6 +186,7 @@ fn open_parent_restore_skips_closed_seed_no_resurrect() {
     let (active, _p, sep, _idx) = coverage_step_from_buckets_sep(
         view_split(&[tree_elem, cand_elem], 1),
         &[leg_parent],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -266,6 +269,7 @@ fn open_reverse_candidate_on_closed_carrier_unaffected() {
     let (active, _p, _sep, _idx) = coverage_step_from_buckets_sep(
         view_split(&[tree_elem, rev_elem], 1),
         &[leg_parent],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -347,6 +351,7 @@ fn open_parent_restore_mid_chain_seed_aborts() {
     let (active, _p, _sep, _idx) = coverage_step_from_buckets_sep(
         view_split(&[cand_elem], 0),
         &[leg_p2],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -447,6 +452,7 @@ fn parent_direction_flip_terminates_voice_and_liquidates_subtree() {
     let (active, _p) = coverage_step_from_buckets(
         view_split(&[tree_parent, tree_child], 2),
         &prev,
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -645,6 +651,7 @@ fn flip_same_bar_new_generation_reregisters_via_open_candidate() {
     let (active, _p) = coverage_step_from_buckets(
         view_split(&[tree_parent, cand_elem], 1),
         &[leg_parent],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -745,6 +752,7 @@ fn flip_same_bar_reverse_candidate_reregisters_new_generation_same_carrier() {
     let (active, _p, _sep, _idx) = coverage_step_from_buckets_sep(
         view_split(&[tree_parent, rev_elem], 1),
         &[leg_parent],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -820,6 +828,7 @@ fn birth_opposition_without_flip_event_does_not_terminate() {
     let (active, _p, _sep, _idx) = coverage_step_from_buckets_sep(
         view_split(&[tree_carrier], 1),
         &prev,
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -900,6 +909,7 @@ fn carrier_flip_event_terminates_even_without_direction_opposition() {
     let (active, _p, _sep, _idx) = coverage_step_from_buckets_sep(
         view_split(&[tree_carrier], 1),
         &prev,
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -937,7 +947,8 @@ fn open_candidate_parent_not_in_registry_still_pruned() {
             ..Default::default()
         }],
     };
-    let (active, p) = coverage_step_classification(&bar, &tower, &[], 1000.0, &cfg(), None, &reg);
+    let (active, p) =
+        coverage_step_classification(&bar, &tower, &[], 0.0, 1000.0, &cfg(), None, &reg);
     assert!(
         active.is_empty(),
         "父 carrier 不在 registry ⟹ open 父注入不恢复 ⟹ 子腿仍剪枝（非膨胀）；实得 {active:?}"
@@ -988,6 +999,7 @@ fn stale_non_boundary_root_is_pruned_not_fabricated_root() {
     let (active, p) = coverage_step_from_buckets(
         view_split(&elements, cstart),
         &[stale_non_root],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -1075,6 +1087,7 @@ fn held_leg_placeholder_parent_materializes_in_later_iteration() {
     let (next_active, p_tilde, sep_legs, _idx) = coverage_step_from_buckets_sep(
         view_split(&base, 0),
         &[child_leg, father_leg],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -1095,9 +1108,15 @@ fn held_leg_placeholder_parent_materializes_in_later_iteration() {
             sep_child.role_v, Vertical::ReverseOpen,
             "父晚物化（同 bar 更晚迭代）：循环后统一 fixup 应解析到父 ⟹ V=ReverseOpen（原 ShortDiff，#281 更名）（immediate 式修补会误留 Ambient）"
         );
-    assert!(
-        (sep_child.q_units - 300.0).abs() < 1e-9,
-        "depth=1 ⟹ q=300（immediate 式修补残留 depth=0 ⟹ 600）；实得 {}",
+    // #879 重内单向（ADR 0014 裁定一）：chong_pos=0 且父多 600 > 子空 ⟹ 多数侧=多，
+    // 反向子腿零化——sep_child.q_units 恒 0，depth→q 的**直接**数量见证在反向腿上被
+    // 单向门遮蔽（反向量本就不再进任何账本，反向声部不存在）。判别力改由两路承载：
+    // ① 上条 role_v（时序孔 RED 下误留 Ambient，直接打回）；② 同向父腿折减因子
+    //    f=(L−R)/L 携带子腿原料量 R：GREEN depth=1 ⟹ R=300 ⟹ f=0.5 ⟹ 父 q=300；
+    //    RED depth=0 ⟹ R=600=L ⟹ 平局全零化 ⟹ 父 q=0、p̃=0。
+    assert_eq!(
+        sep_child.q_units, 0.0,
+        "#879：反向腿零化（不建持仓、不产生声部）；实得 {}",
         sep_child.q_units
     );
     let sep_father = sep_legs
@@ -1110,8 +1129,13 @@ fn held_leg_placeholder_parent_materializes_in_later_iteration() {
         "父自身 ∂ 根，V=Ambient 不受本修复影响"
     );
     assert!(
+        (sep_father.q_units - 300.0).abs() < 1e-9,
+        "depth=1 ⟹ 子 R=300 折父 f=(600−300)/600=0.5 ⟹ 父 q=300（时序孔残留 depth=0 ⟹ R=600=L 平局 ⟹ 父=0）；实得 {}",
+        sep_father.q_units
+    );
+    assert!(
         (p_tilde - 300.0).abs() < 1e-9,
-        "p̃=+300（600 父 − 300 子）；immediate 式修补下应为 0（600−600）；实得 {p_tilde}"
+        "p̃=+300（600 父 − 300 子，与旧净额同值——单向门不改 L≥R 时的净目标）；immediate 式修补下应为 0（600=600 平局全零化）；实得 {p_tilde}"
     );
 }
 
@@ -1198,9 +1222,10 @@ fn restore_chain_ancestor_unresolved_when_shared_ancestor_only_materializes_via_
     // prev_active 顺序：D 先（触发对 Q 的 restore，链上溯到 P 时 registry_lost 断链）、
     // P 后（更晚一次处理，Closed|Invalidated + is_boundary_root ⟹ 直接 push 入 raw）。
     ancok_probe_reset();
-    let (next_active, _p_tilde, sep_legs, _idx) = coverage_step_from_buckets_sep(
+    let (next_active, p_tilde, sep_legs, _idx) = coverage_step_from_buckets_sep(
         view_split(&base, 0),
         &[d_leg, p_leg],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -1227,10 +1252,30 @@ fn restore_chain_ancestor_unresolved_when_shared_ancestor_only_materializes_via_
             "Q 存活进 next_idx 且 P 已在 raw（AncOK 判定祖先齐全）⟹ 角色计算须体现 V=ReverseOpen（原\
              ShortDiff）；若为 Ambient 则坐实 #350 时序孔（P 由更晚一次非 restore push 物化，Q 的 fixup 未跟上）"
         );
-    assert!(
-        (sep_q.q_units - 300.0).abs() < 1e-9,
-        "depth=1 ⟹ q_units=300（时序孔存在时会是 depth=0 ⟹ 600）；实得 {}",
+    // #879 重内单向（ADR 0014 裁定一）：chong_pos=0 且多侧 P 600 > 空侧 Q 300 + D 100
+    // ⟹ 多数侧=多，反向 Q/D 腿零化——sep_q.q_units 恒 0，depth→q 的**直接**数量见证在
+    // 反向腿上被单向门遮蔽（反向量本就不再进任何账本）。判别力改由两路承载：
+    // ① 上条 role_v（时序孔 RED 下误留 Ambient，直接打回）；② 同向 P 腿折减因子
+    //    f=(L−R)/L 携带空侧原料量：GREEN depth=1 ⟹ R=300+100=400 ⟹ f=1/3 ⟹ P q=200、
+    //    p̃=+200（=600−400，与旧净额同值——单向门不改 L≥R 时的净目标）；
+    //    RED depth=0 ⟹ Q 600 ⟹ R=700>600 多数侧翻空 ⟹ P q=0、p̃=−100。
+    assert_eq!(
+        sep_q.q_units, 0.0,
+        "#879：反向腿零化（不建持仓、不产生声部）；实得 {}",
         sep_q.q_units
+    );
+    let sep_p = sep_legs
+        .iter()
+        .find(|s| s.id == p)
+        .expect("P 须在 sep_legs（AncOK 存活）");
+    assert!(
+        (sep_p.q_units - 200.0).abs() < 1e-9,
+        "depth=1 ⟹ 空侧 R=400 折 P f=(600−400)/600=1/3 ⟹ P q=200（时序孔残留 depth=0 ⟹ R=700 翻盘 ⟹ P=0）；实得 {}",
+        sep_p.q_units
+    );
+    assert!(
+        (p_tilde - 200.0).abs() < 1e-9,
+        "p̃=+200（600−400，与旧净额同值）；时序孔残留时多数侧翻空 ⟹ p̃=−100；实得 {p_tilde}"
     );
 }
 
@@ -1379,6 +1424,7 @@ fn placeholder_pruned_by_ancok_cross_check_matches_unresolved_on_true_lost_chain
     let (next_active, _p_tilde, _sep, _idx) = coverage_step_from_buckets_sep(
         view_split(&base, 0),
         &[d_leg],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),

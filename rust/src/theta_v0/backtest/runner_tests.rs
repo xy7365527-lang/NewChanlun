@@ -567,8 +567,15 @@ fn account_view_witness_three_identities_in_pi_loop() {
         view.fills().len(),
         "每订单恰一成交（链闭合）"
     );
-    // 短差盈亏方向性见证（价格独立证据，非 sizing 同源）：子空 172→140 区间 ⟹ 已实现 > 0。
-    assert!(child_close.realized_pnl > 0.0, "子空高卖低买 ⟹ 已实现为正");
+    // #879 重内单向（ADR 0014 裁定一）：短差空腿**身份/生命周期照旧**（Open→ReverseType1
+    // 平仓两行都在），但**量被单向门零化**（父多在场 ⟹ 反向腿不建持仓）⟹ 短差账已实现 = 0。
+    // 旧断言「子空高卖低买 realized>0」是重内反向持仓口径的遗迹——短差的经济效果（高卖低买）
+    // 现经同向父仓的减/补（f=(L−R)/L 缩放）兑现进**净额账户**（L≥R 时净目标与旧口径逐位
+    // 相同），而本视图对 resize 不归因（#837 已登记 resize 欠计）⟹ 视图内无此利润载体。
+    assert_eq!(
+        child_close.realized_pnl, 0.0,
+        "#879：反向短差腿量零化 ⟹ 短差账零盈亏（身份在册、量不在册）"
+    );
 
     // ── 场景二：Short 身份（sell-first：ambient 空根 → 一类反向平）。 ──
     let cls_sell = Classification {
@@ -1448,6 +1455,12 @@ fn pi_parent_stop_cascades_risk_exit_to_reverse_open_child() {
 /// 场景 = `buy_then_sell(2)`：buy1@3 开 L0 Long 根（bar 7）→ sell2@12 二类反向（bar 14）。
 /// 红（修复前）：候选在 close 分支被消费、同一候选不再进 open 分支（#185 审计发现 2：
 /// 二类开空 C 通道完全缺失）⟹ 无 Short 开仓成交、typed 仅 1 条。
+///
+/// ★#879 重内单向（ADR 0014 裁定一）对本测试的改造：决策时点（bar 14）重仍持多 ⟹
+/// 方向权威=多，反向开空腿**身份照常落 Short 账**（通道路由/证书/互斥不变——本测试的
+/// 核心见证保留），但**量被单向门零化**（qty=−0）：同 bar 先平后开 = 穿零，已被禁；
+/// 翻向须经空仓态、在后续决策点重判（本窗口 20 bar 内无新决策点 ⟹ 空腿始终未建量）。
+/// ⟹ 仓位量断言由「<0」改为「==0（身份在册）」；typed 行/证书/互斥/余额归零断言不动。
 #[test]
 fn type2_open_short_channel_no_parent_lands_short_account() {
     use super::super::super::strategy::account::{AccountIdentity, ActionReason};
@@ -1485,9 +1498,11 @@ fn type2_open_short_channel_no_parent_lands_short_account() {
             f.order.account() == AccountIdentity::Short && f.order.reason == ActionReason::OpenShort
         })
         .expect("OpenShort 通道成交存在（二类开空，spec WP-2 修复 c）");
-    assert!(
-        short_open.order.qty_delta < 0.0,
-        "开空 = 空向数量（多正空负）"
+    // #879 重内单向：决策时点仍持多 ⟹ 反向开空腿身份落账、**量零化**（同 bar 先平后开
+    // = 穿零被禁）；旧断言「qty<0」是穿零口径的遗迹。−0.0 == 0.0 按浮点相等成立。
+    assert_eq!(
+        short_open.order.qty_delta, 0.0,
+        "#879：反向开空腿量被单向门零化（身份/证书/路由照旧）"
     );
     // 票面 OpenShort{level, certificate} 形状：level 与入场证书由 AccountKey 携带。
     assert_eq!(
@@ -1571,6 +1586,10 @@ fn type2_open_short_channel_no_parent_lands_short_account() {
 /// sell_child@16 的 host=sub(12,16)）二类反向（bar 17）：级联残余纠错
 /// （Core{{0}}×CoreResidualCorrection）＋ **先平后开**短差空腿（父 L1 active ⟹
 /// ReverseOpen 账，非 Short）。红（修复前）：候选被 close 分支消费，短差空腿从未建仓。
+///
+/// ★#879 重内单向（ADR 0014 裁定一）改造：短差空腿**身份**照常落 ReverseOpen 账，
+/// **量被单向门零化**（决策时点重持多 ⟹ 反向腿不建持仓）。「先平后开」的开侧即穿零，
+/// 已非合法形态；本测试保留的是通道路由见证（父 active ⟹ 短差账、不落空仓账）。
 #[test]
 fn type2_open_short_channel_active_parent_lands_reverse_open_account() {
     use super::super::super::strategy::account::{AccountIdentity, ActionReason};
@@ -1706,9 +1725,14 @@ fn type2_open_short_channel_active_parent_lands_reverse_open_account() {
                 && f.order.reason == ActionReason::Open
         })
         .expect("短差空腿开仓成交存在（父 active ⟹ ReverseOpen 账）");
-    assert!(
-        sd_open.order.qty_delta < 0.0,
-        "反父方向 = 空向短差（父多⟹短差做空）"
+    // #879 重内单向（ADR 0014 裁定一）：决策时点重仍持多（父 Core{1} 在飞）⟹ 反向短差腿
+    // 身份照常落短差账（路由/互斥不变），**量被单向门零化**——「短差做空」的旧形态
+    // （开反向仓）即重内反向持仓，正是本票消除的违规态；其教义形态改为「减同向仓」
+    // （折减因子 f=(L−R)/L 作用于同向腿，本场景 R=0 ⟹ 父仓不减）。
+    assert_eq!(
+        sd_open.order.qty_delta, 0.0,
+        "#879：反向短差腿量被单向门零化（身份/路由照旧）；实得 {}",
+        sd_open.order.qty_delta
     );
     assert_eq!(sd_open.order.key.level, 0, "短差腿 = L0 次级别声部");
     assert!(
@@ -8013,6 +8037,7 @@ fn run_theta_v0_pi_risk_gate_force_flat_on_insolvent() {
         &bar,
         -1.0,
         0.0,
+        (0.0f64).abs() * (100.0),
         100.0,
         None,
     );
@@ -8036,6 +8061,7 @@ fn run_theta_v0_pi_risk_gate_force_flat_on_insolvent() {
         &bar,
         1.0e6,
         0.0,
+        (0.0f64).abs() * (100.0),
         100.0,
         None,
     );
@@ -8121,8 +8147,16 @@ fn k_theta_risk_gate_reads_frozen_entry_stop_for_drifted_leg() {
         volume: 1.0,
         untradable: false,
     };
-    let (gate, _mode, stop_seeds) =
-        k_theta_risk_gate(&[leg], &open_trades, &bar, 1.0e6, -1.0, 100.0, None);
+    let (gate, _mode, stop_seeds) = k_theta_risk_gate(
+        &[leg],
+        &open_trades,
+        &bar,
+        1.0e6,
+        -1.0,
+        (-1.0f64).abs() * (100.0),
+        100.0,
+        None,
+    );
     assert!(
         gate.stop_short,
         "族A：drifted campaign 腿从冻结 entry_stop 读出 stop ⟹ high≥stop 触发 stop_short"
@@ -8142,8 +8176,16 @@ fn k_theta_risk_gate_reads_frozen_entry_stop_for_drifted_leg() {
         })
         .unwrap()
         .entry_stop = None;
-    let (gate2, _mode2, stop_seeds2) =
-        k_theta_risk_gate(&[leg], &open_trades, &bar, 1.0e6, -1.0, 100.0, None);
+    let (gate2, _mode2, stop_seeds2) = k_theta_risk_gate(
+        &[leg],
+        &open_trades,
+        &bar,
+        1.0e6,
+        -1.0,
+        (-1.0f64).abs() * (100.0),
+        100.0,
+        None,
+    );
     assert!(
         !gate2.stop_short,
         "entry_stop=None ⟹ 诚实无 stop（非静默吞掉真实 stop）"
@@ -8233,6 +8275,7 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
             &bar_n,
             1.0e6,
             1.0,
+            (1.0f64).abs() * (100.0),
             100.0,
             None,
         );
@@ -8251,6 +8294,7 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
         &bar_break,
         1.0e6,
         1.0,
+        (1.0f64).abs() * (100.0),
         100.0,
         None,
     );
@@ -8280,6 +8324,7 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
         &quiet(4, 100, 110, 95, 105),
         1.0e6,
         -1.0,
+        (-1.0f64).abs() * (100.0),
         100.0,
         None,
     );
@@ -8294,6 +8339,7 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
         &quiet(5, 100, 250, 95, 240),
         1.0e6,
         -1.0,
+        (-1.0f64).abs() * (100.0),
         100.0,
         None,
     );
@@ -9367,9 +9413,12 @@ fn pi_e1_classify(
 
 /// ★#526 P0-2：π 声部执行 E1 的 TW 三量守恒 + 在飞 ReverseOpen 腿计数。
 ///
-/// 父多腿与子空腿在窗口末共同在飞：VOICE_EXEC 簿必须保留两个独立 campaign 的执行事实；
 /// 净额影子 TW 只消费真实平仓 Realize，故无真实平仓时 TW 不漂移，且
 /// `open_legacy_legs==1` 精确对应在飞子 ReverseOpen 腿。
+///
+/// ★#879 重内单向（ADR 0014 裁定一）：原「父多腿与子空腿在窗口末共同在飞、VOICE_EXEC
+/// 簿保留两个独立 campaign」的前提即重内反向持仓，已被裁定禁止——子腿决策层身份在飞
+/// 依旧，执行层量零化 ⟹ 簿只留父一个 campaign。本测试守恒/计数核心不变。
 #[test]
 fn pi_tw_wiring_conserves_with_parent_and_reverse_open_in_flight() {
     use super::super::super::strategy::account::AccountIdentity;
@@ -9420,26 +9469,33 @@ fn pi_tw_wiring_conserves_with_parent_and_reverse_open_in_flight() {
         "声部口径无真实平仓，窗口末虚拟兑现不冒充 realized"
     );
 
+    // #879 重内单向（ADR 0014 裁定一）：子 ReverseOpen 反父方向 ⟹ 决策层在飞身份照旧
+    // （上方 open_legacy_legs==1 不动），但量被单向门零化 ⟹ 执行簿只剩父 campaign。
+    // 旧断言「父、子两个 campaign / Short 执行事实」是重内反向持仓口径的遗迹。
     assert_eq!(
         book.total_voices(),
-        2,
-        "VOICE_EXEC 真实开过父、子两个 campaign"
+        1,
+        "#879：VOICE_EXEC 仅父 campaign 真实开过（子反向腿量零化不建声部）"
     );
-    assert_eq!(book.n_fills(), 2, "父开 + 子开恰两笔真实声部 fill");
+    assert_eq!(
+        book.n_fills(),
+        1,
+        "#879：仅父开一笔真实声部 fill（子零量开仓不成交）"
+    );
     assert_eq!(
         book.closed_voices().len(),
-        2,
-        "窗口末父子各产一条虚拟兑现行"
+        1,
+        "窗口末父产一条虚拟兑现行（子无 campaign 可结算）"
     );
     assert!(
         book.closed_voices().iter().all(|row| row.forced),
-        "两条均为窗口末虚拟兑现"
+        "窗口末虚拟兑现"
     );
     assert!(
         book.closed_voices()
             .iter()
-            .any(|row| row.side == VoiceSide::Short),
-        "声部簿保留子 ReverseOpen 的 Short 执行事实"
+            .all(|row| row.side == VoiceSide::Long),
+        "#879：声部簿无 Short 执行事实（反向声部结构性消失——重内单向）"
     );
 
     let view = &fill.account_view;
@@ -9572,6 +9628,11 @@ fn pi_short_root_stop_round_trip_is_marked_short_end_to_end() {
 
 /// ★#526 P1：E1 四步 1-cycle 的 π 双账形态——父开、子 ReverseOpen 开、子正常平、
 /// 父保持至窗口末虚拟兑现。VOICE_EXEC 执行簿与 typed/account 决策账同时见证 M13。
+///
+/// ★#879 重内单向（ADR 0014 裁定一）改造：子 ReverseOpen 的**决策层**往返照旧
+/// （typed open→CloseReverseOpen、open_legacy_legs 归零、account 身份在册），但其
+/// **执行层**仓位被单向门零化（父多在场 ⟹ 反向腿不建持仓）⟹ VOICE_EXEC 簿只剩
+/// 父一个 campaign。「round_trips」自此读作决策层身份往返，非执行层仓位往返。
 #[test]
 fn pi_four_step_cycle_keeps_parent_while_reverse_open_round_trips() {
     use super::super::super::strategy::account::AccountIdentity;
@@ -9597,31 +9658,34 @@ fn pi_four_step_cycle_keeps_parent_while_reverse_open_round_trips() {
         fill.typed_ledger, baseline.typed_ledger,
         "VOICE_EXEC 不改 typed 决策序"
     );
-    assert_eq!(book.total_voices(), 2, "父、子两个 campaign");
+    // #879 重内单向（ADR 0014 裁定一）：子 ReverseOpen 是反父方向腿 ⟹ 决策层身份/生命
+    // 周期照旧（下方 typed CloseReverseOpen、open_legacy_legs 归零、account 身份断言不动），
+    // 但**量被单向门零化** ⟹ VOICE_EXEC 执行簿不再有子 campaign（零量开仓不建声部）。
+    // 旧断言「父、子两个 campaign / 子空腿高卖低买 realized>0」是重内反向持仓口径的遗迹。
+    assert_eq!(
+        book.total_voices(),
+        1,
+        "#879：仅父 campaign 真实开过（子反向腿量零化，执行簿无子 campaign）"
+    );
     assert_eq!(
         book.n_fills(),
-        3,
-        "父开 + 子开 + 子平，窗口末父平为虚拟兑现不计 fill"
+        1,
+        "#879：仅父开一笔真实声部 fill（子开/子平均零量不成交，窗口末父平为虚拟兑现）"
     );
-    assert_eq!(book.closed_voices().len(), 2);
-    let child = book
-        .closed_voices()
-        .iter()
-        .find(|row| row.side == VoiceSide::Short)
-        .expect("子 ReverseOpen 空腿结算行存在");
+    assert_eq!(book.closed_voices().len(), 1);
+    assert!(
+        book.closed_voices()
+            .iter()
+            .all(|row| row.side == VoiceSide::Long),
+        "#879：结算行只剩父 Long——Short 反向声部在执行簿结构性消失（重内单向）"
+    );
     let parent = book
         .closed_voices()
         .iter()
         .find(|row| row.side == VoiceSide::Long)
         .expect("父 Long 结算行存在");
-    assert_eq!(
-        child.exit_bar, 20,
-        "第三步：bar19 决策后按延迟成交契约于 bar20 正常平"
-    );
-    assert!(!child.forced);
     assert_eq!(parent.exit_bar, 21, "第四步：父腿保持到窗口末");
     assert!(parent.forced);
-    assert!(child.pnl_net > 0.0, "子空腿高卖低买 realized>0");
 
     let child_typed = fill
         .typed_ledger

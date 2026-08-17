@@ -17,6 +17,7 @@ fn buckets_open_creates_active_leg_and_target() {
     let (active, p) = coverage_step_from_buckets(
         view_split(&flat_elements(&buckets.open), 0),
         &[],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -42,6 +43,7 @@ fn buckets_close_removes_active_leg() {
     let (active, p) = coverage_step_from_buckets(
         view_split(&flat_elements(&buckets.open), 0),
         &[leg],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -67,6 +69,7 @@ fn buckets_target_nets_long_and_short() {
     let (active, p) = coverage_step_from_buckets(
         view_split(&flat_elements(&buckets.open), 0),
         &[],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -92,6 +95,7 @@ fn buckets_close_then_open_keeps_survivor() {
     let (active, _p) = coverage_step_from_buckets(
         view_split(&flat_elements(&buckets.open), 0),
         &[leg_a, leg_b],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -125,6 +129,7 @@ fn buckets_ancok_identity_on_flat_roots() {
     let (active, _p) = coverage_step_from_buckets(
         view_split(&flat_elements(&buckets.open), 0),
         &legs,
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -153,6 +158,7 @@ fn buckets_step_immutable_prev_active() {
     let _ = coverage_step_from_buckets(
         view_split(&flat_elements(&buckets.open), 0),
         &prev,
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -174,6 +180,7 @@ fn buckets_record_excluded_from_active_set() {
     let (active, p) = coverage_step_from_buckets(
         view_split(&flat_elements(&buckets.open), 0),
         &[],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -196,6 +203,7 @@ fn buckets_empty_yields_empty_and_zero() {
     let (active, p) = coverage_step_from_buckets(
         view_split(&flat_elements(&buckets.open), 0),
         &[],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -244,7 +252,7 @@ fn duplicate_active_id_panics_with_id_indices_and_sources_in_release() {
     let reg = super::super::super::persistent::PersistentRegistry::new();
 
     let payload = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            coverage_step_from_buckets(view_split(&tree, 0), &prev, &buckets, 1000.0, &cfg(), None, &reg)
+            coverage_step_from_buckets(view_split(&tree, 0), &prev, 0.0, &buckets, 1000.0, &cfg(), None, &reg)
         }))
         .expect_err("coverage 生产边界不得对重复活动 ID 静默返回双计结果——必须 panic（#183 debug 早防线或 #512 release 本体）");
     let message = payload
@@ -297,7 +305,7 @@ fn classification_end_to_end_ring5_ring6() {
     // 空 A_t：买候选开启 ⟹ A_{t+1} 一条 Long 腿，p̃ = 600。
     // 空塔（tower &[]）⟹ 候选父=∂ ⟹ Ambient（与扁平一致）；本测试只验开腿/p̃，角色不约束。
     let (active, p) =
-        coverage_step_classification(&classification, &[], &[], 1000.0, &cfg(), None, &reg);
+        coverage_step_classification(&classification, &[], &[], 0.0, 1000.0, &cfg(), None, &reg);
     assert_eq!(active.len(), 1, "买点 ℬ_x 开启 ⟹ 一条活动腿");
     assert_eq!(active[0].dir, VoiceSide::Long);
     assert_eq!(active[0].source_index, 4);
@@ -335,7 +343,8 @@ fn ring6_active_set_feeds_back_into_interpret() {
             ..Default::default()
         }],
     };
-    let (active_t1, _) = coverage_step_classification(&c_buy, &[], &[], 1000.0, &cfg(), None, &reg);
+    let (active_t1, _) =
+        coverage_step_classification(&c_buy, &[], &[], 0.0, 1000.0, &cfg(), None, &reg);
     assert_eq!(active_t1.len(), 1, "买点开 Long 腿");
     // bar t+1：卖点（反向）→ A_{t+1} 回喂 interpret ⟹ 关闭 Long 腿 ⟹ A_{t+2}=∅。
     let sell = BspPoint {
@@ -365,7 +374,7 @@ fn ring6_active_set_feeds_back_into_interpret() {
         }],
     };
     let (active_t2, p2) =
-        coverage_step_classification(&c_sell, &[], &active_t1, 1000.0, &cfg(), None, &reg);
+        coverage_step_classification(&c_sell, &[], &active_t1, 0.0, 1000.0, &cfg(), None, &reg);
     assert!(
         active_t2.is_empty(),
         "反向卖点关闭持仓 Long（𝒟_x）⟹ A_{{t+2}}=∅（闭环）"

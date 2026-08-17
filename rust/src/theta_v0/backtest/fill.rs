@@ -4436,6 +4436,19 @@ where
     let mut cash: f64 = nav0;
     let mut units: f64 = 0.0; // p_t = 净 lot（apply_order 维护，有符号：正多/负空/0空仓）
     let mut entry_cost: f64 = 0.0;
+    // ★#879（SPEC #847 S1）：重簿——现状全账户 = 一个重（legacy 占位键，ADR 0010 §一/
+    // ADR 0013 裁定一·二）。专属筹码 Q = nav0（单重独占全部资金），全局上限同值（不等式
+    // 约束，多重后 Σ 各重已用 ≤ 上限）。**单重 ⟹ 账户净持仓即该重持仓**（重内单向落地后
+    // 全账户无第二份筹码可与其抵消）；多重实例化随 SPEC #847 S3 落地，届时簿的构造上移
+    // runner（那里有 `Dataset.symbol`）。保证金经本簿逐仓计提进风控门（#834 定落点）。
+    let chong_key = super::super::strategy::chong::ChongBook::legacy_single_key(
+        super::super::strategy::chong::ChongBook::LEGACY_SYMBOL,
+    );
+    let mut chong_book = super::super::strategy::chong::ChongBook::new(nav0)
+        .expect("#879：nav0>0 已保证（initial_nav≤0 退化 1.0）");
+    chong_book
+        .register(chong_key.clone(), nav0)
+        .expect("#879：空簿注册单重必成功");
     // [C] 活动集台账（thread 跨 bar；interp::interpret 闭环递归）。
     let mut prev_active: Vec<ActiveLeg> = Vec::new();
     // #196 阶段 A：shadow 双链比对簿（零行为变更——只读生产状态，channel 适配层在组合层
@@ -4744,6 +4757,11 @@ where
 
         // ── ② p_t = 净 lot（成交后真实持仓）。 ──
         let p_t = units;
+        // #879：单重簿同步——该重持仓 = 账户净持仓（重内单向 ⟹ 无第二份筹码可抵消；
+        // 异重反向持仓未来由多重簿分行承载，出口仍走净额，ADR 0014 有效域注记）。
+        chong_book
+            .set_position_lots(&chong_key, p_t)
+            .expect("#879：chong_key 已在循环外注册");
         let current_nav = cash + units * px;
         let equity_nav = if current_nav > 0.0 { current_nav } else { nav0 };
 
@@ -4782,12 +4800,16 @@ where
             }
             let base_units = equity_nav / px; // U_ℓ：NAV/价 = 可建名义手数（方案A协变）
                                               // 风控门也用**前缀因果分类**（leg 止损 bsp 因果查得，非全窗非因果——与 σ_p 同因果口径）。
+            // #879：风控门保证金基数 = 重簿逐仓全额计提名义（Σₖ |nₖ|·px；单重 ⟹ |p_t|·px，
+            // 与旧净额行同值但语义已锚定「逐仓极性全额」——ADR 0014 裁定二，#834 定落点）。
+            let chong_posted_notional_usd = chong_book.posted_notional_usd(&|_| px);
             let (gate, risk_mode_i, stop_risk_seeds) = k_theta_risk_gate(
                 &prev_active,
                 &open_trades,
                 bar,
                 equity_nav,
                 p_t,
+                chong_posted_notional_usd,
                 px,
                 config.margin.as_ref(),
             );

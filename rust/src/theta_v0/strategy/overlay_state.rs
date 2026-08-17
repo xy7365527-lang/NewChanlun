@@ -223,9 +223,27 @@ impl OverlayState {
 
         // 开仓 / resize：target 声部映射进 books。
         for (id, (side, q, role_v, parent_id)) in target {
+            // ★#879：重内单向（ADR 0014 裁定一）后同一 carrier 可跨 bar 换向（先平后开经空仓
+            // 过渡在同 carrier 上反向重开）——「σ_v 入场固定」前提失效。side 变化 = 旧声部
+            // 出场 + 新声部入场（声部一次性），不得原位改写（同 level_ledger 镜像的幻影重叠
+            // 病灶）。净敞口不变（side×q 终态相同）。
+            if matches!(self.books.get(&id), Some(b) if b.side != side) {
+                let b = self.books.remove(&id).expect("flip 分支来自 books.get");
+                self.closed.push(ClosedVoice {
+                    id: b.id,
+                    side: b.side,
+                    role_v: b.role_v,
+                    parent_id: b.parent_id,
+                    entry_bar: b.entry_bar,
+                    exit_bar: bar,
+                    entry_px: b.entry_px,
+                    exit_px: px,
+                    pnl_v: b.pnl_v,
+                });
+            }
             match self.books.get_mut(&id) {
                 Some(b) => {
-                    // resize：方向不变（同 carrier σ_v 入场固定）；加仓按手数加权更新 entry_px。
+                    // resize：方向不变（换向已在上方拦截）；加仓按手数加权更新 entry_px。
                     // 减仓（q<b.q）保 entry_px 不变（同价基剩余）；pnl_v 已在 ① 累计，不在此结算。
                     if q > b.q {
                         let added = (q - b.q) as f64;

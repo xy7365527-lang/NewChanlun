@@ -267,6 +267,25 @@ impl LevelLedgerMirror {
         for (lvl, tbook) in &target {
             let book = self.books.entry(*lvl).or_default();
             for (ord, (side, q, role_v, parent_id)) in tbook {
+                // ★#879：重内单向（ADR 0014 裁定一）后，同一 carrier 可**跨 bar 换向**（先平后开
+                // 经空仓过渡在同 carrier 上以反向重开）——「σ_v 入场固定」前提已失效。side 变化
+                // = 旧声部出场 + 新声部入场（声部一次性：出场即终结），不得原位改写：否则
+                // entry_bar 沿用旧方向的入场点，派生跨向幻影重叠（#879 AC2 复测实测 13 bar
+                // 假重叠即此病灶）。净敞口不受本处置影响（side×q 终态相同）。
+                if matches!(book.get(ord), Some(b) if b.side != *side) {
+                    let b = book.remove(ord).expect("flip 分支来自 book.get");
+                    self.closed.entry(*lvl).or_default().push(ClosedVoice {
+                        id: b.id,
+                        side: b.side,
+                        role_v: b.role_v,
+                        parent_id: b.parent_id,
+                        entry_bar: b.entry_bar,
+                        exit_bar: bar,
+                        entry_px: b.entry_px,
+                        exit_px: px,
+                        pnl_v: b.pnl_v,
+                    });
+                }
                 match book.get_mut(ord) {
                     Some(b) => {
                         if *q > b.q {
@@ -274,7 +293,7 @@ impl LevelLedgerMirror {
                             b.entry_px = (b.entry_px * b.q as f64 + px * added) / *q as f64;
                         }
                         b.q = *q;
-                        b.side = *side; // 恒等（防御性覆盖，同 overlay）
+                        b.side = *side; // 恒等（防御性覆盖，同 overlay；换向已在上方拦截）
                     }
                     None => {
                         book.insert(
@@ -343,6 +362,56 @@ mod tests {
     use super::super::overlay_state::OverlayState;
     use super::*;
     use std::collections::HashMap;
+
+    /// ★#879：重内单向（ADR 0014 裁定一）后同一 carrier 可跨 bar 换向（先平后开经空仓过渡
+    /// 在同 carrier 上反向重开）。换向必须记账为**旧声部出场 + 新声部入场**（声部一次性：
+    /// 出场即终结），不得原位改写 side——否则 entry_bar 沿用旧方向入场点，派生跨向幻影重叠
+    /// （#879 AC2 复测实测 13 bar 假重叠即此病灶）。本测试锁镜像与 overlay 两簿同式处置：
+    /// 换向 bar 旧空声部出场、新多声部同 bar 入场、跨度区间端点相接不重叠。
+    #[test]
+    fn side_flip_closes_old_voice_and_opens_new_same_bar() {
+        let mut ov = OverlayState::new();
+        let mut ll = LevelLedgerMirror::new();
+        // t0：carrier (3,25) 持空 12。
+        let t0 = [leg(eid(3, 25), VoiceSide::Short, 12.0, Vertical::Ambient)];
+        ov.step(&t0, 100.0, 0, 1);
+        ll.step(&t0, 100.0, 0, 1);
+        // t1：同 carrier 换向为多 4（重内单向的翻向经空仓过渡后重开）。
+        let t1 = [leg(eid(3, 25), VoiceSide::Long, 4.0, Vertical::Ambient)];
+        ov.step(&t1, 110.0, 1, 1);
+        ll.step(&t1, 110.0, 1, 1);
+        for (closed, active) in [
+            (
+                ov.closed_voices()
+                    .iter()
+                    .map(|c| (c.side, c.entry_bar, c.exit_bar))
+                    .collect::<Vec<_>>(),
+                ov.active_voices()
+                    .map(|v| (v.side, v.entry_bar))
+                    .collect::<Vec<_>>(),
+            ),
+            (
+                ll.closed_voices(3)
+                    .iter()
+                    .map(|c| (c.side, c.entry_bar, c.exit_bar))
+                    .collect::<Vec<_>>(),
+                ll.active_voices(3)
+                    .map(|v| (v.side, v.entry_bar))
+                    .collect::<Vec<_>>(),
+            ),
+        ] {
+            assert_eq!(
+                closed,
+                vec![(VoiceSide::Short, 0, 1)],
+                "旧空声部于换向 bar 出场（entry=0, exit=1）"
+            );
+            assert_eq!(
+                active,
+                vec![(VoiceSide::Long, 1)],
+                "新多声部同 bar 入场（entry=1）——两段区间 [0..1] 与 [1..] 端点相接不重叠"
+            );
+        }
+    }
 
     fn eid(level: u32, ordinal: u64) -> ElementId {
         ElementId { level, ordinal }

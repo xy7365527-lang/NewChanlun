@@ -42,7 +42,7 @@ fn open_candidate_parent_injected_from_registry_admits_depth_child() {
         ],
     };
     let (active1, _p1) =
-        coverage_step_classification(&bar1, &tower, &[], 1000.0, &cfg(), None, &reg);
+        coverage_step_classification(&bar1, &tower, &[], 0.0, 1000.0, &cfg(), None, &reg);
     let (elements1, _c1) = super::super::super::interp::coverage_elements_with_tower(&bar1, &tower);
     let reg2 = reg.merge(&elements1, &active1);
 
@@ -55,7 +55,7 @@ fn open_candidate_parent_injected_from_registry_admits_depth_child() {
         }],
     };
     let (active2, _p2) =
-        coverage_step_classification(&bar2, &tower, &[], 1000.0, &cfg(), None, &reg2);
+        coverage_step_classification(&bar2, &tower, &[], 0.0, 1000.0, &cfg(), None, &reg2);
     assert!(
             active2.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
             "bar2：L0 ReverseOpen 子腿借 registry-live 父 carrier（非持仓腿）经 open 父注入准入 depth>0；实得 {active2:?}"
@@ -314,6 +314,7 @@ fn restore_role_rebuild_changes_p_tilde_leg_set_unchanged() {
     let (active, p) = coverage_step_from_buckets(
         view_split(&tree, 0),
         &prev,
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -483,6 +484,7 @@ fn restore_deep_chain_depth_ge3_weight_zeroed() {
     let (active, p) = coverage_step_from_buckets(
         view_split(&tree, 0),
         &prev,
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -766,6 +768,7 @@ fn held_leg_reregister_reuses_restore_pushed_idx_no_duplicate_id() {
     let (active, _p) = coverage_step_from_buckets(
         view_split(&tree, 0),
         &prev,
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -836,6 +839,7 @@ fn open_candidates_same_carrier_id_reverse_pair_annihilates() {
     let (active, p) = coverage_step_from_buckets(
         view_split(&elements, 0),
         &[],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -902,6 +906,7 @@ fn open_candidates_same_carrier_id_same_dir_dedup_first_wins() {
     let (active, _p) = coverage_step_from_buckets(
         view_split(&elements, 0),
         &[],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),
@@ -1072,6 +1077,7 @@ fn held_leg_id_hits_candidate_copy_keeps_held_identity() {
     let (active, _p) = coverage_step_from_buckets(
         view_split(&elements, 0),
         &[leg_held],
+        0.0,
         &buckets,
         1000.0,
         &cfg(),

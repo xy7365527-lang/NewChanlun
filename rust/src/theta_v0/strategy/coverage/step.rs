@@ -4,9 +4,11 @@ use super::*;
 /// 委托 [`coverage_step_from_buckets_sep`] 丢弃第三分量 `sep_legs`（M5 声部执行层暴露，纯只读，
 /// 不进决策路径）与第四分量 `next_active_idx`（#220 opened 配对键透出，仅 `pi_theta_step_traced`
 /// 主路径消费）——单源无平行状态机。
+#[allow(clippy::too_many_arguments)] // #879 增 chong_pos（重内单向方向权威）⟹ 8 参，同仓 118 处惯例
 pub(super) fn coverage_step_from_buckets(
     work: ElementView,
     prev_active: &[ActiveLeg],
+    chong_pos: f64,
     buckets: &Buckets,
     base_units: f64,
     config: &VoiceConfig,
@@ -16,6 +18,7 @@ pub(super) fn coverage_step_from_buckets(
     let (next_active, p_tilde, _sep, _idx) = coverage_step_from_buckets_sep(
         work,
         prev_active,
+        chong_pos,
         buckets,
         base_units,
         config,
@@ -41,9 +44,11 @@ pub(super) fn coverage_step_from_buckets(
 ///
 /// ★#247 契约指针（**本 doc 不含 C1/C2/C3 正文**，别在这里找）：第三来源 `ℛ_x`、C1 环路硬门、
 /// C3 三条声明见 [`restore_ancestor_chain_from_registry`] doc；C2 见 [`held_stale_reregister_idx`] doc。
+#[allow(clippy::too_many_arguments)] // #879 增 chong_pos，同上
 pub(super) fn coverage_step_from_buckets_sep(
     work: ElementView,
     prev_active: &[ActiveLeg],
+    chong_pos: f64,
     buckets: &Buckets,
     base_units: f64,
     config: &VoiceConfig,
@@ -53,6 +58,7 @@ pub(super) fn coverage_step_from_buckets_sep(
     coverage_step_from_buckets_sep_with_risk_seeds(
         work,
         prev_active,
+        chong_pos,
         buckets,
         &[],
         base_units,
@@ -106,6 +112,7 @@ fn risk_seed_carrier(tree: &[CoverageElement], seed: &ActiveLeg) -> Option<Activ
 pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
     mut work: ElementView,
     prev_active: &[ActiveLeg],
+    chong_pos: f64,
     buckets: &Buckets,
     risk_close_seeds: &[ActiveLeg],
     base_units: f64,
@@ -603,6 +610,16 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
             gross_zeroed = apply_gross_cap(&work, &mut legs, base_units, r);
         }
     }
+    // ★重内单向（ADR 0014 裁定一，SPEC #847 S1 / 实施票 #879）：一重内部各结构级别合成后
+    // 必须同向——反向腿不建持仓（不产生声部），其总量折成同向腿的减仓（短差的教义形态），
+    // 同向腿按 f=max(0,(L−R)/L) 缩放；旧口径会穿零的 bar 钳到 0（翻向必经空仓）。
+    // 现状单重：legs 全体属同一重，chong_pos = 账户净持仓（lot）；多重落地后按重分组逐重
+    // 施加（重间不仲裁 ⟹ 无跨重协调）。净额效果：L≥R 时与旧净额逐位相同，差异只在穿零
+    // 钳制 ⟹ 既有回测基线在保证金档/强平触发两维作废（关票声明口径），结构判定层不受影响。
+    // sep_legs 消费变换后 legs ⟹ LEE 镜像与净订单同口径（D3 跨级反向持仓结构性归零）。
+    // 幽灵腿防护不扩到本变换：反向腿保留在 next_active（其开/平生命周期 = 短差的减/补
+    // 驱动，非幽灵——它从未以「持仓」身份延续，与 gross_zeroed 的「目标为 0 的开仓」不同）。
+    let _uni = super::leg::enforce_chong_unidirectional(&mut legs, chong_pos);
     let p_tilde = net_target_units(&legs);
 
     // A_{t+1} 回 ActiveLeg（638 身份，喂下一 bar interpret 闭环 + 跨 bar 对位）。
@@ -684,10 +701,12 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
 /// **边界条件**：`tower.len()<2`（仅 L0，无 Compose 父）⟹ 所有候选 σ_p=0 ⟹ 全 Ambient 根 ⟹ AncOK
 /// 恒等准入（与扁平 [`interp::assemble_gamma`] 一致，tower-export-i 边界）。空 `levels`/空 bsp ⟹ 空 Γ。
 /// **认识论 L1**（管线正确性，非 L2 alpha）。
+#[allow(clippy::too_many_arguments)] // #879 增 chong_pos，同上
 pub fn coverage_step_classification(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
     prev_active: &[ActiveLeg],
+    chong_pos: f64,
     base_units: f64,
     config: &VoiceConfig,
     risk: Option<&RiskConfig>,
@@ -703,6 +722,7 @@ pub fn coverage_step_classification(
         work,
         &gamma,
         prev_active,
+        chong_pos,
         base_units,
         config,
         risk,
@@ -714,10 +734,12 @@ pub fn coverage_step_classification(
 /// 双调 `coverage_elements_and_gamma_with_tower`——一次 `pi_theta_step` + 一次 merge 的 elements，
 /// 现共享同一预建产物）。bit-exact == [`coverage_step_classification`]：同 elements/gamma 同 interpret
 /// 同 AncOK。**不改 AncOK 准入逻辑**（[`coverage_step_from_buckets`] 原样），仅消除重复建树。
+#[allow(clippy::too_many_arguments)] // #879 增 chong_pos，同上
 pub(crate) fn coverage_step_prebuilt(
     work: ElementView,
     gamma: &[Candidate],
     prev_active: &[ActiveLeg],
+    chong_pos: f64,
     base_units: f64,
     config: &VoiceConfig,
     risk: Option<&RiskConfig>,
@@ -726,10 +748,12 @@ pub(crate) fn coverage_step_prebuilt(
     // 环5：解释器三桶（𝒟_x 反向关闭喂 prev_active）。
     let buckets = interp::interpret(gamma, prev_active);
     // 环6：A_{t+1}=AncOK[(A_t∖𝒟_x)∪ℬ_x] + p̃（§13 持仓准入：ReverseOpen 未持父则剔除，639(c)）
-    //      + G7 毛头寸约束（legs 折叠前，risk.enforce_gross_cap 门控）。
+    //      + G7 毛头寸约束（legs 折叠前，risk.enforce_gross_cap 门控）
+    //      + 重内单向（ADR 0014 裁定一，#879：chong_pos = 该重当前持仓 lot，符号定方向权威）。
     coverage_step_from_buckets(
         work,
         prev_active,
+        chong_pos,
         &buckets,
         base_units,
         config,

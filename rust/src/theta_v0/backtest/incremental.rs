@@ -2078,6 +2078,7 @@ mod profile {
                     work,
                     &gamma,
                     &prev_active,
+                    0.0, // #879 重内单向 chong_pos：本探针只测 step 标度、弃 p̃；0=空仓态
                     1000.0,
                     &voice,
                     None,

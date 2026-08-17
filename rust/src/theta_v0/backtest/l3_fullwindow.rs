@@ -487,6 +487,7 @@ fn instrument_bar(
         classification_i,
         tower_i,
         prev_active,
+        0.0, // #879 重内单向 chong_pos：本探针只消费 next_active（不随 chong_pos 变）、弃 p̃；0=空仓态
         base_units,
         &cfg.voice,
         Some(&cfg.risk), // 探针走生产路径（675号：不 fork 坐标）——default 不激活毛约束，bit-exact

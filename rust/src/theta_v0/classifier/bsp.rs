@@ -722,8 +722,10 @@ mod tests {
             // （+26/+23），八处夹具点逐条重核内容不变，同条目重登记。）
             // （2026-08-16 镜像追推后 CI 首跑位移 551→553 / 773→775：逐条重核内容不变——同为
             // `gamma_x` 时刻分组过滤，同条目重登记。mod.rs:4548→4551 测试夹具点同款处理。）
-            "theta_v0/strategy/mod.rs:553",
-            "theta_v0/strategy/mod.rs:775",
+            // （2026-08-17 #879：strategy/mod.rs 顶部增 `pub mod chong;` 模块块 4 行 ⟹
+            // 553→557 / 775→779，逐条重核内容不变（同为 `gamma_x` 时刻分组过滤），同条目重登记。）
+            "theta_v0/strategy/mod.rs:557",
+            "theta_v0/strategy/mod.rs:779",
         ];
 
         let src_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");

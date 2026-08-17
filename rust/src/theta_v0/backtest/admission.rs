@@ -1303,12 +1303,14 @@ impl NestChainGate {
 ///   `record_held_voice`（exitfix-research §族A）。
 /// - **reverse_signal 不入本门**：反向信号关活动腿走 `interpret` 𝒟_x（腿级单出口）；
 ///   **parent_invalid** v0 root 恒 false（无父）。
+#[allow(clippy::too_many_arguments)] // #879 增 chong_posted_notional_usd（逐仓计提名义），同仓惯例
 pub(super) fn k_theta_risk_gate(
     prev_active: &[super::super::strategy::interp::ActiveLeg],
     open_trades: &std::collections::HashMap<classifier::recursive_tower::ElementId, LedgerOpen>,
     bar: &Bar,
     equity: f64,
     p_t: f64,
+    chong_posted_notional_usd: f64,
     px: f64,
     margin: Option<&super::super::strategy::risk::MarginModel>,
 ) -> (
@@ -1327,9 +1329,19 @@ pub(super) fn k_theta_risk_gate(
     // margin-design §2.7）；否则退化 MM=0（bit-exact 现状，M1/M2/M3 不可达）。
     let mode = match margin.and_then(|m| m.book.as_of(bar.timestamp).map(|s| (m, s))) {
         Some((m, sched)) => {
-            // p_t 净 lot × mark = 净名义（美元，margin-design §2.2：net_notional 已折算勿再乘价）。
-            let net_notional_usd = p_t.abs() * px;
-            risk_mode(&margin_inputs(net_notional_usd, equity, sched, &m.cushions))
+            // ★#879（SPEC #847 S1，#834 定落点）：保证金基数 = **各重逐仓全额计提的名义**
+            // `Σₖ |nₖ|·pxₖ`（[`strategy::chong::ChongBook::posted_notional_usd`]，#842 R-8/R-12，
+            // ADR 0014 裁定二「每层按各自极性全额计提，净额省下的差额不得折算为可部署名义」），
+            // 替代旧「全账户净 lot × mark」（先净额聚合再取绝对值，异级多空互相抵消）。
+            // 旧行是「只有一个重」时的正确实现（单重 ⟹ 逐仓口径 ≡ 净额口径），不是缺陷；
+            // 多重落地后异级/异重反向不再互相抵消。美元已折算，勿再乘价（margin-design §2.2）。
+            let posted_notional_usd = chong_posted_notional_usd;
+            risk_mode(&margin_inputs(
+                posted_notional_usd,
+                equity,
+                sched,
+                &m.cushions,
+            ))
         }
         None => risk_mode(&RiskModeInput {
             equity,

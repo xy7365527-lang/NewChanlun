@@ -48,6 +48,10 @@ pub mod center_oscillation_trade;
 /// #147 T3 出场通道 P1–P8 全互斥通道解释器（first-match + C0 兜底；#149 已填 P4/P5
 /// ReverseOpen 显式机制（原 ShortDiff，#281 更名 #283 实装），#150 的 P7/P8 仍为占位槽）。
 pub mod channel;
+/// ★重（Chong）——持久操作单位一等实体 ⟨标的, 操作级别, 专属筹码⟩（SPEC #847 S1，
+/// 实施票 #879；ADR 0010 §一 / ADR 0013 裁定一·二 / ADR 0014 裁定一·二）。键 =
+/// (标的, 操作级别)，成本状态不进键；各重保证金逐仓分开 + 全局不等式上限。
+pub mod chong;
 /// LEE Consume_ℓ 确定性路由（Consume_at 产出按 formation_level 分桶的受管 BSP 级别持有账本，map #529）。
 pub mod consume_router;
 pub mod coverage;
