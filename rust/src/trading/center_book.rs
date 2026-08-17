@@ -35,8 +35,8 @@
 //! （`#664` 之前即有的既有形状，非本票引入），故 cert 先以 `Sell` 杀锚（`frozen` 保持 `None`）
 //! 后、`ingest` 收到同锚 confirmed hard `Buy3`，`frozen` 仍会被无条件翻成 `Some`（不推
 //! `version`、不补发第二次 `Terminated`）——`frozen` 上"先杀为准"不成立，实际以 `ingest` 的
-//! parity 行为为准。跨通道方向冲突的一般裁定仍是"先杀者为准，不设 fail-loud"，`frozen` 是
-//! 其中的已知单侧例外，检测/收口归后续票。见 [`CenterBook::consume_death_certificate`] doc
+//! parity 行为为准。跨通道方向冲突票 #750 起 fail-loud（`DirectionConflict`，只报不改），
+//! `frozen` 仍是"先杀者为准"的已知单侧例外。见 [`CenterBook::consume_death_certificate`] doc
 //! 与 #664。
 
 use std::collections::{HashMap, HashSet};
@@ -383,6 +383,19 @@ impl CenterBook {
         self.frozen[ladder].is_some()
     }
 
+    /// 先杀通道落位的方向读数 ⟹ 候选侧（票 #750 跨通道方向冲突检测的判据源）。
+    /// 前提：锚已在 `dead`——两条杀通道首杀时方向恒落位（`ingest` confirmed Type3：
+    /// Sell 插 `dead_down`、Buy 不插；cert 真 `Broken` 分支同判据），故 `dead_down`
+    /// 成员关系完备推导先杀方向。`frozen` 不参与推导——`hard_type3` 门控 + Python
+    /// parity 例外（见 [`Self::consume_death_certificate`] doc）使其不具备完备性。
+    fn first_kill_side(&self, ladder: usize, anchor: i64) -> RetraceSide {
+        if self.is_dead_down(ladder, anchor) {
+            RetraceSide::Sell
+        } else {
+            RetraceSide::Buy
+        }
+    }
+
     /// 中枢死亡证明消费入口（票 #637 修复轮，2026-07-29 编排者裁定 1A/2A/4A；#575 消费方
     /// 接线 1/3；中枢死亡证明权唯一归三类点——18 课定理三充要条件 / ADR-0001）。
     ///
@@ -446,8 +459,19 @@ impl CenterBook {
     /// confirmed hard `Buy3`」下，`ingest` 的 `dead.contains` 已真、kill 块整体跳过，但
     /// `frozen` 仍会被**无条件翻成** `Some`（不推 `version`、不发第二次 `Terminated`，因为
     /// kill 块被跳过）——`frozen` 上"先杀为准"不成立，实际以 `ingest` 的 parity 行为为准。
-    /// 跨通道方向冲突（两通道对同一锚给出不同 `side`）= **先杀者为准，`frozen` 是其中单侧
-    /// 例外**，本票不设 fail-loud 检查——检测/收口归后续票（编排方立票中）。
+    /// **跨通道方向冲突 fail-loud（票 #750）**：两通道按定理三充要观测**同一**教义事件，
+    /// 同一锚的方向读数理应一致；`AlreadyBroken` 两个分支（步骤 1 同框早退、步骤 3 `ingest`
+    /// 先杀）现均比对 `cert.side` 与在册方向读数（[`Self::first_kill_side`]——`dead_down`
+    /// 成员关系完备推导先杀方向，`frozen` 因 hard_type3 门控与 parity 例外不具备完备性、
+    /// 不参与推导），不一致 ⟹ `Err(DirectionConflict)` **零动作**（不存档框、不覆写方向位、
+    /// 不推 `version`、不补发事件）——两引擎对同一中枢三类点方向判读分歧，与
+    /// `ConflictingCertificate` 同族的上游改口信号。形状取 `Result` 错误变体而非 audit 桶，
+    /// 理由：本方法既有 fail-loud 惯例（`NoMatchingCenter` / `ConflictingCertificate`）皆走
+    /// `Result` 错误变体，且 audit 桶「不读即静默」恰是本票要堵的静默——`Ok(AlreadyBroken)`
+    /// 是调用方视作例行幂等确认的值，冲突信号混进去会被正常吸收。#664「先杀落位、后不覆写」
+    /// 不动——检测只报不改。合法时序恒不触发：同方向两通道任意时序下推导方向必与
+    /// `cert.side` 一致；cert 先杀后 `ingest` 后到同事件走 `!dead.contains` 守卫跳过（本方法
+    /// 无观测面），且上述 `frozen` parity 例外只翻 `frozen` 不动 `dead_down`，不污染推导。
     ///
     /// **`events_out` 传 `None` 的警示（影子评审 LOW-1）**：本方法对同一锚的 `Broken` 分支
     /// 只走一次（`AlreadyBroken` 不重发），若调用方在真 `Broken` 那一次调用传了 `None`，
@@ -468,7 +492,20 @@ impl CenterBook {
             .and_then(|m| m.get(&anchor))
         {
             return if *frame == cert.center {
-                Ok(DeathCertificateOutcome::AlreadyBroken)
+                // 票 #750：同框早退也是 AlreadyBroken 分支，方向一致性照查——同锚同框
+                // 异 side = 上游引擎对同一中枢三类点方向改口（与 ConflictingCertificate
+                // 同族）。合法的同方向重复消费推导方向必与 cert.side 一致，不触发。
+                let registered = self.first_kill_side(ladder, anchor);
+                if registered != cert.side {
+                    Err(DeathCertificateError::DirectionConflict {
+                        ladder,
+                        anchor,
+                        registered,
+                        cert_side: cert.side,
+                    })
+                } else {
+                    Ok(DeathCertificateOutcome::AlreadyBroken)
+                }
             } else {
                 Err(DeathCertificateError::ConflictingCertificate { ladder, anchor })
             };
@@ -480,6 +517,21 @@ impl CenterBook {
             return Err(DeathCertificateError::NoMatchingCenter { ladder, anchor });
         }
         let already_dead = self.is_dead(ladder, anchor);
+        if already_dead {
+            // 票 #750：跨通道方向冲突 fail-loud——先杀者（ingest 通道）落位的方向与
+            // 本证明的 side 不一致 = 两引擎对同一中枢三类点方向判读分歧。零动作返回
+            // （不存档框、不覆写方向位、不推 version），同本方法既有错误变体的零动作
+            // 惯例；#664「先杀落位、后不覆写」不动——检测只报不改。
+            let registered = self.first_kill_side(ladder, anchor);
+            if registered != cert.side {
+                return Err(DeathCertificateError::DirectionConflict {
+                    ladder,
+                    anchor,
+                    registered,
+                    cert_side: cert.side,
+                });
+            }
+        }
         self.dead[ladder]
             .get_or_insert_with(HashSet::new)
             .insert(anchor);
@@ -536,6 +588,21 @@ pub enum DeathCertificateError {
     /// 同一锚收到两张边框不同的证明——上游引擎改口（与 `retrace_ledger` 的
     /// `NotConstitutedReason::CenterRebased` 同族），fail-loud，不静默吞掉分歧。
     ConflictingCertificate { ladder: usize, anchor: i64 },
+    /// 跨通道方向冲突（票 #750）：锚已被另一通道以相反方向先杀（或同锚同框证明改口
+    /// side）——本证明的 `side` 与在册方向读数（`dead_down` 成员关系推导，见
+    /// [`CenterBook::first_kill_side`]）不一致，即两引擎对同一中枢三类点方向判读分歧，
+    /// 与 `ConflictingCertificate` 同族的上游改口信号。fail-loud 且零动作：先杀者落位
+    /// 的方向不被覆写（#664「先杀落位、后不覆写」不动，检测只报不改）。可信度如实
+    /// 声明：锚映射是名义性的（#637 裁定 2A——两引擎段序列无对齐依据），本信号强在
+    /// 「两通道对同角色锚给出相反 side」这一事实本身。
+    DirectionConflict {
+        ladder: usize,
+        anchor: i64,
+        /// 在册（先杀通道落位）的方向。
+        registered: RetraceSide,
+        /// 本证明携带的方向。
+        cert_side: RetraceSide,
+    },
 }
 
 #[cfg(test)]
@@ -1005,26 +1072,44 @@ mod tests {
         assert!(book.is_dead_down(2, 10));
         assert!(!book.is_frozen(2));
         let v_after_ingest_kill = book.version;
-        // cert 后到，方向与先杀者冲突（Buy）——AlreadyBroken：本票不设 fail-loud，
-        // 但也不覆写；先杀者（ingest Sell）落位的方向读数原样保持，frozen 不被
-        // cert 的 Buy 侧静默翻成 Some，也不补发第二次 Terminated
+        // cert 后到，方向与先杀者冲突（Buy）——票 #750 起 fail-loud：DirectionConflict
+        // 显式冲突信号；且零动作——先杀者（ingest Sell）落位的方向读数原样保持，frozen
+        // 不被 cert 的 Buy 侧翻成 Some，框不存档，version 不推，不补发第二次 Terminated
         let c = cert(10, 1, 2, 0, RetraceSide::Buy);
         let mut out = Vec::new();
         assert_eq!(
             book.consume_death_certificate(2, &c, true, Some(&mut out)),
-            Ok(DeathCertificateOutcome::AlreadyBroken)
+            Err(DeathCertificateError::DirectionConflict {
+                ladder: 2,
+                anchor: 10,
+                registered: RetraceSide::Sell,
+                cert_side: RetraceSide::Buy,
+            })
         );
         assert_eq!(book.version, v_after_ingest_kill);
         assert!(book.is_dead_down(2, 10)); // 未被覆写/清除
         assert!(!book.is_frozen(2)); // 未被静默翻转
         assert!(out.is_empty()); // 无第二次 Terminated
+                                 // 零动作的完备性：冲突证明的框未存档——重复投递同一冲突证明仍报 DirectionConflict，
+                                 // 而非 AlreadyBroken（步骤 1）或 ConflictingCertificate
+        assert_eq!(
+            book.consume_death_certificate(2, &c, true, None),
+            Err(DeathCertificateError::DirectionConflict {
+                ladder: 2,
+                anchor: 10,
+                registered: RetraceSide::Sell,
+                cert_side: RetraceSide::Buy,
+            })
+        );
     }
 
-    /// 影子评审 MEDIUM-2：镜像上一条负控——`ingest` 先以 hard Buy3 杀（`frozen` 落位，
-    /// `dead_down` 保持 false），cert 携冲突方向 Sell 后到 ⟹ `AlreadyBroken`，`dead_down`
-    /// 必须保持 false（不被 cert 的 Sell 静默插入）。这是「最危险的静默翻转」的真负控——
-    /// 若把 `:474-476` 的 `dead_down` 写移出 `!already_dead` 守卫（回退到首轮实现），本测试
-    /// 必须失败；此前 `ingest_kill_then_same_side_certificate_does_not_overwrite_direction`
+    /// 影子评审 MEDIUM-2 + 票 #750：镜像上一条冲突构造——`ingest` 先以 hard Buy3 杀
+    /// （`frozen` 落位，`dead_down` 保持 false），cert 携冲突方向 Sell 后到 ⟹ 票 #750 起
+    /// `DirectionConflict` fail-loud（显式冲突信号），且零动作：`dead_down` 必须保持
+    /// false（不被 cert 的 Sell 静默插入）。这是「最危险的静默翻转」的真负控——若把
+    /// 真 `Broken` 分支的 `dead_down` 写移出 `!already_dead` 守卫（回退到 #664 首轮
+    /// 实现），本测试必须失败；此前
+    /// `ingest_kill_then_same_side_certificate_does_not_overwrite_direction`
     /// （同方向 Sell/Sell）无法区分"不写"与"写成同值"，不构成该分支的负控。
     #[test]
     fn ingest_kill_then_conflicting_side_certificate_does_not_overwrite_dead_down() {
@@ -1036,14 +1121,19 @@ mod tests {
         assert!(!book.is_dead_down(2, 10));
         assert!(book.is_frozen(2));
         let v_after_ingest_kill = book.version;
-        // cert 后到，方向与先杀者冲突（Sell）——AlreadyBroken：不覆写；先杀者（ingest Buy）
-        // 落位的方向读数原样保持，dead_down 不被 cert 的 Sell 侧静默插入，也不补发第二次
-        // Terminated
+        // cert 后到，方向与先杀者冲突（Sell）——票 #750：DirectionConflict 显式信号；
+        // 零动作——先杀者（ingest Buy）落位的方向读数原样保持，dead_down 不被 cert 的
+        // Sell 侧静默插入，也不补发第二次 Terminated
         let c = cert(10, 1, 2, 0, RetraceSide::Sell);
         let mut out = Vec::new();
         assert_eq!(
             book.consume_death_certificate(2, &c, true, Some(&mut out)),
-            Ok(DeathCertificateOutcome::AlreadyBroken)
+            Err(DeathCertificateError::DirectionConflict {
+                ladder: 2,
+                anchor: 10,
+                registered: RetraceSide::Buy,
+                cert_side: RetraceSide::Sell,
+            })
         );
         assert_eq!(book.version, v_after_ingest_kill);
         assert!(!book.is_dead_down(2, 10)); // 未被静默插入
@@ -1105,6 +1195,50 @@ mod tests {
                 .and_then(|m| m.get(&10)),
             Some(&c.center)
         );
+        // 票 #750 步骤 1 分支负控：框已存档后，同向重复证明仍走同框早退 AlreadyBroken
+        // （DirectionConflict 不误伤合法时序）
+        assert_eq!(
+            book.consume_death_certificate(2, &c, true, None),
+            Ok(DeathCertificateOutcome::AlreadyBroken)
+        );
+        assert_eq!(book.version, v_after_ingest_kill);
+    }
+
+    /// 票 #750 步骤 1 分支冲突构造：ingest Buy3 先杀 → 同向 cert 落位并存档框 →
+    /// 同锚**同框**异 side 证明再到 = 上游引擎对同一中枢三类点方向改口 ⟹
+    /// `DirectionConflict` fail-loud 且零动作（与 `ConflictingCertificate` 的"同框异框"
+    /// 互补——本条是"同框异 side"）。
+    #[test]
+    fn archived_frame_then_same_frame_conflicting_side_certificate_fails_loud() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        book.ingest(2, &[ev(BspClass::Buy3, true, 10, 1.0, 2.0)], true, None);
+        assert!(book.is_dead(2, 10));
+        assert!(book.is_frozen(2));
+        // 同向 cert 落位：AlreadyBroken 幂等确认，框存档
+        let c = cert(10, 1, 2, 0, RetraceSide::Buy);
+        assert_eq!(
+            book.consume_death_certificate(2, &c, true, None),
+            Ok(DeathCertificateOutcome::AlreadyBroken)
+        );
+        let v_after_archive = book.version;
+        // 同锚同框异 side（Sell）证明再到 ⟹ 步骤 1 同框早退分支照查方向 ⟹ DirectionConflict
+        let c2 = cert(10, 1, 2, 0, RetraceSide::Sell);
+        let mut out = Vec::new();
+        assert_eq!(
+            book.consume_death_certificate(2, &c2, true, Some(&mut out)),
+            Err(DeathCertificateError::DirectionConflict {
+                ladder: 2,
+                anchor: 10,
+                registered: RetraceSide::Buy,
+                cert_side: RetraceSide::Sell,
+            })
+        );
+        // 零动作：version 不推、方向位不被覆写/插入、不补发事件
+        assert_eq!(book.version, v_after_archive);
+        assert!(!book.is_dead_down(2, 10));
+        assert!(book.is_frozen(2));
+        assert!(out.is_empty());
     }
 
     #[test]
