@@ -27,7 +27,8 @@ for br in $(git branch --list 'sandcastle/issue-*' --format='%(refname:short)' |
   if [ -z "$shas" ]; then echo "SKIP $br (no new commits)"; continue; fi
   ok=1
   for sha in $shas; do
-    git -C "$WT" cherry-pick -q "$sha" 2>/dev/null || true
+    # git 2.50.1 移除了 cherry-pick 的 -q（解析即 usage rc=129）——不得加 -q
+    git -C "$WT" cherry-pick "$sha" >/dev/null 2>&1
     rc=$?
     if [ $rc != 0 ]; then
       # content already merged (auto-merge resolves to empty) => skip, else real conflict

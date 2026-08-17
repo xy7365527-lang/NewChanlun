@@ -42,7 +42,7 @@ for l in open(sys.argv[1]):
     reg[e["ticket"]] = f"{e.get('phase')}:{e.get('status')}"
 roster = open(sys.argv[2]).read()
 for t, st in reg.items():
-    pat = re.compile(rf"(\| 沙盒工蜂 #[{t}] .*? \| )running（2026-08-1[67] 派生）( \|)")
+    pat = re.compile(rf"(\| 沙盒工蜂 #{re.escape(str(t))} .*? \| )running（2026-08-1[67] 派生）( \|)")
     roster, n = pat.subn(rf"\g<1>{st}\g<2>", roster)
 open(sys.argv[2], "w").write(roster)
 PYEOF

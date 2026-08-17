@@ -36,6 +36,8 @@ function hasOpenBlocker(issue: number): boolean {
 //    以 JSONL registry 供宿主/roster 读取；每事件带 ts/ticket/branch/phase/status）──
 import { appendFileSync } from "node:fs";
 function logWorker(e: Record<string, unknown>) {
+  // logs/ 目录可能不存在（gitignore 后新克隆）——mkdir 兜底（dispatcher 轮 2 坐实的 ENOENT）
+  try { execSync("mkdir -p .sandcastle/logs"); } catch {}
   appendFileSync(
     ".sandcastle/logs/workers.jsonl",
     JSON.stringify({ ts: new Date().toISOString(), ...e }) + "\n",
