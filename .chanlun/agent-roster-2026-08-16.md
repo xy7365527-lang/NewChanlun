@@ -31,3 +31,5 @@
 - [ ] 2026-08-17 05:30 | #946 烤票线：第一问（成因探针）✓ 第二问 C-窄 ✓ 已拍；第三问（补偿机制量级）**等 #1024 探针读数**（L1 线段中枢结构对齐，工蜂队列）。#937 已关（四裁全落地，触发器=ADR 0021 裁定五第4条）
 - [ ] sandcastle 队（工蜂 kimi k3 循环领）：#1019 在跑（评审 MED-1 锁）→ 队列：#1024（C-窄探针）/#1013/#995/#933/#893 等十余张。S8-c #893 已外派
 - [ ] 待并分支（afk3 释放 main 后）：ticket-891-s8a（#891+#892 Lean）、ticket-919-final（volume f64+TV 处决+#1022 修）
+| 子代理 sandcastle-dispatcher | prime-agent 同模型（DeepSeek V4 Pro） | 沙盒队列调度（main.mts 逐轮 + harvest.sh 收口 + agent_message 逐票上报；队列 750/757/829/765/879） | running（2026-08-17 派生） |
+- [!] 环境事实 2026-08-17 15:31：macOS 用户登出（loginwindow）会 SIGTERM 杀主机上的 sandcastle 管线进程（npm exec tsx 整树被杀、容器被清、工蜂未 commit 的活全丢）。判读纪律：工蜂日志突停 + 「实装无 commit」先查是否登出被杀（日志同秒停写 = 特征），不要先判票面卡死。#750/#757 已 re-queue

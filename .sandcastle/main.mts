@@ -57,6 +57,37 @@ function pickIssue(): number | null {
   return null;
 }
 
+// ── REVIEW_ONLY 模式（#879 补派 Phase 2 引入）：env SANDCASTLE_REVIEW_ONLY="分支名:票号" 时
+// 跳过 pickIssue 与 Phase 1，对既有分支直接跑 Phase 2 评审（宿主驱动中断后的补派路径，
+// TROUBLESHOOTING #11）。分支须已存在且含实装 commit。
+const REVIEW_ONLY = process.env.SANDCASTLE_REVIEW_ONLY;
+if (REVIEW_ONLY) {
+  const [roBranch, roIssue] = REVIEW_ONLY.split(":");
+  if (!roBranch || !roIssue) {
+    console.error("SANDCASTLE_REVIEW_ONLY 格式须为 分支名:票号");
+    process.exit(2);
+  }
+  const issue = Number(roIssue);
+  const branch = roBranch;
+  const sandbox = await sandcastle.createSandbox({
+    branch,
+    baseBranch: "main",
+    sandbox: docker({ imageName: "sandcastle:newchanlun" }),
+  });
+  logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
+  await sandbox.run({
+    name: "reviewer",
+    maxIterations: 1,
+    agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
+    promptFile: "./.sandcastle/review-prompt.md",
+    promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
+  });
+  logWorker({ ticket: issue, branch, phase: "reviewer", status: "completed" });
+  console.log(`REVIEW_ONLY 完成：${branch} 待验收合入（人工闸）。`);
+  await sandbox.close();
+  process.exit(0);
+}
+
 for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
   const issue = pickIssue();
   if (!issue) {
