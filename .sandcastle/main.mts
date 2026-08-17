@@ -11,9 +11,10 @@ import { execSync } from "node:child_process";
 import { appendFileSync, mkdirSync } from "node:fs";
 
 // ── 顶部常量（#1002 裁 3：模型面集中在此，升档改这里重跑） ────────────────
-const IMPLEMENTER_MODEL = "k3";
-const REVIEWER_MODEL = "k3";
-const PROVIDER = "kimi-coding";
+// 2026-08-18 升档：kimi-coding 配额耗尽（403 billing cycle）→ deepseek（宿主同款，当日验证可用）
+const IMPLEMENTER_MODEL = "deepseek-v4-pro";
+const REVIEWER_MODEL = "deepseek-v4-pro";
+const PROVIDER = "deepseek";
 const MAX_ITERATIONS = 1;
 
 // ── frontier 查询（host 侧）：open + sandcastle label + 未 assign + 无 open blocker ──
