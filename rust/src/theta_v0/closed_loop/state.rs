@@ -152,8 +152,17 @@ pub enum Phase {
     PhaseIII,
 }
 
+use super::super::strategy::chong::ChongKey;
 use super::super::strategy::ledger::{LedgerComp, TwState};
 
+/// ★#880（SPEC #847 S2，ADR 0013 裁定二）**处置明写**：`AssemblyState` 的 `tw_state`
+/// （取本金三阶段账本）实例单位 = **重**——Origin `StrictState` 本身就是单 campaign 乘积态
+/// （`phase × ledger` 各一份），与其对齐的 `AssemblyState` 天然是**一重**的闭环态；「全局
+/// 单例」不是错，是「当时全仓只有一个重」。故改造落在**组合点**：键不进本结构（保持 Copy
+/// 乘积态、契约锚不动），由 [`ChongAssembly`] 在驱动层绑定——N 重 = N 个 `ChongAssembly`，
+/// 各自独立推进三阶段；一重内部对所有结构级别总体单一（本态消费整支 bar 流，不按结构
+/// 级别分裂）。
+///
 /// 完整混合态 `AssemblyState`（契约锚 `Origin.FullDefinitionStrategy.StrictState`，乘积态扩展）。
 ///
 /// Origin `StrictState`（FullDefinitionStrategy.lean:205-212）= `parsed × trend × actionClass ×
@@ -234,6 +243,20 @@ impl AssemblyState {
     }
 }
 
+/// ★#880（SPEC #847 S2）：**一重的闭环组装态**——`key` = (标的, 操作级别)（ADR 0013
+/// 裁定二，成本状态不进键），`state` = 该重的闭环乘积态（含 `tw_state` 三阶段账本）。
+///
+/// 同标的不同操作级别 = 不同的 `ChongAssembly`，各自独立推进三阶段；同一重跨结构级别
+/// 共享同一实例（`AssemblyState` 无结构级别维度，见上处置明写）。`ChongKey` 含 `String`
+/// ⟹ 本类型只 `Clone` 不 `Copy`。
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChongAssembly {
+    /// 重键（标的, 操作级别）。
+    pub key: ChongKey,
+    /// 该重的闭环态。
+    pub state: AssemblyState,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -286,6 +309,48 @@ mod tests {
             let s1 = micro_delta(&s, e);
             assert!(s1.bar_count >= s.bar_count);
         }
+    }
+
+    /// ★#880 验收（SPEC #847 S2）：三阶段实例键 = (标的, 操作级别)——同标的不同操作级别的
+    /// 两个 [`ChongAssembly`] **各自独立推进**（驱动事件流各自消费，互不串态）；同一重
+    /// （同一键）对所有结构级别是总体的、单一的（`AssemblyState` 无结构级别维度，跨结构
+    /// 级别共享由构造保证）。
+    #[test]
+    fn chong_assembly_instances_are_independent_per_op_level() {
+        use super::super::transition::{hybrid_step, AssemblyEvent};
+        use crate::theta_v0::strategy::ledger::RiskPolicy;
+
+        let key = |op_level: u8| ChongKey {
+            symbol: "BTC".to_string(),
+            op_level,
+        };
+        let policy = RiskPolicy::baseline();
+        let mut a1 = ChongAssembly {
+            key: key(1),
+            state: AssemblyState::funded_campaign(1_000_000, 8),
+        };
+        let a2 = ChongAssembly {
+            key: key(2),
+            state: AssemblyState::funded_campaign(1_000_000, 8),
+        };
+        // 同标的不同操作级别：键不同。
+        assert_ne!(a1.key, a2.key);
+        // 只驱动 a1 两根 bar，a2 不动 ⟹ 各自独立推进。
+        for rising in [true, false] {
+            a1.state = hybrid_step(
+                &a1.state,
+                &AssemblyEvent {
+                    parse_event: MicroEvent::NewBar(rising),
+                    price: 8,
+                },
+                &policy,
+            )
+            .expect("测试事件流恒合法");
+        }
+        assert_eq!(a1.state.micro_state.bar_count, 2);
+        assert_eq!(a2.state.micro_state.bar_count, 0, "a2 不被 a1 的推进污染");
+        // 同一键：键标识「这是哪一重」，不随状态（成本/阶段）变化。
+        assert_eq!(a1.key, key(1));
     }
 
     /// 初始闭环态：双账本不变量成立 + 开局 Normal/PhaseI/零仓。

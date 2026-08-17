@@ -8334,6 +8334,11 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
 //  （对比旧 runner「account 构造一次不喂回」的开环单帧）
 // ──────────────────────────────────────────────────────────────────────
 
+/// ★#880：闭环测试重键（legacy 单重占位，键 = (标的, 操作级别)，ADR 0013 裁定二）。
+fn cl_key() -> crate::theta_v0::strategy::chong::ChongKey {
+    crate::theta_v0::strategy::chong::ChongBook::legacy_single_key("T")
+}
+
 /// ★督导见证①：多 bar 闭环——micro_state/ledger/tw_state/orders 每 bar 真更新喂回。
 ///
 /// 旧 runner（开环单帧）：`account` 构造一次（runner.rs:107-110），全程不更新——闭环态
@@ -8349,45 +8354,51 @@ fn closed_loop_threads_every_bar() {
         .map(|(i, &c)| mk_bar(i, c, false))
         .collect();
 
-    let final_state = run_closed_loop(&bars, 1.0e6).expect("非空 bars ⟹ 有闭环终态");
+    let final_state = run_closed_loop(&bars, 1.0e6, cl_key()).expect("非空 bars ⟹ 有闭环终态");
 
     // ★每 bar 真喂回的物证：micro_state 推进到 = bar 数（开环单帧 bar_count 恒 0）。
     assert_eq!(
-        final_state.micro_state.bar_count, 10,
+        final_state.state.micro_state.bar_count, 10,
         "10 bar 闭环 ⟹ bar_count=10（每 bar 喂回）"
     );
-    assert_eq!(final_state.micro_state.bars_seen, 10, "bars_seen 推进到 10");
+    assert_eq!(
+        final_state.state.micro_state.bars_seen, 10,
+        "bars_seen 推进到 10"
+    );
     // orders 计数每 bar +1（开环单帧 orders 恒 0）。
     assert_eq!(
-        final_state.orders, 10,
+        final_state.state.orders, 10,
         "10 bar ⟹ orders=10（订单计数闭环推进）"
     );
 
     // ★双账本不变量在闭环每步保持（终态仍满足）。
-    assert!(final_state.ledger_state.inv_holds(), "闭环终态保 R=Π-A-W");
+    assert!(
+        final_state.state.ledger_state.inv_holds(),
+        "闭环终态保 R=Π-A-W"
+    );
     // ★codex R3 C' 终局裁定后：run_closed_loop 注资额 = 首个可交易市价（closes[0]=1000）=notional_in。
     // hwm_gain 降为纯诊断（零承重，不入 free）⟹ **TW 守恒** tw()=notional_in（诊断浮盈不进 TW 三量）。
     // hwm_gain 仍如实追踪浮盈峰值（上行 1050 ⟹ 峰值 50），但只作可观测诊断，不入账 free。
     assert_eq!(
-        final_state.tw_state.notional_in, 1000,
+        final_state.state.tw_state.notional_in, 1000,
         "注资额 = 首个可交易市价 closes[0]"
     );
     assert_eq!(
-        final_state.tw_state.tw(),
-        final_state.tw_state.notional_in,
+        final_state.state.tw_state.tw(),
+        final_state.state.tw_state.notional_in,
         "TW 守恒：tw()=notional_in（C' 后 Revalue 诊断-only，浮盈不入 TW）"
     );
     assert_eq!(
-        final_state.tw_state.hwm_gain, 50,
+        final_state.state.tw_state.hwm_gain, 50,
         "诊断高水位如实追踪上行峰值 1050 ⟹ 1·(1050−1000)=50"
     );
     assert_eq!(
-        final_state.tw_state.free, 0,
+        final_state.state.tw_state.free, 0,
         "free 恒 0（诊断浮盈不入账 free，承重已移除）"
     );
     // OQ-9 gate：schedule_adapter 不开 legacy 腿 ⟹ open_legacy_legs 恒 0。
     assert_eq!(
-        final_state.tw_state.open_legacy_legs, 0,
+        final_state.state.tw_state.open_legacy_legs, 0,
         "闭环终态 OQ-9 gate 保持"
     );
 
@@ -8398,7 +8409,7 @@ fn closed_loop_threads_every_bar() {
         "开环单帧基线：bar_count=0（不喂回）"
     );
     assert_ne!(
-        final_state.micro_state.bar_count, initial.micro_state.bar_count,
+        final_state.state.micro_state.bar_count, initial.micro_state.bar_count,
         "闭环终态 ≠ 初始态 ⟹ 每 bar 真喂回（非构造一次）"
     );
 }
@@ -8418,21 +8429,21 @@ fn closed_loop_ledger_evolves() {
     let bars: Vec<Bar> = (0..5)
         .map(|i| mk_bar(i, 1000 + i as i64 * 10, false))
         .collect();
-    let final_state = run_closed_loop(&bars, 1.0e6).expect("有终态");
+    let final_state = run_closed_loop(&bars, 1.0e6, cl_key()).expect("有终态");
     // 首 bar 仓位 0→1（真实建仓 Δ=1 @ price=1000 ⟹ Allocate(1000)）；bar 2-5 仓位不变（Δ=0 ⟹ Noop）。
     assert_eq!(
-        final_state.positions, 1,
+        final_state.state.positions, 1,
         "仓位 0→1（risk_adapter max(1) 饱和 ⟹ 只增一次）"
     );
     assert_eq!(
-        final_state.ledger_state.a, 1000,
+        final_state.state.ledger_state.a, 1000,
         "一次真实建仓 @ price=1000 ⟹ A=1000（成本基值，非单位数）"
     );
     assert_eq!(
-        final_state.ledger_state.r, -1000,
+        final_state.state.ledger_state.r, -1000,
         "R=Π-A-W=-1000（一次 Allocate(1000)）"
     );
-    assert!(final_state.ledger_state.inv_holds(), "终态保恒等");
+    assert!(final_state.state.ledger_state.inv_holds(), "终态保恒等");
 }
 
 /// ★★codex R3 C' 终局裁定后：`run_closed_loop` 在**有界振荡**价格流上 EarningShares **不触达**——照实
@@ -8456,50 +8467,53 @@ fn closed_loop_earning_shares_not_reached_l0_honest_gap3() {
     let bars: Vec<Bar> = (0..600)
         .map(|i| mk_bar(i, 1000 + (i as i64 % 7) * 10, false))
         .collect();
-    let final_state = run_closed_loop(&bars, 1.0e6).expect("非空 bars ⟹ 有闭环终态");
+    let final_state = run_closed_loop(&bars, 1.0e6, cl_key()).expect("非空 bars ⟹ 有闭环终态");
 
     // ★照实①：stage 恒 CostReduction（有界振荡浮盈不足足额退本金 ⟹ 三阶段不推进）。
     assert_eq!(
-        final_state.tw_state.stage,
+        final_state.state.tw_state.stage,
         TStage::CostReduction,
         "有界振荡闭环 stage 应恒 CostReduction（浮盈 60 ≪ 本金 1000，退本金门不开）——终 stage={:?}",
-        final_state.tw_state.stage
+        final_state.state.tw_state.stage
     );
 
     // ★照实②：仓位门控 + 值模型——真实仓位只增一次（0→1），holding=成本基=首市价 1000（非单位数 1）。
     assert_eq!(
-        final_state.positions, 1,
+        final_state.state.positions, 1,
         "真实仓位 0→1 一次（risk_adapter max(1) 饱和）"
     );
     assert_eq!(
-        final_state.tw_state.holding, 1000,
+        final_state.state.tw_state.holding, 1000,
         "holding=成本基=1 单位×首市价 1000（值模型）"
     );
-    assert_eq!(final_state.tw_state.notional_in, 1000, "注资额=首市价 1000");
+    assert_eq!(
+        final_state.state.tw_state.notional_in, 1000,
+        "注资额=首市价 1000"
+    );
 
     // ★照实③：诊断高水位封顶 60（有界振荡峰值），但 hwm_gain 零承重（不入 free）⟹ free 恒 0 ⟹ 未退本金。
     assert_eq!(
-        final_state.tw_state.hwm_gain, 60,
+        final_state.state.tw_state.hwm_gain, 60,
         "诊断浮盈峰值 1·(1060−1000)=60（纯诊断，不入 free）"
     );
     assert_eq!(
-        final_state.tw_state.free, 0,
+        final_state.state.tw_state.free, 0,
         "free 恒 0（C' 后诊断浮盈不入账 free，承重已移除）"
     );
     assert_eq!(
-        final_state.tw_state.withdrawn, 0,
+        final_state.state.tw_state.withdrawn, 0,
         "无 sound 资金源 ⟹ 未退本金（withdrawn=0）"
     );
 
     // ★结构不变量仍保持：TW 守恒 tw()=notional_in（诊断浮盈不进 TW）+ R=Π-A-W + OQ-9 gate（legacy 腿=0）。
     assert_eq!(
-        final_state.tw_state.tw(),
-        final_state.tw_state.notional_in,
+        final_state.state.tw_state.tw(),
+        final_state.state.tw_state.notional_in,
         "TW 守恒：tw()=notional_in=1000（C' 后 Revalue 诊断-only，浮盈不进 TW）"
     );
-    assert!(final_state.ledger_state.inv_holds(), "保 R=Π-A-W");
+    assert!(final_state.state.ledger_state.inv_holds(), "保 R=Π-A-W");
     assert_eq!(
-        final_state.tw_state.open_legacy_legs, 0,
+        final_state.state.tw_state.open_legacy_legs, 0,
         "OQ-9 gate 保持（legacy 腿=0）"
     );
 }
@@ -8650,48 +8664,48 @@ fn price_magnitude_drives_diagnostic_hwm_not_tw_closed_loop() {
         rising_of(&violent),
         "对照前提：两组 rising 布尔序列相同"
     );
-    let a = run_closed_loop(&gentle, 1.0e6).expect("非空");
-    let b = run_closed_loop(&violent, 1.0e6).expect("非空");
+    let a = run_closed_loop(&gentle, 1.0e6, cl_key()).expect("非空");
+    let b = run_closed_loop(&violent, 1.0e6, cl_key()).expect("非空");
     // ★核心确证：同 rising 序列下价格幅度产出**不同**诊断 hwm_gain ⟹ 引擎消费价格幅度（管线保留 §5.4）。
     assert_ne!(
-        a.tw_state, b.tw_state,
+        a.state.tw_state, b.state.tw_state,
         "价格幅度驱动诊断 hwm_gain（tw_state 因 hwm_gain 不同而异）"
     );
     assert!(
-        b.tw_state.hwm_gain > a.tw_state.hwm_gain,
+        b.state.tw_state.hwm_gain > a.state.tw_state.hwm_gain,
         "暴涨诊断高水位 > 平缓涨（价格幅度驱动诊断）"
     );
     // ★C' 承重移除：两组 stage 均 CostReduction（浮盈不入 free ⟹ 退本金门不开），TW 均守恒 =notional_in。
     assert_eq!(
-        a.tw_state.stage,
+        a.state.tw_state.stage,
         TStage::CostReduction,
         "gentle：诊断浮盈零承重 ⟹ 停 CostReduction"
     );
     assert_eq!(
-        b.tw_state.stage,
+        b.state.tw_state.stage,
         TStage::CostReduction,
         "violent：未实现浮盈无论多大不驱动 stage（A' 黑名单行为见证）"
     );
     assert_eq!(
-        a.tw_state.tw(),
-        a.tw_state.notional_in,
+        a.state.tw_state.tw(),
+        a.state.tw_state.notional_in,
         "gentle TW 守恒 =notional_in（诊断不进 TW）"
     );
     assert_eq!(
-        b.tw_state.tw(),
-        b.tw_state.notional_in,
+        b.state.tw_state.tw(),
+        b.state.tw_state.notional_in,
         "violent TW 守恒 =notional_in（承重移除，浮盈不进 TW）"
     );
     assert_eq!(
-        a.tw_state.withdrawn, 0,
+        a.state.tw_state.withdrawn, 0,
         "gentle 未退本金（无 sound 资金源）"
     );
     assert_eq!(
-        b.tw_state.withdrawn, 0,
+        b.state.tw_state.withdrawn, 0,
         "violent 未退本金（诊断浮盈不构成退本金资金源）"
     );
     assert!(
-        b.tw_state.free == 0 && a.tw_state.free == 0,
+        b.state.tw_state.free == 0 && a.state.tw_state.free == 0,
         "两组 free 恒 0（诊断浮盈不入账 free）"
     );
 }
@@ -8729,8 +8743,8 @@ fn l2_btc_earning_shares_unreachable_hwm_debearing() {
     } else {
         &ds_full.bars
     };
-    let x = run_closed_loop(bars, 1.0e6).expect("非空 BTC bars ⟹ 闭环终态");
-    let s = x.tw_state;
+    let x = run_closed_loop(bars, 1.0e6, cl_key()).expect("非空 BTC bars ⟹ 闭环终态");
+    let s = x.state.tw_state;
     let count = if s.stage == TStage::EarningShares {
         1
     } else {
@@ -8778,20 +8792,20 @@ fn run_theta_v0_pi_carries_closed_loop_evidence() {
     let cl = res.closed_loop_final.expect("非空 bars ⟹ 闭环终态");
     // 闭环态每 bar 喂回：bar_count = 输入 bar 数。
     assert_eq!(
-        cl.micro_state.bar_count, 20,
+        cl.state.micro_state.bar_count, 20,
         "run_theta_v0_pi 内闭环驱动 20 bar"
     );
-    assert!(cl.ledger_state.inv_holds(), "回测内闭环保 R=Π-A-W");
+    assert!(cl.state.ledger_state.inv_holds(), "回测内闭环保 R=Π-A-W");
     // ★codex R3 C' 终局裁定后：注资额=首市价 closes[0]=1000=notional_in；有界振荡（1000-1020）诊断
     // 浮盈峰值 1·(1020−1000)=20（纯诊断，不入 free）⟹ TW 守恒 tw()=notional_in=1000（承重已移除）。
-    assert_eq!(cl.tw_state.notional_in, 1000, "注资额=首市价 1000");
+    assert_eq!(cl.state.tw_state.notional_in, 1000, "注资额=首市价 1000");
     assert_eq!(
-        cl.tw_state.hwm_gain, 20,
+        cl.state.tw_state.hwm_gain, 20,
         "诊断浮盈峰值 20（纯诊断，不入 free）"
     );
     assert_eq!(
-        cl.tw_state.tw(),
-        cl.tw_state.notional_in,
+        cl.state.tw_state.tw(),
+        cl.state.tw_state.notional_in,
         "TW 守恒 tw()=notional_in=1000（C' 后 Revalue 诊断-only，浮盈不进 TW）"
     );
 }
@@ -8800,7 +8814,7 @@ fn run_theta_v0_pi_carries_closed_loop_evidence() {
 #[test]
 fn closed_loop_empty_bars_none() {
     assert!(
-        run_closed_loop(&[], 1.0e6).is_none(),
+        run_closed_loop(&[], 1.0e6, cl_key()).is_none(),
         "空 bars ⟹ 无闭环终态"
     );
 }

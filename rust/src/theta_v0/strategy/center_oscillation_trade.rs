@@ -275,9 +275,11 @@ pub struct CenterOscillationActionRecord {
     pub center: CenterId,
     pub action: CenterOscillationAction,
     /// ★#381：本条动作归属的**持仓侧**（`Long`=多头 campaign，`Short`=空头 campaign）——
-    /// 同一次触发对两侧产出**镜像**动作（上沿：多头减/空头补；下沿：多头补/空头减），故
-    /// 「级别」不再足以定位记账对象，须与 [`super::oscillation_campaign::CampaignBook`] 的
-    /// `(level, side)` 键同形状。`Flat` 不构造（空仓无 campaign 可记）。
+    /// 同一次触发对两侧产出**镜像**动作（上沿：多头减/空头补；下沿：多头补/空头减）。
+    /// ★#880：`CampaignBook` 键已改 (标的, 操作级别)（重），本记录的 `level`+`side` 不再是
+    /// 定位键——`level` 经 `key_of_level` 映射到重（S3 前生产恒 legacy 单重键），`side`
+    /// 只做侧核验（重内单向，ADR 0014 裁定一：重在另一侧 ⟹ `NoActiveCampaign`）。
+    /// `Flat` 不构造（空仓无 campaign 可记）。
     pub side: VoiceSide,
 }
 

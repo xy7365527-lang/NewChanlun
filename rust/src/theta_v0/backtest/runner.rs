@@ -25,9 +25,10 @@
 //! runner_tests.rs）；strategy 另有独立的 `exec` 子模块（延迟/费用/止损成交/冲突排序，
 //! 对齐 Θ_exec，决定"成交价/方向"）。
 
-use super::super::closed_loop::state::{AssemblyState, MicroEvent};
+use super::super::closed_loop::state::{AssemblyState, ChongAssembly, MicroEvent};
 use super::super::closed_loop::transition::{hybrid_step, AssemblyEvent};
 use super::super::config::ThetaConfig;
+use super::super::strategy::chong::{ChongBook, ChongKey};
 use super::super::strategy::ledger::{RiskPolicy, TwState};
 use super::super::types::{Bar, Order, StrictAction};
 use super::super::{classifier, parser};
@@ -98,7 +99,8 @@ pub struct RunResult {
     /// ★闭环终态证据（task #94 引擎实装）：bar 闭环驱动 [`run_closed_loop`] 的终态。
     /// 证明 account+twState 每 bar 真更新喂回（非开环单帧构造一次）——见
     /// `closed_loop_threads_every_bar` 见证。`None` 仅当 bars 为空。
-    pub closed_loop_final: Option<AssemblyState>,
+    /// ★#880：终态带重键（[`ChongAssembly`]）——三阶段实例单位 = 重（ADR 0013 裁定二）。
+    pub closed_loop_final: Option<ChongAssembly>,
     /// ★每笔完整平仓交易的**已实现成交盈亏**（**不含**窗口终点强平的浮盈）——§3.4 block
     /// bootstrap（H0:收益≤0）的输入，**已实现口径**。区别于含浮盈口径（[`trade_pnls_with_forced`]）。
     /// 真实数据回测时这是 L2 否证/确认的数据基础（区别于 `metrics.strat_return` 的 MtM 口径）。
@@ -279,7 +281,13 @@ fn run_theta_v0_pi_inner(
     let bars = &dataset.bars;
 
     // 闭环终态证据（与退役 v1 契约同——bar 闭环驱动）。
-    let closed_loop_final = run_closed_loop(bars, initial_nav);
+    // ★#880：legacy 单重占位键（全账户 = 一个重，同 fill 侧 #879 `ChongBook` 占位；S3 前
+    // 塔无操作级别概念，op_level=0 占位、不得以之推理级别语义）。
+    let closed_loop_final = run_closed_loop(
+        bars,
+        initial_nav,
+        ChongBook::legacy_single_key(&dataset.symbol),
+    );
 
     // 步骤 3+4+5：七链 π_Θ per-bar 驱动 + fill（三适配器 [A][B][C] + 执行层父容器 σ_p + 风控门）。
     // ★[A] 执行层 σ_p = 父容器方向（639）：fill loop 每 bar i 经 `IncrementalClassifier::classify_at(i)`
@@ -563,7 +571,12 @@ pub fn run_theta_v0_pi_overlay(
     let fee_rate =
         (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
     let theta_return_mtm = m.strat_return;
-    let closed_loop_final = run_closed_loop(bars, initial_nav);
+    // ★#880：legacy 单重占位键（同上）。
+    let closed_loop_final = run_closed_loop(
+        bars,
+        initial_nav,
+        ChongBook::legacy_single_key(&dataset.symbol),
+    );
     let net_result = RunResult {
         symbol: dataset.symbol.clone(),
         metrics: m,
@@ -719,7 +732,10 @@ pub(super) fn typed_ledger_from_bars(bars: &[Bar], config: &ThetaConfig) -> Vec<
 /// 内的 `TwState`（真实交易事件流驱动，I_Θ 组合层 P2/P3/P4 谓词消费）。本函数的极简摘要事件流
 /// （`NewBar(rising)` 布尔）与生产 π 订单流 disjoint，其输出仅作 `closed_loop_final` 结构证据，
 /// 不喂任何 alpha 判定。
-pub fn run_closed_loop(bars: &[Bar], initial_nav: f64) -> Option<AssemblyState> {
+/// ★#880：`key` = 本闭环归属的重键（标的, 操作级别）——返回 [`ChongAssembly`]
+/// （键+态）。当前生产只跑一个重（legacy 单重占位键，同 #879 `ChongBook`）；多重 =
+/// 逐键各跑一次本函数（N 个 `ChongAssembly`），随 SPEC #847 S3 落地。
+pub fn run_closed_loop(bars: &[Bar], initial_nav: f64, key: ChongKey) -> Option<ChongAssembly> {
     if bars.is_empty() {
         return None;
     }
@@ -771,7 +787,7 @@ pub fn run_closed_loop(bars: &[Bar], initial_nav: f64) -> Option<AssemblyState> 
             .expect("run_closed_loop 生产闭环恒 Ok（schedule 只派 ShortDiff + cash 约束 + stage_progression w≤free）");
         prev_close = bar.close;
     }
-    Some(x)
+    Some(ChongAssembly { key, state: x })
 }
 
 /// buy&hold 收益率（首尾可交易 bar 的 close 比率）。整数 tick 比率无 tick_size 依赖。

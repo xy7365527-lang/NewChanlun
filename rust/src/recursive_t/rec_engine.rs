@@ -39,7 +39,10 @@
 //! - flat `nearest_active_parent(j)` = `(j+1..MAX).find(active)` → 遍历 instances 找 level>j 最低 active。
 //! - flat `highest_active()` → 遍历 instances 找最高 level active。
 //! - flat 单核心 campaign 三阶段（`stage`/`core_cost_basis`/`withdrawn`/`earning_cash`）→ 在 `TRoot`
-//!   （非 per-instance，per-instance 三阶段是递归自创，已删）。
+//!   （非 per-instance，per-instance 三阶段是递归自创，已删）。★#880（SPEC #847 S2，ADR 0013
+//!   裁定二）：单 campaign 的**实例单位 = 重**——`TRoot` 逐 `ChongKey`（标的, 操作级别）绑定
+//!   （见 [`TRoot::chong_key`]），一台 TRoot = 一重的引擎；N 重 = N 台 TRoot。这不是
+//!   per-TInstance 回退：`instances[level]` 仍是塔的仓位层，三阶段只在根上一份。
 //! - flat `route_bsp`/`sink`/`recover`/`drain`/`enter`/`ascend`/`emergence_upgrade`/`clear_all`/`step`
 //!   → `TRoot` 同名方法，逐行对照 flat。
 //!
@@ -75,6 +78,7 @@ use super::types::Direction;
 // 不同，而 ADR 0017 裁定八已判上档测不出）。正本：
 // `.chanlun/genealogy/settled/542-spawn-allocation-sigma-invariant.md` `## ★§925 订正`。
 use crate::fugue_v3::{MOBILE_FRAC, SUB_LIQ_FACTOR};
+use crate::theta_v0::strategy::chong::{ChongBook, ChongKey};
 use crate::trading::types::Polarity;
 /// 活跃/零化阈值 = flat（`Layer::is_active` / `reduce_at` 零化 / `add_at` 占用 = `1e-12`）。
 /// **对照 flat，不自创**：rec 此前用 `1e-9`（比 flat 大 1000×），在 BTC 几何塔深层（核心 units
@@ -948,7 +952,14 @@ impl Default for LevelView {
 // ════════════════════════════ 递归 T 根（= flat TPositionEngine，单 free 池 + 单 campaign）════════════════════════════
 
 /// 递归 T 引擎根（= flat `TPositionEngine`）：`instances[level]` 净仓位 + 单 free 池 + 单 campaign 三阶段。
+///
+/// ★#880（SPEC #847 S2）：**一台 `TRoot` = 一重**——`chong_key`（标的, 操作级别）在构造点
+/// 绑定（ADR 0013 裁定二，成本状态不进键）；单 campaign 三阶段即该重的三阶段（一重内部
+/// 对所有结构级别总体单一：`instances[level]` 各层的 sink/recover 全部汇进根上同一个
+/// `stage`/`core_cost_basis`）。多重 = 多台 `TRoot`，键互不串态。
 pub struct TRoot {
+    /// 本台引擎归属的重键（★#880；构造绑定，运行期不变）。
+    chong_key: ChongKey,
     /// 各 level 净仓位（索引 = level）。
     instances: Vec<TInstance>,
     /// 单一共享现金池（NAV = free + Σ sign(d)·u·c）。
@@ -1156,15 +1167,29 @@ pub struct TRoot {
 }
 
 impl TRoot {
-    /// 默认从 env 构造（= 当前 main 行为）。
+    /// 默认从 env 构造（= 当前 main 行为）。★#880：绑定 legacy 单重占位键（全账户 =
+    /// 一个重，同 #879 `ChongBook` 占位；S3 落地前塔无操作级别概念）。
     pub fn new(initial_capital: f64) -> Self {
         Self::new_with_config(initial_capital, EngineConfig::from_env())
     }
 
-    /// 显式配置构造（受控实验：OFF / ANCHOR / NEST 单进程多变体）。
+    /// 显式配置构造（受控实验：OFF / ANCHOR / NEST 单进程多变体）。★#880：绑定 legacy
+    /// 单重占位键（同上）；逐重建引擎用 [`Self::new_for_chong`]。
     pub fn new_with_config(initial_capital: f64, cfg: EngineConfig) -> Self {
+        Self::new_for_chong(
+            ChongBook::legacy_single_key(ChongBook::LEGACY_SYMBOL),
+            initial_capital,
+            cfg,
+        )
+    }
+
+    /// ★#880（SPEC #847 S2）：逐**重**构造——`key` = (标的, 操作级别)（ADR 0013 裁定二）。
+    /// 同标的不同操作级别各建一台，三阶段各自独立推进；一重内部塔各结构级别共享根上
+    /// 同一个 campaign。
+    pub fn new_for_chong(key: ChongKey, initial_capital: f64, cfg: EngineConfig) -> Self {
         let instances = (0..MAX_LEVEL).map(TInstance::idle).collect();
         TRoot {
+            chong_key: key,
             instances,
             free: initial_capital,
             last_close: f64::NAN,
@@ -1321,6 +1346,10 @@ impl TRoot {
         );
     }
 
+    /// ★#880：本台引擎归属的重键（构造绑定 = 三阶段实例单位）。
+    pub fn chong_key(&self) -> &ChongKey {
+        &self.chong_key
+    }
     pub fn free(&self) -> f64 {
         self.free
     }
@@ -3706,5 +3735,103 @@ mod lambda_single_source_tests {
         for &u in &[1.0_f64, 30.0, 1_000_000.0] {
             prove_sigma_quota(quota(u), u, 4, 0);
         }
+    }
+}
+
+#[cfg(test)]
+mod chong_binding_tests {
+    //! ★#880（SPEC #847 S2，ADR 0013 裁定二）：三阶段实例单位 = 重——`TRoot` 逐
+    //! `ChongKey`（标的, 操作级别）绑定。验收单测：同标的不同操作级别各自独立推进
+    //! 三阶段；同重跨结构级别共享同一实例（根上唯一 campaign，塔各层的 sink/recover
+    //! 全部汇进它）。
+    use super::*;
+
+    fn key(op_level: u8) -> ChongKey {
+        ChongKey {
+            symbol: "BTC".to_string(),
+            op_level,
+        }
+    }
+
+    /// 测试绕开「主动操作必有触发源」守卫（prove_bsp_triggers_operation）：本组测的是
+    /// 三阶段记账的单位归属，不是触发路由——显式声明 BSP 触发源。
+    fn arm_trigger(r: &mut TRoot) {
+        r.guards
+            .set_trigger(crate::recursive_t::prove_guards::OpTrigger::Bsp);
+    }
+
+    fn cfg_three_stage() -> EngineConfig {
+        let mut cfg = EngineConfig::off();
+        cfg.enable_three_stage = true;
+        cfg.enable_earning = true;
+        cfg
+    }
+
+    /// 同标的不同操作级别 = 两台 TRoot，三阶段各自独立推进（互不串态）；legacy 构造
+    /// 绑定 legacy 单重占位键。
+    #[test]
+    fn troot_three_phase_instances_are_independent_per_chong_key() {
+        let mut r1 = TRoot::new_for_chong(key(1), 100_000.0, cfg_three_stage());
+        let r2 = TRoot::new_for_chong(key(2), 100_000.0, cfg_three_stage());
+        assert_eq!(r1.chong_key(), &key(1));
+        assert_eq!(r2.chong_key(), &key(2));
+        assert_eq!(
+            TRoot::new(100_000.0).chong_key(),
+            &ChongBook::legacy_single_key(ChongBook::LEGACY_SYMBOL),
+            "legacy 构造绑定 legacy 单重占位键"
+        );
+
+        // 只推进 r1：核心建仓 @10（notional_in=100_000，core_cost_basis=10），再一次
+        // Long reduce 把成本基打到 ≤0 ⟹ CostReduction → CapitalRecovered →（free 足额
+        // 退本金）→ EarningShares。
+        let node = TrendNode::new(0, 1, 1.0, 2.0, Direction::Up);
+        arm_trigger(&mut r1);
+        r1.enter(2, Polarity::Long, node, 10.0);
+        assert_eq!(r1.stage(), RecStage::CostReduction);
+        let rem = r1.core_long_units();
+        // 减出的现金回流 free（生产路径由 rec_reduce 在成交侧做，本测试直置）——
+        // 退本金门 `free ≥ notional_in` 才能足额放行。
+        r1.free += 11.0 * rem;
+        r1.account_reduce(Polarity::Long, 11.0 * rem, 11.0); // 降成本 realized=110% 成本基
+        assert_eq!(
+            r1.stage(),
+            RecStage::EarningShares,
+            "r1 推进到阶段三（成本≤0 且 free 足额退本金）"
+        );
+        assert_eq!(
+            r2.stage(),
+            RecStage::CostReduction,
+            "r2（另一重）不被 r1 的推进污染"
+        );
+        assert_eq!(r2.withdrawn_total(), 0.0);
+    }
+
+    /// 同重跨结构级别共享同一实例：塔两层（L2 核心 + L1 机动腿）同时有持仓，三阶段
+    /// 仍是根上**同一个** campaign（单一 stage/notional_in），任意层的 reduce 盈利都
+    /// 汇进它推进阶段。
+    #[test]
+    fn troot_single_campaign_is_shared_across_structural_levels() {
+        let mut r = TRoot::new_for_chong(key(1), 100_000.0, cfg_three_stage());
+        let node = TrendNode::new(0, 1, 1.0, 2.0, Direction::Up);
+        arm_trigger(&mut r);
+        r.enter(2, Polarity::Long, node, 10.0);
+        // L1 机动腿持仓（sink 短差的会计同构：`rec_add` 到另一层实例，不碰 campaign 字段）。
+        let mut free = r.free;
+        rec_add(&mut r.instances[1], 5.0, Polarity::Long, &mut free, 10.0);
+        r.free = free;
+        assert!(r.instances[1].is_active() && r.instances[2].is_active());
+        // 层 1 的减出盈利汇进根上同一 campaign：成本基下降，阶段机只有一份。
+        let rem = r.core_long_units();
+        let before = r.core_cost_basis;
+        r.account_reduce(Polarity::Long, 1.0 * rem, 11.0);
+        assert!(
+            r.core_cost_basis < before,
+            "L1 减出盈利降的是根上同一个成本基（跨结构级别共享）"
+        );
+        assert_eq!(
+            r.chong_key(),
+            &key(1),
+            "成本状态变化不改键（键不进成本状态）"
+        );
     }
 }

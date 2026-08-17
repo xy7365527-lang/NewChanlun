@@ -882,7 +882,12 @@ mod profile {
 
             // ② closed_loop（engine_full 含此项，须扣除）。
             let t = std::time::Instant::now();
-            let _ = run_closed_loop(bars, 1.0);
+            let _ = run_closed_loop(
+                bars,
+                1.0,
+                // ★#880：基准计时只需占位重键（单重即 legacy 键）。
+                crate::theta_v0::strategy::chong::ChongBook::legacy_single_key("bench"),
+            );
             let t_clloop = t.elapsed().as_secs_f64();
 
             // ③ engine_full：production per-bar 引擎入口（prefix Dataset，source_index 已=局部下标）。

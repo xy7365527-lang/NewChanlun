@@ -724,8 +724,10 @@ mod tests {
             // `gamma_x` 时刻分组过滤，同条目重登记。mod.rs:4548→4551 测试夹具点同款处理。）
             // （2026-08-17 #879：strategy/mod.rs 顶部增 `pub mod chong;` 模块块 4 行 ⟹
             // 553→557 / 775→779，逐条重核内容不变（同为 `gamma_x` 时刻分组过滤），同条目重登记。）
-            "theta_v0/strategy/mod.rs:557",
-            "theta_v0/strategy/mod.rs:779",
+            // （2026-08-18 #880：strategy/mod.rs 的 oscillation_campaign 模块块注释 +1 行
+            // （每仓→每重改挂说明）⟹ 557→558 / 779→780，逐条重核内容不变（同上），同条目重登记。）
+            "theta_v0/strategy/mod.rs:558",
+            "theta_v0/strategy/mod.rs:780",
         ];
 
         let src_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");

@@ -1318,19 +1318,33 @@ struct CenterOscillationStepOutput {
     rebase_observations: Vec<RebaseObservationInput>,
 }
 
-/// issue #357（T4/#294 生产实例化）：`step_center_oscillation` 产出的减/补动作 → 每仓
+/// issue #357（T4/#294 生产实例化）：`step_center_oscillation` 产出的减/补动作 → 每重
 /// campaign 生死驱动 + 对偶事件记账（ShortDiff 成本基 + Realize 盈亏，经 closed_loop 带门
 /// 通道）的接线点。纯函数化——可脱离完整 fill 循环直接单测（同 `step_center_oscillation`
 /// 先例），不读取 `tower_i`/pan_div 门内部。
 ///
-/// 顺序：先按本仓口径（编排者裁定 A：`Core{level}` 身份账户）逐级 `sync_position`（本级持仓
-/// 空⟺持仓生死判据），再逐条消费本 bar 新产出的减/补动作（`apply_action`）——与生产调用点
+/// ★#880（SPEC #847 S2，ADR 0013 裁定二）：**三阶段实例单位 = 重**——`CampaignBook` 键 =
+/// (标的, 操作级别)。本函数先把各**结构**级别的本仓快照经 `key_of_level` **聚合到重**
+/// （分侧 Σ units / Σ cost_basis；同重跨结构级别共享同一 campaign 实例的接线落点在此），
+/// 再每重每 bar 恰 `sync_position` 一次。塔尚无操作级别概念（S3 未落地），生产调用点传
+/// legacy 单重键（全账户 = 一个重，同 #879 `ChongBook` 占位）；多重实例化随 S3 换
+/// `key_of_level` 映射，本函数聚合语义不变。⚠️ 这不是 per-TInstance 回退——重 ≠ 塔层，
+/// 聚合方向是「结构级别 → 重」，不是「每塔层一台」。
+///
+/// **重内单向**（ADR 0014 裁定一）：聚合后同重两侧同时有持仓 = enforcement 被改坏的
+/// 警报——落 witness `chong_side_conflict` 桶（`CampaignViolation::SideConflict`），本 bar
+/// 跳过该重的 sync（不猜该听哪一侧），存续 campaign 状态不被改写。
+///
+/// 顺序：先按本仓口径（编排者裁定 A：`Core{level}` 身份账户）逐级取数、按键聚合后
+/// `sync_position`（重持仓空⟺持仓生死判据），再逐条消费本 bar 新产出的减/补动作
+/// （`apply_action`，按 `key_of_level(rec.level)` 路由）——与生产调用点
 /// `pi_theta_fill_loop_overlay` 的既有顺序一致。
 ///
-/// ★#381（本票）：**两侧对称支持**——`(level, side)` 键的 campaign 各自独立生死/记账，空头侧
-/// 短差为多头镜像（减=回补空头、补=加回空头，判据在 `CenterOscillationBook::on_trigger_side`，
-/// 记账镜像在 `ShortDiffAccount`）。下段 #357 关票条件 C 的「只支持多头侧」处置**已被本票取代**，
-/// 保留为谱系注记：`unsupported_short_position_count` 桶随之退役。
+/// ★#381（本票）：**两侧对称支持**——campaign 各自独立生死/记账（★#880 后按重分账、侧
+/// 为开局属性），空头侧短差为多头镜像（减=回补空头、补=加回空头，判据在
+/// `CenterOscillationBook::on_trigger_side`，记账镜像在 `ShortDiffAccount`）。下段 #357 关票
+/// 条件 C 的「只支持多头侧」处置**已被 #381 取代**，保留为谱系注记：
+/// `unsupported_short_position_count` 桶随之退役。
 ///
 /// ★issue #357 关票条件 C（★已被 #381 取代，下段为历史口径）：**本接线只支持多头侧 campaign**（方案2）——`account_view.balance(account)`
 /// 对同身份实例有符号净额求和（account.rs:341-347，多正空负），而 `identity_of` 把
@@ -1344,6 +1358,11 @@ struct CenterOscillationStepOutput {
 /// `money` 字段口径 `as i64` 截断：**不再**援引 `TwLedgerThread::sync_basis_raw`
 /// 先例——该先例是 `(units.abs()*entry_cost.abs())`（空头取绝对额=在险市值），与本接线改分侧
 /// 后的多头侧口径同为正数但成因不同，两者截断写法只是形似，不构成同一惯例，不再混引。
+///
+/// ★#880 聚合口径（旧「符号不对即视同空仓」按侧按级保留）：逐侧取 `held`（空头侧翻符号）
+/// 后 **`held>0` 才进聚合**——某级某侧符号异常（负）视同该级该侧空仓、不稀释同重其它级别
+/// 的正持仓；成本基只累加有持仓级别的 `cost_basis_side`（恒正口径不变）。
+#[allow(clippy::too_many_arguments)] // #880 增 key_of_level（结构级别→重映射），同仓惯例
 fn drive_campaign_wiring(
     bar: usize,
     n_levels: u32,
@@ -1354,18 +1373,30 @@ fn drive_campaign_wiring(
     risk_mode: super::super::closed_loop::state::RiskMode,
     campaign_book: &mut super::super::strategy::oscillation_campaign::CampaignBook,
     witness: &mut super::super::strategy::oscillation_campaign::CampaignWiringWitness,
+    // ★#880：结构级别 → 重键映射（S3 未落地前生产恒 legacy 单重键）。
+    key_of_level: &dyn Fn(u32) -> super::super::strategy::chong::ChongKey,
 ) {
+    use super::super::strategy::chong::ChongKey;
+    use super::super::strategy::oscillation_campaign::CampaignViolation;
+    use super::super::strategy::short_diff_bucket::CoreCostBasisSnapshot;
     use super::super::strategy::voice::VoiceSide;
 
+    // ★#880：逐（重, 侧）聚合——同重跨结构级别共享同一实例（ADR 0013 裁定二）。
+    #[derive(Default)]
+    struct ChongAgg {
+        long_units: i64,
+        long_cost_basis: i64,
+        short_units: i64,
+        short_cost_basis: i64,
+    }
+    let mut agg: std::collections::BTreeMap<ChongKey, ChongAgg> = std::collections::BTreeMap::new();
     for lvl in 0..n_levels {
         let account = strategy::account::AccountIdentity::Core { level: lvl };
-        // ★#381：逐（级别, 侧）各自 sync——空头侧余额是负数（多正空负，account.rs:341-347），
-        // 按侧**翻符号**（非取绝对值）折成「持有份数」：`units>0 ⟺ 该侧有仓`，两侧口径由此
-        // 对称。取绝对值会把「多头侧余额意外为负」这类异常态伪装成有仓；翻符号则让两侧各自
-        // 保持「符号不对即视同空仓」的既有多头侧行为（多头侧读数逐字节不变）。
-        // `cost_basis_side` 恒为正的在险市值口径（account.rs:292 `delta.abs()*fill_px`），不翻。
-        // ★#380 项二：本读数逐 bar 同时喂两处——开局时冻结为 sizing 基准（`CoreCostBasisSnapshot`），
-        // 存续期刷新 campaign 的 `current_units`（防线读当前的现值来源）。
+        // ★#381：逐侧各自取数——空头侧余额是负数（多正空负，account.rs:341-347），按侧
+        // **翻符号**（非取绝对值）折成「持有份数」：`held>0 ⟺ 该侧有仓`。取绝对值会把
+        // 「多头侧余额意外为负」这类异常态伪装成有仓；翻符号保持「符号不对即视同空仓」
+        // 的既有多头侧行为。`cost_basis_side` 恒为正的在险市值口径（account.rs:292
+        // `delta.abs()*fill_px`），不翻。★#880：`held>0` 才进聚合（见函数文档聚合口径）。
         for side in [VoiceSide::Long, VoiceSide::Short] {
             let signed = account_view.balance_side(account, side);
             let held = if matches!(side, VoiceSide::Short) {
@@ -1373,20 +1404,90 @@ fn drive_campaign_wiring(
             } else {
                 signed
             };
-            let snapshot = super::super::strategy::short_diff_bucket::CoreCostBasisSnapshot::new(
-                held as i64,
-                account_view.cost_basis_side(account, side) as i64,
-            );
-            if let Some(event) = campaign_book.sync_position(lvl, side, snapshot, bar) {
-                witness.record_lifecycle(event);
+            if held <= 0.0 {
+                continue;
             }
+            let entry = agg.entry(key_of_level(lvl)).or_default();
+            let cb = account_view.cost_basis_side(account, side) as i64;
+            // 迭代域只含 Long/Short（`Flat` 不参与）；用 if/else 避开第三变体的伪穷尽。
+            if matches!(side, VoiceSide::Long) {
+                entry.long_units += held as i64;
+                entry.long_cost_basis += cb;
+            } else {
+                entry.short_units += held as i64;
+                entry.short_cost_basis += cb;
+            }
+        }
+    }
+    // 每重每 bar 恰 sync 一次：有持仓的键按聚合快照 sync；簿内现存但本 bar 已无持仓的键
+    // 以空仓快照 sync（死亡判据）——死亡事件的侧取自将死 campaign 自身，此处 `Long` 为
+    // 占位（空仓快照不携侧，该入参在 (true→false) 分支不被消费）。
+    fn sync_one(
+        book: &mut super::super::strategy::oscillation_campaign::CampaignBook,
+        witness: &mut super::super::strategy::oscillation_campaign::CampaignWiringWitness,
+        bar: usize,
+        key: &ChongKey,
+        side: VoiceSide,
+        units: i64,
+        cost_basis: i64,
+    ) {
+        match book.sync_position(
+            key.clone(),
+            side,
+            CoreCostBasisSnapshot::new(units, cost_basis),
+            bar,
+        ) {
+            Ok(Some(event)) => witness.record_lifecycle(event),
+            Ok(None) => {}
+            // ★#880：穿零未经过空仓 bar（重内单向 enforcement 被改坏）——落警报桶，
+            // 不静默翻侧。
+            Err(violation) => witness.record_violation(side, violation),
+        }
+    }
+    for (key, a) in &agg {
+        match (a.long_units > 0, a.short_units > 0) {
+            (true, true) => {
+                // ★#880：重内单向（ADR 0014 裁定一）违例——同重两侧同时有持仓。落警报桶
+                // 并跳过本 bar 该重的 sync（不猜听哪一侧，存续 campaign 不被改写）。
+                witness.record_violation(
+                    VoiceSide::Long,
+                    CampaignViolation::SideConflict {
+                        campaign_side: VoiceSide::Long,
+                        incoming: VoiceSide::Short,
+                    },
+                );
+            }
+            (true, false) => sync_one(
+                campaign_book,
+                witness,
+                bar,
+                key,
+                VoiceSide::Long,
+                a.long_units,
+                a.long_cost_basis,
+            ),
+            (false, true) => sync_one(
+                campaign_book,
+                witness,
+                bar,
+                key,
+                VoiceSide::Short,
+                a.short_units,
+                a.short_cost_basis,
+            ),
+            (false, false) => unreachable!("聚合条目仅在 held>0 时建立"),
+        }
+    }
+    let live_keys: Vec<ChongKey> = campaign_book.keys().cloned().collect();
+    for key in &live_keys {
+        if !agg.contains_key(key) {
+            sync_one(campaign_book, witness, bar, key, VoiceSide::Long, 0, 0);
         }
     }
     for rec in new_osc_actions {
         witness.record_action(rec.level, rec.side, rec.action);
-        match campaign_book.apply_action(
-            rec.level, rec.side, rec.action, price, risk_mode, rec.center,
-        ) {
+        let key = key_of_level(rec.level);
+        match campaign_book.apply_action(&key, rec.side, rec.action, price, risk_mode, rec.center) {
             // ★#380 项三/项一/项四：旧版 `Ok(_outcome) => {}` 把成功产出整个丢弃——阶段推进事件
             // （`RecoverCapital`/`EnterEarning`，#368 切换开关的唯一可读证据）、亏损入账、挂起
             // 冲抵归属全部不可见。现逐项落 witness（纯观测，不改变任何决策）。
@@ -1406,7 +1507,7 @@ fn drive_campaign_wiring(
                 }
                 if let Some(ev) = outcome.stage_event {
                     let bars_since_open = campaign_book
-                        .campaign(rec.level, rec.side)
+                        .campaign(&key)
                         .map(|c| c.bars_since_open(bar))
                         .unwrap_or(0);
                     witness.record_stage_event(rec.level, rec.side, bar, bars_since_open, ev);
@@ -1414,7 +1515,7 @@ fn drive_campaign_wiring(
             }
             Err(violation) => {
                 // ★#381：`is_short_side_held` 随 `unsupported_short_position_count` 桶退役——
-                // 空头侧已有自己的 `(level, Short)` campaign，拒绝按侧自解释。
+                // 拒绝按侧自解释（★#880：含「重有 campaign 但在另一侧」的侧核验拒绝）。
                 witness.record_violation(rec.side, violation);
             }
         }
@@ -1424,9 +1525,12 @@ fn drive_campaign_wiring(
     // 内若该中枢的收手回补也在（闭合与核销互斥，同侧同中枢不会重复清算），顺序不影响结果；
     // 置后使既有动作路径的时序逐字节不变。
     for req in new_write_offs {
-        match campaign_book.write_off_unclosed(req.level, req.side, req.center) {
+        let key = key_of_level(req.level);
+        // ★#880：`req.level` 同时是来源中枢的**结构级别**归属（进 `UnclosedReduction.level`
+        // 呈报），定位只认键+侧。
+        match campaign_book.write_off_unclosed(&key, req.side, req.level, req.center) {
             Ok(Some(reduction)) => witness.record_write_off(&reduction),
-            // 该侧空仓无 campaign，或该中枢本就无挂起批次（高抛后已自然收口）——照实计数。
+            // 该侧重在该侧空仓无 campaign，或该中枢本就无挂起批次（高抛后已自然收口）——照实计数。
             Ok(None) => witness.record_write_off_nothing_to_settle(req.side),
             Err(violation) => witness.record_violation(req.side, violation),
         }
@@ -1469,6 +1573,19 @@ mod campaign_wiring_tests {
                 generation: 0,
             },
         )
+    }
+
+    /// ★#880：测试重键（键 = (标的, 操作级别)，ADR 0013 裁定二）。
+    fn ck(op_level: u8) -> super::super::super::strategy::chong::ChongKey {
+        super::super::super::strategy::chong::ChongKey {
+            symbol: "T".to_string(),
+            op_level,
+        }
+    }
+
+    /// ★#880：测试默认映射——所有结构级别同属一重 ("T", 0)（= 生产 legacy 单重占位的同形）。
+    fn one_chong(_: u32) -> super::super::super::strategy::chong::ChongKey {
+        ck(0)
     }
 
     fn record(level: u32, action: CenterOscillationAction) -> CenterOscillationActionRecord {
@@ -1525,10 +1642,11 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
 
         let campaign = book
-            .campaign(0, VoiceSide::Long)
+            .campaign(&ck(0))
             .expect("Core{0} 持仓非空 ⟹ 应已开局 campaign");
         assert_eq!(
             campaign.tw().notional_in,
@@ -1571,6 +1689,7 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         let actions = vec![record(0, CenterOscillationAction::Reduce)];
         drive_campaign_wiring(
@@ -1583,8 +1702,9 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
-        let tw_before = book.campaign(0, VoiceSide::Long).unwrap().tw();
+        let tw_before = book.campaign(&ck(0)).unwrap().tw();
 
         let write_offs = vec![
             super::super::super::strategy::center_oscillation_trade::UnclosedWriteOffRequest {
@@ -1604,6 +1724,7 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
 
         assert_eq!(
@@ -1621,7 +1742,7 @@ mod campaign_wiring_tests {
             Some(&1_200),
             "多头侧桶实收=units·avg_cost+units·(price−avg_cost)=units·price=100·12（与货缺口分列，不相减）"
         );
-        let campaign = book.campaign(0, VoiceSide::Long).unwrap();
+        let campaign = book.campaign(&ck(0)).unwrap();
         assert_eq!(campaign.tw(), tw_before, "核销不产 TwEvent ⟹ TW 不漂移");
         assert_eq!(campaign.short_diff().bucket().open_units(), 0, "在途量归位");
         assert_eq!(
@@ -1660,6 +1781,7 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         let actions = vec![record(0, CenterOscillationAction::Reduce)];
         drive_campaign_wiring(
@@ -1672,9 +1794,10 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         assert_eq!(
-            book.campaign(0, VoiceSide::Long)
+            book.campaign(&ck(0))
                 .unwrap()
                 .short_diff()
                 .bucket()
@@ -1704,12 +1827,10 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
 
-        assert!(
-            book.campaign(0, VoiceSide::Long).is_none(),
-            "全平 ⟹ campaign 终结"
-        );
+        assert!(book.campaign(&ck(0)).is_none(), "全平 ⟹ campaign 终结");
         assert_eq!(witness.lifecycle_died.get("long"), Some(&1));
         assert_eq!(
             witness.death_write_off_count.get("long"),
@@ -1763,6 +1884,7 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         let write_offs = vec![
             super::super::super::strategy::center_oscillation_trade::UnclosedWriteOffRequest {
@@ -1782,6 +1904,7 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         assert_eq!(
             witness.unclosed_write_off_nothing_to_settle.get("long"),
@@ -1826,6 +1949,7 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
 
         let reduce = vec![record(0, CenterOscillationAction::Reduce)];
@@ -1841,6 +1965,7 @@ mod campaign_wiring_tests {
                 RiskMode::Normal,
                 &mut book,
                 &mut witness,
+                &one_chong,
             );
             drive_campaign_wiring(
                 2 * round,
@@ -1852,6 +1977,7 @@ mod campaign_wiring_tests {
                 RiskMode::Normal,
                 &mut book,
                 &mut witness,
+                &one_chong,
             );
         }
         // bar 16 的回补上退本金——由生产接线自己记进 witness（非单测手调 record_stage_event）。
@@ -1884,6 +2010,7 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         assert_eq!(
             witness.stage_enter_earning_count, 0,
@@ -1906,6 +2033,7 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         assert_eq!(
             witness.stage_enter_earning_count, 1,
@@ -1919,7 +2047,7 @@ mod campaign_wiring_tests {
             "★切换时点读数=次 bar（19）"
         );
         assert!(
-            !book.campaign(0, VoiceSide::Long).unwrap().earning_active(),
+            !book.campaign(&ck(0)).unwrap().earning_active(),
             "事件 bar 上尚未换尺"
         );
         assert!(
@@ -1939,15 +2067,13 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         assert!(
-            book.campaign(0, VoiceSide::Long).unwrap().earning_active(),
+            book.campaign(&ck(0)).unwrap().earning_active(),
             "★次 bar 起模式生效"
         );
-        assert_eq!(
-            book.campaign(0, VoiceSide::Long).unwrap().earning_pool(),
-            1_200
-        );
+        assert_eq!(book.campaign(&ck(0)).unwrap().earning_pool(), 1_200);
         drive_campaign_wiring(
             20,
             1,
@@ -1958,6 +2084,7 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         assert_eq!(
             witness.earning_replenish_count.get("long"),
@@ -2002,6 +2129,7 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         let actions = vec![record(0, CenterOscillationAction::Reduce)];
         drive_campaign_wiring(
@@ -2014,9 +2142,10 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
 
-        let campaign = book.campaign(0, VoiceSide::Long).unwrap();
+        let campaign = book.campaign(&ck(0)).unwrap();
         assert_eq!(
             campaign.short_diff().bucket().open_units(),
             100,
@@ -2066,9 +2195,10 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         let before = book
-            .campaign(0, VoiceSide::Long)
+            .campaign(&ck(0))
             .expect("Core{0} 开仓应实例化 campaign")
             .clone();
 
@@ -2083,10 +2213,9 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
-        let after = book
-            .campaign(0, VoiceSide::Long)
-            .expect("Reduce 后 campaign 仍存活");
+        let after = book.campaign(&ck(0)).expect("Reduce 后 campaign 仍存活");
 
         let child_realized = after.ledger().pi - before.ledger().pi;
         let tw_realized = after.tw().tw() - before.tw().tw();
@@ -2141,8 +2270,9 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
-        assert!(book.campaign(0, VoiceSide::Long).is_none());
+        assert!(book.campaign(&ck(0)).is_none());
 
         // bar1：真实开仓 fill（200 股 @15）——campaign 应开局。
         let open = AccountOrder {
@@ -2162,9 +2292,10 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         assert!(
-            book.campaign(0, VoiceSide::Long).is_some(),
+            book.campaign(&ck(0)).is_some(),
             "真实持仓事件流 ⟹ campaign 开局"
         );
         assert_eq!(witness.lifecycle_opened.get("long"), Some(&1));
@@ -2187,9 +2318,10 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         assert!(
-            book.campaign(0, VoiceSide::Long).is_none(),
+            book.campaign(&ck(0)).is_none(),
             "真实全平事件流 ⟹ campaign 终结"
         );
         assert_eq!(witness.lifecycle_died.get("long"), Some(&1));
@@ -2215,6 +2347,7 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         assert_eq!(
             witness.no_active_campaign_count.get("long"),
@@ -2271,13 +2404,15 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
-        assert!(
-            book.campaign(0, VoiceSide::Long).is_none(),
-            "多头侧真空仓 ⟹ 多头 campaign 不开局"
+        assert_eq!(
+            book.active_count(),
+            1,
+            "★#880：只开一本（空头侧）——多头侧真空仓不开局（侧不进键，同一键即同一重）"
         );
         let short_campaign = book
-            .campaign(0, VoiceSide::Short)
+            .campaign(&ck(0))
             .expect("★#381：空头侧持仓 ⟹ 空头 campaign 开局");
         assert_eq!(short_campaign.side(), VoiceSide::Short);
         assert_eq!(
@@ -2317,9 +2452,10 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
         assert_eq!(
-            book.campaign(0, VoiceSide::Short)
+            book.campaign(&ck(0))
                 .unwrap()
                 .short_diff()
                 .bucket()
@@ -2339,10 +2475,241 @@ mod campaign_wiring_tests {
         assert_eq!(witness.other_violation_count, 0, "正常记账路径无警报");
     }
 
-    /// ★#381 验收③：多空并存互不污染——两侧各自独立 campaign，`notional_in` 各按各侧成本基
-    /// （多头 3000 / 空头 1000），生死互不牵连。
+    /// ★#381 验收③ 改写（★#880，ADR 0014 裁定一）：多空并存 = **两个重**（不同操作级别）
+    /// 互不污染——重内单向，同一键不可多空并存；两侧各自独立 campaign，`notional_in` 各按
+    /// 各重成本基（多头 3000 / 空头 1000），生死互不牵连。本条同时是 #880 验收单测：
+    /// **同标的不同操作级别各自独立推进三阶段**（键 = (标的, 操作级别)，ADR 0013 裁定二）。
     #[test]
     fn drive_campaign_wiring_long_and_short_campaigns_coexist_without_contamination() {
+        let mut account_view = strategy::account::ParallelAccountLedger::new();
+        account_view.post(
+            AccountOrder {
+                key: core_key(0),
+                reason: ActionReason::Open,
+                qty_delta: 300.0,
+                decision_bar: 0,
+            },
+            10.0,
+            0,
+        );
+        account_view.post(
+            AccountOrder {
+                key: short_key(1),
+                reason: ActionReason::Open,
+                qty_delta: -50.0,
+                decision_bar: 0,
+            },
+            20.0,
+            0,
+        );
+
+        let mut book = CampaignBook::new();
+        let mut witness = CampaignWiringWitness::new();
+        // 两个重：结构级别 0 → 重 ("T",0)（多头），结构级别 1 → 重 ("T",1)（空头）。
+        let per_level = |lvl: u32| ck(lvl as u8);
+        drive_campaign_wiring(
+            0,
+            2,
+            &account_view,
+            &[],
+            &[],
+            15,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+            &per_level,
+        );
+
+        let long = book.campaign(&ck(0)).expect("多头重 campaign");
+        let short = book.campaign(&ck(1)).expect("空头重 campaign");
+        assert_eq!(
+            long.tw().notional_in,
+            3_000,
+            "多头重 notional_in 不含空头重的 1000"
+        );
+        assert_eq!(
+            short.tw().notional_in,
+            1_000,
+            "空头重 notional_in 不含多头重的 3000"
+        );
+        assert_eq!(long.current_units(), 300);
+        assert_eq!(short.current_units(), 50);
+        assert_eq!(
+            (
+                witness.lifecycle_opened.get("long"),
+                witness.lifecycle_opened.get("short")
+            ),
+            (Some(&1), Some(&1)),
+            "两重各一次开仓生——分侧重计数，不得相加成 2"
+        );
+
+        // 同一 bar 两重各一条镜像动作 ⟹ 各记各账，互不冲抵。
+        let actions = vec![
+            record_side(0, VoiceSide::Long, CenterOscillationAction::Reduce),
+            record_side(1, VoiceSide::Short, CenterOscillationAction::Reduce),
+        ];
+        drive_campaign_wiring(
+            0,
+            2,
+            &account_view,
+            &actions,
+            &[],
+            15,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+            &per_level,
+        );
+        assert_eq!(
+            book.campaign(&ck(0))
+                .unwrap()
+                .short_diff()
+                .bucket()
+                .open_units(),
+            100,
+            "多头重挂起=300/3"
+        );
+        assert_eq!(
+            book.campaign(&ck(1))
+                .unwrap()
+                .short_diff()
+                .bucket()
+                .open_units(),
+            16,
+            "空头重挂起=50/3，与多头重互不污染"
+        );
+
+        // 多头重全平：只杀多头 campaign，空头重存活。
+        account_view.post(
+            AccountOrder {
+                key: core_key(0),
+                reason: ActionReason::ReverseType1,
+                qty_delta: -300.0,
+                decision_bar: 1,
+            },
+            16.0,
+            1,
+        );
+        drive_campaign_wiring(
+            1,
+            2,
+            &account_view,
+            &[],
+            &[],
+            16,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+            &per_level,
+        );
+        assert!(
+            book.campaign(&ck(0)).is_none(),
+            "多头重全平 ⟹ 多头 campaign 死"
+        );
+        assert!(
+            book.campaign(&ck(1)).is_some(),
+            "空头重仓位未动 ⟹ 空头 campaign 存活"
+        );
+        assert_eq!(
+            (
+                witness.lifecycle_died.get("long"),
+                witness.lifecycle_died.get("short")
+            ),
+            (Some(&1), None),
+            "恰一次死亡事件且归属多头侧（空头重存活 ⟹ 该侧无死亡计数）"
+        );
+    }
+
+    /// ★#880 验收单测：**同重跨结构级别共享同一实例**——结构级别 0/1 的多头持仓经
+    /// `key_of_level` 映到同一重 ("T",0) ⟹ 只开一本 campaign，`units`/`notional_in` 为两级
+    /// 聚合（300+100 份 / 3_000+2_000）；两级各自派发的动作都落进这同一本账。
+    #[test]
+    fn drive_campaign_wiring_shares_one_campaign_across_structural_levels_in_same_chong() {
+        let mut account_view = strategy::account::ParallelAccountLedger::new();
+        account_view.post(
+            AccountOrder {
+                key: core_key(0),
+                reason: ActionReason::Open,
+                qty_delta: 300.0,
+                decision_bar: 0,
+            },
+            10.0,
+            0,
+        );
+        account_view.post(
+            AccountOrder {
+                key: core_key(1),
+                reason: ActionReason::Open,
+                qty_delta: 100.0,
+                decision_bar: 0,
+            },
+            20.0,
+            0,
+        );
+
+        let mut book = CampaignBook::new();
+        let mut witness = CampaignWiringWitness::new();
+        drive_campaign_wiring(
+            0,
+            2,
+            &account_view,
+            &[],
+            &[],
+            15,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+            &one_chong,
+        );
+        assert_eq!(
+            book.active_count(),
+            1,
+            "同重跨结构级别共享同一实例（不开第二本）"
+        );
+        let c = book.campaign(&ck(0)).expect("唯一 campaign");
+        assert_eq!(c.current_units(), 400, "units=两级聚合 300+100");
+        assert_eq!(
+            c.tw().notional_in,
+            5_000,
+            "notional_in=两级成本基聚合 3_000+2_000（汇进同一重的同一个成本）"
+        );
+
+        // 级别 1 的结构信号派发的动作落在同一本上（sizing 基准=开局冻结 400/3=133）。
+        let actions = vec![record_side(
+            1,
+            VoiceSide::Long,
+            CenterOscillationAction::Reduce,
+        )];
+        drive_campaign_wiring(
+            1,
+            2,
+            &account_view,
+            &actions,
+            &[],
+            12,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+            &one_chong,
+        );
+        assert_eq!(
+            book.campaign(&ck(0))
+                .unwrap()
+                .short_diff()
+                .bucket()
+                .open_units(),
+            133,
+            "级别 1 的动作落进同一重的同一本账（400/3=133）"
+        );
+    }
+
+    /// ★issue #357 关票条件 C 的语义已两次改写：#381 改为「多头侧取数不被空头侧污染」，
+    /// ★#880（ADR 0014 裁定一「重内单向」）再改为——**同一重内多空并存即违例**：聚合后同重
+    /// 两侧同时有持仓 ⟹ 落 witness 警报桶 `chong_side_conflict` 且本 bar 跳过该重的 sync
+    /// （不猜听哪一侧，一本 campaign 都不开）。合法的多空并存须分属两个重（不同操作级别），
+    /// 见 `drive_campaign_wiring_long_and_short_campaigns_coexist_without_contamination`。
+    #[test]
+    fn drive_campaign_wiring_mixed_sides_in_one_chong_raises_side_conflict_alarm() {
         let mut account_view = strategy::account::ParallelAccountLedger::new();
         account_view.post(
             AccountOrder {
@@ -2377,159 +2744,28 @@ mod campaign_wiring_tests {
             RiskMode::Normal,
             &mut book,
             &mut witness,
+            &one_chong,
         );
 
-        let long = book.campaign(0, VoiceSide::Long).expect("多头侧 campaign");
-        let short = book.campaign(0, VoiceSide::Short).expect("空头侧 campaign");
         assert_eq!(
-            long.tw().notional_in,
-            3_000,
-            "多头侧 notional_in 不含空头侧的 1000"
-        );
-        assert_eq!(
-            short.tw().notional_in,
-            1_000,
-            "空头侧 notional_in 不含多头侧的 3000"
-        );
-        assert_eq!(long.current_units(), 300);
-        assert_eq!(short.current_units(), 50);
-        assert_eq!(
-            (
-                witness.lifecycle_opened.get("long"),
-                witness.lifecycle_opened.get("short")
-            ),
-            (Some(&1), Some(&1)),
-            "两侧各一次开仓生——★#381 关票修复：分侧计数，不得相加成 2"
-        );
-
-        // 同一 bar 两侧各一条镜像动作 ⟹ 各记各账，互不冲抵。
-        let actions = vec![
-            record_side(0, VoiceSide::Long, CenterOscillationAction::Reduce),
-            record_side(0, VoiceSide::Short, CenterOscillationAction::Reduce),
-        ];
-        drive_campaign_wiring(
+            book.active_count(),
             0,
-            1,
-            &account_view,
-            &actions,
-            &[],
-            15,
-            RiskMode::Normal,
-            &mut book,
-            &mut witness,
+            "同重多空并存 = 重内单向违例 ⟹ 跳过 sync，一本都不开"
         );
         assert_eq!(
-            book.campaign(0, VoiceSide::Long)
-                .unwrap()
-                .short_diff()
-                .bucket()
-                .open_units(),
-            100,
-            "多头侧挂起=300/3"
+            witness.other_violation_count, 1,
+            "落一次警报（其余违规总计数）"
         );
         assert_eq!(
-            book.campaign(0, VoiceSide::Short)
-                .unwrap()
-                .short_diff()
-                .bucket()
-                .open_units(),
-            16,
-            "空头侧挂起=50/3，与多头侧互不污染"
-        );
-
-        // 多头侧全平：只杀多头 campaign，空头侧存活。
-        account_view.post(
-            AccountOrder {
-                key: core_key(0),
-                reason: ActionReason::ReverseType1,
-                qty_delta: -300.0,
-                decision_bar: 1,
-            },
-            16.0,
-            1,
-        );
-        drive_campaign_wiring(
-            1,
-            1,
-            &account_view,
-            &[],
-            &[],
-            16,
-            RiskMode::Normal,
-            &mut book,
-            &mut witness,
+            witness
+                .other_violation_by_kind
+                .get(&("long", "chong_side_conflict")),
+            Some(&1),
+            "警报桶 = chong_side_conflict（重内单向被改坏）"
         );
         assert!(
-            book.campaign(0, VoiceSide::Long).is_none(),
-            "多头侧全平 ⟹ 多头 campaign 死"
-        );
-        assert!(
-            book.campaign(0, VoiceSide::Short).is_some(),
-            "空头侧仓位未动 ⟹ 空头 campaign 存活"
-        );
-        assert_eq!(
-            (
-                witness.lifecycle_died.get("long"),
-                witness.lifecycle_died.get("short")
-            ),
-            (Some(&1), None),
-            "恰一次死亡事件且归属多头侧（空头侧存活 ⟹ 该侧无死亡计数）"
-        );
-    }
-
-    /// ★issue #357 关票条件 C（★#381 后语义扩展）：本级多空并存时，**多头侧** campaign 的取数
-    /// 不被空头侧腿的净额/成本基污染（净额求和会让 300−50=250、成本基净额求和会把两侧成本基
-    /// 相加，均非「多头侧真实持仓 300 股 @10=3000」）。#381 后空头侧另有自己的 campaign，
-    /// 故开仓生事件为两次（分侧独立生命周期见
-    /// `drive_campaign_wiring_long_and_short_campaigns_coexist_without_contamination`）。
-    #[test]
-    fn drive_campaign_wiring_opens_campaign_from_long_side_only_when_mixed_with_short() {
-        let mut account_view = strategy::account::ParallelAccountLedger::new();
-        let open_long = AccountOrder {
-            key: core_key(0),
-            reason: ActionReason::Open,
-            qty_delta: 300.0,
-            decision_bar: 0,
-        };
-        account_view.post(open_long, 10.0, 0); // 多头 300 股 @10 ⟹ 成本基 3000
-        let open_short = AccountOrder {
-            key: short_key(0),
-            reason: ActionReason::Open,
-            qty_delta: -50.0,
-            decision_bar: 0,
-        };
-        account_view.post(open_short, 20.0, 0); // 空头 50 股 @20 ⟹ 成本基 1000（另一实例，不与多头共享）
-
-        let mut book = CampaignBook::new();
-        let mut witness = CampaignWiringWitness::new();
-        drive_campaign_wiring(
-            0,
-            1,
-            &account_view,
-            &[],
-            &[],
-            15,
-            RiskMode::Normal,
-            &mut book,
-            &mut witness,
-        );
-
-        let campaign = book
-            .campaign(0, VoiceSide::Long)
-            .expect("多头侧持仓非空 ⟹ 应已开局 campaign");
-        assert_eq!(
-            campaign.tw().notional_in,
-            3_000,
-            "notional_in=多头侧成本基（3000），不含空头侧的1000"
-        );
-        assert_eq!(campaign.tw().holding, 3_000);
-        assert_eq!(
-            (
-                witness.lifecycle_opened.get("long"),
-                witness.lifecycle_opened.get("short")
-            ),
-            (Some(&1), Some(&1)),
-            "★#381：多头侧 + 空头侧各开局一次（分侧可判读）"
+            witness.lifecycle_opened.is_empty(),
+            "违例 bar 不产生任何开仓生事件"
         );
     }
 }
@@ -2561,6 +2797,18 @@ mod center_oscillation_wiring_tests {
     use classifier::recursive_tower::{ElementId, LeveledMove};
     use classifier::{bsp::BspPoint, bsp::OwnerRef, Classification, LevelState};
     use std::rc::Rc;
+
+    /// ★#880：测试重键 + 默认映射（所有结构级别同属一重 ("T", 0)）。
+    fn ck(op_level: u8) -> super::super::super::strategy::chong::ChongKey {
+        super::super::super::strategy::chong::ChongKey {
+            symbol: "T".to_string(),
+            op_level,
+        }
+    }
+
+    fn one_chong(_: u32) -> super::super::super::strategy::chong::ChongKey {
+        ck(0)
+    }
 
     fn center(start_index: usize, end_index: usize, zd: i64, zg: i64) -> Center {
         Center {
@@ -4490,8 +4738,9 @@ where
     let mut osc_actions: Vec<
         super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord,
     > = Vec::new();
-    // ★issue #357（#294/#278 生产接线最后一公里）：每仓 campaign 账簿（每级别一台，惰性按级
-    // 增长，同 osc_books 粒度）+ 生产接线观测统计。门关 ⟹ 本段整体不驱动（下方消费点全在
+    // ★issue #357（#294/#278 生产接线最后一公里）：每重 campaign 账簿（★#880 键 =
+    // (标的, 操作级别)，BTreeMap 惰性按键增长；结构振荡簿 `osc_books` 仍是每级别一台、与
+    // 三阶段账簿粒度不同）+ 生产接线观测统计。门关 ⟹ 本段整体不驱动（下方消费点全在
     // `pan_div_hist` 门内），二者恒 default/空，零开销，订单轨逐字节不变（bit-exact 不破）。
     let mut campaign_book = super::super::strategy::oscillation_campaign::CampaignBook::new();
     let mut campaign_witness =
@@ -5164,7 +5413,7 @@ where
                 }
                 let new_osc_actions = osc_step.actions;
                 // ★issue #357（T4/#294 生产实例化，编排者裁定 A：本仓=`Core{level}` 身份账户）：
-                // 每仓 campaign 生死驱动 + 减/补动作落成对偶事件（ShortDiff 成本基 + Realize
+                // 每重 campaign 生死驱动 + 减/补动作落成对偶事件（ShortDiff 成本基 + Realize
                 // 盈亏）经 closed_loop 带门通道（OQ-9 + CashUnsound）入 TW——独立抽为
                 // `drive_campaign_wiring`（可脱离完整 fill 循环直接单测，同 `step_center_oscillation`
                 // 先例）。
@@ -5185,6 +5434,10 @@ where
                     tw_risk_mode,
                     &mut campaign_book,
                     &mut campaign_witness,
+                    // ★#880（SPEC #847 S2）：结构级别→重映射。塔尚无操作级别概念（S3 未
+                    // 落地），生产恒 legacy 单重键（全账户 = 一个重，与本函数 #879 的
+                    // `chong_book` 同键）；多重实例化随 S3 换本映射，聚合语义不变。
+                    &|_| chong_key.clone(),
                 );
                 osc_actions.extend(new_osc_actions);
             }
@@ -6392,9 +6645,9 @@ pub(super) struct FillOutput {
     /// 本轨不改任何既有订单/账本语义。
     pub(super) center_oscillation_actions:
         Vec<super::super::strategy::center_oscillation_trade::CenterOscillationActionRecord>,
-    /// issue #357（T4/#294 生产实例化）：每仓 campaign 账簿终态——π overlay 路径逐 bar
-    /// `sync_position`/`apply_action` 驱动；v1/dual 路径未接线 ⟹ 恒空账簿（诚实不伪造，
-    /// 同 `center_oscillation_actions` 先例）。
+    /// issue #357（T4/#294 生产实例化）：每重 campaign 账簿终态（★#880 键 = (标的, 操作级别)）
+    /// ——π overlay 路径逐 bar `sync_position`/`apply_action` 驱动；v1/dual 路径未接线 ⟹ 恒空账簿
+    /// （诚实不伪造，同 `center_oscillation_actions` 先例）。
     pub(super) campaign_book: super::super::strategy::oscillation_campaign::CampaignBook,
     /// issue #357 验收③：enabled=true wf8 产物级见证读数（减补动作归属分桶/`CenterNotAlive`
     /// 丢弃率/挂起归宿/campaign 生死事件）。v1/dual 路径未接线 ⟹ 恒 `default()`。

@@ -98,7 +98,8 @@ pub mod mutex;
 pub mod nest;
 /// 中枢震荡独立候选与有身份 ReverseOpen 配对子腿契约（组合 R：DB-B / DB-O3 / DB-S5）。
 pub mod oscillation;
-/// 每仓 campaign（SPEC #287 T4，issue #294）：`OscillationCampaign`/`CampaignBook`——开仓生/
+/// 每重 campaign（SPEC #287 T4，issue #294；★#880 改挂「重」——键 = (标的, 操作级别)，
+/// SPEC #847 S2 / ADR 0013 裁定二）：`OscillationCampaign`/`CampaignBook`——开仓生/
 /// 到 0 转移（`RecoverCapital`）/全平死（`ClearCampaign`，挂起随死）的完整生命周期，
 /// sizing=当时持仓 1/3（#348）+ TW/R 双账入口对齐（P2-D）。
 pub mod oscillation_campaign;

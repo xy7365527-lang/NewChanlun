@@ -55,7 +55,8 @@ pub struct Chong {
     /// [`super::coverage::enforce_chong_unidirectional`] 保证，本字段只承载结果。
     position_lots: f64,
     /// 成本基（状态，不进键）：三阶段（降成本→退本金→增股数）的锚，实例单位 = 重
-    /// （ADR 0013 裁定二）。本票只立实体与键，三阶段改挂归 SPEC #847 S2。
+    /// （ADR 0013 裁定二）。三阶段改挂已由 #880（S2）落地：`CampaignBook` 改键
+    /// [`ChongKey`]、闭环 `tw_state` 经 `ChongAssembly` 绑键、`rec_engine::TRoot` 逐键绑定。
     cost_basis_usd: f64,
     /// 累计已实现盈亏（状态，不进键）。
     realized_pnl_usd: f64,
