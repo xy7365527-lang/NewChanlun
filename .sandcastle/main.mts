@@ -32,6 +32,16 @@ function hasOpenBlocker(issue: number): boolean {
   return Number(out) > 0;
 }
 
+// ── 工蜂登记面（2026-08-17：宿主 harness 不可见问题的补偿——跨进程无原生注册通道，
+//    以 JSONL registry 供宿主/roster 读取；每事件带 ts/ticket/branch/phase/status）──
+import { appendFileSync } from "node:fs";
+function logWorker(e: Record<string, unknown>) {
+  appendFileSync(
+    ".sandcastle/logs/workers.jsonl",
+    JSON.stringify({ ts: new Date().toISOString(), ...e }) + "\n",
+  );
+}
+
 function pickIssue(): number | null {
   const out = execSync(
     `gh issue list --label sandcastle --state open --limit 20 --json number,assignees`,
@@ -55,6 +65,7 @@ for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
   // 认领（#1007 裁 3 + #1013 抢票教训）：摘 sandcastle + assign @me；拾取闸用专属 label，不碰 ready-for-agent 共享面
   execSync(`gh issue edit ${issue} --remove-label sandcastle --add-assignee @me`);
   const branch = `sandcastle/issue-${issue}`;
+  logWorker({ ticket: issue, branch, phase: "claim", status: "claimed" });
   console.log(`\n=== Iteration ${iter}/${MAX_ITERATIONS}: issue #${issue} → ${branch} ===\n`);
 
   const sandbox = await sandcastle.createSandbox({
@@ -64,6 +75,7 @@ for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
   });
   try {
     // Phase 1：实装
+    logWorker({ ticket: issue, branch, phase: "implementer", status: "started" });
     const implement = await sandbox.run({
       name: "implementer",
       maxIterations: 1,
@@ -72,12 +84,15 @@ for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
       promptArgs: { ISSUE_NUMBER: String(issue) },
     });
     if (!implement.commits.length) {
+      logWorker({ ticket: issue, branch, phase: "implementer", status: "no_commit" });
       console.log("实装无 commit（被卡或无活），跳评审，留票待查。");
       continue;
     }
+    logWorker({ ticket: issue, branch, phase: "implementer", status: "completed", commits: implement.commits.length });
     console.log(`实装完成：${implement.commits.length} 个 commit`);
 
     // Phase 2：独立评审（不同子代理，#1001 裁 1；直接在分支上修正）
+    logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
     await sandbox.run({
       name: "reviewer",
       maxIterations: 1,
@@ -85,8 +100,10 @@ for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
       promptFile: "./.sandcastle/review-prompt.md",
       promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
     });
+    logWorker({ ticket: issue, branch, phase: "reviewer", status: "completed" });
     console.log(`两段完成：${branch} 待验收合入（人工闸）。`);
   } finally {
+    logWorker({ ticket: issue, branch, phase: "sandbox", status: "closed" });
     await sandbox.close();
   }
 }
