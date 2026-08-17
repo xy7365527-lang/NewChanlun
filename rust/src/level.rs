@@ -171,16 +171,18 @@ enum GroupDir {
     Down,
 }
 
-/// 后枢 ZD 严格高于 前枢 ZG → 上涨延续。移植自 `_is_ascending`。
+/// 后枢 DD 严格高于 前枢 GG → 上涨延续（**外缘分离**，#815 M-2 转正 + #898 落地：
+/// 「后DD>前GG等价于上涨及其延续」`020:58`；核心分离但外缘仍重叠 = 中枢扩展、升一级，
+/// **不是趋势**）。与 `a_zhongshu_level._is_ascending` 保持逐位等价（同日改齐）。
 #[inline]
 fn is_ascending(c1: &LevelZhongshu, c2: &LevelZhongshu) -> bool {
-    c2.zd > c1.zg
+    c2.dd > c1.gg
 }
 
-/// 后枢 ZG 严格低于 前枢 ZD → 下跌延续。移植自 `_is_descending`。
+/// 后枢 GG 严格低于 前枢 DD → 下跌延续（外缘分离，#815 M-2 + #898，同上）。
 #[inline]
 fn is_descending(c1: &LevelZhongshu, c2: &LevelZhongshu) -> bool {
-    c2.zg < c1.zd
+    c2.gg < c1.dd
 }
 
 /// 贪心分组：同向中枢归入同一 group。移植自 `_greedy_group_zhongshus`。
@@ -347,6 +349,41 @@ mod tests {
             low,
             component_idx: idx,
         }
+    }
+
+    /// #898 测试锁（#815 M-2）：趋势分组判据 = **外缘分离**（dd/gg），不是核心分离（zd/zg）。
+    /// 核心分离但外缘仍重叠 = 中枢扩展、升一级（`020:58`），不得粘成趋势。
+    #[test]
+    fn trend_grouping_uses_envelope_not_core_separation() {
+        let zs = |zd: f64, zg: f64, dd: f64, gg: f64| LevelZhongshu {
+            zd,
+            zg,
+            comp_start: 0,
+            comp_end: 2,
+            comp_count: 3,
+            settled: true,
+            break_comp: 3,
+            break_direction: BreakDir::Up,
+            gg,
+            dd,
+            level_id: 0,
+        };
+        let up1 = zs(10.0, 15.0, 8.0, 20.0);
+        // 外缘分离向上：dd2=21 > gg1=20 ⟹ 上涨延续。
+        let up2 = zs(22.0, 28.0, 21.0, 30.0);
+        assert!(is_ascending(&up1, &up2));
+        assert!(!is_descending(&up1, &up2));
+        // 核心分离（zd2=16 > zg1=15）但外缘重叠（dd2=14 <= gg1=20）⟹ 扩展，非趋势。
+        let exp2 = zs(16.0, 22.0, 14.0, 24.0);
+        assert!(
+            !is_ascending(&up1, &exp2),
+            "核心分离+外缘重叠 = 扩展，不得判趋势延续（#815 M-2 / #898）"
+        );
+        assert!(!is_descending(&up1, &exp2));
+        // 外缘分离向下：gg2=7 < dd1=8 ⟹ 下跌延续。
+        let dn2 = zs(2.0, 6.0, 1.0, 7.0);
+        assert!(is_descending(&up1, &dn2));
+        assert!(!is_ascending(&up1, &dn2));
     }
 
     #[test]

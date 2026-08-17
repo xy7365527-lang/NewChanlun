@@ -326,6 +326,7 @@ fn from_classification_levels_flat_root_coverage() {
         end_center: 0,
         kind,
         dir: None,
+        level_lift: 0,
         status: MoveStatus::Active,
     };
     // L0 一个中枢（盘整），L1 一个中枢（盘整）——两个根级覆盖元素（同级兄弟，无父子）。

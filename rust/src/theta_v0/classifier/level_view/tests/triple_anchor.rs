@@ -84,6 +84,7 @@ fn provider_ext_carries_triple_anchor_sidecar() {
             end_center: 2,
             kind: MoveKind::Consolidation,
             dir: None,
+            level_lift: 0,
             status: MoveStatus::Completed,
         },
     ];

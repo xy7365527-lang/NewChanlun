@@ -441,8 +441,11 @@ fn candidate_event_stream_classify_fnv1a_golden() {
     // #551 诚实更新（旧值 3608191067574153658）：`CandidateKey` 增 `rule_version` 分量、
     // `first_provable_at` 由 `usize` 改 `Option<usize>`（未决期不落钟）、Trend 域四态映射上线
     // （Unresolved 生产可达）、同 episode 多腿归约为每 key 一条观察。
+    // #898 诚实更新（旧值 3542680779063880892）：扩展支写全 + 本级盘背 lift==0 过滤——
+    // 扩展折出的高一级盘整块（level_lift=1）不再触发本级盘整背驰路由，Pan 候选减少，
+    // 事件流字节随之漂移（教义性收紧，非回归）。
     assert_eq!(
-        digest, 3542680779063880892,
+        digest, 3475352420846762134,
         "真实事件流漂移须诚实更新 golden"
     );
 }
@@ -618,17 +621,19 @@ fn causal_and_terminal_projection_drives_agree_on_common_chain_keys() {
         .iter()
         .filter(|terminal| !causal_heads.iter().any(|causal| causal.key == terminal.key))
         .count();
+    // #898 诚实更新（旧值 (38, 31, 20) / causal_only 18）：扩展支写全 + 本级盘背 lift==0
+    // 过滤 ⟹ Pan 候选身份总数收紧（教义性收紧，非回归）。
     assert_eq!(
         (
             causal_heads.len(),
             terminal_projection_heads.len(),
             common_count
         ),
-        (38, 31, 20),
+        (33, 27, 16),
         "驱动身份总数 golden 漂移（causal, terminal_projection, common）"
     );
     assert_eq!(
-        causal_only_count, 18,
+        causal_only_count, 17,
         "causal_only 计数 golden 漂移（#551 甲管方向）"
     );
     assert_eq!(
@@ -696,8 +701,10 @@ fn chain_certificate_book_classify_fnv1a_golden() {
     // `invalidation_cause`、给 `ChainEdge` 加了 `breach`，两者都进 `#[derive(Debug)]`；
     // 且 `extends` 由结构派生改为查簿命中（本夹具上原值即全是未物化前缀 ⟹ 现全部为 None）。
     // 三处都改写 Debug 字节流，摘要必然翻转。裁定锚：#641 comment-5121793896。
+    // #898 诚实更新（旧值 9935805022530767834）：本级盘背 lift==0 过滤 ⟹ Pan 链身份减少
+    // （birth_closed 38→33），链簿字节流随之漂移（教义性收紧，非回归）。
     assert_eq!(
-            digest, 9935805022530767834,
+            digest, 1019647215966295227,
             "链簿产出漂移须诚实更新 golden（probe={probe:?} certs={} heads={} pan_rooted={pan_rooted}）",
             book.certificates().len(),
             heads.len()

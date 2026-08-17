@@ -149,9 +149,10 @@ pub struct ThirdClassEntryIdentity {
 /// 走势类型 / Move（次级别走势的递归构造单元，reference-theta-v0.md:29）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MoveKind {
-    /// 趋势（≥2 同向中枢）。
+    /// 趋势（≥2 **依次同向**中枢——同向 = 外缘分离 `后DD>前GG`/`后GG<前DD`，#815 M-2）。
     Trend,
-    /// 盘整（1 中枢）。
+    /// 盘整（恰好 1 个**相应级别的**中枢，#815 M-1——计数永远相对于指定级别；
+    /// 跨中枢的扩展块级别标注见 `decompose::MoveBlock::level_lift`，#898）。
     Consolidation,
 }
 

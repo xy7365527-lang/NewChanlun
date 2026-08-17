@@ -1,4 +1,4 @@
-//! 中枢边界构造（完整判据）+ 中枢关系三态 + 点位三态。
+//! 中枢边界构造（完整判据）+ 中枢关系四态（新生上/下 + 扩展 + 延伸，#898 写全扩展支）+ 点位三态。
 //!
 //! ## 契约重锚（legacy Formal/RecursiveConstruction → Origin canonical，task #127 A′ Phase2）
 //!
@@ -14,8 +14,9 @@
 //! - 核心/外缘构造 ↔ `Origin.CenterConstruction`：`computeZG s1 s2 s3 = min(三段 hi)`、
 //!   `computeZD s1 s2 s3 = max(三段 lo)`（**口径 B 全三段核心**，637号）；`computeGG/computeDD` 三段
 //!   聚合外缘 `gg=max(三段hi)`、`dd=min(三段lo)`。
-//! - 中枢关系/发展三态 ↔ `Origin.CenterStates.classifyDevelopment`（CenterStates.lean）+
-//!   外缘判据 `IsUpTrend next.dd>prev.gg / IsDownTrend next.gg<prev.dd`。
+//! - 中枢关系/发展态 ↔ `Origin.CenterStates.classifyDevelopment`（CenterStates.lean：新生
+//!   (上/下)=外缘分离 `IsUpTrend next.dd>prev.gg / IsDownTrend next.gg<prev.dd`；扩展=核心
+//!   分离∧外缘重叠；延伸=核心重叠）——#898 起四态写全，扩展支不再 else 兜底。
 //! - 点位三态 ↔ `Origin.CenterStates.classifyPosition`（CenterStates.lean）：
 //!   `p<zd → below`，`zg<p → above`，否则 `within`（闭核心区间 [zd,zg]）。
 //!
@@ -90,17 +91,47 @@ pub struct UnitRange {
     pub hi: Tick,
 }
 
-/// 中枢关系三态（契约锚 `Origin.CenterStates.CenterDevelopment` 外缘趋势判据）。
+/// 中枢关系四态（契约锚 `Origin.CenterStates.classifyDevelopment`：新生(上/下)/扩展/延伸）。
 ///
-/// 两个**核心已分离的同级别新生中枢**的关系（外缘 dd/gg 判据，第18/20课中心定理二）。
+/// 中心定理二（`020-第20课.md:58`【正文】）管**核心已分离**的同级别新生中枢对——
+/// 上涨延续／下跌延续／级别扩张三态；核心重叠对属中心定理一（延伸——同一中枢继续震荡，
+/// `030-第30课.md:92`【答疑】「在一个中枢还延伸的时候，只有一个中枢」），**不**进入中心定理二的
+/// 三歧（`Formal.CenterTrichotomy.SameLevelNewCenterPair` 前件的补集；`Origin.CenterStates.
+/// classifyDevelopment` 的 `extension` 支）。
+///
+/// ★#898：扩展支写全前，`LevelExpansion` 是 `¬up ∧ ¬down` 的 else 兜底，缺核心分离前件，
+/// 把延伸（核心重叠，约 27% 相邻中枢对，探针 #894 P-2）也吞进扩展——比原文宽。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CenterRelation {
     /// 上涨延续：`next.dd > prev.gg`（外缘完全分离向上）。
     UpContinuation,
     /// 下跌延续：`next.gg < prev.dd`（外缘完全分离向下）。
     DownContinuation,
-    /// 级别扩张：外缘重叠（既非向上分离也非向下分离）。
+    /// 级别扩张：核心分离 ∧ 外缘重叠（`(next.zg<prev.zd ∧ next.gg>=prev.dd) ∨
+    /// (next.zd>prev.zg ∧ next.dd<=prev.gg)`，`020:58` 原公式）——形成高级别走势中枢。
     LevelExpansion,
+    /// 中枢延伸：核心重叠（中心定理一）——两中枢实为同一中枢的延伸，不属中心定理二三态。
+    CoreOverlap,
+}
+
+impl CenterRelation {
+    /// 是否趋势延续关系（Up/DownContinuation——M-2 外缘分离判「是不是趋势」，#815 转正）。
+    /// 扩展（升一级）与延伸（中心定理一）均非趋势关系，趋势 run 在二者处一律断链。
+    pub fn is_continuation(self) -> bool {
+        matches!(
+            self,
+            CenterRelation::UpContinuation | CenterRelation::DownContinuation
+        )
+    }
+
+    /// 趋势延续关系携带的方向；扩展/延伸（非趋势关系）→ None。
+    pub fn trend_direction(self) -> Option<Direction> {
+        match self {
+            CenterRelation::UpContinuation => Some(Direction::Up),
+            CenterRelation::DownContinuation => Some(Direction::Down),
+            CenterRelation::LevelExpansion | CenterRelation::CoreOverlap => None,
+        }
+    }
 }
 
 /// 点相对中枢核心区间 `[zd,zg]` 的位置三态（契约锚 `Origin.CenterStates.CenterPosition`）。
@@ -267,17 +298,27 @@ pub fn center_from_window(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Option
     })
 }
 
-/// 判定两中枢关系（契约锚 `Origin.CenterStates`：`IsUpTrend`/`IsDownTrend`/发展态外缘判据）。
+/// 判定两中枢关系（契约锚 `Origin.CenterStates.classifyDevelopment`：新生/扩展/延伸三态
+/// + `IsUpTrend`/`IsDownTrend` 外缘趋势判据；扩展支写全 = #815 M-2 裁定 + #898 落地）。
 ///
-/// `next.dd>prev.gg → up`（`Origin.CenterStates.IsUpTrend`），`next.gg<prev.dd → down`
-/// （`IsDownTrend`），否则 `expansion`。逐字对齐 Origin 外缘趋势判据（CenterStates.lean）。
+/// 中心定理二（`020-第20课.md:58`【正文】，#815 M-2 已核逐字）：
+/// - `next.dd > prev.gg → 上涨延续`（`Origin.CenterStates.IsUpTrend`，外缘完全分离向上）；
+/// - `next.gg < prev.dd → 下跌延续`（`IsDownTrend`，外缘完全分离向下）；
+/// - **核心分离 ∧ 外缘重叠 → 级别扩张**：写全为原公式 `(next.zg<prev.zd ∧ next.gg>=prev.dd)
+///   ∨ (next.zd>prev.zg ∧ next.dd<=prev.gg)`，不再由 `¬up ∧ ¬down` 兜底（在外缘重叠前件下，
+///   核心分离 ⟺ 该合取式——Lean `CenterTrichotomy.trichotomy_predicates_total` 已机器证明）；
+/// - 核心重叠 → `CoreOverlap`（中枢延伸，中心定理一，`classifyDevelopment` 的 `extension`
+///   支）——探针 #894 P-2 实测该情形占相邻中枢对约 27%，旧 else 兜底把它静默吞进扩展。
 pub fn classify_relation(prev: &Center, next: &Center) -> CenterRelation {
     if next.dd > prev.gg {
         CenterRelation::UpContinuation
     } else if next.gg < prev.dd {
         CenterRelation::DownContinuation
-    } else {
+    } else if (next.zg < prev.zd && next.gg >= prev.dd) || (next.zd > prev.zg && next.dd <= prev.gg)
+    {
         CenterRelation::LevelExpansion
+    } else {
+        CenterRelation::CoreOverlap
     }
 }
 
@@ -605,6 +646,54 @@ mod tests {
             classify_relation(&prev, &next),
             CenterRelation::LevelExpansion
         );
+    }
+
+    #[test]
+    fn relation_level_expansion_down_bit_exact() {
+        // 扩展支下行侧：prev=(4,6,9,11), next=(0,2,5,8)——next.zg=5 < prev.zd=6（核心分离向下）
+        // 且 next.gg=8 >= prev.dd=4（外缘重叠）⟹ 中心定理二原公式第二析取支。
+        let prev = center(4, 6, 9, 11);
+        let next = center(0, 2, 5, 8);
+        assert_eq!(
+            classify_relation(&prev, &next),
+            CenterRelation::LevelExpansion
+        );
+    }
+
+    #[test]
+    fn relation_core_overlap_is_extension_not_expansion() {
+        // ★#898：核心重叠（中枢延伸，中心定理一）不再是扩展——prev=(0,2,5,8), next=(1,3,7,9)：
+        // 核心 [2,5] 与 [3,7] 重叠（next.zd=3 <= prev.zg=5 且 next.zg=7 >= prev.zd=2），
+        // 外缘 [0,8] 与 [1,9] 亦重叠 ⟹ CoreOverlap（约 27% 相邻中枢对，探针 #894 P-2）。
+        let prev = center(0, 2, 5, 8);
+        let next = center(1, 3, 7, 9);
+        assert_eq!(classify_relation(&prev, &next), CenterRelation::CoreOverlap);
+    }
+
+    #[test]
+    fn relation_core_touching_boundary_is_core_overlap() {
+        // 核心端点相贴（next.zd == prev.zg，闭核心区间共享单点）不构成分离
+        // （Lean `SameLevelNewCenterPair` 严格不等式）⟹ CoreOverlap，非扩展。
+        let prev = center(0, 2, 5, 8);
+        let next = center(1, 5, 8, 10);
+        assert_eq!(classify_relation(&prev, &next), CenterRelation::CoreOverlap);
+    }
+
+    #[test]
+    fn relation_outer_separation_beats_core_overlap() {
+        // 外缘分离优先于核心判据：next 整体在 prev 之上（dd>gg）⟹ 上涨延续，
+        // 即使核心自然也分离——延续支与扩展支互斥（Lean up_expansion_disjoint）。
+        let prev = center(0, 2, 5, 8);
+        let next = center(9, 10, 13, 15);
+        assert!(classify_relation(&prev, &next).is_continuation());
+        assert_eq!(
+            classify_relation(&prev, &next).trend_direction(),
+            Some(Direction::Up)
+        );
+        assert!(!CenterRelation::LevelExpansion.is_continuation());
+        assert!(!CenterRelation::CoreOverlap.is_continuation());
+        assert_eq!(CenterRelation::LevelExpansion.trend_direction(), None);
+        assert_eq!(CenterRelation::CoreOverlap.trend_direction(), None);
     }
 
     #[test]

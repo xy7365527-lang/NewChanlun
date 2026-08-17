@@ -327,7 +327,8 @@ pub(crate) fn trend_run_start(centers: &[Center], i: usize) -> usize {
         match r {
             CenterRelation::UpContinuation => Some(0),
             CenterRelation::DownContinuation => Some(1),
-            CenterRelation::LevelExpansion => None,
+            // 扩展（升一级）与延伸（中心定理一）均断趋势链（#898 四态）。
+            CenterRelation::LevelExpansion | CenterRelation::CoreOverlap => None,
         }
     }
     debug_assert!(i < centers.len());
@@ -1702,10 +1703,11 @@ fn full_trend_qualification_evidence(
             level: b_center_id.level,
             ordinal: b_center_id.ordinal.checked_sub(1)?,
         };
-        let direction = match classify_relation(centers.get(previous_index)?, &b) {
-            CenterRelation::UpContinuation => Direction::Up,
-            CenterRelation::DownContinuation => Direction::Down,
-            CenterRelation::LevelExpansion => return None,
+        let direction = match classify_relation(centers.get(previous_index)?, &b).trend_direction()
+        {
+            // 扩展/延伸（重叠关系，#898 四态）非趋势关系 ⟹ 无趋势上下文。
+            Some(d) => d,
+            None => return None,
         };
         Some(TrendContext {
             predecessor_center_id,
@@ -4325,6 +4327,7 @@ mod tests {
             end_center: 2,
             kind: MoveKind::Trend,
             dir: Some(Direction::Up),
+            level_lift: 0,
             status: MoveStatus::Active,
         }];
         let full = project_to_units(&moves, &blocks);

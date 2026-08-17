@@ -485,7 +485,11 @@ impl ProtocolState {
                     match evidence.relation {
                         CenterRelation::UpContinuation => ProtocolMode::Trend(Direction::Up),
                         CenterRelation::DownContinuation => ProtocolMode::Trend(Direction::Down),
-                        CenterRelation::LevelExpansion => ProtocolMode::Consolidation,
+                        // 扩展（升一级）与延伸（中心定理一）均非趋势延续（#898 四态）
+                        // ⟹ 协议层归盘整模态（与本模块既有的 LevelExpansion 处置一致）。
+                        CenterRelation::LevelExpansion | CenterRelation::CoreOverlap => {
+                            ProtocolMode::Consolidation
+                        }
                     }
                 }
             }

@@ -108,6 +108,7 @@ pub(super) fn trend_block(dir: Option<Direction>) -> MoveBlock {
             MoveKind::Consolidation
         },
         dir,
+        level_lift: 0,
         status: MoveStatus::Completed,
     }
 }

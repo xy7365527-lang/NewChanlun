@@ -88,8 +88,8 @@ use super::super::types::{
 use super::super::types::BspBits;
 use super::bsp::{endpoint_to_bsp, EndpointSituation};
 use super::decompose::{
-    center_block_kind, center_block_kind_at, center_own_dir_at, center_trend_gate, decompose,
-    MoveBlock,
+    center_block_kind, center_block_kind_at, center_block_lift, center_block_lift_at,
+    center_own_dir_at, center_trend_gate, decompose, MoveBlock,
 };
 use super::descend::RMove;
 use super::divergence::{
@@ -1329,8 +1329,9 @@ pub(crate) fn pan_div_structure_extreme(structure: &PanDivStructure, segments: &
 
 /// 盘整背驰判定（Q4，[`PanDivCert`] 的唯一构造点）。
 ///
-/// 前提（调用方保证）：`c` 是 `seg` 的最近已确认中枢，且 c 按 ownership 落在 **Consolidation 块**
-/// （[`center_block_kind`]，与趋势门同一 decompose 单一来源）。判据链：
+/// 前提（调用方保证）：`c` 是 `seg` 的最近已确认中枢，且 c 按 ownership 落在**本级别**
+/// **Consolidation 块**（[`center_block_kind`] + `level_lift == 0`——#898：扩展折出的高一级
+/// 盘整块不走本级盘背；与趋势门同一 decompose 单一来源）。判据链：
 /// 1. **破中枢核心**（因果触发 = seg 端点，等价性同 judge_first_cached）：Down ⟹ 端点 < c.zd
 ///    （Long 候选）/ Up ⟹ 端点 > c.zg（Short）。
 /// 2. **当前离开区间 I(C)**（Q5 区间语义）：λ_C = 最后一个回中枢段 r（反向段、端点回到核心内侧：
@@ -1714,10 +1715,16 @@ pub fn extract_signals_with_hist_anchored(
     let any_trend = center_gate.iter().any(|g| g.is_some());
     // ★Q4（task #145）：每中枢 ownership 块类别（与趋势门同一 decompose 单一来源，不 fork 第二套
     // 分解）——段的最近中枢落在 Consolidation 块 ⟹ 走盘整背驰证书路径（不产第一类 bit）。
+    // #898 起另查 level_lift：只有本级别盘整块（lift==0）放行，扩展高一级块被拦。
     let center_kind = center_block_kind(centers_sorted.len(), &blocks);
+    // ★#898（#815 M-1 落地）：盘整背驰是**本级别**盘整的判据——扩展折出的高一级盘整块
+    // （level_lift=1，核心分离∧外缘重叠 `020:58`）不得触发本级盘背路由，只放行 lift==0 块
+    // （单中枢块 + 中枢延伸块，「延伸的时候只有一个中枢」030:92【答疑】）。级别标注在此被真消费。
+    let center_lift = center_block_lift(centers_sorted.len(), &blocks);
     let any_consol = center_kind
         .iter()
-        .any(|k| *k == Some(MoveKind::Consolidation));
+        .zip(center_lift.iter())
+        .any(|(k, l)| *k == Some(MoveKind::Consolidation) && *l == Some(0));
 
     // ★单趟扫描（消解旧 `for c in centers` 对前驱中枢重复产出，codex 裁决 2026-06-27）：每个线段端点
     // 只相对其**最近已确认中枢**（"当下之前最后一个中枢"，第18课定理三「该中枢」+ 第49课）判第一/三
@@ -1786,7 +1793,10 @@ pub fn extract_signals_with_hist_anchored(
         } else {
             None
         };
-        let kind_consol = any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation);
+        // #898：本级盘背只认本级别盘整块（lift==0）。
+        let kind_consol = any_consol
+            && center_kind[c_idx] == Some(MoveKind::Consolidation)
+            && center_lift[c_idx] == Some(0);
         // ★on2w3-07a：单段判定核（第一/盘整/三类）——full 路径与 resume 路径共享，逐字段等价
         // （gate/kind 由 caller 按 O(C) 数组或 pointwise 查询解析后传入，判定逻辑同一份）。
         // `level: None`——本入口是全量 fallback（也是 `extract_first_third_resume` 内部
@@ -1909,7 +1919,10 @@ pub fn extract_first_third_resume(
     );
 
     let any_trend = blocks.iter().any(|b| b.kind == MoveKind::Trend);
-    let any_consol = blocks.iter().any(|b| b.kind == MoveKind::Consolidation);
+    // #898：本级盘背只认本级别盘整块（lift==0）——扩展折出的高一级盘整块不算。
+    let any_consol = blocks
+        .iter()
+        .any(|b| b.kind == MoveKind::Consolidation && b.level_lift == 0);
 
     // 冻结边界 e_src → 可封段数 stable_seg（segments 按 start 升序 ∧ 非重叠 ⟹ end 亦升序 ⟹
     // partition_point 二分）。公式由 `freeze_boundary_src` 单一持有，供 resume 与 p123 读同源。
@@ -1948,8 +1961,10 @@ pub fn extract_first_third_resume(
             } else {
                 None
             };
-            let kind_consol =
-                any_consol && center_block_kind_at(blocks, c_idx) == Some(MoveKind::Consolidation);
+            // #898：本级盘背只认本级别盘整块（lift==0）。
+            let kind_consol = any_consol
+                && center_block_kind_at(blocks, c_idx) == Some(MoveKind::Consolidation)
+                && center_block_lift_at(blocks, c_idx) == Some(0);
             judge_segment(
                 i,
                 seg,
@@ -2038,7 +2053,8 @@ pub fn extract_first_third_resume(
 ///
 /// - `gate_dir`：`Some((pos, dir))` = 该段最近中枢落趋势块（pos=首匹配中枢下标，prev=pos-1、
 ///   dir=趋势方向）；`None` = 非趋势（不产第一类）。
-/// - `kind_consol`：该段最近中枢按 ownership 落 Consolidation 块（走盘整背驰证书路径）。
+/// - `kind_consol`：该段最近中枢按 ownership 落**本级别** Consolidation 块（lift==0，#898；
+///   走盘整背驰证书路径）。
 /// - `a_seg_cache`：A 段区间 + 其 b 包络（p117 037:20）按 `last_center_idx=c_idx` 缓存（热点②，
 ///   趋势 τ 下多段共享 A 段对；包络随 I(A) 同槽，`move_range_envelope` 单一来源）。
 /// - `level`：`Some(level_idx)` = 本调用来自 [`extract_first_third_resume`]（生产 incremental

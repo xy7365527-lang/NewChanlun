@@ -29,6 +29,7 @@ fn pan_memo_block_shrink_rewrite_and_append_discipline() {
         end_center: 6,
         kind: MoveKind::Consolidation,
         dir: None,
+        level_lift: 0,
         status: MoveStatus::Active,
     });
     let appended_out = pan_resident(

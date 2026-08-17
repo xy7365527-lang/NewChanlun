@@ -700,20 +700,25 @@ mod tests {
             // 2026-08-16 再位移（七处统一 -1）：#913 删 signal.rs 一处真死 import（HashMap）⟹ 整体上移 1 行；
             // 七点逐条重核内容不变，同条目重登记。
             // 2026-08-17 再位移（七处统一 +16）：#884（#816 B-2② 落地）在 signal.rs 测试区上方增
-            // 二类拆闸/重合标注测试与文档 ⟹ 七点逐条重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。）
-            "theta_v0/classifier/signal.rs:2612",
-            "theta_v0/classifier/signal.rs:2903",
-            "theta_v0/classifier/signal.rs:3275",
-            "theta_v0/classifier/signal.rs:3415",
-            "theta_v0/classifier/signal.rs:3448",
-            "theta_v0/classifier/signal.rs:3704",
-            "theta_v0/classifier/signal.rs:3771",
+            // 二类拆闸/重合标注测试与文档 ⟹ 七点逐条重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。
+            // 2026-08-17 再位移（七处统一 +16，含 cargo fmt 折行）：#898 扩展支写全在
+            // signal.rs 生产区增 center_block_lift 查询与 lift==0 过滤注释 ⟹ 测试区下移；
+            // 七点逐条重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。）
+            "theta_v0/classifier/signal.rs:2628",
+            "theta_v0/classifier/signal.rs:2919",
+            "theta_v0/classifier/signal.rs:3291",
+            "theta_v0/classifier/signal.rs:3431",
+            "theta_v0/classifier/signal.rs:3464",
+            "theta_v0/classifier/signal.rs:3720",
+            "theta_v0/classifier/signal.rs:3787",
             // （2026-08-16 #648 T1：classifier/mod.rs 内联测试 4273 行抽离至 classifier/tests/
             // 主题件 ⟹ 该夹具点同内容随迁 mod.rs:4574 → tests/pipeline_geometry.rs:1565，
             // 重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。
             // 2026-08-17 再位移（+8）：#884 在 census 测试循环增 b2_broke/s2_broke 计数 ⟹
-            // 夹具点同内容随迁 1565 → 1573，重核内容不变（同为 source_index 过滤），同条目重登记。）
-            "theta_v0/classifier/tests/pipeline_geometry.rs:1573",
+            // 夹具点同内容随迁 1565 → 1573，重核内容不变（同为 source_index 过滤），同条目重登记。
+            // 2026-08-17 再位移（+5）：#898 在直方图区增 CoreOverlap 计数（n_ext）⟹
+            // 夹具点同内容随迁 1573 → 1578，重核内容不变，同条目重登记。）
+            "theta_v0/classifier/tests/pipeline_geometry.rs:1578",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
             // （2026-08-16 #993 fixture 修复 ⟹ signal.rs 测试区再位移，七处夹具点重锚，内容不变。
             // 此前 #990 I-2 strokes 参数接线已整体位移一次。）

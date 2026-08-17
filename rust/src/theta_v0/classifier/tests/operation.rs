@@ -22,7 +22,7 @@ fn operation_bypass_two_levels_produce_sequences() {
     let l0_op = &ops[0];
     assert_eq!(l0_op.windows, vec![(0, 2), (3, 5), (6, 8), (9, 11)]);
     assert_eq!(l0_op.centers.len(), 4);
-    // 中枢两两外缘重叠（全 LevelExpansion）但**不合并**：4 个相邻单中枢盘整块
+    // 中枢两两重叠（核心亦重叠，#898 四态起为 CoreOverlap 延伸）但**不合并**：4 个相邻单中枢盘整块
     // = 盘整+盘整+盘整+盘整（038:22，主干 fold_rel 永产不出相邻盘整块）。
     assert_eq!(l0_op.blocks.len(), 4);
     for (i, b) in l0_op.blocks.iter().enumerate() {
@@ -50,7 +50,7 @@ fn operation_bypass_two_levels_produce_sequences() {
             out.levels[0].moves[0].end_center
         ),
         (MoveKind::Consolidation, 0, 3),
-        "主干：同一 LevelExpansion 链折成 1 块；旁路：4 块并列——延伸/不延伸的规则差"
+        "主干：同一延伸链折成 1 块；旁路：4 块并列——延伸/不延伸的规则差"
     );
 
     // L1 旁路：上级 seed 判据（center_from_window）同规则产出，序列非空且块索引自洽。

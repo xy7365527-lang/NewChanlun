@@ -289,6 +289,7 @@ fn assemble_and_provider_share_one_pair_confirmation() {
             end_center: 2,
             kind: MoveKind::Consolidation,
             dir: None,
+            level_lift: 0,
             status: MoveStatus::Completed,
         },
     ];
@@ -446,6 +447,7 @@ fn trend_confirm_truncation_keeps_seg_c_left_anchor() {
             end_center: 2,
             kind: MoveKind::Trend,
             dir: Some(Direction::Up),
+            level_lift: 0,
             status: MoveStatus::Completed,
         },
         MoveBlock {
@@ -453,6 +455,7 @@ fn trend_confirm_truncation_keeps_seg_c_left_anchor() {
             end_center: 2,
             kind: MoveKind::Consolidation,
             dir: None,
+            level_lift: 0,
             status: MoveStatus::Completed,
         },
     ];

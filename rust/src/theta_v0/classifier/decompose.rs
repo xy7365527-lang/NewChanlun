@@ -1,10 +1,14 @@
 //! 走势类型分解（PDF §6/§9.2 + Q1/Q8 裁决，task #143）。
 //!
 //! canonical 中枢关系链 R_i = classify_relation(C_i, C_{i+1}) 切成 **maximal 等标签 run**：
-//! Up/Down run → 趋势块（≥2 中枢自动满足「≥2 依次同向中枢」），LevelExpansion run → 盘整块
-//! （中心定理二升级候选，#145 承接）。C_ℓ = B₁⊕…⊕B_k 完全分解，替代 AllTrend（全历史累积链
-//! 全链同向）——后者是吸收锁死谓词（PDF §2：一对异向关系出现后 τ 永为退化，外审漏斗坐实
-//! BTC 全历史在数据第 1-17 天锁死）。
+//! Up/Down run → 趋势块（≥2 中枢自动满足「≥2 依次同向中枢」）；CoreOverlap run → 本级
+//! 盘整块（核心重叠 = 中枢延伸、中心定理一，「延伸的时候只有一个中枢」`030:92`【答疑】，盘整 =
+//! 恰好一个相应级别的中枢，#815 M-1）；LevelExpansion run → **升一级的盘整块**
+//! （核心分离 ∧ 外缘重叠 = 形成高级别走势中枢 `020:58`；#815 M-1 裁定二：多中枢块是
+//! 「标错级别」而非标错名，本文件以 `level_lift` 显式标注升级，不再就地写成当前级别）。
+//! C_ℓ = B₁⊕…⊕B_k 完全分解，替代 AllTrend（全历史累积链全链同向）——后者是吸收锁死谓词
+//! （PDF §2：一对异向关系出现后 τ 永为退化，外审漏斗坐实 BTC 全历史在数据第 1-17 天锁死）。
+//! （原「#145 承接」是死号——GitHub #145 为无关已关票；承接真落点 = #898。）
 //!
 //! ## 完备性（span/ownership 双投影，设计 decomp-design-20260703.md §2）
 //!
@@ -48,19 +52,36 @@ pub struct MoveBlock {
     pub kind: MoveKind,
     /// Trend 携方向；Consolidation = None（第31课盘整无方向）。
     pub dir: Option<Direction>,
+    /// 级别升档（#815 M-1 裁定二 + #898）：0 = 本级别块；1 = 由 LevelExpansion run 折出的
+    /// **高一级**盘整块（核心分离 ∧ 外缘重叠 ⟹ 形成高级别走势中枢 `020:58`——它确实是
+    /// 盘整，但那是升级之后那一级的盘整，就地标注而非静默写在当前级别上）。消费方判
+    /// 「本级别盘整」（如本级盘整背驰路由）必须过滤 `level_lift == 0`。
+    /// 塔暂不能真把该块升到父级重分类（#812 Z-8：塔往上盖丢连接段，结构性缺件），
+    /// 本字段是升级完成前的诚实标注，不是升级本身。
+    pub level_lift: u8,
     pub status: MoveStatus,
 }
 
 /// 折入一条关系（i = 关系下标，连接 C_i 与 C_{i+1}）。同标签且连续 ⟹ 延续尾块（maximal）；
 /// 否则开新块（span 首 = i，与前块尾共享边界中枢）。
+///
+/// 标签 = (kind, dir, level_lift) 三元组：LevelExpansion（核心分离 ∧ 外缘重叠）与
+/// CoreOverlap（核心重叠 = 中枢延伸）虽都折 Consolidation，但级别不同（lift=1 vs 0，
+/// #815 M-1/M-2），**不合并**——扩展块跨 ≥2 中枢恰是「形成高级别中枢」的见证区间。
 fn fold_rel(blocks: &mut Vec<MoveBlock>, rel: CenterRelation, i: usize) {
-    let (kind, dir) = match rel {
-        CenterRelation::UpContinuation => (MoveKind::Trend, Some(Direction::Up)),
-        CenterRelation::DownContinuation => (MoveKind::Trend, Some(Direction::Down)),
-        CenterRelation::LevelExpansion => (MoveKind::Consolidation, None),
+    let (kind, dir, lift) = match rel {
+        CenterRelation::UpContinuation => (MoveKind::Trend, Some(Direction::Up), 0),
+        CenterRelation::DownContinuation => (MoveKind::Trend, Some(Direction::Down), 0),
+        CenterRelation::LevelExpansion => (MoveKind::Consolidation, None, 1),
+        CenterRelation::CoreOverlap => (MoveKind::Consolidation, None, 0),
     };
     match blocks.last_mut() {
-        Some(last) if last.kind == kind && last.dir == dir && last.end_center == i => {
+        Some(last)
+            if last.kind == kind
+                && last.dir == dir
+                && last.level_lift == lift
+                && last.end_center == i =>
+        {
             last.end_center = i + 1;
         }
         _ => blocks.push(MoveBlock {
@@ -68,6 +89,7 @@ fn fold_rel(blocks: &mut Vec<MoveBlock>, rel: CenterRelation, i: usize) {
             end_center: i + 1,
             kind,
             dir,
+            level_lift: lift,
             status: MoveStatus::Completed,
         }),
     }
@@ -136,6 +158,7 @@ pub fn decompose_resume(
             end_center: 0,
             kind: MoveKind::Consolidation,
             dir: None,
+            level_lift: 0,
             status: MoveStatus::Completed,
         });
     }
@@ -214,6 +237,39 @@ pub fn center_block_kind_at(blocks: &[MoveBlock], i: usize) -> Option<MoveKind> 
         .map(|b| b.kind)
 }
 
+/// 单中枢 ownership 块级别升档查询（[`center_block_kind_at`] 的 lift 版，#898——本级
+/// 盘整背驰路由过滤 `level_lift == 0` 消费：扩展折出的高一级盘整块不得触发本级盘背）。
+///
+/// 语义与 [`center_block_kind_at`] 逐点同构（同一 ownership 分区、同一 C_0 归 B₁ 规则）：
+/// `Some(l)` ⟺ 关系 R(i-1,i) 属级别升档 l 的块；`None` ⟺ blocks 为空。
+pub fn center_block_lift_at(blocks: &[MoveBlock], i: usize) -> Option<u8> {
+    if i == 0 {
+        return blocks.first().map(|b| b.level_lift);
+    }
+    let bi = blocks.partition_point(|b| b.end_center < i);
+    blocks
+        .get(bi)
+        .filter(|b| b.start_center < i)
+        .map(|b| b.level_lift)
+}
+
+/// 每中枢 ownership 块级别升档（[`center_block_kind`] 的 lift 版，#898——level_view
+/// 盘整背驰路由过滤 `level_lift == 0` 消费）。
+pub fn center_block_lift(n_centers: usize, blocks: &[MoveBlock]) -> Vec<Option<u8>> {
+    let mut lifts = vec![None; n_centers];
+    for b in blocks {
+        for l in &mut lifts[(b.start_center + 1).min(n_centers)..(b.end_center + 1).min(n_centers)]
+        {
+            *l = Some(b.level_lift);
+        }
+    }
+    // C_0 归 B₁（与 center_block_kind 同一 ownership 规则）。
+    if let (Some(first), Some(b0)) = (lifts.first_mut(), blocks.first()) {
+        *first = Some(b0.level_lift);
+    }
+    lifts
+}
+
 /// 每中枢 ownership 块类别（Q4 盘整背驰承接路由，task #145——signal.rs 盘整块判定消费）。
 ///
 /// `kind[i] = Some(k)` ⟺ 中枢 i 按 **ownership 分区**（模块头：C_i 归包含关系 R(i-1,i) 的块，
@@ -251,7 +307,8 @@ mod tests {
             end_index: 0,
         }
     }
-    /// 与 c_up(k) 外缘重叠的中枢（LevelExpansion 关系）。
+    /// 与 c_up(k) 外缘重叠且核心相贴的中枢（#898：CoreOverlap 关系——zd==zg 单点核心
+    /// 与 c_up(k) 核心 [4k+1,4k+2] 相贴于 4k+2，属中心定理一延伸，非扩展）。
     fn c_overlap(k: i64) -> Center {
         Center {
             dd: 4 * k + 1,
@@ -261,6 +318,22 @@ mod tests {
             start_index: 0,
             end_index: 0,
         }
+    }
+    /// 与 c_up(k) 核心分离（zd=4k+3 > zg=4k+2）但外缘重叠（dd=4k+2 ≤ gg=4k+3）的中枢
+    /// ——中心定理二原公式成立，LevelExpansion 关系（#898 写全扩展支的真扩展夹具）。
+    fn c_expand(k: i64) -> Center {
+        Center {
+            dd: 4 * k + 2,
+            zd: 4 * k + 3,
+            zg: 4 * k + 4,
+            gg: 4 * k + 5,
+            start_index: 0,
+            end_index: 0,
+        }
+    }
+
+    fn lifts(blocks: &[MoveBlock]) -> Vec<u8> {
+        blocks.iter().map(|b| b.level_lift).collect()
     }
 
     fn kinds(blocks: &[MoveBlock]) -> Vec<(MoveKind, Option<Direction>, usize, usize)> {
@@ -295,7 +368,7 @@ mod tests {
         // 新分解产出尾部 Trend 块（#144 门可开）。
         let cs = [c_up(0), c_overlap(0), c_up(2), c_up(3), c_up(4)];
         let b = decompose(&cs);
-        // R0=overlap（c_up(0) 与 c_overlap(0) 外缘交叠）、R1..R3 = Up。
+        // R0=延伸（c_up(0) 与 c_overlap(0) 核心相贴，#898 起为 CoreOverlap）、R1..R3 = Up。
         assert_eq!(
             kinds(&b),
             vec![
@@ -341,7 +414,7 @@ mod tests {
             vec![c_up(0)],
             vec![c_up(0), c_up(1), c_up(2)],
             vec![c_up(0), c_overlap(0), c_up(2), c_up(3), c_up(4)],
-            vec![c_up(5), c_up(3), c_overlap(3), c_up(6)], // down→expansion→up 混合链
+            vec![c_up(5), c_up(3), c_overlap(3), c_up(6)], // down→延伸→up 混合链（#898：c_overlap 为延伸夹具）
         ];
         for cs in &chains {
             let blocks = decompose(cs);
@@ -421,8 +494,8 @@ mod tests {
                 "span 连续（ownership 分区）"
             );
             assert!(
-                (w[0].kind, w[0].dir) != (w[1].kind, w[1].dir),
-                "maximality：相邻块必异标签"
+                (w[0].kind, w[0].dir, w[0].level_lift) != (w[1].kind, w[1].dir, w[1].level_lift),
+                "maximality：相邻块必异标签（标签 = kind + dir + level_lift，#898）"
             );
         }
         for b in blocks {
@@ -453,6 +526,131 @@ mod tests {
         centers.extend([c_overlap(1), c_up(3), c_up(4), c_overlap(4)]);
         let inc = decompose_resume(&centers, &mut state, 4);
         assert_eq!(inc, decompose(&centers), "阶段3（可变尾加深）inc == full");
+    }
+
+    #[test]
+    fn expansion_run_marks_level_lift() {
+        // ★#898 测试锁（#815 M-1 裁定二）：LevelExpansion run 折出的块是**高一级**盘整
+        // （level_lift=1），不再就地写成当前级别盘整；CoreOverlap（延伸）run 才是本级
+        // 盘整（lift=0，「延伸的时候只有一个中枢」030:92）。
+        let c2 = Center {
+            dd: 3,
+            zd: 5,
+            zg: 6,
+            gg: 7,
+            start_index: 0,
+            end_index: 0,
+        };
+        // R0：c_up(0)→c_expand(0) 核心分离 zd=3>zg=2、外缘重叠 dd=2≤gg=3（扩展）；
+        // R1：c_expand(0)→c2 核心分离 zd=5>zg=4、外缘重叠 dd=3≤gg=5（仍为扩展）。
+        let cs = [c_up(0), c_expand(0), c2];
+        let b = decompose(&cs);
+        assert_eq!(
+            kinds(&b),
+            vec![(MoveKind::Consolidation, None, 0, 2)],
+            "扩展 run 仍折一块（跨 3 中枢 = 高级别中枢见证区间）"
+        );
+        assert_eq!(lifts(&b), vec![1], "扩展块 level_lift=1（升一级后的盘整）");
+        // 延伸 run：本级盘整 lift=0。
+        let cs2 = [c_up(0), c_overlap(0)];
+        let b2 = decompose(&cs2);
+        assert_eq!(kinds(&b2), vec![(MoveKind::Consolidation, None, 0, 1)]);
+        assert_eq!(lifts(&b2), vec![0]);
+        // 单中枢块：lift=0。
+        let b3 = decompose(&[c_up(0)]);
+        assert_eq!(lifts(&b3), vec![0]);
+    }
+
+    #[test]
+    fn expansion_and_extension_blocks_do_not_merge() {
+        // ★#898 测试锁：CoreOverlap（延伸，lift=0）与 LevelExpansion（扩展，lift=1）虽同为
+        // Consolidation 且相邻，标签含 lift ⟹ **不合并**——跨级别的块合并会把「何时升级」
+        // 这一信息再次丢掉。
+        let c2 = Center {
+            dd: 2,
+            zd: 3,
+            zg: 4,
+            gg: 5,
+            start_index: 0,
+            end_index: 0,
+        };
+        // C0=c_up(0)→C1=c_overlap(0)：核心相贴（CoreOverlap）；C1→C2：核心分离 zd=3>zg=2
+        // 且外缘重叠 dd=2≤gg=4（LevelExpansion）。
+        let cs = [c_up(0), c_overlap(0), c2];
+        assert_eq!(
+            classify_relation(&cs[0], &cs[1]),
+            CenterRelation::CoreOverlap
+        );
+        assert_eq!(
+            classify_relation(&cs[1], &cs[2]),
+            CenterRelation::LevelExpansion
+        );
+        let b = decompose(&cs);
+        assert_eq!(
+            kinds(&b),
+            vec![
+                (MoveKind::Consolidation, None, 0, 1),
+                (MoveKind::Consolidation, None, 1, 2),
+            ]
+        );
+        assert_eq!(lifts(&b), vec![0, 1]);
+    }
+
+    #[test]
+    fn center_block_lift_at_equals_vector_pointwise() {
+        // #898：lift 逐点查询版 == center_block_lift 全向量（含 C_0 归 B₁、转折中枢归前块）。
+        let c2 = Center {
+            dd: 2,
+            zd: 3,
+            zg: 4,
+            gg: 5,
+            start_index: 0,
+            end_index: 0,
+        };
+        let c3 = Center {
+            dd: 3,
+            zd: 5,
+            zg: 6,
+            gg: 7,
+            start_index: 0,
+            end_index: 0,
+        };
+        let chains: Vec<Vec<Center>> = vec![
+            vec![c_up(0)],
+            vec![c_up(0), c_expand(0), c3],
+            vec![c_up(0), c_overlap(0), c2],
+            vec![c_up(0), c_overlap(0), c_up(2), c_up(3), c_up(4)],
+        ];
+        for cs in &chains {
+            let blocks = decompose(cs);
+            let vec_lift = center_block_lift(cs.len(), &blocks);
+            for i in 0..cs.len() {
+                assert_eq!(
+                    center_block_lift_at(&blocks, i),
+                    vec_lift[i],
+                    "逐点 lift 须 == center_block_lift[{i}]（链长 {}）",
+                    cs.len()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn trend_gate_ignores_lifted_blocks() {
+        // #898：扩展块（lift=1）不是趋势块——center_trend_gate 对其不开门（趋势 =
+        // ≥2 依次同向中枢，外缘分离；扩展 = 外缘重叠，M-2）。
+        let c2 = Center {
+            dd: 3,
+            zd: 5,
+            zg: 6,
+            gg: 7,
+            start_index: 0,
+            end_index: 0,
+        };
+        let cs = [c_up(0), c_expand(0), c2];
+        let b = decompose(&cs);
+        assert_eq!(center_trend_gate(cs.len(), &b), vec![None, None, None]);
+        assert!(last_trend_block(&b).is_none());
     }
 
     #[test]

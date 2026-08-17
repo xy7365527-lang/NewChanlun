@@ -618,8 +618,13 @@ fn type1_funnel_census_btc() {
             .iter()
             .filter(|r| **r == CenterRelation::LevelExpansion)
             .count();
-        // 前缀 τ：τ(前k中枢)=Trend ⟺ k≥2 ∧ rels[0..k-1] 全等且非 Expansion。锁死点=首个异关系下标。
-        let trend_open = !rels.is_empty() && rels[0] != CenterRelation::LevelExpansion;
+        let n_ext = rels
+            .iter()
+            .filter(|r| **r == CenterRelation::CoreOverlap)
+            .count();
+        // 前缀 τ：τ(前k中枢)=Trend ⟺ k≥2 ∧ rels[0..k-1] 全等且为趋势延续关系（#898 四态：
+        // 扩展与延伸均断链）。锁死点=首个异关系下标。
+        let trend_open = !rels.is_empty() && rels[0].is_continuation();
         let lock_at = if rels.is_empty() {
             None
         } else if !trend_open {
@@ -631,7 +636,7 @@ fn type1_funnel_census_btc() {
         // 趋势含 L+1 个中枢。计 run 数与最长 run。
         let (mut runs_ge1, mut longest_run, mut cur_run) = (0usize, 0usize, 0usize);
         for (k, r) in rels.iter().enumerate() {
-            let same_dir = *r != CenterRelation::LevelExpansion;
+            let same_dir = r.is_continuation();
             let cont = same_dir && (k == 0 || rels[k - 1] == *r);
             if same_dir {
                 cur_run = if cont { cur_run + 1 } else { 1 };
@@ -681,8 +686,8 @@ fn type1_funnel_census_btc() {
             &close_src,
         );
         eprintln!(
-                "[funnel] L{level_idx}: centers={} segs={} rel(up/down/exp)={}/{}/{} blocks(trend/consol)={}/{} 最长趋势块={}中枢 | 旧AllTrend锁死点={} 局部同向run≥2中枢数={} 最长run={}(={}中枢)",
-                f.n_centers, f.n_segments, n_up, n_down, n_exp, f.n_trend_blocks, f.n_consol_blocks,
+                "[funnel] L{level_idx}: centers={} segs={} rel(up/down/exp/ext)={}/{}/{}/{} blocks(trend/consol)={}/{} 最长趋势块={}中枢 | 旧AllTrend锁死点={} 局部同向run≥2中枢数={} 最长run={}(={}中枢)",
+                f.n_centers, f.n_segments, n_up, n_down, n_exp, n_ext, f.n_trend_blocks, f.n_consol_blocks,
                 f.longest_trend_run, lock_desc, runs_ge1, longest_run, longest_run + 1
             );
         eprintln!(

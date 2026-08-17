@@ -3,7 +3,7 @@
 //! run 语境身份/memo 基础设施见 `level_view_pan.rs`。
 
 use super::super::super::types::{Bar, Direction, Fractal, MoveKind, Side, Tick};
-use super::super::decompose::{center_block_kind, MoveBlock};
+use super::super::decompose::{center_block_kind, center_block_lift, MoveBlock};
 use super::super::divergence::{move_range_envelope as range_envelope, segments_diverge_or};
 use super::super::recursive_tower::map_src_to_close_idx;
 use super::super::signal::{
@@ -320,6 +320,9 @@ pub fn provide_nest_candidate_events_ext_resident(
 
     let centers: Vec<_> = projection.seeds.iter().map(|seed| seed.center).collect();
     let kinds = center_block_kind(centers.len(), blocks);
+    // #898（#815 M-1 落地）：本级盘背只认本级别盘整块（lift==0）——扩展折出的高一级
+    // 盘整块（核心分离∧外缘重叠，`020:58`）不触发本级盘整背驰窗。
+    let lifts = center_block_lift(centers.len(), blocks);
     let provider_window = (
         view.query.coordinate_window.start,
         view.query.coordinate_window.end,
@@ -346,6 +349,9 @@ pub fn provide_nest_candidate_events_ext_resident(
         };
         if kinds.get(center_index) != Some(&Some(MoveKind::Consolidation)) {
             continue;
+        }
+        if lifts.get(center_index) != Some(&Some(0)) {
+            continue; // #898：高一级盘整块（lift=1）不走本级盘背
         }
         let Some(leave_index) = pan_owner_block_index(blocks, center_index) else {
             continue;

@@ -69,13 +69,17 @@ class Move:
 
 
 def _is_ascending(c1: Zhongshu, c2: Zhongshu) -> bool:
-    """后枢 ZD 严格高于 前枢 ZG → 上涨延续（固定区间递升）。"""
-    return c2.zd > c1.zg
+    """后枢 DD 严格高于 前枢 GG → 上涨延续（外缘分离，#815 M-2 + #898）。
+
+    「后DD>前GG等价于上涨及其延续」（020:58）；核心分离但外缘仍重叠 =
+    中枢扩展、升一级，不是趋势。与 Rust `moves.rs::is_ascending` 逐位等价（同日改齐）。
+    """
+    return c2.dd > c1.gg
 
 
 def _is_descending(c1: Zhongshu, c2: Zhongshu) -> bool:
-    """后枢 ZG 严格低于 前枢 ZD → 下跌延续（固定区间递降）。"""
-    return c2.zg < c1.zd
+    """后枢 GG 严格低于 前枢 DD → 下跌延续（外缘分离，#815 M-2 + #898，同上）。"""
+    return c2.gg < c1.dd
 
 
 def _filter_settled(zhongshus: list[Zhongshu]) -> tuple[list[int], list[Zhongshu]]:

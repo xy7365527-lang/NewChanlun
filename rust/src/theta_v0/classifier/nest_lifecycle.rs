@@ -1633,6 +1633,10 @@ pub fn provide_pan_live_windows(
         if kinds.get(center_index) != Some(&Some(MoveKind::Consolidation)) {
             continue;
         }
+        // ⚠#898 登记：本通道（探针/回放 sidecar，非准入门）的 `kinds` 入参未过滤
+        // `level_lift`——扩展折出的高一级盘整块在此仍按 Consolidation 收。准入门
+        // （signal.rs / level_view/pan_provider.rs）已按 lift==0 过滤；本通道若未来
+        // 进准入路径，须先补 lift 过滤（须随调用方签名一并改，超出 #898 范围）。
         // 窄锚优先、A′ 回退（061:28 中枢前最近同向段）——与 provider pan 分支同序同判。
         let Some(structure) =
             locate_pan_div_structure(&centers[center_index], segment, segments, anchors_self)
@@ -2972,6 +2976,7 @@ mod tests {
                 end_center: 2,
                 kind: MoveKind::Trend,
                 dir: Some(Direction::Up),
+                level_lift: 0,
                 status: MoveStatus::Completed,
             },
             MoveBlock {
@@ -2979,6 +2984,7 @@ mod tests {
                 end_center: 2,
                 kind: MoveKind::Consolidation,
                 dir: None,
+                level_lift: 0,
                 status: MoveStatus::Completed,
             },
         ];
@@ -3512,6 +3518,7 @@ mod tests {
                 end_center: 0,
                 kind: MoveKind::Consolidation,
                 dir: None,
+                level_lift: 0,
                 status: MoveStatus::Completed,
             }],
         );

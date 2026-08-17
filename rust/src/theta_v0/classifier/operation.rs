@@ -23,7 +23,8 @@
 //!   上级 `center_from_window`，#804 登记在案的唯一缝，Lean 背书），旁路**不另立判据**；
 //! - **窗口恒 3 段、成立即跳 3**：`i += 3`，不做 `detect_centers_windowed_resume` Step2 的延伸
 //!   吸收，也无 ≥9 段重切（#826 探针的「口径 S」直译转正）；
-//! - **折叠不合并 LevelExpansion**：[`decompose::fold_rel`] 的 maximal 同标签连段合并属构造
+//! - **折叠不合并重叠关系**（LevelExpansion 扩展 / CoreOverlap 延伸，#898 四态）：
+//!   [`decompose::fold_rel`] 的 maximal 同标签连段合并属构造
 //!   （ADR 0011 裁定四），旁路不继承——相邻重叠中枢各自独立成块，**盘整+盘整**由此可表示；
 //! - **趋势块仍合并**：同向（Up/Down）关系 maximal run 折成一个趋势块——「趋势 = ≥2 依次同向
 //!   中枢」是走势分解定理的定义性判据，**不是延伸**（延伸管的是中枢震荡的吸收，与趋势无关）。
@@ -110,8 +111,8 @@ pub fn operation_decompose(
 ///
 /// 关系判定 = `classify_relation`（与主干**同一判定**，#804——差异只在合并规则，不在判据）：
 /// - Up/Down 关系：maximal 同向 run 折成一个趋势块（趋势定义，非延伸）；
-/// - LevelExpansion 关系：**不合并**——未被趋势块吸收的中枢各自成单中枢盘整块
-///   （相邻盘整块 = 盘整+盘整，`038:22`）。
+/// - 重叠关系（LevelExpansion 扩展 / CoreOverlap 延伸，#898 四态）：**不合并**——未被
+///   趋势块吸收的中枢各自成单中枢盘整块（相邻盘整块 = 盘整+盘整，`038:22`）。
 fn fold_operation_blocks(centers: &[Center]) -> Vec<MoveBlock> {
     let m = centers.len();
     if m == 0 {
@@ -124,6 +125,7 @@ fn fold_operation_blocks(centers: &[Center]) -> Vec<MoveBlock> {
             end_center: 0,
             kind: MoveKind::Consolidation,
             dir: None,
+            level_lift: 0, // 口径 S 同级别分解无升级概念（038:22），lift 恒 0。
             status: MoveStatus::Active,
         }];
     }
@@ -138,8 +140,11 @@ fn fold_operation_blocks(centers: &[Center]) -> Vec<MoveBlock> {
         let dir = match rels[i] {
             CenterRelation::UpContinuation => Direction::Up,
             CenterRelation::DownContinuation => Direction::Down,
-            CenterRelation::LevelExpansion => {
-                i += 1; // 不延伸：重叠关系不开块、不并入——两端中枢各自落盘整（见下）。
+            CenterRelation::LevelExpansion | CenterRelation::CoreOverlap => {
+                // 不延伸：重叠关系（扩展=核心分离∧外缘重叠／延伸=核心重叠，#898 四态）不开块、
+                // 不并入——两端中枢各自落盘整（见下）。`038:22`：同级别分解本就不需要延伸/扩展
+                // 的概念，两态在此同一处置，级别升档语义归 decompose 的 level_lift。
+                i += 1;
                 continue;
             }
         };
@@ -155,6 +160,7 @@ fn fold_operation_blocks(centers: &[Center]) -> Vec<MoveBlock> {
             end_center: j,
             kind: MoveKind::Trend,
             dir: Some(dir),
+            level_lift: 0,
             status: MoveStatus::Completed,
         });
         i = j;
@@ -167,6 +173,7 @@ fn fold_operation_blocks(centers: &[Center]) -> Vec<MoveBlock> {
                 end_center: c,
                 kind: MoveKind::Consolidation,
                 dir: None,
+                level_lift: 0,
                 status: MoveStatus::Completed,
             });
         }
@@ -259,10 +266,11 @@ mod tests {
             ],
             "两个相邻单中枢盘整块 = 盘整+盘整连接（038:22）"
         );
-        // 两中枢外缘重叠（LevelExpansion）但**不合并**——与 decompose::fold_rel 的规则差锚点。
+        // 两中枢外缘重叠且核心亦重叠（#898 四态起为 CoreOverlap 延伸）但仍**不合并**——
+        // 与 decompose::fold_rel 的规则差锚点（038:22：同级别分解不需要延伸/扩展概念）。
         assert_eq!(
             classify_relation(&s.centers[0], &s.centers[1]),
-            CenterRelation::LevelExpansion
+            CenterRelation::CoreOverlap
         );
         assert_eq!(s.blocks[0].status, MoveStatus::Completed);
         assert_eq!(s.blocks[1].status, MoveStatus::Active);
@@ -282,7 +290,7 @@ mod tests {
             u(Direction::Up, 3, 20, 30),
             u(Direction::Down, 4, 22, 30),
             u(Direction::Up, 5, 22, 29),
-            // W2：core [24,31]，外缘 [23,32]（与 W1 外缘重叠 ⟹ LevelExpansion）
+            // W2：core [24,31]，外缘 [23,32]（与 W1 核心亦重叠 ⟹ #898 起为 CoreOverlap 延伸）
             u(Direction::Up, 6, 24, 32),
             u(Direction::Down, 7, 24, 31),
             u(Direction::Up, 8, 25, 31),
@@ -296,7 +304,7 @@ mod tests {
                 (MoveKind::Trend, Some(Direction::Up), 0, 1),
                 (MoveKind::Consolidation, None, 2, 2),
             ],
-            "同向关系合并成趋势块；LevelExpansion 的两端各自落块、互不并入"
+            "同向关系合并成趋势块；重叠关系（延伸/扩展，#898 四态）的两端各自落块、互不并入"
         );
     }
 
@@ -764,16 +772,13 @@ fn append_center(blocks: &mut Vec<MoveBlock>, existing: &[Center], new: &Center)
             end_center: 0,
             kind: MoveKind::Consolidation,
             dir: None,
+            level_lift: 0, // 口径 S 同级别分解无升级概念（038:22），lift 恒 0。
             status: MoveStatus::Active,
         });
         return;
     }
     let r = classify_relation(&existing[j1 - 1], new);
-    let dir = match r {
-        CenterRelation::UpContinuation => Some(Direction::Up),
-        CenterRelation::DownContinuation => Some(Direction::Down),
-        CenterRelation::LevelExpansion => None,
-    };
+    let dir = r.trend_direction(); // 扩展/延伸（重叠关系，#898 四态）→ None：不并入趋势块。
     match dir {
         Some(d) => {
             let extend = matches!(blocks.last(), Some(b) if b.kind == MoveKind::Trend
@@ -792,6 +797,7 @@ fn append_center(blocks: &mut Vec<MoveBlock>, existing: &[Center], new: &Center)
                     end_center: j1,
                     kind: MoveKind::Trend,
                     dir: Some(d),
+                    level_lift: 0,
                     status: MoveStatus::Completed,
                 });
             }
@@ -802,6 +808,7 @@ fn append_center(blocks: &mut Vec<MoveBlock>, existing: &[Center], new: &Center)
                 end_center: j1,
                 kind: MoveKind::Consolidation,
                 dir: None,
+                level_lift: 0,
                 status: MoveStatus::Completed,
             });
         }

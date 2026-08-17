@@ -98,6 +98,7 @@ pub(super) fn pan_provider_fixture() -> PanProviderFixture {
             end_center: 2,
             kind: MoveKind::Consolidation,
             dir: None,
+            level_lift: 0,
             status: MoveStatus::Completed,
         },
         MoveBlock {
@@ -105,6 +106,7 @@ pub(super) fn pan_provider_fixture() -> PanProviderFixture {
             end_center: 4,
             kind: MoveKind::Trend,
             dir: Some(Direction::Up),
+            level_lift: 0,
             status: MoveStatus::Completed,
         },
         MoveBlock {
@@ -112,6 +114,7 @@ pub(super) fn pan_provider_fixture() -> PanProviderFixture {
             end_center: 6,
             kind: MoveKind::Consolidation,
             dir: None,
+            level_lift: 0,
             status: MoveStatus::Active,
         },
     ];
