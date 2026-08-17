@@ -28,14 +28,17 @@ for br in $(git branch --list 'sandcastle/issue-*' --format='%(refname:short)' |
   ok=1
   for sha in $shas; do
     # git 2.50.1 移除了 cherry-pick 的 -q（解析即 usage rc=129）——不得加 -q
-    git -C "$WT" cherry-pick "$sha" >/dev/null 2>&1
-    rc=$?
+    # (same for --skip/--abort below: -q removed file-wide for git 2.50.1)
+    # (set -e: a bare failing command would abort the whole script before rc is read;
+    #  old `|| true` made rc always 0 and the conflict branch dead code. `|| rc=$?` keeps both.)
+    rc=0
+    git -C "$WT" cherry-pick "$sha" >/dev/null 2>&1 || rc=$?
     if [ $rc != 0 ]; then
       # content already merged (auto-merge resolves to empty) => skip, else real conflict
       if git -C "$WT" diff --cached --quiet 2>/dev/null; then
-        git -C "$WT" cherry-pick --skip -q 2>/dev/null || git -C "$WT" reset -q --hard HEAD
+        git -C "$WT" cherry-pick --skip 2>/dev/null || git -C "$WT" reset -q --hard HEAD
       else
-        git -C "$WT" cherry-pick --abort -q 2>/dev/null || true
+        git -C "$WT" cherry-pick --abort 2>/dev/null || true
         echo "FAIL $br (cherry-pick $sha)"; ok=0; break
       fi
     fi

@@ -19,7 +19,12 @@ import json, sys
 latest = {}
 for l in open(sys.argv[1]):
     if not l.strip(): continue
-    e = json.loads(l)
+    try:
+        e = json.loads(l)
+    except json.JSONDecodeError:
+        continue  # 截断/畸形行不入账（单条坏行不得拖垮整轮滚报）
+    if e.get("ticket") is None:
+        continue  # 无 ticket 无法归票，且 None 混入 sorted 键会 TypeError
     latest[(e.get("ticket"), e.get("phase"))] = e
 for (t, p), e in sorted(latest.items()):
     print(f"- #**{t}** [{p}] {e.get('status')} @ {e.get('ts','')[:19]}")
@@ -31,14 +36,19 @@ PYEOF
   echo "---"
   tail -4 .sandcastle/logs/main-loop-20260817.log 2>/dev/null | sed 's/^/  /' || true
 } > "$STATUS"
-# roster 同步：把 workers.jsonl 里最新状态回写对应行
-if [ -f "$REG" ]; then
+# roster 同步：把 workers.jsonl 里最新状态回写对应行（roster 文件缺席时跳过，不得拖垮整轮）
+if [ -f "$REG" ] && [ -f "$ROSTER" ]; then
   python3 - "$REG" "$ROSTER" <<'PYEOF'
 import json, sys, re
 reg = {}
 for l in open(sys.argv[1]):
     if not l.strip(): continue
-    e = json.loads(l)
+    try:
+        e = json.loads(l)
+    except json.JSONDecodeError:
+        continue  # 与上段同一护栏：畸形行跳过
+    if e.get("ticket") is None:
+        continue
     reg[e["ticket"]] = f"{e.get('phase')}:{e.get('status')}"
 roster = open(sys.argv[2]).read()
 for t, st in reg.items():
