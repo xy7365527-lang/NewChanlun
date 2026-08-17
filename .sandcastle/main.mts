@@ -72,6 +72,7 @@ if (REVIEW_ONLY) {
   const sandbox = await sandcastle.createSandbox({
     branch,
     baseBranch: "main",
+    sandbox: docker({ imageName: "sandcastle:newchanlun" }),
   });
   logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
   await sandbox.run({
