@@ -3,7 +3,8 @@
 //! ## 本文件做什么：建立分账本头寸空间这一新代数结构的 rust 实装
 //!
 //! 唯一 canonical 源：`.chanlun/specs/2026-06-28-complete-classification-pdf-extract.md`
-//! §B 表 C25/C26/C29 行（23 页权威 PDF 页11–13）。契约锚（只读，不改 .lean）：
+//! §B 表 C25/C26/C29 行（23 页权威 PDF 页11–13）。契约锚（「只读」修饰 `.lean` 文件本身
+//! ——本模块不改 Lean 源；**不**指本模块是只读工具，#890 订正该误读，codex 2026-08-02 核验在案）：
 //! - C25/C26 P^sep / Net → **`formal/Origin/SeparateLedger.lean`**（`Leg`/`SepPosition`/`legNet`/
 //!   `Net`/`legZero`/`legLong`/`legShort`/`legHedged` 逐一对齐；本 rust 镜像该 Lean 接口语义）。
 //! - C29 Eat^sep → spec §四 页13（向上元素由多头腿覆盖、向下由空头腿覆盖、整操作区间、不抵消）；
@@ -78,6 +79,14 @@
 //!   `#[cfg(test)]`）。
 //! - **禁回灌**：不得把 P^sep 分腿结构回灌进 `strategy::ledger`/`account_adapter` 替换现役
 //!   净额记账——净额账本度量净敞口是既定设计，P^sep 是层分离而非待合并的分叉。
+//! - **#890（SPEC #847 S7）「复用还是重写」判定**：**复用**——保留 Lean 对照件名分原样
+//!   （不重写、不回灌、不改代数）。毛敞口接进决策路径（ADR 0014 裁定五 G2）的生产载体是
+//!   **重簿 `strategy::chong::ChongBook::posted_notional_usd`**（Σₖ |nₖ|·pxₖ，f64 美元名义、
+//!   按重键控，#879 S1 已立，#890 接进 `k_theta_risk_gate` 杠杆判定），不经本模块——本模块
+//!   是**声部级** u64 整数手数 P^sep 教学镜像，与「重部级美元名义」不同层不同单位，强接
+//!   会同时违背本文件的隔离声明与禁回灌条款。「全仓零生产调用者」因此是**声明过的名分
+//!   而非缺陷**：声部级毛账需求若出现（#937 问 4 的 sep_legs 转正线，载体是 fill.rs 的
+//!   SepLeg/VoiceExecBook 生产口径），届时按名分程序（ADR-0004 C6）重新评审本文件去向。
 
 use crate::theta_v0::types::Side;
 

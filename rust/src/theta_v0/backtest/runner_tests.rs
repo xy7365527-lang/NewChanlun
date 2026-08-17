@@ -8038,6 +8038,8 @@ fn run_theta_v0_pi_risk_gate_force_flat_on_insolvent() {
         -1.0,
         0.0,
         0.0,
+        100.0,
+        None,
         None,
     );
     assert!(
@@ -8061,6 +8063,8 @@ fn run_theta_v0_pi_risk_gate_force_flat_on_insolvent() {
         1.0e6,
         0.0,
         0.0,
+        100.0,
+        None,
         None,
     );
     assert!(
@@ -8145,8 +8149,17 @@ fn k_theta_risk_gate_reads_frozen_entry_stop_for_drifted_leg() {
         volume: 1.0,
         untradable: false,
     };
-    let (gate, _mode, stop_seeds) =
-        k_theta_risk_gate(&[leg], &open_trades, &bar, 1.0e6, -1.0, 100.0, None);
+    let (gate, _mode, stop_seeds) = k_theta_risk_gate(
+        &[leg],
+        &open_trades,
+        &bar,
+        1.0e6,
+        -1.0,
+        100.0,
+        100.0,
+        None,
+        None,
+    );
     assert!(
         gate.stop_short,
         "族A：drifted campaign 腿从冻结 entry_stop 读出 stop ⟹ high≥stop 触发 stop_short"
@@ -8166,8 +8179,17 @@ fn k_theta_risk_gate_reads_frozen_entry_stop_for_drifted_leg() {
         })
         .unwrap()
         .entry_stop = None;
-    let (gate2, _mode2, stop_seeds2) =
-        k_theta_risk_gate(&[leg], &open_trades, &bar, 1.0e6, -1.0, 100.0, None);
+    let (gate2, _mode2, stop_seeds2) = k_theta_risk_gate(
+        &[leg],
+        &open_trades,
+        &bar,
+        1.0e6,
+        -1.0,
+        100.0,
+        100.0,
+        None,
+        None,
+    );
     assert!(
         !gate2.stop_short,
         "entry_stop=None ⟹ 诚实无 stop（非静默吞掉真实 stop）"
@@ -8258,6 +8280,8 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
             1.0e6,
             1.0,
             100.0,
+            100.0,
+            None,
             None,
         );
         assert!(
@@ -8276,6 +8300,8 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
         1.0e6,
         1.0,
         100.0,
+        100.0,
+        None,
         None,
     );
     assert!(
@@ -8305,6 +8331,8 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
         1.0e6,
         -1.0,
         100.0,
+        100.0,
+        None,
         None,
     );
     assert!(
@@ -8319,6 +8347,8 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
         1.0e6,
         -1.0,
         100.0,
+        100.0,
+        None,
         None,
     );
     assert!(
@@ -8327,6 +8357,83 @@ fn k_theta_risk_gate_stop_side_follows_held_position_not_carrier_dir() {
     );
     assert!(!gate_mh.stop_long, "#625 镜像：空头仓不得落多头桶");
     assert_eq!(seeds_mh, vec![carrier_long]);
+}
+
+/// ★#890（SPEC #847 S7，ADR 0014 裁定五 G2）：毛敞口接进决策——`leverage_ok`（毛+净合取，
+/// Lean `net_ok_not_imply_gross_ok` 已证只查净不足）经本门获得生产消费点。
+/// 门控语义：`Some(γ)`（= `enforce_gross_cap=true`）激活 C6/C7 杠杆判定，违反 ⟹ 禁增仓
+/// （`no_increase_cap = 当前 |p_t|`，margin-design §2.8 同款）；`None`（default）⟹ 不激活，
+/// 既有基线 bit-exact 不变。
+#[test]
+fn k_theta_risk_gate_gross_leverage_cap_blocks_increase() {
+    let bar = px100_bar(0);
+    let empty: std::collections::HashMap<
+        super::super::super::classifier::recursive_tower::ElementId,
+        LedgerOpen,
+    > = std::collections::HashMap::new();
+    // px=100：p_t=20_000 lot ⟹ 毛=净名义=2.0e6 > equity 1.0e6 ⟹ L^G=L^N=2.0 > γ=1.0（违反）。
+    let (gate_over, _m, _s) = k_theta_risk_gate(
+        &[],
+        &empty,
+        &bar,
+        1.0e6,
+        20_000.0,
+        2.0e6,
+        100.0,
+        Some(1.0),
+        None,
+    );
+    assert_eq!(
+        gate_over.no_increase_cap,
+        Some(20_000.0),
+        "#890：毛/净杠杆违反 ⟹ 禁增仓（净幅压到当前 |p_t|），且不是强平"
+    );
+    assert!(
+        !gate_over.force_flat,
+        "#890：杠杆违反 = 禁增仓，force_flat 仍专属 M0/M1（Insolvent/Liquidation）"
+    );
+    // 同一姿态、门关闭（None = default）⟹ 不激活，与旧行为逐位相同。
+    let (gate_off, _m, _s) =
+        k_theta_risk_gate(&[], &empty, &bar, 1.0e6, 20_000.0, 2.0e6, 100.0, None, None);
+    assert_eq!(
+        gate_off.no_increase_cap, None,
+        "#890：gross_leverage_cap=None（default）⟹ 不激活（bit-exact 不变）"
+    );
+    // 上限内：p_t=5_000 lot ⟹ 名义 5.0e5，L^G=L^N=0.5 ≤ 1.0 ⟹ 不约束。
+    let (gate_ok, _m, _s) = k_theta_risk_gate(
+        &[],
+        &empty,
+        &bar,
+        1.0e6,
+        5_000.0,
+        5.0e5,
+        100.0,
+        Some(1.0),
+        None,
+    );
+    assert_eq!(
+        gate_ok.no_increase_cap, None,
+        "#890：杠杆未超 γ ⟹ 门不加约束"
+    );
+    // 毛 > 净（多重的预演形态：毛名义大于 |净| 名义）⟹ 毛分量独立生效——
+    // 净 0.5e6（lev 0.5 ≤ 1）若只查净会放行，毛 1.5e6（lev 1.5 > 1）必须拦
+    // （net_ok_not_imply_gross_ok 的生产对应物）。
+    let (gate_gross_only, _m, _s) = k_theta_risk_gate(
+        &[],
+        &empty,
+        &bar,
+        1.0e6,
+        5_000.0,
+        1.5e6,
+        100.0,
+        Some(1.0),
+        None,
+    );
+    assert_eq!(
+        gate_gross_only.no_increase_cap,
+        Some(5_000.0),
+        "#890：净合规不蕴含毛合规——毛分量独立违反即禁增仓"
+    );
 }
 
 // ──────────────────────────────────────────────────────────────────────

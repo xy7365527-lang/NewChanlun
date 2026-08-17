@@ -555,6 +555,30 @@ pub fn leverage_ok(metrics: LeverageMetrics, caps: LeverageCaps) -> bool {
     metrics.gross_lev <= caps.gross_cap && metrics.net_lev <= caps.net_cap
 }
 
+/// 美元空间杠杆度量（毛/净名义已折算为美元时直接构造，#890 SPEC #847 S7）。
+///
+/// 语义与 [`leverage_metrics`] 逐点相同：`L^G = G_t/E_t`、`L^N = N_t/E_t`；`equity <= 0`
+/// ⟹ 两杠杆 = ∞（约束必违反，安全侧让位 §11 M0 Insolvent——同 [`leverage_metrics`] 边界，
+/// ∞ 规则单源于此与彼，不许第三处重写）。
+///
+/// 生产消费方：`backtest::admission::k_theta_risk_gate`（毛敞口 = 重簿逐仓名义
+/// `Σₖ |nₖ|·pxₖ`，#879 S1 已接入同一门作保证金基数；本构造子让它同门作 C6/C7 杠杆判定）。
+/// `gross`/`net` 两 i64 字段按四舍五入镜像（信息承载——[`leverage_ok`] 只读 lev 分量，
+/// 判定不受取整影响）。
+pub fn leverage_metrics_usd(gross_usd: f64, net_usd: f64, equity: f64) -> LeverageMetrics {
+    let (gross_lev, net_lev) = if equity <= 0.0 {
+        (f64::INFINITY, f64::INFINITY)
+    } else {
+        (gross_usd / equity, net_usd / equity)
+    };
+    LeverageMetrics {
+        gross: gross_usd.round() as i64,
+        net: net_usd.round() as i64,
+        gross_lev,
+        net_lev,
+    }
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 //  §13' 毛头寸约束的 units 空间形式（G7：codex #122 终裁 + codex decide 5b46）
 //
@@ -562,8 +586,10 @@ pub fn leverage_ok(metrics: LeverageMetrics, caps: LeverageCaps) -> bool {
 //  `G_t = gross_units·px`、`E_t = base_units·px`（runner `base_units = NAV/px`）⟹
 //  `L^G ≤ γ̄ ⟺ gross_units ≤ γ̄·base_units`（px>0 两侧对消，f64 精确，无 i64 量化）。
 //  生产 K_Θ 的毛约束判定走本节（coverage.rs `apply_gross_cap` 调用，不私写同义比较）；
-//  [`gross_notional`]/[`leverage_metrics`]/[`leverage_ok`] 保留为美元空间 Lean 镜像
-//  （`Origin.LeverageCapital`），两空间等价由测试 `gross_units_ok_iff_leverage_ok` 锁死。
+//  [`gross_notional`]/[`leverage_metrics`] 保留为美元空间 Lean 镜像（`Origin.LeverageCapital`），
+//  两空间等价由测试 `gross_units_ok_iff_leverage_ok` 锁死。
+//  ★#890（SPEC #847 S7）：[`leverage_ok`] 不再是纯镜像——经 [`leverage_metrics_usd`] 接进
+//  风控门 `k_theta_risk_gate`（`risk.enforce_gross_cap` 门控，见 admission.rs 该门注释）。
 // ──────────────────────────────────────────────────────────────────────────
 
 /// 毛敞口 units 上限 `Ḡ = γ̄·U_ℓ`（无量纲毛杠杆上限 × 协变资本单位，d_j=1 名义协变，
@@ -1741,6 +1767,42 @@ mod tests {
         ];
         assert!(gross_units_ok(20.0, base_units, gamma));
         assert!(leverage_ok(leverage_metrics(&voices_eq, equity), caps));
+    }
+
+    /// ★#890（SPEC #847 S7）：美元空间构造子 [`leverage_metrics_usd`] 与声部空间
+    /// [`leverage_metrics`] 同值对拍 + 边界（equity≤0 ⟹ ∞）同源。
+    #[test]
+    fn leverage_metrics_usd_matches_voice_space() {
+        let px = 50.0;
+        let equity = 1000.0;
+        let voices = [
+            VoiceNotional {
+                side: VoiceSide::Long,
+                notional_mag: (12.0 * px) as i64,
+            },
+            VoiceNotional {
+                side: VoiceSide::Short,
+                notional_mag: (4.0 * px) as i64,
+            },
+        ];
+        let m_voice = leverage_metrics(&voices, equity);
+        // 美元空间：G = 600+200 = 800，N = |600−200| = 400。
+        let m_usd = leverage_metrics_usd(800.0, 400.0, equity);
+        assert_eq!(m_usd.gross_lev, m_voice.gross_lev);
+        assert_eq!(m_usd.net_lev, m_voice.net_lev);
+        assert_eq!(m_usd.gross, m_voice.gross);
+        assert_eq!(m_usd.net, m_voice.net);
+        // 边界同源：equity≤0 ⟹ 两杠杆 ∞（安全侧，同 leverage_metrics）。
+        let m_zero = leverage_metrics_usd(800.0, 400.0, 0.0);
+        assert!(m_zero.gross_lev.is_infinite() && m_zero.net_lev.is_infinite());
+        let caps = LeverageCaps {
+            gross_cap: 1.0,
+            net_cap: 1.0,
+        };
+        assert!(
+            !leverage_ok(m_zero, caps),
+            "equity≤0 ⟹ 任何杠杆约束都违反（安全侧）"
+        );
     }
 
     /// G7 毛 cap：`Ḡ = γ̄·U_ℓ`（绝对值，与净 cap `feasible_net_cap·base_units` 同构）。
