@@ -332,7 +332,7 @@ mod tests {
             high: close,
             low: close,
             close,
-            volume: 100,
+            volume: 100.0,
             untradable: false,
         }
     }
@@ -518,7 +518,7 @@ mod tests {
             high: 1010,
             low: 900, // low ≤ stop(950) ⟹ 多头止损触及（exec::stop_hit）
             close: 920,
-            volume: 100,
+            volume: 100.0,
             untradable: false,
         };
         core.bars.push(stop_bar);
@@ -542,7 +542,7 @@ mod tests {
             high: 920,
             low: 900,
             close: 905,
-            volume: 100,
+            volume: 100.0,
             untradable: false,
         };
         let intents = core.plan_for_bar(exit_eval_bar, &snap);
@@ -590,7 +590,7 @@ mod tests {
             high: 905,
             low: 890,
             close: 895,
-            volume: 100,
+            volume: 100.0,
             untradable: false,
         };
         let intents = core.plan_for_bar(stop_bar, &snap);

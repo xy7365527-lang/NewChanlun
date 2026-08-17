@@ -628,6 +628,27 @@ fn signal_extraction_emits_no_second_class_only() {
         start_index: 0,
         end_index: 8,
     };
+    // ★#1025（#905 `first_retrace_pair` 语义对齐，同 #993 先例：fixture 按新判据语义重制，
+    // 判据零改动）：#905 后三类要求 (leave, retest) = 归属中枢**右侧首对**（leave 前一段起点
+    // 在中枢右边之前，signal.rs:2145）。c1 的右侧首对位已被 T3-in-c 固定首对（leave 12,13 /
+    // retest 13,14，#607 D2 一类点必要合取）占住——c1.end_index=8 下 B3 leave(18,20) 的前段
+    // C(14,18) start=14 ≥ 8 ⟹ 非首对 ⟹ B3 不置位（CI run 31972038252 红）。单一中枢下两谓词
+    // 锚位不可兼得（T3-in-c 锚 = c1 右边第一段须下破 zd；first_retrace_pair 要 B3 leave 前段
+    // start < end_index ⟹ end_index > 14 ⟹ T3-in-c 锚漂到 (18,20) 非下破 ⟹ B1 死）⟹ B3 独立
+    // 中枢承载。c2 几何三约束：① end_index=16 ∈ (14,18] ⟹ C 触发段 start=14 ⟹ 首对成立且
+    // C 段最近中枢仍是 c1（14 < 16，c2 对 C 段未确认），≤ leave.start=18 ⟹ leave 归属 c2；
+    // ② zg=180 < 回试低点 210（严格口径，不破 ZG）；③ 与 c1 关系 = LevelExpansion
+    // （c2.gg=190 ≥ c1.dd=90 且 c2.dd=140 ≤ c1.gg=210）⟹ c2 落 Consolidation 块 ⟹
+    // gate[2]=None 不开第一类门，c1 ownership 仍归 Trend(Down) 块（转折中枢归前块）⟹
+    // B1 链路与 T3-in-c 锚位逐位不变。
+    let c2 = Center {
+        zd: 150,
+        zg: 180,
+        dd: 140,
+        gg: 190,
+        start_index: 9,
+        end_index: 16,
+    };
     let segs = vec![
         seg(Direction::Down, 3, 5, 350, 110), // A 段：C0 离开段（破 C0 下沿），骤跌 ⟹ MACD 绿柱大（强势）
         seg(Direction::Up, 5, 7, 110, 140),   // B 段 1：反向连接（C1 起点，低位）
@@ -637,8 +658,8 @@ fn signal_extraction_emits_no_second_class_only() {
         seg(Direction::Down, 12, 13, 138, 95), // T3 leave：端点 95 < c1.zd=100（破）
         seg(Direction::Up, 13, 14, 95, 98),    // T3 retest：终点 98 < zd（不回中枢）⟹ Present
         seg(Direction::Down, 14, 18, 98, 80),  // C 触发段：破 c1 下沿 ∧ C<A 趋势背驰 ⟹ B1
-        seg(Direction::Up, 18, 20, 80, 260),   // 离开 C1 上方（端点 > c1.zg=200）
-        seg(Direction::Down, 20, 22, 260, 210), // 回试低点 210 > c1.zg=200（不破 ZG）⟹ B3
+        seg(Direction::Up, 18, 20, 80, 260), // B3 leave：c2 右侧首段（c2.end_index=16 ⟹ 首对成立），端点 260 > c2.zg=180
+        seg(Direction::Down, 20, 22, 260, 210), // B3 retest：低点 210 > c2.zg=180（不破 ZG，严格口径）⟹ B3
     ];
     // closes（merged_bars 序列，与 segment 抽象端点价解耦——结构判定在 tick 域，MACD 在浮点域，两者
     // 不必逐 bar 一致）：A 段 bar[3,5] 急跌 hist 大=强力度，B 段 bar[5,7] 盘整让 EMA 收敛，C 段 bar[9,11]
@@ -651,10 +672,11 @@ fn signal_extraction_emits_no_second_class_only() {
         138, 95, 98, // 11..14 T3 leave（破 zd）+ retest（不回中枢）
         98, 95, 92,
         80, // 14..18 C 触发段：缓跌（绿柱小=力度衰减=趋势背驰）
-        80, 160, 260, // 18..21 离开上段：过 c1.zg=200（端点 260）
-        260, 230, 210, // 21..24 回试：低点 210 > c1.zg=200（不破 ⟹ B3）
+        80, 160, 260, // 18..21 离开上段：过 c2.zg=180（端点 260）
+        260, 230,
+        210, // 21..24 回试：低点 210 > c2.zg=180（不破 ⟹ B3；#1025 起归属独立中枢 c2）
     ]);
-    let points = extract_first_macd(&[c0, c1], &segs, &closes, &src);
+    let points = extract_first_macd(&[c0, c1, c2], &segs, &closes, &src);
     for p in &points {
         assert!(
             !p.bits.buy2,

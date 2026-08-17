@@ -144,7 +144,7 @@ fn raw_bar(raw: &RawBars, i: usize, prior: i64, tick_size: f64) -> Result<Bar, S
         high: values.1,
         low: values.2,
         close: values.3,
-        volume: volume as i64,
+        volume: volume as f64,
         untradable: values.4 || volume <= 0.0,
     })
 }

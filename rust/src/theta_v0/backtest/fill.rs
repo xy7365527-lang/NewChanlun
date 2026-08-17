@@ -3913,7 +3913,7 @@ mod center_oscillation_wiring_tests {
                 high: 10_000_000_000,
                 low: 10_000_000_000,
                 close: 10_000_000_000,
-                volume: 1,
+                volume: 1.0,
                 untradable: false,
             }
         }
@@ -6434,7 +6434,7 @@ mod entry_stop_recheck_gate_tests {
             high: PX,
             low: PX,
             close: PX,
-            volume: 1,
+            volume: 1.0,
             untradable: false,
         }
     }

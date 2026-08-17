@@ -99,7 +99,7 @@ fn to_nautilus_bar(bar: &crate::theta_v0::types::Bar, bar_type: BarType, tick_si
         px(bar.high),
         px(bar.low),
         px(bar.close),
-        Quantity::new(bar.volume.max(0) as f64, 6),
+        Quantity::new(bar.volume.max(0.0), 6), // #919：volume 已是 f64
         ts,
         ts,
     )

@@ -2462,7 +2462,7 @@ fn load_btc_bars(path: &Path, tick_size: f64) -> Result<LoadedBars, String> {
             high: quantize(h, tick_size),
             low: quantize(l, tick_size),
             close: quantize(c, tick_size),
-            volume: v as i64,
+            volume: v as f64,
             untradable: bad_range || bad_price || v <= 0.0,
         });
     }

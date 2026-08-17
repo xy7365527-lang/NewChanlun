@@ -136,7 +136,7 @@ fn load(path: &Path, tick_size: f64, limit: usize) -> Vec<Bar> {
             high: values.1,
             low: values.2,
             close: values.3,
-            volume: volume as i64,
+            volume: volume as f64,
             untradable: values.4 || volume <= 0.0,
         });
     }

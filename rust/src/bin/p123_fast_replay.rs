@@ -4013,7 +4013,7 @@ fn load_bars(path: &Path, tick_size: f64) -> Result<LoadedBars, String> {
                 high: quantize(high, tick_size),
                 low: quantize(low, tick_size),
                 close: quantize(close, tick_size),
-                volume: volume as i64,
+                volume: volume as f64,
                 untradable: high < open.max(close).max(low)
                     || low > open.min(close).min(high)
                     || open <= 0.0
@@ -4455,7 +4455,7 @@ provider_window=5..70 b_center_start=20 intake_fallback=0"
                 high: v,
                 low: v,
                 close: v,
-                volume: 1,
+                volume: 1.0,
                 untradable: false,
             })
             .collect()

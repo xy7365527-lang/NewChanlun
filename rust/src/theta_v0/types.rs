@@ -45,7 +45,10 @@ impl Direction {
 ///
 /// `untradable` 标记不可交易 bar（reference-theta-v0.md:53：缺 OHLC / `high<max(open,
 /// close,low)` / `low>min(open,close,high)` / volume=0 / halt / limit flag）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// #919：volume 用 f64（入库不截断小数成交量——0<v<1 的 bar 曾被 i64 截成 0 判 untradable，
+/// 两处 Nautilus 消费者往返有损）。f64 无 Eq ⟹ derive 只留 PartialEq（逐字段 == 比较场景
+/// 均为测试对拍，PartialEq 足够）。
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Bar {
     pub source_index: usize,
     pub timestamp: Timestamp,
@@ -53,7 +56,7 @@ pub struct Bar {
     pub high: Tick,
     pub low: Tick,
     pub close: Tick,
-    pub volume: i64,
+    pub volume: f64,
     pub untradable: bool,
 }
 

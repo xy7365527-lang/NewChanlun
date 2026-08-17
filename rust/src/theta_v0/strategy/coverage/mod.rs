@@ -142,8 +142,5 @@ pub use compose::{
     t1_target_residual_probe_bump, t1_target_residual_probe_count, t1_target_zero_probe_bump,
     t1_target_zero_probe_count, t1_target_zero_probe_reset,
 };
-// #913：TwStepCtx 另被 backtest_bin（fill.rs:5027）消费；VoiceVerdict 仅测试。
 #[cfg(any(test, feature = "backtest_bin"))]
-pub(crate) use compose::TwStepCtx;
-#[cfg(test)]
-pub(crate) use compose::VoiceVerdict;
+pub(crate) use compose::{TwStepCtx, VoiceVerdict}; // #913 清理时误加 test 门——fill.rs 生产区（backtest_bin 门内）也消费，订正见 #1022

@@ -59,7 +59,7 @@ fn load_bars(path: &PathBuf, tick_size: f64, limit: usize) -> Result<Vec<Bar>, S
             high: quantize(h, tick_size),
             low: quantize(l, tick_size),
             close: quantize(c, tick_size),
-            volume: v as i64,
+            volume: v as f64,
             untradable: h < o.max(c).max(l)
                 || l > o.min(c).min(h)
                 || o <= 0.0

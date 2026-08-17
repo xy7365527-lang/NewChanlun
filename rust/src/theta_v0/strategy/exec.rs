@@ -286,7 +286,7 @@ mod tests {
             high: h,
             low: l,
             close: c,
-            volume: if untradable { 0 } else { 100 },
+            volume: if untradable { 0.0 } else { 100.0 },
             untradable,
         }
     }

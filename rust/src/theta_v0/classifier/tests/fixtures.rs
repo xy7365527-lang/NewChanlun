@@ -26,7 +26,7 @@ pub(super) fn bars_from_closes(vals: &[i64]) -> Vec<super::super::super::types::
             high: v,
             low: v,
             close: v,
-            volume: 1,
+            volume: 1.0, // #919：f64
             untradable: false,
         })
         .collect()

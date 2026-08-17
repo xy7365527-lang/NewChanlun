@@ -93,7 +93,7 @@ pub(super) fn mbar(source_index: usize) -> Bar {
         high: 0,
         low: 0,
         close: 0,
-        volume: 0,
+        volume: 0.0,
         untradable: false,
     }
 }

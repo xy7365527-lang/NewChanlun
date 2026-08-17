@@ -266,7 +266,7 @@ fn bit_exact_parse_layer_incr_per_bar_synthetic() {
                 high: close + 5,
                 low: close - 5,
                 close,
-                volume: 1000,
+                volume: 1000.0,
                 untradable: false,
             }
         })

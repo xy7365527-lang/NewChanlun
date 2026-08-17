@@ -97,7 +97,7 @@ fn load_btc_bars(tick_size: f64) -> Vec<Bar> {
             high: hq,
             low: lq,
             close: cq,
-            volume: v as i64,
+            volume: v as f64,
             untradable,
         });
     }

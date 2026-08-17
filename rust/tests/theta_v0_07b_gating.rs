@@ -84,7 +84,7 @@ fn load_bars(rel: &str, tick_size: f64, limit: usize) -> Vec<Bar> {
             high: hq,
             low: lq,
             close: cq,
-            volume: v as i64,
+            volume: v as f64,
             untradable,
         });
     }

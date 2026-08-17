@@ -209,7 +209,7 @@ mod tests {
             high: 12,
             low: 9,
             close: 11,
-            volume: 1000,
+            volume: 1000.0,
             untradable: false,
         };
         // 纯行情退化：fill=None + 零费用 + 无公司行为。

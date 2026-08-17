@@ -29,7 +29,7 @@ use super::super::types::Bar;
 /// `Option<Fill>`（见 [`ExternalEvent::fill`]）：`None`=本步无成交；`Some`=成交价×量（整数域）。
 /// ★§20 line 1447：「成交作为外部事件输入以后，下一状态才唯一」——`Fill` 是状态唯一性的依赖输入
 /// （策略只唯一决定订单 `O`，不决定成交）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Fill {
     pub price: i64,
     pub qty: i64,
@@ -37,7 +37,7 @@ pub struct Fill {
 
 /// 拒单 `Reject`（契约锚 `Origin.CompleteStateEvent.Reject`，FULL §20 line 1423）。
 /// `rejected=true` 表示挂单被拒（`order_ref` 为被拒订单标识）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Reject {
     pub rejected: bool,
     pub order_ref: i64,
@@ -45,7 +45,7 @@ pub struct Reject {
 
 /// 手续费 `Fee`（契约锚 `Origin.CompleteStateEvent.Fee`，FULL §20 line 1424）。
 /// 本步产生的手续费（整数域，进账本 Π 的成本侧）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Fee {
     pub amount: i64,
 }
@@ -57,21 +57,21 @@ pub struct Fee {
 /// `complete::mod` 的模块测试 `amount: -1`），
 /// 回测侧持有成本走另一条路径 `strategy::risk::CostModel`（现货口径 = 资金占用机会成本 + 现货
 /// 杠杆借币 + 强平罚金）。真永续接入是另票（#62 datum + datum 版本管理）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Funding {
     pub amount: i64,
 }
 
 /// 保证金更新 `MarginUpdate`（契约锚 `Origin.CompleteStateEvent.MarginUpdate`，FULL §20 line 1426）。
 /// 经纪侧保证金占用变化（更新 `ν.margin_used`）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MarginUpdate {
     pub new_margin_used: i64,
 }
 
 /// 借券更新 `BorrowUpdate`（契约锚 `Origin.CompleteStateEvent.BorrowUpdate`，FULL §20 line 1427）。
 /// 借券可得性/成本变化（更新 `ν.borrowable`）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BorrowUpdate {
     pub borrowable: bool,
     pub borrow_cost: i64,
@@ -81,7 +81,7 @@ pub struct BorrowUpdate {
 ///
 /// 拆股/分红/合并等改变价格连续性与持仓数量的外部事件。逐子分量：`split_num`/`split_den`（拆股比
 /// 分子/分母）、`dividend`（每单位分红）。「无行为」用 `(1,1,0)` 表示（拆股比 1:1、零分红）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CorpAction {
     pub split_num: i64,
     pub split_den: i64,
@@ -107,7 +107,7 @@ impl CorpAction {
 ///
 /// ★`fill` 用 `Option`（§20 line 1447：策略发单后成交未知）；其余每步都有值（无值时取「零」实例
 /// 如 `Fee { amount: 0 }` / `CorpAction::none_action()`）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExternalEvent {
     /// 1. `y_{t+1}` 下一行情（FULL line 1421）。
     pub bar: Bar,

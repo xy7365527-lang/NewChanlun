@@ -60,7 +60,7 @@ fn merge(acc: &Bar, b: &Bar, dir: MergeDir) -> Bar {
         high,
         low,
         close: b.close,
-        volume: acc.volume.saturating_add(b.volume),
+        volume: acc.volume + b.volume, // #919：f64 加法（原 saturating_add 是 i64 防溢出语义）
         untradable: acc.untradable || b.untradable,
     }
 }
@@ -81,7 +81,7 @@ fn strict_dir(prev: &Bar, cur: &Bar) -> Option<MergeDir> {
 }
 
 /// 包含合并输出：合并后的 K 序列 + 是否全程无方向（only_open_tail）。
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct InclusionResult {
     /// 包含处理后的 K 序列（合并完成）。
     pub merged: Vec<Bar>,
@@ -234,7 +234,7 @@ pub fn merged_group_anchor(merged: &[Bar], source_index: usize) -> Option<usize>
 /// （调用方须丢弃上一轮 ParseLayer 以保 O(1)，profile/runner 均如此）。
 ///
 /// // ponytail: 无剩余 ceiling（incr_total O(n²) → O(n) 已闭合）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IncrInclusion {
     /// 相 A：开头方向未定时缓存原始 bar（方向确定后清空）。
     raw_pending: Vec<Bar>,
@@ -431,7 +431,7 @@ impl IncrInclusion {
 ///
 /// `merged` 借用 `IncrInclusion` 内部连续存储；`only_open_tail` 同 `InclusionResult`。
 /// 供热路径调用方（`ParseLayerIncr::append`）替代 `to_result().merged` 的每 bar clone。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct InclusionResultRef<'a> {
     pub merged: &'a [Bar],
     pub only_open_tail: bool,
@@ -500,7 +500,7 @@ mod tests {
             high,
             low,
             close: high,
-            volume: 1,
+            volume: 1.0,
             untradable: false,
         }
     }
