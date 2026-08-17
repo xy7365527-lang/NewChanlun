@@ -4800,8 +4800,8 @@ where
             }
             let base_units = equity_nav / px; // U_ℓ：NAV/价 = 可建名义手数（方案A协变）
                                               // 风控门也用**前缀因果分类**（leg 止损 bsp 因果查得，非全窗非因果——与 σ_p 同因果口径）。
-            // #879：风控门保证金基数 = 重簿逐仓全额计提名义（Σₖ |nₖ|·px；单重 ⟹ |p_t|·px，
-            // 与旧净额行同值但语义已锚定「逐仓极性全额」——ADR 0014 裁定二，#834 定落点）。
+                                              // #879：风控门保证金基数 = 重簿逐仓全额计提名义（Σₖ |nₖ|·px；单重 ⟹ |p_t|·px，
+                                              // 与旧净额行同值但语义已锚定「逐仓极性全额」——ADR 0014 裁定二，#834 定落点）。
             let chong_posted_notional_usd = chong_book.posted_notional_usd(&|_| px);
             let (gate, risk_mode_i, stop_risk_seeds) = k_theta_risk_gate(
                 &prev_active,
