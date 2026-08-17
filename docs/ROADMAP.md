@@ -322,8 +322,7 @@ src/newchan/
 │   │   ├── config_space.py       # 配置空间 + 极性指数
 │   │   ├── k4_scanner.py         # Snapshot → Configuration
 │   │   ├── fiber_bundle.py       # 纤维丛
-│   │   ├── transition.py         # 状态转移
-│   │   └── multi_tf_pipeline.py  # 多周期管线
+│   │   └── transition.py         # 状态转移
 │   ├── trading/
 │   │   ├── scanner_pool.py       # 品种池 (帕萨卡利亚)
 │   │   ├── fold_equivalence.py   # 折叠等价类 + 商空间排序

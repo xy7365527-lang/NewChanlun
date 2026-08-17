@@ -73,6 +73,7 @@
 - 结论: AAPL 1min×5天 T6触发率=0% T7≈0.06%，瓶颈是递归深度不足（递归仅1级）；v90日线全量6600bar仍 T6=0；根因是线段引擎压缩率（缠论线段定义固有特性），T6在单TF递归架构下结构性不可达。
 - 边界条件: "更长时间跨度/更高TF→递归更深"假说被证伪（日线全量仍递归层级1）
 - 下游推论: T6结构性不可达 [resolved closed v104，60min+daily 日线缠论结构天然稀疏 730bar→52strokes→4seg→1zs→0moves]；T7边际可用 [resolved closed v104]；需多TF输入而非单TF递归 [resolved closed v100，MultiTFPipelineAdapter 验证日线稀疏不可绕过]
+- 退场记录: 此路已验证不通（日线稀疏不可绕过），实现已随 #829 移除提交删除（commit 号以 git log 中 #829 为准——退场记录与删除同提交，无法自指 hash），勿再走；本仓「多级别」的正解是内在级别视窗（#106/#107）
 - 链标签: 引擎增量（segment/zhongshu/move/递归压缩）
 
 ### 230 K4 独立边独立性——真实数据检验
@@ -215,6 +216,7 @@
 - 定义依据: 238 adapter模式；237诊断；239方向性力度；BuySellPoint→BSP/CrossLevelDivergence→ResonanceSignal类型转换
 - 边界条件: 合成数据可能不产生走势；无snapshot时persistence回退0.5；type2/type3映射是预留接口；跨TF背驰映射INDEPENDENT_EDGE层
 - 下游推论: 交易管道可消费多TF信号 [已验证]；T6从结构性不可达变有条件可达（条件:≥2 TF独立产出走势）[部分否证247-真实数据条件未满足]；方向性力度可独立升级 [未闭合]；与TFOrchestrator流式集成 [未闭合]
+- 退场记录: 此路已验证不通（日线稀疏不可绕过），实现已随 #829 移除提交删除（commit 号以 git log 中 #829 为准——退场记录与删除同提交，无法自指 hash），勿再走；本仓「多级别」的正解是内在级别视窗（#106/#107）
 - 链标签: 引擎增量（多TF/bi/segment/zhongshu/move/方向性力度/ker(D)）；VersionI（BSP/共振/pipeline）
 
 ### 247 真实数据多 TF 验证——246号 T6 可达性和方向性力度背驰经验检验
