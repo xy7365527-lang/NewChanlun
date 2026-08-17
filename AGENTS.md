@@ -137,7 +137,7 @@
 ## 协作设施
 
 - **Issue tracker**：GitHub `xy7365527-lang/NewChanlun`（private，`gh` 已认证）；操作口径 `docs/agents/issue-tracker.md`。
-- **Sandcastle 执行面**（[#1000](https://github.com/xy7365527-lang/NewChanlun/issues/1000) 裁定，2026-08-16）：执行类工作（AFK 探针/跑批/实施票链）默认走 `.sandcastle/` 沙盒——两段式 `main.mts`（实装+独立评审双工蜂）与蜂群 `main-swarm.mts`（planner+扇出+merger 归并），工蜂 = prime-agent（kimi k3 默认，升档换 provider/model）；拾取闸 = 专属 label `sandcastle`；例外三类与全貌见图 #1000 与 `.sandcastle/README.md`。
+- **Sandcastle 执行面**（[#1000](https://github.com/xy7365527-lang/NewChanlun/issues/1000) 裁定，2026-08-16）：执行类工作（AFK 探针/跑批/实施票链）默认走 `.sandcastle/` 沙盒（工蜂跨进程不在宿主 harness 子代理列表——**可见性以 `.sandcastle/logs/workers.jsonl` + `STATUS.md`（watcher.sh 滚报，launchd 每 10 分钟）+ `.chanlun/agent-roster-*.md` 为准**；harvest.sh 自动验收合入）——两段式 `main.mts`（实装+独立评审双工蜂）与蜂群 `main-swarm.mts`（planner+扇出+merger 归并），工蜂 = prime-agent（kimi k3 默认，升档换 provider/model）；拾取闸 = 专属 label `sandcastle`；例外三类与全貌见图 #1000 与 `.sandcastle/README.md`。
 - **Triage labels**：`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`。
 - **Domain docs**：单 context——根 `CONTEXT.md` + `docs/adr/`（惰性创建）。
 - **纪律族**（docs/agents/）：`generation-constitution.md`（名分四态+现役线名单+开票门）、`delivery-discipline.md`（关票门五子句+开票门+豁免+编号）、`stat-provenance.md`（统计口径两档）、`wayfinder-workflow.md`（**本仓 wayfinder 唯一正本**：入流判据+五段管线+四票型口径+图的两行声明+一票一会话与并行纪律+HITL 吞吐纪律+图正文写入协议+`/to-spec` 交棒边界+开票手续）。
