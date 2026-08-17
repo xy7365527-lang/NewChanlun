@@ -36,6 +36,8 @@ function hasOpenBlocker(issue: number): boolean {
 //    以 JSONL registry 供宿主/roster 读取；每事件带 ts/ticket/branch/phase/status）──
 import { appendFileSync } from "node:fs";
 function logWorker(e: Record<string, unknown>) {
+  // logs/ 目录可能不存在（gitignore 后新克隆）——mkdir 兜底（dispatcher 轮 2 坐实的 ENOENT）
+  try { execSync("mkdir -p .sandcastle/logs"); } catch {}
   appendFileSync(
     ".sandcastle/logs/workers.jsonl",
     JSON.stringify({ ts: new Date().toISOString(), ...e }) + "\n",
@@ -53,6 +55,36 @@ function pickIssue(): number | null {
     if (!hasOpenBlocker(i.number)) return i.number;
   }
   return null;
+}
+
+// ── REVIEW_ONLY 模式（#879 补派 Phase 2 引入）：env SANDCASTLE_REVIEW_ONLY="分支名:票号" 时
+// 跳过 pickIssue 与 Phase 1，对既有分支直接跑 Phase 2 评审（宿主驱动中断后的补派路径，
+// TROUBLESHOOTING #11）。分支须已存在且含实装 commit。
+const REVIEW_ONLY = process.env.SANDCASTLE_REVIEW_ONLY;
+if (REVIEW_ONLY) {
+  const [roBranch, roIssue] = REVIEW_ONLY.split(":");
+  if (!roBranch || !roIssue) {
+    console.error("SANDCASTLE_REVIEW_ONLY 格式须为 分支名:票号");
+    process.exit(2);
+  }
+  const issue = Number(roIssue);
+  const branch = roBranch;
+  const sandbox = await sandcastle.createSandbox({
+    branch,
+    baseBranch: "main",
+  });
+  logWorker({ ticket: issue, branch, phase: "reviewer", status: "started" });
+  await sandbox.run({
+    name: "reviewer",
+    maxIterations: 1,
+    agent: primeAgent(REVIEWER_MODEL, { provider: PROVIDER }),
+    promptFile: "./.sandcastle/review-prompt.md",
+    promptArgs: { BRANCH: branch, ISSUE_NUMBER: String(issue) },
+  });
+  logWorker({ ticket: issue, branch, phase: "reviewer", status: "completed" });
+  console.log(`REVIEW_ONLY 完成：${branch} 待验收合入（人工闸）。`);
+  await sandbox.close();
+  process.exit(0);
 }
 
 for (let iter = 1; iter <= MAX_ITERATIONS; iter++) {
