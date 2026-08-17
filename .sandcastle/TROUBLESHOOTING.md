@@ -53,3 +53,21 @@
 - **上游 0.12.0 open bug 簇**（#999 调研登记，#1008 施工时逐条对）：provider env 丢失（上游 #925+#900，自定义 provider 的 KIMI_API_KEY 注入面会命中，冒烟必须验证沙盒内 env 真的到了）；hooks 退出码被吞（上游 #943，onSandboxReady 失败不 fail-fast）；timeoutMs 被忽略（上游 #907）。
 - **拾取闸用共享 label 会抢票**：首跑用 `ready-for-agent` 做拾取闸，把并行会话的 #1013 认领了。修正为专属 label `sandcastle`；分支确定性命名 `sandcastle/issue-<票号>`（#1003 裁定），不用时间戳名。（#1008 事故 1）
 - **`TARGET_BRANCH` 是内置 promptArg**：不可覆盖，编排脚本里不要试图传同名参数。（#1008）
+
+## 9. 双管线竞态：认领闸幂等挡不住 TOCTOU（2026-08-17 实撞）
+
+**症状**：两条 main.mts 同时跑，几乎同时 claim 同一张票（摘 label + assign 都是幂等 no-op），两个沙盒同时开干同一分支。
+
+**成因**：pickIssue 的「查未认领 → 认领」不是原子操作——查询与认领之间无锁（#1013 抢票教训修的是 label 面，TOCTOU 窗口仍在）。
+
+**判例处置**：后启动的一条**杀自己、留先启动的**，回报对方。判定先来后到 = 进程启动时间。
+
+**预防**：跑新管线前先 `ps aux | grep -E "[t]sx .sandcastle/main.mts"`——有活进程就不要再起（常驻管线可能一直活着，日志会轮转到 main-loop 文件，别误判「停了」）。
+
+## 10. 主机登出会 SIGTERM 杀整条管线（2026-08-17 实撞）
+
+**症状**：工蜂日志同秒停写、容器被清、实装无 commit、票被 re-queue。
+
+**成因**：macOS loginwindow 用户登出 → launchd 清理用户会话 → 主机 npm exec tsx 进程树收 SIGTERM（nohup 只挡 SIGHUP 不挡这个）。
+
+**判读纪律**：先查日志停写时间是否对齐登出时刻，再判「工蜂卡死」。**判例处置**：中断后把未 commit 的票 re-queue（恢复 sandcastle label + unassign），重启管线即可续。
