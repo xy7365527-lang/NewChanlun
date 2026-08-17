@@ -1,3 +1,4 @@
+use super::super::super::classifier::divergence::DivergenceGauge;
 use super::super::super::types::Bar;
 use super::*;
 
@@ -269,6 +270,7 @@ fn run_theta_v0_pi_loop_produces_trades_nonempty() {
                     Vec::new(),
                     i as u64,
                     i as u64,
+                    std::rc::Rc::new(Vec::new()),
                 )
             } else {
                 (
@@ -277,6 +279,7 @@ fn run_theta_v0_pi_loop_produces_trades_nonempty() {
                     Vec::new(),
                     i as u64,
                     i as u64,
+                    std::rc::Rc::new(Vec::new()),
                 )
             }
         },
@@ -319,6 +322,7 @@ fn pan_div_dc_e_default_inactive_order_track_bitexact() {
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         },
         &bars,
@@ -354,6 +358,7 @@ fn pan_div_dc_e_default_inactive_order_track_bitexact() {
                     Vec::new(),
                     i as u64,
                     i as u64,
+                    std::rc::Rc::new(Vec::new()),
                 )
             } else {
                 (
@@ -362,6 +367,7 @@ fn pan_div_dc_e_default_inactive_order_track_bitexact() {
                     Vec::new(),
                     i as u64,
                     i as u64,
+                    std::rc::Rc::new(Vec::new()),
                 )
             }
         },
@@ -430,6 +436,7 @@ fn account_view_witness_three_identities_in_pi_loop() {
             tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
             i as u64,
             i as u64,
+            std::rc::Rc::new(Vec::new()),
         ) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
     };
     let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
@@ -579,9 +586,23 @@ fn account_view_witness_three_identities_in_pi_loop() {
     };
     let classify2 = move |i: usize| {
         if i >= 14 {
-            (cls_both.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+            (
+                cls_both.clone(),
+                Vec::new(),
+                Vec::new(),
+                i as u64,
+                i as u64,
+                std::rc::Rc::new(Vec::new()),
+            )
         } else if i >= 7 {
-            (cls_sell.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+            (
+                cls_sell.clone(),
+                Vec::new(),
+                Vec::new(),
+                i as u64,
+                i as u64,
+                std::rc::Rc::new(Vec::new()),
+            )
         } else {
             (
                 Classification::default(),
@@ -589,6 +610,7 @@ fn account_view_witness_three_identities_in_pi_loop() {
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         }
     };
@@ -750,6 +772,7 @@ fn type2_after_type1_full_close_emits_no_core_sell() {
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         } else if i >= 12 {
             (
@@ -758,9 +781,17 @@ fn type2_after_type1_full_close_emits_no_core_sell() {
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         } else if i >= 7 {
-            (cls_buy.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+            (
+                cls_buy.clone(),
+                Vec::new(),
+                Vec::new(),
+                i as u64,
+                i as u64,
+                std::rc::Rc::new(Vec::new()),
+            )
         } else {
             (
                 Classification::default(),
@@ -768,6 +799,7 @@ fn type2_after_type1_full_close_emits_no_core_sell() {
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         }
     };
@@ -978,6 +1010,7 @@ fn t1_core_close_zero_assertion_buy_batch_checks_short_side_only() {
             tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
             i as u64,
             i as u64,
+            std::rc::Rc::new(Vec::new()),
         ) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
     };
     let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
@@ -1086,6 +1119,7 @@ fn type2_reverse_open_close_keeps_reverse_type2_and_fires_guard() {
             tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
             i as u64,
             i as u64,
+            std::rc::Rc::new(Vec::new()),
         ) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
     };
     let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
@@ -1225,6 +1259,7 @@ fn t4_pi_loop_parent_type1_close_liquidates_reverse_open_child_subtree() {
             tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
             i as u64,
             i as u64,
+            std::rc::Rc::new(Vec::new()),
         ) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
     };
     let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
@@ -1327,6 +1362,7 @@ fn pi_parent_stop_cascades_risk_exit_to_reverse_open_child() {
             tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
             i as u64,
             i as u64,
+            std::rc::Rc::new(Vec::new()),
         )
     };
 
@@ -1642,6 +1678,7 @@ fn type2_open_short_channel_active_parent_lands_reverse_open_account() {
             tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
             i as u64,
             i as u64,
+            std::rc::Rc::new(Vec::new()),
         ) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
     };
     let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
@@ -1809,6 +1846,7 @@ fn risk_exit_expands_to_single_account_orders() {
             tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
             i as u64,
             i as u64,
+            std::rc::Rc::new(Vec::new()),
         ) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
     };
     let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
@@ -1949,11 +1987,11 @@ fn btc_type2_open_short_channel_witness() {
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
     let fill = pi_theta_fill_loop(
         |i| {
-            let (cls, tower) = classifier_incr.classify_at(i);
+            let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch();
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
-            (cls, tower, cl, gen, fe)
+            (cls, tower, cl, gen, fe, std::rc::Rc::clone(&l0.strokes))
         },
         train_bars,
         nav,
@@ -2144,11 +2182,11 @@ fn m3_follow_parent_short_leg_termination_witness() {
             let mut classifier_incr = IncrementalClassifier::new(bars, &config);
             let fill = pi_theta_fill_loop(
                 |i| {
-                    let (cls, tower) = classifier_incr.classify_at(i);
+                    let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
                     let gen = classifier_incr.tower_generation();
                     let fe = classifier_incr.forest_epoch();
                     let cl = classifier_incr.tower_confirmed_lens(tower.len());
-                    (cls, tower, cl, gen, fe)
+                    (cls, tower, cl, gen, fe, std::rc::Rc::clone(&l0.strokes))
                 },
                 bars,
                 nav,
@@ -2280,11 +2318,11 @@ fn btc_prune_leg_exit_type_matches_account_identity() {
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
     let fill = pi_theta_fill_loop(
         |i| {
-            let (cls, tower) = classifier_incr.classify_at(i);
+            let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch();
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
-            (cls, tower, cl, gen, fe)
+            (cls, tower, cl, gen, fe, std::rc::Rc::clone(&l0.strokes))
         },
         train_bars,
         nav,
@@ -2383,11 +2421,11 @@ fn btc_type2_residual_correction_witness() {
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
     let fill = pi_theta_fill_loop(
         |i| {
-            let (cls, tower) = classifier_incr.classify_at(i);
+            let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch();
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
-            (cls, tower, cl, gen, fe)
+            (cls, tower, cl, gen, fe, std::rc::Rc::clone(&l0.strokes))
         },
         train_bars,
         nav,
@@ -2529,6 +2567,7 @@ fn reverse_open_isolation_assertion_fires_in_pi_loop() {
             tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
             i as u64,
             i as u64,
+            std::rc::Rc::new(Vec::new()),
         ) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
     };
     let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
@@ -2663,6 +2702,7 @@ fn followparent_child_in_pi_loop_belongs_to_core_account_not_reverse_open() {
                 tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             ) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
         } else if i >= 17 {
             (
@@ -2671,6 +2711,7 @@ fn followparent_child_in_pi_loop_belongs_to_core_account_not_reverse_open() {
                 tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             ) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
         } else if i >= 13 {
             (
@@ -2679,6 +2720,7 @@ fn followparent_child_in_pi_loop_belongs_to_core_account_not_reverse_open() {
                 tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             ) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
         } else {
             (
@@ -2687,6 +2729,7 @@ fn followparent_child_in_pi_loop_belongs_to_core_account_not_reverse_open() {
                 tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             ) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
         }
     };
@@ -2998,6 +3041,7 @@ fn buy1_at3_confirmed_at7() -> impl Fn(
     Vec<usize>,
     u64,
     u64,
+    std::rc::Rc<Vec<crate::theta_v0::types::Stroke>>,
 ) {
     let classification = Classification {
         levels: vec![LevelState {
@@ -3013,6 +3057,7 @@ fn buy1_at3_confirmed_at7() -> impl Fn(
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         } else {
             (
@@ -3021,6 +3066,7 @@ fn buy1_at3_confirmed_at7() -> impl Fn(
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         }
     }
@@ -3035,6 +3081,7 @@ fn buy3_at3_confirmed_at7() -> impl Fn(
     Vec<usize>,
     u64,
     u64,
+    std::rc::Rc<Vec<crate::theta_v0::types::Stroke>>,
 ) {
     use super::super::super::classifier::signal::judge_third_cert;
     use super::super::super::types::{Direction, Segment};
@@ -3077,6 +3124,7 @@ fn buy3_at3_confirmed_at7() -> impl Fn(
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         } else {
             (
@@ -3085,6 +3133,7 @@ fn buy3_at3_confirmed_at7() -> impl Fn(
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         }
     }
@@ -3392,9 +3441,23 @@ fn p23_channel_close_typed_matches_account_order_witness() {
     };
     let classify = move |i: usize| {
         if i >= 14 {
-            (cls_both.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+            (
+                cls_both.clone(),
+                Vec::new(),
+                Vec::new(),
+                i as u64,
+                i as u64,
+                std::rc::Rc::new(Vec::new()),
+            )
         } else if i >= 7 {
-            (cls_sell.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+            (
+                cls_sell.clone(),
+                Vec::new(),
+                Vec::new(),
+                i as u64,
+                i as u64,
+                std::rc::Rc::new(Vec::new()),
+            )
         } else {
             (
                 Classification::default(),
@@ -3402,6 +3465,7 @@ fn p23_channel_close_typed_matches_account_order_witness() {
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         }
     };
@@ -3467,9 +3531,23 @@ fn p23_channel_close_typed_matches_account_order_witness() {
     };
     let classify3 = move |i: usize| {
         if i >= 14 {
-            (cls_rev.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+            (
+                cls_rev.clone(),
+                Vec::new(),
+                Vec::new(),
+                i as u64,
+                i as u64,
+                std::rc::Rc::new(Vec::new()),
+            )
         } else if i >= 7 {
-            (cls_buy.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+            (
+                cls_buy.clone(),
+                Vec::new(),
+                Vec::new(),
+                i as u64,
+                i as u64,
+                std::rc::Rc::new(Vec::new()),
+            )
         } else {
             (
                 Classification::default(),
@@ -3477,6 +3555,7 @@ fn p23_channel_close_typed_matches_account_order_witness() {
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         }
     };
@@ -3731,6 +3810,7 @@ fn buy_then_sell(
     Vec<usize>,
     u64,
     u64,
+    std::rc::Rc<Vec<crate::theta_v0::types::Stroke>>,
 ) {
     let cls_buy = Classification {
         levels: vec![LevelState {
@@ -3746,9 +3826,23 @@ fn buy_then_sell(
     };
     move |i| {
         if i >= 14 {
-            (cls_both.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+            (
+                cls_both.clone(),
+                Vec::new(),
+                Vec::new(),
+                i as u64,
+                i as u64,
+                std::rc::Rc::new(Vec::new()),
+            )
         } else if i >= 7 {
-            (cls_buy.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+            (
+                cls_buy.clone(),
+                Vec::new(),
+                Vec::new(),
+                i as u64,
+                i as u64,
+                std::rc::Rc::new(Vec::new()),
+            )
         } else {
             (
                 Classification::default(),
@@ -3756,6 +3850,7 @@ fn buy_then_sell(
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         }
     }
@@ -3911,7 +4006,14 @@ fn typed_trade_censored_hold_carries_exit_z() {
     let fill = pi_theta_fill_loop(
         move |i| {
             if i >= 7 {
-                (cls_buy.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+                (
+                    cls_buy.clone(),
+                    Vec::new(),
+                    Vec::new(),
+                    i as u64,
+                    i as u64,
+                    std::rc::Rc::new(Vec::new()),
+                )
             } else {
                 (
                     Classification::default(),
@@ -3919,6 +4021,7 @@ fn typed_trade_censored_hold_carries_exit_z() {
                     Vec::new(),
                     i as u64,
                     i as u64,
+                    std::rc::Rc::new(Vec::new()),
                 )
             }
         },
@@ -4032,11 +4135,26 @@ fn same_carrier_reentry_distinguished_by_generation() {
                     Vec::new(),
                     i as u64,
                     i as u64,
+                    std::rc::Rc::new(Vec::new()),
                 )
             } else if i >= 14 {
-                (cls_sell.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+                (
+                    cls_sell.clone(),
+                    Vec::new(),
+                    Vec::new(),
+                    i as u64,
+                    i as u64,
+                    std::rc::Rc::new(Vec::new()),
+                )
             } else if i >= 7 {
-                (cls_buy.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+                (
+                    cls_buy.clone(),
+                    Vec::new(),
+                    Vec::new(),
+                    i as u64,
+                    i as u64,
+                    std::rc::Rc::new(Vec::new()),
+                )
             } else {
                 (
                     Classification::default(),
@@ -4044,6 +4162,7 @@ fn same_carrier_reentry_distinguished_by_generation() {
                     Vec::new(),
                     i as u64,
                     i as u64,
+                    std::rc::Rc::new(Vec::new()),
                 )
             }
         },
@@ -4204,11 +4323,26 @@ fn pi_loop_realized_profit_reaches_earning_shares() {
                     Vec::new(),
                     i as u64,
                     i as u64,
+                    std::rc::Rc::new(Vec::new()),
                 )
             } else if i >= 14 {
-                (cls_sell.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+                (
+                    cls_sell.clone(),
+                    Vec::new(),
+                    Vec::new(),
+                    i as u64,
+                    i as u64,
+                    std::rc::Rc::new(Vec::new()),
+                )
             } else if i >= 7 {
-                (cls_buy.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
+                (
+                    cls_buy.clone(),
+                    Vec::new(),
+                    Vec::new(),
+                    i as u64,
+                    i as u64,
+                    std::rc::Rc::new(Vec::new()),
+                )
             } else {
                 (
                     Classification::default(),
@@ -4216,6 +4350,7 @@ fn pi_loop_realized_profit_reaches_earning_shares() {
                     Vec::new(),
                     i as u64,
                     i as u64,
+                    std::rc::Rc::new(Vec::new()),
                 )
             }
         },
@@ -4303,6 +4438,7 @@ fn typed_ledger_reverse_open_close_overrides_trigger_class() {
             tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
             i as u64,
             i as u64,
+            std::rc::Rc::new(Vec::new()),
         ) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
     };
     let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
@@ -4806,6 +4942,7 @@ fn voice_exec_no_signal_zero_fills() {
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         },
         &bars,
@@ -5110,14 +5247,22 @@ fn nest_gate_admit_semantics() {
     let cls = ng_classification(buy3);
     let c = ng_candidate(VoiceSide::Long, buy3, 19);
     assert_eq!(
-        nest_gate_admit(&tower, &c, &hist, 19, &cls),
+        nest_gate_admit(&tower, &c, &hist, 19, &cls, &[], DivergenceGauge::default()),
         (true, "nest_pass"),
         "合法 typed N^δ 证书（lvl0 Type3 基例）⟹ 放行"
     );
     // E②a 拒：无执行段定位（塔中无 end_index==25 的段）。
     let c_no_seg = ng_candidate(VoiceSide::Long, buy3, 25);
     assert_eq!(
-        nest_gate_admit(&tower, &c_no_seg, &hist, 19, &cls),
+        nest_gate_admit(
+            &tower,
+            &c_no_seg,
+            &hist,
+            19,
+            &cls,
+            &[],
+            DivergenceGauge::default()
+        ),
         (false, "cert_none"),
         "无执行段 ⟹ 证书 None ⟹ 拒"
     );
@@ -5126,14 +5271,30 @@ fn nest_gate_admit_semantics() {
     let cls_zero = ng_classification(zero);
     let c_zero = ng_candidate(VoiceSide::Long, zero, 19);
     assert_eq!(
-        nest_gate_admit(&tower, &c_zero, &hist, 19, &cls_zero),
+        nest_gate_admit(
+            &tower,
+            &c_zero,
+            &hist,
+            19,
+            &cls_zero,
+            &[],
+            DivergenceGauge::default()
+        ),
         (false, "cert_none"),
         "零 bit StructBreak ⟹ 恒门拒"
     );
     // E②c 拒：Flat 方向（无方向无确认）。
     let c_flat = ng_candidate(VoiceSide::Flat, buy3, 19);
     assert_eq!(
-        nest_gate_admit(&tower, &c_flat, &hist, 19, &cls),
+        nest_gate_admit(
+            &tower,
+            &c_flat,
+            &hist,
+            19,
+            &cls,
+            &[],
+            DivergenceGauge::default()
+        ),
         (false, "flat_dir"),
         "Flat 方向候选 ⟹ 拒"
     );
@@ -5148,7 +5309,15 @@ fn nest_gate_admit_semantics() {
     let cls_t1 = ng_classification(buy1);
     let c_t1 = ng_candidate(VoiceSide::Long, buy1, 19);
     assert_eq!(
-        nest_gate_admit(&tower, &c_t1, &hist, 19, &cls_t1),
+        nest_gate_admit(
+            &tower,
+            &c_t1,
+            &hist,
+            19,
+            &cls_t1,
+            &[],
+            DivergenceGauge::default()
+        ),
         (true, "nest_pass"),
         "单级塔 rungs 空 ⟹ 基例退化放行（内禀分量，照实登记）"
     );
@@ -5174,7 +5343,15 @@ fn nest_gate_admit_semantics() {
     let mut tower2 = ng_tower();
     tower2.push(std::rc::Rc::new(vec![upper]));
     assert_eq!(
-        nest_gate_admit(&tower2, &c_t1, &hist, 19, &cls_t1),
+        nest_gate_admit(
+            &tower2,
+            &c_t1,
+            &hist,
+            19,
+            &cls_t1,
+            &[],
+            DivergenceGauge::default()
+        ),
         (false, "nest_n_delta_false"),
         "跨级 rung cand=false ⟹ N^δ=0 ⟹ 真拒绝（区间套递归分量）"
     );
@@ -5203,7 +5380,8 @@ fn nest_gate_readout_matches_econ_gate() {
         let cls = ng_classification(bits);
         let c = ng_candidate(VoiceSide::Long, bits, 19);
         // π 门读出（生产消费点）。
-        let (pi_pass, _) = nest_gate_admit(&tower, &c, &hist, 19, &cls);
+        let (pi_pass, _) =
+            nest_gate_admit(&tower, &c, &hist, 19, &cls, &[], DivergenceGauge::default());
         // econ 门读出（econ_positive.rs:364-371 同判据路径，独立构造）。
         let econ_pass = match super::super::econ_positive::build_gate_certificate(
             &tower,
@@ -5216,6 +5394,8 @@ fn nest_gate_readout_matches_econ_gate() {
             &cls.levels[0].bsp,
             &[],
             &[],
+            &[], // ★#883：与 π 侧同参（parity 对拍同判据同数据）
+            DivergenceGauge::default(),
         ) {
             Some(super::super::econ_positive::GateCertificate::Nest(cert)) => cert.n_delta(),
             Some(super::super::econ_positive::GateCertificate::Xzd(ev)) => ev.gate_pass(),
@@ -5428,7 +5608,7 @@ fn nest_chain_gate_admit_consumes_deeper_multi_level_hit() {
         ..Default::default()
     };
     let candidate = ng_candidate(VoiceSide::Long, buy1, 55);
-    let (admit, channel, obs) = gate.admit(&tower, &candidate, &hist, 100, &classification);
+    let (admit, channel, obs) = gate.admit(&tower, &candidate, &hist, 100, &classification, &[]);
     assert_eq!(
         (admit, channel),
         (false, "nest_n_delta_false"),
@@ -5502,7 +5682,7 @@ fn nest_chain_gate_multi_causal_guard_falls_back_to_xzd() {
         );
 
     let candidate = ng_candidate(VoiceSide::Long, buy3, 19);
-    let (admit, channel, obs) = gate.admit(&tower, &candidate, &hist, 19, &classification);
+    let (admit, channel, obs) = gate.admit(&tower, &candidate, &hist, 19, &classification, &[]);
     assert!(
         matches!(channel, "xzd_pass" | "xzd_gate_fail"),
         "越界证书剔除后走 Xzd，实际={channel}"
@@ -5538,7 +5718,7 @@ fn nest_chain_gate_typed_decides_l2_only_cross() {
         ..Default::default()
     };
     let c_hit = ng_candidate(VoiceSide::Long, buy1, 55);
-    let (admit, channel, obs) = gate.admit(&tower, &c_hit, &hist, 100, &cls_chain);
+    let (admit, channel, obs) = gate.admit(&tower, &c_hit, &hist, 100, &cls_chain, &[]);
     assert_eq!(
         (admit, channel),
         (true, "nest_pass"),
@@ -5553,7 +5733,7 @@ fn nest_chain_gate_typed_decides_l2_only_cross() {
     stats.observe(admit, channel, obs);
     // (b) 链 NoChain 案例：x=56 无分型（price 不可解）+ Type1 + 旧臂亦无执行段 ⟹ cert_none。
     let c_miss = ng_candidate(VoiceSide::Long, buy1, 56);
-    let (admit, channel, obs) = gate.admit(&tower, &c_miss, &hist, 100, &cls_chain);
+    let (admit, channel, obs) = gate.admit(&tower, &c_miss, &hist, 100, &cls_chain, &[]);
     assert_eq!(
         (admit, channel),
         (false, "cert_none"),
@@ -5570,7 +5750,7 @@ fn nest_chain_gate_typed_decides_l2_only_cross() {
     };
     let cls_b3 = ng_classification(buy3);
     let c_b3 = ng_candidate(VoiceSide::Long, buy3, 19);
-    let (admit, channel, obs) = gate_empty.admit(&tower, &c_b3, &hist, 19, &cls_b3);
+    let (admit, channel, obs) = gate_empty.admit(&tower, &c_b3, &hist, 19, &cls_b3, &[]);
     assert!(
         matches!(channel, "xzd_pass" | "xzd_gate_fail"),
         "Xzd 回退通道，实际={channel}"
@@ -5665,13 +5845,21 @@ fn nest_chain_gate_typed_none_reuses_old_xzd() {
         level: 1,
         ..ng_candidate(VoiceSide::Long, buy3, 30)
     };
-    let (old_admit, old_channel) = nest_gate_admit(&tower2, &c, &hist, 19, &cls2);
+    let (old_admit, old_channel) = nest_gate_admit(
+        &tower2,
+        &c,
+        &hist,
+        19,
+        &cls2,
+        &[],
+        DivergenceGauge::default(),
+    );
     assert!(
         matches!(old_channel, "xzd_pass" | "xzd_gate_fail"),
         "夹具前提：旧臂落 Xzd 通道，实际={old_channel}"
     );
     let gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
-    let (admit, channel, obs) = gate.admit(&tower2, &c, &hist, 19, &cls2);
+    let (admit, channel, obs) = gate.admit(&tower2, &c, &hist, 19, &cls2, &[]);
     assert_eq!(
         (admit, channel),
         (old_admit, old_channel),
@@ -5743,13 +5931,21 @@ fn nest_chain_gate_cross_reuse_excluded_from_agree() {
         ..ng_candidate(VoiceSide::Long, buy3, 30)
     };
     // 夹具前提：typed 无证（现机制 = 链 NoChain，同 T4）∧ 旧臂落 Xzd 通道。
-    let (_old_admit, old_channel) = nest_gate_admit(&tower2, &c, &hist, 19, &cls2);
+    let (_old_admit, old_channel) = nest_gate_admit(
+        &tower2,
+        &c,
+        &hist,
+        19,
+        &cls2,
+        &[],
+        DivergenceGauge::default(),
+    );
     assert!(
         matches!(old_channel, "xzd_pass" | "xzd_gate_fail"),
         "夹具前提：旧臂落 Xzd 通道，实际={old_channel}"
     );
     let gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
-    let (admit, channel, obs) = gate.admit(&tower2, &c, &hist, 19, &cls2);
+    let (admit, channel, obs) = gate.admit(&tower2, &c, &hist, 19, &cls2, &[]);
     assert!(obs.reused_old_xzd, "复用通道打 reused_old_xzd 标记");
     assert_eq!(
         admit, obs.old_admit,
@@ -5990,7 +6186,7 @@ fn t3_chain_missing_link_reject_is_missing() {
         "缺环拒：首位 = 链顶 L2 缺"
     );
     assert_eq!(probe.closed_down_to, None, "链顶未闭合 ⟹ 无连续闭合前缀");
-    let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+    let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls, &[]);
     assert_eq!(
         (admit, channel),
         (false, "nest_n_delta_false"),
@@ -6033,7 +6229,7 @@ fn t3_chain_broken_link_reject_is_broken() {
         "断环拒：首位 = L1 断"
     );
     assert_eq!(probe.closed_down_to, Some(2), "链顶向下连续闭合前缀 = [L2]");
-    let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+    let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls, &[]);
     assert_eq!((admit, channel), (false, "nest_n_delta_false"), "断环即拒");
     let mut stats = NestGateStats::default();
     stats.observe(admit, channel, obs);
@@ -6056,7 +6252,7 @@ fn t3_chain_full_closure_pass_consumed_by_admit() {
         ..Default::default()
     };
     let c = ng_candidate(VoiceSide::Long, buy1, 55);
-    let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+    let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls, &[]);
     assert_eq!(
         (admit, channel),
         (true, "nest_pass"),
@@ -6134,7 +6330,7 @@ fn t3_chain_no_chain_falls_back_to_xzd_verbatim() {
     let c = ng_candidate(VoiceSide::Long, buy1, 55);
     let probe = gate.chain_lookup(&c, 100, &cls);
     assert_eq!(probe.verdict, ChainVerdict::NoChain, "零闭合级 ⟹ NoChain");
-    let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+    let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls, &[]);
     assert_eq!(
         (admit, channel),
         (false, "cert_none"),
@@ -6149,7 +6345,7 @@ fn t3_chain_no_chain_falls_back_to_xzd_verbatim() {
     };
     let cls_b3 = ng_classification(buy3);
     let c_b3 = ng_candidate(VoiceSide::Long, buy3, 19);
-    let (admit, channel, obs) = gate.admit(&tower, &c_b3, &hist, 19, &cls_b3);
+    let (admit, channel, obs) = gate.admit(&tower, &c_b3, &hist, 19, &cls_b3, &[]);
     assert!(
         matches!(channel, "xzd_pass" | "xzd_gate_fail"),
         "NoChain → Xzd 回退通道，实际={channel}"
@@ -6468,7 +6664,7 @@ fn t5a_same_point_cross_type_chain_pass() {
     assert_eq!(probe.closed_down_to, Some(0), "闭合到 L0");
     let tower = ng_tower();
     let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
-    let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+    let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls, &[]);
     assert_eq!(
         (admit, channel),
         (true, "nest_pass"),
@@ -7449,7 +7645,7 @@ fn m7_l2_witness_treasury_reach_real_btc() {
         super::super::incremental::IncrementalClassifier::new(&ds.bars, &config);
     let fill = pi_theta_fill_loop(
         |i| {
-            let (cls, tower) = classifier_incr.classify_at(i);
+            let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
             (
                 cls,
@@ -7457,6 +7653,7 @@ fn m7_l2_witness_treasury_reach_real_btc() {
                 cl,
                 classifier_incr.tower_generation(),
                 classifier_incr.forest_epoch(),
+                std::rc::Rc::clone(&l0.strokes),
             )
         },
         &ds.bars,
@@ -7640,9 +7837,16 @@ fn m8_treasury_reach_distribution_real_btc() {
         let mut ci = super::super::incremental::IncrementalClassifier::new(&test.bars, &config);
         let fill = pi_theta_fill_loop(
             |i| {
-                let (c, t) = ci.classify_at(i);
+                let (l0, c, t) = ci.classify_at_with_l0(i);
                 let cl = ci.tower_confirmed_lens(t.len());
-                (c, t, cl, ci.tower_generation(), ci.forest_epoch())
+                (
+                    c,
+                    t,
+                    cl,
+                    ci.tower_generation(),
+                    ci.forest_epoch(),
+                    std::rc::Rc::clone(&l0.strokes),
+                )
             },
             &test.bars,
             nav,
@@ -7758,7 +7962,7 @@ fn m7_kappa_sensitivity_grid_real_btc() {
             super::super::incremental::IncrementalClassifier::new(&ds.bars, &config);
         let fill = pi_theta_fill_loop(
             |i| {
-                let (cls, tower) = classifier_incr.classify_at(i);
+                let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
                 let cl = classifier_incr.tower_confirmed_lens(tower.len());
                 (
                     cls,
@@ -7766,6 +7970,7 @@ fn m7_kappa_sensitivity_grid_real_btc() {
                     cl,
                     classifier_incr.tower_generation(),
                     classifier_incr.forest_epoch(),
+                    std::rc::Rc::clone(&l0.strokes),
                 )
             },
             &ds.bars,
@@ -9147,6 +9352,7 @@ fn pi_e1_classify(
     Vec<usize>,
     u64,
     u64,
+    std::rc::Rc<Vec<crate::theta_v0::types::Stroke>>,
 ) {
     let cls_parent = {
         let mut c = e_classification(false);
@@ -9172,6 +9378,7 @@ fn pi_e1_classify(
             tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(),
             i as u64,
             i as u64,
+            std::rc::Rc::new(Vec::new()),
         )
     }
 }
@@ -9348,6 +9555,7 @@ fn pi_short_root_stop_round_trip_is_marked_short_end_to_end() {
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         } else {
             (
@@ -9356,6 +9564,7 @@ fn pi_short_root_stop_round_trip_is_marked_short_end_to_end() {
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         }
     };
@@ -9515,6 +9724,7 @@ fn pi_exit_generator_stop_trigger_reaches_realized_trade() {
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         } else {
             (
@@ -9523,6 +9733,7 @@ fn pi_exit_generator_stop_trigger_reaches_realized_trade() {
                 Vec::new(),
                 i as u64,
                 i as u64,
+                std::rc::Rc::new(Vec::new()),
             )
         }
     };

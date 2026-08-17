@@ -264,6 +264,10 @@ pub(super) fn nest_gate_admit(
     hist: &[f64],
     confirm_index: usize,
     classification: &classifier::Classification,
+    // ★#883：L0 笔序列（因果前缀，source_index 域）+ 力度档——供 div_cand 的 ForceL 教义
+    // 判据（#873/#989/#990）；与 econ 门同函数同判据（gauge 同源自 config）。
+    strokes: &[crate::theta_v0::types::Stroke],
+    gauge: classifier::divergence::DivergenceGauge,
 ) -> (bool, &'static str) {
     use super::super::strategy::voice::VoiceSide;
     use super::super::types::Side;
@@ -295,6 +299,8 @@ pub(super) fn nest_gate_admit(
         &ls.bsp,
         sub_centers,
         sub_bsp,
+        strokes,
+        gauge,
     ) {
         Some(super::econ_positive::GateCertificate::Nest(cert)) => {
             let pass = cert.n_delta();
@@ -542,6 +548,10 @@ pub(super) struct NestChainGate {
     pub(super) hist: Vec<f64>,
     pub(super) dif: Vec<f64>,
     pub(super) close_src: Vec<usize>,
+    /// ★#883：力度判据档（`config.divergence_gauge`，默认 ForceL 教义档，#990）——
+    /// L2 旧臂 `nest_gate_admit` → `build_gate_certificate` → `div_cand` 的 gauge 单一来源，
+    /// 与 econ 门同 config 同判据（不产生第二裁决源）。
+    pub(super) gauge: classifier::divergence::DivergenceGauge,
     /// 下标 = nest 级别 ℓ 的 append-only 事件账本（`events_by_level[0]` 恒空，nest 不听 L0）。
     /// #965 交付 2：槽数 = 塔层数 + 1——塔顶级别事件（键级 = n_levels，`event_bsp_book_level`
     /// 移位后落账本级 = n_levels-1）存于槽 n_levels（塔顶键结构性可满足）。
@@ -616,6 +626,7 @@ impl NestChainGate {
             hist: series.hist,
             dif: series.dif,
             close_src,
+            gauge: config.divergence_gauge, // ★#883
             events_by_level: Vec::new(),
             seen: std::collections::HashSet::new(),
             by_triple_anchor: std::collections::HashMap::new(),
@@ -642,6 +653,8 @@ impl NestChainGate {
             hist,
             dif,
             close_src,
+            gauge: classifier::divergence::DivergenceGauge::default(), // ★#883：测试同生产默认档
+
             events_by_level: Vec::new(),
             seen: std::collections::HashSet::new(),
             by_triple_anchor: std::collections::HashMap::new(),
@@ -1173,8 +1186,11 @@ impl NestChainGate {
         hist: &[f64],
         confirm_index: usize,
         classification: &classifier::Classification,
+        // ★#883：本 bar 因果前缀的 L0 笔序列（source_index 域）——L2 旧臂 div_cand 的
+        // ForceL 数据源（gauge 取 `self.gauge`，构造时自 config 落定）。
+        strokes: &[crate::theta_v0::types::Stroke],
     ) -> (bool, &'static str, NestGateObs) {
-        self.admit_inner(tower, c, hist, confirm_index, classification)
+        self.admit_inner(tower, c, hist, confirm_index, classification, strokes)
     }
 
     fn admit_inner(
@@ -1184,6 +1200,7 @@ impl NestChainGate {
         hist: &[f64],
         confirm_index: usize,
         classification: &classifier::Classification,
+        strokes: &[crate::theta_v0::types::Stroke],
     ) -> (bool, &'static str, NestGateObs) {
         use super::super::strategy::voice::VoiceSide;
         use super::super::types::Side;
@@ -1203,8 +1220,15 @@ impl NestChainGate {
         // Xzd 回退——同点递归链回答「这个点是不是确认的拐点」，买卖标签回答「做哪边」）。
         let chain = self.chain_lookup(c, confirm_index, classification);
         // L2 旧臂对照读出（链判定不消费；链 NoChain 时其 Xzd 通道被复用）。
-        let (old_admit, old_channel) =
-            nest_gate_admit(tower, c, hist, confirm_index, classification);
+        let (old_admit, old_channel) = nest_gate_admit(
+            tower,
+            c,
+            hist,
+            confirm_index,
+            classification,
+            strokes,
+            self.gauge,
+        );
         let (admit, channel, xzd_fallback, reused_old_xzd) = match chain.verdict {
             ChainVerdict::Pass => (true, "nest_pass", false, false),
             ChainVerdict::Reject => (false, "nest_n_delta_false", false, false),

@@ -555,6 +555,9 @@ pub fn theta_score_bin(beta_norm: f64) -> ThetaScoreBin {
 ///
 /// 有效域（诚实边界）：只作用于趋势背驰 D（一类）。盘整背驰证书（`judge_pan_div`）、二类
 /// `divergence_of` 不在本开关范围。
+/// ★#883 起扩大一处：区间套下钻判据 `cand_predicate::div_cand`（含其 #814 D-3 盘整背驰入口）
+/// 的条件4 亦经本 gauge（`confirm_divergence_l`）——同一判据原语，禁第二套力度引擎（#979
+/// 裁定二）；生产默认 ForceL，`MacdArea` 为显式对照档。
 ///
 /// 关于背驰.pdf §9.2 三套预注册 Θ ↔ 本枚举：`Θ_DOM`=[`ThetaDom`](DivergenceGauge::ThetaDom)、
 /// `Θ_LEX`=[`ThetaLex`](DivergenceGauge::ThetaLex)、`Θ_SCORE`=分层键候选（[`ForceProxies::theta_score`]，

@@ -307,7 +307,10 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
         if bar.untradable || bar.close <= 0 {
             continue;
         }
-        let (cls_i, tower_i) = classifier_incr.classify_at(i);
+        // ★#883：改取 `classify_at_with_l0`——l0.strokes（L0 笔序列，source_index 域，因果前缀）
+        // 供 div_cand 的 ForceL 教义力度判据（#873/#989/#990）；classify_at 本就走同一增量链、
+        // 丢弃 l0，成本相同。
+        let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
         for (lvl, ls) in cls_i.levels.iter().enumerate() {
             if prev_bsp
                 .get(lvl)
@@ -395,6 +398,10 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                         &ls.bsp,
                         sub_centers,
                         sub_bsp,
+                        // ★#883：L0 笔序列（因果前缀）供 ForceL；力度档随 config（默认 ForceL，
+                        // MacdArea 为显式对照档，#990）。
+                        &l0_i.strokes,
+                        config.divergence_gauge,
                     );
                     let pass = match &gate_cert {
                         Some(GateCertificate::Nest(cert)) => cert.n_delta(),
@@ -497,6 +504,8 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                     &ls.bsp,
                     sub_centers,
                     sub_bsp,
+                    &l0_i.strokes, // ★#883
+                    config.divergence_gauge,
                 ) {
                     continue; // 两门皆闭 ⟹ 承接失败诚实丢弃（不入信号）。
                 }
@@ -782,6 +791,7 @@ fn px_at(bars: &[Bar], i: usize, tick: f64) -> f64 {
 ///   信号集内容改变（L0 结构过滤，不声明 alpha）。
 ///
 /// **认识论 L0**：纯结构构造 + 确定性算术。alpha 有效性待 L2/L3（W-VERIFY），不在此声明。
+#[allow(clippy::too_many_arguments)]
 pub(super) fn build_multilevel_nest_cert(
     tower: &[std::rc::Rc<Vec<super::super::classifier::recursive_tower::LeveledMove>>],
     lvl: usize,
@@ -789,8 +799,10 @@ pub(super) fn build_multilevel_nest_cert(
     delta: Side,
     bits: &BspBits,
     hist: &[f64],
+    strokes: &[crate::theta_v0::types::Stroke],
+    gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> bool {
-    match build_nest_certificate(tower, lvl, source_index, delta, bits, hist) {
+    match build_nest_certificate(tower, lvl, source_index, delta, bits, hist, strokes, gauge) {
         Some(cert) => cert.n_delta(),
         None => false, // 执行级无候选段（tower[lvl] 无 end_index==source_index）⟹ 无定位
     }
@@ -820,6 +832,8 @@ fn descend_type1_anchor_depth(
     source_index: usize,
     delta: Side,
     hist: &[f64],
+    strokes: &[crate::theta_v0::types::Stroke],
+    gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> Option<usize> {
     let subs = s.sub_moves.as_slice();
     if subs.is_empty() {
@@ -827,19 +841,23 @@ fn descend_type1_anchor_depth(
     }
     // 次级别 Type1 背驰段判据：s.sub_moves 中 end_index==source_index 段跑完整 div_cand。
     let tidx = find_move_by_end_index(subs, source_index)?; // 无回抽端点对齐段 ⟹ 小转大
+                                                            // ★#883：D-3 取段的「界」= 父走势 s 的最近中枢（每级递归各取各的父中枢）。
     let anchor_ok = super::super::classifier::cand_predicate::div_cand(
         &super::super::classifier::cand_predicate::DivCandInput {
             context: subs,
             target_idx: tidx,
             hist,
             delta,
+            strokes,
+            parent_center: super::super::classifier::cand_predicate::parent_last_center(s),
+            gauge,
         },
     );
     if !anchor_ok {
         return None; // 次级别无一类背驰锚点 ⟹ 小转大
     }
     // 真递归下沉：钻入该次级别 Type1 段，逐级收缩到最低可用级别（深层无锚/到底 ⟹ 本级即最低可用锚）。
-    match descend_type1_anchor_depth(&subs[tidx], source_index, delta, hist) {
+    match descend_type1_anchor_depth(&subs[tidx], source_index, delta, hist, strokes, gauge) {
         Some(d) => Some(d + 1),
         None => Some(1),
     }
@@ -897,6 +915,9 @@ fn cand_delta_type1_extreme(
     source_index: usize,
     delta: Side,
     hist: &[f64],
+    strokes: &[crate::theta_v0::types::Stroke],
+    parent_center: Option<&crate::theta_v0::types::Center>,
+    gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> bool {
     match find_move_by_end_index(rung_subs, source_index) {
         Some(tidx) => super::super::classifier::cand_predicate::div_cand(
@@ -905,6 +926,9 @@ fn cand_delta_type1_extreme(
                 target_idx: tidx,
                 hist,
                 delta,
+                strokes,
+                parent_center, // ★#883：D-3 取段的「界」= rung 父走势（knode）的最近中枢
+                gauge,
             },
         ),
         None => false, // 执行级候选段不在 k 级次级别序列中 ⟹ 无 Cand
@@ -925,8 +949,10 @@ fn cand_delta_type2_completion(
     delta: Side,
     hist: &[f64],
     lvl: usize,
+    strokes: &[crate::theta_v0::types::Stroke],
+    gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> bool {
-    lvl == 0 || descend_type1_anchor_depth(s, source_index, delta, hist).is_some()
+    lvl == 0 || descend_type1_anchor_depth(s, source_index, delta, hist, strokes, gauge).is_some()
 }
 
 /// 673-fix Type3 候选谓词：离开中枢后回抽/反抽走势完成（**独立分支**，codex 裁决①）。
@@ -944,23 +970,37 @@ fn cand_delta_type3_retest(
     delta: Side,
     hist: &[f64],
     lvl: usize,
+    strokes: &[crate::theta_v0::types::Stroke],
+    gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> bool {
-    lvl == 0 || descend_type1_anchor_depth(s, source_index, delta, hist).is_some()
+    lvl == 0 || descend_type1_anchor_depth(s, source_index, delta, hist, strokes, gauge).is_some()
 }
 
 /// 673-fix 薄 dispatcher：per-rung `Cand^δ_k` 按候选类型分派（不承载判据逻辑，codex 裁决①）。
 ///
 /// Type1 → 本级背驰段 `div_cand`；Type2/3 存在性已由 [`cand_delta_base_gate`] 门控（base 一次），
 /// 上级 rung 载上级语境（第17课L60 完备性保证 Type2/3 存在）⟹ cand=true。
+#[allow(clippy::too_many_arguments)]
 fn cand_delta(
     cand_type: BspCandType,
     rung_subs: &[super::super::classifier::recursive_tower::LeveledMove],
     source_index: usize,
     delta: Side,
     hist: &[f64],
+    strokes: &[crate::theta_v0::types::Stroke],
+    parent_center: Option<&crate::theta_v0::types::Center>,
+    gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> bool {
     match cand_type {
-        BspCandType::Type1 => cand_delta_type1_extreme(rung_subs, source_index, delta, hist),
+        BspCandType::Type1 => cand_delta_type1_extreme(
+            rung_subs,
+            source_index,
+            delta,
+            hist,
+            strokes,
+            parent_center,
+            gauge,
+        ),
         BspCandType::Type2 | BspCandType::Type3 => true,
         BspCandType::StructBreak => false, // 门拒（codex 终局裁决A）：无对应确认语义，不复用 Type3 锚
     }
@@ -970,6 +1010,7 @@ fn cand_delta(
 ///
 /// Type1 无 base gate（判据在 per-rung `div_cand`）⟹ true。Type2/3 委托各自谓词（存在性锚 +
 /// 保护边界归属记录）。返回 false ⟹ 整证书拒（小转大：该级无一类精确点无法下沉定位）。
+#[allow(clippy::too_many_arguments)]
 fn cand_delta_base_gate(
     cand_type: BspCandType,
     s: &super::super::classifier::recursive_tower::LeveledMove,
@@ -977,11 +1018,17 @@ fn cand_delta_base_gate(
     delta: Side,
     hist: &[f64],
     lvl: usize,
+    strokes: &[crate::theta_v0::types::Stroke],
+    gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> bool {
     match cand_type {
         BspCandType::Type1 => true,
-        BspCandType::Type2 => cand_delta_type2_completion(s, source_index, delta, hist, lvl),
-        BspCandType::Type3 => cand_delta_type3_retest(s, source_index, delta, hist, lvl),
+        BspCandType::Type2 => {
+            cand_delta_type2_completion(s, source_index, delta, hist, lvl, strokes, gauge)
+        }
+        BspCandType::Type3 => {
+            cand_delta_type3_retest(s, source_index, delta, hist, lvl, strokes, gauge)
+        }
         BspCandType::StructBreak => false, // 门拒（codex 终局裁决A）：无对应确认语义，不复用 Type3 锚
     }
 }
@@ -994,6 +1041,7 @@ fn cand_delta_base_gate(
 ///
 /// **认识论 L0**：纯结构构造 + 确定性算术（同 `build_multilevel_nest_cert`）。
 /// 返回 `None` ⟺ 执行级 tower[lvl] 无 end_index==source_index 段（无定位候选，门直接拒）。
+#[allow(clippy::too_many_arguments)]
 pub(super) fn build_nest_certificate(
     tower: &[std::rc::Rc<Vec<super::super::classifier::recursive_tower::LeveledMove>>],
     lvl: usize,
@@ -1001,6 +1049,8 @@ pub(super) fn build_nest_certificate(
     delta: Side,
     bits: &BspBits,
     hist: &[f64],
+    strokes: &[crate::theta_v0::types::Stroke],
+    gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> Option<NestCertificate> {
     // 执行级 tower[lvl] 中找 end_index == source_index 的段（候选段 s，执行级 e=lvl）。
     let exec_moves = tower.get(lvl)?.as_slice();
@@ -1019,7 +1069,7 @@ pub(super) fn build_nest_certificate(
 
     // base gate：Type2/3 定律一下沉锚定（第29课L396）。None=小转大 ⟹ 整证书拒（显式可测判别，
     // 非 catch-all fallback）。Type1 无 base gate（判据在 per-rung）；lvl==0 存在性免门。
-    if !cand_delta_base_gate(cand_type, s, source_index, delta, hist, lvl) {
+    if !cand_delta_base_gate(cand_type, s, source_index, delta, hist, lvl, strokes, gauge) {
         return None;
     }
 
@@ -1062,6 +1112,10 @@ pub(super) fn build_nest_certificate(
             source_index,
             delta,
             hist,
+            strokes,
+            // ★#883：D-3 取段的「界」= rung 父走势 knode 的最近中枢。
+            super::super::classifier::cand_predicate::parent_last_center(knode),
+            gauge,
         );
         rung_buf.push(NestRung::new(interval_k, cand_k));
     }
@@ -1142,6 +1196,7 @@ pub(super) fn structural_nest_depth(
 /// refinement，tower[k] 边界 ⊆ tower[k-1] 边界）下含段唯一 ⟹ 二者应逐信号 bit-exact。差异>0 ⟹ 塔
 /// 在某处非严格 refinement，须把生产改成 bottom-up（PDF §五最终裁决 b）。
 #[cfg(test)]
+#[allow(clippy::too_many_arguments)]
 pub(super) fn build_nest_certificate_bottomup(
     tower: &[std::rc::Rc<Vec<super::super::classifier::recursive_tower::LeveledMove>>],
     lvl: usize,
@@ -1149,6 +1204,8 @@ pub(super) fn build_nest_certificate_bottomup(
     delta: Side,
     bits: &BspBits,
     hist: &[f64],
+    strokes: &[crate::theta_v0::types::Stroke],
+    gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> Option<NestCertificate> {
     use super::super::classifier::nest::sel_order;
     // 基例 e=lvl：与生产同——tower[lvl] 中 end_index==source_index 的执行级候选段（PDF 基例 J^δ_e）。
@@ -1160,7 +1217,7 @@ pub(super) fn build_nest_certificate_bottomup(
         idx: s.id.ordinal,
     };
     let cand_type = bsp_cand_type(bits, delta);
-    if !cand_delta_base_gate(cand_type, s, source_index, delta, hist, lvl) {
+    if !cand_delta_base_gate(cand_type, s, source_index, delta, hist, lvl, strokes, gauge) {
         return None;
     }
     let max_k = tower.len();
@@ -1209,6 +1266,10 @@ pub(super) fn build_nest_certificate_bottomup(
             source_index,
             delta,
             hist,
+            strokes,
+            // ★#883：D-3 取段的「界」= rung 父走势 knode 的最近中枢。
+            super::super::classifier::cand_predicate::parent_last_center(knode),
+            gauge,
         );
         rung_buf.push(NestRung::new(interval_k, cand_k));
         child = interval_k; // 加宽：下一级用本级 J_k 作 child（真 bottom-up 递归）。
@@ -1382,6 +1443,9 @@ pub(super) fn pan_div_gate_pass(
     bsp_of_level: &[BspPoint],
     sub_centers: &[Center],
     sub_bsp: &[BspPoint],
+    // ★#883：通道1 下沉锚（descend → div_cand）的 ForceL 数据源与判据档。
+    strokes: &[crate::theta_v0::types::Stroke],
+    gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> bool {
     // 执行段定位（与 build_nest_certificate 同口径）：tower[lvl] 中 end_index==source_index 的段。
     let Some(exec_moves) = tower.get(lvl).map(|m| m.as_slice()) else {
@@ -1392,7 +1456,7 @@ pub(super) fn pan_div_gate_pass(
     };
     let s = &exec_moves[si];
     // 通道1（Nest 语义 ∃e<ℓ Conf^δ_e）：次级别 Type1 下沉锚。lvl==0（递归底，塔内无次级别——塔不从笔递归，构造选择，非客观无次级别，订正 #520）恒 None ⟹ 走通道2。
-    if descend_type1_anchor_depth(s, cert.source_index, cert.side, hist).is_some() {
+    if descend_type1_anchor_depth(s, cert.source_index, cert.side, hist, strokes, gauge).is_some() {
         return true;
     }
     // 通道2（XZD^δ_{ℓ↓e}）：小转大确认（gate_pass 单一来源，不重判 C1）。
@@ -1450,6 +1514,8 @@ pub(super) fn gate_pan_div_for_production(
     bsp_of_level: &[BspPoint],
     sub_centers: &[Center],
     sub_bsp: &[BspPoint],
+    strokes: &[crate::theta_v0::types::Stroke],
+    gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> Option<GatedPanDivCert> {
     pan_div_gate_pass(
         tower,
@@ -1460,6 +1526,8 @@ pub(super) fn gate_pan_div_for_production(
         bsp_of_level,
         sub_centers,
         sub_bsp,
+        strokes,
+        gauge,
     )
     .then_some(GatedPanDivCert {
         level: lvl as u32,
@@ -1742,8 +1810,12 @@ pub(super) fn build_gate_certificate(
     bsp_of_level: &[BspPoint],
     sub_centers: &[Center],
     sub_bsp: &[BspPoint],
+    strokes: &[crate::theta_v0::types::Stroke],
+    gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> Option<GateCertificate> {
-    if let Some(cert) = build_nest_certificate(tower, lvl, source_index, delta, bits, hist) {
+    if let Some(cert) =
+        build_nest_certificate(tower, lvl, source_index, delta, bits, hist, strokes, gauge)
+    {
         return Some(GateCertificate::Nest(cert));
     }
     // Nest None 回退分支 = `build_xzd_fallback` 单一来源（#75 提取；hist 仅 nest 证构建用，
@@ -1814,6 +1886,7 @@ pub(super) fn build_xzd_fallback(
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::classifier::divergence::DivergenceGauge;
     use super::*;
 
     // ── ★#399（#786 Q4 改写稿）：ECON_L2_MAX_BARS 截窗骨架共享 helper——八点收敛 ──
@@ -1958,8 +2031,17 @@ mod tests {
         );
 
         // 新「区间包含」口径：build_nest_certificate 定位到两级 rung，三层嵌套 J0⊂J1⊂J2 可见。
-        let cert = build_nest_certificate(&tower, 0, src, Side::Long, &bits, &hist)
-            .expect("区间包含口径应定位到执行级段");
+        let cert = build_nest_certificate(
+            &tower,
+            0,
+            src,
+            Side::Long,
+            &bits,
+            &hist,
+            &[],
+            DivergenceGauge::MacdArea,
+        )
+        .expect("区间包含口径应定位到执行级段");
         assert_eq!(
             cert.rungs().len(),
             2,
@@ -2012,8 +2094,17 @@ mod tests {
         // 旧端点相等口径定位到 tower[1] move[0]（end==src）。
         assert_eq!(find_move_by_end_index(&tower[1], src), Some(0));
         // 新区间包含口径定位到同一段——rung interval == tower[1][0]，且 end_time==src（与旧一致）。
-        let cert =
-            build_nest_certificate(&tower, 0, src, Side::Long, &bits, &hist).expect("定位成功");
+        let cert = build_nest_certificate(
+            &tower,
+            0,
+            src,
+            Side::Long,
+            &bits,
+            &hist,
+            &[],
+            DivergenceGauge::MacdArea,
+        )
+        .expect("定位成功");
         assert_eq!(cert.rungs().len(), 1);
         assert_eq!(
             (
@@ -2422,7 +2513,16 @@ mod tests {
         let hist: Vec<f64> = vec![];
         // 空塔 → lvl=0 无法从塔拿区间 → false（无上级语境）。
         // 函数本身必须存在（否则 RED）。
-        let result = build_multilevel_nest_cert(&tower, 0, 0, Side::Long, &bits, &hist);
+        let result = build_multilevel_nest_cert(
+            &tower,
+            0,
+            0,
+            Side::Long,
+            &bits,
+            &hist,
+            &[],
+            DivergenceGauge::MacdArea,
+        );
         // 空塔 ⟹ false（无上级 context，N^δ 不成立）。
         assert!(!result, "空塔 ⟹ false（基例无 confirm 来源）");
     }
@@ -2478,12 +2578,14 @@ mod tests {
         let parent = LeveledMove {
             rmove: RMove::Compose {
                 subs: Rc::new(sub_rmoves),
+                // ★#883：D-3 取段的「界」——s3(lo=30) 破核心 zd=45 跨界、s1(end=9≤10) 命中
+                // 进入段口径，本测试语义（四条件全过 ⟹ n_delta=true）不变。
                 centers: vec![Center {
-                    zd: lo,
-                    zg: hi,
+                    zd: 45,
+                    zg: 92,
                     dd: lo,
                     gg: hi,
-                    start_index: 0,
+                    start_index: 10,
                     end_index: 19,
                 }],
                 level: 1,
@@ -2515,7 +2617,16 @@ mod tests {
         // 期望：L0 基例 Conf^+ = bits.conf_plus() = true（buy1=true）
         // 且 bsp_div_cand 四条件满足（Down，Extreme lo=30<40，Weak area=5<10）
         // ⟹ build_multilevel_nest_cert ⟹ n_delta() = true
-        let result = build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &bits, &hist);
+        let result = build_multilevel_nest_cert(
+            &tower,
+            0,
+            19,
+            Side::Long,
+            &bits,
+            &hist,
+            &[],
+            DivergenceGauge::MacdArea,
+        );
         assert!(
             result,
             "两级塔 + 四条件满足 + Conf^+ ⟹ n_delta()=true（多级链 J 嵌套收缩）"
@@ -2629,7 +2740,9 @@ mod tests {
                 19,
                 &[],
                 &[],
-                &[]
+                &[],
+                &[], // ★#883：测试无笔源
+                DivergenceGauge::MacdArea,
             )
             .is_none(),
             "零 bit 破中枢未背驰候选（StructBreak）恒门拒，不复用 Type3 lvl==0 免门通道"
@@ -2649,7 +2762,9 @@ mod tests {
                 19,
                 &[],
                 &[],
-                &[]
+                &[],
+                &[], // ★#883：测试无笔源
+                DivergenceGauge::MacdArea,
             )
             .is_some(),
             "真三类 buy3 置位候选不受 StructBreak 分流影响，仍走 Type3 正常放行"
@@ -2686,11 +2801,43 @@ mod tests {
         let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
 
         // lvl==0：存在性免门 ⟹ Type2/Type3 均 true。
-        assert!(cand_delta_type2_completion(&s, 19, Side::Long, &hist, 0));
-        assert!(cand_delta_type3_retest(&s, 19, Side::Long, &hist, 0));
+        assert!(cand_delta_type2_completion(
+            &s,
+            19,
+            Side::Long,
+            &hist,
+            0,
+            &[],
+            DivergenceGauge::MacdArea
+        ));
+        assert!(cand_delta_type3_retest(
+            &s,
+            19,
+            Side::Long,
+            &hist,
+            0,
+            &[],
+            DivergenceGauge::MacdArea
+        ));
         // lvl>=1 但 s.sub_moves 空（无次级别 Type1 锚）⟹ 小转大 ⟹ false。
-        assert!(!cand_delta_type2_completion(&s, 19, Side::Long, &hist, 1));
-        assert!(!cand_delta_type3_retest(&s, 19, Side::Long, &hist, 1));
+        assert!(!cand_delta_type2_completion(
+            &s,
+            19,
+            Side::Long,
+            &hist,
+            1,
+            &[],
+            DivergenceGauge::MacdArea
+        ));
+        assert!(!cand_delta_type3_retest(
+            &s,
+            19,
+            Side::Long,
+            &hist,
+            1,
+            &[],
+            DivergenceGauge::MacdArea
+        ));
         // dispatcher：base gate Type1 恒 true（判据在 per-rung），Type2/3 委托上述。
         assert!(cand_delta_base_gate(
             BspCandType::Type1,
@@ -2698,7 +2845,9 @@ mod tests {
             19,
             Side::Long,
             &hist,
-            1
+            1,
+            &[],
+            DivergenceGauge::MacdArea,
         ));
         assert!(!cand_delta_base_gate(
             BspCandType::Type2,
@@ -2706,7 +2855,9 @@ mod tests {
             19,
             Side::Long,
             &hist,
-            1
+            1,
+            &[],
+            DivergenceGauge::MacdArea,
         ));
     }
 
@@ -2741,18 +2892,57 @@ mod tests {
         let hist: Vec<f64> = (0..20usize)
             .map(|i| if i < 10 { -2.0 } else { -1.0 })
             .collect();
+        // ★#883：D-3 取段的「界」——s(down,lo=30) 破核心 zd=45；s'(end=9≤10) 进入段。
+        let pan_c = Center {
+            dd: 45,
+            zd: 45,
+            zg: 92,
+            gg: 92,
+            start_index: 10,
+            end_index: 14,
+        };
         // Type1 → div_cand（四条件满足 ⟹ true）。
-        assert!(cand_delta(BspCandType::Type1, &subs, 19, Side::Long, &hist));
+        assert!(cand_delta(
+            BspCandType::Type1,
+            &subs,
+            19,
+            Side::Long,
+            &hist,
+            &[],
+            Some(&pan_c),
+            DivergenceGauge::MacdArea
+        ));
         // Type2/Type3 → true（per-rung 存在性已 base 门控，rung 载上级语境）。
-        assert!(cand_delta(BspCandType::Type2, &subs, 19, Side::Long, &hist));
-        assert!(cand_delta(BspCandType::Type3, &subs, 19, Side::Long, &hist));
+        assert!(cand_delta(
+            BspCandType::Type2,
+            &subs,
+            19,
+            Side::Long,
+            &hist,
+            &[],
+            Some(&pan_c),
+            DivergenceGauge::MacdArea
+        ));
+        assert!(cand_delta(
+            BspCandType::Type3,
+            &subs,
+            19,
+            Side::Long,
+            &hist,
+            &[],
+            Some(&pan_c),
+            DivergenceGauge::MacdArea
+        ));
         // Type1 无对齐候选段（source_index 不存在）⟹ false。
         assert!(!cand_delta(
             BspCandType::Type1,
             &subs,
             99,
             Side::Long,
-            &hist
+            &hist,
+            &[],
+            Some(&pan_c),
+            DivergenceGauge::MacdArea
         ));
     }
 
@@ -2822,7 +3012,16 @@ mod tests {
         let hist = vec![0.0f64; 20];
         let mut bits = BspBits::default();
         bits.buy1 = true;
-        let result = build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &bits, &hist);
+        let result = build_multilevel_nest_cert(
+            &tower,
+            0,
+            19,
+            Side::Long,
+            &bits,
+            &hist,
+            &[],
+            DivergenceGauge::MacdArea,
+        );
         assert!(
             !result,
             "Cand=false（hist=0）⟹ n_delta()=false（Cand 传播路径）"
@@ -2898,7 +3097,16 @@ mod tests {
         let mut t1 = BspBits::default();
         t1.buy1 = true;
         assert!(
-            !build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &t1, &hist),
+            !build_multilevel_nest_cert(
+                &tower,
+                0,
+                19,
+                Side::Long,
+                &t1,
+                &hist,
+                &[],
+                DivergenceGauge::MacdArea
+            ),
             "Type1 div_cand 条件4 false ⟹ n_delta()=false（本级背驰段门守 Type1 bit-exact）"
         );
 
@@ -2906,7 +3114,16 @@ mod tests {
         let mut t2 = BspBits::default();
         t2.buy2 = true;
         assert!(
-            build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &t2, &hist),
+            build_multilevel_nest_cert(
+                &tower,
+                0,
+                19,
+                Side::Long,
+                &t2,
+                &hist,
+                &[],
+                DivergenceGauge::MacdArea
+            ),
             "Type2 存在性免本级背驰段门（673 段1）⟹ n_delta()=true"
         );
     }
@@ -2975,7 +3192,16 @@ mod tests {
         let mut bits = BspBits::default();
         bits.buy1 = true;
         // s3 是 Up 段，δ=Long 要求 Down → 条件1 失败 → false
-        let result = build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &bits, &hist);
+        let result = build_multilevel_nest_cert(
+            &tower,
+            0,
+            19,
+            Side::Long,
+            &bits,
+            &hist,
+            &[],
+            DivergenceGauge::MacdArea,
+        );
         assert!(!result, "dir(s)≠−δ（Up 段但 δ=Long）⟹ false（条件1 失败）");
     }
 
@@ -3003,23 +3229,18 @@ mod tests {
         }
     }
 
-    fn compose2(subs: Vec<LM2>, level: u32, ord: u64) -> LM2 {
+    /// ★#883：中枢改显式入参——D-3 取段要求「界」可用（目标段破核心、前同向段命中
+    /// 进入段/破核心段），旧「核心=全体外缘」夹具下 `lo < zd` 恒假、条件2 不可达。
+    /// 进入段口径快捷构造：`center(zd, zg, start, end)` 取 `start` 使前同向段
+    /// `end_index ≤ start`（进入段）、`zd`/`zg` 使目标段破核心。
+    fn compose2(subs: Vec<LM2>, center: Ct2, level: u32, ord: u64) -> LM2 {
         let start = subs.first().map(|m| m.start_index).unwrap_or(0);
         let end = subs.last().map(|m| m.end_index).unwrap_or(0);
-        let lo = subs.iter().map(|m| m.rmove.lo()).min().unwrap_or(0);
-        let hi = subs.iter().map(|m| m.rmove.hi()).max().unwrap_or(0);
         let sub_rmoves: Vec<RM2> = subs.iter().map(|m| m.rmove.clone()).collect();
         LM2 {
             rmove: RM2::Compose {
                 subs: Rc::new(sub_rmoves),
-                centers: vec![Ct2 {
-                    zd: lo,
-                    zg: hi,
-                    dd: lo,
-                    gg: hi,
-                    start_index: start,
-                    end_index: end,
-                }],
+                centers: vec![center],
                 level,
             },
             start_index: start,
@@ -3032,6 +3253,18 @@ mod tests {
         }
     }
 
+    /// #883 测试中枢快捷构造（外缘取核心值，本组测试不消费外缘）。
+    fn ct2(zd: i64, zg: i64, start: usize, end: usize) -> Ct2 {
+        Ct2 {
+            dd: zd,
+            zd,
+            zg,
+            gg: zg,
+            start_index: start,
+            end_index: end,
+        }
+    }
+
     /// 段2 正例：Type2@lvl1 的回抽次级别走势 m2 内部含次级别 Type1 背驰段（end==source_index）
     /// ⟹ 下沉锚定 Some(1) ⟹ 证书非 None ⟹ n_delta=true（存在性 buy2 基例 + 精确定位已门控）。
     #[test]
@@ -3041,21 +3274,42 @@ mod tests {
         let s1 = seg2(Dir2::Down, 40, 90, 5, 9, 1); // s'：Down lo=40
         let s2 = seg2(Dir2::Up, 45, 95, 10, 14, 2);
         let s3 = seg2(Dir2::Down, 30, 85, 15, 19, 3); // s：Down lo=30<40 Extreme，end=19
-        let m2 = compose2(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()], 1, 0);
+        let m2 = compose2(
+            vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()],
+            ct2(45, 92, 10, 14),
+            1,
+            0,
+        );
         let tower: Vec<Rc2<Vec<LM2>>> =
             vec![Rc2::new(vec![s0, s1, s2, s3]), Rc2::new(vec![m2.clone()])];
         // s3(15-19) area=5*1=5 < s1(5-9) area=5*2=10（Weak ✓）。
         let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
 
         assert_eq!(
-            super::descend_type1_anchor_depth(&m2, 19, Side::Long, &hist),
+            super::descend_type1_anchor_depth(
+                &m2,
+                19,
+                Side::Long,
+                &hist,
+                &[],
+                DivergenceGauge::MacdArea
+            ),
             Some(1),
             "次级别 Type1 锚点成立 ⟹ 下沉深度 Some(1)"
         );
         let mut buy2 = super::super::super::types::BspBits::default();
         buy2.buy2 = true;
         assert!(
-            build_multilevel_nest_cert(&tower, 1, 19, Side::Long, &buy2, &hist),
+            build_multilevel_nest_cert(
+                &tower,
+                1,
+                19,
+                Side::Long,
+                &buy2,
+                &hist,
+                &[],
+                DivergenceGauge::MacdArea
+            ),
             "Type2@lvl1 次级别锚点成立 ⟹ 证书非 None ⟹ n_delta=true"
         );
     }
@@ -3068,20 +3322,41 @@ mod tests {
         let s1 = seg2(Dir2::Down, 40, 90, 5, 9, 1);
         let s2 = seg2(Dir2::Up, 45, 95, 10, 14, 2);
         let s3 = seg2(Dir2::Down, 30, 85, 15, 19, 3);
-        let m2 = compose2(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()], 1, 0);
+        let m2 = compose2(
+            vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()],
+            ct2(45, 92, 10, 14),
+            1,
+            0,
+        );
         let tower: Vec<Rc2<Vec<LM2>>> =
             vec![Rc2::new(vec![s0, s1, s2, s3]), Rc2::new(vec![m2.clone()])];
         let hist = vec![0.0f64; 20]; // area=0 ⟹ 0<0 false ⟹ div_cand 假 ⟹ 次级别无一类锚点
 
         assert_eq!(
-            super::descend_type1_anchor_depth(&m2, 19, Side::Long, &hist),
+            super::descend_type1_anchor_depth(
+                &m2,
+                19,
+                Side::Long,
+                &hist,
+                &[],
+                DivergenceGauge::MacdArea
+            ),
             None,
             "次级别无一类背驰锚点 ⟹ 小转大 ⟹ None（显式可测判别）"
         );
         let mut buy2 = super::super::super::types::BspBits::default();
         buy2.buy2 = true;
         assert!(
-            !build_multilevel_nest_cert(&tower, 1, 19, Side::Long, &buy2, &hist),
+            !build_multilevel_nest_cert(
+                &tower,
+                1,
+                19,
+                Side::Long,
+                &buy2,
+                &hist,
+                &[],
+                DivergenceGauge::MacdArea
+            ),
             "小转大（次级别无 Type1）⟹ 证书 None ⟹ 门拒"
         );
     }
@@ -3096,22 +3371,29 @@ mod tests {
         // A0（level1 Down @0-9）：a0(Up)/a1(Down)。
         let a0 = seg2(Dir2::Up, 60, 100, 0, 4, 0);
         let a1 = seg2(Dir2::Down, 40, 95, 5, 9, 1);
-        let big_a0 = compose2(vec![a0, a1], 1, 0); // lo=40
-                                                   // Amid（level1 Up @10-13）。
+        let big_a0 = compose2(vec![a0, a1], ct2(45, 92, 10, 10), 1, 0); // lo=40
+                                                                        // Amid（level1 Up @10-13）。
         let am0 = seg2(Dir2::Down, 45, 90, 10, 11, 2);
         let am1 = seg2(Dir2::Up, 50, 110, 12, 13, 3);
-        let amid = compose2(vec![am0, am1], 1, 1);
+        let amid = compose2(vec![am0, am1], ct2(45, 92, 10, 13), 1, 1);
         // A1（level1 Down @14-19，内部 level0 趋势背驰 @19）。
         let b0 = seg2(Dir2::Up, 48, 105, 14, 15, 4);
         let b1 = seg2(Dir2::Down, 42, 92, 16, 16, 5); // 次次级别 s' Down lo=42
         let b2 = seg2(Dir2::Up, 46, 96, 17, 17, 6);
         let b3 = seg2(Dir2::Down, 30, 85, 18, 19, 7); // 次次级别 s Down lo=30<42，end=19
-        let big_a1 = compose2(vec![b0, b1, b2, b3], 1, 2); // lo=30
-                                                           // s（level2）：[A0(Down), Amid(Up), A1(Down@19)]。
-        let s = compose2(vec![big_a0, amid, big_a1], 2, 0);
+        let big_a1 = compose2(vec![b0, b1, b2, b3], ct2(45, 92, 17, 19), 1, 2); // lo=30
+                                                                                // s（level2）：[A0(Down), Amid(Up), A1(Down@19)]。
+        let s = compose2(vec![big_a0, amid, big_a1], ct2(45, 92, 10, 19), 2, 0);
 
         assert_eq!(
-            super::descend_type1_anchor_depth(&s, 19, Side::Long, &hist),
+            super::descend_type1_anchor_depth(
+                &s,
+                19,
+                Side::Long,
+                &hist,
+                &[],
+                DivergenceGauge::MacdArea
+            ),
             Some(2),
             "次级别 Type1 + 次次级别 Type1 ⟹ 真递归下沉深度 Some(2)"
         );
@@ -3138,7 +3420,12 @@ mod tests {
         let s1 = seg2(Dir2::Down, 40, 90, 5, 9, 1);
         let s2 = seg2(Dir2::Up, 45, 95, 10, 14, 2);
         let s3 = seg2(Dir2::Down, 30, 85, 15, 19, 3);
-        let m2 = compose2(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()], 1, 0);
+        let m2 = compose2(
+            vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()],
+            ct2(45, 92, 10, 14),
+            1,
+            0,
+        );
         let tower: Vec<Rc2<Vec<LM2>>> = vec![Rc2::new(vec![s0, s1, s2, s3]), Rc2::new(vec![m2])];
         let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
         assert!(
@@ -3150,7 +3437,9 @@ mod tests {
                 19,
                 &[],
                 &[],
-                &[]
+                &[],
+                &[], // ★#883：测试无笔源
+                DivergenceGauge::MacdArea,
             ),
             "Nest 通道：次级别 Type1 锚（descend Some）⟹ PanDiv^δ_ℓ ⟹ ∃e<ℓ Conf^δ_e 承接成立"
         );
@@ -3175,6 +3464,8 @@ mod tests {
                 &bsp_of_level,
                 &[],
                 &[],
+                &[], // ★#883：测试无笔源
+                DivergenceGauge::MacdArea,
             ),
             "XZD 通道：Nest 闭（递归底无次级别锚）+ C2 共生 buy2 ⟹ XZD^δ 承接成立"
         );
@@ -3189,9 +3480,19 @@ mod tests {
         buy2.buy2 = true;
         let bsp_of_level = vec![xzd_bsp(19, buy2, None)];
         let raw = pan_cert(19, Side::Long);
-        let gated =
-            super::gate_pan_div_for_production(&tower, 0, &raw, &hist, 19, &bsp_of_level, &[], &[])
-                .expect("XZD 门通过必须恰产一个 GatedPanDivCert");
+        let gated = super::gate_pan_div_for_production(
+            &tower,
+            0,
+            &raw,
+            &hist,
+            19,
+            &bsp_of_level,
+            &[],
+            &[],
+            &[],
+            DivergenceGauge::MacdArea,
+        )
+        .expect("XZD 门通过必须恰产一个 GatedPanDivCert");
         assert_eq!(gated.level(), 0);
         assert_eq!(gated.cert(), raw);
     }
@@ -3211,13 +3512,26 @@ mod tests {
                 19,
                 &[],
                 &[],
-                &[]
+                &[],
+                &[], // ★#883：测试无笔源
+                DivergenceGauge::MacdArea,
             ),
             "两门皆闭 ⟹ PanDiv 承接失败（诚实丢弃）"
         );
         // 执行段缺失（tower[lvl] 无 end_index==source_index）⟹ 同样拒。
         assert!(
-            !super::pan_div_gate_pass(&tower, 0, &pan_cert(7, Side::Long), &hist, 7, &[], &[], &[]),
+            !super::pan_div_gate_pass(
+                &tower,
+                0,
+                &pan_cert(7, Side::Long),
+                &hist,
+                7,
+                &[],
+                &[],
+                &[],
+                &[],
+                DivergenceGauge::MacdArea
+            ),
             "无执行段定位 ⟹ 承接失败"
         );
     }
@@ -3237,6 +3551,8 @@ mod tests {
                 &[],
                 &[],
                 &[],
+                &[], // ★#883：测试无笔源
+                DivergenceGauge::MacdArea,
             ),
             None
         );
@@ -5323,7 +5639,8 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            // ★#883：取 l0.strokes 供 div_cand ForceL 数据源（与生产 collect_signals 同口径）。
+            let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
             levels_seen_max = levels_seen_max.max(cls_i.levels.len());
             for (l, rc) in tower_i.iter().enumerate() {
                 if l < LMAX {
@@ -5415,6 +5732,8 @@ mod tests {
                             &ls.bsp,
                             sub_centers,
                             sub_bsp,
+                            &l0_i.strokes, // ★#883
+                            config.divergence_gauge,
                         );
                         let (pass, nest_depth, rungs_len) = match &gate_cert {
                             Some(GateCertificate::Nest(cert)) => (
@@ -5591,6 +5910,8 @@ mod tests {
                         &ls.bsp,
                         sub_centers,
                         sub_bsp,
+                        &l0_i.strokes, // ★#883
+                        config.divergence_gauge,
                     ) {
                         continue;
                     }
@@ -6279,7 +6600,7 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
                 if prev_bsp
                     .get(lvl)
@@ -6332,6 +6653,8 @@ mod tests {
                             delta_side,
                             &p.bits,
                             &macd_hist,
+                            &l0_i.strokes, // ★#883
+                            config.divergence_gauge,
                         );
                         let bu = build_nest_certificate_bottomup(
                             &tower_i,
@@ -6340,6 +6663,8 @@ mod tests {
                             delta_side,
                             &p.bits,
                             &macd_hist,
+                            &l0_i.strokes, // ★#883
+                            config.divergence_gauge,
                         );
                         let (prod_nd, prod_depth) = match &prod {
                             Some(cert) => {
@@ -6656,7 +6981,7 @@ mod tests {
         let mut st_no_upper = 0usize; // rung lvl+1 无 knode（tower[lvl+1] 无含 src 段 ⟹ rungs 空，退化 base-case）
         let mut st_no_target = 0usize; // knode.sub_moves 无 end==src（target_idx 缺失）
         let mut st_cond1_dir = 0usize; // dir(s=m2) ≠ −δ（m2 方向不是背驰段要求方向）
-        let mut st_cond2_noprev = 0usize; // 无前序同向段（s_prev 不存在）
+        let mut st_cond2_noprev = 0usize; // 无同向跨界前段 s_prev（★#883 后 = D-3 取段结构失败）
         let mut st_cond3_extreme = 0usize; // ★Extreme 假（m2 未创新极值）= codex 互斥链
         let mut st_cond4_weak = 0usize; // cond1∧2∧3 通过但 div_cand=false ⟹ cond4(Weak) 失败
         let mut st_reject_elsewhere = 0usize; // rung lvl+1 div_cand=true 但 gate=false（更高 rung / is_sub / base）
@@ -6703,7 +7028,7 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
                 if !in_scope(lvl) {
                     continue;
@@ -6771,8 +7096,16 @@ mod tests {
                         }
 
                         // 门判定（生产同源）。
-                        let cert_opt =
-                            build_nest_certificate(&tower_i, lvl, src, delta, &p.bits, &macd_hist);
+                        let cert_opt = build_nest_certificate(
+                            &tower_i,
+                            lvl,
+                            src,
+                            delta,
+                            &p.bits,
+                            &macd_hist,
+                            &l0_i.strokes, // ★#883
+                            config.divergence_gauge,
+                        );
                         let gate = cert_opt.as_ref().map(|c| c.n_delta()).unwrap_or(false);
 
                         // rung k=lvl+1 div_cand 分解（独立于 gate，用于阶段归因 + 互斥统计）。
@@ -6831,6 +7164,9 @@ mod tests {
                                         target_idx: tidx,
                                         hist: &macd_hist,
                                         delta,
+                                        strokes: &l0_i.strokes, // ★#883
+                                        parent_center: super::super::super::classifier::cand_predicate::parent_last_center(knode),
+                                        gauge: config.divergence_gauge,
                                     });
                                 }
                             }
@@ -6970,7 +7306,7 @@ mod tests {
         );
         let _ = writeln!(
             rpt,
-            "| cond2_noprev | {} | {:.2}% | 无前序同向段 s_prev |",
+            "| cond2_noprev | {} | {:.2}% | 无同向跨界前段 s_prev（#883 D-3 取段） |",
             st_cond2_noprev,
             pct(st_cond2_noprev)
         );
@@ -7259,7 +7595,7 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
                 if !in_scope(lvl) {
                     continue;
@@ -7324,8 +7660,16 @@ mod tests {
                             .get(lvl)
                             .and_then(|mv| mv.iter().find(|m| m.end_index == src));
                         // descent 结果（s 缺失 ⟹ 生产门早退 None，视作 base_none）。
-                        let descend =
-                            s_opt.map(|s| descend_type1_anchor_depth(s, src, delta, &macd_hist));
+                        let descend = s_opt.map(|s| {
+                            descend_type1_anchor_depth(
+                                s,
+                                src,
+                                delta,
+                                &macd_hist,
+                                &l0_i.strokes, // ★#883
+                                config.divergence_gauge,
+                            )
+                        });
 
                         if is_t23 {
                             n_t23[lvl] += 1;
@@ -7597,15 +7941,39 @@ mod tests {
         }
     }
 
-    /// [`div_cand`] 的**失败分支外化**（#846）：返回首个不满足的条件号，`None` = 四条件全过。
+    /// ★#883：生产 [`div_cand_fail`] 的薄包装（探针条件归因入口）。
     ///
-    /// 逐行镜像 `cand_predicate::div_cand`（cand_predicate.rs:107-156）四条件顺序：
-    /// 0=`target_idx` 越界；1=方向 `dir(s)≠−δ`；2=无前序同向段；3=Extreme 不成立；4=Weak 不成立。
+    /// **parity 由构造保证**——#883 起失败分支外化进生产本体（`cand_predicate::div_cand_fail`），
+    /// 探针不再维护镜像体 + 对拍锁（旧 `div_cand_why` 镜像已删，`parity_violation` 计数退役）。
+    fn prod_div_cand_why(
+        context: &[LeveledMove],
+        target_idx: usize,
+        hist: &[f64],
+        delta: Side,
+        strokes: &[crate::theta_v0::types::Stroke],
+        parent_center: Option<&crate::theta_v0::types::Center>,
+        gauge: super::super::super::classifier::divergence::DivergenceGauge,
+    ) -> Option<u8> {
+        super::super::super::classifier::cand_predicate::div_cand_fail(
+            &super::super::super::classifier::cand_predicate::DivCandInput {
+                context,
+                target_idx,
+                hist,
+                delta,
+                strokes,
+                parent_center,
+                gauge,
+            },
+        )
+    }
+
+    /// ★#883 验收对照臂（**诊断专用，禁入生产**）：#846 口径的旧 `div_cand` 逐字镜像——
+    /// 「同父前序最近同向段」取段（趋势形状，无中枢概念）+ MACD 同色面积 Weak。
     ///
-    /// **忠实性机器校验**：调用点每次都与真 `div_cand` 对拍（`is_none() == div_cand(...)`），
-    /// 不一致计入 `parity_violation` 并在真封处断言为 0——复制体与生产判据的等价由测试守护，
-    /// 不靠人眼。
-    fn div_cand_why(
+    /// 用途唯一：量化「C 桶里有多少本该算类一类点」——`legacy_fail ∧ prod_pass` 即被盘整
+    /// 背驰入口（#814 D-3 取段）+ ForceL 换档联合救回的量（spec #847 S4-b 验收原话「补入口
+    /// 前测不出来」的事后可读数）。按 ADR-0005 对照臂纪律：不产生任何交易决策，不参与准入。
+    fn legacy_div_cand_why(
         context: &[LeveledMove],
         target_idx: usize,
         hist: &[f64],
@@ -7673,16 +8041,22 @@ mod tests {
     /// Type2/3 群作对照。对每条信号把 [`descend_type1_anchor_depth`] 的递归**展开成可观测的循环**，
     /// 逐级记录 成功 / A / B / C（见 [`StepFail`]）。
     ///
-    /// **忠实性**（两道机器校验，真封处断言）：
+    /// **忠实性**（真封处断言）：
     /// 1. 展开循环的返回值与真 `descend_type1_anchor_depth` 逐信号对拍（`trace_mismatch==0`）。
-    /// 2. [`div_cand_why`] 与真 `div_cand` 逐次对拍（`parity_violation==0`）。
+    /// 2. ~~`div_cand_why` 镜像对拍~~ ★#883 起退役：失败分支外化收编进生产本体
+    ///    （`cand_predicate::div_cand_fail`），探针直调生产函数，parity 由构造保证。
     ///
-    /// ## 口径声明（#817 未裁，本探针不裁）
+    /// ## 口径声明（★#883 落地后口径）
     ///
-    /// 判据 = 当前 `cand_predicate::div_cand` 四条件合取：(1) `dir(s)=−δ`；(2) 同父 `sub_moves` 内
-    /// 存在**前序最近同向段** s′；(3) Extreme（δ=Long→`lo(s)<lo(s′)`）；(4) Weak（`Σ|hist|` 段面积
-    /// `curr<prev` 严格）。「类一类点/盘整背驰」的准入判据本仓未定（#817），本探针**用现有 div_cand
-    /// 口径测**，不改判据；口径本身的可疑处作为发现上报。
+    /// 判据 = 当前 `cand_predicate::div_cand` 四条件合取：(1) `dir(s)=−δ`；(2) **#814 D-3 统一
+    /// 取段**（以父走势最近中枢为界，s 自身跨界，s′=往回最近同向跨界段——首次离开=进入段／
+    /// 反复震荡=上次离开段，中枢内震荡段不参与）；(3) Extreme（δ=Long→`lo(s)<lo(s′)`）；
+    /// (4) Weak = #990 收编后统一判据原语（默认 ForceL `L(C)<L(B)` 经 #989 段→笔反查；
+    /// MacdArea 同色面积为对照档）。**「类一类点（盘整背驰）」的入口已由 #883 补上**——
+    /// 本探针（#846 系）的 C 桶读数自此反映补入口后的判据；为量化「C 桶里有多少本该算
+    /// 类一类点」（spec #847 S4-b 验收原话），探针并行跑 #846 旧口径对照臂
+    /// （`legacy_div_cand_why`，诊断专用 ADR-0005 臂），报 2×2 交叉计数
+    /// （`legacy假∧生产真` = 盘整入口救回量）。
     ///
     /// ## 与生产的关系（诚实标注）
     ///
@@ -7696,7 +8070,7 @@ mod tests {
     #[test]
     #[ignore]
     fn type1_descend_continuity_dx() {
-        use super::super::super::classifier::cand_predicate::{div_cand, rmove_dir, DivCandInput};
+        use super::super::super::classifier::cand_predicate::rmove_dir;
         use super::super::super::classifier::divergence::{compute_macd, segment_macd_area};
         use super::super::super::types::Direction;
         use super::super::data;
@@ -7770,10 +8144,19 @@ mod tests {
         let mut max_depth = [0usize; NG];
         let mut depth_overflow = 0usize;
 
-        // 忠实性校验计数（真封断言为 0）
-        let mut parity_violation = 0usize;
+        // 忠实性校验计数（真封断言为 0）。★#883：`parity_violation` 退役——失败分支外化已
+        // 收编进生产本体（`cand_predicate::div_cand_fail`），探针直调生产函数，parity 由构造保证。
         let mut trace_mismatch = 0usize;
         let mut level_underflow = 0usize;
+
+        // ★#883 验收计数（spec #847 S4-b：「C 桶里有多少本该算类一类点」事后可读数）。
+        // 对照臂 = `legacy_div_cand_why`（#846 旧口径镜像：趋势形状取段 + MACD 面积 Weak，
+        // 诊断专用 ADR-0005 对照臂）；主读数 = 生产 `div_cand_fail`（D-3 取段 + gauge 档力度）。
+        let mut pan_rescue = [[0usize; LMAX + 1]; NG]; // [群][信号级] legacy 假 ∧ 生产真（盘整入口救回）
+        let mut reverse_diff = [[0usize; LMAX + 1]; NG]; // legacy 真 ∧ 生产假（取段收紧/换档反向差）
+        let mut both_pass = [[0usize; LMAX + 1]; NG]; // 两臂同真
+        let mut both_fail = [[0usize; LMAX + 1]; NG]; // 两臂同假
+        let mut n_eval = [[0usize; LMAX + 1]; NG]; // 两臂同评的下钻步数（2×2 穷举校验分母）
 
         // 残差群（既非 Type1 也非 Type2/3 的带 δ 信号）——诚实标注域差。
         let mut n_other = 0usize;
@@ -7794,7 +8177,7 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
                 if !in_scope(lvl) {
                     continue;
@@ -7937,15 +8320,29 @@ mod tests {
                                 terminal = StepFail::NoAlign;
                                 break;
                             };
-                            let why = div_cand_why(subs, tidx, &macd_hist, delta);
-                            let real = div_cand(&DivCandInput {
-                                context: subs,
-                                target_idx: tidx,
-                                hist: &macd_hist,
+                            // ★#883：生产判据直调（D-3 取段的「界」= 当前父走势 cur 的最近中枢；
+                            // 力度档 = config.divergence_gauge，与生产 collect_signals 同口径）。
+                            let parent_center =
+                                super::super::super::classifier::cand_predicate::parent_last_center(
+                                    cur,
+                                );
+                            let why = prod_div_cand_why(
+                                subs,
+                                tidx,
+                                &macd_hist,
                                 delta,
-                            });
-                            if why.is_none() != real {
-                                parity_violation += 1;
+                                &l0_i.strokes,
+                                parent_center,
+                                config.divergence_gauge,
+                            );
+                            // ★#883 验收对照臂（诊断专用）：#846 旧口径同步评一次，交叉计数。
+                            let legacy_why = legacy_div_cand_why(subs, tidx, &macd_hist, delta);
+                            n_eval[g][lvl] += 1;
+                            match (legacy_why.is_none(), why.is_none()) {
+                                (true, true) => both_pass[g][lvl] += 1,
+                                (true, false) => reverse_diff[g][lvl] += 1,
+                                (false, true) => pan_rescue[g][lvl] += 1, // C 桶里本该算类一类点
+                                (false, false) => both_fail[g][lvl] += 1,
                             }
                             if let Some(cond) = why {
                                 terminal = StepFail::DivFalse(cond);
@@ -7962,7 +8359,14 @@ mod tests {
                         }
 
                         // 忠实性对拍①：展开循环 ≡ 真 descend_type1_anchor_depth。
-                        let real_depth = descend_type1_anchor_depth(s, src, delta, &macd_hist);
+                        let real_depth = descend_type1_anchor_depth(
+                            s,
+                            src,
+                            delta,
+                            &macd_hist,
+                            &l0_i.strokes,
+                            config.divergence_gauge,
+                        );
                         if real_depth != (depth > 0).then_some(depth) {
                             trace_mismatch += 1;
                         }
@@ -8046,7 +8450,7 @@ mod tests {
                                             pv.start_index,
                                             pv.end_index
                                         ),
-                                        None => "（无前序同向段）".to_string(),
+                                        None => "（无同向跨界前段）".to_string(),
                                     };
                                     sample_c.push(format!(
                                         "| {} | {lvl} | {src} | {dsym} | {}→{} | cond{cond} | segs={} tidx={tidx} | dir={:?}(exp {:?}) | lo={} hi={} area={:.4} | prev: {} |",
@@ -8261,7 +8665,7 @@ mod tests {
             rpt,
             "### 3.3 C 类的失败条件号分布（div_cand 四条件中首个不满足者）"
         );
-        let _ = writeln!(rpt, "| 群 | cond0(越界) | cond1(方向≠−δ) | cond2(无前序同向段) | cond3(Extreme 假) | cond4(Weak 假) |");
+        let _ = writeln!(rpt, "| 群 | cond0(越界) | cond1(方向≠−δ) | cond2(D-3 取段失败) | cond3(Extreme 假) | cond4(Weak 假) |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|");
         for g in 0..NG {
             let _ = writeln!(
@@ -8377,7 +8781,41 @@ mod tests {
         );
         let _ = writeln!(
             rpt,
-            "- `div_cand_why` ≡ `div_cand` 对拍不一致：**{parity_violation}**（须 0）"
+            "- ★#883：`div_cand_why` 镜像已退役（失败分支收编进生产 `div_cand_fail`，parity 由构造保证）"
+        );
+        // ★#883 验收读数（spec #847 S4-b：「C 桶里有多少本该算类一类点」）。
+        let _ = writeln!(
+            rpt,
+            "
+## ★#883 验收：盘整入口救回量（#846 旧口径对照臂 × 生产新判据）
+"
+        );
+        let _ = writeln!(
+            rpt,
+            "| 群 | 信号级 | 评估步数 | 同真 | **legacy假∧生产真（本该算类一类点）** | legacy真∧生产假 | 同假 |"
+        );
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|");
+        for g in 0..NG {
+            for lvl in LMIN..=LMAX {
+                if n_eval[g][lvl] == 0 {
+                    continue;
+                }
+                let _ = writeln!(
+                    rpt,
+                    "| {} | {lvl} | {} | {} | **{}** | {} | {} |",
+                    gname(g),
+                    n_eval[g][lvl],
+                    both_pass[g][lvl],
+                    pan_rescue[g][lvl],
+                    reverse_diff[g][lvl],
+                    both_fail[g][lvl]
+                );
+            }
+        }
+        let _ = writeln!(
+            rpt,
+            "
+口径：legacy = #846 旧判据镜像（趋势形状取段 + MACD 面积 Weak，诊断对照臂）；生产 = #883 后判据（#814 D-3 统一取段 + config.divergence_gauge 力度档，默认 ForceL）。「legacy假∧生产真」即 C 桶里本该算类一类点的下钻步数（盘整入口救回）；「legacy真∧生产假」是取段收紧（震荡段除名/无中枢不判）与 ForceL 换档的反向差，照实并列。"
         );
         let _ = writeln!(
             rpt,
@@ -8419,20 +8857,32 @@ mod tests {
                 );
             }
         }
-        assert_eq!(
-            parity_violation, 0,
-            "div_cand_why 与生产 div_cand 判定不一致 {parity_violation} 次 ⟹ 复制体失真，读数作废"
-        );
+        // ★#883：验收 2×2 穷举（每评估步必落且仅落一格）。
+        for g in 0..NG {
+            for lvl in LMIN..=LMAX {
+                assert_eq!(
+                    both_pass[g][lvl]
+                        + both_fail[g][lvl]
+                        + pan_rescue[g][lvl]
+                        + reverse_diff[g][lvl],
+                    n_eval[g][lvl],
+                    "#883 验收 2×2 穷举：{} lvl{lvl} 四格合计应 = 评估步数",
+                    gname(g)
+                );
+            }
+        }
         assert_eq!(
             trace_mismatch, 0,
             "展开循环与 descend_type1_anchor_depth 返回不一致 {trace_mismatch} 次 ⟹ 探针失真，读数作废"
         );
         eprintln!(
-            "真封：Type1 群={} 条（base_none={}），Type2/3 群={} 条（base_none={}）；对拍 parity={parity_violation} trace={trace_mismatch}",
+            "真封：Type1 群={} 条（base_none={}），Type2/3 群={} 条（base_none={}）；trace={trace_mismatch}；#883 验收：pan_rescue={} reverse_diff={}",
             n_sig[0].iter().sum::<usize>(),
             base_none[0].iter().sum::<usize>(),
             n_sig[1].iter().sum::<usize>(),
-            base_none[1].iter().sum::<usize>()
+            base_none[1].iter().sum::<usize>(),
+            pan_rescue.iter().map(|r| r.iter().sum::<usize>()).sum::<usize>(),
+            reverse_diff.iter().map(|r| r.iter().sum::<usize>()).sum::<usize>()
         );
     }
 
@@ -8510,6 +8960,10 @@ mod tests {
     /// 该读数**不算否证**：`div_cand` 的比较基准写死「同父前序最近同向段」＝**趋势背驰**形状，
     /// 「类一类点（盘整背驰）」在该判据下**没有入口**（`cand_predicate.rs` 四条件里没有对应分支）。
     ///
+    /// ★#883 订正：盘整背驰入口已落地（#814 D-3 统一取段 + #990 统一力度原语）——上两句描述
+    /// 的是 #883 之前的判据形状，保留作历史动机；本探针两臂（BSP 识别层 / pan_div 通道）与
+    /// `div_cand` 新口径**仍不同源**，对照价值不变。
+    ///
     /// 本探针**不改判据**，改问两条**与 `div_cand` 不同源**的现成管线：
     /// 1. **BSP 识别层**：`cls.levels[L−1].bsp` 里有没有坐标 `== source_index` 的 `buy1`/`sell1`
     ///    （判据是 `signal.rs:516` 的 `below_last_center = diverged && t3_in_c_present`，与
@@ -8540,7 +8994,6 @@ mod tests {
     #[test]
     #[ignore]
     fn type1_bsp_layer_crosscheck_dx() {
-        use super::super::super::classifier::cand_predicate::{div_cand, DivCandInput};
         use super::super::super::classifier::divergence::compute_macd;
         use super::super::data;
         use std::fmt::Write as _;
@@ -8624,7 +9077,7 @@ mod tests {
         let mut first_b = [[0usize; LMAX + 1]; NG];
         let mut first_c = [[0usize; LMAX + 1]; NG];
 
-        let mut parity_violation = 0usize;
+        // ★#883：`parity_violation` 退役（直调生产 `div_cand_fail`，parity 由构造保证）。
 
         // 终局快照（`bsp`/`pan_div` 是累积列表 ⟹ 末 bar 即全窗全集）
         let last_bar = (0..n)
@@ -8649,7 +9102,7 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
             if Some(i) == last_bar {
                 final_bsp = cls_i.levels.iter().map(|l| Rc::clone(&l.bsp)).collect();
                 final_pd = cls_i.levels.iter().map(|l| Rc::clone(&l.pan_div)).collect();
@@ -8741,7 +9194,7 @@ mod tests {
                         };
                         n_sig[g][lvl] += 1;
 
-                        // ── 首步 div_cand 判读（与 #846 同一函数、同一 parity 守卫）──
+                        // ── 首步 div_cand 判读（★#883：直调生产 `div_cand_fail`，parity 由构造保证）──
                         let exec_moves = match tower_i.get(lvl) {
                             Some(mv) => mv.as_slice(),
                             None => {
@@ -8759,16 +9212,17 @@ mod tests {
                             first_a[g][lvl] += 1;
                             (false, 0u8)
                         } else if let Some(tidx) = find_move_by_end_index(subs, src) {
-                            let why = div_cand_why(subs, tidx, &macd_hist, delta);
-                            let real = div_cand(&DivCandInput {
-                                context: subs,
-                                target_idx: tidx,
-                                hist: &macd_hist,
+                            let why = prod_div_cand_why(
+                                subs,
+                                tidx,
+                                &macd_hist,
                                 delta,
-                            });
-                            if why.is_none() != real {
-                                parity_violation += 1;
-                            }
+                                &l0_i.strokes,
+                                super::super::super::classifier::cand_predicate::parent_last_center(
+                                    s,
+                                ),
+                                config.divergence_gauge,
+                            );
                             match why {
                                 None => {
                                     first_ok[g][lvl] += 1;
@@ -9148,7 +9602,7 @@ mod tests {
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|");
         let cond_name = |c: usize| match c {
             1 => "cond1 方向≠−δ",
-            2 => "cond2 无前序同向段",
+            2 => "cond2 D-3 取段失败",
             3 => "cond3 Extreme 假",
             4 => "cond4 Weak 假",
             _ => "cond0 越界",
@@ -9192,7 +9646,7 @@ mod tests {
         let _ = writeln!(rpt);
         let _ = writeln!(
             rpt,
-            "- `div_cand_why` ≡ 生产 `div_cand` 对拍不一致：**{parity_violation}**（须 0）"
+            "- ★#883：`div_cand_why` 镜像退役——直调生产 `div_cand_fail`，parity 由构造保证"
         );
         let _ = writeln!(
             rpt,
@@ -9223,10 +9677,6 @@ mod tests {
         eprintln!("\n原始数据已落盘：{out:?}");
 
         // ── 真封 ──
-        assert_eq!(
-            parity_violation, 0,
-            "div_cand_why 与生产 div_cand 判定不一致 {parity_violation} 次 ⟹ 复制体失真，读数作废"
-        );
         for g in 0..NG {
             for lvl in LMIN..=LMAX {
                 let sum = base_none[g][lvl]
@@ -9244,7 +9694,7 @@ mod tests {
             }
         }
         eprintln!(
-            "真封：Type1={} 条 / Type2-3={} 条；parity={parity_violation}",
+            "真封：Type1={} 条 / Type2-3={} 条",
             n_sig[0].iter().sum::<usize>(),
             n_sig[1].iter().sum::<usize>()
         );
@@ -9384,7 +9834,7 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            let (_l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
             if Some(i) == last_bar {
                 final_bsp = cls_i.levels.iter().map(|l| Rc::clone(&l.bsp)).collect();
                 final_tower = tower_i.clone();
@@ -10192,7 +10642,7 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            let (_l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
             if Some(i) == last_bar {
                 final_bsp = cls_i.levels.iter().map(|l| Rc::clone(&l.bsp)).collect();
                 final_pd = cls_i.levels.iter().map(|l| Rc::clone(&l.pan_div)).collect();
@@ -10945,7 +11395,7 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
                 if !in_scope(lvl) {
                     continue;
@@ -11066,6 +11516,9 @@ mod tests {
                                 target_idx: tidx,
                                 hist: &macd_hist,
                                 delta,
+                                strokes: &l0_i.strokes, // ★#883
+                                parent_center: super::super::super::classifier::cand_predicate::parent_last_center(cur),
+                                gauge: config.divergence_gauge,
                             });
                             if !ok {
                                 terminal = 2; // DivFalse
@@ -11076,7 +11529,14 @@ mod tests {
                             cur_level = cur_level.saturating_sub(1);
                         }
                         // 忠实性对拍：展开循环 ≡ 真 descend_type1_anchor_depth
-                        let real_depth = descend_type1_anchor_depth(s, src, delta, &macd_hist);
+                        let real_depth = descend_type1_anchor_depth(
+                            s,
+                            src,
+                            delta,
+                            &macd_hist,
+                            &l0_i.strokes,
+                            config.divergence_gauge,
+                        );
                         if real_depth != (depth > 0).then_some(depth) {
                             trace_mismatch += 1;
                         }

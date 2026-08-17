@@ -759,6 +759,9 @@ where
         Vec<usize>,
         u64,
         u64,
+        // ★#883：本 bar 因果前缀的 L0 笔序列（Rc 共享只读，source_index 域）——
+        // nest 门 L2 旧臂 div_cand 的 ForceL 力度数据源（#873/#989/#990）。
+        std::rc::Rc<Vec<super::super::types::Stroke>>,
     ),
 {
     // ★M5 wrapper：overlay=None ⟹ 现有净额路径逐字节不变（bit-exact）。overlay 簿接线走
@@ -802,6 +805,9 @@ where
         Vec<usize>,
         u64,
         u64,
+        // ★#883：本 bar 因果前缀的 L0 笔序列（Rc 共享只读，source_index 域）——
+        // nest 门 L2 旧臂 div_cand 的 ForceL 力度数据源（#873/#989/#990）。
+        std::rc::Rc<Vec<super::super::types::Stroke>>,
     ),
 {
     pi_theta_fill_loop_overlay(
@@ -3939,7 +3945,14 @@ mod center_oscillation_wiring_tests {
                 } else {
                     Classification::default()
                 };
-                (cls, Vec::new(), Vec::new(), i as u64, i as u64)
+                (
+                    cls,
+                    Vec::new(),
+                    Vec::new(),
+                    i as u64,
+                    i as u64,
+                    std::rc::Rc::new(Vec::new()),
+                )
             },
             &bars,
             1.0,
@@ -3961,7 +3974,14 @@ mod center_oscillation_wiring_tests {
                 } else {
                     Classification::default()
                 };
-                (cls, Vec::new(), Vec::new(), i as u64, i as u64)
+                (
+                    cls,
+                    Vec::new(),
+                    Vec::new(),
+                    i as u64,
+                    i as u64,
+                    std::rc::Rc::new(Vec::new()),
+                )
             },
             &bars,
             1.0,
@@ -4401,6 +4421,9 @@ where
         Vec<usize>,
         u64,
         u64,
+        // ★#883：本 bar 因果前缀的 L0 笔序列（Rc 共享只读，source_index 域）——
+        // nest 门 L2 旧臂 div_cand 的 ForceL 力度数据源（#873/#989/#990）。
+        std::rc::Rc<Vec<super::super::types::Stroke>>,
     ),
 {
     use super::super::strategy::coverage::{self, PiThetaWeights};
@@ -4745,7 +4768,7 @@ where
         if !bar.untradable && px > 0.0 {
             // ── ③ [A] 前缀因果重分类（classify_at(i)=classify_with_tower(l0[0..=i]) → 因果塔 + 因果
             //      分类，只用 ≤i 数据 → 因果）+ 切当步候选 + [B] base_units U_ℓ + [C] thread + 风控门。 ──
-            let (classification_i, tower_i, confirmed_lens, tower_gen, forest_epoch) =
+            let (classification_i, tower_i, confirmed_lens, tower_gen, forest_epoch, strokes_i) =
                 classify_at(i);
             // ★opsem-dump：diff tower_i vs prev_tower → 写塔事件（仅交易活跃区间，env-gated）。
             if let Some(dump) = opsem.as_mut() {
@@ -4946,7 +4969,7 @@ where
                         .into_iter()
                         .filter(|c| {
                             let (admit, channel, obs) =
-                                gate.admit(&tower_i, c, hist, i, &classification_i);
+                                gate.admit(&tower_i, c, hist, i, &classification_i, &strokes_i);
                             // T5a (#207) shadow dump（#[cfg(test)]，env 未设 = no-op）：
                             // 逐候选落新链结果（三态+谱系+缺断）+ admit/channel。
                             #[cfg(test)]
@@ -5077,6 +5100,8 @@ where
                             &ls.bsp,
                             sub_centers,
                             sub_bsp,
+                            &strokes_i, // ★#883：本 bar 因果前缀笔序列（ForceL 数据源）
+                            config.divergence_gauge,
                         ) else {
                             pan_div_state.note_gate_rejected();
                             continue;
@@ -6510,7 +6535,14 @@ mod entry_stop_recheck_gate_tests {
                 } else {
                     Classification::default()
                 };
-                (c, tower.clone(), vec![1], i as u64, i as u64)
+                (
+                    c,
+                    tower.clone(),
+                    vec![1],
+                    i as u64,
+                    i as u64,
+                    std::rc::Rc::new(Vec::new()),
+                )
             },
             &bars,
             1.0,

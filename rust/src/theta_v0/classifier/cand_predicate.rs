@@ -6,7 +6,8 @@
 //!   [dir(s) = −δ]                             ← 条件1：方向反（δ=交易方向，背驰段走势方向）
 //!   ∧ [∃s'∈S^vis: Comparable_ℓ(s',s,t)]      ← 条件2：存在同上级语境可比较前段 s'
 //!   ∧ [Extreme^δ(s',s,t)]                     ← 条件3：价格极值更进一步
-//!   ∧ [Weak^δ_{Θ,ℓ}(s,s',t)]                 ← 条件4：MACD 面积力度衰减（Weak = Diverge）
+//!   ∧ [Weak^δ_{Θ,ℓ}(s,s',t)]                 ← 条件4：力度衰减（Weak = Diverge；★#883 起 =
+//!                                                #990 统一判据原语，默认 ForceL 教义档）
 //!
 //! ## 操作化
 //!
@@ -16,13 +17,18 @@
 //! - **条件1**：`rmove_dir(context[target_idx])` 与 δ 方向相反
 //!   - δ=Long(买)  →   dir(s) = Down  （下跌段末端背驰买）
 //!   - δ=Short(卖) →   dir(s) = Up    （上涨段末端背驰卖）
-//! - **条件2**：在 `context[..target_idx]` 中找最近的同向段 s'（dir(s') == dir(s)）
-//!   ← Comparable = 同一 Compose 父下的前一同向次级别走势
+//! - **条件2**（★#883 S4-b 重写：#814 D-3 统一取段规则，#979 裁定一/二）：以父走势最近中枢
+//!   `c` 为「界」，s 自身须跨界（冲出核心），s' = 往回最近的**同方向跨界段**（首次离开 =
+//!   进入段；反复震荡 = 上一次同向离开段；中枢内震荡段不参与）。趋势背驰 c vs b 是该规则
+//!   在首次离开时的特例（b = 最后中枢 B 的进入段）——**盘整背驰入口即此，不再缺半壁**。
+//!   旧口径「同父前序最近同向段」（无中枢、趋势形状）已退役，不并存（收敛通则）。
 //! - **条件3**：
 //!   - δ=Long：  `lo(s) < lo(s')`  （s 低点更低——下跌更深）
 //!   - δ=Short：`hi(s) > hi(s')`  （s 高点更高——上涨更高）
-//! - **条件4**：MACD hist 面积：`area(s) < area(s')`（力度衰减）
-//!   ← 复用 [`super::divergence::segment_macd_area`] + [`super::divergence::is_divergence`]
+//! - **条件4**（★#883：#990 收编后统一判据原语）：默认 `ForceL` 教义判据 `L(C)<L(B)`
+//!   （#873 力度=速度净增量，经 #989 `segment_force_l` 段→笔反查）；`MacdArea` 同色柱面积
+//!   （[`super::divergence::segment_macd_area`] + [`super::divergence::is_divergence`]）降为
+//!   显式对照档。判定点 = [`super::divergence::confirm_divergence_l`] 单一原语。
 //!
 //! ## 认识论等级（formalization-validity-domain 231号）
 //!
@@ -36,25 +42,33 @@
 //!
 //! - **结论**：返回 `bool`（DivCand 四条件合取真值）。
 //! - **定义依据**：三方交叉确认规格（codex C1 裁决 2026-07-01，Lead 推导，ChatGPT 推导一致）；
-//!   条件1 参照方向定义（δ=交易方向，背驰段方向 = −δ）；条件4 参照 divergence.rs MACD 面积。
+//!   条件1 参照方向定义（δ=交易方向，背驰段方向 = −δ）；★#883 起：条件2 = #814 D-3 统一取段
+//!   规则（#979 裁定一/二：趋势 c vs b 与盘整 C vs A 同一条规则）；条件4 = #990 收编后统一
+//!   判据原语（默认 ForceL `L(C)<L(B)`，#873 教义经 #989 段→笔反查；MacdArea 为对照档）。
 //! - **边界条件**：(1) `context.len() < 2` ⟹ false（无前段可比较）；
-//!   (2) 无同向前段 ⟹ false（条件2 不满足）；
-//!   (3) MACD hist 为空 ⟹ area=0.0 ⟹ 0 < 0 = false（条件4 不满足）；
+//!   (2) 无父中枢语境 / s 未跨界 / 前序无同向跨界段 ⟹ false（条件2 不满足，#883 D-3 取段）；
+//!   (3) MACD hist 为空 ⟹ area=0.0 ⟹ 0 < 0 = false（MacdArea 档条件4 不满足）；strokes 为空
+//!   或段区间无笔 ⟹ ForceL 档无源不判（条件4 不满足）；
 //!   (4) 方向翻转（δ Long↔Short）⟹ 条件1 方向判定翻转；
-//!   (5) 上游更换 Θ（如 Θ_Force 次级别力度）时，条件4 接口保持，值可变。
+//!   (5) 力度档经 `gauge` 显式切换（生产默认 ForceL，#990）。
 //! - **下游推论**：Cand=true ⟹ NestRung.cand=true ⟹ NestCertificate.n_delta() 可为 true；
 //!   Cand=false ⟹ n_delta()=false（spec N^δ 定义，任一级 Cand=0 ⟹ 整体 0）。
 //! - **谱系引用**：W1 工位规格（三方一致，2026-07-01）；codex C1 裁决。不确定是否有相关
 //!   概念分离谱系，保守声明。
-//! - **影响声明**：新建本文件；暴露 `div_cand`/`bsp_div_cand`/`ContextMove`/`rmove_dir` 供
-//!   `econ_positive.rs::build_multilevel_nest_cert`（W1 返工实际入口）调用；
-//!   不改 divergence.rs / nest.rs / descend.rs；不碰识别层。L0 结构谓词。
+//! - **影响声明**：新建本文件；暴露 `div_cand`/`div_cand_fail`/`bsp_div_cand`/`rmove_dir`/
+//!   `parent_last_center` 供 `econ_positive.rs::build_multilevel_nest_cert`（W1 返工实际入口）
+//!   调用；不改 divergence.rs / nest.rs / descend.rs；不碰识别层。L0 结构谓词。
+//!   ★#883（S4-b）：`DivCandInput` 增 `strokes`/`parent_center`/`gauge` 三字段——盘整背驰入口
+//!   落地（下钻找「一类点**或类一类点**」的半壁补齐）；`locate_pan_div_structure`（L0 证书层
+//!   结构定位）按 #814 D-3 受影响清单**零改**（#990 已裁：「只定位不判力度」本就是结构/度量
+//!   两层分离的正确形态）。
 
 use std::rc::Rc;
 
-use super::super::types::{Center, Direction, Side};
+use super::super::parser::segment::segment_force_l;
+use super::super::types::{Center, Direction, Side, Stroke};
 use super::descend::RMove;
-use super::divergence::{is_divergence, segment_macd_area};
+use super::divergence::{confirm_divergence_l, is_divergence, segment_macd_area, DivergenceGauge};
 use super::recursive_tower::{find_move_by_end_index, LeveledMove};
 
 /// δ 交易方向（Long=买/+1，Short=卖/−1）。
@@ -67,6 +81,16 @@ pub use super::super::types::Side as Delta;
 /// `target_idx`：候选段在 `context` 中的索引（`context[target_idx]` 是目标段 s）。
 /// `hist`：MACD hist 序列（全 bar 域，bar 索引对齐）。
 /// `delta`：交易方向 δ（Long=买候选找下跌背驰，Short=卖候选找上涨背驰）。
+/// `strokes`（★#883 S4-b）：L0 笔序列（source_index 域，跨级同坐标系），供 ForceL 教义判据
+/// `L(C)<L(B)`（#873，经 #989 `segment_force_l` 反查）；空 ⟹ ForceL 档无源不判（不降级——
+/// 收敛通则禁宽松接管）。
+/// `parent_center`（★#883 S4-b）：父走势（context 的所属 Compose）的**最近中枢**——#814 D-3
+/// 统一取段规则的「界」。`None`（父无中枢）⟹ 跨界无定义 ⟹ 条件2 不可满足（合法定位失败，
+/// 非 bug）；**不退回旧的「最近同向段」无中枢口径**（#979 裁定一：D-3 是唯一取段规则，趋势
+/// c vs b 是它在首次离开时的特例，不并存第二套取段）。
+/// `gauge`（★#883 S4-b）：力度判据档（#990 收编后统一判据原语，禁第二套力度引擎）。生产 =
+/// `DivergenceGauge::default()`（ForceL）；`MacdArea` 为显式对照档（ADR-0005）。本谓词无
+/// 5-proxy 源 ⟹ ThetaDom/ThetaLex/Conjunction 档恒不判（诚实，不 fallback）。
 pub struct DivCandInput<'a> {
     /// 候选段所在上级走势的次级别走势序列（`parent.sub_moves` 切片，直读不投影）。
     pub context: &'a [LeveledMove],
@@ -76,6 +100,12 @@ pub struct DivCandInput<'a> {
     pub hist: &'a [f64],
     /// 交易方向 δ。
     pub delta: Delta,
+    /// L0 笔序列（source_index 域），ForceL 力度原语的数据源。
+    pub strokes: &'a [Stroke],
+    /// 父走势最近中枢（D-3 取段的「界」）。
+    pub parent_center: Option<&'a Center>,
+    /// 力度判据档（生产默认 ForceL；MacdArea 对照）。
+    pub gauge: DivergenceGauge,
 }
 
 /// `RMove::Compose` 的中枢序列方向判据（#815 M-2 三个候选臂）。
@@ -155,6 +185,16 @@ impl DirCriterion {
     }
 }
 
+/// ★#883：父走势的最近中枢（D-3 取段的「界」）——Compose 取末中枢（盘整块 = 唯一中枢；
+/// 趋势块 = 最后中枢 B，#897 后趋势块 Compose 携真实同向延续中枢序列）。Segment 无中枢
+/// ⟹ None（div_cand 条件2 合法定位失败）。
+pub fn parent_last_center(parent: &LeveledMove) -> Option<&Center> {
+    match &parent.rmove {
+        RMove::Compose { centers, .. } => centers.last(),
+        RMove::Segment { .. } => None,
+    }
+}
+
 fn classify_binary_relation(up: bool, down: bool) -> Option<Direction> {
     match (up, down) {
         (true, false) => Some(Direction::Up),
@@ -178,19 +218,44 @@ fn legacy_sub_endpoint_dir(subs: &[RMove]) -> Option<Direction> {
 
 /// DivCand^δ_{Θ,ℓ}(s,t)：背驰段候选四条件合取谓词。
 ///
-/// ## 四条件
+/// ## 四条件（★#883 S4-b 后口径）
 /// 1. **方向**：`dir(s) = −δ`（δ=Long→s 方向 Down；δ=Short→s 方向 Up）
-/// 2. **Comparable**：`context[..target_idx]` 中存在最近同向段 s'
-/// 3. **Extreme**：δ=Long→`lo(s)<lo(s')`；δ=Short→`hi(s)>hi(s')`
-/// 4. **Weak**（Θ_MACD）：`area(hist, s) < area(hist, s')`
+/// 2. **Comparable（#814 D-3 统一取段）**：比较基准 s' = 往回最近的**同方向跨界段**——
+///    首次离开时 = 进入段（`end_index ≤ c.start_index` 的最近同向段，同
+///    `signal.rs::locate_pan_div_structure_front_anchor` 的 A′ 口径）；反复震荡时 = 上一次
+///    冲出去的那段（同向且破核心：Down ⟹ `lo < c.zd`；Up ⟹ `hi > c.zg`）。中枢内部震荡段
+///    不参与力度比较（D-3 明文）。前提：父走势最近中枢 `c` 存在且 **s 自身跨界**
+///    （「这次冲出中枢的那一段」；`c` = 父 Compose 末中枢，趋势块 = 最后中枢 B，盘整块 =
+///    唯一中枢——#979 裁定一：趋势 c vs b 与盘整 C vs A 是同一条规则，b 即 B 的进入段）。
+///    ★不并存旧「最近同向段」无中枢口径（收敛通则：同一判断不得宽严两档）。
+/// 3. **Extreme**：δ=Long→`lo(s)<lo(s')`；δ=Short→`hi(s)>hi(s')`（#814 D-2：次级别一类点
+///    保留 Extreme；044:234 创新高/新低同为盘整背驰前提）。
+/// 4. **Weak（#990 收编后统一判据原语，禁第二套力度引擎）**：
+///    `confirm_divergence_l(gauge, macd_c_lt_a, None, l_c_lt_b)`——默认 `ForceL` 教义判据
+///    `L(C)<L(B)`（#873，L 经 #989 `segment_force_l` 段→笔反查；无笔 ⟹ 无源不判，不降级）；
+///    `MacdArea` 为显式对照档（同色柱面积，`is_divergence`）。
 ///
 /// 任一条件不满足 ⟹ false（`Cand=0`，合法定位失败，非 bug）。
 pub fn div_cand(input: &DivCandInput<'_>) -> bool {
+    div_cand_fail(input).is_none()
+}
+
+/// ★#883：[`div_cand`] 的**失败分支外化**——返回首个不满足的条件号，`None` = 四条件全过。
+///
+/// 条件号：0=`target_idx` 越界；1=方向 `dir(s)≠−δ`；2=D-3 取段结构失败（无父中枢语境 /
+/// s 未跨界 / 前序无同向跨界段）；3=Extreme 不成立；4=Weak 不成立。
+///
+/// 探针（#846 系 `type1_descend_continuity_dx` 等）直接消费本函数做条件归因——
+/// 与生产判据**同一函数**，parity 由构造保证，不再需要镜像体 + 对拍锁。
+pub fn div_cand_fail(input: &DivCandInput<'_>) -> Option<u8> {
     let DivCandInput {
         context,
         target_idx,
         hist,
         delta,
+        strokes,
+        parent_center,
+        gauge,
     } = input;
     let context = *context;
     let target_idx = *target_idx;
@@ -199,12 +264,12 @@ pub fn div_cand(input: &DivCandInput<'_>) -> bool {
 
     // 越界保护。
     if target_idx >= context.len() {
-        return false;
+        return Some(0);
     }
     let s = &context[target_idx];
     // 方向/lo/hi 从 LeveledMove 惰性派生（== ContextMove 旧投影：dir=rmove_dir，lo/hi=rmove.lo()/hi()）。
     let Some(s_dir) = rmove_dir(&s.rmove) else {
-        return false;
+        return Some(1);
     };
 
     // 条件1：dir(s) = −δ。
@@ -213,15 +278,33 @@ pub fn div_cand(input: &DivCandInput<'_>) -> bool {
         Side::Short => Direction::Up,  // δ=卖 → 背驰段方向 = 上涨
     };
     if s_dir != expected_dir {
-        return false;
+        return Some(1);
     }
 
-    // 条件2：找前序最近同向段 s'（Comparable = 同父次级别序列中前序最近同向段）。
-    // ponytail: 取最近（最大 i < target_idx，dir(s') == dir(s)）；rfind 逐元素派生方向，命中即停。
-    let prev = context[..target_idx]
-        .iter()
-        .rfind(|m| rmove_dir(&m.rmove) == Some(s_dir));
-    let Some(s_prev) = prev else { return false };
+    // 条件2（★#883 S4-b：#814 D-3 统一取段规则——趋势/盘整同一条，#979 裁定一）。
+    // 「界」= 父走势最近中枢；无中枢语境 ⟹ 跨界无定义 ⟹ 合法定位失败（不退回旧无中枢口径）。
+    let Some(c) = parent_center else {
+        return Some(2);
+    };
+    // 跨界 = 破核心（离开段语义；Down ⟹ lo < zd，Up ⟹ hi > zg，与
+    // `locate_pan_div_structure` 的 `end_price < c.zd / > c.zg` 同口径——Segment 的端价即
+    // 其 lo/hi 外缘，Compose 取外缘包络）。
+    let crosses = |m: &LeveledMove| match s_dir {
+        Direction::Down => m.rmove.lo() < c.zd,
+        Direction::Up => m.rmove.hi() > c.zg,
+    };
+    // C（=s）自身须是「这次冲出中枢的那一段」（D-3 明文）；未跨界 = 中枢内震荡，非背驰段。
+    if !crosses(s) {
+        return Some(2);
+    }
+    // s' = 往回最近的同方向跨界段：rfind 时序最近命中——存在中枢后的同向离开段时取其最近者
+    // （反复震荡 = 上一次冲出去的那段），否则落到中枢前最近同向段（首次离开 = 进入段，
+    // `end_index ≤ c.start_index`，front-anchor A′ 同口径）；中枢内震荡段两谓词均不命中 ⟹ 跳过。
+    // ponytail: rfind 逐元素派生方向，命中即停。
+    let prev = context[..target_idx].iter().rfind(|m| {
+        rmove_dir(&m.rmove) == Some(s_dir) && (crosses(m) || m.end_index <= c.start_index)
+    });
+    let Some(s_prev) = prev else { return Some(2) };
 
     // 条件3：Extreme。
     let extreme_ok = match delta {
@@ -229,18 +312,33 @@ pub fn div_cand(input: &DivCandInput<'_>) -> bool {
         Side::Short => s.rmove.hi() > s_prev.rmove.hi(), // 上涨段更高高点
     };
     if !extreme_ok {
-        return false;
+        return Some(3);
     }
 
-    // 条件4：Weak（Θ_MACD，力度衰减）。#988 同色口径：段方向 = delta 侧的反向走势
-    // （Long=下跌段 ⟹ Down 取绿柱，segments_diverge_or 同款映射）。
+    // 条件4（★#883：Weak 走 #990 收编后统一判据原语——默认 ForceL 教义档，MacdArea 对照档，
+    // 禁第二套力度引擎）。#988 同色口径：段方向 = delta 侧的反向走势（Long=下跌段 ⟹ Down
+    // 取绿柱，segments_diverge_or 同款映射）。
     let dir = match delta {
         Side::Long => Direction::Down,
         Side::Short => Direction::Up,
     };
     let prev_area = segment_macd_area(hist, s_prev.start_index, s_prev.end_index, dir);
     let curr_area = segment_macd_area(hist, s.start_index, s.end_index, dir);
-    is_divergence(prev_area, curr_area)
+    let macd_c_lt_a = is_divergence(prev_area, curr_area);
+    // ForceL 教义判据 L(C)<L(B)（#873；段→笔反查 #989）：任一段区间无笔 ⟹ None ⟹ 无源不判。
+    let l_c_lt_b = match (
+        segment_force_l(strokes, s_prev.start_index, s_prev.end_index),
+        segment_force_l(strokes, s.start_index, s.end_index),
+    ) {
+        (Some(lb), Some(lc)) => Some(lc < lb),
+        _ => None,
+    };
+    // 无 5-proxy 源（ThetaDom/ThetaLex/Conjunction 档恒不判，见 DivCandInput.gauge 文档）。
+    if confirm_divergence_l(*gauge, macd_c_lt_a, None, l_c_lt_b) {
+        None
+    } else {
+        Some(4)
+    }
 }
 
 /// 从塔（`tower`）定位 BspPoint 对应的候选段，计算 DivCand^δ。
@@ -269,6 +367,8 @@ pub fn bsp_div_cand(
     source_index: usize,
     delta: Delta,
     hist: &[f64],
+    strokes: &[Stroke],
+    gauge: DivergenceGauge,
 ) -> bool {
     // 1. 找候选段 s（end_index == source_index）。
     let level_moves = tower.get(level).map(|rc| rc.as_slice()).unwrap_or(&[]);
@@ -295,11 +395,18 @@ pub fn bsp_div_cand(
         return false;
     };
 
+    // ★#883：D-3 取段的「界」= 父 Compose 的最近中枢（盘整块单中枢 / 趋势块末中枢 B，#897 后
+    // 趋势块携真实中枢序列）；父非 Compose 或无中枢 ⟹ None ⟹ div_cand 条件2 合法定位失败。
+    let parent_center = parent_last_center(parent);
+
     div_cand(&DivCandInput {
         context: context_subs.as_slice(),
         target_idx,
         hist,
         delta,
+        strokes,
+        parent_center,
+        gauge,
     })
 }
 
@@ -346,6 +453,19 @@ mod tests {
             gg,
             start_index: 0,
             end_index: 0,
+        }
+    }
+
+    /// ★#883：D-3 取段测试中枢——`start` 控制「进入段」边界（`end_index ≤ start` 的同向段 =
+    /// 进入段）；`zd`/`zg` 控制「破核心」边界。外缘 dd/gg 取核心值（本组测试不消费外缘）。
+    fn pan_center(zd: i64, zg: i64, start: usize) -> Center {
+        Center {
+            dd: zd,
+            zd,
+            zg,
+            gg: zg,
+            start_index: start,
+            end_index: start,
         }
     }
 
@@ -646,6 +766,9 @@ mod tests {
             target_idx: 1,
             hist: &hist,
             delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(55, 110, 0)),
+            gauge: DivergenceGauge::MacdArea,
         };
         assert!(!div_cand(&input), "方向不反 ⟹ Cand=0");
     }
@@ -663,6 +786,9 @@ mod tests {
             target_idx: 1,
             hist: &hist,
             delta: Side::Short,
+            strokes: &[],
+            parent_center: Some(&pan_center(45, 95, 0)),
+            gauge: DivergenceGauge::MacdArea,
         };
         assert!(!div_cand(&input), "方向不反（Short × Down）⟹ Cand=0");
     }
@@ -680,6 +806,9 @@ mod tests {
             target_idx: 0,
             hist: &hist,
             delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(60, 110, 0)),
+            gauge: DivergenceGauge::MacdArea,
         };
         assert!(!div_cand(&input), "无前序同向段 ⟹ Cand=0");
     }
@@ -698,6 +827,9 @@ mod tests {
             target_idx: 2,
             hist: &hist,
             delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(40, 95, 0)),
+            gauge: DivergenceGauge::MacdArea,
         };
         assert!(!div_cand(&input), "前序无同向段 ⟹ 条件2 不满足");
     }
@@ -713,8 +845,7 @@ mod tests {
             up_seg(45, 95, 10, 14),   // 反向
             down_seg(45, 90, 15, 19), // s，lo=45 >= lo(s')=40 ⟹ 不满足 Extreme
         ];
-        // 前序最近同向段 = context[1]（Down，lo=40）
-        let hist = flat_hist(2.0, 20);
+        // 前序同向跨界段 = context[1]（Down，lo=40；进入段口径）。
         // 设 area(s')=10，area(s)=8（力度满足），但 Extreme 不满足。
         let hist_adj: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.5 }).collect();
         let input = DivCandInput {
@@ -722,6 +853,9 @@ mod tests {
             target_idx: 3,
             hist: &hist_adj,
             delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::MacdArea,
         };
         assert!(!div_cand(&input), "lo 不更低 ⟹ 条件3 不满足");
     }
@@ -741,6 +875,9 @@ mod tests {
             target_idx: 3,
             hist: &hist,
             delta: Side::Short,
+            strokes: &[],
+            parent_center: Some(&pan_center(48, 90, 10)),
+            gauge: DivergenceGauge::MacdArea,
         };
         assert!(!div_cand(&input), "hi 不更高 ⟹ 条件3 不满足");
     }
@@ -763,6 +900,9 @@ mod tests {
             target_idx: 3,
             hist: &hist,
             delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::MacdArea,
         };
         assert!(!div_cand(&input), "area(s) > area(s') ⟹ 条件4 不满足");
     }
@@ -787,6 +927,9 @@ mod tests {
             target_idx: 3,
             hist: &hist,
             delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::MacdArea,
         };
         assert!(div_cand(&input), "四条件全满足 δ=Long ⟹ Cand=1");
     }
@@ -809,6 +952,9 @@ mod tests {
             target_idx: 3,
             hist: &hist,
             delta: Side::Short,
+            strokes: &[],
+            parent_center: Some(&pan_center(48, 95, 10)),
+            gauge: DivergenceGauge::MacdArea,
         };
         assert!(div_cand(&input), "四条件全满足 δ=Short ⟹ Cand=1");
     }
@@ -823,6 +969,9 @@ mod tests {
             target_idx: 0,
             hist: &[1.0],
             delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 100, 0)),
+            gauge: DivergenceGauge::MacdArea,
         };
         assert!(!div_cand(&input), "空 context ⟹ false");
     }
@@ -836,6 +985,9 @@ mod tests {
             target_idx: 5, // 越界
             hist: &flat_hist(1.0, 10),
             delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 100, 0)),
+            gauge: DivergenceGauge::MacdArea,
         };
         assert!(!div_cand(&input), "越界 target_idx ⟹ false");
     }
@@ -854,6 +1006,9 @@ mod tests {
             target_idx: 3,
             hist: &[], // 空 hist → area=0.0 → 0 < 0 = false
             delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::MacdArea,
         };
         assert!(!div_cand(&input), "hist 空 ⟹ area=0 ⟹ 条件4 不满足");
     }
@@ -873,6 +1028,9 @@ mod tests {
             target_idx: 0,
             hist: &hist,
             delta: CertSide::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(60, 110, 0)),
+            gauge: DivergenceGauge::MacdArea,
         };
         let cand = div_cand(&input); // false
         assert!(!cand);
@@ -923,6 +1081,9 @@ mod tests {
             target_idx: 3,
             hist: &hist,
             delta: CertSide::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::MacdArea,
         };
         let cand = div_cand(&input);
         assert!(cand, "前置：四条件满足 Cand=true");
@@ -984,6 +1145,10 @@ mod tests {
     }
 
     /// 构建合成 Compose LeveledMove（包含 sub_moves）。
+    ///
+    /// ★#883：中枢核心取 [45,92]、start_index=10——s3（lo=30 / hi 侧对称）破核心跨界、
+    /// s1（end=9 ≤ 10）命中进入段口径，D-3 取段在本组夹具上落到 s1（与旧「最近同向段」同段，
+    /// 两测试语义不变）。
     fn compose_move(subs: Vec<LeveledMove>, level: u32, ord: u64) -> LeveledMove {
         use std::rc::Rc;
         let start = subs.first().map(|m| m.start_index).unwrap_or(0);
@@ -993,11 +1158,11 @@ mod tests {
             rmove: TestRMove::Compose {
                 subs: Rc::new(sub_rmoves),
                 centers: vec![Center {
-                    zd: lo_of(&subs),
-                    zg: hi_of(&subs),
+                    zd: 45,
+                    zg: 92,
                     dd: lo_of(&subs),
                     gg: hi_of(&subs),
-                    start_index: start,
+                    start_index: 10,
                     end_index: end,
                 }],
                 level,
@@ -1031,7 +1196,15 @@ mod tests {
         let hist = flat_hist(1.0, 10);
         // 函数不存在时这里会编译错误（RED）。
         assert!(
-            !super::bsp_div_cand(&tower, 0, 5, Side::Long, &hist),
+            !super::bsp_div_cand(
+                &tower,
+                0,
+                5,
+                Side::Long,
+                &hist,
+                &[],
+                DivergenceGauge::MacdArea
+            ),
             "空塔 ⟹ false"
         );
     }
@@ -1058,7 +1231,15 @@ mod tests {
         // 力度：若 hist 全 0 ⟹ area=0 ⟹ 0 < 0 = false（条件4 不满足）。
         let hist = flat_hist(0.0, 20);
         assert!(
-            !super::bsp_div_cand(&tower, 0, 19, Side::Long, &hist),
+            !super::bsp_div_cand(
+                &tower,
+                0,
+                19,
+                Side::Long,
+                &hist,
+                &[],
+                DivergenceGauge::MacdArea
+            ),
             "hist=0 ⟹ 条件4 不满足 ⟹ false"
         );
     }
@@ -1080,8 +1261,283 @@ mod tests {
         // #988 同色口径：负 hist（绿柱）。
         let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
         assert!(
-            super::bsp_div_cand(&tower, 0, 19, Side::Long, &hist),
+            super::bsp_div_cand(
+                &tower,
+                0,
+                19,
+                Side::Long,
+                &hist,
+                &[],
+                DivergenceGauge::MacdArea
+            ),
             "四条件全满足 ⟹ bsp_div_cand = true"
+        );
+    }
+
+    // ── ★#883 S4-b：盘整背驰入口（#814 D-3 统一取段）+ ForceL 统一力度原语（#990） ──
+
+    /// 合成笔（ForceL 测试夹具；字段与 parser::stroke::Stroke 同源）。
+    fn stroke(dir: Direction, start: usize, end: usize, sp: i64, ep: i64) -> Stroke {
+        Stroke {
+            direction: dir,
+            start_index: start,
+            end_index: end,
+            start_price: sp,
+            end_price: ep,
+        }
+    }
+
+    /// 中枢内震荡段不参与力度比较（D-3 明文「中枢内部的震荡段是中枢的构造材料」）。
+    ///
+    /// 判别性夹具：震荡段（lo=60）若被误取为 s'，Extreme（48<60）成立 → 误判 true；
+    /// 正确取段 s'=进入段（lo=45），Extreme（48<45）不成立 ⟹ cond3 false。
+    #[test]
+    fn cond2_intracenter_oscillation_segment_is_not_comparable() {
+        let context = vec![
+            down_seg(45, 90, 5, 9),   // 进入段（end 9 ≤ c.start=10）
+            down_seg(60, 80, 10, 14), // 中枢内同向震荡段（lo=60 ≥ zd=50 未破核心、非进入段）
+            down_seg(48, 70, 15, 19), // s：跨界（lo=48 < zd=50）
+        ];
+        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 2,
+            hist: &hist,
+            delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::MacdArea,
+        };
+        assert_eq!(
+            div_cand_fail(&input),
+            Some(3),
+            "震荡段不得作比较基准；s'=进入段（lo=45）时 Extreme 48<45 不成立"
+        );
+        assert!(!div_cand(&input));
+    }
+
+    /// 盘整背驰入口正例（首次离开）：D-3 取段 s'=进入段，四条件全过 ⟹ true。
+    ///
+    /// 这是 #883 前**没有入口**的类别：旧「同父前序最近同向段」口径下本夹具的 s' 也是
+    /// context[0]，但中枢内若有更近的同向震荡段旧口径会错取——入口的形状差异见
+    /// `cond2_intracenter_oscillation_segment_is_not_comparable`。
+    #[test]
+    fn pan_div_first_exit_compares_entry_segment_returns_true() {
+        let context = vec![
+            down_seg(40, 90, 5, 9),   // 进入段（D-3 首次离开的比较对象）
+            up_seg(60, 92, 10, 14),   // 中枢内震荡（反向）
+            down_seg(30, 85, 15, 19), // s：破核心（lo=30 < zd=50）
+        ];
+        // s'=[5,9] area=5×2=10；s=[15,19] area=5×1=5 < 10（MacdArea 对照档 Weak ✓）。
+        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 2,
+            hist: &hist,
+            delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::MacdArea,
+        };
+        assert_eq!(
+            div_cand_fail(&input),
+            None,
+            "首次离开：s'=进入段，Extreme 30<40 ✓、Weak 5<10 ✓"
+        );
+        assert!(div_cand(&input));
+    }
+
+    /// 盘整背驰入口（反复震荡）：D-3 取段 s'=上一次冲出去的同向段，**不是**进入段。
+    ///
+    /// 判别性夹具：进入段 lo=38、上次离开段 lo=40、s lo=39——s' 取上次离开段时
+    /// Extreme（39<40）成立；误取进入段则 39<38 不成立。
+    #[test]
+    fn pan_div_repeated_oscillation_compares_previous_exit() {
+        let context = vec![
+            down_seg(38, 90, 5, 9),   // 进入段（end 9 ≤ c.start=10）
+            up_seg(60, 92, 10, 11),   // 震荡（反向）
+            down_seg(40, 88, 12, 14), // 上一次离开段（lo=40 < zd=50 破核心）
+            up_seg(60, 80, 15, 19),   // 中枢内震荡（反向）
+            down_seg(39, 70, 20, 24), // s（lo=39 < 50 跨界）
+        ];
+        // s'=[12,14] area=3×2=6；s=[20,24] area=5×1=5 < 6（Weak ✓）。
+        let hist: Vec<f64> = (0..25)
+            .map(|i| {
+                if (12..=14).contains(&i) {
+                    -2.0
+                } else if i >= 20 {
+                    -1.0
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 4,
+            hist: &hist,
+            delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::MacdArea,
+        };
+        assert_eq!(
+            div_cand_fail(&input),
+            None,
+            "反复震荡：s'=上一次离开段（时序最近同向跨界段），Extreme 39<40 ✓"
+        );
+        assert!(div_cand(&input));
+    }
+
+    /// C（=s）自身未冲出中枢核心 ⟹ 中枢内震荡，非背驰段 ⟹ cond2 false（D-3：比较对是
+    /// 「这次冲出中枢的那一段」；未跨界即无盘整背驰可言）。
+    #[test]
+    fn cond2_target_not_crossing_center_returns_false() {
+        let context = vec![
+            down_seg(40, 90, 5, 9),   // 进入段
+            up_seg(60, 92, 10, 14),   // 震荡
+            down_seg(55, 70, 15, 19), // s：lo=55 ≥ zd=50 **未破核心**
+        ];
+        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 2,
+            hist: &hist,
+            delta: Side::Long,
+            strokes: &[],
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::MacdArea,
+        };
+        assert_eq!(
+            div_cand_fail(&input),
+            Some(2),
+            "s 未跨界 ⟹ 条件2 取段结构失败（即便 Extreme/Weak 形式上可满足）"
+        );
+    }
+
+    /// 无父中枢语境 ⟹ 条件2 合法定位失败（跨界无定义）。
+    ///
+    /// ★收敛通则锁：不得退回旧「同父前序最近同向段」无中枢口径——同一判断不并存两套
+    /// 取段判据（#979 裁定一：D-3 是唯一取段规则）。
+    #[test]
+    fn cond2_no_parent_center_returns_false() {
+        // 与 all_four_conditions_satisfied_long_returns_true 同一夹具，仅缺 parent_center。
+        let context = vec![
+            up_seg(50, 100, 0, 4),
+            down_seg(40, 90, 5, 9),
+            up_seg(45, 95, 10, 14),
+            down_seg(30, 85, 15, 19),
+        ];
+        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 3,
+            hist: &hist,
+            delta: Side::Long,
+            strokes: &[],
+            parent_center: None,
+            gauge: DivergenceGauge::MacdArea,
+        };
+        assert_eq!(
+            div_cand_fail(&input),
+            Some(2),
+            "无父中枢 ⟹ 条件2 失败（不退回旧口径）"
+        );
+    }
+
+    /// ★ForceL 教义档（生产默认，#990）：条件4 = `L(C)<L(B)`，L 经段→笔反查（#873/#989）。
+    ///
+    /// 手工验算（向下笔速度取沿走势方向速率，恒正）：s'=[5,9] 首笔 v=(90−60)/3=10、
+    /// 末笔 v=(60−40)/3≈6.67 ⟹ L(b)≈−3.33；s=[15,19] 首笔 v=(85−40)/3=15、
+    /// 末笔 v=(40−30)/3≈3.33 ⟹ L(c)≈−11.67 < L(b) ⟹ 判背驰。
+    #[test]
+    fn cond4_forcel_compares_stroke_velocity_increment() {
+        let context = vec![
+            up_seg(50, 100, 0, 4),
+            down_seg(40, 90, 5, 9),
+            up_seg(45, 95, 10, 14),
+            down_seg(30, 85, 15, 19),
+        ];
+        let strokes = vec![
+            stroke(Direction::Down, 5, 7, 90, 60),
+            stroke(Direction::Down, 7, 9, 60, 40),
+            stroke(Direction::Down, 15, 17, 85, 40),
+            stroke(Direction::Down, 17, 19, 40, 30),
+        ];
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 3,
+            hist: &[], // ForceL 档不消费 hist
+            delta: Side::Long,
+            strokes: &strokes,
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::ForceL,
+        };
+        assert_eq!(
+            div_cand_fail(&input),
+            None,
+            "L(c)≈−11.67 < L(b)≈−3.33 ⟹ ForceL 档四条件全过"
+        );
+    }
+
+    /// ForceL 档反例：L(c) ≥ L(b)（衰减更浅）⟹ 条件4 不成立。
+    ///
+    /// 手工验算：s' 首笔 v=(90−30)/3=20、末笔 v=(40−36)/3≈1.33 ⟹ L(b)≈−18.67；
+    /// s 首笔 v=(85−50)/3≈11.67、末笔 v=(50−30)/3≈6.67 ⟹ L(c)=−5.0 ≥ L(b) ⟹ 不判。
+    #[test]
+    fn cond4_forcel_no_weakening_returns_false() {
+        let context = vec![
+            up_seg(50, 100, 0, 4),
+            down_seg(40, 90, 5, 9),
+            up_seg(45, 95, 10, 14),
+            down_seg(30, 85, 15, 19),
+        ];
+        let strokes = vec![
+            stroke(Direction::Down, 5, 7, 90, 30),
+            stroke(Direction::Down, 7, 9, 40, 36),
+            stroke(Direction::Down, 15, 17, 85, 50),
+            stroke(Direction::Down, 17, 19, 50, 30),
+        ];
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 3,
+            hist: &[],
+            delta: Side::Long,
+            strokes: &strokes,
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::ForceL,
+        };
+        assert_eq!(
+            div_cand_fail(&input),
+            Some(4),
+            "L(c)=−5.0 ≥ L(b)≈−18.67 ⟹ ForceL 档条件4 不成立"
+        );
+    }
+
+    /// ForceL 档无笔数据源 ⟹ 诚实不判（None → false），**不降级**到 MacdArea——
+    /// 收敛通则禁宽松档接管严格档的失败（#990 同款「无源不判」）。
+    #[test]
+    fn cond4_forcel_without_strokes_honest_no_judgment() {
+        let context = vec![
+            up_seg(50, 100, 0, 4),
+            down_seg(40, 90, 5, 9),
+            up_seg(45, 95, 10, 14),
+            down_seg(30, 85, 15, 19),
+        ];
+        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
+        let input = DivCandInput {
+            context: &context,
+            target_idx: 3,
+            hist: &hist, // MacdArea 对照读数满足（5<10），但 ForceL 档不消费
+            delta: Side::Long,
+            strokes: &[], // 无笔 ⟹ L 无源
+            parent_center: Some(&pan_center(50, 96, 10)),
+            gauge: DivergenceGauge::ForceL,
+        };
+        assert_eq!(
+            div_cand_fail(&input),
+            Some(4),
+            "ForceL 无源 ⟹ 条件4 不判（不降级 MacdArea）"
         );
     }
 }

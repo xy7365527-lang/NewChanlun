@@ -311,8 +311,11 @@ fn run_theta_v0_pi_inner(
     let fill = pi_theta_fill_loop(
         // ★工位 4g：返回塔代次（TreeCache O(1) 命中判据，跳过 per-bar O(tree) TreeKey::of）。
         |i| {
-            let (cls, tower) = if strict_nest_sidecar.enabled {
-                let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
+            // ★#883：统一走 `classify_at_with_l0`——l0.strokes（本 bar 因果前缀的 L0 笔序列，
+            // Rc 共享 O(1) clone）供 nest 门 div_cand 的 ForceL 力度判据；`classify_at` 本就
+            // 走同一增量链后丢弃 l0，成本相同。
+            let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
+            if strict_nest_sidecar.enabled {
                 strict_nest_sidecar.observe_frame(
                     &l0,
                     &cls,
@@ -320,14 +323,12 @@ fn run_theta_v0_pi_inner(
                     &config,
                     classifier_incr.tower_cache(),
                 );
-                (cls, tower)
-            } else {
-                classifier_incr.classify_at(i)
-            };
+            }
+            let strokes = std::rc::Rc::clone(&l0.strokes);
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch(); // ★on2w2：K_i O(1) 命中判据。
-            (cls, tower, cl, gen, fe)
+            (cls, tower, cl, gen, fe, strokes)
         },
         bars,
         initial_nav,
@@ -524,12 +525,14 @@ pub fn run_theta_v0_pi_overlay(
         OtherwiseDomainSidecarCollector::new(otherwise_domain_sidecar_enabled());
     let fill = pi_theta_fill_loop_overlay(
         |i| {
-            let (cls, tower) = classifier_incr.classify_at(i);
+            // ★#883：取 l0.strokes（因果前缀笔序列）供 nest 门 ForceL 力度判据。
+            let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
             otherwise_domain_sidecar.observe_frame();
+            let strokes = std::rc::Rc::clone(&l0.strokes);
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch();
-            (cls, tower, cl, gen, fe)
+            (cls, tower, cl, gen, fe, strokes)
         },
         bars,
         initial_nav,
@@ -677,11 +680,13 @@ pub(super) fn typed_ledger_from_bars(bars: &[Bar], config: &ThetaConfig) -> Vec<
     let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, config);
     let fill = pi_theta_fill_loop(
         |i| {
-            let (cls, tower) = classifier_incr.classify_at(i);
+            // ★#883：取 l0.strokes（因果前缀笔序列）供 nest 门 ForceL 力度判据。
+            let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
+            let strokes = std::rc::Rc::clone(&l0.strokes);
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch(); // ★on2w2：K_i O(1) 命中判据。
-            (cls, tower, cl, gen, fe)
+            (cls, tower, cl, gen, fe, strokes)
         },
         bars,
         nav,

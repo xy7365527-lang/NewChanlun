@@ -293,6 +293,7 @@ mod tests {
         Vec<usize>,
         u64,
         u64,
+        std::rc::Rc<Vec<crate::theta_v0::types::Stroke>>,
     ) {
         let classification = Classification {
             levels: vec![LevelState {
@@ -308,6 +309,7 @@ mod tests {
                     Vec::new(),
                     i as u64,
                     i as u64,
+                    std::rc::Rc::new(Vec::new()),
                 )
             } else {
                 (
@@ -316,6 +318,7 @@ mod tests {
                     Vec::new(),
                     i as u64,
                     i as u64,
+                    std::rc::Rc::new(Vec::new()),
                 )
             }
         }
