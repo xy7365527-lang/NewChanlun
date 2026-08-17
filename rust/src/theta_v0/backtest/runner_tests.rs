@@ -237,7 +237,6 @@ fn buy1_at(si: usize) -> BspPoint {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     }
 }
@@ -1233,7 +1232,6 @@ fn t4_pi_loop_parent_type1_close_liquidates_reverse_open_child_subtree() {
             })),
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         });
         c.levels[1] = LevelState {
@@ -1599,7 +1597,6 @@ fn type2_open_short_channel_active_parent_lands_reverse_open_account() {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     // L0 顺父级联买点（FollowParent Long 级联核心仓，Core{0}）。
@@ -1621,7 +1618,6 @@ fn type2_open_short_channel_active_parent_lands_reverse_open_account() {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     // L0 二类卖点（ReverseOpen 角色——同 e_classification sell_child@16 的附着坐标，class 换 2）。
@@ -1643,7 +1639,6 @@ fn type2_open_short_channel_active_parent_lands_reverse_open_account() {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let cls = |l0: Vec<BspPoint>| Classification {
@@ -2648,7 +2643,6 @@ fn followparent_child_in_pi_loop_belongs_to_core_account_not_reverse_open() {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let fp_buy_parent = BspPoint {
@@ -2669,7 +2663,6 @@ fn followparent_child_in_pi_loop_belongs_to_core_account_not_reverse_open() {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let cls_parent_only = Classification {
@@ -3794,7 +3787,6 @@ fn sell_at(si: usize, class: u8) -> BspPoint {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     }
 }
@@ -5186,7 +5178,6 @@ fn ng_classification(bits: super::super::super::types::BspBits) -> classifier::C
                 center: None,
                 struct_break_dir: None,
                 force: None,
-
                 retrace_breaks_type1: None,
             }]),
             pan_div: std::rc::Rc::new(Vec::new()),
@@ -5668,7 +5659,6 @@ fn nest_chain_gate_multi_causal_guard_falls_back_to_xzd() {
             })),
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         }
     };
@@ -5825,7 +5815,6 @@ fn nest_chain_gate_typed_none_reuses_old_xzd() {
         center: None,
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let cls2 = classifier::Classification {
@@ -5910,7 +5899,6 @@ fn nest_chain_gate_cross_reuse_excluded_from_agree() {
         center: None,
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let cls2 = classifier::Classification {
@@ -6060,7 +6048,6 @@ fn t3_chain_classification(specs: &[(usize, bool)]) -> classifier::Classificatio
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let n_levels = specs.iter().map(|&(l, _)| l + 1).max().unwrap_or(1);
@@ -6582,7 +6569,6 @@ fn t5a_cross_type_classification(
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let levels: Vec<LevelState> = specs
@@ -9228,7 +9214,6 @@ fn e_classification(with_child_close_trigger: bool) -> Classification {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let sell_child = BspPoint {
@@ -9249,7 +9234,6 @@ fn e_classification(with_child_close_trigger: bool) -> Classification {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let mut l0 = vec![sell_child];
@@ -9272,7 +9256,6 @@ fn e_classification(with_child_close_trigger: bool) -> Classification {
             })),
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         });
     }
@@ -9312,7 +9295,6 @@ fn e_classification_type2_child_close() -> Classification {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let mut l0 = c.levels[0].bsp.as_ref().clone();
@@ -9538,7 +9520,6 @@ fn pi_short_root_stop_round_trip_is_marked_short_end_to_end() {
         center: None,
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let classification = Classification {
@@ -9707,7 +9688,6 @@ fn pi_exit_generator_stop_trigger_reaches_realized_trade() {
         center: None,
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let classification = Classification {

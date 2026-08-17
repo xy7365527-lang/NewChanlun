@@ -286,7 +286,6 @@ fn classification_end_to_end_ring5_ring6() {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let classification = Classification {
@@ -328,7 +327,6 @@ fn ring6_active_set_feeds_back_into_interpret() {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let c_buy = Classification {
@@ -358,7 +356,6 @@ fn ring6_active_set_feeds_back_into_interpret() {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let c_sell = Classification {

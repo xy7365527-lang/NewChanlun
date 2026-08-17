@@ -255,7 +255,6 @@ pub(crate) fn sell_bsp(si: usize) -> BspPoint {
         ))),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     }
 }
@@ -275,7 +274,6 @@ pub(crate) fn buy_bsp(si: usize) -> BspPoint {
         ))),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     }
 }
@@ -311,7 +309,6 @@ pub(crate) fn sell_classification_at(level: u32, source_index: usize, class: u8)
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let mut levels: Vec<LevelState> = (0..=level).map(|_| LevelState::default()).collect();
@@ -352,7 +349,6 @@ pub(crate) fn buy_classification_at(level: u32, source_index: usize, class: u8) 
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let mut levels: Vec<LevelState> = (0..=level).map(|_| LevelState::default()).collect();
@@ -393,7 +389,6 @@ pub(crate) fn buy_gamma() -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     (

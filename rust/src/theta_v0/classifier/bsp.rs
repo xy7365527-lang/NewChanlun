@@ -446,7 +446,6 @@ mod tests {
             center: None,
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         };
         // strategy 1 买止损 = pivot_low（reference:46）——直接读，不从 bars 重算。
@@ -470,7 +469,6 @@ mod tests {
             center: Some(OwnerRef::Center(c)),
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         };
         // strategy 3 买止损 = center.zg（ZG，reference:46）——条目直接关联中枢，无需 strategy 猜。
@@ -503,7 +501,6 @@ mod tests {
             center: Some(OwnerRef::Center(c)),
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         };
         assert!(p.bits.buy3 && p.center.is_some());
@@ -525,7 +522,6 @@ mod tests {
             center: Some(OwnerRef::Center(c)),
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         };
         assert_eq!(p.pivot_high, 1500); // 1/2 卖止损源
@@ -548,7 +544,6 @@ mod tests {
             center: None,
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         }
     }

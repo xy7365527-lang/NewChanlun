@@ -760,7 +760,8 @@ pub fn operation_decompose_resume(
 /// 新中枢到达的增量折叠（与 `fold_operation_blocks` 同规则的增量形态）：
 /// `existing` = 追加前的中枢序列（尾中枢 c_j），`new` = 新中枢 c_(j+1)；关系 =
 /// `classify_relation(c_j, c_(j+1))`——同向延续：尾趋势块同向则延伸、否则开新趋势块
-/// （尾盘整块被吸收回撤）；LevelExpansion：不合并，新中枢各自单中枢盘整块。
+/// （尾盘整块被吸收回撤）；重叠关系（LevelExpansion 扩展 / CoreOverlap 延伸，#898 四态）：
+/// 不合并，新中枢各自单中枢盘整块。
 fn append_center(blocks: &mut Vec<MoveBlock>, existing: &[Center], new: &Center) {
     if let Some(last) = blocks.last_mut() {
         last.status = MoveStatus::Completed;

@@ -26,7 +26,6 @@ fn pi_theta_step_traced_opened_and_bitexact() {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let classification = Classification {
@@ -108,7 +107,6 @@ fn pi_theta_step_traced_reverse_close_attribution() {
         })),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let classification = Classification {

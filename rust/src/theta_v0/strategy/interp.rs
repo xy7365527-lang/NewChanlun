@@ -1663,7 +1663,6 @@ mod tests {
             })),
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         }
     }
@@ -1698,7 +1697,6 @@ mod tests {
             })),
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         }
     }
@@ -1725,7 +1723,6 @@ mod tests {
             center: None,
             struct_break_dir: sbd,
             force: None,
-
             retrace_breaks_type1: None,
         }
     }
@@ -2106,7 +2103,6 @@ mod tests {
             center: None,
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         };
         let gamma = assemble_gamma(&classification(vec![vec![both]]));
@@ -2528,7 +2524,6 @@ mod tests {
             center: None,
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         };
         let gamma = assemble_gamma(&classification(vec![vec![both]]));
@@ -3214,7 +3209,6 @@ mod candidate_profile {
                 center: None,
                 struct_break_dir: None,
                 force: None,
-
                 retrace_breaks_type1: None,
             }
         }

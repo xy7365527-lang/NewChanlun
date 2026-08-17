@@ -2734,7 +2734,6 @@ mod center_oscillation_wiring_tests {
             center: Some(OwnerRef::Center(owner)),
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         }
     }
@@ -2753,7 +2752,6 @@ mod center_oscillation_wiring_tests {
             center: Some(OwnerRef::Center(owner)),
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         }
     }
@@ -2778,7 +2776,6 @@ mod center_oscillation_wiring_tests {
             center: Some(OwnerRef::Center(owner)),
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         }
     }
@@ -2816,7 +2813,6 @@ mod center_oscillation_wiring_tests {
             center: None,
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         }
     }
@@ -6456,7 +6452,6 @@ mod entry_stop_recheck_gate_tests {
             center: None,
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         }
     }
@@ -6474,7 +6469,6 @@ mod entry_stop_recheck_gate_tests {
             center: None,
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         }
     }
@@ -6492,7 +6486,6 @@ mod entry_stop_recheck_gate_tests {
             center: None,
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         }
     }

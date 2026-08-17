@@ -93,7 +93,6 @@ fn buy1_point(source_index: usize, center_start: usize) -> BspPoint {
         center: Some(OwnerRef::Center(center_at(center_start))),
         struct_break_dir: Some(Side::Long),
         force: None,
-
         retrace_breaks_type1: None,
     }
 }
@@ -263,7 +262,6 @@ fn third_class_point_pairs_with_leave_segment_trend_event() {
         center: Some(OwnerRef::Center(center_at(20))),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let classification = Classification {
@@ -316,7 +314,6 @@ fn third_class_point_survives_trend_event_growth_via_episode_covering() {
         center: Some(OwnerRef::Center(center_at(20))),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let classification = Classification {
@@ -379,7 +376,6 @@ fn third_class_multiple_points_sharing_leave_segment_collapse_to_revision_histor
         center: Some(OwnerRef::Center(center_at(20))),
         struct_break_dir: None,
         force: None,
-
         retrace_breaks_type1: None,
     };
     let mut point_b = point_a;

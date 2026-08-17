@@ -329,7 +329,6 @@ mod tests {
             center: center.map(crate::theta_v0::classifier::bsp::OwnerRef::Center),
             struct_break_dir: None,
             force: None,
-
             retrace_breaks_type1: None,
         }
     }
