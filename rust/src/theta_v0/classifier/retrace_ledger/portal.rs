@@ -3,8 +3,8 @@
 //!
 //! # 与成立档（S1）的关系
 //!
-//! [`super::book::ThirdPointPack`] / [`super::book::CenterDeathCertificate`] 是**成立档**，S1
-//! 已交付，本模块零改动。本模块只补另外两档：
+//! [`super::established::ThirdPointPack`] / [`super::established::CenterDeathCertificate`] 是**成立档**，
+//! S1 已交付（类型本体票 #765 自 `book.rs` 纯移动迁入 `established` 模块）。本模块只补另外两档：
 //!
 //! - **备战档**（[`StandbyWatch`] + [`RetraceLedger::standby`]）：未决候选只读枚举，素材全部
 //!   现算自 S1 留下的钩子（`RetraceEntry::registration()`），本模块不新增任何账本状态；
@@ -17,12 +17,13 @@
 //!
 //! 影子评审 #621 LOW-4 指出：`RetraceEntry` 全字段 `pub`、`entries()`/`registration()` 无差别
 //! 放行任意状态，备战档素材在 S1 就已对外全开，**若 S3 直接包这层当备战档，禁区就只剩注释在
-//! 守**。本模块因此不复用 `RetraceEntry`：[`StandbyWatch`] 是与 [`super::book::ThirdPointPack`]
+//! 守**。本模块因此不复用 `RetraceEntry`：[`StandbyWatch`] 是与 [`super::established::ThirdPointPack`]
 //! 结构不同、字段不同（无 `retest_end`/`confirmed_as_of`/`death_certificate`——未决候选压根没有
 //! 这些材料）、且**互不实现同一 trait、互无 `From`/`Into`** 的独立类型。类型面隔离的证明见
 //! [`StandbyWatch`] 文档内的 `compile_fail` doctest（`cargo test --doc` 编译期强制，非事后描述）。
 
-use super::book::{RetraceLedger, ThirdPointPack};
+use super::book::RetraceLedger;
+use super::established::ThirdPointPack;
 use super::{
     CenterFrame, NotConstitutedReason, RetraceEntry, RetraceKey, RetracePoint, RetraceSide,
 };

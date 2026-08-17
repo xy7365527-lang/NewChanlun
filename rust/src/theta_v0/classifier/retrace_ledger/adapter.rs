@@ -19,7 +19,7 @@
 //! 判定需要账本态，故由 [`super::book::RetraceLedger::observe`] 在本模块四桶之后施加。
 
 use super::super::super::types::Direction;
-use super::book::CenterDeathCertificate;
+use super::established::CenterDeathCertificate;
 use super::{
     CenterAnchor, CenterFrame, RetraceEvidence, RetraceKey, RetraceObservation, RetraceOutcome,
     RetracePoint, RetraceSide, StrictCompletedPair,

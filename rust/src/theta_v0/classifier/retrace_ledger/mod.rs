@@ -71,6 +71,7 @@ use super::ledger_kernel::{
 pub mod adapter;
 pub mod audit;
 pub mod book;
+pub mod established;
 pub mod log;
 pub mod portal;
 
@@ -82,7 +83,8 @@ pub use audit::{
     JsonlRetraceAuditStore, RetraceAuditError, RetraceAuditEvent, RetraceAuditRecord,
     RetraceRejectionCode, AUDIT_SCHEMA_VERSION,
 };
-pub use book::{CenterDeathCertificate, RetraceAlarms, RetraceLedger, RetraceStep, ThirdPointPack};
+pub use book::{RetraceAlarms, RetraceLedger, RetraceStep};
+pub use established::{CenterDeathCertificate, ThirdPointPack};
 pub use log::{
     JsonlRetraceLogStore, RestoreRoute, RetraceLogError, RetraceProvenance, RetraceRecord,
     RetraceSnapshot, SnapshotRejection, LOG_SCHEMA_VERSION,
