@@ -3,7 +3,11 @@
 锁三类行为：
 1. 落盘/schema：13 字段列序 + ticker 补 + trf 两列 Int64 + Parquet(ZSTD) 原子落盘；
 2. 分页/退避：next_url 游标（绝对/相对）+ 429/5xx 指数退避 + 4xx 致命；
-3. 断点续拉：已存在且行数>0 的分区跳过；晚期上市起点解析。
+3. 断点续拉：已存在且行数>0 的分区跳过；失败日显式清单（failed_days）。
+
+传输 + 落盘政策直接 import 政策模块 `massive_fetch`（#1068 / #1063 裁定：测试不碰 CLI 面）；
+起点解析（resolve_start_date/get_list_date/probe_first_nonempty_day）留脚本层，单独 import
+`fetch_massive_tick` 锁纯逻辑（不测 main/plan，CLI 行为零差走手工/快照对照）。
 
 不依赖真实 Massive 数据（#1040 未落盘、沙盒无 MASSIVE_API_KEY，见 issue 评论）。
 """
@@ -15,7 +19,8 @@ import datetime as dt
 import pandas as pd
 import pytest
 
-import fetch_massive_tick as fmt
+import fetch_massive_tick as cli  # 脚本层：起点解析（不碰 CLI main/plan 面）
+import massive_fetch as fmt     # 政策模块：传输 + 落盘政策
 
 
 def _row(i: int, **over) -> dict:
@@ -205,29 +210,29 @@ def test_http_get_json_fatal_4xx_no_retry():
 
 
 # ---------------------------------------------------------------------------
-# 起点解析 / 全标的主循环
+# 起点解析（脚本层纯逻辑） / 全标的主循环
 # ---------------------------------------------------------------------------
 
 
 def test_resolve_start_date_non_late_returns_floor():
     floor = dt.date(2003, 9, 10)
-    assert fmt.resolve_start_date(object(), "AAPL", {}, floor) == floor
+    assert cli.resolve_start_date(object(), "AAPL", {}, floor) == floor
 
 
 def test_resolve_start_date_late_uses_list_date(monkeypatch):
     floor = dt.date(2003, 9, 10)
-    monkeypatch.setattr(fmt, "get_list_date", lambda *a, **kw: dt.date(2004, 8, 19))
-    assert fmt.resolve_start_date(object(), "GOOGL", {}, floor) == dt.date(2004, 8, 19)
+    monkeypatch.setattr(cli, "get_list_date", lambda *a, **kw: dt.date(2004, 8, 19))
+    assert cli.resolve_start_date(object(), "GOOGL", {}, floor) == dt.date(2004, 8, 19)
     # list_date 早于 floor → 用 floor
-    monkeypatch.setattr(fmt, "get_list_date", lambda *a, **kw: dt.date(1999, 1, 1))
-    assert fmt.resolve_start_date(object(), "TSLA", {}, floor) == floor
+    monkeypatch.setattr(cli, "get_list_date", lambda *a, **kw: dt.date(1999, 1, 1))
+    assert cli.resolve_start_date(object(), "TSLA", {}, floor) == floor
 
 
 def test_resolve_start_date_late_falls_back_to_probe(monkeypatch):
     floor = dt.date(2003, 9, 10)
-    monkeypatch.setattr(fmt, "get_list_date", lambda *a, **kw: None)
-    monkeypatch.setattr(fmt, "probe_first_nonempty_day", lambda *a, **kw: dt.date(2010, 6, 29))
-    assert fmt.resolve_start_date(object(), "TSLA", {}, floor) == dt.date(2010, 6, 29)
+    monkeypatch.setattr(cli, "get_list_date", lambda *a, **kw: None)
+    monkeypatch.setattr(cli, "probe_first_nonempty_day", lambda *a, **kw: dt.date(2010, 6, 29))
+    assert cli.resolve_start_date(object(), "TSLA", {}, floor) == dt.date(2010, 6, 29)
 
 
 def test_fetch_symbol_resume_skips_existing(tmp_path, monkeypatch):
@@ -250,8 +255,27 @@ def test_fetch_symbol_resume_skips_existing(tmp_path, monkeypatch):
     assert stats["fetched"] == 1
 
 
-def test_main_plan_mode_no_key(capsys):
-    rc = fmt.main(["--plan", "--symbols", "AAPL", "--start", "2024-01-02", "--end", "2024-01-02"])
-    assert rc == 0
-    out = capsys.readouterr().out
-    assert "AAPL" in out and "需处理 1 天" in out
+def test_fetch_symbol_failed_days_list(tmp_path, monkeypatch):
+    """failed_days 显式清单锁：成功/失败日混合夹具，失败日记 (date_str, error)，成功日不记。"""
+    def fake_fetch_day(session, ticker, date_str, **kw):
+        if date_str == "2024-01-03":
+            raise RuntimeError("boom")
+        if date_str == "2024-01-05":
+            raise RuntimeError("timeout")
+        return [_row(2)]
+
+    monkeypatch.setattr(fmt, "fetch_day", fake_fetch_day)
+    stats = fmt.fetch_symbol(
+        None, "COST", root=tmp_path, headers={},
+        start=dt.date(2024, 1, 2), end=dt.date(2024, 1, 5),
+        skip_weekends=True, limit=50_000, max_retries=6, timeout=30.0,
+        backoff_base=1.0, max_backoff=60.0,
+    )
+    assert stats["fetched"] == 2          # 01-02 / 01-04 成功
+    assert stats["failed"] == 2           # 01-03 / 01-05 失败
+    assert stats["failed_days"] == [
+        ("2024-01-03", "boom"),
+        ("2024-01-05", "timeout"),
+    ]
+    # 成功落盘的分区仍可读
+    assert fmt.partition_done(fmt.partition_path(tmp_path, "COST", "2024-01-02"))
