@@ -86,9 +86,12 @@ pub(super) struct LevelCache {
     /// 分级记录是同一纯函数同一趟判定的第三份产出（结构长度键的 soundness 论证与 bsp 同享：
     /// confirmed 元素区间落稳定前缀，尾 bar 不影响其判定）。
     pub(super) cached_first_class_grades: Rc<Vec<signal::FirstClassGradeRecord>>,
-    /// #550 双域候选 memo；与 BSP key 同失效边界，只在结构 tail 变化时重算。
-    pub(super) cached_candidate_key: Option<(usize, usize, usize)>,
-    pub(super) cached_candidate_observations: Vec<cand_event::CandidateObservation>,
+    /// #550 双域候选 memo（SPEC #1077 3a：与 bsp/pan_div/grades 同槽、同 `cached_bsp_key` 守卫，
+    /// 四件 Rc 单一 key）；只在结构 tail 变化时重算。
+    pub(super) cached_candidates: Rc<Vec<cand_event::CandidateObservation>>,
+    /// ★3a 候选域 frontier 素材：confirmed 前缀的结构宽候选**腿**（未归约）。归约层不进 frontier，
+    /// 扫描末尾对 prefix+tail 全量重跑（O(observations) 轻量）。
+    pub(super) cached_candidate_legs: Vec<cand_event::CandidateObservation>,
     /// BSP memo guard key = (centers.len, upper_moves.len, segments.len[L0 only])。三者不变 ⟹
     /// BSP 纯函数同输入同输出（confirmed 元素区间在稳定前缀，尾 bar 不影响）⟹ 复用缓存 bit-exact。
     pub(super) cached_bsp_key: Option<(usize, usize, usize)>,

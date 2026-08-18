@@ -45,3 +45,5 @@ pub use observe::CandidateObservation;
 // 逐字不变」这条验收条款（#359 四件套②）——缩面属行为变化，不在本票范围内。
 #[allow(unused_imports)]
 pub(crate) use observe::{pan_observations_for_level, structural_observations_for_level};
+// ★SPEC #1077 3a：合并扫描（scan.rs）共享的候选域投影与归约入口。
+pub(crate) use observe::{make_trend_observation, reduce_structural_legs};

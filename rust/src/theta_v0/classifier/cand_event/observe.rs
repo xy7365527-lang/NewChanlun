@@ -69,11 +69,25 @@ pub(crate) fn structural_observations_for_level(
         anchor_dirs,
         close_src,
     };
-    let mut by_key: BTreeMap<CandidateKey, CandidateObservation> = BTreeMap::new();
+    // ★SPEC #1077 3a：腿收集与归约拆开——扫描只产腿（per-segment 素材），归约层（merged/
+    // 首证钟/state）留到 [`reduce_structural_legs`]（合并扫描在 frontier 之后对 prefix+tail
+    // 全量重跑归约）。
+    let mut legs = Vec::new();
     for (i, segment) in segments.iter().enumerate() {
-        let Some(leg) = structural_observation(&context, &center_gate, i, segment) else {
-            continue;
-        };
+        if let Some(leg) = structural_observation(&context, &center_gate, i, segment) {
+            legs.push(leg);
+        }
+    }
+    reduce_structural_legs(legs)
+}
+
+/// 一趟扫描收集的结构宽候选腿（每段至多一条，未经同 episode 归约）归约为每 key 一条观察。
+///
+/// ★同 episode 归约（#551）：腿按段序到达（`interval.1` 单调不减），[`merged`] 逐条左折叠；
+/// 与边扫边折的 BTreeMap 增量折叠逐字段等价（仅「边扫边折」改「先收腿后折」）。
+pub(crate) fn reduce_structural_legs(legs: Vec<CandidateObservation>) -> Vec<CandidateObservation> {
+    let mut by_key: BTreeMap<CandidateKey, CandidateObservation> = BTreeMap::new();
+    for leg in legs {
         match by_key.entry(leg.key) {
             Entry::Vacant(slot) => {
                 slot.insert(leg);
@@ -167,12 +181,12 @@ fn structural_observation(
         a,
         c_start,
     )?;
-    Some(trend_observation(
+    Some(make_trend_observation(
         scan.level, previous, parent, segment, &gates,
     ))
 }
 
-fn trend_observation(
+pub(crate) fn make_trend_observation(
     level: u32,
     previous: &Center,
     parent_center: &Center,

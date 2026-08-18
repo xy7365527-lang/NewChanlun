@@ -424,6 +424,50 @@ pub(crate) fn judge_first_cached(
         a_seg,
         c_move_start,
     )?;
+    // ★SPEC #1077 3a：门判定后的第一类投影与合并扫描共享（纯函数抽取，判据零改动）——
+    // 候选域经同一 gates 走 [`super::cand_event`] 投影，不再各自重算结构门。
+    judge_first_from_gates(
+        gates,
+        last_center,
+        trend_dir,
+        seg,
+        departure_end,
+        hist,
+        dif,
+        closes_tick,
+        gauge,
+        strokes,
+        sorted,
+        level,
+        grade_sink,
+    )
+}
+
+/// ★SPEC #1077 3a：共享 per-segment 素材的第一类投影（[`judge_first_cached`] 门判定之后的后半段，
+/// 逐字段同构，纯函数抽取）。
+///
+/// `gates` 已由合并扫描预算传入（一次判定，BSP 与候选两域同读）；本函数只做「已知门 ⟹ 力度
+/// 确认 ⟹ 产点」的判定，判据（`extreme`/`diverged`/`t3_grade`/force/分级记录）逐字未动。
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn judge_first_from_gates(
+    gates: FirstStructuralGates,
+    last_center: &Center,
+    trend_dir: Direction,
+    seg: &Segment,
+    // ★#1028 裁定 A：一类点点锚 = departure 单元终点（趋势真终点）。`Some(x)` = L≥1 调用方已按
+    // `cand_predicate::departure_unit_end` 预算；`None` = L0 / 直调（segment 自身即 departure
+    // 单元，点锚回退 `seg.end_index`）。只动锚，不动判定链。
+    departure_end: Option<usize>,
+    hist: &[f64],
+    dif: &[f64],
+    closes_tick: &[Tick],
+    gauge: DivergenceGauge,
+    strokes: &[Stroke],
+    sorted: &[Segment],
+    level: Option<u32>,
+    // ★#885 S4-d：分级记录生产 sink——按 `diverged` 无条件捕获（Present 与 Missing 两域）。
+    grade_sink: &mut Vec<FirstClassGradeRecord>,
+) -> Option<BspPoint> {
     if !gates.extreme {
         return None; // 未破 b 包络极值 ⟹ 非趋势背驰 c（061:28：未创新极值不构成背驰）。
     }

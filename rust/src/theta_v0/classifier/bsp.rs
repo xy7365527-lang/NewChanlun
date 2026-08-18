@@ -677,9 +677,11 @@ mod tests {
             // 2026-08-16 #648 T2：两访问器随 LevelState/Classification 纯移动抽离至
             // pipeline.rs（mod.rs:224/256 → pipeline.rs:103/135），内容不变，同条目重登记。
             // 2026-08-18 #1053：删除全量循环 classify_impl ⟹ 顶部 import 拆分 gating
-            // （Stroke/decompose 各 +2 行）⟹ 两访问器 103→107 / 135→139，内容不变，同条目重登记。）
-            "theta_v0/classifier/pipeline.rs:107",
-            "theta_v0/classifier/pipeline.rs:139",
+            // （Stroke/decompose 各 +2 行）⟹ 两访问器 103→107 / 135→139，内容不变，同条目重登记。
+            // 2026-08-19 #1079：3a 合并扫描删除 pipeline.rs 的 `candidate_scan_inputs` 助手
+            // （含顶部 `use std::borrow::Cow;`）⟹ 两访问器 107→106 / 139→138，内容不变，同条目重登记。）
+            "theta_v0/classifier/pipeline.rs:106",
+            "theta_v0/classifier/pipeline.rs:138",
             // `CrossLevelConfirmationQuery::entry_at` 单源函数体（作用于 `TripleAnchorEntry`，
             // 与本族 `BspPoint` 三件并行不同型，见 projection.rs 函数头注释）。
             "theta_v0/classifier/projection.rs:215",
@@ -704,13 +706,16 @@ mod tests {
             // 2026-08-18 再位移（#1052 一类点点锚迁移）：signal.rs 增 departure_end 参数/注释/
             // 回归锁测试 ⟹ 七处夹具点下移（+46 起逐段不等），逐条重核内容不变（同为测试夹具
             // source_index 过滤），同条目重登记。
-            "theta_v0/classifier/signal.rs:2674",
-            "theta_v0/classifier/signal.rs:3034",
-            "theta_v0/classifier/signal.rs:3407",
-            "theta_v0/classifier/signal.rs:3547",
-            "theta_v0/classifier/signal.rs:3580",
-            "theta_v0/classifier/signal.rs:3836",
-            "theta_v0/classifier/signal.rs:3903",
+            // 2026-08-19 #1079：3a 合并扫描把 `judge_first_cached` 门判定后半段抽取为
+            // `judge_first_from_gates`（纯函数抽取，判据零改动）⟹ 七处夹具点统一 +44，
+            // 逐条重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。
+            "theta_v0/classifier/signal.rs:2718",
+            "theta_v0/classifier/signal.rs:3078",
+            "theta_v0/classifier/signal.rs:3451",
+            "theta_v0/classifier/signal.rs:3591",
+            "theta_v0/classifier/signal.rs:3624",
+            "theta_v0/classifier/signal.rs:3880",
+            "theta_v0/classifier/signal.rs:3947",
             // （2026-08-16 #648 T1：classifier/mod.rs 内联测试 4273 行抽离至 classifier/tests/
             // 主题件 ⟹ 该夹具点同内容随迁 mod.rs:4574 → tests/pipeline_geometry.rs:1565，
             // 重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。

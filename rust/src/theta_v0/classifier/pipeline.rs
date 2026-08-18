@@ -32,9 +32,8 @@ use super::tower_cache::{
 use super::TowerCache;
 use super::{
     cand_event, cand_predicate, cp_replay_diagnostics, descend, operation, projection, rebase_txn,
-    signal, stage_profile,
+    scan, signal, stage_profile,
 };
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -178,25 +177,6 @@ pub(crate) fn unit_to_segment(u: &UnitRange) -> Segment {
         start_price,
         end_price,
     }
-}
-
-/// #552（N2）：候选事件扫描的输入投影——L0 借用 parser 线段，L≥1 由 units 还原 `Segment`；
-/// 方向锚一律取单元结构方向（与 [`extract_first_third_for_level`] 的 `structural_anchors` 同口径）。
-fn candidate_scan_inputs<'a>(
-    is_l0: bool,
-    l0_segments: &'a [Segment],
-    units: &[UnitRange],
-) -> (Cow<'a, [Segment]>, Vec<Option<Direction>>) {
-    let segments = if is_l0 {
-        Cow::Borrowed(l0_segments)
-    } else {
-        Cow::Owned(units.iter().map(unit_to_segment).collect())
-    };
-    let anchors = segments
-        .iter()
-        .map(|segment| Some(segment.direction))
-        .collect();
-    (segments, anchors)
 }
 
 /// ★#487：为接线层给出的**精确挂起中枢**复核“旧框右边 → 紧邻 leave/retest”三类证书。
@@ -930,9 +910,9 @@ fn classify_incremental_inner(
                 Rc::make_mut(&mut lc.cached_bsp).clear();
                 Rc::make_mut(&mut lc.cached_pan_div).clear(); // Q4：与 cached_bsp 同批失效（同 key 守卫）。
                 Rc::make_mut(&mut lc.cached_first_class_grades).clear(); // #885：同批失效（同 key 守卫）。
+                Rc::make_mut(&mut lc.cached_candidates).clear(); // 3a：候选载荷与 key 同清（修掉第三套「载荷只清 key 滞留」）。
                 lc.operation_state = Default::default(); // #902：同批失效（同 key 守卫）。
                 lc.cached_bsp_key = None;
-                lc.cached_candidate_key = None;
                 lc.cached_second.clear(); // 07b 门控：前缀重排 ⟹ 前缀 B2 缓存失效，重扫。
                 lc.cached_second_count = 0;
                 lc.confirmed_watermark = 0; // ★#93 全清 ⟹ 水线归零（消费方全量重比）。
@@ -988,9 +968,9 @@ fn classify_incremental_inner(
                 Rc::make_mut(&mut lc.cached_bsp).clear();
                 Rc::make_mut(&mut lc.cached_pan_div).clear();
                 Rc::make_mut(&mut lc.cached_first_class_grades).clear(); // #885：同批失效（同 key 守卫）。
+                Rc::make_mut(&mut lc.cached_candidates).clear(); // 3a：候选载荷与 key 同清（修掉第三套「载荷只清 key 滞留」）。
                 lc.operation_state = Default::default(); // #902：同批失效（同 key 守卫）。
                 lc.cached_bsp_key = None;
-                lc.cached_candidate_key = None;
                 let b2_keep = match b2_cut_incl {
                     None => 0,
                     Some(cut) => lc.cached_second.partition_point(|b| b.source_index <= cut),
@@ -1292,37 +1272,42 @@ fn classify_incremental_inner(
             units.len()
         };
         let bsp_key = (lc.centers.len(), lc.upper_moves.len(), struct_len);
-        let (bsp, pan_div, first_class_grades): (
+        let (bsp, pan_div, first_class_grades, candidates): (
             Rc<Vec<BspPoint>>,
             Rc<Vec<signal::PanDivCert>>,
             Rc<Vec<signal::FirstClassGradeRecord>>,
+            Rc<Vec<cand_event::CandidateObservation>>,
         ) = if lc.cached_bsp_key == Some(bsp_key) {
             // 07c：memo 命中 ⟹ `Rc::clone`（引用计数 O(1)），替代全量 `cached_bsp.clone()`。
             // Q4：pan_div 同批命中（同 key 守卫 ⟹ 同一 extract 产出的两半锁步复用）。
             // #885：first_class_grades 同批命中（同一 extract 产出的第三半，同 key 同批锁步）。
+            // ★3a：candidates 同批命中（四件同 key 同批锁步，单一 `cached_bsp_key`）。
             stage_profile::time("07c_bsp_memo_clone", || {
                 (
                     Rc::clone(&lc.cached_bsp),
                     Rc::clone(&lc.cached_pan_div),
                     Rc::clone(&lc.cached_first_class_grades),
+                    Rc::clone(&lc.cached_candidates),
                 )
             })
         } else {
-            // ★on2w3-07a frontier-resume：confirmed 前缀段的一/三类点缓存复用，只重判 frontier tail
-            // （消 07a O(n²) 主导项）。冻结边界锚 = min(centers[prefix_count-2].end_index, dirty_e)——
-            // `moves`（= decompose_resume 输出，本级增量续折）作 blocks 单一来源（不重 decompose）。
-            // segments 来源：L0=l0.segments（有序）；L≥1=units→unit_to_segment 投影（几何衰减，
-            // resume 内 debug_assert 守 end_index 严格递增）。cascade 清 cached_first_third 见 §失效块。
-            let (mut b, pan, grades): (
+            // ★3a 生产单扫描（SPEC #1077 D1）：一趟段扫描产 BSP 三投影 + 候选观察。confirmed 前缀
+            // 段素材缓存复用（BSP 域冻一/三类点+证书+分级记录，候选域冻结构宽候选腿），只重判
+            // frontier tail；候选归约层（merged/首证钟/state）在扫描末尾对 prefix+tail 全量重跑。
+            // 冻结边界锚 = min(centers[prefix_count-2].end_index, dirty_e)；`moves`（= decompose_resume
+            // 输出，本级增量续折）作 blocks 单一来源（不重 decompose）。cascade 清 frontier 缓存见 §失效块。
+            let (mut b, pan, grades, observations): (
                 Vec<BspPoint>,
                 Vec<signal::PanDivCert>,
                 Vec<signal::FirstClassGradeRecord>,
+                Vec<cand_event::CandidateObservation>,
             ) = if is_l0 {
-                stage_profile::time("07a_extract_signals_l0", || {
-                    signal::extract_first_third_resume(
+                stage_profile::time("07a_merged_scan_l0", || {
+                    let out = scan::merged_scan_resume(
                         &mut lc.cached_first_third,
                         &mut lc.cached_first_third_pan,
                         &mut lc.cached_first_third_grades,
+                        &mut lc.cached_candidate_legs,
                         &mut lc.cached_first_third_count,
                         level_idx as u32,
                         &lc.centers,
@@ -1338,10 +1323,11 @@ fn classify_incremental_inner(
                         &close_src,
                         config.divergence_gauge,
                         &l0.strokes,
-                    )
+                    );
+                    (out.points, out.pan_divs, out.grades, out.observations)
                 })
             } else {
-                stage_profile::time("07a_extract_first_third_ln", || {
+                stage_profile::time("07a_merged_scan_ln", || {
                     // 级别-N 一/三类（裁定 A）：units 承担线段角色，复用 L0 判据。units→Segment 投影
                     // （几何衰减 O(units_L)/miss）。#486：三类 leave 与一类同取单元结构方向锚；
                     // provenance `units_anchors` 仍供塔 ownership 链消费，不再传入 BSP 判据。
@@ -1361,10 +1347,11 @@ fn classify_incremental_inner(
                                 .unwrap_or(u.end_index)
                         })
                         .collect();
-                    signal::extract_first_third_resume(
+                    let out = scan::merged_scan_resume(
                         &mut lc.cached_first_third,
                         &mut lc.cached_first_third_pan,
                         &mut lc.cached_first_third_grades,
+                        &mut lc.cached_candidate_legs,
                         &mut lc.cached_first_third_count,
                         level_idx as u32,
                         &lc.centers,
@@ -1380,7 +1367,8 @@ fn classify_incremental_inner(
                         &close_src,
                         config.divergence_gauge,
                         &l0.strokes,
-                    )
+                    );
+                    (out.points, out.pan_divs, out.grades, out.observations)
                 })
             };
             let second = stage_profile::time("07b_extract_second", || {
@@ -1403,28 +1391,16 @@ fn classify_incremental_inner(
             let rc = Rc::new(b);
             let rc_pan = Rc::new(pan);
             let rc_grades = Rc::new(grades); // #885：与 bsp/pan_div 同批缓存（同 key）。
+            let rc_candidates = Rc::new(observations); // 3a：候选观察与 bsp/pan_div/grades 同批缓存（同 key）。
             lc.cached_bsp = Rc::clone(&rc);
             lc.cached_pan_div = Rc::clone(&rc_pan); // Q4：与 bsp 同批缓存（同 key）。
             lc.cached_first_class_grades = Rc::clone(&rc_grades);
+            lc.cached_candidates = Rc::clone(&rc_candidates);
             lc.cached_bsp_key = Some(bsp_key);
-            (rc, rc_pan, rc_grades)
+            (rc, rc_pan, rc_grades, rc_candidates)
         };
 
-        if lc.cached_candidate_key != Some(bsp_key) {
-            let (candidate_segments, candidate_anchors) =
-                candidate_scan_inputs(is_l0, &l0.segments, &units);
-            lc.cached_candidate_observations = cand_event::observations_for_level(
-                level_idx as u32,
-                &lc.centers,
-                &moves,
-                candidate_segments.as_ref(),
-                &candidate_anchors,
-                &close_src,
-                &pan_div,
-            );
-            lc.cached_candidate_key = Some(bsp_key);
-        }
-        candidate_observations.extend(lc.cached_candidate_observations.iter().cloned());
+        candidate_observations.extend(candidates.iter().cloned());
 
         // 08：`Rc::clone`（O(1)）投影增量塔 centers 到 LevelState，替代全量 `centers.clone()`。
         let level_centers =

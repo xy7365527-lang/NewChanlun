@@ -110,6 +110,8 @@ pub mod level_view;
 pub mod level_view_store;
 /// #110 投影层骨架 + 级别身份标签（SPEC #109 expand 第一票）。默认门关零开销。
 pub mod projection;
+/// 3a 生产单扫描（SPEC #1077 S1）：一趟段扫描合并 BSP 三投影与候选观察（私有模块，经 pipeline 消费）。
+mod scan;
 pub mod signal;
 pub mod six_state;
 pub mod voice_eat;
