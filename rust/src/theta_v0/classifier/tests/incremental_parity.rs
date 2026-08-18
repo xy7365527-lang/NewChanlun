@@ -256,75 +256,6 @@ fn classify_with_tower_classification_equals_classify() {
     );
 }
 
-/// ★增量塔单次 bit-exact：对完整段序列，`classify_with_tower_incremental(.., fresh cache)`
-/// 输出 == `classify_with_tower`（Classification + tower 逐字段相等）。
-///
-/// fresh cache（空）从 consumed=0 续扫 == 全量扫描。验证增量入口的基础正确性。
-#[test]
-fn incremental_tower_fresh_cache_equals_full() {
-    let cfg = ThetaConfig::default();
-    for n in [3usize, 6, 9, 12, 18] {
-        let segments = synthetic_segments(n);
-        let closes: Vec<i64> = (0..(n * 4 + 8) as i64).map(|i| 100 + (i % 5) * 5).collect();
-        let layer = ParseLayer {
-            segments: Rc::new(segments),
-            merged_bars: Rc::new(bars_from_closes(&closes)),
-            ..Default::default()
-        };
-
-        let (full_cls, full_tower) = classify_with_tower(&layer, &cfg);
-        let mut cache = TowerCache::new();
-        let (inc_cls, inc_tower) = classify_with_tower_incremental(&layer, &cfg, &mut cache);
-
-        assert_eq!(inc_cls, full_cls, "n={n}: 增量 Classification == 全量");
-        assert_eq!(
-            inc_tower.len(),
-            full_tower.len(),
-            "n={n}: 增量 tower 层数 == 全量"
-        );
-        for (lvl, (il, fl)) in inc_tower.iter().zip(full_tower.iter()).enumerate() {
-            assert_eq!(
-                il, fl,
-                "n={n} level {lvl}: 增量 tower 级 LeveledMove 序列 == 全量"
-            );
-        }
-    }
-}
-
-/// #550 主缝：新事件通道不改既有两字段，且 fresh 增量与全量逐字段一致。
-#[test]
-fn candidate_event_stream_fresh_incremental_equals_full() {
-    let cfg = ThetaConfig::default();
-    let segments = candidate_rich_segments(120);
-    let closes: Vec<i64> = (0..=segments.last().unwrap().end_index)
-        .map(|i| 100 + if i % 8 < 4 { 35 } else { -35 } + (i as i64 / 16))
-        .collect();
-    let layer = ParseLayer {
-        segments: Rc::new(segments),
-        merged_bars: Rc::new(bars_from_closes(&closes)),
-        ..Default::default()
-    };
-    let legacy = classify_with_tower(&layer, &cfg);
-    let full = classify_with_tower_events(&layer, &cfg);
-    let mut cache = TowerCache::new();
-    let incremental = classify_with_tower_events_incremental(&layer, &cfg, &mut cache);
-    assert_eq!(full.0, legacy.0, "Classification 逐字段不动");
-    assert_eq!(full.1, legacy.1, "tower 逐字段不动");
-    assert_eq!(incremental, full, "候选事件流 fresh 增量≡全量");
-    assert!(
-        full.2.iter().any(|stream| !stream.is_empty()),
-        "主缝事件流必须非空，禁止真空绿"
-    );
-    let pan = full
-        .2
-        .iter()
-        .flat_map(|stream| stream.iter())
-        .find(|event| event.kind == cand_event::CandidateKind::Pan)
-        .expect("双域电池必须命中 Pan");
-    assert_eq!(pan.key.previous_center_start, None);
-    assert_eq!(pan.center_ids, None);
-}
-
 /// #550 主缝②：修订富集的逐段因果重放，全历史重建与跨步增量事件簿逐字段相等。
 #[test]
 fn candidate_event_stream_per_segment_full_replay_equals_incremental() {
@@ -1468,11 +1399,12 @@ fn forest_epoch_stable_on_no_change() {
 //  标度验证（task #93：per-bar 累积成本，增量 vs 全量）
 // ──────────────────────────────────────────────────────────────────────
 
-/// ★合成标度：per-bar 段追加累积成本，增量 exp 显著 < 全量 exp。
+/// ★合成标度：per-bar 段追加累积成本，增量（持久 TowerCache）显著 < 全量（空 TowerCache）。
 ///
-/// 全量 `classify_with_tower` 每步从 0 重扫塔 ⟹ 累积 O(Σ i) ≈ O(N²)，exp≈2。
-/// 增量 `classify_with_tower_incremental` 每步续扫 tail ⟹ 累积 O(Σ tail) ≈ O(N)，exp≈1。
-/// 合成段序列单调追加（增量有效域）；此测试 always-run（无需真实数据）。
+/// #1053 后「全量」入口 = 唯一循环 + **空 TowerCache**（每步从 0 全扫 ⟹ 累积 O(Σ i) ≈ O(N²)）；
+/// 「增量」入口 = 同一循环 + **持久 TowerCache**（confirmed_len 证书复用前缀 ⟹ 累积 O(N)）。
+/// 合成段序列单调追加（增量有效域）；confirmed_len 按真实 ParseLayerIncr 语义填 k-1 /
+/// closes.len()-1（全量入口持空 cache，证书不惠及它 ⟹ 仍每步全扫）。always-run（无需真实数据）。
 #[test]
 fn incremental_tower_scaling_dominates_full_synthetic() {
     let cfg = ThetaConfig::default();
@@ -1484,25 +1416,29 @@ fn incremental_tower_scaling_dominates_full_synthetic() {
         let all_segments = synthetic_segments(n);
         let closes: Vec<i64> = (0..(n * 4 + 8) as i64).map(|i| 100 + (i % 7) * 4).collect();
 
-        // 全量 per-bar 累积。
+        // 全量 per-bar 累积（空 cache ⟹ 每步全扫）。
         let t0 = std::time::Instant::now();
         for k in 1..=n {
             let layer = ParseLayer {
                 segments: Rc::new(all_segments[..k].to_vec()),
                 merged_bars: Rc::new(bars_from_closes(&closes)),
+                segments_confirmed_len: k.saturating_sub(1),
+                merged_confirmed_len: closes.len().saturating_sub(1),
                 ..Default::default()
             };
             let _ = classify_with_tower(&layer, &cfg);
         }
         full_times.push(t0.elapsed().as_secs_f64());
 
-        // 增量 per-bar 累积（cache 跨步复用）。
+        // 增量 per-bar 累积（持久 cache 跨步复用 confirmed_len 前缀）。
         let t0 = std::time::Instant::now();
         let mut cache = TowerCache::new();
         for k in 1..=n {
             let layer = ParseLayer {
                 segments: Rc::new(all_segments[..k].to_vec()),
                 merged_bars: Rc::new(bars_from_closes(&closes)),
+                segments_confirmed_len: k.saturating_sub(1),
+                merged_confirmed_len: closes.len().saturating_sub(1),
                 ..Default::default()
             };
             let _ = classify_with_tower_incremental(&layer, &cfg, &mut cache);
@@ -1523,24 +1459,18 @@ fn incremental_tower_scaling_dominates_full_synthetic() {
         inc_times[2] / full_times[2].max(1e-12)
     );
 
-    // 增量须显著快于全量（MACD 增量 + 塔构造增量 + 走势分解增量 综合加速）。
-    // ★判据：最大规模下增量/全量时间比 < 0.7（即增量至少 ~1.43x 加速）为稳健下界。
-    // exp 差距在小规模 debug 噪声大（两者均 O(n²) 受限于 LevelState/tower_snapshots clone
-    // 的 API 所需 O(k)/iter，故此合成尺度只能验证常数因子优势，asymptotic 分离须看
-    // profile_incremental_tower_real_scaling 的真实大规模 #[ignore]）。此处验证常数因子：
-    // 增量消除 MACD 全量重算 + 塔构造全量扫描。
-    // 标度重标定（B4 / task#2，commit 254 改调 extract_signals_with_hist）：MACD 消重后
-    // 全量只做 1×MACD（原 2×），增量相对优势从 >2x 收窄到 ~1.8x（ratio 实测集群
-    // 0.543/0.548/0.559/0.55 across runs）。原阈值 0.5 按 full=2×MACD 标定，1×MACD 后需
-    // 重标；取 0.7 为稳健下界（观测集群 ~0.55，留 ~0.14 机器噪声余量，仍断言真常数因子优势——
-    // 若增量退化到无优势 ratio→1.0 则捕获）。这是因果重标定非「为绿改阈值」（no-patch 合规）。
+    // 增量（持久 cache + confirmed_len 证书）须显著快于全量（空 cache 每步全扫）——
+    // 这是 #1053 收口后唯一循环两种驱动（空 cache vs 持久 cache）的性能分离判据：
+    // 若增量退化到与全量同速（ratio→1.0）则持久 cache 的证书复用失效，捕获之。
+    // ★判据：最大规模下增量/全量时间比 < 0.7（即增量至少 ~1.43x 加速）为稳健下界
+    // （小规模 debug 噪声大；asymptotic 分离的完整验证见 #[ignore] 真实大规模 profile）。
     let ratio_at_max = inc_times[2] / full_times[2].max(1e-12);
     assert!(
-            ratio_at_max < 0.7,
-            "增量/全量比 @n={} = {ratio_at_max:.3} 须 < 0.7（增量至少 ~1.43x 加速；MACD+塔+分解增量）\n\
+        ratio_at_max < 0.7,
+        "增量/全量比 @n={} = {ratio_at_max:.3} 须 < 0.7（持久 cache 证书复用至少 ~1.43x 加速）\n\
              full_exp≈{full_exp:.2}, inc_exp≈{inc_exp:.2}",
-            sizes[2]
-        );
+        sizes[2]
+    );
 }
 
 /// ★#902 e2e 对拍锁：增量塔挂载操作级别（`classify_with_tower_incremental_operations`）

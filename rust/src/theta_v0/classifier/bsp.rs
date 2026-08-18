@@ -675,9 +675,11 @@ mod tests {
             // 2026-08-16 镜像追推后 CI 首跑再位移（221→224 / 253→256）：逐条重核内容不变
             // ——两访问器函数体依旧，同条目重登记。
             // 2026-08-16 #648 T2：两访问器随 LevelState/Classification 纯移动抽离至
-            // pipeline.rs（mod.rs:224/256 → pipeline.rs:103/135），内容不变，同条目重登记。）
-            "theta_v0/classifier/pipeline.rs:103",
-            "theta_v0/classifier/pipeline.rs:135",
+            // pipeline.rs（mod.rs:224/256 → pipeline.rs:103/135），内容不变，同条目重登记。
+            // 2026-08-18 #1053：删除全量循环 classify_impl ⟹ 顶部 import 拆分 gating
+            // （Stroke/decompose 各 +2 行）⟹ 两访问器 103→107 / 135→139，内容不变，同条目重登记。）
+            "theta_v0/classifier/pipeline.rs:107",
+            "theta_v0/classifier/pipeline.rs:139",
             // `CrossLevelConfirmationQuery::entry_at` 单源函数体（作用于 `TripleAnchorEntry`，
             // 与本族 `BspPoint` 三件并行不同型，见 projection.rs 函数头注释）。
             "theta_v0/classifier/projection.rs:215",
