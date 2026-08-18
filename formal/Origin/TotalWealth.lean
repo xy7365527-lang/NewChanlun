@@ -102,6 +102,10 @@ structure TWState where
   stage : TStage
   openLegacyLegs : Nat
   cumNetCash : Int
+  /- #891（SPEC #847 S8-a，ADR 0015 丙-5）：持仓量分量（多正空负，逐笔独立场所的真账
+  维度——毛账的载体）。ADR 0013 裁定三 `basis ← basis − d·π/units` 的分母在此落地。
+  `holding` 保持市值摘要语义不变（:103 自陈），两者并存不混用。 -/
+  units : Int
 deriving Repr
 
 /-- ★总财富 `TWState.tw`（L0，守恒量）：`TW = free + holding + withdrawn`（缠师第31课守恒律）。 -/
@@ -171,7 +175,7 @@ def twStep (s : TWState) : TWEvent → TWState
   | TWEvent.enterEarning =>
       { s with stage := advanceTo s.stage TStage.earningShares }
   | TWEvent.clearCampaign =>
-      { s with free := s.free + s.withdrawn, withdrawn := 0, notionalIn := 0, stage := TStage.costReduction, openLegacyLegs := 0, cumNetCash := 0 }
+      { s with free := s.free + s.withdrawn, withdrawn := 0, notionalIn := 0, stage := TStage.costReduction, openLegacyLegs := 0, cumNetCash := 0, units := 0 }
 
 /--
   ★★TW 守恒（L0，缠师第31课守恒律的结构形式）：每个会计算子 `twStep` 保持 `TW = free +
@@ -287,8 +291,8 @@ theorem costReduction_satisfies_oq9inv (s : TWState) (h : s.stage = TStage.costR
   ★OQ-9 invariant 标准初态成立 `init_satisfies_oq9inv`（L0）：标准开局态（costReduction，legacy
   腿 0，cumNetCash 0）满足 `OQ9Inv`——trace 定理的具体合法起点。
 -/
-theorem init_satisfies_oq9inv (free holding withdrawn notionalIn : Int) :
-    OQ9Inv { free := free, holding := holding, withdrawn := withdrawn, notionalIn := notionalIn,
+theorem init_satisfies_oq9inv (free holding withdrawn notionalIn units : Int) :
+    OQ9Inv { free := free, holding := holding, withdrawn := withdrawn, notionalIn := notionalIn, units := units,
              stage := TStage.costReduction, openLegacyLegs := 0, cumNetCash := 0 } :=
   costReduction_satisfies_oq9inv _ rfl
 
@@ -387,7 +391,7 @@ theorem raw_earning_legacy_leg_closure_witness :
       ∧ (twStep s (TWEvent.closeShareLeg p)).cumNetCash < s.cumNetCash
       ∧ (twStep s (TWEvent.closeShareLeg p)).stage = TStage.earningShares := by
   refine ⟨{ free := 0, holding := 0, withdrawn := 0, notionalIn := 0,
-            stage := TStage.earningShares, openLegacyLegs := 1, cumNetCash := 0 }, -5,
+            stage := TStage.earningShares, openLegacyLegs := 1, cumNetCash := 0, units := 0 }, -5,
           rfl, rfl, by decide, ?_, rfl⟩
   simp only [twStep]
   decide
@@ -486,9 +490,9 @@ theorem not_isomorphic_stage_collapses : ∃ (s₁ s₂ : TWState),
     ∧ s₁.tw = s₂.tw := by
   refine ⟨
     { free := 100, holding := 0, withdrawn := 0, notionalIn := 0, stage := TStage.costReduction,
-      openLegacyLegs := 0, cumNetCash := 0 },
+      openLegacyLegs := 0, cumNetCash := 0, units := 0 },
     { free := 100, holding := 0, withdrawn := 0, notionalIn := 0, stage := TStage.earningShares,
-      openLegacyLegs := 0, cumNetCash := 0 },
+      openLegacyLegs := 0, cumNetCash := 0, units := 0 },
     rfl, rfl, rfl, ?_, rfl⟩
   decide
 
@@ -506,7 +510,7 @@ theorem not_isomorphic_conservation_switches :
         (ledgerStep L e).R = (ledgerStep L e).Pi - (ledgerStep L e).A - (ledgerStep L e).W) := by
   constructor
   · refine ⟨{ free := 0, holding := 0, withdrawn := 0, notionalIn := 0,
-              stage := TStage.costReduction, openLegacyLegs := 0, cumNetCash := 0 }, rfl, ?_⟩
+              stage := TStage.costReduction, openLegacyLegs := 0, cumNetCash := 0, units := 0 }, rfl, ?_⟩
     simp only [twStep, advanceTo]
     rw [if_pos (by decide)]
     decide
@@ -530,7 +534,7 @@ theorem not_isomorphic_exogenous_price :
         (ledgerStep L e).R = (ledgerStep L e).Pi - (ledgerStep L e).A - (ledgerStep L e).W) := by
   constructor
   · refine ⟨{ free := 0, holding := 0, withdrawn := 0, notionalIn := 0,
-              stage := TStage.costReduction, openLegacyLegs := 0, cumNetCash := 0 }, 50, ?_⟩
+              stage := TStage.costReduction, openLegacyLegs := 0, cumNetCash := 0, units := 0 }, 50, ?_⟩
     decide
   · intro L e
     exact (ledgerStep L e).inv

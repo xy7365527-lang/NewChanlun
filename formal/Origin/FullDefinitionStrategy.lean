@@ -186,14 +186,33 @@ structure LedgerState where
   A : Int
   W : Int
   R : Int
+  /- #891（SPEC #847 S8-a，ADR 0015 丙-5）：持仓量分量（多正空负）。
+  账本恒等式 inv（R = Π−A−W）与持仓量正交——units 不进恒等式；
+  其变更只经持仓变更事件（A 类），见 unitsStep 引理。 -/
+  units : Int
   inv : R = Pi - A - W
 deriving Repr
 
 def mkLedger (Pi A W : Int) : LedgerState :=
-  { Pi := Pi, A := A, W := W, R := Pi - A - W, inv := rfl }
+  { Pi := Pi, A := A, W := W, R := Pi - A - W, units := 0, inv := rfl }
 
 def ledgerStep (L : LedgerState) (dPi dA dW : Int) : LedgerState :=
-  mkLedger (L.Pi + dPi) (L.A + dA) (L.W + dW)
+  -- #891：资金步保留 units（mkLedger 是造新账本 ⟹ units 归 0；步进走 { L with } 保留）。
+  { mkLedger (L.Pi + dPi) (L.A + dA) (L.W + dW) with units := L.units }
+
+/-- #891：持仓量步进——账本步（ledgerStep，纯资金面）不动 units；
+持仓变更经此单口（A 类操作专用）。 -/
+def unitsStep (L : LedgerState) (dU : Int) : LedgerState :=
+  { L with units := L.units + dU }
+
+/-- #891：账本步保持 units（资金流与持仓量正交）+ 恒等式保持。 -/
+theorem ledgerStep_preserves_units (L : LedgerState) (dPi dA dW : Int) :
+    (ledgerStep L dPi dA dW).units = L.units := rfl
+
+/-- #891：持仓量步进不破账本恒等式（units 不进 R = Π−A−W）。 -/
+theorem unitsStep_preserves_inv (L : LedgerState) (dU : Int) :
+    (unitsStep L dU).R = (unitsStep L dU).Pi - (unitsStep L dU).A - (unitsStep L dU).W :=
+  L.inv
 
 theorem ledger_invariant_preservation (L : LedgerState) (dPi dA dW : Int) :
     (ledgerStep L dPi dA dW).R =
