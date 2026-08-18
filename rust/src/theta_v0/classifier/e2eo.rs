@@ -290,9 +290,8 @@ mod tests {
     use super::super::super::types::{BspBits, Center, Side};
     use super::super::bsp::{BspPoint, OwnerRef};
     use super::super::cand_event::{
-        CandidateEventBook, CandidateKey, CandidateKind, CandidateObservation, CandidateState,
-        CandidateStreams, ObservedState, ParentFingerprint, StructuralPredicates,
-        CANDIDATE_RULE_VERSION,
+        CandidateEventBook, CandidateKey, CandidateKind, CandidateObservation, CandidateStreams,
+        ObservedState, ParentFingerprint, StructuralPredicates, CANDIDATE_RULE_VERSION,
     };
     use super::super::chain_cert::ChainStatus;
     use super::super::consume_at::{ManagedBspPolicy, PolicyRule};
