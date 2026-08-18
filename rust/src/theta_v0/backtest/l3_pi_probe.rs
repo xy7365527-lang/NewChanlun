@@ -4,8 +4,8 @@
 //! ## 为什么需要探针（probe-first，不盲跑）
 //!
 //! `run_theta_v0_pi` 的 substrate 是 **per-bar 前缀重分类**：fill loop 每 bar i 调
-//! `classify_with_tower(parse_layer(&bars[..=i]))`（runner.rs:274-278）。`parse_layer`/
-//! `classify_with_tower` 各自至少 O(i) ⟹ 全程 Σᵢ O(i) = **O(n²)**（runner.rs:439 自陈
+//! `classify(parse_layer(&bars[..=i]))`（runner.rs:274-278）。`parse_layer`/
+//! `classify` 各自至少 O(i) ⟹ 全程 Σᵢ O(i) = **O(n²)**（runner.rs:439 自陈
 //! "逐 bar 前缀重分类 = O(n²)"）。对比 v1 `run_theta_v0` 单趟 O(n)（signal.rs O(n²)→O(n)
 //! 修复后全窗可行，见 l3_fullwindow.rs 头）——pi 即便单个 60K 截断窗也远慢于 v1。
 //!
@@ -189,7 +189,7 @@ fn classify_structure_stats(
 }
 
 /// **★Phase-1 GATE 探针（path-1 only，O(n) 单趟，避开 O(n²) path-2 盲跑）**：大窗全窗
-/// `classify_with_tower` 数塔层数 + 逐级 bsp/centers/moves，判定 **(a) 引擎在真实数据空** vs
+/// `classify` 数塔层数 + 逐级 bsp/centers/moves，判定 **(a) 引擎在真实数据空** vs
 /// **(c) 结构饥饿（incremental 塔可解锁）**。
 ///
 /// 判据（task 阶段1）：大窗 **total_bsp>0 ∧ tower_depth≥2** ⟹ **(c) 结构饥饿**——多级父容器

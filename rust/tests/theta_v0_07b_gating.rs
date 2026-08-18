@@ -3,7 +3,7 @@
 //! `classifier::extract_second_resume`（07b frontier 门控）只重算 frontier tail、复用 confirmed 前缀
 //! B2 缓存，消解 `extract_second_for_level` 的 O(U²) 全塔重扫。门控函数内置 `debug_assert`：**每次调用**
 //! 逐字段对拍全量 `extract_second_for_level`（门控输出 == 全量重扫）。本集成测试在 **debug 构建**
-//! （debug_assert 生效）下把真实 BTC bar 流逐 bar 喂 `classify_with_tower_incremental`（门控所在的增量
+//! （debug_assert 生效）下把真实 BTC bar 流逐 bar 喂 `classify_incremental`（门控所在的增量
 //! 热路径）——每 bar 触发门控 debug_assert，任一 bar 门控破裂即 panic。跑通 = 门控在真实数据上逐 bar
 //! bit-exact。
 //!

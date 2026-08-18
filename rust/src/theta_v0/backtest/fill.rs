@@ -5062,7 +5062,7 @@ where
         tw_thread.sync_realized();
 
         if !bar.untradable && px > 0.0 {
-            // ── ③ [A] 前缀因果重分类（classify_at(i)=classify_with_tower(l0[0..=i]) → 因果塔 + 因果
+            // ── ③ [A] 前缀因果重分类（classify_at(i)=classify(l0[0..=i]) → 因果塔 + 因果
             //      分类，只用 ≤i 数据 → 因果）+ 切当步候选 + [B] base_units U_ℓ + [C] thread + 风控门。 ──
             let (classification_i, tower_i, confirmed_lens, tower_gen, forest_epoch, strokes_i) =
                 classify_at(i);

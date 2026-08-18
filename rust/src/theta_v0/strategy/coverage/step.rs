@@ -701,7 +701,7 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
 /// 经 `prev_active` 对位真树元素判父容器腿是否持有）。`prev_active` **进** interpret（𝒟_x 反向关闭）
 /// **与** AncOK 准入（父容器腿在场判据），**不进** σ_p 计算（错口径"活动父腿"已删，639）。
 ///
-/// **★执行层因果塔**：调用方（runner）须喂 **per-bar 前缀因果塔**（`classify_with_tower(l0[0..=t])`，
+/// **★执行层因果塔**：调用方（runner）须喂 **per-bar 前缀因果塔**（`classify(l0[0..=t])`，
 /// 只用 ≤t 数据 → 因果）；全窗塔非因果，执行层禁用（639）。有向父容器 ⟹ V 真出 FollowParent/ReverseOpen；
 /// 父=胚元∂（缺塔/host 是根）⟹ σ_p=0 ⟹ Ambient。
 ///

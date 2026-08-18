@@ -23,9 +23,9 @@
 //! ## 管线 spec（只经现役库公共 API，不重写判据）
 //!
 //! 1. 加载 `analysis/data_cache/btc_1m_full.json`，`max_bars` 窗口参数。
-//! 2. 逐 bar 因果分类：`classifier::classify_with_tower_events_incremental`（同一
+//! 2. 逐 bar 因果分类：`classifier::classify_incremental`（同一
 //!    `ParseLayerIncr` 血缘 + 同一 `TowerCache`），末 bar 输出 bit-exact 等价于
-//!    `classify_with_tower_events`（#93 铁律）。因果通道是 `closed_at` 真 bar 位的前提
+//!    `classify`（#93 铁律）。因果通道是 `closed_at` 真 bar 位的前提
 //!    （终态窗口投影会把全部钟钉在窗口末尾，见 p127 头注）。
 //! 3. 链证书：`ChainCertificateBook::default()`，按 `advance_every` 节拍逐 `as_of`
 //!    `advance(&streams, as_of)`（末根必推，与 issue550/p127 同口径），收集

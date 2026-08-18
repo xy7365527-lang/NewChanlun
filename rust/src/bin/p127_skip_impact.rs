@@ -1,6 +1,6 @@
 //! #711 跳边/断边影响面存量 census + 断级后续命中率（#685 备料③）。
 //!
-//! 纪律：只写不判、只读生产判据（`chain_cert`/`cand_event`/`classify_with_tower_events_incremental`
+//! 纪律：只写不判、只读生产判据（`chain_cert`/`cand_event`/`classify_incremental`
 //! 均为既有生产/诊断路径，本 bin 零改动它们）。产出格式仿 `issue550_event_battery` /
 //! `ISSUE641_CHAIN*` 先例：每行一个 `P127_*` 标签，纯分桶计数，不重写任何判据。
 //!
@@ -9,7 +9,7 @@
 //! ## 口径（票面要求的两题）
 //!
 //! **题一（存量 census）**：对 BTC 20k/100k/300k 三个结构窗口，各跑一次因果逐 bar 重放
-//! （`ParseLayerIncr` + `TowerCache::classify_with_tower_events_incremental`，与 `issue550_event_battery`
+//! （`ParseLayerIncr` + `TowerCache::classify_incremental`，与 `issue550_event_battery`
 //! 同一因果通道），链簿按 [`CHAIN_ADVANCE_EVERY`] 节拍**周期推进**（末根必推，与 `ISSUE641_CHAIN`
 //! 系列同口径——链的覆盖边计算是 O(n²)，不在逐 bar 热路径上）。**首跑发现并订正**：若只在窗口
 //! 末根推进一次，断边（见下）在数学上不可能被观测到（[`CHAIN_ADVANCE_EVERY`] 文档有完整推导），

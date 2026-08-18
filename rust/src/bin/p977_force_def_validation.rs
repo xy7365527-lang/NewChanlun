@@ -25,7 +25,7 @@
 //!    `hist=2(DIF−DEA)` 得「柱面积=8×ΔDEA」——系数差异只影响绝对值，A 部分测的是**相对误差**，
 //!    不受影响；该系数差本身作为观察上报 G1/G2）。
 //!
-//! **只读**：不改任何生产判据，只调生产入口 `parse_layer` + `classify_with_tower` + `compute_macd`。
+//! **只读**：不改任何生产判据，只调生产入口 `parse_layer` + `classify` + `compute_macd`。
 
 use newchan_rust::theta_v0::backtest::data::load_by_symbol;
 use newchan_rust::theta_v0::classifier::descend::RMove;

@@ -144,9 +144,9 @@ pub enum ChainNodeStatus {
     Falsified,
     /// 事件流里查无此 key。
     ///
-    /// 由**因果簿**（`classify_with_tower_events_incremental` 的 `TowerCache` 正本）驱动时不可达
+    /// 由**因果簿**（`classify_incremental` 的 `TowerCache` 正本）驱动时不可达
     /// ——那条流 append-only，key 一旦出现即永存。由**终态窗口投影**
-    /// （`classify_with_tower_events` 每次 fresh book）驱动时可达：fresh 无记忆，上一 `as_of`
+    /// （`classify` 每次 fresh book）驱动时可达：fresh 无记忆，上一 `as_of`
     /// 的身份可以整个消失。两种驱动本模块都支持，故本变体是真实可达分支，按「不属存活端点」
     /// 处理并单列计数（[`chain_probe::ChainProbe::absent_node`]），不与 `Falsified` 混同。
     ///

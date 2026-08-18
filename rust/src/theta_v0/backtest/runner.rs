@@ -158,8 +158,8 @@ pub struct RunResult {
 ///
 /// ## 三适配器（诊断 task adcc804058774e334 缺口解除）
 ///
-/// - **[A] per-bar 前缀因果重分类 + 确认-bar 部署**（`classify_with_tower` + [`newly_confirmed_step`]）：
-///   每 bar i 喂 **前缀** `classify_with_tower(parse_layer(bars[0..=i]))` 得当步**因果塔 + 因果分类**
+/// - **[A] per-bar 前缀因果重分类 + 确认-bar 部署**（`classify` + [`newly_confirmed_step`]）：
+///   每 bar i 喂 **前缀** `classify(parse_layer(bars[0..=i]))` 得当步**因果塔 + 因果分类**
 ///   （只用 ≤i 数据 → 因果，无 look-ahead）；再 [`newly_confirmed_step`] 取**本 bar 新确认买卖点**
 ///   （append-only diff vs seen，确认时点部署——非 `source_index==i` 切片，后者因买卖点回溯确认而恒空
 ///   ⟹ 零订单，见 [`newly_confirmed_step`]）。全窗 `classify` 非因果（>i 数据确认），执行层禁用（639）。
@@ -668,13 +668,13 @@ pub fn run_theta_v0_pi_overlay(
 ///
 /// 沿用退役 v1 的账本/双口径/强平契约，但**入场决策走 π_Θ 七链**（非 recognize）：
 /// 每 bar — ① 延迟成交挂单（[`apply_order`]）→ ② `p_t=units`（净 lot）→ ③ [A] **前缀因果重分类**
-/// （`classify_at(i)`=`classify_with_tower(l0[0..=i])` → 因果塔 + 因果分类，再 [`newly_confirmed_step`]
+/// （`classify_at(i)`=`classify(l0[0..=i])` → 因果塔 + 因果分类，再 [`newly_confirmed_step`]
 /// 取本 bar 新确认买卖点=确认-bar 部署）+ [B] `base_units=NAV/px` + [C] thread `prev_active` → `pi_theta_step`（父容器 σ_p +
 /// 风控门）→ ④ 挂单到 `exec_index`（延迟）→ ⑤ thread 活动集 → ⑥ MtM 权益。窗口终点强平（含浮盈口径）。
 ///
 /// **★[A] 因果（639）**：`classify_at` 闭包**只用 ≤i 数据**（`bars[0..=i]` 前缀）——父容器方向 σ_p
 /// 与风控止损 bsp 均从前缀因果分类查得（无 look-ahead）。runner 注入
-/// `|i| classify_with_tower(parse_layer(bars[0..=i]))`；测试可注入合成闭包（隔离 fill 机制）。
+/// `|i| classify(parse_layer(bars[0..=i]))`；测试可注入合成闭包（隔离 fill 机制）。
 /// **复杂度**：逐 bar 前缀重分类 = O(n²)（正确性优先；性能/采样是 L2/L3 下个工位，本工位不优化）。
 ///
 /// **认识论 L1**（管线正确性，非 L2 alpha）：fill 模拟 + 账本推进确定，产 trades 是引擎管线串通

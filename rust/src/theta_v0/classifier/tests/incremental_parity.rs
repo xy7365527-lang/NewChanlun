@@ -348,7 +348,7 @@ fn candidate_event_stream_classify_fnv1a_golden() {
 /// 增量 `advance` 逐段喂 ≡ 全量自 ∅ 重放——两条**不同计算路径**互拍，禁同输入跑两遍。
 ///
 /// **seam（平价锁判定公共接口）**：`ChainCertificateBook::advance`（增量簿推进）+
-/// `classify_with_tower_events_incremental`（事件流生成），经 `chain_fixture(120)` 前缀序列
+/// `classify_incremental`（事件流生成），经 `chain_fixture(120)` 前缀序列
 /// 两路驱动对拍 bit-exact。
 ///
 /// 旧锁（#641 原版）把同一个预生成 `inputs` 列表（**事件流**）喂给驻留簿与重放簿两遍，
@@ -992,8 +992,8 @@ fn empty_l0_bar_invalidates_live_candidates_without_delay() {
 }
 
 /// ★增量塔逐段追加 bit-exact（#93 核心铁律）：模拟 per-bar substrate 逐段追加，
-/// 每步断言 `classify_with_tower_incremental(layer[..=i], cache)` ==
-/// `classify_with_tower(layer[..=i])`（Classification + tower 逐字段相等）。
+/// 每步断言 `classify_incremental(layer[..=i], cache)` ==
+/// `classify(layer[..=i])`（Classification + tower 逐字段相等）。
 ///
 /// 这是增量塔的真实使用场景——段账本单调增长，cache 跨步复用前级 confirmed 前缀。
 /// 任何 resume bit-exact 破裂、跨级传播错误、裁决漂移都会在此捕获。
@@ -1072,7 +1072,7 @@ fn incremental_tower_shrink_falls_back_to_full() {
 }
 
 /// ★B2 真产出 bit-exact：增量塔在产 B2 的真实结构（9 段三组 up-down-up）下，
-/// `classify_with_tower_incremental` 产出的 B2 与全量 `classify_with_tower` bit-identical——
+/// `classify_incremental` 产出的 B2 与全量 `classify` bit-identical——
 /// 验证增量 compose 的真 Fugue 547（subs 真 Compose，B2 真可产，禁级别差伪造）。
 #[test]
 fn incremental_tower_preserves_b2_second_buy() {
@@ -1452,8 +1452,8 @@ fn incremental_tower_scaling_dominates_full_synthetic() {
     );
 }
 
-/// ★#902 e2e 对拍锁：增量塔挂载操作级别（`classify_with_tower_incremental_operations`）
-/// 的口径 S 操作序列 == 全量 `classify_with_operations` 逐字段（frontier 逐段生长含
+/// ★#902 e2e 对拍锁：增量塔挂载操作级别（`classify_incremental`）
+/// 的口径 S 操作序列 == 全量 `classify` 逐字段（frontier 逐段生长含
 /// pop/回卷的真实路径——经逐 bar 截断喂入模拟 per-bar resume）。
 #[test]
 fn incremental_operation_bypass_matches_full() {

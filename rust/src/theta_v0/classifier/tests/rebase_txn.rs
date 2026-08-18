@@ -4,7 +4,7 @@ use super::super::*;
 use super::fixtures::*;
 
 /// ★#543 D1a：构造证书 seam 的**生产放置点**端到端见证（不是纯函数单测——真走
-/// `classify_with_tower_incremental` 逐 bar 增量路径）。
+/// `classify_incremental` 逐 bar 增量路径）。
 ///
 /// 覆盖三个放置点：
 /// 1. 常态 frontier pop（`had_emitted_window` 分支，产出点①）+ 新 tail 返回/自然 emit（②③）；

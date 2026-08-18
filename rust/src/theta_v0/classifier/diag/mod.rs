@@ -1,6 +1,6 @@
 //! 诊断驱动器与观测面（#748/C4：从 `classifier/mod.rs` 收窄出的诊断子树，纯移动零行为）。
 //!
-//! 与生产分类主路径（`classify`/`classify_with_tower`/`classify_with_tower_incremental` 等五
+//! 与生产分类主路径（`classify`/`classify`/`classify_incremental` 等五
 //! 入口，仍在 `classifier/mod.rs`）分层：本树只产诊断读数（计数器/耗时/召回上界/候选事件对拍），
 //! 不参与任何分类、交易、订单或风控判定分支。
 

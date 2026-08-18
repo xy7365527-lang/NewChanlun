@@ -43,7 +43,7 @@
 //! → 事件键 (kind=Trend, side, seg_a, interval_b.0=c_start, divergence_confirmed)。
 //! R1 全合取下事件未确认（t* 不存在）⟹ event_missing + event_unconfirmed_r1 告警
 //! （口径迁移，预期 0；p116 重放在量 R1 后分布）。塔重放 = p116 同款增量
-//! `classify_with_tower_incremental`（终态与 batch `classify_with_tower` bit-equal，
+//! `classify_incremental`（终态与 batch `classify` bit-equal，
 //! p116 P116_BIT_EXACT 锁定）；事件收集 = p116 同款 `collect_snapshot_candidates`
 //! （provider 终态快照，带 ProviderAudit 健康计数）。
 //!

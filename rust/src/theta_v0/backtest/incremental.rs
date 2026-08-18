@@ -2,7 +2,7 @@
 //!
 //! ## 任务与结论
 //!
-//! 把 `run_theta_v0_pi` 的 substrate 从 per-bar 全量重分类（`classify_with_tower(parse_layer(bars[..=i]))`，
+//! 把 `run_theta_v0_pi` 的 substrate 从 per-bar 全量重分类（`classify(parse_layer(bars[..=i]))`，
 //! 实测 exp≈2.64，且每 bar 从零重建塔→跨 bar 身份断裂→held_leg 判 Stale→depth>0 腿被 AncOK 剪→
 //! #5 多声部贡献为零）切换到**增量塔链**：
 //!
@@ -155,7 +155,7 @@ mod tests {
 
     /// **★bit-exact 合成数据验证（`OwnedIncrementalClassifier`，#345 always-run）**：
     /// 逐 bar 断言自持缓冲区变体 `append_bar` 输出 == legacy 全量
-    /// `classify_with_tower(parse_layer(&bars[..=i]))`，bit-identical。
+    /// `classify(parse_layer(&bars[..=i]))`，bit-identical。
     ///
     /// 与既有 `bit_exact_synthetic`（`IncrementalClassifier<'a>`，借用切片变体）互补：
     /// 同一合成序列，验证**两种所有权模型**共享的 `parser::append_incr_layer` 步进
@@ -333,9 +333,9 @@ mod tests {
     }
 
     /// **★bit-exact 硬指标：逐 bar 断言增量 classify_at(i) == legacy
-    /// `classify_with_tower(parse_layer(&bars[..=i]))`**。
+    /// `classify(parse_layer(&bars[..=i]))`**。
     ///
-    /// 增量链（ParseLayerIncr + classify_with_tower_incremental）若非 bit-exact，此断言立即捕获。
+    /// 增量链（ParseLayerIncr + classify_incremental）若非 bit-exact，此断言立即捕获。
     /// **正确性铁律**。
     #[test]
     #[ignore = "bit-exact 验证：需 CL 数据；--release（O(n²) 全 bar 双跑对照）"]
@@ -632,10 +632,10 @@ mod tests {
 
     // ================= A3 证书半边 always-run 稀疏变异 oracle（codex 审计第6条根修）=================
     //
-    // 逐 bar 对拍「证书增量路径」（classify_with_tower_incremental，走 03 dirty_from / 04 truncate+
-    // extend / 09 truncate(prefix_count)）vs「强制全量路径」（classify_with_tower(parse_layer(..=i))，
+    // 逐 bar 对拍「证书增量路径」（classify_incremental，走 03 dirty_from / 04 truncate+
+    // extend / 09 truncate(prefix_count)）vs「强制全量路径」（classify(parse_layer(..=i))，
     // 无证书，每 bar 从头全量重算），断言 (Classification, tower) 逐字段 bit-identical。cached_units==
-    // units 与 projected_units==project_to_units(upper_moves) 两条内不变量由 classify_with_tower_
+    // units 与 projected_units==project_to_units(upper_moves) 两条内不变量由 classify_
     // incremental 内 debug_assert（04 前缀证书 + 09 投影证书）逐 bar 在 test/debug 构建自动护栏。
     //
     // 两独立 fixture（re-audit 精修：两处早停边界 level_idx vs level_idx+1 不同，须拆开）：
@@ -655,7 +655,7 @@ mod tests {
     //
     // 覆盖证明：probe 断言 pop-rescan T==1/T>1（第6条核心）+ 两处早停 break 代码路径确执行
     // （防「always-run 但覆盖为零」陷阱）。逐 bar cached_units==units / projected_units==
-    // project_to_units(upper_moves) 两内不变量由 classify_with_tower_incremental 内 debug_assert
+    // project_to_units(upper_moves) 两内不变量由 classify_incremental 内 debug_assert
     // 自动护栏（04 前缀证书 + 09 投影证书），本 oracle 的每 bar 运行即触发。
 
     fn run_oracle(bars: &[Bar], label: &str) -> classifier::oracle_probe::Probe {
@@ -1012,11 +1012,11 @@ mod profile {
         }
     }
 
-    /// **★classify_at 内部拆解：parser-append 累计 vs classify_with_tower_incremental 累计（定位 O(n²) 段）**。
+    /// **★classify_at 内部拆解：parser-append 累计 vs classify_incremental 累计（定位 O(n²) 段）**。
     ///
     /// `profile_full_engine_scaling_16k` 测出 classify(整) exp≈2.17 O(n²)，但 parser::profile
     /// 测出 ParseLayerIncr::append 累计 exp≈0.94 O(n)。本拆解坐实 O(n²) 在**增量塔**
-    /// （`classify_with_tower_incremental`）而非 parser——逐 bar 分别计时 parser_incr.append 与
+    /// （`classify_incremental`）而非 parser——逐 bar 分别计时 parser_incr.append 与
     /// 塔续算，各自累计后拟合 exp。
     ///
     /// **L2**（真实 CL，16K）。
@@ -1074,7 +1074,7 @@ mod profile {
 
     /// **★A0（YAGNI 重开门）：克隆簇阶段占比 profile（THETA_PROFILE_STAGES 全阶段拆解，BTC ≥1M bar）**。
     ///
-    /// 泳道 A A0（algo-opt-plan-20260702.md）：`classify_with_tower_incremental` 逐 bar 驱动 BTC
+    /// 泳道 A A0（algo-opt-plan-20260702.md）：`classify_incremental` 逐 bar 驱动 BTC
     /// 前 N bar（默认 1M，env `A0_PROFILE_BARS` 可调），`THETA_PROFILE_STAGES=1` 时 `dump()` 打印
     /// 15 阶段耗时。克隆簇 = {00b_l0_units_clone, 04_cached_units_copy, 07c_bsp_memo_clone,
     /// 08_levels_centers_clone, 10_projected_units_clone}（A1 的 Rc/借用 目标段）占分类器总耗时之比
@@ -1165,9 +1165,9 @@ mod profile {
 
     /// **★诊断（工位 E 留档）：classifier 增量 vs 全量 bit-exact 隔离**。
     ///
-    /// 同一 legacy `parse_layer(&bars[..=i])` 输入喂 `classify_with_tower_incremental`（持久 cache）
-    /// 与 `classify_with_tower`（全量），隔离 **classifier 增量** vs parser 增量。坐实
-    /// `classify_with_tower_incremental` 在真实 CL 上 **bar 1464 与全量发散**（第 3 个 L0 中枢
+    /// 同一 legacy `parse_layer(&bars[..=i])` 输入喂 `classify_incremental`（持久 cache）
+    /// 与 `classify`（全量），隔离 **classifier 增量** vs parser 增量。坐实
+    /// `classify_incremental` 在真实 CL 上 **bar 1464 与全量发散**（第 3 个 L0 中枢
     /// `end_index`/`dd` 不同——增量 resume 续扫的 frontier 中枢比全量非重叠扫描多吸收段）。
     ///
     /// ★此发散**先于工位 E 的性能改动**（git stash 验证：pure-HEAD 同样 1464 发散，同值）——
@@ -1414,7 +1414,7 @@ mod profile {
     ///
     /// - **增量生产路径**：`IncrementalClassifier::new(bars[..n])` 逐 bar `classify_at` 到终点 → 最终
     ///   classification（`run_theta_v0_pi` 实际跑的 substrate 路径）。
-    /// - **全量 ground truth**：`classify_with_tower(parse_layer(bars[..n]))` 单次全量重算（无增量）。
+    /// - **全量 ground truth**：`classify(parse_layer(bars[..n]))` 单次全量重算（无增量）。
     /// - **逐 level 对拍**：`centers` / `bsp` bit-exact 比较，报每级数量 + 首个发散字段。
     ///
     /// ## 决定性判读
@@ -1546,8 +1546,8 @@ mod profile {
 
     /// **★Profile：增量链 vs legacy 全量 标度对比**。
     ///
-    /// 增量路径 = ParseLayerIncr::append + classify_with_tower_incremental（cache 跨 bar 复用）。
-    /// 对比 legacy = parse_layer + classify_with_tower（每 bar 全算）。
+    /// 增量路径 = ParseLayerIncr::append + classify_incremental（cache 跨 bar 复用）。
+    /// 对比 legacy = parse_layer + classify（每 bar 全算）。
     /// 增量总 exp 应低于 legacy（inclusion + 塔构造增量化），但下游 fractal/stroke/segment 仍全量
     /// 重算（parser 工位约束），故 exp 不会到 1.0。
     /// **★工位 K L2 证据：strategy fill-loop 热点分解（extract_elements + registry.merge 标度）**。

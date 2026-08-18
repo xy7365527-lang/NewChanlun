@@ -3972,7 +3972,7 @@ mod tests {
         // /usr/bin/time -l 实测峰值 RSS：100K=1990MB、200K=2010MB、400K=2034MB、600K=2083MB——
         // 内存随 bar **平坦**（100K→600K 仅 +5%），无 OOM。塔状态（TowerCache.upper_moves）累积是塔元素数
         // （走势/中枢，亚线性于 bar），不是「每 bar 一份 Rc 副本」。旧「500K OOM」实为 **O(n²) 时间墙超时被
-        // kill** 被误报为 OOM。真瓶颈 = classify_with_tower_incremental 的 O(tree)/bar 续算（profile_classify_at
+        // kill** 被误报为 OOM。真瓶颈 = classify_incremental 的 O(tree)/bar 续算（profile_classify_at
         // 已坐实 t_exp≈2.0；归 Task #104/#105 classifier 核心优化）。截断窗在此**为时间非内存**：实测
         // 100K=8.7s、200K=31.8s、400K=124.5s、600K=283s（O(n²)），全量 461万≈数小时可跑通但慢。
         // env ECON_L2_MAX_BARS 覆盖供 Lead 调窗（>4.6M=不截断跑全量）。

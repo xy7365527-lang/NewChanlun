@@ -162,7 +162,7 @@ pub(super) type AreaCache = HashMap<(usize, usize), f64>;
 /// 增量塔缓存（跨 bar 跨级复用）：每级 `LevelCache` + L0 段账本快照长度 + MACD 增量状态。
 ///
 /// **使用契约**（bit-exact 充要，违反则增量破裂）：
-/// 1. 每 bar 喂 `classify_with_tower_incremental(l0_i, config, &mut cache)`，`l0_i.segments` 是
+/// 1. 每 bar 喂 `classify_incremental(l0_i, config, &mut cache)`，`l0_i.segments` 是
 ///    `parse_layer(&bars[..=i])`——段账本**只允许尾部增长**（前缀段不可变，parser 前缀稳定语义）。
 /// 2. 若某 bar 段账本前缀**回缩或改写**（非单调追加），须 `cache.clear()` 重置（退化为全量）。
 /// 3. `config.level`（l_max/min_parts）不可变——变则 `cache.clear()`。
@@ -267,10 +267,10 @@ impl TowerCache {
         self.forest_epoch
     }
 
-    /// #641：跨 bar 因果候选事件簿的**只读**快照（与 [`classify_with_tower_events_incremental`]
+    /// #641：跨 bar 因果候选事件簿的**只读**快照（与 [`classify_incremental`]
     /// 返回的第三元同一来源，同一 `Rc`）。
     ///
-    /// 加这个取数口是为了让已经调 [`classify_with_tower_incremental`] 的既有驱动（p123）能在
+    /// 加这个取数口是为了让已经调 [`classify_incremental`] 的既有驱动（p123）能在
     /// **不改既有调用点、不改既有返回值**的前提下读到事件流。只读、不改簿、零行为影响。
     pub fn candidate_streams(&self) -> cand_event::CandidateStreams {
         self.candidate_book.streams()
@@ -278,7 +278,7 @@ impl TowerCache {
 
     /// ★#93 水线证书（单一来源，禁第二查法）：`tower[level][..w]` **跨 bar bit-stable 下界**。
     ///
-    /// 语义（与 `classify_with_tower_incremental` 返回的 `tower_snapshots` 同下标）：
+    /// 语义（与 `classify_incremental` 返回的 `tower_snapshots` 同下标）：
     /// - `level == 0`：= `l0.segments_confirmed_len`（parser 证书，tower[0][i] 为 segments[i]
     ///   纯函数 ⟹ 前缀稳定同传）；
     /// - `level >= 1`：`tower[level]` 与 `levels[level-1].upper_moves` 共享 Rc ⟹
@@ -342,7 +342,7 @@ impl TowerCache {
 
     /// #92 因果 prefix provider 的只读 MACD/坐标快照。
     ///
-    /// 两个切片与当前 [`classify_with_tower_incremental`] 返回值同源、同 prefix；调用方只读，
+    /// 两个切片与当前 [`classify_incremental`] 返回值同源、同 prefix；调用方只读，
     /// 不得跨下一次增量调用持有。该入口避免 replay 从终态序列回填或另跑第二套 MACD。
     pub fn causal_series(&self) -> (&[f64], &[usize]) {
         (&self.macd_hist, &self.close_src)

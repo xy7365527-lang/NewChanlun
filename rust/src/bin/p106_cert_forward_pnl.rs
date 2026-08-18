@@ -18,7 +18,7 @@
 //!   敏感性口径 V2：存在同侧证书 |entry_bar − judge_max| ≤ 1440（窗口成员，非最近规则）。
 //!
 //! ## BSP 侧口径（与 p100/p101 同源）
-//! 生产因果塔：`ParseLayerIncr::append` + `classify_with_tower_incremental`（TowerCache 跨 bar
+//! 生产因果塔：`ParseLayerIncr::append` + `classify_incremental`（TowerCache 跨 bar
 //! 复用）+ runner 同语义 seen-set diff（见 strict_nest_check.rs:53-86 同款内联先例；
 //! backtest::incremental::IncrementalClassifier 门控于 backtest_bin，本探针不依赖该 feature，
 //! 两次调用本身逐字相同）。bar 加载镜像 `backtest::data::load_symbol`（NaN→null、缺 OHLC 前收

@@ -423,7 +423,7 @@ pub fn compose_level(
 //
 // ## 超线性根因（前序 aed4d5f5 实证）
 //
-// per-bar substrate 每 bar `classify_with_tower` 内部 `for level_idx in 0..=l_max`
+// per-bar substrate 每 bar `classify` 内部 `for level_idx in 0..=l_max`
 //（mod.rs:206）每级 `compose_level` → `detect_centers_windowed` 从 `units[0..]` 全量滑窗
 // 扫描。前级 confirmed 前缀稳定时重复扫描 ⟹ 超线性（classify c_exp≈2.31 主导）。
 //
@@ -781,7 +781,7 @@ fn cp_scan_ownership(
 /// **bit-exact 充要条件**（调用方必须保证，否则增量破裂）：
 /// 1. `start_i` 必须是一个**确定性扫描断点**，且**唯一合法取值 = 上次扫描的 `resume_from`**（最后一个
 ///    成立窗口的起点；无窗口时 == 退出点 `consumed`），调用方须对应 pop 最后一个已产出中枢（frontier
-///    协议，见 `WindowScanCursor` 文档与 mod.rs::classify_with_tower_incremental 回退逻辑）。
+///    协议，见 `WindowScanCursor` 文档与 mod.rs::classify_incremental 回退逻辑）。
 ///    ★延伸语义（task #142）使旧合法取值 (a)「退出点 `consumed` 直接续进」**失效**：最后一个中枢在
 ///    未出现 non-extension 单元前是**开放**的（尾部追加单元可延伸它），从 `consumed` 续进会把开放
 ///    中枢误当 sealed、对本应延伸进它的新单元开新中枢（与全量分叉）。frontier 协议天然正确：pop 开放

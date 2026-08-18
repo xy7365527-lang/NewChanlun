@@ -42,12 +42,12 @@
 //! ## ★ 旁路结果不回流主干（裁定七）
 //!
 //! 本模块全是纯函数：只读 `units`，不写塔的任何状态。挂载点的「主干逐位不变」由
-//! `mod.rs` 的集成测试锁（`classify` vs `classify_with_operations` 的 `Classification` 全等）
+//! `mod.rs` 的集成测试锁（`classify` vs `classify` 的 `Classification` 全等）
 //! 承担，不靠本模块自觉。
 //!
 //! ## 现状与遗留
 //!
-//! - 本模块只接**全量** `classify` 族（`classify_with_operations` 入口）。增量塔（TowerCache）
+//! - 本模块只接**全量** `classify` 族（`classify` 入口）。增量塔（TowerCache）
 //!   的 per-bar 旁路维护需要 resume 版口径 S 扫描（否则 O(n²)），属后续实施票，未做。
 //! - 「避开下跌类型」的筛段开关**不存在**（ADR 0011 裁定五，多空双开）——操作序列照样报
 //!   上涨/下跌/盘整事实，不提供筛段开关。

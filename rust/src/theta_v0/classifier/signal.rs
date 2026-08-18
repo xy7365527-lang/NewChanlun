@@ -1607,7 +1607,7 @@ pub fn extract_signals_force(
 ///
 /// `hist` 须与 `compute_macd(closes, macd_cfg).hist` 逐元素 bit-identical（ac75d4b3 已证
 /// `MacdState::append` bit-exact）。调用方负责 hist 的增量产出与缓存（见
-/// `classify_with_tower_incremental` 的 `compute_macd_hist_incremental`）。
+/// `classify_incremental` 的 `compute_macd_hist_incremental`）。
 ///
 /// ★P2-R2（codex-decide-20260701-2121 → p2-plan §2）：破中枢结构候选（趋势 ∧ 破最后中枢 ∧ A/C 可
 /// 配对）全部进样本（消选择偏差），背驰确认（C<A）置 buy1/sell1，未背驰置零 bit + `struct_break_dir`

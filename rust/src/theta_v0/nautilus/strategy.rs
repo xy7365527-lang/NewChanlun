@@ -76,7 +76,7 @@ pub struct ThetaCore {
     /// `&[Vec<&VoiceDecision>]` 视图喂 `exit_decision_for`（与 runner 传全局 groups 同签名，零分叉）。
     groups: Vec<Vec<VoiceDecision>>,
     /// ★#345：自持缓冲区增量分类器（`OwnedIncrementalClassifier`，无生命周期参数）——替代
-    /// 每 bar 对 `self.bars` 全量重跑 `parse_layer`+`classify_with_tower`（O(n²) 根因，#342）。
+    /// 每 bar 对 `self.bars` 全量重跑 `parse_layer`+`classify`（O(n²) 根因，#342）。
     /// owned 一份 `config` 拷贝（构造期克隆）。`self.config` 仍是权威源，`classifier` 内部拷贝
     /// 只读、无独立写路径——**分叉不可达**由上方 `config` 字段私有化保证（唯一写入口 = `new`
     /// 构造期，两份拷贝同源同帧克隆），非本注释单方面声明（#346 MED-3：声明须有对应的物理约束，
@@ -256,13 +256,13 @@ impl ThetaCore {
 
     /// recog 段（`append_bar 增量分类 → recognize_nested`）：当前 bar 窗口 → 开仓侧声部决策。
     ///
-    /// ★关⑤接线（施工图 §4.6）起点是 [`classifier::classify_with_tower`]
+    /// ★关⑤接线（施工图 §4.6）起点是 [`classifier::classify`]
     /// （Classification **bit-identical**，分类层零漂移契约）。
     ///
     /// ★#345：`classify` 段改走 `self.classifier.append_bar(new_bar)`（`OwnedIncrementalClassifier`，
-    /// bit-exact 等价于全量 `classify_with_tower(parse_layer(&self.bars))`——见
+    /// bit-exact 等价于全量 `classify(parse_layer(&self.bars))`——见
     /// `classifier::streaming` 模块头 + `backtest::incremental::tests::owned_bit_exact_*`）。
-    /// 旧实现每 bar 对 `self.bars` 全量重跑 `parse_layer`+`classify_with_tower`，是 O(n²) 根因
+    /// 旧实现每 bar 对 `self.bars` 全量重跑 `parse_layer`+`classify`，是 O(n²) 根因
     /// （#342：`chanlun/review-results/nt-engine-scaling-profile-20260726.md`）；`append_bar`
     /// 只增量处理新追加的这一根 bar（inclusion O(1) + 下游 O(尾部)，摊还 O(1)/bar）。
     ///
@@ -391,7 +391,7 @@ mod tests {
     ///
     /// 本测试**只**经 `plan_for_bar` 逐 bar 喂（不像 `held_long_stop_hit_yields_close_intent`
     /// 那样手工 `core.bars.push`/`core.held[..]=` 绕过 recog 路径），逐 bar 用克隆-窥视法验证
-    /// `self.classifier.append_bar` 的返回值 == legacy 全量 `classify_with_tower(parse_layer(..))`：
+    /// `self.classifier.append_bar` 的返回值 == legacy 全量 `classify(parse_layer(..))`：
     /// `plan_for_bar` 调前克隆 `core.classifier`（`OwnedIncrementalClassifier: Clone`），调后用该
     /// 克隆重放同一根 bar——纯函数（同起始状态+同输入 bar ⟹ 同输出），不需要新增生产代码访问器。
     #[test]

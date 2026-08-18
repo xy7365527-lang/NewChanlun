@@ -1264,7 +1264,7 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
 // ════════════════════════════════════════════════════════════════════════════
 //  环3c：执行层 σ_{p(g)} = **父容器方向**（639 settle，取代删除的"活动父腿"错口径）
 //  执行层 σ_p 源 = [`assemble_gamma_with_tower`]（§3b，attach_bsp_to_tree host→真 Compose 父→
-//  父 rmove_side），喂 **per-bar 前缀因果塔**（runner::pi_theta_fill_loop 的 classify_with_tower
+//  父 rmove_side），喂 **per-bar 前缀因果塔**（runner::pi_theta_fill_loop 的 classify
 //  前缀重分类，只用 ≤t 数据 → 因果）。父容器是结构对象（从 ≤t 自底向上闭包 D_t 自上而下查得），
 //  **与是否持仓无关**——σ 来源（spec §7.2）与持仓准入（§13 AncOK）正交。
 //

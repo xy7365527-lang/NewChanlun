@@ -22,7 +22,7 @@ pub(crate) fn bsp_bits_disc(b: &super::super::types::BspBits) -> u8 {
 
 /// ★[A] per-bar **确认-bar 部署**（修 bsp→订单转化；`recursive_t/stream.rs:273` 同构）。
 ///
-/// 输入是**前缀因果分类** `classify_with_tower(l0[0..=i])`（639；非全窗）。返回本 bar **新确认**的
+/// 输入是**前缀因果分类** `classify(l0[0..=i])`（639；非全窗）。返回本 bar **新确认**的
 /// 买卖点（append-only diff vs `seen`，stream.rs 的 `seen_bsps`/"只增不改"语义）：`seen.insert(key)`
 /// 为真（首次出现于前缀塔）⟹ 本 bar i 确认 ⟹ 保留 + 部署；已 seen ⟹ 跳过。
 ///
