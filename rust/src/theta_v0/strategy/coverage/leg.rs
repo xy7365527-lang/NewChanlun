@@ -569,6 +569,96 @@ pub(super) fn apply_gross_cap(
     zeroed
 }
 
+/// [`apply_level_cap`] 单步产出（binding 读数，供测试与后续诊断；生产侧当前丢弃）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) struct LevelCapStats {
+    /// 被帽真实裁剪（`clamped_ℓ ≠ net_ℓ`）的级别数。
+    pub n_binding_levels: usize,
+    /// 本步出现的真实级别数（分母，`level_nets` 同口径、非零净额）。
+    pub n_levels: usize,
+}
+
+/// 从 `legs`（post G7 cap / post 重内单向）按 [`super::super::level_ledger::level_nets`] 同口径
+/// 计算各级整数净额 `net_ℓ = Σ_v σ_v·q_v`（`q = round(units/lot)·lot`、`q≤0` 剔除）。与
+/// `level_nets(sep_legs)` 构造性同源——唯一差异是输入形态（`LegTarget`+[`ElementView`] vs
+/// [`SepLeg`]），取整/定号/剔除口径逐字相同，故本函数产出的 `net_ℓ` 与打包 `SepLeg` 后经
+/// `level_nets` 折叠的结果逐项相等。
+fn level_nets_from_legs(elements: &ElementView, legs: &[LegTarget], lot: i64) -> Vec<(u32, i64)> {
+    let lot = lot.max(1);
+    let mut nets: Vec<(u32, i64)> = Vec::new();
+    for leg in legs {
+        let Some(e) = elements.get(leg.e_idx) else {
+            continue;
+        };
+        let q = (leg.units / lot as f64).round() as i64 * lot;
+        if q <= 0 {
+            continue;
+        }
+        let signed = match leg.side {
+            VoiceSide::Long => q,
+            VoiceSide::Short => -q,
+            VoiceSide::Flat => 0,
+        };
+        match nets.iter_mut().find(|(lvl, _)| *lvl == e.id.level) {
+            Some((_, acc)) => *acc += signed,
+            None => nets.push((e.id.level, signed)),
+        }
+    }
+    nets
+}
+
+/// ★LEE M4 级别级风险帽的**投影前施加**（#783 返工，评审 `shadow-review-755-20260729.md`
+/// 第三方案）：对各级结构净额 `net_ℓ`（[`super::super::level_ledger::level_nets`] 同口径）施加
+/// [`clamp_levels_to_weighted_cap`]，再按 `clamped_ℓ/net_ℓ` 逐级缩放该级所有腿
+/// ——在 [`net_target_units`] 折叠成净持仓**之前**改 `leg.units`（G7 [`apply_gross_cap`] 同款模式）。
+///
+/// 施加点纪律（对照 #755 旧实装）：旧版把帽施加在账户层投影（[`pi_theta_position`]）
+/// **之后**，用逐级裁剪后的标量和覆盖 `order`、不回 𝒦_Θ 可行集（HIGH-1：bar 8941 `p*=0` 被裁成
+/// 净空实单），且腿级账本读未裁剪目标（HIGH-2：两账分裂 31 倍）。前移后 `p_tilde`（账户层投影
+/// 输入）与 `sep_legs`（腿级账本）读**同一**裁剪后值 ⟹ 投影产出的 `p*` 恒在 𝒦_Θ 可行集内、
+/// 两账不分裂，且无需 `LevelOrderLedger`/M3 event clock（原冲突清单②遗漏的第三方案）。
+///
+/// `enforce_level_cap=false`（default）⟹ 调用方不得调用本函数（与 [`clamp_levels_to_weighted_cap`]
+/// 同纪律：空表会把 `cap_ℓ` 恒裁到 0 = 「全部级别禁止持仓」，非「未启用」）。
+pub(super) fn apply_level_cap(
+    elements: &ElementView,
+    legs: &mut [LegTarget],
+    base_units: f64,
+    risk: &RiskConfig,
+) -> LevelCapStats {
+    let lot = risk.default_lot.max(1) as i64;
+    let nets = level_nets_from_legs(elements, legs, lot);
+    let clamped = clamp_levels_to_weighted_cap(&nets, base_units, risk);
+    // 逐级缩放因子：`clamped_ℓ/net_ℓ`。各级净额同号（重内单向已把腿方向归一）⟹ 因子恒非负；
+    // `net_ℓ==0` ⟹ `clamped_ℓ==0` ⟹ 1.0（该级本就不足一手的零碎，不缩放）。
+    let scale: Vec<(u32, f64)> = nets
+        .iter()
+        .zip(clamped.iter())
+        .map(|(&(lvl, net), &(_, capped))| {
+            let f = if net == 0 {
+                1.0
+            } else {
+                capped as f64 / net as f64
+            };
+            (lvl, f)
+        })
+        .collect();
+    for leg in legs.iter_mut() {
+        let Some(e) = elements.get(leg.e_idx) else {
+            continue;
+        };
+        if let Some(&(_, f)) = scale.iter().find(|(lvl, _)| *lvl == e.id.level) {
+            if f != 1.0 {
+                leg.units *= f;
+            }
+        }
+    }
+    LevelCapStats {
+        n_binding_levels: scale.iter().filter(|(_, f)| *f != 1.0).count(),
+        n_levels: nets.len(),
+    }
+}
+
 /// ★P0-3 overlay 净贡献诊断 **ΔN_t**（多空对冲.pdf §5 / codex-f2 问题5,6）——**只读**，非账本。
 ///
 /// `ΔN_t = N^#5_t − N^base_t = net_target(全腿) − net_target(剔 ReverseOpen 腿)`，代数上 = ReverseOpen

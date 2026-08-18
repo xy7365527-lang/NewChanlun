@@ -30,7 +30,7 @@
 //! | `StepTrace.{closed, opened, silent_drops, overlay_closes, risk_exits}`（`coverage.rs` StepTrace） | 该级腿的生命周期落点（反向关闭 / 准入开仓 / AncOK 连带剪 / P2 CloseOverlay / P1 force_flat 强平） | **是**（腿集合即 `sep_legs` 的定义域） | **是**（按 `ActiveLeg.level` 分级；`risk_exits` 归风控类，见下） |
 //! | `base_units = equity_nav / px`（`fill.rs:770`） | 每 bar 的 NAV/价漂移；`q_units = base_units × w_depth × w_dir` | **是**——`net_ℓ` 因此**每 bar 都在变，与结构事件无关** | **否**——这正是 M3 要门控掉的「bar tick 碎片」（设计文档 §B.1 根因一） |
 //! | `StepTrace.tw_event`（P3 RecoverCapital / P4 EnterEarning） | TW 账本相位事件 | **否（抑制器，非产生器）**——见下 | **否** |
-//! | `pan_div_state.signed_live_child_units()` | P7/P9 中枢震荡在飞子腿的账户层净目标分量 | **否（不经 `net_ℓ`）**，但改**账户层结构目标** | **否**（其生灭已由 `PanDivCert` 覆盖；数值经 `plan_level_gated_order` ① 显式接入结构目标，不走 clock） |
+//! | `pan_div_state.signed_live_child_units()` | P7/P9 中枢震荡在飞子腿的账户层净目标分量 | **否（不经 `net_ℓ`）**，但改**账户层结构目标** | **否**（其生灭已由 `PanDivCert` 覆盖；数值经账户层目标投影显式接入结构目标，不走 clock） |
 //!
 //! `tw_event` 需单独论证才能说「最小完备」成立：它成立时 gamma 全部推迟 record 桶、屏蔽
 //! P5..P10（`coverage.rs` StepTrace 文档逐字），本 bar 因此**不产生** `opened`。也就是说它

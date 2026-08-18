@@ -58,6 +58,18 @@
    「四个纯函数调用+一次 debug_assert+一次 order 覆盖」，与票面裁定②「默认零变化+可验证」的
    验收要求相容，风险显著更低。**`LevelOrderPlan::cap_narrowed_levels` 字段消费链仍未被生产
    路径点亮**——如实登记，留作独立跟进（若后续要接 M3，建议单开票，不与本次账户层裁剪混改）。
+
+   > **订正（#783 返工，2026-08）**：本条的「二选一」论证**不成立**——影子评审
+   > `shadow-review-755-20260729.md` §3 ② 指出现实存在**第三方案**：kimi 的 clamp₁ 施加对象是
+   > 「已按级别聚合的结构基准」，本仓完全可以在 `pi_theta_step_*` **之前**对
+   > `level_nets(sep_legs)` 施加同一 clamp、再让账户层投影照常跑——不需要 `LevelOrderLedger`、
+   > 不需要跨 bar `planned` 状态、更不需要动 M3。「M3 范围过大」只解释了为什么不点亮
+   > `cap_narrowed_levels`，**不解释为什么把施加点挪到投影之后**（而后者才是 HIGH-1/HIGH-2 的
+   > 全部实质风险来源）。#783 已按第三方案返工：施加点前移到 `coverage_step_from_buckets_sep_
+   > with_risk_seeds` 内 `apply_level_cap`（`coverage/leg.rs`），对 `level_nets` 施加
+   > `clamp_levels_to_weighted_cap` 后按 `clamped_ℓ/net_ℓ` 逐级缩放 legs，再折叠 `p_tilde`/打包
+   > `sep_legs`——账户层投影输入与腿级账本读同一裁剪后值（HIGH-2 清零），投影产出 `p*` 恒在
+   > 𝒦_Θ 可行集内（HIGH-1 清零）。详见 `issue783-level-cap-clamp-relocation-20260818.md`。
 3. **`RunResult`/`OverlayRunResult` 未新增字段承载「本次裁剪触发次数」等生产读数**：本票的
    BTC 20k 靶向对照（第 3 节）用现有 `n_orders`/`trade_pnls`/`equity_curve` 三项已足以证明生效，
    未额外扩 `RunResult` API 面——避免无请求授权下扩大生产结构体改动范围。

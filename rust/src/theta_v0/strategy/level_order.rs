@@ -199,7 +199,7 @@ pub struct LevelOrderStats {
     ///
     /// 用途是 cap-on 场景的**非平凡前置**：`per_level_sparsity_has_no_unexplained_violation()`
     /// 在 `n_cap_narrowed==0` 时可能只是「帽从未 binding」的平凡通过（#289 MED 同类纪律）。
-    /// **当前消费者仅** `fill.rs::level_cap_reclamp_tests` 的三个单测——跑批验收侧
+    /// **当前消费者**：无——`fill.rs::level_cap_reclamp_tests` 三个单测已随 #363 删除，跑批验收侧
     /// （`runner.rs` 的 cap-on 验收、`bin/theta_overlay.rs` 的读数打印）**尚未接入**本读数，
     /// 本 doc 不声明它已在跑批上把关（090：不声明代码不具备的能力）。
     pub n_cap_narrowed: u64,
@@ -265,7 +265,7 @@ pub struct LevelOrderStats {
     /// ★M3 风控门**非全开**（`force_flat || stop_long || stop_short`）的决策点数。
     ///
     /// 「风控门每 bar 生效」的**求值面**证据：门在每个决策点被求值并无条件施加到目标投影
-    /// （`plan_level_gated_order` 第②段不读 clock ticks），本计数 >0 说明它在本跑批上真的
+    /// （`pi_theta_position` 的 `KThetaRiskGate` 不读 clock ticks），本计数 >0 说明它在本跑批上真的
     /// 收窄过可行集——而不是「门在，但从未 binding」的平凡通过。
     pub n_risk_gate_active: u64,
     /// ★M3 上一条中**同时产生了订单**的决策点数（风控收窄真的落到订单上，非只改可行集）。
@@ -352,8 +352,11 @@ pub struct LevelOrderPlan {
     /// 而它的全部意义正是「比 bar 级严格更强」（见
     /// [`LevelOrderStats::per_level_sparsity_has_no_unexplained_violation`]）。
     ///
-    /// 由施加点（`fill.rs::plan_level_gated_order`）填入，取**两处**帽施加点逐级差集之并：
-    /// ①`regate` 后对 `gated` 的裁剪、②归因缩放后对 `targets` 的二次裁剪。本结构自身不施加帽
+    /// ★#783 照实订正（原写「由 `fill.rs::plan_level_gated_order` 填入」——该函数全仓不存在）：
+    /// 本表**恒空**（全仓唯一写点是 [`LevelOrderLedger::plan_gated`] 的 `Vec::new()`，生产路径零
+    /// 调用者）——级别帽施加点已前移到账户层投影**之前**（`coverage_step_from_buckets_sep_with_
+    /// risk_seeds` 内 `apply_level_cap`，消费 [`super::coverage::clamp_levels_to_weighted_cap`]），
+    /// 不经 `LevelOrderLedger`/`plan_gated`。本结构自身不施加帽
     /// （[`LevelOrderLedger::plan_gated`] 恒置空表，级别帽的唯一施加入口是
     /// [`super::coverage::clamp_levels_to_weighted_cap`]，见 `level_risk` 模块头「施加点严格限定」）。
     /// `enforce_level_cap=false`（default）⟹ 恒空（零分配）。
@@ -389,8 +392,9 @@ pub struct LevelOrderPlan {
     ///
     /// ★#362 MED-3 锚定语义订正（照实，不改计算）：此处的 `T` 锚的是 **`t_lee_raw`**——
     /// 账户层投影后、**二次裁剪前**的目标，即 [`LevelOrderLedger::plan_gated`] 收到的
-    /// `target_total` 入参。`fill.rs::plan_level_gated_order` 在 reclamp 分支下会把
-    /// `targets`/`deltas`/`order_units` 重写为二次裁剪后的 `t_lee'`，但 `struct_gap` 由
+    /// `target_total` 入参。二次裁剪（帽 binding）会把 `targets`/`deltas`/`order_units` 重写为
+    /// 裁剪后的 `t_lee'`（#783 后施加形态已前移到账户层投影前，见
+    /// [`LevelOrderPlan::cap_narrowed_levels`] 文档），但 `struct_gap` 由
     /// `plan_gated` 内部一次算定后**随 `..plan` 原样带过**，不随之重算。故在帽 binding 的
     /// 决策点上 `struct_gap ≠ Σgated − Σtargets`——两者差的正是二次裁剪量。
     ///

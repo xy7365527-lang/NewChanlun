@@ -134,8 +134,10 @@ use sizing::pi_theta_step_prebuilt;
 pub use sizing::{
     pi_theta_position, pi_theta_step, schedule_order, KThetaRiskGate, PiThetaWeights,
 };
-// ★#755 LEE M4 决策层接线：生产者接线唯一新增消费点（sizing.rs:263-286 doc 点名）。
-pub(crate) use sizing::{clamp_levels_to_weighted_cap, level_cap};
+// ★#755/#783 LEE M4 级别帽：`apply_level_cap`（leg.rs，投影前施加）消费 `clamp_levels_to_
+// weighted_cap`；`level_cap` 仅被同模块 `clamp_levels_to_weighted_cap` 内部消费，不再跨模块
+// re-export（#783 尾件清理，shadow-review-755 LOW-1）。
+pub(crate) use sizing::clamp_levels_to_weighted_cap;
 
 pub(crate) use compose::{pi_theta_step_traced, pi_theta_step_traced_with_risk_seeds, StepTrace};
 pub use compose::{

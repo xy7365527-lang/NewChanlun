@@ -620,6 +620,17 @@ pub(super) fn coverage_step_from_buckets_sep_with_risk_seeds(
     // 幽灵腿防护不扩到本变换：反向腿保留在 next_active（其开/平生命周期 = 短差的减/补
     // 驱动，非幽灵——它从未以「持仓」身份延续，与 gross_zeroed 的「目标为 0 的开仓」不同）。
     let _uni = super::leg::enforce_chong_unidirectional(&mut legs, chong_pos);
+    // ── ★LEE M4 级别帽（#783 返工，评审 shadow-review-755-20260729 第三方案）：在
+    //    `pi_theta_step_*`（内含 pi_theta_position 账户层投影）**之前**对 `level_nets` 施加
+    //    同一 clamp（`clamp_levels_to_weighted_cap`）并按级缩放 legs ⟹ 下方 `p_tilde`（账户层
+    //    投影输入）与 `sep_legs`（腿级账本）读同一裁剪后值，两账不分裂（HIGH-2）；投影产出的
+    //    `p*` 恒在 𝒦_Θ 可行集内（HIGH-1：不再有投影后二次裁剪覆盖 `order`）。门禁
+    //    `enforce_level_cap` default=false ⟹ 整段不驱动（frozen bit-exact）。──
+    if let Some(r) = risk {
+        if r.enforce_level_cap {
+            let _level_cap = super::leg::apply_level_cap(&work, &mut legs, base_units, r);
+        }
+    }
     let p_tilde = net_target_units(&legs);
 
     // A_{t+1} 回 ActiveLeg（638 身份，喂下一 bar interpret 闭环 + 跨 bar 对位）。

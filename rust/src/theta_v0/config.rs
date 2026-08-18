@@ -220,9 +220,13 @@ pub struct RiskConfig {
     pub level_weights: Vec<f64>,
     /// ★M4 级别级风险帽开关（G7 `enforce_gross_cap` 同款模式）。`false`（default）⟹ 不激活，
     /// LEE 结构基准不经级别帽裁剪（frozen M0–M3 bit-exact 不变）；`true` ⟹
-    /// `fill.rs::plan_level_gated_order` 在门控重估后、账户层投影前，对每个真实级别 ℓ 的
-    /// 结构基准施加 `cap_ℓ = w_ℓ·γ̄·U_ℓ`（[`super::strategy::level_risk::level_cap`]，𝒦_Θ
-    /// 协变 cap `γ̄·U_ℓ` 按级别用 w_ℓ 分解，见该函数文档「协变分解守恒」）。
+    /// `apply_level_cap`（`coverage_step_from_buckets_sep_with_risk_seeds` 内、账户层投影
+    /// [`super::strategy::coverage::pi_theta_position`] **之前**）对每个真实级别 ℓ 的结构基准施加
+    /// `cap_ℓ = w_ℓ·γ̄·U_ℓ`（𝒦_Θ 协变 cap `γ̄·U_ℓ` 按级别用 w_ℓ 分解，见
+    /// [`super::strategy::coverage::clamp_levels_to_weighted_cap`] 及其内部 `level_cap` 的
+    /// 「协变分解守恒」文档）。
+    /// #783 返工：施加点已从「投影后二次裁剪覆盖 `order`」前移到投影前（shadow-review-755
+    /// HIGH-1/HIGH-2 清偿）。
     pub enforce_level_cap: bool,
 }
 

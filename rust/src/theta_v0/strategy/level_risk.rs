@@ -5,12 +5,13 @@
 //!
 //! M4 定义（设计文档 §D 迁移表逐字）：「w_ℓ 资金权、级别级风险帽上线；voice.rs depth_weights
 //! 与 LEE w_ℓ 的对偶关系统一」。本模块只产**权重**与**权重和校验**；把权重兑现为实际的
-//! 结构基准裁剪（`cap_ℓ = w_ℓ·γ̄·U_ℓ`）在 [`super::coverage::level_cap`]／
-//! [`super::coverage::clamp_levels_to_weighted_cap`]（账户/风控域，§F③ 同纪律：结构域的
-//! `level_order.rs::regate` 不碰风险帽）；帽的实际施加点在 `fill.rs:5180` 的
-//! `enforce_level_cap` 门内（`clamp_levels_to_weighted_cap` 生产唯一调用点 = `fill.rs:5195`）。
-//! ⚠️ 订正（#889 R4）：本行此前写「施加点在 `fill.rs::plan_level_gated_order`」——#841 查实
-//! 该函数全仓**不存在**（6 处点名引用、0 处定义、0 处调用），指针作废如上。
+//! 结构基准裁剪（`cap_ℓ = w_ℓ·γ̄·U_ℓ`）在 [`super::coverage::clamp_levels_to_weighted_cap`]
+//! （账户/风控域，§F③ 同纪律：结构域的 `level_order.rs::regate` 不碰风险帽）；帽的实际施加点是
+//! `coverage_step_from_buckets_sep_with_risk_seeds` 内的 `apply_level_cap`（账户层投影
+//! [`super::coverage::pi_theta_position`] **之前**，`clamp_levels_to_weighted_cap` 生产唯一调用点）。
+//! ⚠️ 订正（#889 R4/#783）：本行此前写「施加点在 `fill.rs::plan_level_gated_order`」——#841 查实
+//! 该函数全仓**不存在**（6 处点名引用、0 处定义、0 处调用），指针作废如上；#783 又把施加点从
+//! `fill.rs:5180` 的投影后门内前移到投影前。
 //!
 //! ## ★对偶统一声明（depth_weight ↔ w_ℓ）——#841 实测订正版
 //!

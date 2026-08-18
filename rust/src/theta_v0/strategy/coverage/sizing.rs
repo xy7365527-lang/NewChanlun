@@ -271,20 +271,27 @@ pub(crate) fn level_cap(level: u32, base_units: f64, risk: &RiskConfig) -> f64 {
 /// （`wverify_run/{m8,report}.rs`）仍是**未进编译的诊断存档件**（`backtest/mod.rs` 只
 /// `mod wverify_run;`，不在本票范围）。
 ///
-/// ★#755 生产者接线：**唯一填入者**——`fill.rs::pi_theta_fill_loop_overlay`（M4 决策层接线段，
-/// `risk.enforce_level_cap` 门禁）调用本函数把账户层单一目标 `standard_p_star` 按
-/// [`super::super::level_ledger::level_nets`] 归因、二次裁剪后重新求和覆盖回 `order`
-/// （`coverage::schedule_order` 重排，§16 单一决策出口不破）。本次接线未复用
-/// `LevelOrderLedger`/`LevelOrderPlan`（那是 M2/M3 per-level 订单路由的更大范围，未随本票
-/// 移植——过 M3 event clock 门控是独立更大规模变更，留作后续票）；`cap_narrowed_levels` 字段
-/// 与 `LevelOrderLedger::plan_gated` 路径本身**仍未被生产调用**（消费链就位但生产者走的是本
-/// 函数的账户层标量二次求和形态，见 issue755 报告条目 1）。`enforce_level_cap` default=false
+/// ★#755/#783 生产者接线：**唯一生产调用点**——[`super::leg::apply_level_cap`]（`coverage/
+/// leg.rs`，`coverage_step_from_buckets_sep_with_risk_seeds` 内、[`pi_theta_position`] 投影**之前**）
+/// 调用本函数对各级 `net_ℓ`（[`super::super::level_ledger::level_nets`] 同口径）逐级 clamp，再按
+/// `clamped_ℓ/net_ℓ` 缩放该级所有腿，然后才折叠 `p_tilde`/打包 `sep_legs`——投影前的施加形态
+/// （评审 shadow-review-755-20260729 第三方案：原 #755 在投影后二次裁剪覆盖 `order`，造成
+/// HIGH-1 越界 + HIGH-2 两账分裂）。本次接线未复用 `LevelOrderLedger`/`LevelOrderPlan`（那是
+/// M2/M3 per-level 订单路由的更大范围，留作后续票）；`cap_narrowed_levels` 字段与
+/// `LevelOrderLedger::plan_gated` 路径本身**仍未被生产调用**。`enforce_level_cap` default=false
 /// ⟹ 本函数不被调用 ⟹ 零行为改变（M0-M3 bit-exact 不变）。
 pub(crate) fn clamp_levels_to_weighted_cap(
     gated: &[(u32, i64)],
     base_units: f64,
     risk: &RiskConfig,
 ) -> Vec<(u32, i64)> {
+    // ★#351 MED「Σw 校验」按 kimi 原意钉回 clamp 函数入口（release 同样生效）：`Σw_ℓ>1` ⟹
+    // `Σ_ℓ cap_ℓ > γ̄·U` 静默失效（越界防护退化为空转），先断言拦下误配（#783 返工把此校验
+    // 从 fill.rs 调用点的 debug_assert! 移入本函数，唯一使用路径 release 下不再被编译掉）。
+    assert!(
+        super::super::level_risk::level_weights_sum_le_one(risk),
+        "#351 MED：risk.level_weights 违反 Σw_ℓ≤1（enforce_level_cap=true 时配置必须合规）"
+    );
     gated
         .iter()
         .map(|&(lvl, q)| {

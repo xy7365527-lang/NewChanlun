@@ -651,6 +651,105 @@ fn gross_cap_zeroed_open_legs_do_not_enter_active_set() {
 // ── §3 活动集递归原语（λ_e 区间，Lean M16 对齐——非生产入场，见 §3 GAP-5 note）已在上方测 ──
 
 // ════════════════════════════════════════════════════════════════════════════
+//  §M4 级别帽（#783 返工：clamp 前移到投影前）apply_level_cap 单测
+// ════════════════════════════════════════════════════════════════════════════
+
+/// 超帽级别被按 `clamped_ℓ/net_ℓ` 逐级等比缩放，未超帽级别原样透传；binding 计数逐级。
+#[test]
+fn level_cap_scales_binding_levels_proportionally() {
+    let els = vec![
+        gce(0, 0, None, VoiceSide::Long),
+        gce(1, 0, None, VoiceSide::Long),
+        gce(1, 1, None, VoiceSide::Long),
+    ];
+    // net_0 = 80，net_1 = 6+4 = 10；cap_0 = 0.5·1.0·100 = 50、cap_1 = 0.1·1.0·100 = 10。
+    let mut legs = vec![
+        gleg(0, VoiceSide::Long, 80.0),
+        gleg(1, VoiceSide::Long, 6.0),
+        gleg(2, VoiceSide::Long, 4.0),
+    ];
+    let risk = RiskConfig {
+        level_weights: vec![0.5, 0.1],
+        ..RiskConfig::default()
+    };
+    let stats = apply_level_cap(&ElementView::new(&els), &mut legs, 100.0, &risk);
+    assert!((legs[0].units - 50.0).abs() < 1e-9, "level0 80→50");
+    assert_eq!(legs[1].units, 6.0, "level1 未超帽原样");
+    assert_eq!(legs[2].units, 4.0, "level1 未超帽原样");
+    assert_eq!(stats.n_binding_levels, 1);
+    assert_eq!(stats.n_levels, 2);
+    assert!(
+        (net_target_units(&legs) - 60.0).abs() < 1e-9,
+        "账户层净目标 = Σ 裁剪后各级净额"
+    );
+}
+
+/// 负向对称裁剪：空腿各级净额被对称裁到 ±cap_ℓ，逐级因子同号（重内单向后各级同号）。
+#[test]
+fn level_cap_clips_short_levels_symmetrically() {
+    let els = vec![
+        gce(0, 0, None, VoiceSide::Short),
+        gce(1, 0, None, VoiceSide::Short),
+    ];
+    let mut legs = vec![
+        gleg(0, VoiceSide::Short, 80.0),
+        gleg(1, VoiceSide::Short, 30.0),
+    ];
+    let risk = RiskConfig {
+        level_weights: vec![0.5, 0.1],
+        ..RiskConfig::default()
+    };
+    let stats = apply_level_cap(&ElementView::new(&els), &mut legs, 100.0, &risk);
+    assert!((legs[0].units - 50.0).abs() < 1e-9, "level0 −80→−50");
+    assert!((legs[1].units - 10.0).abs() < 1e-9, "level1 −30→−10");
+    assert_eq!(stats.n_binding_levels, 2);
+    assert_eq!(stats.n_levels, 2);
+}
+
+/// 未超帽 ⟹ 逐位不动（bit-exact ==，非近似）。
+#[test]
+fn level_cap_non_binding_is_bit_exact() {
+    let els = vec![
+        gce(0, 0, None, VoiceSide::Long),
+        gce(1, 0, None, VoiceSide::Long),
+    ];
+    let orig = vec![
+        gleg(0, VoiceSide::Long, 30.0),
+        gleg(1, VoiceSide::Long, 5.0),
+    ];
+    let mut legs = orig.clone();
+    let risk = RiskConfig {
+        level_weights: vec![0.5, 0.1],
+        ..RiskConfig::default()
+    };
+    let stats = apply_level_cap(&ElementView::new(&els), &mut legs, 100.0, &risk);
+    assert_eq!(legs, orig, "未超帽 ⟹ 不缩放");
+    assert_eq!(stats.n_binding_levels, 0);
+}
+
+/// 表外级别权重 ⟹ cap_ℓ=0 ⟹ 该级腿归零（「该级别禁止持仓」非「未启用」）。
+#[test]
+fn level_cap_zero_weight_zeroes_unweighted_level() {
+    let els = vec![
+        gce(0, 0, None, VoiceSide::Long),
+        gce(1, 0, None, VoiceSide::Long),
+    ];
+    let mut legs = vec![
+        gleg(0, VoiceSide::Long, 30.0),
+        gleg(1, VoiceSide::Long, 5.0),
+    ];
+    let risk = RiskConfig {
+        level_weights: vec![0.5], // 只配 level0
+        ..RiskConfig::default()
+    };
+    let stats = apply_level_cap(&ElementView::new(&els), &mut legs, 100.0, &risk);
+    assert_eq!(legs[0].units, 30.0, "level0 未超帽原样");
+    assert_eq!(legs[1].units, 0.0, "level1 无权重 ⟹ cap=0 ⟹ 归零");
+    assert_eq!(stats.n_binding_levels, 1);
+    assert_eq!(stats.n_levels, 2);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 //  §重内单向（ADR 0014 裁定一，SPEC #847 S1 / #879）enforce_chong_unidirectional 单测
 // ════════════════════════════════════════════════════════════════════════════
 
