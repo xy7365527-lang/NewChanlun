@@ -137,6 +137,29 @@ pub fn find_move_by_end_index(moves: &[LeveledMove], target: usize) -> Option<us
     (i < moves.len() && moves[i].end_index == target).then_some(i)
 }
 
+/// 在按 `end_index` 升序排列的走势序列中定位**包含** `target` 的段
+/// （`start_index <= target <= end_index`，leftmost）。
+///
+/// 与 [`find_move_by_end_index`] 的区别：`end ==` 精确匹配要求 `target` 恰是某段的终点；
+/// 本函数退化为区间包含——`target` 落在段**内部**（非段终点）也命中该段。非重叠窗口下
+/// 两者对「段终点 target」逐位同值（终点唯一归其所属段），对「段内 target」只有本函数命中。
+///
+/// ★#1052（#1028 裁定 A）：一类点点锚迁移到 departure 单元终点后，`source_index` 不再等于
+/// 本级 C 段 `end_index`（末子段常是回抽反趋势段 ⟹ departure 终点落在 C 段内部）。gate 的
+/// **执行段定位**须按「包含」找 C 段，不得再用 `end ==`（否则 L≥1 带回抽尾段的一类点会
+/// 定位失败被误拒）。下钻（[`find_move_by_end_index`] 于 `sub_moves` 上）不受影响——它要找的
+/// 恰是 `end == 点锚` 的那段（迁移后即 departure 子段，正是裁定意图）。
+///
+/// partition_point 前提与 [`find_move_by_end_index`] 同（`end_index` 升序）。
+pub fn find_move_containing_index(moves: &[LeveledMove], target: usize) -> Option<usize> {
+    debug_assert!(
+        moves.windows(2).all(|w| w[0].end_index <= w[1].end_index),
+        "LeveledMove 序列须按 end_index 升序（partition_point 前提）"
+    );
+    let i = moves.partition_point(|m| m.end_index < target);
+    (i < moves.len() && moves[i].start_index <= target).then_some(i)
+}
+
 impl LeveledMove {
     /// L0 线段单元 → 携坐标的 `RMove::Segment`（递归底，level 0，`sub_moves` 空）。
     ///

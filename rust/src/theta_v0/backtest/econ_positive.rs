@@ -47,8 +47,10 @@ use super::super::classifier::center::{center_from_segments, UnitRange};
 use super::super::classifier::descend::RMove;
 use super::super::classifier::divergence::compute_macd;
 use super::super::classifier::nest::{is_sub, NestCertificate, NestInterval, NestRung};
-use super::super::classifier::recursive_tower::find_move_by_end_index;
 use super::super::classifier::recursive_tower::LeveledMove;
+use super::super::classifier::recursive_tower::{
+    find_move_by_end_index, find_move_containing_index,
+};
 use super::super::classifier::signal::PanDivCert;
 use super::super::config::ThetaConfig;
 use super::super::strategy::coverage::Horizontal;
@@ -991,7 +993,7 @@ fn cand_delta_type1_extreme(
     parent_center: Option<&crate::theta_v0::types::Center>,
     gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> bool {
-    match find_move_by_end_index(rung_subs, source_index) {
+    match find_move_containing_index(rung_subs, source_index) {
         Some(tidx) => super::super::classifier::cand_predicate::div_cand(
             &super::super::classifier::cand_predicate::DivCandInput {
                 context: rung_subs,
@@ -1164,9 +1166,11 @@ pub(super) fn build_nest_certificate(
     strokes: &[crate::theta_v0::types::Stroke],
     gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> Option<NestCertificate> {
-    // 执行级 tower[lvl] 中找 end_index == source_index 的段（候选段 s，执行级 e=lvl）。
+    // 执行级 tower[lvl] 中找包含 source_index 的段（候选段 s，执行级 e=lvl）。
+    // ★#1052（#1028 裁定 A）：点锚迁移到 departure 单元终点后 source_index 可能落在 C 段**内部**
+    // （末子段为回抽反趋势段），`end ==` 精确匹配会定位失败误拒 ⟹ 改「区间包含」定位。
     let exec_moves = tower.get(lvl)?.as_slice();
-    let s = &exec_moves[find_move_by_end_index(exec_moves, source_index)?];
+    let s = &exec_moves[find_move_containing_index(exec_moves, source_index)?];
     let base_interval = NestInterval {
         start_time: s.start_index as u64,
         end_time: s.end_index as u64,
@@ -1320,9 +1324,10 @@ pub(super) fn build_nest_certificate_bottomup(
     gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> Option<NestCertificate> {
     use super::super::classifier::nest::sel_order;
-    // 基例 e=lvl：与生产同——tower[lvl] 中 end_index==source_index 的执行级候选段（PDF 基例 J^δ_e）。
+    // 基例 e=lvl：与生产同——tower[lvl] 中包含 source_index 的执行级候选段（PDF 基例 J^δ_e；
+    // ★#1052 #1028 裁定 A 后与生产一致改用「区间包含」定位）。
     let exec_moves = tower.get(lvl)?.as_slice();
-    let s = &exec_moves[find_move_by_end_index(exec_moves, source_index)?];
+    let s = &exec_moves[find_move_containing_index(exec_moves, source_index)?];
     let base_interval = NestInterval {
         start_time: s.start_index as u64,
         end_time: s.end_index as u64,
@@ -3386,6 +3391,63 @@ mod tests {
             start_index: start,
             end_index: end,
         }
+    }
+
+    /// #1052 回归锁（#1028 裁定 A）：一类点点锚迁移到 departure 单元终点后，`source_index`
+    /// 落在 C 段**内部**（末子段为回抽反趋势段）——gate 的执行段定位必须用「区间包含」
+    /// （[`find_move_containing_index`]）命中 C 段；`end ==` 精确匹配对 interior 锚 MISS，
+    /// 是迁移前会把此类 L≥1 一类点误拒的病灶。
+    #[test]
+    fn gate_locates_exec_segment_by_containment_after_anchor_migration() {
+        use super::super::super::classifier::cand_predicate::departure_unit_end;
+        // L0：趋势两段 Down + 尾段回抽 Up（pullback）——C 段末子段是反趋势段。
+        let s0 = seg2(Dir2::Down, 100, 80, 0, 5, 0);
+        let s1 = seg2(Dir2::Down, 90, 70, 5, 9, 1);
+        let s2 = seg2(Dir2::Up, 70, 85, 9, 13, 2);
+        let c = compose2(
+            vec![s0.clone(), s1.clone(), s2.clone()],
+            ct2(70, 85, 9, 13),
+            1,
+            0,
+        );
+        assert_eq!(c.end_index, 13, "C 段 end = 末子段(回抽)终点");
+        let departure = departure_unit_end(&c, Dir2::Down).expect("存在趋势方向子段");
+        assert_eq!(
+            departure, 9,
+            "departure 终点 = 最后趋势子段终点 9（interior）"
+        );
+
+        let tower: Vec<Rc2<Vec<LM2>>> = vec![Rc2::new(vec![s0, s1, s2]), Rc2::new(vec![c])];
+        // 迁移后 interior 锚：`end ==` MISS，`区间包含` 命中 C 段（tower[1] 唯一段）。
+        assert_eq!(find_move_by_end_index(&tower[1], departure), None);
+        assert_eq!(find_move_containing_index(&tower[1], departure), Some(0));
+        // 段终点锚（无 pullback 的退化情形）：两者同值，`区间包含` 不改旧行为。
+        assert_eq!(find_move_by_end_index(&tower[1], 13), Some(0));
+        assert_eq!(find_move_containing_index(&tower[1], 13), Some(0));
+
+        // 端到端：gate 以迁移后的 interior 锚定位执行段，证书非 None（修前此处返回 None ⟹ 误拒）。
+        let hist: Vec<f64> = (0..14).map(|_| -1.0).collect();
+        let mut bits = BspBits::default();
+        bits.buy1 = true;
+        let cert = build_nest_certificate(
+            &tower,
+            1,
+            departure,
+            Side::Long,
+            &bits,
+            &hist,
+            &[],
+            DivergenceGauge::MacdArea,
+        );
+        assert!(
+            cert.is_some(),
+            "gate 须以 interior 锚命中 C 段（修前 find_move_by_end_index MISS ⟹ None）"
+        );
+        assert_eq!(
+            cert.as_ref().map(|c| c.base_interval().start_time),
+            Some(0),
+            "base_interval 仍是 C 段全区间（锚迁移只动点、不动区间套语义）"
+        );
     }
 
     /// 段2 正例：Type2@lvl1 的回抽次级别走势 m2 内部含次级别 Type1 背驰段（end==source_index）
