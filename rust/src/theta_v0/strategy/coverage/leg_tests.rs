@@ -1,4 +1,7 @@
 use super::super::super::interp::Buckets;
+use super::super::super::risk::{
+    gross_notional, leverage_metrics, leverage_ok, net_notional, LeverageCaps, VoiceNotional,
+};
 use super::super::test_support::*;
 use super::*;
 use crate::theta_v0::types::Direction;
@@ -853,4 +856,213 @@ fn chong_uni_same_direction_only_bit_exact() {
     assert_eq!(st.n_opposing_zeroed, 0);
     assert!((legs[0].units - 100.0).abs() < 1e-12 && (legs[1].units - 60.0).abs() < 1e-12);
     assert!((net_target_units(&legs) - 160.0).abs() < 1e-12);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  §对账测试锁（#1050 第一段，ADR 0024 裁定三·形态 B）
+//
+//  契约锚 Lean `Origin.LedgerReconciliation`（买卖点alpha2.pdf p5–6 §6/§7 逐式）：
+//   - `ledger_identity_no_cost`：无成本时毛腿收益求和 ≡ 净额逐 bar 求和
+//     Σ_v σ_v q_v (P_{ρ_v} − P_{λ_v}) = Σ_{t<T} N_t ΔP_t（telescoping）。
+//   - `section7_two_leg_sum` / `hedged_two_leg_zero`：G_p+G_c = σ(Q−H)ΔP；H=Q ⟹ 0。
+//   - `cost_reconciliation_with_net_cost`：成本按腿分配（hAlloc）后毛成本求和 ≡ 净成本求和。
+//   - `ledger_identity_with_cost`：毛账净额（毛收益−毛成本）≡ 净账净额。
+//
+//  坐标口径（本票指定参考）：leg.rs `net_target_units`/`gross_target_units`
+//  （毛腿→净持仓折叠坐标）与 risk.rs `LeverageCaps`/`VoiceNotional`（毛/净敞口美元空间，
+//  N≤G 三角不等式）。本段只加测试锁：不改任何生产判定路径、不碰 OmsType::Netting。
+// ════════════════════════════════════════════════════════════════════════════
+
+/// 对账测试场景里的单腿（带自己入出场 bar 的毛腿；生产 LegTarget 只含当 bar 目标，
+/// 跨 bar 身份在腿级账本里由 entry/exit 追踪——这里是 Lean `LedgerLeg` 的测试镜像）。
+struct ReconcileLeg {
+    side: VoiceSide,
+    units: f64,
+    entry: usize,
+    exit: usize,
+}
+
+impl ReconcileLeg {
+    /// σ_v：方向符号（Long→+1 / Short→−1 / Flat→0，对齐 Lean `LedgerLeg.signedQ`）。
+    fn sign(&self) -> f64 {
+        match self.side {
+            VoiceSide::Long => 1.0,
+            VoiceSide::Short => -1.0,
+            VoiceSide::Flat => 0.0,
+        }
+    }
+
+    /// 单腿毛收益 G_v = σ_v q_v (P_{ρ_v} − P_{λ_v})（Lean `LedgerLeg.entryPnl`）。
+    fn entry_pnl(&self, prices: &[f64]) -> f64 {
+        self.sign() * self.units * (prices[self.exit] - prices[self.entry])
+    }
+
+    /// 转生产坐标 `LegTarget`（`e_idx` 只是本 bar 树内偏移，`net_target_units`/`gross_target_units`
+    /// 只读 side/units——role 取 Ambient 基线不参与折叠）。
+    fn as_target(&self, e_idx: usize) -> LegTarget {
+        LegTarget {
+            e_idx,
+            side: self.side,
+            units: self.units,
+            role: role(Horizontal::First, Vertical::Ambient, Dir::Plus),
+        }
+    }
+
+    fn active_at(&self, bar: usize) -> bool {
+        self.entry <= bar && bar < self.exit
+    }
+}
+
+/// 三腿对账场景：父多头腿 [0,4)、子空头短差腿 [1,3)（H<Q）、晚入场多头腿 [2,4)。
+/// 价格路径含涨跌（毛腿各自吃端点差，净额逐 bar 吃增量）。
+fn reconciliation_scenario() -> (Vec<ReconcileLeg>, Vec<f64>) {
+    (
+        vec![
+            ReconcileLeg { side: VoiceSide::Long, units: 2.0, entry: 0, exit: 4 },
+            ReconcileLeg { side: VoiceSide::Short, units: 1.0, entry: 1, exit: 3 },
+            ReconcileLeg { side: VoiceSide::Long, units: 0.5, entry: 2, exit: 4 },
+        ],
+        vec![100.0, 103.0, 101.5, 107.0, 110.0],
+    )
+}
+
+/// ★对账锁①（Lean `ledger_identity_no_cost`）：毛腿收益求和 ≡ 净额逐 bar 求和。
+/// 逐 bar 用 `net_target_units` 把活动腿折成净持仓（本票指定参考坐标）吃 ΔP_t；
+/// 并逐 bar 断言 |net| ≤ gross（risk.rs `net_le_gross` 的 units 空间坐标）。
+#[test]
+fn ledger_reconciliation_gross_leg_pnl_equals_net_bar_pnl_no_cost() {
+    let (legs, prices) = reconciliation_scenario();
+    let bars = prices.len() - 1;
+
+    let gross_pnl: f64 = legs.iter().map(|l| l.entry_pnl(&prices)).sum();
+
+    let mut net_pnl = 0.0;
+    for bar in 0..bars {
+        let active: Vec<LegTarget> = legs
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| l.active_at(bar))
+            .map(|(i, l)| l.as_target(i))
+            .collect();
+        let net = net_target_units(&active);
+        let gross = gross_target_units(&active);
+        assert!(
+            net.abs() <= gross + 1e-12,
+            "bar {bar}: |net|={} ≤ gross={} 三角不等式（坐标镜像 risk.rs net_le_gross）",
+            net.abs(),
+            gross
+        );
+        net_pnl += net * (prices[bar + 1] - prices[bar]);
+    }
+
+    let eps = 1e-9;
+    assert!(
+        (gross_pnl - net_pnl).abs() < eps,
+        "毛腿收益求和 {gross_pnl} ≠ 净额逐 bar 求和 {net_pnl}（telescoping 恒等式被破坏）"
+    );
+}
+
+/// ★对账锁②（Lean `section7_two_leg_sum`/`hedged_two_leg_zero`，PDF p6 §7 逐式）：
+/// 单 bar 两腿：G_p+G_c = σ(Q−H)ΔP；H=Q ⟹ 0；H<Q ⟹ 收益来自剩余净敞口 σ(Q−H)。
+#[test]
+fn ledger_reconciliation_section7_two_leg_offset_identity() {
+    let dp = 7.0;
+    let parent = ReconcileLeg { side: VoiceSide::Long, units: 2.0, entry: 0, exit: 1 };
+    let child_hedged = ReconcileLeg { side: VoiceSide::Short, units: 2.0, entry: 0, exit: 1 };
+    let child_half = ReconcileLeg { side: VoiceSide::Short, units: 1.0, entry: 0, exit: 1 };
+
+    // H=Q ⟹ G_p+G_c = σ(Q−Q)ΔP = 0，净额折叠同样为 0。
+    let two: Vec<LegTarget> = (0..2).map(|i| {
+        [&parent, &child_hedged][i].as_target(i)
+    }).collect();
+    assert_eq!(net_target_units(&two), 0.0);
+    let gross_hedged: f64 = [&parent, &child_hedged].iter().map(|l| l.entry_pnl(&[0.0, dp])).sum();
+    assert_eq!(gross_hedged, 0.0);
+
+    // H=1<Q=2 ⟹ 剩余净敞口 N = σ(Q−H) = 1；G_p+G_c = 1·ΔP = N·ΔP。
+    let two_half: Vec<LegTarget> = (0..2).map(|i| {
+        [&parent, &child_half][i].as_target(i)
+    }).collect();
+    let net_half = net_target_units(&two_half);
+    assert_eq!(net_half, 1.0);
+    let gross_half: f64 = [&parent, &child_half].iter().map(|l| l.entry_pnl(&[0.0, dp])).sum();
+    assert_eq!(gross_half, net_half * dp);
+}
+
+/// ★对账锁③（Lean `cost_reconciliation_with_net_cost`/`ledger_identity_with_cost`）：
+/// 成本按腿分配（每 bar 净成本 C_t = Σ_l c_{l,t}，hAlloc）后毛成本求和 ≡ 净成本求和；
+/// 且毛账净额（毛收益−毛成本）≡ 净账净额（逐 bar 净收益−逐 bar 净成本）。
+#[test]
+fn ledger_reconciliation_cost_allocation_gross_equals_net() {
+    let (legs, prices) = reconciliation_scenario();
+    let bars = prices.len() - 1;
+
+    // 分配矩阵 c[l][t]：3 腿 × 4 bar（不活动 bar 的腿分配记为 0——成本只跟着活动腿走）。
+    let c: Vec<Vec<f64>> = vec![
+        vec![0.5, 0.2, 0.3, 0.1], // 腿0 [0,4) 全期活动
+        vec![0.0, 0.4, 0.2, 0.0], // 腿1 [1,3)
+        vec![0.0, 0.0, 0.25, 0.35], // 腿2 [2,4)
+    ];
+    for (l, row) in c.iter().enumerate() {
+        for (t, &v) in row.iter().enumerate() {
+            assert!(
+                v == 0.0 || legs[l].active_at(t),
+                "场景构造错误：非活动腿 {l} 在 bar {t} 被分配了成本 {v}"
+            );
+        }
+    }
+    let c_t: Vec<f64> = (0..bars).map(|t| c.iter().map(|row| row[t]).sum::<f64>()).collect();
+
+    let gross_cost: f64 = c.iter().map(|row| row.iter().sum::<f64>()).sum();
+    let net_cost: f64 = c_t.iter().sum();
+    let eps = 1e-12;
+    assert!(
+        (gross_cost - net_cost).abs() < eps,
+        "毛成本求和 {gross_cost} ≠ 净成本求和 {net_cost}（hAlloc 下求和换序被破坏）"
+    );
+
+    // 全对账：毛收益−毛成本 ≡ 净收益−净成本（Lean ledger_identity_with_cost 的测试锁形态）。
+    let gross_pnl: f64 = legs.iter().map(|l| l.entry_pnl(&prices)).sum();
+    let mut net_pnl = 0.0;
+    for bar in 0..bars {
+        let active: Vec<LegTarget> = legs
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| l.active_at(bar))
+            .map(|(i, l)| l.as_target(i))
+            .collect();
+        net_pnl += net_target_units(&active) * (prices[bar + 1] - prices[bar]);
+    }
+    assert!(
+        ((gross_pnl - gross_cost) - (net_pnl - net_cost)).abs() < 1e-9,
+        "毛账净额 {} ≠ 净账净额 {}",
+        gross_pnl - gross_cost,
+        net_pnl - net_cost
+    );
+}
+
+/// ★对账锁④（本票指定参考坐标 risk.rs `LeverageCaps`）：
+/// 美元空间毛/净敞口 + 毛/净杠杆帽：双开 long 300 + short 200 ⟹ N=100 ≤ G=500、
+/// L^N ≤ L^G；毛/净帽须同时满足（净帽不能替代毛帽——Lean `net_ok_not_imply_gross_ok` 镜像）。
+#[test]
+fn ledger_reconciliation_leverage_caps_coordinates() {
+    let voices = [
+        VoiceNotional { side: VoiceSide::Long, notional_mag: 300 },
+        VoiceNotional { side: VoiceSide::Short, notional_mag: 200 },
+    ];
+    assert_eq!(gross_notional(&voices), 500);
+    assert_eq!(net_notional(&voices), 100);
+    let m = leverage_metrics(&voices, 100.0);
+    assert!(m.net <= m.gross, "N_t ≤ G_t 三角不等式");
+    assert!(m.net_lev <= m.gross_lev, "L^N_t ≤ L^G_t（正权益除法保序）");
+
+    let caps_ok = LeverageCaps { gross_cap: 6.0, net_cap: 2.0 };
+    assert!(leverage_ok(m, caps_ok), "毛/净帽同时满足时应通过");
+
+    // 净帽过宽、毛帽收紧：只查净会漏毛（G=500/E=5 > 4 违反毛帽）。
+    let caps_tight_gross = LeverageCaps { gross_cap: 4.0, net_cap: 2.0 };
+    assert!(
+        !leverage_ok(m, caps_tight_gross),
+        "毛帽违反时必须拒绝（净帽不替代毛帽）"
+    );
 }
