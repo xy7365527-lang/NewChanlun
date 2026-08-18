@@ -88,6 +88,12 @@ name = "p992_gauge_diff"
 path = "src/bin/p992_gauge_diff.rs"
 required-features = ["backtest_bin"]
 
+# #1035 探针同款（一类点提前量普查，use theta_v0::backtest）——required-features 同上。
+[[bin]]
+name = "p1035_type1_lead"
+path = "src/bin/p1035_type1_lead.rs"
+required-features = ["backtest_bin"]
+
 # 纯买卖点择时隔离实验（goal #5 最根本问题：缠论买卖点择时本身有无 alpha）。
 # 离散事件状态机（仓位∈{+1,0,-1}），不做 π_Θ 覆盖/净额——只在买卖点切换仓位。
 [[bin]]
