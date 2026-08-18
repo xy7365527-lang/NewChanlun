@@ -245,7 +245,7 @@ def _synthetic_bars(n: int):
     for k in range(n):
         base = (
             100.0
-            + 40.0 * math.sin(k * 0.004)
+            + 60.0 * math.sin(k * 0.004)
             + 10.0 * math.sin(k * 0.05)
             + 3.0 * math.sin(k * 0.17 + 1.0)
             + 1.5 * math.sin(k * 0.31 + 2.0)
