@@ -115,7 +115,8 @@ pub enum DirCriterion {
     CoreSeparation,
     /// 外缘分离：上行 `last.dd > first.gg`，下行 `last.gg < first.dd`。
     EnvelopeSeparation,
-    /// 全段外包络双升双降：`gg`（high）与 `dd`（low）同向严格移动。
+    /// 双升双降（#815 底稿第三臂）：`zg`/`zd`（中枢上下沿）同向严格移动——底稿 Python
+    /// `_centers_relation_by_zg_zd` 比较的 Center `high`/`low` 实为 ZG/ZD（#900 F1 对齐）。
     DualEnvelopeRiseFall,
 }
 
@@ -147,10 +148,13 @@ pub const DEFAULT_DIR_CRITERION: DirCriterion = DirCriterion::EnvelopeSeparation
 ///
 /// 边界：中心少于两个时无法比较 M-2。盘整块（含 LevelExpansion 扩展链成员，M-1：盘整只含
 /// 一个中枢）的 `Compose` 载荷恒为单中枢——此时**明确**退回既有首末子走势 `hi` 端点规则
-/// （只作单中枢载荷兼容，不是第四套 M-2 判据）。趋势块（同向延续链）载荷 ≥2 中枢走 M-2。少于两个子走势则返回
-/// `None`，不再像旧实现那样把空载荷静默冒充 `Up`。中心足够但所选判据既不向上也不向下时也
-/// 返回 `None`；不会因判据失败而改用另一条判据兜底。#897 后趋势块已携真实中枢序列（前缀
-/// 信息计算，全量/增量 bit-exact），#870 三臂重测可直接复用生产载荷。
+/// （只作单中枢载荷兼容，不是第四套 M-2 判据；例外条款已按 #804 ③ 落
+/// `.chanlun/definitions/qushi.md`，票号 #900）。趋势块（同向延续链）载荷 ≥2 中枢走 M-2，
+/// **逐对相邻中枢全同向**才判该向（#900 F2——「依次同向」是相邻对，三枢先跌后涨时首尾
+/// 比较会误判 Up）。子走势恰好一个时退回旧语义（`last.hi() >= first.hi()` 判 `Up`，#900 F3
+/// 恢复——原 commit 只欲移除「空 `subs` 静默冒充 `Up`」）；空载荷仍 `None`。中心足够但
+/// 所选判据既不向上也不向下时也返回 `None`；不会因判据失败而改用另一条判据兜底。#897 后
+/// 趋势块已携真实中枢序列（前缀信息计算，全量/增量 bit-exact），#870 三臂重测可直接复用生产载荷。
 pub fn rmove_dir(rmove: &RMove) -> Option<Direction> {
     rmove_dir_with_criterion(rmove, DEFAULT_DIR_CRITERION)
 }
@@ -161,7 +165,8 @@ pub fn rmove_dir_with_criterion(rmove: &RMove, criterion: DirCriterion) -> Optio
         RMove::Segment { direction, .. } => Some(*direction),
         RMove::Compose { subs, centers, .. } => {
             if centers.len() >= 2 {
-                return criterion.classify(&centers[0], &centers[centers.len() - 1]);
+                // #900 F2：逐对相邻判（「依次同向」），不再只比首尾。
+                return criterion.classify_adjacent_pairs(centers);
             }
             legacy_sub_endpoint_dir(subs)
         }
@@ -177,11 +182,30 @@ impl DirCriterion {
             Self::EnvelopeSeparation => {
                 classify_binary_relation(last.dd > first.gg, last.gg < first.dd)
             }
+            // ★#900 F1：第三臂（双升双降）保真复现 #815 底稿 Python 判据
+            // `_centers_relation_by_zg_zd`——比的是中枢上下沿 **ZG/ZD**，不是外包络 GG/DD。
+            // 旧实现比 GG/DD，合法输入即可判反（底稿反例：前枢 [0,4,10,20]、后枢 [−1,5,11,19]
+            // ——按 ZG/ZD 判 Up，按 GG/DD 判 Down）。
             Self::DualEnvelopeRiseFall => classify_binary_relation(
-                last.gg > first.gg && last.dd > first.dd,
-                last.gg < first.gg && last.dd < first.dd,
+                last.zg > first.zg && last.zd > first.zd,
+                last.zg < first.zg && last.zd < first.zd,
             ),
         }
+    }
+
+    /// ★#900 F2：三中枢以上须「依次同向」——**逐对相邻**判（M-2 原文语义），全同向才取该向。
+    /// 旧实现只比首尾，三枢先跌后涨时首尾仍可能判 Up。任一相邻对不确定或方向不一致 ⟹ `None`。
+    fn classify_adjacent_pairs(self, centers: &[Center]) -> Option<Direction> {
+        let mut acc: Option<Direction> = None;
+        for pair in centers.windows(2) {
+            let d = self.classify(&pair[0], &pair[1])?;
+            match acc {
+                None => acc = Some(d),
+                Some(prev) if prev == d => {}
+                Some(_) => return None,
+            }
+        }
+        acc
     }
 }
 
@@ -203,10 +227,10 @@ fn classify_binary_relation(up: bool, down: bool) -> Option<Direction> {
     }
 }
 
+/// ★#900 F3：恢复单子走势旧语义——`subs.len() == 1` 时 `last.hi() >= first.hi()`（首末同一
+/// 走势，恒真）判 `Up`。原 commit 只欲移除「空 `subs` 静默冒充 `Up`」，把单子走势一并
+/// 打成 `None` 是票面意图外的改义（#900 追溯评审查实）。空载荷仍 `None`。
 fn legacy_sub_endpoint_dir(subs: &[RMove]) -> Option<Direction> {
-    if subs.len() < 2 {
-        return None;
-    }
     let first = subs.first()?;
     let last = subs.last()?;
     Some(if last.hi() >= first.hi() {
@@ -524,13 +548,27 @@ mod tests {
     }
 
     #[test]
-    fn rmove_dir_dual_rise_fall_uses_full_envelope_not_core_bounds() {
-        // 外包络 dd/gg 双升，但核心 zd 下降；第三臂必须仍判 Up。
-        let rmove = compose_rmove(vec![], vec![center(0, 4, 10, 20), center(1, 3, 11, 21)]);
+    fn rmove_dir_dual_rise_fall_uses_zg_zd_center_edges() {
+        // ★#900 F1 底稿反例：前枢 [0,4,10,20]、后枢 [−1,5,11,19]。
+        // 按 ZG/ZD（中枢上下沿，底稿 Python 判据）判 Up（11>10 且 5>4）；
+        // 旧实现按 GG/DD 会判 Down（19<20 且 −1<0）——合法输入判反。
+        let rmove = compose_rmove(vec![], vec![center(0, 4, 10, 20), center(-1, 5, 11, 19)]);
 
         assert_eq!(
             rmove_dir_with_criterion(&rmove, DirCriterion::DualEnvelopeRiseFall),
             Some(Direction::Up)
+        );
+    }
+
+    #[test]
+    fn rmove_dir_dual_rise_fall_zg_up_zd_down_is_undetermined() {
+        // ZG 升但 ZD 降（外包络 GG/DD 双升）——双升双降必须两维同向，混向判 None。
+        // 旧实现按 GG/DD 会判 Up（#900 F1 修掉的口径）。
+        let rmove = compose_rmove(vec![], vec![center(0, 4, 10, 20), center(1, 3, 11, 21)]);
+
+        assert_eq!(
+            rmove_dir_with_criterion(&rmove, DirCriterion::DualEnvelopeRiseFall),
+            None
         );
     }
 
@@ -563,30 +601,30 @@ mod tests {
                 center(0, 2, 4, 6),
                 "envelope-down-equality",
             ),
-            // 双升双降：high/low 任一维相等都不得放宽成同向。
+            // 双升双降（#900 F1 后比 ZG/ZD）：zg/zd 任一维相等都不得放宽成同向。
             (
                 DirCriterion::DualEnvelopeRiseFall,
                 center(0, 2, 4, 10),
+                center(1, 3, 4, 11),
+                "dual-up-zg-equality",
+            ),
+            (
+                DirCriterion::DualEnvelopeRiseFall,
+                center(0, 2, 4, 10),
+                center(1, 2, 5, 11),
+                "dual-up-zd-equality",
+            ),
+            (
+                DirCriterion::DualEnvelopeRiseFall,
                 center(1, 3, 5, 10),
-                "dual-up-high-equality",
-            ),
-            (
-                DirCriterion::DualEnvelopeRiseFall,
-                center(0, 2, 4, 10),
-                center(0, 3, 5, 11),
-                "dual-up-low-equality",
+                center(0, 2, 5, 11),
+                "dual-down-zg-equality",
             ),
             (
                 DirCriterion::DualEnvelopeRiseFall,
                 center(1, 3, 5, 10),
-                center(0, 2, 4, 10),
-                "dual-down-high-equality",
-            ),
-            (
-                DirCriterion::DualEnvelopeRiseFall,
-                center(0, 3, 5, 11),
-                center(0, 2, 4, 10),
-                "dual-down-low-equality",
+                center(0, 3, 4, 9),
+                "dual-down-zd-equality",
             ),
         ];
 
@@ -699,8 +737,17 @@ mod tests {
     }
 
     #[test]
-    fn rmove_dir_underfilled_fallback_is_undetermined() {
+    fn rmove_dir_empty_subs_fallback_is_undetermined() {
+        // ★#900 F3：只移除「空 subs 静默冒充 Up」——空载荷仍 None。
         let empty = compose_rmove(vec![], vec![]);
+
+        assert_eq!(rmove_dir(&empty), None);
+    }
+
+    #[test]
+    fn rmove_dir_single_sub_restores_legacy_up_semantics() {
+        // ★#900 F3：单子走势恢复旧语义——last.hi() >= first.hi()（首末同一走势，恒真）判 Up。
+        // 原 commit 把单子走势一并打成 None 是票面意图外的改义。
         let one_sub = compose_rmove(
             vec![RMove::Segment {
                 direction: Direction::Down,
@@ -710,8 +757,33 @@ mod tests {
             vec![center(10, 12, 18, 20)],
         );
 
-        assert_eq!(rmove_dir(&empty), None);
-        assert_eq!(rmove_dir(&one_sub), None);
+        assert_eq!(rmove_dir(&one_sub), Some(Direction::Up));
+    }
+
+    #[test]
+    fn rmove_dir_three_centers_requires_adjacent_pairs_all_same_direction() {
+        // ★#900 F2：三枢先涨后跌——首尾比较会判 Up（last.dd=7 > first.gg=6），
+        // 但「依次同向」要求相邻对全同向：c1→c2 升、c2→c3 判不出 ⟹ 整体 None。
+        let mixed = compose_rmove(
+            vec![],
+            vec![
+                center(0, 2, 4, 6),
+                center(10, 12, 14, 16),
+                center(7, 8, 10, 20),
+            ],
+        );
+        assert_eq!(rmove_dir(&mixed), None);
+
+        // 同款三枢全同向（单调升）⟹ Up。
+        let monotone = compose_rmove(
+            vec![],
+            vec![
+                center(0, 2, 4, 6),
+                center(10, 12, 14, 16),
+                center(20, 22, 24, 26),
+            ],
+        );
+        assert_eq!(rmove_dir(&monotone), Some(Direction::Up));
     }
 
     #[test]

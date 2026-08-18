@@ -78,6 +78,8 @@ pub type PiThetaDecision = (OrderDecision, ProtocolEvent);
 mod ancok;
 mod compose;
 mod element;
+// #900 F4：interp.rs TreeKey::emit 复用 rmove_side（收编第三处首末 hi 复制），只暴露这一个入口。
+pub(crate) use element::rmove_side;
 mod held;
 mod leg;
 mod role;

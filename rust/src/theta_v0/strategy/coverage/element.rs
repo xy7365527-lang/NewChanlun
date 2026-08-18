@@ -383,7 +383,10 @@ fn push_element_tree(
 /// `RMove::Segment` 直接取 direction；`RMove::Compose` 取外缘趋势方向（首尾 hi 比较，与
 /// `recursive_tower::LeveledMove::fold_direction` / `classifier::mod::rmove_direction` 同口径——
 /// 外缘上移=Up=Long，下移=Down=Short）。空 subs ⟹ 缺省 Up（防御性，与塔口径一致）。
-fn rmove_side(m: &RMove) -> VoiceSide {
+///
+/// ★#900 F4：`pub(crate)` + `coverage::rmove_side` 重导出——`interp.rs` `TreeKey::emit` 已
+/// 收编复用本函数（第三处首末 hi 复制注销），行为与旧复制逐位一致。
+pub(crate) fn rmove_side(m: &RMove) -> VoiceSide {
     let dir = match m {
         RMove::Segment { direction, .. } => *direction,
         RMove::Compose { subs, .. } => match (subs.first(), subs.last()) {
