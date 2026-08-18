@@ -78,6 +78,7 @@ mod ledger;
 mod open_ledger;
 mod opsem_dump;
 mod pan_div;
+pub mod pi_bsp_cli_args;
 pub mod pooling_icc;
 pub mod prereg_windows;
 pub mod runner;

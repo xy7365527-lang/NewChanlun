@@ -98,34 +98,47 @@ class TestMarketImpactSlippage:
         assert m.apply(100.0, "buy") == 100.0
         assert m.apply(100.0, "sell") == 100.0
 
-    def test_below_threshold_no_impact(self) -> None:
-        m = MarketImpactSlippage(threshold_pct=0.01, impact_coeff=0.1)
-        # participation = 50 / 10000 = 0.005 < 0.01
+    def test_small_participation_has_small_nonzero_impact(self) -> None:
+        # #920：旧版在参与率 < 1% 时冲击恒 0——与平方根律相反（定律核心主张是小单的
+        # 边际冲击异常地大）。参与率 0.5% 必须产出小但非零的冲击。
+        m = MarketImpactSlippage(y=0.9, sigma_daily=0.02)
         result = m.apply_slippage(100.0, "buy", volume=50.0, avg_daily_volume=10000.0)
-        assert result == 100.0
+        expected = 100.0 * (1.0 + 0.9 * 0.02 * math.sqrt(0.005))
+        assert result == pytest.approx(expected)
+        assert result > 100.0
 
-    def test_above_threshold_buy_impact(self) -> None:
-        m = MarketImpactSlippage(threshold_pct=0.01, impact_coeff=0.1)
-        # participation = 500 / 10000 = 0.05 > 0.01
-        # impact = 0.1 * sqrt(0.05) ≈ 0.02236
+    def test_buy_impact_sqrt_law(self) -> None:
+        m = MarketImpactSlippage(y=0.9, sigma_daily=0.02)
         result = m.apply_slippage(100.0, "buy", volume=500.0, avg_daily_volume=10000.0)
-        expected = 100.0 * (1.0 + 0.1 * math.sqrt(0.05))
+        expected = 100.0 * (1.0 + 0.9 * 0.02 * math.sqrt(0.05))
         assert result == pytest.approx(expected)
 
-    def test_above_threshold_sell_impact(self) -> None:
-        m = MarketImpactSlippage(threshold_pct=0.01, impact_coeff=0.1)
+    def test_sell_impact_sqrt_law(self) -> None:
+        m = MarketImpactSlippage(y=0.9, sigma_daily=0.02)
         result = m.apply_slippage(100.0, "sell", volume=500.0, avg_daily_volume=10000.0)
-        expected = 100.0 * (1.0 - 0.1 * math.sqrt(0.05))
+        expected = 100.0 * (1.0 - 0.9 * 0.02 * math.sqrt(0.05))
         assert result == pytest.approx(expected)
+
+    def test_custom_delta(self) -> None:
+        # delta 文献带 0.4–0.7，是可调参。
+        m = MarketImpactSlippage(y=0.9, sigma_daily=0.02, delta=0.6)
+        result = m.apply_slippage(100.0, "buy", volume=500.0, avg_daily_volume=10000.0)
+        expected = 100.0 * (1.0 + 0.9 * 0.02 * 0.05**0.6)
+        assert result == pytest.approx(expected)
+
+    def test_zero_sigma_daily_is_honest_no_impact(self) -> None:
+        # sigma_daily 默认 0 = 无波动率信息 ⟹ 不臆造冲击（有 volume 也不产冲击）。
+        m = MarketImpactSlippage()
+        assert m.apply_slippage(100.0, "buy", volume=500.0, avg_daily_volume=10000.0) == 100.0
 
     def test_zero_avg_volume_returns_original(self) -> None:
-        m = MarketImpactSlippage()
+        m = MarketImpactSlippage(sigma_daily=0.02)
         assert m.apply_slippage(100.0, "buy", volume=100.0, avg_daily_volume=0.0) == 100.0
 
     def test_frozen(self) -> None:
         m = MarketImpactSlippage()
         with pytest.raises(AttributeError):
-            m.threshold_pct = 0.5  # type: ignore[misc]
+            m.sigma_daily = 0.02  # type: ignore[misc]
 
 
 # ── FixedRateCommission ───────────────────────────────────────────

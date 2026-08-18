@@ -61,39 +61,45 @@ class TestPercentSlippage:
 # -- MarketImpactSlippage --
 
 class TestMarketImpactSlippage:
-    def test_below_threshold_no_impact(self) -> None:
-        model = MarketImpactSlippage(threshold_pct=0.01, impact_coeff=0.1)
-        # volume/adv = 0.005 < 0.01 threshold
+    def test_small_participation_has_small_nonzero_impact(self) -> None:
+        # #920：旧版在参与率 < 1% 时冲击恒 0——与平方根律相反。0.5% 参与率必须非零。
+        model = MarketImpactSlippage(y=0.9, sigma_daily=0.02)
         result = model.apply_slippage(100.0, "buy", volume=500.0, avg_daily_volume=100_000.0)
-        assert result == 100.0
+        expected = 100.0 * (1.0 + 0.9 * 0.02 * math.sqrt(0.005))
+        assert result == pytest.approx(expected)
+        assert result > 100.0
 
-    def test_above_threshold_buy(self) -> None:
-        model = MarketImpactSlippage(threshold_pct=0.01, impact_coeff=0.1)
-        # volume/adv = 0.05 > 0.01
+    def test_buy_impact_sqrt_law(self) -> None:
+        model = MarketImpactSlippage(y=0.9, sigma_daily=0.02)
         result = model.apply_slippage(100.0, "buy", volume=5000.0, avg_daily_volume=100_000.0)
-        expected = 100.0 * (1.0 + 0.1 * math.sqrt(0.05))
+        expected = 100.0 * (1.0 + 0.9 * 0.02 * math.sqrt(0.05))
         assert result == pytest.approx(expected)
 
-    def test_above_threshold_sell(self) -> None:
-        model = MarketImpactSlippage(threshold_pct=0.01, impact_coeff=0.1)
+    def test_sell_impact_sqrt_law(self) -> None:
+        model = MarketImpactSlippage(y=0.9, sigma_daily=0.02)
         result = model.apply_slippage(100.0, "sell", volume=5000.0, avg_daily_volume=100_000.0)
-        expected = 100.0 * (1.0 - 0.1 * math.sqrt(0.05))
+        expected = 100.0 * (1.0 - 0.9 * 0.02 * math.sqrt(0.05))
         assert result == pytest.approx(expected)
 
     def test_missing_volume_no_impact(self) -> None:
-        model = MarketImpactSlippage(threshold_pct=0.01, impact_coeff=0.1)
+        model = MarketImpactSlippage(y=0.9, sigma_daily=0.02)
         assert model.apply_slippage(100.0, "buy", volume=None, avg_daily_volume=100_000.0) == 100.0
 
     def test_missing_adv_no_impact(self) -> None:
-        model = MarketImpactSlippage(threshold_pct=0.01, impact_coeff=0.1)
+        model = MarketImpactSlippage(y=0.9, sigma_daily=0.02)
         assert model.apply_slippage(100.0, "buy", volume=5000.0, avg_daily_volume=None) == 100.0
 
     def test_zero_adv_no_impact(self) -> None:
-        model = MarketImpactSlippage(threshold_pct=0.01, impact_coeff=0.1)
+        model = MarketImpactSlippage(y=0.9, sigma_daily=0.02)
         assert model.apply_slippage(100.0, "buy", volume=5000.0, avg_daily_volume=0.0) == 100.0
 
+    def test_zero_sigma_daily_is_honest_no_impact(self) -> None:
+        # sigma_daily 默认 0 = 无波动率信息 ⟹ 不臆造冲击。
+        model = MarketImpactSlippage()
+        assert model.apply_slippage(100.0, "buy", volume=5000.0, avg_daily_volume=100_000.0) == 100.0
+
     def test_buy_sell_symmetry(self) -> None:
-        model = MarketImpactSlippage(threshold_pct=0.01, impact_coeff=0.1)
+        model = MarketImpactSlippage(y=0.9, sigma_daily=0.02)
         buy = model.apply_slippage(100.0, "buy", volume=5000.0, avg_daily_volume=100_000.0)
         sell = model.apply_slippage(100.0, "sell", volume=5000.0, avg_daily_volume=100_000.0)
         assert buy > 100.0

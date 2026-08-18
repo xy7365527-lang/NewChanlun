@@ -742,21 +742,12 @@ impl TreeKey {
     /// 递归发射一个 move 及其全部 sub_moves 的深层指纹（前序遍历，父在子前——与
     /// [`coverage::push_element_tree`] 同序，确保结构同构的两树发射序一致）。
     fn emit(m: &LeveledMove, fp: &mut Vec<(u32, u32, u64, usize, usize, u8, i64, i64, usize)>) {
-        // dir：与 rmove_side 同口径——Segment.direction / Compose 外缘 first.hi vs last.hi（0=Up,1=Down）。
-        let dir: u8 = match &m.rmove {
-            super::super::classifier::descend::RMove::Segment { direction, .. } => {
-                match direction {
-                    super::super::types::Direction::Up => 0,
-                    super::super::types::Direction::Down => 1,
-                }
-            }
-            super::super::classifier::descend::RMove::Compose { subs, .. } => {
-                match (subs.first(), subs.last()) {
-                    (Some(f), Some(l)) if l.hi() >= f.hi() => 0,
-                    (Some(_), Some(_)) => 1,
-                    _ => 0,
-                }
-            }
+        // dir：直接复用 coverage::rmove_side（#900 F4 收编——不再复制「Segment.direction /
+        // Compose 首末 hi / 空载 Up」旧逻辑，与 rmove_side 逐位一致）。0=Up(Long),1=Down(Short)。
+        let dir: u8 = match coverage::rmove_side(&m.rmove) {
+            VoiceSide::Long => 0,
+            VoiceSide::Short => 1,
+            VoiceSide::Flat => unreachable!("rmove_side 不产 Flat（#900 F4 收编点）"),
         };
         fp.push((
             // ★codex审O补漏(644元模式第4次): extract_elements 的 level 输出=rmove.level()，

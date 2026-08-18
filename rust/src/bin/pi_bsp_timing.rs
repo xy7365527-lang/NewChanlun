@@ -59,6 +59,7 @@ use newchan_rust::theta_v0::backtest::metrics::{self, TradeRecord};
 use newchan_rust::theta_v0::backtest::mu_estimator::{
     chi_dimension_three_return, MuClass, MuEstimator, MuObservation, PositionState,
 };
+use newchan_rust::theta_v0::backtest::pi_bsp_cli_args::parse_cli_args;
 use newchan_rust::theta_v0::backtest::selector::chi_open_gate_lcb;
 use newchan_rust::theta_v0::classifier::recursive_tower::ElementId;
 use newchan_rust::theta_v0::classifier::Classification;
@@ -558,55 +559,9 @@ fn run_state_machine(
     }
 }
 
-/// 命令行参数解析结果（#412：窗口是否切片提升为显式字段，杜绝「传了 THETA 就静默丢窗口」）。
-#[derive(Debug, PartialEq)]
-struct CliArgs {
-    symbol: String,
-    window: Option<(String, String)>,
-    theta: f64,
-    z_alpha: f64,
-}
-
-const USAGE: &str = "<SYMBOL> [START_DATE END_DATE [THETA [Z_ALPHA]]]\n  SYMBOL: BTC/ES/CL/GC/BRN/DX/QQQ/OKLO\n  THETA: χ 阈值 θ（默认 0；负值趋近全覆盖，验收边界）\n  Z_ALPHA: LCB 置信分位（默认 0）";
-
-/// 解析单个 `Θ_risk` 浮点参数（THETA / Z_ALPHA 共用）——静默必须变响亮：
-/// 解析失败直接报错返回，不做 `unwrap_or(0.0)` 式的静默默认值退化。
-fn parse_theta_like(field_name: &str, raw: &str) -> Result<f64, String> {
-    raw.parse::<f64>()
-        .map_err(|e| format!("{field_name} 解析失败（{raw:?}）: {e}"))
-}
-
-/// 显式按位置解析（#412 修复核心）：`window` 只取决于 `START_DATE END_DATE` 是否被传入，
-/// 与是否额外传了 THETA/Z_ALPHA **无关**——不再用 `args.len()==4` 这种「参数数量决定语义」
-/// 的魔数判据（旧判据在 THETA 存在时 `args.len()==5`，导致窗口切片无声跳过，是 #412 根因）。
-/// 不认识的参数个数一律报错返回 `Err`（响亮失败），不做静默降级。
-fn parse_cli_args(args: &[String]) -> Result<CliArgs, String> {
-    if args.len() < 2 {
-        return Err(format!("用法: pi_bsp_timing {USAGE}"));
-    }
-    let symbol = args[1].clone();
-    let window = |args: &[String]| Some((args[2].clone(), args[3].clone()));
-    match args.len() {
-        2 => Ok(CliArgs { symbol, window: None, theta: 0.0, z_alpha: 0.0 }),
-        3 => Err(format!(
-            "参数数量不匹配：给了 START_DATE 但缺 END_DATE。用法: pi_bsp_timing {USAGE}"
-        )),
-        4 => Ok(CliArgs { symbol, window: window(args), theta: 0.0, z_alpha: 0.0 }),
-        5 => {
-            let theta = parse_theta_like("THETA", &args[4])?;
-            Ok(CliArgs { symbol, window: window(args), theta, z_alpha: 0.0 })
-        }
-        6 => {
-            let theta = parse_theta_like("THETA", &args[4])?;
-            let z_alpha = parse_theta_like("Z_ALPHA", &args[5])?;
-            Ok(CliArgs { symbol, window: window(args), theta, z_alpha })
-        }
-        n => Err(format!(
-            "参数数量不匹配（收到 {} 个，SYMBOL 之外只接受 0/2/3/4 个）。用法: pi_bsp_timing {USAGE}",
-            n - 1
-        )),
-    }
-}
+// #412 重做：parse_cli_args/CliArgs/parse_theta_like/USAGE 抽入 lib 模块
+// `theta_v0::backtest::pi_bsp_cli_args`，回归测试随默认 `cargo test --lib` 必跑
+// （首版放 src/bin/ 的测试文件被 cargo 误当二进制目标、从未真正编译，已回退）。
 
 fn main() -> std::process::ExitCode {
     let raw_args: Vec<String> = std::env::args().collect();
