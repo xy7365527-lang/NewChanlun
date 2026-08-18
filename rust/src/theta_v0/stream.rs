@@ -29,8 +29,11 @@
 //! **L0/L1**（操作语义结构，非 L2 alpha）：确定性结构变换（Γ→…→p_star→Schedule_Θ→per-leg 账本）。
 //! `p_star` 是 `pi_theta_position` 的 LexArgmin 结果，不蕴含实盘盈利。
 
+use super::classifier::consume_at::{BspLink, ConsumeError, ManagedBspCreation, ManagedBspPolicy};
+use super::classifier::e2eo::E2eOAssembly;
 use super::classifier::streaming::OwnedIncrementalClassifier;
 use super::config::ThetaConfig;
+use super::strategy::consume_router::{route_consume, ManagedBspLedger};
 use super::strategy::coverage::{self, KThetaRiskGate, PiThetaWeights, SepLeg};
 use super::strategy::interp::{self, ActiveLeg, TreeCache};
 use super::strategy::level_ledger::LevelLedgerMirror;
@@ -57,6 +60,10 @@ pub struct ThetaPiStream {
     overlay: OverlayState,
     /// 级别账本只读镜像（按 `id.level` 分桶；per-leg 出口）。
     level_ledger: LevelLedgerMirror,
+    /// N7 消费装配（#1097）：E2E-O 推进/消费两入口的持有方——逐 bar 随分类推进（准入信号
+    /// 授权形成面），[`consume_managed`](Self::consume_managed) 经 `consume_router` 分桶
+    /// （执行持有面）。只读旁路：产出不回流决策核（p_star/订单 bit-exact 不变）。
+    e2eo: E2eOAssembly,
     /// 已消费 bar 数（= 当前 bar 序号，喂 `exec_index` 与 `OverlayState::step`）。
     bar_idx: usize,
     /// 上一步 p*（[`target_net_units`](Self::target_net_units) 读出）。
@@ -82,6 +89,7 @@ impl ThetaPiStream {
             prev_active: Vec::new(),
             overlay: OverlayState::new(),
             level_ledger: LevelLedgerMirror::new(),
+            e2eo: E2eOAssembly::new(),
             bar_idx: 0,
             p_star: 0.0,
             last_px: None,
@@ -106,6 +114,11 @@ impl ThetaPiStream {
         let out = self.classifier.append_bar(bar);
         let classification = out.classification;
         let tower = out.tower;
+        // N7 消费接线（#1097）：E2E-O 装配逐 bar 推进（准入信号授权形成面）。只读旁路——
+        // 与 classifier 同一血缘锁步（含不可交易 bar，append_bar 本就每 bar 推进），产出
+        // （链簿/桥接簿/event_to_bsp 投影）不回流决策核，p_star/订单 bit-exact 不变。
+        self.e2eo
+            .advance(&classification, &out.candidate_streams, i);
         let px = bar.close as f64 * self.config.tick.tick_size;
         if bar.untradable || px <= 0.0 {
             // 分类器已推进；决策层跳过（与 fill loop `if !bar.untradable && px > 0.0` 同口径）。
@@ -217,6 +230,22 @@ impl ThetaPiStream {
             self.overlay.force_flat(px, self.bar_idx);
             self.level_ledger.force_flat(px, self.bar_idx);
         }
+    }
+
+    /// N7 消费接线（#1097）：谱系授权形成（[`E2eOAssembly::consume`] → `consume_at`）+ 执行持有
+    /// 分桶（[`route_consume`]）。这是 `consume_at`/`consume_router` 在生产 π 回路的**非测试调用方**
+    /// ——准入信号授权形成面（consume_at）与执行持有面（route_consume）在此对接。
+    ///
+    /// 只读出口：`creations`/`links`/`ledger` 是谱系授权形成的新产出，不回流决策核（p_star/订单
+    /// bit-exact 不变）；受管 BSP 的下游消费（M2/M4 sizing 与 fill）归后续票，本票只接线。
+    /// 幂等：跨链 prior 在装配模块内累积，重复调用只产新增（第二次零增量）。
+    pub fn consume_managed(
+        &mut self,
+        policy: &ManagedBspPolicy,
+    ) -> Result<(Vec<ManagedBspCreation>, Vec<BspLink>, ManagedBspLedger), ConsumeError> {
+        let (creations, links) = self.e2eo.consume(policy)?;
+        let ledger = route_consume(&creations);
+        Ok((creations, links, ledger))
     }
 }
 
