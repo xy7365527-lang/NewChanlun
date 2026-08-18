@@ -117,6 +117,8 @@ pub enum DirCriterion {
     EnvelopeSeparation,
     /// 双升双降（#815 底稿第三臂）：`zg`/`zd`（中枢上下沿）同向严格移动——底稿 Python
     /// `_centers_relation_by_zg_zd` 比较的 Center `high`/`low` 实为 ZG/ZD（#900 F1 对齐）。
+    /// **变体名从 #815 三臂称呼保留**（「Envelope」不指外包络 GG/DD，指第三臂的命名史），
+    /// 不重命名以免 #870 对照引用漂移。
     DualEnvelopeRiseFall,
 }
 
@@ -773,6 +775,18 @@ mod tests {
             ],
         );
         assert_eq!(rmove_dir(&mixed), None);
+
+        // 票面点名形状（#900 验收「三枢先跌后涨判 None」）：c1→c2 跌、c2→c3 涨——
+        // 旧实现只比首尾会判 Up（last.dd=7 > first.gg=6），逐对判因方向不一致 ⟹ None。
+        let dip_then_rise = compose_rmove(
+            vec![],
+            vec![
+                center(0, 2, 4, 6),
+                center(-10, -8, -6, -4),
+                center(7, 8, 10, 20),
+            ],
+        );
+        assert_eq!(rmove_dir(&dip_then_rise), None);
 
         // 同款三枢全同向（单调升）⟹ Up。
         let monotone = compose_rmove(
