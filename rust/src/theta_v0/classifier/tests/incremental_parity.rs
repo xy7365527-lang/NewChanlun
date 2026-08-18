@@ -166,12 +166,12 @@ fn cand_cache_guard_accepts_incremental_contract() {
     );
 }
 
-/// ★classify_with_tower (i) 段导出桥——tower 非空 + depth≥1 真嵌套存在。
+/// ★classify 的 `tower` 字段（逐级走势塔快照）——tower 非空 + depth≥1 真嵌套存在。
 ///
 /// 9 段 L0 → 3 个 L1 走势 → L2 中枢（几何路径）：tower[1] 含 sub_moves 非空的
 /// LeveledMove（RMove::Compose，depth=1 真嵌套）。坐实：导出桥正确产出真嵌套塔。
 #[test]
-fn classify_with_tower_depth_ge1_true_nesting() {
+fn classify_tower_depth_ge1_true_nesting() {
     let cfg = ThetaConfig::default();
     // 9 段：三组 up-down-up（每组 → 一个 L1 走势），三个 L1 走势外缘重叠成 L2 中枢。
     // ★task #142 延伸语义诚实重算（同 end_to_end_second_buy_via_l1_l2_geometric 推导）：三组
@@ -215,48 +215,6 @@ fn classify_with_tower_depth_ge1_true_nesting() {
     assert!(
         has_true_nesting,
         "tower[1] 含真嵌套 LeveledMove（sub_moves 非空，depth≥1）"
-    );
-}
-
-/// ★classify_with_tower Classification 与 classify 同输入 bit-identical（导出不改原分类）。
-#[test]
-fn classify_with_tower_classification_equals_classify() {
-    let cfg = ThetaConfig::default();
-    // ★task #142 延伸语义诚实重算（同 end_to_end_second_buy_via_l1_l2_geometric 推导）：三组
-    // 核心分离（组B 首段 hi=115<ZD_A=120、组C 首段 lo=115>ZG_B=114 ⟹ non-extension，PDF §5
-    // Step3），外缘 O_A=[110,150]/O_B=[80,125]/O_C=[112,148] 共同相交 ⟹ L2 核心 [112,125] 非空。
-    let segments = vec![
-        seg(Direction::Up, 0, 4, 110, 150),
-        seg(Direction::Down, 4, 8, 150, 120),
-        seg(Direction::Up, 8, 12, 120, 148),
-        seg(Direction::Down, 12, 16, 115, 80),
-        seg(Direction::Up, 16, 20, 80, 125),
-        seg(Direction::Down, 20, 24, 114, 85),
-        seg(Direction::Up, 24, 28, 115, 148),
-        seg(Direction::Down, 28, 32, 148, 112),
-        seg(Direction::Up, 32, 36, 112, 147),
-    ];
-    let mut closes: Vec<i64> = Vec::new();
-    for i in 0..12 {
-        closes.push(100 + if i % 2 == 0 { 40 } else { -40 });
-    }
-    for i in 0..12 {
-        closes.push(100 + if i % 2 == 0 { 5 } else { -5 });
-    }
-    for i in 0..16 {
-        closes.push(100 + if i % 2 == 0 { 3 } else { -3 });
-    }
-    let layer = ParseLayer {
-        segments: Rc::new(segments),
-        merged_bars: Rc::new(bars_from_closes(&closes)),
-        ..Default::default()
-    };
-    let expected = classify(&layer, &cfg, &[]).classification;
-    let __co4 = classify(&layer, &cfg, &[]);
-    let actual = __co4.classification;
-    assert_eq!(
-        actual, expected,
-        "classify_with_tower Classification 与 classify bit-identical（原分类不变）"
     );
 }
 
