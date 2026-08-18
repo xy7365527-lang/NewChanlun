@@ -190,7 +190,13 @@ def main(argv=None) -> int:
 
     start_override = parse_date(args.start) if args.start else None
     # 默认 end = 昨天 UTC：当日数据未完盘，落成完整分区会让续拉永久跳过该日（半截数据）。
-    end = parse_date(args.end) if args.end else dt.date.today() - dt.timedelta(days=1)
+    # dt.date.today() 是**本地**日期，与「昨天 UTC」及 fetch_k4_global.py 的 utcnow-1d
+    # 同口径不符——东时区机器会把「UTC 今天」当「昨天」，把未完盘当日落成完整分区。
+    end = (
+        parse_date(args.end)
+        if args.end
+        else dt.datetime.now(dt.timezone.utc).date() - dt.timedelta(days=1)
+    )
     if start_override is not None and end < start_override:
         raise SystemExit(f"--end（{end}）早于 --start（{start_override}）")
 

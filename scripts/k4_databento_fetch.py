@@ -165,7 +165,7 @@ def write_partition(root, symbol: str, date_str: str, store) -> Path | None:
     tmp = day_dir / f".trades.parquet.tmp.{os.getpid()}.{int(time.time() * 1000)}"
     final = day_dir / "trades.parquet"
     try:
-        store.to_parquet(tmp, pretty_ts=True, map_symbols=True)
+        store.to_parquet(tmp, pretty_ts=True, map_symbols=True, compression="zstd")
         if not tmp.exists() or pq.read_metadata(str(tmp)).num_rows == 0:
             tmp.unlink(missing_ok=True)
             return None

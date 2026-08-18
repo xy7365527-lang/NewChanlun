@@ -113,7 +113,8 @@ def test_write_partition_atomic(tmp_path):
     assert list(out.parent.glob("*.tmp.*")) == []
     assert k.partition_done(out) is True
     # 委托 DBNStore.to_parquet：pretty_ts / map_symbols 透传（ns 全精度 + symbol 列口径）
-    assert store.calls[0][1] == {"pretty_ts": True, "map_symbols": True}
+    # + compression=zstd（ADR 0023 §三「Parquet(ZSTD)」落盘口径，禁默认 snappy）
+    assert store.calls[0][1] == {"pretty_ts": True, "map_symbols": True, "compression": "zstd"}
     df = pd.read_parquet(out)
     assert len(df) == 3
     # ts_event 读回 timestamp[ns]（历史段 ns 全精度）
