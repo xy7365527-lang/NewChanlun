@@ -4,7 +4,7 @@
 //! 1. `anchor` = BspPoint.source_index（现点锚）；
 //! 2. C 段（破中枢段）= `find_move_by_end_index(tower[lvl], anchor)` 的走势单元，
 //!    窗口 = [C.start_index, C.end_index]；
-//! 3. 背驰极值 bar = C 窗口内 buy1→argmin(low) / sell1→argmax(high)（取末次命中）；
+//! 3. 背驰极值 bar = C 窗口内 buy1→argmin(low) / sell1→argmax(high)（取首次命中，ties 取最小下标）；
 //! 4. lead_C = anchor − 极值 bar（≥0：点锚在极值之后；=0：点锚与极值同 bar）；
 //! 5. 中枢窗口极值 bar（[center.start_index, center.end_index] 同侧极值）与 lead_center；
 //! 6. 下钻首步方向（C 段 sub_moves 中 end_index==anchor 的段 rmove_dir）——检验
@@ -53,7 +53,7 @@ fn dump_flush() {
     }
 }
 
-/// 窗口 [lo, hi] 内 buy1→low 最小 / sell1→high 最大的 bar（末次命中口径）。
+/// 窗口 [lo, hi] 内 buy1→low 最小 / sell1→high 最大的 bar（首次命中口径：ties 取最小下标，严格 `<`/`>` 比较）。
 fn extreme_bar(bars: &[Bar], lo: usize, hi: usize, side: Side) -> Option<usize> {
     if lo > hi || bars.is_empty() {
         return None;
