@@ -604,7 +604,7 @@ theorem reconciliation_not_true_classification (k : ReconciliationSubkind) :
   - ✗ 任何收益为正 / alpha / Sharpe>0（PDF p21 鞅不可能定理：需预测性假设，L2/L3）。
   - ✗ 成本参数的经验标定（Θ_leverage 层，本文件只证求和换序）。
   - ✗ 期望层关系（#1050 第二段：毛分解 τ_γ 与净分解逐 bar 的条件信息差 + 定理 2
-    细分类不劣于粗分类）——留给独立文件/后续实装。
+    细分类不劣于粗分类）——已由同票独立文件 `Origin.FineCoarseClassification` 实装。
 
   Rust 对账测试锁：rust/src/theta_v0/strategy/coverage/leg_tests.rs 的
   `ledger_reconciliation_*` 测试以本文件恒等式为契约锚（毛腿收益求和 vs 净额逐 bar 求和）。
