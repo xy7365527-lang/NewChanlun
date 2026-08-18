@@ -418,6 +418,66 @@ theorem oq9_witness_path_illegal (s : TWState)
   simp only [twStep, hlegal]
 
 /-! ════════════════════════════════════════════════════════════════════════
+  ## §1.6 C22 成本口径版（#893 S8-c，2026-08-18）：双开在成本坐标下**不抵消**
+
+  净值坐标的 C22（`Origin/NetValueImpossibility.lean` `net_value_cancels`）证明父多子空同股数
+  双开的**方向化毛收益** `G_parent + G_child = 0`（mark-to-market 抵消）。成本轨迹口径
+  （ADR 0015）下该抵消**不成立**：已实现盈亏只在腿**平仓**时落袋（`closeShareLeg profit` →
+  `cumNetCash += profit`），未平仓腿（父腿）不产生已实现盈亏 ⟹ 子腿平仓的 profit **不被**父腿的
+  浮亏抵消。`cumNetCash` 是 cost_basis 符号的结构载体（§1 `TWState`）——profit>0 落袋 =
+  cumNetCash 严格上升 = **cost_basis 严格下降**（端A 的对偶：profit<0 闭合 ⟹ cumNetCash 下降 =
+  "cost_basis 回正"，见 §1.5）。
+
+  这是 #833 调研丙-2 建议的落点（改挂 `TWEvent.closeShareLeg profit`，而非扩 `NetValueImpossibility`
+  的 `Leg` 结构）——(b) 已经在 canonical base 里。本节四条定理全部由 `twStep`/`cumNetCash` 定义
+  推得，**无新公理**（依 map #854 Notes N-2：不用 `axiom`），纯代数 L0。
+  ════════════════════════════════════════════════════════════════════════ -/
+
+/--
+  ★C22 成本口径版①：闭合腿 profit>0 ⟹ cumNetCash 严格上升（cost_basis 严格下降）。
+
+  这是「子腿平仓的已实现盈亏 > 0 ⟹ basis 严格下降」的 L0 形式——`cumNetCash` 是 cost_basis
+  符号载体（§1 `TWState`），profit 落袋即 `cumNetCash += profit`，无任何抵消项。
+-/
+theorem closeShareLeg_strictly_increases_cumNetCash (s : TWState) (p : Int) (hp : 0 < p) :
+    s.cumNetCash < (twStep s (TWEvent.closeShareLeg p)).cumNetCash := by
+  simp only [twStep]
+  omega
+
+/--
+  ★C22 成本口径版②：未平仓腿不产生已实现盈亏——`shortDiff`（free⇄holding 同价转换）与
+  `openShareLeg`（开腿）都**不改** `cumNetCash`。这是「父腿不平仓则不产生已实现盈亏」的 L0
+  形式：父腿的浮亏（净值坐标里吃掉子腿毛利的那一项）在成本口径下**不进** cumNetCash。
+-/
+theorem open_position_no_realized_pnl (s : TWState) (d : Int) :
+    (twStep s (TWEvent.shortDiff d)).cumNetCash = s.cumNetCash
+    ∧ (twStep s TWEvent.openShareLeg).cumNetCash = s.cumNetCash := by
+  constructor <;> simp only [twStep]
+
+/--
+  ★C22 成本口径版③：双开不抵消的代数核——开两条腿（父+子）后闭合一条腿（子，profit p），
+  `cumNetCash` **恰增 p**（无 −p 抵消项）。对照净值坐标 `net_value_cancels`（`G_parent+G_child=0`）：
+  净值坐标下父多子空的浮亏与毛利相加为 0；成本坐标下父腿未平仓、不产生已实现盈亏，故闭合子腿的
+  p 完整落袋，不被抵消。
+-/
+theorem double_open_close_child_not_cancelled (s : TWState) (p : Int) :
+    (twStep (twStep (twStep s TWEvent.openShareLeg) TWEvent.openShareLeg)
+        (TWEvent.closeShareLeg p)).cumNetCash = s.cumNetCash + p := by
+  simp only [twStep]
+
+/--
+  ★C22 成本口径版④：profit>0 时双开后闭合子腿使 cumNetCash **严格**上升——成本坐标下双开
+  **不抵消**（且严格降成本）。这是丙-2 重述方向「子腿平仓已实现盈亏>0 ⟹ basis 严格下降；
+  父腿不平仓则不产生已实现盈亏；故双开在成本坐标下不抵消」的收束形式。
+-/
+theorem double_open_close_child_profit_strictly_increases (s : TWState) (p : Int) (hp : 0 < p) :
+    s.cumNetCash <
+      (twStep (twStep (twStep s TWEvent.openShareLeg) TWEvent.openShareLeg)
+        (TWEvent.closeShareLeg p)).cumNetCash := by
+  rw [double_open_close_child_not_cancelled s p]
+  omega
+
+/-! ════════════════════════════════════════════════════════════════════════
   ## §2 R=Π-A-W 财务守恒账本（模型A，Origin LedgerState 的本地镜像，仅作对照）
 
   本地重建 LedgerComp（不 import Origin LedgerState，避免跨模块耦合）——与 Origin

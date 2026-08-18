@@ -293,6 +293,12 @@ def gSep {V : Type} (L : LegAssignment V) (e : SyntaxElement) (P : Index → Tic
   **NOT L2 实盘盈利**——ε_e·ΔP_e>0 是元素方向语义（W7 §二「方向由端点确定」），非市场预测；
   双开父子腿的净账户收益相加=0（W6 `hedged_leg_net_zero`，C40 不可能定理），声部级毛收益 G^sep>0
   与净资产级盈利是两个有效域（PDF §十二/§十四显式区分）。
+
+  ★#893 S8-c（2026-08-18）成本口径重述缺口：本定理的 `gSep` 用元素端点 `P_ρ`（`priceDelta`）
+    作出场价——把它当「平仓价」等于假设「规范腿在元素结束的瞬间平掉」。该假设**无形式化承载**
+    （`pRho` 是元素端点不是平仓时刻价格；「规范腿平仓时刻」语义是 `CertGatedExit`/typed exit
+    那条线的对象，本仓未展开）。⟹ 成本口径版「每个元素在其规范腿平仓时刻的已实现盈亏为正」
+    **重述前须先钉死平仓时刻语义**——当前**证不了**，不得默认 `gSep_pos` 在成本口径下照搬成立。
 -/
 theorem gSep_pos {V : Type} (L : LegAssignment V) (e : SyntaxElement) (P : Index → Tick)
     (hcons : DirectionConsistent e P) :
