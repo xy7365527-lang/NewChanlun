@@ -773,6 +773,29 @@ pub fn continued_center_pairs(
     out
 }
 
+/// ★#466 D1c：从变换边抽出 `removed` 的旧中枢身份（真删除——种子 lineage 无对应新实体）。
+/// 供谱系簿把「构造窗撤出」与「工程丢身份（无证书/歧义）」分开：前者接线层按
+/// `ConstructionRemoved` 核销，后者保持 `RebaseVanished` 工程警报桶（#456 题二桶定位）。
+///
+/// 与 [`continued_center_pairs`] 的对称物——只收 `relation == removed` 且旧侧节点存在的边，
+/// 取旧节点的完整四边框投影 `CenterId::of`（同一对账口径，不另立第二套身份）。
+pub fn removed_center_ids(old_nodes: &[TxnNode], edges: &[TransformEdge]) -> Vec<CenterId> {
+    let mut out = Vec::new();
+    for e in edges {
+        if e.relation != Relation::Removed {
+            continue;
+        }
+        let Some(o) = e.old_node_ref else {
+            continue;
+        };
+        let Some(on) = old_nodes.iter().find(|x| x.node_ref == o) else {
+            continue;
+        };
+        out.push(CenterId::of(&on.center));
+    }
+    out
+}
+
 /// 从本事务的连续边导出供**上一级**使用的 lineage 重映射。
 pub fn lower_map_of(level_of_outputs: u32, edges: &[TransformEdge]) -> LowerMap {
     let mut map = LowerMap {
@@ -1001,11 +1024,15 @@ pub fn emit(
         // 相对 wide_edges 的 `classify_edges` 重算是轻量增量（同一 `txn.edges` 上过滤），
         // 常开换取「随时可回读严格口径」不值得为省这点算力另开一条门控分支。
         let strict = continued_center_pairs(&txn.old_nodes, &txn.new_nodes, &txn.edges);
-        let wide = if super::super::lineage_book::wide_reading() {
+        let strict_removed = removed_center_ids(&txn.old_nodes, &txn.edges);
+        let (wide, wide_removed) = if super::super::lineage_book::wide_reading() {
             let wide_edges = classify_edges(&txn.old_nodes, &txn.new_nodes, None);
-            continued_center_pairs(&txn.old_nodes, &txn.new_nodes, &wide_edges)
+            (
+                continued_center_pairs(&txn.old_nodes, &txn.new_nodes, &wide_edges),
+                removed_center_ids(&txn.old_nodes, &wide_edges),
+            )
         } else {
-            Vec::new()
+            (Vec::new(), Vec::new())
         };
         super::super::lineage_book::record_edges(
             txn.bar,
@@ -1014,6 +1041,8 @@ pub fn emit(
             &txn.txn_digest,
             &strict,
             &wide,
+            &strict_removed,
+            &wide_removed,
         );
     }
 
@@ -1524,6 +1553,76 @@ mod tests {
                 "非 `continued_1to1 ∧ 四布尔全真` 的边不得产谱系对：{degraded:?}"
             );
         }
+    }
+
+    /// ★#466 D1c：[`removed_center_ids`] 只收 `relation == removed` 的旧侧节点身份（真删除），
+    /// 且取完整四边框投影 `CenterId::of`（同一对账口径）；`continued/split/created/unknown`
+    /// 一律不收——它是 [`continued_center_pairs`] 的对称物。
+    #[test]
+    fn removed_center_ids_only_admits_removed_edges() {
+        // ① seed 右移（wf8 seq=66 型）：旧窗 removed + 新窗 created ⟹ 恰好收旧窗身份。
+        let s494 = seg_move(494, 238178, 238400, 4182110000000, 4317400000000);
+        let s495 = seg_move(495, 238400, 238612, 4291997000000, 4378735000000);
+        let s496 = seg_move(496, 238612, 239000, 4311413000000, 4388236000000);
+        let s496b = seg_move(496, 238612, 239000, 4321576000000, 4347000000000);
+        let s497 = seg_move(497, 239000, 239400, 4311413000000, 4388236000000);
+        let s498 = seg_move(498, 239400, 239900, 4320000000000, 4390000000000);
+        let old_center = center(
+            238178,
+            239000,
+            4311413000000,
+            4317400000000,
+            4182110000000,
+            4388236000000,
+        );
+        let new_center = center(
+            238612,
+            239900,
+            4321576000000,
+            4347000000000,
+            4291997000000,
+            4390000000000,
+        );
+        let old = composed(121, &[s494, s495.clone(), s496], old_center);
+        let new = composed(121, &[s495, s496b, s497, s498], new_center);
+        let old_nodes = snapshot_nodes("old", &[old], &[old_center], &[win(10, 13, 239000, 1)]);
+        let new_nodes = snapshot_nodes("new", &[new], &[new_center], &[win(11, 15, usize::MAX, 1)]);
+        let txn = build_txn(9, ctx(), old_nodes, new_nodes, None);
+        assert_eq!(
+            removed_center_ids(&txn.old_nodes, &txn.edges),
+            vec![CenterId::of(&old_center)]
+        );
+
+        // ② 同 seed 第三源修订（continued 边）⟹ 不产任何 removed 身份。
+        let s0 = seg_move(12, 100, 110, 1000, 1100);
+        let s1 = seg_move(13, 110, 120, 1050, 1150);
+        let oc = center(100, 130, 1080, 1100, 1000, 1180);
+        let nc = center(100, 136, 1060, 1100, 1000, 1200);
+        let on = snapshot_nodes(
+            "old",
+            &[composed(
+                5,
+                &[s0.clone(), s1.clone(), seg_move(14, 120, 130, 1080, 1180)],
+                oc,
+            )],
+            &[oc],
+            &[win(3, 6, 140, 1)],
+        );
+        let nn = snapshot_nodes(
+            "new",
+            &[composed(
+                5,
+                &[s0, s1, seg_move(14, 120, 136, 1060, 1200)],
+                nc,
+            )],
+            &[nc],
+            &[win(3, 6, 146, 1)],
+        );
+        let t2 = build_txn(10, ctx(), on, nn, None);
+        assert!(
+            removed_center_ids(&t2.old_nodes, &t2.edges).is_empty(),
+            "continued 边不是 removed，不收"
+        );
     }
 
     /// 反证臂负控：consumer 显式关（`THETA_REBASE_MIGRATE_SKIP=1` 语义）且未开落盘捕获

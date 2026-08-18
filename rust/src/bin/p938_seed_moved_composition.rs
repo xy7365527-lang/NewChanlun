@@ -15,6 +15,7 @@
 //! | `advanced` | `CenterEventMachine::consume_chain` 返回 `Advanced`——链尾追加新中枢，旧尾**仍在链上**、没死。不是重基。 |
 //! | `rebased_survived` | 返回 `Rebased`，但旧尾身份仍出现在新链某处 ⟹ `on_chain_rebase_lineage` 的「跟随迁移」路径（`center_oscillation_trade.rs:815-817`），无需证书。 |
 //! | `rebased_migrate` | `Rebased` + 旧尾不在新链 + 谱系簿给 `Continued(new)` 且 `new` 在新链上 ⟹ 生产会**迁移身份锚**（`:831-835` → `:857-865`）。 |
+//! | `rebased_removed` | `Rebased` + 谱系簿给 `Removed`（证书判真删除/构造窗撤出）⟹ 生产按 `ConstructionRemoved` 核销（#466 D1c 拆桶），不占 `RebaseVanished` 工程警报桶。 |
 //! | `rebased_no_cert` / `_ambiguous` / `_bar_mismatch` / `_target_absent` | `Rebased` + fail-closed 四桶（`:824-854`）⟹ 生产**保持 RebaseVanished 核销**，即判「重建」。 |
 //!
 //! 判据源逐条已打开确认，见报告
@@ -67,6 +68,9 @@ enum Verdict {
     RebasedSurvived,
     /// 重基 + 1→1 构造证书 ⟹ 迁移身份锚。
     RebasedMigrate,
+    /// 重基 + 证书判 `removed`（真删除/构造窗撤出）⟹ 生产按 `ConstructionRemoved` 核销，
+    /// 不占 `RebaseVanished` 工程警报桶（#466 D1c 拆桶）。
+    RebasedRemoved,
     /// 重基 + 证书说延续到 X，但 X 不在新链上。
     RebasedTargetAbsent,
     /// 重基 + 本 bar 本级没有该旧身份的可过继边。
@@ -85,6 +89,7 @@ impl Verdict {
             Verdict::Advanced => "advanced",
             Verdict::RebasedSurvived => "rebased_survived",
             Verdict::RebasedMigrate => "rebased_migrate",
+            Verdict::RebasedRemoved => "rebased_removed",
             Verdict::RebasedTargetAbsent => "rebased_target_absent",
             Verdict::RebasedNoCert => "rebased_no_cert",
             Verdict::RebasedAmbiguous => "rebased_ambiguous",
@@ -100,10 +105,11 @@ impl Verdict {
             _ => Some(false),
         }
     }
-    const ALL: [Verdict; 8] = [
+    const ALL: [Verdict; 9] = [
         Verdict::Advanced,
         Verdict::RebasedSurvived,
         Verdict::RebasedMigrate,
+        Verdict::RebasedRemoved,
         Verdict::RebasedTargetAbsent,
         Verdict::RebasedNoCert,
         Verdict::RebasedAmbiguous,
@@ -119,13 +125,13 @@ impl Verdict {
 #[derive(Debug, Default, Clone)]
 struct LevelStat {
     tail_same: u64,
-    /// `start_index` 变（探针一的 `seed_moved`）× 八类归类（生产 bar 口径）。
-    seed_moved: [u64; 8],
-    /// `start_index` 同、`(zd,zg)` 变（探针一的 `core_drift`）× 八类。
-    core_drift: [u64; 8],
+    /// `start_index` 变（探针一的 `seed_moved`）× 九类归类（生产 bar 口径）。
+    seed_moved: [u64; 9],
+    /// `start_index` 同、`(zd,zg)` 变（探针一的 `core_drift`）× 九类。
+    core_drift: [u64; 9],
     /// 同上，但查簿用 `txn_bar`（证书口径）——只为量化 bar 坐标差异。
-    seed_moved_txnbar: [u64; 8],
-    core_drift_txnbar: [u64; 8],
+    seed_moved_txnbar: [u64; 9],
+    core_drift_txnbar: [u64; 9],
 }
 
 fn main() -> Result<(), String> {
@@ -263,6 +269,7 @@ fn judge(
                         Verdict::RebasedTargetAbsent
                     }
                 }
+                lineage_book::Verdict::Removed => Verdict::RebasedRemoved,
                 lineage_book::Verdict::NoCert => Verdict::RebasedNoCert,
                 lineage_book::Verdict::Ambiguous => Verdict::RebasedAmbiguous,
                 lineage_book::Verdict::BarMismatch => Verdict::RebasedBarMismatch,
@@ -271,7 +278,7 @@ fn judge(
     }
 }
 
-fn row(counts: &[u64; 8]) -> String {
+fn row(counts: &[u64; 9]) -> String {
     Verdict::ALL
         .iter()
         .map(|v| counts[v.index()].to_string())
@@ -279,7 +286,7 @@ fn row(counts: &[u64; 8]) -> String {
         .join(" | ")
 }
 
-fn total(counts: &[u64; 8]) -> u64 {
+fn total(counts: &[u64; 9]) -> u64 {
     counts.iter().sum()
 }
 
@@ -314,7 +321,7 @@ fn report(
         println!();
         println!("| level | {header} | 合计 |");
         println!("|---|{}|---|", "---|".repeat(Verdict::ALL.len()));
-        let mut agg = [0u64; 8];
+        let mut agg = [0u64; 9];
         for (lvl, s) in stats.iter().enumerate() {
             let c = match pick {
                 0 => &s.seed_moved,

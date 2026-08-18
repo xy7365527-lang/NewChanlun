@@ -307,6 +307,13 @@ pub enum SuspensionTerminationSource {
     /// 侧信道的失踪。终结不回补，★#472 按未闭合减出核销且禁任何形式复活；本来源是工程警报桶。
     /// 判据 = [`CenterOscillationBook::on_chain_rebase`] 逐挂起身份核对重基后的新链。
     RebaseVanished,
+    /// ★#466 D1c 拆桶：构造窗撤出（重基证书判 `relation=removed`）——旧中枢的种子 lineage 在
+    /// 新链上没有对应实体，属**真删除**（构造终止），不是工程丢身份。清算与
+    /// [`Self::RebaseVanished`] 同族（#456 题二终态核销：身份已失、三类点永远不会来），仍按
+    /// 未闭合减出核销；但**分桶单列**——`RebaseVanished` 只计数「系统在重基时弄丢中枢身份」
+    /// 的工程警报（#456 题二桶定位，应打到 0），本变体计数「构造窗合法撤出」的正常终态
+    /// （wf8 seq=66）。判据 = 谱系簿对旧身份给出 [`LineageVerdict::Removed`]。
+    ConstructionRemoved,
 }
 
 /// ★#366/#472/#489：一次终结的**清算终局**——闭合与未闭合减出核销分账，不煮一锅。
@@ -324,8 +331,8 @@ pub enum TerminationSettlement {
     CoverAndClose,
     /// **未闭合减出**：不回补，挂起**核销**——货缺口 `units_gap` 与现金 `cash_booked`
     /// **分开呈报，不冲销、不装没发生**。教义路径为多头三类卖点 / 空头三类买点；工程路径
-    /// 保留 `RebaseVanished`。核销落点见
-    /// [`super::oscillation_campaign::CampaignBook::write_off_unclosed`]。
+    /// 保留 `RebaseVanished`（丢身份警报）与 `ConstructionRemoved`（构造窗合法撤出，#466 D1c
+    /// 拆桶）。核销落点见 [`super::oscillation_campaign::CampaignBook::write_off_unclosed`]。
     WriteOffUnclosed,
 }
 
@@ -380,7 +387,8 @@ pub struct UnclosedWriteOffRequest {
 }
 
 /// ★#366/#472/#489：某一持仓侧遇某一终结来源时的清算终局——能收手回补的即闭合终局；
-/// 教义三类点不回补，或命中工程失踪 `RebaseVanished`，均为未闭合减出核销。
+/// 教义三类点不回补，或命中工程失踪 `RebaseVanished`／构造窗撤出 `ConstructionRemoved`
+/// （#466 D1c 拆桶，两者清算同族），均为未闭合减出核销。
 fn settlement_for(side: VoiceSide, source: SuspensionTerminationSource) -> TerminationSettlement {
     match source {
         SuspensionTerminationSource::BrokenByThirdClassBuy
@@ -391,7 +399,10 @@ fn settlement_for(side: VoiceSide, source: SuspensionTerminationSource) -> Termi
                 TerminationSettlement::WriteOffUnclosed
             }
         }
-        SuspensionTerminationSource::RebaseVanished => TerminationSettlement::WriteOffUnclosed,
+        SuspensionTerminationSource::RebaseVanished
+        | SuspensionTerminationSource::ConstructionRemoved => {
+            TerminationSettlement::WriteOffUnclosed
+        }
     }
 }
 
@@ -402,7 +413,7 @@ fn settlement_for(side: VoiceSide, source: SuspensionTerminationSource) -> Termi
 ///   回补」不变，但不再是「装没发生」的静默作废）。
 /// - 空头侧：三类**卖**点破坏 ⟹ 收手加回空头（结构续跌，空头敞口须补回）；三类买点不加回
 ///   （多头侧「三卖不回补」的逐字镜像，同样走未闭合减出核销）。
-/// - `RebaseVanished` 两侧一律不回补，并按 #472 走未闭合减出核销。
+/// - `RebaseVanished` 与 `ConstructionRemoved` 两侧一律不回补，并按 #472 走未闭合减出核销。
 fn cover_action_for(
     side: VoiceSide,
     source: SuspensionTerminationSource,
@@ -422,6 +433,9 @@ fn cover_action_for(
 pub enum LineageVerdict {
     /// 构造证书给出唯一 1→1 连续边（`relation=continued_1to1` 且四布尔全真）。
     Continued(CenterId),
+    /// 构造证书判旧身份为 `removed`（种子 lineage 无对应新实体）——真删除（构造窗撤出），
+    /// 不是工程丢身份（#466 D1c 拆桶，见 [`SuspensionTerminationSource::ConstructionRemoved`]）。
+    Removed,
     /// 本 bar 本级没有该旧身份的连续边。
     NoCert,
     /// 同一旧身份有多个候选后继——歧义。
@@ -449,6 +463,10 @@ pub trait LineageLookup {
 pub struct RebaseMigrationTally {
     /// 凭 1→1 构造证书成功迁移身份锚的挂起数（`rebase_lineage_migrated`）。
     pub migrated: usize,
+    /// 构造证书判 `removed`（真删除）、按 [`SuspensionTerminationSource::ConstructionRemoved`]
+    /// 核销的挂起数（`construction_removed`）——与 `kept` 分列，不占 `RebaseVanished`
+    /// 工程警报桶（#466 D1c 拆桶）。
+    pub removed: usize,
     /// 谱系不可达、保持 `RebaseVanished` 核销的挂起数（`rebase_vanished_kept`）。
     pub kept: usize,
     /// fail closed：无构造证书边。
@@ -780,7 +798,10 @@ impl CenterOscillationBook {
     ///    [`LineageVerdict::Continued`]（证书判 `relation=continued_1to1` 且
     ///    functional∧injective∧unique∧bijective 全真）**且**该新身份确实出现在重基后的新链上、
     ///    **且**没有第二个锚同时认领它，才迁移身份锚（`rebase_lineage_migrated`）；
-    /// 3. 其余一切情形（无证书 / 歧义 / bar 不匹配 / 目标不在新链 / 重复认领 / `lineage=None`）
+    /// 3. [`LineageVerdict::Removed`]（证书判 `relation=removed`，真删除/构造窗撤出）⟹ 按
+    ///    [`SuspensionTerminationSource::ConstructionRemoved`] 核销（#466 D1c 拆桶，清算仍
+    ///    `WriteOffUnclosed`，不占 `RebaseVanished` 工程警报桶）；
+    /// 4. 其余一切情形（无证书 / 歧义 / bar 不匹配 / 目标不在新链 / 重复认领 / `lineage=None`）
     ///    ⟹ 保持既有 `RebaseVanished` 核销（`rebase_vanished_kept`）+ 分桶计数。**禁 fail-open**。
     ///
     /// 迁移**只改身份锚**：挂起表的键、值（首次绑定冻结的四边框）、campaign 挂起归属账的来源
@@ -806,6 +827,7 @@ impl CenterOscillationBook {
             }
         }
 
+        let mut removed_anchors: Vec<CenterId> = Vec::new();
         let mut vanished_anchors: Vec<CenterId> = Vec::new();
         // 本次重基已被认领的新身份 → 认领它的锚（防两个旧锚认领同一个新身份）。
         let mut claimed: BTreeMap<CenterId, CenterId> = BTreeMap::new();
@@ -841,6 +863,11 @@ impl CenterOscillationBook {
                         vanished_anchors.push(anchor);
                     }
                 },
+                LineageVerdict::Removed => {
+                    // 构造证书判真删除（种子 lineage 无对应新实体）⟹ 构造窗合法撤出，按
+                    // `ConstructionRemoved` 核销（#466 D1c 拆桶；清算与 RebaseVanished 同族）。
+                    removed_anchors.push(anchor);
+                }
                 LineageVerdict::NoCert => {
                     tally.no_cert += 1;
                     vanished_anchors.push(anchor);
@@ -866,28 +893,51 @@ impl CenterOscillationBook {
             tally.migrated += 1;
         }
 
-        // 核销：逐（侧, 锚）摘表，产 `RebaseVanished`（不回补，按 #472 未闭合减出核销）。
-        let vanished_keys: Vec<(VoiceSide, CenterId)> = self
+        // 核销：逐（侧, 锚）摘表（不回补，按 #472 未闭合减出核销）。来源按谱系结论二分——
+        // 真删除 ⟹ `ConstructionRemoved`（#466 D1c 拆桶）；工程丢身份 ⟹ `RebaseVanished`。
+        // 摘表顺序保持挂起表 `BTreeMap` 键序，只改每条的来源标签，不重排既有核销顺序。
+        let writeoff_keys: Vec<(VoiceSide, CenterId)> = self
             .suspended
             .keys()
             .copied()
+            .filter(|(_, id)| removed_anchors.contains(id) || vanished_anchors.contains(id))
+            .collect();
+        let removed_keys: Vec<(VoiceSide, CenterId)> = writeoff_keys
+            .iter()
+            .copied()
+            .filter(|(_, id)| removed_anchors.contains(id))
+            .collect();
+        let vanished_keys: Vec<(VoiceSide, CenterId)> = writeoff_keys
+            .iter()
+            .copied()
             .filter(|(_, id)| vanished_anchors.contains(id))
             .collect();
-        for key in &vanished_keys {
+        tally.removed = removed_keys.len();
+        tally.kept = vanished_keys.len();
+        for key in &writeoff_keys {
             self.suspended.remove(key);
         }
-        tally.kept = vanished_keys.len();
+        for anchor in &removed_anchors {
+            self.gc_anchor(*anchor);
+        }
         for anchor in &vanished_anchors {
             self.gc_anchor(*anchor);
         }
-        let outcomes: Vec<SuspensionOutcome> = vanished_keys
+        let outcomes: Vec<SuspensionOutcome> = writeoff_keys
             .into_iter()
-            .map(|(side, center)| SuspensionOutcome {
-                center,
-                source: SuspensionTerminationSource::RebaseVanished,
-                cover_action: None,
-                side,
-                settlement: settlement_for(side, SuspensionTerminationSource::RebaseVanished),
+            .map(|(side, center)| {
+                let source = if removed_anchors.contains(&center) {
+                    SuspensionTerminationSource::ConstructionRemoved
+                } else {
+                    SuspensionTerminationSource::RebaseVanished
+                };
+                SuspensionOutcome {
+                    center,
+                    source,
+                    cover_action: None,
+                    side,
+                    settlement: settlement_for(side, source),
+                }
             })
             .collect();
         debug_assert!(
@@ -2263,6 +2313,43 @@ mod tests {
         assert!(book.is_suspended(survivor), "存活身份不受连坐");
     }
 
+    /// ★#466 D1c 拆桶：谱系簿判 [`LineageVerdict::Removed`]（真删除/构造窗撤出）⟹ 按
+    /// [`SuspensionTerminationSource::ConstructionRemoved`] 核销（清算仍 `WriteOffUnclosed`），
+    /// **不**产 `RebaseVanished` 工程警报——`kept`/`no_cert` 均为 0。
+    #[test]
+    fn removed_verdict_terminates_as_construction_removed_not_rebase_vanished() {
+        let old = cid(5, 100, 200);
+        let survivor = cid(700, 300, 400);
+        let mut book = CenterOscillationBook::new(0);
+        suspend_bound(&mut book, old, 10);
+        suspend_bound(&mut book, survivor, 20);
+        let lineage = StubLineage(vec![(old, LineageVerdict::Removed)]);
+        let (outcomes, tally) = book
+            .on_chain_rebase_lineage(&[center_of(survivor)], Some(&lineage as &dyn LineageLookup));
+        assert_eq!(outcomes.len(), 1);
+        assert_eq!(outcomes[0].center, old);
+        assert_eq!(
+            outcomes[0].source,
+            SuspensionTerminationSource::ConstructionRemoved
+        );
+        assert_eq!(
+            outcomes[0].settlement,
+            TerminationSettlement::WriteOffUnclosed,
+            "清算仍与 RebaseVanished 同族（#456 题二终态核销）"
+        );
+        assert_eq!(outcomes[0].cover_action, None);
+        assert_eq!(
+            tally,
+            RebaseMigrationTally {
+                removed: 1,
+                ..Default::default()
+            },
+            "removed 单独分桶，kept/no_cert 均 0"
+        );
+        assert!(!book.is_suspended(old));
+        assert!(book.is_suspended(survivor), "存活身份不受连坐");
+    }
+
     /// ★fail-closed 族：四条「有证书但不可信」的路径逐条拒绝过继，各自分桶。
     ///
     /// - `target_absent`：证书说延续到 X，但生命周期层收到的新链里没有 X；
@@ -2307,6 +2394,7 @@ mod tests {
             tally,
             RebaseMigrationTally {
                 migrated: 1,
+                removed: 0,
                 kept: 4,
                 no_cert: 0,
                 target_absent: 1,

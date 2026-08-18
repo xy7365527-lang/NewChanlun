@@ -1027,7 +1027,7 @@ fn step_center_oscillation_impl(
                 );
                 super::super::lineage_book::record_tally(&tally);
                 if super::super::lineage_book::trace_enabled()
-                    && (tally.migrated > 0 || tally.kept > 0)
+                    && (tally.migrated > 0 || tally.removed > 0 || tally.kept > 0)
                 {
                     eprintln!(
                         "[LINEAGE-TRACE] bar={bar} level={lvl} migrated={} kept={:?} tally={tally:?}",
@@ -3656,6 +3656,8 @@ mod center_oscillation_wiring_tests {
                 "cert-digest",
                 &[(CenterId::of(&c0), CenterId::of(&c1))],
                 &[(CenterId::of(&c0), CenterId::of(&c1))],
+                &[],
+                &[],
             );
             let bar1 = Classification {
                 levels: vec![level_with_centers(vec![c1, c2])],
@@ -3701,6 +3703,95 @@ mod center_oscillation_wiring_tests {
         assert_eq!(kept.write_offs[0].center, CenterId::of(&c0));
         assert!(!books[0].is_suspended(CenterId::of(&c0)));
         assert!(!books[0].is_suspended(CenterId::of(&c1)));
+    }
+
+    /// ★#466 D1c 端到端接线证据：构造证书判 `removed`（真删除/构造窗撤出）时，
+    /// `step_center_oscillation` 的 `Rebased` 分支按 `ConstructionRemoved` 核销（清算仍
+    /// `WriteOffUnclosed`），witness 的 `suspension_by_source` 记 `construction_removed`、
+    /// **不**记 `rebase_vanished`——RebaseVanished 工程警报桶归 0。
+    #[test]
+    fn gate_removed_certificate_writes_off_as_construction_removed_end_to_end() {
+        use super::super::super::lineage_book;
+        let c0 = center(5, 10, 100, 200);
+        let c2 = center(22, 27, 500, 600); // 新链不含 c0（构造窗撤出，wf8 seq=66 型）
+        let empty_step = Classification {
+            levels: vec![LevelState::default()],
+        };
+        lineage_book::reset_book();
+        let mut cl_machines = Vec::new();
+        let mut osc_books = Vec::new();
+        let mut witness =
+            super::super::super::strategy::oscillation_campaign::CampaignWiringWitness::new();
+        let bar0 = Classification {
+            levels: vec![level_with_centers(vec![c0])],
+        };
+        let _ = step_center_oscillation(
+            0,
+            &bar0,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+        osc_books[0].on_trigger(
+            super::super::super::strategy::center_oscillation_trade::CenterOscillationTrigger::new(
+                0,
+                Some(CenterId::of(&c0)),
+                CenterDrift::NoDownShift,
+                VoiceSide::Short,
+                200,
+                1,
+            )
+            .unwrap(),
+        );
+        assert!(osc_books[0].is_suspended(CenterId::of(&c0)));
+        // 本 bar 构造证书：c0 判 removed（真删除），无连续边。
+        lineage_book::record_edges(
+            1,
+            0,
+            4661,
+            "removed-cert",
+            &[],
+            &[],
+            &[CenterId::of(&c0)],
+            &[CenterId::of(&c0)],
+        );
+        let bar1 = Classification {
+            levels: vec![level_with_centers(vec![c2])],
+        };
+        let out = step_center_oscillation(
+            1,
+            &bar1,
+            &empty_step,
+            &mut cl_machines,
+            &mut osc_books,
+            &mut witness,
+        );
+        assert_eq!(
+            out.write_offs.len(),
+            1,
+            "真删除 ⟹ 仍产一条未闭合减出核销请求（清算同族）"
+        );
+        assert_eq!(out.write_offs[0].center, CenterId::of(&c0));
+        assert!(
+            !osc_books[0].is_suspended(CenterId::of(&c0)),
+            "c0 已真删除 ⟹ 终结"
+        );
+        assert_eq!(
+            witness
+                .suspension_by_source
+                .get(&(0, "long", "construction_removed")),
+            Some(&1),
+            "真删除记 construction_removed，不记 rebase_vanished"
+        );
+        assert_eq!(
+            witness
+                .suspension_by_source
+                .get(&(0, "long", "rebase_vanished")),
+            None,
+            "RebaseVanished 工程警报桶应打到 0"
+        );
+        lineage_book::reset_book();
     }
 
     /// ★★#414 端到端接线证据（ADR 补充十一）：`step_center_oscillation` 遇 `Superseded` 时
@@ -4327,6 +4418,8 @@ mod center_oscillation_wiring_tests {
             "cert-689-fill",
             &[(CenterId::of(&c0), CenterId::of(&c1))],
             &[(CenterId::of(&c0), CenterId::of(&c1))],
+            &[],
+            &[],
         );
         let bar1 = Classification {
             levels: vec![level_with_centers(vec![c1])],

@@ -1526,6 +1526,7 @@ impl CampaignWiringWitness {
             SuspensionTerminationSource::BrokenByThirdClassBuy => "broken_by_third_class_buy",
             SuspensionTerminationSource::BrokenByThirdClassSell => "broken_by_third_class_sell",
             SuspensionTerminationSource::RebaseVanished => "rebase_vanished",
+            SuspensionTerminationSource::ConstructionRemoved => "construction_removed",
         };
         *self
             .suspension_by_source

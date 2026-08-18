@@ -48,7 +48,7 @@
 #[cfg(test)]
 use std::cell::Cell;
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 
@@ -146,6 +146,10 @@ enum Entry {
 pub enum Verdict {
     /// 有唯一 1→1 构造证书边。
     Continued(Witness),
+    /// 构造证书判旧身份为 `removed`（真删除：种子 lineage 无对应新实体，构造窗撤出）。
+    /// #466 D1c 拆桶：接线层据此按 `ConstructionRemoved` 核销，不占 `RebaseVanished`
+    /// 工程警报桶（#456 题二桶定位）。
+    Removed,
     /// 簿里没有这条旧身份（本 bar 本级没有为它产出可过继的边）。
     NoCert,
     /// 同一旧身份有多个候选后继。
@@ -159,6 +163,9 @@ struct Book {
     bar: Option<usize>,
     strict: BTreeMap<(usize, CenterId), Entry>,
     wide: BTreeMap<(usize, CenterId), Entry>,
+    /// #466 D1c：构造证书判 `removed`（真删除）的旧身份集合（按 `(level, old)` 记）。
+    strict_removed: BTreeSet<(usize, CenterId)>,
+    wide_removed: BTreeSet<(usize, CenterId)>,
 }
 
 impl Book {
@@ -166,6 +173,8 @@ impl Book {
         self.bar = Some(bar);
         self.strict.clear();
         self.wide.clear();
+        self.strict_removed.clear();
+        self.wide_removed.clear();
     }
 }
 
@@ -192,7 +201,9 @@ fn insert(map: &mut BTreeMap<(usize, CenterId), Entry>, level: usize, old: Cente
 /// 登记一次重基事务的 1→1 边。由构造证书产出点（`rebase_txn::emit`）调用。
 ///
 /// - `strict`：严格读法（追下级 lineage）的 `continued_1to1 ∧ 四布尔全真` 边；
-/// - `wide`：宽读法（只比原始种子 ordinal）的同类边——只在 [`wide_reading`] 时非空。
+/// - `wide`：宽读法（只比原始种子 ordinal）的同类边——只在 [`wide_reading`] 时非空；
+/// - `strict_removed` / `wide_removed`：对应读法判 `removed`（真删除）的旧身份
+///   （#466 D1c 拆桶，接线层据此按 `ConstructionRemoved` 核销）。
 ///
 /// `old == new` 的边不登记（无需迁移，登记只会污染簿）。
 pub fn record_edges(
@@ -202,8 +213,11 @@ pub fn record_edges(
     txn_digest: &str,
     strict: &[(CenterId, CenterId)],
     wide: &[(CenterId, CenterId)],
+    strict_removed: &[CenterId],
+    wide_removed: &[CenterId],
 ) {
-    if strict.is_empty() && wide.is_empty() {
+    if strict.is_empty() && wide.is_empty() && strict_removed.is_empty() && wide_removed.is_empty()
+    {
         // 仍要推进 bar：空事务也是「本 bar 没有可过继边」的事实，跨 bar 残留必须清掉。
         BOOK.with(|b| {
             let mut b = b.borrow_mut();
@@ -246,6 +260,12 @@ pub fn record_edges(
                 );
             }
         }
+        for &old in strict_removed {
+            b.strict_removed.insert((level, old));
+        }
+        for &old in wide_removed {
+            b.wide_removed.insert((level, old));
+        }
     });
 }
 
@@ -258,9 +278,21 @@ pub fn lookup(bar: usize, level: usize, old: CenterId) -> Verdict {
         }
         let map = if wide_reading() { &b.wide } else { &b.strict };
         match map.get(&(level, old)) {
-            None => Verdict::NoCert,
             Some(Entry::Conflict) => Verdict::Ambiguous,
             Some(Entry::One(w)) => Verdict::Continued(w.clone()),
+            None => {
+                // 无连续边 ⟹ 再看是否为构造证书判定的真删除（#466 D1c 拆桶）。
+                let removed = if wide_reading() {
+                    &b.wide_removed
+                } else {
+                    &b.strict_removed
+                };
+                if removed.contains(&(level, old)) {
+                    Verdict::Removed
+                } else {
+                    Verdict::NoCert
+                }
+            }
         }
     })
 }
@@ -293,6 +325,7 @@ impl LineageLookup for LineageView {
     fn lookup(&self, old: CenterId) -> LineageVerdict {
         match lookup(self.bar, self.level, old) {
             Verdict::Continued(w) => LineageVerdict::Continued(w.new),
+            Verdict::Removed => LineageVerdict::Removed,
             Verdict::NoCert => LineageVerdict::NoCert,
             Verdict::Ambiguous => LineageVerdict::Ambiguous,
             Verdict::BarMismatch => LineageVerdict::BarMismatch,
@@ -334,6 +367,9 @@ macro_rules! counters {
 counters! {
     /// 挂起随谱系迁移成功的次数（`rebase_lineage_migrated`）。
     migrated => MIGRATED,
+    /// 构造证书判 `removed`（真删除）、按 `ConstructionRemoved` 核销的次数
+    /// （`construction_removed`；#466 D1c 拆桶）。
+    removed => REMOVED,
     /// 谱系不可达、保持 `RebaseVanished` 核销的次数（`rebase_vanished_kept`）。
     kept => KEPT,
     /// fail closed 分桶：本 bar 本级无该旧身份的构造证书边。
@@ -351,6 +387,7 @@ counters! {
 /// 累加一次重基的迁移分桶读数（接线层在 `on_chain_rebase_lineage` 之后调用）。
 pub fn record_tally(t: &super::strategy::center_oscillation_trade::RebaseMigrationTally) {
     MIGRATED.fetch_add(t.migrated as u64, Ordering::Relaxed);
+    REMOVED.fetch_add(t.removed as u64, Ordering::Relaxed);
     KEPT.fetch_add(t.kept as u64, Ordering::Relaxed);
     FAIL_NO_CERT.fetch_add(t.no_cert as u64, Ordering::Relaxed);
     FAIL_TARGET_ABSENT.fetch_add(t.target_absent as u64, Ordering::Relaxed);
@@ -363,10 +400,11 @@ pub fn record_tally(t: &super::strategy::center_oscillation_trade::RebaseMigrati
 pub fn report_line() -> String {
     let c = counters();
     format!(
-        "[LINEAGE] reading={} migrated={} vanished_kept={} \
+        "[LINEAGE] reading={} migrated={} removed={} vanished_kept={} \
          fail(no_cert={} target_absent={} ambiguous={} bar_mismatch={} dup_claim={})",
         if wide_reading() { "wide" } else { "strict" },
         c.migrated,
+        c.removed,
         c.kept,
         c.fail_no_cert,
         c.fail_target_absent,
@@ -394,7 +432,7 @@ mod tests {
         reset_book();
         test_set_wide(Some(false));
         let (old, new) = (cid(10, 100, 200), cid(10, 90, 200));
-        record_edges(7, 1, 42, "deadbeef", &[(old, new)], &[]);
+        record_edges(7, 1, 42, "deadbeef", &[(old, new)], &[], &[], &[]);
         match lookup(7, 1, old) {
             Verdict::Continued(w) => {
                 assert_eq!(w.new, new);
@@ -412,7 +450,7 @@ mod tests {
         reset_book();
         test_set_wide(Some(false));
         let old = cid(10, 100, 200);
-        record_edges(7, 1, 1, "d", &[(old, cid(10, 90, 200))], &[]);
+        record_edges(7, 1, 1, "d", &[(old, cid(10, 90, 200))], &[], &[], &[]);
         assert_eq!(lookup(8, 1, old), Verdict::BarMismatch, "跨 bar 不做猜测");
         assert_eq!(
             lookup(7, 1, cid(99, 1, 2)),
@@ -421,7 +459,7 @@ mod tests {
         );
         assert_eq!(lookup(7, 2, old), Verdict::NoCert, "级别不符 ⟹ 无证书");
         // 同 bar 同级同旧身份被判到第二个后继 ⟹ 歧义。
-        record_edges(7, 1, 2, "d2", &[(old, cid(10, 80, 200))], &[]);
+        record_edges(7, 1, 2, "d2", &[(old, cid(10, 80, 200))], &[], &[], &[]);
         assert_eq!(lookup(7, 1, old), Verdict::Ambiguous);
         test_set_wide(None);
     }
@@ -432,9 +470,9 @@ mod tests {
         reset_book();
         test_set_wide(Some(false));
         let old = cid(10, 100, 200);
-        record_edges(7, 1, 1, "d", &[(old, cid(10, 90, 200))], &[]);
+        record_edges(7, 1, 1, "d", &[(old, cid(10, 90, 200))], &[], &[], &[]);
         assert_eq!(book_len().0, 1);
-        record_edges(8, 1, 2, "d", &[], &[]);
+        record_edges(8, 1, 2, "d", &[], &[], &[], &[]);
         assert_eq!(book_len().0, 0, "空事务也须把上一 bar 的残留清掉");
         assert_eq!(lookup(8, 1, old), Verdict::NoCert);
         test_set_wide(None);
@@ -446,7 +484,7 @@ mod tests {
         reset_book();
         test_set_wide(Some(false));
         let same = cid(10, 100, 200);
-        record_edges(7, 1, 1, "d", &[(same, same)], &[]);
+        record_edges(7, 1, 1, "d", &[(same, same)], &[], &[], &[]);
         assert_eq!(book_len().0, 0);
         test_set_wide(None);
     }
@@ -473,11 +511,48 @@ mod tests {
         let old = cid(10, 100, 200);
         let strict_new = cid(10, 90, 200);
         let wide_new = cid(10, 80, 200);
-        record_edges(7, 1, 1, "d", &[(old, strict_new)], &[(old, wide_new)]);
+        record_edges(
+            7,
+            1,
+            1,
+            "d",
+            &[(old, strict_new)],
+            &[(old, wide_new)],
+            &[],
+            &[],
+        );
         test_set_wide(Some(false));
         assert!(matches!(lookup(7, 1, old), Verdict::Continued(w) if w.new == strict_new));
         test_set_wide(Some(true));
         assert!(matches!(lookup(7, 1, old), Verdict::Continued(w) if w.new == wide_new));
+        test_set_wide(None);
+    }
+
+    /// ★#466 D1c：`record_edges` 把构造证书判 `removed`（真删除）的旧身份入簿 ⟹ `lookup`
+    /// 返回 [`Verdict::Removed`]（接线层据此按 `ConstructionRemoved` 核销，不占
+    /// `RebaseVanished` 工程警报桶）；连续边优先于 removed 判定。
+    #[test]
+    fn removed_edges_are_recorded_and_looked_up() {
+        reset_book();
+        test_set_wide(Some(false));
+        let (old, new) = (cid(10, 100, 200), cid(10, 90, 200));
+        // 同一旧身份既有连续边又被标 removed（跨事务不重叠，此处只证优先级）⟹ 连续边优先。
+        record_edges(7, 1, 42, "deadbeef", &[(old, new)], &[], &[old], &[]);
+        assert!(
+            matches!(lookup(7, 1, old), Verdict::Continued(_)),
+            "连续边优先于 removed，迁移比核销更优先"
+        );
+
+        // 只有 removed 记录 ⟹ `Removed`。
+        let removed_only = cid(20, 300, 400);
+        record_edges(7, 1, 43, "beef", &[], &[], &[removed_only], &[]);
+        assert_eq!(lookup(7, 1, removed_only), Verdict::Removed);
+        assert_eq!(
+            lookup(7, 2, removed_only),
+            Verdict::NoCert,
+            "级别不符不判 removed"
+        );
+        assert_eq!(lookup(7, 1, cid(99, 1, 2)), Verdict::NoCert);
         test_set_wide(None);
     }
 }
