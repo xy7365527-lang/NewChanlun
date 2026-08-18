@@ -808,6 +808,54 @@ pub(super) fn build_multilevel_nest_cert(
     }
 }
 
+/// ★S4 向下定位器（区间套下钻）的落地结果——「一重 ＝ ⟨挂载层 k，横向读法，向下定位器，一份筹码⟩」
+/// （ADR 0011）第三格的真消费形态（#802 空洞①「深度全弃」的接线）。
+///
+/// **S5 命名分家**：本类型是**向下**（`sub_moves` 逐级下沉定位）；与**向上**的 `NestCertificate.rungs`
+/// （`MuClass.nest_depth` = `rungs.len()`）**同名不同向**——两者字面都叫「深度」，历史上被已归档
+/// 报告 `l2-depth-distribution-20260702.md` §5 写成「同一件事的两次测量」（ADR 0013 裁定七钉死混淆）。
+/// 本类型以独立类型 + 明确方向名挡混用：向上 = rungs 数（`u8`，`MuClass.nest_depth`），向下 = 本类型。
+/// `pub(super)`：供 `backtest` 树内跨模块引用（如 `mu_estimator::MuClass.nest_depth` 的 S5 分名注释）。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) struct DescendLocator {
+    /// 连续锚定层数 d（≥1 = 至少锚定到次级别 Type1/类一类点；0 = 首级即终止）。
+    depth: usize,
+    /// 递归停止成因（终止条件 = 成本门 + L0 天花板，见 [`DescendStop`]）。
+    stop: DescendStop,
+}
+
+impl DescendLocator {
+    /// 是否至少锚定一级（旧 `Option::is_some` 语义：次级别 Type1 锚存在）。
+    fn anchored(&self) -> bool {
+        self.depth >= 1
+    }
+
+    /// 下沉深度（0 = 首级即终止）。
+    fn depth(&self) -> usize {
+        self.depth
+    }
+
+    /// 递归停止成因。
+    fn stop(&self) -> DescendStop {
+        self.stop
+    }
+}
+
+/// 下钻终止成因（复用 #846 失败分类 A/B/C 三分，同探针 `StepFail` 口径，**不另造**）。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum DescendStop {
+    /// A：`sub_moves` 空 = 到达 L0 天花板（塔以线段为底、笔不在塔级别阶梯内，#520 基底选择）。
+    /// **正常终止，不算断链**。
+    BaseL0,
+    /// B：`end_index == source_index` 对齐段缺失（L0 以上）——塔构造不变量（父段末尾恒等于
+    /// 子段末尾）违反。#846 坐实 B 类零反例 36175/36175 ⟹ 「L0 以上取不到对齐段即报错」
+    /// 不变式的报错对象（报错守卫在生产消费层 `debug_assert_ne!` 落地，本函数保持纯函数返回
+    /// `NoAlign`，诊断层可继续计数 B 类）。
+    NoAlign,
+    /// C：对齐段存在但 `div_cand` 判假——判据层合法终止（成本门/市场现实，非结构错误）。
+    NoDivergence,
+}
+
 /// 673 号段2：定律一下沉锚定深度（第29课L396「二三类精确的都要下次级别以下找第一类」）。
 ///
 /// Type2/3@ℓ 的精确点 = 次级别 Type1（回抽这个次级别走势的结束点=次级别一类背驰点，定律一 第17课L66）。
@@ -816,11 +864,20 @@ pub(super) fn build_multilevel_nest_cert(
 /// 四条件，含盘整背驰——背驰段定义第27课L21 涵盖趋势/盘整，非弱化版）。真递归下沉：锚定成立后继续
 /// 钻入该次级别 Type1 段，逐级收缩到最低可用级别（`sub_moves` 空=递归底 level0）。
 ///
-/// - `Some(d)`（d≥1）：次级别 Type1 锚点成立，区间套逐级收缩穿越 d 层（d=最低可用级别的下沉深度）。
-/// - `None`：次级别存在但无 Type1 锚点（`div_cand` 假 / 无回抽端点对齐段 / `s` 已是递归底——塔内无次级别，
-///   塔不从笔递归系构造选择，非客观无次级别，订正 #520）
-///   = **小转大**（该级别无一类买卖点，精确点无法下沉定位——知识库 L410「区间套和背驰不可解释情况
-///   的补充」）。显式可测判别（非 catch-all fallback），门直接拒。
+/// ★S4 接线（SPEC #847）：返回值从 `Option<usize>` 升为 [`DescendLocator`]——**深度与终止成因
+/// 一起带出**（不再 `.is_some()` 只问能不能钻，#802 空洞①）。终止条件 = 成本门（经济）+
+/// L0 天花板（基底选择，#817 N-2 裁定四 阶段一：现役塔 L0–L4 上成本门不咬任何级，#907 实测，
+/// 故终止实际先到 L0 天花板；成本门参数随执行系统而定，**不钉死级别**——钉死 = 把参数写死成常数）。
+///
+/// - `DescendLocator{depth: d, ..}`（d≥1）：次级别 Type1 锚点成立，区间套逐级收缩穿越 d 层
+///   （d=最低可用级别的下沉深度）；`stop` 记递归在 d 层之后为何停止。
+/// - `stop` 三成因（复用 #846 失败分类 A/B/C，不另造）：
+///   - [`DescendStop::BaseL0`]（A）：`sub_moves` 空 = 到达 L0 天花板（#520 基底选择，正常终止）。
+///   - [`DescendStop::NoDivergence`]（C）：对齐段存在但 `div_cand` 判假——判据层合法终止
+///     （成本门/市场现实）。该级无一类买卖点、精确点无法下沉定位时走小转大通道
+///     （[`build_xzd_fallback`]，知识库 L410「区间套和背驰不可解释情况的补充」）。
+///   - [`DescendStop::NoAlign`]（B）：L0 以上取不到 `end_index==source_index` 对齐段——塔构造
+///     不变量违反，不变式报错对象（见 [`DescendStop`]）。
 ///
 /// 区间套 `[J_{ℓ-1}⊆J_ℓ]` 由下钻**结构性保证**：`sub_move` 的 `[start,end]` ⊆ parent 的 `[start,end]`
 /// （recursive_tower Compose 由连续 `sub_moves` 组装的不变量），故不重复 `is_sub` 检查（invariant 非条件）。
@@ -834,14 +891,24 @@ fn descend_type1_anchor_depth(
     hist: &[f64],
     strokes: &[crate::theta_v0::types::Stroke],
     gauge: super::super::classifier::divergence::DivergenceGauge,
-) -> Option<usize> {
+) -> DescendLocator {
     let subs = s.sub_moves.as_slice();
     if subs.is_empty() {
-        return None; // 递归底（塔内无次级别——塔不从笔递归，构造选择，非客观无次级别，订正 #520）⟹ 无可下沉的一类锚点 = 小转大
+        // L0 天花板（基底选择——塔以线段为底、笔不在塔级别阶梯内，#520 订正），正常终止。
+        return DescendLocator {
+            depth: 0,
+            stop: DescendStop::BaseL0,
+        };
     }
     // 次级别 Type1 背驰段判据：s.sub_moves 中 end_index==source_index 段跑完整 div_cand。
-    let tidx = find_move_by_end_index(subs, source_index)?; // 无回抽端点对齐段 ⟹ 小转大
-                                                            // ★#883：D-3 取段的「界」= 父走势 s 的最近中枢（每级递归各取各的父中枢）。
+    // ★#883：D-3 取段的「界」= 父走势 s 的最近中枢（每级递归各取各的父中枢）。
+    let Some(tidx) = find_move_by_end_index(subs, source_index) else {
+        // B 类：L0 以上取不到对齐段 = 结构不变量违反（不变式报错对象，守卫在生产消费层）。
+        return DescendLocator {
+            depth: 0,
+            stop: DescendStop::NoAlign,
+        };
+    };
     let anchor_ok = super::super::classifier::cand_predicate::div_cand(
         &super::super::classifier::cand_predicate::DivCandInput {
             context: subs,
@@ -854,12 +921,17 @@ fn descend_type1_anchor_depth(
         },
     );
     if !anchor_ok {
-        return None; // 次级别无一类背驰锚点 ⟹ 小转大
+        // C 类：次级别无一类背驰锚点 ⟹ 判据层合法终止（成本门/市场现实）。
+        return DescendLocator {
+            depth: 0,
+            stop: DescendStop::NoDivergence,
+        };
     }
     // 真递归下沉：钻入该次级别 Type1 段，逐级收缩到最低可用级别（深层无锚/到底 ⟹ 本级即最低可用锚）。
-    match descend_type1_anchor_depth(&subs[tidx], source_index, delta, hist, strokes, gauge) {
-        Some(d) => Some(d + 1),
-        None => Some(1),
+    let deeper = descend_type1_anchor_depth(&subs[tidx], source_index, delta, hist, strokes, gauge);
+    DescendLocator {
+        depth: deeper.depth + 1,
+        stop: deeper.stop,
     }
 }
 
@@ -941,8 +1013,12 @@ fn cand_delta_type1_extreme(
 /// 本谓词不在 Cand 层重门保护位（no-patch 双门）。存在性锚 = 次级别 Type1（定律一下沉，
 /// 第29课L396「二三类精确点要下次级别以下找第一类」）。`lvl==0`（塔内无次级别——塔不从笔递归：
 /// 笔由解析层产出（`ParseLayer.strokes`）但不在塔的级别阶梯内，系构造选择，非客观无次级别（订正 #520，
-/// 原注「无次级别、递归底」经 #450 查实为假）；递归底）⟹ 存在性
-/// 免门（Type2@level0 不误拒）；`None`（无锚）= 小转大（该级无一类精确点无法下沉定位）⟹ 门拒。
+/// 原注「无次级别、递归底」经 #450 查实为假））⟹ 存在性
+/// 免门（Type2@level0 不误拒）；`NoDivergence`（无锚）= 小转大（该级无一类精确点无法下沉定位）⟹ 门拒。
+///
+/// ★S4 接线（#802 空洞①/②）：下钻返回 [`DescendLocator`]——门消费存在性（`.anchored()`），
+/// 深度与终止成因随 [`DescendStop`] 带出；`lvl==0` 显式写成 **L0 天花板（基底选择，#520）**，
+/// 不再与「递归底」混名。不变式（#846 B 类零反例）在消费层 `debug_assert_ne!` 报错。
 fn cand_delta_type2_completion(
     s: &super::super::classifier::recursive_tower::LeveledMove,
     source_index: usize,
@@ -952,7 +1028,17 @@ fn cand_delta_type2_completion(
     strokes: &[crate::theta_v0::types::Stroke],
     gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> bool {
-    lvl == 0 || descend_type1_anchor_depth(s, source_index, delta, hist, strokes, gauge).is_some()
+    if lvl == 0 {
+        // L0 天花板（基底选择——塔以线段为底、笔不在塔级别阶梯内，#520 订正）⟹ 存在性免门。
+        return true;
+    }
+    let locator = descend_type1_anchor_depth(s, source_index, delta, hist, strokes, gauge);
+    debug_assert_ne!(
+        locator.stop(),
+        DescendStop::NoAlign,
+        "Type2 下钻：L0 以上取不到对齐段（#846 B 类零反例 36175/36175）"
+    );
+    locator.anchored()
 }
 
 /// 673-fix Type3 候选谓词：离开中枢后回抽/反抽走势完成（**独立分支**，codex 裁决①）。
@@ -963,7 +1049,10 @@ fn cand_delta_type2_completion(
 /// ZG/ZD 边界由上游 `bsp.rs`（`endpoint_to_bsp`）置 buy3/sell3 位时强制（V型反转回试不入中枢已判），本谓词不在
 /// Cand 层重门 ZG/ZD（上游已滤 ⟹ 双门=dead gate，信号集差 0）——保护边界**归属**记录于此，语义与
 /// Type2 分离。存在性锚复用 `descend_type1_anchor_depth`（codex 允许「Type3 最多复用 Type2 的
-/// 反向走势完成 helper」）：精确点=次级别 Type1（定律一下沉）；`lvl==0` 免门，`None`=小转大门拒。
+/// 反向走势完成 helper」）：精确点=次级别 Type1（定律一下沉）；`lvl==0` 免门，`NoDivergence`=小转大门拒。
+///
+/// ★S4 接线（#802 空洞①/②）：同 [`cand_delta_type2_completion`]——`lvl==0` = L0 天花板（#520
+/// 基底选择），下钻门消费存在性（`.anchored()`），不变式（#846 B 类零反例）在消费层报错。
 fn cand_delta_type3_retest(
     s: &super::super::classifier::recursive_tower::LeveledMove,
     source_index: usize,
@@ -973,7 +1062,17 @@ fn cand_delta_type3_retest(
     strokes: &[crate::theta_v0::types::Stroke],
     gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> bool {
-    lvl == 0 || descend_type1_anchor_depth(s, source_index, delta, hist, strokes, gauge).is_some()
+    if lvl == 0 {
+        // L0 天花板（基底选择——塔以线段为底、笔不在塔级别阶梯内，#520 订正）⟹ 存在性免门。
+        return true;
+    }
+    let locator = descend_type1_anchor_depth(s, source_index, delta, hist, strokes, gauge);
+    debug_assert_ne!(
+        locator.stop(),
+        DescendStop::NoAlign,
+        "Type3 下钻：L0 以上取不到对齐段（#846 B 类零反例 36175/36175）"
+    );
+    locator.anchored()
 }
 
 /// 673-fix 薄 dispatcher：per-rung `Cand^δ_k` 按候选类型分派（不承载判据逻辑，codex 裁决①）。
@@ -1008,8 +1107,12 @@ fn cand_delta(
 
 /// 673-fix base 存在性门（一次，非 per-rung）：Type2/3 定律一下沉锚定，按类型分派。
 ///
-/// Type1 无 base gate（判据在 per-rung `div_cand`）⟹ true。Type2/3 委托各自谓词（存在性锚 +
-/// 保护边界归属记录）。返回 false ⟹ 整证书拒（小转大：该级无一类精确点无法下沉定位）。
+/// ★S4 接线（#802 空洞③「Type1 从不下钻」）：Type1 也走一次向下定位器——但下钻是**定位工具**
+/// 不是门（ADR 0013 裁定七：区间套是主动调用的定位工具；探针 #852/#870 实测 Type1 首步
+/// DivFalse ≈92.7% ⟹ 把下钻结果当准入门会误杀几乎全部 Type1 信号）。故 Type1 恒 true（背驰判定
+/// 在 per-rung `div_cand`），下钻只执行不变式守卫（NoAlign 报错）+ 供诊断消费深度（终止读数）。
+/// Type2/3 委托各自谓词（存在性锚 + 保护边界归属记录）。返回 false ⟹ 整证书拒（小转大：该级
+/// 无一类精确点无法下沉定位）。
 #[allow(clippy::too_many_arguments)]
 fn cand_delta_base_gate(
     cand_type: BspCandType,
@@ -1022,7 +1125,16 @@ fn cand_delta_base_gate(
     gauge: super::super::classifier::divergence::DivergenceGauge,
 ) -> bool {
     match cand_type {
-        BspCandType::Type1 => true,
+        BspCandType::Type1 => {
+            // 下钻执行一次（「Type1 要走」）；NoAlign 不变式在此消费层报错，结果不作准入门。
+            let locator = descend_type1_anchor_depth(s, source_index, delta, hist, strokes, gauge);
+            debug_assert_ne!(
+                locator.stop(),
+                DescendStop::NoAlign,
+                "Type1 下钻：L0 以上取不到对齐段（#846 B 类零反例 36175/36175）"
+            );
+            true
+        }
         BspCandType::Type2 => {
             cand_delta_type2_completion(s, source_index, delta, hist, lvl, strokes, gauge)
         }
@@ -1299,8 +1411,8 @@ pub(super) fn effective_nest_depth(cert: &NestCertificate) -> usize {
 /// 小转大确认凭据（次级别结构确认通道——独立于区间套；本级无背驰段可套 ⟹ **无 depth**）。
 ///
 /// ## 结果包（六要素）
-/// - **结论**：Type2/3 信号在 `descend_type1_anchor_depth==None`（小转大域）时，用二类买卖点代替
-///   区间套定位；门通行 = **level==1 时 C2∧C3(新中枢+突破) 硬门，level!=1 维持 C2-only**（#41 判据
+/// - **结论**：Type2/3 信号在下钻未锚定（[`DescendStop::NoDivergence`]，小转大域）时，用二类买卖点
+///   代替区间套定位；门通行 = **level==1 时 C2∧C3(新中枢+突破) 硬门，level!=1 维持 C2-only**（#41 判据
 ///   即 `same_side_same_center` 经 #44 探针确定性证伪为归属链错位——判据换为第43课「背驰后新中枢+
 ///   反向突破」，codex #44 终局裁定(c)）。输出标注 `C2+C3(breakout) xzd`，不得沿用旧 `C2-only xzd` 标签。
 /// - **定义依据**：`053:28`（二类点补充小转大）；第43课「背驰后新中枢+反向突破」原文语义；codex #44
@@ -1427,7 +1539,8 @@ pub(super) fn nest_trigger(cert: &GateCertificate, cand_type: BspCandType) -> Ne
 /// 二通道复用现有判据基础设施（不 fork 第二套门，不改动既有 Nest/Xzd 信号判定路径——本函数是
 /// PanDiv 的**新增入口**，既有信号集 bit 不变）：
 /// - **Nest 通道**（∃e<ℓ Conf^δ_e）：[`descend_type1_anchor_depth`]——次级别 Type1 下沉锚
-///   （定律一，第29课L396；与 Type2/3 base gate 同一判据函数）。`Some(d)` ⟹ e=ℓ−d 的下级确认存在。
+///   （定律一，第29课L396；与 Type2/3 base gate 同一判据函数）。★S4 接线：返回 [`DescendLocator`]
+///   ——`.anchored()` ⟹ e=ℓ−depth 的下级确认存在；深度与终止成因不再丢弃（#802 空洞①）。
 /// - **XZD 通道**：[`xiaozhuanda_confirm`] → [`XzdEvidence::gate_pass`]（level==1 C2∧C3 硬门 /
 ///   其余 C2-only，单一来源）。
 ///
@@ -1455,8 +1568,18 @@ pub(super) fn pan_div_gate_pass(
         return false;
     };
     let s = &exec_moves[si];
-    // 通道1（Nest 语义 ∃e<ℓ Conf^δ_e）：次级别 Type1 下沉锚。lvl==0（递归底，塔内无次级别——塔不从笔递归，构造选择，非客观无次级别，订正 #520）恒 None ⟹ 走通道2。
-    if descend_type1_anchor_depth(s, cert.source_index, cert.side, hist, strokes, gauge).is_some() {
+    // 通道1（Nest 语义 ∃e<ℓ Conf^δ_e）：次级别 Type1 下沉锚。lvl==0（L0 天花板——塔不从笔递归，
+    // 构造选择，#520 订正）恒 BaseL0 ⟹ 走通道2。
+    let locator = descend_type1_anchor_depth(s, cert.source_index, cert.side, hist, strokes, gauge);
+    // ★S4 不变式（#846 B 类零反例 36175/36175）：L0 以上取不到对齐段即报错（结构不变量违反）。
+    if lvl > 0 {
+        debug_assert_ne!(
+            locator.stop(),
+            DescendStop::NoAlign,
+            "PanDiv 下钻：L0 以上取不到对齐段（#846 B 类零反例 36175/36175）"
+        );
+    }
+    if locator.anchored() {
         return true;
     }
     // 通道2（XZD^δ_{ℓ↓e}）：小转大确认（gate_pass 单一来源，不重判 C1）。
@@ -1756,8 +1879,9 @@ fn l0_units_from_tower(moves: &[LeveledMove]) -> Vec<UnitRange> {
 /// 门通行判据见 [`XzdEvidence::gate_pass`]）。
 ///
 /// 前提（调用侧路由保证）：`s` 是执行级 tower[lvl] 中 end_index==source_index 的候选段，且信号已判为
-/// 小转大域（Type2/3 ∧ descend anchor None ⟹ build_nest_certificate 返回 None）。C1（descend=None）由
-/// 调用侧保证，本函数不重判。evidence 始终构造（含 C2/C3/诊断分项取值）——诊断可读分项，门读 gate_pass。
+/// 小转大域（Type2/3 ∧ 下钻未锚定 [`DescendStop::NoDivergence`] ⟹ build_nest_certificate 返回 None）。
+/// C1（下钻未锚定）由调用侧保证，本函数不重判。evidence 始终构造（含 C2/C3/诊断分项取值）——诊断可读
+/// 分项，门读 gate_pass。
 #[allow(clippy::too_many_arguments)]
 fn xiaozhuanda_confirm(
     s: &LeveledMove,
@@ -3284,17 +3408,19 @@ mod tests {
         // s3(15-19) area=5*1=5 < s1(5-9) area=5*2=10（Weak ✓）。
         let hist: Vec<f64> = (0..20).map(|i| if i < 10 { -2.0 } else { -1.0 }).collect();
 
+        let locator = super::descend_type1_anchor_depth(
+            &m2,
+            19,
+            Side::Long,
+            &hist,
+            &[],
+            DivergenceGauge::MacdArea,
+        );
+        assert_eq!(locator.depth(), 1, "次级别 Type1 锚点成立 ⟹ 下沉深度 1");
         assert_eq!(
-            super::descend_type1_anchor_depth(
-                &m2,
-                19,
-                Side::Long,
-                &hist,
-                &[],
-                DivergenceGauge::MacdArea
-            ),
-            Some(1),
-            "次级别 Type1 锚点成立 ⟹ 下沉深度 Some(1)"
+            locator.stop(),
+            DescendStop::BaseL0,
+            "s3 是 L0 段（sub_moves 空）⟹ 终止 = L0 天花板（#520 基底选择）"
         );
         let mut buy2 = super::super::super::types::BspBits::default();
         buy2.buy2 = true;
@@ -3331,17 +3457,19 @@ mod tests {
             vec![Rc2::new(vec![s0, s1, s2, s3]), Rc2::new(vec![m2.clone()])];
         let hist = vec![0.0f64; 20]; // area=0 ⟹ 0<0 false ⟹ div_cand 假 ⟹ 次级别无一类锚点
 
+        let locator = super::descend_type1_anchor_depth(
+            &m2,
+            19,
+            Side::Long,
+            &hist,
+            &[],
+            DivergenceGauge::MacdArea,
+        );
+        assert_eq!(locator.depth(), 0, "次级别无一类背驰锚点 ⟹ 未下沉");
         assert_eq!(
-            super::descend_type1_anchor_depth(
-                &m2,
-                19,
-                Side::Long,
-                &hist,
-                &[],
-                DivergenceGauge::MacdArea
-            ),
-            None,
-            "次级别无一类背驰锚点 ⟹ 小转大 ⟹ None（显式可测判别）"
+            locator.stop(),
+            DescendStop::NoDivergence,
+            "hist=0 ⟹ div_cand 假 ⟹ 判据层终止（小转大，显式可测判别）"
         );
         let mut buy2 = super::super::super::types::BspBits::default();
         buy2.buy2 = true;
@@ -3384,17 +3512,101 @@ mod tests {
                                                                                 // s（level2）：[A0(Down), Amid(Up), A1(Down@19)]。
         let s = compose2(vec![big_a0, amid, big_a1], ct2(45, 92, 10, 19), 2, 0);
 
+        let locator = super::descend_type1_anchor_depth(
+            &s,
+            19,
+            Side::Long,
+            &hist,
+            &[],
+            DivergenceGauge::MacdArea,
+        );
         assert_eq!(
-            super::descend_type1_anchor_depth(
-                &s,
+            locator.depth(),
+            2,
+            "次级别 Type1 + 次次级别 Type1 ⟹ 真递归下沉深度 2"
+        );
+        assert_eq!(
+            locator.stop(),
+            DescendStop::BaseL0,
+            "最深层是 L0 段（sub_moves 空）⟹ 终止 = L0 天花板"
+        );
+    }
+
+    /// ★S4 接线测试锁（#802 空洞①/②）：下钻纯函数在「L0 以上取不到对齐段」时返回
+    /// [`DescendStop::NoAlign`]（B 类，#846 零反例）——函数保持纯返回不 panic，
+    /// 报错守卫在生产消费层 `debug_assert_ne!` 落地（见下一个 `#[should_panic]` 锁）。
+    #[test]
+    fn descend_locator_reports_noalign_for_malformed_sub_moves() {
+        // m 的 sub_moves 非空，但没有任何段 end_index == source_index（19）——塔构造不变量
+        // （父段末尾恒等于子段末尾）违反的合成反例（#846 B 类零反例 ⟹ 真实数据不可达）。
+        let s0 = seg2(Dir2::Up, 50, 100, 0, 4, 0);
+        let s1 = seg2(Dir2::Down, 40, 90, 5, 9, 1);
+        let s2 = seg2(Dir2::Up, 45, 95, 10, 14, 2); // 末段 end=14 ≠ 19
+        let m = compose2(vec![s0, s1, s2], ct2(45, 92, 10, 14), 1, 0);
+        let hist = vec![0.0f64; 20];
+        let locator = super::descend_type1_anchor_depth(
+            &m,
+            19,
+            Side::Long,
+            &hist,
+            &[],
+            DivergenceGauge::MacdArea,
+        );
+        assert_eq!(locator.depth(), 0, "无对齐段 ⟹ 未下沉");
+        assert_eq!(
+            locator.stop(),
+            DescendStop::NoAlign,
+            "sub_moves 非空但无 end==source_index 对齐段 ⟹ B 类（结构不变量违反）"
+        );
+    }
+
+    /// ★S4 接线测试锁（#802 空洞③「Type1 从不下钻」）：Type1 的 base gate **确实执行**了下钻
+    /// ——malformed 塔（NoAlign）会使消费层不变式 `debug_assert_ne!` 报错。若 Type1 退回恒
+    /// `true` 不下钻，本测试将因「期望 panic 但未 panic」而失败（debug 构建；release 下该
+    /// 断言编译掉，故本锁仅在 `cargo test` 默认 debug 档有效）。
+    #[test]
+    #[should_panic(expected = "Type1 下钻：L0 以上取不到对齐段")]
+    fn type1_base_gate_fires_noalign_invariant_on_malformed_tower() {
+        let s0 = seg2(Dir2::Up, 50, 100, 0, 4, 0);
+        let s1 = seg2(Dir2::Down, 40, 90, 5, 9, 1);
+        let s2 = seg2(Dir2::Up, 45, 95, 10, 14, 2); // 末段 end=14 ≠ 19
+        let m = compose2(vec![s0, s1, s2], ct2(45, 92, 10, 14), 1, 0);
+        let hist = vec![0.0f64; 20];
+        let _ = super::cand_delta_base_gate(
+            BspCandType::Type1,
+            &m,
+            19,
+            Side::Long,
+            &hist,
+            1,
+            &[],
+            DivergenceGauge::MacdArea,
+        );
+    }
+
+    /// ★S4 接线测试锁（#802 空洞③）：Type1 下钻是**定位读数**不是准入门——即使 div_cand 判假
+    /// （NoDivergence，探针 #852/#870 实测首步 ≈92.7%），base gate 仍 true（背驰判定在
+    /// per-rung `div_cand`），不误杀 Type1 信号。
+    #[test]
+    fn type1_base_gate_descends_but_never_rejects() {
+        let s0 = seg2(Dir2::Up, 50, 100, 0, 4, 0);
+        let s1 = seg2(Dir2::Down, 40, 90, 5, 9, 1);
+        let s2 = seg2(Dir2::Up, 45, 95, 10, 14, 2);
+        let s3 = seg2(Dir2::Down, 30, 85, 15, 19, 3); // end==19 对齐，但 hist=0 ⟹ div_cand 假
+        let m2 = compose2(vec![s0, s1, s2, s3], ct2(45, 92, 10, 14), 1, 0);
+        let hist = vec![0.0f64; 20]; // div_cand 条件4 假 ⟹ NoDivergence
+        assert!(
+            super::cand_delta_base_gate(
+                BspCandType::Type1,
+                &m2,
                 19,
                 Side::Long,
                 &hist,
+                1,
                 &[],
-                DivergenceGauge::MacdArea
+                DivergenceGauge::MacdArea,
             ),
-            Some(2),
-            "次级别 Type1 + 次次级别 Type1 ⟹ 真递归下沉深度 Some(2)"
+            "Type1 下钻结果不作准入门——NoDivergence 时 base gate 仍 true（不误杀 Type1）"
         );
     }
 
@@ -3444,7 +3656,7 @@ mod tests {
         );
     }
 
-    /// XZD 通道正例：递归底（sub_moves 空 ⟹ descend None ⟹ Nest 闭）+ 同点共生 buy2
+    /// XZD 通道正例：L0 天花板（sub_moves 空 ⟹ [`DescendStop::BaseL0`] ⟹ Nest 闭）+ 同点共生 buy2
     /// （C2，level=0 ≠1 ⟹ C2-only gate_pass）⟹ XZD 通道承接成立。
     #[test]
     fn pan_div_gate_xzd_channel_passes_via_type2_confirmed() {
@@ -7509,7 +7721,8 @@ mod tests {
     ///
     /// 复用 `h2_sample_exclusion_dx` 的 bit-exact classify 循环，对 level1-4 每条 Type2/3 信号
     /// （per-delta `!is_type1 && (is_type2||is_type3)`）调私有 `descend_type1_anchor_depth`：
-    /// `None`=小转大（次级别无一类锚点，精确点无法下沉定位）计数；`Some(d)`=区间套下沉深度直方图。
+    /// `DescendLocator{depth:0, ..}`（NoDivergence）=小转大（次级别无一类锚点，精确点无法下沉定位）
+    /// 计数；`depth≥1`=区间套下沉深度直方图。
     /// 另抽样验证锚点正确性（`s.sub_moves` 中 `end_index==source_index` 段方向=−δ 回抽方向）。
     ///
     /// 命令：`ECON_L2_MAX_BARS=100000000 cargo test --release l2_depth_distribution_dx -- --ignored --nocapture`
@@ -7674,8 +7887,9 @@ mod tests {
                             n_t23[lvl] += 1;
                             match descend {
                                 None => base_none_t23[lvl] += 1, // 无候选段
-                                Some(None) => xzd_t23[lvl] += 1, // 小转大
-                                Some(Some(d)) => {
+                                Some(locator) if !locator.anchored() => xzd_t23[lvl] += 1, // 小转大
+                                Some(locator) => {
+                                    let d = locator.depth();
                                     max_depth = max_depth.max(d);
                                     if d > DCAP {
                                         depth_overflow += 1;
@@ -7689,7 +7903,7 @@ mod tests {
                                         let tidx = subs
                                             .iter()
                                             .position(|m| m.end_index == src)
-                                            .expect("Some(d) ⟹ 存在 end==src 锚段");
+                                            .expect("anchored ⟹ 存在 end==src 锚段");
                                         let cm_dir = rmove_dir(&subs[tidx].rmove);
                                         let expected = match delta {
                                             Side::Long => Direction::Down,
@@ -7710,7 +7924,7 @@ mod tests {
                         } else {
                             n_other += 1;
                             match descend {
-                                Some(Some(_)) => some_other += 1,
+                                Some(locator) if locator.anchored() => some_other += 1,
                                 _ => none_other += 1,
                             }
                         }
@@ -8059,9 +8273,10 @@ mod tests {
     ///
     /// ## 与生产的关系（诚实标注）
     ///
-    /// 生产 `build_nest_certificate:1019` 的 base gate（`cand_delta_base_gate`）**只对 Type2/3** 调
-    /// `descend_type1_anchor_depth`；Type1 走 per-rung `div_cand`（本级/上级语境），**不下沉**。
-    /// 故本探针对 Type1 群测的是**命题**，不是生产现行行为——读数不改变任何信号集。
+    /// ★S4 接线后：生产 `build_nest_certificate` 的 base gate（`cand_delta_base_gate`）对
+    /// Type2/3 调 `descend_type1_anchor_depth`（存在性锚准入），**Type1 也走一次下钻**（定位工具，
+    /// 非准入——探针 #852/#870 实测 Type1 首步 DivFalse ≈92.7%，下钻结果不作门）。故本探针对
+    /// Type1 群测的是**命题**（下钻逐级连续性），不改变任何信号集。
     ///
     /// **认识论 L2**（真实 BTC 逐信号结构下钻 + 确定性判据，可产否定性计数）。
     ///
@@ -8358,7 +8573,7 @@ mod tests {
                         }
 
                         // 忠实性对拍①：展开循环 ≡ 真 descend_type1_anchor_depth。
-                        let real_depth = descend_type1_anchor_depth(
+                        let real_locator = descend_type1_anchor_depth(
                             s,
                             src,
                             delta,
@@ -8366,7 +8581,7 @@ mod tests {
                             &l0_i.strokes,
                             config.divergence_gauge,
                         );
-                        if real_depth != (depth > 0).then_some(depth) {
+                        if real_locator.depth() != depth {
                             trace_mismatch += 1;
                         }
 
@@ -11528,7 +11743,7 @@ mod tests {
                             cur_level = cur_level.saturating_sub(1);
                         }
                         // 忠实性对拍：展开循环 ≡ 真 descend_type1_anchor_depth
-                        let real_depth = descend_type1_anchor_depth(
+                        let real_locator = descend_type1_anchor_depth(
                             s,
                             src,
                             delta,
@@ -11536,7 +11751,7 @@ mod tests {
                             &l0_i.strokes,
                             config.divergence_gauge,
                         );
-                        if real_depth != (depth > 0).then_some(depth) {
+                        if real_locator.depth() != depth {
                             trace_mismatch += 1;
                         }
                         depth_hist[g][depth.min(LMAX + 1)] += 1;

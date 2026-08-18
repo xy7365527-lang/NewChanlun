@@ -68,8 +68,10 @@ use crate::theta_v0::types::Bar;
 pub struct ZExt {
     /// Cand 门通道（§6 CandType）：econ 门路径 `Some(nest_trigger(..))`；无门路径 None。
     pub cand_channel: Option<NestTrigger>,
-    /// 区间套下沉深度（§6 Ndepth）：Nest 通道 `Some(rungs.len())`（0=基例真值）；
-    /// Xzd/无门路径 None（下沉概念未定义，非 0）。
+    /// 区间套**向上 rungs 深度**（§6 Ndepth）：Nest 通道 `Some(rungs.len())`（0=基例真值）；
+    /// Xzd/无门路径 None（rungs 概念未定义，非 0）。★S5 命名分家（ADR 0013 裁定七）：
+    /// 本维 = **向上**，勿与**向下**定位器 [`super::econ_positive::DescendLocator`]
+    /// （`sub_moves` 逐级下沉）混名。
     pub nest_depth: Option<u8>,
     /// 起始级 ℓ 覆盖（§6 ℓ）：`Some(ℓ)`=区间套链顶（Nest 通道 `lvl + rungs.len()`）；
     /// `None` ⟹ z 填 `Some(c.level)`（起始=执行的无下沉**真值**——级别事实对任何真候选

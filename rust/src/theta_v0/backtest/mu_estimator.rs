@@ -136,11 +136,17 @@ pub struct MuClass {
     /// Settled 口径（Live 未确认候选无生产者，架构口径缺口见 g3 结果包），Force 口径已由
     /// `force_state` 第 8 维独立承载；本维承载的是「门通道」轴（任务 #138 对 CandType 的裁定读法）。
     pub cand_channel: Option<super::econ_positive::NestTrigger>,
-    /// 区间套下沉深度 Ndepth（第 11 维，§6，G3 #138）= `NestCertificate.rungs.len()`。
+    /// 区间套**向上 rungs 深度**（第 11 维，§6，G3 #138）= `NestCertificate.rungs.len()`。
     /// `Some(0)`=经 Nest 门且基例（ℓ=e，纯 Conf^δ_e——0 是计算结果非未知，G2 口径）；
     /// `Some(d>0)`=真跨级 J 嵌套 d 级；`None`=未经区间套门（Xzd 通道无下沉概念 / runner π 路径 /
     /// 裸口径）——**不是 0**，深度概念在该口径未定义。BTC 实测 95.36% 基例、4.64% d=1
     /// （econ_positive 有效域注释），本维使该退化在 μ̂ 分桶层可观测。
+    ///
+    /// ★S5 命名分家（ADR 0013 裁定七）：本维是**向上**（信号头顶覆盖多少级更高级语境，
+    /// `rungs` 从 ℓ 到 e+1）；与**向下**定位器（[`super::econ_positive::DescendLocator`]，沿
+    /// `sub_moves` 逐级下沉的区间套）**同名不同向**——历史上被已归档报告
+    /// `l2-depth-distribution-20260702.md` §5 写成「同一件事的两次测量」。分名：向上 = 本维
+    /// （rungs 数），向下 = `DescendLocator`（下沉深度 + 终止成因 A/B/C）。
     pub nest_depth: Option<u8>,
     /// 起始级别 ℓ（第 12 维，§6 的 ℓ，G3 #138）：区间套链顶级别。Nest 通道 = `level + rungs.len()`
     /// （从高级 ℓ 背驰段逐级下沉定位到执行级 e=level）；Xzd/无门候选 = `level`（起始=执行，
