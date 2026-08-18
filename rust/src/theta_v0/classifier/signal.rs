@@ -400,6 +400,10 @@ pub(crate) fn judge_first_cached(
     src_to_idx: &[usize],
     a_seg: Option<((usize, usize), (Tick, Tick))>,
     c_move_start: Option<usize>,
+    // ★#1028 裁定 A：一类点点锚 = departure 单元终点（趋势真终点）。`Some(x)` = L≥1 调用方已按
+    // `cand_predicate::departure_unit_end` 预算（末子段常是回抽反趋势段，#1035 §1.4）；`None` =
+    // L0 / 直调（segment 自身即 departure 单元，点锚回退 `seg.end_index`）。只动锚，不动判定链。
+    departure_end: Option<usize>,
     gauge: DivergenceGauge,
     strokes: &[Stroke],
     sorted: &[Segment],
@@ -428,6 +432,9 @@ pub(crate) fn judge_first_cached(
         return None;
     };
     let end = seg_end(seg);
+    // ★#1028 裁定 A：点锚 = departure 单元终点；无预算（L0/直调）回退 seg.end_index（旧口径）。
+    // 判据链的 I(C) 区间（lambda_c..seg.end_index）与力度 proxy 仍用 seg.end_index——只动锚，不动判据。
+    let point_src = departure_end.unwrap_or(end.source_index);
     let is_sell = gates.side == Side::Short;
     let (a_start, a_end) = gates.seg_a;
     let lambda_c = gates.lambda_c;
@@ -502,7 +509,7 @@ pub(crate) fn judge_first_cached(
     if diverged {
         let rec = FirstClassGradeRecord {
             level: level.unwrap_or(0),
-            source_index: end.source_index,
+            source_index: point_src,
             side: if is_sell { Side::Short } else { Side::Long },
             center_start_index: last_center.start_index,
             center_end_index: last_center.end_index,
@@ -541,8 +548,9 @@ pub(crate) fn judge_first_cached(
     // 结构候选端点：背驰确认 ⟹ buy1/sell1 止损源 pivot（破中枢段端点极值）；未背驰 ⟹ 零 bit，
     // pivot 仍按 bit 方向填（零 bit ⟹ 两侧 0）。force 旁挂进点（单一来源，不进任何 bit 判据）。
     // ★owner 载体补齐（关③ 补记② 路径 (a)）：判定中枢 last_center 构造时填载（center=Some）。
+    // ★#1028 裁定 A：source_index 传 departure 单元终点（point_src），非 seg.end_index（回抽段终点）。
     Some(make_first_point(
-        end.source_index,
+        point_src,
         bits,
         end.price,
         last_center,
@@ -1623,6 +1631,7 @@ pub fn extract_signals_with_hist(
         centers,
         segments,
         None,
+        None,
         hist,
         dif,
         closes_tick,
@@ -1646,6 +1655,9 @@ pub fn extract_signals_with_hist_anchored(
     centers: &[Center],
     segments: &[Segment],
     anchor_dirs: Option<&[Option<Direction>]>,
+    // ★#1028 裁定 A：与 `segments` 平行的 departure 单元终点数组（`departure_ends[i]` =
+    // 段 i 的趋势真终点）。`None` = L0（segment 自身即 departure 单元，点锚回退 seg.end_index）。
+    departure_ends: Option<&[usize]>,
     hist: &[f64],
     dif: &[f64],
     closes_tick: &[Tick],
@@ -1663,24 +1675,38 @@ pub fn extract_signals_with_hist_anchored(
     // ★O(1) 优化：检测已有序则直接借用引用（避免 O(k) clone+sort）。生产路径 + 测试合成数据均有序。
     let sorted_owned: Vec<Segment>;
     let anchors_perm: Vec<Option<Direction>>;
-    let (sorted, anchors_in): (&[Segment], Option<&[Option<Direction>]>) = if segments
+    let departure_perm: Vec<usize>;
+    let sorted: &[Segment];
+    let anchors_in: Option<&[Option<Direction>]>;
+    let departure_in: Option<&[usize]>;
+    if segments
         .windows(2)
         .all(|w| w[0].start_index <= w[1].start_index)
     {
-        (segments, anchor_dirs)
+        sorted = segments;
+        anchors_in = anchor_dirs;
+        departure_in = departure_ends;
     } else {
-        // 稳定排序经下标置换——anchor_dirs 与 segments 平行数组，须同一置换（Q7-#1 裁定C）。
+        // 稳定排序经下标置换——anchor_dirs/departure_ends 与 segments 平行数组，须同一置换（Q7-#1 裁定C）。
         let mut idx: Vec<usize> = (0..segments.len()).collect();
         idx.sort_by_key(|&i| segments[i].start_index);
         sorted_owned = idx.iter().map(|&i| segments[i].clone()).collect();
-        match anchor_dirs {
+        sorted = &sorted_owned;
+        anchors_in = match anchor_dirs {
             Some(a) => {
                 anchors_perm = idx.iter().map(|&i| a[i]).collect();
-                (&sorted_owned[..], Some(&anchors_perm[..]))
+                Some(&anchors_perm)
             }
-            None => (&sorted_owned[..], None),
-        }
-    };
+            None => None,
+        };
+        departure_in = match departure_ends {
+            Some(d) => {
+                departure_perm = idx.iter().map(|&i| d[i]).collect();
+                Some(&departure_perm)
+            }
+            None => None,
+        };
+    }
     // 锚资格平行数组（与 `sorted` 等长）：anchors_self = 结构方向（L0 语义 + 盘整背驰路径专用）。
     let anchors_self: Vec<Option<Direction>> = sorted.iter().map(|s| Some(s.direction)).collect();
     let anchors: &[Option<Direction>] = anchors_in.unwrap_or(&anchors_self);
@@ -1688,6 +1714,10 @@ pub fn extract_signals_with_hist_anchored(
         anchors.len(),
         sorted.len(),
         "anchor_dirs 与 segments 必等长"
+    );
+    debug_assert!(
+        departure_in.is_none_or(|d| d.len() == sorted.len()),
+        "departure_ends 与 segments 必等长（#1028 平行数组）"
     );
 
     // ★中枢归属用 centers 按 end_index 升序（`detect_centers_with` 非重叠扫描已保证，mod.rs:136；
@@ -1820,6 +1850,7 @@ pub fn extract_signals_with_hist_anchored(
             gauge,
             strokes,
             None,
+            departure_in,
             &mut points,
             &mut pan_divs,
             grade_sink,
@@ -1887,6 +1918,9 @@ pub fn extract_first_third_resume(
     centers: &[Center],
     segments: &[Segment],
     anchor_dirs: Option<&[Option<Direction>]>,
+    // ★#1028 裁定 A：与 `segments` 平行的 departure 单元终点数组；`None` = L0（点锚回退
+    // seg.end_index）。
+    departure_ends: Option<&[usize]>,
     blocks: &[MoveBlock],
     prefix_count: usize,
     dirty_e: usize,
@@ -1916,6 +1950,10 @@ pub fn extract_first_third_resume(
         anchors.len(),
         segments.len(),
         "anchor_dirs 与 segments 必等长"
+    );
+    debug_assert!(
+        departure_ends.is_none_or(|d| d.len() == segments.len()),
+        "departure_ends 与 segments 必等长（#1028 平行数组）"
     );
 
     let any_trend = blocks.iter().any(|b| b.kind == MoveKind::Trend);
@@ -1983,6 +2021,7 @@ pub fn extract_first_third_resume(
                 gauge,
                 strokes,
                 Some(level),
+                departure_ends,
                 pts,
                 pans,
                 grades,
@@ -2028,8 +2067,8 @@ pub fn extract_first_third_resume(
         {
             let mut full_grades = Vec::new();
             let (full_pts, full_pans) = extract_signals_with_hist_anchored(
-                centers, segments, anchor_dirs, hist, dif, closes_tick, close_src, gauge,
-                strokes, &mut full_grades,
+                centers, segments, anchor_dirs, departure_ends, hist, dif, closes_tick,
+                close_src, gauge, strokes, &mut full_grades,
             );
             // #885：全量对拍入口 level=None ⟹ 记录 level 为占位 0；对拍内容 = 判定本体
             // （坐标/方向/中枢身份/grade），level 由本 resume 入口真实级别统一盖章后比对。
@@ -2084,11 +2123,16 @@ fn judge_segment(
     gauge: DivergenceGauge,
     strokes: &[Stroke],
     level: Option<u32>,
+    // ★#1028 裁定 A：与 `sorted` 平行的 departure 单元终点数组（L≥1 由调用方预算）；`None` =
+    // L0（segment 自身即 departure 单元，点锚回退 seg.end_index）。
+    departure_ends: Option<&[usize]>,
     points: &mut Vec<BspPoint>,
     pan_divs: &mut Vec<PanDivCert>,
     grade_sink: &mut Vec<FirstClassGradeRecord>,
 ) {
     let c = &centers_sorted[c_idx];
+    // ★#1028 裁定 A：本段的 departure 单元终点（调用方预算，索引随 sorted 平行）。
+    let departure_end = departure_ends.map(|d| d[i]);
     // 第一类（趋势背驰，A/B/C 框架）：仅段所在趋势块 + 破最后中枢段触发（Q8：「最后一个中枢」=
     // 当前走势类型的最后中枢 = c）；prev_center = pos-1（同块前驱，A 段所在）。
     if let Some((pos, dir)) = gate_dir {
@@ -2123,6 +2167,7 @@ fn judge_segment(
             close_src,
             a_seg_entry,
             c_start_entry,
+            departure_end,
             gauge,
             strokes,
             sorted,
@@ -2330,6 +2375,7 @@ pub(crate) fn type1_funnel_dx(
         centers,
         segments,
         anchor_dirs,
+        None,
         hist,
         dif,
         closes_tick,
@@ -2676,6 +2722,7 @@ mod tests {
             &[c0, c1],
             &segs,
             Some(&anchors),
+            None,
             &hist,
             &[],
             &[],
@@ -2706,6 +2753,68 @@ mod tests {
         );
     }
 
+    /// #1028 裁定 A 回归锁：一类点点锚 = departure 单元终点。
+    ///
+    /// 复用 `first_buy_fallback_c_unit_rescued_via_structural_direction` 的 A/B/C 夹具（buy1 原锚
+    /// = C 段终点 source_index 11）。传 `departure_ends[2]=7`（趋势真终点）⟹ 点 `source_index` 与
+    /// 分级记录 `source_index` 同键迁移到 7；判定链字段（pivot/center/bits）逐字不动——只动锚。
+    #[test]
+    fn first_buy_point_anchor_migrates_to_departure_unit_end() {
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 350, 250),
+            seg(Direction::Up, 5, 7, 250, 280),
+            seg(Direction::Down, 9, 11, 150, 80),
+            seg(Direction::Up, 11, 13, 80, 90),
+        ];
+        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let (closes, src) = closes_seq(&prices);
+        let hist = compute_macd(&closes, &MacdConfig::default()).hist;
+        let anchors = [
+            Some(Direction::Down),
+            Some(Direction::Down),
+            None,
+            Some(Direction::Down),
+        ];
+        // C 段（下标 2）的 departure 单元终点 = 7（趋势真终点）；其余下标不回读（无点产出）。
+        let departure_ends = [0, 0, 7, 0];
+        let mut grades = Vec::new();
+        let (points, _pan) = extract_signals_with_hist_anchored(
+            &[c0, c1],
+            &segs,
+            Some(&anchors),
+            Some(&departure_ends),
+            &hist,
+            &[],
+            &[],
+            &src,
+            DivergenceGauge::MacdArea,
+            &[],
+            &mut grades,
+        );
+        let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
+        assert_eq!(buy1.len(), 1, "夹具应产一个 buy1");
+        assert_eq!(
+            buy1[0].source_index, 7,
+            "点锚 = departure 单元终点（非 C 段终点 11，#1028 裁定 A）"
+        );
+        assert_eq!(
+            buy1[0].pivot_low, 80,
+            "止损 pivot 仍 = C 段端点极值（判定链不动）"
+        );
+        assert_eq!(
+            buy1[0].center,
+            Some(OwnerRef::Center(c1)),
+            "owner 载体仍 = 判定中枢（判定链不动）"
+        );
+        assert_eq!(grades.len(), 1, "分级记录与 buy1 点 1:1（#885 契约）");
+        assert_eq!(
+            grades[0].source_index, 7,
+            "分级记录 source_index 与点同键迁移（一一对应不脱键）"
+        );
+    }
+
     #[test]
     fn first_buy_fallback_c_unit_opposite_travel_still_rejected() {
         // ★行程方向 veto 保留（降级非去除，037:20 单元级对应）：C 单元结构方向 Up ≠ τ=Down，
@@ -2725,6 +2834,7 @@ mod tests {
             &[c0, c1],
             &segs,
             Some(&anchors),
+            None,
             &hist,
             &[],
             &[],
@@ -2770,6 +2880,7 @@ mod tests {
             &[c0, c1],
             &segs,
             Some(&anchors),
+            None,
             &hist,
             &[],
             &[],
@@ -2812,6 +2923,7 @@ mod tests {
             &[c0, c1],
             &segs,
             Some(&full),
+            None,
             &hist,
             &[],
             &[],
@@ -2823,6 +2935,7 @@ mod tests {
         let (pts_self, _) = extract_signals_with_hist_anchored(
             &[c0, c1],
             &segs,
+            None,
             None,
             &hist,
             &[],
@@ -2858,6 +2971,7 @@ mod tests {
             &src,
             Some(((3, 5), (250, 350))),
             Some(9),
+            None,
             DivergenceGauge::MacdArea,
             &[],
             &[c_seg],
@@ -2898,6 +3012,7 @@ mod tests {
             &[c0, c1],
             &segs,
             Some(&anchors),
+            None,
             &hist,
             &[],
             &[],
@@ -3179,6 +3294,7 @@ mod tests {
         let (points, _pans) = extract_signals_with_hist_anchored(
             &[c0, c1],
             &segs,
+            None,
             None,
             &series.hist,
             &series.dif,

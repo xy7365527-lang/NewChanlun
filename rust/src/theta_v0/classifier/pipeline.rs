@@ -285,6 +285,10 @@ pub(crate) fn extract_first_third_for_level(
     centers: &[Center],
     units: &[UnitRange],
     provenance_anchors: &[Option<Direction>],
+    // ★#1028 裁定 A：与 `units` 平行的 departure 单元终点数组（`departure_ends[i]` = 单元 i 的
+    // 趋势真终点，调用方由 `upper_moves[i].sub_moves` 预算）；`None` = 无预算（点锚回退
+    // seg.end_index 旧口径）。测试/简单调用可传 None。
+    departure_ends: Option<&[usize]>,
     hist: &[f64],
     dif: &[f64],
     closes_tick: &[Tick],
@@ -311,6 +315,7 @@ pub(crate) fn extract_first_third_for_level(
         centers,
         &segs,
         Some(&structural_anchors),
+        departure_ends,
         hist,
         dif,
         closes_tick,
@@ -1356,6 +1361,7 @@ fn classify_with_tower_incremental_inner(
                         &lc.centers,
                         &l0.segments,
                         None,
+                        None,
                         &moves,
                         prefix_count,
                         dirty_e,
@@ -1372,9 +1378,22 @@ fn classify_with_tower_incremental_inner(
                     // 级别-N 一/三类（裁定 A）：units 承担线段角色，复用 L0 判据。units→Segment 投影
                     // （几何衰减 O(units_L)/miss）。#486：三类 leave 与一类同取单元结构方向锚；
                     // provenance `units_anchors` 仍供塔 ownership 链消费，不再传入 BSP 判据。
+                    // ★#1028 裁定 A：一类点点锚 = departure 单元终点——`units[i]` 与
+                    // `tower_snapshots[level_idx][i]` 1:1（本级输入塔快照，compose 前已
+                    // `mem::take` 入 snapshots，此处 `moves_tower` 已空）；无趋势方向子走势 ⟹
+                    // 回退单元自身 end_index。
                     let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
                     let structural_anchors: Vec<Option<Direction>> =
                         units.iter().map(|u| Some(u.direction)).collect();
+                    let level_moves = &tower_snapshots[level_idx];
+                    let departure_ends: Vec<usize> = units
+                        .iter()
+                        .zip(level_moves.iter())
+                        .map(|(u, m)| {
+                            cand_predicate::departure_unit_end(m, u.direction)
+                                .unwrap_or(u.end_index)
+                        })
+                        .collect();
                     signal::extract_first_third_resume(
                         &mut lc.cached_first_third,
                         &mut lc.cached_first_third_pan,
@@ -1384,6 +1403,7 @@ fn classify_with_tower_incremental_inner(
                         &lc.centers,
                         &segs,
                         Some(&structural_anchors),
+                        Some(&departure_ends),
                         &moves,
                         prefix_count,
                         dirty_e,

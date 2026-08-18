@@ -701,21 +701,26 @@ mod tests {
             // 2026-08-17 再位移（七处统一 +16，含 cargo fmt 折行）：#898 扩展支写全在
             // signal.rs 生产区增 center_block_lift 查询与 lift==0 过滤注释 ⟹ 测试区下移；
             // 七点逐条重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。）
-            "theta_v0/classifier/signal.rs:2628",
-            "theta_v0/classifier/signal.rs:2919",
-            "theta_v0/classifier/signal.rs:3291",
-            "theta_v0/classifier/signal.rs:3431",
-            "theta_v0/classifier/signal.rs:3464",
-            "theta_v0/classifier/signal.rs:3720",
-            "theta_v0/classifier/signal.rs:3787",
+            // 2026-08-18 再位移（#1052 一类点点锚迁移）：signal.rs 增 departure_end 参数/注释/
+            // 回归锁测试 ⟹ 七处夹具点下移（+46 起逐段不等），逐条重核内容不变（同为测试夹具
+            // source_index 过滤），同条目重登记。
+            "theta_v0/classifier/signal.rs:2674",
+            "theta_v0/classifier/signal.rs:3034",
+            "theta_v0/classifier/signal.rs:3407",
+            "theta_v0/classifier/signal.rs:3547",
+            "theta_v0/classifier/signal.rs:3580",
+            "theta_v0/classifier/signal.rs:3836",
+            "theta_v0/classifier/signal.rs:3903",
             // （2026-08-16 #648 T1：classifier/mod.rs 内联测试 4273 行抽离至 classifier/tests/
             // 主题件 ⟹ 该夹具点同内容随迁 mod.rs:4574 → tests/pipeline_geometry.rs:1565，
             // 重核内容不变（同为测试夹具 source_index 过滤），同条目重登记。
             // 2026-08-17 再位移（+8）：#884 在 census 测试循环增 b2_broke/s2_broke 计数 ⟹
             // 夹具点同内容随迁 1565 → 1573，重核内容不变（同为 source_index 过滤），同条目重登记。
             // 2026-08-17 再位移（+5）：#898 在直方图区增 CoreOverlap 计数（n_ext）⟹
-            // 夹具点同内容随迁 1573 → 1578，重核内容不变，同条目重登记。）
-            "theta_v0/classifier/tests/pipeline_geometry.rs:1578",
+            // 夹具点同内容随迁 1573 → 1578，重核内容不变，同条目重登记。
+            // 2026-08-18 再位移（+2）：#1052 在 extract_first_third_for_level 增 departure_ends
+            // 参数与注释 ⟹ 夹具点随迁 1578 → 1580，重核内容不变（source_index 过滤），同条目重登记。）
+            "theta_v0/classifier/tests/pipeline_geometry.rs:1580",
             // 「时刻分组键」过滤（spec §12 语义，合法契约非泄漏，非身份 join，不入本族）。
             // （2026-08-16 #903/#919 注释与 fmt ⟹ +2 漂移，七处再重锚，内容不变。）
             // （2026-08-16 #993 fixture 修复 ⟹ signal.rs 测试区再位移，七处夹具点重锚，内容不变。

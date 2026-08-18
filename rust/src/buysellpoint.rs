@@ -776,6 +776,10 @@ pub(crate) fn build_type1_bsp(
     } else {
         Side::Sell
     };
+    // ★#1028 裁定 A 核对（A-4，旧引擎同口径）：本 v1 引擎的 C 段 `div.seg_c_end` 由
+    // `detect_trend_divergence` 的 `trend_extreme_seg` 给出——C 段 = 走势转折点的**单支** bi 级
+    // 段（非 theta_v0 递归塔的 Compose 多子段单元）。单段无「末子段=回抽反趋势段」结构 ⟹ 点锚
+    // `seg.i1` 本就是 departure 单元终点（趋势真终点），**无同型锚错位，不改**。
     let seg_idx = div.seg_c_end;
     let mut price = 0.0;
     let mut bar_idx: i64 = 0;

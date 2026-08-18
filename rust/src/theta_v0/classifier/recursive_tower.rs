@@ -1148,6 +1148,7 @@ pub fn map_src_to_close_idx(
 // ═══════════════════════════════════════════════════════════════════════════════════════
 
 use super::super::types::{MoveKind, Segment, Side};
+use super::cand_predicate;
 use super::decompose::{center_block_kind, center_trend_gate, decompose};
 use super::divergence::{
     departure_move_c_start, locate_departure_move_a, move_range_envelope, DivergenceGauge,
@@ -2288,6 +2289,12 @@ pub fn level_cand_delta(
                 .and_then(|span| move_range_envelope(sorted, span).map(|env| (span, env)))
         });
         let c_start_entry = departure_move_c_start(sorted, anchors, c, dir, seg.start_index);
+        // ★#1028 裁定 A：诊断 provider 与生产同口径取 departure 单元终点（unit_moves 与 sorted
+        // 平行——生产路径 sorted 恒有序，`unit_moves[i]` 即本段走势单元）。无预算/无趋势方向
+        // 子走势 ⟹ None ⟹ judge 回退 seg.end_index 旧锚。
+        let departure_end = unit_moves
+            .and_then(|um| um.get(i))
+            .and_then(|m| cand_predicate::departure_unit_end(m, dir));
         let Some(pf) = signal::judge_first_cached(
             c,
             dir,
@@ -2299,6 +2306,7 @@ pub fn level_cand_delta(
             close_src,
             a_seg_entry,
             c_start_entry,
+            departure_end,
             gauge,
             strokes,
             sorted,

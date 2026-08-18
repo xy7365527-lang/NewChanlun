@@ -242,6 +242,24 @@ fn legacy_sub_endpoint_dir(subs: &[RMove]) -> Option<Direction> {
     })
 }
 
+/// #1028 裁定 A：一类点点锚 = departure 单元终点——`m.sub_moves` 中**最后一个**趋势方向
+/// （`trend`）子走势的 `end_index`（趋势真终点）。
+///
+/// departure 单元 = 离开中枢的走势单元（一类点 C 段）。其 `end_index`（`compose`
+/// `end_index = subs.last().end_index`，`recursive_tower.rs`）落在**末子段终点**——末子段常是
+/// 回抽反趋势段（#1035 §1.4 实测 L1+ 首步反趋势占比 49%），点锚因此系统性晚于趋势真终点。
+/// 本函数取回「最后一个 `rmove_dir == trend` 的子走势终点」作点锚（#1028 裁定 A，选项 B 极值
+/// 锚已否决——极值不总落在末段终点，钉在段中间破坏「点=段终点」构造契约）。
+///
+/// 无趋势方向子走势（或 L0 空 `sub_moves`）⟹ `None`（诚实无键——调用方回退到走势自身
+/// `end_index`，即旧锚口径）。
+pub fn departure_unit_end(m: &LeveledMove, trend: Direction) -> Option<usize> {
+    m.sub_moves
+        .iter()
+        .rev()
+        .find_map(|sub| (rmove_dir(&sub.rmove) == Some(trend)).then_some(sub.end_index))
+}
+
 /// DivCand^δ_{Θ,ℓ}(s,t)：背驰段候选四条件合取谓词。
 ///
 /// ## 四条件（★#883 S4-b 后口径）
@@ -834,6 +852,60 @@ mod tests {
         };
 
         assert_eq!(rmove_dir(&segment), Some(Direction::Down));
+    }
+
+    /// #1028 裁定 A 回归锁：`departure_unit_end` 取最后一个趋势方向子走势终点——
+    /// 末子段是回抽反趋势段时点锚不落到末子段终点（趋势真终点语义）。
+    #[test]
+    fn departure_unit_end_picks_last_trend_direction_submove() {
+        // 子走势 = L0 段（RMove::Segment，rmove_dir 直读段方向）。
+        let d5 = seg(Direction::Down, 90, 110, 0, 5);
+        let u8 = seg(Direction::Up, 80, 90, 5, 8);
+        let d11 = seg(Direction::Down, 60, 80, 8, 11);
+        let u13 = seg(Direction::Up, 50, 60, 11, 13);
+        let parent = LeveledMove::compose(
+            &[d5.clone(), u8.clone(), d11.clone()],
+            &[center(60, 80, 100, 110)],
+            1,
+            ElementId {
+                level: 1,
+                ordinal: 0,
+            },
+        );
+        // 末子段是 Down（同趋势）⟹ 取末子段终点。
+        assert_eq!(departure_unit_end(&parent, Direction::Down), Some(11));
+
+        // 末子段换成 Up（回抽反趋势）⟹ 点锚回退到最后一个 Down 子段终点 11，而非末段 13。
+        let with_pullback = LeveledMove::compose(
+            &[d5.clone(), u8.clone(), d11.clone(), u13.clone()],
+            &[center(50, 60, 80, 110)],
+            1,
+            ElementId {
+                level: 1,
+                ordinal: 0,
+            },
+        );
+        assert_eq!(with_pullback.end_index, 13, "末子段终点 = 回抽段终点");
+        assert_eq!(
+            departure_unit_end(&with_pullback, Direction::Down),
+            Some(11),
+            "趋势真终点 = 最后一个 Down 子段终点，非回抽段终点 13"
+        );
+
+        // 全反趋势（trend=Down，subs 全 Up）⟹ None（诚实无键）。
+        let all_counter = LeveledMove::compose(
+            &[u8, u13],
+            &[center(50, 60, 80, 90)],
+            1,
+            ElementId {
+                level: 1,
+                ordinal: 0,
+            },
+        );
+        assert_eq!(departure_unit_end(&all_counter, Direction::Down), None);
+
+        // L0 线段（空 subs）⟹ None（调用方回退 seg.end_index）。
+        assert_eq!(departure_unit_end(&d11, Direction::Down), None);
     }
 
     // ── 条件1：方向反（dir(s) = −δ） ──────────────────────────────────────────
