@@ -1,68 +1,43 @@
-//! #986（N7）E2E-S8 基线：consume_at 消费缝合线验收（map #529）。
+//! #986（N7）E2E-S8 基线：consume_at 消费缝合线验收（map #529）。#1088（SPEC #1085 S4）缩为
+//! 读数 bin——装配/投影/幂等/prior 累积全部迁入 `E2eOAssembly`，本 bin 只喂真实数据 + 印三窗
+//! 读数（读数口径不变）。
 //!
 //! ## Seam（一行）
 //!
 //! ```text
-//! btc_1m_full.json(+max_bars) → classify（逐 bar 因果通道）→ ChainCertificateBook(Closed 链)
-//!   + BspBridgeBook(event_to_bsp 映射) → consume_at → 验收读数（Closed 链数/受管 BSP 数/
-//!   BspLink 数/幂等/只收 Closed）
+//! btc_1m_full.json(+max_bars) → classify_incremental（逐 bar 因果通道）
+//!   → E2eOAssembly::advance（模块两入口之推进）→ E2eOAssembly::consume（模块两入口之消费）
+//!   → 验收读数（Closed 链数/受管 BSP 数/BspLink 数/幂等/只收 Closed）
 //! ```
 //!
 //! ## 认识论等级
 //!
-//! L1（管线正确性读数）：本 bin 只验证「现役对象 → consume_at」的接线与幂等语义成立，
+//! L1（管线正确性读数）：本 bin 只验证「因果通道 → 装配模块 → 消费」的接线与幂等语义成立，
 //! **不声明 alpha**、不评估 consume_at 在市场上的有效性（L2/L3 归后续票）。
 //!
-//! ## 冻结语义来源
+//! ## #1088 变化（相对 #986 首版）
 //!
-//! 语义已冻结（roadmap 八道缝合线「E2E-S1–S8 = 实证门…S8 未全过只能称塔内近似」，
-//! `git show 640609071d:chanlun/plans/mainline-merged-roadmap-20260717.md`）。
-//! 本票消费的是**塔内 Closed 链证书**（`TowerChainCertificate`），样本以实跑 Closed 链数为准，
-//! 不沿用 charting 侧「66 张 nest 证书」代表数。
-//!
-//! ## 管线 spec（只经现役库公共 API，不重写判据）
-//!
-//! 1. 加载 `analysis/data_cache/btc_1m_full.json`，`max_bars` 窗口参数。
-//! 2. 逐 bar 因果分类：`classifier::classify_incremental`（同一
-//!    `ParseLayerIncr` 血缘 + 同一 `TowerCache`），末 bar 输出 bit-exact 等价于
-//!    `classify`（#93 铁律）。因果通道是 `closed_at` 真 bar 位的前提
-//!    （终态窗口投影会把全部钟钉在窗口末尾，见 p127 头注）。
-//! 3. 链证书：`ChainCertificateBook::default()`，按 `advance_every` 节拍逐 `as_of`
-//!    `advance(&streams, as_of)`（末根必推，与 issue550/p127 同口径），收集
-//!    `status == Closed` 的 `TowerChainCertificate`。
-//! 4. 桥接边：`BspBridgeBook::default()`，同节拍逐 `as_of` `advance(...)`，从 `edges()` 的
-//!    `BridgeKey{event, bsp}` 投影 `event_to_bsp: HashMap<CandidateKey, BspStructuralKey>`。
-//! 5. consume_at：对每条 Closed 链（按 `closed_at` 升序），`consume_at(as_of=closed_at,
-//!    &prior_bsp, &prior_links, &cert, &policy, &event_to_bsp)`，`policy` = 单条 rule 的合法
-//!    policy。跨链 prior 累积 ⟹ 受管 BSP 数 = 唯一 BspStructuralKey 数、BspLink 数 = 唯一
-//!    LinkKey 数。
-//! 6. 幂等：每条 Closed 链连续 consume 两次，第二次（prior 含第一次产出）必须零增量。
-//!    只收 Closed：每条非 Closed 链头调 consume_at 必须 `Err(NoConsumption)`。
+//! - `advance_every` 参数退役：推进按 bar（`E2eOAssembly::advance` 内部 B 增量化去节拍，
+//!   `closed_at` 落真 bar 位）；
+//! - 链簿/桥接簿/event_to_bsp 投影/consume prior 全在模块内，本 bin 不自装配；
+//! - 幂等/只收 Closed 的机器锁在模块单测（`e2eo::tests`），本 bin 只印读数 + 二次 consume
+//!   零增量验收门。
 //!
 //! 用法：`cargo run --release --features backtest_bin --bin p985_s8_consume_baseline -- \
-//!   <btc_1m_full.json> [max_bars] [advance_every]`
+//!   <btc_1m_full.json> [max_bars]`
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::BTreeSet;
 use std::path::Path;
 
-use newchan_rust::theta_v0::classifier::bsp_bridge::{BspBridgeBook, BspStructuralKey};
 use newchan_rust::theta_v0::classifier::cand_event::CandidateKey;
-use newchan_rust::theta_v0::classifier::chain_cert::{
-    ChainCertificateBook, ChainStatus, TowerChainCertificate,
-};
-use newchan_rust::theta_v0::classifier::consume_at::{
-    consume_at, BspLink, ConsumeError, LinkKey, ManagedBsp, ManagedBspPolicy, PolicyRule,
-};
+use newchan_rust::theta_v0::classifier::chain_cert::{ChainNodeStatus, ChainStatus};
+use newchan_rust::theta_v0::classifier::consume_at::{ManagedBspPolicy, PolicyRule};
+use newchan_rust::theta_v0::classifier::e2eo::E2eOAssembly;
 use newchan_rust::theta_v0::classifier::{self, TowerCache};
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::ParseLayerIncr;
 use newchan_rust::theta_v0::types::{quantize, Bar};
 use serde::Deserialize;
-
-/// 链簿/桥接簿推进节拍（末根必推；默认 5000 = issue550/#641 同款口径，复现 18/89/293 三窗
-/// 链总数）。覆盖边计算 O(n²)，逐 bar 推进在 10 万级窗口不可行；节拍是显式声明口径，
-/// 随读数一并印出，不是静默采样。
-const DEFAULT_ADVANCE_EVERY: usize = 5_000;
 
 #[derive(Deserialize)]
 struct RawBars {
@@ -149,38 +124,17 @@ fn single_rule_policy() -> ManagedBspPolicy {
     }
 }
 
-/// 从桥接边全量修订史投影「候选事件 → BSP」映射（`BridgeKey{event, bsp}` 投影，bsp_bridge.rs:163）。
-/// 迭代 `edges()`（append-only 全量修订史），后修订覆盖先修订（last-wins）；同一 event 映射多个
-/// BspStructuralKey 时（多级别/多点类/多锚），最后入簿的键胜出——本投影是有损函数投影，只服务
-/// consume_at 的 `event_to_bsp` 形参（#982 A：调用方预解析、只读不查簿）。
-fn project_event_to_bsp(
-    edges: &[newchan_rust::theta_v0::classifier::bsp_bridge::BspBridgeEdge],
-) -> HashMap<CandidateKey, BspStructuralKey> {
-    let mut map = HashMap::new();
-    for edge in edges {
-        map.insert(edge.key.event, edge.key.bsp.clone());
-    }
-    map
-}
-
 fn main() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
     let path = args
         .next()
-        .ok_or("用法: p985_s8_consume_baseline <btc_1m_full.json> [max_bars] [advance_every]")?;
+        .ok_or("用法: p985_s8_consume_baseline <btc_1m_full.json> [max_bars]")?;
     let max_bars = args
         .next()
         .map(|value| value.parse::<usize>())
         .transpose()
         .map_err(|error| format!("max_bars 非法: {error}"))?
         .unwrap_or(100_000);
-    let advance_every = args
-        .next()
-        .map(|value| value.parse::<usize>())
-        .transpose()
-        .map_err(|error| format!("advance_every 非法: {error}"))?
-        .unwrap_or(DEFAULT_ADVANCE_EVERY)
-        .max(1);
 
     let config = ThetaConfig::default();
     let bars = load(Path::new(&path), config.tick.tick_size, max_bars)?;
@@ -188,47 +142,80 @@ fn main() -> Result<(), String> {
         return Err("输入窗口为空".to_string());
     }
 
+    // 逐 bar 因果通道 → 装配模块推进（closed_at 真 bar 位；模块内 B 增量化去节拍）。
     let mut parser = ParseLayerIncr::new(&config);
     let mut cache = TowerCache::new();
-    let mut chain_book = ChainCertificateBook::default();
-    let mut bridge_book = BspBridgeBook::default();
-    let mut advances = 0usize;
+    let mut assembly = E2eOAssembly::new();
     for (i, bar) in bars.iter().copied().enumerate() {
         let l0 = parser.append(bar);
-        let __co1 = classifier::classify_incremental(&l0, &config, &mut cache, &[]);
-        let classification = __co1.classification;
-        let _tower = __co1.tower;
-        let streams = __co1.candidate_streams;
-        if (i + 1) % advance_every == 0 || i + 1 == bars.len() {
-            chain_book.advance(&streams, i);
-            bridge_book.advance(&classification, &streams, i);
-            advances += 1;
-        }
+        let out = classifier::classify_incremental(&l0, &config, &mut cache, &[]);
+        assembly.advance(&out.classification, &out.candidate_streams, i);
     }
 
-    // 链簿读数（heads() = 每 key 最新 revision，含早已终态、当前不再是极大路径的旧链——存量）。
-    let summary = chain_book.summarize();
-    let heads = chain_book.heads();
-    let mut closed: Vec<&TowerChainCertificate> = heads
-        .iter()
-        .filter(|certificate| certificate.status == ChainStatus::Closed)
-        .copied()
-        .collect();
-    // consume 按 closed_at 升序：prior 的 created_at/written_at 恒 ≤ 当前 as_of，不触发
-    // InconsistentState；同 as_of 内按 key 升序去随机化。
-    closed.sort_by_key(|certificate| (certificate.closed_at, certificate.key.clone()));
+    // ── 只读读数区（全部借用在此作用域内结束，之后才允许 consume 的 &mut 借用）──
+    let (summary, closed_count, non_closed, bridge_readings, overlap_readings) = {
+        let summary = assembly.chain_book().summarize();
+        let heads = assembly.chain_book().heads();
+        let closed: Vec<_> = heads
+            .iter()
+            .filter(|certificate| certificate.status == ChainStatus::Closed)
+            .copied()
+            .collect();
+        let non_closed = heads
+            .iter()
+            .filter(|certificate| certificate.status != ChainStatus::Closed)
+            .count();
 
-    // 桥接边读数 + event_to_bsp 投影。
-    let bridge_edges = bridge_book.edges();
-    let bridge_heads = bridge_book.heads();
-    let distinct_bridge_keys: BTreeSet<CandidateKey> =
-        bridge_edges.iter().map(|edge| edge.key.event).collect();
-    let event_to_bsp = project_event_to_bsp(bridge_edges);
+        // 桥接边读数 + event_to_bsp 投影（模块内维护）。
+        let bridge_edges = assembly.bridge_book().edges();
+        let bridge_heads = assembly.bridge_book().heads();
+        let distinct_bridge_keys: BTreeSet<CandidateKey> =
+            bridge_edges.iter().map(|edge| edge.key.event).collect();
+        let event_to_bsp = assembly.event_to_bsp();
+
+        // 诊断（只读、不判）：event_to_bsp 的 event 键落在 Closed 链存活/任意节点上的重叠计数。
+        let mut bridge_events_in_closed_alive = 0usize;
+        let mut bridge_events_in_closed_any = 0usize;
+        for event_key in event_to_bsp.keys() {
+            let mut alive = false;
+            let mut any = false;
+            for certificate in &closed {
+                for node in &certificate.nodes {
+                    if node.key == *event_key {
+                        any = true;
+                        if node.status == ChainNodeStatus::Alive {
+                            alive = true;
+                        }
+                    }
+                }
+            }
+            if alive {
+                bridge_events_in_closed_alive += 1;
+            }
+            if any {
+                bridge_events_in_closed_any += 1;
+            }
+        }
+
+        let bridge_readings = (
+            bridge_edges.len(),
+            bridge_heads.len(),
+            distinct_bridge_keys.len(),
+            event_to_bsp.len(),
+        );
+        let overlap_readings = (bridge_events_in_closed_any, bridge_events_in_closed_alive);
+        (
+            summary,
+            closed.len(),
+            non_closed,
+            bridge_readings,
+            overlap_readings,
+        )
+    };
 
     println!(
-        "P985_S8_INPUT bars={} max_bars={} advance_every={advance_every} advances={advances}",
+        "P985_S8_INPUT bars={} max_bars={max_bars} advance=per_bar",
         bars.len(),
-        max_bars,
     );
     println!(
         "P985_S8_CHAIN chains={} closed={} open={} invalidated={} revisions={} \
@@ -242,180 +229,45 @@ fn main() -> Result<(), String> {
     );
     println!(
         "P985_S8_BRIDGE revisions={} heads={} distinct_events={} event_to_bsp={}",
-        bridge_edges.len(),
-        bridge_heads.len(),
-        distinct_bridge_keys.len(),
-        event_to_bsp.len(),
+        bridge_readings.0, bridge_readings.1, bridge_readings.2, bridge_readings.3,
     );
-
-    let policy = single_rule_policy();
-    let mut prior_bsp: HashMap<BspStructuralKey, ManagedBsp> = HashMap::new();
-    let mut prior_links: HashMap<LinkKey, BspLink> = HashMap::new();
-    let mut creations_total = 0usize;
-    let mut links_total = 0usize;
-    let mut closed_consumed = 0usize;
-    let mut closed_without_closed_at = 0usize;
-    let mut closed_errors: BTreeMap<&'static str, usize> = BTreeMap::new();
-    let mut idempotency_violations = 0usize;
-
-    for certificate in &closed {
-        let Some(as_of) = certificate.closed_at else {
-            closed_without_closed_at += 1;
-            continue;
-        };
-        match consume_at(
-            as_of,
-            &prior_bsp,
-            &prior_links,
-            certificate,
-            &policy,
-            &event_to_bsp,
-        ) {
-            Ok((creations, links)) => {
-                creations_total += creations.len();
-                links_total += links.len();
-                closed_consumed += 1;
-
-                // 幂等：同一 (as_of, prior, cert) 连续第二次，prior 含第一次产出 ⟹ 零增量。
-                let mut prior_bsp_replay = prior_bsp.clone();
-                let mut prior_links_replay = prior_links.clone();
-                for creation in &creations {
-                    prior_bsp_replay.insert(creation.bsp.key.clone(), creation.bsp.clone());
-                }
-                for link in &links {
-                    prior_links_replay.insert(link.key.clone(), link.clone());
-                }
-                match consume_at(
-                    as_of,
-                    &prior_bsp_replay,
-                    &prior_links_replay,
-                    certificate,
-                    &policy,
-                    &event_to_bsp,
-                ) {
-                    Ok((replay_creations, replay_links)) => {
-                        if !replay_creations.is_empty() || !replay_links.is_empty() {
-                            idempotency_violations += 1;
-                        }
-                    }
-                    Err(error) => {
-                        *closed_errors.entry(error_name(&error)).or_default() += 1;
-                        idempotency_violations += 1;
-                    }
-                }
-
-                // 并入跨链 prior（受管 BSP 跨链只创建一次、组内多链接）。
-                for creation in creations {
-                    prior_bsp.insert(creation.bsp.key.clone(), creation.bsp);
-                }
-                for link in links {
-                    prior_links.insert(link.key.clone(), link);
-                }
-            }
-            Err(error) => {
-                *closed_errors.entry(error_name(&error)).or_default() += 1;
-            }
-        }
-    }
-
-    // 诊断（只读、不判）：event_to_bsp 的 event 键落在 Closed 链存活/任意节点上的重叠计数——
-    // 解释 consume 零产出是「缝合线空域」还是「节点被跨过/缺席」。
-    let mut bridge_events_in_closed_alive = 0usize;
-    let mut bridge_events_in_closed_any = 0usize;
-    for event_key in event_to_bsp.keys() {
-        let mut alive = false;
-        let mut any = false;
-        for certificate in &closed {
-            for node in &certificate.nodes {
-                if node.key == *event_key {
-                    any = true;
-                    if node.status
-                        == newchan_rust::theta_v0::classifier::chain_cert::ChainNodeStatus::Alive
-                    {
-                        alive = true;
-                    }
-                }
-            }
-        }
-        if alive {
-            bridge_events_in_closed_alive += 1;
-        }
-        if any {
-            bridge_events_in_closed_any += 1;
-        }
-    }
     println!(
         "P985_S8_OVERLAP bridge_events={} in_closed_any_node={} in_closed_alive_node={}",
-        event_to_bsp.len(),
-        bridge_events_in_closed_any,
-        bridge_events_in_closed_alive,
+        bridge_readings.3, overlap_readings.0, overlap_readings.1,
     );
 
-    // 只收 Closed：每条非 Closed 链头（Open/Invalidated）调 consume_at 必须 Err(NoConsumption)。
-    // NoConsumption 是 consume_at 的第一道校验，与 as_of/prior 无关，用空 prior 隔离测。
-    let mut non_closed_checked = 0usize;
-    let mut non_closed_rejected = 0usize;
-    let mut non_closed_unexpected = 0usize;
-    for certificate in heads.iter() {
-        if certificate.status == ChainStatus::Closed {
-            continue;
-        }
-        non_closed_checked += 1;
-        match consume_at(
-            certificate.revision_at,
-            &HashMap::new(),
-            &HashMap::new(),
-            certificate,
-            &policy,
-            &event_to_bsp,
-        ) {
-            Err(ConsumeError::NoConsumption) => non_closed_rejected += 1,
-            _ => non_closed_unexpected += 1,
-        }
-    }
+    // 消费：模块两入口之消费（内部纯 consume_at + 跨链 prior 累积）。
+    let policy = single_rule_policy();
+    let (creations, links) = assembly
+        .consume(&policy)
+        .map_err(|error| format!("consume 失败: {error:?}"))?;
+    let managed_bsp = assembly.prior_bsp().len();
+    let bsp_links = assembly.prior_links().len();
+
+    // 幂等：prior 已累积，二次 consume 必须零增量。
+    let (second_creations, second_links) = assembly
+        .consume(&policy)
+        .map_err(|error| format!("二次 consume 失败: {error:?}"))?;
 
     println!(
-        "P985_S8_CONSUME closed_chains={} consumed={} closed_without_closed_at={} \
-         creations_total={} managed_bsp={} links_total={} bsp_links={} closed_errors={:?}",
-        closed.len(),
-        closed_consumed,
-        closed_without_closed_at,
-        creations_total,
-        prior_bsp.len(),
-        links_total,
-        prior_links.len(),
-        closed_errors,
+        "P985_S8_CONSUME closed_chains={closed_count} creations_total={} managed_bsp={managed_bsp} \
+         links_total={} bsp_links={bsp_links} non_closed_not_consumed={non_closed}",
+        creations.len(),
+        links.len(),
     );
     println!(
-        "P985_S8_IDEMPOTENCE checked={} violations={}",
-        closed_consumed, idempotency_violations,
-    );
-    println!(
-        "P985_S8_NON_CLOSED_REJECTED checked={} rejected_no_consumption={} unexpected={}",
-        non_closed_checked, non_closed_rejected, non_closed_unexpected,
+        "P985_S8_IDEMPOTENCE second_creations={} second_links={}",
+        second_creations.len(),
+        second_links.len(),
     );
 
-    // 验收门（读数之上的机器锁）：四项红条件任一命中 ⟹ exit FAILURE。
-    let violations = idempotency_violations
-        + non_closed_unexpected
-        + closed_without_closed_at
-        + closed_errors.values().sum::<usize>();
-    if violations > 0 {
+    // 验收门（读数之上的机器锁）：二次 consume 零增量。
+    if !second_creations.is_empty() || !second_links.is_empty() {
         return Err(format!(
-            "验收门未过：idempotency_violations={idempotency_violations} \
-             non_closed_unexpected={non_closed_unexpected} \
-             closed_without_closed_at={closed_without_closed_at} \
-             closed_errors={closed_errors:?}"
+            "验收门未过：二次 consume 非零增量 second_creations={} second_links={}",
+            second_creations.len(),
+            second_links.len()
         ));
     }
     Ok(())
-}
-
-fn error_name(error: &ConsumeError) -> &'static str {
-    match error {
-        ConsumeError::NoConsumption => "NoConsumption",
-        ConsumeError::InvalidPolicy => "InvalidPolicy",
-        ConsumeError::InconsistentState => "InconsistentState",
-        ConsumeError::LateAuthorization => "LateAuthorization",
-    }
 }

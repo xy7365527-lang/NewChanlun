@@ -425,52 +425,81 @@ pub struct ChainObservation {
 ///
 /// 取最新 revision 而非全史（口径与 `cand_sub::latest_by_level` 同）：链问的是「当前几何」，
 /// 历史 revision 是同一候选的旧几何。存活 = 状态非 `Invalidated`。
-struct AliveIndex<'a> {
-    latest: BTreeMap<CandidateKey, &'a CandidateEvent>,
-    alive_by_level: BTreeMap<u32, Vec<&'a CandidateEvent>>,
+///
+/// ## 增量维护（#1088 S4「B 增量化去节拍」）
+///
+/// 本结构持有候选事件值（非借用），支持 `build`（全量重放，一次扫全流）与 `apply`（增量，
+/// 只落一条事件的 Delta）。`apply` 是 `build` 的单步折叠：`latest` last-wins、`alive_by_level`
+/// 按状态增删。`alive_by_level` 用 `BTreeMap<CandidateKey, _>` 保组内 key 升序（与 `build`
+/// 遍历 `latest.values()` 的 key 升序同序 ⟹ 两条路径产出的遍历序逐位一致，全量/增量对拍
+/// 因此对索引顺序不敏感——最终路径集合本就进 `BTreeSet` 排序）。
+#[derive(Debug, Default)]
+pub(crate) struct AliveIndex {
+    latest: BTreeMap<CandidateKey, CandidateEvent>,
+    alive_by_level: BTreeMap<u32, BTreeMap<CandidateKey, CandidateEvent>>,
 }
 
-impl<'a> AliveIndex<'a> {
-    fn build(streams: &'a CandidateStreams) -> Self {
-        let mut latest = BTreeMap::<CandidateKey, &'a CandidateEvent>::new();
+impl AliveIndex {
+    /// 全量重建（终态窗口投影 / 全量重放侧）。逐条 `apply`，与增量侧同一折叠。
+    pub(crate) fn build(streams: &CandidateStreams) -> Self {
+        let mut index = Self::default();
         for stream in streams.iter() {
             for event in stream.iter() {
-                latest.insert(event.key, event);
+                index.apply(event);
             }
         }
-        let mut alive_by_level = BTreeMap::<u32, Vec<&'a CandidateEvent>>::new();
-        for event in latest.values() {
-            if event.state != CandidateState::Invalidated {
-                alive_by_level
-                    .entry(event.event_level)
-                    .or_default()
-                    .push(event);
-            }
+        index
+    }
+
+    /// 增量落一条事件（`build` 的单步折叠）：`latest` last-wins，`alive_by_level` 按状态增删。
+    pub(crate) fn apply(&mut self, event: &CandidateEvent) {
+        self.latest.insert(event.key, event.clone());
+        self.remove_alive(event.key);
+        self.insert_alive(event);
+    }
+
+    /// 从存活集合移除某 key（终态 / 生长过渡的中间态用）；`latest` 不动。
+    pub(crate) fn remove_alive(&mut self, key: CandidateKey) {
+        if let Some(bucket) = self.alive_by_level.get_mut(&key.level) {
+            bucket.remove(&key);
         }
-        Self {
-            latest,
-            alive_by_level,
+    }
+
+    /// 把一条事件写进存活集合（`Invalidated` 不写）。
+    pub(crate) fn insert_alive(&mut self, event: &CandidateEvent) {
+        if event.state != CandidateState::Invalidated {
+            self.alive_by_level
+                .entry(event.event_level)
+                .or_default()
+                .insert(event.key, event.clone());
         }
+    }
+
+    /// 每 key 最新 revision（`cand_sub::latest_by_level` / `bsp_bridge::latest_candidates`
+    /// 同方法学的**持有**版；桥接簿的增量推进消费此映射，避免逐 bar 重折全流）。
+    pub(crate) fn latest(&self) -> &BTreeMap<CandidateKey, CandidateEvent> {
+        &self.latest
     }
 
     /// 全部存活事件，级别升序、组内 key 升序（确定序 ⟹ 产出可逐字节比对）。
-    fn alive(&self) -> impl Iterator<Item = &'a CandidateEvent> + '_ {
+    fn alive(&self) -> impl Iterator<Item = &CandidateEvent> + '_ {
         self.alive_by_level
             .values()
-            .flat_map(|events| events.iter().copied())
+            .flat_map(|bucket| bucket.values())
     }
 
     /// 区间被 `parent` 包含的全部存活事件（`C⊆C` 成立者，含跨多级）。
-    fn contained_in(&self, parent: &CandidateEvent) -> Vec<&'a CandidateEvent> {
+    fn contained_in(&self, parent: &CandidateEvent) -> Vec<&CandidateEvent> {
         self.alive()
             .filter(|child| candidate_is_sub(child, parent))
             .collect()
     }
 
-    fn alive_at(&self, level: u32) -> &[&'a CandidateEvent] {
+    fn alive_at(&self, level: u32) -> Vec<&CandidateEvent> {
         self.alive_by_level
             .get(&level)
-            .map_or(&[][..], |events| events.as_slice())
+            .map(|bucket| bucket.values().collect())
+            .unwrap_or_default()
     }
 }
 
@@ -480,7 +509,7 @@ impl<'a> AliveIndex<'a> {
 ///
 /// `c` 是 `p` 的覆盖子 ⟺ `c ⊆ p` 且不存在存活 `m` 使 `c ⊆ m ⊆ p`。因为「级别严格居中的 m」
 /// 必然自己也 `⊆ p`，判定只需在 `contained_in(p)` 这一集合内做，无需再扫全表。
-fn hasse_children(index: &AliveIndex<'_>) -> BTreeMap<CandidateKey, Vec<CandidateKey>> {
+fn hasse_children(index: &AliveIndex) -> BTreeMap<CandidateKey, Vec<CandidateKey>> {
     let mut table = BTreeMap::<CandidateKey, Vec<CandidateKey>>::new();
     for parent in index.alive() {
         let inside = index.contained_in(parent);
@@ -510,7 +539,7 @@ pub fn chain_paths(streams: &CandidateStreams) -> Vec<Vec<CandidateKey>> {
     paths_from_index(&index)
 }
 
-fn paths_from_index(index: &AliveIndex<'_>) -> Vec<Vec<CandidateKey>> {
+fn paths_from_index(index: &AliveIndex) -> Vec<Vec<CandidateKey>> {
     let children = hasse_children(index);
     let mut has_parent = BTreeSet::<CandidateKey>::new();
     for kids in children.values() {
@@ -553,13 +582,237 @@ fn descend(
     }
 }
 
+/// BTreeSet 版的 [`descend`]（[`PathDag`] 的覆盖子表存 BTreeSet，与全量路径 [`hasse_children`]
+/// 的 Vec 形状等价——最终路径都进 `BTreeSet` 排序，遍历序不影响产出）。
+fn descend_set(
+    children: &BTreeMap<CandidateKey, BTreeSet<CandidateKey>>,
+    stack: &mut Vec<CandidateKey>,
+    out: &mut BTreeSet<Vec<CandidateKey>>,
+) {
+    let tail = *stack.last().expect("descend_set 入口保证栈非空");
+    let Some(kids) = children.get(&tail) else {
+        if stack.len() >= 2 {
+            out.insert(stack.clone());
+        }
+        return;
+    };
+    if kids.is_empty() {
+        if stack.len() >= 2 {
+            out.insert(stack.clone());
+        }
+        return;
+    }
+    for kid in kids {
+        stack.push(*kid);
+        descend_set(children, stack, out);
+        stack.pop();
+    }
+}
+
+/// 由已维护的覆盖子表 + 索引 DFS 出**极大路径**（root 无存活父、leaf 无存活子），
+/// 与 [`paths_from_index`] 同口径、同 `chain_probe` 探针——差异只在覆盖子表是**增量维护**的
+/// （[`PathDag`]）而非当场 [`hasse_children`] 全算。
+fn maximal_paths_from_children(
+    index: &AliveIndex,
+    children: &BTreeMap<CandidateKey, BTreeSet<CandidateKey>>,
+) -> BTreeSet<Vec<CandidateKey>> {
+    let mut has_parent = BTreeSet::<CandidateKey>::new();
+    for kids in children.values() {
+        has_parent.extend(kids.iter().copied());
+    }
+    let mut paths = BTreeSet::<Vec<CandidateKey>>::new();
+    for root in index.alive() {
+        if has_parent.contains(&root.key) {
+            continue;
+        }
+        let kids = children.get(&root.key).map_or(0, BTreeSet::len);
+        if kids == 0 {
+            #[cfg(test)]
+            chain_probe::on_isolated_root();
+            continue;
+        }
+        let mut stack = vec![root.key];
+        descend_set(children, &mut stack, &mut paths);
+    }
+    paths
+}
+
+/// 覆盖关系（Hasse）图的**增量维护**版（#1088 S4「路径 DAG 增量扩展」）。
+///
+/// 全量路径（[`paths_from_index`]）每 bar 重算 Hasse 表；本结构在候选出生 / 几何生长 / 失效
+/// 时只局部改边，极大路径从增量子表 DFS 重导出（O(输出)）。动态 Hasse 维护的正确性由
+/// `incremental_parity` 全量重放对拍锁背书（增量簿 ≡ 全量自 ∅ 重放 bit-exact）。
+///
+/// ## 复杂度（照实）
+///
+/// 覆盖父/覆盖子/直接覆盖的判定逐字镜像 [`hasse_children`]（「存在包含且无严格居中存活中间
+/// 级」），每次对存活全集做一遍中间级扫描 ⟹ 单操作 O(|alive|²)，|alive| = **存活候选身份数**
+/// （远小于 bar 总数；120 段夹具 ~33、300k 真实窗 ~数百）。Delta = 0 的 bar 零开销。消除的
+/// 是 `AliveIndex::build` 每 bar 重折**全部事件**（O(总事件)/bar = O(n²)）这一主导项。
+///
+/// ## 三操作（标准动态 Hasse 图插入/删除）
+///
+/// - [`Self::apply_birth`]：插入新存活节点 k。新边 = 覆盖父 → k、k → 覆盖子；被 k 居中
+///   细分（`c ⊆ k ⊆ p`）的既有边 `p→c` 一并删除。覆盖父/覆盖子的判定 = 存在包含且无严格
+///   居中存活中间级。
+/// - [`Self::apply_invalidation`]：删除存活节点 k。k 的全部边删除后，其每对（父 p，子 c）
+///   若 p 现直接覆盖 c（无居中存活中间级）则补边 `p→c`。
+/// - **几何生长** = 先 [`Self::apply_invalidation`]（用旧几何、k 已从存活集摘除）再
+///   [`Self::apply_birth`]（用新几何、k 已回写存活集），由 [`crate::theta_v0::classifier::e2eo`]
+///   的推进侧按此序驱动。
+///
+/// 覆盖子/父与「直接覆盖」的判据逐字镜像 [`hasse_children`]：`c ⊆ p`（跨级 + 区间包含）且
+/// 不存在存活 m 使 `c ⊆ m ⊆ p`（级别严格居中）。
+#[derive(Debug, Default)]
+pub(crate) struct PathDag {
+    children: BTreeMap<CandidateKey, BTreeSet<CandidateKey>>,
+    paths: BTreeSet<Vec<CandidateKey>>,
+}
+
+impl PathDag {
+    /// 全量重建（初始 / 前沿回缩回滚的退化路径），等价于 [`hasse_children`] + [`paths_from_index`]。
+    pub(crate) fn recompute(&mut self, index: &AliveIndex) {
+        self.children = hasse_children(index)
+            .into_iter()
+            .map(|(key, kids)| (key, kids.into_iter().collect()))
+            .collect();
+        self.paths = maximal_paths_from_children(index, &self.children);
+    }
+
+    /// 当前极大路径（root→leaf），字典序升序。
+    pub(crate) fn paths(&self) -> &BTreeSet<Vec<CandidateKey>> {
+        &self.paths
+    }
+
+    /// 覆盖父：存活 p 使 `k ⊆ p` 且无存活 m 使 `k ⊆ m ⊆ p`（`k.level < m.level < p.level`）。
+    fn cover_parents(&self, index: &AliveIndex, key: CandidateKey) -> Vec<CandidateKey> {
+        let event = index
+            .latest()
+            .get(&key)
+            .expect("出生/生长时 key 必在 latest");
+        index
+            .alive()
+            .filter(|parent| candidate_is_sub(event, parent))
+            .filter(|parent| {
+                !index.alive().any(|middle| {
+                    middle.event_level > event.event_level
+                        && middle.event_level < parent.event_level
+                        && candidate_is_sub(event, middle)
+                        && candidate_is_sub(middle, parent)
+                })
+            })
+            .map(|parent| parent.key)
+            .collect()
+    }
+
+    /// 覆盖子：存活 c 使 `c ⊆ k` 且无存活 m 使 `c ⊆ m ⊆ k`（`c.level < m.level < k.level`）。
+    fn cover_children(&self, index: &AliveIndex, key: CandidateKey) -> Vec<CandidateKey> {
+        let event = index
+            .latest()
+            .get(&key)
+            .expect("出生/生长时 key 必在 latest");
+        index
+            .alive()
+            .filter(|child| candidate_is_sub(child, event))
+            .filter(|child| {
+                !index.alive().any(|middle| {
+                    middle.event_level > child.event_level
+                        && middle.event_level < event.event_level
+                        && candidate_is_sub(child, middle)
+                        && candidate_is_sub(middle, event)
+                })
+            })
+            .map(|child| child.key)
+            .collect()
+    }
+
+    /// p 是否**直接覆盖** c（`c ⊆ p` 且无严格居中存活中间级）。
+    fn cover_direct(&self, index: &AliveIndex, parent: CandidateKey, child: CandidateKey) -> bool {
+        let parent_event = index.latest().get(&parent).expect("父端点在 latest");
+        let child_event = index.latest().get(&child).expect("子端点在 latest");
+        if !candidate_is_sub(child_event, parent_event) {
+            return false;
+        }
+        !index.alive().any(|middle| {
+            middle.event_level > child_event.event_level
+                && middle.event_level < parent_event.event_level
+                && candidate_is_sub(child_event, middle)
+                && candidate_is_sub(middle, parent_event)
+        })
+    }
+
+    /// 插入新存活节点（见类型文档三操作）。
+    pub(crate) fn apply_birth(&mut self, index: &AliveIndex, key: CandidateKey) {
+        let cover_parents = self.cover_parents(index, key);
+        let cover_children = self.cover_children(index, key);
+        for parent in &cover_parents {
+            self.children.entry(*parent).or_default().insert(key);
+        }
+        for child in &cover_children {
+            self.children.entry(key).or_default().insert(*child);
+        }
+        // 被 k 居中细分的既有边 p→c 删除（c ⊆ k ⊆ p，k 是唯一新中间级）。
+        for parent in &cover_parents {
+            for child in &cover_children {
+                if self
+                    .children
+                    .get(parent)
+                    .is_some_and(|kids| kids.contains(child))
+                {
+                    self.children
+                        .get_mut(parent)
+                        .expect("已查存在")
+                        .remove(child);
+                }
+            }
+        }
+        self.rebuild_paths(index);
+    }
+
+    /// 删除存活节点（见类型文档三操作）。
+    pub(crate) fn apply_invalidation(&mut self, index: &AliveIndex, key: CandidateKey) {
+        let parents: Vec<CandidateKey> = self
+            .children
+            .iter()
+            .filter(|(_, kids)| kids.contains(&key))
+            .map(|(parent, _)| *parent)
+            .collect();
+        let children: Vec<CandidateKey> = self
+            .children
+            .get(&key)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        for parent in &parents {
+            if let Some(kids) = self.children.get_mut(parent) {
+                kids.remove(&key);
+            }
+        }
+        self.children.remove(&key);
+        for parent in &parents {
+            for child in &children {
+                if self.cover_direct(index, *parent, *child) {
+                    self.children.entry(*parent).or_default().insert(*child);
+                }
+            }
+        }
+        self.rebuild_paths(index);
+    }
+
+    /// 从当前覆盖子表 DFS 重导出极大路径（O(输出)；只在 Delta > 0 的 bar 触发）。
+    fn rebuild_paths(&mut self, index: &AliveIndex) {
+        self.paths = maximal_paths_from_children(index, &self.children);
+    }
+}
+
 // ── 单条路径的照实评估 ──────────────────────────────────────────────────────────────────
 
 /// 对一条**固定路径**在本次 `as_of` 的事件视图上做照实评估。
 ///
 /// 路径身份不因节点证伪而改变（裁定②「append-only、不篡改旧路径」）；变的是节点留痕、存活端点
 /// 之间的边、可扩展性与三态。同一份事件视图上重复调用返回相同结果（纯函数）。
-fn evaluate(path: &[CandidateKey], index: &AliveIndex<'_>) -> ChainObservation {
+fn evaluate(path: &[CandidateKey], index: &AliveIndex) -> ChainObservation {
     let key = ChainKey::new(path.to_vec());
     let nodes: Vec<ChainNodeTrace> = path
         .iter()
@@ -592,7 +845,7 @@ fn evaluate(path: &[CandidateKey], index: &AliveIndex<'_>) -> ChainObservation {
         .collect();
 
     let extendable = alive_positions.last().is_some_and(|&last| {
-        let leaf = index.latest[&nodes[last].key];
+        let leaf = &index.latest[&nodes[last].key];
         index.alive().any(|other| candidate_is_sub(other, leaf))
     });
 
@@ -646,12 +899,12 @@ fn build_edge(
     nodes: &[ChainNodeTrace],
     upper: usize,
     lower: usize,
-    index: &AliveIndex<'_>,
+    index: &AliveIndex,
 ) -> ChainEdge {
     let parent_key = nodes[upper].key;
     let child_key = nodes[lower].key;
-    let parent = index.latest[&parent_key];
-    let child = index.latest[&child_key];
+    let parent = &index.latest[&parent_key];
+    let child = &index.latest[&child_key];
     let kind = if parent.event_level == child.event_level + 1 {
         ChainEdgeKind::Adjacent
     } else {
@@ -864,13 +1117,32 @@ impl ChainCertificateBook {
     /// 决定，而这两个条件都是在**重新评估**里读出来的，不是从「本轮没看见」推出来的。
     ///
     /// 簿内**终态**链不重评（终态不复活）。
+    ///
+    /// 本入口 = **全量**推进：每次 `AliveIndex::build(streams)` 全折 + `paths_from_index` 全算。
+    /// 增量推进走 [`Self::advance_indexed`]（#1088 S4：`AliveIndex` 增量 + 路径 DAG 增量扩展），
+    /// 本入口保留作全量重放对拍锁的基准侧（`incremental_parity`）。
     pub fn advance(
         &mut self,
         streams: &CandidateStreams,
         as_of: usize,
     ) -> Vec<TowerChainCertificate> {
         let index = AliveIndex::build(streams);
-        let mut paths: BTreeSet<Vec<CandidateKey>> = paths_from_index(&index).into_iter().collect();
+        let maximal_paths: BTreeSet<Vec<CandidateKey>> =
+            paths_from_index(&index).into_iter().collect();
+        self.advance_indexed(&index, &maximal_paths, as_of)
+    }
+
+    /// 用**已折好的**索引与**已算好的**极大路径推进一步（增量侧的落簿核心，与 [`Self::advance`]
+    /// 共享同一 evaluate/apply 口径 ⟹ 全量/增量对拍 bit-exact 的 seam 就在这一层）。
+    ///
+    /// 被评估路径 = 本次极大路径 ∪ 簿内非终态链路径（resident 补集，同 [`Self::advance`]）。
+    pub(crate) fn advance_indexed(
+        &mut self,
+        index: &AliveIndex,
+        maximal_paths: &BTreeSet<Vec<CandidateKey>>,
+        as_of: usize,
+    ) -> Vec<TowerChainCertificate> {
+        let mut paths = maximal_paths.clone();
         let resident: Vec<Vec<CandidateKey>> = self
             .latest
             .iter()
@@ -881,7 +1153,7 @@ impl ChainCertificateBook {
 
         let mut delta = Vec::new();
         for path in paths {
-            if let Some(certificate) = self.apply(evaluate(&path, &index), as_of) {
+            if let Some(certificate) = self.apply(evaluate(&path, index), as_of) {
                 delta.push(certificate);
             }
         }

@@ -571,15 +571,17 @@ fn resolve_point_driven_observations(
 /// 跳过（Absent）。**按 [`BridgeKey`] 分组折叠**（第四轮 supersede 核心，模块头「载荷形态」段）：
 /// 同一 key 命中的全部物理点合并为一条 [`BridgeObservation`]，保证每个 key 每次 `observe()`
 /// 恰好产出一条观察——`BspBridgeBook::apply` 的幂等/终态判据依赖这条前提。
-fn observe(classification: &Classification, streams: &CandidateStreams) -> Vec<BridgeObservation> {
-    let latest = latest_candidates(streams);
-    let episodes = trend_episodes(&latest);
+fn observe(
+    classification: &Classification,
+    latest: &BTreeMap<CandidateKey, CandidateEvent>,
+) -> Vec<BridgeObservation> {
+    let episodes = trend_episodes(latest);
 
-    let mut raw = resolve_first_class_episode_points(classification, &episodes, &latest);
+    let mut raw = resolve_first_class_episode_points(classification, &episodes, latest);
     raw.extend(resolve_point_driven_observations(
         classification,
         &episodes,
-        &latest,
+        latest,
     ));
 
     let mut grouped: BTreeMap<BridgeKey, (u32, BTreeSet<usize>, CandidateState, BridgeStatus)> =
@@ -664,8 +666,21 @@ impl BspBridgeBook {
         streams: &CandidateStreams,
         as_of: usize,
     ) -> Vec<BspBridgeEdge> {
+        let latest = latest_candidates(streams);
+        self.advance_indexed(classification, &latest, as_of)
+    }
+
+    /// 用**预折好的** `latest`（每 key 最新 revision）推进一步——#1088 S4 装配模块经此把
+    /// 增量索引的 `latest` 直接注入，避免逐 bar 重折全流。落簿口径与 [`Self::advance`] 逐字
+    /// 同路（同一 [`observe`] + 同一 `apply` ⟹ 全量/增量对拍 bit-exact）。
+    pub(crate) fn advance_indexed(
+        &mut self,
+        classification: &Classification,
+        latest: &BTreeMap<CandidateKey, CandidateEvent>,
+        as_of: usize,
+    ) -> Vec<BspBridgeEdge> {
         let mut delta = Vec::new();
-        for observation in observe(classification, streams) {
+        for observation in observe(classification, latest) {
             if let Some(edge) = self.apply(observation, as_of) {
                 delta.push(edge);
             }

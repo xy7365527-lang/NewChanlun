@@ -98,6 +98,9 @@ pub mod chain_cert;
 /// #981（N7）：Consume_at 签名冻结——新类型族 + 冻结函数签名（逻辑 stub 归后续票）。纯新造，
 /// 现役对象零改（`BspStructuralKey` 仅补 `Hash` derive 一行）。
 pub mod consume_at;
+/// #1088（SPEC #1085 S4）：E2E-O 簿装配模块——B 增量化去节拍 + 安全三件套；对外两入口
+/// （推进/消费），p985 与未来 WireV1 为薄调用方。
+pub mod e2eo;
 /// 区间套必要条件——递归塔原生检查器（条款 9，任务 #106；只读，不回写判据 bit）。
 pub mod interval_necessity;
 /// C2 走势消费 seam：显式 exact-three 投影、D3 方向绑定与 D2 A/C provider。

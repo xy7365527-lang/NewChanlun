@@ -1571,3 +1571,80 @@ fn incremental_operation_bypass_matches_full_after_cascade_reset() {
         );
     }
 }
+
+/// ★#1088 S4（SPEC #1085）E2E-O 装配模块平价锁（安全三件套之一随迁）：
+/// 模块的增量推进（`AliveIndex` 增量 + 路径 DAG 增量扩展）≡ 全量自 ∅ 重放（fresh cache +
+/// fresh 链簿逐前缀重放）bit-exact。
+///
+/// 与 `chain_certificate_book_incremental_equals_full_replay`（链簿层平价锁）同夹具、同两侧
+/// 驱动，差异只在**增量侧改走 `E2eOAssembly::advance`**（模块级：增量索引 + 增量 DAG + 桥接
+/// 簿 + 投影），全量侧仍是 `ChainCertificateBook::advance` 的全量重放。若增量索引/DAG 的任何
+/// 一步（出生 / 失效 / 几何生长 / 前沿回缩）分叉，本锁变红。
+#[test]
+fn e2eo_assembly_incremental_equals_full_replay() {
+    let cfg = ThetaConfig::default();
+    let (segments, closes) = chain_fixture(120);
+
+    let mut prefixes = Vec::with_capacity(segments.len());
+    for n in 1..=segments.len() {
+        let end = segments[n - 1].end_index.min(closes.len() - 1);
+        prefixes.push((
+            ParseLayer {
+                segments: Rc::new(segments[..n].to_vec()),
+                merged_bars: Rc::new(bars_from_closes(&closes[..=end])),
+                ..Default::default()
+            },
+            end,
+        ));
+    }
+
+    // 增量侧：一个共享 cache（逐段增量分类）+ 一个装配模块逐段推进。
+    let mut incremental_cache = TowerCache::new();
+    let mut assembly = super::super::e2eo::E2eOAssembly::new();
+    let mut snapshots = Vec::with_capacity(prefixes.len());
+    for (layer, end) in &prefixes {
+        let out = classify_incremental(layer, &cfg, &mut incremental_cache, &[]);
+        assembly.advance(&out.classification, &out.candidate_streams, *end);
+        snapshots.push(assembly.chain_book().clone());
+    }
+
+    // 全量侧：每个前缀从 ∅ 起，fresh cache 全程重放 + fresh 链簿从第一步重建。
+    for (step_index, snapshot) in snapshots.iter().enumerate() {
+        let prefix_len = step_index + 1;
+        let mut replay_cache = TowerCache::new();
+        let mut replay_book = chain_cert::ChainCertificateBook::default();
+        for (layer, end) in prefixes.iter().take(prefix_len) {
+            let out = classify_incremental(layer, &cfg, &mut replay_cache, &[]);
+            replay_book.advance(&out.candidate_streams, *end);
+        }
+        assert_eq!(
+            snapshot, &replay_book,
+            "prefix={prefix_len}: E2E-O 增量装配（共享 cache + 增量索引/DAG）≡ 全量自 ∅ 重放"
+        );
+    }
+
+    // 非真空锁：最终簿 certificates 非空、跨多个 as_of 落簿、至少一条证书带边。
+    let final_book = snapshots.last().expect("fixture 必须至少产生一个输入步骤");
+    let certificates = final_book.certificates();
+    assert!(
+        !certificates.is_empty(),
+        "非真空锁：最终 book 的 certificates 必须非空"
+    );
+    let distinct_as_of: std::collections::BTreeSet<usize> = certificates
+        .iter()
+        .map(|certificate| certificate.revision_at)
+        .collect();
+    assert!(
+        distinct_as_of.len() > 1,
+        "生命史锁：链簿必须跨多个 as_of 落簿；distinct_as_of={distinct_as_of:?}              certificates={}",
+        certificates.len()
+    );
+    let with_edges_count = certificates
+        .iter()
+        .filter(|certificate| !certificate.edges.is_empty())
+        .count();
+    assert!(
+        with_edges_count > 0,
+        "边非真空锁：至少一条 certificate 的 edges 非空"
+    );
+}
