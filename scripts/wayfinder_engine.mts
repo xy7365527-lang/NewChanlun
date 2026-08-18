@@ -306,7 +306,9 @@ export function analyzeMap(map: MapState, opts: WalkOptions): Analysis {
     if (s.state === "OPEN" && isSpecApproved(s, opts.orchestrator)) {
       const plan = parseSplitPlan(s.body);
       if (plan === null) {
-        // 无机器可读拆票计划：尚未拆过就触发一次（actor 会报「留人工」）；已拆过不再重复触发。
+        // 无机器可读拆票计划：actor 拿不到计划就不建票（只报「留人工」），impl 恒空 ⟹
+        // 每轮重触发（stateless 无「已触发过」记忆），直到人工把计划补进 spec 正文或
+        // 手动拆出实装票（impl 非空后本分支不再命中）——诚实标注，非「触发一次即停」。
         if (impl.length === 0) {
           return {
             phase: "spec 已批准 → 拆 tracer-bullet 实装票",
@@ -675,15 +677,21 @@ function actSplitImpl(a: Extract<Action, { kind: "split_impl_tickets" }>, _cfg: 
 function actCloseGraph(a: Extract<Action, { kind: "close_graph" }>, _cfg: EngineConfig): void {
   const mapNumber = a.map;
   const ctx = fetchMapContext(mapNumber);
-  const closed = ctx.children.filter((c) => c.state === "CLOSED");
   const spec = ctx.children.find((c) => isSpecTicket({ title: c.title } as ChildIssue));
   const impl = ctx.children.filter((c) => isImplTicket({ title: c.title } as ChildIssue));
+  // 决策票全关只列决策票（spec/实装票各有独立行，混入会让「决策票全关」名不副实）。
+  const decisionClosed = ctx.children.filter(
+    (c) =>
+      c.state === "CLOSED" &&
+      !isSpecTicket({ title: c.title }) &&
+      !isImplTicket({ title: c.title }),
+  );
   const fog = unresolvedFog(ctx.body);
 
   const lines: string[] = [];
   lines.push(`## 图关闭（${new Date().toISOString().slice(0, 10)}）——到达 destination`);
   lines.push("");
-  lines.push(`- **决策票全关**：${closed.map((c) => `[#${c.number}](${issueUrl(c.number)})`).join(" / ") || "（无）"}`);
+  lines.push(`- **决策票全关**：${decisionClosed.map((c) => `[#${c.number}](${issueUrl(c.number)})`).join(" / ") || "（无）"}`);
   if (spec) lines.push(`- **spec**：[#${spec.number}](${issueUrl(spec.number)})（图内实施总单）`);
   lines.push(`- **实装票全关**：${impl.map((c) => `[#${c.number}](${issueUrl(c.number)})`).join(" / ") || "（无）"}`);
   lines.push(`- **残雾去向核实**：${fog.length === 0 ? "无残留（Not yet specified 已清空或全部有去向）" : `⚠ 仍有 ${fog.length} 条（不应发生）`}`);
