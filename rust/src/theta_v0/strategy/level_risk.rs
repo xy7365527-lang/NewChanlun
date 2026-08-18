@@ -25,7 +25,7 @@
 //! | 权重 | 轴 | 定义域 | 施加点 | 施加对象 |
 //! |---|---|---|---|---|
 //! | `depth_weight`（`voice.rs`） | 级别轴·**相对坐标**（相对当前最高有效决策级别 L* 的下溯层数 depth=0,1,2…） | 单个 root 的声部树 | `coverage.rs::leg_target`／`strategy_target_legs`（**结构域**，leg 生成时，**乘法**：`w = depth_weight × dir_weight × w_grade`，`coverage/leg.rs:159`） | 单条 leg 的 `q_units` |
-//! | `level_weight` / `w_ℓ`（本模块） | 级别轴·**绝对坐标**（`ElementId.level`） | 跨 root 的整个级别账本 `Ledger_ℓ` | [`super::coverage::clamp_levels_to_weighted_cap`]（**账户/风控域**，`fill.rs:5180` 门内，**clamp 取 min，非乘法**） | 该级别**已聚合**的结构净目标 `net_ℓ`（多条 leg 之和） |
+//! | `level_weight` / `w_ℓ`（本模块） | 级别轴·**绝对坐标**（`ElementId.level`） | 跨 root 的整个级别账本 `Ledger_ℓ` | [`super::coverage::clamp_levels_to_weighted_cap`]（**账户/风控域**，`coverage_step_from_buckets_sep_with_risk_seeds` 内 `apply_level_cap`，**clamp 取 min，非乘法**） | 该级别**已聚合**的结构净目标 `net_ℓ`（多条 leg 之和） |
 //!
 //! **谁主谁从**：depth_weight 是**内层/先手**——它在单条 leg 诞生时就把资金分配定死，这个
 //! 分配已经沉淀进 `net_ℓ`（`level_nets` 对同级别所有 leg 求和，含各深度贡献）。level_weight

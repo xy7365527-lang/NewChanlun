@@ -557,7 +557,7 @@ impl LevelOrderLedger {
         let order_units = deltas.iter().map(|&(_, q)| q).sum();
         let struct_gap = gated_basis.iter().map(|&(_, q)| q).sum::<i64>() - target_total;
         // `cap_narrowed_levels` 空表：本函数不施加级别帽（唯一施加入口在 `coverage`，见字段
-        // doc）；帽裁到了哪几级由施加点 `fill.rs` 在此计划上填入。
+        // doc）；本字段无写入者（恒空，与字段 doc 一致——帽的逐级读数由 `apply_level_cap` 承载）。
         LevelOrderPlan {
             targets,
             deltas,
