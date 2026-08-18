@@ -147,8 +147,9 @@ pub fn find_move_by_end_index(moves: &[LeveledMove], target: usize) -> Option<us
 /// ★#1052（#1028 裁定 A）：一类点点锚迁移到 departure 单元终点后，`source_index` 不再等于
 /// 本级 C 段 `end_index`（末子段常是回抽反趋势段 ⟹ departure 终点落在 C 段内部）。gate 的
 /// **执行段定位**须按「包含」找 C 段，不得再用 `end ==`（否则 L≥1 带回抽尾段的一类点会
-/// 定位失败被误拒）。下钻（[`find_move_by_end_index`] 于 `sub_moves` 上）不受影响——它要找的
-/// 恰是 `end == 点锚` 的那段（迁移后即 departure 子段，正是裁定意图）。
+/// 定位失败被误拒）。★#1076（#1028 终局）：下钻首步也有同型残余——departure 终点可能落在
+/// 次级别走势**内部**（不落任何 sub_moves 段边界，三轮实测 396 信号 54 例），
+/// [`descend_type1_anchor_depth`] 的锚定位同样回退本函数（`end ==` MISS ⟹ 区间包含定位）。
 ///
 /// partition_point 前提与 [`find_move_by_end_index`] 同（`end_index` 升序）。
 pub fn find_move_containing_index(moves: &[LeveledMove], target: usize) -> Option<usize> {

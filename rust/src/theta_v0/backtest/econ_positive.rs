@@ -854,10 +854,13 @@ pub(super) enum DescendStop {
     /// A：`sub_moves` 空 = 到达 L0 天花板（塔以线段为底、笔不在塔级别阶梯内，#520 基底选择）。
     /// **正常终止，不算断链**。
     BaseL0,
-    /// B：`end_index == source_index` 对齐段缺失（L0 以上）——塔构造不变量（父段末尾恒等于
-    /// 子段末尾）违反。#846 坐实 B 类零反例 36175/36175 ⟹ 「L0 以上取不到对齐段即报错」
-    /// 不变式的报错对象（报错守卫在生产消费层 `debug_assert_ne!` 落地，本函数保持纯函数返回
-    /// `NoAlign`，诊断层可继续计数 B 类）。
+    /// B：`sub_moves` 非空但**既无 `end_index == source_index` 对齐段、也无包含段**（source_index
+    /// 落在 sub_moves 覆盖区间之外）——塔构造不变量（父段末尾恒等于子段末尾）违反。#846 坐实
+    /// B 类零反例 36175/36175 ⟹ 「L0 以上取不到段即报错」不变式的报错对象（报错守卫在生产消费层
+    /// `debug_assert_ne!` 落地，本函数保持纯函数返回 `NoAlign`，诊断层可继续计数 B 类）。
+    /// ★#1076（#1028 终局）：点锚迁移后 departure 终点可能落次级别走势**内部**（非段边界），
+    /// 该情形由「区间包含」回退消化（见 [`descend_type1_anchor_depth`]），**不再落 NoAlign**——
+    /// 落 NoAlign 仅剩真正的覆盖缺口（塔结构不变量违反）。
     NoAlign,
     /// C：对齐段存在但 `div_cand` 判假——判据层合法终止（成本门/市场现实，非结构错误）。
     NoDivergence,
@@ -883,8 +886,10 @@ pub(super) enum DescendStop {
 ///   - [`DescendStop::NoDivergence`]（C）：对齐段存在但 `div_cand` 判假——判据层合法终止
 ///     （成本门/市场现实）。该级无一类买卖点、精确点无法下沉定位时走小转大通道
 ///     （[`build_xzd_fallback`]，知识库 L410「区间套和背驰不可解释情况的补充」）。
-///   - [`DescendStop::NoAlign`]（B）：L0 以上取不到 `end_index==source_index` 对齐段——塔构造
-///     不变量违反，不变式报错对象（见 [`DescendStop`]）。
+///   - [`DescendStop::NoAlign`]（B）：L0 以上既取不到 `end_index==source_index` 对齐段、也取不到
+///     包含段（source_index 落在 sub_moves 覆盖区间之外）——塔构造不变量违反，不变式报错对象
+///     （见 [`DescendStop`]）。★#1076：departure 终点落次级别走势**内部**（非边界）的 54 例
+///     由「区间包含」回退消化，不落 NoAlign。
 ///
 /// 区间套 `[J_{ℓ-1}⊆J_ℓ]` 由下钻**结构性保证**：`sub_move` 的 `[start,end]` ⊆ parent 的 `[start,end]`
 /// （recursive_tower Compose 由连续 `sub_moves` 组装的不变量），故不重复 `is_sub` 检查（invariant 非条件）。
@@ -909,12 +914,22 @@ fn descend_type1_anchor_depth(
     }
     // 次级别 Type1 背驰段判据：s.sub_moves 中 end_index==source_index 段跑完整 div_cand。
     // ★#883：D-3 取段的「界」= 父走势 s 的最近中枢（每级递归各取各的父中枢）。
-    let Some(tidx) = find_move_by_end_index(subs, source_index) else {
-        // B 类：L0 以上取不到对齐段 = 结构不变量违反（不变式报错对象，守卫在生产消费层）。
-        return DescendLocator {
-            depth: 0,
-            stop: DescendStop::NoAlign,
-        };
+    // ★#1076（#1028 终局）：点锚迁移后 departure 单元终点可能落在次级别走势**内部**（不落任何
+    // sub_moves 段边界，三轮实测 396 信号 54 例）⟹ `end ==` 精确匹配 NoAlign 误断、下钻对齐失败
+    // 被排除。回退「区间包含」定位（find_move_containing_index）——只动锚定位、不动 div_cand 判据链。
+    let tidx = match find_move_by_end_index(subs, source_index) {
+        Some(tidx) => tidx,
+        None => match find_move_containing_index(subs, source_index) {
+            Some(tidx) => tidx,
+            None => {
+                // B 类：既无 end== 对齐段、也无包含段（source_index 落在 sub_moves 覆盖区间之外）
+                // = 结构不变量违反（不变式报错对象，守卫在生产消费层）。
+                return DescendLocator {
+                    depth: 0,
+                    stop: DescendStop::NoAlign,
+                };
+            }
+        },
     };
     let anchor_ok = super::super::classifier::cand_predicate::div_cand(
         &super::super::classifier::cand_predicate::DivCandInput {
@@ -1043,7 +1058,7 @@ fn cand_delta_type2_completion(
     debug_assert_ne!(
         locator.stop(),
         DescendStop::NoAlign,
-        "Type2 下钻：L0 以上取不到对齐段（#846 B 类零反例 36175/36175）"
+        "Type2 下钻：L0 以上取不到包含段（#846 B 类零反例 36175/36175）"
     );
     locator.anchored()
 }
@@ -1077,7 +1092,7 @@ fn cand_delta_type3_retest(
     debug_assert_ne!(
         locator.stop(),
         DescendStop::NoAlign,
-        "Type3 下钻：L0 以上取不到对齐段（#846 B 类零反例 36175/36175）"
+        "Type3 下钻：L0 以上取不到包含段（#846 B 类零反例 36175/36175）"
     );
     locator.anchored()
 }
@@ -1138,7 +1153,7 @@ fn cand_delta_base_gate(
             debug_assert_ne!(
                 locator.stop(),
                 DescendStop::NoAlign,
-                "Type1 下钻：L0 以上取不到对齐段（#846 B 类零反例 36175/36175）"
+                "Type1 下钻：L0 以上取不到包含段（#846 B 类零反例 36175/36175）"
             );
             true
         }
@@ -1583,12 +1598,12 @@ pub(super) fn pan_div_gate_pass(
     // 通道1（Nest 语义 ∃e<ℓ Conf^δ_e）：次级别 Type1 下沉锚。lvl==0（L0 天花板——塔不从笔递归，
     // 构造选择，#520 订正）恒 BaseL0 ⟹ 走通道2。
     let locator = descend_type1_anchor_depth(s, cert.source_index, cert.side, hist, strokes, gauge);
-    // ★S4 不变式（#846 B 类零反例 36175/36175）：L0 以上取不到对齐段即报错（结构不变量违反）。
+    // ★S4 不变式（#846 B 类零反例 36175/36175）：L0 以上取不到包含段即报错（结构不变量违反）。
     if lvl > 0 {
         debug_assert_ne!(
             locator.stop(),
             DescendStop::NoAlign,
-            "PanDiv 下钻：L0 以上取不到对齐段（#846 B 类零反例 36175/36175）"
+            "PanDiv 下钻：L0 以上取不到包含段（#846 B 类零反例 36175/36175）"
         );
     }
     if locator.anchored() {
@@ -3601,13 +3616,14 @@ mod tests {
         );
     }
 
-    /// ★S4 接线测试锁（#802 空洞①/②）：下钻纯函数在「L0 以上取不到对齐段」时返回
+    /// ★S4 接线测试锁（#802 空洞①/②）：下钻纯函数在「L0 以上取不到包含段」时返回
     /// [`DescendStop::NoAlign`]（B 类，#846 零反例）——函数保持纯返回不 panic，
     /// 报错守卫在生产消费层 `debug_assert_ne!` 落地（见下一个 `#[should_panic]` 锁）。
     #[test]
     fn descend_locator_reports_noalign_for_malformed_sub_moves() {
-        // m 的 sub_moves 非空，但没有任何段 end_index == source_index（19）——塔构造不变量
-        // （父段末尾恒等于子段末尾）违反的合成反例（#846 B 类零反例 ⟹ 真实数据不可达）。
+        // m 的 sub_moves 非空，但没有任何段 end_index == source_index（19）且无包含段
+        // （19 > 末段 end=14）——塔构造不变量（父段末尾恒等于子段末尾）违反的合成反例
+        // （#846 B 类零反例 ⟹ 真实数据不可达）。
         let s0 = seg2(Dir2::Up, 50, 100, 0, 4, 0);
         let s1 = seg2(Dir2::Down, 40, 90, 5, 9, 1);
         let s2 = seg2(Dir2::Up, 45, 95, 10, 14, 2); // 末段 end=14 ≠ 19
@@ -3625,7 +3641,39 @@ mod tests {
         assert_eq!(
             locator.stop(),
             DescendStop::NoAlign,
-            "sub_moves 非空但无 end==source_index 对齐段 ⟹ B 类（结构不变量违反）"
+            "sub_moves 非空但无 end== 对齐段也无包含段 ⟹ B 类（结构不变量违反）"
+        );
+    }
+
+    /// #1076 回归锁（#1028 终局）：departure 终点落次级别走势**内部**（非段边界）时，下钻锚定位
+    /// 从 `end ==` 精确匹配回退「区间包含」定位（[`find_move_containing_index`]）——不再落
+    /// [`DescendStop::NoAlign`] 误断（修前 54 例对齐回退被排除）。只动锚定位，`div_cand` 判据链逐字不动。
+    #[test]
+    fn descend_anchor_falls_back_to_containment_for_interior_anchor() {
+        // m 的 sub_moves：[0..4],[5..9],[10..14]；source_index=12 落末段**内部**（非 9/14 段边界）。
+        let s0 = seg2(Dir2::Up, 50, 100, 0, 4, 0);
+        let s1 = seg2(Dir2::Down, 40, 90, 5, 9, 1);
+        let s2 = seg2(Dir2::Up, 45, 95, 10, 14, 2);
+        let m = compose2(vec![s0, s1, s2], ct2(45, 92, 10, 14), 1, 0);
+        let subs = m.sub_moves.as_slice();
+        // 精确匹配 MISS（12 非任何段 end_index）；区间包含 HIT（末段 [10..14] 含 12）。
+        assert_eq!(find_move_by_end_index(subs, 12), None);
+        assert_eq!(find_move_containing_index(subs, 12), Some(2));
+
+        let hist = vec![0.0f64; 20];
+        let locator = super::descend_type1_anchor_depth(
+            &m,
+            12,
+            Side::Long,
+            &hist,
+            &[],
+            DivergenceGauge::MacdArea,
+        );
+        // 回退生效：不再落 NoAlign（修前此处 = NoAlign ⟹ Type2/3 门拒、Type1 不变式误报）。
+        assert_ne!(
+            locator.stop(),
+            DescendStop::NoAlign,
+            "interior 锚须由区间包含回退消化，不得落 NoAlign"
         );
     }
 
@@ -3634,7 +3682,7 @@ mod tests {
     /// `true` 不下钻，本测试将因「期望 panic 但未 panic」而失败（debug 构建；release 下该
     /// 断言编译掉，故本锁仅在 `cargo test` 默认 debug 档有效）。
     #[test]
-    #[should_panic(expected = "Type1 下钻：L0 以上取不到对齐段")]
+    #[should_panic(expected = "Type1 下钻：L0 以上取不到包含段")]
     fn type1_base_gate_fires_noalign_invariant_on_malformed_tower() {
         let s0 = seg2(Dir2::Up, 50, 100, 0, 4, 0);
         let s1 = seg2(Dir2::Down, 40, 90, 5, 9, 1);
@@ -8436,6 +8484,10 @@ mod tests {
         // ── 计数器 ──
         let mut n_sig = [[0usize; LMAX + 1]; NG]; // [群][信号级] 信号总数（per-delta 去重后）
         let mut base_none = [[0usize; LMAX + 1]; NG]; // tower[lvl] 无 end==src 段 ⟹ descend 未启动
+
+        // ★#1076：锚定位「区间包含」回退计数（end== 精确匹配 MISS、包含定位 HIT——departure 终点
+        // 落次级别走势内部的对齐回退例，与生产 descend_type1_anchor_depth 同源）。
+        let mut align_fallback = [[0usize; LMAX + 1]; NG]; // [群][信号级] 对齐回退例数
         let mut depth_hist = [[[0usize; DCAP + 1]; LMAX + 1]; NG]; // [群][信号级][depth]
         let mut top_none = [[[0usize; NR]; LMAX + 1]; NG]; // depth==0（顶层 None）的 A/B/C
         let mut term_by_lvl = [[[0usize; NR]; LMAX + 1]; NG]; // 链**终止**成因 × 信号级
@@ -8470,6 +8522,7 @@ mod tests {
         let mut cell_used = [[[0usize; LMAX + 1]; NR]; NG];
         let mut sample_b: Vec<String> = Vec::new();
         let mut sample_c: Vec<String> = Vec::new();
+        let mut sample_f: Vec<String> = Vec::new(); // ★#1076：对齐回退例逐例 dump（结构形态归类）
 
         let mut classifier_incr = IncrementalClassifier::new(bars, &config);
         let mut seen: std::collections::HashSet<(usize, usize, u8)> =
@@ -8599,7 +8652,8 @@ mod tests {
                         };
                         n_sig[g][lvl] += 1;
 
-                        // 执行级候选段 s（build_nest_certificate:1004 同逻辑，同一 production helper）。
+                        // 执行级候选段 s（build_nest_certificate 同逻辑，同一 production helper：
+                        // ★#1052 后用「区间包含」定位——点锚迁移后 src 可能落 C 段内部）。
                         let exec_moves = match tower_i.get(lvl) {
                             Some(mv) => mv.as_slice(),
                             None => {
@@ -8607,7 +8661,7 @@ mod tests {
                                 continue;
                             }
                         };
-                        let Some(si) = find_move_by_end_index(exec_moves, src) else {
+                        let Some(si) = find_move_containing_index(exec_moves, src) else {
                             base_none[g][lvl] += 1;
                             continue;
                         };
@@ -8624,9 +8678,45 @@ mod tests {
                                 terminal = StepFail::EmptySubs;
                                 break;
                             }
-                            let Some(tidx) = find_move_by_end_index(subs, src) else {
-                                terminal = StepFail::NoAlign;
-                                break;
+                            // ★#1076：锚定位与生产 descend 同源——end == 精确匹配 MISS 时回退「区间包含」。
+                            let tidx = match find_move_by_end_index(subs, src) {
+                                Some(tidx) => tidx,
+                                None => match find_move_containing_index(subs, src) {
+                                    Some(tidx) => {
+                                        align_fallback[g][lvl] += 1;
+                                        // 逐例 dump（结构形态归类）：包含段方向/类型/锚偏移。
+                                        if sample_f.len() < 54 {
+                                            let sub = &subs[tidx];
+                                            let dir_txt = match rmove_dir(&sub.rmove) {
+                                                Some(Direction::Up) => "Up",
+                                                Some(Direction::Down) => "Down",
+                                                None => "None",
+                                            };
+                                            let kind_txt =
+                                                if matches!(&sub.rmove, RM2::Segment { .. }) {
+                                                    "Segment"
+                                                } else {
+                                                    "Compose"
+                                                };
+                                            sample_f.push(format!(
+                                                "| {lvl} | {cur_level} | {src} | {} | {} | {} | {} | [{}..{}] | {} | {} |",
+                                                gname(g),
+                                                dir_txt,
+                                                kind_txt,
+                                                subs.len(),
+                                                sub.start_index,
+                                                sub.end_index,
+                                                src - sub.start_index,
+                                                sub.end_index - src
+                                            ));
+                                        }
+                                        tidx
+                                    }
+                                    None => {
+                                        terminal = StepFail::NoAlign;
+                                        break;
+                                    }
+                                },
                             };
                             // ★#883：生产判据直调（D-3 取段的「界」= 当前父走势 cur 的最近中枢；
                             // 力度档 = config.divergence_gauge，与生产 collect_signals 同口径）。
@@ -8731,8 +8821,11 @@ mod tests {
                                     ));
                                 }
                                 StepFail::DivFalse(cond) => {
+                                    // ★#1076：与生产同源——精确匹配 MISS 时回退「区间包含」（C 类
+                                    // 可能经对齐回退定位，不能只按 end== 精确匹配反查）。
                                     let tidx = find_move_by_end_index(subs, src)
-                                        .expect("C 类 ⟹ 对齐段存在");
+                                        .or_else(|| find_move_containing_index(subs, src))
+                                        .expect("C 类 ⟹ 对齐段/包含段存在");
                                     let t = &subs[tidx];
                                     let t_dir = rmove_dir(&t.rmove);
                                     let expected = match delta {
@@ -9079,6 +9172,22 @@ mod tests {
             }
         }
         let _ = writeln!(rpt);
+        // ★#1076：对齐回退例（departure 终点落次级别走势内部，end== 精确匹配 MISS ⟹ 区间包含定位）。
+        let _ = writeln!(
+            rpt,
+            "### 5.3 对齐回退例（#1076，锚不落边界 ⟹ 区间包含定位）：{} 例",
+            sample_f.len()
+        );
+        if sample_f.is_empty() {
+            let _ = writeln!(rpt, "\n**（空——无对齐回退例）**");
+        } else {
+            let _ = writeln!(rpt, "| 信号级 | 当前级 | src | 群 | 包含段方向 | 包含段类型 | 该级段数 | 包含段区间 | 离起点 | 离终点 |");
+            let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|");
+            for l in &sample_f {
+                let _ = writeln!(rpt, "{l}");
+            }
+        }
+        let _ = writeln!(rpt);
 
         // 6. 忠实性 + 域外声明
         let _ = writeln!(rpt, "## 6. 忠实性校验与域外声明");
@@ -9184,11 +9293,13 @@ mod tests {
             "展开循环与 descend_type1_anchor_depth 返回不一致 {trace_mismatch} 次 ⟹ 探针失真，读数作废"
         );
         eprintln!(
-            "真封：Type1 群={} 条（base_none={}），Type2/3 群={} 条（base_none={}）；trace={trace_mismatch}；#883 验收：pan_rescue={} reverse_diff={}",
+            "真封：Type1 群={} 条（base_none={}，对齐回退={}），Type2/3 群={} 条（base_none={}，对齐回退={}）；trace={trace_mismatch}；#883 验收：pan_rescue={} reverse_diff={}",
             n_sig[0].iter().sum::<usize>(),
             base_none[0].iter().sum::<usize>(),
+            align_fallback[0].iter().sum::<usize>(),
             n_sig[1].iter().sum::<usize>(),
             base_none[1].iter().sum::<usize>(),
+            align_fallback[1].iter().sum::<usize>(),
             pan_rescue.iter().map(|r| r.iter().sum::<usize>()).sum::<usize>(),
             reverse_diff.iter().map(|r| r.iter().sum::<usize>()).sum::<usize>()
         );
@@ -9397,7 +9508,7 @@ mod tests {
                                 continue;
                             }
                         };
-                        let Some(si) = find_move_by_end_index(exec_moves, src) else {
+                        let Some(si) = find_move_containing_index(exec_moves, src) else {
                             base_none += 1;
                             continue;
                         };
@@ -9414,9 +9525,11 @@ mod tests {
                             window_extreme_bar(bars, s, delta), // ① 窗口极值 bar
                             departure_unit_end(s, delta),       // ② departure 单元终点
                         ];
-                        // 原臂用精确 end 匹配（与生产/探针同口径）；反事实臂用「包含」匹配。
+                        // 原臂与生产 descend 同源：end == 精确匹配，MISS 回退「区间包含」（#1076 对齐回退）；
+                        // 反事实臂用「包含」匹配。
                         let targets: [Option<usize>; NARM] = [
-                            find_move_by_end_index(subs, src),
+                            find_move_by_end_index(subs, src)
+                                .or_else(|| find_move_containing_index(subs, src)),
                             keys[1].and_then(|k| find_move_by_span(subs, k)),
                             keys[2].and_then(|k| find_move_by_span(subs, k)),
                         ];
@@ -10123,7 +10236,7 @@ mod tests {
                                 continue;
                             }
                         };
-                        let Some(si) = find_move_by_end_index(exec_moves, src) else {
+                        let Some(si) = find_move_containing_index(exec_moves, src) else {
                             base_none[g][lvl] += 1;
                             continue;
                         };
@@ -10132,7 +10245,9 @@ mod tests {
                         let (div_ok, cond) = if subs.is_empty() {
                             first_a[g][lvl] += 1;
                             (false, 0u8)
-                        } else if let Some(tidx) = find_move_by_end_index(subs, src) {
+                        } else if let Some(tidx) = find_move_by_end_index(subs, src)
+                            .or_else(|| find_move_containing_index(subs, src))
+                        {
                             let why = prod_div_cand_why(
                                 subs,
                                 tidx,
@@ -12401,7 +12516,7 @@ mod tests {
                                 continue;
                             }
                         };
-                        let Some(si) = find_move_by_end_index(exec_moves, src) else {
+                        let Some(si) = find_move_containing_index(exec_moves, src) else {
                             seg_absent[g][lvl] += 1;
                             continue;
                         };
@@ -12418,9 +12533,16 @@ mod tests {
                                 terminal = 0; // EmptySubs：递归底
                                 break;
                             }
-                            let Some(tidx) = find_move_by_end_index(subs, src) else {
-                                terminal = 1; // NoAlign
-                                break;
+                            // ★#1076：与生产 descend 同源——end == 精确匹配 MISS 回退「区间包含」。
+                            let tidx = match find_move_by_end_index(subs, src) {
+                                Some(tidx) => tidx,
+                                None => match find_move_containing_index(subs, src) {
+                                    Some(tidx) => tidx,
+                                    None => {
+                                        terminal = 1; // NoAlign
+                                        break;
+                                    }
+                                },
                             };
                             // ★ 区间包含实测（本探针相对 #846 的新增量）
                             let sub = &subs[tidx];
