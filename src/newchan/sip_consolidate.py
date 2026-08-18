@@ -1,8 +1,7 @@
 """SIP consolidated tick 去重/条件码过滤（issue #1041，ADR 0023 §四-1 草案实现）。
 
 本模块是 #1041 的「修正规则」可执行草案——把 Massive 逐笔成交（字段 schema 与 Polygon.io
-一致）
-的原样数据收敛成 consolidated 落盘数据。三条判据各自单一、依次流水（#799 不同判断，
+一致）的原样数据收敛成 consolidated 落盘数据。三条判据各自单一、依次流水（#799 不同判断，
 非宽严两档），任何一条都不存在「先 A 后 B 兜底」：
 
 1. **条件码/修正过滤**（filter）：丢修正/撤单/非标准成交（条件码黑名单 + correction
@@ -150,8 +149,6 @@ def filter_trades(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     if "correction" in df.columns:
         corr = pd.to_numeric(df["correction"], errors="coerce")
         mask &= ~corr.isin(DROP_CORRECTIONS)
-    else:
-        corr = pd.Series([None] * n_in, index=df.index, dtype=object)
 
     conds = conditions_series(df)
     bad_cond = conds.map(lambda s: bool(s & DROP_CONDITIONS))
@@ -161,7 +158,7 @@ def filter_trades(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     stats = {
         "filter_in": n_in,
         "filter_out": len(out),
-        "dropped_correction": int(corr[mask == False].isin(DROP_CORRECTIONS).sum())
+        "dropped_correction": int(corr[~mask].isin(DROP_CORRECTIONS).sum())
         if "correction" in df.columns
         else 0,
         "dropped_condition": int(bad_cond.sum()),

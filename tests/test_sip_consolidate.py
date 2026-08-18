@@ -13,11 +13,8 @@ import pandas as pd
 import pytest
 
 from newchan.sip_consolidate import (
-    DROP_CONDITIONS,
-    DROP_CORRECTIONS,
     KEY_PARTICIPANT,
     KEY_SIP_SEQ,
-    conditions_series,
     consolidate,
     dedup_by_key,
     drop_trf_prints,
@@ -42,7 +39,7 @@ def _make_fixture() -> pd.DataFrame:
       J         correction=11（错误记录）         → filter 丢
       K         correction=NaN（无修正）           → 留，键唯一（并入 A-D 的「干净组」）
       L         与 B 同 participant 键            → dedup 丢（participant 键下）
-    合计 12 → filter 后 9 → venue 后 7 → sip_seq 键 dedup 后 6；participant 键 dedup 后 6。
+    合计 12 → filter 后 9 → venue 后 7 → sip_seq 键 dedup 后 6；participant 键 dedup 后 5。
     """
     rows = [
         # id, ticker, conditions, correction, exchange, pt, sip, price, seq, size, tape, trf_id

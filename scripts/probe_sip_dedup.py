@@ -30,7 +30,6 @@ from newchan.sip_consolidate import (
     KEY_PARTICIPANT,
     KEY_SIP_SEQ,
     conditions_series,
-    normalize_conditions,
 )
 
 DEFAULT_ROOT = Path("analysis/data_cache/massive_tick")
