@@ -9916,6 +9916,700 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // #1091 探针：三轮下钻残余桶（cond1 残 / cond2 D-3 取段 / cond3 Extreme /
+    // cond4 Weak）反事实拆解（#1028 终局）
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// **#1091 探针：Type1 下钻残余桶（cond1/2/3/4）的逐例 dump + 三键反事实**（只读诊断，`#[ignore]`）。
+    ///
+    /// ## 验什么
+    ///
+    /// #1028 终验（裁定 A 后三轮重测）：首步 C 27.5%（109/396）；C 链终止条件号分布 =
+    /// cond1 方向 13 / cond2 D-3 取段 59 / cond3 Extreme 36 / cond4 Weak 15。方向桶已证 =
+    /// 锚错位（#1034 反事实 + 裁定 A 修后 159→13）；本票对**剩余桶**做 cond1-research
+    /// （#1034）同款拆解：逐例 dump + 三键反事实（source_index / 窗口极值 bar / departure
+    /// 终点）翻转率 + 归因排序（归因判读口径见设计文档
+    /// `.chanlun/review-results/issue1091-residual-counterfactual-design-20260818.md`）。
+    ///
+    /// ## 怎么测
+    ///
+    /// 复制 `type1_descend_continuity_dx` 的 bit-exact classify 循环与下钻展开，对每条 Type1
+    /// `lvl≥1` 信号在**链终止 C 步**上：
+    /// 1. 逐例 dump：父走势结构（Segment/Compose·中枢数·subs 数·父中枢）/ D-3 取段键（s 跨界·
+    ///    prev 进入段 vs 上次离开段）/ 目标段 lo-hi-area / 前序同向段 lo-hi-area / 期望与实判
+    ///    （方向·Extreme·Weak 三子判定 + 首个失败条件）。
+    /// 2. 三键反事实：目标子走势对齐键换成 ①source_index（生产现锚 = departure 终点）②窗口
+    ///    极值 bar（δ 侧价格极值）③departure 终点，重跑生产 `div_cand_fail`，记新结局
+    ///    （pass / cond1..4）与翻转率。**纯测量，不改生产判据、不改生产锚。**
+    ///
+    /// ## 三键关系（诚实声明）
+    ///
+    /// ① 与 ③ 在**首步**同值（裁定 A 后 `source_index` == departure 终点）——两臂只在下钻**更深步**
+    /// （cur 已非顶层 C，src 仍是顶层锚而 ③ 是当前父走势自己的 departure 终点）分叉。真正的
+    /// 对照差异由 ②（窗口极值 bar，即 #1035 判定的「背驰极值」候选锚）贡献。
+    ///
+    /// **认识论 L2**（真实 BTC 逐信号结构下钻 + 确定性 div_cand，可产否定性计数）。
+    ///
+    /// 命令：`ECON_L2_MAX_BARS=100000000 cargo test --release type1_residual_counterfactual_dx -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn type1_residual_counterfactual_dx() {
+        use super::super::super::classifier::cand_predicate::{parent_last_center, rmove_dir};
+        use super::super::super::classifier::divergence::{compute_macd, segment_macd_area};
+        use super::super::super::parser::segment::segment_force_l;
+        use super::super::super::types::Direction;
+        use super::super::data;
+        use std::fmt::Write as _;
+
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+        };
+        let n_full = ds_full.bars.len();
+        let max_bars = econ_l2_max_bars();
+        let ds = truncate_tail_bars(ds_full, max_bars);
+        let bars = &ds.bars;
+        let n = bars.len();
+        let tick = config.tick.tick_size;
+        let win_start = ds
+            .dates
+            .first()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        let win_end = ds
+            .dates
+            .last()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        eprintln!(
+            "[t1-residual-cf-dx] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}"
+        );
+
+        let closes: Vec<f64> = bars.iter().map(|b| b.close as f64 / tick as f64).collect();
+        let macd_hist = compute_macd(&closes, &config.macd).hist;
+
+        const LMIN: usize = 1;
+        const LMAX: usize = 4;
+        const NARM: usize = 3;
+        let arm_name = |a: usize| match a {
+            0 => "原臂(source_index)",
+            1 => "窗口极值bar",
+            2 => "departure终点",
+            _ => unreachable!(),
+        };
+        let cond_name = |cd: u8| match cd {
+            0 => "pass",
+            1 => "cond1方向",
+            2 => "cond2取段",
+            3 => "cond3Extreme",
+            4 => "cond4Weak",
+            _ => "?",
+        };
+        let fmt_dir = |d: Option<Direction>| match d {
+            Some(Direction::Up) => "Up",
+            Some(Direction::Down) => "Down",
+            None => "None",
+        };
+
+        // ── 计数器 ──
+        let mut n_sig = 0usize; // Type1 lvl≥1 信号数（per-delta 去重后，含 base_none）
+        let mut base_none = 0usize; // tower[lvl] 无 end==src 段 ⟹ 下钻未启动
+        let mut first_step = [0usize; 4]; // 首步 0=成功 1=A(空subs) 2=B(无对齐) 3=C(div假)
+        let mut bucket_count = [0usize; 5]; // 链终止 C 条件号分布（下标 1..=4）
+
+        // 三键反事实：arm_key_none[bucket][arm] / arm_no_align[bucket][arm] /
+        // arm_out[bucket][arm][new]（new：0=pass 1..=4=cond）。
+        let mut arm_key_none = [[0usize; NARM]; 5];
+        let mut arm_no_align = [[0usize; NARM]; 5];
+        let mut arm_out = [[[0usize; 5]; NARM]; 5];
+
+        // ── 逐例 dump（md 取样 + jsonl 全量）──
+        const PER_BUCKET_CAP: usize = 8;
+        const TOTAL_CAP: usize = 40;
+        let mut bucket_used = [0usize; 5];
+        let mut sample_md: Vec<String> = Vec::new();
+        let mut cases_jsonl: Vec<String> = Vec::new();
+
+        let mut classifier_incr = IncrementalClassifier::new(bars, &config);
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> =
+            std::collections::HashSet::new();
+
+        for i in 0..n {
+            let bar = &bars[i];
+            if bar.untradable || bar.close <= 0 {
+                continue;
+            }
+            let __w = classifier_incr.classify_at(i);
+            let l0_i = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls_i = __w.classification;
+            let tower_i = __w.tower;
+            for (lvl, ls) in cls_i.levels.iter().enumerate() {
+                if !(LMIN..=LMAX).contains(&lvl) {
+                    continue;
+                }
+                for p in ls.bsp.iter() {
+                    let bsp_class = bsp_disc(&p.bits);
+                    if !seen.insert((lvl, p.source_index, bsp_class)) {
+                        continue;
+                    }
+                    if !(p.bits.buy1 || p.bits.sell1) {
+                        continue;
+                    }
+                    // Γ 组装（bit-exact 复制生产路径，同 type1_descend_continuity_dx）。
+                    let single = super::super::super::classifier::Classification {
+                        levels: cls_i
+                            .levels
+                            .iter()
+                            .enumerate()
+                            .map(|(l2, _)| super::super::super::classifier::LevelState {
+                                moves: Vec::new(),
+                                centers: Rc::new(Vec::new()),
+                                cp_ownership: Rc::new(Vec::new()),
+                                bsp: Rc::new(if l2 == lvl {
+                                    vec![p.clone()]
+                                } else {
+                                    Vec::new()
+                                }),
+                                pan_div: Rc::new(Vec::new()),
+                                first_class_grades: Rc::new(Vec::new()),
+                                level_projection: None,
+                            })
+                            .collect(),
+                    };
+                    let cands = assemble_gamma_with_tower(&single, &tower_i);
+                    for c in &cands {
+                        let delta = match c.dir {
+                            VoiceSide::Long => Side::Long,
+                            VoiceSide::Short => Side::Short,
+                            VoiceSide::Flat => continue,
+                        };
+                        let is_type1 = match delta {
+                            Side::Long => p.bits.buy1,
+                            Side::Short => p.bits.sell1,
+                        };
+                        if !is_type1 {
+                            continue;
+                        }
+                        let src = p.source_index;
+                        n_sig += 1;
+
+                        let exec_moves = match tower_i.get(lvl) {
+                            Some(mv) => mv.as_slice(),
+                            None => {
+                                base_none += 1;
+                                continue;
+                            }
+                        };
+                        let Some(si) = find_move_by_end_index(exec_moves, src) else {
+                            base_none += 1;
+                            continue;
+                        };
+                        let s = &exec_moves[si];
+
+                        // ── 展开 descend_type1_anchor_depth 的递归为可观测循环（同 #846 探针）──
+                        let mut cur: &LeveledMove = s;
+                        let mut cur_level = lvl;
+                        let mut depth = 0usize;
+                        let terminal: StepFail;
+                        let mut term_tidx: Option<usize> = None;
+                        loop {
+                            let subs = cur.sub_moves.as_slice();
+                            if subs.is_empty() {
+                                terminal = StepFail::EmptySubs;
+                                break;
+                            }
+                            let Some(tidx) = find_move_by_end_index(subs, src) else {
+                                terminal = StepFail::NoAlign;
+                                break;
+                            };
+                            let parent_center = parent_last_center(cur);
+                            let why = prod_div_cand_why(
+                                subs,
+                                tidx,
+                                &macd_hist,
+                                delta,
+                                &l0_i.strokes,
+                                parent_center,
+                                config.divergence_gauge,
+                            );
+                            if let Some(cond) = why {
+                                terminal = StepFail::DivFalse(cond);
+                                term_tidx = Some(tidx);
+                                break;
+                            }
+                            depth += 1;
+                            cur = &subs[tidx];
+                            cur_level = cur_level.saturating_sub(1);
+                        }
+
+                        // 首步四分类（0=成功 1=A 2=B 3=C）。
+                        if depth == 0 {
+                            let fs = match terminal {
+                                StepFail::EmptySubs => 1,
+                                StepFail::NoAlign => 2,
+                                StepFail::DivFalse(_) => 3,
+                            };
+                            first_step[fs] += 1;
+                        } else {
+                            first_step[0] += 1;
+                        }
+
+                        // 只对链终止 C 做反事实 + dump。
+                        let StepFail::DivFalse(cond) = terminal else {
+                            continue;
+                        };
+                        bucket_count[cond as usize] += 1;
+                        let subs = cur.sub_moves.as_slice();
+                        let tidx = term_tidx.expect("C 类 ⟹ 对齐段存在");
+                        let parent_center = parent_last_center(cur);
+                        let dsym = if delta == Side::Long { "+1" } else { "-1" };
+                        let expected = match delta {
+                            Side::Long => Direction::Down,
+                            Side::Short => Direction::Up,
+                        };
+
+                        // ── 三键反事实 ──
+                        let keys = [
+                            Some(src),
+                            window_extreme_bar(bars, cur, delta),
+                            departure_unit_end(cur, delta),
+                        ];
+                        let targets: [Option<usize>; NARM] = [
+                            find_move_by_end_index(subs, src),
+                            keys[1].and_then(|k| find_move_by_span(subs, k)),
+                            keys[2].and_then(|k| find_move_by_span(subs, k)),
+                        ];
+                        let mut outcomes = [0u8; NARM]; // 0=pass 1..=4=cond
+                        for a in 0..NARM {
+                            if keys[a].is_none() {
+                                arm_key_none[cond as usize][a] += 1;
+                                continue;
+                            }
+                            let Some(nt) = targets[a] else {
+                                arm_no_align[cond as usize][a] += 1;
+                                continue;
+                            };
+                            let new_why = prod_div_cand_why(
+                                subs,
+                                nt,
+                                &macd_hist,
+                                delta,
+                                &l0_i.strokes,
+                                parent_center,
+                                config.divergence_gauge,
+                            );
+                            let out = match new_why {
+                                None => 0,
+                                Some(c2) => c2,
+                            };
+                            arm_out[cond as usize][a][out as usize] += 1;
+                            outcomes[a] = out;
+                        }
+
+                        // ── 逐例 dump 字段 ──
+                        let s_t = &subs[tidx];
+                        let s_dir = rmove_dir(&s_t.rmove);
+                        // MacdArea 同色口径 = δ 侧反向走势（与 div_cand_fail 的 dir 同款）。
+                        let dir4 = expected;
+                        let s_area =
+                            segment_macd_area(&macd_hist, s_t.start_index, s_t.end_index, dir4);
+                        // D-3 取段键（与 div_cand_fail 同谓词：s 跨界 + prev 选择；cond1 失败时
+                        // 生产已短路，此处照镜像给出「若方向通过会选谁」的诊断读数）。
+                        let crosses = |m: &LeveledMove, dir: Direction, c: &Center| -> bool {
+                            match dir {
+                                Direction::Down => m.rmove.lo() < c.zd,
+                                Direction::Up => m.rmove.hi() > c.zg,
+                            }
+                        };
+                        let (s_crosses, prev_info, prev_idx, prev_lo, prev_hi, prev_area) =
+                            match (s_dir, parent_center) {
+                                (Some(dir), Some(c)) => {
+                                    let s_cross = crosses(s_t, dir, c);
+                                    let prev =
+                                        subs[..tidx].iter().enumerate().rev().find(|(_, m)| {
+                                            rmove_dir(&m.rmove) == Some(dir)
+                                                && (crosses(m, dir, c)
+                                                    || m.end_index <= c.start_index)
+                                        });
+                                    match prev {
+                                        Some((idx, m)) => {
+                                            let role = if crosses(m, dir, c) {
+                                                "上次离开段(跨界)"
+                                            } else {
+                                                "进入段"
+                                            };
+                                            (
+                                                s_cross,
+                                                format!(
+                                                    "idx={idx} {role} lo={} hi={} [{}..{}]",
+                                                    m.rmove.lo(),
+                                                    m.rmove.hi(),
+                                                    m.start_index,
+                                                    m.end_index
+                                                ),
+                                                Some(idx),
+                                                Some(m.rmove.lo()),
+                                                Some(m.rmove.hi()),
+                                                Some(segment_macd_area(
+                                                    &macd_hist,
+                                                    m.start_index,
+                                                    m.end_index,
+                                                    dir4,
+                                                )),
+                                            )
+                                        }
+                                        None => (
+                                            s_cross,
+                                            "（无同向可比较前段）".to_string(),
+                                            None,
+                                            None,
+                                            None,
+                                            None,
+                                        ),
+                                    }
+                                }
+                                _ => (
+                                    false,
+                                    "（无父中枢语境）".to_string(),
+                                    None,
+                                    None,
+                                    None,
+                                    None,
+                                ),
+                            };
+                        let extreme_ok = match (delta, prev_lo, prev_hi) {
+                            (Side::Long, Some(pl), _) => s_t.rmove.lo() < pl,
+                            (Side::Short, _, Some(ph)) => s_t.rmove.hi() > ph,
+                            _ => false,
+                        };
+                        // Weak 两档读数（ForceL 教义档 + MacdArea 对照档）。
+                        let lc = segment_force_l(&l0_i.strokes, s_t.start_index, s_t.end_index);
+                        let lb = prev_idx.and_then(|idx| {
+                            segment_force_l(
+                                &l0_i.strokes,
+                                subs[idx].start_index,
+                                subs[idx].end_index,
+                            )
+                        });
+                        let l_ok = match (lb, lc) {
+                            (Some(b), Some(cc)) => Some(cc < b),
+                            _ => None,
+                        };
+                        let macd_ok = prev_area.map(|pa| s_area < pa);
+
+                        // 父走势结构。
+                        let parent_txt = match &cur.rmove {
+                            RMove::Segment { direction, .. } => {
+                                format!("Segment(dir={:?})", direction)
+                            }
+                            RMove::Compose { centers, level, .. } => {
+                                format!("Compose(lvl={level} centers={})", centers.len())
+                            }
+                        };
+                        let center_txt = match parent_center {
+                            Some(c) => format!(
+                                "Some(zd={} zg={} [{}..{}])",
+                                c.zd, c.zg, c.start_index, c.end_index
+                            ),
+                            None => "None".to_string(),
+                        };
+
+                        let arm_txt = (0..NARM)
+                            .map(|a| {
+                                if keys[a].is_none() {
+                                    format!("{}=键缺失", arm_name(a))
+                                } else if targets[a].is_none() {
+                                    format!("{}=无对齐", arm_name(a))
+                                } else {
+                                    format!("{}={}", arm_name(a), cond_name(outcomes[a]))
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join(" · ");
+
+                        // JSONL 全量（值先算成变量，json! 只收变量/字面量）。
+                        let target_dir_txt = fmt_dir(s_dir).to_string();
+                        let dir_ok = s_dir == Some(expected);
+                        let center_json = match parent_center {
+                            Some(c) => serde_json::json!({
+                                "zd": c.zd,
+                                "zg": c.zg,
+                                "start": c.start_index,
+                                "end": c.end_index
+                            }),
+                            None => serde_json::Value::Null,
+                        };
+                        let rec = serde_json::json!({
+                            "lvl": lvl,
+                            "term_level": cur_level,
+                            "depth": depth,
+                            "src": src,
+                            "delta": dsym,
+                            "bucket": cond,
+                            "parent_kind": parent_txt,
+                            "parent_span": [cur.start_index, cur.end_index],
+                            "parent_subs": subs.len(),
+                            "center": center_json,
+                            "target_idx": tidx,
+                            "target_dir": target_dir_txt,
+                            "target_lo": s_t.rmove.lo(),
+                            "target_hi": s_t.rmove.hi(),
+                            "target_span": [s_t.start_index, s_t.end_index],
+                            "target_area": s_area,
+                            "prev_idx": prev_idx,
+                            "prev_lo": prev_lo,
+                            "prev_hi": prev_hi,
+                            "prev_area": prev_area,
+                            "d3_s_crosses": s_crosses,
+                            "d3_prev": prev_info,
+                            "dir_ok": dir_ok,
+                            "extreme_ok": extreme_ok,
+                            "weak_l_ok": l_ok,
+                            "weak_macd_ok": macd_ok,
+                            "arm0": cond_name(outcomes[0]),
+                            "arm1": cond_name(outcomes[1]),
+                            "arm2": cond_name(outcomes[2])
+                        });
+                        cases_jsonl.push(serde_json::to_string(&rec).unwrap_or_default());
+
+                        // md 取样。
+                        if bucket_used[cond as usize] < PER_BUCKET_CAP
+                            && sample_md.len() < TOTAL_CAP
+                        {
+                            bucket_used[cond as usize] += 1;
+                            let term = cur_level.saturating_sub(1);
+                            sample_md.push(format!(
+                                "#### [cond{cond} · 例{}] lvl={lvl}→{term}（步深{depth}）src={src} δ={dsym}\n\
+                                 - 父：{parent_txt} span=[{}..{}] subs={}；parent_center={center_txt}\n\
+                                 - 取段键：s跨界={s_crosses}；prev={prev_info}\n\
+                                 - 目标段：idx={tidx} dir={} lo={} hi={} span=[{}..{}] area={:.4}\n\
+                                 - 前序同向段：{}\n\
+                                 - 期望→实判：dir={}(期望{}) Extreme={} Weak(L={},MacdArea={}) → {}\n\
+                                 - 三键：{arm_txt}",
+                                bucket_used[cond as usize],
+                                cur.start_index,
+                                cur.end_index,
+                                subs.len(),
+                                fmt_dir(s_dir),
+                                s_t.rmove.lo(),
+                                s_t.rmove.hi(),
+                                s_t.start_index,
+                                s_t.end_index,
+                                s_area,
+                                prev_idx
+                                    .map(|idx| format!(
+                                        "idx={idx} lo={} hi={} span=[{}..{}] area={:.4}",
+                                        prev_lo.unwrap_or(0),
+                                        prev_hi.unwrap_or(0),
+                                        subs[idx].start_index,
+                                        subs[idx].end_index,
+                                        prev_area.unwrap_or(0.0)
+                                    ))
+                                    .unwrap_or_else(|| prev_info.clone()),
+                                fmt_dir(s_dir),
+                                fmt_dir(Some(expected)),
+                                extreme_ok,
+                                l_ok.map(|b| b.to_string())
+                                    .unwrap_or_else(|| "None".to_string()),
+                                macd_ok.map(|b| b.to_string())
+                                    .unwrap_or_else(|| "None".to_string()),
+                                cond_name(cond),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        // ══ 报告 ══
+        let pct = |x: usize, tot: usize| {
+            if tot == 0 {
+                0.0
+            } else {
+                100.0 * x as f64 / tot as f64
+            }
+        };
+        let mut rpt = String::new();
+        let _ = writeln!(
+            rpt,
+            "# #1091 原始数据：三轮下钻残余桶（cond1 残 / cond2 D-3 取段 / cond3 Extreme / cond4 Weak）反事实拆解"
+        );
+        let _ = writeln!(rpt);
+        let _ = writeln!(
+            rpt,
+            "- issue: #1091（#1028 终局残余桶拆解；纯测量，不改生产判据）"
+        );
+        let _ = writeln!(
+            rpt,
+            "- **认识论 L2**（真实 BTC 逐信号结构下钻 + 确定性 div_cand，可产否定性计数）"
+        );
+        let _ = writeln!(
+            rpt,
+            "- 窗口：{win_start}→{win_end}，bars={n}（全量={n_full}），max_bars={max_bars}"
+        );
+        let _ = writeln!(
+            rpt,
+            "- 范围：Type1 `lvl≥1` 全链下钻（同 #846/#870 口径）；失败桶 = 链**终止** C 条件号"
+        );
+        let _ = writeln!(rpt, "- 判据口径：`cand_predicate::div_cand` 四条件（`prod_div_cand_why` 直调生产 `div_cand_fail`）");
+        let _ = writeln!(rpt, "- 三键：0 原臂(source_index，生产现锚=departure 终点) / 1 窗口极值 bar（δ 侧价格极值） / 2 departure 终点（当前父走势末趋势子段终点）；①③ 首步同值，更深步分叉");
+        let _ = writeln!(rpt);
+
+        let _ = writeln!(rpt, "## 1. 总读数（与 #1028 三轮对表）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| 指标 | 值 |");
+        let _ = writeln!(rpt, "|---|---|");
+        let _ = writeln!(rpt, "| Type1 lvl≥1 信号数 | {n_sig} |");
+        let _ = writeln!(rpt, "| base_none（塔无 end==src 段） | {base_none} |");
+        let _ = writeln!(rpt, "| 首步成功 | {} |", first_step[0]);
+        let _ = writeln!(rpt, "| 首步 A(空subs) | {} |", first_step[1]);
+        let _ = writeln!(rpt, "| 首步 B(无对齐) | {} |", first_step[2]);
+        let _ = writeln!(rpt, "| 首步 C(div假) | {} |", first_step[3]);
+        let _ = writeln!(
+            rpt,
+            "| 首步 C 率 | {:.2}% |",
+            pct(
+                first_step[3],
+                first_step[0] + first_step[1] + first_step[2] + first_step[3]
+            )
+        );
+        let _ = writeln!(
+            rpt,
+            "| 链终止 C 条件号 | cond1={} cond2={} cond3={} cond4={} |",
+            bucket_count[1], bucket_count[2], bucket_count[3], bucket_count[4]
+        );
+        let _ = writeln!(rpt);
+        let _ = writeln!(
+            rpt,
+            "- 对表口径：`cond1..4` = #1028 三轮的 方向残 13 / D-3 取段 59 / Extreme 36 / Weak 15；本读数应与三轮终验逐格可对。"
+        );
+        let _ = writeln!(rpt);
+
+        let _ = writeln!(rpt, "## 2. 三键反事实翻转矩阵（每桶 × 三臂的新结局分布）");
+        let _ = writeln!(rpt);
+        for b in 1..=4 {
+            let _ = writeln!(rpt, "### 2.{b} cond{b}（{}）", cond_name(b as u8));
+            let _ = writeln!(
+                rpt,
+                "| 臂 | 键缺失 | 无对齐 | 通过 | 仍同桶 | →cond1 | →cond2 | →cond3 | →cond4 | 翻转率(任一变) | 翻转为通过率 |"
+            );
+            let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|---|");
+            for a in 0..NARM {
+                let tot = bucket_count[b];
+                let evaluated = tot - arm_key_none[b][a] - arm_no_align[b][a];
+                let pass = arm_out[b][a][0];
+                let same = arm_out[b][a][b];
+                let flip_any = evaluated - same;
+                let _ = writeln!(
+                    rpt,
+                    "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {:.2}% | {:.2}% |",
+                    arm_name(a),
+                    arm_key_none[b][a],
+                    arm_no_align[b][a],
+                    pass,
+                    same,
+                    arm_out[b][a][1],
+                    arm_out[b][a][2],
+                    arm_out[b][a][3],
+                    arm_out[b][a][4],
+                    pct(flip_any, evaluated),
+                    pct(pass, evaluated)
+                );
+            }
+            let _ = writeln!(rpt);
+        }
+        let _ = writeln!(
+            rpt,
+            "> 判读：翻转率/翻转为通过率的分母 = 可评估数（= 桶计数 − 键缺失 − 无对齐）；某臂「翻转为通过」高 ⟹ 该桶失败是对齐键敏感（锚/取段边界错位投影）；三臂「仍同桶」恒高 ⟹ 判据真失败（Extreme 真否 / Weak 力度真否 / 市场事实）。详见设计文档。"
+        );
+        let _ = writeln!(rpt);
+
+        let _ = writeln!(
+            rpt,
+            "## 3. 逐例 dump（md 取样，每桶 ≤{PER_BUCKET_CAP} 例，总 ≤{TOTAL_CAP}；全量见 jsonl）"
+        );
+        let _ = writeln!(rpt);
+        if sample_md.is_empty() {
+            let _ = writeln!(rpt, "\n**（空——无 C 失败例）**");
+        } else {
+            for l in &sample_md {
+                let _ = writeln!(rpt, "{l}");
+            }
+        }
+        let _ = writeln!(rpt);
+
+        let _ = writeln!(rpt, "## 4. 真封与域外声明");
+        let _ = writeln!(rpt);
+        let _ = writeln!(
+            rpt,
+            "- 穷举：n_sig == base_none + Σ首步四类：{}",
+            n_sig == base_none + first_step.iter().sum::<usize>()
+        );
+        let _ = writeln!(
+            rpt,
+            "- 原臂恒复现原桶（arm_out[b][0][b] == bucket_count[b]）：{}",
+            (1..=4).all(|b| arm_out[b][0][b] == bucket_count[b])
+        );
+        let _ = writeln!(
+            rpt,
+            "- 三键反事实穷举（每桶每臂键缺失+无对齐+Σ新结局 == 桶计数）：{}",
+            (1..=4).all(|b| (0..NARM).all(|a| {
+                arm_key_none[b][a] + arm_no_align[b][a] + arm_out[b][a].iter().sum::<usize>()
+                    == bucket_count[b]
+            }))
+        );
+        let _ = writeln!(rpt, "- 全量逐例 jsonl：{} 条", cases_jsonl.len());
+        let _ = writeln!(rpt);
+
+        eprint!("{rpt}");
+        let out_md = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("rust/ 父目录 = 项目根")
+            .join(".chanlun/review-results/issue1091-residual-counterfactual-raw.md");
+        std::fs::write(&out_md, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
+        eprintln!("\n原始数据已落盘：{out_md:?}");
+        let out_jsonl = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("rust/ 父目录 = 项目根")
+            .join(".chanlun/review-results/issue1091-residual-counterfactual-cases.jsonl");
+        std::fs::write(&out_jsonl, cases_jsonl.join("\n"))
+            .unwrap_or_else(|e| panic!("写 jsonl 失败：{e}"));
+        eprintln!("逐例 jsonl 已落盘：{out_jsonl:?}");
+
+        // ── 真封（assert）──
+        assert_eq!(
+            base_none + first_step.iter().sum::<usize>(),
+            n_sig,
+            "穷举：base_none + Σ首步四类 应 = 信号总数"
+        );
+        for b in 1..=4 {
+            assert_eq!(
+                arm_out[b][0][b], bucket_count[b],
+                "原臂恒复现原桶：cond{b} 原臂新结局应恒为 cond{b}"
+            );
+            for a in 0..NARM {
+                assert_eq!(
+                    arm_key_none[b][a] + arm_no_align[b][a] + arm_out[b][a].iter().sum::<usize>(),
+                    bucket_count[b],
+                    "cond{b} 臂{a} 穷举：键缺失+无对齐+Σ新结局 应 = 桶计数"
+                );
+            }
+        }
+        eprintln!(
+            "真封：Type1 lvl≥1={n_sig} 条（base_none={base_none}）；首步 C={}；链终止 C：cond1={} cond2={} cond3={} cond4={}；逐例={}",
+            first_step[3],
+            bucket_count[1],
+            bucket_count[2],
+            bucket_count[3],
+            bucket_count[4],
+            cases_jsonl.len()
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // #848 探针：归类半句的第二把尺子——BSP 识别层 / pan_div 通道认不认同一个点
     // ═══════════════════════════════════════════════════════════════════════
 
