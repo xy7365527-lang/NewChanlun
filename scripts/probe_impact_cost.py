@@ -318,7 +318,7 @@ def main() -> int:
                         help="HL builder DEX 逗号分隔，默认 xyz,para,mkts")
     parser.add_argument("--symbols", default="",
                         help="逗号分隔 base 标的过滤（如 AAPL,NVDA），空 = 全宇宙")
-    parser.add_argument("--sizes", default="1000,5000,20000,100000",
+    parser.add_argument("--sizes", default=",".join(map(str, DEFAULT_SIZES)),
                         help="市价单名义额档位（USD，逗号分隔）")
     parser.add_argument("--out", default=str(DEFAULT_OUT_DIR), help="JSONL 输出目录")
     parser.add_argument("--limit", type=int, default=1000, help="BingX 盘口档数上限")
@@ -367,7 +367,10 @@ def main() -> int:
                     bids=bids, asks=asks, sizes=sizes,
                 )
                 rec["book_ts"] = book.get("T")
-            except RuntimeError as exc:
+            # 单标的兜底：除网络/业务码（RuntimeError）外，畸形响应（解析失败/字段缺失/
+            # 非数值档位）也会让整轮崩溃——按票面「某标的测不到就写测不到」纪律，逐标的
+            # 任何异常都落 error 记录而非拖垮 287 只的全量轮次（成功路径零语义变化）。
+            except Exception as exc:
                 n_depth_fail += 1
                 rec = {
                     "ts": now_iso(), "venue": "bingx", "symbol": symbol, "base": base,
@@ -399,7 +402,9 @@ def main() -> int:
                     bids=bids, asks=asks, sizes=sizes,
                 )
                 rec["book_ts"] = book.get("time")
-            except RuntimeError as exc:
+            # 同上（单标的兜底）：HL 畸形响应（levels 缺失/档位字段缺失/非数值 sz）逐标的
+            # 落 error 记录，不拖垮全量轮次。
+            except Exception as exc:
                 n_depth_fail += 1
                 rec = {
                     "ts": now_iso(), "venue": "hyperliquid", "dex": dex,
