@@ -44,6 +44,9 @@ for br in $(git branch --list 'sandcastle/issue-*' --format='%(refname:short)' |
   if [ $ok = 1 ] && ! (cd "$WT/rust" && CARGO_TARGET_DIR=/tmp/harvest-t cargo check --all-targets >/dev/null 2>&1); then echo "FAIL $br (check red)"; ok=0; fi
   if [ $ok = 1 ] && ! (cd "$WT/rust" && CARGO_TARGET_DIR=/tmp/harvest-t cargo check --all-targets --features backtest_bin >/dev/null 2>&1); then echo "FAIL $br (backtest_bin check red)"; ok=0; fi
   if [ $ok = 1 ] && ! git -C "$WT" push -q origin main:main-rewritten; then echo "FAIL $br (push)"; ok=0; fi
+  if [ $ok = 1 ] && ! git merge-base --is-ancestor "$br" origin/main-rewritten 2>/dev/null; then
+    echo "FAIL $br (post-push ancestor check: branch not in mirror, will NOT close ticket)"; ok=0
+  fi
   if [ $ok = 1 ]; then
     flat=$(echo $shas | tr '\n' ' ')
     comment_done=0
