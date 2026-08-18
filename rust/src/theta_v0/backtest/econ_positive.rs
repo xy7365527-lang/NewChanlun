@@ -862,7 +862,7 @@ pub(super) enum DescendStop {
     /// 该情形由「区间包含」回退消化（见 [`descend_type1_anchor_depth`]），**不再落 NoAlign**——
     /// 落 NoAlign 仅剩真正的覆盖缺口（塔结构不变量违反）。
     NoAlign,
-    /// C：对齐段存在但 `div_cand` 判假——判据层合法终止（成本门/市场现实，非结构错误）。
+    /// C：对齐/包含段存在但 `div_cand` 判假——判据层合法终止（成本门/市场现实，非结构错误）。
     NoDivergence,
 }
 
@@ -870,7 +870,7 @@ pub(super) enum DescendStop {
 ///
 /// Type2/3@ℓ 的精确点 = 次级别 Type1（回抽这个次级别走势的结束点=次级别一类背驰点，定律一 第17课L66）。
 /// 从候选段 `s`（=回抽次级别走势，`end_index==source_index`）向次级别下钻：在 `s.sub_moves`
-/// （次级别 ℓ-1 走势序列）中找 `end_index==source_index` 的段，跑**完整** `div_cand`（Extreme+Weak
+/// （次级别 ℓ-1 走势序列）中找 `end_index==source_index` 的段（★#1076：MISS 回退「区间包含」定位），跑**完整** `div_cand`（Extreme+Weak
 /// 四条件，含盘整背驰——背驰段定义第27课L21 涵盖趋势/盘整，非弱化版）。真递归下沉：锚定成立后继续
 /// 钻入该次级别 Type1 段，逐级收缩到最低可用级别（`sub_moves` 空=递归底 level0）。
 ///
@@ -883,7 +883,7 @@ pub(super) enum DescendStop {
 ///   （d=最低可用级别的下沉深度）；`stop` 记递归在 d 层之后为何停止。
 /// - `stop` 三成因（复用 #846 失败分类 A/B/C，不另造）：
 ///   - [`DescendStop::BaseL0`]（A）：`sub_moves` 空 = 到达 L0 天花板（#520 基底选择，正常终止）。
-///   - [`DescendStop::NoDivergence`]（C）：对齐段存在但 `div_cand` 判假——判据层合法终止
+///   - [`DescendStop::NoDivergence`]（C）：对齐/包含段存在但 `div_cand` 判假——判据层合法终止
 ///     （成本门/市场现实）。该级无一类买卖点、精确点无法下沉定位时走小转大通道
 ///     （[`build_xzd_fallback`]，知识库 L410「区间套和背驰不可解释情况的补充」）。
 ///   - [`DescendStop::NoAlign`]（B）：L0 以上既取不到 `end_index==source_index` 对齐段、也取不到
@@ -8271,8 +8271,8 @@ mod tests {
     ///
     /// - `EmptySubs`（A）：`sub_moves` 空 = 递归底（塔以线段为底，笔不在塔的级别阶梯内，#520
     ///   订正 / commit 4a8105c0ea）——**基底选择，不算断链**。
-    /// - `NoAlign`（B）：`sub_moves` 中无 `end_index == source_index` 的对齐段——命题直接反例候选。
-    /// - `DivFalse(c)`（C）：对齐段存在但 `div_cand` 判假，`c` = 四条件中首个不满足者（1..=4）。
+    /// - `NoAlign`（B）：`sub_moves` 中既无 `end_index == source_index` 的对齐段、也无包含段——命题直接反例候选。
+    /// - `DivFalse(c)`（C）：对齐/包含段存在但 `div_cand` 判假，`c` = 四条件中首个不满足者（1..=4）。
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     enum StepFail {
         EmptySubs,
@@ -9159,7 +9159,7 @@ mod tests {
         let _ = writeln!(rpt);
         let _ = writeln!(
             rpt,
-            "### 5.2 C 类（对齐段存在，`div_cand` 判假）：{} 例",
+            "### 5.2 C 类（对齐/包含段存在，`div_cand` 判假）：{} 例",
             sample_c.len()
         );
         if sample_c.is_empty() {
