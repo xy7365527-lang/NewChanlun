@@ -3155,7 +3155,7 @@ fn cascade_dual(l0: &ParseLayer, config: &ThetaConfig, weak: bool) -> C327Arm {
 
 /// 守恒：[`cascade_dual`] 严格臂 == 生产 `classify` 逐级中枢序列（复刻忠实性的机检，非声明）。
 fn assert_cascade_faithful(strict: &C327Arm, l0: &ParseLayer, config: &ThetaConfig) {
-    let prod = super::super::classifier::classify(l0, config);
+    let prod = super::super::classifier::classify(l0, config, &[]).classification;
     assert_eq!(
         strict.centers.len(),
         prod.levels.len(),
@@ -3821,7 +3821,9 @@ mod tests {
         let mut clf = IncrementalClassifier::new(&train.bars, &cfg);
         let mut sink = 0u64;
         for i in 0..n {
-            let (_cls, _tower) = clf.classify_at(i);
+            let __ca1 = clf.classify_at(i);
+            let _cls = __ca1.classification;
+            let _tower = __ca1.tower;
             sink = sink
                 .wrapping_add(clf.tower_generation())
                 .wrapping_add(clf.forest_epoch());

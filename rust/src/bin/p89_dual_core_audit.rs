@@ -16,7 +16,7 @@
 use newchan_rust::theta_v0::classifier::center::{
     center_from_segments, center_from_window, UnitRange,
 };
-use newchan_rust::theta_v0::classifier::classify_with_tower;
+use newchan_rust::theta_v0::classifier::classify;
 use newchan_rust::theta_v0::classifier::decompose;
 use newchan_rust::theta_v0::classifier::descend::RMove;
 use newchan_rust::theta_v0::classifier::level_view::{project_extended_windows, ProjectionError};
@@ -124,7 +124,9 @@ fn main() -> Result<(), String> {
         ));
     }
     let layer = parse_layer(&loaded.bars, &config);
-    let (classification, tower) = classify_with_tower(&layer, &config);
+    let __co1 = classify(&layer, &config, &[]);
+    let classification = __co1.classification;
+    let tower = __co1.tower;
     if tower.len() != 6 {
         return Err(format!("守恒失败：tower_levels={}，预期 6", tower.len()));
     }

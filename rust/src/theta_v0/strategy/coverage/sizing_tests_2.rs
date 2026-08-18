@@ -504,7 +504,9 @@ fn bit_exact_cached_indices_vs_fallback() {
     let mut hits = 0usize;
     for i in 0..n {
         let l0 = parser::parse_layer(&oos.bars[..=i], &config);
-        let (cls, tower) = classifier::classify_with_tower(&l0, &config);
+        let __co1 = classifier::classify(&l0, &config, &[]);
+        let cls = __co1.classification;
+        let tower = __co1.tower;
         let (tree, candidates, gamma) = interp::coverage_elements_and_gamma_with_tower_cached(
             &cls,
             &tower,

@@ -665,7 +665,7 @@ mod tests {
             "theta_v0/parser/fractal.rs:82",
             // #[ignore] 死探针（已被 runner::newly_confirmed_step 取代，issue #747 条目6 登记不入
             // 18 处枚举）。（#885 S4-d：上方 slice_step 增一行 ⟹ 596→597，同条目重登记。）
-            "theta_v0/backtest/l3_pi_probe.rs:597",
+            "theta_v0/backtest/l3_pi_probe.rs:603",
             // ADR-0005 GUARD-ROLE 对照臂原型语句本体（单列登记，不改调，见函数头注释订正）。
             "theta_v0/classifier/nest.rs:718",
             // #885 S4-d：`LevelState::first_class_grade_at`/`Classification::otherwise_domain_at`

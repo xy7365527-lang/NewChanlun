@@ -314,7 +314,10 @@ fn main() -> std::process::ExitCode {
     for bar in bars.iter().copied().skip(1) {
         l0 = parser.append(bar);
     }
-    let (classification, _tower, streams) = classifier::classify_with_tower_events(&l0, &config);
+    let __co1 = classifier::classify(&l0, &config, &[]);
+    let classification = __co1.classification;
+    let _tower = __co1.tower;
+    let streams = __co1.candidate_streams;
     let as_of = bars.last().map_or(0, |b| b.source_index);
 
     let mut trend = 0usize;

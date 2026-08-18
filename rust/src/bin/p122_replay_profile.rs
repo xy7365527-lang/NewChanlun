@@ -418,8 +418,9 @@ fn run_terminal_pass(
         let t0 = Instant::now();
         let l0 = parser.append(bar);
         let t1 = Instant::now();
-        let (classification, tower) =
-            classifier::classify_with_tower_incremental(&l0, config, &mut cache);
+        let __co1 = classifier::classify_incremental(&l0, config, &mut cache, &[]);
+        let classification = __co1.classification;
+        let tower = __co1.tower;
         clock.parse += t1 - t0;
         clock.tower += t1.elapsed();
         if index > 0 && index % 100_000 == 0 {
@@ -464,8 +465,9 @@ fn run_targeted_prefix_pass(
         let t0 = Instant::now();
         let l0 = parser.append(bar);
         let t1 = Instant::now();
-        let (classification, tower) =
-            classifier::classify_with_tower_incremental(&l0, config, &mut cache);
+        let __co2 = classifier::classify_incremental(&l0, config, &mut cache, &[]);
+        let classification = __co2.classification;
+        let tower = __co2.tower;
         clock.parse += t1 - t0;
         clock.tower += t1.elapsed();
         let t2 = Instant::now();

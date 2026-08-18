@@ -117,7 +117,9 @@ fn issue841_axis_structure() {
     let mut bars_multi_levels: BTreeMap<u32, u64> = BTreeMap::new();
 
     for i in (0..ds.bars.len()).step_by(stride.max(1)) {
-        let (_cls, tower) = incr.classify_at(i);
+        let __ca1 = incr.classify_at(i);
+        let _cls = __ca1.classification;
+        let tower = __ca1.tower;
         let forest = extract_carrier_forest(&tower);
         if forest.is_empty() {
             continue;

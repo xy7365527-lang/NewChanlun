@@ -118,7 +118,9 @@ fn main() -> Result<(), String> {
     let mut violations_shown = 0u32;
 
     for i in 0..n {
-        let (classification, _tower) = incr.classify_at(i);
+        let __ca1 = incr.classify_at(i);
+        let classification = __ca1.classification;
+        let _tower = __ca1.tower;
         let n_levels = classification.levels.len();
         while machines.len() < n_levels {
             machines.push(CenterEventMachine::new(machines.len() as u32));

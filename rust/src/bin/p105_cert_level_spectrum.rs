@@ -239,7 +239,9 @@ fn main() -> std::process::ExitCode {
     let mut lvl_bs: BTreeMap<usize, (usize, usize)> = BTreeMap::new();
     let mut events_total = 0usize;
     for i in 0..n {
-        let (classification, _tower) = classifier.classify_at(i);
+        let __ca1 = classifier.classify_at(i);
+        let classification = __ca1.classification;
+        let _tower = __ca1.tower;
         for (lvl, ls) in classification.levels.iter().enumerate() {
             for p in ls.bsp.iter() {
                 if seen.insert((lvl, p.source_index, bsp_bits_disc(&p.bits))) {

@@ -149,8 +149,10 @@ impl<'a> IncrementalClassifier<'a> {
 
     fn classify_at(&mut self, i: usize) -> classifier::Classification {
         let l0_i = self.parser_incr.append(self.bars[i]);
-        let (classification, _tower) =
-            classifier::classify_with_tower_incremental(&l0_i, self.config, &mut self.tower_cache);
+        let __co1 =
+            classifier::classify_incremental(&l0_i, self.config, &mut self.tower_cache, &[]);
+        let classification = __co1.classification;
+        let _tower = __co1.tower;
         classification
     }
 }

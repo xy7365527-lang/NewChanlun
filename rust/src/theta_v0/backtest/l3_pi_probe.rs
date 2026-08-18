@@ -174,7 +174,9 @@ fn classify_structure_stats(
 ) -> (usize, usize, usize, Vec<usize>) {
     use super::super::{classifier, parser};
     let l0 = parser::parse_layer(&win.bars, config);
-    let (classification, tower) = classifier::classify_with_tower(&l0, config);
+    let __co1 = classifier::classify(&l0, config, &[]);
+    let classification = __co1.classification;
+    let tower = __co1.tower;
     let tower_depth = tower.len();
     let total_bsp: usize = classification.levels.iter().map(|lv| lv.bsp.len()).sum();
     let total_moves: usize = classification.levels.iter().map(|lv| lv.moves.len()).sum();
@@ -211,7 +213,9 @@ fn pi_probe_phase1_gate_structure() {
         config: &ThetaConfig,
     ) -> (usize, Vec<(usize, usize, usize)>, [usize; 6]) {
         let l0 = parser::parse_layer(&win.bars, config);
-        let (classification, tower) = classifier::classify_with_tower(&l0, config);
+        let __co2 = classifier::classify(&l0, config, &[]);
+        let classification = __co2.classification;
+        let tower = __co2.tower;
         let per: Vec<(usize, usize, usize)> = classification
             .levels
             .iter()
@@ -353,7 +357,8 @@ fn pi_probe_phase2_stable_prefix() {
     /// bsp 扁平为 (level, source_index, bits) 按 source_index 升序（同 si 多 level 保留）。
     fn flat_bsp(win: &Dataset, config: &ThetaConfig) -> Vec<(u32, usize, BspBits)> {
         let l0 = parser::parse_layer(&win.bars, config);
-        let (cls, _) = classifier::classify_with_tower(&l0, config);
+        let __co3 = classifier::classify(&l0, config, &[]);
+        let cls = __co3.classification;
         let mut v: Vec<(u32, usize, BspBits)> = Vec::new();
         for (lvl, ls) in cls.levels.iter().enumerate() {
             for b in ls.bsp.iter() {
@@ -469,7 +474,8 @@ fn pi_probe_phase2_candidate_starvation() {
         config: &ThetaConfig,
     ) -> Vec<(u32, usize, BspBits)> {
         let l0 = parser::parse_layer(win_bars, config);
-        let (cls, _) = classifier::classify_with_tower(&l0, config);
+        let __co4 = classifier::classify(&l0, config, &[]);
+        let cls = __co4.classification;
         let mut v = Vec::new();
         for (lvl, ls) in cls.levels.iter().enumerate() {
             for b in ls.bsp.iter() {
@@ -664,7 +670,9 @@ fn pi_probe_delta_candidates_unlock_orders() {
             continue;
         }
         let l0 = parser::parse_layer(&win.bars[..=i], &config);
-        let (cur_full, tower_i) = classifier::classify_with_tower(&l0, &config);
+        let __co5 = classifier::classify(&l0, &config, &[]);
+        let cur_full = __co5.classification;
+        let tower_i = __co5.tower;
         let base_units = nav / px;
 
         // 线程 A：slice 候选。

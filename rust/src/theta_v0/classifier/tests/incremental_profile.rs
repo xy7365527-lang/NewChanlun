@@ -42,7 +42,7 @@ fn profile_incremental_tower_real_scaling() {
         let t0 = std::time::Instant::now();
         for i in 50..n {
             let l0 = parser::parse_layer(&bars[..i], &cfg);
-            let _ = classify_with_tower(&l0, &cfg);
+            let _ = classify(&l0, &cfg, &[]);
         }
         full_times.push(t0.elapsed().as_secs_f64());
 
@@ -51,7 +51,7 @@ fn profile_incremental_tower_real_scaling() {
         let mut cache = TowerCache::new();
         for i in 50..n {
             let l0 = parser::parse_layer(&bars[..i], &cfg);
-            let _ = classify_with_tower_incremental(&l0, &cfg, &mut cache);
+            let _ = classify_incremental(&l0, &cfg, &mut cache, &[]);
         }
         inc_times.push(t0.elapsed().as_secs_f64());
         used_sizes.push(n);

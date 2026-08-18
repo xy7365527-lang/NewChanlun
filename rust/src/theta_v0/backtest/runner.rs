@@ -295,7 +295,7 @@ fn run_theta_v0_pi_inner(
     // 可能用 >i 数据确认）执行层禁用，故此处不预算全窗分类（增量器逐 bar 前缀重分类）。
     //
     // ★增量塔接入（ad7319b9 + 本工位）：IncrementalClassifier 内部走真增量链——
-    // ParseLayerIncr::append（inclusion O(1)/bar）+ classify_with_tower_incremental（TowerCache 跨 bar
+    // ParseLayerIncr::append（inclusion O(1)/bar）+ classify_incremental（TowerCache 跨 bar
     // 复用：LevelCache.upper_moves/centers/scan_cursor 持久 + MACD 增量递推）。
     //
     // ponytail: 增量塔身份稳定路径已被 L2 证伪（ab5f5a29d ΔSharpe 重测 0.000，Stale 90%+ 未降）。
@@ -307,7 +307,7 @@ fn run_theta_v0_pi_inner(
     //（全量/增量产同 ID），held_leg_tree_index 按 ID 匹配非值比较；Stale 不伪造 parent:None（发现 A），
     // 非边界根父未解析 = prune（AncOK 严格 §13）⟹ depth>0 腿可准入 ⟹ ΔSharpe 可非零（待 L2 重测）。
     //
-    // **bit-exact 不变**：增量链 == 全量 classify_with_tower(parse_layer(..=i))（parser +
+    // **bit-exact 不变**：增量链 == 全量 classify(parse_layer(..=i), config, &[])（parser +
     // classifier 各自 bit-exact 已证，见 incremental.rs 文档）。逐 bar 断言见 `incremental::bit_exact_*`。
     // 注意：bit-exact 仅证明塔构造 O(n) 达成，不证明身份稳定→Stale 降根（后者被 L2 否证）。
     // ★T3 (#172 并门，#168 裁定 3)：层载由链路径单一驱动——链活（nest 证书门开）⟹ 投影层
@@ -319,13 +319,18 @@ fn run_theta_v0_pi_inner(
     let fill = pi_theta_fill_loop(
         // ★工位 4g：返回塔代次（TreeCache O(1) 命中判据，跳过 per-bar O(tree) TreeKey::of）。
         |i| {
-            // ★#883：统一走 `classify_at_with_l0`——l0.strokes（本 bar 因果前缀的 L0 笔序列，
+            // ★#883：统一走 `classify_at` + `last_l0()`——l0.strokes（本 bar 因果前缀的 L0 笔序列，
             // Rc 共享 O(1) clone）供 nest 门 div_cand 的 ForceL 力度判据；`classify_at` 本就
             // 走同一增量链后丢弃 l0，成本相同。
-            let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
+            let __wl0 = classifier_incr.classify_at(i);
+            let l0 = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls = __wl0.classification;
+            let tower = __wl0.tower;
             if strict_nest_sidecar.enabled {
                 strict_nest_sidecar.observe_frame(
-                    &l0,
+                    l0,
                     &cls,
                     &tower,
                     &config,
@@ -534,7 +539,12 @@ pub fn run_theta_v0_pi_overlay(
     let fill = pi_theta_fill_loop_overlay(
         |i| {
             // ★#883：取 l0.strokes（因果前缀笔序列）供 nest 门 ForceL 力度判据。
-            let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
+            let __wl1 = classifier_incr.classify_at(i);
+            let l0 = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls = __wl1.classification;
+            let tower = __wl1.tower;
             otherwise_domain_sidecar.observe_frame();
             let strokes = std::rc::Rc::clone(&l0.strokes);
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
@@ -694,7 +704,12 @@ pub(super) fn typed_ledger_from_bars(bars: &[Bar], config: &ThetaConfig) -> Vec<
     let fill = pi_theta_fill_loop(
         |i| {
             // ★#883：取 l0.strokes（因果前缀笔序列）供 nest 门 ForceL 力度判据。
-            let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
+            let __wl2 = classifier_incr.classify_at(i);
+            let l0 = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls = __wl2.classification;
+            let tower = __wl2.tower;
             let strokes = std::rc::Rc::clone(&l0.strokes);
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
             let gen = classifier_incr.tower_generation();

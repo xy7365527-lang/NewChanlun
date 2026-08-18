@@ -110,7 +110,8 @@ fn extract_second_resume_bit_exact_vs_full_per_bar() {
     for (i, &bar) in bars.iter().enumerate() {
         let l0 = parser_incr.append(bar);
         // 门控 debug_assert 在此每 memo-miss 触发；破裂 ⟹ panic（bar 定位）。
-        let (cls, _) = classifier::classify_with_tower_incremental(&l0, &config, &mut tower_cache);
+        let cls =
+            classifier::classify_incremental(&l0, &config, &mut tower_cache, &[]).classification;
         for lvl in &cls.levels {
             second_seen += lvl
                 .bsp
@@ -155,7 +156,7 @@ fn profile_07b_cl() {
     let t0 = std::time::Instant::now();
     for &bar in &bars {
         let l0 = parser_incr.append(bar);
-        let _ = classifier::classify_with_tower_incremental(&l0, &config, &mut tower_cache);
+        let _ = classifier::classify_incremental(&l0, &config, &mut tower_cache, &[]);
     }
     eprintln!("[07b-CL] {n} bar 墙钟={:.2}s", t0.elapsed().as_secs_f64());
     classifier::stage_profile::dump();

@@ -34,7 +34,7 @@
 //! 冒烟：`P112_MAX_BARS=250000 ...`（硬锚仅全量有效）。
 
 use newchan_rust::theta_v0::classifier::bsp::BspPoint;
-use newchan_rust::theta_v0::classifier::classify_with_tower;
+use newchan_rust::theta_v0::classifier::classify;
 use newchan_rust::theta_v0::classifier::decompose::{center_own_dir_at, center_trend_gate};
 use newchan_rust::theta_v0::classifier::divergence::{
     compute_macd, departure_move_c_start, locate_departure_move_a, segment_macd_area,
@@ -750,7 +750,9 @@ fn main() -> Result<(), String> {
         loaded.last_date
     );
     let layer = parse_layer(bars, &config);
-    let (classification, tower) = classify_with_tower(&layer, &config);
+    let __co1 = classify(&layer, &config, &[]);
+    let classification = __co1.classification;
+    let tower = __co1.tower;
     let closes: Vec<f64> = layer.merged_bars.iter().map(|b| b.close as f64).collect();
     let close_src: Vec<usize> = layer.merged_bars.iter().map(|b| b.source_index).collect();
     let series = compute_macd(&closes, &config.macd);

@@ -10,7 +10,7 @@
 //! 只读消费生产塔与 provider seam；不修改生产对象、不执行语义裁决、不提出收复方案。
 //! 用法：`cargo run --release --bin p93_invalidseed_probe -- <btc_1m_full.json>`
 
-use newchan_rust::theta_v0::classifier::classify_with_tower;
+use newchan_rust::theta_v0::classifier::classify;
 use newchan_rust::theta_v0::classifier::decompose;
 use newchan_rust::theta_v0::classifier::descend::RMove;
 use newchan_rust::theta_v0::classifier::divergence::compute_macd;
@@ -76,7 +76,9 @@ fn main() -> Result<(), String> {
     }
     let as_of = loaded.bars.len() - 1;
     let layer = parse_layer(&loaded.bars, &config);
-    let (_classification, tower) = classify_with_tower(&layer, &config);
+    let __co1 = classify(&layer, &config, &[]);
+    let _classification = __co1.classification;
+    let tower = __co1.tower;
     let closes: Vec<_> = layer
         .merged_bars
         .iter()

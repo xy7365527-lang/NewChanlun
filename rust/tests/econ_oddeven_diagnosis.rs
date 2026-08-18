@@ -170,7 +170,9 @@ fn collect_signals(ds: &Dataset, config: &ThetaConfig) -> Vec<Signal> {
         if bar.untradable || bar.close <= 0 {
             continue;
         }
-        let (cls_i, tower_i) = incr.classify_at(i);
+        let out = incr.classify_at(i);
+        let cls_i = out.classification;
+        let tower_i = out.tower;
         for (lvl, ls) in cls_i.levels.iter().enumerate() {
             for p in ls.bsp.iter() {
                 if !seen.insert((lvl, p.source_index, bsp_disc(&p.bits))) {

@@ -82,7 +82,7 @@ fn end_to_end_second_buy_via_l1_l2_geometric() {
         merged_bars: Rc::new(bars_from_closes(&closes)),
         ..Default::default()
     };
-    let out = classify(&layer, &cfg);
+    let out = classify(&layer, &cfg, &[]).classification;
 
     // L1 级别（索引 1）含 L2 中枢 + B2（递归组装层产出）。
     assert!(
@@ -148,7 +148,7 @@ fn l0_level_emits_no_second_class_window_bound() {
         merged_bars: Rc::new(bars_from_closes(&closes)),
         ..Default::default()
     };
-    let out = classify(&layer, &cfg);
+    let out = classify(&layer, &cfg, &[]).classification;
     // L0 级别 bsp 不含第二类（三段交替窗口结构上界）。
     for p in out.levels[0].bsp.iter() {
         assert!(
@@ -434,7 +434,7 @@ fn level_signal_census_btc() {
         layer.segments.len(),
         layer.merged_bars.len()
     );
-    let out = classify(&layer, &cfg);
+    let out = classify(&layer, &cfg, &[]).classification;
     eprintln!("[census] levels={}", out.levels.len());
     for (li, lv) in out.levels.iter().enumerate() {
         let trend = lv
@@ -530,7 +530,7 @@ fn type1_funnel_census_btc() {
     );
 
     // 生产对拍源（675号守卫：级别循环不分叉）。
-    let out = classify(&layer, &cfg);
+    let out = classify(&layer, &cfg, &[]).classification;
 
     // classify_impl 同源输入（同一批私有函数，非重写）。
     let min_parts = cfg.level.min_parts_per_level as usize;
@@ -778,7 +778,7 @@ fn issue821_upgrade_recut_probe() {
     );
 
     // 生产对拍源（675号守卫：级别循环不分叉）。
-    let out = classify(&layer, &cfg);
+    let out = classify(&layer, &cfg, &[]).classification;
 
     let min_parts = cfg.level.min_parts_per_level as usize;
     let l_max = cfg.level.l_max as usize;
@@ -1017,7 +1017,7 @@ fn issue826_same_level_decomp_probe() {
     let l0_span_hi = layer.segments.last().map(|s| s.end_index).unwrap_or(0);
     eprintln!("[826] L0 线段覆盖的原始 K 序区间 = [{l0_span_lo}, {l0_span_hi}]");
 
-    let out = classify(&layer, &cfg);
+    let out = classify(&layer, &cfg, &[]).classification;
 
     let min_parts = cfg.level.min_parts_per_level as usize;
     let l_max = cfg.level.l_max as usize;
@@ -1343,7 +1343,7 @@ fn issue826_same_level_decomp_probe() {
 #[test]
 fn classify_empty_layer_yields_empty() {
     let cfg = ThetaConfig::default();
-    let out = classify(&ParseLayer::default(), &cfg);
+    let out = classify(&ParseLayer::default(), &cfg, &[]).classification;
     assert_eq!(out, Classification::default());
 }
 
@@ -1358,7 +1358,7 @@ fn fewer_than_min_parts_natural_termination() {
         ]),
         ..Default::default()
     };
-    let out = classify(&layer, &cfg);
+    let out = classify(&layer, &cfg, &[]).classification;
     assert!(out.levels.is_empty(), "2 段 < min_parts 3 ⟹ 自然终止");
 }
 
@@ -1376,7 +1376,7 @@ fn three_overlapping_segments_form_center() {
         ]),
         ..Default::default()
     };
-    let out = classify(&layer, &cfg);
+    let out = classify(&layer, &cfg, &[]).classification;
     assert!(!out.levels.is_empty());
     let l0 = &out.levels[0];
     assert_eq!(l0.centers.len(), 1, "三段方向交替+贯穿 ⟹ 一个真中枢");
@@ -1407,7 +1407,7 @@ fn same_direction_three_segments_rejected_by_complete() {
         ]),
         ..Default::default()
     };
-    let out = classify(&layer, &cfg);
+    let out = classify(&layer, &cfg, &[]).classification;
     // 无方向交替 ⟹ L0 无中枢（完整判据拒绝单边三段）。
     assert_eq!(out.levels.len(), 1);
     assert!(
@@ -1434,7 +1434,7 @@ fn lmax_bound_respected() {
         segments: Rc::new(segments),
         ..Default::default()
     };
-    let out = classify(&layer, &cfg);
+    let out = classify(&layer, &cfg, &[]).classification;
     // 级别数不超过 l_max+1（reference:30 上界，default l_max=6）。
     assert!(out.levels.len() <= cfg.level.l_max as usize + 1);
 }
@@ -1451,7 +1451,7 @@ fn no_center_terminates_recursion() {
         ]),
         ..Default::default()
     };
-    let out = classify(&layer, &cfg);
+    let out = classify(&layer, &cfg, &[]).classification;
     // L0 无中枢 ⟹ 该级 moves 空（裁决退化），递归在该级后终止（无上级单元）。
     assert_eq!(out.levels.len(), 1);
     assert!(out.levels[0].centers.is_empty());
@@ -1477,7 +1477,7 @@ fn end_to_end_third_buy_signal() {
         ]),
         ..Default::default()
     };
-    let out = classify(&layer, &cfg);
+    let out = classify(&layer, &cfg, &[]).classification;
 
     // 1) 非空 Classification + L0 有中枢。
     assert!(!out.levels.is_empty(), "解阻塞 A：classify 返回非空");
@@ -1515,7 +1515,7 @@ fn end_to_end_center_without_signal() {
         ]),
         ..Default::default()
     };
-    let out = classify(&layer, &cfg);
+    let out = classify(&layer, &cfg, &[]).classification;
     assert_eq!(out.levels[0].centers.len(), 1);
     assert!(
         out.levels[0].bsp.is_empty(),
@@ -1562,7 +1562,7 @@ fn otherwise_domain_records_queryable_by_coordinate_in_classification() {
         merged_bars: Rc::new(bars_from_closes(&closes)),
         ..Default::default()
     };
-    let cls = classify(&layer, &cfg);
+    let cls = classify(&layer, &cfg, &[]).classification;
 
     // 0) 结构前提：L0 两中枢 + Trend(Down)（fixture 不自证则后述断言全空转）。
     let l0 = &cls.levels[0];
@@ -1655,14 +1655,20 @@ fn otherwise_domain_records_queryable_by_coordinate_in_classification() {
             merged_bars: Rc::new(bars_from_closes(&closes)),
             ..Default::default()
         };
-        let (inc_cls, _inc_tower) = classify_with_tower_incremental(&prefix, &cfg, &mut cache);
-        let (full_cls, _full_tower) = classify_with_tower(&prefix, &cfg);
+        let __co1 = classify_incremental(&prefix, &cfg, &mut cache, &[]);
+        let inc_cls = __co1.classification;
+        let _inc_tower = __co1.tower;
+        let __co2 = classify(&prefix, &cfg, &[]);
+        let full_cls = __co2.classification;
+        let _full_tower = __co2.tower;
         assert_eq!(
             inc_cls, full_cls,
             "n={n}: 增量 Classification == 全量（含 first_class_grades，#885 新字段 bit-exact）"
         );
     }
-    let (inc_cls_final, _t) = classify_with_tower_incremental(&layer, &cfg, &mut TowerCache::new());
+    let __co3 = classify_incremental(&layer, &cfg, &mut TowerCache::new(), &[]);
+    let inc_cls_final = __co3.classification;
+    let _t = __co3.tower;
     let inc_rec = inc_cls_final
         .otherwise_domain_at(0, 28)
         .expect("增量路径同样按坐标可查");
@@ -1691,7 +1697,9 @@ fn issue897_centers_run_distribution_btc() {
         full
     };
     let layer = parse_layer(&ds.bars, &cfg);
-    let (cls, tower) = classify_with_tower(&layer, &cfg);
+    let __co4 = classify(&layer, &cfg, &[]);
+    let cls = __co4.classification;
+    let tower = __co4.tower;
 
     let mut len_hist: std::collections::BTreeMap<(usize, usize), u64> = Default::default();
     let mut agree = 0u64;

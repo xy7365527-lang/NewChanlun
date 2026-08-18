@@ -312,7 +312,12 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
         // ★#883：改取 `classify_at_with_l0`——l0.strokes（L0 笔序列，source_index 域，因果前缀）
         // 供 div_cand 的 ForceL 教义力度判据（#873/#989/#990）；classify_at 本就走同一增量链、
         // 丢弃 l0，成本相同。
-        let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
+        let __wl0 = classifier_incr.classify_at(i);
+        let l0_i = classifier_incr
+            .last_l0()
+            .expect("classify_at 已推进 ParseLayer");
+        let cls_i = __wl0.classification;
+        let tower_i = __wl0.tower;
         for (lvl, ls) in cls_i.levels.iter().enumerate() {
             if prev_bsp
                 .get(lvl)
@@ -5913,7 +5918,12 @@ mod tests {
                 continue;
             }
             // ★#883：取 l0.strokes 供 div_cand ForceL 数据源（与生产 collect_signals 同口径）。
-            let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
+            let __wl1 = classifier_incr.classify_at(i);
+            let l0_i = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls_i = __wl1.classification;
+            let tower_i = __wl1.tower;
             levels_seen_max = levels_seen_max.max(cls_i.levels.len());
             for (l, rc) in tower_i.iter().enumerate() {
                 if l < LMAX {
@@ -6873,7 +6883,12 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
+            let __wl2 = classifier_incr.classify_at(i);
+            let l0_i = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls_i = __wl2.classification;
+            let tower_i = __wl2.tower;
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
                 if prev_bsp
                     .get(lvl)
@@ -7301,7 +7316,12 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
+            let __wl3 = classifier_incr.classify_at(i);
+            let l0_i = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls_i = __wl3.classification;
+            let tower_i = __wl3.tower;
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
                 if !in_scope(lvl) {
                     continue;
@@ -7869,7 +7889,12 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
+            let __wl4 = classifier_incr.classify_at(i);
+            let l0_i = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls_i = __wl4.classification;
+            let tower_i = __wl4.tower;
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
                 if !in_scope(lvl) {
                     continue;
@@ -8453,7 +8478,12 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
+            let __wl5 = classifier_incr.classify_at(i);
+            let l0_i = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls_i = __wl5.classification;
+            let tower_i = __wl5.tower;
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
                 if !in_scope(lvl) {
                     continue;
@@ -9309,7 +9339,9 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (_l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
+            let __wl6 = classifier_incr.classify_at(i);
+            let cls_i = __wl6.classification;
+            let tower_i = __wl6.tower;
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
                 if !(LMIN..=LMAX).contains(&lvl) {
                     continue;
@@ -9984,7 +10016,12 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
+            let __wl7 = classifier_incr.classify_at(i);
+            let l0_i = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls_i = __wl7.classification;
+            let tower_i = __wl7.tower;
             if Some(i) == last_bar {
                 final_bsp = cls_i.levels.iter().map(|l| Rc::clone(&l.bsp)).collect();
                 final_pd = cls_i.levels.iter().map(|l| Rc::clone(&l.pan_div)).collect();
@@ -10716,7 +10753,9 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (_l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
+            let __wl8 = classifier_incr.classify_at(i);
+            let cls_i = __wl8.classification;
+            let tower_i = __wl8.tower;
             if Some(i) == last_bar {
                 final_bsp = cls_i.levels.iter().map(|l| Rc::clone(&l.bsp)).collect();
                 final_tower = tower_i.clone();
@@ -11524,7 +11563,9 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (_l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
+            let __wl9 = classifier_incr.classify_at(i);
+            let cls_i = __wl9.classification;
+            let tower_i = __wl9.tower;
             if Some(i) == last_bar {
                 final_bsp = cls_i.levels.iter().map(|l| Rc::clone(&l.bsp)).collect();
                 final_pd = cls_i.levels.iter().map(|l| Rc::clone(&l.pan_div)).collect();
@@ -12277,7 +12318,12 @@ mod tests {
             if bar.untradable || bar.close <= 0 {
                 continue;
             }
-            let (l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
+            let __wl10 = classifier_incr.classify_at(i);
+            let l0_i = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls_i = __wl10.classification;
+            let tower_i = __wl10.tower;
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
                 if !in_scope(lvl) {
                     continue;

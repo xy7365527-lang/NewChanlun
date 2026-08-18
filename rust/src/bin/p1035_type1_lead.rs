@@ -22,7 +22,7 @@ use std::sync::{Mutex, OnceLock};
 use newchan_rust::theta_v0::backtest::data::load_by_symbol;
 use newchan_rust::theta_v0::classifier::bsp::OwnerRef;
 use newchan_rust::theta_v0::classifier::cand_predicate::rmove_dir;
-use newchan_rust::theta_v0::classifier::classify_with_tower;
+use newchan_rust::theta_v0::classifier::classify;
 use newchan_rust::theta_v0::classifier::recursive_tower::{find_move_by_end_index, LeveledMove};
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::parse_layer;
@@ -259,7 +259,9 @@ fn main() -> std::process::ExitCode {
     let l0 = parse_layer(bars, &config);
     eprintln!("[p1035] parse done in {:.1}s", t0.elapsed().as_secs_f64());
     let t1 = std::time::Instant::now();
-    let (cls, tower) = classify_with_tower(&l0, &config);
+    let __co1 = classify(&l0, &config, &[]);
+    let cls = __co1.classification;
+    let tower = __co1.tower;
     eprintln!(
         "[p1035] classify done in {:.1}s  levels={}",
         t1.elapsed().as_secs_f64(),

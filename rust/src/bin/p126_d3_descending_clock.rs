@@ -233,7 +233,7 @@ fn scan_window(path: &Path, config: &ThetaConfig, max_bars: usize) -> Result<(),
     for bar in bars.iter().copied().skip(1) {
         l0 = parser.append(bar);
     }
-    let streams = classifier::classify_with_tower_events(&l0, config).2;
+    let streams = classifier::classify(&l0, config, &[]).candidate_streams;
     let by_level = latest_by_level(&streams);
 
     let mut buckets = BTreeMap::<(u32, u32, &'static str), Bucket>::new();

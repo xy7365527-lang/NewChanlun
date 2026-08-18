@@ -790,7 +790,9 @@ fn instrument_loop(bars: &[super::super::types::Bar], cfg: &ThetaConfig) -> Dept
             continue;
         }
         let l0_prefix = parser::parse_layer(&bars[..=i], cfg);
-        let (classification_i, tower_i) = classifier::classify_with_tower(&l0_prefix, cfg);
+        let __co1 = classifier::classify(&l0_prefix, cfg, &[]);
+        let classification_i = __co1.classification;
+        let tower_i = __co1.tower;
         // 诊断用全量 classification_i（非 newly_confirmed_step diff——该函数私有）。
         // 诚实标注：open_*/active_* 是 per-bar 全量候选/活动角色，非新增订单 diff。结构诊断用。
         prev_active = instrument_bar(

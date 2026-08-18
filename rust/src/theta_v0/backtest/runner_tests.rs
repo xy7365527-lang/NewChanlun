@@ -2006,7 +2006,12 @@ fn btc_type2_open_short_channel_witness() {
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
     let fill = pi_theta_fill_loop(
         |i| {
-            let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
+            let __wl0 = classifier_incr.classify_at(i);
+            let l0 = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls = __wl0.classification;
+            let tower = __wl0.tower;
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch();
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
@@ -2201,7 +2206,12 @@ fn m3_follow_parent_short_leg_termination_witness() {
             let mut classifier_incr = IncrementalClassifier::new(bars, &config);
             let fill = pi_theta_fill_loop(
                 |i| {
-                    let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
+                    let __wl1 = classifier_incr.classify_at(i);
+                    let l0 = classifier_incr
+                        .last_l0()
+                        .expect("classify_at 已推进 ParseLayer");
+                    let cls = __wl1.classification;
+                    let tower = __wl1.tower;
                     let gen = classifier_incr.tower_generation();
                     let fe = classifier_incr.forest_epoch();
                     let cl = classifier_incr.tower_confirmed_lens(tower.len());
@@ -2337,7 +2347,12 @@ fn btc_prune_leg_exit_type_matches_account_identity() {
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
     let fill = pi_theta_fill_loop(
         |i| {
-            let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
+            let __wl2 = classifier_incr.classify_at(i);
+            let l0 = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls = __wl2.classification;
+            let tower = __wl2.tower;
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch();
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
@@ -2440,7 +2455,12 @@ fn btc_type2_residual_correction_witness() {
     let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
     let fill = pi_theta_fill_loop(
         |i| {
-            let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
+            let __wl3 = classifier_incr.classify_at(i);
+            let l0 = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls = __wl3.classification;
+            let tower = __wl3.tower;
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch();
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
@@ -4561,7 +4581,9 @@ fn run_theta_v0_pi_prefix_classify_is_causal_no_lookahead() {
             "前缀 segments 无 end_index>{i}（无 look-ahead）"
         );
         // ③ 前缀分类 bsp source_index ≤ i（候选不引用未来 bar）。
-        let (c_i, _t_i) = classifier::classify_with_tower(&l0_prefix, &config);
+        let __co1 = classifier::classify(&l0_prefix, &config, &[]);
+        let c_i = __co1.classification;
+        let _t_i = __co1.tower;
         assert!(
             c_i.levels
                 .iter()
@@ -6779,7 +6801,7 @@ fn t3_chain_gate_merged_drives_layer_load() {
         })
         .collect();
     let l0 = parser::parse_layer(&bars, &config);
-    let cls_off = classifier::classify_with_tower(&l0, &config).0;
+    let cls_off = classifier::classify(&l0, &config, &[]).classification;
     assert!(
         cls_off
             .levels
@@ -6789,7 +6811,7 @@ fn t3_chain_gate_merged_drives_layer_load() {
     );
     let mut config_on = config.clone();
     config_on.level_projection = classifier::projection::LevelProjectionConfig::for_chain(true);
-    let cls_on = classifier::classify_with_tower(&l0, &config_on).0;
+    let cls_on = classifier::classify(&l0, &config_on, &[]).classification;
     assert!(
         cls_on.levels.iter().all(|ls| ls.level_projection.is_some()),
         "机制位开 ⟹ 每级 stamping 必载层（链活 ⟹ 层必载形态）"
@@ -7185,7 +7207,9 @@ fn nest_gate_diag_terminal_events() {
     let closes: Vec<f64> = l0.merged_bars.iter().map(|b| b.close as f64).collect();
     let close_src: Vec<usize> = l0.merged_bars.iter().map(|b| b.source_index).collect();
     let series = classifier::divergence::compute_macd(&closes, &config.macd);
-    let (_cls, tower) = classifier::classify_with_tower(&l0, &config);
+    let __co2 = classifier::classify(&l0, &config, &[]);
+    let _cls = __co2.classification;
+    let tower = __co2.tower;
     eprintln!("[diag] bars={} tower_levels={}", bars.len(), tower.len());
     for level in 1..tower.len() {
         let lower = match lower_legs_from(&tower[level - 1]) {
@@ -7417,7 +7441,9 @@ fn t1_anchor_supply_real_data_probe() {
     let bars = &ds_win.bars;
     let as_of = bars.len() - 1;
     let l0 = parser::parse_layer(bars, &config);
-    let (_cls, tower) = classifier::classify_with_tower(&l0, &config);
+    let __co3 = classifier::classify(&l0, &config, &[]);
+    let _cls = __co3.classification;
+    let tower = __co3.tower;
     let mut gate = NestChainGate::new(bars, &config);
     eprintln!(
         "[t1probe] window=[{start}..{end}) tower_levels={}",
@@ -7655,7 +7681,12 @@ fn m7_l2_witness_treasury_reach_real_btc() {
         super::super::incremental::IncrementalClassifier::new(&ds.bars, &config);
     let fill = pi_theta_fill_loop(
         |i| {
-            let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
+            let __wl4 = classifier_incr.classify_at(i);
+            let l0 = classifier_incr
+                .last_l0()
+                .expect("classify_at 已推进 ParseLayer");
+            let cls = __wl4.classification;
+            let tower = __wl4.tower;
             let cl = classifier_incr.tower_confirmed_lens(tower.len());
             (
                 cls,
@@ -7847,7 +7878,10 @@ fn m8_treasury_reach_distribution_real_btc() {
         let mut ci = super::super::incremental::IncrementalClassifier::new(&test.bars, &config);
         let fill = pi_theta_fill_loop(
             |i| {
-                let (l0, c, t) = ci.classify_at_with_l0(i);
+                let __wl5 = ci.classify_at(i);
+                let l0 = ci.last_l0().expect("classify_at 已推进 ParseLayer");
+                let c = __wl5.classification;
+                let t = __wl5.tower;
                 let cl = ci.tower_confirmed_lens(t.len());
                 (
                     c,
@@ -7972,7 +8006,12 @@ fn m7_kappa_sensitivity_grid_real_btc() {
             super::super::incremental::IncrementalClassifier::new(&ds.bars, &config);
         let fill = pi_theta_fill_loop(
             |i| {
-                let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
+                let __wl6 = classifier_incr.classify_at(i);
+                let l0 = classifier_incr
+                    .last_l0()
+                    .expect("classify_at 已推进 ParseLayer");
+                let cls = __wl6.classification;
+                let tower = __wl6.tower;
                 let cl = classifier_incr.tower_confirmed_lens(tower.len());
                 (
                     cls,

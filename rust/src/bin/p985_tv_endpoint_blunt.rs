@@ -12,7 +12,7 @@
 use newchan_rust::theta_v0::backtest::data::load_by_symbol;
 use newchan_rust::theta_v0::classifier::descend::RMove;
 use newchan_rust::theta_v0::classifier::recursive_tower::LeveledMove;
-use newchan_rust::theta_v0::classifier::{classify_with_tower, Classification};
+use newchan_rust::theta_v0::classifier::{classify, Classification};
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::parse_layer;
 use newchan_rust::theta_v0::types::{Center, Direction};
@@ -101,8 +101,9 @@ fn main() -> std::process::ExitCode {
     };
     let bars = &dataset.bars;
     let l0 = parse_layer(bars, &config);
-    let (classification, tower): (Classification, Vec<Rc<Vec<LeveledMove>>>) =
-        classify_with_tower(&l0, &config);
+    let out = classify(&l0, &config, &[]);
+    let classification = out.classification;
+    let tower = out.tower;
     println!("P985_INPUT symbol={symbol} bars={}", bars.len());
 
     let mut n_pairs = 0u64;

@@ -432,7 +432,9 @@ fn main() -> std::process::ExitCode {
     // 塔结构上到过第几级（区分「该级不存在」与「该级存在但零信号」——E-1 那个坑）。
     let mut tower_max_levels = 0usize;
     for i in 0..n {
-        let (classification, _tower) = classifier.classify_at(i);
+        let __ca1 = classifier.classify_at(i);
+        let classification = __ca1.classification;
+        let _tower = __ca1.tower;
         tower_max_levels = tower_max_levels.max(classification.levels.len());
         for (lvl, ls) in classification.levels.iter().enumerate() {
             for p in ls.bsp.iter() {

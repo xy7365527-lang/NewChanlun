@@ -297,7 +297,9 @@ impl ThetaCore {
             self.classifier.bar_count(),
             self.bars.len() - 1
         );
-        let (classification, tower) = self.classifier.append_bar(new_bar);
+        let out = self.classifier.append_bar(new_bar);
+        let classification = out.classification;
+        let tower = out.tower;
         assert_eq!(
             self.classifier.bar_count(),
             self.bars.len(),
@@ -405,10 +407,14 @@ mod tests {
             let bar = mk_bar(i, 1000 + i as i64 + cycle as i64);
             let classifier_before = core.classifier.clone();
             core.plan_for_bar(bar, &snap);
-            let (owned_cls, owned_tower) = classifier_before.clone().append_bar(bar);
+            let __mb1 = classifier_before.clone().append_bar(bar);
+            let owned_cls = __mb1.classification;
+            let owned_tower = __mb1.tower;
 
             let l0 = parser::parse_layer(&core.bars, &config);
-            let (legacy_cls, legacy_tower) = classifier::classify_with_tower(&l0, &config);
+            let __co1 = classifier::classify(&l0, &config, &[]);
+            let legacy_cls = __co1.classification;
+            let legacy_tower = __co1.tower;
             assert_eq!(
                 owned_cls, legacy_cls,
                 "bar {i}: plan_for_bar 内部增量分类 != legacy 全量"

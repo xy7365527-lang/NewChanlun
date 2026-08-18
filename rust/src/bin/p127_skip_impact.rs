@@ -194,7 +194,8 @@ fn run_window(bars: &[Bar], w: usize, config: &ThetaConfig) -> Result<(), String
     let mut advances = 0usize;
     for (i, bar) in bars[..w].iter().copied().enumerate() {
         let l0 = parser.append(bar);
-        let (_, _, s) = classifier::classify_with_tower_events_incremental(&l0, config, &mut cache);
+        let __co1 = classifier::classify_incremental(&l0, config, &mut cache, &[]);
+        let s = __co1.candidate_streams;
         streams = s;
         if (i + 1) % CHAIN_ADVANCE_EVERY == 0 || i + 1 == w {
             book.advance(&streams, i);

@@ -195,8 +195,10 @@ fn main() -> Result<(), String> {
     let mut advances = 0usize;
     for (i, bar) in bars.iter().copied().enumerate() {
         let l0 = parser.append(bar);
-        let (classification, _tower, streams) =
-            classifier::classify_with_tower_events_incremental(&l0, &config, &mut cache);
+        let __co1 = classifier::classify_incremental(&l0, &config, &mut cache, &[]);
+        let classification = __co1.classification;
+        let _tower = __co1.tower;
+        let streams = __co1.candidate_streams;
         if (i + 1) % advance_every == 0 || i + 1 == bars.len() {
             chain_book.advance(&streams, i);
             bridge_book.advance(&classification, &streams, i);

@@ -700,7 +700,9 @@ fn main() -> Result<(), String> {
     paudit.snapshots += book.candidates.len();
 
     // ── BIT_EXACT（p92 逐字）──
-    let (full_classification, full_tower) = classifier::classify_with_tower(&l0, &config);
+    let __co1 = classifier::classify(&l0, &config, &[]);
+    let full_classification = __co1.classification;
+    let full_tower = __co1.tower;
     let classification_diff = usize::from(full_classification != classification);
     let tower_diff = usize::from(full_tower != tower);
     let mut old_semantic_diff = tower_diff;
@@ -984,8 +986,9 @@ fn run_terminal_pass(bars: &[Bar], config: &ThetaConfig) -> Result<TerminalState
     let started = Instant::now();
     for (index, bar) in bars.iter().copied().enumerate() {
         let l0 = parser.append(bar);
-        let (classification, tower) =
-            classifier::classify_with_tower_incremental(&l0, config, &mut cache);
+        let __co1 = classifier::classify_incremental(&l0, config, &mut cache, &[]);
+        let classification = __co1.classification;
+        let tower = __co1.tower;
         if index > 0 && index % 500_000 == 0 {
             eprintln!(
                 "P124M_TERMINAL_PROGRESS bar={index}/{} elapsed={:.1}s",

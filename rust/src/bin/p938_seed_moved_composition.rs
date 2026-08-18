@@ -168,7 +168,10 @@ fn main() -> Result<(), String> {
     let mut samples: Vec<String> = Vec::new();
 
     for i in 0..n {
-        let (l0, classification, _tower) = incr.classify_at_with_l0(i);
+        let __wl0 = incr.classify_at(i);
+        let l0 = incr.last_l0().expect("classify_at 已推进 ParseLayer");
+        let classification = __wl0.classification;
+        let _tower = __wl0.tower;
         let txn_bar = l0.merged_bars.last().map_or(0, |b| b.source_index);
         if txn_bar != i {
             bar_coord_mismatch += 1;
