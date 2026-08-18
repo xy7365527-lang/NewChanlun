@@ -7,7 +7,7 @@
 //! #5 多声部贡献为零）切换到**增量塔链**：
 //!
 //! 1. **增量 parse**：`ParseLayerIncr::append(bars[i])`（inclusion O(1)/bar + 下游 O(merged_i)）
-//! 2. **增量塔**：`classify_with_tower_incremental(&l0_i, config, &mut tower_cache)`——
+//! 2. **增量塔**：`classify_incremental(&l0_i, config, &mut tower_cache, &[])`——
 //!    `TowerCache` 跨 bar 复用（LevelCache.upper_moves/centers/scan_cursor 持久）→ **跨 bar 身份稳定**
 //!
 //! ## 跨 bar 身份稳定（核心修复——memory newchanlun-deltasharpe-zero-stale-rooting-perbar-reclass）
@@ -27,9 +27,9 @@
 //!
 //! ## bit-exact 铁律
 //!
-//! 增量链产出的 `(Classification, tower)` 必须 == 全量 `classify_with_tower(parse_layer(bars[..=i]))`。
+//! 增量链产出的 `classification`/`tower` 必须 == 全量 `classify(parse_layer(bars[..=i]), config, &[])`。
 //! - `ParseLayerIncr::append` bit-exact == `parse_layer`（parser/mod.rs 逐 bar 断言验证）
-//! - `classify_with_tower_incremental` bit-exact == `classify_with_tower`（classifier/mod.rs
+//! - `classify_incremental` bit-exact == `classify`（classifier/mod.rs
 //!   `incremental_tower_per_segment_append_matches_full`）
 //!
 //! 接入后 runner 产出的订单/信号与全量版本的差异仅来自**身份稳定的预期改变**（Stale 减少→depth>0 腿
@@ -48,13 +48,13 @@ use super::super::{classifier, parser};
 ///
 /// 每 bar 喂 [`classify_at(i)`](IncrementalClassifier::classify_at)：
 /// - `ParseLayerIncr::append(bars[i])`（增量 inclusion O(1) + 下游重算 O(merged_i)）
-/// - `classify_with_tower_incremental(&l0_i, config, &mut tower_cache)`（增量塔：前级 confirmed
+/// - `classify_incremental(&l0_i, config, &mut tower_cache, &[])`（增量塔：前级 confirmed
 ///   前缀缓存 + 尾部续扫 + MACD 增量递推）
 ///
 /// **TowerCache 跨 bar 复用**是身份稳定的根：`levels[k].upper_moves` 是同一 Vec 跨 bar append，
 /// `LeveledMove` 对象身份连续——held_leg 在新塔里找到同身份腿，不判 Stale。
 ///
-/// **bit-exact**：增量链 == 全量 `classify_with_tower(parse_layer(bars[..=i]))`（parser + classifier
+/// **bit-exact**：增量链 == 全量 `classify(parse_layer(bars[..=i]), config, &[])`（parser + classifier
 /// 各自 bit-exact 已证，见模块文档）。
 pub struct IncrementalClassifier<'a> {
     bars: &'a [Bar],
@@ -63,6 +63,10 @@ pub struct IncrementalClassifier<'a> {
     parser_incr: parser::ParseLayerIncr<'a>,
     /// 增量塔缓存（跨 bar 复用——身份稳定的根）。
     tower_cache: classifier::TowerCache,
+    /// ★#1054：最近一次 `classify_at` 产生的 ParseLayer（[`last_l0`](Self::last_l0) 访问器），
+    /// 供需要 L0 笔序列（`l0.strokes`）的消费方（runner / p938）——替代旧 `classify_at_with_l0`
+    /// 的三元返回（ParseLayer 不再随返回值搬移，改由分类器持有）。
+    last_l0: Option<parser::ParseLayer>,
 }
 
 impl<'a> IncrementalClassifier<'a> {
@@ -73,24 +77,19 @@ impl<'a> IncrementalClassifier<'a> {
             config,
             parser_incr: parser::ParseLayerIncr::new(config),
             tower_cache: classifier::TowerCache::new(),
+            last_l0: None,
         }
     }
 
-    /// **per-bar 增量重分类（身份稳定）**：返回 bar i 的
-    /// `(classification, tower)` == `classify_with_tower(parse_layer(&bars[..=i]))`，bit-exact。
+    /// **per-bar 增量重分类（身份稳定）**：返回 bar i 的统一输出模块
+    /// [`ClassifyOutput`]，其中 `classification`/`tower` ==
+    /// `classify(parse_layer(&bars[..=i]), config, &[])`，bit-exact。
     ///
-    /// 增量链：`ParseLayerIncr::append(bars[i])` → `classify_with_tower_incremental(.., &mut cache)`。
+    /// 增量链：`ParseLayerIncr::append(bars[i])` → `classify_incremental(.., &mut cache, &[])`。
     /// `tower_cache` 跨 bar 复用 → `LeveledMove` 身份连续 → held_leg 不判 Stale。
     ///
     /// **因果性**：`parse_layer(&bars[..=i])` 只用 ≤i 数据 ⟹ 输出因果（无 look-ahead，639）。
-    pub fn classify_at_with_l0(
-        &mut self,
-        i: usize,
-    ) -> (
-        parser::ParseLayer,
-        classifier::Classification,
-        Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>,
-    ) {
+    pub fn classify_at(&mut self, i: usize) -> classifier::ClassifyOutput {
         debug_assert!(
             i < self.bars.len(),
             "classify_at({i}) 越界 bars.len={}",
@@ -98,39 +97,17 @@ impl<'a> IncrementalClassifier<'a> {
         );
         // 增量 parse：append bar i（O(1) inclusion + O(merged_i) 下游）。
         let l0_i = self.parser_incr.append(self.bars[i]);
-        // 增量塔：cache 跨 bar 复用（身份稳定），bit-exact == 全量 classify_with_tower。
-        let (classification, tower) =
-            classifier::classify_with_tower_incremental(&l0_i, self.config, &mut self.tower_cache);
-        (l0_i, classification, tower)
+        // 增量塔：cache 跨 bar 复用（身份稳定），bit-exact == 全量 classify。
+        let out = classifier::classify_incremental(&l0_i, self.config, &mut self.tower_cache, &[]);
+        self.last_l0 = Some(l0_i);
+        out
     }
 
-    pub fn classify_at(
-        &mut self,
-        i: usize,
-    ) -> (
-        classifier::Classification,
-        Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>,
-    ) {
-        let (_, classification, tower) = self.classify_at_with_l0(i);
-        (classification, tower)
-    }
-
-    /// #550 三元事件通道；既有 `classify_at` 保持二元签名，现有 runner 消费零改动。
-    pub fn classify_at_events(
-        &mut self,
-        i: usize,
-    ) -> (
-        classifier::Classification,
-        Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>,
-        classifier::cand_event::CandidateStreams,
-    ) {
-        debug_assert!(i < self.bars.len(), "classify_at_events({i}) 越界");
-        let l0_i = self.parser_incr.append(self.bars[i]);
-        classifier::classify_with_tower_events_incremental(
-            &l0_i,
-            self.config,
-            &mut self.tower_cache,
-        )
+    /// ★#1054：最近一次 [`classify_at`](Self::classify_at) 产生的 ParseLayer（访问器）。供需要
+    /// L0 笔序列（`l0.strokes`）的消费方（runner / p938）——替代旧 `classify_at_with_l0` 的
+    /// 三元返回。`classify_at` 尚未被调用时返回 `None`。
+    pub fn last_l0(&self) -> Option<&parser::ParseLayer> {
+        self.last_l0.as_ref()
     }
 
     /// strict-nest sidecar 只读复用 tower cache 中的增量 MACD/close 序列，避免开关打开后退回 O(n²)。
@@ -212,11 +189,15 @@ mod tests {
         let mut final_strokes: usize = 0;
         let mut final_segments: usize = 0;
         for i in 0..bars.len() {
-            let (owned_cls, owned_tower) = owned.append_bar(bars[i]);
+            let __mb1 = owned.append_bar(bars[i]);
+            let owned_cls = __mb1.classification;
+            let owned_tower = __mb1.tower;
 
             // legacy 对照：每 bar 从头全量重跑（非增量，ground truth）。
             let l0 = parser::parse_layer(&bars[..=i], &config);
-            let (leg_cls, leg_tower) = classifier::classify_with_tower(&l0, &config);
+            let __co1 = classifier::classify(&l0, &config, &[]);
+            let leg_cls = __co1.classification;
+            let leg_tower = __co1.tower;
             assert_eq!(
                 owned_cls, leg_cls,
                 "owned synthetic bar {i}: classification bit-exact 破裂"
@@ -278,8 +259,12 @@ mod tests {
         let mut owned = OwnedIncrementalClassifier::new(config.clone());
         let mut borrowed = IncrementalClassifier::new(&bars, &config);
         for i in 0..bars.len() {
-            let (owned_cls, owned_tower) = owned.append_bar(bars[i]);
-            let (borrowed_cls, borrowed_tower) = borrowed.classify_at(i);
+            let __mb2 = owned.append_bar(bars[i]);
+            let owned_cls = __mb2.classification;
+            let owned_tower = __mb2.tower;
+            let __ca1 = borrowed.classify_at(i);
+            let borrowed_cls = __ca1.classification;
+            let borrowed_tower = __ca1.tower;
             assert_eq!(
                 owned_cls, borrowed_cls,
                 "bar {i}: owned != borrowed classification"
@@ -319,9 +304,13 @@ mod tests {
             let mut owned = OwnedIncrementalClassifier::new(config.clone());
             let t0 = std::time::Instant::now();
             for i in 0..n {
-                let (owned_cls, owned_tower) = owned.append_bar(bars[i]);
+                let __mb3 = owned.append_bar(bars[i]);
+                let owned_cls = __mb3.classification;
+                let owned_tower = __mb3.tower;
                 let l0 = parser::parse_layer(&bars[..=i], &config);
-                let (leg_cls, leg_tower) = classifier::classify_with_tower(&l0, &config);
+                let __co2 = classifier::classify(&l0, &config, &[]);
+                let leg_cls = __co2.classification;
+                let leg_tower = __co2.tower;
                 assert_eq!(
                     owned_cls, leg_cls,
                     "[{symbol}] bar {i}: owned classification != legacy"
@@ -372,10 +361,14 @@ mod tests {
         let mut incr = IncrementalClassifier::new(bars, &config);
         let t0 = std::time::Instant::now();
         for i in 0..n {
-            let (incr_cls, incr_tower) = incr.classify_at(i);
+            let __ca2 = incr.classify_at(i);
+            let incr_cls = __ca2.classification;
+            let incr_tower = __ca2.tower;
             // legacy 对照（全量重算，非增量）。
             let l0 = parser::parse_layer(&bars[..=i], &config);
-            let (leg_cls, leg_tower) = classifier::classify_with_tower(&l0, &config);
+            let __co3 = classifier::classify(&l0, &config, &[]);
+            let leg_cls = __co3.classification;
+            let leg_tower = __co3.tower;
 
             // ★逐 bar bit-exact 断言（铁律）。
             assert_eq!(
@@ -397,7 +390,7 @@ mod tests {
         let dt = t0.elapsed().as_secs_f64();
         eprintln!(
             "\n===== bit-exact 验证通过：n={n} bars，{dt:.1}s（双跑对照）=====\n  \
-             每 bar 增量输出 == legacy classify_with_tower(parse_layer(..=i))，bit-identical。\n  \
+             每 bar 增量输出 == legacy classify(parse_layer(..=i), &[])，bit-identical。\n  \
              TowerCache 跨 bar 复用 → LeveledMove 身份连续。"
         );
     }
@@ -481,9 +474,13 @@ mod tests {
         classifier::oracle_probe::reset();
         let mut incr = IncrementalClassifier::new(&bars, &config);
         for i in 0..bars.len() {
-            let (inc_cls, inc_tower) = incr.classify_at(i);
+            let __ca3 = incr.classify_at(i);
+            let inc_cls = __ca3.classification;
+            let inc_tower = __ca3.tower;
             let l0 = parser::parse_layer(&bars[..=i], &config);
-            let (leg_cls, leg_tower) = classifier::classify_with_tower(&l0, &config);
+            let __co4 = classifier::classify(&l0, &config, &[]);
+            let leg_cls = __co4.classification;
+            let leg_tower = __co4.tower;
             assert_eq!(inc_cls, leg_cls, "cascade-O1 bar {i}: 增量(P>0) != 全量");
             assert_eq!(
                 inc_tower.len(),
@@ -530,11 +527,15 @@ mod tests {
         let config = ThetaConfig::default();
         let mut incr = IncrementalClassifier::new(&bars, &config);
         for i in 0..bars.len() {
-            let (incr_cls, incr_tower) = incr.classify_at(i);
+            let __ca4 = incr.classify_at(i);
+            let incr_cls = __ca4.classification;
+            let incr_tower = __ca4.tower;
 
             // legacy 对照。
             let l0 = parser::parse_layer(&bars[..=i], &config);
-            let (leg_cls, leg_tower) = classifier::classify_with_tower(&l0, &config);
+            let __co5 = classifier::classify(&l0, &config, &[]);
+            let leg_cls = __co5.classification;
+            let leg_tower = __co5.tower;
             assert_eq!(
                 incr_cls, leg_cls,
                 "synthetic bar {i}: classification bit-exact 破裂"
@@ -604,9 +605,13 @@ mod tests {
         let config = ThetaConfig::default();
         let mut incr = IncrementalClassifier::new(&bars, &config);
         for i in 0..bars.len() {
-            let (incr_cls, incr_tower) = incr.classify_at(i);
+            let __ca5 = incr.classify_at(i);
+            let incr_cls = __ca5.classification;
+            let incr_tower = __ca5.tower;
             let l0 = parser::parse_layer(&bars[..=i], &config);
-            let (leg_cls, leg_tower) = classifier::classify_with_tower(&l0, &config);
+            let __co6 = classifier::classify(&l0, &config, &[]);
+            let leg_cls = __co6.classification;
+            let leg_tower = __co6.tower;
             assert_eq!(
                 incr_cls, leg_cls,
                 "confirmed_len bar {i}: classification bit-exact 破裂"
@@ -659,11 +664,15 @@ mod tests {
         let mut incr = IncrementalClassifier::new(bars, &config);
         let mut max_depth = 0usize;
         for i in 0..bars.len() {
-            let (incr_cls, incr_tower) = incr.classify_at(i);
+            let __ca6 = incr.classify_at(i);
+            let incr_cls = __ca6.classification;
+            let incr_tower = __ca6.tower;
             max_depth = max_depth.max(incr_tower.len());
             // 强制全量路径（无证书，每 bar 从头重算）——ground truth。
             let l0 = parser::parse_layer(&bars[..=i], &config);
-            let (full_cls, full_tower) = classifier::classify_with_tower(&l0, &config);
+            let __co7 = classifier::classify(&l0, &config, &[]);
+            let full_cls = __co7.classification;
+            let full_tower = __co7.tower;
             assert_eq!(
                 incr_cls, full_cls,
                 "[{label}] bar {i}: 证书增量 classification != 强制全量（bit-exact 破裂）"
@@ -751,7 +760,8 @@ mod tests {
             let mut incr = IncrementalClassifier::new(&ds.bars[..n], &config);
             let mut max_depth = 0usize;
             for i in 0..n {
-                let (_, tower) = incr.classify_at(i);
+                let __ca7 = incr.classify_at(i);
+                let tower = __ca7.tower;
                 max_depth = max_depth.max(tower.len());
             }
             let p = classifier::oracle_probe::snapshot();
@@ -1045,8 +1055,7 @@ mod profile {
                 let l0_i = parser_incr.append(bars[i]);
                 t_parse += t.elapsed().as_secs_f64();
                 let t = std::time::Instant::now();
-                let _ =
-                    classifier::classify_with_tower_incremental(&l0_i, &config, &mut tower_cache);
+                let _ = classifier::classify_incremental(&l0_i, &config, &mut tower_cache, &[]);
                 t_tower += t.elapsed().as_secs_f64();
             }
             let (pe, te) = prev
@@ -1106,7 +1115,7 @@ mod profile {
         let t0 = std::time::Instant::now();
         for i in 0..n {
             let l0_i = parser_incr.append(bars[i]);
-            let _ = classifier::classify_with_tower_incremental(&l0_i, &config, &mut tower_cache);
+            let _ = classifier::classify_incremental(&l0_i, &config, &mut tower_cache, &[]);
         }
         let wall = t0.elapsed().as_secs_f64();
         eprintln!("[A0] {n} bar 逐 bar classify_with_tower_incremental 墙钟={wall:.2}s");
@@ -1148,7 +1157,7 @@ mod profile {
         let t0 = std::time::Instant::now();
         for i in 0..n {
             let l0_i = parser_incr.append(ds.bars[i]);
-            let _ = classifier::classify_with_tower_incremental(&l0_i, &config, &mut tower_cache);
+            let _ = classifier::classify_incremental(&l0_i, &config, &mut tower_cache, &[]);
         }
         eprintln!("[A3] {n} bar 墙钟={:.2}s", t0.elapsed().as_secs_f64());
         classifier::stage_profile::dump();
@@ -1176,9 +1185,10 @@ mod profile {
         let mut cache = classifier::TowerCache::new();
         for i in 0..n {
             let l0 = parser::parse_layer(&bars[..=i], &config);
-            let (inc_cls, _) =
-                classifier::classify_with_tower_incremental(&l0, &config, &mut cache);
-            let (full_cls, _) = classifier::classify_with_tower(&l0, &config);
+            let __co1 = classifier::classify_incremental(&l0, &config, &mut cache, &[]);
+            let inc_cls = __co1.classification;
+            let __co8 = classifier::classify(&l0, &config, &[]);
+            let full_cls = __co8.classification;
             if inc_cls != full_cls {
                 eprintln!(
                     "classifier-only divergence at bar {i}: segs={} merged={}",
@@ -1356,9 +1366,11 @@ mod profile {
         let bars = &oos.bars[..n];
         let mut incr = IncrementalClassifier::new(bars, &config);
         for i in 0..n {
-            let (inc_cls, _) = incr.classify_at(i);
+            let __ca8 = incr.classify_at(i);
+            let inc_cls = __ca8.classification;
             let l0 = parser::parse_layer(&bars[..=i], &config);
-            let (full_cls, _) = classifier::classify_with_tower(&l0, &config);
+            let __co9 = classifier::classify(&l0, &config, &[]);
+            let full_cls = __co9.classification;
             if inc_cls != full_cls {
                 eprintln!("★IncrementalClassifier divergence at bar {i}: segs={} merged={} confirmed_len={}",
                     l0.segments.len(), l0.merged_bars.len(), l0.segments_confirmed_len);
@@ -1454,13 +1466,15 @@ mod profile {
                 let mut incr = IncrementalClassifier::new(bars, &config);
                 let mut last = classifier::Classification::default();
                 for i in 0..n {
-                    let (cls, _) = incr.classify_at(i);
+                    let __ca9 = incr.classify_at(i);
+                    let cls = __ca9.classification;
                     last = cls;
                 }
 
                 // ② 全量 ground truth：单次全量重算。
                 let l0 = parser::parse_layer(bars, &config);
-                let (full, _) = classifier::classify_with_tower(&l0, &config);
+                let __co10 = classifier::classify(&l0, &config, &[]);
+                let full = __co10.classification;
 
                 // ③ 逐 level 对拍。
                 let n_lvl_i = last.levels.len();
@@ -1579,7 +1593,9 @@ mod profile {
             // ★工位 4f：镜像生产 runner 的 tree Rc ptr_eq 脏检查（命中⟹tree 段跳过 step 1'/2'）。
             let mut prev_merge_tree: Option<std::rc::Rc<Vec<coverage::CoverageElement>>> = None;
             for i in 0..n {
-                let (cls, tower) = incr.classify_at(i);
+                let __ca10 = incr.classify_at(i);
+                let cls = __ca10.classification;
+                let tower = __ca10.tower;
                 // 生产 tree-prefix 提取：cached（命中 Rc::clone O(1)），candidate 段 overlay 不进树 clone。
                 let t = std::time::Instant::now();
                 let (tree_ref, candidates_ref, _gamma) =
@@ -1641,7 +1657,9 @@ mod profile {
         let mut total_extract_work = 0.0f64; // 所有 bar 若无缓存的全量重建总时（基底对照）
         let mut miss_tree_sizes: Vec<usize> = Vec::new();
         for i in 0..n {
-            let (_cls, tower) = incr.classify_at(i);
+            let __ca11 = incr.classify_at(i);
+            let _cls = __ca11.classification;
+            let tower = __ca11.tower;
             let key = interp::TreeKey::of(&tower);
             let is_miss = first || key != prev_key;
             first = false;
@@ -1715,7 +1733,9 @@ mod profile {
             let mut t_key = 0.0f64;
             let mut last_fp_len = 0usize;
             for i in 0..n {
-                let (_cls, tower) = incr.classify_at(i);
+                let __ca12 = incr.classify_at(i);
+                let _cls = __ca12.classification;
+                let tower = __ca12.tower;
                 let t = std::time::Instant::now();
                 let key = interp::TreeKey::of(&tower);
                 t_key += t.elapsed().as_secs_f64();
@@ -1761,7 +1781,9 @@ mod profile {
             let mut prev_gen: Option<u64> = None;
             let mut gen_hits = 0usize;
             for i in 0..n {
-                let (cls, tower) = incr.classify_at(i);
+                let __ca13 = incr.classify_at(i);
+                let cls = __ca13.classification;
+                let tower = __ca13.tower;
                 let gen = incr.tower_generation();
                 let fe = incr.forest_epoch();
                 if prev_gen == Some(fe) {
@@ -1806,7 +1828,9 @@ mod profile {
         let mut true_changes = 0usize;
         let mut false_hits = 0usize; // epoch 相等但森林真变（=假命中，soundness 破裂）
         for i in 0..n {
-            let (_cls, tower) = incr.classify_at(i);
+            let __ca14 = incr.classify_at(i);
+            let _cls = __ca14.classification;
+            let tower = __ca14.tower;
             let fe = incr.forest_epoch();
             let fp = TreeKey::of_forest(&tower);
             let _forest = coverage::extract_carrier_forest(&tower);
@@ -1832,7 +1856,9 @@ mod profile {
             let mut tc_b = TreeCache::new();
             let t = std::time::Instant::now();
             for i in 0..n {
-                let (cls, tower) = before.classify_at(i);
+                let __ca15 = before.classify_at(i);
+                let cls = __ca15.classification;
+                let tower = __ca15.tower;
                 // None ⟹ of_forest 指纹判据（实装前形态）。
                 let _ = coverage::extract_carrier_forest(&tower); // 保底触达（None miss 时同）
                 let _ = super::super::super::strategy::interp::coverage_elements_and_gamma_with_tower_cached_gen(
@@ -1843,7 +1869,9 @@ mod profile {
             let mut tc_a = TreeCache::new();
             let t = std::time::Instant::now();
             for i in 0..n {
-                let (cls, tower) = after.classify_at(i);
+                let __ca16 = after.classify_at(i);
+                let cls = __ca16.classification;
+                let tower = __ca16.tower;
                 let fe = after.forest_epoch();
                 let _ = super::super::super::strategy::interp::coverage_elements_and_gamma_with_tower_cached_gen(
                     &cls, &tower, &mut Some(&mut tc_a), None, Some(fe));
@@ -1892,7 +1920,9 @@ mod profile {
             let mut last_cand = 0usize;
             // 预热第一个 bar（填缓存），之后测命中路径的总时（含候选段）。
             for i in 0..n {
-                let (cls, tower) = incr.classify_at(i);
+                let __ca17 = incr.classify_at(i);
+                let cls = __ca17.classification;
+                let tower = __ca17.tower;
                 let gen = incr.tower_generation();
                 let fe = incr.forest_epoch();
                 let t = std::time::Instant::now();
@@ -1913,7 +1943,9 @@ mod profile {
             let mut incr2 = super::IncrementalClassifier::new(bars, &config);
             let mut t_full = 0.0f64;
             for i in 0..n {
-                let (cls, tower) = incr2.classify_at(i);
+                let __ca18 = incr2.classify_at(i);
+                let cls = __ca18.classification;
+                let tower = __ca18.tower;
                 let t = std::time::Instant::now();
                 let _ = interp::coverage_elements_and_gamma_with_tower_cached_gen(
                     &cls, &tower, &mut None, None, None,
@@ -1944,7 +1976,9 @@ mod profile {
         let mut r_total = 0u64;
         let mut prev: HashSet<(usize, usize, u8, u8)> = HashSet::new();
         for i in 0..n {
-            let (cls, _tower) = incr.classify_at(i);
+            let __ca19 = incr.classify_at(i);
+            let cls = __ca19.classification;
+            let _tower = __ca19.tower;
             let mut cur: HashSet<(usize, usize, u8, u8)> = HashSet::new();
             for (lvl, level) in cls.levels.iter().enumerate() {
                 for p in level.bsp.iter() {
@@ -1985,7 +2019,9 @@ mod profile {
         let mut gen_hits = 0usize;
         let mut prev_gen: Option<u64> = None;
         for i in 0..n {
-            let (cls, tower) = incr.classify_at(i);
+            let __ca20 = incr.classify_at(i);
+            let cls = __ca20.classification;
+            let tower = __ca20.tower;
             let gen = incr.tower_generation();
             let fe = incr.forest_epoch();
             let prev_gen_snap = prev_gen;
@@ -2064,7 +2100,9 @@ mod profile {
             let mut last_gamma = 0usize;
             let mut last_work_base = 0usize;
             for i in 0..n {
-                let (cls, tower) = incr.classify_at(i);
+                let __ca21 = incr.classify_at(i);
+                let cls = __ca21.classification;
+                let tower = __ca21.tower;
                 let (tree, candidates, gamma) =
                     interp::coverage_elements_and_gamma_with_tower_cached(
                         &cls,
@@ -2144,7 +2182,7 @@ mod profile {
             let t1 = std::time::Instant::now();
             for i in 0..n {
                 let l0 = parser::parse_layer(&bars[..=i], &config);
-                let _ = classifier::classify_with_tower(&l0, &config);
+                let _ = classifier::classify(&l0, &config, &[]);
             }
             let leg_dt = t1.elapsed().as_secs_f64();
 

@@ -3,7 +3,7 @@
 //! 用法：
 //! `cargo run --release --bin p76_case2_replay -- <btc_1m_full.json> <as_of>`
 
-use newchan_rust::theta_v0::classifier::classify_with_tower;
+use newchan_rust::theta_v0::classifier::classify;
 use newchan_rust::theta_v0::classifier::decompose;
 use newchan_rust::theta_v0::classifier::divergence::compute_macd;
 use newchan_rust::theta_v0::classifier::level_view::{
@@ -51,7 +51,9 @@ fn main() -> Result<(), String> {
         return Err(format!("as_of={as_of} 越界，总 bars={}", bars.len()));
     }
     let layer = parse_layer(&bars[..=as_of], &config);
-    let (classification, tower) = classify_with_tower(&layer, &config);
+    let __co1 = classify(&layer, &config, &[]);
+    let classification = __co1.classification;
+    let tower = __co1.tower;
     let all_windows = tower
         .get(TARGET_LEVEL)
         .ok_or_else(|| format!("缺 tower[{TARGET_LEVEL}]，实际 levels={}", tower.len()))?;

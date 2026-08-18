@@ -1786,7 +1786,7 @@ mod tests {
         };
 
         // 真实 classify（非手构）：产非空 Classification + L0 第三类买点。
-        let classification = classifier::classify(&l0, &cfg);
+        let classification = classifier::classify(&l0, &cfg, &[]).classification;
         assert!(!classification.levels.is_empty(), "classify 产非空");
         assert!(
             classification.levels[0].bsp.iter().any(|p| p.bits.buy3),

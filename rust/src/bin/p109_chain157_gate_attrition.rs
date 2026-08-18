@@ -16,7 +16,7 @@
 //! `cargo run --release --bin p109_chain157_gate_attrition -- <btc_1m_full.json> [p92_ckpt_dump.txt]`
 //! 冒烟：`P109_MAX_BARS=250000 ...`
 
-use newchan_rust::theta_v0::classifier::classify_with_tower;
+use newchan_rust::theta_v0::classifier::classify;
 use newchan_rust::theta_v0::classifier::decompose;
 use newchan_rust::theta_v0::classifier::divergence::compute_macd;
 use newchan_rust::theta_v0::classifier::level_view::{
@@ -888,7 +888,9 @@ fn main() -> Result<(), String> {
         loaded.last_date
     );
     let layer = parse_layer(bars, &config);
-    let (classification, tower) = classify_with_tower(&layer, &config);
+    let __co1 = classify(&layer, &config, &[]);
+    let classification = __co1.classification;
+    let tower = __co1.tower;
     let closes: Vec<f64> = layer.merged_bars.iter().map(|b| b.close as f64).collect();
     let close_src: Vec<usize> = layer.merged_bars.iter().map(|b| b.source_index).collect();
     let hist = compute_macd(&closes, &config.macd).hist;

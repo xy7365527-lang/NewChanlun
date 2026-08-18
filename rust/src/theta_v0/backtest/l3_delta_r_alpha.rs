@@ -1820,7 +1820,9 @@ fn enumerate_candidate_z(ds: &Dataset, config: &ThetaConfig) -> Vec<MuClass> {
         if bar.untradable || bar.close <= 0 {
             continue;
         }
-        let (cls_i, tower_i) = classifier_incr.classify_at(i);
+        let __ca1 = classifier_incr.classify_at(i);
+        let cls_i = __ca1.classification;
+        let tower_i = __ca1.tower;
         for (lvl, ls) in cls_i.levels.iter().enumerate() {
             for p in ls.bsp.iter() {
                 if !seen.insert((lvl, p.source_index, bsp_disc(&p.bits))) {

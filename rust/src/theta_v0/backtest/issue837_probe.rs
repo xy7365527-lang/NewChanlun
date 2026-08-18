@@ -321,7 +321,9 @@ fn compute_d1(bars: &[super::super::types::Bar], cfg: &ThetaConfig) -> D1Stats {
     };
     let mut last_cls = None;
     for i in 0..bars.len() {
-        let (cls, tower) = incr.classify_at(i);
+        let __ca1 = incr.classify_at(i);
+        let cls = __ca1.classification;
+        let tower = __ca1.tower;
         let step = newly_confirmed_step(&cls, &mut seen);
         // ★候选面（生产同源）：与 fill loop 同一 `(classification_step, tower)` 入参调生产
         // `assemble_gamma_with_tower`（其 doc 声明与 `coverage_elements_and_gamma_with_tower`
@@ -382,7 +384,7 @@ fn compute_d1(bars: &[super::super::types::Bar], cfg: &ThetaConfig) -> D1Stats {
     // ── 对拍：末帧增量 == 全量生产 classify（逐级别中枢序列）。 ──
     if let Some(cls) = last_cls {
         let layer = super::super::parser::parse_layer(bars, cfg);
-        let full = super::super::classifier::classify(&layer, cfg);
+        let full = super::super::classifier::classify(&layer, cfg, &[]).classification;
         assert_eq!(
             cls.levels.len(),
             full.levels.len(),

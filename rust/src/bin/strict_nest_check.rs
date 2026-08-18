@@ -79,10 +79,10 @@ impl<'a> IncrementalClassifier<'a> {
         let l0_i = classifier::stage_profile::time("zz_parser_append", || {
             self.parser_incr.append(self.bars[i])
         });
-        let (c, t) = classifier::stage_profile::time("zz_classify_call", || {
-            classifier::classify_with_tower_incremental(&l0_i, self.config, &mut self.tower_cache)
+        let out = classifier::stage_profile::time("zz_classify_call", || {
+            classifier::classify_incremental(&l0_i, self.config, &mut self.tower_cache, &[])
         });
-        (l0_i, c, t)
+        (l0_i, out.classification, out.tower)
     }
 }
 

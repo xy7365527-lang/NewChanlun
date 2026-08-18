@@ -31,7 +31,7 @@ use newchan_rust::theta_v0::backtest::data::load_by_symbol;
 use newchan_rust::theta_v0::classifier::descend::RMove;
 use newchan_rust::theta_v0::classifier::divergence::{compute_macd, segment_macd_area};
 use newchan_rust::theta_v0::classifier::recursive_tower::LeveledMove;
-use newchan_rust::theta_v0::classifier::{classify_with_tower, Classification};
+use newchan_rust::theta_v0::classifier::{classify, Classification};
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::parse_layer;
 use newchan_rust::theta_v0::types::{Center, Direction};
@@ -131,8 +131,9 @@ fn main() -> std::process::ExitCode {
     let n_bars = bars.len();
     let closes: Vec<f64> = bars.iter().map(|b| b.close as f64).collect();
     let l0 = parse_layer(bars, &config);
-    let (classification, tower): (Classification, Vec<Rc<Vec<LeveledMove>>>) =
-        classify_with_tower(&l0, &config);
+    let out = classify(&l0, &config, &[]);
+    let classification = out.classification;
+    let tower = out.tower;
     let series = compute_macd(&closes, &config.macd);
     let (dif, dea, hist) = (&series.dif, &series.dea, &series.hist);
     println!(

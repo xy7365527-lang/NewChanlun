@@ -395,68 +395,87 @@ pub(crate) fn classify_level(units: &[UnitRange], is_l0: bool) -> (Vec<Center>, 
     (centers, blocks)
 }
 
+/// ★#1054：`classify` 入口族的统一输出模块——四份产物（Classification · tower snapshots ·
+/// CandidateStreams · OperationSequence）按字段访问，不再按元组下标切片。
+///
+/// 全量入口 [`classify`] 与增量入口 [`classify_incremental`] 都返回本模块；消费方按字段取用
+/// （`classification` / `tower` / `candidate_streams` / `operations`），不再按元组下标切片。
+/// 空操作级别时 `operations` 为空；无候选事件观察时 `candidate_streams` 为对应空投影。
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClassifyOutput {
+    /// 与旧 `classify` 逐位相同的多级别递归分类（L0..Lmax）。
+    pub classification: Classification,
+    /// 逐级走势塔快照（`tower[i]` 对应第 i 级处理的输入塔，同旧 `classify_with_tower`）。
+    pub tower: Vec<Rc<Vec<LeveledMove>>>,
+    /// #550 原生候选事件流（同旧 `classify_with_tower_events` 三元通道）。
+    pub candidate_streams: cand_event::CandidateStreams,
+    /// 各操作级别的口径 S 操作序列（同旧 `classify_with_operations`，按 `level` 升序）。
+    pub operations: Vec<operation::OperationSequence>,
+}
+
 /// Θ_level + Θ_signal 顶层入口（reference-theta-v0.md:27-37）。
 ///
 /// 递归构造 L0..Lmax：L0=parser 线段账本；每级由下级已完成走势单元构造中枢 + 裁决走势，
 /// 走势成为上级输入单元。自然终止：某级单元数 < `min_parts_per_level`（无法产生完整走势），
 /// 或达 `l_max` 上界。
 ///
+/// ★#1054：全量入口 = 唯一增量循环 + 空 [`TowerCache`]（空缓存 == 全量，见 #1053）。返回统一
+/// 输出模块 [`ClassifyOutput`]。`operating_levels` 为 #881 S3 操作级别挂载点（ADR 0011 裁定
+/// 一/二/六/七）——哪些层是操作级别，可多个同时存在；空 = 无旁路（`operations` 为空）。
+/// 挂载级别 ≥ 塔自然终止层时该挂载静默无产出（该层元素不存在，无可重折——同自然终止纪律，
+/// 不报错不造假序列）。
+///
 /// ★边界条件：
 /// - L0 线段数 < `min_parts_per_level` ⟹ `levels` 仅含 L0（或为空，见下）—— 自然终止。
 /// - 任一级走势分解（PDF §6）产出完整块序列进 moves（混合链不再是级别整体退化裁决，
 ///   task #143——旧 AllTrend 的 HigherCenterCandidate 由多块序列吸收）。
 /// - 空 ParseLayer（无线段）⟹ `Classification::default()`（空 levels，无可构造级别）。
-pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
-    classify_with_tower_incremental_inner(l0, config, &mut TowerCache::new(), &[]).0
+pub fn classify(l0: &ParseLayer, config: &ThetaConfig, operating_levels: &[u32]) -> ClassifyOutput {
+    let mut cache = TowerCache::new();
+    classify_incremental(l0, config, &mut cache, operating_levels)
 }
 
-/// ★#881 S3 操作级别挂载点入口（ADR 0011 裁定一/二/六/七）：分类 + 横向旁路读法。
+/// ★增量塔入口（#1054 七入口收口后与 [`classify`] 并列的唯一两个入口之一）。
 ///
-/// 塔在构造时被告知 `operating_levels`（哪些层是操作级别，可多个同时存在——多重赋格的
-/// 挂载面）；返回 `(Classification, Vec<OperationSequence>)`：
-/// - `Classification`：与 [`classify`] **逐位相同**（旁路不回流主干的测试锁即比对两者全等）；
-/// - `Vec<OperationSequence>`：每个挂载级别一份操作序列（口径 S 中枢 + 不延伸折叠块，含
-///   并列盘整），按 `level` 升序（挂载声明先排序去重，重复声明不重复产）。
+/// 返回统一输出模块 [`ClassifyOutput`]，其中 `classification`/`tower` bit-exact 等价于全量
+/// [`classify`]（空 `operating_levels` 时），但塔构造的中枢扫描走增量 resume（前级 confirmed
+/// 前缀缓存，仅尾部续扫），解 per-bar substrate 的塔构造 O(n²) 根因。
 ///
-/// 挂载级别 ≥ 塔自然终止层时该挂载静默无产出（该层元素不存在，无可重折——同 `classify`
-/// 的自然终止纪律，不报错不造假序列）。
-pub fn classify_with_operations(
-    l0: &ParseLayer,
-    config: &ThetaConfig,
-    operating_levels: &[u32],
-) -> (Classification, Vec<operation::OperationSequence>) {
-    let (classification, _, operations) =
-        classify_with_tower_incremental_inner(l0, config, &mut TowerCache::new(), operating_levels);
-    (classification, operations)
-}
-
-/// 分类 + 逐级塔导出入口（(i) 段导出桥，MEMORY coverage-engine-needs-tower-export-bridge）。
+/// ## bit-exact 保证（#93 铁律）
 ///
-/// 返回 `(Classification, Vec<Vec<LeveledMove>>)`：
-/// - `Classification`：与 `classify` bit-identical（全量入口 = 唯一循环 + 空 TowerCache，原行为不变）。
-/// - `Vec<Vec<LeveledMove>>`：逐级走势塔快照（`tower[i]` 对应第 i 级处理的输入塔）：
-///   - `tower[0]`：L0 线段层（全 `RMove::Segment`，递归底，`sub_moves` 空）。
-///   - `tower[k]`（k≥1）：第 k 级输入塔，含 `RMove::Compose` 携次级别 subs（depth≥1 真嵌套），
-///     下游 `descend_leveled` 可遍历次级别走势。
+/// `classification` / `tower` 与 `classify(l0, config, &[])` 逐字段 bit-identical：
+/// - `Classification.levels[k].centers`：增量累积的中枢序列 == 全量 `detect_centers`（resume bit-exact，
+///   见 recursive_tower.rs 证明）。
+/// - `Classification.levels[k].moves`：从累积 centers 经 `decompose_resume` 续折 == 全量分解（resume 单一来源）。
+/// - `Classification.levels[k].bsp`：从累积 centers + segments/hist 经同口径提取 == 全量提取。
+/// - `tower[k]`：本级 compose 前的 `moves_tower`，前缀来自缓存 + 尾部续扫 == 全量 compose。
 ///
-/// ★不碰附着映射：本函数只导出塔，不消费 coverage/interp 的附着规则（(ii) 段职责）。
-/// ★L0/L1 认识论等级：纯结构导出操作，不依赖经验数据（formalization-validity-domain 231号）。
-pub fn classify_with_tower(
-    l0: &ParseLayer,
-    config: &ThetaConfig,
-) -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
-    let (classification, tower, _) =
-        classify_with_tower_incremental_inner(l0, config, &mut TowerCache::new(), &[]);
-    (classification, tower)
-}
-
-/// 分类 + 逐级塔 + #550 原生候选事件流。
+/// ## 硬契约（#106 证书路径，codex 双轮审计锚定）
 ///
-/// 旧 [`classify_with_tower`] 保留二元返回以维持既有消费者逐字节不动；需要候选事件的调用方
-/// 使用本纯增量通道。事件只产出，不参与 BSP、门、admission 或订单流。
+/// `cache: &mut TowerCache` 必须与 `l0` **同源逐 bar 推进**——即同一 `ParseLayerIncr` 血缘、同一
+/// `ThetaConfig`、每 bar 调用一次（无跳 bar、无跨数据流复用、config 不变）。`merged_confirmed_len`/
+/// `segments_confirmed_len` 证书只保证「本 parser 自己的前缀稳定」，不验证 cache 内旧前缀与本轮 l0 同源。
+/// 违反（同 cache 跑两条流不 clear / 中途换 config）⟹ MACD/L0 tower/closes/frontier 复用陈旧前缀
+/// （bit-exact 破裂）。生产路径满足：`IncrementalClassifier::new` 每实例新建 TowerCache + 同源逐 bar。
+/// 换流/换 config 的调用方须先 `cache.clear()`。
+/// ponytail: 不加运行时 lineage epoch——生产 IncrementalClassifier 结构保证同源，epoch 是为不存在的
+/// 滥用场景加防御（YAGNI）；契约由本文档 + clear() 入口声明。
 ///
-/// 本入口每次以 fresh book 计算，因此事件流是“每个 key 一条终态”的**终态窗口投影**；
-/// 跨 bar 因果簿的唯一正本由 [`classify_with_tower_events_incremental`] 的 `TowerCache` 持有。
+/// ## 增量有效性（exp≈1 前提）
+///
+/// 段账本单调追加（前缀稳定）时，每级扫描从 `consumed` 续扫 O(tail) 而非 O(units) ⟹ 塔构造总扫描
+/// O(Σ tail) = O(n)（amortized）。段账本前缀回缩时自动退化为全量（`clear` + 重扫），仍 bit-exact。
+///
+/// ## #902 操作级别旁路（#881 S3 的增量对应物）
+///
+/// 挂载级别的口径 S 分解随 TowerCache resume/frontier 同生命周期维护（`operation_decompose_resume`，
+/// `LevelCache.operation_state`，cascade 同批失效），产出进 `operations`。空挂载 = 空 `operations`。
+///
+/// ## #551 候选事件流
+///
+/// `candidate_streams` = 本 bar 因果簿 [`TowerCache`] 的终态投影（事件只产出，不参与 BSP、门、
+/// admission 或订单流）。全量入口（空缓存）每次以 fresh book 计算，事件流是「每个 key 一条终态」
+/// 的终态窗口投影；跨 bar 因果簿的唯一正本由本入口的 `TowerCache` 持有。
 ///
 /// **#551 裁定(i) 等价锁口径（编排者 2026-07-28 裁决：出路甲）**——原文「fresh-full 与因果簿
 /// 终态投影每 key 最新 revision 逐字段相等」经裁决**收窄为非终态域**：
@@ -471,81 +490,29 @@ pub fn classify_with_tower(
 /// `chanlun/review-results/issue551-t2-impl-20260728.md` §五。机器载体 = 本模块 test 段的
 /// `causal_book_terminal_projection_equals_fresh_full_stream` 与
 /// `invalidation_fork_only_points_from_causal_book_to_absent_fresh_stream` 两枚定稿锁。
-pub fn classify_with_tower_events(
-    l0: &ParseLayer,
-    config: &ThetaConfig,
-) -> (
-    Classification,
-    Vec<Rc<Vec<LeveledMove>>>,
-    cand_event::CandidateStreams,
-) {
-    let mut cache = TowerCache::new();
-    let (classification, tower, _) =
-        classify_with_tower_incremental_inner(l0, config, &mut cache, &[]);
-    (classification, tower, cache.candidate_book.streams())
-}
-
-/// ★增量塔入口：返回 `(Classification, tower_snapshots)` bit-exact 等价于
-/// `classify_with_tower(l0, config)`，但塔构造的中枢扫描走增量 resume（前级 confirmed 前缀缓存，
-/// 仅尾部续扫），解 per-bar substrate 的塔构造 O(n²) 根因。
-///
-/// ## bit-exact 保证（#93 铁律）
-///
-/// 输出 `(Classification, Vec<Vec<LeveledMove>>)` 与 `classify_with_tower(l0, config)` 逐字段
-/// bit-identical：
-/// - `Classification.levels[k].centers`：增量累积的中枢序列 == 全量 `detect_centers`（resume bit-exact，
-///   见 recursive_tower.rs 证明）。
-/// - `Classification.levels[k].moves`：从累积 centers 经 `decompose_resume` 续折 == 全量分解（resume 单一来源）。
-/// - `Classification.levels[k].bsp`：从累积 centers + segments/hist 经同口径提取 == 全量提取。
-/// - `tower_snapshots[k]`：本级 compose 前的 `moves_tower`，前缀来自缓存 + 尾部续扫 == 全量 compose。
-///
-/// ## 硬契约（#106 证书路径，codex 双轮审计锚定）
-///
-/// `cache: &mut TowerCache` 必须与 `l0` **同源逐 bar 推进**——即同一 `ParseLayerIncr` 血缘、同一
-/// `ThetaConfig`、每 bar 调用一次（无跳 bar、无跨数据流复用、config 不变）。`merged_confirmed_len`/
-/// `segments_confirmed_len` 证书只保证「本 parser 自己的前缀稳定」，不验证 cache 内旧前缀与本轮 l0 同源。
-/// 违反（同 cache 跑两条流不 clear / 中途换 config）⟹ MACD/L0 tower/closes/frontier 复用陈旧前缀
-/// （bit-exact 破裂）。生产路径满足：`IncrementalClassifier::new` 每实例新建 TowerCache + 同源逐 bar。
-/// 换流/换 config 的调用方须先 `cache.clear()`。
-/// ponytail: 不加运行时 lineage epoch——生产 IncrementalClassifier 结构保证同源，epoch 是为不存在的
-/// 滥用场景加防御（YAGNI）；契约由本文档 + clear() 入口声明。
-/// ## 增量有效性（exp≈1 前提）
-///
-/// 段账本单调追加（前缀稳定）时，每级扫描从 `consumed` 续扫 O(tail) 而非 O(units) ⟹ 塔构造总扫描
-/// O(Σ tail) = O(n)（amortized）。段账本前缀回缩时自动退化为全量（`clear` + 重扫），仍 bit-exact。
 ///
 /// ## 边界
 ///
 /// - 空 ParseLayer（无线段）⟹ `Classification::default()` + 空 tower，cache 清空。
 /// - 段账本前缩（`segments.len() < last_l0_segments_len`）⟹ cache 清空 + 全量重扫（bit-exact 退化）。
 /// - merged_bars 前缀改写（inclusion 合并回退）⟹ MACD cache 局部重建（bit-exact 退化）。
-pub fn classify_with_tower_incremental(
-    l0: &ParseLayer,
-    config: &ThetaConfig,
-    cache: &mut TowerCache,
-) -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
-    let (cls, tower, _) = classify_with_tower_incremental_inner(l0, config, cache, &[]);
-    (cls, tower)
-}
-
-/// ★#902：增量塔 + 操作级别旁路（#881 S3 的增量对应物）——挂载级别的口径 S 分解随
-/// TowerCache resume/frontier 同生命周期维护（`operation_decompose_resume`，`LevelCache.
-/// operation_state`，cascade 同批失效），返回各挂载级别的 `OperationSequence`。
-/// 空挂载 = 与 `classify_with_tower_incremental` 逐字节同行为。
-pub fn classify_with_tower_incremental_operations(
+pub fn classify_incremental(
     l0: &ParseLayer,
     config: &ThetaConfig,
     cache: &mut TowerCache,
     operating_levels: &[u32],
-) -> (
-    Classification,
-    Vec<Rc<Vec<LeveledMove>>>,
-    Vec<operation::OperationSequence>,
-) {
-    classify_with_tower_incremental_inner(l0, config, cache, operating_levels)
+) -> ClassifyOutput {
+    let (classification, tower, operations) =
+        classify_incremental_inner(l0, config, cache, operating_levels);
+    ClassifyOutput {
+        classification,
+        tower,
+        candidate_streams: cache.candidate_book.streams(),
+        operations,
+    }
 }
 
-fn classify_with_tower_incremental_inner(
+fn classify_incremental_inner(
     l0: &ParseLayer,
     config: &ThetaConfig,
     cache: &mut TowerCache,
@@ -1603,7 +1570,7 @@ fn classify_with_tower_incremental_inner(
 /// ★#613（#609 F2，#712 收 #645 MED-1 随入）：[`TowerCache::level_scan_units`]（level=1，即
 /// L0 units）只读契约的不变式——**塔已产出 L0 级快照时**，`l0_units_cache` 与 `tower[0]` 同长
 /// （同源同序由 `moves_tower_l0` 的构造保证：两者都是 `l0.segments` 的逐元素纯函数投影，且
-/// `l0_units_cache` 只有一处写入站点，见 `classify_with_tower_incremental` 内 `00_l0_units_build`）。
+/// `l0_units_cache` 只有一处写入站点，见 `classify_incremental` 内 `00_l0_units_build`）。
 ///
 /// 限定「非空」是结构事实而非放宽：段数不足以构造任何级别时 `tower_snapshots` 为空而
 /// `l0_units_cache` 已有内容，此时消费方（`p123_fast_replay`）走 `tower_level_absent` 显式
@@ -1617,20 +1584,6 @@ fn debug_assert_l0_units_in_sync(cache: &TowerCache, tower_snapshots: &[Rc<Vec<L
         cache.l0_units_cache.len(),
         tower_snapshots.first().map(|t| t.len())
     );
-}
-
-/// [`classify_with_tower_incremental`] 的 #550 三元事件通道。
-pub fn classify_with_tower_events_incremental(
-    l0: &ParseLayer,
-    config: &ThetaConfig,
-    cache: &mut TowerCache,
-) -> (
-    Classification,
-    Vec<Rc<Vec<LeveledMove>>>,
-    cand_event::CandidateStreams,
-) {
-    let (classification, tower) = classify_with_tower_incremental(l0, config, cache);
-    (classification, tower, cache.candidate_book.streams())
 }
 
 /// 递归组装层第二类提取（对一级的每个上级走势 `RMove::Compose` 产 B2/S2）。

@@ -1060,7 +1060,9 @@ fn main() -> Result<(), String> {
         &mut audit,
     );
 
-    let (full_classification, full_tower) = classifier::classify_with_tower(&l0, &config);
+    let __co1 = classifier::classify(&l0, &config, &[]);
+    let full_classification = __co1.classification;
+    let full_tower = __co1.tower;
     let bit_diff = compute_bit_diff(&full_classification, &classification, &full_tower, &tower);
     print_bit_diff_levels(
         &full_classification,
@@ -1622,8 +1624,9 @@ fn run_terminal_pass(bars: &[Bar], config: &ThetaConfig) -> Result<TerminalState
     let started = Instant::now();
     for (index, bar) in bars.iter().copied().enumerate() {
         let l0 = parser.append(bar);
-        let (classification, tower) =
-            classifier::classify_with_tower_incremental(&l0, config, &mut cache);
+        let __co1 = classifier::classify_incremental(&l0, config, &mut cache, &[]);
+        let classification = __co1.classification;
+        let tower = __co1.tower;
         if index > 0 && index % 500_000 == 0 {
             eprintln!(
                 "P123_TERMINAL_PROGRESS bar={index}/{} elapsed={:.1}s",
@@ -1788,8 +1791,9 @@ fn process_targeted_bar(
     started: Instant,
 ) -> Result<(), String> {
     let l0 = state.parser.append(bar);
-    let (classification, tower) =
-        classifier::classify_with_tower_incremental(&l0, config, &mut state.cache);
+    let __co2 = classifier::classify_incremental(&l0, config, &mut state.cache, &[]);
+    let classification = __co2.classification;
+    let tower = __co2.tower;
     // #641（N3）链 dump 侧信道（只写不判；关灯时 `observe` 首行返回）。放在既有 TURN 观察
     // **之前**（与驻车线原口径同位），只对 `state.cache` 做只读取数（`candidate_streams()`），
     // 不改 classification/tower/turns 的任何输入与产生条件，也不触碰 `event_dump` 的 sink。
@@ -4739,7 +4743,7 @@ provider_window=5..70 b_center_start=20 intake_fallback=0"
             ..Default::default()
         };
         let mut cache = classifier::TowerCache::new();
-        classifier::classify_with_tower_events_incremental(&layer, &cfg, &mut cache);
+        classifier::classify_incremental(&layer, &cfg, &mut cache, &[]);
         assert!(
             cache
                 .candidate_streams()

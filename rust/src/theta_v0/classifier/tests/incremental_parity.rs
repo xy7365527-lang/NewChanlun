@@ -104,14 +104,16 @@ fn l0_units_stays_in_sync_with_tower0_on_segment_ledger_shrink() {
     let mut cache = TowerCache::new();
     let (long_layer, short_layer) = segment_ledger_shrink_fixture();
 
-    let (_, tower_long) = classify_with_tower_incremental(&long_layer, &cfg, &mut cache);
+    let __co1 = classify_incremental(&long_layer, &cfg, &mut cache, &[]);
+    let tower_long = __co1.tower;
     assert_eq!(
         cache.level_scan_units(1).map(|u| u.len()),
         Some(tower_long[0].len()),
         "非回缩 bar 本就同长"
     );
 
-    let (_, tower_short) = classify_with_tower_incremental(&short_layer, &cfg, &mut cache);
+    let __co2 = classify_incremental(&short_layer, &cfg, &mut cache, &[]);
+    let tower_short = __co2.tower;
 
     assert!(!tower_short.is_empty(), "4 段仍足以产出 L0 塔快照");
     assert_eq!(
@@ -201,7 +203,8 @@ fn classify_with_tower_depth_ge1_true_nesting() {
         merged_bars: Rc::new(bars_from_closes(&closes)),
         ..Default::default()
     };
-    let (_, tower) = classify_with_tower(&layer, &cfg);
+    let __co3 = classify(&layer, &cfg, &[]);
+    let tower = __co3.tower;
     assert!(!tower.is_empty(), "tower 非空（至少 L0 级被处理）");
     assert!(
         tower.len() >= 2,
@@ -248,8 +251,9 @@ fn classify_with_tower_classification_equals_classify() {
         merged_bars: Rc::new(bars_from_closes(&closes)),
         ..Default::default()
     };
-    let expected = classify(&layer, &cfg);
-    let (actual, _) = classify_with_tower(&layer, &cfg);
+    let expected = classify(&layer, &cfg, &[]).classification;
+    let __co4 = classify(&layer, &cfg, &[]);
+    let actual = __co4.classification;
     assert_eq!(
         actual, expected,
         "classify_with_tower Classification 与 classify bit-identical（原分类不变）"
@@ -289,7 +293,8 @@ fn candidate_event_stream_per_segment_full_replay_equals_incremental() {
             merged_bars: Rc::new(bars_from_closes(&closes[..=end])),
             ..Default::default()
         };
-        terminal = classify_with_tower_events_incremental(&layer, &cfg, &mut incremental_cache).2;
+        terminal =
+            classify_incremental(&layer, &cfg, &mut incremental_cache, &[]).candidate_streams;
 
         let mut replay_cache = TowerCache::new();
         let mut replay_terminal = std::rc::Rc::new(Vec::new());
@@ -305,7 +310,7 @@ fn candidate_event_stream_per_segment_full_replay_equals_incremental() {
                 ..Default::default()
             };
             replay_terminal =
-                classify_with_tower_events_incremental(&replay_layer, &cfg, &mut replay_cache).2;
+                classify_incremental(&replay_layer, &cfg, &mut replay_cache, &[]).candidate_streams;
         }
         assert_eq!(
             terminal, replay_terminal,
@@ -362,7 +367,7 @@ fn candidate_event_stream_classify_fnv1a_golden() {
         merged_bars: Rc::new(bars_from_closes(&closes)),
         ..Default::default()
     };
-    let streams = classify_with_tower_events(&layer, &cfg).2;
+    let streams = classify(&layer, &cfg, &[]).candidate_streams;
     assert!(streams.iter().any(|stream| !stream.is_empty()));
     let digest = format!("{streams:?}")
         .bytes()
@@ -428,7 +433,8 @@ fn chain_certificate_book_incremental_equals_full_replay() {
     let mut incremental = chain_cert::ChainCertificateBook::default();
     let mut snapshots = Vec::with_capacity(prefixes.len());
     for (layer, end) in &prefixes {
-        let streams = classify_with_tower_events_incremental(layer, &cfg, &mut incremental_cache).2;
+        let streams =
+            classify_incremental(layer, &cfg, &mut incremental_cache, &[]).candidate_streams;
         incremental.advance(&streams, *end);
         snapshots.push(incremental.clone());
     }
@@ -439,7 +445,8 @@ fn chain_certificate_book_incremental_equals_full_replay() {
         let mut replay_cache = TowerCache::new();
         let mut replay_book = chain_cert::ChainCertificateBook::default();
         for (layer, end) in prefixes.iter().take(prefix_len) {
-            let streams = classify_with_tower_events_incremental(layer, &cfg, &mut replay_cache).2;
+            let streams =
+                classify_incremental(layer, &cfg, &mut replay_cache, &[]).candidate_streams;
             replay_book.advance(&streams, *end);
         }
         assert_eq!(
@@ -721,7 +728,7 @@ fn classify_chain_walks_unresolved_to_provisional_with_growth_and_clock() {
 fn causal_book_terminal_projection_equals_fresh_full_stream() {
     let cfg = ThetaConfig::default();
     let layer = lifecycle_rich_layer();
-    let fresh = latest_by_key(&classify_with_tower_events(&layer, &cfg).2);
+    let fresh = latest_by_key(&classify(&layer, &cfg, &[]).candidate_streams);
     let book = causal_book_over_prefixes(&layer, &cfg)
         .candidate_book
         .streams();
@@ -812,9 +819,9 @@ fn invalidation_fork_only_points_from_causal_book_to_absent_fresh_stream() {
         merged_bars: Rc::clone(&layer.merged_bars),
         ..Default::default()
     };
-    classify_with_tower_events_incremental(&collapsed, &cfg, &mut cache);
+    classify_incremental(&collapsed, &cfg, &mut cache, &[]);
     let terminal = latest_by_key(&cache.candidate_book.streams());
-    let fresh = latest_by_key(&classify_with_tower_events(&collapsed, &cfg).2);
+    let fresh = latest_by_key(&classify(&collapsed, &cfg, &[]).candidate_streams);
 
     let dead: Vec<_> = terminal
         .values()
@@ -883,7 +890,7 @@ fn invalidation_fork_only_points_from_causal_book_to_absent_fresh_stream() {
 fn projection_divergence_is_confined_to_terminal_candidates() {
     let cfg = ThetaConfig::default();
     let layer = candidate_rich_layer();
-    let fresh = latest_by_key(&classify_with_tower_events(&layer, &cfg).2);
+    let fresh = latest_by_key(&classify(&layer, &cfg, &[]).candidate_streams);
     let terminal = latest_by_key(
         &causal_book_over_prefixes(&layer, &cfg)
             .candidate_book
@@ -959,11 +966,11 @@ fn escalated_upstream_regrowth_after_collapse_revival_fork_metered() {
         merged_bars: Rc::clone(&layer.merged_bars),
         ..Default::default()
     };
-    classify_with_tower_events_incremental(&collapsed, &cfg, &mut cache);
-    classify_with_tower_events_incremental(&layer, &cfg, &mut cache);
+    classify_incremental(&collapsed, &cfg, &mut cache, &[]);
+    classify_incremental(&layer, &cfg, &mut cache, &[]);
 
     let terminal = latest_by_key(&cache.candidate_book.streams());
-    let fresh = latest_by_key(&classify_with_tower_events(&layer, &cfg).2);
+    let fresh = latest_by_key(&classify(&layer, &cfg, &[]).candidate_streams);
     let revived: Vec<_> = fresh
         .keys()
         .filter(|key| {
@@ -994,7 +1001,7 @@ fn empty_l0_bar_invalidates_live_candidates_without_delay() {
     let cfg = ThetaConfig::default();
     let layer = lifecycle_rich_layer();
     let mut cache = TowerCache::new();
-    let live = classify_with_tower_events_incremental(&layer, &cfg, &mut cache).2;
+    let live = classify_incremental(&layer, &cfg, &mut cache, &[]).candidate_streams;
     // 只有**非终态**候选会因观察缺席而失效；`Confirmed`/`Invalidated` 是终态，按 E2E-O
     // 不复活也不再改写。
     let live_keys: Vec<_> = latest_by_key(&live)
@@ -1011,7 +1018,7 @@ fn empty_l0_bar_invalidates_live_candidates_without_delay() {
         ..Default::default()
     };
     let after =
-        latest_by_key(&classify_with_tower_events_incremental(&collapsed, &cfg, &mut cache).2);
+        latest_by_key(&classify_incremental(&collapsed, &cfg, &mut cache, &[]).candidate_streams);
     for key in &live_keys {
         assert_eq!(
             after.get(key).map(|event| event.state),
@@ -1048,9 +1055,13 @@ fn incremental_tower_per_segment_append_matches_full() {
         };
 
         // 全量基准。
-        let (full_cls, full_tower) = classify_with_tower(&layer, &cfg);
+        let __co5 = classify(&layer, &cfg, &[]);
+        let full_cls = __co5.classification;
+        let full_tower = __co5.tower;
         // 增量（cache 跨步复用）。
-        let (inc_cls, inc_tower) = classify_with_tower_incremental(&layer, &cfg, &mut cache);
+        let __co6 = classify_incremental(&layer, &cfg, &mut cache, &[]);
+        let inc_cls = __co6.classification;
+        let inc_tower = __co6.tower;
 
         assert_eq!(
             inc_cls, full_cls,
@@ -1085,15 +1096,19 @@ fn incremental_tower_shrink_falls_back_to_full() {
         merged_bars: Rc::new(bars_from_closes(&closes)),
         ..Default::default()
     };
-    let _ = classify_with_tower_incremental(&layer_full, &cfg, &mut cache);
+    let _ = classify_incremental(&layer_full, &cfg, &mut cache, &[]);
     // 回缩到 8 段（parser 回撤）。
     let layer_shrink = ParseLayer {
         segments: Rc::new(all_segments[..8].to_vec()),
         merged_bars: Rc::new(bars_from_closes(&closes)),
         ..Default::default()
     };
-    let (full_cls, full_tower) = classify_with_tower(&layer_shrink, &cfg);
-    let (inc_cls, inc_tower) = classify_with_tower_incremental(&layer_shrink, &cfg, &mut cache);
+    let __co7 = classify(&layer_shrink, &cfg, &[]);
+    let full_cls = __co7.classification;
+    let full_tower = __co7.tower;
+    let __co8 = classify_incremental(&layer_shrink, &cfg, &mut cache, &[]);
+    let inc_cls = __co8.classification;
+    let inc_tower = __co8.tower;
     assert_eq!(inc_cls, full_cls, "回缩退化：增量 Classification == 全量");
     assert_eq!(inc_tower, full_tower, "回缩退化：增量 tower == 全量");
 }
@@ -1134,9 +1149,11 @@ fn incremental_tower_preserves_b2_second_buy() {
         ..Default::default()
     };
 
-    let (full_cls, _) = classify_with_tower(&layer, &cfg);
+    let __co9 = classify(&layer, &cfg, &[]);
+    let full_cls = __co9.classification;
     let mut cache = TowerCache::new();
-    let (inc_cls, _) = classify_with_tower_incremental(&layer, &cfg, &mut cache);
+    let __co10 = classify_incremental(&layer, &cfg, &mut cache, &[]);
+    let inc_cls = __co10.classification;
 
     // 全量产 1 个 B2（见 end_to_end_second_buy_via_l1_l2_geometric），增量须 bit-identical。
     let full_b2: Vec<_> = full_cls.levels[1]
@@ -1254,16 +1271,20 @@ fn cascade_reset_on_frontier_interior_rewrite() {
 
     // 共享 cache：先喂 v1（缓存 L0/L1），再喂 v2（frontier 内点改写）——模拟 per-bar 末段重划。
     let mut cache = TowerCache::new();
-    let _ = classify_with_tower_incremental(&layer_v1, &cfg, &mut cache);
-    let (inc_v2, inc_tower_v2) = classify_with_tower_incremental(&layer_v2, &cfg, &mut cache);
-    let (full_v2, full_tower_v2) = classify_with_tower(&layer_v2, &cfg);
+    let _ = classify_incremental(&layer_v1, &cfg, &mut cache, &[]);
+    let __co11 = classify_incremental(&layer_v2, &cfg, &mut cache, &[]);
+    let inc_v2 = __co11.classification;
+    let inc_tower_v2 = __co11.tower;
+    let __co12 = classify(&layer_v2, &cfg, &[]);
+    let full_v2 = __co12.classification;
+    let full_tower_v2 = __co12.tower;
 
     // ★核心断言（latent 陈旧检测，非仅返回值）：cache 内 L1 深嵌套 sub_moves 末段坐标必须 == v2
     // 的 [112,140]。返回的 Classification/tower 不消费 cache 内 L1 upper_moves 的深 subs（tower 用
     // 新鲜 moves_tower 快照），故陈旧在返回值里 latent——但它喂 BSP（extract_second_for_level）+
     // 下一 bar 的 L2 投影。直接断言 cache 深 subs，捕获 latent 陈旧（640：不靠返回值碰巧相等）。
     // 推导（task #142 fixture）：v2 seg[8] = Up 112→140 ⟹ 区间 [112,140]（v1 为 [112,147]）。
-    let l0_seg8_full = classify_with_tower(&layer_v2, &cfg).1[0]
+    let l0_seg8_full = classify(&layer_v2, &cfg, &[]).tower[0]
         .last()
         .unwrap()
         .rmove
@@ -1347,9 +1368,9 @@ fn forest_epoch_bumps_on_l0_tail_redivision() {
     };
 
     let mut cache = TowerCache::new();
-    let _ = classify_with_tower_incremental(&layer_v1, &cfg, &mut cache);
+    let _ = classify_incremental(&layer_v1, &cfg, &mut cache, &[]);
     let epoch_after_v1 = cache.forest_epoch();
-    let _ = classify_with_tower_incremental(&layer_v2, &cfg, &mut cache);
+    let _ = classify_incremental(&layer_v2, &cfg, &mut cache, &[]);
     let epoch_after_v2 = cache.forest_epoch();
     assert!(
         epoch_after_v2 > epoch_after_v1,
@@ -1384,10 +1405,10 @@ fn forest_epoch_stable_on_no_change() {
     };
 
     let mut cache = TowerCache::new();
-    let _ = classify_with_tower_incremental(&layer, &cfg, &mut cache);
+    let _ = classify_incremental(&layer, &cfg, &mut cache, &[]);
     let e1 = cache.forest_epoch();
     // 完全相同输入再喂一次——无任何塔字节变更 ⟹ epoch 不应 bump。
-    let _ = classify_with_tower_incremental(&layer, &cfg, &mut cache);
+    let _ = classify_incremental(&layer, &cfg, &mut cache, &[]);
     let e2 = cache.forest_epoch();
     assert_eq!(
         e1, e2,
@@ -1426,7 +1447,7 @@ fn incremental_tower_scaling_dominates_full_synthetic() {
                 merged_confirmed_len: closes.len().saturating_sub(1),
                 ..Default::default()
             };
-            let _ = classify_with_tower(&layer, &cfg);
+            let _ = classify(&layer, &cfg, &[]);
         }
         full_times.push(t0.elapsed().as_secs_f64());
 
@@ -1441,7 +1462,7 @@ fn incremental_tower_scaling_dominates_full_synthetic() {
                 merged_confirmed_len: closes.len().saturating_sub(1),
                 ..Default::default()
             };
-            let _ = classify_with_tower_incremental(&layer, &cfg, &mut cache);
+            let _ = classify_incremental(&layer, &cfg, &mut cache, &[]);
         }
         inc_times.push(t0.elapsed().as_secs_f64());
     }
@@ -1489,7 +1510,9 @@ fn incremental_operation_bypass_matches_full() {
             merged_bars: Rc::new(bars.clone()),
             ..Default::default()
         };
-        let (_fc, full_ops) = classify_with_operations(&layer_full, &cfg, &[1]);
+        let __co13 = classify(&layer_full, &cfg, &[1]);
+        let _fc = __co13.classification;
+        let full_ops = __co13.operations;
         // 增量：逐段截断喂入（每步 = 一个 resume bar）。
         let mut cache = TowerCache::new();
         let mut last_ops = Vec::new();
@@ -1499,8 +1522,10 @@ fn incremental_operation_bypass_matches_full() {
                 merged_bars: Rc::new(bars.clone()),
                 ..Default::default()
             };
-            let (_ic, _it, ops) =
-                classify_with_tower_incremental_operations(&layer, &cfg, &mut cache, &[1]);
+            let __co1 = classify_incremental(&layer, &cfg, &mut cache, &[1]);
+            let _ic = __co1.classification;
+            let _it = __co1.tower;
+            let ops = __co1.operations;
             last_ops = ops;
         }
         assert_eq!(
@@ -1573,9 +1598,13 @@ fn incremental_operation_bypass_matches_full_after_cascade_reset() {
     let mut cache = TowerCache::new();
     for (step, segs) in versions.into_iter().enumerate() {
         let layer = mk_layer(segs);
-        let (_ic, _it, inc_ops) =
-            classify_with_tower_incremental_operations(&layer, &cfg, &mut cache, &[0, 1]);
-        let (_fc, full_ops) = classify_with_operations(&layer, &cfg, &[0, 1]);
+        let __co2 = classify_incremental(&layer, &cfg, &mut cache, &[0, 1]);
+        let _ic = __co2.classification;
+        let _it = __co2.tower;
+        let inc_ops = __co2.operations;
+        let __co14 = classify(&layer, &cfg, &[0, 1]);
+        let _fc = __co14.classification;
+        let full_ops = __co14.operations;
         assert_eq!(
             format!("{inc_ops:?}"),
             format!("{full_ops:?}"),

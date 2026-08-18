@@ -103,7 +103,9 @@ impl ThetaPiStream {
     pub fn push_bar(&mut self, bar: Bar, p_t: f64, nav: f64) -> f64 {
         let i = self.bar_idx;
         self.bar_idx += 1;
-        let (classification, tower) = self.classifier.append_bar(bar);
+        let out = self.classifier.append_bar(bar);
+        let classification = out.classification;
+        let tower = out.tower;
         let px = bar.close as f64 * self.config.tick.tick_size;
         if bar.untradable || px <= 0.0 {
             // 分类器已推进；决策层跳过（与 fill loop `if !bar.untradable && px > 0.0` 同口径）。

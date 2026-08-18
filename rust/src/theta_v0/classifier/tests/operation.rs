@@ -9,7 +9,9 @@ use super::fixtures::*;
 fn operation_bypass_two_levels_produce_sequences() {
     let cfg = ThetaConfig::default();
     let layer = operation_oscillating_layer();
-    let (out, ops) = classify_with_operations(&layer, &cfg, &[0, 1]);
+    let __co1 = classify(&layer, &cfg, &[0, 1]);
+    let out = __co1.classification;
+    let ops = __co1.operations;
     assert!(
         out.levels.len() >= 2,
         "夹具须至少构到 L1（两个操作级别挂载的前提）"
@@ -68,16 +70,20 @@ fn operation_decomposition_uniqueness_lock() {
     let cfg = ThetaConfig::default();
     let layer = operation_oscillating_layer();
     // (a) 同输入两跑逐位相同（038:18 唯一性的机器形态：无路径依赖）。
-    let (_, ops_a) = classify_with_operations(&layer, &cfg, &[0, 1]);
-    let (_, ops_b) = classify_with_operations(&layer, &cfg, &[0, 1]);
+    let __co2 = classify(&layer, &cfg, &[0, 1]);
+    let ops_a = __co2.operations;
+    let __co3 = classify(&layer, &cfg, &[0, 1]);
+    let ops_b = __co3.operations;
     assert_eq!(
         ops_a, ops_b,
         "同一主干序列，旁路重折结果唯一（两跑逐位相同）"
     );
     // (b) 挂载集合无关性：单挂 L0 vs 乱序重复挂载 [1,0,0]——L0 序列逐位相同
     // （重折不依赖于还挂了哪些级别：规则按角色分，不按级别分，裁定六）。
-    let (_, ops_only0) = classify_with_operations(&layer, &cfg, &[0]);
-    let (_, ops_mixed) = classify_with_operations(&layer, &cfg, &[1, 0, 0]);
+    let __co4 = classify(&layer, &cfg, &[0]);
+    let ops_only0 = __co4.operations;
+    let __co5 = classify(&layer, &cfg, &[1, 0, 0]);
+    let ops_mixed = __co5.operations;
     assert_eq!(ops_only0.len(), 1);
     assert_eq!(
         ops_mixed.len(),
@@ -96,14 +102,17 @@ fn operation_decomposition_uniqueness_lock() {
 fn operation_bypass_no_backflow_lock() {
     let cfg = ThetaConfig::default();
     let layer = operation_oscillating_layer();
-    let baseline = classify(&layer, &cfg);
-    let (with_ops, ops) = classify_with_operations(&layer, &cfg, &[0, 1]);
+    let baseline = classify(&layer, &cfg, &[]).classification;
+    let __co6 = classify(&layer, &cfg, &[0, 1]);
+    let with_ops = __co6.classification;
+    let ops = __co6.operations;
     assert!(!ops.is_empty(), "旁路确有产物写入（锁的前提）");
     assert_eq!(
         baseline, with_ops,
         "旁路产物写入后主干 Classification 逐位不变（裁定七：旁路结果不回流主干）"
     );
     // 既有入口逐字节不动（空挂载 = 旧行为）。
-    let (plain, _) = classify_with_tower(&layer, &cfg);
+    let __co7 = classify(&layer, &cfg, &[]);
+    let plain = __co7.classification;
     assert_eq!(baseline, plain);
 }

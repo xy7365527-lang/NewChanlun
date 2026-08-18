@@ -30,8 +30,8 @@ fn main() -> std::process::ExitCode {
     let l0 = parse_layer(&ds.bars, &cfg_f);
     println!("P992_INPUT symbol={symbol} bars={}", ds.bars.len());
 
-    let cls_f = classify(&l0, &cfg_f);
-    let cls_m = classify(&l0, &cfg_m);
+    let cls_f = classify(&l0, &cfg_f, &[]).classification;
+    let cls_m = classify(&l0, &cfg_m, &[]).classification;
 
     // 键 = (level, start_index, is_buy1, is_sell1)——点位 + 一类 bit 面。
     let keyset = |cls: &newchan_rust::theta_v0::classifier::Classification| -> BTreeSet<(u32, usize, bool, bool)> {

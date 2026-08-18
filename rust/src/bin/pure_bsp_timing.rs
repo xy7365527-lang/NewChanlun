@@ -110,7 +110,9 @@ fn main() -> std::process::ExitCode {
     };
 
     for i in 0..n {
-        let (classification, _tower) = classifier.classify_at(i);
+        let __ca1 = classifier.classify_at(i);
+        let classification = __ca1.classification;
+        let _tower = __ca1.tower;
         // 本 bar 新确认的买卖点（append-only diff，与 runner newly_confirmed_step 同语义）。
         // ★任意买点 bit（buy1∨buy2∨buy3）→ 开多；任意卖点 bit（sell1∨sell2∨sell3）→ 平多/开空。
         // 不限第一类：纯择时测的是「缠论买卖点信号整体」的择时 edge（buy1 在 1min 短窗稀疏，

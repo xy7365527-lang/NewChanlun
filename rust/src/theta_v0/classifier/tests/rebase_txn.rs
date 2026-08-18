@@ -31,11 +31,11 @@ fn rebase_txn_seam_emits_certificates_at_production_placement_points() {
     let mut cache = TowerCache::new();
     for i in 5..=bars.len() {
         let l0 = super::super::super::parser::parse_layer(&bars[..i], &cfg);
-        let _ = classify_with_tower_incremental(&l0, &cfg, &mut cache);
+        let _ = classify_incremental(&l0, &cfg, &mut cache, &[]);
     }
     // len shrink：同一 cache 喂更短前缀 ⟹ cascade P=0 全清（产出点④）。
     let l0_short = super::super::super::parser::parse_layer(&bars[..300], &cfg);
-    let _ = classify_with_tower_incremental(&l0_short, &cfg, &mut cache);
+    let _ = classify_incremental(&l0_short, &cfg, &mut cache, &[]);
     let lines = rebase_txn::test_capture_take();
 
     assert!(
@@ -131,7 +131,9 @@ fn rebase_txn_seam_does_not_change_classification_output() {
         let mut out = Vec::new();
         for i in 5..=bars.len() {
             let l0 = super::super::super::parser::parse_layer(&bars[..i], &cfg);
-            let (c, tower) = classify_with_tower_incremental(&l0, &cfg, &mut cache);
+            let __co1 = classify_incremental(&l0, &cfg, &mut cache, &[]);
+            let c = __co1.classification;
+            let tower = __co1.tower;
             out.push((c, tower));
         }
         let n = if capture {

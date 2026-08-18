@@ -401,7 +401,7 @@ fn print_projection_fork(
     for bar in bars.iter().copied().skip(1) {
         l0 = parser.append(bar);
     }
-    let fresh = classifier::classify_with_tower_events(&l0, config).2;
+    let fresh = classifier::classify(&l0, config, &[]).candidate_streams;
 
     let mut terminal = BTreeMap::<CandidateKey, &CandidateEvent>::new();
     for stream in causal.iter() {
@@ -501,12 +501,12 @@ fn compare_streams(
     };
     for (i, bar) in bars.iter().copied().enumerate() {
         let l0 = parser.append(bar);
-        let direct = classifier::classify_with_tower_events_incremental(&l0, config, &mut cache);
-        let streamed = owned.append_bar_events(bar);
+        let direct = classifier::classify_incremental(&l0, config, &mut cache, &[]);
+        let streamed = owned.append_bar(bar);
         if direct != streamed {
             return Err(format!("逐 bar 三元通道不等: bar={i}"));
         }
-        terminal_streams = streamed.2;
+        terminal_streams = streamed.candidate_streams;
         if (i + 1) % chain_every == 0 || i + 1 == bars.len() {
             chain.book.advance(&terminal_streams, i);
             chain.advances += 1;

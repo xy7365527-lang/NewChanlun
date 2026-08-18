@@ -80,7 +80,7 @@
 use newchan_rust::theta_v0::backtest::data::load_by_symbol;
 use newchan_rust::theta_v0::classifier::descend::RMove;
 use newchan_rust::theta_v0::classifier::recursive_tower::LeveledMove;
-use newchan_rust::theta_v0::classifier::{classify_with_tower, Classification};
+use newchan_rust::theta_v0::classifier::{classify, Classification};
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser::parse_layer;
 use newchan_rust::theta_v0::types::{Center, Direction};
@@ -307,8 +307,9 @@ fn main() -> std::process::ExitCode {
 
     let l0 = parse_layer(bars, &config);
     eprintln!("P856 parse_layer 完成 segments={}", l0.segments.len());
-    let (classification, tower): (Classification, Vec<Rc<Vec<LeveledMove>>>) =
-        classify_with_tower(&l0, &config);
+    let out = classify(&l0, &config, &[]);
+    let classification = out.classification;
+    let tower = out.tower;
     eprintln!("P856 塔构造完成 tower_levels={}", tower.len());
     println!(
         "P856_INPUT symbol={symbol} bars={n_bars} l0_segments={}",

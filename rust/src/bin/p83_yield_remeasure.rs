@@ -3,7 +3,7 @@
 //! 只读消费生产 `assemble_level_view` seam；不改塔、不生成信号、不执行裁决。
 //! 用法：`cargo run --release --bin p83_yield_remeasure -- <btc_1m_full.json>`
 
-use newchan_rust::theta_v0::classifier::classify_with_tower;
+use newchan_rust::theta_v0::classifier::classify;
 use newchan_rust::theta_v0::classifier::decompose;
 use newchan_rust::theta_v0::classifier::divergence::compute_macd;
 use newchan_rust::theta_v0::classifier::level_view::{
@@ -145,7 +145,9 @@ fn main() -> Result<(), String> {
     }
     let as_of = loaded.bars.len() - 1;
     let layer = parse_layer(&loaded.bars, &config);
-    let (classification, tower) = classify_with_tower(&layer, &config);
+    let __co1 = classify(&layer, &config, &[]);
+    let classification = __co1.classification;
+    let tower = __co1.tower;
     let closes: Vec<_> = layer
         .merged_bars
         .iter()

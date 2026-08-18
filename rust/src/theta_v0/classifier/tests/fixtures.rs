@@ -245,7 +245,7 @@ pub(super) fn chain_book_over_prefixes(
             merged_bars: Rc::new(bars_from_closes(&closes[..=end])),
             ..Default::default()
         };
-        let streams = classify_with_tower_events_incremental(&layer, cfg, &mut cache).2;
+        let streams = classify_incremental(&layer, cfg, &mut cache, &[]).candidate_streams;
         book.advance(&streams, end);
     }
     book
@@ -420,7 +420,7 @@ pub(super) fn causal_book_over_prefixes(layer: &ParseLayer, cfg: &ThetaConfig) -
             merged_bars: Rc::clone(&layer.merged_bars),
             ..Default::default()
         };
-        classify_with_tower_events_incremental(&prefix, cfg, &mut cache);
+        classify_incremental(&prefix, cfg, &mut cache, &[]);
     }
     cache
 }

@@ -348,7 +348,9 @@ fn run_state_machine(
     let mut diag_nonpositive_px = 0usize;
 
     for i in 0..n {
-        let (classification, tower) = classifier.classify_at(i);
+        let __ca1 = classifier.classify_at(i);
+        let classification = __ca1.classification;
+        let tower = __ca1.tower;
         let tree = extract_carrier_forest(&tower);
         let tree_idx = build_tree_endpoint_index(&tree);
 

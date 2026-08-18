@@ -158,7 +158,7 @@ fn profile_fullwindow_bottleneck() {
 
         // 段2：classify（owner=classifier，本工位 owner 区，除 signal.rs）。
         let t = Instant::now();
-        let classification = classifier::classify(&l0, &config);
+        let classification = classifier::classify(&l0, &config, &[]).classification;
         let t_classify = t.elapsed().as_secs_f64();
         let n_bsp: usize = classification.levels.iter().map(|lv| lv.bsp.len()).sum();
 

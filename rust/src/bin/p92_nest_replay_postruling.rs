@@ -222,7 +222,9 @@ fn main() -> Result<(), String> {
         &mut book,
         &mut audit,
     );
-    let (full_classification, full_tower) = classifier::classify_with_tower(&l0, &config);
+    let __co1 = classifier::classify(&l0, &config, &[]);
+    let full_classification = __co1.classification;
+    let full_tower = __co1.tower;
     let classification_diff = usize::from(full_classification != classification);
     let tower_diff = usize::from(full_tower != tower);
     let mut old_semantic_diff = tower_diff;
@@ -459,8 +461,9 @@ fn run_terminal_pass(bars: &[Bar], config: &ThetaConfig) -> Result<TerminalState
     let started = Instant::now();
     for (index, bar) in bars.iter().copied().enumerate() {
         let l0 = parser.append(bar);
-        let (classification, tower) =
-            classifier::classify_with_tower_incremental(&l0, config, &mut cache);
+        let __co1 = classifier::classify_incremental(&l0, config, &mut cache, &[]);
+        let classification = __co1.classification;
+        let tower = __co1.tower;
         if index > 0 && index % 500_000 == 0 {
             eprintln!(
                 "P92_TERMINAL_PROGRESS bar={index}/{} elapsed={:.1}s",
@@ -500,8 +503,9 @@ fn run_targeted_prefix_pass(
         .unwrap_or(0);
     for (index, bar) in bars.iter().copied().enumerate() {
         let l0 = parser.append(bar);
-        let (classification, tower) =
-            classifier::classify_with_tower_incremental(&l0, config, &mut cache);
+        let __co2 = classifier::classify_incremental(&l0, config, &mut cache, &[]);
+        let classification = __co2.classification;
+        let tower = __co2.tower;
         let trigger = (cache.forest_epoch(), signal_signature(&classification));
         if last_trigger.as_ref() != Some(&trigger) && !pending.is_empty() {
             let (hist, close_src) = cache.causal_series();

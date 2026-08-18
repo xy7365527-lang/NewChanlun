@@ -658,7 +658,9 @@ fn main() -> Result<(), String> {
     ));
 
     // ── BIT_EXACT（增量 vs 全量；各片相同，证明片内增量塔=全量塔）──
-    let (full_classification, full_tower) = classifier::classify_with_tower(&l0, &config);
+    let __co1 = classifier::classify(&l0, &config, &[]);
+    let full_classification = __co1.classification;
+    let full_tower = __co1.tower;
     let classification_diff = usize::from(full_classification != classification);
     let tower_diff = usize::from(full_tower != tower);
     let mut old_semantic_diff = tower_diff;
@@ -875,8 +877,9 @@ fn run_terminal_pass(bars: &[Bar], config: &ThetaConfig) -> Result<TerminalState
     let started = Instant::now();
     for (index, bar) in bars.iter().copied().enumerate() {
         let l0 = parser.append(bar);
-        let (classification, tower) =
-            classifier::classify_with_tower_incremental(&l0, config, &mut cache);
+        let __co1 = classifier::classify_incremental(&l0, config, &mut cache, &[]);
+        let classification = __co1.classification;
+        let tower = __co1.tower;
         if index > 0 && index % 500_000 == 0 {
             eprintln!(
                 "P124_TERMINAL_PROGRESS shard={} bar={index}/{} elapsed={:.1}s",
@@ -918,8 +921,9 @@ fn run_targeted_prefix_pass(
     let started = Instant::now();
     for (index, bar) in bars.iter().copied().enumerate() {
         let l0 = parser.append(bar);
-        let (classification, tower) =
-            classifier::classify_with_tower_incremental(&l0, config, &mut cache);
+        let __co2 = classifier::classify_incremental(&l0, config, &mut cache, &[]);
+        let classification = __co2.classification;
+        let tower = __co2.tower;
         // p116 探针：TURN 逐 bar 观察（不经 trigger 门——pending 空后仍落盘；不依赖 targets，
         // 跨片完全相同）。probes=0 时整段跳过（p92 行集，零热环差异）。
         if probes {

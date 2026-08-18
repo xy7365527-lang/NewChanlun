@@ -10,7 +10,7 @@
 //! 分位数。只读消费 provider seam；不修改生产对象、不做语义裁决。
 //! 用法：`cargo run --release --bin p104_trend_div_funnel -- <btc_1m_full.json>`
 
-use newchan_rust::theta_v0::classifier::classify_with_tower;
+use newchan_rust::theta_v0::classifier::classify;
 use newchan_rust::theta_v0::classifier::decompose;
 use newchan_rust::theta_v0::classifier::divergence::compute_macd;
 use newchan_rust::theta_v0::classifier::level_view::{
@@ -60,7 +60,9 @@ fn main() -> Result<(), String> {
     }
     let as_of = loaded.bars.len() - 1;
     let layer = parse_layer(&loaded.bars, &config);
-    let (_classification, tower) = classify_with_tower(&layer, &config);
+    let __co1 = classify(&layer, &config, &[]);
+    let _classification = __co1.classification;
+    let tower = __co1.tower;
     let closes: Vec<_> = layer
         .merged_bars
         .iter()

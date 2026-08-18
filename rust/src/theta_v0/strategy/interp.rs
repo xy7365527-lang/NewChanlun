@@ -3065,7 +3065,9 @@ mod tests {
         let mut hits = 0usize;
         for i in 0..n {
             let l0 = parser::parse_layer(&oos.bars[..=i], &config);
-            let (cls, tower) = classifier::classify_with_tower(&l0, &config);
+            let __co1 = classifier::classify(&l0, &config, &[]);
+            let cls = __co1.classification;
+            let tower = __co1.tower;
             // cached 路径（带 TreeCache，跨 bar 复用 Rc 树前缀）。
             let (cached_tree, _candidates, _) =
                 coverage_elements_and_gamma_with_tower_cached(&cls, &tower, &mut Some(&mut cache));
@@ -3295,7 +3297,9 @@ mod candidate_profile {
         let mut cand_cache = CandidateCache::new();
         let mut hits = 0usize;
         for i in 0..n {
-            let (cls, tower) = incr.classify_at(i);
+            let __ca1 = incr.classify_at(i);
+            let cls = __ca1.classification;
+            let tower = __ca1.tower;
             let gen = incr.tower_generation();
             let fe = incr.forest_epoch();
             // 全路径（含遍历2，丢 gamma 取 candidates）。
@@ -3357,7 +3361,9 @@ mod candidate_profile {
             let mut tc = TreeCache::new();
             let t0 = std::time::Instant::now();
             for i in 0..n {
-                let (cls, tower) = incr.classify_at(i);
+                let __ca2 = incr.classify_at(i);
+                let cls = __ca2.classification;
+                let tower = __ca2.tower;
                 let gen = incr.tower_generation();
                 let fe = incr.forest_epoch();
                 let _ = coverage_elements_and_gamma_with_tower_cached_gen(
@@ -3376,7 +3382,9 @@ mod candidate_profile {
             let mut cc = CandidateCache::new();
             let t1 = std::time::Instant::now();
             for i in 0..n {
-                let (cls, tower) = incr2.classify_at(i);
+                let __ca3 = incr2.classify_at(i);
+                let cls = __ca3.classification;
+                let tower = __ca3.tower;
                 let gen = incr2.tower_generation();
                 let fe = incr2.forest_epoch();
                 let _ = coverage_elements_with_tower_cached_gen(

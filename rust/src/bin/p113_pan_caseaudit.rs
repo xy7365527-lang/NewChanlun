@@ -35,7 +35,7 @@
 //! `cargo run --release --features backtest_bin --bin p113_pan_caseaudit -- <btc_1m_full.json>`
 //! 冒烟：`P113_MAX_BARS=250000 ...`
 
-use newchan_rust::theta_v0::classifier::classify_with_tower;
+use newchan_rust::theta_v0::classifier::classify;
 use newchan_rust::theta_v0::classifier::decompose::{center_block_kind, MoveBlock};
 use newchan_rust::theta_v0::classifier::divergence::{
     compute_macd, departure_move_c_start, segment_dif_peak, segment_macd_area,
@@ -1064,7 +1064,9 @@ fn main() -> Result<(), String> {
     let bars = &loaded.bars[..max_bars];
     let as_of = bars.len() - 1;
     let layer = parse_layer(bars, &config);
-    let (classification, tower) = classify_with_tower(&layer, &config);
+    let __co1 = classify(&layer, &config, &[]);
+    let classification = __co1.classification;
+    let tower = __co1.tower;
     let closes_f64: Vec<f64> = layer.merged_bars.iter().map(|b| b.close as f64).collect();
     let closes_tick: Vec<Tick> = layer.merged_bars.iter().map(|b| b.close).collect();
     let close_src: Vec<usize> = layer.merged_bars.iter().map(|b| b.source_index).collect();

@@ -95,7 +95,9 @@ fn run() -> Result<(), String> {
     }
     let (l0, classification, tower, events) = if batch_mode {
         let l0 = parser::parse_layer(&bars, &config);
-        let (classification, tower) = classifier::classify_with_tower(&l0, &config);
+        let __co1 = classifier::classify(&l0, &config, &[]);
+        let classification = __co1.classification;
+        let tower = __co1.tower;
         let events = classifier::cand_delta_tower(&l0, &classification, &tower, &config);
         (l0, classification, tower, events)
     } else {
@@ -104,8 +106,9 @@ fn run() -> Result<(), String> {
         let mut final_state = None;
         for bar in &bars {
             let l0 = parser_incr.append(*bar);
-            let (classification, tower) =
-                classifier::classify_with_tower_incremental(&l0, &config, &mut tower_cache);
+            let __co1 = classifier::classify_incremental(&l0, &config, &mut tower_cache, &[]);
+            let classification = __co1.classification;
+            let tower = __co1.tower;
             final_state = Some((l0, classification, tower));
         }
         let (l0, classification, tower) = final_state.expect("bars 非空");

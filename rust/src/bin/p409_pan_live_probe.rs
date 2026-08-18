@@ -281,8 +281,9 @@ fn main() -> Result<(), String> {
 
     for (index, bar) in bars.iter().copied().enumerate() {
         let l0 = parser.append(bar);
-        let (_classification, tower) =
-            classifier::classify_with_tower_incremental(&l0, &config, &mut cache);
+        let __co1 = classifier::classify_incremental(&l0, &config, &mut cache, &[]);
+        let _classification = __co1.classification;
+        let tower = __co1.tower;
         let epoch = cache.forest_epoch();
         if last_epoch != Some(epoch) {
             last_epoch = Some(epoch);
