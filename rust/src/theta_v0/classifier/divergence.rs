@@ -1876,7 +1876,7 @@ mod tests {
     fn incremental_macd_append_is_o1_scaling() {
         let cfg = MacdConfig::default();
         // 在两个不同规模下测量「再 append 1 bar」的耗时——O(1) 则两者相近。
-        let bench = |n_pre: usize| -> u128 {
+        let bench_once = |n_pre: usize| -> u128 {
             let closes_pre: Vec<f64> = (0..n_pre)
                 .map(|i| 100.0 + ((i as f64) * 0.1).sin())
                 .collect();
@@ -1892,6 +1892,9 @@ mod tests {
             let _ = s.current_point();
             start.elapsed().as_nanos() / (iters as u128)
         };
+        // min-of-3 降噪：CI 共享 runner 单轮抖动只会抬高耗时（cache miss / 频率漂移），
+        // 取最小值压回真实成本；真正 O(n) 回归差 ~50x，min-of-3 仍远超 3.0 阈值。
+        let bench = |n_pre: usize| -> u128 { (0..3).map(|_| bench_once(n_pre)).min().unwrap() };
         let per_bar_small = bench(100);
         let per_bar_large = bench(5_000);
         // O(1) 判据：大样本 per-bar 耗时不应显著高于小样本。
