@@ -95,7 +95,13 @@ theorem trade_zero_iff_both_zero (t : PhysicalTrade) :
 
   necessity_derivation.md §725-736：递归链单位流转（父→子→孙）不增不减——多空嵌套是
   同一批 N 单位在级别间重新分配，总和恒为 N_base。形式化为求和等式：spawn（父−m/子+m）
-  与 close（子归还父）都保持 Σunits 不变。 -/
+  与 close（子归还父）都保持 Σunits 不变。
+
+  ★#893 S8-c（2026-08-18）成本口径承重：本节 T₃₄ 股数守恒（Σ units = N_base）是成本轨迹口径
+    （ADR 0015）下「跨级别求和」的承重载体——净值口径的独立加总 `R = Σ_{γ∈T} X_γ`
+    （`买卖点alpha2.pdf` p23 答复B §12–14）依赖「级别间会计独立」，成本口径下级别间**共享
+    同一个 N**、不独立加总；跨级别求和合法性改由本节 `spawn_conserves`/`close_conserves`/
+    `spawn_close_roundtrip` 承接（处置正本 `.chanlun/review-results/issue893-S8c-cost-basis-five-item-redisposition-2026-08-18.md` 丙-4）。 -/
 
 /-- 森林总单位数（Σ active voice.units，T₃₄ 的守恒量）。 -/
 def totalUnits (forest : List VoiceLedger) : Nat :=
