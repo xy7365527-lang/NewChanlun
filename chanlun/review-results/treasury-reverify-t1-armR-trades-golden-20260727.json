@@ -1,6 +1,6 @@
 {
   "_schema": "armR-trades-digest/v2",
-  "_note": "臂R（VOICE_EXEC=1 THETA_NEST_CERT_GATE=1，fee_schedule=None/enforce_level_cap=false）三窗 trades.jsonl 逐位冻结；issue #446 消除双计后的 #387 T1 红线重锚。",
+  "_note": "臂R（VOICE_EXEC=1 THETA_NEST_CERT_GATE=1，fee_schedule=None/enforce_level_cap=false）三窗 trades.jsonl 逐位冻结；issue #446 消除双计后的 #387 T1 红线重锚。【2026-08-18 #1071 裁定（编排者拍 1）】前两枚锚（a12a1022d9「未提交 #446 修复」/5505eaaed2「dirty 17 paths」）均为脏出身、干净 commit 不可复现，登记死因后作废；自第三枚锚起纪律：锚必须从干净 commit 可复现（sanity 复现 = 重订前置）。",
   "provenance": {
     "anchors": [
       {
@@ -21,68 +21,77 @@
         "dump_dir": "/tmp/m8_win_gate",
         "regen_command": "python3 scripts/check_armR_trades_digest.py --dump-dir /tmp/m8_win_gate --regen",
         "check_command": "python3 scripts/check_armR_trades_digest.py --dump-dir /tmp/m8_win_gate"
+      },
+      {
+        "source_base_head": "1994b60c507e0f4406a61f65b46f12a246aeff3c",
+        "final_verification_head": "1994b60c507e0f4406a61f65b46f12a246aeff3c",
+        "source_worktree": "clean",
+        "run_date": "2026-08-18",
+        "dump_dir": "/tmp/m8_win_gate",
+        "regen_command": "python3 scripts/check_armR_trades_digest.py --dump-dir /tmp/m8_win_gate --regen",
+        "check_command": "python3 scripts/check_armR_trades_digest.py --dump-dir /tmp/m8_win_gate"
       }
     ]
   },
   "windows": {
     "p3fold": {
-      "digest_fnv1a64": "0xd77d78c75a3a46f0",
-      "bytes": 201115,
-      "n_trades": 145,
+      "digest_fnv1a64": "0xc114aeade3459592",
+      "bytes": 339466,
+      "n_trades": 223,
       "per_dir_n": {
-        "Long": 73,
-        "Short": 72
+        "Long": 113,
+        "Short": 110
       },
       "per_dir_pnl": {
-        "Long": "4607.900000000023",
-        "Short": "-12215.59"
+        "Long": "2202.8699999999844",
+        "Short": "1721.9100000000035"
       },
       "nest_depth_hist": {
-        "0": 1,
-        "1": 60,
-        "2": 43,
-        "3": 37,
+        "0": 9,
+        "1": 106,
+        "2": 53,
+        "3": 51,
         "4": 4
       }
     },
     "wf7": {
-      "digest_fnv1a64": "0xf43066af2b0b11d8",
-      "bytes": 262476,
-      "n_trades": 189,
+      "digest_fnv1a64": "0x55d6326a436cd981",
+      "bytes": 534737,
+      "n_trades": 353,
       "per_dir_n": {
-        "Long": 100,
-        "Short": 89
+        "Long": 230,
+        "Short": 123
       },
       "per_dir_pnl": {
-        "Long": "-1417.199999999997",
-        "Short": "-11740.340000000022"
+        "Long": "-1298.4400000000023",
+        "Short": "1397.3299999999872"
       },
       "nest_depth_hist": {
-        "0": 13,
-        "1": 78,
-        "2": 53,
-        "3": 31,
-        "4": 14
+        "0": 83,
+        "1": 138,
+        "2": 68,
+        "3": 42,
+        "4": 22
       }
     },
     "wf8": {
-      "digest_fnv1a64": "0x9c6a202dbea2de77",
-      "bytes": 221626,
-      "n_trades": 160,
+      "digest_fnv1a64": "0x104b1da2a4e296af",
+      "bytes": 412668,
+      "n_trades": 272,
       "per_dir_n": {
-        "Long": 87,
-        "Short": 73
+        "Long": 145,
+        "Short": 127
       },
       "per_dir_pnl": {
-        "Long": "23583.740000000023",
-        "Short": "-6302.169999999958"
+        "Long": "716.7199999999793",
+        "Short": "-2225.260000000071"
       },
       "nest_depth_hist": {
-        "0": 15,
-        "1": 54,
-        "2": 55,
-        "3": 26,
-        "4": 10
+        "0": 36,
+        "1": 90,
+        "2": 95,
+        "3": 39,
+        "4": 12
       }
     }
   }
