@@ -30,7 +30,7 @@
 //! 增量链产出的 `(Classification, tower)` 必须 == 全量 `classify_with_tower(parse_layer(bars[..=i]))`。
 //! - `ParseLayerIncr::append` bit-exact == `parse_layer`（parser/mod.rs 逐 bar 断言验证）
 //! - `classify_with_tower_incremental` bit-exact == `classify_with_tower`（classifier/mod.rs
-//!   `incremental_tower_fresh_cache_equals_full` + `incremental_tower_per_segment_append_matches_full`）
+//!   `incremental_tower_per_segment_append_matches_full`）
 //!
 //! 接入后 runner 产出的订单/信号与全量版本的差异仅来自**身份稳定的预期改变**（Stale 减少→depth>0 腿
 //! 准入→订单可能增多）——这是**预期非 bit-exact**，非增量 bug。
