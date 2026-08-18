@@ -774,11 +774,30 @@ theorem none_outcome_not_settled (m : Move) (hnone : trendKind? m = none) :
 -/
 structure CandidateMove where
   inner : Move
+  /-- 背驰确认判定（「完成由背驰定义」，beichi.md:228-232；本层无力度数据，
+      调用方给出的显式前提，N-2 形态，不用 axiom）。 -/
+  divergenceConfirmed : Bool
+  /-- ★判定函数 soundness 契约（#871 第二项，修复 #857 缺口）：此前 settled 由调用者任意
+      提供、Lean 不检查；现由 settled_sound 钉死为背驰确认判定的忠实记录。 -/
   settled : Bool
+  settled_sound : settled = divergenceConfirmed
 
 /-- candidate 的走势裁决（由 inner 计算，非自由携带；`outcome?` 避免与 Move.trendKind? 同名）。 -/
 def CandidateMove.outcome? (c : CandidateMove) : Option TrendKind :=
   trendKind? c.inner
+
+/-- soundness：settled = true ⟺ 背驰确认判定为 true（law 字段的直接读出）。 -/
+theorem candidate_settled_iff_confirmed (c : CandidateMove) :
+    c.settled = true ↔ c.divergenceConfirmed = true := by
+  rw [c.settled_sound]
+
+/-- law 字段承重见证：CandidateMove 上不可能 settled = true 而背驰未确认
+    （`settled_sound` 把两者钉死——脱钩实例在类型层不可构造）。 -/
+example : ¬ ∃ c : CandidateMove, c.settled = true ∧ c.divergenceConfirmed = false := by
+  rintro ⟨c, hs, hd⟩
+  rw [c.settled_sound] at hs
+  rw [hd] at hs
+  cases hs
 
 /--
   ★未结算实例的裁决若产出走势类型，必属三构造子之一（完全分类不被实时未完成破坏，L0）。

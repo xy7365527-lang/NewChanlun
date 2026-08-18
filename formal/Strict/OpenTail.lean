@@ -127,6 +127,33 @@ deriving DecidableEq, Repr
 def current (h : OpenHist) : OpenState :=
   OpenState.pendingTail h.tail
 
+/-! ## 判定函数 soundness 契约（#871 第二项，修复 #857 缺口：OpenHist.tail） -/
+
+/--
+  ★`OpenHist.tail`（从已出现中枢读出的临时尾部倾向）此前由调用者任意提供、Lean 不检查。
+
+  本文件保持 Strict 内核自包含（不 import `Formal.*`，见文件头独立性约定），中枢序列的
+  类型在调用方——故契约以**具名 Prop + 显式 binder**形态落地（N-2，不用 axiom）：
+  `TailFaithful read` = 每个 h 的 tail 都等于读数函数 `read h`；携带该证明的
+  `SoundOpenHist read` 是下游消费形态（判例：`Formal.DivergenceNesting.Type1BSPWithNesting`
+  的数据+证明包装）。tail 与读数脱钩的裸 `OpenHist` 仍可构造（它是数据载体），但任何
+  依赖「tail 忠实读数」的结论必须显式持有 `tail_faithful`。
+-/
+def TailFaithful (read : OpenHist → TailLean) : Prop :=
+  ∀ h, h.tail = read h
+
+/-- 携带 tail 读数契约证明的未完成走势（soundness 契约消费形态）。 -/
+structure SoundOpenHist (read : OpenHist → TailLean) where
+  hist : OpenHist
+  /-- ★soundness 契约：tail 忠实于中枢读数函数。 -/
+  tail_faithful : hist.tail = read hist
+
+/-- soundness：当下状态由忠实读数唯一给出（tail 被读数钉死后 current 的定义式）。 -/
+theorem sound_current_eq_read (read : OpenHist → TailLean) (h : SoundOpenHist read) :
+    current h.hist = OpenState.pendingTail (read h.hist) := by
+  unfold current
+  rw [h.tail_faithful]
+
 /-! ## 未来延伸分支集：Ext(h) = ⊔ⱼ Bⱼ(h) 互斥穷尽 -/
 
 /--
@@ -183,6 +210,59 @@ def extLeansContinuation (h h' : OpenHist) : Bool :=
 -/
 def branchOf (h h' : OpenHist) : Branch :=
   if extLeansContinuation h h' then Branch.continuation else Branch.reversal
+
+/-- soundness：延伸续延判定只依赖忠实读数——被判定对象 h 的 tail 换成读数后
+    `extLeansContinuation` 不变（h 作第二参数，其 tail 是判定的读数来源）。 -/
+theorem sound_ext_leans_eq_read (read : OpenHist → TailLean) (h : SoundOpenHist read)
+    (h' : OpenHist) :
+    extLeansContinuation h' h.hist =
+      extLeansContinuation h' { tail := read h.hist, origDir := h.hist.origDir } := by
+  unfold extLeansContinuation
+  rw [h.tail_faithful]
+
+/-- soundness：忠实读数下分支判定与用读数替换 tail 后的判定一致。 -/
+theorem sound_branch_eq_read (read : OpenHist → TailLean) (h : SoundOpenHist read)
+    (h' : OpenHist) :
+    branchOf h' h.hist = branchOf h' { tail := read h.hist, origDir := h.hist.origDir } := by
+  unfold branchOf
+  rw [sound_ext_leans_eq_read read h h']
+
+/-! ## 删前件自查（#871 纪律：前件删掉结论还成立就是空转） -/
+
+/-- 删前件自查见证：恒读 leaningUp 的读数函数。 -/
+def readLeaningUp : OpenHist → TailLean := fun _ => TailLean.leaningUp
+
+/-- 与读数脱钩的裸 hist：tail 记 leaningDown，而读数判 leaningUp。 -/
+def lyingHist : OpenHist := { tail := TailLean.leaningDown, origDir := Dir.up }
+
+/-- 忠实读数后的 hist（tail 换成读数结果）。 -/
+def faithfulHist : OpenHist :=
+  { tail := readLeaningUp lyingHist, origDir := lyingHist.origDir }
+
+/-- 前件承重见证：lyingHist 不满足 TailFaithful readLeaningUp（tail 与读数脱钩）。 -/
+example : ¬ TailFaithful readLeaningUp := by
+  intro h
+  have h' := h lyingHist
+  simp [readLeaningUp, lyingHist] at h'
+
+/-- 删前件自查（`sound_current_eq_read` 的前件版）：没有 tail_faithful，当下状态 ≠ 由
+    忠实读数给出的状态——裸 lyingHist 的 current 落在 leaningDown，不是读数判的 leaningUp。 -/
+example : current lyingHist ≠ OpenState.pendingTail (readLeaningUp lyingHist) := by
+  intro h
+  simp [current, lyingHist, readLeaningUp] at h
+
+/-- 删前件自查（`sound_ext_leans_eq_read` 的前件版）：同一参照 h' = faithfulHist 下，
+    裸 tail 说谎 ⟹ 续延判定为 false，而忠实读数下为 true——前件删掉后结论不成立。 -/
+example :
+    extLeansContinuation faithfulHist lyingHist = false
+    ∧ extLeansContinuation faithfulHist faithfulHist = true := by
+  constructor <;> rfl
+
+/-- 删前件自查（`sound_branch_eq_read` 的前件版，分支判定翻转 reversal vs continuation）。 -/
+example :
+    branchOf faithfulHist lyingHist = Branch.reversal
+    ∧ branchOf faithfulHist faithfulHist = Branch.continuation := by
+  constructor <;> rfl
 
 /--
   ★分支谓词 `branchPred`（标准第5部分 OpenTailSystem.BranchPred）：`h' ∈ Bⱼ(h)`。

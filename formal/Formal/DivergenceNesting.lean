@@ -424,6 +424,22 @@ def flip : Direction → Direction
   | Direction.down => Direction.up
 
 /--
+  ★候选走势沿原方向的当前极值（未完成走势已出现的最高/最低：上=外缘 gg 最大，
+  下=外缘 dd 最小；空中枢回退 0，与 `Move.interval` 的 foldr 哨兵同口径）。
+  这是「创出新极值」判定的客观参照——创新极值 ⟺ 观测价严格越过此极值。
+-/
+def OpenTail.currentExtreme (t : OpenTail) : Int :=
+  match t.origDir with
+  | Direction.up => (t.candidate.centers.map (·.gg)).foldr max 0
+  | Direction.down => (t.candidate.centers.map (·.dd)).foldr min 0
+
+/-- 观测价是否真越过原方向极值（「创出顺 t.origDir 新极值」的客观判据，L0）。 -/
+def beyondExtreme (t : OpenTail) (p : Int) : Bool :=
+  match t.origDir with
+  | Direction.up => t.currentExtreme < p
+  | Direction.down => p < t.currentExtreme
+
+/--
   ★未来延伸事件 ω ∈ Ext(t)（标准第5部分：未完成走势 t 之后可能出现的延续事件）。
 
   `ExtEvent t` **依赖** `t : OpenTail`——事件显式属于 t 的未来延伸集合 `Ext(t)`
@@ -431,10 +447,19 @@ def flip : Direction → Direction
   （背驰判据的可观测信号，对象否定对象，原则8——延续/反转由后续走势对象判定，不由阈值）：
   - `makesNewExtreme = true`：创出顺 `t.origDir` 的新极值 ⟹ 背驰被破坏（趋势延续）。
   - `makesNewExtreme = false`：未创新极值、反向走出 ⟹ 背驰成立（趋势反转）。
+
+  ★判定函数 soundness 契约（#871 第二项，修复 #857 缺口）：此前 `makesNewExtreme`
+  由调用者任意提供、Lean 不检查。现改为事件同时携带观测证据 `observedExtreme`
+  （事件后实际出现的沿原方向极值价）与 law 字段 `makesNewExtreme_sound`：
+  判定必须等于「观测价真越过原方向当前极值」的客观判据 `beyondExtreme`。
 -/
 structure ExtEvent (t : OpenTail) where
+  /-- 事件后实际观测到的沿原方向极值价（可观测证据，判定须对照它）。 -/
+  observedExtreme : Int
   /-- 后续走势是否创出顺 t.origDir 的新极值（背驰被破坏的可观测信号）。 -/
   makesNewExtreme : Bool
+  /-- ★soundness 契约：创新极值判定 = 观测价真越过原方向当前极值。 -/
+  makesNewExtreme_sound : makesNewExtreme = beyondExtreme t observedExtreme
 
 /--
   ★分支判定（标准第5部分：把 t 的延伸事件 ω 分到 Bⱼ(t)）。
@@ -513,6 +538,47 @@ theorem branches_cover {t : OpenTail} (ω : ExtEvent t) :
 theorem new_extreme_breaks {t : OpenTail} (ω : ExtEvent t) (h : ω.makesNewExtreme = true) :
     branchOf ω = divergenceBroken := by simp [branchOf, h]
 
+/-- 观测真创新极值 ⟹ 破坏分支（soundness 契约 + branchOf 的定义判定，L0）。 -/
+theorem observed_beyond_breaks {t : OpenTail} (ω : ExtEvent t)
+    (h : beyondExtreme t ω.observedExtreme = true) :
+    branchOf ω = divergenceBroken :=
+  new_extreme_breaks ω (ω.makesNewExtreme_sound.trans h)
+
+/-- 破坏分支 ⟺ 观测真创新极值（双向，soundness 契约下分支判定与客观判据一致）。 -/
+theorem broken_iff_observed_beyond {t : OpenTail} (ω : ExtEvent t) :
+    branchOf ω = divergenceBroken ↔ beyondExtreme t ω.observedExtreme = true := by
+  constructor
+  · intro hb
+    unfold branchOf at hb
+    rw [ω.makesNewExtreme_sound] at hb
+    split at hb
+    · assumption
+    · cases hb
+  · intro h
+    exact observed_beyond_breaks ω h
+
+/-- 成立分支 ⟺ 观测未真创新极值（双向，soundness 契约下分支判定与客观判据一致）。 -/
+theorem holds_iff_not_observed_beyond {t : OpenTail} (ω : ExtEvent t) :
+    branchOf ω = divergenceHolds ↔ beyondExtreme t ω.observedExtreme = false := by
+  constructor
+  · intro hh
+    unfold branchOf at hh
+    rw [ω.makesNewExtreme_sound] at hh
+    split at hh
+    · cases hh
+    · rename_i hnot
+      cases hbx : beyondExtreme t ω.observedExtreme
+      · rfl
+      · exact absurd hbx hnot
+  · intro h
+    unfold branchOf
+    rw [ω.makesNewExtreme_sound]
+    split
+    · rename_i htrue
+      rw [h] at htrue
+      cases htrue
+    · rfl
+
 /--
   ★未创新极值 ⟹ 成立分支（B₁，趋势反转，002，L0）。
 -/
@@ -548,6 +614,92 @@ theorem broken_continues_direction {t : OpenTail} (ω : ExtEvent t)
 -/
 theorem result_directions_differ (d : Direction) : flip d ≠ d := by
   cases d <;> simp [flip]
+
+/-! ## 删前件自查（#871 纪律：前件删掉结论还成立就是空转） -/
+
+/-- 删前件自查材料：无 law 字段的裸延伸事件（#871 修复前形态）。 -/
+structure RawExtEvent (t : OpenTail) where
+  observedExtreme : Int
+  makesNewExtreme : Bool
+
+/-- 裸事件的分支判定（与 branchOf 同构，但不带 soundness 契约）。 -/
+def RawExtEvent.branchOf {t : OpenTail} (ω : RawExtEvent t) : ExtBranch :=
+  if ω.makesNewExtreme then divergenceBroken else divergenceHolds
+
+/-- 删前件自查见证用的未完成走势：单中枢 + 上方向 + 背驰未确认（pending）。 -/
+def sampleOpenTail : OpenTail :=
+  { candidate :=
+      { subs := []
+        centers := [⟨0, 1, 2, 3, by decide, by decide, by decide⟩]
+        level := 1
+        divergenceConfirmed := false
+        settled := false
+        settled_sound := rfl }
+    origDir := Direction.up
+    pending_only := rfl }
+
+/-- 见证：上方向下该走势的当前极值 = 外缘 gg = 3。 -/
+example : sampleOpenTail.currentExtreme = 3 := by decide
+
+/-- 删前件自查反例：观测价 4 已真创新极值，但裸事件谎报 makesNewExtreme = false ⟹
+    裸分支判定落入 holds（背驰成立）——与客观判据（破坏/延续）相反。 -/
+def lyingRawEvent : RawExtEvent sampleOpenTail :=
+  { observedExtreme := 4, makesNewExtreme := false }
+
+example :
+    beyondExtreme sampleOpenTail lyingRawEvent.observedExtreme = true
+    ∧ RawExtEvent.branchOf lyingRawEvent = divergenceHolds := by
+  constructor <;> rfl
+
+/-- law 字段承重见证：带契约的 ExtEvent 上不可能「观测真创新极值 ∧ makesNewExtreme = false」
+    （`makesNewExtreme_sound` 把判定钉死在客观判据上）。 -/
+example : ¬ ∃ (ω : ExtEvent sampleOpenTail),
+    beyondExtreme sampleOpenTail ω.observedExtreme = true ∧ ω.makesNewExtreme = false := by
+  rintro ⟨ω, hbeyond, hmake⟩
+  rw [ω.makesNewExtreme_sound] at hmake
+  rw [hbeyond] at hmake
+  cases hmake
+
+/-- 删前件自查反例（`observed_beyond_breaks` 的前件版）：观测价 2 未越过当前极值 3 的
+    带契约事件（law 字段由 `decide` 核验），branchOf 落在 holds 而非 broken——
+    前件删掉后结论全称化 `∀ t ω, branchOf ω = divergenceBroken` 被同一事件证伪。 -/
+def noBeyondEvent : ExtEvent sampleOpenTail :=
+  { observedExtreme := 2
+    makesNewExtreme := false
+    makesNewExtreme_sound := by decide }
+
+example : beyondExtreme sampleOpenTail noBeyondEvent.observedExtreme = false := by decide
+
+example : branchOf noBeyondEvent = divergenceHolds := rfl
+
+example : ¬ ∀ (t : OpenTail) (ω : ExtEvent t), branchOf ω = divergenceBroken := by
+  intro h
+  have hbad := h sampleOpenTail noBeyondEvent
+  have hhold : branchOf noBeyondEvent = divergenceHolds := rfl
+  rw [hhold] at hbad
+  exact ExtBranch.noConfusion hbad
+
+/-- 删前件自查（`broken_iff_observed_beyond` 的 law 删除版）：裸事件上「破坏分支 ⟺ 观测真
+    创新极值」不成立——观测真创新极值（= true）但裸判定落 holds。 -/
+example :
+    ¬ (RawExtEvent.branchOf lyingRawEvent = divergenceBroken
+        ↔ beyondExtreme sampleOpenTail lyingRawEvent.observedExtreme = true) := by
+  intro h
+  have hbroken := (h.2 rfl)
+  have hhold : RawExtEvent.branchOf lyingRawEvent = divergenceHolds := rfl
+  rw [hhold] at hbroken
+  exact ExtBranch.noConfusion hbroken
+
+/-- 删前件自查（`holds_iff_not_observed_beyond` 的 law 删除版）：裸事件上「成立分支 ⟺ 观测未
+    真创新极值」不成立——裸判定落 holds（LHS = true）而观测真创新极值（RHS = true 而非 false）。 -/
+example :
+    ¬ (RawExtEvent.branchOf lyingRawEvent = divergenceHolds
+        ↔ beyondExtreme sampleOpenTail lyingRawEvent.observedExtreme = false) := by
+  intro h
+  have hnotbeyond := (h.1 rfl)
+  have hbeyond : beyondExtreme sampleOpenTail lyingRawEvent.observedExtreme = true := rfl
+  rw [hbeyond] at hnotbeyond
+  cases hnotbeyond
 
 /-!
   ### 衔接上游状态层：OpenTail 的 candidate 确实是 pending（标准第5部分前后半的接缝）

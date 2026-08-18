@@ -581,12 +581,23 @@ theorem no_window_when_too_short (subs : List Move) (c : Center)
   ★实时走势候选（标准第5部分：未完成走势是 μF 的当下状态，不是新构造子）。
   `settled : Bool` 标记结构是否已封闭——`true`=已完成（可给最终结果），
   `false`=未完成（只给当下状态，不给最终结果）。
+
+  ★判定函数 soundness 契约（#871 第二项，修复 #857 缺口）：此前 `settled` 由调用者任意
+  提供、Lean 不检查。现改为调用者同时给出背驰确认判定 `divergenceConfirmed` 与逐点一致
+  证明 `settled_sound`。「完成由背驰定义」（beichi.md:228-232——不是先由形状判出完成再喂给
+  背驰，而是背驰判出来了就叫完成）。本层无力度数据，`divergenceConfirmed` 是调用方给出的
+  显式前提（N-2 形态，不用 axiom）；该判定自身相对真实力度的正确性不在本层检查
+  （诚实开口，同 `Origin.Turn` 对 `DivergencePair` 层级缺口的处置）。
 -/
 structure CandidateMove where
   subs : List Move
   centers : List Center
   level : Nat
+  /-- 背驰确认判定：候选走势是否已由背驰判定完成（显式前提，N-2）。 -/
+  divergenceConfirmed : Bool
+  /-- settled 忠实记录背驰确认判定（soundness 契约）。 -/
   settled : Bool
+  settled_sound : settled = divergenceConfirmed
 
 /--
   ★走势的当下状态（标准第5部分，μF 状态层：未完成走势只给状态，不给最终结果）。
@@ -638,12 +649,27 @@ theorem candidate_state_unique (c : CandidateMove) :
     ∃ s, c.state = s ∧ ∀ s', c.state = s' → s' = s :=
   ⟨c.state, rfl, fun _ h => h.symm⟩
 
+/-- soundness：settled = true ⟺ 背驰确认判定为 true（law 字段的直接读出）。 -/
+theorem settled_iff_confirmed (c : CandidateMove) :
+    c.settled = true ↔ c.divergenceConfirmed = true := by
+  rw [c.settled_sound]
+
+/-- soundness：settled = false ⟺ 背驰确认判定为 false。 -/
+theorem pending_iff_unconfirmed (c : CandidateMove) :
+    c.settled = false ↔ c.divergenceConfirmed = false := by
+  rw [c.settled_sound]
+
 /--
   ★已完成走势 ⟹ completed 状态（可给最终结果，L0）。
 -/
 theorem settled_gives_completed (c : CandidateMove) (h : c.settled = true) :
     c.state = completed (classifyMove c.centers) := by
   simp [CandidateMove.state, h]
+
+/-- 背驰确认 ⟹ completed 状态（soundness 契约下由判定值直接推出 settled = true）。 -/
+theorem confirmed_gives_completed (c : CandidateMove) (h : c.divergenceConfirmed = true) :
+    c.state = completed (classifyMove c.centers) :=
+  settled_gives_completed c ((settled_iff_confirmed c).2 h)
 
 /--
   ★未完成走势 ⟹ pending 状态（只给当下状态，不给最终结果，L0，标准第5部分核心修正）。
@@ -654,6 +680,11 @@ theorem settled_gives_completed (c : CandidateMove) (h : c.settled = true) :
 theorem pending_gives_pending (c : CandidateMove) (h : c.settled = false) :
     c.state = pending (classifyMove c.centers) := by
   simp [CandidateMove.state, h]
+
+/-- 背驰未确认 ⟹ pending 状态（soundness 契约下由判定值直接推出 settled = false）。 -/
+theorem unconfirmed_gives_pending (c : CandidateMove) (h : c.divergenceConfirmed = false) :
+    c.state = pending (classifyMove c.centers) :=
+  pending_gives_pending c ((pending_iff_unconfirmed c).2 h)
 
 /--
   ★`pending` 不是最终结果（标准第5部分，L0）：`pending o ≠ completed o`。
@@ -698,5 +729,79 @@ theorem candidate_overreach_rejected (c : CandidateMove) (h : c.settled = false)
   rw [pending_gives_pending c h]
   intro heq
   exact MoveState.noConfusion heq
+
+/-! ## 删前件自查（#871 纪律：前件删掉结论还成立就是空转） -/
+
+/-- 删前件自查材料：无 law 字段的裸候选（#871 修复前形态）。 -/
+structure RawCandidate where
+  centers : List Center
+  settled : Bool
+  divergenceConfirmed : Bool
+
+/-- 裸候选的状态路由（与 `CandidateMove.state` 同构，但不带 soundness 契约）。 -/
+def RawCandidate.state (c : RawCandidate) : MoveState :=
+  if c.settled then completed (classifyMove c.centers) else pending (classifyMove c.centers)
+
+/-- 单中枢见证（外缘 [0,3]、核心 [1,2]，与 Strict.Trend 真链中枢同构）。 -/
+def oneCenter : Center := ⟨0, 1, 2, 3, by decide, by decide, by decide⟩
+
+/-- 删前件自查反例：settled = true 与 divergenceConfirmed = false 可共存于裸候选——
+    这正是 law 字段排除的脱钩（背驰未确认却标已完成）。 -/
+def lyingRawCandidate : RawCandidate :=
+  { centers := [oneCenter], settled := true, divergenceConfirmed := false }
+
+example :
+    RawCandidate.state lyingRawCandidate = completed (classifyMove [oneCenter])
+    ∧ lyingRawCandidate.divergenceConfirmed = false :=
+  ⟨rfl, rfl⟩
+
+/-- law 字段承重见证：`CandidateMove` 上不可能 settled = true 而 divergenceConfirmed = false
+    （`settled_sound` 把两者钉死）。 -/
+example : ¬ ∃ c : CandidateMove, c.settled = true ∧ c.divergenceConfirmed = false := by
+  rintro ⟨c, hs, hd⟩
+  rw [c.settled_sound] at hs
+  rw [hd] at hs
+  cases hs
+
+/-- 删前件自查：`confirmed_gives_completed` 的前件（背驰确认）删掉后结论不成立——
+    未确认候选的状态是 pending 而非 completed。 -/
+def unconfirmedCandidate : CandidateMove :=
+  { subs := []
+    centers := [oneCenter]
+    level := 1
+    divergenceConfirmed := false
+    settled := false
+    settled_sound := rfl }
+
+example : unconfirmedCandidate.state = pending (classifyMove [oneCenter]) := rfl
+
+/-- 删前件自查：`confirmed_gives_completed` 的前件（背驰确认）删掉后结论不成立——
+    未确认候选的状态是 pending，与任何 completed（最终结果地位）都不相等。 -/
+example : ¬ ∀ c : CandidateMove, c.state = completed (classifyMove c.centers) := by
+  intro h
+  have hbad := h unconfirmedCandidate
+  have hpending : unconfirmedCandidate.state = pending (classifyMove [oneCenter]) := rfl
+  rw [hpending] at hbad
+  exact MoveState.noConfusion hbad
+
+/-- 删前件自查反例：背驰已确认的候选（`unconfirmed_gives_pending` 的前件版）。 -/
+def confirmedCandidate : CandidateMove :=
+  { subs := []
+    centers := [oneCenter]
+    level := 1
+    divergenceConfirmed := true
+    settled := true
+    settled_sound := rfl }
+
+example : confirmedCandidate.state = completed (classifyMove [oneCenter]) := rfl
+
+/-- 删前件自查：`unconfirmed_gives_pending` 的前件（背驰未确认）删掉后结论不成立——
+    已确认候选的状态是 completed，与任何 pending（当下状态地位）都不相等。 -/
+example : ¬ ∀ c : CandidateMove, c.state = pending (classifyMove c.centers) := by
+  intro h
+  have hbad := h confirmedCandidate
+  have hcompleted : confirmedCandidate.state = completed (classifyMove [oneCenter]) := rfl
+  rw [hcompleted] at hbad
+  exact MoveState.noConfusion hbad
 
 end Formal.RecursiveConstruction
