@@ -28,10 +28,8 @@ for br in $(git branch --list 'sandcastle/issue-*' --format='%(refname:short)' |
   if [ -z "$shas" ]; then echo "SKIP $br (no new commits)"; continue; fi
   ok=1
   for sha in $shas; do
-    # set -e: a bare failing cherry-pick would abort the whole script before rc is
-    # read (conflict branch below = dead code); `|| rc=$?` keeps both paths alive.
-    rc=0
-    git -C "$WT" cherry-pick "$sha" >/dev/null 2>&1 || rc=$?
+    git -C "$WT" cherry-pick "$sha" >/dev/null 2>&1 || true
+    rc=$?
     if [ $rc != 0 ]; then
       if git -C "$WT" diff --cached --quiet 2>/dev/null; then
         git -C "$WT" cherry-pick --skip >/dev/null 2>&1 || git -C "$WT" reset -q --hard HEAD
