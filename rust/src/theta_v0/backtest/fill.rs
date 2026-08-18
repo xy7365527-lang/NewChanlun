@@ -1360,8 +1360,9 @@ struct CenterOscillationStepOutput {
 /// 后的多头侧口径同为正数但成因不同，两者截断写法只是形似，不构成同一惯例，不再混引。
 ///
 /// ★#880 聚合口径（旧「符号不对即视同空仓」按侧按级保留）：逐侧取 `held`（空头侧翻符号）
-/// 后 **`held>0` 才进聚合**——某级某侧符号异常（负）视同该级该侧空仓、不稀释同重其它级别
-/// 的正持仓；成本基只累加有持仓级别的 `cost_basis_side`（恒正口径不变）。
+/// 后 **`held` 截断为整数份数后 `>0` 才进聚合**——某级某侧符号异常（负）或 <1 lot 的分数
+/// 持仓视同该级该侧空仓、不稀释同重其它级别的正持仓；成本基只累加有持仓级别的
+/// `cost_basis_side`（恒正口径不变）。
 #[allow(clippy::too_many_arguments)] // #880 增 key_of_level（结构级别→重映射），同仓惯例
 fn drive_campaign_wiring(
     bar: usize,
@@ -1396,7 +1397,9 @@ fn drive_campaign_wiring(
         // **翻符号**（非取绝对值）折成「持有份数」：`held>0 ⟺ 该侧有仓`。取绝对值会把
         // 「多头侧余额意外为负」这类异常态伪装成有仓；翻符号保持「符号不对即视同空仓」
         // 的既有多头侧行为。`cost_basis_side` 恒为正的在险市值口径（account.rs:292
-        // `delta.abs()*fill_px`），不翻。★#880：`held>0` 才进聚合（见函数文档聚合口径）。
+        // `delta.abs()*fill_px`），不翻。★#880：`held` 截断为整数份数后 >0 才进聚合
+        // （见函数文档聚合口径）——<1 lot 的分数持仓按旧口径视同空仓，不得建出 units=0
+        // 的聚合条目（否则下方 `(false,false) => unreachable!()` 会被触发）。
         for side in [VoiceSide::Long, VoiceSide::Short] {
             let signed = account_view.balance_side(account, side);
             let held = if matches!(side, VoiceSide::Short) {
@@ -1404,17 +1407,20 @@ fn drive_campaign_wiring(
             } else {
                 signed
             };
-            if held <= 0.0 {
+            // 先按旧口径截断成整数份数再判空仓：`held>0.0` 但 `held as i64==0`（分数持仓）
+            // 直接进聚合会建出 units=0 的条目，触发 `unreachable!` panic。
+            let units = held as i64;
+            if units <= 0 {
                 continue;
             }
             let entry = agg.entry(key_of_level(lvl)).or_default();
             let cb = account_view.cost_basis_side(account, side) as i64;
             // 迭代域只含 Long/Short（`Flat` 不参与）；用 if/else 避开第三变体的伪穷尽。
             if matches!(side, VoiceSide::Long) {
-                entry.long_units += held as i64;
+                entry.long_units += units;
                 entry.long_cost_basis += cb;
             } else {
-                entry.short_units += held as i64;
+                entry.short_units += units;
                 entry.short_cost_basis += cb;
             }
         }
@@ -1475,7 +1481,7 @@ fn drive_campaign_wiring(
                 a.short_units,
                 a.short_cost_basis,
             ),
-            (false, false) => unreachable!("聚合条目仅在 held>0 时建立"),
+            (false, false) => unreachable!("聚合条目仅在整数份数 units>0 时建立"),
         }
     }
     let live_keys: Vec<ChongKey> = campaign_book.keys().cloned().collect();
@@ -2768,6 +2774,45 @@ mod campaign_wiring_tests {
             "违例 bar 不产生任何开仓生事件"
         );
     }
+
+    /// ★#880 review 回归锁：<1 lot 的分数持仓按旧口径视同空仓——不进聚合、不开 campaign，
+    /// 不得触发聚合循环的 `(false,false) => unreachable!()`（修前：`held>0.0` 建出 units=0
+    /// 的条目即 panic）。
+    #[test]
+    fn drive_campaign_wiring_fractional_lot_treated_as_flat_not_panic() {
+        let mut account_view = strategy::account::ParallelAccountLedger::new();
+        account_view.post(
+            AccountOrder {
+                key: core_key(0),
+                reason: ActionReason::Open,
+                qty_delta: 0.5,
+                decision_bar: 0,
+            },
+            10.0,
+            0,
+        );
+
+        let mut book = CampaignBook::new();
+        let mut witness = CampaignWiringWitness::new();
+        drive_campaign_wiring(
+            0,
+            1,
+            &account_view,
+            &[],
+            &[],
+            10,
+            RiskMode::Normal,
+            &mut book,
+            &mut witness,
+            &one_chong,
+        );
+        assert_eq!(
+            book.active_count(),
+            0,
+            "分数持仓(<1 lot) 视同空仓，不开 campaign"
+        );
+        assert!(witness.lifecycle_opened.is_empty());
+    }
 }
 
 #[cfg(test)]
@@ -2797,18 +2842,6 @@ mod center_oscillation_wiring_tests {
     use classifier::recursive_tower::{ElementId, LeveledMove};
     use classifier::{bsp::BspPoint, bsp::OwnerRef, Classification, LevelState};
     use std::rc::Rc;
-
-    /// ★#880：测试重键 + 默认映射（所有结构级别同属一重 ("T", 0)）。
-    fn ck(op_level: u8) -> super::super::super::strategy::chong::ChongKey {
-        super::super::super::strategy::chong::ChongKey {
-            symbol: "T".to_string(),
-            op_level,
-        }
-    }
-
-    fn one_chong(_: u32) -> super::super::super::strategy::chong::ChongKey {
-        ck(0)
-    }
 
     fn center(start_index: usize, end_index: usize, zd: i64, zg: i64) -> Center {
         Center {
