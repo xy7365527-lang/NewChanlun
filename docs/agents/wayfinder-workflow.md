@@ -1,6 +1,6 @@
 # Wayfinder 工作流（五段管线）
 
-来源：2026-07-30 对照 Matt Pocock wayfinder 视频（"Nothing is too big to plan anymore"）的使用盘点与裁定，编排者批准三项决策：**新图严格两段式**、**启用 prototype 票**、**固化本文档**。2026-07-30 再次并入地图 [本仓 wayfinder 工作流正本 #767](https://github.com/xy7365527-lang/NewChanlun/issues/767) 的十张裁定票——本文档自此是本仓 wayfinder 路由的唯一正本。
+来源：2026-07-30 对照 Matt Pocock wayfinder 视频（"Nothing is too big to plan anymore"）的使用盘点与裁定，编排者批准三项决策：**新图严格两段式**、**启用 prototype 票**、**固化本文档**。2026-08-18 走 [wayfinder 流程修订 #1075](https://github.com/xy7365527-lang/NewChanlun/issues/1075) **反转两段式**：决策与实装不分开——图清即按 ask-matt 主流程当场收口（`/to-spec` → `/to-tickets` → `/implement` 全链，图内），两段式裁定与 #770 声明一保留作历史（见下）。2026-07-30 再次并入地图 [本仓 wayfinder 工作流正本 #767](https://github.com/xy7365527-lang/NewChanlun/issues/767) 的十张裁定票——本文档自此是本仓 wayfinder 路由的唯一正本。
 
 tracker 物理操作（map/子票/blocking/frontier/claim/resolve 的 gh 命令）见 `docs/agents/issue-tracker.md`「Wayfinding operations」，本文只管流程形态与票型口径。交付纪律（关票门、开票门、豁免举证、编号复用）见 `docs/agents/delivery-discipline.md`；入仓名分见 `docs/agents/generation-constitution.md`；统计口径标注见 `docs/agents/stat-provenance.md`。本文对这三份**只挂指针、不复述**。
 
@@ -35,7 +35,7 @@ tracker 物理操作（map/子票/blocking/frontier/claim/resolve 的 gh 命令�
 1. **开图**（编排层，占一个 session）：grilling 定 destination → 广度优先烤 frontier（扇形铺开，不深挖单线）→ 建 map（`wayfinder:map`，Destination/Notes 填好，雾写进 Not yet specified）→ 建可具体化的票 → 第二 pass 接 blocking 边。**research 票当场并发发 subagent 解决**，不等后续 session。开图 session 不解决任何票。第二轮广度烤 frontier 时，顺带把「本图红线 / 默认取舍」当成其中几题一起问，答案落 Notes（见「Notes 预授权」）。
 2. **走图**（一票一 session）：**开头先跑对账**（见「图正文的写入协议」）→ 取 frontier 第一票（open + 无 open blocker + 未 assign；用户点名则从其点名）→ **claim 先行**（assign 是 session 首写）→ 按票型解决（见下）→ resolution comment 写答案 → close → map 的 Decisions-so-far 加一行（gist + 链接，详情只留在票内）→ 毕业因此具体化的雾、新开浮出的票、把越出 destination 的票关票并登记 Out of scope。frontier 上无阻塞的票可并行多 session 走。
 3. **图闭环出 spec**：见「`/to-spec` 交棒边界」。
-4. **实施票链**：spec 批准后切实施票 → claude sonnet 实装 → opus 影子评审 → 逐票评审合入，关票走 `delivery-discipline.md` 关票门全子句。实施票落在图里还是图外，由图的实装声明决定（见下）。
+4. **实施票链（图内，当场走）**：spec 批准后 `/to-tickets` 切实装票（挂图内、blocking 边）→ `/implement` 逐票（内部 `/tdd` 红绿切片 + `/code-review` 两轴收尾）→ 逐票评审合入，关票走 `delivery-discipline.md` 关票门全子句。**决策了就实装**——不停在 spec、不攒批、不走图外实施线。实施票落在图里还是图外，由图的实装声明决定（见下）。
 5. **spec 非持久**：实装落地后 spec 票关闭，不作长期维护的真理源。真理源是代码 + 决策票；spec 从落地那刻起是历史记录。
 
 ## 图的两行声明
@@ -44,11 +44,11 @@ tracker 物理操作（map/子票/blocking/frontier/claim/resolve 的 gh 命令�
 
 ### 声明一：本图带不带实装
 
-[task 票名分收束 #770](https://github.com/xy7365527-lang/NewChanlun/issues/770) 裁定：**带实装的图，Notes 必须有一行显式声明 + 理由。没声明 = 纯决策图，实装票不准挂。**
+[wayfinder 流程修订 #1075](https://github.com/xy7365527-lang/NewChanlun/issues/1075) 裁定（2026-08-18，**反转** [task 票名分收束 #770](https://github.com/xy7365527-lang/NewChanlun/issues/770)）：**默认带实装**——没声明 = 决策+实装混合图，实装票可挂图内、决策锁即派发。**纯决策图才需 Notes 显式声明 + 理由**（「本图为纯决策图，不带实装——理由：…」）。
 
-skill 原文本就允许这个例外口（「An effort can override this in its **Notes** — carrying execution into the map itself」），所以带实装本身合法，真缺陷是一致性：读者点开一张开着的图，判不出它是纯决策图还是混合图。措辞样板取自 [端到端模块化 #743](https://github.com/xy7365527-lang/NewChanlun/issues/743)：「**本图带实装**（决策+执行混合：形态有真裁处的票内烤，实装走 task 票逐票评审合入）」。
+反转理由：决策与实装不分开（#1075），两段式下的「图关后另走实施线」制造决策-实装空档。skill 原文本的例外口（「An effort can override this in its **Notes** — carrying execution into the map itself」）自此成为默认；措辞样板沿用 [端到端模块化 #743](https://github.com/xy7365527-lang/NewChanlun/issues/743)：「**本图带实装**（决策+执行混合：形态有真裁处的票内烤，实装走 task 票逐票评审合入）」。
 
-规则有真实判别力，不是无脑加行——[missing_cert 成因定案 #737](https://github.com/xy7365527-lang/NewChanlun/issues/737) 的 task 型子票是 **0/4**，它是纯决策图，按本规则**不需要也不应该有**声明。
+规则仍有真实判别力——[missing_cert 成因定案 #737](https://github.com/xy7365527-lang/NewChanlun/issues/737) 的 task 型子票是 **0/4**：它需要的不是「带实装声明」，而是**纯决策声明 + 理由**（无声明即默认带实装）。
 
 ### 声明二：本图的寿命预期
 
@@ -86,7 +86,7 @@ skill 原文本就允许这个例外口（「An effort can override this in its 
 
   | 种 | 内容 | 名分 |
   |---|---|---|
-  | 甲 | 纯实装（决策已在别票做完，本票只去干） | **只能挂进声明了带实装的图** |
+  | 甲 | 纯实装（决策已在别票做完，本票只去干） | **默认可挂**（图默认带实装，票面挂裁定票）；挂进**声明了纯决策**的图 = 违规 |
   | 乙 | 探针 / 测量 / 勘察 → 喂决策 | 本来就够格，不受限 |
   | 丙 | 实验 / 跑批 → 产读数喂裁定 | 近乙，不受限 |
   | 丁 | 文书 / 名分 / 口径落文 | 伪类，见下 |
@@ -167,12 +167,12 @@ skill 原文本就允许这个例外口（「An effort can override this in its 
 
 ## `/to-spec` 交棒边界
 
-图走完之后去哪，wayfinder 与 ask-matt 两份上游 skill 正文**都没写**——这是三源比对查出的最大空白（[三方口径差异清单 #768](https://github.com/xy7365527-lang/NewChanlun/issues/768)：两份正文对「图完成之后去哪」完全没写、从不点名 `/to-spec`；两份也**都没提 prototype 票型**，那正是本仓 prototype 0/0 的成因之一）。本仓口径如下（[spec 的两种名分 #775](https://github.com/xy7365527-lang/NewChanlun/issues/775)）。
+图走完之后去哪：**ask-matt 现行正文已写明**（wayfinder on-ramp 段：图清 → `/to-spec` 折叠决策 → `/to-tickets` → `/implement`）——#768 当年指认的空白已由上游补上，本仓按 #1075 采纳并当场执行（决策了就实装）。prototype 票型上游仍无（本仓启用见票型口径节）。本仓口径如下（[spec 的两种名分 #775](https://github.com/xy7365527-lang/NewChanlun/issues/775)）。
 
 **spec 的形态不是选出来的，是被图的实装声明决定的**（#770 的直接推论）：
 
-- 图的 Notes **没有**带实装声明 = 纯决策图 → 实装必须去图外 → spec **出图**，牵出全新实施票，首行写「本 spec 由 map #N 交棒而来，产新实施票」。
-- 图的 Notes **声明了**带实装 → 实装票留在图里 → spec **不出图**，是一份实施总单，首行写「本 spec 是 map #N 的实施总单，实施票在图内」。
+- 图的 Notes **声明了纯决策**（+理由）→ 实装必须去图外 → spec **出图**，牵出全新实施票，首行写「本 spec 由 map #N 交棒而来，产新实施票」。（#1075 后此为少数派）
+- 图**默认带实装** → 实装票留在图里 → spec **不出图**，是一份实施总单，首行写「本 spec 是 map #N 的实施总单，实施票在图内」。（#1075 后此为默认）
 
 写反了会和图正面打架（同一批实装出现在两处），肉眼可见，不设巡查。
 
@@ -196,7 +196,15 @@ skill 原文本就允许这个例外口（「An effort can override this in its 
 - **标题前缀与 `wayfinder:<type>` 标签必须一致**，且**两者同时对齐到这张票实际在做的事**——不是把标题抄成标签，也不是把标签抄成标题；抄错一边就是把错的复制过去（[#782](https://github.com/xy7365527-lang/NewChanlun/issues/782) 裁定③）。前缀打架不伤机器行为（frontier 查询、子票清点走的全是 `--label`），但会误导读票的人。
 - **不设巡查**，与本文其余声明制条款同款。存量零动作：实测的 17 张前缀/标签打架的票**全部已关闭**，按 Out of scope 不回溯。
 
-## 两段式裁定（2026-07-30）
+## 决策实装一体（2026-08-18，[#1075](https://github.com/xy7365527-lang/NewChanlun/issues/1075) 反转两段式）
+
+- **图默认带实装**：决策+实装同图一体，决策票关票当场开实装票挂图内、立即派发（不攒到图关）。
+- **图清即收口**：决策锁完即按 **ask-matt 主流程当场走完**——`/to-spec`（决策折叠成可建计划）→ `/to-tickets`（tracer-bullet 实装票、blocking 边）→ `/implement`（逐票，内部 `/tdd` + `/code-review`）——不停在 spec 出图、不走图外实施线。ask-matt 现行正文已写明此路由（wayfinder on-ramp 段）；#768 当年指认的「上游没写图完成之后去哪」已过时。
+- **纯决策图例外（声明制）**：Notes 显式声明 + 理由，实装走图外（spec 出图）。
+- **skip 例外**（ask-matt 原口径）：effort 确实小 → 图清直接 `/implement`，跳过 spec 折叠——以不丢决策链接为限。
+- **在飞图**：按各自 Notes 声明跑完不动（沿袭 2026-07-30 条款）；[#1055](https://github.com/xy7365527-lang/NewChanlun/issues/1055) 随 #1075 当场改声明为带实装。
+
+## 两段式裁定（2026-07-30，**已由 #1075 反转，保留作历史**）
 
 - **新图严格两段**：map 只产决策，destination 是「路看清了/决策锁了/spec 出来了」；实装不进 map 的 task 票——除非图 Notes 显式声明带实装（见「图的两行声明」）。
 - **在飞图不动**：已显式 override「决策+执行混合」的图（[#743](https://github.com/xy7365527-lang/NewChanlun/issues/743)、[#529](https://github.com/xy7365527-lang/NewChanlun/issues/529) 等）维持现状跑完，不中途拆票迁票。
