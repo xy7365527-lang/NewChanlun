@@ -98,6 +98,20 @@ tracker 物理操作（map/子票/blocking/frontier/claim/resolve 的 gh 命令�
 
   **排除句**：与在飞决策不挂钩的文本欠账（老文书归置、历史假注释订正之类）**不进图**，走 triage 挂 `debt`。「丁类」不是一种票型——把已裁定的东西落成文本是 grilling 票 resolution 的后半程，不是独立票。
 
+## 管线自动化（2026-08-18，[#1078](https://github.com/xy7365527-lang/NewChanlun/issues/1078) 裁定）
+
+图清后管道自动汇入主干：**机器走管道，人守三闸**（spec 批准 / 不预授权决策 / 合入 main）。
+
+- **形态**：graph 语义 + loop 壳。DAG 走查器 = 纯函数（tracker 状态 → 触发动作）；壳 = 4 分钟轮询（watcher.sh / dispatcher 子代理先例）；日后可换事件驱动不动内核。
+- **宿主**：独立件 `scripts/wayfinder_engine`（控制面）；spec 草案 = rlm 子代理起草（只读文书，#1000 例外类）；实装票派 sandcastle 工蜂（既有两段式通道）。
+- **状态**：stateless——tracker 即账本，每轮重算 ready 集、天然幂等，不建状态库。
+- **自动动作边界**：
+  1. 图清（子票全关、frontier 空）→ 自动起草 spec 草案、开图内 spec 票、@编排者批【闸一】；
+  2. spec 批准 → 自动拆 tracer-bullet 实装票（blocking 边 + 票面逐条挂裁定票）+ `sandcastle` 标签 → 工蜂拾取 `/implement`；合入 main 人工闸不动【闸二】；
+  3. 实装票全关 + 图关判据满足（destination 达成、残雾三去处核实）→ 自动起草图关 comment + close。
+- **不碰决策票（v1）**：决策票（含 Notes N-k 预授权照判）一律人工——机器不替人裁；v2 观察项 = 预授权影子模式（自动起草 resolution、不关票，人批才发）。
+- 实装票：[#1084](https://github.com/xy7365527-lang/NewChanlun/issues/1084)（sandcastle 通道）。
+
 ## 一票一会话与并行纪律
 
 - **一票一 session**，每 session 最多解决一张票。**例外面 = 全部 AFK 票**（research + 可无人值守的 task）——这条规则保护的是**人的上下文新鲜度**，AFK 票根本不消耗它（[#776](https://github.com/xy7365527-lang/NewChanlun/issues/776) 裁定⑤）。HITL 票（grilling / prototype）严格一票一会话，不扩。
