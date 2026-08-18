@@ -9,4 +9,5 @@ mod pan_memo_a;
 mod pan_memo_b;
 mod pan_memo_fixtures;
 mod projection_pairing;
+mod seed_mapping;
 mod triple_anchor;

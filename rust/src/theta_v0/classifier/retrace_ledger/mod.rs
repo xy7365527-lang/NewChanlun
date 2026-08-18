@@ -108,7 +108,11 @@ pub use portal::{
 ///
 /// **判据分工**：「严格相邻」（`retest == leave + 1`，补充十五紧邻语义）由
 /// [`adapter::admit_input`] 在注册期强制；`leave` / `retest` 各自是否唯一属于一根 Completed Move
-/// 是**上游 provider 的职责**——本账入口只接已配对 pair，不重做投影层的映射证明。
+/// 是**上游 provider 的职责**——本账入口只接已配对 pair，不重做投影层的映射证明。该证明已于
+/// #640 在 provider 侧重落地（[`super::level_view::strict_completed_pair`] /
+/// [`super::level_view::unique_completed_move`]），四类 fail-closed 码
+/// [`super::level_view::StrictPairError`] 与本适配器 missing/不紧邻桶对齐；账本入口的
+/// [`adapter::admit_input`] 只重验不紧邻一条（同判据两层防线，非宽严两档）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StrictCompletedPair {
     /// 离开中枢那根 CompletedMove 的索引。

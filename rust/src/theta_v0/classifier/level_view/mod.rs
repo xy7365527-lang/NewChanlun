@@ -19,6 +19,7 @@ mod confirm;
 mod pan;
 mod pan_provider;
 mod projection;
+mod seed_mapping;
 
 use super::super::types::{Direction, MoveKind, Side};
 use super::decompose::{MoveBlock, MoveStatus};
@@ -36,6 +37,9 @@ pub use projection::{
     ExactThreeProjection, ExactThreeSeed, LowerLeg, ProjectionError, ProjectionMaterial,
     SeedCoreProvenance,
 };
+/// #640：seed → CompletedMove 唯一归属 + 严格相邻 fail-closed 证明（#624 裁定 A 净减登记的
+/// provider 侧重落地，四类 fail-closed 码对齐账本适配器 missing/不紧邻桶——详见 `seed_mapping`）。
+pub use seed_mapping::{strict_completed_pair, unique_completed_move, StrictPairError};
 
 #[cfg(test)]
 use confirm::{confirm_core_calls, reset_confirm_core_calls, trend_confirm_time};
