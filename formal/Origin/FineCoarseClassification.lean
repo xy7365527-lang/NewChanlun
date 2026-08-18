@@ -793,4 +793,179 @@ example : ¬ (∀ (zs : List Nat) (w : Nat → Rat) (r : Nat → Bool → Rat) (
     exact Rat.lt_irrefl (rat_lt_of_lt_of_le hlt2 hfine_le)
   exact hbad (by simpa [coarseEval, fineTotal, disagreeR, Rat.add_zero] using hlt)
 
+/-! ════════════════════════════════════════════════════════════════════════
+  ## §8 ★★鞅市场不可能定理·有限形式（PDF p35 §16；#1067）
+
+  PDF p35 逐字：「如果价格过程在信息流 F_t 下满足 E[P_{t+1} − P_t | F_t] = 0，而策略
+  因果 N_t ∈ F_t，则 E[N_t(P_{t+1} − P_t)] = E[N_t E[P_{t+1} − P_t | F_t]] = 0。
+  扣除成本：E[R_{t+1}] = −E[C_t] ≤ 0。」
+  有限加权和机制（与 §1 同款，不做 σ-代数/测度论层——票内出界条款）：全状态 s ∈ zs
+  （细状态，含 t+1 的信息）按 φ : Z → Y 投影到 t 时刻的粗信息元（F_t 单元）；
+  w s = P(S=s)；ΔP s = P_{t+1} − P_t；因果头寸 N s = N_Y (φ s)（F_t 可测 = 在 φ-纤维上
+  为常值）。条件均值零 = 每个纤维 y 上 Σ_{φ s = y} w s · ΔP s = 0（`fiberMeanZero`）。
+  则塔性质有限形式（`sum_over_fibers`）给出
+  E[N·ΔP] = Σ_y N_Y y · Σ_{φ s = y} w s · ΔP s = Σ_y N_Y y · 0 = 0；扣成本 C_t ≥ 0
+  （逐点非负）后 E[R] = 0 − E[C] ≤ 0。
+  ════════════════════════════════════════════════════════════════════════ -/
+
+/-- 因果头寸（p35「策略因果 N_t ∈ F_t」的 L0 载体）：N s = N_Y (φ s)——头寸只依赖 t 时刻的粗信息元。 -/
+def causalHoldings {Z : Type u} {Y : Type w} (NY : Y → Rat) (φ : Z → Y) (s : Z) : Rat := NY (φ s)
+
+/-- 单步毛收益（鞅部分）：E[N·ΔP] = Σ_{s∈zs} w s · N s · ΔP s。 -/
+def grossMartingaleReward {Z : Type u} (zs : List Z) (w : Z → Rat) (N : Z → Rat) (dP : Z → Rat) : Rat :=
+  (zs.map (fun s => w s * N s * dP s)).sum
+
+/-- 条件均值零（有限形式，p35 E[ΔP|F_t]=0 的纤维写法）：纤维 y 内 Σ_{φ s = y} w s · ΔP s = 0。 -/
+def fiberMeanZero {Z : Type u} {Y : Type w} [DecidableEq Y] (zs : List Z) (w : Z → Rat) (dP : Z → Rat) (φ : Z → Y) (y : Y) : Prop :=
+  ((zs.filter (fun s => decide (φ s = y))).map (fun s => w s * dP s)).sum = 0
+
+/-- 扣成本净收益（p35 E[R] = E[N·ΔP] − E[C]）：毛收益 − Σ_{s∈zs} w s · c s。 -/
+def netAfterCost {Z : Type u} (zs : List Z) (w : Z → Rat) (N : Z → Rat) (dP : Z → Rat) (c : Z → Rat) : Rat :=
+  grossMartingaleReward zs w N dP - (zs.map (fun s => w s * c s)).sum
+
+/-- 纤维 x 因果头寸的求和提取：Σ_{φ s = y} N_Y(φ s) · (w s · ΔP s) = N_Y y · Σ_{φ s = y} w s · ΔP s。 -/
+theorem fiber_of_causal_sum {Z : Type u} {Y : Type w} [DecidableEq Y] (zs : List Z)
+    (w : Z → Rat) (dP : Z → Rat) (φ : Z → Y) (NY : Y → Rat) (y : Y)
+    (hzero : fiberMeanZero zs w dP φ y) :
+    ((zs.filter (fun s => decide (φ s = y))).map (fun s => NY (φ s) * (w s * dP s))).sum = 0 := by
+  have hmap : ((zs.filter (fun s => decide (φ s = y))).map (fun s => NY (φ s) * (w s * dP s)))
+      = ((zs.filter (fun s => decide (φ s = y))).map (fun s => (w s * dP s) * NY y)) := by
+    apply List.map_congr_left
+    intro s hs
+    have hφ : φ s = y := of_decide_eq_true (List.mem_filter.mp hs).2
+    rw [hφ, Rat.mul_comm]
+  rw [hmap]
+  rw [sum_mul (fun s => w s * dP s) (NY y) (zs.filter (fun s => decide (φ s = y)))]
+  unfold fiberMeanZero at hzero
+  rw [hzero, Rat.zero_mul]
+
+/--
+  ★★鞅不可能定理·有限形式（L0，p35 第一式）：ys 无重复覆盖 zs 的 φ-像、且每个纤维
+  y 条件均值零 ⟹ E[N·ΔP] = 0（塔性质有限形式：
+  Σ_s w s · N s · ΔP s = Σ_y N_Y y · Σ_{φ s = y} w s · ΔP s = Σ_y N_Y y · 0 = 0）。
+  删前件见证（§8 见证⑨⑩）：hzero、hsub 各自不可删。
+-/
+theorem martingale_impossibility_zero {Z : Type u} {Y : Type w} [DecidableEq Y]
+    (ys : List Y) (zs : List Z) (w : Z → Rat) (dP : Z → Rat) (φ : Z → Y) (NY : Y → Rat)
+    (hsub : ∀ s ∈ zs, φ s ∈ ys) (hnodup : ys.Nodup)
+    (hzero : ∀ y ∈ ys, fiberMeanZero zs w dP φ y) :
+    grossMartingaleReward zs w (fun s => NY (φ s)) dP = 0 := by
+  unfold grossMartingaleReward
+  have hreassoc : (zs.map (fun s => w s * NY (φ s) * dP s))
+      = (zs.map (fun s => NY (φ s) * (w s * dP s))) := by
+    apply List.map_congr_left
+    intro s hs
+    rw [Rat.mul_assoc (w s) (NY (φ s)) (dP s)]
+    rw [Rat.mul_comm (w s) (NY (φ s) * dP s)]
+    rw [Rat.mul_assoc]
+    rw [Rat.mul_comm (dP s) (w s)]
+  rw [hreassoc]
+  have hsum := sum_over_fibers ys zs (fun s => NY (φ s) * (w s * dP s)) φ hsub hnodup
+  rw [← hsum]
+  have hmapz : (ys.map (fun y => ((zs.filter (fun s => decide (φ s = y))).map (fun s => NY (φ s) * (w s * dP s))).sum))
+      = (ys.map (fun _ => (0 : Rat))) := by
+    apply List.map_congr_left
+    intro y hy
+    exact fiber_of_causal_sum zs w dP φ NY y (hzero y hy)
+  rw [hmapz]
+  exact list_sum_zero ys
+
+/--
+  ★★鞅市场无正 alpha·有限形式（L0，p35 第二式）：条件均值零 + 因果头寸 + 权重非负 +
+  成本逐点非负 ⟹ 扣成本净收益 ≤ 0。E[R] = E[N·ΔP] − E[C] = 0 − E[C] ≤ 0
+  （E[C] ≥ 0 由 sum_nonneg；−E[C] ≤ 0 由 Rat.neg_le_neg）。
+  删前件见证（§8 见证⑪⑫）：hc（成本非负）、hw（权重非负）各自不可删。
+-/
+theorem martingale_no_positive_alpha {Z : Type u} {Y : Type w} [DecidableEq Y]
+    (ys : List Y) (zs : List Z) (w : Z → Rat) (dP : Z → Rat) (c : Z → Rat) (φ : Z → Y) (NY : Y → Rat)
+    (hsub : ∀ s ∈ zs, φ s ∈ ys) (hnodup : ys.Nodup)
+    (hzero : ∀ y ∈ ys, fiberMeanZero zs w dP φ y)
+    (hw : ∀ s ∈ zs, 0 ≤ w s) (hc : ∀ s ∈ zs, 0 ≤ c s) :
+    netAfterCost zs w (fun s => NY (φ s)) dP c ≤ 0 := by
+  unfold netAfterCost
+  rw [martingale_impossibility_zero ys zs w dP φ NY hsub hnodup hzero]
+  have hcost : 0 ≤ (zs.map (fun s => w s * c s)).sum := sum_nonneg (fun s => w s * c s) zs (by
+    intro s hs
+    exact Rat.mul_nonneg (hw s hs) (hc s hs))
+  rw [Rat.sub_eq_add_neg, Rat.zero_add]
+  have hneg : -((zs.map (fun s => w s * c s)).sum) ≤ 0 := by
+    have hle := Rat.neg_le_neg hcost
+    simpa [Rat.neg_zero] using hle
+  exact hneg
+
+/-! ════════════════════════════════════════════════════════════════════════
+  ## §8·附 删前件自查（见证⑨⑩⑪⑫，#871 同款口径）
+  ════════════════════════════════════════════════════════════════════════ -/
+
+/--
+  ★见证⑨（`martingale_impossibility_zero` 删前件 hzero 不可证）：纤维均值 1 ≠ 0（dP = 1），
+  E[N·ΔP] = 1·1·1 = 1 ≠ 0——条件均值零是 p35 第一式的唯一天窗。
+-/
+example : ¬ (∀ (ys : List Nat) (zs : List Nat) (w : Nat → Rat) (dP : Nat → Rat) (φ : Nat → Nat) (NY : Nat → Rat),
+    (∀ s ∈ zs, φ s ∈ ys) → ys.Nodup →
+    grossMartingaleReward zs w (fun s => NY (φ s)) dP = 0) := by
+  intro h
+  have hbad : ¬ ((1 : Rat) = 0) := by decide
+  apply hbad
+  simpa [grossMartingaleReward, Rat.add_zero] using
+    (h [0] [0] (fun _ => 1) (fun _ => 1) (fun _ => 0) (fun _ => 1) (by simp) (by simp))
+
+/--
+  ★见证⑩（`martingale_impossibility_zero` 删前件 hsub 不可证）：ys = [] 覆盖不了 zs = [0]
+  （hzero 空真），毛收益 = 1 ≠ 0——纤维枚举必须覆盖全部细状态（同 §6 见证③口径）。
+-/
+example : ¬ (∀ (ys : List Nat) (zs : List Nat) (w : Nat → Rat) (dP : Nat → Rat) (φ : Nat → Nat) (NY : Nat → Rat),
+    ys.Nodup → (∀ y ∈ ys, fiberMeanZero zs w dP φ y) →
+    grossMartingaleReward zs w (fun s => NY (φ s)) dP = 0) := by
+  intro h
+  have hbad : ¬ ((1 : Rat) = 0) := by decide
+  apply hbad
+  simpa [grossMartingaleReward, Rat.add_zero] using
+    (h ([] : List Nat) [0] (fun _ => 1) (fun _ => 1) (fun _ => 0) (fun _ => 1) (by simp) (by simp))
+
+/--
+  ★见证⑪（`martingale_no_positive_alpha` 删前件 hc 不可证）：成本 −1（负成本=补贴）时
+  E[C] = −1，扣成本净收益 = 0 − (−1) = 1 > 0——成本非负是「扣成本后 ≤ 0」的前提。
+-/
+example : ¬ (∀ (ys : List Nat) (zs : List Nat) (w : Nat → Rat) (dP : Nat → Rat) (c : Nat → Rat) (φ : Nat → Nat) (NY : Nat → Rat),
+    (∀ s ∈ zs, φ s ∈ ys) → ys.Nodup → (∀ y ∈ ys, fiberMeanZero zs w dP φ y) →
+    (∀ s ∈ zs, 0 ≤ w s) →
+    netAfterCost zs w (fun s => NY (φ s)) dP c ≤ 0) := by
+  intro h
+  have hbad : ¬ ((1 : Rat) ≤ 0) := by decide
+  apply hbad
+  have hzm : fiberMeanZero [0] (fun _ : Nat => 1) (fun _ => 0) (fun _ => 0) 0 := by
+    simp [fiberMeanZero, Rat.add_zero]
+  simpa [netAfterCost, grossMartingaleReward, Rat.add_zero, Rat.zero_add, Rat.sub_eq_add_neg, Rat.neg_neg] using
+    (h [0] [0] (fun _ => 1) (fun _ => 0) (fun _ => -1) (fun _ => 0) (fun _ => 1) (by simp) (by simp)
+      (by intro y hy
+          have hy0 : y = 0 := by simpa using hy
+          simpa [hy0] using hzm)
+      (by intro s hs
+          change 0 ≤ (1 : Rat)
+          decide))
+
+/--
+  ★见证⑫（`martingale_no_positive_alpha` 删前件 hw 不可证）：权重 −1、成本 1 时
+  E[C] = −1 < 0，扣成本净收益 = 0 − (−1) = 1 > 0——权重非负是 E[C] ≥ 0 的前提
+  （与 hc 对称：w·c 的符号由两者共同决定）。
+-/
+example : ¬ (∀ (ys : List Nat) (zs : List Nat) (w : Nat → Rat) (dP : Nat → Rat) (c : Nat → Rat) (φ : Nat → Nat) (NY : Nat → Rat),
+    (∀ s ∈ zs, φ s ∈ ys) → ys.Nodup → (∀ y ∈ ys, fiberMeanZero zs w dP φ y) →
+    (∀ s ∈ zs, 0 ≤ c s) →
+    netAfterCost zs w (fun s => NY (φ s)) dP c ≤ 0) := by
+  intro h
+  have hbad : ¬ ((1 : Rat) ≤ 0) := by decide
+  apply hbad
+  have hzm : fiberMeanZero [0] (fun _ : Nat => -1) (fun _ => 0) (fun _ => 0) 0 := by
+    simp [fiberMeanZero, Rat.add_zero]
+  simpa [netAfterCost, grossMartingaleReward, Rat.add_zero, Rat.zero_add, Rat.sub_eq_add_neg, Rat.neg_neg] using
+    (h [0] [0] (fun _ => -1) (fun _ => 0) (fun _ => 1) (fun _ => 0) (fun _ => 1) (by simp) (by simp)
+      (by intro y hy
+          have hy0 : y = 0 := by simpa using hy
+          simpa [hy0] using hzm)
+      (by intro s hs
+          change 0 ≤ (1 : Rat)
+          decide))
+
 end NewChanlun.Origin.FineCoarseClassification
