@@ -146,8 +146,8 @@ impl CfCert {
 
 fn iv(span: (usize, usize), turn_source: usize) -> NestInterval {
     NestInterval {
-        start_time: span.0 as u64,
-        end_time: span.1 as u64,
+        start_index: span.0 as u64,
+        end_index: span.1 as u64,
         idx: turn_source as u64,
     }
 }
@@ -684,11 +684,11 @@ fn diff_report(tag: &str, base: &[CfCert], var: &[CfCert], events: &[Vec<NestCan
             if is_sub(&cb, &pb) {
                 continue; // B0 下本就成立，非救活边
             }
-            let left_gap = cb.start_time as i64 - pb.start_time as i64;
-            let right_gap = pb.end_time as i64 - cb.end_time as i64;
-            let shape = if cb.start_time > pb.end_time {
+            let left_gap = cb.start_index as i64 - pb.start_index as i64;
+            let right_gap = pb.end_index as i64 - cb.end_index as i64;
+            let shape = if cb.start_index > pb.end_index {
                 "child_right_of_parent(retest_zone)"
-            } else if cb.end_time < pb.start_time {
+            } else if cb.end_index < pb.start_index {
                 "child_left_of_parent(pre_C_zone)"
             } else {
                 "overlap_not_contained"
@@ -702,18 +702,18 @@ fn diff_report(tag: &str, base: &[CfCert], var: &[CfCert], events: &[Vec<NestCan
                 cid.level,
                 cert.side,
                 parent.kind,
-                cb.start_time,
-                cb.end_time,
-                pb.start_time,
-                pb.end_time,
+                cb.start_index,
+                cb.end_index,
+                pb.start_index,
+                pb.end_index,
                 left_gap,
                 right_gap,
                 shape,
-                dv1.start_time,
-                dv1.end_time,
+                dv1.start_index,
+                dv1.end_index,
                 is_sub(&cb, &dv1),
-                dv2.start_time,
-                dv2.end_time,
+                dv2.start_index,
+                dv2.end_index,
                 is_sub(&cb, &dv2),
                 parent.divergence_confirmed,
                 pjudge,

@@ -344,8 +344,8 @@ fn main() -> Result<(), String> {
                         ca_term += usize::from(term);
                     }
                     if !ok_b {
-                        let left_gap = eb.start_time as i64 - base_b.start_time as i64;
-                        let right_gap = base_b.end_time as i64 - eb.end_time as i64;
+                        let left_gap = eb.start_index as i64 - base_b.start_index as i64;
+                        let right_gap = base_b.end_index as i64 - eb.end_index as i64;
                         let miss = (left_gap.min(right_gap)).unsigned_abs() as i64;
                         near.push((miss, left_gap.min(right_gap), *e));
                     }
@@ -510,8 +510,8 @@ fn typed_iv(event: &NestCandidateEvent, caliber: NestIntervalCaliber) -> NestInt
         NestIntervalCaliber::B => event.interval_b,
     };
     NestInterval {
-        start_time: start as u64,
-        end_time: end as u64,
+        start_index: start as u64,
+        end_index: end as u64,
         idx: event.turn_source as u64,
     }
 }

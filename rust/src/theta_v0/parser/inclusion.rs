@@ -23,7 +23,7 @@
 //! - 合并后的 bar 保留**起始** bar 的 `source_index`/`timestamp`（合并段的锚点），
 //!   `volume` 累加，`untradable` 取或（任一不可交易则合并段不可交易）。
 
-use super::super::types::{Bar, Direction};
+use super::super::types::{Bar, Direction, Tick};
 use std::rc::Rc;
 
 /// 合并方向：包含处理的左折叠方向（向上吞并取高，向下吞并取低）。
@@ -169,8 +169,79 @@ pub fn process_inclusion(bars: &[Bar]) -> InclusionResult {
 /// 本口是组锚的**单一来源**——消费侧（gate `absorb_exts` 登记、T2 投影层索引）禁二次
 /// 推导（禁第二查法）。
 pub fn merged_group_anchor(merged: &[Bar], source_index: usize) -> Option<usize> {
+    merged_group_index(merged, source_index).map(|g| merged[g].source_index)
+}
+
+/// 组号供给线（编号域统一 S9，SPEC #847 拆出）：原始序号 `source_index` → 所在合并组的
+/// 组号（= merged 下标 = 合并位置）。
+///
+/// 与 [`merged_group_anchor`] **同源**（读同一份 `merged`、同一个 partition_point 二分，
+/// 禁第二查法）——组号是「组锚」缺的那一步：组锚返回组的**首根原始序号**，本口返回该组
+/// 的**序数**（即 merged 下标）。`merged` 按 `source_index` 严格升序 ⟹ 组号 = 最后一个
+/// `merged[i].source_index <= source_index` 的 i（partition_point 二分 O(log n)）。
+///
+/// 空 `merged` ⟹ None（诚实无组号）。幂等：组锚自身与组内后续根映射到同一组号；
+/// 末组之后的 `source_index`（尾部仍可生长）映射到末组。
+pub fn merged_group_index(merged: &[Bar], source_index: usize) -> Option<usize> {
     let i = merged.partition_point(|b| b.source_index <= source_index);
-    (i > 0).then(|| merged[i - 1].source_index)
+    (i > 0).then(|| i - 1)
+}
+
+/// 标准化 K 线稠密标注（编号域统一载体 S9，SPEC #847 拆出；#813 S-1 裁定二回流补字段）。
+///
+/// 每根原始 K 一条标注（与输入 `bars` 等长、按下标一一对应，序号都在）。把「原始序号 →
+/// 组号」、组标准化高低、「已确认／暂定」状态位与「组内逐根高低」全部显式化——不产出一条
+/// 更短的新序列，判断逻辑一行不改。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DenseBarAnnotation {
+    /// 所属标准化组的组号（= merged 下标 = 合并位置）。
+    pub group: usize,
+    /// 该组标准化后的 high（组内所有成员同一值）。
+    pub group_high: Tick,
+    /// 该组标准化后的 low（组内所有成员同一值）。
+    pub group_low: Tick,
+    /// 已确认（true）／暂定（false）——尾巴不稳定明账化：新 bar 只改最后一组边界、前缀
+    /// 不动（与 fractal 增量「前缀不动、只重算尾部两组」同源纪律抬到地基层）。
+    pub confirmed: bool,
+    /// 本根原始 K 自己的 high（组内逐根高低——#813 S-1 裁定二回流补字段，供「组内 high
+    /// 最大的那根原始 K」一类判据直接读数，不丢组内逐根极值）。
+    pub high: Tick,
+    /// 本根原始 K 自己的 low（组内逐根高低）。
+    pub low: Tick,
+}
+
+/// 从包含处理结果导出稠密标注（与 [`merged_group_anchor`]／[`merged_group_index`] 同源：
+/// 读同一份 `merged`，由同一趟 partition_point 二分推导——不另起第二查法）。
+///
+/// `ann[i]` 对应 `bars[i]`（第 i 根原始 K，其原始序号为 `bars[i].source_index`）。`result`
+/// 为 [`process_inclusion`] 的输出；组号由 `bars[i].source_index` 经 [`merged_group_index`]
+/// 求得。已确认／暂定：
+/// - `result.only_open_tail` ⟹ 全程无方向、无 confirmed 结构 ⟹ 全部暂定；
+/// - 否则前缀组（组号 < 末组）已确认，末组（组号 = `merged.len()-1`）暂定（尾部仍可生长）。
+///
+/// bit-exact 验收门：由本标注重建的合并序列与 `process_inclusion(bars).merged` 逐字段相同
+/// （见测试 `dense_annotation_roundtrip_bit_exact`）。
+pub fn dense_annotation(bars: &[Bar], result: &InclusionResult) -> Vec<DenseBarAnnotation> {
+    if bars.is_empty() {
+        return Vec::new();
+    }
+    let merged = &result.merged;
+    let mut ann = Vec::with_capacity(bars.len());
+    for b in bars {
+        // merged 非空（bars 非空 ⟹ process_inclusion 输出非空）且 `source_index` 单调
+        // （左折叠前提）⟹ 必命中组号；`unwrap_or(0)` 仅防御非法输入，不改变合法路径。
+        let group = merged_group_index(merged, b.source_index).unwrap_or(0);
+        let g = &merged[group];
+        ann.push(DenseBarAnnotation {
+            group,
+            group_high: g.high,
+            group_low: g.low,
+            confirmed: !result.only_open_tail && group + 1 < merged.len(),
+            high: b.high,
+            low: b.low,
+        });
+    }
+    ann
 }
 
 // ============================================================================
@@ -544,6 +615,163 @@ mod tests {
         );
         // 空包含层 ⟹ None（诚实无锚）。
         assert_eq!(merged_group_anchor(&[], 0), None);
+    }
+
+    // -------- S9 编号域统一：稠密标注载体（bit-exact 对拍验收门） --------
+
+    /// 组号供给线：原始序号 → 组号（merged 下标），与组锚同源互指。
+    #[test]
+    fn merged_group_index_matches_anchor() {
+        let bars = vec![
+            bar(0, 10, 5),
+            bar(1, 12, 7),
+            bar(2, 11, 8),
+            bar(3, 15, 13),
+            bar(4, 14, 9),
+        ];
+        let r = process_inclusion(&bars);
+        // merged 锚 = [0, 1, 3, 4]。
+        assert_eq!(merged_group_index(&r.merged, 0), Some(0));
+        assert_eq!(merged_group_index(&r.merged, 1), Some(1));
+        assert_eq!(merged_group_index(&r.merged, 2), Some(1));
+        assert_eq!(merged_group_index(&r.merged, 3), Some(2));
+        assert_eq!(merged_group_index(&r.merged, 4), Some(3));
+        // 末组之后（尾部仍可生长）→ 末组。
+        assert_eq!(merged_group_index(&r.merged, 5), Some(3));
+        // 空包含层 ⟹ None。
+        assert_eq!(merged_group_index(&[], 0), None);
+        // 组号 ↔ 组锚 互指一致。
+        for i in 0..5 {
+            let g = merged_group_index(&r.merged, i).unwrap();
+            let anchor = merged_group_anchor(&r.merged, i).unwrap();
+            assert_eq!(r.merged[g].source_index, anchor);
+        }
+    }
+
+    /// 稠密标注的组号、组标准化高低、组内逐根高低与已确认/暂定位的语义。
+    #[test]
+    fn dense_annotation_group_and_confirmed_semantics() {
+        // 分组：g0={0}；g1={1,2}；g2={3}；g3={4}。
+        let bars = vec![
+            bar(0, 10, 5),
+            bar(1, 12, 7),
+            bar(2, 11, 8),
+            bar(3, 15, 13),
+            bar(4, 14, 9),
+        ];
+        let r = process_inclusion(&bars);
+        assert_eq!(
+            r.merged.iter().map(|b| b.source_index).collect::<Vec<_>>(),
+            vec![0, 1, 3, 4]
+        );
+        let ann = dense_annotation(&bars, &r);
+        assert_eq!(ann.len(), bars.len());
+        assert_eq!(
+            ann.iter().map(|a| a.group).collect::<Vec<_>>(),
+            vec![0, 1, 1, 2, 3]
+        );
+        // 组 1 标准化高低 = bar1、bar2 向上合并 = [12, 8]。
+        assert_eq!((ann[1].group_high, ann[1].group_low), (12, 8));
+        assert_eq!((ann[2].group_high, ann[2].group_low), (12, 8));
+        // 组内逐根高低：组 1 内两根本身的高/低（供「组内 high 最大的那根」判据读数）。
+        assert_eq!((ann[1].high, ann[1].low), (12, 7));
+        assert_eq!((ann[2].high, ann[2].low), (11, 8));
+        // 已确认／暂定：前缀组（组号 0..2）确认，末组（组号 3）暂定。
+        assert!(ann[0].confirmed && ann[1].confirmed && ann[2].confirmed && ann[3].confirmed);
+        assert!(!ann[4].confirmed);
+    }
+
+    /// open-tail（全程无方向）⟹ 每根自成一格、全部暂定（无 confirmed 结构）。
+    #[test]
+    fn dense_annotation_open_tail_all_tentative() {
+        let bars = vec![bar(0, 20, 1), bar(1, 10, 5), bar(2, 8, 6)];
+        let r = process_inclusion(&bars);
+        assert!(r.only_open_tail);
+        let ann = dense_annotation(&bars, &r);
+        assert_eq!(
+            ann.iter().map(|a| a.group).collect::<Vec<_>>(),
+            vec![0, 1, 2]
+        );
+        assert!(ann.iter().all(|a| !a.confirmed));
+        // 单根与空输入。
+        assert!(dense_annotation(&[], &process_inclusion(&[])).is_empty());
+        let one = vec![bar(0, 10, 5)];
+        let r1 = process_inclusion(&one);
+        let ann1 = dense_annotation(&one, &r1);
+        assert_eq!(ann1.len(), 1);
+        assert!(!ann1[0].confirmed, "单根无方向 = 暂定");
+    }
+
+    /// 从稠密标注 + 原始 K 重建合并序列（bit-exact 对拍验收门）。
+    fn reconstruct_merged(bars: &[Bar], ann: &[DenseBarAnnotation]) -> Vec<Bar> {
+        assert_eq!(bars.len(), ann.len());
+        if bars.is_empty() {
+            return Vec::new();
+        }
+        let num_groups = ann.iter().map(|a| a.group).max().unwrap_or(0) + 1;
+        let mut merged = Vec::with_capacity(num_groups);
+        for g in 0..num_groups {
+            let members: Vec<usize> = (0..bars.len()).filter(|&i| ann[i].group == g).collect();
+            let first = members[0];
+            let last = members[members.len() - 1];
+            // 与 `merge()` 同一左折叠顺序累加 volume，逐字段 bit-exact。
+            let mut volume = bars[first].volume;
+            for &i in &members[1..] {
+                volume = volume + bars[i].volume;
+            }
+            merged.push(Bar {
+                source_index: bars[first].source_index,
+                timestamp: bars[first].timestamp,
+                open: bars[first].open,
+                high: ann[first].group_high,
+                low: ann[first].group_low,
+                close: bars[last].close,
+                volume,
+                untradable: members.iter().any(|&i| bars[i].untradable),
+            });
+        }
+        merged
+    }
+
+    #[test]
+    fn dense_annotation_roundtrip_bit_exact() {
+        // 各种合成序列：空、单根、open-tail、定方向合并、相 A→B 迁移、长合成、方向翻转。
+        let mut sequences: Vec<Vec<Bar>> = vec![
+            vec![],
+            vec![bar(0, 10, 5)],
+            vec![bar(0, 10, 5), bar(1, 8, 6)], // 互含 → open-tail
+            vec![bar(0, 10, 5), bar(1, 12, 7), bar(2, 11, 8)], // 定方向 + 合并
+            vec![bar(0, 20, 1), bar(1, 18, 3), bar(2, 25, 10), bar(3, 22, 12)], // 相 A→B
+            vec![
+                bar(0, 10, 5),
+                bar(1, 15, 8),
+                bar(2, 12, 9),
+                bar(3, 8, 4),
+                bar(4, 9, 5),
+                bar(5, 14, 10),
+                bar(6, 13, 11),
+            ], // 多次方向翻转 + 合并
+        ];
+        sequences.push(
+            (0..300usize)
+                .map(|i| {
+                    let base = 100i64 + (i as i64) * 3;
+                    let cycle = ((i as f64) / 17.0).sin() as i64 * 40;
+                    let close = base + cycle;
+                    bar(i, close + 6, close - 6)
+                })
+                .collect(),
+        );
+        for bars in &sequences {
+            let r = process_inclusion(bars);
+            let ann = dense_annotation(bars, &r);
+            assert_eq!(ann.len(), bars.len(), "标注长度须与原始 K 等长");
+            let rebuilt = reconstruct_merged(bars, &ann);
+            assert_eq!(
+                rebuilt, r.merged,
+                "稠密标注重建的合并序列 != 现役 process_inclusion（bit-exact 破裂）"
+            );
+        }
     }
 
     #[test]

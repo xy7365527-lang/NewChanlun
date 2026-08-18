@@ -51,8 +51,8 @@ struct PairRec {
 impl PairRec {
     fn iv(&self) -> NestInterval {
         NestInterval {
-            start_time: self.start as u64,
-            end_time: self.end as u64,
+            start_index: self.start as u64,
+            end_index: self.end as u64,
             idx: 0,
         }
     }
@@ -133,16 +133,16 @@ struct EdgeDiag {
 
 fn typed_b(event: &NestCandidateEvent) -> NestInterval {
     NestInterval {
-        start_time: event.interval_b.0 as u64,
-        end_time: event.interval_b.1 as u64,
+        start_index: event.interval_b.0 as u64,
+        end_index: event.interval_b.1 as u64,
         idx: event.turn_source as u64,
     }
 }
 
 fn typed_a(event: &NestCandidateEvent) -> NestInterval {
     NestInterval {
-        start_time: event.interval_a.0 as u64,
-        end_time: event.interval_a.1 as u64,
+        start_index: event.interval_a.0 as u64,
+        end_index: event.interval_a.1 as u64,
         idx: event.turn_source as u64,
     }
 }
@@ -704,13 +704,13 @@ fn edge_gap_diag(
     for &i in side_pool {
         let parent = &parent_events[i];
         let parent_b = typed_b(parent);
-        let left_gap = child_b.start_time as i64 - parent_b.start_time as i64;
-        let right_gap = parent_b.end_time as i64 - child_b.end_time as i64;
+        let left_gap = child_b.start_index as i64 - parent_b.start_index as i64;
+        let right_gap = parent_b.end_index as i64 - child_b.end_index as i64;
         let violation = (if left_gap < 0 { -left_gap } else { 0 })
             + (if right_gap < 0 { -right_gap } else { 0 });
-        let shape = if child_b.start_time > parent_b.end_time {
+        let shape = if child_b.start_index > parent_b.end_index {
             "child_right_of_parent"
-        } else if child_b.end_time < parent_b.start_time {
+        } else if child_b.end_index < parent_b.start_index {
             "child_left_of_parent"
         } else {
             "overlap_not_contained"

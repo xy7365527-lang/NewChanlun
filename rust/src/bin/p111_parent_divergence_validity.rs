@@ -79,8 +79,8 @@ struct PairRec {
 impl PairRec {
     fn iv(&self) -> NestInterval {
         NestInterval {
-            start_time: self.start as u64,
-            end_time: self.end as u64,
+            start_index: self.start as u64,
+            end_index: self.end as u64,
             idx: 0,
         }
     }
@@ -140,8 +140,8 @@ impl KillGate {
 
 fn typed_b(e: &NestCandidateEvent) -> NestInterval {
     NestInterval {
-        start_time: e.interval_b.0 as u64,
-        end_time: e.interval_b.1 as u64,
+        start_index: e.interval_b.0 as u64,
+        end_index: e.interval_b.1 as u64,
         idx: e.turn_source as u64,
     }
 }

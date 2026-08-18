@@ -72,8 +72,8 @@ struct PairRec {
 impl PairRec {
     fn iv(&self) -> NestInterval {
         NestInterval {
-            start_time: self.start as u64,
-            end_time: self.end as u64,
+            start_index: self.start as u64,
+            end_index: self.end as u64,
             idx: 0,
         }
     }

@@ -7,8 +7,8 @@
 //!
 //! ## 对照纪律（audit §6 / SPEC US18）
 //!
-//! 不复读 [`super::nest::is_sub`]——那是 `NestInterval` 的 `(start_time, end_time)` **时间**
-//! 坐标谓词，属 nest 对照身份（ADR-0005）。
+//! 不复读 [`super::nest::is_sub`]——那是 `NestInterval` 的 `(start_index, end_index)` **索引**
+//! 坐标谓词（同 `source_index` 域），属 nest 对照身份（ADR-0005）。
 //!
 //! **谓词的包含不等式**唯一委托上游单一来源 [`super::cand_event::interval_is_sub`]；探针的
 //! 相切 / 相离 / 退化判据亦同源于 `cand_event`（[`intervals_touch`] / [`intervals_are_disjoint`] /

@@ -93,8 +93,8 @@ struct StrictPairInterval {
 impl StrictPairInterval {
     fn as_nest(self, idx: usize) -> NestInterval {
         NestInterval {
-            start_time: self.start as u64,
-            end_time: self.end as u64,
+            start_index: self.start as u64,
+            end_index: self.end as u64,
             idx: idx as u64,
         }
     }

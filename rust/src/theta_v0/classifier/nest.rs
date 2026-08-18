@@ -41,18 +41,18 @@ use super::Classification;
 /// candidate」可机器检查。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NestInterval {
-    /// 结束时间（第一排序键，最新者优先 ⟹ 数值最大优先）。
-    pub end_time: u64,
-    /// 开始时间（第二排序键，最新者优先 ⟹ 数值最大优先）。
-    pub start_time: u64,
+    /// 结束索引（第一排序键，最新者优先 ⟹ 数值最大优先；原始 K 序号域，非时间戳）。
+    pub end_index: u64,
+    /// 开始索引（第二排序键，最新者优先 ⟹ 数值最大优先；原始 K 序号域，非时间戳）。
+    pub start_index: u64,
     /// 编号（第三排序键，最小者优先 ⟹ 数值最小优先）。
     pub idx: u64,
 }
 
 impl NestInterval {
-    /// `Sel_Θ` 字典序键（reference:对齐 `selKey`）：`(end_time, start_time, idx)`。
+    /// `Sel_Θ` 字典序键（reference:对齐 `selKey`）：`(end_index, start_index, idx)`。
     pub fn sel_key(&self) -> (u64, u64, u64) {
-        (self.end_time, self.start_time, self.idx)
+        (self.end_index, self.start_index, self.idx)
     }
 }
 
@@ -60,16 +60,16 @@ impl NestInterval {
 ///
 /// 逐字对齐 Lean：endTime 大优先；endTime 相等则 startTime 大优先；前两相等则 idx 小优先。
 pub fn sel_order(a: &NestInterval, b: &NestInterval) -> bool {
-    a.end_time > b.end_time
-        || (a.end_time == b.end_time && a.start_time > b.start_time)
-        || (a.end_time == b.end_time && a.start_time == b.start_time && a.idx < b.idx)
+    a.end_index > b.end_index
+        || (a.end_index == b.end_index && a.start_index > b.start_index)
+        || (a.end_index == b.end_index && a.start_index == b.start_index && a.idx < b.idx)
 }
 
 /// 区间套关系 `Sub`（reference:对齐 `Sub`）：`J'` 套在 `J` 之内（逐级缩小定位）。
 ///
-/// `inner.start_time>=outer.start_time ∧ inner.end_time<=outer.end_time`。
+/// `inner.start_index>=outer.start_index ∧ inner.end_index<=outer.end_index`。
 pub fn is_sub(inner: &NestInterval, outer: &NestInterval) -> bool {
-    inner.start_time >= outer.start_time && inner.end_time <= outer.end_time
+    inner.start_index >= outer.start_index && inner.end_index <= outer.end_index
 }
 
 /// 从候选集合按 `Sel_Θ` 选出唯一最优候选（reference:对齐 `IsSelected`）。
@@ -157,7 +157,7 @@ impl Chi {
 /// 其计算规则属上游（候选判据定义）——`N^δ` 只做合取组装，**不臆造** Cand 的判据。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NestRung {
-    /// [新缠论] 本级事件的算法确认时点（#37 P0 局部改判）。与 `interval.end_time` 独立；
+    /// [新缠论] 本级事件的算法确认时点（#37 P0 局部改判）。与 `interval.end_index` 独立；
     /// 二者可以数值相等，但不互相派生。旧证书链没有逐级确认见证时为 `None`，不得伪造。
     confirm_src: Option<usize>,
     /// 严格 D_parent 装配边的子级 `I(A)`；旧数据载体路径没有边见证时为 `None`。
@@ -224,7 +224,7 @@ impl NestRung {
 /// ```compile_fail
 /// use newchan_rust::theta_v0::classifier::nest::{NestCertificate, NestInterval, NestRung};
 /// use newchan_rust::theta_v0::types::{BspBits, Side};
-/// let iv = NestInterval { start_time: 0, end_time: 1, idx: 0 };
+/// let iv = NestInterval { start_index: 0, end_index: 1, idx: 0 };
 /// let _ = NestCertificate {
 ///     side: Side::Long,
 ///     terminal: BspBits::default(),
@@ -236,7 +236,7 @@ impl NestRung {
 /// ```compile_fail
 /// use newchan_rust::theta_v0::classifier::nest::{NestCertificate, NestInterval};
 /// use newchan_rust::theta_v0::types::{BspBits, Side};
-/// let iv = NestInterval { start_time: 0, end_time: 1, idx: 0 };
+/// let iv = NestInterval { start_index: 0, end_index: 1, idx: 0 };
 /// let _ = NestCertificate::from_parts(Side::Long, BspBits::default(), iv, vec![]);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
@@ -319,7 +319,7 @@ impl NestCertificate {
     ///   `terminal` 满足基例 `Conf^δ_e=⋁ B_{i,e}`/`⋁ S_{i,e}`；`rungs[k].cand` 提供 `Cand^δ`；
     ///   相邻 `interval` 满足 ⊆。
     /// - **边界条件**：(1) ⊆ 方向是**子⊆父** `J^δ_{ℓ-1}⊆J^δ_ℓ`（[`is_sub`]：child.lo≥parent.lo
-    ///   ∧ child.hi≤parent.hi，闭口径；lo=`start_time`/hi=`end_time`），方向反则证书失效。
+    ///   ∧ child.hi≤parent.hi，闭口径；lo=`start_index`/hi=`end_index`），方向反则证书失效。
     ///   (2) 任一级 `Cand^δ_ℓ=false`、或任一相邻 ⊆ 不成立、或基例 `Conf^δ_e=false` ⟹ 整体翻转为 0。
     ///   (3) 方向 δ 翻转（Long↔Short）则基例改判 `conf_plus`↔`conf_minus`，结论可翻转。
     ///   (4) 前置 e≤ℓ 由结构保证（rungs 非负长度），e>ℓ 不可表达（spec：e>ℓ 递归未定义）。
@@ -490,8 +490,8 @@ fn typed_interval(event: &NestCandidateEvent, caliber: NestIntervalCaliber) -> N
         NestIntervalCaliber::B => event.interval_b,
     };
     NestInterval {
-        start_time: start as u64,
-        end_time: end as u64,
+        start_index: start as u64,
+        end_index: end as u64,
         idx: event.turn_source as u64,
     }
 }
@@ -1074,8 +1074,8 @@ pub fn d_parent_interval(ev: &CandDeltaEvent) -> NestInterval {
         "episode 左端别名必须一致"
     );
     NestInterval {
-        end_time: ev.interval.1 as u64,
-        start_time: ev.enter_src as u64,
+        end_index: ev.interval.1 as u64,
+        start_index: ev.enter_src as u64,
         idx: 0,
     }
 }
@@ -1084,8 +1084,8 @@ pub fn d_parent_interval(ev: &CandDeltaEvent) -> NestInterval {
 /// 不回退到 episode、确认点或其它数值锚。
 pub fn d_parent_interval_snapshot(ev: &CandDeltaEvent) -> Option<NestInterval> {
     ev.c_interval_full.map(|(start, end)| NestInterval {
-        end_time: end as u64,
-        start_time: start as u64,
+        end_index: end as u64,
+        start_index: start as u64,
         idx: 0,
     })
 }
@@ -1096,8 +1096,8 @@ pub fn d_parent_interval_terminal(
     objects: &[CpScanOwnership],
 ) -> Option<NestInterval> {
     cp_terminal_certificate(ev, objects).map(|certificate| NestInterval {
-        start_time: certificate.c_interval_full.0 as u64,
-        end_time: certificate.c_interval_full.1 as u64,
+        start_index: certificate.c_interval_full.0 as u64,
+        end_index: certificate.c_interval_full.1 as u64,
         idx: 0,
     })
 }
@@ -1111,8 +1111,8 @@ pub fn d_parent_interval_full(ev: &CandDeltaEvent) -> Option<NestInterval> {
 /// 冻结的子包含区间 `D_child := I(A_child)`。
 pub fn d_child_interval(ev: &CandDeltaEvent) -> NestInterval {
     NestInterval {
-        end_time: ev.a_interval.1 as u64,
-        start_time: ev.a_interval.0 as u64,
+        end_index: ev.a_interval.1 as u64,
+        start_index: ev.a_interval.0 as u64,
         idx: 0,
     }
 }
@@ -1250,7 +1250,7 @@ where
     order.sort_by_key(|&i| {
         (
             parent_interval_of(&evs[i])
-                .map(|iv| (iv.start_time as usize, iv.end_time as usize))
+                .map(|iv| (iv.start_index as usize, iv.end_index as usize))
                 .unwrap_or((usize::MAX, usize::MAX)),
             evs[i].a_interval,
             i,
@@ -1372,8 +1372,8 @@ mod tests {
 
     fn interval(et: u64, st: u64, idx: u64) -> NestInterval {
         NestInterval {
-            end_time: et,
-            start_time: st,
+            end_index: et,
+            start_index: st,
             idx,
         }
     }
@@ -1472,7 +1472,7 @@ mod tests {
         let j_b = interval(90, 10, 7);
         assert!(is_sub(&child, &j_a));
         assert!(is_sub(&child, &j_b));
-        // Sel_Θ 选唯一（end_time 大优先 ⟹ j_b 90>80）。
+        // Sel_Θ 选唯一（end_index 大优先 ⟹ j_b 90>80）。
         let best = select_best(&[j_a, j_b]).unwrap();
         assert_eq!(best, j_b);
         // bit-exact 可复现：重排候选集选出同键。
@@ -1735,9 +1735,9 @@ mod tests {
         );
         ev.c_interval_full = Some((20, 80));
         let full = d_parent_interval_snapshot(&ev).expect("完整 c_p 区间可消费");
-        assert_eq!((full.start_time, full.end_time), (20, 80));
+        assert_eq!((full.start_index, full.end_index), (20, 80));
         assert_eq!(
-            d_parent_interval(&ev).start_time,
+            d_parent_interval(&ev).start_index,
             40,
             "历史 episode 口径保持隔离"
         );
@@ -1786,12 +1786,12 @@ mod tests {
         assert_eq!(cert.base_confirm_src, Some(90));
         assert_ne!(
             cert.base_confirm_src.unwrap() as u64,
-            cert.base_interval.end_time
+            cert.base_interval.end_index
         );
         assert_eq!(cert.rungs[0].confirm_src, Some(70));
         assert_ne!(
             cert.rungs[0].confirm_src.unwrap() as u64,
-            cert.rungs[0].interval.end_time
+            cert.rungs[0].interval.end_index
         );
         assert!(cert.n_delta());
     }

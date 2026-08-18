@@ -1177,8 +1177,8 @@ pub(super) fn build_nest_certificate(
     let exec_moves = tower.get(lvl)?.as_slice();
     let s = &exec_moves[find_move_containing_index(exec_moves, source_index)?];
     let base_interval = NestInterval {
-        start_time: s.start_index as u64,
-        end_time: s.end_index as u64,
+        start_index: s.start_index as u64,
+        end_index: s.end_index as u64,
         idx: s.id.ordinal,
     };
 
@@ -1219,8 +1219,8 @@ pub(super) fn build_nest_certificate(
             break;
         };
         let interval_k = NestInterval {
-            start_time: knode.start_index as u64,
-            end_time: knode.end_index as u64,
+            start_index: knode.start_index as u64,
+            end_index: knode.end_index as u64,
             idx: knode.id.ordinal,
         };
         // Cand^δ_k：薄 dispatcher（673-fix）——per-rung 候选谓词按类型分派。
@@ -1334,8 +1334,8 @@ pub(super) fn build_nest_certificate_bottomup(
     let exec_moves = tower.get(lvl)?.as_slice();
     let s = &exec_moves[find_move_containing_index(exec_moves, source_index)?];
     let base_interval = NestInterval {
-        start_time: s.start_index as u64,
-        end_time: s.end_index as u64,
+        start_index: s.start_index as u64,
+        end_index: s.end_index as u64,
         idx: s.id.ordinal,
     };
     let cand_type = bsp_cand_type(bits, delta);
@@ -1350,11 +1350,12 @@ pub(super) fn build_nest_certificate_bottomup(
         // bottom-up 候选集 C^δ_k(J_{k-1}) = {c ∈ tower[k] : J_{k-1} ⊆ I(c)}，Sel_Θ 选最优（PDF §二/§三.2）。
         let mut chosen: Option<&LeveledMove> = None;
         for m in k_moves {
-            if (m.start_index as u64) <= child.start_time && child.end_time <= (m.end_index as u64)
+            if (m.start_index as u64) <= child.start_index
+                && child.end_index <= (m.end_index as u64)
             {
                 let mi = NestInterval {
-                    start_time: m.start_index as u64,
-                    end_time: m.end_index as u64,
+                    start_index: m.start_index as u64,
+                    end_index: m.end_index as u64,
                     idx: m.id.ordinal,
                 };
                 let take = match chosen {
@@ -1362,8 +1363,8 @@ pub(super) fn build_nest_certificate_bottomup(
                     Some(b) => sel_order(
                         &mi,
                         &NestInterval {
-                            start_time: b.start_index as u64,
-                            end_time: b.end_index as u64,
+                            start_index: b.start_index as u64,
+                            end_index: b.end_index as u64,
                             idx: b.id.ordinal,
                         },
                     ),
@@ -1378,8 +1379,8 @@ pub(super) fn build_nest_certificate_bottomup(
             break;
         };
         let interval_k = NestInterval {
-            start_time: knode.start_index as u64,
-            end_time: knode.end_index as u64,
+            start_index: knode.start_index as u64,
+            end_index: knode.end_index as u64,
             idx: knode.id.ordinal,
         };
         let cand_k = cand_delta(
@@ -2183,20 +2184,20 @@ mod tests {
         // rungs 从高到低：rungs[0]=J2[0,100]、rungs[1]=J1[20,80]，且 end≠src（分歧标记）。
         assert_eq!(
             (
-                cert.rungs()[0].interval().start_time,
-                cert.rungs()[0].interval().end_time
+                cert.rungs()[0].interval().start_index,
+                cert.rungs()[0].interval().end_index
             ),
             (0, 100)
         );
         assert_eq!(
             (
-                cert.rungs()[1].interval().start_time,
-                cert.rungs()[1].interval().end_time
+                cert.rungs()[1].interval().start_index,
+                cert.rungs()[1].interval().end_index
             ),
             (20, 80)
         );
-        assert_ne!(cert.rungs()[0].interval().end_time, src as u64);
-        assert_ne!(cert.rungs()[1].interval().end_time, src as u64);
+        assert_ne!(cert.rungs()[0].interval().end_index, src as u64);
+        assert_ne!(cert.rungs()[1].interval().end_index, src as u64);
         // 嵌套链 J0⊆J1⊆J2（区间包含口径下才可见的三层套）——同时验证 build_nest_certificate 内看守放行。
         assert!(
             is_sub(&cert.base_interval(), &cert.rungs()[1].interval()),
@@ -2226,7 +2227,7 @@ mod tests {
         };
         // 旧端点相等口径定位到 tower[1] move[0]（end==src）。
         assert_eq!(find_move_by_end_index(&tower[1], src), Some(0));
-        // 新区间包含口径定位到同一段——rung interval == tower[1][0]，且 end_time==src（与旧一致）。
+        // 新区间包含口径定位到同一段——rung interval == tower[1][0]，且 end_index==src（与旧一致）。
         let cert = build_nest_certificate(
             &tower,
             0,
@@ -2241,13 +2242,13 @@ mod tests {
         assert_eq!(cert.rungs().len(), 1);
         assert_eq!(
             (
-                cert.rungs()[0].interval().start_time,
-                cert.rungs()[0].interval().end_time
+                cert.rungs()[0].interval().start_index,
+                cert.rungs()[0].interval().end_index
             ),
             (10, 50)
         );
         assert_eq!(
-            cert.rungs()[0].interval().end_time,
+            cert.rungs()[0].interval().end_index,
             src as u64,
             "边界等号：新口径与旧端点相等一致"
         );
@@ -3449,7 +3450,7 @@ mod tests {
             "gate 须以 interior 锚命中 C 段（修前 find_move_by_end_index MISS ⟹ None）"
         );
         assert_eq!(
-            cert.as_ref().map(|c| c.base_interval().start_time),
+            cert.as_ref().map(|c| c.base_interval().start_index),
             Some(0),
             "base_interval 仍是 C 段全区间（锚迁移只动点、不动区间套语义）"
         );
@@ -8156,8 +8157,8 @@ mod tests {
         let mut bits = BspBits::default();
         bits.buy1 = true;
         let iv = |et: u64| NestInterval {
-            end_time: et,
-            start_time: 0,
+            end_index: et,
+            start_index: 0,
             idx: 0,
         };
         // 全 cand=true 的 3 级证书 ⟹ depth=3（100⊇80⊇60，均 cand=true，且 base⊆最低 rung）。

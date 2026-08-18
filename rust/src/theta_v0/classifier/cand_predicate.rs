@@ -1200,14 +1200,14 @@ mod tests {
             CertSide::Long,
             terminal,
             NestInterval {
-                end_time: 4,
-                start_time: 0,
+                end_index: 4,
+                start_index: 0,
                 idx: 0,
             },
             vec![NestRung::new(
                 NestInterval {
-                    end_time: 9,
-                    start_time: 0,
+                    end_index: 9,
+                    start_index: 0,
                     idx: 0,
                 },
                 cand, // false
@@ -1251,14 +1251,14 @@ mod tests {
         terminal.buy1 = true;
         // 执行级区间 [15,19]，操作级区间 [0,19]（⊇ 执行级）。
         let base = NestInterval {
-            end_time: 19,
-            start_time: 15,
+            end_index: 19,
+            start_index: 15,
             idx: 0,
         };
         let op_rung = NestRung::new(
             NestInterval {
-                end_time: 19,
-                start_time: 0,
+                end_index: 19,
+                start_index: 0,
                 idx: 0,
             },
             cand,

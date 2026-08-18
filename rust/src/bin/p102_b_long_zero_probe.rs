@@ -195,10 +195,10 @@ fn main() -> Result<(), String> {
                 ids.last().map(|i| i.turn_source).unwrap_or(0),
                 parent_level,
                 child_level,
-                child_b.start_time,
-                child_b.end_time,
-                child_a.start_time,
-                child_a.end_time,
+                child_b.start_index,
+                child_b.end_index,
+                child_a.start_index,
+                child_a.end_index,
                 parent_level,
                 pool.len()
             );
@@ -210,11 +210,11 @@ fn main() -> Result<(), String> {
                 sub_a += usize::from(ok_a);
                 sub_b += usize::from(ok_b);
                 if ok_a || cand.turn_source == parent_id.turn_source {
-                    let left_gap = child_b.start_time as i64 - pb.start_time as i64;
-                    let right_gap = pb.end_time as i64 - child_b.end_time as i64;
-                    let shape = if child_b.start_time > pb.end_time {
+                    let left_gap = child_b.start_index as i64 - pb.start_index as i64;
+                    let right_gap = pb.end_index as i64 - child_b.end_index as i64;
+                    let shape = if child_b.start_index > pb.end_index {
                         "child_right_of_parent"
-                    } else if child_b.end_time < pb.start_time {
+                    } else if child_b.end_index < pb.start_index {
                         "child_left_of_parent"
                     } else {
                         "overlap_not_contained"
@@ -227,10 +227,10 @@ fn main() -> Result<(), String> {
                         cand.turn_source == parent_id.turn_source,
                         ok_a,
                         ok_b,
-                        pb.start_time,
-                        pb.end_time,
-                        pa.start_time,
-                        pa.end_time,
+                        pb.start_index,
+                        pb.end_index,
+                        pa.start_index,
+                        pa.end_index,
                         left_gap,
                         right_gap,
                         shape
@@ -270,7 +270,7 @@ fn main() -> Result<(), String> {
                 .count();
             println!(
                 "P102_CONTROL_SHORT edge=L{}->L{} child_b=({}, {}) parents_sub_B={}",
-                parent_level, child_level, child_b.start_time, child_b.end_time, parents_b
+                parent_level, child_level, child_b.start_index, child_b.end_index, parents_b
             );
         }
     }
@@ -320,8 +320,8 @@ fn typed_iv(event: &NestCandidateEvent, caliber: NestIntervalCaliber) -> NestInt
         NestIntervalCaliber::B => event.interval_b,
     };
     NestInterval {
-        start_time: start as u64,
-        end_time: end as u64,
+        start_index: start as u64,
+        end_index: end as u64,
         idx: event.turn_source as u64,
     }
 }

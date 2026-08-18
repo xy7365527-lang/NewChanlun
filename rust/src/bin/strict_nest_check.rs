@@ -394,13 +394,13 @@ fn compute_trade(t: &Trade, idx: &EventIndex) -> TradeCalc {
                 continue;
             }
             let outer = NestInterval {
-                end_time: x.iv_end as u64,
-                start_time: x.iv_start as u64,
+                end_index: x.iv_end as u64,
+                start_index: x.iv_start as u64,
                 idx: 0,
             };
             let inner = NestInterval {
-                end_time: y.iv_end as u64,
-                start_time: y.iv_start as u64,
+                end_index: y.iv_end as u64,
+                start_index: y.iv_start as u64,
                 idx: 0,
             };
             if !is_sub(&inner, &outer) {
@@ -1601,12 +1601,12 @@ fn run() -> Result<bool, String> {
                             r.confirm_src().expect("strict 装配 rung 必携 confirm_src"),
                             r.child_interval()
                                 .expect("strict 装配 rung 必携 I(A_child)")
-                                .start_time,
+                                .start_index,
                             r.child_interval()
                                 .expect("strict 装配 rung 必携 I(A_child)")
-                                .end_time,
-                            r.interval().start_time,
-                            r.interval().end_time
+                                .end_index,
+                            r.interval().start_index,
+                            r.interval().end_index
                         )
                     })
                     .collect();
@@ -1615,8 +1615,8 @@ fn run() -> Result<bool, String> {
                     c.side(),
                     c.base_confirm_src()
                         .expect("strict 装配基例必携 confirm_src"),
-                    c.base_interval().start_time,
-                    c.base_interval().end_time,
+                    c.base_interval().start_index,
+                    c.base_interval().end_index,
                     rungs.join("⊇")
                 ));
             }

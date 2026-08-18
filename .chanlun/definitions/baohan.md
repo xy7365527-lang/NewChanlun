@@ -4,14 +4,15 @@
 > 最后裁定：查不到（旧结算件，无对应裁定票）
 > 受影响代码清单：见正文「当前实现」
 
-**版本**: v1.3
+**版本**: v1.4
 **状态**: 已结算
-**最后更新**: 2026-02-16
+**最后更新**: 2026-08-18
 **变更**:
 - v1.0 初版
 - v1.1 尝试用等价性证明结算方向判定问题（已回退）
 - v1.2 回退为生成态，增加原文谱系，重新定位方向判定差异
 - v1.3 结算：方向判定双条件与单条件在非包含前提下数学等价（审计验证）
+- v1.4 补录「合并后 bar 保留组内首根原始序号」与三形态载体关系（SPEC #847 S9 / #817 N-1 裁定四）
 **原文依据**: 博文第62课、第65课、编纂版 §四
 
 ---
@@ -139,6 +140,23 @@
 - `merged_to_raw: list[tuple[int, int]]`: 每根 merged bar 对应原始K线的位置范围（闭区间）
 
 `merged_to_raw` 是新笔间距计算的关键数据来源。
+
+### 组锚与序号关系（SPEC #847 S9 / #817 N-1 裁定四，v1.4 补录）
+
+- **合并后 bar 保留组内首根原始序号**：每根 merged bar 的原始序号锚 = 该合并组内**第一根**原始 K 的序号（Rust 实装 `rust/src/theta_v0/parser/inclusion.rs:23/:57` 的 `merge()` 保留 `acc.source_index`；教义 ADR `chanlun/escalate/adr-chain-confirmation-and-invariant-identity-20260722.md:19` 裁定 3：「合并组锚 = 组内首根序号，非极值发生根」）。这些锚**严格递增** ⟹ 第 i 组覆盖原始序号 `[src_i, src_{i+1})`，成员集合与双向映射可二分推出（数学上没丢信息）。
+- **组锚的单一来源**：Rust 侧 `merged_group_anchor`（`inclusion.rs:171`）已是「原始序号 → 组锚」的统一入口（自称「单一来源、禁第二查法」，生产消费者在案）。此前缺的是「原始序号 → 组号（merged 下标）」一步——已由稠密标注补上。
+
+### 三形态载体关系（SPEC #847 S9，以 bit-exact 对拍为准）
+
+同一件事（原始序号 ↔ 合并组）在仓内有三种形态，取代/并存/导出关系已定：
+
+| 形态 | 位置 | 关系 |
+|---|---|---|
+| Python 稀疏区间表 `merged_to_raw` | `src/newchan/a_inclusion.py :: merge_inclusion` | **并存（待跨语言对拍）**：稀疏投影，产自 Python 自己的合并算法（初始方向用 close/open 推断、无开头方向扫描），与 Rust 侧**当前零对拍**（算法不同源）。 |
+| Rust 稀疏锚点 + 二分 `merged_group_anchor` | `rust/src/theta_v0/parser/inclusion.rs:171` | **保留（同源）**：生产消费者在案。稠密标注由它同源的 `merged` 导出、同趟二分，不并存第二查法。 |
+| 稠密标注（每根原始 K 挂组号 + 组标准化高低 + 已确认/暂定 + 组内逐根高低） | `rust/src/theta_v0/parser/inclusion.rs :: dense_annotation` | **Rust 侧正本载体（本票新增）**：与 `merged_group_anchor` 同源。bit-exact 验收门：由标注重建的合并序列与 `process_inclusion` 现役输出逐字段相同。 |
+
+**取代/导出结论**：稠密标注是 Rust 侧正本载体；`merged_group_anchor` 保留并与它同源（读同一份 `merged`，不并存第二查法）；Python `merged_to_raw` 与 Rust 载体**当前零对拍**（算法不同源），登记为**并存待对拍**——跨语言对齐（Python 改读 Rust 载体或逐位对拍）不在 S9 本票范围，须单独立票。
 
 ## 当前实现
 
