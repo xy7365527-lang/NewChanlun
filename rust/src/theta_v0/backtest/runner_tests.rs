@@ -3966,7 +3966,7 @@ fn typed_trade_carries_exit_z_snapshot() {
     );
     assert_eq!(
         t.exit_z.nest_depth, t.entry_z.nest_depth,
-        "下沉深度入场冻结"
+        "向上 rungs 深度入场冻结"
     );
     assert_eq!(
         t.exit_z.origin_level, t.entry_z.origin_level,

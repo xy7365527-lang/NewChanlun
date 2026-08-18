@@ -518,7 +518,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                 // i_class=0（零 bit，StructBreak 零类先例）、parent_dir=0/Root（无声部父）、
                 // horizontal/force_state 诚实 None（from_certificate 口径）；sigma_higher 塔真值、
                 // cand_channel=PanDivConsolidation、origin_level=Some(lvl)（起始=执行）、
-                // nest_depth=None（rungs 下沉深度概念不适用，同 Xzd 口径）。
+                // nest_depth=None（向上 rungs 深度概念不适用，同 Xzd 口径）。
                 let z = MuClass {
                     sigma_higher: Some(sigma_higher),
                     cand_channel: Some(NestTrigger::PanDivConsolidation),
