@@ -192,10 +192,22 @@ pub struct RiskConfig {
     /// >0 启用置信下界收缩。Θ_risk 参数（非缠论可导）。
     pub chi_z_alpha: f64,
     /// K_Θ 毛头寸约束激活开关（G7，codex #122 终裁 + codex decide 5b46）。`false`（default）⟹
-    /// 不激活（frozen Θ v0 bit-exact——净持仓约束照旧，毛敞口不设上限）；`true` ⟹ legs 折叠成净
-    /// 持仓**之前**施加毛敞口上限 `Σ|s_e| ≤ γ·U_ℓ`（strict §11「毛+净必须同时约束」，缩放语义 =
-    /// 逐根子树 KKT 投影，见 coverage.rs `apply_gross_cap`）。毛 cap **复用** `gamma`（与净 cap
-    /// 共用同一 Θ_risk 参数，#122 裁定暂不拆 gross_gamma/net_gamma）。
+    /// 不激活（净持仓约束照旧，毛敞口不设上限）；`true` ⟹ **两层同开**：
+    /// ① sizing 层——legs 折叠成净持仓**之前**施加毛敞口上限 `Σ|s_e| ≤ γ·U_ℓ`（strict §11
+    /// 「毛+净必须同时约束」，缩放语义 = 逐根子树 KKT 投影，见 coverage.rs `apply_gross_cap`）；
+    /// ② 风控层（#890 SPEC #847 S7 新增）——`k_theta_risk_gate` 逐 bar 以重簿逐仓名义
+    /// （#879 S1，`Σₖ |nₖ|·pxₖ`）做 C6/C7 毛+净杠杆合取判定（`leverage_ok`），违反 ⟹ 禁增仓
+    /// （`no_increase_cap` 压到当前 |p_t|，margin-design §2.8 同款语义）。
+    /// 毛 cap **复用** `gamma`（与净 cap 共用同一 Θ_risk 参数，#122 裁定暂不拆
+    /// gross_gamma/net_gamma）。
+    ///
+    /// ★默认值重估（#890，原「frozen：约束未配置=不激活」契约**已显式解除**）：default 保持
+    /// `false`——#937 问 1 裁定毛账口径**条件式**生效（生效条件 = 逐笔独立场所落地，与
+    /// ADR 0021 重启条件同步；生效前净账口径维持、既有回测结论不动），默认翻 `true` 会改变
+    /// 全部既有回测的成交序，与该裁定正面冲突。本字段性质随之由「frozen 契约」改为「附激活
+    /// 条件的待定参数」：人工激活通道 = 本配置 / env `ENFORCE_GROSS_CAP`
+    /// （wverify_run.rs `apply_enforce_gross_cap_from_env`）；自动激活随 ADR 0021 重启触发
+    /// （其裁定五第 4 条，#937 移交）。
     pub enforce_gross_cap: bool,
     /// ★M4 级别资金权 `w_ℓ`（multi-level-native-execution-design-20260719 §D M4）。**Θ_risk
     /// 参数，非缠论可导**（090/v3 纪律：级别之间怎么分钱是风险配置选择，不是缠论结构推导）。
@@ -453,7 +465,12 @@ mod tests {
         assert_eq!(c.risk.kappa, 2.0);
         assert_eq!(c.risk.default_lot, 1);
         assert_eq!(c.risk.chi_theta, None); // frozen：默认 χ≡1 全覆盖（无阈值过滤，task #41）
-        assert!(!c.risk.enforce_gross_cap); // frozen：毛头寸约束默认不激活（G7 约束未配置=不激活）
+
+        // #890（SPEC #847 S7）：原 `assert!(!c.risk.enforce_gross_cap)` frozen 契约**显式解除**——
+        // 解除理由：S1（#879）重实体落地后毛敞口（Σ 各重逐仓名义）已接进风控门（#834 落点 +
+        // 本票 leverage_ok 杠杆判定），「G7 约束未配置=不激活」不再是冻结前提而是待激活开关。
+        // 当前默认值的重估结论与激活条件移出本 frozen 锚，见
+        // [`enforce_gross_cap_default_pending_venue_restart`]。
         assert_eq!(c.exec.entry_delay_bars, 1);
         assert_eq!(c.exec.commission_bps, 1.0);
         assert_eq!(c.exec.slippage_bps, 2.0);
@@ -484,6 +501,23 @@ mod tests {
         assert_eq!(
             c.risk_policy, None,
             "risk_policy 默认 None ⟹ baseline κ=0（bit-exact 锁）"
+        );
+    }
+
+    /// #890（SPEC #847 S7）：`enforce_gross_cap` 默认值的重估结论锁——**当前 false，非 frozen**。
+    ///
+    /// 重估（票面处置②）：S1（#879）重实体落地后，毛敞口 = Σ 各重逐仓名义已可观且已接进
+    /// 风控门；但 #937 问 1 裁定毛账口径**条件式**生效（生效条件 = 逐笔独立场所落地，与
+    /// ADR 0021 重启条件同步；生效前净账口径维持、既有回测结论不动）——默认翻 true 会改变
+    /// 全部既有回测成交序，与该裁定正面冲突，故 default 保持 false。本测试锁的是「重估后
+    /// 的当前读数」而非 frozen 契约：随 ADR 0021 重启翻 true 是**预期路径**（届时同步改本
+    /// 测试与字段文档），不算 default 漂移；任何**其它**理由的翻转会在此被拦下并要求说明。
+    #[test]
+    fn enforce_gross_cap_default_pending_venue_restart() {
+        let c = ThetaConfig::default();
+        assert!(
+            !c.risk.enforce_gross_cap,
+            "#890：default=false 是 #937 问 1 条件式裁定的当前读数（非 frozen）——             随 ADR 0021 重启翻 true 属预期路径（同步更新本测试），其它理由须开票说明"
         );
     }
 

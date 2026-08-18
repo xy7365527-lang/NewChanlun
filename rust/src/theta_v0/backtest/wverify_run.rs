@@ -210,10 +210,13 @@ fn apply_theta_dir_preset_from_env(cfg: &mut ThetaConfig) {
     }
 }
 
-/// A-4（formal-criteria H3 / #122 终裁）：`ENFORCE_GROSS_CAP=true` 激活毛头寸约束（strict §11
-/// `Σ|s_e| ≤ γ·U_ℓ`，coverage.rs `apply_gross_cap`）。无 env/非 "true" = default false 不变（#122
-/// 「约束未配置=不激活」诚实声明 + frozen Θ v0 bit-exact）。跑批入口同 [`apply_theta_dir_preset_from_env`]
-/// 先例——`build_mu_from_bars` 残差路径经 `typed_ledger_from_bars`→`pi_theta_fill_loop` 触达 `apply_gross_cap`，
+/// A-4（formal-criteria H3 / #122 终裁）：`ENFORCE_GROSS_CAP=true` 激活毛头寸约束——两层同开：
+/// sizing 层 `Σ|s_e| ≤ γ·U_ℓ`（coverage.rs `apply_gross_cap`）+ 风控层毛/净杠杆合取判定
+/// （`leverage_ok`，#890 SPEC #847 S7 接进 `k_theta_risk_gate`）。无 env/非 "true" = default false
+/// 不变（「约束未配置=不激活」；该默认值原 frozen 契约已由 #890 显式解除并重估——现读数
+/// false 是 #937 问 1 条件式裁定的结果，见 config.rs `enforce_gross_cap` 字段文档）。跑批入口同
+/// [`apply_theta_dir_preset_from_env`] 先例——`build_mu_from_bars` 残差路径经
+/// `typed_ledger_from_bars`→`pi_theta_fill_loop` 触达 `apply_gross_cap` 与风控门，
 /// 故残差跑批（wverify_full）与 π^full 跑批（m8_e2e）均需本 gate 才能测毛 cap 效应。
 fn apply_enforce_gross_cap_from_env(cfg: &mut ThetaConfig) {
     if std::env::var(crate::theta_v0::env_registry::ENFORCE_GROSS_CAP).as_deref() == Ok("true") {

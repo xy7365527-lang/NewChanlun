@@ -5085,6 +5085,9 @@ where
                                               // #879：风控门保证金基数 = 重簿逐仓全额计提名义（Σₖ |nₖ|·px；单重 ⟹ |p_t|·px，
                                               // 与旧净额行同值但语义已锚定「逐仓极性全额」——ADR 0014 裁定二，#834 定落点）。
             let chong_posted_notional_usd = chong_book.posted_notional_usd(&|_| px);
+            // #890（S7）：毛+净杠杆门（leverage_ok）随 enforce_gross_cap 开关接进风控门——
+            // Some(γ)=激活（毛/净同 γ，#122）；None（default）= 不激活（bit-exact 不变）。
+            let gross_leverage_cap = config.risk.enforce_gross_cap.then_some(config.risk.gamma);
             let (gate, risk_mode_i, stop_risk_seeds) = k_theta_risk_gate(
                 &prev_active,
                 &open_trades,
@@ -5092,6 +5095,8 @@ where
                 equity_nav,
                 p_t,
                 chong_posted_notional_usd,
+                px,
+                gross_leverage_cap,
                 config.margin.as_ref(),
             );
             // ── M6 ③⁻ LiquidationLoss 强平罚金（边沿触发，一次一集）：本 bar 进入

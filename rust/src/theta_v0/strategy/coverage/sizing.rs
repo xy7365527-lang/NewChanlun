@@ -324,6 +324,7 @@ pub struct KThetaRiskGate {
     pub stop_short: bool,
     /// M2/M3（Deleverage/CloseOnly）净幅上限=当前 |net|（margin-design §2.8；单位同 `cap`，lot 幅度）。
     /// `None`=不约束（M0/M1/M4 或未接保证金）；`Some(c)`=净持仓幅度不得超 c（禁增仓，真改订单流）。
+    /// #890：毛/净杠杆门（`leverage_ok`，`enforce_gross_cap=true` 时）违反同款禁增仓语义合流于此。
     pub no_increase_cap: Option<f64>,
 }
 

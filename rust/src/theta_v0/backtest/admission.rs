@@ -1303,7 +1303,7 @@ impl NestChainGate {
 ///   `record_held_voice`（exitfix-research §族A）。
 /// - **reverse_signal 不入本门**：反向信号关活动腿走 `interpret` 𝒟_x（腿级单出口）；
 ///   **parent_invalid** v0 root 恒 false（无父）。
-#[allow(clippy::too_many_arguments)] // #879 增 chong_posted_notional_usd（逐仓计提名义），同仓惯例
+#[allow(clippy::too_many_arguments)] // #879 增 chong_posted_notional_usd、#890 增 px+gross_leverage_cap，同仓惯例
 pub(super) fn k_theta_risk_gate(
     prev_active: &[super::super::strategy::interp::ActiveLeg],
     open_trades: &std::collections::HashMap<classifier::recursive_tower::ElementId, LedgerOpen>,
@@ -1311,6 +1311,8 @@ pub(super) fn k_theta_risk_gate(
     equity: f64,
     p_t: f64,
     chong_posted_notional_usd: f64,
+    px: f64,
+    gross_leverage_cap: Option<f64>,
     margin: Option<&super::super::strategy::risk::MarginModel>,
 ) -> (
     super::super::strategy::coverage::KThetaRiskGate,
@@ -1354,6 +1356,37 @@ pub(super) fn k_theta_risk_gate(
     let no_increase_cap = match mode {
         RiskMode::Deleverage | RiskMode::CloseOnly => Some(p_t.abs()),
         _ => None,
+    };
+    // ★#890（SPEC #847 S7，ADR 0014 裁定五 G2）：毛敞口接进决策——**落在风控层（本门）**。
+    // `leverage_ok`（strict §12 C6/C7，毛+净**合取**——Lean `net_ok_not_imply_gross_ok` 已证
+    // 只查净不足）原全仓零生产调用；S1（#879）重实体落地后毛敞口 = 重簿逐仓名义
+    // `chong_posted_notional_usd`（已是本门保证金基数，ADR 0014 裁定二），此处同一可观测量
+    // 第二次消费：C6/C7 杠杆判定。`gross_leverage_cap = Some(γ)` 仅当 `risk.enforce_gross_cap=true`
+    // （毛/净上限共用同一 γ，#122 裁定暂不拆 gross_gamma/net_gamma）；`None`（default）⟹ 不激活，
+    // 既有基线 bit-exact 不变（默认值重估与激活条件见 config.rs `enforce_gross_cap` 字段文档）。
+    // 违反 ⟹ **禁增仓**：净幅压到当前 |p_t|（margin-design §2.8 M2/M3 同款语义，与既有
+    // Deleverage/CloseOnly 分支合流取更严者）——不是强平（force_flat 仍专属 M0/M1）。
+    // 单重现状下毛 = |净|（重簿只有一条腿），毛/净双查退化为同值单查；多重落地（SPEC #847
+    // S3）后异重反向两腿毛相加而净抵消，毛分量才与净分量分离——彼时「以净幅钳制降毛」不足
+    // （两重可同时反向加仓保持净额不变），该细化随多重实例化一并落地，此处明写不留暗坑。
+    let no_increase_cap = match gross_leverage_cap {
+        Some(gamma) => {
+            let metrics = super::super::strategy::risk::leverage_metrics_usd(
+                chong_posted_notional_usd,
+                p_t.abs() * px,
+                equity,
+            );
+            let caps = super::super::strategy::risk::LeverageCaps {
+                gross_cap: gamma,
+                net_cap: gamma,
+            };
+            if super::super::strategy::risk::leverage_ok(metrics, caps) {
+                no_increase_cap
+            } else {
+                Some(no_increase_cap.map_or(p_t.abs(), |c| c.min(p_t.abs())))
+            }
+        }
+        None => no_increase_cap,
     };
 
     // ★族A 修复（formal-chain §9 closePred Stop 覆盖度）：stop 从**入场冻结的 structural_stop**
