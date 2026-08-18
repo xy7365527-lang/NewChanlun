@@ -36,6 +36,10 @@ use super::divergence::{
 use super::signal::{self, BspPoint, FirstClassGradeRecord, PanDivCert};
 use std::collections::HashMap;
 
+/// A 段区间 + b 包络缓存（键 = 最近 confirmed 中枢下标 c_idx；值 = I(A) span 与其包络）。
+/// 热点②：趋势 τ 下多段共享同一 (prev_center, last_center) 对 ⟹ 每 c_idx 至多算一次。
+type ASegCache = HashMap<usize, Option<((usize, usize), (Tick, Tick))>>;
+
 /// 合并扫描四件产出（SPEC #1077 T1：BSP 三投影 + 候选观察逐字段零改动）。
 pub(crate) struct MergedScanOutput {
     pub points: Vec<BspPoint>,
@@ -131,57 +135,55 @@ pub(crate) fn merged_scan_resume(
     }
 
     // 逐段判定核（advance 与 tail 共享）：pointwise 解析门/类别后共享 per-segment 素材喂两域 sink。
-    let mut a_seg_cache: HashMap<usize, Option<((usize, usize), (Tick, Tick))>> = HashMap::new();
-    let mut scan_range =
-        |from: usize,
-         to: usize,
-         pts: &mut Vec<BspPoint>,
-         pans: &mut Vec<PanDivCert>,
-         grades: &mut Vec<FirstClassGradeRecord>,
-         legs: &mut Vec<CandidateObservation>,
-         a_cache: &mut HashMap<usize, Option<((usize, usize), (Tick, Tick))>>| {
-            for i in from..to {
-                let seg = &segments[i];
-                let Some(c_idx) = signal::nearest_confirmed_center_idx(centers, seg.start_index)
-                else {
-                    continue;
-                };
-                // pos==c_idx（end_index 严格递增 ⟹ 三元组唯一）；门 = pointwise ownership 方向。
-                let gate_dir = if any_trend {
-                    center_own_dir_at(blocks, c_idx).map(|d| (c_idx, d))
-                } else {
-                    None
-                };
-                // #898：本级盘背只认本级别盘整块（lift==0）。
-                let kind_consol = any_consol
-                    && center_block_kind_at(blocks, c_idx) == Some(MoveKind::Consolidation)
-                    && center_block_lift_at(blocks, c_idx) == Some(0);
-                merged_judge_segment(
-                    i,
-                    seg,
-                    c_idx,
-                    gate_dir,
-                    kind_consol,
-                    segments,
-                    anchors,
-                    &anchors_self,
-                    centers,
-                    a_cache,
-                    hist,
-                    dif,
-                    closes_tick,
-                    close_src,
-                    gauge,
-                    strokes,
-                    level,
-                    departure_ends,
-                    pts,
-                    pans,
-                    grades,
-                    legs,
-                );
-            }
-        };
+    let mut a_seg_cache: ASegCache = HashMap::new();
+    let scan_range = |from: usize,
+                      to: usize,
+                      pts: &mut Vec<BspPoint>,
+                      pans: &mut Vec<PanDivCert>,
+                      grades: &mut Vec<FirstClassGradeRecord>,
+                      legs: &mut Vec<CandidateObservation>,
+                      a_cache: &mut ASegCache| {
+        for i in from..to {
+            let seg = &segments[i];
+            let Some(c_idx) = signal::nearest_confirmed_center_idx(centers, seg.start_index) else {
+                continue;
+            };
+            // pos==c_idx（end_index 严格递增 ⟹ 三元组唯一）；门 = pointwise ownership 方向。
+            let gate_dir = if any_trend {
+                center_own_dir_at(blocks, c_idx).map(|d| (c_idx, d))
+            } else {
+                None
+            };
+            // #898：本级盘背只认本级别盘整块（lift==0）。
+            let kind_consol = any_consol
+                && center_block_kind_at(blocks, c_idx) == Some(MoveKind::Consolidation)
+                && center_block_lift_at(blocks, c_idx) == Some(0);
+            merged_judge_segment(
+                i,
+                seg,
+                c_idx,
+                gate_dir,
+                kind_consol,
+                segments,
+                anchors,
+                &anchors_self,
+                centers,
+                a_cache,
+                hist,
+                dif,
+                closes_tick,
+                close_src,
+                gauge,
+                strokes,
+                level,
+                departure_ends,
+                pts,
+                pans,
+                grades,
+                legs,
+            );
+        }
+    };
 
     // 推进：新晋 confirmed 的段 [cached_count..stable_seg) 一次性判入缓存（一生一算，push 序）。
     if *cached_count < stable_seg {
@@ -204,7 +206,7 @@ pub(crate) fn merged_scan_resume(
     let mut legs = cached_legs.clone();
     // tail 的 a_seg_cache 独立（advance 已消耗，tail 段最近中枢多在 frontier）——新建，与 full
     // 路径每调用一份 a_seg_cache 同语义（key=c_idx，命中即复用；跨 advance/tail 不复用不影响 bit）。
-    let mut tail_a_cache: HashMap<usize, Option<((usize, usize), (Tick, Tick))>> = HashMap::new();
+    let mut tail_a_cache: ASegCache = HashMap::new();
     scan_range(
         stable_seg,
         segments.len(),
@@ -288,7 +290,7 @@ fn merged_judge_segment(
     anchors: &[Option<Direction>],
     anchors_self: &[Option<Direction>],
     centers_sorted: &[Center],
-    a_seg_cache: &mut HashMap<usize, Option<((usize, usize), (Tick, Tick))>>,
+    a_seg_cache: &mut ASegCache,
     hist: &[f64],
     dif: &[f64],
     closes_tick: &[Tick],
