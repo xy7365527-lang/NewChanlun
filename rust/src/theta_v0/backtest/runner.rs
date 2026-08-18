@@ -114,8 +114,33 @@ pub struct RunResult {
     pub trades: Vec<metrics::TradeRecord>,
     /// 原始价格序列（close 口径，与账本侧 `apply_order` 成交价一致）——随机对照在其上重执行。
     pub prices: Vec<f64>,
-    /// 单边费用率（commission+slippage+tax 比率）——随机对照含同等成本。
-    pub fee_rate: f64,
+    /// 单边费用率（单标量口径）——随机对照含同等成本。
+    ///
+    /// **有效域（231号 / #374 MED-A / ★#423）= 存在一个与 (qty, px, side) 无关的常数等效费率的
+    /// 档**。取值经 [`treasury::scalar_cost_rate_opt`](super::treasury::scalar_cost_rate_opt)，
+    /// **按档位形态三分叉**（判定本体 = `venue_fee::VenueFeeSchedule::constant_effective_rate`
+    /// 的结构检查，不是按 `fee_schedule` 有无一刀切）：
+    ///
+    /// | 档 | 本字段 |
+    /// |---|---|
+    /// | `exec.fee_schedule = None`（未标定常率） | `Some((commission+slippage+tax)bps/1e4)` |
+    /// | `Some`，per-notional 且 maker/taker **逐位对称** | `Some(档 bps/1e4 + slippage_bps/1e4 + tax_bps/1e4)` |
+    /// | `Some`，per-share **或** per-notional 非对称 | `None` |
+    ///
+    /// **为什么按金额对称档良定义**：`effective_rate` 的 `Notional` 分支直接返回 `bps/1e4`，函数体
+    /// 不读 `qty`/`px` ⟹ 规模维消失；`maker_bps == taker_bps` 逐位相等且角色取自编译期常量
+    /// `venue_fee::PRODUCTION_LIQUIDITY_ROLE` ⟹ 角色维消失。于是反事实臂（随机对照在不同 px 上
+    /// 重执行）与 Θ 实际路径用**同一个**常数，「含同等成本」为真。
+    ///
+    /// **为什么按股档/非对称档 `None`**：per-share 费率是 (qty, px, side) 的非线性函数（最低佣金
+    /// 托底 / 1% 名义额上限 / 仅卖出监管费）；非对称档的常数不由 datum 内容唯一确定。两档都没有使
+    /// 「随机对照含同等成本」成真的标量，消费面须先接 (qty, px, side) 缝改用 `treasury::fee_quoter`。
+    ///
+    /// ★#388 T2：`None` 由**类型**承载有效域收窄（此前是构造期 panic）。防线等价不减弱——
+    /// 消费面要么 `expect(treasury::SCALAR_COST_RATE_UNDEFINED)`（原 fail-loud 语义，位点移到
+    /// 消费期），要么按 #385 裁定把该读数标注不可用。改动理由：构造期 panic 会用一个消费面的
+    /// 有效域锁死与它无关的**全部**跑批读数（execR/费用科目/TW 三态/门控统计）。
+    pub fee_rate: Option<f64>,
     /// Θ MtM 复利口径 total_return（= `metrics.strat_return`）——**仅作 significance 报告参考**
     /// （`theta_return_mtm`），**不是**随机对照比较基准。实际比较用 significance 内部算的
     /// `theta_return_same_caliber`（逐笔无复利同口径）——消除复利偏置（codex 实现审查缺陷①②）。
@@ -366,8 +391,7 @@ fn run_theta_v0_pi_inner(
         .iter()
         .map(|b| b.close as f64 * config.tick.tick_size)
         .collect();
-    let fee_rate =
-        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    let fee_rate = super::treasury::scalar_cost_rate_opt(&config.exec);
     let theta_return_mtm = m.strat_return;
     let strict_nest_sidecar = strict_nest_sidecar.finish();
 
@@ -578,8 +602,7 @@ pub fn run_theta_v0_pi_overlay(
         .iter()
         .map(|b| b.close as f64 * config.tick.tick_size)
         .collect();
-    let fee_rate =
-        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    let fee_rate = super::treasury::scalar_cost_rate_opt(&config.exec);
     let theta_return_mtm = m.strat_return;
     // ★#880：legacy 单重占位键（同上）。
     let closed_loop_final = run_closed_loop(

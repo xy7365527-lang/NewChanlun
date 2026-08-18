@@ -1796,7 +1796,9 @@ fn m8_e2e_all_systems_oos() {
             &r.net_result.daily_returns,
             &r.net_result.trades,
             &r.net_result.prices,
-            r.net_result.fee_rate,
+            r.net_result
+                .fee_rate
+                .expect(super::treasury::SCALAR_COST_RATE_UNDEFINED),
             r.net_result.theta_return_mtm,
         );
         let lcb_r = sig.boot_ci95_lo; // LCB_OOS(R) = block bootstrap 总收益 2.5 分位下界

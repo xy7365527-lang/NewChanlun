@@ -977,7 +977,9 @@ fn rebuild_cost_series(res: &super::runner::RunResult, n_bars: usize, nav0: f64)
     // ★#388 T2 / ★#423：`fee_rate=None`（按股档 / 按金额非对称档）⟹ 此处 fail-loud（原口径 =
     //   构造期 panic，语义等价，位点移到消费期）。按金额对称档自 ★#423 起给 `Some(常数)` ⟹ 走下面
     //   的逐笔 `qty·px·fee`，与成交侧 fee_quoter 同值、逐 bar 分布不丢（见本函数有效域节）。
-    let fee = res.fee_rate;
+    let fee = res
+        .fee_rate
+        .expect(super::treasury::SCALAR_COST_RATE_UNDEFINED);
     for tr in &res.trades {
         // 成交价从 RunResult.prices（与账本 apply_order 成交价一致，close 口径）取。
         let entry_px = res.prices.get(tr.entry_bar).copied().unwrap_or(0.0);

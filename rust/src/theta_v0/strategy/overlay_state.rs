@@ -44,8 +44,45 @@
 use std::collections::HashMap;
 
 use super::coverage::{SepLeg, Vertical};
+use super::exec::FillSide;
 use super::voice::VoiceSide;
 use crate::theta_v0::classifier::recursive_tower::ElementId;
+// ★#423 第二阶段 C 线：本文件**不** import `LiquidityRole`——报价走
+// `FeeQuoter::production_rate_or_fallback`（无角色参数，角色单一来源 =
+// `venue_fee::PRODUCTION_LIQUIDITY_ROLE`）。
+use crate::theta_v0::venue_fee::FeeQuoter;
+
+/// ★#360 声部簿的 venue 费率解析（开仓侧）：开多 = 买入，开空 = 卖出。
+///
+/// 未标定档恒返回三常数合成率（**逐位现状**）；标定档按 (q_v, px, 方向) 解析 datum。
+/// 流动性角色恒 [`PRODUCTION_LIQUIDITY_ROLE`](crate::theta_v0::venue_fee::PRODUCTION_LIQUIDITY_ROLE)
+/// （= Taker；bar close 市价撮合，无挂单语义——同 `fill.rs`）：★#423 第二阶段 C 线起本文件
+/// **不传角色**，角色在 [`FeeQuoter::production_rate_or_fallback`] 内部取该常量（单一来源）。
+/// 非法量/价 ⟹ 该 fill 不发生，返回常率占位（调用方随后即 noop）。
+fn open_fee_rate(fees: &FeeQuoter, side: VoiceSide, q_lots: i64, px: f64) -> f64 {
+    let fill_side = match side {
+        VoiceSide::Long => FillSide::Buy,
+        VoiceSide::Short => FillSide::Sell,
+        _ => return fees.fallback_rate(), // Flat 不开仓
+    };
+    quote(fees, q_lots, px, fill_side)
+}
+
+/// 平仓侧：平多 = 卖出，平空 = 买回（方向与开仓相反）。
+fn close_fee_rate(fees: &FeeQuoter, side: VoiceSide, q_lots: i64, px: f64) -> f64 {
+    let fill_side = match side {
+        VoiceSide::Long => FillSide::Sell,
+        VoiceSide::Short => FillSide::Buy,
+        _ => return fees.fallback_rate(),
+    };
+    quote(fees, q_lots, px, fill_side)
+}
+
+fn quote(fees: &FeeQuoter, q_lots: i64, px: f64, side: FillSide) -> f64 {
+    // 量/价合法性判定与撮合角色都收在 `FeeQuoter::production_rate_or_fallback` 一处
+    // （与 `fill.rs` 成交点同源；角色不由本文件表达）。
+    fees.production_rate_or_fallback(q_lots as f64, px, side)
+}
 
 /// σ_v 的符号（Long=+1 多 / Short=−1 空 / Flat=0 不入活动集，防御性）。
 pub(crate) fn side_sign(s: VoiceSide) -> i64 {
@@ -520,7 +557,7 @@ impl VoiceExecBook {
         q_lots: i64,
         px: f64,
         bar: usize,
-        fee_rate: f64,
+        fees: &FeeQuoter,
     ) -> VoiceFillOutcome {
         let noop = VoiceFillOutcome {
             executed_qty: 0.0,
@@ -529,6 +566,9 @@ impl VoiceExecBook {
         if q_lots <= 0 || px <= 0.0 {
             return noop;
         }
+        // ★#360：开仓 fill 的 venue 费率——(σ_v, q_v) 的真值源在本簿，故解析下沉到此。
+        //   未标定档 ⟹ 常率（逐位现状）；开多=买入侧、开空=卖出侧（per-share 档卖出另计监管费）。
+        let fee_rate = open_fee_rate(fees, side, q_lots, px);
         // 防御性：同 carrier 已有在簿持仓。正常路径不发生（close→reopen 由 Close 订单先平，
         // runner 调度同 bar 平单先于开单）；release 兜底先按本价结算旧 campaign 再开新。
         debug_assert!(
@@ -537,7 +577,7 @@ impl VoiceExecBook {
             id
         );
         let replaced = if self.positions.contains_key(&id) {
-            self.flatten(id, px, bar, fee_rate, false)
+            self.flatten(id, px, bar, fees, false)
                 .map(|(info, _fee)| info)
         } else {
             None
@@ -590,9 +630,9 @@ impl VoiceExecBook {
         id: ElementId,
         px: f64,
         bar: usize,
-        fee_rate: f64,
+        fees: &FeeQuoter,
     ) -> VoiceFillOutcome {
-        match self.flatten(id, px, bar, fee_rate, false) {
+        match self.flatten(id, px, bar, fees, false) {
             Some((info, _fee)) => {
                 self.n_fills += 1;
                 VoiceFillOutcome {
@@ -613,12 +653,14 @@ impl VoiceExecBook {
         id: ElementId,
         px: f64,
         bar: usize,
-        fee_rate: f64,
+        fees: &FeeQuoter,
         forced: bool,
     ) -> Option<(VoiceCloseInfo, f64)> {
         let pos = self.positions.remove(&id)?;
         let sigma = side_sign(pos.side) as f64;
         let qty = pos.q as f64;
+        // ★#360：平仓 fill 的 venue 费率——平多=卖出侧、平空=买回侧（方向与开仓相反）。
+        let fee_rate = close_fee_rate(fees, pos.side, pos.q, px);
         // 平仓现金流：平多（σ+1）+qty·px·(1−fee)；平空（σ−1）−qty·px·(1+fee)。
         let cash_flow = sigma * qty * px * (1.0 - sigma * fee_rate);
         let fee = qty * px * fee_rate;
@@ -661,7 +703,7 @@ impl VoiceExecBook {
         &mut self,
         last_px: f64,
         exit_bar: usize,
-        fee_rate: f64,
+        fees: &FeeQuoter,
     ) -> Vec<VoiceCloseInfo> {
         let mut rows: Vec<(usize, u32, u64, ElementId)> = self
             .positions
@@ -674,6 +716,8 @@ impl VoiceExecBook {
             if let Some(pos) = self.positions.remove(&id) {
                 let sigma = side_sign(pos.side) as f64;
                 let qty = pos.q as f64;
+                // ★#360：逐声部解析（per-share 档下 q_v 不同 ⟹ 等效费率不同，不可共用一个标量）。
+                let fee_rate = close_fee_rate(fees, pos.side, pos.q, last_px);
                 let px_exit_net = last_px * (1.0 - sigma * fee_rate);
                 let pnl = sigma * (px_exit_net - pos.entry_px) * qty;
                 self.closed.push(ClosedVoiceExec {
@@ -826,17 +870,18 @@ mod tests {
     /// 账本净变动（cash−nav0，N=0）== 价格 PnL − 成交费（构造性恒等，逐段现金流对齐）。
     #[test]
     fn voice_exec_open_close_conservation() {
-        let fee = 0.0003;
+        // #360：簿的费率入口改吃 quoter；未标定档（None）⟹ 常率，与改动前逐位相同。
+        let fee = FeeQuoter::uncalibrated(0.0003);
         let mut vb = VoiceExecBook::new(1.0e6);
         let v = eid(1, 0);
         vb.mark_to_market(100.0); // bar0：首价，无 ΔP
-        let o = vb.apply_open(v, VoiceSide::Long, 10, 100.0, 0, fee);
+        let o = vb.apply_open(v, VoiceSide::Long, 10, 100.0, 0, &fee);
         assert_eq!(o.executed_qty, 10.0);
         assert_eq!(vb.net_signed(), 10);
         assert_eq!(vb.positions().next().unwrap().q, 10, "q_v 冻结为开仓手数");
         vb.mark_to_market(110.0); // ΔP=+10：account += 10·10=100；pnl_price += 100
         assert!((vb.account_price_pnl() - 100.0).abs() < 1e-9);
-        let c = vb.apply_close(v, 110.0, 1, fee);
+        let c = vb.apply_close(v, 110.0, 1, &fee);
         assert_eq!(c.executed_qty, 10.0);
         let info = c.closed.expect("平仓结算");
         // 费后 PnL = (110·0.9997 − 100·1.0003)·10 = (109.967−100.03)·10 = 99.37。
@@ -849,7 +894,7 @@ mod tests {
         );
         assert_eq!(vb.gross_turnover_lots(), 20, "G = q开+q平 = 20 手");
         // 守恒：cash−nav0 == account_price_pnl − cum_fee（N=0 终点）。
-        let fee_total = 10.0 * 100.0 * fee + 10.0 * 110.0 * fee; // 0.30+0.33=0.63
+        let fee_total = 10.0 * 100.0 * fee.fallback_rate() + 10.0 * 110.0 * fee.fallback_rate(); // 0.30+0.33=0.63
         assert!((vb.cum_fee() - fee_total).abs() < 1e-9);
         let ledger_delta = vb.cash() - vb.nav0();
         let net_r = vb.account_price_pnl() - vb.cum_fee();
@@ -869,13 +914,14 @@ mod tests {
     /// 湮灭），N_derived=Σσ_v q_v=4 与声部簿逐声部之和一致；各自独立结算。
     #[test]
     fn voice_exec_hedged_voices_independent_books() {
-        let fee = 0.0003;
+        // #360：簿的费率入口改吃 quoter；未标定档（None）⟹ 常率，与改动前逐位相同。
+        let fee = FeeQuoter::uncalibrated(0.0003);
         let mut vb = VoiceExecBook::new(1.0e6);
         let parent = eid(2, 0);
         let child = eid(1, 0);
         vb.mark_to_market(100.0);
-        vb.apply_open(parent, VoiceSide::Long, 10, 100.0, 0, fee);
-        vb.apply_open(child, VoiceSide::Short, 6, 100.0, 0, fee);
+        vb.apply_open(parent, VoiceSide::Long, 10, 100.0, 0, &fee);
+        vb.apply_open(child, VoiceSide::Short, 6, 100.0, 0, &fee);
         // 守恒断言：Σ_v σ_v·q_v（簿派生）== 逐声部手数有符号和。
         let sum: i64 = vb
             .positions()
@@ -894,7 +940,7 @@ mod tests {
         vb.mark_to_market(110.0); // account += 4·10=40；父+100，子−60
         assert!((vb.account_price_pnl() - 40.0).abs() < 1e-9);
         // 各自独立结算：只平空腿，多腿存续。
-        vb.apply_close(child, 110.0, 1, fee);
+        vb.apply_close(child, 110.0, 1, &fee);
         assert_eq!(vb.net_signed(), 10, "空腿已平，多腿独立存续");
         assert_eq!(vb.closed_voices().len(), 1);
         assert_eq!(vb.n_open_end(), 1);
@@ -908,16 +954,17 @@ mod tests {
     /// 归因行入 closed（forced=true）。
     #[test]
     fn voice_exec_forced_settle_virtual_no_cash() {
-        let fee = 0.0003;
+        // #360：簿的费率入口改吃 quoter；未标定档（None）⟹ 常率，与改动前逐位相同。
+        let fee = FeeQuoter::uncalibrated(0.0003);
         let mut vb = VoiceExecBook::new(1.0e6);
         let v = eid(1, 0);
         vb.mark_to_market(100.0);
-        vb.apply_open(v, VoiceSide::Long, 10, 100.0, 0, fee);
+        vb.apply_open(v, VoiceSide::Long, 10, 100.0, 0, &fee);
         vb.mark_to_market(110.0);
         let cash_before = vb.cash();
         let fee_before = vb.cum_fee();
         let fills_before = vb.n_fills();
-        let rows = vb.settle_forced_virtual(110.0, 19, fee);
+        let rows = vb.settle_forced_virtual(110.0, 19, &fee);
         assert_eq!(rows.len(), 1);
         // 虚拟兑现 pnl = (110·0.9997 − 100·1.0003)·10 = 99.37（与真平同价同额）。
         assert!((rows[0].pnl - 99.37).abs() < 1e-9);
@@ -931,7 +978,7 @@ mod tests {
         assert_eq!(vb.n_open_end(), 0);
         assert!(vb.closed_voices()[0].forced);
         assert!(
-            (vb.closed_voices()[0].fee_paid - 10.0 * 100.0 * fee).abs() < 1e-9,
+            (vb.closed_voices()[0].fee_paid - 10.0 * 100.0 * fee.fallback_rate()).abs() < 1e-9,
             "fee_paid 只记实付开仓费"
         );
     }
@@ -941,7 +988,14 @@ mod tests {
     #[test]
     fn voice_exec_open_rejected_on_insufficient_cash() {
         let mut vb = VoiceExecBook::new(100.0);
-        let o = vb.apply_open(eid(1, 0), VoiceSide::Long, 10, 100.0, 0, 0.0003);
+        let o = vb.apply_open(
+            eid(1, 0),
+            VoiceSide::Long,
+            10,
+            100.0,
+            0,
+            &FeeQuoter::uncalibrated(0.0003),
+        );
         assert_eq!(
             o.executed_qty, 0.0,
             "10 手×100×1.0003=1000.3 > 现金 100 ⟹ 拒开"
@@ -955,9 +1009,54 @@ mod tests {
     #[test]
     fn voice_exec_close_without_position_noop() {
         let mut vb = VoiceExecBook::new(1.0e6);
-        let o = vb.apply_close(eid(9, 9), 100.0, 3, 0.0003);
+        let o = vb.apply_close(eid(9, 9), 100.0, 3, &FeeQuoter::uncalibrated(0.0003));
         assert_eq!(o.executed_qty, 0.0);
         assert!(o.closed.is_none());
         assert_eq!(vb.n_fills(), 0);
+    }
+
+    /// ★#649 对拍（资金路径硬门）：标定档（OKLO per-share）下声部簿按 venue 逐科目扣费，
+    /// 未标定档同单仍为 3bp 常率——新旧口径差异在账本层可物证（非只在 FeeQuoter 单测内）。
+    /// **认识论 L1**（费率表算术 + 账本现金流；不主张 alpha）。
+    #[test]
+    fn voice_exec_calibrated_per_share_charges_datum_fee() {
+        use crate::theta_v0::venue_fee::{datum_dir, load_datum};
+        let oklo = load_datum(&datum_dir().join("venue_fee_ibkr_pro_20260726.json"))
+            .expect("IBKR datum 可加载")
+            .resolve("OKLO", "PRO_TIERED_LE_300K_SHARES")
+            .expect("OKLO 在册");
+        let cal = FeeQuoter::new(3e-4, 2e-4, Some(&oklo)); // datum + 未标定滑点 2bp
+        let uncal = FeeQuoter::uncalibrated(3e-4);
+
+        // 买入 100 股 @ $20（名义 $2000）：datum $0.370559 + 滑点 $0.40。
+        let mut vb = VoiceExecBook::new(1.0e6);
+        vb.apply_open(eid(1, 0), VoiceSide::Long, 100, 20.0, 0, &cal);
+        assert!(
+            (vb.cum_fee() - (0.370559 + 0.4)).abs() < 1e-9,
+            "标定买入费={}",
+            vb.cum_fee()
+        );
+
+        // 未标定同单：$2000 × 3e-4 = $0.60（旧 f64 口径逐位）。
+        let mut vb2 = VoiceExecBook::new(1.0e6);
+        vb2.apply_open(eid(1, 0), VoiceSide::Long, 100, 20.0, 0, &uncal);
+        assert!(
+            (vb2.cum_fee() - 0.6).abs() < 1e-9,
+            "未标定买入费={}",
+            vb2.cum_fee()
+        );
+        assert!(
+            vb.cum_fee() > vb2.cum_fee(),
+            "本价位下标定须高于未标定（佣金科目被真实费率替换，滑点原样保留）"
+        );
+
+        // 开空（卖出侧）100 股：+ SEC/TAF ⟹ datum $0.431259 + 滑点 $0.40。
+        let mut vb3 = VoiceExecBook::new(1.0e6);
+        vb3.apply_open(eid(1, 0), VoiceSide::Short, 100, 20.0, 0, &cal);
+        assert!(
+            (vb3.cum_fee() - (0.431259 + 0.4)).abs() < 1e-9,
+            "标定卖出费={}",
+            vb3.cum_fee()
+        );
     }
 }

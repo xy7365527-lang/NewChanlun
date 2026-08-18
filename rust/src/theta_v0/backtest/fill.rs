@@ -4712,6 +4712,11 @@ where
     let nav0 = if initial_nav > 0.0 { initial_nav } else { 1.0 };
     let fee_rate =
         (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    // ★#360/#419（⚠MED-6 恢复）：声部执行簿的成交费率走 `FeeQuoter`（未标定档恒返回
+    //   三常数合成率 = 上方 `fee_rate` 逐位同值；标定档按 (q_v, px, 方向) 解析 datum）。
+    //   净额账户路径（`apply_order`）仍用标量 `fee_rate`——其 fee_quoter 接线属另票
+    //   （treasury.rs `scalar_cost_rate` 文档登记的两个消费面同款缝）。
+    let fees = super::treasury::fee_quoter(&config.exec);
     let weights = PiThetaWeights::from_risk(&config.risk);
 
     let mut cash: f64 = nav0;
@@ -4982,10 +4987,8 @@ where
             let vb = voice_exec.as_deref_mut().expect("voice_enabled ⟹ Some");
             for vo in &vos {
                 let out = match vo.kind {
-                    VoiceOrderKind::Open => {
-                        vb.apply_open(vo.voice, vo.side, vo.qty, px, i, fee_rate)
-                    }
-                    VoiceOrderKind::Close => vb.apply_close(vo.voice, px, i, fee_rate),
+                    VoiceOrderKind::Open => vb.apply_open(vo.voice, vo.side, vo.qty, px, i, &fees),
+                    VoiceOrderKind::Close => vb.apply_close(vo.voice, px, i, &fees),
                 };
                 if out.executed_qty > 0.0 {
                     n_voice_fills += 1;
@@ -6303,7 +6306,7 @@ where
             if last_px > 0.0 {
                 let exit_bar = n.saturating_sub(1);
                 let vb = voice_exec.as_deref_mut().expect("voice_enabled ⟹ Some");
-                for cinfo in vb.settle_forced_virtual(last_px, exit_bar, fee_rate) {
+                for cinfo in vb.settle_forced_virtual(last_px, exit_bar, &fees) {
                     trade_pnls_with_forced.push(cinfo.pnl);
                     voice_trades.push(metrics::TradeRecord {
                         entry_bar: cinfo.entry_bar,
