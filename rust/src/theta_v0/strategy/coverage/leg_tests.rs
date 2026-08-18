@@ -918,9 +918,24 @@ impl ReconcileLeg {
 fn reconciliation_scenario() -> (Vec<ReconcileLeg>, Vec<f64>) {
     (
         vec![
-            ReconcileLeg { side: VoiceSide::Long, units: 2.0, entry: 0, exit: 4 },
-            ReconcileLeg { side: VoiceSide::Short, units: 1.0, entry: 1, exit: 3 },
-            ReconcileLeg { side: VoiceSide::Long, units: 0.5, entry: 2, exit: 4 },
+            ReconcileLeg {
+                side: VoiceSide::Long,
+                units: 2.0,
+                entry: 0,
+                exit: 4,
+            },
+            ReconcileLeg {
+                side: VoiceSide::Short,
+                units: 1.0,
+                entry: 1,
+                exit: 3,
+            },
+            ReconcileLeg {
+                side: VoiceSide::Long,
+                units: 0.5,
+                entry: 2,
+                exit: 4,
+            },
         ],
         vec![100.0, 103.0, 101.5, 107.0, 110.0],
     )
@@ -967,25 +982,46 @@ fn ledger_reconciliation_gross_leg_pnl_equals_net_bar_pnl_no_cost() {
 #[test]
 fn ledger_reconciliation_section7_two_leg_offset_identity() {
     let dp = 7.0;
-    let parent = ReconcileLeg { side: VoiceSide::Long, units: 2.0, entry: 0, exit: 1 };
-    let child_hedged = ReconcileLeg { side: VoiceSide::Short, units: 2.0, entry: 0, exit: 1 };
-    let child_half = ReconcileLeg { side: VoiceSide::Short, units: 1.0, entry: 0, exit: 1 };
+    let parent = ReconcileLeg {
+        side: VoiceSide::Long,
+        units: 2.0,
+        entry: 0,
+        exit: 1,
+    };
+    let child_hedged = ReconcileLeg {
+        side: VoiceSide::Short,
+        units: 2.0,
+        entry: 0,
+        exit: 1,
+    };
+    let child_half = ReconcileLeg {
+        side: VoiceSide::Short,
+        units: 1.0,
+        entry: 0,
+        exit: 1,
+    };
 
     // H=Q ⟹ G_p+G_c = σ(Q−Q)ΔP = 0，净额折叠同样为 0。
-    let two: Vec<LegTarget> = (0..2).map(|i| {
-        [&parent, &child_hedged][i].as_target(i)
-    }).collect();
+    let two: Vec<LegTarget> = (0..2)
+        .map(|i| [&parent, &child_hedged][i].as_target(i))
+        .collect();
     assert_eq!(net_target_units(&two), 0.0);
-    let gross_hedged: f64 = [&parent, &child_hedged].iter().map(|l| l.entry_pnl(&[0.0, dp])).sum();
+    let gross_hedged: f64 = [&parent, &child_hedged]
+        .iter()
+        .map(|l| l.entry_pnl(&[0.0, dp]))
+        .sum();
     assert_eq!(gross_hedged, 0.0);
 
     // H=1<Q=2 ⟹ 剩余净敞口 N = σ(Q−H) = 1；G_p+G_c = 1·ΔP = N·ΔP。
-    let two_half: Vec<LegTarget> = (0..2).map(|i| {
-        [&parent, &child_half][i].as_target(i)
-    }).collect();
+    let two_half: Vec<LegTarget> = (0..2)
+        .map(|i| [&parent, &child_half][i].as_target(i))
+        .collect();
     let net_half = net_target_units(&two_half);
     assert_eq!(net_half, 1.0);
-    let gross_half: f64 = [&parent, &child_half].iter().map(|l| l.entry_pnl(&[0.0, dp])).sum();
+    let gross_half: f64 = [&parent, &child_half]
+        .iter()
+        .map(|l| l.entry_pnl(&[0.0, dp]))
+        .sum();
     assert_eq!(gross_half, net_half * dp);
 }
 
@@ -999,8 +1035,8 @@ fn ledger_reconciliation_cost_allocation_gross_equals_net() {
 
     // 分配矩阵 c[l][t]：3 腿 × 4 bar（不活动 bar 的腿分配记为 0——成本只跟着活动腿走）。
     let c: Vec<Vec<f64>> = vec![
-        vec![0.5, 0.2, 0.3, 0.1], // 腿0 [0,4) 全期活动
-        vec![0.0, 0.4, 0.2, 0.0], // 腿1 [1,3)
+        vec![0.5, 0.2, 0.3, 0.1],   // 腿0 [0,4) 全期活动
+        vec![0.0, 0.4, 0.2, 0.0],   // 腿1 [1,3)
         vec![0.0, 0.0, 0.25, 0.35], // 腿2 [2,4)
     ];
     for (l, row) in c.iter().enumerate() {
@@ -1011,7 +1047,9 @@ fn ledger_reconciliation_cost_allocation_gross_equals_net() {
             );
         }
     }
-    let c_t: Vec<f64> = (0..bars).map(|t| c.iter().map(|row| row[t]).sum::<f64>()).collect();
+    let c_t: Vec<f64> = (0..bars)
+        .map(|t| c.iter().map(|row| row[t]).sum::<f64>())
+        .collect();
 
     let gross_cost: f64 = c.iter().map(|row| row.iter().sum::<f64>()).sum();
     let net_cost: f64 = c_t.iter().sum();
@@ -1047,8 +1085,14 @@ fn ledger_reconciliation_cost_allocation_gross_equals_net() {
 #[test]
 fn ledger_reconciliation_leverage_caps_coordinates() {
     let voices = [
-        VoiceNotional { side: VoiceSide::Long, notional_mag: 300 },
-        VoiceNotional { side: VoiceSide::Short, notional_mag: 200 },
+        VoiceNotional {
+            side: VoiceSide::Long,
+            notional_mag: 300,
+        },
+        VoiceNotional {
+            side: VoiceSide::Short,
+            notional_mag: 200,
+        },
     ];
     assert_eq!(gross_notional(&voices), 500);
     assert_eq!(net_notional(&voices), 100);
@@ -1056,11 +1100,17 @@ fn ledger_reconciliation_leverage_caps_coordinates() {
     assert!(m.net <= m.gross, "N_t ≤ G_t 三角不等式");
     assert!(m.net_lev <= m.gross_lev, "L^N_t ≤ L^G_t（正权益除法保序）");
 
-    let caps_ok = LeverageCaps { gross_cap: 6.0, net_cap: 2.0 };
+    let caps_ok = LeverageCaps {
+        gross_cap: 6.0,
+        net_cap: 2.0,
+    };
     assert!(leverage_ok(m, caps_ok), "毛/净帽同时满足时应通过");
 
     // 净帽过宽、毛帽收紧：只查净会漏毛（G=500/E=5 > 4 违反毛帽）。
-    let caps_tight_gross = LeverageCaps { gross_cap: 4.0, net_cap: 2.0 };
+    let caps_tight_gross = LeverageCaps {
+        gross_cap: 4.0,
+        net_cap: 2.0,
+    };
     assert!(
         !leverage_ok(m, caps_tight_gross),
         "毛帽违反时必须拒绝（净帽不替代毛帽）"
