@@ -519,4 +519,278 @@ example : ¬ (∀ (zs : List Nat) (w : Nat → Rat) (r : Nat → Nat → Rat) (�
   - ✗ 概率空间/σ-代数/鞅的 measure-theoretic 形式化（有限枚举加权和是 PDF 自身的写法）。
   ════════════════════════════════════════════════════════════════════════ -/
 
+/-! ════════════════════════════════════════════════════════════════════════
+  ## §7 ★★定理 2·严格方向（p34「可能严格更好」的条件形式化；#1067）
+
+  PDF p34 逐字：「这个定理说明：全互斥分类提供更强表达能力。它不会自动创造 alpha，
+  但不会比粗糙分类更差；如果不同子类的最优动作不同，则可能严格更好。」
+  本文件把「不同子类的最优动作不同」收紧为可证的结构条件：**每个动作 a 至少在
+  一侧存在严格改进动作**（经典等价于「不存在同一个动作同时对两子类最优」，
+  即两侧最优动作集合不相交）。在此条件下细策略严格优于**任何**粗策略——粗策略
+  必须给同一纤维 y 内的 z1、z2 派同一个动作 a，而 a 至少在其中一侧不最优；
+  细策略在该侧换成改进动作即可严格改进（另一侧不变），权为正则严格差 > 0。
+
+  ★诚实边界（条件为何收紧为「无公共最优动作」）：若两侧 argmax 集合只是**不同但
+  相交**（z1 最优集 {a,b}、z2 最优集 {b,c}），粗策略可派公共最优动作 b，两侧同时
+  达最优——细分类无法严格改进。PDF 的「可能严格更好」是存在性语气；本定理给出使
+  「严格优于任何粗策略」成立的充分结构条件（#1050 交付报告标 L2 是误标：给定分类
+  与收益函数即可证，纯结构定理）。
+  ════════════════════════════════════════════════════════════════════════ -/
+
+/-- a 是状态 z 的最优动作（argmax 的谓词形式）：∀a', r z a' ≤ r z a。 -/
+def isOptimalAction {Z : Type u} {A : Type v} (r : Z → A → Rat) (z : Z) (a : A) : Prop :=
+  ∀ a', r z a' ≤ r z a
+
+/--
+  两侧最优动作不相交（p34「最优动作不同」的结构收紧形式，见证强度版）：
+  每个动作 a 至少在 z1 或 z2 一侧存在严格改进动作。经典等价于
+  ¬(isOptimalAction r z1 a ∧ isOptimalAction r z2 a)（无公共最优动作），
+  但以 ∃/∨ 直给见证，证明无需排中（本文件零 import、零 classical）。
+-/
+def actionsDisagree {Z : Type u} {A : Type v} (r : Z → A → Rat) (z1 z2 : Z) : Prop :=
+  ∀ a, (∃ a', r z1 a < r z1 a') ∨ (∃ a', r z2 a < r z2 a')
+
+/-! 严格不等式与逐点求和的 Rat 小工具（核心 Rat lemmas 自证，无 Mathlib，无新增 axiom）。 -/
+
+/-- 严格-宽松传递 a < b ≤ c ⟹ a < c（Rat 线性序自证，零 classical）。 -/
+theorem rat_lt_of_lt_of_le {a b c : Rat} (hab : a < b) (hbc : b ≤ c) : a < c := by
+  by_cases h : a < c
+  · exact h
+  · have hca : c ≤ a := by
+      rcases (Rat.le_total (a := a) (b := c)) with hac | hca
+      · have heq : a = c := by
+          by_cases heq : a = c
+          · exact heq
+          · exact False.elim (h (Rat.lt_of_le_of_ne hac heq))
+        rw [← heq]
+        exact Rat.le_refl (a := a)
+      · exact hca
+    have hba : b ≤ a := Rat.le_trans hbc hca
+    have hab' : a ≤ b := Rat.le_of_lt hab
+    have heq : b = a := Rat.le_antisymm hba hab'
+    exact False.elim ((Rat.ne_of_lt hab) heq.symm)
+
+/-- 宽松-严格传递 a ≤ b < c ⟹ a < c（Rat 线性序自证，零 classical）。 -/
+theorem rat_lt_of_le_of_lt {a b c : Rat} (hab : a ≤ b) (hbc : b < c) : a < c := by
+  by_cases h : a < c
+  · exact h
+  · have hca : c ≤ a := by
+      rcases (Rat.le_total (a := a) (b := c)) with hac | hca
+      · have heq : a = c := by
+          by_cases heq : a = c
+          · exact heq
+          · exact False.elim (h (Rat.lt_of_le_of_ne hac heq))
+        rw [← heq]
+        exact Rat.le_refl (a := a)
+      · exact hca
+    have hcb : c ≤ b := Rat.le_trans hca hab
+    have hbc' : b ≤ c := Rat.le_of_lt hbc
+    have heq : c = b := Rat.le_antisymm hcb hbc'
+    exact False.elim ((Rat.ne_of_lt hbc) heq.symm)
+
+/-- a < b ⟹ 0 < b − a（正差；由 Rat.add_lt_add_right + Rat.sub_eq_add_neg 自证）。 -/
+theorem rat_sub_pos_of_lt {a b : Rat} (h : a < b) : 0 < b - a := by
+  have h1 : a + -a < b + -a := (Rat.add_lt_add_right).mpr h
+  rw [Rat.add_neg_cancel] at h1
+  rw [← Rat.sub_eq_add_neg b a] at h1
+  exact h1
+
+/-- Σ_t (−f t) = −Σ_t f t（Rat 求和的负号提取）。 -/
+theorem list_sum_neg {α : Type u} (f : α → Rat) (l : List α) :
+    (l.map (fun x => -(f x))).sum = -((l.map f).sum) := by
+  induction l with
+  | nil => simp
+  | cons a l ih =>
+      simp only [List.map_cons, List.sum_cons, ih]
+      exact Rat.neg_add.symm
+
+/-- Σ_t (f t − g t) = Σ_t f t − Σ_t g t（Rat 求和差分配）。 -/
+theorem list_sum_sub {α : Type u} (f g : α → Rat) (l : List α) :
+    (l.map (fun x => f x - g x)).sum = (l.map f).sum - (l.map g).sum := by
+  rw [Rat.sub_eq_add_neg ((l.map f).sum) ((l.map g).sum)]
+  rw [show (l.map (fun x => f x - g x)) = (l.map (fun x => f x + -(g x))) by
+    apply List.map_congr_left
+    intro x hx
+    rw [Rat.sub_eq_add_neg (f x) (g x)]]
+  rw [list_sum_add f (fun x => -(g x)) l]
+  rw [list_sum_neg g l]
+
+/-- 逐点非负 + 某一正值元素在列 ⟹ 求和 > 0（严格版 sum_nonneg）。 -/
+theorem sum_pos_of_mem {α : Type u} [DecidableEq α] (f : α → Rat) (l : List α) (z : α)
+    (hnonneg : ∀ a ∈ l, 0 ≤ f a) (hpos : 0 < f z) (hzm : z ∈ l) : 0 < (l.map f).sum := by
+  induction l with
+  | nil => cases hzm
+  | cons a l ih =>
+      have ha : 0 ≤ f a := hnonneg a (by simp)
+      simp only [List.map_cons, List.sum_cons]
+      by_cases haz : a = z
+      · subst z
+        have hrest : 0 ≤ (l.map f).sum := sum_nonneg f l (by intro b hb; exact hnonneg b (by simp [hb]))
+        have hle : f a ≤ f a + (l.map f).sum := by
+          have hle' : f a + 0 ≤ f a + (l.map f).sum := (Rat.add_le_add_left).mpr hrest
+          simpa [Rat.add_zero] using hle'
+        exact rat_lt_of_lt_of_le hpos hle
+      · have hzm' : z ∈ l := by
+          rcases List.mem_cons.mp hzm with h | h
+          · exact False.elim (haz h.symm)
+          · exact h
+        have hrestpos : 0 < (l.map f).sum := ih (by intro b hb; exact hnonneg b (by simp [hb])) hzm'
+        have hle : (l.map f).sum ≤ f a + (l.map f).sum := by
+          have hle' : 0 + (l.map f).sum ≤ f a + (l.map f).sum := (Rat.add_le_add_right).mpr ha
+          simpa [Rat.zero_add] using hle'
+        exact rat_lt_of_lt_of_le hrestpos hle
+
+/--
+  ★单侧改进引理（定理 2 严格方向的引擎）：若 z0 ∈ zs、w z0 > 0、且 a0 在 z0 上严格改进
+  粗动作 πY(φ z0)，则把 z0 上的动作换成 a0 的细策略严格优于 πY 的细模拟。
+  结构事实：粗策略对纤维内所有细状态只能派一个动作；细策略可以在某一侧单点换动作，
+  加权和差 = w z0 · (r z0 a0 − r z0 (πY (φ z0))) ·（z0 在 zs 中出现次数）> 0。
+-/
+theorem fine_improves_at {Z : Type u} {Y : Type w} {A : Type v} [DecidableEq Z]
+    (zs : List Z) (w : Z → Rat) (r : Z → A → Rat) (φ : Z → Y) (πY : Y → A) (z0 : Z) (a0 : A)
+    (hz0 : z0 ∈ zs) (hw0 : 0 < w z0) (himprov : r z0 (πY (φ z0)) < r z0 a0) :
+    coarseEval zs w r φ πY < fineTotal zs w r (fun z => if z = z0 then a0 else πY (φ z)) := by
+  let πZ : Z → A := fun z => if z = z0 then a0 else πY (φ z)
+  let δ : Z → Rat := fun z => w z * (r z (πZ z) - r z (πY (φ z)))
+  have hsubpos : 0 < r z0 a0 - r z0 (πY (φ z0)) := rat_sub_pos_of_lt himprov
+  have hposδ : 0 < δ z0 := by
+    dsimp [δ, πZ]
+    rw [if_pos rfl]
+    exact Rat.mul_pos hw0 hsubpos
+  have hnonnegδ : ∀ z ∈ zs, 0 ≤ δ z := by
+    intro z hz
+    by_cases hzz : z = z0
+    · rw [hzz]
+      exact Rat.le_of_lt hposδ
+    · have hπ : πZ z = πY (φ z) := by
+        simp [πZ, hzz]
+      dsimp [δ]
+      rw [hπ, Rat.sub_self, Rat.mul_zero]
+      exact Rat.le_refl (a := 0)
+  have hsumpos : 0 < (zs.map δ).sum := sum_pos_of_mem δ zs z0 hnonnegδ hposδ hz0
+  have hdistr (z : Z) : w z * r z (πZ z) - w z * r z (πY (φ z)) = w z * (r z (πZ z) - r z (πY (φ z))) := by
+    rw [Rat.sub_eq_add_neg (w z * r z (πZ z)) (w z * r z (πY (φ z)))]
+    rw [Rat.sub_eq_add_neg (r z (πZ z)) (r z (πY (φ z)))]
+    rw [← Rat.mul_neg (w z) (r z (πY (φ z)))]
+    rw [Rat.mul_add (w z) (r z (πZ z)) (-(r z (πY (φ z))))]
+  have hdiff : fineTotal zs w r πZ - coarseEval zs w r φ πY = (zs.map δ).sum := by
+    dsimp [fineTotal, coarseEval, δ]
+    rw [← list_sum_sub (fun z => w z * r z (πZ z)) (fun z => w z * r z (πY (φ z))) zs]
+    rw [show (zs.map (fun z => w z * r z (πZ z) - w z * r z (πY (φ z)))) = (zs.map (fun z => w z * (r z (πZ z) - r z (πY (φ z))))) by
+      apply List.map_congr_left
+      intro z hz
+      exact hdistr z]
+  have hposdiff : 0 < fineTotal zs w r πZ - coarseEval zs w r φ πY := by
+    rw [hdiff]
+    exact hsumpos
+  have hlt : coarseEval zs w r φ πY + 0 < coarseEval zs w r φ πY + (fineTotal zs w r πZ - coarseEval zs w r φ πY) :=
+    (Rat.add_lt_add_left).mpr hposdiff
+  rw [Rat.add_zero, Rat.add_comm (coarseEval zs w r φ πY) (fineTotal zs w r πZ - coarseEval zs w r φ πY), Rat.sub_add_cancel] at hlt
+  exact hlt
+
+/--
+  ★★定理 2·严格方向（L0，p34「可能严格更好」的结构充分条件；#1067 订正——纯结构定理，
+  非 L2 经验命题）：z1 ≠ z2 两细状态同映射到粗类（φ z1 = φ z2）、两侧最优动作不相交
+  （`actionsDisagree`）、权重均为正 ⟹ 细策略严格优于**任何**粗策略：
+  ∀πY, ∃πZ, coarseEval πY < fineTotal πZ。
+  证明：粗策略在纤维 y 上只能派一个动作 a = πY(φ z1) = πY(φ z2)；actionsDisagree 说
+  a 至少在一侧有严格改进动作（∃/∨ 直给见证，零排中）；在该侧用 `fine_improves_at`
+  换成改进动作（权重为正），加权和严格增大，另一侧不变。
+  删前件见证（§7 见证⑥⑦⑧）：hdis、hw1、hsame 各自不可删；hne 是簿记性前件
+  （证明不消费——分岔完全由 hdis 承载）；hz1/hz2（状态在枚举内）是明显的求和
+  成员前件，删后 z0 不进和。
+-/
+theorem fine_strictly_better_coarse {Z : Type u} {Y : Type w} {A : Type v} [DecidableEq Z]
+    (zs : List Z) (w : Z → Rat) (r : Z → A → Rat) (φ : Z → Y) (z1 z2 : Z)
+    (hz1 : z1 ∈ zs) (hz2 : z2 ∈ zs) (_hne : z1 ≠ z2) (hsame : φ z1 = φ z2)
+    (hw1 : 0 < w z1) (hw2 : 0 < w z2)
+    (hdis : actionsDisagree r z1 z2) :
+    ∀ πY : Y → A, ∃ πZ : Z → A, coarseEval zs w r φ πY < fineTotal zs w r πZ := by
+  intro πY
+  let aY : A := πY (φ z1)
+  rcases hdis aY with hleft | hright
+  · rcases hleft with ⟨a1', ha1'⟩
+    refine ⟨fun z => if z = z1 then a1' else πY (φ z), ?_⟩
+    exact fine_improves_at zs w r φ πY z1 a1' hz1 hw1 (by simpa [aY] using ha1')
+  · rcases hright with ⟨a2', ha2'⟩
+    refine ⟨fun z => if z = z2 then a2' else πY (φ z), ?_⟩
+    exact fine_improves_at zs w r φ πY z2 a2' hz2 hw2 (by simpa [aY, hsame] using ha2')
+
+/-! ════════════════════════════════════════════════════════════════════════
+  ## §7·附 删前件自查（见证⑥⑦⑧，#871 同款口径）
+  ════════════════════════════════════════════════════════════════════════ -/
+
+/-- §7 见证模型：两状态（Nat 0/1）、动作 Bool；r 0·true = 1、r 1·false = 1（两侧最优动作相异且不相交）。 -/
+def disagreeR : Nat → Bool → Rat := fun z a => if z = 0 then (if a then 1 else 0) else (if a then 0 else 1)
+
+/-- §7 见证用 hdis：每个动作至少在一侧有严格改进动作（true 在 z1 侧改进、false 在 z2 侧改进）。 -/
+theorem disagree_actions : ∀ a : Bool, (∃ a', disagreeR 0 a < disagreeR 0 a') ∨ (∃ a', disagreeR 1 a < disagreeR 1 a') := by
+  intro a
+  cases a with
+  | false => exact Or.inl ⟨true, by simp [disagreeR] <;> decide⟩
+  | true => exact Or.inr ⟨false, by simp [disagreeR] <;> decide⟩
+
+/--
+  ★见证⑥（`fine_strictly_better_coarse` 删前件 hdis 不可证）：收益恒 1（任何动作对两侧
+  都最优，argmax 相交）时，粗策略与细策略总收益同为 Σw；无细策略能严格优于粗策略
+  （2 < 2 被显式证伪）。hdis（两侧最优动作不相交）是严格方向的承载前件。
+-/
+example : ¬ (∀ (zs : List Nat) (w : Nat → Rat) (r : Nat → Bool → Rat) (φ : Nat → Nat) (z1 z2 : Nat),
+    z1 ∈ zs → z2 ∈ zs → z1 ≠ z2 → φ z1 = φ z2 → 0 < w z1 → 0 < w z2 →
+    (∀ πY : Nat → Bool, ∃ πZ : Nat → Bool, coarseEval zs w r φ πY < fineTotal zs w r πZ)) := by
+  intro h
+  have h' := h [0,1] (fun _ => 1) (fun _ _ => 1) (fun _ => 0) 0 1 (by simp) (by simp) (by decide) rfl (by decide) (by decide)
+  rcases h' (fun _ => true) with ⟨πZ, hlt⟩
+  have hbad : ¬ ((2 : Rat) < 2) := by decide
+  apply hbad
+  simp [coarseEval, fineTotal, Rat.add_zero] at hlt
+
+/--
+  ★见证⑦（`fine_strictly_better_coarse` 删前件 hw1 不可证）：z1 权重为 0（z2 权重 1）时，
+  在 z1 上的改进不进入加权和——粗策略派 z2 的最优动作 false 达总收益 1，任何细策略
+  总收益 ≤ 1（1 < 1 被显式证伪）。正权重是把「单点改进」变成「严格差」的前提。
+-/
+example : ¬ (∀ (zs : List Nat) (w : Nat → Rat) (r : Nat → Bool → Rat) (φ : Nat → Nat) (z1 z2 : Nat),
+    z1 ∈ zs → z2 ∈ zs → z1 ≠ z2 → φ z1 = φ z2 → 0 < w z2 →
+    (∀ a : Bool, (∃ a', r z1 a < r z1 a') ∨ (∃ a', r z2 a < r z2 a')) →
+    (∀ πY : Nat → Bool, ∃ πZ : Nat → Bool, coarseEval zs w r φ πY < fineTotal zs w r πZ)) := by
+  intro h
+  let w : Nat → Rat := fun z => if z = 0 then 0 else 1
+  have h' := h [0,1] w disagreeR (fun _ => 0) 0 1 (by simp) (by simp) (by decide) rfl (by decide) disagree_actions
+  rcases h' (fun _ => false) with ⟨πZ, hlt⟩
+  have hbad : ¬ ((1 : Rat) < fineTotal [0,1] w disagreeR πZ) := by
+    by_cases hb : πZ 1 = true
+    · simp [fineTotal, w, disagreeR, hb, Rat.add_zero]
+      decide
+    · have hb' : πZ 1 = false := by
+        cases hp : πZ 1 with
+        | true => exact False.elim (hb (by rw [hp]))
+        | false => rfl
+      simp [fineTotal, w, disagreeR, hb', Rat.add_zero, Rat.zero_add]
+  exact hbad (by simpa [coarseEval, fineTotal, w, disagreeR, Rat.add_zero, Rat.zero_add] using hlt)
+
+/--
+  ★见证⑧（`fine_strictly_better_coarse` 删前件 hsame 不可证）：φ z1 ≠ φ z2（两状态落
+  不同粗类）时，粗策略可对两状态分别派各自最优动作（true/false），粗收益 = 1 + 1 = 2
+  达细最优值，任何细策略 ≤ 2（2 < 2 被显式证伪）。同纤维（hsame）是「粗策略被迫同
+  动作」的前提。
+-/
+example : ¬ (∀ (zs : List Nat) (w : Nat → Rat) (r : Nat → Bool → Rat) (φ : Nat → Nat) (z1 z2 : Nat),
+    z1 ∈ zs → z2 ∈ zs → z1 ≠ z2 → 0 < w z1 → 0 < w z2 →
+    (∀ a : Bool, (∃ a', r z1 a < r z1 a') ∨ (∃ a', r z2 a < r z2 a')) →
+    (∀ πY : Nat → Bool, ∃ πZ : Nat → Bool, coarseEval zs w r φ πY < fineTotal zs w r πZ)) := by
+  intro h
+  have h' := h [0,1] (fun _ => 1) disagreeR (fun z => z) 0 1 (by simp) (by simp) (by decide) (by decide) (by decide) disagree_actions
+  rcases h' (fun y => if y = 0 then true else false) with ⟨πZ, hlt⟩
+  have hrle (z : Nat) (a : Bool) : disagreeR z a ≤ 1 := by
+    by_cases hz : z = 0 <;> by_cases ha : a = true <;> simp [disagreeR, hz, ha] <;> decide
+  have hfine_le : fineTotal [0,1] (fun _ => 1) disagreeR πZ ≤ (1 + 1 : Rat) := by
+    unfold fineTotal
+    have hsum := sum_le_sum (fun z => disagreeR z (πZ z)) (fun _ => (1 : Rat)) [0,1] (by intro z hz; exact hrle z (πZ z))
+    simpa [Rat.add_zero] using hsum
+  have hbad : ¬ ((1 + 1 : Rat) < fineTotal [0,1] (fun _ => 1) disagreeR πZ) := by
+    intro hlt2
+    exact Rat.lt_irrefl (rat_lt_of_lt_of_le hlt2 hfine_le)
+  exact hbad (by simpa [coarseEval, fineTotal, disagreeR, Rat.add_zero] using hlt)
+
 end NewChanlun.Origin.FineCoarseClassification
