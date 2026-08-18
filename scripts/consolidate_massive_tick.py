@@ -244,16 +244,20 @@ def calibrate(raw_root: Path, symbols: list[str], days: int) -> dict:
                 df = pd.read_parquet(path)
                 f, _ = filter_trades(df)
                 v, _ = drop_trf_prints(f)
+                # 消歧键读数一并放进 try：键列/价格列缺失的坏分区须按「跳过」处置，
+                # 不得让 key_readings 的 KeyError 拖垮整轮标定（与 consolidate_all
+                # 逐分区失败跳过同口径）。
+                readings = [
+                    key_readings(v, KEY_SIP_SEQ),
+                    key_readings(v, KEY_PARTICIPANT),
+                ]
             except Exception as e:
                 log(f"[calibrate] 读 {path} 失败：{e}")
                 continue
             records.append({
                 "ticker": sym,
                 "date": date,
-                "dup_by_key": [
-                    key_readings(v, KEY_SIP_SEQ),
-                    key_readings(v, KEY_PARTICIPANT),
-                ],
+                "dup_by_key": readings,
             })
     summary = _summarize_readings(records)
     rec_key, reason = recommend_key(summary)

@@ -231,6 +231,18 @@ def test_calibrate_no_data_errors(tmp_path):
     assert "records" not in report
 
 
+def test_calibrate_skips_malformed_partition(tmp_path):
+    # 分区缺消歧键列（sequence_number）⟹ 跳过该分区、不拖垮整轮标定（与
+    # consolidate_all 逐分区失败跳过同口径）。
+    raw = tmp_path / "raw"
+    cmt.write_partition(raw, "COST", "2024-01-02", _raw_df().drop(columns=["sequence_number"]))
+    report = cmt.calibrate(raw, ["COST"], 5)
+    assert "error" not in report
+    assert report["n_partitions"] == 0
+    assert report["recommended_key"] is None
+    assert report["summary"]["sip_seq"]["n_rows"] == 0
+
+
 # ---------------------------------------------------------------------------
 # raw → transient（只移动已产出正本且过行数校验的分区）
 # ---------------------------------------------------------------------------

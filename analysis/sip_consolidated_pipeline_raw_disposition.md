@@ -28,8 +28,8 @@ transient 处置（保留期后人审删除）；消歧键二选一（`(sip_time
   **正本行数 ≈ raw/23 量级**（#1030 实测比）——即 per-venue 多报去重后每笔成交留一份，
   `duplicate_rate ≈ 1 − 1/23 ≈ 0.9565`。该比值是**验收读数 + 异常告警**，不是自动 retire
   的硬闸（硬闸只查「正本非空且行数 ≤ raw」，见 §2）。
-- 测试锁：`tests/test_consolidate_massive_tick.py`（离线合成 fixture，21 项，锁行数折叠、
-  schema 保留、幂等重跑、确定性、retire 闸、键列校验、无数据不编数）。
+- 测试锁：`tests/test_consolidate_massive_tick.py`（离线合成 fixture，22 项，锁行数折叠、
+  schema 保留、幂等重跑、确定性、retire 闸、键列校验、无数据不编数、坏分区跳过）。
 
 ## 2. raw staging → transient 处置策略（#1048 第二件）
 
