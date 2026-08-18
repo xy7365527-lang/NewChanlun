@@ -9101,6 +9101,612 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // #1034 反事实探针：下钻对齐键改窗口极值 bar / departure 终点，重测方向桶
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// 按「包含 bar」定位子走势（替代 `end_index` 精确匹配）——`moves` 按 `end_index` 升序
+    /// （塔不变量，同 [`find_move_by_end_index`] 前提）⟹ `partition_point` 二分。
+    fn find_move_by_span(moves: &[LeveledMove], bar: usize) -> Option<usize> {
+        let i = moves.partition_point(|m| m.end_index < bar);
+        (i < moves.len() && moves[i].start_index <= bar).then_some(i)
+    }
+
+    /// #1034 反事实对齐键①：窗口极值 bar（背驰极值）。
+    ///
+    /// 在 `cur` 的 K 序跨度 `[start_index, end_index]` 内取极值 bar：δ=Long → 最低 `low`；
+    /// δ=Short → 最高 `high`。平局取最早（`tail.rs:177` 同口径）。`bars` 下标 == `source_index`
+    /// （L0 原始 K 序；`Dataset::slice_bar_range` 截窗后重编号为 `0..bars.len()`，塔坐标同系）。
+    fn window_extreme_bar(bars: &[Bar], cur: &LeveledMove, delta: Side) -> Option<usize> {
+        let (lo, hi) = (cur.start_index, cur.end_index);
+        if lo > hi || hi >= bars.len() {
+            return None;
+        }
+        let mut best: Option<(usize, i64)> = None;
+        for i in lo..=hi {
+            let v = match delta {
+                Side::Long => bars[i].low,
+                Side::Short => bars[i].high,
+            };
+            let better = match best {
+                None => true,
+                Some((_, bv)) => match delta {
+                    Side::Long => v < bv,
+                    Side::Short => v > bv,
+                },
+            };
+            if better {
+                best = Some((i, v));
+            }
+        }
+        best.map(|(i, _)| i)
+    }
+
+    /// #1034 反事实对齐键②：departure 单元终点。
+    ///
+    /// departure 单元 = `cur.sub_moves` 中 δ 同侧趋势方向的子走势（δ=Long → Down；δ=Short →
+    /// Up），即「离开中枢」的走势方向；取**最后一个**（最近一次同趋势离开）的 `end_index`。
+    /// 无趋势方向子走势 ⟹ None（诚实无键，不伪造）。
+    fn departure_unit_end(cur: &LeveledMove, delta: Side) -> Option<usize> {
+        use super::super::super::classifier::cand_predicate::rmove_dir;
+        use super::super::super::types::Direction;
+        let trend = match delta {
+            Side::Long => Direction::Down,
+            Side::Short => Direction::Up,
+        };
+        cur.sub_moves
+            .iter()
+            .rev()
+            .find_map(|m| (rmove_dir(&m.rmove) == Some(trend)).then_some(m.end_index))
+    }
+
+    /// **#1034 反事实探针：Type1 下钻首步 cond1（方向）桶的对齐键对照**（只读诊断，`#[ignore]`）。
+    ///
+    /// ## 验什么
+    ///
+    /// #870 cond1-research H1：一类点 `source_index` = 中枢窗口 `end_index`（回抽段终点，
+    /// `recursive_tower.rs` compose `end_index = subs.last().end_index` + Step3 non-extension
+    /// `c.end_index = units[j].end_index`）⟹ 下钻对齐（`find_move_by_end_index(subs, src)`）
+    /// 恒取窗口末段（反趋势回抽段）⟹ cond1 方向失败（#870 二轮 62%）是**锚点错位**。
+    ///
+    /// ## 怎么测
+    ///
+    /// 在 `type1_descend_continuity_dx` 旁新增**对照臂**（不删原臂）：对齐键替换为
+    /// ① 窗口极值 bar（背驰极值，δ 侧价格极值）② departure 单元终点（δ 侧趋势方向子走势终点），
+    /// 重跑 Type1 `lvl≥1` 首步 cond1 桶，报三臂方向失败率 + 成功 20 例对照。纯测量：
+    /// 只比 `rmove_dir(target) == −δ`（= `div_cand` 条件1），**不触碰生产判据、不跑 cond2/3/4**。
+    ///
+    /// **范围**：只测**首步**（L→L−1 第一步）——H1 的锚点错位在首步即发生，且 #870 二轮
+    /// 92.7% 链在首步终止；更深步对齐是后续事。
+    ///
+    /// **认识论 L2**（真实 BTC 逐信号结构 + 确定性判据，可产否定性计数）。
+    ///
+    /// 命令：`ECON_L2_MAX_BARS=100000000 cargo test --release type1_cond1_alignment_counterfactual_dx -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn type1_cond1_alignment_counterfactual_dx() {
+        use super::super::super::classifier::cand_predicate::rmove_dir;
+        use super::super::super::types::Direction;
+        use super::super::data;
+        use std::fmt::Write as _;
+
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+        };
+        let n_full = ds_full.bars.len();
+        let max_bars = econ_l2_max_bars();
+        let ds = truncate_tail_bars(ds_full, max_bars);
+        let bars = &ds.bars;
+        let n = bars.len();
+        let win_start = ds
+            .dates
+            .first()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        let win_end = ds
+            .dates
+            .last()
+            .map(|d| d.get(..10).unwrap_or("").to_string())
+            .unwrap_or_default();
+        eprintln!(
+            "[t1-cond1-align-dx] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}"
+        );
+
+        // Type1 归类测量的有效域：lvl≥1（L0 是递归底，不进归类测量——同 #846/#870 口径）。
+        const LMIN: usize = 1;
+        const LMAX: usize = 4;
+        // 三臂：0=原臂(source_index) 1=窗口极值 bar 2=departure 终点。
+        const NARM: usize = 3;
+        let arm_name = |a: usize| match a {
+            0 => "原臂(source_index)",
+            1 => "窗口极值bar",
+            2 => "departure终点",
+            _ => unreachable!(),
+        };
+
+        let mut n_sig = 0usize; // Type1 lvl≥1 信号数（per-delta，去重后；含 base_none）
+        let mut base_none = 0usize; // tower[lvl] 无 end==src 段 ⟹ 下钻未启动
+        let mut key_none = [0usize; NARM]; // 键算不出（extreme/departure 臂；原臂恒 0）
+        let mut noalign = [0usize; NARM]; // 键有但取不到目标子走势（B 类；防御计数）
+        let mut dir_pass = [0usize; NARM];
+        let mut dir_fail = [0usize; NARM];
+        // 原臂 cond1 失败桶 → 两反事实臂的翻转计数。
+        let mut flip = [[0usize; 2]; 2]; // [臂 1|2][pass|fail]（只对 orig 失败信号计）
+
+        // 成功 20 例对照：原臂方向失败 ∧ 任一反事实臂方向通过。
+        const SAMPLE_CAP: usize = 20;
+        let mut sample: Vec<String> = Vec::new();
+
+        let mut classifier_incr = IncrementalClassifier::new(bars, &config);
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> =
+            std::collections::HashSet::new();
+
+        for i in 0..n {
+            let bar = &bars[i];
+            if bar.untradable || bar.close <= 0 {
+                continue;
+            }
+            let (_l0_i, cls_i, tower_i) = classifier_incr.classify_at_with_l0(i);
+            for (lvl, ls) in cls_i.levels.iter().enumerate() {
+                if !(LMIN..=LMAX).contains(&lvl) {
+                    continue;
+                }
+                for p in ls.bsp.iter() {
+                    let bsp_class = bsp_disc(&p.bits);
+                    if !seen.insert((lvl, p.source_index, bsp_class)) {
+                        continue;
+                    }
+                    if !(p.bits.buy1 || p.bits.sell1) {
+                        continue;
+                    }
+                    // Γ 组装（bit-exact 复制生产路径，同 type1_descend_continuity_dx）取交易方向 δ。
+                    let single = super::super::super::classifier::Classification {
+                        levels: cls_i
+                            .levels
+                            .iter()
+                            .enumerate()
+                            .map(|(l2, _)| super::super::super::classifier::LevelState {
+                                moves: Vec::new(),
+                                centers: Rc::new(Vec::new()),
+                                cp_ownership: Rc::new(Vec::new()),
+                                bsp: Rc::new(if l2 == lvl { vec![*p] } else { Vec::new() }),
+                                pan_div: Rc::new(Vec::new()),
+                                first_class_grades: Rc::new(Vec::new()),
+                                level_projection: None,
+                            })
+                            .collect(),
+                    };
+                    let cands = assemble_gamma_with_tower(&single, &tower_i);
+                    for c in &cands {
+                        let delta = match c.dir {
+                            VoiceSide::Long => Side::Long,
+                            VoiceSide::Short => Side::Short,
+                            VoiceSide::Flat => continue,
+                        };
+                        let is_type1 = match delta {
+                            Side::Long => p.bits.buy1,
+                            Side::Short => p.bits.sell1,
+                        };
+                        if !is_type1 {
+                            continue;
+                        }
+                        let src = p.source_index;
+                        n_sig += 1;
+
+                        let exec_moves = match tower_i.get(lvl) {
+                            Some(mv) => mv.as_slice(),
+                            None => {
+                                base_none += 1;
+                                continue;
+                            }
+                        };
+                        let Some(si) = find_move_by_end_index(exec_moves, src) else {
+                            base_none += 1;
+                            continue;
+                        };
+                        let s = &exec_moves[si];
+                        let subs = s.sub_moves.as_slice();
+                        let expected = match delta {
+                            Side::Long => Direction::Down,
+                            Side::Short => Direction::Up,
+                        };
+
+                        // 三臂的键 + 目标子走势。
+                        let keys = [
+                            Some(src),                          // 原臂：source_index
+                            window_extreme_bar(bars, s, delta), // ① 窗口极值 bar
+                            departure_unit_end(s, delta),       // ② departure 单元终点
+                        ];
+                        // 原臂用精确 end 匹配（与生产/探针同口径）；反事实臂用「包含」匹配。
+                        let targets: [Option<usize>; NARM] = [
+                            find_move_by_end_index(subs, src),
+                            keys[1].and_then(|k| find_move_by_span(subs, k)),
+                            keys[2].and_then(|k| find_move_by_span(subs, k)),
+                        ];
+
+                        let mut verdict = [0u8; NARM]; // 0=未评估（无键/无对齐） 2=方向通过 3=方向失败
+                        for a in 0..NARM {
+                            if keys[a].is_none() {
+                                key_none[a] += 1;
+                                continue;
+                            }
+                            let Some(tidx) = targets[a] else {
+                                noalign[a] += 1;
+                                continue;
+                            };
+                            let dir_ok = rmove_dir(&subs[tidx].rmove) == Some(expected);
+                            if dir_ok {
+                                dir_pass[a] += 1;
+                                verdict[a] = 2;
+                            } else {
+                                dir_fail[a] += 1;
+                                verdict[a] = 3;
+                            }
+                        }
+
+                        // 原臂 cond1 失败桶 → 两反事实臂翻转计数。
+                        if verdict[0] == 3 {
+                            for a in 1..NARM {
+                                match verdict[a] {
+                                    2 => flip[a - 1][0] += 1,
+                                    3 => flip[a - 1][1] += 1,
+                                    _ => {}
+                                }
+                            }
+                        }
+
+                        // 成功 20 例对照：原臂失败 ∧ 至少一反事实臂通过。
+                        if verdict[0] == 3
+                            && (verdict[1] == 2 || verdict[2] == 2)
+                            && sample.len() < SAMPLE_CAP
+                        {
+                            let dsym = if delta == Side::Long { "+1" } else { "-1" };
+                            let fmt_dir = |d: Option<Direction>| match d {
+                                Some(Direction::Up) => "Up",
+                                Some(Direction::Down) => "Down",
+                                None => "None",
+                            };
+                            let fmt_arm = |a: usize| match targets[a] {
+                                Some(tidx) => format!(
+                                    "idx={tidx} dir={}",
+                                    fmt_dir(rmove_dir(&subs[tidx].rmove))
+                                ),
+                                None => "（无对齐）".to_string(),
+                            };
+                            sample.push(format!(
+                                "| {lvl} | {src} | {dsym} | {} | {} → {} | {} → {} | {} |",
+                                subs.len(),
+                                keys[1].map_or("None".to_string(), |k| k.to_string()),
+                                fmt_arm(1),
+                                keys[2].map_or("None".to_string(), |k| k.to_string()),
+                                fmt_arm(2),
+                                fmt_arm(0)
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        let pct = |x: usize, tot: usize| {
+            if tot == 0 {
+                0.0
+            } else {
+                100.0 * x as f64 / tot as f64
+            }
+        };
+        let mut rpt = String::new();
+        let _ = writeln!(
+            rpt,
+            "# #1034 原始数据：Type1 下钻首步 cond1（方向）桶的对齐键反事实对照"
+        );
+        let _ = writeln!(rpt);
+        let _ = writeln!(
+            rpt,
+            "- issue: #1034（#870 cond1-research H1 反事实探针；纯测量，不改生产判据）"
+        );
+        let _ = writeln!(
+            rpt,
+            "- **认识论 L2**（真实 BTC 逐信号结构下钻，确定性方向判据）"
+        );
+        let _ = writeln!(
+            rpt,
+            "- 窗口：{win_start}→{win_end}，bars={n}（全量={n_full}），max_bars={max_bars}"
+        );
+        let _ = writeln!(rpt, "- 范围：Type1 `lvl≥1` **首步**（L→L−1）；方向判据 = `rmove_dir(target) == −δ`（= `div_cand` 条件1）");
+        let _ = writeln!(rpt, "- 三臂：0 原臂(source_index) / 1 窗口极值 bar（δ 侧价格极值） / 2 departure 单元终点（δ 侧趋势方向子走势末段）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 1. 三臂方向读数（首步）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(
+            rpt,
+            "| 臂 | 键缺失 | 无对齐 | 方向通过 | 方向失败 | 评估数 | 方向失败率 |"
+        );
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|");
+        for a in 0..NARM {
+            let eval = dir_pass[a] + dir_fail[a];
+            let _ = writeln!(
+                rpt,
+                "| {} | {} | {} | {} | {} | {eval} | {:.2}% |",
+                arm_name(a),
+                key_none[a],
+                noalign[a],
+                dir_pass[a],
+                dir_fail[a],
+                pct(dir_fail[a], eval)
+            );
+        }
+        let _ = writeln!(
+            rpt,
+            "\n- Type1 lvl≥1 信号数（per-delta 去重后）：{n_sig}；base_none（塔无 end==src 段）：{base_none}。"
+        );
+        let _ = writeln!(rpt);
+
+        let _ = writeln!(rpt, "## 2. 原臂 cond1 失败桶 → 两反事实臂翻转");
+        let _ = writeln!(rpt);
+        let _ = writeln!(
+            rpt,
+            "| 反事实臂 | 原失败中方向通过 | 原失败中仍失败 | 通过率 |"
+        );
+        let _ = writeln!(rpt, "|---|---|---|---|");
+        for (a, row) in flip.iter().enumerate() {
+            let tot = row[0] + row[1];
+            let _ = writeln!(
+                rpt,
+                "| {} | {} | {} | {:.2}% |",
+                arm_name(a + 1),
+                row[0],
+                row[1],
+                pct(row[0], tot)
+            );
+        }
+        let _ = writeln!(rpt);
+
+        let _ = writeln!(
+            rpt,
+            "## 3. 成功 20 例对照（原臂方向失败 ∧ 至少一反事实臂方向通过）：{} 例",
+            sample.len()
+        );
+        let _ = writeln!(rpt);
+        if sample.is_empty() {
+            let _ = writeln!(rpt, "\n**（空——无翻转例）**");
+        } else {
+            let _ = writeln!(rpt, "| 信号级 | src | δ | 段数 | ①极值bar→目标(idx,dir) | ②departure终点→目标(idx,dir) | 原臂目标(idx,dir) |");
+            let _ = writeln!(rpt, "|---|---|---|---|---|---|---|");
+            for l in &sample {
+                let _ = writeln!(rpt, "{l}");
+            }
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(
+            rpt,
+            "口径：① 窗口极值 bar = δ 侧价格极值所在 bar（δ=Long 最低 low / δ=Short 最高 high，平局取最早）；\
+             ② departure 单元终点 = 最后一个 δ 侧趋势方向子走势的 end_index；\
+             目标子走势按「包含键 bar」定位（原臂按 end_index 精确匹配，与生产同口径）。\
+             方向失败 = `rmove_dir(target)` 非 Some(−δ)（含 None，与 `div_cand` 条件1 同口径）。"
+        );
+        let _ = writeln!(rpt);
+
+        eprint!("{rpt}");
+        let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("rust/ 父目录 = 项目根")
+            .join(".chanlun/review-results/issue1034-cond1-alignment-counterfactual-raw.md");
+        std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
+        eprintln!("\n原始数据已落盘：{out:?}");
+
+        // ── 真封（穷举 + 键/对齐/方向三格穷举）──
+        let measured = n_sig - base_none;
+        for a in 0..NARM {
+            assert_eq!(
+                key_none[a] + noalign[a] + dir_pass[a] + dir_fail[a],
+                measured,
+                "臂 {} 穷举：键缺失+无对齐+通过+失败 应 = 启动下钻的信号数 {measured}",
+                arm_name(a)
+            );
+        }
+        assert_eq!(
+            key_none[0] + noalign[0],
+            0,
+            "原臂 source_index 键恒有且塔不变量保证首步对齐（base_none 已另计）——B 类应恒 0"
+        );
+        eprintln!(
+            "真封：Type1 lvl≥1={n_sig} 条（base_none={base_none}）；原臂方向失败={}；①极值臂方向失败={}；②departure臂方向失败={}",
+            dir_fail[0], dir_fail[1], dir_fail[2]
+        );
+    }
+
+    // ── #1034 反事实对齐键 helper 的合成单测（不依赖真实数据，锁定义）──
+
+    /// `find_move_by_span`：按「包含 bar」定位子走势（含端点归属与越界）。
+    #[test]
+    fn find_move_by_span_locates_containing_move() {
+        use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::ElementId;
+        use super::super::super::types::Direction;
+        use std::rc::Rc;
+        let seg = |s: usize, e: usize, ord: u64| LeveledMove {
+            rmove: RMove::Segment {
+                direction: Direction::Up,
+                lo: 0,
+                hi: 10,
+            },
+            start_index: s,
+            end_index: e,
+            sub_moves: Rc::new(vec![]),
+            id: ElementId {
+                level: 0,
+                ordinal: ord,
+            },
+        };
+        let moves = vec![seg(0, 3, 0), seg(4, 7, 1), seg(8, 11, 2)];
+        assert_eq!(find_move_by_span(&moves, 2), Some(0));
+        assert_eq!(find_move_by_span(&moves, 5), Some(1));
+        assert_eq!(find_move_by_span(&moves, 11), Some(2));
+        assert_eq!(find_move_by_span(&moves, 3), Some(0), "端点归包含段");
+        assert_eq!(find_move_by_span(&moves, 12), None, "越界无段");
+        assert_eq!(find_move_by_span(&[], 0), None, "空序列无段");
+    }
+
+    /// `window_extreme_bar`：δ 侧极值 + 平局取最早 + 越界 None。
+    #[test]
+    fn window_extreme_bar_tracks_delta_side_and_ties() {
+        use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::ElementId;
+        use super::super::super::types::Direction;
+        use std::rc::Rc;
+        let mk = |i: usize, low: i64, high: i64| Bar {
+            source_index: i,
+            timestamp: i as i64,
+            open: low,
+            high,
+            low,
+            close: low,
+            volume: 0.0,
+            untradable: false,
+        };
+        let bars = vec![mk(0, 10, 20), mk(1, 5, 25), mk(2, 8, 30), mk(3, 7, 15)];
+        let cur = LeveledMove {
+            rmove: RMove::Segment {
+                direction: Direction::Down,
+                lo: 5,
+                hi: 30,
+            },
+            start_index: 0,
+            end_index: 3,
+            sub_moves: Rc::new(vec![]),
+            id: ElementId {
+                level: 0,
+                ordinal: 0,
+            },
+        };
+        assert_eq!(
+            window_extreme_bar(&bars, &cur, Side::Long),
+            Some(1),
+            "Long 取最低 low"
+        );
+        assert_eq!(
+            window_extreme_bar(&bars, &cur, Side::Short),
+            Some(2),
+            "Short 取最高 high"
+        );
+        // 平局取最早：两 bar low 相等 ⟹ 更早者。
+        let tie = vec![mk(0, 5, 30), mk(1, 5, 20)];
+        let cur_tie = LeveledMove {
+            rmove: RMove::Segment {
+                direction: Direction::Down,
+                lo: 5,
+                hi: 30,
+            },
+            start_index: 0,
+            end_index: 1,
+            sub_moves: Rc::new(vec![]),
+            id: ElementId {
+                level: 0,
+                ordinal: 1,
+            },
+        };
+        assert_eq!(window_extreme_bar(&tie, &cur_tie, Side::Long), Some(0));
+        // 越界（end_index 超出 bars）⟹ None。
+        let cur_bad = LeveledMove {
+            rmove: RMove::Segment {
+                direction: Direction::Down,
+                lo: 5,
+                hi: 30,
+            },
+            start_index: 0,
+            end_index: 4,
+            sub_moves: Rc::new(vec![]),
+            id: ElementId {
+                level: 0,
+                ordinal: 2,
+            },
+        };
+        assert_eq!(window_extreme_bar(&bars, &cur_bad, Side::Long), None);
+    }
+
+    /// `departure_unit_end`：取最后一个 δ 侧趋势方向子走势终点；无趋势子走势 ⟹ None。
+    #[test]
+    fn departure_unit_end_picks_last_trend_direction_submove() {
+        use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::ElementId;
+        use super::super::super::types::Direction;
+        use std::rc::Rc;
+        let seg = |dir: Direction, s: usize, e: usize, ord: u64| LeveledMove {
+            rmove: RMove::Segment {
+                direction: dir,
+                lo: 100,
+                hi: 200,
+            },
+            start_index: s,
+            end_index: e,
+            sub_moves: Rc::new(vec![]),
+            id: ElementId {
+                level: 0,
+                ordinal: ord,
+            },
+        };
+        let center = Center {
+            zd: 150,
+            zg: 180,
+            dd: 100,
+            gg: 200,
+            start_index: 0,
+            end_index: 8,
+        };
+        let subs = vec![
+            seg(Direction::Down, 0, 2, 0),
+            seg(Direction::Up, 2, 4, 1),
+            seg(Direction::Down, 4, 6, 2),
+            seg(Direction::Up, 6, 8, 3),
+        ];
+        let sub_rmoves: Vec<RMove> = subs.iter().map(|m| m.rmove.clone()).collect();
+        let cur = LeveledMove {
+            rmove: RMove::Compose {
+                subs: Rc::new(sub_rmoves),
+                centers: vec![center],
+                level: 1,
+            },
+            start_index: 0,
+            end_index: 8,
+            sub_moves: Rc::new(subs),
+            id: ElementId {
+                level: 1,
+                ordinal: 0,
+            },
+        };
+        assert_eq!(
+            departure_unit_end(&cur, Side::Long),
+            Some(6),
+            "Long 取最后一个 Down 段终点"
+        );
+        assert_eq!(
+            departure_unit_end(&cur, Side::Short),
+            Some(8),
+            "Short 取最后一个 Up 段终点"
+        );
+        // 无趋势方向子走势 ⟹ None。
+        let only_up = vec![seg(Direction::Up, 0, 2, 0), seg(Direction::Up, 2, 4, 1)];
+        let up_rmoves: Vec<RMove> = only_up.iter().map(|m| m.rmove.clone()).collect();
+        let cur_up = LeveledMove {
+            rmove: RMove::Compose {
+                subs: Rc::new(up_rmoves),
+                centers: vec![center],
+                level: 1,
+            },
+            start_index: 0,
+            end_index: 4,
+            sub_moves: Rc::new(only_up),
+            id: ElementId {
+                level: 1,
+                ordinal: 1,
+            },
+        };
+        assert_eq!(departure_unit_end(&cur_up, Side::Long), None);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // #848 探针：归类半句的第二把尺子——BSP 识别层 / pan_div 通道认不认同一个点
     // ═══════════════════════════════════════════════════════════════════════
 
