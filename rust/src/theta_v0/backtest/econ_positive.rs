@@ -9924,9 +9924,12 @@ mod tests {
     ///
     /// ## 验什么
     ///
-    /// #1028 终验（裁定 A 后三轮重测）：首步 C 27.5%（109/396）；C 链终止条件号分布 =
-    /// cond1 方向 13 / cond2 D-3 取段 59 / cond3 Extreme 36 / cond4 Weak 15。方向桶已证 =
-    /// 锚错位（#1034 反事实 + 裁定 A 修后 159→13）；本票对**剩余桶**做 cond1-research
+    /// #1028 终验（裁定 A 后三轮重测）：首步 C 27.5%（109/396）、方向桶 159→13（已证 =
+    /// 锚错位，#1034 反事实 + 裁定 A 修后）。**对表口径订正**：cond1 方向残 13 是三轮终验
+    /// （锚迁 #1052 后）读数；cond2 D-3 取段 59 / cond3 Extreme 36 / cond4 Weak 15 是
+    /// #870 二轮（迁前）读数——迁后三桶正是本探针要首次测出的量（ADR 0013 三轮订正只给
+    /// 定性「残余 27.5% = D-3/Extreme/Weak + base_none 54」，未给迁后三桶计数）。
+    /// 本票对**剩余桶**做 cond1-research
     /// （#1034）同款拆解：逐例 dump + 三键反事实（source_index / 窗口极值 bar / departure
     /// 终点）翻转率 + 归因排序（归因判读口径见设计文档
     /// `.chanlun/review-results/issue1091-residual-counterfactual-design-20260818.md`）。
@@ -10484,7 +10487,7 @@ mod tests {
         let _ = writeln!(rpt);
         let _ = writeln!(
             rpt,
-            "- 对表口径：`cond1..4` = #1028 三轮的 方向残 13 / D-3 取段 59 / Extreme 36 / Weak 15；本读数应与三轮终验逐格可对。"
+            "- 对表口径：`cond1` 方向残 13 = #1028 三轮终验（锚迁 #1052 后）读数；`cond2/3/4`（D-3 取段 59 / Extreme 36 / Weak 15）= #870 二轮（迁前）读数——迁后三桶正是本探针要首次测出的量（ADR 0013 三轮订正只给定性「残余 27.5% = D-3/Extreme/Weak + base_none 54」，未给迁后三桶计数）。"
         );
         let _ = writeln!(rpt);
 
