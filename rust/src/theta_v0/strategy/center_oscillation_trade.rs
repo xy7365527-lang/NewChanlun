@@ -2278,7 +2278,10 @@ mod tests {
         assert_eq!(book.resolve(new), new, "锚回收后别名一并退役，不留悬挂映射");
     }
 
-    /// ★拒迁族：证书判非连续（split/removed/歧义）或干脆没有 ⟹ 保持既有 `RebaseVanished` 核销。
+    /// ★拒迁族：证书判非连续（split/歧义）或干脆没有 ⟹ 保持既有 `RebaseVanished` 核销。
+    /// （★#466 D1c：`removed`（真删除/构造窗撤出）不再落本桶——它走
+    /// `SuspensionTerminationSource::ConstructionRemoved` 核销，由
+    /// `removed_verdict_terminates_as_construction_removed_not_rebase_vanished` 覆盖。）
     #[test]
     fn non_continued_certificate_keeps_rebase_vanished_write_off() {
         let old = cid(5, 100, 200);
@@ -2286,7 +2289,9 @@ mod tests {
         let mut book = CenterOscillationBook::new(0);
         suspend_bound(&mut book, old, 10);
         suspend_bound(&mut book, survivor, 20);
-        // 簿里根本没有 old 的连续边（= wf8 seq=66 型：seed 右移，构造窗撤出）。
+        // 簿里根本没有 old 的连续边、也没有 removed 记录——真 NoCert（证书缺失）。
+        // ★#466 D1c：wf8 seq=66 型「seed 右移、构造窗撤出」已拆到 Removed 径
+        // （ConstructionRemoved 核销），不再落本 RebaseVanished 桶。
         let lineage = StubLineage(vec![]);
         let (outcomes, tally) = book
             .on_chain_rebase_lineage(&[center_of(survivor)], Some(&lineage as &dyn LineageLookup));

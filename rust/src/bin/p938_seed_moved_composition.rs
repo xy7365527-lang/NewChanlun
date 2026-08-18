@@ -13,10 +13,10 @@
 //! | 类 | 判据（生产同源） |
 //! |---|---|
 //! | `advanced` | `CenterEventMachine::consume_chain` 返回 `Advanced`——链尾追加新中枢，旧尾**仍在链上**、没死。不是重基。 |
-//! | `rebased_survived` | 返回 `Rebased`，但旧尾身份仍出现在新链某处 ⟹ `on_chain_rebase_lineage` 的「跟随迁移」路径（`center_oscillation_trade.rs:815-817`），无需证书。 |
-//! | `rebased_migrate` | `Rebased` + 旧尾不在新链 + 谱系簿给 `Continued(new)` 且 `new` 在新链上 ⟹ 生产会**迁移身份锚**（`:831-835` → `:857-865`）。 |
+//! | `rebased_survived` | 返回 `Rebased`，但旧尾身份仍出现在新链某处 ⟹ `on_chain_rebase_lineage` 的「跟随迁移」路径（`center_oscillation_trade.rs:839-841`），无需证书。 |
+//! | `rebased_migrate` | `Rebased` + 旧尾不在新链 + 谱系簿给 `Continued(new)` 且 `new` 在新链上 ⟹ 生产会**迁移身份锚**（`:855-858` → `:886-893`）。 |
 //! | `rebased_removed` | `Rebased` + 谱系簿给 `Removed`（证书判真删除/构造窗撤出）⟹ 生产按 `ConstructionRemoved` 核销（#466 D1c 拆桶），不占 `RebaseVanished` 工程警报桶。 |
-//! | `rebased_no_cert` / `_ambiguous` / `_bar_mismatch` / `_target_absent` | `Rebased` + fail-closed 四桶（`:824-854`）⟹ 生产**保持 RebaseVanished 核销**，即判「重建」。 |
+//! | `rebased_no_cert` / `_ambiguous` / `_bar_mismatch` / `_target_absent` | `Rebased` + fail-closed 四桶（`:848-883`）⟹ 生产**保持 RebaseVanished 核销**，即判「重建」。 |
 //!
 //! 判据源逐条已打开确认，见报告
 //! `.chanlun/review-results/issue938-seed-moved-composition-20260807.md`。
@@ -244,7 +244,7 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-/// 按生产判据（`center_oscillation_trade.rs:813-855` 逐条同源）判一次链尾变化。
+/// 按生产判据（`center_oscillation_trade.rs:837-884` 逐条同源）判一次链尾变化。
 fn judge(
     consumed: &ChainConsumed,
     old_tail: CenterId,
@@ -256,11 +256,11 @@ fn judge(
         // 链追加：旧尾没被改写，`consume_chain_impl:566-593` 只产 Born/Superseded。
         ChainConsumed::Advanced { .. } | ChainConsumed::Adopted { .. } => Verdict::Advanced,
         ChainConsumed::Rebased { .. } => {
-            // ① 旧身份仍在新链上 ⟹ 跟随迁移（`center_oscillation_trade.rs:815-817`）。
+            // ① 旧身份仍在新链上 ⟹ 跟随迁移（`center_oscillation_trade.rs:839-841`）。
             if chain_ids.contains(&old_tail) {
                 return Verdict::RebasedSurvived;
             }
-            // ② 查谱系簿（`:824`）。
+            // ② 查谱系簿（`:848`）。
             match lineage_book::lookup(bar, lvl, old_tail) {
                 lineage_book::Verdict::Continued(w) => {
                     if chain_ids.contains(&w.new) {
