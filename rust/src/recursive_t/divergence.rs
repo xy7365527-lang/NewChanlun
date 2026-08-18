@@ -549,7 +549,13 @@ fn select_child_in_window(
     best
 }
 
-/// 区间套链贯通：cc 层背驰(段)成立 ∧ 向下逐层 c 段钻取到 a0 各层皆有相应子背驰(段)。
+/// 区间套链贯通：cc 层背驰(段)成立 ∧ 向下逐层 c 段钻取，各层皆有相应子背驰(段)，直到下钻停止级 `min_level`。
+///
+/// 下钻停止判据（#817 N-2 裁定一/二，判据 + 参数分离）：成本门 ∧ 塔底，两道谁先到算谁——
+/// `min_level = max(成本门级, 塔底级)`，向下钻到该级即止（本级仍须有子背驰(段)，更低级不要求）。
+/// 塔底 = a₀ = 0（`recursive_t` 塔以 a₀ 为底，`T_A0` 只切 segment/stroke 不换级别号）；成本门据
+/// 探针 #907「在现有塔 L0-L4 上不咬任何一级」⟹ 先到的是塔底 ⟹ 阶段一 `min_level = 0`。
+/// 级别是参数、不许钉死（原 `(0..cc).rev()` 的常数 0 即被判违规的「必须降到 a0」，#817 N-2 说法③）。
 pub fn nest_chain_complete(
     cc: usize,
     cc_trend: &TrendType,
@@ -557,6 +563,7 @@ pub fn nest_chain_complete(
     core_dir: Direction,
     mode: PerfectionMode,
     use_diverge: bool,
+    min_level: usize,
 ) -> bool {
     let want_buy = matches!(core_dir, Direction::Down);
     if cc_trend.direction != core_dir {
@@ -570,7 +577,7 @@ pub fn nest_chain_complete(
         Some(w) => w,
         None => return false,
     };
-    for k in (0..cc).rev() {
+    for k in (min_level..cc).rev() {
         let candidates = match level_trends_all.get(k) {
             Some(c) => *c,
             None => return false,
@@ -600,6 +607,7 @@ pub fn d_top(
     core_dir: Direction,
     mode: PerfectionMode,
     use_diverge: bool,
+    min_level: usize,
 ) -> bool {
     let rec = |i: usize| {
         if cc < 9 {
@@ -630,7 +638,15 @@ pub fn d_top(
         rec(3);
         return false;
     }
-    let ok = nest_chain_complete(cc, cc_trend, level_trends_all, core_dir, mode, use_diverge);
+    let ok = nest_chain_complete(
+        cc,
+        cc_trend,
+        level_trends_all,
+        core_dir,
+        mode,
+        use_diverge,
+        min_level,
+    );
     if ok {
         rec(5);
     } else {

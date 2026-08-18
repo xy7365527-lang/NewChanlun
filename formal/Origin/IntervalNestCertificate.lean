@@ -16,16 +16,17 @@
         Sel_Θ **唯一选定**」要求选择器是**真全序消歧**（结束时间最新 ≻ 开始时间最新 ≻ 编号最小，
         **不留平局**）。本文件构造 `selectΘ` + 证 `selOrder` 是 selKey 上的**严格全序（三歧性）**
         + `selectΘ` 选出者满足 `Strict.Nest.IsSelected` + 全序唯一（任意两候选键不等 ⟹ 严格可比）。
-    (3) **N^δ 良基递归的 Confirm/Candidate 分支（ℓ_j = e_v vs ℓ_j > e_v）**：结果包 §6 的递归按
+    (3) **N^δ 递归的 Confirm/Candidate 分支（ℓ_j = e_v vs ℓ_j > e_v）**：结果包 §6 的递归按
         **级别 ℓ_j 与执行级 e_v 比较**分两支——`ℓ_j = e_v` 用 `Confirm^δ_{e_v,t}`；`ℓ_j > e_v` 用
         `Candidate^δ_{ℓ_j,t} ∧ [J_{ℓ_{j+1}} ⊆ J_{ℓ_j}] ∧ N^δ_{ℓ_{j+1}↓e_v}`。`Strict.Nest.NestCertificate`
-        是**列表结构**递归（按 cons 展开），**无**显式 `ℓ_j > e_v` 良基终止条件 + Confirm 终端分支。
-        本文件按结果包 §6 原样的**级别比较良基递归**实装（`ℓ_j > e_v` 严格递减 ⟹ 良基终止于
-        `ℓ_j = e_v` 的 Confirm 终端）。
+        是**列表结构**递归（按 cons 展开）；本文件同样按**列表结构递归**实装（`nestCertB` 按 cons
+        展开，`ℓ.lvl = ev` / `ℓ.lvl > ev` 是**运行时分支检查**），终止由列表结构保证，**不是**级别
+        递减的良基度量（`decide (ℓ'.lvl < ℓ.lvl)` 是运行时链良构检查，不是终止证明）。
 
   ★与 `Strict.Nest` 的关系（无重复、无冲突）：
     - Strict.Nest = **唯一性谓词侧**（Prop `IsSelected` + locator 键唯一性，task #72 cc-nest）。
-    - 本文件 = **全定义 Bool 算子侧**（可计算 `chiBool ∈ {0,1}` + 构造性 `selectΘ` + 级别比较良基递归）。
+    - 本文件 = **全定义 Bool 算子侧**（可计算 `chiBool ∈ {0,1}` + 构造性 `selectΘ` + 级别比较
+      Confirm/Candidate 分支的列表结构递归）。
     本文件**只读** `Strict.Nest`（复用其 `Interval`/`selKey`/`selOrder`/`IsSelected`/`Sub` 定义，
     不改它），在其上补 Bool 全定义层。两者对接：`selectΘ` 返回者满足 `Strict.Nest.IsSelected`
     （`selectΘ_isSelected`），故本文件的构造性选择**实例化** Strict.Nest 的抽象前件——
@@ -34,9 +35,9 @@
   ═══════════════════════════════════════════════════════════════════════════
   认识论等级（formalization-validity-domain 强制标注）
   ═══════════════════════════════════════════════════════════════════════════
-  全部 **L0**（纯定义 / 结构递归 / 全序消歧 / well-founded 级别递减，不依赖数据）。
+  全部 **L0**（纯定义 / 列表结构递归 / 全序消歧 / 运行时级别比较分支，不依赖数据）。
   `lake env lean Origin/IntervalNestCertificate.lean` 通过 = 「N^δ 全定义 Bool 算子值域 ⊆ {0,1}、
-  无候选 = 0、selectΘ 全序唯一消歧、级别比较良基递归终止」在定义层成立，**不是**任何「区间套
+  无候选 = 0、selectΘ 全序唯一消歧、列表结构递归 + 级别比较分支」在定义层成立，**不是**任何「区间套
   定位在真实行情上有效」的实证断言（那是 L2+，需真实 K 线 + 各级别候选区间的真实计算）。
   全序唯一性是纯结构（selKey 字典序三歧性），信息增量 = 同义反复（L0），**不冒充** L1+。
 
@@ -49,7 +50,7 @@
   ★`selectΘ` 真全序唯一（**不留平局**）：`selOrder` 在 selKey 上**三歧**（任意两键 a b：
     `selOrder a b ∨ selKey a = selKey b ∨ selOrder b a` 恰一成立），故选择器**不留平局**——
     键不同必严格可比，键同则视为同一（idx 是第三键，下游契约 idx 唯一 ⟹ 键全序）。
-  ★诚实开口：本文件给 χ 的**结构形式**（区间套良基递归 + Confirm/Candidate 终端分支 + Sel_Θ
+  ★诚实开口：本文件给 χ 的**结构形式**（区间套列表结构递归 + Confirm/Candidate 终端分支 + Sel_Θ
     全序消歧）。各级别 `Candidate^δ`/`Confirm^δ` 的**缠论语义内容**（某区间真是该级别买卖点候选）
     由下游 BSP/Center 契约（本文件抽象为 Bool 标记参数）。本文件**不**声称「chiBool = true ⟹
     真实行情有买卖点」（那是 L2）——只声称「chiBool 是 N^δ 结构形式的全定义可计算实现」。
@@ -348,21 +349,23 @@ theorem selectedByKey_unique
     · exact absurd hLt' (Strict.Nest.selOrder_asymm hLt)
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 4. N^δ 良基递归证书（级别比较 Confirm/Candidate 两支 + ℓ_j > e_v 严格递减终止）
+    § 4. N^δ 递归证书（列表结构递归 + 级别比较 Confirm/Candidate 两支运行时分支）
 
     结果包 §6（原样）：
       N^δ_{ℓ_j↓e_v}(D_t) =
         Confirm^δ_{e_v,t}                                              当 ℓ_j = e_v
         Candidate^δ_{ℓ_j,t} ∧ [J_{ℓ_{j+1}} ⊆ J_{ℓ_j}] ∧ N^δ_{ℓ_{j+1}↓e_v}  当 ℓ_j > e_v
-    级别链 o_v = ℓ₀ > ℓ₁ > … > ℓ_k = e_v 严格递减 ⟹ 良基递归终止于 ℓ_j = e_v 的 Confirm 终端。
+    级别链 o_v = ℓ₀ > ℓ₁ > … > ℓ_k = e_v 严格递减是**语义层要求**（结果包 §6 的递归对象），不是本节的终止依据。
 
-    本节实装**按级别比较**的良基递归（区别于 Strict.Nest 的列表结构递归）：每级携带其级别
-    `lvl`、候选区间集 `cands`（Sel_Θ 选 chosen）、Candidate 标记；递归在 `lvl > e_v` 时下钻、
-    `lvl = e_v` 时用 Confirm 终端。`lvl` 严格递减保证良基（Nat 度量 `lvl - e_v` 递减到 0）。
+    本节实装**列表结构递归**（与 Strict.Nest 同款按 cons 展开）：每级携带其级别
+    `lvl`、候选区间集 `cands`（Sel_Θ 选 chosen）、Candidate 标记；`lvl = e_v` 走 Confirm 终端、
+    `lvl > e_v` 走 Candidate 下钻（**级别比较只是运行时分支检查**）。**终止由列表结构保证**
+    （每次递归 `nestCertB ev (ℓ' :: rest)` 缩短列表），**不是** `lvl - e_v` 的 Nat 度量递减；
+    `decide (ℓ'.lvl < ℓ.lvl)` 是链良构的**运行时检查**（不递减 ⟹ false），不是终止证明。
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /--
-  **N^δ 级别节点** —— 区间套链上一级 ℓ_j 的全部数据（级别比较递归用）：
+  **N^δ 级别节点** —— 区间套链上一级 ℓ_j 的全部数据（级别比较分支 + 列表结构递归用）：
 
   - `lvl`：本级别号 ℓ_j（与执行级 e_v 比较决定 Confirm/Candidate 分支）。
   - `cands`：本级别候选区间集（Sel_Θ 选 chosen）。
@@ -401,8 +404,8 @@ theorem subB_iff_Sub (sub par : NestLevel) (js jp : Interval)
   simp only [Bool.and_eq_true, decide_eq_true_eq, ge_iff_le]
 
 /--
-  **N^δ 良基递归证书（Bool，级别比较两支）** —— 输入：执行级 `ev`、级别链 `chain`（`ℓ₀` 在表头，
-  级别严格递减）。按结果包 §6 递归：
+  **N^δ 递归证书（Bool，列表结构递归 + 级别比较两支）** —— 输入：执行级 `ev`、级别链 `chain`
+  （`ℓ₀` 在表头，级别严格递减是语义层要求）。按结果包 §6 递归：
 
   - **空链** ⟹ `false`（无级别 = 无候选 = 0，对照「不存在候选，值为 0」）。
   - **链头 ℓ** 且 `ℓ.lvl = ev`（到达执行级）⟹ 终端 `Confirm^δ_{e_v,t}` = `ℓ.confirmOK`（且本级有候选）。
@@ -655,8 +658,8 @@ theorem witness_selectΘ_empty_none :
         全序三歧性，不留平局）+ `selOrder_trans`（传递）+ `selectΘ_isSelectedByKey`（选中者键最优）
         + `selectedByKey_unique`（键唯一）。对照「固定选择器 Sel_Θ（结束时间最新 ≻ 开始时间最新
         ≻ 编号最小）唯一选定」——三排序键全序消歧，机器见证（witness_selectΘ_* 三键各一）。
-    (2) **N^δ 良基递归证书（级别比较 Confirm/Candidate 两支）**：`nestCertB`（按 ℓ_j 与 e_v 级别
-        比较分 Confirm 终端 / Candidate∧⊆∧递归 两支，ℓ_j > e_v 严格递减终止）。对照结果包 §6 原样递归。
+    (2) **N^δ 递归证书（列表结构递归 + 级别比较 Confirm/Candidate 两支）**：`nestCertB`（按 ℓ_j 与 e_v
+        级别比较分 Confirm 终端 / Candidate∧⊆∧递归 两支；终止由列表结构保证）。对照结果包 §6 原样递归。
     (3) **χ^δ ∈ {0,1} 全定义（绝不未定义）**：`chiBool`（全函数 Bool）+ `chiBool_mem_zero_one`
         （值域 {0,1}）+ `chiBool_empty_eq_zero`/`chiBool_singleton_noCand_eq_zero`（无候选 = 0）。
         对照「χ^δ ∈ {0,1}」「若不存在候选，则值为 0，绝不能是"未定义"」。
@@ -671,8 +674,8 @@ theorem witness_selectΘ_empty_none :
   ═══════════════════════════════════════════════════════════════════════
   ★结果包六要素
   ═══════════════════════════════════════════════════════════════════════
-  1. 结论：区间套递归证书 N^δ 的**全定义 Bool 实装**（`nestCertB`/`chiBool`，级别比较 Confirm/
-     Candidate 两支 + ℓ_j>e_v 严格递减良基终止）+ **Sel_Θ 固定选择器**（`selectΘ` 构造 +
+  1. 结论：区间套递归证书 N^δ 的**全定义 Bool 实装**（`nestCertB`/`chiBool`，列表结构递归 +
+     级别比较 Confirm/Candidate 两支）+ **Sel_Θ 固定选择器**（`selectΘ` 构造 +
      `selOrder_trichotomy` 严格全序三歧不留平局 + `selectΘ_isSelectedByKey`/`selectedByKey_unique`
      选中者键唯一），全 L0 零 sorry。χ^δ ∈ {0,1} 全定义（`chiBool_mem_zero_one`），无候选 = 0
      （`chiBool_empty_eq_zero`/`chiBool_singleton_noCand_eq_zero`），绝不未定义。
@@ -680,7 +683,7 @@ theorem witness_selectΘ_empty_none :
      （ℓ_j=e_v⟹Confirm；ℓ_j>e_v⟹Candidate∧[J_{ℓ_{j+1}}⊆J_{ℓ_j}]∧N^δ_{ℓ_{j+1}↓e_v}）+ 最终证书
      χ^δ = N^δ_{o_v↓e_v}(D_t) ∈ {0,1}（无候选 = 0，绝不未定义）+ Sel_Θ（结束时间最新 ≻ 开始
      时间最新 ≻ 编号最小）唯一选定。输入特征：级别链 o_v=ℓ₀>…>ℓ_k=e_v 严格递减 ⟹ `nestCertB`
-     按 `ℓ.lvl > ev` 下钻、`ℓ.lvl = ev` Confirm 终端（满足良基递归）；候选区间携三键
+     按 `ℓ.lvl > ev` 下钻、`ℓ.lvl = ev` Confirm 终端（级别比较是运行时分支，终止由列表结构保证）；候选区间携三键
      (endTime,startTime,idx) ⟹ `selectΘ` 字典序全序选最优（满足 Sel_Θ 唯一选定）。
   3. 边界条件（结论翻转）：
      · 若改 `subB` 区间套 ⊆ 口径（`Sub J' J := J'.start ≥ J.start ∧ J'.end ≤ J.end` 闭区间 vs
@@ -698,7 +701,7 @@ theorem witness_selectΘ_empty_none :
        对接 exec.rs ConflictKey 字典序裁决（同构：全序消歧保证不依赖输入顺序）。
      · `selectΘ_isSelectedByKey` 填充 Strict.Nest 的「Θ-参数化前件」⟹ Strict.Nest 的
        `nest_certificate_unique`（locator 键唯一）现有**构造性选择器实例**（不再只是抽象参数）。
-     · N^δ 级别比较良基递归 ⟹ SubLevelDescent 的「单层次级别破中枢」可嵌入**多级区间套链**
+     · N^δ 列表结构递归 + 级别比较分支 ⟹ SubLevelDescent 的「单层次级别破中枢」可嵌入**多级区间套链**
        （SubLevelDescent 给单层几何，本文件给多级递归 + Sel_Θ + Bool 全定义）。
   5. 谱系引用：Strict.Nest（task #72 cc-nest，唯一性谓词侧 Θ-参数化前件 IsSelected）→ 本文件
      （全定义 Bool 算子侧 chiBool ∈ {0,1} + Sel_Θ 构造性选择填充前件）。承接 SubLevelDescent

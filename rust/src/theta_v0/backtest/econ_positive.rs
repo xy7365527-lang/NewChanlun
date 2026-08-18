@@ -1198,7 +1198,8 @@ pub(super) fn build_nest_certificate(
     // 对每个上级 k = lvl+1 到 tower.len()-1：
     //   - 找 tower[k] 中包含 source_index 的段（start_index ≤ source_index ≤ end_index）作为区间
     //   - 在 tower[k] 的上级 tower[k+1] 的 sub_moves 中计算 Cand^δ_k
-    //   - 若任何级别找不到包含段 ⟹ 提前 false（无上级语境）
+    //   - 若某级找不到包含段 ⟹ break（partial chain 合法，上级语境到此为止；非「提前 false」——旧注释
+    //     「⟹ 提前 false」与实装的 break 语义相反，已订正为与实装一致，#817 N-2 T-1 / #1073 S10-b）。
     let max_k = tower.len();
     let mut rung_buf: Vec<NestRung> = Vec::new(); // 从低到高先收集，最后反转
     for k in (lvl + 1)..max_k {
