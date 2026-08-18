@@ -9325,7 +9325,7 @@ mod tests {
                             keys[2].and_then(|k| find_move_by_span(subs, k)),
                         ];
 
-                        let mut verdict = [0u8; NARM]; // 0=无键 1=无对齐 2=pass 3=fail
+                        let mut verdict = [0u8; NARM]; // 0=未评估（无键/无对齐） 2=方向通过 3=方向失败
                         for a in 0..NARM {
                             if keys[a].is_none() {
                                 key_none[a] += 1;
