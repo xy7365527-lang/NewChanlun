@@ -74,7 +74,7 @@ pub struct ZExt {
     /// （`sub_moves` 逐级下沉）混名。
     pub nest_depth: Option<u8>,
     /// 起始级 ℓ 覆盖（§6 ℓ）：`Some(ℓ)`=区间套链顶（Nest 通道 `lvl + rungs.len()`）；
-    /// `None` ⟹ z 填 `Some(c.level)`（起始=执行的无下沉**真值**——级别事实对任何真候选
+    /// `None` ⟹ z 填 `Some(c.level)`（起始=执行的无 rungs**真值**——级别事实对任何真候选
     /// 有定义，Xzd/runner 路径皆此口径；裸 `from_certificate` 才是 None）。
     pub origin_level: Option<u32>,
     /// 账户风险模式（§6 RiskMode+MarginState）：runner π fill loop `Some(当 bar mode)`；

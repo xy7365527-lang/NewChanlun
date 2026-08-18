@@ -426,7 +426,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                     // ★σ_higher 第 9 维（G2 #132）：塔真值经 z_of_candidate 内 sigma_higher_at 填。
                     // ★G3 第 10-12 维（#138）：从已 pass 的 gate_cert 装配——cand_channel=trigger（P0-1
                     // 同源）；Nest 通道 nest_depth=rungs.len()（0=基例真值）、origin_level=lvl+depth
-                    // （链顶 ℓ，「执行级 e=lvl，rungs 收集上级语境」的有效域口径）；Xzd 通道无下沉
+                    // （链顶 ℓ，「执行级 e=lvl，rungs 收集上级语境」的有效域口径）；Xzd 通道无 rungs
                     // 概念 ⟹ depth=None、origin_level 走 z_of_candidate 默认 Some(c.level)（起始=执行）。
                     // risk_mode=None：统计层信号收集无账本（equity/持仓），诚实 None（第 13 维在
                     // runner π fill loop 生态填真值）。
@@ -6042,7 +6042,7 @@ mod tests {
                             bsp_cand_type(&p.bits, delta_side),
                         );
                         // ★G3 ext（#138，与生产装配 bit-exact 同源）：Nest→depth=rungs.len()（pass ⟹
-                        // effective_nest_depth==rungs.len()，前缀定理）+ origin=lvl+depth；Xzd→无下沉。
+                        // effective_nest_depth==rungs.len()，前缀定理）+ origin=lvl+depth；Xzd→无 rungs。
                         let ext_dx = match gate_cert.as_ref().expect("pass ⟹ gate_cert Some") {
                             GateCertificate::Nest(_) => ZExt {
                                 cand_channel: Some(trigger_dx),

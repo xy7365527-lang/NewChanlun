@@ -138,7 +138,7 @@ pub struct MuClass {
     pub cand_channel: Option<super::econ_positive::NestTrigger>,
     /// 区间套**向上 rungs 深度**（第 11 维，§6，G3 #138）= `NestCertificate.rungs.len()`。
     /// `Some(0)`=经 Nest 门且基例（ℓ=e，纯 Conf^δ_e——0 是计算结果非未知，G2 口径）；
-    /// `Some(d>0)`=真跨级 J 嵌套 d 级；`None`=未经区间套门（Xzd 通道无下沉概念 / runner π 路径 /
+    /// `Some(d>0)`=真跨级 J 嵌套 d 级；`None`=未经区间套门（Xzd 通道无 rungs 概念 / runner π 路径 /
     /// 裸口径）——**不是 0**，深度概念在该口径未定义。BTC 实测 95.36% 基例、4.64% d=1
     /// （econ_positive 有效域注释），本维使该退化在 μ̂ 分桶层可观测。
     ///
@@ -149,8 +149,8 @@ pub struct MuClass {
     /// （rungs 数），向下 = `DescendLocator`（下沉深度 + 终止成因 A/B/C）。
     pub nest_depth: Option<u8>,
     /// 起始级别 ℓ（第 12 维，§6 的 ℓ，G3 #138）：区间套链顶级别。Nest 通道 = `level + rungs.len()`
-    /// （从高级 ℓ 背驰段逐级下沉定位到执行级 e=level）；Xzd/无门候选 = `level`（起始=执行，
-    /// 无下沉——真值非占位：级别事实对任何候选有定义）；`None`=from_certificate 裸口径
+    /// （rungs 从执行级 e=level 向上收集到链顶 ℓ）；Xzd/无门候选 = `level`（起始=执行，
+    /// 无 rungs——真值非占位：级别事实对任何候选有定义）；`None`=from_certificate 裸口径
     /// （无链语境，不伪造 ℓ=e）。恒等式 `origin_level = level + nest_depth`（Nest 通道，
     /// debug_assert 见 z 装配点）——Jchain（§6 区间套包含链）由 N^δ 定义强制逐级相邻
     /// （nest.rs `rungs[0]`=级ℓ..`rungs[last]`=级e+1 连续、无跳级），链签名 ≅ (ℓ,e)，
