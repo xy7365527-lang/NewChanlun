@@ -102,21 +102,36 @@ class PercentSlippage(SlippageBase):
 
 @dataclass(frozen=True, slots=True)
 class MarketImpactSlippage(SlippageBase):
-    """基于成交量占比的市场冲击滑点。
+    """平方根律市场冲击滑点（#920 修复后）。
 
-    仅在本笔成交量超过日均成交量的 threshold_pct 时激活。
-    冲击大小 = impact_coeff * sqrt(volume / avg_daily_volume)。
+    冲击幅度 = ``y * sigma_daily * (volume / avg_daily_volume) ** delta``。
+
+    与旧版的两处差异（#920）：
+    1. **删除 threshold_pct 死区**——旧版在参与率 < 1% 时冲击恒 0，与平方根律
+       **方向相反**：定律的核心主张恰是小单的边际冲击异常地大、在 Q^{-1/2} 处发散
+       （Tóth et al. 2011, Phys. Rev. X 1, 021006, p.3）。本仓各容量级实测参与率
+       （0.090% / 0.261% / 0.786% / 4.95%）最关心的三级全部落在旧死区里。
+    2. **impact_coeff 拆成两个显式量纲**——旧版单系数 0.1 数学上等于 ``y · sigma_daily``，
+       相对文献标定偏大约 4.4 倍（0.9 × 0.02531 ≈ 0.0228）。现在系数随标的自变，
+       不必每换品种重填。
 
     Attributes
     ----------
-    threshold_pct : float
-        激活阈值（0.01 = 1%）。成交量占比低于此值时无滑点。
-    impact_coeff : float
-        冲击系数，控制滑点幅度。
+    y : float
+        无量纲冲击系数，默认 0.9——文献一手标定：Donier & Bonart 2015
+        （"A Million Metaorder Analysis of Market Impact on the Bitcoin"），
+        MtGox 全量约 1300 万笔成交重建 100 万 metaorder，比特币市场。
+    sigma_daily : float
+        标的日波动率（小数，0.025 即 2.5%/日）。**须由调用方从 OHLCV 实算后传入**
+        （如 Garman-Klass 口径）。默认 0.0 = 无波动率信息 ⟹ 冲击为 0（诚实无信息，
+        不臆造默认波动率）。
+    delta : float
+        冲击指数，默认 0.5（平方根律）；文献带 0.4–0.7。
     """
 
-    threshold_pct: float = 0.01
-    impact_coeff: float = 0.1
+    y: float = 0.9
+    sigma_daily: float = 0.0
+    delta: float = 0.5
 
     def apply(self, price: float, side: str) -> float:
         """Protocol 接口 — 无 volume 信息时返回原价。"""
@@ -133,10 +148,7 @@ class MarketImpactSlippage(SlippageBase):
             return price
 
         participation_rate = volume / avg_daily_volume
-        if participation_rate < self.threshold_pct:
-            return price
-
-        impact_pct = self.impact_coeff * math.sqrt(participation_rate)
+        impact_pct = self.y * self.sigma_daily * participation_rate**self.delta
         if side == "buy":
             return price * (1.0 + impact_pct)
         return price * (1.0 - impact_pct)
