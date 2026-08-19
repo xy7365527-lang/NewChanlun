@@ -13,9 +13,9 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
 
-## `main-rewritten` 与 CI
+## `main` 与 CI
 
-`main-rewritten` 是本地 `main` 的事实镜像，约每日推送一次；`origin/main` 是停在 2026-04-19 的死分支，已与本地 `main` 分叉 2602/1171 个提交。CI 触发器挂在 `main-rewritten`，因为它才是远端可触发且持续承载本地 `main` 事实的镜像分支（#457）。
+Git 线名分与基线以 [`generation-constitution.md` §2](generation-constitution.md#2-现役线名单) 为唯一正本。本 tracker 的操作差分：新 PR 的 base 选 `main`；验收/关票引用 `main` 对应的 CI run；查旧 issue、PR 或 run 时，`main-rewritten` 只作为历史分支名检索。
 
 ## Pull requests as a triage surface
 

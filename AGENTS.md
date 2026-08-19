@@ -163,7 +163,7 @@
 - **harness**：Kimi 主力（K1，2026-07-28 裁定）；实施层 = codex/claude CLI（2026-07-26 令，不废）。工位模型分配四档（永久令 2026-07-04 三令）：机械=haiku / 常规=sonnet / 高难=opus / 最难=fable；spawn 必显式传 model，拿不准取低档。**四档管常设工位**（蜂群里一个固定角色默认配哪档）；**一次性派发挑模型看 `~/.claude/CLAUDE.md` 路由表**（cost/intelligence/taste 三分数，从便宜往贵挑第一个够格的，含 codex 与 DeepSeek 两个四档没有的档位）。两套并存，改一套须同步另一套。**升档条款**（[#781](https://github.com/xy7365527-lang/NewChanlun/issues/781) 裁定③，补的是「只写了起点没写升档」这个缺口）：**产出被评审打回 = 升档信号，直接换更聪明的一档重做，不必请示**（先例 #666 被 #670 打回重推）；低档起步而无升档条款 = 同档反复重试。**留痕取最小面**（同票裁定⑤）：**升档时写一句「从 X 升到 Y」，一过就过的不记**——声明制自执行，不设巡查。
 - **验证口径**：不全量重放——验证用靶向/原型级（差异面先全枚举再对拍，秒级）；全量仅留重型验证窗口并照实标注（用户 2026-07-26 裁定，效率纪律）。
 - **执行分工**：Claude CLI 执行层——实施票用 sonnet（快），影子评审用 opus（深）；Kimi 只做编排，不下场写码（2026-07-26 用户定）。
-- **工作线**（2026-07-29 #614 并线落线）：**main 再次唯一现役**——`kimi-nest-mainline-20260717` 已并入 main（落线提交 `ca955a73f1`，方向 (a)；49 冲突留痕 + 12 ⚠ 登记 = `chanlun/review-results/issue614-merge-log-20260729.md`）并**封存只读**（worktree `/private/tmp/kimi-nest-mainline` 保留作移植参照，禁新提交）。ticket 分支统一切 main。未随入项票批：#642（coverage 移植，P0 三生产正确性修复优先）/ #643（classifier 主干裁定）/ #644（LEE 接线）/ #645（手工重放影子评审）/ #646（#419 资金路径重议）。`main-rewritten` 是 main 的只读镜像（CI 触发器挂它），main 不推 origin。
+- **工作线**：涉及 branch/worktree 基线、远端默认分支、CI/自动化基线或历史镜像名分时，先读 `docs/agents/generation-constitution.md` §2「现役线名单」；该处是唯一正本。
 - **Stop-Guard**：其注入内容可能反映过期状态（已结算谱系仍列为 pending）；重复执行前先核实际状态。
 - **goal 事件**：正式 GOAL_SET/SUPERSEDE 由 Lead 直接 append 到 `.chanlun/goals/events.jsonl`（`scripts/goal_events.py` 只出草稿），随后用 reducer/scan 验证。
 - **裁定文档**：编排者钦定的裁定 PDF 先归档到 `docs/formal-chain/` 再登记为 goal 权威。

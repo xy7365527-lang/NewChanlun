@@ -33,7 +33,7 @@ worktree/branch 是**容器**不是名分。容器只有两态：
 ## 2. 现役线名单
 
 - **引擎层**：**π 是唯一现役引擎**。锚定方式 = 家族根函数名（`pi_theta_fill_loop_overlay`），不锚行号（行号随版本漂移）。v1/dual = deprecated 待退役，处置见 #499。
-- **git 线**：**main 是唯一现役线**。`main-rewritten` = main 的只读事实镜像（CI 触发器挂它），**不是第二条线**；`gap3-rework-codex9-fix` = 已吸收残壳（main 含其全部 except 2 commit，main 领先 260——2026-07-28 核），按垃圾清。
+- **git 线**：**main 是唯一现役本地线、远端默认分支与自动化基线**，ticket/worktree 从最新 main 切出并交付到 `origin/main`。`main-rewritten` 是已退役的历史镜像，不再承担 CI、发布或 ancestry 判据（#1101/#1103；归档与删除闸见 #1102/#1104）；`gap3-rework-codex9-fix` = 已吸收残壳（main 含其全部 except 2 commit，main 领先 260——2026-07-28 核），按垃圾清。
 - **工位层**：**白名单制**。在跑工位显式登记于当日 roster（当前唯一：`/tmp/kimi-nest-mainline` = #421）；其余 worktree 默认残骸嫌疑，按 #502 判据清。新工位开工即登记。
 
 ## 3. 开票门（文本牙）

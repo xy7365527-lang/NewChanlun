@@ -57,11 +57,11 @@
 - **豁免面**：没有豁免；若每张票仍有各自可独立验证的交付与证据，则本条不触发。
 - **出处票号**：#440。
 
-## 碰 CI 把关面的票，关票前必须推镜像
+## 碰 CI 把关面的票，关票前必须核 `origin/main` 上的 CI
 
-**成因是一次实事故（[#810](https://github.com/xy7365527-lang/NewChanlun/issues/810)，2026-07-30）**：本仓 `main` **不推 origin**——远端 `main` 是另一条祖传历史（与本地 `main` **零共同祖先**、独有 1171 个提交），本地这条重写过的线以 **`main-rewritten`** 这个名字发布，CI 触发器挂在它上面。于是存在一个静默失效模式：**提交落在 `main`、忘了推镜像 ⟹ CI 一直在旧树上把关，而且是绿的。**
+**历史成因（旧镜像特例已退役）**：[#810](https://github.com/xy7365527-lang/NewChanlun/issues/810) 于 2026-07-30 查实时，本仓 `main` 不推 origin——远端 `main` 是与本地现役线零共同祖先的祖传历史，本地线只能以 `main-rewritten` 发布，CI 触发器也挂在该镜像。于是发生了静默失效：提交落在本地 `main`、忘了推镜像，CI 便一直在旧树上把关且保持全绿。
 
-实测查出时镜像已落后主线 **545 个提交**，期间 CI 全绿。追上后当场暴露三条此前不可见的红：`cargo fmt --check` 6 文件 11 处漂移（[#611](https://github.com/xy7365527-lang/NewChanlun/issues/611) 那道闸装了也响了，只是一直响在别处）、pytest `test_morse_landscape` 的 LFS pointer 分支炸而非 skip（[#818](https://github.com/xy7365527-lang/NewChanlun/issues/818)）、两条 Lean↔Rust 一类买点对拍断言（[#811](https://github.com/xy7365527-lang/NewChanlun/issues/811)）。
+实测查出时镜像已落后主线 **545 个提交**。追上后当场暴露三条此前不可见的红：`cargo fmt --check` 6 文件 11 处漂移（[#611](https://github.com/xy7365527-lang/NewChanlun/issues/611) 那道闸装了也响了，只是一直响在别处）、pytest `test_morse_landscape` 的 LFS pointer 分支炸而非 skip（[#818](https://github.com/xy7365527-lang/NewChanlun/issues/818)）、两条 Lean↔Rust 一类买点对拍断言（[#811](https://github.com/xy7365527-lang/NewChanlun/issues/811)）。2026-08-19 的 [#1101](https://github.com/xy7365527-lang/NewChanlun/issues/1101) 已把远端 main 与现役谱系并轨；[#1103](https://github.com/xy7365527-lang/NewChanlun/issues/1103) 起镜像特例退出活纪律，`main`/`origin/main` 直接承担发布与 CI。
 
 **这是「锁形同虚设」的第三种形态**，比前两种都隐蔽：
 
@@ -71,17 +71,17 @@
 | 二 | 接进 gate 了，但只编译不执行 | [#799](https://github.com/xy7365527-lang/NewChanlun/issues/799) 裁定十一 |
 | **三** | **执行了，但看的不是这棵树** | **本条** |
 
-**条款**：一张票若改动了 `rust/` / `.github/` / `formal/` / `src/` / `tests/` / `scripts/`（即 CI 实际把关的面），**关票声明须包含镜像已推 + 一条 CI run 链接**：
+**现行条款**：一张票若改动了 `rust/` / `.github/` / `formal/` / `src/` / `tests/` / `scripts/`（即 CI 实际把关的面），关票前须确认交付已进入 `origin/main`，并在关票声明附主线 SHA 与一条对应的 CI run 链接：
 
 ```
-镜像：origin/main-rewritten @ <hash>（== 关票面）；CI run：<链接> → <结论>
+主线：origin/main @ <hash>（== 关票面）；CI run：<链接> → <结论>
 ```
 
 CI 为红时**照实写红并说明去向**（哪张票接、为什么不当场修），**不许为了让声明好看而缩测试范围、加 `#[ignore]` 或改触发分支**。[#811](https://github.com/xy7365527-lang/NewChanlun/issues/811) 即一例**有意为之的红**：教义分歧未裁之前不许修绿。
 
-**机械提醒（不阻断）**：`scripts/check_mirror_sync.sh` —— 镜像落后且落后面含把关目录时打印警告与推送命令。挂法见脚本头部注释（`.git/hooks/post-commit` 加一行，勿删已有的 git-lfs 行）。**只提醒不阻断**：推镜像是对外动作，按仓内纪律须人批准，脚本不替人决定推不推，只保证「落后」这件事不会没人知道。
+**机械提醒（不阻断）**：先 `git fetch origin main`，再运行 `scripts/check_main_sync.sh`。若本地 main 领先 `origin/main`，且差异含 CI 把关目录，脚本打印主线推送命令；纯文档差异不刷屏。旧 `scripts/check_mirror_sync.sh` 名称与 post-commit 挂法均已退役，已有 hook 应改指向新脚本；同名兼容入口只做转发，不含镜像判据。脚本只提醒不推送，对外动作仍由人批准。
 
-**⚠ 为什么不做成 CI 检查**：CI 只看得到被推上去的树，**看不到本地工作线领先多少**——这道防线在 CI 里原理上就实现不了。原提议曾是「CI 加一步检查镜像落后即红」，复核后作废，记在此防止再提。
+**⚠ 为什么不做成 CI 检查**：CI 只看得到已经推上去的树，原理上看不到本地 main 领先 `origin/main` 多少。这道防线只能放在本地提醒与关票声明；旧提议「CI 自查本地领先即红」作废，记在此防止再提。
 
 ## 五案例边界样本表
 
@@ -95,7 +95,7 @@ CI 为红时**照实写红并说明去向**（哪张票接、为什么不当场�
 | #394：两个豁免理由一真一假，但都没有检验 | 豁免操作化 | 分别写命题和证据：`豁免 A：<命题>；<命令> → <输出>`；另一项写 `未检验：仅豁免默认项，不覆盖票面 AC-X。` |
 | #450：关票时报告只写了路径、实体未入 git，被归档后下游 #521 断粮，冻结基线全量重建才续命 | 关票门第 6 子句 | 关票前先把报告实体入仓：`chanlun/review-results/issue450-bypass-census-20260727.md` 入 git，关票声明写 `报告=chanlun/review-results/issue450-bypass-census-20260727.md`。 |
 | #421：评审跑完后又落两个代码 commit（收口包 + 468 行修复轮）即关票，尾部 diff 从未进任何评审范围，整体评审才发现 | 关票门第 7 子句 | 关票前核对面一致：`评审面==关票面`；不一致先补：`尾部 58672e2563/77d3554332 已补评审 <报告路径>`，再关票。 |
-| #810：CI 触发分支 `main-rewritten` 落后主线 545 个提交，全部 gate 在旧树上把关且全绿 | 镜像同步条款 | 关票声明写 `镜像：origin/main-rewritten @ ed793f8887（== 关票面）；CI run：<链接> → rust-check 红（#811 两条对拍，教义分歧不修绿）/ test 红（#818）/ fixture-drift 绿`。 |
+| #810：CI 触发分支 `main-rewritten` 落后主线 545 个提交，全部 gate 在旧树上把关且全绿 | 历史镜像同步条款（已退役） | 当时应写 `镜像：origin/main-rewritten @ ed793f8887（== 关票面）；CI run：<链接> → rust-check 红（#811 两条对拍，教义分歧不修绿）/ test 红（#818）/ fixture-drift 绿`；现行模板改用上文 `origin/main`。 |
 
 ## 只管新声明
 
