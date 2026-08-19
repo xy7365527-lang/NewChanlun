@@ -11,7 +11,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-_BASE_URL = "http://export.arxiv.org/api/query"
+_BASE_URL = "https://export.arxiv.org/api/query"
 _PDF_URL = "https://arxiv.org/pdf/{arxiv_id}.pdf"
 _REQUEST_TIMEOUT = 10
 _ATOM_NS = "{http://www.w3.org/2005/Atom}"
