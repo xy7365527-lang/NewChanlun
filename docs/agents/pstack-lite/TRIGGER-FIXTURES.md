@@ -10,6 +10,9 @@
 
 - 每个 item 必须有 `id`、`skill`、`status`（`active` / `draft`）、
   `positive`（正例）与 `negative`（反例）。
+- 可选 `skill_dir`：实跑时复制进临时夹具项目的 Skill 目录（相对本目录）；缺省解析到
+  `fixtures/<skill>`，只适用于探针等放在 `fixtures/` 下的条目。可选 `scope: "user"`
+  表示用户级全局 Skill（如 `unslop`），实跑时从 `~/.agents/skills/<skill>/` 取目录。
 - **每项至少 3 个正例 + 3 个反例**，schema 校验强制。
 - 每个 case 有 `id`、`prompt`、`expect`（`loaded` / `skipped`）。
 - `assertions` 字段预留，后续票可往里加**端到端行为断言**（例如「回复必须逐字包含某
@@ -60,7 +63,9 @@ provider/model 默认 `deepseek` / `deepseek-v4-pro`（沙盒内可用）；主�
 ## 后续票接缝
 
 1. 业务 Skill 落地后，把 `fixtures.json` 里对应 item 的 `status` 改为 `active`，
-   按实际触发语义校准 `positive` / `negative` 的 prompt（仍保持 ≥3+3）。
+   并用 `skill_dir` 指向已安装的 Skill 目录（业务 Skill 在 `.agents/skills/<name>/`，
+   须显式给 `skill_dir`，缺省只解析到 `fixtures/<skill>`），再按实际触发语义校准
+   `positive` / `negative` 的 prompt（仍保持 ≥3+3）。
 2. 需要行为断言时，往该 item 的 `assertions` 加端到端断言；runner 消费 `assertions` 的
    实现属于后续票。
 3. 实跑结果写入 `docs/agents/pstack-lite/results/`（或票内 resolution comment），不依赖

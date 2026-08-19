@@ -7,8 +7,8 @@
 //       [--out <report.json>] [--self-test]
 //
 // 语义：每个 case 在新 Prime 会话（prime-agent -p）里跑一次，然后从会话记录
-// （~/.prime/agent/sessions/<id>.jsonl 或 --session-dir 指定目录）判断 Skill 是否
-// 真的被加载。判断依据是「工具调用读取了该 Skill 的目录/SKILL.md 路径」，而不是
+// （--session-dir 指定的临时目录里的 <id>.jsonl）判断 Skill 是否真的被加载。
+// 判断依据是「工具调用读取了该 Skill 的目录/SKILL.md 路径」，而不是
 // 模型在回答里自报「我加载了 Skill」——assistant 的 text/thinking 一律不算证据。
 //
 // 正例（expect=loaded）：会话记录里出现该 Skill 目录路径 → PASS，否则 FAIL。
@@ -17,14 +17,15 @@
 // 仅跑 fixtures.json 里 status=active 且 skill 目录存在的条目；draft 条目只校验
 // schema（每项 ≥3 正例 + ≥3 反例），不实跑。
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { mkdtempSync, cpSync, statSync } from "node:fs";
+import { mkdtempSync, cpSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const __dirname = dirname(new URL(import.meta.url).pathname);
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function findPrimeAgentDist() {
   if (process.env.PRIME_AGENT_DIST && existsSync(join(process.env.PRIME_AGENT_DIST, "core", "skills.js"))) {
@@ -147,7 +148,7 @@ function validateFixtures(fx) {
 // ---------------------------------------------------------------------------
 // 会话 runner
 // ---------------------------------------------------------------------------
-function runCase(fixtureCwd, prompt, caseId) {
+function runCase(fixtureCwd, prompt) {
   const sessionDir = mkdtempSync(join(tmpdir(), "pstack-trigger-"));
   const r = spawnSync(primeAgentBin, [
     "-p", "--mode", "json",
@@ -161,7 +162,6 @@ function runCase(fixtureCwd, prompt, caseId) {
   const files = existsSync(sessionDir) ? readdirSync(sessionDir).filter((f) => f.endsWith(".jsonl")) : [];
   const sessionFile = files.length === 1 ? join(sessionDir, files[0]) : null;
   return {
-    caseId,
     sessionDir,
     sessionFile,
     status: r.error && r.error.code === "ETIMEDOUT" ? "timeout" : r.status === 0 ? "ok" : `exit-${r.status}`,
@@ -258,7 +258,13 @@ for (const item of items) {
   const active = item.status === "active" && skillDir && existsSync(skillDir);
   if (!active) {
     itemReport.skipped = true;
-    itemReport.reason = skillDir ? `status=${item.status}` : "skill 目录不存在（draft）";
+    if (item.status === "active") {
+      // active 条目缺 skill 目录：无法验证，按失败处理而非静默通过
+      itemReport.reason = `active 条目但 skill 目录不存在: ${skillDir}`;
+      report.ok = false;
+    } else {
+      itemReport.reason = `status=${item.status}`;
+    }
     report.items.push(itemReport);
     continue;
   }
@@ -279,6 +285,7 @@ for (const item of items) {
     if (!reg) {
       itemReport.skipped = true;
       itemReport.reason = `skill ${item.skill} 在夹具项目里未被 Prime 发现`;
+      report.ok = false;
       report.items.push(itemReport);
       rmSync(fixtureCwd, { recursive: true, force: true });
       continue;
@@ -286,6 +293,7 @@ for (const item of items) {
   } catch (e) {
     itemReport.skipped = true;
     itemReport.reason = `preflight 失败: ${e.message}`;
+    report.ok = false;
     report.items.push(itemReport);
     rmSync(fixtureCwd, { recursive: true, force: true });
     continue;
@@ -296,17 +304,23 @@ for (const item of items) {
     ...item.negative.map((c) => ({ ...c, expect: "skipped" })),
   ];
   for (const c of cases) {
-    const run = runCase(fixtureCwd, c.prompt, c.id);
+    const run = runCase(fixtureCwd, c.prompt);
     let verdict = "ERROR";
     let loaded = null;
     let detail = run.status;
     try {
-      if (run.sessionFile) {
+      if (run.status === "ok" && run.sessionFile) {
         const a = analyzeSession(run.sessionFile, installedSkillDir);
-        loaded = a.loaded;
-        const expected = c.expect === "loaded";
-        verdict = a.loaded === expected ? "PASS" : "FAIL";
-        detail = `loaded=${a.loaded} expect=${c.expect}`;
+        if (a.error) {
+          detail = a.error;
+        } else {
+          loaded = a.loaded;
+          const expected = c.expect === "loaded";
+          verdict = a.loaded === expected ? "PASS" : "FAIL";
+          detail = `loaded=${a.loaded} expect=${c.expect}`;
+        }
+      } else if (run.status !== "ok") {
+        detail = `prime-agent 运行失败（status=${run.status}）: ${run.stderr.slice(0, 300)}`;
       } else {
         detail = `no session record (status=${run.status}): ${run.stderr.slice(0, 300)}`;
       }
