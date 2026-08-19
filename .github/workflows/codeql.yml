@@ -1,3 +1,12 @@
+# OPERATIONAL REQUIREMENT: this workflow must remain disabled.
+# Canonical policy and recovery conditions: #1107 Resolution.
+# Implementation and verification ticket: #1108.
+# Verify the repository-side state before and after security-workflow changes:
+#   gh api repos/xy7365527-lang/NewChanlun/actions/workflows/codeql.yml --jq '.state'
+# The policy-compliant output is `disabled_manually` until all #1107 recovery
+# conditions hold. Do not run CodeQL in artifact-only mode or hide the
+# entitlement 403 with continue-on-error.
+#
 # For most projects, this workflow file will not need changing; you simply need
 # to commit it to your repository.
 #
