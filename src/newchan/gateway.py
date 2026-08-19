@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import uuid
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -116,6 +117,23 @@ _live_bp_tasks: dict[WebSocket, asyncio.Task] = {}
 
 # Live 模式：asyncio event loop 引用（用于从 feeder 线程调度到 async）
 _live_loop: asyncio.AbstractEventLoop | None = None
+
+# Live 模式：Databento feeder（on_bar → _on_live_bar）。None 表示尚未启动。
+_live_feeder = None
+
+# Live 预热竞态防护：预热期间缓冲 feeder bar，结束后按 ts 去重回放
+_live_lock = threading.Lock()
+_live_warming: set[str] = set()
+_live_pending_bars: dict[str, list[Bar]] = {}
+
+
+def _bar_ts_epoch(ts: datetime | None) -> float:
+    """比较用时间戳。naive 视为 UTC，避免预热去重时 naive/aware TypeError。"""
+    if ts is None:
+        return float("-inf")
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return ts.timestamp()
 
 
 # ════════════════════════════════════════════════
@@ -852,28 +870,77 @@ async def _handle_ws_command(ws: WebSocket, cmd: WsCommand, bound_session_id: st
 # ════════════════════════════════════════════════
 
 
+def _ensure_live_feeder() -> None:
+    """确保 DatabentoLiveFeeder 已用 _on_live_bar 启动。
+
+    无 API key 时 start() 会立刻返回，不拉起后台线程。
+    databento 在 feeder 模块顶层导入，此处延迟加载以免 gateway 在缺 SDK 时无法启动。
+    """
+    global _live_feeder
+    if _live_feeder is not None:
+        return
+    from newchan.config import DATABENTO_API_KEY
+    from newchan.data_databento_live import DatabentoLiveFeeder
+
+    _live_feeder = DatabentoLiveFeeder(on_bar=_on_live_bar)
+    _live_feeder.start()
+    if DATABENTO_API_KEY:
+        logger.info("Live feeder 已接到 _on_live_bar")
+    else:
+        logger.warning("DATABENTO_API_KEY 未设置，live feeder 未真正订阅")
+
+
 def _ensure_live_engine(symbol: str) -> RecursiveOrchestrator:
-    """获取或创建指定标的的 live 引擎，用缓存中已有的 bar 预热。"""
-    if symbol in _live_engines:
-        return _live_engines[symbol]
+    """获取或创建指定标的的 live 引擎，用缓存中已有的 bar 预热。
+
+    预热与 feeder 竞态：
+    - 预热期间 ``_on_live_bar`` 不得因 engine 未注册而丢 bar
+    - 也不得把实时 bar 插入预热序列造成乱序
+    - 做法：标记 warming → 缓冲 pending → 预热 → 按 ts 去重 flush → 注册
+    """
+    with _live_lock:
+        existing = _live_engines.get(symbol)
+        if existing is not None:
+            return existing
+        _live_warming.add(symbol)
+        _live_pending_bars.setdefault(symbol, [])
 
     engine = RecursiveOrchestrator(stream_id=f"live-{symbol}")
 
     # 预热：用缓存中已有的历史 bar 驱动引擎到最新状态
     snap = None
+    warmed_bars: list[Bar] = []
     try:
-        bars = _load_bars(symbol, "1min", "1m")
-        for bar in bars:
+        warmed_bars = _load_bars(symbol, "1min", "1m")
+        for bar in warmed_bars:
             snap = engine.process_bar(bar)
-        _live_bar_counts[symbol] = len(bars)
+        _live_bar_counts[symbol] = len(warmed_bars)
         if snap is not None:
             _live_snapshots[symbol] = snap
-        logger.info("Live engine %s 预热完成: %d bars", symbol, len(bars))
+        logger.info("Live engine %s 预热完成: %d bars", symbol, len(warmed_bars))
     except (ValueError, Exception) as e:
         _live_bar_counts[symbol] = 0
         logger.warning("Live engine %s 预热失败（无缓存数据）: %s", symbol, e)
 
-    _live_engines[symbol] = engine
+    last_warmed_ts = warmed_bars[-1].ts if warmed_bars else None
+    flushed = 0
+    with _live_lock:
+        pending = _live_pending_bars.pop(symbol, [])
+        _live_warming.discard(symbol)
+        for bar in pending:
+            if last_warmed_ts is not None and _bar_ts_epoch(bar.ts) <= _bar_ts_epoch(last_warmed_ts):
+                continue  # 已包含在预热缓存中，避免重复
+            snap = engine.process_bar(bar)
+            _live_bar_counts[symbol] = _live_bar_counts.get(symbol, 0) + 1
+            flushed += 1
+        if snap is not None:
+            _live_snapshots[symbol] = snap
+        _live_engines[symbol] = engine
+        if pending:
+            logger.info(
+                "Live engine %s flush pending: buffered=%d applied=%d count=%d",
+                symbol, len(pending), flushed, _live_bar_counts[symbol],
+            )
     return engine
 
 
@@ -911,10 +978,16 @@ def _on_live_bar(symbol: str, bar: Bar) -> None:
     """DatabentoLiveFeeder 的 on_bar 回调（在 feeder 线程中执行）。
 
     将 bar 送入对应引擎，然后通过 event loop 调度异步广播。
+    若引擎正在预热，则缓冲到 ``_live_pending_bars``，由
+    ``_ensure_live_engine`` 结束后按时间戳去重回放——禁止静默丢弃。
     """
-    engine = _live_engines.get(symbol)
-    if engine is None:
-        return
+    with _live_lock:
+        if symbol in _live_warming:
+            _live_pending_bars.setdefault(symbol, []).append(bar)
+            return
+        engine = _live_engines.get(symbol)
+        if engine is None:
+            return
 
     snap = engine.process_bar(bar)
     bar_idx = _live_bar_counts.get(symbol, 0)
@@ -957,7 +1030,8 @@ async def ws_live(ws: WebSocket, symbol: str):
     # 捕获 event loop 引用（供 feeder 线程回调使用）
     _live_loop = asyncio.get_running_loop()
 
-    # 确保引擎已初始化
+    # 先接 feeder，再预热引擎：预热期间到达的 live bar 进入 pending 缓冲
+    _ensure_live_feeder()
     _ensure_live_engine(symbol)
 
     # 创建背压队列和消费任务
