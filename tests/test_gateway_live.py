@@ -10,12 +10,23 @@
 from __future__ import annotations
 
 import asyncio
+import sys
+import types
 from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+# gateway → feeder 路径在接线测试中会加载 databento；缺 SDK 时注入 stub。
+if "databento" not in sys.modules:
+    _db = types.ModuleType("databento")
+    _db.Live = type("Live", (), {})
+    _db.OHLCVMsg = type("OHLCVMsg", (), {})
+    _db.ErrorMsg = type("ErrorMsg", (), {})
+    sys.modules["databento"] = _db
+
+import newchan.gateway as gw
 from newchan.gateway import (
     _live_bar_counts,
     _live_bp_queues,
@@ -30,6 +41,16 @@ from newchan.types import Bar
 
 
 @pytest.fixture(autouse=True)
+def _stub_live_feeder(request):
+    """默认阻断真实 Databento 订阅；接线测试自行 mock feeder 类。"""
+    if request.node.name == "test_ws_connect_starts_feeder_with_on_bar":
+        yield
+        return
+    with patch("newchan.gateway._ensure_live_feeder"):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _clean_live_state():
     """每个测试前后清理 live 全局状态。"""
     _live_engines.clear()
@@ -38,6 +59,12 @@ def _clean_live_state():
     _live_snapshots.clear()
     _live_bp_queues.clear()
     _live_bp_tasks.clear()
+    if hasattr(gw, "_live_feeder"):
+        gw._live_feeder = None
+    if hasattr(gw, "_live_warming"):
+        gw._live_warming.clear()
+    if hasattr(gw, "_live_pending_bars"):
+        gw._live_pending_bars.clear()
     yield
     _live_engines.clear()
     _live_bar_counts.clear()
@@ -45,6 +72,12 @@ def _clean_live_state():
     _live_snapshots.clear()
     _live_bp_queues.clear()
     _live_bp_tasks.clear()
+    if hasattr(gw, "_live_feeder"):
+        gw._live_feeder = None
+    if hasattr(gw, "_live_warming"):
+        gw._live_warming.clear()
+    if hasattr(gw, "_live_pending_bars"):
+        gw._live_pending_bars.clear()
 
 
 def _make_bar(idx: int, price: float = 100.0) -> Bar:
@@ -239,3 +272,53 @@ class TestBackpressureIntegration:
                 ws.receive_json()
         assert len(_live_bp_queues) == 0
         assert len(_live_bp_tasks) == 0
+
+
+class TestLiveFeederWiring:
+    """Gateway live WS 必须把 DatabentoLiveFeeder 接到 _on_live_bar。"""
+
+    def test_ws_connect_starts_feeder_with_on_bar(self):
+        """连接 /ws/live 时应构造 feeder(on_bar=_on_live_bar) 并 start。"""
+        created: dict = {}
+
+        class FakeFeeder:
+            def __init__(self, symbols=None, dataset="GLBX.MDP3", on_bar=None):
+                created["on_bar"] = on_bar
+
+            def start(self):
+                created["started"] = True
+
+            def stop(self):
+                pass
+
+        with patch("newchan.config.DATABENTO_API_KEY", "fake-key"):
+            with patch("newchan.data_databento_live.DatabentoLiveFeeder", FakeFeeder):
+                with patch("newchan.gateway._load_bars", side_effect=ValueError("无缓存")):
+                    client = TestClient(app)
+                    with client.websocket_connect("/ws/live/ES") as ws:
+                        ws.receive_json()
+
+        assert created.get("on_bar") is _on_live_bar
+        assert created.get("started") is True
+
+
+class TestLiveWarmupRace:
+    """预热期间到达的 live bar 不得静默丢弃。"""
+
+    def test_bar_arriving_during_warmup_is_flushed(self):
+        """_load_bars 期间到达的 bar 应在预热结束后写入引擎。"""
+        warmup_bars = _make_bars(5)
+        live_bar = _make_bar(10, price=200.0)
+
+        def load_and_inject(*_args, **_kwargs):
+            _on_live_bar("BZ", live_bar)
+            return warmup_bars
+
+        with patch("newchan.gateway._ensure_live_feeder"):
+            with patch("newchan.gateway._load_bars", side_effect=load_and_inject):
+                client = TestClient(app)
+                with client.websocket_connect("/ws/live/BZ") as ws:
+                    ws.receive_json()
+
+        # 5 根预热 + 1 根 live（ts 在预热之后，不可去重掉）
+        assert _live_bar_counts["BZ"] == 6

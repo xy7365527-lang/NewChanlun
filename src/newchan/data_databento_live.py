@@ -28,6 +28,9 @@ from newchan.types import Bar
 
 logger = logging.getLogger(__name__)
 
+_RECONNECT_INITIAL_SEC = 1.0
+_RECONNECT_MAX_SEC = 60.0
+
 # 默认订阅的期货品种（CME Globex）
 DEFAULT_LIVE_SYMBOLS: list[str] = ["BZ", "CL", "GC", "ES", "NQ", "SI"]
 
@@ -145,34 +148,65 @@ class DatabentoLiveFeeder:
         logger.info("Databento Live 已停止")
 
     def _run(self) -> None:
-        """后台线程主循环。"""
+        """后台线程主循环。流结束后自动退避重连，直到 stop()。"""
+        backoff = _RECONNECT_INITIAL_SEC
         try:
-            self._client = db.Live(key=DATABENTO_API_KEY)
+            while self._running:
+                try:
+                    self._client = db.Live(key=DATABENTO_API_KEY)
+                    logger.info(
+                        "Live subscribe: dataset=%s symbols=%s",
+                        self._dataset, self._db_symbols,
+                    )
+                    self._client.subscribe(
+                        dataset=self._dataset,
+                        schema="ohlcv-1m",
+                        stype_in="continuous",
+                        symbols=self._db_symbols,
+                    )
+                    for record in self._client:
+                        if not self._running:
+                            return
+                        if isinstance(record, db.OHLCVMsg):
+                            self._handle_ohlcv(record)
+                        elif isinstance(record, db.ErrorMsg):
+                            self._last_error = record.err
+                            logger.error("Live error: %s", record.err)
+                    if not self._running:
+                        return
+                    logger.warning("Live stream ended; will reconnect")
+                except Exception as e:
+                    if not self._running:
+                        return
+                    self._last_error = str(e)
+                    logger.error("Live feeder 异常: %s", e)
+                finally:
+                    client = self._client
+                    self._client = None
+                    if client is not None:
+                        try:
+                            client.close()
+                        except Exception:
+                            pass
 
-            logger.info(
-                "Live subscribe: dataset=%s symbols=%s",
-                self._dataset, self._db_symbols,
-            )
-
-            self._client.subscribe(
-                dataset=self._dataset,
-                schema="ohlcv-1m",
-                stype_in="continuous",
-                symbols=self._db_symbols,
-            )
-
-            for record in self._client:
                 if not self._running:
-                    break
-                if isinstance(record, db.OHLCVMsg):
-                    self._handle_ohlcv(record)
-                elif isinstance(record, db.ErrorMsg):
-                    self._last_error = record.err
-                    logger.error("Live error: %s", record.err)
-
-        except Exception as e:
-            self._last_error = str(e)
-            logger.error("Live feeder 异常: %s", e)
+                    return
+                self._reconnect_count += 1
+                for sym in self._symbols:
+                    self._symbol_states[sym]["connection"] = "disconnected"
+                    self._symbol_states[sym]["reconnect_count"] = self._reconnect_count
+                logger.info(
+                    "Live feeder %.1fs 后重连 (第 %d 次)",
+                    backoff, self._reconnect_count,
+                )
+                remaining = backoff
+                while self._running and remaining > 0:
+                    time.sleep(min(0.1, remaining))
+                    remaining -= 0.1
+                backoff = min(backoff * 2.0, _RECONNECT_MAX_SEC)
+                if self._running:
+                    for sym in self._symbols:
+                        self._symbol_states[sym]["connection"] = "connected"
         finally:
             self._running = False
             for sym in self._symbols:
