@@ -12,6 +12,8 @@ Usage: devskim_sarif_gate.sh \
   --artifact-name NAME \
   --artifact-outcome OUTCOME \
   --retention-days DAYS \
+  [--expected-tool-name NAME] \
+  [--expected-tool-version VERSION] \
   [--summary PATH]
 EOF
 }
@@ -21,6 +23,8 @@ scanner_outcome=''
 artifact_name=''
 artifact_outcome=''
 retention_days=''
+expected_tool_name=''
+expected_tool_version=''
 summary_path=''
 
 while [[ $# -gt 0 ]]; do
@@ -50,6 +54,16 @@ while [[ $# -gt 0 ]]; do
       retention_days="$2"
       shift 2
       ;;
+    --expected-tool-name)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      expected_tool_name="$2"
+      shift 2
+      ;;
+    --expected-tool-version)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      expected_tool_version="$2"
+      shift 2
+      ;;
     --summary)
       [[ $# -ge 2 ]] || { usage >&2; exit 2; }
       summary_path="$2"
@@ -69,7 +83,7 @@ done
 
 if [[ -z "$sarif_path" || -z "$scanner_outcome" || -z "$artifact_name" || \
       -z "$artifact_outcome" || -z "$retention_days" ]]; then
-  printf 'All arguments except --summary are required.\n' >&2
+  printf 'One or more required arguments are missing.\n' >&2
   usage >&2
   exit 2
 fi
@@ -91,6 +105,8 @@ if [[ "$artifact_outcome" != 'success' ]]; then
 fi
 
 finding_count='unknown'
+tool_name='unknown'
+tool_version='unknown'
 if [[ ! -f "$sarif_path" ]]; then
   add_error "SARIF file is missing: \`$sarif_path\`."
 elif ! command -v jq >/dev/null 2>&1; then
@@ -113,6 +129,30 @@ else
       printf '%s\n' "$schema_error" >&2
     fi
   else
+    if ! tool_name="$(jq -er '[.runs[].tool.driver.name] | unique |
+      if (length == 1 and (.[0] | type == "string" and length > 0))
+      then .[0]
+      else error("expected exactly one non-empty tool.driver.name")
+      end' "$sarif_path" 2>&1)"; then
+      add_error 'SARIF DevSkim tool name is missing or inconsistent across runs.'
+      printf '%s\n' "$tool_name" >&2
+      tool_name='unknown'
+    elif [[ -n "$expected_tool_name" && "$tool_name" != "$expected_tool_name" ]]; then
+      add_error "SARIF DevSkim tool name was \`$tool_name\`, expected \`$expected_tool_name\`."
+    fi
+
+    if ! tool_version="$(jq -er '[.runs[].tool.driver.version] | unique |
+      if (length == 1 and (.[0] | type == "string" and length > 0))
+      then .[0]
+      else error("expected exactly one non-empty tool.driver.version")
+      end' "$sarif_path" 2>&1)"; then
+      add_error 'SARIF DevSkim tool version is missing or inconsistent across runs.'
+      printf '%s\n' "$tool_version" >&2
+      tool_version='unknown'
+    elif [[ -n "$expected_tool_version" && "$tool_version" != "$expected_tool_version" ]]; then
+      add_error "SARIF DevSkim tool version was \`$tool_version\`, expected \`$expected_tool_version\`."
+    fi
+
     if ! finding_count="$(jq -er '[.runs[] | (.results // [])[]] | length' "$sarif_path" 2>&1)"; then
       add_error 'SARIF findings could not be counted.'
       printf '%s\n' "$finding_count" >&2
@@ -126,10 +166,10 @@ else
 fi
 
 if [[ -z "$errors" ]]; then
-  gate_conclusion='PASS — scanner and artifact upload succeeded, SARIF parsed, and findings are zero.'
+  gate_conclusion='PASS — scanner and artifact upload succeeded, SARIF/tool contract matched, and findings are zero.'
   gate_status=0
 else
-  gate_conclusion='FAIL — scanner, evidence upload, SARIF validity, or zero-findings requirement failed.'
+  gate_conclusion='FAIL — scanner, evidence upload, SARIF/tool contract, or zero-findings requirement failed.'
   gate_status=1
 fi
 
@@ -137,6 +177,16 @@ summary='## DevSkim security gate'
 summary="$summary"$'\n\n'"- **GitHub Security tab:** unavailable under the current repository entitlement. The file below is an ordinary Actions artifact, **not** GitHub Code scanning."
 summary="$summary"$'\n'"- **Artifact:** \`$artifact_name\` (upload outcome: \`$artifact_outcome\`; retention: $retention_days days)"
 summary="$summary"$'\n'"- **Scanner outcome:** \`$scanner_outcome\`"
+if [[ -n "$expected_tool_name" ]]; then
+  summary="$summary"$'\n'"- **DevSkim tool name:** \`$tool_name\` (expected: \`$expected_tool_name\`)"
+else
+  summary="$summary"$'\n'"- **DevSkim tool name:** \`$tool_name\` (no expected name configured)"
+fi
+if [[ -n "$expected_tool_version" ]]; then
+  summary="$summary"$'\n'"- **DevSkim tool version:** \`$tool_version\` (expected: \`$expected_tool_version\`)"
+else
+  summary="$summary"$'\n'"- **DevSkim tool version:** \`$tool_version\` (no expected version configured)"
+fi
 summary="$summary"$'\n'"- **SARIF findings:** \`$finding_count\`"
 summary="$summary"$'\n'"- **Gate conclusion:** $gate_conclusion"
 

@@ -23,9 +23,35 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Build reproducible DevSkim scanner image
+        id: build_scanner
+        # #1111 fix: self-managed scanner runtime. microsoft/DevSkim-Action@<commit>
+        # is commit-pinned, but its own Dockerfile pins neither the base image
+        # (mutable `sdk:8.0`) nor the CLI (`dotnet tool install` without --version),
+        # so the action commit does not pin what actually scans. .github/devskim/
+        # pins both axes: base image digest 306301580f... and CLI 1.0.90 (SARIF
+        # driver 1.0.90+fb2d676ce4). The gate re-asserts that identity fail-loud.
+        shell: bash
+        run: |
+          docker build \
+            --tag devskim-scanner:1.0.90 \
+            --file .github/devskim/Dockerfile \
+            .github/devskim
+
       - name: Run DevSkim scanner
         id: devskim
-        uses: microsoft/DevSkim-Action@v1
+        # Every ignore-glob has path-specific provenance in the #1111 baseline report.
+        # The zero-findings gate remains unchanged; this removes only derived fixtures,
+        # ignored tmp material, and byte-identical/upstream-locked third-party skills.
+        shell: bash
+        run: |
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/workspace" \
+            --workdir /workspace \
+            devskim-scanner:1.0.90 \
+            /workspace \
+            /workspace/devskim-results.sarif \
+            "**/.git/**,**/bin/**,**/.chanlun/block-topology/concept_registry.json,**/.chanlun/block-topology/morse_landscape.json,**/.chanlun/block-topology/meta.json,**/.chanlun/concept_registry.json,**/topological-computation/experiment_long_run_2000.json,**/topological-computation/experiment_real_result.json,**/topological-computation/experiment_f_criterion_2000.json,**/topological-computation/signifier_net/.dialogue_ingest_state.json,**/skills-lock.json,**/chanlun/review-results/treasury-reverify-t1-armR-trades-golden-20260727.json,**/tmp/**,**/.claude/skills/brainstorming/**,**/.agents/skills/diagnosing-bugs/**,**/.claude/skills/diagnosing-bugs/**"
 
       - name: Upload DevSkim SARIF as an ordinary Actions artifact
         id: upload_devskim_artifact
@@ -47,4 +73,6 @@ jobs:
             --artifact-name devskim-sarif \
             --artifact-outcome '${{ steps.upload_devskim_artifact.outcome }}' \
             --retention-days 14 \
+            --expected-tool-name 'devskim' \
+            --expected-tool-version '1.0.90+fb2d676ce4' \
             --summary "$GITHUB_STEP_SUMMARY"
