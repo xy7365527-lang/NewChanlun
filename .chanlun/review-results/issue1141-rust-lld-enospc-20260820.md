@@ -53,7 +53,7 @@
 
 每档测试前都执行同一门槛：当前文件系统可用空间必须不少于 `2,147,483,648 B`（2 GiB），否则先打印 `free -b`、`df -B1 -T .`、`du -sx -B1 target`，再用 GitHub `::error` 退出。2 GiB 是安全门槛，不是假装测得的精确链接需求：它约为历史 14 GB runner 容量的 14%，并远高于已失败的 88 MB；旧 `1,933,299,350 B` 是 registry/git/target 合包，不能拿它当 target 节省量。真正峰值与移除 target cache 后的实际节省继续由 telemetry 记录。
 
-以下边界都保留资源快照：checkout/工具链初态、cache 后、两档 check 前后、fmt 前后、两档 test 前后。两档 test 期间每 10 秒后台采样一次 `free`、`df` 和 cargo/rustc/rust-lld 进程数；退出 trap 无论绿红都停止 sampler、打印最终 `du`。cargo 失败时原样返回 cargo 状态；cargo 成功时 sampler 意外退出/失败或最终 snapshot 失败都会发出 `::error` 并令步骤失败，脚本主动 SIGTERM sampler 的预期 143 状态不误报。
+以下边界都保留资源快照：checkout/工具链初态、cache 后、两档 check 前后、fmt 前后、两档 test 前后。两档 test 期间每 10 秒后台采样一次 `free`、`df` 和 cargo/rustc/rust-lld 进程数；退出 trap 无论绿红都停止 sampler、打印最终 `du`。cargo 失败时原样返回 cargo 状态；cargo 成功时 sampler 意外退出/失败或最终 snapshot 失败都会发出 `::error` 并令步骤失败，脚本主动 SIGTERM sampler 的预期 143 状态不误报。脚本级 16 格状态优先级矩阵、空间门槛边界、默认值与配置拒绝、argv 数组透传锁已在 `rust-check` 中接为 checkout 后的必跑步骤。
 
 workflow 新增 `workflow_dispatch`。它只提供合入后的可控复验入口，不改变 push 和 pull_request 原有触发。
 

@@ -143,6 +143,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Test cargo telemetry wrapper (#1141)
+        run: ../.github/scripts/test-run-cargo-with-telemetry.sh
+
       - name: Record runner, toolchain, linker, and initial resources (#1141)
         run: |
           set -x
