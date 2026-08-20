@@ -32,4 +32,5 @@ MIT（Copyright (c) 2026 Lauren Tan），见同目录 `LICENSE.MIT`。
 > 使用说明：复制本模板到 `.agents/skills/pstack-<原名>/`，删掉本行与所有 `<…>` 占位；
 > 把 `LICENSE.MIT` 复制进同目录；在 `docs/agents/skill-local-customizations.md` 的
 > pstack-lite 索引把状态改为「已实现」并填改写摘要；跑
-> `node scripts/pstack-lite/check-skills.mjs` 确认零 warning、无 shadow。
+> `node scripts/pstack-lite/check-skills.mjs` 确认 `unexpectedDiagnostics=0`、无 shadow
+> （宿主既定 symlink 投影计入 `expectedProjectionCollisions`，不判失败）。

@@ -10,27 +10,38 @@
 - 触发夹具实跑模型：`deepseek` / `deepseek-v4-pro`（沙盒内可用；kimi-coding 在本沙盒
   报 402 membership，故不采用）
 
-## ① 发现 + 零 warning 检查
+## ① 发现 + 诊断分类检查
 
 ```bash
 node scripts/pstack-lite/check-skills.mjs
 ```
 
-结果：
+结果（沙盒镜像，Prime 0.7.2）：
 
 ```text
 cwd: /home/agent/workspace
 skills: 72 (project 56, user 16)
-diagnostics: 0
+rawDiagnostics: 0
+expectedProjectionCollisions: 0
+unexpectedDiagnostics: 0
 unslop: absent
 ```
 
-- 零 warning、零 collision，exit 0。
+- 沙盒 raw diagnostics=0、expected projection=0、unexpected=0，exit 0。
 - `unslop: absent`：全局 `unslop` 安装在主机 `~/.agents/skills/unslop/`（#1127），本沙盒
   镜像内不可见。主机上跑 `node scripts/pstack-lite/check-skills.mjs --expect-unslop`
   会要求该项存在。
 
-## ② shadow / warning 检测自测
+**宿主既定 symlink 投影（重要口径）**：真实宿主的 `~/.agents/skills/<name>` 是指向本仓
+项目级 `.agents/skills/<name>` 的 symlink 投影（既定布局），`unslop` 本身是唯一用户级
+副本、无项目副本。宿主的 Prime（0.7.3）会把每个投影登记为一条 collision（沙盒 0.7.2 会
+静默去重、不产生 collision，故「沙盒 raw diagnostics=0」不能代表宿主）。`check-skills.mjs`
+把这些「用户级 symlink 投影到项目级同名 Skill」分类为 `expectedProjectionCollisions`
+（打印/JSON 留痕，但不判失败），**合入门是 `unexpectedDiagnostics=0`**——不是「宿主 raw
+零 warning」。所有非投影诊断（真实 shadow / warning / error）仍进入 `unexpectedDiagnostics`
+并判失败；`unslop` 与 `pstack-*` 的任何碰撞不享受投影例外，一律失败。
+
+## ② shadow / warning 检测 + 投影分类自测
 
 ```bash
 node scripts/pstack-lite/check-skills.mjs --self-test
@@ -39,15 +50,24 @@ node scripts/pstack-lite/check-skills.mjs --self-test
 结果（exit 0）：
 
 ```text
-self-test[合法 Skill 零诊断加载]: PASS
-self-test[名字与目录不符产生 warning]: PASS
-self-test[空描述产生 warning 且不加载]: PASS
-self-test[同名 shadow 产生 collision（项目级胜出）]: PASS
-self-test[shadow 后仅保留项目级副本]: PASS
+self-test[shadow]
+  PASS — 合法 Skill 零诊断加载
+  PASS — 名字与目录不符产生 warning
+  PASS — 空描述产生 warning 且不加载
+  PASS — 同名 shadow 产生 collision（项目级胜出）
+  PASS — shadow 后仅保留项目级副本
+  PASS — 真实 shadow + warning 全部判 unexpected（不享受投影例外）
+self-test[projection]
+  PASS — 用户级 symlink 投影 -> expected（不计为新错误）
+  PASS — 真实非投影 shadow -> unexpected
+  PASS — 投影形态的项目级 unslop 仍 -> unexpected
+  PASS — 投影形态的 pstack-* collision 仍 -> unexpected
 ```
 
 覆盖：项目级 Skill 正常加载；名字/描述违规产生 warning；同名 shadow 产生 collision 且
-项目级胜出（遮蔽用户级全局副本）。
+项目级胜出（遮蔽用户级全局副本）；真实 shadow/warning 一律判 unexpected；用户级 symlink
+投影判 expected；`unslop` / `pstack-*` 的投影不享受例外、仍判 unexpected。投影自测与真实
+非投影 shadow 自测分开（两个独立临时夹具）。
 
 ## ③ 触发夹具分析器自测
 
@@ -93,4 +113,5 @@ node scripts/pstack-lite/run-trigger-fixtures.mjs --item probe-fixture
 
 - 5 个业务 Skill 与 `unslop` 在 `fixtures.json` 里为 `draft`（业务 Skill 未落地），只过
   schema 校验（每项 ≥3 正例 + ≥3 反例），不实跑；后续票改 `active` 后按同一命令实跑。
-- `--expect-unslop` 在本沙盒会失败（全局 unslop 不在镜像内），属预期；主机环境应通过。
+- `--expect-unslop` 在本沙盒会失败（全局 unslop 不在镜像内），属预期；主机环境应通过
+  （unslop 为唯一用户级副本、无项目副本，`unexpectedDiagnostics=0`）。

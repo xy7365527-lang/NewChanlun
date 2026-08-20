@@ -41,8 +41,8 @@
 ## pstack-lite 适配登记（#1130）
 
 pstack-lite 是对上游 `cursor/plugins`（`pstack/` 目录）的 Prime 适配族，共用一个固定上游
-SHA 与「不自动跟随上游 `main`」的同步策略。机器可复现的发现/零 warning 检查见
-`scripts/pstack-lite/check-skills.mjs`；触发夹具 runner 见
+SHA 与「不自动跟随上游 `main`」的同步策略。机器可复现的发现/诊断分类检查（合入门
+`unexpectedDiagnostics=0`）见 `scripts/pstack-lite/check-skills.mjs`；触发夹具 runner 见
 `scripts/pstack-lite/run-trigger-fixtures.mjs`。
 
 ### 登记口径
