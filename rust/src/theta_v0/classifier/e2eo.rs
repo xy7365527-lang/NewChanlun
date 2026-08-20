@@ -47,12 +47,12 @@
 //! 路径 DAG 退化为全量重建（bit-exact 退化，同 TowerCache cascade），append-only 簿不截断——
 //! 链侧按 `ChainNodeStatus::Absent` 语义继续照实评估（`chain_cert` 声明支持的驱动语义）。
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use super::bsp_bridge::{BspBridgeBook, BspStructuralKey};
 use super::cand_event::{CandidateEvent, CandidateKey, CandidateState, CandidateStreams};
 use super::chain_cert::{
-    AliveIndex, ChainCertificateBook, ChainStatus, PathDag, TowerChainCertificate,
+    AliveIndex, ChainCertificateBook, ChainKey, ChainStatus, PathDag, TowerChainCertificate,
 };
 use super::consume_at::{
     consume_at, BspLink, ConsumeError, LinkKey, ManagedBsp, ManagedBspCreation, ManagedBspPolicy,
@@ -76,6 +76,8 @@ pub struct E2eOAssembly {
     /// consume 的跨链 prior（受管 BSP 只创建一次、多条链接组内写入，#980 残余规则）。
     prior_bsp: HashMap<BspStructuralKey, ManagedBsp>,
     prior_links: HashMap<LinkKey, BspLink>,
+    /// 已消费的链身份（`consume` 幂等的第一道闸：同一链不二次消费，第二次调用零增量）。
+    consumed_chains: BTreeSet<ChainKey>,
     /// 每级已折事件数游标（append-only 流前缀稳定 ⟹ 只折新尾部）。
     seen_len: Vec<usize>,
     last_as_of: Option<usize>,
@@ -140,12 +142,18 @@ impl E2eOAssembly {
         chain_delta
     }
 
-    /// 消费：对簿内全部 `Closed` 链（按 `closed_at` 升序、同 `as_of` 按 key 升序去随机化）调纯
-    /// [`consume_at`]，跨链 prior 累积（受管 BSP 只创建一次、组内多链接）。
+    /// 消费：对簿内**尚未消费**的 `Closed` 链（按 `closed_at` 升序、同 `as_of` 按 key 升序去随机化）
+    /// 调纯 [`consume_at`]，跨链 prior 累积（受管 BSP 只创建一次、组内多链接）。
     ///
     /// 返回本次消费产出的（新增受管 BSP 创建，新增 BspLink）。任一 [`ConsumeError`] 直接上抛
-    /// （fail-closed；同 `as_of` 升序 + prior 单调保证 `LateAuthorization`/`InconsistentState`
-    /// 恒不可达，实际只可能由非法 `policy` 触发 `InvalidPolicy`）。
+    /// （fail-closed）。
+    ///
+    /// ## 幂等（二次 consume 零增量）
+    ///
+    /// 已消费链身份记入 `consumed_chains`，下次调用只扫未消费的 Closed 链 ⟹ 二次 `consume`
+    /// 恒零增量。若不记链身份而每次全扫 `heads()`，二次消费会拿「已含后闭合链产出的 prior」去
+    /// 重评早闭合链，触发 [`ConsumeError::InconsistentState`]（prior `created_at` 超前该链
+    /// `closed_at`）——BTC 300k 窗 38 条 Closed 链 `closed_at` 异位时实测命中（#1083）。
     pub fn consume(
         &mut self,
         policy: &ManagedBspPolicy,
@@ -155,7 +163,9 @@ impl E2eOAssembly {
             .heads()
             .into_iter()
             .filter(|certificate| {
-                certificate.status == ChainStatus::Closed && certificate.closed_at.is_some()
+                certificate.status == ChainStatus::Closed
+                    && certificate.closed_at.is_some()
+                    && !self.consumed_chains.contains(&certificate.key)
             })
             .collect();
         closed.sort_by_key(|certificate| (certificate.closed_at, certificate.key.clone()));
@@ -183,6 +193,7 @@ impl E2eOAssembly {
             }
             creations_total.extend(creations);
             links_total.extend(links);
+            self.consumed_chains.insert(certificate.key.clone());
         }
         Ok((creations_total, links_total))
     }
@@ -462,6 +473,60 @@ mod tests {
             .expect("prior 未超前，应产出");
         assert!(creations_again.is_empty(), "prior 已有 ⟹ 零创建");
         assert!(links_again.is_empty(), "prior 已有 ⟹ 零链接");
+    }
+
+    /// ★幂等（异构 closed_at）：两条 `Closed` 链 `closed_at` 不同（50 vs 100）时，二次 `consume`
+    /// 仍零增量且不触发 `InconsistentState`——旧实装每次全扫 `heads()`，二次 consume 拿「已含后
+    /// 闭合链产出」的 prior 去重评早闭合链，`created_at`（100）超前该链 `closed_at`（50）⟹
+    /// `InconsistentState`（#1083 BTC 300k 窗 38 条 Closed 链实测命中）。
+    #[test]
+    fn consume_idempotent_with_heterogeneous_closed_at() {
+        let mut assembly = E2eOAssembly::new();
+
+        // 单一事件簿两步推进（append-only 前缀稳定）：step1 收口一条链 Closed@50。
+        let mut book = CandidateEventBook::default();
+        book.advance(&[confirmed(1, 0, (0, 50)), obs(0, 20, (20, 40))], 50);
+        let streams50 = book.streams();
+        assembly.advance(&Classification::default(), &streams50, 50);
+
+        // step2：追加 L2 → L1b → L0b，收口第二条链 Closed@100；L1b 挂一个 buy1 点 ⟹ 该链产
+        // 一条受管 BSP（created_at=100）。
+        book.advance(
+            &[
+                confirmed(1, 0, (0, 50)),
+                obs(0, 20, (20, 40)),
+                confirmed(2, 0, (0, 100)),
+                obs(1, 60, (60, 90)),
+                obs(0, 70, (70, 80)),
+            ],
+            100,
+        );
+        let streams100 = book.streams();
+        let classification = Classification {
+            levels: vec![level_with(Vec::new()), level_with(vec![buy1_point(80, 20)])],
+        };
+        assembly.advance(&classification, &streams100, 100);
+
+        let closed_at_set: std::collections::BTreeSet<_> = assembly
+            .chain_book()
+            .heads()
+            .iter()
+            .filter(|certificate| certificate.status == ChainStatus::Closed)
+            .filter_map(|certificate| certificate.closed_at)
+            .collect();
+        assert!(
+            closed_at_set.len() >= 2,
+            "非真空前提：至少两个不同 closed_at（{closed_at_set:?}）"
+        );
+
+        let (_, _) = assembly
+            .consume(&single_rule_policy())
+            .expect("首次 consume 应成功");
+        let (again_creations, again_links) = assembly
+            .consume(&single_rule_policy())
+            .expect("二次 consume 不得触发 InconsistentState");
+        assert!(again_creations.is_empty(), "二次 consume 零创建");
+        assert!(again_links.is_empty(), "二次 consume 零链接");
     }
 
     /// ★投影：event_to_bsp 与桥接簿的 `BridgeKey{event, bsp}` last-wins 折叠一致（#982 A：调用方
