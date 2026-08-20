@@ -3,7 +3,7 @@
 > 名分：工作草稿，绑定 [#1141](https://github.com/xy7365527-lang/NewChanlun/issues/1141)。
 > 日期：2026-08-20。
 > 基线：`88d75076419670b210f16453855ea805dfbf6566`。
-> 边界：只改 `.github/workflows/ci.yml`；不改 Rust 业务代码、测试、linker 或 runner/toolchain 选择。
+> 实现边界：CI 行为只改 `.github/workflows/ci.yml`，本稿仅同步证据边界；不改 Rust 业务代码、测试、linker 或 runner/toolchain 选择。
 
 ## 结论
 
@@ -11,18 +11,18 @@
 
 - 直接根因是 `rust-check` job 磁盘耗尽；
 - `rust-lld` signal 7 是低磁盘条件下的受害表现，现有证据不支持把它定性为 LLVM regression；
-- 三轮都恢复同一份 1,933,299,350 B 的 `rust/target` 压缩缓存。它会挤占 14 GB 级 runner 的磁盘，但没有证据证明缓存内容本身损坏；
+- 三轮都恢复同一份 1,933,299,350 B 的旧 Cargo cache archive；该 archive 是 registry、git 与 target 的合包，不能把总大小归到 `rust/target`，也没有证据证明其中内容损坏；
 - 固定某个 Rust binary 的解释不成立，因为失败目标跨轮漂移。
 
-最终处置只降低磁盘占用和并行峰值：`rust-check` 不再缓存 `rust/target`，设 `CARGO_INCREMENTAL=0`，两档原有测试各加 `--jobs 1`。仍使用 `ubuntu-latest`、镜像自带的 stable Rust 和原 linker。
+最终处置只降低磁盘占用和并行峰值：`rust-check` 不再缓存 `rust/target`，设 `CARGO_INCREMENTAL=0`，两档原有测试各加 `--jobs 1`。移除 target 后的实际节省量须由候选 workflow 的 cache 后与测试期 telemetry 实测，不能从旧合包大小推出。仍使用 `ubuntu-latest`、镜像自带的 stable Rust 和原 linker。
 
 ## 三轮一手证据
 
 | 轮次 | SHA / job | 恢复的 rust-check cache | 失败位置与受害目标 | 磁盘证据 |
 |---|---|---|---|---|
-| 1 | [run 32313048647 attempt 1 / job 96259762175](https://github.com/xy7365527-lang/NewChanlun/actions/runs/32313048647/job/96259762175)，`31197f7e60212a3e0e0891ebe9a56363e0bd09bb` | exact key `Linux-cargo-42da…582`；`1,933,299,350 B` | `cargo test --all-targets`；`p119_l5_decompose` 与 `p76_case2_replay` 链接时 signal 7 | 当轮未记录 `df`；不能单靠本轮声称 ENOSPC |
-| 2 | [run 32313048647 attempt 2 / job 96261345517](https://github.com/xy7365527-lang/NewChanlun/actions/runs/32313048647/job/96261345517)，同 SHA、failed-jobs rerun | 同一 exact key、同一 `1,933,299,350 B` archive | 同一命令；受害目标漂为 `p123_fast_replay` 与 `p122_replay_profile` | GitHub runner 低盘诊断在失败后报只余 `88 MB` |
-| 3 | [run 32315548218 / job 96266878066](https://github.com/xy7365527-lang/NewChanlun/actions/runs/32315548218/job/96266878066)，`88d75076419670b210f16453855ea805dfbf6566` | 仍是同一 exact key、同一 `1,933,299,350 B` archive | 同一命令；`p104_trend_div_funnel` 链接 signal 7，另一并发目标 `p117_h4_attribution` 随即失败 | signal 7 后约 18 ms 明文：`No space left on device (os error 28)` |
+| 1 | [run 32313048647 attempt 1 / job 96259762175](https://github.com/xy7365527-lang/NewChanlun/actions/runs/32313048647/job/96259762175)，`31197f7e60212a3e0e0891ebe9a56363e0bd09bb` | exact key `Linux-cargo-42da…582`；registry/git/target 合包 `1,933,299,350 B` | `cargo test --all-targets`；`p119_l5_decompose` 与 `p76_case2_replay` 链接时 signal 7 | 当轮未记录 `df`；不能单靠本轮声称 ENOSPC |
+| 2 | [run 32313048647 attempt 2 / job 96261345517](https://github.com/xy7365527-lang/NewChanlun/actions/runs/32313048647/job/96261345517)，同 SHA、failed-jobs rerun | 同一 exact key、同一 registry/git/target 合包 `1,933,299,350 B` | 同一命令；受害目标漂为 `p123_fast_replay` 与 `p122_replay_profile` | GitHub runner 低盘诊断在失败后报只余 `88 MB` |
+| 3 | [run 32315548218 / job 96266878066](https://github.com/xy7365527-lang/NewChanlun/actions/runs/32315548218/job/96266878066)，`88d75076419670b210f16453855ea805dfbf6566` | 仍是同一 exact key、同一 registry/git/target 合包 `1,933,299,350 B` | 同一命令；`p104_trend_div_funnel` 链接 signal 7，另一并发目标 `p117_h4_attribution` 随即失败 | signal 7 后约 18 ms 明文：`No space left on device (os error 28)` |
 
 第三轮日志的相邻顺序如下。它把前两轮的“低盘强嫌疑”闭合成直接证据：
 
@@ -49,9 +49,9 @@
 
 ### Fail-loud 与取证
 
-每档测试前都执行同一门槛：当前文件系统可用空间必须不少于 `2,147,483,648 B`（2 GiB），否则先打印 `free -b`、`df -B1 -T .`、`du -sx -B1 target`，再用 GitHub `::error` 退出。2 GiB 是安全门槛，不是假装测得的精确链接需求：它约为历史 14 GB runner 容量的 14%，大于旧 target 压缩 cache 的 1.80 GiB，并远高于已失败的 88 MB。真正峰值继续由 sampler 记录。
+每档测试前都执行同一门槛：当前文件系统可用空间必须不少于 `2,147,483,648 B`（2 GiB），否则先打印 `free -b`、`df -B1 -T .`、`du -sx -B1 target`，再用 GitHub `::error` 退出。2 GiB 是安全门槛，不是假装测得的精确链接需求：它约为历史 14 GB runner 容量的 14%，并远高于已失败的 88 MB；旧 `1,933,299,350 B` 是 registry/git/target 合包，不能拿它当 target 节省量。真正峰值与移除 target cache 后的实际节省继续由 telemetry 记录。
 
-以下边界都保留资源快照：checkout/工具链初态、cache 后、两档 check 前后、fmt 前后、两档 test 前后。两档 test 期间每 10 秒后台采样一次 `free`、`df` 和 cargo/rustc/rust-lld 进程数；退出 trap 无论绿红都停止 sampler、打印最终 `du`，并保留 cargo 的原退出码。
+以下边界都保留资源快照：checkout/工具链初态、cache 后、两档 check 前后、fmt 前后、两档 test 前后。两档 test 期间每 10 秒后台采样一次 `free`、`df` 和 cargo/rustc/rust-lld 进程数；退出 trap 无论绿红都停止 sampler、打印最终 `du`。cargo 失败时原样返回 cargo 状态；cargo 成功时 sampler 意外退出/失败或最终 snapshot 失败都会发出 `::error` 并令步骤失败，脚本主动 SIGTERM sampler 的预期 143 状态不误报。
 
 workflow 新增 `workflow_dispatch`。它只提供合入后的可控复验入口，不改变 push 和 pull_request 原有触发。
 
@@ -63,9 +63,11 @@ workflow 新增 `workflow_dispatch`。它只提供合入后的可控复验入口
 - runner image、实际 rustc/cargo/linker 版本；
 - 两个 preflight 的 `available_bytes`；
 - sampler 观测到的最低余盘；
+- `rust-check` job 总耗时与两档 cargo test 各自耗时；
 - 两档 cargo test 是否完整执行，是否出现 ENOSPC、signal 7 或 LLVM crash。
 
 两次都通过才满足 #1141 的稳定性验收。任一轮触发 2 GiB 门槛，按预期 fail-loud，不能手工 rerun 当修复；应带着 `df/free/du` 证据另开容量处置。
+在这两轮数据落盘前不预设任何分钟级上限或其他 timeout；记录实际 job 与两档 test 耗时后再裁。
 
 退场分两层：
 

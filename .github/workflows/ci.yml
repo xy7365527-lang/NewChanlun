@@ -162,7 +162,7 @@ jobs:
           rust_host="$(rustc -vV | awk '/^host:/ {print $2}')"
           rust_lld="$rust_sysroot/lib/rustlib/$rust_host/bin/rust-lld"
           if test -x "$rust_lld"; then
-            "$rust_lld" --version
+            "$rust_lld" -flavor gnu --version
           else
             echo "bundled_rust_lld=not-found path=$rust_lld"
           fi
@@ -255,27 +255,29 @@ jobs:
       # `rust/tests/nest_isolation_guard.rs` 的「违规即测试红」此前只编译不运行，
       # 锁形同虚设（成因定案见 #799 净发现①、#806）。
       #
-      # ⚠ 本步落地时的诚实状态（2026-07-30，090 照实）：当前主线上
-      #   `theta_v0_classifier_parity` 有 **2 条断言为红**
-      #   （`type1_buy_broke_and_diverge_matches_lean_istype1` /
-      #    `signal_extraction_emits_no_second_class_only`）——Lean 与 Rust 对
-      #   「一类买点」判得不一样。**这是教义分歧不是实现 bug**，已立 #811，
-      #   在 map #787 第二批买卖点概念票裁定之前 **不许修绿、不许加 #[ignore]、
-      #   不许把它踢出本命令**。⟹ 本步接入后 CI 会红，且是**有意为之的红**：
-      #   从「绿但测的是旧树」变成「红但是真的」。
-      #
-      # 耗时（本地实测，另一棵树上量得，量级参考）：default 干净重建 ~40s、
-      # 增量 ~7s；backtest_bin 增量 ~59s（含 nautilus 依赖）。两步合计 <2min，
-      # 与既有两步 cargo check 同预算 ⟹ 不做慢测试分层、不做仅 main 触发。
+      # #993 已把历史上的两条 parity 失败修绿；当前本步预期全绿，任何失败都是真回归。
+      # 本候选尚未完成两次远端 workflow_dispatch 验证，也没有当前 runner 上的可靠耗时；
+      # 须逐轮记录 rust-check job 与两档 cargo test 的实际耗时，再据此裁 timeout。
       # 既有 #[ignore]（theta_v0_fixture_drift、profile_*、oddeven_*_diagnosis 等
       # 需要 BTC 全量数据或 --release 的用例）维持现状，不在 #810 范围内摘除。
       - name: cargo test — default targets
         run: |
           set -x
           boundary_snapshot() {
-            free -b
-            df -B1 -T .
-            du -sx -B1 target 2>/dev/null || true
+            local snapshot_status=0 command_status
+            free -b || {
+              command_status=$?
+              if (( snapshot_status == 0 )); then snapshot_status=$command_status; fi
+            }
+            df -B1 -T . || {
+              command_status=$?
+              if (( snapshot_status == 0 )); then snapshot_status=$command_status; fi
+            }
+            du -sx -B1 target || {
+              command_status=$?
+              if (( snapshot_status == 0 )); then snapshot_status=$command_status; fi
+            }
+            return "$snapshot_status"
           }
           sample_resources() {
             while true; do
@@ -295,12 +297,35 @@ jobs:
           sample_resources &
           sampler_pid=$!
           finish() {
-            status=$?
+            cargo_status=$?
             trap - EXIT
-            kill "$sampler_pid" 2>/dev/null || true
-            wait "$sampler_pid" 2>/dev/null || true
-            boundary_snapshot
-            exit "$status"
+            sampler_status=0
+            if kill -0 "$sampler_pid" 2>/dev/null; then
+              stop_status=0
+              kill "$sampler_pid" 2>/dev/null || stop_status=$?
+              wait_status=0
+              wait "$sampler_pid" 2>/dev/null || wait_status=$?
+              if (( stop_status != 0 )); then
+                echo "::error title=Failed to stop resource sampler::status=$stop_status"
+                sampler_status=$stop_status
+              elif (( wait_status != 0 && wait_status != 143 )); then
+                echo "::error title=Resource sampler failed while stopping::status=$wait_status"
+                sampler_status=$wait_status
+              fi
+            else
+              wait_status=0
+              wait "$sampler_pid" 2>/dev/null || wait_status=$?
+              echo "::error title=Resource sampler exited unexpectedly::status=$wait_status"
+              if (( wait_status == 0 )); then sampler_status=1; else sampler_status=$wait_status; fi
+            fi
+            snapshot_status=0
+            boundary_snapshot || snapshot_status=$?
+            if (( snapshot_status != 0 )); then
+              echo "::error title=Final resource snapshot failed::status=$snapshot_status"
+            fi
+            if (( cargo_status != 0 )); then exit "$cargo_status"; fi
+            if (( sampler_status != 0 )); then exit "$sampler_status"; fi
+            exit "$snapshot_status"
           }
           trap finish EXIT
           cargo test --all-targets --jobs 1
@@ -330,9 +355,20 @@ jobs:
         run: |
           set -x
           boundary_snapshot() {
-            free -b
-            df -B1 -T .
-            du -sx -B1 target 2>/dev/null || true
+            local snapshot_status=0 command_status
+            free -b || {
+              command_status=$?
+              if (( snapshot_status == 0 )); then snapshot_status=$command_status; fi
+            }
+            df -B1 -T . || {
+              command_status=$?
+              if (( snapshot_status == 0 )); then snapshot_status=$command_status; fi
+            }
+            du -sx -B1 target || {
+              command_status=$?
+              if (( snapshot_status == 0 )); then snapshot_status=$command_status; fi
+            }
+            return "$snapshot_status"
           }
           sample_resources() {
             while true; do
@@ -352,12 +388,35 @@ jobs:
           sample_resources &
           sampler_pid=$!
           finish() {
-            status=$?
+            cargo_status=$?
             trap - EXIT
-            kill "$sampler_pid" 2>/dev/null || true
-            wait "$sampler_pid" 2>/dev/null || true
-            boundary_snapshot
-            exit "$status"
+            sampler_status=0
+            if kill -0 "$sampler_pid" 2>/dev/null; then
+              stop_status=0
+              kill "$sampler_pid" 2>/dev/null || stop_status=$?
+              wait_status=0
+              wait "$sampler_pid" 2>/dev/null || wait_status=$?
+              if (( stop_status != 0 )); then
+                echo "::error title=Failed to stop resource sampler::status=$stop_status"
+                sampler_status=$stop_status
+              elif (( wait_status != 0 && wait_status != 143 )); then
+                echo "::error title=Resource sampler failed while stopping::status=$wait_status"
+                sampler_status=$wait_status
+              fi
+            else
+              wait_status=0
+              wait "$sampler_pid" 2>/dev/null || wait_status=$?
+              echo "::error title=Resource sampler exited unexpectedly::status=$wait_status"
+              if (( wait_status == 0 )); then sampler_status=1; else sampler_status=$wait_status; fi
+            fi
+            snapshot_status=0
+            boundary_snapshot || snapshot_status=$?
+            if (( snapshot_status != 0 )); then
+              echo "::error title=Final resource snapshot failed::status=$snapshot_status"
+            fi
+            if (( cargo_status != 0 )); then exit "$cargo_status"; fi
+            if (( sampler_status != 0 )); then exit "$sampler_status"; fi
+            exit "$snapshot_status"
           }
           trap finish EXIT
           cargo test --lib --features backtest_bin --jobs 1
