@@ -72,7 +72,7 @@ pstack-lite 每项登记必须记录：
 |---|---|---|---|---|
 | `pstack-how` | `how` | `pstack/skills/how/SKILL.md`（+`references/`×4） | 已实现（#1131） | 删除 Cursor model slug / 同步 `Task` 返回 / `readonly`；根代理 `rlm` 扇出 + `agent_message`/文件回流，admission handle 不算结果；explainer 收敛到根代理；简单问题 inline |
 | `pstack-arena` | `arena` | `pstack/skills/arena/SKILL.md` | 已实现（#1132） | 调用契约 `both`（删 `disable-model-invocation`）；Cursor Task 后台改 RLM 异步 admission + 消息/文件回流；模型池与 Cursor slug 改 `rlm.find_models(...)`；只读候选走 RLM、写码候选走 Sandcastle 隔离 + 人工合入闸；按默认递归深度 1 做扁平扇出（Pick/Graft/Verify 归根代理）；其余流程原样保留 |
-| `pstack-blast-radius` | `blast-radius` | `pstack/skills/blast-radius/SKILL.md` | 待实现 | 待后续票填写 |
+| `pstack-blast-radius` | `blast-radius` | `pstack/skills/blast-radius/SKILL.md` | 已实现（#1133） | 去 `disable-model-invocation` 改 `both` 契约；`why`/`arena` 引用改 `git`/`gh` 与 `pstack-arena` 转交口径；结构查询接 Serena+codebase-memory，补代码搜索；新增「潜在破坏面」与「实际验证证据」两节分离，grep 零命中不冒充行为证明 |
 | `pstack-create-verification` | `create-verification-skill` | `pstack/skills/create-verification-skill/SKILL.md`（+`references/feature-map-example/`×3） | 已实现（#1134） | 命名 pstack-*；移除 `disable-model-invocation` 用 `both`；生成路径 `.agents/skills/verify-<app>/`；接 Prime `skill-creator`；新增授权闸与隔离；维护命令改写。详见 SKILL.md「本地 Prime 改写」节 |
 | `pstack-technical-writing` | `technical-writing` | `pstack/skills/technical-writing/SKILL.md` | 已实现（#1135） | 见 `.agents/skills/pstack-technical-writing/SKILL.md`「本地 Prime 改写」；`both` 契约（移除 disable-model-invocation）；正文四层原样保留 |
 | `unslop`（用户级全局 `~/.agents/skills/unslop/`） | `unslop` | `pstack/skills/unslop/SKILL.md` | 已安装（#1127） | 上游逐字一致；SKILL.md SHA-256 `181883e539caec8258ec9129e3ba5f133409144a2cbf2aa361158ab94cfc3441` |
